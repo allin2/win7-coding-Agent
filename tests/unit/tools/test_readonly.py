@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from win7_agent.tools import ToolRequest, ToolRuntime, build_readonly_registry
 from win7_agent.workspace import WorkspaceContext
@@ -43,3 +44,14 @@ class ReadonlyToolTests(unittest.TestCase):
     def test_unregistered_tool_is_structured_error(self):
         result = self.request("run_command", {})
         self.assertEqual("TOOL_NOT_FOUND", result.error["code"])
+
+    def test_git_is_explicitly_degraded_when_not_installed(self):
+        with mock.patch("win7_agent.tools.readonly.shutil.which", return_value=None):
+            result = self.request("git_status", {})
+        self.assertEqual("GIT_UNAVAILABLE", result.error["code"])
+
+    def test_git_timeout_is_structured(self):
+        with mock.patch("win7_agent.tools.readonly.shutil.which", return_value="git"):
+            with mock.patch("win7_agent.tools.readonly.run_git", return_value=(-9, b"", b"", False, True)):
+                result = self.request("git_status", {})
+        self.assertEqual("TOOL_TIMEOUT", result.error["code"])

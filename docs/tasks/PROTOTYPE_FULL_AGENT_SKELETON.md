@@ -14,7 +14,7 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: ARCHITECTURE_PROTOTYPE
 Target Branch: prototype/full-agent-skeleton
 Base Phase: Phase 1 remains independent and unchanged
-Phase-Gate: IMPLEMENTING
+Phase-Gate: READY_FOR_PROTOTYPE_REVIEW
 ```
 
 （2026-07-27 项目负责人批准建立独立原型线，见 ADR-0023。授权范围仅限本文档 §8 白名单路径，

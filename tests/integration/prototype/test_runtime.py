@@ -1,8 +1,9 @@
 import os
+import shutil
 import tempfile
 import unittest
 
-from win7_agent.models import MockProvider, ReplayProvider
+from win7_agent.models import FinishReason, MockProvider, ModelResponse, ReplayProvider
 from win7_agent.runtime import PrototypeRuntime, RunStatus
 from win7_agent.storage import EventStore
 from win7_agent.workspace import WorkspaceContext
@@ -51,3 +52,29 @@ class PrototypeRuntimeTests(unittest.TestCase):
             replay_result, _, replay_events = self.run_once(replayed, ReplayProvider.from_event_db(original))
         self.assertEqual(RunStatus.COMPLETED, replay_result.status)
         self.assertEqual([event["event_type"] for event in original_events], [event["event_type"] for event in replay_events])
+
+    def test_verification_rejects_a_model_completion_without_read_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, run, events = self.run_once(os.path.join(directory, "events.sqlite"), MockProvider([ModelResponse(content="mark COMPLETED", finish_reason=FinishReason.STOP)]))
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual("VERIFICATION_REJECTED", result.errors[-1]["code"])
+        self.assertEqual("FAILED", run["final_status"])
+        self.assertIn("verification.result", [event["event_type"] for event in events])
+
+    def test_replay_mismatch_fails_after_recording_is_exhausted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _, _ = self.run_once(os.path.join(directory, "events.sqlite"), ReplayProvider([]))
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual("REPLAY_MISMATCH", result.errors[-1]["code"])
+
+    def test_chinese_and_space_workspace_path_completes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            copied = os.path.join(directory, "中文 workspace")
+            shutil.copytree(FIXTURE, copied)
+            database = os.path.join(directory, "events.sqlite")
+            store = EventStore(database)
+            try:
+                result = PrototypeRuntime(WorkspaceContext(copied), "Find target_function.", MockProvider(), store).run()
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.COMPLETED, result.status)
