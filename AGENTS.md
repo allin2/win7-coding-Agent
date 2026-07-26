@@ -20,8 +20,9 @@
 
 - 当前处于 **阶段 0（工程基线）+ 阶段 1（Capability Probe）**。
 - 阶段 1 任务文档：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`（允许路径见该文档 §0.2）。
-- 当前阶段**不实现 Agent Loop、不接入大模型、不修改用户代码**。
+- 当前阶段主线**不实现 Agent Loop、不接入大模型、不修改用户代码**。
 - 阶段边界以 `docs/ROADMAP.md` 为准；不得跨阶段实现未来功能。
+- **独立原型线（ADR-0023）**：`prototype/full-agent-skeleton` 分支上另有一条架构原型线，授权载体为 `docs/tasks/PROTOTYPE_FULL_AGENT_SKELETON.md`（Task Type: ARCHITECTURE_PROTOTYPE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。该授权**仅在原型分支上生效**；原型不替代 Phase 1、不得触碰 Phase 1 产物、不得整体合并 main、不接入真实模型、不修改目标用户代码。在 main 与其他分支上，本条不构成任何实现授权。
 
 ## 4. 硬性技术约束（逐条可测试，违反即打回）
 
