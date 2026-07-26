@@ -1,5 +1,6 @@
 """Filesystem and explicit encoding checks."""
 
+import errno
 import os
 import shutil
 import tempfile
@@ -9,7 +10,8 @@ from ..result import CheckResult, FAIL, PASS, ProbeError
 
 
 def _failure(check_id: str, details: Dict[str, Any], exc: Exception) -> CheckResult:
-    code = "PATH_TOO_LONG" if getattr(exc, "errno", None) == 36 else "FS_OP_FAILED"
+    code = ("PATH_TOO_LONG" if getattr(exc, "errno", None) == errno.ENAMETOOLONG or
+            getattr(exc, "winerror", None) == 206 else "FS_OP_FAILED")
     return CheckResult(check_id, FAIL, details,
                        error=ProbeError(code, str(exc), type(exc).__name__))
 
@@ -96,8 +98,22 @@ def check_encodings(ctx: Any) -> CheckResult:
             with open(path, "w", encoding=encoding, newline="") as writer:
                 writer.write(sample)
             with open(path, "r", encoding=encoding, newline="") as reader:
-                details["encodings"][encoding] = {"roundtrip_ok": reader.read() == sample}
-            if not details["encodings"][encoding]["roundtrip_ok"]:
+                roundtrip_ok = reader.read() == sample
+            with open(path, "rb") as reader:
+                content = reader.read()
+            expected = sample.encode(encoding)
+            bom_ok = True
+            if encoding == "utf-8-sig":
+                bom_ok = content.startswith(b"\xef\xbb\xbf")
+            elif encoding == "utf-16":
+                bom_ok = content.startswith(b"\xff\xfe") or content.startswith(b"\xfe\xff")
+            elif encoding == "utf-16-le":
+                bom_ok = not (content.startswith(b"\xff\xfe") or content.startswith(b"\xfe\xff"))
+            elif encoding == "gbk":
+                bom_ok = b"\xd6\xd0" in content
+            details["encodings"][encoding] = {"roundtrip_ok": roundtrip_ok,
+                                                "bytes_ok": content == expected, "bom_ok": bom_ok}
+            if not roundtrip_ok or content != expected or not bom_ok:
                 raise UnicodeError("encoding roundtrip mismatch: " + encoding)
         try:
             "emoji: 😀".encode("gbk", "strict")
@@ -105,7 +121,9 @@ def check_encodings(ctx: Any) -> CheckResult:
             details["gbk_strict_raises"] = True
         if not details["gbk_strict_raises"]:
             raise UnicodeError("GBK unexpectedly encoded an emoji")
-    except (OSError, UnicodeError) as exc:
+    except OSError as exc:
+        return _failure("fs.encodings", details, exc)
+    except UnicodeError as exc:
         return CheckResult("fs.encodings", FAIL, details,
                            error=ProbeError("ENCODING_MISMATCH", str(exc), type(exc).__name__))
     finally:

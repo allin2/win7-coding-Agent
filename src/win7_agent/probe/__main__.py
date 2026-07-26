@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import getpass
 import os
-import platform
 import shutil
 import struct
 import sys
@@ -20,6 +18,8 @@ from . import PROBE_VERSION
 from .registry import CHECKS, check_ids
 from .reportio import atomic_write_json, build_report, iso_now, skipped_sqlite, write_sqlite_evidence
 from .result import CheckResult, ERROR, SKIPPED, ProbeError
+from .checks.c_sys import safe_getuser
+from .subproc import terminate_all_active
 from .textutil import ascii_safe, console_line
 
 
@@ -51,7 +51,9 @@ def _parse_args(argv: Optional[List[str]]) -> Tuple[Optional[argparse.Namespace]
     parser = _parser()
     try:
         args = parser.parse_args(argv)
-    except SystemExit:
+    except SystemExit as exc:
+        if exc.code == 0:
+            return None, 0
         return None, 3
     if not 0.5 <= args.timeout_scale <= 10.0:
         parser.print_usage(sys.stderr)
@@ -72,13 +74,13 @@ def _selected(only: Optional[str]) -> Set[str]:
 
 
 def _unexpected(check_id: str, exc: Exception) -> CheckResult:
-    tail = "\n".join(traceback.format_exc().splitlines()[-5:])
+    tail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).splitlines()
     return CheckResult(check_id, ERROR, {}, error=ProbeError("UNEXPECTED", str(exc),
-                       type(exc).__name__, tail))
+                       type(exc).__name__, "\n".join(tail[-5:])))
 
 
-def _run_check(check_id: str, function: Any, ctx: ProbeContext,
-               timeout_s: float) -> CheckResult:
+def _run_check(check_id: str, function: Any, ctx: ProbeContext, timeout_s: float,
+               notes: List[str]) -> CheckResult:
     """Execute one check in a containment thread with its declared timeout."""
     outcome: Dict[str, Any] = {}
 
@@ -93,11 +95,16 @@ def _run_check(check_id: str, function: Any, ctx: ProbeContext,
     thread.daemon = True
     thread.start()
     thread.join(timeout_s * ctx.timeout_scale)
-    duration_ms = int((time.monotonic() - started) * 1000)
     if thread.is_alive():
+        terminate_all_active(5.0 * ctx.timeout_scale)
+        thread.join(5.0 * ctx.timeout_scale)
+        duration_ms = int((time.monotonic() - started) * 1000)
+        if thread.is_alive():
+            notes.append("CHECK_THREAD_LEAKED: " + check_id)
         return CheckResult(check_id, ERROR, {}, duration_ms,
                            ProbeError("CHECK_TIMEOUT", "check exceeded " + str(timeout_s * ctx.timeout_scale) + "s",
                                       "TimeoutError"))
+    duration_ms = int((time.monotonic() - started) * 1000)
     if "exception" in outcome:
         return _unexpected(check_id, outcome["exception"]).with_duration(duration_ms)
     result = outcome.get("result")
@@ -112,25 +119,17 @@ def _host(results: List[CheckResult]) -> Dict[str, Any]:
     os_details = by_id.get("os.version", CheckResult("", "", {})).details
     python_details = by_id.get("python.runtime", CheckResult("", "", {})).details
     temp_details = by_id.get("env.user_temp", CheckResult("", "", {})).details
-    return {"os_caption": platform.platform(), "os_build": _os_build(os_details),
-            "os_service_pack": _os_service_pack(os_details),
-            "os_arch": os_details.get("os_arch", "unknown"),
+    verdict = os_details.get("verdict", {})
+    return {"os_caption": verdict.get("os_caption", "unknown"),
+            "os_build": verdict.get("os_build", "unknown"),
+            "os_service_pack": verdict.get("os_service_pack", "unconfirmed"),
+            "os_arch": verdict.get("os_arch", "unknown"),
             "python_version": python_details.get("python_version", "unknown"),
             "python_implementation": python_details.get("python_implementation", "unknown"),
             "python_executable": sys.executable,
             "process_bitness": struct.calcsize("P") * 8,
-            "username": temp_details.get("username", getpass.getuser()),
+            "username": temp_details.get("username", safe_getuser()),
             "temp_dir": temp_details.get("temp_dir", tempfile.gettempdir()), "cwd": os.getcwd()}
-
-
-def _os_build(details: Dict[str, Any]) -> str:
-    source = details.get("sources", {}).get("getwindowsversion", {})
-    return str(source.get("raw", {}).get("build", "unknown"))
-
-
-def _os_service_pack(details: Dict[str, Any]) -> str:
-    source = details.get("sources", {}).get("getwindowsversion", {})
-    return str(source.get("raw", {}).get("service_pack", "unconfirmed")) or "unconfirmed"
 
 
 def _print_summary(results: List[CheckResult], exit_code: int, report_path: str) -> None:
@@ -177,29 +176,32 @@ def main(argv: Optional[List[str]] = None) -> int:
             if check_id not in selected:
                 results.append(CheckResult(check_id, SKIPPED, {"reason": "excluded by --only"}))
             else:
-                results.append(_run_check(check_id, function, ctx, timeout_s))
+                results.append(_run_check(check_id, function, ctx, timeout_s, notes))
         if "report.sqlite" not in selected:
             results.append(CheckResult("report.sqlite", SKIPPED, {"reason": "excluded by --only"}))
         elif db_path is None:
             results.append(skipped_sqlite())
         else:
-            results.append(write_sqlite_evidence(db_path, results, generated_at, PROBE_VERSION))
+            def write_evidence(ignored_ctx: ProbeContext) -> CheckResult:
+                return write_sqlite_evidence(db_path, results, generated_at, PROBE_VERSION,
+                                             ctx.timeout_scale)
+            results.append(_run_check("report.sqlite", write_evidence, ctx, 15.0, notes))
     finally:
         try:
             shutil.rmtree(workdir)
         except OSError as exc:
             cleanup_ok = False
             notes.append("CLEANUP_FAILED: " + str(exc))
-    report = build_report(generated_at, int((time.monotonic() - started) * 1000),
-                          _host(results), {"argv": list(argv) if argv is not None else sys.argv[1:],
-                          "timeout_scale": args.timeout_scale,
-                          "max_stdout_bytes": args.max_stdout_bytes,
-                          "max_stderr_bytes": args.max_stderr_bytes,
-                          "report_path": report_path, "db_path": db_path}, results,
-                          cleanup_ok, notes, PROBE_VERSION)
     try:
+        report = build_report(generated_at, int((time.monotonic() - started) * 1000),
+                              _host(results), {"argv": list(argv) if argv is not None else sys.argv[1:],
+                              "timeout_scale": args.timeout_scale,
+                              "max_stdout_bytes": args.max_stdout_bytes,
+                              "max_stderr_bytes": args.max_stderr_bytes,
+                              "report_path": report_path, "db_path": db_path}, results,
+                              cleanup_ok, notes, PROBE_VERSION)
         atomic_write_json(report_path, report)
-    except OSError as exc:
+    except Exception as exc:
         sys.stderr.write("ERROR report_write_failed: " + ascii_safe(exc) + "\n")
         return 3
     _print_summary(results, report["summary"]["exit_code"], report_path)

@@ -4,11 +4,11 @@
 
 ## PC-001：包根文件与实现路径白名单冲突
 
-- 状态：待项目负责人裁决。
+- 状态：已裁决（2026-07-27，ADR-0017）：`src/win7_agent/__init__.py` 已加入 PHASE_01 §0.2 白名单，仅允许包含 `__version__ = "0.1.0"`。本条关闭。
 - 发现位置：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md` §0.2 与 §4.1。
 - 事实：§4.1 要求创建 `src/win7_agent/__init__.py`，但 §0.2 的唯一源码白名单为 `src/win7_agent/probe/**`，不包含该文件。
-- 当前处理：未创建白名单外文件；使用 CPython 3.8 支持的隐式命名空间包，使 `python -m win7_agent.probe` 在 `src` 位于 `PYTHONPATH` 时可运行。
-- 需要裁决：是否将 `src/win7_agent/__init__.py` 明确加入阶段 1 白名单，以完全满足 §4.1 的版本常量要求。
+- 当前处理：已创建 `src/win7_agent/__init__.py`，且内容严格限定为 `__version__ = "0.1.0"`。
+- 需要裁决：无。
 
 ## PC-002：开发环境未提供 CPython 3.8.10
 

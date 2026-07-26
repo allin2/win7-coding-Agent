@@ -9,6 +9,14 @@ from typing import Any
 from ..result import CheckResult, DEGRADED, FAIL, PASS, ProbeError
 
 
+def safe_getuser() -> str:
+    """Return a username without allowing environment quirks to break the Probe."""
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "unknown"
+
+
 def check_disk_space(ctx: Any) -> CheckResult:
     """Report remaining space for the report and temporary directories."""
     details = {}
@@ -29,7 +37,7 @@ def check_disk_space(ctx: Any) -> CheckResult:
 def check_env_user_temp(ctx: Any) -> CheckResult:
     """Verify the current temporary directory is writable and cleaned."""
     path = None
-    details = {"username": getpass.getuser(), "temp_dir": tempfile.gettempdir(),
+    details = {"username": safe_getuser(), "temp_dir": tempfile.gettempdir(),
                "writable": False, "removed": False}
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False,

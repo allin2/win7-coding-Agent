@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import stat
 import tempfile
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -17,18 +18,40 @@ def iso_now() -> str:
     return datetime.now().astimezone().isoformat()
 
 
+def _remove_evidence_files(path: str, details: Dict[str, Any]) -> None:
+    """Remove one evidence database and its SQLite sidecars best-effort."""
+    failures = []
+    for candidate in (path, path + "-journal", path + "-wal"):
+        if os.path.exists(candidate):
+            try:
+                os.chmod(candidate, stat.S_IWRITE)
+                os.remove(candidate)
+            except OSError as exc:
+                failures.append(str(exc))
+    if failures:
+        details["cleanup_errors"] = failures
+
+
 def write_sqlite_evidence(path: str, results: List[CheckResult], generated_at: str,
-                          probe_version: str) -> CheckResult:
+                          probe_version: str, timeout_scale: float = 1.0) -> CheckResult:
     """Write the first 17 result snapshots to a SQLite evidence database."""
-    details: Dict[str, Any] = {"db_path": path, "snapshot_count": len(results)}
+    details: Dict[str, Any] = {"db_path": path, "snapshot_count": len(results),
+                               "preexisting_db_replaced": False}
     connection = None
+    success = False
+    created = False
     try:
-        connection = sqlite3.connect(path)
-        connection.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        connection.execute("CREATE TABLE IF NOT EXISTS checks (id TEXT PRIMARY KEY, status TEXT NOT NULL, "
+        if os.path.exists(path):
+            details["preexisting_db_replaced"] = True
+            _remove_evidence_files(path, details)
+            if os.path.exists(path):
+                raise OSError("unable to replace existing evidence database")
+        connection = sqlite3.connect(path, timeout=5.0 * timeout_scale)
+        created = True
+        connection.execute("BEGIN")
+        connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute("CREATE TABLE checks (id TEXT PRIMARY KEY, status TEXT NOT NULL, "
                            "duration_ms INTEGER NOT NULL, details TEXT NOT NULL, error TEXT)")
-        connection.execute("DELETE FROM meta")
-        connection.execute("DELETE FROM checks")
         meta = (("schema_version", "1"), ("report_version", "1"),
                 ("probe_version", probe_version), ("generated_at", generated_at))
         connection.executemany("INSERT INTO meta VALUES (?, ?)", meta)
@@ -43,9 +66,22 @@ def write_sqlite_evidence(path: str, results: List[CheckResult], generated_at: s
         details["rows_written"] = count
         if count != len(results):
             raise sqlite3.DatabaseError("evidence row count mismatch")
+        success = True
     except (sqlite3.Error, OSError) as exc:
+        if connection is not None:
+            connection.close()
+            connection = None
+        if created:
+            _remove_evidence_files(path, details)
         return CheckResult("report.sqlite", DEGRADED, details,
                            error=ProbeError("SQLITE_OP_FAILED", str(exc), type(exc).__name__))
+    except Exception:
+        if connection is not None:
+            connection.close()
+            connection = None
+        if created:
+            _remove_evidence_files(path, details)
+        raise
     finally:
         if connection is not None:
             connection.close()

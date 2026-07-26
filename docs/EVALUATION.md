@@ -38,8 +38,8 @@
 - 矛盾清单非空即须有裁决记录或标记"待裁决"。
 
 ### 阶段 1（实现后）
-- 在 E1 执行 Probe：退出码符合约定；JSON 报告可被 `json.load` 解析；报告字段符合 PHASE_01 §6 Schema；`tool.git` 为 pass（E1 已装 Git 2.46.2）。
-- 在 E2 执行：中文+空格路径下运行成功；`tool.git` 为 degraded（`TOOL_NOT_FOUND`）；即使存在降级/失败项，JSON 报告仍完整产出且含全部检查项。
+- 在 E1 执行 Probe：退出码符合约定；JSON 报告可被 `json.load` 解析；报告字段符合 PHASE_01 §6 Schema。`tool.git` 期望值：E1 已装 Git 2.46.2 时为 pass；若 Git 缺失则为 degraded（`TOOL_NOT_FOUND`）。**Git 的 pass/degraded 均不构成 Agent 核心能力失败，不影响本条验收通过**（核心能力失败仅指 `python`、`fs.*`、`proc.*`、报告产出类检查的 fail/error）。
+- 在 E2 执行：中文+空格路径下运行成功；Git 不在 PATH 时 `tool.git` 为 degraded（`TOOL_NOT_FOUND`），若 E2 机器实际存在 PATH 内 Git 则 pass 亦可接受；即使存在降级/失败项，JSON 报告仍完整产出且含全部检查项。
 - 全部测试矩阵用例（PHASE_01 §7）执行并留存报告文件。
 
 ### 阶段 2+ 

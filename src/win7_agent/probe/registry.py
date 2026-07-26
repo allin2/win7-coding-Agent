@@ -30,7 +30,7 @@ CHECKS: List[CheckDefinition] = [
     ("proc.timeout", "Subprocess hard timeout", check_proc_timeout, 20.0),
     ("proc.capture", "Separated stdout/stderr capture", check_proc_capture, 15.0),
     ("proc.truncate", "Bounded subprocess capture", check_proc_truncate, 30.0),
-    ("proc.kill", "Process tree termination", check_proc_kill, 30.0),
+    ("proc.kill", "Process tree termination", check_proc_kill, 45.0),
     ("tool.git", "Optional Git capability", check_tool_git, 15.0),
     ("tls.python_runtime", "Offline Python TLS runtime", check_tls_python_runtime, 10.0),
     ("disk.space", "Disk free space", check_disk_space, 5.0),

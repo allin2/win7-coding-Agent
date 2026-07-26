@@ -97,7 +97,7 @@ Windows Terminal、winget/choco、python launcher `py.exe`、pip 可联网。
 | P05 | `ssl` 使用 Windows 证书库（`load_default_certs`/`enum_certificates`），Win7 未更新时根证书陈旧 | 阶段 1 只探测并报告证书数量（不输出证书内容）；阶段 3（Model Gateway）评审自带 CA bundle |
 | P06 | `os.statvfs` 在 Windows 不存在 | 磁盘空间用 `shutil.disk_usage` |
 | P07 | `time.strftime('%s')` 等平台相关格式在 Windows 不可用 | 时间戳统一 `datetime` ISO 8601 |
-| P08 | 260 字符路径限制：临时目录 + 深层中文目录易超限 | 测试路径深度受控；超限报 `PATH_TOO_LONG` 结构化错误 |
+| P08 | 260 字符路径限制：临时目录 + 深层中文目录易超限；超限异常在 CPython 3.8/Win7 上有两种形态——`OSError.errno == errno.ENAMETOOLONG` 或 `OSError.winerror == 206`（`ERROR_FILENAME_EXCED_RANGE`），且不得用硬编码整数（如 POSIX 值 36）比较 errno | 测试路径深度受控；识别逻辑必须同时匹配 `errno.ENAMETOOLONG` 常量与 `winerror == 206` 两种形态，命中任一即报 `PATH_TOO_LONG` 结构化错误（ADR-0022） |
 | P09 | `os.remove` 删除只读文件失败 | 删除前 `os.chmod(path, stat.S_IWRITE)` |
 | P10 | SQLite 数据库放网络驱动器锁不可靠 | 状态库路径必须是本地盘；Probe 报告磁盘类型不做强校验但记录 |
 
