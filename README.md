@@ -68,3 +68,13 @@ docs/
 - 所有路径逻辑兼容中文/空格路径；所有文件 I/O 显式编码。
 
 完整清单见 `AGENTS.md` §4。
+
+## Prototype (independent branch only)
+
+`prototype/full-agent-skeleton` contains an architecture prototype, not a formal Win7 delivery and not a candidate for wholesale merge to `main`. Its deterministic, local MockProvider demonstration can be run with:
+
+```bat
+scripts\run_prototype_demo.bat
+```
+
+It uses only read-only workspace tools, writes its event database to a temporary directory unless `--event-db` is supplied, and never accesses a real model or network.

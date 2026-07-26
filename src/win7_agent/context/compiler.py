@@ -22,7 +22,7 @@ class ContextCompiler:
             content = result.content[:8192]
             messages.append(Message("tool", content, result.tool_call_id))
         tools = [spec.to_dict() for spec in self._tool_specs]
-        return ModelRequest(messages, tools, run_snapshot["turn_count"] + 1, {"remaining_turns": remaining_turns, "remaining_tool_calls": remaining_tools})
+        return ModelRequest(messages, tools, run_snapshot["turn_count"], {"remaining_turns": remaining_turns, "remaining_tool_calls": remaining_tools})
 
     def _read_project_instructions(self) -> str:
         path = os.path.join(self._workspace.root, "AGENTS.md")
