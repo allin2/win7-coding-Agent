@@ -14,12 +14,14 @@ from .state import RunCancelled, RunController, RunFailure, RunStatus
 
 
 class RunResult(object):
-    def __init__(self, status, trace_complete, turns, tool_calls, error=None, run_id=None):
+    def __init__(self, status, trace_complete, turns, tool_calls, error=None,
+                 errors=None, run_id=None):
         self.status = status
         self.trace_complete = trace_complete
         self.turns = turns
         self.tool_calls = tool_calls
         self.error = error
+        self.errors = list(errors or [])
         self.run_id = run_id
 
 
@@ -38,6 +40,7 @@ class AgentRunner(object):
         except EventStoreError:
             return None
         trace_complete = True
+        primary_error = None
 
         def record(kind, payload):
             nonlocal trace_complete
@@ -91,8 +94,16 @@ class AgentRunner(object):
             pass
         except EventStoreError:
             trace_complete = False
-            if controller.state.status not in (RunStatus.FAILED, RunStatus.CANCELLED):
-                controller.fail("EVENT_STORE_FAILED", "event store failure")
+            primary_error = {
+                "code": "EVENT_STORE_FAILED", "message": "event store failure"}
+            audit_payload = controller.fail_after_event_store_error(
+                primary_error["message"])
+            if audit_payload is not None:
+                try:
+                    self.store.append(run_id, "state.transition", audit_payload)
+                except EventStoreError:
+                    controller.record_event_store_audit_failure(
+                        "event store failure audit could not be persisted")
         except (RunFailure, ProviderError):
             if controller.state.status not in (RunStatus.FAILED, RunStatus.CANCELLED):
                 controller.fail("REPLAY_MISMATCH", "provider or event failure")
@@ -103,4 +114,5 @@ class AgentRunner(object):
         except EventStoreError:
             trace_complete = False
         return RunResult(status, trace_complete, controller.state.turn_count,
-                         controller.state.tool_call_count, run_id=run_id)
+                         controller.state.tool_call_count, error=primary_error,
+                         errors=controller.state.errors, run_id=run_id)

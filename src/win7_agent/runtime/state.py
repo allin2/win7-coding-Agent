@@ -191,6 +191,25 @@ class RunController(object):
                 "turn": self._state._turn_count})
             self._state._status = RunStatus.FAILED
 
+    def fail_after_event_store_error(self, message):
+        """Preserve a storage failure when its required audit event cannot persist."""
+        if self._state._status in self.TERMINAL:
+            return None
+        current = self._state._status
+        self._state._errors.append({
+            "code": "EVENT_STORE_FAILED", "message": message})
+        self._state._status = RunStatus.FAILED
+        return {
+            "from": current.value,
+            "to": RunStatus.FAILED.value,
+            "reason": "EVENT_STORE_FAILED",
+            "turn": self._state._turn_count}
+
+    def record_event_store_audit_failure(self, message):
+        """Keep the secondary audit failure observable in the in-memory result."""
+        self._state._errors.append({
+            "code": "EVENT_STORE_FAILED", "message": message})
+
     def _apply_cancellation(self):
         if (self._state._cancel_requested and
                 self._state._status not in self.TERMINAL):
