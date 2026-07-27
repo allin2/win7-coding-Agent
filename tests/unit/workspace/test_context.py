@@ -41,3 +41,7 @@ class WorkspaceContextTests(unittest.TestCase):
         with self.assertRaises(WorkspaceError) as error:
             self.workspace.resolve("escape")
         self.assertEqual("PATH_OUTSIDE_WORKSPACE", error.exception.code)
+
+    def test_boundary_comparison_uses_realpath_and_normcase(self):
+        comparison = self.workspace._comparison_path(self.workspace.root)
+        self.assertEqual(os.path.normcase(os.path.realpath(self.workspace.root)), comparison)

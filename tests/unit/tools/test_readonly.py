@@ -68,3 +68,15 @@ class ReadonlyToolTests(unittest.TestCase):
         result = self.request("search_text", {"pattern": "target_function", "max_matches": 500})
         self.assertTrue(result.truncated)
         self.assertLessEqual(len(result.content.encode("utf-8")), readonly.SEARCH_OUTPUT_BYTES)
+
+    def test_search_text_scans_later_file_after_large_file_prefix(self):
+        from win7_agent.tools import readonly
+
+        with open(os.path.join(self.root, "a-large.txt"), "w", encoding="utf-8", newline="") as source:
+            source.write("x" * readonly.SEARCH_FILE_BYTES)
+            source.write("target_function after budget\n")
+        with open(os.path.join(self.root, "z-later.txt"), "w", encoding="utf-8", newline="") as source:
+            source.write("target_function later file\n")
+        result = self.request("search_text", {"pattern": "target_function"})
+        self.assertTrue(result.truncated)
+        self.assertIn("z-later.txt:1", result.content)

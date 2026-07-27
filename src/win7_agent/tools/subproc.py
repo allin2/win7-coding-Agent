@@ -24,15 +24,21 @@ def run_git(argv: List[str], cwd: str, timeout_s: float, max_output_bytes: int) 
     truncated = [False, False]
 
     def drain(stream, index):
-        while True:
-            chunk = stream.read(8192)
-            if not chunk:
-                break
-            remaining = max_output_bytes - len(outputs[index])
-            if remaining > 0:
-                outputs[index].extend(chunk[:remaining])
-            if len(chunk) > max(remaining, 0):
-                truncated[index] = True
+        try:
+            while True:
+                chunk = stream.read(8192)
+                if not chunk:
+                    break
+                remaining = max_output_bytes - len(outputs[index])
+                if remaining > 0:
+                    outputs[index].extend(chunk[:remaining])
+                if len(chunk) > max(remaining, 0):
+                    truncated[index] = True
+        except (OSError, ValueError):
+            # Closing a pipe while its drain thread is still unwinding is a
+            # normal shutdown race.  Surface the incomplete capture through
+            # the existing truncation flag rather than leaking a thread error.
+            truncated[index] = True
 
     threads = [
         threading.Thread(target=drain, args=(process.stdout, 0)),
@@ -58,6 +64,6 @@ def run_git(argv: List[str], cwd: str, timeout_s: float, max_output_bytes: int) 
             if stream is not None:
                 try:
                     stream.close()
-                except OSError:
+                except (OSError, ValueError):
                     pass
     return process.returncode if process.returncode is not None else -1, bytes(outputs[0]), bytes(outputs[1]), any(truncated), timed_out

@@ -27,6 +27,7 @@ class WorkspaceContext:
         if not os.path.isdir(normalized):
             raise WorkspaceError("FILE_NOT_FOUND", "workspace root does not exist")
         self.root = normalized
+        self._root_compare = self._comparison_path(normalized)
         self.read_only = True
         self.ignored_directories = list(ignored_directories or self.DEFAULT_IGNORED)
 
@@ -37,13 +38,16 @@ class WorkspaceContext:
             candidate = os.path.normpath(requested_path)
         else:
             candidate = os.path.normpath(os.path.join(self.root, requested_path))
-        root_compare = os.path.normcase(self.root)
-        candidate_compare = os.path.normcase(candidate)
+        root_compare = self._root_compare
+        # Preserve the requested-path classification before resolving links:
+        # lexical relative traversal is traversal, while a link escape is an
+        # outside-workspace error after the realpath boundary check below.
+        candidate_compare = os.path.normcase(os.path.abspath(candidate))
         if not self._is_under_root(candidate_compare, root_compare):
             code = "PATH_OUTSIDE_WORKSPACE" if os.path.isabs(requested_path) else "PATH_TRAVERSAL_DENIED"
             raise WorkspaceError(code, "path is outside the workspace")
         resolved = os.path.realpath(candidate)
-        if not self._is_under_root(os.path.normcase(resolved), root_compare):
+        if not self._is_under_root(self._comparison_path(resolved), root_compare):
             raise WorkspaceError("PATH_OUTSIDE_WORKSPACE", "resolved path escapes the workspace")
         return resolved
 
@@ -56,6 +60,11 @@ class WorkspaceContext:
     @staticmethod
     def _is_under_root(candidate: str, root: str) -> bool:
         return candidate == root or candidate.startswith(root + os.sep)
+
+    @staticmethod
+    def _comparison_path(path: str) -> str:
+        """Normalize a path for a Windows-safe real workspace boundary check."""
+        return os.path.normcase(os.path.realpath(os.path.abspath(path)))
 
 
 class ShadowWorkspace(metaclass=ABCMeta):

@@ -15,6 +15,11 @@ READ_LIMIT = 262144
 GIT_LIMIT = 1048576
 SEARCH_MAX_FILES = 2000
 SEARCH_FILE_BYTES = 1048576
+# The total budget follows from the frozen per-file and file-count budgets.
+# Keeping it explicit lets the loop account for all scanned bytes and makes
+# the global stopping condition testable without making a single large file
+# abort the whole search.
+SEARCH_TOTAL_BYTES = SEARCH_MAX_FILES * SEARCH_FILE_BYTES
 SEARCH_OUTPUT_BYTES = 262144
 
 
@@ -119,18 +124,26 @@ def build_readonly_registry(workspace: WorkspaceContext) -> ToolRegistry:
         matches = []
         output_bytes = 0
         scanned_files = 0
+        scanned_bytes = 0
+        any_file_truncated = False
         for directory, subdirs, files in os.walk(root):
             subdirs[:] = [item for item in subdirs if not workspace.is_ignored_name(item)]
             for name in sorted(files):
+                if scanned_files >= SEARCH_MAX_FILES or scanned_bytes >= SEARCH_TOTAL_BYTES:
+                    return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
                 file_path = os.path.join(directory, name)
                 scanned_files += 1
                 if scanned_files > SEARCH_MAX_FILES:
                     return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
                 try:
+                    remaining_bytes = SEARCH_TOTAL_BYTES - scanned_bytes
+                    file_budget = min(SEARCH_FILE_BYTES, remaining_bytes)
                     with open(file_path, "rb") as source:
-                        data = source.read(SEARCH_FILE_BYTES + 1)
-                    if len(data) > SEARCH_FILE_BYTES:
-                        return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
+                        data = source.read(file_budget + 1)
+                    file_truncated = len(data) > file_budget
+                    data = data[:file_budget]
+                    scanned_bytes += len(data)
+                    any_file_truncated = any_file_truncated or file_truncated
                     if b"\x00" in data:
                         continue
                     for number, line in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
@@ -144,9 +157,13 @@ def build_readonly_registry(workspace: WorkspaceContext) -> ToolRegistry:
                             output_bytes += match_bytes
                             if len(matches) >= max_matches:
                                 return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
+                    if file_truncated:
+                        # This file reached only its own budget.  Continue
+                        # with later files unless a global budget is now gone.
+                        continue
                 except (OSError, UnicodeError):
                     continue
-        return _ok(request.tool_call_id, "\n".join(matches), False, _duration(started))
+        return _ok(request.tool_call_id, "\n".join(matches), any_file_truncated, _duration(started))
 
     def git_result(request: ToolRequest, argv: List[str]) -> ToolResult:
         started = time.monotonic()
