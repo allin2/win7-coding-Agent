@@ -40,6 +40,7 @@ class ReadonlyToolTests(unittest.TestCase):
         self.assertEqual("PATH_TRAVERSAL_DENIED", escaped.error["code"])
         bad = self.request("read_file", {"path": 42})
         self.assertEqual("INVALID_TOOL_ARGUMENT", bad.error["code"])
+        self.assertFalse(bad.executed)
 
     def test_bool_is_not_an_integer_tool_argument(self):
         result = self.request("read_file_range", {"path": "sample.py", "start_line": True, "end_line": 1})
@@ -48,6 +49,12 @@ class ReadonlyToolTests(unittest.TestCase):
     def test_unregistered_tool_is_structured_error(self):
         result = self.request("run_command", {})
         self.assertEqual("TOOL_NOT_FOUND", result.error["code"])
+        self.assertFalse(result.executed)
+
+    def test_implementation_failures_are_marked_executed(self):
+        result = self.request("read_file", {"path": "missing.txt"})
+        self.assertEqual("FILE_NOT_FOUND", result.error["code"])
+        self.assertTrue(result.executed)
 
     def test_git_is_explicitly_degraded_when_not_installed(self):
         with mock.patch("win7_agent.tools.readonly.shutil.which", return_value=None):

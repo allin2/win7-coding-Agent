@@ -34,6 +34,7 @@ class ToolResult:
     truncated: bool
     error: Optional[Dict[str, Any]]
     duration_ms: int
+    executed: bool
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -43,4 +44,5 @@ class ToolResult:
             "truncated": self.truncated,
             "error": self.error,
             "duration_ms": self.duration_ms,
+            "executed": self.executed,
         }

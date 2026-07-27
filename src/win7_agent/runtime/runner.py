@@ -72,6 +72,7 @@ class PrototypeRuntime:
                         entry = self._registry.lookup(call.tool_name)
                         if entry is None:
                             result_message = ToolResultMessage(call.tool_call_id, "error", "", False, {"code": "TOOL_NOT_FOUND", "message": "tool is not registered"})
+                            self._record("tool.result", {"tool_call_id": call.tool_call_id, "tool_name": call.tool_name, "status": "error", "executed": False, "content": "", "truncated": False, "error": result_message.error, "duration_ms": 0})
                             recent_results.append(result_message)
                             continue
                         permission = PermissionType(entry[0].permission)
@@ -87,7 +88,6 @@ class PrototypeRuntime:
                             result_message = ToolResultMessage(result.tool_call_id, result.status, result.content, result.truncated, result.error)
                             result_payload = result.to_dict()
                             result_payload["tool_name"] = call.tool_name
-                            result_payload["executed"] = True
                             self._record("tool.result", result_payload)
                         recent_results.append(result_message)
                     self._controller.transition(RunStatus.PLANNING, "tool results returned")

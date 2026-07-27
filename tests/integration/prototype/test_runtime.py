@@ -91,6 +91,24 @@ class PrototypeRuntimeTests(unittest.TestCase):
             result, _, events = self.run_once(os.path.join(directory, "events.sqlite"), MockProvider(script))
         self.assertEqual(RunStatus.COMPLETED, result.status)
         self.assertFalse([event for event in events if event["event_type"] == "policy.decision" and event["payload"].get("tool_call_id") == "unknown"])
+        unknown_results = [event for event in events if event["event_type"] == "tool.result" and event["payload"].get("tool_call_id") == "unknown"]
+        self.assertEqual(1, len(unknown_results))
+        self.assertFalse(unknown_results[0]["payload"]["executed"])
+
+    def test_unknown_and_denied_calls_consume_the_tool_budget(self):
+        script = [
+            ModelResponse(tool_calls=[ToolCall("unknown", "not_registered", {})], finish_reason=FinishReason.TOOL_CALLS),
+            ModelResponse(tool_calls=[ToolCall("later", "not_registered", {})], finish_reason=FinishReason.TOOL_CALLS),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            try:
+                runtime = PrototypeRuntime(WorkspaceContext(FIXTURE), "Find target_function.", MockProvider(script), store, max_tool_calls=1)
+                result = runtime.run()
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual("RUN_LIMIT_EXCEEDED", result.errors[-1]["code"])
 
     def test_denied_tool_is_not_executed_and_readonly_fallback_completes(self):
         calls = []

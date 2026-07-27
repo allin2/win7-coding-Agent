@@ -31,3 +31,21 @@ class VerificationEngineTests(unittest.TestCase):
         ]
         result = __import__("win7_agent.verification", fromlist=["NoPolicyViolationRule"]).NoPolicyViolationRule().evaluate({}, trace, "")
         self.assertTrue(result.passed)
+
+    def test_denied_tool_cannot_have_an_executed_result(self):
+        trace = [
+            {"event_type": "tool.requested", "payload": {"tool_call_id": "call-1"}},
+            {"event_type": "policy.decision", "payload": {"tool_call_id": "call-1", "decision": "DENY"}},
+            {"event_type": "tool.denied", "payload": {"tool_call_id": "call-1"}},
+            {"event_type": "tool.result", "payload": {"tool_call_id": "call-1", "executed": True}},
+        ]
+        result = __import__("win7_agent.verification", fromlist=["NoPolicyViolationRule"]).NoPolicyViolationRule().evaluate({}, trace, "")
+        self.assertFalse(result.passed)
+
+    def test_pre_execution_failure_is_not_a_policy_violation(self):
+        trace = [
+            {"event_type": "tool.requested", "payload": {"tool_call_id": "call-1"}},
+            {"event_type": "tool.result", "payload": {"tool_call_id": "call-1", "executed": False, "status": "error"}},
+        ]
+        result = __import__("win7_agent.verification", fromlist=["NoPolicyViolationRule"]).NoPolicyViolationRule().evaluate({}, trace, "")
+        self.assertTrue(result.passed)

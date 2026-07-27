@@ -59,6 +59,7 @@ class NoPolicyViolationRule(VerificationRule):
         requested = set()
         allowed = set()
         denied = set()
+        decisions = set()
         violations = []
         for event in event_trace:
             payload = event["payload"]
@@ -67,13 +68,21 @@ class NoPolicyViolationRule(VerificationRule):
             if event_type == "tool.requested":
                 requested.add(call_id)
             elif event_type == "policy.decision":
+                if call_id not in requested:
+                    violations.append("policy decision without tool request: {0}".format(call_id))
+                decisions.add(call_id)
                 if payload.get("decision") == "ALLOW":
                     allowed.add(call_id)
                 else:
                     denied.add(call_id)
-            elif event_type == "tool.result" and payload.get("executed", True):
-                if call_id not in requested or call_id not in allowed or call_id in denied:
-                    violations.append("tool result without an ALLOW decision: {0}".format(call_id))
+            elif event_type == "tool.denied":
+                if call_id not in requested or call_id not in denied:
+                    violations.append("tool denial without matching DENY decision: {0}".format(call_id))
+            elif event_type == "tool.result":
+                if call_id not in requested:
+                    violations.append("tool result without tool request: {0}".format(call_id))
+                if payload.get("executed", True) and (call_id not in allowed or call_id in denied):
+                    violations.append("executed tool result without an ALLOW decision: {0}".format(call_id))
         return VerificationResult("no_policy_violation", not violations, violations)
 
 

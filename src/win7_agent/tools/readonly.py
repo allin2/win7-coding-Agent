@@ -23,12 +23,12 @@ SEARCH_TOTAL_BYTES = SEARCH_MAX_FILES * SEARCH_FILE_BYTES
 SEARCH_OUTPUT_BYTES = 262144
 
 
-def _error(tool_call_id: str, code: str, message: str, duration_ms: int = 0) -> ToolResult:
-    return ToolResult(tool_call_id, "error", "", False, {"code": code, "message": message}, duration_ms)
+def _error(tool_call_id: str, code: str, message: str, duration_ms: int = 0, executed: bool = True) -> ToolResult:
+    return ToolResult(tool_call_id, "error", "", False, {"code": code, "message": message}, duration_ms, executed)
 
 
 def _ok(tool_call_id: str, content: str, truncated: bool, duration_ms: int) -> ToolResult:
-    return ToolResult(tool_call_id, "ok", content, truncated, None, duration_ms)
+    return ToolResult(tool_call_id, "ok", content, truncated, None, duration_ms, True)
 
 
 def _read_text(path: str, encoding: str, byte_limit: int) -> Tuple[str, bool]:
@@ -47,11 +47,11 @@ class ToolRuntime:
         started = time.monotonic()
         entry = self.registry.lookup(request.tool_name)
         if entry is None:
-            return _error(request.tool_call_id, "TOOL_NOT_FOUND", "tool is not registered")
+            return _error(request.tool_call_id, "TOOL_NOT_FOUND", "tool is not registered", executed=False)
         spec, implementation = entry
         problem = self.registry.validate(spec, request.arguments)
         if problem:
-            return _error(request.tool_call_id, "INVALID_TOOL_ARGUMENT", problem)
+            return _error(request.tool_call_id, "INVALID_TOOL_ARGUMENT", problem, executed=False)
         try:
             result = implementation(request)
             return result
