@@ -20,7 +20,7 @@ import tempfile
 import unittest
 
 
-MINIMUM_TEST_COUNT = 40
+MINIMUM_TEST_COUNT = 53
 TEST_FILE_RE = re.compile(r"^test_.*\.py$")
 PYTHON39_GENERIC_RE = re.compile(r"\b(?:list|dict|tuple)\s*\[")
 
