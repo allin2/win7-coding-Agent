@@ -155,6 +155,12 @@ APPROVED_FOR_IMPLEMENTATION
 - 终态（COMPLETED/FAILED/CANCELLED）后任何转换请求 → `INVALID_STATE_TRANSITION` 异常并记事件。
 - 非法转换（含终态后转换）**必须写审计事件** `state.transition_rejected`（§4.7），
   payload 含 from/to/reason；仅写入 RunState 错误列表而不写事件不算满足（审查轮 1 修订）。
+- **持久化先行**（残余修复 §19 裁决，精确定义见 §7 生命周期矩阵），顺序冻结：
+  ① 校验状态转换是否合法；② 持久化 `state.transition` 事件；③ 只有持久化成功后，
+  才提交内存状态变化。第 ② 步失败时目标状态**不得先写入内存**。若存储已
+  不可用，Runtime 可以在内存中强制进入 FAILED（不再要求写事件），但**不得声称
+  事件轨迹完整**：此时 RunResult 必须标记 `trace_complete=false`（§7），事件库只
+  保证完整事件前缀（§4.7）。
 
 ### 3.3 预算与取消
 
@@ -165,6 +171,10 @@ APPROVED_FOR_IMPLEMENTATION
 | 取消标记 | （编程接口） | — | `RunController.request_cancel()` 置位；状态机在每次转换点检查，命中 → CANCELLED |
 
 预算检查发生在 Runtime（转换点与工具分发点），不依赖 Provider 自律。
+
+预算计数口径（残余修复 §19 裁决）：模型发起的每一次工具调用**尝试**均计入
+`--max-tool-calls` 预算，无论结局是执行成功、执行失败、DENY 还是 `TOOL_NOT_FOUND`；
+不得因未真实执行而豁免计数（否则模型可以用无限 DENY/未知工具请求拖住 Run）。
 
 ## 4. 模块设计
 
@@ -207,7 +217,10 @@ src/win7_agent/
 - `ReplayProvider`：从先前 Run 的事件库（`--replay` 指定路径）重放录制的响应。
   一致性语义由 ADR-0024 裁决，全部强制：
   - **只读打开**：必须以 SQLite URI `file:<path>?mode=ro`（`uri=True`）打开事件库；
-    路径不存在时**不得创建文件**，直接报错。
+    路径不存在时**不得创建文件**，直接报错。路径转 URI 必须正确转义（Windows
+    盘符/反斜杠、空格、`%`、`#`、`?` 等）：用 `pathlib.Path(path).resolve().as_uri()`
+    后拼接 `?mode=ro`，禁止手工拼 `file:` 前缀（残余修复 §19 修订；`models/` 包内
+    仍禁 import `urllib`）。
   - **初始化错误归类**：Schema 缺失/不匹配、Run 不存在、录制序列破损等加载期错误
     一律转 `ProviderError`，由 CLI 捕获并以退出码 3 结束（不创建 Run，不写任何事件库）。
   - **请求指纹**：录制时每个 `model.request` 事件必须保存请求的**规范化 SHA-256 指纹**
@@ -250,12 +263,14 @@ src/win7_agent/
 | `git_status` | 无 | `git status --porcelain`（argv 列表） | stdout 1 MiB |
 | `git_diff` | `path`（可选） | `git diff -- <path>`（argv 列表） | stdout 1 MiB |
 
-`search_text` 扫描预算（审查轮 1 新增，防大工作区无界扫描）：
+`search_text` 扫描预算（审查轮 1 新增，残余修复 §19 修订单文件语义）：
 
 - 最多扫描 2000 个文件；
-- 单文件最多读取 1 MiB（超出部分不扫描）；
+- 单文件最多读取 1 MiB：**超过单文件预算的文件只扫描前 1 MiB，然后继续扫描
+  后续文件**，不得因单个大文件终止整体搜索（仅将结果标记 `truncated = true`）；
 - 结果总输出上限 256 KiB；
-- 触及任一上限 → 停止扫描，`truncated = true`，已有匹配正常返回。
+- **仅当整体预算耗尽**（文件数达 2000、总输出达 256 KiB 或 `max_matches` 达限）
+  才终止搜索，`truncated = true`，已有匹配正常返回。
 
 Git 工具强制行为：
 
@@ -266,6 +281,9 @@ Git 工具强制行为：
 - `shutil.which("git")` 找不到 git → `ToolResult(status="error", code="GIT_UNAVAILABLE")`，
   **降级而非崩溃**（AGENTS.md C13）。
 - 子进程输出读取必须防管道死锁（达到上限后继续读取并丢弃）。
+  读取（drain）线程内部必须有异常保护：捕获 `OSError`/`ValueError` 后停止读取
+  并将该流标记 `truncated`，不得让异常在线程内静默丢失导致输出不完整而无标记
+  （残余修复 §19 修订）。
 - `tools/` 包内实现一个**私有**子进程辅助函数（超时 + 输出上限 + 强制终止 + DEVNULL stdin）。
   **边界声明**：该辅助是原型私有实现，不是阶段 2 通用 Runner 的接口承诺；此点必须写入
   `docs/prototype/INTERFACE_RISKS.md`。
@@ -299,13 +317,29 @@ DENY 语义（ADR-0024 裁决，审查轮 1 修订）：
 
 - DENY 表示**安全策略成功拦截**，是系统正常工作的证据，**不是 policy violation**。
 - DENY 后工具实现**绝对不能执行**（实现函数调用次数必须为 0，测试可验）。
-- 事件使用 `tool.denied`（§4.7），**不使用正常 `tool.result` 表示执行**；
-  `tool.result` 仅保留给真实执行过的工具。
+- 事件使用 `tool.denied`（§4.7），**不使用 `tool.result` 表示 DENY**；
+  `tool.result` 保留给真实执行（`executed=true`）与执行前失败结局
+  （`executed=false`，见下方 executed 语义）。
 - 拒绝结果可以作为结构化观察（`ToolResultMessage`，`error.code = PERMISSION_DENIED`）
   返回模型；Run **可以继续**，寻求只读替代方案，DENY 本身不强制 Run 失败。
-- Verification 层的 `NoPolicyViolationRule` 只拒绝“没有匹配 ALLOW 却实际执行”的情况（§4.8）。
+- Verification 层的 `NoPolicyViolationRule` 只拒绝“没有匹配 ALLOW 却真实执行”的情况（§4.8）。
 - **未注册工具**：Runtime 分发时发现工具未注册 → 直接以 `TOOL_NOT_FOUND` 回传，
   **不得为其产生 ALLOW `policy.decision`**（不得默认按 READ_ONLY 评估；审查轮 1 修订）。
+  结局事件使用失败型 `tool.result`（`status="error"`、`error.code=TOOL_NOT_FOUND`、
+  `executed=false`），不新增事件类型。该尝试仍计入工具调用预算（§3.3）。
+
+`tool.result` 的 `executed` 字段语义（残余修复 §19 裁决，取代错误码豁免白名单）：
+
+所有 `tool.result` 事件（及 `ToolResult` 结构，§5.2）必须包含布尔字段
+`executed: true | false`，表示工具实现函数是否真实进入执行阶段：
+
+| executed | 适用情形 | 强制要求 |
+|----------|----------|----------|
+| `true` | 正常成功执行；工具实现被调用后返回业务失败；执行过程中抛出结构化执行错误 | 此前必须存在同一 `tool_call_id` 的 `policy.decision=ALLOW`；无匹配 ALLOW 却出现 `executed=true` 必须被 `NoPolicyViolationRule` 判为违规（§4.8） |
+| `false` | 工具实现从未被调用的执行前失败：`TOOL_NOT_FOUND`、`INVALID_TOOL_ARGUMENT`、参数 Schema 校验失败及其他发生在工具实现调用之前的拒绝（未来若新增执行前错误码——如 TOOL_DISABLED——自动属于本类，无需扩展豁免清单；新增错误码本身仍须修订 §7） | 不要求此前存在 policy ALLOW（存在也不违规）；不得被 `NoPolicyViolationRule` 误判为未授权执行；工具实现调用次数必须为 0（测试可验）；仍产生完整的失败型 `tool.result` 结局事件，避免事件轨迹悬空 |
+
+Policy DENY 不在上表范围内：继续使用 `tool.denied` 事件，**不使用 `tool.result`
+表示 DENY**（不存在 “executed 字段的 tool.denied”）。
 
 ### 4.5 Workspace（`workspace/`）
 
@@ -371,11 +405,13 @@ CREATE TABLE events (
 );
 ```
 
-事件类型（冻结；`tool.denied` 与 `state.transition_rejected` 为审查轮 1 经 ADR-0024 新增）：
+事件类型（冻结；`tool.denied` 与 `state.transition_rejected` 为审查轮 1 经 ADR-0024 新增；
+`tool.result` 的 `executed` 与 `run.final` 的 `trace_complete` 为残余修复 §19 新增的
+payload 字段扩展，`schema_version` 仍为 1）：
 
 | event_type | 触发点 | payload 要点 |
 |------------|--------|--------------|
-| `run.created` | Run 创建 | 参数快照（workspace、task、预算、provider 类型） |
+| `run.created` | Run 创建；成功持久化是“Run 已正式建立”的边界（§7 生命周期矩阵） | 参数快照（workspace、task、预算、provider 类型） |
 | `state.transition` | 每次状态转换 | from/to/reason/turn |
 | `state.transition_rejected` | 非法转换请求被拒（含终态后） | from/to/reason；状态不变 |
 | `model.request` | 发出 ModelRequest | **元数据**：turn、消息条数、各角色字符数、工具声明数、`request_fingerprint`（§4.2，不存全文） |
@@ -383,9 +419,9 @@ CREATE TABLE events (
 | `tool.requested` | Provider 请求工具 | tool_call_id、工具名、参数 |
 | `policy.decision` | PolicyEngine 裁决 | ALLOW/DENY、权限类型、理由 |
 | `tool.denied` | DENY 后回传拒绝观察 | tool_call_id、工具名、权限类型、理由；**不代表执行** |
-| `tool.result` | 工具**真实执行**完成 | status、内容（截断）、truncated、error |
+| `tool.result` | 工具真实执行完成（`executed=true`），或工具实现调用前的失败结局（`executed=false`，§4.4） | status、**executed**、内容（截断）、truncated、error |
 | `verification.result` | 验证引擎裁决 | 各规则结果、CompletionDecision |
-| `run.final` | 终态 | 最终状态、最终分析文本（截断）、统计 |
+| `run.final` | 终态 | 最终状态、最终分析文本（截断）、统计、`trace_complete`（§7） |
 
 强制要求：
 
@@ -402,6 +438,9 @@ CREATE TABLE events (
 - `sqlite3.connect(path, timeout=5.0)`；写入用显式事务；连接关闭走 `try/finally`。
 - 初始化（建表/Schema 校验）失败时必须关闭已建立的连接后再抛 `EVENT_STORE_FAILED`，
   不得泄漏连接（审查轮 1 修订）。
+- **Run 建立的原子性**（残余修复 §19 裁决）：`runs` 行插入与 `run.created` 事件必须
+  在**同一显式事务**中提交；事务失败即回滚，不得留下无 `run.created` 事件的 `runs`
+  行等**半初始化、可被误认为有效 Run 的轨迹**（§7 生命周期矩阵阶段 1）。
 - 存储故障下的事件完整性声明：EventStore 写入中途失败时，**数据库可能只保留完整事件
   的前缀**（已提交事件逐条事务化，不会出现半条事件，但后续事件与 `run.final`/
   `final_status` 可能缺失）；消费方不得假定每个 Run 行都有 `final_status`（§7）。
@@ -419,11 +458,18 @@ CREATE TABLE events (
 - `RequiredEvidenceRule`：最终分析文本必须引用**至少一个**本 Run 内真实执行过
   `read_file`/`read_file_range` 的文件路径，且包含行号引用；否则 REJECT
   （"模型返回最终文本 ≠ 任务完成"的落地点）。
-- `NoPolicyViolationRule`（语义由 ADR-0024 裁决，审查轮 1 修订）：**只拒绝“没有匹配
-  ALLOW 决策却实际执行”的情况**，即：存在 `tool.result`（真实执行痕迹）而无同
-  tool_call_id 的先行 ALLOW `policy.decision`，或同一 tool_call_id 在 DENY 后仍出现
-  `tool.result` → REJECT。`tool.denied` 事件是拦截成功的证据，**不构成违规**，
-  不得因存在 DENY/`tool.denied` 而 REJECT。
+- `NoPolicyViolationRule`（语义由 ADR-0024 裁决，残余修复 §19 升级为基于 `executed`
+  字段的通用语义，不再使用错误码豁免白名单），依据以下四项事实判断：
+  1. 所有 `executed=true` 的 `tool.result`，都必须存在此前同一 `tool_call_id` 的
+     ALLOW `policy.decision`；无匹配 ALLOW 却出现 `executed=true` → REJECT。
+  2. `tool.denied` 后不得存在同一 `tool_call_id` 的 `executed=true` 的
+     `tool.result` → 否则 REJECT。
+  3. `tool.requested`、`policy.decision`、`tool.denied`/`tool.result` 的
+     `tool_call_id` 必须正确对应（孤立的执行痕迹同样视为违规）。
+  4. `executed=false` 的执行前失败（§4.4）**不是** Policy Violation，
+     无论其错误码为何、无论是否存在先行 ALLOW。
+  `tool.denied` 事件是拦截成功的证据，**不构成违规**，不得因存在
+  DENY/`tool.denied` 而 REJECT。
 
 引擎：`VerificationEngine`（或等价 `MockVerifier`）串行执行全部规则，任一 REJECT 则
 `CompletionDecision = REJECT`。**只有 VerificationEngine 通过后，RunController 才能设置
@@ -453,19 +499,34 @@ python -m win7_agent.cli analyze --workspace PATH --task TEXT
   **必须使用自定义 `ArgumentParser` 子类覆盖 `error()`**，使缺参/非法值等参数错误
   返回 3（argparse 默认 `error()` 退出码为 2，与 CANCELLED 冲突；审查轮 1 修订）；
   `--max-turns` / `--max-tool-calls` 小于 1（含 0）同属参数错误 → 3。
-- 退出码（ADR-0024 裁决，冻结）：`0` = COMPLETED；`1` = Run 失败（FAILED，含运行期
-  `REPLAY_MISMATCH`/`EVENT_STORE_FAILED` 等导致的失败）；`2` = Run 取消（CANCELLED）；
-  `3` = 参数、配置、Replay 初始化（`ProviderError`）及 CLI 基础设施错误
-  （WorkspaceError、事件库无法创建等 Run 尚未启动的错误）。
+- 退出码（ADR-0024 裁决，残余修复 §19 精确化，冻结）：`0` = COMPLETED；`1` = Run 失败
+  （FAILED，含运行期 `REPLAY_MISMATCH`/`EVENT_STORE_FAILED` 等导致的失败）；
+  `2` = Run 取消（CANCELLED）；`3` = 参数、配置、Replay 初始化（`ProviderError`）及
+  CLI 基础设施错误，**含 Run 正式建立之前的一切存储故障**（EventStore 初始化/
+  Schema/打开失败、`run.created` 持久化失败等，§7 生命周期矩阵阶段 1；此时不进入
+  Agent Loop、无 RESULT 行）。仅 `run.final`/`finalize_run` 收尾失败时退出码按业务
+  终态计算（阶段 3：COMPLETED→0、FAILED→1、CANCELLED→2）。
 - 控制台输出 ASCII-only（ADR-0006 沿用）：**按 EventStore 事件顺序输出逐事件 ASCII
   摘要行**（每事件一行：`seq`、`event_type` 与关键元数据，如状态 from/to、工具名、
   裁决结果），然后输出最终
-  `RESULT status=... turns=N tool_calls=N event_db=<ascii 转义路径>`；
+  `RESULT status=... turns=N tool_calls=N trace_complete=true|false event_db=<ascii 转义路径>`
+  （`trace_complete` 字段永远展示，取值见 §7；残余修复 §19 修订）；
   摘要行**不得输出完整模型内容或文件内容**（审查轮 1 修订）；
   含非 ASCII 的内容（中文路径等）以 backslashreplace 转义显示，完整信息在事件库中。
 - `--event-db` 指向目标工作区内部时：允许（用户显式指定，§6），但必须在控制台
   输出一行 ASCII 提示（如 `NOTE event-db is inside the target workspace`），避免
   事件库污染工作区快照而用户无感知（审查轮 1 修订）。
+- Run 以 `EVENT_STORE_FAILED` 失败或收尾失败时：按 §7 生命周期矩阵分阶段处置
+  （残余修复 §19 裁决）：阶段 1（Run 建立前）→ stderr 一行 ASCII 错误、无 RESULT
+  行、退出码 3；阶段 2（必要事件失败）→ stderr 一行含 `EVENT_STORE_FAILED` 字样的
+  ASCII 错误（无 traceback），并**继续**在 stdout 输出
+  `RESULT status=FAILED trace_complete=false ...`，退出码 1；阶段 3（仅收尾失败）
+  → stderr 一行 ASCII 警告，RESULT 行展示业务终态与 `trace_complete=false`，
+  退出码按业务终态计算。
+- `--replay` 与 `--event-db` 解析后指向同一路径（`os.path.realpath` +
+  `os.path.normcase` 比较）时：输出一行 ASCII 提示（如
+  `NOTE replay-db and event-db are the same path`）；重放源仍只读打开，新 Run
+  事件将追加写入同一库（残余修复 §19 修订）。
 
 ## 5. 数据模型（冻结；全部厂商无关，允许 `dataclasses`，类型标注用 `typing.List` 等 3.8 形式）
 
@@ -487,7 +548,7 @@ python -m win7_agent.cli analyze --workspace PATH --task TEXT
 |------|----------|
 | `ToolSpec` | `name`、`description`、`parameters`（参数名 → {type, required}）、`permission: PermissionType` |
 | `ToolRequest` | `tool_call_id`、`tool_name`、`arguments`、`run_id` |
-| `ToolResult` | `tool_call_id`、`status`（`"ok" | "error"`）、`content: str`、`truncated: bool`、`error`（§7 错误对象，可空）、`duration_ms: int` |
+| `ToolResult` | `tool_call_id`、`status`（`"ok" | "error"`）、`executed: bool`（§4.4 executed 语义，残余修复 §19 新增）、`content: str`、`truncated: bool`、`error`（§7 错误对象，可空）、`duration_ms: int` |
 
 ### 5.3 决策与验证侧
 
@@ -527,14 +588,40 @@ python -m win7_agent.cli analyze --workspace PATH --task TEXT
 - 结构化错误对象（对齐 Phase 1 风格）：`{code, message, exception_type?, traceback_tail?}`。
 - 禁止静默吞异常：捕获后必须转结构化错误并写事件（AGENTS.md §7）。
 - 工具异常止于 `ToolResult`；Provider 异常止于 Runtime（Run → FAILED）；
-  EventStore 写入失败 → 尽力在 stderr 打一行 ASCII 错误，Run → FAILED + `EVENT_STORE_FAILED`。
-- EventStore 故障处理细则（审查轮 1 修订）：
+  EventStore 故障按下方**生命周期矩阵**分阶段处置。
+- EventStore 故障处理细则（审查轮 1 修订，残余修复 §19 裁决补充）：
+  - **任一必要事件写入失败都使 Run FAILED** 并产生 `EVENT_STORE_FAILED`，
+    **不得返回 COMPLETED**。除终态处理中的 `run.final` 写入与 `finalize_run`
+    （best-effort）外，全部事件写入均属必要写入。
+  - **运行期错误与 `EventStoreError` 同时发生** → 最终仍是 Run FAILED、退出码 1；
+    错误列表**保留原始运行错误在前**并追加 `EVENT_STORE_FAILED`，二者均不得丢失。
   - Runtime 必须**单独捕获 `EventStoreError`**（不得落入 `UNEXPECTED` 兜底），
-    RunResult 错误列表中的错误码必须为 `EVENT_STORE_FAILED`。
+    RunResult 错误列表中的错误码必须为 `EVENT_STORE_FAILED`；不得产生未捕获异常。
   - 存储已故障时，终态处理的 `run.final` 写入与 `finalize_run` 均为 **best-effort**：
     二次失败必须被捕获，**不得覆盖原始错误、不得向控制台输出 traceback**，
     RunResult 仍正常返回（错误列表保留首次失败）。
   - 文档约定：存储故障时数据库可能只保留完整事件的前缀（§4.7）。
+
+EventStore 生命周期故障矩阵（残余修复 §19 精确定义，冻结）：
+
+**阶段边界：`run.created` 成功持久化（与 `runs` 行同事务，§4.7）是“Run 已正式建立”
+的边界。**边界之前的故障属阶段 1，之后属阶段 2/3。
+
+| 阶段 | 覆盖故障 | Run 与状态 | RunResult | CLI 输出 | 退出码 |
+|------|----------|-----------|-----------|----------|--------|
+| 1. Run 正式建立之前 | EventStore 初始化失败；SQLite Schema 初始化失败；数据库无法打开；`run.created` 无法成功持久化；创建 Run 所需基础存储操作失败 | **不进入 Agent Loop**；不创建可运行的 Run；不得创建半初始化、可被误认为有效 Run 的轨迹（§4.7 原子性） | 无 RunResult | stderr 一行 ASCII 安全错误；**不输出** RESULT 行（不得输出误导性的 `RESULT status=FAILED`） | **3** |
+| 2. Run 建立后，必要运行事件写入失败 | 状态转换事件；模型请求/响应事件；工具请求、策略决定、工具结果事件；验证结果；其他 §4.7 定义的必要运行事件 | Run 在内存中强制进入 FAILED（持久化先行，§3.2）；**不得返回 COMPLETED**；不得未捕获异常；若存储已完全不可用，允许无法写入 FAILED 转换事件 | 必须包含 `EVENT_STORE_FAILED`；必须 `trace_complete=false`；不得声称事件轨迹完整 | stderr 一行 ASCII 安全的 `EVENT_STORE_FAILED` 信息；stdout 继续输出 `RESULT status=FAILED trace_complete=false ...` | **1** |
+| 3. 仅最终收尾失败 | 业务终态已合法确定且此前必要事件均成功持久化，仅 `run.final` 写入失败 / `finalize_run` 更新失败 | **不回滚**已确定的业务终态；不得产生 traceback | 追加 `EVENT_STORE_FAILED`（trace 错误）；必须 `trace_complete=false`；不得声称 EventStore 中存在完整终态轨迹 | stderr 一行 ASCII 安全警告；RESULT 行展示业务终态与 `trace_complete=false` | 按业务终态：COMPLETED→0、FAILED→1、CANCELLED→2 |
+
+`trace_complete` 定义（冻结）：
+
+- `RunResult.trace_complete = true` 当且仅当本 Run 全部必要事件、`run.final` 与
+  `finalize_run` 均成功持久化；任一写入失败（含 best-effort 收尾）→ `false`。
+- `RunResult.trace_complete` 是权威值；`run.final` payload 中的 `trace_complete`（§4.7）
+  反映**截至该事件写入时**必要事件是否完整（写入后 `finalize_run` 再失败时两者
+  可能不一致，以 RunResult 为准）。
+- RESULT 行永远展示 `trace_complete` 字段（§4.9）；`trace_complete=false` 时不得
+  声称事件库可还原完整轨迹，事件库仅保证完整事件前缀（§4.7）。
 - 禁止 `except: pass`；traceback 全文不上控制台（只留 `traceback_tail` 末 5 行进事件库）。
 
 错误码枚举（冻结，新增须修订本文档）：
@@ -706,13 +793,36 @@ MockProvider 剧本（按 Turn 顺序，必须完成）：
 | P33 | EventStore 中途写入失败（注入故障） | Run FAILED，错误码 `EVENT_STORE_FAILED`，无异常穿透，无 traceback 上控制台 |
 | P34 | DENY 后工具实现调用次数 | 实现函数调用次数为 0，事件为 `tool.denied` 而非 `tool.result` |
 | P35 | DENY 后模型改用只读工具并给出带证据结论 | Run COMPLETED（DENY 不阻断 Run） |
-| P36 | 构造“无 ALLOW 却存在 `tool.result`”的轨迹 | `NoPolicyViolationRule` REJECT |
-| P37 | 未注册工具请求 | 直接 `TOOL_NOT_FOUND`，轨迹中无对应 ALLOW `policy.decision` |
-| P38 | `True`/`False` 传入 `int` 参数（如 `start_line`） | `INVALID_TOOL_ARGUMENT`，工具不执行 |
+| P36 | 构造“无 ALLOW 却存在 `executed=true` 的 `tool.result`”的轨迹 | `NoPolicyViolationRule` REJECT（§4.8 事实 1；§19 修订） |
+| P37 | 未注册工具请求 | 直接 `TOOL_NOT_FOUND`，结局为失败型 `tool.result`（`status="error"`、`executed=false`），轨迹中无对应 ALLOW `policy.decision`（§19 修订） |
+| P38 | `True`/`False` 传入 `int` 参数（如 `start_line`） | `INVALID_TOOL_ARGUMENT`，工具实现未调用，结局 `tool.result` 带 `executed=false`（§19 修订） |
 | P39 | 终态后调用 `transition()` | 拒绝且写 `state.transition_rejected` 事件，状态不变 |
 | P40 | Git 超时且进程拒不退出（模拟） | 无未捕获 `TimeoutExpired` 穿透，管道已关闭，结果 `TOOL_TIMEOUT` |
-| P41 | `search_text` 预算：文件数/单文件字节/总输出字节分别超限 | 均停止扫描且 `truncated=true`，已有匹配返回 |
-| P42 | 统一入口 `python scripts/run_prototype_tests.py` | 单命令执行全部原型 + Probe 测试，全绿退出 0，任一失败非零 |
+| P41 | `search_text` 预算：单文件超限 vs 整体预算耗尽 | 超单文件预算的文件仅扫描前 1 MiB 且**后续文件继续扫描**；文件数/总输出耗尽才终止；均 `truncated=true`，已有匹配返回（§19 修订） |
+| P42 | 统一入口 `python scripts/run_prototype_tests.py` | 单命令**递归**发现并执行全部原型 + Probe 测试，输出实际执行测试总数，总数不低于最低门槛（minimum test count，§18.4），全绿退出 0，任一失败非零（§19 修订） |
+
+残余修复新增用例（P43–P47，全部必做，对应 §19）：
+
+| # | 用例 | 预期 |
+|---|------|------|
+| P43 | 在任意必要事件写入点注入存储故障（必须覆盖“进入 COMPLETED 的 `state.transition` 事件写入失败”场景） | Run 绝不 COMPLETED；状态不停留在未持久化的目标状态；RunResult 含 `EVENT_STORE_FAILED` 且 `trace_complete=false`；退出码 1（§19 修订） |
+| P44 | 运行期错误与存储故障同时发生 | FAILED、退出码 1，错误列表含原始错误（在前）与 `EVENT_STORE_FAILED` |
+| P45 | `EVENT_STORE_FAILED` 下的 CLI 输出（§7 阶段 2） | stderr 有一行含 `EVENT_STORE_FAILED` 的 ASCII 错误；stdout 仍输出 `RESULT status=FAILED trace_complete=false ...`（§19 修订） |
+| P46 | DENY / `TOOL_NOT_FOUND` 尝试与 `--max-tool-calls` | 尝试计入预算；预算 1 时第二次尝试触发 `RUN_LIMIT_EXCEEDED` |
+| P47 | 事件库路径含空格/`%`/非 ASCII 字符时 Replay；`--replay` 与 `--event-db` 同路径 | URI 转义正确、只读打开成功；同路径时输出 NOTE 提示行 |
+
+残余修复精确定义新增用例（P48–P55，全部必做，对应 §19 三项精确定义）：
+
+| # | 用例 | 预期 |
+|---|------|------|
+| P48 | EventStore 初始化 / SQLite Schema 初始化 / 数据库打开失败（Run 建立前，§7 阶段 1） | 不进入 Agent Loop、不创建可运行的 Run；stderr 一行 ASCII 安全错误；**无 RESULT 行**（不得输出 `RESULT status=FAILED`）；退出码 3 |
+| P49 | `run.created` 持久化失败（含同事务 `runs` 行插入失败，§4.7 原子性） | 退出码 3；事件库中不存在半初始化、可被误认为有效 Run 的轨迹（无孤立 `runs` 行、无孤立事件） |
+| P50 | 业务终态已合法确定后仅 `run.final`/`finalize_run` 写入失败（§7 阶段 3） | 业务终态不回滚；RunResult 追加 `EVENT_STORE_FAILED` 且 `trace_complete=false`；stderr 一行 ASCII 警告；RESULT 行展示业务终态与 `trace_complete=false`；退出码按业务终态（COMPLETED→0 / FAILED→1 / CANCELLED→2）；无 traceback |
+| P51 | `executed` 字段矩阵（§4.4）：正常成功工具；工具实现内部失败（业务失败/结构化执行错误）；`TOOL_NOT_FOUND`；`INVALID_TOOL_ARGUMENT` | 成功与内部失败均 `executed=true` 且此前存在同 `tool_call_id` 的 ALLOW；两类执行前失败均 `executed=false` 且工具实现调用次数为 0 |
+| P52 | Verification 对 `executed` 的判定（§4.8）：DENY 后构造同 `tool_call_id` 的 `executed=true`；`executed=false` 的执行前失败轨迹 | 前者 REJECT（§4.8 事实 2）；后者不得被判为 Policy Violation（§4.8 事实 4） |
+| P53 | 统一入口防漏测门槛：对临时构造的空测试目录运行；将最低门槛设置高于实际测试数量 | 两种情况 runner 均返回非零；正常全量运行输出实际执行测试总数并返回 0 |
+| P54 | 测试模块 ImportError / 测试目录无法读取 | 记为失败并返回非零，不得跳过、不得出现 “Ran 0 tests, OK” |
+| P55 | 新增一个此前未列入固定目录清单的嵌套测试目录（如 `tests/unit/<new>/<nested>/test_*.py`） | 被统一入口自动发现并执行；Probe 测试仍被动态发现并执行（P23 联动） |
 
 ## 13. 里程碑提交（顺序冻结，禁止合并为巨型 Commit）
 
@@ -773,7 +883,7 @@ MockProvider 剧本（按 Turn 顺序，必须完成）：
 6. `docs/tasks/PHASE_01_CAPABILITY_PROBE.md`（**只读**：理解禁改边界、错误模型与文档风格）
 7. `docs/ROADMAP.md`（正式阶段编号，PROTOTYPE_FINDINGS 对 Phase 2—6 的影响需按此编号书写）
 
-## 18. 审查轮 1（Review Round 1）—修复要求与门控（本节为本轮修复的唯一授权依据）
+## 18. 审查轮 1（Review Round 1）—修复要求与门控（本节与 §19 共同构成本轮修复的授权依据）
 
 独立审查结论：`KEEP_READY_FOR_PROTOTYPE_REVIEW_AND_REPAIR`（审查对象 `31d1bda`）。
 本节列出的修复项均已反映到正文各节（标注“审查轮 1 修订/新增”）；正文与本节
@@ -807,30 +917,114 @@ MockProvider 剧本（按 Turn 顺序，必须完成）：
 
 §12 P26–P42 全部实现并通过；既有 P01–P25 不得回退；Probe 测试（P23）仍须原样全绿。
 
-### 18.4 统一测试入口规格（新增授权，§8.3）
+### 18.4 统一测试入口规格（新增授权，§8.3；防漏测门槛为残余修复 §19 冻结）
 
 背景：仓库根目录 `python -m unittest discover` 发现 0 个用例（子包布局不被默认
 发现规则命中），必须提供单命令入口。
 
 - `scripts/run_prototype_tests.py`：仅标准库（`unittest`、`os`、`sys` 等），
-  **不得依赖 pytest**。依次用 `unittest.defaultTestLoader.discover` 加载以下目录
-  （将 `src` 与仓库根加入 `sys.path`）：全部原型单测目录（§8.2 的 `tests/unit/*`）、
-  `tests/integration/prototype`、`tests/unit/probe`、`tests/integration/probe`；
-  合并为单个 suite 运行，**任一失败/错误/加载失败返回非零**，全绿返回 0；
-  控制台输出 ASCII-only。只读加载 Probe 测试不违反 §9（§9 禁的是修改）。
+  **不得依赖 pytest**。控制台输出 ASCII-only。只读加载 Probe 测试不违反 §9
+  （§9 禁的是修改）。
 - `scripts/run_prototype_tests.bat`：CRLF（`.gitattributes` 既有 `*.bat` 规则覆盖），
   ≤5 行，无 cmd 高级特性，调用上述 Python 脚本并透传退出码。
 
+动态发现范围（残余修复 §19 修订并冻结）：
+
+- 必须**递归**发现 `tests/unit/**/test_*.py` 与 `tests/integration/**/test_*.py`
+  （任意嵌套深度）；不得只枚举固定的包目录或一级子目录，新增测试目录
+  （含嵌套目录）无需修改脚本，禁止硬编码目录清单。加载方式仍为
+  `unittest.defaultTestLoader.discover`（将 `src` 与仓库根加入 `sys.path`），
+  合并为单个 suite 运行，**任一失败/错误/加载失败返回非零**，全绿返回 0。
+- 发现顺序必须稳定：目录按规范化路径（`os.path.normcase` 归一后）排序；
+  测试模块按路径排序；测试套件加载顺序可重复（同一仓库状态两次运行
+  顺序一致）。
+
+零测试与最低门槛（minimum test count，残余修复 §19 冻结）：
+
+- 必须输出**实际发现并执行的测试总数**（一行 ASCII，如 `TOTAL tests run: N`）。
+- 发现 0 项测试时退出非零；发现测试数量低于冻结最低门槛时退出非零。
+- 测试模块导入失败必须记为失败（不得跳过）；测试目录无法读取必须记为
+  失败；不得因 discover 配置错误而出现 “Ran 0 tests, OK”。
+- 当前最低门槛：**不得低于修复前已确认通过的 73 项**。
+- 基线更新机制：本轮新增残余修复测试后，Codex 必须 ① 统计新的实际测试
+  总数；② 将脚本内最低门槛常量更新为该轮确认后的新基线；③ 在原型文档
+  （`docs/prototype/PROTOTYPE_FINDINGS.md`）中记录该基线；④ 后续任何运行
+  发现测试数量低于该基线时统一入口失败。
+- 最低门槛仅用于发现漏测（discover 失灵、目录丢失、误删测试），**不代表**
+  所有测试都有质量保证。
+
 ### 18.5 进入 `READY_FOR_PYTHON38_VALIDATION` 的条件（全部满足，由架构师复审后更新 Gate）
 
-1. §18.1 B1/B2/H1–H4 与 §18.2 M1–M8 全部关闭，实现与正文各节一致。
-2. §12 P01–P42 全部通过；`python scripts/run_prototype_tests.py` 单命令全绿。
+1. §18.1 B1/B2/H1–H4 与 §18.2 M1–M8 全部关闭，且 §19 残余修复 RR1–RR9 全部关闭，
+   实现与正文各节一致。
+2. §12 P01–P55 全部通过（含此前未自动化的 P29、P31、P40、P41）；
+   `python scripts/run_prototype_tests.py` 单命令全绿，输出实际测试总数且不低于
+   §18.4 冻结的最低门槛（minimum test count）；确认后的新基线已按 §18.4
+   更新并记录在原型文档中。
 3. `python -m compileall -q src tests scripts` 零错误（仍禁 3.9+ 语法）。
 4. 修复提交仅触及 §8 白名单路径；`src/win7_agent/probe/**` 与 Probe 测试零 diff。
-5. 三份原型文档（§15）同步本轮语义变更（tool.denied、指纹、威胁模型声明等）。
+5. 三份原型文档（§15）同步本轮语义变更（tool.denied、指纹、威胁模型声明、
+   `executed` 字段、`trace_complete`、生命周期故障矩阵、最低门槛基线等）。
 6. 架构师复审确认后，由架构师将 `Review-Status` 更新为 `REPAIR_VERIFIED` 并将
    `Phase-Gate` 更新为 `READY_FOR_PYTHON38_VALIDATION`；实现方不得自行修改（§0.4）。
 
 `READY_FOR_PYTHON38_VALIDATION` 的含义：在干净的 CPython 3.8.10 解释器上执行
 统一测试入口与演示脚本验证；该验证通过后方可由架构师裁决 `PROTOTYPE_ACCEPTED`。
 它仍**不是** Win7 E1/E2 实机验收，不解除 §0.2 的任何限制。
+
+## 19. 审查轮 1 残余修复（Residual Repairs）
+
+本节是审查轮 1 修复验证过程中发现的残余问题的正式裁决与修复授权，与 §18 同属
+审查轮 1：**不新开审查轮、不修改状态块**（`Phase-Gate`、`Review-Round`、
+`Review-Status` 均保持不变；`Review-Status: REPAIR_REQUIRED` 直至 §18.5（含本节）
+全部满足后由架构师更新）。各裁决已反映到正文各节（标注“残余修复 §19 裁决/修订”）；
+正文与本节冲突时以正文为准。事件前缀语义的接口风险已登记在
+`docs/prototype/INTERFACE_RISKS.md`（“Event persistence failure prefix”）。
+
+本节另含三项**精确定义**（属既有残余修复裁决的精确化，不改变 ADR-0024 核心
+架构方向，不新增 ADR；均已修订进冲突正文，非仅本节补丁）：
+
+- **精确定义 A：EventStore 生命周期三阶段故障与退出码语义** → §7 生命周期
+  故障矩阵（含 `run.created` 边界、`trace_complete` 定义）、§3.2（持久化先行
+  三步顺序）、§4.7（Run 建立原子性）、§4.9（退出码与 RESULT 行）；
+- **精确定义 B：`tool.result` 的 `executed` 字段通用语义**（取代错误码豁免
+  白名单）→ §4.4（executed 矩阵）、§4.7（事件 payload）、§4.8（四项事实）、
+  §5.2（ToolResult 结构）；
+- **精确定义 C：动态测试发现防漏测门槛**（minimum test count）→ §18.4
+  （递归发现、稳定顺序、零测试/低于门槛非零、基线更新机制）、§18.5、
+  §12 P42/P53–P55。
+
+### 19.1 裁决清单（RR1–RR9，全部必修）
+
+| # | 裁决 | 落地节 |
+|---|------|--------|
+| RR1 | EventStore 故障按生命周期三阶段处置（§7 矩阵）：Run 建立前（`run.created` 边界之前）→ 不进入 Agent Loop、无 RESULT 行、退出码 3；建立后任一**必要**写入失败 → Run FAILED + `EVENT_STORE_FAILED`、`trace_complete=false`，不得返回 COMPLETED；仅 `run.final`/`finalize_run` 收尾失败（best-effort）→ 业务终态不回滚、`trace_complete=false`、退出码按终态 | §7 生命周期矩阵、§4.7、§4.9 |
+| RR2 | 状态转换持久化先行三步顺序冻结（① 校验合法 → ② 持久化 `state.transition` → ③ 提交内存状态）；第 ② 步失败时目标状态不得先写入内存；存储不可用时 Runtime 可在内存中强制进入 FAILED，但必须 `trace_complete=false`，不得声称事件轨迹完整 | §3.2、§4.7、§7 |
+| RR3 | 运行期错误与 `EventStoreError` 同时发生 → 最终仍是 Run FAILED、退出码 1；保留原始运行错误（在前）并追加 `EVENT_STORE_FAILED` | §7 |
+| RR4 | CLI 对存储故障按 §7 三阶段输出：阶段 1 → stderr 一行 ASCII 错误、无 RESULT 行、退出码 3；阶段 2 → stderr 一行含 `EVENT_STORE_FAILED` 的 ASCII 错误并继续输出 `RESULT status=FAILED trace_complete=false`、退出码 1；阶段 3 → stderr 一行 ASCII 警告、RESULT 行展示业务终态与 `trace_complete=false`、退出码按终态 | §4.9、§7 |
+| RR5 | `search_text` 对超过单文件预算的文件只扫描前 1 MiB 并继续后续文件；只有整体预算耗尽才终止搜索 | §4.3、P41 |
+| RR6 | 所有 `tool.result`（事件与 `ToolResult` 结构）新增布尔字段 `executed`，以“是否真实执行”为通用语义（取代错误码豁免白名单）：`executed=true` 必须有先行同 `tool_call_id` 的 ALLOW，否则 `NoPolicyViolationRule` 判违规；`TOOL_NOT_FOUND`/`INVALID_TOOL_ARGUMENT` 等执行前失败一律 `executed=false`、不产生 ALLOW、工具实现调用 0 次、不判违规；DENY 继续用 `tool.denied`，不用 `tool.result` | §4.4、§4.7、§4.8、§5.2 |
+| RR7 | DENY、`TOOL_NOT_FOUND` 等模型工具调用尝试均计入工具调用预算 | §3.3 |
+| RR8 | 补齐 P29、P31、P40、P41 自动化测试（此前在矩阵中但未自动化），并新增 P43–P47 | §12 |
+| RR9 | 同轮处理五项：① SQLite 只读 URI 路径转义（`Path.resolve().as_uri()`）；② 子进程 drain 线程异常保护；③ 工作区边界比较实际应用 `os.path.normcase`（正文 §4.5 既有要求，实现必须真实生效）；④ `--replay` 与 `--event-db` 同路径时输出 ASCII 提示；⑤ 统一测试入口改为**递归**动态发现，并冻结防漏测最低门槛（minimum test count）与基线更新机制 | §4.2、§4.3、§4.5、§4.9、§18.4 |
+
+### 19.2 测试要求
+
+- 补齐 P29、P31、P40、P41（预期按 §12 修订后的行）；新增 P43–P55 全部实现并通过。
+- P36、P37、P38、P42、P43、P45 按 §12 修订后的预期实现（`executed` 字段、
+  `trace_complete`、防漏测门槛）。
+- 既有 P01–P28、P30、P32–P35、P39 不得回退；Probe 测试（P23）仍须原样全绿，
+  且必须被统一入口动态发现并执行（P55）。
+- 完成后按 §18.4 统计实际测试总数、更新最低门槛基线并记录在原型文档中。
+- §18.5 的门控条件已同步修订为 P01–P55 与 RR1–RR9 全部关闭。
+
+### 19.3 实现白名单与提交顺序
+
+本节**不扩大** §8 白名单：修复只允许触及 §8.1 实现包、§8.2 测试目录、§8.3 脚本
+与文档路径；`src/win7_agent/probe/**` 与 Probe 测试仍为零 diff 红线。建议提交顺序：
+
+1. RR5 + RR9②③（tools/workspace 层基础语义）；
+2. RR6 + RR7（`executed` 字段、分发路径与预算口径，含 Verification 四项事实与 P51/P52）；
+3. RR1 + RR2 + RR3（§7 生命周期矩阵三阶段、持久化先行、`trace_complete`，含 P43/P44/P48–P50）；
+4. RR4 + RR9①④（CLI 分阶段错误面与 Replay 路径处理，含 P45/P47）；
+5. RR8 + RR9⑤（测试补齐、P43–P55 全量、递归动态发现与最低门槛入口、基线记录与文档同步）。
