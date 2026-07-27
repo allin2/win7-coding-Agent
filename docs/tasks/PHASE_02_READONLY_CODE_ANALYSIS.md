@@ -13,7 +13,7 @@
 Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/02-readonly-agent
-Phase-Gate: REVIEW_PASSED
+Phase-Gate: READY_FOR_PYTHON38_VALIDATION
 Review-Round: 2
 Review-Status: REVIEW_PASSED
 Win7-Compatibility: PROVISIONAL
@@ -1070,3 +1070,175 @@ Phase 2 最终接受（`PHASE_ACCEPTED`）的硬门槛（AGENTS.md §5.8）。
   独立复跑属本轮审查证据；正式 Validation Gate（`READY_FOR_PYTHON38_VALIDATION`
   → `PYTHON38_VALIDATED`）必须在后续独立授权与独立提交中执行，本轮不流转。
 - 本轮未开始 Phase 3，未触碰 §3 契约与实现代码。
+
+## 16. Python 3.8 Validation Gate（2026-07-27，架构师授权，合同冻结）
+
+本章是正式 Python 3.8 Validation Gate 的唯一授权载体。本章创建时仅流转
+`Phase-Gate: REVIEW_PASSED → READY_FOR_PYTHON38_VALIDATION`（§10.4 合法转换），
+**不执行正式验证**。Review Round 2 在开发环境中的 CPython 3.8.10 复跑仅为
+审查证据，**不得复用为本 Gate 的完成证据**；正式验证必须按本章合同独立
+执行并独立提交证据。
+
+### 16.1 基线（冻结）
+
+```
+Implementation candidate:      fa3034d2a70deb45fae9053900475a8d07643b61
+                               (tag: phase2-review-r2-candidate)
+Review acceptance HEAD:        4e4fde3304fe95fc1d8af5916118e08a889d8448
+Validation authorization HEAD: 由本治理修订提交 Hash 冻结；执行提示词必须
+                               替换为实际完整 Hash。
+```
+
+- 正式验证对象是 Review Round 2 已通过的实现候选 `fa3034d`；治理文档提交
+  可以位于候选之后，但 `src/**`、`tests/**`、`scripts/**` 必须与候选完全一致。
+- 验证窗口内禁止修复失败、禁止修改实现/测试/脚本/门槛；验证失败必须
+  停止并返回架构师。
+
+### 16.2 验证解释器（冻结）
+
+正式验证解释器严格为 **CPython 3.8.10**，首选路径 `.conda-py3810/bin/python`。
+开始前必须运行 `.conda-py3810/bin/python --version` 并精确确认输出
+`Python 3.8.10`。不得接受：3.8.0～3.8.9、3.8.11 及以后、PyPy、3.9+、仅凭
+环境名称而不核实际版本、通过修改 PATH 伪造版本。验证主机允许为 macOS
+或其他开发主机，但本 Gate 仅是 CPython 3.8.10 兼容性验证，不是 Windows 7
+验证，不改变 `Win7-Validation: NOT_PERFORMED`。
+
+### 16.3 环境隔离（冻结）
+
+所有正式命令必须以 `env -u PYTHONPATH` 清除外部 `PYTHONPATH`。必须检查并
+记录：PYTHONPATH、PYTHONHOME、当前工作目录、解释器真实路径、`sys.version`、
+`sys.executable`、`sys.path`、locale、文件系统编码、默认编码、Git 工作区
+状态。不得依赖：用户全局 site-packages、项目外 `.pth` 注入、IDE 自动注入
+路径、未记录环境变量、Node/Bun/Docker/WSL、网络下载、在线服务、真实大
+模型 Provider。允许使用仓库内已有且未入库的 `.conda-py3810`，但必须确认
+该环境未改变候选代码。临时文件与数据库必须写入仓库外临时目录并记录路径。
+
+### 16.4 源码不可变检查（冻结）
+
+正式验证前后都必须执行：
+
+```
+git status --short
+git diff --check
+git diff --name-status fa3034d2a70deb45fae9053900475a8d07643b61..HEAD -- src tests scripts
+```
+
+要求 `src/**`、`tests/**`、`scripts/**` 相对候选零 Diff；工作区无未提交修改；
+无未跟踪实现/测试/脚本。允许 HEAD 相对候选存在纯治理文档提交。另需检查
+仓库污染：`git ls-files` 不得命中 `__pycache__`、`.pyc/.pyo`、`.sqlite/.db`、
+`.env`、`node_modules`、`.conda`、`.venv`（零命中，或逐项说明正式允许的已
+跟踪文件）。
+
+### 16.5 正式验证命令（冻结）
+
+所有 Python 命令必须使用 `.conda-py3810/bin/python`；不得把 `python3`、
+`python` 或其他解释器的结果作为正式 Gate 证据：
+
+1. `env -u PYTHONPATH .conda-py3810/bin/python --version`
+2. `env -u PYTHONPATH .conda-py3810/bin/python -c "import sys, locale; ..."`
+   （输出 sys.version / sys.executable / sys.path / 三类编码）
+3. `env -u PYTHONPATH .conda-py3810/bin/python -m compileall -q src tests scripts`
+4. `env -u PYTHONPATH .conda-py3810/bin/python scripts/run_agent_tests.py`
+5. `env -u PYTHONPATH .conda-py3810/bin/python scripts/run_agent_tests.py --static-scan`
+
+要求：compileall exit 0；统一测试 exit 0；实际测试数至少 81；最低门槛不低于
+61；skipped=0；expected failures=0；ImportError=0；discovery error=0；static
+scan exit 0；Phase 1 测试包含在全量中；不得通过 `PYTHONPATH=src` 规避入口；
+不得修改测试门槛；不得只运行测试子集。N-02 继续保持：`MINIMUM_TEST_COUNT=61`、
+实际至少 81、`DEFERRED_NON_BLOCKING`、本 Gate 不修改门槛。
+
+### 16.6 正式运行时探针（冻结）
+
+必须使用 CPython 3.8.10 独立执行，不得只读取常量映射，必须执行真实行为路径：
+
+1. **Mock CLI**：status=COMPLETED、`trace_complete=true`、exit 0、RESULT 字段
+   完整、输出 ASCII。
+2. **Record→Replay**：先 Mock 录制再以相同任务/工作区 Replay；两次
+   COMPLETED、两次 exit 0、两次 `trace_complete=true`；content、tool_calls、
+   finish_reason、usage 可重建；所有响应消费完整；Replay 数据库 `mode=ro`；
+   不产生多余响应错误。
+3. **Replay setup errors**（至少：缺少 `--replay-from`、数据库不存在、坏
+schema、无可选 Run）：exit 3、ASCII ERROR setup、无 traceback、无 RESULT、
+   缺失数据库不得被创建。
+4. **Replay runtime mismatch**（至少：响应耗尽、缺少对应响应、多余响应、
+   指纹不匹配）：`error=REPLAY_MISMATCH`、status=FAILED、RESULT 存在、exit 1、
+   无 traceback。
+5. **EventStore 阶段 1**：exit 3、无 RESULT、无半轨迹。
+6. **EventStore 阶段 2**：异常不逃逸、status=FAILED、`error=EVENT_STORE_FAILED`、
+   `trace_complete=false`、RESULT 存在、exit 1、原始故障与审计补写故障均保留
+   在结构化 errors。
+7. **EventStore 阶段 3**：业务终态不回滚、`trace_complete=false`、退出码仍按
+   业务终态。
+8. **Verification retry**：VERIFYING→EXECUTING 真实发生；重试受 Turn 预算限制；
+   成功重试最终 COMPLETED；预算耗尽最终 FAILED。
+9. **DENY observation**：被拒绝工具实现调用 0 次；`policy.decision` 与
+   `tool.denied` 存在；结构化 DENIED 观察进入下一轮 model request；后续可用
+   只读工具；Run 最终可 COMPLETED；DENY 尝试计入工具预算。
+10. **退出码 0/1/2/3**：均需真实行为路径证据；退出码 2 可使用任务书冻结的
+    Runtime CANCELLED 路径（N-01），不要求新增 CLI 取消入口。
+
+### 16.7 安全与兼容性复核（冻结）
+
+必须复核：Python 3.8.10 compileall；stdlib-only；零网络；零工作区写工具；
+无 `shell=True`；无 `os.system` / `os.popen`；无通用命令 Runner；Git 固定
+argv；Policy 先于执行；`executed=true` 必有 ALLOW；Workspace 词法与 realpath
+边界；Replay `mode=ro`；EventStore 故障边界；ASCII CLI；不依赖
+PowerShell/Bash/Node/Docker/WSL；Phase 1 零 Diff；原型未整体 merge/cherry-pick。
+静态扫描不能只引用 Review Round 2 结果，必须在本 Gate 用 CPython 3.8.10
+重新执行。
+
+### 16.8 验证结果分类（冻结）
+
+结果只允许四类：
+
+- **A. PYTHON38_VALIDATION_PASSED**：解释器严格 3.8.10；源码/测试/脚本相对
+  候选零 Diff；compileall 通过；81+ 全量测试通过；static scan 通过；运行时
+  探针全部通过；工作区干净；无安全边界回归。
+- **B. PYTHON38_VALIDATION_FAILED**：存在可复现失败。失败时不得修改代码/
+  测试/脚本/门槛，不得顺手修复，不得设置 `PYTHON38_VALIDATED`，保持
+  `READY_FOR_PYTHON38_VALIDATION`，输出完整失败证据，等待新的修复授权。
+- **C. BLOCKED_ENVIRONMENT**：3.8.10 不存在/无法启动/环境损坏/必需能力不可
+  用/无法区分环境与实现问题。不设置 `PYTHON38_VALIDATED`，保持现状，不修改
+  仓库，报告最小环境处理动作。
+- **D. BLOCKED_CONTRACT_CONFLICT**：正式任务书或 ADR 无法唯一裁决；不得
+  自行解释或修复。
+
+### 16.9 验证完成后的状态权限（冻结）
+
+仅当结果为 `PYTHON38_VALIDATION_PASSED` 时，执行者方可按独立验证授权将
+`Phase-Gate: READY_FOR_PYTHON38_VALIDATION` 更新为 `PYTHON38_VALIDATED`，同时
+保持 `Review-Round: 2` / `Review-Status: REVIEW_PASSED` 与 Win7 三行不变。
+不得在同一验证提交中设置 `READY_FOR_WIN7_VALIDATION`；下一次状态流转必须
+由后续独立 Win7 Validation Gate 授权完成。
+
+### 16.10 验证证据记录要求（冻结）
+
+验证通过后，执行者只能修改本任务书的正式验证记录追加区（§13 及本章
+追加区）与状态块；现有治理未授权新增报告文件路径，因此不得新增文件。
+必须记录：三个基线 Hash、执行日期时间、主机操作系统、工作目录、Python
+可执行文件与版本、`sys.version`、环境变量隔离情况、compileall/全量测试/
+static scan 的命令与退出码、测试数量与门槛、§16.6 十项探针结果、
+src/tests/scripts 相对候选零 Diff、Phase 1 零 Diff、工作区干净、Win7
+NOT_PERFORMED、N-01/N-02 保持非阻断、明确声明本次不是 Win7 验证。
+不得修改旧验证记录，只能追加。
+
+### 16.11 验证窗口停止条件（冻结）
+
+遇以下任一情况必须停止：(1) 分支/HEAD/远程/工作区异常；(2) Validation
+authorization HEAD 不一致；(3) 候选标签目标异常；(4) src/tests/scripts 相对
+候选存在 Diff；(5) 解释器不是 CPython 3.8.10；(6) compileall 失败；(7) 测试
+失败；(8) 实际测试数低于 81；(9) skip 或 expected failure 非零；(10) static
+scan 失败；(11) Mock CLI 失败；(12) Record→Replay 失败；(13) EventStore 故障
+探针失败；(14) Replay setup/mismatch 分类错误；(15) Verification retry 或
+DENY observation 失败；(16) 退出码证据失败；(17) 需要修改实现/测试/脚本；
+(18) 需要修改 Accepted ADR；(19) 需要 Win7 实机才能完成本 Gate；(20) 出现
+未授权文件修改。停止时：不提交验证失败结果（除非任务书明确要求追加失败
+记录）；不改变 Gate；不修改代码；输出失败或阻塞报告；等待架构师决策。
+
+### 16.12 Win7 边界（冻结）
+
+本 Gate 只验证 CPython 3.8.10 兼容性，不验证 Windows 7 SP1 x64。§15.3 N-03
+十项待验清单（demo.bat、CRLF/cmd、Win7 上 3.8.10 启动、NTFS 特殊路径、CP936
+控制台、taskkill、Git 超时与缺失、SQLite `mode=ro`、`winerror 206`、退出码
+透传）继续保持待验。不得因本 Gate 通过而设置 `Win7-Validation: PASSED`，
+不得宣称 Phase 2 已被最终接受。
