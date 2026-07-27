@@ -1,11 +1,13 @@
 """The formal single-run read-only agent orchestration loop."""
 
+import json
 import uuid
 
 from win7_agent.context import compile_request
 from win7_agent.models import ProviderError, ToolRequest, request_fingerprint
 from win7_agent.policy import PolicyEngine
 from win7_agent.storage import EventStoreError
+from win7_agent.storage.event_store import MAX_PAYLOAD_BYTES
 from win7_agent.tools import ToolRuntime, build_readonly_registry
 from win7_agent.verification import VerificationEngine
 from win7_agent.workspace import WorkspaceContext
@@ -66,8 +68,13 @@ class AgentRunner(object):
                 record("model.request", {"turn": request.turn,
                                          "request_fingerprint": request_fingerprint(request)})
                 response = self.provider.respond(request)
-                record("model.response", {"finish_reason": response.finish_reason.value,
-                                          "tool_calls": [item.to_dict() for item in response.tool_calls]})
+                response_payload = self._replay_response_payload(response)
+                if response_payload is None:
+                    controller.fail(
+                        "UNEXPECTED",
+                        "model response exceeds the replay event payload budget")
+                    break
+                record("model.response", response_payload)
                 if controller.state.status == RunStatus.PLANNING:
                     controller.transition(RunStatus.EXECUTING, "first model response")
                 if response.tool_calls:
@@ -116,3 +123,17 @@ class AgentRunner(object):
         return RunResult(status, trace_complete, controller.state.turn_count,
                          controller.state.tool_call_count, error=primary_error,
                          errors=controller.state.errors, run_id=run_id)
+
+    @staticmethod
+    def _replay_response_payload(response):
+        """Return a complete replayable response, or reject an oversized one."""
+        try:
+            payload = response.to_dict()
+            encoded = json.dumps(
+                payload, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=True).encode("utf-8")
+        except (TypeError, ValueError, UnicodeError):
+            return None
+        if len(encoded) > MAX_PAYLOAD_BYTES:
+            return None
+        return payload

@@ -72,7 +72,15 @@ class ReplayProvider(object):
         self._index += 1
         if expected.get("request_fingerprint") != request_fingerprint(request):
             raise ProviderError("REPLAY_MISMATCH request fingerprint")
-        calls = [ToolCall(item["tool_call_id"], item["name"], item["arguments"])
-                 for item in response.get("tool_calls", [])]
-        return ModelResponse(response.get("content", ""), calls,
-                             FinishReason(response.get("finish_reason", "STOP")), Usage())
+        try:
+            calls = [ToolCall(item["tool_call_id"], item["name"], item["arguments"])
+                     for item in response["tool_calls"]]
+            usage_data = response.get("usage", {})
+            usage = Usage(
+                prompt_chars=usage_data.get("prompt_chars", 0),
+                completion_chars=usage_data.get("completion_chars", 0))
+            return ModelResponse(
+                response["content"], calls,
+                FinishReason(response["finish_reason"]), usage)
+        except (KeyError, TypeError, ValueError) as error:
+            raise ProviderError("invalid replay response: {0}".format(error))
