@@ -87,6 +87,12 @@ class AgentRunner(object):
                             payload["tool_call_id"] = call.tool_call_id
                             record("tool.result", payload)
                             recent.append(result.content)
+                        elif decision is not None and decision.decision == "DENY":
+                            recent.append(json.dumps({
+                                "tool_call_id": call.tool_call_id,
+                                "status": "DENIED",
+                                "reason": decision.reason}, sort_keys=True,
+                                separators=(",", ":"), ensure_ascii=True))
                     continue
                 final_content = response.content
                 controller.transition(RunStatus.VERIFYING, "provider stop")
@@ -94,9 +100,14 @@ class AgentRunner(object):
                 record("verification.result", {"accepted": decision.completed})
                 if decision.completed:
                     controller.complete_after_verification("verification passed")
+                    break
+                if controller.state.turn_count < self.max_turns:
+                    controller.transition(
+                        RunStatus.EXECUTING,
+                        "verification rejected; retry within turn budget")
                 else:
                     controller.fail("VERIFICATION_REJECTED", "verification rejected")
-                break
+                    break
         except RunCancelled:
             pass
         except EventStoreError:

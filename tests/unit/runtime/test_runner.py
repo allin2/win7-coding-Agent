@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -10,9 +11,12 @@ from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 from win7_agent.cli.__main__ import main
-from win7_agent.models import MockProvider
+from win7_agent.models import FinishReason, MockProvider, ModelResponse, ToolCall, Usage
+from win7_agent.policy import PermissionType
 from win7_agent.runtime.runner import AgentRunner
 from win7_agent.storage import EventStoreError
+from win7_agent.tools import build_readonly_registry
+from win7_agent.tools.contracts import ToolSpec
 
 
 class PersistentAppendFailureStore(object):
@@ -84,3 +88,92 @@ class AgentRunnerEventStoreTests(unittest.TestCase):
         self.assertIn("RESULT status=FAILED trace_complete=false", output.getvalue())
         self.assertNotIn("Traceback", output.getvalue() + errors.getvalue())
         self.assertEqual(1, len(created))
+
+    def test_f01_verification_rejection_retries_then_completes(self):
+        class RetryProvider(object):
+            def __init__(self):
+                self.index = 0
+
+            def respond(self, unused_request):
+                responses = [
+                    ModelResponse("no usable evidence", [], FinishReason.STOP, Usage()),
+                    ModelResponse("", [ToolCall(
+                        "read", "search_text", {"pattern": "target_function"})],
+                        FinishReason.TOOL_CALLS, Usage()),
+                    ModelResponse(
+                        "Found target_function in code.py:1", [],
+                        FinishReason.STOP, Usage())]
+                response = responses[self.index]
+                self.index += 1
+                return response
+
+        from win7_agent.storage import EventStore
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            result = AgentRunner(self._workspace(), RetryProvider(), store, max_turns=3).run("inspect")
+            transitions = [event["payload"] for event in store.events_for_run(result.run_id)
+                           if event["type"] == "state.transition"]
+            store.close()
+        self.assertEqual("COMPLETED", result.status)
+        self.assertTrue(any(item["from"] == "VERIFYING" and item["to"] == "EXECUTING"
+                            for item in transitions))
+
+    def test_f01_verification_rejection_fails_when_turn_budget_is_exhausted(self):
+        class RejectingProvider(object):
+            def respond(self, unused_request):
+                return ModelResponse("no usable evidence", [], FinishReason.STOP, Usage())
+
+        from win7_agent.storage import EventStore
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            result = AgentRunner(self._workspace(), RejectingProvider(), store, max_turns=2).run("inspect")
+            store.close()
+        self.assertEqual("FAILED", result.status)
+        self.assertEqual(2, result.turns)
+        self.assertTrue(any(item["code"] == "VERIFICATION_REJECTED" for item in result.errors))
+
+    def test_f21_denied_observation_reaches_next_request_and_readonly_path_completes(self):
+        class DenyThenReadProvider(object):
+            def __init__(self):
+                self.requests = []
+                self.index = 0
+
+            def respond(self, request):
+                self.requests.append(request)
+                responses = [
+                    ModelResponse("", [ToolCall("deny", "blocked", {})],
+                                  FinishReason.TOOL_CALLS, Usage()),
+                    ModelResponse("", [ToolCall(
+                        "read", "search_text", {"pattern": "target_function"})],
+                        FinishReason.TOOL_CALLS, Usage()),
+                    ModelResponse("Found target_function in code.py:1", [],
+                                  FinishReason.STOP, Usage())]
+                response = responses[self.index]
+                self.index += 1
+                return response
+
+        calls = []
+
+        def registry_with_denied_tool(workspace):
+            registry = build_readonly_registry(workspace)
+            registry.register(ToolSpec(
+                "blocked", "denied test tool", {}, PermissionType.WORKSPACE_WRITE),
+                lambda request: calls.append(request))
+            return registry
+
+        from win7_agent.storage import EventStore
+        provider = DenyThenReadProvider()
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            with mock.patch("win7_agent.runtime.runner.build_readonly_registry",
+                            side_effect=registry_with_denied_tool):
+                result = AgentRunner(self._workspace(), provider, store, max_turns=3).run("inspect")
+            events = store.events_for_run(result.run_id)
+            store.close()
+        observations = [message.content for message in provider.requests[1].messages
+                        if message.role == "tool"]
+        self.assertEqual("COMPLETED", result.status)
+        self.assertEqual([], calls)
+        self.assertEqual(2, result.tool_calls)
+        self.assertEqual("DENIED", json.loads(observations[-1])["status"])
+        self.assertTrue(any(event["type"] == "tool.denied" for event in events))
