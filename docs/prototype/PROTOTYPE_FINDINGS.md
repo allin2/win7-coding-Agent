@@ -38,4 +38,23 @@
 
 ## Still requiring Win7 evidence
 
-The prototype is compiled and tested on the current development host only. Its console behavior, SQLite behavior, Git availability degradation, path behavior, and batch launcher must still be exercised on offline Windows 7 SP1 x64 with CPython 3.8.10 before any selective formal adoption.
+The prototype has been formally validated on macOS with a real CPython 3.8.10 interpreter: `compileall` passes, the unified test entry point reports 104/104 passing tests against the 104-test minimum, and the CLI demonstration finishes with result `COMPLETED`, `trace_complete=true`, and exit code 0 (see "Formal CPython 3.8.10 validation" below). Windows 7 SP1 x64 on-machine validation has not yet been executed, and the macOS + CPython 3.8.10 result does not substitute for Win7 acceptance. Console behavior under cmd/CP936, NTFS path behavior, SQLite URI behavior, Git availability degradation, subprocess kill behavior, and the `.bat` launcher must still be exercised on offline Windows 7 SP1 x64 with CPython 3.8.10 before any selective formal adoption.
+
+## Formal CPython 3.8.10 validation
+
+- Implementation commit: `9b6461d0fd3380babcc56a842571eb4b4dc77660`
+- Gate documentation commit: `d1d38fd2ba22dae4ef1feb486fc66d857cdd2caf`
+- Validation platform: macOS
+- Interpreter: CPython 3.8.10
+- Compileall: PASS
+- Unified tests: 104/104 PASS
+- Minimum test count: 104
+- CLI demo: PASS
+- CLI result: COMPLETED
+- Trace complete: true
+- CLI exit code: 0
+- Win7 validation status: BLOCKED_ENVIRONMENT
+- Win7 validation result: NOT_PERFORMED
+- Blocking reason: No offline Windows 7 SP1 x64 validation environment is currently available.
+
+Scope statement: this record proves Python 3.8.10 language-level compatibility and compatibility with the current development host only. It does not constitute Windows 7 SP1 x64 acceptance. Subsequent Win7 validation must still cover cmd/CP936 console behavior, NTFS path handling, SQLite URI handling, Git availability degradation, subprocess kill behavior, and the `.bat` launcher.
