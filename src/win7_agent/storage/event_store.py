@@ -47,15 +47,21 @@ def _bounded(value: Any) -> Tuple[Any, bool]:
 
 class EventStore:
     def __init__(self, path: str) -> None:
+        self._connection = None
         try:
             self._connection = sqlite3.connect(path, timeout=5.0)
             self._connection.execute("PRAGMA foreign_keys = ON")
             self._initialize()
-        except sqlite3.Error as error:
+        except (sqlite3.Error, EventStoreError) as error:
+            if self._connection is not None:
+                self._connection.close()
+                self._connection = None
             raise EventStoreError(str(error))
 
     def close(self) -> None:
-        self._connection.close()
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
 
     def _initialize(self) -> None:
         connection = self._connection

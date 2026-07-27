@@ -47,7 +47,17 @@ def run_git(argv: List[str], cwd: str, timeout_s: float, max_output_bytes: int) 
     except subprocess.TimeoutExpired:
         timed_out = True
         process.kill()
-        process.wait(timeout=2.0)
-    for thread in threads:
-        thread.join(timeout=2.0)
-    return process.returncode, bytes(outputs[0]), bytes(outputs[1]), any(truncated), timed_out
+        try:
+            process.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            pass
+    finally:
+        for thread in threads:
+            thread.join(timeout=2.0)
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+    return process.returncode if process.returncode is not None else -1, bytes(outputs[0]), bytes(outputs[1]), any(truncated), timed_out

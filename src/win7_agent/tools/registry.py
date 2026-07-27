@@ -30,6 +30,11 @@ class ToolRegistry:
         for name, rule in spec.parameters.items():
             if rule.get("required") and name not in arguments:
                 return "missing required parameter: {0}".format(name)
-            if name in arguments and not isinstance(arguments[name], rule.get("type", object)):
-                return "invalid type for parameter: {0}".format(name)
+            if name in arguments:
+                expected_type = rule.get("type", object)
+                value = arguments[name]
+                if expected_type is int and isinstance(value, bool):
+                    return "invalid type for parameter: {0}".format(name)
+                if not isinstance(value, expected_type):
+                    return "invalid type for parameter: {0}".format(name)
         return ""

@@ -21,3 +21,11 @@ class ContextCompilerTests(unittest.TestCase):
             self.assertEqual(4096, len(compiled.messages[0].content.split("\n")[1]))
             self.assertEqual(8192, len(compiled.messages[-1].content))
             self.assertEqual(6, len(compiled.tools))
+
+    def test_instruction_limit_is_utf8_byte_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with open(os.path.join(directory, "AGENTS.md"), "w", encoding="utf-8", newline="") as source:
+                source.write("中" * 2000)
+            workspace = WorkspaceContext(directory)
+            compiler = ContextCompiler(workspace, [])
+            self.assertLessEqual(len(compiler._read_project_instructions().encode("utf-8", errors="replace")), 4098)

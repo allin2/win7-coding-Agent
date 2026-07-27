@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from win7_agent.storage import EventStore
 
@@ -32,3 +33,11 @@ class EventStoreTests(unittest.TestCase):
                 store.close()
             self.assertTrue(events[0]["payload"]["payload_truncated"])
             self.assertTrue(events[0]["payload"]["content"].endswith("[TRUNCATED_FOR_STORAGE]"))
+
+    def test_initialization_failure_closes_created_connection(self):
+        connection = mock.Mock()
+        connection.execute.side_effect = __import__("sqlite3").Error("broken")
+        with mock.patch("win7_agent.storage.event_store.sqlite3.connect", return_value=connection):
+            with self.assertRaises(Exception):
+                EventStore("unused.sqlite")
+        connection.close.assert_called_once()

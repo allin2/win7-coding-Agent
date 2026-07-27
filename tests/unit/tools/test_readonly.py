@@ -41,6 +41,10 @@ class ReadonlyToolTests(unittest.TestCase):
         bad = self.request("read_file", {"path": 42})
         self.assertEqual("INVALID_TOOL_ARGUMENT", bad.error["code"])
 
+    def test_bool_is_not_an_integer_tool_argument(self):
+        result = self.request("read_file_range", {"path": "sample.py", "start_line": True, "end_line": 1})
+        self.assertEqual("INVALID_TOOL_ARGUMENT", result.error["code"])
+
     def test_unregistered_tool_is_structured_error(self):
         result = self.request("run_command", {})
         self.assertEqual("TOOL_NOT_FOUND", result.error["code"])
@@ -55,3 +59,12 @@ class ReadonlyToolTests(unittest.TestCase):
             with mock.patch("win7_agent.tools.readonly.run_git", return_value=(-9, b"", b"", False, True)):
                 result = self.request("git_status", {})
         self.assertEqual("TOOL_TIMEOUT", result.error["code"])
+
+    def test_search_text_stops_at_file_and_output_budgets(self):
+        from win7_agent.tools import readonly
+
+        with open(os.path.join(self.root, "large.txt"), "w", encoding="utf-8", newline="") as source:
+            source.write("target_function\n" * 100000)
+        result = self.request("search_text", {"pattern": "target_function", "max_matches": 500})
+        self.assertTrue(result.truncated)
+        self.assertLessEqual(len(result.content.encode("utf-8")), readonly.SEARCH_OUTPUT_BYTES)

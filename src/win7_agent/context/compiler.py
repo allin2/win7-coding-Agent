@@ -28,5 +28,6 @@ class ContextCompiler:
         path = os.path.join(self._workspace.root, "AGENTS.md")
         if not os.path.isfile(path):
             return ""
-        with open(path, "r", encoding="utf-8", errors="replace", newline="") as source:
-            return source.read(4096)
+        with open(path, "rb") as source:
+            data = source.read(4096)
+        return data.decode("utf-8", errors="replace")

@@ -13,6 +13,9 @@ from .subproc import run_git
 
 READ_LIMIT = 262144
 GIT_LIMIT = 1048576
+SEARCH_MAX_FILES = 2000
+SEARCH_FILE_BYTES = 1048576
+SEARCH_OUTPUT_BYTES = 262144
 
 
 def _error(tool_call_id: str, code: str, message: str, duration_ms: int = 0) -> ToolResult:
@@ -114,22 +117,33 @@ def build_readonly_registry(workspace: WorkspaceContext) -> ToolRegistry:
         if not os.path.isdir(root):
             return _error(request.tool_call_id, "FILE_NOT_FOUND", "search path is not a directory", _duration(started))
         matches = []
+        output_bytes = 0
+        scanned_files = 0
         for directory, subdirs, files in os.walk(root):
             subdirs[:] = [item for item in subdirs if not workspace.is_ignored_name(item)]
             for name in sorted(files):
                 file_path = os.path.join(directory, name)
+                scanned_files += 1
+                if scanned_files > SEARCH_MAX_FILES:
+                    return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
                 try:
                     with open(file_path, "rb") as source:
-                        probe = source.read(8192)
-                    if b"\x00" in probe:
+                        data = source.read(SEARCH_FILE_BYTES + 1)
+                    if len(data) > SEARCH_FILE_BYTES:
+                        return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
+                    if b"\x00" in data:
                         continue
-                    with open(file_path, "r", encoding="utf-8", errors="replace", newline="") as source:
-                        for number, line in enumerate(source, 1):
-                            if pattern in line:
-                                text = line.rstrip("\r\n")[:500]
-                                matches.append("{0}:{1}: {2}".format(workspace.relative_path(file_path), number, text))
-                                if len(matches) >= max_matches:
-                                    return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
+                    for number, line in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
+                        if pattern in line:
+                            text = line[:500]
+                            match = "{0}:{1}: {2}".format(workspace.relative_path(file_path), number, text)
+                            match_bytes = len((match + "\n").encode("utf-8"))
+                            if output_bytes + match_bytes > SEARCH_OUTPUT_BYTES:
+                                return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
+                            matches.append(match)
+                            output_bytes += match_bytes
+                            if len(matches) >= max_matches:
+                                return _ok(request.tool_call_id, "\n".join(matches), True, _duration(started))
                 except (OSError, UnicodeError):
                     continue
         return _ok(request.tool_call_id, "\n".join(matches), False, _duration(started))
