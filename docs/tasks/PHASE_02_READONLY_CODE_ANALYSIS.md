@@ -13,9 +13,9 @@
 Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/02-readonly-agent
-Phase-Gate: READY_FOR_PHASE_REVIEW
-Review-Round: 0
-Review-Status: NONE
+Phase-Gate: REPAIR_REQUIRED
+Review-Round: 1
+Review-Status: REPAIR_REQUIRED
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
 Blocking-Reason: Target environment unavailable
@@ -210,11 +210,17 @@ Git 工具约束：仅上述两条固定 argv 命令；`git.exe` 缺失 → `GIT
 ### 3.9 Replay 一致性
 
 - 事件库以 SQLite URI `file:<path>?mode=ro` 只读打开；路径不存在不得创建文件。
-- Schema、Run 或录制序列错误 → `ProviderError` → CLI 退出码 3。
+- Setup / Provider 装载错误（ADR-0026 冻结清单：replay CLI 必填参数缺失；数据库
+  不存在或无法打开；SQLite/schema 不合法；没有可选择 Run；录制载荷损坏或无法
+  反序列化；录制格式版本不受支持）→ `ProviderError` → CLI 退出码 3；
+  可成功装载但与当前运行不匹配的一切情形均不属于本类。
 - 录制时每个 `model.request` 保存 `request_fingerprint`：对消息序列、工具名清单与 turn 的
   确定性 JSON 序列化取 `hashlib.sha256`。
 - 重放时验证 turn、请求指纹与请求响应配对；请求不一致、响应缺失、响应多余、顺序错误或
   录制耗尽均为 `REPLAY_MISMATCH` → Run FAILED → 退出码 1。
+- 运行期不匹配判定含消费完整性检查（ADR-0026）：Run 正常结束前必须验证录制响应
+  已全部消费，多余响应 → `REPLAY_MISMATCH` → 退出码 1；不得在初始化阶段把数量差异
+  一律归为 setup 错误。
 - 威胁模型声明（冻结）：指纹只防意外不一致，不承诺抵抗攻击者协调修改数据库与指纹。
 
 ### 3.10 CLI 与退出码
@@ -522,6 +528,10 @@ APPROVED_FOR_IMPLEMENTATION
 
 ### 10.5 无人值守执行窗口（Unattended execution window，一次性授权）
 
+（**状态：已失效**。2026-07-27 本窗口随 M6 完成且 `Phase-Gate` 置
+`READY_FOR_PHASE_REVIEW` 按 §10.5.6 自动失效；不得恢复或复用。审查轮 1 修复窗口
+另见 §10.6，与本窗口无继承关系。以下原文保留供审计。）
+
 （2026-07-27 项目负责人授权。本节为本次 Phase 2 实施的**一次性**无人值守执行授权，
 仅适用于 `phase/02-readonly-agent` 分支上的 M1–M6 实施；不构成对后续阶段、其他分支或
 其他任务的任何授权先例。无人值守授权**不替代**架构师独立复审、CPython 3.8.10 验证与
@@ -627,6 +637,166 @@ Blocking-Reason: Target environment unavailable
 后续如需再次无人值守执行（例如 REPAIR_REQUIRED 后的修复轮），必须由项目负责人
 重新授权并修订本节，不得沿用本次一次性授权。
 
+### 10.6 审查轮 1 修复窗口（Review Round 1 Repair Window，一次性授权）
+
+（2026-07-27 项目负责人授权，依据 §14 审查轮 1 裁决 REPAIR_REQUIRED 与 ADR-0026。
+本窗口为**一次性**授权，仅允许处理审查报告 R-01～R-17（§14.2）；不得恢复或复用
+已失效的 §10.5 窗口，不得重新开放 M1–M6 全量范围。修复窗口基线：
+`f266d183be8f5cb5e0c2a791de480a10af8ba457`。）
+
+#### 10.6.1 修复顺序（冻结）
+
+```
+RP1 EventStore runtime failure
+  → RP2 Replay recording and replay completion
+  → RP3 Replay error taxonomy and CLI setup errors
+  → RP4 unified test entry and evidence reproducibility
+  → RP5 runner retry and policy-denial observation
+  → RP6 coverage completion, demo launcher and evidence correction
+  → final repair verification
+  → READY_FOR_PHASE_REVIEW
+```
+
+每个 RP 必须：独立 Commit（前缀 `phase2: repair-r1 `）、推送到
+`phase/02-readonly-agent`、全量测试通过（§10.6.9 门禁）后才能继续下一个 RP；
+禁止将多个 RP 压缩为一个提交，禁止乱序或并行。
+
+#### 10.6.2 RP1 — EventStore 运行期故障（R-02 / F27，BLOCKER）
+
+允许修改：`src/win7_agent/runtime/state.py`、`src/win7_agent/runtime/runner.py`、
+`tests/unit/runtime/test_runner.py`、必要的 CLI 集成测试（`tests/integration/agent/**`）。
+
+要求：
+
+- 持续性 EventStore append 故障不得以未结构化异常逃逸；
+- RunResult 为 FAILED，错误码 `EVENT_STORE_FAILED`，`trace_complete=false`；
+- CLI 退出码 1，RESULT 行仍输出（§3.8 阶段 2）；
+- 再次写审计事件失败时，结构化错误必须保留在内存 errors 中，不得静默丢弃。
+
+#### 10.6.3 RP2 — Replay 录制与重放闭环（R-01 / F31，BLOCKER）
+
+允许修改：`src/win7_agent/runtime/runner.py`、`src/win7_agent/models/provider.py`、
+`tests/unit/models/test_provider.py`、`tests/integration/agent/test_cli.py`。
+
+要求（Replay 载荷修复原则，冻结）：
+
+- `model.response` 事件必须记录重放所需的完整 vendor-neutral `ModelResponse`，
+  至少包括 `content`、`tool_calls`、`finish_reason` 与正式允许的 metadata；
+- `schema_version` 仍为 1，不新增事件类型；本项属修复既有 Replay 契约（§3.9 /
+  ADR-0026），不需另建 ADR；
+- 超过 EventStore 载荷预算时不得静默截断后仍声明可重放，必须产生结构化
+  不可重放结果或失败；
+- 录制 COMPLETED 后，同任务、同工作区重放必须 COMPLETED / 退出码 0，新增
+  正常录制→重放终态一致测试；`tool_calls`、`finish_reason` 等正式字段可重建；
+- 原名为 F31 但实际只测试 Mock 主链路的测试必须更正命名与 F 映射。
+
+#### 10.6.4 RP3 — Replay 错误分类与 CLI setup 错误（R-03、R-04、R-09 / F32–F35、F37）
+
+允许修改：`src/win7_agent/models/provider.py`、`src/win7_agent/cli/__main__.py`、
+`tests/unit/models/test_provider.py`、`tests/unit/cli/**`、
+`tests/integration/agent/test_cli.py`。
+
+要求（按 ADR-0026）：
+
+- 缺少 `--replay-from` → setup 错误 / 退出码 3，无 traceback；
+- 数据库不存在 / 坏 schema → 退出码 3；
+- 响应耗尽 → `REPLAY_MISMATCH` / FAILED / 退出码 1；
+- 响应缺失 → `REPLAY_MISMATCH` / FAILED / 退出码 1；
+- 多余响应 → Run 完成前消费完整性检查失败，退出码 1；
+- 指纹不匹配 → 退出码 1；
+- 上述每个场景均新增独立测试（F32–F35 逐项对应，F37 退出码全覆盖补齐）。
+
+#### 10.6.5 RP4 — 统一测试入口与证据可复现性（R-05、R-17 / F40–F43）
+
+允许修改：`scripts/run_agent_tests.py`、`tests/unit/runtime/test_run_agent_tests.py`、
+本任务书 §13 验证记录追加区。
+
+要求：
+
+- `<python> scripts/run_agent_tests.py` 在没有 PYTHONPATH 的干净环境中直接运行，
+  入口自行将仓库 `src` 加入 `sys.path`；
+- 当前解释器与真实 CPython 3.8.10 均裸命令通过；
+- 新验证记录如实记录真实命令与结果；
+- 以书面记录明确纠正旧提交信息中的证据夸大（§14.4），不修改旧提交历史。
+
+#### 10.6.6 RP5 — Runner 重试与 DENY 观察回传（R-06、R-07 / F01、F21）
+
+允许修改：`src/win7_agent/runtime/runner.py`、`tests/unit/runtime/test_runner.py`。
+
+要求：
+
+- Verification REJECT 且预算仍可继续时，执行 VERIFYING→EXECUTING 重试（§3.1）；
+  预算耗尽时 FAILED；
+- DENY 观察以结构化结果加入下一轮模型请求（§3.5）；DENY 后允许继续只读分析
+  并完成；
+- 上述各路径增加独立测试。
+
+#### 10.6.7 RP6 — 覆盖补齐、演示启动器与证据纠正（R-08、R-10～R-16）
+
+允许修改：`tests/unit/runtime/test_runner.py`、`tests/unit/models/test_provider.py`、
+`tests/unit/context/test_compiler.py`、`tests/unit/cli/**`、
+`tests/integration/agent/test_cli.py`、`tests/unit/tools/test_readonly.py`、
+`scripts/run_analysis_demo.bat`；`src/win7_agent/runtime/runner.py` 仅限处理 R-12；
+`src/win7_agent/tools/readonly.py` 仅限处理 R-13；本任务书 §13 验证记录追加区。
+
+要求：
+
+- F28、F34 独立测试；F26 CLI 退出码 3 且无 RESULT 行；F30 RESULT 行与
+  `trace_complete` 权威性；F37 退出码 0/1/2/3 全覆盖；F38 RESULT 完整字段与
+  Run 未建立时不输出；F24 executed=false 规则侧；F45 context 与 Replay 等价断言；
+  F09 特殊路径与 Replay URI；F12 非 UTF-8 编码；F13 `start<1`；F16 500 字符
+  行截断；
+- 补 `scripts/run_analysis_demo.bat`：CRLF、cmd 兼容、PYTHONPATH 自包含、
+  退出码透传；
+- 非 Replay 的 RunFailure 不得统一标记 `REPLAY_MISMATCH`（R-12）；
+- 删除未经授权的 `read_file_range` 500 行硬上限（R-13，§3.7 无此约束）；
+- 不修改、不弱化既有测试。
+
+#### 10.6.8 禁止范围（对本窗口全程生效）
+
+- Phase 1 全部路径（§9）；已有 Accepted ADR 正文；原型任务书与原型文档；
+- `workspace`、`policy`、`verification`、`storage`、`tools/registry`、
+  `tools/subproc`、`tools/contracts`、`models/contracts`，除非上述 RP 明确列入；
+- 既有测试断言不得删除、skip 或弱化；
+- 不得整体 merge / cherry-pick 原型分支；不得引入网络、写工具、通用 Shell 或
+  通用 Runner；不得开始 Phase 3。
+
+#### 10.6.9 自动门禁（每个 RP 提交前必须全部通过）
+
+当前解释器：
+
+```
+<current-python> -m compileall -q src tests scripts
+<current-python> scripts/run_agent_tests.py
+<current-python> scripts/run_agent_tests.py --static-scan
+```
+
+真实 CPython 3.8.10：
+
+```
+.conda-py3810/bin/python -m compileall -q src tests scripts
+.conda-py3810/bin/python scripts/run_agent_tests.py
+.conda-py3810/bin/python scripts/run_agent_tests.py --static-scan
+```
+
+同时：`git diff --check` 通过；当前 RP 白名单检查；§9 禁止路径零 Diff；测试数量
+只升不降；0 tests / ImportError / 不可读目录 / 失败非零保护继续通过；
+Replay record→replay Demo COMPLETED / 退出码 0（RP2 起）；Mock CLI Demo
+COMPLETED / 退出码 0；工作区干净；本地与远程同步。
+
+#### 10.6.10 状态边界（冻结）
+
+- 开始修复时允许：`Phase-Gate: REPAIR_REQUIRED → IMPLEMENTING`；
+- 全部 RP 完成并通过 §10.6.9 门禁后允许：`Phase-Gate: IMPLEMENTING →
+  READY_FOR_PHASE_REVIEW`；
+- 禁止设置：`REVIEW_PASSED`、`READY_FOR_PYTHON38_VALIDATION`、
+  `PYTHON38_VALIDATED`、`READY_FOR_WIN7_VALIDATION`、`PHASE_ACCEPTED`、
+  `PHASE_REJECTED`；`Review-Round` / `Review-Status` 各行修复方不得触碰；
+- Win7 三行保持不变（`PROVISIONAL` / `NOT_PERFORMED` /
+  `Target environment unavailable`）；
+- 本窗口在全部 RP 完成、触发任一 §10.5.5 同款停止条件（按本窗口范围适用）或
+  架构师/项目负责人介入后自动失效；失效后恢复默认交互模式。
+
 ## 11. 安全边界（对本阶段生效）
 
 - 目标工作区全程只读；Agent 不监听端口、不发起网络连接、不写注册表、不要求管理员权限。
@@ -686,3 +856,59 @@ Static production scan: PASS.  The only literal matches for network-module
 names are the scanner's own rule strings in `scripts/run_agent_tests.py`; they
 are not imports or runtime calls.  Phase 1 code and tests have zero diff from
 the unattended baseline.  The prototype branch was not merged or cherry-picked.
+
+## 14. Review Round 1 Findings（2026-07-27，架构师独立复审）
+
+### 14.1 审查基线与裁决
+
+```
+Review baseline: 3fb620d5e2c73dd4dae5daf051ed38153dfaf257
+Review HEAD:     f266d183be8f5cb5e0c2a791de480a10af8ba457
+Gate recommendation: REPAIR_REQUIRED
+Adopted: Phase-Gate REPAIR_REQUIRED / Review-Round 1 / Review-Status REPAIR_REQUIRED
+```
+
+审查方式：提交链逐 Commit 白名单核对、F01–F45 逐项证据矩阵、双解释器复跑、
+CLI Demo 复跑、静态安全审查。Phase 1 路径零 Diff；未发现整体 merge /
+cherry-pick 原型分支。
+
+### 14.2 问题清单 R-01～R-17（严重级别冻结）
+
+| ID | 级别 | F 关联 | 问题摘要 | 修复合同 |
+|----|------|--------|----------|----------|
+| R-01 | BLOCKER | F31 | `model.response` 事件未记录完整可重放 ModelResponse，录制→重放闭环无法达成；现有 F31 命名测试实测 Mock 主链路 | RP2 |
+| R-02 | BLOCKER | F27 | 持续性 EventStore append 故障未按 §3.8 阶段 2 处置（FAILED + `EVENT_STORE_FAILED` + `trace_complete=false` + 退出码 1），无独立测试 | RP1 |
+| R-03 | HIGH | F32–F33 | Replay 响应耗尽/缺失/多余无独立测试，多余响应无消费完整性检查 | RP3 |
+| R-04 | HIGH | F35、F37 | Replay setup 错误（缺 `--replay-from`、库不存在、坏 schema）未统一归退出码 3，无独立测试 | RP3 |
+| R-05 | HIGH | F40–F43 | 统一入口依赖外部 PYTHONPATH，裸命令不可复现，证据链可复现性不成立 | RP4 |
+| R-06 | MEDIUM | F01 | VERIFYING→EXECUTING 重试转换（§3.1 表行）未实现/未测试 | RP5 |
+| R-07 | MEDIUM | F21 | DENY 观察未以结构化结果回传下一轮模型请求，DENY 后继续路径未证明 | RP5 |
+| R-08 | MEDIUM | F28 | 仅收尾（finalize）失败的阶段 3 故障无独立测试 | RP6 |
+| R-09 | MEDIUM | F34、F37 | 指纹不匹配无独立测试；退出码 0/1/2/3 未全覆盖 | RP3 |
+| R-10 | MEDIUM | F26、F30 | 阶段 1 故障（退出码 3 且无 RESULT 行）与 `trace_complete` 权威性无直接断言 | RP6 |
+| R-11 | MEDIUM | F24、F38 | executed=false 规则侧与 RESULT 行完整字段/未建立不输出无测试 | RP6 |
+| R-12 | LOW | F27/F32 边界 | 非 Replay 的 RunFailure 被统一标记 `REPLAY_MISMATCH`，错误码归因失真 | RP6 |
+| R-13 | LOW | F10/F13 边界 | `read_file_range` 存在未经授权的 500 行硬上限（§3.7 无此约束） | RP6 |
+| R-14 | EVIDENCE_GAP | F09、F12、F13、F16 | 特殊路径/非 UTF-8 编码/`start<1`/500 字符行截断仅部分覆盖 | RP6 |
+| R-15 | MEDIUM | §8 M5 交付物 | `scripts/run_analysis_demo.bat` 缺失 | RP6 |
+| R-16 | EVIDENCE_GAP | F45 | context 与 Replay 移植项缺语义等价断言 | RP6 |
+| R-17 | EVIDENCE_GAP | F26–F31 证据 | 旧提交信息宣称 "F26-F31 PASS" 与实际测试证据不符（见 §14.4） | RP4 |
+
+级别汇总：BLOCKER = R-01、R-02；HIGH = R-03、R-04、R-05；MEDIUM = R-06、R-07、
+R-08、R-09、R-10、R-11、R-15；LOW/EVIDENCE_GAP = R-12、R-13、R-14、R-16、R-17。
+
+### 14.3 裁决与后续路径
+
+- 本轮裁决：`REPAIR_REQUIRED`；修复按 §10.6 一次性修复窗口执行（RP1→RP6）。
+- 修复完成后 Gate 至多回到 `READY_FOR_PHASE_REVIEW`，进入审查轮 2；
+  `REVIEW_PASSED` 及以后状态仍仅由架构师/项目负责人按 §10.4 流转。
+- Win7 硬门槛不变：本轮及修复轮均不构成 Win7 验收证据。
+
+### 14.4 证据纠正声明（冻结）
+
+实施提交链中的旧提交信息（含 M4 `d0a821e`、M5 `d82d4ee` 等宣称 "F26-F31 PASS"
+的记录）**不得视为有效最终证据**：经独立复审，F27、F28、F31（Replay 闭环口径）、
+F32–F35 均无充分独立测试证据，相应 PASS 宣称属证据夸大。本声明为正式纠正记录，
+不修改旧提交历史；后续一切证据引用以 §10.6 修复窗口产出的新验证记录为准。
+§13 既有 "M6 unattended validation record" 保留作为历史快照，其中测试计数
+（60/60）为真实执行结果，但不构成 F01–F45 全覆盖证明。
