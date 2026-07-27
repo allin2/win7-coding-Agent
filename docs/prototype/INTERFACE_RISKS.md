@@ -12,6 +12,12 @@
 - Impact: behavioral replay is sufficient for this prototype but cannot demonstrate exact prompt reconstruction or provider request compatibility.
 - Recommended decision owner: Phase 3 gateway and Phase 5 storage task authors.
 
+## Replay fingerprint threat model (Review Round 1, ADR-0024)
+
+- Phenomenon: after the Review Round 1 repair, each recorded `model.request` event carries a normalized SHA-256 `request_fingerprint`, and ReplayProvider verifies turn numbers, request fingerprints, and request-response pairing; any mismatch, missing or surplus response, ordering error, or exhaustion is `REPLAY_MISMATCH`.
+- Impact: the fingerprint only detects accidental inconsistency (workspace drift, code defects, manual editing mistakes). It makes no claim of resisting an attacker who coordinates modification of both the event database and its fingerprints; the database is plain SQLite without signing or tamper-proof storage.
+- Recommended decision owner: Phase 5 storage task author, if formal audit integrity guarantees are ever required.
+
 ## Read-only Git uses a subprocess under READ_ONLY semantic permission
 
 - Phenomenon: `git_status` and `git_diff` are semantically read-only but technically spawn a fixed allowlisted process.
