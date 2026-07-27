@@ -13,9 +13,9 @@
 Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/02-readonly-agent
-Phase-Gate: READY_FOR_PHASE_REVIEW
-Review-Round: 1
-Review-Status: REPAIR_REQUIRED
+Phase-Gate: REVIEW_PASSED
+Review-Round: 2
+Review-Status: REVIEW_PASSED
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
 Blocking-Reason: Target environment unavailable
@@ -980,3 +980,93 @@ F32–F35 均无充分独立测试证据，相应 PASS 宣称属证据夸大。�
 不修改旧提交历史；后续一切证据引用以 §10.6 修复窗口产出的新验证记录为准。
 §13 既有 "M6 unattended validation record" 保留作为历史快照，其中测试计数
 （60/60）为真实执行结果，但不构成 F01–F45 全覆盖证明。
+
+## 15. Review Round 2 Findings（2026-07-27，架构师独立复审）
+
+### 15.1 审查候选与裁决
+
+```
+Review candidate: fa3034d2a70deb45fae9053900475a8d07643b61
+Candidate tag:    phase2-review-r2-candidate
+Review result:    REVIEW_PASSED
+Adopted: Phase-Gate REVIEW_PASSED / Review-Round 2 / Review-Status REVIEW_PASSED
+```
+
+§10.4 冻结状态机的复审通过值为 `REVIEW_PASSED`，本轮采纳值与之一致。
+
+### 15.2 验证摘要
+
+- R-01～R-17：**17/17 CLOSED**（逐项对照 §14.2 与 §10.6 修复合同验收）；
+- F01～F45：全部 `CLOSED_DIRECT` 或 `CLOSED_COMPOSITE`，无 `PARTIAL` /
+  `MISSING_TEST` / `MISSING_IMPLEMENTATION` / `CONTRACT_MISMATCH` 残留；
+- 当前解释器 Python 3.9.6：compileall PASS、81/81 tests PASS、static scan PASS；
+- CPython 3.8.10（`.conda-py3810/bin/python`）：compileall PASS、81/81 tests PASS、
+  static scan PASS；
+- Mock CLI：COMPLETED / `trace_complete=true` / 退出码 0；
+- Record→Replay：COMPLETED / `trace_complete=true` / 退出码 0；
+- EventStore 三阶段故障矩阵（§3.8）通过；Verification REJECT 重试路径通过；
+  DENY 观察回传通过；
+- 退出码 0/1/2/3 均有正式测试证据；
+- Phase 1 路径零 Diff；原型分支未整体 merge / cherry-pick；
+- 无 BLOCKER / HIGH / MEDIUM 遗留问题。
+
+### 15.3 非阻断事项（冻结）
+
+**N-01**
+
+```
+Severity: LOW
+Category: TEST_COVERAGE_GAP
+Disposition: ACCEPTED_NON_BLOCKING
+```
+
+CLI 没有取消入口（§3.10 冻结参数集无取消参数），因此退出码 2 采用运行时
+CANCELLED 行为路径与映射测试证明。这是冻结设计下的证据方式，不要求重开
+Phase 2，不阻断 `REVIEW_PASSED`。
+
+**N-02**
+
+```
+Severity: LOW
+Category: GOVERNANCE_FOLLOW_UP
+Disposition: DEFERRED_NON_BLOCKING
+```
+
+`MINIMUM_TEST_COUNT` 为 61，实际测试数为 81。现行合同（§7.2 / §10.6.9）要求
+测试数量与门槛不得下降，不要求门槛始终等于最新实际数；RP4 之后的修复包
+白名单不允许修改 `scripts/run_agent_tests.py`，因此 61 不违反本轮修复合同，
+**不构成 GOVERNANCE_VIOLATION**。本次审查采纳提交不修改代码或门槛；后续
+合法实现窗口可将门槛棘轮至 81。
+
+**N-03**
+
+```
+Severity: BLOCKED_ENVIRONMENT
+Category: WIN7_VALIDATION_PENDING
+Disposition: NON_BLOCKING_FOR_REVIEW_PASSED
+```
+
+Win7 待验项清单（E1/E2 实机验收时逐项核销）：
+
+1. `scripts/run_analysis_demo.bat` 实机运行；
+2. CRLF 与 cmd 行为；
+3. CPython 3.8.10 在 Win7 SP1 启动；
+4. Unicode、空格、`%`、`#` 路径；
+5. taskkill 降级；
+6. Git 缺失与超时；
+7. SQLite `mode=ro`；
+8. 控制台 ASCII；
+9. 退出码透传；
+10. `winerror 206`。
+
+本轮 `REVIEW_PASSED` **不等于** Win7 验收通过；Win7 SP1 x64 实机验收仍是
+Phase 2 最终接受（`PHASE_ACCEPTED`）的硬门槛（AGENTS.md §5.8）。
+
+### 15.4 修复窗口关闭与后续路径
+
+- §10.6 审查轮 1 修复窗口保持已失效状态；不重新开放任何 RP，不新增修复窗口，
+  不授权 Codex 继续修改，不重新打开 R-01～R-17。
+- 本轮建议：进入正式 Python 3.8 Validation Gate。开发环境中的 CPython 3.8.10
+  独立复跑属本轮审查证据；正式 Validation Gate（`READY_FOR_PYTHON38_VALIDATION`
+  → `PYTHON38_VALIDATED`）必须在后续独立授权与独立提交中执行，本轮不流转。
+- 本轮未开始 Phase 3，未触碰 §3 契约与实现代码。
