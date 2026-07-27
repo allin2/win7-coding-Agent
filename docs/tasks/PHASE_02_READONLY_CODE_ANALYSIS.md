@@ -13,7 +13,7 @@
 Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/02-readonly-agent
-Phase-Gate: REPAIR_REQUIRED
+Phase-Gate: IMPLEMENTING
 Review-Round: 1
 Review-Status: REPAIR_REQUIRED
 Win7-Compatibility: PROVISIONAL
@@ -892,6 +892,18 @@ Static production scan: PASS.  The only literal matches for network-module
 names are the scanner's own rule strings in `scripts/run_agent_tests.py`; they
 are not imports or runtime calls.  Phase 1 code and tests have zero diff from
 the unattended baseline.  The prototype branch was not merged or cherry-picked.
+
+### Review Round 1 RP4 bootstrap evidence correction (2026-07-27)
+
+RP4 is the first package authorized by §10.6.1.  It corrects R-05 by making
+`scripts/run_agent_tests.py` resolve the repository source root itself, before
+discovery/import, so the documented bare commands do not depend on an external
+`PYTHONPATH`.  The new record uses those bare commands for both interpreters.
+
+The historical 60/60 count remains a factual execution snapshot only.  It did
+not demonstrate F01--F45 coverage, and the old command form did not provide a
+self-contained test-entry import path.  Later RP records supersede its coverage
+claims without rewriting historical commits or records.
 
 ## 14. Review Round 1 Findings（2026-07-27，架构师独立复审）
 

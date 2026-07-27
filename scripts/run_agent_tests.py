@@ -20,7 +20,7 @@ import tempfile
 import unittest
 
 
-MINIMUM_TEST_COUNT = 60
+MINIMUM_TEST_COUNT = 61
 TEST_FILE_RE = re.compile(r"^test_.*\.py$")
 PYTHON39_GENERIC_RE = re.compile(r"\b(?:list|dict|tuple)\s*\[")
 
@@ -46,6 +46,19 @@ def _ascii(value):
 def repository_root():
     """Return the repository root independent of the current directory."""
     return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def ensure_source_path(root=None):
+    """Make the repository's source package importable without PYTHONPATH."""
+    if root is None:
+        root = repository_root()
+    source_root = os.path.join(root, "src")
+    normalized_source = os.path.normcase(os.path.abspath(source_root))
+    for entry in sys.path:
+        if os.path.normcase(os.path.abspath(entry)) == normalized_source:
+            return source_root
+    sys.path.insert(0, source_root)
+    return source_root
 
 
 def default_test_roots():
@@ -285,6 +298,7 @@ def run_compileall(root=None):
 
 def main(argv=None):
     """Provide the test, compileall, and static-scan entry points."""
+    ensure_source_path()
     parser = argparse.ArgumentParser(description="Run formal agent tests")
     parser.add_argument("--compileall", action="store_true")
     parser.add_argument("--static-scan", action="store_true")

@@ -5,6 +5,8 @@ from __future__ import print_function
 import importlib.util
 import io
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -85,6 +87,27 @@ class RunAgentTestsTests(unittest.TestCase):
         root = RUNNER.repository_root()
         self.assertEqual(0, RUNNER.run_compileall(root))
         self.assertEqual([], RUNNER.static_safety_scan(root))
+
+    def test_source_import_is_self_contained_without_pythonpath(self):
+        runner_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "scripts",
+            "run_agent_tests.py"))
+        code = (
+            "import importlib.util; "
+            "spec = importlib.util.spec_from_file_location('entry', {0!r}); "
+            "module = importlib.util.module_from_spec(spec); "
+            "spec.loader.exec_module(module); "
+            "module.ensure_source_path(); "
+            "import win7_agent"
+        ).format(runner_path)
+        environment = dict(os.environ)
+        environment.pop("PYTHONPATH", None)
+        with tempfile.TemporaryDirectory() as directory:
+            completed = subprocess.run(
+                [sys.executable, "-c", code], cwd=directory, env=environment,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True)
+        self.assertEqual(0, completed.returncode, completed.stderr)
 
     def test_static_scan_rejects_forbidden_production_operations(self):
         with tempfile.TemporaryDirectory() as directory:
