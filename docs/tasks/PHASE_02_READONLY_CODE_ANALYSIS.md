@@ -663,3 +663,26 @@ Blocking-Reason: Target environment unavailable
 执行，不因本记录自动发生。
 
 Win7 验收完成前，上述 `Win7-*` 三行不得改写为任何"已通过"表述。
+
+### M6 unattended validation record (2026-07-27)
+
+```
+Implementation commit: d82d4eee72f8a1b620b94903f3bda1f1bf125969
+Gate commit: pending final state commit
+Validation platform: macOS development environment
+Current interpreter: python3 (Python 3.9.6)
+Compileall (current interpreter): PASS
+Unified tests (current interpreter): 60/60 (minimum 60)
+CPython 3.8.10 interpreter: .conda-py3810/bin/python (Python 3.8.10)
+Compileall (CPython 3.8.10): PASS
+Unified tests (CPython 3.8.10): 60/60
+CLI demo: PASS (RESULT status=COMPLETED, trace_complete=true, exit=0)
+Win7-Compatibility: PROVISIONAL
+Win7-Validation: NOT_PERFORMED
+Blocking-Reason: Target environment unavailable
+```
+
+Static production scan: PASS.  The only literal matches for network-module
+names are the scanner's own rule strings in `scripts/run_agent_tests.py`; they
+are not imports or runtime calls.  Phase 1 code and tests have zero diff from
+the unattended baseline.  The prototype branch was not merged or cherry-picked.
