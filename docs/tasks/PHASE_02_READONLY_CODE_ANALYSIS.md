@@ -13,7 +13,7 @@
 Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/02-readonly-agent
-Phase-Gate: READY_FOR_PYTHON38_VALIDATION
+Phase-Gate: PYTHON38_VALIDATED
 Review-Round: 2
 Review-Status: REVIEW_PASSED
 Win7-Compatibility: PROVISIONAL
@@ -1242,3 +1242,40 @@ DENY observation 失败；(16) 退出码证据失败；(17) 需要修改实现/�
 控制台、taskkill、Git 超时与缺失、SQLite `mode=ro`、`winerror 206`、退出码
 透传）继续保持待验。不得因本 Gate 通过而设置 `Win7-Validation: PASSED`，
 不得宣称 Phase 2 已被最终接受。
+
+### 16.13 正式验证记录（追加区，只能追加）
+
+#### 记录 1 — 2026-07-27 PYTHON38_VALIDATION_PASSED
+
+- 结果：**PYTHON38_VALIDATION_PASSED**
+- 基线：
+  - Implementation candidate: `fa3034d2a70deb45fae9053900475a8d07643b61`（tag `phase2-review-r2-candidate`，已核对指向一致）
+  - Review acceptance HEAD: `4e4fde3304fe95fc1d8af5916118e08a889d8448`
+  - Validation authorization HEAD: `52ea2d5b55d749dd135d28c2637a3f2d6b7eaf27`（执行时 HEAD 与 `origin/phase/02-readonly-agent` 一致）
+- 执行时间：2026-07-27 21:54 CST(+0800)；主机：macOS 15.7.7 (24G720)；工作目录：`/Users/qlyf/Developer/win7-coding-Agent`
+- 解释器：`/Users/qlyf/Developer/win7-coding-Agent/.conda-py3810/bin/python`，`Python 3.8.10`；
+  `sys.version = 3.8.10 | packaged by conda-forge | (default, Sep 13 2021, 21:14:52) [Clang 11.1.0]`
+- 环境隔离：所有命令 `env -u PYTHONPATH`；PYTHONPATH=None、PYTHONHOME=None；`sys.path` 仅含解释器自带路径（site-packages 仅 pip/setuptools/wheel，用户 site 不存在）；locale `zh_CN.UTF-8`；preferred/filesystem/default 编码 UTF-8/utf-8/utf-8；无网络、无真实模型 Provider。
+- 临时目录（仓库外）：`/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/win7-agent-py38-validation.yIEqxQ`
+- 基础验证（全部以 CPython 3.8.10 本轮重新执行）：
+  - `env -u PYTHONPATH .conda-py3810/bin/python -m compileall -q src tests scripts` → exit 0
+  - `env -u PYTHONPATH .conda-py3810/bin/python scripts/run_agent_tests.py` → exit 0；实际测试 81 项全部通过；最低门槛 61（N-02 保持不变）；skipped=0；expected failures=0；ImportError=0；discovery error=0；Phase 1 probe 测试包含在全量中
+  - `env -u PYTHONPATH .conda-py3810/bin/python scripts/run_agent_tests.py --static-scan` → exit 0
+- §16.6 十项运行时探针（全部真实行为路径，非常量映射读取）：
+  1. Mock CLI：`RESULT status=COMPLETED trace_complete=true turns=4 tool_calls=3`，exit 0，ASCII，工作区未被修改 — PASS
+  2. Record→Replay：同任务/工作区，两次 COMPLETED、两次 exit 0、两次 trace_complete=true；录制库哈希前后一致；model.response 含 content/tool_calls/finish_reason/usage 四字段可重建；model.request 含 request_fingerprint；响应消费完整；Replay 库以 `mode=ro` 打开 — PASS
+  3. Replay setup errors（缺 `--replay-from`、库不存在、坏 schema、无 Run、损坏载荷、不支持 schema 版本共 6 场景）：全部 exit 3、stderr `ERROR setup:` ASCII 单行、无 traceback、stdout 0 字节（无 RESULT）、缺失库未被创建、事件库无半轨迹 — PASS
+  4. Replay runtime mismatch（响应耗尽、响应缺失、多余响应、指纹不匹配共 4 场景）：全部 exit 1、`RESULT status=FAILED`、无 traceback、`state.transition` reason=`REPLAY_MISMATCH`、多余响应由消费完整性检查判定、setup 通道未被误用 — PASS
+  5. EventStore 阶段 1（`create_run` 失败，真实 CLI 路径）：exit 3、无 RESULT、runs=0/events=0（无半轨迹）— PASS
+  6. EventStore 阶段 2（运行中持续 append 故障）：EventStoreError 不逃逸、status=FAILED、error=`EVENT_STORE_FAILED`、trace_complete=false、RESULT 存在、exit 1、原始写入故障与审计补写故障均保留在结构化 errors（双条目）— PASS
+  7. EventStore 阶段 3（仅收尾持久化失败）：业务终态 COMPLETED 不回滚、trace_complete=false、exit 0（按业务终态）、不伪装完整轨迹（无 run.final，runs 行未标记 COMPLETED）— PASS
+  8. Verification retry：首次 REJECT 后真实发生 `VERIFYING→EXECUTING`（reason=`verification rejected; retry within turn budget`），下一轮取得真实只读证据后 COMPLETED；预算耗尽路径（max-turns=3）不无限重试，最终 FAILED、错误码 `VERIFICATION_REJECTED`、CLI exit 1 — PASS
+  9. DENY observation：被拒绝工具实现调用 0 次；`policy.decision`（DENY/WORKSPACE_WRITE）与 `tool.denied` 事件存在；无 tool.result、无伪 executed=true；结构化 DENIED 观察进入下一轮 model request；后续改用只读工具，Run 最终 COMPLETED；DENY 尝试计入工具预算（tool_calls=2）— PASS
+  10. 退出码 0/1/2/3 真实路径：0=Mock/Replay COMPLETED；1=REPLAY_MISMATCH、EVENT_STORE_FAILED、VERIFICATION_REJECTED；2=Runtime `request_cancel` → CANCELLED（`RESULT status=CANCELLED trace_complete=true`，N-01 冻结映射，未新增 CLI 取消入口）；3=Replay setup error、EventStore 阶段 1、argparse/setup failure — PASS
+- §16.7 安全与兼容性复核（本轮重新执行，未引用 Review Round 2 结果）：stdlib-only；零网络模块；零工作区写工具；无 `shell=True`/`os.system`/`os.popen`/`subprocess.getoutput`；无通用命令 Runner（仅 `run_git` 固定 argv status/diff）；子进程有超时（10s）与输出预算（1MiB）及 taskkill/kill 兜底；Policy 先于执行；executed=true 必有先行 ALLOW；Workspace 词法+realpath 双边界；Replay `mode=ro`；数据库不存在不创建；EventStore 故障边界成立；CLI 输出 ASCII；不依赖 PowerShell/Bash/Node/Docker/WSL — 无回归
+- 不可变检查（验证前后各一次）：`git status --short` 干净；`git diff --check` 通过；`git diff --name-status fa3034d..HEAD -- src tests scripts` 零 Diff；Phase 1（probe 及其测试、脚本）相对候选零 Diff；`git ls-files` 污染扫描零命中；无未跟踪实现/测试/脚本/数据库/凭据；所有探针脚本与数据库均位于仓库外临时目录；HEAD 历史无 merge 提交，原型未整体 merge/cherry-pick
+- 状态声明：
+  - 本记录**不是 Windows 7 验证**；`Win7-Compatibility: PROVISIONAL`、`Win7-Validation: NOT_PERFORMED`、`Blocking-Reason: Target environment unavailable` 保持不变；§15.3 N-03 十项 Win7 待验清单继续保持待验
+  - N-01（CLI 无取消入口，Runtime CANCELLED 路径证明 exit 2）与 N-02（`MINIMUM_TEST_COUNT=61`，实际 81）保持非阻断
+  - 本轮未开始 Phase 3、未创建 Win7 Gate、未设置 `READY_FOR_WIN7_VALIDATION`
+  - 本次仅将 `Phase-Gate: READY_FOR_PYTHON38_VALIDATION` 流转为 `PYTHON38_VALIDATED`（§16.9 授权），`Review-Round: 2` / `Review-Status: REVIEW_PASSED` 保持不变
