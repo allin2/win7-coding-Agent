@@ -62,6 +62,18 @@ class CliTests(unittest.TestCase):
         self.assertIn("RESULT status=FAILED", stdout.getvalue())
         self.assertIn("trace_complete=false", stdout.getvalue())
 
+    def test_pre_run_store_failure_returns_three_without_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stdout = StringIO()
+            stderr = StringIO()
+            from win7_agent.storage import EventStoreError
+            with mock.patch("win7_agent.cli.__main__.EventStore", side_effect=EventStoreError("cannot open database")):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = main(["analyze", "--workspace", FIXTURE, "--task", "x", "--event-db", os.path.join(directory, "events.sqlite")])
+        self.assertEqual(3, code)
+        self.assertIn("ERROR", stderr.getvalue())
+        self.assertNotIn("RESULT", stdout.getvalue())
+
     def test_finalization_store_failure_is_a_warning_and_keeps_success_exit(self):
         result = RunResult("missing", RunStatus.COMPLETED, "", 1, 0, [{"code": "EVENT_STORE_FAILED", "message": "broken"}], False, "finalize")
         with tempfile.TemporaryDirectory() as directory:

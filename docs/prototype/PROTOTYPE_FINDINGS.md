@@ -9,6 +9,9 @@
 - Completion is a verification decision: a final sentence alone fails unless it cites a genuinely read file path and line number.
 - Review Round 1 confirms that a denied action is a successful safety outcome, while execution without matching ALLOW evidence is a verification failure.
 - Replay now detects accidental request/response drift with a deterministic request fingerprint and read-only event-store loading.
+- Event lifecycle behavior is now explicit: atomic Run establishment, persistence-first state transitions, complete-prefix-only storage failure claims, and a `trace_complete` result field distinguish runtime and finalization failures.
+- `search_text` caps an individual file at 1 MiB without abandoning later files; the private Git drain helper records pipe-close races as truncation rather than leaking thread errors.
+- The recursive unittest entry point dynamically includes `tests/unit/**` and `tests/integration/**`, including Probe tests. The confirmed Review Round 1 residual-repair baseline is **93 tests**; any lower discovered count fails the entry point.
 
 ## Stubs and mocks
 

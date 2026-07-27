@@ -69,3 +69,23 @@ class ProviderTests(unittest.TestCase):
             finally:
                 connection.close()
             self.assertEqual("done", ReplayProvider.from_event_db(database).generate(request(1)).content)
+
+    def test_replay_schema_and_missing_response_fail_with_defined_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            empty = os.path.join(directory, "empty.sqlite")
+            sqlite3.connect(empty).close()
+            with self.assertRaises(ProviderError):
+                ReplayProvider.from_event_db(empty)
+            database = os.path.join(directory, "missing-response.sqlite")
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute("CREATE TABLE runs (run_id TEXT, created_at TEXT)")
+                connection.execute("CREATE TABLE events (run_id TEXT, event_type TEXT, seq INTEGER, payload TEXT)")
+                connection.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+                connection.execute("INSERT INTO runs VALUES ('run-1', '2026-01-01T00:00:00+00:00')")
+                connection.execute("INSERT INTO events VALUES ('run-1', 'model.request', 1, ?)", ('{"turn": 1, "request_fingerprint": "' + request_fingerprint(request(1)) + '"}',))
+                connection.commit()
+            finally:
+                connection.close()
+            with self.assertRaises(ReplayMismatch):
+                ReplayProvider.from_event_db(database).generate(request(1))

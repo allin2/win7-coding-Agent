@@ -24,6 +24,18 @@
 - Impact: Runtime reports `EVENT_STORE_FAILED` without a traceback and makes `run.final`/final status best effort, so consumers must tolerate incomplete runs.
 - Recommended decision owner: Phase 5 storage task author, which should decide formal durability and recovery semantics.
 
+## Trace completeness versus business status
+
+- Phenomenon: a necessary event failure forces an in-memory failed Run, but a failure limited to `run.final` or final-status persistence leaves an already verified business status unchanged; both cases set `trace_complete=false`.
+- Impact: consumers must not infer a fully reconstructable trace from `COMPLETED` alone and must inspect `trace_complete`; a prefix can be durable without an authoritative final record.
+- Recommended decision owner: Phase 5 storage task author, which should decide whether a formal implementation needs recovery records or a stronger transactional finalization contract.
+
+## Dynamic test discovery module collisions
+
+- Phenomenon: legacy Probe tests perform nested unittest discovery while multiple directories contain bare `test_*.py` module names. The prototype runner clears transient bare test modules and loads the nested-discovery hook first, while still recursively discovering every unit and integration directory.
+- Impact: the runner is a test-harness compatibility layer, not a reusable production loader; its 93-test minimum detects missing discovery roots but not test quality.
+- Recommended decision owner: Phase 1/Phase 5 test-infrastructure authors if the repository later adopts package-qualified test-module names.
+
 ## Read-only Git uses a subprocess under READ_ONLY semantic permission
 
 - Phenomenon: `git_status` and `git_diff` are semantically read-only but technically spawn a fixed allowlisted process.
