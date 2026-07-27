@@ -14,9 +14,9 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: ARCHITECTURE_PROTOTYPE
 Target Branch: prototype/full-agent-skeleton
 Base Phase: Phase 1 remains independent and unchanged
-Phase-Gate: READY_FOR_PROTOTYPE_REVIEW
+Phase-Gate: READY_FOR_PYTHON38_VALIDATION
 Review-Round: 1
-Review-Status: REPAIR_REQUIRED
+Review-Status: REPAIR_VERIFIED
 ```
 
 （2026-07-27 项目负责人批准建立独立原型线，见 ADR-0023。授权范围仅限本文档 §8 白名单路径，
@@ -25,6 +25,13 @@ Review-Status: REPAIR_REQUIRED
 （2026-07-27 架构师审查轮 1：独立审查结论 `KEEP_READY_FOR_PROTOTYPE_REVIEW_AND_REPAIR`，
 审查对象为实现终点 `31d1bda`。Phase-Gate 保持 `READY_FOR_PROTOTYPE_REVIEW` 不变，
 **不标记 `PROTOTYPE_ACCEPTED`**；修复要求与门控见 §18，语义裁决见 ADR-0024。）
+
+（2026-07-27 架构师最终残余复审：自动化证据复审结论
+`REPAIR_VERIFIED_READY_FOR_PYTHON38_VALIDATION`，复审基线 `d1093ab`、复审终点
+`9b6461d`。据此将 `Review-Status` 更新为 `REPAIR_VERIFIED`，`Phase-Gate` 前进至
+`READY_FOR_PYTHON38_VALIDATION`（§0.3 状态机合法迁移，由架构师执行）；
+完整复审记录见 §20。该结论**不是** `PROTOTYPE_ACCEPTED`，不解除 Win7 E1/E2
+硬门槛与 §0.2 全部限制。）
 
 ### 0.2 原型线定位（与 Phase 1 的关系）
 
@@ -1028,3 +1035,42 @@ MockProvider 剧本（按 Turn 顺序，必须完成）：
 3. RR1 + RR2 + RR3（§7 生命周期矩阵三阶段、持久化先行、`trace_complete`，含 P43/P44/P48–P50）；
 4. RR4 + RR9①④（CLI 分阶段错误面与 Replay 路径处理，含 P45/P47）；
 5. RR8 + RR9⑤（测试补齐、P43–P55 全量、递归动态发现与最低门槛入口、基线记录与文档同步）。
+
+## 20. 审查轮 1 最终残余复审记录（Final Residual Review）
+
+复审结论：`REPAIR_VERIFIED_READY_FOR_PYTHON38_VALIDATION`（自动化证据复审，
+由架构师确认并据此更新 §0.1 状态块）。
+
+### 20.1 复审对象
+
+- 复审基线：`d1093ab2db496576edf12faa81ed3d8514d182a7`
+  （`test prototype residual repairs and discovery gate`）。
+- 复审终点：`9b6461d0fd3380babcc56a842571eb4b4dc77660`
+  （`test prototype remaining residual evidence`）。
+- 复审范围：§18（B1/B2、H1–H4、M1–M8）与 §19（RR1–RR9 含三项精确定义）
+  全部修复项的实现与自动化证据。
+
+### 20.2 复审结果
+
+- **残余未自动化项全部关闭**：P29、P31、P40、P41、P47 均已有自动化用例并通过，
+  状态 CLOSED。
+- **测试矩阵覆盖完整**：§12 P01–P55 全部有对应自动化用例覆盖（含审查轮 1
+  P26–P42、残余修复 P43–P47、精确定义 P48–P55）。
+- **开发环境回归**：Python 3.9.6 下统一测试入口 104/104 通过（递归动态发现，
+  总数输出与最低门槛门控生效）。
+- **3.8 解释器验证（开发机）**：macOS CPython 3.8.10 下
+  `python -m compileall -q src tests scripts` 零错误，统一测试入口 104/104 通过。
+- **无阻塞项**：未发现 Blocker / High 优先级问题；无新增修复要求。
+- **Phase 1 隔离完好**：§9 禁止路径（`src/win7_agent/probe/**`、Probe 测试、
+  Phase 1 文档与脚本等）自复审基线至终点零 diff。
+
+### 20.3 证据边界与下一步
+
+- 本复审证据来自现代开发环境（macOS），**不等于、也不替代** Win7 SP1 x64
+  实机/VM 验收（E1/E2 硬门槛，§0.2、AGENTS.md C01）；不构成任何正式阶段验收。
+- 下一阶段：按 §18.5 含义完成**正式的干净 CPython 3.8.10 验证档记录**
+  （统一测试入口 + 演示脚本），随后由架构师裁决是否 `PROTOTYPE_ACCEPTED`；
+  仍需 Win7 实机验证的部分见 `docs/prototype/PROTOTYPE_FINDINGS.md`。
+- 状态块变更（本次）：`Phase-Gate: READY_FOR_PYTHON38_VALIDATION`、
+  `Review-Status: REPAIR_VERIFIED`，`Review-Round: 1` 不变；由架构师执行，
+  符合 §0.3 修改权限规则。
