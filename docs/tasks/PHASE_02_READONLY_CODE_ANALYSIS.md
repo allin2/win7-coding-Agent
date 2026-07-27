@@ -23,9 +23,11 @@ Blocking-Reason: Target environment unavailable
 
 （2026-07-27 项目负责人批准创建本任务书与授权链；批准范围仅限 §8 白名单路径，
 且实现只能发生在 `phase/02-readonly-agent` 分支上。`Phase-Gate` / `Review-Round` /
-`Review-Status` / `Win7-*` 各行只能由架构师修改，唯一例外：实现方开始首个里程碑时可将
-`Phase-Gate` 更新为 `IMPLEMENTING`。Win7 实机验收前，`Win7-Validation` 必须保持
-`NOT_PERFORMED`，本阶段不得宣称 Win7 已通过。）
+`Review-Status` / `Win7-*` 各行只能由架构师修改，仅有两个例外：其一，实现方开始首个
+里程碑时可将 `Phase-Gate` 更新为 `IMPLEMENTING`；其二，在 §10.5 无人值守执行窗口内
+完成 M6 且全部自动门禁通过后，实现方可将 `Phase-Gate` 更新为
+`READY_FOR_PHASE_REVIEW`（仅此一个目标状态，见 §10.5.4）。Win7 实机验收前，
+`Win7-Validation` 必须保持 `NOT_PERFORMED`，本阶段不得宣称 Win7 已通过。）
 
 ### 0.2 授权链与证据基线
 
@@ -301,7 +303,8 @@ DEFER **1 项**（M-17）+ REJECT **1 项**（M-16）；ADOPT 本阶段 0 项。
 
 ## 6. 兼容性门槛（持续生效）
 
-- CPython 3.8.10；所有 `.py` 通过 `python3.8 -m compileall -q`（C02/C05）。
+- CPython 3.8.10；所有 `.py` 在 CPython 3.8.10 解释器下通过 `-m compileall -q`
+  （C02/C05）；解释器按 §7.3 的解析规则确定，不得假定其命令名固定为 `python3.8`。
 - 仅标准库（C03）；本任务书未新增任何 WIN7_CONSTRAINTS §6 需评审依赖
   （`sqlite3` D-001、`taskkill.exe` D-002、`git.exe` D-003 均已批准）。
 - 禁 Python 3.9+ 语法/API（WIN7_CONSTRAINTS §3）；禁 Node/Docker/WSL（C04）；
@@ -384,11 +387,40 @@ Blocking-Reason: Target environment unavailable
 
 ### 7.3 质量门禁（每个里程碑提交必须全绿）
 
-1. `python3.8 -m compileall -q src tests scripts` 零错误。
+1. 当前执行解释器门禁（无条件）：使用当前有效执行解释器（即实际调用统一测试入口
+   的解释器）完成 `-m compileall -q src tests scripts`，结果必须零错误；不得假定
+   解释器命令固定为 `python3.8`。
 2. 统一入口全绿且不低于当前门槛。
-3. 静态扫描零命中：`shell=True`、`os.system`、`os.popen`、无 `encoding` 的文本 `open(`、
-   WIN7_CONSTRAINTS §3 禁用 API。
+3. 静态安全扫描（冻结范围与分类规则）：
+   - 禁止模式至少包括：`shell=True`、`os.system`、`os.popen`、`subprocess.getoutput`、
+     任意 Shell 执行、未授权网络调用、无 `encoding` 的文本 `open(`、
+     WIN7_CONSTRAINTS §3 禁用的 Python 3.9+ 语法/API、目标工作区写操作。
+   - 扫描范围：生产实现路径（`src/win7_agent/**` 与 `scripts/*.py` 生产脚本）中的
+     禁止调用必须零命中；任何未经解释的生产实现命中即判定该项门禁失败
+     （非零退出 / BLOCKED）。
+   - 测试（`tests/**`）、夹具（`tests/fixtures/**`）与文档中用于验证禁止模式的字面
+     字符串不构成生产违规，但必须逐条分类记录（文件、行号、类别、理由）并附入门禁
+     执行记录；未分类的命中一律按失败处理。
+   - 字符串零命中仅为必要条件：不得以简单字符串搜索零命中替代 §10.3 架构师复审中的
+     安全纪律审查；本分类规则不弱化任何安全门禁。
 4. `git diff` 确认未触碰 §9 禁止路径。
+
+真实 CPython 3.8.10 门禁（条件门禁，解析规则冻结）：
+
+- 可解析到真实 CPython 3.8.10 解释器时，必须使用该解释器执行
+  `-m compileall -q src tests scripts`、`scripts/run_agent_tests.py` 及当前里程碑
+  要求的其他 Python 3.8.10 验证，并全部通过。
+- 候选解析顺序（必须依次主动检查，命中即用）：`.conda-py3810/bin/python`、
+  `python3.8`、`py -3.8`、任务书或环境中其他可验证为 CPython 3.8.10 的实际路径；
+  不得仅因 `python3.8` 不在 PATH 中即判定目标解释器不存在。当前开发机已知可能
+  存在 `.conda-py3810/bin/python`，实现方必须主动检查该路径，不得直接跳过。
+- 使用前必须执行 `<resolved-python> --version` 版本检查，实际输出为
+  Python 3.8.10（CPython）方可作为目标解释器证据。
+- 确实无法解析时：如实记录 `NOT_PERFORMED` 及已检查的候选路径/命令清单，不得
+  伪造 PASS；已在该解释器下执行并通过时必须记录 PASS，不得记录 `NOT_PERFORMED`。
+  是否允许继续后续里程碑按既有 Gate 规则执行（本项为条件门禁，目标解释器不可用
+  本身不构成无条件阻塞）；正式 `READY_FOR_PYTHON38_VALIDATION` /
+  `PYTHON38_VALIDATED` 仍仅由架构师按 §10.4 依据干净 CPython 3.8.10 验证档流转。
 
 ## 8. 实现路径白名单（C14；仅在 `phase/02-readonly-agent` 分支生效）
 
@@ -451,17 +483,23 @@ M1 边界与停止点（冻结）：
   门槛基线记录（§7.2）。
 - M1 **不得**提前实施任何 M2–M5 产物：models 契约、Runtime 状态机、workspace、
   只读工具、EventStore、Provider、CLI 闭环、Git 子进程实现均属后续里程碑。
-- **每个里程碑完成后实现方必须停止**，等待架构师核对确认后方可进入下一里程碑；
-  M1 完成后不得自动继续 M2。
+- **默认交互式执行时，每个里程碑完成后实现方必须停止**，等待架构师核对确认后方可
+  进入下一里程碑；交互模式下 M1 完成后不得自动继续 M2。
+- **唯一例外**：在 §10.5 授权的无人值守执行窗口内，且该里程碑的全部自动门禁
+  （§10.5.2）通过时，实现方可不等待人工回复继续下一里程碑。无人值守授权**不等于**
+  架构审查通过；实现方仍必须保持每里程碑独立提交与完整可审查性（§10.5.3）。
+  本条不删除、不弱化交互模式，仅为其增加一个受 §10.5 严格约束的例外。
 
 ### 10.3 角色与权限
 
 - **Codex（实现方）**：仅在实现分支、仅 §8 白名单内实现；可将 `Phase-Gate` 置
-  `IMPLEMENTING`；不得修改其他状态行、不得修改 §3 契约、不得新增依赖或错误码；
-  发现设计缺陷时停止并报告，不得代行裁决。
+  `IMPLEMENTING`；在 §10.5 无人值守窗口内完成 M6 且门禁全绿后可将 `Phase-Gate` 置
+  `READY_FOR_PHASE_REVIEW`（§10.5.4，仅此一个额外状态）；不得修改其他状态行、
+  不得修改 §3 契约、不得新增依赖或错误码；发现设计缺陷时停止并报告，不得代行裁决。
 - **Claude（架构师独立复审）**：复审范围 = §3 契约逐条符合性、§5 迁移矩阵执行情况
   （抽查移植来源标注）、§7 覆盖完整性、§9 禁止路径零 diff、安全纪律（C08–C11、ASCII、
-  零网络）；复审产出记入本任务书新增章节；Gate 状态迁移仅架构师执行（§0.1 唯一例外除外）。
+  零网络）；复审产出记入本任务书新增章节；Gate 状态迁移仅架构师执行（§0.1 两个
+  例外除外）。
 - **项目负责人**：批准 Gate 进入验证与验收环节；裁决矛盾上报。
 
 ### 10.4 Phase-Gate 状态机（冻结）
@@ -469,7 +507,8 @@ M1 边界与停止点（冻结）：
 ```
 APPROVED_FOR_IMPLEMENTATION
   → IMPLEMENTING                      （实现方，开始 M1）
-  → READY_FOR_PHASE_REVIEW            （架构师，M6 完成后）
+  → READY_FOR_PHASE_REVIEW            （架构师；或实现方在 §10.5 无人值守窗口内
+                                        完成 M6 且门禁全绿后，§10.5.4）
   → REPAIR_REQUIRED | REVIEW_PASSED   （架构师复审裁决；REPAIR 后回到 IMPLEMENTING 修复）
   → READY_FOR_PYTHON38_VALIDATION     （架构师，复审通过）
   → PYTHON38_VALIDATED                （干净 CPython 3.8.10 验证档记录后）
@@ -480,6 +519,113 @@ APPROVED_FOR_IMPLEMENTATION
 - Win7 环境不可用期间，终点停在 `READY_FOR_WIN7_VALIDATION` +
   `Win7-Validation: NOT_PERFORMED`；**任何人不得在缺少 Win7 证据时置 `PHASE_ACCEPTED`**
   （AGENTS.md §5.8 硬门槛）。
+
+### 10.5 无人值守执行窗口（Unattended execution window，一次性授权）
+
+（2026-07-27 项目负责人授权。本节为本次 Phase 2 实施的**一次性**无人值守执行授权，
+仅适用于 `phase/02-readonly-agent` 分支上的 M1–M6 实施；不构成对后续阶段、其他分支或
+其他任务的任何授权先例。无人值守授权**不替代**架构师独立复审、CPython 3.8.10 验证与
+Win7 实机验收；全部既有门禁与硬约束（AGENTS.md C01–C14、本任务书 §2/§3/§8/§9）
+在窗口内继续全部生效。）
+
+#### 10.5.1 授权范围
+
+本次 Phase 2 实现允许 Codex 在一次无人值守执行窗口中，按依赖顺序连续实施：
+
+```
+M1 → M2 → M3 → M4 → M5 → M6
+```
+
+不得跳过、不得乱序、不得并行实施多个里程碑。
+
+#### 10.5.2 自动继续的前提（每个里程碑必须全部满足，缺一即停）
+
+1. 改动严格处于该里程碑对应的 §8 白名单范围内（M1 同时受 §10.2 M1 边界约束）；
+2. 该里程碑的目标测试（§10.2 关键测试列对应 F 编号）全部通过；
+3. 统一入口全量测试（§7.2）全绿；
+4. 实际执行测试数不低于当前冻结门槛（§7.2，门槛只升不降）；
+5. 使用当前有效执行解释器完成 `-m compileall -q src tests scripts`，结果必须零错误；
+   不得假定解释器命令固定为 `python3.8`（§7.3.1，无条件门禁）；
+6. 按 §7.3.3 冻结范围执行静态安全扫描；生产实现中的禁止调用必须零命中。
+   测试、夹具和文档中用于验证禁止模式的字面字符串必须按 §7.3.3 分类，
+   不得因简单字符串搜索产生误判，也不得将零字符串命中替代完整安全审查；
+7. `git diff --check` 通过；
+8. §9 禁止路径零 Diff（§7.3.4）；
+9. 可解析到真实 CPython 3.8.10 解释器时（按 §7.3 冻结的候选解析顺序与
+   `--version` 检查主动解析，含 `.conda-py3810/bin/python`；不得仅因 `python3.8`
+   不在 PATH 中即判定不存在），对应验证（compileall + 统一入口及当前里程碑要求的
+   其他 Python 3.8.10 验证）在该解释器下通过；确实无法解析时按 §7.3 如实记录
+   `NOT_PERFORMED` 与已检查候选清单，不得伪造 PASS（条件门禁）；
+10. 不存在任何需要架构师裁决的新问题（含设计缺陷、契约歧义、§12 之外的开放问题）。
+
+上述 10 项全部通过时，不再要求 Codex 在该里程碑后等待人工回复，可直接继续下一里程碑。
+
+#### 10.5.3 每个里程碑的强制动作（无人值守不豁免）
+
+- 形成独立 Commit，**禁止**将多个里程碑压缩为一个提交；
+- 使用 §10.2 冻结的提交信息（含 `phase2: ` 前缀与移植来源标注，§0.3）；
+- 推送到 `phase/02-readonly-agent`（仅常规 push；禁止 force push）；
+- 在提交信息或随提交记录中记录：测试总数、当前门槛、各项门禁验证结果；
+- 完成后重新读取下一里程碑的 §10.2 范围与 §8 白名单，再开始实施。
+
+#### 10.5.4 最终状态边界（冻结）
+
+窗口内 Codex **可以**：
+
+- 开始实施时将 `Phase-Gate` 从 `APPROVED_FOR_IMPLEMENTATION` 更新为 `IMPLEMENTING`；
+- 完成 M1–M6 且全部自动门禁通过后，将 `Phase-Gate` 更新为 `READY_FOR_PHASE_REVIEW`；
+- 按 §13 格式填写客观验证证据（提交哈希、平台、测试计数、compileall 结果等）。
+
+窗口内 Codex **禁止**设置以下任何状态（均仅限架构师/项目负责人按 §10.4 流转）：
+
+- `REVIEW_PASSED`、`REPAIR_REQUIRED`
+- `READY_FOR_PYTHON38_VALIDATION`、`PYTHON38_VALIDATED`
+- `READY_FOR_WIN7_VALIDATION`
+- `PHASE_ACCEPTED`、`PHASE_REJECTED`
+
+独立复审仍必须由 Claude（架构师）与项目负责人完成；`Review-Round` / `Review-Status`
+各行 Codex 不得触碰。Win7 状态三行在窗口内必须保持不变：
+
+```
+Win7-Compatibility: PROVISIONAL
+Win7-Validation: NOT_PERFORMED
+Blocking-Reason: Target environment unavailable
+```
+
+#### 10.5.5 强制停止条件（遇任一即停）
+
+1. 任务书存在歧义或契约冲突（含 §3 内部、§3 与 AGENTS.md/WIN7_CONSTRAINTS 之间）；
+2. 需要修改当前里程碑白名单外的文件；
+3. 需要修改 Phase 1 代码、测试或接口（§9；只能登记 `docs/PENDING_CONFIRMATIONS.md`）；
+4. 需要修改已 Accepted ADR；
+5. 需要作出任务书未冻结的架构决策；
+6. 目标测试或全量测试失败，且无法在当前里程碑白名单内解决；
+7. 实际执行测试数相对已冻结门槛下降；
+8. 只能通过删除、跳过（skip）或弱化断言来使测试通过；
+9. 发现安全边界问题（§11、SECURITY.md 范畴，含越权读写、网络行为、凭据落盘）；
+10. 发现 Python 3.8.10 不兼容（语法、标准库 API 或行为差异）；
+11. 发现必须依赖 Win7 实机结果才能继续的决策点；
+12. 本地分支、远程分支或工作区状态异常（含非预期提交、脏工作区、分支偏离）；
+13. 需要 force push、历史重写或整体合并原型分支（§0.3 绝对禁止）。
+
+停止时必须：
+
+- 不提交失败或不完整的实现；
+- 保留最后一个已通过全部门禁并已推送的里程碑 Commit 作为可审查基线；
+- 输出 BLOCKED 报告：触发的停止条件编号、完整事实描述、最后通过的里程碑与提交哈希、
+  未完成的里程碑清单、当前测试计数与门槛；
+- 不继续任何后续里程碑，等待架构师裁决。
+
+#### 10.5.6 窗口失效
+
+本窗口在以下任一情形后自动失效，后续恢复 §10.2 默认交互模式：
+
+- M6 完成且 `Phase-Gate` 置为 `READY_FOR_PHASE_REVIEW`；
+- 触发 §10.5.5 任一停止条件；
+- 架构师或项目负责人以任何方式介入并取消授权。
+
+后续如需再次无人值守执行（例如 REPAIR_REQUIRED 后的修复轮），必须由项目负责人
+重新授权并修订本节，不得沿用本次一次性授权。
 
 ## 11. 安全边界（对本阶段生效）
 
@@ -498,13 +644,22 @@ APPROVED_FOR_IMPLEMENTATION
 Implementation commit: <hash>
 Gate commit: <hash>
 Validation platform: <os>
-Interpreter: CPython 3.8.10
-Compileall: PASS|FAIL
-Unified tests: <passed>/<total> (minimum <baseline>)
+Current interpreter: <command or path> (<version>)
+Compileall (current interpreter): PASS|FAIL
+Unified tests (current interpreter): <passed>/<total> (minimum <baseline>)
+CPython 3.8.10 interpreter: <resolved path> | NOT_RESOLVED (checked: <candidate list>)
+Compileall (CPython 3.8.10): PASS|FAIL|NOT_PERFORMED
+Unified tests (CPython 3.8.10): <passed>/<total> | NOT_PERFORMED
 CLI demo: PASS|FAIL (RESULT status=..., trace_complete=..., exit=...)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
 Blocking-Reason: Target environment unavailable
 ```
+
+填写规则：`CPython 3.8.10` 各行按 §7.3 真实 CPython 3.8.10 门禁填写——解析失败时如实
+记 `NOT_RESOLVED`/`NOT_PERFORMED` 并列出已检查候选，不得伪造 PASS；已在该解释器下
+执行并通过时必须记 PASS，不得记 `NOT_PERFORMED`。本记录仅为客观证据；
+`READY_FOR_PYTHON38_VALIDATION` / `PYTHON38_VALIDATED` 的流转仍仅由架构师按 §10.4
+执行，不因本记录自动发生。
 
 Win7 验收完成前，上述 `Win7-*` 三行不得改写为任何"已通过"表述。
