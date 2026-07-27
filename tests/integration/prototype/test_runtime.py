@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from win7_agent.models import FinishReason, MockProvider, ModelResponse, ReplayProvider, ToolCall
 from win7_agent.runtime import PrototypeRuntime, RunStatus
@@ -111,3 +112,24 @@ class PrototypeRuntimeTests(unittest.TestCase):
         self.assertEqual([], calls)
         self.assertTrue([event for event in events if event["event_type"] == "tool.denied"])
         self.assertFalse([event for event in events if event["event_type"] == "tool.result" and event["payload"].get("tool_call_id") == "deny"])
+
+    def test_event_store_mid_run_failure_becomes_structured_run_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            original_append = store.append_event
+            calls = []
+
+            def append(run_id, event_type, payload):
+                calls.append(event_type)
+                if len(calls) == 4:
+                    from win7_agent.storage import EventStoreError
+                    raise EventStoreError("injected failure")
+                return original_append(run_id, event_type, payload)
+
+            try:
+                with mock.patch.object(store, "append_event", side_effect=append):
+                    result = PrototypeRuntime(WorkspaceContext(FIXTURE), "Find target_function.", MockProvider(), store).run()
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual("EVENT_STORE_FAILED", result.errors[-1]["code"])

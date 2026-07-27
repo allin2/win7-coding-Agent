@@ -2,6 +2,8 @@ import os
 import tempfile
 import unittest
 from unittest import mock
+from io import StringIO
+from contextlib import redirect_stdout
 
 from win7_agent.cli.__main__ import main
 from win7_agent.runtime import RunResult, RunStatus
@@ -24,3 +26,24 @@ class CliTests(unittest.TestCase):
             with mock.patch("win7_agent.cli.__main__.PrototypeRuntime") as runtime:
                 runtime.return_value.run.return_value = result
                 self.assertEqual(2, main(["analyze", "--workspace", FIXTURE, "--task", "Find target_function.", "--event-db", database]))
+
+    def test_argument_errors_return_three_and_help_returns_zero(self):
+        self.assertEqual(3, main(["analyze", "--workspace", FIXTURE]))
+        self.assertEqual(3, main(["analyze", "--workspace", FIXTURE, "--task", "x", "--max-turns", "0"]))
+        self.assertEqual(0, main(["--help"]))
+
+    def test_replay_load_error_returns_three_without_creating_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            replay = os.path.join(directory, "missing.sqlite")
+            self.assertEqual(3, main(["analyze", "--workspace", FIXTURE, "--task", "x", "--replay", replay]))
+            self.assertFalse(os.path.exists(replay))
+
+    def test_event_lines_are_ascii_and_do_not_contain_file_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(0, main(["analyze", "--workspace", FIXTURE, "--task", "Find target_function.", "--event-db", os.path.join(directory, "events.sqlite")]))
+        text = output.getvalue()
+        text.encode("ascii")
+        self.assertIn("EVENT seq=1 type=run.created", text)
+        self.assertNotIn("sample result", text)

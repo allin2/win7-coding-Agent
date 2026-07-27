@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from win7_agent.context import ContextCompiler
 from win7_agent.models import ModelProvider, ReplayMismatch, ToolResultMessage, request_fingerprint
 from win7_agent.policy import PermissionType, PolicyEngine
-from win7_agent.storage import EventStore
+from win7_agent.storage import EventStore, EventStoreError
 from win7_agent.tools import ToolRequest, ToolRuntime, build_readonly_registry
 from win7_agent.verification import VerificationEngine
 from win7_agent.workspace import WorkspaceContext
@@ -102,15 +102,34 @@ class PrototypeRuntime:
                 else:
                     self._controller.fail("VERIFICATION_REJECTED", "; ".join(completion.reasons))
                 break
+        except EventStoreError as error:
+            self._force_store_failure(error)
         except (RuntimeErrorInfo, ReplayMismatch) as error:
             if self._controller.state.status not in (RunStatus.FAILED, RunStatus.CANCELLED):
                 self._controller.fail(error.code, error.message)
         except Exception as error:
             self._controller.fail("UNEXPECTED", str(error))
         state = self._controller.state.snapshot()
-        self._record("run.final", {"status": state["status"], "final_text": final_text, "turns": state["turn_count"], "tool_calls": state["tool_call_count"], "errors": state["errors"]})
-        self._store.finalize_run(self._run_id, state["status"])
+        self._best_effort_finalize(final_text)
+        state = self._controller.state.snapshot()
         return RunResult(self._run_id, RunStatus(state["status"]), final_text, state["turn_count"], state["tool_call_count"], state["errors"])
 
     def _record(self, event_type: str, payload: Dict[str, Any]) -> None:
         self._store.append_event(self._run_id, event_type, payload)
+
+    def _force_store_failure(self, error: EventStoreError) -> None:
+        state = self._controller._state
+        if state._status not in (RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.COMPLETED):
+            state._errors.append({"code": "EVENT_STORE_FAILED", "message": str(error)})
+            state._status = RunStatus.FAILED
+
+    def _best_effort_finalize(self, final_text: str) -> None:
+        state = self._controller.state.snapshot()
+        try:
+            self._record("run.final", {"status": state["status"], "final_text": final_text, "turns": state["turn_count"], "tool_calls": state["tool_call_count"], "errors": state["errors"]})
+        except EventStoreError:
+            pass
+        try:
+            self._store.finalize_run(self._run_id, state["status"])
+        except EventStoreError:
+            pass
