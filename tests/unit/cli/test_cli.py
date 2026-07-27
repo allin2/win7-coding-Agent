@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest import mock
 from io import StringIO
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 
 from win7_agent.cli.__main__ import main
 from win7_agent.runtime import RunResult, RunStatus
@@ -47,3 +47,39 @@ class CliTests(unittest.TestCase):
         text.encode("ascii")
         self.assertIn("EVENT seq=1 type=run.created", text)
         self.assertNotIn("sample result", text)
+
+    def test_runtime_store_failure_reports_result_and_exit_one(self):
+        result = RunResult("missing", RunStatus.FAILED, "", 1, 0, [{"code": "EVENT_STORE_FAILED", "message": "broken"}], False, "runtime")
+        with tempfile.TemporaryDirectory() as directory:
+            stdout = StringIO()
+            stderr = StringIO()
+            with mock.patch("win7_agent.cli.__main__.PrototypeRuntime") as runtime:
+                runtime.return_value.run.return_value = result
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = main(["analyze", "--workspace", FIXTURE, "--task", "x", "--event-db", os.path.join(directory, "events.sqlite")])
+        self.assertEqual(1, code)
+        self.assertIn("ERROR EVENT_STORE_FAILED", stderr.getvalue())
+        self.assertIn("RESULT status=FAILED", stdout.getvalue())
+        self.assertIn("trace_complete=false", stdout.getvalue())
+
+    def test_finalization_store_failure_is_a_warning_and_keeps_success_exit(self):
+        result = RunResult("missing", RunStatus.COMPLETED, "", 1, 0, [{"code": "EVENT_STORE_FAILED", "message": "broken"}], False, "finalize")
+        with tempfile.TemporaryDirectory() as directory:
+            stdout = StringIO()
+            stderr = StringIO()
+            with mock.patch("win7_agent.cli.__main__.PrototypeRuntime") as runtime:
+                runtime.return_value.run.return_value = result
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = main(["analyze", "--workspace", FIXTURE, "--task", "x", "--event-db", os.path.join(directory, "events.sqlite")])
+        self.assertEqual(0, code)
+        self.assertIn("WARNING EVENT_STORE_FAILED", stderr.getvalue())
+        self.assertIn("RESULT status=COMPLETED", stdout.getvalue())
+
+    def test_replay_and_event_db_same_path_prints_note(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = os.path.join(directory, "record # %.sqlite")
+            self.assertEqual(0, main(["analyze", "--workspace", FIXTURE, "--task", "Find target_function.", "--event-db", database]))
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(0, main(["analyze", "--workspace", FIXTURE, "--task", "Find target_function.", "--replay", database, "--event-db", database]))
+        self.assertIn("NOTE replay-db and event-db are the same path", output.getvalue())

@@ -26,6 +26,14 @@ def _ascii(value: str) -> str:
     return value.encode("ascii", "backslashreplace").decode("ascii")
 
 
+def _comparison_path(path: str) -> str:
+    return os.path.normcase(os.path.realpath(path))
+
+
+def _is_under(path: str, root: str) -> bool:
+    return path == root or path.startswith(root + os.sep)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = PrototypeArgumentParser(prog="python -m win7_agent.cli")
     subcommands = parser.add_subparsers(dest="command")
@@ -58,9 +66,12 @@ def main(argv=None) -> int:
     try:
         workspace = WorkspaceContext(arguments.workspace)
         event_db = arguments.event_db or os.path.join(tempfile.mkdtemp(prefix="w7a_proto_"), "events.sqlite")
-        event_path = os.path.realpath(event_db)
-        if event_path == workspace.root or event_path.startswith(workspace.root + os.sep):
+        event_path = _comparison_path(event_db)
+        workspace_path = _comparison_path(workspace.root)
+        if _is_under(event_path, workspace_path):
             print("NOTE event-db is inside the target workspace")
+        if arguments.replay and _comparison_path(arguments.replay) == event_path:
+            print("NOTE replay-db and event-db are the same path")
         provider = ReplayProvider.from_event_db(arguments.replay) if arguments.replay else MockProvider()
         store = EventStore(event_db)
         try:
@@ -76,7 +87,11 @@ def main(argv=None) -> int:
         return 3
     for event in events:
         print(_event_summary(event))
-    print("RESULT status={0} turns={1} tool_calls={2} event_db={3}".format(result.status.value, result.turns, result.tool_calls, _ascii(event_db)))
+    store_error = any(error.get("code") == "EVENT_STORE_FAILED" for error in result.errors)
+    if store_error:
+        level = "WARNING" if result.storage_failure_stage == "finalize" else "ERROR"
+        print("{0} EVENT_STORE_FAILED".format(level), file=sys.stderr)
+    print("RESULT status={0} turns={1} tool_calls={2} trace_complete={3} event_db={4}".format(result.status.value, result.turns, result.tool_calls, "true" if result.trace_complete else "false", _ascii(event_db)))
     if result.status == RunStatus.COMPLETED:
         return 0
     if result.status == RunStatus.CANCELLED:

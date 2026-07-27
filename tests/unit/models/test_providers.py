@@ -52,3 +52,20 @@ class ProviderTests(unittest.TestCase):
         provider = ReplayProvider([(1, "0" * 64, ModelResponse(content="done"))])
         with self.assertRaises(ReplayMismatch):
             provider.generate(request(1))
+
+    def test_replay_uri_escapes_path_special_characters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = os.path.join(directory, "record # %.sqlite")
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute("CREATE TABLE runs (run_id TEXT, created_at TEXT)")
+                connection.execute("CREATE TABLE events (run_id TEXT, event_type TEXT, seq INTEGER, payload TEXT)")
+                connection.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+                connection.execute("INSERT INTO runs VALUES ('run-1', '2026-01-01T00:00:00+00:00')")
+                fingerprint = request_fingerprint(request(1))
+                connection.execute("INSERT INTO events VALUES ('run-1', 'model.request', 1, ?)", ('{"turn": 1, "request_fingerprint": "' + fingerprint + '"}',))
+                connection.execute("INSERT INTO events VALUES ('run-1', 'model.response', 2, '{\"content\": \"done\", \"tool_calls\": [], \"finish_reason\": \"STOP\", \"usage\": {}}')")
+                connection.commit()
+            finally:
+                connection.close()
+            self.assertEqual("done", ReplayProvider.from_event_db(database).generate(request(1)).content)

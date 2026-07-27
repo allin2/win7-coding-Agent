@@ -4,6 +4,7 @@ from abc import ABCMeta, abstractmethod
 import hashlib
 import json
 import os
+from pathlib import Path
 import sqlite3
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -83,10 +84,10 @@ class ReplayProvider(ModelProvider):
     def from_event_db(cls, database_path: str, run_id: Optional[str] = None):
         if not os.path.isfile(database_path):
             raise ProviderError("REPLAY_LOAD_FAILED", "replay database does not exist")
-        uri_path = os.path.abspath(database_path).replace("\\", "/")
+        uri_path = Path(database_path).resolve().as_uri() + "?mode=ro"
         connection = None
         try:
-            connection = sqlite3.connect("file:{0}?mode=ro".format(uri_path), timeout=5.0, uri=True)
+            connection = sqlite3.connect(uri_path, timeout=5.0, uri=True)
             tables = connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('meta', 'runs', 'events')").fetchall()
             if set([row[0] for row in tables]) != set(["meta", "runs", "events"]):
                 raise ProviderError("REPLAY_LOAD_FAILED", "replay database schema is missing required tables")
