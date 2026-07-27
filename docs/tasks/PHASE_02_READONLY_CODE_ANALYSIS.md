@@ -644,22 +644,34 @@ Blocking-Reason: Target environment unavailable
 已失效的 §10.5 窗口，不得重新开放 M1–M6 全量范围。修复窗口基线：
 `f266d183be8f5cb5e0c2a791de480a10af8ba457`。）
 
-#### 10.6.1 修复顺序（冻结）
+#### 10.6.1 修复顺序（冻结，2026-07-27 修订）
+
+（顺序修订说明：原冻结顺序 RP1→RP2→RP3→RP4→RP5→RP6 存在执行死锁——每个 RP 的
+§10.6.9 门禁要求直接运行裸命令 `<python> scripts/run_agent_tests.py`，而审查轮 1
+已独立证明：在修复基线 `f266d18` 上，未设置 PYTHONPATH 时该裸命令因
+`No module named 'win7_agent'` 必然失败（R-05）；修复该缺陷的合同恰是 RP4，且
+RP1 不得提前实施 RP4 内容，导致第一个修复包无法合法完成。为消除该死锁，本次
+修订将 RP4 提前为首个执行包。Repair ID 与 R 编号映射保持不变，不重命名任何 RP；
+各 RP 白名单、禁止路径与完成标准不变；不降低任何测试或安全门槛；不扩大任何允许
+修改路径；不改变 R-01～R-17 的修复范围与最终 Gate 状态。该顺序调整**不代表**
+RP4 的缺陷级别高于 BLOCKER（R-01/R-02 仍为本轮最高级别缺陷），仅代表 RP4 是
+后续自动验证的执行依赖。）
 
 ```
-RP1 EventStore runtime failure
+RP4 unified test entry and evidence reproducibility   (bootstrap)
+  → RP1 EventStore runtime failure
   → RP2 Replay recording and replay completion
   → RP3 Replay error taxonomy and CLI setup errors
-  → RP4 unified test entry and evidence reproducibility
   → RP5 runner retry and policy-denial observation
   → RP6 coverage completion, demo launcher and evidence correction
   → final repair verification
   → READY_FOR_PHASE_REVIEW
 ```
 
-每个 RP 必须：独立 Commit（前缀 `phase2: repair-r1 `）、推送到
-`phase/02-readonly-agent`、全量测试通过（§10.6.9 门禁）后才能继续下一个 RP；
-禁止将多个 RP 压缩为一个提交，禁止乱序或并行。
+RP4 是本轮修复窗口**唯一**允许优先执行的基础设施（bootstrap）修复包；除本节
+冻结的这一处顺序调整外，其余任何 RP 不得提前、乱序或并行。每个 RP 必须：
+独立 Commit（前缀 `phase2: repair-r1 `）、推送到 `phase/02-readonly-agent`、
+全量测试通过（§10.6.9 门禁）后才能继续下一个 RP；禁止将多个 RP 压缩为一个提交。
 
 #### 10.6.2 RP1 — EventStore 运行期故障（R-02 / F27，BLOCKER）
 
@@ -706,18 +718,33 @@ RP1 EventStore runtime failure
 - 指纹不匹配 → 退出码 1；
 - 上述每个场景均新增独立测试（F32–F35 逐项对应，F37 退出码全覆盖补齐）。
 
-#### 10.6.5 RP4 — 统一测试入口与证据可复现性（R-05、R-17 / F40–F43）
+#### 10.6.5 RP4 — 统一测试入口与证据可复现性（R-05、R-17 / F40–F43，bootstrap，首个执行）
+
+（按 §10.6.1 修订顺序，RP4 作为 bootstrap 包首个执行。内容边界保持最小：仅允许
+处理 R-05（统一测试入口无法裸命令运行）与 R-17（历史验证证据夸大或不可按原命令
+复现），**不得**实现 RP1、RP2、RP3、RP5、RP6 的任何内容。）
 
 允许修改：`scripts/run_agent_tests.py`、`tests/unit/runtime/test_run_agent_tests.py`、
 本任务书 §13 验证记录追加区。
 
 要求：
 
-- `<python> scripts/run_agent_tests.py` 在没有 PYTHONPATH 的干净环境中直接运行，
-  入口自行将仓库 `src` 加入 `sys.path`；
-- 当前解释器与真实 CPython 3.8.10 均裸命令通过；
-- 新验证记录如实记录真实命令与结果；
-- 以书面记录明确纠正旧提交信息中的证据夸大（§14.4），不修改旧提交历史。
+- `scripts/run_agent_tests.py` 必须自行解析仓库根目录，并在测试发现前将
+  `<repo>/src` 加入 `sys.path`，不得依赖外部 PYTHONPATH；
+- `<python> scripts/run_agent_tests.py` 在没有 PYTHONPATH 的干净环境中直接运行：
+  当前解释器与 `.conda-py3810/bin/python`（真实 CPython 3.8.10）均须裸命令通过；
+- 必须新增测试：验证外部环境未设置 PYTHONPATH 时统一入口仍能导入 `win7_agent`；
+- 不得修改 Phase 1（§9）；
+- 旧提交与旧验证记录不得重写，只能追加纠正记录：新验证记录如实记录真实命令与
+  结果，并以书面记录明确纠正旧提交信息中的证据夸大（§14.4），不修改旧提交历史；
+- RP4 完成后形成独立 Commit 并推送（§10.6.1 通则）。
+
+RP4 门禁（bootstrap 前后区分，冻结）：
+
+- RP4 修改前的裸命令失败是已知审查缺陷（R-05），**不作为**修复窗口的启动阻断；
+- RP4 实现完成后，必须以裸命令（§10.6.9 两组命令，无 PYTHONPATH）验证通过，
+  才能提交 RP4 并继续 RP1；
+- **不得**以 `PYTHONPATH=src` 环境下的运行结果作为 RP4 的完成证据。
 
 #### 10.6.6 RP5 — Runner 重试与 DENY 观察回传（R-06、R-07 / F01、F21）
 
@@ -783,6 +810,15 @@ RP1 EventStore runtime failure
 只升不降；0 tests / ImportError / 不可读目录 / 失败非零保护继续通过；
 Replay record→replay Demo COMPLETED / 退出码 0（RP2 起）；Mock CLI Demo
 COMPLETED / 退出码 0；工作区干净；本地与远程同步。
+
+裸命令生效边界（与 §10.6.1 修订顺序配套，冻结）：
+
+- 本节所有命令均为**裸命令**，不设置 PYTHONPATH；
+- RP4（首个执行包，bootstrap）实现完成前，裸命令失败是已知审查缺陷（R-05），
+  不作为修复窗口的启动阻断；RP4 自身必须以修复后的裸命令通过本节门禁方可提交
+  （见 §10.6.5 RP4 门禁）；
+- 自 RP1 起（即 RP4 之后的全部修复包 RP1、RP2、RP3、RP5、RP6），本节裸命令门禁
+  **无条件**生效，不得再以设置 `PYTHONPATH=src` 的方式规避入口问题。
 
 #### 10.6.10 状态边界（冻结）
 
@@ -899,7 +935,8 @@ R-08、R-09、R-10、R-11、R-15；LOW/EVIDENCE_GAP = R-12、R-13、R-14、R-16�
 
 ### 14.3 裁决与后续路径
 
-- 本轮裁决：`REPAIR_REQUIRED`；修复按 §10.6 一次性修复窗口执行（RP1→RP6）。
+- 本轮裁决：`REPAIR_REQUIRED`；修复按 §10.6 一次性修复窗口执行（执行顺序按
+  §10.6.1 2026-07-27 修订冻结为 RP4→RP1→RP2→RP3→RP5→RP6，RP4 为 bootstrap 包）。
 - 修复完成后 Gate 至多回到 `READY_FOR_PHASE_REVIEW`，进入审查轮 2；
   `REVIEW_PASSED` 及以后状态仍仅由架构师/项目负责人按 §10.4 流转。
 - Win7 硬门槛不变：本轮及修复轮均不构成 Win7 验收证据。
