@@ -7,7 +7,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_ROOTS = ("tests/unit", "tests/integration")
-MINIMUM_TEST_COUNT = 93
+MINIMUM_TEST_COUNT = 104
 
 
 def _sort_key(path):

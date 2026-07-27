@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import shutil
 import tempfile
 import unittest
@@ -66,6 +67,34 @@ class PrototypeRuntimeTests(unittest.TestCase):
     def test_replay_mismatch_fails_after_recording_is_exhausted(self):
         with tempfile.TemporaryDirectory() as directory:
             result, _, _ = self.run_once(os.path.join(directory, "events.sqlite"), ReplayProvider([]))
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual("REPLAY_MISMATCH", result.errors[-1]["code"])
+
+    def test_replay_missing_middle_response_fails_in_the_real_loop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            recorded = os.path.join(directory, "recorded.sqlite")
+            self.run_once(recorded, MockProvider())
+            connection = sqlite3.connect(recorded)
+            try:
+                connection.execute("DELETE FROM events WHERE run_id = 'run-1' AND event_type = 'model.response' AND seq = 12")
+                connection.commit()
+            finally:
+                connection.close()
+            result, unused_run, unused_events = self.run_once(os.path.join(directory, "replayed.sqlite"), ReplayProvider.from_event_db(recorded))
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual("REPLAY_MISMATCH", result.errors[-1]["code"])
+
+    def test_replay_missing_final_response_fails_in_the_real_loop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            recorded = os.path.join(directory, "recorded.sqlite")
+            self.run_once(recorded, MockProvider())
+            connection = sqlite3.connect(recorded)
+            try:
+                connection.execute("DELETE FROM events WHERE run_id = 'run-1' AND event_type = 'model.response' AND seq = 26")
+                connection.commit()
+            finally:
+                connection.close()
+            result, unused_run, unused_events = self.run_once(os.path.join(directory, "replayed.sqlite"), ReplayProvider.from_event_db(recorded))
         self.assertEqual(RunStatus.FAILED, result.status)
         self.assertEqual("REPLAY_MISMATCH", result.errors[-1]["code"])
 

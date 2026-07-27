@@ -11,7 +11,7 @@
 - Replay now detects accidental request/response drift with a deterministic request fingerprint and read-only event-store loading.
 - Event lifecycle behavior is now explicit: atomic Run establishment, persistence-first state transitions, complete-prefix-only storage failure claims, and a `trace_complete` result field distinguish runtime and finalization failures.
 - `search_text` caps an individual file at 1 MiB without abandoning later files; the private Git drain helper records pipe-close races as truncation rather than leaking thread errors.
-- The recursive unittest entry point dynamically includes `tests/unit/**` and `tests/integration/**`, including Probe tests. The confirmed Review Round 1 residual-repair baseline is **93 tests**; any lower discovered count fails the entry point.
+- The recursive unittest entry point dynamically includes `tests/unit/**` and `tests/integration/**`, including Probe tests. The confirmed final automation-evidence baseline is **104 tests**; any lower discovered count fails the entry point. This baseline includes CLI Replay initialization with an empty `runs` table, real-loop surplus/missing-response Replay cases, direct double-timeout Git cleanup, all four `search_text` global budgets, and URI paths containing Chinese, spaces, `%`, and `#`.
 
 ## Stubs and mocks
 
