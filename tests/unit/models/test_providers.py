@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from win7_agent.models import FinishReason, MockProvider, ModelRequest, ModelResponse, ReplayMismatch, ReplayProvider
+from win7_agent.models import FinishReason, MockProvider, ModelRequest, ModelResponse, ProviderError, ReplayMismatch, ReplayProvider, request_fingerprint
 
 
 def request(turn):
@@ -17,7 +17,7 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual("search_text", provider.generate(request(2)).tool_calls[0].tool_name)
 
     def test_replay_provider_replays_then_rejects_extra_turn(self):
-        provider = ReplayProvider([ModelResponse(content="done", finish_reason=FinishReason.STOP)])
+        provider = ReplayProvider([(1, request_fingerprint(request(1)), ModelResponse(content="done", finish_reason=FinishReason.STOP))])
         self.assertEqual("done", provider.generate(request(1)).content)
         with self.assertRaises(ReplayMismatch) as error:
             provider.generate(request(2))
@@ -30,9 +30,25 @@ class ProviderTests(unittest.TestCase):
             try:
                 connection.execute("CREATE TABLE runs (run_id TEXT, created_at TEXT)")
                 connection.execute("CREATE TABLE events (run_id TEXT, event_type TEXT, seq INTEGER, payload TEXT)")
+                connection.execute("CREATE TABLE meta (key TEXT, value TEXT)")
                 connection.execute("INSERT INTO runs VALUES ('run-1', '2026-01-01T00:00:00+00:00')")
-                connection.execute("INSERT INTO events VALUES ('run-1', 'model.response', 1, '{\"content\": \"done\", \"tool_calls\": [], \"finish_reason\": \"STOP\", \"usage\": {}}')")
+                fingerprint = request_fingerprint(request(1))
+                connection.execute("INSERT INTO events VALUES ('run-1', 'model.request', 1, ?)", ('{"turn": 1, "request_fingerprint": "' + fingerprint + '"}',))
+                connection.execute("INSERT INTO events VALUES ('run-1', 'model.response', 2, '{\"content\": \"done\", \"tool_calls\": [], \"finish_reason\": \"STOP\", \"usage\": {}}')")
                 connection.commit()
             finally:
                 connection.close()
             self.assertEqual("done", ReplayProvider.from_event_db(database).generate(request(1)).content)
+
+    def test_missing_replay_database_is_load_error_without_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = os.path.join(directory, "missing.sqlite")
+            with self.assertRaises(ProviderError) as error:
+                ReplayProvider.from_event_db(database)
+            self.assertEqual("REPLAY_LOAD_FAILED", error.exception.code)
+            self.assertFalse(os.path.exists(database))
+
+    def test_replay_fingerprint_mismatch_is_runtime_mismatch(self):
+        provider = ReplayProvider([(1, "0" * 64, ModelResponse(content="done"))])
+        with self.assertRaises(ReplayMismatch):
+            provider.generate(request(1))

@@ -5,7 +5,7 @@ import os
 import sys
 import tempfile
 
-from win7_agent.models import MockProvider, ReplayProvider
+from win7_agent.models import MockProvider, ProviderError, ReplayProvider
 from win7_agent.runtime import PrototypeRuntime, RunStatus
 from win7_agent.storage import EventStore, EventStoreError
 from win7_agent.workspace import WorkspaceContext, WorkspaceError
@@ -45,7 +45,7 @@ def main(argv=None) -> int:
             result = PrototypeRuntime(workspace, arguments.task, provider, store, arguments.max_turns, arguments.max_tool_calls).run()
         finally:
             store.close()
-    except (WorkspaceError, EventStoreError, OSError) as error:
+    except (ProviderError, WorkspaceError, EventStoreError, OSError) as error:
         print("ERROR {0}".format(_ascii(str(error))), file=sys.stderr)
         return 3
     print("RESULT status={0} turns={1} tool_calls={2} event_db={3}".format(result.status.value, result.turns, result.tool_calls, _ascii(event_db)))

@@ -1,7 +1,9 @@
 """Deterministic local-only providers for the prototype's testable loop."""
 
 from abc import ABCMeta, abstractmethod
+import hashlib
 import json
+import os
 import sqlite3
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -35,6 +37,17 @@ def _response_from_dict(data: Dict[str, Any]) -> ModelResponse:
     )
 
 
+def request_fingerprint(request: ModelRequest) -> str:
+    """Return the deterministic replay fingerprint, not an integrity signature."""
+    normalized = {
+        "messages": [message.to_dict() for message in request.messages],
+        "tool_names": [tool.get("name", "") for tool in request.tools],
+        "turn": request.turn,
+    }
+    encoded = json.dumps(normalized, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 class MockProvider(ModelProvider):
     """A deterministic scripted provider; it never contacts a model service."""
 
@@ -62,29 +75,72 @@ class MockProvider(ModelProvider):
 class ReplayProvider(ModelProvider):
     """Replays recorded model responses in their original order from SQLite events."""
 
-    def __init__(self, responses: Iterable[ModelResponse]) -> None:
-        self._responses = list(responses)
+    def __init__(self, records) -> None:
+        self._records = list(records)
         self._position = 0
 
     @classmethod
     def from_event_db(cls, database_path: str, run_id: Optional[str] = None):
-        connection = sqlite3.connect(database_path, timeout=5.0)
+        if not os.path.isfile(database_path):
+            raise ProviderError("REPLAY_LOAD_FAILED", "replay database does not exist")
+        uri_path = os.path.abspath(database_path).replace("\\", "/")
+        connection = None
         try:
+            connection = sqlite3.connect("file:{0}?mode=ro".format(uri_path), timeout=5.0, uri=True)
+            tables = connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('meta', 'runs', 'events')").fetchall()
+            if set([row[0] for row in tables]) != set(["meta", "runs", "events"]):
+                raise ProviderError("REPLAY_LOAD_FAILED", "replay database schema is missing required tables")
             if run_id is None:
                 row = connection.execute("SELECT run_id FROM runs ORDER BY created_at LIMIT 1").fetchone()
                 if row is None:
-                    raise ReplayMismatch("replay database has no runs")
+                    raise ProviderError("REPLAY_LOAD_FAILED", "replay database has no runs")
                 run_id = row[0]
-            rows = connection.execute("SELECT payload FROM events WHERE run_id = ? AND event_type = ? ORDER BY seq", (run_id, "model.response")).fetchall()
-        except sqlite3.Error as error:
-            raise ReplayMismatch("cannot load replay events: {0}".format(error))
+            if connection.execute("SELECT 1 FROM runs WHERE run_id = ?", (run_id,)).fetchone() is None:
+                raise ProviderError("REPLAY_LOAD_FAILED", "recorded run does not exist")
+            rows = connection.execute("SELECT event_type, payload FROM events WHERE run_id = ? ORDER BY seq", (run_id,)).fetchall()
+            records = []
+            pending = None
+            surplus_response = False
+            for event_type, payload_text in rows:
+                if event_type == "model.request":
+                    if pending is not None:
+                        records.append((pending[0], pending[1], None))
+                    payload = json.loads(payload_text)
+                    if "turn" not in payload or "request_fingerprint" not in payload:
+                        raise ProviderError("REPLAY_LOAD_FAILED", "recorded request lacks replay fields")
+                    pending = (payload["turn"], payload["request_fingerprint"])
+                elif event_type == "model.response":
+                    if pending is None:
+                        surplus_response = True
+                    else:
+                        records.append((pending[0], pending[1], _response_from_dict(json.loads(payload_text))))
+                        pending = None
+            if pending is not None:
+                records.append((pending[0], pending[1], None))
+            if surplus_response:
+                records.append((None, None, None))
+            if not records:
+                raise ProviderError("REPLAY_LOAD_FAILED", "recorded run has no model exchanges")
+        except ProviderError:
+            raise
+        except (sqlite3.Error, ValueError, TypeError) as error:
+            raise ProviderError("REPLAY_LOAD_FAILED", "cannot load replay events: {0}".format(error))
         finally:
-            connection.close()
-        return cls([_response_from_dict(json.loads(row[0])) for row in rows])
+            if connection is not None:
+                connection.close()
+        return cls(records)
 
     def generate(self, request: ModelRequest) -> ModelResponse:
-        if self._position >= len(self._responses):
+        if self._position >= len(self._records):
             raise ReplayMismatch("recorded responses exhausted at turn {0}".format(request.turn))
-        response = self._responses[self._position]
+        expected_turn, expected_fingerprint, response = self._records[self._position]
         self._position += 1
+        if expected_turn is None:
+            raise ReplayMismatch("recorded response ordering is invalid")
+        if request.turn != expected_turn:
+            raise ReplayMismatch("recorded turn does not match current request")
+        if request_fingerprint(request) != expected_fingerprint:
+            raise ReplayMismatch("recorded request fingerprint does not match current request")
+        if response is None:
+            raise ReplayMismatch("recorded response is missing")
         return response

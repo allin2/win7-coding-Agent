@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from win7_agent.context import ContextCompiler
-from win7_agent.models import ModelProvider, ReplayMismatch, ToolResultMessage
+from win7_agent.models import ModelProvider, ReplayMismatch, ToolResultMessage, request_fingerprint
 from win7_agent.policy import PermissionType, PolicyEngine
 from win7_agent.storage import EventStore
 from win7_agent.tools import ToolRequest, ToolRuntime, build_readonly_registry
@@ -60,7 +60,7 @@ class PrototypeRuntime:
             while True:
                 self._controller.start_turn()
                 request = self._compiler.compile(self._task, self._controller.state.snapshot(), recent_results)
-                self._record("model.request", {"turn": request.turn, "message_count": len(request.messages), "role_char_counts": {message.role: len(message.content) for message in request.messages}, "tool_count": len(request.tools)})
+                self._record("model.request", {"turn": request.turn, "message_count": len(request.messages), "role_char_counts": {message.role: len(message.content) for message in request.messages}, "tool_count": len(request.tools), "request_fingerprint": request_fingerprint(request)})
                 response = self._provider.generate(request)
                 self._record("model.response", response.to_dict())
                 if response.tool_calls:
