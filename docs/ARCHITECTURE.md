@@ -25,7 +25,7 @@ Win7 端是**纯执行端**：不做模型推理，不做长驻服务（最终�
 |  tools/          工具层（Agent 可调用的能力单元）                 |
 |    fs_read       文件树遍历 / 编码感知读取           [规划中, 阶段4]|
 |    fs_write      补丁写入 / 备份 / 回滚              [规划中, 阶段4]|
-|    runner        子进程执行（唯一子进程入口）         [规划中, 阶段2]|
+|    runner        子进程执行（唯一子进程入口）         [规划中, 阶段6前另行授权]|
 |    test_verify   测试命令运行与结果收集              [规划中]       |
 +---------------------------------------------------------------+
 |  core/           基础设施                                        |
@@ -50,7 +50,7 @@ Win7 端是**纯执行端**：不做模型推理，不做长驻服务（最终�
 ## 4. 关键架构原则
 
 1. **能力降级而非崩溃**：所有环境相关功能启动前查询 Probe 报告；能力缺失（如无 Git）时关闭对应功能并记录，不中断进程。
-2. **单一子进程入口**：所有子进程调用必须经过 `runner`（阶段 2），保证超时/截断/终止策略统一（AGENTS.md C08/C09）。
+2. **单一子进程入口**：所有子进程调用必须经过统一子进程模块，保证超时/截断/终止策略统一（AGENTS.md C08/C09）。阶段 2 仅实现固定只读 Git 命令的私有受限子进程模块（ADR-0025）；通用子进程 `runner` 延后至阶段 6 之前另行任务书授权。
 3. **写操作三段式**：备份 → 写入 → 校验；任何一步失败自动回滚（阶段 4 落实）。
 4. **一切持久化带版本**：JSON 报告带 `report_version`，SQLite 带 `schema_version`，协议带 `protocol_version`。
 5. **审计不可旁路**：文件修改与命令执行必须经工具层，工具层强制写审计记录（阶段 5/6 落实）。
@@ -66,7 +66,9 @@ win7-coding-agent/
   src/
     win7_agent/
       probe/                  # 阶段 1（APPROVED_FOR_IMPLEMENTATION，包结构见任务文档 §4）
-      runner/                 # 阶段 2
+      models/ runtime/ context/ policy/ tools/ workspace/ verification/ storage/ cli/
+                              # 阶段 2（APPROVED_FOR_IMPLEMENTATION，ADR-0025，包结构见 PHASE_02 任务书 §4；仅在 phase/02-readonly-agent 分支实现）
+      runner/                 # 通用子进程 Runner：延后，阶段 6 之前另行任务书授权（ADR-0025）
       gateway/                # 阶段 3（Model Gateway）
       fs/                     # 阶段 4
       state/                  # 阶段 5

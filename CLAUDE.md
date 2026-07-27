@@ -8,7 +8,8 @@
 
 1. `AGENTS.md` — 最高项目约束，单一事实来源。
 2. `docs/WIN7_CONSTRAINTS.md` — Win7 / Python 3.8 兼容性红线。
-3. 当前阶段任务文档 — 现在是 `docs/tasks/PHASE_01_CAPABILITY_PROBE.md`。
+3. 当前阶段任务文档 — 现在是 `docs/tasks/PHASE_01_CAPABILITY_PROBE.md`（阶段 1）与
+   `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（阶段 2，ADR-0025）。
 
 未完成上述阅读，不得产出任何代码或文档修改。
 
@@ -24,7 +25,9 @@
 
 ## 当前阶段速查
 
-- 阶段：0（工程基线）+ 1（Capability Probe，状态 `APPROVED_FOR_IMPLEMENTATION`）
-- 允许产出：Markdown 文档；以及 `PHASE_01_CAPABILITY_PROBE.md` §0.2 允许路径内的实现与测试文件
-- 禁止产出：允许路径之外的任何实现文件、第三方依赖、联网安装脚本
+- 阶段：0（工程基线）+ 1（Capability Probe，状态 `APPROVED_FOR_IMPLEMENTATION`）+ 2（正式只读代码分析 Agent，状态 `APPROVED_FOR_IMPLEMENTATION`，ADR-0025）
+- 阶段 2 定义：正式只读代码分析 Agent（**不是**旧 ROADMAP 的"通用子进程 Runner"；通用 Runner 已延后，ADR-0025）；实现只能在 `phase/02-readonly-agent` 分支、仅任务书 §8 白名单内进行
+- 允许产出：Markdown 文档；`PHASE_01_CAPABILITY_PROBE.md` §0.2 允许路径内的实现与测试文件；`PHASE_02_READONLY_CODE_ANALYSIS.md` §8 允许路径内的实现与测试文件（仅限阶段 2 实现分支）
+- 禁止产出：允许路径之外的任何实现文件、第三方依赖、联网安装脚本；禁止整体合并/cherry-pick 原型分支
 - 阶段 1 完成标准：见 `docs/tasks/PHASE_01_CAPABILITY_PROBE.md` §8 验收标准（Win7 实机验收是完成硬门槛，但不是开始编码的前置）
+- 阶段 2 完成标准：见 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md` §7/§10/§13（Win7 实机验收前 Phase-Gate 至多到 `READY_FOR_WIN7_VALIDATION`）

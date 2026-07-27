@@ -18,11 +18,13 @@
 - 完成标准：见任务文档 §8 验收标准。
 - 价值：后续所有阶段的功能开关都以 Probe 报告为依据（能力降级机制的地基）。
 
-## 阶段 2 — 子进程 Runner（未开始）
+## 阶段 2 — 正式只读代码分析 Agent（APPROVED_FOR_IMPLEMENTATION，ADR-0025）
 
-- 产出：统一的子进程执行模块：argv 列表调用、超时、输出上限截断、进程树终止、stdin 关闭、结构化结果。
-- 依赖：阶段 1 中子进程相关探测结论（特别是 `taskkill` 可用性）。
-- 完成标准草案：通过 EVALUATION.md 子进程测试矩阵；被后续模块作为唯一子进程入口。
+- 任务文档：`docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（含实现授权状态、契约冻结、原型迁移矩阵与允许路径）。
+- 产出：只读代码分析 Agent 闭环（Runtime 状态机、Policy 先于执行、六只读工具、工作区边界、EventStore 审计、Mock/Replay 测试、CLI）；含固定只读 Git 命令的私有受限子进程模块。
+- 原"子进程 Runner"独立阶段撤销（ADR-0025）：只读 Git 子集并入本阶段；通用命令执行 Runner 延后至阶段 6 之前另行任务书授权。
+- 实现分支：`phase/02-readonly-agent`；禁止整体合并/cherry-pick 原型分支，只能按任务书 §5 迁移矩阵选择性移植。
+- 完成标准：任务书 §7/§10/§13；Win7 实机验收前 Phase-Gate 至多到 `READY_FOR_WIN7_VALIDATION`（`Win7-Validation: NOT_PERFORMED`）。
 
 ## 阶段 3 — Model Gateway（远程模型通信客户端，未开始）
 

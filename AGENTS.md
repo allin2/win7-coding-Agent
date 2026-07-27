@@ -18,9 +18,10 @@
 
 ## 3. 当前阶段（必须先确认再动手）
 
-- 当前处于 **阶段 0（工程基线）+ 阶段 1（Capability Probe）**。
+- 当前处于 **阶段 0（工程基线）+ 阶段 1（Capability Probe）+ 阶段 2（正式只读代码分析 Agent）**。
 - 阶段 1 任务文档：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`（允许路径见该文档 §0.2）。
-- 当前阶段主线**不实现 Agent Loop、不接入大模型、不修改用户代码**。
+- **阶段 2（ADR-0025）**：任务文档 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（Task Type: FORMAL_PHASE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。实现仅在 `phase/02-readonly-agent` 分支上进行；目标工作区全程只读、不接入真实模型、不修改用户代码；原型成果只能按该文档 §5 迁移矩阵选择性吸收，禁止整体合并/cherry-pick 原型分支。Win7 实机验收前不得宣称阶段 2 完成。
+- 阶段 0/1 主线**不接入大模型、不修改用户代码**；阶段 2 的只读 Agent Loop 仅在其任务书授权范围内实现（Mock/Replay 驱动，同样禁止真实模型与网络）。
 - 阶段边界以 `docs/ROADMAP.md` 为准；不得跨阶段实现未来功能。
 - **独立原型线（ADR-0023）**：`prototype/full-agent-skeleton` 分支上另有一条架构原型线，授权载体为 `docs/tasks/PROTOTYPE_FULL_AGENT_SKELETON.md`（Task Type: ARCHITECTURE_PROTOTYPE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。该授权**仅在原型分支上生效**；原型不替代 Phase 1、不得触碰 Phase 1 产物、不得整体合并 main、不接入真实模型、不修改目标用户代码。在 main 与其他分支上，本条不构成任何实现授权。
 
