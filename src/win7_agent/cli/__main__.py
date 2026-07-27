@@ -32,6 +32,9 @@ def main(argv=None):
         return int(error.code)
     if args.command != "analyze" or args.max_turns < 1 or args.max_tool_calls < 1:
         parser.error("analyze and positive limits are required")
+    if args.provider == "replay" and not args.replay_from:
+        sys.stderr.write("ERROR setup: replay provider requires --replay-from\n")
+        return 3
     path = args.events or os.path.join(tempfile.gettempdir(), "win7_agent_events.sqlite")
     try:
         provider = MockProvider() if args.provider == "mock" else ReplayProvider(args.replay_from)
