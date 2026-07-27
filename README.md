@@ -77,4 +77,10 @@ docs/
 scripts\run_prototype_demo.bat
 ```
 
+Run all prototype and unchanged Capability Probe tests with:
+
+```bat
+scripts\run_prototype_tests.bat
+```
+
 It uses only read-only workspace tools, writes its event database to a temporary directory unless `--event-db` is supplied, and never accesses a real model or network.

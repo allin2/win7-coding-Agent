@@ -143,4 +143,6 @@ class ReplayProvider(ModelProvider):
             raise ReplayMismatch("recorded request fingerprint does not match current request")
         if response is None:
             raise ReplayMismatch("recorded response is missing")
+        if response.finish_reason == FinishReason.STOP and self._position < len(self._records) and self._records[self._position][0] is None:
+            raise ReplayMismatch("recorded responses contain a surplus entry")
         return response

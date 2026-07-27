@@ -7,6 +7,8 @@
 - A realpath workspace boundary rejects parent traversal, external absolute paths, and testable symbolic-link escapes before a tool reads data.
 - The event store creates a sequential, versioned trace that can be loaded in execution order for verification and replay.
 - Completion is a verification decision: a final sentence alone fails unless it cites a genuinely read file path and line number.
+- Review Round 1 confirms that a denied action is a successful safety outcome, while execution without matching ALLOW evidence is a verification failure.
+- Replay now detects accidental request/response drift with a deterministic request fingerprint and read-only event-store loading.
 
 ## Stubs and mocks
 

@@ -32,6 +32,10 @@ non-terminal -> CANCELLED
 
 Only `RunController.transition()` mutates a Run status. Provider text and tool output are data, never state-machine commands.
 
+## Review Round 1 semantics
+
+Each recorded model request carries a normalized SHA-256 request fingerprint. Replay opens its source SQLite database read-only and verifies the turn, request fingerprint, and request-response pairing. A Policy DENY records `tool.denied`, never executes a tool, and remains a valid opportunity for the Provider to select a read-only alternative.
+
 ## Public interface summary
 
 - `ModelProvider.generate(request) -> ModelResponse`

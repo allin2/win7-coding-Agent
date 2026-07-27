@@ -18,6 +18,12 @@
 - Impact: the fingerprint only detects accidental inconsistency (workspace drift, code defects, manual editing mistakes). It makes no claim of resisting an attacker who coordinates modification of both the event database and its fingerprints; the database is plain SQLite without signing or tamper-proof storage.
 - Recommended decision owner: Phase 5 storage task author, if formal audit integrity guarantees are ever required.
 
+## Event persistence failure prefix
+
+- Phenomenon: EventStore commits events one at a time; an injected or real mid-run failure leaves a valid prefix rather than an atomic whole-run transaction.
+- Impact: Runtime reports `EVENT_STORE_FAILED` without a traceback and makes `run.final`/final status best effort, so consumers must tolerate incomplete runs.
+- Recommended decision owner: Phase 5 storage task author, which should decide formal durability and recovery semantics.
+
 ## Read-only Git uses a subprocess under READ_ONLY semantic permission
 
 - Phenomenon: `git_status` and `git_diff` are semantically read-only but technically spawn a fixed allowlisted process.
