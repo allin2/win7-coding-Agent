@@ -56,19 +56,23 @@ class RequiredEvidenceRule(VerificationRule):
 
 class NoPolicyViolationRule(VerificationRule):
     def evaluate(self, run_snapshot, event_trace, final_text):
+        requested = set()
         allowed = set()
         denied = set()
         violations = []
         for event in event_trace:
             payload = event["payload"]
-            if event["event_type"] == "policy.decision":
+            event_type = event["event_type"]
+            call_id = payload.get("tool_call_id")
+            if event_type == "tool.requested":
+                requested.add(call_id)
+            elif event_type == "policy.decision":
                 if payload.get("decision") == "ALLOW":
-                    allowed.add(payload.get("tool_call_id"))
+                    allowed.add(call_id)
                 else:
-                    denied.add(payload.get("tool_call_id"))
-            elif event["event_type"] == "tool.result":
-                call_id = payload.get("tool_call_id")
-                if call_id not in allowed or call_id in denied:
+                    denied.add(call_id)
+            elif event_type == "tool.result" and payload.get("executed", True):
+                if call_id not in requested or call_id not in allowed or call_id in denied:
                     violations.append("tool result without an ALLOW decision: {0}".format(call_id))
         return VerificationResult("no_policy_violation", not violations, violations)
 

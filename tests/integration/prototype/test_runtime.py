@@ -3,9 +3,10 @@ import shutil
 import tempfile
 import unittest
 
-from win7_agent.models import FinishReason, MockProvider, ModelResponse, ReplayProvider
+from win7_agent.models import FinishReason, MockProvider, ModelResponse, ReplayProvider, ToolCall
 from win7_agent.runtime import PrototypeRuntime, RunStatus
 from win7_agent.storage import EventStore
+from win7_agent.tools import ToolSpec
 from win7_agent.workspace import WorkspaceContext
 
 
@@ -78,3 +79,35 @@ class PrototypeRuntimeTests(unittest.TestCase):
             finally:
                 store.close()
         self.assertEqual(RunStatus.COMPLETED, result.status)
+
+    def test_unknown_tool_has_no_policy_allow_and_run_can_continue(self):
+        script = [
+            ModelResponse(tool_calls=[ToolCall("unknown", "not_registered", {})], finish_reason=FinishReason.TOOL_CALLS),
+            ModelResponse(tool_calls=[ToolCall("read", "read_file_range", {"path": "src/target.py", "start_line": 1, "end_line": 4})], finish_reason=FinishReason.TOOL_CALLS),
+            ModelResponse(content="See src/target.py:1.", finish_reason=FinishReason.STOP),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result, _, events = self.run_once(os.path.join(directory, "events.sqlite"), MockProvider(script))
+        self.assertEqual(RunStatus.COMPLETED, result.status)
+        self.assertFalse([event for event in events if event["event_type"] == "policy.decision" and event["payload"].get("tool_call_id") == "unknown"])
+
+    def test_denied_tool_is_not_executed_and_readonly_fallback_completes(self):
+        calls = []
+        script = [
+            ModelResponse(tool_calls=[ToolCall("deny", "blocked", {})], finish_reason=FinishReason.TOOL_CALLS),
+            ModelResponse(tool_calls=[ToolCall("read", "read_file_range", {"path": "src/target.py", "start_line": 1, "end_line": 4})], finish_reason=FinishReason.TOOL_CALLS),
+            ModelResponse(content="See src/target.py:1.", finish_reason=FinishReason.STOP),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            try:
+                runtime = PrototypeRuntime(WorkspaceContext(FIXTURE), "Find target_function.", MockProvider(script), store)
+                runtime._registry.register(ToolSpec("blocked", "blocked", {}, "WORKSPACE_WRITE"), lambda request: calls.append(request))
+                result = runtime.run()
+                _, events = store.load_run(result.run_id)
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.COMPLETED, result.status)
+        self.assertEqual([], calls)
+        self.assertTrue([event for event in events if event["event_type"] == "tool.denied"])
+        self.assertFalse([event for event in events if event["event_type"] == "tool.result" and event["payload"].get("tool_call_id") == "deny"])

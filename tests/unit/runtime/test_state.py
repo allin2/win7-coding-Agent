@@ -25,6 +25,16 @@ class RunControllerTests(unittest.TestCase):
             self.controller.transition(RunStatus.COMPLETED, "skip")
         self.assertEqual("INVALID_STATE_TRANSITION", error.exception.code)
         self.assertEqual(RunStatus.RECEIVED, self.controller.state.status)
+        self.assertEqual("state.transition_rejected", self.events[-1][0])
+
+    def test_terminal_transition_rejection_is_audited(self):
+        self.controller.transition(RunStatus.DISCOVERING, "start")
+        self.controller.transition(RunStatus.PLANNING, "next")
+        self.controller.transition(RunStatus.VERIFYING, "final")
+        self.controller.complete("verified")
+        with self.assertRaises(InvalidStateTransition):
+            self.controller.transition(RunStatus.FAILED, "late")
+        self.assertEqual("state.transition_rejected", self.events[-1][0])
 
     def test_turn_budget_fails_before_extra_turn(self):
         controller = RunController("run-2", max_turns=1)

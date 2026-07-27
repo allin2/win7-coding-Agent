@@ -70,20 +70,25 @@ class PrototypeRuntime:
                         tool_request = ToolRequest(call.tool_call_id, call.tool_name, call.arguments, self._run_id)
                         self._record("tool.requested", tool_request.to_dict())
                         entry = self._registry.lookup(call.tool_name)
-                        permission = PermissionType(entry[0].permission) if entry is not None else PermissionType.READ_ONLY
+                        if entry is None:
+                            result_message = ToolResultMessage(call.tool_call_id, "error", "", False, {"code": "TOOL_NOT_FOUND", "message": "tool is not registered"})
+                            recent_results.append(result_message)
+                            continue
+                        permission = PermissionType(entry[0].permission)
                         decision = self._policy.evaluate(permission)
                         decision_payload = decision.to_dict()
                         decision_payload["tool_call_id"] = call.tool_call_id
                         self._record("policy.decision", decision_payload)
                         if decision.decision == "DENY":
                             result_message = ToolResultMessage(call.tool_call_id, "error", "", False, {"code": "PERMISSION_DENIED", "message": decision.reason})
-                            result_payload = result_message.to_dict()
+                            self._record("tool.denied", {"tool_call_id": call.tool_call_id, "tool_name": call.tool_name, "permission": decision.permission.value, "reason": decision.reason})
                         else:
                             result = self._tools.execute(tool_request)
                             result_message = ToolResultMessage(result.tool_call_id, result.status, result.content, result.truncated, result.error)
                             result_payload = result.to_dict()
-                        result_payload["tool_name"] = call.tool_name
-                        self._record("tool.result", result_payload)
+                            result_payload["tool_name"] = call.tool_name
+                            result_payload["executed"] = True
+                            self._record("tool.result", result_payload)
                         recent_results.append(result_message)
                     self._controller.transition(RunStatus.PLANNING, "tool results returned")
                     continue

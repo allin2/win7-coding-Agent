@@ -120,6 +120,7 @@ class RunController:
         current = self._state._status
         if current in self._TERMINAL or target not in self._ALLOWED.get(current, set()):
             self._record_error("INVALID_STATE_TRANSITION", "invalid state transition")
+            self._emit("state.transition_rejected", {"from": current.value, "to": target.value, "reason": reason, "turn": self._state._turn_count})
             raise InvalidStateTransition(current, target)
         self._state._status = target
         self._emit("state.transition", {"from": current.value, "to": target.value, "reason": reason, "turn": self._state._turn_count})

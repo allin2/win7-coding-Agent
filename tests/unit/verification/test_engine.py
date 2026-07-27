@@ -22,3 +22,12 @@ class VerificationEngineTests(unittest.TestCase):
         results, decision = VerificationEngine().verify({}, trace, "src/target.py:1")
         self.assertFalse([result for result in results if result.rule_id == "no_policy_violation"][0].passed)
         self.assertEqual("REJECT", decision.decision)
+
+    def test_denied_tool_without_execution_is_not_a_policy_violation(self):
+        trace = [
+            {"event_type": "tool.requested", "payload": {"tool_call_id": "call-1"}},
+            {"event_type": "policy.decision", "payload": {"tool_call_id": "call-1", "decision": "DENY"}},
+            {"event_type": "tool.denied", "payload": {"tool_call_id": "call-1"}},
+        ]
+        result = __import__("win7_agent.verification", fromlist=["NoPolicyViolationRule"]).NoPolicyViolationRule().evaluate({}, trace, "")
+        self.assertTrue(result.passed)
