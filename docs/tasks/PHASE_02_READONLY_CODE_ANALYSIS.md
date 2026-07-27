@@ -13,7 +13,7 @@
 Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/02-readonly-agent
-Phase-Gate: IMPLEMENTING
+Phase-Gate: READY_FOR_PHASE_REVIEW
 Review-Round: 0
 Review-Status: NONE
 Win7-Compatibility: PROVISIONAL
