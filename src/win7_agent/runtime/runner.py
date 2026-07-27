@@ -122,7 +122,10 @@ class AgentRunner(object):
                 except EventStoreError:
                     controller.record_event_store_audit_failure(
                         "event store failure audit could not be persisted")
-        except (RunFailure, ProviderError):
+        except RunFailure as error:
+            if controller.state.status not in (RunStatus.FAILED, RunStatus.CANCELLED):
+                controller.fail(error.code, error.message)
+        except ProviderError:
             if controller.state.status not in (RunStatus.FAILED, RunStatus.CANCELLED):
                 controller.fail("REPLAY_MISMATCH", "provider or event failure")
         status = controller.state.status.value

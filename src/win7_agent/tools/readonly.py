@@ -81,7 +81,7 @@ class ToolRuntime(object):
         if spec.name == "read_file_range":
             start = arguments["start_line"]
             end = arguments["end_line"]
-            if start < 1 or end < start or end - start + 1 > 500:
+            if start < 1 or end < start:
                 return "invalid line range"
         if spec.name == "search_text":
             maximum = arguments.get("max_matches", 200)

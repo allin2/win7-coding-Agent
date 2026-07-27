@@ -46,6 +46,21 @@ class ReadonlyToolsTests(unittest.TestCase):
         inverted = self.call("read_file_range", {"path": "code.py", "start_line": 3, "end_line": 2})
         self.assertFalse(inverted.executed)
 
+    def test_f12_f13_range_honors_encoding_and_has_no_unauthorized_size_limit(self):
+        with open(os.path.join(self.root, "gbk.txt"), "w", encoding="gbk", newline="") as writer:
+            writer.write("中文\n")
+        encoded = self.call("read_file", {"path": "gbk.txt", "encoding": "gbk"})
+        self.assertIn("中文", encoded.content)
+        self.assertEqual("INVALID_TOOL_ARGUMENT", self.call("read_file_range", {
+            "path": "code.py", "start_line": 0, "end_line": 1}).error["code"])
+        with open(os.path.join(self.root, "many.txt"), "w", encoding="utf-8", newline="") as writer:
+            for index in range(600):
+                writer.write("line {0}\n".format(index))
+        result = self.call("read_file_range", {
+            "path": "many.txt", "start_line": 1, "end_line": 600})
+        self.assertTrue(result.executed)
+        self.assertIn("600: line 599", result.content)
+
     def test_f15_search_limits_report_the_actual_budget_reason(self):
         from win7_agent.tools import readonly
         with mock.patch.object(readonly, "SEARCH_MAX_FILES", 1):
@@ -83,6 +98,13 @@ class ReadonlyToolsTests(unittest.TestCase):
         found = self.call("search_text", {"pattern": "target_function"})
         self.assertIn("code.py", found.content)
         self.assertNotIn("secret.py", found.content)
+
+    def test_f16_search_match_lines_are_limited_to_500_characters(self):
+        with open(os.path.join(self.root, "long.txt"), "w", encoding="utf-8", newline="") as writer:
+            writer.write("target" + ("x" * 700))
+        found = self.call("search_text", {"pattern": "target"})
+        rendered = [line for line in found.content.splitlines() if "long.txt" in line][0]
+        self.assertLessEqual(len(rendered.split(": ", 1)[1]), 500)
 
     def test_f20_to_f25_policy_precedes_execution_and_preflight_needs_no_allow(self):
         registry = ToolRegistry()

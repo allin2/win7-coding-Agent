@@ -78,6 +78,22 @@ class AgentCliTests(unittest.TestCase):
         self.assertTrue(recorded_output.getvalue().isascii())
         self.assertTrue(replay_output.getvalue().isascii())
 
+    def test_f09_replay_uri_handles_chinese_space_percent_and_hash_paths(self):
+        with tempfile.TemporaryDirectory(prefix="\u4e2d\u6587 space % # ") as directory:
+            recording = os.path.join(directory, "\u5f55\u5236 % #.sqlite")
+            replay_events = os.path.join(directory, "\u91cd\u653e % #.sqlite")
+            with redirect_stdout(io.StringIO()):
+                recorded = main([
+                    "analyze", "--workspace", self._workspace(),
+                    "--task", "Find target_function.", "--events", recording])
+            with redirect_stdout(io.StringIO()):
+                replayed = main([
+                    "analyze", "--workspace", self._workspace(),
+                    "--task", "Find target_function.", "--provider", "replay",
+                    "--replay-from", recording, "--events", replay_events])
+        self.assertEqual(0, recorded)
+        self.assertEqual(0, replayed)
+
     def test_f35_replay_setup_errors_have_exit_three_and_no_result(self):
         with tempfile.TemporaryDirectory() as directory:
             missing = os.path.join(directory, "missing.sqlite")

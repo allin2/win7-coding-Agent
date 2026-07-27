@@ -14,6 +14,7 @@ from win7_agent.cli.__main__ import main
 from win7_agent.models import FinishReason, MockProvider, ModelResponse, ToolCall, Usage
 from win7_agent.policy import PermissionType
 from win7_agent.runtime.runner import AgentRunner
+from win7_agent.runtime.state import RunFailure
 from win7_agent.storage import EventStoreError
 from win7_agent.tools import build_readonly_registry
 from win7_agent.tools.contracts import ToolSpec
@@ -88,6 +89,36 @@ class AgentRunnerEventStoreTests(unittest.TestCase):
         self.assertIn("RESULT status=FAILED trace_complete=false", output.getvalue())
         self.assertNotIn("Traceback", output.getvalue() + errors.getvalue())
         self.assertEqual(1, len(created))
+
+    def test_f28_finalization_failure_preserves_completed_business_result(self):
+        from win7_agent.storage import EventStore
+
+        class FinalizationFailureStore(EventStore):
+            def append(self, run_id, event_type, payload):
+                if event_type == "run.final":
+                    raise EventStoreError("finalization unavailable")
+                return EventStore.append(self, run_id, event_type, payload)
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = FinalizationFailureStore(os.path.join(directory, "events.sqlite"))
+            result = AgentRunner(self._workspace(), MockProvider(), store).run("Find target_function.")
+            store.close()
+        self.assertEqual("COMPLETED", result.status)
+        self.assertFalse(result.trace_complete)
+
+    def test_r12_non_replay_run_failure_keeps_its_real_error_code(self):
+        class FailingProvider(object):
+            def respond(self, unused_request):
+                raise RunFailure("UNEXPECTED", "local runtime failure")
+
+        from win7_agent.storage import EventStore
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            result = AgentRunner(self._workspace(), FailingProvider(), store).run("inspect")
+            store.close()
+        self.assertEqual("FAILED", result.status)
+        self.assertTrue(any(item["code"] == "UNEXPECTED" for item in result.errors))
+        self.assertFalse(any(item["code"] == "REPLAY_MISMATCH" for item in result.errors))
 
     def test_f01_verification_rejection_retries_then_completes(self):
         class RetryProvider(object):
