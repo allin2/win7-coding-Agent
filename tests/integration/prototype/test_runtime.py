@@ -151,3 +151,63 @@ class PrototypeRuntimeTests(unittest.TestCase):
                 store.close()
         self.assertEqual(RunStatus.FAILED, result.status)
         self.assertEqual("EVENT_STORE_FAILED", result.errors[-1]["code"])
+
+    def test_completed_transition_storage_failure_cannot_return_completed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            original_append = store.append_event
+
+            def append(run_id, event_type, payload):
+                if event_type == "state.transition" and payload.get("to") == "COMPLETED":
+                    from win7_agent.storage import EventStoreError
+                    raise EventStoreError("completed transition failed")
+                return original_append(run_id, event_type, payload)
+
+            try:
+                with mock.patch.object(store, "append_event", side_effect=append):
+                    result = PrototypeRuntime(WorkspaceContext(FIXTURE), "Find target_function.", MockProvider(), store).run()
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertFalse(result.trace_complete)
+        self.assertEqual("EVENT_STORE_FAILED", result.errors[-1]["code"])
+
+    def test_runtime_error_then_store_failure_keeps_both_errors_in_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            original_append = store.append_event
+
+            def append(run_id, event_type, payload):
+                if event_type == "state.transition" and payload.get("to") == "FAILED":
+                    from win7_agent.storage import EventStoreError
+                    raise EventStoreError("failure transition failed")
+                return original_append(run_id, event_type, payload)
+
+            try:
+                with mock.patch.object(store, "append_event", side_effect=append):
+                    result = PrototypeRuntime(WorkspaceContext(FIXTURE), "Find target_function.", ReplayProvider([]), store).run()
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.FAILED, result.status)
+        self.assertEqual(["REPLAY_MISMATCH", "EVENT_STORE_FAILED"], [item["code"] for item in result.errors[-2:]])
+        self.assertFalse(result.trace_complete)
+
+    def test_finalization_failure_preserves_completed_business_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            original_append = store.append_event
+
+            def append(run_id, event_type, payload):
+                if event_type == "run.final":
+                    from win7_agent.storage import EventStoreError
+                    raise EventStoreError("final event failed")
+                return original_append(run_id, event_type, payload)
+
+            try:
+                with mock.patch.object(store, "append_event", side_effect=append):
+                    result = PrototypeRuntime(WorkspaceContext(FIXTURE), "Find target_function.", MockProvider(), store).run()
+            finally:
+                store.close()
+        self.assertEqual(RunStatus.COMPLETED, result.status)
+        self.assertFalse(result.trace_complete)
+        self.assertEqual("EVENT_STORE_FAILED", result.errors[-1]["code"])

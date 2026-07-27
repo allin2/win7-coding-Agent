@@ -83,14 +83,27 @@ class EventStore:
                 raise error
             raise EventStoreError(str(error))
 
-    def create_run(self, run_id: str, workspace_path: str, task_text: str) -> None:
-        self._write("INSERT INTO runs (run_id, created_at, workspace_path, task_text, final_status) VALUES (?, ?, ?, ?, NULL)", (run_id, _timestamp(), workspace_path, task_text[:16384]))
+    def create_run(self, run_id: str, workspace_path: str, task_text: str, created_payload: Optional[Dict[str, Any]] = None) -> None:
+        """Atomically establish the Run row and its required ``run.created`` event."""
+        payload = created_payload if created_payload is not None else {"workspace": workspace_path, "task": task_text[:16384]}
+        serialized = self._serialize_payload(payload)
+        try:
+            self._connection.execute("BEGIN")
+            self._connection.execute(
+                "INSERT INTO runs (run_id, created_at, workspace_path, task_text, final_status) VALUES (?, ?, ?, ?, NULL)",
+                (run_id, _timestamp(), workspace_path, task_text[:16384]),
+            )
+            self._connection.execute(
+                "INSERT INTO events (run_id, seq, ts, event_type, payload) VALUES (?, ?, ?, ?, ?)",
+                (run_id, 1, _timestamp(), "run.created", serialized),
+            )
+            self._connection.commit()
+        except sqlite3.Error as error:
+            self._rollback()
+            raise EventStoreError(str(error))
 
     def append_event(self, run_id: str, event_type: str, payload: Dict[str, Any]) -> int:
-        bounded, changed = _bounded(payload)
-        if changed:
-            bounded["payload_truncated"] = True
-        serialized = json.dumps(bounded, ensure_ascii=False, sort_keys=True)
+        serialized = self._serialize_payload(payload)
         try:
             self._connection.execute("BEGIN")
             row = self._connection.execute("SELECT COALESCE(MAX(seq), 0) FROM events WHERE run_id = ?", (run_id,)).fetchone()
@@ -99,7 +112,7 @@ class EventStore:
             self._connection.commit()
             return sequence
         except sqlite3.Error as error:
-            self._connection.rollback()
+            self._rollback()
             raise EventStoreError(str(error))
 
     def finalize_run(self, run_id: str, status: str) -> None:
@@ -128,5 +141,18 @@ class EventStore:
             self._connection.execute(statement, values)
             self._connection.commit()
         except sqlite3.Error as error:
-            self._connection.rollback()
+            self._rollback()
             raise EventStoreError(str(error))
+
+    @staticmethod
+    def _serialize_payload(payload: Dict[str, Any]) -> str:
+        bounded, changed = _bounded(payload)
+        if changed:
+            bounded["payload_truncated"] = True
+        return json.dumps(bounded, ensure_ascii=False, sort_keys=True)
+
+    def _rollback(self) -> None:
+        try:
+            self._connection.rollback()
+        except sqlite3.Error:
+            pass

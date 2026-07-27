@@ -23,9 +23,11 @@ class RunResult:
     turns: int
     tool_calls: int
     errors: List[Dict[str, str]]
+    trace_complete: bool = True
+    storage_failure_stage: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"run_id": self.run_id, "status": self.status.value, "final_text": self.final_text, "turns": self.turns, "tool_calls": self.tool_calls, "errors": list(self.errors)}
+        return {"run_id": self.run_id, "status": self.status.value, "final_text": self.final_text, "turns": self.turns, "tool_calls": self.tool_calls, "errors": list(self.errors), "trace_complete": self.trace_complete, "storage_failure_stage": self.storage_failure_stage}
 
 
 class PrototypeRuntime:
@@ -43,6 +45,8 @@ class PrototypeRuntime:
         self._policy = PolicyEngine()
         self._compiler = ContextCompiler(workspace, self._registry.specs())
         self._verification = VerificationEngine()
+        self._trace_complete = True
+        self._storage_failure_stage = ""
 
     @property
     def controller(self) -> RunController:
@@ -50,9 +54,8 @@ class PrototypeRuntime:
 
     def run(self) -> RunResult:
         final_text = ""
-        self._store.create_run(self._run_id, self._workspace.root, self._task)
         state = self._controller.state.snapshot()
-        self._record("run.created", {"workspace": self._workspace.root, "task": self._task[:16384], "max_turns": state["max_turns"], "max_tool_calls": state["max_tool_calls"], "provider_type": self._provider.__class__.__name__})
+        self._store.create_run(self._run_id, self._workspace.root, self._task, {"workspace": self._workspace.root, "task": self._task[:16384], "max_turns": state["max_turns"], "max_tool_calls": state["max_tool_calls"], "provider_type": self._provider.__class__.__name__})
         recent_results = []  # type: List[ToolResultMessage]
         try:
             self._controller.transition(RunStatus.DISCOVERING, "workspace context constructed")
@@ -105,31 +108,43 @@ class PrototypeRuntime:
         except EventStoreError as error:
             self._force_store_failure(error)
         except (RuntimeErrorInfo, ReplayMismatch) as error:
-            if self._controller.state.status not in (RunStatus.FAILED, RunStatus.CANCELLED):
-                self._controller.fail(error.code, error.message)
+            self._fail_for_runtime_error(error.code, error.message)
         except Exception as error:
-            self._controller.fail("UNEXPECTED", str(error))
+            self._fail_for_runtime_error("UNEXPECTED", str(error))
         state = self._controller.state.snapshot()
         self._best_effort_finalize(final_text)
         state = self._controller.state.snapshot()
-        return RunResult(self._run_id, RunStatus(state["status"]), final_text, state["turn_count"], state["tool_call_count"], state["errors"])
+        return RunResult(self._run_id, RunStatus(state["status"]), final_text, state["turn_count"], state["tool_call_count"], state["errors"], self._trace_complete, self._storage_failure_stage)
 
     def _record(self, event_type: str, payload: Dict[str, Any]) -> None:
         self._store.append_event(self._run_id, event_type, payload)
 
     def _force_store_failure(self, error: EventStoreError) -> None:
-        state = self._controller._state
-        if state._status not in (RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.COMPLETED):
-            state._errors.append({"code": "EVENT_STORE_FAILED", "message": str(error)})
-            state._status = RunStatus.FAILED
+        self._trace_complete = False
+        self._storage_failure_stage = "runtime"
+        self._controller.force_failed("EVENT_STORE_FAILED", str(error))
+
+    def _fail_for_runtime_error(self, code: str, message: str) -> None:
+        if self._controller.state.status in (RunStatus.FAILED, RunStatus.CANCELLED):
+            return
+        try:
+            self._controller.fail(code, message)
+        except EventStoreError as error:
+            self._force_store_failure(error)
 
     def _best_effort_finalize(self, final_text: str) -> None:
         state = self._controller.state.snapshot()
         try:
-            self._record("run.final", {"status": state["status"], "final_text": final_text, "turns": state["turn_count"], "tool_calls": state["tool_call_count"], "errors": state["errors"]})
-        except EventStoreError:
-            pass
+            self._record("run.final", {"status": state["status"], "final_text": final_text, "turns": state["turn_count"], "tool_calls": state["tool_call_count"], "errors": state["errors"], "trace_complete": self._trace_complete})
+        except EventStoreError as error:
+            self._mark_finalize_failure(error)
         try:
             self._store.finalize_run(self._run_id, state["status"])
-        except EventStoreError:
-            pass
+        except EventStoreError as error:
+            self._mark_finalize_failure(error)
+
+    def _mark_finalize_failure(self, error: EventStoreError) -> None:
+        self._trace_complete = False
+        if not self._storage_failure_stage:
+            self._storage_failure_stage = "finalize"
+        self._controller.force_failed("EVENT_STORE_FAILED", str(error))

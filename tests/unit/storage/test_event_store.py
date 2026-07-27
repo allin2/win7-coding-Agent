@@ -12,7 +12,6 @@ class EventStoreTests(unittest.TestCase):
             store = EventStore(os.path.join(directory, "events.sqlite"))
             try:
                 store.create_run("run-1", "/workspace", "inspect")
-                self.assertEqual(1, store.append_event("run-1", "run.created", {"task": "inspect"}))
                 self.assertEqual(2, store.append_event("run-1", "state.transition", {"to": "DISCOVERING"}))
                 store.finalize_run("run-1", "COMPLETED")
                 run, events = store.load_run("run-1")
@@ -31,8 +30,21 @@ class EventStoreTests(unittest.TestCase):
                 _, events = store.load_run("run-2")
             finally:
                 store.close()
-            self.assertTrue(events[0]["payload"]["payload_truncated"])
-            self.assertTrue(events[0]["payload"]["content"].endswith("[TRUNCATED_FOR_STORAGE]"))
+            self.assertTrue(events[1]["payload"]["payload_truncated"])
+            self.assertTrue(events[1]["payload"]["content"].endswith("[TRUNCATED_FOR_STORAGE]"))
+
+    def test_duplicate_run_creation_does_not_leave_a_partial_second_trace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = EventStore(os.path.join(directory, "events.sqlite"))
+            try:
+                store.create_run("run-atomic", "/workspace", "inspect")
+                with self.assertRaises(Exception):
+                    store.create_run("run-atomic", "/workspace", "inspect again")
+                run, events = store.load_run("run-atomic")
+            finally:
+                store.close()
+        self.assertEqual("inspect", run["task_text"])
+        self.assertEqual(["run.created"], [event["event_type"] for event in events])
 
     def test_initialization_failure_closes_created_connection(self):
         connection = mock.Mock()

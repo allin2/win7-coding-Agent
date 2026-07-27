@@ -64,3 +64,9 @@ class RunControllerTests(unittest.TestCase):
         snapshot = self.controller.state.snapshot()
         snapshot["status"] = "COMPLETED"
         self.assertEqual(RunStatus.RECEIVED, self.controller.state.status)
+
+    def test_transition_does_not_change_memory_before_event_persists(self):
+        controller = RunController("run-store", event_sink=lambda name, payload: (_ for _ in ()).throw(RuntimeError("store failure")))
+        with self.assertRaises(RuntimeError):
+            controller.transition(RunStatus.DISCOVERING, "start")
+        self.assertEqual(RunStatus.RECEIVED, controller.state.status)

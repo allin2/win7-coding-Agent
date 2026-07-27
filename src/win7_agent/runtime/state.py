@@ -122,15 +122,22 @@ class RunController:
             self._record_error("INVALID_STATE_TRANSITION", "invalid state transition")
             self._emit("state.transition_rejected", {"from": current.value, "to": target.value, "reason": reason, "turn": self._state._turn_count})
             raise InvalidStateTransition(current, target)
-        self._state._status = target
         self._emit("state.transition", {"from": current.value, "to": target.value, "reason": reason, "turn": self._state._turn_count})
+        self._state._status = target
 
     def fail(self, code: str, message: str) -> None:
         if self._state._status not in self._TERMINAL:
             current = self._state._status
             self._record_error(code, message)
-            self._state._status = RunStatus.FAILED
             self._emit("state.transition", {"from": current.value, "to": RunStatus.FAILED.value, "reason": code, "turn": self._state._turn_count})
+            self._state._status = RunStatus.FAILED
+
+    def force_failed(self, code: str, message: str) -> None:
+        """Force an in-memory failure after storage itself has become unusable."""
+        if not any(item.get("code") == code for item in self._state._errors):
+            self._record_error(code, message)
+        if self._state._status not in self._TERMINAL:
+            self._state._status = RunStatus.FAILED
 
     def complete(self, reason: str) -> None:
         self.transition(RunStatus.COMPLETED, reason)
@@ -138,9 +145,9 @@ class RunController:
     def _check_cancel(self) -> None:
         if self._state._cancel_requested and self._state._status not in self._TERMINAL:
             current = self._state._status
-            self._state._status = RunStatus.CANCELLED
-            self._record_error("CANCELLED", "cancellation requested")
             self._emit("state.transition", {"from": current.value, "to": RunStatus.CANCELLED.value, "reason": "cancel requested", "turn": self._state._turn_count})
+            self._record_error("CANCELLED", "cancellation requested")
+            self._state._status = RunStatus.CANCELLED
             raise RuntimeErrorInfo("CANCELLED", "cancellation requested")
 
     def _record_error(self, code: str, message: str) -> None:
