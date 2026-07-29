@@ -12,7 +12,7 @@ Target Branch: phase/07-desktop-shell
 Phase-Gate: NOT_APPROVED
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending PC-003 ruling, SPIKE_01 Go, and Phase 06 completion
+Blocking-Reason: Pending SPIKE_01 Go and Phase 06 completion (PC-003 ruled 2026-07-29)
 ```
 
 前置：PC-003 裁决 + SPIKE_01 Go（Electron 22 运行时闭包/GPU 降级可用）+ 阶段 06 完成。

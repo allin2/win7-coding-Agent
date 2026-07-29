@@ -19,9 +19,9 @@
 
 ## PC-003：Win7 对标 Codex 计划的关键架构裁决（ADR-0028~0035 提议态）
 
-- 状态：待项目负责人裁决。
-- 定位（重要）：ADR-0027 及既有架构文档继续作为 **Win7 平台架构与安全宪法**；ADR-0028~0035 是收窄其上的 **Electron 首选实施 Profile**。当前判定为"Win7 首选实施方案，等待 Spike 验证"，**不是"已满足 Win7 的可交付产品"**；四项 Win7 实机 Spike 通过前不得把技术栈标为 `Accepted`。
-- 事实：`docs/DECISIONS.md` 已按对标 Codex 实施计划追加 ADR-0028~0035，全部为 **Proposed** 提议态；对应任务书在裁决前不得置 `APPROVED_FOR_IMPLEMENTATION`。
+- 状态：已裁决（2026-07-29，项目负责人）。裁决结果：ADR-0028~0035 及下列关键项**全部批准**，状态转 Accepted；授权按规划实施，前提为"Win7 支持"——即各组件仍须通过对应 Win7 SP1 x64 实机 Spike/验收方可宣称满足 Win7，Spike No-Go 时按 ADR-0028 降级阶梯以补充 ADR 修订。随裁决生效：SPIKE_01~04 任务书转 `APPROVED_FOR_IMPLEMENTATION`（脚手架可在现代构建机先行编写，`Win7-Validation` 保持 `NOT_PERFORMED` 直至实机执行）；PHASE_03~07 保持 `DRAFT`，待对应 Spike Go 后逐阶段解锁。
+- 定位（重要）：ADR-0027 及既有架构文档继续作为 **Win7 平台架构与安全宪法**；ADR-0028~0035 是收窄其上的 **Electron 首选实施 Profile**。裁决使这些 ADR 转 `Accepted`，含义是**决策方向锁定、授权推进验证与实施**，**不等于"已满足 Win7 的可交付产品"**——当前仍判定为"Win7 首选实施方案，等待 Spike 验证"；四项 Win7 实机 Spike 通过前，不得将技术栈**表述为"已满足 Win7/ 已可交付"**。
+- 事实：`docs/DECISIONS.md` 的 ADR-0028~0035 已于 2026-07-29 由项目负责人裁决通过、状态转 **Accepted**；SPIKE_01~04 任务书据此转 `APPROVED_FOR_IMPLEMENTATION`，PHASE_03~07 仍为 `DRAFT` 待对应 Spike Go 后解锁。
 - 评审已纳入的修正（2026-07-29，随文档更新）：
   1. Core 固定为独立 `utilityProcess`（main 仅编排、Renderer 最小权限），关闭 `runAsNode` fuse、不用 `ELECTRON_RUN_AS_NODE`。
   2. "唯一原生例外"改为"唯一自研原生组件"；winpty/node-pty、SQLite 绑定、MinGit 均为原生工件，按 §6 登记版本/SHA-256/ABI/编译选项/VC Runtime/ASAR/加载验证。

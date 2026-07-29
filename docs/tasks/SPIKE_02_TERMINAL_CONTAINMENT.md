@@ -8,13 +8,13 @@
 ### 0.1 状态块
 
 ```
-Status: DRAFT
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: SPIKE
 Target Branch: spike/02-terminal-containment
-Phase-Gate: NOT_APPROVED
+Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending PC-003 ruling and Win7 SP1 x64 machine availability
+Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern build host, but Win7-Validation stays NOT_PERFORMED until executed on Win7 SP1 x64 hardware
 ```
 
 ### 0.2 路径白名单（获批后生效）

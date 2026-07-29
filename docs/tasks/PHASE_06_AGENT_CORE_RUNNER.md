@@ -12,7 +12,7 @@ Target Branch: phase/06-agent-core-runner
 Phase-Gate: NOT_APPROVED
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending PC-003 ruling, SPIKE_02/03 Go, and Phase 03/04/05 completion
+Blocking-Reason: Pending SPIKE_02/03 Go and Phase 03/04/05 completion (PC-003 ruled 2026-07-29)
 ```
 
 前置：PC-003 裁决 + SPIKE_02 Go（containment/终端）+ SPIKE_03 Go（Git Adapter）

@@ -12,7 +12,7 @@ Target Branch: phase/04-workspace-write
 Phase-Gate: NOT_APPROVED
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending PC-003 ruling and SPIKE_04 Go
+Blocking-Reason: Pending SPIKE_04 Go (PC-003 ruled 2026-07-29)
 ```
 
 前置：PC-003 裁决 + SPIKE_04 Go（存储/索引基线）。

@@ -12,7 +12,7 @@ Target Branch: phase/03-model-gateway
 Phase-Gate: NOT_APPROVED
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending PC-003 ruling, SPIKE_01 Go, and E7 (enterprise proxy/CA) environment
+Blocking-Reason: Pending SPIKE_01 Go and E7 (enterprise proxy/CA) environment (PC-003 ruled 2026-07-29)
 ```
 
 前置：PC-003 裁决 + SPIKE_01 Go（运行时闭包可用）+ E7 环境（企业代理/CA）就绪。
