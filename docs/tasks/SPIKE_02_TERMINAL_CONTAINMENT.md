@@ -1,7 +1,7 @@
 # SPIKE_02 — 终端与 Containment 验证（TERMINAL_CONTAINMENT）
 
 > 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/PERFORMANCE_BUDGET.md`、
-> ADR-0030/ADR-0031（Proposed）、本文档。不占用 ADR-0012 阶段编号（ADR-0034）。
+> ADR-0030/ADR-0031（Accepted（附条件，ADR-0036））、本文档。不占用 ADR-0012 阶段编号（ADR-0034）。
 
 ## 0. 实现授权（ADR-0011 / C14）
 

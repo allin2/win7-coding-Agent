@@ -1,7 +1,7 @@
 # SPIKE_01 — Win7 运行时基线验证（WIN7_RUNTIME_BASELINE）
 
 > 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/PERFORMANCE_BUDGET.md`、本文档。
-> 本 Spike 是 Electron 22.3.27 单栈裁决（ADR-0028，Proposed）的阻断门槛；不占用
+> 本 Spike 是 Electron 22.3.27 单栈裁决（ADR-0028，Accepted（附条件，ADR-0036））的阻断门槛；不占用
 > ADR-0012 阶段编号（ADR-0034）。
 
 ## 0. 实现授权（ADR-0011 / C14）

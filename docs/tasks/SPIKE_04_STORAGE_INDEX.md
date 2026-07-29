@@ -1,7 +1,7 @@
 # SPIKE_04 — 存储与代码索引验证（STORAGE_INDEX）
 
 > 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/PERFORMANCE_BUDGET.md`、
-> ADR-0033（Proposed）、本文档。不占用 ADR-0012 阶段编号（ADR-0034）。
+> ADR-0033（Accepted（附条件，ADR-0036））、本文档。不占用 ADR-0012 阶段编号（ADR-0034）。
 
 ## 0. 实现授权（ADR-0011 / C14）
 

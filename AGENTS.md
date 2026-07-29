@@ -25,6 +25,8 @@
 - 阶段边界以 `docs/ROADMAP.md` 为准；不得跨阶段实现未来功能。
 - **独立原型线（ADR-0023）**：`prototype/full-agent-skeleton` 分支上另有一条架构原型线，授权载体为 `docs/tasks/PROTOTYPE_FULL_AGENT_SKELETON.md`（Task Type: ARCHITECTURE_PROTOTYPE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。该授权**仅在原型分支上生效**；原型不替代 Phase 1、不得触碰 Phase 1 产物、不得整体合并 main、不接入真实模型、不修改目标用户代码。在 main 与其他分支上，本条不构成任何实现授权。
 - **新架构基线（ADR-0027）**：Python-only、stdlib-only、禁止 Node/Electron、最终仅 CLI 等项目级限制已经废止。Phase 1、Phase 2 与既有原型任务书仍按各自冻结合同执行；ADR-0027 不扩大其路径白名单，也不授权在当前分支实现桌面客户端。新的 Win7 客户端、运行时 Spike 或依赖栈必须另建 `APPROVED_FOR_IMPLEMENTATION` 任务书。
+- **PC-003 裁决（ADR-0036，2026-07-29）**：Win7 兼容性为基本要求，技术选型以程序最优化为目标。ADR-0028\~0035 方向获批（附条件：四项 SPIKE 实机验证通过后正式生效）。
+- **Phase 3-7 与 SPIKE 1-4 任务书授权升级**：`docs/tasks/PHASE_03_MODEL_GATEWAY.md` \~ `PHASE_07_DESKTOP_SHELL.md` 及 `SPIKE_01_WIN7_RUNTIME_BASELINE.md` \~ `SPIKE_04_STORAGE_INDEX.md` 可从 `DRAFT` 升级为 `APPROVED_FOR_IMPLEMENTATION`。实施策略：非终端/containment 模块可基于理论分析先行实现；终端层（winpty/node-pty）和进程 containment 模块须等 `SPIKE_02_TERMINAL_CONTAINMENT.md` 实机验证结论后定稿。
 
 ## 4. 有效约束与历史编号（逐条可测试）
 

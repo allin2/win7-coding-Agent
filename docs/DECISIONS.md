@@ -243,3 +243,19 @@
 - 背景：MCP/Skills/Hooks 是可扩展执行入口，同时放大安全面（任意子进程、任意网络）与验收面（每个插件都是新依赖）。v1 周期内无法承担其治理成本，但边界原则须先冻结以免后续设计漂移。
 - 决策：（1）v1 仅支持**数据式 Skills**（纯声明性 markdown/JSON，无执行体，由 Core 解释）。（2）可执行插件宿主推迟 v1.1，届时须遵守本 ADR 冻结的边界原则：插件一律运行于**受限令牌独立子进程**（复用 D-013 containment）；插件包必须有**版本化 Manifest**（声明能力、命令、文件与网络需求）并经用户显式授权安装；本地仅允许 **stdio 传输的 MCP**（不开本地网络端口）；远程 MCP 一律经 Gateway 代理并复用其鉴权与审计。（3）Hooks（生命周期钩子执行用户命令）视同插件执行体，同受上述约束，v1 不提供。（4）v1.1 启动插件宿主前必须另立任务书与补充 ADR，本 ADR 仅冻结边界不授权实现。
 - 后果：v1 安全面与验收面可控，Skills 先行满足轻量定制需求；代价是 v1 生态扩展性有限，与 Codex 的 MCP 能力差距显式记录于 ADR-0034 三分级。
+
+## ADR-0036 PC-003 裁决——Win7 Electron 首选实施技术栈获批
+
+- 状态：Accepted（2026-07-29，项目负责人裁决）
+- 背景：PC-003 记录了从纯 Python 技术栈切换到 Electron 22.3.27 + Node 16.17.1 的架构决策需求。ADR-0028~0035 以 Proposed 状态起草，涵盖技术栈单栈化、Python 资产冻结、Approval Mode、终端隔离、Git Adapter、性能预算、功能三分级与插件边界，需项目负责人裁决。
+- 决策：（1）Win7 SP1 x64 兼容性为基本要求，技术选型以程序最优化为目标。（2）ADR-0028~0035 方向获批，状态从 Proposed 转为 Accepted（附条件）。（3）附条件：四项 Win7 实机 SPIKE（SPIKE_01~04）验证通过后正式生效；如 SPIKE 结论为 No-Go，需按 ADR-0028 降级阶梯以补充 ADR 重新评估受影响条目。（4）实施策略：非终端/containment 模块可基于理论分析先行实现；终端层（winpty/node-pty）和进程 containment 模块须等 SPIKE_02 实机验证结论后定稿。
+- 证据（网络调研证据摘要）：
+  - Electron 22.3.27：官方最后支持 Win7 的版本，2023-10-09 发布，EOL 同日。
+  - Chromium 108：完全兼容 Win7（Chromium 109 是最后支持 Win7 的版本）。
+  - Node.js 16.17.1：经 Electron 适配后兼容 Win7。
+  - MinGit 2.46.2：最后支持 Win7 的 Git 版本。
+  - node-pty：需锁定 1.0.x/1.1.0-beta（最新版已移除 winpty 支持）。
+  - SQLite WAL + FTS5：完全兼容 Win7。
+  - DPAPI：完全可用。
+  - Job Object：不支持嵌套（Win8+ 才有），containment 保持 best-effort。
+- 后果：Phase 3-7 和 SPIKE 1-4 任务书可从 DRAFT 升级为 APPROVED_FOR_IMPLEMENTATION（SPIKE 先行，Phase 待对应 Spike Go 后逐阶段解锁）；所有组件均已 EOL 或到达支持边界，需严格版本锁定与 SBOM 治理；终端层和 containment 层存在实机验证后返工风险（独立模块，成本可控）。

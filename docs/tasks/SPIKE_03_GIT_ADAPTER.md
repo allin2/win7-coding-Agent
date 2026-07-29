@@ -1,6 +1,6 @@
 # SPIKE_03 — Git Adapter 隔离与恶意仓库负向验证（GIT_ADAPTER）
 
-> 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、ADR-0032（Proposed）、本文档。
+> 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、ADR-0032（Accepted（附条件，ADR-0036））、本文档。
 > 不占用 ADR-0012 阶段编号（ADR-0034）。
 
 ## 0. 实现授权（ADR-0011 / C14）

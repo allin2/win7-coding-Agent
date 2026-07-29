@@ -1,21 +1,23 @@
 # PHASE_06 — Agent Core、Policy 与 Runner 任务书（AGENT_CORE_RUNNER）
 
-> 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/DECISIONS.md`（ADR-0012/0027/0029/0030/0031/0032）、本文档。
-> 编号遵守 ADR-0012（阶段 6）。本文档为规划任务书，处于 DRAFT。
+> 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/DECISIONS.md`（ADR-0012/0027/0029/0030/0031/0032/0036）、本文档。
+> 编号遵守 ADR-0012（阶段 6）。本文档为规划任务书，已获 PC-003 裁决批准（ADR-0036，2026-07-29）。
 
 ## 0. 实现授权（ADR-0011 / C14）
 
 ```
-Status: DRAFT
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/06-agent-core-runner
-Phase-Gate: NOT_APPROVED
+Phase-Gate: APPROVED_FOR_IMPLEMENTATION
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending SPIKE_02/03 Go and Phase 03/04/05 completion (PC-003 ruled 2026-07-29)
+Blocking-Reason: PC-003 ruled 2026-07-29 (ADR-0036); pending SPIKE_02/03 Go and Phase 03/04/05 completion
 ```
 
-前置：PC-003 裁决 + SPIKE_02 Go（containment/终端）+ SPIKE_03 Go（Git Adapter）
+> **PC-003 裁决引用**：PC-003 已于 2026-07-29 由项目负责人裁决通过（ADR-0036），本任务书随裁决置 `APPROVED_FOR_IMPLEMENTATION`。
+
+前置：PC-003 裁决（ADR-0036，已通过）+ SPIKE_02 Go（containment/终端）+ SPIKE_03 Go（Git Adapter）
 + 阶段 03/04/05 完成。
 
 ### 0.1 路径白名单（获批后生效）

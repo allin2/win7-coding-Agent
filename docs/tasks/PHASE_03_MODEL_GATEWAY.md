@@ -1,21 +1,27 @@
 # PHASE_03 — Model Gateway 任务书（MODEL_GATEWAY）
 
-> 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/DECISIONS.md`（ADR-0012/0027/0028）、本文档。
-> 编号遵守 ADR-0012（阶段 3 = Model Gateway）。本文档为规划任务书，处于 DRAFT。
+> 实现前必读：`AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、`docs/DECISIONS.md`（ADR-0012/0027/0028/0036）、本文档。
+> 编号遵守 ADR-0012（阶段 3 = Model Gateway）。本文档为规划任务书，已获 PC-003 裁决批准（ADR-0036，2026-07-29）。
 
 ## 0. 实现授权（ADR-0011 / C14）
 
 ```
-Status: DRAFT
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: FORMAL_PHASE
 Target Branch: phase/03-model-gateway
-Phase-Gate: NOT_APPROVED
+Phase-Gate: APPROVED_FOR_IMPLEMENTATION
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Pending SPIKE_01 Go and E7 (enterprise proxy/CA) environment (PC-003 ruled 2026-07-29)
+Blocking-Reason: PC-003 ruled 2026-07-29 (ADR-0036); pending SPIKE_01 Go and E7 environment
 ```
 
-前置：PC-003 裁决 + SPIKE_01 Go（运行时闭包可用）+ E7 环境（企业代理/CA）就绪。
+> **PC-003 裁决引用**：PC-003 已于 2026-07-29 由项目负责人裁决通过（ADR-0036），本任务书随裁决置 `APPROVED_FOR_IMPLEMENTATION`。
+
+**实施策略备注**：
+- 非终端/containment 模块（协议客户端、流式事件、鉴权、TLS/代理、重试/幂等、断线恢复等）可基于理论分析先行实现。
+- 终端层（winpty/node-pty）和进程 containment 模块须等 SPIKE_02 实机验证结论后定稿。
+
+前置：PC-003 裁决（ADR-0036，已通过）+ SPIKE_01 Go（运行时闭包可用）+ E7 环境（企业代理/CA）就绪。
 
 ### 0.1 路径白名单（获批后生效）
 
