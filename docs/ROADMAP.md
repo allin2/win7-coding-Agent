@@ -41,6 +41,22 @@
 - 通用 Runner、目标代码写入、真实网络/模型、桌面客户端仍不在本阶段授权内。
 - 完成标准：任务书 §7/§10/§13；Win7 实机验收前 Phase-Gate 至多为 `READY_FOR_WIN7_VALIDATION`。
 
+## Phase 1/2 收口状态（对标计划 WS5 状态标注，不改代码/不改门禁）
+
+本节仅记录截至对标 Codex 计划落地时 Phase 1/2 的收口状态与剩余门槛。`Phase-Gate` /
+`Win7-*` 状态行只能由架构师按各自任务书规则流转；本对标计划不修改 Phase 1/2 代码，
+不解除任何门禁，ADR-0027/0029 均不追溯改写其冻结合同。
+
+| 阶段 | 当前 Phase-Gate | Win7 验收 | 收口剩余门槛 |
+|---|---|---|---|
+| 阶段 1 Capability Probe | `REPAIR_REQUIRED_BEFORE_E1`（任务书 §0.1） | `NOT_PERFORMED` | §0.3 修复项 R1~R8 全部关闭 → 架构师核对后解除门禁改回 `READY_FOR_E1`（ADR-0017）→ Win7 E1/E2 实机验收 |
+| 阶段 2 只读代码分析 Agent | `APPROVED_FOR_IMPLEMENTATION`（任务书 §0.1） | `NOT_PERFORMED` | 保持 `PYTHON38_VALIDATED`（提交 `fd40ad2`，标签 `phase2-py38-validated`）→ Win7 环境就绪后按 §10.4/§10.5 走 `READY_FOR_WIN7_VALIDATION` → Win7 验收 → 按 ADR-0029 冻结为 legacy（此后只修缺陷、不演进为正式 Core） |
+
+- 唯一硬阻塞：Win7 SP1 x64 实机环境（PC-002，现为"部分解除；待 Win7 E1/E2 验收环境执行"）。
+  两阶段的 Win7 验收可与 SPIKE_01 共用同一台 Win7 SP1 x64 VM/实机，优先级最高。
+- Python 资产去向：Phase 2 §3 契约、错误码、事件 schema、退出码与 §7 F 编号测试矩阵，
+  作为 Node Core 的规范来源逐条对账继承（ADR-0029；对账清单见 `docs/tasks/PHASE_06_AGENT_CORE_RUNNER.md`）。
+
 ## 架构验证轨 — 四个 Win7 Spike（任务书起草中、未授权）
 
 这是新客户端立项前的阻断门槛，不占用 ADR-0012 冻结的阶段编号（ADR-0034）。每个 Spike
