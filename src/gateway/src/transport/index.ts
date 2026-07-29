@@ -693,3 +693,10 @@ export class MockConnection implements IConnection {
 // ── Re-exports ───────────────────────────────────────────────────────────────
 
 export { ErrorCode, GatewayError } from '../types';
+export {
+  NodeNetworkStack,
+  NodeNetworkStackConfig,
+  DEFAULT_NODE_NETWORK_CONFIG,
+  mapNodeError,
+  loadCaBundle,
+} from './node-network';
