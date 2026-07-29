@@ -55,7 +55,7 @@ Win7 端不再被定义为“Python 纯执行 CLI”。它可以包含桌面界�
   设备权限；不能用“没有 Node 权限”推导 Renderer 不能联网。
 - 拒绝任意导航、新窗口和协议调用；外部链接交由受控系统浏览器。
 
-独立 Node.js 12 可作为 CLI/辅助进程候选，但不是 Electron 嵌入式 Node 的替代要求；精确补丁版本、原生模块 ABI 和 Win7 实机结果由 Spike 决定。
+独立 Node.js 12 可作为 CLI/辅助进程候选，但不是 Electron 嵌入式 Node 的替代要求；精确补丁版本、原生模块 ABI 和 Win7 实机结果由 Spike 决定。ADR-0028（Proposed）进一步提议：v1 统一为 Electron 22.3.27 单栈，Agent Core 经 `ELECTRON_RUN_AS_NODE`/utility process 运行于内嵌 Node 16.17.1，唯一原生例外为一个 C++ x64 helper（D-013）；降级阶梯与淘汰路线见该 ADR。
 
 ### 2.2 Agent Core
 

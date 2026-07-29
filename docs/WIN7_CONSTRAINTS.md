@@ -153,9 +153,28 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-011 | `node-pty` 0.10.0 + `winpty` 0.4.3 x64 | 可选交互终端兼容模式 | Win7 无 ConPTY；需固定预编译 ABI | 全屏 TUI、Unicode、resize、Ctrl 与回收均需实测 | 架构候选；未获实现授权 | ADR-0027 |
 | D-012 | Git for Windows 2.46.2 x64（优先 MinGit/裁剪包） | Git / Worktree 正式能力 | 最后支持 Win7/8 的 Git for Windows 系列最终补丁候选 | 已停止获得后续安全修复；隔离配置，默认移除/禁用 Git LFS、GCM 等未独立评审组件 | 架构候选；未获实现授权 | ADR-0027 |
 | D-013 | Win32 Runner（Job Object / Restricted Token / ACL） | 进程树、限额、减权执行 | Win7 API 可用；推荐 C++ x64 原生辅助程序 | Job 不可嵌套；同用户减权不等价强沙箱 | 架构候选；未获实现授权 | ADR-0027 |
-| D-014 | Runtime 专用 SQLite 绑定 | 桌面状态、事件与审计 | 必须固定 SQLite/ABI，并在现代构建机预编译 | 数据库放本地盘；迁移和恢复需版本化 | 架构候选；未获实现授权 | ADR-0027 |
+| D-014 | Runtime 专用 SQLite 绑定（候选 `better-sqlite3`，须启用 FTS5） | 桌面状态、事件、审计与代码检索索引 | 必须固定 SQLite/ABI，并在现代构建机按 Electron 22 ABI 预编译；FTS5 为代码检索必选编译开关 | 数据库放本地盘；迁移和恢复需版本化 | 架构候选；未获实现授权 | ADR-0027 / ADR-0033 |
 | D-015 | Win7 x64 上的 .NET Framework 4.8 | 可选 WPF/WinForms 客户端或辅助程序 | Win7 SP1 可安装的最高 .NET Framework；在 Win7 上已无厂商支持 | 需要独立安装前置与 EOL 风险评审 | 架构候选；未获实现授权 | ADR-0027 |
 | D-016 | 自定义 fail-closed Updater | 企业内网或离线更新 | 使用 Authenticode/WinVerifyTrust 或内置公钥签名清单 + 包哈希 | 不得在验签错误时继续安装；必须旁路安装和回滚 | 架构候选；未获实现授权 | ADR-0027 |
+| D-017 | C++ helper 构建工具链（MSVC v142 / VS 2019 + Windows SDK 10，目标 Win7 SP1 x64） | 构建 D-013 原生 helper 与 D-011 winpty 宿主 | 仅构建机依赖，目标机不安装；产物须静态链接 CRT 或随包携带经登记的 VC Runtime | 工具链版本锁定入构建文档；换版本需重跑 SPIKE_02 | 架构候选；未获实现授权 | ADR-0028 |
+
+### 6.1 架构候选依赖的 C16 评审档案（七问）
+
+以下档案回答 §6 七问中的来源、哈希、许可证、SBOM 与 EOL 责任。**哈希锁定规则：**
+工件 SHA-256 在对应 Spike 首次入库时锁定并登记于本节与 SBOM 清单；锁定前状态为
+`待锁定`，任何构建不得使用未锁定哈希的工件。
+
+| ID | 工件来源（官方渠道） | 许可证 | 哈希 | SBOM/传递依赖 | EOL 与漏洞回补责任 | Win7 实机用例 |
+|----|----------------------|--------|------|----------------|--------------------|----------------|
+| D-009 | github.com/electron/electron releases v22.3.27（win32-x64） | MIT（含 Chromium/Node 第三方许可证包） | 待锁定（SPIKE_01） | Electron 自带 third-party 清单随包归档 | 上游已 EOL；本项目自担：不处理不可信网页内容，开放内容远程化（ADR-0028） | SPIKE_01 全项 |
+| D-010 | nodejs.org/dist/v12.22.12（win-x64，可选） | MIT | 待锁定（若启用） | 无原生附加依赖 | 上游 EOL；仅作 CLI 宿主备选，默认不交付 | 启用时另立用例 |
+| D-011 | winpty 0.4.3（github.com/rprichard/winpty release）+ node-pty 0.10.0（npm 锁定） | MIT | 待锁定（SPIKE_02） | node-pty 原生模块须按 Electron 22 ABI 重编译（用 D-017） | 上游停维护；本项目自担，输出按 C19 不可信过滤兜底 | SPIKE_02 终端矩阵 |
+| D-012 | Git for Windows 2.46.2 MinGit x64（github.com/git-for-windows releases） | GPLv2 | 待锁定（SPIKE_03） | MinGit 裁剪包内容清单归档；不含 LFS/GCM | 上游该系列停止 Win7 修复；靠 ADR-0032 隔离配置收敛攻击面 | SPIKE_03 G10 矩阵 |
+| D-013 | 本项目自研 C++ helper（源码在本仓库，D-017 工具链构建） | 本项目许可证 | 构建产物哈希随发布清单 | 仅 Win32 API + CRT | 本项目全责；接口冻结 argv + JSON over stdio | SPIKE_02 containment 矩阵 |
+| D-014 | better-sqlite3（npm 锁定版本，SQLite 内嵌编译 + FTS5） | Apache-2.0（SQLite 为 public domain） | 待锁定（SPIKE_04） | 原生模块按 Electron 22 ABI 预编译（用 D-017）；SQLite 版本一并锁定 | 上游活跃但需锁旧 ABI 版本；SQLite 漏洞跟踪由本项目承担 | SPIKE_04 写入/FTS 矩阵 |
+| D-016 | 本项目自研 Updater（WinVerifyTrust / 内置公钥 + 包哈希） | 本项目许可证 | 构建产物哈希随发布清单 | 仅 Win32 API | 本项目全责；验签失败 fail-closed（P13） | PHASE_07 更新/回滚用例 |
+| D-017 | Visual Studio 2019 Build Tools（v142）+ Windows SDK 10（微软官方渠道） | 微软许可条款（仅构建机） | 构建机环境记录版本号 | 不进入交付 SBOM；产物依赖的 CRT 交付方式须登记 | 微软在支持期内；目标 Win7 兼容性由 SPIKE_02 实证 | 间接（其产物经 SPIKE_02/04 验证） |
+
 
 ## 7. 已知兼容性陷阱（实现时必须规避）
 

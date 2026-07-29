@@ -13,8 +13,11 @@
 | 阶段 0：工程基线 | 进行中 | 文档/ADR 可维护 |
 | 阶段 1：Capability Probe | 进行中 | 仅现有 Phase 1 任务书白名单 |
 | 阶段 2：只读代码分析 Agent | 进行中 | 仅现有 Phase 2 分支与白名单 |
-| Win7 Desktop Compatibility Spike | 未开始 | **无；必须新建任务书** |
+| SPIKE_01~04（Win7 兼容性验证，见下） | 任务书起草中 | **无；待 PC-003 裁决 + 任务书获批** |
 | 阶段 3 及以后 | 未开始 | **无；逐阶段新建任务书** |
+
+对标 Codex 的整体裁决记录于 ADR-0028~0035（当前均为 Proposed，待 PC-003 裁决）；
+性能口径统一引用 `docs/PERFORMANCE_BUDGET.md`（ADR-0033）。
 
 ## 阶段 0 — 工程基线（进行中）
 
@@ -38,26 +41,25 @@
 - 通用 Runner、目标代码写入、真实网络/模型、桌面客户端仍不在本阶段授权内。
 - 完成标准：任务书 §7/§10/§13；Win7 实机验收前 Phase-Gate 至多为 `READY_FOR_WIN7_VALIDATION`。
 
-## 架构验证轨 — Win7 Desktop Compatibility Spike（未开始、未授权）
+## 架构验证轨 — 四个 Win7 Spike（任务书起草中、未授权）
 
-这是新客户端立项前的阻断门槛，不占用 ADR-0012 冻结的阶段编号。开始任何 Spike 代码前必须新建专用任务书并获批，至少声明：
+这是新客户端立项前的阻断门槛，不占用 ADR-0012 冻结的阶段编号（ADR-0034）。每个 Spike
+有独立任务书（`docs/tasks/SPIKE_NN_*.md`）、独立分支 `spike/*`、白名单限 `spikes/**`，
+产出 Win7 实机证据 + Go/No-Go 报告：
 
-- 精确 Win7 SP1 x64 补丁基线、测试镜像与普通用户/管理员场景。
-- 候选 Electron 22.3.27、其嵌入运行时、独立 Node.js 候选、原生模块 ABI 和完整依赖闭包。
-- 最小桌面壳：启动、Unicode/中文路径、单实例、IPC、Renderer 隔离、实际出站/权限阻断、
-  崩溃日志和干净卸载。
-- 候选终端链路：非交互 Runner 与 winpty 交互终端分别验证；明确 ConPTY 不可用，并验证
-  模型不能向用户终端注入 stdin、恶意 VT/OSC 被限制。
-- Git Adapter：使用隔离配置/环境和命令白名单，负向验证 hooks、filters、textconv、pager、
-  helper、fsmonitor 与未评审 Git LFS/GCM 不能旁路 Runner。
-- 打包、签名/哈希、安装、升级、失败回滚、代理/TLS/CA 与断网启动。
-- 性能基线：冷启动、空闲内存、长会话、日志增长和多个任务/Runner 的资源上限。
-- Win7 实机证据和 Go/No-Go 报告；失败时评估原生 Win32/.NET Framework Shell 或浏览器式轻客户端。
+| Spike | 验证对象 | No-Go 后果（已在 ADR 预声明） |
+|---|---|---|
+| SPIKE_01_WIN7_RUNTIME_BASELINE | Electron 22.3.27 冷启动/内存/GPU 降级（P17）/中文空格路径/单实例/Renderer 隔离与出站阻断/崩溃日志/干净卸载；测预算 #1/#2/#3/#9/#10 | 切换 .NET 4.8 WPF（D-015）重跑本 Spike（ADR-0028 降级阶梯） |
+| SPIKE_02_TERMINAL_CONTAINMENT | C++ helper 的 Job Object/Restricted Token 进程树必杀（P11、`IsProcessInJob` fail-closed）；winpty 0.4.3 终端矩阵；C19 负向注入；测预算 #4 | containment 失败→高风险命令拒绝/远程；winpty 失败→非交互命令 + 流式日志视图（ADR-0030/0031） |
+| SPIKE_03_GIT_ADAPTER | MinGit 2.46.2 隔离配置下 G10 恶意仓库负向矩阵（hooks/filters/textconv/pager/helper/fsmonitor 零逃逸） | Git 降级只读观测，写操作远程化（ADR-0032） |
+| SPIKE_04_STORAGE_INDEX | SQLite 绑定（D-014）WAL 批量写 QPS、FTS 索引吞吐与增量延迟（机械盘）；测预算 #5/#6/#7/#8 | 关键事件同步 + 非关键异步合并；索引超限切远程索引服务（ADR-0033） |
 
-Spike 的通过只决定技术 Profile 是否可进入正式设计，不自动授权生产 Desktop Shell，也不改变 Phase 1/2。
+四个 Spike 相互独立、可并行。Spike 的通过只决定技术 Profile 是否可进入正式设计，
+不自动授权生产 Desktop Shell，也不改变 Phase 1/2。
 
 ## 阶段 3 — Model Gateway（未开始、未授权）
 
+- 规划任务书：`docs/tasks/PHASE_03_MODEL_GATEWAY.md`（分支 `phase/03-model-gateway`）；前置：SPIKE_01 Go + E7 环境就绪。
 - 目标：实现版本化远程协议、模型/工具请求、流式事件、鉴权、代理、CA、超时、重试、幂等与断线恢复。
 - Win7 端实现不再限定 `http.client`/`ssl` 或标准库；任务书根据兼容性 Spike 与安全评审选择精确运行时/依赖 Profile。
 - 现代 Browser Use、沙箱执行和不适合 Win7 本地承载的高风险能力通过 Gateway 远程化。
@@ -65,18 +67,21 @@ Spike 的通过只决定技术 Profile 是否可进入正式设计，不自动�
 
 ## 阶段 4 — Workspace 与文件工具（未开始、未授权）
 
+- 规划任务书：`docs/tasks/PHASE_04_WORKSPACE_WRITE.md`（分支 `phase/04-workspace-write`）；前置：SPIKE_04 Go。
 - 目标：编码感知读取/搜索、未知编码策略、CRLF/LF 保持、工作区根边界、junction/reparse point 防逃逸。
 - 写能力按独立风险门控引入：补丁预览、用户确认、备份/快照、原子替换、验证和回滚。
 - 与 Desktop Shell 的差异预览、文件引用协议先定义 Schema，再选择实现运行时。
 
 ## 阶段 5 — 状态、事件与审计（未开始、未授权）
 
+- 规划任务书：`docs/tasks/PHASE_05_STATE_AUDIT.md`（分支 `phase/05-state-audit`）；前置：SPIKE_04 Go。
 - 目标：带版本号的状态/事件 Schema、任务恢复、操作审计、导出、保留与清理策略。
 - SQLite 是优先候选而非唯一强制实现；任务书必须验证所选绑定、原生依赖和升级迁移在 Win7 上可交付。
 - 为多任务、后台协调器和断线恢复建立一致性边界，但不在本阶段默认开启这些产品能力。
 
 ## 阶段 6 — Agent Core、Policy 与 Runner（未开始、未授权）
 
+- 规划任务书：`docs/tasks/PHASE_06_AGENT_CORE_RUNNER.md`（分支 `phase/06-agent-core-runner`）；前置：SPIKE_02/03 Go + 阶段 3/4/5 完成；含 Phase 2 契约逐条对账移植（ADR-0029）。
 - 目标：任务状态机、上下文、工具编排、Policy/Broker、权限确认、通用 Runner、测试验证、取消与恢复。
 - Runner 必须使用结构化参数并强制超时、输出上限、进程树终止、工作区边界和审计。
 - 用户交互终端与 Agent 非交互工具执行采用隔离通道；winpty 仅在兼容性验证通过后使用。
@@ -84,6 +89,7 @@ Spike 的通过只决定技术 Profile 是否可进入正式设计，不自动�
 
 ## 阶段 7 — Desktop Shell、集成与交付（未开始、未授权）
 
+- 规划任务书：`docs/tasks/PHASE_07_DESKTOP_SHELL.md`（分支 `phase/07-desktop-shell`）；前置：SPIKE_01 Go + 阶段 6 完成；W7C-01~13 全量验收。
 - 目标：任务/会话 UI、流式事件、差异、审批、终端、设置、诊断和可访问的降级提示。
 - Desktop 技术栈由 Compatibility Spike 的 Go/No-Go 结论与独立正式任务书决定；Electron 22 候选不能直接从路线图进入实现。
 - 交付模式可为自包含离线包、企业内网安装或受控更新；任务书必须固定版本、来源、哈希/SBOM、前置检查、升级和回滚。
