@@ -1,0 +1,9 @@
+# IDE / agent workspace state (not part of the delivery baseline)
+.qoder/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Generated HTML exports of PRDs (source of truth is the .md)
+docs/prds/*.html

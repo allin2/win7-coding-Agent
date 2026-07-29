@@ -12,7 +12,7 @@
 
 ## PC-002：开发环境未提供 CPython 3.8.10
 
-- 状态：待 Win7 E1/E2 验收环境执行。
-- 事实：当前开发环境仅发现 CPython 3.9.6，未发现 `python3.8` 可执行文件。
-- 当前处理：已用现有解释器完成编译、unittest、JSON 与 SQLite 证据文件验证；代码仅采用 Python 3.8 可用的语法和标准库 API。
-- 需要裁决：无；请在 E1/E2 使用 CPython 3.8.10 执行任务书 T01--T25，并按 `docs/EVALUATION.md` §5 留存验收记录。
+- 状态：部分解除；待 Win7 E1/E2 验收环境执行。
+- 事实：早期开发环境仅有 CPython 3.9.6；此后开发机已完成正式 CPython 3.8.10 验证（Phase 2 Gate `PYTHON38_VALIDATED`，提交 `fd40ad2`，标签 `phase2-py38-validated`；原型线另见 `prototype-r1-py38-verified`）。仍缺失的只有 Win7 SP1 x64 实机环境。
+- 当前处理：Phase 1/2 代码均已在 CPython 3.8.10 下通过编译与测试矩阵；代码仅采用 Python 3.8 可用的语法和标准库 API。
+- 需要裁决：无；请在 Win7 实机 E1/E2 使用 CPython 3.8.10 执行各任务书验收矩阵，并按 `docs/EVALUATION.md` §5 留存验收记录。

@@ -14,7 +14,7 @@ Phase 1/2 的 Python 3.8.10 冻结合同，也不绕过 `AGENTS.md` C14 的任�
 |------|------|------|
 | 0 | 工程基线与文档体系 | 进行中（本仓库当前内容） |
 | 1 | Capability Probe | 修复轮 R1--R8 已实现，待架构师解除 Phase-Gate 后进行 Win7 E1/E2 实机验收 |
-| 2 | 正式只读代码分析 Agent | 已实现，等待独立架构复审；Win7 验证未执行 |
+| 2 | 正式只读代码分析 Agent | 复审通过（REVIEW_PASSED），CPython 3.8.10 验证通过（PYTHON38_VALIDATED）；仅 Win7 实机验收未执行 |
 | 3+ / 新客户端 | 见 `docs/ROADMAP.md` | 未开始，须先建立获批任务书 |
 
 阶段 1/2 实现遵循任务授权机制（`AGENTS.md` C14 / ADR-0011）；真实 Win7 E1/E2
