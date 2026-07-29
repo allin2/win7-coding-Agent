@@ -44,8 +44,8 @@ Desktop Shell + Agent Core 运行时闭包的可行性，产出 Go/No-Go 报告�
 
 - 目标机：Win7 SP1 x64 build 7601，含/不含 SP1 后可选更新两档；普通用户与管理员各一遍。
 - 运行时：Electron 22.3.27 win32-x64（D-009，哈希在工件入库时锁定，见 WIN7_CONSTRAINTS §6.1）。
-- Renderer：`nodeIntegration:false`、`contextIsolation:true`、`sandbox:true`、最小 preload。
-- Core 形态：`ELECTRON_RUN_AS_NODE` 与 utility process 两种承载方式都必须实测。
+- Renderer：`nodeIntegration:false`、`contextIsolation:true`、`sandbox:true`、最小 preload（最小权限，非零权限）。
+- Core 形态：以独立 `utilityProcess` 承载（ADR-0028 首选，`runAsNode` fuse 关闭、不用 `ELECTRON_RUN_AS_NODE`）；须实测 `utilityProcess` 启动、stdin 默认关闭与常驻内存。若需对照，可附带 `ELECTRON_RUN_AS_NODE` 仅作数据参考，不作为交付形态。
 - 交付形态：免安装解压目录 + 可选安装器原型；均须支持中文+空格路径。
 
 ## 4. 验证矩阵
@@ -54,7 +54,7 @@ Desktop Shell + Agent Core 运行时闭包的可行性，产出 Go/No-Go 报告�
 |---|------|----------|
 | T01 | 冷启动计时（重启后首次，3 次中位数） | 预算 #1 |
 | T02 | Shell 常驻内存（空闲 10 分钟均值） | 预算 #2 |
-| T03 | Core（utility process / RUN_AS_NODE 两形态）常驻内存 | 预算 #3 |
+| T03 | Core（独立 `utilityProcess`）常驻内存与 stdin 关闭验证 | 预算 #3 |
 | T04 | GPU 降级：老显卡/无独显机型强制软渲染（`disable-gpu`、swiftshader 路径） | 无黑屏（P17）、UI 可用、CPU 占用可接受并记录 |
 | T05 | 中文+空格安装目录与工作区路径 | 启动、日志、userData 路径全部正确（W7C-02） |
 | T06 | 单实例锁 | 二次启动聚焦已有窗口，不重复进程 |

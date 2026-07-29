@@ -36,10 +36,14 @@ TLS/代理/CA、超时、重试、幂等、断线恢复。复用 PRD 协议 v1 �
 
 ## 3. Runtime Profile（C15）
 
-- 运行时：Electron 22.3.27 内嵌 Node 16.17.1（ADR-0028）；不再限定标准库 http/ssl。
+- 运行时：Electron 22.3.27，Agent Core 为独立 `utilityProcess`（内嵌 Node 16.17.1，ADR-0028）；不再限定标准库 http/ssl。
+- **网络栈先定型**：实现前必须先确定 Gateway 客户端走哪条网络栈——Electron `net`（Chromium 网络栈）、
+  Node `https`（OpenSSL）还是 WinHTTP——三者的 TLS/代理/CA 行为与配置入口不同，须**分别**在 Win7 实测。
 - TLS：TLS 1.2 起；企业 CA 经 D-006（随包 CA bundle 或部署到受信任存储）；
-  验证失败必须拒绝连接，禁止关闭 TLS 验证。Win7 侧须验证 `DefaultSecureProtocols`
-  注册表基线 + 真实握手（KB 基线，见 WIN7_CONSTRAINTS）。
+  验证失败必须拒绝连接，禁止关闭 TLS 验证。**`KB3140245 + DefaultSecureProtocols` 主要作用于 WinHTTP**
+  （见 WIN7_CONSTRAINTS §4），**不能证明 Electron `net` / Node `https`（OpenSSL）栈的 TLS 1.2 可用**；
+  因此该注册表基线仅对"确定使用 WinHTTP"的路径有意义，其余栈以随包 OpenSSL/Chromium 能力 + 真实握手为准。
+  无论哪条栈，验收都以 Win7 实机对 Gateway/企业 CA 的**真实 TLS 1.2 握手**为准。
 - 代理：支持企业 HTTP(S) 代理（含 PAC/显式），凭据不落盘明文。
 
 ## 4. 协议与契约

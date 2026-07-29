@@ -29,7 +29,8 @@ Blocking-Reason: Pending PC-003 ruling and Win7 SP1 x64 machine availability
 在 Win7 实机验证两件事，为 ADR-0030（Approval 三档）与 ADR-0031（终端隔离）提供证据：
 
 1. **Containment**：C++ x64 helper（D-013，D-017 工具链构建）能否可靠建立
-   Job Object + Restricted Token + ACL + 禁网 的减权执行环境，并保证进程树必杀。
+   Job Object + Restricted Token + ACL 的减权执行环境并保证进程树必杀，
+   同时**实测同用户减权下的网络实际可达性**（用于校准"尽力限制网络"的真实效果，ADR-0030）。
 2. **交互终端**：winpty 0.4.3 + node-pty 0.10.0（D-011，按 Electron 22 ABI 重编译）
    在 Win7 的终端保真度，以及 C19 注入负向防护。
 
@@ -42,7 +43,7 @@ Blocking-Reason: Pending PC-003 ruling and Win7 SP1 x64 machine availability
 
 - helper：C++ x64，MSVC v142（D-017），静态链接 CRT 或登记 VC Runtime；仅 Win32 API。
 - winpty 0.4.3 官方 release x64 + node-pty 0.10.0（Electron 22 ABI 重编译产物）。
-- 宿主：SPIKE_01 的最小验证壳或 `ELECTRON_RUN_AS_NODE` 进程。
+- 宿主：SPIKE_01 的最小验证壳（独立 `utilityProcess`，不用 `ELECTRON_RUN_AS_NODE`）。
 - 测试机：Win7 SP1 x64；普通用户 + 域策略/企业启动器（若可获得）两档。
 
 ## 4. 验证矩阵
@@ -55,7 +56,7 @@ Blocking-Reason: Pending PC-003 ruling and Win7 SP1 x64 machine availability
 | C02 | `IsProcessInJob` 宿主探测 | 宿主已在不可嵌套 Job（模拟企业启动器）时，helper 正确报告并 fail-closed 拒绝执行（P11） |
 | C03 | Restricted Token 减权 | 受限进程无法写工作区外测试目录、无法读受保护注册表键 |
 | C04 | ACL 工作区外拒绝 | 对预设保护目录的写尝试全部失败并被记录 |
-| C05 | 禁网验证 | 受限进程发起 TCP/UDP/DNS 全部失败，抓包零出站 |
+| C05 | 网络可达性实测（非隔离断言） | 记录受限进程 TCP/UDP/DNS 的**实际**可达情况：Job/Token/ACL 预期**不能**阻断 Winsock，此项用于量化 best-effort 限制的真实效果，若确需强制断网则结论为"须走 WFP/企业防火墙或远程隔离"（ADR-0030），**不得据此把本地宣称为禁网/隔离** |
 | C06 | argv 白名单 | 白名单外可执行文件启动被 helper 拒绝 |
 | C07 | 超时与输出上限 | 超时强杀整树；stdout/stderr 截断标记正确 |
 | C08 | Runner 内存 | 预算 #4 |

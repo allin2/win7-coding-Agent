@@ -28,7 +28,7 @@ Blocking-Reason: Pending PC-003 ruling, SPIKE_01 Go, and Phase 06 completion
 
 Electron 桌面客户端 UI 与打包交付：会话视图、流式输出、diff 预览与审批、终端面板、
 设置与诊断页；Schema 校验的 IPC 边界、CSP + Session 出站过滤、fail-closed Updater（D-016）、
-自包含打包与回滚。Renderer 为零权限展示层（C17），全部能力经 IPC 向 Core 申请。
+自包含打包与回滚。Renderer 为**最小权限**展示层（C17，非"零权限"——即使关 Node 仍有浏览器网络/导航/Chromium 攻击面），全部能力经 IPC 向 Core 申请。
 
 ## 2. 非目标
 

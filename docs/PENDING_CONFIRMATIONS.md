@@ -20,11 +20,20 @@
 ## PC-003：Win7 对标 Codex 计划的关键架构裁决（ADR-0028~0035 提议态）
 
 - 状态：待项目负责人裁决。
+- 定位（重要）：ADR-0027 及既有架构文档继续作为 **Win7 平台架构与安全宪法**；ADR-0028~0035 是收窄其上的 **Electron 首选实施 Profile**。当前判定为"Win7 首选实施方案，等待 Spike 验证"，**不是"已满足 Win7 的可交付产品"**；四项 Win7 实机 Spike 通过前不得把技术栈标为 `Accepted`。
 - 事实：`docs/DECISIONS.md` 已按对标 Codex 实施计划追加 ADR-0028~0035，全部为 **Proposed** 提议态；对应任务书在裁决前不得置 `APPROVED_FOR_IMPLEMENTATION`。
+- 评审已纳入的修正（2026-07-29，随文档更新）：
+  1. Core 固定为独立 `utilityProcess`（main 仅编排、Renderer 最小权限），关闭 `runAsNode` fuse、不用 `ELECTRON_RUN_AS_NODE`。
+  2. "唯一原生例外"改为"唯一自研原生组件"；winpty/node-pty、SQLite 绑定、MinGit 均为原生工件，按 §6 登记版本/SHA-256/ABI/编译选项/VC Runtime/ASAR/加载验证。
+  3. WPF/Win32/CLI 降级各档须另配独立 Core 宿主，否则属重写而非降级。
+  4. workspace-write 的网络控制为 best-effort，**非安全边界**；强制断网走 WFP/企业防火墙或远程隔离。
+  5. TLS 需先定型网络栈（Electron `net` / Node `https` / WinHTTP）再分别实测；`DefaultSecureProtocols`/KB3140245 仅对 WinHTTP 有效。
+  6. 性能预算数值为 `PROPOSED/NOT_MEASURED`，Spike 实测 + ADR 转 Accepted 前不作 Win7 硬门槛。
+  7. ADR-0029 理由更正为"统一运行时、减少双栈维护"，非"Python 结构性无法达标"。
 - 需要裁决的关键项（可分项裁决）：
-  1. **技术栈单栈化**（ADR-0028）：Electron 22.3.27 承载 Shell + Core（Node 16.17.1 内嵌），仅一个 C++ helper 原生例外；降级阶梯 Electron → WPF → Win32 → CLI+App Server → CLI-only。
+  1. **技术栈单栈化**（ADR-0028）：Electron 22.3.27 承载 Shell + Core（独立 utilityProcess 内嵌 Node 16.17.1），一个自研 C++ helper；降级阶梯 Electron → WPF → Win32 → CLI+App Server → CLI-only，各档另配独立 Core 宿主。
   2. **Python 资产冻结 legacy**（ADR-0029）：Phase 1/2 在 Win7 验收后只修缺陷；Node Core 按契约对账继承，不整体移植。
-  3. **取消 full-access 本地等价**（ADR-0030）：仅 read-only / workspace-write 两档自动化 + 逐条审批/远程执行，不伪装本地沙箱。
+  3. **取消 full-access 本地等价**（ADR-0030）：仅 read-only / workspace-write 两档自动化 + 逐条审批/远程执行，不伪装本地沙箱；本地网络限制为 best-effort 非隔离。
   4. **`.gitignore` 引入与 PRD 纳入版控**（已随 WS0 提交生效；如负责人反对可回退该提交）。
   5. 其余 ADR-0031/0032/0033/0034/0035（终端隔离、Git Adapter、性能预算、功能三分级、插件边界）为上述裁决的配套细化，建议一并裁决。
 - 当前处理：Spike 任务书可先行编写（文档态），但其状态停留在 `DRAFT`；任何 `spike/*` 分支实现代码等待本条裁决 + 对应任务书获批。

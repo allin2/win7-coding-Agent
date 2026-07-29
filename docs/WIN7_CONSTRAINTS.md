@@ -97,9 +97,12 @@ Profile ID：`PY38-STDLIB-FROZEN`
 | `taskkill` / `where` / `cmd` / `findstr` | Win7 自带 | 使用前仍探测；不得依赖 Win10 自带的 `winget`、`curl`、`tar` |
 
 建议的签名/TLS 系统基线为 KB4490628、最新 KB4474419、KB3140245；需要
-Schannel 密码套件增强时可加入 KB3042058。KB3140245 本身不等于 WinHTTP 已默认启用
-TLS 1.2；相关 Profile 还必须声明 `DefaultSecureProtocols` 配置或由应用显式选择协议，
-并执行真实握手验证。这些补丁与配置不是未声明即可假设存在的全局前提，而是相关
+Schannel 密码套件增强时可加入 KB3042058。**KB3140245 + `DefaultSecureProtocols` 主要作用于
+使用 WinHTTP 默认协议标志的程序**，它本身不等于全系统 TLS 1.2 就绪，**也不能证明 Electron
+`net`（Chromium 网络栈）或 Node `https`（随包 OpenSSL）的 TLS 1.2 可用**——后两者走各自的
+库实现，与 WinHTTP 注册表基线无关。因此相关 Runtime Profile 必须先声明所用网络栈，再据此
+声明 `DefaultSecureProtocols`（仅 WinHTTP 路径）或由应用/库显式选择协议，并对每条栈执行真实
+握手验证。这些补丁与配置不是未声明即可假设存在的全局前提，而是相关
 Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置条件。补丁检测必须接受
 微软声明的累计更新取代关系，不能只因某个原始 KB 编号未列出就误判为缺失。
 

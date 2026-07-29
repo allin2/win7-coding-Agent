@@ -38,9 +38,10 @@ Node Agent Core（状态机、上下文管理、Policy、Broker、能力令牌�
 
 ## 3. Runtime Profile（C15）
 
-- Core：Electron 主进程/utility process，内嵌 Node 16.17.1（ADR-0028）。
+- Core：独立 `utilityProcess`（Electron main 仅编排；Core 内嵌 Node 16.17.1，`runAsNode` fuse 关闭、不用 `ELECTRON_RUN_AS_NODE`，ADR-0028）。
 - Runner：Core 派生子进程，经 C++ helper（D-013）建立 Job Object + Restricted Token
-  + ACL + 禁网 + argv 白名单（ADR-0030，SPIKE_02 冻结的 helper 接口 argv + JSON over stdio）。
+  + ACL + argv 白名单 + **尽力限制网络（best-effort，非安全边界）**（ADR-0030，SPIKE_02 冻结的 helper 接口 argv + JSON over stdio）。
+  Job/Token/ACL 不阻断 Winsock；强制断网须走远程隔离或企业 WFP，不得在本地宣称禁网/硬隔离。
 - 终端：独立 winpty 宿主（D-011，ADR-0031），stdin 仅接用户输入；Runner 无 pty、stdin 关闭。
 - Git：经 Git Adapter（D-012，ADR-0032 隔离配置 + 命令白名单）。
 
@@ -65,7 +66,7 @@ Node Agent Core（状态机、上下文管理、Policy、Broker、能力令牌�
 ## 6. 测试矩阵
 
 - 状态机/Policy/Broker 单元 + Replay 一致性（对账 Phase 2 F 矩阵）。
-- Runner containment 集成（复用 SPIKE_02 负向用例）：进程树必杀、注入拒绝、禁网。
+- Runner containment 集成（复用 SPIKE_02 负向用例）：进程树必杀、注入拒绝、网络可达性实测（记录 best-effort 限制的实际效果，不作隔离断言）。
 - Git Adapter 集成（复用 SPIKE_03 G10 矩阵）。
 - 终端：模型不能写 stdin（N01）、VT/OSC 过滤、会话回收。
 - 并发：2 任务并发 + 同工作区写串行；资源不超 #4/#9/#10。
