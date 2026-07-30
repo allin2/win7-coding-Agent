@@ -19,6 +19,8 @@ export interface PayloadSchema {
   optionalFields: string[];
   /** Custom validator function for complex rules. */
   validate?: (payload: unknown) => string[];
+  /** When true, unknown fields are not rejected during validation. */
+  allowAdditionalFields?: boolean;
 }
 
 /** Key used to register schemas: combination of event type and version. */
@@ -120,11 +122,13 @@ export function validateEvent(
     }
   }
 
-  // Check for unknown fields.
-  const knownFields = new Set([...schema.requiredFields, ...schema.optionalFields]);
-  for (const field of Object.keys(payloadObj)) {
-    if (!knownFields.has(field)) {
-      errors.push(`Payload contains unknown field: ${field}`);
+  // Check for unknown fields (unless schema allows additional fields).
+  if (!schema.allowAdditionalFields) {
+    const knownFields = new Set([...schema.requiredFields, ...schema.optionalFields]);
+    for (const field of Object.keys(payloadObj)) {
+      if (!knownFields.has(field)) {
+        errors.push(`Payload contains unknown field: ${field}`);
+      }
     }
   }
 
@@ -146,6 +150,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Session started',
     requiredFields: [],
     optionalFields: ['agentVersion', 'environment'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.SESSION_END, {
@@ -153,6 +158,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Session ended',
     requiredFields: [],
     optionalFields: ['reason', 'duration'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.MODEL_REQUEST, {
@@ -160,6 +166,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Model invocation request',
     requiredFields: ['modelId'],
     optionalFields: ['prompt', 'parameters'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.MODEL_RESPONSE, {
@@ -167,6 +174,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Model invocation response',
     requiredFields: ['modelId'],
     optionalFields: ['response', 'tokensUsed', 'error'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.TOOL_REQUEST, {
@@ -174,6 +182,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Tool invocation request',
     requiredFields: ['toolName'],
     optionalFields: ['parameters', 'correlationId'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.TOOL_RESULT, {
@@ -181,6 +190,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Tool invocation result',
     requiredFields: ['toolName'],
     optionalFields: ['result', 'error', 'correlationId'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.RUN_STATUS, {
@@ -188,6 +198,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Agent run status change',
     requiredFields: ['status'],
     optionalFields: ['message'],
+    allowAdditionalFields: true,
   });
 
   registry.register(EventType.POLICY_DECISION, {
@@ -195,6 +206,7 @@ export function createDefaultRegistry(): SchemaRegistry {
     description: 'Policy engine decision',
     requiredFields: ['decision', 'ruleId'],
     optionalFields: ['reason', 'context'],
+    allowAdditionalFields: true,
   });
 
   return registry;

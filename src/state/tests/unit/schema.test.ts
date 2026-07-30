@@ -113,12 +113,20 @@ describe('validateEvent', () => {
     expect(result.errors.some((e) => e.includes('modelId'))).toBe(true);
   });
 
-  it('should reject event with unknown fields', () => {
+  it('should reject event with unknown fields when allowAdditionalFields is false', () => {
+    const strictRegistry = new SchemaRegistry();
+    strictRegistry.register(EventType.MODEL_REQUEST, {
+      version: 1,
+      description: 'strict',
+      requiredFields: ['modelId'],
+      optionalFields: [],
+      allowAdditionalFields: false,
+    });
     const event = makeEvent({
       type: EventType.MODEL_REQUEST,
       payload: { modelId: 'gpt-4', unknownField: 'x' },
     });
-    const result = validateEvent(event, registry);
+    const result = validateEvent(event, strictRegistry);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('unknownField'))).toBe(true);
   });
