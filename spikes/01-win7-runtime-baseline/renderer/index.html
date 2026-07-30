@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP 由 main.js 注入，此处仅作备用 -->
+  <meta http-equiv="Content-Security-Policy" 
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'">
+  <title>SPIKE 01 - Win7 运行时基线验证</title>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", "SimSun", sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { color: #2c3e50; }
+    .section {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section h2 { margin-top: 0; color: #34495e; }
+    .test-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .test-item:last-child { border-bottom: none; }
+    .status-pass { color: #27ae60; font-weight: bold; }
+    .status-fail { color: #e74c3c; font-weight: bold; }
+    .status-pending { color: #f39c12; font-weight: bold; }
+    #results { white-space: pre-wrap; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>SPIKE 01 - Win7 运行时基线验证</h1>
+  <p>验证 Electron 22.3.27 在 Windows 7 SP1 x64 上的最小可行性</p>
+
+  <!-- 版本信息（T01） -->
+  <div class="section">
+    <h2>T01 - 版本信息</h2>
+    <div id="versions">加载中...</div>
+  </div>
+
+  <!-- 安全配置（T02） -->
+  <div class="section">
+    <h2>T02 - 安全配置验证</h2>
+    <div id="security">加载中...</div>
+  </div>
+
+  <!-- 路径兼容性（T03 / C10） -->
+  <div class="section">
+    <h2>T03 - 路径兼容性（中文+空格）</h2>
+    <div id="path-test">加载中...</div>
+  </div>
+
+  <!-- utilityProcess（T08） -->
+  <div class="section">
+    <h2>T08 - utilityProcess 可用性</h2>
+    <div id="utility-process">加载中...</div>
+  </div>
+
+  <!-- 综合结果 -->
+  <div class="section">
+    <h2>验证结果汇总</h2>
+    <div id="results">正在执行验证...</div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

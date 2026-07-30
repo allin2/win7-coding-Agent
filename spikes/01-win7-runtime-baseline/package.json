@@ -1,0 +1,16 @@
+{
+  "name": "spike-01-win7-runtime-baseline",
+  "version": "0.0.1",
+  "private": true,
+  "description": "SPIKE_01: Win7 运行时基线验证 - 最小 Electron 22 验证壳",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --dir",
+    "validate": "node validate.js"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "^24.0.0"
+  }
+}
