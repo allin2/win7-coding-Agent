@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "SPIKE_01: Win7 运行时基线验证 - 最小 Electron 22 验证壳",
+  "license": "Apache-2.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

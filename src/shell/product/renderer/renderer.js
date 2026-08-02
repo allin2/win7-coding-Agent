@@ -190,14 +190,20 @@ async function cancelTask() {
 async function approveTask() {
   if (!state.pendingApproval || !state.session || !state.taskId) return;
   byId('approve-task').disabled = true; byId('reject-task').disabled = true;
+  setText('task-state', '正在提交批准'); byId('task-state').className = 'state running';
   await call(() => window.win7Agent.approveTask(state.session.sessionId, state.taskId, state.pendingApproval.approvalId, state.pendingApproval.planHash, state.pendingApproval.baseSha256));
 }
 
 async function rejectTask() {
   if (!state.pendingApproval || !state.session || !state.taskId) return;
-  const reason = window.prompt('请输入拒绝原因：', '用户拒绝本次单文件修改') || '用户拒绝本次单文件修改';
+  // Avoid a native prompt here: on legacy Electron/Win7 it can open behind
+  // the BrowserWindow and make a visible button click appear to do nothing.
+  const reason = 'A2-W03 用户拒绝测试';
   byId('approve-task').disabled = true; byId('reject-task').disabled = true;
-  await call(() => window.win7Agent.rejectTask(state.session.sessionId, state.taskId, state.pendingApproval.approvalId, reason));
+  setText('task-state', '正在提交拒绝'); byId('task-state').className = 'state cancelling';
+  appendTimeline('approval.rejection_requested', reason);
+  const result = await call(() => window.win7Agent.rejectTask(state.session.sessionId, state.taskId, state.pendingApproval.approvalId, reason));
+  if (result) appendTimeline('approval.rejected', '拒绝已提交，等待 Core 安全收口');
 }
 
 async function prepareUndo() {
@@ -238,8 +244,9 @@ function renderApproval(data) {
     const dt = document.createElement('dt'); const dd = document.createElement('dd'); dt.textContent = key; dd.textContent = value; details.appendChild(dt); details.appendChild(dd);
   });
   const preview = preparation.preview || {};
-  byId('approval-diff').textContent = preview.diff || 'Diff 为空，禁止审批。';
-  const disabled = Boolean(preview.truncated) || !preview.diff;
+  const diffText = preview.unifiedDiff || preview.diff || '';
+  byId('approval-diff').textContent = diffText || 'Diff 为空，禁止审批。';
+  const disabled = Boolean(preview.truncated) || !diffText;
   byId('approve-task').disabled = disabled; byId('reject-task').disabled = false;
   setText('task-state', '等待审批'); byId('task-state').className = 'state awaiting';
   appendTimeline('approval.requested', `等待一次性审批：${preparation.relativePath}`);
@@ -292,6 +299,11 @@ async function initialize() {
   byId('undo-task').addEventListener('click', prepareUndo);
   byId('restore-recovery').addEventListener('click', restoreRecovery);
   byId('refresh-diagnostics').addEventListener('click', refreshDiagnostics);
+  byId('scenario').addEventListener('change', () => {
+    byId('run-task').textContent = byId('scenario').value === 'edit' || byId('scenario').value === 'undo'
+      ? '开始受控修改'
+      : '开始任务';
+  });
   if (!window.win7Agent || typeof window.win7Agent.onTaskEvent !== 'function') { showError({ message: 'Preload A1 API unavailable', recommendedAction: '重新启动可信本地入口。' }); return; }
   state.eventQueue = window.win7AgentEventQueue.create(120);
   window.win7Agent.onTaskEvent(handleTaskEvent);

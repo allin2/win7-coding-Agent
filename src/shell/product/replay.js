@@ -70,6 +70,13 @@ class ReplayModelAdapter {
       if (last && last.toolName === 'workspace.str_replace' && last.status === 'succeeded') {
         return finalPlan('单文件修改已完成：原子写入、内容校验和审批绑定均已通过。');
       }
+      if (last && last.toolName === 'workspace.str_replace' && last.status === 'failed') {
+        const reason = writeFailureReason(last.output) || last.error;
+        if (/Base content (changed|disappeared)/i.test(reason || '')) {
+          return finalPlan('REPLAN_REQUIRED：审批前后工作区基线已变化，未执行写入。请重新生成单文件修改计划。');
+        }
+        return finalPlan(`单文件修改未执行：${reason || 'Workspace apply failed; please regenerate the plan.'}`);
+      }
       const intent = this.options.writeIntent || editIntent(read);
       if (!intent || !intent.oldText || !intent.newText || !intent.path) {
         return finalPlan('Replay 未能生成唯一的单文件修改意图；请先准备包含非空文本行的 UTF-8 文件。');
@@ -106,6 +113,14 @@ function editIntent(read) {
   const oldText = separator >= 0 ? first.slice(separator + 2) : '';
   if (!oldText.trim()) return undefined;
   return { path: read.path, oldText, newText: oldText + ' // A2 Replay edit' };
+}
+
+function writeFailureReason(output) {
+  if (!output || typeof output !== 'object') return '';
+  if (typeof output.error === 'string') return output.error;
+  if (!Array.isArray(output.operations)) return '';
+  const failed = output.operations.find((operation) => operation && operation.success === false);
+  return failed && typeof failed.error === 'string' ? failed.error : '';
 }
 
 function call(core, id, toolName, args) {

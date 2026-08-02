@@ -2,28 +2,42 @@
 
 > 本页是当前状态的唯一人类可读入口。历史报告中的测试数量不自动代表当前基线。
 
-## Git 基线
+## Git 与证据基线
 
 | 项目 | 当前值 |
 |---|---|
-| 分支 | `codex/integrated-robustness` |
-| HEAD | `21ffcf32f8ac0a22b04699be14569662ca571d9a` |
+| 远程默认分支 | `main` |
+| 受控整合来源 | `codex/integrated-robustness` |
+| 最新结构化证据绑定提交 | `21ffcf32f8ac0a22b04699be14569662ca571d9a` |
 | 候选快照 | `8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c` |
 | 快照标记 | `backup/integrated-snapshot-20260731` |
-| 工作区状态 | `UNCOMMITTED_AFTER_CANDIDATE_SNAPSHOT` |
+| 主线整合 | `MAINLINE_INTEGRATION_2026-08-02` |
 
-当前 HEAD 是 Phase 3–7 合并基线的父提交。候选快照已经由上述 commit/tag 存档，但工作区在
-该快照之后仍有未提交演进，因此尚未选定最终代码与文档验证基线。
+`latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
+祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
+已归档的结构化证据生成点。
 
 ## 验证状态
 
 - 当前未提交工作区已建立 MVP 指纹；最新补充证据编号为 `MVP-20260802-15`（见 `status/mvp-baselines/`），Win7 产品实机收口仍绑定 MVP-20260802-14；没有提交、暂存、切换或丢弃用户修改。
-- 开发机回归：`PASS` — `npm run verify` 为 7 个模块、889 项，见 [`validation/mvp_verify_MVP-20260802-14.txt`](../validation/mvp_verify_MVP-20260802-14.txt)。此前在受限沙箱中因 `bind(127.0.0.1, 0)` 返回 EPERM 的 Gateway 13 项测试，已在仅允许 TCP loopback 临时端口、无公网监听和无外网访问的受控环境中独立复测为 13/13 PASS；见 [结构化报告](../validation/report_gateway_loopback_MVP-20260802-15.json)和[完整日志](../validation/gateway_loopback_MVP-20260802-15.txt)。
+- 开发机回归：`PASS` — 2026-08-02 主线整合前重跑 `npm run verify`，7 个模块共
+  907 项测试通过（Gateway 200、Workspace 79、State 219、Core 225、Runner 46、
+  Git Adapter 51、Shell 87）；各模块 lint/build 与静态设计门同时通过。
+  `MVP-20260802-14` 的 889 项历史日志仍保存在
+  [`validation/mvp_verify_MVP-20260802-14.txt`](../validation/mvp_verify_MVP-20260802-14.txt)，不改写为当前计数。
+  Gateway 13 项 loopback 测试本次在仅允许本地临时端口的受控环境再次通过；
+  历史结构化证据见 [报告](../validation/report_gateway_loopback_MVP-20260802-15.json)
+  和[完整日志](../validation/gateway_loopback_MVP-20260802-15.txt)。
 - Win7 SP1 x64：`OWNER_ACCEPTED_FOR_MVP` — C01 系统/补丁、Electron 22.3.27、CPython 3.8.10、受控 MinGit、机器 PATH 缺失工具检测、工件哈希和 Bitvise 状态在 MVP-20260802-14 只读采集中全部通过；真实 Electron 产品入口随后在隔离目录启动，沙箱 Renderer 加载、只读诊断回传并以退出码 0 正常退出，无对应 Electron 残留。客观 SPIKE/Phase 的正式状态没有被改写；延期边界由 ADR-0055 和负责人 disposition 单独记录。详情见 [Win7 MVP 实机报告](reports/2026-08/win7_mvp_acceptance_report.html)。
 - SPIKE_03 的旧部署 `dist` 风险已由 fail-closed 修复并在受控 MinGit 派生包上重测；旧报告仍保留为历史证据，新报告绑定当前 adapter/harness SHA-256。
 - 全部替代条件、命令与原始证据见 [status/latest-validation.json](status/latest-validation.json)；本页不把 MVP 替代项写成正式 Phase 或发布通过。
 - MVP-20260802-12 已补充证据型 [SBOM](acceptance/MVP-20260802-12_SBOM.json) 与输入哈希清单（[manifest.sha256](acceptance/MVP-20260802-12_manifest.sha256.txt)）；两者明确标记为非正式产品发布闭包。
 - MVP-20260802-14 新增 [负责人 disposition](acceptance/MVP-20260802-14_OWNER_DISPOSITION.json)、[产品/证据哈希清单](acceptance/MVP-20260802-14_product_manifest.sha256.txt)、[运行时盘点](../validation/win7_runtime_evidence_MVP-20260802-14.json)和[真实产品入口 smoke](../validation/report_product_shell_MVP-20260802-14.json)。
+- Desktop Alpha 2 的 Win7 增量门禁已完成 A2-W03（用户拒绝且工作区不变）和
+  A2-W04（显式批准后写入，目标 SHA-256 与 UTF-8/CRLF 预期一致，无临时/备份残留）。
+  详细路径、哈希和边界见
+  [`INTEGRATION_01` §10](tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md)；A2-W01～W15 整体仍未全部通过，
+  不得由这两项增量结果推导正式 A2 Gate PASS。
 - C01–C20 剩余门禁、前置依赖、执行顺序、证据接口和连接保护条件已形成 [剩余约束验收方案](reports/2026-08/win7_remaining_constraints_acceptance_plan.html)。
 
 ## MVP 已接受的延期项

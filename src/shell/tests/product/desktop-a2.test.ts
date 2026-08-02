@@ -75,6 +75,7 @@ describe('Desktop Alpha 2 controlled single-file write loop', () => {
     await host.approveTask({ taskId: accepted.taskId, approvalId: approval.approvalId, planHash: approval.planHash, workspaceBaseHash: approval.workspaceBaseHash });
     await waitFor(() => Boolean(events.find((event) => event.eventKind === 'task.failed')));
     expect(fs.readFileSync(path.join(root, 'src', 'hello.ts'), 'utf8')).toBe('external change\r\n');
+    expect(events.some((event) => event.eventKind === 'assistant.delta' && event.data.delta?.includes('REPLAN_REQUIRED'))).toBe(true);
   });
 
   it('creates a fresh approval for undo', async () => {

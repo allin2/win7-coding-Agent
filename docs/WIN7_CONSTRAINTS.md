@@ -173,9 +173,9 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-010 | nodejs.org/dist/v12.22.12（win-x64，可选） | MIT | 待锁定（若启用） | 无原生附加依赖 | 上游 EOL；仅作 CLI 宿主备选，默认不交付 | 启用时另立用例 |
 | D-011 | winpty 0.4.3（github.com/rprichard/winpty release）+ node-pty 0.10.0（npm 锁定） | MIT | 待锁定（SPIKE_02） | node-pty 原生模块须按 Electron 22 ABI 重编译（用 D-017） | 上游停维护；本项目自担，输出按 C19 不可信过滤兜底 | SPIKE_02 终端矩阵 |
 | D-012 | Git for Windows 2.46.2 MinGit x64（github.com/git-for-windows/releases/download/v2.46.2.windows.1/MinGit-2.46.2-64-bit.zip） | GPLv2 | `MinGit-2.46.2-64-bit.zip` SHA-256=`0dca60869825ceb8b6108be69f0c536174fbca45e11300f2c14c34632d8238ed`；`cmd/git.exe` SHA-256=`02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1` | MinGit 裁剪包内容清单归档；确认不含 LFS/GCM（仅便携 git 子系统） | 上游该系列停止 Win7 修复；靠 ADR-0032 隔离配置收敛攻击面 | SPIKE_03 G10 矩阵 |
-| D-013 | 本项目自研 C++ helper（源码在本仓库，D-017 工具链构建） | 本项目许可证 | 构建产物哈希随发布清单 | 仅 Win32 API + CRT | 本项目全责；接口冻结 argv + JSON over stdio | SPIKE_02 containment 矩阵 |
+| D-013 | 本项目自研 C++ helper（源码在本仓库，D-017 工具链构建） | Apache-2.0 | 构建产物哈希随发布清单 | 仅 Win32 API + CRT | 本项目全责；接口冻结 argv + JSON over stdio | SPIKE_02 containment 矩阵 |
 | D-014 | better-sqlite3（npm 锁定版本，SQLite 内嵌编译 + FTS5） | Apache-2.0（SQLite 为 public domain） | 待锁定（SPIKE_04） | 原生模块按 Electron 22 ABI 预编译（用 D-017）；SQLite 版本一并锁定 | 上游活跃但需锁旧 ABI 版本；SQLite 漏洞跟踪由本项目承担 | SPIKE_04 写入/FTS 矩阵 |
-| D-016 | 本项目自研 Updater（WinVerifyTrust / 内置公钥 + 包哈希） | 本项目许可证 | 构建产物哈希随发布清单 | 仅 Win32 API | 本项目全责；验签失败 fail-closed（P13） | PHASE_07 更新/回滚用例 |
+| D-016 | 本项目自研 Updater（WinVerifyTrust / 内置公钥 + 包哈希） | Apache-2.0 | 构建产物哈希随发布清单 | 仅 Win32 API | 本项目全责；验签失败 fail-closed（P13） | PHASE_07 更新/回滚用例 |
 | D-017 | Visual Studio 2019 Build Tools（v142）+ Windows SDK 10（微软官方渠道） | 微软许可条款（仅构建机） | 构建机环境记录版本号 | 不进入交付 SBOM；产物依赖的 CRT 交付方式须登记 | 微软在支持期内；目标 Win7 兼容性由 SPIKE_02 实证 | 间接（其产物经 SPIKE_02/04 验证） |
 
 #### MVP-20260802 依赖复核补充记录（ADR-0054）

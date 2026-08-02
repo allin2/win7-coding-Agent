@@ -254,13 +254,17 @@ function createDesktopHost(options) {
       ? task.result.checkpoint.pendingPlan.toolCalls[0].call : undefined;
     if (!call) throw productError('REPLAN_REQUIRED', '审批检查点缺少原始写入调用', '重新生成单文件修改计划。');
     const plan = task.write && task.write.preparer.get(task.pendingApproval.planId);
-    if (plan) plan.status = 'rejected';
+    if (plan) {
+      plan.status = 'rejected';
+    }
     task.pendingApproval = null;
     task.status = 'running';
     emitTaskEvent(task, 'approval.resolved', { approvalId: input.approvalId, resolution: 'rejected', reason: input.reason });
     void runTask(task, taskSession(task), {
       resumeCheckpoint: task.result.checkpoint,
       approvalRejection: { callId: call.id, reason: String(input.reason || '用户拒绝') },
+    }).then(() => {
+      if (plan) task.write.preparer.remove(plan.planId);
     });
     return { taskId: task.taskId, approvalId: input.approvalId, status: 'resuming' };
   }
@@ -317,11 +321,24 @@ function createDesktopHost(options) {
         if (!plan || !task.write.approvalBinding) throw new Error('A2 approval plan is unavailable');
         const result = task.write.coordinator.apply(plan, task.write.approvalBinding);
         if (result.success) task.write.plan = plan;
+        // Retain the immutable plan on the task for undo/audit, but release
+        // the single active-plan slot for the next independent task.
+        task.write.preparer.remove(plan.planId);
         if (task.write.tokenId) {
           try { broker.revokeToken(task.write.tokenId); } catch (_error) { /* audit state is already fail-closed */ }
           task.write.tokenId = null;
         }
-        return { callId: call.id, toolName: call.toolName, success: result.success, status: result.success ? 'succeeded' : 'failed', output: result };
+        const failure = !result.success && Array.isArray(result.operations)
+          ? result.operations.find((operation) => operation && operation.success === false)
+          : undefined;
+        return {
+          callId: call.id,
+          toolName: call.toolName,
+          success: result.success,
+          status: result.success ? 'succeeded' : 'failed',
+          ...(failure && typeof failure.error === 'string' ? { error: failure.error } : {}),
+          output: result,
+        };
       },
     } : undefined;
     const executor = new core.WorkspaceReadOnlyToolExecutor(port, fallback);

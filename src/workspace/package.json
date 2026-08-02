@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Workspace Write module for Win7 Coding Agent — encoding-aware atomic file operations",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "build": "tsc",
     "test": "jest",

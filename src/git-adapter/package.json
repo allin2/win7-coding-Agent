@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Git Adapter for Win7 Coding Agent — isolated, whitelisted Git command execution",
   "private": true,
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=16.17.1"
   },

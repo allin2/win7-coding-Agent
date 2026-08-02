@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Desktop Shell IPC Schema, Security Policy and Updater for Win7 Coding Agent",
   "private": true,
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=16.17.1"
   },

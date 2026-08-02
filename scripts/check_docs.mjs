@@ -192,13 +192,18 @@ try {
     failures.push({ kind: "status", file: "docs/status/latest-validation.json", reason: "missing schema_version=1|2 or 40-hex head_commit" });
   } else {
     const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-    const actualBranch = execFileSync("git", ["branch", "--show-current"], { cwd: root, encoding: "utf8" }).trim();
     const statusSource = fs.readFileSync(path.join(root, "docs", "STATUS.md"), "utf8");
-    if (validation.head_commit !== actualHead) {
-      failures.push({ kind: "status", file: "docs/status/latest-validation.json", reason: `head_commit does not match HEAD ${actualHead}` });
-    }
-    if (validation.branch !== actualBranch) {
-      failures.push({ kind: "status", file: "docs/status/latest-validation.json", reason: `branch does not match ${actualBranch}` });
+    try {
+      execFileSync("git", ["merge-base", "--is-ancestor", validation.head_commit, actualHead], {
+        cwd: root,
+        stdio: "ignore",
+      });
+    } catch {
+      failures.push({
+        kind: "status",
+        file: "docs/status/latest-validation.json",
+        reason: `evidence head_commit is not reachable from HEAD ${actualHead}`,
+      });
     }
     if (!statusSource.includes(`\`${validation.head_commit}\``)) {
       failures.push({ kind: "status", file: "docs/STATUS.md", reason: "HEAD does not match latest-validation.json" });

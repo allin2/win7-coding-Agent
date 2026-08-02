@@ -1,5 +1,7 @@
 # win7-coding-agent
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 面向 **Windows 7 SP1 x64** 的企业内部通用 Coding Agent 执行端与桌面客户端。
 模型推理默认位于远程或企业内网服务；Win7 客户端负责可信交互、工作区读取与受控修改、
 命令能力路由、验证、状态记录和审计。
@@ -30,10 +32,10 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 | 文档与治理 | `READY_FOR_REVIEW` | 任务授权、ADR、当前状态、报告快照和文档一致性检查已建立 |
 | Phase 1 Capability Probe | MVP 准备性实测完成；正式 Gate 未开放 | Win7 标准树 18/18 × 3；中文+空格路径 17 PASS + 1 个预期降级 |
 | Phase 2 只读 Agent | 开发机合同已验证；Win7 正式验收待执行 | 保持 Python 3.8.10、只读、Mock/Replay、零网络合同 |
-| Phase 3–7 TypeScript 基线 | 整合实施中 | Gateway、Workspace、State、Core/Runner、Git Adapter、Shell 已形成模块化候选实现 |
-| 开发机整仓回归 | `PASS` | 7 个模块；最新结构化计数见当前状态，Gateway loopback 已在受控环境复测 |
+| Phase 3–7 TypeScript 基线 | 主线整合 | Gateway、Workspace、State、Core/Runner、Git Adapter、Shell 的模块化候选实现已纳入 `main` |
+| 开发机整仓回归 | `PASS` | 7 个模块、907 项测试；Gateway loopback 已在受控环境复测 |
 | Win7 Electron 产品入口 | `OWNER_ACCEPTED_FOR_MVP` | Electron 22.3.27 启动、沙箱 Renderer、只读诊断、正常退出和进程清理已有实证 |
-| Desktop Alpha 2 | 开发机实现完成；Win7 A2-W01～W15 待验收 | 单 UTF-8 文件的可信 Diff、显式审批、原子写入、校验/回滚和撤销闭环 |
+| Desktop Alpha 2 | 开发机实现完成；Win7 A2-W03/W04 通过 | 拒绝不写入与批准后原子写入已实测；其余 A2-W01～W15 门禁仍待收口 |
 | SPIKE_03 Git Adapter | MVP 14/14 | 受控 MinGit 派生包通过 G10 矩阵；正式 SBOM、许可证和网络审计闭包待补 |
 | SPIKE_02 / SPIKE_04 | MVP 延期接受 | 原生 containment/终端与 Electron ABI SQLite 工件未完成，产品路径保持 fail-closed/有界内存模式 |
 
@@ -212,3 +214,10 @@ validation/                      实机证据和交叉论证
 实现代码默认禁止，只有任务书状态为 `APPROVED_FOR_IMPLEMENTATION` 且目标文件位于允许路径时
 才能修改（C14 / ADR-0011）。新增运行时、依赖、原生模块或外部程序必须先登记；影响接口、
 数据格式、兼容性或安全模型的决定必须追加 ADR。Win7 实机验收前不得把开发机结果表述为阶段完成。
+
+## 许可证
+
+Copyright 2026 allin2.
+
+本项目原创代码与文档采用 [Apache License 2.0](LICENSE) 开源。第三方依赖、运行时、验收工件
+和引用材料继续遵循各自的许可证与归属声明；根许可证不会覆盖或改写第三方许可条件。

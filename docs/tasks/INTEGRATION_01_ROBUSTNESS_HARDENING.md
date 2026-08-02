@@ -365,6 +365,16 @@ Phase 1/2 冻结合同，也不把 Replay 或 Mock 描述为真实模型。
 - 已生成 `outputs/desktop-alpha2/` 便携包，包含锁定 Electron 22.3.27；包内 `manifest.sha256` 已生成。
 - 根验证的 Gateway 本地 HTTP 集成测试在当前 macOS 沙箱因 `listen EPERM` 受环境限制；这不改变
   A2 本地写入结论，需在允许 loopback 的环境重跑整仓验证。
+- 2026-08-02 Win7 增量实机证据：A2-W03“用户拒绝”通过；修复包运行于
+  `C:\Win7CodingAgent\desktop-alpha2`，测试工作区为
+  `C:\Win7CodingAgent\A2-test-workspace`。用户界面显示“用户拒绝了这次大文件修改，Replay
+  保持工作区不变”；SSH 只读核验确认 `src\hello.ts` 内容保持为
+  `export const hello = "world";`，SHA-256 为
+  `ae93b90c9787a544f9712c9a9cfa7328d91cf83201adecfb46f8d4707090f1fb`。
+- 同日 A2-W04“显式批准后写入”通过；用户在 Win7 GUI 批准后，SSH 只读核验确认
+  `src\hello.ts` 内容为 `export const hello = "world";  // A2 Replay edit`，目标
+  SHA-256 为 `10cf3c196905e83f984d5980e06da21fa210345386f31049d101553445832fac`，
+  与 UTF-8/CRLF 预期字节一致，且未发现 `.tmp` 或 `.bak` 残留。
 - 当前仍为 `Win7-Validation: NOT_PERFORMED`；未取得 Win7 A2-W01～W15 原始证据前，不标记 A2 PASS。
 
 ## 11. Agent Loop 第一讲验收闭环（ADR-0039）

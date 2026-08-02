@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Runner interface layer for Win7 Coding Agent — command execution, approval, containment",
   "private": true,
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=16.17.1"
   },

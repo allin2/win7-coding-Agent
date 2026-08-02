@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Model Gateway for Win7 Coding Agent — versioned streaming protocol client for remote model inference",
   "private": true,
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=16.17.1"
   },
