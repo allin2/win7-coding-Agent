@@ -33,10 +33,10 @@ describe('types/errors', () => {
       expect(ErrorCode.CONTEXT_LENGTH_EXCEEDED).toBe(403);
     });
 
-    it('should have exactly 15 error codes', () => {
+    it('should have exactly 19 error codes', () => {
       // Numeric enums in TS produce reverse mappings, so count only numeric values
       const numericValues = Object.values(ErrorCode).filter(v => typeof v === 'number');
-      expect(numericValues.length).toBe(15);
+      expect(numericValues.length).toBe(19);
     });
   });
 

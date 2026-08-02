@@ -30,6 +30,11 @@ describe('state-machine', () => {
       expect(result.to).toBe(AgentState.CANCELLED);
     });
 
+    it('IDLE → FAILED when Turn startup persistence fails', () => {
+      const result = transition(AgentState.IDLE, 'execution_failed');
+      expect(result.to).toBe(AgentState.FAILED);
+    });
+
     // PLANNING 出发的合法转移
     it('PLANNING → AWAITING_APPROVAL (submit_for_approval)', () => {
       const result = transition(AgentState.PLANNING, 'submit_for_approval');
@@ -68,9 +73,29 @@ describe('state-machine', () => {
     });
 
     // EXECUTING 出发的合法转移
-    it('EXECUTING → COMPLETED (execution_complete)', () => {
+    it('EXECUTING → VERIFYING (execution_complete)', () => {
       const result = transition(AgentState.EXECUTING, 'execution_complete');
+      expect(result.to).toBe(AgentState.VERIFYING);
+    });
+
+    it('EXECUTING → AWAITING_APPROVAL when a later Step proposes a write', () => {
+      const result = transition(AgentState.EXECUTING, 'submit_for_approval');
+      expect(result.to).toBe(AgentState.AWAITING_APPROVAL);
+    });
+
+    it('VERIFYING → COMPLETED only after verification_passed', () => {
+      const result = transition(AgentState.VERIFYING, 'verification_passed');
       expect(result.to).toBe(AgentState.COMPLETED);
+    });
+
+    it('VERIFYING → FAILED after verification_failed', () => {
+      const result = transition(AgentState.VERIFYING, 'verification_failed');
+      expect(result.to).toBe(AgentState.FAILED);
+    });
+
+    it('VERIFYING → EXECUTING when verification feedback requests a repair', () => {
+      const result = transition(AgentState.VERIFYING, 'verification_repair_requested');
+      expect(result.to).toBe(AgentState.EXECUTING);
     });
 
     it('EXECUTING → FAILED (execution_failed)', () => {
@@ -153,29 +178,42 @@ describe('state-machine', () => {
   });
 
   describe('getAvailableTransitions()', () => {
-    it('IDLE 可达 [PLANNING, CANCELLED]', () => {
+    it('IDLE 可达 [PLANNING, FAILED, CANCELLED]', () => {
       const targets = getAvailableTransitions(AgentState.IDLE);
       expect(targets).toContain(AgentState.PLANNING);
+      expect(targets).toContain(AgentState.FAILED);
       expect(targets).toContain(AgentState.CANCELLED);
-      expect(targets).toHaveLength(2);
+      expect(targets).toHaveLength(3);
     });
 
-    it('PLANNING 可达 [AWAITING_APPROVAL, PAUSED, CANCELLED, FAILED]', () => {
+    it('PLANNING 可达审批、直接执行、暂停、取消或失败', () => {
       const targets = getAvailableTransitions(AgentState.PLANNING);
       expect(targets).toContain(AgentState.AWAITING_APPROVAL);
+      expect(targets).toContain(AgentState.EXECUTING);
       expect(targets).toContain(AgentState.PAUSED);
       expect(targets).toContain(AgentState.CANCELLED);
       expect(targets).toContain(AgentState.FAILED);
-      expect(targets).toHaveLength(4);
+      expect(targets).toHaveLength(5);
     });
 
-    it('EXECUTING 可达 [COMPLETED, FAILED, PAUSED, CANCELLED]', () => {
+    it('EXECUTING 可达审批、验证、失败、暂停或取消', () => {
       const targets = getAvailableTransitions(AgentState.EXECUTING);
-      expect(targets).toContain(AgentState.COMPLETED);
+      expect(targets).toContain(AgentState.AWAITING_APPROVAL);
+      expect(targets).toContain(AgentState.VERIFYING);
       expect(targets).toContain(AgentState.FAILED);
       expect(targets).toContain(AgentState.PAUSED);
       expect(targets).toContain(AgentState.CANCELLED);
-      expect(targets).toHaveLength(4);
+      expect(targets).toHaveLength(5);
+    });
+
+    it('VERIFYING can complete, fail, request a repair, or cancel', () => {
+      const targets = getAvailableTransitions(AgentState.VERIFYING);
+      expect(targets).toEqual([
+        AgentState.COMPLETED,
+        AgentState.FAILED,
+        AgentState.EXECUTING,
+        AgentState.CANCELLED,
+      ]);
     });
 
     it('COMPLETED 无可达状态', () => {
@@ -224,6 +262,10 @@ describe('state-machine', () => {
 
     it('EXECUTING 不是终态', () => {
       expect(isTerminalState(AgentState.EXECUTING)).toBe(false);
+    });
+
+    it('VERIFYING 不是终态', () => {
+      expect(isTerminalState(AgentState.VERIFYING)).toBe(false);
     });
 
     it('PAUSED 不是终态', () => {

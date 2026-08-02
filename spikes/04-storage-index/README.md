@@ -1,6 +1,13 @@
 # SPIKE 04 - 存储索引验证
 
-> **Win7-Validation: NOT_PERFORMED**
+## 状态
+
+- **任务书**：`docs/tasks/SPIKE_04_STORAGE_INDEX.md`
+- **状态**：APPROVED_FOR_IMPLEMENTATION
+- **Win7 实机验证**：BUILD_HOST_MISSING（MVP-20260802-06；机械盘门禁按负责人裁决 PASS）
+- **成果迁入**：成果已迁入 `src/state/`（待 Win7 验证；原型 `schema.sql`、`migrations.ts` 已吸收到正式模块）
+
+> **Win7-Validation: BUILD_HOST_MISSING** — 机械盘门禁不再阻断 MVP；但当前仅有 schema/migration 骨架，未发现 indexer、benchmark、崩溃恢复 harness 或 Electron 22 ABI better-sqlite3 工件，因此不能把存储功能或性能写成通过。
 
 ## 目标
 

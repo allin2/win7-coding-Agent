@@ -1,0 +1,3 @@
+
+[3840:0802/110038.307:ERROR:os_crypt_win.cc(55)] Failed to encrypt: ¾Ü¾ø·ÃÎÊ¡£ (0x5)
+REPORT_WRITTEN:C:\acceptance\report_spike03_MVP-20260802-12.json

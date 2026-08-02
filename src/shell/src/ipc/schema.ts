@@ -5,15 +5,16 @@
  */
 
 import Ajv, { type ValidateFunction, type ErrorObject } from 'ajv';
-import { IPCMessageType, IPCDirection } from './messages';
+import { IPCMessageType, IPCDirection, MESSAGE_DIRECTION_MAP } from './messages';
 import { ShellError, ShellErrorCode } from '../errors';
 
 // ─── JSON Schema 定义 ────────────────────────────────────────────────────────
 
 const baseEnvelopeSchema = {
   type: 'object',
-  required: ['id', 'type', 'direction', 'sessionId', 'timestamp', 'payload'],
+  required: ['protocolVersion', 'id', 'type', 'direction', 'sessionId', 'timestamp', 'payload'],
   properties: {
+    protocolVersion: { type: 'string', const: '1.0.0' },
     id: { type: 'string', minLength: 1 },
     type: { type: 'string' },
     direction: { type: 'string', enum: [IPCDirection.RENDERER_TO_CORE, IPCDirection.CORE_TO_RENDERER] },
@@ -27,6 +28,13 @@ const baseEnvelopeSchema = {
 // ─── Payload Schemas by Message Type ─────────────────────────────────────────
 
 const payloadSchemas: Record<string, object> = {
+  [IPCMessageType.WORKSPACE_SELECT]: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', minLength: 1 },
+    },
+    additionalProperties: false,
+  },
   [IPCMessageType.SESSION_CREATE]: {
     type: 'object',
     required: ['workspacePath'],
@@ -52,6 +60,14 @@ const payloadSchemas: Record<string, object> = {
     },
     additionalProperties: false,
   },
+  [IPCMessageType.SESSION_CLOSE]: {
+    type: 'object',
+    required: ['sessionId'],
+    properties: {
+      sessionId: { type: 'string', minLength: 1 },
+    },
+    additionalProperties: false,
+  },
   [IPCMessageType.TASK_SUBMIT]: {
     type: 'object',
     required: ['sessionId', 'prompt'],
@@ -59,6 +75,7 @@ const payloadSchemas: Record<string, object> = {
       sessionId: { type: 'string', minLength: 1 },
       prompt: { type: 'string', minLength: 1 },
       context: { type: 'object' },
+      scenario: { type: 'string', enum: ['structure', 'encoding', 'cancellable', 'edit', 'undo'] },
     },
     additionalProperties: false,
   },
@@ -72,21 +89,41 @@ const payloadSchemas: Record<string, object> = {
   },
   [IPCMessageType.TASK_APPROVE]: {
     type: 'object',
-    required: ['taskId', 'approvalId'],
+    required: ['taskId', 'approvalId', 'planHash', 'workspaceBaseHash'],
     properties: {
       taskId: { type: 'string', minLength: 1 },
       approvalId: { type: 'string', minLength: 1 },
+      planHash: { type: 'string', minLength: 64, maxLength: 64, pattern: '^[a-fA-F0-9]+$' },
+      workspaceBaseHash: { type: 'string', minLength: 1 },
     },
     additionalProperties: false,
   },
   [IPCMessageType.TASK_REJECT]: {
     type: 'object',
-    required: ['taskId', 'approvalId'],
+    required: ['taskId', 'approvalId', 'reason'],
     properties: {
       taskId: { type: 'string', minLength: 1 },
       approvalId: { type: 'string', minLength: 1 },
-      reason: { type: 'string' },
+      reason: { type: 'string', minLength: 1, maxLength: 2000 },
     },
+    additionalProperties: false,
+  },
+  [IPCMessageType.TASK_UNDO_PREPARE]: {
+    type: 'object',
+    required: ['taskId'],
+    properties: { taskId: { type: 'string', minLength: 1 } },
+    additionalProperties: false,
+  },
+  [IPCMessageType.RECOVERY_GET]: {
+    type: 'object',
+    required: ['sessionId'],
+    properties: { sessionId: { type: 'string', minLength: 1 } },
+    additionalProperties: false,
+  },
+  [IPCMessageType.RECOVERY_RESTORE]: {
+    type: 'object',
+    required: ['sessionId'],
+    properties: { sessionId: { type: 'string', minLength: 1 } },
     additionalProperties: false,
   },
   [IPCMessageType.TERMINAL_INPUT]: {
@@ -120,6 +157,19 @@ const payloadSchemas: Record<string, object> = {
     },
     additionalProperties: false,
   },
+  [IPCMessageType.DIAGNOSTICS_GET]: {
+    type: 'object',
+    additionalProperties: false,
+  },
+  [IPCMessageType.WORKSPACE_SELECTED]: {
+    type: 'object',
+    required: ['workspacePath', 'displayName'],
+    properties: {
+      workspacePath: { type: 'string', minLength: 1 },
+      displayName: { type: 'string', minLength: 1 },
+    },
+    additionalProperties: false,
+  },
   [IPCMessageType.STATE_CHANGED]: {
     type: 'object',
     required: ['sessionId', 'previousState', 'currentState'],
@@ -128,6 +178,19 @@ const payloadSchemas: Record<string, object> = {
       previousState: { type: 'string' },
       currentState: { type: 'string' },
       metadata: { type: 'object' },
+    },
+    additionalProperties: false,
+  },
+  [IPCMessageType.TASK_EVENT]: {
+    type: 'object',
+    required: ['taskId', 'eventId', 'eventKind', 'sequence', 'timestamp', 'data'],
+    properties: {
+      taskId: { type: 'string', minLength: 1 },
+      eventId: { type: 'string', minLength: 1 },
+      eventKind: { type: 'string', minLength: 1 },
+      sequence: { type: 'number', minimum: 1 },
+      timestamp: { type: 'string', format: 'date-time' },
+      data: { type: 'object' },
     },
     additionalProperties: false,
   },
@@ -144,46 +207,69 @@ const payloadSchemas: Record<string, object> = {
   },
   [IPCMessageType.DIFF_PREVIEW]: {
     type: 'object',
-    required: ['taskId', 'filePath', 'originalContent', 'proposedContent', 'diff'],
+    required: [
+      'taskId', 'filePath', 'originalContent', 'proposedContent', 'diff',
+      'contentEncoding', 'eol', 'truncated', 'previewHash', 'workspaceBaseHash',
+    ],
     properties: {
       taskId: { type: 'string', minLength: 1 },
       filePath: { type: 'string', minLength: 1 },
       originalContent: { type: 'string' },
       proposedContent: { type: 'string' },
       diff: { type: 'string' },
+      contentEncoding: {
+        type: 'string',
+        enum: ['utf-8', 'utf-8-bom', 'utf-16le', 'utf-16be', 'gbk', 'binary'],
+      },
+      eol: { type: 'string', enum: ['lf', 'crlf', 'mixed', 'none'] },
+      truncated: { type: 'boolean' },
+      previewHash: { type: 'string', minLength: 64, maxLength: 64, pattern: '^[a-fA-F0-9]+$' },
+      workspaceBaseHash: { type: 'string', minLength: 1 },
     },
     additionalProperties: false,
   },
   [IPCMessageType.APPROVAL_REQUEST]: {
     type: 'object',
-    required: ['taskId', 'approvalId', 'action', 'description', 'risk'],
+    required: [
+      'taskId', 'approvalId', 'action', 'description', 'risk',
+      'targets', 'ruleId', 'planHash', 'previewHash', 'workspaceBaseHash',
+    ],
     properties: {
       taskId: { type: 'string', minLength: 1 },
       approvalId: { type: 'string', minLength: 1 },
       action: { type: 'string', minLength: 1 },
       description: { type: 'string', minLength: 1 },
       risk: { type: 'string', enum: ['low', 'medium', 'high'] },
+      ruleId: { type: 'string', minLength: 1, maxLength: 128, pattern: '^[A-Z0-9_]+$' },
+      targets: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+      planHash: { type: 'string', minLength: 64, maxLength: 64, pattern: '^[a-fA-F0-9]+$' },
+      previewHash: { type: 'string', minLength: 64, maxLength: 64, pattern: '^[a-fA-F0-9]+$' },
+      workspaceBaseHash: { type: 'string', minLength: 1 },
     },
     additionalProperties: false,
   },
   [IPCMessageType.TERMINAL_OUTPUT]: {
     type: 'object',
-    required: ['sessionId', 'data'],
+    required: ['sessionId', 'data', 'sequence', 'truncated'],
     properties: {
       sessionId: { type: 'string', minLength: 1 },
       data: { type: 'string' },
       exitCode: { type: 'number' },
+      sequence: { type: 'number', minimum: 0 },
+      truncated: { type: 'boolean' },
     },
     additionalProperties: false,
   },
   [IPCMessageType.ERROR_OCCURRED]: {
     type: 'object',
-    required: ['code', 'message', 'recoverable'],
+    required: ['code', 'message', 'recoverable', 'recommendedAction'],
     properties: {
       code: { type: 'string', minLength: 1 },
       message: { type: 'string', minLength: 1 },
       detail: { type: 'string' },
       recoverable: { type: 'boolean' },
+      recommendedAction: { type: 'string', minLength: 1 },
+      retryAfterMs: { type: 'number', minimum: 0 },
     },
     additionalProperties: false,
   },
@@ -245,6 +331,7 @@ class SchemaValidator {
         properties: {
           ...baseEnvelopeSchema.properties,
           type: { ...baseEnvelopeSchema.properties.type, const: msgType },
+          direction: { const: MESSAGE_DIRECTION_MAP[msgType as IPCMessageType] },
           payload: payloadSchema,
         },
       };
@@ -258,14 +345,18 @@ class SchemaValidator {
    */
   validateMessage(msg: unknown): ValidationResult {
     if (typeof msg !== 'object' || msg === null) {
-      return { valid: false, errors: ['消息必须为非空对象'] };
+      return this.reject('(unknown)', '(unknown)', ['消息必须为非空对象']);
     }
 
     const raw = msg as Record<string, unknown>;
     const msgType = raw['type'] as string | undefined;
 
     if (!msgType || !this.validators.has(msgType)) {
-      return { valid: false, errors: [`未知消息类型: ${msgType ?? '(空)'}`] };
+      return this.reject(
+        msgType ?? '(unknown)',
+        typeof raw.id === 'string' ? raw.id : '(unknown)',
+        [`未知消息类型: ${msgType ?? '(空)'}`],
+      );
     }
 
     const validate = this.validators.get(msgType)!;
@@ -277,16 +368,7 @@ class SchemaValidator {
         return `${path}: ${e.message ?? '未知错误'}`;
       });
 
-      // 记录审计日志
-      this.auditLog.push({
-        timestamp: new Date().toISOString(),
-        messageId: (raw['id'] as string) ?? '(unknown)',
-        messageType: msgType,
-        rejected: true,
-        errors,
-      });
-
-      return { valid: false, errors };
+      return this.reject(msgType, (raw['id'] as string) ?? '(unknown)', errors);
     }
 
     return { valid: true, errors: [] };
@@ -319,6 +401,17 @@ class SchemaValidator {
   /** 清空审计日志 */
   clearAuditLog(): void {
     this.auditLog = [];
+  }
+
+  private reject(messageType: string, messageId: string, errors: string[]): ValidationResult {
+    this.auditLog.push({
+      timestamp: new Date().toISOString(),
+      messageId,
+      messageType,
+      rejected: true,
+      errors: [...errors],
+    });
+    return { valid: false, errors };
   }
 }
 

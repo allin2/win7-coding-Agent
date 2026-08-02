@@ -8,8 +8,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest --forceExit",
-    "clean": "rm -rf dist"
+    "test": "jest",
+    "lint": "tsc --noEmit",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {
     "typescript": "~5.3.3",

@@ -21,22 +21,29 @@
 
 ## 3. 当前范围与授权边界
 
-当前仍处于阶段 0、阶段 1 与阶段 2，ADR-0027 只更新项目级目标，不追溯扩大既有任务书的实现范围。对标 Codex 的整体技术裁决已按 ADR-0028~0035 提议（Proposed，待 PC-003 裁决）；裁决通过前不新增任何实现授权。
+Phase 1/2 保持历史冻结合同；ADR-0028~0035 已由 ADR-0036 条件接受。Phase 3–7
+任务书已获实现授权，非终端/containment 部分可理论先行；跨阶段整合由
+`INTEGRATION_01_ROBUSTNESS_HARDENING` 承载。上述授权不等于阶段完成，Win7 Spike、
+企业环境与端到端验收仍是硬门槛。
 
 ### 当前已授权
 
 - 阶段 0：维护文档、约束与 ADR。
 - 阶段 1：按 `docs/tasks/PHASE_01_CAPABILITY_PROBE.md` 实现历史冻结的 CPython 3.8.10 标准库 Capability Probe。
 - 阶段 2：仅在指定分支和允许路径内，按 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md` 实现 Mock/Replay 驱动、目标工作区只读的代码分析 Agent。
+- 阶段 3–7：按各自任务书实现理论基线；整合、健壮性加固和文档对账限于
+  `docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md` 白名单。
+- SPIKE_01~04：按各自任务书采集 Win7 实机 Go/No-Go 证据。
 
 ### 当前未授权
 
-- 不接入真实模型或真实远程工具服务。
-- 不修改目标用户代码，不实现通用写入、补丁或回滚。
-- 不实现通用 Runner、交互终端、桌面客户端、后台服务、插件或多 Agent。
-- 不因本文、架构图、路线图或 ADR-0027 的候选描述创建实现文件。
+- Phase 1/2 不接入真实模型、不修改目标用户代码；其合同不被新客户端追溯扩大。
+- SPIKE_02 通过前不定稿真实 Runner containment 或交互终端，不用 `taskkill` 冒充隔离。
+- v1 不实现 full-access 本地等价、插件宿主或多 Agent（ADR-0030/0034/0035）。
+- 未列入获批任务书白名单的实现仍未授权。
 
-新的桌面客户端、Electron/Node.js 运行时验证或其他技术 Spike 必须先有独立任务书，状态为 `APPROVED_FOR_IMPLEMENTATION`，并声明允许路径、精确版本、交付闭包与 Win7 验收矩阵（AGENTS.md C14）。
+后续新组件和范围扩展仍必须先有独立 `APPROVED_FOR_IMPLEMENTATION` 任务书，并声明允许
+路径、精确版本、交付闭包与 Win7 验收矩阵（AGENTS.md C14）。
 
 ## 4. 干系人与职责
 
@@ -55,6 +62,7 @@
 - Phase 1/2 的历史冻结合同、分支、路径白名单和 Win7 验收门槛保持不变。
 - 项目级文档不再把 Python 3.8、标准库、CLI 或完全离线误写为最终产品唯一方案。
 - 所有新增实现仍可追溯到一个已批准任务书和一条明确的运行时/依赖 Profile。
+- Phase 3–7 整合基线可在开发机重复构建测试，但明确标注尚未通过 Win7 实机门槛。
 
 ### 项目级最终态
 

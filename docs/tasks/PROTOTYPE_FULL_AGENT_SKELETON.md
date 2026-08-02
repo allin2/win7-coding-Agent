@@ -150,7 +150,7 @@ APPROVED_FOR_IMPLEMENTATION
 ### 4.1 包结构（建议布局；文件名可在各自包内调整，包边界不可调整）
 
 ```
-src/win7_agent/
+src/phase1-2/win7_agent/
   cli/            # §4.9 CLI：__init__.py、__main__.py（python -m win7_agent.cli）
   runtime/        # §4.1 RunController / RunState / RunStatus / 转换表 / 预算
   context/        # §4.6 ContextCompiler
@@ -162,7 +162,7 @@ src/win7_agent/
   storage/        # §4.7 EventStore（SQLite）
 ```
 
-- `src/win7_agent/__init__.py` **不在白名单内，不得修改**（其内容由 Phase 1 授权限定）。
+- `src/phase1-2/win7_agent/__init__.py` **不在白名单内，不得修改**（其内容由 Phase 1 授权限定）。
 - 模块依赖方向（只允许自上而下）：`cli → runtime → {context, models, tools, policy,
   verification, storage}`；`tools → workspace`；`context → workspace`。禁止反向依赖、
   禁止循环依赖。
@@ -477,27 +477,27 @@ python -m win7_agent.cli analyze --workspace PATH --task TEXT
 
 ### 8.1 实现代码
 
-- `src/win7_agent/cli/**`
-- `src/win7_agent/runtime/**`
-- `src/win7_agent/context/**`
-- `src/win7_agent/models/**`
-- `src/win7_agent/tools/**`
-- `src/win7_agent/policy/**`
-- `src/win7_agent/workspace/**`
-- `src/win7_agent/verification/**`
-- `src/win7_agent/storage/**`
+- `src/phase1-2/win7_agent/cli/**`
+- `src/phase1-2/win7_agent/runtime/**`
+- `src/phase1-2/win7_agent/context/**`
+- `src/phase1-2/win7_agent/models/**`
+- `src/phase1-2/win7_agent/tools/**`
+- `src/phase1-2/win7_agent/policy/**`
+- `src/phase1-2/win7_agent/workspace/**`
+- `src/phase1-2/win7_agent/verification/**`
+- `src/phase1-2/win7_agent/storage/**`
 
 ### 8.2 测试代码
 
-- `tests/unit/runtime/**`
-- `tests/unit/context/**`
-- `tests/unit/models/**`
-- `tests/unit/tools/**`
-- `tests/unit/policy/**`
-- `tests/unit/workspace/**`
-- `tests/unit/verification/**`
-- `tests/unit/storage/**`
-- `tests/unit/cli/**`
+- `tests/phase1-2/runtime/**`
+- `tests/phase1-2/context/**`
+- `tests/phase1-2/models/**`
+- `tests/phase1-2/tools/**`
+- `tests/phase1-2/policy/**`
+- `tests/phase1-2/workspace/**`
+- `tests/phase1-2/verification/**`
+- `tests/phase1-2/storage/**`
+- `tests/phase1-2/cli/**`
 - `tests/integration/prototype/**`
 - `tests/fixtures/sample_project/**`
 
@@ -518,9 +518,9 @@ python -m win7_agent.cli analyze --workspace PATH --task TEXT
 
 ## 9. 明确禁止修改路径（Forbidden paths，触碰即验收打回）
 
-- `src/win7_agent/probe/**`
-- `src/win7_agent/__init__.py`（内容由 Phase 1 授权限定）
-- `tests/unit/probe/**`
+- `src/phase1-2/win7_agent/probe/**`
+- `src/phase1-2/win7_agent/__init__.py`（内容由 Phase 1 授权限定）
+- `tests/phase1-2/probe/**`
 - `tests/integration/probe/**`
 - `tests/win7/**`
 - `docs/tasks/PHASE_01_CAPABILITY_PROBE.md`
@@ -599,7 +599,7 @@ MockProvider 剧本（按 Turn 顺序，必须完成）：
 | P20 | Verification 拒绝缺少证据的完成声明 | 构造"直接给结论、无 read 工具调用"的剧本 → REJECT，Run → FAILED + `VERIFICATION_REJECTED` |
 | P21 | CLI 端到端演示 | `run_prototype_demo.bat` 等价命令行退出码 0，控制台 ASCII-only |
 | P22 | 中文和空格路径 | 工作区根与文件名含中文/空格时 P16 全流程通过 |
-| P23 | Capability Probe 不受影响 | `tests/unit/probe/**` 与 `tests/integration/probe/**` 原样全部通过；`src/win7_agent/probe/**` 无 diff |
+| P23 | Capability Probe 不受影响 | `tests/phase1-2/probe/**` 与 `tests/integration/probe/**` 原样全部通过；`src/phase1-2/win7_agent/probe/**` 无 diff |
 | P24 | CPython 3.8.10 compileall | `python -m compileall -q src tests` 零错误 |
 | P25 | 完整 unittest | 全部单元 + 集成用例一次性通过 |
 

@@ -24,7 +24,7 @@ Blocking-Reason: PC-003 ruled 2026-07-29 (ADR-0036); pending SPIKE_01 Go and Pha
 - `src/shell/**`（Renderer + preload）、`src/shell/main/**`（窗口/Session/Updater 主进程侧）、
   `build/**`（打包配置）、`tests/shell/**`、本文档 §13 验证记录。
 
-禁止路径：其他阶段目录、`src/win7_agent/**`（legacy 冻结，ADR-0029）、已 Accepted ADR 正文。
+禁止路径：其他阶段目录、`src/phase1-2/win7_agent/**`（legacy 冻结，ADR-0029）、已 Accepted ADR 正文。
 
 ## 1. 目标
 
@@ -81,10 +81,16 @@ Electron 桌面客户端 UI 与打包交付：会话视图、流式输出、diff
 - W7C-01~13 全量通过；性能项引用 PERFORMANCE_BUDGET #1/#2 实测。
 - Win7 实机验收前 Phase-Gate 至多 `READY_FOR_WIN7_VALIDATION`。
 
-## 13. 验证记录（占位）
+## 13. 验证记录
 
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Target environment unavailable
+Blocking-Reason: Formal five-view/W7C/E5/E6/E7 contract is not complete
 ```
+
+ADR-0055 的 MVP 装配增量不改写上述正式 Gate：`src/shell/product/**` 已形成可信本地
+main/preload/renderer 入口，开发机 Shell 76 项测试通过；MVP-20260802-14 在 Win7 Electron
+22.3.27 x64 上完成启动、Renderer 诊断回传和正常退出，结构化报告为
+`validation/report_product_shell_MVP-20260802-14.json`。该证据只关闭“无真实产品入口”缺口，
+Runner、持久化、Gateway 装配、五视图、安装器和正式 W7C/E5/E6/E7 仍未完成。

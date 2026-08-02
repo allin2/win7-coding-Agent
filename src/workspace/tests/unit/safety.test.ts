@@ -53,6 +53,26 @@ describe('safety', () => {
       expect(result.valid).toBe(true);
     });
 
+    it.each(['.env', '.env.production', '.git/config'])('rejects sensitive workspace path %s at the enforcement layer', (target) => {
+      const result = validatePath(target, tmpRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('WORKSPACE_SENSITIVE_PATH');
+    });
+
+    it('rejects a symlink whose resolved target is a sensitive file', () => {
+      const sensitive = path.join(tmpRoot, '.env');
+      const link = path.join(tmpRoot, 'public-config');
+      fs.writeFileSync(sensitive, 'TOKEN=value');
+      try {
+        fs.symlinkSync(sensitive, link);
+      } catch {
+        return;
+      }
+      const result = validatePath('public-config', tmpRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('WORKSPACE_SENSITIVE_PATH');
+    });
+
     it('detects symlink escape', () => {
       // Create a symlink pointing outside the workspace.
       const target = path.join(os.tmpdir(), 'outside-target.txt');
@@ -71,14 +91,42 @@ describe('safety', () => {
 
       fs.unlinkSync(target);
     });
+
+    it('detects a missing target beneath an escaping symlink ancestor', () => {
+      const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-dir-'));
+      const link = path.join(tmpRoot, 'escape-dir');
+      try {
+        fs.symlinkSync(outsideRoot, link, 'dir');
+      } catch {
+        fs.rmSync(outsideRoot, { recursive: true, force: true });
+        return;
+      }
+
+      const result = validatePath('escape-dir/not-created.txt', tmpRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('WORKSPACE_BOUNDARY_VIOLATION');
+      fs.rmSync(outsideRoot, { recursive: true, force: true });
+    });
   });
 
   // -----------------------------------------------------------------------
-  // isJunction (stub)
+  // isJunction / symbolic reparse detection
   // -----------------------------------------------------------------------
   describe('isJunction', () => {
-    it('returns false (stub on non-Windows)', () => {
+    it('returns false for a missing path', () => {
       expect(isJunction('/any/path')).toBe(false);
+    });
+
+    it('returns true for a symbolic link or Windows junction', () => {
+      const target = path.join(tmpRoot, 'target');
+      const link = path.join(tmpRoot, 'link');
+      fs.mkdirSync(target);
+      try {
+        fs.symlinkSync(target, link, 'dir');
+      } catch {
+        return;
+      }
+      expect(isJunction(link)).toBe(true);
     });
   });
 });

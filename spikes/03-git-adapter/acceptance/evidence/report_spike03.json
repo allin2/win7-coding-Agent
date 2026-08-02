@@ -1,0 +1,132 @@
+{
+  "spike": "SPIKE_03_GIT_ADAPTER",
+  "agent": "workbuddy",
+  "adapterSource": "src/git-adapter/dist (real)",
+  "timestamp": "2026-08-01T18:38:55.619Z",
+  "gitVersion": "git version 2.46.2.windows.1",
+  "isolation": {
+    "gitConfigNoSystem": true,
+    "gitAttrNoSystem": true,
+    "homeRedirected": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\win7-agent-git-empty",
+    "hooksPathRedirected": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\win7-agent-git-empty",
+    "strippedPrefixes": [
+      "GIT_",
+      "SSH_"
+    ],
+    "injectedConfigBlocks": [
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c",
+      "-c"
+    ]
+  },
+  "networkSentinel": {
+    "port": 37123,
+    "connections": 0
+  },
+  "results": [
+    {
+      "id": "P01",
+      "name": "GIT_CONFIG_NOSYSTEM / GIT_ATTR_NOSYSTEM 注入",
+      "pass": true,
+      "detail": "env 含 NOSYSTEM=1（双系统配置隔离）"
+    },
+    {
+      "id": "P02",
+      "name": "HOME 重定向 + 危险 GIT_/SSH_ 剥离",
+      "pass": true,
+      "detail": "HOME→C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\win7-agent-git-empty；GIT_CONFIG/GIT_DIR/SSH_AUTH_SOCK 等已剥离"
+    },
+    {
+      "id": "P03",
+      "name": "-c 显式封禁注入",
+      "pass": true,
+      "detail": "全部关键 -c 封禁已注入"
+    },
+    {
+      "id": "P04",
+      "name": "白名单分类与 fail-closed",
+      "pass": true,
+      "detail": "读:✓ 写:✓ 网络:✓ config:✓"
+    },
+    {
+      "id": "N01",
+      "name": "攻击面 N01 防护",
+      "pass": true,
+      "detail": "隔离生效，零逃逸",
+      "escapedProcesses": [],
+      "gitExitCode": 0,
+      "gitStderr": ""
+    },
+    {
+      "id": "N02",
+      "name": "攻击面 N02 防护",
+      "pass": false,
+      "detail": "哨兵文件被写入（攻击成功）",
+      "escapedProcesses": [],
+      "gitExitCode": 128,
+      "gitStderr": "fatal: the remote end hung up unexpectedly\n"
+    },
+    {
+      "id": "N03",
+      "name": "攻击面 N03 防护",
+      "pass": true,
+      "detail": "隔离生效，零逃逸",
+      "escapedProcesses": [],
+      "gitExitCode": 0,
+      "gitStderr": ""
+    },
+    {
+      "id": "N04",
+      "name": "攻击面 N04 防护",
+      "pass": true,
+      "detail": "隔离生效，零逃逸",
+      "escapedProcesses": [],
+      "gitExitCode": 0,
+      "gitStderr": ""
+    },
+    {
+      "id": "N07",
+      "name": "攻击面 N07 防护",
+      "pass": true,
+      "detail": "隔离生效，零逃逸",
+      "escapedProcesses": [],
+      "gitExitCode": 0,
+      "gitStderr": ""
+    },
+    {
+      "id": "N05",
+      "name": "攻击面 N05 防护",
+      "pass": true,
+      "detail": "白名单拒绝（fail-closed）: Git command denied: Command \"fetch ext::cmd.exe /c \"echo pwned > C:\\acceptance\\pwned\\N05net.txt\"\" is prohibited (category: network)",
+      "escapedProcesses": []
+    },
+    {
+      "id": "N06",
+      "name": "攻击面 N06 防护",
+      "pass": true,
+      "detail": "白名单拒绝（fail-closed）: Git command denied: Command \"ls-remote ext::cmd.exe /c \"echo pwned > C:\\acceptance\\pwned\\N06net.txt\"\" is not in the whitelist — denied by fail-closed policy",
+      "escapedProcesses": []
+    },
+    {
+      "id": "N10",
+      "name": "攻击面 N10 防护",
+      "pass": true,
+      "detail": "白名单拒绝（fail-closed）: Git command denied: Command \"config\" is not in the whitelist — denied by fail-closed policy",
+      "escapedProcesses": []
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "pass": 11,
+    "fail": 1,
+    "verdict": "NO-GO"
+  }
+}

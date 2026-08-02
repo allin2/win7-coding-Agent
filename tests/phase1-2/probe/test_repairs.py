@@ -30,7 +30,7 @@ class RepairTests(unittest.TestCase):
 
     def test_r1_root_version_and_batch_attributes(self):
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        with open(os.path.join(root, "src", "win7_agent", "__init__.py"), "r", encoding="utf-8", newline="") as reader:
+        with open(os.path.join(root, "src", "phase1-2", "win7_agent", "__init__.py"), "r", encoding="utf-8", newline="") as reader:
             self.assertEqual('__version__ = "0.1.0"\n', reader.read())
         for name in ("run_probe.bat", "run_tests.bat"):
             with open(os.path.join(root, "scripts", name), "rb") as reader:

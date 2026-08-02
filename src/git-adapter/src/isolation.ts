@@ -16,6 +16,7 @@ import * as path from 'path';
 const NULL_DIR = process.platform === 'win32'
   ? path.join(process.env.TEMP || 'C:\\Temp', 'win7-agent-git-empty')
   : '/tmp/win7-agent-git-empty';
+const NULL_FILE = process.platform === 'win32' ? 'NUL' : '/dev/null';
 
 /**
  * 需要剥离的环境变量前缀/名称
@@ -48,13 +49,17 @@ const DANGEROUS_ENV_EXACT = [
  * @remarks 禁用所有可能的外部交互和配置源
  */
 const ISOLATION_CONFIG: ReadonlyArray<[string, string]> = [
-  ['core.hooksPath', '/dev/null'],
-  ['core.pager', 'cat'],
+  ['core.hooksPath', NULL_DIR],
+  ['core.pager', ''],
   ['core.editor', 'false'],
   ['credential.helper', ''],
+  ['credential.interactive', 'never'],
   ['core.sshCommand', 'false'],
   ['core.fsmonitor', ''],
-  ['filter.*.process', ''],
+  ['core.attributesFile', NULL_FILE],
+  ['diff.external', ''],
+  ['interactive.diffFilter', ''],
+  ['protocol.allow', 'never'],
 ];
 
 /**
@@ -87,6 +92,13 @@ export function buildIsolatedEnv(baseEnv?: Record<string, string>): Record<strin
 
   // 设置隔离环境变量
   env['GIT_CONFIG_NOSYSTEM'] = '1';
+  env['GIT_ATTR_NOSYSTEM'] = '1';
+  env['GIT_TERMINAL_PROMPT'] = '0';
+  env['GIT_ASKPASS'] = 'false';
+  env['SSH_ASKPASS'] = 'false';
+  env['GIT_PAGER'] = '';
+  env['PAGER'] = '';
+  env['GIT_EDITOR'] = 'false';
   env['HOME'] = NULL_DIR;
   env['XDG_CONFIG_HOME'] = NULL_DIR;
 
@@ -118,7 +130,7 @@ export function buildIsolatedEnv(baseEnv?: Record<string, string>): Record<strin
  * - filter.*.process → 空（禁用 filter process）
  */
 export function buildIsolatedArgs(args: string[]): string[] {
-  const isolatedArgs: string[] = [];
+  const isolatedArgs: string[] = ['--no-pager'];
 
   // 注入 -c 配置参数
   for (const [key, value] of ISOLATION_CONFIG) {

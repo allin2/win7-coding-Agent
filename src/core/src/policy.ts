@@ -4,14 +4,21 @@
  * @remarks ADR-0030: FULL_ACCESS 明令不做；结构化 argv 绝不拼接 shell 字符串（C09）
  */
 
-import { ToolCall, ApprovalLevel, PolicyDecision, CapabilityToken } from './types';
+import { ToolCall, ApprovalLevel, PolicyDecision, PolicyVerdict, CapabilityToken } from './types';
+import { bindCapabilityToToolCall } from './approval-binding';
 import { policyDeniedError } from './errors';
 
-/**
- * Shell 元字符正则 — 用于检测参数中是否包含 shell 注入风险字符
- * @remarks 匹配: | ; && || ` $() ${} 换行符
- */
-const SHELL_META_REGEX = /[|;&`$]|\$\(|\$\{|\|\||&&|\n|\r/;
+const PROHIBITED_SHELL_HOSTS = new Set([
+  'cmd',
+  'cmd.exe',
+  'powershell',
+  'powershell.exe',
+  'pwsh',
+  'pwsh.exe',
+  'sh',
+  'bash',
+  'zsh',
+]);
 
 /**
  * 工具名白名单 — 所有允许调用的工具必须在此列表中
@@ -46,41 +53,56 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
   'workspace.create',
   'workspace.list',
   'workspace.delete',
+  'workspace.list_directory',
+  'workspace.read_text',
+  'workspace.search_text',
+  'workspace.str_replace',
 ]);
 
 /**
- * 检查值中是否包含 shell 元字符（递归检查）
- * @param value - 待检查的值
- * @returns 是否包含 shell 元字符
+ * Validate the command-specific structured execution envelope.
+ * Metacharacters inside argv are data when execFile/spawn(shell=false) is used;
+ * rejecting them breaks valid filenames and search expressions without adding
+ * a security boundary.
  */
-function containsShellMetaChars(value: unknown): boolean {
-  if (typeof value === 'string') {
-    return SHELL_META_REGEX.test(value);
-  }
-  if (Array.isArray(value)) {
-    return value.some((item) => containsShellMetaChars(item));
-  }
-  if (value !== null && typeof value === 'object') {
-    return Object.values(value as Record<string, unknown>).some((v) =>
-      containsShellMetaChars(v),
-    );
-  }
-  return false;
-}
-
-/**
- * 验证工具调用参数的结构化安全性
- * @param args - 工具调用参数
- * @returns 验证结果
- */
-function validateArgs(args: Record<string, unknown>): { valid: boolean; reason?: string } {
-  if (containsShellMetaChars(args)) {
+function validateArgs(
+  toolName: string,
+  args: Record<string, unknown>,
+): { valid: boolean; reason?: string } {
+  if (toolName !== 'terminal.exec') return { valid: true };
+  if ('shell' in args || 'commandLine' in args || 'script' in args) {
     return {
       valid: false,
-      reason: '参数中包含 shell 元字符，违反结构化 argv 约束（C09）',
+      reason: 'terminal.exec 仅接受 command + argv，拒绝 shell/commandLine/script 字符串（C09）',
     };
   }
+  if (typeof args.command !== 'string' || args.command.length === 0 || /\s/.test(args.command)) {
+    return { valid: false, reason: 'terminal.exec.command 必须是单一可执行文件名，不能包含空白或拼接参数' };
+  }
+  const basename = args.command.replace(/\\/g, '/').split('/').pop()!.toLowerCase();
+  if (PROHIBITED_SHELL_HOSTS.has(basename)) {
+    return { valid: false, reason: `禁止通过 terminal.exec 启动 Shell 宿主 ${basename}` };
+  }
+  if (
+    args.argv !== undefined &&
+    (!Array.isArray(args.argv) || args.argv.some((arg) => typeof arg !== 'string'))
+  ) {
+    return { valid: false, reason: 'terminal.exec.argv 必须是字符串数组' };
+  }
   return { valid: true };
+}
+
+function sensitivePathReason(toolName: string, args: Record<string, unknown>): string | undefined {
+  if (!toolName.startsWith('fs.') && !toolName.startsWith('workspace.')) return undefined;
+  const target = args.path;
+  if (typeof target !== 'string') return undefined;
+  const normalized = target.replace(/\\/g, '/').toLowerCase();
+  if (/(^|\/)\.env(?:\.|$)/.test(normalized)) return '敏感配置文件 .env 不可由 Agent 工具直接读取或修改';
+  if (/(^|\/)\.git(?:\/|$)/.test(normalized)) return '.git 管理目录不可由通用文件工具直接访问；请使用 Git Adapter';
+  if (/(^|\/)(windows\/system32\/config\/(sam|security|system)|etc\/(shadow|passwd))$/.test(normalized)) {
+    return '系统凭据或账户数据库不可由 Agent 工具访问';
+  }
+  return undefined;
 }
 
 /**
@@ -91,6 +113,19 @@ export interface PolicyEngineConfig {
   toolWhitelist?: Set<string>;
   /** 能力令牌验证回调 */
   tokenValidator?: (tokenId: string) => { valid: boolean; token?: CapabilityToken; reason?: string };
+}
+
+/** Facts supplied by an approval/broker boundary. evaluateFacts is pure. */
+export interface PolicyFacts {
+  sessionId?: string;
+  token?: CapabilityToken;
+  tokenValidationReason?: string;
+  /** Capability declared by the resolved ToolSpec, when available. */
+  capability?: string;
+}
+
+function decision(verdict: PolicyVerdict, level: ApprovalLevel, ruleId: string, reason: string, conditions?: string[]): PolicyDecision {
+  return { verdict, allowed: verdict === PolicyVerdict.ALLOW, level, ruleId, reason, ...(conditions ? { conditions } : {}) };
 }
 
 /**
@@ -115,84 +150,84 @@ export class PolicyEngine {
    * @param tokenId - 可选的能力令牌 ID（WORKSPACE_WRITE 必需）
    * @returns Policy 裁决结果
    */
-  evaluate(toolCall: ToolCall, tokenId?: string): PolicyDecision {
+  evaluate(toolCall: ToolCall, tokenId?: string, sessionId?: string, capability?: string): PolicyDecision {
+    let token: CapabilityToken | undefined;
+    let tokenValidationReason: string | undefined;
+    if (tokenId) {
+      if (!this.tokenValidator) tokenValidationReason = '未配置能力令牌验证器，写操作按 fail-closed 拒绝';
+      else {
+        const validation = this.tokenValidator(tokenId);
+        token = validation.token;
+        if (!validation.valid || !token) tokenValidationReason = `能力令牌验证失败: ${validation.reason ?? '未知原因'}`;
+      }
+    }
+    return this.evaluateFacts(toolCall, { sessionId, token, tokenValidationReason, capability });
+  }
+
+  evaluateFacts(toolCall: ToolCall, facts: PolicyFacts = {}): PolicyDecision {
     // 1. 工具名白名单验证
     if (!this.toolWhitelist.has(toolCall.toolName)) {
-      return {
-        allowed: false,
-        level: toolCall.approvalLevel,
-        reason: `工具 ${toolCall.toolName} 不在白名单内`,
-      };
+      return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_TOOL_NOT_ALLOWLISTED', `工具 ${toolCall.toolName} 不在白名单内`);
     }
 
     // 2. 结构化 argv 验证
-    const argsValidation = validateArgs(toolCall.args);
+    const argsValidation = validateArgs(toolCall.toolName, toolCall.args);
     if (!argsValidation.valid) {
-      return {
-        allowed: false,
-        level: toolCall.approvalLevel,
-        reason: argsValidation.reason,
-      };
+      return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_STRUCTURED_ARGS_REQUIRED', argsValidation.reason!);
+    }
+    const sensitivePath = sensitivePathReason(toolCall.toolName, toolCall.args);
+    if (sensitivePath) {
+      return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_SENSITIVE_PATH_DENIED', sensitivePath);
+    }
+    if (toolCall.toolName === 'terminal.exec' && toolCall.approvalLevel !== ('full_access' as ApprovalLevel)) {
+      return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_COMMAND_PROFILE_REQUIRED', '通用 terminal.exec 尚无经批准的命令配置文件；执行请求按 fail-closed 拒绝');
+    }
+
+    if (facts.capability === 'workspace_write' && toolCall.approvalLevel !== ApprovalLevel.WORKSPACE_WRITE) {
+      return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_CAPABILITY_LEVEL_MISMATCH', 'workspace_write capability requires workspace-write approval');
     }
 
     // 3. 按审批级别裁决
     switch (toolCall.approvalLevel) {
       case ApprovalLevel.READ_ONLY:
-        return {
-          allowed: true,
-          level: ApprovalLevel.READ_ONLY,
-          reason: '只读操作，无需审批',
-        };
+        return decision(PolicyVerdict.ALLOW, ApprovalLevel.READ_ONLY, 'POLICY_READ_ONLY_ALLOWED', '只读操作，无需审批');
 
       case ApprovalLevel.WORKSPACE_WRITE:
         // 需要能力令牌
-        if (!tokenId) {
-          return {
-            allowed: false,
-            level: ApprovalLevel.WORKSPACE_WRITE,
-            reason: '工作区写操作需要能力令牌',
-            conditions: ['提供有效的 capability token'],
-          };
+        if (!facts.token && !facts.tokenValidationReason) {
+          return decision(PolicyVerdict.ASK, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_REQUIRED', '工作区写操作需要能力令牌', ['提供有效的 capability token']);
         }
-        if (this.tokenValidator) {
-          const validation = this.tokenValidator(tokenId);
-          if (!validation.valid) {
-            return {
-              allowed: false,
-              level: ApprovalLevel.WORKSPACE_WRITE,
-              reason: `能力令牌验证失败: ${validation.reason ?? '未知原因'}`,
-            };
-          }
-          // 检查令牌是否包含 workspace_write 能力
-          if (validation.token && !validation.token.capabilities.includes('workspace_write')) {
-            return {
-              allowed: false,
-              level: ApprovalLevel.WORKSPACE_WRITE,
-              reason: '能力令牌不包含 workspace_write 权限',
-            };
-          }
+        if (facts.tokenValidationReason || !facts.token) return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_INVALID', facts.tokenValidationReason ?? '能力令牌验证失败');
+        if (!facts.sessionId) return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_SESSION_REQUIRED', '写操作缺少会话标识，无法验证审批绑定');
+        const token = facts.token;
+        if (!token.capabilities.includes('workspace_write')) {
+          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_CAPABILITY_MISSING', '能力令牌不包含 workspace_write 权限');
         }
-        return {
-          allowed: true,
-          level: ApprovalLevel.WORKSPACE_WRITE,
-          reason: '工作区写操作已授权',
-          conditions: ['操作限于工作区目录内'],
-        };
-
-      case ApprovalLevel.FULL_ACCESS:
-        // ADR-0030: 明令不做，始终拒绝
-        return {
-          allowed: false,
-          level: ApprovalLevel.FULL_ACCESS,
-          reason: 'FULL_ACCESS 级别已被 ADR-0030 明令禁止',
-        };
+        if (token.sessionId !== facts.sessionId) {
+          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_SESSION_MISMATCH', '能力令牌不属于当前会话');
+        }
+        let expectedBinding;
+        try {
+          expectedBinding = bindCapabilityToToolCall(toolCall);
+        } catch (error) {
+          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_BINDING_INVALID', error instanceof Error ? error.message : String(error));
+        }
+        if (
+          !token.binding ||
+          token.binding.callId !== expectedBinding.callId ||
+          token.binding.toolName !== expectedBinding.toolName ||
+          token.binding.requestSha256 !== expectedBinding.requestSha256 ||
+          token.binding.previewSha256 !== expectedBinding.previewSha256 ||
+          token.binding.baselineSha256 !== expectedBinding.baselineSha256
+        ) {
+          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_BINDING_MISMATCH', '能力令牌与工具请求、预览或工作区基线不匹配');
+        }
+        return decision(PolicyVerdict.ALLOW, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_BOUND', '工作区写操作已授权', ['操作限于工作区目录内']);
 
       default:
-        return {
-          allowed: false,
-          level: toolCall.approvalLevel,
-          reason: `未知的审批级别: ${toolCall.approvalLevel}`,
-        };
+        return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_APPROVAL_LEVEL_FORBIDDEN', toolCall.approvalLevel === ('full_access' as ApprovalLevel)
+            ? 'FULL_ACCESS 级别已被 ADR-0030 明令禁止'
+            : `未知的审批级别: ${toolCall.approvalLevel}`);
     }
   }
 }

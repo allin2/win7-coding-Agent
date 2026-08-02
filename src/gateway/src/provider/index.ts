@@ -10,8 +10,7 @@ import {
   encode,
   decode,
 } from '../types';
-import { encodeFrame, parseFrame, splitFrames, parseSSE } from '../protocol';
-import type { Frame } from '../protocol';
+import { negotiateVersion, parseSSE } from '../protocol';
 import {
   IConnection,
   MockConnection,
@@ -21,8 +20,7 @@ import {
   DEFAULT_RETRY_CONFIG,
   ProxyConfig,
   INetworkStack,
-  MockNetworkStack,
-  NetworkResponse,
+  NodeNetworkStack,
 } from '../transport';
 import {
   TLSConfig,
@@ -61,6 +59,8 @@ export interface GatewayProviderConfig {
   networkStack?: INetworkStack;
   /** Connection timeout in ms (default: 30000). */
   timeoutMs?: number;
+  /** Hard deadline across attempts and backoff (default: 90000). */
+  totalTimeoutMs?: number;
 }
 
 // ── Chunk Callback ───────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export interface StreamChunk {
 /**
  * Build a wire-level request payload from a ModelRequest + API key.
  */
-function buildWirePayload(request: ModelRequest, apiKey: string): string {
+function buildWirePayload(request: ModelRequest): string {
   return encode({
     jsonrpc: '2.0',
     id: request.id,
@@ -93,7 +93,6 @@ function buildWirePayload(request: ModelRequest, apiKey: string): string {
       stream: request.stream ?? false,
     },
     _meta: {
-      apiKey,
       protocolVersion: '0.1.0',
       encoding: 'utf-8',
     },
@@ -103,9 +102,13 @@ function buildWirePayload(request: ModelRequest, apiKey: string): string {
 /**
  * Parse a wire-level response into a ModelResponse.
  */
+const CLIENT_PROTOCOL_VERSION = '0.1.0';
+
 function parseWireResponse(rawBody: string): ModelResponse {
   const parsed = decode<{
     id?: string;
+    protocolVersion?: string;
+    _meta?: { protocolVersion?: string };
     result?: {
       id?: string;
       content?: string;
@@ -115,6 +118,15 @@ function parseWireResponse(rawBody: string): ModelResponse {
     };
     error?: { code: number; message: string };
   }>(rawBody);
+
+  const serverProtocolVersion = parsed.protocolVersion ?? parsed._meta?.protocolVersion;
+  if (!serverProtocolVersion) {
+    throw new GatewayError(
+      ErrorCode.PROTOCOL_VERSION_MISMATCH,
+      'Gateway response is missing the required protocolVersion field',
+    );
+  }
+  negotiateVersion(CLIENT_PROTOCOL_VERSION, serverProtocolVersion);
 
   if (parsed.error) {
     throw new GatewayError(
@@ -128,10 +140,16 @@ function parseWireResponse(rawBody: string): ModelResponse {
   }
 
   const r = parsed.result;
+  if (!parsed.id || !r.id) {
+    throw new GatewayError(ErrorCode.DECODE_ERROR, 'Response is missing request or response id');
+  }
+  if (typeof r.content !== 'string') {
+    throw new GatewayError(ErrorCode.DECODE_ERROR, 'Response result is missing string content');
+  }
   return {
-    id: r.id ?? '',
-    requestId: parsed.id ?? '',
-    content: r.content ?? '',
+    id: r.id,
+    requestId: parsed.id,
+    content: r.content,
     finishReason: mapFinishReason(r.finish_reason),
     toolCalls: r.tool_calls,
     usage: r.usage ? {
@@ -148,7 +166,11 @@ function mapFinishReason(raw?: string): FinishReason {
     case 'length': return FinishReason.LENGTH;
     case 'tool_calls': return FinishReason.TOOL_CALLS;
     case 'content_filter': return FinishReason.CONTENT_FILTER;
-    default: return FinishReason.STOP;
+    default:
+      throw new GatewayError(
+        ErrorCode.DECODE_ERROR,
+        `Unknown or missing finish_reason: ${String(raw)}`,
+      );
   }
 }
 
@@ -163,6 +185,19 @@ export class GatewayProvider {
 
   constructor(config: GatewayProviderConfig) {
     this._config = { ...config };
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(config.gatewayUrl);
+    } catch {
+      throw new GatewayError(ErrorCode.GATEWAY_UNREACHABLE, 'Gateway URL is invalid');
+    }
+    if (parsedUrl.protocol !== 'https:') {
+      throw new GatewayError(
+        ErrorCode.TLS_VERIFY_FAILED,
+        'Gateway URL must use HTTPS; plaintext connections are refused',
+      );
+    }
 
     // Validate TLS config (fail-closed)
     this._tlsConfig = validateTLSConfig(config.tlsConfig ?? defaultTLSConfig());
@@ -198,13 +233,21 @@ export class GatewayProvider {
     const connConfig: ConnectionConfig = {
       url: this._config.gatewayUrl,
       timeoutMs: this._config.timeoutMs ?? 30000,
+      totalTimeoutMs: this._config.totalTimeoutMs ?? 90000,
       maxResponseSizeBytes: 10 * 1024 * 1024,
       retry: this._config.retryConfig ?? DEFAULT_RETRY_CONFIG,
       proxy: this._config.proxyConfig,
       encoding: 'utf-8',
     };
 
-    const network = this._config.networkStack ?? new MockNetworkStack();
+    const network = this._config.networkStack ?? new NodeNetworkStack({
+      caBundlePath: this._tlsConfig.caBundle,
+      rejectUnauthorized: this._tlsConfig.verifyCertificate,
+      minTLSVersion: this._tlsConfig.minTLSVersion,
+      timeout: connConfig.timeoutMs,
+      maxResponseSize: connConfig.maxResponseSizeBytes,
+      proxy: connConfig.proxy,
+    });
     const conn = new MockConnection(connConfig, network);
 
     try {
@@ -212,7 +255,7 @@ export class GatewayProvider {
     } catch (e) {
       this._exitCode = ExitCode.SETUP_ERROR;
       throw new GatewayError(
-        ErrorCode.CONNECTION_REFUSED,
+        ErrorCode.GATEWAY_UNREACHABLE,
         `Failed to connect to gateway: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
@@ -241,7 +284,7 @@ export class GatewayProvider {
     void sanitizedReq;
 
     // 2. Build wire payload using protocol encoding
-    const payload = buildWirePayload(request, apiKey);
+    const payload = buildWirePayload(request);
 
     // 3. Ensure connection via transport layer
     const conn = await this.ensureConnection();
@@ -250,17 +293,23 @@ export class GatewayProvider {
     try {
       let responseBody: string | null = null;
 
-      const offData = conn.onData((data: string) => {
-        responseBody = data;
+      const offData = conn.onData((responseRequestId: string, data: string) => {
+        if (responseRequestId === request.id) {
+          responseBody = (responseBody ?? '') + data;
+        }
       });
 
       let sendError: Error | null = null;
-      const offError = conn.onError((err: GatewayError) => {
-        sendError = err;
+      const offError = conn.onError((responseRequestId: string, err: GatewayError) => {
+        if (responseRequestId === request.id) {
+          sendError = err;
+        }
       });
 
       try {
-        await conn.send(request.id, payload);
+        await conn.send(request.id, payload, {
+          authorization: `Bearer ${apiKey}`,
+        });
       } finally {
         offData();
         offError();
@@ -290,6 +339,7 @@ export class GatewayProvider {
       void auditEntry;
 
       this._exitCode = ExitCode.COMPLETED;
+      conn.tracker.remove(request.id);
       return response;
     } catch (e) {
       if (e instanceof GatewayError) {
@@ -301,6 +351,7 @@ export class GatewayProvider {
       } else {
         this._exitCode = ExitCode.FAILED;
       }
+      conn.tracker.remove(request.id);
       throw e;
     }
   }
@@ -330,7 +381,7 @@ export class GatewayProvider {
     void sanitizeForLog({ model: streamRequest.model, id: streamRequest.id, streaming: true });
 
     // 2. Build wire payload
-    const payload = buildWirePayload(streamRequest, apiKey);
+    const payload = buildWirePayload(streamRequest);
 
     // 3. Ensure connection
     const conn = await this.ensureConnection();
@@ -340,55 +391,70 @@ export class GatewayProvider {
       const chunks: string[] = [];
       let chunkIndex = 0;
       let finalResponse: ModelResponse | null = null;
+      let streamBuffer = '';
+      let sawSSEEvent = false;
+      let sawDone = false;
+      let streamParseError: GatewayError | null = null;
 
-      const offData = conn.onData((data: string) => {
-        // Try parsing as SSE events
-        try {
-          const sseEvents = parseSSE(data);
-          for (const event of sseEvents) {
-            if (event.event === 'chunk' || event.event === 'message') {
-              const content = event.data;
-              chunks.push(content);
-              onChunk({ content, index: chunkIndex++ });
-            } else if (event.event === 'done' || event.event === 'complete') {
-              // Parse final response from done event
-              try {
-                finalResponse = parseWireResponse(event.data);
-              } catch {
-                // If done event doesn't contain a full response, synthesize one
-              }
-            }
-          }
-
-          // If SSE parsing produced no events, try as plain JSON or text
-          if (sseEvents.length === 0) {
+      const consumeSSEEvent = (rawEvent: string): void => {
+        const events = parseSSE(`${rawEvent}\n\n`);
+        for (const event of events) {
+          sawSSEEvent = true;
+          if (event.event === 'chunk' || event.event === 'message') {
+            chunks.push(event.data);
+            onChunk({ content: event.data, index: chunkIndex++ });
+          } else if (event.event === 'error') {
             try {
-              finalResponse = parseWireResponse(data);
-            } catch {
-              // Treat as a plain text chunk
-              chunks.push(data);
-              onChunk({ content: data, index: chunkIndex++ });
+              const wireError = decode<{ code?: number; message?: string }>(event.data);
+              throw new GatewayError(
+                (wireError.code ?? ErrorCode.STREAM_INTERRUPTED) as ErrorCode,
+                wireError.message ?? 'Gateway stream reported an error',
+              );
+            } catch (error) {
+              if (error instanceof GatewayError) throw error;
+              throw new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream reported malformed error data');
+            }
+          } else if (event.event === 'done' || event.event === 'complete') {
+            sawDone = true;
+            if (event.data && event.data !== '[DONE]') {
+              finalResponse = parseWireResponse(event.data);
             }
           }
-        } catch {
-          // Not SSE — try as a single JSON response
-          try {
-            finalResponse = parseWireResponse(data);
-          } catch {
-            // Treat as a plain text chunk
-            chunks.push(data);
-            onChunk({ content: data, index: chunkIndex++ });
+        }
+      };
+
+      const offData = conn.onData((responseRequestId: string, data: string) => {
+        if (responseRequestId !== request.id) return;
+        streamBuffer += data;
+        while (true) {
+          const boundary = streamBuffer.search(/\r?\n\r?\n/);
+          if (boundary < 0) break;
+          const rawEvent = streamBuffer.slice(0, boundary);
+          const separator = streamBuffer.slice(boundary).match(/^\r?\n\r?\n/)?.[0] ?? '\n\n';
+          streamBuffer = streamBuffer.slice(boundary + separator.length);
+          if (rawEvent.length > 0) {
+            try {
+              consumeSSEEvent(rawEvent);
+            } catch (error) {
+              streamParseError = error instanceof GatewayError
+                ? error
+                : new GatewayError(ErrorCode.STREAM_INTERRUPTED, String(error));
+            }
           }
         }
       });
 
       let sendError: Error | null = null;
-      const offError = conn.onError((err: GatewayError) => {
-        sendError = err;
+      const offError = conn.onError((responseRequestId: string, err: GatewayError) => {
+        if (responseRequestId === request.id) {
+          sendError = err;
+        }
       });
 
       try {
-        await conn.send(request.id, payload);
+        await conn.send(request.id, payload, {
+          authorization: `Bearer ${apiKey}`,
+        });
       } finally {
         offData();
         offError();
@@ -398,14 +464,30 @@ export class GatewayProvider {
         this._exitCode = ExitCode.FAILED;
         throw sendError;
       }
+      if (streamParseError) {
+        throw streamParseError;
+      }
+
+      if (!sawSSEEvent && streamBuffer.length > 0) {
+        finalResponse = parseWireResponse(streamBuffer);
+        streamBuffer = '';
+      }
 
       // If we got a final response from the stream, use it
       if (finalResponse) {
         this._exitCode = ExitCode.COMPLETED;
+        conn.tracker.remove(request.id);
         return finalResponse;
       }
 
-      // Synthesize a response from collected chunks
+      if (!sawDone) {
+        throw new GatewayError(
+          ErrorCode.STREAM_INTERRUPTED,
+          `Gateway stream ended without a completion event after ${chunkIndex} chunk(s)`,
+        );
+      }
+
+      // A standard [DONE] marker completes a text-only stream.
       const synthesized: ModelResponse = {
         id: `stream-${request.id}`,
         requestId: request.id,
@@ -422,6 +504,7 @@ export class GatewayProvider {
       });
 
       this._exitCode = ExitCode.COMPLETED;
+      conn.tracker.remove(request.id);
       return synthesized;
     } catch (e) {
       if (e instanceof GatewayError) {
@@ -433,6 +516,7 @@ export class GatewayProvider {
       } else {
         this._exitCode = ExitCode.FAILED;
       }
+      conn.tracker.remove(request.id);
       throw e;
     }
   }

@@ -46,6 +46,8 @@ describe('plan', () => {
         .digest('hex');
 
       expect(plan.operations[0].baseSha256).toBe(expected);
+      expect(plan.operations[0].preview?.unifiedDiff).toContain('-original content');
+      expect(plan.operations[0].preview?.unifiedDiff).toContain('+new content');
     });
 
     it('respects custom options', () => {

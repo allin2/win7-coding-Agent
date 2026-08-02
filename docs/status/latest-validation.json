@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "record_status": "MVP_OWNER_ACCEPTED_WITH_DEFERRALS",
+  "mvp_id": "MVP-20260802-15",
+  "working_tree_fingerprint": "docs/status/mvp-baselines/MVP-20260802-15.json",
+  "repository": "win7-coding-agent",
+  "branch": "codex/integrated-robustness",
+  "head_commit": "21ffcf32f8ac0a22b04699be14569662ca571d9a",
+  "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
+  "candidate_tag": "backup/integrated-snapshot-20260731",
+  "executed_at": "2026-08-02T11:50:31+08:00",
+  "environment": {
+    "development_host": "macOS build host",
+    "win7_target": "Windows 7 Professional SP1 x64 build 7601; ThinkPad T460; 16 GB RAM; Intel HD 520; Samsung 870 EVO SSD",
+    "management_channel": "Bitvise SSH automatic service; 192.168.1.10 <-> 192.168.1.11:22 preserved"
+  },
+  "mvp_owner_disposition": {
+    "status": "OWNER_ACCEPTED_FOR_MVP",
+    "authority": "project owner request, 2026-08-02",
+    "decision": "accept evidence-backed Win7 MVP and defer unmet formal-release gates",
+    "formal_release_gates_changed": false,
+    "evidence": "docs/acceptance/MVP-20260802-14_OWNER_DISPOSITION.json"
+  },
+  "tests": [
+    {"suite":"integration","command":"npm run verify","status":"PASS","exit_code":0,"metrics":{"tests":889,"modules":7},"evidence":"validation/mvp_verify_MVP-20260802-14.txt"},
+    {"suite":"gateway_loopback_listener_recheck","command":"npm test -- --runInBand tests/unit/transport/node-network.test.ts --testNamePattern=<13-loopback-tests>","status":"PASS","exit_code":0,"metrics":{"selected_tests":13,"pass":13,"fail":0,"bind_address":"127.0.0.1","port_selection":"ephemeral","public_listener":false,"external_network_access":false},"artifact_hashes":{"node_network_test":"596f0a391f103dcf87748486910181ed17a6cb5b1a084f6217f2d2373cc6506c","node_network_implementation":"7cef26e8748b64abf93d5f98db7bec5426c43aeb739b36f71f13abae58fab81d"},"evidence":["validation/report_gateway_loopback_MVP-20260802-15.json","validation/gateway_loopback_MVP-20260802-15.txt"]},
+    {"suite":"phase1_probe","command":"PYTHONPATH=src/phase1-2 python3 -m unittest discover -s tests/phase1-2/probe -p test_*.py -v","status":"PASS","exit_code":0,"metrics":{"tests":20}},
+    {"suite":"phase1_win7_regression","command":"C:\\acceptance\\python38_mvp\\python.exe C:\\acceptance\\phase1_mvp\\scripts\\run_phase1_win7.py","status":"PASS","exit_code":0,"metrics":{"tests":20,"runs":1},"evidence":"validation/phase1/evidence/phase1_probe_MVP-20260802-07.json"},
+    {"suite":"phase1_win7_probe","command":"C:\\acceptance\\python38_mvp\\python.exe C:\\acceptance\\phase1_mvp\\scripts\\run_probe_win7.py --mvp-id=MVP-20260802-10","status":"PASS","exit_code":0,"metrics":{"checks":18,"pass":18,"fail":0,"degraded":0,"stable_runs":3},"artifact_hashes":{"cpython-3.8.10-embed-amd64.zip":"abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271","mingit-mvp-trimmed-no-gcm-no-ssh.zip":"914fd56506284c54dc20f43917dcb6f2587eb7d807add2968c2d8b335070d397"},"evidence":["validation/phase1/evidence/report_phase1_MVP-20260802-10.json","validation/phase1/evidence/phase1_probe_MVP-20260802-07.json","validation/phase1/evidence/phase1_probe_MVP-20260802-09.json","validation/phase1/evidence/phase1_probe_MVP-20260802-10.json"]},
+    {"suite":"phase1_win7_e2_cjk_space","command":"C:\\acceptance\\python38_mvp\\python.exe C:\\测试 目录\\phase1 mvp\\scripts\\run_probe_win7_e2.py --mvp-id=MVP-20260802-12","status":"PARTIAL","exit_code":1,"metrics":{"checks":18,"pass":17,"fail":0,"degraded":1,"agent_runnable":true,"tool_git":"TOOL_NOT_FOUND","path_profile":"CJK_SPACE"},"artifact_hashes":{"cpython-3.8.10-embed-amd64.zip":"abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271"},"evidence":["validation/phase1/evidence/report_phase1_MVP-20260802-12_e2.json","validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.json","validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.sqlite3"]},
+    {"suite":"phase1_win7_e2_regression","command":"C:\\acceptance\\python38_mvp\\python.exe C:\\测试 目录\\phase1 mvp\\scripts\\run_phase1_win7.py","status":"PASS","exit_code":0,"metrics":{"tests":20,"runs":1},"evidence":"validation/phase1/evidence/phase1_e2_regression_MVP-20260802-12.txt"},
+    {"suite":"phase1_win7_compileall","command":"C:\\acceptance\\python38_mvp\\python.exe -m compileall -q <standard-and-CJK-space-acceptance-trees>","status":"PASS","exit_code":0,"metrics":{"trees":2,"runtime":"CPython 3.8.10 x64"},"evidence":"validation/phase1/evidence/phase1_compileall_MVP-20260802-12.txt"},
+    {"suite":"management_channel_recheck","command":"ssh -i .acceptance/ssh/id_rsa_win7accept dccs-chaizl@192.168.1.11 echo SSH_CONTROL_OK && sc query BvSshServer","status":"PASS","exit_code":0,"metrics":{"bitvise_state":"RUNNING","nic_route_firewall_changed":false},"evidence":"validation/phase1/evidence/ssh_control_recheck_MVP-20260802-12.txt"},
+    {"suite":"win7_runtime_dependency_evidence","command":"C:\\acceptance\\electron\\electron.exe C:\\acceptance\\mvp_runtime_MVP-20260802-14\\collect_runtime_evidence.js --mvp-id=MVP-20260802-14","status":"PASS","exit_code":0,"metrics":{"cases":9,"pass":8,"owner_accepted":1,"required_kbs":3,"bitvise_state":"RUNNING"},"artifact_hashes":{"collector":"9c83d17d1d1a5460bc98df6144a953fe6726dce96142dea1778b713029b72c31","electron_exe":"2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb","python_exe":"5275c42f7359fa2c7ec473be3240e57d5ce5b9301a26bd2e98e89bb9db074581","git_exe":"02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1"},"evidence":["validation/win7_runtime_evidence_MVP-20260802-14.json","validation/win7_runtime_product_MVP-20260802-14_stdout_stderr.txt"]},
+    {"suite":"win7_product_shell_smoke","command":"C:\\acceptance\\electron\\electron.exe C:\\acceptance\\win7_coding_agent_MVP-20260802-14\\product --mvp-id=MVP-20260802-14 --smoke-report=C:\\acceptance\\report_product_shell_MVP-20260802-14.json","status":"PASS","exit_code":0,"metrics":{"cases":2,"pass":2,"renderer_ready":true,"diagnostics_requested":true,"runtime_errors":0,"matching_processes_after_exit":0},"evidence":["validation/report_product_shell_MVP-20260802-14.json","validation/win7_runtime_product_MVP-20260802-14_stdout_stderr.txt"]},
+    {"suite":"mvp_owner_disposition","command":"owner-decision accept-current-win7-mvp-with-deferred-formal-gates","status":"OWNER_ACCEPTED_FOR_MVP","exit_code":0,"metrics":{"mvp_blocking_items":0,"formal_deferred_items":8},"evidence":"docs/acceptance/MVP-20260802-14_OWNER_DISPOSITION.json"},
+    {"suite":"mvp_runtime_sbom","command":"node JSON schema parse docs/acceptance/MVP-20260802-12_SBOM.json","status":"PASS","exit_code":0,"metrics":{"components":6,"verified_runtime_components":3,"build_host_missing_components":3,"release_sbom":false},"evidence":"docs/acceptance/MVP-20260802-12_SBOM.json"},
+    {"suite":"mvp_input_hash_manifest","command":"shasum -a 256 <locked-local-acceptance-inputs>","status":"PASS","exit_code":0,"metrics":{"hashed_inputs":11,"remote_only_hashes_recorded":3,"release_package":false},"evidence":"docs/acceptance/MVP-20260802-12_manifest.sha256.txt"},
+    {"suite":"mvp_product_manifest","command":"shasum -a 256 -c docs/acceptance/MVP-20260802-14_product_manifest.sha256.txt","status":"PASS","exit_code":0,"metrics":{"product_files":7,"win7_reports":2,"release_package":false},"evidence":"docs/acceptance/MVP-20260802-14_product_manifest.sha256.txt"},
+    {"suite":"SPIKE_01","status":"PARTIAL","evidence":["spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-05_formal.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-08_short.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-05_cleanup.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-08_cleanup_retest.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_formal.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_short.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_cleanup_v3.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_stdio_MVP-20260802-12.json","spikes/01-win7-runtime-baseline/acceptance/evidence/spike01_MVP-20260802-12_stdout_stderr.txt"],"metrics":{"idle_memory_samples":10,"average_private_kb":71290.8,"renderer_crash_dump_count":1,"network_correction":"MVP-20260802-08","cleanup_retests":3,"latest_t03":"FAIL","latest_t03_resident_memory_samples":3,"latest_t03_working_set_bytes":39342080,"latest_t03_stdin_readable":true,"latest_t03_parent_has_stdin":false,"latest_t03_data_seen":false,"latest_t03_pipe_variant":"stdin value other than ignore is not supported","latest_t03_exit_code":0,"latest_t10":"PASS"}},
+    {"suite":"SPIKE_02","status":"BUILD_HOST_MISSING","evidence":"static audit: helper C++ remains skeleton/TODO implementation"},
+    {"suite":"SPIKE_03","status":"PASS","evidence":["spikes/03-git-adapter/acceptance/evidence/report_spike03_MVP-20260802-06.json","spikes/03-git-adapter/acceptance/evidence/report_spike03_MVP-20260802-12.json","spikes/03-git-adapter/acceptance/evidence/spike03_MVP-20260802-12_stdout_stderr.txt","spikes/03-git-adapter/acceptance/evidence/stale_process_cleanup_MVP-20260802-12.txt"],"metrics":{"cases":14,"pass":14,"process_snapshots":8,"network_connections":0,"latest_mvp_id":"MVP-20260802-12"}},
+    {"suite":"SPIKE_04","status":"BUILD_HOST_MISSING","mechanical_disk_gate":"PASS","evidence":"owner default: mechanical-disk gate is not blocking; no Electron 22 ABI SQLite binding/indexer/benchmark is available"}
+  ],
+  "surrogates": [
+    "E5_SURROGATE_PASS: new C:\\acceptance deployment and isolated userData replace a strict clean OS",
+    "MVP_NETWORK_SURROGATE: Electron CSP/session cancellation; no NIC/route/firewall change, no pcap",
+    "E2_EXPECTED_DEGRADED: Git deliberately absent from the process-only PATH; tool.git=TOOL_NOT_FOUND is recorded as degraded with probe exit code 1",
+    "OWNER_ACCEPTED_FOR_MVP: GPU black-screen, window focus and other visual checks deferred",
+    "MECHANICAL_DISK_GATE_OWNER_ACCEPTED: PASS by project-owner MVP decision; actual target remains SSD and no performance claim is inferred",
+    "T03_OWNER_DECISION: parent-side stdin is absent and no data was observed; child-readable NUL-like semantics is accepted for MVP only",
+    "CAPABILITY_DEFERRED_FAIL_CLOSED: native Runner/terminal remain unavailable; persistence is bounded in-memory; Gateway is unconfigured or Replay"
+  ],
+  "suite_results": {
+    "SPIKE_01": "OWNER_ACCEPTED_FOR_MVP (formal cases remain PARTIAL/FAIL/surrogate)",
+    "SPIKE_02": "OWNER_ACCEPTED_FOR_MVP (native capability deferred and fail-closed)",
+    "SPIKE_03": "PASS",
+    "SPIKE_04": "OWNER_ACCEPTED_FOR_MVP (in-memory mode; mechanical_disk_gate=PASS)",
+    "PHASE_01": "OWNER_ACCEPTED_FOR_MVP (formal Gate unchanged)",
+    "PHASE_02": "OWNER_ACCEPTED_FOR_MVP (formal Gate unchanged)",
+    "PHASE_03_TO_07": "OWNER_ACCEPTED_FOR_MVP (real Electron entry PASS; full E2E/E7 deferred)"
+  },
+  "win7_validation": "OWNER_ACCEPTED_FOR_MVP",
+  "blocking_reasons": [],
+  "formal_release_blocking_reasons": [
+    "the real Electron product entry now starts, renders diagnostics and exits on Win7, but no installer, full five-view workflow or cross-module user-task E2E is packaged",
+    "SPIKE_01 formal cold reboot, visual/focus, passive packet evidence and real two-task load remain deferred; T03 strict child-readable criterion is not changed by the MVP owner decision",
+    "Phase 1/2 formal E1/E2 gates still require their architecture authorization and frozen-contract evidence",
+    "SPIKE_02 still requires a non-skeleton helper plus MSVC v142 and Electron ABI artifacts before real local Runner/terminal can be enabled",
+    "SPIKE_04 still requires better-sqlite3 Electron ABI, indexer/benchmark/recovery harness before persistence and FTS can be enabled",
+    "enterprise proxy, CA, model and update services remain unavailable for E7"
+  ]
+}

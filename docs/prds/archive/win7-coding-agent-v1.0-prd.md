@@ -3,7 +3,7 @@
 > [!WARNING]
 > **历史方案：`SUPERSEDED_BY_ADR-0027`**
 >
-> 本 v1.0 PRD 已由 [`ADR-0027`](../DECISIONS.md) 取代，仅保留用于历史追溯。正文中的
+> 本 v1.0 PRD 已由 [`ADR-0027`](../../DECISIONS.md) 取代，仅保留用于历史追溯。正文中的
 > Python-only、stdlib-only、禁止 Node.js/Electron、CLI-only，以及“完全离线是唯一交付模式”
 > 等假设，均不再是未来实现的项目级基线；后续技术栈、产品形态与交付模式以
 > `AGENTS.md`、`docs/WIN7_CONSTRAINTS.md`、ADR-0027 和新任务书为准。
@@ -29,8 +29,8 @@
 
 发生冲突时仍严格按以下优先级裁决：
 
-1. [`AGENTS.md`](../../AGENTS.md)
-2. [`WIN7_CONSTRAINTS.md`](../WIN7_CONSTRAINTS.md)
+1. [`AGENTS.md`](../../../AGENTS.md)
+2. [`WIN7_CONSTRAINTS.md`](../../WIN7_CONSTRAINTS.md)
 3. 当前阶段任务书
 4. 已接受 ADR
 5. 本提案

@@ -1,6 +1,13 @@
 # SPIKE 02 - 终端容器化验证
 
-> **Win7-Validation: NOT_PERFORMED**
+## 状态
+
+- **任务书**：`docs/tasks/SPIKE_02_TERMINAL_CONTAINMENT.md`
+- **状态**：APPROVED_FOR_IMPLEMENTATION
+- **Win7 实机验证**：BUILD_HOST_MISSING（MVP-20260802-02）
+- **成果迁入**：待验证（终端 containment 方案，阻塞 Phase 6/7 定稿；Go/No-Go 结论须来自 Win7 SP1 x64 实机执行）
+
+> **Win7-Validation: BUILD_HOST_MISSING** — C++ helper 静态审计仍见 ACL、argv、JSON、受限令牌和输出限制骨架实现；缺 MSVC v142、node-pty/winpty Electron 22 ABI 工件，未运行伪验收。
 
 ## 目标
 

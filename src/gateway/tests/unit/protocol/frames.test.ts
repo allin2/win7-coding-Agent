@@ -96,6 +96,11 @@ describe('protocol/frames', () => {
       expect(events[0].data).toBe('line1\nline2');
     });
 
+    it('preserves application-leading spaces after the optional SSE separator', () => {
+      const events = parseSSE('event: chunk\ndata:  World\n\n');
+      expect(events[0].data).toBe(' World');
+    });
+
     it('should ignore comment lines', () => {
       const raw = ': this is a comment\ndata: actual\n\n';
       const events = parseSSE(raw);

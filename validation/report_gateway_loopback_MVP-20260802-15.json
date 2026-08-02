@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-15",
+  "suite": "GATEWAY_LOOPBACK_LISTENER_RECHECK",
+  "environment": {
+    "os": "macOS 15.7.7 build 24G720",
+    "kernel": "Darwin 24.6.0 arm64",
+    "node": "v20.17.0",
+    "npm": "10.8.2",
+    "network_scope": "TCP 127.0.0.1 ephemeral ports only",
+    "public_listener": false,
+    "external_network_access": false,
+    "external_dns_test_excluded": true
+  },
+  "artifact_hashes": {
+    "node_network_test": "596f0a391f103dcf87748486910181ed17a6cb5b1a084f6217f2d2373cc6506c",
+    "node_network_implementation": "7cef26e8748b64abf93d5f98db7bec5426c43aeb739b36f71f13abae58fab81d"
+  },
+  "command": [
+    "npm",
+    "test",
+    "--",
+    "--runInBand",
+    "tests/unit/transport/node-network.test.ts",
+    "--testNamePattern=<13-loopback-tests>"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T11:49:50+08:00",
+    "finished_at": "2026-08-02T11:50:31+08:00"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "GATEWAY_LOOPBACK_BIND_LISTEN_CONNECT",
+      "status": "PASS",
+      "summary": "All 13 Gateway tests that require TCP loopback bind/listen/connect passed in the controlled local-listener environment.",
+      "metrics": {
+        "test_suites": 1,
+        "selected_tests": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped_unselected": 22,
+        "duration_seconds": 0.938,
+        "bind_address": "127.0.0.1",
+        "port_selection": "ephemeral (port 0)"
+      },
+      "evidence": [
+        "validation/gateway_loopback_MVP-20260802-15.txt"
+      ]
+    },
+    {
+      "case_id": "PRIOR_SANDBOX_EPERM_CLASSIFICATION",
+      "status": "PASS",
+      "summary": "The previous bind EPERM is classified as restricted-sandbox policy because the same source and implementation passed when loopback listeners were permitted.",
+      "metrics": {
+        "prior_error": "listen EPERM: operation not permitted 127.0.0.1",
+        "implementation_failure_reproduced": false,
+        "policy_restriction_confirmed_by_controlled_rerun": true
+      },
+      "evidence": [
+        "validation/gateway_loopback_MVP-20260802-15.txt"
+      ]
+    }
+  ],
+  "evidence": [
+    "validation/gateway_loopback_MVP-20260802-15.txt"
+  ],
+  "notes": [
+    "No public interface was bound and no external network access was required.",
+    "The DNS lookup failure case was intentionally excluded from this loopback-only acceptance rerun.",
+    "Because the controlled rerun passed, EDR/container policy collection was not required by the failure branch of the acceptance request."
+  ]
+}

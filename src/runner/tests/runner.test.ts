@@ -1,196 +1,182 @@
-/**
- * @file Runner 模块单元测试
- * @description 覆盖 MockRunner 执行、shell 元字符拒绝、超时、输出截断
- */
+import {
+  ApprovalLedger,
+  buildRunApprovalRequest,
+  captureText,
+  findProhibitedShellHost,
+  MockRunner,
+  RunRequest,
+  RunnerErrorCode,
+  UnavailableRunner,
+} from '../src';
 
-import { MockRunner, findShellMetaChar, RunRequest } from '../src';
+const defaultConfig = {
+  timeoutMs: 5_000,
+  idleTimeoutMs: 1_000,
+  maxStdoutBytes: 1_024,
+  maxStderrBytes: 1_024,
+  workDir: '/tmp/test',
+  stdinPolicy: 'closed' as const,
+};
 
-describe('MockRunner', () => {
-  const defaultConfig = {
-    timeout: 5000,
-    maxOutput: 1024 * 1024,
-    workDir: '/tmp/test',
+function readRequest(overrides: Partial<RunRequest> = {}): RunRequest {
+  return {
+    command: 'git',
+    args: ['status', '--porcelain'],
+    config: defaultConfig,
+    approvalLevel: 'read_only',
+    ...overrides,
   };
+}
 
-  describe('execute — 正常执行', () => {
-    it('应返回成功结果（exitCode=0）', async () => {
-      const runner = new MockRunner({ defaultExitCode: 0, mockDuration: 1 });
-      const request: RunRequest = {
-        command: 'git',
-        args: ['status', '--porcelain'],
-        config: defaultConfig,
-        approvalLevel: 'read_only',
-      };
+describe('Runner V2 result contract', () => {
+  it('returns an exited result with bounded streams', async () => {
+    const runner = new MockRunner({ defaultStdout: 'hello', defaultStderr: 'warning', mockDurationMs: 0 });
+    const result = await runner.execute(readRequest());
 
-      const result = await runner.execute(request);
+    expect(result).toMatchObject({ schemaVersion: '2.0', status: 'exited', exitCode: 0, durationMs: 0 });
+    expect(result.stdout).toMatchObject({ text: 'hello', bytesRead: 5, truncated: false });
+    expect(result.stderr).toMatchObject({ text: 'warning', bytesRead: 7, truncated: false });
+    expect(result.termination.processTreeReaped).toBe(true);
+  });
 
-      expect(result.exitCode).toBe(0);
-      expect(result.timedOut).toBe(false);
-      expect(result.truncated).toBe(false);
-      expect(result.duration).toBeGreaterThanOrEqual(0);
-    });
+  it.each([
+    ['timeout', 5_000],
+    ['idle_timeout', 1_000],
+    ['cancelled', 0],
+    ['spawn_failed', 0],
+    ['cleanup_failed', 0],
+  ] as const)('returns structured %s without rejecting', async (status, expectedDuration) => {
+    const result = await new MockRunner({ simulateStatus: status, mockDurationMs: 0 }).execute(readRequest());
+    expect(result.status).toBe(status);
+    expect(result.exitCode).toBeNull();
+    expect(result.error?.message).toBeTruthy();
+    expect(result.durationMs).toBe(expectedDuration);
+  });
 
-    it('应返回配置的 stdout 和 stderr', async () => {
-      const runner = new MockRunner({
-        defaultStdout: 'hello world',
-        defaultStderr: 'warning',
-        mockDuration: 1,
-      });
-      const request: RunRequest = {
-        command: 'echo',
-        args: ['test'],
-        config: defaultConfig,
-        approvalLevel: 'read_only',
-      };
-
-      const result = await runner.execute(request);
-
-      expect(result.stdout).toBe('hello world');
-      expect(result.stderr).toBe('warning');
-    });
-
-    it('应返回非零退出码', async () => {
-      const runner = new MockRunner({ defaultExitCode: 128, mockDuration: 1 });
-      const request: RunRequest = {
-        command: 'git',
-        args: ['log'],
-        config: defaultConfig,
-        approvalLevel: 'read_only',
-      };
-
-      const result = await runner.execute(request);
-
-      expect(result.exitCode).toBe(128);
+  it('keeps generic Shell hosts outside the structured argv Runner', async () => {
+    const result = await new MockRunner({ mockDurationMs: 0 }).execute(readRequest({
+      command: 'cmd.exe',
+      args: ['/c', 'dir'],
+    }));
+    expect(result).toMatchObject({
+      status: 'rejected',
+      error: { code: RunnerErrorCode.SHELL_HOST_PROHIBITED },
     });
   });
 
-  describe('execute — 超时模拟', () => {
-    it('应返回 timedOut=true', async () => {
-      const runner = new MockRunner({ simulateTimeout: true, mockDuration: 1 });
-      const request: RunRequest = {
-        command: 'sleep',
-        args: ['100'],
-        config: { ...defaultConfig, timeout: 100 },
-        approvalLevel: 'read_only',
-      };
-
-      const result = await runner.execute(request);
-
-      expect(result.timedOut).toBe(true);
-      expect(result.exitCode).toBe(-1);
-      expect(result.stderr).toContain('timed out');
-    });
-  });
-
-  describe('execute — 输出截断模拟', () => {
-    it('应返回 truncated=true 并截断输出', async () => {
-      const longOutput = 'a'.repeat(1000);
-      const runner = new MockRunner({
-        defaultStdout: longOutput,
-        simulateTruncation: true,
-        mockDuration: 1,
-      });
-      const request: RunRequest = {
-        command: 'cat',
-        args: ['large-file.txt'],
-        config: { ...defaultConfig, maxOutput: 100 },
-        approvalLevel: 'read_only',
-      };
-
-      const result = await runner.execute(request);
-
-      expect(result.truncated).toBe(true);
-      expect(result.stdout.length).toBe(100);
+  it('returns capability_unavailable before SPIKE_02 instead of spawning', async () => {
+    const result = await new UnavailableRunner().execute(readRequest());
+    expect(result).toMatchObject({
+      status: 'capability_unavailable',
+      exitCode: null,
+      error: { code: RunnerErrorCode.CONTAINMENT_UNAVAILABLE },
     });
   });
 });
 
-describe('findShellMetaChar — shell 元字符检测', () => {
-  it('应检测管道符 |', () => {
-    expect(findShellMetaChar(['ls', '|', 'grep', 'test'])).toBe('|');
+describe('Runner request boundary', () => {
+  it.each([
+    ['relative cwd', { ...defaultConfig, workDir: 'relative/path' }],
+    ['parent traversal', { ...defaultConfig, workDir: '/tmp/../escape' }],
+    ['idle timeout larger than total', { ...defaultConfig, idleTimeoutMs: 6_000 }],
+    ['interactive stdin', { ...defaultConfig, stdinPolicy: 'open' as 'closed' }],
+  ])('rejects %s as a structured result', async (_label, config) => {
+    const result = await new MockRunner({ mockDurationMs: 0 }).execute(readRequest({ config }));
+    expect(result.status).toBe('rejected');
+    expect(result.error?.code).toBe(RunnerErrorCode.INVALID_REQUEST);
   });
 
-  it('应检测分号 ;', () => {
-    expect(findShellMetaChar(['echo', 'hello;', 'rm', '-rf'])).toBe(';');
+  it('accepts Windows absolute paths and metacharacters as argv data', async () => {
+    const result = await new MockRunner({ mockDurationMs: 0 }).execute(readRequest({
+      command: 'rg.exe',
+      args: ['a|b;$(literal)', '中文 路径'],
+      config: { ...defaultConfig, workDir: 'C:\\repo\\中文 路径' },
+    }));
+    expect(result.status).toBe('exited');
   });
 
-  it('应检测 && 操作符', () => {
-    expect(findShellMetaChar(['cmd1', '&&', 'cmd2'])).toBe('&&');
+  it('rejects malformed environment overlays', async () => {
+    const result = await new MockRunner({ mockDurationMs: 0 }).execute(readRequest({
+      config: { ...defaultConfig, envOverlay: { 'BAD=NAME': 'value' } },
+    }));
+    expect(result).toMatchObject({ status: 'rejected', error: { code: RunnerErrorCode.INVALID_REQUEST } });
   });
 
-  it('应检测 || 操作符', () => {
-    expect(findShellMetaChar(['cmd1', '||', 'cmd2'])).toBe('||');
+  it('rejects credentials passed through an Agent environment overlay', async () => {
+    const result = await new MockRunner({ mockDurationMs: 0 }).execute(readRequest({
+      config: { ...defaultConfig, envOverlay: { SERVICE_TOKEN: 'not-a-secret-channel' } },
+    }));
+    expect(result).toMatchObject({
+      status: 'rejected',
+      error: { code: RunnerErrorCode.SENSITIVE_ENVIRONMENT_REJECTED },
+    });
   });
 
-  it('应检测反引号 `', () => {
-    expect(findShellMetaChar(['echo', '`whoami`'])).toBe('`');
-  });
-
-  it('应在安全参数时返回 null', () => {
-    expect(findShellMetaChar(['status', '--porcelain', '--branch'])).toBeNull();
-  });
-
-  it('应处理中文路径参数', () => {
-    expect(findShellMetaChar(['中文路径/文件.txt', '--verbose'])).toBeNull();
-  });
-
-  it('应处理含空格的中文路径', () => {
-    expect(findShellMetaChar(['我的 文件/测试.txt'])).toBeNull();
+  it('detects prohibited shell host basenames without rejecting ordinary executables', () => {
+    expect(findProhibitedShellHost('C:\\Windows\\System32\\cmd.exe')).toBe('cmd.exe');
+    expect(findProhibitedShellHost('C:\\工具\\rg.exe')).toBeNull();
   });
 });
 
-describe('MockRunner — shell 元字符拒绝', () => {
-  const defaultConfig = {
-    timeout: 5000,
-    maxOutput: 1024 * 1024,
-    workDir: '/tmp/test',
-  };
-
-  it('应拒绝包含 | 的参数', async () => {
-    const runner = new MockRunner({ mockDuration: 1 });
-    const request: RunRequest = {
-      command: 'ls',
-      args: ['|', 'grep', 'test'],
-      config: defaultConfig,
-      approvalLevel: 'read_only',
-    };
-
-    await expect(runner.execute(request)).rejects.toThrow('Shell metacharacter rejected');
+describe('bounded output capture', () => {
+  it('preserves head and tail, records omitted byte count, and exposes a notice', () => {
+    const captured = captureText('HEAD-12345-MIDDLE-67890-TAIL', 10);
+    expect(captured).toMatchObject({ bytesRead: 28, bytesRetained: 10, omittedBytes: 18, truncated: true });
+    expect(captured.text).toContain('HEAD-');
+    expect(captured.text).toContain('-TAIL');
+    expect(captured.text).toContain('18 bytes omitted');
   });
 
-  it('应拒绝包含 && 的参数', async () => {
-    const runner = new MockRunner({ mockDuration: 1 });
-    const request: RunRequest = {
-      command: 'cmd1',
-      args: ['&&', 'cmd2'],
-      config: defaultConfig,
-      approvalLevel: 'read_only',
-    };
-
-    await expect(runner.execute(request)).rejects.toThrow('Shell metacharacter rejected');
+  it('counts UTF-8 bytes rather than JavaScript characters', () => {
+    const captured = captureText('中文', 6);
+    expect(captured).toMatchObject({ bytesRead: 6, bytesRetained: 6, truncated: false, text: '中文' });
   });
 
-  it('应拒绝包含 ; 的参数', async () => {
-    const runner = new MockRunner({ mockDuration: 1 });
-    const request: RunRequest = {
-      command: 'echo',
-      args: ['hello;'],
-      config: defaultConfig,
-      approvalLevel: 'read_only',
-    };
+  it('applies independent stdout and stderr caps in MockRunner', async () => {
+    const result = await new MockRunner({
+      defaultStdout: '1234567890',
+      defaultStderr: 'abcdefghij',
+      mockDurationMs: 0,
+    }).execute(readRequest({
+      config: { ...defaultConfig, maxStdoutBytes: 6, maxStderrBytes: 6 },
+    }));
+    expect(result.stdout).toMatchObject({ truncated: true, bytesRetained: 6 });
+    expect(result.stderr).toMatchObject({ truncated: true, bytesRetained: 6 });
+  });
+});
 
-    await expect(runner.execute(request)).rejects.toThrow('Shell metacharacter rejected');
+describe('workspace-write approval binding', () => {
+  const previewSha256 = 'a'.repeat(64);
+  const baselineSha256 = 'b'.repeat(64);
+
+  function writeRequest(): RunRequest {
+    return readRequest({
+      command: 'git.exe',
+      args: ['add', 'src/file.ts'],
+      approvalLevel: 'workspace_write',
+      config: { ...defaultConfig, workDir: 'C:\\repo', envOverlay: { GIT_CONFIG_NOSYSTEM: '1' } },
+    });
+  }
+
+  it('returns APPROVAL_REQUIRED rather than throwing without a ledger', async () => {
+    const result = await new MockRunner({ mockDurationMs: 0 }).execute(writeRequest());
+    expect(result).toMatchObject({ status: 'rejected', error: { code: RunnerErrorCode.APPROVAL_REQUIRED } });
   });
 
-  it('应拒绝包含反引号的参数', async () => {
-    const runner = new MockRunner({ mockDuration: 1 });
-    const request: RunRequest = {
-      command: 'echo',
-      args: ['`whoami`'],
-      config: defaultConfig,
-      approvalLevel: 'read_only',
+  it('consumes exact approval and returns replay as a structured rejection', async () => {
+    const ledger = new ApprovalLedger();
+    const request = writeRequest();
+    const record = ledger.issue({
+      sessionId: 'session-1', subject: 'git.add', request: buildRunApprovalRequest(request), previewSha256, baselineSha256,
+    });
+    request.approval = {
+      approvalId: record.approvalId, sessionId: record.sessionId, subject: record.subject, previewSha256, baselineSha256,
     };
+    const runner = new MockRunner({ mockDurationMs: 0, approvalLedger: ledger });
 
-    await expect(runner.execute(request)).rejects.toThrow('Shell metacharacter rejected');
+    expect((await runner.execute(request)).status).toBe('exited');
+    expect(await runner.execute(request)).toMatchObject({
+      status: 'rejected', error: { code: RunnerErrorCode.APPROVAL_REPLAYED },
+    });
   });
 });

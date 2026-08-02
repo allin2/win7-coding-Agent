@@ -13,10 +13,14 @@ import { invalidStateTransitionError } from './errors';
 export type TransitionTrigger =
   | 'start_planning'
   | 'submit_for_approval'
+  | 'plan_ready'
   | 'approval_granted'
   | 'approval_rejected'
   | 'execution_complete'
   | 'execution_failed'
+  | 'verification_passed'
+  | 'verification_failed'
+  | 'verification_repair_requested'
   | 'pause'
   | 'resume'
   | 'cancel';
@@ -30,6 +34,7 @@ const TRANSITION_TABLE: ReadonlyMap<AgentState, Map<TransitionTrigger, AgentStat
     AgentState.IDLE,
     new Map<TransitionTrigger, AgentState>([
       ['start_planning', AgentState.PLANNING],
+      ['execution_failed', AgentState.FAILED],
       ['cancel', AgentState.CANCELLED],
     ]),
   ],
@@ -37,6 +42,7 @@ const TRANSITION_TABLE: ReadonlyMap<AgentState, Map<TransitionTrigger, AgentStat
     AgentState.PLANNING,
     new Map<TransitionTrigger, AgentState>([
       ['submit_for_approval', AgentState.AWAITING_APPROVAL],
+      ['plan_ready', AgentState.EXECUTING],
       ['pause', AgentState.PAUSED],
       ['cancel', AgentState.CANCELLED],
       ['execution_failed', AgentState.FAILED],
@@ -47,15 +53,26 @@ const TRANSITION_TABLE: ReadonlyMap<AgentState, Map<TransitionTrigger, AgentStat
     new Map<TransitionTrigger, AgentState>([
       ['approval_granted', AgentState.EXECUTING],
       ['approval_rejected', AgentState.PLANNING],
+      ['execution_failed', AgentState.FAILED],
       ['cancel', AgentState.CANCELLED],
     ]),
   ],
   [
     AgentState.EXECUTING,
     new Map<TransitionTrigger, AgentState>([
-      ['execution_complete', AgentState.COMPLETED],
+      ['submit_for_approval', AgentState.AWAITING_APPROVAL],
+      ['execution_complete', AgentState.VERIFYING],
       ['execution_failed', AgentState.FAILED],
       ['pause', AgentState.PAUSED],
+      ['cancel', AgentState.CANCELLED],
+    ]),
+  ],
+  [
+    AgentState.VERIFYING,
+    new Map<TransitionTrigger, AgentState>([
+      ['verification_passed', AgentState.COMPLETED],
+      ['verification_failed', AgentState.FAILED],
+      ['verification_repair_requested', AgentState.EXECUTING],
       ['cancel', AgentState.CANCELLED],
     ]),
   ],

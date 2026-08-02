@@ -16,6 +16,8 @@ export enum AgentState {
   AWAITING_APPROVAL = 'awaiting_approval',
   /** 执行态：正在执行已批准的计划 */
   EXECUTING = 'executing',
+  /** 验证态：执行结束，等待证据门裁决 */
+  VERIFYING = 'verifying',
   /** 暂停态：执行被暂停（用户干预或资源限制） */
   PAUSED = 'paused',
   /** 完成态：任务成功完成 */
@@ -53,37 +55,57 @@ export interface ToolCall {
   id: string;
   /** 工具名称（必须在白名单内） */
   toolName: string;
-  /** 结构化参数，禁止包含 shell 元字符 */
+  /** 结构化参数；普通字符串可包含 shell 元字符，因为不会经 shell 解释 */
   args: Record<string, unknown>;
   /** 审批级别（ADR-0030 三档） */
   approvalLevel: ApprovalLevel;
+  /**
+   * 写操作审批上下文。预览或工作区基线变化时，原令牌必须失效。
+   * READ_ONLY 调用不得依赖此字段。
+   */
+  approvalContext?: {
+    previewSha256: string;
+    baselineSha256: string;
+    /** Trusted single-file write plan identity, when applicable. */
+    planId?: string;
+    planHash?: string;
+  };
 }
 
 /**
  * ApprovalLevel 枚举 — 工具调用审批级别（ADR-0030）
- * @remarks FULL_ACCESS 明令不做，保留用于拒绝场景
+ * @remarks 本地只暴露 ADR-0030 允许的两档；外部传入 full_access 时由边界校验拒绝
  */
 export enum ApprovalLevel {
   /** 只读操作：无需审批 */
   READ_ONLY = 'read_only',
   /** 工作区写操作：需要能力令牌验证 */
   WORKSPACE_WRITE = 'workspace_write',
-  /** 完全访问：ADR-0030 明令不做，始终拒绝 */
-  FULL_ACCESS = 'full_access',
 }
 
 /**
  * PolicyDecision 接口 — Policy 引擎裁决结果
  */
 export interface PolicyDecision {
+  /** Explicit outcome; `allowed` remains a compatibility projection. */
+  verdict: PolicyVerdict;
   /** 是否允许执行 */
   allowed: boolean;
+  /** Stable machine-readable rule identifier for audit and UI routing. */
+  ruleId: string;
   /** 审批级别 */
   level: ApprovalLevel;
   /** 裁决原因说明 */
   reason?: string;
   /** 附加条件列表 */
   conditions?: string[];
+}
+
+/** Policy outcomes are distinct from transport/approval errors. */
+export enum PolicyVerdict {
+  ALLOW = 'allow',
+  ASK = 'ask',
+  DENY = 'deny',
 }
 
 /**
@@ -101,6 +123,17 @@ export interface CapabilityToken {
   expiresAt: string;
   /** 是否已撤销 */
   revoked: boolean;
+  /** workspace_write 令牌必须精确绑定到一次 ToolCall。 */
+  binding?: CapabilityBinding;
+}
+
+/** 能力令牌与具体写请求的不可变绑定。 */
+export interface CapabilityBinding {
+  callId: string;
+  toolName: string;
+  requestSha256: string;
+  previewSha256: string;
+  baselineSha256: string;
 }
 
 /**

@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-10",
+  "suite": "PHASE_01_WIN7_PREPARATION",
+  "environment": {
+    "os": "Windows 7 Professional SP1 x64 build 7601",
+    "host": "ThinkPad T460",
+    "user": "dccs-chaizl",
+    "python": "CPython 3.8.10 x64",
+    "management_channel": "Bitvise SSH 192.168.1.10 <-> 192.168.1.11:22"
+  },
+  "artifact_hashes": {
+    "cpython-3.8.10-embed-amd64.zip": "abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271",
+    "mingit-mvp-trimmed-no-gcm-no-ssh.zip": "914fd56506284c54dc20f43917dcb6f2587eb7d807add2968c2d8b335070d397",
+    "mingit-cmd-git.exe": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1"
+  },
+  "command": [
+    "C:\\acceptance\\python38_mvp\\python.exe",
+    "C:\\acceptance\\phase1_mvp\\scripts\\run_probe_win7.py",
+    "--mvp-id=MVP-20260802-10"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T09:59:42+08:00",
+    "finished_at": "2026-08-02T09:59:45+08:00"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "P01_CAPABILITY_PROBE",
+      "status": "PASS",
+      "summary": "Win7 capability probe completed 18/18 with agent_runnable=true, no blocking checks, no degraded checks and exit code 0 across MVP-20260802-07/-09/-10.",
+      "metrics": {"checks": 18, "pass": 18, "fail": 0, "degraded": 0, "stable_runs": 3},
+      "evidence": [
+        "validation/phase1/evidence/phase1_probe_MVP-20260802-07.json",
+        "validation/phase1/evidence/phase1_probe_MVP-20260802-09.json",
+        "validation/phase1/evidence/phase1_probe_MVP-20260802-10.json"
+      ]
+    },
+    {
+      "case_id": "P02_PYTHON_REGRESSION",
+      "status": "PASS",
+      "summary": "Phase 1 probe unit and integration regression completed 20/20 on the same self-contained Win7 deployment.",
+      "metrics": {"tests": 20},
+      "evidence": ["validation/phase1/evidence/phase1_probe_MVP-20260802-07.json"]
+    },
+    {
+      "case_id": "E1_E2_FORMAL_GATE",
+      "status": "AUTHORIZATION_BLOCKED",
+      "summary": "Preparation evidence is complete, but the frozen Phase 1 architecture Gate, formal physical-offline conditions and clean-environment conditions were not automatically released.",
+      "metrics": {"formal_gate_released": false},
+      "evidence": []
+    }
+  ],
+  "evidence": [
+    "validation/phase1/README.md",
+    "validation/phase1/evidence/phase1_probe_MVP-20260802-07.sqlite3",
+    "validation/phase1/evidence/phase1_probe_MVP-20260802-09.sqlite3",
+    "validation/phase1/evidence/phase1_probe_MVP-20260802-10.sqlite3"
+  ],
+  "notes": [
+    "The three SQLite evidence files are the database snapshots emitted by the corresponding probe runs.",
+    "Process-only PATH prepended C:\\acceptance\\mvp_mingit\\cmd; machine PATH, NIC, route, firewall and Bitvise were not modified."
+  ]
+}

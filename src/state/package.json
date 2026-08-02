@@ -1,11 +1,11 @@
 {
-  "name": "win7-agent-state",
+  "name": "@win7-agent/state",
   "version": "0.1.0",
   "description": "State & Audit module for Win7 Coding Agent — event store, WAL transactions, backlog, audit export",
   "private": true,
   "scripts": {
     "build": "tsc",
-    "test": "jest --forceExit",
+    "test": "jest",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

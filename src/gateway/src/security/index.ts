@@ -128,8 +128,16 @@ export class InMemoryCredentialStore implements CredentialStore {
   }
 
   setApiKey(key: string): void {
-    if (typeof key !== 'string' || key.length === 0) {
-      throw new GatewayError(ErrorCode.AUTH_INVALID_CREDENTIALS, 'API key must be a non-empty string');
+    if (
+      typeof key !== 'string' ||
+      key.length === 0 ||
+      key.length > 8192 ||
+      /[\r\n\0]/.test(key)
+    ) {
+      throw new GatewayError(
+        ErrorCode.AUTH_INVALID_CREDENTIALS,
+        'API key must be non-empty, bounded and free of control characters',
+      );
     }
     this._apiKey = key;
   }

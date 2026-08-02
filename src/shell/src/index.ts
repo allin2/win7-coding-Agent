@@ -48,6 +48,8 @@ export {
   IPCChannel,
   type IPCHandler,
   type MessageCallback,
+  type IPCErrorCallback,
+  type IPCChannelErrorEvent,
   type SendResult,
 } from './ipc/channel';
 
@@ -71,6 +73,8 @@ export {
   type UpdateInfo,
   type DownloadResult,
   type VerifyResult,
+  type ApplyUpdateOptions,
+  type ApplyStatus,
   type ApplyResult,
   type RollbackResult,
 } from './updater/updater';

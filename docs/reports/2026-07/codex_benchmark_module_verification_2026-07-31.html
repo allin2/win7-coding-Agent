@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>对标 Codex 模块级验证报告 — 2026-07-31</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 20px; color: #1c1e21; line-height: 1.6; }
+  h1 { font-size: 1.6em; border-bottom: 3px solid #2563eb; padding-bottom: 8px; }
+  h2 { font-size: 1.25em; margin-top: 32px; border-left: 4px solid #2563eb; padding-left: 10px; }
+  h3 { font-size: 1.05em; margin-top: 20px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid #d1d5db; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  .pass { color: #15803d; font-weight: 600; }
+  .partial { color: #b45309; font-weight: 600; }
+  .fail { color: #b91c1c; font-weight: 600; }
+  .p0 { background: #fee2e2; }
+  .p1 { background: #fef3c7; }
+  .meta { color: #6b7280; font-size: 0.85em; }
+  .note { background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 6px; margin: 14px 0; }
+</style>
+</head>
+<body>
+
+<h1>对标 Codex 模块级验证报告</h1>
+<p class="meta">日期：2026-07-31 ｜ 分支：<code>codex/integrated-robustness</code>（HEAD <code>21ffcf3</code>）｜ 验证环境：macOS 开发机（代理证据，非 Win7 实机）｜ 对标基准：OpenAI Codex CLI（codex-rs）行为语义</p>
+
+<h2>结论</h2>
+<p><strong>全部 8 个模块开发机回归通过（TS 885/885 + Python Probe 22/22），行为层对标 Codex 达到"契约完备、部分链路未闭合"水平。</strong>
+2026-07-31 验证闭环修复轮已闭合 6 条历史架构缺口中的 4 条。当前与 Codex 差距最大的不是单个模块的逻辑缺陷，而是三条<strong>未接线/未落盘的链路</strong>：
+① 事件日志全链路内存型（无 rollout.jsonl 等价物，崩溃恢复不成立）；
+② git 间接执行封堵漏掉仓库本地 <code>.git/config</code> 与 <code>.gitattributes</code>（且无沙箱兜底层）；
+③ 流式重试会向调用方重复下发已收 chunk（断点续传代码存在但未接线）。
+按 AGENTS.md 规则 8，本报告全部结论为开发机代理证据，<strong>不构成 Win7 实机验收</strong>。</p>
+
+<h2>回归验证记录</h2>
+<table>
+<tr><th>模块</th><th>命令</th><th>结果</th></tr>
+<tr><td>src/core</td><td rowspan="7"><code>tsc --noEmit</code> + <code>jest</code>（各模块独立执行）</td><td class="pass">20 套件 / 225 测试全过</td></tr>
+<tr><td>src/gateway</td><td class="pass">9 套件 / 200 测试全过</td></tr>
+<tr><td>src/state</td><td class="pass">16 套件 / 218 测试全过</td></tr>
+<tr><td>src/workspace</td><td class="pass">8 套件 / 73 测试全过</td></tr>
+<tr><td>src/shell</td><td class="pass">6 套件 / 73 测试全过</td></tr>
+<tr><td>src/git-adapter</td><td class="pass">4 套件 / 50 测试全过</td></tr>
+<tr><td>src/runner</td><td class="pass">3 套件 / 46 测试全过</td></tr>
+<tr><td>win7_agent（Phase 1 Probe）</td><td><code>compileall</code> + <code>unittest discover</code>（本机 Python 3.9.6，非 3.8.10 门槛解释器）</td><td class="pass">unit 20 + integration 2 全过</td></tr>
+</table>
+<p class="note">Phase 2 只读 Agent（81 测试）位于权威分支 <code>phase/02-readonly-agent</code>，不在本整合分支上，本轮未执行；其状态仍为 <code>PYTHON38_VALIDATED</code>（提交 <code>fd40ad2</code>）。TS 测试总数已从整合基线记录的 685 增长到 885。</p>
+
+<h2>模块 × Codex 对标矩阵</h2>
+<table>
+<tr><th>模块</th><th>Codex 对应物</th><th>判定</th><th>核心证据</th><th>主要差距</th></tr>
+<tr><td><b>core</b> 回合循环</td><td>codex.rs run_turn 循环</td><td class="pass">符合</td><td><code>runtime.ts</code> L746-L1231 循环；<code>pairUnexecutedCalls</code> L1526-L1560 悬空 tool_call 合成配对；投影侧孤儿兜底 <code>event-protocol.ts</code> L206-L210</td><td>模型响应为批式 RuntimePlan，无流式增量（v1 范围内取舍）</td></tr>
+<tr><td><b>core</b> 恢复/持久化</td><td>rollout.jsonl 重建会话</td><td class="partial">部分符合（高风险）</td><td>Checkpoint v2.0 已去 messages 快照（<code>runtime.ts</code> L314-L331），恢复强制事件投影（L476-L496）</td><td>ledger 为内存型，跨进程恢复不成立；<code>RuntimeMessageProjection</code> 仅测试装配，生产组合根未注入</td></tr>
+<tr><td><b>core</b> 上下文管理</td><td>auto-compact + bridge 替换</td><td class="pass">符合</td><td>75% 高水位主动压缩（<code>runtime.ts</code> L1273-L1310）；投影替换语义含 supersedes 链（<code>event-protocol.ts</code> L211-L225）</td><td>默认压缩器为确定性截断摘要，非模型语义 summary（需注入 provider）</td></tr>
+<tr><td><b>core</b> 中断/审批/验证</td><td>interrupt + approval + 完成判定</td><td class="pass">符合</td><td>TurnControl 取消分类；审批五字段哈希绑定 + contextDigest 校验（强于 Codex）；COMPLETED 唯一经 VerificationGate（<code>runtime.ts</code> L820-L904）</td><td>—</td></tr>
+<tr><td><b>state</b></td><td>EventStore / 审计 / 重放</td><td class="partial">部分符合（高风险）</td><td>背压有界队列、订阅者 fact 不丢、审计按 key 脱敏、V2 seq 权威</td><td>WAL 是内存缓冲非真 WAL；InMemoryEventStore/Ledger 无磁盘实现（SPIKE_04 schema 未接入）；V1/V2 双轨 Schema 未合并；值内嵌密钥不脱敏</td></tr>
+<tr><td><b>gateway</b></td><td>ModelClient + SSE 流</td><td class="partial">部分符合</td><td>显式重试矩阵+抖动退避+幂等键复用；TLS 三重 fail-closed（严于 Codex）；每请求 AbortController</td><td>流式重试 chunk 重复下发（StreamRecoveryPoint 死代码）；无 SSE 事件级 idle timeout；不尊重 Retry-After；代理 URL 明文密码泄露面；请求侧无 Schema 校验</td></tr>
+<tr><td><b>runner</b></td><td>exec/sandbox + approval 模式</td><td class="partial">部分符合（合规的 fail-closed）</td><td>两档审批 + full_access 双向永久拒绝（ADR-0030）；一次性台账防重放；shell 宿主封禁 + 结构化 argv（C09）；<code>UnavailableRunner</code> 绝不 spawn</td><td>无 OS 级沙箱实体（SPIKE_02 前合规占位）；<code>IContainmentProbe</code> 未接线到执行门控；审批台账内存型、重启失忆；无 untrusted/on-failure 审批谱系</td></tr>
+<tr><td><b>git-adapter</b></td><td>git 操作纪律（Codex 靠沙箱兜底）</td><td class="partial">部分符合（中-高风险）</td><td>三类白名单 fail-closed；GIT_*/SSH_* 净化 + 11 项 -c 隔离 + protocol.allow never；session 干净基线/HEAD 锚定/不删 untracked</td><td><b>仓库本地 <code>.git/config</code> 与 <code>.gitattributes</code> 的 filter/smudge/textconv 未封堵</b>；注释宣称禁 filter.*.process 但配置清单无此条目；且无沙箱兜底层</td></tr>
+<tr><td><b>shell</b></td><td>TUI/客户端边界（本项目为 Electron IPC/CSP）</td><td class="partial">部分符合</td><td>18 类消息 ajv 全 Schema + additionalProperties false + 拒绝审计；Updater 哈希+绑定文件+原子换名+回滚</td><td>消息方向与类型未绑定、无 sender 身份验证（C17 半闭环）；CSP/出站过滤器未接线 Electron session；Updater 无签名链</td></tr>
+<tr><td><b>workspace</b></td><td>apply_patch</td><td class="partial">大体符合</td><td>Plan/Apply 双阶段 + baseSha256 漂移 REPLAN_REQUIRED；备份→原子替换→重读校验→回滚；diff 与落盘字节三层哈希强绑定；safety 双重 realpath 防逃逸</td><td>编码链缺 GBK 检测步骤（声明四级链实现三级，Win7 中文场景 GBK 文件将被拒编而非正确处理）；plan 后文件被删静默当新建；<code>.bak</code> 固定后缀冲突面；reparse 判定为 lstat 近似（待 SPIKE_02）</td></tr>
+<tr><td><b>win7_agent.probe</b></td><td>—（Codex 无对应，Win7 特有）</td><td class="pass">冻结合同内符合</td><td>22 测试过；中文路径报告名往返正常</td><td>Phase-Gate 仍为 <code>REPAIR_REQUIRED_BEFORE_E1</code>，Win7 E1/E2 未执行</td></tr>
+</table>
+
+<h2>六条历史架构缺口复核（对照 2026-07-31 前评估）</h2>
+<table>
+<tr><th>#</th><th>历史缺口</th><th>当前状态</th><th>证据</th></tr>
+<tr><td>1</td><td>Checkpoint 直接快照 messages</td><td class="pass">已修复</td><td>Checkpoint v2.0 无 messages 字段；无投影器恢复直接抛错（<code>runtime.ts</code> L476-L483）</td></tr>
+<tr><td>2</td><td>三套并行事件 Schema</td><td class="partial">部分修复</td><td><code>RuntimeEventLedgerSink</code> 已统一映射入 V2 且 V2 seq 权威；但 core v1 / state V1 / state V2 三套定义仍并存，V1 体系（store/wal/replay）未合并</td></tr>
+<tr><td>3</td><td>CompactionApplied 无投影语义</td><td class="pass">已修复</td><td>replacedSeqRange/summary/supersedes 全链路（<code>event-protocol.ts</code> L186-L225）</td></tr>
+<tr><td>4</td><td>模型重试未分类</td><td class="pass">已修复</td><td>查表分类 + 未知 fail-closed + 403→COMPACT_CONTEXT（<code>model-retry.ts</code> L13-L46）</td></tr>
+<tr><td>5</td><td>缺 submit/subscribe 双队列门面</td><td class="pass">已修复</td><td><code>AgentRuntimeProtocol</code>（<code>runtime-protocol.ts</code> L39-L156）+ 有界订阅队列</td></tr>
+<tr><td>6</td><td>事件日志内存型无持久化</td><td class="fail">仍存在</td><td>InMemoryEventLedger / InMemoryEventStore / 内存 WAL 均无磁盘实现；SPIKE_04 SQLite schema 未接入</td></tr>
+</table>
+
+<h2>分级发现与建议修复顺序</h2>
+<table>
+<tr><th>级别</th><th>发现</th><th>模块</th><th>建议</th></tr>
+<tr class="p0"><td>P0</td><td>git 仓库本地 config/.gitattributes 的 filter/smudge/textconv 逃逸面未封堵，且隔离注释与实现不一致（filter.*.process 缺失）</td><td>git-adapter</td><td>补 -c 覆盖（core.attributesFile 之外增加仓库内属性禁用、textconv/filter 全覆盖）；将 spikes/03 恶意样本引入本模块负向测试；修正注释-实现一致性并加断言测试</td></tr>
+<tr class="p0"><td>P0</td><td>流式重试导致调用方收重复 chunk；StreamRecoveryPoint 为未接线死代码</td><td>gateway</td><td>接线断点续传或重试时向调用方发 stream-reset 语义；补回归测试</td></tr>
+<tr class="p0"><td>P0</td><td>事件日志全链路内存型，崩溃恢复与审计留存不成立（历史缺口 #6）</td><td>state</td><td>依赖 SPIKE_04 结论落 SQLite/文件型 ledger；先行可做 append-only JSONL 落盘（对标 rollout.jsonl）作为过渡</td></tr>
+<tr class="p1"><td>P1</td><td>RuntimeMessageProjection 生产组合根未注入（恢复链路仅测试闭合）</td><td>core+state</td><td>在集成装配层注入并补跨模块恢复集成测试</td></tr>
+<tr class="p1"><td>P1</td><td>编码链缺 GBK 检测（声明 BOM→UTF-8→GBK→AMBIGUOUS，实现跳过 GBK）</td><td>workspace</td><td>补严格 GBK 检测步骤与中文测试语料（C10/C11 核心诉求）</td></tr>
+<tr class="p1"><td>P1</td><td>IPC 方向未与消息类型绑定、无调用方身份验证；CSP/出站过滤器未接线</td><td>shell</td><td>Schema 按类型固定 direction 常量；Electron 集成层（Phase 7 入口实现时）强制 senderFrame 验证与 session 接线</td></tr>
+<tr class="p1"><td>P1</td><td>代理 URL 内嵌明文密码，脱敏正则无法匹配 user:pass@host</td><td>gateway</td><td>凭据改经 Proxy-Authorization 头注入；脱敏增加 URL userinfo 模式</td></tr>
+<tr class="p1"><td>P1</td><td>containment 探测接口未接入执行门控路径</td><td>runner</td><td>SPIKE_02 定稿前先把 probe→门控接线（结果仍 fail-closed），避免实机后大改</td></tr>
+<tr><td>P2</td><td>Retry-After 不尊重；SSE 事件级 idle timeout 缺失；流尾半包静默丢弃</td><td>gateway</td><td>按 Codex 语义补齐并加负向测试</td></tr>
+<tr><td>P2</td><td>plan 后目标文件被并发删除静默当新建；.bak 固定后缀冲突</td><td>workspace</td><td>删除也判 REPLAN_REQUIRED；备份名加随机后缀</td></tr>
+<tr><td>P2</td><td>审计脱敏仅按字段名，值内嵌密钥漏网；V1/V2 事件双轨未合并</td><td>state</td><td>增加值模式扫描；规划 V1 体系向 V2 收敛的迁移 ADR</td></tr>
+</table>
+
+<h2>测试覆盖缺口（跨模块汇总）</h2>
+<ul>
+<li>gateway：真实 TLS 握手失败端到端、SSE 中途 ECONNRESET、error 事件路径、429/5xx 重试集成、幂等键跨重试复用断言、CONNECT 407 —— 均缺。</li>
+<li>git-adapter：恶意仓库本地 config/.gitattributes 负向样本未进入模块测试（spikes/03 已有 generator 可复用）。</li>
+<li>runner：OutputCapture 无独立测试；probe→门控集成测试缺（因接线缺失）。</li>
+<li>shell：方向-类型错配拒绝测试缺；CSP/outbound 无集成测试。</li>
+<li>workspace：shadow 无独立测试；GBK 用例、并发漂移用例缺。</li>
+<li>全局：缺 runner→git-adapter→workspace 同一 previewSha256/baselineSha256 贯穿三层的审批绑定端到端测试。</li>
+</ul>
+
+<h2>验收基线与范围声明</h2>
+<ul>
+<li>对标基准为 Codex CLI 行为语义（回合循环、rollout 恢复、auto-compact、approval、apply_patch、exec/sandbox、模型客户端重试）；平台基座（tokio/seatbelt/landlock）不可参照，按 Win7 约束以 fail-closed + SPIKE 门槛替代。</li>
+<li>本报告为开发机代理证据。SPIKE_01~04、Win7 E1/E2/E5/E7、真实 Runner、Electron 可运行入口仍是未闭合硬门槛，任何"完成"表述以 Win7 实机验收为准（AGENTS.md 规则 8）。</li>
+<li>本轮验证只读 + 测试执行，未修改任何实现代码；P0~P2 修复项需按 C14 在对应任务书白名单内实施。</li>
+</ul>
+
+</body>
+</html>

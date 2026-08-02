@@ -106,6 +106,8 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
 export interface ConnectionConfig {
   /** Connection timeout in ms */
   timeoutMs: number;
+  /** Hard deadline across the initial attempt, backoff and all retries. */
+  totalTimeoutMs: number;
   /** Maximum response body size in bytes */
   maxResponseSizeBytes: number;
   /** Retry configuration */
@@ -120,6 +122,7 @@ export interface ConnectionConfig {
 
 export const DEFAULT_CONNECTION_CONFIG: ConnectionConfig = {
   timeoutMs: 30000,
+  totalTimeoutMs: 90000,
   maxResponseSizeBytes: 10 * 1024 * 1024, // 10 MB
   retry: DEFAULT_RETRY_CONFIG,
   url: '',
@@ -181,6 +184,14 @@ export interface NetworkRequestOptions {
   maxResponseSizeBytes: number;
   proxy?: ProxyConfig;
   encoding: 'utf-8';
+  /** Incremental UTF-8 response delivery. When set, body may be empty. */
+  onData?: (chunk: string) => void;
+  /** Cancels the in-flight request. */
+  signal?: {
+    readonly aborted: boolean;
+    addEventListener(type: 'abort', listener: () => void, options?: { once?: boolean }): void;
+    removeEventListener(type: 'abort', listener: () => void): void;
+  };
 }
 
 export interface NetworkResponse {
@@ -223,17 +234,37 @@ export enum Retryability {
 }
 
 /**
+ * Retry policy is an explicit, reviewable matrix rather than a numeric error-range
+ * heuristic. In particular, certificate failures and user cancellation must never
+ * turn into hidden reconnect loops.
+ */
+export const RETRY_POLICY: Readonly<Record<ErrorCode, Retryability>> = Object.freeze({
+  [ErrorCode.CONNECTION_TIMEOUT]: Retryability.RETRIABLE,
+  [ErrorCode.CONNECTION_REFUSED]: Retryability.RETRIABLE,
+  [ErrorCode.TLS_HANDSHAKE_FAILED]: Retryability.NON_RETRIABLE,
+  [ErrorCode.TLS_VERIFY_FAILED]: Retryability.NON_RETRIABLE,
+  [ErrorCode.GATEWAY_UNREACHABLE]: Retryability.RETRIABLE,
+  [ErrorCode.STREAM_INTERRUPTED]: Retryability.RETRIABLE,
+  [ErrorCode.REQUEST_CANCELLED]: Retryability.NON_RETRIABLE,
+  [ErrorCode.PROTOCOL_VERSION_MISMATCH]: Retryability.NON_RETRIABLE,
+  [ErrorCode.INVALID_FRAME]: Retryability.NON_RETRIABLE,
+  [ErrorCode.DECODE_ERROR]: Retryability.NON_RETRIABLE,
+  [ErrorCode.ENCODE_ERROR]: Retryability.NON_RETRIABLE,
+  [ErrorCode.AUTH_REQUIRED]: Retryability.NON_RETRIABLE,
+  [ErrorCode.AUTH_INVALID_CREDENTIALS]: Retryability.NON_RETRIABLE,
+  [ErrorCode.AUTH_EXPIRED]: Retryability.NON_RETRIABLE,
+  [ErrorCode.PROXY_AUTH_FAILED]: Retryability.NON_RETRIABLE,
+  [ErrorCode.RATE_LIMITED]: Retryability.RETRIABLE,
+  [ErrorCode.INTERNAL_ERROR]: Retryability.RETRIABLE,
+  [ErrorCode.MODEL_NOT_FOUND]: Retryability.NON_RETRIABLE,
+  [ErrorCode.CONTEXT_LENGTH_EXCEEDED]: Retryability.NON_RETRIABLE,
+});
+
+/**
  * Classify whether a given error code is retriable.
  */
 export function classifyRetryability(code: ErrorCode): Retryability {
-  // Connection errors are retriable
-  if (code >= 100 && code < 200) return Retryability.RETRIABLE;
-  // Rate limiting is retriable
-  if (code === ErrorCode.RATE_LIMITED) return Retryability.RETRIABLE;
-  // Internal server errors are retriable (transient)
-  if (code === ErrorCode.INTERNAL_ERROR) return Retryability.RETRIABLE;
-  // Everything else (protocol, auth, model errors) is non-retriable
-  return Retryability.NON_RETRIABLE;
+  return RETRY_POLICY[code] ?? Retryability.NON_RETRIABLE;
 }
 
 export interface RetryState {
@@ -502,8 +533,8 @@ export class StreamRecoveryPoint {
 
 // ── IConnection Interface ────────────────────────────────────────────────────
 
-export type DataListener = (data: string) => void;
-export type ErrorListener = (error: GatewayError) => void;
+export type DataListener = (requestId: string, data: string) => void;
+export type ErrorListener = (requestId: string, error: GatewayError) => void;
 
 export interface IConnection {
   /** Establish the connection. */
@@ -511,7 +542,9 @@ export interface IConnection {
   /** Gracefully close the connection. */
   disconnect(reason?: string): void;
   /** Send a request payload (UTF-8 encoded). */
-  send(requestId: string, payload: string): Promise<void>;
+  send(requestId: string, payload: string, headers?: Readonly<Record<string, string>>): Promise<void>;
+  /** Cancel one in-flight request. */
+  cancel(requestId: string): void;
   /** Register a data callback. */
   onData(listener: DataListener): () => void;
   /** Register an error callback. */
@@ -532,14 +565,21 @@ export class MockConnection implements IConnection {
   private _errorListeners: ErrorListener[] = [];
   private _tracker = new RequestTracker();
   private _streamRecovery = new StreamRecoveryPoint();
-  private _retryController = new RetryController();
+  private _retryController: RetryController;
+  private _abortControllers: Map<string, AbortController> = new Map();
+  private _connectionGeneration = 0;
 
   constructor(
     config: ConnectionConfig = DEFAULT_CONNECTION_CONFIG,
     network: INetworkStack = new MockNetworkStack(),
   ) {
-    this._config = { ...config };
+    this._config = {
+      ...config,
+      retry: { ...config.retry },
+      totalTimeoutMs: config.totalTimeoutMs ?? Math.max(config.timeoutMs, 90000),
+    };
     this._network = network;
+    this._retryController = new RetryController(this._config.retry);
   }
 
   get state(): ConnectionState {
@@ -566,25 +606,17 @@ export class MockConnection implements IConnection {
       );
     }
 
-    try {
-      // Simulate connection via network stack
-      await this._network.request(this._config.url, {
-        method: 'POST',
-        headers: {},
-        timeoutMs: this._config.timeoutMs,
-        maxResponseSizeBytes: this._config.maxResponseSizeBytes,
-        proxy: this._config.proxy,
-        encoding: 'utf-8',
-      });
-      this._fsm.transition(ConnectionState.CONNECTED, 'connection established');
-      this._retryController.reset();
-    } catch (e) {
-      this._fsm.transition(ConnectionState.DISCONNECTED, 'connection failed');
-      throw e;
-    }
+    // HTTP(S) is request-scoped. Opening a second POST here would send a
+    // body-less model request and make every logical request hit the server twice.
+    this._fsm.transition(ConnectionState.CONNECTED, 'transport ready');
   }
 
   disconnect(reason?: string): void {
+    this._connectionGeneration++;
+    for (const controller of this._abortControllers.values()) {
+      controller.abort();
+    }
+    this._abortControllers.clear();
     if (
       this._fsm.state === ConnectionState.CONNECTED ||
       this._fsm.state === ConnectionState.CONNECTING ||
@@ -594,7 +626,11 @@ export class MockConnection implements IConnection {
     }
   }
 
-  async send(requestId: string, payload: string): Promise<void> {
+  async send(
+    requestId: string,
+    payload: string,
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<void> {
     if (this._fsm.state !== ConnectionState.CONNECTED) {
       // Queue for retry
       const tracked = this._tracker.get(requestId);
@@ -615,62 +651,143 @@ export class MockConnection implements IConnection {
       tracked = this._tracker.track(requestId, payload);
     }
 
-    this._tracker.markSent(requestId);
+    this._retryController.reset();
+    const startedAt = Date.now();
+    const generation = this._connectionGeneration;
 
-    try {
-      const response = await this._network.request(this._config.url, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-          'x-idempotency-key': tracked.idempotencyKey,
-          'x-request-id': requestId,
-        },
-        body: payload,
-        timeoutMs: this._config.timeoutMs,
-        maxResponseSizeBytes: this._config.maxResponseSizeBytes,
-        proxy: this._config.proxy,
-        encoding: 'utf-8',
-      });
+    while (true) {
+      this._tracker.markSent(requestId);
+      const controller = new AbortController();
+      this._abortControllers.set(requestId, controller);
+      let streamed = false;
 
-      this._tracker.markAcknowledged(requestId);
+      try {
+        const response = await this._network.request(this._config.url, {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'content-type': 'application/json; charset=utf-8',
+            'x-idempotency-key': tracked.idempotencyKey,
+            'x-request-id': requestId,
+          },
+          body: payload,
+          timeoutMs: Math.min(
+            this._config.timeoutMs,
+            Math.max(1, this._config.totalTimeoutMs - (Date.now() - startedAt)),
+          ),
+          maxResponseSizeBytes: this._config.maxResponseSizeBytes,
+          proxy: this._config.proxy,
+          encoding: 'utf-8',
+          signal: controller.signal,
+          onData: (chunk: string) => {
+            streamed = true;
+            this._notifyData(requestId, chunk);
+          },
+        });
 
-      // Notify data listeners with response body
-      for (const listener of this._dataListeners) {
-        listener(response.body);
-      }
-    } catch (e) {
-      this._tracker.markFailed(requestId);
+        this._throwForHttpStatus(response.statusCode);
+        this._tracker.markAcknowledged(requestId);
+        if (!streamed && response.body.length > 0) {
+          this._notifyData(requestId, response.body);
+        }
+        this._retryController.reset();
+        return;
+      } catch (e) {
+        this._tracker.markFailed(requestId);
+        const gwError = e instanceof GatewayError
+          ? e
+          : new GatewayError(ErrorCode.GATEWAY_UNREACHABLE, String(e));
 
-      const gwError = e instanceof GatewayError
-        ? e
-        : new GatewayError(ErrorCode.CONNECTION_TIMEOUT, String(e));
+        const elapsed = Date.now() - startedAt;
+        if (
+          generation !== this._connectionGeneration ||
+          gwError.code === ErrorCode.REQUEST_CANCELLED
+        ) {
+          this._notifyError(requestId, gwError);
+          throw gwError;
+        }
 
-      // Check if retriable
-      if (this._retryController.canRetry(gwError.code)) {
+        if (
+          !this._retryController.canRetry(gwError.code) ||
+          elapsed >= this._config.totalTimeoutMs
+        ) {
+          const finalError = classifyRetryability(gwError.code) === Retryability.RETRIABLE
+            ? new GatewayError(
+              ErrorCode.GATEWAY_UNREACHABLE,
+              `Gateway request failed after ${tracked.attemptCount} attempt(s): ${gwError.message}`,
+            )
+            : gwError;
+          this._notifyError(requestId, finalError);
+          throw finalError;
+        }
+
         this._tracker.markRetrying(requestId);
-        this._fsm.transition(ConnectionState.RECONNECTING, 'retry after failure');
+        if (this._fsm.state === ConnectionState.CONNECTED) {
+          this._fsm.transition(ConnectionState.RECONNECTING, 'bounded retry after failure');
+        }
         const delay = this._retryController.recordFailure();
-        // Schedule reconnect after delay
+        if (Date.now() - startedAt + delay >= this._config.totalTimeoutMs) {
+          const timeoutError = new GatewayError(
+            ErrorCode.GATEWAY_UNREACHABLE,
+            `Gateway retry deadline of ${this._config.totalTimeoutMs}ms exhausted`,
+          );
+          this._notifyError(requestId, timeoutError);
+          throw timeoutError;
+        }
         await new Promise(resolve => setTimeout(resolve, delay));
-        try {
-          await this.connect();
-          // Retry the send
-          await this.send(requestId, payload);
-        } catch (retryError) {
-          for (const listener of this._errorListeners) {
-            listener(
-              retryError instanceof GatewayError
-                ? retryError
-                : new GatewayError(ErrorCode.CONNECTION_TIMEOUT, String(retryError)),
-            );
-          }
+        if (
+          generation !== this._connectionGeneration ||
+          (this._fsm.state as ConnectionState) === ConnectionState.DISCONNECTED
+        ) {
+          const cancelled = new GatewayError(
+            ErrorCode.REQUEST_CANCELLED,
+            `Request ${requestId} was cancelled while waiting to retry`,
+          );
+          this._notifyError(requestId, cancelled);
+          throw cancelled;
         }
-      } else {
-        for (const listener of this._errorListeners) {
-          listener(gwError);
-        }
+        this._fsm.transition(ConnectionState.CONNECTED, 'retry transport ready');
+      } finally {
+        this._abortControllers.delete(requestId);
       }
     }
+  }
+
+  cancel(requestId: string): void {
+    const controller = this._abortControllers.get(requestId);
+    if (controller) {
+      controller.abort();
+      this._abortControllers.delete(requestId);
+    }
+  }
+
+  private _notifyData(requestId: string, data: string): void {
+    for (const listener of this._dataListeners) {
+      listener(requestId, data);
+    }
+  }
+
+  private _notifyError(requestId: string, error: GatewayError): void {
+    for (const listener of this._errorListeners) {
+      listener(requestId, error);
+    }
+  }
+
+  private _throwForHttpStatus(statusCode: number): void {
+    if (statusCode >= 200 && statusCode < 300) return;
+    if (statusCode === 401 || statusCode === 403) {
+      throw new GatewayError(ErrorCode.AUTH_INVALID_CREDENTIALS, `Gateway authentication failed (HTTP ${statusCode})`);
+    }
+    if (statusCode === 407) {
+      throw new GatewayError(ErrorCode.PROXY_AUTH_FAILED, 'Proxy authentication failed (HTTP 407)');
+    }
+    if (statusCode === 429) {
+      throw new GatewayError(ErrorCode.RATE_LIMITED, 'Gateway rate limit exceeded (HTTP 429)');
+    }
+    if (statusCode >= 500) {
+      throw new GatewayError(ErrorCode.INTERNAL_ERROR, `Gateway server failed (HTTP ${statusCode})`);
+    }
+    throw new GatewayError(ErrorCode.DECODE_ERROR, `Unexpected gateway response status HTTP ${statusCode}`);
   }
 
   onData(listener: DataListener): () => void {

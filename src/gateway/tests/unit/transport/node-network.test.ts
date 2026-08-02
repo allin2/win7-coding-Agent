@@ -100,16 +100,16 @@ describe('transport/NodeNetworkStack error mapping', () => {
     expect(gwErr.code).toBe(ErrorCode.TLS_VERIFY_FAILED);
   });
 
-  it('maps ECONNRESET to CONNECTION_TIMEOUT', () => {
+  it('maps ECONNRESET to STREAM_INTERRUPTED', () => {
     const err = Object.assign(new Error('reset'), { code: 'ECONNRESET' });
     const gwErr = mapNodeError(err);
-    expect(gwErr.code).toBe(ErrorCode.CONNECTION_TIMEOUT);
+    expect(gwErr.code).toBe(ErrorCode.STREAM_INTERRUPTED);
   });
 
-  it('maps EPIPE to CONNECTION_TIMEOUT', () => {
+  it('maps EPIPE to STREAM_INTERRUPTED', () => {
     const err = Object.assign(new Error('pipe'), { code: 'EPIPE' });
     const gwErr = mapNodeError(err);
-    expect(gwErr.code).toBe(ErrorCode.CONNECTION_TIMEOUT);
+    expect(gwErr.code).toBe(ErrorCode.STREAM_INTERRUPTED);
   });
 
   it('maps ENOTFOUND to CONNECTION_REFUSED', () => {
@@ -184,10 +184,15 @@ describe('transport/NodeNetworkStack configuration', () => {
   });
 
   it('merges partial config with defaults', () => {
-    const stack = new NodeNetworkStack({ timeout: 5000, rejectUnauthorized: false });
+    const stack = new NodeNetworkStack({ timeout: 5000 });
     expect(stack.config.timeout).toBe(5000);
-    expect(stack.config.rejectUnauthorized).toBe(false);
+    expect(stack.config.rejectUnauthorized).toBe(true);
     expect(stack.config.minTLSVersion).toBe('TLSv1.2'); // default preserved
+  });
+
+  it('refuses disabled certificate validation and TLS below 1.2', () => {
+    expect(() => new NodeNetworkStack({ rejectUnauthorized: false })).toThrow(GatewayError);
+    expect(() => new NodeNetworkStack({ minTLSVersion: 'TLSv1.0' })).toThrow(GatewayError);
   });
 
   it('loads CA bundle from config', () => {
@@ -231,7 +236,7 @@ describe('transport/NodeNetworkStack integration (HTTP)', () => {
       res.end(JSON.stringify({ method: req.method, url: req.url }));
     });
 
-    const stack = new NodeNetworkStack({ rejectUnauthorized: false });
+    const stack = new NodeNetworkStack();
     const resp = await stack.request(testServer.url + '/test?q=1', {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
@@ -361,8 +366,13 @@ describe('transport/NodeNetworkStack integration (HTTP)', () => {
       });
     } catch (e) {
       const gwErr = e as GatewayError;
-      // Could be CONNECTION_REFUSED (ENOTFOUND), CONNECTION_TIMEOUT, or INTERNAL_ERROR depending on DNS
-      expect([ErrorCode.CONNECTION_REFUSED, ErrorCode.CONNECTION_TIMEOUT, ErrorCode.INTERNAL_ERROR]).toContain(gwErr.code);
+      // Resolver/proxy behavior varies by host; an early reset is an interrupted stream.
+      expect([
+        ErrorCode.CONNECTION_REFUSED,
+        ErrorCode.CONNECTION_TIMEOUT,
+        ErrorCode.STREAM_INTERRUPTED,
+        ErrorCode.INTERNAL_ERROR,
+      ]).toContain(gwErr.code);
     }
   });
 });
@@ -382,7 +392,7 @@ describe('transport/NodeNetworkStack timeout', () => {
   it('rejects with CONNECTION_TIMEOUT when server is slow', async () => {
     testServer = await createTestServer((_req, res) => {
       // Never respond — let the timeout fire
-      setTimeout(() => {
+      const lateResponse = setTimeout(() => {
         try {
           res.writeHead(200);
           res.end('late');
@@ -390,6 +400,7 @@ describe('transport/NodeNetworkStack timeout', () => {
           // ignore if socket already destroyed
         }
       }, 10_000);
+      res.on('close', () => clearTimeout(lateResponse));
     });
 
     const stack = new NodeNetworkStack();

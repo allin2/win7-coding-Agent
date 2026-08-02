@@ -1,11 +1,11 @@
 {
-  "name": "win7-agent-workspace",
+  "name": "@win7-agent/workspace",
   "version": "0.1.0",
   "description": "Workspace Write module for Win7 Coding Agent — encoding-aware atomic file operations",
   "private": true,
   "scripts": {
     "build": "tsc",
-    "test": "jest --forceExit",
+    "test": "jest",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

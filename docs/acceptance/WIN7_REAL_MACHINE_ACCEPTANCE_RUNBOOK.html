@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Win7 实机验收与远程控制操作手册</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5f6b7a;
+      --line: #dce3ea;
+      --paper: #ffffff;
+      --canvas: #eef2f6;
+      --navy: #12304a;
+      --blue: #1769aa;
+      --green: #287a50;
+      --amber: #a45c00;
+      --red: #aa2e2e;
+      --soft-blue: #eaf4fb;
+      --soft-green: #e9f7ef;
+      --soft-amber: #fff4df;
+      --soft-red: #fff0ef;
+      --shadow: 0 18px 50px rgba(23, 32, 51, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.68;
+    }
+
+    a { color: var(--blue); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 28px auto;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 56px clamp(28px, 6vw, 76px) 44px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 90% 15%, rgba(90, 177, 232, 0.32), transparent 34%),
+        linear-gradient(135deg, #0f263b, #124b72 68%, #1769aa);
+    }
+
+    header .eyebrow {
+      margin: 0 0 14px;
+      color: #aee0ff;
+      font-size: 0.84rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 860px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.55rem);
+      line-height: 1.12;
+      letter-spacing: -0.025em;
+    }
+
+    header .lede {
+      max-width: 860px;
+      margin: 22px 0 0;
+      color: #d9effc;
+      font-size: 1.08rem;
+    }
+
+    header .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 11px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+      color: #fff;
+      font-size: 0.84rem;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      gap: 44px;
+      padding: 42px clamp(24px, 5vw, 68px) 70px;
+    }
+
+    article { min-width: 0; }
+
+    nav {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+    }
+
+    nav strong {
+      display: block;
+      margin-bottom: 10px;
+      color: var(--navy);
+    }
+
+    nav a {
+      display: block;
+      padding: 5px 0;
+      color: #435266;
+      font-size: 0.9rem;
+      text-decoration: none;
+    }
+
+    nav a:hover { color: var(--blue); }
+
+    h2 {
+      margin: 58px 0 20px;
+      padding-top: 8px;
+      color: var(--navy);
+      font-size: 1.7rem;
+      line-height: 1.25;
+      letter-spacing: -0.015em;
+    }
+
+    h2:first-child { margin-top: 0; }
+
+    h3 {
+      margin: 32px 0 12px;
+      color: #24445f;
+      font-size: 1.14rem;
+    }
+
+    p { margin: 12px 0; }
+
+    ul, ol { padding-left: 1.35rem; }
+
+    li + li { margin-top: 6px; }
+
+    .callout {
+      margin: 22px 0;
+      padding: 18px 20px;
+      border-left: 5px solid var(--blue);
+      border-radius: 8px 12px 12px 8px;
+      background: var(--soft-blue);
+    }
+
+    .callout strong { color: var(--navy); }
+    .callout.warn { border-left-color: var(--amber); background: var(--soft-amber); }
+    .callout.danger { border-left-color: var(--red); background: var(--soft-red); }
+    .callout.success { border-left-color: var(--green); background: var(--soft-green); }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin: 22px 0;
+    }
+
+    .status-card {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfcfd;
+    }
+
+    .status-card .label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .status-card .value {
+      display: block;
+      margin-top: 5px;
+      font-size: 1.08rem;
+      font-weight: 750;
+    }
+
+    .ok { color: var(--green); }
+    .hold { color: var(--amber); }
+    .stop { color: var(--red); }
+
+    .table-wrap {
+      margin: 18px 0 26px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th { background: #f3f7fa; color: var(--navy); font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    code {
+      padding: 0.08em 0.35em;
+      border-radius: 5px;
+      background: #eef2f5;
+      color: #28384a;
+      font-size: 0.9em;
+    }
+
+    pre {
+      margin: 16px 0 24px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      border: 1px solid #243c51;
+      border-radius: 12px;
+      background: #0f2130;
+      color: #dcecf6;
+      font-size: 0.86rem;
+      line-height: 1.55;
+    }
+
+    pre code { padding: 0; background: transparent; color: inherit; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 44px 1fr 44px 1fr;
+      align-items: stretch;
+      gap: 8px;
+      margin: 24px 0 28px;
+    }
+
+    .flow .node {
+      min-height: 130px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #f8fafc;
+    }
+
+    .flow .node strong { display: block; color: var(--navy); margin-bottom: 6px; }
+    .flow .arrow { display: grid; place-items: center; color: var(--blue); font-size: 1.6rem; }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+    }
+
+    .checklist li {
+      position: relative;
+      margin: 8px 0;
+      padding: 10px 12px 10px 40px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fbfcfd;
+    }
+
+    .checklist li::before {
+      content: "□";
+      position: absolute;
+      left: 14px;
+      top: 8px;
+      color: var(--blue);
+      font-size: 1.18rem;
+    }
+
+    .small { color: var(--muted); font-size: 0.86rem; }
+
+    footer {
+      padding: 24px clamp(24px, 5vw, 68px) 34px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      background: #f8fafc;
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      nav { position: static; order: -1; }
+      .flow { grid-template-columns: 1fr; }
+      .flow .arrow { transform: rotate(90deg); min-height: 24px; }
+    }
+
+    @media (max-width: 620px) {
+      .page { width: 100%; margin: 0; border-radius: 0; }
+      .status-grid { grid-template-columns: 1fr; }
+      header { padding-top: 38px; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { width: 100%; margin: 0; box-shadow: none; }
+      main { display: block; padding: 28px 36px; }
+      nav { display: none; }
+      header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      pre, .callout, th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      h2 { break-after: avoid; }
+      table, .status-card, .callout { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <p class="eyebrow">Win7 Coding Agent · Acceptance Runbook</p>
+      <h1>Windows 7 实机验收、远程控制与门禁回收操作手册</h1>
+      <p class="lede">
+        面向 Win7 SP1 x64 现场机器与当前 Mac 控制机。手册覆盖机器准备、依赖边界、
+        RDP/SSH 控制、离线执行、证据回收、Go/No-Go 判定和回滚。
+      </p>
+      <div class="meta">
+        <span class="pill">基线日期：2026-08-02 · MVP-20260802-12</span>
+        <span class="pill">目标平台：Windows 7 SP1 x64 / build 7601</span>
+        <span class="pill">当前 Win7 状态：PARTIAL</span>
+        <span class="pill">交付原则：自包含、版本锁定、证据可追溯</span>
+      </div>
+    </header>
+
+    <main>
+      <article>
+        <h2 id="decision">0. 先给结论</h2>
+
+        <div class="callout danger">
+          <strong>当前工作区已完成部分 Win7 MVP 实测，但不能回收正式全量门禁。</strong>
+          标准 Phase 1 probe 已 18/18 连续三次通过；MVP-20260802-12 又在中文+空格目录完成 E2 预备探针（17 PASS、1 个预期 Git 缺失降级）、20/20 回归和 compileall。正式发布仍缺产品入口、原生依赖与架构 Gate。不得在 Win7 上临时执行 <code>npm install</code>、<code>pip install</code> 或现场编译来补齐依赖。
+        </div>
+
+        <div class="status-grid">
+          <div class="status-card">
+            <span class="label">开发机文档门</span>
+            <span class="value ok">PASS · 50 files / 14 tasks</span>
+          </div>
+          <div class="status-card">
+            <span class="label">Node 快速编译门</span>
+            <span class="value ok">PASS · 7 modules</span>
+          </div>
+          <div class="status-card">
+            <span class="label">Phase 1 当前回归</span>
+            <span class="value ok">PASS · 20 tests / E2 17+1 degraded</span>
+          </div>
+          <div class="status-card">
+            <span class="label">SPIKE 01 静态验证</span>
+            <span class="value stop">PARTIAL · T01/T03/T06/T08/T11 open</span>
+          </div>
+        </div>
+
+        <p>当前阻断事实：</p>
+        <ul>
+          <li><a href="../STATUS.md">当前状态</a>仍是脏工作区后的候选演进；Win7 实机为 <code>PARTIAL</code>，MVP 证据与原始报告已绑定 <code>MVP-20260802-12</code>。</li>
+          <li>Phase 1 任务书仍是 <code>REPAIR_REQUIRED_BEFORE_E1</code>；E2 准备性实测已完成，但架构 Gate、物理断网和干净环境条件仍未释放。</li>
+          <li>Phase 2 的正式实现只允许位于 <code>phase/02-readonly-agent</code> 分支；当前整合分支没有可执行的 Phase 2 闭包。</li>
+          <li>SPIKE 01 已完成部分实机验证；冷启动/视觉/抓包/真实双任务负载仍未闭合。</li>
+          <li>SPIKE 02 仍有 Job/Restricted Token/ACL/输出读取等 TODO，动态测试没有实现。</li>
+          <li>SPIKE 03 的受控 MinGit 派生包已完成独立 P01–P04/N01–N10 14/14；正式 SBOM/许可证闭包仍未完成。</li>
+          <li>SPIKE 04 只有 schema/migration 骨架，任务书要求的 indexer、benchmark、crash-recovery 驱动尚不存在。</li>
+        </ul>
+
+        <div class="callout success">
+          <strong>最短正确路径：</strong>先完成“可验收包门”，再准备 Win7；正式顺序是
+          <strong>Phase 1/2 → SPIKE 01 → SPIKE 02/03/04 → 产品级 W7C-01~13</strong>。
+          SPIKE 01 必须先行，因为 02/04 的原生 ABI 和宿主依赖 Electron 22 的裁决。
+        </div>
+
+        <h2 id="topology">1. 推荐控制拓扑</h2>
+
+        <div class="flow">
+          <div class="node">
+            <strong>Mac 控制机</strong>
+            构建与签名、计算 SHA-256、SFTP 传包、SSH 触发固定脚本、下载证据、RDP 视觉检查。
+          </div>
+          <div class="arrow">→</div>
+          <div class="node">
+            <strong>隔离管理网</strong>
+            独立交换机/VLAN；Win7 不配默认网关和 DNS。防火墙只允许来自 Mac 固定 IP 的管理端口。
+          </div>
+          <div class="arrow">→</div>
+          <div class="node">
+            <strong>Win7 被测机</strong>
+            短路径本地盘、普通用户为主、管理员仅做前置配置；运行固定验收包并生成证据目录。
+          </div>
+        </div>
+
+        <p>推荐至少保留两个可恢复状态：</p>
+        <ol>
+          <li><strong>Clean-Baseline：</strong>Win7 SP1 x64 + 已声明 KB；不安装 SSH、Node、Git、编译器或测试工具。</li>
+          <li><strong>Control-Enabled：</strong>从 Clean-Baseline 派生，启用 RDP，并按需安装 SSH/抓包工具。用于传包、自动化和问题定位。</li>
+        </ol>
+        <p>虚拟机用快照；物理机用磁盘镜像/可验证的系统还原方案。完成 E5 干净环境验收前必须恢复 Clean-Baseline，不能只卸载工具后假设恢复干净。</p>
+
+        <div class="callout warn">
+          <strong>严格零网络场景不能靠 RDP/SSH 同时证明。</strong>
+          Phase 1/2 明确禁止任何网络连接（含 localhost）。若要做字面意义上的断网验收，必须使用虚拟化平台控制台、KVM-over-IP/硬件远程控制或现场人员，随后禁用/拔除所有网卡。
+          仅“无默认网关的管理 LAN”只能证明无外网，不等于零网络。
+        </div>
+
+        <h2 id="machine">2. Win7 机器准备</h2>
+
+        <h3>2.1 硬件与系统</h3>
+        <ul class="checklist">
+          <li>Windows 7 SP1 x64，build 7601；保留正版介质/COA 与系统版本截图。</li>
+          <li>至少 4 核 CPU、8 GB 内存；性能验收优先真实 5400/7200 rpm 机械盘。</li>
+          <li>至少一台无独显或老旧集显的物理机，用于 SPIKE 01 GPU/软渲染；RDP/虚拟 GPU 数据不得冒充该项。</li>
+          <li>创建普通验收账户；管理员账户只用于补丁、RDP、SSH 与防火墙配置。正式产品运行以普通用户为主。</li>
+          <li>测试目录使用本地 NTFS，例如 <code>C:\W7A</code>；另建中文+空格目录，例如 <code>C:\验收 目录</code>。不要把数据库放网络盘。</li>
+          <li>记录 BIOS/机器型号、CPU、内存、磁盘型号/转速、显卡和驱动版本；性能结果必须标注实机或 VM。</li>
+        </ul>
+
+        <h3>2.2 系统补丁</h3>
+        <p>以下是项目建议基线，不是“无条件全部安装”的全局前提。每个 Runtime Profile 必须声明自己实际需要的补丁，并接受累计更新取代关系。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>补丁</th><th>用途</th><th>现场要求</th></tr></thead>
+            <tbody>
+              <tr><td>KB4490628</td><td>Servicing Stack 基线</td><td>记录安装前后状态与 pending reboot；需要时重启。</td></tr>
+              <tr><td>最新 KB4474419</td><td>SHA-2 代码签名</td><td>验证签名链；不得只按原始 KB 号机械判断。</td></tr>
+              <tr><td>KB3140245</td><td>WinHTTP 默认协议下的 TLS 1.2</td><td>只证明 WinHTTP 相关能力，不证明 Electron <code>net</code> 或 Node <code>https</code>。</td></tr>
+              <tr><td>KB3042058</td><td>Schannel 密码套件增强</td><td>按网络 Profile 选择，通常需要重启。</td></tr>
+              <tr><td>UCRT / VC Runtime</td><td>Python 或原生 DLL/.node 运行前置</td><td>必须由交付包声明并预检；优先静态 CRT 或随包交付锁定版本。</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>补丁安装后至少重启一次，再记录：</p>
+        <pre><code>ver
+systeminfo
+wmic os get Caption,Version,OSArchitecture,ServicePackMajorVersion /value
+wmic qfe get HotFixID,InstalledOn /format:csv
+chcp
+whoami
+ipconfig /all</code></pre>
+
+        <h3>2.3 目标机到底安装什么</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>验收对象</th><th>目标机所需</th><th>禁止的现场做法</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Phase 1 / 2</td>
+                <td>CPython 3.8.10 x64；E1 另有 Git for Windows 2.46.2，E2 刻意无 Git；均使用普通用户和断网环境。</td>
+                <td>安装第三方 Python 包、连接真实模型、联网解析依赖。</td>
+              </tr>
+              <tr>
+                <td>SPIKE 01</td>
+                <td>打包后的 Electron 22.3.27 x64 验证壳；Electron/Chromium/Node 随包闭包。</td>
+                <td>在 Win7 上运行 <code>npm install</code> 或依赖系统 Node。</td>
+              </tr>
+              <tr>
+                <td>SPIKE 02</td>
+                <td>预构建 C++ x64 helper、winpty 0.4.3、node-pty 0.10.0（精确 Electron 22 ABI）、必要 CRT。</td>
+                <td>在 Win7 上安装 VS 2019、CMake、Windows SDK 或现场重编译。</td>
+              </tr>
+              <tr>
+                <td>SPIKE 03</td>
+                <td>随包 MinGit 2.46.2 x64 裁剪包，不写系统 PATH；固定测试宿主和恶意仓库夹具。</td>
+                <td>调用系统偶然存在的 Git、LFS、GCM、SSH helper 或在线 fetch。</td>
+              </tr>
+              <tr>
+                <td>SPIKE 04</td>
+                <td>按 Electron 22 ABI 预编译的锁定版 better-sqlite3/SQLite+FTS5、压测驱动、3 档样本仓库。</td>
+                <td>现场 <code>npm install better-sqlite3</code>、现场编译原生模块、数据库放网络盘。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <strong>构建机依赖不进入 Win7：</strong>MSVC v142 / VS 2019、Windows SDK 10、TypeScript、npm、electron-builder 只在受维护的现代构建机使用。目标机只接收已锁版本、已签名/哈希、可回滚的运行闭包。
+        </div>
+
+        <h2 id="remote">3. 从这台 Mac 控制 Win7</h2>
+
+        <h3>3.1 GUI：RDP / Windows App</h3>
+        <p>Win7 被控端应使用 Professional、Enterprise 或 Ultimate 等可承载远程桌面会话的版本；Home/Starter 不能作为 RDP Host，遇到这类版本应改用硬件 KVM/虚拟化控制台，不要为验收引入来历不明的 RDP 补丁。</p>
+        <ol>
+          <li>Win7 端进入“计算机 → 属性 → 远程设置”，启用远程桌面；优先保留 NLA，不要为省事永久降级认证。</li>
+          <li>将普通验收账户加入“Remote Desktop Users/远程桌面用户”，设置非空强密码。</li>
+          <li>Windows 防火墙仅允许 Mac 固定管理 IP 访问 TCP 3389；不要直接暴露到公网。</li>
+          <li>Mac 端使用 Microsoft <strong>Windows App</strong> 添加 Win7 固定 IP，关闭不必要的磁盘、剪贴板、打印机和设备重定向。</li>
+          <li>用 RDP 完成窗口、路径、日志、退出和人工确认；GPU 黑屏/软渲染 T04 必须回到物理控制台或硬件 KVM 复测。</li>
+        </ol>
+        <p class="small">微软已用 Windows App 取代旧版 macOS Remote Desktop 客户端。参考：<a href="https://learn.microsoft.com/en-us/previous-versions/remote-desktop-client/remote-desktop-macos">macOS 远程桌面说明</a>。</p>
+
+        <h3>3.2 命令与传包：SSH/SFTP（验收基础设施，不是产品依赖）</h3>
+        <p>Win7 没有 Windows 10 1809+ 的内置 OpenSSH 功能。推荐在 <strong>Control-Enabled</strong> 快照安装当前签名版 Bitvise SSH Server，并将其作为验收基础设施单独登记、锁定版本与 SHA-256。</p>
+        <ol>
+          <li>只允许一个验收账户；先验证密钥登录，再关闭密码登录。</li>
+          <li>将 SFTP 虚拟根映射到 <code>C:\W7A</code>；关闭端口转发、代理、远程转发和不需要的子系统。</li>
+          <li>如需远程执行，仅开放固定验收脚本的命令行能力；不要将服务配置为“任意 Windows 账户均可登录”。</li>
+          <li>Windows 防火墙只放行 Mac 管理 IP；记录服务版本、安装器签名、主机密钥指纹和配置导出。</li>
+          <li>E5 干净验收前恢复 Clean-Baseline；否则 SSH 服务和日志会污染“只装交付包”的结论。</li>
+        </ol>
+        <p class="small">Bitvise 官方说明其 SSH Server 支持从 Windows 11 到 XP SP3 的桌面 Windows，并建议使用近期版本；同时要求限制账户和不需要的服务。参考：<a href="https://bitvise.com/ssh-server">兼容性</a>、<a href="https://bitvise.com/ssh-server-guide-securing">加固指南</a>。微软内置 OpenSSH 文档从 Windows 10 1809/Server 2019 起，不适合作为 Win7 内置能力依据：<a href="https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh-overview">OpenSSH for Windows</a>。</p>
+
+        <h3>3.3 Mac 侧固定操作</h3>
+        <p>先在 Mac 保存 Win7 主机密钥指纹，再使用 SFTP 传递整个已冻结目录。以下只展示固定脚本调用；不要把任意用户输入拼进远程命令。</p>
+        <pre><code># Mac：核对验收包哈希
+shasum -a 256 win7-acceptance-&lt;commit&gt;.zip
+
+# SFTP：上传到 Bitvise 映射的虚拟根 /inbox
+sftp -P 2222 w7accept@192.168.77.20
+sftp&gt; put win7-acceptance-&lt;commit&gt;.zip /inbox/
+
+# SSH：只调用包内固定入口，不在线拼装测试逻辑
+ssh -p 2222 w7accept@192.168.77.20 \
+  'cmd.exe /d /s /c C:\W7A\current\scripts\preflight.cmd'
+
+# 验收结束后取回整个证据目录
+sftp -P 2222 w7accept@192.168.77.20
+sftp&gt; get -r /evidence/&lt;run-id&gt;/ ./evidence/&lt;run-id&gt;/</code></pre>
+
+        <p>若目标是严格断网：先通过 SSH 放好固定任务和证据目录，退出 SSH；切换到虚拟机控制台/硬件 KVM，禁用所有网卡后执行。完成后重新联网只用于取回证据，并把断网/联网边界时间写进报告。</p>
+
+        <h2 id="bundle">4. 正式验收包合同</h2>
+
+        <p>每个验收包必须绑定一个干净 Git commit，不允许从当前脏工作区直接打包。建议短路径结构：</p>
+        <pre><code>C:\W7A\current\
+├─ MANIFEST.json                 包版本、Git commit、Profile、创建时间
+├─ SHA256SUMS.txt                所有关键工件哈希
+├─ SBOM.json                     运行时、DLL、.node、许可证、来源
+├─ runtimes\                     Python/Electron/原生运行闭包
+├─ phase1\  phase2\             冻结实现与固定入口
+├─ spike01\ spike02\ spike03\ spike04\
+├─ fixtures\                     无敏感数据的标准夹具
+├─ scripts\
+│  ├─ preflight.cmd
+│  ├─ run_phase1_e1.cmd
+│  ├─ run_phase1_e2.cmd
+│  ├─ run_phase2.cmd
+│  ├─ run_spike01.cmd ...
+│  └─ collect_evidence.cmd
+└─ expected\                     机器可读 schema 与期望摘要
+
+C:\W7A\evidence\&lt;run-id&gt;\       运行时只写这里</code></pre>
+
+        <p>包在离开构建机前必须满足：</p>
+        <ul class="checklist">
+          <li>Git 工作区干净，commit 与 <code>MANIFEST.json</code> 完全一致。</li>
+          <li>所有运行时、原生模块、外部程序版本已锁；不存在 <code>^</code>、<code>latest</code> 或现场解析。</li>
+          <li>关键安装器/二进制 SHA-256 已写入清单并在 Win7 端二次核对。</li>
+          <li>提供离线启动、超时、输出上限、取消和清理；每个脚本将 stdout/stderr 分开保存。</li>
+          <li>提供普通用户运行路径；管理员权限只能用于预先声明的系统准备。</li>
+          <li>提供升级前备份、失败回滚和残留检查；不删除不属于本包的文件。</li>
+          <li>不包含密钥、真实凭据、用户仓库、数据库、缓存、<code>.git</code> 或开发机绝对路径。</li>
+        </ul>
+
+        <h2 id="sequence">5. 现场执行顺序</h2>
+
+        <h3>5.1 第 0 门：预检与证据开场</h3>
+        <ol>
+          <li>恢复对应基线快照/镜像，记录快照 ID。</li>
+          <li>核对 OS、SP、架构、补丁、时区、账户权限、磁盘、GPU、网卡状态。</li>
+          <li>核对包 commit、Profile ID、清单和所有关键 SHA-256。</li>
+          <li>保存运行前 <code>tasklist /fo csv</code>、<code>netstat -ano</code>、服务列表、磁盘空闲与目标目录树。</li>
+          <li>创建唯一 <code>run-id</code>，之后所有日志、截图、抓包和报告都放到同一证据目录。</li>
+        </ol>
+
+        <h3>5.2 Phase 1：E1 / E2</h3>
+        <div class="callout warn">
+          <strong>准备性实测已完成，正式 Gate 仍未启动。</strong>当前标准树已完成三次 18/18 probe；E2 中文+空格树已完成 17 PASS + 1 预期 degraded、20/20 回归和 compileall。必须仍由架构师把 <code>Phase-Gate</code> 从 <code>REPAIR_REQUIRED_BEFORE_E1</code> 解除后，才能宣称正式 E1/E2。
+        </div>
+        <p>已完成与仍需人工授权的边界：</p>
+        <ul>
+          <li><strong>E2 已完成准备性实测：</strong>中文+空格安装/报告路径、Git 不在进程 PATH；18 项中 17 PASS + 1 个结构化 <code>TOOL_NOT_FOUND/degraded</code>，无 blocking check，回归 20/20。</li>
+          <li><strong>E1 待人工 Gate：</strong>Win7 SP1 x64 + CPython 3.8.10 x64 + Git 2.46.2 + 普通用户 + 严格断网；需要架构 Gate、授权断网和干净环境。</li>
+          <li>执行 <code>scripts\run_tests.bat</code> 与 <code>scripts\run_probe.bat</code>；JSON 必须含 18 项，SQLite 快照必须含前 17 项。</li>
+          <li>检查 <code>proc.timeout</code>、<code>proc.truncate</code>、<code>proc.kill</code>、编码/BOM/CRLF、磁盘空间、TLS 离线内省和报告原子写。</li>
+          <li>运行前后对比进程；确认父/孙进程均消失，<code>%TEMP%</code> 与工作目录无 <code>cap_probe_</code> 残留。</li>
+          <li>两个 BAT 必须为 CRLF；E2 在中文+空格目录双击入口。</li>
+          <li>原始 JSON/SQLite、回归 stdout/stderr 与 compileall 证据见 <a href="../../validation/phase1/README.md">validation/phase1</a>。</li>
+        </ul>
+
+        <h3>5.3 Phase 2：只读 Agent</h3>
+        <div class="callout warn">
+          <strong>必须使用 <code>phase/02-readonly-agent</code> 的已审查验收包。</strong>
+          当前整合分支不能代替该分支；只有 Gate 已达 <code>READY_FOR_WIN7_VALIDATION</code> 才进入实机。
+        </div>
+        <ul>
+          <li>运行统一入口 <code>scripts\run_agent_tests.bat</code>，实际测试数不得低于冻结门槛。</li>
+          <li>运行 Mock/Replay 演示；禁止真实模型、网络与写用户代码。</li>
+          <li>对夹具工作区运行前后做字节级清单对比；除显式 events/report 路径外必须零变化。</li>
+          <li>重点验证路径上溯/外部绝对路径/symlink 逃逸、中文/空格/%/#、长路径、二进制、Git 缺失和 Replay 不一致。</li>
+          <li>结果只能是已定义的状态与错误码；stdout/stderr 保持 ASCII。</li>
+        </ul>
+
+        <h3>5.4 SPIKE 01：Electron 生死线</h3>
+        <ul>
+          <li>从 Clean-Baseline 解压已打包的 Electron 22.3.27 验证壳，不能执行 <code>npm install</code>。</li>
+          <li>重启后首次启动 3 次取中位数；空闲 10 分钟采集 Shell/Core 内存。</li>
+          <li>实际启动独立 <code>utilityProcess</code>，验证 stdin 关闭，不能只检查 API 名称存在。</li>
+          <li>在中文+空格目录验证日志、userData、CrashDumps；二次启动只聚焦已有窗口。</li>
+          <li>物理机执行 GPU 禁用/软渲染，无黑屏；RDP 结果只作补充。</li>
+          <li>触发未声明 HTTP(S)/WS/DNS，结合进程级网络审计与外部抓包证明零意外出站。</li>
+          <li>T01/T04/T05/T08/T09 对应硬门槛失败且 Spike 内不可修复，则 Electron No-Go，转 .NET 4.8 WPF 等价矩阵。</li>
+        </ul>
+
+        <h3>5.5 SPIKE 02 / 03 / 04</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>对象</th><th>现场重点</th><th>硬失败</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>SPIKE 02</td>
+                <td>3 层进程树、嵌套 Job 探测、Restricted Token、ACL、argv 白名单、超时/双流截断、winpty 回收、OSC/标题/DECRQSS 负向。</td>
+                <td>C01/C02/C05 不可靠或 T05 有残留：高风险本地命令 fail-closed；交互 PTY 可降级为非交互日志视图。</td>
+              </tr>
+              <tr>
+                <td>SPIKE 03</td>
+                <td>MinGit 2.46.2 随包、P01~P04、N01~N10；hooks/filter/textconv/pager/editor/credential/SSH/fsmonitor/LFS-GCM 组合注入，进程与网络双审计。</td>
+                <td>任一恶意仓库逃逸：Git 写能力 No-Go，降级只读/远程。</td>
+              </tr>
+              <tr>
+                <td>SPIKE 04</td>
+                <td>机械盘、本地 WAL、60s 写入、杀进程恢复、3k/10k/30k 中英文件、100 次查询 P95、滚动清理、CP936/UTF-8。</td>
+                <td>数据损坏或吞吐/延迟越过 No-Go：写入分层或远程索引；不得修改预算伪造达标。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>5.6 产品级 W7C-01~13</h3>
+        <p>四个 SPIKE 有结论且真实产品闭包形成后，再执行桌面端 E5/E6/E7：首次/重复启动、中文路径、Unicode/CP936、Renderer/IPC/导航/网络隔离、网关断连、Runner containment、包完整性与回滚、缺工具降级、长时运行、终端 stdin 与恶意 VT/OSC。当前仓库尚未形成这一级最终 E2E 证据。</p>
+
+        <h2 id="evidence">6. 证据如何回收</h2>
+
+        <p>每次运行建议至少形成：</p>
+        <pre><code>evidence\&lt;run-id&gt;\
+├─ environment.txt              OS/SP/KB/架构/账户/时区/硬件
+├─ manifest.sha256.txt          包与关键二进制哈希
+├─ commands.log                 固定脚本与实际参数
+├─ stdout\  stderr\             每个用例独立日志
+├─ process\                     tasklist 前/后、PID 树、残留判定
+├─ network\                     netstat、抓包、管理流量说明
+├─ performance\                 原始采样、3 次中位数、P95
+├─ screenshots\                 UI、GPU、错误与恢复
+├─ filesystem\                  运行前后目录/哈希差异
+├─ rollback\                    回滚步骤与结果
+└─ acceptance.md                PASS / FAIL / CONDITIONAL_PASS</code></pre>
+
+        <p>正式验收记录必须保存到 <code>docs/acceptance/YYYYMMDD_&lt;phase-or-component&gt;_&lt;environment&gt;.md</code>，至少写明：</p>
+        <ul>
+          <li>执行人、日期、任务书/ADR、Git commit、Profile ID。</li>
+          <li>OS/SP/补丁、运行时/框架/架构、外部工具精确版本。</li>
+          <li>交付包、锁文件与关键二进制 SHA-256。</li>
+          <li>静态、动态、安全检查；原始证据相对路径。</li>
+          <li>不适用项的任务书依据；失败/降级项和处置。</li>
+          <li>网络、权限、回滚和残留检查。</li>
+          <li>唯一结论：<code>PASS</code>、<code>FAIL</code> 或任务书预先允许的 <code>CONDITIONAL_PASS</code>。</li>
+        </ul>
+
+        <div class="callout danger">
+          <strong>门禁状态不能由脚本自行改写。</strong>现场脚本只生成客观证据；任务书中的
+          <code>Win7-Validation</code>、Phase Gate、性能预算状态和 Go/No-Go，必须由约定角色复核证据后更新。
+          未执行、包哈希不符、使用了未声明依赖、或只有 VM/现代开发机证据时，一律不得写 PASS。
+        </div>
+
+        <h2 id="rollback">7. 回滚与清场</h2>
+        <ol>
+          <li>先把证据复制回 Mac，并在 Mac 计算目录清单/哈希；至少保留两份。</li>
+          <li>正常停止产品与受管子进程；保存最后一次 <code>tasklist</code>/<code>netstat</code>。</li>
+          <li>删除时只删除明确属于本次包的目录；不得用广域 <code>del /s</code> 或依赖通配符清理未知路径。</li>
+          <li>若安装过 SSH、抓包、Git、Python 或 VC Runtime，用镜像/快照恢复，而不是仅靠卸载声称回到 Clean-Baseline。</li>
+          <li>验证无服务、启动项、注册表、进程、临时文件和 userData 残留；任何清理失败写入验收记录。</li>
+          <li>更新失败时恢复上一完整包与匹配 schema/config；代码与数据版本必须一起回滚。</li>
+        </ol>
+
+        <h2 id="next">8. 最短行动清单</h2>
+        <ol>
+          <li><strong>立即：</strong>准备 Win7 物理机/VM、Clean-Baseline、普通账户、隔离管理网、RDP 与可选 Bitvise 控制快照。</li>
+          <li><strong>代码侧 P0：</strong>冻结当前候选提交，修复 Phase 1 迁移路径回归，关闭 R1~R8，并获取架构师 Gate 解除。</li>
+          <li><strong>代码侧 P0：</strong>从 <code>phase/02-readonly-agent</code> 产出独立 Phase 2 验收包，不能从当前整合分支替代。</li>
+          <li><strong>代码侧 P0：</strong>把 SPIKE 01–04 从“骨架”补成 Windows 原生固定入口、离线工件、动态矩阵和证据采集器；锁定全部哈希/SBOM。</li>
+          <li><strong>首轮实机：</strong>Phase 1 E2 准备性复测已完成；SPIKE 01 T03 已发现 utilityProcess stdin 仍可读，需先修复/裁决；剩余正式 E1/E2（架构 Gate、物理断网、干净环境）与 Phase 2 仍待授权。</li>
+          <li><strong>第二轮实机：</strong>SPIKE 01 Go 后并行执行 02/03/04；必要时补企业启动器/域策略、老 GPU 和机械盘实机。</li>
+          <li><strong>最终：</strong>根据四个 Spike 的 Go/No-Go 固化 Runtime Profile，再构建产品 E2E 包执行 W7C-01~13。</li>
+        </ol>
+
+        <h2 id="sources">9. 仓库依据</h2>
+        <ul>
+          <li><a href="../WIN7_CONSTRAINTS.md">WIN7_CONSTRAINTS — 平台红线、依赖登记与兼容陷阱</a></li>
+          <li><a href="../EVALUATION.md">EVALUATION — E1~E8、验证矩阵与证据格式</a></li>
+          <li><a href="../PERFORMANCE_BUDGET.md">PERFORMANCE_BUDGET — 唯一性能口径</a></li>
+          <li><a href="../STATUS.md">STATUS — 当前基线和阻断项</a></li>
+          <li><a href="DEPENDENCY_LIST.md">DEPENDENCY_LIST — 实机依赖清单</a></li>
+          <li><a href="../tasks/PHASE_01_CAPABILITY_PROBE.md">PHASE 01 任务书</a> / <a href="../tasks/PHASE_02_READONLY_CODE_ANALYSIS.md">PHASE 02 任务书</a></li>
+          <li><a href="../tasks/SPIKE_01_WIN7_RUNTIME_BASELINE.md">SPIKE 01</a> / <a href="../tasks/SPIKE_02_TERMINAL_CONTAINMENT.md">SPIKE 02</a> / <a href="../tasks/SPIKE_03_GIT_ADAPTER.md">SPIKE 03</a> / <a href="../tasks/SPIKE_04_STORAGE_INDEX.md">SPIKE 04</a></li>
+        </ul>
+      </article>
+
+      <nav aria-label="文档目录">
+        <strong>目录</strong>
+        <a href="#decision">0. 先给结论</a>
+        <a href="#topology">1. 推荐控制拓扑</a>
+        <a href="#machine">2. Win7 机器准备</a>
+        <a href="#remote">3. Mac 远程控制</a>
+        <a href="#bundle">4. 验收包合同</a>
+        <a href="#sequence">5. 现场执行顺序</a>
+        <a href="#evidence">6. 证据回收</a>
+        <a href="#rollback">7. 回滚与清场</a>
+        <a href="#next">8. 最短行动清单</a>
+        <a href="#sources">9. 仓库依据</a>
+      </nav>
+    </main>
+
+    <footer>
+      本手册是操作入口，不替代 AGENTS.md、WIN7_CONSTRAINTS、各任务书和 Accepted ADR。
+      如有冲突，按仓库文档优先级裁决。所有“PASS”最终必须由 Win7 SP1 x64 原始证据支持。
+    </footer>
+  </div>
+</body>
+</html>

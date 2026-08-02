@@ -97,6 +97,21 @@ export function validateEvent(
   if (!event.sessionId || typeof event.sessionId !== 'string') {
     errors.push('Event sessionId is required and must be a string');
   }
+  if (event.threadId !== undefined && (
+    typeof event.threadId !== 'string' || event.threadId.length === 0
+  )) {
+    errors.push('Event threadId must be a non-empty string when provided');
+  }
+  if (event.runId !== undefined && (
+    typeof event.runId !== 'string' || event.runId.length === 0
+  )) {
+    errors.push('Event runId must be a non-empty string when provided');
+  }
+  if (event.sequence !== undefined && (
+    !Number.isInteger(event.sequence) || event.sequence < 1
+  )) {
+    errors.push('Event sequence must be a positive integer when provided');
+  }
 
   // Schema-based payload validation.
   const schema = registry.get(event.type, event.schemaVersion);

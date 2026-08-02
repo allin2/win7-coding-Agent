@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>上下文工程修改计划 — win7-coding-agent</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #64748b;
+      --paper: #ffffff;
+      --wash: #f6f8fb;
+      --line: #dce3eb;
+      --navy: #102a43;
+      --teal: #0f766e;
+      --blue: #1d4ed8;
+      --red: #b42318;
+      --amber: #9a6700;
+      --green: #18794e;
+      --violet: #6d28d9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #edf2f7;
+      font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main {
+      width: min(1240px, calc(100% - 32px));
+      margin: 28px auto 56px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: 0 18px 50px rgba(15, 42, 67, .09);
+    }
+    header {
+      padding: 44px 50px 38px;
+      color: white;
+      background:
+        radial-gradient(circle at 90% 14%, rgba(45, 212, 191, .28), transparent 26%),
+        linear-gradient(132deg, #0f2740, #114b5f 66%, #0f766e);
+    }
+    h1 { margin: 0 0 10px; font-size: 35px; line-height: 1.2; letter-spacing: -.02em; }
+    header p { max-width: 850px; margin: 0; color: #d8eef2; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .meta span {
+      padding: 4px 10px;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      font-size: 13px;
+    }
+    section { padding: 30px 50px; border-top: 1px solid var(--line); }
+    h2 { margin: 0 0 16px; color: var(--navy); font-size: 23px; }
+    h3 { margin: 20px 0 7px; color: var(--navy); font-size: 17px; }
+    p { margin: 7px 0; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #edf2f7;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .outcome {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 18px;
+    }
+    .decision {
+      padding: 22px 24px;
+      border: 1px solid #99ddd5;
+      border-left: 6px solid var(--teal);
+      border-radius: 12px;
+      background: #effcf9;
+    }
+    .decision strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--teal);
+      font-size: 23px;
+    }
+    .gates {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .gate {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--wash);
+    }
+    .gate b { display: block; color: var(--navy); font-size: 16px; }
+    .gate small { color: var(--muted); }
+    .scope {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .scope article {
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--wash);
+    }
+    .scope h3 { margin: 0 0 6px; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin: 18px 0;
+    }
+    .flow div {
+      position: relative;
+      min-height: 108px;
+      padding: 14px;
+      border: 1px solid #b6c4d3;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #fff, #f4f7fa);
+    }
+    .flow div:not(:last-child)::after {
+      position: absolute;
+      top: 42%;
+      right: -12px;
+      z-index: 2;
+      content: "›";
+      color: var(--teal);
+      font-size: 26px;
+      font-weight: 800;
+    }
+    .flow b { display: block; margin-bottom: 4px; color: var(--navy); }
+    .flow small { color: var(--muted); }
+    .principles {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .principles div {
+      padding: 15px 17px;
+      border-left: 4px solid var(--blue);
+      background: #f7f9ff;
+    }
+    table { width: 100%; margin: 14px 0; border-collapse: collapse; }
+    th, td {
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    th { color: #334155; background: var(--wash); font-size: 13px; }
+    td:first-child { white-space: nowrap; font-weight: 700; }
+    ul, ol { margin: 8px 0 8px 22px; padding: 0; }
+    li { margin: 5px 0; }
+    .workpack {
+      margin: 16px 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+    }
+    .workpack > h3 {
+      margin: 0;
+      padding: 13px 18px;
+      color: white;
+      background: var(--navy);
+    }
+    .workpack .body { padding: 17px 19px; }
+    .workpack .tag {
+      float: right;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: var(--navy);
+      background: white;
+      font-size: 12px;
+    }
+    .wp0 > h3, .wp1 > h3 { background: var(--red); }
+    .wp2 > h3, .wp3 > h3 { background: var(--blue); }
+    .wp4 > h3 { background: var(--violet); }
+    .wp5 > h3, .wp6 > h3 { background: var(--teal); }
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .exit {
+      padding: 11px 13px;
+      border-left: 4px solid var(--green);
+      background: #effaf4;
+    }
+    .warning {
+      padding: 13px 15px;
+      border-left: 4px solid var(--amber);
+      background: #fff9db;
+    }
+    .critical {
+      padding: 13px 15px;
+      border-left: 4px solid var(--red);
+      background: #fff2f0;
+    }
+    .roadmap {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      align-items: stretch;
+    }
+    .roadmap div {
+      padding: 12px 10px;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--teal);
+      border-radius: 10px;
+      background: var(--wash);
+      text-align: center;
+    }
+    .roadmap b { display: block; color: var(--navy); }
+    .roadmap small { color: var(--muted); }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .full { color: var(--green); background: #e7f8ef; }
+    .partial { color: var(--amber); background: #fff4cc; }
+    .deferred { color: var(--violet); background: #f0e9ff; }
+    .commands {
+      overflow-x: auto;
+      padding: 16px 18px;
+      border-radius: 10px;
+      color: #dbeafe;
+      background: #111827;
+      font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+    }
+    .footnote { color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) {
+      main { width: 100%; margin: 0; border-radius: 0; }
+      header, section { padding: 28px 22px; }
+      .outcome, .cols, .principles { grid-template-columns: 1fr; }
+      .scope { grid-template-columns: 1fr; }
+      .flow, .roadmap { grid-template-columns: 1fr; }
+      .flow div:not(:last-child)::after { display: none; }
+    }
+    @media print {
+      body { background: white; }
+      main { width: 100%; margin: 0; border: 0; box-shadow: none; }
+      .workpack, tr { break-inside: avoid; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>上下文工程修改计划</h1>
+    <p>
+      从“有界条目选择器”演进为不可绕过、可追溯、缓存友好且具备工作记忆的 Context Harness。
+      本计划同时给出架构边界、文件级工作包、测试合同和阶段门禁。
+    </p>
+    <div class="meta">
+      <span>角色：Agent 架构师 + Agent 研发工程师</span>
+      <span>日期：2026-07-30</span>
+      <span>分支：codex/integrated-robustness</span>
+      <span>基线：上下文工程验收 0/12 完整满足</span>
+      <span>模式：仅制定计划</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>计划结论</h2>
+    <div class="outcome">
+      <div class="decision">
+        <strong>采用 7 个工作包、两道验收门</strong>
+        先关闭上下文投影与摘要完整性两个 P0，再建设 Bootstrap、分层规则、工作记忆、
+        输出治理、批量压缩和量化回归。不得在 P0 合同冻结前并行修改 Runtime/Gateway
+        的模型入参，否则容易形成第二套可绕过路径。
+      </div>
+      <div class="gates">
+        <div class="gate">
+          <b>Gate A · v1 Context Core</b>
+          <small>CE-01～04、06～12 完整；CE-05 完成常驻规则治理。</small>
+        </div>
+        <div class="gate">
+          <b>Gate B · 完整讲义对齐</b>
+          <small>v1.1 按 ADR-0035 实现按需 Skill 宿主后，CE-05 端到端完成。</small>
+        </div>
+      </div>
+    </div>
+    <p class="warning">
+      当前工作树已出现第三讲之后的增量：State 投影现在能用
+      <code>compaction.applied</code> 的摘要替换消息范围。因此 CE-07 不再从零实现；
+      本计划复用该协议，重点补齐 Core 水位触发、可恢复引用和持久化边界。
+    </p>
+  </section>
+
+  <section>
+    <h2>实施前置与授权</h2>
+    <div class="scope">
+      <article>
+        <h3>必须先追加 ADR-0043</h3>
+        <p>
+          冻结 Context Projection、Manifest v2 内容摘要、受保护分区、工作记忆所有权、
+          75% 水位与 20% 以上预留、Checkpoint 迁移和 Skill 延期边界。
+        </p>
+      </article>
+      <article>
+        <h3>扩展当前任务书</h3>
+        <p>
+          在 <code>INTEGRATION_01</code> 新增“第四讲上下文工程”章节，写入 CE-01～12、
+          文件白名单、测试矩阵、完成门槛和 Win7 证据边界。
+        </p>
+      </article>
+      <article>
+        <h3>更新性能权威表</h3>
+        <p>
+          按 ADR-0033 规则，为上下文占用、预留比例、压缩频率、初始 token 和缓存前缀稳定性
+          增加可测指标；未实测状态不得写成达标。
+        </p>
+      </article>
+    </div>
+    <p class="critical">
+      未完成 ADR 与任务书增补前，不进入应用代码修改。当前任务虽允许
+      <code>src/core/**</code>、<code>src/state/**</code>、Gateway 和验证脚本，
+      但现有授权没有冻结本次新的跨模块数据合同。
+    </p>
+  </section>
+
+  <section>
+    <h2>目标架构</h2>
+    <div class="flow">
+      <div>
+        <b>1. Context Sources</b>
+        <small>固定系统版本、环境快照、分层规则、用户任务、事件历史、工具观察、工作记忆。</small>
+      </div>
+      <div>
+        <b>2. Ownership & Zones</b>
+        <small>区分 protected、stable-prefix、rolling-history、tail-memory；记录来源和 revision。</small>
+      </div>
+      <div>
+        <b>3. Context Compiler</b>
+        <small>精确顺序、token 估算、75% 水位、可逆折叠、内容摘要和 Manifest v2。</small>
+      </div>
+      <div>
+        <b>4. Model Projection</b>
+        <small>只暴露最终消息、排序后的 ToolSpec 和安全运行元数据；不暴露原始 RuntimeRequest。</small>
+      </div>
+      <div>
+        <b>5. Event Feedback</b>
+        <small>模型响应、计划更新、工具结果、用量和压缩全部进入 State V2，再投影下一 Step。</small>
+      </div>
+    </div>
+
+    <div class="principles">
+      <div>
+        <strong>模型只看到投影。</strong>
+        Runtime/Gateway 模型端口不能拿到原始 <code>contextItems</code>、审批令牌、工作区写入对象
+        或未选择的历史。
+      </div>
+      <div>
+        <strong>约束与计划分权。</strong>
+        system/user/policy/project 规则由 Harness 管理；模型只能更新 plan/currentStep/findings。
+      </div>
+      <div>
+        <strong>摘要绑定实际内容。</strong>
+        每个条目包含 content SHA-256；整体摘要绑定内容、顺序、系统提示版本和工具目录摘要。
+      </div>
+      <div>
+        <strong>事件是事实，Context 是投影。</strong>
+        Runtime 内存消息不再作为恢复权威；压缩只替换投影，原始事实保持追加。
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>关键数据合同</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>合同</th>
+          <th>核心字段</th>
+          <th>不变量</th>
+          <th>迁移策略</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ContextItem v2</td>
+          <td><code>id/kind/source/owner/protection/placement/contentSha256/revision/estimatedTokens</code></td>
+          <td>protected 条目不可因普通预算静默省略；内容变化必改摘要。</td>
+          <td>v1 调用方经显式适配器转换；缺 owner/protection 时拒绝生产调用。</td>
+        </tr>
+        <tr>
+          <td>ContextManifest v2</td>
+          <td><code>modelWindow/reserves/highWatermark/included/omitted/folds/toolCatalogDigest/projectionDigest</code></td>
+          <td>摘要覆盖最终顺序和全部实际内容哈希；记录估算器版本。</td>
+          <td>审批与恢复只接受 v2；旧 Checkpoint 返回可操作的版本不兼容错误。</td>
+        </tr>
+        <tr>
+          <td>ModelContextProjection v1</td>
+          <td><code>runMetadata/messages/tools/manifest</code></td>
+          <td>这是 RuntimeModel 唯一入参中的上下文载荷；不含原始 RuntimeRequest。</td>
+          <td>RuntimeModelInput 发生收紧式破坏变更，所有 Mock 与 Gateway Adapter 同步迁移。</td>
+        </tr>
+        <tr>
+          <td>WorkingMemory v1</td>
+          <td><code>goal/protectedConstraints/plan/currentStep/findings/revision</code></td>
+          <td>模型工具只能写 plan/currentStep/findings；约束只能由来源控制面追加或 supersede。</td>
+          <td>新增事件投影；Checkpoint 保存 projection digest，不复制第二份权威状态。</td>
+        </tr>
+        <tr>
+          <td>ToolObservation v1</td>
+          <td><code>returned/total-or-lower-bound/bytes/truncated/reason/cursor/contentRef/contentSha256</code></td>
+          <td>任何截断必须显式；可复读输出折叠后仍能按引用恢复。</td>
+          <td>Runner V2 输出适配；Phase 2 只读工具合同人工重构，不整体合并 legacy 分支。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>工作包与文件级计划</h2>
+
+    <article class="workpack wp0">
+      <h3>WP0 · 决策与合同冻结 <span class="tag">CE-01～12 / 必须先行</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>修改范围</strong>
+            <ul>
+              <li><code>docs/DECISIONS.md</code>：追加 ADR-0043，不改既有 Accepted 正文。</li>
+              <li><code>docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md</code>：增加第四讲原子需求。</li>
+              <li><code>docs/PERFORMANCE_BUDGET.md</code>：增加上下文指标，状态初始为 NOT_MEASURED。</li>
+              <li><code>docs/ARCHITECTURE.md</code>：补充 Context Harness 分层与依赖方向。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>冻结的选择</strong>
+            <ul>
+              <li>默认投影水位 75%；至少保留 20%，另留约 5% 压缩/安全缓冲。</li>
+              <li>压缩触发后目标回落到不高于 60%，避免每轮重压缩。</li>
+              <li>产品级 Skill 宿主保持 v1.1；v1 只执行 AGENTS 常驻规则治理。</li>
+              <li>Manifest/Checkpoint 升级采用 fail-closed，不静默接受旧摘要。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="exit"><strong>退出条件：</strong>ADR Accepted、任务书状态和路径白名单无冲突、CE-01～12 均有确定性验收条目。</p>
+      </div>
+    </article>
+
+    <article class="workpack wp1">
+      <h3>WP1 · P0 投影完整性与不可绕过边界 <span class="tag">CE-01 / P0</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>研发动作</strong>
+            <ul>
+              <li>新增 <code>src/core/src/context-types.ts</code>，定义 v2 条目、分区、来源和投影 DTO。</li>
+              <li>重构 <code>context-manager.ts</code>：内容哈希、规范顺序、保护区、预留和 Manifest v2。</li>
+              <li>收紧 <code>runtime.ts</code>：RuntimeModelInput 删除 <code>request</code>，只传最终投影。</li>
+              <li>新增 <code>src/core/src/token-estimator.ts</code>：可注入估算器；fallback 采用保守 UTF-8 字节估算并标注精度。</li>
+              <li>Gateway 增加 RuntimeModel Adapter，只序列化 projection；ToolSpec 先按名称再按 schema digest 固定顺序。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>必须新增的负向测试</strong>
+            <ul>
+              <li>同长度 <code>ALLOW → DENY!</code> 必须改变 digest。</li>
+              <li>条目顺序、系统提示版本或工具 schema 任一变化必须改变 projection digest。</li>
+              <li>模型输入对象中不存在原始 <code>contextItems</code>、审批 token 和未选条目。</li>
+              <li>protected 条目超过硬上限时返回 <code>CONTEXT_PROTECTED_BUDGET_EXCEEDED</code>，禁止静默丢弃。</li>
+              <li>旧 v1 Checkpoint 恢复明确拒绝；v2 内容漂移审批失效。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="exit"><strong>退出条件：</strong>预算选择成为模型调用唯一事实；P0-1、P0-2、P0-3 三项均有自动化回归，静态设计门可阻止接口回退。</p>
+      </div>
+    </article>
+
+    <article class="workpack wp2">
+      <h3>WP2 · 最小 Bootstrap、环境快照与分层 AGENTS <span class="tag">CE-02～05</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>研发动作</strong>
+            <ul>
+              <li>新增 <code>context-bootstrap.ts</code>：只装载固定系统版本、环境、规则、任务，不读 README/目录树/源码。</li>
+              <li>新增 <code>agents-discovery.ts</code>：用户规则路径 + repo root → cwd，近处规则后置。</li>
+              <li>环境字段：workspace cwd、实际 host/目标平台、Shell Profile、日期、审批模式、Git 分支/dirty/可用性。</li>
+              <li>Git 状态必须来自专用 Git Adapter；不得为环境消息新增直接 <code>child_process</code>。</li>
+              <li>规则文件使用 UTF-8、显式字节预算、realpath 边界和结构化 warning。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>验收场景</strong>
+            <ul>
+              <li>根与子目录规则冲突时，模型投影顺序严格为 root 在前、child 在后。</li>
+              <li>默认初始投影不含 README、完整目录树和源码片段。</li>
+              <li>动态日期只在环境消息中，系统前缀 digest 同一天内稳定。</li>
+              <li>Git 缺失或受控 Runner 不可用时环境结构化降级，不崩溃、不直接 spawn。</li>
+              <li>中文、空格、反斜杠、长路径和 reparse/symlink 越界负向测试。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="warning">
+          CE-05 的 v1 验收只证明“常驻规则与任务流程不混放、任务流程不自动注入”。
+          按需 Skill 发现与执行仍由 ADR-0035 留给 v1.1，不得在本工作包偷渡插件宿主。
+        </p>
+        <p class="exit"><strong>退出条件：</strong>初始上下文类别白名单、环境快照和规则作用域均有生产入口与冲突顺序测试。</p>
+      </div>
+    </article>
+
+    <article class="workpack wp3">
+      <h3>WP3 · 工作记忆、复诵与约束所有权 <span class="tag">CE-08～09</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>研发动作</strong>
+            <ul>
+              <li>新增 <code>working-memory.ts</code>：目标、受保护约束、计划、当前步骤、发现和 revision。</li>
+              <li>增加 Harness 内部控制工具 <code>agent.update_plan</code>，与 Workspace/Runner 外部工具路由隔离。</li>
+              <li>在 State V2 增加 <code>working_memory.initialized</code>、<code>plan.updated</code>、<code>finding.added</code>、<code>constraint.superseded</code>。</li>
+              <li>每个模型 Step 最后一条上下文固定为 WorkingMemory 投影；原始事件仍在前缀历史中追加。</li>
+              <li>Checkpoint 只引用 working-memory revision 与投影摘要，不保存可漂移的平行副本。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>权限与测试</strong>
+            <ul>
+              <li><code>agent.update_plan</code> 仅允许修改 plan/currentStep/findings。</li>
+              <li>尝试删除、覆盖或降级 system/user/policy/project constraint 必须拒绝并事件化。</li>
+              <li>同 revision 重试幂等；跨 revision 冲突拒绝。</li>
+              <li>工作记忆始终位于消息尾部；无论压缩还是审批恢复，约束 digest 不变。</li>
+              <li>模型可提议约束变更，但必须由来源控制面另行 supersede。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="exit"><strong>退出条件：</strong>20 Step 之前的单元级 recitation 测试通过；模型无法通过工具或 plan 响应删除硬约束。</p>
+      </div>
+    </article>
+
+    <article class="workpack wp4">
+      <h3>WP4 · Agentic Retrieval 输出合同与可逆折叠 <span class="tag">CE-06～07</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>研发动作</strong>
+            <ul>
+              <li>新增 <code>tool-observation.ts</code>，统一 search/read/list/Runner 的返回元数据。</li>
+              <li>search 返回 returned、total 或 <code>at_least</code> 下界；read 使用行号、范围和 next cursor；list 默认浅层。</li>
+              <li>Runtime 不再直接 <code>JSON.stringify</code> 任意 result；先经 Observation Formatter 和上下文预算。</li>
+              <li>复用 State 当前 compaction range + summary，增加 source refs、内容摘要与再读取入口。</li>
+              <li>只有可重建或原始事件已可靠保存的输出才能折叠；不可恢复的临时输出不得假装可恢复。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>验收场景</strong>
+            <ul>
+              <li>超长 search/read/list/command 分别命中字节、条目、匹配数限制并报告真实原因。</li>
+              <li>截断结果包含 omitted 数量或下界、cursor 与 content digest。</li>
+              <li>折叠后投影只含摘要和引用，原始 State 事实数量不减少。</li>
+              <li>引用文件内容发生变化时，旧 snapshot hash 被识别，不把新内容冒充旧观察。</li>
+              <li>多个 compaction 通过 supersedes DAG 只激活最新版，范围不得重叠冲突。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="exit"><strong>退出条件：</strong>所有进入模型历史的工具观察均有统一上限和截断语义；CE-07 从“协议雏形”升级为 Core→State→再投影闭环。</p>
+      </div>
+    </article>
+
+    <article class="workpack wp5">
+      <h3>WP5 · KV Cache、水位压缩与上下文遥测 <span class="tag">CE-01、10～11</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>研发动作</strong>
+            <ul>
+              <li>新增 <code>context-watermark.ts</code>：75% 触发、压缩后不高于 60%、至少 20% 输出预留。</li>
+              <li>固定系统提示版本；ToolSpec 规范排序和 catalog digest；历史只追加。</li>
+              <li>Context telemetry 记录各分区 token、总输入、预留、折叠次数、prefix digest 和 provider usage。</li>
+              <li>仅在跨越水位时批量压缩；禁止每轮小改历史。</li>
+              <li>在 Performance Budget 记录典型任务删减前后输入 token，不把未实测指标写成通过。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>验收场景</strong>
+            <ul>
+              <li>只更新尾部工作记忆时 stable-prefix digest 不变。</li>
+              <li>ToolSpec 注册顺序不同，最终 catalog 顺序和 digest 相同。</li>
+              <li>水位以下不压缩；第一次越线只产生一次 compaction；回落后下一 Step 不重复压缩。</li>
+              <li>输入永不超过 hard limit；output/compression reserve 可在 Manifest 复算。</li>
+              <li>基准报告同时给出 legacy 与新投影的初始、累计、缓存前缀 token；无结果时标不可验证。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="exit"><strong>退出条件：</strong>缓存友好性由稳定摘要和确定性测试证明；token 对照报告可重复生成，压缩不会删除事实事件。</p>
+      </div>
+    </article>
+
+    <article class="workpack wp6">
+      <h3>WP6 · 20+ Step 验收、集成回归与 Win7 门禁 <span class="tag">CE-12 / 最终门</span></h3>
+      <div class="body">
+        <div class="cols">
+          <div>
+            <strong>确定性场景</strong>
+            <ul>
+              <li>构造 24 Step Replay：检索、读取、计划更新、工具错误恢复、一次压缩、一次审批挂起/恢复。</li>
+              <li>每 Step 断言目标、protected constraints、plan revision、prefix digest 和 ContextManifest。</li>
+              <li>末尾 Verification Gate 检查目标完成；任何约束丢失、未配对工具结果或摘要漂移均失败。</li>
+              <li>同时执行模型失败、State 写入失败、预算耗尽和旧 Checkpoint 负向矩阵。</li>
+            </ul>
+          </div>
+          <div>
+            <strong>平台与发布边界</strong>
+            <ul>
+              <li>根级 <code>npm run verify</code> 增加 Context Harness 静态设计门。</li>
+              <li>Core、State、Gateway 定向测试后执行七模块全量 lint/build/test。</li>
+              <li>Win7 验收覆盖中文路径、CP936 环境、Git 缺失、机械盘和低内存；开发机结果不替代实机。</li>
+              <li>SQLite 持久化与跨重启恢复继续受 SPIKE_04；未完成时 Gate A 只能标记开发机合同通过。</li>
+            </ul>
+          </div>
+        </div>
+        <p class="exit"><strong>退出条件：</strong>24 Step 场景无目标漂移；CE-01～04、06～12 从验收矩阵转为 implemented；CE-05 明确记录 v1 与 v1.1 的边界。</p>
+      </div>
+    </article>
+  </section>
+
+  <section>
+    <h2>依赖顺序与可并行范围</h2>
+    <div class="roadmap">
+      <div><b>WP0</b><small>ADR / 任务合同</small></div>
+      <div><b>WP1</b><small>P0 投影边界</small></div>
+      <div><b>WP2</b><small>Bootstrap / Rules</small></div>
+      <div><b>WP3</b><small>Working Memory</small></div>
+      <div><b>WP4</b><small>Observations / Fold</small></div>
+      <div><b>WP5</b><small>Watermark / Cache</small></div>
+      <div><b>WP6</b><small>24-Step / Win7</small></div>
+    </div>
+    <ul>
+      <li>关键路径：<strong>WP0 → WP1 → WP3 → WP5 → WP6</strong>。</li>
+      <li>WP1 的 ContextItem/Projection/Manifest 合同冻结后，WP2 与 WP4 可并行开发。</li>
+      <li>WP5 必须等待 WP3 尾部工作记忆与 WP4 折叠合同，否则缓存测试没有稳定对象。</li>
+      <li>所有工作包共享脏工作树，实施时按文件所有权切分，禁止并发编辑 <code>runtime.ts</code> 和 <code>context-manager.ts</code>。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>需求覆盖与目标状态</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>需求</th>
+          <th>负责工作包</th>
+          <th>当前实现状态（2026-07-31）</th>
+          <th>最终证据</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>CE-01 注意力预算与预留</td><td>WP1、WP5</td><td><span class="status full">Core Implemented</span></td><td>完整投影估算 + 75% 水位 + 20% 预留 + 压后复核</td></tr>
+        <tr><td>CE-02 最小初始上下文</td><td>WP2</td><td><span class="status partial">Core Implemented / 产品宿主待接</span></td><td>Bootstrap 类别测试；Electron/CLI 装配仍受阶段门禁</td></tr>
+        <tr><td>CE-03 环境上下文</td><td>WP2</td><td><span class="status partial">Core Implemented / 产品宿主待接</span></td><td>结构化环境快照与日期稳定性测试</td></tr>
+        <tr><td>CE-04 分层 AGENTS</td><td>WP2</td><td><span class="status partial">Core Implemented / 产品宿主待接</span></td><td>Runtime Bootstrap 调用 + root→cwd + realpath 越界测试</td></tr>
+        <tr><td>CE-05 AGENTS / Skill 分界</td><td>WP0、WP2</td><td><span class="status partial">v1 治理完成</span></td><td>v1.1 Skill 宿主后端到端完成</td></tr>
+        <tr><td>CE-06 Agentic Retrieval</td><td>WP4</td><td><span class="status partial">库与路由 Implemented / 产品宿主待接</span></td><td>浅层 list、有界 read/search、固定 ToolSpec 与结构化端口测试</td></tr>
+        <tr><td>CE-07 陈旧输出折叠</td><td>WP4、WP5</td><td><span class="status full">Core/State Implemented</span></td><td>8 条批量 fold、最近 4 条保留、原始事件事实保留</td></tr>
+        <tr><td>CE-08 工作记忆与复诵</td><td>WP3</td><td><span class="status full">Core Implemented</span></td><td>update_plan、尾部 revision 与 24 Step Replay</td></tr>
+        <tr><td>CE-09 硬约束所有权</td><td>WP1、WP3</td><td><span class="status full">Core Implemented</span></td><td>ToolSpec 不暴露约束字段；额外字段与 revision 冲突负向测试</td></tr>
+        <tr><td>CE-10 KV Cache 纪律</td><td>WP1、WP5</td><td><span class="status partial">Core 纪律 Implemented / 命中率待实测</span></td><td>稳定系统版本、完整 ToolSpec digest、append-only 与批量 fold</td></tr>
+        <tr><td>CE-11 Token 对照</td><td>WP5</td><td><span class="status partial">遥测 Implemented / Provider 基准待测</span></td><td>每次模型输入输出 ContextUsage；真实 Gateway/Win7 数据待采集</td></tr>
+        <tr><td>CE-12 20+ Step 防漂移</td><td>WP3、WP6</td><td><span class="status full">Core Replay Implemented</span></td><td>25 模型 Step / 24 次 update_plan 无漂移验收</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>验证命令规划</h2>
+    <div class="commands"># Core 窄验证（在 src/core）
+npm test -- --runInBand tests/context-manager.test.ts tests/token-estimator.test.ts
+npm test -- --runInBand tests/context-bootstrap.test.ts tests/agents-discovery.test.ts
+npm test -- --runInBand tests/working-memory.test.ts tests/runtime.test.ts
+npm test -- --runInBand tests/tool-observation.test.ts tests/context-compactor.test.ts tests/workspace-readonly-tools.test.ts
+
+# Workspace 有界获取（在 src/workspace）
+npm test -- --runInBand tests/unit/readonly.test.ts
+
+# State 投影与压缩（在 src/state）
+npm test -- --runInBand tests/unit/event-protocol.test.ts tests/unit/runtime-event-adapter.test.ts
+
+# 24 Step 验收位于 Core runtime.test.ts；根级回归
+npm run verify</div>
+    <p class="footnote">
+      2026-07-31 已实现并运行现有对应测试：Core 210、Workspace 69、State 217 全部通过。
+      根级 7 模块 lint/build/test 共 853 项通过；此结果不替代 Win7 实机验收。
+    </p>
+  </section>
+
+  <section>
+    <h2>风险、回滚与非目标</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>风险</th>
+          <th>控制措施</th>
+          <th>回滚/失败语义</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>RuntimeModelInput 破坏性变更</td>
+          <td>一次冻结 Projection DTO；同步迁移全部 Mock/Gateway Adapter；静态扫描禁止旧字段。</td>
+          <td>不保留双路径兼容开关；编译失败比运行时绕过更安全。</td>
+        </tr>
+        <tr>
+          <td>Protected 内容本身超过窗口</td>
+          <td>启动前估算；给出最大规则文件与来源明细。</td>
+          <td>结构化失败，不删除 system/user/policy 约束。</td>
+        </tr>
+        <tr>
+          <td>压缩摘要丢失关键事实</td>
+          <td>摘要必须保留目标、约束、未决工具、审批和关键发现；验证器检查摘要合同。</td>
+          <td>摘要验证失败则不提交 compaction，保留原投影并请求新 Turn。</td>
+        </tr>
+        <tr>
+          <td>Git 环境快照绕过 Adapter</td>
+          <td>Environment Provider 只依赖 Git Adapter 端口；根级静态门禁止直接 spawn。</td>
+          <td>能力不可用时显示 unknown/degraded，不猜测分支状态。</td>
+        </tr>
+        <tr>
+          <td>事件与内存工作记忆分叉</td>
+          <td>State V2 为唯一事实；内存对象只能由事件投影生成。</td>
+          <td>revision/digest 不匹配时 fail-closed，禁止继续恢复。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>本计划明确不做：</strong></p>
+    <ul>
+      <li>不在本轮实现 v1.1 插件/Skill 宿主、MCP 或 Hooks。</li>
+      <li>不借上下文工程实现真实 Runner、Job Object、交互终端或 Win7 containment。</li>
+      <li>不引入向量数据库或仓库 Embedding；主路径保持 Agentic Retrieval。</li>
+      <li>不把内存 State、Mock Gateway 或开发机测试解释为 SQLite、Win7 或生产交付完成。</li>
+      <li>不整体合并/cherry-pick Phase 2 legacy；仅按任务书迁移矩阵重构其有界输出合同。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>最终完成定义</h2>
+    <ol>
+      <li>模型只能接收 Context Projection，无法访问未选上下文或原始 RuntimeRequest。</li>
+      <li>内容、顺序、系统提示版本或工具 schema 变化均能导致摘要变化。</li>
+      <li>硬约束不会因预算、压缩或模型工具调用而消失；来源控制面可追溯地 supersede。</li>
+      <li>初始上下文不默认包含 README、目录树或源码；AGENTS 严格 root→cwd。</li>
+      <li>所有工具观察有界、显式截断、可分页；可恢复输出支持可逆折叠。</li>
+      <li>上下文达到 75% 才批量压缩，完成后回落到 60% 以下，并保留至少 20% 输出空间。</li>
+      <li>24 Step Replay 全程保持目标、约束和计划 revision，最终通过 Verification Gate。</li>
+      <li>Core/State/Gateway 定向与根级全量验证通过；不可用检查仍明确标记 unavailable。</li>
+      <li>Win7 实机与 SPIKE_04 未完成前，只能声明“开发机 Context Core 合同通过”。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>依据</h2>
+    <ul>
+      <li><a href="context_engineering_acceptance_2026-07-30.html">上一轮上下文工程验收报告</a></li>
+      <li><a href="../../../AGENTS.md">AGENTS.md</a> 与 <a href="../../WIN7_CONSTRAINTS.md">WIN7_CONSTRAINTS.md</a></li>
+      <li><a href="../../tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md">INTEGRATION_01 当前任务书</a></li>
+      <li><a href="../../DECISIONS.md">ADR-0035、0038～0042</a></li>
+      <li><a href="../../../src/core/src/context-manager.ts">当前 ContextManager</a>、<a href="../../../src/core/src/runtime.ts">AgentRuntime</a>、<a href="../../../src/state/src/event-protocol.ts">State V2 投影</a></li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -5,6 +5,15 @@
 
 import { CapabilityBroker } from '../src/broker';
 import { AgentError, AgentErrorCode } from '../src/errors';
+import { CapabilityBinding } from '../src/types';
+
+const writeBinding: CapabilityBinding = {
+  callId: 'write-1',
+  toolName: 'fs.writeFile',
+  requestSha256: 'request-sha',
+  previewSha256: 'preview-sha',
+  baselineSha256: 'baseline-sha',
+};
 
 describe('CapabilityBroker', () => {
   let broker: CapabilityBroker;
@@ -15,13 +24,24 @@ describe('CapabilityBroker', () => {
 
   describe('issueToken()', () => {
     it('发放令牌并返回完整对象', () => {
-      const token = broker.issueToken('session-1', ['read_only', 'workspace_write']);
+      const token = broker.issueToken(
+        'session-1',
+        ['read_only', 'workspace_write'],
+        3600000,
+        writeBinding,
+      );
       expect(token.tokenId).toBeDefined();
       expect(token.tokenId).toMatch(/^tok_/);
       expect(token.sessionId).toBe('session-1');
       expect(token.capabilities).toEqual(['read_only', 'workspace_write']);
       expect(token.expiresAt).toBeDefined();
       expect(token.revoked).toBe(false);
+      expect(token.binding).toEqual(writeBinding);
+    });
+
+    it('拒绝发放未绑定具体请求的写令牌', () => {
+      expect(() => broker.issueToken('session-1', ['workspace_write']))
+        .toThrow('exact approval binding');
     });
 
     it('每次发放生成唯一 tokenId', () => {
@@ -94,7 +114,12 @@ describe('CapabilityBroker', () => {
 
   describe('hasCapability()', () => {
     it('有效令牌具有授权的能力', () => {
-      const token = broker.issueToken('session-1', ['read_only', 'workspace_write']);
+      const token = broker.issueToken(
+        'session-1',
+        ['read_only', 'workspace_write'],
+        3600000,
+        writeBinding,
+      );
       expect(broker.hasCapability(token.tokenId, 'read_only')).toBe(true);
       expect(broker.hasCapability(token.tokenId, 'workspace_write')).toBe(true);
     });
@@ -118,7 +143,7 @@ describe('CapabilityBroker', () => {
   describe('getTokensBySession()', () => {
     it('返回会话的所有有效令牌', () => {
       broker.issueToken('session-1', ['read_only']);
-      broker.issueToken('session-1', ['workspace_write']);
+      broker.issueToken('session-1', ['workspace_write'], 3600000, writeBinding);
       broker.issueToken('session-2', ['read_only']);
 
       const tokens = broker.getTokensBySession('session-1');
@@ -132,7 +157,7 @@ describe('CapabilityBroker', () => {
 
     it('不包含已撤销的令牌', () => {
       const token1 = broker.issueToken('session-1', ['read_only']);
-      broker.issueToken('session-1', ['workspace_write']);
+      broker.issueToken('session-1', ['workspace_write'], 3600000, writeBinding);
       broker.revokeToken(token1.tokenId);
 
       const tokens = broker.getTokensBySession('session-1');
@@ -143,7 +168,7 @@ describe('CapabilityBroker', () => {
   describe('clearSession()', () => {
     it('清理会话的所有令牌', () => {
       broker.issueToken('session-1', ['read_only']);
-      broker.issueToken('session-1', ['workspace_write']);
+      broker.issueToken('session-1', ['workspace_write'], 3600000, writeBinding);
       broker.clearSession('session-1');
 
       expect(broker.getTokensBySession('session-1')).toHaveLength(0);

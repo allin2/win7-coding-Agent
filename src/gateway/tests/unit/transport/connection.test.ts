@@ -123,6 +123,12 @@ describe('transport/retry', () => {
       expect(classifyRetryability(ErrorCode.CONNECTION_REFUSED)).toBe(Retryability.RETRIABLE);
     });
 
+    it('does not retry TLS failures or explicit cancellation', () => {
+      expect(classifyRetryability(ErrorCode.TLS_HANDSHAKE_FAILED)).toBe(Retryability.NON_RETRIABLE);
+      expect(classifyRetryability(ErrorCode.TLS_VERIFY_FAILED)).toBe(Retryability.NON_RETRIABLE);
+      expect(classifyRetryability(ErrorCode.REQUEST_CANCELLED)).toBe(Retryability.NON_RETRIABLE);
+    });
+
     it('classifies RATE_LIMITED as retriable', () => {
       expect(classifyRetryability(ErrorCode.RATE_LIMITED)).toBe(Retryability.RETRIABLE);
     });
@@ -429,7 +435,7 @@ describe('transport/MockConnection', () => {
     }));
 
     await conn.connect();
-    conn.onData(data => received.push(data));
+    conn.onData((_requestId, data) => received.push(data));
     await conn.send('req-1', '{"prompt":"hello"}');
 
     expect(received).toEqual(['{"result":"ok"}']);
@@ -451,8 +457,49 @@ describe('transport/MockConnection', () => {
 
   it('onError subscribes and unsubscribes', () => {
     const errors: GatewayError[] = [];
-    const unsub = conn.onError(e => errors.push(e));
+    const unsub = conn.onError((_requestId, e) => errors.push(e));
     expect(typeof unsub).toBe('function');
     unsub(); // should not throw
+  });
+
+  it('honours maxRetries and rejects instead of recursively reconnecting forever', async () => {
+    let calls = 0;
+    mockNet.setHandler(async () => {
+      calls++;
+      throw new GatewayError(ErrorCode.CONNECTION_TIMEOUT, 'simulated timeout');
+    });
+    conn = new MockConnection(
+      {
+        ...DEFAULT_CONNECTION_CONFIG,
+        url: 'https://api.example.com/v1',
+        totalTimeoutMs: 1000,
+        retry: {
+          initialDelayMs: 1,
+          maxDelayMs: 1,
+          maxRetries: 1,
+          backoffMultiplier: 1,
+        },
+      },
+      mockNet,
+    );
+    await conn.connect();
+
+    await expect(conn.send('req-bounded', '{}')).rejects.toMatchObject({
+      code: ErrorCode.GATEWAY_UNREACHABLE,
+    });
+    expect(calls).toBe(2);
+  });
+
+  it('cancels an in-flight request', async () => {
+    mockNet.setHandler(async (_url, options) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener('abort', () => {
+        reject(new GatewayError(ErrorCode.REQUEST_CANCELLED, 'cancelled by test'));
+      }, { once: true });
+    }));
+    await conn.connect();
+
+    const pending = conn.send('req-cancel', '{}');
+    conn.cancel('req-cancel');
+    await expect(pending).rejects.toMatchObject({ code: ErrorCode.REQUEST_CANCELLED });
   });
 });

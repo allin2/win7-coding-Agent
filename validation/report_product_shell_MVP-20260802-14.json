@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-14",
+  "suite": "WIN7_PRODUCT_SHELL_SMOKE",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "chrome": "108.0.5359.215",
+    "user_data": "C:\\acceptance\\win7_coding_agent_userdata_MVP-20260802-14",
+    "product_root": "C:\\acceptance\\win7_coding_agent_MVP-20260802-14\\product"
+  },
+  "artifact_hashes": {
+    "main_js": "5389a460c8f8342939963d3f3810f76698becc6cefc484b0f746f1ef58e8c8c4",
+    "preload_js": "a99fd0ded78e1aa280e4e953d6dd4a195e4811a106f2af3f1d1c7b019dabf335",
+    "renderer_html": "00dc483055ae9bed73c982861bc9e47e3290e0f85d80356692b283a0790ad5dd",
+    "renderer_js": "79c52e1f0f7097b9036912bdfed47f50d9b9edf4084bedf24c10ef4597f2cd69",
+    "renderer_css": "f9bb7400380a0cf25f642e980181eb2570b381eff3bf60688559f51cba68a0f1"
+  },
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\win7_coding_agent_MVP-20260802-14\\product",
+    "--mvp-id=MVP-20260802-14",
+    "--smoke-report=C:\\acceptance\\report_product_shell_MVP-20260802-14.json",
+    "--smoke-timeout-ms=30000",
+    "--user-data-dir=C:\\acceptance\\win7_coding_agent_userdata_MVP-20260802-14"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T03:37:08.102Z",
+    "finished_at": "2026-08-02T03:37:08.661Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "PRODUCT_ENTRY_START_RENDER_EXIT",
+      "status": "PASS",
+      "summary": "The real Electron product entry started, loaded the trusted local Renderer, returned diagnostics and exited normally.",
+      "metrics": {
+        "renderer_ready": true,
+        "diagnostics_requested": true,
+        "blocked_request_count": 0,
+        "denied_permission_count": 0,
+        "runtime_error_count": 0
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "PRODUCT_SECURITY_BASELINE",
+      "status": "PASS",
+      "summary": "The product entry uses a sandboxed, context-isolated Renderer with Node disabled and deny-by-default outbound, navigation, window and permission policy.",
+      "metrics": {
+        "node_integration": false,
+        "context_isolation": true,
+        "sandbox": true,
+        "default_outbound": "deny",
+        "navigation": "trusted-local-only",
+        "window_open": "deny",
+        "permissions": "deny"
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": [
+    "This is a real Electron product-entry smoke test, not a complete installer or cross-module task E2E.",
+    "Runner remains fail-closed, State remains in-memory and Gateway remains unconfigured/Replay for this MVP increment.",
+    "No machine PATH, registry, service, NIC, route or firewall setting is changed by this entry."
+  ],
+  "raw": {
+    "rendererReady": true,
+    "diagnosticsRequested": true,
+    "blockedRequests": [],
+    "deniedPermissions": [],
+    "errors": []
+  }
+}

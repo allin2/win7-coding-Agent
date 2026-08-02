@@ -7,22 +7,37 @@
 // 类型定义
 export {
   RunResult,
+  RunStatus,
+  CapturedStream,
+  RunnerFailure,
   RunnerConfig,
   RunRequest,
   ContainmentStatus,
+  ApprovalExecutionBinding,
+  RunnerError,
+  RunnerErrorCode,
 } from './types';
+
+export { OutputCapture, captureText } from './output';
 
 // Runner 接口与 Mock 实现
 export {
   IRunner,
   MockRunner,
+  UnavailableRunner,
   MockRunnerConfig,
-  findShellMetaChar,
+  findProhibitedShellHost,
 } from './runner';
 
 // 审批逻辑
 export {
   ApprovalResult,
+  ApprovalGrant,
+  ApprovalRecord,
+  ApprovalValidation,
+  ApprovalLedger,
+  buildRunApprovalRequest,
+  fingerprintApprovalRequest,
   checkApproval,
 } from './approval';
 

@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>已废止：Win7 Coding Agent v1.0 — 总体架构设计提案</title>
+  <style>
+    :root {
+      --ink: #10273b;
+      --ink-2: #29475c;
+      --paper: #f3efe5;
+      --paper-2: #e6dfcf;
+      --white: #fffdf7;
+      --cyan: #0d8f9b;
+      --cyan-soft: #cce7e6;
+      --amber: #d88b16;
+      --red: #a33a2b;
+      --green: #337c61;
+      --line: rgba(16, 39, 59, 0.22);
+      --shadow: 0 18px 45px rgba(16, 39, 59, 0.13);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: #10273b;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(16, 39, 59, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(16, 39, 59, 0.045) 1px, transparent 1px),
+        #f3efe5;
+      background:
+        linear-gradient(rgba(16, 39, 59, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(16, 39, 59, 0.045) 1px, transparent 1px),
+        var(--paper);
+      background-size: 24px 24px;
+      font-family: "Trebuchet MS", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    a { color: #0d6973; }
+    a:hover { color: #a33a2b; }
+
+    .topline {
+      height: 8px;
+      background: linear-gradient(90deg, #10273b 0 52%, #0d8f9b 52% 82%, #d88b16 82%);
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 28px auto 64px;
+      background: #fffdf7;
+      background: var(--white);
+      border: 1px solid rgba(16, 39, 59, 0.25);
+      box-shadow: 0 18px 45px rgba(16, 39, 59, 0.13);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .page::after {
+      content: "SUPERSEDED • ADR-0027";
+      position: absolute;
+      right: -54px;
+      top: 74px;
+      transform: rotate(90deg);
+      color: rgba(16, 39, 59, 0.35);
+      font: 700 10px/1 Consolas, monospace;
+      letter-spacing: 0.18em;
+    }
+
+    .superseded-banner {
+      margin: 0;
+      padding: 24px 48px;
+      border-bottom: 3px solid #7b2018;
+      color: #571812;
+      background:
+        repeating-linear-gradient(
+          -45deg,
+          rgba(163, 58, 43, 0.08) 0,
+          rgba(163, 58, 43, 0.08) 10px,
+          transparent 10px,
+          transparent 20px
+        ),
+        #fff1eb;
+    }
+
+    .superseded-banner .status {
+      margin: 0 0 8px;
+      font: 800 13px/1.4 Consolas, monospace;
+      letter-spacing: 0.08em;
+    }
+
+    .superseded-banner p {
+      max-width: 980px;
+      margin: 8px 0 0;
+    }
+
+    .superseded-banner strong { color: #7b2018; }
+
+    .superseded-banner a {
+      color: #571812;
+      font-weight: 700;
+    }
+
+    header {
+      padding: 38px 48px 34px;
+      border-bottom: 3px solid #10273b;
+      border-bottom-color: var(--ink);
+      background:
+        radial-gradient(circle at 86% 15%, rgba(13, 143, 155, 0.18), transparent 30%),
+        linear-gradient(135deg, #fffdf7, #eaf1ee);
+    }
+
+    .kicker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 24px;
+      font: 700 11px/1.3 Consolas, monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 7px 10px 6px;
+      border: 1px solid currentColor;
+      background: #fffdf7;
+    }
+
+    .tag.proposal { color: #a33a2b; }
+    .tag.score { color: #337c61; }
+    .tag.platform { color: #0d6973; }
+
+    h1, h2, h3 {
+      font-family: Rockwell, Cambria, "Palatino Linotype", serif;
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(42px, 6vw, 76px);
+      line-height: 0.98;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      margin: 24px 0 0;
+      font-size: 20px;
+      color: #29475c;
+      color: var(--ink-2);
+    }
+
+    .recommendation {
+      margin-top: 30px;
+      padding: 18px 22px;
+      border-left: 7px solid #0d8f9b;
+      border-left-color: var(--cyan);
+      background: rgba(204, 231, 230, 0.55);
+      font-size: 18px;
+    }
+
+    .recommendation strong {
+      color: #0d6973;
+      font-family: Rockwell, Cambria, serif;
+    }
+
+    .layout {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    nav {
+      width: 230px;
+      flex: 0 0 230px;
+      padding: 32px 24px 42px;
+      position: sticky;
+      top: 0;
+      max-height: 100vh;
+      overflow: auto;
+      border-right: 1px solid rgba(16, 39, 59, 0.2);
+      background: rgba(230, 223, 207, 0.52);
+    }
+
+    nav .nav-title {
+      margin-bottom: 15px;
+      color: #a33a2b;
+      font: 700 11px/1 Consolas, monospace;
+      letter-spacing: 0.15em;
+    }
+
+    nav a {
+      display: block;
+      padding: 8px 0;
+      border-bottom: 1px dotted rgba(16, 39, 59, 0.25);
+      color: #29475c;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    nav a:hover { color: #a33a2b; padding-left: 4px; }
+
+    main {
+      min-width: 0;
+      flex: 1;
+      padding: 44px 48px 64px;
+    }
+
+    section {
+      padding: 10px 0 42px;
+      scroll-margin-top: 18px;
+    }
+
+    .section-no {
+      color: #d88b16;
+      color: var(--amber);
+      font: 700 12px/1 Consolas, monospace;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 6px 0 22px;
+      font-size: 34px;
+      line-height: 1.15;
+    }
+
+    h3 {
+      margin: 28px 0 10px;
+      font-size: 20px;
+    }
+
+    p { margin: 0 0 14px; }
+
+    .lead {
+      max-width: 760px;
+      font-size: 18px;
+      color: #29475c;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .card {
+      min-width: 210px;
+      flex: 1 1 220px;
+      padding: 20px;
+      border: 1px solid rgba(16, 39, 59, 0.22);
+      background: #fffdf7;
+      box-shadow: 4px 5px 0 rgba(16, 39, 59, 0.09);
+    }
+
+    .card .eyebrow {
+      color: #0d6973;
+      font: 700 10px/1 Consolas, monospace;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .card .big {
+      display: block;
+      margin: 10px 0 6px;
+      font-family: Rockwell, Cambria, serif;
+      font-size: 25px;
+      line-height: 1.12;
+    }
+
+    .card p { margin: 0; font-size: 14px; color: #29475c; }
+
+    .card.warn { border-top: 5px solid #d88b16; }
+    .card.good { border-top: 5px solid #337c61; }
+    .card.info { border-top: 5px solid #0d8f9b; }
+
+    .blueprint {
+      margin: 24px 0;
+      padding: 22px;
+      overflow: auto;
+      border: 1px solid #10273b;
+      background: #10273b;
+      color: #edf8f6;
+    }
+
+    .blueprint svg {
+      display: block;
+      min-width: 700px;
+      width: 100%;
+      height: auto;
+    }
+
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
+      margin: 22px 0;
+    }
+
+    .flow .step {
+      flex: 1 1 130px;
+      min-height: 108px;
+      position: relative;
+      padding: 15px 14px;
+      border: 1px solid rgba(16, 39, 59, 0.3);
+      background: #f3efe5;
+    }
+
+    .flow .step::after {
+      content: "→";
+      position: absolute;
+      right: -10px;
+      top: 38px;
+      z-index: 2;
+      padding: 0 2px;
+      background: #fffdf7;
+      color: #d88b16;
+      font-size: 22px;
+    }
+
+    .flow .step:last-child::after { content: ""; }
+
+    .step b {
+      display: block;
+      margin-bottom: 6px;
+      font: 700 12px/1.2 Consolas, monospace;
+      color: #0d6973;
+    }
+
+    .step span { font-size: 13px; color: #29475c; }
+
+    table {
+      width: 100%;
+      margin: 20px 0;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 13px;
+      border: 1px solid rgba(16, 39, 59, 0.22);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #10273b;
+      color: #fffdf7;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+
+    tr:nth-child(even) td { background: rgba(230, 223, 207, 0.38); }
+
+    .callout {
+      margin: 24px 0;
+      padding: 18px 20px;
+      border: 1px solid rgba(16, 39, 59, 0.28);
+      border-left-width: 7px;
+      background: #fffdf7;
+    }
+
+    .callout.safe { border-left-color: #337c61; }
+    .callout.risk { border-left-color: #a33a2b; }
+    .callout.note { border-left-color: #0d8f9b; }
+
+    .callout b {
+      display: block;
+      margin-bottom: 5px;
+      font-family: Rockwell, Cambria, serif;
+    }
+
+    pre {
+      padding: 18px;
+      overflow: auto;
+      border-left: 5px solid #0d8f9b;
+      background: #172f43;
+      color: #edf8f6;
+      font: 13px/1.55 Consolas, "Courier New", monospace;
+      white-space: pre-wrap;
+    }
+
+    .timeline {
+      margin: 24px 0 8px;
+      border-left: 3px solid #0d8f9b;
+    }
+
+    .milestone {
+      position: relative;
+      padding: 0 0 28px 28px;
+    }
+
+    .milestone::before {
+      content: "";
+      position: absolute;
+      left: -8px;
+      top: 5px;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #fffdf7;
+      border-radius: 50%;
+      background: #0d8f9b;
+      box-shadow: 0 0 0 2px #0d8f9b;
+    }
+
+    .milestone .phase {
+      color: #a33a2b;
+      font: 700 11px/1 Consolas, monospace;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .milestone h3 { margin: 7px 0 5px; }
+    .milestone p { color: #29475c; }
+
+    .checklist {
+      padding: 0;
+      list-style: none;
+      columns: 2;
+      column-gap: 24px;
+    }
+
+    .checklist li {
+      break-inside: avoid;
+      margin: 0 0 10px;
+      padding: 10px 10px 10px 34px;
+      position: relative;
+      border-bottom: 1px dotted rgba(16, 39, 59, 0.24);
+    }
+
+    .checklist li::before {
+      content: "□";
+      position: absolute;
+      left: 8px;
+      top: 7px;
+      color: #0d8f9b;
+      font: 700 18px/1 Consolas, monospace;
+    }
+
+    footer {
+      padding: 28px 48px;
+      border-top: 3px solid #10273b;
+      background: #e6dfcf;
+      color: #29475c;
+      font-size: 13px;
+    }
+
+    footer strong { color: #10273b; }
+
+    @media (max-width: 840px) {
+      .layout { display: block; }
+      nav {
+        width: auto;
+        max-height: none;
+        position: static;
+        border-right: 0;
+        border-bottom: 1px solid rgba(16, 39, 59, 0.2);
+        columns: 2;
+      }
+      nav .nav-title { column-span: all; }
+      main, header, footer { padding-left: 28px; padding-right: 28px; }
+      .checklist { columns: 1; }
+      .page::after { display: none; }
+    }
+
+    @media (max-width: 560px) {
+      .page { width: 100%; margin: 0; border-left: 0; border-right: 0; }
+      h1 { font-size: 42px; }
+      h2 { font-size: 28px; }
+      .flow .step::after { display: none; }
+      nav { columns: 1; }
+    }
+
+    @media print {
+      body { background: white; }
+      .page { width: 100%; margin: 0; border: 0; box-shadow: none; }
+      nav { display: none; }
+      main { padding: 24px 36px; }
+      .card, .flow .step, .callout { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topline"></div>
+  <article class="page">
+    <aside class="superseded-banner" role="note" aria-label="历史文档状态">
+      <p class="status">HISTORICAL DOCUMENT · SUPERSEDED_BY_ADR-0027 · 2026-07-29</p>
+      <p>
+        <strong>本 v1.0 PRD 已被 ADR-0027 取代，仅保留用于历史追溯。</strong>
+        正文中的 Python-only、stdlib-only、禁止 Node.js/Electron、CLI-only，以及
+        “完全离线是唯一交付模式”等假设，均不再是未来实现的项目级基线。
+      </p>
+      <p>
+        Phase 1、Phase 2 的冻结历史合同不受影响，仍按各自任务书执行。
+        本文档不构成新的实现授权，也不扩大任何现有任务书的路径白名单。
+        当前基线请查阅 <a href="../../../AGENTS.md">AGENTS.md</a>、
+        <a href="../../WIN7_CONSTRAINTS.md">WIN7_CONSTRAINTS.md</a> 与
+        <a href="../../DECISIONS.md">ADR-0027</a>。
+      </p>
+    </aside>
+    <header>
+      <div class="kicker">
+        <span class="tag proposal">Superseded · ADR-0027</span>
+        <span class="tag score">Clarity 93 / 100</span>
+        <span class="tag platform">Win7 SP1 x64 · Python 3.8.10</span>
+      </div>
+      <h1>远程大脑，<br />本地安全执行。</h1>
+      <p class="subtitle">
+        Win7 Coding Agent v1.0 产品与总体架构设计。目标不是把现代 AI 栈塞进 Win7，
+        而是把 Win7 端收敛成一个可验证、可拒绝、可回滚的代码操作执行器。
+      </p>
+      <div class="recommendation">
+        <strong>推荐结论：</strong>
+        保留一次任务一个 CLI 进程；模型和厂商适配全部放到内网网关；
+        写入与命令执行使用 Plan/Apply 双阶段批准。
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav aria-label="章节导航">
+        <div class="nav-title">FIELD MANUAL / 目录</div>
+        <a href="#baseline">01 · 当前基线</a>
+        <a href="#topology">02 · 推荐拓扑</a>
+        <a href="#flow">03 · 运行闭环</a>
+        <a href="#modules">04 · 模块边界</a>
+        <a href="#gateway">05 · 模型网关</a>
+        <a href="#permissions">06 · 权限与批准</a>
+        <a href="#win7">07 · Win7 选型</a>
+        <a href="#roadmap">08 · 交付路线</a>
+        <a href="#acceptance">09 · 验收门槛</a>
+        <a href="#governance">10 · 治理缺口</a>
+      </nav>
+
+      <main>
+        <section id="baseline">
+          <div class="section-no">01 / Baseline</div>
+          <h2>已经有一条可靠的脊柱</h2>
+          <p class="lead">
+            当前分支不是“从零设计”。Phase 2 已经建立只读垂直闭环，
+            正确策略是沿既有 Runtime、Policy、Workspace 和 EventStore 演进。
+          </p>
+          <div class="grid">
+            <div class="card good">
+              <span class="eyebrow">Implemented</span>
+              <span class="big">只读 Agent Loop</span>
+              <p>状态机、预算、六个只读工具、证据验证与机器可读 RESULT。</p>
+            </div>
+            <div class="card good">
+              <span class="eyebrow">Validated</span>
+              <span class="big">CPython 3.8.10</span>
+              <p>任务书记录正式验证通过；不能替代 Win7 实机证据。</p>
+            </div>
+            <div class="card warn">
+              <span class="eyebrow">Pending</span>
+              <span class="big">Win7 E1 / E2</span>
+              <p>十项目标平台行为仍待核销，当前只能声明 PROVISIONAL。</p>
+            </div>
+            <div class="card info">
+              <span class="eyebrow">Next</span>
+              <span class="big">Model Gateway</span>
+              <p>先让真实模型驱动只读闭环，再开放文件写入和进程执行。</p>
+            </div>
+          </div>
+          <div class="callout note">
+            <b>设计纪律</b>
+            本阅读版和对应 PRD 都是非规范性提案，不改变任何 Phase Gate，
+            也不构成 C14 实现授权。
+          </div>
+        </section>
+
+        <section id="topology">
+          <div class="section-no">02 / Topology</div>
+          <h2>把不稳定性留在服务器，把权力留在本地</h2>
+          <div class="blueprint" role="img" aria-label="推荐系统拓扑">
+            <svg viewBox="0 0 920 360" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3"
+                        orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#e8a63d"/>
+                </marker>
+                <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M20 0 L0 0 0 20" fill="none" stroke="#2e556b" stroke-width="0.6"/>
+                </pattern>
+              </defs>
+              <rect x="0" y="0" width="920" height="360" fill="url(#smallGrid)"/>
+              <rect x="34" y="58" width="354" height="244" rx="4" fill="#173c50"
+                    stroke="#5bc2c4" stroke-width="2"/>
+              <text x="58" y="91" fill="#88e0df" font-family="Consolas" font-size="14">
+                WIN7 SP1 x64 / LOCAL TRUST ZONE
+              </text>
+              <text x="58" y="130" fill="#fffdf7" font-family="Georgia" font-size="29"
+                    font-weight="700">安全执行端</text>
+              <text x="58" y="167" fill="#cce7e6" font-family="Consolas" font-size="13">
+                CLI · Runtime · Policy · Workspace
+              </text>
+              <text x="58" y="191" fill="#cce7e6" font-family="Consolas" font-size="13">
+                Read / Patch / Runner / Verification
+              </text>
+              <text x="58" y="215" fill="#cce7e6" font-family="Consolas" font-size="13">
+                SQLite audit · Backup journal
+              </text>
+              <rect x="58" y="244" width="276" height="34" fill="#0d8f9b"/>
+              <text x="73" y="266" fill="#ffffff" font-family="Consolas" font-size="12">
+                POLICY IS AUTHORITATIVE HERE
+              </text>
+
+              <line x1="397" y1="134" x2="522" y2="134" stroke="#e8a63d" stroke-width="3"
+                    marker-end="url(#arrow)"/>
+              <line x1="522" y1="221" x2="397" y2="221" stroke="#e8a63d" stroke-width="3"
+                    marker-end="url(#arrow)"/>
+              <text x="421" y="116" fill="#f6d99a" font-family="Consolas" font-size="12">
+                HTTPS JSON v1
+              </text>
+              <text x="414" y="248" fill="#f6d99a" font-family="Consolas" font-size="11">
+                MODEL RESPONSE
+              </text>
+
+              <rect x="532" y="58" width="354" height="244" rx="4" fill="#243a4b"
+                    stroke="#e8a63d" stroke-width="2"/>
+              <text x="556" y="91" fill="#f6d99a" font-family="Consolas" font-size="14">
+                MODERN SERVER / REMOTE TRUST ZONE
+              </text>
+              <text x="556" y="130" fill="#fffdf7" font-family="Georgia" font-size="29"
+                    font-weight="700">模型网关</text>
+              <text x="556" y="167" fill="#eee3c7" font-family="Consolas" font-size="13">
+                Provider adapters · API keys
+              </text>
+              <text x="556" y="191" fill="#eee3c7" font-family="Consolas" font-size="13">
+                Context / token management
+              </text>
+              <text x="556" y="215" fill="#eee3c7" font-family="Consolas" font-size="13">
+                Idempotency · Rate limit · Metrics
+              </text>
+              <rect x="556" y="244" width="276" height="34" fill="#a66a11"/>
+              <text x="571" y="266" fill="#ffffff" font-family="Consolas" font-size="12">
+                NO LOCAL TOOL AUTHORITY
+              </text>
+            </svg>
+          </div>
+          <table>
+            <thead>
+              <tr><th>边界</th><th>Win7 客户端</th><th>模型网关</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>模型</td><td>仅厂商无关契约</td><td>厂商 API、凭据、token 管理</td></tr>
+              <tr><td>权限</td><td>唯一权威 Policy</td><td>只能提出工具请求</td></tr>
+              <tr><td>源码</td><td>按需、限量、路径受控</td><td>只接收当前任务所需片段</td></tr>
+              <tr><td>状态</td><td>SQLite 事件与变更日志</td><td>请求幂等与服务端追踪</td></tr>
+              <tr><td>技术栈</td><td>Python 3.8.10 标准库</td><td>任意现代技术栈</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="flow">
+          <div class="section-no">03 / Execution model</div>
+          <h2>先读，后计划；先批准，再动手</h2>
+          <p class="lead">
+            v1 采用 Plan/Apply 双阶段。它不依赖交互式控制台，也不会让模型在执行中悄悄扩大文件或命令范围。
+          </p>
+          <div class="flow" aria-label="Plan Apply 流程">
+            <div class="step"><b>01 · DISCOVER</b><span>只读发现工作区、能力和项目规则。</span></div>
+            <div class="step"><b>02 · PLAN</b><span>模型生成确切 ChangeSet、命令别名和验证策略。</span></div>
+            <div class="step"><b>03 · REVIEW</b><span>写出 JSON 计划、补丁预览和计划 SHA-256。</span></div>
+            <div class="step"><b>04 · APPROVE</b><span>用户用计划文件与哈希显式启动 Apply。</span></div>
+            <div class="step"><b>05 · APPLY</b><span>预检、备份、原子替换、命令和验证。</span></div>
+            <div class="step"><b>06 · AUDIT</b><span>完成、回滚或 REPLAN_REQUIRED，全链路留痕。</span></div>
+          </div>
+          <div class="callout safe">
+            <b>最重要的安全性质</b>
+            Apply 只能消费已批准的路径、base hash、变更和命令别名。
+            任何新需求都必须停止并重新规划。
+          </div>
+          <div class="callout risk">
+            <b>为什么不直接做“完全自主修改”</b>
+            Win7 与 Python 3.8 均已 EOL；本地状态、源码和测试环境又具有实际破坏力。
+            第一版应优先做到可证明安全，再决定是否引入可恢复的动态审批状态。
+          </div>
+        </section>
+
+        <section id="modules">
+          <div class="section-no">04 / Modules</div>
+          <h2>只有五个地方能接触真实世界</h2>
+          <table>
+            <thead>
+              <tr><th>模块</th><th>真实边界</th><th>不可绕过的规则</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="mono">workspace/</span></td>
+                <td>路径、realpath、NTFS 工作区</td>
+                <td>词法 + 实路径双校验；中文、空格和 260 限制</td>
+              </tr>
+              <tr>
+                <td><span class="mono">gateway/</span></td>
+                <td>唯一允许的网络 endpoint</td>
+                <td>HTTPS、CA、无重定向、请求/响应上限</td>
+              </tr>
+              <tr>
+                <td><span class="mono">fs/</span></td>
+                <td>文件读写</td>
+                <td>base hash、备份、同目录临时文件、os.replace、回滚</td>
+              </tr>
+              <tr>
+                <td><span class="mono">runner/</span></td>
+                <td>子进程</td>
+                <td>命令别名、argv-only、stdin 关闭、超时、截断、树终止</td>
+              </tr>
+              <tr>
+                <td><span class="mono">storage/</span></td>
+                <td>SQLite 与 artifacts</td>
+                <td>版本、事务、完整前缀、敏感内容最小化</td>
+              </tr>
+            </tbody>
+          </table>
+          <pre>cli
+  └─ application/runtime
+       ├─ context
+       ├─ gateway ── models
+       ├─ policy
+       ├─ tool registry ── workspace / fs / runner
+       ├─ verification
+       └─ storage / audit
+
+禁止：业务模块直接网络、直接 Popen、直接写文件。</pre>
+        </section>
+
+        <section id="gateway">
+          <div class="section-no">05 / Gateway contract</div>
+          <h2>协议要窄，错误要诚实</h2>
+          <div class="grid">
+            <div class="card info">
+              <span class="eyebrow">Transport</span>
+              <span class="big">HTTPS + JSON</span>
+              <p>http.client / ssl；显式 CA；独立连接、读取与总时限。</p>
+            </div>
+            <div class="card info">
+              <span class="eyebrow">Versioning</span>
+              <span class="big">protocol_version = 1</span>
+              <p>不支持的版本和缺失必填字段在建立模型回合前拒绝。</p>
+            </div>
+            <div class="card info">
+              <span class="eyebrow">Retry</span>
+              <span class="big">request_id 幂等</span>
+              <p>只重试未获得有效响应的请求；服务端按 request_id 去重。</p>
+            </div>
+          </div>
+          <h3>v1 刻意不做</h3>
+          <p>
+            不做流式响应、Cookie、重定向、任意 URL、客户端模型厂商适配，
+            也不在证书失败时提供“自动忽略”按钮。
+          </p>
+          <h3>数据最小化</h3>
+          <p>
+            客户端只发送模型为当前任务请求且 Policy 允许的片段；默认拒绝凭据、
+            私钥和环境文件。出站审计记录相对路径、字节数和哈希，不在普通日志复制完整源码。
+          </p>
+        </section>
+
+        <section id="permissions">
+          <div class="section-no">06 / Permission model</div>
+          <h2>模型可以建议，不能授权</h2>
+          <table>
+            <thead>
+              <tr><th>权限</th><th>默认</th><th>可获得的最宽授权</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>READ_ONLY</td><td>允许</td><td>工作区内、限量、敏感路径除外</td></tr>
+              <tr><td>WORKSPACE_WRITE</td><td>拒绝</td><td>批准计划中的路径 + base hash</td></tr>
+              <tr><td>PROCESS_EXECUTION</td><td>拒绝</td><td>批准计划中的命令别名 + 预算</td></tr>
+              <tr><td>GATEWAY_NETWORK</td><td>配置控制</td><td>唯一 scheme / host / port</td></tr>
+              <tr><td>EXTERNAL_WRITE</td><td>永久拒绝</td><td>无</td></tr>
+              <tr><td>ADMIN_OR_SYSTEM</td><td>永久拒绝</td><td>无</td></tr>
+            </tbody>
+          </table>
+          <div class="callout note">
+            <b>DENY 是成功的安全结果</b>
+            拒绝动作计入预算、写入事件、实现调用次数为 0；Run 可以继续寻找只读替代方案。
+          </div>
+          <h3>命令不是字符串，而是别名</h3>
+          <p>
+            模型只能请求例如 <span class="mono">unit_tests</span> 的用户登记别名。
+            别名冻结 argv、cwd、timeout、输出上限和允许参数；模型不得拼接
+            <span class="mono">cmd /c</span> 或任意 Shell。
+          </p>
+        </section>
+
+        <section id="win7">
+          <div class="section-no">07 / Win7 profile</div>
+          <h2>技术选型服从现场，而不是开发机</h2>
+          <table>
+            <thead>
+              <tr><th>问题</th><th>推荐选型</th><th>原因</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>产品形态</td><td>CLI + 薄 .bat</td><td>无常驻、无管理员、无浏览器依赖</td></tr>
+              <tr><td>配置</td><td>INI + JSON</td><td>configparser/json 均为标准库</td></tr>
+              <tr><td>状态</td><td>本地 SQLite</td><td>零部署、事务、已有基线</td></tr>
+              <tr><td>文件预览</td><td>difflib unified diff</td><td>只用于审阅，执行用结构化 ChangeSet</td></tr>
+              <tr><td>编码</td><td>BOM → UTF-8 → GBK</td><td>确定性；歧义即拒绝</td></tr>
+              <tr><td>进程终止</td><td>taskkill /T /F → kill</td><td>不引入未批准 ctypes</td></tr>
+              <tr><td>交付</td><td>zip + SHA-256</td><td>复制即用，不在线安装</td></tr>
+              <tr><td>升级</td><td>版本目录并存</td><td>状态目录独立，易回滚</td></tr>
+            </tbody>
+          </table>
+          <div class="callout risk">
+            <b>不能说“兼容 Win7”，只能说“待 Win7 验证”</b>
+            macOS 上的 Python 3.8.10 证据只证明语言级兼容。cmd、CP936、NTFS、
+            taskkill、SQLite URI 和 winerror 206 必须在 E1/E2 实机核销。
+          </div>
+        </section>
+
+        <section id="roadmap">
+          <div class="section-no">08 / Delivery map</div>
+          <h2>从只读闭环走向可控修改</h2>
+          <div class="timeline">
+            <div class="milestone">
+              <div class="phase">Gate 2-W7</div>
+              <h3>完成当前 Phase 2 的 Win7 实机验收</h3>
+              <p>先核销十项目标平台风险，留下 E1/E2 记录；未通过前不宣称完成。</p>
+            </div>
+            <div class="milestone">
+              <div class="phase">Phase 3</div>
+              <h3>Model Gateway</h3>
+              <p>真实模型驱动只读分析；冻结 HTTPS、CA、协议、认证、幂等和上限。</p>
+            </div>
+            <div class="milestone">
+              <div class="phase">Phase 4</div>
+              <h3>文件变更引擎</h3>
+              <p>编码、EOL、ChangeSet、备份、原子写和回滚；仍不开放任意命令。</p>
+            </div>
+            <div class="milestone">
+              <div class="phase">Phase 5</div>
+              <h3>生产级状态与审计</h3>
+              <p>计划、批准、变更日志、审计导出、Schema 迁移和崩溃恢复。</p>
+            </div>
+            <div class="milestone">
+              <div class="phase">Phase 6</div>
+              <h3>受限 Runner + 完整 Agent</h3>
+              <p>命令别名、测试验证、Plan/Apply 和真实模型读写执行闭环。</p>
+            </div>
+            <div class="milestone">
+              <div class="phase">Phase 7</div>
+              <h3>离线交付</h3>
+              <p>可复现 zip、自校验、CRLF 启动器、升级回滚和端到端 Win7 验收。</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="acceptance">
+          <div class="section-no">09 / Acceptance</div>
+          <h2>“能运行”必须能被证明</h2>
+          <ul class="checklist">
+            <li>Win7 E1/E2 完成只读分析并引用真实路径和行号。</li>
+            <li>证书错误明确失败，禁止静默关闭校验。</li>
+            <li>Plan 对工作区零写入、零命令执行。</li>
+            <li>计划哈希或 base hash 不一致一律拒绝。</li>
+            <li>注入写入故障后恢复所有原文件 SHA-256。</li>
+            <li>未批准动作的实现调用次数为 0。</li>
+            <li>超时进程树被终止或明确标记降级。</li>
+            <li>Git 缺失不影响核心 Agent。</li>
+            <li>审计能重建完整操作顺序。</li>
+            <li>控制台输出逐字节 ASCII。</li>
+            <li>全代码通过 CPython 3.8.10 compileall。</li>
+            <li>复制交付包后无需在线安装。</li>
+          </ul>
+        </section>
+
+        <section id="governance">
+          <div class="section-no">10 / Governance</div>
+          <h2>先修正文档地图，再授权下一阶段</h2>
+          <p class="lead">
+            当前权威任务书比 README、项目章程和架构总览更新。继续实施前应先完成一次纯文档治理，
+            避免新成员按旧状态或旧阶段编号工作。
+          </p>
+          <table>
+            <thead>
+              <tr><th>位置</th><th>漂移</th><th>建议</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>README</td><td>Phase 2 仍写“等待架构复审”</td><td>同步为 Python 3.8 已验证、Win7 待验</td></tr>
+              <tr><td>PROJECT_CHARTER</td><td>当前范围仍只有 Phase 0/1</td><td>区分历史范围与当前正式基线</td></tr>
+              <tr><td>ARCHITECTURE</td><td>未纳入 Phase 2；Gateway 阶段号仍旧</td><td>按 ADR-0012/0025 同步</td></tr>
+              <tr><td>PENDING_CONFIRMATIONS</td><td>仍称开发机无 Python 3.8.10</td><td>以正式验证记录纠正</td></tr>
+              <tr><td>EVALUATION</td><td>E2 强制范围措辞不一致</td><td>在 ADR/任务书中唯一裁决</td></tr>
+            </tbody>
+          </table>
+          <div class="callout safe">
+            <b>下一步的正确交付物</b>
+            先新增关键 ADR，再创建完整的 Phase 3 任务书；不要从本提案直接开始写
+            <span class="mono">gateway/</span> 实现。
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      <strong>阅读版说明：</strong>
+      本 HTML 完全离线、自包含、无外部字体/脚本/CDN。完整需求、风险、协议字段、
+      验收清单和 ADR 候选见
+      <a href="win7-coding-agent-v1.0-prd.md">win7-coding-agent-v1.0-prd.md</a>。
+      本文档不替代 AGENTS.md、WIN7_CONSTRAINTS、阶段任务书或已接受 ADR。
+    </footer>
+  </article>
+</body>
+</html>

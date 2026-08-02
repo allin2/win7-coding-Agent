@@ -22,7 +22,7 @@
 2. **矛盾上报**：发现用户指令、任务文档、`AGENTS.md` 三者之间存在矛盾时，必须在回复中列出矛盾清单并等待裁决，禁止自行忽略或"就近取一"。
 3. **兼容性自检**：产出实现前，核对任务书声明的 Runtime Profile、依赖登记和
    `docs/WIN7_CONSTRAINTS.md` 平台能力矩阵；不确定某语法、API、二进制或依赖的 Win7
-   兼容性时，标记为“待验证”并写入任务文档的开放问题，不得直接使用。Phase 1/2 的
+   兼容性时，标记为"待验证"并写入任务文档的开放问题，不得直接使用。Phase 1/2 的
    Python 代码继续逐条对照 Python 3.8.10 禁用清单。
 4. **决策留痕**：做出影响接口、数据格式、兼容性或安全模型的选择时，在 `docs/DECISIONS.md` 末尾追加 ADR；不修改既有 Accepted ADR。
 5. **验证责任**：声称"完成"前必须说明验证方式；无法在当前环境验证 Win7 行为时，明确说明"未在 Win7 实机验证"并在任务文档验收标准中保留该项。
@@ -34,7 +34,11 @@
 
 ## 当前阶段速查
 
-- 阶段：0（工程基线）+ 1（Capability Probe，状态 `APPROVED_FOR_IMPLEMENTATION`）+ 2（正式只读代码分析 Agent，状态 `APPROVED_FOR_IMPLEMENTATION`，ADR-0025）
+- 阶段：0（工程基线）+ 1（Capability Probe）+ 2（正式只读代码分析 Agent）
+- **Phase 1/2**：Python 活跃阶段实现代码，待 Win7 实机验收（CPython 3.8.10 冻结合同）
+- **Phase 3-7**：已获授权（`APPROVED_FOR_IMPLEMENTATION`，ADR-0036），候选 TypeScript 实现位于整合工作区；当前提交、验证记录与阻断项统一见 [`docs/STATUS.md`](docs/STATUS.md)，SPIKE 与 Win7 实机验收未执行
+- **SPIKE 01-04**：已获授权（`APPROVED_FOR_IMPLEMENTATION`），待 Win7 实机验证
+- **独立原型线**：`prototype/full-agent-skeleton` 分支（ADR-0023，`APPROVED_FOR_IMPLEMENTATION`）
 - 架构基线：ADR-0027 已废止项目级 Python-only、stdlib-only、禁止 Node/Electron、
   CLI-only 与强制完全离线限制；唯一固定客户端平台是 Win7 SP1 x64。该决策不扩张任何
   既有任务白名单。

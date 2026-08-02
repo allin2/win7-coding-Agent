@@ -1,13 +1,12 @@
-/**
- * Updater 校验/回滚测试
- */
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
-import { Updater, UpdaterConfig } from '../../src/updater/updater';
-import { ShellError, ShellErrorCode } from '../../src/errors';
+import {
+  ApplyUpdateOptions,
+  Updater,
+  UpdaterConfig,
+} from '../../src/updater/updater';
 
 describe('Updater', () => {
   let tmpDir: string;
@@ -22,12 +21,7 @@ describe('Updater', () => {
     stagingDir = path.join(tmpDir, 'staging');
     fs.mkdirSync(installDir, { recursive: true });
     fs.mkdirSync(stagingDir, { recursive: true });
-
-    config = {
-      installDir,
-      stagingDir,
-      currentVersion: '1.0.0',
-    };
+    config = { installDir, stagingDir, currentVersion: '1.0.0' };
     updater = new Updater(config);
   });
 
@@ -35,87 +29,107 @@ describe('Updater', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  describe('checkForUpdate', () => {
-    it('无 updateUrl 时返回 available=false', async () => {
-      const info = await updater.checkForUpdate();
-      expect(info.available).toBe(false);
+  function prepareUpdate(newContent: string = 'new version'): ApplyUpdateOptions {
+    const packagePath = path.join(stagingDir, 'pkg.bin');
+    const packageContent = Buffer.from(`package:${newContent}`);
+    fs.writeFileSync(packagePath, packageContent);
+    const expectedHash = crypto.createHash('sha256').update(packageContent).digest('hex');
+    const preparedDir = path.join(stagingDir, 'payload');
+    fs.mkdirSync(preparedDir, { recursive: true });
+    fs.writeFileSync(path.join(preparedDir, 'app.txt'), newContent);
+    fs.writeFileSync(path.join(preparedDir, '.verified-package-sha256'), expectedHash);
+    return { packagePath, expectedHash, preparedDir };
+  }
+
+  it('未配置更新源时说明原因', async () => {
+    await expect(updater.checkForUpdate()).resolves.toMatchObject({
+      available: false,
+      reason: expect.any(String),
     });
   });
 
-  describe('verifyUpdate', () => {
-    it('哈希匹配时验证通过', async () => {
-      const content = Buffer.from('update-package-content');
-      const filePath = path.join(stagingDir, 'pkg.bin');
-      fs.writeFileSync(filePath, content);
-      const expectedHash = crypto.createHash('sha256').update(content).digest('hex');
+  it('未实现下载能力时不把本地文件冒充成功', async () => {
+    const result = await updater.downloadUpdate('https://updates.example.test/pkg');
+    expect(result.success).toBe(false);
+    expect(result.recommendedAction).toContain('企业部署');
+  });
 
-      const result = await updater.verifyUpdate(filePath, expectedHash);
-      expect(result.valid).toBe(true);
+  describe('verifyUpdate', () => {
+    it('流式哈希匹配时验证通过', async () => {
+      const options = prepareUpdate();
+      await expect(updater.verifyUpdate(options.packagePath, options.expectedHash))
+        .resolves.toMatchObject({ valid: true, actualHash: options.expectedHash });
     });
 
-    it('哈希不匹配时验证失败（fail-closed）', async () => {
-      const content = Buffer.from('update-package-content');
-      const filePath = path.join(stagingDir, 'pkg.bin');
-      fs.writeFileSync(filePath, content);
-
-      const result = await updater.verifyUpdate(filePath, 'deadbeef');
+    it('哈希不匹配时 fail-closed', async () => {
+      const options = prepareUpdate();
+      const result = await updater.verifyUpdate(options.packagePath, '0'.repeat(64));
       expect(result.valid).toBe(false);
       expect(result.error).toContain('哈希不匹配');
     });
 
-    it('文件不存在时验证失败', async () => {
-      const result = await updater.verifyUpdate('/nonexistent/file.bin', 'hash');
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('不存在');
+    it('非法哈希格式和缺失文件均失败', async () => {
+      await expect(updater.verifyUpdate('/nonexistent/file.bin', 'hash'))
+        .resolves.toMatchObject({ valid: false });
     });
   });
 
-  describe('downloadUpdate', () => {
-    it('无 URL 时返回失败', async () => {
-      const result = await updater.downloadUpdate();
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('URL');
-    });
-  });
-
-  describe('applyUpdate + rollback', () => {
-    it('安装目录不存在时返回失败', async () => {
-      const badConfig = { ...config, installDir: '/nonexistent/dir' };
-      const badUpdater = new Updater(badConfig);
-      const result = await badUpdater.applyUpdate();
-      expect(result.success).toBe(false);
-      expect(result.rolledBack).toBe(false);
+  describe('applyUpdate / rollback', () => {
+    it('安装目录不存在时状态为 not_applied', async () => {
+      const options = prepareUpdate();
+      const badUpdater = new Updater({ ...config, installDir: path.join(tmpDir, 'missing') });
+      await expect(badUpdater.applyUpdate(options)).resolves.toMatchObject({
+        success: false,
+        status: 'not_applied',
+        rolledBack: false,
+      });
     });
 
-    it('staging 目录为空时 apply 正常执行（无内容替换）', async () => {
-      // 写入一个文件到 install 目录
+    it('空 payload 不会替换可用安装', async () => {
       fs.writeFileSync(path.join(installDir, 'app.txt'), 'old version');
+      const options = prepareUpdate();
+      fs.rmSync(path.join(options.preparedDir!, 'app.txt'));
 
-      // staging 为空，apply 应成功（无文件需要替换）
-      const result = await updater.applyUpdate();
-      expect(result.success).toBe(true);
+      const result = await updater.applyUpdate(options);
+      expect(result.status).toBe('not_applied');
+      expect(fs.readFileSync(path.join(installDir, 'app.txt'), 'utf8')).toBe('old version');
     });
 
-    it('apply 成功后文件被替换', async () => {
-      // 准备当前版本
+    it('校验失败时旧版本保持不变', async () => {
       fs.writeFileSync(path.join(installDir, 'app.txt'), 'old version');
+      const options = prepareUpdate();
+      options.expectedHash = '0'.repeat(64);
 
-      // 准备更新包
-      fs.writeFileSync(path.join(stagingDir, 'app.txt'), 'new version');
-
-      const result = await updater.applyUpdate();
-      expect(result.success).toBe(true);
-      expect(result.rolledBack).toBe(false);
-
-      // 验证文件已更新
-      const content = fs.readFileSync(path.join(installDir, 'app.txt'), 'utf-8');
-      expect(content).toBe('new version');
+      const result = await updater.applyUpdate(options);
+      expect(result.status).toBe('not_applied');
+      expect(fs.readFileSync(path.join(installDir, 'app.txt'), 'utf8')).toBe('old version');
     });
 
-    it('rollback 在无备份时失败', async () => {
+    it('同卷目录切换成功后返回 applied', async () => {
+      fs.writeFileSync(path.join(installDir, 'app.txt'), 'old version');
+      const options = prepareUpdate();
+
+      const result = await updater.applyUpdate(options);
+      expect(result).toMatchObject({ success: true, status: 'applied', rolledBack: false });
+      expect(fs.readFileSync(path.join(installDir, 'app.txt'), 'utf8')).toBe('new version');
+      expect(fs.existsSync(path.join(installDir, '.verified-package-sha256'))).toBe(false);
+    });
+
+    it('rollback 明确恢复同卷备份', async () => {
+      fs.writeFileSync(path.join(installDir, 'app.txt'), 'broken version');
+      const backupDir = path.join(tmpDir, '.install.update-backup');
+      fs.mkdirSync(backupDir);
+      fs.writeFileSync(path.join(backupDir, 'app.txt'), 'old version');
+
+      const result = await updater.rollback();
+      expect(result.success).toBe(true);
+      expect(fs.readFileSync(path.join(installDir, 'app.txt'), 'utf8')).toBe('old version');
+    });
+
+    it('无有效备份时返回可操作的恢复建议而不抛异常', async () => {
       const result = await updater.rollback();
       expect(result.success).toBe(false);
-      expect(result.error).toContain('备份目录不存在');
+      expect(result.recommendedAction).toContain('离线安装包');
     });
   });
 });

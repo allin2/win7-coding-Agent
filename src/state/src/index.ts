@@ -7,6 +7,7 @@
 // Types
 export {
   Event,
+  StoredEvent,
   EventType,
   EventFilter,
   ValidationResult,
@@ -57,3 +58,26 @@ export {
   SessionState,
   ReplayEngine,
 } from './replay';
+
+// V2 fact protocol and per-subscriber delivery boundary
+export {
+  JsonValue,
+  EventEnvelopeInputV2,
+  EventEnvelopeV2,
+  EventProtocolWarning,
+  ProjectedToolResult,
+  FileChangeProjection,
+  ThreadProjection,
+  InMemoryEventLedger,
+  projectThread,
+} from './event-protocol';
+export { EventSubscription, EventStream } from './event-stream';
+export {
+  RuntimeEventLike,
+  RUNTIME_EVENT_TYPE_MAP,
+  RuntimeEventLedgerSink,
+} from './runtime-event-adapter';
+export {
+  RuntimeProjectionRequest,
+  RuntimeMessageProjection,
+} from './runtime-message-projector';

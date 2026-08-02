@@ -1,0 +1,9 @@
+Read-only confirmation identified the following completed SPIKE_03 acceptance tree:
+PID 4656: cmd.exe /c C:\acceptance\electron\electron.exe C:\acceptance\spike03_codex\codex_formal_harness.js --mvp-id=MVP-20260802-03 --report=C:\acceptance\report_spike03_MVP-20260802-03.json
+PID 5700: C:\acceptance\electron\electron.exe C:\acceptance\spike03_codex\codex_formal_harness.js --mvp-id=MVP-20260802-03 --report=C:\acceptance\report_spike03_MVP-20260802-03.json
+
+The report had already finished with exit_code=0 at 2026-08-02 09:39:35+08:00. The exact PID tree was then terminated:
+taskkill /PID 4656 /T /F
+Result: PID 5700 and PID 4656 terminated successfully.
+
+No unrelated process, service, NIC, route or firewall setting was changed.

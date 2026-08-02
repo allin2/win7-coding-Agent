@@ -47,7 +47,7 @@ describe('provider', () => {
     networkStack.setHandler(async (): Promise<NetworkResponse> => ({
       statusCode: 200,
       headers: { 'content-type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ protocolVersion: '0.1.0', ...body }),
     }));
   }
 
@@ -80,6 +80,11 @@ describe('provider', () => {
       expect(provider.credentialStore).toBe(credentialStore);
       expect(provider.credentialStore.getApiKey()).toBe('sk-test-key-1234567890abcdef');
     });
+
+    it('refuses a plaintext gateway URL', () => {
+      expect(() => makeProvider({ gatewayUrl: 'http://gateway.example.com/v1' }))
+        .toThrow(GatewayError);
+    });
   });
 
   // ── sendRequest ──────────────────────────────────────────────────────────
@@ -98,6 +103,7 @@ describe('provider', () => {
     });
 
     it('should send a request and return a ModelResponse', async () => {
+      let requestOptions: NetworkRequestOptions | undefined;
       mockSuccessResponse({
         id: 'resp-001',
         result: {
@@ -111,6 +117,11 @@ describe('provider', () => {
           },
         },
       });
+      const originalHandler = networkStack.request.bind(networkStack);
+      jest.spyOn(networkStack, 'request').mockImplementation(async (url, options) => {
+        requestOptions = options;
+        return originalHandler(url, options);
+      });
 
       const provider = makeProvider();
       const response = await provider.sendRequest(makeRequest());
@@ -123,6 +134,8 @@ describe('provider', () => {
         completionTokens: 8,
         totalTokens: 18,
       });
+      expect(requestOptions!.headers.authorization).toBe('Bearer sk-test-key-1234567890abcdef');
+      expect(requestOptions!.body).not.toContain('sk-test-key-1234567890abcdef');
       expect(provider.exitCode).toBe(ExitCode.COMPLETED);
     });
 
@@ -202,7 +215,7 @@ describe('provider', () => {
       const sseBody = [
         'event: chunk\ndata: Hello\n\n',
         'event: chunk\ndata:  World\n\n',
-        'event: done\ndata: {"id":"resp-s1","result":{"id":"resp-s1","content":"HelloWorld","finish_reason":"stop"}}\n\n',
+        'event: done\ndata: {"protocolVersion":"0.1.0","id":"resp-s1","result":{"id":"resp-s1","content":"Hello World","finish_reason":"stop"}}\n\n',
       ].join('');
 
       networkStack.setHandler(async (): Promise<NetworkResponse> => ({
@@ -222,9 +235,9 @@ describe('provider', () => {
       expect(chunks.length).toBe(2);
       expect(chunks[0].content).toBe('Hello');
       expect(chunks[0].index).toBe(0);
-      expect(chunks[1].content).toBe('World');
+      expect(chunks[1].content).toBe(' World');
       expect(chunks[1].index).toBe(1);
-      expect(response.content).toBe('HelloWorld');
+      expect(response.content).toBe('Hello World');
       expect(provider.exitCode).toBe(ExitCode.COMPLETED);
     });
 
@@ -248,6 +261,36 @@ describe('provider', () => {
 
       expect(response.content).toBe('Direct response');
       expect(provider.exitCode).toBe(ExitCode.COMPLETED);
+    });
+
+    it('rejects a stream that ends without a completion event', async () => {
+      networkStack.setHandler(async (): Promise<NetworkResponse> => ({
+        statusCode: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: 'event: chunk\ndata: partial\n\n',
+      }));
+
+      const provider = makeProvider();
+      await expect(
+        provider.sendStreamRequest(makeRequest(), () => {}),
+      ).rejects.toMatchObject({ code: ErrorCode.STREAM_INTERRUPTED });
+    });
+
+    it('rejects an incompatible protocol version', async () => {
+      networkStack.setHandler(async (): Promise<NetworkResponse> => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          protocolVersion: '99.0.0',
+          id: 'req-001',
+          result: { id: 'resp-bad-version', content: 'unsafe', finish_reason: 'stop' },
+        }),
+      }));
+
+      const provider = makeProvider();
+      await expect(provider.sendRequest(makeRequest())).rejects.toMatchObject({
+        code: ErrorCode.PROTOCOL_VERSION_MISMATCH,
+      });
     });
   });
 

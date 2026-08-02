@@ -8,12 +8,19 @@
 export {
   AgentState,
   ApprovalLevel,
+  PolicyVerdict,
   TaskLifecycle,
   ToolCall,
   PolicyDecision,
   CapabilityToken,
+  CapabilityBinding,
   StateTransition,
 } from './types';
+
+export {
+  bindCapabilityToToolCall,
+  fingerprintToolCall,
+} from './approval-binding';
 
 // 错误定义
 export {
@@ -42,6 +49,7 @@ export {
 export {
   PolicyEngine,
   PolicyEngineConfig,
+  PolicyFacts,
   createPolicyEngine,
 } from './policy';
 
@@ -69,3 +77,146 @@ export {
   getAllContexts,
   clearAllContexts,
 } from './context';
+
+export {
+  ContextItemKind,
+  ContextItem,
+  ContextBudget,
+  ContextManifestEntry,
+  ContextOmission,
+  ContextManifest,
+  BuiltContext,
+  ContextBuildMetadata,
+  ContextProtection,
+  ContextPlacement,
+  ContextProtectedBudgetError,
+  ContextManager,
+} from './context-manager';
+
+export {
+  ToolObservation,
+  createToolObservation,
+  foldToolObservation,
+} from './tool-observation';
+
+export {
+  AgentsDiscoveryInput,
+  discoverAgentsRules,
+} from './agents-discovery';
+
+export {
+  RuntimeEnvironmentSnapshot,
+  ContextBootstrapInput,
+  buildInitialContext,
+} from './context-bootstrap';
+
+export {
+  TokenEstimateSource,
+  TokenEstimate,
+  estimateContextTokens,
+} from './token-estimator';
+
+export {
+  UPDATE_PLAN_TOOL_NAME,
+  WorkingMemoryConstraint,
+  WorkingMemorySnapshot,
+  WorkingMemoryUpdate,
+  WorkingMemory,
+  createUpdatePlanToolSpec,
+  normalizeUpdatePlanCall,
+} from './working-memory';
+
+export {
+  WorkspaceReadOnlyPort,
+  workspaceReadOnlyToolSpecs,
+  registerWorkspaceReadOnlyTools,
+  WorkspaceReadOnlyToolExecutor,
+} from './workspace-readonly-tools';
+
+export {
+  ContextCompactionInput,
+  ContextCompactor,
+  createDeterministicContextCompactor,
+} from './context-compactor';
+
+export {
+  ToolInputType,
+  ToolInputValue,
+  ToolCapability,
+  ToolInputProperty,
+  ToolInputSchema,
+  ToolSpec,
+  ToolRegistry,
+} from './tools';
+
+export {
+  workspaceToolSpecs,
+  registerWorkspaceTools,
+} from './workspace-tools';
+
+export {
+  VerificationRequirement,
+  TaskAcceptance,
+  VerificationEvidence,
+  EvidenceBundle,
+  VerificationGate,
+} from './verification';
+
+export {
+  TurnOutcome,
+  TurnBudget,
+  TurnUsage,
+  BudgetExceededReason,
+  DEFAULT_TURN_BUDGET,
+  validateTurnBudget,
+  checkTurnBudget,
+  LoopDetector,
+} from './loop-control';
+
+export {
+  ModelRetryAction,
+  MODEL_RETRY_POLICY,
+  ModelRetryClassifier,
+  classifyModelRetry,
+} from './model-retry';
+
+export {
+  RuntimeMessage,
+  RuntimeRequest,
+  PlannedToolCall,
+  RuntimeModelUsage,
+  RuntimePlan,
+  RuntimeModelInput,
+  RuntimeContextUsage,
+  RuntimeModel,
+  ToolExecutionStatus,
+  ToolCancellationResult,
+  ToolExecutionResult,
+  RuntimeToolExecutionContext,
+  RuntimeToolExecutor,
+  ToolCallPreparationPort,
+  RuntimeVerificationProvider,
+  RuntimeEvent,
+  RuntimeEventSink,
+  RuntimeEventReceipt,
+  RuntimeMessageProjector,
+  RuntimeStorageFailureStage,
+  ModelRetryConfig,
+  RuntimeContextCompaction,
+  RuntimeDependencies,
+  RuntimeResult,
+  RuntimeCheckpoint,
+  AgentRuntime,
+} from './runtime';
+
+export {
+  RuntimeRunner,
+  RuntimeEventSubscription,
+  RuntimeEventSource,
+  RuntimeSessionSafetyPort,
+  RuntimeSessionSafetyEvidence,
+  RuntimeProtocolResult,
+  RuntimeSubmission,
+  RuntimeCancelAcknowledgement,
+  AgentRuntimeProtocol,
+} from './runtime-protocol';

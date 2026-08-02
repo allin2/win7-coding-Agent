@@ -1,12 +1,34 @@
+# Build outputs
+dist/
+coverage/
+*.tsbuildinfo
+outputs/
+
 # Dependencies
 node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # IDE / agent workspace state (not part of the delivery baseline)
 .qoder/
 
-# Python bytecode
-__pycache__/
-*.pyc
-
 # Generated HTML exports of PRDs (source of truth is the .md)
 docs/prds/*.html
+
+# Acceptance SSH keys & private acceptance artifacts (NEVER commit)
+.acceptance/
+**/.acceptance/

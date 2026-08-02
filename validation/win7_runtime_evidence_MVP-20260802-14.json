@@ -1,0 +1,308 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-14",
+  "suite": "WIN7_RUNTIME_DEPENDENCY_EVIDENCE",
+  "environment": {
+    "os": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "cwd": "C:\\Users\\dccs-chaizl",
+    "user": "\r\n�û���Ϣ\r\n----------------\r\n\r\n�û���                     SID                                          \r\n========================== =============================================\r\ndccs-chaizl-pc\\dccs-chaizl S-1-5-21-1708701742-428676696-1831205153-1000\r\n\r\n\r\n����Ϣ\r\n-----------------\r\n\r\n����                                 ����   SID          ����                                      \r\n==================================== ====== ============ ==========================================\r\nEveryone                             ��֪�� S-1-1-0      �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\�����ʻ��͹���Ա���Ա  ��֪�� S-1-5-114    �������, ������Ĭ��, ���õ���            \r\nBUILTIN\\Administrators               ����   S-1-5-32-544 �������, ������Ĭ��, ���õ���, ���������\r\nBUILTIN\\Users                        ����   S-1-5-32-545 �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\NETWORK                 ��֪�� S-1-5-2      �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\Authenticated Users     ��֪�� S-1-5-11     �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\This Organization       ��֪�� S-1-5-15     �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\�����ʻ�                ��֪�� S-1-5-113    �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\NTLM Authentication     ��֪�� S-1-5-64-10  �������, ������Ĭ��, ���õ���            \r\nMandatory Label\\High Mandatory Level ��ǩ   S-1-16-12288 �������, ������Ĭ��, ���õ���            \r\n\r\n\r\n��Ȩ��Ϣ\r\n----------------------\r\n\r\n��Ȩ��                          ����                       ״̬  \r\n=============================== ========================== ======\r\nSeIncreaseQuotaPrivilege        Ϊ���̵����ڴ����         ������\r\nSeSecurityPrivilege             ������˺Ͱ�ȫ��־         ������\r\nSeTakeOwnershipPrivilege        ȡ���ļ����������������Ȩ ������\r\nSeLoadDriverPrivilege           ���غ�ж���豸��������     ������\r\nSeSystemProfilePrivilege        �����ļ�ϵͳ����           ������\r\nSeSystemtimePrivilege           ����ϵͳʱ��               ������\r\nSeProfileSingleProcessPrivilege �����ļ���������           ������\r\nSeIncreaseBasePriorityPrivilege ��߼ƻ����ȼ�             ������\r\nSeCreatePagefilePrivilege       ����һ��ҳ���ļ�           ������\r\nSeBackupPrivilege               �����ļ���Ŀ¼             ������\r\nSeRestorePrivilege              ��ԭ�ļ���Ŀ¼             ������\r\nSeShutdownPrivilege             �ر�ϵͳ                   ������\r\nSeDebugPrivilege                ���Գ���                   ������\r\nSeSystemEnvironmentPrivilege    �޸Ĺ̼�����ֵ             ������\r\nSeChangeNotifyPrivilege         �ƹ��������               ������\r\nSeRemoteShutdownPrivilege       ��Զ��ϵͳǿ�ƹػ�         ������\r\nSeUndockPrivilege               ����չ����ȡ�¼����       ������\r\nSeManageVolumePrivilege         ִ�о�ά������             ������\r\nSeImpersonatePrivilege          ������֤��ģ��ͻ���       ������\r\nSeCreateGlobalPrivilege         ����ȫ�ֶ���               ������\r\nSeIncreaseWorkingSetPrivilege   ���ӽ��̹�����             ������\r\nSeTimeZonePrivilege             ����ʱ��                   ������\r\nSeCreateSymbolicLinkPrivilege   ������������               ������\r\n"
+  },
+  "artifact_hashes": {
+    "collector": "9c83d17d1d1a5460bc98df6144a953fe6726dce96142dea1778b713029b72c31",
+    "electron_exe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "python_exe": "5275c42f7359fa2c7ec473be3240e57d5ce5b9301a26bd2e98e89bb9db074581",
+    "git_exe": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1"
+  },
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\mvp_runtime_MVP-20260802-14\\collect_runtime_evidence.js",
+    "--mvp-id=MVP-20260802-14",
+    "--report=C:\\acceptance\\report_runtime_evidence_MVP-20260802-14.json",
+    "--user-data-dir=C:\\acceptance\\mvp_runtime_userdata_MVP-20260802-14"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T03:28:47.058Z",
+    "finished_at": "2026-08-02T03:28:56.881Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "C01_OS_SP1_X64",
+      "status": "PASS",
+      "summary": "Win7 SP1 x64/build 7601 was identified from WMIC.",
+      "metrics": {
+        "command_exit_code": 0,
+        "stdout": "\r\r\n\r\r\nBuildNumber=7601\r\r\nCaption=Microsoft Windows 7 Professional \r\r\nOSArchitecture=64-bit\r\r\nServicePackMajorVersion=1\r\r\nVersion=6.1.7601\r\r\n\r\r\n\r\r\n\r\r\n"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "C15_CPYTHON_RUNTIME",
+      "status": "PASS",
+      "summary": "Self-contained CPython 3.8.10 x64 executed on Win7.",
+      "metrics": {
+        "executable": "C:\\acceptance\\python38_mvp\\python.exe",
+        "stdout": "3.8.10 (tags/v3.8.10:3d8993a, May  3 2021, 11:48:03) [MSC v.1928 64 bit (AMD64)]\r\n64bit\r\nAMD64\r\n",
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "C15_ELECTRON_RUNTIME",
+      "status": "PASS",
+      "summary": "Electron 22.3.27 x64 is the executing host.",
+      "metrics": {
+        "executable": "C:\\acceptance\\electron\\electron.exe",
+        "electron": "22.3.27",
+        "node": "16.17.1",
+        "chrome": "108.0.5359.215",
+        "arch": "x64"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "C15_CONTROLLED_MINGIT",
+      "status": "PASS",
+      "summary": "Controlled MinGit 2.46.2 executed from the acceptance path.",
+      "metrics": {
+        "executable": "C:\\acceptance\\mvp_mingit\\cmd\\git.exe",
+        "stdout": "git version 2.46.2.windows.1\n",
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "C13_MACHINE_PATH_MISSING_TOOLS",
+      "status": "PASS",
+      "summary": "python/node/git are absent from machine PATH; acceptance uses explicit self-contained paths.",
+      "metrics": {
+        "python": {
+          "command": [
+            "where",
+            "python"
+          ],
+          "exit_code": 1,
+          "timed_out": false,
+          "error": null,
+          "stdout": "",
+          "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+        },
+        "node": {
+          "command": [
+            "where",
+            "node"
+          ],
+          "exit_code": 1,
+          "timed_out": false,
+          "error": null,
+          "stdout": "",
+          "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+        },
+        "git": {
+          "command": [
+            "where",
+            "git"
+          ],
+          "exit_code": 1,
+          "timed_out": false,
+          "error": null,
+          "stdout": "",
+          "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+        }
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "C15_WIN7_KB_PREREQUISITES",
+      "status": "PASS",
+      "summary": "Required recorded Win7 KB identifiers were found.",
+      "metrics": {
+        "required": [
+          "KB3140245",
+          "KB4474419",
+          "KB4490628"
+        ],
+        "stdout": "\r\r\n\r\r\nHotFixID=KB2534111\r\r\n\r\r\n\r\r\nHotFixID=KB2685811\r\r\n\r\r\n\r\r\nHotFixID=KB2999226\r\r\n\r\r\n\r\r\nHotFixID=KB3140245\r\r\n\r\r\n\r\r\nHotFixID=KB4474419\r\r\n\r\r\n\r\r\nHotFixID=KB4490628\r\r\n\r\r\n\r\r\nHotFixID=KB976902\r\r\n\r\r\n\r\r\n\r\r\n"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "MANAGEMENT_BITVISE_RUNNING",
+      "status": "PASS",
+      "summary": "Bitvise SSH service remains RUNNING.",
+      "metrics": {
+        "stdout": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "C07_C16_DEPLOYED_HASHES",
+      "status": "PASS",
+      "summary": "Electron and controlled MinGit executable hashes match the locked MVP profile; CPython hash was captured.",
+      "metrics": {
+        "electron_exe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+        "expected_electron": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+        "git_exe": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1",
+        "expected_git": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1",
+        "python_exe": "5275c42f7359fa2c7ec473be3240e57d5ce5b9301a26bd2e98e89bb9db074581"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "MECHANICAL_DISK_GATE",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "Mechanical-disk gate is accepted by the project owner; this inventory records the actual device but makes no SQLite performance claim.",
+      "metrics": {
+        "stdout": "\r\r\n\r\r\nInterfaceType=IDE\r\r\nMediaType=Fixed hard disk media\r\r\nModel=Samsun  SSD 870 EVO 1TB SCSI Disk Device\r\r\nSize=1000202273280\r\r\n\r\r\n\r\r\n\r\r\n",
+        "free_space": "�����ֽ�����              : 945049333760\r\n�ֽ�����                  : 1000097181696\r\n���õ���δʹ�õ��ֽ�����  : 945049333760\r\n"
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": [
+    "Read-only collector; no package installation, download, PATH edit, service change, network change or reboot.",
+    "The machine PATH check is evidence for missing-tool detection, not proof that a complete product package exists.",
+    "Mechanical-disk status is owner-accepted for MVP and does not satisfy SQLite/indexer performance budgets."
+  ],
+  "raw": {
+    "os": {
+      "command": [
+        "wmic",
+        "os",
+        "get",
+        "Caption,Version,OSArchitecture,ServicePackMajorVersion,BuildNumber",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nBuildNumber=7601\r\r\nCaption=Microsoft Windows 7 Professional \r\r\nOSArchitecture=64-bit\r\r\nServicePackMajorVersion=1\r\r\nVersion=6.1.7601\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "hotfixes": {
+      "command": [
+        "wmic",
+        "qfe",
+        "get",
+        "HotFixID",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nHotFixID=KB2534111\r\r\n\r\r\n\r\r\nHotFixID=KB2685811\r\r\n\r\r\n\r\r\nHotFixID=KB2999226\r\r\n\r\r\n\r\r\nHotFixID=KB3140245\r\r\n\r\r\n\r\r\nHotFixID=KB4474419\r\r\n\r\r\n\r\r\nHotFixID=KB4490628\r\r\n\r\r\n\r\r\nHotFixID=KB976902\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "whoami": {
+      "command": [
+        "whoami",
+        "/all"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\n�û���Ϣ\r\n----------------\r\n\r\n�û���                     SID                                          \r\n========================== =============================================\r\ndccs-chaizl-pc\\dccs-chaizl S-1-5-21-1708701742-428676696-1831205153-1000\r\n\r\n\r\n����Ϣ\r\n-----------------\r\n\r\n����                                 ����   SID          ����                                      \r\n==================================== ====== ============ ==========================================\r\nEveryone                             ��֪�� S-1-1-0      �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\�����ʻ��͹���Ա���Ա  ��֪�� S-1-5-114    �������, ������Ĭ��, ���õ���            \r\nBUILTIN\\Administrators               ����   S-1-5-32-544 �������, ������Ĭ��, ���õ���, ���������\r\nBUILTIN\\Users                        ����   S-1-5-32-545 �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\NETWORK                 ��֪�� S-1-5-2      �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\Authenticated Users     ��֪�� S-1-5-11     �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\This Organization       ��֪�� S-1-5-15     �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\�����ʻ�                ��֪�� S-1-5-113    �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\NTLM Authentication     ��֪�� S-1-5-64-10  �������, ������Ĭ��, ���õ���            \r\nMandatory Label\\High Mandatory Level ��ǩ   S-1-16-12288 �������, ������Ĭ��, ���õ���            \r\n\r\n\r\n��Ȩ��Ϣ\r\n----------------------\r\n\r\n��Ȩ��                          ����                       ״̬  \r\n=============================== ========================== ======\r\nSeIncreaseQuotaPrivilege        Ϊ���̵����ڴ����         ������\r\nSeSecurityPrivilege             ������˺Ͱ�ȫ��־         ������\r\nSeTakeOwnershipPrivilege        ȡ���ļ����������������Ȩ ������\r\nSeLoadDriverPrivilege           ���غ�ж���豸��������     ������\r\nSeSystemProfilePrivilege        �����ļ�ϵͳ����           ������\r\nSeSystemtimePrivilege           ����ϵͳʱ��               ������\r\nSeProfileSingleProcessPrivilege �����ļ���������           ������\r\nSeIncreaseBasePriorityPrivilege ��߼ƻ����ȼ�             ������\r\nSeCreatePagefilePrivilege       ����һ��ҳ���ļ�           ������\r\nSeBackupPrivilege               �����ļ���Ŀ¼             ������\r\nSeRestorePrivilege              ��ԭ�ļ���Ŀ¼             ������\r\nSeShutdownPrivilege             �ر�ϵͳ                   ������\r\nSeDebugPrivilege                ���Գ���                   ������\r\nSeSystemEnvironmentPrivilege    �޸Ĺ̼�����ֵ             ������\r\nSeChangeNotifyPrivilege         �ƹ��������               ������\r\nSeRemoteShutdownPrivilege       ��Զ��ϵͳǿ�ƹػ�         ������\r\nSeUndockPrivilege               ����չ����ȡ�¼����       ������\r\nSeManageVolumePrivilege         ִ�о�ά������             ������\r\nSeImpersonatePrivilege          ������֤��ģ��ͻ���       ������\r\nSeCreateGlobalPrivilege         ����ȫ�ֶ���               ������\r\nSeIncreaseWorkingSetPrivilege   ���ӽ��̹�����             ������\r\nSeTimeZonePrivilege             ����ʱ��                   ������\r\nSeCreateSymbolicLinkPrivilege   ������������               ������\r\n",
+      "stderr": ""
+    },
+    "path_python": {
+      "command": [
+        "where",
+        "python"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "error": null,
+      "stdout": "",
+      "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+    },
+    "path_node": {
+      "command": [
+        "where",
+        "node"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "error": null,
+      "stdout": "",
+      "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+    },
+    "path_git": {
+      "command": [
+        "where",
+        "git"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "error": null,
+      "stdout": "",
+      "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+    },
+    "python": {
+      "command": [
+        "C:\\acceptance\\python38_mvp\\python.exe",
+        "-c",
+        "import platform,sys; print(sys.version); print(platform.architecture()[0]); print(platform.machine())"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "3.8.10 (tags/v3.8.10:3d8993a, May  3 2021, 11:48:03) [MSC v.1928 64 bit (AMD64)]\r\n64bit\r\nAMD64\r\n",
+      "stderr": ""
+    },
+    "git": {
+      "command": [
+        "C:\\acceptance\\mvp_mingit\\cmd\\git.exe",
+        "--version"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "git version 2.46.2.windows.1\n",
+      "stderr": ""
+    },
+    "bitvise": {
+      "command": [
+        "sc",
+        "query",
+        "BvSshServer"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+      "stderr": ""
+    },
+    "disk": {
+      "command": [
+        "wmic",
+        "diskdrive",
+        "get",
+        "Model,MediaType,Size,InterfaceType",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nInterfaceType=IDE\r\r\nMediaType=Fixed hard disk media\r\r\nModel=Samsun  SSD 870 EVO 1TB SCSI Disk Device\r\r\nSize=1000202273280\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "free_space": {
+      "command": [
+        "fsutil",
+        "volume",
+        "diskfree",
+        "C:"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "�����ֽ�����              : 945049333760\r\n�ֽ�����                  : 1000097181696\r\n���õ���δʹ�õ��ֽ�����  : 945049333760\r\n",
+      "stderr": ""
+    }
+  }
+}

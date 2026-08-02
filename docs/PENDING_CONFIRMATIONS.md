@@ -1,37 +1,9 @@
 # 待确认清单
 
-本清单记录阶段 1 实现中发现、但实现工程师无权自行裁决的任务书矛盾；不改变任何已接受 ADR 或冻结架构原则。
+本清单只记录尚未由项目负责人或架构师裁决、且会阻塞实现或验收的事项。
 
-## PC-001：包根文件与实现路径白名单冲突
+截至当前整理基线，没有新的待裁决事项。
 
-- 状态：已裁决（2026-07-27，ADR-0017）：`src/win7_agent/__init__.py` 已加入 PHASE_01 §0.2 白名单，仅允许包含 `__version__ = "0.1.0"`。本条关闭。
-- 发现位置：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md` §0.2 与 §4.1。
-- 事实：§4.1 要求创建 `src/win7_agent/__init__.py`，但 §0.2 的唯一源码白名单为 `src/win7_agent/probe/**`，不包含该文件。
-- 当前处理：已创建 `src/win7_agent/__init__.py`，且内容严格限定为 `__version__ = "0.1.0"`。
-- 需要裁决：无。
+历史事项已分别由 ADR-0017、ADR-0036 和相关任务书承载；PC-001～PC-003 不再在本文件重复维护。
 
-## PC-002：开发环境未提供 CPython 3.8.10
-
-- 状态：部分解除；待 Win7 E1/E2 验收环境执行。
-- 事实：早期开发环境仅有 CPython 3.9.6；此后开发机已完成正式 CPython 3.8.10 验证（Phase 2 Gate `PYTHON38_VALIDATED`，提交 `fd40ad2`，标签 `phase2-py38-validated`；原型线另见 `prototype-r1-py38-verified`）。仍缺失的只有 Win7 SP1 x64 实机环境。
-- 当前处理：Phase 1/2 代码均已在 CPython 3.8.10 下通过编译与测试矩阵；代码仅采用 Python 3.8 可用的语法和标准库 API。
-- 需要裁决：无；请在 Win7 实机 E1/E2 使用 CPython 3.8.10 执行各任务书验收矩阵，并按 `docs/EVALUATION.md` §5 留存验收记录。
-
-## PC-003：Win7 对标 Codex 计划的关键架构裁决（ADR-0028~0035 提议态）
-
-- 状态：已裁决（2026-07-29，ADR-0036）。裁决结果：ADR-0028~0035 及下列关键项**全部批准**，状态转 Accepted；授权按规划实施，前提为"Win7 支持"——即各组件仍须通过对应 Win7 SP1 x64 实机 Spike/验收方可宣称满足 Win7，Spike No-Go 时按 ADR-0028 降级阶梯以补充 ADR 修订。随裁决生效：SPIKE_01~04 任务书转 `APPROVED_FOR_IMPLEMENTATION`（脚手架可在现代构建机先行编写，`Win7-Validation` 保持 `NOT_PERFORMED` 直至实机执行）；PHASE_03~07 转 `APPROVED_FOR_IMPLEMENTATION`，授权按对应阶段推进实施。
-- 定位（重要）：ADR-0027 及既有架构文档继续作为 **Win7 平台架构与安全宪法**；ADR-0028~0035 是收窄其上的 **Electron 首选实施 Profile**。裁决使这些 ADR 转 `Accepted`，含义是**决策方向锁定、授权推进验证与实施**，**不等于"已满足 Win7 的可交付产品"**——当前仍判定为"Win7 首选实施方案，等待 Spike 验证"；四项 Win7 实机 Spike 通过前，不得将技术栈**表述为"已满足 Win7/ 已可交付"**。
-- 事实：`docs/DECISIONS.md` 的 ADR-0028~0035 已于 2026-07-29 由项目负责人裁决通过、状态转 **Accepted**；SPIKE_01~04 任务书据此转 `APPROVED_FOR_IMPLEMENTATION`，PHASE_03~07 已转 `APPROVED_FOR_IMPLEMENTATION`。
-- 评审已纳入的修正（2026-07-29，随文档更新）：
-  1. Core 固定为独立 `utilityProcess`（main 仅编排、Renderer 最小权限），关闭 `runAsNode` fuse、不用 `ELECTRON_RUN_AS_NODE`。
-  2. "唯一原生例外"改为"唯一自研原生组件"；winpty/node-pty、SQLite 绑定、MinGit 均为原生工件，按 §6 登记版本/SHA-256/ABI/编译选项/VC Runtime/ASAR/加载验证。
-  3. WPF/Win32/CLI 降级各档须另配独立 Core 宿主，否则属重写而非降级。
-  4. workspace-write 的网络控制为 best-effort，**非安全边界**；强制断网走 WFP/企业防火墙或远程隔离。
-  5. TLS 需先定型网络栈（Electron `net` / Node `https` / WinHTTP）再分别实测；`DefaultSecureProtocols`/KB3140245 仅对 WinHTTP 有效。
-  6. 性能预算数值为 `PROPOSED/NOT_MEASURED`，Spike 实测 + ADR 转 Accepted 前不作 Win7 硬门槛。
-  7. ADR-0029 理由更正为"统一运行时、减少双栈维护"，非"Python 结构性无法达标"。
-- 需要裁决：无。
-- 当前处理：Spike 任务书已转 `APPROVED_FOR_IMPLEMENTATION`（ADR-0036 裁决生效）；`spike/*` 分支实现代码可基于对应任务书推进。裁决摘要如下：
-  - Win7 兼容为基本要求，技术选型以程序最优化为目标。
-  - ADR-0028~0035 方向获批，附条件：四项 Win7 实机 SPIKE（SPIKE_01~04）验证通过后正式生效。
-  - 实施策略：非终端/containment 模块可基于理论分析先行实现；终端层（winpty/node-pty）和进程 containment 模块须等 SPIKE_02 实机验证结论后定稿。
+下一项外部验收动作是 Win7 SP1 x64 实机执行，不属于待确认事项，而属于 [STATUS.md](STATUS.md) 中的验证阻断项。

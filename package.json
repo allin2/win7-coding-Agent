@@ -1,0 +1,22 @@
+{
+  "name": "win7-coding-agent-integration",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "src/core",
+    "src/gateway",
+    "src/git-adapter",
+    "src/runner",
+    "src/shell",
+    "src/state",
+    "src/workspace"
+  ],
+  "engines": {
+    "node": ">=16.17.1"
+  },
+  "scripts": {
+    "docs:check": "node scripts/check_docs.mjs",
+    "verify": "node scripts/verify_integration.mjs",
+    "verify:quick": "node scripts/verify_integration.mjs --quick"
+  }
+}

@@ -7,6 +7,7 @@ import * as url from 'url';
 import * as net from 'net';
 import * as tls from 'tls';
 import { Duplex } from 'stream';
+import { StringDecoder } from 'string_decoder';
 import {
   INetworkStack,
   NetworkRequestOptions,
@@ -74,8 +75,14 @@ export function mapNodeError(err: Error & { code?: string }): GatewayError {
     case 'ECONNRESET':
     case 'EPIPE':
       return new GatewayError(
-        ErrorCode.CONNECTION_TIMEOUT,
+        ErrorCode.STREAM_INTERRUPTED,
         `Connection reset: ${err.message}`,
+      );
+
+    case 'ABORT_ERR':
+      return new GatewayError(
+        ErrorCode.REQUEST_CANCELLED,
+        'Gateway request was cancelled',
       );
 
     case 'ENOTFOUND':
@@ -127,6 +134,18 @@ export class NodeNetworkStack implements INetworkStack {
 
   constructor(config: Partial<NodeNetworkStackConfig> = {}) {
     this._config = { ...DEFAULT_NODE_NETWORK_CONFIG, ...config };
+    if (this._config.rejectUnauthorized !== true) {
+      throw new GatewayError(
+        ErrorCode.TLS_VERIFY_FAILED,
+        'Node network stack cannot disable certificate verification',
+      );
+    }
+    if (this._config.minTLSVersion !== 'TLSv1.2' && this._config.minTLSVersion !== 'TLSv1.3') {
+      throw new GatewayError(
+        ErrorCode.TLS_VERIFY_FAILED,
+        `Minimum TLS version ${this._config.minTLSVersion} is below TLS 1.2`,
+      );
+    }
     this._ca = loadCaBundle(this._config.caBundlePath);
   }
 
@@ -156,6 +175,12 @@ export class NodeNetworkStack implements INetworkStack {
 
     // Merge proxy from per-request options or stack-level config
     const proxy = options.proxy ?? this._config.proxy;
+    if (proxy?.protocol && proxy.protocol !== 'http') {
+      throw new GatewayError(
+        ErrorCode.GATEWAY_UNREACHABLE,
+        `Proxy protocol ${proxy.protocol} is not supported by the Node HTTP CONNECT stack`,
+      );
+    }
 
     return new Promise<NetworkResponse>((resolve, reject) => {
       const timeoutMs = options.timeoutMs || this._config.timeout;
@@ -171,8 +196,20 @@ export class NodeNetworkStack implements INetworkStack {
 
       // Handle request-level errors
       req.on('error', (err: Error & { code?: string }) => {
-        reject(mapNodeError(err));
+        reject(err instanceof GatewayError ? err : mapNodeError(err));
       });
+
+      const abort = (): void => {
+        const abortError = new Error('Request aborted') as Error & { code?: string };
+        abortError.code = 'ABORT_ERR';
+        req.destroy(abortError);
+      };
+      if (options.signal?.aborted) {
+        abort();
+      } else if (options.signal) {
+        options.signal.addEventListener('abort', abort, { once: true });
+        req.once('close', () => options.signal?.removeEventListener('abort', abort));
+      }
 
       // Write body if present
       if (options.body) {
@@ -212,7 +249,7 @@ export class NodeNetworkStack implements INetworkStack {
 
     const transport = isHttps ? https : http;
     const req = transport.request(reqOptions);
-    this._attachResponseHandler(req, resolve, reject, maxSize, timeoutMs);
+    this._attachResponseHandler(req, resolve, reject, maxSize, timeoutMs, options.onData);
     return req;
   }
 
@@ -259,7 +296,18 @@ export class NodeNetworkStack implements INetworkStack {
           timeout: timeoutMs,
         });
 
-        connectReq.on('connect', (_res, socket) => {
+        connectReq.on('connect', (res, socket) => {
+          if (res.statusCode !== 200) {
+            socket.destroy();
+            const code = res.statusCode === 407
+              ? ErrorCode.PROXY_AUTH_FAILED
+              : ErrorCode.GATEWAY_UNREACHABLE;
+            cb(
+              new GatewayError(code, `Proxy CONNECT failed with HTTP ${res.statusCode ?? 0}`),
+              null as unknown as Duplex,
+            );
+            return;
+          }
           cb(null, socket);
         });
 
@@ -282,7 +330,7 @@ export class NodeNetworkStack implements INetworkStack {
     }
 
     const req = https.request(reqOptions);
-    this._attachResponseHandler(req, resolve, reject, maxSize, timeoutMs);
+    this._attachResponseHandler(req, resolve, reject, maxSize, timeoutMs, options.onData);
     return req;
   }
 
@@ -313,7 +361,7 @@ export class NodeNetworkStack implements INetworkStack {
     };
 
     const req = http.request(reqOptions);
-    this._attachResponseHandler(req, resolve, reject, maxSize, timeoutMs);
+    this._attachResponseHandler(req, resolve, reject, maxSize, timeoutMs, options.onData);
     return req;
   }
 
@@ -325,6 +373,7 @@ export class NodeNetworkStack implements INetworkStack {
     reject: (reason: GatewayError) => void,
     maxSize: number,
     timeoutMs: number,
+    onData?: (chunk: string) => void,
   ): void {
     req.on('timeout', () => {
       req.destroy();
@@ -338,6 +387,7 @@ export class NodeNetworkStack implements INetworkStack {
 
     req.on('response', (res: http.IncomingMessage) => {
       const chunks: Buffer[] = [];
+      const decoder = new StringDecoder('utf8');
       let totalBytes = 0;
       let aborted = false;
 
@@ -356,12 +406,23 @@ export class NodeNetworkStack implements INetworkStack {
           );
           return;
         }
-        chunks.push(chunk);
+        if (onData) {
+          const decoded = decoder.write(chunk);
+          if (decoded.length > 0) onData(decoded);
+        } else {
+          chunks.push(chunk);
+        }
       });
 
       res.on('end', () => {
         if (aborted) return;
-        const body = Buffer.concat(chunks).toString('utf-8');
+        let body = '';
+        if (onData) {
+          const decodedRemainder = decoder.end();
+          if (decodedRemainder.length > 0) onData(decodedRemainder);
+        } else {
+          body = Buffer.concat(chunks).toString('utf-8');
+        }
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(res.headers)) {
           if (value !== undefined) {

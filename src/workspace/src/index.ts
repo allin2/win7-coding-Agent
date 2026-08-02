@@ -19,6 +19,20 @@ export {
   ApplyResult,
   DiffEntry,
   DiffResult,
+  ContentDiffPreview,
+  CreateTextReplacePlanOptions,
+  TextReplacementPlan,
+  ReadTextOptions,
+  ReadTextLine,
+  ReadTextResult,
+  SearchTextOptions,
+  SearchContextLine,
+  SearchTextMatch,
+  SearchTruncationReason,
+  SearchTextResult,
+  ListDirectoryOptions,
+  ListDirectoryEntry,
+  ListDirectoryResult,
 } from './types';
 
 // Encoding detection
@@ -34,8 +48,33 @@ export { atomicWrite, atomicWriteBatch } from './atomic';
 export { ShadowWorkspace } from './shadow';
 
 // Diff
-export { computeDiff } from './diff';
+export { computeDiff, buildContentDiffPreview } from './diff';
 
 // Plan / Apply
 export { createPlan, createPlanBatch } from './plan';
-export { applyPlan } from './apply';
+export { createTextReplacePlan } from './replace';
+export {
+  TrustedWritePreparer,
+  WriteApprovalLedger,
+  RecoveryManifestStore,
+  WriteTransactionCoordinator,
+} from './trusted-write';
+export type {
+  TrustedWritePlanStatus,
+  TrustedWriteIntent,
+  TrustedWritePlan,
+  TrustedWritePlanPublic,
+  TrustedWritePreparerOptions,
+  WriteApprovalBinding,
+  RecoveryManifest,
+} from './trusted-write';
+export { listDirectory, readText, searchText } from './readonly';
+export { createReadonlyWorkspacePort } from './readonly-port';
+export {
+  WorkspaceApprovalBinding,
+  WorkspaceApprovalValidation,
+  WorkspaceApprovalPort,
+  ApplyPlanOptions,
+  buildApplyApprovalRequest,
+  applyPlan,
+} from './apply';

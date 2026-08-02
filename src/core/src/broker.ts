@@ -4,7 +4,7 @@
  * @remarks 令牌按 sessionId 索引，支持过期检查
  */
 
-import { CapabilityToken } from './types';
+import { CapabilityBinding, CapabilityToken } from './types';
 import { capabilityRevokedError } from './errors';
 import * as crypto from 'crypto';
 
@@ -37,7 +37,15 @@ export class CapabilityBroker {
    * @param ttlMs - 令牌有效期（毫秒），默认 3600000（1 小时）
    * @returns 发放的令牌对象
    */
-  issueToken(sessionId: string, capabilities: string[], ttlMs: number = 3600000): CapabilityToken {
+  issueToken(
+    sessionId: string,
+    capabilities: string[],
+    ttlMs: number = 3600000,
+    binding?: CapabilityBinding,
+  ): CapabilityToken {
+    if (capabilities.includes('workspace_write') && !binding) {
+      throw new TypeError('workspace_write token requires an exact approval binding');
+    }
     const tokenId = this.generateTokenId();
     const token: CapabilityToken = {
       tokenId,
@@ -45,6 +53,7 @@ export class CapabilityBroker {
       capabilities: [...capabilities],
       expiresAt: new Date(Date.now() + ttlMs).toISOString(),
       revoked: false,
+      ...(binding ? { binding: { ...binding } } : {}),
     };
 
     this.tokens.set(tokenId, token);

@@ -59,10 +59,30 @@ describe('InMemoryEventStore', () => {
       expect(store.count()).toBe(1);
     });
 
-    it('should reject duplicate event IDs', () => {
+    it('should treat an exact duplicate event as an idempotent retry', () => {
       const event = makeEvent({ id: 'dup-id' });
+      const first = store.append(event);
+      const second = store.append(event);
+      expect(second).toEqual(first);
+      expect(store.count()).toBe(1);
+    });
+
+    it('should reject conflicting content for the same event ID', () => {
+      const event = makeEvent({ id: 'dup-conflict' });
       store.append(event);
-      expect(() => store.append(event)).toThrow('already exists');
+      expect(() => store.append({
+        ...event,
+        payload: { changed: true },
+      })).toThrow('conflicts');
+    });
+
+    it('should validate an idempotent retry instead of bypassing schema checks', () => {
+      const event = makeEvent({ id: 'dup-invalid-retry' });
+      store.append(event);
+      expect(() => store.append({
+        ...event,
+        sequence: 0,
+      })).toThrow('validation failed');
     });
 
     it('should reject events for unregistered sessions', () => {

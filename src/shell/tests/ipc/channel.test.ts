@@ -8,6 +8,7 @@ import { ShellError, ShellErrorCode } from '../../src/errors';
 
 function makeValidMessage(overrides: Partial<IPCMessage> = {}): IPCMessage {
   return {
+    protocolVersion: '1.0.0',
     id: 'msg-001',
     type: IPCMessageType.SESSION_CREATE,
     direction: IPCDirection.RENDERER_TO_CORE,
@@ -46,6 +47,25 @@ describe('IPCChannel', () => {
     it('非法消息抛出 ShellError', () => {
       expect(() => channel.send(makeValidMessage({ payload: {} } as IPCMessage))).toThrow(ShellError);
     });
+
+    it('同步 API 遇到 async handler 时 fail-closed 并提示正确调用方式', () => {
+      channel.registerHandler(IPCMessageType.SESSION_CREATE, async () => {});
+      const result = channel.send(makeValidMessage());
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('ASYNC_HANDLER_REQUIRES_ASYNC_API');
+      expect(result.recommendedAction).toContain('sendAsync');
+    });
+
+    it('sendAsync 等待异步 handler 完成', async () => {
+      let completed = false;
+      channel.registerHandler(IPCMessageType.SESSION_CREATE, async () => {
+        await Promise.resolve();
+        completed = true;
+      });
+      const result = await channel.sendAsync(makeValidMessage());
+      expect(result.success).toBe(true);
+      expect(completed).toBe(true);
+    });
   });
 
   describe('onMessage', () => {
@@ -65,6 +85,18 @@ describe('IPCChannel', () => {
       channel.registerHandler(IPCMessageType.SESSION_CREATE, () => {});
       channel.receive(makeValidMessage());
       expect(messages).toHaveLength(0);
+    });
+
+    it('listener 异常不阻断路由但会进入诊断记录', () => {
+      const handler = jest.fn();
+      channel.onMessage(() => { throw new Error('listener exploded'); });
+      channel.registerHandler(IPCMessageType.SESSION_CREATE, handler);
+
+      expect(channel.receive(makeValidMessage()).success).toBe(true);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(channel.getErrors()).toEqual([
+        expect.objectContaining({ stage: 'listener', error: 'listener exploded' }),
+      ]);
     });
   });
 

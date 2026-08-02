@@ -254,7 +254,7 @@ REPLAY_MISMATCH, EVENT_STORE_FAILED, UNEXPECTED`
 ## 4. 包结构与模块职责
 
 ```
-src/win7_agent/
+src/phase1-2/win7_agent/
   models/        # 契约数据类 + MockProvider / ReplayProvider（§3.3, §3.9）
   runtime/       # RunController / RunState / RunStatus / 转换表 / 预算（§3.1, §3.2）
   context/       # 纯函数上下文编译（工作区发现摘要 + 任务 → ModelRequest 素材）
@@ -375,7 +375,7 @@ Blocking-Reason: Target environment unavailable
 ### 7.2 统一测试入口与最低发现门槛
 
 - 唯一入口：`scripts/run_agent_tests.py`（unittest，禁 pytest），递归动态发现
-  `tests/unit/**/test_*.py` 与 `tests/integration/**/test_*.py`（含 Phase 1 probe 测试），
+  `tests/phase1-2/**/test_*.py` 与 `tests/integration/**/test_*.py`（含 Phase 1 probe 测试），
   `os.path.normcase` 排序保证稳定顺序，输出 `TOTAL tests run: N`（ASCII）。
 - 门禁：发现 0 项、实际执行数低于最低门槛、任何用例失败、任何模块 ImportError 或
   目录不可读 → 非零退出；禁止 "Ran 0 tests, OK"。
@@ -395,7 +395,7 @@ Blocking-Reason: Target environment unavailable
    - 禁止模式至少包括：`shell=True`、`os.system`、`os.popen`、`subprocess.getoutput`、
      任意 Shell 执行、未授权网络调用、无 `encoding` 的文本 `open(`、
      WIN7_CONSTRAINTS §3 禁用的 Python 3.9+ 语法/API、目标工作区写操作。
-   - 扫描范围：生产实现路径（`src/win7_agent/**` 与 `scripts/*.py` 生产脚本）中的
+   - 扫描范围：生产实现路径（`src/phase1-2/win7_agent/**` 与 `scripts/*.py` 生产脚本）中的
      禁止调用必须零命中；任何未经解释的生产实现命中即判定该项门禁失败
      （非零退出 / BLOCKED）。
    - 测试（`tests/**`）、夹具（`tests/fixtures/**`）与文档中用于验证禁止模式的字面
@@ -424,18 +424,18 @@ Blocking-Reason: Target environment unavailable
 
 ## 8. 实现路径白名单（C14；仅在 `phase/02-readonly-agent` 分支生效）
 
-- `src/win7_agent/models/**`
-- `src/win7_agent/runtime/**`
-- `src/win7_agent/context/**`
-- `src/win7_agent/policy/**`
-- `src/win7_agent/tools/**`
-- `src/win7_agent/workspace/**`
-- `src/win7_agent/verification/**`
-- `src/win7_agent/storage/**`
-- `src/win7_agent/cli/**`
-- `tests/unit/models/**`、`tests/unit/runtime/**`、`tests/unit/context/**`、
-  `tests/unit/policy/**`、`tests/unit/tools/**`、`tests/unit/workspace/**`、
-  `tests/unit/verification/**`、`tests/unit/storage/**`、`tests/unit/cli/**`
+- `src/phase1-2/win7_agent/models/**`
+- `src/phase1-2/win7_agent/runtime/**`
+- `src/phase1-2/win7_agent/context/**`
+- `src/phase1-2/win7_agent/policy/**`
+- `src/phase1-2/win7_agent/tools/**`
+- `src/phase1-2/win7_agent/workspace/**`
+- `src/phase1-2/win7_agent/verification/**`
+- `src/phase1-2/win7_agent/storage/**`
+- `src/phase1-2/win7_agent/cli/**`
+- `tests/phase1-2/models/**`、`tests/phase1-2/runtime/**`、`tests/phase1-2/context/**`、
+  `tests/phase1-2/policy/**`、`tests/phase1-2/tools/**`、`tests/phase1-2/workspace/**`、
+  `tests/phase1-2/verification/**`、`tests/phase1-2/storage/**`、`tests/phase1-2/cli/**`
 - `tests/integration/agent/**`
 - `tests/fixtures/**`（仅样例工程夹具；禁止放入真实用户代码或敏感内容）
 - `scripts/run_agent_tests.py`、`scripts/run_agent_tests.bat`、`scripts/run_analysis_demo.bat`
@@ -444,8 +444,8 @@ Blocking-Reason: Target environment unavailable
 
 ## 9. 禁止路径（出现改动即打回）
 
-- `src/win7_agent/probe/**`；`src/win7_agent/__init__.py`（内容冻结为版本行，PHASE_01 §0.2）
-- `tests/unit/probe/**`、`tests/integration/probe/**`、`tests/win7/**`
+- `src/phase1-2/win7_agent/probe/**`；`src/phase1-2/win7_agent/__init__.py`（内容冻结为版本行，PHASE_01 §0.2）
+- `tests/phase1-2/probe/**`、`tests/integration/probe/**`、`tests/win7/**`
 - `scripts/run_probe.bat`、`scripts/run_tests.bat` 及其他既有脚本
 - `docs/tasks/PHASE_01_CAPABILITY_PROBE.md`、`docs/tasks/PROTOTYPE_FULL_AGENT_SKELETON.md`
 - 已 Accepted ADR 正文（只可追加新 ADR）；`AGENTS.md`（仅架构师凭 ADR 修改）

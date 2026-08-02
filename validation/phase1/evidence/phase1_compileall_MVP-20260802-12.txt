@@ -1,0 +1,13 @@
+Win7 host: 192.168.1.11 / Windows 7 Professional SP1 x64 build 7601
+Runtime: C:\acceptance\python38_mvp\python.exe (CPython 3.8.10 x64)
+Management channel: Bitvise SSH 192.168.1.10 <-> 192.168.1.11:22 (preserved)
+
+COMMAND 1
+C:\acceptance\python38_mvp\python.exe -m compileall -q C:\acceptance\phase1_mvp\src\phase1-2 C:\acceptance\phase1_mvp\tests\phase1-2 C:\acceptance\phase1_mvp\tests\integration\probe
+STANDARD_COMPILEALL_EXIT=0
+
+COMMAND 2
+C:\acceptance\python38_mvp\python.exe -m compileall -q "C:\测试 目录\phase1 mvp\src\phase1-2" "C:\测试 目录\phase1 mvp\tests\phase1-2" "C:\测试 目录\phase1 mvp\tests\integration\probe"
+E2_CJK_SPACE_COMPILEALL_EXIT=0
+
+No machine PATH, NIC, route, firewall, Bitvise service or reboot action was performed.

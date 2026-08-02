@@ -10,6 +10,15 @@ export {
   GitCommandDef,
   GitResult,
   GitRequest,
+  GitApprovalBinding,
+  GitRunnerRequest,
+  GitRunnerResult,
+  GitRunnerPort,
+  GitAdapterError,
+  GitAdapterErrorCode,
+  GitSessionBaseline,
+  GitSessionInspection,
+  GitTrackedRollbackResult,
 } from './types';
 
 // 白名单验证
@@ -32,3 +41,5 @@ export {
   GitAdapter,
   GitAdapterConfig,
 } from './adapter';
+
+export { GitSessionGuard } from './session';

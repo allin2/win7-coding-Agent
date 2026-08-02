@@ -40,12 +40,6 @@ const WHITELIST: Map<string, GitCommandDef> = new Map([
     category: GitCommandCategory.READ,
     allowed: true,
   }],
-  ['branch', {
-    command: 'branch',
-    subcommand: '',
-    category: GitCommandCategory.READ,
-    allowed: true,
-  }],
   ['worktree:list', {
     command: 'worktree',
     subcommand: 'list',
@@ -66,12 +60,6 @@ const WHITELIST: Map<string, GitCommandDef> = new Map([
   }],
   ['ls-files', {
     command: 'ls-files',
-    subcommand: '',
-    category: GitCommandCategory.READ,
-    allowed: true,
-  }],
-  ['tag', {
-    command: 'tag',
     subcommand: '',
     category: GitCommandCategory.READ,
     allowed: true,
@@ -189,6 +177,9 @@ export function findCommandDef(command: string, subcommand?: string): GitCommand
 export function validateWhitelist(request: GitRequest): WhitelistResult {
   const { command, args } = request;
 
+  const dynamic = classifyArgumentSensitiveCommand(command, args);
+  if (dynamic) return dynamic;
+
   // 提取子命令（第一个参数如果不是 - 开头的选项）
   const subcommand = args.length > 0 && !args[0].startsWith('-') ? args[0] : undefined;
 
@@ -226,6 +217,25 @@ export function validateWhitelist(request: GitRequest): WhitelistResult {
     found: true,
     commandDef,
     allowed: true,
+  };
+}
+
+/**
+ * `git branch` and `git tag` are not intrinsically read-only.  Treat every
+ * form except an unambiguous listing form as a write, so a new option cannot
+ * silently inherit the read classification.
+ */
+function classifyArgumentSensitiveCommand(command: string, args: string[]): WhitelistResult | undefined {
+  if (command !== 'branch' && command !== 'tag') return undefined;
+  const readOnlyFlags = command === 'branch'
+    ? new Set(['-a', '-r', '-v', '-vv', '--all', '--remotes', '--verbose', '--no-merged', '--merged', '--show-current', '--list', '--column'])
+    : new Set(['-l', '--list', '-n', '--contains', '--no-contains', '--points-at', '--merged', '--no-merged', '--column', '--sort', '--format']);
+  const isListing = args.length === 0 || args.every((arg) => readOnlyFlags.has(arg));
+  const category = isListing ? GitCommandCategory.READ : GitCommandCategory.WRITE;
+  return {
+    found: true,
+    allowed: true,
+    commandDef: { command, subcommand: '', category, allowed: true },
   };
 }
 

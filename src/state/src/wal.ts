@@ -92,23 +92,23 @@ class InMemoryWALTransaction implements WALTransaction {
       throw new Error(`Cannot commit transaction in state: ${this.state}`);
     }
 
-    let committed = 0;
     try {
-      for (const event of this.buffer) {
-        this.store.append(event);
-        committed++;
-      }
+      const committed = this.store.appendBatch(this.buffer).length;
       this.state = TransactionState.COMMITTED;
+      this.buffer = [];
+      return committed;
     } catch (err) {
-      // Partial commit occurred — mark as rolled back for safety.
+      // appendBatch is all-or-none; no buffered event became visible.
       this.state = TransactionState.ROLLED_BACK;
+      this.buffer = [];
       if (err instanceof StateError) {
         throw err;
       }
-      throw new Error(`Transaction commit failed after ${committed} events: ${err}`);
+      throw new StateError(
+        StateErrorCode.TRANSACTION_COMMIT_FAILED,
+        `Atomic transaction commit failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
-
-    return committed;
   }
 
   rollback(): void {

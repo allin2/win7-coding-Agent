@@ -10,6 +10,7 @@
 
 ```
 Status: APPROVED_FOR_IMPLEMENTATION
+Task Type: FORMAL_PHASE
 Phase-Gate: REPAIR_REQUIRED_BEFORE_E1
 ```
 
@@ -18,9 +19,9 @@ Phase-Gate: REPAIR_REQUIRED_BEFORE_E1
 
 ### 0.2 Allowed implementation paths（允许修改的实现路径白名单）
 
-- `src/win7_agent/__init__.py`（**内容限定**：仅允许一行 `__version__ = "0.1.0"`，不得出现任何 import 或其他语句；这是对原白名单遗漏的修正，见 ADR-0017 与 PC-001，不是新增架构能力）
-- `src/win7_agent/probe/**`
-- `tests/unit/probe/**`
+- `src/phase1-2/win7_agent/__init__.py`（**内容限定**：仅允许一行 `__version__ = "0.1.0"`，不得出现任何 import 或其他语句；这是对原白名单遗漏的修正，见 ADR-0017 与 PC-001，不是新增架构能力）
+- `src/phase1-2/win7_agent/probe/**`
+- `tests/phase1-2/probe/**`
 - `tests/integration/probe/**`
 - `tests/win7/**`
 - `scripts/run_probe.bat`
@@ -41,7 +42,7 @@ Phase-Gate: REPAIR_REQUIRED_BEFORE_E1
 
 | # | 修复项 | 本文档依据 | ADR |
 |---|--------|-----------|-----|
-| R1 | 补齐 `src/win7_agent/__init__.py`（仅版本行） | §0.2 | ADR-0017 |
+| R1 | 补齐 `src/phase1-2/win7_agent/__init__.py`（仅版本行） | §0.2 | ADR-0017 |
 | R2 | `subproc.run_capture` 改为单一 monotonic deadline 预算；活动进程登记表 | §4.2、§4.2.1 | ADR-0020 |
 | R3 | 调度层检查级超时：先终止活动进程，再有限宽限 join；泄漏线程记 notes | §4.3.1 | ADR-0020 |
 | R4 | 错误码扩展与 `proc.*` 错误语义修正（禁用 FS_OP_FAILED 顶包） | §5.2 | ADR-0018 |
@@ -112,7 +113,7 @@ python -m win7_agent.probe [--out 报告路径] [--db 数据库路径] [--timeou
 ### 4.1 包结构（ADR-0013）
 
 ```
-src/win7_agent/
+src/phase1-2/win7_agent/
   __init__.py        # 命名空间包根，仅 __version__ = "0.1.0"
   probe/
     __init__.py      # 仅 PROBE_VERSION = "0.1.0"
@@ -407,7 +408,7 @@ CREATE TABLE checks (
 
 ## 7. 测试矩阵
 
-单元测试用 `unittest`（标准库），放 `tests/unit/probe/`（纯逻辑）与 `tests/integration/probe/`（跑真实子进程/文件系统）；Win7 实机验收清单放 `tests/win7/`。E1/E2/E3/E4 指 EVALUATION.md §1 环境。
+单元测试用 `unittest`（标准库），放 `tests/phase1-2/probe/`（纯逻辑）与 `tests/integration/probe/`（跑真实子进程/文件系统）；Win7 实机验收清单放 `tests/win7/`。E1/E2/E3/E4 指 EVALUATION.md §1 环境。
 
 | 用例 | 内容 | 环境 | 预期 |
 |------|------|------|------|

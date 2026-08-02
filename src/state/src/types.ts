@@ -31,6 +31,18 @@ export interface Event {
   payload: unknown;
   /** Session this event belongs to. */
   sessionId: string;
+  /** Thread association; legacy callers may omit and the store binds to sessionId. */
+  threadId?: string;
+  /** Run association; legacy callers may omit and the store binds to sessionId. */
+  runId?: string;
+  /** Store-assigned, monotonically increasing sequence within the Session. */
+  sequence?: number;
+}
+
+export interface StoredEvent extends Event {
+  threadId: string;
+  runId: string;
+  sequence: number;
 }
 
 /** Filter criteria for querying events from the store. */
@@ -39,6 +51,10 @@ export interface EventFilter {
   types?: EventType[];
   /** Filter by session ID. */
   sessionId?: string;
+  /** Filter by thread ID. */
+  threadId?: string;
+  /** Filter by run ID. */
+  runId?: string;
   /** Inclusive lower bound for timestamp (ISO-8601). */
   since?: string;
   /** Inclusive upper bound for timestamp (ISO-8601). */
@@ -61,6 +77,9 @@ export enum StateErrorCode {
   PAYLOAD_BUDGET_EXCEEDED = 'PAYLOAD_BUDGET_EXCEEDED',
   SCHEMA_MIGRATION_FAILED = 'SCHEMA_MIGRATION_FAILED',
   RECOVERY_INCONSISTENT = 'RECOVERY_INCONSISTENT',
+  EVENTSTORE_CONSTRAINT_VIOLATION = 'EVENTSTORE_CONSTRAINT_VIOLATION',
+  EVENTSTORE_CAPACITY_EXCEEDED = 'EVENTSTORE_CAPACITY_EXCEEDED',
+  TRANSACTION_COMMIT_FAILED = 'TRANSACTION_COMMIT_FAILED',
 }
 
 /** Custom error class for state module errors. */

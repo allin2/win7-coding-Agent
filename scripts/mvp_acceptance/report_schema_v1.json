@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Win7 MVP acceptance report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "mvp_id",
+    "suite",
+    "environment",
+    "artifact_hashes",
+    "command",
+    "timestamps",
+    "exit_code",
+    "cases",
+    "evidence",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "mvp_id": { "type": "string", "pattern": "^MVP-[0-9]{8}-[0-9]{2}$" },
+    "suite": { "type": "string" },
+    "environment": { "type": "object" },
+    "artifact_hashes": { "type": "object", "additionalProperties": { "type": "string" } },
+    "command": { "type": "array", "items": { "type": "string" } },
+    "timestamps": {
+      "type": "object",
+      "required": ["started_at", "finished_at"],
+      "properties": {
+        "started_at": { "type": "string" },
+        "finished_at": { "type": "string" }
+      }
+    },
+    "exit_code": { "type": ["integer", "null"] },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["case_id", "status", "summary"],
+        "properties": {
+          "case_id": { "type": "string" },
+          "status": {
+            "enum": [
+              "PASS", "FAIL", "PARTIAL", "NOT_PERFORMED", "OWNER_ACCEPTED_FOR_MVP",
+              "E5_SURROGATE_PASS", "MVP_NETWORK_SURROGATE", "SSD_SURROGATE",
+              "AUTHORIZATION_BLOCKED", "ENVIRONMENT_MISSING", "BUILD_HOST_MISSING"
+            ]
+          },
+          "summary": { "type": "string" },
+          "metrics": { "type": "object" },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -172,11 +172,27 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-009 | github.com/electron/electron releases v22.3.27（win32-x64） | MIT（含 Chromium/Node 第三方许可证包） | 待锁定（SPIKE_01） | Electron 自带 third-party 清单随包归档 | 上游已 EOL；本项目自担：不处理不可信网页内容，开放内容远程化（ADR-0028） | SPIKE_01 全项 |
 | D-010 | nodejs.org/dist/v12.22.12（win-x64，可选） | MIT | 待锁定（若启用） | 无原生附加依赖 | 上游 EOL；仅作 CLI 宿主备选，默认不交付 | 启用时另立用例 |
 | D-011 | winpty 0.4.3（github.com/rprichard/winpty release）+ node-pty 0.10.0（npm 锁定） | MIT | 待锁定（SPIKE_02） | node-pty 原生模块须按 Electron 22 ABI 重编译（用 D-017） | 上游停维护；本项目自担，输出按 C19 不可信过滤兜底 | SPIKE_02 终端矩阵 |
-| D-012 | Git for Windows 2.46.2 MinGit x64（github.com/git-for-windows releases） | GPLv2 | 待锁定（SPIKE_03） | MinGit 裁剪包内容清单归档；不含 LFS/GCM | 上游该系列停止 Win7 修复；靠 ADR-0032 隔离配置收敛攻击面 | SPIKE_03 G10 矩阵 |
+| D-012 | Git for Windows 2.46.2 MinGit x64（github.com/git-for-windows/releases/download/v2.46.2.windows.1/MinGit-2.46.2-64-bit.zip） | GPLv2 | `MinGit-2.46.2-64-bit.zip` SHA-256=`0dca60869825ceb8b6108be69f0c536174fbca45e11300f2c14c34632d8238ed`；`cmd/git.exe` SHA-256=`02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1` | MinGit 裁剪包内容清单归档；确认不含 LFS/GCM（仅便携 git 子系统） | 上游该系列停止 Win7 修复；靠 ADR-0032 隔离配置收敛攻击面 | SPIKE_03 G10 矩阵 |
 | D-013 | 本项目自研 C++ helper（源码在本仓库，D-017 工具链构建） | 本项目许可证 | 构建产物哈希随发布清单 | 仅 Win32 API + CRT | 本项目全责；接口冻结 argv + JSON over stdio | SPIKE_02 containment 矩阵 |
 | D-014 | better-sqlite3（npm 锁定版本，SQLite 内嵌编译 + FTS5） | Apache-2.0（SQLite 为 public domain） | 待锁定（SPIKE_04） | 原生模块按 Electron 22 ABI 预编译（用 D-017）；SQLite 版本一并锁定 | 上游活跃但需锁旧 ABI 版本；SQLite 漏洞跟踪由本项目承担 | SPIKE_04 写入/FTS 矩阵 |
 | D-016 | 本项目自研 Updater（WinVerifyTrust / 内置公钥 + 包哈希） | 本项目许可证 | 构建产物哈希随发布清单 | 仅 Win32 API | 本项目全责；验签失败 fail-closed（P13） | PHASE_07 更新/回滚用例 |
 | D-017 | Visual Studio 2019 Build Tools（v142）+ Windows SDK 10（微软官方渠道） | 微软许可条款（仅构建机） | 构建机环境记录版本号 | 不进入交付 SBOM；产物依赖的 CRT 交付方式须登记 | 微软在支持期内；目标 Win7 兼容性由 SPIKE_02 实证 | 间接（其产物经 SPIKE_02/04 验证） |
+
+#### MVP-20260802 依赖复核补充记录（ADR-0054）
+
+| ID | 复核事实 | 本次裁决 | 可用范围 |
+|----|----------|----------|----------|
+| D-009 | 本机构建缓存的 `electron-v22.3.27-win32-x64.zip` SHA-256 为 `ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6`；解压后 Win7 `electron.exe` SHA-256 为 `2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb`。 | 已锁定为 SPIKE_01 MVP 验收工件；不是产品交付 SBOM 完成声明。 | 仅独立验收壳。 |
+| D-012 | 已从表中官方 URL 下载并校验 `MinGit-2.46.2-64-bit.zip` 与 `cmd/git.exe` 哈希均匹配。实际内容却包含 `mingw64/bin/gcmcore.dll`、`git-credential-manager.exe` 及其文档。 | **不满足**“不随包携带 GCM”的交付闭包；不得把官方原 ZIP 或当前 Win7 `C:\\acceptance\\git` 完整 Git 当作 D-012 合格工件。需建立受控裁剪清单、派生产物 SHA-256、许可证归档和 G10 重验。 | 当前为 `ENVIRONMENT_MISSING`，SPIKE_03 不得据此 PASS。 |
+| D-011 / D-013 / D-014 / D-017 | 本机缓存与 Win7 盘点均未发现 Electron 22 ABI 的 node-pty/winpty、C++ helper、better-sqlite3 或 MSVC v142 构建来源。 | `BUILD_HOST_MISSING`；不得用骨架源码或同 ABI 猜测替代实测。 | SPIKE_02/04 仅可做静态审计。 |
+
+#### MVP-20260802-06/07/10 实机补充锁定
+
+| 工件 | SHA-256 / 证据 | MVP 裁决 |
+|---|---|---|
+| 受控 MinGit 2.46.2 派生包（去除 GCM、SSH 与 HTTP remote helper） | ZIP `914fd56506284c54dc20f43917dcb6f2587eb7d807add2968c2d8b335070d397`；`cmd/git.exe` `02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1`；Win7 报告 `spikes/03-git-adapter/acceptance/evidence/report_spike03_MVP-20260802-06.json` | 仅作为 SPIKE_03 MVP 验收派生包；正式发布前仍须补齐裁剪清单、许可证与 SBOM 传递依赖。 |
+| CPython 3.8.10 x64 embeddable | ZIP `abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271`；Win7 证据 `validation/phase1/evidence/phase1_probe_MVP-20260802-07.json`、`-09.json`、`-10.json` | Phase 1 Win7 前置 probe 连续 3 次 18/18 PASS；不自动放行冻结 E1/E2 Gate。 |
+| 机械盘门禁 | 项目负责人明确默认 `PASS`；本机实际介质为 Samsung 870 EVO SSD | 不再阻断 MVP；不得将该裁决写成机械盘性能或 better-sqlite3 实测。 |
 
 
 ## 7. 已知兼容性陷阱（实现时必须规避）

@@ -18,7 +18,14 @@
 
 ## 3. 当前阶段（必须先确认再动手）
 
-- 当前处于 **阶段 0（工程基线）+ 阶段 1（Capability Probe）+ 阶段 2（正式只读代码分析 Agent）**。
+- 当前并行推进四条受控轨道：**阶段 0 文档基线**、**阶段 1/2 冻结合同的 Win7 收口**、
+  **阶段 3–7 整合候选**以及 **SPIKE_01~04 实机验证**。当前分支
+  `codex/integrated-robustness` 的直接任务书为
+  `docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md`、
+  `docs/tasks/DOCS_01_DOCUMENTATION_BASELINE.md` 与
+  `docs/tasks/MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md`；后者仅授权 MVP 实机验收
+  harness、证据与文档收口，不扩大任何生产功能或 Phase 1/2 冻结合同（ADR-0054）。
+  状态以 `docs/STATUS.md` 和 `docs/tasks/README.md` 为准。
 - 阶段 1 任务文档：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`（允许路径见该文档 §0.2）。
 - **阶段 2（ADR-0025）**：任务文档 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（Task Type: FORMAL_PHASE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。实现仅在 `phase/02-readonly-agent` 分支上进行；目标工作区全程只读、不接入真实模型、不修改用户代码；原型成果只能按该文档 §5 迁移矩阵选择性吸收，禁止整体合并/cherry-pick 原型分支。Win7 实机验收前不得宣称阶段 2 完成。
 - 阶段 0/1 主线**不接入大模型、不修改用户代码**；阶段 2 的只读 Agent Loop 仅在其任务书授权范围内实现（Mock/Replay 驱动，同样禁止真实模型与网络）。

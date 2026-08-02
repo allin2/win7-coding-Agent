@@ -1,10 +1,24 @@
 /**
  * @module policy.test
- * @description Policy 引擎测试 — READ_ONLY 允许、WORKSPACE_WRITE 令牌检查、FULL_ACCESS 拒绝、shell 元字符拒绝
+ * @description Policy 引擎测试 — READ_ONLY、WORKSPACE_WRITE、外部 FULL_ACCESS 拒绝与结构化 argv
  */
 
 import { PolicyEngine } from '../src/policy';
-import { ToolCall, ApprovalLevel } from '../src/types';
+import { ToolCall, ApprovalLevel, PolicyVerdict } from '../src/types';
+import { bindCapabilityToToolCall } from '../src/approval-binding';
+
+function writeCall(id: string = 'call-write'): ToolCall {
+  return {
+    id,
+    toolName: 'fs.writeFile',
+    args: { path: '/workspace/file.txt', content: 'hello' },
+    approvalLevel: ApprovalLevel.WORKSPACE_WRITE,
+    approvalContext: {
+      previewSha256: 'preview-sha',
+      baselineSha256: 'baseline-sha',
+    },
+  };
+}
 
 describe('PolicyEngine', () => {
   let engine: PolicyEngine;
@@ -24,6 +38,7 @@ describe('PolicyEngine', () => {
       const decision = engine.evaluate(toolCall);
       expect(decision.allowed).toBe(true);
       expect(decision.level).toBe(ApprovalLevel.READ_ONLY);
+      expect(decision).toMatchObject({ verdict: PolicyVerdict.ALLOW, ruleId: 'POLICY_READ_ONLY_ALLOWED' });
     });
 
     it('只读工具无需令牌', () => {
@@ -40,39 +55,25 @@ describe('PolicyEngine', () => {
 
   describe('WORKSPACE_WRITE 工具', () => {
     it('无令牌时拒绝', () => {
-      const toolCall: ToolCall = {
-        id: 'call-3',
-        toolName: 'fs.writeFile',
-        args: { path: '/workspace/file.txt', content: 'hello' },
-        approvalLevel: ApprovalLevel.WORKSPACE_WRITE,
-      };
+      const toolCall = writeCall('call-3');
       const decision = engine.evaluate(toolCall);
       expect(decision.allowed).toBe(false);
       expect(decision.reason).toContain('能力令牌');
+      expect(decision.verdict).toBe(PolicyVerdict.ASK);
     });
 
-    it('有令牌时允许（无 tokenValidator）', () => {
-      const toolCall: ToolCall = {
-        id: 'call-4',
-        toolName: 'fs.writeFile',
-        args: { path: '/workspace/file.txt', content: 'hello' },
-        approvalLevel: ApprovalLevel.WORKSPACE_WRITE,
-      };
-      const decision = engine.evaluate(toolCall, 'some-token-id');
-      expect(decision.allowed).toBe(true);
+    it('即使有令牌 ID，无 tokenValidator 时也 fail-closed', () => {
+      const decision = engine.evaluate(writeCall('call-4'), 'some-token-id', 'sess-1');
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toContain('fail-closed');
     });
 
     it('有令牌但 tokenValidator 返回无效时拒绝', () => {
       const engineWithValidator = new PolicyEngine({
         tokenValidator: () => ({ valid: false, reason: '令牌已过期' }),
       });
-      const toolCall: ToolCall = {
-        id: 'call-5',
-        toolName: 'fs.writeFile',
-        args: { path: '/workspace/file.txt', content: 'hello' },
-        approvalLevel: ApprovalLevel.WORKSPACE_WRITE,
-      };
-      const decision = engineWithValidator.evaluate(toolCall, 'expired-token');
+      const toolCall = writeCall('call-5');
+      const decision = engineWithValidator.evaluate(toolCall, 'expired-token', 'sess-1');
       expect(decision.allowed).toBe(false);
       expect(decision.reason).toContain('令牌已过期');
     });
@@ -90,15 +91,31 @@ describe('PolicyEngine', () => {
           },
         }),
       });
-      const toolCall: ToolCall = {
-        id: 'call-6',
-        toolName: 'fs.writeFile',
-        args: { path: '/workspace/file.txt', content: 'hello' },
-        approvalLevel: ApprovalLevel.WORKSPACE_WRITE,
-      };
-      const decision = engineWithValidator.evaluate(toolCall, 'tok-1');
+      const toolCall = writeCall('call-6');
+      const decision = engineWithValidator.evaluate(toolCall, 'tok-1', 'sess-1');
       expect(decision.allowed).toBe(false);
       expect(decision.reason).toContain('workspace_write');
+    });
+
+    it('仅允许会话、请求、预览和基线完全匹配的令牌', () => {
+      const toolCall = writeCall('call-bound');
+      const token = {
+        tokenId: 'tok-bound',
+        sessionId: 'sess-1',
+        capabilities: ['workspace_write'],
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        revoked: false,
+        binding: bindCapabilityToToolCall(toolCall),
+      };
+      const boundEngine = new PolicyEngine({
+        tokenValidator: () => ({ valid: true, token }),
+      });
+
+      expect(boundEngine.evaluate(toolCall, token.tokenId, 'sess-1').allowed).toBe(true);
+      const changed = writeCall('call-bound');
+      changed.args = { path: '/workspace/file.txt', content: 'changed' };
+      expect(boundEngine.evaluate(changed, token.tokenId, 'sess-1').allowed).toBe(false);
+      expect(boundEngine.evaluate(toolCall, token.tokenId, 'other-session').allowed).toBe(false);
     });
   });
 
@@ -107,12 +124,25 @@ describe('PolicyEngine', () => {
       const toolCall: ToolCall = {
         id: 'call-7',
         toolName: 'terminal.exec',
-        args: { command: 'rm -rf /' },
-        approvalLevel: ApprovalLevel.FULL_ACCESS,
+        args: { command: 'git', argv: ['status'] },
+        approvalLevel: 'full_access' as ApprovalLevel,
       };
       const decision = engine.evaluate(toolCall);
       expect(decision.allowed).toBe(false);
       expect(decision.reason).toContain('ADR-0030');
+    });
+  });
+
+  it('evaluates approval facts without consulting a token store', () => {
+    const call = writeCall('pure-call');
+    const token = {
+      tokenId: 'pure-token', sessionId: 'sess-1', capabilities: ['workspace_write'],
+      expiresAt: '2099-01-01T00:00:00.000Z', revoked: false,
+      binding: bindCapabilityToToolCall(call),
+    };
+    expect(engine.evaluateFacts(call, { sessionId: 'sess-1', token })).toMatchObject({
+      verdict: PolicyVerdict.ALLOW,
+      ruleId: 'POLICY_APPROVAL_BOUND',
     });
   });
 
@@ -130,105 +160,65 @@ describe('PolicyEngine', () => {
     });
   });
 
-  describe('Shell 元字符验证', () => {
-    it('参数包含 | 被拒绝', () => {
+  describe('结构化参数验证', () => {
+    it('文件名中的元字符作为普通数据允许通过', () => {
       const toolCall: ToolCall = {
         id: 'call-9',
         toolName: 'fs.readFile',
-        args: { path: '/file.txt | cat /etc/passwd' },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-      expect(decision.reason).toContain('shell 元字符');
-    });
-
-    it('参数包含 ; 被拒绝', () => {
-      const toolCall: ToolCall = {
-        id: 'call-10',
-        toolName: 'fs.readFile',
-        args: { path: '/file.txt; rm -rf /' },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('参数包含 && 被拒绝', () => {
-      const toolCall: ToolCall = {
-        id: 'call-11',
-        toolName: 'fs.readFile',
-        args: { path: '/file.txt && echo hacked' },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('参数包含 || 被拒绝', () => {
-      const toolCall: ToolCall = {
-        id: 'call-12',
-        toolName: 'fs.readFile',
-        args: { path: '/file.txt || echo fail' },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('参数包含 ` 被拒绝', () => {
-      const toolCall: ToolCall = {
-        id: 'call-13',
-        toolName: 'fs.readFile',
-        args: { path: '`whoami`' },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('参数包含 $() 被拒绝', () => {
-      const toolCall: ToolCall = {
-        id: 'call-14',
-        toolName: 'fs.readFile',
-        args: { path: '$(cat /etc/passwd)' },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('嵌套对象中的元字符也被检测', () => {
-      const toolCall: ToolCall = {
-        id: 'call-15',
-        toolName: 'fs.readFile',
-        args: { options: { nested: { value: 'safe | dangerous' } } },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('数组中的元字符也被检测', () => {
-      const toolCall: ToolCall = {
-        id: 'call-16',
-        toolName: 'fs.readFile',
-        args: { paths: ['/safe.txt', '/bad.txt; rm -rf /'] },
-        approvalLevel: ApprovalLevel.READ_ONLY,
-      };
-      const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-    });
-
-    it('安全参数正常通过', () => {
-      const toolCall: ToolCall = {
-        id: 'call-17',
-        toolName: 'fs.readFile',
-        args: { path: '/workspace/中文路径/文件.txt' },
+        args: { path: '/workspace/a|b;$(literal).txt' },
         approvalLevel: ApprovalLevel.READ_ONLY,
       };
       const decision = engine.evaluate(toolCall);
       expect(decision.allowed).toBe(true);
+    });
+
+    it('terminal.exec 拒绝 commandLine 字符串', () => {
+      const toolCall: ToolCall = {
+        id: 'call-10',
+        toolName: 'terminal.exec',
+        args: { commandLine: 'git status && whoami' },
+        approvalLevel: ApprovalLevel.READ_ONLY,
+      };
+      const decision = engine.evaluate(toolCall);
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toContain('command + argv');
+    });
+
+    it('terminal.exec 拒绝通用 Shell 宿主', () => {
+      const toolCall: ToolCall = {
+        id: 'call-11',
+        toolName: 'terminal.exec',
+        args: { command: 'cmd.exe', argv: ['/c', 'dir'] },
+        approvalLevel: ApprovalLevel.READ_ONLY,
+      };
+      const decision = engine.evaluate(toolCall);
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toContain('Shell 宿主');
+    });
+
+    it('terminal.exec requires an approved command profile even with structured argv', () => {
+      const toolCall: ToolCall = {
+        id: 'call-12',
+        toolName: 'terminal.exec',
+        args: { command: 'rg.exe', argv: ['a|b', '/workspace'] },
+        approvalLevel: ApprovalLevel.READ_ONLY,
+      };
+      const decision = engine.evaluate(toolCall);
+      expect(decision).toMatchObject({
+        allowed: false,
+        ruleId: 'POLICY_COMMAND_PROFILE_REQUIRED',
+      });
+    });
+
+    it.each([
+      'C:\\Windows\\System32\\config\\SAM',
+      'C:\\repo\\.env',
+      'C:\\repo\\.git\\config',
+    ])('rejects direct access to sensitive path %s', (path) => {
+      const decision = engine.evaluate({
+        id: 'sensitive-path', toolName: 'fs.readFile', args: { path }, approvalLevel: ApprovalLevel.READ_ONLY,
+      });
+      expect(decision).toMatchObject({ verdict: PolicyVerdict.DENY, ruleId: 'POLICY_SENSITIVE_PATH_DENIED' });
     });
   });
 

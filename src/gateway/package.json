@@ -1,5 +1,5 @@
 {
-  "name": "win7-agent-gateway",
+  "name": "@win7-agent/gateway",
   "version": "0.1.0",
   "description": "Model Gateway for Win7 Coding Agent — versioned streaming protocol client for remote model inference",
   "private": true,
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest --forceExit",
+    "test": "jest",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

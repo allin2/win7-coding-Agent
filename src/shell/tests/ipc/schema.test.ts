@@ -7,6 +7,7 @@ import { IPCMessageType, IPCDirection, IPCMessage } from '../../src/ipc/messages
 
 function makeValidMessage(overrides: Partial<IPCMessage> = {}): IPCMessage {
   return {
+    protocolVersion: '1.0.0',
     id: 'msg-001',
     type: IPCMessageType.SESSION_CREATE,
     direction: IPCDirection.RENDERER_TO_CORE,
@@ -53,6 +54,11 @@ describe('SchemaValidator', () => {
           originalContent: 'old',
           proposedContent: 'new',
           diff: '--- a\n+++ b',
+          contentEncoding: 'utf-8',
+          eol: 'lf',
+          truncated: false,
+          previewHash: 'a'.repeat(64),
+          workspaceBaseHash: 'base-001',
         },
       });
       const result = validator.validateMessage(msg);
@@ -63,7 +69,12 @@ describe('SchemaValidator', () => {
       const msg = makeValidMessage({
         type: IPCMessageType.ERROR_OCCURRED,
         direction: IPCDirection.CORE_TO_RENDERER,
-        payload: { code: 'ERR_001', message: '出错了', recoverable: true },
+        payload: {
+          code: 'ERR_001',
+          message: '出错了',
+          recoverable: true,
+          recommendedAction: '重试或导出诊断',
+        },
       });
       const result = validator.validateMessage(msg);
       expect(result.valid).toBe(true);
@@ -89,6 +100,11 @@ describe('SchemaValidator', () => {
           action: 'write_file',
           description: '写入文件',
           risk: 'medium',
+          ruleId: 'POLICY_APPROVAL_REQUIRED',
+          targets: ['/src/main.ts'],
+          planHash: 'b'.repeat(64),
+          previewHash: 'c'.repeat(64),
+          workspaceBaseHash: 'base-001',
         },
       });
       const result = validator.validateMessage(msg);
@@ -114,6 +130,7 @@ describe('SchemaValidator', () => {
       const msg = { id: '1', type: 'unknown.type', direction: 'x', sessionId: '1', timestamp: new Date().toISOString(), payload: {} };
       const result = validator.validateMessage(msg);
       expect(result.valid).toBe(false);
+      expect(validator.getAuditLog()).toHaveLength(1);
     });
 
     it('缺少必填字段被拒绝', () => {
@@ -147,10 +164,43 @@ describe('SchemaValidator', () => {
           action: 'write',
           description: 'desc',
           risk: 'critical', // 不在 low/medium/high 中
+          ruleId: 'POLICY_APPROVAL_REQUIRED',
+          targets: ['/src/main.ts'],
+          planHash: 'b'.repeat(64),
+          previewHash: 'c'.repeat(64),
+          workspaceBaseHash: 'base-001',
         },
       });
       const result = validator.validateMessage(msg);
       expect(result.valid).toBe(false);
+    });
+
+    it('approval.request without a Policy ruleId is rejected', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.APPROVAL_REQUEST,
+        direction: IPCDirection.CORE_TO_RENDERER,
+        payload: {
+          taskId: 'task-001',
+          approvalId: 'appr-001',
+          action: 'write',
+          description: 'desc',
+          risk: 'medium',
+          targets: ['/src/main.ts'],
+          planHash: 'b'.repeat(64),
+          previewHash: 'c'.repeat(64),
+          workspaceBaseHash: 'base-001',
+        },
+      });
+      expect(validator.validateMessage(msg).valid).toBe(false);
+    });
+
+    it('task.reject requires a non-empty user reason', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.TASK_REJECT,
+        direction: IPCDirection.RENDERER_TO_CORE,
+        payload: { taskId: 'task-001', approvalId: 'appr-001', reason: '' },
+      });
+      expect(validator.validateMessage(msg).valid).toBe(false);
     });
 
     it('额外属性被拒绝', () => {

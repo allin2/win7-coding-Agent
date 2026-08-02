@@ -8,9 +8,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest --forceExit",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "test": "jest",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "tsc --noEmit && node --check product/policy.js && node --check product/main.js && node --check product/preload.js && node --check product/renderer/event-queue.js && node --check product/renderer/renderer.js"
   },
   "dependencies": {
     "ajv": "^8.12.0"

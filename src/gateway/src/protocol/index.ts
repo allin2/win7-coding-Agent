@@ -114,7 +114,7 @@ export interface SSEEvent {
  * Input is one or more SSE blocks separated by double newlines.
  */
 export function parseSSE(raw: string): SSEEvent[] {
-  const blocks = raw.split(/\n\n+/).filter(Boolean);
+  const blocks = raw.replace(/\r\n/g, '\n').split(/\n\n+/).filter(Boolean);
   const events: SSEEvent[] = [];
 
   for (const block of blocks) {
@@ -125,13 +125,15 @@ export function parseSSE(raw: string): SSEEvent[] {
     for (const line of lines) {
       if (line.startsWith('event:')) {
         if (!event) event = { data: '' };
-        event.event = line.slice(6).trim();
+        event.event = stripSingleSSESpace(line.slice(6));
       } else if (line.startsWith('data:')) {
         if (!event) event = { data: '' };
-        dataLines.push(line.slice(5).trim());
+        // The SSE grammar removes at most one optional space after ":".
+        // Additional leading spaces are application data and must be preserved.
+        dataLines.push(stripSingleSSESpace(line.slice(5)));
       } else if (line.startsWith('id:')) {
         if (!event) event = { data: '' };
-        event.id = line.slice(3).trim();
+        event.id = stripSingleSSESpace(line.slice(3));
       }
       // ignore comment lines starting with ':'
     }
@@ -143,4 +145,8 @@ export function parseSSE(raw: string): SSEEvent[] {
   }
 
   return events;
+}
+
+function stripSingleSSESpace(value: string): string {
+  return value.startsWith(' ') ? value.slice(1) : value;
 }

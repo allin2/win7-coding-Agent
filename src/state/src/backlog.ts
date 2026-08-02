@@ -99,16 +99,14 @@ export class BacklogQueue {
    * Returns the number of events drained.
    */
   drain(store: IEventStore): number {
-    let count = 0;
-    while (this.queue.length > 0) {
-      const event = this.queue.shift();
-      if (event) {
-        store.append(event);
-        this.totalDequeued++;
-        count++;
-      }
-    }
-    return count;
+    if (this.queue.length === 0) return 0;
+    const pending = this.queue.slice();
+    // appendBatch validates the complete batch before publishing it. The queue
+    // is only mutated after the store confirms success, so retry is lossless.
+    store.appendBatch(pending);
+    this.queue.splice(0, pending.length);
+    this.totalDequeued += pending.length;
+    return pending.length;
   }
 
   /** Current number of events in the queue. */

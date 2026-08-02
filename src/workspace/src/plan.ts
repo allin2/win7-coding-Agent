@@ -13,6 +13,7 @@ import {
   WritePlan,
   CreatePlanOptions,
 } from './types';
+import { buildContentDiffPreview } from './diff';
 
 const PLAN_VERSION = '0.1.0';
 
@@ -32,8 +33,9 @@ export function createPlan(
 
   // Compute base SHA-256 (null → new file).
   let baseSha256: string | undefined;
+  let existing: Buffer | null = null;
   if (fs.existsSync(targetPath)) {
-    const existing = fs.readFileSync(targetPath);
+    existing = fs.readFileSync(targetPath);
     baseSha256 = sha256(existing);
   }
 
@@ -43,6 +45,7 @@ export function createPlan(
     encoding,
     createDirectories,
     baseSha256,
+    preview: buildContentDiffPreview(existing, content, options.maxPreviewBytes),
   };
 
   return {
@@ -67,8 +70,10 @@ export function createPlanBatch(
     const createDirectories = item.options?.createDirectories ?? true;
 
     let baseSha256: string | undefined;
+    let existing: Buffer | null = null;
     if (fs.existsSync(item.path)) {
-      baseSha256 = sha256(fs.readFileSync(item.path));
+      existing = fs.readFileSync(item.path);
+      baseSha256 = sha256(existing);
     }
 
     return {
@@ -77,6 +82,7 @@ export function createPlanBatch(
       encoding,
       createDirectories,
       baseSha256,
+      preview: buildContentDiffPreview(existing, item.content, item.options?.maxPreviewBytes),
     };
   });
 

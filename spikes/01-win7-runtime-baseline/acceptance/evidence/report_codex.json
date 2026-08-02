@@ -1,0 +1,106 @@
+{
+  "electron": "22.3.27",
+  "chrome": "108.0.5359.215",
+  "node": "16.17.1",
+  "os": "win32",
+  "arch": "x64",
+  "gpuDisabled": false,
+  "hasGpuSwitch": false,
+  "results": {
+    "T01": {
+      "pass": true,
+      "detail": {
+        "electron": "22.3.27",
+        "chrome": "108.0.5359.215",
+        "node": "16.17.1",
+        "os": "win32",
+        "arch": "x64"
+      }
+    },
+    "T04": {
+      "pass": true,
+      "detail": {
+        "gotLock": true
+      }
+    },
+    "T05": {
+      "pass": true,
+      "detail": {
+        "set": "C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\\CrashDumps",
+        "got": "C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\\CrashDumps"
+      }
+    },
+    "T11": {
+      "pass": true,
+      "detail": {
+        "pkgPath": "C:\\acceptance\\spike01\\package.json",
+        "scripts": {
+          "start": "electron .",
+          "build": "electron-builder --win --dir",
+          "build:win": "electron-builder --win --dir",
+          "validate": "node validate.js"
+        }
+      }
+    },
+    "T06": {
+      "pass": true,
+      "detail": {
+        "gpuDisabled": false,
+        "hasGpuSwitch": false
+      }
+    },
+    "T08": {
+      "pass": true,
+      "detail": {
+        "node": "16.17.1",
+        "pid": 600,
+        "electron": "22.3.27"
+      }
+    },
+    "T02": {
+      "pass": true,
+      "detail": {
+        "nodeIntegrationOff": true,
+        "contextIsolationOn": true,
+        "sandboxOn": true,
+        "contextBridgeOk": true,
+        "rendererLoaded": true,
+        "cspInlineBlocked": true
+      }
+    },
+    "T07": {
+      "pass": true,
+      "detail": {
+        "nodeIntegrationOff": true,
+        "contextIsolationOn": true,
+        "sandboxOn": true,
+        "contextBridgeOk": true,
+        "rendererLoaded": true,
+        "cspInlineBlocked": true
+      }
+    },
+    "T09": {
+      "pass": true,
+      "detail": {
+        "nodeIntegrationOff": true,
+        "contextIsolationOn": true,
+        "sandboxOn": true,
+        "contextBridgeOk": true,
+        "rendererLoaded": true,
+        "cspInlineBlocked": true
+      }
+    },
+    "T10": {
+      "pass": true,
+      "detail": {
+        "nodeIntegrationOff": true,
+        "contextIsolationOn": true,
+        "sandboxOn": true,
+        "contextBridgeOk": true,
+        "rendererLoaded": true,
+        "cspInlineBlocked": true
+      }
+    }
+  },
+  "timestamp": "2026-08-01T18:03:30.091Z"
+}

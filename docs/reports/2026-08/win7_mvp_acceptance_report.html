@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Win7 MVP 实机验收报告 — MVP-20260802-14</title>
+  <style>
+    :root { --ink:#172033; --muted:#5e6977; --line:#dbe3eb; --blue:#145f98; --ok:#137a50; --warn:#a35e00; --bad:#a43030; --paper:#fff; --canvas:#edf2f6; }
+    * { box-sizing:border-box; } body { margin:0; background:var(--canvas); color:var(--ink); font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; }
+    main { width:min(1120px,calc(100% - 32px)); margin:28px auto; padding:clamp(24px,5vw,60px); background:var(--paper); box-shadow:0 15px 42px #17324a18; }
+    h1,h2 { color:#12334e; line-height:1.25; } h1 { margin:0; font-size:clamp(1.85rem,4vw,2.8rem); } h2 { margin-top:42px; font-size:1.4rem; } p { margin:10px 0; } code { padding:.1em .35em; border-radius:4px; background:#eef2f5; word-break:break-all; }
+    .lede { color:#486175; font-size:1.06rem; } .badge { display:inline-block; margin:8px 7px 0 0; padding:4px 10px; border-radius:999px; font-size:.82rem; font-weight:700; background:#eef2f5; }
+    .pass { color:var(--ok); background:#e8f7ef; } .partial { color:var(--warn); background:#fff3df; } .blocked { color:var(--bad); background:#fff0ef; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin:22px 0; }
+    .card { padding:16px; border:1px solid var(--line); border-radius:10px; } .card b { display:block; color:var(--muted); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; } .card strong { display:block; margin-top:6px; font-size:1.05rem; }
+    .callout { margin:20px 0; padding:16px 18px; border-left:5px solid var(--ok); background:#edf9f3; } table { width:100%; border-collapse:collapse; margin:16px 0 25px; font-size:.92rem; } th,td { padding:10px; border:1px solid var(--line); vertical-align:top; text-align:left; } th { color:#173a56; background:#f2f6f9; } ul { padding-left:1.25rem; } a { color:var(--blue); } footer { margin-top:48px; color:var(--muted); font-size:.87rem; }
+  </style>
+</head>
+<body><main>
+  <p class="badge pass">OWNER_ACCEPTED_FOR_MVP</p><p class="badge partial">不等同正式发布 Gate</p>
+  <h1>Windows 7 MVP 实机验收</h1>
+  <p class="lede">MVP ID：<code>MVP-20260802-14</code>。本报告把未提交工作区、命令、工件哈希与 Win7 原始报告绑定；项目负责人已接受 MVP 延期边界，未满足的正式任务条件仍不会写为实测 PASS。</p>
+
+  <div class="grid">
+    <div class="card"><b>系统</b><strong>Windows 7 Professional SP1 x64 / 7601</strong></div>
+    <div class="card"><b>运行时</b><strong>Electron 22.3.27 x64</strong></div>
+    <div class="card"><b>硬件</b><strong>ThinkPad T460，16 GB，Intel HD 520，SSD</strong></div>
+    <div class="card"><b>管理通道</b><strong>Bitvise SSH 自动启动；未改网络/路由</strong></div>
+  </div>
+
+  <h2>结论</h2>
+  <div class="callout"><strong>MVP 验收完成：</strong>在 Win7 SP1 x64 实机上，锁定的 Electron 22.3.27、CPython 3.8.10、受控 MinGit、三个前置 KB 和工件哈希均已复核；真实 Win7 Coding Agent Electron 入口已从隔离目录启动，沙箱 Renderer 加载、只读诊断回传并以退出码 0 正常退出，退出后无对应 Electron 残留。项目负责人依据 ADR-0055 将 T03 语义、视觉/重启/物理断网、SPIKE_02/04 原生能力和企业 E7 作为后续版本延期项接受。当前结论为 <code>OWNER_ACCEPTED_FOR_MVP</code>，允许继续产品装配；它不代表安装器、真实本地 Runner、SQLite 持久化、完整跨模块用户任务或正式发布 Gate 已通过。</div>
+
+  <h2>环境与工件</h2>
+  <table><thead><tr><th>对象</th><th>观测</th><th>状态</th></tr></thead><tbody>
+    <tr><td>OS / 补丁 / 权限 / 磁盘 / Bitvise</td><td><a href="../../../validation/win7_runtime_evidence_MVP-20260802-14.json">MVP-20260802-14 只读采集</a>证明 Win7 SP1 x64 build 7601、KB3140245/KB4474419/KB4490628、管理员令牌、SSD 和 Bitvise RUNNING；机械盘门禁按负责人裁决接受。</td><td><span class="badge pass">PASS / OWNER ACCEPTED</span></td></tr>
+    <tr><td>Electron 压缩包</td><td>22.3.27 win32-x64，SHA-256 <code>ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6</code>。</td><td><span class="badge partial">已锁定</span></td></tr>
+    <tr><td>Python / Node / Git PATH</td><td>机器 PATH 未发现 python/node/git；自包含 CPython 3.8.10、Electron 22.3.27 和受控 MinGit 2.46.2 均通过显式路径启动并绑定可执行文件 SHA-256。Phase 1 标准树 18/18 ×3、回归 20/20，中文+空格树 17 PASS + 1 预期 Git 缺失降级、回归 20/20。</td><td><span class="badge pass">PASS（MVP 前置）</span></td></tr>
+    <tr><td>Git</td><td>官方原 ZIP 含 GCM；本次受控派生包去除 GCM、SSH 可执行组件和远程 HTTP helper 后，在 Win7 完成 P01--P04/N01--N10 共 14 项。</td><td><span class="badge pass">PASS（MVP）</span></td></tr>
+    <tr><td>better-sqlite3 / MSVC v142 / winpty</td><td>未发现 Electron 22 ABI 工件或受控构建主机。</td><td><span class="badge blocked">BUILD_HOST_MISSING</span></td></tr>
+    <tr><td>真实产品入口</td><td><a href="../../../validation/report_product_shell_MVP-20260802-14.json">结构化 smoke 报告</a>：Electron 22.3.27 x64、Renderer ready、诊断已请求、0 个运行时错误、退出码 0；main/preload/renderer 五类工件哈希已锁定。</td><td><span class="badge pass">PASS（启动/运行/退出）</span></td></tr>
+  </tbody></table>
+
+  <h2>实测矩阵</h2>
+  <table><thead><tr><th>套件</th><th>已实测事实</th><th>MVP 状态</th><th>不能替代的正式条件</th></tr></thead><tbody>
+    <tr><td>SPIKE_01</td><td>10 分钟内存、Renderer/IPC、应用层网络阻断、真实崩溃、中文路径、清理和 utilityProcess 采样已有证据。T03 的子侧 <code>stdin.readable=true</code> 保留为正式事实；父侧无 <code>utility.stdin</code> 且无数据进入。</td><td><span class="badge pass">OWNER_ACCEPTED_FOR_MVP</span></td><td>后续 Core 显式关闭/隔离 stdin；正式版本补冷重启、视觉/焦点、抓包与真实双任务。</td></tr>
+    <tr><td>SPIKE_02</td><td>原生 helper、MSVC v142 和终端 ABI 仍缺；ADR-0055 要求缺失期间真实 Runner、终端和高风险命令保持 fail-closed。</td><td><span class="badge pass">OWNER_ACCEPTED_FOR_MVP</span></td><td>正式启用本地执行前仍须 C01--C08/N01--N06 实测，不能用负责人接受替代安全实现。</td></tr>
+    <tr><td>SPIKE_03</td><td>独立受控 MinGit 派生包在 MVP-20260802-12 重跑 P01--P04/N01--N10，14/14，进程快照 8 组、网络监听 0；旧完成进程树已按 PID 精确清理。</td><td><span class="badge pass">PASS（MVP）</span></td><td>仍需正式 SBOM/许可证闭包与抓包留档；官方原 ZIP 不能被受控派生包替代。</td></tr>
+    <tr><td>SPIKE_04</td><td>机械盘门禁负责人接受；SQLite ABI/indexer/benchmark 仍缺，MVP 明确使用有容量上限的内存状态，不承诺重启恢复或 FTS。</td><td><span class="badge pass">OWNER_ACCEPTED_FOR_MVP</span></td><td>正式持久化仍需 S01--S08、崩溃恢复和 Electron 22 ABI FTS5 实测。</td></tr>
+    <tr><td>Phase 1 / 2</td><td>开发机根级 889 项通过；Win7 标准树 probe 18/18 连续三次、回归 20/20；E2 中文+空格树 17 PASS + 1 预期 degraded，回归 20/20，两个目录 compileall 均为 0。</td><td><span class="badge pass">OWNER_ACCEPTED_FOR_MVP</span></td><td>正式架构 Gate、物理断网/干净环境和 Phase 2 独立入口仍保持原合同。</td></tr>
+    <tr><td>产品 Shell</td><td>真实 main/preload/renderer 已实现；本地可信资源、沙箱、隔离上下文、Node 关闭、出站/导航/窗口/权限默认拒绝。Win7 smoke 2/2 PASS。</td><td><span class="badge pass">PASS（MVP 增量 1）</span></td><td>完整五视图、Replay 跨模块任务、安装器、更新/回滚与 W7C/E5/E6/E7 继续开发。</td></tr>
+  </tbody></table>
+
+  <h2>WorkBuddy 交叉论证</h2>
+  <p>历史原始报告不修改。SPIKE_03 的 <a href="../../../spikes/03-git-adapter/acceptance/evidence/report_spike03.json">原始 JSON</a> 是一次重要的反例：真实 adapter 隔离 argv 没有阻断仓库本地 filter，N02 写入哨兵后 Git 以 128 退出；当前代码已增加对 filter/diff 属性的 fail-closed 拒绝，并在受控 MinGit 派生包上完成 P01--P04/N01--N10 14/14 MVP 重测。Phase 1 的旧“缺 CPython”状态也已由三次 Win7 probe 证据纠正为“前置已具备、正式 Gate 仍阻断”。共享 harness 的“11/11 GO”与正式 T01--T11 仍不可一一映射，故不能据此宣称 SPIKE_01 或 Phase 3--7 正式通过。见 <a href="../../../validation/spike01/CROSS_VERIFICATION.md">SPIKE_01 交叉论证</a> 与 <a href="../../../validation/spike03/CROSS_VERIFICATION.md">SPIKE_03 交叉论证</a>。</p>
+
+  <h2>安全边界与替代项</h2>
+  <ul><li>没有禁用网卡、修改路由、防火墙或 Bitvise；SSH 管理流量始终保留。</li><li>网络结论为 <code>MVP_NETWORK_SURROGATE</code>；物理断网和 pcap 延期。</li><li>人工黑屏、焦点、重启与严格干净系统为 <code>OWNER_ACCEPTED_FOR_MVP</code>。</li><li>SPIKE_02/04 延期不授权不受控执行或虚构持久化：Runner/终端必须关闭，State 必须标为内存模式。</li><li>Electron 输出了不影响当前只读入口的 <code>os_crypt ... Access is denied (0x5)</code>；在 DPAPI 凭据适配器完成前不得启用本地凭据保存。</li></ul>
+
+  <h2>下一开发增量与正式发布延期项</h2>
+  <ol><li>在已通过 Win7 smoke 的产品入口装配会话、流式输出、diff/审批、诊断和 Replay 用户任务。</li><li>形成自包含离线目录/包、版本 manifest、启动脚本、更新/回滚和卸载残留验证。</li><li>补齐 SPIKE_02 的 helper/node-pty/winpty 与 SPIKE_04 的 Electron ABI SQLite/FTS5，再启用真实 Runner 和持久化。</li><li>企业环境具备后执行 E7；正式发布候选再补人工视觉、受控重启、物理断网和严格干净环境。</li></ol>
+  <p>逐项前置、命令边界、通过标准和证据落点见 <a href="win7_remaining_constraints_acceptance_plan.html">Win7 剩余约束验收方案</a>。</p>
+  <p>本轮新增证据：<a href="../../../validation/win7_runtime_evidence_MVP-20260802-14.json">运行时/补丁/哈希报告</a>、<a href="../../../validation/report_product_shell_MVP-20260802-14.json">真实产品入口 smoke</a>、<a href="../../acceptance/MVP-20260802-14_OWNER_DISPOSITION.json">负责人 disposition</a>、<a href="../../acceptance/MVP-20260802-14_product_manifest.sha256.txt">产品/证据哈希清单</a>和<a href="../../../validation/win7_runtime_product_MVP-20260802-14_stdout_stderr.txt">原始 stdout/stderr 摘要</a>。</p>
+  <footer>本报告由 ADR-0054、ADR-0055 与 <a href="../../tasks/MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md">MVP_01</a> 授权。MVP 负责人接受与正式发布 Gate 分层记录。</footer>
+</main></body></html>
