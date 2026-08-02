@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows 7 Coding Agent 架构验收对比报告</title>
+<style>
+:root {
+  --navy:#0b2545; --blue:#2e74b5; --ink:#20242a; --muted:#65717d;
+  --line:#dbe1e7; --paper:#fff; --bg:#edf1f5; --red:#9b1c1c;
+  --gold:#7a5a00; --green:#1f5e46; --pale:#f5f7f9;
+}
+* { box-sizing:border-box; }
+body { margin:0; color:var(--ink); background:var(--bg); font:15px/1.65 Arial,"Microsoft YaHei","PingFang SC",sans-serif; }
+main { width:min(1240px,calc(100% - 32px)); margin:24px auto 72px; }
+.hero { background:linear-gradient(135deg,var(--navy),#173f68); color:#fff; border-radius:18px; padding:52px 56px; box-shadow:0 18px 50px rgba(11,37,69,.18); }
+.kicker { letter-spacing:.16em; font-size:12px; font-weight:700; opacity:.78; }
+h1 { margin:12px 0 10px; font-size:40px; line-height:1.15; }
+.subtitle { max-width:880px; color:#d9e7f5; font-size:18px; }
+.meta { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:32px; }
+.meta div { background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.12); padding:13px 14px; border-radius:10px; }
+.meta b { display:block; font-size:12px; color:#bcd3e8; margin-bottom:3px; }
+.verdict { display:grid; grid-template-columns:220px 1fr; gap:22px; background:#fff; border:1px solid #efcaca; border-left:8px solid var(--red); border-radius:14px; padding:24px; margin:22px 0; }
+.score { font-size:48px; font-weight:800; color:var(--red); line-height:1; }
+.score small { display:block; font-size:12px; color:var(--muted); margin-top:8px; font-weight:600; }
+section { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:32px 34px; margin-top:18px; box-shadow:0 4px 18px rgba(11,37,69,.04); }
+h2 { color:var(--navy); margin:0 0 16px; font-size:25px; }
+h3 { color:var(--blue); margin:22px 0 8px; font-size:18px; }
+.lead { font-size:17px; color:#38424c; max-width:1000px; }
+.callout { background:#fff8e7; border-left:5px solid #bd8b16; padding:14px 18px; border-radius:8px; }
+.grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.metric { border:1px solid var(--line); border-radius:10px; padding:16px; background:var(--pale); }
+.metric b { display:block; color:var(--navy); margin-bottom:5px; }
+.table-wrap { overflow:auto; border:1px solid var(--line); border-radius:10px; }
+table { width:100%; border-collapse:collapse; min-width:980px; background:#fff; }
+th { background:#e8eef5; color:var(--navy); text-align:left; font-size:12px; letter-spacing:.02em; position:sticky; top:0; }
+th,td { padding:10px 11px; border-bottom:1px solid var(--line); vertical-align:top; }
+tbody tr:hover { background:#f8fafc; }
+td span { display:block; color:var(--muted); font-size:12px; }
+.center { text-align:center; }
+.pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:800; font-size:12px; }
+.pill.bad { background:#fcecec; color:var(--red); }
+.pill.warn { background:#fff4d6; color:var(--gold); }
+.pill.mid { background:#e8eef5; color:var(--navy); }
+.pill.good { background:#eaf4ee; color:var(--green); }
+.pill.na { background:#edf0f2; color:#5f6973; }
+small { display:block; color:var(--muted); margin-top:4px; }
+.root { color:#3b4650; font-size:12px; font-weight:700; }
+.root-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.root-card { border:1px solid var(--line); border-radius:10px; padding:16px 18px; background:#fbfcfd; }
+.root-card h3 { margin:0 0 8px; }
+.root-card p { margin:7px 0; }
+.decision { color:var(--navy); font-weight:700; }
+.signoff { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.signoff article { border-top:4px solid var(--red); background:#f8fafc; border-radius:8px; padding:15px; }
+.signoff b { display:block; color:var(--red); margin:5px 0; }
+footer { text-align:center; color:var(--muted); margin:30px 0; font-size:12px; }
+@media (max-width:900px) { .meta,.grid4,.root-grid,.signoff { grid-template-columns:1fr; } .verdict { grid-template-columns:1fr; } .hero { padding:34px 28px; } h1 { font-size:32px; } }
+@media print { body { background:#fff; } main { width:auto; margin:0; } .hero,section,.verdict { box-shadow:none; break-inside:avoid; } section { border-radius:0; border-left:0; border-right:0; } th { position:static; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="kicker">ARCHITECTURE ACCEPTANCE · 2026-07-30</div>
+    <h1>Windows 7 Coding Agent<br>架构验收对比报告</h1>
+    <p class="subtitle">对照《CODING AGENT 架构评审标准 V1.0》，基于 codex/integrated-robustness 当前工作树的源码、任务书和复跑测试证据。</p>
+    <div class="meta">
+      <div><b>验收快照</b>当前未提交工作树</div>
+      <div><b>模块验证</b>685 tests passed</div>
+      <div><b>Win7 实机</b>NOT PERFORMED</div>
+      <div><b>生产结论</b>NOT READY</div>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <div class="score">29/100<small>M15/M16 N/A 后归一化</small></div>
+    <div>
+      <h2>验收结论：整合 Harness 不通过</h2>
+      <p>组件级开发基线可“有条件通过”，但当前没有纵向 Agent Loop、Verification Gate、持久 Thread、可运行客户端和 Win7 实机证据。不得宣称产品完成或可生产交付。</p>
+      <p><strong>核心归因：</strong>Win7 真正限制的是强隔离、ConPTY、受支持运行时和 TLS/补丁基线；Thread、Context、ToolSpec、Verification、Evidence、App Server、UI 与 Trace/Eval 的缺失属于 Agent 设计和集成问题。</p>
+    </div>
+  </div>
+
+  <section>
+    <h2>1. 结论先行</h2>
+    <p class="lead">当前代码已经形成 Gateway、Workspace、State、Core、Runner、Git Adapter、Shell 七个横向模块，并在现代 macOS 上完成 lint、build 和 685 项测试。但验收标准要求的是可恢复、可审计、可验证的完整 Harness，不是模块数量。</p>
+    <div class="grid4">
+      <div class="metric"><b>组件级开发基线</b>有条件通过<br><small>模块契约可重复</small></div>
+      <div class="metric"><b>当前整合 Harness</b>不通过<br><small>纵向闭环缺失</small></div>
+      <div class="metric"><b>Win7 兼容</b>BLOCKED<br><small>SPIKE / 实机未执行</small></div>
+      <div class="metric"><b>生产交付</b>NOT READY<br><small>Runner / UI / Store / Gate 缺失</small></div>
+    </div>
+    <p class="callout">标准文档中的约 59/100 是旧预评估，且明确不是最新逐文件审计。本次仅对当前整合分支的可运行闭环计分；Phase 2 独立分支的 81 项测试只作为可迁移合同。</p>
+  </section>
+
+  <section>
+    <h2>2. M01~M16 模块评分</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>模块</th><th>权重</th><th>得分</th><th>当前证据</th><th>未满足标准</th><th>根因</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>M01</strong><span>Client / UI Adapter</span></td>
+          <td class="center">2</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>Phase 1 Probe CLI 有退出码和 RESULT；Shell 已定义版本化 IPC 消息。</td>
+          <td>当前分支没有 Electron main/preload/renderer、窗口入口、Diff/审批/诊断 UI，也无断线重连。</td>
+          <td><span class="root">Agent 设计/实现未完成</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M02</strong><span>App Server / External Protocol</span></td>
+          <td class="center">5</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>IPC envelope 固定为 1.0.0；Gateway 模型协议具备版本协商、流式与错误码。</td>
+          <td>没有 initialize、Thread/Turn 命令路由、事件订阅、双向审批暂停和兼容层；Gateway 不是 App Server。</td>
+          <td><span class="root">Agent 设计/纵向整合缺失</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M03</strong><span>Thread / Session Manager</span></td>
+          <td class="center">6</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>Core 有内存 Session Context；State 可注册 Session 并按事件回放。</td>
+          <td>没有持久 Thread create/resume/fork/archive、活动 Run 句柄、重启恢复、并发写序和 INTERRUPTED 恢复。</td>
+          <td><span class="root">Agent 设计/持久化未完成</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M04</strong><span>Agent Runtime / Loop</span></td>
+          <td class="center">10</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>Core 有状态机、Policy、Capability Broker、并发控制；Phase 2 独立分支的只读 Loop 有 81 项测试。</td>
+          <td>当前整合分支没有 Gateway→Context→Tool→Policy→Workspace/Runner→State→Verify 的可运行循环；Phase 2 证据未集成。</td>
+          <td><span class="root">Agent 核心设计/集成缺口</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M05</strong><span>Model Provider Gateway</span></td>
+          <td class="center">6</td>
+          <td class="center"><span class="pill mid">2/4</span><small>L2 原型</small></td>
+          <td>真实 Node HTTPS transport、Mock 注入、流式 SSE、有界重试、幂等键、TLS fail-closed；199 项测试通过。</td>
+          <td>当前分支无 Replay Provider；企业 PAC/HTTPS 代理/CA、真实流取消和 Win7 TLS 仍未实证；嵌套 tool_calls schema 不完整。</td>
+          <td><span class="root">部分设计缺口 + 环境证据缺失</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M06</strong><span>Prompt / Context Manager</span></td>
+          <td class="center">8</td>
+          <td class="center"><span class="pill bad">0/4</span><small>L0 缺失</small></td>
+          <td>现有 AgentContext 只聚合 session/task/state/token，不等于模型上下文编排。</td>
+          <td>无规则发现与作用域、ContextManifest、总 Token/文件/工具预算、截断标记、压缩、摘要或检查点。</td>
+          <td><span class="root">Agent 设计缺失；与 Win7 无关</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M07</strong><span>Tool Registry &amp; ACI</span></td>
+          <td class="center">8</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>Policy 有工具白名单，terminal.exec 有局部参数校验，IPC 使用 Ajv schema。</td>
+          <td>无统一 ToolSpec/Registry、工具版本、权限/副作用/超时/输出上限声明及所有工具参数 schema；注册、校验、执行未形成契约层。</td>
+          <td><span class="root">Agent 设计缺失；与 Win7 无关</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M08</strong><span>Execution Engine / Process</span></td>
+          <td class="center">8</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>IRunner 契约、MockRunner、UnavailableRunner 和 containment probe 均 fail-closed。</td>
+          <td>真实 Runner 不可用；GitAdapter 仍直接 child_process.spawn，仅终止直接进程，绕过统一 Runner/containment/cancel。</td>
+          <td><span class="root">Win7 约束触发阻断；Git 绕过属于设计问题</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M09</strong><span>Workspace &amp; Artifact Manager</span></td>
+          <td class="center">5</td>
+          <td class="center"><span class="pill mid">2/4</span><small>L2 原型</small></td>
+          <td>编码检测、Plan/Apply、base hash、Shadow、Diff、原子替换与回滚；37 项测试通过。</td>
+          <td>applyPlan 不接收 workspaceRoot，也未调用 validatePath；Win7 junction 检测仍为始终 false 的 stub；回滚/清理错误被 best-effort 静默忽略。</td>
+          <td><span class="root">Agent 安全设计/集成问题；Win7 API 仅解释 junction 实现方式</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M10</strong><span>Policy, Approval &amp; Sandbox</span></td>
+          <td class="center">10</td>
+          <td class="center"><span class="pill mid">2/4</span><small>L2 原型</small></td>
+          <td>工具白名单、Capability Token、CSP、出站白名单、审批/预览 hash schema、真实 Runner 缺失时拒绝。</td>
+          <td>审批 hash 只存在于 DTO，Core 未建立 approval record，Apply 前未重校验；无 OS 强沙箱；Git 执行路径绕过 containment。</td>
+          <td><span class="root">强沙箱受 Win7 限制；端到端强制缺口属于设计问题</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M11</strong><span>State / Event Store / Replay</span></td>
+          <td class="center">10</td>
+          <td class="center"><span class="pill mid">2/4</span><small>L2 原型</small></td>
+          <td>版本化事件 schema、原子 appendBatch、容量/字节预算、backlog、审计导出与状态 Replay；200 项测试通过。</td>
+          <td>Event 无 sequence/run_id/thread_id；重复 event_id 被拒而非幂等；Store 仅内存，无 SQLite、快照、迁移、断电恢复；Replay 不严格校验模型请求/工具输入顺序。</td>
+          <td><span class="root">Agent 数据模型/持久化设计未完成</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M12</strong><span>Verification &amp; Completion Gate</span></td>
+          <td class="center">8</td>
+          <td class="center"><span class="pill bad">0/4</span><small>L0 缺失</small></td>
+          <td>根级测试脚本可验证模块；Phase 2 独立分支有只读 Verification 证据。</td>
+          <td>当前 Runtime 可由 execution_complete 直接进入 COMPLETED；无运行时验证计划、Diff 检查、EvidenceBundle、失败回送与完成裁决。</td>
+          <td><span class="root">Agent 核心设计缺失；与 Win7 无关</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M13</strong><span>Observability, Trace &amp; Eval</span></td>
+          <td class="center">5</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>结构化 State 事件、审计汇总、Gateway 脱敏、IPC 错误诊断；现代开发机测试可重复。</td>
+          <td>无统一 correlation/trace bundle、模型→工具→命令→文件因果链、固定任务集、版本指标或隐私分级导出。</td>
+          <td><span class="root">Agent 治理设计未完成</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M14</strong><span>Configuration, Auth &amp; Secrets</span></td>
+          <td class="center">4</td>
+          <td class="center"><span class="pill warn">1/4</span><small>L1 演示</small></td>
+          <td>TLS config、InMemoryCredentialStore、日志脱敏、Settings IPC、Updater 配置存在。</td>
+          <td>无默认/用户/项目/CLI 分层、来源追踪、统一 schema、DPAPI/SecretHandle、代理凭据生命周期和离线/在线模式治理。</td>
+          <td><span class="root">Agent 产品设计未完成；DPAPI 需 Win7 实机验证</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M15</strong><span>Extensions</span></td>
+          <td class="center">3</td>
+          <td class="center"><span class="pill na">N/A</span><small>N/A</small></td>
+          <td>当前阶段明确不引入 Skills/MCP/Plugins。</td>
+          <td>非本阶段阻塞；应在单 Agent 达 L3 后再设计。</td>
+          <td><span class="root">范围后置（合理）</span></td>
+        </tr>
+
+        <tr>
+          <td><strong>M16</strong><span>Multi-Agent Orchestrator</span></td>
+          <td class="center">2</td>
+          <td class="center"><span class="pill na">N/A</span><small>N/A</small></td>
+          <td>当前项目没有多 Agent。</td>
+          <td>标准允许 N/A；现阶段引入会放大状态、写冲突和预算问题。</td>
+          <td><span class="root">范围后置（合理）</span></td>
+        </tr></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>3. 核心检查表 C01~C20</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>编号</th><th>检查项</th><th>得分</th><th>证据化判定</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>C01</strong></td>
+          <td>一个 Run 只有一个终态，异常路径都写终态事件</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>状态机有终态和非法迁移测试，但状态转移未与 EventStore 原子绑定，异常路径不保证落事件。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C02</strong></td>
+          <td>Thread 创建/恢复，重启后历史可重建</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>只有内存 Session 与回放；无持久 Thread 元数据和进程重启恢复。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C03</strong></td>
+          <td>事件 schema、sequence、event_id、version</td>
+          <td class="center"><span class="pill mid">2/4</span></td>
+          <td>有 id 和 schemaVersion；缺 sequence、run_id/thread_id 及迁移证据。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C04</strong></td>
+          <td>Replay 校验请求内容、顺序、耗尽和工具输入</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>当前 State Replay 只归约状态；Phase 2 独立分支有 request fingerprint，但未进入整合线。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C05</strong></td>
+          <td>Provider 与 Runtime 解耦，真实/Mock/Replay</td>
+          <td class="center"><span class="pill mid">2/4</span></td>
+          <td>真实 Node HTTPS 与 Mock 注入成立；当前分支缺 Replay Provider。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C06</strong></td>
+          <td>上下文总预算、规则作用域、截断和压缩</td>
+          <td class="center"><span class="pill bad">0/4</span></td>
+          <td>无 ContextManifest、预算编排、压缩或规则作用域实现。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C07</strong></td>
+          <td>未知工具和非法参数 fail-closed</td>
+          <td class="center"><span class="pill mid">2/4</span></td>
+          <td>未知工具由 Policy 拒绝；仅 terminal.exec 有局部强校验，其他工具没有统一 schema。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C08</strong></td>
+          <td>工具声明权限、超时、输出上限、副作用</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>信息散落于 Policy/Runner/Git；无统一 ToolSpec。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C09</strong></td>
+          <td>Timeout/Cancel 终止进程树且只收敛一次</td>
+          <td class="center"><span class="pill bad">0/4</span></td>
+          <td>真实 Runner 不可用；Git 仅 kill 直接进程且无统一取消传播。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C10</strong></td>
+          <td>路径防穿越、原子写、Diff 可追踪</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>能力分别存在，但 applyPlan 不执行 workspace boundary；junction 为 stub。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C11</strong></td>
+          <td>Policy/Approval/Sandbox 分层且失败闭合</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>通用 Runner fail-closed 正确；无强沙箱，审批未端到端，Git 绕过。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C12</strong></td>
+          <td>审批绑定动作摘要，动作变化重批</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>Schema 含 hash/base，但没有记录和 Apply-time revalidation。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C13</strong></td>
+          <td>完成由 Verification Gate 决定</td>
+          <td class="center"><span class="pill bad">0/4</span></td>
+          <td>当前无 Verification Engine；状态机可直接 execution_complete。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C14</strong></td>
+          <td>测试/编译/Diff/验收形成 EvidenceBundle</td>
+          <td class="center"><span class="pill bad">0/4</span></td>
+          <td>无统一 EvidenceBundle 和机器可读 CompletionDecision。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C15</strong></td>
+          <td>CLI/API 稳定退出码和机器可读输出</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>Phase 1 Probe 具备；Phase 3–7 整合产品没有可运行 CLI/App Server。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C16</strong></td>
+          <td>客户端断开后重连并补齐事件</td>
+          <td class="center"><span class="pill bad">0/4</span></td>
+          <td>无 UI、Thread Store 和事件订阅补齐。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C17</strong></td>
+          <td>配置分层、来源追踪、秘密不进事件/日志</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>有局部脱敏与内存凭据；无分层配置和 SecretHandle。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C18</strong></td>
+          <td>Trace 关联模型、工具、命令、文件变化</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>事件类型存在但缺 sequence/correlation，无法重建完整因果链。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C19</strong></td>
+          <td>固定回归任务集和版本指标对比</td>
+          <td class="center"><span class="pill warn">1/4</span></td>
+          <td>有 685 个模块测试，但无 Coding Agent Eval 数据集和基线指标报告。</td>
+        </tr>
+
+        <tr>
+          <td><strong>C20</strong></td>
+          <td>多 Agent 在单 Agent 稳定后引入</td>
+          <td class="center"><span class="pill na">N/A</span></td>
+          <td>N/A；当前未引入，符合后置原则。</td>
+        </tr></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>4. Win7 限制与 Agent 设计问题的边界</h2>
+    <div class="root-grid">
+        <article class="root-card">
+          <h3>确属 Win7/EOL 硬约束</h3>
+          <p>ConPTY 不存在；Job Object 嵌套能力弱；现代 Chromium/Electron/Node/Git 无受支持版本；根证书、TLS 1.2、SHA-2 补丁和老显卡驱动存在系统性风险。</p>
+          <p class="decision">必须通过原生 helper、fail-closed、远程执行、网络分段、工件锁定和实机证据应对；其中 EOL 风险只能接受/隔离，不能被“修复”。</p>
+        </article>
+
+        <article class="root-card">
+          <h3>不是 Win7 导致的 Agent 设计缺口</h3>
+          <p>Thread/Run 持久化、事件 sequence/idempotency、Context 预算、ToolSpec、严格 Replay、Verification Gate、EvidenceBundle、App Server、UI、Trace/Eval、配置与秘密管理。</p>
+          <p class="decision">这些能力在任何操作系统上都需要实现；不得用 Win7 兼容性解释缺失。</p>
+        </article>
+
+        <article class="root-card">
+          <h3>阶段或证据未完成</h3>
+          <p>SPIKE_01~04、企业 E7、Win7 E1/E2/E5、安装包/升级/回滚和端到端场景尚未执行。</p>
+          <p class="decision">这是项目门禁或环境可用性问题，不等于平台“不可能”；在证据完成前状态只能是 PROVISIONAL/BLOCKED。</p>
+        </article>
+
+        <article class="root-card">
+          <h3>混合原因</h3>
+          <p>真实 Runner 因 Win7 隔离能力受限而被正确阻断，但 GitAdapter 又绕过 Runner；Junction 需 Win32 API，但 Apply 未调用边界校验；DPAPI 需实机，但秘密管理整体也未设计。</p>
+          <p class="decision">平台限制解释“实现方式”，不能解释绕过统一边界或缺少端到端强制。</p>
+        </article></div>
+    <p class="callout"><strong>混合问题示例：</strong>真实 Runner 因 Win7 containment 未验证而 fail-closed 是正确设计；GitAdapter 直接 spawn 绕过该边界是设计错误。Win7 Junction 需要 Win32 API 是平台事实；Apply 不调用边界校验是架构缺口。</p>
+  </section>
+
+  <section>
+    <h2>5. 关键缺口与关闭条件</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>缺口</th><th>根因</th><th>影响</th><th>关闭条件</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>P0-01</strong></td>
+          <td>纵向 Agent Loop 不存在</td>
+          <td><span class="root">设计问题</span></td>
+          <td>模块测试通过但无法完成一次真实任务。</td>
+          <td>建立 Mock/Replay 驱动的最小纵向切片并做 E2E。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P0-02</strong></td>
+          <td>Verification Gate / EvidenceBundle 缺失</td>
+          <td><span class="root">设计问题</span></td>
+          <td>模型/状态机可在无外部证据时进入完成。</td>
+          <td>把测试、Diff、策略、资源和验收统一为 CompletionDecision。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P0-03</strong></td>
+          <td>GitAdapter 直接 spawn 绕过 Runner</td>
+          <td><span class="root">设计/安全问题</span></td>
+          <td>违反统一进程生命周期边界；超时只杀直接进程，不能证明 C08/C20。</td>
+          <td>在 SPIKE_02 前禁用真实 Git 执行；之后仅经受控 Runner/专用 helper。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P0-04</strong></td>
+          <td>Workspace 边界未在 Apply 强制</td>
+          <td><span class="root">设计/安全问题</span></td>
+          <td>独立 validatePath 不构成安全边界；junction stub 使 Win7 逃逸风险未关闭。</td>
+          <td>让 plan/apply 接收 workspaceRoot，并在写前后真实路径层校验。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P0-05</strong></td>
+          <td>审批摘要未端到端绑定</td>
+          <td><span class="root">设计问题</span></td>
+          <td>DTO 有 hash，但 Core/Apply 不消费，批准后内容变化仍缺强制重批。</td>
+          <td>持久化 ApprovalRecord，执行时核对 plan/preview/base/targets。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P0-06</strong></td>
+          <td>Thread/事件不可持久恢复</td>
+          <td><span class="root">设计问题</span></td>
+          <td>无 sequence、幂等追加、快照和 SQLite，崩溃后不能可靠恢复。</td>
+          <td>完成 SPIKE_04 后实现持久 Store、迁移、顺序与恢复测试。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P1-01</strong></td>
+          <td>Context Manager 与 ToolSpec 缺失</td>
+          <td><span class="root">设计问题</span></td>
+          <td>弱模型下容易重复探索、耗尽预算，工具风险与参数不统一。</td>
+          <td>优先实现 ContextManifest、总预算、截断/压缩与版本化 ToolSpec。</td>
+        </tr>
+
+        <tr>
+          <td><strong>P1-02</strong></td>
+          <td>桌面 UI / App Server 缺失</td>
+          <td><span class="root">设计/实现未完成</span></td>
+          <td>用户无法提交任务、查看 Diff、审批、取消、重连和导出诊断。</td>
+          <td>实现最小 main/preload/renderer 和轻量事件协议。</td>
+        </tr>
+
+        <tr>
+          <td><strong>ENV-01</strong></td>
+          <td>真实 containment / PTY 未验证</td>
+          <td><span class="root">Win7 硬限制 + 阶段阻断</span></td>
+          <td>Win7 无 ConPTY，Job Object 存在嵌套限制；不能安全执行任意命令。</td>
+          <td>完成 SPIKE_02；若 No-Go，保持拒绝或把执行远程化。</td>
+        </tr>
+
+        <tr>
+          <td><strong>ENV-02</strong></td>
+          <td>Electron/Node/Git/Chromium EOL</td>
+          <td><span class="root">Win7 固有风险</span></td>
+          <td>无法通过应用代码恢复厂商安全支持。</td>
+          <td>锁定工件/SBOM，网络分段，只加载可信本地 UI，并设退役窗口。</td>
+        </tr>
+
+        <tr>
+          <td><strong>ENV-03</strong></td>
+          <td>TLS/代理/CA 与 Win7 补丁未实证</td>
+          <td><span class="root">环境/证据问题</span></td>
+          <td>现代机通过不代表 Win7 企业网络可连接。</td>
+          <td>在 E7 与 Win7 实机对精确运行时执行真实握手和代理矩阵。</td>
+        </tr>
+
+        <tr>
+          <td><strong>EVD-01</strong></td>
+          <td>SPIKE_01~04 与 Win7 E1/E2/E5 缺失</td>
+          <td><span class="root">阶段/证据问题</span></td>
+          <td>不能宣称 Win7 兼容、可安装或可交付。</td>
+          <td>保存带环境指纹、工件哈希和结果的实机证据。</td>
+        </tr>
+
+        <tr>
+          <td><strong>EVD-02</strong></td>
+          <td>Phase 1 测试数文档不一致</td>
+          <td><span class="root">证据治理问题</span></td>
+          <td>任务书写 22，当前实际收集并通过 20；会削弱验收可信度。</td>
+          <td>修正文档并让验证脚本输出/归档真实 collected count。</td>
+        </tr></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>6. 当前验证记录</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>范围</th><th>命令/入口</th><th>结果</th><th>证据边界</th></tr></thead>
+      <tbody><tr><td><strong>当前整合分支</strong></td><td>`npm run verify`</td><td>通过</td><td>Gateway 199、Workspace 37、State 200、Core 117、Runner 30、Git Adapter 31、Shell 71；合计 685。现代 macOS，非 Win7。</td></tr>
+<tr><td><strong>Phase 1 Probe</strong></td><td>pytest tests/unit/probe tests/integration/probe</td><td>20 passed</td><td>当前源码实际收集 20；与任务书/审计中的 22 或“20+2”不一致。Python 3.11，非冻结的 3.8/Win7。</td></tr>
+<tr><td><strong>Phase 2 独立分支</strong></td><td>scripts/run_agent_tests.py</td><td>81 passed</td><td>从 phase/02-readonly-agent 临时导出运行；只证明冻结只读线，未集成到当前 Node 产品。</td></tr>
+<tr><td><strong>补丁与工作树</strong></td><td>`git diff --check`</td><td>通过</td><td>仅证明补丁空白格式；当前工作区仍有大量未提交修改。</td></tr>
+<tr><td><strong>Win7 / SPIKE / E7</strong></td><td>未执行</td><td>BLOCKED</td><td>无 Win7 SP1 x64、精确运行时、企业代理/CA、SQLite、Git、GPU、进程树或安装包证据。</td></tr></tbody>
+    </table></div>
+    <p class="callout">Phase 1 当前实际收集并通过 20 项；任务书写 22，现有审计写“20 + 2”。应修正文档并由机器归档真实 collected count。</p>
+  </section>
+
+  <section>
+    <h2>7. 签署建议</h2>
+    <div class="signoff">
+      <article><span>架构评审</span><b>不通过</b>M04/M06/M12 与纵向集成未达到 L2。</article>
+      <article><span>开发负责人</span><b>组件基线有条件通过</b>685 项成立，但不等同产品完成。</article>
+      <article><span>测试负责人</span><b>开发机回归有条件通过</b>需补 E2E、固定任务与 Win7 证据。</article>
+      <article><span>安全评审</span><b>不通过</b>Git 绕过、Workspace Apply、containment 未关闭。</article>
+    </div>
+  </section>
+  <footer>Windows 7 Coding Agent 架构验收对比 · 当前工作树快照 · 2026-07-30</footer>
+</main>
+</body>
+</html>

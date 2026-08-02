@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>win7-coding-agent 验证闭环修改计划</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172026;
+      --muted: #5d6971;
+      --paper: #f5f2ea;
+      --card: #fffdfa;
+      --line: #d8d3c8;
+      --navy: #173a4a;
+      --blue: #1f647d;
+      --blue-soft: #dcecf2;
+      --teal: #176963;
+      --teal-soft: #d9efeb;
+      --amber: #8b5a0a;
+      --amber-soft: #f6ead0;
+      --red: #a23d31;
+      --red-soft: #f6dfda;
+      --green: #286a45;
+      --green-soft: #dceddf;
+      --gray-soft: #e9ecec;
+      --shadow: 0 18px 50px rgba(35, 43, 44, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 86% 2%, rgba(31,100,125,.13), transparent 28rem),
+        var(--paper);
+      font: 15px/1.68 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    main { width: min(1200px, calc(100% - 40px)); margin: 34px auto 68px; }
+    header {
+      position: relative;
+      overflow: hidden;
+      padding: 46px 50px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #143744 0%, #185159 100%);
+      color: #f5fbfb;
+      box-shadow: var(--shadow);
+    }
+    header::after {
+      content: "";
+      position: absolute;
+      right: -90px;
+      bottom: -170px;
+      width: 390px;
+      height: 390px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 50%;
+      box-shadow: 0 0 0 48px rgba(255,255,255,.03), 0 0 0 96px rgba(255,255,255,.02);
+    }
+    h1, h2, h3, h4 { line-height: 1.24; }
+    h1 {
+      max-width: 880px;
+      margin: 8px 0 14px;
+      font-size: clamp(31px, 5vw, 53px);
+      letter-spacing: -.038em;
+    }
+    h2 { margin: 0 0 18px; font-size: 26px; letter-spacing: -.02em; }
+    h3 { margin: 0 0 10px; font-size: 18px; }
+    h4 { margin: 0 0 8px; font-size: 15px; }
+    p { margin: 0 0 12px; }
+    a { color: var(--blue); }
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #edf1f1;
+      color: #193c43;
+      font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 12px 0 0;
+      padding: 18px;
+      overflow: auto;
+      border-radius: 12px;
+      background: #112f39;
+      color: #e7f3f5;
+      font: 12.5px/1.58 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    section {
+      margin-top: 24px;
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,253,250,.95);
+      box-shadow: 0 10px 28px rgba(35,43,44,.045);
+    }
+    .eyebrow {
+      margin: 0;
+      color: #b9dfe1;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .lede { max-width: 800px; color: #d6e9e9; font-size: 17px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .meta span, .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .meta span { color: #f4fbfb; background: rgba(255,255,255,.11); }
+    .kicker {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .summary-grid, .two-col, .three-col {
+      display: grid;
+      gap: 14px;
+    }
+    .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: #fff;
+    }
+    .card p:last-child { margin-bottom: 0; }
+    .card.target { border-top: 4px solid var(--teal); }
+    .card.guard { border-top: 4px solid var(--amber); }
+    .card.blocked { border-top: 4px solid var(--red); }
+    .metric {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--navy);
+      font-size: 25px;
+      font-weight: 850;
+    }
+    .callout {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 12px;
+      background: var(--blue-soft);
+      color: #173f4c;
+    }
+    .warning { background: var(--amber-soft); color: #66440f; }
+    .danger { background: var(--red-soft); color: #752d24; }
+    .architecture {
+      display: grid;
+      grid-template-columns: 1fr 42px 1fr 42px 1fr 42px 1fr;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 18px;
+    }
+    .node {
+      min-height: 126px;
+      padding: 16px;
+      border: 1px solid #bfcdd0;
+      border-radius: 13px;
+      background: #f8fbfb;
+    }
+    .node b { display: block; margin-bottom: 7px; color: var(--navy); }
+    .arrow { display: grid; place-items: center; color: var(--teal); font-size: 29px; font-weight: 850; }
+    .repair-loop {
+      margin-top: 10px;
+      padding: 12px 16px;
+      border: 1px dashed var(--teal);
+      border-radius: 11px;
+      color: var(--teal);
+      text-align: center;
+      font-weight: 750;
+    }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #efede6;
+      color: #425057;
+      font-size: 11px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .pill.p0 { background: var(--red-soft); color: var(--red); }
+    .pill.p1 { background: var(--amber-soft); color: var(--amber); }
+    .pill.p2 { background: var(--gray-soft); color: #56636a; }
+    .pill.new { background: var(--teal-soft); color: var(--teal); }
+    .pill.blocked { background: var(--red-soft); color: var(--red); }
+    .decision {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 14px;
+      padding: 17px 0;
+      border-top: 1px solid var(--line);
+    }
+    .decision:first-of-type { border-top: 0; }
+    .decision-no {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-weight: 850;
+    }
+    .milestone {
+      display: grid;
+      grid-template-columns: 82px 1fr 240px;
+      gap: 18px;
+      padding: 20px 0;
+      border-top: 1px solid var(--line);
+    }
+    .milestone:first-of-type { border-top: 0; }
+    .m-no {
+      display: grid;
+      width: 66px;
+      height: 66px;
+      place-items: center;
+      border-radius: 17px;
+      background: var(--navy);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 850;
+    }
+    .deliverable {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f1f4f3;
+      color: #47555b;
+      font-size: 12.5px;
+    }
+    ul, ol { margin: 8px 0 0; padding-left: 22px; }
+    li { margin: 5px 0; }
+    .small { color: var(--muted); font-size: 12.5px; }
+    footer { padding: 25px 4px 0; color: var(--muted); font-size: 12px; }
+    @media (max-width: 920px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .three-col { grid-template-columns: 1fr; }
+      .architecture { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); min-height: 34px; }
+      .milestone { grid-template-columns: 72px 1fr; }
+      .deliverable { grid-column: 2; }
+    }
+    @media (max-width: 680px) {
+      main { width: min(100% - 20px, 1200px); margin-top: 10px; }
+      header { padding: 30px 24px; border-radius: 16px; }
+      section { padding: 22px 18px; }
+      .summary-grid, .two-col { grid-template-columns: 1fr; }
+      .milestone { grid-template-columns: 1fr; }
+      .deliverable { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Architecture modification plan · 2026-07-31</p>
+    <h1>把“一次性完成门”升级为可自修复的验证闭环</h1>
+    <p class="lede">面向当前 <code>codex/integrated-robustness</code> 工作树的实施计划：冻结可信验收合同，建立受控 Verification Pipeline，让失败证据进入下一模型 Step，并以预算、连续失败、Diff 与环境基线阻止假完成。</p>
+    <div class="meta">
+      <span>建议决策：ADR-0051</span>
+      <span>建议任务书：INTEGRATION_01 §19</span>
+      <span>实现授权：沿用现有白名单，需先补文档合同</span>
+      <span>产品状态：仍不得超过 READY_FOR_WIN7_VALIDATION</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="kicker">Executive plan</p>
+    <h2>推荐方案</h2>
+    <p>采用“可信任务合同 + 确定性 Gate Pipeline + 受保护修复反馈”三层设计。模型可以提出补充检查，但不能定义或削弱最终完成标准；验证命令和 Git diff 分别经过 Runner 与 Git Adapter，Verifier 不获得直接进程能力。</p>
+    <div class="summary-grid">
+      <div class="card target"><span class="metric">6</span><b>实施里程碑</b><p class="small">先合同、再 Loop、后命令与环境证据</p></div>
+      <div class="card target"><span class="metric">18</span><b>审计要求保留追踪</b><p class="small">Reviewer 继续作为后续非阻塞项</p></div>
+      <div class="card guard"><span class="metric">3</span><b>同 Gate 连败上限</b><p class="small">第三次终止并输出对比摘要</p></div>
+      <div class="card blocked"><span class="metric">0</span><b>新增直接进程入口</b><p class="small">SPIKE_02 前真实执行继续 fail-closed</p></div>
+    </div>
+    <div class="callout">
+      <strong>编号校正：</strong>当前工作树已用 ADR-0048 处理 Git Session Guard 与审批拒绝回流；ADR-0049 已用于 Runtime 会话基线并被 ADR-0050 取代，ADR-0050 现为 Accepted；任务书 §18 也已用于 Git Session Guard 的 Runtime 接入。历史 ADR 编号即使 Superseded 也不得复用，因此验证闭环使用 <strong>ADR-0051</strong>，任务书增补使用 <strong>§19</strong>。
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Scope and boundaries</p>
+    <h2>目标、非目标与不可破坏约束</h2>
+    <div class="three-col">
+      <div class="card target">
+        <h3>本轮目标</h3>
+        <ul>
+          <li>完成态只接受可信 TaskAcceptance。</li>
+          <li>验证失败回到模型继续修复。</li>
+          <li>实现最小三门：静态/类型、相关测试、Diff。</li>
+          <li>三连败、预算、取消和证据历史可审计。</li>
+          <li>建立命令来源与 Policy/Runner 合同。</li>
+        </ul>
+      </div>
+      <div class="card guard">
+        <h3>必须保持</h3>
+        <ul>
+          <li>C08/C09/C20：超时、结构化 argv、Git Adapter。</li>
+          <li>ADR-0038：审批与基线精确绑定。</li>
+          <li>ADR-0041/0043：事件是事实，消息是投影。</li>
+          <li>ADR-0048/0050：写会话要求干净 Git 基线；Git 仓库缺少 SessionSafetyPort 时 fail-closed。</li>
+          <li>Phase 1/2 legacy 不修改。</li>
+        </ul>
+      </div>
+      <div class="card blocked">
+        <h3>明确不宣称完成</h3>
+        <ul>
+          <li>真实 Job Object/Restricted Token Runner。</li>
+          <li>MinGit 与恶意仓库 G10 实机验证。</li>
+          <li>SQLite 崩溃恢复。</li>
+          <li>Electron 产品装配与 UI。</li>
+          <li>Win7 SP1 x64 验收。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Target architecture</p>
+    <h2>目标数据流</h2>
+    <div class="architecture" aria-label="验证闭环架构">
+      <div class="node"><b>1. Task Contract</b>用户任务、任务书与项目配置形成不可变 <code>TaskAcceptance</code>；模型提议只可追加为 proposal。</div>
+      <div class="arrow">→</div>
+      <div class="node"><b>2. Gate Planner</b>按“任务显式 &gt; 项目声明 &gt; 自动探测”解析 <code>GatePlan</code>，记录来源、信任级别和摘要。</div>
+      <div class="arrow">→</div>
+      <div class="node"><b>3. Pipeline</b>按成本排序执行 Gate；命令经 Runner，diff 经 Git Adapter；每步生成 <code>GateResult</code>。</div>
+      <div class="arrow">→</div>
+      <div class="node"><b>4. Completion</b>全部硬门通过生成 <code>EvidenceBundle v2</code> 并完成；失败则生成受保护反馈。</div>
+    </div>
+    <div class="repair-loop">失败且预算尚存：VERIFYING → EXECUTING → 模型读取 verification.feedback → 修复 → 再次 VERIFYING</div>
+    <div class="callout warning">
+      验证反馈应投影为 <strong>受保护的 system/harness 消息</strong>，不能伪造为普通 ToolResult。实际验证命令不是模型声明的 tool call，伪造 ToolResult 会破坏 ADR-0039 的 tool call/result 配对合同。
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Architectural decisions</p>
+    <h2>ADR-0051 应冻结的九项决策</h2>
+    <div class="decision">
+      <div class="decision-no">1</div>
+      <div><h3>可信验收标准不由模型控制</h3><p><code>RuntimeRequest</code> 新增不可变 <code>TaskAcceptance</code>。来源为用户/任务/项目配置的检查具有阻塞权；模型只能提交 <code>proposedChecks</code>，不得删除、改名或降级可信检查。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">2</div>
+      <div><h3>任务类型决定 Diff 语义</h3><p><code>expectedMutation</code> 使用 <code>none | required | optional</code>。只读分析允许空 diff；写任务必须出现相对会话基线的新改动；可选修改任务由其他验收条件裁决。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">3</div>
+      <div><h3>验证失败是可恢复状态，不是第一次就终局</h3><p>新增 <code>verification_repair_requested</code>：VERIFYING → EXECUTING。只有通过、取消、预算耗尽、环境硬阻断或同 Gate 三连败才结束 Turn。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">4</div>
+      <div><h3>所有验证命令仍是受控执行</h3><p>Gate Provider 只接收结构化 <code>VerificationCommandExecutorPort</code>；产品装配必须映射到 Runner V2。禁止 <code>child_process</code>、shell 字符串和从测试名称拼接命令。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">5</div>
+      <div><h3>Git Session Guard 是 Diff 权威入口</h3><p>Git 可用时复用 ADR-0048 的干净 HEAD baseline。Diff Gate 通过结构化 ChangeSet 读取状态，不在 Core 中解析任意 Git 输出。Git 缺失时只读 Agent 可继续，写任务的 repo-wide Diff Gate 返回 unavailable 并阻止完成。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">6</div>
+      <div><h3>证据必须绑定执行事实</h3><p><code>EvidenceBundle v2</code> 绑定 acceptance digest、baseline digest、GatePlan digest、Runner receipt、退出码、输出 SHA-256、完整/截断状态与环境 fingerprint。自由文本 source 不再能单独形成 passed。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">7</div>
+      <div><h3>预算采用 Turn 总预算 + Verification 子预算</h3><p>验证墙钟时间计入 <code>maxWallMs</code>；修复模型调用继续消耗 Step/Token。新增 <code>VerificationBudget</code> 限制总 attempts、命令数、累计输出和同 Gate 连败，默认连败上限为 3。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">8</div>
+      <div><h3>验证历史进入事件事实与 Checkpoint v3</h3><p>新增 verification 生命周期事件；Checkpoint v3 保存 acceptance/baseline 摘要、失败计数与 attempt 引用。旧 v2 不得静默恢复为更弱的完成合同。</p></div>
+    </div>
+    <div class="decision">
+      <div class="decision-no">9</div>
+      <div><h3>硬证据优先于模型意见</h3><p>编译、测试、Policy、Diff 机械规则具有硬阻塞权。未来 Reviewer 仅提供软证据；不能覆盖硬失败，高风险意见触发 ASK 或用户裁决。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Core contracts</p>
+    <h2>建议的 Schema 与接口形状</h2>
+    <div class="two-col">
+      <div>
+        <h3>TaskAcceptance</h3>
+        <pre>interface TaskAcceptance {
+  schemaVersion: '1.0';
+  taskType: 'analysis' | 'change' | 'bugfix';
+  expectedMutation: 'none' | 'required' | 'optional';
+  allowedPaths: string[];
+  expectedMaxChangedFiles?: number;
+  checks: AcceptanceCheck[];
+  baselinePolicy: {
+    requireCleanGit: boolean;
+    testBaseline: 'none' | 'targeted' | 'full';
+    cacheMode: 'reuse' | 'declared_clean';
+  };
+  digestSha256: string;
+}</pre>
+      </div>
+      <div>
+        <h3>GateResult</h3>
+        <pre>interface GateResult {
+  schemaVersion: '1.0';
+  attemptId: string;
+  gateId: string;
+  kind: GateKind;
+  status: 'passed' | 'failed' | 'unavailable'
+        | 'cancelled' | 'skipped';
+  hard: boolean;
+  commandReceipt?: RunnerReceipt;
+  baselineSha256: string;
+  startedAt: string;
+  finishedAt: string;
+  complete: boolean;
+  summary: string;
+  outputSha256?: string;
+}</pre>
+      </div>
+      <div>
+        <h3>GatePlan 来源</h3>
+        <pre>type GateAuthority =
+  | 'task_explicit'
+  | 'project_declared'
+  | 'auto_detected'
+  | 'model_proposed';
+
+// 只有前三类经解析/审批后可成为 hard gate。
+// model_proposed 默认 advisory。</pre>
+      </div>
+      <div>
+        <h3>VerificationBudget</h3>
+        <pre>interface VerificationBudget {
+  maxAttemptsTotal: number;
+  maxConsecutiveFailuresPerGate: number; // default 3
+  maxCommandsTotal: number;
+  maxRetainedOutputBytes: number;
+}</pre>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>协议迁移建议：</strong>保留现有 <code>RuntimePlan.verificationRequirements</code> 一个过渡周期，但重命名语义为 model proposals；它们不能让空的可信 acceptance 变成可完成状态。Checkpoint 升级到 v3，v2 恢复返回结构化 <code>RUNTIME_INPUT_INVALID</code> 和重新启动任务建议。
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Pipeline design</p>
+    <h2>Gate 顺序与裁决规则</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>顺序</th><th>Gate</th><th>执行者</th><th>硬通过条件</th><th>失败行为</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0</td><td>Contract / Baseline</td><td>Core + GitSessionGuard</td><td>可信 acceptance 非空；写任务有适用 baseline</td><td>配置缺失 ASK；安全基线缺失 unavailable</td></tr>
+          <tr><td>1</td><td>Syntax / Compile</td><td>Runner command alias</td><td>正常退出 0，输出完整或明确可接受截断</td><td>短路，反馈首个错误</td></tr>
+          <tr><td>2</td><td>Lint / Format check</td><td>Runner command alias</td><td>声明为 hard 时退出 0</td><td>hard 阻塞；advisory 记录</td></tr>
+          <tr><td>3</td><td>Type check</td><td>Runner command alias</td><td>退出 0</td><td>短路并反馈</td></tr>
+          <tr><td>4</td><td>Targeted tests</td><td>Runner command alias</td><td>目标测试满足 red/green 或当前通过</td><td>短路；不运行全量</td></tr>
+          <tr><td>5</td><td>Full regression</td><td>Runner command alias</td><td>无 baseline pass→current fail</td><td>反馈新增回归，区分存量失败</td></tr>
+          <tr><td>6</td><td>Diff mechanical</td><td>Git Adapter / ChangeSet port</td><td>变更存在性、路径、数量、敏感文件规则满足</td><td>硬拒绝或 ASK；不让模型自行解释</td></tr>
+          <tr><td>7</td><td>Task acceptance</td><td>Acceptance evaluators</td><td>所有可信 checks 完成且 passed</td><td>反馈缺失项；预算内继续</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warning">
+      <strong>Diff 规则不能机械照抄示例：</strong>测试文件变化并不总是作弊，因为 bugfix 正常需要新增回归测试。建议规则为：删除断言、修改既有期望、触碰 lock/config 属于 ASK 或 hard fail，除非 TaskAcceptance 明确授权；新增测试通常允许，但仍计入范围和文件数。
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">State and feedback semantics</p>
+    <h2>状态机与失败反馈</h2>
+    <pre>模型最终响应（无 tool calls）
+  → EXECUTING --execution_complete→ VERIFYING
+  → run Gate Pipeline
+      ├─ all hard gates passed
+      │    → verification_passed → COMPLETED
+      ├─ failed + retryable + budget remains + same gate &lt; 3
+      │    → emit verification.feedback
+      │    → verification_repair_requested → EXECUTING
+      │    → next model Step
+      ├─ same gate failed 3 times
+      │    → verification_exhausted → FAILED
+      │    → TurnOutcome.STUCK + VERIFICATION_STUCK
+      ├─ budget exhausted
+      │    → existing budget finalization path
+      └─ cancelled / cleanup unknown
+           → CANCELLED or fail-closed CANCELLATION_FAILED</pre>
+    <div class="two-col" style="margin-top:14px">
+      <div class="card">
+        <h3>给模型的反馈必须包含</h3>
+        <ul>
+          <li>失败 gateId、kind、attempt 次数。</li>
+          <li>结构化状态与退出码。</li>
+          <li>有界 stdout/stderr 摘要和完整 SHA。</li>
+          <li>与上次失败的差异摘要。</li>
+          <li>剩余预算和不可修改的验收条件。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>反馈必须排除</h3>
+        <ul>
+          <li>凭据、完整环境变量或未授权源码。</li>
+          <li>未经转义的控制序列。</li>
+          <li>让模型“忽略 Gate”的指令通道。</li>
+          <li>伪造 toolCallId 的 ToolResult。</li>
+          <li>被截断却标为 complete 的输出。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Implementation map</p>
+    <h2>文件级修改清单</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>模块 / 文件</th><th>改动</th><th>对应要求</th><th>注意事项</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>docs/DECISIONS.md</code></td><td>追加 ADR-0051</td><td>全部关键协议</td><td>不得改写既有 Accepted/Superseded ADR 正文或复用编号</td></tr>
+          <tr><td><code>docs/tasks/INTEGRATION_01_*.md</code></td><td>新增 §19 原子需求、白名单映射、延期边界、验收矩阵</td><td>C14</td><td>先文档后实现</td></tr>
+          <tr><td><code>src/core/src/verification.ts</code></td><td>升级 TaskAcceptance、GatePlan/Result、EvidenceBundle v2、失败计数器</td><td>VC-02/06/07/12/18</td><td>可拆分文件，避免单文件失控</td></tr>
+          <tr><td><code>src/core/src/verification-pipeline.ts</code>（新）</td><td>Gate 排序、短路、预算、attempt history</td><td>VC-03/04/06/07</td><td>纯编排，不直接执行进程</td></tr>
+          <tr><td><code>src/core/src/verification-command-resolver.ts</code>（新）</td><td>任务/项目/自动探测优先级与来源摘要</td><td>VC-08/09</td><td>自然语言 AGENTS 仅作候选；可信机器块需严格 Schema</td></tr>
+          <tr><td><code>src/core/src/verification-feedback.ts</code>（新）</td><td>有界、脱敏、稳定的 system feedback</td><td>VC-05/07</td><td>输出视为不可信数据</td></tr>
+          <tr><td><code>src/core/src/runtime.ts</code></td><td>接收 TaskAcceptance；失败回环；usage、bundle、Checkpoint v3</td><td>VC-01/05/06/12/13</td><td>不得破坏审批恢复和 tool 配对</td></tr>
+          <tr><td><code>src/core/src/state-machine.ts</code></td><td>增加 repair/exhausted 触发</td><td>VC-05/07</td><td>COMPLETED 仍只有 verification_passed 一条入口</td></tr>
+          <tr><td><code>src/core/src/errors.ts</code></td><td>增加 VERIFICATION_STUCK、CONTRACT_INVALID、BASELINE_UNAVAILABLE 等稳定码</td><td>错误可操作性</td><td>验证普通失败不应第一次就成为终局错误</td></tr>
+          <tr><td><code>src/core/src/loop-control.ts</code></td><td>VerificationBudget、usage 与比较摘要</td><td>VC-06/07</td><td>墙钟仍使用单调时间</td></tr>
+          <tr><td><code>src/git-adapter/src/session.ts</code></td><td>在现有 inspection 上增加结构化 ChangeSet/numstat 输出</td><td>VC-10/15/18</td><td>继续经 Adapter+Runner；不在 Core 解析任意 Git 文本</td></tr>
+          <tr><td><code>src/state/src/event-protocol.ts</code></td><td>登记 verification 生命周期事实类型</td><td>VC-05/07/18</td><td>未知事件兼容规则保持</td></tr>
+          <tr><td><code>src/state/src/runtime-event-adapter.ts</code></td><td>映射 gate/attempt/bundle/feedback 事件</td><td>审计链</td><td>V2 ledger 继续是 seq 权威</td></tr>
+          <tr><td><code>src/state/src/runtime-message-projector.ts</code></td><td>只把 verification.feedback 投影为受保护 system 消息</td><td>VC-05</td><td>bundle 和命令原始输出不全量进模型历史</td></tr>
+          <tr><td><code>scripts/verify_integration.mjs</code></td><td>增加禁止直接进程入口与完成回环静态门；测试计数改为机器采集</td><td>防回退</td><td>字符串门只能辅助，不能替代行为测试</td></tr>
+          <tr><td>Core/Git/State tests</td><td>新增正向、负向、预算、取消、重放和安全测试</td><td>全部</td><td>Mock 证据明确标注开发机合同</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Milestones</p>
+    <h2>六个可独立验收的实施里程碑</h2>
+    <div class="milestone">
+      <div class="m-no">M0</div>
+      <div><h3>授权与协议冻结</h3><p>追加 ADR-0051、任务书 §19，冻结 TaskAcceptance、EvidenceBundle v2、状态转移、预算、事件和迁移策略。</p></div>
+      <div class="deliverable"><b>完成证据</b><br>Markdown 链接/编号一致；任务状态和白名单合法；无实现代码。</div>
+    </div>
+    <div class="milestone">
+      <div class="m-no">M1</div>
+      <div><h3>Core 修复循环</h3><p>先用显式 Mock Gate 实现 VERIFYING→EXECUTING 回环、system feedback、三连败和预算；不引入真实命令。</p></div>
+      <div class="deliverable"><b>完成证据</b><br>“失败→修复→通过”同一 Turn；第三次失败 STUCK；现有 215 项 Core 测试不回归。</div>
+    </div>
+    <div class="milestone">
+      <div class="m-no">M2</div>
+      <div><h3>可信验收与证据 v2</h3><p>TaskAcceptance 成为 RuntimeRequest 必填合同；模型要求降级为 proposal；Runner receipt/baseline 摘要进入 bundle。</p></div>
+      <div class="deliverable"><b>完成证据</b><br>模型删除/改名/伪造 passed 均不能完成；digest 稳定且内容绑定。</div>
+    </div>
+    <div class="milestone">
+      <div class="m-no">M3</div>
+      <div><h3>命令解析与最小三门</h3><p>实现严格来源优先级、命令别名、Mock/Unavailable executor，接入 syntax/type 与 targeted test Gate。</p></div>
+      <div class="deliverable"><b>完成证据</b><br>自动探测首次 ASK；shell 字符串拒绝；SPIKE_02 前生产 executor 返回 unavailable。</div>
+    </div>
+    <div class="milestone">
+      <div class="m-no">M4</div>
+      <div><h3>Diff 与会话基线</h3><p>复用 GitSessionGuard，输出结构化 ChangeSet；实现条件性空 diff、allowedPaths、敏感文件、断言/配置风险规则。</p></div>
+      <div class="deliverable"><b>完成证据</b><br>只说不改被拦；只读任务空 diff 可完成；越范围和隐藏用户改动 fail-closed。</div>
+    </div>
+    <div class="milestone">
+      <div class="m-no">M5</div>
+      <div><h3>测试基线、红绿与验收记录</h3><p>加入 bugfix reproduction、FAIL_TO_PASS/PASS_TO_PASS、flaky/cache 标记；机器生成 docs/acceptance 记录。</p></div>
+      <div class="deliverable"><b>完成证据</b><br>存量红不误归责；新增回归阻止完成；报告计数来自真实测试结果。</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Test matrix</p>
+    <h2>实施必须覆盖的自动化验收</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>场景</th><th>预期</th><th>层级</th></tr></thead>
+        <tbody>
+          <tr><td>VP-01</td><td>模型直接说完成，写任务 diff 为空</td><td>不完成；反馈进入下一 Step</td><td>Core integration</td></tr>
+          <tr><td>VP-02</td><td>第一次 targeted test 失败，模型修复，第二次通过</td><td>同一 Turn COMPLETED；保留两次 attempt</td><td>Core integration</td></tr>
+          <tr><td>VP-03</td><td>同 Gate 连续三次失败</td><td>TurnOutcome.STUCK + 三次对比摘要</td><td>Core integration</td></tr>
+          <tr><td>VP-04</td><td>不同 Gate 轮流失败</td><td>各自计数，不误触发同 Gate 连败</td><td>Unit</td></tr>
+          <tr><td>VP-05</td><td>模型删除可信检查或只保留自己检查</td><td>TaskAcceptance 不变；不能完成</td><td>Contract</td></tr>
+          <tr><td>VP-06</td><td>Evidence 写 passed 但无 Runner receipt</td><td>Bundle v2 拒绝</td><td>Unit</td></tr>
+          <tr><td>VP-07</td><td>验证输出截断</td><td>complete=false；硬 Gate 不通过</td><td>Unit</td></tr>
+          <tr><td>VP-08</td><td>验证命令超时/取消/cleanup unknown</td><td>结构化失败；无残留才允许安全取消</td><td>Runner contract</td></tr>
+          <tr><td>VP-09</td><td>任务命令与项目命令冲突</td><td>任务命令胜出，来源进入 GatePlan digest</td><td>Resolver</td></tr>
+          <tr><td>VP-10</td><td>自动探测命令首次使用</td><td>ASK；未批准不执行</td><td>Policy</td></tr>
+          <tr><td>VP-11</td><td>AGENTS 自然语言诱导任意 shell</td><td>只作为候选；严格 Schema/审批前不执行</td><td>Security</td></tr>
+          <tr><td>VP-12</td><td>只读分析任务空 diff</td><td>Diff Gate skipped/通过，不要求写入</td><td>Diff</td></tr>
+          <tr><td>VP-13</td><td>写任务改 allowedPaths 外文件</td><td>硬拒绝</td><td>Diff</td></tr>
+          <tr><td>VP-14</td><td>修改 .env/.git 或删除断言</td><td>敏感路径硬拒绝；断言删除 ASK/拒绝</td><td>Diff/Policy</td></tr>
+          <tr><td>VP-15</td><td>干净 baseline 后出现 untracked 文件</td><td>进入 ChangeSet；不静默删除</td><td>Git Adapter</td></tr>
+          <tr><td>VP-16</td><td>Git 缺失</td><td>只读继续；写任务 repo-wide diff unavailable</td><td>Degradation</td></tr>
+          <tr><td>VP-17</td><td>baseline 已失败、最终仍失败</td><td>不算新增回归；目标检查另行裁决</td><td>Test baseline</td></tr>
+          <tr><td>VP-18</td><td>baseline 绿、最终红</td><td>PASS_TO_PASS 失败，阻止完成</td><td>Test baseline</td></tr>
+          <tr><td>VP-19</td><td>Checkpoint v2 恢复</td><td>结构化拒绝并建议重启；不降低合同</td><td>Recovery</td></tr>
+          <tr><td>VP-20</td><td>EventSink 在 gate/feedback/bundle 阶段失败</td><td>保持完整前缀与 traceComplete 语义</td><td>State/Core</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Risk controls</p>
+    <h2>主要风险与缓解</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>架构风险</h3>
+        <ul>
+          <li><b>Runtime 继续膨胀：</b>Pipeline/feedback/resolver 拆为独立纯模块，Runtime 只编排。</li>
+          <li><b>Checkpoint 兼容：</b>明确 v3，不做静默字段补全。</li>
+          <li><b>事件双重真相：</b>attempt/bundle 是事实，模型消息由 feedback 事件投影。</li>
+          <li><b>Diff 假阳性：</b>测试/lock/config 用声明+ASK，不用一刀切。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>安全与平台风险</h3>
+        <ul>
+          <li><b>验证命令旁路：</b>静态扫描 Verifier/Core 禁止 child_process。</li>
+          <li><b>恶意测试输出：</b>字节上限、脱敏、控制序列处理、摘要投影。</li>
+          <li><b>脏工作区：</b>沿用 ADR-0048，写会话先要求用户处理既有改动。</li>
+          <li><b>Win7 能力未证实：</b>Unavailable executor 保持生产默认，Mock 只证明合同。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Definition of done</p>
+    <h2>本修改计划的完成标准</h2>
+    <ol>
+      <li>ADR-0051 与任务书 §19 已批准，状态、路径、协议和延期边界无冲突。</li>
+      <li>审计矩阵中的 VC-03、04、05、06、07、08、09、10、12、13、18 在开发机合同层关闭；VC-14/15/16/17 按 M5 关闭。</li>
+      <li>模型无法通过空 acceptance、自报 passed、空 diff、删测试或缩小检查范围获得 COMPLETED。</li>
+      <li>验证失败可在同一 Turn 内回到模型；三连败、预算、取消和 EventSink 故障均有确定结局。</li>
+      <li>Core、State、Git Adapter 的定向测试和根级 lint/build/test 通过，测试总数由机器生成。</li>
+      <li>新增静态门确认 Core/Verifier/Git Adapter 没有未授权进程入口。</li>
+      <li>创建版本化开发机验收记录，包含工作区 baseline digest、命令、退出码和证据摘要。</li>
+      <li>最终状态仍标记 <code>Win7-Validation: NOT_PERFORMED</code>；真实 Runner、MinGit、SQLite 与 Win7 产品 E2E 保持 Blocked。</li>
+    </ol>
+    <div class="callout danger">
+      <strong>不得把 M1–M5 的 Mock/现代开发机通过写成产品完成。</strong>它们只关闭 Agent Harness 的逻辑合同；真实命令验证仍要等待 SPIKE_02/03、精确工件 Profile 和 Win7 实机证据。
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Recommended starting slice</p>
+    <h2>建议首先实施的最小切片</h2>
+    <p>先只做 <strong>M0 + M1</strong>：不接真实命令、不动 Runner 实现，先把状态机和反馈循环修正确。这个切片能关闭最严重的“验证失败直接终止”偏差，同时风险最小、测试边界清晰。</p>
+    <pre>第一批交付文件：
+docs/DECISIONS.md                         # ADR-0051
+docs/tasks/INTEGRATION_01_*.md            # §19
+src/core/src/state-machine.ts             # repair / exhausted
+src/core/src/verification.ts              # attempt + failure history
+src/core/src/verification-feedback.ts     # bounded system feedback
+src/core/src/runtime.ts                   # failed → repair loop
+src/core/src/errors.ts                    # VERIFICATION_STUCK
+src/core/tests/state-machine.test.ts
+src/core/tests/verification.test.ts
+src/core/tests/runtime.test.ts</pre>
+    <p class="small">M0 + M1 通过后再进入命令解析、Diff 和环境基线；避免一次改动同时跨 Core、Runner、Git、State 而难以定位回归。</p>
+  </section>
+
+  <footer>
+    <p>计划依据：Agent 验证闭环审计、AGENTS.md、WIN7_CONSTRAINTS、PHASE_06、INTEGRATION_01、ADR-0038/0039/0041/0042/0043/0047/0048/0049/0050，以及当前工作树的 Runtime、Runner、GitSessionGuard、SessionSafetyPort 与 State 投影实现。</p>
+    <p>本文件是修改计划，不构成实现完成或 Win7 验收结论。</p>
+  </footer>
+</main>
+</body>
+</html>

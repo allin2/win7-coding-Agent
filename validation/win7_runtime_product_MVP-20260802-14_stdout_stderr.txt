@@ -1,0 +1,30 @@
+MVP ID: MVP-20260802-14
+Target: Windows 7 Professional SP1 x64 build 7601
+Management: dccs-chaizl@192.168.1.11 via existing Bitvise SSH
+
+[runtime evidence collector]
+Exit code: 0
+stdout:
+REPORT_WRITTEN:C:\acceptance\report_runtime_evidence_MVP-20260802-14.json
+stderr:
+[1176:0802/112847.124:ERROR:os_crypt_win.cc(55)] Failed to encrypt: Access is denied. (0x5)
+
+[real Electron product shell smoke]
+Exit code: 0
+stdout:
+SMOKE_REPORT_WRITTEN:C:\acceptance\report_product_shell_MVP-20260802-14.json
+stderr:
+[364:0802/113708.173:ERROR:os_crypt_win.cc(55)] Failed to encrypt: Access is denied. (0x5)
+
+[post-exit checks]
+- No electron.exe process remained with command line referencing
+  C:\acceptance\win7_coding_agent_MVP-20260802-14.
+- BvSshServer remained STATE 4 RUNNING.
+- No machine PATH, registry, service configuration, NIC, route or firewall
+  setting was changed.
+
+Disposition of os_crypt stderr:
+The MVP shell does not store credentials or use Electron safeStorage. The
+message is retained as raw compatibility evidence and is non-blocking for this
+read-only MVP entry. Credential persistence remains unavailable until a
+separately reviewed DPAPI adapter and lifecycle are implemented.

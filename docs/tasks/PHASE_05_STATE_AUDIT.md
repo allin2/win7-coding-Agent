@@ -23,7 +23,7 @@ Blocking-Reason: PC-003 ruled 2026-07-29 (ADR-0036); pending SPIKE_04 Go
 
 - `src/state/**`、`tests/state/**`、本文档 §13 验证记录。
 
-禁止路径：其他阶段目录、`src/win7_agent/**`（legacy 冻结）、已 Accepted ADR 正文。
+禁止路径：其他阶段目录、`src/phase1-2/win7_agent/**`（legacy 冻结）、已 Accepted ADR 正文。
 
 ## 1. 目标
 

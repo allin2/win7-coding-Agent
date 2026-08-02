@@ -1,0 +1,388 @@
+{
+  "checks": [
+    {
+      "details": {
+        "machine": "AMD64",
+        "sources": {
+          "getwindowsversion": {
+            "available": true,
+            "raw": {
+              "build": 7601,
+              "major": 6,
+              "minor": 1,
+              "platform": 2,
+              "service_pack": "Service Pack 1",
+              "service_pack_major": 1,
+              "service_pack_minor": 0
+            }
+          },
+          "registry": {
+            "available": true,
+            "raw": {
+              "CSDVersion": "Service Pack 1",
+              "CurrentBuildNumber": "7601",
+              "CurrentVersion": "6.1",
+              "ProductName": "Windows 7 Professional"
+            }
+          },
+          "win32_ver": {
+            "available": true,
+            "raw": {
+              "csd": "SP1",
+              "ptype": "Multiprocessor Free",
+              "release": "7",
+              "version": "6.1.7601"
+            }
+          }
+        },
+        "verdict": {
+          "is_windows7": true,
+          "os_arch": "64bit",
+          "os_build": "7601",
+          "os_caption": "Windows-6.1-7601-SP1",
+          "os_service_pack": "SP1",
+          "sp1_confirmed": true
+        }
+      },
+      "duration_ms": 77,
+      "error": null,
+      "id": "os.version",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "compiled_architecture": "64bit",
+        "python_executable": "C:\\acceptance\\python38_mvp\\python.exe",
+        "python_implementation": "CPython",
+        "python_version": "3.8.10"
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "python.runtime",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "process_bitness": 64
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "process.bitness",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "commit_verified": true,
+        "removed": true,
+        "rollback_verified": true
+      },
+      "duration_ms": 15,
+      "error": null,
+      "id": "sqlite.basic",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "directory_removed": true,
+        "file_removed": true
+      },
+      "duration_ms": 15,
+      "error": null,
+      "id": "tempfile.basic",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "cases": [
+          {
+            "name": "Chinese",
+            "removed": true,
+            "roundtrip_ok": true
+          },
+          {
+            "name": "spaces",
+            "removed": true,
+            "roundtrip_ok": true
+          },
+          {
+            "name": "mixed",
+            "removed": true,
+            "roundtrip_ok": true
+          }
+        ]
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "fs.unicode_paths",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "encodings": {
+          "gbk": {
+            "bom_ok": true,
+            "bytes_ok": true,
+            "roundtrip_ok": true
+          },
+          "utf-16": {
+            "bom_ok": true,
+            "bytes_ok": true,
+            "roundtrip_ok": true
+          },
+          "utf-16-le": {
+            "bom_ok": true,
+            "bytes_ok": true,
+            "roundtrip_ok": true
+          },
+          "utf-8": {
+            "bom_ok": true,
+            "bytes_ok": true,
+            "roundtrip_ok": true
+          },
+          "utf-8-sig": {
+            "bom_ok": true,
+            "bytes_ok": true,
+            "roundtrip_ok": true
+          }
+        },
+        "gbk_strict_raises": true
+      },
+      "duration_ms": 15,
+      "error": null,
+      "id": "fs.encodings",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "bytes_preserved": true,
+        "read_preserved": true
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "fs.crlf_preserve",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "bytes_read_stderr": 0,
+        "bytes_read_stdout": 4,
+        "bytes_saved_stderr": 0,
+        "bytes_saved_stdout": 4,
+        "exit_code": 0,
+        "kill_ok": false,
+        "stdout_contains_ok": true,
+        "taskkill_exit_code": null,
+        "timed_out": false,
+        "truncated_stderr": false,
+        "truncated_stdout": false
+      },
+      "duration_ms": 62,
+      "error": null,
+      "id": "proc.exec",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "bytes_read_stderr": 0,
+        "bytes_read_stdout": 0,
+        "bytes_saved_stderr": 0,
+        "bytes_saved_stdout": 0,
+        "exit_code": 1,
+        "kill_ok": true,
+        "process_exists_after": false,
+        "taskkill_exit_code": 0,
+        "timed_out": true,
+        "truncated_stderr": false,
+        "truncated_stdout": false
+      },
+      "duration_ms": 1326,
+      "error": null,
+      "id": "proc.timeout",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "bytes_read_stderr": 13,
+        "bytes_read_stdout": 13,
+        "bytes_saved_stderr": 13,
+        "bytes_saved_stdout": 13,
+        "exit_code": 0,
+        "kill_ok": false,
+        "streams_separate": true,
+        "taskkill_exit_code": null,
+        "timed_out": false,
+        "truncated_stderr": false,
+        "truncated_stdout": false
+      },
+      "duration_ms": 61,
+      "error": null,
+      "id": "proc.capture",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "bytes_read_stderr": 0,
+        "bytes_read_stdout": 1114112,
+        "bytes_saved_stderr": 0,
+        "bytes_saved_stdout": 1048576,
+        "exit_code": 0,
+        "generated_stdout_bytes": 1114112,
+        "kill_ok": false,
+        "taskkill_exit_code": null,
+        "timed_out": false,
+        "truncated_stderr": false,
+        "truncated_stdout": true
+      },
+      "duration_ms": 62,
+      "error": null,
+      "id": "proc.truncate",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "bytes_read_stderr": 0,
+        "bytes_read_stdout": 0,
+        "bytes_saved_stderr": 0,
+        "bytes_saved_stdout": 0,
+        "child_gone": true,
+        "child_pid": 2580,
+        "cmd_pid": 5616,
+        "exit_code": 1,
+        "kill_ok": true,
+        "missing_tools": [],
+        "parent_gone": true,
+        "parent_pid": 4312,
+        "ready_within_s": 0.312,
+        "taskkill_exit_code": 0,
+        "timed_out": false,
+        "tree_kill": true,
+        "truncated_stderr": false,
+        "truncated_stdout": false
+      },
+      "duration_ms": 779,
+      "error": null,
+      "id": "proc.kill",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "path": null
+      },
+      "duration_ms": 0,
+      "error": {
+        "code": "TOOL_NOT_FOUND",
+        "exception_type": null,
+        "message": "git executable not found",
+        "traceback_tail": null
+      },
+      "id": "tool.git",
+      "status": "degraded"
+    },
+    {
+      "details": {
+        "default_context_ok": true,
+        "default_verify_paths": {
+          "cafile": null,
+          "capath": null,
+          "openssl_cafile": "C:\\Program Files\\Common Files\\SSL/cert.pem",
+          "openssl_capath": "C:\\Program Files\\Common Files\\SSL/certs"
+        },
+        "enum_certificates_ok": true,
+        "has_alpn": true,
+        "has_protocol_tls_client": true,
+        "has_sni": true,
+        "has_tlsv1_2": true,
+        "has_tlsv1_3": true,
+        "openssl_version": "OpenSSL 1.1.1k  25 Mar 2021",
+        "root_cert_count": 23,
+        "ssl_importable": true
+      },
+      "duration_ms": 47,
+      "error": null,
+      "id": "tls.python_runtime",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "free_bytes": 945024790528,
+        "report_free_bytes": 945024790528,
+        "temp_free_bytes": 945024790528
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "disk.space",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "removed": true,
+        "temp_dir": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp",
+        "username": "dccs-chaizl",
+        "writable": true
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "env.user_temp",
+      "status": "pass"
+    },
+    {
+      "details": {
+        "db_path": "C:\\acceptance\\phase1_mvp\\phase1_probe_MVP-20260802-06.sqlite3",
+        "preexisting_db_replaced": false,
+        "rows_written": 17,
+        "snapshot_count": 17
+      },
+      "duration_ms": 0,
+      "error": null,
+      "id": "report.sqlite",
+      "status": "pass"
+    }
+  ],
+  "duration_ms": 2496,
+  "generated_at": "2026-08-02T09:53:00.274000+08:00",
+  "host": {
+    "cwd": "C:\\acceptance\\phase1_mvp",
+    "os_arch": "64bit",
+    "os_build": "7601",
+    "os_caption": "Windows-6.1-7601-SP1",
+    "os_service_pack": "SP1",
+    "process_bitness": 64,
+    "python_executable": "C:\\acceptance\\python38_mvp\\python.exe",
+    "python_implementation": "CPython",
+    "python_version": "3.8.10",
+    "temp_dir": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp",
+    "username": "dccs-chaizl"
+  },
+  "invocation": {
+    "argv": [
+      "--out",
+      "C:\\acceptance\\phase1_mvp\\phase1_probe_MVP-20260802-06.json",
+      "--db",
+      "C:\\acceptance\\phase1_mvp\\phase1_probe_MVP-20260802-06.sqlite3",
+      "--timeout-scale",
+      "0.5"
+    ],
+    "db_path": "C:\\acceptance\\phase1_mvp\\phase1_probe_MVP-20260802-06.sqlite3",
+    "max_stderr_bytes": 1048576,
+    "max_stdout_bytes": 1048576,
+    "report_path": "C:\\acceptance\\phase1_mvp\\phase1_probe_MVP-20260802-06.json",
+    "timeout_scale": 0.5
+  },
+  "probe": {
+    "cleanup_ok": true,
+    "notes": []
+  },
+  "probe_version": "0.1.0",
+  "report_version": 1,
+  "summary": {
+    "agent_runnable": true,
+    "blocking_check_ids": [],
+    "degraded": 1,
+    "error": 0,
+    "exit_code": 1,
+    "fail": 0,
+    "pass": 17,
+    "skipped": 0,
+    "total": 18
+  }
+}

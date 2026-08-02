@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-12",
+  "suite": "PHASE_01_E2_WIN7_CJK_SPACE_DEGRADED_TOOL",
+  "environment": {
+    "os": "Windows 7 Professional SP1 x64 build 7601",
+    "host": "ThinkPad T460",
+    "user": "dccs-chaizl",
+    "python": "CPython 3.8.10 x64",
+    "path_profile": "C:\\测试 目录\\phase1 mvp (Chinese and spaces)",
+    "process_path": "C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem (Git deliberately absent)",
+    "management_channel": "Bitvise SSH 192.168.1.10 <-> 192.168.1.11:22 preserved"
+  },
+  "artifact_hashes": {
+    "cpython-3.8.10-embed-amd64.zip": "abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271"
+  },
+  "command": [
+    "C:\\acceptance\\python38_mvp\\python.exe",
+    "C:\\测试 目录\\phase1 mvp\\scripts\\run_probe_win7_e2.py",
+    "--mvp-id=MVP-20260802-12"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T10:34:20+08:00",
+    "finished_at": "2026-08-02T10:34:21+08:00"
+  },
+  "exit_code": 1,
+  "cases": [
+    {
+      "case_id": "E2_CJK_SPACE_PATH_AND_ENCODING",
+      "status": "PASS",
+      "summary": "The Phase 1 capability probe ran from a Chinese-and-space deployment path on Win7 and preserved the expected path, encoding, CRLF, process, TLS and SQLite checks.",
+      "metrics": {
+        "checks": 18,
+        "pass": 17,
+        "fail": 0,
+        "degraded": 1,
+        "agent_runnable": true,
+        "blocking_check_ids": []
+      },
+      "evidence": [
+        "validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.json",
+        "validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.sqlite3"
+      ]
+    },
+    {
+      "case_id": "E2_GIT_MISSING_EXPECTED_DEGRADATION",
+      "status": "PASS",
+      "summary": "Git was absent from the process-only PATH and the probe emitted TOOL_NOT_FOUND/degraded without a blocking error; exit code 1 is the contract's degraded-result signal, not an unexpected test failure.",
+      "metrics": {
+        "tool_id": "tool.git",
+        "tool_status": "degraded",
+        "error_code": "TOOL_NOT_FOUND",
+        "exit_code": 1
+      },
+      "evidence": ["validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.json"]
+    },
+    {
+      "case_id": "E2_PHASE1_REGRESSION",
+      "status": "PASS",
+      "summary": "The self-contained Phase 1 probe unit/integration suite completed 20/20 on the same Chinese-and-space tree. The ERROR lines are expected negative-test diagnostics and the process ended with OK/exit 0.",
+      "metrics": {"tests": 20, "passed": 20, "exit_code": 0},
+      "evidence": ["validation/phase1/evidence/phase1_e2_regression_MVP-20260802-12.txt"]
+    },
+    {
+      "case_id": "E2_COMPILEALL_STANDARD_TREE",
+      "status": "PASS",
+      "summary": "CPython 3.8.10 compileall completed with exit 0 for the standard acceptance source, probe tests and integration probe tree.",
+      "metrics": {"exit_code": 0, "runtime": "CPython 3.8.10 x64"},
+      "evidence": ["validation/phase1/evidence/phase1_compileall_MVP-20260802-12.txt"]
+    },
+    {
+      "case_id": "E2_COMPILEALL_CJK_SPACE_TREE",
+      "status": "PASS",
+      "summary": "CPython 3.8.10 compileall completed with exit 0 for the Chinese-and-space deployment source, probe tests and integration probe tree.",
+      "metrics": {"exit_code": 0, "runtime": "CPython 3.8.10 x64"},
+      "evidence": ["validation/phase1/evidence/phase1_compileall_MVP-20260802-12.txt"]
+    },
+    {
+      "case_id": "E1_E2_FORMAL_GATE",
+      "status": "AUTHORIZATION_BLOCKED",
+      "summary": "The E2 preparation evidence does not release the frozen Phase 1 architecture Gate, clean-environment requirement or authorized physical-offline requirement.",
+      "metrics": {"formal_gate_released": false},
+      "evidence": []
+    }
+  ],
+  "evidence": [
+    "validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.json",
+    "validation/phase1/evidence/phase1_probe_MVP-20260802-12_e2.sqlite3",
+    "validation/phase1/evidence/phase1_e2_regression_MVP-20260802-12.txt",
+    "validation/phase1/evidence/phase1_compileall_MVP-20260802-12.txt"
+  ],
+  "notes": [
+    "The probe's exit code 1 is expected when the optional Git capability is missing; no blocking check failed and agent_runnable remained true.",
+    "The process PATH was scoped to the child Python process. Machine PATH, NIC, route, firewall, Bitvise service and SSH management traffic were not changed.",
+    "This is E2 preparation evidence only; it does not rewrite the frozen Phase 1 task Gate or claim a formal E1/E2 pass."
+  ]
+}

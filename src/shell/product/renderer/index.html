@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Win7 Coding Agent · Desktop Alpha 2</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">WINDOWS 7 · READ-ONLY REPLAY ALPHA</p>
+        <h1>Win7 Coding Agent</h1>
+        <p class="subline">Shell → Core → State → Workspace → Replay</p>
+      </div>
+      <div class="top-actions">
+        <span id="runtime-status" class="status pending">正在检查</span>
+        <button id="workspace-select" class="button primary" type="button">选择工作区</button>
+      </div>
+    </header>
+
+    <section class="workspace-bar" aria-label="当前工作区">
+      <span class="label">工作区</span>
+      <strong id="workspace-path">尚未选择</strong>
+      <span id="session-status" class="muted">请先选择一个本地目录</span>
+    </section>
+
+    <section class="columns">
+      <aside class="panel sidebar">
+        <div class="panel-heading"><h2>会话</h2><div><button id="new-session" class="button small" type="button" disabled>新建</button><button id="close-session" class="button small" type="button" disabled>关闭</button></div></div>
+        <ul id="session-list" class="session-list"></ul>
+        <p id="session-empty" class="empty">选择工作区后创建内存会话。</p>
+        <div class="capability-note"><strong>当前边界</strong><p>单工作区、单活动任务。重启后不恢复会话。</p></div>
+      </aside>
+
+      <section class="panel task-panel">
+        <div class="panel-heading"><div><p class="eyebrow">READ-ONLY TASK</p><h2>分析任务</h2></div><span id="task-state" class="state idle">空闲</span></div>
+        <label class="field-label" for="task-prompt">告诉 Replay 你想了解什么</label>
+        <textarea id="task-prompt" rows="4" maxlength="8000" placeholder="例如：分析这个工作区的代码结构"></textarea>
+        <div class="task-controls">
+          <label class="scenario-label" for="scenario">Replay 场景
+            <select id="scenario">
+              <option value="structure">正常代码结构分析</option>
+              <option value="encoding">中文路径 / GBK / CRLF 读取</option>
+              <option value="cancellable">可取消长流式任务</option>
+              <option value="edit">A2 受控单文件修改（需审批）</option>
+            </select>
+          </label>
+          <div class="run-actions"><button id="run-task" class="button primary" type="button" disabled>开始任务</button><button id="cancel-task" class="button danger" type="button" disabled>取消</button></div>
+        </div>
+        <div id="error-banner" class="error-banner" role="alert" hidden></div>
+        <section id="approval-panel" class="approval-panel" hidden aria-live="polite">
+          <div class="panel-heading"><h3>单文件 Diff 审批</h3><span class="state awaiting">一次性审批</span></div>
+          <p id="approval-description" class="muted"></p>
+          <dl id="approval-details" class="details"></dl>
+          <pre id="approval-diff" class="diff-box"></pre>
+          <div class="run-actions"><button id="approve-task" class="button primary" type="button">批准并写入</button><button id="reject-task" class="button danger" type="button">拒绝</button></div>
+        </section>
+        <div class="timeline-heading"><h3>执行时间线</h3><span id="timeline-note" class="muted">事件按 State 序列投影</span></div>
+        <ol id="timeline" class="timeline"></ol>
+        <div class="result-heading"><h3>最终结果</h3><span id="result-limit" class="muted"></span></div>
+        <pre id="final-result" class="result-box">尚未运行任务。</pre>
+        <button id="undo-task" class="button small" type="button" disabled>准备撤销（仍需审批）</button>
+      </section>
+
+      <aside class="panel inspector">
+        <div class="panel-heading"><h2>文件活动</h2><span class="muted">只读</span></div>
+        <ul id="file-activity" class="file-list"></ul>
+        <p id="file-empty" class="empty">工具读取的文件会出现在这里。</p>
+        <div class="divider"></div>
+        <section id="recovery-panel" class="approval-panel" hidden>
+          <div class="panel-heading"><h2>未完成写入恢复</h2><span class="state failed">需人工确认</span></div>
+          <p id="recovery-detail" class="muted">检测到未完成事务；不会自动继续写入。</p>
+          <button id="restore-recovery" class="button danger" type="button">恢复原文件</button>
+        </section>
+        <div class="divider"></div>
+        <div class="panel-heading"><h2>诊断</h2><button id="refresh-diagnostics" class="button small" type="button">刷新</button></div>
+        <dl id="diagnostics" class="details"></dl>
+      </aside>
+    </section>
+
+    <footer class="footer-status" aria-label="能力状态">
+      <span><i class="dot ok"></i>Shell <b>可信本地</b></span>
+      <span><i class="dot ok"></i>Core <b>Replay</b></span>
+      <span><i class="dot ok"></i>State <b>有界内存</b></span>
+      <span><i class="dot ok"></i>Workspace <b>只读</b></span>
+      <span><i class="dot off"></i>Gateway <b>未配置</b></span>
+      <span><i class="dot off"></i>Runner / Terminal <b>不可用</b></span>
+    </footer>
+  </main>
+  <script src="event-queue.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

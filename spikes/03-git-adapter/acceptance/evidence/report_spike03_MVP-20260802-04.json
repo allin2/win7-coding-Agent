@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-04",
+  "suite": "SPIKE_03_GIT_ADAPTER_CODEX_FORMAL_AUTOMATION",
+  "environment": {
+    "os": "win32",
+    "arch": "x64",
+    "git_path": "C:\\acceptance\\mvp_mingit\\cmd\\git.exe"
+  },
+  "artifact_hashes": {
+    "harness": "5fb4a124f37ff6ae2c6ca9e398042d13eb5adf81aa90ac5d00a91ed9dafa3a5e",
+    "adapter": "8ea50354101a01ff2668571be29bee395c312f2d6cfd74dd074a78012ad43f77",
+    "isolation": "577abb4559e8eed4bea414800bbb4d4fcde5f1090fb6dbbca5932068d0026402",
+    "git_exe": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1"
+  },
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\spike03_codex\\codex_formal_harness.js",
+    "--mvp-id=MVP-20260802-04",
+    "--report=C:\\acceptance\\report_spike03_MVP-20260802-04.json"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T01:40:17.922Z",
+    "finished_at": "2026-08-02T01:40:20.612Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "P01",
+      "status": "PASS",
+      "summary": "Controlled Git binary reports a version.",
+      "metrics": {
+        "git": "git version 2.46.2.windows.1",
+        "git_path": "C:\\acceptance\\mvp_mingit\\cmd\\git.exe"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "P02",
+      "status": "PASS",
+      "summary": "Dangerous GIT_/SSH_ variables are removed and HOME is controlled.",
+      "metrics": {
+        "home": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\win7-agent-git-empty"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "P03",
+      "status": "PASS",
+      "summary": "Isolation argv contains the mandatory command-line controls.",
+      "metrics": {
+        "args": "--no-pager -c core.hooksPath=C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\win7-agent-git-empty -c core.pager= -c core.editor=false -c credential.helper= -c credential.interactive=never -c core.sshCommand=false -c core.fsmonitor= -c core.attributesFile=NUL -c diff.external= -c interactive.diffFilter= -c protocol.allow=never"
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "P04",
+      "status": "PASS",
+      "summary": "Whitelist accepts local read/write and rejects network/global configuration.",
+      "metrics": {
+        "checks": [
+          true,
+          true,
+          true,
+          true
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N01",
+      "status": "PASS",
+      "summary": "Repository hook did not execute under the controlled hooks path.",
+      "metrics": {
+        "denied": false,
+        "exit_code": 0,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N02",
+      "status": "PASS",
+      "summary": "Repository-local filter attributes are rejected fail-closed.",
+      "metrics": {
+        "denied": true,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N03",
+      "status": "PASS",
+      "summary": "Repository-local textconv attributes are rejected fail-closed.",
+      "metrics": {
+        "denied": true,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N04",
+      "status": "PASS",
+      "summary": "Pager configuration is overridden by the isolated argv.",
+      "metrics": {
+        "denied": false,
+        "exit_code": 0,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N07",
+      "status": "PASS",
+      "summary": "Filesystem monitor configuration is overridden by the isolated argv.",
+      "metrics": {
+        "denied": false,
+        "exit_code": 0,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N08",
+      "status": "PASS",
+      "summary": "GIT_* environment injection is removed.",
+      "metrics": {
+        "removed": [
+          "GIT_CONFIG_GLOBAL",
+          "GIT_DIR"
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N09",
+      "status": "PASS",
+      "summary": "SSH_* environment injection is removed.",
+      "metrics": {
+        "removed": [
+          "SSH_AUTH_SOCK",
+          "SSH_AGENT_PID"
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N05",
+      "status": "PASS",
+      "summary": "Credential/network operation is rejected before Git starts.",
+      "metrics": {
+        "denied": true,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N06",
+      "status": "PASS",
+      "summary": "Remote helper/SSH operation is rejected by the whitelist.",
+      "metrics": {
+        "denied": true,
+        "stderr": ""
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "N10",
+      "status": "PASS",
+      "summary": "Global configuration mutation is rejected by the whitelist.",
+      "metrics": {
+        "denied": true,
+        "stderr": ""
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": [
+    "N02/N03 are fail-closed denials because Win7 Git cannot safely disable repository-local attributes.",
+    "Network listener observed connections: 0",
+    "This is a controlled MinGit derivative; the untrimmed official archive is not a D-012 delivery closure."
+  ],
+  "raw": {
+    "network_connections": 0,
+    "process_snapshots": []
+  }
+}

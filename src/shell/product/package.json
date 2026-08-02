@@ -1,0 +1,13 @@
+{
+  "name": "win7-coding-agent-mvp-shell",
+  "version": "0.2.0-a1",
+  "private": true,
+  "license": "Apache-2.0",
+  "main": "main.js",
+  "runtimeProfile": {
+    "electron": "22.3.27",
+    "architecture": "x64",
+    "target": "Windows 7 SP1 build 7601",
+    "delivery": "self-contained-offline-candidate"
+  }
+}

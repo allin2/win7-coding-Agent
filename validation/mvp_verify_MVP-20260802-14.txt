@@ -1,0 +1,21 @@
+MVP ID: MVP-20260802-14
+Command: npm run verify
+Working directory: /Users/qlyf/Developer/win7-coding-Agent
+Environment: macOS development host; local 127.0.0.1 test listeners allowed
+Exit code: 0
+
+design-guards: PASS (7 fail-closed design guards)
+gateway: lint/build PASS; 9 suites / 200 tests PASS
+workspace: lint/build PASS; 8 suites / 73 tests PASS
+state: lint/build PASS; 16 suites / 218 tests PASS
+core: lint/build PASS; 20 suites / 225 tests PASS
+runner: lint/build PASS; 3 suites / 46 tests PASS
+git-adapter: lint/build PASS; 4 suites / 51 tests PASS
+shell: lint/build and product JavaScript syntax PASS; 7 suites / 76 tests PASS
+
+Total: 7 modules / 889 tests PASS
+
+Note: an initial sandboxed run produced EPERM for 13 Gateway tests that bind
+127.0.0.1. The complete command was rerun with local test-listener permission;
+all 889 tests then passed. The sandbox failure is not classified as a product
+failure and is not used as Win7 evidence.

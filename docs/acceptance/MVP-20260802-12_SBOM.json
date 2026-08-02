@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-12",
+  "document_type": "MVP_ACCEPTANCE_RUNTIME_SBOM",
+  "record_status": "EVIDENCE_ONLY_NOT_RELEASE_PACKAGE",
+  "generated_at": "2026-08-02T11:10:00+08:00",
+  "target": {
+    "os": "Windows 7 Professional SP1 x64 build 7601",
+    "architecture": "x64",
+    "delivery_mode": "self-contained offline acceptance trees",
+    "management_channel": "Bitvise SSH 192.168.1.10 <-> 192.168.1.11:22"
+  },
+  "components": [
+    {
+      "id": "D-009",
+      "name": "Electron",
+      "version": "22.3.27",
+      "architecture": "win32-x64",
+      "source": "official Electron release archive",
+      "license": "MIT",
+      "artifact_hashes": {
+        "win32-x64.zip": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+        "electron.exe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+      },
+      "win7_evidence": "SPIKE_01 MVP harness; runtime loads on build 7601",
+      "status": "MVP_VERIFIED_RUNTIME_ONLY",
+      "formal_gap": "not a packaged product entry; T03 stdin boundary, cold reboot, visual and packet-capture gates remain open"
+    },
+    {
+      "id": "CPYTHON-3.8.10",
+      "name": "CPython embedded runtime",
+      "version": "3.8.10",
+      "architecture": "amd64",
+      "source": "official Python release archive",
+      "license": "PSF",
+      "artifact_hashes": {
+        "python-3.8.10-embed-amd64.zip": "abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271"
+      },
+      "win7_evidence": "Phase 1 standard tree 18/18 x3; E2 CJK/space tree 17 PASS + 1 expected Git degraded; regression 20/20",
+      "status": "MVP_VERIFIED_PHASE1_PREPARATION",
+      "formal_gap": "Phase 1/2 architecture Gate, physical-offline and clean-environment conditions remain owner-controlled"
+    },
+    {
+      "id": "D-012-MVP-DERIVATIVE",
+      "name": "MinGit controlled derivative",
+      "version": "2.46.2.windows.1",
+      "architecture": "x64",
+      "source": "derived from official Git for Windows archive; GCM/SSH/remote helper paths removed",
+      "license": "GPLv2 plus transitive licenses pending closure",
+      "artifact_hashes": {
+        "official.zip": "0dca60869825ceb8b6108be69f0c536174fbca45e11300f2c14c34632d8238ed",
+        "controlled-derivative.zip": "914fd56506284c54dc20f43917dcb6f2587eb7d807add2968c2d8b335070d397",
+        "cmd/git.exe": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1"
+      },
+      "win7_evidence": "SPIKE_03 MVP-20260802-12 P01-P04/N01-N10 14/14; network listener 0",
+      "status": "MVP_VERIFIED_DERIVATIVE_ONLY",
+      "formal_gap": "official archive is not the trimmed delivery closure; SBOM, license index and passive packet evidence remain open"
+    },
+    {
+      "id": "D-011",
+      "name": "node-pty + winpty",
+      "version": "0.10.0 + 0.4.3",
+      "architecture": "win32-x64",
+      "source": "not supplied",
+      "license": "MIT (to be verified against exact artifacts)",
+      "artifact_hashes": {},
+      "win7_evidence": null,
+      "status": "BUILD_HOST_MISSING",
+      "formal_gap": "Electron 22 ABI build and Win7 T01-T05/N01-N06 evidence required"
+    },
+    {
+      "id": "D-013",
+      "name": "C++ containment helper",
+      "version": "not built",
+      "architecture": "win32-x64",
+      "source": "project source skeleton",
+      "license": "project",
+      "artifact_hashes": {},
+      "win7_evidence": null,
+      "status": "BUILD_HOST_MISSING",
+      "formal_gap": "MSVC v142/Windows SDK build and Job Object/Restricted Token/ACL matrix required"
+    },
+    {
+      "id": "D-014",
+      "name": "better-sqlite3 + FTS5",
+      "version": "not supplied",
+      "architecture": "Electron 22 ABI win32-x64",
+      "source": "not supplied",
+      "license": "to be verified against exact artifact",
+      "artifact_hashes": {},
+      "win7_evidence": null,
+      "status": "BUILD_HOST_MISSING",
+      "formal_gap": "native ABI, indexer, WAL/recovery harness and performance evidence required; mechanical-disk gate is owner-accepted"
+    }
+  ],
+  "excluded_infrastructure": [
+    {
+      "name": "Bitvise SSH Server",
+      "reason": "management infrastructure only; not part of the product SBOM",
+      "verification": "SSH_CONTROL_OK; BvSshServer STATE=RUNNING"
+    }
+  ],
+  "notes": [
+    "This manifest is an evidence inventory, not an installable product package or formal release SBOM.",
+    "Missing components are recorded as BUILD_HOST_MISSING rather than inferred from same-version or modern-host evidence.",
+    "No Win7 machine PATH, NIC, route, firewall, Bitvise configuration or reboot was changed for these checks."
+  ]
+}

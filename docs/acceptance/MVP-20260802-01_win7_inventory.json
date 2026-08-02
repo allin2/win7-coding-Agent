@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-01",
+  "suite": "WIN7_ENVIRONMENT_INVENTORY",
+  "environment": {
+    "host_platform": "win32",
+    "host_arch": "x64",
+    "node": "16.17.1",
+    "electron": "22.3.27"
+  },
+  "artifact_hashes": {
+    "inventory_script": "bfaadf2d006442838f2957a5f33d9a085a4730c2e57035d43b9e83abb4107866",
+    "electron_exe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "git_exe": "02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1"
+  },
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\mvp_inventory.js",
+    "--report=C:\\acceptance\\mvp_inventory_MVP-20260802-01.json",
+    "--mvp-id=MVP-20260802-01"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-01T18:40:45.893Z",
+    "finished_at": "2026-08-01T18:40:49.533Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "os",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "cpu",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "memory",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "gpu",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "disk",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "free_space",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "current_user",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "paths",
+      "status": "PARTIAL",
+      "summary": "Command did not complete successfully; raw output retained.",
+      "metrics": {
+        "exit_code": 1,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "node_path",
+      "status": "PARTIAL",
+      "summary": "Command did not complete successfully; raw output retained.",
+      "metrics": {
+        "exit_code": 1,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "hotfixes",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "ip_config",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "electron_version",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "git_version",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "ssh_service",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "ssh_service_config",
+      "status": "PASS",
+      "summary": "Command completed.",
+      "metrics": {
+        "exit_code": 0,
+        "timed_out": false
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": [
+    "Read-only inventory. Does not change registry, network configuration, services, or application state."
+  ],
+  "raw": {
+    "os": {
+      "command": [
+        "wmic",
+        "os",
+        "get",
+        "Caption,Version,OSArchitecture,ServicePackMajorVersion,BuildNumber",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nBuildNumber=7601\r\r\nCaption=Microsoft Windows 7 Professional \r\r\nOSArchitecture=64-bit\r\r\nServicePackMajorVersion=1\r\r\nVersion=6.1.7601\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "cpu": {
+      "command": [
+        "wmic",
+        "cpu",
+        "get",
+        "Name,NumberOfCores,NumberOfLogicalProcessors",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nName=Intel(R) Core(TM) i5-6200U CPU @ 2.30GHz\r\r\nNumberOfCores=2\r\r\nNumberOfLogicalProcessors=4\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "memory": {
+      "command": [
+        "wmic",
+        "computersystem",
+        "get",
+        "TotalPhysicalMemory",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nTotalPhysicalMemory=16567287808\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "gpu": {
+      "command": [
+        "wmic",
+        "path",
+        "win32_VideoController",
+        "get",
+        "Name,DriverVersion,AdapterRAM",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nAdapterRAM=1073741824\r\r\nDriverVersion=20.19.15.4380\r\r\nName=Intel(R) HD Graphics 520\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "disk": {
+      "command": [
+        "wmic",
+        "diskdrive",
+        "get",
+        "Model,MediaType,Size,InterfaceType",
+        "/value"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\n\r\r\nInterfaceType=IDE\r\r\nMediaType=Fixed hard disk media\r\r\nModel=Samsun  SSD 870 EVO 1TB SCSI Disk Device\r\r\nSize=1000202273280\r\r\n\r\r\n\r\r\n\r\r\n",
+      "stderr": ""
+    },
+    "free_space": {
+      "command": [
+        "fsutil",
+        "volume",
+        "diskfree",
+        "C:"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "�����ֽ�����              : 953716944896\r\n�ֽ�����                  : 1000097181696\r\n���õ���δʹ�õ��ֽ�����  : 953716944896\r\n",
+      "stderr": ""
+    },
+    "current_user": {
+      "command": [
+        "whoami",
+        "/all"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\n�û���Ϣ\r\n----------------\r\n\r\n�û���                     SID                                          \r\n========================== =============================================\r\ndccs-chaizl-pc\\dccs-chaizl S-1-5-21-1708701742-428676696-1831205153-1000\r\n\r\n\r\n����Ϣ\r\n-----------------\r\n\r\n����                                 ����   SID          ����                                      \r\n==================================== ====== ============ ==========================================\r\nEveryone                             ��֪�� S-1-1-0      �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\�����ʻ��͹���Ա���Ա  ��֪�� S-1-5-114    �������, ������Ĭ��, ���õ���            \r\nBUILTIN\\Administrators               ����   S-1-5-32-544 �������, ������Ĭ��, ���õ���, ���������\r\nBUILTIN\\Users                        ����   S-1-5-32-545 �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\NETWORK                 ��֪�� S-1-5-2      �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\Authenticated Users     ��֪�� S-1-5-11     �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\This Organization       ��֪�� S-1-5-15     �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\�����ʻ�                ��֪�� S-1-5-113    �������, ������Ĭ��, ���õ���            \r\nNT AUTHORITY\\NTLM Authentication     ��֪�� S-1-5-64-10  �������, ������Ĭ��, ���õ���            \r\nMandatory Label\\High Mandatory Level ��ǩ   S-1-16-12288 �������, ������Ĭ��, ���õ���            \r\n\r\n\r\n��Ȩ��Ϣ\r\n----------------------\r\n\r\n��Ȩ��                          ����                       ״̬  \r\n=============================== ========================== ======\r\nSeIncreaseQuotaPrivilege        Ϊ���̵����ڴ����         ������\r\nSeSecurityPrivilege             ������˺Ͱ�ȫ��־         ������\r\nSeTakeOwnershipPrivilege        ȡ���ļ����������������Ȩ ������\r\nSeLoadDriverPrivilege           ���غ�ж���豸��������     ������\r\nSeSystemProfilePrivilege        �����ļ�ϵͳ����           ������\r\nSeSystemtimePrivilege           ����ϵͳʱ��               ������\r\nSeProfileSingleProcessPrivilege �����ļ���������           ������\r\nSeIncreaseBasePriorityPrivilege ��߼ƻ����ȼ�             ������\r\nSeCreatePagefilePrivilege       ����һ��ҳ���ļ�           ������\r\nSeBackupPrivilege               �����ļ���Ŀ¼             ������\r\nSeRestorePrivilege              ��ԭ�ļ���Ŀ¼             ������\r\nSeShutdownPrivilege             �ر�ϵͳ                   ������\r\nSeDebugPrivilege                ���Գ���                   ������\r\nSeSystemEnvironmentPrivilege    �޸Ĺ̼�����ֵ             ������\r\nSeChangeNotifyPrivilege         �ƹ��������               ������\r\nSeRemoteShutdownPrivilege       ��Զ��ϵͳǿ�ƹػ�         ������\r\nSeUndockPrivilege               ����չ����ȡ�¼����       ������\r\nSeManageVolumePrivilege         ִ�о�ά������             ������\r\nSeImpersonatePrivilege          ������֤��ģ��ͻ���       ������\r\nSeCreateGlobalPrivilege         ����ȫ�ֶ���               ������\r\nSeIncreaseWorkingSetPrivilege   ���ӽ��̹�����             ������\r\nSeTimeZonePrivilege             ����ʱ��                   ������\r\nSeCreateSymbolicLinkPrivilege   ������������               ������\r\n",
+      "stderr": ""
+    },
+    "paths": {
+      "command": [
+        "where",
+        "python"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "error": null,
+      "stdout": "",
+      "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+    },
+    "node_path": {
+      "command": [
+        "where",
+        "node"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "error": null,
+      "stdout": "",
+      "stderr": "��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���\r\n"
+    },
+    "hotfixes": {
+      "command": [
+        "wmic",
+        "qfe",
+        "get",
+        "HotFixID,InstalledOn",
+        "/format:csv"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\r\nNode,HotFixID,InstalledOn\r\r\nDCCS-CHAIZL-PC,KB2534111,7/31/2026\r\r\nDCCS-CHAIZL-PC,KB2685811,8/1/2026\r\r\nDCCS-CHAIZL-PC,KB2999226,8/1/2026\r\r\nDCCS-CHAIZL-PC,KB3140245,8/1/2026\r\r\nDCCS-CHAIZL-PC,KB4474419,8/1/2026\r\r\nDCCS-CHAIZL-PC,KB4490628,8/1/2026\r\r\nDCCS-CHAIZL-PC,KB976902,11/21/2010\r\r\n",
+      "stderr": ""
+    },
+    "ip_config": {
+      "command": [
+        "ipconfig",
+        "/all"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\nWindows IP ����\r\n\r\n   ������  . . . . . . . . . . . . . : dccs-chaizl-PC\r\n   �� DNS ��׺ . . . . . . . . . . . : \r\n   �ڵ�����  . . . . . . . . . . . . : ���\r\n   IP ·�������� . . . . . . . . . . : ��\r\n   WINS ���������� . . . . . . . . . : ��\r\n\r\n���߾����������� ������������ 3:\r\n\r\n   ý��״̬  . . . . . . . . . . . . : ý���ѶϿ�\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Microsoft Virtual WiFi Miniport Adapter #2\r\n   ������ַ. . . . . . . . . . . . . : F2-D5-BF-A1-B4-50\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n\r\n���߾����������� ������������ 2:\r\n\r\n   ý��״̬  . . . . . . . . . . . . : ý���ѶϿ�\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Microsoft Virtual WiFi Miniport Adapter\r\n   ������ַ. . . . . . . . . . . . . : F2-D5-BF-A1-B4-4F\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n\r\n���߾����������� ������������:\r\n\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Intel(R) Dual Band Wireless-AC 8260\r\n   ������ַ. . . . . . . . . . . . . : F0-D5-BF-A1-B4-4F\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n   IPv6 ��ַ . . . . . . . . . . . . : 2408:820c:342a:6b40:d971:3e1b:2d7a:610c(��ѡ) \r\n   ��ʱ IPv6 ��ַ. . . . . . . . . . : 2408:820c:342a:6b40:8526:7576:a9cd:d64a(��ѡ) \r\n   �������� IPv6 ��ַ. . . . . . . . : fe80::d971:3e1b:2d7a:610c%13(��ѡ) \r\n   IPv4 ��ַ . . . . . . . . . . . . : 192.168.1.11(��ѡ) \r\n   ��������  . . . . . . . . . . . . : 255.255.255.0\r\n   �����Լ��ʱ��  . . . . . . . . . : 2026��8��2�� 1:33:23\r\n   ��Լ���ڵ�ʱ��  . . . . . . . . . : 2026��8��5�� 2:28:49\r\n   Ĭ������. . . . . . . . . . . . . : fe80::1%13\r\n                                       192.168.1.1\r\n   DHCP ������ . . . . . . . . . . . : 192.168.1.1\r\n   DHCPv6 IAID . . . . . . . . . . . : 317773247\r\n   DHCPv6 �ͻ��� DUID  . . . . . . . : 00-01-00-01-31-FE-A8-E9-C8-5B-76-97-07-9F\r\n   DNS ������  . . . . . . . . . . . : fe80::1%13\r\n                                       192.168.1.1\r\n   TCPIP �ϵ� NetBIOS  . . . . . . . : ������\r\n\r\n��̫�������� ��������:\r\n\r\n   ý��״̬  . . . . . . . . . . . . : ý���ѶϿ�\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Intel(R) Ethernet Connection I219-V\r\n   ������ַ. . . . . . . . . . . . . : C8-5B-76-97-07-9F\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n\r\n���������� isatap.{8D98F895-09DB-4C79-93BA-551248BD4A7B}:\r\n\r\n   ý��״̬  . . . . . . . . . . . . : ý���ѶϿ�\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Microsoft ISATAP Adapter\r\n   ������ַ. . . . . . . . . . . . . : 00-00-00-00-00-00-00-E0\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n\r\n���������� isatap.{BBFF9B14-4E5A-45F3-A8AC-9A16E90B6A00}:\r\n\r\n   ý��״̬  . . . . . . . . . . . . : ý���ѶϿ�\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Microsoft ISATAP Adapter #2\r\n   ������ַ. . . . . . . . . . . . . : 00-00-00-00-00-00-00-E0\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n\r\n���������� isatap.{53E96178-140A-421A-94CC-A0C9ABD9F072}:\r\n\r\n   ý��״̬  . . . . . . . . . . . . : ý���ѶϿ�\r\n   �����ض��� DNS ��׺ . . . . . . . : \r\n   ����. . . . . . . . . . . . . . . : Microsoft ISATAP Adapter #3\r\n   ������ַ. . . . . . . . . . . . . : 00-00-00-00-00-00-00-E0\r\n   DHCP ������ . . . . . . . . . . . : ��\r\n   �Զ�����������. . . . . . . . . . : ��\r\n",
+      "stderr": ""
+    },
+    "electron_version": {
+      "command": [
+        "C:\\acceptance\\electron\\electron.exe",
+        "--version"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\nv22.3.27\n",
+      "stderr": ""
+    },
+    "git_version": {
+      "command": [
+        "C:\\acceptance\\git\\cmd\\git.exe",
+        "--version"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "git version 2.46.2.windows.1\n",
+      "stderr": ""
+    },
+    "ssh_service": {
+      "command": [
+        "sc",
+        "queryex",
+        "BvSshServer"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n        PID                : 1932\r\n        FLAGS              : \r\n",
+      "stderr": ""
+    },
+    "ssh_service_config": {
+      "command": [
+        "sc",
+        "qc",
+        "BvSshServer"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "error": null,
+      "stdout": "[SC] QueryServiceConfig �ɹ�\r\n\r\nSERVICE_NAME: BvSshServer\r\n        TYPE               : 10  WIN32_OWN_PROCESS \r\n        START_TYPE         : 2   AUTO_START\r\n        ERROR_CONTROL      : 1   NORMAL\r\n        BINARY_PATH_NAME   : \"C:\\Program Files\\Bitvise SSH Server\\BvSshServer.exe\"\r\n        LOAD_ORDER_GROUP   : \r\n        TAG                : 0\r\n        DISPLAY_NAME       : Bitvise SSH Server\r\n        DEPENDENCIES       : RpcSs\r\n                           : TcpIp\r\n                           : MpsSvc\r\n        SERVICE_START_NAME : LocalSystem\r\n",
+      "stderr": ""
+    }
+  }
+}

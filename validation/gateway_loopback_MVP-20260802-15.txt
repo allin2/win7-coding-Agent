@@ -1,0 +1,58 @@
+MVP ID: MVP-20260802-15
+Suite: Gateway NodeNetworkStack loopback-listener recheck
+Started: 2026-08-02T11:49:50+08:00
+Finished: 2026-08-02T11:50:31+08:00
+Exit code: 0
+
+Environment:
+- ProductName: macOS
+- ProductVersion: 15.7.7
+- BuildVersion: 24G720
+- Kernel: Darwin 24.6.0 arm64
+- Node.js: v20.17.0
+- npm: 10.8.2
+- Network scope: TCP loopback only; ephemeral bind(127.0.0.1, 0)
+- Public listener: none
+- External network/DNS: not used; the `.invalid` DNS test was excluded
+
+Command:
+npm test -- --runInBand tests/unit/transport/node-network.test.ts --testNamePattern='performs a GET request|performs a POST request|handles non-200 status codes|handles 500 status codes|rejects on connection refused \(bad port\)|rejects with CONNECTION_TIMEOUT when server is slow|rejects when response exceeds max size|accepts response within size limit|per-request proxy overrides stack-level proxy|sends custom headers and receives response headers|normalizes response header keys to lowercase|correctly handles UTF-8 response bodies|correctly sends UTF-8 request bodies'
+
+stdout/stderr:
+
+> @win7-agent/gateway@0.1.0 test
+> jest --runInBand tests/unit/transport/node-network.test.ts --testNamePattern=performs a GET request|performs a POST request|handles non-200 status codes|handles 500 status codes|rejects on connection refused \(bad port\)|rejects with CONNECTION_TIMEOUT when server is slow|rejects when response exceeds max size|accepts response within size limit|per-request proxy overrides stack-level proxy|sends custom headers and receives response headers|normalizes response header keys to lowercase|correctly handles UTF-8 response bodies|correctly sends UTF-8 request bodies
+
+PASS tests/unit/transport/node-network.test.ts
+  transport/NodeNetworkStack integration (HTTP)
+    ✓ performs a GET request and returns response (7 ms)
+    ✓ performs a POST request with body (2 ms)
+    ✓ handles non-200 status codes
+    ✓ handles 500 status codes (1 ms)
+    ✓ rejects on connection refused (bad port) (6 ms)
+    ○ skipped rejects on DNS lookup failure
+  transport/NodeNetworkStack timeout
+    ✓ rejects with CONNECTION_TIMEOUT when server is slow (408 ms)
+  transport/NodeNetworkStack response size limit
+    ✓ rejects when response exceeds max size (13 ms)
+    ✓ accepts response within size limit (7 ms)
+  transport/NodeNetworkStack proxy
+    ✓ per-request proxy overrides stack-level proxy (3 ms)
+    ○ skipped stores proxy config from constructor
+  transport/NodeNetworkStack headers
+    ✓ sends custom headers and receives response headers (2 ms)
+    ✓ normalizes response header keys to lowercase (2 ms)
+  transport/NodeNetworkStack UTF-8
+    ✓ correctly handles UTF-8 response bodies (1 ms)
+    ✓ correctly sends UTF-8 request bodies (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       22 skipped, 13 passed, 35 total
+Snapshots:   0 total
+Time:        0.938 s, estimated 4 s
+
+Disposition:
+All 13 previously sandbox-blocked loopback tests passed when the process was
+allowed to bind and connect to 127.0.0.1 ephemeral ports. The prior EPERM is
+therefore classified as execution-environment policy, not a test assertion or
+Gateway implementation failure.

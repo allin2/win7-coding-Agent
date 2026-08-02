@@ -27,7 +27,7 @@ Blocking-Reason: PC-003 ruled 2026-07-29 (ADR-0036); pending SPIKE_01 Go and E7 
 
 - `src/gateway/**`（Node/TypeScript 实现）、`tests/gateway/**`、本文档 §13 验证记录。
 
-禁止路径：其他阶段目录、`src/win7_agent/**`（Python legacy 冻结，ADR-0029）、已 Accepted ADR 正文。
+禁止路径：其他阶段目录、`src/phase1-2/win7_agent/**`（Python legacy 冻结，ADR-0029）、已 Accepted ADR 正文。
 
 ## 1. 目标
 

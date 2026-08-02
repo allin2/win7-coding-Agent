@@ -1,0 +1,67 @@
+test_invalid_path_returns_internal_error (test_cli.CliTests) ... ERROR report_write_failed: report parent directory does not exist
+ok
+test_only_keeps_all_report_entries (test_cli.CliTests) ... ok
+test_conflict_is_degraded (test_os.OsTests) ... ok
+test_win7_without_sp1_fails (test_os.OsTests) ... ok
+test_r1_root_version_and_batch_attributes (test_repairs.RepairTests) ... ok
+test_r2_capture_timeout_reaps_registry (test_repairs.RepairTests) ... ok
+test_r3_leaked_check_thread_is_recorded (test_repairs.RepairTests) ... ok
+test_r4_subprocess_behavior_does_not_use_filesystem_code (test_repairs.RepairTests) ... ok
+test_r5_csv_pid_matching_is_exact (test_repairs.RepairTests) ... ok
+test_r6_existing_evidence_is_replaced (test_repairs.RepairTests) ... ok
+test_r6_serialization_failure_removes_half_database (test_repairs.RepairTests) ... ok
+test_r7_host_consumes_verdict (test_repairs.RepairTests) ... ok
+test_r7_report_build_failure_returns_three (test_repairs.RepairTests) ... ERROR report_write_failed: bad report
+ok
+test_r7_safe_getuser_and_help_exit_zero (test_repairs.RepairTests) ... usage: python -m win7_agent.probe [-h] [--out OUT] [--db DB]
+                                  [--timeout-scale TIMEOUT_SCALE]
+                                  [--max-stdout-bytes MAX_STDOUT_BYTES]
+                                  [--max-stderr-bytes MAX_STDERR_BYTES]
+                                  [--list] [--only ONLY]
+python -m win7_agent.probe: error: argument --timeout-scale: invalid float value: 'invalid'
+ok
+test_r8_encoding_byte_details (test_repairs.RepairTests) ... ok
+test_r8_non_target_precedes_source_conflict (test_repairs.RepairTests) ... ok
+test_r8_path_too_long_both_forms (test_repairs.RepairTests) ... ok
+test_error_serializes (test_result.ResultTests) ... ok
+test_exit_code_priority (test_result.ResultTests) ... ok
+test_truncates_and_drains (test_subproc.SubprocessTests) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 3.056s
+
+OK
+[SKIP] os.version
+[SKIP] python.runtime
+[SKIP] process.bitness
+[PASS] sqlite.basic
+[SKIP] tempfile.basic
+[SKIP] fs.unicode_paths
+[SKIP] fs.encodings
+[SKIP] fs.crlf_preserve
+[SKIP] proc.exec
+[SKIP] proc.timeout
+[SKIP] proc.capture
+[SKIP] proc.truncate
+[SKIP] proc.kill
+[SKIP] tool.git
+[SKIP] tls.python_runtime
+[SKIP] disk.space
+[SKIP] env.user_temp
+[SKIP] report.sqlite
+RESULT exit_code=0 report=C:\Users\DCCS-C~1\AppData\Local\Temp\tmpaslxprc4\Chinese report.json
+usage: python -m win7_agent.probe [-h] [--out OUT] [--db DB]
+                                  [--timeout-scale TIMEOUT_SCALE]
+                                  [--max-stdout-bytes MAX_STDOUT_BYTES]
+                                  [--max-stderr-bytes MAX_STDERR_BYTES]
+                                  [--list] [--only ONLY]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --out OUT
+  --db DB
+  --timeout-scale TIMEOUT_SCALE
+  --max-stdout-bytes MAX_STDOUT_BYTES
+  --max-stderr-bytes MAX_STDERR_BYTES
+  --list
+  --only ONLY

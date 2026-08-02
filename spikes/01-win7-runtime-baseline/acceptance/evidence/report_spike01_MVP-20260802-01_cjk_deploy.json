@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-01",
+  "suite": "SPIKE_01_CJK_DEPLOYMENT",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "artifact_hashes": {},
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\mvp_deploy_spike01_cjk.js",
+    "--mvp-id=MVP-20260802-01",
+    "--report=C:\\acceptance\\report_spike01_MVP-20260802-01_cjk_deploy.json"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-01T18:58:42.191Z",
+    "finished_at": "2026-08-01T18:58:42.194Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "T05_DEPLOY",
+      "status": "PASS",
+      "summary": "Acceptance harness copied to a Chinese-and-space path.",
+      "metrics": {
+        "source": "C:\\acceptance\\mvp_spike01",
+        "target": "C:\\测试 目录\\mvp spike01",
+        "target_exists": true
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": []
+}

@@ -55,7 +55,7 @@ Win7 端不再被定义为“Python 纯执行 CLI”。它可以包含桌面界�
   设备权限；不能用“没有 Node 权限”推导 Renderer 不能联网。
 - 拒绝任意导航、新窗口和协议调用；外部链接交由受控系统浏览器。
 
-独立 Node.js 12 可作为 CLI/辅助进程候选，但不是 Electron 嵌入式 Node 的替代要求；精确补丁版本、原生模块 ABI 和 Win7 实机结果由 Spike 决定。ADR-0028（Proposed）作为 **Electron 首选实施 Profile**（"可交付 Win7"以 SPIKE_01 实机为准，未通过前不表述为"已满足 Win7"）进一步提议：v1 统一为 Electron 22.3.27 单栈，进程边界为 main（仅编排）/ Agent Core（独立 `utilityProcess`，关闭 `runAsNode` fuse、不用 `ELECTRON_RUN_AS_NODE`）/ Renderer（最小权限）；**唯一自研原生组件**为一个 C++ x64 helper（D-013），另有 winpty/node-pty、SQLite 绑定、MinGit 等原生工件按 WIN7_CONSTRAINTS §6 登记；降级各档须另配独立 Core 宿主，淘汰路线见该 ADR。
+独立 Node.js 12 可作为 CLI/辅助进程候选，但不是 Electron 嵌入式 Node 的替代要求；精确补丁版本、原生模块 ABI 和 Win7 实机结果由 Spike 决定。ADR-0028（Accepted，附 Win7 Spike 条件）作为 **Electron 首选实施 Profile**（"可交付 Win7"以 SPIKE_01 实机为准，未通过前不表述为"已满足 Win7"）进一步提议：v1 统一为 Electron 22.3.27 单栈，进程边界为 main（仅编排）/ Agent Core（独立 `utilityProcess`，关闭 `runAsNode` fuse、不用 `ELECTRON_RUN_AS_NODE`）/ Renderer（最小权限）；**唯一自研原生组件**为一个 C++ x64 helper（D-013），另有 winpty/node-pty、SQLite 绑定、MinGit 等原生工件按 WIN7_CONSTRAINTS §6 登记；降级各档须另配独立 Core 宿主，淘汰路线见该 ADR。
 
 ### 2.2 Agent Core
 
@@ -104,11 +104,13 @@ Gateway 不再限定为 Python 标准库 HTTP 客户端。任务书必须选择�
 | 文档与 ADR 体系 | `[当前已授权]` | 可继续维护，但关键决策必须新增 ADR |
 | `win7_agent.probe` | `[历史冻结实现]` | Phase 1 继续使用 CPython 3.8.10 标准库；完成状态仍取决于 Win7 E1/E2 验收 |
 | 只读代码分析 Agent | `[当前已授权]` | 仅按 Phase 2 任务书、指定分支与允许路径实现；Mock/Replay、目标工作区只读、无真实模型/网络 |
-| Desktop Shell | `[候选待 Spike]` | Electron 22.3.27 等候选必须先有独立兼容性 Spike 任务书 |
-| 通用 Agent Core、Runner、Gateway | `[未来待授权]` | 本文只冻结边界，不授权代码 |
-| 写入、交互终端、后台服务、插件、多 Agent | `[未来待授权]` | 不再全局禁止，分别经过任务书、安全模型和 Win7 验收后引入 |
+| Desktop Shell | `[MVP 入口已实机验证/完整装配待完成]` | IPC Schema、安全策略、Updater 基线和最小权限 main/preload/renderer 已实现；Win7 启动/诊断/退出 smoke PASS，五视图与跨模块 E2E 仍缺 |
+| Gateway / Workspace / State | `[理论实现/待实机]` | Phase 3–5 源码已汇入整合分支；企业网络、SQLite 原生绑定与 Win7 证据未完成 |
+| Agent Core / Runner / Git Adapter | `[契约骨架/受阻]` | Policy、Broker、状态与 Mock 已实现；真实 Runner 在 SPIKE_02 前 fail-closed |
+| 交互终端、后台服务、插件、多 Agent | `[未来待授权或待实机]` | 终端等待 SPIKE_02；插件/多 Agent 不在 v1 |
 
-ADR-0027 不修改 Phase 1/2 的 Python 3.8.10、标准库、零网络、只读、分支和路径白名单合同，也不允许把新运行时文件放入既有白名单。
+ADR-0027 不修改 Phase 1/2 的 Python 3.8.10、标准库、零网络、只读、分支和路径白名单合同。
+Phase 3–7 的授权来源为 ADR-0036、各阶段任务书与整合任务书，不来自本文架构描述。
 
 ## 4. 关键架构原则
 
@@ -178,7 +180,7 @@ sequenceDiagram
 ```text
 win7-coding-agent/
   docs/                  # 约束、ADR、任务书、协议和验收
-  legacy/                # Phase 1/2 历史冻结组件（实际路径以任务书为准）
+  phase1-2/              # Phase 1/2 历史冻结组件（实际路径以任务书为准）
   desktop/               # Desktop Shell（未来任务）
   core/                  # Agent Core、Policy、上下文与调度（未来任务）
   runner/                # Runner、终端和 Tool Adapters（未来任务）

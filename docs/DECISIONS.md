@@ -259,3 +259,266 @@
   - DPAPI：完全可用。
   - Job Object：不支持嵌套（Win8+ 才有），containment 保持 best-effort。
 - 后果：Phase 3-7 和 SPIKE 1-4 任务书可从 DRAFT 升级为 APPROVED_FOR_IMPLEMENTATION（SPIKE 先行，Phase 待对应 Spike Go 后逐阶段解锁）；所有组件均已 EOL 或到达支持边界，需严格版本锁定与 SBOM 治理；终端层和 containment 层存在实机验证后返工风险（独立模块，成本可控）。
+
+## ADR-0037 Phase 3–7 采用保留历史的整合基线；Phase 1/2 不重写，Phase 3 定向重构
+
+- 状态：Accepted（2026-07-30，项目负责人明确要求整合、修复、清理并评估重写）
+- 背景：Phase 3→4 形成连续历史，Phase 5、6、7 则从 Phase 4 分支并行开发；因此任一阶段分支的工作树都不会同时出现全部模块。旧版 `docs/ROBUSTNESS_AUDIT.md` 在 Phase 3 工作树中检查目录，并把其他权威分支上的源码判为缺失；工作树还残留约三万项 `node_modules`/`dist` 派生物，进一步混淆了源码事实。ADR-0029 已冻结 Phase 1/2 Python legacy，Phase 6 应继承其契约与测试而不是复制实现。现有 Phase 3 协议抽象可保留，但重试、TLS、流式解析、并发隔离和错误映射存在已复现缺陷。
+- 决策：（1）新增 `INTEGRATION_01_ROBUSTNESS_HARDENING` 任务书承载跨阶段授权；整合分支固定为 `codex/integrated-robustness`，以 Phase 6 为基础并合并 Phase 5、Phase 7，借 Phase 6 已有祖先获得 Phase 3/4，禁止复制工作树或提交生成物来“补齐”模块。（2）Phase 1 不重写，继续作为安装前 legacy Probe，只做经验证的缺陷修复；Phase 2 不重写、不整体迁移，保留历史分支/标签，契约与测试矩阵继续作为 Node Core 的规范来源。（3）Phase 3 不推倒重写：保留 Provider/Protocol/Transport 分层及既有测试资产，对 Transport/Provider 进行边界清晰的定向重构；若实机 SPIKE 证明 Node `https` 无法满足企业代理、CA 或 Win7 TLS 要求，再以补充 ADR 切换网络栈。（4）Phase 4–7 只修复已证实的安全、原子性、恢复和交互契约问题；真实进程 containment 与交互终端仍等待 SPIKE_02，不以不受控降级换取表面可运行。（5）清理可再生派生物并补根级忽略规则；未证明重复的手写测试必须保留。（6）审计结论必须标注分支/提交、证据类型与状态，未执行的测试不得写成失败，开发机通过不得写成 Win7 通过。
+- 后果：项目获得可追溯、可测试的单一整合基线，同时保留各阶段审查历史；Phase 1/2 的已验证资产不会因重写而失效，Phase 3 的修复成本集中在网络边界而非全部重建。整合基线仍不等于可交付产品：Phase 6 缺真实 containment、Phase 7 缺完整桌面入口、SPIKE 1–4 与 Win7 端到端证据仍是完成门槛。
+
+## ADR-0038 Agent 完成态、审批绑定与本地执行入口统一收口
+
+- 状态：Accepted（2026-07-30，项目负责人在架构验收后明确要求“修复 Agent 设计问题”）
+- 背景：当前整合基线具备 Gateway、Workspace、State、Core、Runner、Git Adapter 与 Shell 的模块级实现，但没有把它们收口为可证明完成的 Agent 闭环。状态机允许 `EXECUTING` 直接进入 `COMPLETED`；审批只比较级别，未绑定预览与工作区基线；Workspace Apply 没有强制根目录参数；Git Adapter 虽声明“通过 IRunner”，实际直接 `child_process.spawn`。这些缺口会分别造成错误完成、批准后内容漂移、工作区越界和绕过 containment，属于 Agent 设计问题，不是 Win7 平台限制。
+- 决策：（1）Node Core 的单 Agent Loop 采用依赖注入边界连接模型、工具执行、事件与验证；Mock/Replay 仅由测试或显式装配使用，不提供隐式生产默认。（2）任务执行结束先进入 `VERIFYING`；Verification Gate 按声明的检查项核验，生成版本化、内容摘要可复算的 `EvidenceBundle`，只有通过后才能转入 `COMPLETED`。（3）所有工具经版本化 `ToolSpec` 注册表解析；上下文编排必须生成带预算、已选/省略项、截断原因和稳定摘要的 `ContextManifest`。（4）workspace-write 审批记录绑定会话、工具、规范化请求指纹、预览摘要、工作区基线、有效期和一次性消费状态；执行边界重新计算并核对，变化、过期或重放一律拒绝。（5）`applyPlan` 强制接收 workspace root，在任何备份/写入前、创建目录后和替换后校验真实路径边界；回滚结果显式区分完成与失败，不静默吞掉恢复错误。（6）Git Adapter 删除直接进程启动能力，只接受结构上兼容 `IRunner` 的注入端口；缺少 Runner 或 Runner fail-closed 时 Git 同样拒绝。（7）事件身份增加 Run/Thread 关联和 Session 内稳定序号；相同 ID、相同内容的重试幂等返回既有事件，相同 ID 的冲突内容拒绝。（8）SQLite、真实 containment、MinGit G10、Electron UI 和 Win7 结论仍由对应 SPIKE/阶段门禁决定，本 ADR 不允许用内存实现或 Mock 证据冒充生产完成。
+- 后果：完成态、审批、文件写入和 Git 进程入口获得同一套 fail-closed 语义，Core 可以用显式 Mock/Replay 做纵向确定性回归。代价是 `applyPlan`、Git Adapter、workspace-write Runner 请求与 Event Schema 出现有意的收紧式接口变更；调用方必须提供根目录、Runner 和绑定审批，旧的“只传计划/直接执行”调用会在编译或运行时失败。目标端可交付性仍取决于 SPIKE_01~04 和 Win7 实机验证。
+
+## ADR-0039 Agent Loop 的 Turn/Step 边界、六类结局与取消配对
+
+- 状态：Accepted（2026-07-30，项目负责人依据 Agent Loop 第一讲验收结论要求修复）
+- 背景：ADR-0038 建立了“规划→工具→验证”的纵向闭环，但 Core 仍只调用模型一次并批量执行固定计划，工具结果不会返回模型继续决策；同时缺少 Turn/Step 作用域、四维预算、预算收尾、Step 级重试、重复调用检测和运行中取消配对。该实现属于可验证流水线，不满足生产 Agent Loop 的边界合同。
+- 决策：（1）Thread 由 `threadId` 关联历史与恢复，Turn 由 `turnId` 承载预算和取消，Step 是一次逻辑模型调用及其工具结果，模型重试只发生在同一 Step 内。（2）Turn 结局穷举为 `COMPLETED`、`NEEDS_APPROVAL`、`BUDGET_EXCEEDED`、`CANCELLED`、`STUCK`、`FAILED`；审批是带版本化 `RuntimeCheckpoint` 的可序列化挂起点，恢复时继承消息、预算消耗与验证要求，不重新生成已批准计划。（3）Turn 同时限制 Step、Token、单调墙钟时间和工具调用次数；预算耗尽时给模型一次有独立短宽限、强制 `toolChoice=none` 的收尾机会，失败则由事件轨迹生成确定性本地摘要。（4）模型调用采用有界 Step 级重试；工具调用不自动重放。连续三次相同工具名与规范化参数摘要触发 `STUCK`。（5）Policy DENY、工具校验失败、预算阻止、取消和执行失败均生成与 `toolCallId` 配对的结构化 `tool.result` 并进入模型历史；只有审批挂起发生在工具启动前且不伪造执行结果。（6）取消信号贯穿模型、验证器和 Tool Executor；有副作用工具取消后必须由 Executor 报告进程树终止与清理完成，无法确认时以 `CANCELLATION_FAILED` fail-closed，不得返回成功取消。（7）Core 只定义 Win7 兼容的取消端口，不实现或模拟 containment；生产 Executor 必须由 SPIKE_02 通过后的 Job Object/Restricted Token helper 承载，`taskkill` 不得冒充安全等价物。（8）完成态仍必须经过 ADR-0038 的 Verification Gate。
+- 后果：`RuntimeModel` 改为接收完整 Step 输入（消息、步号、重试次数、工具选择和 AbortSignal），`RuntimeToolExecutor` 改为接收 deadline/AbortSignal 并可实现显式清理，现有调用方必须适配新接口。Core 可在现代开发机确定性验证全部 Loop 分支，但 Win7 生产取消、SQLite Checkpoint 持久化、Electron 装配和实机结论仍分别受 SPIKE_02、SPIKE_04、SPIKE_01 与 Phase 6/7 门禁约束。
+
+## ADR-0040 Agent Loop 工具批次配对与 EventSink 三阶段故障语义
+
+- 状态：Accepted（2026-07-30，项目负责人提交第一讲验收缺陷并要求核验、优化）
+- 背景：ADR-0039 已要求工具调用与结果合法配对，但同一模型 Step 返回多个调用时，若中途发生 STUCK、运行中取消或副作用取消清理失败，当前调用有结果而后续未启动调用没有配对结果。另一方面，`RuntimeEventSink.append` 异常会被误归为 `MODEL_FAILED`，错误收尾时再次写事件还会让 `run()` 裸拒绝；这与 ADR-0025 收编的 EventStore 三阶段故障合同和“完整前缀”语义不一致。Turn 建立前的预算、上下文与 Checkpoint 校验仍抛泛型 `TypeError/Error`，未知编排异常也会冒充模型故障。
+- 决策：（1）模型在一个 Step 中声明的全部工具调用，除未执行即进入审批挂起的调用外，必须各有一个 `tool.result`；STUCK、运行中取消和 `CANCELLATION_FAILED` 在结束前，将同批后续调用配对为未启动的 `denied/cancelled` 结果。（2）EventSink 故障分为 `startup`、`running`、`finalizing`：启动或运行阶段必要事件失败时，Turn 返回 `FAILED + EVENT_STORE_FAILED + traceComplete=false`；仅最终 `turn.finished` 失败时保留已经形成的业务结局，同时返回 `storageFailureStage=finalizing` 和独立 `eventStoreError`。（3）`turn.suspended` 是 Checkpoint 可恢复性的必要证据，不属于可降级的最终收尾；写入失败必须 fail-closed，且不得向调用方返回未持久化的 Checkpoint。（4）状态转移采用持久化先行：先接受 `state.transition` 事件，再更新内存状态；事件序号仅在 append 成功后推进。终态释放 Runtime 内的 Run 序号与存储故障记录，审批挂起则保留至恢复结束。（5）Turn 建立前非法输入统一抛 `RUNTIME_INPUT_INVALID` 的 `AgentError`；未归入已有错误域的编排异常统一为 `INTERNAL`，不得冒充 `MODEL_FAILED`。
+- 后果：`RuntimeResult` 新增权威 `traceComplete`、可选 `storageFailureStage` 与 `eventStoreError`；EventSink 失败不再造成二次异常裸逃逸，调用方能区分业务失败与仅审计收尾不完整。Core 仍只定义持久化失败协议，没有因此完成 SQLite/崩溃恢复；具体存储引擎、断电一致性和 Win7 工件证据继续受 SPIKE_04 门禁约束。
+
+## ADR-0041 状态以不可变事实为准，视图由事件投影生成
+
+- 状态：Accepted（2026-07-30，项目负责人要求按状态、事件与协议验收标准修复）
+- 背景：现有 State 模块已有内存追加和基础幂等，却仍将消息、运行时检查点与事件轨迹并列为事实来源；事件未统一携带 Turn 边界，孤儿工具启动、文件变化、压缩历史和多订阅背压没有可验证合同。这会使重放、恢复与审计结果依赖调用顺序或易失内存，而不是可排序的事实。
+- 决策：（1）新增 V2 事件信封：`eventId`、`schemaVersion`、Thread 内稳定 `seq`、`sessionId`、`threadId`、`turnId`、`runId`、UTC 时间、`type` 与 JSON payload 均为不可变字段。（2）消息、工具结果、文件变更、用量与 UI 状态一律由事件投影生成；`*.started` 没有配对 `*.finished` 时，投影必须产生安全的 `interrupted` 工具结果。（3）文件成功写入必须与 `file.changed` 事实同批提交；任一阶段失败均不得把轨迹标为完整。（4）压缩以 `compaction.applied` 事实和 `supersedesCompactionIds` 构成可追溯 DAG，原始事件不得删除。（5）事件入口使用 `submit`，读取使用可独立退订的 `subscribe`；订阅者背压只可合并或丢弃 delta，永不得丢弃事实事件。（6）重试策略改为数据驱动错误矩阵；未知事件按版本前向兼容原则跳过并输出警告。（7）SQLite、断电原子性与跨进程恢复继续由 SPIKE_04 决定，内存实现只作为协议与开发机合同实现，不得作为持久化完成证据。
+- 后果：State V2 与投影、订阅队列可在开发机进行确定性回归，Core/Workspace 后续必须改为向该边界提交事实，禁止再把可重建消息数组作为恢复权威。协议有意接受新增事件类型，旧消费者会记录告警并跳过未知事件；生产 SQLite、崩溃注入与 Win7 实机结果仍保持未完成。
+
+## ADR-0042 命令执行采用 Runner V2 联合结果与字节级有界输出
+
+- 状态：Accepted（2026-07-30，项目负责人要求按工具设计与命令执行标准修复）
+- 背景：现有 Runner 只使用单一超时、单一字符串输出上限与异常拒绝表达预期执行失败；
+  Git Adapter 的请求映射也无法表达 stdin、空闲超时和独立流上限。这使 Agent、UI 和审计
+  无法可靠地区分“未启动”“已取消”“已超时”与“清理未知”，且截断后的输出缺少可操作的
+  上下文。
+- 决策：（1）Runner 请求冻结为 V2：`timeoutMs`、`idleTimeoutMs`、独立
+  `maxStdoutBytes/maxStderrBytes`、绝对 `workDir`、受控 `envOverlay` 和固定
+  `stdinPolicy=closed` 为必填执行合同。（2）结果使用版本化 `status` 联合；所有预期的
+  拒绝、超时、取消、启动与 containment 不可用结果都 resolve 为结构化错误，仅编程缺陷
+  才允许 Promise rejection。（3）每个输出流按字节累计；超过保留上限后继续由底层 transport
+  排空，同时保存首尾片段、总读取量、保留量、遗漏量、解码替换数与明显的截断提示。
+  （4）通用 Runner 禁止 Shell host，argv 中的元字符仅作为数据；Agent stdin 永远关闭。
+  （5）Git Adapter 仅把隔离后的结构化请求交给注入 Runner，并映射 V2 结果，不恢复直接
+  进程启动。（6）真实执行、Job Object、CP936 解码、取消后树清理和交互终端不由 Mock
+  声称完成；SPIKE_02 未 Go 前生产 Runner 固定返回 `capability_unavailable`。
+- 后果：所有调用方需要迁移旧 `timeout/maxOutput/env` 字段和扁平结果；获得可审计且可复测
+  的失败语义与有限输出上下文。Mock 覆盖只能证明协议，不证明 Win7 containment、编码或
+  真实进程清理，后续原生 helper 仍须按 SPIKE_02 的实机证据接入。
+
+## ADR-0043 Core 恢复以 State V2 投影为权威，Checkpoint 只保存恢复锚点
+
+- 状态：Accepted（2026-07-30，项目负责人要求复核并继续修复第二讲验收缺口）
+- 背景：ADR-0041 已规定消息是事件投影，但 Core 的 `RuntimeCheckpoint 1.0` 仍复制完整 messages 数组，Core RuntimeEvent 与 State V2 也没有适配器。进程中断后即使日志中存在孤儿工具启动事实，Core 恢复仍可能采用过时消息快照，违背单一事实来源。
+- 决策：（1）新增结构化 `RuntimeEventLedgerSink`，将 Core 生命周期事件映射到 State V2；V2 ledger 是 Thread 序号唯一分配者，Core 序号仅作为确定性幂等事件 ID 的来源。（2）`RuntimeCheckpoint 2.0` 删除 messages，只保留身份、最后事件序号、待审批计划、预算用量和验证要求；恢复时未装配事件消息投影器必须 fail-closed。（3）Core 新 Turn 在装配投影器时忽略调用方 messages 快照，历史从事件投影生成；`turn.started` 事实携带当前用户 prompt，模型计划与工具结果分别投影为 assistant/tool 消息，孤儿 Started 投影为 interrupted 工具消息。（4）`compaction.applied` 使用消息序号范围、摘要和 supersedes DAG；只有活动压缩替换消息视图，原始事实永不删除。（5）Core 模型错误按数据矩阵分类；上下文超限只有在显式压缩端口成功并接受压缩事实后才重试。（6）Core 提供 `submit(run/resume/cancel)` 与 `subscribe()` 门面，UI/CLI 不依赖内部 Loop 调用形态。（7）SQLite、断电一致性、kill-9 后跨进程加载与 Win7 实机证据仍受 SPIKE_04 约束，本 ADR 不以进程内 ledger 冒充持久恢复。
+- 后果：Core/State 在类型和开发机行为层形成一条事件事实→投影→模型历史链，审批 Checkpoint 不再制造第二份消息真相；旧 `RuntimeCheckpoint 1.0` 是有意拒绝的收紧式协议变更。生产恢复仍必须等待 SPIKE_04 的持久 Store，并在同一适配边界接入。
+
+## ADR-0044 上下文工程采用受保护投影、内容绑定摘要与尾部工作记忆
+
+- 状态：Accepted（2026-07-30，项目负责人要求按上下文工程验收计划修复）
+- 背景：现有 `ContextManager` 只按优先级筛选元数据，摘要未绑定内容，`RuntimeModelInput` 又可访问含原始 `contextItems` 的请求；因此预算与审批漂移检测可被绕过。项目还缺少最小 Bootstrap、分层 `AGENTS.md`、工作记忆、工具观察折叠和缓存友好的水位控制。
+- 决策：（1）模型只能接收 `ContextProjection`，不得访问原始 `RuntimeRequest.contextItems`、审批令牌或未选历史；Manifest 摘要绑定最终顺序、每项内容 SHA-256、系统提示版本和固定排序的 ToolSpec 目录。（2）上下文分为 stable prefix、protected constraints、rolling history 与 tail working memory；protected 条目过大时 fail-closed，模型只能更新计划、当前步骤与发现，不能删除 system/user/policy/project 约束。（3）默认在模型窗口 75% 时批量压缩，至少保留 20% 输出空间；原始 State 事实不删除，折叠只替换投影。（4）初始投影仅包含环境、分层规则、用户任务和固定工具目录；规则按用户配置路径、repo root 到 cwd 顺序加载，README、目录树和源码只能经工具按需获得。（5）产品 v1 只治理常驻 AGENTS 规则与数据式 Skills 的边界；可执行插件/Skill 宿主继续受 ADR-0035 的 v1.1 任务书约束。
+- 后果：RuntimeModelInput、ContextManifest 与 Checkpoint 发生收紧式升级；旧摘要或无法容纳的受保护上下文必须明确拒绝。新合同只证明 Node 开发机行为，工具实际输出、SQLite 恢复、Win7 性能与实机验证仍分别受对应任务和 Spike 约束。
+
+## ADR-0045 ToolSpec V2 与锚文本编辑共用既有审批写入链
+
+- 状态：Accepted（2026-07-30，项目负责人要求复核并修复第三讲 ACI 报告中的真实问题）
+- 背景：Runner V2 已关闭命令契约的大部分缺口，但 Core ToolSpec 的参数仍只是扁平类型，
+  模型看不到参数语义、枚举和默认值；Workspace 只有整文件 `WritePlan`，diff 只报告文件
+  状态，无法对锚文本零命中、多命中和误改位置提供有效反馈。
+- 决策：（1）ToolSpec 升级为 V2；每个参数强制非空 description，可声明 enum/default，
+  注册时验证描述、类型、枚举和默认值一致性，Runtime 在 Policy 与 Executor 之前应用默认值，
+  且不修改模型原始调用。（2）Workspace 增加精确锚替换的计划前端；只允许既有、大小受控、
+  可明确识别的 UTF-8 文件和唯一锚，零命中返回最相似片段/行号，多命中返回次数/首批行号。
+  （3）锚替换只生成带 `baseSha256` 的既有 WritePlan，不获得直接写能力；漂移、审批、路径
+  复核、原子替换和回滚继续由原链路负责。（4）WriteOperation、Shadow diff 与 Apply 成功
+  结果携带版本化内容 preview；preview 有字节上限、前后 SHA-256、变更行范围和截断标志。
+  非 UTF-8/二进制不猜测内容，只展示哈希与明确标记。（5）Phase 2 Python 工具为冻结 legacy，
+  当前整合任务不得修改；其错误、搜索统计和 read 工具重叠问题记录为后续 Node 工具继承的
+  负面需求。（6）真实 Runner、CP936、Job Object 与进程树证据继续受 SPIKE_02 阻断。
+- 后果：模型获得更清晰、可执行的工具参数合同，锚编辑具备能自我纠错的失败反馈和审批前
+  内容证据。代价是 ToolSpec 调用方必须迁移到 schemaVersion 2.0 和参数描述对象；内容 preview
+  会增加有界的计划体积。开发机测试不能替代 Win7、真实进程或历史 Phase 2 的验收。
+
+## ADR-0046 Node 只读工具合并读取语义并区分完整总数与预算下界
+
+- 状态：Accepted（2026-07-31，项目负责人要求继续修复第三讲 ACI 报告问题）
+- 背景：冻结 Phase 2 工具把完整读取和范围读取拆为两个行为不一致的入口，路径错误使用
+  `UNEXPECTED`，搜索达到返回上限后立即停止，既没有上下文行，也无法区分真实总命中数和
+  已返回数量。ADR-0045 已要求 Node 继承时不得复制这些偏差，但尚无实际 Node 只读服务。
+- 决策：（1）Node 只保留一个 `workspace.read_text` 语义，以 `startLine/maxLines` 同时服务
+  首次读取和后续范围读取，始终返回总行数、实际范围、行号和截断原因。（2）文件或目录
+  不存在时返回专用错误码、工具前置要求和同目录相似候选。（3）`workspace.search_text`
+  使用字面量搜索，命中携带可调上下文；达到返回条数或输出字节上限后，在文件数、扫描字节
+  与单文件预算内继续计数。（4）结果分别报告 `returnedMatches`、`totalMatches` 和
+  `totalMatchesExact`；任何不可读、未知编码、二进制、超大文件或扫描预算中断都会把 exact
+  标为 false，并列出结构化截断原因。（5）只读遍历跳过 symlink 和固定生成物目录，所有入口
+  复用 Workspace realpath 边界；未知编码不猜测。（6）ToolSpec V2 增加 number 的
+  minimum/maximum 注册与调用校验，并提供 `read_text/search_text/str_replace` 的稳定目录
+  注册工厂。（7）这些服务和 Schema 不等于产品 Executor 已装配；跨模块用户任务仍需独立 E2E。
+- 后果：模型能用一个读取工具逐步收窄范围，搜索能够根据完整计数或明确的预算下界决定下一步，
+  错误也能直接驱动纠正调用。代价是扫描为了得到总数会继续消耗已声明预算；调用方必须区分
+  `totalMatchesExact=false`。Phase 2 代码、真实 Runner、CP936 与 Win7 实机结论保持不变。
+
+## ADR-0047 Policy 三态裁决与参数敏感 Git 分类
+
+- 状态：Accepted（2026-07-31，Sandbox 与审批分离验收修复）
+- 背景：布尔 `allowed` 不能区分“应请求审批”和“必须拒绝”，导致审计与 UI 容易把两类状态混同；通用 `terminal.exec` 在尚无获批命令配置文件时仍可被标为只读。Git 的 `branch`、`tag` 也曾只按命令名分类，使删除、创建和重命名形式错误继承读权限。
+- 决策：（1）PolicyDecision 新增 `allow/ask/deny` verdict 与稳定 ruleId，保留 `allowed` 仅作兼容投影；Policy 提供只消费已给事实的 `evaluateFacts`，令牌读取留在 Broker 适配层。（2）Runtime 在进入审批分支前记录每个真实裁决，ASK 与无效审批均产生可关联的 `policy.decision` 事实。（3）无获批命令配置文件时通用 `terminal.exec` fail-closed；`.env`、`.git`、Windows SAM/SECURITY/SYSTEM 与 Unix 密码数据库禁止走通用文件工具。（4）Git `branch/tag` 只把零参数或明确的纯列表 flag 视为 READ，其余形式一律按 WRITE 处理并要求精确审批；未知形式不再获得隐式只读分类。（5）Runner 拒绝 Agent 通过 envOverlay 传递 token、secret、password、credential、API/private key 或 SSH agent socket。
+- 后果：调用方可稳定显示“需要批准”与“被拒绝”，审计可按 ruleId 聚合；少数以前被宽松接受的只读命令或路径会明确失败并要求专用 Adapter/配置文件。该收紧不构成真实 containment、凭据管理或 Win7 实机验证；它们仍受 SPIKE_02/03 与 C15/C16 门禁约束。
+
+## ADR-0048 会话 Git 安全网与拒绝审批回流保持精确绑定
+
+- 状态：Accepted（2026-07-31，Sandbox / Approval 分离复核修复）
+- 背景：单次 Workspace 原子写与审批绑定不能提供会话开始基线、会话 diff 或跨操作恢复视图；同时 Shell 虽有拒绝消息字段，Core 没有把用户原因变成模型可消费的配对 ToolResult。审计建议增加会话级“始终允许”，但这会与 ADR-0038 的精确请求、预览、基线及一次性消费相冲突。
+- 决策：（1）Git Session Guard 仅在 worktree 干净时记录不可变 HEAD 基线；已有用户变更必须显式处理，禁止自动 stash/commit。（2）会话检查固定输出 porcelain status、binary diff、未跟踪路径和截断状态。（3）回滚跟踪文件使用绑定到精确 Runner 请求的一次性审批；不得调用 `git clean` 或静默删除未跟踪文件，残留时返回 `complete=false`。（4）Workspace enforcement 在词法路径和 realpath 结果上统一拒绝 `.git/.env*`。（5）ToolSpec capability 收敛为编译期词表。（6）审批请求强制携带 Policy ruleId，拒绝必须包含原因；Core 只接受原 Checkpoint 中待决调用的拒绝，记录 `approval.resolved` 并向模型提供 `POLICY_USER_REJECTED` 的 denied ToolResult。（7）不增加宽泛“本会话始终允许写操作”；后续若要减少审批疲劳，只能在不削弱每次内容绑定的独立 ADR 中设计。
+- 后果：用户能看到会话范围变化并安全恢复受跟踪内容，拒绝原因进入同一事件与模型反馈链；系统不会以便利性为由吞掉既有改动或未跟踪文件。真实 MinGit、Job Object、Restricted Token、低权限进程和网络控制仍由 SPIKE_02/03 与 Win7 实机验证决定。
+
+## ADR-0049 Runtime 协议自动建立并持有 Git 会话基线
+
+- 状态：Superseded by ADR-0050（2026-07-31）
+- 背景：ADR-0048 已提供 GitSessionGuard，但它只作为导出的模块存在；若产品装配忘记调用，Turn 可以在没有会话基线和结束 diff 的情况下运行，安全网不会实际生效。Core 又不应直接依赖 Git Adapter 包。
+- 决策：（1）AgentRuntimeProtocol 增加结构化 SessionSafetyPort；配置端口且 Bootstrap 确认是 Git 仓库时，首个 Turn 必须在 Runner 调用前建立干净基线。（2）每个 Turn 完成或挂起后必须检查相同基线并在协议结果中携带 sessionSafety 证据。（3）一个 Session 只能绑定一个 cwd，切换工作区 fail-closed。（4）并发首轮共享同一个基线建立 Promise，避免重复快照竞态。（5）关闭 Session 时先完成最终检查，再释放进程内基线；检查失败不得静默清除。（6）Core 仅声明结构端口，由产品组合根注入 GitSessionGuard；未注入时保持历史兼容，Electron/CLI 最终组合和持久 Session 仍属于 H-04/SPIKE-04。
+- 后果：在正确配置安全端口的产品组合中，Git 基线不再依赖调用者自觉，session diff 成为每个 Turn 的结构化证据；旧调用方不配置端口时行为不变。真实 Git 执行仍取决于受控 Runner 与 SPIKE_02/03，当前接入不扩大进程权限。
+
+## ADR-0050 Git 仓库 Turn 缺少 SessionSafetyPort 时必须 fail-closed
+
+- 状态：Accepted（2026-07-31，收紧 ADR-0049 的可选装配缺口）
+- 背景：ADR-0049 将 SessionSafetyPort 设为可选以兼容旧调用方，但 Bootstrap 已明确声明 `git.repository=true` 时，继续运行会让产品组合根通过“忘记注入”绕过 Git 会话基线，未真正关闭装配缺口。
+- 决策：（1）RuntimeRequest 的 Bootstrap 声明当前 cwd 是 Git 仓库时，AgentRuntimeProtocol 必须已配置 SessionSafetyPort；缺失时在模型或工具启动前返回 `RUNTIME_INPUT_INVALID`。（2）非 Git 工作区和未提供 Git Bootstrap 的历史测试/调用保持兼容。（3）端口存在时继续沿用 ADR-0049 的自动 begin、逐 Turn inspect、cwd 单绑定、并发基线复用和 close 前最终检查。（4）Session 存在活动 Run 时不得释放基线。
+- 后果：Git 仓库产品路径无法再因遗漏组合依赖而静默失去安全网；代价是产品组合根必须显式注入 GitSessionGuard。真实 Runner 不可用时基线建立同样 fail-closed，仍不构成 Win7 实机可用结论。
+
+## ADR-0051 验证失败必须反馈修复并对同一 Gate 有界熔断
+
+- 状态：Accepted（2026-07-31，验证闭环修复）
+- 背景：ADR-0038 已使完成态经过 Verification Gate，但当前 Gate 的需求由模型计划提供，失败即直接进入 `FAILED`。这会把“模型声称已完成”误当为可信验收输入，也缺少把可行动的失败事实反馈给模型修复的闭环；反复失败还会消耗 Turn 预算而没有稳定的终止语义。
+- 决策：（1）验证目标由请求侧的 `TaskAcceptance` 声明，包含稳定的 checkId 和描述；模型计划只可提出验证建议，不得定义完成条件。（2）最终响应进入 `VERIFYING` 后，Gate 必须基于 TaskAcceptance 与收集的证据生成可复算摘要；每项失败必须带稳定 Gate 标识、状态和面向模型的修复反馈。（3）未达到同一 Gate 的失败上限时，Runtime 记录 `verification.feedback`，从 `VERIFYING` 合法回到 `EXECUTING`，将反馈作为 system 消息进入下一次模型调用；不伪造工具结果或执行真实命令。（4）同一 Gate 连续失败三次时返回结构化 `VERIFICATION_STUCK`，并保留三次失败的证据摘要；不同 Gate 的失败计数彼此隔离。（5）验证反馈与失败历史必须进入事件协议和消息投影，以便 checkpoint/replay 保持相同的修复上下文。（6）本 ADR 只建立 Core 合同与确定性 Mock 证据；可信命令来源、Runner 回执绑定、基线 red/green 与真实执行均继续受 SPIKE_02、C08/C09/C20 及后续任务书约束。
+- 后果：完成条件不再由模型自证，验证失败成为可恢复的、可审计的修复循环，且同一问题不会无限重试。调用方须提供 TaskAcceptance；缺失时 Runtime 在模型或工具启动前 fail-closed。该变更不增加进程权限、网络能力或 Win7 已验证结论。
+
+## ADR-0052 文档职责分层与任务书稳定路径
+
+- 状态：Accepted（2026-07-31，项目负责人要求按当前基线执行文档整理）
+- 背景：多窗口并行优化把任务授权、实施结果、测试数字、历史报告和当前状态写入同一批共享文档；任务书移动到 `active/` 后又造成现行引用和历史引用分裂。当前候选快照还处于工作区，不能把历史报告数字直接当作 HEAD 状态。
+- 决策：（1）规则、ADR、任务合同、当前状态、风险和历史证据分别由 `AGENTS.md`/`WIN7_CONSTRAINTS.md`、`DECISIONS.md`、`docs/tasks/*.md`、`docs/STATUS.md` 与 `docs/status/latest-validation.json`、`docs/ROBUSTNESS_AUDIT.md`、`docs/reports/YYYY-MM/` 维护。（2）任务书路径保持稳定，生命周期状态由任务元数据和 `docs/tasks/README.md` 表达，不通过移动到 `active/` 表达。（3）当前测试结果必须绑定最终代码 commit 和执行环境；README、ROADMAP 和任务合同不得重复维护动态测试总数。（4）历史报告保留为时间点证据，不得覆盖当前状态；Accepted ADR 正文不因整理而改写。（5）共享状态文档由整合窗口统一更新，模块窗口只提交模块代码、测试和独占证据。
+- 后果：文档迁移和并行窗口不会再通过路径变化或重复数字制造多个事实来源；代价是每次代码基线变更后必须重新生成验证记录，并由整合窗口更新状态索引。
+
+## ADR-0053 Phase 1/2 源码归档到独立目录且历史 ADR 保持不可变
+
+- 状态：Accepted（2026-07-31，文档基线修复）
+- 背景：整合候选快照把 Phase 1/2 Python legacy 从 `src/win7_agent/**` 与 `tests/unit/probe/**` 迁入 `src/phase1-2/win7_agent/**` 与 `tests/phase1-2/**`，以免与 Node 新客户端源码混在同一顶层。整理过程中曾直接改写 ADR-0013、0017、0023、0029 的历史路径，违反 Accepted ADR 不可改写规则。
+- 决策：（1）ADR-0013、0017、0023、0029 恢复为其接受时的原始正文，作为历史决策记录；本 ADR 仅取代这些 ADR 中关于当前物理路径的条款，不改变其运行时、权限、冻结、分支或验收语义。（2）当前 Phase 1/2 物理路径以任务书为权威：实现位于 `src/phase1-2/win7_agent/**`，Phase 1 单元测试位于 `tests/phase1-2/probe/**`，其余集成与 Win7 验收路径沿用任务书。（3）迁移不得改变 Python 包名 `win7_agent`、CLI 入口、Schema、退出码或 Win7 验收合同。（4）后续路径迁移必须新增 ADR 或更新尚未接受的任务文档，不得重写既有 Accepted ADR 正文。（5）`AGENTS.md` 的当前阶段摘要改为并列列出阶段 0、Phase 1/2 收口、Phase 3–7 整合候选和 SPIKE 实机验证，并明确当前整合分支的直接任务书，避免把历史冻结阶段误读为唯一活动范围。
+- 后果：历史记录恢复可审计，当前路径仍有明确权威来源；文档检查器可将 HEAD 中已接受 ADR 的非状态正文作为不可变基线进行比较。
+
+## ADR-0054 未提交 MVP 基线与 Win7 实机验收受控收口
+
+- 状态：Accepted（2026-08-02，项目负责人授权）
+- 背景：当前 `codex/integrated-robustness` 工作区包含尚未提交的 MVP 演进，现有 SPIKE
+  任务分别绑定专用分支，而 WorkBuddy 的局部运行报告又与正式任务书和状态页存在冲突。
+  若直接在当前工作区补验收 harness，会违反 C14；若只保留旧报告，则无法形成可追溯、可复跑
+  的 MVP 实机结论。
+- 决策：（1）新增 `MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE` 任务，目标仅为当前整合分支上的
+  MVP 基线、验收 harness、原始证据、交叉论证和状态收口；不要求创建 Git commit，改以
+  MVP ID、工作区清单与 SHA-256 指纹绑定证据。（2）该任务只授权 `spikes/*/acceptance/**`、
+  `validation/**`、验收/状态文档和专用验收脚本；生产实现仍严格受既有 Phase/Integration
+  任务书白名单约束，Phase 1/2 冻结路径和 Gate 不被扩大或绕过。（3）历史 WorkBuddy 证据
+  保持不可变；任何哈希、覆盖范围或判定修正以勘误和独立交叉论证追加，不覆写原始报告。
+  （4）实机自动化结果可同步当前状态和任务书的客观验证记录；但要求架构师 Gate、人工视觉、
+  干净环境、物理断网、机械盘或企业环境的项目必须显式标为 PARTIAL、替代验证或环境阻断，
+  不得写成正式通过。（5）Win7 网络测试保留 SSH 管理通道，不得改变网卡、路由、防火墙或
+  Bitvise 服务；仅允许应用层阻断、临时本地监听和被动证据。
+- 后果：项目可以在不损坏用户 dirty 工作区的情况下获得连续、可复现的 MVP 证据链；代价是
+  MVP 结论与正式发布 Gate 明确分离，未获真实环境支撑的条件不能被状态页或 README 包装为
+  完成。
+
+## ADR-0055 Win7 MVP 负责人接受、延期边界与桌面装配启动
+
+- 状态：Accepted（2026-08-02，项目负责人明确授权 Codex 对剩余问题作出决策或按 MVP 默认接受，并继续推进开发）
+- 背景：MVP-20260802-12/14 已证明 Win7 SP1 x64、Electron 22.3.27、CPython 3.8.10、
+  受控 MinGit、关键补丁、Renderer/IPC 边界、崩溃证据、中文路径和 Git 隔离；但正式发布所需的
+  重启冷启动、人工视觉、物理断网、企业 E7、原生 containment、SQLite ABI 和完整安装包仍缺外部
+  条件。若把这些缺口伪写成实测 PASS 会破坏证据链；若继续把它们作为 MVP 阻断，又无法进入真实
+  产品装配。
+- 决策：（1）当前实机结论定为 `OWNER_ACCEPTED_FOR_MVP`，客观用例原状态和正式发布 Gate
+  保持不变；负责人接受不是正式 `PASS`。（2）SPIKE_01 T03 接受 Electron 22 在 Win7 上的
+  NUL-like stdin 语义：父侧不存在 `utility.stdin`、诊断期间无数据进入，故可作为 MVP 的“父侧
+  不可注入输入”证据；后续产品 Core 仍应显式关闭或隔离 stdin 并补负向测试。（3）SPIKE_02
+  延期期间，真实本地 Runner、交互终端和高风险命令必须 fail-closed，不得以 `spawn`、`taskkill`
+  或 Mock 冒充 containment；MVP 可提供只读、Replay/演示和诊断能力。（4）SPIKE_04 延期期间使用
+  有容量上限的内存状态实现，不承诺重启恢复、FTS5 或 SQLite 性能；机械盘门禁按负责人决定接受，
+  SSD 数据不得改写为机械盘实测。（5）视觉、窗口焦点、受控重启、严格干净系统、物理断网、企业
+  代理/CA/模型/更新服务均作为正式发布延期项；MVP 分别沿用 `OWNER_ACCEPTED_FOR_MVP`、
+  `E5_SURROGATE_PASS` 和 `MVP_NETWORK_SURROGATE`。（6）在当前
+  `codex/integrated-robustness` 分支启动第一阶段产品装配：实现只加载可信本地资源、默认拒绝出站、
+  `nodeIntegration=false`、`contextIsolation=true`、`sandbox=true` 的 Electron main/preload/renderer
+  最小入口；未验证能力必须在 UI 中明确显示不可用，不得隐藏或绕过 Gate。
+- 后果：Win7 实机验收在 MVP 口径下完成，项目可以进入真实桌面入口与跨模块装配；正式发布仍需
+  补齐被延期的原生构建链、持久化、企业网络、人工视觉、重启、物理离线和完整交付证据。任何延期
+  项进入生产默认路径前，必须恢复其原任务书验收并获得真实 PASS。
+
+## ADR-0056 Desktop Alpha 1 采用只读 Replay 纵向切片
+
+- 状态：Accepted（2026-08-02，项目负责人授权 A1 产品装配）
+- 背景：ADR-0055 已允许启动可信本地 Electron 入口，但当前产品仍只有启动和诊断页面，
+  尚未把 Shell、Core、State 和 Workspace 接成用户可操作的闭环。一次性开放真实模型、Runner、
+  终端或持久化会同时引入 Win7 运行时、权限和原生依赖风险，无法形成可审计的最小产品证据。
+- 决策：（1）A1 固定为单工作区、单活动任务、并发 1 的只读 Replay Alpha；Replay Model Adapter
+  必须通过现有 Core AgentRuntime/AgentRuntimeProtocol，实际调用 Workspace 的
+  `list_directory`、`search_text`、`read_text`，Core 事件通过 State V2 ledger、bounded stream
+  和 message projection 到达产品 UI。（2）Session Service 只保存有容量上限的进程内状态，重启
+  不恢复；工作区根由主进程目录选择器取得并用 realpath 规范化，Renderer 不获得文件系统或
+  通用 IPC。（3）所有桌面请求、产品事件和用户可见错误使用版本化 Shell Schema；每个任务事件
+  带稳定事件 ID、序号和任务关联，重复事件幂等、乱序/过量输入有界处理，取消后禁止完成事件。
+  （4）A1 只提供 UTF-8、显式 GBK 与 CRLF 的只读展示；未知编码、越界路径、敏感路径、Runner、
+  Git、终端、真实 Gateway、写入、SQLite、凭据和网络继续 fail-closed。（5）便携验收目录和
+  Win7 W01～W12 证据另行绑定 MVP ID；开发机通过不改变正式 Phase/SPIKE/Win7 Gate。
+- 后果：用户可以在真实 Electron 窗口内选择工作区、创建会话、提交只读分析、查看工具活动和
+  Replay 流式结果并取消任务；产品装配风险和测试边界被限制在现有 TypeScript 模块与 Electron
+  22.3.27。代价是没有真实模型、命令执行、终端、Git、重启恢复或正式发布能力，所有延期项在 UI
+  中必须明确显示不可用。
+
+## ADR-0057 Desktop Alpha 2 采用可信单文件写入计划与双重一次性审批
+
+- 状态：Accepted（2026-08-02，项目负责人授权 A2 受控单文件修改闭环）
+- 背景：A1 已证明真实 Electron Shell 可以把只读 Replay 经 Core、State 和 Workspace 展示给用户，
+  但 `workspace.str_replace` 若直接从模型调用进入写入边界，会让模型自报的预览哈希、基线哈希或
+  内容摘要成为审批依据，无法证明“用户批准的内容”就是“最终写入的内容”。同时，单纯依赖 Core
+  审批不足以覆盖 Workspace 执行边界的重放、内容漂移和进程异常恢复。
+- 决策：（1）模型只提交结构化 WriteIntent；TrustedWritePreparer 在主进程读取当前文件，
+  复用 Workspace 的编码、EOL、唯一锚点、Diff 和 SHA-256 能力，生成不可变 WritePlan。所有
+  模型提供的哈希和预览摘要均忽略或拒绝。（2）WritePlan 绑定 Session、Task、Turn、Call、
+  规范化工作区/相对路径、base/content/preview 哈希、编码/BOM/EOL、锚点、创建时间和 TTL；
+  同时只允许一个活动写计划。（3）批准需要 Core workspace-write 能力令牌与 Workspace
+  一次性 ApprovalLedger 两层绑定；令牌仅对精确 plan/call/session/turn 生效，拒绝、过期、取消、
+  关闭、漂移、跨作用域和重放均失效。（4）Workspace 在最终执行点重新验证工作区边界、计划状态、
+  基线哈希和审批消费，使用备份、临时文件、同卷原子替换、重读校验和失败回滚；回滚失败锁定
+  工作区，不得冒充成功。（5）撤销是重新生成的反向 WritePlan，必须再次预览和审批。（6）进程
+  崩溃/断电只通过版本化写事务恢复清单识别未完成阶段；启动不自动续写，用户只能选择恢复原文件
+  或导出诊断。A2 继续使用内存 State，不启用 SQLite、Runner、Git、终端、Gateway 或真实模型。
+- 后果：用户批准的单文件内容与实际写入形成可验证的双重绑定，内容漂移和审批重放在两个边界都
+  fail-closed，失败可自动恢复且回滚失败会阻断继续写入。代价是每次写入都需要新的可信计划和审批，
+  只支持 UTF-8/UTF-8 BOM 文本、唯一锚点和单文件事务；A2 的 Win7 实机证据仍不能替代正式发布 Gate。
+
+## ADR-0058 项目原创成果采用 Apache License 2.0
+
+- 状态：Accepted（2026-08-02，项目负责人明确选择 Apache License 2.0）
+- 背景：仓库已经公开并计划申请 Codex for Open Source，但此前没有根许可证文件，自有 npm 包也
+  未声明许可证，外部使用者无法获得明确的复制、修改、分发和贡献授权。项目同时包含多种第三方
+  依赖、EOL 运行时与验收材料，不能用项目许可证覆盖它们原有的许可和归属要求。
+- 决策：（1）项目原创代码、文档和项目自研构建产物统一采用 Apache License 2.0，根目录保存
+  Apache Software Foundation 发布的标准许可证全文。（2）所有项目自有 `package.json` 及其根包
+  lockfile 元数据声明 SPDX 标识 `Apache-2.0`。（3）除非贡献者明确另行声明，主动提交并被接纳的
+  Contribution 按许可证第 5 条纳入。（4）第三方依赖、运行时、外部二进制、引用材料和既有归属
+  声明继续适用各自条款；发布时仍须按 C16 生成 SBOM、许可证清单并满足再分发义务。
+- 后果：外部使用者和贡献者获得明确且包含专利授权的开源许可，GitHub 与包工具可以识别
+  `Apache-2.0`。项目仍不提供商标授权或质量保证；许可变更不放宽 Win7 安全边界、实现任务授权、
+  第三方依赖审查或正式发布 Gate。

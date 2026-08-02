@@ -1,0 +1,20 @@
+# MVP-20260802-12 evidence/package-input hash manifest
+# This is an acceptance-input manifest, not a complete installable product package.
+# Hashes were computed on the Mac cache before Win7 deployment; remote executable hashes are recorded in SBOM.
+
+ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6  .acceptance/deps/electron/electron.zip
+abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271  .acceptance/deps/python-3.8.10-embed-amd64.zip
+0dca60869825ceb8b6108be69f0c536174fbca45e11300f2c14c34632d8238ed  .acceptance/deps/MinGit-2.46.2-64-bit.zip
+bc35e63a125eb2dce45971bedc7ef8a78706b7e26286aed0cf664999ad833eda  .acceptance/deps/kb/KB3140245.msu
+99312df792b376f02e25607d2eb3355725c47d124d8da253193195515fe90213  .acceptance/deps/kb/KB4474419.msu
+8075f6d889bcb27be6f52ed47081675e5bb8a5390f2f5bfe4ec27a2bb70cbf5e  .acceptance/deps/kb/KB4490628.msu
+fd0926514060859e02858ee22b58f7a546bfd3ef8c5bfde04560cc8895f77068  docs/acceptance/MVP-20260802-12_SBOM.json
+ad5b1756a27343a49b5fe33680c94c52a246013b3d6de8a61742f1aaea5348f6  validation/phase1/evidence/report_phase1_MVP-20260802-12_e2.json
+86af595f9f7f54bcb6d079d1fd9547ccd19012e035e596703cb868375ea719c9  spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_short.json
+ef97385596292d5b2faa2071f31b0c49a553dfdeb89d375f2a7c1dc20e7d7780  spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_stdio_MVP-20260802-12.json
+272d3399b091a205f9af839dd65de816b844fbb284f09bd009a3c0573330b7a7  spikes/03-git-adapter/acceptance/evidence/report_spike03_MVP-20260802-12.json
+
+# Remote-only controlled derivative and deployed executable hashes (also in SBOM):
+# 914fd56506284c54dc20f43917dcb6f2587eb7d807add2968c2d8b335070d397  MinGit controlled-derivative.zip
+# 02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1  C:\acceptance\mvp_mingit\cmd\git.exe
+# 2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb  C:\acceptance\electron\electron.exe

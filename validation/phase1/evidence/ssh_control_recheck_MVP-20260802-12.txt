@@ -1,0 +1,16 @@
+Command (Mac -> Win7, read-only):
+ssh -i .acceptance/ssh/id_rsa_win7accept dccs-chaizl@192.168.1.11 "echo SSH_CONTROL_OK && sc query BvSshServer | findstr /I \"STATE\""
+
+Observed stdout:
+SSH_CONTROL_OK
+STATE : 4 RUNNING
+
+No NIC, route, firewall, Bitvise configuration, service state or reboot action was changed by this recheck.
+
+Final post-validation recheck:
+SSH_CONTROL_OK_MVP12_FINAL
+STATE : 4 RUNNING
+
+End-of-turn recheck after SPIKE_01 stdio diagnostics and cleanup:
+SSH_CONTROL_OK_MVP12_END
+STATE : 4 RUNNING

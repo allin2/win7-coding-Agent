@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Win7 正式发布延期验收方案 — MVP-20260802-14</title>
+  <style>
+    :root { --ink:#172033; --muted:#5d6875; --line:#d8e1e8; --blue:#145f98; --ok:#137a50; --warn:#9a5a00; --bad:#a43030; --paper:#fff; --canvas:#edf2f6; --soft:#f5f8fa; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--canvas); color:var(--ink); font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; }
+    main { width:min(1240px,calc(100% - 32px)); margin:28px auto; padding:clamp(24px,5vw,58px); background:var(--paper); box-shadow:0 15px 42px #17324a18; }
+    h1,h2,h3 { color:#12334e; line-height:1.25; } h1 { margin:0; font-size:clamp(1.85rem,4vw,2.7rem); } h2 { margin-top:44px; font-size:1.45rem; } h3 { margin-top:28px; font-size:1.08rem; }
+    p { margin:10px 0; } a { color:var(--blue); } code { padding:.1em .35em; border-radius:4px; background:#edf2f5; word-break:break-all; }
+    table { width:100%; border-collapse:collapse; margin:16px 0 28px; font-size:.9rem; } th,td { padding:10px; border:1px solid var(--line); vertical-align:top; text-align:left; } th { color:#173a56; background:#f1f5f8; }
+    .lede { color:#486175; font-size:1.06rem; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:22px 0; }
+    .card { padding:16px; border:1px solid var(--line); border-radius:10px; background:#fff; } .card b { display:block; color:var(--muted); font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; } .card strong { display:block; margin-top:5px; font-size:1.04rem; }
+    .badge { display:inline-block; margin:4px 4px 0 0; padding:3px 9px; border-radius:999px; font-size:.78rem; font-weight:700; white-space:nowrap; }
+    .pass { color:var(--ok); background:#e7f6ee; } .partial { color:var(--warn); background:#fff2dc; } .blocked { color:var(--bad); background:#ffefee; } .retired { color:#56606c; background:#edf0f2; }
+    .callout { margin:18px 0; padding:16px 18px; border-left:5px solid var(--warn); background:#fff8ea; } .safe { border-left-color:var(--blue); background:#edf7ff; }
+    .package { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:10px; background:var(--soft); }
+    .package h3 { margin:0 0 10px; } .meta { color:var(--muted); font-size:.88rem; } ul,ol { padding-left:1.35rem; } footer { margin-top:50px; color:var(--muted); font-size:.86rem; }
+    @media (max-width:760px) { table { display:block; overflow-x:auto; } main { width:100%; margin:0; box-shadow:none; } }
+  </style>
+</head>
+<body><main>
+  <div class="callout safe"><strong>状态更新：</strong>ADR-0055 已将当前 Win7 结论收口为 <code>OWNER_ACCEPTED_FOR_MVP</code>，真实 Electron 产品入口的启动、Renderer 诊断与退出已经通过。下列 RC 项作为正式发布和后续版本的延期验收计划保留，不再阻断当前 MVP 产品开发。</div>
+  <span class="badge partial">剩余门禁执行方案</span>
+  <span class="badge retired">不自动放行正式 Phase Gate</span>
+  <h1>Windows 7 剩余约束验收方案</h1>
+  <p class="lede">证据基线：<code>MVP-20260802-14</code>。本方案以 <a href="../../WIN7_CONSTRAINTS.md">C01–C20</a>、<a href="../../EVALUATION.md">E1–E8 / G1–G10 / W7C-01–13</a> 和当前实机结果为输入，给出正式发布延期门禁的前置、执行顺序、通过标准、证据接口和安全停止条件。</p>
+
+  <div class="grid">
+    <div class="card"><b>已建立证据</b><strong>Phase 1 18/18 × 3；E2 17+1 degraded；SPIKE_03 14/14</strong></div>
+    <div class="card"><b>开发机回归</b><strong>889 tests / 7 modules PASS</strong></div>
+    <div class="card"><b>当前 Win7</b><strong>SP1 x64 / T460 / 16 GB / SSD</strong></div>
+    <div class="card"><b>管理通道</b><strong>SSH 必须持续保留；禁止改网卡/路由/Bitvise</strong></div>
+  </div>
+
+  <h2>一、当前结论已经写入的证据</h2>
+  <ul>
+    <li><a href="win7_mvp_acceptance_report.html">MVP 实机验收报告</a>：SPIKE_01、SPIKE_03、Phase 1 与机械盘裁决的当前结论。</li>
+    <li><a href="../../status/latest-validation.json">latest-validation schema v2</a>：命令、哈希、指标、替代条件和阻断原因。</li>
+    <li><a href="../../../validation/phase1/README.md">Phase 1 实机证据</a>：CPython 3.8.10 x64 下 18/18 连续三次，回归 20/20。</li>
+    <li><a href="../../../validation/spike01/CROSS_VERIFICATION.md">SPIKE_01 交叉论证</a> 与 <a href="../../../validation/spike03/CROSS_VERIFICATION.md">SPIKE_03 交叉论证</a>：保留 WorkBuddy 原始报告并记录修复重测。</li>
+  </ul>
+  <div class="callout"><strong>负责人裁决：</strong>机械盘门禁默认 <code>PASS</code>，因此机械盘缺失不再阻塞 MVP。但当前实机是 SSD；在没有 Electron 22 ABI 的 SQLite 绑定、indexer 和 benchmark 前，SPIKE_04 功能与性能仍不能写成通过，PERFORMANCE_BUDGET #5–#8 也继续保持 <code>NOT_MEASURED</code>。</div>
+
+  <h2>二、C01–C20 约束覆盖矩阵</h2>
+  <table>
+    <thead><tr><th>约束</th><th>当前覆盖</th><th>已有证据</th><th>剩余正式门禁</th><th>执行包</th></tr></thead>
+    <tbody>
+      <tr><td>C01 Win7 SP1 x64</td><td><span class="badge partial">部分覆盖</span></td><td>Electron 验收壳、Phase 1、Git Adapter 均已在 build 7601 实跑。</td><td>完整产品安装、启动、业务闭环、退出与重启。</td><td>RC-02、RC-08、RC-09</td></tr>
+      <tr><td>C02–C05 历史 Python 限制</td><td><span class="badge retired">项目级废止</span></td><td>仅 Phase 1/2 继续按 CPython 3.8.10 / stdlib 冻结合同。</td><td>完成 Phase 1/2 E1/E2，不把历史限制扩展到新组件。</td><td>RC-03</td></tr>
+      <tr><td>C06 禁止 Win10+ 专属 API</td><td><span class="badge partial">部分覆盖</span></td><td>Electron 22、Python 3.8.10、MinGit 2.46.2 已在 Win7 加载。</td><td>原生 helper、winpty、better-sqlite3 依赖导入表/API 扫描和 Win7 加载测试。</td><td>RC-04、RC-05</td></tr>
+      <tr><td>C07 锁定下载/安装/更新</td><td><span class="badge partial">部分覆盖</span></td><td>Electron、CPython、MinGit MVP 工件已有 SHA-256。</td><td>完整离线清单、签名/SBOM、失败安装回滚和 updater fail-closed。</td><td>RC-01、RC-09</td></tr>
+      <tr><td>C08 超时、输出上限、进程树</td><td><span class="badge blocked">未闭合</span></td><td>Phase 1 的 taskkill 降级已实测；开发机 Runner 单测通过。</td><td>真实 Job Object/Restricted Token helper，C01–C08；不可用时高风险命令启动前拒绝。</td><td>RC-04、RC-08</td></tr>
+      <tr><td>C09 结构化 argv / 禁模型 Shell</td><td><span class="badge partial">部分覆盖</span></td><td>开发机 design guard 与 Git Adapter 结构化 argv 已通过。</td><td>Win7 产品 E2E 证明所有进程汇点只经 Runner/终端适配器。</td><td>RC-04、RC-08</td></tr>
+      <tr><td>C10 中文、空格、Windows 路径</td><td><span class="badge partial">部分覆盖</span></td><td>Phase 1、SPIKE_01、SPIKE_03 已覆盖中文/空格路径。</td><td>Workspace、State、Runner、最终安装包的盘符、UNC、长路径和 reparse 负向。</td><td>RC-05、RC-07、RC-08</td></tr>
+      <tr><td>C11 显式编码/字节保持</td><td><span class="badge partial">部分覆盖</span></td><td>Phase 1 的 UTF-8/BOM/GBK/UTF-16/CRLF 全部通过。</td><td>终端 CP936/UTF-8、Workspace 字节保持、SQLite 内容和最终 UI 显示。</td><td>RC-04、RC-05、RC-07</td></tr>
+      <tr><td>C12 交付模式和全部前置</td><td><span class="badge blocked">未闭合</span></td><td>验收工件是自包含部署树，但不是产品包。</td><td>定义并构建完整离线产品包；清晰列出补丁、运行时、写目录、入口、日志和卸载。</td><td>RC-01、RC-09</td></tr>
+      <tr><td>C13 不假设偶然工具</td><td><span class="badge partial">部分覆盖</span></td><td>CPython/MinGit 以自包含目录运行；机器 PATH 未修改。</td><td>E5 clean 与 E6 缺失工具矩阵；Git/终端/插件缺失时结构化降级。</td><td>RC-01、RC-08、RC-09</td></tr>
+      <tr><td>C14 任务授权</td><td><span class="badge pass">当前通过</span></td><td>ADR-0054 + MVP_01 约束验收路径；未提交/暂存/切分支。</td><td>后续生产实现必须逐项核对各 Phase/SPIKE 白名单；任何越界立即阻断。</td><td>所有执行包的前置 Gate</td></tr>
+      <tr><td>C15 Runtime Profile</td><td><span class="badge partial">部分覆盖</span></td><td>Electron、CPython、MinGit 版本/架构/哈希已锁定。</td><td>D-011/D-013/D-014/D-017 精确版本、补丁、API、降级与实机证据。</td><td>RC-01、RC-04、RC-05</td></tr>
+      <tr><td>C16 完整依赖树/SBOM/许可</td><td><span class="badge partial">部分覆盖</span></td><td>MinGit 官方包与 MVP 派生包差异已记录。</td><td>派生包文件清单和许可证；原生 ABI 依赖树；产品级 SBOM 与漏洞/EOL 责任。</td><td>RC-01、RC-09</td></tr>
+      <tr><td>C17 Renderer/IPC/出站隔离</td><td><span class="badge partial">部分覆盖</span></td><td>独立 harness 的 Renderer/IPC PASS；HTTP/WS/DNS 为应用层替代通过。</td><td>真实产品入口上的 W7C-05–07、导航/权限/IPC 畸形参数、被动网络证据。</td><td>RC-02、RC-08</td></tr>
+      <tr><td>C18 Win7 降级不得冒充强隔离</td><td><span class="badge partial">合同存在</span></td><td>文档已声明 taskkill、CSP、本地监听均非等价强隔离。</td><td>containment 不可用、现代网页、索引超限时的 fail-closed/远程化 E2E。</td><td>RC-04、RC-06、RC-08</td></tr>
+      <tr><td>C19 终端输入隔离/恶意 VT</td><td><span class="badge blocked">未执行</span></td><td>仅有设计和开发机静态约束。</td><td>node-pty/winpty ABI、T01–T05、N01–N06、模型 stdin 结构性不可达。</td><td>RC-04</td></tr>
+      <tr><td>C20 Git 专用适配器</td><td><span class="badge partial">MVP 通过</span></td><td>当前 adapter + 受控 MinGit 派生包 P01–P04/N01–N10 14/14。</td><td>正式裁剪清单、SBOM/许可、被动抓包和产品 Runner 集成。</td><td>RC-01、RC-08、RC-09</td></tr>
+    </tbody>
+  </table>
+
+  <h2>三、剩余验收执行包</h2>
+
+  <section class="package">
+    <h3>RC-01 — 依赖与离线交付闭包</h3>
+    <p class="meta">覆盖 C07 / C12 / C13 / C15 / C16；可立即在构建机开展，不操作 Win7 网络。</p>
+    <ol>
+      <li>确定完整交付模式：建议“自包含离线 ZIP/目录 + 可选企业内网更新”，禁止目标机运行期 npm/pip 下载。</li>
+      <li>为 Electron、CPython、MinGit 派生包、node-pty/winpty、C++ helper、better-sqlite3、VC Runtime 建立来源、精确版本、架构、文件清单、SHA-256、许可证与 EOL 风险。</li>
+      <li>输出产品 manifest、SBOM、补丁探测清单、写目录清单、安装/启动/停止/卸载/回滚命令。</li>
+    </ol>
+    <p><strong>PASS：</strong>从 manifest 可重建完全一致的包；任一哈希/签名错误均 fail-closed；Win7 不需要未声明工具。<strong>证据：</strong><code>docs/acceptance/</code> manifest、SBOM、许可证索引、包 SHA-256 与回滚日志。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-02 — SPIKE_01 正式剩余项</h3>
+    <p class="meta">覆盖 C01 / C06 / C17；执行 T01、T03、T04、T06、T08、T11 的未闭合部分。</p>
+    <ol>
+      <li>T01：仅在 Bitvise 自动启动、固定 IP 和自动恢复已再次确认后执行 3 次“重启后首次启动”，取中位数；否则保持 <code>PARTIAL</code>。</li>
+      <li>T03/T11：MVP-20260802-12 已采集 utilityProcess 的 3 个 Win7 工作集/私有页样本，但 <code>process.stdin.readable=true</code>，严格 T03 保持 FAIL。独立 stdio 诊断确认 ignore 变体没有父侧输入句柄且未读到数据；仍需负责人裁决该 NUL-like 语义或在产品 Core 中显式关闭/隔离 stdin，再接入真实两任务负载采样。</li>
+      <li>T04/T06：人工视觉继续按负责人决定可记 <code>OWNER_ACCEPTED_FOR_MVP</code>；自动化崩溃、焦点或资源异常不得被覆盖。</li>
+      <li>T08：MVP 应用层阻断保持 <code>MVP_NETWORK_SURROGATE</code>；正式结论仍需保留 SSH 管理流量，用被动抓包或上游镜像口记录 HTTP(S)/WS/DNS，不禁用网卡、不改路由/防火墙。</li>
+    </ol>
+    <p><strong>PASS：</strong>正式任务书适用条件全部满足；无法安全重启/抓包时不得强行执行，继续明确记录替代状态。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-03 — Phase 1/2 冻结 Gate 收口</h3>
+    <p class="meta">覆盖历史 C02–C05；当前为 AUTHORIZATION_BLOCKED。</p>
+    <ol>
+      <li>由架构师核对 Phase 1 R1–R8 并解除 <code>REPAIR_REQUIRED_BEFORE_E1</code>；Codex 不自动改 Gate。</li>
+      <li>E1：普通用户、CPython 3.8.10 x64、Git 2.46.2；完整 Probe、三次稳定性、零残留。</li>
+      <li>E2：中文+空格安装/工作路径、Git 不在 PATH；验证降级、编码、CRLF、进程树和报告写入。</li>
+      <li>“外网断开”由上游网络隔离、独立 Win7 VM/控制台或不影响 SSH 的专用测试网络提供；当前管理网卡和 Bitvise 不得被修改。</li>
+      <li>Phase 2 必须先形成其冻结任务书授权的独立只读入口，再执行 Mock/Replay、只读工作区和零网络矩阵。</li>
+    </ol>
+    <p><strong>PASS：</strong>任务书指定 E1/E2 全量证据与架构师 Gate 齐备；现有 18/18 × 3 只作为强前置证据。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-04 — SPIKE_02 Runner containment 与终端</h3>
+    <p class="meta">覆盖 C06 / C08 / C09 / C18 / C19；当前关键路径。</p>
+    <ol>
+      <li>在 Win10+ 构建主机锁定 MSVC v142 / Windows SDK 10，编译 Win7 x64 helper；目标机不安装构建工具。</li>
+      <li>按 Electron 22 ABI 构建 node-pty 0.10.0 + winpty 0.4.3；锁定 DLL/.node/VC Runtime 哈希。</li>
+      <li>Win7 执行 containment C01–C08、终端 T01–T05、注入 N01–N06；记录进程快照、PID 树、实际网络可达性和资源峰值。</li>
+      <li>宿主已在不可嵌套 Job 时，必须在启动前拒绝高风险命令或转远程；<code>taskkill</code> 只能作为获批低风险降级。</li>
+    </ol>
+    <p><strong>PASS：</strong>进程树零残留、工作区外拒绝、超时/截断正确、模型无法写 pty stdin、恶意 OSC/VT 全拒。任一逃逸触发 No-Go 和远程执行降级。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-05 — SPIKE_04 SQLite / FTS5 / 恢复</h3>
+    <p class="meta">覆盖 C06 / C10 / C11 / C15 / C16；机械盘门禁已由负责人通过。</p>
+    <ol>
+      <li>选择与 Electron 22 ABI 精确匹配的 better-sqlite3 版本，确认 SQLite 版本与 FTS5 编译选项，生成可复现构建和哈希。</li>
+      <li>补齐 indexer、query、benchmark、崩溃恢复和有界扫描 harness。</li>
+      <li>Win7 SSD 上执行 S01–S08：WAL 60 秒、进程中断恢复、3 档索引、增量、100 次查询 P95、滚动清理、回退、中文/CP936。</li>
+      <li>性能数据标记 <code>SSD_SURROGATE</code>；机械盘门禁为负责人 PASS，但不得把 SSD 数值改写为机械盘实测。</li>
+    </ol>
+    <p><strong>PASS：</strong>S02/S06/S07/S08 功能与完整性通过；S01/S03/S05 记录真实 SSD 指标和替代属性。正式 PERFORMANCE_BUDGET 状态只有在其治理条件满足时才能更新。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-06 — Phase 3 Gateway / E7 企业环境</h3>
+    <p class="meta">覆盖 C07 / C17 / C18；当前企业代理、CA、模型和更新服务为 ENVIRONMENT_MISSING。</p>
+    <ol>
+      <li>先用本地受控 TLS/代理夹具验证超时、断连、错误证书、鉴权失败、恢复和协议版本拒绝。</li>
+      <li>获得企业代理/CA/内网模型服务后执行 E7 真实握手；不得关闭证书验证或把夹具结果写成 E7 PASS。</li>
+      <li>记录网络目标白名单、认证方式、证书链摘要和断连行为；不记录凭据或证书正文。</li>
+    </ol>
+    <p><strong>PASS：</strong>E5/E6 可启动且 E7 真实服务成功；错误证书/代理认证失败必须安全拒绝并保持 UI 可恢复。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-07 — Phase 4/5 Workspace 与 State</h3>
+    <p class="meta">覆盖 C10 / C11 / C17；依赖 RC-05 的持久化闭包。</p>
+    <ol>
+      <li>Workspace：写入计划、审批绑定、原子替换、失败回滚、junction/reparse 越界、编码/CRLF 字节保持。</li>
+      <li>State：schema 迁移、WAL 恢复、长会话清理、审计链和中文/空格库路径。</li>
+      <li>所有拒绝与异常生成结构化错误；目标工作区外不产生修改。</li>
+    </ol>
+    <p><strong>PASS：</strong>E5 写入-校验-回滚闭环和 E6 路径/缺失工具矩阵全部通过，崩溃恢复后审计不断链。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-08 — Phase 6/7 产品装配与 W7C-01–13</h3>
+    <p class="meta">覆盖 C01 / C08–C13 / C17–C20；只有形成真实 Electron 产品入口后才能执行。</p>
+    <ol>
+      <li>装配 Shell、Core、Runner、Git、State、Workspace 与 Gateway，禁止直接从 UI 绕过 Policy/Broker/审计。</li>
+      <li>执行 E5 端到端：会话→流式→diff 审批→受控执行→验证→审计→诊断→正常退出。</li>
+      <li>执行 E6：中文/空格、CP936、长路径、Git/终端/GPU 缺失、containment 不可用 fail-closed。</li>
+      <li>执行 W7C-01–13，全量覆盖 Renderer、IPC、网络、Runner、更新回滚、终端边界与长时退出。</li>
+    </ol>
+    <p><strong>PASS：</strong>真实产品可安装、启动、运行、退出、重启和卸载；无受管进程/服务/启动项残留，无未声明网络与依赖。</p>
+  </section>
+
+  <section class="package">
+    <h3>RC-09 — 正式发布证据收口</h3>
+    <p class="meta">覆盖 C07 / C12 / C13 / C15 / C16 和 E5/E6/E7 最终签字。</p>
+    <ol>
+      <li>在真正干净的 E5、边界 E6、适用的 E7 上只使用候选交付包重跑。</li>
+      <li>验证篡改包拒绝、失败更新回滚、卸载清理、日志脱敏、Crashpad/审计数据保留策略。</li>
+      <li>把全部 schema v1 原始报告汇总到 latest-validation schema v2，绑定最终候选包与工作区/commit 指纹。</li>
+    </ol>
+    <p><strong>PASS：</strong>所有适用红线无失败，阻断列表为空；负责人/架构师完成正式 Gate。否则只能保持证据支持的 MVP/CONDITIONAL 状态。</p>
+  </section>
+
+  <h2>四、本轮已完成的无需人工干预项</h2>
+  <div class="callout safe">
+    <ul>
+      <li><strong>RC-03 准备性 E2：</strong>在 Win7 `C:\测试 目录\phase1 mvp` 运行 18 项探针，17 PASS、1 个预期 `tool.git=TOOL_NOT_FOUND/degraded`，无 blocking check，`agent_runnable=true`，结构化 JSON/SQLite 均回收。</li>
+      <li><strong>路径/编码回归：</strong>同一中文+空格目录的 Phase 1 回归 20/20；标准部署树和 E2 部署树的 CPython 3.8.10 `compileall` 均为 0。</li>
+      <li><strong>RC-02 T03/T10：</strong>SPIKE_01 utilityProcess 采集到 3 个非零 Win7 工作集/私有页样本；但 `stdin.readable=true`，T03 保持 FAIL。明确范围的部署目录/userData 清理 v3 为 PASS，无匹配进程或启动项残留。</li>
+      <li><strong>证据收口：</strong>新增 schema v1 汇总、原始 JSON/SQLite、回归 stdout/stderr、compileall 记录和 <a href="../../acceptance/MVP-20260802-12_SBOM.json">证据型 MVP SBOM</a>，并把最新索引升级为 `MVP-20260802-12`；未提交、未暂存、未切换分支，未修改 SSH/网卡/路由/防火墙。</li>
+    </ul>
+  </div>
+  <div class="callout">
+    <strong>待人工或外部条件：</strong>
+    <ul>
+      <li>架构师解除 Phase 1/2 Gate，并授权正式 E1/E2 的物理断网、干净环境和普通用户条件。</li>
+      <li>裁决 SPIKE_01 T03：接受 Win7 ignore stdio 的“父侧无句柄、子侧 NUL-like readable”语义，或授权产品 Core 显式关闭 stdin；随后补真实双任务资源负载。</li>
+      <li>确认 Bitvise 自动启动/自动恢复和控制台兜底后，才可做 T01 重启；T04 黑屏/焦点、T08 被动抓包仍需人工/网络设施。</li>
+      <li>提供 MSVC v142、C++ helper、node-pty/winpty、better-sqlite3 Electron 22 ABI、indexer/benchmark/recovery harness。</li>
+      <li>形成真实 Electron 产品入口、企业代理/CA/模型/更新服务后，执行 Phase 3–7、W7C-01–13、E5/E6/E7 及安装/退出/回滚/卸载终验。</li>
+    </ul>
+  </div>
+
+  <h2>五、执行顺序与依赖</h2>
+  <table>
+    <thead><tr><th>批次</th><th>可并行内容</th><th>进入条件</th><th>退出条件</th></tr></thead>
+    <tbody>
+      <tr><td>Batch A</td><td>RC-01；RC-03 的 Gate 准备；RC-02 不需重启的证据整理</td><td>当前工作区与 MVP-20260802-12</td><td>依赖/Profile 清单可审查；E2 中文+空格准备证据已补齐；Gate 阻断明确</td></tr>
+      <tr><td>Batch B</td><td>RC-04 构建链；RC-05 SQLite ABI</td><td>现代 Windows 构建主机</td><td>Win7 可加载的锁定原生产物</td></tr>
+      <tr><td>Batch C</td><td>RC-04/RC-05 Win7 实测；RC-03 E1/E2</td><td>工件哈希锁定；不影响 SSH 的离线方案</td><td>SPIKE_02/04 结论与 Phase 1/2 正式证据</td></tr>
+      <tr><td>Batch D</td><td>RC-06、RC-07</td><td>前置 Spike 已形成可用 Profile</td><td>Gateway、Workspace、State 的 E5/E6/E7 证据</td></tr>
+      <tr><td>Batch E</td><td>RC-08 产品装配</td><td>真实产品入口和完整依赖闭包</td><td>W7C-01–13 与端到端闭环</td></tr>
+      <tr><td>Batch F</td><td>RC-09 正式候选</td><td>完整候选包与干净 E5/E6/E7</td><td>安装/启动/运行/退出/回滚/卸载全通过</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、证据接口与判定纪律</h2>
+  <ul>
+    <li>原始报告使用 schema v1：环境、工件哈希、完整命令、时间、退出码、metrics、stdout/stderr 路径和证据附件必须齐全。</li>
+    <li><code>latest-validation.json</code> 使用 schema v2；每轮代码/依赖修复后生成新的 MVP ID 和工作区指纹。</li>
+    <li>WorkBuddy 原始报告不改写；通过独立勘误/交叉表记录 <code>CONFIRMED</code>、<code>PARTIALLY_CONFIRMED</code>、<code>CONTRADICTED</code>、<code>NOT_COMPARABLE</code>、<code>NOT_TESTED</code>。</li>
+    <li>开发机 lint/build/test 只能作为上机前置；正式 Win7 状态只采信对应目标 Profile 的实机/可复现 E5/E6/E7 证据。</li>
+  </ul>
+
+  <h2>七、保护连接与停止条件</h2>
+  <div class="callout safe">
+    <ul>
+      <li>始终保留 <code>192.168.1.10 ↔ 192.168.1.11:22</code>；禁止修改网卡、路由、防火墙、Bitvise 服务和系统代理。</li>
+      <li>只有确认 Bitvise 自动启动、固定 IP、自动重连和本地控制台兜底后，RC-02 才允许一次受控重启；否则 T01 保持 PARTIAL。</li>
+      <li>外网断开验收优先使用上游网络隔离、独立 Win7 VM/测试网络或控制台可恢复窗口，不通过关闭当前管理链路实现。</li>
+      <li>SSH 连续失败、删除范围不明确、系统修改不可回滚、原生产物来源/哈希不明时，立即停止对应执行包并继续其他独立工作。</li>
+    </ul>
+  </div>
+
+  <h2>八、最终完成定义</h2>
+  <table>
+    <thead><tr><th>问题</th><th>完成标准</th></tr></thead>
+    <tbody>
+      <tr><td>能否安装</td><td>完整自包含包在干净 E5 解压/安装，前置探测可解释，哈希/签名失败拒绝，失败可回滚。</td></tr>
+      <tr><td>能否启动</td><td>Win7 SP1 x64 首次/重复/中文路径/软件渲染启动，且无未声明网络、运行时或提权。</td></tr>
+      <tr><td>能否运行</td><td>真实产品端到端任务闭环通过；Runner、Git、State、Workspace、Gateway、IPC、终端均受策略和审计约束。</td></tr>
+      <tr><td>能否退出</td><td>正常退出、强制取消、崩溃恢复、更新回滚和卸载后无受管进程、服务、启动项或越界数据残留。</td></tr>
+      <tr><td>能否正式发布</td><td>适用的 C01–C20、G1–G10、W7C-01–13、E5/E6/E7 与正式 Phase Gate 全部有证据且无关键阻断。</td></tr>
+    </tbody>
+  </table>
+
+  <footer>方案基于 ADR-0054、MVP_01 和 MVP-20260802-12。E2 中文+空格路径、Git 缺失降级、20/20 回归与 compileall 已执行并写入证据；其余执行包仍按本方案排队。方案生成验收路径与判定标准，不自动授权白名单外实现、不改写 Accepted ADR，也不把机械盘默认通过扩大为 SQLite/索引性能通过。</footer>
+</main></body></html>

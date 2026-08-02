@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>对标 Codex 模块级验证（第 2 轮 · Delta）— 基线 8b03277 — 2026-07-31</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 20px; color: #1c1e21; line-height: 1.6; }
+  h1 { font-size: 1.6em; border-bottom: 3px solid #2563eb; padding-bottom: 8px; }
+  h2 { font-size: 1.25em; margin-top: 32px; border-left: 4px solid #2563eb; padding-left: 10px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }
+  th, td { border: 1px solid #d1d5db; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  .pass { color: #15803d; font-weight: 600; }
+  .fail { color: #b91c1c; font-weight: 600; }
+  .worse { color: #b91c1c; font-weight: 700; }
+  .p0 { background: #fee2e2; }
+  .new { background: #fde68a; }
+  .meta { color: #6b7280; font-size: 0.85em; }
+  .note { background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 6px; margin: 14px 0; }
+</style>
+</head>
+<body>
+
+<h1>对标 Codex 模块级验证（第 2 轮 · Delta）</h1>
+<p class="meta">日期：2026-07-31 ｜ 类型：验收（增量复核）｜ 状态：Current ｜ 前序报告：<code>codex_benchmark_module_verification_2026-07-31.html</code>（基线 21ffcf3，本报告发布后其状态应标 Superseded）｜ Win7 实机证据：无</p>
+
+<h2>验证基线（绑定事实）</h2>
+<table>
+<tr><th>项</th><th>值</th></tr>
+<tr><td>src 代码基线</td><td><code>8b03277</code>（tag <code>backup/integrated-snapshot-20260731</code>，"feat: agent core implementation + project reorganization"，207 文件）。经临时索引树比对，当前工作树与该快照在 <code>src/**</code> 源码上<strong>零差异</strong>（仅多 <code>src/runner/dist/</code> 构建产物 + 未提交的文档治理改动）。</td></tr>
+<tr><td>HEAD</td><td><code>21ffcf3</code>（<code>codex/integrated-robustness</code>；8b03277 为其子快照，不在任何分支上）</td></tr>
+<tr><td>执行环境</td><td>macOS 15.7.7 / Node（各模块本地 node_modules）/ Python 3.9.6（非 3.8.10 门槛解释器）——开发机代理证据，非 Win7 实机</td></tr>
+<tr><td>执行命令</td><td>各模块 <code>npx tsc --noEmit</code> + <code>npx jest</code>；<code>python3 -m compileall src/phase1-2/win7_agent</code> + <code>unittest discover tests/phase1-2/probe</code></td></tr>
+</table>
+
+<h2>回归结果</h2>
+<table>
+<tr><th>模块</th><th>结果</th><th>与上轮（21ffcf3）对比</th></tr>
+<tr><td>core</td><td class="pass">225/225</td><td>持平</td></tr>
+<tr><td>gateway</td><td class="pass">200/200</td><td>持平</td></tr>
+<tr><td>state</td><td class="pass">218/218</td><td>持平</td></tr>
+<tr><td>workspace</td><td class="pass">73/73</td><td>持平</td></tr>
+<tr><td>shell</td><td class="pass">73/73</td><td>持平</td></tr>
+<tr><td>git-adapter</td><td class="pass">50/50</td><td>持平</td></tr>
+<tr><td>runner</td><td class="pass">46/46</td><td>持平</td></tr>
+<tr><td><b>TS 合计</b></td><td class="pass"><b>885/885</b>，tsc 0 错误</td><td>持平（多窗口优化轮未引入 TS 回归）</td></tr>
+<tr class="new"><td>win7_agent（Phase 1）</td><td class="fail">unit 19 过 / 1 错误（integration 未单独重跑）</td><td class="worse">回归：上轮 22/22 全过</td></tr>
+</table>
+
+<h2>新增发现（本轮基线独有）</h2>
+<table>
+<tr><th>#</th><th>发现</th><th>证据</th><th>定级</th></tr>
+<tr class="new"><td>N1</td><td><b>Phase 1 冻结资产迁移引入测试回归 + 涉嫌违反冻结合同</b>：<code>8b03277</code> 把 <code>src/win7_agent/</code> 整体迁至 <code>src/phase1-2/win7_agent/</code>，但 <code>tests/phase1-2/probe/test_repairs.py</code> L33 硬编码旧路径 <code>src/win7_agent/__init__.py</code> → FileNotFoundError。更重要的治理问题：Phase 1 任务书路径白名单以 <code>src/win7_agent/**</code> 为准（冻结合同），迁移未见 ADR/任务书授权，需架构师裁决（回迁或修订任务书路径声明）。</td><td><code>test_repairs.py:33</code>；AGENTS.md C14/规则 3</td><td>P0（治理）</td></tr>
+<tr><td>N2</td><td><code>src/runner/dist/</code> 构建产物出现在工作树且未被 .gitignore 覆盖（其余 6 模块 dist 均被忽略）</td><td><code>git status</code> 增补项</td><td>P2</td></tr>
+<tr><td>N3</td><td><code>docs/status/latest-validation.json</code> 自标 <code>NOT_ESTABLISHED</code>、tests 为空——本报告数据可作为其首次填充来源（绑定 8b03277 + 本环境），待文档整合窗口写入</td><td><code>docs/status/latest-validation.json</code></td><td>信息</td></tr>
+</table>
+
+<h2>上轮发现逐条复核（21ffcf3 → 8b03277）</h2>
+<table>
+<tr><th>编号</th><th>发现</th><th>模块</th><th>本轮状态</th><th>证据</th></tr>
+<tr class="p0"><td>P0-1</td><td>git 仓库本地 config/.gitattributes 的 filter/smudge/textconv 逃逸面未封堵；注释宣称禁 filter.*.process 但配置清单无此条目</td><td>git-adapter</td><td class="fail">未修复</td><td><code>isolation.ts</code>：ISOLATION_CONFIG 仍仅 <code>core.attributesFile→NUL</code>（L59），无任何 filter/textconv 条目；L130 误导注释原样保留</td></tr>
+<tr class="p0"><td>P0-2</td><td>流式重试向调用方重复下发已收 chunk</td><td>gateway</td><td class="fail">未修复（出现"接线假象"）</td><td><code>transport/index.ts</code> L567 实例化 <code>_streamRecovery</code> 并暴露 getter（L593），但 send 循环<strong>零调用</strong> update/getResumePosition；<code>provider/index.ts</code> L392/L405 chunkIndex 仍裸递增无去重。仅持有实例不等于接线</td></tr>
+<tr class="p0"><td>P0-3</td><td>事件日志全链路内存型，无磁盘持久化</td><td>state</td><td class="fail">未修复</td><td><code>src/state/src</code> 全目录无任何 fs/sqlite import；wal.ts/store.ts 仍为内存实现</td></tr>
+<tr><td>P1-1</td><td>RuntimeMessageProjection 生产组合根未注入</td><td>core+state</td><td class="fail">未修复</td><td>非测试代码中仅 <code>runtime.ts</code> 的可选依赖与 fail-closed 守卫（L485-L493）；无组合根注入点</td></tr>
+<tr><td>P1-2</td><td>编码链缺 GBK 检测</td><td>workspace</td><td class="worse">未修复且恶化</td><td><code>encoding.ts</code> L2 文件头注释已改为宣称"BOM → UTF-8 → GBK → AMBIGUOUS"，但实现主体（L29-L43）仍为 BOM→严格UTF-8→直接 ambiguous，<strong>无 GBK 分支</strong>——新增注释-实现漂移，与 P0-1 的 isolation 注释问题同型</td></tr>
+<tr><td>P1-3</td><td>IPC 消息方向未与类型绑定、无调用方身份验证</td><td>shell</td><td class="fail">未修复</td><td><code>MESSAGE_DIRECTION_MAP</code> 仍仅定义于 <code>messages.ts</code> L197，schema.ts/channel.ts 零消费</td></tr>
+<tr><td>P1-4</td><td>代理 URL 内嵌明文密码</td><td>gateway</td><td class="pass">已修复</td><td><code>node-network.ts</code> L276/L351 改经 <code>Proxy-Authorization</code> 头注入（<code>buildProxyAuthHeader</code>）；残留：<code>buildProxyUrl</code>（transport L160-L165）仍嵌密码但已无调用方，成死代码，建议删除防复用</td></tr>
+<tr><td>P1-5</td><td>containment 探测未接入执行门控</td><td>runner</td><td class="fail">未修复</td><td><code>runner.ts</code> 执行路径无 probe 消费；UnavailableRunner 占位如旧（合规 fail-closed，但接线仍缺）</td></tr>
+<tr><td>P2-1</td><td>Retry-After 不尊重</td><td>gateway</td><td class="fail">未修复</td><td>全模块无 retry-after 处理</td></tr>
+<tr><td>P2-2</td><td>plan 后文件被删静默当新建（逃过 REPLAN_REQUIRED）</td><td>workspace</td><td class="fail">未修复</td><td><code>apply.ts</code> L107 条件仍为"baseSha256 已定义<b>且文件存在</b>才校验"</td></tr>
+</table>
+
+<h2>结论</h2>
+<p><strong>8b03277 相比 21ffcf3：TS 模块层面零回归零改进（885/885 持平，8 项已知缺陷仅 1 项修复），Python Phase 1 出现 1 例迁移导致的回归 + 1 项冻结合同治理疑点。</strong>
+该 207 文件大提交的实质内容是目录重组与文档整理，并未推进上轮 P0 修复；且出现两处新的"注释宣称已修、实现未动"漂移（gateway StreamRecoveryPoint 假接线、workspace GBK 注释），这类漂移比缺陷本身更危险——它会让后续窗口误判缺口已闭合。三个 P0（git filter 逃逸面、流式重试重复 chunk、事件日志无持久化）全部原样存在，修复顺序建议不变。</p>
+
+<h2>建议（不构成操作，待确认后执行）</h2>
+<ul>
+<li><b>先裁决 N1</b>：Phase 1 冻结资产的路径迁移需要架构师明确（回迁 <code>src/win7_agent/</code>，或以 ADR+任务书修订承认 <code>src/phase1-2/</code> 新路径并同步修复 <code>test_repairs.py:33</code>）。在裁决前，8b03277 不应被选定为验证基线（与 <code>latest-validation.json</code> 当前 <code>NOT_ESTABLISHED</code> 状态一致）。</li>
+<li>P0-2/P1-2 的两处注释-实现漂移应立即修正注释或补实现，并纳入 <code>check_docs.mjs</code> 类门禁的"宣称即测试"原则（凡注释宣称的封堵/检测能力必须有对应断言测试）。</li>
+<li>本报告数据可填充 <code>docs/status/latest-validation.json</code>（commit=8b03277、TS 885/885、Python 19+1err、win7_validation=NOT_PERFORMED）；该文件属文档整合窗口职责，本窗口不代写。</li>
+<li>上一份对标报告（21ffcf3 基线）应在 <code>docs/reports/README.md</code> 索引中标注 Superseded → 本报告。</li>
+</ul>
+
+<h2>范围声明</h2>
+<ul>
+<li>本轮为只读审计 + 测试执行 + 本报告一个新增文件；未修改任何实现代码与其他窗口的未提交文档。</li>
+<li>全部结论为开发机代理证据，不构成 Win7 实机验收（AGENTS.md 规则 8）；SPIKE_01~04 与 Win7 E1/E2/E5/E7 门槛不变。</li>
+</ul>
+
+</body>
+</html>

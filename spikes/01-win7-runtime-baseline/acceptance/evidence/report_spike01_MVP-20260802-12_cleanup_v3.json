@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-12",
+  "suite": "SPIKE_01_CLEANUP",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "artifact_hashes": {},
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\cleanup_spike01.js",
+    "--mvp-id=MVP-20260802-12",
+    "--report=C:\\acceptance\\report_spike01_MVP-20260802-12_cleanup_v3.json",
+    "--deployment=C:\\acceptance\\mvp_spike01_mvp12",
+    "--user-data=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-12"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T02:57:11.519Z",
+    "finished_at": "2026-08-02T02:57:11.522Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "T10",
+      "status": "PASS",
+      "summary": "Isolated deployment and userData were removed with no matching process or startup reference.",
+      "metrics": {
+        "removals": [
+          {
+            "path": "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-12",
+            "exists_after": false
+          },
+          {
+            "path": "C:\\acceptance\\mvp_spike01_mvp12",
+            "exists_after": false
+          },
+          {
+            "path": "C:\\测试 目录\\mvp spike01",
+            "exists_after": false
+          }
+        ],
+        "processes_before": {
+          "exit_code": 0,
+          "stdout": "\r\r\nNode,CommandLine,ProcessId\r\r\nDCCS-CHAIZL-PC,cmd.exe /c C:\\acceptance\\electron\\electron.exe C:\\acceptance\\cleanup_spike01.js --mvp-id=MVP-20260802-12 --report=C:\\acceptance\\report_spike01_MVP-20260802-12_cleanup_v3.json --deployment=C:\\acceptance\\mvp_spike01_mvp12 --user-data=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-12,5992\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\cleanup_spike01.js --mvp-id=MVP-20260802-12 --report=C:\\acceptance\\report_spike01_MVP-20260802-12_cleanup_v3.json --deployment=C:\\acceptance\\mvp_spike01_mvp12 --user-data=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-12,3016\r\r\nDCCS-CHAIZL-PC,wmic process where \"CommandLine like '%mvp_spike01_mvp12%'\" get ProcessId,CommandLine /format:csv,5476\r\r\n",
+          "stderr": "",
+          "error": null,
+          "matching_process_lines": []
+        },
+        "processes_after": {
+          "exit_code": 0,
+          "stdout": "\r\r\nNode,CommandLine,ProcessId\r\r\nDCCS-CHAIZL-PC,cmd.exe /c C:\\acceptance\\electron\\electron.exe C:\\acceptance\\cleanup_spike01.js --mvp-id=MVP-20260802-12 --report=C:\\acceptance\\report_spike01_MVP-20260802-12_cleanup_v3.json --deployment=C:\\acceptance\\mvp_spike01_mvp12 --user-data=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-12,5992\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\cleanup_spike01.js --mvp-id=MVP-20260802-12 --report=C:\\acceptance\\report_spike01_MVP-20260802-12_cleanup_v3.json --deployment=C:\\acceptance\\mvp_spike01_mvp12 --user-data=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-12,3016\r\r\nDCCS-CHAIZL-PC,wmic process where \"CommandLine like '%mvp_spike01_mvp12%'\" get ProcessId,CommandLine /format:csv,3060\r\r\n",
+          "stderr": "",
+          "error": null,
+          "matching_process_lines": []
+        },
+        "startup_before": {
+          "exit_code": 0,
+          "contains_mvp_reference": false,
+          "stderr": "",
+          "error": null
+        },
+        "startup_after": {
+          "exit_code": 0,
+          "contains_mvp_reference": false,
+          "stderr": "",
+          "error": null
+        }
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": [
+    "Only the explicit deployment path, the historical C:\\测试 目录\\mvp spike01 path, and the explicit or matching isolated userData directory are deleted."
+  ]
+}

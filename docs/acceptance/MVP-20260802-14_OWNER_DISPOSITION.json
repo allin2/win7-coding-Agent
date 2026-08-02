@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-14",
+  "suite": "MVP_OWNER_DISPOSITION",
+  "environment": {
+    "authority": "project owner request, 2026-08-02",
+    "scope": "Win7 MVP only",
+    "formal_release_gates_changed": false
+  },
+  "artifact_hashes": {
+    "win7_runtime_report": "6297443c8006c7aa5e896eb3558035d60050bb605aa8d438b116d82549e4d679",
+    "product_shell_report": "583ac4fd7f6b1ad3d675cad70582e9ac0fee2f11ab707100b253525efad09e3d"
+  },
+  "command": [
+    "owner-decision",
+    "accept-current-win7-mvp-with-deferred-formal-gates"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-02T11:20:00+08:00",
+    "finished_at": "2026-08-02T11:40:06+08:00"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "MVP_OVERALL_DISPOSITION",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "The evidence-backed Win7 MVP is accepted for continued product development; formal release gates remain unchanged.",
+      "metrics": { "mvp_blocking_items": 0, "formal_deferred_items": 8 },
+      "evidence": ["docs/DECISIONS.md#adr-0055-win7-mvp-负责人接受延期边界与桌面装配启动"]
+    },
+    {
+      "case_id": "SPIKE01_T03_STDIN_SEMANTICS",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "The NUL-like child-readable stdin behavior is accepted because the parent has no stdin handle and no data entered during the diagnostic; explicit Core closure remains a later hardening item.",
+      "metrics": { "parent_has_stdin": false, "data_seen": false, "child_readable": true },
+      "evidence": ["spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_stdio_MVP-20260802-12.json"]
+    },
+    {
+      "case_id": "SPIKE02_NATIVE_CONTAINMENT",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "Native containment and interactive terminal are deferred; real local Runner remains fail-closed and unavailable.",
+      "metrics": { "real_runner_enabled": false, "terminal_enabled": false },
+      "evidence": ["docs/DECISIONS.md#adr-0055-win7-mvp-负责人接受延期边界与桌面装配启动"]
+    },
+    {
+      "case_id": "SPIKE04_PERSISTENCE_INDEX",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "SQLite persistence, FTS5 and crash recovery are deferred; the MVP uses bounded in-memory state and makes no persistence or mechanical-disk performance claim.",
+      "metrics": { "state_mode": "bounded-in-memory", "mechanical_disk_gate": "owner-accepted" },
+      "evidence": ["validation/win7_runtime_evidence_MVP-20260802-14.json"]
+    },
+    {
+      "case_id": "VISUAL_FOCUS_REBOOT_CLEAN_OS",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "Visual focus, controlled reboot and strict clean-OS checks are deferred; isolated deployment and userData evidence is accepted for the MVP.",
+      "metrics": { "reboot_performed": false, "strict_clean_os": false, "isolated_deployment": true },
+      "evidence": ["validation/report_product_shell_MVP-20260802-14.json"]
+    },
+    {
+      "case_id": "NETWORK_ISOLATION",
+      "status": "MVP_NETWORK_SURROGATE",
+      "summary": "Application-layer denial is accepted for the MVP while the SSH management channel remains intact; physical disconnection and packet capture are deferred.",
+      "metrics": { "nic_changed": false, "route_changed": false, "firewall_changed": false, "pcap": false },
+      "evidence": ["spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_short.json"]
+    },
+    {
+      "case_id": "PHASE1_PHASE2_FORMAL_GATES",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "Existing CPython and probe evidence is sufficient for the MVP; architect-only frozen-contract gates remain formal-release work.",
+      "metrics": { "formal_gate_changed": false },
+      "evidence": ["validation/phase1/evidence/report_phase1_MVP-20260802-10.json", "validation/phase1/evidence/report_phase1_MVP-20260802-12_e2.json"]
+    },
+    {
+      "case_id": "ENTERPRISE_PROXY_CA_MODEL_UPDATE",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "Enterprise proxy, CA, model and update services are deferred; the MVP shell exposes the Gateway as unconfigured or Replay and does not claim E7.",
+      "metrics": { "e7_performed": false, "gateway_mode": "unconfigured-or-replay" },
+      "evidence": ["validation/report_product_shell_MVP-20260802-14.json"]
+    }
+  ],
+  "evidence": [
+    "validation/win7_runtime_evidence_MVP-20260802-14.json",
+    "validation/report_product_shell_MVP-20260802-14.json",
+    "validation/win7_runtime_product_MVP-20260802-14_stdout_stderr.txt"
+  ],
+  "notes": [
+    "OWNER_ACCEPTED_FOR_MVP is not a formal PASS and does not modify accepted Phase or SPIKE contracts.",
+    "Any deferred capability must recover its original Gate before becoming a production default.",
+    "The MVP can install by copying to an isolated directory, start, render diagnostics and exit; it cannot yet execute real local commands or recover persistent sessions."
+  ]
+}

@@ -1,0 +1,418 @@
+{
+  "schema_version": 1,
+  "mvp_id": "MVP-20260802-01",
+  "suite": "SPIKE_01_WIN7_RUNTIME_BASELINE_FORMAL_AUTOMATION",
+  "environment": {
+    "electron": "22.3.27",
+    "chrome": "108.0.5359.215",
+    "node": "16.17.1",
+    "os": "win32",
+    "arch": "x64",
+    "user_data": "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01"
+  },
+  "artifact_hashes": {
+    "harness": "319cf90b1fe49ce2a1ff2baf020094f9ed65c1be6eb9b8117626507ca9fc803e",
+    "preload": "d840f7b40f3df13312722413456cdd2ab7e6998a71ffc8e9debeb4d175cf0fb4",
+    "renderer": "5b79b72463d7c1785644d81c162a45b47362930bab4be505342e052ce9e65321",
+    "utility_child": "82e6016e791f1c14142252b0aca25c11c72ca3e97cc444bd1914fa4649a86667",
+    "electron_exe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+  },
+  "command": [
+    "C:\\acceptance\\electron\\electron.exe",
+    "C:\\acceptance\\mvp_spike01\\codex_formal_harness.js",
+    "--report=C:\\acceptance\\report_spike01_MVP-20260802-01_formal.json",
+    "--mvp-id=MVP-20260802-01",
+    "--idle-duration-ms=600000"
+  ],
+  "timestamps": {
+    "started_at": "2026-08-01T18:47:27.666Z",
+    "finished_at": "2026-08-01T18:57:35.591Z"
+  },
+  "exit_code": 0,
+  "cases": [
+    {
+      "case_id": "T01",
+      "status": "PARTIAL",
+      "summary": "This run measures a process cold start only; no OS reboot evidence is attached.",
+      "metrics": {
+        "electron": "22.3.27",
+        "expected_electron": "22.3.27",
+        "version_matches": true
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T07",
+      "status": "PASS",
+      "summary": "Renderer isolation and forbidden IPC checks passed.",
+      "metrics": {
+        "require_unavailable": true,
+        "process_unavailable": true,
+        "buffer_unavailable": true,
+        "preload_api_present": true,
+        "forbidden_ipc_rejected": true,
+        "csp_inline_blocked": true,
+        "network_attempts": [
+          {
+            "target": "http://192.168.1.10:37124/mvp-probe",
+            "outcome": "rejected",
+            "message": "Failed to fetch"
+          },
+          {
+            "target": "http://mvp-win7-invalid.invalid/",
+            "outcome": "rejected",
+            "message": "Failed to fetch"
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T08",
+      "status": "MVP_NETWORK_SURROGATE",
+      "summary": "Application-layer CSP and session cancellation rejected HTTP/DNS-intended requests; packet capture is not attached.",
+      "metrics": {
+        "renderer_attempts": [
+          {
+            "target": "http://192.168.1.10:37124/mvp-probe",
+            "outcome": "rejected",
+            "message": "Failed to fetch"
+          },
+          {
+            "target": "http://mvp-win7-invalid.invalid/",
+            "outcome": "rejected",
+            "message": "Failed to fetch"
+          }
+        ],
+        "session_attempts": [
+          {
+            "target": "http://192.168.1.10:37124/mvp-session-probe",
+            "outcome": "rejected:net::ERR_BLOCKED_BY_CLIENT"
+          },
+          {
+            "target": "http://mvp-win7-invalid.invalid/",
+            "outcome": "rejected:net::ERR_BLOCKED_BY_CLIENT"
+          }
+        ],
+        "intercepted_requests": [
+          {
+            "url": "http://192.168.1.10:37124/mvp-session-probe",
+            "resource_type": "other",
+            "cancelled": true,
+            "at": "2026-08-01T18:47:28.470Z"
+          },
+          {
+            "url": "http://mvp-win7-invalid.invalid/",
+            "resource_type": "other",
+            "cancelled": true,
+            "at": "2026-08-01T18:47:28.470Z"
+          }
+        ]
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T04",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "summary": "GPU switch and GPU information were collected; black-screen/UI usability requires deferred visual review.",
+      "metrics": {
+        "disable_gpu": false,
+        "gpu_info": {
+          "auxAttributes": {
+            "amdSwitchable": false,
+            "canSupportThreadedTextureMailbox": false,
+            "dx12FeatureLevel": "Not supported",
+            "glResetNotificationStrategy": 0,
+            "inProcessGpu": true,
+            "initializationTime": 0,
+            "isAsan": false,
+            "jpegDecodeAcceleratorSupported": false,
+            "optimus": false,
+            "overlayInfo": {
+              "directComposition": false,
+              "nv12OverlaySupport": "NONE",
+              "supportsOverlays": false,
+              "yuy2OverlaySupport": "NONE"
+            },
+            "passthroughCmdDecoder": false,
+            "sandboxed": false,
+            "softwareRendering": false,
+            "subpixelFontRendering": true,
+            "supportsD3dSharedImages": false,
+            "supportsDx12": false,
+            "supportsVulkan": false,
+            "targetCpuBits": 64,
+            "visibilityCallbackCallCount": 0,
+            "vulkanVersion": "Not supported"
+          },
+          "gpuDevice": [
+            {
+              "active": false,
+              "cudaComputeCapabilityMajor": 0,
+              "deviceId": 6422,
+              "driverVersion": "20.19.15.4380",
+              "gpuPreference": 0,
+              "revision": 7,
+              "subSysId": 1347360682,
+              "vendorId": 32902
+            }
+          ]
+        }
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T03",
+      "status": "PARTIAL",
+      "summary": "Utility process started; stdin observation was not closed.",
+      "metrics": {
+        "type": "ready",
+        "pid": 5344,
+        "memory": {
+          "rss": 38260736,
+          "heapTotal": 4001792,
+          "heapUsed": 2721908,
+          "external": 1491342,
+          "arrayBuffers": 0
+        },
+        "stdin": {
+          "readable": true,
+          "destroyed": false,
+          "isTTY": false
+        }
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T06",
+      "status": "PARTIAL",
+      "summary": "Second instance was rejected and primary received the event; visual focus remains owner-accepted.",
+      "metrics": {
+        "probe_exit_code": 0,
+        "primary_received_event": true,
+        "probe_stdout": "\r\nSECOND_INSTANCE_LOCK_REJECTED\n",
+        "probe_stderr": "",
+        "before": {
+          "exit_code": 0,
+          "stdout": "\r\r\nNode,CommandLine,ProcessId\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\mvp_inventory.js --report=C:\\acceptance\\mvp_inventory_MVP-20260802-01.json --mvp-id=MVP-20260802-01,836\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\" --mojo-platform-channel-handle=1428 --field-trial-handle=1116,i,887544587828146590,17049681089011136872,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8,792\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\" --gpu-preferences=UAAAAAAAAADgAAAYAAAAAAAAAAAAAAAAAABgAAAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAASAAAAAAAAAAYAAAAAgAAABAAAAAAAAAAGAAAAAAAAAAQAAAAAAAAAAAAAAAOAAAAEAAAAAAAAAABAAAADgAAAAgAAAAAAAAACAAAAAAAAAA= --use-gl=angle --use-angle=swiftshader-webgl --mojo-platform-channel-handle=1404 --field-trial-handle=1116,i,887544587828146590,17049681089011136872,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:2,1740\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\mvp_spike01\\codex_formal_harness.js --report=C:\\acceptance\\report_spike01_MVP-20260802-01_formal.json --mvp-id=MVP-20260802-01 --idle-duration-ms=600000,636\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe --type=crashpad-handler --user-data-dir=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01 /prefetch:7 --no-rate-limit --monitor-self-annotation=ptype=crashpad-handler --database=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad --annotation=_productName=Electron --annotation=_version=22.3.27 --annotation=plat=Win64 --annotation=prod=Electron --annotation=ver=22.3.27 --initial-client-data=0x49c,0x4a0,0x4b4,0x418,0x4c0,0x148c61898,0x148c618a8,0x148c618b8,1028\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --mojo-platform-channel-handle=1328 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8,5384\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=renderer --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --app-path=\"C:\\acceptance\\mvp_spike01\" --enable-sandbox --first-renderer-process --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=4 --time-ticks-at-unix-epoch=-1785605582339539 --launch-time-ticks=4465533961 --mojo-platform-channel-handle=1508 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:1,5564\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --gpu-preferences=UAAAAAAAAADgAAAYAAAAAAAAAAAAAAAAAABgAAAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAASAAAAAAAAAAYAAAAAgAAABAAAAAAAAAAGAAAAAAAAAAQAAAAAAAAAAAAAAAOAAAAEAAAAAAAAAABAAAADgAAAAgAAAAAAAAACAAAAAAAAAA= --use-gl=angle --use-angle=swiftshader-webgl --mojo-platform-channel-handle=1232 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:2,1236\r\r\n",
+          "stderr": ""
+        },
+        "after": {
+          "exit_code": 0,
+          "stdout": "\r\r\nNode,CommandLine,ProcessId\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\mvp_inventory.js --report=C:\\acceptance\\mvp_inventory_MVP-20260802-01.json --mvp-id=MVP-20260802-01,836\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\" --mojo-platform-channel-handle=1428 --field-trial-handle=1116,i,887544587828146590,17049681089011136872,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8,792\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\" --gpu-preferences=UAAAAAAAAADgAAAYAAAAAAAAAAAAAAAAAABgAAAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAASAAAAAAAAAAYAAAAAgAAABAAAAAAAAAAGAAAAAAAAAAQAAAAAAAAAAAAAAAOAAAAEAAAAAAAAAABAAAADgAAAAgAAAAAAAAACAAAAAAAAAA= --use-gl=angle --use-angle=swiftshader-webgl --mojo-platform-channel-handle=1404 --field-trial-handle=1116,i,887544587828146590,17049681089011136872,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:2,1740\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\mvp_spike01\\codex_formal_harness.js --report=C:\\acceptance\\report_spike01_MVP-20260802-01_formal.json --mvp-id=MVP-20260802-01 --idle-duration-ms=600000,636\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe --type=crashpad-handler --user-data-dir=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01 /prefetch:7 --no-rate-limit --monitor-self-annotation=ptype=crashpad-handler --database=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad --annotation=_productName=Electron --annotation=_version=22.3.27 --annotation=plat=Win64 --annotation=prod=Electron --annotation=ver=22.3.27 --initial-client-data=0x49c,0x4a0,0x4b4,0x418,0x4c0,0x148c61898,0x148c618a8,0x148c618b8,1028\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --mojo-platform-channel-handle=1328 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8,5384\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=renderer --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --app-path=\"C:\\acceptance\\mvp_spike01\" --enable-sandbox --first-renderer-process --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=4 --time-ticks-at-unix-epoch=-1785605582339539 --launch-time-ticks=4465533961 --mojo-platform-channel-handle=1508 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:1,5564\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --gpu-preferences=UAAAAAAAAADgAAAYAAAAAAAAAAAAAAAAAABgAAAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAASAAAAAAAAAAYAAAAAgAAABAAAAAAAAAAGAAAAAAAAAAQAAAAAAAAAAAAAAAOAAAAEAAAAAAAAAABAAAADgAAAAgAAAAAAAAACAAAAAAAAAA= --use-gl=angle --use-angle=swiftshader-webgl --mojo-platform-channel-handle=1232 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:2,1236\r\r\n",
+          "stderr": ""
+        }
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T09",
+      "status": "PASS",
+      "summary": "Renderer crash produced lifecycle event and dump artifact.",
+      "metrics": {
+        "render_process_gone": true,
+        "crash_dump_count": 3,
+        "crash_dir": "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\CrashDumps",
+        "crashpad_reports_dir": "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad\\reports",
+        "structured_log": "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\crash-events.jsonl"
+      },
+      "evidence": [
+        "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\crash-events.jsonl",
+        "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad\\reports\\157d43ba-a540-4c91-90d9-90f9deba865a.dmp",
+        "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad\\reports\\19da7de6-923a-4fda-879e-f4bec9df1708.dmp",
+        "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad\\reports\\af2adb5b-17f2-4dbf-85b0-a3c16da4e3f4.dmp"
+      ]
+    },
+    {
+      "case_id": "T02",
+      "status": "PASS",
+      "summary": "Collected ten idle-memory samples.",
+      "metrics": {
+        "requested_duration_ms": 600000,
+        "sample_count": 10,
+        "average_private_kb": 70029.2
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T10",
+      "status": "PARTIAL",
+      "summary": "Per-run userData path is isolated; external cleanup/reinspection is required after this process exits.",
+      "metrics": {
+        "user_data": "C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01",
+        "before_cleanup_process_snapshot": {
+          "exit_code": 0,
+          "stdout": "\r\r\nNode,CommandLine,ProcessId\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\mvp_inventory.js --report=C:\\acceptance\\mvp_inventory_MVP-20260802-01.json --mvp-id=MVP-20260802-01,836\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\" --mojo-platform-channel-handle=1428 --field-trial-handle=1116,i,887544587828146590,17049681089011136872,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8,792\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\Electron\" --gpu-preferences=UAAAAAAAAADgAAAYAAAAAAAAAAAAAAAAAABgAAAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAASAAAAAAAAAAYAAAAAgAAABAAAAAAAAAAGAAAAAAAAAAQAAAAAAAAAAAAAAAOAAAAEAAAAAAAAAABAAAADgAAAAgAAAAAAAAACAAAAAAAAAA= --use-gl=angle --use-angle=swiftshader-webgl --mojo-platform-channel-handle=1404 --field-trial-handle=1116,i,887544587828146590,17049681089011136872,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:2,1740\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe  C:\\acceptance\\mvp_spike01\\codex_formal_harness.js --report=C:\\acceptance\\report_spike01_MVP-20260802-01_formal.json --mvp-id=MVP-20260802-01 --idle-duration-ms=600000,636\r\r\nDCCS-CHAIZL-PC,C:\\acceptance\\electron\\electron.exe --type=crashpad-handler --user-data-dir=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01 /prefetch:7 --no-rate-limit --monitor-self-annotation=ptype=crashpad-handler --database=C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\\Crashpad --annotation=_productName=Electron --annotation=_version=22.3.27 --annotation=plat=Win64 --annotation=prod=Electron --annotation=ver=22.3.27 --initial-client-data=0x49c,0x4a0,0x4b4,0x418,0x4c0,0x148c61898,0x148c618a8,0x148c618b8,1028\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --mojo-platform-channel-handle=1328 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8,5384\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=renderer --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --app-path=\"C:\\acceptance\\mvp_spike01\" --enable-sandbox --first-renderer-process --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=4 --time-ticks-at-unix-epoch=-1785605582339539 --launch-time-ticks=4465533961 --mojo-platform-channel-handle=1508 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:1,5564\r\r\nDCCS-CHAIZL-PC,\"C:\\acceptance\\electron\\electron.exe\" --type=gpu-process --user-data-dir=\"C:\\acceptance\\mvp_spike01_userdata_MVP-20260802-01\" --gpu-preferences=UAAAAAAAAADgAAAYAAAAAAAAAAAAAAAAAABgAAAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEgAAAAAAAAASAAAAAAAAAAYAAAAAgAAABAAAAAAAAAAGAAAAAAAAAAQAAAAAAAAAAAAAAAOAAAAEAAAAAAAAAABAAAADgAAAAgAAAAAAAAACAAAAAAAAAA= --use-gl=angle --use-angle=swiftshader-webgl --mojo-platform-channel-handle=1232 --field-trial-handle=1144,i,12695544251680208876,2892445983561726263,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:2,1236\r\r\n",
+          "stderr": ""
+        }
+      },
+      "evidence": []
+    },
+    {
+      "case_id": "T11",
+      "status": "PARTIAL",
+      "summary": "Two utility processes were started and sampled; workload simulation remains deferred.",
+      "metrics": {
+        "shell_memory_samples": 10,
+        "concurrent_utilities": {
+          "started": 2,
+          "workers": [
+            {
+              "index": 0,
+              "ready": true,
+              "done": true,
+              "message": {
+                "type": "ready",
+                "pid": 768,
+                "memory": {
+                  "rss": 38313984,
+                  "heapTotal": 4001792,
+                  "heapUsed": 2739952,
+                  "external": 1491342,
+                  "arrayBuffers": 0
+                },
+                "stdin": {
+                  "readable": true,
+                  "destroyed": false,
+                  "isTTY": false
+                }
+              }
+            },
+            {
+              "index": 1,
+              "ready": true,
+              "done": true,
+              "message": {
+                "type": "ready",
+                "pid": 2036,
+                "memory": {
+                  "rss": 38326272,
+                  "heapTotal": 4001792,
+                  "heapUsed": 2740268,
+                  "external": 1491342,
+                  "arrayBuffers": 0
+                },
+                "stdin": {
+                  "readable": true,
+                  "destroyed": false,
+                  "isTTY": false
+                }
+              }
+            }
+          ]
+        }
+      },
+      "evidence": []
+    }
+  ],
+  "evidence": [],
+  "notes": [
+    "T01 is process-cold-start automation unless a separately recorded OS reboot run is attached.",
+    "T04 and window-focus portion of T06 require human visual review and are not represented as automated PASS.",
+    "T08 records application-layer cancellation; packet capture or local listener evidence is required for a formal network conclusion."
+  ],
+  "raw": {
+    "network_requests": [
+      {
+        "url": "http://192.168.1.10:37124/mvp-session-probe",
+        "resource_type": "other",
+        "cancelled": true,
+        "at": "2026-08-01T18:47:28.470Z"
+      },
+      {
+        "url": "http://mvp-win7-invalid.invalid/",
+        "resource_type": "other",
+        "cancelled": true,
+        "at": "2026-08-01T18:47:28.470Z"
+      }
+    ],
+    "memory_samples": [
+      {
+        "at": "2026-08-01T18:48:34.393Z",
+        "memory": {
+          "residentSet": 66980,
+          "private": 70016,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:49:34.401Z",
+        "memory": {
+          "residentSet": 67220,
+          "private": 70264,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:50:34.398Z",
+        "memory": {
+          "residentSet": 67116,
+          "private": 70144,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:51:34.407Z",
+        "memory": {
+          "residentSet": 67060,
+          "private": 70068,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:52:34.406Z",
+        "memory": {
+          "residentSet": 67016,
+          "private": 70004,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:53:34.414Z",
+        "memory": {
+          "residentSet": 66984,
+          "private": 69972,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:54:34.418Z",
+        "memory": {
+          "residentSet": 66968,
+          "private": 69956,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:55:34.417Z",
+        "memory": {
+          "residentSet": 66968,
+          "private": 69956,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:56:34.427Z",
+        "memory": {
+          "residentSet": 66972,
+          "private": 69956,
+          "shared": 8
+        }
+      },
+      {
+        "at": "2026-08-01T18:57:34.426Z",
+        "memory": {
+          "residentSet": 66976,
+          "private": 69956,
+          "shared": 8
+        }
+      }
+    ],
+    "lifecycle": [
+      {
+        "event": "second-instance",
+        "at": "2026-08-01T18:47:29.110Z"
+      }
+    ]
+  }
+}
