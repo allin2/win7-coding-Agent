@@ -10,9 +10,9 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: INTEGRATION_HARDENING
 Target Branch: codex/integrated-robustness
 Authorization: Project owner request, 2026-07-30
-Phase-Gate: IMPLEMENTING
-Win7-Compatibility: PROVISIONAL
-Win7-Validation: NOT_PERFORMED
+Phase-Gate: IMPLEMENTED_FOR_A3R_SLICE
+Win7-Compatibility: VALIDATED_FOR_A3R_SLICE
+Win7-Validation: A3_REAL_MODEL_PUBLIC_NETWORK_PASS
 Blocking-Reason: SPIKE_01~04 and Win7 SP1 x64 end-to-end validation remain outstanding
 ```
 
@@ -375,7 +375,371 @@ Phase 1/2 冻结合同，也不把 Replay 或 Mock 描述为真实模型。
   `src\hello.ts` 内容为 `export const hello = "world";  // A2 Replay edit`，目标
   SHA-256 为 `10cf3c196905e83f984d5980e06da21fa210345386f31049d101553445832fac`，
   与 UTF-8/CRLF 预期字节一致，且未发现 `.tmp` 或 `.bak` 残留。
-- 当前仍为 `Win7-Validation: NOT_PERFORMED`；未取得 Win7 A2-W01～W15 原始证据前，不标记 A2 PASS。
+- 2026-08-04 A2-W05“基线漂移后审批失效”通过；审批面板出现后，SSH 将目标文件改为
+  `export const hello = "world";  // A2 Replay edit // W05 external drift`，漂移 SHA-256 为
+  `087a22348c74b69091c0747e13feac37b9f1eccaa53cded8c220f3c9015737b2`。用户批准旧计划后，
+  Win7 GUI 正确返回 `REPLAN_REQUIRED`；随后 SSH 只读核验确认漂移内容及哈希未被覆盖，且无
+  `.tmp`、`.bak` 或 `.b64` 残留。验收前修复了写入失败原因回流及预期负向结果被验证器误报为
+  `VERIFICATION_STUCK` 的产品缺陷，A2 产品测试 4 项与 Shell lint 均通过后重新部署实机。
+- 同日 A2-W06“篡改 plan/preview/session/token 全部拒绝”通过；打包 Electron 22.3.27 探针在
+  Win7 SP1 x64 的独立目录 `C:\Win7CodingAgent\A2-W06-acceptance` 自动执行 4 项负向用例，分别
+  返回 `APPROVAL_BINDING_MISMATCH`、`APPROVAL_INVALID(previewSha256)`、
+  `SESSION_SCOPE_DENIED` 和 `POLICY_APPROVAL_INVALID`，Token 用例的 Executor 调用数为 0。
+  四个隔离 UTF-8/CRLF 文件的前后 SHA-256 均为
+  `ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb`，独立 SSH 复核未发现
+  `.tmp`、`.bak`、`.b64` 或恢复清单。结构化原始证据为
+  `docs/acceptance/A2-W06-20260804_tamper-report.json`，报告 SHA-256 为
+  `4349af7ea4c0215c94b24641d997e1d089eb1841fc7766954d890ec08b5c1d82`。
+- 2026-08-04 A2-W07～W10、W14、W15 自动验收通过；新增打包探针
+  `scripts/mvp_acceptance/a2_w07_w10_w14_w15_probe.js` 已纳入
+  `scripts/mvp_acceptance/build_desktop_alpha2.mjs`，仅调用打包后的 Core/Workspace/Shell。
+  Win7 SP1 x64 使用独立工作区 `C:\Win7CodingAgent\A2-remaining-acceptance`、Electron
+  22.3.27、Node 16.17.1，11 个自动 case 全部 `PASS`：W07 第二次消费返回
+  `APPROVAL_INVALID`；W08 的 UTF-8 BOM/LF/CRLF 字节与 EOL 保持；W09 的 GBK、二进制、
+  边界逃逸、截断预览分别在执行前返回 `ENCODING_AMBIGUOUS`（GBK/二进制）、
+  `WORKSPACE_BOUNDARY_VIOLATION`、`DIFF_TRUNCATED` 且 Executor 为 0；W10 注入既有
+  `ApplyPlanOptions.workspace.writeFile` seam 后自动恢复原 SHA-256；W14 无 `.tmp`、`.bak`、
+  `.b64` 或恢复清单；W15 无 Git/Runner/terminal 子进程或新增产品网络活动。
+  原始报告为 `docs/acceptance/A2-W07-W15-20260804_auto-report.json`，SHA-256 为
+  `a0c11b3f9db933ed591df278571e8fe813980e55228825a42ccbc9b4635473c8`。
+- 同次复核确认报告哈希与 Win7 `certutil` 一致；9 个隔离 `sample.ts` 的最终 SHA-256
+  与报告逐一一致；精确 `if exist` 检查未发现本轮 run 根、W07 或 W10 的 recovery manifest，
+  `wmic` 未发现带本轮 `a2-auto-run-1785775189747-7744` 命令行的残留 Electron，Bitvise
+  `BvSshServer` PID 1780 前后均为 `RUNNING`。既有正常 Desktop Alpha 2 Electron 进程未被终止。
+- 同日 A1 自动回归也完成：真实打包 Electron product-entry smoke 2/2 `PASS`，A1 W08
+  security/readonly 负向探针 14/14 `PASS`。原始报告分别为
+  `docs/acceptance/A2-A1-smoke-20260804.json`（SHA-256
+  `34ea130972e7318ab54f393ee123251b23819b927486d8f42c21424580b8788e`）和
+  `docs/acceptance/A2-A1-W08-20260804.json`（SHA-256
+  `660cf206e787cd82a06893e83fc5c360d49db2bbcfe47f3545c1d509a3b4a994`）。这些自动结果不替代
+  A2-W01/A1 全流程所需的 GUI 工作区、会话和只读任务人工确认。
+- 2026-08-04 首次 A2-W01 GUI 检查在嵌套 `src` 目录工作区触发 `workspace-tools` 验证门失败：
+  Replay 只列出工作区根目录，未继续列出并搜索已发现的子目录。已在
+  `src/shell/product/replay.js` 修复目录遍历，并在
+  `src/shell/tests/product/desktop-host.test.ts` 增加嵌套目录回归测试；Shell 现为 88 tests
+  全部通过，修正版 Electron 包已重新部署到 Win7。随后用户确认工作区/会话正常，Replay
+  已通过 Core Runtime 完成 `list/search/read` 检查 `src/hello.ts`；人工确认记录为
+  `docs/acceptance/A2-W01-20260804_gui-confirmation.json`。该文件明确标注为人工确认，不替代
+  产品原始 GUI 日志。
+- W02 待审批检查发现原 Renderer 只显示“计划 SHA-256”，未把可信计划中的目标文件哈希单独展示；
+  已在 `src/shell/product/renderer/renderer.js` 增加“目标 SHA-256”字段，同时保留计划身份哈希。
+  Shell 88 tests、build 通过，Win7 `product/renderer/renderer.js` 与 manifest 已用 SHA-256 独立复核，
+  新隔离 GUI 复验已完成；用户确认路径、UTF-8、CRLF、基线/目标 SHA-256 和非空未截断 Diff，
+  且未点击批准。人工记录为 `docs/acceptance/A2-W02-20260804_gui-confirmation.json`，独立 SSH
+  复核确认目标文件仍为基线哈希且无 `.tmp/.bak` 残留。
+- 随后用户批准同一隔离工作流的初次修改；W13 初次写入显示成功，SSH 独立核验确认
+  `src\\hello.ts` 从基线 SHA-256 `ae93b90c9787a544f9712c9a9cfa7328d91cf83201adecfb46f8d4707090f1fb`
+  变为目标 SHA-256 `10cf3c196905e83f984d5980e06da21fa210345386f31049d101553445832fac`，且无
+  `.tmp/.bak` 残留。原始人工/SSH 记录为 `docs/acceptance/A2-W13-20260804_initial-approval.json`；
+  该次记录已由新的 W13 隔离工作区复验取代；新工作区的初次批准记录为
+  `docs/acceptance/A2-W13-20260804_fresh-initial-approval.json`。新工作区从基线 SHA-256
+  `ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb` 变为本次可信计划目标
+  SHA-256 `eca20042c6c144135a8de2a70b19341a937f2386122ceafcf00388e239f96b48`，且无残留；W13
+  仍等待生成撤销计划、第二次审批及最终恢复核验。
+- 新 W13 工作区第一次撤销准备后，用户起初确认反向 Diff，但后续截图证明审批面板实际未出现；
+  `docs/acceptance/A2-W13-20260804_undo-plan-confirmation.json` 已标记 `INVALIDATED`。根因为
+  Renderer 在 `prepareUndo` 的 IPC 响应前仍以旧任务 ID 过滤事件，丢弃了新撤销任务的
+  `approval.requested`。已在 `renderer.js` 先清空旧任务过滤并切换为 `undo` 场景，失败时恢复旧状态；
+  Shell 90 tests、build 通过，修正版 Renderer/manifest 的 Win7 SHA-256 已核验一致。新的隔离工作区
+  `C:\\Win7CodingAgent\\A2-W13-racefix-20260804` 基线 SHA-256 为
+  `ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb`，等待重跑完整 W13。
+- racefix 新隔离工作区完成 W13 闭环：用户确认初次写入、修复后的撤销审批面板出现、第二次批准恢复；
+  SSH 独立核验哈希依次为基线 `ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb`、
+  初次目标 `eca20042c6c144135a8de2a70b19341a937f2386122ceafcf00388e239f96b48`、最终恢复基线，
+  且无 `.tmp/.bak` 残留，Bitvise `BvSshServer` 仍为 `RUNNING`。原始记录为
+  `docs/acceptance/A2-W13-racefix-20260804-final.json`；W13 标记 `PASS`，不改变整体 Gate 结论。
+- W13 撤销准备第一次点击暴露 IPC Schema 缺口：Renderer 按合同发送了 `sessionId` 与 `taskId`，
+  但 `task.undo_prepare` Schema 漏登记 `sessionId`，因 `additionalProperties: false` 返回
+  `IPC_SCHEMA_INVALID`。已补齐 Schema 和正/负向测试；Shell 90 tests、build 通过，修正版
+  `dist/ipc/schema.js` 与 manifest 已重新部署。由于主进程内存态不能热更新，改用新的隔离工作区
+  `C:\\Win7CodingAgent\\A2-W13-20260804` 和新 GUI 实例重跑 W13；旧工作区与旧窗口保留不动。
+- W07～W10/W14/W15 仅完成自动证据闭环；W11 自动故障注入已在打包 Electron 上通过：
+  回滚失败返回 `rollback_status=failed`，后续写入返回 `WORKSPACE_WRITE_LOCKED`，恢复清单阶段为
+  `rollback_failed`，人工恢复后原始 SHA-256 恢复且无残留。原始报告为
+  `docs/acceptance/A2-W11-W12-20260804_report.json`，报告 SHA-256 为
+  `b854a12c8cf370ffa53052b103f2b094dda9fb97b150e9fec27ab2c2a640e8ef`。
+  随后真实 GUI 恢复页面显示 `rollback_failed`、写入锁定和人工恢复指引，未误报“已回滚”；用户点击“恢复原文件”，
+  SSH 独立核验确认最终文件恢复为原始 SHA-256，`.bak` 与恢复清单均不存在。W11 最终人工/SSH 记录为
+  `docs/acceptance/A2-W11-GUI-20260804-final.json`。
+  W12 随后完成真实 GUI 重启并显示恢复页面；用户确认点击“恢复原文件”，SSH 独立核验确认最终文件恢复为原始
+  SHA-256 `ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb`，`.bak` 与恢复清单均不存在。
+  最终人工/SSH 记录为 `docs/acceptance/A2-W12-20260804-final.json`；W13 racefix 已通过。至此 Win7
+  A2-W01～W15 的 MVP 原始证据全部具备，Desktop Alpha 2 按本节受控单文件修改 MVP 口径标记 `PASS`。
+  文档顶部的 `Win7-Validation: NOT_PERFORMED` 仍表示 SPIKE_01～04、真实 Runner/containment、跨模块产品
+  E2E 与正式 Phase/发布 Gate 尚未完成；不得将本次 MVP PASS 扩大解释为这些能力已可用。
+
+## 11.5 Desktop Alpha 3 受控 Gateway 联机纵向切片（ADR-0059）
+
+项目负责人于 2026-08-04 明确要求在当前工作树开始 Desktop Alpha 3（A3）验收。本节是
+`INTEGRATION_01` 对 A3 的显式实现授权与验收合同；它不改变 Phase 3 的正式任务书状态，
+不把受控 fixture 结果解释为企业 E7，不启用 Runner、Git、终端、SQLite、Updater、插件或
+真实模型。
+
+### 授权元数据
+
+```text
+Status: APPROVED_FOR_IMPLEMENTATION
+Task Type: DESKTOP_ALPHA_3_CONTROLLED_GATEWAY_SLICE
+Target Branch: current integration working tree (no branch switch authorized)
+Phase-Gate: IMPLEMENTING
+Win7-Compatibility: PROVISIONAL
+Win7-Validation: NOT_PERFORMED
+Delivery Mode: self-contained offline acceptance directory with an explicitly configured LAN Gateway fixture
+Runtime Profile: ELECTRON-22.3.27-WIN7-X64 + embedded Node 16.17.1 + Node https/OpenSSL
+Network Targets: explicitly configured HTTP or HTTPS Gateway; no implicit fallback; no public network
+Credential Lifetime: process memory only; DPAPI persistence deferred
+Blocking-Reason: controlled A3 Win7 evidence, enterprise E7 proxy/CA, and formal Phase 3 gate remain outstanding
+```
+
+### A3-01～A3-12 原子需求矩阵
+
+| ID | 可测试要求 | 允许实现/证据路径 | 通过证据 |
+|---|---|---|---|
+| A3-01 | A2/A1 回归与当前工作树指纹一致 | `src/**` 对应测试、`scripts/mvp_acceptance/**`, `docs/status/**` | 根验证、产品装配测试、fingerprint 与命令/退出码 |
+| A3-02 | Replay 默认；Gateway 只能由用户显式启用，设置/诊断显示当前模式 | `src/shell/**`、对应测试 | 默认无出站、配置/状态 IPC 正负向证据 |
+| A3-03 | Shell 产品侧将 Gateway RuntimeModel adapter 接入 Core RuntimeModel 端口 | `src/core/**`, `src/shell/**`、对应测试 | 受控响应经 Gateway→Core→Workspace 只读工具→UI |
+| A3-04 | 配置、连接、取消、状态事件全部经版本化 Schema IPC 和 main/Core | `src/shell/**`、对应测试 | 未知字段/通道/会话越权拒绝并审计 |
+| A3-05 | Node HTTP(S) 受显式 URL 控制；HTTPS 使用 TLS 1.2+、CA bundle、主机名/证书验证；SSE fixture 仅受控网络 | `src/gateway/**`, `scripts/mvp_acceptance/**` | HTTP 成功请求、HTTPS 有效 CA 真实握手、TLS/证书摘要与流事件证据 |
+| A3-06 | 错误 CA、主机名、过期/错误证书、协议不兼容、截断流均 fail-closed；不支持的 URL scheme 拒绝 | `src/gateway/**`、对应测试/fixture | 结构化错误、无成功态、无隐式协议降级 |
+| A3-07 | 重试、退避、总 deadline、取消有界；取消后无迟到 completed/event | `src/gateway/**`, `src/core/**`、对应测试 | 重试/退避/取消计数和事件时间线 |
+| A3-08 | 显式 HTTP CONNECT 代理支持成功/407 分类；PAC/企业代理缺失则标环境缺失 | `src/gateway/**`, `scripts/mvp_acceptance/**` | 受控代理正负向证据或 `ENVIRONMENT_MISSING` |
+| A3-09 | API key/代理凭据仅进程内存；日志、审计、报告、stdout/stderr 完全脱敏 | `src/gateway/**`, `src/shell/**`、对应测试 | 脱敏扫描、进程结束不落盘、凭据不存在于工件 |
+| A3-10 | 确定性受控 Gateway 响应驱动 Core 只读工具和最终 UI，不冒充真实模型 | `src/core/**`, `src/shell/**`, fixture/测试 | request id、工具调用顺序、最终 UI 事件完整 |
+| A3-11 | A2 计划/Diff/审批/写入仍需显式批准并回归 | 既有 A2 路径、`scripts/mvp_acceptance/**`, `docs/acceptance/**` | A2-W01～W15 证据重新绑定 A3 指纹或明确历史引用 |
+| A3-12 | 独立包、哈希、Win7 清理、Bitvise/SSH 前后状态与连接保护证据完整 | `scripts/mvp_acceptance/**`, `docs/acceptance/**`, `docs/status/**` | A3-W01～W15 原始报告、SHA-256、清理结果 |
+
+### A3 实现边界与路径白名单
+
+允许新增或修改：
+
+- `src/gateway/**`：真实 `GatewayProvider`、`NodeNetworkStack`、TLS/代理/SSE/错误与凭据内存适配；
+- `src/core/**`：仅 RuntimeModel 端口的 Gateway adapter、取消/事件桥接及对应测试；
+- `src/shell/**`：仅 Desktop Host、main/preload/renderer、设置/诊断、A3 IPC/schema、产品装配及对应测试；
+- `scripts/mvp_acceptance/**`：受控 TLS/SSE/CONNECT fixture、A3 便携包构建、Win7 探针和清理脚本；
+- `docs/acceptance/**`、`docs/status/**`、`docs/reports/**`、本任务书、`docs/STATUS.md`；
+- `docs/DECISIONS.md` 仅追加 ADR，不得改写已 Accepted ADR 正文。
+
+本节不授权 `src/phase1-2/win7_agent/**`、`native/helper/**`、Runner/containment、终端、Git
+子进程、SQLite/FTS、Updater、插件、系统配置、DPAPI 持久化、PAC 自动发现或公网目标。
+不新增运行时/第三方依赖；A3 使用已登记的 D-009 Electron 22.3.27 与 Node 16.17.1 内嵌
+`https`/OpenSSL 路径，完整性继续绑定独立验收包哈希。
+
+### A3 安全与协议合同
+
+1. 默认模式为 Replay；Gateway 配置必须由显式用户动作提交，未配置或 Schema 校验失败时不得出站。
+2. Renderer 只能调用最小化版本化 preload API；不得接触 Node、文件、进程、凭据、通用网络或任意 IPC。
+3. 连接目标必须是用户显式配置的 `http` 或 `https` URL。HTTPS 最低 TLS 1.2，CA/主机名验证开启且
+   fail-closed；禁止 `rejectUnauthorized: false`、HTTPS 忽略证书错误或把代理当作 TLS 校验替代。
+   HTTP 不自动升级或伪装成 HTTPS，适用于用户明确接受明文 Gateway 的内网场景。
+4. API key、代理用户名/密码只允许进程内存；禁止进入配置文件、userData、日志、事件正文、崩溃报告、
+   stdout/stderr、验收 JSON 或 HTML。DPAPI 留待独立任务书和 ADR。
+5. SSE 必须真实边接收边解析，保留空格并支持跨 chunk；必须看到兼容协议版本和完成信号才成功。
+   断流、取消、协议不兼容和 request id 串线均返回结构化失败，不产生迟到完成事件。
+6. 每次请求有总 deadline、连接/读取边界、最大重试次数和有界退避；重试只对幂等请求/允许错误生效，
+   取消后不得重试或继续交付事件。
+7. Gateway→Core→Workspace 仅允许现有只读工具；A2 写入链路仍由独立显式审批守护，不由 Gateway 响应绕过。
+
+### A3 Win7 用例与结论口径
+
+`A3-W01`～`A3-W15` 分别覆盖 A1/A2 回归、默认 Replay/no-egress、显式 HTTP、合法 HTTPS/CA、TLS1.2 真实握手、
+SSE 顺序与 request id、取消、有限重试/总超时、证书失败、协议/截断失败、CONNECT/407、凭据脱敏、
+真实只读纵向任务、A2 显式审批、中文空格/隔离 userData、进程/listener/Bitvise 清理。
+
+受控 Mac TLS fixture 的结果只能记为 `A3_CONTROLLED_GATEWAY_PASS` 或
+`MVP_NETWORK_SURROGATE`；不得写成企业 `E7 PASS`。企业代理、PAC、企业 CA、真实模型、DPAPI 和
+正式 Phase 3 Gate 未执行或不可用时，必须分别记录 `ENVIRONMENT_MISSING`、`NOT_PERFORMED` 或
+`BLOCKED`，不得以替代条件填充 PASS。所有验收均绑定当前 working-tree fingerprint、环境、命令、
+退出码、工件 SHA-256、连接目标、TLS/证书公钥摘要、重试/取消指标和清理结果；CA 私钥、API key、
+代理密码不进入仓库或证据。
+
+### A3 完成门槛
+
+1. A3-01～A3-12 均有可复跑的开发机正/负向证据；新增实现通过受影响模块 lint/build/test。
+2. 独立 A3 验收目录包含自包含包、版本 manifest、依赖/许可证边界、哈希和隔离 userData 约定。
+3. Win7 W01～W15 完成前，A3 只能标记 `READY_FOR_WIN7_VALIDATION` 或
+   `A3_CONTROLLED_GATEWAY_PASS`，不得标记正式 Phase 3/E7/真实模型完成。
+4. 任何不可用项保持原始状态并说明下一步；失败必须保留原始证据、根因、最小修复、回归和新 A3 ID。
+
+## 11.6 Desktop Alpha 3.1 DeepSeek 真实模型公网验收切片（ADR-0061）
+
+项目负责人于 2026-08-04 明确授权仅为真实模型验收访问公网
+`https://api.deepseek.com:443`，允许隔离样例工作区内容发送至 DeepSeek，并接受少量 API 调用费用。
+上一节“无公网”是 A3 受控 fixture 的证据边界，不是永久产品禁令；A3 历史证据和结论不改写。
+
+### 授权元数据
+
+```text
+Status: APPROVED_FOR_IMPLEMENTATION
+Task Type: DESKTOP_ALPHA_3_1_DEEPSEEK_REAL_MODEL_SLICE
+Target Branch: current integration working tree (no branch switch authorized)
+Phase-Gate: IMPLEMENTING
+Win7-Compatibility: PROVISIONAL
+Win7-Validation: NOT_PERFORMED
+Delivery Mode: self-contained acceptance directory; explicit public DeepSeek HTTPS endpoint
+Runtime Profile: ELECTRON-22.3.27-WIN7-X64 + embedded Node 16.17.1 + Node https/OpenSSL
+Network Target: https://api.deepseek.com:443 only; no implicit target, redirect or protocol fallback
+Credential Lifetime: process memory only; user enters key in Win7 UI; DPAPI persistence deferred
+Data Boundary: dedicated non-sensitive acceptance workspace only
+Blocking-Reason: enterprise E7/CA/proxy/PAC, DPAPI persistence and formal Phase 3 gate remain outstanding; A3-W13 is covered by the A3.2 independent supplement
+```
+
+### A3R-01～A3R-10 原子需求矩阵
+
+| ID | 可测试要求 | 允许实现/证据路径 | 通过证据 |
+|---|---|---|---|
+| A3R-01 | Replay 保持默认；DeepSeek 必须由用户显式选择，且 UI 明示公网、计费和数据外发 | `src/shell/**`、对应测试 | 默认无出站；显式模式与提示文本证据 |
+| A3R-02 | 增加显式 `deepseek-openai` 协议适配，固定 HTTPS 主机 `api.deepseek.com`，模型为用户明确选择的受支持 ID | `src/gateway/**`, `src/shell/**` | URL/协议/模型 Schema 正负向测试 |
+| A3R-03 | 将 Core 消息、只读工具定义和工具结果映射到 OpenAI Chat Completions；响应映射回 RuntimeModel | `src/gateway/**`, `src/shell/**` | Mock 契约测试与真实模型只读工具链 |
+| A3R-04 | 支持 OpenAI SSE `data: {...}` / `data: [DONE]`、跨 chunk、usage、tool_calls 参数增量拼接 | `src/gateway/**`、对应测试 | 流式文本/工具调用/截断/取消证据 |
+| A3R-05 | 复用 HTTPS TLS 1.2+、证书/主机名验证、总 deadline、有界重试、取消和 CONNECT 代理边界 | `src/gateway/**`、对应测试 | 既有 A3 回归与真实公网握手指标 |
+| A3R-06 | API key 仅由用户在 Win7 UI 输入并驻留主进程内存；不得进入 argv、环境、文件、日志、事件或报告 | `src/gateway/**`, `src/shell/**`, `scripts/mvp_acceptance/**` | userData/报告/stdout/stderr/进程命令行脱敏扫描 |
+| A3R-07 | Renderer 不获得 key、Node、文件或通用网络；设置仍经版本化 Schema IPC 与 main/Core | `src/shell/**`、对应测试 | preload/IPC/CSP/越权负向测试 |
+| A3R-08 | 真实模型只允许调用现有 Workspace 只读工具；未知、写入、Runner、Git、终端能力 fail-closed | `src/core/**`, `src/shell/**`、对应测试 | 只读工具序列与未知/写入拒绝证据 |
+| A3R-09 | Win7 在隔离工作区和 userData 完成真实流式、取消、只读工具、最终 UI 与凭据脱敏验收 | `scripts/mvp_acceptance/**`, `docs/acceptance/**` | 原始报告、时间、连接目标、TLS、事件和 SHA-256 |
+| A3R-10 | 任务结束关闭产品和临时能力；SSH/Bitvise 与系统网络配置前后不变 | `scripts/mvp_acceptance/**`, `docs/status/**`, `docs/reports/**` | 进程/监听、Bitvise、网卡/路由/防火墙无变更证据 |
+
+### A3.1 实现边界与路径白名单
+
+允许新增或修改：
+
+- `src/gateway/**`：仅 DeepSeek OpenAI Chat Completions 协议、SSE、工具调用映射及对应测试；
+- `src/core/**`：仅既有 RuntimeModel/只读工具定义的最小适配与对应测试；
+- `src/shell/**`：仅 DeepSeek 显式设置、风险提示、诊断、主进程适配与对应测试；
+- `scripts/mvp_acceptance/**`：不含秘密的打包、Win7 探针、清理与证据辅助；
+- `docs/acceptance/**`、`docs/status/**`、`docs/reports/**`、本任务书、`docs/STATUS.md`；
+- `docs/DECISIONS.md` 仅追加 ADR，不改写已 Accepted ADR 正文。
+
+本节不授权任意 OpenAI-compatible 主机、HTTP 明文真实模型、自动重定向、系统代理/证书存储修改、
+API key 自动注入或持久化，也不启用 Runner、Git、终端、SQLite、Updater、插件、PAC 或 DPAPI。
+不新增第三方运行时依赖，继续使用已登记的 Electron/Node 内置网络栈。
+
+### A3.1 结论口径
+
+真实 DeepSeek 成功只能记为 `A3_REAL_MODEL_PUBLIC_NETWORK_PASS`，证明当前 Win7、当前账户和当前
+公网路径可用；它不是企业 Gateway、企业 CA/代理/PAC 或正式 E7 PASS。任何 API/余额/地区限制、
+网络不可达或用户未输入凭据均按真实状态记录，不得用 fixture 结果替代。
+
+### A3.1 实施与 Win7 验收结果（A3R-20260804-01）
+
+- A3R-01～A3R-10 均已按本节边界实现并获得开发机/Win7 证据，切片状态为
+  `A3_REAL_MODEL_PUBLIC_NETWORK_PASS`。结构化证据为
+  `docs/acceptance/A3R-DEEPSEEK-20260804.json`，HTML 报告为
+  `docs/reports/2026-08/a3r_deepseek_public_model_acceptance_2026-08-04.html`。
+- 最终 `npm run verify` 退出码 0：Gateway 202、Workspace 80、State 219、Core 225、Runner 46、
+  Git Adapter 51、Shell 106，共 929 项；设计门、lint、build 全部通过。工作树指纹为
+  `docs/status/mvp-baselines/A3R-20260804-01.json`，SHA-256
+  `956902c6a8ae3d6d9409432af81eee949e4f07e9da0fb3e1a03f0967e65e4926`。
+- Win7 无密钥探测以 TLSv1.3 授权连接 `api.deepseek.com:443`；真实完成任务包含 638 个连续事件、
+  618 个流增量和 `list_directory → search_text → read_text` 三轮只读工具调用，最终事件为
+  `task.completed`。独立真实取消任务在 48 个流增量后产生 `task.cancelling`，6 ms 后以
+  `task.cancelled` 收口，未产生 completed/failed 或迟到事件。
+- 失败闭环保留四轮事实：空 CA 可选字段触发 IPC Schema 拒绝；点号工具名触发 DeepSeek HTTP 400；
+  Core 多轮历史字段误映射为 `undefined`；首次取消窗口误操作得到 Replay/0 events。分别以省略空字段、
+  可逆 OpenAI-safe 工具别名、按 `toolName/args` 映射、专用取消启动器完成最小修复与重测。
+- fix3 包清单 908 条，清单 SHA-256
+  `8eb60ddf2c515fa4c896ea149d10a118c883f393925991ec3f77ddd8db02d3aa`；Win7 关键物料哈希匹配。
+  严格 API key/Bearer 值扫描为零，凭据只在进程内存；退出后 Electron/Node 为 0，Bitvise 为
+  `RUNNING`，SSH 22 保持连接，未修改网卡、路由、防火墙、服务配置或机器 PATH，未重启。
+- A2-W01～W15 继续引用既有 Win7 MVP PASS 证据并由本轮根回归保护；本 A3R 切片未开放写工具。
+  A3.2 随后在独立 A3 产品包和新隔离工作区完成了 A3-W13 的两停点重验，不能把既有 A2 W13
+  记录冒充新重测。企业 E7、企业 CA/代理/PAC、企业模型服务和正式 Phase 3 Gate 仍为
+  `NOT_PERFORMED`/延期。
+
+## 11.7 Desktop Alpha 3.2 当前用户 DPAPI API key 持久化（ADR-0062）
+
+项目负责人于 2026-08-04 明确要求优先实现 API key 持久化，并接受企业内部使用场景。本节是
+A3.2 的独立实现授权；“可显示存储”解释为 UI 显示已保存/未保存状态，禁止显示或明文保存 key。
+本节只持久化 API key，不持久化代理凭据，也不自动恢复 Gateway 模式或建立网络连接。
+
+### 授权元数据
+
+```text
+Status: APPROVED_FOR_IMPLEMENTATION
+Task Type: DESKTOP_ALPHA_3_2_DPAPI_API_KEY_PERSISTENCE
+Target Branch: current integration working tree (no branch switch authorized)
+Phase-Gate: IMPLEMENTING
+Win7-Compatibility: PROVISIONAL
+Win7-Validation: NOT_PERFORMED
+Delivery Mode: self-contained acceptance directory with isolated userData
+Runtime Profile: ELECTRON-22.3.27-WIN7-X64 + Windows DPAPI via Electron safeStorage (D-018)
+Credential Scope: API key only; Windows CURRENT_USER; explicit opt-in; proxy credentials remain process-memory-only
+Network Behavior: Replay remains default; restoring ciphertext never creates a provider or outbound connection
+Blocking-Reason: A3P Win7 persistence/restart/clear/fail-closed evidence is not yet complete; A3-W13 is independently PASS
+```
+
+### A3P-01～A3P-10 原子需求矩阵
+
+| ID | 可测试要求 | 实现/证据路径 | 通过证据 |
+|---|---|---|---|
+| A3P-01 | “记住 API key”必须由用户显式选择；默认 Replay 和默认不持久化保持不变 | `src/shell/**` | UI/Host 正负向测试，冷启动零出站 |
+| A3P-02 | Renderer 只能提交 key、记住意图和清除意图；不得读取密文、路径、DPAPI 或 key 值 | `src/shell/**` | preload/IPC Schema 与返回对象脱敏测试 |
+| A3P-03 | 仅 Electron main 在 `app.ready` 后使用 D-018；Windows 必须为 DPAPI Current User | `src/shell/product/**` | Win7 `safeStorage.isEncryptionAvailable()` 与跨重启实测 |
+| A3P-04 | `credentials.v1.json` 只含版本化元数据与 Base64 密文，大小有界并采用临时文件+同目录原子替换 | `src/shell/product/**` | 单元测试、文件结构/哈希与明文扫描 |
+| A3P-05 | 启动只检测已保存状态；只有用户显式应用 Gateway/DeepSeek 时才解密进入 `InMemoryCredentialStore` | `src/shell/**` | 重启后 Replay/no-egress 与显式使用测试 |
+| A3P-06 | DPAPI 不可用、文件损坏、未知 schema、Base64 非法或解密失败均 fail-closed，不删除证据、不回退明文 | `src/shell/**` | 结构化错误与零 Provider/零网络负向测试 |
+| A3P-07 | 用户可显式清除已保存 key；清除同时清空当前 Provider 内存凭据，重启后显示未保存 | `src/shell/**` | 清除、重复清除和重启测试 |
+| A3P-08 | key 不进入 argv、环境、日志、事件、报告、普通设置返回或崩溃信息 | `src/shell/**`, `scripts/mvp_acceptance/**` | 严格 key/Bearer/userData/stdout/stderr/JSON/HTML 扫描 |
+| A3P-09 | 保存新 key 原子替换现有密文；服务端 key 轮换/注销仍由用户负责，不宣称旧密文备份失效 | `src/shell/**` | 替换与当前值使用测试、文档边界 |
+| A3P-10 | Win7 中文空格目录完成保存→退出→重启→显式连接→清除，并清理产品进程且保持 Bitvise/SSH | `scripts/mvp_acceptance/**`, `docs/acceptance/**`, `docs/status/**`, `docs/reports/**` | 独立包/manifest/SHA-256、实机原始报告和清理记录 |
+
+### A3.2 路径白名单与非目标
+
+允许新增或修改：
+
+- `src/shell/**`：main 进程 DPAPI vault、Desktop Host 注入、设置/清除 IPC、Renderer 状态和对应测试；
+- `scripts/mvp_acceptance/**`：不含秘密的 A3.2 打包、Win7 探针、启动/清理和证据辅助；
+- `docs/WIN7_CONSTRAINTS.md` 的 D-018 登记；
+- `docs/acceptance/**`、`docs/status/**`、`docs/reports/**`、本任务书、`docs/STATUS.md`；
+- `docs/DECISIONS.md` 仅追加 ADR，不得改写已 Accepted ADR 正文。
+
+本节不授权修改 Gateway/Core/Workspace/State/Runner/Git 实现，不持久化代理凭据、Gateway URL、
+模型、CA 路径、工作区或会话，不启用 SQLite、PAC、Updater、插件、终端或系统配置，不创建服务、
+注册表项或计划任务。不得调用 `safeStorage.setUsePlainTextEncryption` 或添加明文降级。
+
+### A3.2 安全与验收口径
+
+1. 密文固定写入隔离 `userData` 下的产品凭据目录；文件内容、设置返回和诊断不得包含 key。
+2. DPAPI 保护静态密文免受其他 Windows 用户和离线读取，但不防御同一用户上下文中的恶意进程；
+   不能把它描述为硬件密钥、企业密钥托管或同用户强隔离。
+3. Replay 启动不得因存在密文而解密、创建 Gateway Provider 或出站；用户显式应用联机模式后才使用。
+4. A3P-01～A3P-10 全部获得 Win7 证据后，结论最多为 `A3_DPAPI_CURRENT_USER_PASS`；它不等于
+   企业 E7、集中式凭据托管、代理/PAC、DPAPI-NG、TPM 或正式发布 Gate。
+
+### A3.2 A3-W13 独立重验结果（A3-W13-20260804-02）
+
+- A3-W13 `PASS`。在 `C:\\Win7CodingAgent\\A3-W13-20260804-02` 使用 A3.2 自包含产品包完成
+  初次单文件审批、实际原子写入、撤销计划生成和第二次独立审批；两次人工停点分别记录为
+  “第一次写入完成”和“撤销完成”。
+- SSH `certutil` 独立核验：初始 `sample.ts` SHA-256 为
+  `14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582`，第一次批准后为
+  `33b305c1903672e81d27ef07aa62decb62780fecb12740256765d19ade602db5`，第二次批准后恢复
+  初始值；工作区无 `.tmp/.bak` 残留。结构化记录见
+  `docs/acceptance/A3-W13-20260804-02.json`。
+- 当前 Renderer 的任务时间线按任务独立显示；`prepareUndo` 前会清空旧时间线。因此本次证据按
+  两个人工停点和两次 SSH 哈希核验绑定，不宣称两个任务在一个 UI 时间线中同时可见。
+- 本次 `npm run verify` 退出码 0，共 942 项测试通过；工作树指纹为
+  `docs/status/mvp-baselines/A3P-W13-20260804-01.json`，SHA-256 为
+  `7c35f55c64b437ad6150092e53d9429705ab89d8e3a1a498215bdff2abea756d`。用户随后关闭产品窗口，
+  Electron/Node 均为 0，Bitvise 保持 `RUNNING`，A3P-W15 清理通过；不影响本 W13 文件闭环结论。
+
+## 11.8 A1–A3 验收与 Win7 保留策略收口（A1-A3-CLOSEOUT-20260804-01）
+
+- A1 保持 `OWNER_ACCEPTED_FOR_MVP`；A2-W01～W15 保持 `DESKTOP_ALPHA_2_MVP_PASS`；A3-W01～W15
+  保持 `A3_CONTROLLED_GATEWAY_PASS`；A3R 公网 DeepSeek 真实模型切片保持
+  `A3_REAL_MODEL_PUBLIC_NETWORK_PASS`。这些结果共同关闭 A1～A3 的 MVP/Alpha 验收计划，但不改变
+  正式 Phase 1/2/3、正式发布或企业 E7 Gate。
+- A3P 的 save/reload/decrypt/clear/corrupt 受控行为已在 Win7 最终包内产生报告；A3P-10 的完整
+  “进程重启 → 用户显式应用 → 真实连接”链路没有完整归档到仓库，因此总状态为
+  `PARTIAL_EVIDENCE`。DPAPI 密文及报告内容不复制到任务输出；仓库只索引报告文件名和保留包路径。
+- 经项目负责人逐项明确授权，永久删除 `C:\\Win7CodingAgent` 下 23 个被替代包、临时工作区、
+  隔离 userData 和临时输出目录。第一次按固定名称删除 20 项；Win7 PowerShell 2 对无 BOM UTF-8
+  中文目录名解析失败，随后使用纯 ASCII“固定前缀 + 三个固定后缀 + 每项唯一匹配 + 根目录边界”
+  校验删除剩余 3 项。最终断言 23 项均不存在、8 个最终包/evidence 目录均存在。
+- 清理前盘点估算删除内容共 `1,725,141,506` bytes（约 1.61 GiB）。清理后 Electron/Node 均为 0，
+  Bitvise `BvSshServer` 为 `RUNNING`，TCP 22 的 IPv4/IPv6 listener 均存在；未修改网卡、路由、
+  防火墙、服务配置或机器 PATH，未重启，临时清理脚本已删除。
+- 结构化总记录为 `docs/acceptance/A1-A3-CLOSEOUT-20260804-01.json`，HTML 总报告为
+  `docs/reports/2026-08/a1_a3_acceptance_closeout_2026-08-04.html`。
 
 ## 11. Agent Loop 第一讲验收闭环（ADR-0039）
 

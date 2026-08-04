@@ -67,6 +67,11 @@ export interface GatewayProviderConfig {
 
 export type StreamChunkCallback = (chunk: StreamChunk) => void;
 
+export interface GatewayRequestOptions {
+  /** Cancels the request and suppresses all subsequent stream callbacks. */
+  signal?: AbortSignal;
+}
+
 export interface StreamChunk {
   /** The incremental text content in this chunk. */
   content: string;
@@ -192,10 +197,10 @@ export class GatewayProvider {
     } catch {
       throw new GatewayError(ErrorCode.GATEWAY_UNREACHABLE, 'Gateway URL is invalid');
     }
-    if (parsedUrl.protocol !== 'https:') {
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
       throw new GatewayError(
         ErrorCode.TLS_VERIFY_FAILED,
-        'Gateway URL must use HTTPS; plaintext connections are refused',
+        'Gateway URL must use HTTP or HTTPS',
       );
     }
 
@@ -267,7 +272,7 @@ export class GatewayProvider {
   /**
    * Send a non-streaming request to the model gateway.
    */
-  async sendRequest(request: ModelRequest): Promise<ModelResponse> {
+  async sendRequest(request: ModelRequest, options: GatewayRequestOptions = {}): Promise<ModelResponse> {
     // 1. Get API key from credential store
     const apiKey = this._credentialStore.getApiKey();
     if (!apiKey) {
@@ -307,9 +312,14 @@ export class GatewayProvider {
       });
 
       try {
-        await conn.send(request.id, payload, {
+        const removeAbort = attachRequestAbort(options.signal, conn, request.id);
+        try {
+          await conn.send(request.id, payload, {
           authorization: `Bearer ${apiKey}`,
-        });
+          });
+        } finally {
+          removeAbort();
+        }
       } finally {
         offData();
         offError();
@@ -363,6 +373,7 @@ export class GatewayProvider {
   async sendStreamRequest(
     request: ModelRequest,
     onChunk: StreamChunkCallback,
+    options: GatewayRequestOptions = {},
   ): Promise<ModelResponse> {
     // 1. Get API key
     const apiKey = this._credentialStore.getApiKey();
@@ -395,12 +406,17 @@ export class GatewayProvider {
       let sawSSEEvent = false;
       let sawDone = false;
       let streamParseError: GatewayError | null = null;
+      let cancelled = Boolean(options.signal?.aborted);
 
       const consumeSSEEvent = (rawEvent: string): void => {
         const events = parseSSE(`${rawEvent}\n\n`);
         for (const event of events) {
           sawSSEEvent = true;
           if (event.event === 'chunk' || event.event === 'message') {
+            if (cancelled) return;
+            if (sawDone) {
+              throw new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream emitted data after completion');
+            }
             chunks.push(event.data);
             onChunk({ content: event.data, index: chunkIndex++ });
           } else if (event.event === 'error') {
@@ -415,6 +431,9 @@ export class GatewayProvider {
               throw new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream reported malformed error data');
             }
           } else if (event.event === 'done' || event.event === 'complete') {
+            if (sawDone) {
+              throw new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream emitted data after completion');
+            }
             sawDone = true;
             if (event.data && event.data !== '[DONE]') {
               finalResponse = parseWireResponse(event.data);
@@ -451,11 +470,15 @@ export class GatewayProvider {
         }
       });
 
+      const removeAbort = options.signal
+        ? attachRequestAbort(options.signal, conn, request.id, () => { cancelled = true; })
+        : () => undefined;
       try {
         await conn.send(request.id, payload, {
           authorization: `Bearer ${apiKey}`,
         });
       } finally {
+        removeAbort();
         offData();
         offError();
       }
@@ -468,9 +491,23 @@ export class GatewayProvider {
         throw streamParseError;
       }
 
+      if (cancelled || options.signal?.aborted) {
+        throw new GatewayError(ErrorCode.REQUEST_CANCELLED, 'Gateway stream was cancelled');
+      }
+
       if (!sawSSEEvent && streamBuffer.length > 0) {
         finalResponse = parseWireResponse(streamBuffer);
         streamBuffer = '';
+      }
+
+      // A response that ends with an incomplete SSE event is not a successful
+      // stream, even if a previous event carried a completion marker. The
+      // non-SSE JSON path above is a complete response and is allowed.
+      if (sawSSEEvent && streamBuffer.trim().length > 0) {
+        throw new GatewayError(
+          ErrorCode.STREAM_INTERRUPTED,
+          'Gateway stream ended with a truncated SSE event',
+        );
       }
 
       // If we got a final response from the stream, use it
@@ -532,6 +569,23 @@ export class GatewayProvider {
   }
 }
 
+function attachRequestAbort(
+  signal: AbortSignal | undefined,
+  connection: IConnection,
+  requestId: string,
+  onAbort?: () => void,
+): () => void {
+  if (!signal) return () => undefined;
+  const abort = (): void => {
+    onAbort?.();
+    connection.cancel(requestId);
+  };
+  if (signal.aborted) abort();
+  else signal.addEventListener('abort', abort, { once: true });
+  return () => signal.removeEventListener('abort', abort);
+}
+
 // ── Re-exports ───────────────────────────────────────────────────────────────
 
 export { ErrorCode, GatewayError } from '../types';
+export * from './deepseek-openai';

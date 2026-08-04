@@ -5,10 +5,12 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 const { ReplayModelAdapter } = require('./replay');
+const { createGatewayRuntimeModel } = require('./gateway-runtime');
 
 function loadModules() {
   return {
     core: requireModule('core/dist'),
+    gateway: requireModule('gateway/dist'),
     state: requireModule('state/dist'),
     workspace: requireModule('workspace/dist'),
   };
@@ -30,8 +32,10 @@ function createDesktopHost(options) {
   const core = modules.core;
   const state = modules.state;
   const workspace = modules.workspace;
+  const gateway = modules.gateway;
   const maxSessions = config.maxSessions || 16;
   const maxEvents = config.maxEvents || 10_000;
+  const credentialVault = config.credentialVault || null;
   const ledger = new state.InMemoryEventLedger(maxEvents);
   const eventStream = new state.EventStream();
   const eventSubscription = eventStream.subscribe(config.maxPendingEvents || 1_024);
@@ -40,6 +44,8 @@ function createDesktopHost(options) {
   let sessionCounter = 0;
   let taskCounter = 0;
   let selectedWorkspace = null;
+  let gatewaySettings = { mode: 'replay' };
+  let gatewayProvider = null;
   let activeTask = null;
   let eventTimer = null;
   let disposed = false;
@@ -58,6 +64,9 @@ function createDesktopHost(options) {
     getRecovery,
     restoreRecovery,
     getDiagnostics,
+    getSettings,
+    setSettings,
+    clearSavedApiKey,
     flushEvents,
     dispose,
     get activeTask() { return activeTask; },
@@ -145,6 +154,145 @@ function createDesktopHost(options) {
     return { taskId: task.taskId, sessionId: task.sessionId, status: 'accepted', scenario };
   }
 
+  function getSettings() {
+    const credentialPersistence = getCredentialPersistenceStatus();
+    return {
+      schemaVersion: 1,
+      mode: gatewaySettings.mode,
+      gatewayUrl: gatewaySettings.gatewayUrl || '',
+      model: gatewaySettings.model || '',
+      caBundlePath: gatewaySettings.caBundlePath || '',
+      proxy: gatewaySettings.proxy
+        ? { host: gatewaySettings.proxy.host, port: gatewaySettings.proxy.port }
+        : null,
+      credentials: {
+        apiKeyConfigured: Boolean(gatewaySettings.apiKeyConfigured),
+        apiKeySaved: credentialPersistence.saved,
+        persistenceAvailable: credentialPersistence.available,
+        proxyCredentialsConfigured: Boolean(gatewaySettings.proxyCredentialsConfigured),
+      },
+      persistence: credentialPersistence.saved
+        ? 'windows-dpapi-current-user'
+        : 'process-memory-only',
+    };
+  }
+
+  function getCredentialPersistenceStatus() {
+    if (!credentialVault) return { available: false, saved: false };
+    try {
+      const status = credentialVault.getStatus();
+      return {
+        available: Boolean(status && status.available),
+        saved: Boolean(status && status.saved),
+      };
+    } catch (_error) {
+      return { available: false, saved: false };
+    }
+  }
+
+  function setSettings(input) {
+    const values = input && input.values && typeof input.values === 'object' ? input.values : {};
+    const mode = values.mode === 'gateway'
+      ? 'gateway'
+      : values.mode === 'deepseek'
+        ? 'deepseek'
+        : values.mode === 'replay'
+          ? 'replay'
+          : undefined;
+    if (!mode) throw productError('SETTINGS_INVALID', 'Gateway 模式必须明确选择 Replay 或 Gateway。', '选择一种受支持的连接模式后重试。');
+    if (mode === 'replay') {
+      if (gatewayProvider) {
+        gatewayProvider.disconnect();
+        gatewayProvider.credentialStore.clear();
+      }
+      gatewayProvider = null;
+      gatewaySettings = { mode: 'replay' };
+      return getSettings();
+    }
+    if (mode === 'deepseek') {
+      gateway.validateDeepSeekBaseUrl(values.gatewayUrl);
+      gateway.validateDeepSeekModel(values.model);
+    }
+    if (typeof values.gatewayUrl !== 'string' || !/^https?:\/\//i.test(values.gatewayUrl)) {
+      throw productError('GATEWAY_CONFIG_INVALID', 'Gateway 只接受 HTTP 或 HTTPS URL。', '填写受控 Gateway 的 http:// 或 https:// 地址。');
+    }
+    const previousProxy = gatewaySettings.proxy;
+    const proxy = values.proxy && values.proxy.host && values.proxy.port
+      ? {
+        host: values.proxy.host,
+        port: Number(values.proxy.port),
+        protocol: 'http',
+        ...(values.proxy.username && values.proxy.password
+          ? { auth: { username: values.proxy.username, password: values.proxy.password } }
+          : previousProxy && previousProxy.auth
+            ? { auth: previousProxy.auth }
+            : {}),
+      }
+      : undefined;
+    const previousCredentialStore = gatewayProvider && gatewayProvider.credentialStore
+      ? gatewayProvider.credentialStore
+      : null;
+    let apiKey = values.apiKey || (previousCredentialStore ? previousCredentialStore.getApiKey() : undefined);
+    if (!apiKey && values.rememberApiKey === true) {
+      if (!credentialVault) {
+        throw productError('CREDENTIAL_PROTECTION_UNAVAILABLE', '当前产品入口没有 Windows DPAPI 凭据库。', '取消“记住 API key”后使用仅内存模式。');
+      }
+      apiKey = credentialVault.loadApiKey();
+    }
+    const credentialStore = apiKey
+      ? new gateway.InMemoryCredentialStore()
+      : previousCredentialStore || new gateway.InMemoryCredentialStore();
+    if (apiKey) credentialStore.setApiKey(apiKey);
+    const next = {
+      mode,
+      gatewayUrl: values.gatewayUrl,
+      model: mode === 'deepseek' ? values.model : values.model || undefined,
+      caBundlePath: values.caBundlePath || undefined,
+      apiKeyConfigured: Boolean(credentialStore.getApiKey()),
+      proxy,
+      proxyCredentialsConfigured: Boolean(proxy && proxy.auth),
+    };
+    const providerConfig = {
+      tlsConfig: {
+        verifyCertificate: true,
+        minTLSVersion: gateway.TLSVersion.TLS_1_2,
+        ...(next.caBundlePath ? { caBundle: next.caBundlePath } : {}),
+      },
+      credentialStore,
+      proxyConfig: proxy,
+      timeoutMs: 15_000,
+      totalTimeoutMs: 60_000,
+      retryConfig: { initialDelayMs: 100, maxDelayMs: 1_000, maxRetries: 2, backoffMultiplier: 2 },
+    };
+    const provider = mode === 'deepseek'
+      ? new gateway.DeepSeekOpenAIProvider({ ...providerConfig, baseUrl: next.gatewayUrl, model: next.model })
+      : new gateway.GatewayProvider({ ...providerConfig, gatewayUrl: next.gatewayUrl });
+    if (values.rememberApiKey === true) {
+      const keyToSave = credentialStore.getApiKey();
+      if (!credentialVault || !keyToSave) {
+        throw productError('CREDENTIAL_NOT_SAVED', '勾选记住 API key 时必须输入 key 或已有 DPAPI 密文。', '输入 API key 后重新应用设置。');
+      }
+      credentialVault.saveApiKey(keyToSave);
+    } else if (values.rememberApiKey === false && credentialVault && credentialVault.getStatus().saved) {
+      credentialVault.clearApiKey();
+    }
+    if (gatewayProvider) gatewayProvider.disconnect();
+    gatewayProvider = provider;
+    gatewaySettings = next;
+    return getSettings();
+  }
+
+  function clearSavedApiKey() {
+    if (credentialVault) credentialVault.clearApiKey();
+    if (gatewayProvider) {
+      gatewayProvider.disconnect();
+      gatewayProvider.credentialStore.clear();
+      gatewayProvider = null;
+    }
+    gatewaySettings = { mode: 'replay' };
+    return getSettings();
+  }
+
   async function runTask(task, session, resumeOptions) {
     const runtime = createRuntime(session.workspacePath, task);
     const protocol = new core.AgentRuntimeProtocol(
@@ -200,7 +348,7 @@ function createDesktopHost(options) {
     } finally {
       if (task.result && task.result.outcome === 'needs_approval') task.status = 'awaiting_approval';
       else if (task.result && task.result.outcome === 'cancelled') task.status = 'cancelled';
-      else if (task.result && task.result.outcome === 'completed') task.status = 'completed';
+      else if (task.result && task.result.outcome === 'completed') task.status = task.replanRequired ? 'failed' : 'completed';
       else if (task.status !== 'cancelled') task.status = 'failed';
       task.protocol = null;
       if (activeTask === task && task.status !== 'awaiting_approval') activeTask = null;
@@ -331,19 +479,30 @@ function createDesktopHost(options) {
         const failure = !result.success && Array.isArray(result.operations)
           ? result.operations.find((operation) => operation && operation.success === false)
           : undefined;
+        const failureReason = failure && typeof failure.error === 'string' ? failure.error : '';
+        if (/Base content (changed|disappeared)/i.test(failureReason)) task.replanRequired = true;
         return {
           callId: call.id,
           toolName: call.toolName,
           success: result.success,
           status: result.success ? 'succeeded' : 'failed',
-          ...(failure && typeof failure.error === 'string' ? { error: failure.error } : {}),
+          ...(failureReason ? { error: failureReason } : {}),
           output: result,
         };
       },
     } : undefined;
     const executor = new core.WorkspaceReadOnlyToolExecutor(port, fallback);
     const runtime = new core.AgentRuntime({
-      model: new ReplayModelAdapter(core, task.scenario, { writeIntent: task.writeIntent }),
+      model: gatewaySettings.mode !== 'replay'
+        ? createGatewayRuntimeModel(core, gateway, gatewayProvider, {
+          model: gatewaySettings.model,
+          onChunk: ({ requestId, chunk }) => emitTaskEvent(task, 'gateway.delta', {
+            requestId,
+            delta: chunk.content,
+            index: chunk.index,
+          }),
+        })
+        : new ReplayModelAdapter(core, task.scenario, { writeIntent: task.writeIntent }),
       tools: registry,
       executor,
       policy: new core.PolicyEngine(writeMode ? { tokenValidator: (tokenId) => broker.validateToken(tokenId) } : undefined),
@@ -386,7 +545,7 @@ function createDesktopHost(options) {
           return acceptance.checks.map((check) => {
             const passed = check.checkId === 'workspace-tools'
               ? (writeMode
-                ? (names.has('workspace.str_replace') || (task.write && task.write.plan && task.write.plan.status === 'rejected') || (names.has('workspace.list_directory') && names.has('workspace.search_text') && names.has('workspace.read_text')))
+                ? (names.has('workspace.str_replace') || task.replanRequired || (task.write && task.write.plan && task.write.plan.status === 'rejected') || (names.has('workspace.list_directory') && names.has('workspace.search_text') && names.has('workspace.read_text')))
                 : names.has('workspace.list_directory') && names.has('workspace.search_text') && names.has('workspace.read_text'))
               : check.checkId === 'analysis-result'
                 ? Boolean(plan.finalResponse || plan.summary)
@@ -471,7 +630,13 @@ function createDesktopHost(options) {
       emitTaskEvent(task, 'error.occurred', serializeError(payload));
     } else if (event.type === 'turn.finished') {
       const outcome = payload.outcome;
-      if (outcome === 'completed') emitTaskEvent(task, 'task.completed', { outcome, state: payload.state });
+      if (outcome === 'completed' && task.replanRequired) {
+        emitTaskEvent(task, 'task.failed', {
+          outcome: 'failed',
+          state: 'failed',
+          error: { code: 'REPLAN_REQUIRED', message: '审批前后工作区基线已变化，未执行写入。请重新生成单文件修改计划。' },
+        });
+      } else if (outcome === 'completed') emitTaskEvent(task, 'task.completed', { outcome, state: payload.state });
       else if (outcome === 'cancelled') emitTaskEvent(task, 'task.cancelled', { outcome, state: payload.state });
       else emitTaskEvent(task, 'task.failed', { outcome, state: payload.state, error: payload.error });
     }
@@ -510,15 +675,19 @@ function createDesktopHost(options) {
   function getDiagnostics() {
     return {
       schemaVersion: 1,
-      product: 'Win7 Coding Agent Desktop Alpha 2',
-      version: '0.3.0-a2',
+      product: 'Win7 Coding Agent Desktop Alpha 3',
+      version: '0.5.0-a3.2',
       capabilities: {
         shell: 'trusted-local-electron',
         core: 'replay-runtime',
         state: `bounded-in-memory:${maxEvents}`,
         workspace: 'readonly-list-search-read + trusted-single-file-approval',
         write: 'single-file-str-replace-atomic-rollback-undo-reapproval',
-        gateway: 'unavailable-replay-only',
+        gateway: gatewaySettings.mode === 'deepseek'
+          ? `configured-deepseek-openai-${gatewaySettings.model}-public-https-${getCredentialPersistenceStatus().saved ? 'dpapi-current-user' : 'memory'}-credentials`
+          : gatewaySettings.mode === 'gateway'
+            ? `configured-${gatewaySettings.gatewayUrl && gatewaySettings.gatewayUrl.toLowerCase().startsWith('http://') ? 'http' : 'https'}-node-${getCredentialPersistenceStatus().saved ? 'dpapi-current-user' : 'memory'}-credentials`
+            : 'replay-default',
         runner: 'unavailable-fail-closed',
         git: 'unavailable-not-probed',
         terminal: 'unavailable',
@@ -527,12 +696,18 @@ function createDesktopHost(options) {
       sessionCount: sessions.size,
       activeTask: activeTask ? { taskId: activeTask.taskId, status: activeTask.status } : null,
       stateEvents: ledger.size,
+      gateway: getSettings(),
     };
   }
 
   function dispose() {
     disposed = true;
     if (eventTimer) clearInterval(eventTimer);
+    if (gatewayProvider) {
+      gatewayProvider.disconnect();
+      gatewayProvider.credentialStore.clear();
+      gatewayProvider = null;
+    }
     eventSubscription.unsubscribe();
     sessions.clear();
     activeTask = null;

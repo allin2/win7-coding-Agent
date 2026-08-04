@@ -160,6 +160,7 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-015 | Win7 x64 上的 .NET Framework 4.8 | 可选 WPF/WinForms 客户端或辅助程序 | Win7 SP1 可安装的最高 .NET Framework；在 Win7 上已无厂商支持 | 需要独立安装前置与 EOL 风险评审 | 架构候选；未获实现授权 | ADR-0027 |
 | D-016 | 自定义 fail-closed Updater | 企业内网或离线更新 | 使用 Authenticode/WinVerifyTrust 或内置公钥签名清单 + 包哈希 | 不得在验签错误时继续安装；必须旁路安装和回滚 | 架构候选；未获实现授权 | ADR-0027 |
 | D-017 | C++ helper 构建工具链（MSVC v142 / VS 2019 + Windows SDK 10，目标 Win7 SP1 x64） | 构建 D-013 原生 helper 与 D-011 winpty 宿主 | 仅构建机依赖，目标机不安装；产物须静态链接 CRT 或随包携带经登记的 VC Runtime | 工具链版本锁定入构建文档；换版本需重跑 SPIKE_02 | 架构候选；未获实现授权 | ADR-0028 |
+| D-018 | Electron 22.3.27 `safeStorage`（Windows DPAPI / Current User） | A3.2 API key 静态加密持久化 | 复用 D-009 随包 Electron，不新增模块或目标机前置；只在 main 进程、`app.ready` 后使用同步 `isEncryptionAvailable/encryptString/decryptString`，密文绑定当前 Windows 登录凭据 | 不可用、密文损坏或账户不匹配时 fail-closed 并降级为仅内存；不能防御同一用户上下文中的恶意进程；Electron 22 EOL 风险继续适用 | 批准（仅 A3.2 API key） | ADR-0062 |
 
 ### 6.1 架构候选依赖的 C16 评审档案（七问）
 
@@ -177,6 +178,7 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-014 | better-sqlite3（npm 锁定版本，SQLite 内嵌编译 + FTS5） | Apache-2.0（SQLite 为 public domain） | 待锁定（SPIKE_04） | 原生模块按 Electron 22 ABI 预编译（用 D-017）；SQLite 版本一并锁定 | 上游活跃但需锁旧 ABI 版本；SQLite 漏洞跟踪由本项目承担 | SPIKE_04 写入/FTS 矩阵 |
 | D-016 | 本项目自研 Updater（WinVerifyTrust / 内置公钥 + 包哈希） | Apache-2.0 | 构建产物哈希随发布清单 | 仅 Win32 API | 本项目全责；验签失败 fail-closed（P13） | PHASE_07 更新/回滚用例 |
 | D-017 | Visual Studio 2019 Build Tools（v142）+ Windows SDK 10（微软官方渠道） | 微软许可条款（仅构建机） | 构建机环境记录版本号 | 不进入交付 SBOM；产物依赖的 CRT 交付方式须登记 | 微软在支持期内；目标 Win7 兼容性由 SPIKE_02 实证 | 间接（其产物经 SPIKE_02/04 验证） |
+| D-018 | Electron v22.3.27 官方发布包内置 `safeStorage`；Windows 后端使用 DPAPI | 随 D-009 MIT/第三方许可证清单 | 不产生新工件；继续绑定 D-009 Electron ZIP/`electron.exe` 哈希 | 无新增传递依赖；密文格式由 Electron/Chromium OS crypt 实现负责 | Electron 22 已 EOL；本项目负责 schema、原子写入、失败关闭、清除和脱敏 | A3P Win7 保存→退出→重启→显式启用→清除、损坏密文、中文空格 userData、进程/Bitvise 清理 |
 
 #### MVP-20260802 依赖复核补充记录（ADR-0054）
 
@@ -233,6 +235,7 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 - [Electron：22 是最后支持 Windows 7/8/8.1 的主版本](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice)
 - [Electron 22.3.27 的 Chromium / Node / V8 版本](https://releases.electronjs.org/release/v22.3.27)
 - [Electron 安全检查清单](https://www.electronjs.org/docs/latest/tutorial/security)
+- [Electron `safeStorage`：Windows 使用 DPAPI](https://www.electronjs.org/docs/latest/api/safe-storage)
 - [Node.js 12.22.12 发布说明](https://nodejs.org/en/blog/release/v12.22.12)
 - [Microsoft：`CreatePseudoConsole` 最低系统要求](https://learn.microsoft.com/en-us/windows/console/createpseudoconsole)
 - [Microsoft：Job Object 行为与版本差异](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)

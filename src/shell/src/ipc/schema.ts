@@ -110,8 +110,11 @@ const payloadSchemas: Record<string, object> = {
   },
   [IPCMessageType.TASK_UNDO_PREPARE]: {
     type: 'object',
-    required: ['taskId'],
-    properties: { taskId: { type: 'string', minLength: 1 } },
+    required: ['sessionId', 'taskId'],
+    properties: {
+      sessionId: { type: 'string', minLength: 1 },
+      taskId: { type: 'string', minLength: 1 },
+    },
     additionalProperties: false,
   },
   [IPCMessageType.RECOVERY_GET]: {
@@ -146,7 +149,38 @@ const payloadSchemas: Record<string, object> = {
     type: 'object',
     required: ['values'],
     properties: {
-      values: { type: 'object' },
+      values: {
+        type: 'object',
+        required: ['mode'],
+        properties: {
+          mode: { type: 'string', enum: ['replay', 'gateway', 'deepseek'] },
+          gatewayUrl: { type: 'string', minLength: 1, pattern: '^https?://' },
+          model: { type: 'string', minLength: 1, maxLength: 128 },
+          caBundlePath: { type: 'string', minLength: 1 },
+          apiKey: { type: 'string', minLength: 1, maxLength: 8192 },
+          rememberApiKey: { type: 'boolean' },
+          proxy: {
+            type: 'object',
+            required: ['host', 'port'],
+            properties: {
+              host: { type: 'string', minLength: 1, maxLength: 255 },
+              port: { type: 'integer', minimum: 1, maximum: 65535 },
+              username: { type: 'string', minLength: 1, maxLength: 512 },
+              password: { type: 'string', minLength: 1, maxLength: 8192 },
+            },
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: false,
+  },
+  [IPCMessageType.SETTINGS_CREDENTIAL_CLEAR]: {
+    type: 'object',
+    required: ['credential'],
+    properties: {
+      credential: { type: 'string', const: 'api-key' },
     },
     additionalProperties: false,
   },

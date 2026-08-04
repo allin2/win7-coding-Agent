@@ -104,6 +104,80 @@ async function refreshDiagnostics() {
   setText('runtime-status', '运行正常'); byId('runtime-status').className = 'status ready';
 }
 
+async function refreshGatewaySettings() {
+  if (!window.win7Agent || typeof window.win7Agent.getSettings !== 'function') return;
+  const result = await call(() => window.win7Agent.getSettings());
+  const settings = result && result.settings;
+  if (!settings) return;
+  byId('gateway-mode').value = settings.mode || 'replay';
+  byId('gateway-url').value = settings.gatewayUrl || '';
+  byId('gateway-model').value = settings.model || 'deepseek-v4-flash';
+  byId('gateway-ca').value = settings.caBundlePath || '';
+  byId('gateway-api-key').value = '';
+  renderCredentialPersistence(settings);
+  renderGatewayMode(settings.mode || 'replay');
+}
+
+function renderCredentialPersistence(settings) {
+  const credentials = settings && settings.credentials ? settings.credentials : {};
+  const saved = credentials.apiKeySaved === true;
+  const available = credentials.persistenceAvailable === true;
+  byId('gateway-remember-api-key').checked = saved;
+  byId('gateway-remember-api-key').disabled = !available;
+  byId('clear-saved-api-key').disabled = !saved;
+  const keyState = saved
+    ? 'API key 已由 Windows DPAPI 为当前用户加密保存'
+    : credentials.apiKeyConfigured
+      ? 'API key 仅在当前主进程内存'
+      : available
+        ? 'API key 未保存'
+        : 'DPAPI 不可用，仅支持进程内存';
+  const modeState = settings.mode === 'deepseek'
+    ? `DeepSeek ${settings.model} 已显式配置，公网内容可能计费`
+    : settings.mode === 'gateway'
+      ? 'Gateway 已显式配置'
+      : '当前为 Replay，不建立网络连接';
+  setText('gateway-settings-status', `${modeState}；${keyState}。`);
+}
+
+async function saveGatewaySettings() {
+  clearError();
+  const mode = byId('gateway-mode').value;
+  const values = window.win7AgentGatewaySettingsPayload.build({
+    mode,
+    gatewayUrl: byId('gateway-url').value,
+    model: byId('gateway-model').value,
+    caBundlePath: byId('gateway-ca').value,
+    apiKey: byId('gateway-api-key').value,
+    rememberApiKey: byId('gateway-remember-api-key').checked,
+  });
+  const result = await call(() => window.win7Agent.setSettings(values));
+  if (!result || !result.settings) return;
+  byId('gateway-api-key').value = '';
+  renderCredentialPersistence(result.settings);
+  renderGatewayMode(result.settings.mode);
+  await refreshDiagnostics();
+}
+
+async function clearSavedApiKey() {
+  clearError();
+  const result = await call(() => window.win7Agent.clearSavedApiKey());
+  if (!result || !result.settings) return;
+  byId('gateway-api-key').value = '';
+  byId('gateway-mode').value = 'replay';
+  renderCredentialPersistence(result.settings);
+  renderGatewayMode('replay');
+  await refreshDiagnostics();
+}
+
+function renderGatewayMode(mode) {
+  const deepseek = mode === 'deepseek';
+  byId('deepseek-network-warning').hidden = !deepseek;
+  if (deepseek) byId('gateway-url').value = 'https://api.deepseek.com';
+  byId('gateway-url').readOnly = deepseek;
+  byId('gateway-model').disabled = mode === 'replay';
+}
+
 async function chooseWorkspace() {
   clearError();
   const result = await call(() => window.win7Agent.selectWorkspace());
@@ -159,7 +233,13 @@ async function refreshRecovery() {
   if (!result || !result.recovery) return;
   const pending = result.recovery.pending;
   byId('recovery-panel').hidden = !pending;
-  if (pending) setText('recovery-detail', `检测到 ${pending.targetPath} 的未完成事务（${pending.phase}）。不会自动继续写入。`);
+  if (pending) {
+    const locked = Boolean(result.recovery.locked) || pending.phase === 'rollback_failed';
+    const guidance = locked
+      ? '写入已锁定；请先点击“恢复原文件”，确认恢复完成后再继续。'
+      : '不会自动继续写入；请检查后手动恢复原文件。';
+    setText('recovery-detail', `检测到 ${pending.targetPath} 的未完成事务（${pending.phase}）。${guidance}`);
+  }
 }
 
 function resetTaskView() {
@@ -208,13 +288,22 @@ async function rejectTask() {
 
 async function prepareUndo() {
   if (!state.session || !state.taskId) return;
-  const result = await call(() => window.win7Agent.prepareUndo(state.session.sessionId, state.taskId));
+  const sourceTaskId = state.taskId;
+  // The host starts the undo task before the IPC response reaches Renderer.
+  // Clear the old task filter first so early approval events for the new task
+  // are rendered instead of being discarded as cross-task events.
+  resetTaskView();
+  state.scenario = 'undo';
+  setText('task-state', '正在准备撤销'); byId('task-state').className = 'state running';
+  const result = await call(() => window.win7Agent.prepareUndo(state.session.sessionId, sourceTaskId));
   if (result && result.task) {
     appendTimeline('undo.prepared', '已生成新的撤销计划，仍需重新审批');
     state.taskId = result.task.taskId;
-    state.scenario = 'undo';
     setText('task-state', '运行中'); byId('task-state').className = 'state running';
     byId('undo-task').disabled = true; byId('run-task').disabled = true; byId('cancel-task').disabled = false;
+  } else {
+    state.taskId = sourceTaskId;
+    byId('undo-task').disabled = false;
   }
 }
 
@@ -240,7 +329,7 @@ function renderApproval(data) {
   byId('approval-panel').hidden = false;
   setText('approval-description', data.description || '请核对 Diff 后决定是否写入。');
   const details = byId('approval-details'); details.textContent = '';
-  [['文件', preparation.relativePath], ['编码', `${preparation.encoding}${preparation.bom ? ' + BOM' : ''}`], ['EOL', preparation.eol], ['基线 SHA-256', preparation.baseSha256], ['计划 SHA-256', preparation.planHash]].forEach(([key, value]) => {
+  [['文件', preparation.relativePath], ['编码', `${preparation.encoding}${preparation.bom ? ' + BOM' : ''}`], ['EOL', preparation.eol], ['基线 SHA-256', preparation.baseSha256], ['目标 SHA-256', preparation.contentSha256], ['计划 SHA-256', preparation.planHash]].forEach(([key, value]) => {
     const dt = document.createElement('dt'); const dd = document.createElement('dd'); dt.textContent = key; dd.textContent = value; details.appendChild(dt); details.appendChild(dd);
   });
   const preview = preparation.preview || {};
@@ -275,6 +364,7 @@ function processTaskEvent(event) {
   else if (event.eventKind === 'tool.started') appendTimeline(event.eventKind, `${data.toolName || 'tool'} 已开始`);
   else if (event.eventKind === 'tool.completed') appendTimeline(event.eventKind, `${data.toolName || 'tool'} · ${data.status || 'completed'}`);
   else if (event.eventKind === 'assistant.delta') { appendTimeline(event.eventKind, data.delta || ''); if (data.delta) byId('final-result').textContent = limitText(data.delta, 12_000); }
+  else if (event.eventKind === 'gateway.delta') appendTimeline(event.eventKind, data.delta || '');
   else if (event.eventKind === 'file.reference') { addFile(data.path); appendTimeline(event.eventKind, data.path || ''); }
   else if (event.eventKind === 'state.changed') appendTimeline(event.eventKind, `${data.from || '?'} → ${data.to || '?'}`);
   else if (event.eventKind === 'approval.requested') renderApproval(data);
@@ -299,6 +389,9 @@ async function initialize() {
   byId('undo-task').addEventListener('click', prepareUndo);
   byId('restore-recovery').addEventListener('click', restoreRecovery);
   byId('refresh-diagnostics').addEventListener('click', refreshDiagnostics);
+  byId('save-gateway-settings').addEventListener('click', saveGatewaySettings);
+  byId('clear-saved-api-key').addEventListener('click', clearSavedApiKey);
+  byId('gateway-mode').addEventListener('change', () => renderGatewayMode(byId('gateway-mode').value));
   byId('scenario').addEventListener('change', () => {
     byId('run-task').textContent = byId('scenario').value === 'edit' || byId('scenario').value === 'undo'
       ? '开始受控修改'
@@ -308,6 +401,7 @@ async function initialize() {
   state.eventQueue = window.win7AgentEventQueue.create(120);
   window.win7Agent.onTaskEvent(handleTaskEvent);
   await refreshDiagnostics();
+  await refreshGatewaySettings();
   await refreshSessions();
   window.win7Agent.signalReady();
 }

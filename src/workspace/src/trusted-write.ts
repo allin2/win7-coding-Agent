@@ -17,6 +17,7 @@ import {
 import {
   WorkspaceApprovalBinding,
   WorkspaceApprovalPort,
+  ApplyPlanOptions,
   buildApplyApprovalRequest,
   applyPlan,
 } from './apply';
@@ -102,6 +103,13 @@ export interface TrustedWritePreparerOptions {
   maxPreviewBytes?: number;
   maxPlans?: number;
   now?: () => Date;
+}
+
+export interface WriteTransactionCoordinatorOptions {
+  /** Existing test seam for deterministic rollback-failure injection. */
+  restoreBackup?: ApplyPlanOptions['restoreBackup'];
+  /** Existing test seam for deterministic post-replace failure injection. */
+  workspace?: ApplyPlanOptions['workspace'];
 }
 
 export class TrustedWritePreparer {
@@ -341,7 +349,11 @@ export class WriteTransactionCoordinator {
   readonly recovery: RecoveryManifestStore;
   private locked = false;
 
-  constructor(private readonly workspaceRoot: string, recoveryDirectory: string) {
+  constructor(
+    private readonly workspaceRoot: string,
+    recoveryDirectory: string,
+    private readonly options: WriteTransactionCoordinatorOptions = {},
+  ) {
     this.recovery = new RecoveryManifestStore(recoveryDirectory);
   }
 
@@ -368,6 +380,8 @@ export class WriteTransactionCoordinator {
       workspaceRoot: this.workspaceRoot,
       approval: binding,
       approvalLedger: this.approvals,
+      ...(this.options.workspace ? { workspace: this.options.workspace } : {}),
+      ...(this.options.restoreBackup ? { restoreBackup: this.options.restoreBackup } : {}),
     });
     if (result.success) {
       plan.status = 'applied';

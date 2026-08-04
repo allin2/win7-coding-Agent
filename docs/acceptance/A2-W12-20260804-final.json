@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W12-20260804",
+  "suite": "A2_WIN7_W12_GUI_RESTART_RECOVERY",
+  "verified_at": "2026-08-04T02:32:55Z",
+  "environment": {
+    "platform": "win32",
+    "os": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W11-W12-20260804",
+    "recovery_workspace": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\A2-W12-restart-recovery-workspace",
+    "user_data_root": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\w12-user-data"
+  },
+  "source_report": {
+    "path": "docs/acceptance/A2-W11-W12-20260804_report.json",
+    "sha256": "b854a12c8cf370ffa53052b103f2b094dda9fb97b150e9fec27ab2c2a640e8ef",
+    "w12_pre_manual_status": "BLOCKED"
+  },
+  "user_confirmation": {
+    "recovery_page_seen": true,
+    "restore_action_confirmed": true,
+    "response": "W12 原文件已恢复"
+  },
+  "case": {
+    "case_id": "W12_RESTART_RECOVERY_FIXTURE",
+    "status": "PASS",
+    "manual": true,
+    "expected": "fresh GUI restart detects the versioned interrupted recovery manifest without auto-writing; user restores the original file",
+    "actual": {
+      "pending_detected_before_restore": true,
+      "phase_before_restore": "replacing",
+      "auto_restore_before_user_action": false,
+      "user_restore_confirmed": true,
+      "final_sha256_matches_original": true,
+      "backup_absent_after_restore": true,
+      "recovery_manifest_absent_after_restore": true
+    },
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\A2-W12-restart-recovery-workspace\\src\\hello.ts",
+      "before_manual_restore_sha256": "f4f828364ef073a58b4fdb1807c1f94e7807db77dc495413935b806de61aa492",
+      "original_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "final_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "backup_path": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\A2-W12-restart-recovery-workspace\\src\\hello.ts.bak",
+      "recovery_manifest_path": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\w12-user-data\\a2-recovery\\a2-write-recovery.json",
+      "residual_artifacts": []
+    },
+    "independent_ssh_verification": {
+      "address": "10.67.149.40",
+      "certutil_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "backup": "ABSENT",
+      "recovery_manifest": "ABSENT",
+      "bitvise_service": "BvSshServer STATE=RUNNING"
+    },
+    "executor_invocations": 0
+  },
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "blocked": 0
+  },
+  "exit_code": 0,
+  "notes": [
+    "The pre-manual packaged probe intentionally stopped at BLOCKED; this final record adds the real GUI restart, user restore, and independent SSH evidence.",
+    "No Runner, Git, terminal, Gateway, SQLite or system configuration was used."
+  ]
+}

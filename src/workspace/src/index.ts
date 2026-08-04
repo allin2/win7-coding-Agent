@@ -65,6 +65,7 @@ export type {
   TrustedWritePlan,
   TrustedWritePlanPublic,
   TrustedWritePreparerOptions,
+  WriteTransactionCoordinatorOptions,
   WriteApprovalBinding,
   RecoveryManifest,
 } from './trusted-write';

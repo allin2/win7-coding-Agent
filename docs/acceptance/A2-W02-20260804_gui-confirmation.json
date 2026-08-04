@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W02-20260804",
+  "suite": "A2_WIN7_W02_GUI_TRUSTED_SINGLE_FILE_DIFF_CHECK",
+  "evidence_type": "human_confirmation_and_screenshot",
+  "environment": {
+    "platform": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W02-20260804"
+  },
+  "case": {
+    "case_id": "W02_GUI_TRUSTED_DIFF_BEFORE_APPROVAL",
+    "status": "PASS",
+    "expected": "显示精确单文件路径、UTF-8、CRLF、基线/目标 SHA-256 和非空未截断 Diff；批准前文件不变",
+    "actual": {
+      "relative_path": "src/hello.ts",
+      "encoding": "utf-8",
+      "eol": "crlf",
+      "base_sha256": "ae93b90c9787a544f9712c9a9cfa7328d91cf83201adecfb46f8d4707090f1fb",
+      "target_sha256": "10cf3c196905e83f984d5980e06da21fa210345386f31049d101553445832fac",
+      "diff_non_empty": true,
+      "diff_truncated": false,
+      "approval_action": "not_clicked"
+    },
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W02-20260804\\src\\hello.ts",
+      "before_sha256": "ae93b90c9787a544f9712c9a9cfa7328d91cf83201adecfb46f8d4707090f1fb",
+      "after_sha256": "ae93b90c9787a544f9712c9a9cfa7328d91cf83201adecfb46f8d4707090f1fb",
+      "unchanged": true,
+      "unsafe_artifacts": [],
+      "cleanup_verification": "SSH certutil hash matched baseline; hello.ts.tmp and hello.ts.bak absent."
+    },
+    "screenshot_attachment": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/codex-clipboard-af23c4ae-386d-4eab-b371-ed174d9d5014.jpg",
+    "user_confirmation": "W02 Diff 检查完成，暂不批准"
+  },
+  "notes": [
+    "本文件记录人工 GUI 检查与用户确认，不冒充产品生成的原始 GUI 日志。",
+    "计划 SHA-256 与目标文件 SHA-256 在 UI 中分开显示；本次未发生写入。",
+    "W02 PASS 不代表 A2-W01～W15 整体 PASS。"
+  ]
+}

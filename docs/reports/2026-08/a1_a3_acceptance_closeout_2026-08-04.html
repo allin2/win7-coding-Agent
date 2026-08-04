@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A1–A3 Win7 验收总览与收口记录</title>
+  <style>
+    :root{--ink:#18212b;--muted:#637181;--line:#dbe3e9;--bg:#f4f7f8;--card:#fff;--navy:#143957;--teal:#0d7d70;--good:#087f5b;--warn:#9a5a08;--soft:#eef5f6}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}main{max-width:1140px;margin:auto;padding:46px 26px 68px}
+    .hero{padding:38px 42px;border-radius:24px;color:#fff;background:linear-gradient(135deg,var(--navy),#176b75);box-shadow:0 20px 50px #14395725}.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.78}.hero h1{font-size:35px;line-height:1.18;margin:9px 0}.hero p{max-width:850px;margin:0;color:#e5f5f4}
+    .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}.metric,.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 6px 20px #20384a0a}.metric{padding:19px}.metric strong{display:block;color:var(--teal);font-size:25px}.metric span{font-size:13px;color:var(--muted)}
+    .card{padding:22px;margin-top:18px}.card h2{margin:0 0 12px;font-size:20px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 9px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+    .status{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:750;white-space:nowrap}.pass{background:#dff5ec;color:var(--good)}.partial{background:#fff0d8;color:var(--warn)}.defer{background:#edf0f4;color:#4e5b68}code{font-size:12px;background:#eef3f5;border-radius:5px;padding:2px 5px;word-break:break-word}.callout{border-left:4px solid var(--teal);background:var(--soft);padding:13px 16px;margin:14px 0}.warning{border-color:#e29a32;background:#fff8eb}.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}.small{font-size:13px;color:var(--muted)}a{color:#12638b}.footer{margin-top:22px;color:var(--muted);font-size:13px}
+    @media(max-width:820px){main{padding:24px 14px}.hero{padding:28px 24px}.hero h1{font-size:28px}.metrics{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="eyebrow">Win7 Coding Agent · Acceptance Closeout · 2026-08-04</div>
+    <h1>A1–A3 验收总览与 Win7 收口</h1>
+    <p>A1、A2 可按各自 MVP 合同视为验收完成；A3 的受控 Gateway W01–W15 与公网 DeepSeek 真实模型纵向切片已通过。该结论不等于正式发布、正式 Phase 3 或企业 E7。</p>
+  </section>
+
+  <section class="metrics">
+    <div class="metric"><strong>A1 / A2</strong><span>Win7 MVP 合同通过</span></div>
+    <div class="metric"><strong>15 / 15</strong><span>A3 受控 Win7 用例通过</span></div>
+    <div class="metric"><strong>Real model</strong><span>DeepSeek 公网流式与取消通过</span></div>
+    <div class="metric"><strong>8 retained</strong><span>Win7 最终包与证据目录</span></div>
+  </section>
+
+  <section class="card">
+    <h2>结论矩阵</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>切片</th><th>状态</th><th>已证明</th><th>不可扩大解释</th></tr></thead>
+      <tbody>
+        <tr><td>A1</td><td><span class="status pass">OWNER ACCEPTED MVP</span></td><td>Replay、Core、只读 Workspace 工具、事件流、取消、Renderer 安全。</td><td>不是正式 Phase 1/2 或发布 Gate。</td></tr>
+        <tr><td>A2</td><td><span class="status pass">MVP PASS</span></td><td>W01–W15；可信计划/Diff、双重一次性审批、原子写入、漂移/篡改拒绝、回滚恢复、二次审批撤销。</td><td>不启用 Runner、Git 进程、终端、SQLite。</td></tr>
+        <tr><td>A3 Controlled</td><td><span class="status pass">A3 CONTROLLED GATEWAY PASS</span></td><td>W01–W15；HTTP/HTTPS、TLS、SSE、取消、重试、deadline、CONNECT/407、失败关闭和 Core/UI 纵向链路。</td><td>受控 fixture 是 <code>MVP_NETWORK_SURROGATE</code>，不是企业 E7。</td></tr>
+        <tr><td>A3R</td><td><span class="status pass">PUBLIC MODEL PASS</span></td><td>Win7 到 DeepSeek 的真实 TLS、模型流、三项只读工具、取消无迟到事件及秘密值扫描。</td><td>仅代表当前账户、模型与公网路径，不是企业模型服务。</td></tr>
+        <tr><td>A3P</td><td><span class="status partial">PARTIAL EVIDENCE</span></td><td>DPAPI Current User 的保存、重载解密、清除和损坏 fail-closed 受控探针通过。</td><td>A3P-10“重启后显式真实连接”未完整本地归档，不宣称整体 PASS。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="two">
+    <article class="card">
+      <h2>A3 关键问题的直接回答</h2>
+      <ul>
+        <li>受控 Gateway 能连接：<strong>是</strong>。</li>
+        <li>能流式输出并隔离 request id：<strong>是</strong>。</li>
+        <li>能取消且无迟到 completed：<strong>是</strong>。</li>
+        <li>错误证书、主机名、协议和截断流会失败关闭：<strong>是</strong>。</li>
+        <li>能驱动 Gateway → Core → Workspace 只读工具 → UI：<strong>是</strong>。</li>
+        <li>A2 写入审批回归：<strong>是</strong>，A3-W13 已独立两次审批重验。</li>
+      </ul>
+    </article>
+    <article class="card">
+      <h2>仍然延期</h2>
+      <ul>
+        <li>企业 E7、企业 Gateway、企业 CA、PAC/企业代理与正式网络审计。</li>
+        <li>企业真实模型服务；DeepSeek 公网证据不能替代。</li>
+        <li>A3P-10 的完整重启后显式真实连接证据。</li>
+        <li>正式 Phase 3、安装/升级/卸载发布闭包。</li>
+        <li>Runner、Git 进程、终端、SQLite、Updater 与插件。</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="card">
+    <h2>Win7 文件清理与保留</h2>
+    <div class="callout"><strong>PASS：</strong>项目负责人明确批准永久删除固定 23 项清单。最终 23 项均不存在，只保留 8 个最终包/证据目录；按清理前盘点估算释放 <strong>1,725,141,506 bytes</strong>（约 1.61 GiB）。</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>类别</th><th>保留目录</th></tr></thead>
+      <tbody>
+        <tr><td>最终产品包</td><td><code>desktop-alpha2</code><br><code>desktop-alpha3-https-20260804</code><br><code>desktop-alpha3p-dpapi-20260804-03</code><br><code>desktop-alpha3r-deepseek-20260804-fix3</code></td></tr>
+        <tr><td>原始证据</td><td><code>A3-WIN7-HTTP-20260804-evidence</code><br><code>A3-WIN7-HTTPS-20260804-evidence</code><br><code>A3R-DEEPSEEK-20260804-evidence</code><br><code>A3R-DEEPSEEK-20260804-cancel-evidence</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>清理后 Electron = 0、Node = 0；Bitvise <code>BvSshServer</code> 为 <code>RUNNING</code>；TCP 22 的 IPv4/IPv6 listener 均在。未改网卡、路由、防火墙、服务配置或机器 PATH，未重启。</p>
+  </section>
+
+  <section class="card">
+    <h2>证据入口</h2>
+    <ul>
+      <li><a href="../../acceptance/A1-A3-CLOSEOUT-20260804-01.json">A1–A3 收口结构化记录</a></li>
+      <li><a href="../../acceptance/A3-20260804-01_controlled-gateway.json">A3 受控 Gateway 证据</a></li>
+      <li><a href="../../acceptance/A3R-DEEPSEEK-20260804.json">A3R DeepSeek 公网证据</a></li>
+      <li><a href="../../acceptance/A3-W13-20260804-02.json">A3-W13 独立审批/撤销证据</a></li>
+      <li><a href="../../status/latest-validation.json">当前结构化状态入口</a></li>
+    </ul>
+    <p class="small">DPAPI 的四份远端 JSON 未复制到仓库或任务输出；总记录只保存报告文件名和最终保留包位置，不保存 API key 或 DPAPI 密文。</p>
+  </section>
+  <p class="footer">Acceptance ID: <code>A1-A3-CLOSEOUT-20260804-01</code> · Baseline HEAD: <code>b2019f022f910b2b8df150ad94c3bccdefa1fa7b</code></p>
+</main></body></html>

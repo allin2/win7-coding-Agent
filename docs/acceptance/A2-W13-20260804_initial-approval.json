@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W13-20260804",
+  "suite": "A2_WIN7_W13_UNDO_INITIAL_APPROVAL",
+  "evidence_type": "human_confirmation_and_ssh_verification",
+  "environment": {
+    "platform": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W02-20260804"
+  },
+  "case": {
+    "case_id": "W13_INITIAL_MODIFICATION_APPROVAL",
+    "status": "SUPERSEDED",
+    "user_confirmation": "初次修改已批准并成功写入",
+    "expected": "一次显式批准后仅写入可信目标内容，文件最终哈希等于目标 SHA-256，无残留",
+    "actual": "Desktop Alpha 2 显示初次修改成功；SSH certutil 独立核验匹配目标 SHA-256。",
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W02-20260804\\src\\hello.ts",
+      "before_sha256": "ae93b90c9787a544f9712c9a9cfa7328d91cf83201adecfb46f8d4707090f1fb",
+      "after_sha256": "10cf3c196905e83f984d5980e06da21fa210345386f31049d101553445832fac",
+      "target_match": true,
+      "unsafe_artifacts": [],
+      "cleanup_verification": "SSH hello.ts.tmp and hello.ts.bak checks were absent."
+    }
+  },
+  "notes": [
+    "该记录对应旧的 A2-W02 工作区尝试，已被新的 A2-W13 隔离工作区记录取代。",
+    "本文件不宣称 W13 整体 PASS，也不宣称 A2-W01～W15 整体 PASS。"
+  ]
+}

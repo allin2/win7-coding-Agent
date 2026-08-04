@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A3-W13 写入审批独立重验</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --card:#141b31; --line:#2a3658; --text:#eef3ff; --muted:#aab7d6; --pass:#55d6a0; --accent:#86a8ff; }
+    * { box-sizing:border-box; } body { margin:0; background:linear-gradient(145deg,#0b1020,#101932 55%,#12233d); color:var(--text); font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; }
+    main { max-width:1120px; margin:0 auto; padding:44px 24px 72px; } .eyebrow { color:var(--accent); letter-spacing:.13em; text-transform:uppercase; font-size:12px; font-weight:700; }
+    h1 { font-size:clamp(30px,5vw,54px); line-height:1.1; margin:10px 0 14px; } h2 { margin:0 0 14px; font-size:20px; } p { margin:8px 0; } .muted { color:var(--muted); }
+    .hero { padding:28px; border:1px solid var(--line); border-radius:22px; background:rgba(20,27,49,.84); box-shadow:0 20px 70px rgba(0,0,0,.22); }
+    .lead { max-width:850px; font-size:17px; color:#dce6ff; } .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:18px; }
+    .card { margin-top:18px; padding:22px; border:1px solid var(--line); border-radius:16px; background:rgba(20,27,49,.72); } .metric { padding:18px; border:1px solid var(--line); border-radius:14px; background:#11182c; }
+    .metric strong { display:block; color:var(--pass); font-size:24px; } .metric span { color:var(--muted); font-size:13px; }
+    table { width:100%; border-collapse:collapse; } th,td { padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; } th { color:#b9c9f4; font-size:13px; } code { color:#cfe0ff; overflow-wrap:anywhere; }
+    .pass { color:var(--pass); font-weight:800; } .warn { color:#ffd47a; font-weight:700; } .flow { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px; } .step { padding:12px 15px; border:1px solid #3a4b78; border-radius:12px; background:#182341; } .arrow { color:var(--accent); font-size:20px; }
+    ul { margin:8px 0 0 20px; } a { color:#a9c1ff; } footer { margin-top:18px; color:var(--muted); font-size:13px; }
+    @media (max-width:760px) { .grid { grid-template-columns:1fr; } main { padding:24px 14px 48px; } .hero,.card { padding:18px; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="eyebrow">Win7 Coding Agent · Desktop Alpha 3 · 2026-08-04</div>
+    <h1>A3-W13 写入审批独立重验</h1>
+    <p class="lead">结论：<span class="pass">PASS</span>。A3.2 自包含产品包在 Windows 7 SP1 x64 的新隔离工作区完成了初次写入审批、撤销计划和第二次独立审批；文件最终恢复到初始字节，未留下临时或备份文件。</p>
+    <div class="grid">
+      <div class="metric"><strong>PASS</strong><span>Acceptance ID · A3-W13-20260804-02</span></div>
+      <div class="metric"><strong>942/942</strong><span>当前工作树 npm run verify</span></div>
+      <div class="metric"><strong>2</strong><span>独立审批停点</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>执行链路</h2>
+    <div class="flow"><div class="step">初始文件<br><code>14e851…a582</code></div><div class="arrow">→</div><div class="step">第一次显式审批并写入<br><code>33b305…2db5</code></div><div class="arrow">→</div><div class="step">生成撤销计划<br>第二次显式审批</div><div class="arrow">→</div><div class="step">最终恢复<br><code>14e851…a582</code></div></div>
+    <p class="muted">用户人工停点确认：“第一次写入完成”与“撤销完成”。每个停点后由 SSH <code>certutil -hashfile … SHA256</code> 独立核验。</p>
+  </section>
+
+  <section class="card">
+    <h2>实机与文件证据</h2>
+    <table><tbody>
+      <tr><th>目标</th><td>Windows 7 Professional SP1 x64 build 7601 · Electron 22.3.27 · Node 16.17.1</td></tr>
+      <tr><th>连接</th><td><code>dccs-chaizl@10.67.149.40:22</code> · Bitvise/SSH 保持可用 · 未修改网卡、路由、防火墙、服务或 PATH · 未重启</td></tr>
+      <tr><th>工作区</th><td><code>C:\Win7CodingAgent\A3-W13-20260804-02\src\sample.ts</code></td></tr>
+      <tr><th>SHA-256</th><td>初始 <code>14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582</code><br>第一次批准后 <code>33b305c1903672e81d27ef07aa62decb62780fecb12740256765d19ade602db5</code><br>撤销后 <code>14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582</code></td></tr>
+      <tr><th>残留</th><td class="pass">无 <code>.tmp</code> / <code>.bak</code></td></tr>
+    </tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>包与工作树</h2>
+    <p>包根：<code>C:\Win7CodingAgent\desktop-alpha3p-dpapi-20260804-03\a3p-pack</code>；912 个 manifest 条目。</p>
+    <table><tbody>
+      <tr><th>工作树</th><td><code>docs/status/mvp-baselines/A3P-W13-20260804-01.json</code><br>SHA-256 <code>7c35f55c64b437ad6150092e53d9429705ab89d8e3a1a498215bdff2abea756d</code></td></tr>
+      <tr><th>manifest</th><td><code>a30707c94d49db6bb65dd48acbb2024d9a0dd409dcc9953634ee5f166650dd3e</code></td></tr>
+      <tr><th>Electron</th><td><code>2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb</code></td></tr>
+      <tr><th>根回归</th><td><code>npm run verify</code> · exit code 0 · 7 modules · 942 tests</td></tr>
+    </tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>可观测性说明与边界</h2>
+    <p>当前 Renderer 在 <code>prepareUndo</code> 前清空旧任务时间线，因此初次任务和撤销任务不会在同一个 UI 列表中同时显示。本报告采用两个用户确认停点加两个 SSH 文件哈希停点，避免把 UI 的分段显示误记为缺失审批。</p>
+    <ul><li>A3-W13 只证明 A2 写入审批在 A3 产品包中仍需两次显式批准。</li><li>A3P-W15 产品进程清理已在用户关闭窗口后通过；DPAPI A3P-01～A3P-10 的整体收口、企业 E7、PAC/企业代理和正式 Phase 3 Gate 不由本报告宣称完成。</li></ul>
+  </section>
+  <footer>结构化证据：<a href="../../acceptance/A3-W13-20260804-02.json">A3-W13-20260804-02.json</a> · 任务书：<code>INTEGRATION_01 §11.7</code></footer>
+</main>
+</body>
+</html>

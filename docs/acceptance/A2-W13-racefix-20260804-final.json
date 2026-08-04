@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W13-RACEFIX-20260804",
+  "suite": "A2_WIN7_W13_UNDO_FINAL_RACEFIX",
+  "evidence_type": "human_confirmation_and_ssh_verification",
+  "environment": {
+    "platform": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W13-racefix-20260804"
+  },
+  "case": {
+    "case_id": "W13_INITIAL_APPROVAL_UNDO_SECOND_APPROVAL",
+    "status": "PASS",
+    "initial_confirmation": "W13 racefix 初次写入完成",
+    "undo_panel_confirmation": "racefix 撤销审批面板已出现",
+    "final_confirmation": "racefix W13 撤销已批准并成功恢复",
+    "expected": "两次独立显式审批：初次写入目标内容，再经新的反向 Diff 审批恢复原始内容；文件哈希闭环且无残留",
+    "approval_identity": {
+      "distinct": true,
+      "basis": "初次任务与撤销任务分别生成新的可信计划和一次性审批绑定；撤销审批面板在 racefix 后真实出现。"
+    },
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W13-racefix-20260804\\src\\hello.ts",
+      "initial_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "after_initial_approval_sha256": "eca20042c6c144135a8de2a70b19341a937f2386122ceafcf00388e239f96b48",
+      "after_undo_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "restored": true,
+      "unsafe_artifacts": [],
+      "cleanup_verification": "SSH certutil matched the original hash after undo; hello.ts.tmp and hello.ts.bak were absent."
+    },
+    "bitvise_service": "BvSshServer STATE=RUNNING"
+  },
+  "notes": [
+    "W13 先前因 Renderer 任务 ID 竞态的一次尝试已作废；本记录来自 racefix 新隔离工作区。",
+    "W13 PASS 不代表 A2-W01～W15 整体 PASS。"
+  ]
+}

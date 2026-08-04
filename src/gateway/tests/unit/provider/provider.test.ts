@@ -81,8 +81,13 @@ describe('provider', () => {
       expect(provider.credentialStore.getApiKey()).toBe('sk-test-key-1234567890abcdef');
     });
 
-    it('refuses a plaintext gateway URL', () => {
+    it('accepts an explicitly configured HTTP gateway URL', () => {
       expect(() => makeProvider({ gatewayUrl: 'http://gateway.example.com/v1' }))
+        .not.toThrow();
+    });
+
+    it('refuses unsupported gateway URL schemes', () => {
+      expect(() => makeProvider({ gatewayUrl: 'ftp://gateway.example.com/v1' }))
         .toThrow(GatewayError);
     });
   });
@@ -291,6 +296,51 @@ describe('provider', () => {
       await expect(provider.sendRequest(makeRequest())).rejects.toMatchObject({
         code: ErrorCode.PROTOCOL_VERSION_MISMATCH,
       });
+    });
+
+    it('rejects a stream with a completion marker followed by a truncated event', async () => {
+      networkStack.setHandler(async (): Promise<NetworkResponse> => ({
+        statusCode: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: [
+          'event: chunk\ndata: first\n\n',
+          'event: done\ndata: {"protocolVersion":"0.1.0","id":"resp-truncated","result":{"id":"resp-truncated","content":"first","finish_reason":"stop"}}\n\n',
+          'event: chunk\ndata: late',
+        ].join(''),
+      }));
+
+      const provider = makeProvider();
+      await expect(provider.sendStreamRequest(makeRequest(), () => {})).rejects.toMatchObject({
+        code: ErrorCode.STREAM_INTERRUPTED,
+      });
+    });
+
+    it('cancels an in-flight stream without delivering a late completion', async () => {
+      let resolveNetwork: (() => void) | undefined;
+      networkStack.setHandler(async (_url, options): Promise<NetworkResponse> => {
+        options.onData?.('event: chunk\ndata: first\n\n');
+        await new Promise<void>((resolve) => {
+          resolveNetwork = resolve;
+          if (options.signal?.aborted) resolve();
+          else options.signal?.addEventListener('abort', resolve, { once: true });
+        });
+        return {
+          statusCode: 200,
+          headers: { 'content-type': 'text/event-stream' },
+          body: 'event: done\ndata: [DONE]\n\n',
+        };
+      });
+
+      const provider = makeProvider();
+      const controller = new AbortController();
+      const chunks: StreamChunk[] = [];
+      const pending = provider.sendStreamRequest(makeRequest(), (chunk) => chunks.push(chunk), { signal: controller.signal });
+      await new Promise(resolve => setTimeout(resolve, 5));
+      controller.abort();
+      resolveNetwork?.();
+
+      await expect(pending).rejects.toMatchObject({ code: ErrorCode.REQUEST_CANCELLED });
+      expect(chunks.map(chunk => chunk.content)).toEqual(['first']);
     });
   });
 

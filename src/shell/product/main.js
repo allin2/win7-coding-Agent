@@ -8,6 +8,7 @@ const {
   BrowserWindow,
   dialog,
   ipcMain,
+  safeStorage,
   session,
 } = require('electron');
 const {
@@ -17,6 +18,7 @@ const {
 const { createDesktopRequestHandler } = require('./desktop-ipc');
 const { installSessionPolicy, installWindowPolicy } = require('./security-policy');
 const { createDesktopHost } = require('./desktop-host');
+const { createDpapiCredentialVault } = require('./credential-vault');
 const { schemaValidator } = require('../dist/ipc/schema');
 const { IPCDirection, IPCMessageType } = require('../dist/ipc/messages');
 
@@ -27,6 +29,7 @@ const preloadPath = path.join(productRoot, 'preload.js');
 const startedAt = new Date().toISOString();
 const mvpId = readArgument('--mvp-id=') || 'MVP-UNKNOWN';
 const smokeReportPath = readArgument('--smoke-report=');
+const acceptanceEventReportPath = readArgument('--acceptance-event-report=');
 const smokeTimeoutMs = boundedInteger(readArgument('--smoke-timeout-ms='), 20000, 5000, 60000);
 
 const runtimeState = {
@@ -41,6 +44,8 @@ const runtimeState = {
 let mainWindow = null;
 let smokeTimer = null;
 let desktopHost = null;
+const acceptanceEvents = [];
+let acceptanceReportWritten = false;
 
 function readArgument(prefix) {
   const value = process.argv.find((item) => item.indexOf(prefix) === 0);
@@ -126,6 +131,71 @@ function writeSmokeReport(status, exitCode, summary) {
   };
   fs.mkdirSync(path.dirname(smokeReportPath), { recursive: true });
   fs.writeFileSync(smokeReportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+}
+
+function sanitizeAcceptanceValue(value) {
+  if (typeof value === 'string') {
+    return value
+      .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [REDACTED]')
+      .replace(/sk-[A-Za-z0-9_-]{16,}/g, '[REDACTED_API_KEY]');
+  }
+  if (Array.isArray(value)) return value.map(sanitizeAcceptanceValue);
+  if (value && typeof value === 'object') {
+    const result = {};
+    Object.entries(value).forEach(([key, item]) => {
+      result[key] = /api.?key|password|authorization|credential|token/i.test(key)
+        ? '[REDACTED]'
+        : sanitizeAcceptanceValue(item);
+    });
+    return result;
+  }
+  return value;
+}
+
+function writeAcceptanceEventReport() {
+  if (!acceptanceEventReportPath || acceptanceReportWritten) return;
+  acceptanceReportWritten = true;
+  const settings = desktopHost ? desktopHost.getSettings() : null;
+  const eventKinds = acceptanceEvents.map((event) => event.eventKind);
+  const toolNames = acceptanceEvents
+    .filter((event) => event.eventKind === 'tool.started')
+    .map((event) => event.data && event.data.toolName)
+    .filter(Boolean);
+  const report = sanitizeAcceptanceValue({
+    schemaVersion: 1,
+    acceptanceId: 'A3R-20260804-01',
+    environment: {
+      platform: process.platform,
+      arch: process.arch,
+      electron: process.versions.electron,
+      node: process.versions.node,
+      userData: app.getPath('userData'),
+    },
+    settings,
+    target: settings && settings.mode === 'deepseek' ? 'https://api.deepseek.com:443/chat/completions' : null,
+    eventKinds,
+    toolNames,
+    events: acceptanceEvents,
+    metrics: {
+      eventCount: acceptanceEvents.length,
+      gatewayDeltaCount: eventKinds.filter((kind) => kind === 'gateway.delta').length,
+      taskCompletedCount: eventKinds.filter((kind) => kind === 'task.completed').length,
+      taskFailedCount: eventKinds.filter((kind) => kind === 'task.failed').length,
+      readOnlyToolCalls: toolNames.filter((name) => ['workspace.list_directory', 'workspace.search_text', 'workspace.read_text'].includes(name)).length,
+    },
+    credentials: {
+      persistence: settings && settings.persistence ? settings.persistence : 'process-memory-only',
+      apiKeyValueIncluded: false,
+      commandLineCredentialIncluded: false,
+    },
+    timestamps: { startedAt, finishedAt: new Date().toISOString() },
+    status: settings && settings.mode === 'deepseek' && eventKinds.includes('task.completed') &&
+      ['workspace.list_directory', 'workspace.search_text', 'workspace.read_text'].every((name) => toolNames.includes(name))
+      ? 'PASS'
+      : 'PARTIAL',
+  });
+  fs.mkdirSync(path.dirname(acceptanceEventReportPath), { recursive: true });
+  fs.writeFileSync(acceptanceEventReportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
 }
 
 function finishSmoke(status, exitCode, summary) {
@@ -276,7 +346,15 @@ if (!hasSingleInstanceLock) {
     });
     desktopHost = createDesktopHost({
       recoveryDirectory: path.join(app.getPath('userData'), 'a2-recovery'),
+      credentialVault: createDpapiCredentialVault({
+        safeStorage,
+        userDataPath: app.getPath('userData'),
+        platform: process.platform,
+      }),
       onTaskEvent: (event, task) => {
+        if (acceptanceEventReportPath && acceptanceEvents.length < 5000) {
+          acceptanceEvents.push(sanitizeAcceptanceValue(event));
+        }
         sendProductEvent(IPCMessageType.TASK_EVENT, task.sessionId, event);
       },
     });
@@ -295,6 +373,11 @@ if (!hasSingleInstanceLock) {
 
   app.on('window-all-closed', () => app.quit());
   app.on('will-quit', () => {
+    try {
+      writeAcceptanceEventReport();
+    } catch (error) {
+      process.stderr.write('ACCEPTANCE_REPORT_ERROR:' + String(error && error.message ? error.message : error) + '\n');
+    }
     if (desktopHost) desktopHost.dispose();
     desktopHost = null;
   });

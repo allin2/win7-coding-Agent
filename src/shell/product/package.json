@@ -1,6 +1,6 @@
 {
   "name": "win7-coding-agent-mvp-shell",
-  "version": "0.2.0-a1",
+  "version": "0.5.0-a3.2",
   "private": true,
   "license": "Apache-2.0",
   "main": "main.js",

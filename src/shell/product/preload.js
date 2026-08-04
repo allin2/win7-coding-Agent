@@ -19,6 +19,9 @@ function request(type, sessionId, payload) {
 
 const productApi = Object.freeze({
   getDiagnostics: () => ipcRenderer.invoke('product:get-diagnostics'),
+  getSettings: () => request('settings.get', 'desktop', {}),
+  setSettings: (values) => request('settings.set', 'desktop', { values }),
+  clearSavedApiKey: () => request('settings.credential_clear', 'desktop', { credential: 'api-key' }),
   selectWorkspace: () => request('workspace.select', 'desktop', {}),
   createSession: (workspacePath, label) => request('session.create', 'desktop', {
     workspacePath,

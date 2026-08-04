@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desktop Alpha 3 · Controlled Gateway Acceptance</title>
+  <style>
+    :root{--ink:#17212b;--muted:#607080;--line:#dbe3ea;--bg:#f4f7f9;--card:#fff;--good:#087f5b;--warn:#a65b00;--blue:#165d9c}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+    main{max-width:1120px;margin:0 auto;padding:48px 28px 64px}.hero{background:linear-gradient(135deg,#12334f,#1b6b85);color:#fff;border-radius:22px;padding:36px 40px;box-shadow:0 18px 45px #12334f24}.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:12px;opacity:.78}.hero h1{font-size:34px;line-height:1.15;margin:10px 0}.hero p{max-width:780px;margin:10px 0 0;color:#e1f3fa}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}.metric,.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:20px;box-shadow:0 5px 18px #23384c0b}.metric strong{display:block;font-size:25px;color:var(--blue)}.metric span{color:var(--muted);font-size:13px}.card{margin-top:18px}.card h2{font-size:20px;margin:0 0 12px}.card h3{font-size:16px;margin:20px 0 8px}.status{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:700;font-size:12px;letter-spacing:.02em}.pass{background:#dff5ec;color:var(--good)}.partial{background:#fff0d8;color:var(--warn)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px 8px;vertical-align:top}th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}code{background:#eef3f6;border-radius:5px;padding:2px 5px;font-size:12px;word-break:break-word}.note{border-left:4px solid #efad4d;background:#fff9ef;padding:12px 16px;margin-top:14px}.footer{color:var(--muted);font-size:13px;margin-top:22px}@media(max-width:780px){main{padding:24px 14px}.hero{padding:28px 24px}.hero h1{font-size:27px}.grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="eyebrow">Win7 Coding Agent · Desktop Alpha 3 · 2026-08-04</div>
+    <h1>受控 Gateway 联机纵向切片验收</h1>
+    <p>结论：<strong>A3_CONTROLLED_GATEWAY_PASS</strong>；Win7 W01–W15 均已通过，其中 W13 由 A3.2 独立产品包完成两次显式审批与撤销恢复。本报告证明受控 HTTP/HTTPS fixture 的 Gateway 能连接、流式、取消、失败关闭并驱动 Core/UI；它不是企业 E7 或真实模型完成声明。</p>
+  </section>
+
+  <section class="grid">
+    <div class="metric"><strong>909</strong><span>Mac 根回归测试通过</span></div>
+    <div class="metric"><strong>12 / 12</strong><span>A3 原子需求受控证据</span></div>
+    <div class="metric"><strong>TLS 1.2</strong><span>CA + 主机名 fail-closed</span></div>
+    <div class="metric"><strong>0</strong><span>临时 listener 清理后残留</span></div>
+  </section>
+
+  <section class="card">
+    <h2>执行边界</h2>
+    <table><tbody>
+      <tr><th>证据</th><td><code>A3-20260804-01</code> · <a href="../../acceptance/A3-20260804-01_controlled-gateway.json">结构化证据 JSON</a></td></tr>
+      <tr><th>工作树</th><td><code>b2019f022f910b2b8df150ad94c3bccdefa1fa7b</code>，detached HEAD；用户未提交修改保留。指纹文件：<code>docs/status/mvp-baselines/A3-20260804-01.json</code></td></tr>
+      <tr><th>网络</th><td>Mac <code>10.67.149.136</code> 的临时 HTTP/HTTPS fixture 与 CONNECT proxy → Win7 <code>10.67.149.40</code>；无公网、无系统网络修改。</td></tr>
+      <tr><th>证书</th><td>有效 CA 公钥摘要 <code>aa1dbcefb3f076a4fbb56b6b57d31fa97bb553acc15eb75271156ee24732756e</code>；错误主机名、过期证书也已负向验证；私钥不进入仓库或证据。</td></tr>
+      <tr><th>包</th><td>902 文件；manifest SHA-256 <code>5c5167856165710c9ff9c610ec8043cdf5867dbad516822d06a12238cfef6bed</code>；Electron 22.3.27 SHA-256 <code>2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb</code>。</td></tr>
+    </tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>关键真实行为</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>范围</th><th>结果</th><th>证据摘要</th></tr></thead>
+      <tbody>
+        <tr><td>A3-02 / A3-04</td><td><span class="status pass">PASS</span></td><td>Replay 默认；用户显式选择 HTTP 或 HTTPS Gateway。Renderer 只有版本化 preload API；设置返回不含 key/密码。</td></tr>
+        <tr><td>A3-05 / A3-06</td><td><span class="status pass">PASS</span></td><td>有效 CA 的 TLS 1.2 真实握手；错误 CA、错误主机名、协议版本不兼容、SSE 截断均无成功态。</td></tr>
+        <tr><td>A3-07</td><td><span class="status pass">PASS</span></td><td>Win7 延迟 fixture 在 300ms 总 deadline 内完成 2 次尝试并返回 104；150ms 取消后无完成事件或迟到事件。</td></tr>
+        <tr><td>A3-08</td><td><span class="status pass">PASS</span></td><td>CONNECT 隧道内显式 TLS 包装后成功；407 分类为 <code>PROXY_AUTH_FAILED</code>。PAC/企业代理未冒充通过。</td></tr>
+        <tr><td>A3-09</td><td><span class="status pass">PASS</span></td><td>API key/代理凭据只在进程内；stdout、报告、metrics、事件扫描均未发现秘密。</td></tr>
+        <tr><td>A3-10</td><td><span class="status pass">PASS</span></td><td>Win7 HTTP 纵向链路完成：Gateway → Core → <code>workspace.list_directory</code> → <code>search_text</code> → <code>read_text</code> → UI completed；HTTPS 传输负向矩阵也通过。</td></tr>
+        <tr><td>A3-11</td><td><span class="status pass">PASS</span></td><td>A2 计划/Diff/审批/写入回归保留；Gateway 仅映射只读工具，不绕过人工批准。</td></tr>
+        <tr><td>A3-12</td><td><span class="status pass">PASS</span></td><td>独立包、manifest、Electron 哈希、Win7 W01–W15 与清理完成；W13 独立证据为 <code>A3-W13-20260804-02</code>。企业 E7 仍未执行。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="card">
+    <h2>Win7 W01–W15</h2>
+    <div class="note"><strong>PASS：</strong>新地址 <code>10.67.149.40</code> 已完成 SSH 公钥认证。902 文件 HTTPS 包部署到 <code>C:\Win7CodingAgent\desktop-alpha3-https-20260804</code>；W01–W15 均已通过。W13 的初始 → 写入 → 撤销哈希闭环和两个用户审批停点见独立补充证据。</div>
+    <p>Win7 HTTP 报告见 <code>A3-WIN7-HTTP-20260804</code>，HTTPS/负向矩阵报告见 <code>A3-WIN7-HTTPS-20260804</code>，W13 见 <code>A3-W13-20260804-02</code>；最终 A1–A3 收口后 Electron/Node 均为 0，Bitvise 仍为 RUNNING，TCP 22 保持监听。</p>
+  </section>
+
+  <section class="card">
+    <h2>仍缺少什么</h2>
+    <ul>
+      <li>企业 E7：企业 Gateway、企业 CA、企业 HTTP CONNECT/PAC、真实模型与正式网络审计。</li>
+      <li>凭据：A3.2 DPAPI 受控保存/解密/清除/损坏行为已实现；完整 A3P-10 证据仍为 <code>PARTIAL_EVIDENCE</code>。</li>
+      <li>正式发布：Phase 3 Gate、安装/升级/卸载发布闭包仍未完成。</li>
+      <li>范围保持关闭：Runner、Git 子进程、终端、SQLite、Updater、插件未启用。</li>
+    </ul>
+  </section>
+  <p class="footer">生成于受控本地验收目录。历史 A2 实机证据仍按原 MVP 指纹引用，不被本次 A3 受控 fixture 结果重新标记。</p>
+</main>
+</body>
+</html>

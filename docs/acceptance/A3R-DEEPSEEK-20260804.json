@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "acceptanceId": "A3R-20260804-01",
+  "status": "A3_REAL_MODEL_PUBLIC_NETWORK_PASS",
+  "formalE7Status": "NOT_PERFORMED",
+  "formalPhase3StatusChanged": false,
+  "executedAt": "2026-08-04",
+  "workingTree": {
+    "headCommit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "executionWorktree": "detached Codex worktree at the main worktree HEAD; no branch switch, reset, stage, commit or push",
+    "fingerprint": "docs/status/mvp-baselines/A3R-20260804-01.json",
+    "fingerprintSha256": "956902c6a8ae3d6d9409432af81eee949e4f07e9da0fb3e1a03f0967e65e4926",
+    "fileCount": 430
+  },
+  "environment": {
+    "target": "Windows 7 Professional SP1 x64 build 7601",
+    "targetAddress": "10.67.149.40",
+    "account": "dccs-chaizl",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "packageRoot": "C:\\Win7CodingAgent\\desktop-alpha3r-deepseek-20260804-fix3\\a3r-pack",
+    "workspaceRoot": "C:\\Win7CodingAgent\\A3R-DEEPSEEK-20260804-workspace",
+    "successUserData": "C:\\Win7CodingAgent\\desktop-alpha3r-deepseek-20260804-fix3\\a3r-pack\\a3r-user-data",
+    "cancelUserData": "C:\\Win7CodingAgent\\A3R-DEEPSEEK-20260804-cancel-evidence\\user-data-2",
+    "systemMutation": false,
+    "rebooted": false
+  },
+  "publicTarget": {
+    "baseUrl": "https://api.deepseek.com",
+    "chatTarget": "https://api.deepseek.com:443/chat/completions",
+    "model": "deepseek-v4-flash",
+    "redirectOrProtocolFallback": false,
+    "publicConnectivity": {
+      "acceptanceId": "A3R-WIN7-PUBLIC-CONNECTIVITY-20260804",
+      "target": "https://api.deepseek.com:443/models",
+      "authorizationHeaderPresent": false,
+      "statusCode": 401,
+      "elapsedMs": 223,
+      "tlsProtocol": "TLSv1.3",
+      "tlsAuthorized": true,
+      "certificateSubjectCN": "api.deepseek.com",
+      "certificateIssuerCN": "TrustAsia DV TLS RSA CA 2025",
+      "certificateFingerprint256": "1B:0E:A7:14:5D:E3:C3:A8:0F:C7:72:E0:2C:A8:C6:76:8B:05:7B:86:07:70:67:D6:06:10:9C:B8:98:FC:7E:7A",
+      "certificateValidTo": "Sep 17 23:59:59 2026 GMT",
+      "reportSha256": "cc92381f814495e39e357d27004ced61941f13891d622581c650deb11eb3e4ca"
+    }
+  },
+  "package": {
+    "deliveryType": "complete self-contained A3.1 acceptance directory",
+    "manifestEntries": 908,
+    "manifestSha256": "8eb60ddf2c515fa4c896ea149d10a118c883f393925991ec3f77ddd8db02d3aa",
+    "materialHashes": {
+      "electron.exe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+      "product/gateway-runtime.js": "6e01338b9c3da64b485b216eb8d969b9418644b9f621faf2a84ec9b0c6b07009",
+      "gateway/dist/provider/deepseek-openai.js": "df9faf1269328477421a52f861be55ad0e7bbc0939b01f3210f35dc2bd25c951",
+      "product/renderer/gateway-settings-payload.js": "a5ee3582f04b5b9bc7baf475a85a857ea4acc0c277db2ceea44d5f9aee67b075",
+      "start-a3r.cmd": "5c61c8aaba111aa20f73a39de7b29beefeb6726befd2a98eab2f689064679242"
+    },
+    "win7HashMatch": true
+  },
+  "developmentVerification": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "status": "PASS",
+    "designGuards": "PASS",
+    "modules": 7,
+    "tests": 929,
+    "moduleTests": {
+      "gateway": 202,
+      "workspace": 80,
+      "state": 219,
+      "core": 225,
+      "runner": 46,
+      "gitAdapter": 51,
+      "shell": 106
+    }
+  },
+  "realModelCompletion": {
+    "status": "PASS",
+    "startedAt": "2026-08-04T07:32:14.164Z",
+    "taskCompletedAt": "2026-08-04T07:33:05.505Z",
+    "reportFinishedAt": "2026-08-04T07:37:05.349Z",
+    "eventCount": 638,
+    "firstSequence": 1,
+    "lastSequence": 638,
+    "gatewayDeltaCount": 618,
+    "assistantDeltaCount": 4,
+    "taskCompletedCount": 1,
+    "taskFailedCount": 0,
+    "toolOrder": [
+      "workspace.list_directory",
+      "workspace.search_text",
+      "workspace.read_text"
+    ],
+    "toolStartedCount": 3,
+    "toolCompletedCount": 3,
+    "finalEvent": "task.completed",
+    "reportSha256": "08b05d7f56bf6b6757dd3aa287816cfe869670fe9aed4432abec043d05c0d7be",
+    "remoteReport": "C:\\Win7CodingAgent\\desktop-alpha3r-deepseek-20260804-fix3\\a3r-pack\\a3r-evidence\\real-model-events.json"
+  },
+  "realModelCancellation": {
+    "status": "PASS",
+    "rawHarnessStatus": "PARTIAL",
+    "rawHarnessStatusReason": "The generic completion harness only marks a three-tool completed task PASS; cancellation is evaluated by cancellation-specific invariants.",
+    "startedAt": "2026-08-04T08:09:02.113Z",
+    "cancellingAt": "2026-08-04T08:10:00.327Z",
+    "cancelledAt": "2026-08-04T08:10:00.333Z",
+    "reportFinishedAt": "2026-08-04T08:10:10.165Z",
+    "eventCount": 66,
+    "firstSequence": 1,
+    "lastSequence": 66,
+    "gatewayDeltaCount": 48,
+    "taskCancellingCount": 1,
+    "taskCancelledCount": 1,
+    "taskCompletedCount": 0,
+    "taskFailedCount": 0,
+    "cancelSettleMs": 6,
+    "lateEventAfterCancelled": false,
+    "finalEvent": "task.cancelled",
+    "reportSha256": "48466a13297bfc1194d54ef1a196d0c3c1f3bda4bd38daa6e4203a64ce60b575",
+    "remoteReport": "C:\\Win7CodingAgent\\A3R-DEEPSEEK-20260804-cancel-evidence\\cancel-events-2.json"
+  },
+  "credentials": {
+    "lifetime": "process-memory-only",
+    "userEnteredInRenderer": true,
+    "argvContainsCredential": false,
+    "environmentContainsCredential": false,
+    "reportsContainCredentialValue": false,
+    "userDataStrictSecretPatternMatches": 0,
+    "evidenceStrictSecretPatternMatches": 0,
+    "bearerValuePatternMatches": 0,
+    "redactionMarkersPresent": true,
+    "genericSkPrefixFalsePositive": "task-1 identifiers end with the characters sk-; strict sk- credential-length regex had zero matches",
+    "dpapiPersistence": "DEFERRED"
+  },
+  "cleanup": {
+    "electronProcesses": 0,
+    "nodeProcesses": 0,
+    "temporaryFixtureOrProxyProcesses": 0,
+    "temporaryPublicListenerCreated": false,
+    "bitviseService": "RUNNING",
+    "sshConnection": "10.67.149.40:22 ESTABLISHED",
+    "nicChanged": false,
+    "routeChanged": false,
+    "firewallChanged": false,
+    "serviceConfigurationChanged": false,
+    "machinePathChanged": false,
+    "rebooted": false
+  },
+  "traceability": [
+    {"id":"A3R-01","status":"implemented","acceptance":"PASS","evidence":"Replay remains default; DeepSeek requires an explicit UI selection and shows public-data/fee warning."},
+    {"id":"A3R-02","status":"implemented","acceptance":"PASS","evidence":"The adapter pins HTTPS api.deepseek.com:443 and reviewed model IDs; schema and provider negative tests pass."},
+    {"id":"A3R-03","status":"implemented","acceptance":"PASS","evidence":"Real DeepSeek responses drove three Core Workspace read-only tools; dotted Core names use reversible OpenAI-safe aliases."},
+    {"id":"A3R-04","status":"implemented","acceptance":"PASS","evidence":"618 completion deltas and 48 pre-cancel deltas were delivered; DONE/truncation/tool-call assembly tests pass."},
+    {"id":"A3R-05","status":"implemented","acceptance":"PASS","evidence":"Win7 negotiated authorized TLSv1.3; existing A3 Win7 retry/deadline/certificate/CONNECT evidence remains green."},
+    {"id":"A3R-06","status":"implemented","acceptance":"PASS","evidence":"Credential values were absent from argv, reports and isolated userData/evidence scans; key was cleared on process exit."},
+    {"id":"A3R-07","status":"implemented","acceptance":"PASS","evidence":"Renderer remains sandboxed with no Node/general network/key readback; settings use schema-validated IPC."},
+    {"id":"A3R-08","status":"implemented","acceptance":"PASS","evidence":"Only list_directory, search_text and read_text ran; Runner/Git/terminal/write capabilities remained unavailable."},
+    {"id":"A3R-09","status":"implemented","acceptance":"PASS","evidence":"Real Win7 completion and cancellation reports prove streaming, tool sequencing, final UI and no late completion."},
+    {"id":"A3R-10","status":"implemented","acceptance":"PASS","evidence":"No Electron/Node remained; Bitvise stayed RUNNING and SSH stayed established without system mutation."}
+  ],
+  "failureClosures": [
+    {"attempt":"fix1","symptom":"IPC_SCHEMA_INVALID for an empty caBundlePath","rootCause":"Renderer sent an empty optional field that had minLength 1","fix":"omit an empty CA path","regression":"Shell payload tests"},
+    {"attempt":"fix2 request 1","symptom":"DeepSeek HTTP 400","rootCause":"Core dotted tool names violated the OpenAI function-name character contract","fix":"reversible model-safe aliases plus provider validation","regression":"Gateway 202 and Shell alias tests"},
+    {"attempt":"fix2 request 2","symptom":"Core message referenced an unavailable Gateway tool undefined","rootCause":"multi-turn history used name/arguments instead of Core toolName/args","fix":"map the actual Core history shape","regression":"three-step list/search/read round-trip test"},
+    {"attempt":"cancel 01","symptom":"Replay mode and zero events","rootCause":"the wrong window was operated","fix":"dedicated visible cancel launcher and fresh report/userData","regression":"cancel 02 real public-model evidence"}
+  ],
+  "a2Regression": {
+    "status": "PASS_BY_CURRENT_ROOT_REGRESSION_AND_EXISTING_WIN7_EVIDENCE",
+    "rootVerification": "929/929 PASS",
+    "win7A2W01ToW15": "Existing 2026-08-04 MVP evidence remains PASS and is referenced, not relabelled as a new Win7 rerun.",
+    "a3ControlledW13": "NOT_REPERFORMED in the A3 controlled package; A3R exposes read-only tools only and does not replace the existing A2 human approval evidence."
+  },
+  "deferred": [
+    "formal enterprise E7 Gateway/CA/proxy/PAC acceptance",
+    "enterprise model service and enterprise network audit",
+    "DPAPI credential persistence and lifecycle",
+    "formal Phase 3 gate",
+    "Runner, Git process execution, terminal, SQLite, updater and plugins"
+  ],
+  "credentialRevocation": "USER_ACTION_REQUIRED_AFTER_ACCEPTANCE"
+}

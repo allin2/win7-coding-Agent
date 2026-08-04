@@ -64,8 +64,11 @@ export function mapNodeError(err: Error & { code?: string }): GatewayError {
       );
 
     case 'CERT_HAS_EXPIRED':
+    case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+    case 'SELF_SIGNED_CERT_IN_CHAIN':
     case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
     case 'UNABLE_TO_GET_ISSUER_CERTIFICATE':
+    case 'ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED':
     case 'ERR_TLS_CERT_ALTNAME_INVALID':
       return new GatewayError(
         ErrorCode.TLS_VERIFY_FAILED,
@@ -172,6 +175,14 @@ export class NodeNetworkStack implements INetworkStack {
   async request(reqUrl: string, options: NetworkRequestOptions): Promise<NetworkResponse> {
     const parsed = new url.URL(reqUrl);
     const isHttps = parsed.protocol === 'https:';
+
+    const isHttp = parsed.protocol === 'http:';
+    if (!isHttps && !isHttp) {
+      throw new GatewayError(
+        ErrorCode.TLS_VERIFY_FAILED,
+        `Gateway transport requires HTTP or HTTPS; refusing ${parsed.protocol || 'unknown'} URL`,
+      );
+    }
 
     // Merge proxy from per-request options or stack-level config
     const proxy = options.proxy ?? this._config.proxy;
@@ -308,7 +319,31 @@ export class NodeNetworkStack implements INetworkStack {
             );
             return;
           }
-          cb(null, socket);
+
+          // `https.request` expects the socket returned by createConnection to
+          // already be TLS-capable. A CONNECT response only gives us a raw
+          // tunnel, so wrap that socket before handing it back to Node's HTTPS
+          // client. This also keeps certificate, hostname and TLS-version
+          // validation on the application side of the proxy boundary.
+          let settled = false;
+          const fail = (error: Error): void => {
+            if (settled) return;
+            settled = true;
+            cb(error, null as unknown as Duplex);
+          };
+          const secureSocket = tls.connect({
+            socket,
+            servername: parsed.hostname,
+            port: Number(parsed.port || 443),
+            rejectUnauthorized: this._config.rejectUnauthorized,
+            minVersion: mapMinTLSVersion(this._config.minTLSVersion),
+            ...(this._ca ? { ca: this._ca } : {}),
+          }, () => {
+            if (settled) return;
+            settled = true;
+            cb(null, secureSocket);
+          });
+          secureSocket.once('error', fail);
         });
 
         connectReq.on('error', (err: Error) => {

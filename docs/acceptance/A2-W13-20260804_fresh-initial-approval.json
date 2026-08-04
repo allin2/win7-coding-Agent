@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W13-FRESH-20260804",
+  "suite": "A2_WIN7_W13_UNDO_INITIAL_APPROVAL_FRESH_WORKSPACE",
+  "evidence_type": "human_confirmation_and_ssh_verification",
+  "environment": {
+    "platform": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W13-20260804"
+  },
+  "case": {
+    "case_id": "W13_FRESH_INITIAL_MODIFICATION_APPROVAL",
+    "status": "PASS",
+    "user_confirmation": "W13 初次修改已批准并成功写入",
+    "expected": "一次显式批准后仅写入可信目标内容，文件最终哈希等于本次可信计划目标 SHA-256，无残留",
+    "actual": "Desktop Alpha 2 显示任务完成；SSH certutil 独立核验匹配本次可信计划目标 SHA-256。",
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W13-20260804\\src\\hello.ts",
+      "before_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "after_sha256": "eca20042c6c144135a8de2a70b19341a937f2386122ceafcf00388e239f96b48",
+      "target_match": true,
+      "unsafe_artifacts": [],
+      "cleanup_verification": "SSH certutil matched the trusted target; hello.ts.tmp and hello.ts.bak were absent."
+    }
+  },
+  "notes": [
+    "这是 W13 撤销流程的第一次批准；第二个撤销计划及其第二次批准尚未完成。",
+    "本文件不宣称 W13 整体 PASS，也不宣称 A2-W01～W15 整体 PASS。"
+  ]
+}

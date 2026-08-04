@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-A1-W08-20260804",
+  "suite": "A1_WIN7_W08_SECURITY_NEGATIVE_PROBE",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace": "C:/Win7CodingAgent/A2-remaining-acceptance/a1-w08-workspace"
+  },
+  "artifact_hashes": {
+    "probe": "e41398edb4792f6888a1a1361c1175fe84ac44247def1c92e4dbd2b1920513de",
+    "ipc_router": "d07b83c2e4810d9ca2c42cc27e61c9b7d94347f775993c2b555ee88cc9effa1c",
+    "security_policy": "c0b34d0d72df054dc60fa49c0d185e9824b370f5bb67d77b692dc11a9b00431f",
+    "product_main": "1cd01546424621b0438462c2688c3620ffc79bb80cb97628a8cb1dc5008c0ab7"
+  },
+  "command": [
+    "C:\\Win7CodingAgent\\desktop-alpha2\\electron\\electron.exe",
+    "C:\\Win7CodingAgent\\desktop-alpha2\\acceptance\\w08",
+    "--mvp-id=A2-A1-W08-20260804",
+    "--workspace-report=C:\\Win7CodingAgent\\A2-remaining-acceptance\\a1-w08-workspace.json",
+    "--report=C:\\Win7CodingAgent\\A2-remaining-acceptance\\A1-W08-20260804.json",
+    "--user-data-dir=C:\\Win7CodingAgent\\A2-remaining-acceptance\\a1-w08-user-data"
+  ],
+  "cases": [
+    {
+      "case_id": "IPC_UNKNOWN_MESSAGE_TYPE",
+      "status": "PASS",
+      "metrics": {
+        "thrown": "IPC_SCHEMA_INVALID:未知消息类型: evil.message",
+        "expected": "IPC_SCHEMA_INVALID"
+      }
+    },
+    {
+      "case_id": "IPC_UNKNOWN_ENVELOPE_FIELD",
+      "status": "PASS",
+      "metrics": {
+        "thrown": "IPC_SCHEMA_INVALID:/: must NOT have additional properties",
+        "expected": "IPC_SCHEMA_INVALID"
+      }
+    },
+    {
+      "case_id": "IPC_WRONG_DIRECTION",
+      "status": "PASS",
+      "metrics": {
+        "thrown": "IPC_SCHEMA_INVALID:/direction: must be equal to constant",
+        "expected": "IPC_SCHEMA_INVALID"
+      }
+    },
+    {
+      "case_id": "IPC_UNTRUSTED_RENDERER_SENDER",
+      "status": "PASS",
+      "metrics": {
+        "thrown": "RENDERER_CAPABILITY_DENIED",
+        "expected": "RENDERER_CAPABILITY_DENIED"
+      }
+    },
+    {
+      "case_id": "IPC_FAKE_SESSION_TASK",
+      "status": "PASS",
+      "metrics": {
+        "result": {
+          "ok": false,
+          "error": {
+            "code": "SESSION_NOT_FOUND",
+            "message": "Session 不存在: session-forged",
+            "recoverable": true,
+            "recommendedAction": "先创建或选择有效会话。"
+          }
+        },
+        "expected": "SESSION_NOT_FOUND"
+      }
+    },
+    {
+      "case_id": "IPC_HEADER_PAYLOAD_SESSION_MISMATCH",
+      "status": "PASS",
+      "metrics": {
+        "result": {
+          "ok": false,
+          "error": {
+            "code": "SESSION_SCOPE_DENIED",
+            "message": "IPC session scope does not match the target resource.",
+            "recoverable": true,
+            "recommendedAction": "使用当前会话的标识后重试。"
+          }
+        },
+        "expected": "SESSION_SCOPE_DENIED"
+      }
+    },
+    {
+      "case_id": "IPC_CROSS_SESSION_CANCEL",
+      "status": "PASS",
+      "metrics": {
+        "result": {
+          "ok": false,
+          "error": {
+            "code": "SESSION_SCOPE_DENIED",
+            "message": "IPC session scope does not match the target resource.",
+            "recoverable": true,
+            "recommendedAction": "使用当前会话的标识后重试。"
+          }
+        },
+        "expected": "SESSION_SCOPE_DENIED"
+      }
+    },
+    {
+      "case_id": "IPC_REJECTION_AUDIT",
+      "status": "PASS",
+      "metrics": {
+        "audit_count": 3
+      }
+    },
+    {
+      "case_id": "IPC_VALID_SETUP",
+      "status": "PASS",
+      "metrics": {
+        "selected": {
+          "ok": true,
+          "selected": {
+            "workspacePath": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a1-w08-workspace",
+            "displayName": "a1-w08-workspace"
+          }
+        },
+        "session_ids": [
+          "session-1",
+          "session-2"
+        ]
+      }
+    },
+    {
+      "case_id": "OUTBOUND_FETCH_BLOCKED",
+      "status": "PASS",
+      "metrics": {
+        "fetch": {
+          "blocked": true,
+          "error": "TypeError: Failed to fetch"
+        },
+        "blocked_requests": []
+      }
+    },
+    {
+      "case_id": "OUTBOUND_WEBSOCKET_BLOCKED",
+      "status": "PASS",
+      "metrics": {
+        "websocket": {
+          "blocked": true
+        },
+        "blocked_requests": []
+      }
+    },
+    {
+      "case_id": "NAVIGATION_BLOCKED",
+      "status": "PASS",
+      "metrics": {
+        "denied_navigations": [
+          "https://example.com/a1-w08-navigation"
+        ],
+        "final_url": "file:///C:/Win7CodingAgent/desktop-alpha2/acceptance/w08/probe.html"
+      }
+    },
+    {
+      "case_id": "WINDOW_OPEN_BLOCKED",
+      "status": "PASS",
+      "metrics": {
+        "denied_windows": [
+          "https://example.com/a1-w08-window"
+        ],
+        "returned": null
+      }
+    },
+    {
+      "case_id": "PERMISSION_BLOCKED",
+      "status": "PASS",
+      "metrics": {
+        "permission": "denied",
+        "denied_permissions": [
+          "notifications"
+        ]
+      }
+    }
+  ],
+  "exit_code": 0,
+  "notes": [
+    "All negative cases are executed against the packaged A1 modules on Win7.",
+    "External requests are directed to deny-by-default policy and are cancelled before network access; no network target is required.",
+    "The probe writes only its report and temporary user data under the acceptance directory."
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "acceptanceId": "A3-WIN7-HTTP-20260804",
+  "mvpId": "MVP-A3-20260804-01",
+  "status": "PASS",
+  "platform": "win32",
+  "arch": "x64",
+  "electron": "22.3.27",
+  "node": "16.17.1",
+  "gatewayUrl": "http://10.67.149.136:62679/v1/chat/completions",
+  "transport": "http",
+  "workspaceRoot": "C:\\Win7CodingAgent\\A3-WIN7-HTTP-20260804-workspace",
+  "userDataDir": "C:\\Win7CodingAgent\\A3-WIN7-HTTP-20260804-evidence\\user-data",
+  "accepted": {"taskId":"task-1","sessionId":"session-1","status":"accepted","scenario":"structure"},
+  "eventKinds": ["task.accepted","state.changed","assistant.delta","state.changed","tool.started","tool.completed","file.reference","assistant.delta","tool.started","tool.completed","assistant.delta","tool.started","tool.completed","file.reference","gateway.delta","gateway.delta","assistant.delta","state.changed","state.changed","task.completed"],
+  "toolNames": ["workspace.list_directory","workspace.search_text","workspace.read_text"],
+  "orderedReadOnlyTools": true,
+  "finalUiCompleted": true,
+  "credentials": {"secretInEvents":false,"secretInReport":false},
+  "error": null,
+  "artifactHashes": {
+    "packageManifestSha256": "805021d20e0b8e265f073a7b1eb22d31e2a4cad2bfd88e1163031d5183954878",
+    "electronExeSha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "rawProbeReportSha256": "444ea7a4cef945274f503ef1c6e3a61d22822ed0dd9b959f9d256346038b6c18",
+    "fixtureMetricsSha256": "2690c2031f7660d32d156563dd94f59ecfac987f7331d69991d50cf09e0d89a4",
+    "workspaceSampleSha256": "3d4f61eaf74ced95b32a9da794ca402ee7bed781dc24dcc3822f8f64b0d9465a"
+  },
+  "fixtureMetrics": {
+    "requestCount": 4,
+    "requestIds": ["run-1-step-1","run-1-step-2","run-1-step-3","run-1-step-4"],
+    "target": "10.67.149.136:62679",
+    "authorizationPresent": true,
+    "authorizationLogged": false,
+    "tlsProtocol": "not-applicable"
+  },
+  "stdoutStderr": {
+    "probe": "JSON report status PASS; no credential literal emitted",
+    "productSmoke": "os_crypt_win access denied and GPU process exit diagnostics were emitted; smoke still exited 0 with renderer/security cases PASS",
+    "productSmokeReportSha256": "da614a1fc0e643181d8648242b1f93610b5e864220a1bbc27ac592de6fdceb47"
+  },
+  "cleanup": {
+    "a3ElectronProcesses": 0,
+    "win7ListenerOn62679": false,
+    "bitvise": "RUNNING",
+    "workspaceUnchanged": true,
+    "managementChannel": "10.67.149.40:22 remained available"
+  },
+  "caseMapping": {
+    "A3-W01": "PASS: packaged Electron product smoke, renderer/security baseline",
+    "A3-W05": "PASS: Win7 HTTP SSE/read-only event path and ordered tools",
+    "A3-W11": "PASS: credentials absent from events/report; HTTP fixture did not log authorization",
+    "A3-W12": "PASS: Gateway -> Core -> Workspace read-only tools -> UI completion",
+    "A3-W14": "PASS: new C: path and isolated userData",
+    "A3-W15": "PASS: no A3 Electron process/listener; Bitvise RUNNING",
+    "remaining": "NOT_PERFORMED: A3-W02/W03/W04/W06/W07/W08/W09/W10/W13 require separate Win7 cases"
+  }
+}

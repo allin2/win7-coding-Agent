@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W06-20260804",
+  "suite": "A2_WIN7_W06_APPROVAL_TAMPER_NEGATIVE_PROBE",
+  "generated_at": "2026-08-03T16:21:40.250Z",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W06-acceptance",
+    "run_root": "C:\\Win7CodingAgent\\A2-W06-acceptance\\run-1785774099823-7964"
+  },
+  "artifact_hashes": {
+    "probe": "398effcf4c082ac0ffbbfba3507c328532db4dce681242b80d2095cfda0a1a09",
+    "ipc_router": "d07b83c2e4810d9ca2c42cc27e61c9b7d94347f775993c2b555ee88cc9effa1c",
+    "desktop_host": "f0f41bca9c661ca70732041cf5a0fd41776533dea70662f152a89e9eae6b2749",
+    "core_policy": "da7adb29d98f3d914fb32bd5d38802c854f0095df322a5659fec1a3990251249",
+    "core_broker": "b7e7b46caf18cdcd440bbaac5f319d0b9b968a005b5400264a6d7f1b0bea85fd",
+    "workspace_trusted_write": "92b737ce6ea2397f2a8823e07bb878c6cca4b2ba441a43ad96402a6d252c33d1",
+    "workspace_apply": "ea19cc96b8dab7c49441734bc228c323d949f7e8e333a18b09d68998249330a7"
+  },
+  "command": [
+    "C:\\Win7CodingAgent\\desktop-alpha2\\electron\\electron.exe",
+    "C:\\Win7CodingAgent\\desktop-alpha2\\acceptance\\w06",
+    "--workspace=C:\\Win7CodingAgent\\A2-W06-acceptance",
+    "--report=C:\\Win7CodingAgent\\A2-W06-acceptance\\W06-tamper-report.json",
+    "--mvp-id=A2-W06-20260804",
+    "--user-data-dir=C:\\Win7CodingAgent\\A2-W06-acceptance\\user-data",
+    "--disable-gpu"
+  ],
+  "cases": [
+    {
+      "case_id": "PLAN_HASH_TAMPER",
+      "status": "PASS",
+      "expected": "APPROVAL_BINDING_MISMATCH and no write",
+      "actual": "APPROVAL_BINDING_MISMATCH",
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-W06-acceptance\\run-1785774099823-7964\\plan_hash_tamper\\src\\hello.ts",
+        "before_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "after_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "unchanged": true,
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "metrics": {
+        "approval_response": {
+          "ok": false,
+          "error": {
+            "code": "APPROVAL_BINDING_MISMATCH",
+            "message": "审批标识、计划哈希或工作区基线已变化",
+            "recoverable": true,
+            "recommendedAction": "重新查看当前 Diff 后再审批。"
+          }
+        },
+        "original_plan_hash": "9fc5e9f3ab4802a6b1aa00ce3a64110e2bd762d33dfc2bf916d3d3b9136acaf4",
+        "forged_plan_hash": "9fc5e9f3ab4802a6b1aa00ce3a64110e2bd762d33dfc2bf916d3d3b9136acaf0"
+      }
+    },
+    {
+      "case_id": "PREVIEW_HASH_TAMPER",
+      "status": "PASS",
+      "expected": "APPROVAL_INVALID(previewSha256) and no write",
+      "actual": "APPROVAL_INVALID: A2 approval binding changed: previewSha256",
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-W06-acceptance\\run-1785774099823-7964\\preview_hash_tamper\\src\\hello.ts",
+        "before_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "after_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "unchanged": true,
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "metrics": {
+        "original_preview_sha256": "2f4904e05ab025a6af4091c7a07165f6bed843f65d443dd17567e6d6e1dfd063",
+        "forged_preview_sha256": "2f4904e05ab025a6af4091c7a07165f6bed843f65d443dd17567e6d6e1dfd060"
+      }
+    },
+    {
+      "case_id": "SESSION_TAMPER",
+      "status": "PASS",
+      "expected": "SESSION_SCOPE_DENIED and no write",
+      "actual": "SESSION_SCOPE_DENIED",
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-W06-acceptance\\run-1785774099823-7964\\session_tamper\\src\\hello.ts",
+        "before_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "after_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "unchanged": true,
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "metrics": {
+        "approval_response": {
+          "ok": false,
+          "error": {
+            "code": "SESSION_SCOPE_DENIED",
+            "message": "IPC session scope does not match the target resource.",
+            "recoverable": true,
+            "recommendedAction": "使用当前会话的标识后重试。"
+          }
+        },
+        "owner_session": "session-1",
+        "forged_session": "session-2"
+      }
+    },
+    {
+      "case_id": "TOKEN_TAMPER",
+      "status": "PASS",
+      "expected": "POLICY_APPROVAL_INVALID, zero executor dispatches and no write",
+      "actual": "POLICY_APPROVAL_INVALID",
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-W06-acceptance\\run-1785774099823-7964\\token_tamper\\src\\hello.ts",
+        "before_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "after_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "unchanged": true,
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "metrics": {
+        "decision": {
+          "verdict": "deny",
+          "allowed": false,
+          "level": "workspace_write",
+          "ruleId": "POLICY_APPROVAL_INVALID",
+          "reason": "能力令牌验证失败: 令牌不存在"
+        },
+        "executor_invocations": 0,
+        "issued_token_sha256": "bcacc0e5c4478f506009f8401a4f055b6cffd5137bc5693dcdd0ea8eca72ee3a",
+        "forged_token_sha256": "3788d08063bbda5f3bd26bd9e7e9cc280c18b6f0c4106dd94a619d5c7d1dbc0e"
+      }
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0
+  },
+  "exit_code": 0,
+  "notes": [
+    "Plan and session tampering are submitted through the packaged Electron IPC/desktop host boundary.",
+    "Preview tampering is submitted to the packaged Workspace approval ledger before any filesystem operation.",
+    "Token tampering is submitted to the packaged Core Broker/Policy boundary and records zero executor dispatches.",
+    "Every case uses an isolated UTF-8 CRLF file and records before/after SHA-256 plus unsafe-artifact cleanup evidence."
+  ]
+}
