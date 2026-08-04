@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "acceptanceId": "A3-WIN7-HTTPS-20260804",
+  "mvpId": "MVP-A3-20260804-01",
+  "timestamp": "2026-08-04T12:52:17+08:00",
+  "status": "PARTIAL",
+  "formalE7Status": "NOT_PERFORMED",
+  "target": {
+    "platform": "Windows 7 SP1 x64",
+    "ssh": "dccs-chaizl@10.67.149.40:22",
+    "managementChannelChanged": false,
+    "bitvise": "RUNNING",
+    "macFixture": "10.67.149.136",
+    "tls": "TLSv1.2 only",
+    "packageRoot": "C:\\Win7CodingAgent\\desktop-alpha3-https-20260804\\a3-pack",
+    "workspaceRoot": "C:\\Win7CodingAgent\\A3-WIN7-HTTPS-20260804-workspace",
+    "userDataRoot": "C:\\Win7CodingAgent\\A3-WIN7-HTTPS-20260804-evidence"
+  },
+  "workingTreeFingerprint": {
+    "path": "docs/status/mvp-baselines/A3-20260804-01.json",
+    "sha256": "0426b99a3cbe3a6687c08bb8e002f959bfc0edeb4917db25702b427532867023"
+  },
+  "runtime": {
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "packageManifestSha256": "5c5167856165710c9ff9c610ec8043cdf5867dbad516822d06a12238cfef6bed",
+    "electronExeSha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "manifestFiles": 902,
+    "caCertificateSha256": "aa1dbcefb3f076a4fbb56b6b57d31fa97bb553acc15eb75271156ee24732756e",
+    "wrongHostnameCertificateSha256": "51a8de91c10c0d7b6d8d67d0034c0f244887c1633eea0f8a3646fef03ea66e57",
+    "expiredCertificateSha256": "8f3eb5f402e1ae581da48fed8fd21d9047f0e10f3c49a3b149358d5b1afbe606",
+    "privateKeysInEvidence": false
+  },
+  "commands": {
+    "replay": "electron\\electron.exe acceptance\\a3\\replay-probe.js --workspace=... --report=... --user-data-dir=...",
+    "gateway": "electron\\electron.exe acceptance\\a3\\gateway-probe.js --url=... --ca=... --report=... --user-data-dir=...",
+    "proxy": "electron\\electron.exe acceptance\\a3\\gateway-probe.js --proxy-host=10.67.149.136 --proxy-port=62685|62686 ...",
+    "exitCodes": "All ten retrieved Win7 probe reports exited 0; expected failures were asserted in-probe."
+  },
+  "cases": {
+    "A3-W01": {"status": "PASS", "evidence": "A3-W01-20260804_product-smoke.json; packaged product renderer and security baseline."},
+    "A3-W02": {"status": "PASS", "reportSha256": "6a5e9c2a1f1a5b720747496dde150c019593363a962e7c50df9880a8d1798ce6", "evidence": "Replay probe defaulted to replay, completed read-only task, gatewayConfigured=false."},
+    "A3-W03": {"status": "PASS", "reportSha256": "4e9e863b32bb55adf323542b658aab894f53a44ba43681507c8d79d48a5ba29b", "evidence": "Packaged Win7 Gateway probe accepted explicit HTTPS URL and public CA bundle; schema/unit boundary is covered by A3 shell tests."},
+    "A3-W04": {"status": "PASS", "reportSha256": "4e9e863b32bb55adf323542b658aab894f53a44ba43681507c8d79d48a5ba29b", "evidence": "Real Win7 Node HTTPS handshake to 10.67.149.136:62680; fixture negotiated TLSv1.2 and returned a valid SSE response."},
+    "A3-W05": {"status": "PASS", "evidence": "A3-WIN7-HTTP-20260804.json; Gateway -> Core -> Workspace read-only tools -> UI with ordered request IDs."},
+    "A3-W06": {"status": "PASS", "reportSha256": "fe76d72d466993b7805b9165261aa7bca613613bee769e3db5b774c5fb6d50cd", "metrics": {"cancelAfterMs": 150, "elapsedMs": 154, "errorCode": 106, "lateCompleted": false}},
+    "A3-W07": {"status": "PASS", "reportSha256": "2875079966e1b7418e7cfa800169be4be997c255bb297997b375251a8c78c960", "metrics": {"timeoutMs": 120, "totalTimeoutMs": 300, "maxRetries": 2, "attempts": 2, "elapsedMs": 316, "errorCode": 104}},
+    "A3-W08": {"status": "PASS", "variants": {"untrustedCa": {"reportSha256": "154992e64c45afb82af9b6d47ce7c0ff2bebed08f26e56da727c8c34fcd4d522", "errorCode": 103}, "wrongHostname": {"reportSha256": "5d6ef6c010579037b1adef0ffd799340121d611e3cdd69690012aafd4bc367a3", "errorCode": 103}, "expired": {"reportSha256": "eb5c5fa1812f7672dcf069c457a223bec49c8af463cf71b2d4c7f74873b17495", "errorCode": 103}}},
+    "A3-W09": {"status": "PASS", "variants": {"protocolMismatch": {"reportSha256": "27ee1f9b20a50dc2060bb435f312e73e1eb006d22b4359e16845961fc784e51c", "errorCode": 200}, "truncatedSse": {"reportSha256": "6d8dafd9e354c074a14dc06b025f3aa3f421b4e160bd2dfba14819b335c1ac63", "errorCode": 105, "chunksBeforeFailure": 1}}},
+    "A3-W10": {"status": "PASS", "variants": {"connectSuccess": {"reportSha256": "a88c363af204644562b4dd6cfc6d8e5f27cefe2a93b173ee57f4b52a393f69e6", "proxy": "10.67.149.136:62685"}, "connect407": {"reportSha256": "81b41eaa4959b64407850959673b4c751c602fc419f02348d85b8333dd215afe", "proxy": "10.67.149.136:62686", "errorCode": 303}}},
+    "A3-W11": {"status": "PASS", "evidence": "All probes report credentials.secretInStdout=false, secretInReport=false; fixture metrics recorded authorizationPresent=true and authorizationLogged=false. Proxy password was process-memory only."},
+    "A3-W12": {"status": "PASS", "evidence": "A3-WIN7-HTTP-20260804.json; deterministic controlled response drove real Core read-only tools and final UI completion."},
+    "A3-W13": {"status": "NOT_PERFORMED", "reason": "Requires human explicit approval/rejection interaction for A2 write/approval closure; no automated simulation used."},
+    "A3-W14": {"status": "PASS", "evidence": "Isolated C:\\Win7CodingAgent workspace and userData paths used; workspace sample was read without modifying the user project."},
+    "A3-W15": {"status": "PASS", "cleanup": {"a3ElectronProcesses": 0, "a3Listeners": false, "temporaryFixturePorts": [62680, 62681, 62682, 62683, 62684, 62685, 62686, 62687], "bitvise": "RUNNING"}, "note": "Four pre-existing A2-W11 Electron processes were preserved; their command lines point to desktop-alpha2 and were not part of A3."}
+  },
+  "fixtureEvidence": {
+    "normalHttpsMetricsSha256": "13c9c12b4a2656c0f694123eaa255e42690abe6d9846205e396904ff3f4dd380",
+    "delayMetricsSha256": "66189a5557f1ca528c0b33ca6faa14d553431704a35eeb2ae78622766804ee4a",
+    "protocolMetricsSha256": "7fa88c50b26066ba0dc45e206de090ca02be65ea7c1ac5bb9979ec8fedd1e2cc",
+    "truncatedMetricsSha256": "b73b581c5a1c3e32a598b949b194dea1de5b5b7d23d34bdb73f2034500835bcb",
+    "tls": {"min": "TLSv1.2", "max": "TLSv1.2", "certificateVerification": "fail-closed", "rejectUnauthorized": true},
+    "network": "No public network; temporary LAN listeners only; no firewall, route, NIC, service or PATH changes."
+  },
+  "stdoutStderr": {
+    "probe": "Each expected failure was serialized as a structured GatewayError and the process exited 0 because the expected code matched.",
+    "knownWin7Noise": "Electron emitted os_crypt_win access denied (0x5); no A3 credential was persisted or reported."
+  },
+  "cleanup": {
+    "localFixtureAndProxyStopped": true,
+    "privateKeysDestroyedAfterRun": true,
+    "win7A3Processes": 0,
+    "win7TemporaryListeners": false,
+    "sshAndBitvisePreserved": true
+  }
+}

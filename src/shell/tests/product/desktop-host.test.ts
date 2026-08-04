@@ -55,6 +55,25 @@ describe('Desktop Alpha 1 composition root', () => {
     expect(host.ledgerSize).toBeGreaterThan(0);
   });
 
+  it('descends into a workspace directory when the root search has no match', async () => {
+    fs.unlinkSync(path.join(root, 'sample.ts'));
+    fs.mkdirSync(path.join(root, 'src'));
+    fs.writeFileSync(path.join(root, 'src', 'hello.ts'), 'export const hello = "world";\r\n', 'utf8');
+    const events: any[] = [];
+    host = createDesktopHost({ onTaskEvent: (event: any) => events.push(event) });
+    await host.selectWorkspace(root);
+    const session = host.createSession({});
+    host.submitTask({ sessionId: session.sessionId, prompt: '分析这个工作区的代码结构', scenario: 'structure' });
+
+    await waitForIdle();
+
+    expect(events.find((event) => event.eventKind === 'task.completed')).toBeDefined();
+    expect(events.filter((event) => event.eventKind === 'tool.started').map((event) => event.data.toolName)).toEqual([
+      'workspace.list_directory', 'workspace.search_text', 'workspace.list_directory',
+      'workspace.search_text', 'workspace.read_text',
+    ]);
+  });
+
   it('cancels a long Replay without emitting task.completed', async () => {
     const events: any[] = [];
     host = createDesktopHost({ onTaskEvent: (event: any) => events.push(event) });

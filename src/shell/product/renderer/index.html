@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Win7 Coding Agent · Desktop Alpha 2</title>
+  <title>Win7 Coding Agent · Desktop Alpha 3.2</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">WINDOWS 7 · READ-ONLY REPLAY ALPHA</p>
+        <p class="eyebrow">WINDOWS 7 · CONTROLLED GATEWAY ALPHA</p>
         <h1>Win7 Coding Agent</h1>
-        <p class="subline">Shell → Core → State → Workspace → Replay</p>
+        <p class="subline">Shell → Core → State → Workspace → Replay / Gateway</p>
       </div>
       <div class="top-actions">
         <span id="runtime-status" class="status pending">正在检查</span>
@@ -37,10 +37,10 @@
 
       <section class="panel task-panel">
         <div class="panel-heading"><div><p class="eyebrow">READ-ONLY TASK</p><h2>分析任务</h2></div><span id="task-state" class="state idle">空闲</span></div>
-        <label class="field-label" for="task-prompt">告诉 Replay 你想了解什么</label>
+        <label class="field-label" for="task-prompt">告诉当前模型你想了解什么</label>
         <textarea id="task-prompt" rows="4" maxlength="8000" placeholder="例如：分析这个工作区的代码结构"></textarea>
         <div class="task-controls">
-          <label class="scenario-label" for="scenario">Replay 场景
+          <label class="scenario-label" for="scenario">任务场景
             <select id="scenario">
               <option value="structure">正常代码结构分析</option>
               <option value="encoding">中文路径 / GBK / CRLF 读取</option>
@@ -76,6 +76,31 @@
           <button id="restore-recovery" class="button danger" type="button">恢复原文件</button>
         </section>
         <div class="divider"></div>
+        <section class="gateway-settings" aria-label="Gateway 设置">
+          <div class="panel-heading"><h2>Gateway 设置</h2><span class="muted">DPAPI 可选</span></div>
+          <label class="field-label" for="gateway-mode">连接模式</label>
+          <select id="gateway-mode">
+            <option value="replay">Replay（默认，不出站）</option>
+            <option value="gateway">Gateway（显式 HTTP/HTTPS）</option>
+            <option value="deepseek">DeepSeek 真实模型（公网 HTTPS）</option>
+          </select>
+          <label class="field-label compact" for="gateway-url">Gateway HTTP/HTTPS URL</label>
+          <input id="gateway-url" class="text-input" type="url" placeholder="http://10.67.149.40:8443/v1">
+          <label class="field-label compact" for="gateway-model">模型</label>
+          <select id="gateway-model">
+            <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+            <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+          </select>
+          <label class="field-label compact" for="gateway-ca">CA bundle 路径</label>
+          <input id="gateway-ca" class="text-input" type="text" placeholder="验收包内 CA bundle">
+          <label class="field-label compact" for="gateway-api-key">API key</label>
+          <input id="gateway-api-key" class="text-input" type="password" autocomplete="off" placeholder="输入新 key，或使用已保存的 DPAPI 凭据">
+          <label class="credential-option" for="gateway-remember-api-key"><input id="gateway-remember-api-key" type="checkbox"> 使用 Windows DPAPI 为当前用户记住 API key</label>
+          <div class="gateway-actions"><button id="save-gateway-settings" class="button small" type="button">应用设置</button><button id="clear-saved-api-key" class="button small danger" type="button" disabled>清除已保存 key</button></div>
+          <p id="gateway-settings-status" class="muted settings-note">默认 Replay，不建立网络连接。</p>
+          <div id="deepseek-network-warning" class="capability-note" hidden><strong>公网真实模型</strong><p>隔离工作区内容将发送到 DeepSeek，可能产生费用。API key 可仅驻留内存，或经 Windows DPAPI 加密后绑定当前用户保存。</p></div>
+        </section>
+        <div class="divider"></div>
         <div class="panel-heading"><h2>诊断</h2><button id="refresh-diagnostics" class="button small" type="button">刷新</button></div>
         <dl id="diagnostics" class="details"></dl>
       </aside>
@@ -91,6 +116,7 @@
     </footer>
   </main>
   <script src="event-queue.js"></script>
+  <script src="gateway-settings-payload.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

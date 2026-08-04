@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A3-20260804-01",
+  "mvp_id": "MVP-A3-20260804-01",
+  "status": "A3_CONTROLLED_GATEWAY_PASS",
+  "formal_e7_status": "NOT_PERFORMED",
+  "real_model_status": "NOT_PERFORMED",
+  "working_tree": {
+    "fingerprint": "docs/status/mvp-baselines/A3-20260804-01.json",
+    "fingerprint_sha256": "0426b99a3cbe3a6687c08bb8e002f959bfc0edeb4917db25702b427532867023",
+    "head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "branch": "(detached HEAD; preserved user working tree)",
+    "dirty_changes_preserved": true
+  },
+  "environment": {
+    "development_host": "macOS build host",
+    "fixture": "ephemeral local HTTP(S) server; no public network",
+    "fixture_bind": "10.67.149.136:62679 HTTP and 10.67.149.136:62680-62684,62687 HTTPS",
+    "proxy_bind": "10.67.149.136:62685-62686",
+    "tls_min": "TLSv1.2",
+    "tls_max": "TLSv1.2",
+    "ca_certificate_sha256": "934f4231d70f1c130473d8bdddafdbcba1023e4ec3333c59cce31da9453c9d10",
+    "target_management_channel": "10.67.149.40:22 authenticated; management channel and Bitvise were not modified"
+  },
+  "artifacts": {
+    "package": "/private/tmp/a3-win7-EWqlXV/a3-pack (explicit isolated acceptance directory; not copied into the user worktree)",
+    "electron_exe_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "manifest_sha256": "5c5167856165710c9ff9c610ec8043cdf5867dbad516822d06a12238cfef6bed",
+    "manifest_files": 902,
+    "private_keys_in_evidence": false,
+    "credentials_in_evidence": false
+  },
+  "controlled_results": [
+    {"id":"A3-01","status":"PASS","command":"npm run verify","exit_code":0,"metrics":{"modules":7,"tests":909}},
+    {"id":"A3-02","status":"PASS","evidence":"Replay default and explicit HTTP/HTTPS Gateway settings/diagnostics; unsupported schemes rejected by schema/host."},
+    {"id":"A3-03","status":"PASS","evidence":"Gateway RuntimeModel adapter is wired into Core runtime from Desktop Host."},
+    {"id":"A3-04","status":"PASS","evidence":"Versioned SETTINGS_GET/SET IPC and preload surface; credentials are not returned."},
+    {"id":"A3-05","status":"PASS","evidence":"Real HTTP fixture request plus valid CA TLS 1.2 handshake and streamed controlled SSE response."},
+    {"id":"A3-06","status":"PASS","evidence":"Wrong CA and hostname mismatch return TLS_VERIFY_FAILED; protocol mismatch and truncated stream return structured failure."},
+    {"id":"A3-07","status":"PASS","evidence":"Win7 delay probe: 2 bounded attempts, elapsed 316ms against 300ms total deadline; cancellation had no completed event."},
+    {"id":"A3-08","status":"PASS","evidence":"Explicit HTTP CONNECT tunnel succeeds; 407 maps to PROXY_AUTH_FAILED (code 303). PAC/enterprise proxy was not tested."},
+    {"id":"A3-09","status":"PASS","evidence":"API key and proxy password remained process-memory-only; report/metrics/event scans were false; no secret literal was persisted."},
+    {"id":"A3-10","status":"PASS","evidence":"Vertical probe completed Gateway -> Core -> workspace.list_directory/search_text/read_text -> UI task.completed with isolated request IDs."},
+    {"id":"A3-11","status":"PASS","evidence":"A2 approval/write paths remain in root and Shell regression suites; no Gateway write tool was enabled."},
+    {"id":"A3-12","status":"PARTIAL","evidence":"Electron package and hashes built; Win7 HTTP deployment, W01 smoke, W05/W11/W12/W14/W15 evidence and cleanup completed; remaining Win7 cases are separate."}
+  ],
+  "protocol_cases": {
+    "valid_ca": "PASS",
+    "wrong_ca": {"status":"PASS","error_code":103,"error":"TLS_VERIFY_FAILED"},
+    "hostname_mismatch": {"status":"PASS","error_code":103,"error":"TLS_VERIFY_FAILED"},
+    "protocol_mismatch": {"status":"PASS","error":"PROTOCOL_VERSION_MISMATCH"},
+    "truncated_sse": {"status":"PASS","error":"STREAM_INTERRUPTED"},
+    "connect_success": "PASS",
+    "connect_407": {"status":"PASS","error_code":303,"error":"PROXY_AUTH_FAILED"},
+    "cancel": {"status":"PASS","task_completed":false,"late_events":false},
+    "total_deadline": {"status":"PASS","attempts":2,"elapsed_ms":316,"error_code":104}
+  },
+  "win7_cases": {
+    "status": "PARTIAL",
+    "passed": ["A3-W01","A3-W02","A3-W03","A3-W04","A3-W05","A3-W06","A3-W07","A3-W08","A3-W09","A3-W10","A3-W11","A3-W12","A3-W14","A3-W15"],
+    "not_performed": ["A3-W13"],
+    "target": "dccs-chaizl@10.67.149.40:22",
+    "reason": "All automated cases were executed against the current Win7 address. W13 remains a human approval/rejection interaction and was not simulated.",
+    "management_channel_changes": false,
+    "evidence": ["docs/acceptance/A3-WIN7-HTTP-20260804.json","docs/acceptance/A3-WIN7-HTTPS-20260804.json","docs/acceptance/A3-W01-20260804_product-smoke.json"]
+  },
+  "cleanup": {
+    "fixture_stopped": true,
+    "proxy_stopped": true,
+    "local_listener_check": "no listener observed on 10.67.149.136:62679-62687",
+    "temporary_private_keys_destroyed_after_report": true,
+    "win7_process_cleanup": "PASS: no A3 Electron command line and no listener on 62680-62687; pre-existing A2-W11 Electron processes preserved",
+    "win7_bitvise": "RUNNING",
+    "win7_workspace_unchanged": true
+  },
+  "deferred": ["enterprise E7 gateway/proxy/CA","real model service","DPAPI persistence","PAC discovery","formal Phase 3 gate","Win7 A3-W01..W15"]
+}

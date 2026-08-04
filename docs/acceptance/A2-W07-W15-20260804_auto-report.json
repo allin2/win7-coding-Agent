@@ -1,0 +1,678 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W07-W15-20260804",
+  "suite": "A2_WIN7_W07_W10_W14_W15_AUTOMATIC_PROBE",
+  "generated_at": "2026-08-03T16:39:50.295Z",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "chrome": "108.0.5359.215",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-remaining-acceptance",
+    "run_root": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744",
+    "probe_pid": 7744
+  },
+  "artifact_hashes": {
+    "probe": "de2ea331f629f02de56dc7049df826fb801e69c92e13e12326960df4358e1a56",
+    "core_index": "8e56856c9a1b712607f31536632dbc97ec2f3849b09a71af24d5f8a740a25e1d",
+    "core_policy": "da7adb29d98f3d914fb32bd5d38802c854f0095df322a5659fec1a3990251249",
+    "core_broker": "b7e7b46caf18cdcd440bbaac5f319d0b9b968a005b5400264a6d7f1b0bea85fd",
+    "workspace_index": "f0b82a688277fb53956e282933339e23e48d98c67cff996b5970d6358e2c6673",
+    "workspace_trusted_write": "92b737ce6ea2397f2a8823e07bb878c6cca4b2ba441a43ad96402a6d252c33d1",
+    "workspace_apply": "ea19cc96b8dab7c49441734bc228c323d949f7e8e333a18b09d68998249330a7",
+    "desktop_host": "f0f41bca9c661ca70732041cf5a0fd41776533dea70662f152a89e9eae6b2749"
+  },
+  "command": [
+    "C:\\Win7CodingAgent\\desktop-alpha2\\electron\\electron.exe",
+    "C:\\Win7CodingAgent\\desktop-alpha2\\acceptance\\a2-auto",
+    "--no-sandbox",
+    "--disable-gpu",
+    "--workspace=C:\\Win7CodingAgent\\A2-remaining-acceptance",
+    "--report=C:\\Win7CodingAgent\\A2-remaining-acceptance\\A2-W07-W15-20260804.json",
+    "--mvp-id=A2-W07-W15-20260804",
+    "--user-data-dir=C:\\Win7CodingAgent\\A2-remaining-acceptance\\user-data"
+  ],
+  "process_network_baseline": {
+    "before": {
+      "captured_at": "2026-08-03T16:39:49.985Z",
+      "pid": 7744,
+      "processes": {
+        "command": [
+          "tasklist",
+          "/fo",
+          "csv",
+          "/nh"
+        ],
+        "exit_code": 0,
+        "error": null,
+        "stdout": "\"System Idle Process\",\"0\",\"Services\",\"0\",\"24 K\"\r\n\"System\",\"4\",\"Services\",\"0\",\"6,664 K\"\r\n\"smss.exe\",\"300\",\"Services\",\"0\",\"1,336 K\"\r\n\"csrss.exe\",\"472\",\"Services\",\"0\",\"6,700 K\"\r\n\"wininit.exe\",\"520\",\"Services\",\"0\",\"5,660 K\"\r\n\"csrss.exe\",\"540\",\"Console\",\"1\",\"49,096 K\"\r\n\"services.exe\",\"576\",\"Services\",\"0\",\"9,976 K\"\r\n\"lsass.exe\",\"588\",\"Services\",\"0\",\"14,932 K\"\r\n\"lsm.exe\",\"596\",\"Services\",\"0\",\"5,104 K\"\r\n\"winlogon.exe\",\"660\",\"Console\",\"1\",\"8,876 K\"\r\n\"svchost.exe\",\"744\",\"Services\",\"0\",\"11,792 K\"\r\n\"ibmpmsvc.exe\",\"800\",\"Services\",\"0\",\"4,484 K\"\r\n\"NVDisplay.Container.exe\",\"840\",\"Services\",\"0\",\"20,252 K\"\r\n\"svchost.exe\",\"900\",\"Services\",\"0\",\"9,988 K\"\r\n\"svchost.exe\",\"1004\",\"Services\",\"0\",\"20,264 K\"\r\n\"svchost.exe\",\"316\",\"Services\",\"0\",\"22,672 K\"\r\n\"svchost.exe\",\"568\",\"Services\",\"0\",\"31,108 K\"\r\n\"svchost.exe\",\"760\",\"Services\",\"0\",\"59,608 K\"\r\n\"igfxCUIService.exe\",\"1236\",\"Services\",\"0\",\"8,096 K\"\r\n\"WUDFHost.exe\",\"1376\",\"Services\",\"0\",\"9,984 K\"\r\n\"svchost.exe\",\"1472\",\"Services\",\"0\",\"83,080 K\"\r\n\"wlanext.exe\",\"1564\",\"Services\",\"0\",\"17,720 K\"\r\n\"conhost.exe\",\"1572\",\"Services\",\"0\",\"3,404 K\"\r\n\"spoolsv.exe\",\"1660\",\"Services\",\"0\",\"13,280 K\"\r\n\"svchost.exe\",\"1688\",\"Services\",\"0\",\"16,412 K\"\r\n\"BvSshServer.exe\",\"1780\",\"Services\",\"0\",\"33,208 K\"\r\n\"DolbyDAX2API.exe\",\"1812\",\"Services\",\"0\",\"32,912 K\"\r\n\"svchost.exe\",\"1864\",\"Services\",\"0\",\"12,688 K\"\r\n\"EvtEng.exe\",\"1908\",\"Services\",\"0\",\"15,096 K\"\r\n\"SynTPEnhService.exe\",\"2012\",\"Services\",\"0\",\"4,868 K\"\r\n\"valWBFPolicyService.exe\",\"2060\",\"Services\",\"0\",\"7,820 K\"\r\n\"ZeroConfigService.exe\",\"2100\",\"Services\",\"0\",\"16,644 K\"\r\n\"unsecapp.exe\",\"2320\",\"Services\",\"0\",\"6,048 K\"\r\n\"WmiPrvSE.exe\",\"2460\",\"Services\",\"0\",\"17,604 K\"\r\n\"svchost.exe\",\"2644\",\"Services\",\"0\",\"6,600 K\"\r\n\"SearchIndexer.exe\",\"2896\",\"Services\",\"0\",\"24,308 K\"\r\n\"sppsvc.exe\",\"2024\",\"Services\",\"0\",\"17,460 K\"\r\n\"LogonUI.exe\",\"3188\",\"Services\",\"0\",\"17,136 K\"\r\n\"NVDisplay.Container.exe\",\"3240\",\"Console\",\"1\",\"58,992 K\"\r\n\"svchost.exe\",\"3528\",\"Services\",\"0\",\"184,776 K\"\r\n\"svchost.exe\",\"2360\",\"Services\",\"0\",\"6,944 K\"\r\n\"taskhost.exe\",\"3540\",\"Console\",\"1\",\"17,988 K\"\r\n\"SynTPEnh.exe\",\"1756\",\"Console\",\"1\",\"19,928 K\"\r\n\"dwm.exe\",\"3292\",\"Console\",\"1\",\"37,276 K\"\r\n\"PresentationFontCache.exe\",\"1940\",\"Services\",\"0\",\"25,252 K\"\r\n\"explorer.exe\",\"1808\",\"Console\",\"1\",\"126,044 K\"\r\n\"taskeng.exe\",\"776\",\"Console\",\"1\",\"8,204 K\"\r\n\"rundll32.exe\",\"3756\",\"Console\",\"1\",\"7,840 K\"\r\n\"igfxEM.exe\",\"3984\",\"Console\",\"1\",\"12,024 K\"\r\n\"igfxHK.exe\",\"3676\",\"Console\",\"1\",\"10,264 K\"\r\n\"SynTPLpr.exe\",\"1096\",\"Console\",\"1\",\"6,552 K\"\r\n\"SynLenovoHelper.exe\",\"3712\",\"Console\",\"1\",\"7,840 K\"\r\n\"Feishu.exe\",\"3356\",\"Console\",\"1\",\"244,084 K\"\r\n\"BssCtrl.exe\",\"3008\",\"Console\",\"1\",\"16,160 K\"\r\n\"Feishu.exe\",\"3772\",\"Console\",\"1\",\"28,440 K\"\r\n\"Feishu.exe\",\"3672\",\"Console\",\"1\",\"91,160 K\"\r\n\"Feishu.exe\",\"3148\",\"Console\",\"1\",\"39,448 K\"\r\n\"Feishu.exe\",\"1048\",\"Console\",\"1\",\"266,384 K\"\r\n\"Feishu.exe\",\"4144\",\"Console\",\"1\",\"239,344 K\"\r\n\"SynTPHelper.exe\",\"4284\",\"Console\",\"1\",\"5,432 K\"\r\n\"wuauclt.exe\",\"4276\",\"Console\",\"1\",\"9,020 K\"\r\n\"RAVBg64.exe\",\"2920\",\"Console\",\"1\",\"13,072 K\"\r\n\"RAVBg64.exe\",\"4896\",\"Console\",\"1\",\"13,092 K\"\r\n\"RAVCpl64.exe\",\"3904\",\"Console\",\"1\",\"14,200 K\"\r\n\"Feishu.exe\",\"1308\",\"Console\",\"1\",\"308,012 K\"\r\n\"Feishu.exe\",\"5196\",\"Console\",\"1\",\"56,172 K\"\r\n\"chrome.exe\",\"5964\",\"Console\",\"1\",\"124,796 K\"\r\n\"chrome.exe\",\"5960\",\"Console\",\"1\",\"7,580 K\"\r\n\"chrome.exe\",\"4668\",\"Console\",\"1\",\"103,968 K\"\r\n\"chrome.exe\",\"4728\",\"Console\",\"1\",\"34,112 K\"\r\n\"chrome.exe\",\"5896\",\"Console\",\"1\",\"16,696 K\"\r\n\"chrome.exe\",\"4868\",\"Console\",\"1\",\"169,732 K\"\r\n\"chrome.exe\",\"5544\",\"Console\",\"1\",\"88,248 K\"\r\n\"setup_wm.exe\",\"1896\",\"Console\",\"1\",\"16,244 K\"\r\n\"chrome.exe\",\"2584\",\"Console\",\"1\",\"89,256 K\"\r\n\"chrome.exe\",\"5980\",\"Console\",\"1\",\"107,380 K\"\r\n\"chrome.exe\",\"3168\",\"Console\",\"1\",\"52,872 K\"\r\n\"chrome.exe\",\"4016\",\"Console\",\"1\",\"257,352 K\"\r\n\"chrome.exe\",\"6016\",\"Console\",\"1\",\"35,936 K\"\r\n\"cmd.exe\",\"6636\",\"Console\",\"1\",\"4,248 K\"\r\n\"conhost.exe\",\"7244\",\"Console\",\"1\",\"7,468 K\"\r\n\"electron.exe\",\"6360\",\"Console\",\"1\",\"132,120 K\"\r\n\"electron.exe\",\"6468\",\"Console\",\"1\",\"59,784 K\"\r\n\"electron.exe\",\"2676\",\"Console\",\"1\",\"19,012 K\"\r\n\"electron.exe\",\"7080\",\"Console\",\"1\",\"69,484 K\"\r\n\"SogouCloud.exe\",\"4012\",\"Console\",\"1\",\"72,660 K\"\r\n\"SGTool.exe\",\"2916\",\"Console\",\"1\",\"67,244 K\"\r\n\"biz_helper.exe\",\"6480\",\"Console\",\"1\",\"16,212 K\"\r\n\"WmiPrvSE.exe\",\"6608\",\"Services\",\"0\",\"8,596 K\"\r\n\"execs.exe\",\"6672\",\"Services\",\"0\",\"17,212 K\"\r\n\"cmd.exe\",\"7532\",\"Services\",\"0\",\"3,768 K\"\r\n\"conhost.exe\",\"7688\",\"Services\",\"0\",\"4,764 K\"\r\n\"electron.exe\",\"7744\",\"Services\",\"0\",\"48,972 K\"\r\n\"electron.exe\",\"7404\",\"Services\",\"0\",\"17,468 K\"\r\n\"tasklist.exe\",\"4072\",\"Services\",\"0\",\"6,812 K\"\r\n\"conhost.exe\",\"1364\",\"Services\",\"0\",\"3,884 K\"\r\n",
+        "stderr": ""
+      },
+      "network": {
+        "command": [
+          "netstat",
+          "-ano"
+        ],
+        "exit_code": 0,
+        "error": null,
+        "stdout": "\r\n�����\r\n\r\n  Э��  ���ص�ַ          �ⲿ��ַ        ״̬           PID\r\n  TCP    0.0.0.0:21             0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:22             0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       900\r\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4\r\n  TCP    0.0.0.0:20020          0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:49152          0.0.0.0:0              LISTENING       520\r\n  TCP    0.0.0.0:49153          0.0.0.0:0              LISTENING       1004\r\n  TCP    0.0.0.0:49154          0.0.0.0:0              LISTENING       760\r\n  TCP    0.0.0.0:49155          0.0.0.0:0              LISTENING       576\r\n  TCP    0.0.0.0:49156          0.0.0.0:0              LISTENING       588\r\n  TCP    127.0.0.1:5283         0.0.0.0:0              LISTENING       2916\r\n  TCP    192.168.1.11:22        192.168.1.3:51351      ESTABLISHED     1780\r\n  TCP    192.168.1.11:139       0.0.0.0:0              LISTENING       4\r\n  TCP    192.168.1.11:49529     2.17.107.11:80         ESTABLISHED     1896\r\n  TCP    192.168.1.11:51225     8.133.123.141:443      ESTABLISHED     1048\r\n  TCP    192.168.1.11:51228     140.207.63.154:443     ESTABLISHED     1048\r\n  TCP    192.168.1.11:51230     103.71.68.217:443      ESTABLISHED     1048\r\n  TCP    192.168.1.11:51441     113.56.147.191:443     TIME_WAIT       0\r\n  TCP    192.168.1.11:51450     172.217.116.4:443      SYN_SENT        4728\r\n  TCP    192.168.1.11:51451     172.217.116.4:443      SYN_SENT        4728\r\n  TCP    [::]:21                [::]:0                 LISTENING       1780\r\n  TCP    [::]:22                [::]:0                 LISTENING       1780\r\n  TCP    [::]:135               [::]:0                 LISTENING       900\r\n  TCP    [::]:445               [::]:0                 LISTENING       4\r\n  TCP    [::]:20020             [::]:0                 LISTENING       1780\r\n  TCP    [::]:49152             [::]:0                 LISTENING       520\r\n  TCP    [::]:49153             [::]:0                 LISTENING       1004\r\n  TCP    [::]:49154             [::]:0                 LISTENING       760\r\n  TCP    [::]:49155             [::]:0                 LISTENING       576\r\n  TCP    [::]:49156             [::]:0                 LISTENING       588\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:50183  [2408:873d:a00:2006::12b]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51226  [2408:873d:a00:2006::df]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51231  [240e:97c:2f:2::5c]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51418  [2408:870c:1080:4:3::2c]:443  ESTABLISHED     3772\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51448  [2001:4860:4844:400::]:443  SYN_SENT        4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51449  [2001:4860:4844:400::]:443  SYN_SENT        4728\r\n  UDP    0.0.0.0:5353           *:*                                    4728\r\n  UDP    0.0.0.0:5353           *:*                                    4728\r\n  UDP    0.0.0.0:5355           *:*                                    1472\r\n  UDP    0.0.0.0:56084          *:*                                    1048\r\n  UDP    127.0.0.1:1900         *:*                                    2360\r\n  UDP    127.0.0.1:58168        *:*                                    2360\r\n  UDP    192.168.1.11:137       *:*                                    4\r\n  UDP    192.168.1.11:138       *:*                                    4\r\n  UDP    192.168.1.11:1900      *:*                                    2360\r\n  UDP    [::]:5353              *:*                                    4728\r\n  UDP    [::]:5355              *:*                                    1472\r\n  UDP    [::1]:1900             *:*                                    2360\r\n  UDP    [::1]:58167            *:*                                    2360\r\n  UDP    [fe80::d971:3e1b:2d7a:610c%12]:1900  *:*                                    2360\r\n",
+        "stderr": ""
+      }
+    },
+    "after": {
+      "captured_at": "2026-08-03T16:39:50.293Z",
+      "pid": 7744,
+      "processes": {
+        "command": [
+          "tasklist",
+          "/fo",
+          "csv",
+          "/nh"
+        ],
+        "exit_code": 0,
+        "error": null,
+        "stdout": "\"System Idle Process\",\"0\",\"Services\",\"0\",\"24 K\"\r\n\"System\",\"4\",\"Services\",\"0\",\"6,664 K\"\r\n\"smss.exe\",\"300\",\"Services\",\"0\",\"1,336 K\"\r\n\"csrss.exe\",\"472\",\"Services\",\"0\",\"6,700 K\"\r\n\"wininit.exe\",\"520\",\"Services\",\"0\",\"5,660 K\"\r\n\"csrss.exe\",\"540\",\"Console\",\"1\",\"49,096 K\"\r\n\"services.exe\",\"576\",\"Services\",\"0\",\"9,976 K\"\r\n\"lsass.exe\",\"588\",\"Services\",\"0\",\"14,932 K\"\r\n\"lsm.exe\",\"596\",\"Services\",\"0\",\"5,104 K\"\r\n\"winlogon.exe\",\"660\",\"Console\",\"1\",\"8,876 K\"\r\n\"svchost.exe\",\"744\",\"Services\",\"0\",\"11,792 K\"\r\n\"ibmpmsvc.exe\",\"800\",\"Services\",\"0\",\"4,484 K\"\r\n\"NVDisplay.Container.exe\",\"840\",\"Services\",\"0\",\"20,252 K\"\r\n\"svchost.exe\",\"900\",\"Services\",\"0\",\"9,988 K\"\r\n\"svchost.exe\",\"1004\",\"Services\",\"0\",\"20,264 K\"\r\n\"svchost.exe\",\"316\",\"Services\",\"0\",\"22,672 K\"\r\n\"svchost.exe\",\"568\",\"Services\",\"0\",\"31,108 K\"\r\n\"svchost.exe\",\"760\",\"Services\",\"0\",\"59,748 K\"\r\n\"igfxCUIService.exe\",\"1236\",\"Services\",\"0\",\"8,096 K\"\r\n\"WUDFHost.exe\",\"1376\",\"Services\",\"0\",\"9,984 K\"\r\n\"svchost.exe\",\"1472\",\"Services\",\"0\",\"83,080 K\"\r\n\"wlanext.exe\",\"1564\",\"Services\",\"0\",\"17,720 K\"\r\n\"conhost.exe\",\"1572\",\"Services\",\"0\",\"3,404 K\"\r\n\"spoolsv.exe\",\"1660\",\"Services\",\"0\",\"13,280 K\"\r\n\"svchost.exe\",\"1688\",\"Services\",\"0\",\"16,412 K\"\r\n\"BvSshServer.exe\",\"1780\",\"Services\",\"0\",\"33,208 K\"\r\n\"DolbyDAX2API.exe\",\"1812\",\"Services\",\"0\",\"32,912 K\"\r\n\"svchost.exe\",\"1864\",\"Services\",\"0\",\"12,688 K\"\r\n\"EvtEng.exe\",\"1908\",\"Services\",\"0\",\"15,096 K\"\r\n\"SynTPEnhService.exe\",\"2012\",\"Services\",\"0\",\"4,868 K\"\r\n\"valWBFPolicyService.exe\",\"2060\",\"Services\",\"0\",\"7,820 K\"\r\n\"ZeroConfigService.exe\",\"2100\",\"Services\",\"0\",\"16,644 K\"\r\n\"unsecapp.exe\",\"2320\",\"Services\",\"0\",\"6,048 K\"\r\n\"WmiPrvSE.exe\",\"2460\",\"Services\",\"0\",\"17,604 K\"\r\n\"svchost.exe\",\"2644\",\"Services\",\"0\",\"6,600 K\"\r\n\"SearchIndexer.exe\",\"2896\",\"Services\",\"0\",\"24,308 K\"\r\n\"sppsvc.exe\",\"2024\",\"Services\",\"0\",\"17,460 K\"\r\n\"LogonUI.exe\",\"3188\",\"Services\",\"0\",\"17,136 K\"\r\n\"NVDisplay.Container.exe\",\"3240\",\"Console\",\"1\",\"58,992 K\"\r\n\"svchost.exe\",\"3528\",\"Services\",\"0\",\"185,304 K\"\r\n\"svchost.exe\",\"2360\",\"Services\",\"0\",\"6,944 K\"\r\n\"taskhost.exe\",\"3540\",\"Console\",\"1\",\"17,988 K\"\r\n\"SynTPEnh.exe\",\"1756\",\"Console\",\"1\",\"19,928 K\"\r\n\"dwm.exe\",\"3292\",\"Console\",\"1\",\"37,276 K\"\r\n\"PresentationFontCache.exe\",\"1940\",\"Services\",\"0\",\"25,252 K\"\r\n\"explorer.exe\",\"1808\",\"Console\",\"1\",\"126,044 K\"\r\n\"taskeng.exe\",\"776\",\"Console\",\"1\",\"8,204 K\"\r\n\"rundll32.exe\",\"3756\",\"Console\",\"1\",\"7,840 K\"\r\n\"igfxEM.exe\",\"3984\",\"Console\",\"1\",\"12,024 K\"\r\n\"igfxHK.exe\",\"3676\",\"Console\",\"1\",\"10,264 K\"\r\n\"SynTPLpr.exe\",\"1096\",\"Console\",\"1\",\"6,552 K\"\r\n\"SynLenovoHelper.exe\",\"3712\",\"Console\",\"1\",\"7,840 K\"\r\n\"Feishu.exe\",\"3356\",\"Console\",\"1\",\"244,092 K\"\r\n\"BssCtrl.exe\",\"3008\",\"Console\",\"1\",\"16,160 K\"\r\n\"Feishu.exe\",\"3772\",\"Console\",\"1\",\"28,440 K\"\r\n\"Feishu.exe\",\"3672\",\"Console\",\"1\",\"91,160 K\"\r\n\"Feishu.exe\",\"3148\",\"Console\",\"1\",\"39,448 K\"\r\n\"Feishu.exe\",\"1048\",\"Console\",\"1\",\"266,384 K\"\r\n\"Feishu.exe\",\"4144\",\"Console\",\"1\",\"239,352 K\"\r\n\"SynTPHelper.exe\",\"4284\",\"Console\",\"1\",\"5,432 K\"\r\n\"wuauclt.exe\",\"4276\",\"Console\",\"1\",\"9,020 K\"\r\n\"RAVBg64.exe\",\"2920\",\"Console\",\"1\",\"13,072 K\"\r\n\"RAVBg64.exe\",\"4896\",\"Console\",\"1\",\"13,092 K\"\r\n\"RAVCpl64.exe\",\"3904\",\"Console\",\"1\",\"14,200 K\"\r\n\"Feishu.exe\",\"1308\",\"Console\",\"1\",\"308,060 K\"\r\n\"Feishu.exe\",\"5196\",\"Console\",\"1\",\"56,172 K\"\r\n\"chrome.exe\",\"5964\",\"Console\",\"1\",\"124,796 K\"\r\n\"chrome.exe\",\"5960\",\"Console\",\"1\",\"7,580 K\"\r\n\"chrome.exe\",\"4668\",\"Console\",\"1\",\"103,968 K\"\r\n\"chrome.exe\",\"4728\",\"Console\",\"1\",\"34,112 K\"\r\n\"chrome.exe\",\"5896\",\"Console\",\"1\",\"16,696 K\"\r\n\"chrome.exe\",\"4868\",\"Console\",\"1\",\"169,732 K\"\r\n\"chrome.exe\",\"5544\",\"Console\",\"1\",\"88,248 K\"\r\n\"setup_wm.exe\",\"1896\",\"Console\",\"1\",\"16,244 K\"\r\n\"chrome.exe\",\"2584\",\"Console\",\"1\",\"89,256 K\"\r\n\"chrome.exe\",\"5980\",\"Console\",\"1\",\"107,380 K\"\r\n\"chrome.exe\",\"3168\",\"Console\",\"1\",\"52,872 K\"\r\n\"chrome.exe\",\"4016\",\"Console\",\"1\",\"257,352 K\"\r\n\"chrome.exe\",\"6016\",\"Console\",\"1\",\"35,936 K\"\r\n\"cmd.exe\",\"6636\",\"Console\",\"1\",\"4,248 K\"\r\n\"conhost.exe\",\"7244\",\"Console\",\"1\",\"7,468 K\"\r\n\"electron.exe\",\"6360\",\"Console\",\"1\",\"132,120 K\"\r\n\"electron.exe\",\"6468\",\"Console\",\"1\",\"59,784 K\"\r\n\"electron.exe\",\"2676\",\"Console\",\"1\",\"19,012 K\"\r\n\"electron.exe\",\"7080\",\"Console\",\"1\",\"69,484 K\"\r\n\"SogouCloud.exe\",\"4012\",\"Console\",\"1\",\"72,660 K\"\r\n\"SGTool.exe\",\"2916\",\"Console\",\"1\",\"67,244 K\"\r\n\"biz_helper.exe\",\"6480\",\"Console\",\"1\",\"16,212 K\"\r\n\"WmiPrvSE.exe\",\"6608\",\"Services\",\"0\",\"9,116 K\"\r\n\"execs.exe\",\"6672\",\"Services\",\"0\",\"17,212 K\"\r\n\"cmd.exe\",\"7532\",\"Services\",\"0\",\"4,008 K\"\r\n\"conhost.exe\",\"7688\",\"Services\",\"0\",\"4,960 K\"\r\n\"electron.exe\",\"7744\",\"Services\",\"0\",\"60,928 K\"\r\n\"electron.exe\",\"7404\",\"Services\",\"0\",\"20,252 K\"\r\n\"tasklist.exe\",\"7756\",\"Services\",\"0\",\"6,820 K\"\r\n\"conhost.exe\",\"2396\",\"Services\",\"0\",\"3,896 K\"\r\n",
+        "stderr": ""
+      },
+      "network": {
+        "command": [
+          "netstat",
+          "-ano"
+        ],
+        "exit_code": 0,
+        "error": null,
+        "stdout": "\r\n�����\r\n\r\n  Э��  ���ص�ַ          �ⲿ��ַ        ״̬           PID\r\n  TCP    0.0.0.0:21             0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:22             0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       900\r\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4\r\n  TCP    0.0.0.0:20020          0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:49152          0.0.0.0:0              LISTENING       520\r\n  TCP    0.0.0.0:49153          0.0.0.0:0              LISTENING       1004\r\n  TCP    0.0.0.0:49154          0.0.0.0:0              LISTENING       760\r\n  TCP    0.0.0.0:49155          0.0.0.0:0              LISTENING       576\r\n  TCP    0.0.0.0:49156          0.0.0.0:0              LISTENING       588\r\n  TCP    127.0.0.1:5283         0.0.0.0:0              LISTENING       2916\r\n  TCP    192.168.1.11:22        192.168.1.3:51351      ESTABLISHED     1780\r\n  TCP    192.168.1.11:139       0.0.0.0:0              LISTENING       4\r\n  TCP    192.168.1.11:49529     2.17.107.11:80         ESTABLISHED     1896\r\n  TCP    192.168.1.11:51225     8.133.123.141:443      ESTABLISHED     1048\r\n  TCP    192.168.1.11:51228     140.207.63.154:443     ESTABLISHED     1048\r\n  TCP    192.168.1.11:51230     103.71.68.217:443      ESTABLISHED     1048\r\n  TCP    192.168.1.11:51441     113.56.147.191:443     TIME_WAIT       0\r\n  TCP    192.168.1.11:51450     172.217.116.4:443      SYN_SENT        4728\r\n  TCP    192.168.1.11:51451     172.217.116.4:443      SYN_SENT        4728\r\n  TCP    [::]:21                [::]:0                 LISTENING       1780\r\n  TCP    [::]:22                [::]:0                 LISTENING       1780\r\n  TCP    [::]:135               [::]:0                 LISTENING       900\r\n  TCP    [::]:445               [::]:0                 LISTENING       4\r\n  TCP    [::]:20020             [::]:0                 LISTENING       1780\r\n  TCP    [::]:49152             [::]:0                 LISTENING       520\r\n  TCP    [::]:49153             [::]:0                 LISTENING       1004\r\n  TCP    [::]:49154             [::]:0                 LISTENING       760\r\n  TCP    [::]:49155             [::]:0                 LISTENING       576\r\n  TCP    [::]:49156             [::]:0                 LISTENING       588\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:50183  [2408:873d:a00:2006::12b]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51226  [2408:873d:a00:2006::df]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51231  [240e:97c:2f:2::5c]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51418  [2408:870c:1080:4:3::2c]:443  ESTABLISHED     3772\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51448  [2001:4860:4844:400::]:443  SYN_SENT        4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51449  [2001:4860:4844:400::]:443  SYN_SENT        4728\r\n  UDP    0.0.0.0:5353           *:*                                    4728\r\n  UDP    0.0.0.0:5353           *:*                                    4728\r\n  UDP    0.0.0.0:5355           *:*                                    1472\r\n  UDP    0.0.0.0:56084          *:*                                    1048\r\n  UDP    127.0.0.1:1900         *:*                                    2360\r\n  UDP    127.0.0.1:58168        *:*                                    2360\r\n  UDP    192.168.1.11:137       *:*                                    4\r\n  UDP    192.168.1.11:138       *:*                                    4\r\n  UDP    192.168.1.11:1900      *:*                                    2360\r\n  UDP    [::]:5353              *:*                                    4728\r\n  UDP    [::]:5355              *:*                                    1472\r\n  UDP    [::1]:1900             *:*                                    2360\r\n  UDP    [::1]:58167            *:*                                    2360\r\n  UDP    [fe80::d971:3e1b:2d7a:610c%12]:1900  *:*                                    2360\r\n",
+        "stderr": ""
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "W07_SINGLE_USE_APPROVAL",
+      "status": "PASS",
+      "expected": "first apply succeeds; same approval/token second apply fails closed with APPROVAL_INVALID",
+      "actual": {
+        "passed": true,
+        "first_apply": {
+          "success": true,
+          "operations": [
+            {
+              "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w07_single_use_approval\\src\\sample.ts",
+              "success": true,
+              "preview": {
+                "schemaVersion": "1.0",
+                "encoding": "utf-8",
+                "beforeSha256": "74de46d292f7b4def7ddab8a4c935c51c592bb83a8aff4f9b9434326caa7c816",
+                "afterSha256": "dc14171b1d52f49e5b4896014e6692a2651506ce460e1b23101226c9b90911b6",
+                "startLine": 1,
+                "removedLineCount": 1,
+                "addedLineCount": 1,
+                "unifiedDiff": "@@ -1,1 +1,1 @@\n-export const value = \"before\";\n+export const value = \"after\";\n ",
+                "truncated": false
+              }
+            }
+          ],
+          "rolledBack": false,
+          "rollbackStatus": "not_required",
+          "rollbackErrors": [],
+          "cleanupWarnings": []
+        },
+        "second_apply_error_code": "APPROVAL_INVALID",
+        "core_policy_first_decision": {
+          "verdict": "allow",
+          "allowed": true,
+          "level": "workspace_write",
+          "ruleId": "POLICY_APPROVAL_BOUND",
+          "reason": "工作区写操作已授权",
+          "conditions": [
+            "操作限于工作区目录内"
+          ]
+        },
+        "approval_id": "apr_316486bd2a35b91db3c844df",
+        "token_id_sha256": "3e51ff1942aa5055ef11f2b43067503355a9728c023769ec392cf934314d9af1"
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w07_single_use_approval\\src\\sample.ts",
+        "before_sha256": "74de46d292f7b4def7ddab8a4c935c51c592bb83a8aff4f9b9434326caa7c816",
+        "after_sha256": "dc14171b1d52f49e5b4896014e6692a2651506ce460e1b23101226c9b90911b6",
+        "unchanged": false,
+        "before_features": {
+          "bytes": 31,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 31,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 1,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 1,
+        "approval_consumptions_expected": 1
+      }
+    },
+    {
+      "case_id": "W08_UTF8_BOM",
+      "status": "PASS",
+      "expected": "write succeeds and BOM/EOL byte style is unchanged",
+      "actual": {
+        "passed": true,
+        "apply": {
+          "success": true,
+          "operations": [
+            {
+              "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w08_utf8_bom\\src\\sample.ts",
+              "success": true,
+              "preview": {
+                "schemaVersion": "1.0",
+                "encoding": "utf-8",
+                "beforeSha256": "3548180601ac0efc3b4421097374b1bc4e6ac3ca4ed12a32a2590d4343451a60",
+                "afterSha256": "f1d23ff073db60d207b838d52d3fbad9c5d6d31a51091bd5ff5cb65bcce5d6b7",
+                "startLine": 1,
+                "removedLineCount": 1,
+                "addedLineCount": 1,
+                "unifiedDiff": "@@ -1,1 +1,1 @@\n-const value = \"bom\";\n+const value = \"bom-updated\";\n ",
+                "truncated": false
+              }
+            }
+          ],
+          "rolledBack": false,
+          "rollbackStatus": "not_required",
+          "rollbackErrors": [],
+          "cleanupWarnings": []
+        },
+        "error_code": null,
+        "expected_sha256": "f1d23ff073db60d207b838d52d3fbad9c5d6d31a51091bd5ff5cb65bcce5d6b7",
+        "plan_sha256": "f1d23ff073db60d207b838d52d3fbad9c5d6d31a51091bd5ff5cb65bcce5d6b7"
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w08_utf8_bom\\src\\sample.ts",
+        "before_sha256": "3548180601ac0efc3b4421097374b1bc4e6ac3ca4ed12a32a2590d4343451a60",
+        "after_sha256": "f1d23ff073db60d207b838d52d3fbad9c5d6d31a51091bd5ff5cb65bcce5d6b7",
+        "unchanged": false,
+        "before_features": {
+          "bytes": 32,
+          "bom": true,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 32,
+          "bom": true,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true,
+        "plan_sha256": "f1d23ff073db60d207b838d52d3fbad9c5d6d31a51091bd5ff5cb65bcce5d6b7",
+        "written_sha256": "f1d23ff073db60d207b838d52d3fbad9c5d6d31a51091bd5ff5cb65bcce5d6b7",
+        "original_bytes": {
+          "bytes": 24,
+          "bom": true,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "written_bytes": {
+          "bytes": 32,
+          "bom": true,
+          "eol": "lf",
+          "utf8_valid": true
+        }
+      },
+      "executor_invocations": 1,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 1
+      }
+    },
+    {
+      "case_id": "W08_UTF8_LF",
+      "status": "PASS",
+      "expected": "write succeeds and BOM/EOL byte style is unchanged",
+      "actual": {
+        "passed": true,
+        "apply": {
+          "success": true,
+          "operations": [
+            {
+              "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w08_utf8_lf\\src\\sample.ts",
+              "success": true,
+              "preview": {
+                "schemaVersion": "1.0",
+                "encoding": "utf-8",
+                "beforeSha256": "d6e2e56daf0f121e7620ed419bf4263b8b35f7d2a80e14ed2f1ed02359b794f1",
+                "afterSha256": "c19737ed025037e778a0b4aa9fac5575feaae108deceba3fb8c3fc93d37a6ea4",
+                "startLine": 1,
+                "removedLineCount": 1,
+                "addedLineCount": 1,
+                "unifiedDiff": "@@ -1,1 +1,1 @@\n-const value = \"lf\";\n+const value = \"lf-updated\";\n second line\n ",
+                "truncated": false
+              }
+            }
+          ],
+          "rolledBack": false,
+          "rollbackStatus": "not_required",
+          "rollbackErrors": [],
+          "cleanupWarnings": []
+        },
+        "error_code": null,
+        "expected_sha256": "c19737ed025037e778a0b4aa9fac5575feaae108deceba3fb8c3fc93d37a6ea4",
+        "plan_sha256": "c19737ed025037e778a0b4aa9fac5575feaae108deceba3fb8c3fc93d37a6ea4"
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w08_utf8_lf\\src\\sample.ts",
+        "before_sha256": "d6e2e56daf0f121e7620ed419bf4263b8b35f7d2a80e14ed2f1ed02359b794f1",
+        "after_sha256": "c19737ed025037e778a0b4aa9fac5575feaae108deceba3fb8c3fc93d37a6ea4",
+        "unchanged": false,
+        "before_features": {
+          "bytes": 40,
+          "bom": false,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 40,
+          "bom": false,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true,
+        "plan_sha256": "c19737ed025037e778a0b4aa9fac5575feaae108deceba3fb8c3fc93d37a6ea4",
+        "written_sha256": "c19737ed025037e778a0b4aa9fac5575feaae108deceba3fb8c3fc93d37a6ea4",
+        "original_bytes": {
+          "bytes": 32,
+          "bom": false,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "written_bytes": {
+          "bytes": 40,
+          "bom": false,
+          "eol": "lf",
+          "utf8_valid": true
+        }
+      },
+      "executor_invocations": 1,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 1
+      }
+    },
+    {
+      "case_id": "W08_UTF8_CRLF",
+      "status": "PASS",
+      "expected": "write succeeds and BOM/EOL byte style is unchanged",
+      "actual": {
+        "passed": true,
+        "apply": {
+          "success": true,
+          "operations": [
+            {
+              "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w08_utf8_crlf\\src\\sample.ts",
+              "success": true,
+              "preview": {
+                "schemaVersion": "1.0",
+                "encoding": "utf-8",
+                "beforeSha256": "55389c896b3418647104edba0e237016b56d2232de28925cfe5508acac5b398c",
+                "afterSha256": "0c8ce4e2478ae40226e2b7d8c2702c8a8c1995dc86533e31ebf0e0b779f6f3ec",
+                "startLine": 1,
+                "removedLineCount": 1,
+                "addedLineCount": 1,
+                "unifiedDiff": "@@ -1,1 +1,1 @@\n-const value = \"crlf\";\n+const value = \"crlf-updated\";\n second line\n ",
+                "truncated": false
+              }
+            }
+          ],
+          "rolledBack": false,
+          "rollbackStatus": "not_required",
+          "rollbackErrors": [],
+          "cleanupWarnings": []
+        },
+        "error_code": null,
+        "expected_sha256": "0c8ce4e2478ae40226e2b7d8c2702c8a8c1995dc86533e31ebf0e0b779f6f3ec",
+        "plan_sha256": "0c8ce4e2478ae40226e2b7d8c2702c8a8c1995dc86533e31ebf0e0b779f6f3ec"
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w08_utf8_crlf\\src\\sample.ts",
+        "before_sha256": "55389c896b3418647104edba0e237016b56d2232de28925cfe5508acac5b398c",
+        "after_sha256": "0c8ce4e2478ae40226e2b7d8c2702c8a8c1995dc86533e31ebf0e0b779f6f3ec",
+        "unchanged": false,
+        "before_features": {
+          "bytes": 44,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 44,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true,
+        "plan_sha256": "0c8ce4e2478ae40226e2b7d8c2702c8a8c1995dc86533e31ebf0e0b779f6f3ec",
+        "written_sha256": "0c8ce4e2478ae40226e2b7d8c2702c8a8c1995dc86533e31ebf0e0b779f6f3ec",
+        "original_bytes": {
+          "bytes": 36,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "written_bytes": {
+          "bytes": 44,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        }
+      },
+      "executor_invocations": 1,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 1
+      }
+    },
+    {
+      "case_id": "W09_GBK",
+      "status": "PASS",
+      "expected": "ENCODING_AMBIGUOUS before execution; zero executor dispatches and unchanged bytes",
+      "actual": {
+        "passed": true,
+        "error_code": "ENCODING_AMBIGUOUS",
+        "error_message": "Anchor replacement requires unambiguous UTF-8 input; detected ambiguous. Read as bytes or use an encoding-specific approved plan."
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w09_gbk\\src\\sample.ts",
+        "before_sha256": "37e764dbb8dd90beec457a1cca05a87382e57133f564f45cd6cd295ced4d80ba",
+        "after_sha256": "37e764dbb8dd90beec457a1cca05a87382e57133f564f45cd6cd295ced4d80ba",
+        "unchanged": true,
+        "before_features": {
+          "bytes": 6,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": false
+        },
+        "after_features": {
+          "bytes": 6,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": false
+        },
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 0,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 0,
+        "expected_error_code": "ENCODING_AMBIGUOUS"
+      }
+    },
+    {
+      "case_id": "W09_BINARY",
+      "status": "PASS",
+      "expected": "ENCODING_AMBIGUOUS before execution; zero executor dispatches and unchanged bytes",
+      "actual": {
+        "passed": true,
+        "error_code": "ENCODING_AMBIGUOUS",
+        "error_message": "Anchor replacement requires unambiguous UTF-8 input; detected ambiguous. Read as bytes or use an encoding-specific approved plan."
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w09_binary\\src\\sample.ts",
+        "before_sha256": "d3eebd86fc214ffe591106ccc462e6377f19a2abd8463b5e948937fd0db16680",
+        "after_sha256": "d3eebd86fc214ffe591106ccc462e6377f19a2abd8463b5e948937fd0db16680",
+        "unchanged": true,
+        "before_features": {
+          "bytes": 6,
+          "bom": false,
+          "eol": "none",
+          "utf8_valid": false
+        },
+        "after_features": {
+          "bytes": 6,
+          "bom": false,
+          "eol": "none",
+          "utf8_valid": false
+        },
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 0,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 0,
+        "expected_error_code": "ENCODING_AMBIGUOUS"
+      }
+    },
+    {
+      "case_id": "W09_BOUNDARY_ESCAPE",
+      "status": "PASS",
+      "expected": "WORKSPACE_BOUNDARY_VIOLATION before execution; zero executor dispatches and unchanged bytes",
+      "actual": {
+        "passed": true,
+        "error_code": "WORKSPACE_BOUNDARY_VIOLATION",
+        "error_message": "WORKSPACE_BOUNDARY_VIOLATION: path escapes workspace root"
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w09_boundary_escape\\src\\sample.ts",
+        "before_sha256": "3d1e607748020c17b5eb9e1042881740097c64991c0a741f1ad0787bbf971836",
+        "after_sha256": "3d1e607748020c17b5eb9e1042881740097c64991c0a741f1ad0787bbf971836",
+        "unchanged": true,
+        "before_features": {
+          "bytes": 25,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 25,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 0,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 0,
+        "expected_error_code": "WORKSPACE_BOUNDARY_VIOLATION"
+      }
+    },
+    {
+      "case_id": "W09_TRUNCATED_PREVIEW",
+      "status": "PASS",
+      "expected": "DIFF_TRUNCATED before execution; zero executor dispatches and unchanged bytes",
+      "actual": {
+        "passed": true,
+        "error_code": "DIFF_TRUNCATED",
+        "error_message": "The approval diff is truncated; narrow the edit before approval."
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w09_truncated_preview\\src\\sample.ts",
+        "before_sha256": "1b1ed7d32048d94ea2b3f69e142d5fd0223fa5a3ce89ae384aa740bab19eb5ed",
+        "after_sha256": "1b1ed7d32048d94ea2b3f69e142d5fd0223fa5a3ce89ae384aa740bab19eb5ed",
+        "unchanged": true,
+        "before_features": {
+          "bytes": 120018,
+          "bom": false,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 120018,
+          "bom": false,
+          "eol": "lf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 0,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 0,
+        "expected_error_code": "DIFF_TRUNCATED"
+      }
+    },
+    {
+      "case_id": "W10_AUTO_RECOVERY",
+      "status": "PASS",
+      "expected": "injected write failure returns failed/completed rollback and restores original bytes",
+      "actual": {
+        "passed": true,
+        "apply": {
+          "success": false,
+          "operations": [
+            {
+              "path": "rollback",
+              "success": false,
+              "error": "A2-W10 injected post-replace failure"
+            }
+          ],
+          "rolledBack": true,
+          "rollbackStatus": "completed",
+          "rollbackErrors": [],
+          "cleanupWarnings": []
+        },
+        "error_code": null,
+        "recovery_manifest_after_apply": null
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744\\w10_auto_recovery\\src\\sample.ts",
+        "before_sha256": "71b62c8c8005dffc64306b2489b65fa83ce242caf1c932a5ca547b39241c21ea",
+        "after_sha256": "71b62c8c8005dffc64306b2489b65fa83ce242caf1c932a5ca547b39241c21ea",
+        "unchanged": true,
+        "before_features": {
+          "bytes": 27,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "after_features": {
+          "bytes": 27,
+          "bom": false,
+          "eol": "crlf",
+          "utf8_valid": true
+        },
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 1,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "executor_invocations": 1,
+        "injected_seam": "ApplyPlanOptions.workspace.writeFile"
+      }
+    },
+    {
+      "case_id": "W14_CLEANUP_AND_NO_PROBE_RESIDUE",
+      "status": "PASS",
+      "expected": "all isolated cases have no .tmp/.bak/.b64/recovery artifacts; probe PID is reported for independent SSH check",
+      "actual": {
+        "artifacts": [],
+        "probe_pid": 7744,
+        "independent_pid_check_required": true
+      },
+      "executor_invocations": 0,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "run_root": "C:\\Win7CodingAgent\\A2-remaining-acceptance\\a2-auto-run-1785775189747-7744"
+      }
+    },
+    {
+      "case_id": "W15_NO_UNDECLARED_ACTIVITY_BITVISE_SAFE",
+      "status": "PASS",
+      "expected": "no product-created network connection and no Git/Runner/terminal child activity; system observation commands only",
+      "actual": {
+        "process_snapshot": {
+          "command": [
+            "tasklist",
+            "/fo",
+            "csv",
+            "/nh"
+          ],
+          "exit_code": 0,
+          "error": null,
+          "stdout": "\"System Idle Process\",\"0\",\"Services\",\"0\",\"24 K\"\r\n\"System\",\"4\",\"Services\",\"0\",\"6,664 K\"\r\n\"smss.exe\",\"300\",\"Services\",\"0\",\"1,336 K\"\r\n\"csrss.exe\",\"472\",\"Services\",\"0\",\"6,700 K\"\r\n\"wininit.exe\",\"520\",\"Services\",\"0\",\"5,660 K\"\r\n\"csrss.exe\",\"540\",\"Console\",\"1\",\"49,096 K\"\r\n\"services.exe\",\"576\",\"Services\",\"0\",\"9,976 K\"\r\n\"lsass.exe\",\"588\",\"Services\",\"0\",\"14,932 K\"\r\n\"lsm.exe\",\"596\",\"Services\",\"0\",\"5,104 K\"\r\n\"winlogon.exe\",\"660\",\"Console\",\"1\",\"8,876 K\"\r\n\"svchost.exe\",\"744\",\"Services\",\"0\",\"11,792 K\"\r\n\"ibmpmsvc.exe\",\"800\",\"Services\",\"0\",\"4,484 K\"\r\n\"NVDisplay.Container.exe\",\"840\",\"Services\",\"0\",\"20,252 K\"\r\n\"svchost.exe\",\"900\",\"Services\",\"0\",\"9,988 K\"\r\n\"svchost.exe\",\"1004\",\"Services\",\"0\",\"20,264 K\"\r\n\"svchost.exe\",\"316\",\"Services\",\"0\",\"22,672 K\"\r\n\"svchost.exe\",\"568\",\"Services\",\"0\",\"31,108 K\"\r\n\"svchost.exe\",\"760\",\"Services\",\"0\",\"59,748 K\"\r\n\"igfxCUIService.exe\",\"1236\",\"Services\",\"0\",\"8,096 K\"\r\n\"WUDFHost.exe\",\"1376\",\"Services\",\"0\",\"9,984 K\"\r\n\"svchost.exe\",\"1472\",\"Services\",\"0\",\"83,080 K\"\r\n\"wlanext.exe\",\"1564\",\"Services\",\"0\",\"17,720 K\"\r\n\"conhost.exe\",\"1572\",\"Services\",\"0\",\"3,404 K\"\r\n\"spoolsv.exe\",\"1660\",\"Services\",\"0\",\"13,280 K\"\r\n\"svchost.exe\",\"1688\",\"Services\",\"0\",\"16,412 K\"\r\n\"BvSshServer.exe\",\"1780\",\"Services\",\"0\",\"33,208 K\"\r\n\"DolbyDAX2API.exe\",\"1812\",\"Services\",\"0\",\"32,912 K\"\r\n\"svchost.exe\",\"1864\",\"Services\",\"0\",\"12,688 K\"\r\n\"EvtEng.exe\",\"1908\",\"Services\",\"0\",\"15,096 K\"\r\n\"SynTPEnhService.exe\",\"2012\",\"Services\",\"0\",\"4,868 K\"\r\n\"valWBFPolicyService.exe\",\"2060\",\"Services\",\"0\",\"7,820 K\"\r\n\"ZeroConfigService.exe\",\"2100\",\"Services\",\"0\",\"16,644 K\"\r\n\"unsecapp.exe\",\"2320\",\"Services\",\"0\",\"6,048 K\"\r\n\"WmiPrvSE.exe\",\"2460\",\"Services\",\"0\",\"17,604 K\"\r\n\"svchost.exe\",\"2644\",\"Services\",\"0\",\"6,600 K\"\r\n\"SearchIndexer.exe\",\"2896\",\"Services\",\"0\",\"24,308 K\"\r\n\"sppsvc.exe\",\"2024\",\"Services\",\"0\",\"17,460 K\"\r\n\"LogonUI.exe\",\"3188\",\"Services\",\"0\",\"17,136 K\"\r\n\"NVDisplay.Container.exe\",\"3240\",\"Console\",\"1\",\"58,992 K\"\r\n\"svchost.exe\",\"3528\",\"Services\",\"0\",\"185,304 K\"\r\n\"svchost.exe\",\"2360\",\"Services\",\"0\",\"6,944 K\"\r\n\"taskhost.exe\",\"3540\",\"Console\",\"1\",\"17,988 K\"\r\n\"SynTPEnh.exe\",\"1756\",\"Console\",\"1\",\"19,928 K\"\r\n\"dwm.exe\",\"3292\",\"Console\",\"1\",\"37,276 K\"\r\n\"PresentationFontCache.exe\",\"1940\",\"Services\",\"0\",\"25,252 K\"\r\n\"explorer.exe\",\"1808\",\"Console\",\"1\",\"126,044 K\"\r\n\"taskeng.exe\",\"776\",\"Console\",\"1\",\"8,204 K\"\r\n\"rundll32.exe\",\"3756\",\"Console\",\"1\",\"7,840 K\"\r\n\"igfxEM.exe\",\"3984\",\"Console\",\"1\",\"12,024 K\"\r\n\"igfxHK.exe\",\"3676\",\"Console\",\"1\",\"10,264 K\"\r\n\"SynTPLpr.exe\",\"1096\",\"Console\",\"1\",\"6,552 K\"\r\n\"SynLenovoHelper.exe\",\"3712\",\"Console\",\"1\",\"7,840 K\"\r\n\"Feishu.exe\",\"3356\",\"Console\",\"1\",\"244,092 K\"\r\n\"BssCtrl.exe\",\"3008\",\"Console\",\"1\",\"16,160 K\"\r\n\"Feishu.exe\",\"3772\",\"Console\",\"1\",\"28,440 K\"\r\n\"Feishu.exe\",\"3672\",\"Console\",\"1\",\"91,160 K\"\r\n\"Feishu.exe\",\"3148\",\"Console\",\"1\",\"39,448 K\"\r\n\"Feishu.exe\",\"1048\",\"Console\",\"1\",\"266,384 K\"\r\n\"Feishu.exe\",\"4144\",\"Console\",\"1\",\"239,352 K\"\r\n\"SynTPHelper.exe\",\"4284\",\"Console\",\"1\",\"5,432 K\"\r\n\"wuauclt.exe\",\"4276\",\"Console\",\"1\",\"9,020 K\"\r\n\"RAVBg64.exe\",\"2920\",\"Console\",\"1\",\"13,072 K\"\r\n\"RAVBg64.exe\",\"4896\",\"Console\",\"1\",\"13,092 K\"\r\n\"RAVCpl64.exe\",\"3904\",\"Console\",\"1\",\"14,200 K\"\r\n\"Feishu.exe\",\"1308\",\"Console\",\"1\",\"308,060 K\"\r\n\"Feishu.exe\",\"5196\",\"Console\",\"1\",\"56,172 K\"\r\n\"chrome.exe\",\"5964\",\"Console\",\"1\",\"124,796 K\"\r\n\"chrome.exe\",\"5960\",\"Console\",\"1\",\"7,580 K\"\r\n\"chrome.exe\",\"4668\",\"Console\",\"1\",\"103,968 K\"\r\n\"chrome.exe\",\"4728\",\"Console\",\"1\",\"34,112 K\"\r\n\"chrome.exe\",\"5896\",\"Console\",\"1\",\"16,696 K\"\r\n\"chrome.exe\",\"4868\",\"Console\",\"1\",\"169,732 K\"\r\n\"chrome.exe\",\"5544\",\"Console\",\"1\",\"88,248 K\"\r\n\"setup_wm.exe\",\"1896\",\"Console\",\"1\",\"16,244 K\"\r\n\"chrome.exe\",\"2584\",\"Console\",\"1\",\"89,256 K\"\r\n\"chrome.exe\",\"5980\",\"Console\",\"1\",\"107,380 K\"\r\n\"chrome.exe\",\"3168\",\"Console\",\"1\",\"52,872 K\"\r\n\"chrome.exe\",\"4016\",\"Console\",\"1\",\"257,352 K\"\r\n\"chrome.exe\",\"6016\",\"Console\",\"1\",\"35,936 K\"\r\n\"cmd.exe\",\"6636\",\"Console\",\"1\",\"4,248 K\"\r\n\"conhost.exe\",\"7244\",\"Console\",\"1\",\"7,468 K\"\r\n\"electron.exe\",\"6360\",\"Console\",\"1\",\"132,120 K\"\r\n\"electron.exe\",\"6468\",\"Console\",\"1\",\"59,784 K\"\r\n\"electron.exe\",\"2676\",\"Console\",\"1\",\"19,012 K\"\r\n\"electron.exe\",\"7080\",\"Console\",\"1\",\"69,484 K\"\r\n\"SogouCloud.exe\",\"4012\",\"Console\",\"1\",\"72,660 K\"\r\n\"SGTool.exe\",\"2916\",\"Console\",\"1\",\"67,244 K\"\r\n\"biz_helper.exe\",\"6480\",\"Console\",\"1\",\"16,212 K\"\r\n\"WmiPrvSE.exe\",\"6608\",\"Services\",\"0\",\"9,116 K\"\r\n\"execs.exe\",\"6672\",\"Services\",\"0\",\"17,212 K\"\r\n\"cmd.exe\",\"7532\",\"Services\",\"0\",\"4,008 K\"\r\n\"conhost.exe\",\"7688\",\"Services\",\"0\",\"4,960 K\"\r\n\"electron.exe\",\"7744\",\"Services\",\"0\",\"60,928 K\"\r\n\"electron.exe\",\"7404\",\"Services\",\"0\",\"20,252 K\"\r\n\"tasklist.exe\",\"7756\",\"Services\",\"0\",\"6,820 K\"\r\n\"conhost.exe\",\"2396\",\"Services\",\"0\",\"3,896 K\"\r\n",
+          "stderr": ""
+        },
+        "network_snapshot": {
+          "command": [
+            "netstat",
+            "-ano"
+          ],
+          "exit_code": 0,
+          "error": null,
+          "stdout": "\r\n�����\r\n\r\n  Э��  ���ص�ַ          �ⲿ��ַ        ״̬           PID\r\n  TCP    0.0.0.0:21             0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:22             0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       900\r\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4\r\n  TCP    0.0.0.0:20020          0.0.0.0:0              LISTENING       1780\r\n  TCP    0.0.0.0:49152          0.0.0.0:0              LISTENING       520\r\n  TCP    0.0.0.0:49153          0.0.0.0:0              LISTENING       1004\r\n  TCP    0.0.0.0:49154          0.0.0.0:0              LISTENING       760\r\n  TCP    0.0.0.0:49155          0.0.0.0:0              LISTENING       576\r\n  TCP    0.0.0.0:49156          0.0.0.0:0              LISTENING       588\r\n  TCP    127.0.0.1:5283         0.0.0.0:0              LISTENING       2916\r\n  TCP    192.168.1.11:22        192.168.1.3:51351      ESTABLISHED     1780\r\n  TCP    192.168.1.11:139       0.0.0.0:0              LISTENING       4\r\n  TCP    192.168.1.11:49529     2.17.107.11:80         ESTABLISHED     1896\r\n  TCP    192.168.1.11:51225     8.133.123.141:443      ESTABLISHED     1048\r\n  TCP    192.168.1.11:51228     140.207.63.154:443     ESTABLISHED     1048\r\n  TCP    192.168.1.11:51230     103.71.68.217:443      ESTABLISHED     1048\r\n  TCP    192.168.1.11:51441     113.56.147.191:443     TIME_WAIT       0\r\n  TCP    192.168.1.11:51450     172.217.116.4:443      SYN_SENT        4728\r\n  TCP    192.168.1.11:51451     172.217.116.4:443      SYN_SENT        4728\r\n  TCP    [::]:21                [::]:0                 LISTENING       1780\r\n  TCP    [::]:22                [::]:0                 LISTENING       1780\r\n  TCP    [::]:135               [::]:0                 LISTENING       900\r\n  TCP    [::]:445               [::]:0                 LISTENING       4\r\n  TCP    [::]:20020             [::]:0                 LISTENING       1780\r\n  TCP    [::]:49152             [::]:0                 LISTENING       520\r\n  TCP    [::]:49153             [::]:0                 LISTENING       1004\r\n  TCP    [::]:49154             [::]:0                 LISTENING       760\r\n  TCP    [::]:49155             [::]:0                 LISTENING       576\r\n  TCP    [::]:49156             [::]:0                 LISTENING       588\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:50183  [2408:873d:a00:2006::12b]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51226  [2408:873d:a00:2006::df]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51231  [240e:97c:2f:2::5c]:443  ESTABLISHED     4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51418  [2408:870c:1080:4:3::2c]:443  ESTABLISHED     3772\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51448  [2001:4860:4844:400::]:443  SYN_SENT        4728\r\n  TCP    [2408:820c:342a:6b40:fd52:ce0c:dfc0:e98d]:51449  [2001:4860:4844:400::]:443  SYN_SENT        4728\r\n  UDP    0.0.0.0:5353           *:*                                    4728\r\n  UDP    0.0.0.0:5353           *:*                                    4728\r\n  UDP    0.0.0.0:5355           *:*                                    1472\r\n  UDP    0.0.0.0:56084          *:*                                    1048\r\n  UDP    127.0.0.1:1900         *:*                                    2360\r\n  UDP    127.0.0.1:58168        *:*                                    2360\r\n  UDP    192.168.1.11:137       *:*                                    4\r\n  UDP    192.168.1.11:138       *:*                                    4\r\n  UDP    192.168.1.11:1900      *:*                                    2360\r\n  UDP    [::]:5353              *:*                                    4728\r\n  UDP    [::]:5355              *:*                                    1472\r\n  UDP    [::1]:1900             *:*                                    2360\r\n  UDP    [::1]:58167            *:*                                    2360\r\n  UDP    [fe80::d971:3e1b:2d7a:610c%12]:1900  *:*                                    2360\r\n",
+          "stderr": ""
+        },
+        "added_network_lines_excluding_probe": [],
+        "forbidden_child_commands": []
+      },
+      "executor_invocations": 0,
+      "temp_backup_recovery_artifacts": [],
+      "metrics": {
+        "observation_commands": [
+          [
+            "tasklist",
+            "/fo",
+            "csv",
+            "/nh"
+          ],
+          [
+            "netstat",
+            "-ano"
+          ],
+          [
+            "tasklist",
+            "/fo",
+            "csv",
+            "/nh"
+          ],
+          [
+            "netstat",
+            "-ano"
+          ]
+        ],
+        "bitvise_left_untouched": true,
+        "independent_ssh_service_check_required": true
+      }
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "automatic_cases": [
+      "W07_SINGLE_USE_APPROVAL",
+      "W08_UTF8_BOM",
+      "W08_UTF8_LF",
+      "W08_UTF8_CRLF",
+      "W09_GBK",
+      "W09_BINARY",
+      "W09_BOUNDARY_ESCAPE",
+      "W09_TRUNCATED_PREVIEW",
+      "W10_AUTO_RECOVERY",
+      "W14_CLEANUP_AND_NO_PROBE_RESIDUE",
+      "W15_NO_UNDECLARED_ACTIVITY_BITVISE_SAFE"
+    ]
+  },
+  "exit_code": 0,
+  "notes": [
+    "W07-W10 exercise packaged Core/Workspace modules; W14/W15 are automatic evidence with an independent SSH PID/service check still required.",
+    "W10 uses only the existing ApplyPlanOptions.workspace.writeFile failure seam; it does not modify permissions or system settings.",
+    "tasklist and netstat are read-only evidence commands. The probe does not invoke Git, Runner, terminal, Gateway, SQLite, or arbitrary network APIs."
+  ]
+}

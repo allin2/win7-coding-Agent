@@ -21,6 +21,30 @@ if (result.status !== 0) throw new Error(`A1 portable build failed with exit cod
 
 fs.rmSync(outputRoot, { recursive: true, force: true });
 fs.renameSync(stagingRoot, outputRoot);
+const w06Root = path.join(outputRoot, 'acceptance', 'w06');
+fs.mkdirSync(w06Root, { recursive: true });
+fs.copyFileSync(path.join(scriptRoot, 'a2_w06_tamper_probe.js'), path.join(w06Root, 'main.js'));
+writeText(path.join(w06Root, 'package.json'), JSON.stringify({
+  name: 'a2-w06-tamper-probe',
+  version: '1.0.0',
+  main: 'main.js',
+}, null, 2) + '\n');
+const autoRoot = path.join(outputRoot, 'acceptance', 'a2-auto');
+fs.mkdirSync(autoRoot, { recursive: true });
+fs.copyFileSync(path.join(scriptRoot, 'a2_w07_w10_w14_w15_probe.js'), path.join(autoRoot, 'main.js'));
+writeText(path.join(autoRoot, 'package.json'), JSON.stringify({
+  name: 'a2-w07-w10-w14-w15-probe',
+  version: '1.0.0',
+  main: 'main.js',
+}, null, 2) + '\n');
+const w11w12Root = path.join(outputRoot, 'acceptance', 'a2-w11-w12');
+fs.mkdirSync(w11w12Root, { recursive: true });
+fs.copyFileSync(path.join(scriptRoot, 'a2_w11_w12_probe.js'), path.join(w11w12Root, 'main.js'));
+writeText(path.join(w11w12Root, 'package.json'), JSON.stringify({
+  name: 'a2-w11-w12-probe',
+  version: '1.0.0',
+  main: 'main.js',
+}, null, 2) + '\n');
 writeText(path.join(outputRoot, 'README.txt'), [
   'Win7 Coding Agent Desktop Alpha 2',
   '',
@@ -32,6 +56,9 @@ writeText(path.join(outputRoot, 'README.txt'), [
   '',
   'Run start.cmd on Windows 7 SP1 x64. Select a one-time test workspace and choose the A2 edit scenario.',
   'Run smoke.cmd with A2_MVP_ID set for product-entry evidence; A1 W08 probe remains under acceptance\\w08.',
+  'Run acceptance\\w06 with --workspace=, --report= and --mvp-id= for packaged plan/preview/session/token tamper rejection evidence.',
+  'Run acceptance\\a2-auto with --workspace=, --report= and --mvp-id= for packaged W07-W10/W14/W15 automatic evidence.',
+  'Run acceptance\\a2-w11-w12 with --workspace=, --report=, --w12-user-data= and --mvp-id= for packaged W11/W12 evidence; W12 remains blocked until GUI restart/restore.',
   '',
 ].join('\n'));
 writeText(path.join(outputRoot, 'start-a2.cmd'), '@echo off\r\nsetlocal\r\n"%~dp0electron\\electron.exe" "%~dp0product" --mvp-id=%A2_MVP_ID% --user-data-dir="%~dp0user-data-a2" %*\r\n');

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W11-W12-20260804",
+  "suite": "A2_WIN7_W11_W12_PACKAGED_PROBE",
+  "generated_at": "2026-08-04T02:25:22.212Z",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W11-W12-20260804",
+    "run_root": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\a2-w11-w12-run-1785810322086-6404"
+  },
+  "command": [
+    "C:\\Win7CodingAgent\\desktop-alpha2\\acceptance\\a2-w11-w12",
+    "--workspace=C:\\Win7CodingAgent\\A2-W11-W12-20260804",
+    "--report=C:\\Win7CodingAgent\\A2-W11-W12-20260804\\W11-W12-report.json",
+    "--w12-user-data=C:\\Win7CodingAgent\\A2-W11-W12-20260804\\w12-user-data",
+    "--mvp-id=A2-W11-W12-20260804"
+  ],
+  "cases": [
+    {
+      "case_id": "W11_ROLLBACK_FAILURE_LOCK",
+      "status": "PASS",
+      "expected": "rollback failure locks writes, exposes rollback_failed recovery, manual restore clears lock and restores original",
+      "actual": {
+        "apply_success": false,
+        "rollback_status": "failed",
+        "lock_error_code": "WORKSPACE_WRITE_LOCKED",
+        "pending_phase_before_manual_restore": "rollback_failed",
+        "manual_restore": {
+          "restored": true,
+          "detail": "Original file restored and the write lock was cleared."
+        },
+        "lock_after_manual_restore": false
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\a2-w11-w12-run-1785810322086-6404\\w11-rollback-lock\\src\\hello.ts",
+        "before_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "after_injected_failure_sha256": "de0ef3bd0fb4fed90c8bda4e5c1d1908d2d5816b847a647eab9af15d0e2c96a0",
+        "final_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "restored_to_original": true,
+        "unsafe_artifacts": [],
+        "clean": true
+      },
+      "executor_invocations": 1,
+      "notes": [
+        "Failure and rollback seams are existing test seams; no system permissions were changed."
+      ]
+    },
+    {
+      "case_id": "W12_RESTART_RECOVERY_FIXTURE",
+      "status": "BLOCKED",
+      "expected": "fresh Coordinator detects versioned interrupted recovery without auto-writing; user must restart GUI and click restore",
+      "actual": {
+        "pending_detected": true,
+        "phase": "replacing",
+        "auto_restore": false
+      },
+      "file_evidence": {
+        "path": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\A2-W12-restart-recovery-workspace\\src\\hello.ts",
+        "before_manual_restore_sha256": "f4f828364ef073a58b4fdb1807c1f94e7807db77dc495413935b806de61aa492",
+        "expected_original_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+        "expected_interrupted_target_sha256": "f4f828364ef073a58b4fdb1807c1f94e7807db77dc495413935b806de61aa492",
+        "recovery_manifest_path": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\w12-user-data\\a2-recovery\\a2-write-recovery.json",
+        "unsafe_artifacts": [
+          "a2-recovery/a2-write-recovery.json",
+          "src/hello.ts.bak"
+        ],
+        "manual_restore_required": true
+      },
+      "executor_invocations": 0,
+      "manual_next": {
+        "workspace_root": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\A2-W12-restart-recovery-workspace",
+        "user_data_root": "C:\\Win7CodingAgent\\A2-W11-W12-20260804\\w12-user-data",
+        "action": "restart Desktop Alpha 2, confirm recovery page, then click 恢复原文件"
+      },
+      "notes": [
+        "This is intentionally not marked PASS before a real GUI restart and user restore."
+      ]
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "passed": 1,
+    "blocked": 1,
+    "failed": 0
+  },
+  "exit_code": 0,
+  "notes": [
+    "W12 intentionally remains BLOCKED until a real GUI restart and user-controlled restore.",
+    "No Runner, Git, terminal, Gateway, SQLite or system configuration was used."
+  ]
+}

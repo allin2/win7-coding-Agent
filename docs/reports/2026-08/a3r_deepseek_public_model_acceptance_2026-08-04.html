@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A3.1 DeepSeek 公网真实模型 Win7 验收报告</title>
+  <style>
+    :root{--ink:#172133;--muted:#5d6b7d;--line:#d9e2ec;--paper:#fff;--wash:#f3f7fb;--navy:#173e68;--cyan:#0f7694;--green:#11734b;--amber:#9a5d00;--red:#a23434}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(145deg,#edf4fa,#f8fbfd 45%,#eef6f3);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+    main{max-width:1120px;margin:36px auto;padding:0 24px 48px}.hero{background:linear-gradient(120deg,#102f50,#145f77);color:#fff;border-radius:20px;padding:34px 38px;box-shadow:0 16px 44px #1f486429}
+    .kicker{margin:0 0 8px;letter-spacing:.14em;text-transform:uppercase;color:#a9e1ec;font-size:12px;font-weight:700}.hero h1{margin:0;font-size:32px;line-height:1.25}.hero p{max-width:840px;margin:14px 0 0;color:#dcecf3}
+    .outcome{display:grid;grid-template-columns:1.5fr repeat(3,1fr);gap:14px;margin-top:20px}.metric{background:#ffffff12;border:1px solid #ffffff2b;border-radius:13px;padding:14px}.metric b{display:block;font-size:20px}.metric span{color:#dcecf3;font-size:12px}
+    section{margin-top:22px;background:var(--paper);border:1px solid var(--line);border-radius:17px;padding:25px 28px;box-shadow:0 8px 28px #29475f0d}h2{margin:0 0 15px;font-size:21px;color:var(--navy)}h3{margin:20px 0 8px;font-size:16px;color:var(--cyan)}
+    .callout{border-left:5px solid var(--green);background:#edf8f2;padding:15px 17px;border-radius:9px}.warning{border-left-color:var(--amber);background:#fff7e8}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card{border:1px solid var(--line);border-radius:12px;padding:15px;background:var(--wash)}.card strong{display:block;color:var(--navy);margin-bottom:4px}
+    table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;vertical-align:top;padding:10px 11px;border-bottom:1px solid var(--line)}th{background:#edf3f8;color:var(--navy);font-weight:700}.pass{color:var(--green);font-weight:800}.partial{color:var(--amber);font-weight:800}.deferred{color:var(--red);font-weight:800}code{background:#edf2f6;border-radius:5px;padding:2px 5px;font-size:12px;overflow-wrap:anywhere}ul{padding-left:21px}.small{font-size:12px;color:var(--muted)}.footer{text-align:center;color:var(--muted);font-size:12px;margin-top:22px}@media(max-width:800px){.outcome,.grid{grid-template-columns:1fr}.hero{padding:25px}.hero h1{font-size:26px}section{padding:21px 18px}table{display:block;overflow-x:auto}}
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <p class="kicker">Desktop Alpha 3.1 · Windows 7 real-machine evidence</p>
+    <h1>DeepSeek 公网真实模型纵向切片验收</h1>
+    <p>本报告绑定 A3R-20260804-01、Win7 SP1 x64、Electron 22.3.27 与 <code>https://api.deepseek.com:443</code>。结论证明当前目标机的真实公网模型链路可用；不替代企业 E7、企业代理/CA/PAC 或正式 Phase 3 Gate。</p>
+    <div class="outcome">
+      <div class="metric"><b>A3_REAL_MODEL_PUBLIC_NETWORK_PASS</b><span>受控真实模型切片结论</span></div>
+      <div class="metric"><b>929 / 929</b><span>开发机根验证</span></div>
+      <div class="metric"><b>638</b><span>完成任务事件</span></div>
+      <div class="metric"><b>6 ms</b><span>取消收口时间</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>执行结论</h2>
+    <div class="callout"><strong>通过：</strong>Win7 真实连接 DeepSeek，完成流式响应、三轮只读工具调用、Core/Workspace/UI 最终完成态；独立取消用例在 48 个公网流增量后进入 <code>task.cancelling</code> 并于 6 ms 后成为最终 <code>task.cancelled</code>，无迟到 <code>task.completed</code>。</div>
+    <div class="grid" style="margin-top:14px">
+      <div class="card"><strong>公网与 TLS</strong>TLSv1.3，证书与主机名授权通过；无密钥 <code>/models</code> 返回预期 401，响应正文未保存。</div>
+      <div class="card"><strong>真实工具链</strong><code>list_directory → search_text → read_text</code>，三组 started/completed，最终事件序号 638。</div>
+      <div class="card"><strong>安全收口</strong>凭据仅主进程内存；严格密钥/Bearer 扫描为零；退出后无 Electron/Node，Bitvise 保持 RUNNING。</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>证据基线</h2>
+    <table>
+      <thead><tr><th>对象</th><th>值</th><th>验证</th></tr></thead>
+      <tbody>
+        <tr><td>目标机</td><td>Windows 7 Professional SP1 x64；<code>10.67.149.40</code></td><td class="pass">PASS</td></tr>
+        <tr><td>运行时</td><td>Electron 22.3.27 / Node 16.17.1 x64</td><td class="pass">PASS</td></tr>
+        <tr><td>模型目标</td><td><code>https://api.deepseek.com/chat/completions</code>；<code>deepseek-v4-flash</code></td><td class="pass">PASS</td></tr>
+        <tr><td>包清单</td><td>908 条；SHA-256 <code>8eb60ddf…db02d3aa</code></td><td class="pass">Win7 匹配</td></tr>
+        <tr><td>Electron</td><td><code>2ed95437…cfd339cb</code></td><td class="pass">Win7 匹配</td></tr>
+        <tr><td>工作树指纹</td><td><code>docs/status/mvp-baselines/A3R-20260804-01.json</code>；<code>956902c6…e65e4926</code></td><td class="pass">430 files</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>A3R-01～A3R-10 追踪矩阵</h2>
+    <table>
+      <thead><tr><th>ID</th><th>状态</th><th>行为证据</th></tr></thead>
+      <tbody>
+        <tr><td>A3R-01</td><td class="pass">PASS</td><td>Replay 默认；DeepSeek 需显式选择；UI 明示公网、数据外发和计费。</td></tr>
+        <tr><td>A3R-02</td><td class="pass">PASS</td><td>仅允许 HTTPS <code>api.deepseek.com:443</code> 和评审模型 ID；无任意 compatible host。</td></tr>
+        <tr><td>A3R-03</td><td class="pass">PASS</td><td>OpenAI-safe 工具别名可逆映射回 Core；真实模型驱动三轮 Workspace 工具。</td></tr>
+        <tr><td>A3R-04</td><td class="pass">PASS</td><td>完成任务 618 个 gateway delta；取消任务 48 个；SSE DONE/截断/工具增量测试通过。</td></tr>
+        <tr><td>A3R-05</td><td class="pass">PASS</td><td>公网 TLS 授权通过；复用 A3 Win7 证书、deadline、重试、取消、CONNECT/407 证据。</td></tr>
+        <tr><td>A3R-06</td><td class="pass">PASS</td><td>API key 不在 argv、环境、报告、隔离 userData/evidence；退出后内存清除。</td></tr>
+        <tr><td>A3R-07</td><td class="pass">PASS</td><td>Renderer 无 Node/通用网络/凭据读回；Schema IPC、CSP 和 session policy 保持。</td></tr>
+        <tr><td>A3R-08</td><td class="pass">PASS</td><td>只有三项只读工具运行；写入、Runner、Git、终端、SQLite 均未启用。</td></tr>
+        <tr><td>A3R-09</td><td class="pass">PASS</td><td>真实完成与真实取消两份 Win7 报告；连续事件、最终 UI、无迟到完成。</td></tr>
+        <tr><td>A3R-10</td><td class="pass">PASS</td><td>Electron/Node=0；Bitvise RUNNING；SSH 22 保持；无网卡/路由/防火墙/服务/PATH 修改和重启。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>完成任务与取消任务</h2>
+    <div class="grid">
+      <div class="card"><strong>真实完成</strong>07:32:14Z 启动；07:33:05Z <code>task.completed</code>。638 个事件连续；三工具 started/completed 各 3。报告 SHA-256：<code>08b05d7f…05c0d7be</code>。</div>
+      <div class="card"><strong>真实取消</strong>08:10:00.327Z <code>task.cancelling</code>；08:10:00.333Z <code>task.cancelled</code>。最终事件即 cancelled，完成/失败均为 0。报告 SHA-256：<code>48466a13…ce60b575</code>。</div>
+      <div class="card"><strong>公网探测</strong>223 ms；TLSv1.3；证书 CN <code>api.deepseek.com</code>，Issuer <code>TrustAsia DV TLS RSA CA 2025</code>。报告 SHA-256：<code>cc92381f…eb3e4ca</code>。</div>
+    </div>
+    <p class="small">取消原始报告的通用状态为 PARTIAL，因为通用 harness 仅把“三工具且 completed”判为 PASS；本报告按取消专用不变量判定：存在 cancelling/cancelled、无 completed/failed、序号连续、最终事件为 cancelled。</p>
+  </section>
+
+  <section>
+    <h2>失败闭环</h2>
+    <table>
+      <thead><tr><th>轮次</th><th>原始症状</th><th>根因与最小修复</th><th>回归</th></tr></thead>
+      <tbody>
+        <tr><td>fix1</td><td>空 CA 路径触发 IPC_SCHEMA_INVALID</td><td>可选空字段不应发送；Renderer 改为省略。</td><td>settings payload tests</td></tr>
+        <tr><td>fix2-1</td><td>DeepSeek HTTP 400</td><td>Core 工具名含点，不符合函数名字符集；增加可逆安全别名。</td><td>Gateway 202 + alias tests</td></tr>
+        <tr><td>fix2-2</td><td>历史工具名为 undefined</td><td>误读供应商字段；改用 Core <code>toolName/args</code>。</td><td>三轮 list/search/read 测试</td></tr>
+        <tr><td>cancel-01</td><td>Replay、0 events</td><td>窗口操作错位；增加专用可见启动器和全新报告/userData。</td><td>cancel-02 真实证据</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>A2 回归与未完成边界</h2>
+    <div class="callout"><strong>A2 保持通过：</strong>当前根验证 929/929 PASS，既有 A2-W01～W15 Win7 MVP 证据继续按原指纹引用。A3R 未开放写工具，不会绕过 A2 人工审批；本轮没有把历史 W13 伪装成新的 A3 Win7 重跑。</div>
+    <div class="callout warning" style="margin-top:12px"><strong>仍未完成：</strong>企业 E7、企业 Gateway/CA/HTTP CONNECT/PAC、企业模型服务与网络审计、DPAPI 持久化、正式 Phase 3 Gate。Runner、Git 进程、终端、SQLite、Updater 和插件仍未启用。</div>
+    <ul>
+      <li>本结论仅为 <code>A3_REAL_MODEL_PUBLIC_NETWORK_PASS</code>，不是企业 E7 PASS。</li>
+      <li>真实模型凭据需要由用户在验收后注销；仓库和证据中未保存其值。</li>
+      <li>网络配置、路由、防火墙、服务配置和机器 PATH 均未修改，且未重启。</li>
+    </ul>
+  </section>
+
+  <p class="footer">结构化证据：docs/acceptance/A3R-DEEPSEEK-20260804.json · 生成日期 2026-08-04 · 敏感值已排除</p>
+</main>
+</body>
+</html>

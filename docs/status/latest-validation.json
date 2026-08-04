@@ -1,18 +1,18 @@
 {
   "schema_version": 2,
-  "record_status": "MVP_OWNER_ACCEPTED_WITH_DEFERRALS",
-  "mvp_id": "MVP-20260802-15",
-  "working_tree_fingerprint": "docs/status/mvp-baselines/MVP-20260802-15.json",
+  "record_status": "A1_A2_MVP_AND_A3_ACCEPTANCE_RECORDED_WITH_FORMAL_DEFERRALS",
+  "mvp_id": "A1-A3-CLOSEOUT-20260804-01",
+  "working_tree_fingerprint": "docs/status/mvp-baselines/A1-A3-CLOSEOUT-20260804-01.json",
   "repository": "win7-coding-agent",
-  "branch": "codex/integrated-robustness",
-  "head_commit": "21ffcf32f8ac0a22b04699be14569662ca571d9a",
+  "branch": "codex/a1-a3-acceptance",
+  "head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
-  "executed_at": "2026-08-02T11:50:31+08:00",
+  "executed_at": "2026-08-04T17:55:44+08:00",
   "environment": {
     "development_host": "macOS build host",
     "win7_target": "Windows 7 Professional SP1 x64 build 7601; ThinkPad T460; 16 GB RAM; Intel HD 520; Samsung 870 EVO SSD",
-    "management_channel": "Bitvise SSH automatic service; 192.168.1.10 <-> 192.168.1.11:22 preserved"
+    "management_channel": "Bitvise SSH automatic service; 10.67.149.136 <-> 10.67.149.40:22 preserved"
   },
   "mvp_owner_disposition": {
     "status": "OWNER_ACCEPTED_FOR_MVP",
@@ -22,7 +22,7 @@
     "evidence": "docs/acceptance/MVP-20260802-14_OWNER_DISPOSITION.json"
   },
   "tests": [
-    {"suite":"integration","command":"npm run verify","status":"PASS","exit_code":0,"metrics":{"tests":889,"modules":7},"evidence":"validation/mvp_verify_MVP-20260802-14.txt"},
+    {"suite":"integration","command":"npm run verify","status":"PASS","exit_code":0,"metrics":{"tests":942,"modules":7,"gateway":202,"workspace":80,"state":219,"core":225,"runner":46,"git_adapter":51,"shell":119},"evidence":"docs/acceptance/A1-A3-CLOSEOUT-20260804-01.json"},
     {"suite":"gateway_loopback_listener_recheck","command":"npm test -- --runInBand tests/unit/transport/node-network.test.ts --testNamePattern=<13-loopback-tests>","status":"PASS","exit_code":0,"metrics":{"selected_tests":13,"pass":13,"fail":0,"bind_address":"127.0.0.1","port_selection":"ephemeral","public_listener":false,"external_network_access":false},"artifact_hashes":{"node_network_test":"596f0a391f103dcf87748486910181ed17a6cb5b1a084f6217f2d2373cc6506c","node_network_implementation":"7cef26e8748b64abf93d5f98db7bec5426c43aeb739b36f71f13abae58fab81d"},"evidence":["validation/report_gateway_loopback_MVP-20260802-15.json","validation/gateway_loopback_MVP-20260802-15.txt"]},
     {"suite":"phase1_probe","command":"PYTHONPATH=src/phase1-2 python3 -m unittest discover -s tests/phase1-2/probe -p test_*.py -v","status":"PASS","exit_code":0,"metrics":{"tests":20}},
     {"suite":"phase1_win7_regression","command":"C:\\acceptance\\python38_mvp\\python.exe C:\\acceptance\\phase1_mvp\\scripts\\run_phase1_win7.py","status":"PASS","exit_code":0,"metrics":{"tests":20,"runs":1},"evidence":"validation/phase1/evidence/phase1_probe_MVP-20260802-07.json"},
@@ -49,7 +49,7 @@
     "OWNER_ACCEPTED_FOR_MVP: GPU black-screen, window focus and other visual checks deferred",
     "MECHANICAL_DISK_GATE_OWNER_ACCEPTED: PASS by project-owner MVP decision; actual target remains SSD and no performance claim is inferred",
     "T03_OWNER_DECISION: parent-side stdin is absent and no data was observed; child-readable NUL-like semantics is accepted for MVP only",
-    "CAPABILITY_DEFERRED_FAIL_CLOSED: native Runner/terminal remain unavailable; persistence is bounded in-memory; Gateway is unconfigured or Replay"
+    "CAPABILITY_DEFERRED_FAIL_CLOSED: native Runner/terminal remain unavailable; persistence is bounded in-memory; Replay stays default and optional DeepSeek A3R does not enable enterprise E7"
   ],
   "suite_results": {
     "SPIKE_01": "OWNER_ACCEPTED_FOR_MVP (formal cases remain PARTIAL/FAIL/surrogate)",
@@ -58,9 +58,9 @@
     "SPIKE_04": "OWNER_ACCEPTED_FOR_MVP (in-memory mode; mechanical_disk_gate=PASS)",
     "PHASE_01": "OWNER_ACCEPTED_FOR_MVP (formal Gate unchanged)",
     "PHASE_02": "OWNER_ACCEPTED_FOR_MVP (formal Gate unchanged)",
-    "PHASE_03_TO_07": "OWNER_ACCEPTED_FOR_MVP (real Electron entry PASS; full E2E/E7 deferred)"
+    "PHASE_03_TO_07": "OWNER_ACCEPTED_FOR_MVP + A3_REAL_MODEL_PUBLIC_NETWORK_PASS (formal Phase/E7 deferred)"
   },
-  "win7_validation": "OWNER_ACCEPTED_FOR_MVP",
+  "win7_validation": "A3_REAL_MODEL_PUBLIC_NETWORK_PASS (formal release gates unchanged)",
   "blocking_reasons": [],
   "formal_release_blocking_reasons": [
     "the real Electron product entry now starts, renders diagnostics and exits on Win7, but no installer, full five-view workflow or cross-module user-task E2E is packaged",
@@ -68,6 +68,169 @@
     "Phase 1/2 formal E1/E2 gates still require their architecture authorization and frozen-contract evidence",
     "SPIKE_02 still requires a non-skeleton helper plus MSVC v142 and Electron ABI artifacts before real local Runner/terminal can be enabled",
     "SPIKE_04 still requires better-sqlite3 Electron ABI, indexer/benchmark/recovery harness before persistence and FTS can be enabled",
-    "enterprise proxy, CA, model and update services remain unavailable for E7"
-  ]
+    "enterprise Gateway/proxy/CA/PAC/model and update services remain unavailable for formal E7; public DeepSeek A3R is not an enterprise substitute"
+  ],
+  "a3_controlled_gateway_supplement": {
+    "schema_version": 1,
+    "acceptance_id": "A3-20260804-01",
+    "mvp_id": "MVP-A3-20260804-01",
+    "status": "A3_CONTROLLED_GATEWAY_PASS",
+    "formal_e7_status": "NOT_PERFORMED",
+      "working_tree_fingerprint": "docs/status/mvp-baselines/A3-20260804-01.json",
+      "working_tree_fingerprint_sha256": "0426b99a3cbe3a6687c08bb8e002f959bfc0edeb4917db25702b427532867023",
+    "head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "development_verify": {"status":"PASS","exit_code":0,"modules":7,"tests":909},
+    "controlled_network": {
+      "bind": "10.67.149.136:62679 for temporary LAN HTTP; 10.67.149.136:62680-62684,62687 for temporary LAN HTTPS",
+      "protocols": ["http","https"],
+      "tls": "TLSv1.2 for HTTPS",
+      "ca_certificate_sha256": "aa1dbcefb3f076a4fbb56b6b57d31fa97bb553acc15eb75271156ee24732756e",
+      "public_network_access": false,
+      "result": "MVP_NETWORK_SURROGATE"
+    },
+    "behaviors": ["HTTP Gateway success","valid CA HTTPS handshake","SSE stream","request-id isolation","cancel without late completed event","bounded retry and total deadline","wrong CA/hostname fail-closed","protocol/truncation fail-closed","CONNECT success and 407","credential redaction","Gateway-Core-Workspace-UI vertical task"],
+    "win7": {
+      "target": "10.67.149.40",
+      "status": "PASS",
+      "passed": ["A3-W01","A3-W02","A3-W03","A3-W04","A3-W05","A3-W06","A3-W07","A3-W08","A3-W09","A3-W10","A3-W11","A3-W12","A3-W13","A3-W14","A3-W15"],
+      "not_performed": [],
+      "evidence": ["docs/acceptance/A3-WIN7-HTTP-20260804.json","docs/acceptance/A3-WIN7-HTTPS-20260804.json","docs/acceptance/A3-W01-20260804_product-smoke.json","docs/acceptance/A3-W13-20260804-02.json"],
+      "management_channel": "SSH public-key authentication PASS; Bitvise RUNNING; no system mutation; pre-existing A2-W11 processes preserved"
+    },
+    "evidence": "docs/acceptance/A3-20260804-01_controlled-gateway.json",
+    "report": "docs/reports/2026-08/a3_controlled_gateway_acceptance_2026-08-04.html"
+  },
+  "a3_w13_write_approval_supplement": {
+    "schema_version": 1,
+    "acceptance_id": "A3-W13-20260804-02",
+    "status": "PASS",
+    "formal_e7_status": "NOT_PERFORMED",
+    "formal_phase3_status_changed": false,
+    "working_tree_fingerprint": "docs/status/mvp-baselines/A3P-W13-20260804-01.json",
+    "working_tree_fingerprint_sha256": "7c35f55c64b437ad6150092e53d9429705ab89d8e3a1a498215bdff2abea756d",
+    "head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "target": "C:\\Win7CodingAgent\\A3-W13-20260804-02\\src\\sample.ts",
+    "hashes": {
+      "initial": "14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582",
+      "after_initial_approval": "33b305c1903672e81d27ef07aa62decb62780fecb12740256765d19ade602db5",
+      "after_undo_approval": "14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582"
+    },
+    "unsafe_artifacts": [],
+    "development_verify": {"status":"PASS","exit_code":0,"modules":7,"tests":942},
+    "evidence": "docs/acceptance/A3-W13-20260804-02.json",
+    "report": "docs/reports/2026-08/a3_w13_write_approval_acceptance_2026-08-04.html",
+    "a3p_w15_cleanup": "PASS"
+  },
+  "a3_real_model_public_network_supplement": {
+    "schema_version": 1,
+    "acceptance_id": "A3R-20260804-01",
+    "status": "A3_REAL_MODEL_PUBLIC_NETWORK_PASS",
+    "formal_e7_status": "NOT_PERFORMED",
+    "formal_phase3_status_changed": false,
+    "working_tree_fingerprint": "docs/status/mvp-baselines/A3R-20260804-01.json",
+    "working_tree_fingerprint_sha256": "956902c6a8ae3d6d9409432af81eee949e4f07e9da0fb3e1a03f0967e65e4926",
+    "head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "development_verify": {"status":"PASS","exit_code":0,"modules":7,"tests":929},
+    "public_network": {
+      "target": "https://api.deepseek.com:443",
+      "model": "deepseek-v4-flash",
+      "tls": "TLSv1.3 authorized; certificate and hostname verified",
+      "connectivity_elapsed_ms": 223,
+      "no_key_status_code": 401,
+      "public_listener_created": false
+    },
+    "completion": {
+      "status": "PASS",
+      "events": 638,
+      "gateway_deltas": 618,
+      "tools": ["workspace.list_directory","workspace.search_text","workspace.read_text"],
+      "final_event": "task.completed",
+      "report_sha256": "08b05d7f56bf6b6757dd3aa287816cfe869670fe9aed4432abec043d05c0d7be"
+    },
+    "cancellation": {
+      "status": "PASS",
+      "events": 66,
+      "gateway_deltas": 48,
+      "cancel_settle_ms": 6,
+      "task_completed": 0,
+      "task_failed": 0,
+      "late_event_after_cancelled": false,
+      "final_event": "task.cancelled",
+      "report_sha256": "48466a13297bfc1194d54ef1a196d0c3c1f3bda4bd38daa6e4203a64ce60b575"
+    },
+    "package": {
+      "manifest_entries": 908,
+      "manifest_sha256": "8eb60ddf2c515fa4c896ea149d10a118c883f393925991ec3f77ddd8db02d3aa",
+      "electron_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+      "win7_hash_match": true
+    },
+    "credentials": {
+      "lifetime": "process-memory-only",
+      "strict_secret_value_scan": "PASS",
+      "dpapi": "DEFERRED",
+      "revocation": "USER_ACTION_REQUIRED_AFTER_ACCEPTANCE"
+    },
+    "cleanup": {
+      "electron_processes": 0,
+      "node_processes": 0,
+      "bitvise": "RUNNING",
+      "ssh_22": "ESTABLISHED",
+      "system_mutation": false,
+      "rebooted": false
+    },
+    "a2_regression": "PASS by current root regression and existing A2-W01..W15 Win7 MVP evidence; A3-W13 was independently rerun under the A3.2 supplement and is not relabelled as an A3R write test",
+    "evidence": "docs/acceptance/A3R-DEEPSEEK-20260804.json",
+    "report": "docs/reports/2026-08/a3r_deepseek_public_model_acceptance_2026-08-04.html"
+  },
+  "a1_a3_closeout": {
+    "schema_version": 1,
+    "acceptance_id": "A1-A3-CLOSEOUT-20260804-01",
+    "status": "A1_A2_MVP_AND_A3_ACCEPTANCE_RECORDED_WITH_FORMAL_DEFERRALS",
+    "head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "working_tree_fingerprint": "docs/status/mvp-baselines/A1-A3-CLOSEOUT-20260804-01.json",
+    "working_tree_fingerprint_sha256": "597eab41ee7fdedd1227ab92b9c318ce55d1965fad7e316620821e88115faf21",
+    "development_verify": {
+      "status": "PASS",
+      "command": "npm run verify",
+      "exit_code": 0,
+      "modules": 7,
+      "tests": 942,
+      "gateway": 202,
+      "workspace": 80,
+      "state": 219,
+      "core": 225,
+      "runner": 46,
+      "git_adapter": 51,
+      "shell": 119
+    },
+    "alpha_status": {
+      "a1": "OWNER_ACCEPTED_FOR_MVP",
+      "a2": "DESKTOP_ALPHA_2_MVP_PASS",
+      "a3_controlled": "A3_CONTROLLED_GATEWAY_PASS",
+      "a3_real_model_public": "A3_REAL_MODEL_PUBLIC_NETWORK_PASS",
+      "a3_dpapi": "PARTIAL_EVIDENCE"
+    },
+    "formal_status": {
+      "formal_release": "NOT_COMPLETE",
+      "formal_phase3": "NOT_COMPLETE",
+      "enterprise_e7": "NOT_PERFORMED",
+      "enterprise_model": "NOT_PERFORMED",
+      "pac": "ENVIRONMENT_MISSING_OR_NOT_PERFORMED"
+    },
+    "win7_retention_cleanup": {
+      "status": "PASS",
+      "root": "C:\\Win7CodingAgent",
+      "deleted_directories": 23,
+      "retained_directories": 8,
+      "estimated_reclaimed_bytes": 1725141506,
+      "electron_processes": 0,
+      "node_processes": 0,
+      "bitvise": "RUNNING",
+      "tcp_22_ipv4_ipv6": "LISTENING",
+      "system_mutation": false,
+      "rebooted": false
+    },
+    "evidence": "docs/acceptance/A1-A3-CLOSEOUT-20260804-01.json",
+    "report": "docs/reports/2026-08/a1_a3_acceptance_closeout_2026-08-04.html"
+  }
 }

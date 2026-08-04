@@ -8,6 +8,10 @@
 
 | 报告 | 日期 | 类型 |
 |------|------|------|
+| [a1_a3_acceptance_closeout_2026-08-04](2026-08/a1_a3_acceptance_closeout_2026-08-04.html) | 08-04 | A1/A2 MVP、A3 受控 Gateway/公网真实模型/DPAPI 边界总览，以及 Win7 最终保留与清理记录 |
+| [a3r_deepseek_public_model_acceptance_2026-08-04](2026-08/a3r_deepseek_public_model_acceptance_2026-08-04.html) | 08-04 | Desktop Alpha 3.1 DeepSeek 公网真实模型：TLS、流式、三轮只读工具、取消、脱敏与 Win7 清理 |
+| [a3_controlled_gateway_acceptance_2026-08-04](2026-08/a3_controlled_gateway_acceptance_2026-08-04.html) | 08-04 | Desktop Alpha 3 受控 Gateway/TLS/SSE/CONNECT 纵向切片；Win7 W01–W15（含 A3-W13 独立审批重验） |
+| [a3_w13_write_approval_acceptance_2026-08-04](2026-08/a3_w13_write_approval_acceptance_2026-08-04.html) | 08-04 | A3-W13 独立两次写入审批、撤销恢复与 Win7 SHA-256 闭环 |
 | [win7_mvp_acceptance_report](2026-08/win7_mvp_acceptance_report.html) | 08-02 | Win7 MVP 实机验收、替代项与 WorkBuddy 交叉勘误 |
 | [win7_remaining_constraints_acceptance_plan](2026-08/win7_remaining_constraints_acceptance_plan.html) | 08-02 | C01–C20 剩余约束覆盖矩阵、执行包、证据接口与停止条件 |
 

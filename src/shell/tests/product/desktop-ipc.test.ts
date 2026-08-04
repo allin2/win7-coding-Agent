@@ -34,6 +34,7 @@ describe('Desktop IPC acceptance boundary', () => {
         return { taskId: 'task-1' };
       }),
       cancelTask: jest.fn(),
+      clearSavedApiKey: jest.fn(() => ({ mode: 'replay' })),
     };
     const handler = createDesktopRequestHandler({
       getDesktopHost: () => host,
@@ -65,5 +66,16 @@ describe('Desktop IPC acceptance boundary', () => {
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('SESSION_SCOPE_DENIED');
     expect(host.cancelTask).not.toHaveBeenCalled();
+  });
+
+  it('dispatches the schema-validated API key clear intent without accepting a value', async () => {
+    const { host, handler } = setup();
+    const result = await handler({ trusted: true }, message(
+      IPCMessageType.SETTINGS_CREDENTIAL_CLEAR,
+      'desktop',
+      { credential: 'api-key' },
+    ));
+    expect(result).toEqual({ ok: true, settings: { mode: 'replay' } });
+    expect(host.clearSavedApiKey).toHaveBeenCalledTimes(1);
   });
 });

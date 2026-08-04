@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "acceptanceId": "A3-W13-20260804-02",
+  "mvpId": "MVP-A3-W13-20260804-02",
+  "scope": "A3-11 / A3-W13 independent Win7 write-approval revalidation",
+  "status": "PASS",
+  "recordedAt": "2026-08-04T17:25:57+08:00",
+  "workingTree": {
+    "headCommit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "fingerprint": "docs/status/mvp-baselines/A3P-W13-20260804-01.json",
+    "fingerprintSha256": "7c35f55c64b437ad6150092e53d9429705ab89d8e3a1a498215bdff2abea756d",
+    "executionPolicy": "detached Codex worktree at main worktree HEAD; no switch, reset, clean, stage, commit or push"
+  },
+  "environment": {
+    "platform": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "target": "dccs-chaizl@10.67.149.40",
+    "packageRoot": "C:\\Win7CodingAgent\\desktop-alpha3p-dpapi-20260804-03\\a3p-pack",
+    "workspaceRoot": "C:\\Win7CodingAgent\\A3-W13-20260804-02",
+    "userData": "C:\\Win7CodingAgent\\desktop-alpha3p-dpapi-20260804-03\\a3p-pack\\a3p-user-data",
+    "mode": "Replay; no Gateway configuration or outbound request used",
+    "systemMutation": false,
+    "rebooted": false
+  },
+  "case": {
+    "caseId": "A3_W13_INITIAL_APPROVAL_UNDO_SECOND_APPROVAL",
+    "expected": "Two distinct explicit approvals: apply one trusted single-file Diff, then create a new reverse plan requiring a second approval and restore the original bytes.",
+    "humanCheckpoints": [
+      "第一次写入完成",
+      "撤销完成"
+    ],
+    "approvalIdentity": {
+      "distinct": true,
+      "basis": "The product creates a new undo task and new plan/approval binding; the UI displayed a second approval stage after preparation of the undo task."
+    },
+    "fileEvidence": {
+      "path": "C:\\Win7CodingAgent\\A3-W13-20260804-02\\src\\sample.ts",
+      "initialSha256": "14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582",
+      "afterInitialApprovalSha256": "33b305c1903672e81d27ef07aa62decb62780fecb12740256765d19ade602db5",
+      "afterUndoApprovalSha256": "14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582",
+      "initialTargetMatch": true,
+      "restored": true,
+      "unsafeArtifacts": [],
+      "verificationCommands": [
+        {
+          "command": "ssh ... certutil -hashfile C:\\Win7CodingAgent\\A3-W13-20260804-02\\src\\sample.ts SHA256",
+          "phase": "after initial approval",
+          "exitCode": 0,
+          "observedSha256": "33b305c1903672e81d27ef07aa62decb62780fecb12740256765d19ade602db5"
+        },
+        {
+          "command": "ssh ... certutil -hashfile C:\\Win7CodingAgent\\A3-W13-20260804-02\\src\\sample.ts SHA256",
+          "phase": "after undo approval",
+          "exitCode": 0,
+          "observedSha256": "14e851741ab4d7acddef09d0dc7592d71f5e954c83c404fea2ba44bd9548a582"
+        }
+      ]
+    }
+  },
+  "uiObservability": {
+    "status": "PASS_WITH_SPLIT_TASK_TIMELINES",
+    "detail": "The Renderer resets the visible timeline before prepareUndo. Evidence was captured at two human checkpoints with independent SSH hash verification; no claim is made that both task timelines remain visible together."
+  },
+  "developmentVerification": {
+    "command": "npm run verify",
+    "status": "PASS",
+    "exitCode": 0,
+    "tests": 942,
+    "modules": 7
+  },
+  "package": {
+    "deliveryType": "complete self-contained A3 acceptance directory",
+    "manifestEntries": 912,
+    "manifestSha256": "a30707c94d49db6bb65dd48acbb2024d9a0dd409dcc9953634ee5f166650dd3e",
+    "materialHashes": {
+      "electronExe": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+      "productMain": "d7a688e88043e7662ddcbb077ae9e6ba89e3901045be42986feb433426dceeb1",
+      "productPreload": "2a10f5162e639392951dd140e3f2724bf7a9c2e0e95bd3a3a9d7ff424e3c0cdf",
+      "productRenderer": "53698eb8c7d3f3c69a5e22b6f87a258b65be8fbca221179169af04b9b2954568",
+      "credentialVault": "3a7850bbcdafa819b5a977486bba5a7f18d6a4df510824c616f1544226c9719c"
+    }
+  },
+  "cleanup": {
+    "workspaceUnsafeArtifacts": [],
+    "electronProcessesAtEvidenceCapture": 0,
+    "nodeProcessesAtEvidenceCapture": 0,
+    "bitvise": "BvSshServer present; SSH 22 remained available",
+    "systemMutation": false,
+    "w15Cleanup": "PASS",
+    "cleanupCommand": "ssh ... tasklist /fi IMAGENAME eq electron.exe; tasklist /fi IMAGENAME eq node.exe; sc query BvSshServer",
+    "cleanupExitCode": 0
+  },
+  "deferred": [
+    "A3P-W15 process cleanup passed after the user closed the product window.",
+    "This result does not change formal Phase 3, enterprise E7, DPAPI, PAC or real-model gate status."
+  ]
+}

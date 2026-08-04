@@ -24,6 +24,7 @@ export enum IPCMessageType {
   TERMINAL_INPUT = 'terminal.input',
   SETTINGS_GET = 'settings.get',
   SETTINGS_SET = 'settings.set',
+  SETTINGS_CREDENTIAL_CLEAR = 'settings.credential_clear',
   DIAGNOSTICS_GET = 'diagnostics.get',
   DIAGNOSTICS_REQUEST = 'diagnostics.request',
   // Core → Renderer
@@ -119,6 +120,10 @@ export interface SettingsGetPayload {
 
 export interface SettingsSetPayload {
   values: Record<string, unknown>;
+}
+
+export interface SettingsCredentialClearPayload {
+  credential: 'api-key';
 }
 
 export interface DiagnosticsRequestPayload {
@@ -225,6 +230,7 @@ export type RendererToCorePayload =
   | TerminalInputPayload
   | SettingsGetPayload
   | SettingsSetPayload
+  | SettingsCredentialClearPayload
   | DiagnosticsRequestPayload;
 
 export type CoreToRendererPayload =
@@ -256,6 +262,7 @@ export const MESSAGE_DIRECTION_MAP: Record<IPCMessageType, IPCDirection> = {
   [IPCMessageType.TERMINAL_INPUT]: IPCDirection.RENDERER_TO_CORE,
   [IPCMessageType.SETTINGS_GET]: IPCDirection.RENDERER_TO_CORE,
   [IPCMessageType.SETTINGS_SET]: IPCDirection.RENDERER_TO_CORE,
+  [IPCMessageType.SETTINGS_CREDENTIAL_CLEAR]: IPCDirection.RENDERER_TO_CORE,
   [IPCMessageType.DIAGNOSTICS_GET]: IPCDirection.RENDERER_TO_CORE,
   [IPCMessageType.DIAGNOSTICS_REQUEST]: IPCDirection.RENDERER_TO_CORE,
   [IPCMessageType.WORKSPACE_SELECTED]: IPCDirection.CORE_TO_RENDERER,

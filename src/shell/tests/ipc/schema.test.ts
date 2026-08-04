@@ -110,6 +110,39 @@ describe('SchemaValidator', () => {
       const result = validator.validateMessage(msg);
       expect(result.valid).toBe(true);
     });
+
+    it('task.undo_prepare 合法消息通过并携带会话作用域', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.TASK_UNDO_PREPARE,
+        payload: { sessionId: 'sess-001', taskId: 'task-001' },
+      });
+      const result = validator.validateMessage(msg);
+      expect(result.valid).toBe(true);
+    });
+
+    it('settings.set accepts explicit DeepSeek HTTPS/model configuration', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.SETTINGS_SET,
+        payload: {
+          values: {
+            mode: 'deepseek',
+            gatewayUrl: 'https://api.deepseek.com',
+            model: 'deepseek-v4-flash',
+            apiKey: 'process-memory-only-test-key',
+            rememberApiKey: true,
+          },
+        },
+      });
+      expect(validator.validateMessage(msg).valid).toBe(true);
+    });
+
+    it('settings.credential_clear accepts only the API key selector', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.SETTINGS_CREDENTIAL_CLEAR,
+        payload: { credential: 'api-key' },
+      });
+      expect(validator.validateMessage(msg).valid).toBe(true);
+    });
   });
 
   // ─── 负向测试 ──────────────────────────────────────────────────────────────
@@ -152,6 +185,41 @@ describe('SchemaValidator', () => {
       });
       const result = validator.validateMessage(msg);
       expect(result.valid).toBe(false);
+    });
+
+    it('task.undo_prepare 缺少 sessionId 被拒绝', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.TASK_UNDO_PREPARE,
+        payload: { taskId: 'task-001' },
+      });
+      expect(validator.validateMessage(msg).valid).toBe(false);
+    });
+
+    it('settings.set rejects unknown connection modes and extra credential fields', () => {
+      const unknownMode = makeValidMessage({
+        type: IPCMessageType.SETTINGS_SET,
+        payload: { values: { mode: 'public-anywhere', gatewayUrl: 'https://example.test' } },
+      });
+      expect(validator.validateMessage(unknownMode).valid).toBe(false);
+
+      const extraSecret = makeValidMessage({
+        type: IPCMessageType.SETTINGS_SET,
+        payload: {
+          values: {
+            mode: 'deepseek',
+            gatewayUrl: 'https://api.deepseek.com',
+            model: 'deepseek-v4-flash',
+            savedApiKey: 'must-not-be-accepted',
+          },
+        },
+      });
+      expect(validator.validateMessage(extraSecret).valid).toBe(false);
+
+      const wrongClearTarget = makeValidMessage({
+        type: IPCMessageType.SETTINGS_CREDENTIAL_CLEAR,
+        payload: { credential: 'proxy-password' },
+      });
+      expect(validator.validateMessage(wrongClearTarget).valid).toBe(false);
     });
 
     it('approval.request risk 值非法被拒绝', () => {

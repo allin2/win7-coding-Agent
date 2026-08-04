@@ -30,24 +30,32 @@ class ReplayModelAdapter {
       ]);
     }
 
-    if (!toolNames.includes('workspace.search_text')) {
+    const unsearchedScope = nextUnsearchedScope(observations);
+    if (unsearchedScope !== undefined) {
       return plan(this.core, `Replay 正在搜索与任务相关的代码线索。`, [
         call(this.core, `search-${this.step}`, 'workspace.search_text', {
           pattern: searchPattern(input.messages),
           contextLines: 1,
+          ...(unsearchedScope ? { path: unsearchedScope } : {}),
         }),
       ]);
     }
 
-    if (!toolNames.includes('workspace.read_text')) {
-      const listed = firstToolOutput(observations, 'workspace.list_directory');
-      const searched = firstToolOutput(observations, 'workspace.search_text');
-      const target = this.scenario === 'encoding'
-        ? encodingTarget(listed)
-        : searchTarget(searched) || fileTarget(listed);
-      if (!target) {
-        return finalPlan('Replay 找不到可读取的文本文件；请选择包含源文件的工作区后重试。');
+    const target = searchTarget(observations) || fileTarget(observations);
+    if (!target) {
+      const nextDirectory = nextUnlistedDirectory(observations);
+      if (nextDirectory) {
+        return plan(this.core, `Replay 正在检查目录 ${nextDirectory}。`, [
+          call(this.core, `list-${this.step}`, 'workspace.list_directory', { path: nextDirectory }),
+        ]);
       }
+      return finalPlan('Replay 找不到可读取的文本文件；请选择包含源文件的工作区后重试。');
+    }
+
+    if (!toolNames.includes('workspace.read_text')) {
+      const target = this.scenario === 'encoding'
+        ? encodingTarget(observations)
+        : searchTarget(observations) || fileTarget(observations);
       const encoding = this.scenario === 'encoding' && /\.(gbk|cp936)$/i.test(target)
         ? 'gbk'
         : 'utf-8';
@@ -185,22 +193,63 @@ function searchPattern(messages) {
   return /class|类|结构/.test(prompt) ? 'class' : 'function';
 }
 
-function searchTarget(output) {
-  if (!output || !Array.isArray(output.matches)) return undefined;
-  return output.matches.find((match) => match && typeof match.path === 'string')?.path;
+function searchTarget(observations) {
+  return observations
+    .filter((item) => item.toolName === 'workspace.search_text')
+    .map((item) => item.output)
+    .flatMap((output) => output && Array.isArray(output.matches) ? output.matches : [])
+    .find((match) => match && typeof match.path === 'string')?.path;
 }
 
-function fileTarget(output) {
-  if (!output || !Array.isArray(output.entries)) return undefined;
-  const entry = output.entries.find((candidate) => candidate && candidate.type === 'file');
-  return entry && typeof entry.path === 'string' ? entry.path : undefined;
+function fileTarget(observations) {
+  return observations
+    .filter((item) => item.toolName === 'workspace.list_directory')
+    .map((item) => item.output)
+    .flatMap((output) => output && Array.isArray(output.entries) ? output.entries : [])
+    .find((entry) => entry && entry.type === 'file' && typeof entry.path === 'string')?.path;
 }
 
-function encodingTarget(output) {
-  if (!output || !Array.isArray(output.entries)) return undefined;
-  const entry = output.entries.find((candidate) => candidate && candidate.type === 'file' && /\.(gbk|cp936)$/i.test(candidate.name)) ||
-    output.entries.find((candidate) => candidate && candidate.type === 'file');
-  return entry && typeof entry.path === 'string' ? entry.path : undefined;
+function encodingTarget(observations) {
+  const entries = observations
+    .filter((item) => item.toolName === 'workspace.list_directory')
+    .map((item) => item.output)
+    .flatMap((output) => output && Array.isArray(output.entries) ? output.entries : [])
+    .filter((entry) => entry && entry.type === 'file' && typeof entry.path === 'string');
+  const entry = entries.find((candidate) => /\.(gbk|cp936)$/i.test(candidate.name)) || entries[0];
+  return entry && entry.path;
+}
+
+function nextUnsearchedScope(observations) {
+  const listed = observations
+    .filter((item) => item.toolName === 'workspace.list_directory' && item.output)
+    .map((item) => item.output);
+  const searched = new Set(observations
+    .filter((item) => item.toolName === 'workspace.search_text' && item.output)
+    .map((item) => scopeKey(item.output.root)));
+  const candidate = listed.find((output) => !searched.has(scopeKey(output.path)));
+  if (!candidate) return undefined;
+  return scopePath(candidate.path);
+}
+
+function nextUnlistedDirectory(observations) {
+  const listed = observations
+    .filter((item) => item.toolName === 'workspace.list_directory' && item.output)
+    .map((item) => item.output);
+  const listedPaths = new Set(listed.map((output) => scopeKey(output.path)));
+  for (const output of listed) {
+    const directory = (output.entries || []).find((entry) => entry && entry.type === 'directory' && typeof entry.path === 'string' && !listedPaths.has(scopeKey(entry.path)));
+    if (directory) return directory.path;
+  }
+  return undefined;
+}
+
+function scopeKey(value) {
+  const normalized = String(value || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+  return normalized || '.';
+}
+
+function scopePath(value) {
+  return scopeKey(value) === '.' ? '' : String(value).replace(/\\/g, '/');
 }
 
 function cancellablePause(signal) {

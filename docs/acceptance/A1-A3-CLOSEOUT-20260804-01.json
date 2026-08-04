@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A1-A3-CLOSEOUT-20260804-01",
+  "captured_at": "2026-08-04T17:48:27+08:00",
+  "repository": "win7-coding-Agent",
+  "branch": "codex/a1-a3-acceptance",
+  "baseline_head_commit": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+  "record_status": "A1_A2_MVP_AND_A3_ACCEPTANCE_RECORDED_WITH_FORMAL_DEFERRALS",
+  "overall_conclusion": {
+    "a1_a3_mvp_acceptance_complete": true,
+    "formal_release_complete": false,
+    "formal_phase3_complete": false,
+    "enterprise_e7_complete": false,
+    "explanation": "A1 and A2 have Win7 MVP evidence; A3 controlled Gateway W01-W15 and the separately authorized public DeepSeek vertical slice passed. Formal release, enterprise E7, enterprise model/CA/proxy/PAC, and remaining native runtime gates are not relabelled as PASS."
+  },
+  "alpha_results": [
+    {
+      "alpha": "A1",
+      "status": "OWNER_ACCEPTED_FOR_MVP",
+      "win7_scope": "Desktop Alpha 1 W01-W12 read-only Replay/product-entry slice",
+      "capabilities": [
+        "isolated workspace selection",
+        "Replay through Core Runtime",
+        "workspace list/search/read",
+        "bounded event stream and cancellation",
+        "sandboxed Renderer and read-only security checks"
+      ],
+      "evidence": [
+        "docs/acceptance/MVP-20260802-14_OWNER_DISPOSITION.json",
+        "docs/acceptance/A2-A1-smoke-20260804.json",
+        "docs/acceptance/A2-A1-W08-20260804.json",
+        "docs/reports/2026-08/win7_mvp_acceptance_report.html"
+      ],
+      "formal_boundary": "Formal Phase 1/2 and release gates remain deferred."
+    },
+    {
+      "alpha": "A2",
+      "status": "DESKTOP_ALPHA_2_MVP_PASS",
+      "win7_scope": "A2-W01 through A2-W15",
+      "capabilities": [
+        "trusted single-file write plan and non-truncated Diff",
+        "two-boundary one-time approval binding",
+        "atomic write and content/hash verification",
+        "drift, tamper, replay and encoding fail-closed",
+        "rollback lock, recovery and second-approval undo"
+      ],
+      "evidence": [
+        "docs/acceptance/A2-W07-W15-20260804_auto-report.json",
+        "docs/acceptance/A2-W11-GUI-20260804-final.json",
+        "docs/acceptance/A2-W12-20260804-final.json",
+        "docs/acceptance/A2-W13-racefix-20260804-final.json"
+      ],
+      "formal_boundary": "Runner, Git process execution, terminal, Gateway, SQLite and formal release gates are not implied by A2 PASS."
+    },
+    {
+      "alpha": "A3",
+      "status": "A3_CONTROLLED_GATEWAY_PASS",
+      "win7_scope": "A3-W01 through A3-W15",
+      "capabilities": [
+        "Replay default and explicit HTTP/HTTPS Gateway mode",
+        "TLS 1.2 valid-CA success and certificate/hostname fail-closed",
+        "SSE ordering, request isolation, truncation/protocol failure",
+        "bounded retry, total deadline and cancellation without late completion",
+        "CONNECT success and 407 classification",
+        "Gateway to Core to read-only Workspace tools to UI",
+        "A3-W13 two explicit approvals with undo restoring the initial hash"
+      ],
+      "evidence": [
+        "docs/acceptance/A3-20260804-01_controlled-gateway.json",
+        "docs/acceptance/A3-WIN7-HTTP-20260804.json",
+        "docs/acceptance/A3-WIN7-HTTPS-20260804.json",
+        "docs/acceptance/A3-W13-20260804-02.json",
+        "docs/reports/2026-08/a3_controlled_gateway_acceptance_2026-08-04.html"
+      ],
+      "formal_boundary": "Controlled fixture evidence is MVP_NETWORK_SURROGATE, not enterprise E7 or formal Phase 3."
+    },
+    {
+      "alpha": "A3R",
+      "status": "A3_REAL_MODEL_PUBLIC_NETWORK_PASS",
+      "win7_scope": "DeepSeek public-network completion and cancellation slices",
+      "capabilities": [
+        "authorized TLSv1.3 handshake to api.deepseek.com",
+        "real model streaming",
+        "three read-only Workspace tool calls",
+        "cancellation with no late completed/failed event",
+        "strict credential-value redaction scan"
+      ],
+      "evidence": [
+        "docs/acceptance/A3R-DEEPSEEK-20260804.json",
+        "docs/reports/2026-08/a3r_deepseek_public_model_acceptance_2026-08-04.html"
+      ],
+      "formal_boundary": "This proves only the tested Win7 host, DeepSeek account/model and public path; it is not enterprise E7 or an enterprise model-service result."
+    },
+    {
+      "alpha": "A3P",
+      "status": "PARTIAL_EVIDENCE",
+      "win7_scope": "Electron safeStorage / Windows DPAPI Current User",
+      "capabilities": [
+        "explicit encrypted save",
+        "restart-state detection and decrypt",
+        "explicit clear",
+        "corrupt/unknown data fail-closed"
+      ],
+      "evidence": [
+        "remote retained package: C:\\Win7CodingAgent\\desktop-alpha3p-dpapi-20260804-03\\a3p-pack",
+        "remote evidence names: 01-save.json, 02-reload-clear.json, 03-corrupt.json, restart-state.json"
+      ],
+      "formal_boundary": "Remote controlled probes passed, but the full A3P-10 restart-to-explicit-real-connection flow is not completely archived locally; A3P is therefore not promoted to overall PASS."
+    }
+  ],
+  "direct_answers": {
+    "controlled_gateway_connects": true,
+    "controlled_gateway_streams": true,
+    "controlled_gateway_cancels": true,
+    "controlled_gateway_fails_closed": true,
+    "controlled_gateway_drives_core_and_ui": true,
+    "a2_regression_passed": true,
+    "enterprise_e7": "NOT_PERFORMED",
+    "enterprise_real_model": "NOT_PERFORMED",
+    "dpapi": "PARTIAL_EVIDENCE",
+    "pac": "ENVIRONMENT_MISSING_OR_NOT_PERFORMED"
+  },
+  "win7_retention_cleanup": {
+    "status": "PASS",
+    "root": "C:\\Win7CodingAgent",
+    "owner_authorization": "Explicit permanent deletion approval received for the fixed 23-directory list on 2026-08-04.",
+    "deleted_directory_count": 23,
+    "deleted_directories": [
+      "A2-remaining-acceptance",
+      "A2-test-workspace",
+      "A2-W02-20260804",
+      "A2-W06-acceptance",
+      "A2-W11-GUI-20260804",
+      "A2-W11-W12-20260804",
+      "A2-W13-20260804",
+      "A2-W13-racefix-20260804",
+      "A3-W13-20260804",
+      "A3-W13-20260804-02",
+      "A3-WIN7-HTTP-20260804-workspace",
+      "A3-WIN7-HTTPS-20260804-workspace",
+      "A3P 凭据 userData 20260804",
+      "A3P 凭据 userData 20260804 UI01",
+      "A3P 凭据 userData 20260804 UI02",
+      "A3R-DEEPSEEK-20260804-workspace",
+      "desktop-alpha3-http-20260804",
+      "desktop-alpha3p-dpapi-20260804-01",
+      "desktop-alpha3p-dpapi-20260804-02",
+      "desktop-alpha3r-deepseek-20260804",
+      "desktop-alpha3r-deepseek-20260804-fix1",
+      "desktop-alpha3r-deepseek-20260804-fix2",
+      "outputs"
+    ],
+    "estimated_reclaimed_bytes_from_precleanup_inventory": 1725141506,
+    "retained_directory_count": 8,
+    "retained_directories": [
+      "A3-WIN7-HTTP-20260804-evidence",
+      "A3-WIN7-HTTPS-20260804-evidence",
+      "A3R-DEEPSEEK-20260804-cancel-evidence",
+      "A3R-DEEPSEEK-20260804-evidence",
+      "desktop-alpha2",
+      "desktop-alpha3-https-20260804",
+      "desktop-alpha3p-dpapi-20260804-03",
+      "desktop-alpha3r-deepseek-20260804-fix3"
+    ],
+    "final_checks": {
+      "all_23_targets_absent": true,
+      "all_8_retained_directories_present": true,
+      "temporary_cleanup_scripts_removed": true,
+      "electron_processes": 0,
+      "node_processes": 0,
+      "bitvise_service": "RUNNING",
+      "tcp_22_ipv4_listening": true,
+      "tcp_22_ipv6_listening": true,
+      "nic_route_firewall_service_path_changed": false,
+      "rebooted": false
+    }
+  },
+  "evidence_sha256": {
+    "mvp_owner_disposition": "aeb3b2c100c99d97f2f79a524f1fa62104058ebb5aa51f2b7771449a842802de",
+    "a2_automated_report": "a0c11b3f9db933ed591df278571e8fe813980e55228825a42ccbc9b4635473c8",
+    "a2_w13_final": "0dbec6a940bdd51c57ea5763e7040cd6c98be689cb2d8fb2888c855ee78ec387",
+    "a3_controlled": "39f1a74e672cef46446de711b09491394eace04a557153c8dc6d6941091ff4ba",
+    "a3_win7_https": "c494a6c983b6be41e2fcdc61e31b4f1b2d45bb9bdee97fc2ddf7ce2696090417",
+    "a3_real_model": "5e9b91ddb096847b3996c4caac6b0c9390b97999283a6220402c4f0dd920c2ca",
+    "a3_w13": "c6f055264a5c6cc0d8201055d747d9a665b644cd6b84355080e3910337cba7aa"
+  },
+  "credential_handling": {
+    "api_key_present_in_this_record": false,
+    "ciphertext_present_in_this_record": false,
+    "remote_dpapi_json_copied_to_repository": false,
+    "reason": "Remote DPAPI JSON contents were not exported into the task transcript or repository; only filenames and the retained package location are indexed."
+  }
+}

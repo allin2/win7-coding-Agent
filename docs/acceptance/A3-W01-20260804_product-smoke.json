@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A3-W01-20260804",
+  "suite": "WIN7_PRODUCT_SHELL_SMOKE",
+  "status": "PASS",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "chrome": "108.0.5359.215",
+    "user_data": "C:\\Win7CodingAgent\\A3-WIN7-HTTP-20260804-evidence\\w01-user-data",
+    "product_root": "C:\\Win7CodingAgent\\desktop-alpha3-http-20260804\\a3-pack-win7-http\\product"
+  },
+  "command": ["electron.exe","product","--mvp-id=A3-W01-20260804","--smoke-report=<isolated-evidence>","--user-data-dir=<isolated-user-data>"],
+  "exit_code": 0,
+  "cases": [
+    {"case_id":"PRODUCT_ENTRY_START_RENDER_EXIT","status":"PASS","metrics":{"renderer_ready":true,"diagnostics_requested":true,"blocked_request_count":0,"denied_permission_count":0,"runtime_error_count":0}},
+    {"case_id":"PRODUCT_SECURITY_BASELINE","status":"PASS","metrics":{"node_integration":false,"context_isolation":true,"sandbox":true,"default_outbound":"deny","navigation":"trusted-local-only","window_open":"deny","permissions":"deny"}}
+  ],
+  "artifact_hashes": {
+    "main_js": "1cd01546424621b0438462c2688c3620ffc79bb80cb97628a8cb1dc5008c0ab7",
+    "preload_js": "5453ec1168525b90a1a1879a99bb5efaeb919ea55270c5e1df283741c5b29448",
+    "renderer_html": "4e277e989b3e68e97fae70c61d85102617366b3de9b0019822ee32a5b9a66bca",
+    "renderer_js": "8a9139c01307181b9fa38c2165446772ec8e9255cd6578c54544338b35c29801"
+  },
+  "notes": ["Real Electron product-entry smoke, not full GUI task E2E.","os_crypt_win access denied and GPU diagnostics were non-blocking; exit code remained 0.","No PATH, registry, service, NIC, route or firewall setting was changed."]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W13-FRESH-20260804",
+  "suite": "A2_WIN7_W13_UNDO_PLAN_CHECK",
+  "evidence_type": "human_confirmation_and_ssh_verification",
+  "environment": {
+    "platform": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W13-20260804"
+  },
+  "case": {
+    "case_id": "W13_UNDO_PLAN_REVERSE_DIFF_BEFORE_SECOND_APPROVAL",
+    "status": "INVALIDATED",
+    "user_confirmation": "撤销计划已生成，反向 Diff 检查完成，暂不批准",
+    "expected": "生成新的反向单文件计划，仍需第二次显式审批；原已修改文件在审批前保持目标哈希",
+    "actual": "后续截图证明撤销审批面板并未出现；该人工确认不能作为反向 Diff 已显示的证据。SSH 仅确认文件仍为初次写入目标哈希。",
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W13-20260804\\src\\hello.ts",
+      "before_second_approval_sha256": "eca20042c6c144135a8de2a70b19341a937f2386122ceafcf00388e239f96b48",
+      "expected_after_second_approval_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "unchanged_before_second_approval": true,
+      "unsafe_artifacts": []
+    }
+  },
+  "notes": [
+    "该记录已失效：Renderer 任务 ID 切换竞态丢弃了新撤销任务的 approval.requested 事件。",
+    "竞态修复后必须在新的隔离工作区重新完成反向 Diff 与第二次审批。",
+    "本文件不宣称 W13 整体 PASS，也不宣称 A2-W01～W15 整体 PASS。"
+  ]
+}

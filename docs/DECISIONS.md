@@ -522,3 +522,75 @@
 - 后果：外部使用者和贡献者获得明确且包含专利授权的开源许可，GitHub 与包工具可以识别
   `Apache-2.0`。项目仍不提供商标授权或质量保证；许可变更不放宽 Win7 安全边界、实现任务授权、
   第三方依赖审查或正式发布 Gate。
+
+## ADR-0059 Desktop Alpha 3 受控 Gateway 联机纵向切片
+
+- 状态：Accepted（2026-08-04，项目负责人授权 A3 规划、实施与 Win7 验收）
+- 背景：Desktop Alpha 2 已形成 Replay 驱动的只读/受控写入产品闭环，但 Gateway 仍未接入
+  Desktop Host 与 Core RuntimeModel 端口。需要验证真实 Node HTTPS/TLS/SSE/取消/重试/协议失败
+  以及凭据脱敏，同时不能把企业 E7、真实模型、DPAPI 或未验证的本地执行能力伪装成已完成。
+- 决策：（1）A3 默认保持 Replay，Gateway 仅由显式设置启用；配置、连接、取消和状态事件全部经
+  版本化 Schema IPC、main/Core 和审计边界。（2）Gateway 采用已登记的 Electron 22.3.27 内嵌
+  Node 16.17.1 `https`/OpenSSL 栈，只允许 HTTPS、TLS 1.2+、CA/主机名验证和 fail-closed；不新增
+  依赖，不允许 HTTP 降级或 `rejectUnauthorized=false`。（3）API key 与代理凭据仅驻留进程内存，
+  不落盘、不进日志/报告；DPAPI 另立任务书。（4）SSE 真实边接收边解析，必须有兼容协议版本与
+  完成信号；请求按 request id 隔离，取消后无迟到事件；重试、总 deadline 与退避有界。（5）A3
+  只把确定性受控 Gateway 响应接入 Core 的只读 Workspace 工具和 UI，不启用 Runner、Git、终端、
+  SQLite、Updater、插件或真实模型。（6）Win7 仅允许新验收目录与隔离 userData；Mac 临时 TLS/代理
+  fixture 结束即关闭，受控结果标记 `A3_CONTROLLED_GATEWAY_PASS`/`MVP_NETWORK_SURROGATE`，不改变
+  企业 E7 与正式 Phase 3 Gate。
+- 后果：项目获得一条可审计的受控联机纵向切片及明确的降级路径；代价是企业代理/PAC/CA、真实模型、
+  DPAPI、生产服务和正式 E7 仍需独立环境与任务书，A3 不能扩大解释为完整 Coding Agent 或正式发布。
+
+## ADR-0060 Desktop Alpha 3 接受显式 HTTP Gateway 配置
+
+- 状态：Accepted（2026-08-04，项目负责人明确授权默认接受 HTTP Gateway）
+- 背景：Win7 当前受控 Gateway 部署可能位于内网明文 HTTP 端点；原 ADR-0059 只允许 HTTPS，导致
+  用户明确配置的 `http://` Gateway 在 Schema、Desktop Host 和 Node transport 三层被拒绝，无法进行
+  目标机联机验收。该授权只改变 Gateway URL 的允许协议，不改变 Replay 默认、Renderer 权限、凭据
+  生命周期、Runner/Git/终端/SQLite/Updater/插件范围或正式 E7 Gate。
+- 决策：（1）Gateway URL 允许用户显式选择 `http://` 或 `https://`，不做隐式协议降级或自动升级；Replay
+  仍是产品默认，只有设置提交后才建立 Gateway provider。（2）HTTPS 继续强制 TLS 1.2+、CA/主机名验证
+  与 fail-closed，绝不设置 `rejectUnauthorized=false`。（3）HTTP 仅作为用户明确接受的内网明文路径，
+  其请求/响应仍经过同一 Schema、Core、审计和脱敏边界；不把 HTTP 结果解释为 TLS 或企业 E7 安全证据。
+  （4）A3 受控 fixture 增加 HTTP 正向请求证据，并保留 HTTPS/错误证书负向证据；PAC、企业代理、真实
+  模型、DPAPI 和 Win7 W01-W15 仍分别按原状态记录。
+- 后果：A3 可连接当前内网 HTTP Gateway，同时保持 HTTPS 的严格验证；代价是明文传输风险由部署者承担，
+  生产或企业 E7 仍应使用 HTTPS，并必须在报告中明确记录协议与网络边界。
+
+## ADR-0061 Desktop Alpha 3.1 显式接入 DeepSeek 公网真实模型
+
+- 状态：Accepted（2026-08-04，项目负责人明确授权仅为验收使用公网、发送隔离样例并承担少量费用）
+- 背景：ADR-0059 的“无公网、无真实模型”用于限定受控 fixture 证据，不能证明真实模型服务与 Win7
+  产品链路可用。项目负责人提供 DeepSeek OpenAI-compatible 端点和模型选择，并澄清公网并非产品禁令，
+  只是此前环境不可用；真实验收仍必须避免把凭据写入命令、文件、日志或证据。
+- 决策：（1）新增显式 `deepseek-openai` 模式，只允许 HTTPS `api.deepseek.com:443`，不自动探测、重定向、
+  降级或放开任意 OpenAI-compatible 主机；Replay 仍是默认。（2）使用 Electron 22 内嵌 Node 16 网络栈实现
+  OpenAI Chat Completions、SSE 与 Tool Calls 映射，不新增运行时依赖；TLS 1.2+、证书/主机名验证、取消、
+  总 deadline、有界重试和代理 fail-closed 继续适用。（3）API key 必须由用户在 Win7 UI 临时输入，仅驻留
+  主进程内存；禁止进入 argv、环境变量、userData、日志、事件、报告或自动化工具调用。（4）只允许隔离、
+  无敏感数据的验收工作区发送至 DeepSeek；UI 明示公网、数据外发和可能计费。（5）模型只能调用既有
+  Workspace 只读工具；Runner、Git、终端、SQLite、Updater、插件、PAC、DPAPI 和写入自动授权继续关闭。
+  （6）成功状态限定为 `A3_REAL_MODEL_PUBLIC_NETWORK_PASS`，不等于企业 Gateway/E7、企业 CA/代理或正式发布。
+- 后果：项目可以获得真实公网模型驱动 Core/Workspace/UI 的 Win7 证据，同时保持凭据和能力边界；代价是
+  验收依赖账户余额、服务可用性、地区与公网条件，且每次新进程都需要用户重新输入 key。
+
+## ADR-0062 Desktop Alpha 3.2 使用 Electron safeStorage / Windows DPAPI 持久化 API key
+
+- 状态：Accepted（2026-08-04，项目负责人明确授权优先实现 API key 持久化）
+- 背景：A3.1 已证明 Win7 上真实 DeepSeek 纵向链路可用，但每次进程重启都必须重新输入 API key。
+  项目面向企业内部使用，需要在不把 key 暴露给 Renderer、普通配置、日志或验收报告的前提下，提供
+  当前 Windows 用户范围的静态加密保存。现有 Gateway 已有 `InMemoryCredentialStore`，持久化应由
+  平台 Shell 管理，不能把 Windows API 耦合进 vendor-neutral Gateway/Core。
+- 决策：（1）A3.2 只持久化 API key，必须由用户显式勾选；Replay 仍为默认，存在密文不会自动联网。
+  （2）Electron main 在 `app.ready` 后使用锁定 Electron 22.3.27 的同步 `safeStorage`，Windows 后端为
+  DPAPI Current User；不新增原生模块、系统配置或运行时依赖，不允许明文降级。（3）版本化
+  `credentials.v1.json` 只保存有界 Base64 密文与非敏感元数据，采用同目录临时文件和原子替换；
+  DPAPI 不可用、密文损坏、未知版本或解密失败均结构化 fail-closed。（4）启动只报告“已保存”状态；
+  用户显式应用 Gateway/DeepSeek 后，Shell 才解密并注入现有 `InMemoryCredentialStore`。Renderer、IPC
+  返回、诊断、事件、日志、argv、环境和报告永不获得 key 或密文。（5）提供显式清除动作，同时清除
+  当前 Provider 内存凭据和密文文件；代理凭据继续仅内存。（6）DPAPI 只防护其他 Windows 用户和离线
+  磁盘读取，不防御同一用户上下文的恶意进程；服务端轮换/注销仍由用户负责，旧密文备份不会自动失效。
+- 后果：用户可以在同一 Win7 登录账户下跨重启复用 API key，同时保留默认 Replay、Renderer 最小权限和
+  日志脱敏。代价是增加一个本地版本化密文文件及其损坏/迁移处理；切换账户、用户配置不可用或 DPAPI
+  失败时必须重新输入。A3.2 PASS 不代表企业密钥托管、DPAPI-NG、TPM、代理/PAC 或企业 E7 完成。

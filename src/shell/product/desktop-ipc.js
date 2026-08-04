@@ -57,6 +57,12 @@ function createDesktopRequestHandler(options) {
         case IPCMessageType.RECOVERY_RESTORE:
           requireSessionScope(rawMessage, payload);
           return { ok: true, result: desktopHost.restoreRecovery(payload.sessionId) };
+        case IPCMessageType.SETTINGS_GET:
+          return { ok: true, settings: desktopHost.getSettings() };
+        case IPCMessageType.SETTINGS_SET:
+          return { ok: true, settings: desktopHost.setSettings(payload) };
+        case IPCMessageType.SETTINGS_CREDENTIAL_CLEAR:
+          return { ok: true, settings: desktopHost.clearSavedApiKey() };
         case IPCMessageType.DIAGNOSTICS_GET:
         case IPCMessageType.DIAGNOSTICS_REQUEST:
           if (config.runtimeState) config.runtimeState.diagnosticsRequested = true;

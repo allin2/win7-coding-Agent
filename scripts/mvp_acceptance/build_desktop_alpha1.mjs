@@ -22,6 +22,7 @@ const productRoot = path.join(repositoryRoot, 'src/shell/product');
 
 assertDirectory(productRoot, 'src/shell/product');
 assertDirectory(path.join(repositoryRoot, 'src/core/dist'), 'src/core/dist; run npm run build --prefix src/core');
+assertDirectory(path.join(repositoryRoot, 'src/gateway/dist'), 'src/gateway/dist; run npm run build --prefix src/gateway');
 assertDirectory(path.join(repositoryRoot, 'src/state/dist'), 'src/state/dist; run npm run build --prefix src/state');
 assertDirectory(path.join(repositoryRoot, 'src/workspace/dist'), 'src/workspace/dist; run npm run build --prefix src/workspace');
 assertDirectory(path.join(repositoryRoot, 'src/shell/dist'), 'src/shell/dist; run npm run build --prefix src/shell');
@@ -31,6 +32,7 @@ fs.mkdirSync(outputRoot, { recursive: true });
 copyTree(productRoot, path.join(outputRoot, 'product'));
 copyTree(path.join(repositoryRoot, 'src/shell/dist'), path.join(outputRoot, 'dist'));
 copyTree(path.join(repositoryRoot, 'src/core/dist'), path.join(outputRoot, 'core/dist'));
+copyTree(path.join(repositoryRoot, 'src/gateway/dist'), path.join(outputRoot, 'gateway/dist'));
 copyTree(path.join(repositoryRoot, 'src/state/dist'), path.join(outputRoot, 'state/dist'));
 copyTree(path.join(repositoryRoot, 'src/workspace/dist'), path.join(outputRoot, 'workspace/dist'));
 copyRuntimeDependency('ajv');

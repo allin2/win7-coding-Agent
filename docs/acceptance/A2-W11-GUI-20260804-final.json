@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "mvp_id": "A2-W11-GUI-20260804",
+  "suite": "A2_WIN7_W11_GUI_ROLLBACK_FAILURE_LOCK",
+  "verified_at": "2026-08-04T02:41:35Z",
+  "environment": {
+    "platform": "win32",
+    "os": "Windows 7 Professional SP1 x64 build 7601",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "package_root": "C:\\Win7CodingAgent\\desktop-alpha2",
+    "workspace_root": "C:\\Win7CodingAgent\\A2-W11-GUI-20260804",
+    "recovery_workspace": "C:\\Win7CodingAgent\\A2-W11-GUI-20260804\\A2-W11-GUI-workspace",
+    "user_data_root": "C:\\Win7CodingAgent\\A2-W11-GUI-20260804\\w11-gui-user-data"
+  },
+  "source_report": {
+    "path": "docs/acceptance/A2-W11-GUI-20260804_pre_gui_report.json",
+    "sha256": "289e4147ba2ddf8cbb2a478fd90359f562754289c584cdeea4fae0201b418f4c",
+    "pre_gui_status": "BLOCKED"
+  },
+  "user_confirmation": {
+    "recovery_page_seen": true,
+    "rollback_failed_visible": true,
+    "write_lock_visible": true,
+    "recovery_guidance_visible": true,
+    "false_rollback_success_not_shown": true,
+    "restore_action_confirmed": true,
+    "response": "W11 原文件已恢复"
+  },
+  "case": {
+    "case_id": "W11_GUI_ROLLBACK_FAILURE_LOCK",
+    "status": "PASS",
+    "manual": true,
+    "expected": "real GUI displays rollback_failed, explicitly states writes are locked, and shows manual restore guidance without claiming rollback completed",
+    "actual": {
+      "pending_detected_before_restore": true,
+      "phase_before_restore": "rollback_failed",
+      "auto_restore_before_user_action": false,
+      "user_restore_confirmed": true,
+      "final_sha256_matches_original": true,
+      "backup_absent_after_restore": true,
+      "recovery_manifest_absent_after_restore": true
+    },
+    "file_evidence": {
+      "path": "C:\\Win7CodingAgent\\A2-W11-GUI-20260804\\A2-W11-GUI-workspace\\src\\hello.ts",
+      "interrupted_sha256": "9bfe99f4fb7dca3bf05e00afa9af3e9ece560c7435d828001d6fe74cad5434f1",
+      "original_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "final_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "backup_path": "C:\\Win7CodingAgent\\A2-W11-GUI-20260804\\A2-W11-GUI-workspace\\src\\hello.ts.bak",
+      "recovery_manifest_path": "C:\\Win7CodingAgent\\A2-W11-GUI-20260804\\w11-gui-user-data\\a2-recovery\\a2-write-recovery.json",
+      "residual_artifacts": []
+    },
+    "independent_ssh_verification": {
+      "address": "10.67.149.40",
+      "certutil_sha256": "ce84104d3edf357a9a6bd8bf671190e05124f009a7deb77a834076bca83f17bb",
+      "backup": "ABSENT",
+      "recovery_manifest": "ABSENT",
+      "bitvise_service": "BvSshServer STATE=RUNNING"
+    },
+    "executor_invocations": 0
+  },
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "blocked": 0
+  },
+  "exit_code": 0,
+  "notes": [
+    "The packaged fixture intentionally stopped at BLOCKED; this final record adds the real GUI check, user restore, and independent SSH evidence.",
+    "No Runner, Git, terminal, Gateway, SQLite or system configuration was used."
+  ]
+}

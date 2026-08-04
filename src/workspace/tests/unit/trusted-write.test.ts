@@ -114,6 +114,36 @@ describe('Desktop Alpha 2 trusted write boundary', () => {
     expect(store.load()).toMatchObject({ planId: 'plan-1', phase: 'rollback_failed' });
     expect(fs.existsSync(target)).toBe(true);
   });
+
+  it('locks writes after rollback failure and clears the lock only after manual recovery', () => {
+    const plan = prepared();
+    const coordinator = new WriteTransactionCoordinator(root, recovery, {
+      workspace: { writeFile: () => { throw new Error('injected post-replace failure'); } } as any,
+      restoreBackup: () => { throw new Error('injected rollback failure'); },
+    });
+    const approval = coordinator.issueApproval(plan, {
+      planId: plan.planId, taskId: plan.taskId, turnId: plan.turnId, callId: plan.callId,
+      planHash: plan.planHash, sessionId: plan.sessionId, subject: 'workspace.str_replace',
+      previewSha256: plan.previewSha256, baselineSha256: plan.baseSha256,
+    });
+    const result = coordinator.apply(plan, approval);
+    expect(result.success).toBe(false);
+    expect(result.rollbackStatus).toBe('failed');
+    expect(coordinator.isLocked()).toBe(true);
+    expect(coordinator.getPendingRecovery()).toMatchObject({ phase: 'rollback_failed' });
+    expect(() => coordinator.issueApproval(plan, {
+      planId: plan.planId, taskId: plan.taskId, turnId: plan.turnId, callId: plan.callId,
+      planHash: plan.planHash, sessionId: plan.sessionId, subject: 'workspace.str_replace',
+      previewSha256: plan.previewSha256, baselineSha256: plan.baseSha256,
+    })).toThrow(/locked after a rollback failure/);
+
+    const restored = coordinator.restorePending();
+    expect(restored.restored).toBe(true);
+    expect(coordinator.isLocked()).toBe(false);
+    expect(coordinator.getPendingRecovery()).toBeUndefined();
+    expect(fs.readFileSync(target, 'utf8')).toBe('const value = 1;\r\nconst keep = true;\r\n');
+    expect(fs.existsSync(target + '.bak')).toBe(false);
+  });
 });
 
 function sha256(value: Buffer): string {
