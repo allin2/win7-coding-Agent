@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A4-20260805-20",
+  "created_at": "2026-08-05T10:04:57.436Z",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v20.17.0",
+    "os_release": "24.6.0"
+  },
+  "target": {
+    "os": "Windows 7 SP1 x64 build 7601",
+    "architecture": "x64"
+  },
+  "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+  "toolchain": "Homebrew mingw-w64 14.0.0_2 / GCC 16.1.0; CMake 4.4.2; Ninja 1.13.2",
+  "reproducibility": {
+    "source_date_epoch": "0"
+  },
+  "abi_statement": "candidate PE/COFF only; not MSVC v142 ABI-equivalent",
+  "runtime_closure": "KB2999226_AND_WIN7_LOAD_VERIFIED_2026-08-05",
+  "load_status": "WIN7_LOAD_VERIFIED_FOR_EXACT_SHA256",
+  "files": {
+    "spike02_helper.exe": {
+      "description": "Windows x64 PE/COFF helper candidate",
+      "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+    },
+    "run_helper_harness.js": {
+      "description": "Win7 acceptance harness",
+      "sha256": "bec10fd1b6d04885c3bc0b301fd7b94cead06dccbba05a8c0beee22f2ff987e4"
+    },
+    "run_helper_win7.py": {
+      "description": "Win7 CPython 3.8 containment harness",
+      "sha256": "d2395a3cdc7007bc558aecb3811422bc9923b4f1f893560b6271455aa8c8a944"
+    },
+    "run_a4_wmi.cmd": {
+      "description": "One-shot WMI launcher for escaping an inherited Bitvise Job",
+      "sha256": "c25373d3b1ea03d7b1bd60457aef71cce582bd98ff9d47aafa296cd3fd622067"
+    },
+    "spike02_helper_fault_job.exe": {
+      "description": "Acceptance-only CreateJobObject failure-injection helper",
+      "sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f"
+    }
+  },
+  "transfer_instructions": [
+    "Create a new isolated C:\\acceptance\\a4\\<acceptance-id> directory.",
+    "Verify each file hash before and after transfer.",
+    "Run an independent SSH/Bitvise connectivity probe before every dangerous test.",
+    "Do not treat taskkill as containment and do not modify network, SSH, firewall, or startup configuration."
+  ]
+}

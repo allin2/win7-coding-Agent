@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A4-20260806-140606",
+  "suite": "SPIKE_02_REMAINING_C02_C03_C05_WIN7",
+  "captured_at": "2026-08-06T06:07:52Z",
+  "host": {
+    "platform": "win32",
+    "architecture": "AMD64",
+    "release": "7",
+    "version": "6.1.7601",
+    "python": "3.8.10 (tags/v3.8.10:3d8993a, May  3 2021, 11:48:03) [MSC v.1928 64 bit (AMD64)]"
+  },
+  "artifact": {
+    "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\spike02_helper.exe",
+    "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+  },
+  "cases": [
+    {
+      "id": "C03-restricted-token-boundary",
+      "status": "FAIL",
+      "expected": "inside workspace succeeds; outside write and protected registry read fail",
+      "actual": {
+        "transport": {
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "elapsed_ms": 26,
+          "timed_out": false
+        },
+        "response": {
+          "schema_version": 1,
+          "type": "execution_result",
+          "requestId": "c03-restricted-boundary",
+          "status": "completed",
+          "exitCode": 0,
+          "executionTimeMs": 16,
+          "timedOut": false,
+          "canceled": false,
+          "outputTruncated": false,
+          "containmentVerified": true,
+          "inputDetached": true,
+          "stdoutSize": 0,
+          "stderrSize": 0,
+          "stdoutBase64": "",
+          "stderrBase64": ""
+        },
+        "invalid_stdout_lines": []
+      },
+      "probes": {
+        "inside_created": true,
+        "outside_created": true,
+        "protected_registry": "´íÎó: ¾Ü¾ø·ÃÎÊ¡£\n\n"
+      }
+    },
+    {
+      "id": "C05-loopback-network",
+      "status": "PASS",
+      "expected": "restricted child reaches local TCP/UDP fixture and resolves localhost",
+      "actual": {
+        "transport": {
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "elapsed_ms": 106,
+          "timed_out": false
+        },
+        "response": {
+          "schema_version": 1,
+          "type": "execution_result",
+          "requestId": "c05-loopback",
+          "status": "completed",
+          "exitCode": 0,
+          "executionTimeMs": 109,
+          "timedOut": false,
+          "canceled": false,
+          "outputTruncated": false,
+          "containmentVerified": true,
+          "inputDetached": true,
+          "stdoutSize": 0,
+          "stderrSize": 0,
+          "stdoutBase64": "",
+          "stderrBase64": ""
+        },
+        "invalid_stdout_lines": []
+      },
+      "measurement": {
+        "tcp": true,
+        "udp": true,
+        "dns_localhost": true
+      },
+      "formal_classification": "PARTIAL_LOCAL_ONLY_ENVIRONMENT_MISSING"
+    },
+    {
+      "id": "C02-host-already-in-job",
+      "status": "PASS",
+      "expected": "host in a non-nestable Job is reported and child execution is refused",
+      "actual": {
+        "transport": {
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "elapsed_ms": 18,
+          "timed_out": false
+        },
+        "response": {
+          "schema_version": 1,
+          "type": "execution_result",
+          "requestId": "c02-host-already-in-job",
+          "status": "failed",
+          "exitCode": 0,
+          "executionTimeMs": 0,
+          "timedOut": false,
+          "canceled": false,
+          "outputTruncated": false,
+          "containmentVerified": false,
+          "inputDetached": false,
+          "stdoutSize": 0,
+          "stderrSize": 0,
+          "stdoutBase64": "",
+          "stderrBase64": "",
+          "error": "HOST_ALREADY_IN_JOB",
+          "errorCode": 1102,
+          "message": "helper is already in a job; refusing an unverifiable nested containment"
+        },
+        "invalid_stdout_lines": []
+      },
+      "job_assignment": {
+        "created": true,
+        "assigned": true,
+        "error": 0,
+        "handle": 332
+      },
+      "note": "JOB_CREATE_FAILED is fail-closed but does not prove an explicit host-in-job diagnostic"
+    }
+  ],
+  "taskkill_used": false,
+  "scope": {
+    "C05": "LOOPBACK_ONLY_NO_ENTERPRISE_NETWORK_CONCLUSION"
+  },
+  "generated_files": {
+    "c03_script": {
+      "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\\c03-boundary\\c03-boundary.cmd",
+      "sha256": "0eaf9e91f66cb20b609c6daa553c98cbd86843071f357c2f43557f8ee0d3eae9"
+    },
+    "network_probe": {
+      "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\\c05-loopback\\network_probe.py",
+      "sha256": "ac89bc420d42a03614c1decd1c8f0f1b58b0c51e8120beefb4d9f02a6a4e87b0"
+    },
+    "network_script": {
+      "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\\c05-loopback\\c05-loopback.cmd",
+      "sha256": "5b79b6dafc8e087f7d8d4c267172571d6636c9e2985099706087f93ba0e523eb"
+    }
+  },
+  "server_observations": {
+    "tcp": true,
+    "udp": true
+  },
+  "final_process_snapshot": {
+    "command": "C:\\Windows\\System32\\wbem\\wmic.exe",
+    "args": [
+      "process",
+      "get",
+      "Name,ProcessId,ParentProcessId,CommandLine",
+      "/format:csv"
+    ],
+    "exit_code": 0,
+    "stdout": "\n\nNode,CommandLine,Name,ParentProcessId,ProcessId\n\nDCCS-CHAIZL-PC,,System Idle Process,0,0\n\nDCCS-CHAIZL-PC,,System,0,4\n\nDCCS-CHAIZL-PC,\\SystemRoot\\System32\\smss.exe,smss.exe,4,304\n\nDCCS-CHAIZL-PC,%SystemRoot%\\system32\\csrss.exe ObjectDirectory=\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,376,480\n\nDCCS-CHAIZL-PC,wininit.exe,wininit.exe,376,540\n\nDCCS-CHAIZL-PC,%SystemRoot%\\system32\\csrss.exe ObjectDirectory=\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,548,560\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\services.exe,services.exe,540,608\n\nDCCS-CHAIZL-PC,winlogon.exe,winlogon.exe,548,632\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\lsass.exe,lsass.exe,540,652\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\lsm.exe,lsm.exe,540,664\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k DcomLaunch,svchost.exe,608,768\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\ibmpmsvc.exe,ibmpmsvc.exe,608,828\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\NVDisplay.Container.exe\" -s NVDisplay.ContainerLocalSystem -f \"C:\\ProgramData\\NVIDIA\\NVDisplay.ContainerLocalSystem.log\" -l 3 -d \"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\plugins\\LocalSystem\" -r -p 30000 ,NVDisplay.Container.exe,608,868\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k RPCSS,svchost.exe,608,928\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k LocalServiceNetworkRestricted,svchost.exe,608,156\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k LocalSystemNetworkRestricted,svchost.exe,608,496\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k LocalService,svchost.exe,608,348\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k netsvcs,svchost.exe,608,912\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\igfxCUIService.exe,igfxCUIService.exe,608,1212\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\NVDisplay.Container.exe\" -f \"C:\\ProgramData\\NVIDIA\\DisplaySessionContainer%d.log\" -d \"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\plugins\\Session\" -r -l 3 -p 30000  -c,NVDisplay.Container.exe,868,1324\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\System32\\WUDFHost.exe\" -HostGUID:{193a1820-d9ac-4997-8c55-be817523f6aa} -IoEventPortName:HostProcess-c5a92538-e065-4653-8198-ad98e8c51ba6 -SystemEventPortName:HostProcess-7f943708-72df-4842-bcdc-a14c7a9df394 -IoCancelEventPortName:HostProcess-d8d6cae0-4bf3-4831-a603-36ed48978029 -NonStateChangingEventPortName:HostProcess-24fbff3e-76f4-4e8f-a41f-6e3c150386b2 -ServiceSID:S-1-5-80-2652678385-582572993-1835434367-1344795993-749280709 -LifetimeId:a870828e-7404-4bfe-8037-f352a2d3a844 -DeviceGroupId:,WUDFHost.exe,496,1344\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k NetworkService,svchost.exe,608,1504\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\WLANExt.exe 4062304,wlanext.exe,496,1592\n\nDCCS-CHAIZL-PC,\\??\\C:\\Windows\\system32\\conhost.exe \"-1015499129-321511588463040502-1234314398-20433635091297740612-18338736561310214137,conhost.exe,480,1600\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\spoolsv.exe,spoolsv.exe,608,1704\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k LocalServiceNoNetwork,svchost.exe,608,1732\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Bitvise SSH Server\\BvSshServer.exe\",BvSshServer.exe,608,1828\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Dolby\\Dolby DAX2\\DAX2_API\\DolbyDAX2API.exe\",DolbyDAX2API.exe,608,1928\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k utcsvc,svchost.exe,608,2032\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Intel\\WiFi\\bin\\EvtEng.exe\",EvtEng.exe,608,1200\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynTPEnhService.exe\",SynTPEnhService.exe,608,2056\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\valWBFPolicyService.exe,valWBFPolicyService.exe,608,2140\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Intel\\WiFi\\bin\\ZeroConfigService.exe\",ZeroConfigService.exe,608,2252\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\wbem\\unsecapp.exe -Embedding,unsecapp.exe,768,2544\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\wbem\\wmiprvse.exe,WmiPrvSE.exe,768,2564\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k NetworkServiceNetworkRestricted,svchost.exe,608,2944\n\nDCCS-CHAIZL-PC,\"taskhost.exe\",taskhost.exe,608,2996\n\nDCCS-CHAIZL-PC,C:\\Windows\\Microsoft.Net\\Framework64\\v3.0\\WPF\\PresentationFontCache.exe,PresentationFontCache.exe,608,484\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\system32\\Dwm.exe\",dwm.exe,496,1648\n\nDCCS-CHAIZL-PC,C:\\Windows\\Explorer.EXE,explorer.exe,2940,2068\n\nDCCS-CHAIZL-PC,taskeng.exe {3582E866-BF56-4A65-A5A1-1090AFBE5ABB},taskeng.exe,912,3132\n\nDCCS-CHAIZL-PC,igfxEM.exe ,igfxEM.exe,3336,3356\n\nDCCS-CHAIZL-PC,igfxHK.exe ,igfxHK.exe,3336,3364\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\"  --start_time=1785804130424,Feishu.exe,3428,3464\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe\" -daemon,SGTool.exe,3364,3564\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SogouCloud.exe\" -daemon,SogouCloud.exe,3364,3644\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynTPEnh.exe\",SynTPEnh.exe,2056,3696\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Bitvise SSH Server\\BssCtrl.exe\"  -startMinimized,BssCtrl.exe,3116,3756\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --aha-process-t=aha-service --type=monitor --block-unsubscribe-shell-api-event --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --enable-aha-gwp-asan-dump --enable-exception-guard --mojo-platform-channel-handle=872,Feishu.exe,3464,3328\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=gpu-process --enable-gpu-dump --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAAAAAABgAAEAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAABQAAABgAAAAAAAAAGAAAAAAAAAAUAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --browser-runtime --aha-multi-profile --field-trial-handle=1652,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1684 --mojo-platform-channel-handle=1608 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=1780 --richdump-handle=1784 /prefetch:2,Feishu.exe,3464,3740\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1452,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1816 --mojo-platform-channel-handle=2016 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2072 --richdump-handle=2084 /prefetch:8,Feishu.exe,3464,3584\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --aha-process-t=aha-service --type=backend --task-jssdk-enabled --enable-backend-async-progress --no-proxy-server --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --aha-multi-profile --enable-backend-async-progress --enable-exception-guard --mojo-platform-channel-handle=2296,Feishu.exe,3464,3604\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=utility --utility-sub-type=jash.mojom.JSRuntimeService --lang=zh-CN --service-sandbox-type=none --js-runtime-verify-shellapi=strict --enable-js-runtime-shared-string --enable-codecache-in-js-runtime --enable-shellapi-new-tunnel --enable-backend-async-progress --block-unsubscribe-shell-api-event --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1480,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=2408 --mojo-platform-channel-handle=2632 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2648 --richdump-handle=2756 /prefetch:8,Feishu.exe,3464,4292\n\nDCCS-CHAIZL-PC,\"C:\\PROGRAM FILES\\SYNAPTICS\\SYNTP\\SYNTPHELPER.EXE\" ,SynTPHelper.exe,3724,4400\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynTPLpr.exe\",SynTPLpr.exe,3696,4448\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynLenovoHelper.exe\",SynLenovoHelper.exe,3696,4464\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\SearchIndexer.exe /Embedding,SearchIndexer.exe,608,3452\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Realtek\\Audio\\HDA\\RAVBg64.exe\" /FORPCEE4,RAVBg64.exe,3132,2720\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Realtek\\Audio\\HDA\\RAVBg64.exe\" /LENOVO_MICPKEY,RAVBg64.exe,3132,2684\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Realtek\\Audio\\HDA\\RAVCpl64.exe\" -s,RAVCpl64.exe,3132,2656\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Windows Media Player\\wmpnetwk.exe\",wmpnetwk.exe,608,5192\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k LocalServiceAndNoImpersonation,svchost.exe,608,5244\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\sppsvc.exe,sppsvc.exe,608,5340\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k secsvcs,svchost.exe,608,5348\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\Components\\IChat\\1.0.2.3305\\SOGOUSmartAssistant.exe\" --panel=auto,SOGOUSmartAssistant.exe,1800,3068\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\Components\\IChat\\1.0.2.3305\\SOGOUSmartAssistant.exe\" --type=renderer --no-sandbox --autoplay-policy=no-user-gesture-required --disable-rgba-4444-textures --log-file=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\ichat\\cef.log\" --use-gl=swiftshader-webgl --enable-low-end-device-mode --field-trial-handle=2900,11944520051698872860,4016221733619974270,131072 --enable-features=NetworkServiceInProcess --disable-gpu-compositing --lang=zh-CN --log-file=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\ichat\\cef.log\" --log-severity=disable --product-version=\"Chrome/80.0.3987.163 SGWebviewClient/1.0.2.3305 SGWebviewApi/51\" --disable-spell-checking --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=3 --mojo-platform-channel-handle=2904 /prefetch:1,SOGOUSmartAssistant.exe,3068,3680\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=9 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=949543561 --field-trial-handle=4468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=4432 --mojo-platform-channel-handle=4504 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=4488 --richdump-handle=4424 /prefetch:1,Feishu.exe,3464,4712\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=10 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=950093362 --field-trial-handle=5468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=5576 --mojo-platform-channel-handle=5480 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=5572 --richdump-handle=5568 /prefetch:1,Feishu.exe,3464,4196\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-run-before-paint --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=11 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=955027821 --field-trial-handle=5812,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=3668 --mojo-platform-channel-handle=3764 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=3688 --richdump-handle=3676 /prefetch:1,Feishu.exe,3464,5516\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\system32\\cmd.exe\" ,cmd.exe,2068,1960\n\nDCCS-CHAIZL-PC,\\??\\C:\\Windows\\system32\\conhost.exe \"645599418900195385-170598126120379193521579044997-1390804600278717512248609448,conhost.exe,560,7048\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\system32\\wuauclt.exe\",wuauclt.exe,912,5648\n\nDCCS-CHAIZL-PC,\"c:\\program files\\windows defender\\MpCmdRun.exe\" SpyNetService -RestrictPrivileges -AccessKey 05D10419-84A1-D74A-350F-9BB3D2485DEE -Reinvoke,MpCmdRun.exe,6852,6680\n\nDCCS-CHAIZL-PC,,audiodg.exe,156,5684\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\wbem\\wmiprvse.exe,WmiPrvSE.exe,768,5864\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\Components\\biz_center\\1.0.0.3315\\biz_helper.exe\" --type=systoast --subtype=check,biz_helper.exe,7108,2624\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\DllHost.exe /Processid:{F9717507-6651-4EDB-BFF7-AE615179BCCF},dllhost.exe,768,6032\n\nDCCS-CHAIZL-PC,cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_wmi.cmd A4-20260806-140606,cmd.exe,5864,5792\n\nDCCS-CHAIZL-PC,\\??\\C:\\Windows\\system32\\conhost.exe \"1922222322083056038-18641386582020767377195027705819776753301272062424-846129738,conhost.exe,480,5264\n\nDCCS-CHAIZL-PC,\"C:\\acceptance\\python38_mvp\\python.exe\"  \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_win7.py\" --acceptance-id \"A4-20260806-140606\" --helper \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\spike02_helper.exe\" --root \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\" --out \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\remaining-results.json\" ,python.exe,5792,6724\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\wbem\\wmic.exe process get Name,ProcessId,ParentProcessId,CommandLine /format:csv,WMIC.exe,6724,1064\n\n",
+    "stderr": "",
+    "elapsed_ms": 80,
+    "error": null
+  },
+  "status": "PARTIAL",
+  "formal_status": "PARTIAL_C02_C03_C05_LOOPBACK_ONLY",
+  "finished_at": "2026-08-06T06:07:52Z"
+}

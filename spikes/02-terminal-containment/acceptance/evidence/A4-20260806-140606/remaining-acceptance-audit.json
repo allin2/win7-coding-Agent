@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "audit_id": "A4-20260806-140606-REMAINING",
+  "generated_at": "2026-08-06T08:39:12.424Z",
+  "source_automation": "A4-20260805-123467",
+  "source_supplementary": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+  "source_automation_status": "AUTOMATION_PASS",
+  "source_evidence": [
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+      "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+    },
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+      "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+    },
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+      "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+    }
+  ],
+  "local_static_inputs": [
+    {
+      "path": "spikes/02-terminal-containment/helper/helper.cpp",
+      "sha256": "7cbf9098d2a2c422846b35417b80f462313d8475eaf2b44fe8db133574d0cc95"
+    },
+    {
+      "path": "spikes/02-terminal-containment/winpty/filter.js",
+      "sha256": "5bb10483b2258b6cdf175244487d2d2229db67b326a3ef226cbef4c7f3011e66"
+    },
+    {
+      "path": "spikes/02-terminal-containment/winpty/terminal_session.js",
+      "sha256": "baebcacc517cc00c2015da8f4dc96e68fc4e0bdd83b1e8a143722f5920f16df4"
+    }
+  ],
+  "safety": {
+    "read_only_audit": true,
+    "ssh_used": false,
+    "scp_used": false,
+    "private_key_content_read": false,
+    "taskkill_used": false
+  },
+  "items": [
+    {
+      "id": "AUTO-00..07",
+      "title": "A4 无人值守编排链",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "A4-20260805-123467 已完成 AUTO-00～AUTO-07；本次只读审计不重复远端危险阶段。",
+      "evidence": [
+        {
+          "id": "AUTO-00..07",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "AUTO-00..07",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "AUTO-00..07",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C01",
+      "title": "Job Object 进程树必杀",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "A4 的 start 子进程、超时、取消和最终残留断言均通过；这覆盖 C01 的非交互进程树部分。",
+      "evidence": [
+        {
+          "id": "C01",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C01",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C01",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "title": "宿主已在不可嵌套 Job 时 fail-closed",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "补充 Win7 harness 将宿主放入 Job，helper 明确返回 HOST_ALREADY_IN_JOB 并拒绝执行。",
+      "evidence": [
+        {
+          "id": "C02",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C02",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C02",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "title": "Restricted Token 工作区外/受保护注册表边界",
+      "status": "FAIL",
+      "class": "AUTOMATIC",
+      "reason": "Win7 补充探针显示工作区内写入成功、工作区外写入也成功、受保护注册表读取被拒绝；外部边界未满足，候选不能记 PASS。",
+      "evidence": [
+        {
+          "id": "C03",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C03",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C03",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "title": "ACL 工作区外拒绝",
+      "status": "MANUAL_GATE",
+      "class": "MANUAL_ASSISTANCE",
+      "reason": "需要人工确认预设保护目录、授权 ACL 修改/回滚和保护目录所有者；自动化方案明确不绕过 GATE-ACL。",
+      "evidence": [
+        {
+          "id": "C04",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C04",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C04",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "title": "受限进程 TCP/UDP/DNS 实际可达性",
+      "status": "ENVIRONMENT_MISSING",
+      "class": "OTHER_CONDITION",
+      "reason": "Win7 loopback TCP/UDP/localhost DNS 均可达；这证明 Job/Token 未阻断 loopback，但没有批准的外部/企业端点和网络审计，正式 C05 仍为 ENVIRONMENT_MISSING。",
+      "evidence": [
+        {
+          "id": "C05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "title": "argv 白名单拒绝白名单外程序",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "A4 N03 使用白名单外 powershell 路径，helper 返回 ARGV_REJECTED；这是正式 C06 的等价拒绝断言，范围不包含生产 Runner 集成。",
+      "evidence": [
+        {
+          "id": "C06",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C06",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C06",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "title": "超时、输出上限与整树清理",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "A4 输出上限、超时和显式取消均通过，residual_after 为空。",
+      "evidence": [
+        {
+          "id": "C07",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C07",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C07",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "title": "Runner 内存预算",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "A4 C09 在 Win7 记录峰值 Working Set 并低于 60 MiB 阈值；仅针对候选 helper，不代表生产 Runner。",
+      "evidence": [
+        {
+          "id": "C08",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "C08",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "C08",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "T01-T05",
+      "title": "交互终端与会话回收",
+      "status": "BUILD_HOST_MISSING",
+      "class": "OTHER_CONDITION",
+      "reason": "缺 MSVC v142、winpty 0.4.3、node-pty 0.10.0/Electron 22 ABI 的可验证 Win7 工件；当前 winpty 代码仍是骨架/TODO，不能以非交互 helper 结果替代。",
+      "evidence": [
+        {
+          "id": "T01-T05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "T01-T05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "T01-T05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "N01-N05",
+      "title": "C19 终端输入/VT/设备应答负向",
+      "status": "BUILD_HOST_MISSING",
+      "class": "OTHER_CONDITION",
+      "reason": "需要真实 PTY 集成后在 Win7 运行结构性 stdin 不可达、OSC52、标题、DECRQSS 和有界控制序列测试；当前仅有开发机源码级准备，不能记 Win7 PASS。",
+      "evidence": [
+        {
+          "id": "N01-N05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "N01-N05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "N01-N05",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    },
+    {
+      "id": "N06",
+      "title": "禁止 taskkill 冒充 containment",
+      "status": "PASS",
+      "class": "AUTOMATIC",
+      "reason": "A4 安全断言 taskkill_used=false，当前 helper 实现没有 taskkill 路径；这是自动化范围的代码/运行双重断言。",
+      "evidence": [
+        {
+          "id": "N06",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+          "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+        },
+        {
+          "id": "N06",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+          "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+        },
+        {
+          "id": "N06",
+          "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        }
+      ]
+    }
+  ],
+  "status_counts": {
+    "PASS": 7,
+    "FAIL": 1,
+    "MANUAL_GATE": 1,
+    "ENVIRONMENT_MISSING": 1,
+    "BUILD_HOST_MISSING": 2
+  },
+  "formal_spike_02_go": "NO_GO_FORMAL_GAPS",
+  "overall": {
+    "a1": "OWNER_ACCEPTED_FOR_MVP",
+    "a2": "DESKTOP_ALPHA_2_MVP_PASS",
+    "a3": "A3_CONTROLLED_GATEWAY_PASS_WITH_FORMAL_DEFERRALS",
+    "a4_automation": "AUTOMATION_PASS",
+    "project_acceptance": "A1_A3_ACCEPTED_WITH_FORMAL_DEFERRALS_A4_AUTOMATION_READY_SPIKE_02_PARTIAL"
+  },
+  "gates": [
+    {
+      "id": "GATE-ACL",
+      "status": "MANUAL_GATE",
+      "condition": "人工确认保护目录和 ACL 授权/回滚"
+    },
+    {
+      "id": "GATE-NET",
+      "status": "ENVIRONMENT_MISSING",
+      "condition": "批准端点、网络审计/抓包和不影响 SSH 的测量窗口"
+    },
+    {
+      "id": "GATE-PROD",
+      "status": "AUTHORIZATION_BLOCKED",
+      "condition": "生产 Runner 不在 SPIKE_02 授权范围"
+    },
+    {
+      "id": "GATE-A5-A6",
+      "status": "BUILD_HOST_MISSING",
+      "condition": "现代 Windows 构建主机及 node-pty/winpty/SQLite ABI 工件"
+    }
+  ],
+  "note": "A4 的 14 项 Win7 结果和历史 A1-A3 原始证据均未改写；本审计只新增分类汇总。"
+}

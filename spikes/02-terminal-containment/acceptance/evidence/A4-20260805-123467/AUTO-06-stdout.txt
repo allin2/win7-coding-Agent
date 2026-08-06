@@ -1,0 +1,16 @@
+Executing (Win32_Process)->Create()
+Method execution successful.
+Out Parameters:
+instance of __PARAMETERS
+{
+	ProcessId = 6172;
+	ReturnValue = 0;
+};
+
+
+
+
+
+
+
+0 
