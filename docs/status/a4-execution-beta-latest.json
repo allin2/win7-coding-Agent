@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "status_id": "A4-EXECUTION-BETA-20260806-01",
+  "stage": "A4_EXECUTION_BETA",
+  "status": "AUTOMATION_PASS_WITH_FORMAL_SPIKE_02_GAPS",
+  "integration_base": "008677e88a638d98cee5eb7e3d7aeeeed135ef51",
+  "preserved_a1_a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+  "locked_a4_source": {
+    "snapshot_commit": "3445ed4164fa58a2deded29ec5403eed8646715a",
+    "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "candidate_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+    "fault_helper_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f"
+  },
+  "unattended_acceptance": {
+    "acceptance_id": "A4-20260805-123467",
+    "status": "AUTOMATION_PASS",
+    "auto_stages_passed": 8,
+    "auto_stages_total": 8,
+    "win7_cases_passed": 14,
+    "win7_cases_total": 14,
+    "taskkill_used": false,
+    "final_residual_processes": 0,
+    "bitvise_after": "RUNNING"
+  },
+  "supplementary_acceptance": {
+    "acceptance_id": "A4-20260806-140606",
+    "audit_id": "A4-20260806-140606-REMAINING",
+    "orchestration_status": "SUPPLEMENTARY_AUTOMATION_PASS",
+    "C02": "PASS",
+    "C03": "FAIL",
+    "C05_loopback": "PASS_LOCAL_ONLY",
+    "C05_formal": "ENVIRONMENT_MISSING"
+  },
+  "formal_spike_02": {
+    "status": "NO_GO_FORMAL_GAPS",
+    "atomic_cases_passed": 6,
+    "atomic_cases_total": 19,
+    "passed": ["C01", "C02", "C06", "C07", "C08", "N06"],
+    "failed": ["C03"],
+    "manual_gate": ["C04"],
+    "environment_missing": ["C05"],
+    "build_host_missing": ["T01", "T02", "T03", "T04", "T05", "N01", "N02", "N03", "N04", "N05"],
+    "source_to_binary_closure": "BUILD_HOST_MISSING"
+  },
+  "excluded_from_automatic_pass": {
+    "GATE-ACL": "MANUAL_GATE",
+    "GATE-NET": "ENVIRONMENT_MISSING",
+    "GATE-PROD": "AUTHORIZATION_BLOCKED",
+    "GATE-A5-A6": "BUILD_HOST_MISSING"
+  },
+  "evidence": [
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+      "sha256": "ec4da076b3681e5c46115cc2e6e9c4eaa33224611355711346afd74a2669170d"
+    },
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+      "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+    },
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606-remaining-automation.json",
+      "sha256": "840423f5fefdd8051d2b054d5e19b557ed842bd1c77f2289b737c16d83dc67f1"
+    },
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+      "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+    },
+    {
+      "path": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.json",
+      "sha256": "01942f0da5c03863eb2a7a8c9c525c8b0853b87a6c3d3b2675fe1f2776dfcdd0"
+    }
+  ],
+  "evidence_policy": "Raw Win7 evidence is preserved; the corrected audit is a derived summary and does not rewrite A4-14/A4-20/A4-21 history."
+}
