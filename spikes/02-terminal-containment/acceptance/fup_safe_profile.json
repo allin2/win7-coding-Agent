@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "profile_id": "AUTO-FUP-20260805-01",
+  "orchestration_head": "008677e88a638d98cee5eb7e3d7aeeeed135ef51",
+  "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+  "source_worktree": "/Users/qlyf/.codex/worktrees/e36c/win7-coding-Agent",
+  "source_snapshot_ref": "refs/codex/snapshots/49c20af08ab9c062dc484daf89616393fd5c730d",
+  "source_snapshot_commit": "3445ed4164fa58a2deded29ec5403eed8646715a",
+  "a3_worktree": "/Users/qlyf/.codex/worktrees/5b96/win7-coding-Agent",
+  "a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+  "reference_plan": "spikes/02-terminal-containment/acceptance/AUTO-FUP-20260805-01-plan.json",
+  "reference_plan_sha256": "a946aad5eb4f453b3a11a7f3d1b2162338400e7c7d9737f33051dc343ccbfcf9",
+  "package_manifest": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/manifest.json",
+  "package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+  "implementation_allowlist": ["spikes/02-terminal-containment/**"],
+  "target": {
+    "address": "10.67.149.40",
+    "user": "dccs-chaizl",
+    "os": "Windows 7 SP1 x64 build 7601",
+    "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
+    "data_root": "C:\\Win7CodingAgent\\data"
+  },
+  "ssh": {
+    "private_key": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/id_rsa_win7accept",
+    "known_hosts": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+    "connect_timeout_seconds": 8,
+    "strict_host_key_checking": true,
+    "batch_mode": true,
+    "identities_only": true
+  },
+  "artifacts": {
+    "candidate": {
+      "path": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper.exe",
+      "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+    },
+    "fault_helper": {
+      "path": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper_fault_job.exe",
+      "sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+      "acceptance_only": true
+    }
+  },
+  "upload_files": [
+    {"local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper.exe", "remote": "spike02_helper.exe"},
+    {"local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper_fault_job.exe", "remote": "spike02_helper_fault_job.exe"},
+    {"local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_helper_harness.js", "remote": "run_helper_harness.js"},
+    {"local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_helper_win7.py", "remote": "run_helper_win7.py"},
+    {"local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_a4_wmi.cmd", "remote": "run_a4_wmi.cmd"}
+  ],
+  "module_dirs": [
+    "src/core", "src/gateway", "src/git-adapter", "src/runner",
+    "src/shell", "src/state", "src/workspace"
+  ],
+  "stage_deadlines_ms": {
+    "AUTO-00": 30000,
+    "AUTO-01": 1800000,
+    "AUTO-02": 120000,
+    "AUTO-03": 60000,
+    "AUTO-04": 180000,
+    "AUTO-05": 120000,
+    "AUTO-06": 1800000,
+    "AUTO-07": 300000
+  },
+  "forbidden_operations": [
+    "taskkill", "shutdown", "restart", "reboot", "netsh", "route", "firewall",
+    "sc config", "sc stop", "sc delete", "startup", "proxy", "Set-NetIPInterface"
+  ],
+  "gates": {
+    "GATE-ACL": "MANUAL_GATE",
+    "GATE-NET": "ENVIRONMENT_MISSING",
+    "GATE-PROD": "AUTHORIZATION_BLOCKED",
+    "GATE-A5-A6": "BUILD_HOST_MISSING"
+  },
+  "remote": {
+    "bitvise_service": "BvSshServer",
+    "python": "C:\\acceptance\\python38_mvp\\python.exe",
+    "launcher": "run_a4_wmi.cmd",
+    "evidence_files": [
+      "{id}-harness.json", "harness-stdout.txt", "harness-stderr.txt",
+      "harness-exit-code.txt", "launcher-whoami.txt", "bitvise-after.txt"
+    ]
+  }
+}
