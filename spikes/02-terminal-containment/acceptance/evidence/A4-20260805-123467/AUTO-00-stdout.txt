@@ -1,0 +1,29 @@
+5ac70da6b4d7b810503e704fd3e4038ae0190346
+
+## HEAD (no branch)
+ M docs/reports/README.md
+ M spikes/02-terminal-containment/README.md
+?? docs/reports/2026-08/a4_automated_acceptance_orchestration_2026-08-05.html
+?? spikes/02-terminal-containment/acceptance/
+
+3445ed4164fa58a2deded29ec5403eed8646715a
+
+b2019f022f910b2b8df150ad94c3bccdefa1fa7b
+
+5ac70da6b4d7b810503e704fd3e4038ae0190346
+
+## codex/a1-a3-acceptance...origin/codex/a1-a3-acceptance
+
+<snapshot blob 12487 bytes>
+<snapshot blob 28784 bytes>
+<snapshot blob 12062 bytes>
+<snapshot blob 6641 bytes>
+<snapshot blob 53172 bytes>
+<snapshot blob 13384 bytes>
+<snapshot blob 12085 bytes>
+<snapshot blob 5404 bytes>
+<snapshot blob 43901 bytes>
+<snapshot blob 3352 bytes>
+<snapshot blob 1378 bytes>
+<snapshot blob 8463 bytes>
+<snapshot blob 2026 bytes>

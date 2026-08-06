@@ -1,0 +1,1279 @@
+{
+  "schema_version": 1,
+  "plan_id": "AUTO-FUP-20260805-01",
+  "acceptance_id": "A4-20260806-140606",
+  "mode": "EXECUTE_WIN7_SUPPLEMENTARY",
+  "generated_at": "2026-08-06T06:07:58.404Z",
+  "evidence_directory": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606",
+  "repository": {
+    "root": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent",
+    "orchestration_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+    "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346"
+  },
+  "safety": {
+    "shell_false_only": true,
+    "private_key_content_read": false,
+    "private_key_content_emitted": false,
+    "taskkill_used": false,
+    "management_channel_mutated": false,
+    "network_configuration_mutated": false,
+    "rebooted": false
+  },
+  "stages": [
+    {
+      "id": "REM-00",
+      "name": "governance and locked candidate check",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 30000,
+      "started_at": "2026-08-06T06:07:17.673Z",
+      "commands": [],
+      "failure": null,
+      "baseline": {
+        "profile_id": "AUTO-FUP-20260805-01",
+        "candidate": {
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+          "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+          "expected_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+        },
+        "local_sources": [
+          {
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/run_remaining_win7.py",
+            "sha256": "39497bc1573a23fb2467832e6d26e8aeebf8907adbd5d5da82bf3c64d269b6b5"
+          },
+          {
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/run_remaining_wmi.cmd",
+            "sha256": "fb583a15c46420bef838c75d531ae3fcbedcc9ad8eca14b0c34dbce814289b26"
+          },
+          {
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+            "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+          }
+        ],
+        "ssh_private_key_content_read": false
+      },
+      "finished_at": "2026-08-06T06:07:17.690Z",
+      "duration_ms": 17,
+      "stdout_file": "REM-00-stdout.txt",
+      "stderr_file": "REM-00-stderr.txt"
+    },
+    {
+      "id": "REM-01",
+      "name": "strict SSH and Bitvise preflight",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 120000,
+      "started_at": "2026-08-06T06:07:17.690Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "ver"
+          ],
+          "exit_code": 0,
+          "stdout": "\r\nMicrosoft Windows [�汾 6.1.7601]\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "whoami"
+          ],
+          "exit_code": 0,
+          "stdout": "dccs-chaizl-pc\\dccs-chaizl\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "C:\\acceptance\\python38_mvp\\python.exe",
+            "--version"
+          ],
+          "exit_code": 0,
+          "stdout": "Python 3.8.10\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "sc",
+            "query",
+            "BvSshServer"
+          ],
+          "exit_code": 0,
+          "stdout": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        }
+      ],
+      "failure": null,
+      "preflight": {
+        "ver": {
+          "exit_code": 0,
+          "stdout": "\r\nMicrosoft Windows [�汾 6.1.7601]\r\n",
+          "stderr": ""
+        },
+        "whoami": {
+          "exit_code": 0,
+          "stdout": "dccs-chaizl-pc\\dccs-chaizl\r\n",
+          "stderr": ""
+        },
+        "python": {
+          "exit_code": 0,
+          "stdout": "Python 3.8.10\r\n",
+          "stderr": ""
+        },
+        "bitvise": {
+          "exit_code": 0,
+          "stdout": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+          "stderr": ""
+        }
+      },
+      "finished_at": "2026-08-06T06:07:24.410Z",
+      "duration_ms": 6720,
+      "stdout_file": "REM-01-stdout.txt",
+      "stderr_file": "REM-01-stderr.txt"
+    },
+    {
+      "id": "REM-02",
+      "name": "fresh acceptance and data roots",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 120000,
+      "started_at": "2026-08-06T06:07:24.412Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606 exit /b 17"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist C:\\Win7CodingAgent\\data\\A4-20260806-140606 exit /b 18"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "mkdir C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "mkdir C:\\Win7CodingAgent\\data\\A4-20260806-140606"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if not exist C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606 exit /b 19"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if not exist C:\\Win7CodingAgent\\data\\A4-20260806-140606 exit /b 20"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        }
+      ],
+      "failure": null,
+      "roots": {
+        "acceptance": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606",
+        "data": "C:\\Win7CodingAgent\\data\\A4-20260806-140606"
+      },
+      "finished_at": "2026-08-06T06:07:32.921Z",
+      "duration_ms": 8509,
+      "stdout_file": "REM-02-stdout.txt",
+      "stderr_file": "REM-02-stderr.txt"
+    },
+    {
+      "id": "REM-03",
+      "name": "allowlisted upload and remote hashes",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 180000,
+      "started_at": "2026-08-06T06:07:32.922Z",
+      "commands": [
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/spike02_helper.exe"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:/Win7CodingAgent/acceptance/A4-20260806-140606/spike02_helper.exe",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "stdout": "SHA256 ��ϣ(�ļ� C:/Win7CodingAgent/acceptance/A4-20260806-140606/spike02_helper.exe):\r\n73 3f 54 91 81 22 82 73 af d6 58 17 b6 44 8b e1 cc 4b eb 88 8f 8b f2 ca a2 94 e4 e1 29 9c ee cc\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/run_remaining_win7.py",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_win7.py"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_win7.py",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "stdout": "SHA256 ��ϣ(�ļ� C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_win7.py):\r\n39 49 7b c1 57 3a 23 fb 24 67 83 2e 6d 26 e8 ae eb f8 90 7a db d5 d5 da 82 bf 3c 64 d2 69 b6 b5\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/run_remaining_wmi.cmd",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_wmi.cmd"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_wmi.cmd",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "stdout": "SHA256 ��ϣ(�ļ� C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_wmi.cmd):\r\nfb 58 3a 15 c4 64 20 be f8 38 c7 5d 53 1a e3 fc be dc c9 ad 8e ca 14 b0 c3 4d bc e8 14 28 9b 26\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        }
+      ],
+      "failure": null,
+      "uploaded": [
+        {
+          "local": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+          "remote": "C:/Win7CodingAgent/acceptance/A4-20260806-140606/spike02_helper.exe",
+          "local_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+          "remote_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+          "transfer_exit_code": 0
+        },
+        {
+          "local": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/run_remaining_win7.py",
+          "remote": "C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_win7.py",
+          "local_sha256": "39497bc1573a23fb2467832e6d26e8aeebf8907adbd5d5da82bf3c64d269b6b5",
+          "remote_sha256": "39497bc1573a23fb2467832e6d26e8aeebf8907adbd5d5da82bf3c64d269b6b5",
+          "transfer_exit_code": 0
+        },
+        {
+          "local": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/run_remaining_wmi.cmd",
+          "remote": "C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_wmi.cmd",
+          "local_sha256": "fb583a15c46420bef838c75d531ae3fcbedcc9ad8eca14b0c34dbce814289b26",
+          "remote_sha256": "fb583a15c46420bef838c75d531ae3fcbedcc9ad8eca14b0c34dbce814289b26",
+          "transfer_exit_code": 0
+        }
+      ],
+      "finished_at": "2026-08-06T06:07:51.671Z",
+      "duration_ms": 18749,
+      "stdout_file": "REM-03-stdout.txt",
+      "stderr_file": "REM-03-stderr.txt"
+    },
+    {
+      "id": "REM-04",
+      "name": "safe loader smoke",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 120000,
+      "started_at": "2026-08-06T06:07:51.672Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "\"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\spike02_helper.exe\" --version"
+          ],
+          "exit_code": 0,
+          "stdout": "spike02-helper 0.1.0 win7-x64 job-object\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "\"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\spike02_helper.exe\" --help"
+          ],
+          "exit_code": 0,
+          "stdout": "usage: helper.exe [--version|--help]\nstdin: one UTF-8 JSON run/cancel request per line\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "tasklist.exe /FI \"IMAGENAME eq spike02_helper.exe\" /FO CSV /NH"
+          ],
+          "exit_code": 0,
+          "stdout": "��Ϣ: û�����е�����ƥ��ָ����׼��\r\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        }
+      ],
+      "failure": null,
+      "loader": {
+        "version": "spike02-helper 0.1.0 win7-x64 job-object\n",
+        "help": "usage: helper.exe [--version|--help]\nstdin: one UTF-8 JSON run/cancel request per line\n",
+        "residual": "��Ϣ: û�����е�����ƥ��ָ����׼��\r\n"
+      },
+      "finished_at": "2026-08-06T06:07:53.483Z",
+      "duration_ms": 1811,
+      "stdout_file": "REM-04-stdout.txt",
+      "stderr_file": "REM-04-stderr.txt"
+    },
+    {
+      "id": "REM-05",
+      "name": "detached Win7 supplementary harness",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 360000,
+      "started_at": "2026-08-06T06:07:53.484Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "wmic.exe process call create \"cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_wmi.cmd A4-20260806-140606\""
+          ],
+          "exit_code": 0,
+          "stdout": "Executing (Win32_Process)->Create()\r\r\nMethod execution successful.\r\r\nOut Parameters:\r\ninstance of __PARAMETERS\r\n{\r\n\tProcessId = 5792;\r\n\tReturnValue = 0;\r\n};\r\n",
+          "stderr": "\r\n",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\remaining-results.json\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\remaining-results.json\") else (exit /b 3)"
+          ],
+          "exit_code": 0,
+          "stdout": "{\n  \"schema_version\": 1,\n  \"acceptance_id\": \"A4-20260806-140606\",\n  \"suite\": \"SPIKE_02_REMAINING_C02_C03_C05_WIN7\",\n  \"captured_at\": \"2026-08-06T06:07:52Z\",\n  \"host\": {\n    \"platform\": \"win32\",\n    \"architecture\": \"AMD64\",\n    \"release\": \"7\",\n    \"version\": \"6.1.7601\",\n    \"python\": \"3.8.10 (tags/v3.8.10:3d8993a, May  3 2021, 11:48:03) [MSC v.1928 64 bit (AMD64)]\"\n  },\n  \"artifact\": {\n    \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\spike02_helper.exe\",\n    \"sha256\": \"733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc\"\n  },\n  \"cases\": [\n    {\n      \"id\": \"C03-restricted-token-boundary\",\n      \"status\": \"FAIL\",\n      \"expected\": \"inside workspace succeeds; outside write and protected registry read fail\",\n      \"actual\": {\n        \"transport\": {\n          \"exit_code\": 0,\n          \"stdout\": \"\",\n          \"stderr\": \"\",\n          \"elapsed_ms\": 26,\n          \"timed_out\": false\n        },\n        \"response\": {\n          \"schema_version\": 1,\n          \"type\": \"execution_result\",\n          \"requestId\": \"c03-restricted-boundary\",\n          \"status\": \"completed\",\n          \"exitCode\": 0,\n          \"executionTimeMs\": 16,\n          \"timedOut\": false,\n          \"canceled\": false,\n          \"outputTruncated\": false,\n          \"containmentVerified\": true,\n          \"inputDetached\": true,\n          \"stdoutSize\": 0,\n          \"stderrSize\": 0,\n          \"stdoutBase64\": \"\",\n          \"stderrBase64\": \"\"\n        },\n        \"invalid_stdout_lines\": []\n      },\n      \"probes\": {\n        \"inside_created\": true,\n        \"outside_created\": true,\n        \"protected_registry\": \"错误: 拒绝访问。\\n\\n\"\n      }\n    },\n    {\n      \"id\": \"C05-loopback-network\",\n      \"status\": \"PASS\",\n      \"expected\": \"restricted child reaches local TCP/UDP fixture and resolves localhost\",\n      \"actual\": {\n        \"transport\": {\n          \"exit_code\": 0,\n          \"stdout\": \"\",\n          \"stderr\": \"\",\n          \"elapsed_ms\": 106,\n          \"timed_out\": false\n        },\n        \"response\": {\n          \"schema_version\": 1,\n          \"type\": \"execution_result\",\n          \"requestId\": \"c05-loopback\",\n          \"status\": \"completed\",\n          \"exitCode\": 0,\n          \"executionTimeMs\": 109,\n          \"timedOut\": false,\n          \"canceled\": false,\n          \"outputTruncated\": false,\n          \"containmentVerified\": true,\n          \"inputDetached\": true,\n          \"stdoutSize\": 0,\n          \"stderrSize\": 0,\n          \"stdoutBase64\": \"\",\n          \"stderrBase64\": \"\"\n        },\n        \"invalid_stdout_lines\": []\n      },\n      \"measurement\": {\n        \"tcp\": true,\n        \"udp\": true,\n        \"dns_localhost\": true\n      },\n      \"formal_classification\": \"PARTIAL_LOCAL_ONLY_ENVIRONMENT_MISSING\"\n    },\n    {\n      \"id\": \"C02-host-already-in-job\",\n      \"status\": \"PASS\",\n      \"expected\": \"host in a non-nestable Job is reported and child execution is refused\",\n      \"actual\": {\n        \"transport\": {\n          \"exit_code\": 0,\n          \"stdout\": \"\",\n          \"stderr\": \"\",\n          \"elapsed_ms\": 18,\n          \"timed_out\": false\n        },\n        \"response\": {\n          \"schema_version\": 1,\n          \"type\": \"execution_result\",\n          \"requestId\": \"c02-host-already-in-job\",\n          \"status\": \"failed\",\n          \"exitCode\": 0,\n          \"executionTimeMs\": 0,\n          \"timedOut\": false,\n          \"canceled\": false,\n          \"outputTruncated\": false,\n          \"containmentVerified\": false,\n          \"inputDetached\": false,\n          \"stdoutSize\": 0,\n          \"stderrSize\": 0,\n          \"stdoutBase64\": \"\",\n          \"stderrBase64\": \"\",\n          \"error\": \"HOST_ALREADY_IN_JOB\",\n          \"errorCode\": 1102,\n          \"message\": \"helper is already in a job; refusing an unverifiable nested containment\"\n        },\n        \"invalid_stdout_lines\": []\n      },\n      \"job_assignment\": {\n        \"created\": true,\n        \"assigned\": true,\n        \"error\": 0,\n        \"handle\": 332\n      },\n      \"note\": \"JOB_CREATE_FAILED is fail-closed but does not prove an explicit host-in-job diagnostic\"\n    }\n  ],\n  \"taskkill_used\": false,\n  \"scope\": {\n    \"C05\": \"LOOPBACK_ONLY_NO_ENTERPRISE_NETWORK_CONCLUSION\"\n  },\n  \"generated_files\": {\n    \"c03_script\": {\n      \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\\c03-boundary\\\\c03-boundary.cmd\",\n      \"sha256\": \"0eaf9e91f66cb20b609c6daa553c98cbd86843071f357c2f43557f8ee0d3eae9\"\n    },\n    \"network_probe\": {\n      \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\\c05-loopback\\\\network_probe.py\",\n      \"sha256\": \"ac89bc420d42a03614c1decd1c8f0f1b58b0c51e8120beefb4d9f02a6a4e87b0\"\n    },\n    \"network_script\": {\n      \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\\c05-loopback\\\\c05-loopback.cmd\",\n      \"sha256\": \"5b79b6dafc8e087f7d8d4c267172571d6636c9e2985099706087f93ba0e523eb\"\n    }\n  },\n  \"server_observations\": {\n    \"tcp\": true,\n    \"udp\": true\n  },\n  \"final_process_snapshot\": {\n    \"command\": \"C:\\\\Windows\\\\System32\\\\wbem\\\\wmic.exe\",\n    \"args\": [\n      \"process\",\n      \"get\",\n      \"Name,ProcessId,ParentProcessId,CommandLine\",\n      \"/format:csv\"\n    ],\n    \"exit_code\": 0,\n    \"stdout\": \"\\n\\nNode,CommandLine,Name,ParentProcessId,ProcessId\\n\\nDCCS-CHAIZL-PC,,System Idle Process,0,0\\n\\nDCCS-CHAIZL-PC,,System,0,4\\n\\nDCCS-CHAIZL-PC,\\\\SystemRoot\\\\System32\\\\smss.exe,smss.exe,4,304\\n\\nDCCS-CHAIZL-PC,%SystemRoot%\\\\system32\\\\csrss.exe ObjectDirectory=\\\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,376,480\\n\\nDCCS-CHAIZL-PC,wininit.exe,wininit.exe,376,540\\n\\nDCCS-CHAIZL-PC,%SystemRoot%\\\\system32\\\\csrss.exe ObjectDirectory=\\\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,548,560\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\services.exe,services.exe,540,608\\n\\nDCCS-CHAIZL-PC,winlogon.exe,winlogon.exe,548,632\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\lsass.exe,lsass.exe,540,652\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\lsm.exe,lsm.exe,540,664\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k DcomLaunch,svchost.exe,608,768\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\ibmpmsvc.exe,ibmpmsvc.exe,608,828\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\NVDisplay.Container.exe\\\" -s NVDisplay.ContainerLocalSystem -f \\\"C:\\\\ProgramData\\\\NVIDIA\\\\NVDisplay.ContainerLocalSystem.log\\\" -l 3 -d \\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\plugins\\\\LocalSystem\\\" -r -p 30000 ,NVDisplay.Container.exe,608,868\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k RPCSS,svchost.exe,608,928\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted,svchost.exe,608,156\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted,svchost.exe,608,496\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k LocalService,svchost.exe,608,348\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k netsvcs,svchost.exe,608,912\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\igfxCUIService.exe,igfxCUIService.exe,608,1212\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\NVDisplay.Container.exe\\\" -f \\\"C:\\\\ProgramData\\\\NVIDIA\\\\DisplaySessionContainer%d.log\\\" -d \\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\plugins\\\\Session\\\" -r -l 3 -p 30000  -c,NVDisplay.Container.exe,868,1324\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\System32\\\\WUDFHost.exe\\\" -HostGUID:{193a1820-d9ac-4997-8c55-be817523f6aa} -IoEventPortName:HostProcess-c5a92538-e065-4653-8198-ad98e8c51ba6 -SystemEventPortName:HostProcess-7f943708-72df-4842-bcdc-a14c7a9df394 -IoCancelEventPortName:HostProcess-d8d6cae0-4bf3-4831-a603-36ed48978029 -NonStateChangingEventPortName:HostProcess-24fbff3e-76f4-4e8f-a41f-6e3c150386b2 -ServiceSID:S-1-5-80-2652678385-582572993-1835434367-1344795993-749280709 -LifetimeId:a870828e-7404-4bfe-8037-f352a2d3a844 -DeviceGroupId:,WUDFHost.exe,496,1344\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k NetworkService,svchost.exe,608,1504\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\WLANExt.exe 4062304,wlanext.exe,496,1592\\n\\nDCCS-CHAIZL-PC,\\\\??\\\\C:\\\\Windows\\\\system32\\\\conhost.exe \\\"-1015499129-321511588463040502-1234314398-20433635091297740612-18338736561310214137,conhost.exe,480,1600\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\spoolsv.exe,spoolsv.exe,608,1704\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k LocalServiceNoNetwork,svchost.exe,608,1732\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Bitvise SSH Server\\\\BvSshServer.exe\\\",BvSshServer.exe,608,1828\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Dolby\\\\Dolby DAX2\\\\DAX2_API\\\\DolbyDAX2API.exe\\\",DolbyDAX2API.exe,608,1928\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k utcsvc,svchost.exe,608,2032\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Intel\\\\WiFi\\\\bin\\\\EvtEng.exe\\\",EvtEng.exe,608,1200\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynTPEnhService.exe\\\",SynTPEnhService.exe,608,2056\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\valWBFPolicyService.exe,valWBFPolicyService.exe,608,2140\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Intel\\\\WiFi\\\\bin\\\\ZeroConfigService.exe\\\",ZeroConfigService.exe,608,2252\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\wbem\\\\unsecapp.exe -Embedding,unsecapp.exe,768,2544\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\wbem\\\\wmiprvse.exe,WmiPrvSE.exe,768,2564\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k NetworkServiceNetworkRestricted,svchost.exe,608,2944\\n\\nDCCS-CHAIZL-PC,\\\"taskhost.exe\\\",taskhost.exe,608,2996\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\Microsoft.Net\\\\Framework64\\\\v3.0\\\\WPF\\\\PresentationFontCache.exe,PresentationFontCache.exe,608,484\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\system32\\\\Dwm.exe\\\",dwm.exe,496,1648\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\Explorer.EXE,explorer.exe,2940,2068\\n\\nDCCS-CHAIZL-PC,taskeng.exe {3582E866-BF56-4A65-A5A1-1090AFBE5ABB},taskeng.exe,912,3132\\n\\nDCCS-CHAIZL-PC,igfxEM.exe ,igfxEM.exe,3336,3356\\n\\nDCCS-CHAIZL-PC,igfxHK.exe ,igfxHK.exe,3336,3364\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\"  --start_time=1785804130424,Feishu.exe,3428,3464\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\16.7.0.4673\\\\SGTool.exe\\\" -daemon,SGTool.exe,3364,3564\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\16.7.0.4673\\\\SogouCloud.exe\\\" -daemon,SogouCloud.exe,3364,3644\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynTPEnh.exe\\\",SynTPEnh.exe,2056,3696\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Bitvise SSH Server\\\\BssCtrl.exe\\\"  -startMinimized,BssCtrl.exe,3116,3756\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --aha-process-t=aha-service --type=monitor --block-unsubscribe-shell-api-event --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --enable-aha-gwp-asan-dump --enable-exception-guard --mojo-platform-channel-handle=872,Feishu.exe,3464,3328\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=gpu-process --enable-gpu-dump --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAAAAAABgAAEAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAABQAAABgAAAAAAAAAGAAAAAAAAAAUAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --browser-runtime --aha-multi-profile --field-trial-handle=1652,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1684 --mojo-platform-channel-handle=1608 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=1780 --richdump-handle=1784 /prefetch:2,Feishu.exe,3464,3740\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1452,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1816 --mojo-platform-channel-handle=2016 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2072 --richdump-handle=2084 /prefetch:8,Feishu.exe,3464,3584\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --aha-process-t=aha-service --type=backend --task-jssdk-enabled --enable-backend-async-progress --no-proxy-server --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --aha-multi-profile --enable-backend-async-progress --enable-exception-guard --mojo-platform-channel-handle=2296,Feishu.exe,3464,3604\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=utility --utility-sub-type=jash.mojom.JSRuntimeService --lang=zh-CN --service-sandbox-type=none --js-runtime-verify-shellapi=strict --enable-js-runtime-shared-string --enable-codecache-in-js-runtime --enable-shellapi-new-tunnel --enable-backend-async-progress --block-unsubscribe-shell-api-event --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1480,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=2408 --mojo-platform-channel-handle=2632 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2648 --richdump-handle=2756 /prefetch:8,Feishu.exe,3464,4292\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\PROGRAM FILES\\\\SYNAPTICS\\\\SYNTP\\\\SYNTPHELPER.EXE\\\" ,SynTPHelper.exe,3724,4400\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynTPLpr.exe\\\",SynTPLpr.exe,3696,4448\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynLenovoHelper.exe\\\",SynLenovoHelper.exe,3696,4464\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\SearchIndexer.exe /Embedding,SearchIndexer.exe,608,3452\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Realtek\\\\Audio\\\\HDA\\\\RAVBg64.exe\\\" /FORPCEE4,RAVBg64.exe,3132,2720\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Realtek\\\\Audio\\\\HDA\\\\RAVBg64.exe\\\" /LENOVO_MICPKEY,RAVBg64.exe,3132,2684\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Realtek\\\\Audio\\\\HDA\\\\RAVCpl64.exe\\\" -s,RAVCpl64.exe,3132,2656\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Windows Media Player\\\\wmpnetwk.exe\\\",wmpnetwk.exe,608,5192\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k LocalServiceAndNoImpersonation,svchost.exe,608,5244\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\sppsvc.exe,sppsvc.exe,608,5340\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k secsvcs,svchost.exe,608,5348\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\Components\\\\IChat\\\\1.0.2.3305\\\\SOGOUSmartAssistant.exe\\\" --panel=auto,SOGOUSmartAssistant.exe,1800,3068\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\Components\\\\IChat\\\\1.0.2.3305\\\\SOGOUSmartAssistant.exe\\\" --type=renderer --no-sandbox --autoplay-policy=no-user-gesture-required --disable-rgba-4444-textures --log-file=\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Roaming\\\\ichat\\\\cef.log\\\" --use-gl=swiftshader-webgl --enable-low-end-device-mode --field-trial-handle=2900,11944520051698872860,4016221733619974270,131072 --enable-features=NetworkServiceInProcess --disable-gpu-compositing --lang=zh-CN --log-file=\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Roaming\\\\ichat\\\\cef.log\\\" --log-severity=disable --product-version=\\\"Chrome/80.0.3987.163 SGWebviewClient/1.0.2.3305 SGWebviewApi/51\\\" --disable-spell-checking --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=3 --mojo-platform-channel-handle=2904 /prefetch:1,SOGOUSmartAssistant.exe,3068,3680\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=9 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=949543561 --field-trial-handle=4468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=4432 --mojo-platform-channel-handle=4504 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=4488 --richdump-handle=4424 /prefetch:1,Feishu.exe,3464,4712\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=10 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=950093362 --field-trial-handle=5468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=5576 --mojo-platform-channel-handle=5480 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=5572 --richdump-handle=5568 /prefetch:1,Feishu.exe,3464,4196\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-run-before-paint --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=11 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=955027821 --field-trial-handle=5812,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=3668 --mojo-platform-channel-handle=3764 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=3688 --richdump-handle=3676 /prefetch:1,Feishu.exe,3464,5516\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\system32\\\\cmd.exe\\\" ,cmd.exe,2068,1960\\n\\nDCCS-CHAIZL-PC,\\\\??\\\\C:\\\\Windows\\\\system32\\\\conhost.exe \\\"645599418900195385-170598126120379193521579044997-1390804600278717512248609448,conhost.exe,560,7048\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\system32\\\\wuauclt.exe\\\",wuauclt.exe,912,5648\\n\\nDCCS-CHAIZL-PC,\\\"c:\\\\program files\\\\windows defender\\\\MpCmdRun.exe\\\" SpyNetService -RestrictPrivileges -AccessKey 05D10419-84A1-D74A-350F-9BB3D2485DEE -Reinvoke,MpCmdRun.exe,6852,6680\\n\\nDCCS-CHAIZL-PC,,audiodg.exe,156,5684\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\wbem\\\\wmiprvse.exe,WmiPrvSE.exe,768,5864\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\Components\\\\biz_center\\\\1.0.0.3315\\\\biz_helper.exe\\\" --type=systoast --subtype=check,biz_helper.exe,7108,2624\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\DllHost.exe /Processid:{F9717507-6651-4EDB-BFF7-AE615179BCCF},dllhost.exe,768,6032\\n\\nDCCS-CHAIZL-PC,cmd.exe /d /s /c C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\run_remaining_wmi.cmd A4-20260806-140606,cmd.exe,5864,5792\\n\\nDCCS-CHAIZL-PC,\\\\??\\\\C:\\\\Windows\\\\system32\\\\conhost.exe \\\"1922222322083056038-18641386582020767377195027705819776753301272062424-846129738,conhost.exe,480,5264\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\acceptance\\\\python38_mvp\\\\python.exe\\\"  \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\run_remaining_win7.py\\\" --acceptance-id \\\"A4-20260806-140606\\\" --helper \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\spike02_helper.exe\\\" --root \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\" --out \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\remaining-results.json\\\" ,python.exe,5792,6724\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\wbem\\\\wmic.exe process get Name,ProcessId,ParentProcessId,CommandLine /format:csv,WMIC.exe,6724,1064\\n\\n\",\n    \"stderr\": \"\",\n    \"elapsed_ms\": 80,\n    \"error\": null\n  },\n  \"status\": \"PARTIAL\",\n  \"formal_status\": \"PARTIAL_C02_C03_C05_LOOPBACK_ONLY\",\n  \"finished_at\": \"2026-08-06T06:07:52Z\"\n}\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        }
+      ],
+      "failure": null,
+      "launcher": {
+        "launch": {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "wmic.exe process call create \"cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_wmi.cmd A4-20260806-140606\""
+          ],
+          "exit_code": 0,
+          "stdout": "Executing (Win32_Process)->Create()\r\r\nMethod execution successful.\r\r\nOut Parameters:\r\ninstance of __PARAMETERS\r\n{\r\n\tProcessId = 5792;\r\n\tReturnValue = 0;\r\n};\r\n",
+          "stderr": "\r\n",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        "completion": {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\remaining-results.json\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\remaining-results.json\") else (exit /b 3)"
+          ],
+          "exit_code": 0,
+          "stdout": "{\n  \"schema_version\": 1,\n  \"acceptance_id\": \"A4-20260806-140606\",\n  \"suite\": \"SPIKE_02_REMAINING_C02_C03_C05_WIN7\",\n  \"captured_at\": \"2026-08-06T06:07:52Z\",\n  \"host\": {\n    \"platform\": \"win32\",\n    \"architecture\": \"AMD64\",\n    \"release\": \"7\",\n    \"version\": \"6.1.7601\",\n    \"python\": \"3.8.10 (tags/v3.8.10:3d8993a, May  3 2021, 11:48:03) [MSC v.1928 64 bit (AMD64)]\"\n  },\n  \"artifact\": {\n    \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\spike02_helper.exe\",\n    \"sha256\": \"733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc\"\n  },\n  \"cases\": [\n    {\n      \"id\": \"C03-restricted-token-boundary\",\n      \"status\": \"FAIL\",\n      \"expected\": \"inside workspace succeeds; outside write and protected registry read fail\",\n      \"actual\": {\n        \"transport\": {\n          \"exit_code\": 0,\n          \"stdout\": \"\",\n          \"stderr\": \"\",\n          \"elapsed_ms\": 26,\n          \"timed_out\": false\n        },\n        \"response\": {\n          \"schema_version\": 1,\n          \"type\": \"execution_result\",\n          \"requestId\": \"c03-restricted-boundary\",\n          \"status\": \"completed\",\n          \"exitCode\": 0,\n          \"executionTimeMs\": 16,\n          \"timedOut\": false,\n          \"canceled\": false,\n          \"outputTruncated\": false,\n          \"containmentVerified\": true,\n          \"inputDetached\": true,\n          \"stdoutSize\": 0,\n          \"stderrSize\": 0,\n          \"stdoutBase64\": \"\",\n          \"stderrBase64\": \"\"\n        },\n        \"invalid_stdout_lines\": []\n      },\n      \"probes\": {\n        \"inside_created\": true,\n        \"outside_created\": true,\n        \"protected_registry\": \"错误: 拒绝访问。\\n\\n\"\n      }\n    },\n    {\n      \"id\": \"C05-loopback-network\",\n      \"status\": \"PASS\",\n      \"expected\": \"restricted child reaches local TCP/UDP fixture and resolves localhost\",\n      \"actual\": {\n        \"transport\": {\n          \"exit_code\": 0,\n          \"stdout\": \"\",\n          \"stderr\": \"\",\n          \"elapsed_ms\": 106,\n          \"timed_out\": false\n        },\n        \"response\": {\n          \"schema_version\": 1,\n          \"type\": \"execution_result\",\n          \"requestId\": \"c05-loopback\",\n          \"status\": \"completed\",\n          \"exitCode\": 0,\n          \"executionTimeMs\": 109,\n          \"timedOut\": false,\n          \"canceled\": false,\n          \"outputTruncated\": false,\n          \"containmentVerified\": true,\n          \"inputDetached\": true,\n          \"stdoutSize\": 0,\n          \"stderrSize\": 0,\n          \"stdoutBase64\": \"\",\n          \"stderrBase64\": \"\"\n        },\n        \"invalid_stdout_lines\": []\n      },\n      \"measurement\": {\n        \"tcp\": true,\n        \"udp\": true,\n        \"dns_localhost\": true\n      },\n      \"formal_classification\": \"PARTIAL_LOCAL_ONLY_ENVIRONMENT_MISSING\"\n    },\n    {\n      \"id\": \"C02-host-already-in-job\",\n      \"status\": \"PASS\",\n      \"expected\": \"host in a non-nestable Job is reported and child execution is refused\",\n      \"actual\": {\n        \"transport\": {\n          \"exit_code\": 0,\n          \"stdout\": \"\",\n          \"stderr\": \"\",\n          \"elapsed_ms\": 18,\n          \"timed_out\": false\n        },\n        \"response\": {\n          \"schema_version\": 1,\n          \"type\": \"execution_result\",\n          \"requestId\": \"c02-host-already-in-job\",\n          \"status\": \"failed\",\n          \"exitCode\": 0,\n          \"executionTimeMs\": 0,\n          \"timedOut\": false,\n          \"canceled\": false,\n          \"outputTruncated\": false,\n          \"containmentVerified\": false,\n          \"inputDetached\": false,\n          \"stdoutSize\": 0,\n          \"stderrSize\": 0,\n          \"stdoutBase64\": \"\",\n          \"stderrBase64\": \"\",\n          \"error\": \"HOST_ALREADY_IN_JOB\",\n          \"errorCode\": 1102,\n          \"message\": \"helper is already in a job; refusing an unverifiable nested containment\"\n        },\n        \"invalid_stdout_lines\": []\n      },\n      \"job_assignment\": {\n        \"created\": true,\n        \"assigned\": true,\n        \"error\": 0,\n        \"handle\": 332\n      },\n      \"note\": \"JOB_CREATE_FAILED is fail-closed but does not prove an explicit host-in-job diagnostic\"\n    }\n  ],\n  \"taskkill_used\": false,\n  \"scope\": {\n    \"C05\": \"LOOPBACK_ONLY_NO_ENTERPRISE_NETWORK_CONCLUSION\"\n  },\n  \"generated_files\": {\n    \"c03_script\": {\n      \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\\c03-boundary\\\\c03-boundary.cmd\",\n      \"sha256\": \"0eaf9e91f66cb20b609c6daa553c98cbd86843071f357c2f43557f8ee0d3eae9\"\n    },\n    \"network_probe\": {\n      \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\\c05-loopback\\\\network_probe.py\",\n      \"sha256\": \"ac89bc420d42a03614c1decd1c8f0f1b58b0c51e8120beefb4d9f02a6a4e87b0\"\n    },\n    \"network_script\": {\n      \"path\": \"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\\c05-loopback\\\\c05-loopback.cmd\",\n      \"sha256\": \"5b79b6dafc8e087f7d8d4c267172571d6636c9e2985099706087f93ba0e523eb\"\n    }\n  },\n  \"server_observations\": {\n    \"tcp\": true,\n    \"udp\": true\n  },\n  \"final_process_snapshot\": {\n    \"command\": \"C:\\\\Windows\\\\System32\\\\wbem\\\\wmic.exe\",\n    \"args\": [\n      \"process\",\n      \"get\",\n      \"Name,ProcessId,ParentProcessId,CommandLine\",\n      \"/format:csv\"\n    ],\n    \"exit_code\": 0,\n    \"stdout\": \"\\n\\nNode,CommandLine,Name,ParentProcessId,ProcessId\\n\\nDCCS-CHAIZL-PC,,System Idle Process,0,0\\n\\nDCCS-CHAIZL-PC,,System,0,4\\n\\nDCCS-CHAIZL-PC,\\\\SystemRoot\\\\System32\\\\smss.exe,smss.exe,4,304\\n\\nDCCS-CHAIZL-PC,%SystemRoot%\\\\system32\\\\csrss.exe ObjectDirectory=\\\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,376,480\\n\\nDCCS-CHAIZL-PC,wininit.exe,wininit.exe,376,540\\n\\nDCCS-CHAIZL-PC,%SystemRoot%\\\\system32\\\\csrss.exe ObjectDirectory=\\\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,548,560\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\services.exe,services.exe,540,608\\n\\nDCCS-CHAIZL-PC,winlogon.exe,winlogon.exe,548,632\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\lsass.exe,lsass.exe,540,652\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\lsm.exe,lsm.exe,540,664\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k DcomLaunch,svchost.exe,608,768\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\ibmpmsvc.exe,ibmpmsvc.exe,608,828\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\NVDisplay.Container.exe\\\" -s NVDisplay.ContainerLocalSystem -f \\\"C:\\\\ProgramData\\\\NVIDIA\\\\NVDisplay.ContainerLocalSystem.log\\\" -l 3 -d \\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\plugins\\\\LocalSystem\\\" -r -p 30000 ,NVDisplay.Container.exe,608,868\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k RPCSS,svchost.exe,608,928\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted,svchost.exe,608,156\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted,svchost.exe,608,496\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k LocalService,svchost.exe,608,348\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k netsvcs,svchost.exe,608,912\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\igfxCUIService.exe,igfxCUIService.exe,608,1212\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\NVDisplay.Container.exe\\\" -f \\\"C:\\\\ProgramData\\\\NVIDIA\\\\DisplaySessionContainer%d.log\\\" -d \\\"C:\\\\Program Files\\\\NVIDIA Corporation\\\\Display.NvContainer\\\\plugins\\\\Session\\\" -r -l 3 -p 30000  -c,NVDisplay.Container.exe,868,1324\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\System32\\\\WUDFHost.exe\\\" -HostGUID:{193a1820-d9ac-4997-8c55-be817523f6aa} -IoEventPortName:HostProcess-c5a92538-e065-4653-8198-ad98e8c51ba6 -SystemEventPortName:HostProcess-7f943708-72df-4842-bcdc-a14c7a9df394 -IoCancelEventPortName:HostProcess-d8d6cae0-4bf3-4831-a603-36ed48978029 -NonStateChangingEventPortName:HostProcess-24fbff3e-76f4-4e8f-a41f-6e3c150386b2 -ServiceSID:S-1-5-80-2652678385-582572993-1835434367-1344795993-749280709 -LifetimeId:a870828e-7404-4bfe-8037-f352a2d3a844 -DeviceGroupId:,WUDFHost.exe,496,1344\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k NetworkService,svchost.exe,608,1504\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\WLANExt.exe 4062304,wlanext.exe,496,1592\\n\\nDCCS-CHAIZL-PC,\\\\??\\\\C:\\\\Windows\\\\system32\\\\conhost.exe \\\"-1015499129-321511588463040502-1234314398-20433635091297740612-18338736561310214137,conhost.exe,480,1600\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\spoolsv.exe,spoolsv.exe,608,1704\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k LocalServiceNoNetwork,svchost.exe,608,1732\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Bitvise SSH Server\\\\BvSshServer.exe\\\",BvSshServer.exe,608,1828\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Dolby\\\\Dolby DAX2\\\\DAX2_API\\\\DolbyDAX2API.exe\\\",DolbyDAX2API.exe,608,1928\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k utcsvc,svchost.exe,608,2032\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Intel\\\\WiFi\\\\bin\\\\EvtEng.exe\\\",EvtEng.exe,608,1200\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynTPEnhService.exe\\\",SynTPEnhService.exe,608,2056\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\valWBFPolicyService.exe,valWBFPolicyService.exe,608,2140\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Intel\\\\WiFi\\\\bin\\\\ZeroConfigService.exe\\\",ZeroConfigService.exe,608,2252\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\wbem\\\\unsecapp.exe -Embedding,unsecapp.exe,768,2544\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\wbem\\\\wmiprvse.exe,WmiPrvSE.exe,768,2564\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k NetworkServiceNetworkRestricted,svchost.exe,608,2944\\n\\nDCCS-CHAIZL-PC,\\\"taskhost.exe\\\",taskhost.exe,608,2996\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\Microsoft.Net\\\\Framework64\\\\v3.0\\\\WPF\\\\PresentationFontCache.exe,PresentationFontCache.exe,608,484\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\system32\\\\Dwm.exe\\\",dwm.exe,496,1648\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\Explorer.EXE,explorer.exe,2940,2068\\n\\nDCCS-CHAIZL-PC,taskeng.exe {3582E866-BF56-4A65-A5A1-1090AFBE5ABB},taskeng.exe,912,3132\\n\\nDCCS-CHAIZL-PC,igfxEM.exe ,igfxEM.exe,3336,3356\\n\\nDCCS-CHAIZL-PC,igfxHK.exe ,igfxHK.exe,3336,3364\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\"  --start_time=1785804130424,Feishu.exe,3428,3464\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\16.7.0.4673\\\\SGTool.exe\\\" -daemon,SGTool.exe,3364,3564\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\16.7.0.4673\\\\SogouCloud.exe\\\" -daemon,SogouCloud.exe,3364,3644\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynTPEnh.exe\\\",SynTPEnh.exe,2056,3696\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Bitvise SSH Server\\\\BssCtrl.exe\\\"  -startMinimized,BssCtrl.exe,3116,3756\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --aha-process-t=aha-service --type=monitor --block-unsubscribe-shell-api-event --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --enable-aha-gwp-asan-dump --enable-exception-guard --mojo-platform-channel-handle=872,Feishu.exe,3464,3328\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=gpu-process --enable-gpu-dump --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAAAAAABgAAEAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAABQAAABgAAAAAAAAAGAAAAAAAAAAUAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --browser-runtime --aha-multi-profile --field-trial-handle=1652,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1684 --mojo-platform-channel-handle=1608 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=1780 --richdump-handle=1784 /prefetch:2,Feishu.exe,3464,3740\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1452,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1816 --mojo-platform-channel-handle=2016 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2072 --richdump-handle=2084 /prefetch:8,Feishu.exe,3464,3584\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --aha-process-t=aha-service --type=backend --task-jssdk-enabled --enable-backend-async-progress --no-proxy-server --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --aha-multi-profile --enable-backend-async-progress --enable-exception-guard --mojo-platform-channel-handle=2296,Feishu.exe,3464,3604\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=utility --utility-sub-type=jash.mojom.JSRuntimeService --lang=zh-CN --service-sandbox-type=none --js-runtime-verify-shellapi=strict --enable-js-runtime-shared-string --enable-codecache-in-js-runtime --enable-shellapi-new-tunnel --enable-backend-async-progress --block-unsubscribe-shell-api-event --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1480,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=2408 --mojo-platform-channel-handle=2632 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2648 --richdump-handle=2756 /prefetch:8,Feishu.exe,3464,4292\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\PROGRAM FILES\\\\SYNAPTICS\\\\SYNTP\\\\SYNTPHELPER.EXE\\\" ,SynTPHelper.exe,3724,4400\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynTPLpr.exe\\\",SynTPLpr.exe,3696,4448\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Synaptics\\\\SynTP\\\\SynLenovoHelper.exe\\\",SynLenovoHelper.exe,3696,4464\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\SearchIndexer.exe /Embedding,SearchIndexer.exe,608,3452\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Realtek\\\\Audio\\\\HDA\\\\RAVBg64.exe\\\" /FORPCEE4,RAVBg64.exe,3132,2720\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Realtek\\\\Audio\\\\HDA\\\\RAVBg64.exe\\\" /LENOVO_MICPKEY,RAVBg64.exe,3132,2684\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Realtek\\\\Audio\\\\HDA\\\\RAVCpl64.exe\\\" -s,RAVCpl64.exe,3132,2656\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files\\\\Windows Media Player\\\\wmpnetwk.exe\\\",wmpnetwk.exe,608,5192\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\svchost.exe -k LocalServiceAndNoImpersonation,svchost.exe,608,5244\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\sppsvc.exe,sppsvc.exe,608,5340\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\svchost.exe -k secsvcs,svchost.exe,608,5348\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\Components\\\\IChat\\\\1.0.2.3305\\\\SOGOUSmartAssistant.exe\\\" --panel=auto,SOGOUSmartAssistant.exe,1800,3068\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\Components\\\\IChat\\\\1.0.2.3305\\\\SOGOUSmartAssistant.exe\\\" --type=renderer --no-sandbox --autoplay-policy=no-user-gesture-required --disable-rgba-4444-textures --log-file=\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Roaming\\\\ichat\\\\cef.log\\\" --use-gl=swiftshader-webgl --enable-low-end-device-mode --field-trial-handle=2900,11944520051698872860,4016221733619974270,131072 --enable-features=NetworkServiceInProcess --disable-gpu-compositing --lang=zh-CN --log-file=\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Roaming\\\\ichat\\\\cef.log\\\" --log-severity=disable --product-version=\\\"Chrome/80.0.3987.163 SGWebviewClient/1.0.2.3305 SGWebviewApi/51\\\" --disable-spell-checking --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=3 --mojo-platform-channel-handle=2904 /prefetch:1,SOGOUSmartAssistant.exe,3068,3680\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=9 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=949543561 --field-trial-handle=4468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=4432 --mojo-platform-channel-handle=4504 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=4488 --richdump-handle=4424 /prefetch:1,Feishu.exe,3464,4712\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=10 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=950093362 --field-trial-handle=5468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=5576 --mojo-platform-channel-handle=5480 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=5572 --richdump-handle=5568 /prefetch:1,Feishu.exe,3464,4196\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Users\\\\dccs-chaizl\\\\AppData\\\\Local\\\\Feishu\\\\app\\\\Feishu.exe\\\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-run-before-paint --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=11 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=955027821 --field-trial-handle=5812,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=3668 --mojo-platform-channel-handle=3764 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=3688 --richdump-handle=3676 /prefetch:1,Feishu.exe,3464,5516\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\system32\\\\cmd.exe\\\" ,cmd.exe,2068,1960\\n\\nDCCS-CHAIZL-PC,\\\\??\\\\C:\\\\Windows\\\\system32\\\\conhost.exe \\\"645599418900195385-170598126120379193521579044997-1390804600278717512248609448,conhost.exe,560,7048\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Windows\\\\system32\\\\wuauclt.exe\\\",wuauclt.exe,912,5648\\n\\nDCCS-CHAIZL-PC,\\\"c:\\\\program files\\\\windows defender\\\\MpCmdRun.exe\\\" SpyNetService -RestrictPrivileges -AccessKey 05D10419-84A1-D74A-350F-9BB3D2485DEE -Reinvoke,MpCmdRun.exe,6852,6680\\n\\nDCCS-CHAIZL-PC,,audiodg.exe,156,5684\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\wbem\\\\wmiprvse.exe,WmiPrvSE.exe,768,5864\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\Program Files (x86)\\\\SogouInput\\\\Components\\\\biz_center\\\\1.0.0.3315\\\\biz_helper.exe\\\" --type=systoast --subtype=check,biz_helper.exe,7108,2624\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\system32\\\\DllHost.exe /Processid:{F9717507-6651-4EDB-BFF7-AE615179BCCF},dllhost.exe,768,6032\\n\\nDCCS-CHAIZL-PC,cmd.exe /d /s /c C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\run_remaining_wmi.cmd A4-20260806-140606,cmd.exe,5864,5792\\n\\nDCCS-CHAIZL-PC,\\\\??\\\\C:\\\\Windows\\\\system32\\\\conhost.exe \\\"1922222322083056038-18641386582020767377195027705819776753301272062424-846129738,conhost.exe,480,5264\\n\\nDCCS-CHAIZL-PC,\\\"C:\\\\acceptance\\\\python38_mvp\\\\python.exe\\\"  \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\run_remaining_win7.py\\\" --acceptance-id \\\"A4-20260806-140606\\\" --helper \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\spike02_helper.exe\\\" --root \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\generated\\\" --out \\\"C:\\\\Win7CodingAgent\\\\acceptance\\\\A4-20260806-140606\\\\remaining-results.json\\\" ,python.exe,5792,6724\\n\\nDCCS-CHAIZL-PC,C:\\\\Windows\\\\System32\\\\wbem\\\\wmic.exe process get Name,ProcessId,ParentProcessId,CommandLine /format:csv,WMIC.exe,6724,1064\\n\\n\",\n    \"stderr\": \"\",\n    \"elapsed_ms\": 80,\n    \"error\": null\n  },\n  \"status\": \"PARTIAL\",\n  \"formal_status\": \"PARTIAL_C02_C03_C05_LOOPBACK_ONLY\",\n  \"finished_at\": \"2026-08-06T06:07:52Z\"\n}\n",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        "wmi_command": "wmic.exe process call create \"cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_wmi.cmd A4-20260806-140606\"",
+        "detached": true
+      },
+      "finished_at": "2026-08-06T06:07:54.771Z",
+      "duration_ms": 1287,
+      "stdout_file": "REM-05-stdout.txt",
+      "stderr_file": "REM-05-stderr.txt"
+    },
+    {
+      "id": "REM-06",
+      "name": "supplementary evidence retrieval and classification",
+      "status": "PASS",
+      "execution": "AUTOMATIC",
+      "deadline_ms": 180000,
+      "started_at": "2026-08-06T06:07:54.772Z",
+      "commands": [
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/remaining-results.json",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/remaining-stdout.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-stdout.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/remaining-stderr.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-stderr.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/remaining-exit-code.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-exit-code.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/launcher-whoami.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-launcher-whoami.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260806-140606/bitvise-after.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-bitvise-after.txt"
+          ],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "signal": null,
+          "shell": false,
+          "detail": null
+        }
+      ],
+      "failure": null,
+      "classification": {
+        "c02": "PASS",
+        "c03": "FAIL",
+        "c05": "PASS_LOCAL_ONLY_ENVIRONMENT_MISSING",
+        "formal_c05": "ENVIRONMENT_MISSING",
+        "taskkill_used": false,
+        "bitvise_after": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+        "files": [
+          {
+            "name": "remaining-results.json",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+            "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+          },
+          {
+            "name": "remaining-stdout.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-stdout.txt",
+            "sha256": "93b82921f94c0aef11f7c02ed875aecf649017e8554c07703ac5edf673e9616a"
+          },
+          {
+            "name": "remaining-stderr.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "remaining-exit-code.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-exit-code.txt",
+            "sha256": "2f1c37754e38b4ac70a9559fbfbdbd28feda47f36be9cd9e3ad5bc844ee3feb6"
+          },
+          {
+            "name": "launcher-whoami.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-launcher-whoami.txt",
+            "sha256": "dc97ada8a8e9c3ace7d9f1afacc0683a38eb20e70a3d43e6769b33cd654fc1d0"
+          },
+          {
+            "name": "bitvise-after.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-bitvise-after.txt",
+            "sha256": "7d985e9fc78951ca68e1c952628a7811304c5ff807c15bdca69856b0ae8f034f"
+          }
+        ]
+      },
+      "evidence": [
+        {
+          "name": "remaining-results.json",
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-results.json",
+          "sha256": "881984dcb34d833c8febc4cef46c1134c64333c8e284ce826eb96f6fb5a9c508"
+        },
+        {
+          "name": "remaining-stdout.txt",
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-stdout.txt",
+          "sha256": "93b82921f94c0aef11f7c02ed875aecf649017e8554c07703ac5edf673e9616a"
+        },
+        {
+          "name": "remaining-stderr.txt",
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "remaining-exit-code.txt",
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-remaining-exit-code.txt",
+          "sha256": "2f1c37754e38b4ac70a9559fbfbdbd28feda47f36be9cd9e3ad5bc844ee3feb6"
+        },
+        {
+          "name": "launcher-whoami.txt",
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-launcher-whoami.txt",
+          "sha256": "dc97ada8a8e9c3ace7d9f1afacc0683a38eb20e70a3d43e6769b33cd654fc1d0"
+        },
+        {
+          "name": "bitvise-after.txt",
+          "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remote-bitvise-after.txt",
+          "sha256": "7d985e9fc78951ca68e1c952628a7811304c5ff807c15bdca69856b0ae8f034f"
+        }
+      ],
+      "supplementary": {
+        "schema_version": 1,
+        "acceptance_id": "A4-20260806-140606",
+        "suite": "SPIKE_02_REMAINING_C02_C03_C05_WIN7",
+        "captured_at": "2026-08-06T06:07:52Z",
+        "host": {
+          "platform": "win32",
+          "architecture": "AMD64",
+          "release": "7",
+          "version": "6.1.7601",
+          "python": "3.8.10 (tags/v3.8.10:3d8993a, May  3 2021, 11:48:03) [MSC v.1928 64 bit (AMD64)]"
+        },
+        "artifact": {
+          "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\spike02_helper.exe",
+          "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+        },
+        "cases": [
+          {
+            "id": "C03-restricted-token-boundary",
+            "status": "FAIL",
+            "expected": "inside workspace succeeds; outside write and protected registry read fail",
+            "actual": {
+              "transport": {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "elapsed_ms": 26,
+                "timed_out": false
+              },
+              "response": {
+                "schema_version": 1,
+                "type": "execution_result",
+                "requestId": "c03-restricted-boundary",
+                "status": "completed",
+                "exitCode": 0,
+                "executionTimeMs": 16,
+                "timedOut": false,
+                "canceled": false,
+                "outputTruncated": false,
+                "containmentVerified": true,
+                "inputDetached": true,
+                "stdoutSize": 0,
+                "stderrSize": 0,
+                "stdoutBase64": "",
+                "stderrBase64": ""
+              },
+              "invalid_stdout_lines": []
+            },
+            "probes": {
+              "inside_created": true,
+              "outside_created": true,
+              "protected_registry": "错误: 拒绝访问。\n\n"
+            }
+          },
+          {
+            "id": "C05-loopback-network",
+            "status": "PASS",
+            "expected": "restricted child reaches local TCP/UDP fixture and resolves localhost",
+            "actual": {
+              "transport": {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "elapsed_ms": 106,
+                "timed_out": false
+              },
+              "response": {
+                "schema_version": 1,
+                "type": "execution_result",
+                "requestId": "c05-loopback",
+                "status": "completed",
+                "exitCode": 0,
+                "executionTimeMs": 109,
+                "timedOut": false,
+                "canceled": false,
+                "outputTruncated": false,
+                "containmentVerified": true,
+                "inputDetached": true,
+                "stdoutSize": 0,
+                "stderrSize": 0,
+                "stdoutBase64": "",
+                "stderrBase64": ""
+              },
+              "invalid_stdout_lines": []
+            },
+            "measurement": {
+              "tcp": true,
+              "udp": true,
+              "dns_localhost": true
+            },
+            "formal_classification": "PARTIAL_LOCAL_ONLY_ENVIRONMENT_MISSING"
+          },
+          {
+            "id": "C02-host-already-in-job",
+            "status": "PASS",
+            "expected": "host in a non-nestable Job is reported and child execution is refused",
+            "actual": {
+              "transport": {
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "elapsed_ms": 18,
+                "timed_out": false
+              },
+              "response": {
+                "schema_version": 1,
+                "type": "execution_result",
+                "requestId": "c02-host-already-in-job",
+                "status": "failed",
+                "exitCode": 0,
+                "executionTimeMs": 0,
+                "timedOut": false,
+                "canceled": false,
+                "outputTruncated": false,
+                "containmentVerified": false,
+                "inputDetached": false,
+                "stdoutSize": 0,
+                "stderrSize": 0,
+                "stdoutBase64": "",
+                "stderrBase64": "",
+                "error": "HOST_ALREADY_IN_JOB",
+                "errorCode": 1102,
+                "message": "helper is already in a job; refusing an unverifiable nested containment"
+              },
+              "invalid_stdout_lines": []
+            },
+            "job_assignment": {
+              "created": true,
+              "assigned": true,
+              "error": 0,
+              "handle": 332
+            },
+            "note": "JOB_CREATE_FAILED is fail-closed but does not prove an explicit host-in-job diagnostic"
+          }
+        ],
+        "taskkill_used": false,
+        "scope": {
+          "C05": "LOOPBACK_ONLY_NO_ENTERPRISE_NETWORK_CONCLUSION"
+        },
+        "generated_files": {
+          "c03_script": {
+            "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\\c03-boundary\\c03-boundary.cmd",
+            "sha256": "0eaf9e91f66cb20b609c6daa553c98cbd86843071f357c2f43557f8ee0d3eae9"
+          },
+          "network_probe": {
+            "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\\c05-loopback\\network_probe.py",
+            "sha256": "ac89bc420d42a03614c1decd1c8f0f1b58b0c51e8120beefb4d9f02a6a4e87b0"
+          },
+          "network_script": {
+            "path": "C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\\c05-loopback\\c05-loopback.cmd",
+            "sha256": "5b79b6dafc8e087f7d8d4c267172571d6636c9e2985099706087f93ba0e523eb"
+          }
+        },
+        "server_observations": {
+          "tcp": true,
+          "udp": true
+        },
+        "final_process_snapshot": {
+          "command": "C:\\Windows\\System32\\wbem\\wmic.exe",
+          "args": [
+            "process",
+            "get",
+            "Name,ProcessId,ParentProcessId,CommandLine",
+            "/format:csv"
+          ],
+          "exit_code": 0,
+          "stdout": "\n\nNode,CommandLine,Name,ParentProcessId,ProcessId\n\nDCCS-CHAIZL-PC,,System Idle Process,0,0\n\nDCCS-CHAIZL-PC,,System,0,4\n\nDCCS-CHAIZL-PC,\\SystemRoot\\System32\\smss.exe,smss.exe,4,304\n\nDCCS-CHAIZL-PC,%SystemRoot%\\system32\\csrss.exe ObjectDirectory=\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,376,480\n\nDCCS-CHAIZL-PC,wininit.exe,wininit.exe,376,540\n\nDCCS-CHAIZL-PC,%SystemRoot%\\system32\\csrss.exe ObjectDirectory=\\Windows SharedSection=1024,20480,768 Windows=On SubSystemType=Windows ServerDll=basesrv,1 ServerDll=winsrv:UserServerDllInitialization,3 ServerDll=winsrv:ConServerDllInitialization,2 ServerDll=sxssrv,4 ProfileControl=Off MaxRequestThreads=16,csrss.exe,548,560\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\services.exe,services.exe,540,608\n\nDCCS-CHAIZL-PC,winlogon.exe,winlogon.exe,548,632\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\lsass.exe,lsass.exe,540,652\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\lsm.exe,lsm.exe,540,664\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k DcomLaunch,svchost.exe,608,768\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\ibmpmsvc.exe,ibmpmsvc.exe,608,828\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\NVDisplay.Container.exe\" -s NVDisplay.ContainerLocalSystem -f \"C:\\ProgramData\\NVIDIA\\NVDisplay.ContainerLocalSystem.log\" -l 3 -d \"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\plugins\\LocalSystem\" -r -p 30000 ,NVDisplay.Container.exe,608,868\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k RPCSS,svchost.exe,608,928\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k LocalServiceNetworkRestricted,svchost.exe,608,156\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k LocalSystemNetworkRestricted,svchost.exe,608,496\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k LocalService,svchost.exe,608,348\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k netsvcs,svchost.exe,608,912\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\igfxCUIService.exe,igfxCUIService.exe,608,1212\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\NVDisplay.Container.exe\" -f \"C:\\ProgramData\\NVIDIA\\DisplaySessionContainer%d.log\" -d \"C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\plugins\\Session\" -r -l 3 -p 30000  -c,NVDisplay.Container.exe,868,1324\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\System32\\WUDFHost.exe\" -HostGUID:{193a1820-d9ac-4997-8c55-be817523f6aa} -IoEventPortName:HostProcess-c5a92538-e065-4653-8198-ad98e8c51ba6 -SystemEventPortName:HostProcess-7f943708-72df-4842-bcdc-a14c7a9df394 -IoCancelEventPortName:HostProcess-d8d6cae0-4bf3-4831-a603-36ed48978029 -NonStateChangingEventPortName:HostProcess-24fbff3e-76f4-4e8f-a41f-6e3c150386b2 -ServiceSID:S-1-5-80-2652678385-582572993-1835434367-1344795993-749280709 -LifetimeId:a870828e-7404-4bfe-8037-f352a2d3a844 -DeviceGroupId:,WUDFHost.exe,496,1344\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k NetworkService,svchost.exe,608,1504\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\WLANExt.exe 4062304,wlanext.exe,496,1592\n\nDCCS-CHAIZL-PC,\\??\\C:\\Windows\\system32\\conhost.exe \"-1015499129-321511588463040502-1234314398-20433635091297740612-18338736561310214137,conhost.exe,480,1600\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\spoolsv.exe,spoolsv.exe,608,1704\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k LocalServiceNoNetwork,svchost.exe,608,1732\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Bitvise SSH Server\\BvSshServer.exe\",BvSshServer.exe,608,1828\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Dolby\\Dolby DAX2\\DAX2_API\\DolbyDAX2API.exe\",DolbyDAX2API.exe,608,1928\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k utcsvc,svchost.exe,608,2032\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Intel\\WiFi\\bin\\EvtEng.exe\",EvtEng.exe,608,1200\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynTPEnhService.exe\",SynTPEnhService.exe,608,2056\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\valWBFPolicyService.exe,valWBFPolicyService.exe,608,2140\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Intel\\WiFi\\bin\\ZeroConfigService.exe\",ZeroConfigService.exe,608,2252\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\wbem\\unsecapp.exe -Embedding,unsecapp.exe,768,2544\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\wbem\\wmiprvse.exe,WmiPrvSE.exe,768,2564\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k NetworkServiceNetworkRestricted,svchost.exe,608,2944\n\nDCCS-CHAIZL-PC,\"taskhost.exe\",taskhost.exe,608,2996\n\nDCCS-CHAIZL-PC,C:\\Windows\\Microsoft.Net\\Framework64\\v3.0\\WPF\\PresentationFontCache.exe,PresentationFontCache.exe,608,484\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\system32\\Dwm.exe\",dwm.exe,496,1648\n\nDCCS-CHAIZL-PC,C:\\Windows\\Explorer.EXE,explorer.exe,2940,2068\n\nDCCS-CHAIZL-PC,taskeng.exe {3582E866-BF56-4A65-A5A1-1090AFBE5ABB},taskeng.exe,912,3132\n\nDCCS-CHAIZL-PC,igfxEM.exe ,igfxEM.exe,3336,3356\n\nDCCS-CHAIZL-PC,igfxHK.exe ,igfxHK.exe,3336,3364\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\"  --start_time=1785804130424,Feishu.exe,3428,3464\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe\" -daemon,SGTool.exe,3364,3564\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SogouCloud.exe\" -daemon,SogouCloud.exe,3364,3644\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynTPEnh.exe\",SynTPEnh.exe,2056,3696\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Bitvise SSH Server\\BssCtrl.exe\"  -startMinimized,BssCtrl.exe,3116,3756\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --aha-process-t=aha-service --type=monitor --block-unsubscribe-shell-api-event --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --enable-aha-gwp-asan-dump --enable-exception-guard --mojo-platform-channel-handle=872,Feishu.exe,3464,3328\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=gpu-process --enable-gpu-dump --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAAAAAABgAAEAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAABQAAABgAAAAAAAAAGAAAAAAAAAAUAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --browser-runtime --aha-multi-profile --field-trial-handle=1652,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1684 --mojo-platform-channel-handle=1608 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=1780 --richdump-handle=1784 /prefetch:2,Feishu.exe,3464,3740\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1452,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=1816 --mojo-platform-channel-handle=2016 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2072 --richdump-handle=2084 /prefetch:8,Feishu.exe,3464,3584\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --aha-process-t=aha-service --type=backend --task-jssdk-enabled --enable-backend-async-progress --no-proxy-server --enable-pre-read-liblark-dll --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --aha-multi-profile --enable-backend-async-progress --enable-exception-guard --mojo-platform-channel-handle=2296,Feishu.exe,3464,3604\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=utility --utility-sub-type=jash.mojom.JSRuntimeService --lang=zh-CN --service-sandbox-type=none --js-runtime-verify-shellapi=strict --enable-js-runtime-shared-string --enable-codecache-in-js-runtime --enable-shellapi-new-tunnel --enable-backend-async-progress --block-unsubscribe-shell-api-event --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --browser-runtime --aha-multi-profile --field-trial-handle=1480,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=2408 --mojo-platform-channel-handle=2632 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=2648 --richdump-handle=2756 /prefetch:8,Feishu.exe,3464,4292\n\nDCCS-CHAIZL-PC,\"C:\\PROGRAM FILES\\SYNAPTICS\\SYNTP\\SYNTPHELPER.EXE\" ,SynTPHelper.exe,3724,4400\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynTPLpr.exe\",SynTPLpr.exe,3696,4448\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Synaptics\\SynTP\\SynLenovoHelper.exe\",SynLenovoHelper.exe,3696,4464\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\SearchIndexer.exe /Embedding,SearchIndexer.exe,608,3452\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Realtek\\Audio\\HDA\\RAVBg64.exe\" /FORPCEE4,RAVBg64.exe,3132,2720\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Realtek\\Audio\\HDA\\RAVBg64.exe\" /LENOVO_MICPKEY,RAVBg64.exe,3132,2684\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Realtek\\Audio\\HDA\\RAVCpl64.exe\" -s,RAVCpl64.exe,3132,2656\n\nDCCS-CHAIZL-PC,\"C:\\Program Files\\Windows Media Player\\wmpnetwk.exe\",wmpnetwk.exe,608,5192\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\svchost.exe -k LocalServiceAndNoImpersonation,svchost.exe,608,5244\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\sppsvc.exe,sppsvc.exe,608,5340\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\svchost.exe -k secsvcs,svchost.exe,608,5348\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\Components\\IChat\\1.0.2.3305\\SOGOUSmartAssistant.exe\" --panel=auto,SOGOUSmartAssistant.exe,1800,3068\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\Components\\IChat\\1.0.2.3305\\SOGOUSmartAssistant.exe\" --type=renderer --no-sandbox --autoplay-policy=no-user-gesture-required --disable-rgba-4444-textures --log-file=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\ichat\\cef.log\" --use-gl=swiftshader-webgl --enable-low-end-device-mode --field-trial-handle=2900,11944520051698872860,4016221733619974270,131072 --enable-features=NetworkServiceInProcess --disable-gpu-compositing --lang=zh-CN --log-file=\"C:\\Users\\dccs-chaizl\\AppData\\Roaming\\ichat\\cef.log\" --log-severity=disable --product-version=\"Chrome/80.0.3987.163 SGWebviewClient/1.0.2.3305 SGWebviewApi/51\" --disable-spell-checking --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=3 --mojo-platform-channel-handle=2904 /prefetch:1,SOGOUSmartAssistant.exe,3068,3680\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=9 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=949543561 --field-trial-handle=4468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=4432 --mojo-platform-channel-handle=4504 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=4488 --richdump-handle=4424 /prefetch:1,Feishu.exe,3464,4712\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=10 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=950093362 --field-trial-handle=5468,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=5576 --mojo-platform-channel-handle=5480 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=5572 --richdump-handle=5568 /prefetch:1,Feishu.exe,3464,4196\n\nDCCS-CHAIZL-PC,\"C:\\Users\\dccs-chaizl\\AppData\\Local\\Feishu\\app\\Feishu.exe\" --type=renderer --enable-exception-guard-sandbox --string-annotations=is-enterprise-managed=no --video-capture-use-gpu-memory-buffer --indexeddb-idle-check-seconds=5 --scene=profile_main --enable-prefer-compositing-to-lcd-text --enable-run-before-paint --enable-renderer-jank-monitor --enable-native-resource-code-cache --block-unsubscribe-shell-api-event --enable-shellapi-new-tunnel --enable-shellapi-env-block --enable-shellapi-jsb-permission-no-http --enable-v8-callstack-check --enable-v8-callstack-check-block --lang=zh-CN --device-scale-factor=1 --num-raster-threads=2 --enable-main-frame-before-activation --renderer-client-id=11 --time-ticks-at-unix-epoch=-1785804111041847 --browser-runtime --aha-multi-profile --launch-time-ticks=955027821 --field-trial-handle=5812,i,5048869145968481310,16163337018945437953,262144 --variations-seed-version --enable-logging=handle --log-file=3668 --mojo-platform-channel-handle=3764 --smc-metadata=880,12233429627481107370,10274783627029353286,20971520 --minidump-handle=3688 --richdump-handle=3676 /prefetch:1,Feishu.exe,3464,5516\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\system32\\cmd.exe\" ,cmd.exe,2068,1960\n\nDCCS-CHAIZL-PC,\\??\\C:\\Windows\\system32\\conhost.exe \"645599418900195385-170598126120379193521579044997-1390804600278717512248609448,conhost.exe,560,7048\n\nDCCS-CHAIZL-PC,\"C:\\Windows\\system32\\wuauclt.exe\",wuauclt.exe,912,5648\n\nDCCS-CHAIZL-PC,\"c:\\program files\\windows defender\\MpCmdRun.exe\" SpyNetService -RestrictPrivileges -AccessKey 05D10419-84A1-D74A-350F-9BB3D2485DEE -Reinvoke,MpCmdRun.exe,6852,6680\n\nDCCS-CHAIZL-PC,,audiodg.exe,156,5684\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\wbem\\wmiprvse.exe,WmiPrvSE.exe,768,5864\n\nDCCS-CHAIZL-PC,\"C:\\Program Files (x86)\\SogouInput\\Components\\biz_center\\1.0.0.3315\\biz_helper.exe\" --type=systoast --subtype=check,biz_helper.exe,7108,2624\n\nDCCS-CHAIZL-PC,C:\\Windows\\system32\\DllHost.exe /Processid:{F9717507-6651-4EDB-BFF7-AE615179BCCF},dllhost.exe,768,6032\n\nDCCS-CHAIZL-PC,cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_wmi.cmd A4-20260806-140606,cmd.exe,5864,5792\n\nDCCS-CHAIZL-PC,\\??\\C:\\Windows\\system32\\conhost.exe \"1922222322083056038-18641386582020767377195027705819776753301272062424-846129738,conhost.exe,480,5264\n\nDCCS-CHAIZL-PC,\"C:\\acceptance\\python38_mvp\\python.exe\"  \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\run_remaining_win7.py\" --acceptance-id \"A4-20260806-140606\" --helper \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\spike02_helper.exe\" --root \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\generated\" --out \"C:\\Win7CodingAgent\\acceptance\\A4-20260806-140606\\remaining-results.json\" ,python.exe,5792,6724\n\nDCCS-CHAIZL-PC,C:\\Windows\\System32\\wbem\\wmic.exe process get Name,ProcessId,ParentProcessId,CommandLine /format:csv,WMIC.exe,6724,1064\n\n",
+          "stderr": "",
+          "elapsed_ms": 80,
+          "error": null
+        },
+        "status": "PARTIAL",
+        "formal_status": "PARTIAL_C02_C03_C05_LOOPBACK_ONLY",
+        "finished_at": "2026-08-06T06:07:52Z"
+      },
+      "finished_at": "2026-08-06T06:07:58.404Z",
+      "duration_ms": 3632,
+      "stdout_file": "REM-06-stdout.txt",
+      "stderr_file": "REM-06-stderr.txt"
+    }
+  ],
+  "gates": {
+    "GATE-ACL": "MANUAL_GATE",
+    "GATE-NET": "ENVIRONMENT_MISSING",
+    "GATE-PROD": "AUTHORIZATION_BLOCKED",
+    "GATE-A5-A6": "BUILD_HOST_MISSING"
+  },
+  "result": {
+    "automatic_status": "SUPPLEMENTARY_AUTOMATION_PASS",
+    "formal_c05": "ENVIRONMENT_MISSING",
+    "classification": "C02_C03_C05_SUPPLEMENTARY_EVIDENCE_READY"
+  },
+  "command_count": 27
+}

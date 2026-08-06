@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "plan_id": "AUTO-FUP-20260805-01",
+  "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+  "integration_base_head": "008677e88a638d98cee5eb7e3d7aeeeed135ef51",
+  "preserved_a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+  "source_snapshot": {
+    "ref": "refs/codex/snapshots/49c20af08ab9c062dc484daf89616393fd5c730d",
+    "commit": "3445ed4164fa58a2deded29ec5403eed8646715a",
+    "parent": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "use": "read-only exact blob recovery after the archived A4 worktree was cleaned"
+  },
+  "objective": "Chain deterministic and connection-safe A4 follow-up acceptance steps into one fail-closed workflow.",
+  "scope": {
+    "implementation_allowlist": ["spikes/02-terminal-containment/**"],
+    "production_runner_changes": false,
+    "interactive_terminal_changes": false,
+    "sqlite_changes": false
+  },
+  "target": {
+    "address": "10.67.149.40",
+    "user": "dccs-chaizl",
+    "os": "Windows 7 SP1 x64 build 7601",
+    "strict_host_key_checking": true,
+    "remote_acceptance_root_template": "C:\\Win7CodingAgent\\acceptance\\{acceptance_id}",
+    "remote_data_root_template": "C:\\Win7CodingAgent\\data\\{acceptance_id}"
+  },
+  "locked_artifacts": {
+    "candidate_helper": {
+      "path": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper.exe",
+      "sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc"
+    },
+    "fault_helper": {
+      "path": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper_fault_job.exe",
+      "sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+      "acceptance_only": true
+    }
+  },
+  "stages": [
+    {"id": "AUTO-00", "name": "governance and dirty-worktree fingerprint", "execution": "AUTOMATIC"},
+    {"id": "AUTO-01", "name": "macOS deterministic regression", "execution": "AUTOMATIC", "classification": "DEVELOPMENT_PASS_NOT_WIN7_EVIDENCE"},
+    {"id": "AUTO-02", "name": "candidate integrity and package closure", "execution": "AUTOMATIC", "rebuild_default": false},
+    {"id": "AUTO-03", "name": "strict SSH and Win7 read-only preflight", "execution": "AUTOMATIC"},
+    {"id": "AUTO-04", "name": "fresh remote roots and transfer", "execution": "AUTOMATIC"},
+    {"id": "AUTO-05", "name": "safe loader smoke", "execution": "AUTOMATIC"},
+    {"id": "AUTO-06", "name": "A4 non-interactive Win7 matrix", "execution": "AUTOMATIC"},
+    {"id": "AUTO-07", "name": "evidence retrieval and immutable consolidation", "execution": "AUTOMATIC"}
+  ],
+  "gates": [
+    {"id": "GATE-ACL", "status": "MANUAL_GATE", "reason": "ACL mutation requires explicit disposable-root approval."},
+    {"id": "GATE-NET", "status": "ENVIRONMENT_MISSING", "reason": "No approved observation endpoint is defined."},
+    {"id": "GATE-PROD", "status": "AUTHORIZATION_BLOCKED", "reason": "Production Runner integration is outside SPIKE_02 authorization."},
+    {"id": "GATE-A5-A6", "status": "BUILD_HOST_MISSING", "reason": "Electron 22 native ABI build host is unavailable."}
+  ],
+  "global_stop_conditions": [
+    "strict SSH or host-key verification fails",
+    "Bitvise is not RUNNING",
+    "artifact or transfer hash differs",
+    "remote acceptance ID already exists",
+    "Job containment cannot be proven before child start",
+    "timeout, cancel or final residual process remains",
+    "workflow would need taskkill, reboot, network, firewall, route, service or startup mutation",
+    "destructive target is not the fresh acceptance root",
+    "action requires a path outside the SPIKE_02 allowlist"
+  ],
+  "success_definition": "AUTO-00 through AUTO-07 pass with no stop condition; gated stages remain explicit and are not counted as automatic PASS.",
+  "latest_execution": {
+    "acceptance_id": "A4-20260805-123467",
+    "status": "AUTOMATION_PASS",
+    "auto_00_to_07_pass": true,
+    "win7_cases": {"passed": 14, "total": 14},
+    "taskkill_used": false,
+    "final_residual_processes": 0,
+    "bitvise_after": "RUNNING",
+    "report": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.json",
+    "html": "spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/A4-20260805-123467-automation.html"
+  },
+  "latest_supplementary_execution": {
+    "acceptance_id": "A4-20260806-140606",
+    "audit_id": "A4-20260806-140606-REMAINING",
+    "status": "SUPPLEMENTARY_AUTOMATION_PASS",
+    "C02": "PASS",
+    "C03": "FAIL",
+    "C05_loopback": "PASS_LOCAL_ONLY",
+    "C05_formal": "ENVIRONMENT_MISSING",
+    "formal_spike_02": "NO_GO_FORMAL_GAPS",
+    "formal_atomic_passed": 6,
+    "formal_atomic_total": 19,
+    "report": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606-remaining-automation.json",
+    "audit": "spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.json"
+  }
+}

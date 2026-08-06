@@ -1,0 +1,6 @@
+spike02-helper 0.1.0 win7-x64 job-object
+
+usage: helper.exe [--version|--help]
+stdin: one UTF-8 JSON run/cancel request per line
+
+��Ϣ: û�����е�����ƥ��ָ����׼��

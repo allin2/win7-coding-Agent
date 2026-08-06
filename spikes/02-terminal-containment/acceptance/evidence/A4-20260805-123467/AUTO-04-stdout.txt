@@ -1,0 +1,30 @@
+
+
+
+
+
+
+
+SHA256 ��ϣ(�ļ� C:\Win7CodingAgent\acceptance\A4-20260805-123467\spike02_helper.exe):
+73 3f 54 91 81 22 82 73 af d6 58 17 b6 44 8b e1 cc 4b eb 88 8f 8b f2 ca a2 94 e4 e1 29 9c ee cc
+CertUtil: -hashfile ����ɹ���ɡ�
+
+
+SHA256 ��ϣ(�ļ� C:\Win7CodingAgent\acceptance\A4-20260805-123467\spike02_helper_fault_job.exe):
+0e db 20 c9 4f e5 a0 3a 9a 46 1a 48 c7 14 4e 07 bd 17 1b 2b 95 91 c1 c8 d4 86 3b 65 9a 19 7d 3f
+CertUtil: -hashfile ����ɹ���ɡ�
+
+
+SHA256 ��ϣ(�ļ� C:\Win7CodingAgent\acceptance\A4-20260805-123467\run_helper_harness.js):
+be c1 0f d1 b6 d0 48 85 c3 bc 0b 30 1f d7 b9 4c ea d0 6d cc bb a0 5a 8c 0b ee e2 2f 2f f9 87 e4
+CertUtil: -hashfile ����ɹ���ɡ�
+
+
+SHA256 ��ϣ(�ļ� C:\Win7CodingAgent\acceptance\A4-20260805-123467\run_helper_win7.py):
+d2 39 5a 3c dc 70 07 bc 55 8a ec b3 81 14 22 bc 99 23 b4 f1 f8 93 56 0b 62 71 45 5a a8 c8 a9 44
+CertUtil: -hashfile ����ɹ���ɡ�
+
+
+SHA256 ��ϣ(�ļ� C:\Win7CodingAgent\acceptance\A4-20260805-123467\run_a4_wmi.cmd):
+c2 53 73 d3 b1 ea 03 d7 b1 bd 60 45 7a ef 71 cc e5 82 bd 98 ff 9d 47 aa fa 29 6c d3 fd 62 20 67
+CertUtil: -hashfile ����ɹ���ɡ�

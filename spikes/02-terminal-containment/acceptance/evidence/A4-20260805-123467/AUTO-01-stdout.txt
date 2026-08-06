@@ -1,0 +1,148 @@
+
+
+> win7-coding-agent-integration@0.1.0 docs:check
+> node scripts/check_docs.mjs
+
+{"ok":true,"checked_files":61,"task_files":15}
+
+
+> win7-coding-agent-integration@0.1.0 verify
+> node scripts/verify_integration.mjs
+
+[verify] design-guards: Agent 安全闭环静态门
+[verify] design-guards 通过：完成态必须经过 Verification Gate
+[verify] design-guards 通过：Agent Loop 必须把工具结果送回下一模型 Step 并提供预算收尾
+[verify] design-guards 通过：Turn 必须穷举六类结局和四维预算
+[verify] design-guards 通过：能力令牌必须绑定具体 ToolCall
+[verify] design-guards 通过：Workspace 写入点必须消费审批记录
+[verify] design-guards 通过：Runner 执行点必须消费审批记录
+[verify] design-guards 通过：Git Adapter 只能通过注入 Runner 执行
+
+[verify] gateway: npm run lint
+
+> @win7-agent/gateway@0.1.0 lint
+> tsc --noEmit
+
+
+[verify] gateway: npm run build
+
+> @win7-agent/gateway@0.1.0 build
+> tsc
+
+
+[verify] gateway: npm test -- --runInBand
+
+> @win7-agent/gateway@0.1.0 test
+> jest --runInBand
+
+
+[verify] workspace: npm run lint
+
+> @win7-agent/workspace@0.1.0 lint
+> tsc --noEmit
+
+
+[verify] workspace: npm run build
+
+> @win7-agent/workspace@0.1.0 build
+> tsc
+
+
+[verify] workspace: npm test -- --runInBand
+
+> @win7-agent/workspace@0.1.0 test
+> jest --runInBand
+
+
+[verify] state: npm run lint
+
+> @win7-agent/state@0.1.0 lint
+> tsc --noEmit
+
+
+[verify] state: npm run build
+
+> @win7-agent/state@0.1.0 build
+> tsc
+
+
+[verify] state: npm test -- --runInBand
+
+> @win7-agent/state@0.1.0 test
+> jest --runInBand
+
+
+[verify] core: npm run lint
+
+> @win7-agent/core@0.1.0 lint
+> tsc --noEmit
+
+
+[verify] core: npm run build
+
+> @win7-agent/core@0.1.0 build
+> tsc
+
+
+[verify] core: npm test -- --runInBand
+
+> @win7-agent/core@0.1.0 test
+> jest --runInBand
+
+
+[verify] runner: npm run lint
+
+> @win7-agent/runner@0.1.0 lint
+> tsc --noEmit
+
+
+[verify] runner: npm run build
+
+> @win7-agent/runner@0.1.0 build
+> tsc
+
+
+[verify] runner: npm test -- --runInBand
+
+> @win7-agent/runner@0.1.0 test
+> jest --runInBand
+
+
+[verify] git-adapter: npm run lint
+
+> @win7-agent/git-adapter@0.1.0 lint
+> tsc --noEmit
+
+
+[verify] git-adapter: npm run build
+
+> @win7-agent/git-adapter@0.1.0 build
+> tsc
+
+
+[verify] git-adapter: npm test -- --runInBand
+
+> @win7-agent/git-adapter@0.1.0 test
+> jest --runInBand
+
+
+[verify] shell: npm run lint
+
+> @win7-agent/shell@0.1.0 lint
+> tsc --noEmit && node --check product/policy.js && node --check product/credential-vault.js && node --check product/desktop-host.js && node --check product/desktop-ipc.js && node --check product/main.js && node --check product/preload.js && node --check product/renderer/event-queue.js && node --check product/renderer/gateway-settings-payload.js && node --check product/renderer/renderer.js
+
+
+[verify] shell: npm run build
+
+> @win7-agent/shell@0.1.0 build
+> tsc
+
+
+[verify] shell: npm test -- --runInBand
+
+> @win7-agent/shell@0.1.0 test
+> jest --runInBand
+
+
+[verify] 通过：7 个 Phase 3–7 模块完成编译/静态/测试验证。
+[verify] 此结果不等于 Win7 实机验收通过。

@@ -1,0 +1,2005 @@
+{
+  "schema_version": 1,
+  "plan_id": "AUTO-FUP-20260805-01",
+  "acceptance_id": "A4-20260805-123467",
+  "mode": "EXECUTE_WIN7",
+  "generated_at": "2026-08-05T13:38:21.274Z",
+  "evidence_directory": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467",
+  "repository": {
+    "root": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent",
+    "orchestration_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+    "current_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+    "source_worktree": "/Users/qlyf/.codex/worktrees/e36c/win7-coding-Agent",
+    "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "observed_source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+    "a3_worktree": "/Users/qlyf/.codex/worktrees/5b96/win7-coding-Agent",
+    "a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346"
+  },
+  "safety": {
+    "shell_false_only": true,
+    "private_key_content_read": false,
+    "private_key_content_emitted": false,
+    "taskkill_used": false,
+    "management_channel_mutated": false,
+    "rebooted": false
+  },
+  "stages": [
+    {
+      "id": "AUTO-00",
+      "name": "governance and dirty-worktree fingerprint",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 30000,
+      "started_at": "2026-08-05T13:37:29.740Z",
+      "commands": [
+        {
+          "command": "git",
+          "argv": [
+            "-c",
+            "core.fsmonitor=false",
+            "rev-parse",
+            "HEAD"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "5ac70da6b4d7b810503e704fd3e4038ae0190346\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 12,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "-c",
+            "core.fsmonitor=false",
+            "status",
+            "--porcelain=v1",
+            "--branch"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "## HEAD (no branch)\n M docs/reports/README.md\n M spikes/02-terminal-containment/README.md\n?? docs/reports/2026-08/a4_automated_acceptance_orchestration_2026-08-05.html\n?? spikes/02-terminal-containment/acceptance/\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 16,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "-c",
+            "core.fsmonitor=false",
+            "rev-parse",
+            "refs/codex/snapshots/49c20af08ab9c062dc484daf89616393fd5c730d^{commit}"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "3445ed4164fa58a2deded29ec5403eed8646715a\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 11,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "-s",
+            "--format=%P",
+            "3445ed4164fa58a2deded29ec5403eed8646715a"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 12,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "-C",
+            "/Users/qlyf/.codex/worktrees/5b96/win7-coding-Agent",
+            "-c",
+            "core.fsmonitor=false",
+            "rev-parse",
+            "HEAD"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "5ac70da6b4d7b810503e704fd3e4038ae0190346\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "-C",
+            "/Users/qlyf/.codex/worktrees/5b96/win7-coding-Agent",
+            "-c",
+            "core.fsmonitor=false",
+            "status",
+            "--porcelain=v1",
+            "--branch"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "## codex/a1-a3-acceptance...origin/codex/a1-a3-acceptance\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 12,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:AGENTS.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 12487 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:docs/WIN7_CONSTRAINTS.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 28784 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 9,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:docs/tasks/SPIKE_02_TERMINAL_CONTAINMENT.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 12062 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 11,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:docs/tasks/MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 6641 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 53172 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:docs/STATUS.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 13384 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:docs/status/latest-validation.json"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 12085 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 9,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/README.md"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 5404 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/helper/helper.cpp"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 43901 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 9,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/helper/helper.h"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 3352 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/helper/CMakeLists.txt"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 1378 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/AUTO-FUP-20260805-01-plan.json"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 8463 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/manifest.json"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 2026 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 9,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "baseline": {
+        "orchestration_worktree": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent",
+        "orchestration_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+        "expected_orchestration_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+        "orchestration_git_status": "## HEAD (no branch)\n M docs/reports/README.md\n M spikes/02-terminal-containment/README.md\n?? docs/reports/2026-08/a4_automated_acceptance_orchestration_2026-08-05.html\n?? spikes/02-terminal-containment/acceptance/\n",
+        "archived_source_worktree": "/Users/qlyf/.codex/worktrees/e36c/win7-coding-Agent",
+        "source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+        "expected_source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+        "source_snapshot_ref": "refs/codex/snapshots/49c20af08ab9c062dc484daf89616393fd5c730d",
+        "source_snapshot_commit": "3445ed4164fa58a2deded29ec5403eed8646715a",
+        "expected_source_snapshot_commit": "3445ed4164fa58a2deded29ec5403eed8646715a",
+        "source_snapshot_parent": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+        "source_binding": "PROTECTED_GIT_SNAPSHOT_PARENT_AND_EXACT_HASHES",
+        "a3_worktree": "/Users/qlyf/.codex/worktrees/5b96/win7-coding-Agent",
+        "a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+        "expected_a3_head": "5ac70da6b4d7b810503e704fd3e4038ae0190346",
+        "a3_status": "## codex/a1-a3-acceptance...origin/codex/a1-a3-acceptance\n",
+        "source_hashes": {
+          "AGENTS.md": "941fb949c0c7e6612ddca161d3386c164ce1385904c1d556bf8fdd8352d71683",
+          "docs/WIN7_CONSTRAINTS.md": "3940532d7314ea15ad00f28b0e5a81133dca00b20d884ded350b72a9e85547ca",
+          "docs/tasks/SPIKE_02_TERMINAL_CONTAINMENT.md": "f3750d652200b9579ca5d99fa0745bfab13d1677e43bd05e43c71a29c67df70e",
+          "docs/tasks/MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md": "db186d196ea4a5f3c9f56634d3c493d18e173bc3da17f73cf5a37cb45970f8f5",
+          "docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md": "670d1828b96c1a1090aac61373993d49e9c85b60b893670bb20d1e36b514b3f4",
+          "docs/STATUS.md": "df430955c3b36bcf53720e81184e4c2ff52487f06cbaabcbc1451d151886f089",
+          "docs/status/latest-validation.json": "75beba2a25d5f092a705af768e84f71ed58e636b4ddad1053229bbbba91bf794",
+          "spikes/02-terminal-containment/README.md": "13be1f6a2a745dd3baff49b8020b4eb362baa8536c663e9caf3b9896a886f617",
+          "spikes/02-terminal-containment/helper/helper.cpp": "addb949dc70e910d967a680ea3900ab2d9a4917b35f887985c1211a66e4ccfdf",
+          "spikes/02-terminal-containment/helper/helper.h": "e3cfb21da8b59288b37e90197a675d40397b77305d33782e3228d3452a5bc6e7",
+          "spikes/02-terminal-containment/helper/CMakeLists.txt": "cf3c0d3cbc75b4ad8faeecefe416d10669fc9bdb41993f8bc5d6c882bf02eb07"
+        },
+        "reference_plan": "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/AUTO-FUP-20260805-01-plan.json",
+        "reference_plan_sha256": "a946aad5eb4f453b3a11a7f3d1b2162338400e7c7d9737f33051dc343ccbfcf9",
+        "expected_reference_plan_sha256": "a946aad5eb4f453b3a11a7f3d1b2162338400e7c7d9737f33051dc343ccbfcf9",
+        "package_manifest": "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/manifest.json",
+        "package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+        "expected_package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+        "manifest_source_head": "b2019f022f910b2b8df150ad94c3bccdefa1fa7b",
+        "dirty_worktrees_preserved": true,
+        "protected_operations": {
+          "branch_switch": false,
+          "staging": false,
+          "commit": false,
+          "push": false
+        }
+      },
+      "finished_at": "2026-08-05T13:37:29.941Z",
+      "duration_ms": 201,
+      "stdout_file": "AUTO-00-stdout.txt",
+      "stderr_file": "AUTO-00-stderr.txt"
+    },
+    {
+      "id": "AUTO-01",
+      "name": "macOS deterministic regression",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 1800000,
+      "started_at": "2026-08-05T13:37:29.941Z",
+      "commands": [
+        {
+          "command": "dependency-probe",
+          "argv": [],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "shell": false,
+          "detail": {
+            "missing": []
+          }
+        },
+        {
+          "command": "npm",
+          "argv": [
+            "run",
+            "docs:check"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "\n> win7-coding-agent-integration@0.1.0 docs:check\n> node scripts/check_docs.mjs\n\n{\"ok\":true,\"checked_files\":61,\"task_files\":15}\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 181,
+          "shell": false
+        },
+        {
+          "command": "npm",
+          "argv": [
+            "run",
+            "verify"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "\n> win7-coding-agent-integration@0.1.0 verify\n> node scripts/verify_integration.mjs\n\n[verify] design-guards: Agent 安全闭环静态门\n[verify] design-guards 通过：完成态必须经过 Verification Gate\n[verify] design-guards 通过：Agent Loop 必须把工具结果送回下一模型 Step 并提供预算收尾\n[verify] design-guards 通过：Turn 必须穷举六类结局和四维预算\n[verify] design-guards 通过：能力令牌必须绑定具体 ToolCall\n[verify] design-guards 通过：Workspace 写入点必须消费审批记录\n[verify] design-guards 通过：Runner 执行点必须消费审批记录\n[verify] design-guards 通过：Git Adapter 只能通过注入 Runner 执行\n\n[verify] gateway: npm run lint\n\n> @win7-agent/gateway@0.1.0 lint\n> tsc --noEmit\n\n\n[verify] gateway: npm run build\n\n> @win7-agent/gateway@0.1.0 build\n> tsc\n\n\n[verify] gateway: npm test -- --runInBand\n\n> @win7-agent/gateway@0.1.0 test\n> jest --runInBand\n\n\n[verify] workspace: npm run lint\n\n> @win7-agent/workspace@0.1.0 lint\n> tsc --noEmit\n\n\n[verify] workspace: npm run build\n\n> @win7-agent/workspace@0.1.0 build\n> tsc\n\n\n[verify] workspace: npm test -- --runInBand\n\n> @win7-agent/workspace@0.1.0 test\n> jest --runInBand\n\n\n[verify] state: npm run lint\n\n> @win7-agent/state@0.1.0 lint\n> tsc --noEmit\n\n\n[verify] state: npm run build\n\n> @win7-agent/state@0.1.0 build\n> tsc\n\n\n[verify] state: npm test -- --runInBand\n\n> @win7-agent/state@0.1.0 test\n> jest --runInBand\n\n\n[verify] core: npm run lint\n\n> @win7-agent/core@0.1.0 lint\n> tsc --noEmit\n\n\n[verify] core: npm run build\n\n> @win7-agent/core@0.1.0 build\n> tsc\n\n\n[verify] core: npm test -- --runInBand\n\n> @win7-agent/core@0.1.0 test\n> jest --runInBand\n\n\n[verify] runner: npm run lint\n\n> @win7-agent/runner@0.1.0 lint\n> tsc --noEmit\n\n\n[verify] runner: npm run build\n\n> @win7-agent/runner@0.1.0 build\n> tsc\n\n\n[verify] runner: npm test -- --runInBand\n\n> @win7-agent/runner@0.1.0 test\n> jest --runInBand\n\n\n[verify] git-adapter: npm run lint\n\n> @win7-agent/git-adapter@0.1.0 lint\n> tsc --noEmit\n\n\n[verify] git-adapter: npm run build\n\n> @win7-agent/git-adapter@0.1.0 build\n> tsc\n\n\n[verify] git-adapter: npm test -- --runInBand\n\n> @win7-agent/git-adapter@0.1.0 test\n> jest --runInBand\n\n\n[verify] shell: npm run lint\n\n> @win7-agent/shell@0.1.0 lint\n> tsc --noEmit && node --check product/policy.js && node --check product/credential-vault.js && node --check product/desktop-host.js && node --check product/desktop-ipc.js && node --check product/main.js && node --check product/preload.js && node --check product/renderer/event-queue.js && node --check product/renderer/gateway-settings-payload.js && node --check product/renderer/renderer.js\n\n\n[verify] shell: npm run build\n\n> @win7-agent/shell@0.1.0 build\n> tsc\n\n\n[verify] shell: npm test -- --runInBand\n\n> @win7-agent/shell@0.1.0 test\n> jest --runInBand\n\n\n[verify] 通过：7 个 Phase 3–7 模块完成编译/静态/测试验证。\n[verify] 此结果不等于 Win7 实机验收通过。\n",
+          "stderr": "PASS tests/unit/transport/connection.test.ts\nPASS tests/unit/provider/provider.test.ts\nPASS tests/unit/transport/node-network.test.ts\nPASS tests/unit/provider/deepseek-openai.test.ts\nPASS tests/unit/security/security.test.ts\nPASS tests/unit/protocol/frames.test.ts\nPASS tests/unit/protocol/version.test.ts\nPASS tests/unit/types/errors.test.ts\nPASS tests/unit/types/messages.test.ts\nPASS tests/unit/types/codecs.test.ts\n\nTest Suites: 10 passed, 10 total\nTests:       202 passed, 202 total\nSnapshots:   0 total\nTime:        0.655 s, estimated 1 s\nRan all test suites.\nPASS tests/unit/apply.test.ts\nPASS tests/unit/readonly.test.ts\nPASS tests/unit/trusted-write.test.ts\nPASS tests/unit/atomic.test.ts\nPASS tests/unit/replace.test.ts\nPASS tests/unit/safety.test.ts\nPASS tests/unit/plan.test.ts\nPASS tests/unit/encoding.test.ts\nPASS tests/unit/diff.test.ts\n\nTest Suites: 9 passed, 9 total\nTests:       80 passed, 80 total\nSnapshots:   0 total\nTime:        0.642 s, estimated 1 s\nRan all test suites.\nPASS tests/store.test.ts\nPASS tests/backlog.test.ts\nPASS tests/unit/store.test.ts\nPASS tests/unit/runtime-event-adapter.test.ts\nPASS tests/wal.test.ts\nPASS tests/schema.test.ts\nPASS tests/unit/event-protocol.test.ts\nPASS tests/replay.test.ts\nPASS tests/unit/wal.test.ts\nPASS tests/unit/backlog.test.ts\nPASS tests/audit.test.ts\nPASS tests/unit/schema.test.ts\nPASS tests/unit/event-stream.test.ts\nPASS tests/unit/runtime-message-projector.test.ts\nPASS tests/unit/replay.test.ts\nPASS tests/unit/audit.test.ts\n\nTest Suites: 16 passed, 16 total\nTests:       219 passed, 219 total\nSnapshots:   0 total\nTime:        0.714 s, estimated 1 s\nRan all test suites.\nPASS tests/runtime.test.ts\nPASS tests/state-machine.test.ts\nPASS tests/concurrency.test.ts\nPASS tests/broker.test.ts\nPASS tests/working-memory.test.ts\nPASS tests/tools.test.ts\nPASS tests/runtime-protocol.test.ts\nPASS tests/agents-discovery.test.ts\nPASS tests/context-bootstrap.test.ts\nPASS tests/policy.test.ts\nPASS tests/loop-control.test.ts\nPASS tests/workspace-readonly-tools.test.ts\nPASS tests/context.test.ts\nPASS tests/context-manager.test.ts\nPASS tests/verification.test.ts\nPASS tests/errors.test.ts\nPASS tests/types.test.ts\nPASS tests/token-estimator.test.ts\nPASS tests/tool-observation.test.ts\nPASS tests/context-compactor.test.ts\n\nTest Suites: 20 passed, 20 total\nTests:       225 passed, 225 total\nSnapshots:   0 total\nTime:        0.874 s, estimated 1 s\nRan all test suites.\nPASS tests/runner.test.ts\nPASS tests/approval.test.ts\nPASS tests/containment.test.ts\n\nTest Suites: 3 passed, 3 total\nTests:       46 passed, 46 total\nSnapshots:   0 total\nTime:        0.474 s, estimated 1 s\nRan all test suites.\nPASS tests/adapter.test.ts\nPASS tests/whitelist.test.ts\nPASS tests/session.test.ts\nPASS tests/isolation.test.ts\n\nTest Suites: 4 passed, 4 total\nTests:       51 passed, 51 total\nSnapshots:   0 total\nTime:        0.49 s, estimated 1 s\nRan all test suites.\nPASS tests/ipc/schema.test.ts\nPASS tests/product/desktop-ipc.test.ts\nPASS tests/product/desktop-host.test.ts\nPASS tests/product/desktop-a2.test.ts\nPASS tests/ipc/channel.test.ts\nPASS tests/product/desktop-a3.test.ts\nPASS tests/updater/updater.test.ts\nPASS tests/security/outbound.test.ts\nPASS tests/product/credential-vault.test.ts\nPASS tests/security/csp.test.ts\nPASS tests/product/gateway-settings-payload.test.ts\nPASS tests/product/policy.test.ts\nPASS tests/errors.test.ts\nPASS tests/product/gateway-runtime.test.ts\nPASS tests/product/event-queue.test.ts\n\nTest Suites: 15 passed, 15 total\nTests:       119 passed, 119 total\nSnapshots:   0 total\nTime:        1.722 s, estimated 2 s\nRan all test suites.\n",
+          "error": null,
+          "duration_ms": 16321,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "classification": "DEVELOPMENT_PASS_NOT_WIN7_EVIDENCE",
+      "finished_at": "2026-08-05T13:37:46.443Z",
+      "duration_ms": 16502,
+      "stdout_file": "AUTO-01-stdout.txt",
+      "stderr_file": "AUTO-01-stderr.txt"
+    },
+    {
+      "id": "AUTO-02",
+      "name": "candidate integrity and package closure",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 120000,
+      "started_at": "2026-08-05T13:37:46.443Z",
+      "commands": [
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/manifest.json"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 2026 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 17,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper.exe"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 12932243 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 39,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper_fault_job.exe"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 12753596 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 39,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_helper_harness.js"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 10372 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 11,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_helper_win7.py"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 17868 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 10,
+          "shell": false
+        },
+        {
+          "command": "git",
+          "argv": [
+            "show",
+            "3445ed4164fa58a2deded29ec5403eed8646715a:spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_a4_wmi.cmd"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "<snapshot blob 614 bytes>",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 9,
+          "shell": false
+        },
+        {
+          "command": "sha256-and-pe-probe",
+          "argv": [],
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": "",
+          "shell": false,
+          "detail": {
+            "artifacts": [
+              {
+                "label": "candidate",
+                "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+                "present": true,
+                "expected_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+                "actual_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+                "pe": {
+                  "is_pe": true,
+                  "machine": "0x8664",
+                  "x64": true,
+                  "size": 12932243
+                }
+              },
+              {
+                "label": "fault_helper",
+                "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper_fault_job.exe",
+                "present": true,
+                "expected_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+                "actual_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+                "pe": {
+                  "is_pe": true,
+                  "machine": "0x8664",
+                  "x64": true,
+                  "size": 12753596
+                }
+              }
+            ],
+            "package_manifest": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/manifest.json",
+            "package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+            "expected_package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+            "manifest_present": true,
+            "manifest_pass": true
+          }
+        }
+      ],
+      "evidence": [
+        "snapshot-package/manifest.json",
+        "snapshot-package/spike02_helper.exe",
+        "snapshot-package/spike02_helper_fault_job.exe",
+        "snapshot-package/run_helper_harness.js",
+        "snapshot-package/run_helper_win7.py",
+        "snapshot-package/run_a4_wmi.cmd"
+      ],
+      "failure": null,
+      "integrity": {
+        "artifacts": [
+          {
+            "label": "candidate",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+            "present": true,
+            "expected_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+            "actual_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+            "pe": {
+              "is_pe": true,
+              "machine": "0x8664",
+              "x64": true,
+              "size": 12932243
+            }
+          },
+          {
+            "label": "fault_helper",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper_fault_job.exe",
+            "present": true,
+            "expected_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+            "actual_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+            "pe": {
+              "is_pe": true,
+              "machine": "0x8664",
+              "x64": true,
+              "size": 12753596
+            }
+          }
+        ],
+        "package_manifest": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/manifest.json",
+        "package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+        "expected_package_manifest_sha256": "d6303375c0f2fee4d74cfd8a8a4198c46bd16343c5c0e8d67dcfb83c7d6681ea",
+        "manifest_present": true,
+        "manifest_pass": true
+      },
+      "finished_at": "2026-08-05T13:37:46.611Z",
+      "duration_ms": 168,
+      "stdout_file": "AUTO-02-stdout.txt",
+      "stderr_file": "AUTO-02-stderr.txt"
+    },
+    {
+      "id": "AUTO-03",
+      "name": "strict SSH and Win7 read-only preflight",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 60000,
+      "started_at": "2026-08-05T13:37:46.611Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "ver"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "\r\nMicrosoft Windows [�汾 6.1.7601]\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 532,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "whoami"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "dccs-chaizl-pc\\dccs-chaizl\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 417,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "wmic",
+            "os",
+            "get",
+            "Version,BuildNumber",
+            "/value"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "\r\r\n\r\r\nBuildNumber=7601\r\r\nVersion=6.1.7601\r\r\n\r\r\n\r\r\n\r\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 501,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "wmic",
+            "qfe",
+            "get",
+            "HotFixID",
+            "/format:list"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "\r\r\n\r\r\nHotFixID=KB2849697\r\r\n\r\r\n\r\r\nHotFixID=KB2849696\r\r\n\r\r\n\r\r\nHotFixID=KB2841134\r\r\n\r\r\n\r\r\nHotFixID=KB2841134\r\r\n\r\r\n\r\r\nHotFixID=KB2670838\r\r\n\r\r\n\r\r\nHotFixID=KB2479943\r\r\n\r\r\n\r\r\nHotFixID=KB2491683\r\r\n\r\r\n\r\r\nHotFixID=KB2506014\r\r\n\r\r\n\r\r\nHotFixID=KB2506212\r\r\n\r\r\n\r\r\nHotFixID=KB2506928\r\r\n\r\r\n\r\r\nHotFixID=KB2533552\r\r\n\r\r\n\r\r\nHotFixID=KB2534111\r\r\n\r\r\n\r\r\nHotFixID=KB2545698\r\r\n\r\r\n\r\r\nHotFixID=KB2547666\r\r\n\r\r\n\r\r\nHotFixID=KB2552343\r\r\n\r\r\n\r\r\nHotFixID=KB2560656\r\r\n\r\r\n\r\r\nHotFixID=KB2564958\r\r\n\r\r\n\r\r\nHotFixID=KB2579686\r\r\n\r\r\n\r\r\nHotFixID=KB2603229\r\r\n\r\r\n\r\r\nHotFixID=KB2604115\r\r\n\r\r\n\r\r\nHotFixID=KB2620704\r\r\n\r\r\n\r\r\nHotFixID=KB2621440\r\r\n\r\r\n\r\r\nHotFixID=KB2631813\r\r\n\r\r\n\r\r\nHotFixID=KB2640148\r\r\n\r\r\n\r\r\nHotFixID=KB2653956\r\r\n\r\r\n\r\r\nHotFixID=KB2654428\r\r\n\r\r\n\r\r\nHotFixID=KB2656356\r\r\n\r\r\n\r\r\nHotFixID=KB2660075\r\r\n\r\r\n\r\r\nHotFixID=KB2667402\r\r\n\r\r\n\r\r\nHotFixID=KB2685811\r\r\n\r\r\n\r\r\nHotFixID=KB2685813\r\r\n\r\r\n\r\r\nHotFixID=KB2685939\r\r\n\r\r\n\r\r\nHotFixID=KB2690533\r\r\n\r\r\n\r\r\nHotFixID=KB2698365\r\r\n\r\r\n\r\r\nHotFixID=KB2705219\r\r\n\r\r\n\r\r\nHotFixID=KB2706045\r\r\n\r\r\n\r\r\nHotFixID=KB2719857\r\r\n\r\r\n\r\r\nHotFixID=KB2726535\r\r\n\r\r\n\r\r\nHotFixID=KB2727528\r\r\n\r\r\n\r\r\nHotFixID=KB2729094\r\r\n\r\r\n\r\r\nHotFixID=KB2729452\r\r\n\r\r\n\r\r\nHotFixID=KB2732059\r\r\n\r\r\n\r\r\nHotFixID=KB2736422\r\r\n\r\r\n\r\r\nHotFixID=KB2742599\r\r\n\r\r\n\r\r\nHotFixID=KB2750841\r\r\n\r\r\n\r\r\nHotFixID=KB2758857\r\r\n\r\r\n\r\r\nHotFixID=KB2761217\r\r\n\r\r\n\r\r\nHotFixID=KB2770660\r\r\n\r\r\n\r\r\nHotFixID=KB2773072\r\r\n\r\r\n\r\r\nHotFixID=KB2786081\r\r\n\r\r\n\r\r\nHotFixID=KB2789645\r\r\n\r\r\n\r\r\nHotFixID=KB2791765\r\r\n\r\r\n\r\r\nHotFixID=KB2799926\r\r\n\r\r\n\r\r\nHotFixID=KB2800095\r\r\n\r\r\n\r\r\nHotFixID=KB2807986\r\r\n\r\r\n\r\r\nHotFixID=KB2808679\r\r\n\r\r\n\r\r\nHotFixID=KB2813430\r\r\n\r\r\n\r\r\nHotFixID=KB2834140\r\r\n\r\r\n\r\r\nHotFixID=KB2836942\r\r\n\r\r\n\r\r\nHotFixID=KB2836943\r\r\n\r\r\n\r\r\nHotFixID=KB2840631\r\r\n\r\r\n\r\r\nHotFixID=KB2843630\r\r\n\r\r\n\r\r\nHotFixID=KB2847927\r\r\n\r\r\n\r\r\nHotFixID=KB2852386\r\r\n\r\r\n\r\r\nHotFixID=KB2853952\r\r\n\r\r\n\r\r\nHotFixID=KB2861698\r\r\n\r\r\n\r\r\nHotFixID=KB2862330\r\r\n\r\r\n\r\r\nHotFixID=KB2864202\r\r\n\r\r\n\r\r\nHotFixID=KB2868038\r\r\n\r\r\n\r\r\nHotFixID=KB2871997\r\r\n\r\r\n\r\r\nHotFixID=KB2882822\r\r\n\r\r\n\r\r\nHotFixID=KB2884256\r\r\n\r\r\n\r\r\nHotFixID=KB2888049\r\r\n\r\r\n\r\r\nHotFixID=KB2891804\r\r\n\r\r\n\r\r\nHotFixID=KB2893294\r\r\n\r\r\n\r\r\nHotFixID=KB2893519\r\r\n\r\r\n\r\r\nHotFixID=KB2894844\r\r\n\r\r\n\r\r\nHotFixID=KB2900986\r\r\n\r\r\n\r\r\nHotFixID=KB2908783\r\r\n\r\r\n\r\r\nHotFixID=KB2911501\r\r\n\r\r\n\r\r\nHotFixID=KB2912390\r\r\n\r\r\n\r\r\nHotFixID=KB2918077\r\r\n\r\r\n\r\r\nHotFixID=KB2919469\r\r\n\r\r\n\r\r\nHotFixID=KB2931356\r\r\n\r\r\n\r\r\nHotFixID=KB2937610\r\r\n\r\r\n\r\r\nHotFixID=KB2943357\r\r\n\r\r\n\r\r\nHotFixID=KB2968294\r\r\n\r\r\n\r\r\nHotFixID=KB2970228\r\r\n\r\r\n\r\r\nHotFixID=KB2972100\r\r\n\r\r\n\r\r\nHotFixID=KB2972211\r\r\n\r\r\n\r\r\nHotFixID=KB2973112\r\r\n\r\r\n\r\r\nHotFixID=KB2973201\r\r\n\r\r\n\r\r\nHotFixID=KB2977292\r\r\n\r\r\n\r\r\nHotFixID=KB2978120\r\r\n\r\r\n\r\r\nHotFixID=KB2978742\r\r\n\r\r\n\r\r\nHotFixID=KB2984972\r\r\n\r\r\n\r\r\nHotFixID=KB2985461\r\r\n\r\r\n\r\r\nHotFixID=KB2991963\r\r\n\r\r\n\r\r\nHotFixID=KB2992611\r\r\n\r\r\n\r\r\nHotFixID=KB2999226\r\r\n\r\r\n\r\r\nHotFixID=KB3004375\r\r\n\r\r\n\r\r\nHotFixID=KB3006121\r\r\n\r\r\n\r\r\nHotFixID=KB3006137\r\r\n\r\r\n\r\r\nHotFixID=KB3010788\r\r\n\r\r\n\r\r\nHotFixID=KB3011780\r\r\n\r\r\n\r\r\nHotFixID=KB3013531\r\r\n\r\r\n\r\r\nHotFixID=KB3019978\r\r\n\r\r\n\r\r\nHotFixID=KB3020370\r\r\n\r\r\n\r\r\nHotFixID=KB3021674\r\r\n\r\r\n\r\r\nHotFixID=KB3021917\r\r\n\r\r\n\r\r\nHotFixID=KB3023215\r\r\n\r\r\n\r\r\nHotFixID=KB3030377\r\r\n\r\r\n\r\r\nHotFixID=KB3035126\r\r\n\r\r\n\r\r\nHotFixID=KB3037574\r\r\n\r\r\n\r\r\nHotFixID=KB3042058\r\r\n\r\r\n\r\r\nHotFixID=KB3045685\r\r\n\r\r\n\r\r\nHotFixID=KB3046017\r\r\n\r\r\n\r\r\nHotFixID=KB3046269\r\r\n\r\r\n\r\r\nHotFixID=KB3054476\r\r\n\r\r\n\r\r\nHotFixID=KB3059317\r\r\n\r\r\n\r\r\nHotFixID=KB3060716\r\r\n\r\r\n\r\r\nHotFixID=KB3067903\r\r\n\r\r\n\r\r\nHotFixID=KB3068708\r\r\n\r\r\n\r\r\nHotFixID=KB3071756\r\r\n\r\r\n\r\r\nHotFixID=KB3072305\r\r\n\r\r\n\r\r\nHotFixID=KB3074543\r\r\n\r\r\n\r\r\nHotFixID=KB3075220\r\r\n\r\r\n\r\r\nHotFixID=KB3078667\r\r\n\r\r\n\r\r\nHotFixID=KB3080149\r\r\n\r\r\n\r\r\nHotFixID=KB3086255\r\r\n\r\r\n\r\r\nHotFixID=KB3092601\r\r\n\r\r\n\r\r\nHotFixID=KB3093513\r\r\n\r\r\n\r\r\nHotFixID=KB3097989\r\r\n\r\r\n\r\r\nHotFixID=KB3101722\r\r\n\r\r\n\r\r\nHotFixID=KB3107998\r\r\n\r\r\n\r\r\nHotFixID=KB3108371\r\r\n\r\r\n\r\r\nHotFixID=KB3108664\r\r\n\r\r\n\r\r\nHotFixID=KB3109103\r\r\n\r\r\n\r\r\nHotFixID=KB3109560\r\r\n\r\r\n\r\r\nHotFixID=KB3110329\r\r\n\r\r\n\r\r\nHotFixID=KB3115858\r\r\n\r\r\n\r\r\nHotFixID=KB3122648\r\r\n\r\r\n\r\r\nHotFixID=KB3124275\r\r\n\r\r\n\r\r\nHotFixID=KB3126587\r\r\n\r\r\n\r\r\nHotFixID=KB3127220\r\r\n\r\r\n\r\r\nHotFixID=KB3133977\r\r\n\r\r\n\r\r\nHotFixID=KB3137061\r\r\n\r\r\n\r\r\nHotFixID=KB3138378\r\r\n\r\r\n\r\r\nHotFixID=KB3138612\r\r\n\r\r\n\r\r\nHotFixID=KB3138910\r\r\n\r\r\n\r\r\nHotFixID=KB3139398\r\r\n\r\r\n\r\r\nHotFixID=KB3139914\r\r\n\r\r\n\r\r\nHotFixID=KB3140245\r\r\n\r\r\n\r\r\nHotFixID=KB3147071\r\r\n\r\r\n\r\r\nHotFixID=KB3150220\r\r\n\r\r\n\r\r\nHotFixID=KB3150513\r\r\n\r\r\n\r\r\nHotFixID=KB3155178\r\r\n\r\r\n\r\r\nHotFixID=KB3156016\r\r\n\r\r\n\r\r\nHotFixID=KB3159398\r\r\n\r\r\n\r\r\nHotFixID=KB3161102\r\r\n\r\r\n\r\r\nHotFixID=KB3161949\r\r\n\r\r\n\r\r\nHotFixID=KB3170735\r\r\n\r\r\n\r\r\nHotFixID=KB3172605\r\r\n\r\r\n\r\r\nHotFixID=KB3179573\r\r\n\r\r\n\r\r\nHotFixID=KB3184143\r\r\n\r\r\n\r\r\nHotFixID=KB3185319\r\r\n\r\r\n\r\r\nHotFixID=KB4019990\r\r\n\r\r\n\r\r\nHotFixID=KB4040980\r\r\n\r\r\n\r\r\nHotFixID=KB4474419\r\r\n\r\r\n\r\r\nHotFixID=KB4490628\r\r\n\r\r\n\r\r\nHotFixID=KB4524752\r\r\n\r\r\n\r\r\nHotFixID=KB4532945\r\r\n\r\r\n\r\r\nHotFixID=KB4536952\r\r\n\r\r\n\r\r\nHotFixID=KB976902\r\r\n\r\r\n\r\r\nHotFixID=KB982018\r\r\n\r\r\n\r\r\nHotFixID=KB4534310\r\r\n\r\r\n\r\r\n\r\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 7075,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "C:\\acceptance\\python38_mvp\\python.exe",
+            "--version"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "Python 3.8.10\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 393,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "sc",
+            "query",
+            "BvSshServer"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 403,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "preflight": {
+        "key_path_present": true,
+        "known_hosts_present": true,
+        "key_content_read": false,
+        "checks": {
+          "ver": "\r\nMicrosoft Windows [�汾 6.1.7601]\r\n\n",
+          "whoami": "dccs-chaizl-pc\\dccs-chaizl\r\n\n",
+          "os": "\r\r\n\r\r\nBuildNumber=7601\r\r\nVersion=6.1.7601\r\r\n\r\r\n\r\r\n\r\r\n\n",
+          "kb": "\r\r\n\r\r\nHotFixID=KB2849697\r\r\n\r\r\n\r\r\nHotFixID=KB2849696\r\r\n\r\r\n\r\r\nHotFixID=KB2841134\r\r\n\r\r\n\r\r\nHotFixID=KB2841134\r\r\n\r\r\n\r\r\nHotFixID=KB2670838\r\r\n\r\r\n\r\r\nHotFixID=KB2479943\r\r\n\r\r\n\r\r\nHotFixID=KB2491683\r\r\n\r\r\n\r\r\nHotFixID=KB2506014\r\r\n\r\r\n\r\r\nHotFixID=KB2506212\r\r\n\r\r\n\r\r\nHotFixID=KB2506928\r\r\n\r\r\n\r\r\nHotFixID=KB2533552\r\r\n\r\r\n\r\r\nHotFixID=KB2534111\r\r\n\r\r\n\r\r\nHotFixID=KB2545698\r\r\n\r\r\n\r\r\nHotFixID=KB2547666\r\r\n\r\r\n\r\r\nHotFixID=KB2552343\r\r\n\r\r\n\r\r\nHotFixID=KB2560656\r\r\n\r\r\n\r\r\nHotFixID=KB2564958\r\r\n\r\r\n\r\r\nHotFixID=KB2579686\r\r\n\r\r\n\r\r\nHotFixID=KB2603229\r\r\n\r\r\n\r\r\nHotFixID=KB2604115\r\r\n\r\r\n\r\r\nHotFixID=KB2620704\r\r\n\r\r\n\r\r\nHotFixID=KB2621440\r\r\n\r\r\n\r\r\nHotFixID=KB2631813\r\r\n\r\r\n\r\r\nHotFixID=KB2640148\r\r\n\r\r\n\r\r\nHotFixID=KB2653956\r\r\n\r\r\n\r\r\nHotFixID=KB2654428\r\r\n\r\r\n\r\r\nHotFixID=KB2656356\r\r\n\r\r\n\r\r\nHotFixID=KB2660075\r\r\n\r\r\n\r\r\nHotFixID=KB2667402\r\r\n\r\r\n\r\r\nHotFixID=KB2685811\r\r\n\r\r\n\r\r\nHotFixID=KB2685813\r\r\n\r\r\n\r\r\nHotFixID=KB2685939\r\r\n\r\r\n\r\r\nHotFixID=KB2690533\r\r\n\r\r\n\r\r\nHotFixID=KB2698365\r\r\n\r\r\n\r\r\nHotFixID=KB2705219\r\r\n\r\r\n\r\r\nHotFixID=KB2706045\r\r\n\r\r\n\r\r\nHotFixID=KB2719857\r\r\n\r\r\n\r\r\nHotFixID=KB2726535\r\r\n\r\r\n\r\r\nHotFixID=KB2727528\r\r\n\r\r\n\r\r\nHotFixID=KB2729094\r\r\n\r\r\n\r\r\nHotFixID=KB2729452\r\r\n\r\r\n\r\r\nHotFixID=KB2732059\r\r\n\r\r\n\r\r\nHotFixID=KB2736422\r\r\n\r\r\n\r\r\nHotFixID=KB2742599\r\r\n\r\r\n\r\r\nHotFixID=KB2750841\r\r\n\r\r\n\r\r\nHotFixID=KB2758857\r\r\n\r\r\n\r\r\nHotFixID=KB2761217\r\r\n\r\r\n\r\r\nHotFixID=KB2770660\r\r\n\r\r\n\r\r\nHotFixID=KB2773072\r\r\n\r\r\n\r\r\nHotFixID=KB2786081\r\r\n\r\r\n\r\r\nHotFixID=KB2789645\r\r\n\r\r\n\r\r\nHotFixID=KB2791765\r\r\n\r\r\n\r\r\nHotFixID=KB2799926\r\r\n\r\r\n\r\r\nHotFixID=KB2800095\r\r\n\r\r\n\r\r\nHotFixID=KB2807986\r\r\n\r\r\n\r\r\nHotFixID=KB2808679\r\r\n\r\r\n\r\r\nHotFixID=KB2813430\r\r\n\r\r\n\r\r\nHotFixID=KB2834140\r\r\n\r\r\n\r\r\nHotFixID=KB2836942\r\r\n\r\r\n\r\r\nHotFixID=KB2836943\r\r\n\r\r\n\r\r\nHotFixID=KB2840631\r\r\n\r\r\n\r\r\nHotFixID=KB2843630\r\r\n\r\r\n\r\r\nHotFixID=KB2847927\r\r\n\r\r\n\r\r\nHotFixID=KB2852386\r\r\n\r\r\n\r\r\nHotFixID=KB2853952\r\r\n\r\r\n\r\r\nHotFixID=KB2861698\r\r\n\r\r\n\r\r\nHotFixID=KB2862330\r\r\n\r\r\n\r\r\nHotFixID=KB2864202\r\r\n\r\r\n\r\r\nHotFixID=KB2868038\r\r\n\r\r\n\r\r\nHotFixID=KB2871997\r\r\n\r\r\n\r\r\nHotFixID=KB2882822\r\r\n\r\r\n\r\r\nHotFixID=KB2884256\r\r\n\r\r\n\r\r\nHotFixID=KB2888049\r\r\n\r\r\n\r\r\nHotFixID=KB2891804\r\r\n\r\r\n\r\r\nHotFixID=KB2893294\r\r\n\r\r\n\r\r\nHotFixID=KB2893519\r\r\n\r\r\n\r\r\nHotFixID=KB2894844\r\r\n\r\r\n\r\r\nHotFixID=KB2900986\r\r\n\r\r\n\r\r\nHotFixID=KB2908783\r\r\n\r\r\n\r\r\nHotFixID=KB2911501\r\r\n\r\r\n\r\r\nHotFixID=KB2912390\r\r\n\r\r\n\r\r\nHotFixID=KB2918077\r\r\n\r\r\n\r\r\nHotFixID=KB2919469\r\r\n\r\r\n\r\r\nHotFixID=KB2931356\r\r\n\r\r\n\r\r\nHotFixID=KB2937610\r\r\n\r\r\n\r\r\nHotFixID=KB2943357\r\r\n\r\r\n\r\r\nHotFixID=KB2968294\r\r\n\r\r\n\r\r\nHotFixID=KB2970228\r\r\n\r\r\n\r\r\nHotFixID=KB2972100\r\r\n\r\r\n\r\r\nHotFixID=KB2972211\r\r\n\r\r\n\r\r\nHotFixID=KB2973112\r\r\n\r\r\n\r\r\nHotFixID=KB2973201\r\r\n\r\r\n\r\r\nHotFixID=KB2977292\r\r\n\r\r\n\r\r\nHotFixID=KB2978120\r\r\n\r\r\n\r\r\nHotFixID=KB2978742\r\r\n\r\r\n\r\r\nHotFixID=KB2984972\r\r\n\r\r\n\r\r\nHotFixID=KB2985461\r\r\n\r\r\n\r\r\nHotFixID=KB2991963\r\r\n\r\r\n\r\r\nHotFixID=KB2992611\r\r\n\r\r\n\r\r\nHotFixID=KB2999226\r\r\n\r\r\n\r\r\nHotFixID=KB3004375\r\r\n\r\r\n\r\r\nHotFixID=KB3006121\r\r\n\r\r\n\r\r\nHotFixID=KB3006137\r\r\n\r\r\n\r\r\nHotFixID=KB3010788\r\r\n\r\r\n\r\r\nHotFixID=KB3011780\r\r\n\r\r\n\r\r\nHotFixID=KB3013531\r\r\n\r\r\n\r\r\nHotFixID=KB3019978\r\r\n\r\r\n\r\r\nHotFixID=KB3020370\r\r\n\r\r\n\r\r\nHotFixID=KB3021674\r\r\n\r\r\n\r\r\nHotFixID=KB3021917\r\r\n\r\r\n\r\r\nHotFixID=KB3023215\r\r\n\r\r\n\r\r\nHotFixID=KB3030377\r\r\n\r\r\n\r\r\nHotFixID=KB3035126\r\r\n\r\r\n\r\r\nHotFixID=KB3037574\r\r\n\r\r\n\r\r\nHotFixID=KB3042058\r\r\n\r\r\n\r\r\nHotFixID=KB3045685\r\r\n\r\r\n\r\r\nHotFixID=KB3046017\r\r\n\r\r\n\r\r\nHotFixID=KB3046269\r\r\n\r\r\n\r\r\nHotFixID=KB3054476\r\r\n\r\r\n\r\r\nHotFixID=KB3059317\r\r\n\r\r\n\r\r\nHotFixID=KB3060716\r\r\n\r\r\n\r\r\nHotFixID=KB3067903\r\r\n\r\r\n\r\r\nHotFixID=KB3068708\r\r\n\r\r\n\r\r\nHotFixID=KB3071756\r\r\n\r\r\n\r\r\nHotFixID=KB3072305\r\r\n\r\r\n\r\r\nHotFixID=KB3074543\r\r\n\r\r\n\r\r\nHotFixID=KB3075220\r\r\n\r\r\n\r\r\nHotFixID=KB3078667\r\r\n\r\r\n\r\r\nHotFixID=KB3080149\r\r\n\r\r\n\r\r\nHotFixID=KB3086255\r\r\n\r\r\n\r\r\nHotFixID=KB3092601\r\r\n\r\r\n\r\r\nHotFixID=KB3093513\r\r\n\r\r\n\r\r\nHotFixID=KB3097989\r\r\n\r\r\n\r\r\nHotFixID=KB3101722\r\r\n\r\r\n\r\r\nHotFixID=KB3107998\r\r\n\r\r\n\r\r\nHotFixID=KB3108371\r\r\n\r\r\n\r\r\nHotFixID=KB3108664\r\r\n\r\r\n\r\r\nHotFixID=KB3109103\r\r\n\r\r\n\r\r\nHotFixID=KB3109560\r\r\n\r\r\n\r\r\nHotFixID=KB3110329\r\r\n\r\r\n\r\r\nHotFixID=KB3115858\r\r\n\r\r\n\r\r\nHotFixID=KB3122648\r\r\n\r\r\n\r\r\nHotFixID=KB3124275\r\r\n\r\r\n\r\r\nHotFixID=KB3126587\r\r\n\r\r\n\r\r\nHotFixID=KB3127220\r\r\n\r\r\n\r\r\nHotFixID=KB3133977\r\r\n\r\r\n\r\r\nHotFixID=KB3137061\r\r\n\r\r\n\r\r\nHotFixID=KB3138378\r\r\n\r\r\n\r\r\nHotFixID=KB3138612\r\r\n\r\r\n\r\r\nHotFixID=KB3138910\r\r\n\r\r\n\r\r\nHotFixID=KB3139398\r\r\n\r\r\n\r\r\nHotFixID=KB3139914\r\r\n\r\r\n\r\r\nHotFixID=KB3140245\r\r\n\r\r\n\r\r\nHotFixID=KB3147071\r\r\n\r\r\n\r\r\nHotFixID=KB3150220\r\r\n\r\r\n\r\r\nHotFixID=KB3150513\r\r\n\r\r\n\r\r\nHotFixID=KB3155178\r\r\n\r\r\n\r\r\nHotFixID=KB3156016\r\r\n\r\r\n\r\r\nHotFixID=KB3159398\r\r\n\r\r\n\r\r\nHotFixID=KB3161102\r\r\n\r\r\n\r\r\nHotFixID=KB3161949\r\r\n\r\r\n\r\r\nHotFixID=KB3170735\r\r\n\r\r\n\r\r\nHotFixID=KB3172605\r\r\n\r\r\n\r\r\nHotFixID=KB3179573\r\r\n\r\r\n\r\r\nHotFixID=KB3184143\r\r\n\r\r\n\r\r\nHotFixID=KB3185319\r\r\n\r\r\n\r\r\nHotFixID=KB4019990\r\r\n\r\r\n\r\r\nHotFixID=KB4040980\r\r\n\r\r\n\r\r\nHotFixID=KB4474419\r\r\n\r\r\n\r\r\nHotFixID=KB4490628\r\r\n\r\r\n\r\r\nHotFixID=KB4524752\r\r\n\r\r\n\r\r\nHotFixID=KB4532945\r\r\n\r\r\n\r\r\nHotFixID=KB4536952\r\r\n\r\r\n\r\r\nHotFixID=KB976902\r\r\n\r\r\n\r\r\nHotFixID=KB982018\r\r\n\r\r\n\r\r\nHotFixID=KB4534310\r\r\n\r\r\n\r\r\n\r\r\n\n",
+          "python": "Python 3.8.10\r\n\n",
+          "bitvise": "\r\nSERVICE_NAME: BvSshServer \r\n        TYPE               : 10  WIN32_OWN_PROCESS  \r\n        STATE              : 4  RUNNING \r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)\r\n        WIN32_EXIT_CODE    : 0  (0x0)\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n\n"
+        },
+        "bitvise": "RUNNING"
+      },
+      "finished_at": "2026-08-05T13:37:55.934Z",
+      "duration_ms": 9323,
+      "stdout_file": "AUTO-03-stdout.txt",
+      "stderr_file": "AUTO-03-stderr.txt"
+    },
+    {
+      "id": "AUTO-04",
+      "name": "fresh remote roots and transfer",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 180000,
+      "started_at": "2026-08-05T13:37:55.935Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467 exit /b 17"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 407,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist C:\\Win7CodingAgent\\data\\A4-20260805-123467 exit /b 18"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 462,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "mkdir C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 409,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "mkdir C:\\Win7CodingAgent\\data\\A4-20260805-123467"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 379,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if not exist C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467 exit /b 19"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 432,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if not exist C:\\Win7CodingAgent\\data\\A4-20260805-123467 exit /b 20"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 363,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper.exe",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/spike02_helper.exe"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 3090,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper.exe",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "SHA256 ��ϣ(�ļ� C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper.exe):\r\n73 3f 54 91 81 22 82 73 af d6 58 17 b6 44 8b e1 cc 4b eb 88 8f 8b f2 ca a2 94 e4 e1 29 9c ee cc\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 524,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/spike02_helper_fault_job.exe",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/spike02_helper_fault_job.exe"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 2779,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper_fault_job.exe",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "SHA256 ��ϣ(�ļ� C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper_fault_job.exe):\r\n0e db 20 c9 4f e5 a0 3a 9a 46 1a 48 c7 14 4e 07 bd 17 1b 2b 95 91 c1 c8 d4 86 3b 65 9a 19 7d 3f\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 508,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/run_helper_harness.js",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/run_helper_harness.js"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 444,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_helper_harness.js",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "SHA256 ��ϣ(�ļ� C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_helper_harness.js):\r\nbe c1 0f d1 b6 d0 48 85 c3 bc 0b 30 1f d7 b9 4c ea d0 6d cc bb a0 5a 8c 0b ee e2 2f 2f f9 87 e4\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 410,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/run_helper_win7.py",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/run_helper_win7.py"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 460,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_helper_win7.py",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "SHA256 ��ϣ(�ļ� C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_helper_win7.py):\r\nd2 39 5a 3c dc 70 07 bc 55 8a ec b3 81 14 22 bc 99 23 b4 f1 f8 93 56 0b 62 71 45 5a a8 c8 a9 44\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 389,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/snapshot-package/run_a4_wmi.cmd",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/run_a4_wmi.cmd"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 425,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "certutil",
+            "-hashfile",
+            "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_a4_wmi.cmd",
+            "SHA256"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "SHA256 ��ϣ(�ļ� C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_a4_wmi.cmd):\r\nc2 53 73 d3 b1 ea 03 d7 b1 bd 60 45 7a ef 71 cc e5 82 bd 98 ff 9d 47 aa fa 29 6c d3 fd 62 20 67\r\nCertUtil: -hashfile ����ɹ���ɡ�\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 490,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "transfer": {
+        "acceptance_root": "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467",
+        "data_root": "C:\\Win7CodingAgent\\data\\A4-20260805-123467",
+        "uploaded": [
+          {
+            "local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper.exe",
+            "remote": "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper.exe",
+            "local_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+            "remote_sha256": "733f549181228273afd65817b6448be1cc4beb888f8bf2caa294e4e1299ceecc",
+            "transfer_exit_code": 0
+          },
+          {
+            "local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/spike02_helper_fault_job.exe",
+            "remote": "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper_fault_job.exe",
+            "local_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+            "remote_sha256": "0edb20c94fe5a03a9a461a48c7144e07bd171b2b9591c1c8d4863b659a197d3f",
+            "transfer_exit_code": 0
+          },
+          {
+            "local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_helper_harness.js",
+            "remote": "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_helper_harness.js",
+            "local_sha256": "bec10fd1b6d04885c3bc0b301fd7b94cead06dccbba05a8c0beee22f2ff987e4",
+            "remote_sha256": "bec10fd1b6d04885c3bc0b301fd7b94cead06dccbba05a8c0beee22f2ff987e4",
+            "transfer_exit_code": 0
+          },
+          {
+            "local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_helper_win7.py",
+            "remote": "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_helper_win7.py",
+            "local_sha256": "d2395a3cdc7007bc558aecb3811422bc9923b4f1f893560b6271455aa8c8a944",
+            "remote_sha256": "d2395a3cdc7007bc558aecb3811422bc9923b4f1f893560b6271455aa8c8a944",
+            "transfer_exit_code": 0
+          },
+          {
+            "local": "spikes/02-terminal-containment/acceptance/package-a4/A4-20260805-20/run_a4_wmi.cmd",
+            "remote": "C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_a4_wmi.cmd",
+            "local_sha256": "c25373d3b1ea03d7b1bd60457aef71cce582bd98ff9d47aafa296cd3fd622067",
+            "remote_sha256": "c25373d3b1ea03d7b1bd60457aef71cce582bd98ff9d47aafa296cd3fd622067",
+            "transfer_exit_code": 0
+          }
+        ]
+      },
+      "finished_at": "2026-08-05T13:38:07.933Z",
+      "duration_ms": 11998,
+      "stdout_file": "AUTO-04-stdout.txt",
+      "stderr_file": "AUTO-04-stderr.txt"
+    },
+    {
+      "id": "AUTO-05",
+      "name": "safe loader smoke",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 120000,
+      "started_at": "2026-08-05T13:38:07.934Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "\"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper.exe\" --version"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "spike02-helper 0.1.0 win7-x64 job-object\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 424,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "\"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\spike02_helper.exe\" --help"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "usage: helper.exe [--version|--help]\nstdin: one UTF-8 JSON run/cancel request per line\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 379,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "tasklist.exe /FI \"IMAGENAME eq spike02_helper.exe\" /FO CSV /NH"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "��Ϣ: û�����е�����ƥ��ָ����׼��\r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 424,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "loader": {
+        "version": "spike02-helper 0.1.0 win7-x64 job-object\n",
+        "help": "usage: helper.exe [--version|--help]\nstdin: one UTF-8 JSON run/cancel request per line\n",
+        "residual_probe": "��Ϣ: û�����е�����ƥ��ָ����׼��\r\n"
+      },
+      "finished_at": "2026-08-05T13:38:09.161Z",
+      "duration_ms": 1227,
+      "stdout_file": "AUTO-05-stdout.txt",
+      "stderr_file": "AUTO-05-stderr.txt"
+    },
+    {
+      "id": "AUTO-06",
+      "name": "A4 non-interactive Win7 matrix",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 1800000,
+      "started_at": "2026-08-05T13:38:09.161Z",
+      "commands": [
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "wmic.exe process call create \"cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_a4_wmi.cmd A4-20260805-123467\""
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "Executing (Win32_Process)->Create()\r\r\nMethod execution successful.\r\r\nOut Parameters:\r\ninstance of __PARAMETERS\r\n{\r\n\tProcessId = 6172;\r\n\tReturnValue = 0;\r\n};\r\n",
+          "stderr": "\r\n",
+          "error": null,
+          "duration_ms": 432,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 3,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 471,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 3,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 382,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 3,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 409,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 3,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 434,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 3,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 389,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 3,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 382,
+          "shell": false
+        },
+        {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "0 \r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 410,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "launcher": {
+        "launch": {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "wmic.exe process call create \"cmd.exe /d /s /c C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\run_a4_wmi.cmd A4-20260805-123467\""
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "Executing (Win32_Process)->Create()\r\r\nMethod execution successful.\r\r\nOut Parameters:\r\ninstance of __PARAMETERS\r\n{\r\n\tProcessId = 6172;\r\n\tReturnValue = 0;\r\n};\r\n",
+          "stderr": "\r\n",
+          "error": null,
+          "duration_ms": 432,
+          "shell": false
+        },
+        "completion": {
+          "command": "ssh",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40",
+            "cmd.exe",
+            "/d",
+            "/s",
+            "/c",
+            "if exist \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\" (type \"C:\\Win7CodingAgent\\acceptance\\A4-20260805-123467\\harness-exit-code.txt\") else (exit /b 3)"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "0 \r\n",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 410,
+          "shell": false
+        },
+        "harness_exit_code": 0,
+        "taskkill_used": false,
+        "inherited_job_escape": "Win32_Process.Create via WMI"
+      },
+      "finished_at": "2026-08-05T13:38:18.496Z",
+      "duration_ms": 9335,
+      "stdout_file": "AUTO-06-stdout.txt",
+      "stderr_file": "AUTO-06-stderr.txt"
+    },
+    {
+      "id": "AUTO-07",
+      "name": "evidence retrieval and immutable consolidation",
+      "execution": "AUTOMATIC",
+      "status": "PASS",
+      "deadline_ms": 300000,
+      "started_at": "2026-08-05T13:38:18.497Z",
+      "commands": [
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/A4-20260805-123467-harness.json",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 510,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/harness-stdout.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-harness-stdout.txt"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 518,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/harness-stderr.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-harness-stderr.txt"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 448,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/harness-exit-code.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-harness-exit-code.txt"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 440,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/launcher-whoami.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-launcher-whoami.txt"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 437,
+          "shell": false
+        },
+        {
+          "command": "scp",
+          "argv": [
+            "-i",
+            "<private-key-path>",
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            "UserKnownHostsFile=/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+            "dccs-chaizl@10.67.149.40:C:/Win7CodingAgent/acceptance/A4-20260805-123467/bitvise-after.txt",
+            "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-bitvise-after.txt"
+          ],
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "error": null,
+          "duration_ms": 419,
+          "shell": false
+        }
+      ],
+      "evidence": [],
+      "failure": null,
+      "evidence_retrieval": {
+        "files": [
+          {
+            "name": "A4-20260805-123467-harness.json",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-A4-20260805-123467-harness.json",
+            "sha256": "d645cb63a68082381d82437f9768198970d2bfcbca9fff5470a656ba99944bde"
+          },
+          {
+            "name": "harness-stdout.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-harness-stdout.txt",
+            "sha256": "0d99f90f9e9d586bed9b398aa31ce2180e919bf23123272c906acc36f0cbca42"
+          },
+          {
+            "name": "harness-stderr.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-harness-stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "name": "harness-exit-code.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-harness-exit-code.txt",
+            "sha256": "9aca8dfce962538fb8131d73f84cada05e4dc79f5a0d3612c511b1150f3e33e2"
+          },
+          {
+            "name": "launcher-whoami.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-launcher-whoami.txt",
+            "sha256": "dc97ada8a8e9c3ace7d9f1afacc0683a38eb20e70a3d43e6769b33cd654fc1d0"
+          },
+          {
+            "name": "bitvise-after.txt",
+            "path": "/Users/qlyf/.codex/worktrees/7e40/win7-coding-Agent/spikes/02-terminal-containment/acceptance/evidence/A4-20260805-123467/remote-bitvise-after.txt",
+            "sha256": "7d985e9fc78951ca68e1c952628a7811304c5ff807c15bdca69856b0ae8f034f"
+          }
+        ],
+        "harness_summary": {
+          "status": "PARTIAL",
+          "cases": 14,
+          "taskkill_used": false
+        },
+        "assertions": {
+          "harness_present": true,
+          "exact_candidate_sha256": true,
+          "cases_14": true,
+          "all_cases_pass": true,
+          "taskkill_false": true,
+          "no_final_residuals": true,
+          "no_case_residuals": true,
+          "harness_exit_zero": true,
+          "launcher_identity": true,
+          "bitvise_running_after": true
+        },
+        "note": "Harness top-level PARTIAL is expected because external/manual gates are excluded; automatic PASS requires all 14 cases and all safety assertions."
+      },
+      "finished_at": "2026-08-05T13:38:21.273Z",
+      "duration_ms": 2776,
+      "stdout_file": "AUTO-07-stdout.txt",
+      "stderr_file": "AUTO-07-stderr.txt"
+    }
+  ],
+  "gates": [
+    {
+      "id": "GATE-ACL",
+      "status": "MANUAL_GATE",
+      "counted_in_auto_pass": false
+    },
+    {
+      "id": "GATE-NET",
+      "status": "ENVIRONMENT_MISSING",
+      "counted_in_auto_pass": false
+    },
+    {
+      "id": "GATE-PROD",
+      "status": "AUTHORIZATION_BLOCKED",
+      "counted_in_auto_pass": false
+    },
+    {
+      "id": "GATE-A5-A6",
+      "status": "BUILD_HOST_MISSING",
+      "counted_in_auto_pass": false
+    }
+  ],
+  "result": {
+    "automatic_status": "AUTOMATION_PASS",
+    "auto_00_to_07_pass": true,
+    "classification": "WIN7_EVIDENCE_READY"
+  },
+  "required_follow_up": [
+    "GATE-ACL",
+    "GATE-NET",
+    "GATE-PROD",
+    "GATE-A5-A6"
+  ],
+  "command_count": 68
+}

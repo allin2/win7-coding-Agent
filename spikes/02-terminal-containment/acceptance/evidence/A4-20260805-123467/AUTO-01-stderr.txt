@@ -1,0 +1,121 @@
+
+
+PASS tests/unit/transport/connection.test.ts
+PASS tests/unit/provider/provider.test.ts
+PASS tests/unit/transport/node-network.test.ts
+PASS tests/unit/provider/deepseek-openai.test.ts
+PASS tests/unit/security/security.test.ts
+PASS tests/unit/protocol/frames.test.ts
+PASS tests/unit/protocol/version.test.ts
+PASS tests/unit/types/errors.test.ts
+PASS tests/unit/types/messages.test.ts
+PASS tests/unit/types/codecs.test.ts
+
+Test Suites: 10 passed, 10 total
+Tests:       202 passed, 202 total
+Snapshots:   0 total
+Time:        0.655 s, estimated 1 s
+Ran all test suites.
+PASS tests/unit/apply.test.ts
+PASS tests/unit/readonly.test.ts
+PASS tests/unit/trusted-write.test.ts
+PASS tests/unit/atomic.test.ts
+PASS tests/unit/replace.test.ts
+PASS tests/unit/safety.test.ts
+PASS tests/unit/plan.test.ts
+PASS tests/unit/encoding.test.ts
+PASS tests/unit/diff.test.ts
+
+Test Suites: 9 passed, 9 total
+Tests:       80 passed, 80 total
+Snapshots:   0 total
+Time:        0.642 s, estimated 1 s
+Ran all test suites.
+PASS tests/store.test.ts
+PASS tests/backlog.test.ts
+PASS tests/unit/store.test.ts
+PASS tests/unit/runtime-event-adapter.test.ts
+PASS tests/wal.test.ts
+PASS tests/schema.test.ts
+PASS tests/unit/event-protocol.test.ts
+PASS tests/replay.test.ts
+PASS tests/unit/wal.test.ts
+PASS tests/unit/backlog.test.ts
+PASS tests/audit.test.ts
+PASS tests/unit/schema.test.ts
+PASS tests/unit/event-stream.test.ts
+PASS tests/unit/runtime-message-projector.test.ts
+PASS tests/unit/replay.test.ts
+PASS tests/unit/audit.test.ts
+
+Test Suites: 16 passed, 16 total
+Tests:       219 passed, 219 total
+Snapshots:   0 total
+Time:        0.714 s, estimated 1 s
+Ran all test suites.
+PASS tests/runtime.test.ts
+PASS tests/state-machine.test.ts
+PASS tests/concurrency.test.ts
+PASS tests/broker.test.ts
+PASS tests/working-memory.test.ts
+PASS tests/tools.test.ts
+PASS tests/runtime-protocol.test.ts
+PASS tests/agents-discovery.test.ts
+PASS tests/context-bootstrap.test.ts
+PASS tests/policy.test.ts
+PASS tests/loop-control.test.ts
+PASS tests/workspace-readonly-tools.test.ts
+PASS tests/context.test.ts
+PASS tests/context-manager.test.ts
+PASS tests/verification.test.ts
+PASS tests/errors.test.ts
+PASS tests/types.test.ts
+PASS tests/token-estimator.test.ts
+PASS tests/tool-observation.test.ts
+PASS tests/context-compactor.test.ts
+
+Test Suites: 20 passed, 20 total
+Tests:       225 passed, 225 total
+Snapshots:   0 total
+Time:        0.874 s, estimated 1 s
+Ran all test suites.
+PASS tests/runner.test.ts
+PASS tests/approval.test.ts
+PASS tests/containment.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       46 passed, 46 total
+Snapshots:   0 total
+Time:        0.474 s, estimated 1 s
+Ran all test suites.
+PASS tests/adapter.test.ts
+PASS tests/whitelist.test.ts
+PASS tests/session.test.ts
+PASS tests/isolation.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Snapshots:   0 total
+Time:        0.49 s, estimated 1 s
+Ran all test suites.
+PASS tests/ipc/schema.test.ts
+PASS tests/product/desktop-ipc.test.ts
+PASS tests/product/desktop-host.test.ts
+PASS tests/product/desktop-a2.test.ts
+PASS tests/ipc/channel.test.ts
+PASS tests/product/desktop-a3.test.ts
+PASS tests/updater/updater.test.ts
+PASS tests/security/outbound.test.ts
+PASS tests/product/credential-vault.test.ts
+PASS tests/security/csp.test.ts
+PASS tests/product/gateway-settings-payload.test.ts
+PASS tests/product/policy.test.ts
+PASS tests/errors.test.ts
+PASS tests/product/gateway-runtime.test.ts
+PASS tests/product/event-queue.test.ts
+
+Test Suites: 15 passed, 15 total
+Tests:       119 passed, 119 total
+Snapshots:   0 total
+Time:        1.722 s, estimated 2 s
+Ran all test suites.

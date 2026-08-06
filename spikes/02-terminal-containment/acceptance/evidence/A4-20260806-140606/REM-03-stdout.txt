@@ -1,0 +1,14 @@
+
+SHA256 ��ϣ(�ļ� C:/Win7CodingAgent/acceptance/A4-20260806-140606/spike02_helper.exe):
+73 3f 54 91 81 22 82 73 af d6 58 17 b6 44 8b e1 cc 4b eb 88 8f 8b f2 ca a2 94 e4 e1 29 9c ee cc
+CertUtil: -hashfile ����ɹ���ɡ�
+
+
+SHA256 ��ϣ(�ļ� C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_win7.py):
+39 49 7b c1 57 3a 23 fb 24 67 83 2e 6d 26 e8 ae eb f8 90 7a db d5 d5 da 82 bf 3c 64 d2 69 b6 b5
+CertUtil: -hashfile ����ɹ���ɡ�
+
+
+SHA256 ��ϣ(�ļ� C:/Win7CodingAgent/acceptance/A4-20260806-140606/run_remaining_wmi.cmd):
+fb 58 3a 15 c4 64 20 be f8 38 c7 5d 53 1a e3 fc be dc c9 ad 8e ca 14 b0 c3 4d bc e8 14 28 9b 26
+CertUtil: -hashfile ����ɹ���ɡ�

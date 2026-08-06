@@ -14,6 +14,8 @@
 | [a3_w13_write_approval_acceptance_2026-08-04](2026-08/a3_w13_write_approval_acceptance_2026-08-04.html) | 08-04 | A3-W13 独立两次写入审批、撤销恢复与 Win7 SHA-256 闭环 |
 | [win7_mvp_acceptance_report](2026-08/win7_mvp_acceptance_report.html) | 08-02 | Win7 MVP 实机验收、替代项与 WorkBuddy 交叉勘误 |
 | [win7_remaining_constraints_acceptance_plan](2026-08/win7_remaining_constraints_acceptance_plan.html) | 08-02 | C01–C20 剩余约束覆盖矩阵、执行包、证据接口与停止条件 |
+| [a4_automated_acceptance_orchestration_2026-08-05](2026-08/a4_automated_acceptance_orchestration_2026-08-05.html) | 08-05 | A4 AUTO-00～07 fail-closed 编排方案与 A4-20260805-123467 Win7 14/14 自动执行结果；独立 Gate 不计入 PASS |
+| [A4-20260806-140606 补充验收审计](../../spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.html) | 08-06 | Win7 C02 Job fail-closed、C03 Restricted Token 边界失败、C05 loopback 可达性及正式网络环境缺失分类 |
 
 ## 2026-07
 

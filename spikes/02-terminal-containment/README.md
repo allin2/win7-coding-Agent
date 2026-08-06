@@ -4,10 +4,10 @@
 
 - **任务书**：`docs/tasks/SPIKE_02_TERMINAL_CONTAINMENT.md`
 - **状态**：APPROVED_FOR_IMPLEMENTATION
-- **Win7 实机验证**：BUILD_HOST_MISSING（MVP-20260802-02）
-- **成果迁入**：待验证（终端 containment 方案，阻塞 Phase 6/7 定稿；Go/No-Go 结论须来自 Win7 SP1 x64 实机执行）
+- **Win7 实机验证**：A4 非交互 Runner 自动矩阵 `A4-20260805-123467` 为 14/14 PASS；完整 SPIKE_02 仍为 PARTIAL
+- **成果迁入**：非交互 helper 已有精确 SHA 的 Win7 证据；生产 Runner、交互终端及完整 Go/No-Go 仍受独立 Gate 约束
 
-> **Win7-Validation: BUILD_HOST_MISSING** — C++ helper 静态审计仍见 ACL、argv、JSON、受限令牌和输出限制骨架实现；缺 MSVC v142、node-pty/winpty Electron 22 ABI 工件，未运行伪验收。
+> **Win7-Validation: A4_AUTOMATION_PASS / SPIKE_PARTIAL** — 精确候选 `733f5491…eecc` 已在 Win7 SP1 x64 完成非交互 14 项矩阵；未使用 taskkill，超时/取消/最终残留为 0。缺失的 A5/A6 Electron 22 ABI 工件、ACL/网络/生产授权不由该结果替代。
 
 ## 目标
 
@@ -80,6 +80,16 @@ node generate_malicious.js
 ```
 
 ## Go/No-Go 报告模板
+
+## A4 无人值守后续编排
+
+SPIKE_02 的 A4 非交互 helper 后续验收由 [`acceptance/README.md`](acceptance/README.md) 和
+[`acceptance/AUTO-FUP-20260805-01-plan.json`](acceptance/AUTO-FUP-20260805-01-plan.json)定义；
+入口只负责 AUTO-00～AUTO-07，不改写历史 A4-14/A4-20/A4-21 证据。严格 SSH、Bitvise、精确工件
+哈希、全新 acceptance/data root 和零残留是危险阶段的硬停止条件；生产 Runner、交互终端、ACL、
+网络观测及 A5/A6 继续保留各自 Gate。
+
+最新自动执行 `A4-20260805-123467` 已实现 AUTO-00～07 全 PASS，Win7 非交互 Runner 14/14、超时/取消零残留、`taskkill=false`、Bitvise-after RUNNING。补充执行 `A4-20260806-140606` 已确认 C02 PASS、C03 FAIL、C05 loopback PASS（正式 C05 仍环境缺失）；修正后的审计 ID 为 `A4-20260806-140606-REMAINING`。完整 SPIKE_02 的正式原子项当前直接通过 6/19，仍为 `NO_GO_FORMAL_GAPS`，详见 [`acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.html`](acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.html)。
 
 ```
 SPIKE 02 - Go/No-Go 报告
