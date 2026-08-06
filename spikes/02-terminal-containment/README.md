@@ -16,25 +16,24 @@
 - winpty 集成实现伪终端通信
 - VT/OSC 序列过滤防止终端注入攻击（C19 负向防护）
 
-## 验证矩阵
+## 正式验证矩阵状态
 
-| ID   | 验证项                                       | 静态检查 | Win7 实机 |
-|------|----------------------------------------------|----------|-----------|
-| C01  | Job Object 创建与进程分配                    | ✓        | 待验证    |
-| C02  | Restricted Token 创建                        | ✓        | 待验证    |
-| C03  | ACL 设置（限制文件系统访问）                 | ✓        | 待验证    |
-| C04  | argv 白名单验证                              | ✓        | 待验证    |
-| C05  | 子进程启动与监控                             | ✓        | 待验证    |
-| C06  | 超时终止                                     | ✓        | 待验证    |
-| C07  | 输出上限截断                                 | ✓        | 待验证    |
-| C08  | winpty 宿主进程管理                          | ✓        | 待验证    |
-| C09  | 终端会话 stdin 隔离                          | ✓        | 待验证    |
-| C10  | 中文+空格路径兼容                            | ✓        | 待验证    |
-| C11  | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE           | ✓        | 待验证    |
-| C12  | IsProcessInJob 探测                          | ✓        | 待验证    |
-| C13  | VT 序列过滤（OSC 52 等）                     | ✓        | 待验证    |
-| C14  | 窗口标题注入防护                             | ✓        | 待验证    |
-| C15  | DECRQSS 响应防护                             | ✓        | 待验证    |
+以下 ID 与 `docs/tasks/SPIKE_02_TERMINAL_CONTAINMENT.md` 一致；完整正式结论仍为
+`NO_GO_FORMAL_GAPS`。
+
+| ID | 验证项 | Win7 / Gate 状态 |
+|----|--------|------------------|
+| C01 | Job Object 进程树必杀 | PASS |
+| C02 | 已在不可嵌套 Job 时 fail-closed | PASS |
+| C03 | Restricted Token 工作区外/注册表边界 | FAIL（工作区外写入仍成功） |
+| C04 | ACL 工作区外拒绝 | MANUAL_GATE |
+| C05 | TCP/UDP/DNS 实际可达性 | ENVIRONMENT_MISSING（loopback 已观测） |
+| C06 | argv 白名单 | PASS |
+| C07 | 超时、输出上限与整树清理 | PASS |
+| C08 | Runner 内存预算 | PASS |
+| T01～T05 | 交互终端与会话回收 | BUILD_HOST_MISSING |
+| N01～N05 | C19 终端输入/VT/设备应答负向 | BUILD_HOST_MISSING |
+| N06 | 禁止 `taskkill` 冒充 containment | PASS |
 
 ## 文件结构
 

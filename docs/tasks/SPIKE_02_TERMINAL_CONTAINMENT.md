@@ -13,8 +13,8 @@ Task Type: SPIKE
 Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
-Win7-Validation: NOT_PERFORMED
-Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern build host, but Win7-Validation stays NOT_PERFORMED until executed on Win7 SP1 x64 hardware
+Win7-Validation: PARTIAL
+Blocking-Reason: A4 non-interactive Win7 evidence is recorded, but formal SPIKE_02 remains NO_GO_FORMAL_GAPS (6/19 direct PASS; C03 FAIL; C04/C05 and terminal/build-chain gates remain open)
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -107,10 +107,17 @@ Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern buil
 
 - 企业启动器/域策略环境能否获得实测机会（影响 C02 覆盖度）。
 
-## 9. 验证记录（占位，验收时填写）
+## 9. 验证记录
 
 ```
 Win7-Compatibility: PROVISIONAL
-Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Target environment unavailable
+Win7-Validation: PARTIAL
+Evidence: A4-20260805-123467, A4-20260806-140606
+Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
+Blocking-Reason: C03 FAIL; C04 MANUAL_GATE; C05 ENVIRONMENT_MISSING; T01-T05/N01-N05 and source-to-binary closure BUILD_HOST_MISSING
 ```
+
+A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
+C02 `PASS`、C03 `FAIL`，并只完成 C05 loopback 观测。原始证据、逐阶段日志和派生审计见
+`spikes/02-terminal-containment/acceptance/evidence/`，当前正式结论仍为
+`NO_GO_FORMAL_GAPS`，不解除生产 Runner 或交互终端 Gate。
