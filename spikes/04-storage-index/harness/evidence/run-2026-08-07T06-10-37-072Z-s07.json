@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S07",
+  "name": "Bounded scan fallback",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v20.17.0",
+    "hostname": "QLYFdeMacBook-Air.local"
+  },
+  "runtime": {
+    "backend": "python-bridge",
+    "sqlite": "3.43.2"
+  },
+  "media": {
+    "type": "unknown",
+    "declared": false,
+    "note": "unknown"
+  },
+  "win7": {
+    "validated": false,
+    "note": "NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考"
+  },
+  "params": {
+    "scale": "30k",
+    "durationMs": 3000,
+    "s06LimitMb": 1
+  },
+  "startedAtUtc": "2026-08-07T06:10:37.072Z",
+  "elapsedMs": 317,
+  "metrics": {
+    "boundedFiles": 500,
+    "boundedTruncated": true,
+    "boundedReason": "max_files",
+    "boundedDirs": 86,
+    "boundedElapsedMs": 22,
+    "fullFiles": 30000,
+    "fullTruncated": false,
+    "fullDirs": 5005,
+    "fullElapsedMs": 291
+  },
+  "raw": {
+    "bounded": {
+      "mode": "bounded-fallback",
+      "root": "/tmp/claude-501/spike04_samples_1786083037073",
+      "files": 500,
+      "dirs": 86,
+      "truncated": true,
+      "reason": "max_files",
+      "elapsedMs": 22,
+      "errors": []
+    },
+    "full": {
+      "mode": "bounded-fallback",
+      "root": "/tmp/claude-501/spike04_samples_1786083037073",
+      "files": 30000,
+      "dirs": 5005,
+      "truncated": false,
+      "reason": null,
+      "elapsedMs": 291,
+      "errors": []
+    }
+  },
+  "pass": {
+    "met": true,
+    "note": "有界预算必须截断且不读满整树；全量预算必须覆盖整树"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "spike04-storage-index-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SPIKE_04 storage index validation harness (S01-S08). Zero runtime deps; better-sqlite3 provided by locked A6 runtime on Win7, python3 sqlite3 for dev validation.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "bench": "node benchmark/benchmark.js",
+    "test:fixtures": "node test/test_fixtures.js",
+    "test:indexer": "node test/test_indexer.js",
+    "test:crash": "node test/test_crash_recovery.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

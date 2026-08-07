@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "runId": "2026-08-07T06-10-37-072Z",
+  "startedAtUtc": "2026-08-07T06:10:37.072Z",
+  "backend": "python-bridge",
+  "media": "unknown",
+  "samples": "/tmp/claude-501/spike04_samples_1786083037073",
+  "scale": "30k",
+  "win7_validation": "NOT_PERFORMED",
+  "results": [
+    {
+      "case": "S01",
+      "name": "WAL batch write QPS",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "qps": 43536.503683858,
+        "events": 130000,
+        "elapsedMs": 3015,
+        "batchSize": 1000,
+        "dbSizeMb": 20.015846252441406
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s01.json"
+    },
+    {
+      "case": "S02",
+      "name": "Crash recovery (WAL)",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "status": "PASS",
+        "integrity": true,
+        "totalRows": 3000,
+        "completeRows": 6,
+        "partialBatchDetected": false,
+        "lastCompleteBatch": 5,
+        "killAtBatch": 7,
+        "batchCounts": [
+          {
+            "batch": 0,
+            "rows": 500,
+            "complete": 1
+          },
+          {
+            "batch": 1,
+            "rows": 500,
+            "complete": 1
+          },
+          {
+            "batch": 2,
+            "rows": 500,
+            "complete": 1
+          },
+          {
+            "batch": 3,
+            "rows": 500,
+            "complete": 1
+          },
+          {
+            "batch": 4,
+            "rows": 500,
+            "complete": 1
+          },
+          {
+            "batch": 5,
+            "rows": 500,
+            "complete": 1
+          }
+        ]
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s02.json"
+    },
+    {
+      "case": "S03",
+      "name": "FTS5 full index throughput",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "scale": "30k",
+        "files": 30000,
+        "filesPerSec": 3739.249657235448,
+        "elapsedMs": 8023,
+        "truncated": false,
+        "truncationReason": null,
+        "skipped": 0
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s03.json"
+    },
+    {
+      "case": "S04",
+      "name": "Incremental index latency",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "fullFilesPerSec": 3746.721618583739,
+        "fullElapsedMs": 8007,
+        "incElapsedMs": 971,
+        "incFilesPerSec": 20.59732234809475,
+        "added": 0,
+        "updated": 20,
+        "unchanged": 29980,
+        "deleted": 0,
+        "modifiedCount": 20,
+        "incrementalFaster": true,
+        "elapsedRatio": 0.12126888972149369,
+        "speedup": 0.0054974253347064884
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s04.json"
+    },
+    {
+      "case": "S05",
+      "name": "Query latency P95 (30k files)",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "p95Ms": 243.14999999999998,
+        "p50Ms": 42,
+        "p99Ms": 258.03000000000003,
+        "count": 100,
+        "queryTypes": 12
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s05.json"
+    },
+    {
+      "case": "S06",
+      "name": "512MB limit and rolling cleanup",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "limitMb": 1,
+        "targetMb": 0.5,
+        "grownRows": 200,
+        "grownSizeMb": 2.078338623046875,
+        "cleanupTriggered": true,
+        "deletedRows": 200,
+        "afterSizeMb": 0.97265625,
+        "sizeShrank": true,
+        "backUnderTarget": false,
+        "beforeConsistent": true,
+        "afterConsistent": true,
+        "integrity": true
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s06.json"
+    },
+    {
+      "case": "S07",
+      "name": "Bounded scan fallback",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "boundedFiles": 500,
+        "boundedTruncated": true,
+        "boundedReason": "max_files",
+        "boundedDirs": 86,
+        "boundedElapsedMs": 22,
+        "fullFiles": 30000,
+        "fullTruncated": false,
+        "fullDirs": 5005,
+        "fullElapsedMs": 291
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s07.json"
+    },
+    {
+      "case": "S08",
+      "name": "Chinese+space paths and CP936/UTF-8 content",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "unicodeSpaceFilesOnDisk": 14988,
+        "cp936Ok": 15328,
+        "cp936Total": 15328,
+        "utf8Ok": 14672,
+        "utf8Total": 14672,
+        "pathHits": 10813,
+        "pathHitsWithSpace": 10813,
+        "contentHitsChinese": 20025
+      },
+      "file": "run-2026-08-07T06-10-37-072Z-s08.json"
+    }
+  ]
+}

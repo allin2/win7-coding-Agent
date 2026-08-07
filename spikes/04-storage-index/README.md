@@ -6,9 +6,11 @@
 - **状态**：APPROVED_FOR_IMPLEMENTATION
 - **Win10 原生构建**：PASS；D-014 `READY_FOR_WIN7_VALIDATION`
 - **Win7 实机验证**：NOT_PERFORMED（机械盘门禁按负责人裁决 PASS）
+- **Harness 实现**：已完成（`harness/`，2026-08-07）
+- **开发机验证**：S01–S08 全用例在 python3 sqlite3（3.43.2）后端起驱动跑通，数据仅作趋势参考
 - **成果迁入**：成果已迁入 `src/state/`（待 Win7 验证；原型 `schema.sql`、`migrations.ts` 已吸收到正式模块）
 
-> **Win7-Validation: NOT_PERFORMED** — A6 的 better-sqlite3/SQLite/FTS5 锁定工件已经在 Win10 构建并通过复核；indexer、benchmark、fixtures、崩溃恢复 harness 和 Win7 S01～S08 仍未完成，因此不能把存储功能或性能写成通过。
+> **Win7-Validation: NOT_PERFORMED** — A6 的 better-sqlite3/SQLite/FTS5 锁定工件已经在 Win10 构建并通过复核；`harness/` 已在开发机跑通 S01–S08（趋势数据）。Win7 实机 S01～S08 仍未执行，因此不能把存储功能或性能写成通过。
 
 ## Win10 离线构建包
 
@@ -61,47 +63,65 @@
 ```
 04-storage-index/
 ├── schema/
-│   ├── schema.sql        # SQLite schema 定义
+│   ├── schema.sql        # 项目 schema 基线（Win10 smoke 已验证）
 │   └── migrations.ts     # schema 迁移管理
-├── indexer/
-│   ├── indexer.ts        # 文件索引器
-│   └── query.ts          # 查询接口
-├── benchmark/
-│   ├── benchmark.ts      # 压测框架
-│   └── fixtures.ts       # 样本仓库生成器
-├── test/
-│   └── test_crash_recovery.ts # 崩溃恢复测试
-└── README.md             # 本文件
+├── build-win10/          # Win10 离线构建包（kit + 返回包）
+└── harness/              # S01-S08 验证 harness（纯 Node，零运行时依赖）
+    ├── package.json
+    ├── schema/spike04.sql        # 验证专用 schema（events + files + 双 FTS 表）
+    ├── lib/
+    │   ├── db.js                 # 统一异步 DB 驱动（better-sqlite3 / python-bridge）
+    │   ├── fixtures.js           # 样本仓库生成器（3千/1万/3万，中英文，CP936/UTF-8）
+    │   ├── indexer.js            # 全量/增量索引 + 有界回退
+    │   ├── query.js              # 路径/内容检索
+    │   ├── bounded-scan.js       # 有界目录扫描（不读满整树）
+    │   ├── crash-recovery.js     # 崩溃恢复（S02，子进程 kill 模拟断电）
+    │   ├── cleanup.js            # 512MB 滚动清理（S06）
+    │   ├── encoding.js / cp936.js / gbk-table.json  # CP936/UTF-8 内容处理
+    │   ├── metrics.js            # P95/分位数
+    │   └── disk-type.js          # 介质类型探测（SSD/HDD/unknown）
+    ├── benchmark/
+    │   ├── benchmark.js          # S01-S08 编排 + 结构化 JSON 输出
+    │   └── cases/                # 8 个用例
+    ├── test/                     # 回归测试（fixtures/indexer/crash）
+    ├── evidence/                 # 运行证据（结构化 JSON + 原始指标）
+    └── work/                     # 本地运行产物（gitignore，不提交）
 ```
 
 ## 使用方法
 
-### 静态验证（现代构建机）
+### 开发机验证（python3 sqlite3 后端，趋势数据）
 
 ```bash
-# 编译 TypeScript
-npx tsc
+cd harness
+# 回归测试
+node test/test_fixtures.js
+node test/test_indexer.js
+node test/test_crash_recovery.js
 
-# 运行压测
-node benchmark/benchmark.js
+# 完整压测（10k 样本；S06 用 1MB 阈值验证逻辑）
+node benchmark/benchmark.js --scale 10k --duration-ms 3000 --backend python-bridge --s06-limit-mb 1 --s06-target-mb 0.5
+
+# 显式声明介质（SSD/HDD/unknown；探测失败时用 unknown，绝不默认机械盘）
+node benchmark/benchmark.js --scale 30k --media ssd
 ```
 
-### Win7 实机验证
+### Win7 实机验证（锁定 better-sqlite3）
 
 ```bash
 # 禁止在 Win7 现场 npm install 或编译原生模块。
-# 先在 Win10 执行 build-win10/dist/ 中的离线包，回传并审查
-# WIN7_A6_SQLITE_ARTIFACTS_*.zip，再使用锁定工件运行以下 harness。
-
-# 生成样本仓库
-node benchmark/fixtures.js
-
-# 运行完整压测
-node benchmark/benchmark.js
-
-# 运行崩溃恢复测试
-node test/test_crash_recovery.js
+# 先解压锁定返回包，再通过 ELECTRON_RUN_AS_NODE 用锁定 Electron 运行时加载 better-sqlite3：
+#   ELECTRON_RUN_AS_NODE=1 <runtime>/electron/electron.exe benchmark/benchmark.js \
+#     --backend better-sqlite3 --scale 30k \
+#     --runtime-root <解压出的 runtime 目录>
+# 环境变量：
+#   A6_BS3_ROOT    -> <runtime>/node_modules/better-sqlite3
+#   A6_BS3_NATIVE  -> <runtime>/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+#   A6_MEDIA       -> 介质声明（ssd/hdd/unknown）
 ```
+
+> **介质诚实性**：当前 Win7 为 SSD。任何跑出的 S01–S08 数据若介质为 SSD，必须在报告与
+> 结构化 JSON 中标记 `media.type=ssd` 且注明"非机械盘数据"，不得冒充机械盘性能。
 
 ## Go/No-Go 报告模板
 

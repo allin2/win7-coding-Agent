@@ -1,0 +1,696 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S01",
+  "name": "WAL batch write QPS",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v20.17.0",
+    "hostname": "QLYFdeMacBook-Air.local"
+  },
+  "runtime": {
+    "backend": "python-bridge",
+    "sqlite": "3.43.2"
+  },
+  "media": {
+    "type": "unknown",
+    "declared": false,
+    "note": "unknown"
+  },
+  "win7": {
+    "validated": false,
+    "note": "NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考"
+  },
+  "params": {
+    "scale": "30k",
+    "durationMs": 3000,
+    "s06LimitMb": 1
+  },
+  "startedAtUtc": "2026-08-07T06:10:37.072Z",
+  "elapsedMs": 3019,
+  "metrics": {
+    "qps": 43536.503683858,
+    "events": 130000,
+    "elapsedMs": 3015,
+    "batchSize": 1000,
+    "dbSizeMb": 20.015846252441406
+  },
+  "raw": [
+    {
+      "batch": 1,
+      "events": 1000,
+      "latencyMs": 28
+    },
+    {
+      "batch": 2,
+      "events": 1000,
+      "latencyMs": 27
+    },
+    {
+      "batch": 3,
+      "events": 1000,
+      "latencyMs": 24
+    },
+    {
+      "batch": 4,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 5,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 6,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 7,
+      "events": 1000,
+      "latencyMs": 26
+    },
+    {
+      "batch": 8,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 9,
+      "events": 1000,
+      "latencyMs": 24
+    },
+    {
+      "batch": 10,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 11,
+      "events": 1000,
+      "latencyMs": 63
+    },
+    {
+      "batch": 12,
+      "events": 1000,
+      "latencyMs": 25
+    },
+    {
+      "batch": 13,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 14,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 15,
+      "events": 1000,
+      "latencyMs": 24
+    },
+    {
+      "batch": 16,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 17,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 18,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 19,
+      "events": 1000,
+      "latencyMs": 41
+    },
+    {
+      "batch": 20,
+      "events": 1000,
+      "latencyMs": 25
+    },
+    {
+      "batch": 21,
+      "events": 1000,
+      "latencyMs": 19
+    },
+    {
+      "batch": 22,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 23,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 24,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 25,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 26,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 27,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 28,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 29,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 30,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 31,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 32,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 33,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 34,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 35,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 36,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 37,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 38,
+      "events": 1000,
+      "latencyMs": 35
+    },
+    {
+      "batch": 39,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 40,
+      "events": 1000,
+      "latencyMs": 20
+    },
+    {
+      "batch": 41,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 42,
+      "events": 1000,
+      "latencyMs": 20
+    },
+    {
+      "batch": 43,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 44,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 45,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 46,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 47,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 48,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 49,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 50,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 51,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 52,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 53,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 54,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 55,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 56,
+      "events": 1000,
+      "latencyMs": 30
+    },
+    {
+      "batch": 57,
+      "events": 1000,
+      "latencyMs": 20
+    },
+    {
+      "batch": 58,
+      "events": 1000,
+      "latencyMs": 20
+    },
+    {
+      "batch": 59,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 60,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 61,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 62,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 63,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 64,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 65,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 66,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 67,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 68,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 69,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 70,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 71,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 72,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 73,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 74,
+      "events": 1000,
+      "latencyMs": 33
+    },
+    {
+      "batch": 75,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 76,
+      "events": 1000,
+      "latencyMs": 19
+    },
+    {
+      "batch": 77,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 78,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 79,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 80,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 81,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 82,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 83,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 84,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 85,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 86,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 87,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 88,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 89,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 90,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 91,
+      "events": 1000,
+      "latencyMs": 25
+    },
+    {
+      "batch": 92,
+      "events": 1000,
+      "latencyMs": 32
+    },
+    {
+      "batch": 93,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 94,
+      "events": 1000,
+      "latencyMs": 20
+    },
+    {
+      "batch": 95,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 96,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 97,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 98,
+      "events": 1000,
+      "latencyMs": 23
+    },
+    {
+      "batch": 99,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 100,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 101,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 102,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 103,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 104,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 105,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 106,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 107,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 108,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 109,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 110,
+      "events": 1000,
+      "latencyMs": 34
+    },
+    {
+      "batch": 111,
+      "events": 1000,
+      "latencyMs": 20
+    },
+    {
+      "batch": 112,
+      "events": 1000,
+      "latencyMs": 19
+    },
+    {
+      "batch": 113,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 114,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 115,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 116,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 117,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 118,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 119,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 120,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 121,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 122,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 123,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 124,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 125,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 126,
+      "events": 1000,
+      "latencyMs": 24
+    },
+    {
+      "batch": 127,
+      "events": 1000,
+      "latencyMs": 36
+    },
+    {
+      "batch": 128,
+      "events": 1000,
+      "latencyMs": 22
+    },
+    {
+      "batch": 129,
+      "events": 1000,
+      "latencyMs": 21
+    },
+    {
+      "batch": 130,
+      "events": 1000,
+      "latencyMs": 24
+    }
+  ],
+  "pass": {
+    "met": true,
+    "noGo": false,
+    "note": "Go >=300 QPS, No-Go <150; dev-machine value is trend only"
+  }
+}

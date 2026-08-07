@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S06",
+  "name": "512MB limit and rolling cleanup",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v20.17.0",
+    "hostname": "QLYFdeMacBook-Air.local"
+  },
+  "runtime": {
+    "backend": "python-bridge",
+    "sqlite": "3.43.2"
+  },
+  "media": {
+    "type": "unknown",
+    "declared": false,
+    "note": "unknown"
+  },
+  "win7": {
+    "validated": false,
+    "note": "NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考"
+  },
+  "params": {
+    "scale": "30k",
+    "durationMs": 3000,
+    "s06LimitMb": 1
+  },
+  "startedAtUtc": "2026-08-07T06:10:37.072Z",
+  "elapsedMs": 44,
+  "metrics": {
+    "limitMb": 1,
+    "targetMb": 0.5,
+    "grownRows": 200,
+    "grownSizeMb": 2.078338623046875,
+    "cleanupTriggered": true,
+    "deletedRows": 200,
+    "afterSizeMb": 0.97265625,
+    "sizeShrank": true,
+    "backUnderTarget": false,
+    "beforeConsistent": true,
+    "afterConsistent": true,
+    "integrity": true
+  },
+  "raw": {
+    "grown": {
+      "rows": 200,
+      "sizeMb": 2.078338623046875,
+      "limitMb": 1,
+      "elapsedMs": 25
+    },
+    "before": {
+      "files": 200,
+      "files_fts_path": 200,
+      "files_fts_content": 200,
+      "consistent": true,
+      "integrity": true
+    },
+    "cleaned": {
+      "deleted": 200,
+      "sizeMb": 0.97265625,
+      "targetMb": 0.5,
+      "elapsedMs": 19
+    },
+    "after": {
+      "files": 0,
+      "files_fts_path": 0,
+      "files_fts_content": 0,
+      "consistent": true,
+      "integrity": true
+    }
+  },
+  "pass": {
+    "met": true,
+    "note": "Go: 超limit触发清理、体积回落且清理后审计/恢复不断链；dev-machine 用较小 limitMb 验证逻辑"
+  }
+}

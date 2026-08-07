@@ -1,0 +1,9 @@
+# SPIKE 04 harness - 本地运行产物（不进 git）
+work/
+node_modules/
+*.db
+*.db-wal
+*.db-shm
+
+# Claude 会话工作目录
+.claude/
