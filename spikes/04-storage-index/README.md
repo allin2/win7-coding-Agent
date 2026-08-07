@@ -110,18 +110,25 @@ node benchmark/benchmark.js --scale 30k --media ssd
 
 ```bash
 # 禁止在 Win7 现场 npm install 或编译原生模块。
-# 先解压锁定返回包，再通过 ELECTRON_RUN_AS_NODE 用锁定 Electron 运行时加载 better-sqlite3：
-#   ELECTRON_RUN_AS_NODE=1 <runtime>/electron/electron.exe benchmark/benchmark.js \
-#     --backend better-sqlite3 --scale 30k \
-#     --runtime-root <解压出的 runtime 目录>
-# 环境变量：
-#   A6_BS3_ROOT    -> <runtime>/node_modules/better-sqlite3
-#   A6_BS3_NATIVE  -> <runtime>/node_modules/better-sqlite3/build/Release/better_sqlite3.node
-#   A6_MEDIA       -> 介质声明（ssd/hdd/unknown）
+# 1) 解压锁定返回包（WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip，SHA-256
+#    2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794）。
+# 2) 设置运行时定位 env（db.js 的 better-sqlite3 后端读取）：
+set A6_BS3_ROOT=<解压目录>\runtime\node_modules\better-sqlite3
+set A6_BS3_NATIVE=<解压目录>\runtime\node_modules\better-sqlite3\build\Release\better_sqlite3.node
+set A6_MEDIA=ssd
+# 3) 用锁定 Electron 运行时（含 Node 16.17.1）以 node 模式运行 benchmark：
+set ELECTRON_RUN_AS_NODE=1
+<解压目录>\runtime\electron\electron.exe benchmark\benchmark.js --backend better-sqlite3 --scale 30k
+# 注意：harness 无 --runtime-root 参数（benchmark.js parseArgs 未知参数即抛错）；
+# 运行时定位一律通过 A6_BS3_ROOT / A6_BS3_NATIVE 环境变量，勿传命令行。
+# 生成样本（若需三档规模）：
+<解压目录>\runtime\electron\electron.exe benchmark\benchmark.js --scale 3k --gen-fixtures
 ```
 
 > **介质诚实性**：当前 Win7 为 SSD。任何跑出的 S01–S08 数据若介质为 SSD，必须在报告与
 > 结构化 JSON 中标记 `media.type=ssd` 且注明"非机械盘数据"，不得冒充机械盘性能。
+> 机械盘（5400/7200rpm）是任务书 §3 的目标测试机，但当前 Win7 实机为 SSD，机械盘
+> 门禁按负责人裁决默认 PASS，不得把该裁决写成机械盘性能实测。
 
 ## Go/No-Go 报告模板
 
