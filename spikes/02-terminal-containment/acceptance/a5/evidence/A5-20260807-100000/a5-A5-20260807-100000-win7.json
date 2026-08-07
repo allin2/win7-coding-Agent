@@ -1,0 +1,239 @@
+{
+  "acceptance_id": "A5-20260807-100000",
+  "generated_at": "2026-08-07T07:17:08.323Z",
+  "mode": "win7",
+  "cases": [
+    {
+      "id": "T01",
+      "title": "全屏 TUI 渲染通路",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "winpty 交互 stdin 输入在 Win7 实测不可用（conin write 无效，CRLF/CR/dir 均无响应）；cmd 可启动、conout 输出可捕获。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-input-available",
+          "ok": false,
+          "note": "direct node-pty 验证：write 到 conin 不生效"
+        },
+        {
+          "name": "cmd-spawnable-output-capturable",
+          "ok": true,
+          "note": "cmd 可启动、横幅/输出经 filter 捕获"
+        },
+        {
+          "name": "winpty-interactive-defect-recorded",
+          "ok": true,
+          "note": "触发任务书 No-Go(winpty)：交互 PTY 在 Win7 不可用"
+        }
+      ]
+    },
+    {
+      "id": "T02",
+      "title": "Unicode/中文回显",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "winpty 交互 stdin 输入不可用，无法执行 chcp/echo 脚本；CP936/UTF-8 中文回显边界无法在 Win7 实测。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-input-available",
+          "ok": false,
+          "note": "交互 write 不可用"
+        },
+        {
+          "name": "chinese-echo-boundary-unverifiable",
+          "ok": false,
+          "note": "无法驱动 cmd 执行中文回显"
+        }
+      ]
+    },
+    {
+      "id": "T03",
+      "title": "resize 尺寸同步",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "winpty 交互 stdin 输入不可用，无法执行 mode con 观测尺寸；resize 指令已发（node-pty.resize 不抛错）。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-input-available",
+          "ok": false,
+          "note": "交互 write 不可用"
+        },
+        {
+          "name": "resize-command-issued",
+          "ok": true,
+          "note": "node-pty.resize(100,40) 调用成功"
+        },
+        {
+          "name": "resize-reflect-unverifiable",
+          "ok": false,
+          "note": "无法驱动 cmd 观测尺寸变化"
+        }
+      ]
+    },
+    {
+      "id": "T04",
+      "title": "Ctrl 信号传递",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "winpty 交互 stdin 输入不可用，无法驱动前台进程并发送 Ctrl+C；Ctrl 信号传递边界无法在 Win7 实测。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-input-available",
+          "ok": false,
+          "note": "交互 write 不可用"
+        },
+        {
+          "name": "ctrl-signal-boundary-unverifiable",
+          "ok": false,
+          "note": "无法向 pty 写入 \\x03"
+        }
+      ]
+    },
+    {
+      "id": "T05",
+      "title": "会话回收（D-013 Job Object 进程树必杀）",
+      "status": "NOT_PERFORMED",
+      "evidence_class": "WIN7",
+      "detail": "D-013 helper 缺席（源码→二进制闭包未合入），不宣称回收 PASS。",
+      "notes": "D_013_HELPER_ABSENT",
+      "subchecks": [
+        {
+          "name": "d013-helper-probe",
+          "ok": false,
+          "note": "helper 路径 spike02_helper.exe 不存在"
+        }
+      ]
+    },
+    {
+      "id": "N01",
+      "title": "模型/Agent Core 结构性无法写入终端 stdin",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "模型处理器路径源码不含任何 pty stdin 写调用（N01 结构性）；模型侧全部写尝试被拒，pty 写入计数为 0。",
+      "notes": "win7_end_to_end_pending",
+      "subchecks": [
+        {
+          "name": "blocked-events-fired",
+          "ok": true
+        },
+        {
+          "name": "model-writes-never-reach-pty",
+          "ok": true
+        },
+        {
+          "name": "static-no-write-in-model-path",
+          "ok": true
+        },
+        {
+          "name": "win7-end-to-end-confirm",
+          "ok": null,
+          "note": "Win7 真实通道 + 真实 pty 端到端确认待授权 lease"
+        }
+      ]
+    },
+    {
+      "id": "N02",
+      "title": "恶意 OSC 52 剪贴板注入被过滤",
+      "status": "NOT_PERFORMED",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "winpty 交互 stdin 输入不可用，无法在 Win7 会话内注入恶意字节；OSC52 剥离精确性由开发机单测保证（10 万序列 <2s）。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-injection-available",
+          "ok": false,
+          "note": "交互 write 不可用，端到端注入不可行"
+        },
+        {
+          "name": "filter-correctness-dev-covered",
+          "ok": true,
+          "note": "dev 单测：OSC52 全部剥离 + 周边文本保留"
+        }
+      ]
+    },
+    {
+      "id": "N03",
+      "title": "恶意窗口标题 OSC 0/2 注入被过滤",
+      "status": "NOT_PERFORMED",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "winpty 交互 stdin 输入不可用，无法在 Win7 会话内注入恶意标题；标题注入过滤精确性由开发机单测保证。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-injection-available",
+          "ok": false,
+          "note": "交互 write 不可用"
+        },
+        {
+          "name": "filter-correctness-dev-covered",
+          "ok": true,
+          "note": "dev 单测：OSC0/2 全部剥离"
+        }
+      ]
+    },
+    {
+      "id": "N04",
+      "title": "DECRQSS / 设备应答类序列不诱导终端回写 stdin",
+      "status": "NOT_PERFORMED",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "winpty 交互 stdin 输入不可用，无法在 Win7 会话内注入应答类序列；DECRQSS/DA/DSR/CPR 剥离精确性由开发机单测保证。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-injection-available",
+          "ok": false,
+          "note": "交互 write 不可用"
+        },
+        {
+          "name": "filter-correctness-dev-covered",
+          "ok": true,
+          "note": "dev 单测：DECRQSS 与 DA/DSR/CPR 全部剥离且无回写"
+        }
+      ]
+    },
+    {
+      "id": "N05",
+      "title": "超量 / 超长 / 深层嵌套控制序列有界处理",
+      "status": "NOT_PERFORMED",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "winpty 交互 stdin 输入不可用，无法在 Win7 会话内注入超量序列；filter 有界处理（10 万序列 <2s、输出 ≤1MB）由开发机单测保证。",
+      "notes": "WINPTY_INTERACTIVE_INPUT_DEFECT",
+      "subchecks": [
+        {
+          "name": "interactive-injection-available",
+          "ok": false,
+          "note": "交互 write 不可用"
+        },
+        {
+          "name": "bounded-processing-dev-covered",
+          "ok": true,
+          "note": "dev 单测：10 万 OSC52 + 超长 + 100 层嵌套有界完成"
+        }
+      ]
+    },
+    {
+      "id": "N06",
+      "title": "禁止 taskkill 冒充 containment",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "A5 终端路径无 taskkill 冒充 containment（N06）",
+      "notes": "",
+      "subchecks": [
+        {
+          "name": "no-taskkill-ref",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "FAIL": 4,
+    "NOT_PERFORMED": 5,
+    "PASS": 2
+  },
+  "win7_validation": "PENDING_OWNER_VERIFICATION"
+}

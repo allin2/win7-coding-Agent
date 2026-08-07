@@ -60,6 +60,10 @@ let session = null;
 
 function wireSession(s) {
   session = s;
+  // 会话完全退出（pty 关闭）后释放 host 侧引用，使下一次 session:start 可正常发起
+  s.on('exit', () => {
+    if (session === s) session = null;
+  });
   s.on('started', (e) => transport.post({ type: 'session:started', sessionId: e.sessionId, pid: e.pid }));
   s.on('output', (e) => transport.post({ type: 'output', sessionId: e.sessionId, data: e.data }));
   s.on('filtered', (e) => transport.post({

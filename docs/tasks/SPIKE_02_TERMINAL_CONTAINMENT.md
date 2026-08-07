@@ -136,6 +136,25 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
 - `winpty.dll`：`cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b`
 
 返回包缺内部 `RETURN_PACKAGE_MANIFEST.json`，因此复核状态为 `PASS_WITH_PACKAGING_GAP`；外层哈希和
-`build-result.json` 仍覆盖全部运行时输出。当前仓库的 winpty 集成与正式测试 harness 仍含骨架/TODO，
-所以 T01～T05/N01～N05 不能直接进入 Win7 执行；D-013 helper 也不在本次构建范围。完整 SPIKE_02
-继续为 `NO_GO_FORMAL_GAPS`，但阻塞原因不再笼统记作 Win10 构建主机缺失。
+`build-result.json` 仍覆盖全部运行时输出。当前仓库的 winpty 集成与正式测试 harness 已由 A5
+补齐（`winpty/**`、`acceptance/a5/**`、`test/a5-terminal-tests.js`）；D-013 helper 仍不在构建范围。
+
+### A5 Win7 实机验收（2026-08-07，A5-20260807-100000）
+
+- 候选包由 D-011 ZIP 只读装配（`acceptance/a5/package-a5/`，内含 node-pty 子树 + A5 harness +
+  内部 manifest），三个原生工件哈希与锁定值一致；Electron 复用 `C:\acceptance\electron\electron.exe`
+  （version=22.3.27），经 utilityProcess fork 真实 node-pty/winpty，cmd 可启动、conout 输出可经
+  VTFilter 捕获。
+- **决定性实测：winpty 0.4.4-dev 在 Win7 SP1 x64 的交互式 stdin 输入不可用**（direct node-pty 验证：
+  `cmd /c` 参数执行 OK；交互 `write` 到 conin 的 CRLF/CR/dir 均无响应）。触发本任务书 §5
+  No-Go(winpty) 判据 → ADR-0031 降级方向（放弃交互 PTY，改非交互命令 + 流式输出日志视图）。
+- 证据：`acceptance/a5/evidence/A5-20260807-100000/a5-A5-20260807-100000-win7.json`
+  - T01~T04 `FAIL`（`WINPTY_INTERACTIVE_INPUT_DEFECT`：交互输入缺陷已实测记录）
+  - T05 `NOT_PERFORMED`（D-013 helper 缺席，不宣称回收 PASS）
+  - N01 `PASS`（模型结构性无法写 pty stdin：6/6 blocked，pty 写入计数 0）
+  - N02~N05 `NOT_PERFORMED`（winpty 交互注入不可用；过滤精确性由 dev 单测保证）
+  - N06 `PASS`（无 taskkill 冒充 containment）
+- 取证：Electron/node-pty/winpty-agent/python 零残留，`BvSshServer` 保持 RUNNING。
+- 结论：完整 SPIKE_02 仍为 `NO_GO_FORMAL_GAPS`；交互终端在 Win7 因 winpty 输入缺陷不可用，
+  C19 过滤精确性（OSC52/标题/DECRQSS/有界）由开发机单测覆盖，Win7 端到端注入受 winpty 输入
+  缺陷阻断，正式结论待 owner 对 ADR-0031 降级路径的裁决。

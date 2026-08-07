@@ -197,7 +197,23 @@ class TerminalSession extends EventEmitter {
     if (this._state === STATE.IDLE || this._state === STATE.CLOSED) return;
     if (this._state === STATE.CLOSING) return;
     this._state = STATE.CLOSING;
-    if (this._host) await this._host.stop();
+    if (this._host) {
+      // 等待 pty 完全退出（winpty-agent 终止、shell 及残留输出全部回收）再 resolve，
+      // 避免下一个会话 start 时旧会话仍有输出在流、host 侧 session 引用未清理。
+      const exited = new Promise((resolve) => {
+        const onExit = () => {
+          this.removeListener('exit', onExit);
+          resolve();
+        };
+        this.on('exit', onExit);
+        this._host.stop().catch(() => resolve());
+      });
+      const timeout = new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(), 10000);
+        this.once('exit', () => clearTimeout(timer));
+      });
+      await Promise.race([exited, timeout]);
+    }
     this._state = STATE.CLOSED;
     this.emit('stopped', { sessionId: this._sessionId });
   }

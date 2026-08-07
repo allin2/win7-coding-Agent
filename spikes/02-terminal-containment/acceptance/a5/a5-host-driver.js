@@ -72,6 +72,7 @@ class HostDriver {
         this._resolve('session:stopped', msg);
         break;
       case 'session:exit':
+        this._sessionId = null;
         this._resolve('session:exit', msg);
         break;
       case 'session:error':
@@ -115,15 +116,71 @@ class HostDriver {
     await this._waitFor('session:stopped');
   }
 
-  produceOutput(payload) {
-    // 经 CPython 将原始字节写到 pty stdout；命令本身回显会经过过滤器，属预期
+  /**
+   * 经 CPython 将原始字节写到 pty stdout。
+   * payload 经 base64 分块（每块远低于 cmd 8191 命令行限制），python 用
+   * sys.stdout.buffer.write 解码输出原始字节——避免双引号嵌套被 cmd 截断、
+   * 避免超长命令、字节无损（含 \x1b / \x07 / UTF-8 中文）。
+   * 用唯一 begin/end marker 圈住输出，等两个 marker 都出现在（经 filter 后的）
+   * 输出里再 resolve，确保 payload 已真正进入链路。
+   */
+  async produceOutput(payload) {
     const py = process.env.WIN7_PYTHON || 'C:\\acceptance\\python38_mvp\\python.exe';
-    const arg = `import sys;sys.stdout.write(${JSON.stringify(payload)})`;
-    this.write(`${py} -c "${arg}"\r`);
+    const seq = (this._produceSeq = (this._produceSeq || 0) + 1);
+    const begin = `A5MARKBEGIN${seq}`;
+    const end = `A5MARKEND${seq}`;
+    const b64 = Buffer.from(String(payload), 'utf8').toString('base64');
+    const CHUNK = 6000;
+    this.write(`echo ${begin}\r`);
+    let writes = 1;
+    for (let i = 0; i < b64.length; i += CHUNK) {
+      const piece = b64.slice(i, i + CHUNK);
+      this.write(`${py} -c "import sys,base64;sys.stdout.buffer.write(base64.b64decode('${piece}'))"\r`);
+      writes += 1;
+    }
+    this.write(`echo ${end}\r`);
+    writes += 1;
+    this._lastProduceWrites = writes;
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      if (this._output.includes(begin) && this._output.includes(end)) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  /**
+   * 等待收到至少 count 条 security:blocked（IPC 异步）。
+   */
+  async waitForBlocks(count, timeoutMs = 10000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this._blocked.length >= count) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  /**
+   * 探测 winpty 交互式 stdin 输入是否可用（Win7 实测：conin write 不生效）。
+   * 启动会话、写入 echo probe、检查输出是否出现；随后清理。
+   */
+  async probeInteractiveInput() {
+    try {
+      await this.start({ cols: 80, rows: 24 });
+      this.clearOutput();
+      const probe = `A5_IO_PROBE_${Math.floor(Math.random() * 1e9)}`;
+      this.write(`echo ${probe}\r`);
+      await new Promise((r) => setTimeout(r, 2500));
+      const ok = this._output.includes(probe);
+      await this.stop();
+      return ok;
+    } catch (_) {
+      return false;
+    }
   }
 
   sendModelEvent(msg) {
-    this.child.postMessage({ type: 'model-event', ...msg });
+    // type 必须固定为 'model-event'（放最后，避免被 msg.type 覆盖）
+    this.child.postMessage({ ...msg, type: 'model-event' });
   }
 
   collect() { return this._output; }

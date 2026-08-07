@@ -292,10 +292,20 @@ testAsync('host 传输：来源校验 + 模型通道 blocked + 用户通道写�
   const blockedNoSource = await h.waitFor((m) => m.type === 'security:blocked' && m.reason === 'NO_STDIN_CHANNEL');
   assert.ok(blockedNoSource);
 
-  // 模型通道写尝试 → blocked
-  h.send({ type: 'model-event', event: 'stdin-write', data: 'evil' });
-  const blockedModel = await h.waitFor((m) => m.type === 'security:blocked' && m.reason === 'NO_STDIN_CHANNEL');
-  assert.ok(blockedModel);
+  // 模型通道写尝试（多种形态，type 固定 model-event）→ 全部 blocked
+  const modelVariants = [
+    { type: 'model-output', event: 'stdin-write', data: 'evil' },
+    { type: 'write', event: 'stdin', data: 'evil' },
+    { type: 'user-input', data: 'evil-on-model-channel' },
+    { event: 'send-keys', data: '\x1b]52;c;ZXZpbA==\x07' },
+  ];
+  for (const v of modelVariants) h.send({ ...v, type: 'model-event' });
+  let modelBlocks = 0;
+  while (modelBlocks < modelVariants.length) {
+    await h.waitFor((m) => m.type === 'security:blocked' && m.reason === 'NO_STDIN_CHANNEL');
+    modelBlocks += 1;
+  }
+  assert.strictEqual(modelBlocks, modelVariants.length);
 
   h.send({ type: 'introspect' });
   const afterBlocked = await h.waitFor((m) => m.type === 'introspect');
@@ -313,7 +323,8 @@ testAsync('host 传输：来源校验 + 模型通道 blocked + 用户通道写�
   await h.waitFor((m) => m.type === 'session:stopped');
   h.send({ type: 'user-input', source: 'user', data: 'after-exit\r' });
   const hostErr = await h.waitFor((m) => m.type === 'host:error');
-  assert.ok(/会话未运行|closed/.test(hostErr.message), `got: ${hostErr.message}`);
+  // 会话关闭后 session 引用已释放：user-input 不得崩溃宿主，报 no-active/未运行 均可
+  assert.ok(/no active session|会话未运行|closed/.test(hostErr.message), `got: ${hostErr.message}`);
 
   h.send({ type: 'shutdown' });
 });
