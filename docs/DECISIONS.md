@@ -642,3 +642,47 @@
 - 后果：A6 可以与 A5 Win7 验收并行在同一类 Win10 构建主机产出工件，且 A7 可按固定哈希复用，
   不再需要在 Win7 现场安装或编译 npm 原生模块。代价是锁定历史 SQLite/Node/Electron/Win7 组合，
   项目承担 EOL 与漏洞回补；`unicode61` 只证明 FTS5 基础能力，不等价于中文分词质量，仍需 S05 裁决。
+
+## ADR-0065 验收协调器控制面：签名租约、轮前/轮后检查、证据分级与 fail-closed 正式状态
+
+- 状态：Accepted（2026-08-07，项目负责人裁决：协调器定位、A5 自追加、A6 证据处置、实施顺序）
+- 背景：现有 Win7 验收证据由各 SPIKE harness 自报——A6 `--win7-validated` 直接把
+  `win7_validation: VALIDATED` 盖进证据 JSON（`harness/benchmark/benchmark.js:65,203,243`）；
+  A5 `--lease-granted`/`WIN7_LEASE_GRANTED` 只做环境标志门禁（`acceptance/a5/a5-run.js:200`）；
+  A4 `GATE-WIN7-LEASE` 仅回显不执行（`run_d013_win7.mjs`，且 `PENDING_WIN10_BUILD` 哨兵放行
+  REM-D01，见 `:231`）。DECISIONS.md 此前 63 条 ADR 均无租约签发者、证据分级或状态更新控制面
+  条目。这使"开发机/缩短参数/SSD 结果"与"正式 Win7 实机通过"边界模糊，违反 AGENTS.md
+  C08/C19 与证据分级纪律。
+- 决策：
+  1. **控制面身份**：验收协调器是**整合窗口（ADR-0052）的工具延伸**，不是新实体，不新建任务书。
+     其代码位于 `scripts/mvp_acceptance/win7_coordinator/**`（MVP_01 §2 第 27 行已含
+     `scripts/mvp_acceptance/**`），正式状态写 `docs/status/**` 沿用 MVP_01 §2 第 31 行 +
+     ADR-0052 的整合窗口写权限。本 ADR 不扩张任何既有任务白名单。
+  2. **唯一租约**：状态机 `REQUESTED→GRANTED→RUNNING→RETURNED→RELEASED`，异常
+     `RUNNING→RECOVERY_REQUIRED`；任一时刻最多一个 `GRANTED`/`RUNNING`。租约绑定 commit、
+     工件 manifest SHA-256、目标机标识、scope、期限与非ce。协调器用 Ed25519 对租约原始字节
+     签名；公钥随 Runner 交付，私钥仅存协调器本机 Git 之外，禁止上传 Win7、禁止进仓库/ZIP/日志。
+  3. **Worker 信任边界**：Worker 只输出 `DEV_PASS` 或 `CANDIDATE_EVIDENCE`；移除自报
+     `--win7-validated`、`--lease-granted`；正式 `WIN7_PASS` 仅由协调器证据校验器计算。Worker
+     公共状态文档修改从候选提交排除。
+  4. **轮前/轮后检查**：每轮强制 BvSshServer `RUNNING`、SSH 22 探针、零残留、上一租约 `RELEASED`、
+     租约签名/commit/scope/目标/工件 manifest 全匹配；不满足即 `PREFLIGHT_BLOCKED`，不上传、不
+     启动、不改系统。轮后在 `finally` 执行并按 PID/父子关系核对；禁止宽泛 `taskkill` 冒充 Job
+     containment；残留或后置失败 → `RECOVERY_REQUIRED`，不自动发下一份租约。
+  5. **双向 SHA-256**：上传与返回均以 `certutil -hashfile <file> SHA256` 与本地计算对账，逐文件
+     核对关键 EXE/DLL/NODE；缺项只能 `HASH_PENDING`，不得进入 PASS。
+  6. **证据分级**：`DEVELOPMENT` / `SURROGATE` / `CANDIDATE_EVIDENCE` / `WIN7_PASS`。Mock、
+     缩短压测、SSD 替代机械盘只能进 `DEVELOPMENT`/`SURROGATE`；机械盘证据 fail-closed（无法
+     确认介质即不 PASS）。
+  7. **A6 既有证据**：真实 Win7 SSD 执行且已提交，保留原始 `win7_validation: VALIDATED` 字段与
+     哈希不变，仅**追加** `REJECTED_AS_FORMAL_EVIDENCE` / `SSD_SURROGATE` disposition，新证据
+     使用新 run ID。
+  8. **A5 任务书自追加**：保留 A5 分支对 `docs/tasks/SPIKE_02_TERMINAL_CONTAINMENT.md` §9 的
+     自追加（SPIKE_02 §0.2 白名单授权），属于验证记录而非正式状态；正式状态仍由协调器统一写
+     `docs/status/**`。
+  9. **实施顺序**：A4（D-013 helper 执行边界/哈希/租约/回滚）→ A6（正式参数 + 证据分级）→
+     A5（基于 D-013 合入更新 T05）；A5 必须晚于 D-013 合入，任一时刻单一租约。
+- 后果：Win7 验收从"per-harness 自报"收敛为"协调器签发的受控流水线"，正式状态与证据分级有单一
+  事实来源，开发机/缩短/SSD 结果不再可能冒充正式实机通过。代价是新增一个签名/校验工具面与人工
+  配合项（Win10 D-013 构建、Win7 交互观察、机械盘环境、企业启动器环境、私钥位置），且轮前检查
+  不满足时本轮拒绝执行（不自行启动服务/改防火墙/重启）。
