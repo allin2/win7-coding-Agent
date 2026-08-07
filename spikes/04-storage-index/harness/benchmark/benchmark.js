@@ -45,6 +45,7 @@ function parseArgs(argv) {
     media: null,
     evidenceDir: null,
     genFixtures: false,
+    win7Validated: false,
     s06LimitMb: 512,
     s06TargetMb: 256,
   };
@@ -59,6 +60,7 @@ function parseArgs(argv) {
     else if (a === '--media') opts.media = next();
     else if (a === '--evidence-dir') opts.evidenceDir = next();
     else if (a === '--gen-fixtures') opts.genFixtures = true;
+    else if (a === '--win7-validated') opts.win7Validated = true;
     else if (a === '--s06-limit-mb') opts.s06LimitMb = Number(next());
     else if (a === '--s06-target-mb') opts.s06TargetMb = Number(next());
     else if (a === '--s05-reps') opts.s05Reps = Number(next());
@@ -87,6 +89,7 @@ async function main() {
   --media <ssd|hdd|unknown>                  显式介质声明（覆盖探测）
   --s06-limit-mb / --s06-target-mb           S06 阈值（开发机可调小）
   --evidence-dir <dir>                       输出目录（默认 harness/evidence）
+  --win7-validated                           标记为 Win7 实机验收证据（仅显式授权时用）
   --help`);
     return;
   }
@@ -144,7 +147,13 @@ async function main() {
         const { fullIndex } = require('../lib/indexer');
         const countRow = await (await db.prepare('SELECT COUNT(*) AS c FROM files')).get();
         if (!countRow || countRow.c === 0) {
-          process.stderr.write(`  (pre-indexing ${opts.scale} samples)\n`);
+          let count;
+          try {
+            count = require('fs').readdirSync(sampleRoot).length;
+          } catch (_) {
+            count = '?';
+          }
+          process.stderr.write(`  (pre-indexing ${count} top-level entries at ${sampleRoot})\n`);
           await fullIndex(db, sampleRoot, { timeBudgetMs: 600000, batchSize: 500 });
         }
         indexedDone = true;
@@ -189,8 +198,10 @@ async function main() {
         note: media === 'hdd' ? 'mechanical disk' : media === 'ssd' ? 'SSD data, NOT mechanical disk' : 'unknown',
       },
       win7: {
-        validated: false,
-        note: 'NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考',
+        validated: opts.win7Validated,
+        note: opts.win7Validated
+          ? 'PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据'
+          : 'NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考',
       },
       params: {
         scale: opts.scale,
@@ -227,7 +238,7 @@ async function main() {
     media: media,
     samples: sampleRoot,
     scale: opts.scale,
-    win7_validation: 'NOT_PERFORMED',
+    win7_validation: opts.win7Validated ? 'VALIDATED' : 'NOT_PERFORMED',
     results,
   };
   const sumFile = path.join(evidenceDir, `run-${ts}-summary.json`);
