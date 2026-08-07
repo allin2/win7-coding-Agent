@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "package": "WIN10_D013_HELPER_BUILD_KIT",
+  "revision": "2026-08-07",
+  "status": "READY_FOR_WIN10_BUILD",
+  "generated_at": "2026-08-07T03:40:55.068Z",
+  "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
+  "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
+  "excluded": [
+    "work/",
+    "output/",
+    "evidence/",
+    "result/",
+    "candidate/"
+  ],
+  "files": [
+    {
+      "path": "README_BUILD.md",
+      "size": 2455,
+      "sha256": "a731df17507af97fb1406e555af6ba52ccddcae1f7624b09d0585d94a372349f"
+    },
+    {
+      "path": "STATUS.json",
+      "size": 1042,
+      "sha256": "dc539e43ee7081e3d4864fb7ecb8e02e9d69b0cf2c22971023eb0dd00624869c"
+    },
+    {
+      "path": "build-profile.json",
+      "size": 2445,
+      "sha256": "f34075db23b22e49abf8159b788a7762ea9cf85c6050e9bcf502e173f570640b"
+    },
+    {
+      "path": "build.ps1",
+      "size": 14775,
+      "sha256": "e0e9f74e2f7d4a3bc41c4f22a16a55faea3994c0cda7ae1bb8a8293c16d8fdd2"
+    },
+    {
+      "path": "helper.exe.manifest",
+      "size": 1119,
+      "sha256": "d5bcc8b0074e4c3ada637b1faac5fc212a90664d840add1e7667dee09a6e4d5e"
+    },
+    {
+      "path": "src/CMakeLists.txt",
+      "size": 3265,
+      "sha256": "9330a980fe54a92574ce99e2e8402bf494b37da7dba0493990e06d4e8e7de8c2"
+    },
+    {
+      "path": "src/argv_builder.cpp",
+      "size": 1774,
+      "sha256": "80a0e14cb6104f51288dea9cf1fc22e1a78e569b8ba20041c6dd8b159168c930"
+    },
+    {
+      "path": "src/argv_builder.h",
+      "size": 1091,
+      "sha256": "8e3952658304e34049abac271e27fd01d61f298b12160f284fd029f292727992"
+    },
+    {
+      "path": "src/helper.cpp",
+      "size": 32691,
+      "sha256": "9c92d9d064ef87b9a31284184db2e8b6e4c8af5cd6108c9e7bbe07084a8d209e"
+    },
+    {
+      "path": "src/helper.h",
+      "size": 6832,
+      "sha256": "5717a752ce22fb7b6372c475626b7a031e8f3ce04350210ec314c5f68ed13dc3"
+    },
+    {
+      "path": "src/json_parser.cpp",
+      "size": 12913,
+      "sha256": "bfbd048d605e3cdabb9bb139a1cb38244ca2c74f7aa47415bcbe8607968d5ae8"
+    },
+    {
+      "path": "src/json_parser.h",
+      "size": 2653,
+      "sha256": "559eaa6d53f001a4bdcf436c031ea554bebfd9ef7811b21b977261a10536ef65"
+    },
+    {
+      "path": "src/protocol.cpp",
+      "size": 10511,
+      "sha256": "9b0f77fca2c1564b8ce27c461333c8b58a30a27b019064fab2bd3f618b31f46f"
+    },
+    {
+      "path": "src/whitelist.cpp",
+      "size": 3521,
+      "sha256": "e57d0f61ab1aba0b0008ad5cc5c28e2ccd6cff74587733ea8f294fbe5a7f4636"
+    },
+    {
+      "path": "src/whitelist.h",
+      "size": 1572,
+      "sha256": "eed87f74014af6bcd5fe3591a927af45573fb46b3d76dfbcf3eb030e41a3b681"
+    },
+    {
+      "path": "input-lock.json",
+      "size": 2108,
+      "sha256": "2d907fb0f63cb8f9fceba2e610e4bc7acef8fc9f52372e9f275ccf524c1beef7"
+    }
+  ]
+}

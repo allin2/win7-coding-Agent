@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "track": "D-013",
+  "closure": "D-013 source -> Win10 toolchain -> binary",
+  "status": "READY_FOR_WIN10_BUILD",
+  "generated_at": "2026-08-07T00:00:00Z",
+  "win10_build_executed": false,
+  "win10_return_package_reviewed": false,
+  "win7_validation": "NOT_PERFORMED",
+  "gates": {
+    "GATE-WIN10-BUILD": "READY_FOR_WIN10_BUILD",
+    "GATE-WIN7-LEASE": "NOT_GRANTED",
+    "GATE-NET": "ENVIRONMENT_MISSING"
+  },
+  "blocked_on": [
+    "executing build.ps1 on a locked Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0 host and returning WIN7_D013_HELPER_ARTIFACTS_*.zip",
+    "WIN7_LEASE_GRANTED before any Win7 connection"
+  ],
+  "notes": [
+    "No actual Win10 return package exists yet: this marker MUST stay READY_FOR_WIN10_BUILD (it is not a build PASS).",
+    "The live helper sources are snapshotted into src/ and bound by input-lock.json; re-run prepare-kit.cjs after any helper change.",
+    "Win7 validation evidence is only produced after the return package is reviewed AND the Win7 lease is granted."
+  ]
+}
