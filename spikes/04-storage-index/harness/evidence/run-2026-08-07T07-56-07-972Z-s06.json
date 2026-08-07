@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S06",
+  "name": "512MB limit and rolling cleanup",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 60000,
+    "s06LimitMb": 512
+  },
+  "startedAtUtc": "2026-08-07T07:56:07.972Z",
+  "elapsedMs": 45387,
+  "metrics": {
+    "limitMb": 512,
+    "targetMb": 256,
+    "grownRows": 49200,
+    "grownSizeMb": 517.7904586791992,
+    "cleanupTriggered": true,
+    "deletedRows": 49200,
+    "afterSizeMb": 199.59765625,
+    "sizeShrank": true,
+    "backUnderTarget": true,
+    "beforeConsistent": true,
+    "afterConsistent": true,
+    "integrity": true
+  },
+  "raw": {
+    "grown": {
+      "rows": 49200,
+      "sizeMb": 517.7904586791992,
+      "limitMb": 512,
+      "elapsedMs": 31615
+    },
+    "before": {
+      "files": 49200,
+      "files_fts_path": 49200,
+      "files_fts_content": 49200,
+      "consistent": true,
+      "integrity": true
+    },
+    "cleaned": {
+      "deleted": 49200,
+      "sizeMb": 199.59765625,
+      "targetMb": 256,
+      "elapsedMs": 12107
+    },
+    "after": {
+      "files": 0,
+      "files_fts_path": 0,
+      "files_fts_content": 0,
+      "consistent": true,
+      "integrity": true
+    }
+  },
+  "pass": {
+    "met": true,
+    "note": "Go: 超limit触发清理、体积回落且清理后审计/恢复不断链；dev-machine 用较小 limitMb 验证逻辑"
+  }
+}

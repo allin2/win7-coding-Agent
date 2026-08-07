@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "runId": "2026-08-07T08-00-02-313Z",
+  "startedAtUtc": "2026-08-07T08:00:02.313Z",
+  "backend": "better-sqlite3",
+  "media": "ssd",
+  "samples": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
+  "scale": "10k",
+  "win7_validation": "VALIDATED",
+  "results": [
+    {
+      "case": "F",
+      "name": "Functional validation F01-F06",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "F01": {
+          "rows": [
+            {
+              "version": 1,
+              "description": "SPIKE 04 unified validation schema: events + files + FTS"
+            }
+          ],
+          "hasVersion1": true,
+          "versionCount": 1,
+          "met": true
+        },
+        "F02": {
+          "insertOk": true,
+          "updateChanged": true,
+          "readBack": true,
+          "deleteChanged": true,
+          "deleteRemoved": true,
+          "met": true
+        },
+        "F03": {
+          "pathHits": 10813,
+          "contentHits": 20025,
+          "pathHasChineseSpace": true,
+          "exactMatchFound": true,
+          "met": true
+        },
+        "F04": {
+          "total": 10813,
+          "page1Size": 10,
+          "page2Size": 10,
+          "page1Correct": true,
+          "page2Correct": true,
+          "noOverlap": true,
+          "overflowEmpty": true,
+          "met": true
+        },
+        "F05": {
+          "pathUnicode61": [
+            {
+              "term": "工作区",
+              "hits": 7500,
+              "latencyMs": 32
+            },
+            {
+              "term": "模块",
+              "hits": 9928,
+              "latencyMs": 77
+            },
+            {
+              "term": "文件",
+              "hits": 10813,
+              "latencyMs": 72
+            },
+            {
+              "term": "源码",
+              "hits": 7500,
+              "latencyMs": 39
+            },
+            {
+              "term": "测试",
+              "hits": 2496,
+              "latencyMs": 13
+            }
+          ],
+          "contentTrigram": [
+            {
+              "term": "分布式",
+              "hits": 20025,
+              "latencyMs": 126
+            },
+            {
+              "term": "系统设计",
+              "hits": 697,
+              "latencyMs": 6
+            },
+            {
+              "term": "索引优化",
+              "hits": 0,
+              "latencyMs": 0
+            },
+            {
+              "term": "监控告警",
+              "hits": 723,
+              "latencyMs": 6
+            },
+            {
+              "term": "持久化",
+              "hits": 20002,
+              "latencyMs": 134
+            },
+            {
+              "term": "负载均衡",
+              "hits": 20053,
+              "latencyMs": 148
+            }
+          ],
+          "pathHitsTotal": 38237,
+          "contentHitsTotal": 61500,
+          "pathMaxLatencyMs": 77,
+          "contentMaxLatencyMs": 148,
+          "met": true,
+          "note": "unicode61 路径按空格/斜杠切词命中目录词；trigram 内容支持中文子串(>=3字符)。2字中文词在 trigram 下不命中是已知限制。"
+        },
+        "F06": {
+          "boundedFiles": 500,
+          "boundedTruncated": true,
+          "boundedReason": "max_files",
+          "fullFiles": 30000,
+          "fullTruncated": false,
+          "met": true
+        }
+      },
+      "file": "run-2026-08-07T08-00-02-313Z-f.json"
+    },
+    {
+      "case": "P",
+      "name": "Path robustness P08/C11-PATH",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "P1": {
+          "created": 5,
+          "met": true
+        },
+        "P2": {
+          "attempted": 298,
+          "pathTooLongDetected": false,
+          "errCodes": [],
+          "met": true
+        },
+        "P3": {
+          "drivePath": "C:\\",
+          "ok": true,
+          "met": true
+        },
+        "P4": {
+          "ok": true,
+          "met": true
+        },
+        "P5": {
+          "abs": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+          "rel": "..\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+          "ok": true,
+          "met": true
+        }
+      },
+      "file": "run-2026-08-07T08-00-02-313Z-p.json"
+    }
+  ]
+}
