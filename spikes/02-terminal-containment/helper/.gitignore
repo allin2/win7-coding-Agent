@@ -1,0 +1,8 @@
+# Local build output directories (not part of the D-013 source baseline).
+build-*/
+build-win10-kit/result/
+build-win10-kit/work/
+build-win10-kit/output/
+build-win10-kit/evidence/
+*.o
+*.exe

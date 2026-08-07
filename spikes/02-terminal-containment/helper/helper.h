@@ -1,38 +1,65 @@
 /**
- * SPIKE 02 - C++ Helper 头文件定义
+ * SPIKE 02 / D-013 — C++ Helper header (Win32 containment).
  *
- * 终端容器化 Helper：通过 Win32 API 实现安全子进程隔离
- * - Job Object 限制进程资源
- * - Restricted Token 降低权限
- * - ACL 控制文件系统访问
+ * The helper establishes a restricted execution environment for a child
+ * process tree:
+ *   - Job Object (KILL_ON_JOB_CLOSE + process/active limits) with a
+ *     fail-closed host probe (C02: host already in a Job -> refuse, Win7
+ *     cannot nest Jobs).
+ *   - Restricted Token (all privileges deleted, sensitive groups deny-only,
+ *     Low Integrity mandatory label) actually applied to the child via
+ *     CreateProcessWithTokenW (C03).
+ *   - ACL handling: Low-Integrity mandatory label on allowed directories so
+ *     the low-integrity child can write inside the workspace; explicit deny
+ *     ACEs on protectedDirectories with automatic rollback (C04).
+ *   - Structured argv + allow-list (C06/C09), timeout via TerminateJobObject
+ *     (C07, never taskkill — N06), bounded output with truncation (P02/C07),
+ *     and whole-tree reclamation on job close.
  *
- * 编译要求：MSVC v142 (Visual Studio 2019)
- * 目标平台：Windows 7 SP1 x64
+ * Protocol: one JSON request per line on stdin, one JSON response on stdout.
+ * Interface is frozen for SPIKE_02 (argv + JSON over stdio).
  *
- * Win7-Validation: NOT_PERFORMED
+ * Compile: MSVC v142 (VS2019), target Windows 7 SP1 x64, static CRT.
+ * Win7-Validation: NOT_PERFORMED (Win7 runtime evidence pending WIN7_LEASE_GRANTED)
  */
 
 #ifndef HELPER_H
 #define HELPER_H
 
+#ifdef _WIN32
 #include <windows.h>
 #include <aclapi.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#else
+// Minimal portable aliases so the platform-neutral layers compile and can be
+// unit-tested on non-Windows build hosts.
+#include <cstddef>
+#include <cstdint>
+using DWORD = uint32_t;
+using SIZE_T = size_t;
+#endif
 
-// ─── 常量定义 ────────────────────────────────────────────────────────────────
+#include <string>
+#include <vector>
 
-// 最大输出缓冲区大小（16 MB）
-#define MAX_OUTPUT_SIZE (16 * 1024 * 1024)
+#include "json_parser.h"
+#include "argv_builder.h"
+#include "whitelist.h"
 
-// 默认超时时间（毫秒）- 30 秒
-#define DEFAULT_TIMEOUT_MS 30000
+namespace spike02 {
 
-// JSON 输入缓冲区大小
-#define JSON_INPUT_BUFFER_SIZE 65536
+// ─── Limits ──────────────────────────────────────────────────────────────────
 
-// ─── 错误码 ──────────────────────────────────────────────────────────────────
+// Default per-stream output cap (16 MB).
+constexpr long long kMaxOutputSizeDefault = 16LL * 1024 * 1024;
+// Absolute cap for a single stream (64 MB) — bounded processing.
+constexpr long long kMaxOutputSizeAbsolute = 64LL * 1024 * 1024;
+// Default timeout (30 s).
+constexpr long long kDefaultTimeoutMs = 30000;
+// Job limits.
+constexpr DWORD kJobActiveProcessLimit = 64;
+constexpr SIZE_T kJobProcessMemoryLimit = 512ULL * 1024 * 1024;
+
+// ─── Error codes (kept stable for protocol consumers) ────────────────────────
 
 #define HELPER_OK 0
 #define HELPER_ERR_JOB_CREATE 1
@@ -43,152 +70,101 @@
 #define HELPER_ERR_OUTPUT_LIMIT 6
 #define HELPER_ERR_INVALID_ARGV 7
 #define HELPER_ERR_JSON_PARSE 8
+#define HELPER_ERR_HOST_IN_JOB 9
+#define HELPER_ERR_INTERNAL 10
 
-// ─── 数据结构 ────────────────────────────────────────────────────────────────
+// ─── Structures ──────────────────────────────────────────────────────────────
 
-/**
- * 子进程配置
- */
-typedef struct _ProcessConfig {
-    // 可执行文件路径（必须为白名单内的命令）
-    LPCWSTR executablePath;
-    
-    // 命令行参数数组
-    LPWSTR* argv;
-    int argc;
-    
-    // 工作目录
-    LPCWSTR workingDirectory;
-    
-    // 超时时间（毫秒）
-    DWORD timeoutMs;
-    
-    // 最大输出大小（字节）
-    DWORD maxOutputSize;
-    
-    // 是否允许网络访问
-    BOOL allowNetwork;
-    
-    // 允许访问的目录列表（ACL 白名单）
-    LPCWSTR* allowedDirectories;
-    int allowedDirectoryCount;
-} ProcessConfig;
+// Decoded request configuration (strings owned by the struct).
+struct ProcessConfig {
+    std::wstring requestId;
+    std::wstring executable;
+    std::vector<std::wstring> argv;
+    std::wstring workingDirectory;
+    long long timeoutMs = kDefaultTimeoutMs;
+    long long maxOutputSize = kMaxOutputSizeDefault;
+    bool allowNetwork = false;  // recorded only; never claimed as isolation
+    std::vector<std::wstring> allowedDirectories;    // workspace (low label)
+    std::vector<std::wstring> protectedDirectories;  // deny ACE + rollback (C04)
+    std::vector<std::wstring> extraExecutables;      // argv allow-list extras
+};
 
-/**
- * 子进程执行结果
- */
-typedef struct _ProcessResult {
-    // 退出码
-    DWORD exitCode;
-    
-    // 标准输出内容
-    char* stdoutBuffer;
-    DWORD stdoutSize;
-    
-    // 标准错误内容
-    char* stderrBuffer;
-    DWORD stderrSize;
-    
-    // 是否超时终止
-    BOOL timedOut;
-    
-    // 是否因输出上限截断
-    BOOL outputTruncated;
-    
-    // 执行时间（毫秒）
-    DWORD executionTimeMs;
-} ProcessResult;
+// Per-directory ACL change record returned to the caller (C04 audit).
+struct AclChangeRecord {
+    std::wstring path;
+    std::wstring mechanism;  // "low_integrity_label" | "deny_ace"
+    bool applied = false;
+    bool verified = false;
+    bool rolledBack = false;
+    std::wstring error;
+};
 
-// ─── 函数声明 ────────────────────────────────────────────────────────────────
+// Execution result (stdout/stderr as bytes + base64 rendering at output time).
+struct ProcessResult {
+    DWORD exitCode = 0;
+    long long executionTimeMs = 0;
+    bool timedOut = false;
+    bool canceled = false;
+    bool outputTruncated = false;
+    bool containmentVerified = false;
+    bool inputDetached = false;
+    std::vector<unsigned char> stdoutBytes;
+    std::vector<unsigned char> stderrBytes;
+    std::vector<AclChangeRecord> aclChanges;
+};
 
-/**
- * 创建 Job Object 并配置限制
- * 
- * 关键 Win32 API:
- *   - CreateJobObjectW
- *   - SetInformationJobObject (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
- *
- * @param jobName Job Object 名称（可为 NULL）
- * @return Job Object 句柄，失败返回 NULL
- */
-HANDLE CreateConfiguredJobObject(LPCWSTR jobName);
+// ─── Win32 orchestration (implemented in helper.cpp) ─────────────────────────
 
-/**
- * 创建 Restricted Token
- *
- * 关键 Win32 API:
- *   - OpenProcessToken
- *   - CreateRestrictedToken
- *   - AdjustTokenPrivileges
- *
- * @param restrictedToken 输出参数：创建的 Restricted Token
- * @return TRUE 成功，FALSE 失败
- */
-BOOL CreateRestrictedProcessToken(HANDLE* restrictedToken);
+#ifdef _WIN32
 
-/**
- * 设置目录 ACL（限制文件系统访问）
- *
- * 关键 Win32 API:
- *   - SetEntriesInAclW
- *   - SetNamedSecurityInfoW
- *
- * @param directory 目标目录路径
- * @param token 进程 Token
- * @return TRUE 成功，FALSE 失败
- */
-BOOL SetDirectoryACL(LPCWSTR directory, HANDLE token);
+// Probe: is the CURRENT process already in any Job? Win7 cannot nest Jobs, so
+// a positive answer means fail-closed (C02/P11). Returns true on probe failure.
+bool HostIsInJob();
 
-/**
- * 验证 argv 白名单
- *
- * 检查可执行文件和参数是否在允许列表中
- *
- * @param config 进程配置
- * @return TRUE 白名单验证通过，FALSE 被拒绝
- */
-BOOL ValidateArgvWhitelist(const ProcessConfig* config);
+// Create a configured Job Object (KILL_ON_JOB_CLOSE + limits). Returns NULL on
+// failure.
+HANDLE CreateConfiguredJobObject();
 
-/**
- * 启动受限子进程并监控
- *
- * 关键 Win32 API:
- *   - CreateProcessW
- *   - AssignProcessToJobObject
- *   - IsProcessInJob
- *   - WaitForSingleObject
- *
- * @param config 进程配置
- * @param result 输出参数：执行结果
- * @return 错误码（HELPER_OK 表示成功）
- */
-int LaunchRestrictedProcess(const ProcessConfig* config, ProcessResult* result);
+// Build the restricted token (privileges deleted, sensitive groups deny-only,
+// Low Integrity). Returns NULL on failure.
+HANDLE CreateRestrictedProcessToken();
 
-/**
- * 释放 ProcessResult 资源
- *
- * @param result 要释放的结果结构
- */
-void FreeProcessResult(ProcessResult* result);
+// Apply the Low-Integrity mandatory label to `directory` so a low-integrity
+// child can write inside it. Returns false on failure (fail-closed).
+bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error);
 
-/**
- * 解析 JSON 输入（从 stdin）
- *
- * JSON 格式：
- * {
- *   "executable": "C:\\Windows\\System32\\cmd.exe",
- *   "argv": ["/c", "echo hello"],
- *   "workingDirectory": "C:\\workspace",
- *   "timeoutMs": 30000,
- *   "maxOutputSize": 16777216,
- *   "allowNetwork": false,
- *   "allowedDirectories": ["C:\\workspace"]
- * }
- *
- * @param jsonInput JSON 字符串
- * @param config 输出参数：解析的配置
- * @return TRUE 解析成功，FALSE 解析失败
- */
-BOOL ParseJsonConfig(const char* jsonInput, ProcessConfig* config);
+// Add a deny ACE for `userSid` to `directory` (write/create/delete rights),
+// returning the previous DACL in *restoreAcl for rollback. Returns false on
+// failure.
+bool ApplyDenyAce(const std::wstring& directory, PSID userSid, PACL* restoreAcl,
+                  std::wstring* error);
 
-#endif // HELPER_H
+// Restore a previously captured DACL (rollback). Returns false on failure.
+bool RestoreDirectoryDacl(const std::wstring& directory, PACL restoreAcl,
+                          std::wstring* error);
+
+#endif  // _WIN32
+
+// Full pipeline: whitelist -> host probe -> job -> token -> ACL -> spawn ->
+// monitor -> reclaim. Returns HELPER_OK on success (result populated) or an
+// error code (result left untouched on fatal errors).
+int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result);
+
+// ─── Protocol (implemented in protocol.cpp, platform-neutral) ────────────────
+
+// Parse a JSON request line into `config`. Returns false with `*error` set on
+// protocol violations.
+bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
+                     std::string* error);
+
+// Render the execution result as a JSON response line (UTF-8, binary-safe via
+// base64 for stdout/stderr).
+std::string RenderResultJson(const std::string& requestId, const ProcessResult& result);
+
+// Render an error response line.
+std::string RenderErrorJson(const std::string& requestId, const char* code,
+                            const std::string& message);
+
+}  // namespace spike02
+
+#endif  // HELPER_H

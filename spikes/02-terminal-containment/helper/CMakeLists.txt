@@ -1,73 +1,93 @@
-# SPIKE 02 - C++ Helper CMake 构建配置
+# SPIKE 02 / D-013 — C++ Helper CMake build configuration.
 #
-# 编译要求：MSVC v142 (Visual Studio 2019)
-# 目标平台：Windows 7 SP1 x64
+# Targets:
+#   helper        Win32 containment executable (MSVC v142 / MinGW cross-check)
+#   logic_tests   platform-neutral unit tests for JSON protocol, argv quoting
+#                 and the allow-list (buildable and runnable on macOS/Linux)
 #
-# 用法：
-#   mkdir build && cd build
-#   cmake .. -G "Visual Studio 16 2019" -A x64
+# Windows build (D-017 profile):
+#   cmake .. -G "Visual Studio 16 2019" -A x64 -T v142
 #   cmake --build . --config Release
 #
+# Target platform: Windows 7 SP1 x64.
 # Win7-Validation: NOT_PERFORMED
 
 cmake_minimum_required(VERSION 3.15)
 project(spike02_helper LANGUAGES CXX)
 
-# ─── 编译配置 ────────────────────────────────────────────────────────────────
-
-# C++17 标准
+# C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# MSVC v142 工具集（Visual Studio 2019）
-# 注意：通过 -T v142 参数指定，或在 VS IDE 中选择
-
-# Win7 兼容性：定义 _WIN32_WINNT=0x0601 (Windows 7)
+# Win7 compatibility + Unicode (C10/C11).
 add_definitions(-D_WIN32_WINNT=0x0601)
 add_definitions(-DWINVER=0x0601)
-
-# Unicode 支持（中文路径 C10）
 add_definitions(-DUNICODE -D_UNICODE)
 
-# ─── 目标定义 ────────────────────────────────────────────────────────────────
+# ─── Shared platform-neutral logic ────────────────────────────────────────────
 
-add_executable(helper
-    helper.cpp
-    helper.h
+set(HELPER_LOGIC_SOURCES
+    json_parser.cpp
+    argv_builder.cpp
+    whitelist.cpp
+    protocol.cpp
 )
 
-# 链接库
-target_link_libraries(helper
-    advapi32    # ACL / Token API
-    aclui       # ACL UI（可选）
-)
+add_library(helper_logic STATIC ${HELPER_LOGIC_SOURCES})
+target_include_directories(helper_logic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# ─── 编译选项 ────────────────────────────────────────────────────────────────
+# ─── Win32 helper executable ─────────────────────────────────────────────────
 
-if(MSVC)
-    # 警告级别
-    target_compile_options(helper PRIVATE /W4)
-    
-    # 优化选项（Release）
-    target_compile_options(helper PRIVATE
-        $<$<CONFIG:Release>:/O2>
-        $<$<CONFIG:Release>:/GL>    # 全程序优化
+if(WIN32)
+    add_executable(helper
+        helper.cpp
+        ${HELPER_LOGIC_SOURCES}
     )
-    
-    # 链接选项（Release）
-    target_link_options(helper PRIVATE
-        $<$<CONFIG:Release>:/LTCG>  # 链接时代码生成
-        $<$<CONFIG:Release>:/OPT:REF>
-        $<$<CONFIG:Release>:/OPT:ICF>
-    )
-    
-    # 运行时库
-    target_compile_options(helper PRIVATE
-        $<$<CONFIG:Debug>:/MTd>
-        $<$<CONFIG:Release>:/MT>    # 静态链接 CRT
-    )
+    target_include_directories(helper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    target_link_libraries(helper PRIVATE advapi32)
+
+    if(MSVC)
+        target_compile_options(helper PRIVATE /W4)
+        target_compile_options(helper PRIVATE
+            $<$<CONFIG:Release>:/O2>
+            $<$<CONFIG:Release>:/GL>
+        )
+        target_link_options(helper PRIVATE
+            $<$<CONFIG:Release>:/LTCG>
+            $<$<CONFIG:Release>:/OPT:REF>
+            $<$<CONFIG:Release>:/OPT:ICF>
+        )
+        # Static CRT: the D-013 return package must carry no dynamic
+        # VCRUNTIME140/MSVCP140/UCRTBASE dependencies (PE/API/CRT gate).
+        target_compile_options(helper PRIVATE
+            $<$<CONFIG:Debug>:/MTd>
+            $<$<CONFIG:Release>:/MT>
+        )
+    elseif(MINGW)
+        # wmain entry point.
+        target_link_options(helper PRIVATE -municode)
+        target_compile_options(helper PRIVATE -Wall -Wextra)
+    endif()
+
+    install(TARGETS helper RUNTIME DESTINATION bin)
+else()
+    # On non-Windows hosts only the logic tests are meaningful.
+    message(STATUS "Non-Windows host: building logic_tests only")
 endif()
 
-# ─── 安装 ────────────────────────────────────────────────────────────────────
+# ─── Platform-neutral logic tests ─────────────────────────────────────────────
 
-install(TARGETS helper RUNTIME DESTINATION bin)
+option(SPIKE02_BUILD_LOGIC_TESTS "Build platform-neutral logic unit tests" ON)
+if(SPIKE02_BUILD_LOGIC_TESTS)
+    add_executable(logic_tests
+        logic_tests.cpp
+        ${HELPER_LOGIC_SOURCES}
+    )
+    target_include_directories(logic_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(MSVC)
+        target_compile_options(logic_tests PRIVATE /W4)
+    endif()
+    enable_testing()
+    add_test(NAME logic_tests COMMAND logic_tests)
+endif()
