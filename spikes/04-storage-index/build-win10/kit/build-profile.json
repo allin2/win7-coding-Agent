@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "profile": "WIN10-VS2019-V142-SDK19041-ELECTRON22-A6-SQLITE-X64",
+  "build_host": {
+    "os": "Windows 10 x64",
+    "visual_studio_product_version": "[16.0,17.0)",
+    "platform_toolset": "v142",
+    "msvc_version_family": "14.2",
+    "windows_sdk_version": "10.0.19041.0",
+    "python_version": "3.8.10",
+    "python_architecture": "AMD64",
+    "archive_tool": "Windows 10 tar.exe (bsdtar)"
+  },
+  "target": {
+    "os": "Windows 7 SP1 x64",
+    "winver": "0x0601",
+    "electron": "22.3.27",
+    "electron_abi": "110",
+    "node": "16.17.1",
+    "better_sqlite3": "8.7.0",
+    "sqlite": "3.43.1",
+    "architecture": "x64",
+    "database_location": "local disk only",
+    "journal_mode": "WAL"
+  },
+  "required_sqlite_compile_options": [
+    "ENABLE_FTS5",
+    "ENABLE_COLUMN_METADATA",
+    "THREADSAFE=2"
+  ],
+  "forbidden_imports": [
+    "CreatePseudoConsole",
+    "ResizePseudoConsole",
+    "ClosePseudoConsole",
+    "GetSystemTimePreciseAsFileTime",
+    "SetThreadDescription",
+    "GetThreadDescription",
+    "SetProcessInformation",
+    "GetSystemCpuSetInformation",
+    "GetDpiForWindow",
+    "SetProcessDpiAwarenessContext"
+  ],
+  "dynamic_crt_patterns": [
+    "VCRUNTIME[0-9_]*.DLL",
+    "MSVCP[0-9_]*.DLL",
+    "UCRTBASE.DLL",
+    "API-MS-WIN-CRT-*.DLL"
+  ]
+}

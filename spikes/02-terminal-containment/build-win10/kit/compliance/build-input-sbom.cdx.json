@@ -1,0 +1,110 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:be48d08c-b0a7-48b5-9470-e72a89c741d1",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-06T00:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "win10-native-build-kit@20260806-02",
+      "name": "WIN10_NATIVE_BUILD_KIT",
+      "version": "20260806-02"
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "bom-ref": "pkg:generic/electron@22.3.27?arch=x64&os=windows",
+      "name": "Electron",
+      "version": "22.3.27",
+      "hashes": [{ "alg": "SHA-256", "content": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6" }],
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "properties": [{ "name": "scope", "value": "Win7 runtime and Win10 smoke" }]
+    },
+    {
+      "type": "framework",
+      "bom-ref": "pkg:generic/node.js@16.17.1?arch=x64&os=windows",
+      "name": "Node.js portable build host runtime",
+      "version": "16.17.1",
+      "hashes": [{ "alg": "SHA-256", "content": "ed290151efb417262b9808a70738d4ab79e9d53653a6a9f4b8dd97912e279dce" }],
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "properties": [{ "name": "scope", "value": "Win10 build host only" }]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/node-pty@0.10.0",
+      "name": "node-pty",
+      "version": "0.10.0",
+      "hashes": [{ "alg": "SHA-256", "content": "03b59d30068544160ab822a86bdbfe764e822d633273732d95cba5995206bf69" }],
+      "licenses": [{ "license": { "id": "MIT" } }]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/winpty@0.4.4-dev?source=node-pty-0.10.0-embedded",
+      "name": "winpty embedded source snapshot",
+      "version": "0.4.4-dev",
+      "hashes": [{ "alg": "SHA-256", "content": "751e974babb4448ea707151e7a8cc0dc83cac925a46797e1bb0770159475b4c0" }],
+      "licenses": [{ "license": { "id": "MIT" } }]
+    },
+    {
+      "type": "library",
+      "bom-ref": "electron-headers@22.3.27",
+      "name": "Electron headers",
+      "version": "22.3.27",
+      "hashes": [{ "alg": "SHA-256", "content": "d89090506d7828888aaae85e4b8653a6700ec3ac11d95eb873cc4a30ac3cb743" }]
+    },
+    {
+      "type": "library",
+      "bom-ref": "electron-node-lib@22.3.27-x64",
+      "name": "Electron x64 node.lib",
+      "version": "22.3.27",
+      "hashes": [{ "alg": "SHA-256", "content": "67af8ac8af0db4ed1fe7af1a8583f1dae9f459be0a37ae9279381a2996cb8426" }]
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:npm/node-gyp@9.4.1",
+      "name": "node-gyp",
+      "version": "9.4.1",
+      "properties": [{ "name": "scope", "value": "Win10 build host only; transitive SBOM in npm-sbom.cdx.json" }]
+    },
+    {
+      "type": "application",
+      "bom-ref": "visual-studio-2019-v142",
+      "name": "Visual Studio 2019 Build Tools / MSVC v142",
+      "version": "16.x / 14.2x",
+      "properties": [{ "name": "scope", "value": "required build-host prerequisite; not redistributed" }]
+    },
+    {
+      "type": "framework",
+      "bom-ref": "windows-sdk@10.0.19041.0",
+      "name": "Windows SDK",
+      "version": "10.0.19041.0",
+      "properties": [{ "name": "scope", "value": "required build-host prerequisite; not redistributed" }]
+    },
+    {
+      "type": "framework",
+      "bom-ref": "pkg:generic/cpython@3.8.10?arch=amd64&os=windows",
+      "name": "CPython",
+      "version": "3.8.10",
+      "properties": [{ "name": "scope", "value": "required build-host prerequisite; not redistributed" }]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "win10-native-build-kit@20260806-02",
+      "dependsOn": [
+        "pkg:generic/electron@22.3.27?arch=x64&os=windows",
+        "pkg:generic/node.js@16.17.1?arch=x64&os=windows",
+        "pkg:npm/node-pty@0.10.0",
+        "pkg:generic/winpty@0.4.4-dev?source=node-pty-0.10.0-embedded",
+        "electron-headers@22.3.27",
+        "electron-node-lib@22.3.27-x64",
+        "pkg:npm/node-gyp@9.4.1",
+        "visual-studio-2019-v142",
+        "windows-sdk@10.0.19041.0",
+        "pkg:generic/cpython@3.8.10?arch=amd64&os=windows"
+      ]
+    }
+  ]
+}

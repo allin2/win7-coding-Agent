@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "record_id": "WIN10-NATIVE-BUILDS-20260807-01",
+  "recorded_at": "2026-08-07T08:56:50+08:00",
+  "scope": "Review of two independent Windows 10 native build return packages; this is build-host evidence, not Windows 7 target acceptance.",
+  "shared_build_host": {
+    "operating_system": "Windows 10 Pro 10.0.19045 x64",
+    "visual_studio": "2019 16.11.37507.1",
+    "msvc": "14.29.30133 / v142",
+    "windows_sdk": "10.0.19041.0",
+    "python": "CPython 3.8.10 AMD64",
+    "electron": "22.3.27",
+    "electron_node": "16.17.1",
+    "electron_module_abi": 110,
+    "network_required": false,
+    "status": "DEMONSTRATED_BY_TWO_BUILDS"
+  },
+  "results": [
+    {
+      "track": "A5",
+      "dependency_id": "D-011",
+      "component": "node-pty 0.10.0 with embedded winpty 0.4.4-dev snapshot",
+      "archive": "WIN7_NATIVE_ARTIFACTS_20260806-160514.zip",
+      "archive_sha256": "c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea",
+      "declared_build_result": "PASS",
+      "review_status": "PASS_WITH_PACKAGING_GAP",
+      "build_prerequisite": "CLEARED",
+      "checks": {
+        "zip_integrity": "PASS",
+        "input_lock_match": "PASS",
+        "build_profile_match": "PASS",
+        "windows_10_smoke": "PASS",
+        "electron_abi_110": "PASS",
+        "pe_x64": "PASS",
+        "forbidden_api_scan": "PASS",
+        "dynamic_crt_scan": "PASS",
+        "conpty_outputs_pruned": "PASS",
+        "declared_output_artifacts": 112,
+        "declared_output_hashes": "PASS",
+        "internal_return_package_manifest": "ABSENT"
+      },
+      "native_artifacts": [
+        {
+          "path": "output/node-pty/build/Release/pty.node",
+          "sha256": "4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5"
+        },
+        {
+          "path": "output/node-pty/build/Release/winpty-agent.exe",
+          "sha256": "51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d"
+        },
+        {
+          "path": "output/node-pty/build/Release/winpty.dll",
+          "sha256": "cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b"
+        }
+      ],
+      "integration_harness": "INCOMPLETE",
+      "win7_validation": "NOT_PERFORMED",
+      "remaining_cases": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "N01",
+        "N02",
+        "N03",
+        "N04",
+        "N05"
+      ],
+      "not_included": [
+        "D-013 helper reproducible source-to-binary build closure"
+      ],
+      "notes": [
+        "Windows 10 smoke stderr contains GPU-process exit warnings; this does not invalidate the native module smoke and must be followed up under the Windows 7 GPU-safe profile.",
+        "Generate an internal return/package manifest before A7 release packaging."
+      ]
+    },
+    {
+      "track": "A6",
+      "dependency_id": "D-014",
+      "component": "better-sqlite3 8.7.0 with SQLite 3.43.1 and FTS5",
+      "archive": "A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "archive_sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "declared_build_result": "PASS",
+      "review_status": "PASS",
+      "build_prerequisite": "CLEARED",
+      "readiness": "READY_FOR_WIN7_VALIDATION",
+      "checks": {
+        "zip_integrity": "PASS",
+        "input_lock_match": "PASS",
+        "build_profile_match": "PASS",
+        "return_manifest_entries": 247,
+        "return_manifest_hashes": "PASS",
+        "declared_output_artifacts": 100,
+        "declared_output_hashes": "PASS",
+        "electron_abi_110": "PASS",
+        "pe_x64": "PASS",
+        "forbidden_api_scan": "PASS",
+        "dynamic_crt_scan": "PASS",
+        "wal_smoke": "PASS",
+        "fts5_smoke": "PASS",
+        "unicode_space_path_smoke": "PASS",
+        "project_schema_smoke": "PASS",
+        "compile_options": [
+          "ENABLE_FTS5",
+          "ENABLE_COLUMN_METADATA",
+          "THREADSAFE=2"
+        ]
+      },
+      "native_artifacts": [
+        {
+          "path": "output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+          "sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc"
+        }
+      ],
+      "acceptance_harness": "MISSING",
+      "win7_validation": "NOT_PERFORMED",
+      "remaining_cases": [
+        "S01",
+        "S02",
+        "S03",
+        "S04",
+        "S05",
+        "S06",
+        "S07",
+        "S08"
+      ],
+      "missing_deliverables": [
+        "indexer",
+        "benchmark",
+        "fixture generator",
+        "crash-recovery harness"
+      ]
+    }
+  ],
+  "cross_track_progress": {
+    "D-017_shared_build_profile": "DEMONSTRATED_BY_TWO_BUILDS",
+    "A4_D-013": "SOURCE_TO_BINARY_CLOSURE_OPEN",
+    "A5_D-011": "NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION",
+    "A6_D-014": "READY_FOR_WIN7_VALIDATION",
+    "A7": "NO_INDEPENDENT_BUILD_RESULT; PACKAGING_AND_WIN7_RC_NOT_PERFORMED"
+  },
+  "formal_acceptance": "NOT_COMPLETE"
+}

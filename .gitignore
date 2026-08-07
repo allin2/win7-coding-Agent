@@ -32,3 +32,10 @@ docs/prds/*.html
 # Acceptance SSH keys & private acceptance artifacts (NEVER commit)
 .acceptance/
 **/.acceptance/
+
+# Native build return archives stay local; checksums and review ledgers are tracked
+/WIN7_NATIVE_ARTIFACTS_*.zip
+/A6/WIN7_A6_SQLITE_ARTIFACTS_*.zip
+
+# Offline build-package caches are generated delivery material, not source baseline
+/spikes/*/build-win10/kit/npm-cache/

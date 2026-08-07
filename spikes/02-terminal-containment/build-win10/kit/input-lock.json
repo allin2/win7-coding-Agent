@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "profile": "WIN10-VS2019-V142-SDK19041-ELECTRON22-X64",
+  "generated_at": "2026-08-06T00:00:00Z",
+  "inputs": [
+    {
+      "path": "inputs/electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+      "size": 97021975,
+      "source": "https://github.com/electron/electron/releases/download/v22.3.27/electron-v22.3.27-win32-x64.zip"
+    },
+    {
+      "path": "inputs/node-v22.3.27-headers.tar.gz",
+      "version": "22.3.27",
+      "sha256": "d89090506d7828888aaae85e4b8653a6700ec3ac11d95eb873cc4a30ac3cb743",
+      "size": 263766,
+      "source": "https://artifacts.electronjs.org/headers/dist/v22.3.27/node-v22.3.27-headers.tar.gz"
+    },
+    {
+      "path": "inputs/electron-v22.3.27-win-x64-node.lib",
+      "version": "22.3.27-x64",
+      "sha256": "67af8ac8af0db4ed1fe7af1a8583f1dae9f459be0a37ae9279381a2996cb8426",
+      "size": 874282,
+      "source": "https://artifacts.electronjs.org/headers/dist/v22.3.27/win-x64/node.lib"
+    },
+    {
+      "path": "inputs/node-v16.17.1-win-x64.zip",
+      "version": "16.17.1",
+      "sha256": "ed290151efb417262b9808a70738d4ab79e9d53653a6a9f4b8dd97912e279dce",
+      "size": 26956744,
+      "source": "https://nodejs.org/dist/v16.17.1/node-v16.17.1-win-x64.zip"
+    },
+    {
+      "path": "inputs/node-pty-0.10.0.tgz",
+      "version": "0.10.0",
+      "sha256": "03b59d30068544160ab822a86bdbfe764e822d633273732d95cba5995206bf69",
+      "size": 244026,
+      "source": "https://registry.npmjs.org/node-pty/-/node-pty-0.10.0.tgz"
+    },
+    {
+      "path": "inputs/node-pty-0.10.0-embedded-winpty-0.4.4-dev.zip",
+      "version": "0.4.4-dev (node-pty 0.10.0 embedded snapshot)",
+      "sha256": "751e974babb4448ea707151e7a8cc0dc83cac925a46797e1bb0770159475b4c0",
+      "size": 291048,
+      "source": "derived byte-for-byte from deps/winpty in locked node-pty-0.10.0.tgz"
+    },
+    {
+      "path": "tooling/package.json",
+      "version": "build-tooling-1.0.0",
+      "sha256": "d1ecdbbdf3c3b03faf8e5867171614f75be524cc1b34371834fb385e77ea4c51",
+      "size": 336,
+      "source": "project build profile"
+    },
+    {
+      "path": "tooling/package-lock.json",
+      "version": "lockfileVersion 2",
+      "sha256": "85061e78b5cf181e7ea554d81d4a6eb455d0dc5ce8f7ebf9fddcc1e582602458",
+      "size": 68359,
+      "source": "npm official registry lock"
+    }
+  ]
+}

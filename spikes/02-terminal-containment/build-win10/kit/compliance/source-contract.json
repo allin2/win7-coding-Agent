@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "contract": "node-pty-0.10.0-to-embedded-winpty-0.4.4-dev",
+  "required_symbol": "winpty_get_console_process_list",
+  "files": [
+    {
+      "path_in_node_pty_tgz": "src/win/winpty.cc",
+      "role": "caller",
+      "sha256": "086d1eb077f8bbc984d1dbab06afa391c2e957b5ea74b784f72219e2b6194693"
+    },
+    {
+      "path_in_node_pty_tgz": "deps/winpty/src/include/winpty.h",
+      "role": "declaration",
+      "sha256": "07be0f1cad79c8439c40448381e24a212deeb6bbf22e90713da1a8297b3016f6"
+    },
+    {
+      "path_in_node_pty_tgz": "deps/winpty/src/libwinpty/winpty.cc",
+      "role": "implementation",
+      "sha256": "10a1e68fcd02e7978c612c69be397bb4774d153556fc637203ebc178cabfb19c"
+    },
+    {
+      "path_in_node_pty_tgz": "deps/winpty/VERSION.txt",
+      "role": "version",
+      "sha256": "b84d804e4ef21628f5cdc7e88267fafebbeba382cd11fa43806347335f221d08",
+      "expected_content": "0.4.4-dev"
+    }
+  ],
+  "decision": "PASS",
+  "rejected_combination": "node-pty 0.10.0 + independent winpty 0.4.3"
+}

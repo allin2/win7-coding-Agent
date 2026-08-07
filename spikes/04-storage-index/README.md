@@ -4,10 +4,24 @@
 
 - **任务书**：`docs/tasks/SPIKE_04_STORAGE_INDEX.md`
 - **状态**：APPROVED_FOR_IMPLEMENTATION
-- **Win7 实机验证**：BUILD_HOST_MISSING（MVP-20260802-06；机械盘门禁按负责人裁决 PASS）
+- **Win10 原生构建**：PASS；D-014 `READY_FOR_WIN7_VALIDATION`
+- **Win7 实机验证**：NOT_PERFORMED（机械盘门禁按负责人裁决 PASS）
 - **成果迁入**：成果已迁入 `src/state/`（待 Win7 验证；原型 `schema.sql`、`migrations.ts` 已吸收到正式模块）
 
-> **Win7-Validation: BUILD_HOST_MISSING** — 机械盘门禁不再阻断 MVP；但当前仅有 schema/migration 骨架，未发现 indexer、benchmark、崩溃恢复 harness 或 Electron 22 ABI better-sqlite3 工件，因此不能把存储功能或性能写成通过。
+> **Win7-Validation: NOT_PERFORMED** — A6 的 better-sqlite3/SQLite/FTS5 锁定工件已经在 Win10 构建并通过复核；indexer、benchmark、fixtures、崩溃恢复 harness 和 Win7 S01～S08 仍未完成，因此不能把存储功能或性能写成通过。
+
+## Win10 离线构建包
+
+- 构建包：`build-win10/dist/WIN10_A6_SQLITE_BUILD_KIT_20260807-01.zip`
+- SHA-256：`53fce2129987d9c09a8e78f1aeacd79b04a334c873154079e81565de371ddede`
+- Win10 操作说明：`build-win10/kit/README_BUILD.md`
+- 完整方案：`build-win10/kit/A6_BUILD_PLAN.md`
+- 已复核返回包：`A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip`
+- 返回包 SHA-256：`2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794`
+- `better_sqlite3.node` SHA-256：`7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc`
+- 返回清单：`PASS`（247 项全部匹配）
+- Win10 smoke：`PASS`（Electron ABI 110、WAL、FTS5、中文+空格路径、项目 schema）
+- 下一门禁：补齐 indexer/benchmark/fixtures/crash-recovery harness 后执行 Win7 S01～S08
 
 ## 目标
 
@@ -75,10 +89,9 @@ node benchmark/benchmark.js
 ### Win7 实机验证
 
 ```bash
-# 需要 Node.js 运行时
-# 需要 better-sqlite3 或 sqlite3 包
-
-npm install better-sqlite3
+# 禁止在 Win7 现场 npm install 或编译原生模块。
+# 先在 Win10 执行 build-win10/dist/ 中的离线包，回传并审查
+# WIN7_A6_SQLITE_ARTIFACTS_*.zip，再使用锁定工件运行以下 harness。
 
 # 生成样本仓库
 node benchmark/fixtures.js

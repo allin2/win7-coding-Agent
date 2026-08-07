@@ -7,7 +7,7 @@
 - **Win7 实机验证**：A4 非交互 Runner 自动矩阵 `A4-20260805-123467` 为 14/14 PASS；完整 SPIKE_02 仍为 PARTIAL
 - **成果迁入**：非交互 helper 已有精确 SHA 的 Win7 证据；生产 Runner、交互终端及完整 Go/No-Go 仍受独立 Gate 约束
 
-> **Win7-Validation: A4_AUTOMATION_PASS / SPIKE_PARTIAL** — 精确候选 `733f5491…eecc` 已在 Win7 SP1 x64 完成非交互 14 项矩阵；未使用 taskkill，超时/取消/最终残留为 0。缺失的 A5/A6 Electron 22 ABI 工件、ACL/网络/生产授权不由该结果替代。
+> **Win7-Validation: A4_AUTOMATION_PASS / SPIKE_PARTIAL** — 精确候选 `733f5491…eecc` 已在 Win7 SP1 x64 完成非交互 14 项矩阵；未使用 taskkill，超时/取消/最终残留为 0。A5/D-011 Electron 22 ABI 工件已经构建并复核，但终端集成/harness、D-013、ACL、网络和生产授权不由该结果替代。
 
 ## 目标
 
@@ -31,9 +31,22 @@
 | C06 | argv 白名单 | PASS |
 | C07 | 超时、输出上限与整树清理 | PASS |
 | C08 | Runner 内存预算 | PASS |
-| T01～T05 | 交互终端与会话回收 | BUILD_HOST_MISSING |
-| N01～N05 | C19 终端输入/VT/设备应答负向 | BUILD_HOST_MISSING |
+| T01～T05 | 交互终端与会话回收 | NOT_PERFORMED（D-011 工件已就绪；集成/harness 未完成） |
+| N01～N05 | C19 终端输入/VT/设备应答负向 | NOT_PERFORMED（D-011 工件已就绪；集成/harness 未完成） |
 | N06 | 禁止 `taskkill` 冒充 containment | PASS |
+
+## A5 Win10 原生构建复核（2026-08-07）
+
+- 返回包：`WIN7_NATIVE_ARTIFACTS_20260806-160514.zip`
+- 外层 SHA-256：`c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea`
+- 结论：`PASS_WITH_PACKAGING_GAP`；D-011 构建前置已解除，可进入 Win7 集成与验证
+- Win10 结果：Electron 22.3.27 / ABI 110、强制 winpty 后端、PE x64、API/CRT 和 smoke 均 `PASS`
+- 原生工件：`pty.node`=`4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5`；
+  `winpty-agent.exe`=`51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d`；
+  `winpty.dll`=`cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b`
+- 包装缺口：返回包没有内部 `RETURN_PACKAGE_MANIFEST.json`；A7 正式包装前应补齐
+- 未完成：当前 `winpty/` 和 `test/` 仍有骨架/TODO，T01～T05/N01～N05 尚未在 Win7 执行；
+  本包不含 D-013 helper 的源码→二进制闭包
 
 ## 文件结构
 

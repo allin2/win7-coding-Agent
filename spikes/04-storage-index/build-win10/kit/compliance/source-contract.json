@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "better_sqlite3": "8.7.0",
+  "sqlite": "3.43.1",
+  "license": "MIT",
+  "sqlite_legal_status": "public domain",
+  "required_source_markers": {
+    "deps/defines.gypi": [
+      "SQLITE_ENABLE_FTS5",
+      "SQLITE_ENABLE_COLUMN_METADATA",
+      "SQLITE_THREADSAFE=2"
+    ],
+    "deps/sqlite3/sqlite3.h": [
+      "#define SQLITE_VERSION        \"3.43.1\""
+    ]
+  },
+  "files": [
+    {
+      "path_in_package": "package.json",
+      "size": 1593,
+      "sha256": "59882bc564040ae5f651891d8eb75549980fea79e91b0a0462eaa313542d1a6f"
+    },
+    {
+      "path_in_package": "LICENSE",
+      "size": 1078,
+      "sha256": "09856b52897c91ab67e7456ef43067019f31dfd3b87fda72e655736b1ebdee55"
+    },
+    {
+      "path_in_package": "binding.gyp",
+      "size": 943,
+      "sha256": "2f5e8ad440ed114a1362169f3a0e913f938e2ebf020cb059abc55249ef9f8cbe"
+    },
+    {
+      "path_in_package": "src/better_sqlite3.cpp",
+      "size": 130806,
+      "sha256": "93916ee63785d9ecfd13eae4ae283c8acfdd1aa490f9bf6c65a9539c565918f8"
+    },
+    {
+      "path_in_package": "src/better_sqlite3.hpp",
+      "size": 43852,
+      "sha256": "f84ae463e1367b335557407c1e1300d1b0e57b499daa8ea28831f8678b2a27b0"
+    },
+    {
+      "path_in_package": "deps/common.gypi",
+      "size": 1584,
+      "sha256": "e71a565cd7733e05efc3a2792b54e260126f03f490325aa2a201202acbbdb315"
+    },
+    {
+      "path_in_package": "deps/defines.gypi",
+      "size": 1124,
+      "sha256": "8fdcb8e6b02e1752aff051fd4f1d4be0db89ae28f13743e623d04d9840867fb8"
+    },
+    {
+      "path_in_package": "deps/sqlite3.gyp",
+      "size": 2543,
+      "sha256": "b7ba45ff9af4df332aabf248e6cf4176b642f432d1d972ff6748cb5acfc322fe"
+    },
+    {
+      "path_in_package": "deps/sqlite3/sqlite3.c",
+      "size": 8848321,
+      "sha256": "f5be70b2a4b79337743701d6e5674dfb33d12ec9b2b28772eb09d33ba9ef757b"
+    },
+    {
+      "path_in_package": "deps/sqlite3/sqlite3.h",
+      "size": 628463,
+      "sha256": "5f864e05f3268d6976c16c34d1a7803d69f604c89ac0e867893f9bb5bf1ab6b5"
+    },
+    {
+      "path_in_package": "deps/sqlite3/sqlite3ext.h",
+      "size": 37831,
+      "sha256": "51a51eb17612d7f837d50791f2a7574b90b3ab43746c1ab2908dc6153ca81113"
+    }
+  ]
+}

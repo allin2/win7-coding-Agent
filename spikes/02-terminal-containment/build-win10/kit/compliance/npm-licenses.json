@@ -1,0 +1,953 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-06T00:00:00Z",
+  "package_count": 96,
+  "packages": [
+    {
+      "name": "@gar/promisify",
+      "version": "1.1.3",
+      "package_path": "node_modules/@gar/promisify",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__@gar__promisify@1.1.3/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "@npmcli/fs",
+      "version": "2.1.2",
+      "package_path": "node_modules/@npmcli/fs",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__@npmcli__fs@2.1.2/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "@npmcli/move-file",
+      "version": "2.0.1",
+      "package_path": "node_modules/@npmcli/move-file",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__@npmcli__move-file@2.0.1/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "@tootallnate/once",
+      "version": "2.0.1",
+      "package_path": "node_modules/@tootallnate/once",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__@tootallnate__once@2.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "abbrev",
+      "version": "1.1.1",
+      "package_path": "node_modules/abbrev",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__abbrev@1.1.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "agent-base",
+      "version": "6.0.2",
+      "package_path": "node_modules/agent-base",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "agentkeepalive",
+      "version": "4.6.0",
+      "package_path": "node_modules/agentkeepalive",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__agentkeepalive@4.6.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "aggregate-error",
+      "version": "3.1.0",
+      "package_path": "node_modules/aggregate-error",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__aggregate-error@3.1.0/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "ansi-regex",
+      "version": "5.0.1",
+      "package_path": "node_modules/ansi-regex",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__ansi-regex@5.0.1/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "aproba",
+      "version": "2.1.0",
+      "package_path": "node_modules/aproba",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__aproba@2.1.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "are-we-there-yet",
+      "version": "3.0.1",
+      "package_path": "node_modules/are-we-there-yet",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__are-we-there-yet@3.0.1/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "balanced-match",
+      "version": "1.0.2",
+      "package_path": "node_modules/balanced-match",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__balanced-match@1.0.2/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "brace-expansion",
+      "version": "1.1.18",
+      "package_path": "node_modules/brace-expansion",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__brace-expansion@1.1.18/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "cacache",
+      "version": "16.1.3",
+      "package_path": "node_modules/cacache",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__cacache@16.1.3/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "brace-expansion",
+      "version": "2.1.4",
+      "package_path": "node_modules/cacache/node_modules/brace-expansion",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__cacache__node_modules__brace-expansion@2.1.4/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "glob",
+      "version": "8.1.0",
+      "package_path": "node_modules/cacache/node_modules/glob",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__cacache__node_modules__glob@8.1.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minimatch",
+      "version": "5.1.9",
+      "package_path": "node_modules/cacache/node_modules/minimatch",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__cacache__node_modules__minimatch@5.1.9/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "chownr",
+      "version": "2.0.0",
+      "package_path": "node_modules/chownr",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__chownr@2.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "clean-stack",
+      "version": "2.2.0",
+      "package_path": "node_modules/clean-stack",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__clean-stack@2.2.0/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "color-support",
+      "version": "1.1.3",
+      "package_path": "node_modules/color-support",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__color-support@1.1.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "concat-map",
+      "version": "0.0.1",
+      "package_path": "node_modules/concat-map",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__concat-map@0.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "console-control-strings",
+      "version": "1.1.0",
+      "package_path": "node_modules/console-control-strings",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__console-control-strings@1.1.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "debug",
+      "version": "4.4.3",
+      "package_path": "node_modules/debug",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__debug@4.4.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "delegates",
+      "version": "1.0.0",
+      "package_path": "node_modules/delegates",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__delegates@1.0.0/License"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "emoji-regex",
+      "version": "8.0.0",
+      "package_path": "node_modules/emoji-regex",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "encoding",
+      "version": "0.1.13",
+      "package_path": "node_modules/encoding",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__encoding@0.1.13/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "env-paths",
+      "version": "2.2.1",
+      "package_path": "node_modules/env-paths",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__env-paths@2.2.1/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "err-code",
+      "version": "2.0.3",
+      "package_path": "node_modules/err-code",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "exponential-backoff",
+      "version": "3.1.3",
+      "package_path": "node_modules/exponential-backoff",
+      "declared_license": "Apache-2.0",
+      "archived_files": [
+        "licenses/npm/node_modules__exponential-backoff@3.1.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "fs-minipass",
+      "version": "2.1.0",
+      "package_path": "node_modules/fs-minipass",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__fs-minipass@2.1.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "fs.realpath",
+      "version": "1.0.0",
+      "package_path": "node_modules/fs.realpath",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__fs.realpath@1.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "gauge",
+      "version": "4.0.4",
+      "package_path": "node_modules/gauge",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__gauge@4.0.4/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "glob",
+      "version": "7.2.3",
+      "package_path": "node_modules/glob",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__glob@7.2.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "graceful-fs",
+      "version": "4.2.11",
+      "package_path": "node_modules/graceful-fs",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__graceful-fs@4.2.11/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "has-unicode",
+      "version": "2.0.1",
+      "package_path": "node_modules/has-unicode",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__has-unicode@2.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "http-cache-semantics",
+      "version": "4.2.0",
+      "package_path": "node_modules/http-cache-semantics",
+      "declared_license": "BSD-2-Clause",
+      "archived_files": [
+        "licenses/npm/node_modules__http-cache-semantics@4.2.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "http-proxy-agent",
+      "version": "5.0.0",
+      "package_path": "node_modules/http-proxy-agent",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "https-proxy-agent",
+      "version": "5.0.1",
+      "package_path": "node_modules/https-proxy-agent",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "humanize-ms",
+      "version": "1.2.1",
+      "package_path": "node_modules/humanize-ms",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__humanize-ms@1.2.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "iconv-lite",
+      "version": "0.6.3",
+      "package_path": "node_modules/iconv-lite",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__iconv-lite@0.6.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "imurmurhash",
+      "version": "0.1.4",
+      "package_path": "node_modules/imurmurhash",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "indent-string",
+      "version": "4.0.0",
+      "package_path": "node_modules/indent-string",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__indent-string@4.0.0/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "infer-owner",
+      "version": "1.0.4",
+      "package_path": "node_modules/infer-owner",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__infer-owner@1.0.4/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "inflight",
+      "version": "1.0.6",
+      "package_path": "node_modules/inflight",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__inflight@1.0.6/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "inherits",
+      "version": "2.0.4",
+      "package_path": "node_modules/inherits",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__inherits@2.0.4/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "ip-address",
+      "version": "10.4.0",
+      "package_path": "node_modules/ip-address",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__ip-address@10.4.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "is-fullwidth-code-point",
+      "version": "3.0.0",
+      "package_path": "node_modules/is-fullwidth-code-point",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__is-fullwidth-code-point@3.0.0/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "is-lambda",
+      "version": "1.0.1",
+      "package_path": "node_modules/is-lambda",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__is-lambda@1.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "isexe",
+      "version": "2.0.0",
+      "package_path": "node_modules/isexe",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__isexe@2.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "lru-cache",
+      "version": "7.18.3",
+      "package_path": "node_modules/lru-cache",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__lru-cache@7.18.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "make-fetch-happen",
+      "version": "10.2.1",
+      "package_path": "node_modules/make-fetch-happen",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__make-fetch-happen@10.2.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minimatch",
+      "version": "3.1.5",
+      "package_path": "node_modules/minimatch",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__minimatch@3.1.5/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass",
+      "version": "3.3.6",
+      "package_path": "node_modules/minipass",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__minipass@3.3.6/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass-collect",
+      "version": "1.0.2",
+      "package_path": "node_modules/minipass-collect",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__minipass-collect@1.0.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass-fetch",
+      "version": "2.1.2",
+      "package_path": "node_modules/minipass-fetch",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__minipass-fetch@2.1.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass-flush",
+      "version": "1.0.7",
+      "package_path": "node_modules/minipass-flush",
+      "declared_license": "BlueOak-1.0.0",
+      "archived_files": [
+        "licenses/npm/node_modules__minipass-flush@1.0.7/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass-pipeline",
+      "version": "1.2.4",
+      "package_path": "node_modules/minipass-pipeline",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__minipass-pipeline@1.2.4/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass-sized",
+      "version": "1.0.3",
+      "package_path": "node_modules/minipass-sized",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__minipass-sized@1.0.3/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minizlib",
+      "version": "2.1.2",
+      "package_path": "node_modules/minizlib",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__minizlib@2.1.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "mkdirp",
+      "version": "1.0.4",
+      "package_path": "node_modules/mkdirp",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__mkdirp@1.0.4/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "ms",
+      "version": "2.1.3",
+      "package_path": "node_modules/ms",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__ms@2.1.3/license.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "nan",
+      "version": "2.28.0",
+      "package_path": "node_modules/nan",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__nan@2.28.0/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "negotiator",
+      "version": "0.6.4",
+      "package_path": "node_modules/negotiator",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__negotiator@0.6.4/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "node-gyp",
+      "version": "9.4.1",
+      "package_path": "node_modules/node-gyp",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__node-gyp@9.4.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "node-pty",
+      "version": "0.10.0",
+      "package_path": "node_modules/node-pty",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__node-pty@0.10.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "nopt",
+      "version": "6.0.0",
+      "package_path": "node_modules/nopt",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__nopt@6.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "npmlog",
+      "version": "6.0.2",
+      "package_path": "node_modules/npmlog",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__npmlog@6.0.2/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "once",
+      "version": "1.4.0",
+      "package_path": "node_modules/once",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__once@1.4.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "p-map",
+      "version": "4.0.0",
+      "package_path": "node_modules/p-map",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__p-map@4.0.0/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "path-is-absolute",
+      "version": "1.0.1",
+      "package_path": "node_modules/path-is-absolute",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__path-is-absolute@1.0.1/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "promise-inflight",
+      "version": "1.0.1",
+      "package_path": "node_modules/promise-inflight",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__promise-inflight@1.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "promise-retry",
+      "version": "2.0.1",
+      "package_path": "node_modules/promise-retry",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__promise-retry@2.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "readable-stream",
+      "version": "3.6.2",
+      "package_path": "node_modules/readable-stream",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__readable-stream@3.6.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "retry",
+      "version": "0.12.0",
+      "package_path": "node_modules/retry",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__retry@0.12.0/License"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "rimraf",
+      "version": "3.0.2",
+      "package_path": "node_modules/rimraf",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__rimraf@3.0.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "safe-buffer",
+      "version": "5.2.1",
+      "package_path": "node_modules/safe-buffer",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__safe-buffer@5.2.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "safer-buffer",
+      "version": "2.1.2",
+      "package_path": "node_modules/safer-buffer",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__safer-buffer@2.1.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "package_path": "node_modules/semver",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__semver@7.8.5/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "set-blocking",
+      "version": "2.0.0",
+      "package_path": "node_modules/set-blocking",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__set-blocking@2.0.0/LICENSE.txt"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "signal-exit",
+      "version": "3.0.7",
+      "package_path": "node_modules/signal-exit",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__signal-exit@3.0.7/LICENSE.txt"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "smart-buffer",
+      "version": "4.2.0",
+      "package_path": "node_modules/smart-buffer",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__smart-buffer@4.2.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "socks",
+      "version": "2.8.9",
+      "package_path": "node_modules/socks",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__socks@2.8.9/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "socks-proxy-agent",
+      "version": "7.0.0",
+      "package_path": "node_modules/socks-proxy-agent",
+      "declared_license": "MIT",
+      "archived_files": [],
+      "status": "DECLARATION_ONLY"
+    },
+    {
+      "name": "ssri",
+      "version": "9.0.1",
+      "package_path": "node_modules/ssri",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__ssri@9.0.1/LICENSE.md"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "string_decoder",
+      "version": "1.3.0",
+      "package_path": "node_modules/string_decoder",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__string_decoder@1.3.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "string-width",
+      "version": "4.2.3",
+      "package_path": "node_modules/string-width",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__string-width@4.2.3/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "strip-ansi",
+      "version": "6.0.1",
+      "package_path": "node_modules/strip-ansi",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__strip-ansi@6.0.1/license"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "tar",
+      "version": "6.2.1",
+      "package_path": "node_modules/tar",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__tar@6.2.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "minipass",
+      "version": "5.0.0",
+      "package_path": "node_modules/tar/node_modules/minipass",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__tar__node_modules__minipass@5.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "unique-filename",
+      "version": "2.0.1",
+      "package_path": "node_modules/unique-filename",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__unique-filename@2.0.1/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "unique-slug",
+      "version": "3.0.0",
+      "package_path": "node_modules/unique-slug",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__unique-slug@3.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "util-deprecate",
+      "version": "1.0.2",
+      "package_path": "node_modules/util-deprecate",
+      "declared_license": "MIT",
+      "archived_files": [
+        "licenses/npm/node_modules__util-deprecate@1.0.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "which",
+      "version": "2.0.2",
+      "package_path": "node_modules/which",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__which@2.0.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "wide-align",
+      "version": "1.1.5",
+      "package_path": "node_modules/wide-align",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__wide-align@1.1.5/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "wrappy",
+      "version": "1.0.2",
+      "package_path": "node_modules/wrappy",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__wrappy@1.0.2/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    },
+    {
+      "name": "yallist",
+      "version": "4.0.0",
+      "package_path": "node_modules/yallist",
+      "declared_license": "ISC",
+      "archived_files": [
+        "licenses/npm/node_modules__yallist@4.0.0/LICENSE"
+      ],
+      "status": "ARCHIVED"
+    }
+  ]
+}

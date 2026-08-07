@@ -594,3 +594,51 @@
 - 后果：用户可以在同一 Win7 登录账户下跨重启复用 API key，同时保留默认 Replay、Renderer 最小权限和
   日志脱敏。代价是增加一个本地版本化密文文件及其损坏/迁移处理；切换账户、用户配置不可用或 DPAPI
   失败时必须重新输入。A3.2 PASS 不代表企业密钥托管、DPAPI-NG、TPM、代理/PAC 或企业 E7 完成。
+
+## ADR-0063 SPIKE_02 采用 node-pty 内置 winpty 精确快照并收紧 Win10 构建闭包
+
+- 状态：Accepted（2026-08-06，项目负责人要求复核并实施推荐裁决）
+- 背景：原 D-011 把 `node-pty 0.10.0` 与独立 `winpty 0.4.3` 组合。源码复核确认
+  node-pty 0.10.0 的 Windows binding 直接调用 `winpty_get_console_process_list`；0.4.3
+  没有该 API 的声明或实现，而 node-pty npm 归档内置的 `winpty 0.4.4-dev` 同时提供两者。
+  原 Win10 构建候选脚本覆盖为 0.4.3，构成确定性编译阻断。候选包还以预解压 headers 作为实际输入，
+  未严格限定 VS2019、SDK 版本，也未形成 PE/API/CRT 与 C16 闭包。
+- 决策：（1）D-011 改为 `node-pty 0.10.0 + 其 npm 归档内置 winpty 0.4.4-dev 精确源码快照`，
+  不再混用独立 0.4.3；node-pty TGZ 与派生 winpty ZIP 分别锁定 SHA-256，构建前验证版本、头文件声明、
+  实现和调用合同。（2）实际 Electron headers 必须在 Win10 上从已校验 tar.gz 重新解压，已校验 x64
+  `node.lib` 随后复制，并对最终编译目录逐文件记录 SHA-256；禁止使用未绑定的预解压目录。
+  （3）D-017 构建 Profile 固定为 Windows 10 x64、Visual Studio 2019 `[16.0,17.0)`、v142/14.2x、
+  Windows SDK `10.0.19041.0`、CPython 3.8.10 AMD64 和离线 Node 16.17.1；记录实际 VS/MSVC 补丁版本。
+  （4）所有 `.node/.dll/.exe` 必须执行 `dumpbin /HEADERS`、`/DEPENDENTS`、`/IMPORTS`，验证 PE x64、
+  Win10+ API denylist 和 CRT 闭包；动态 CRT 未随结果包携带时 fail-closed。Electron smoke 必须实际加载
+  ABI 110 模块并强制 `useConpty:false`。（5）构建包随附 CycloneDX SBOM、npm 完整性、许可证归档、
+  audit 时间点报告、EOL/漏洞风险记录及 package-lock 自身哈希。构建工具链 audit 风险仅在所有归档已
+  哈希锁定、离线且位于专用目录时接受，不能处理任意外部归档。（6）修正后的包只可标为
+  `BUILD_KIT_READY_FOR_WIN10_BUILD`；Win10 实际报告复核前不解除 `BUILD_HOST_MISSING`，Win7
+  SPIKE_02 实测前继续为 `NOT_PERFORMED/PARTIAL`。
+- 后果：消除 0.4.3 API 缺失这一确定性编译阻断，并把构建输入、工具链、ABI、PE、API、CRT 与合规
+  证据绑定为单一闭包。代价是采用停止维护且非独立正式 release 的 0.4.4-dev 内置快照，本项目承担
+  漏洞回补责任；是否真正兼容 Win7 仍只能由 SPIKE_02 T01～T05/N01～N06 实机矩阵证明。
+
+## ADR-0064 SPIKE_04 锁定 better-sqlite3 8.7.0 / SQLite 3.43.1 并建立 A6 Win10 构建闭包
+
+- 状态：Accepted（2026-08-07，项目负责人要求制定 A6 Win10 构建方案并按 A5 材料类型打包）
+- 背景：D-014 只登记了“候选 better-sqlite3 + FTS5”，没有具体 better-sqlite3/SQLite 版本、源码
+  哈希、Electron ABI 工件或离线构建闭包，SPIKE_04 因此仍为 `BUILD_HOST_MISSING`。A5 已证明
+  Windows 10 + VS2019/v142 + SDK 10.0.19041.0 + Python 3.8.10 的离线 Electron ABI 110 构建链
+  可用，但其回传包不包含 SQLite 原生模块。
+- 决策：（1）D-014 锁定 `better-sqlite3 8.7.0 + 内嵌 SQLite 3.43.1`；该版本官方发布包含
+  Electron ABI 110 的 Win32 x64 工件作为兼容性旁证，正式候选仍从 npm 官方源码归档重建。
+  （2）源码合同固定 better-sqlite3、SQLite amalgamation 关键文件哈希，并强制
+  `SQLITE_ENABLE_FTS5`、`SQLITE_ENABLE_COLUMN_METADATA`、`SQLITE_THREADSAFE=2`；许可证更正为
+  better-sqlite3 MIT、SQLite public domain。（3）复用 D-017 工具链，目标固定 Electron 22.3.27
+  ABI 110、x64、`WINVER/_WIN32_WINNT=0x0601`、Release `/MT`；生成工程必须锁定 v142 和 SDK 19041。
+  （4）输出必须执行 PE x64、Win10+ API denylist、CRT 导入检查；Electron smoke 必须实际加载模块，
+  证明 ABI 110、SQLite 3.43.1、FTS5、WAL、中文+空格数据库路径和 SPIKE_04 schema。（5）构建包
+  随附输入锁、包 manifest、实际 headers、完整 transcript、文件哈希、CycloneDX SBOM、许可证、
+  npm audit 和风险记录；Win10 端正常构建不得联网。（6）构建包只标记
+  `BUILD_KIT_READY_FOR_WIN10_BUILD`；返回工件经 Mac 复核后最多进入 `READY_FOR_WIN7_VALIDATION`，
+  SPIKE_04 S01～S08 和 Win7 兼容性仍必须在目标机完成。
+- 后果：A6 可以与 A5 Win7 验收并行在同一类 Win10 构建主机产出工件，且 A7 可按固定哈希复用，
+  不再需要在 Win7 现场安装或编译 npm 原生模块。代价是锁定历史 SQLite/Node/Electron/Win7 组合，
+  项目承担 EOL 与漏洞回补；`unicode61` 只证明 FTS5 基础能力，不等价于中文分词质量，仍需 S05 裁决。

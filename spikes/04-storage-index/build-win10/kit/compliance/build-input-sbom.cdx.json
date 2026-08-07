@@ -1,0 +1,162 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:8544e03a-6bf3-49ed-afad-5145bbaf2949",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-07T00:00:00Z",
+    "component": {
+      "type": "application",
+      "name": "win10-a6-sqlite-offline-build-kit",
+      "version": "20260807-01"
+    }
+  },
+  "components": [
+    {
+      "type": "file",
+      "name": "inputs/electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/electron/electron/releases/download/v22.3.27/electron-v22.3.27-win32-x64.zip"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "inputs/node-v22.3.27-headers.tar.gz",
+      "version": "22.3.27",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d89090506d7828888aaae85e4b8653a6700ec3ac11d95eb873cc4a30ac3cb743"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://artifacts.electronjs.org/headers/dist/v22.3.27/node-v22.3.27-headers.tar.gz"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "inputs/electron-v22.3.27-win-x64-node.lib",
+      "version": "22.3.27-x64",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "67af8ac8af0db4ed1fe7af1a8583f1dae9f459be0a37ae9279381a2996cb8426"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://artifacts.electronjs.org/headers/dist/v22.3.27/win-x64/node.lib"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "inputs/node-v16.17.1-win-x64.zip",
+      "version": "16.17.1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ed290151efb417262b9808a70738d4ab79e9d53653a6a9f4b8dd97912e279dce"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://nodejs.org/dist/v16.17.1/node-v16.17.1-win-x64.zip"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "inputs/better-sqlite3-8.7.0.tgz",
+      "version": "8.7.0",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e5dc849653fe2ff2090aa65d732e50346e2d0f8c1c2179abeb862834e271b599"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-8.7.0.tgz"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "inputs/better-sqlite3-8.7.0-metadata.json",
+      "version": "8.7.0 registry metadata",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1e1e573e83a4f312eee8581caa00173e8c6621fc2a5db38b892bb7c99133b21a"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/better-sqlite3/8.7.0"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "project/schema/schema.sql",
+      "version": "SPIKE_04 source snapshot",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e99c82aa7b79d3d5f4e5154da87490a10204d6ec00bea93d2c0574a480b75a2e"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "project/schema/migrations.ts",
+      "version": "SPIKE_04 source snapshot",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2c81abfcf949bcb8c78d47da7346ca8fa30fbdfbb84f701cecc73f0c6ace3b86"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "tooling/package.json",
+      "version": "a6-build-tooling-1.0.0",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7af828d390a36f5300ab0b045298194cd99e8294d2687101426edd0f3dc450cf"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "tooling/package-lock.json",
+      "version": "lockfileVersion 2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "73261981c4dccdf18a54187762637b7a5dc3a47e80735f82b2d50eb88aebf94d"
+        }
+      ]
+    }
+  ]
+}

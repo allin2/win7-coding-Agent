@@ -1,0 +1,11 @@
+{
+  "name": "win7-coding-agent-win10-native-build-tooling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Locked offline tooling for rebuilding node-pty 0.10.0 against Electron 22.3.27 ABI.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "node-gyp": "9.4.1",
+    "node-pty": "file:../inputs/node-pty-0.10.0.tgz"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "performed_at": "2026-08-07T00:00:00Z",
+  "scope": "surrogate build-kit preflight on Mac; not a Windows build or Win7 validation",
+  "checks": {
+    "npm_ci_offline_ignore_scripts": "PASS",
+    "locked_package_count": 124,
+    "registry_hosts_in_lock": [
+      "registry.npmjs.org"
+    ],
+    "json_parse": "PASS",
+    "javascript_syntax": "PASS",
+    "source_contract": "PASS",
+    "package_manifest": "PASS"
+  }
+}

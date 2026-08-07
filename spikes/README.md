@@ -5,8 +5,8 @@
 | 编号 | 目录 | 任务书 | 状态 | Win7 验证 | 成果去向 |
 |------|------|--------|------|-----------|----------|
 | 01 | `01-win7-runtime-baseline/` | `SPIKE_01_WIN7_RUNTIME_BASELINE.md` | APPROVED_FOR_IMPLEMENTATION | OWNER_ACCEPTED_FOR_MVP（正式合同仍 PARTIAL） | T03 的父侧无句柄/无数据语义已由 ADR-0055 接受；冷启动/视觉/抓包/真实双任务延期 |
-| 02 | `02-terminal-containment/` | `SPIKE_02_TERMINAL_CONTAINMENT.md` | APPROVED_FOR_IMPLEMENTATION | OWNER_ACCEPTED_FOR_MVP（正式 BUILD_HOST_MISSING） | helper/ABI/构建链延期；真实 Runner 与终端必须继续 fail-closed |
+| 02 | `02-terminal-containment/` | `SPIKE_02_TERMINAL_CONTAINMENT.md` | APPROVED_FOR_IMPLEMENTATION | OWNER_ACCEPTED_FOR_MVP（正式 PARTIAL；D-011 工件已就绪） | D-013、终端集成/harness 与 Win7 T/N 矩阵仍延期；真实 Runner 与终端必须继续 fail-closed |
 | 03 | `03-git-adapter/` | `SPIKE_03_GIT_ADAPTER.md` | APPROVED_FOR_IMPLEMENTATION | PASS（MVP-20260802-12） | 受控去 GCM/SSH/远程 helper 派生包；P01-P04/N01-N10 14/14；旧残留验收进程已精确清理 |
-| 04 | `04-storage-index/` | `SPIKE_04_STORAGE_INDEX.md` | APPROVED_FOR_IMPLEMENTATION | OWNER_ACCEPTED_FOR_MVP（正式 BUILD_HOST_MISSING） | MVP 使用有界内存状态；机械盘门禁 PASS；SQLite/FTS/恢复延期 |
+| 04 | `04-storage-index/` | `SPIKE_04_STORAGE_INDEX.md` | APPROVED_FOR_IMPLEMENTATION | OWNER_ACCEPTED_FOR_MVP（正式 NOT_PERFORMED；D-014 工件已就绪） | MVP 使用有界内存状态；机械盘门禁 PASS；indexer/benchmark/恢复与 Win7 S01～S08 延期 |
 
 > ADR-0055 只完成 MVP 负责人收口；四项 SPIKE 的正式合同仍须真实通过后，ADR-0028~0035 的附条件才算满足。

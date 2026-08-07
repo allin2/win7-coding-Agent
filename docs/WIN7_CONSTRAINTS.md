@@ -153,13 +153,13 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-008 | Python `winreg` | Phase 1 只读 OS 版本探测 | 只读固定键；禁止历史任务写注册表 | 来源失败时继续其他探测 | 历史批准（限定用途） | ADR-0015 |
 | D-009 | Electron 22.3.27 x64 | Codex-like 桌面 Shell | 最后支持 Win7 的 Electron 主版本最终补丁；内含 Chromium 108 / Node 16.17.1 | 全栈 EOL；只加载可信本地 UI，开放网页远程化 | 架构候选；未获实现授权 | ADR-0027 |
 | D-010 | Node.js 12.22.12 portable x64 | 可选独立 CLI、Agent Host 或旧插件宿主 | Node 12 最终版；上游最后正式测试 Win7 为 12.14.1，必须实机复验 | EOL；Electron 客户端无需因此额外安装 Node 12 | 架构候选；未获实现授权 | ADR-0027 |
-| D-011 | `node-pty` 0.10.0 + `winpty` 0.4.3 x64 | 可选交互终端兼容模式 | Win7 无 ConPTY；需固定预编译 ABI | 全屏 TUI、Unicode、resize、Ctrl 与回收均需实测 | 架构候选；未获实现授权 | ADR-0027 |
+| D-011 | `node-pty` 0.10.0 + 其内置 `winpty` 0.4.4-dev 精确快照 x64 | 可选交互终端兼容模式 | Win7 无 ConPTY；按 Electron 22 ABI 重编译，版本裁决见 ADR-0063 | 上游均停维护；全屏 TUI、Unicode、resize、Ctrl 与回收均需实测 | SPIKE_02 已授权；生产未授权 | ADR-0027 / ADR-0063 |
 | D-012 | Git for Windows 2.46.2 x64（优先 MinGit/裁剪包） | Git / Worktree 正式能力 | 最后支持 Win7/8 的 Git for Windows 系列最终补丁候选 | 已停止获得后续安全修复；隔离配置，默认移除/禁用 Git LFS、GCM 等未独立评审组件 | 架构候选；未获实现授权 | ADR-0027 |
 | D-013 | Win32 Runner（Job Object / Restricted Token / ACL） | 进程树、限额、减权执行 | Win7 API 可用；推荐 C++ x64 原生辅助程序 | Job 不可嵌套；同用户减权不等价强沙箱 | 架构候选；未获实现授权 | ADR-0027 |
-| D-014 | Runtime 专用 SQLite 绑定（候选 `better-sqlite3`，须启用 FTS5） | 桌面状态、事件、审计与代码检索索引 | 必须固定 SQLite/ABI，并在现代构建机按 Electron 22 ABI 预编译；FTS5 为代码检索必选编译开关 | 数据库放本地盘；迁移和恢复需版本化 | 架构候选；未获实现授权 | ADR-0027 / ADR-0033 |
+| D-014 | `better-sqlite3` 8.7.0 + 内嵌 SQLite 3.43.1（FTS5） | 桌面状态、事件、审计与代码检索索引 | 在 D-017 构建机按 Electron 22 ABI 110 重编译；固定 `ENABLE_FTS5`、`ENABLE_COLUMN_METADATA`、`THREADSAFE=2` | 数据库只放本地盘；迁移和恢复版本化；旧 SQLite 漏洞由项目回补 | SPIKE_04 已授权；生产未授权 | ADR-0027 / ADR-0033 / ADR-0064 |
 | D-015 | Win7 x64 上的 .NET Framework 4.8 | 可选 WPF/WinForms 客户端或辅助程序 | Win7 SP1 可安装的最高 .NET Framework；在 Win7 上已无厂商支持 | 需要独立安装前置与 EOL 风险评审 | 架构候选；未获实现授权 | ADR-0027 |
 | D-016 | 自定义 fail-closed Updater | 企业内网或离线更新 | 使用 Authenticode/WinVerifyTrust 或内置公钥签名清单 + 包哈希 | 不得在验签错误时继续安装；必须旁路安装和回滚 | 架构候选；未获实现授权 | ADR-0027 |
-| D-017 | C++ helper 构建工具链（MSVC v142 / VS 2019 + Windows SDK 10，目标 Win7 SP1 x64） | 构建 D-013 原生 helper 与 D-011 winpty 宿主 | 仅构建机依赖，目标机不安装；产物须静态链接 CRT 或随包携带经登记的 VC Runtime | 工具链版本锁定入构建文档；换版本需重跑 SPIKE_02 | 架构候选；未获实现授权 | ADR-0028 |
+| D-017 | Windows 10 x64 + VS 2019 `[16.0,17.0)` / MSVC v142 14.2x + Windows SDK 10.0.19041.0（目标 Win7 SP1 x64） | 构建 D-013 原生 helper 与 D-011 winpty 宿主 | 仅构建机依赖，目标机不安装；产物须静态链接 CRT 或随包携带经登记的 VC Runtime | CPython 3.8.10 AMD64、实际 VS/MSVC 补丁版本和 PE/API/CRT 证据必须记录 | SPIKE_02 已授权；生产未授权 | ADR-0028 / ADR-0063 |
 | D-018 | Electron 22.3.27 `safeStorage`（Windows DPAPI / Current User） | A3.2 API key 静态加密持久化 | 复用 D-009 随包 Electron，不新增模块或目标机前置；只在 main 进程、`app.ready` 后使用同步 `isEncryptionAvailable/encryptString/decryptString`，密文绑定当前 Windows 登录凭据 | 不可用、密文损坏或账户不匹配时 fail-closed 并降级为仅内存；不能防御同一用户上下文中的恶意进程；Electron 22 EOL 风险继续适用 | 批准（仅 A3.2 API key） | ADR-0062 |
 
 ### 6.1 架构候选依赖的 C16 评审档案（七问）
@@ -172,12 +172,12 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 |----|----------------------|--------|------|----------------|--------------------|----------------|
 | D-009 | github.com/electron/electron releases v22.3.27（win32-x64） | MIT（含 Chromium/Node 第三方许可证包） | 待锁定（SPIKE_01） | Electron 自带 third-party 清单随包归档 | 上游已 EOL；本项目自担：不处理不可信网页内容，开放内容远程化（ADR-0028） | SPIKE_01 全项 |
 | D-010 | nodejs.org/dist/v12.22.12（win-x64，可选） | MIT | 待锁定（若启用） | 无原生附加依赖 | 上游 EOL；仅作 CLI 宿主备选，默认不交付 | 启用时另立用例 |
-| D-011 | winpty 0.4.3（github.com/rprichard/winpty release）+ node-pty 0.10.0（npm 锁定） | MIT | 待锁定（SPIKE_02） | node-pty 原生模块须按 Electron 22 ABI 重编译（用 D-017） | 上游停维护；本项目自担，输出按 C19 不可信过滤兜底 | SPIKE_02 终端矩阵 |
+| D-011 | node-pty 0.10.0 npm 归档 + 其内置 winpty 0.4.4-dev 精确派生快照（ADR-0063） | MIT | node-pty TGZ `03b59d30068544160ab822a86bdbfe764e822d633273732d95cba5995206bf69`；内置 winpty ZIP `751e974babb4448ea707151e7a8cc0dc83cac925a46797e1bb0770159475b4c0`；构建 tooling lock `85061e78b5cf181e7ea554d81d4a6eb455d0dc5ce8f7ebf9fddcc1e582602458` | Electron ABI 110 重编译；96 个构建期 npm 组件见 `spikes/02-terminal-containment/build-win10/kit/compliance/npm-sbom.cdx.json`，不进入目标运行时 SBOM | 上游停维护；项目自担，输出按 C19 不可信过滤；audit 风险见包内 `RISK_REGISTER.md` | SPIKE_02 终端矩阵 |
 | D-012 | Git for Windows 2.46.2 MinGit x64（github.com/git-for-windows/releases/download/v2.46.2.windows.1/MinGit-2.46.2-64-bit.zip） | GPLv2 | `MinGit-2.46.2-64-bit.zip` SHA-256=`0dca60869825ceb8b6108be69f0c536174fbca45e11300f2c14c34632d8238ed`；`cmd/git.exe` SHA-256=`02ed65496cb0b1ccfc85a8201fc224b1fa21ab15eb4eda80316bcc346b2b50a1` | MinGit 裁剪包内容清单归档；确认不含 LFS/GCM（仅便携 git 子系统） | 上游该系列停止 Win7 修复；靠 ADR-0032 隔离配置收敛攻击面 | SPIKE_03 G10 矩阵 |
 | D-013 | 本项目自研 C++ helper（源码在本仓库，D-017 工具链构建） | Apache-2.0 | 构建产物哈希随发布清单 | 仅 Win32 API + CRT | 本项目全责；接口冻结 argv + JSON over stdio | SPIKE_02 containment 矩阵 |
-| D-014 | better-sqlite3（npm 锁定版本，SQLite 内嵌编译 + FTS5） | Apache-2.0（SQLite 为 public domain） | 待锁定（SPIKE_04） | 原生模块按 Electron 22 ABI 预编译（用 D-017）；SQLite 版本一并锁定 | 上游活跃但需锁旧 ABI 版本；SQLite 漏洞跟踪由本项目承担 | SPIKE_04 写入/FTS 矩阵 |
+| D-014 | better-sqlite3 8.7.0 + 内嵌 SQLite 3.43.1 + FTS5 | MIT（SQLite 为 public domain） | 源码 TGZ `e5dc849653fe2ff2090aa65d732e50346e2d0f8c1c2179abeb862834e271b599`；SQLite `sqlite3.c` `f5be70b2a4b79337743701d6e5674dfb33d12ec9b2b28772eb09d33ba9ef757b`；tooling lock `73261981c4dccdf18a54187762637b7a5dc3a47e80735f82b2d50eb88aebf94d` | Electron ABI 110 源码重编译；124 个构建期 npm 组件见 `spikes/04-storage-index/build-win10/kit/compliance/npm-sbom.cdx.json`；运行时仅 better-sqlite3、SQLite、bindings、file-uri-to-path | 历史锁定版本；项目承担 SQLite/Node/Electron/Win7 EOL 与漏洞回补；构建期 audit 3 high + 1 critical 受离线哈希边界约束 | SPIKE_04 S01～S08 |
 | D-016 | 本项目自研 Updater（WinVerifyTrust / 内置公钥 + 包哈希） | Apache-2.0 | 构建产物哈希随发布清单 | 仅 Win32 API | 本项目全责；验签失败 fail-closed（P13） | PHASE_07 更新/回滚用例 |
-| D-017 | Visual Studio 2019 Build Tools（v142）+ Windows SDK 10（微软官方渠道） | 微软许可条款（仅构建机） | 构建机环境记录版本号 | 不进入交付 SBOM；产物依赖的 CRT 交付方式须登记 | 微软在支持期内；目标 Win7 兼容性由 SPIKE_02 实证 | 间接（其产物经 SPIKE_02/04 验证） |
+| D-017 | Visual Studio 2019 `[16.0,17.0)` Build Tools（v142/14.2x）+ Windows SDK 10.0.19041.0 + CPython 3.8.10 AMD64（微软/Python 官方渠道） | 微软许可条款、PSF（仅构建机） | 安装介质不随包；脚本严格探测并记录实际 VS/MSVC 补丁版本，Profile 见 `spikes/02-terminal-containment/build-win10/kit/build-profile.json` | 不进入目标运行时 SBOM；每个原生产物保存 HEADERS/DEPENDENTS/IMPORTS，动态 CRT 必须随包闭包 | 工具链换版本须重跑构建与 SPIKE_02；Win7 兼容性只由实机证明 | 间接（其产物经 SPIKE_02/04 验证） |
 | D-018 | Electron v22.3.27 官方发布包内置 `safeStorage`；Windows 后端使用 DPAPI | 随 D-009 MIT/第三方许可证清单 | 不产生新工件；继续绑定 D-009 Electron ZIP/`electron.exe` 哈希 | 无新增传递依赖；密文格式由 Electron/Chromium OS crypt 实现负责 | Electron 22 已 EOL；本项目负责 schema、原子写入、失败关闭、清除和脱敏 | A3P Win7 保存→退出→重启→显式启用→清除、损坏密文、中文空格 userData、进程/Bitvise 清理 |
 
 #### MVP-20260802 依赖复核补充记录（ADR-0054）
@@ -187,6 +187,32 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-009 | 本机构建缓存的 `electron-v22.3.27-win32-x64.zip` SHA-256 为 `ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6`；解压后 Win7 `electron.exe` SHA-256 为 `2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb`。 | 已锁定为 SPIKE_01 MVP 验收工件；不是产品交付 SBOM 完成声明。 | 仅独立验收壳。 |
 | D-012 | 已从表中官方 URL 下载并校验 `MinGit-2.46.2-64-bit.zip` 与 `cmd/git.exe` 哈希均匹配。实际内容却包含 `mingw64/bin/gcmcore.dll`、`git-credential-manager.exe` 及其文档。 | **不满足**“不随包携带 GCM”的交付闭包；不得把官方原 ZIP 或当前 Win7 `C:\\acceptance\\git` 完整 Git 当作 D-012 合格工件。需建立受控裁剪清单、派生产物 SHA-256、许可证归档和 G10 重验。 | 当前为 `ENVIRONMENT_MISSING`，SPIKE_03 不得据此 PASS。 |
 | D-011 / D-013 / D-014 / D-017 | 本机缓存与 Win7 盘点均未发现 Electron 22 ABI 的 node-pty/winpty、C++ helper、better-sqlite3 或 MSVC v142 构建来源。 | `BUILD_HOST_MISSING`；不得用骨架源码或同 ABI 猜测替代实测。 | SPIKE_02/04 仅可做静态审计。 |
+
+#### 2026-08-06 Win10 构建包预检补充（ADR-0063）
+
+| ID | 新增事实 | 当前裁决 | 未解除门禁 |
+|---|---|---|---|
+| D-011 | 已确认独立 winpty 0.4.3 缺少 node-pty 0.10.0 所需 `winpty_get_console_process_list`；修正包改用 node-pty 内置 0.4.4-dev 精确快照并锁定两级哈希。 | `BUILD_KIT_READY_FOR_WIN10_BUILD` | Win10 编译/ABI load 尚未执行；Win7 T01～T05/N01～N06 尚未执行。 |
+| D-017 | 构建脚本严格限定 VS2019/v142、SDK 10.0.19041.0、Python 3.8.10 AMD64，并加入 headers 重建、PE x64、API denylist、CRT 与 ABI 110 检查。 | 构建 Profile 已闭合，等待独立 Win10 执行 | 实际环境与产物证据返回前继续 `BUILD_HOST_MISSING`。 |
+
+#### 2026-08-07 A6 SQLite Win10 构建包预检补充（ADR-0064）
+
+| ID | 新增事实 | 当前裁决 | 未解除门禁 |
+|---|---|---|---|
+| D-014 | 已锁定 better-sqlite3 8.7.0、内嵌 SQLite 3.43.1、Electron ABI 110、FTS5/column metadata/threadsafe 编译选项、源码与 tooling 哈希；官方 v8.7.0 发布存在 ABI 110 Win32 x64 工件作为兼容性旁证。 | `BUILD_KIT_READY_FOR_WIN10_BUILD`；正式候选仍从源码重建 | Win10 编译/ABI/FTS5/WAL smoke 尚未执行；Win7 S01～S08 尚未执行。 |
+| D-017 | A6 构建包复用 Windows 10 x64、VS2019/v142、SDK 10.0.19041.0、Python 3.8.10 AMD64，新增 SQLite 源码合同、`/MT`、PE/API/CRT 和 Electron smoke。 | 构建 Profile 已闭合，等待独立 Win10 执行 | 实际返回包复核前 D-014 仍为 `BUILD_REQUIRED`。 |
+
+#### 2026-08-07 两次 Win10 原生构建结果复核补充
+
+以下记录覆盖前述“尚未执行”的预检状态，但不改写其历史事实。完整机器可读记录见
+[`status/win10-native-builds-latest.json`](status/win10-native-builds-latest.json)。Win10 是构建端，
+本节的 `PASS` 只解除相应原生工件的构建前置，不构成 Win7 SP1 x64 实机验收通过。
+
+| ID / 轨道 | 返回包与复核事实 | 最新裁决 | 仍未解除门禁 |
+|---|---|---|---|
+| D-011 / A5 | `WIN7_NATIVE_ARTIFACTS_20260806-160514.zip`，外层 SHA-256 `c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea`；Win10 smoke、Electron ABI 110、PE x64、API/CRT 检查均 `PASS`，ConPTY 工件已裁剪。`pty.node`=`4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5`，`winpty-agent.exe`=`51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d`，`winpty.dll`=`cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b`。 | `PASS_WITH_PACKAGING_GAP`；D-011 构建前置已解除，工件可进入 Win7 集成与验证。返回包缺内部 `RETURN_PACKAGE_MANIFEST.json`，但外层哈希及 `build-result.json` 已绑定全部 112 个输出工件。 | 终端集成和正式 harness 仍为骨架/TODO；T01～T05、N01～N05 均 `NOT_PERFORMED`；D-013 helper 源码→二进制构建闭包未包含在本包。 |
+| D-014 / A6 | `A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip`，外层 SHA-256 `2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794`；包内 247 项返回清单全部匹配，Electron ABI 110、PE/API/CRT、WAL、FTS5、中文+空格路径和项目 schema smoke 均 `PASS`。`better_sqlite3.node`=`7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc`。 | `PASS`；D-014 构建前置已解除，状态为 `READY_FOR_WIN7_VALIDATION`。 | SPIKE_04 的 indexer、benchmark、fixtures、崩溃恢复 harness 尚未实现；S01～S08 均 `NOT_PERFORMED`，存储/性能结论不得标记为通过。 |
+| D-017 / 共享构建 Profile | 两包均记录 Windows 10 Pro 10.0.19045、VS2019 16.11.37507.1、MSVC 14.29.30133/v142、SDK 10.0.19041.0、CPython 3.8.10 AMD64，且 `network_required=false`。 | 已由两次独立构建证明可用于 D-011 与 D-014；不再把这两项写成 `BUILD_HOST_MISSING`。 | D-013 尚未在该 Profile 下形成可复现源码→二进制闭包；工具链可用不等于所有原生组件都已构建。 |
 
 #### MVP-20260802-06/07/10 实机补充锁定
 

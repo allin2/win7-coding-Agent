@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "component": "Electron 22.3.27",
+      "files": {
+        "licenses/runtime/electron-22.3.27/LICENSE": "5154e165bd6c2cc0cfbcd8916498c7abab0497923bafcd5cb07673fe8480087d",
+        "licenses/runtime/electron-22.3.27/LICENSES.chromium.html": "9f3f2b4d9bbd3113486839eca85de119fab766450cdca08a4574b80748885708"
+      }
+    },
+    {
+      "component": "Node.js 16.17.1",
+      "files": {
+        "licenses/runtime/node-16.17.1/LICENSE": "f73a8b0f3d5409021ccc0503e3de2e87066fb5bdd348869cf14d08d0c61c4eb4"
+      }
+    },
+    {
+      "component": "winpty 0.4.4-dev embedded snapshot",
+      "files": {
+        "licenses/runtime/winpty-0.4.4-dev/LICENSE": "c39e428064b4f3e4fe81a975bf0fd3b845922b431bc4d9a7ffc8bfb091981836"
+      }
+    }
+  ],
+  "notes": [
+    "node-pty and npm build-tool licenses are archived under licenses/npm and indexed by npm-licenses.json.",
+    "Microsoft Visual Studio and Windows SDK are build-host prerequisites and are not redistributed in this kit."
+  ]
+}

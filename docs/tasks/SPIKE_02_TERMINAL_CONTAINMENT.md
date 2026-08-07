@@ -31,7 +31,7 @@ Blocking-Reason: A4 non-interactive Win7 evidence is recorded, but formal SPIKE_
 1. **Containment**：C++ x64 helper（D-013，D-017 工具链构建）能否可靠建立
    Job Object + Restricted Token + ACL 的减权执行环境并保证进程树必杀，
    同时**实测同用户减权下的网络实际可达性**（用于校准"尽力限制网络"的真实效果，ADR-0030）。
-2. **交互终端**：winpty 0.4.3 + node-pty 0.10.0（D-011，按 Electron 22 ABI 重编译）
+2. **交互终端**：node-pty 0.10.0 + 其内置 winpty 0.4.4-dev 精确快照（D-011 / ADR-0063，按 Electron 22 ABI 重编译）
    在 Win7 的终端保真度，以及 C19 注入负向防护。
 
 ## 2. 非目标
@@ -42,7 +42,8 @@ Blocking-Reason: A4 non-interactive Win7 evidence is recorded, but formal SPIKE_
 ## 3. Runtime Profile（C15）
 
 - helper：C++ x64，MSVC v142（D-017），静态链接 CRT 或登记 VC Runtime；仅 Win32 API。
-- winpty 0.4.3 官方 release x64 + node-pty 0.10.0（Electron 22 ABI 重编译产物）。
+- node-pty 0.10.0 npm 官方归档 + 其内置 winpty 0.4.4-dev 精确派生快照（Electron 22 ABI 重编译产物）；独立 winpty 0.4.3 因缺少 `winpty_get_console_process_list` 不得使用（ADR-0063）。
+- 构建机 Profile：Windows 10 x64、VS2019 `[16.0,17.0)`、v142/14.2x、Windows SDK 10.0.19041.0、CPython 3.8.10 AMD64；构建和 Win7 验证相互解耦。
 - 宿主：SPIKE_01 的最小验证壳（独立 `utilityProcess`，不用 `ELECTRON_RUN_AS_NODE`）。
 - 测试机：Win7 SP1 x64；普通用户 + 域策略/企业启动器（若可获得）两档。
 
@@ -112,12 +113,29 @@ Blocking-Reason: A4 non-interactive Win7 evidence is recorded, but formal SPIKE_
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Evidence: A4-20260805-123467, A4-20260806-140606
+Win10-Native-Build: PASS_WITH_PACKAGING_GAP
+Evidence: A4-20260805-123467, A4-20260806-140606, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip
 Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
-Blocking-Reason: C03 FAIL; C04 MANUAL_GATE; C05 ENVIRONMENT_MISSING; T01-T05/N01-N05 and source-to-binary closure BUILD_HOST_MISSING
+Blocking-Reason: C03 FAIL; C04 MANUAL_GATE; C05 ENVIRONMENT_MISSING; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED; D-013 source-to-binary closure OPEN
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
 C02 `PASS`、C03 `FAIL`，并只完成 C05 loopback 观测。原始证据、逐阶段日志和派生审计见
 `spikes/02-terminal-containment/acceptance/evidence/`，当前正式结论仍为
 `NO_GO_FORMAL_GAPS`，不解除生产 Runner 或交互终端 Gate。
+
+2026-08-06 预检确认原 `node-pty 0.10.0 + winpty 0.4.3` 是确定性编译阻断；修正包改用内置
+0.4.4-dev 精确快照，并加入实际 headers 重建、VS2019/SDK/Python 严格探测、PE/API/CRT 与
+Electron ABI 110 smoke。2026-08-07 已复核返回包
+`WIN7_NATIVE_ARTIFACTS_20260806-160514.zip`，外层 SHA-256 为
+`c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea`；Win10 build/smoke、
+三项 PE 检查和 112 个输出工件哈希均通过，D-011 构建前置已经解除。原生工件 SHA-256 为：
+
+- `pty.node`：`4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5`
+- `winpty-agent.exe`：`51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d`
+- `winpty.dll`：`cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b`
+
+返回包缺内部 `RETURN_PACKAGE_MANIFEST.json`，因此复核状态为 `PASS_WITH_PACKAGING_GAP`；外层哈希和
+`build-result.json` 仍覆盖全部运行时输出。当前仓库的 winpty 集成与正式测试 harness 仍含骨架/TODO，
+所以 T01～T05/N01～N05 不能直接进入 Win7 执行；D-013 helper 也不在本次构建范围。完整 SPIKE_02
+继续为 `NO_GO_FORMAL_GAPS`，但阻塞原因不再笼统记作 Win10 构建主机缺失。

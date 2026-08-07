@@ -66,7 +66,7 @@
 | Spike | 验证对象 | No-Go 后果（已在 ADR 预声明） |
 |---|---|---|
 | SPIKE_01_WIN7_RUNTIME_BASELINE | Electron 22.3.27 冷启动/内存/GPU 降级（P17）/中文空格路径/单实例/Renderer 隔离与出站阻断/崩溃日志/干净卸载；测预算 #1/#2/#3/#9/#10 | 切换 .NET 4.8 WPF（D-015）重跑本 Spike（ADR-0028 降级阶梯） |
-| SPIKE_02_TERMINAL_CONTAINMENT | C++ helper 的 Job Object/Restricted Token 进程树必杀（P11、`IsProcessInJob` fail-closed）；winpty 0.4.3 终端矩阵；C19 负向注入；测预算 #4 | containment 失败→高风险命令拒绝/远程；winpty 失败→非交互命令 + 流式日志视图（ADR-0030/0031） |
+| SPIKE_02_TERMINAL_CONTAINMENT | C++ helper 的 Job Object/Restricted Token 进程树必杀（P11、`IsProcessInJob` fail-closed）；node-pty 0.10.0 内置 winpty 0.4.4-dev 精确快照终端矩阵；C19 负向注入；测预算 #4 | containment 失败→高风险命令拒绝/远程；winpty 失败→非交互命令 + 流式日志视图（ADR-0030/0031） |
 | SPIKE_03_GIT_ADAPTER | MinGit 2.46.2 隔离配置下 G10 恶意仓库负向矩阵（hooks/filters/textconv/pager/helper/fsmonitor 零逃逸） | Git 降级只读观测，写操作远程化（ADR-0032） |
 | SPIKE_04_STORAGE_INDEX | SQLite 绑定（D-014）WAL 批量写 QPS、FTS 索引吞吐与增量延迟（机械盘）；测预算 #5/#6/#7/#8 | 关键事件同步 + 非关键异步合并；索引超限切远程索引服务（ADR-0033） |
 

@@ -1,0 +1,90 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:61e6495c-d312-4241-bef5-a5781fac22ef",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-07T00:00:00Z",
+    "component": {
+      "type": "application",
+      "name": "win7-a6-sqlite-runtime-closure",
+      "version": "1.0.0"
+    },
+    "properties": [
+      {
+        "name": "electron_abi",
+        "value": "110"
+      },
+      {
+        "name": "target",
+        "value": "Windows 7 SP1 x64"
+      },
+      {
+        "name": "native_binary_hash",
+        "value": "assigned by Win10 build-result.json"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "better-sqlite3",
+      "version": "8.7.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e5dc849653fe2ff2090aa65d732e50346e2d0f8c1c2179abeb862834e271b599"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "SQLite",
+      "version": "3.43.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "Public Domain"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f5be70b2a4b79337743701d6e5674dfb33d12ec9b2b28772eb09d33ba9ef757b"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "bindings",
+      "version": "1.5.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "file-uri-to-path",
+      "version": "1.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}

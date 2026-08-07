@@ -81,10 +81,26 @@ Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern buil
 
 - 中文分词策略（FTS5 tokenizer 选择）对 S05 的影响，是否需要外部分词器。
 
-## 9. 验证记录（占位，验收时填写）
+## 9. 验证记录
 
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: Target environment unavailable
+Win10-Native-Build: PASS
+D-014: READY_FOR_WIN7_VALIDATION
+Build-Kit-Archive: spikes/04-storage-index/build-win10/dist/WIN10_A6_SQLITE_BUILD_KIT_20260807-01.zip
+Build-Kit-SHA256: 53fce2129987d9c09a8e78f1aeacd79b04a334c873154079e81565de371ddede
+Return-Archive: A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip
+Return-Archive-SHA256: 2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794
+Native-Artifact-SHA256: 7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc
+Blocking-Reason: indexer/benchmark/fixtures/crash-recovery harness missing; Win7 S01-S08 NOT_PERFORMED
 ```
+
+2026-08-07 已复核 Win10 返回包：包内 247 项返回清单与实际文件的大小/SHA-256 全部匹配；
+Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、column metadata、
+`THREADSAFE=2`、WAL、中文+空格路径和项目 schema smoke 均为 `PASS`。`better_sqlite3.node`
+为 PE32+ x64，不含禁止的 Win10+ API 或动态 CRT 依赖。因此 D-014 的 Win10 构建前置已解除。
+
+该结果只证明原生绑定已具备进入 Win7 验证的条件。当前仓库尚无 §6 要求的 indexer、benchmark、
+样本生成器与崩溃恢复 harness，S01～S08 也没有 Win7 数据，故 SPIKE_04 仍为 `NOT_PERFORMED`，
+不能宣称存储、FTS 或性能 Gate 通过。
