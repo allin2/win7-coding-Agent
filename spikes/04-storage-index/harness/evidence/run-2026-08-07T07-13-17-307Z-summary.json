@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "spike": "SPIKE_04",
-  "runId": "2026-08-07T06-10-37-072Z",
-  "startedAtUtc": "2026-08-07T06:10:37.072Z",
-  "backend": "python-bridge",
-  "media": "unknown",
-  "samples": "/tmp/claude-501/spike04_samples_1786083037073",
-  "scale": "30k",
-  "win7_validation": "NOT_PERFORMED",
+  "runId": "2026-08-07T07-13-17-307Z",
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "backend": "better-sqlite3",
+  "media": "ssd",
+  "samples": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
+  "scale": "10k",
+  "win7_validation": "VALIDATED",
   "results": [
     {
       "case": "S01",
@@ -15,13 +15,13 @@
       "status": "MET",
       "noGo": null,
       "metrics": {
-        "qps": 43536.503683858,
-        "events": 130000,
-        "elapsedMs": 3015,
+        "qps": 80805.155310984,
+        "events": 1116000,
+        "elapsedMs": 15006,
         "batchSize": 1000,
-        "dbSizeMb": 20.015846252441406
+        "dbSizeMb": 177.48927307128906
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s01.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s01.json"
     },
     {
       "case": "S02",
@@ -69,7 +69,7 @@
           }
         ]
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s02.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s02.json"
     },
     {
       "case": "S03",
@@ -77,15 +77,15 @@
       "status": "MET",
       "noGo": null,
       "metrics": {
-        "scale": "30k",
+        "scale": "10k",
         "files": 30000,
-        "filesPerSec": 3739.249657235448,
-        "elapsedMs": 8023,
+        "filesPerSec": 1363.5743829825917,
+        "elapsedMs": 22001,
         "truncated": false,
         "truncationReason": null,
         "skipped": 0
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s03.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s03.json"
     },
     {
       "case": "S04",
@@ -93,20 +93,20 @@
       "status": "MET",
       "noGo": null,
       "metrics": {
-        "fullFilesPerSec": 3746.721618583739,
-        "fullElapsedMs": 8007,
-        "incElapsedMs": 971,
-        "incFilesPerSec": 20.59732234809475,
+        "fullFilesPerSec": 1319.9577613516367,
+        "fullElapsedMs": 22728,
+        "incElapsedMs": 847,
+        "incFilesPerSec": 23.61275088547816,
         "added": 0,
         "updated": 20,
         "unchanged": 29980,
         "deleted": 0,
         "modifiedCount": 20,
         "incrementalFaster": true,
-        "elapsedRatio": 0.12126888972149369,
-        "speedup": 0.0054974253347064884
+        "elapsedRatio": 0.03726680746216121,
+        "speedup": 0.017889020070838254
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s04.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s04.json"
     },
     {
       "case": "S05",
@@ -114,13 +114,13 @@
       "status": "MET",
       "noGo": null,
       "metrics": {
-        "p95Ms": 243.14999999999998,
-        "p50Ms": 42,
-        "p99Ms": 258.03000000000003,
+        "p95Ms": 136.05,
+        "p50Ms": 39,
+        "p99Ms": 139.1800000000001,
         "count": 100,
         "queryTypes": 12
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s05.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s05.json"
     },
     {
       "case": "S06",
@@ -128,20 +128,20 @@
       "status": "MET",
       "noGo": null,
       "metrics": {
-        "limitMb": 1,
-        "targetMb": 0.5,
-        "grownRows": 200,
-        "grownSizeMb": 2.078338623046875,
+        "limitMb": 128,
+        "targetMb": 64,
+        "grownRows": 12400,
+        "grownSizeMb": 143.09869384765625,
         "cleanupTriggered": true,
-        "deletedRows": 200,
-        "afterSizeMb": 0.97265625,
+        "deletedRows": 12400,
+        "afterSizeMb": 50.33203125,
         "sizeShrank": true,
-        "backUnderTarget": false,
+        "backUnderTarget": true,
         "beforeConsistent": true,
         "afterConsistent": true,
         "integrity": true
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s06.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s06.json"
     },
     {
       "case": "S07",
@@ -153,13 +153,13 @@
         "boundedTruncated": true,
         "boundedReason": "max_files",
         "boundedDirs": 86,
-        "boundedElapsedMs": 22,
+        "boundedElapsedMs": 26,
         "fullFiles": 30000,
         "fullTruncated": false,
         "fullDirs": 5005,
-        "fullElapsedMs": 291
+        "fullElapsedMs": 1199
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s07.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s07.json"
     },
     {
       "case": "S08",
@@ -176,7 +176,7 @@
         "pathHitsWithSpace": 10813,
         "contentHitsChinese": 20025
       },
-      "file": "run-2026-08-07T06-10-37-072Z-s08.json"
+      "file": "run-2026-08-07T07-13-17-307Z-s08.json"
     }
   ]
 }

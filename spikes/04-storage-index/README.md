@@ -5,12 +5,15 @@
 - **任务书**：`docs/tasks/SPIKE_04_STORAGE_INDEX.md`
 - **状态**：APPROVED_FOR_IMPLEMENTATION
 - **Win10 原生构建**：PASS；D-014 `READY_FOR_WIN7_VALIDATION`
-- **Win7 实机验证**：NOT_PERFORMED（机械盘门禁按负责人裁决 PASS）
+- **Win7 实机验证**：**PASS（SSD 实机）**，2026-08-07；S01–S08 全部 Go（详见 `GO_NOGO_WIN7_20260807.md`）
 - **Harness 实现**：已完成（`harness/`，2026-08-07）
 - **开发机验证**：S01–S08 全用例在 python3 sqlite3（3.43.2）后端起驱动跑通，数据仅作趋势参考
 - **成果迁入**：成果已迁入 `src/state/`（待 Win7 验证；原型 `schema.sql`、`migrations.ts` 已吸收到正式模块）
 
-> **Win7-Validation: NOT_PERFORMED** — A6 的 better-sqlite3/SQLite/FTS5 锁定工件已经在 Win10 构建并通过复核；`harness/` 已在开发机跑通 S01–S08（趋势数据）。Win7 实机 S01～S08 仍未执行，因此不能把存储功能或性能写成通过。
+> **Win7-Validation: VALIDATED（SSD）** — 2026-08-07 在 Win7 SP1 x64 实机（Samsung SSD 870 EVO）用锁定
+> better-sqlite3（ABI 110）跑通 S01–S08，全部 Go。**注意：数据为 SSD 实机，非机械盘**；
+> S01/S03/S05 的机械盘达标（机械盘门禁按负责人裁决默认 PASS）未实测。性能预算状态位建议
+> 标注"SSD 实测，机械盘待测"。
 
 ## Win10 离线构建包
 

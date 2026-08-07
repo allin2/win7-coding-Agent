@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S08",
+  "name": "Chinese+space paths and CP936/UTF-8 content",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 15000,
+    "s06LimitMb": 128
+  },
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "elapsedMs": 27708,
+  "metrics": {
+    "unicodeSpaceFilesOnDisk": 14988,
+    "cp936Ok": 15328,
+    "cp936Total": 15328,
+    "utf8Ok": 14672,
+    "utf8Total": 14672,
+    "pathHits": 10813,
+    "pathHitsWithSpace": 10813,
+    "contentHitsChinese": 20025
+  },
+  "raw": {
+    "sampleFile": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\文件 6021.json",
+    "pathHitSample": [
+      {
+        "id": 5,
+        "file_path": "C:/Win7CodingAgent/acceptance/a6/samples/30k/源码_m1/运行时_s993/文件 13463.cs",
+        "file_size": 1722,
+        "mtime": 1786084938987,
+        "content_encoding": "cp936"
+      },
+      {
+        "id": 12,
+        "file_path": "C:/Win7CodingAgent/acceptance/a6/samples/30k/源码_m1/运行时_s981/文件 13386.c",
+        "file_size": 579,
+        "mtime": 1786084938940,
+        "content_encoding": "cp936"
+      },
+      {
+        "id": 18,
+        "file_path": "C:/Win7CodingAgent/acceptance/a6/samples/30k/源码_m1/运行时_s969/文件 13319.cpp",
+        "file_size": 942,
+        "mtime": 1786084938882,
+        "content_encoding": "utf-8"
+      }
+    ],
+    "contentHitSample": [
+      {
+        "id": 1,
+        "file_path": "C:/Win7CodingAgent/acceptance/a6/samples/30k/源码_m1/运行时_s993/source_13458.json",
+        "file_size": 1313,
+        "mtime": 1786084938987,
+        "content_encoding": "cp936"
+      },
+      {
+        "id": 2,
+        "file_path": "C:/Win7CodingAgent/acceptance/a6/samples/30k/源码_m1/运行时_s993/source_13459.rs",
+        "file_size": 549,
+        "mtime": 1786084938987,
+        "content_encoding": "utf-8"
+      },
+      {
+        "id": 3,
+        "file_path": "C:/Win7CodingAgent/acceptance/a6/samples/30k/源码_m1/运行时_s993/source_13460.rs",
+        "file_size": 977,
+        "mtime": 1786084938987,
+        "content_encoding": "utf-8"
+      }
+    ]
+  },
+  "pass": {
+    "met": true,
+    "note": "中文+空格路径可索引/检索；CP936/UTF-8 内容探测与查询正确"
+  }
+}

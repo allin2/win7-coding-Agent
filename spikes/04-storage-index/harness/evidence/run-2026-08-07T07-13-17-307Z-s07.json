@@ -4,61 +4,61 @@
   "case": "S07",
   "name": "Bounded scan fallback",
   "host": {
-    "platform": "darwin",
-    "arch": "arm64",
-    "node": "v20.17.0",
-    "hostname": "QLYFdeMacBook-Air.local"
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
   },
   "runtime": {
-    "backend": "python-bridge",
-    "sqlite": "3.43.2"
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
   },
   "media": {
-    "type": "unknown",
-    "declared": false,
-    "note": "unknown"
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
   },
   "win7": {
-    "validated": false,
-    "note": "NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考"
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
   },
   "params": {
-    "scale": "30k",
-    "durationMs": 3000,
-    "s06LimitMb": 1
+    "scale": "10k",
+    "durationMs": 15000,
+    "s06LimitMb": 128
   },
-  "startedAtUtc": "2026-08-07T06:10:37.072Z",
-  "elapsedMs": 317,
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "elapsedMs": 1232,
   "metrics": {
     "boundedFiles": 500,
     "boundedTruncated": true,
     "boundedReason": "max_files",
     "boundedDirs": 86,
-    "boundedElapsedMs": 22,
+    "boundedElapsedMs": 26,
     "fullFiles": 30000,
     "fullTruncated": false,
     "fullDirs": 5005,
-    "fullElapsedMs": 291
+    "fullElapsedMs": 1199
   },
   "raw": {
     "bounded": {
       "mode": "bounded-fallback",
-      "root": "/tmp/claude-501/spike04_samples_1786083037073",
+      "root": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
       "files": 500,
       "dirs": 86,
       "truncated": true,
       "reason": "max_files",
-      "elapsedMs": 22,
+      "elapsedMs": 26,
       "errors": []
     },
     "full": {
       "mode": "bounded-fallback",
-      "root": "/tmp/claude-501/spike04_samples_1786083037073",
+      "root": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
       "files": 30000,
       "dirs": 5005,
       "truncated": false,
       "reason": null,
-      "elapsedMs": 291,
+      "elapsedMs": 1199,
       "errors": []
     }
   },

@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S04",
+  "name": "Incremental index latency",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 15000,
+    "s06LimitMb": 128
+  },
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "elapsedMs": 29512,
+  "metrics": {
+    "fullFilesPerSec": 1319.9577613516367,
+    "fullElapsedMs": 22728,
+    "incElapsedMs": 847,
+    "incFilesPerSec": 23.61275088547816,
+    "added": 0,
+    "updated": 20,
+    "unchanged": 29980,
+    "deleted": 0,
+    "modifiedCount": 20,
+    "incrementalFaster": true,
+    "elapsedRatio": 0.03726680746216121,
+    "speedup": 0.017889020070838254
+  },
+  "raw": {
+    "full": {
+      "mode": "full",
+      "root": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
+      "scan": {
+        "filesScanned": 30000,
+        "dirs": 5005,
+        "truncated": false,
+        "truncationReason": null,
+        "errors": []
+      },
+      "indexed": 30000,
+      "skipped": 0,
+      "errors": 0,
+      "elapsedMs": 22728,
+      "startedAt": 1786086840464
+    },
+    "inc": {
+      "mode": "incremental",
+      "root": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
+      "scan": {
+        "filesScanned": 30000,
+        "dirs": 5005,
+        "truncated": false,
+        "truncationReason": null
+      },
+      "added": 0,
+      "updated": 20,
+      "unchanged": 29980,
+      "deleted": 0,
+      "errors": 0,
+      "elapsedMs": 847,
+      "startedAt": 1786086866203
+    },
+    "modified": [
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\source_6018.tsx",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\source_6019.rs",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\source_6023.jsx",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\文件 6021.json",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\文件 6022.rs",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1003\\模块 代码 6020.rs",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1015\\source_6092.c",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1015\\source_6093.cpp",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1015\\source_6095.c",
+      "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k\\工作区_m0\\业务 逻辑_s1015\\文件 6094.py"
+    ]
+  },
+  "pass": {
+    "met": true,
+    "note": "增量索引耗时 < 全量 50% 即显著更优（只重写变更文件）"
+  }
+}
