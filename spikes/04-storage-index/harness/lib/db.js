@@ -53,7 +53,10 @@ function createBetterSqlite3(dbPath, options) {
       db.exec(sql);
     },
     async pragma(sql, simple) {
-      return simple ? db.pragma(sql, { simple: true }) : db.pragma(sql);
+      // better-sqlite3 的 db.pragma 不接受 'PRAGMA ' 前缀（自行拼接），
+      // 与 python-bridge 后端（execute('PRAGMA ...') 合法）对齐：去掉前缀。
+      const cleaned = String(sql).replace(/^\s*PRAGMA\s+/i, '');
+      return simple ? db.pragma(cleaned, { simple: true }) : db.pragma(cleaned);
     },
     async prepare(sql) {
       const stmt = db.prepare(sql);
@@ -68,7 +71,8 @@ function createBetterSqlite3(dbPath, options) {
           return stmt.all(...(params || []));
         },
         async finalize() {
-          stmt.finalize();
+          // better-sqlite3 无显式 finalize API（语句由 GC 自动释放）；
+          // no-op 以保持与 python-bridge 后端的统一接口。
         },
       };
     },
