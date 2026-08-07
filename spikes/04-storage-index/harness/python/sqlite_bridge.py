@@ -70,7 +70,11 @@ class Bridge(object):
                 stmt = req["stmt"]
                 entry = self.stmts[stmt]
                 entry["cursor"].execute(entry["sql"], req.get("params", []))
-                # 不在此处 commit：事务原子性由 begin/commit/rollback op 驱动（db.js transaction）
+                # 显式事务内（db.js transaction）不 commit，原子性由 begin/commit/rollback 驱动；
+                # 事务外（裸 CRUD）python sqlite3 会隐式开启事务，需在此提交避免
+                # "cannot start a transaction within a transaction"。
+                if not self._in_tx:
+                    self.db.commit()
                 return {"ok": True, "result": {"changes": entry["cursor"].rowcount, "lastrowid": entry["cursor"].lastrowid}}
 
             if op == "get":

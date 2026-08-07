@@ -62,7 +62,13 @@ function createBetterSqlite3(dbPath, options) {
       const stmt = db.prepare(sql);
       return {
         async run(params) {
-          return stmt.run(...(params || []));
+          const info = stmt.run(...(params || []));
+          // better-sqlite3 返回 {changes, lastInsertRowid}；python-bridge 返回
+          // {changes, lastrowid}。统一为 {changes, lastrowid} 保持接口一致。
+          return {
+            changes: info.changes,
+            lastrowid: info.lastInsertRowid,
+          };
         },
         async get(params) {
           return stmt.get(...(params || []));

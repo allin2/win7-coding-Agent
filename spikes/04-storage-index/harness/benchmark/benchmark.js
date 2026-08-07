@@ -33,6 +33,8 @@ const CASES = [
   require('./cases/s06_cleanup_512mb'),
   require('./cases/s07_bounded_scan'),
   require('./cases/s08_unicode_paths'),
+  require('./cases/f_functional'),
+  require('./cases/p_paths'),
 ];
 
 function parseArgs(argv) {

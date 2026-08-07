@@ -17,16 +17,22 @@
  * 路径查询。
  * @param {object} db
  * @param {string} term
+ * @param {object} [page]  {limit, offset} 分页
  * @returns {Promise<{rows: Array, latencyMs: number}>}
  */
-async function queryPath(db, term) {
+async function queryPath(db, term, page) {
   const startedAt = Date.now();
-  const sql =
+  let sql =
     'SELECT f.id, f.file_path, f.file_size, f.mtime, f.content_encoding ' +
     'FROM files_fts_path JOIN files f ON f.id = files_fts_path.rowid ' +
     'WHERE files_fts_path MATCH ?';
+  const params = [term];
+  if (page && Number.isFinite(page.limit)) {
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(Number(page.limit), Number(page.offset || 0));
+  }
   const stmt = await db.prepare(sql);
-  const rows = await stmt.all([term]);
+  const rows = await stmt.all(params);
   await stmt.finalize();
   return { rows, latencyMs: Date.now() - startedAt };
 }
@@ -35,16 +41,22 @@ async function queryPath(db, term) {
  * 内容查询。
  * @param {object} db
  * @param {string} term
+ * @param {object} [page]  {limit, offset} 分页
  * @returns {Promise<{rows: Array, latencyMs: number}>}
  */
-async function queryContent(db, term) {
+async function queryContent(db, term, page) {
   const startedAt = Date.now();
-  const sql =
+  let sql =
     'SELECT f.id, f.file_path, f.file_size, f.mtime, f.content_encoding ' +
     'FROM files_fts_content JOIN files f ON f.id = files_fts_content.rowid ' +
     'WHERE files_fts_content MATCH ?';
+  const params = [term];
+  if (page && Number.isFinite(page.limit)) {
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(Number(page.limit), Number(page.offset || 0));
+  }
   const stmt = await db.prepare(sql);
-  const rows = await stmt.all([term]);
+  const rows = await stmt.all(params);
   await stmt.finalize();
   return { rows, latencyMs: Date.now() - startedAt };
 }
