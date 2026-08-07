@@ -20,6 +20,11 @@ const gb18030 = new TextDecoder('gb18030', { fatal: false });
 
 /**
  * 探测 Buffer 的编码：能严格按 UTF-8 解码 → utf-8，否则视为 CP936/GBK 内容。
+ *
+ * 已知局限（ADVISORY）：纯 ASCII 或恰好是合法 UTF-8 序列的 GBK 字节流会被判为
+ * utf-8（编码探测本质上有歧义）。fixtures 生成的 CP936 文件以全角逗号（GBK A3 AC）
+ * 开头规避此歧义——A3 AC 不是合法 UTF-8 多字节序列，保证稳定判为 cp936。
+ *
  * @param {Buffer} buf
  * @returns {'utf-8'|'cp936'}
  */
