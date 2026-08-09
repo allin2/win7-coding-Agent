@@ -55,43 +55,57 @@ function scpArgs(config) {
 
 function preflight(config, options) {
   const expectedHostname = options.hostname || 'dccs-chaizl-PC';
-  const fixed = [
-    '@echo off',
-    'echo A6_PREFLIGHT_V1',
-    'echo HOSTNAME_BEGIN', 'hostname', 'echo HOSTNAME_END',
-    'echo VER_BEGIN', 'ver', 'echo VER_END',
-    'echo ARCH_BEGIN', 'echo %PROCESSOR_ARCHITECTURE%', 'echo ARCH_END',
-    'echo SERVICE_BEGIN', 'sc query BvSshServer', 'echo SERVICE_END',
-    'echo TIME_BEGIN', 'wmic os get LocalDateTime /value', 'echo TIME_END',
-    'echo SPACE_BEGIN', 'wmic logicaldisk where "DeviceID=\'C:\'" get DeviceID,FileSystem,FreeSpace,Size,VolumeName /format:list', 'echo SPACE_END',
-    'echo DISK_BEGIN', 'wmic diskdrive get DeviceID,InterfaceType,MediaType,Model,SerialNumber /format:csv', 'echo DISK_END',
-    'echo MAP1_BEGIN', 'wmic path Win32_DiskDriveToDiskPartition get Antecedent,Dependent /format:list', 'echo MAP1_END',
-    'echo MAP2_BEGIN', 'wmic path Win32_LogicalDiskToPartition get Antecedent,Dependent /format:list', 'echo MAP2_END',
-    'echo CERTUTIL_BEGIN', 'where certutil', 'echo CERTUTIL_END',
-    'echo RESIDUE_BEGIN', 'wmic process where "ExecutablePath like \'C:\\\\acceptance\\\\A6-SSD-%%\'" get ProcessId,ParentProcessId,ExecutablePath /format:csv', 'echo RESIDUE_END',
-  ].join(' & ');
-  const result = ssh(config, 'cmd.exe /d /s /c "' + fixed.replace(/"/g, '\\"') + '"', 60000);
-  const text = result.stdout.replace(/\r/g, '');
+  // Bitvise on this Win7 host returns CP936 and applies cmd quoting before the
+  // process starts. Keep each read-only probe as a separate fixed command so
+  // localized output cannot erase marker boundaries or weaken a check.
+  const raw = {
+    hostname: ssh(config, 'hostname', 30000).stdout,
+    version: ssh(config, 'ver', 30000).stdout,
+    arch: ssh(config, 'cmd.exe /d /c echo %PROCESSOR_ARCHITECTURE%', 30000).stdout,
+    service: ssh(config, 'sc query BvSshServer', 30000).stdout,
+    time: ssh(config, 'wmic os get LocalDateTime /value', 30000).stdout,
+    space: ssh(config, 'wmic logicaldisk where "DeviceID=\'C:\'" get DeviceID,FileSystem,FreeSpace,Size,VolumeName /format:list', 30000).stdout,
+    disk: ssh(config, 'wmic diskdrive get DeviceID,InterfaceType,MediaType,Model,SerialNumber /format:csv', 30000).stdout,
+    diskMap: ssh(config, 'wmic path Win32_DiskDriveToDiskPartition get Antecedent,Dependent /format:list', 30000).stdout,
+    volumeMap: ssh(config, 'wmic path Win32_LogicalDiskToPartition get Antecedent,Dependent /format:list', 30000).stdout,
+    certutil: ssh(config, 'where certutil', 30000).stdout,
+    residue: ssh(config, 'wmic process where "ExecutablePath like \'C:\\\\acceptance\\\\A6-SSD-%%\'" get ProcessId,ParentProcessId,ExecutablePath /format:csv', 30000).stdout,
+  };
+  const normalized = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, value.replace(/\r/g, '')]));
   const blocked = [];
-  if (!new RegExp('HOSTNAME_BEGIN\\n' + expectedHostname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\nHOSTNAME_END', 'i').test(text)) blocked.push('hostname mismatch');
-  if (!/Microsoft Windows \[Version 6\.1\.7601\]/i.test(text)) blocked.push('OS build is not Win7 SP1 build 7601');
-  if (!/ARCH_BEGIN\nAMD64\nARCH_END/i.test(text)) blocked.push('architecture is not AMD64');
-  if (!/SERVICE_BEGIN[\s\S]*STATE\s*:\s*4\s+RUNNING[\s\S]*SERVICE_END/i.test(text)) blocked.push('BvSshServer is not RUNNING');
-  if (!/SPACE_BEGIN[\s\S]*FileSystem=NTFS[\s\S]*SPACE_END/i.test(text)) blocked.push('C: is not confirmed NTFS');
-  if (!/DISK_BEGIN[\s\S]*Samsung SSD 870 EVO[\s\S]*DISK_END/i.test(text)) blocked.push('Samsung 870 EVO SSD is not confirmed');
-  if (!/MAP1_BEGIN[\s\S]*Disk #0[\s\S]*MAP1_END/i.test(text) || !/MAP2_BEGIN[\s\S]*Disk #0[\s\S]*Disk #0[\s\S]*MAP2_END/i.test(text)) blocked.push('C: to local SSD mapping is not confirmed');
-  if (!/CERTUTIL_BEGIN[\s\S]*certutil\.exe[\s\S]*CERTUTIL_END/i.test(text)) blocked.push('certutil is unavailable');
-  const residueSection = (text.match(/RESIDUE_BEGIN\n([\s\S]*?)RESIDUE_END/i) || [null, ''])[1];
-  if (/\\acceptance\\A6-SSD-/i.test(residueSection)) blocked.push('A6 acceptance process residue exists');
+  if (normalized.hostname.trim().toLowerCase() !== expectedHostname.toLowerCase()) blocked.push('hostname mismatch');
+  if (!/6\.1\.7601/i.test(normalized.version)) blocked.push('OS build is not Win7 SP1 build 7601');
+  if (normalized.arch.trim().toUpperCase() !== 'AMD64') blocked.push('architecture is not AMD64');
+  if (!/STATE\s*:\s*4\s+RUNNING/i.test(normalized.service)) blocked.push('BvSshServer is not RUNNING');
+  if (!/FileSystem=NTFS/i.test(normalized.space)) blocked.push('C: is not confirmed NTFS');
+  const freeMatch = normalized.space.match(/FreeSpace=(\d+)/i);
+  if (!freeMatch || Number(freeMatch[1]) < 5 * 1024 * 1024 * 1024) blocked.push('C: has less than 5GB free');
+  // The controller reports the model as "Samsun  SSD" on this host; require
+  // the distinctive 870 EVO token plus physical drive 0 and never rely on
+  // generic "Fixed hard disk media".
+  if (!/Samsun\w*\s+SSD\s+870\s+EVO/i.test(normalized.disk) || !/PHYSICALDRIVE0/i.test(normalized.disk)) blocked.push('Samsung 870 EVO SSD is not confirmed');
+  if (!/PHYSICALDRIVE0/i.test(normalized.diskMap) || !/Disk #0, Partition #1/i.test(normalized.diskMap) || !/Disk #0, Partition #1/i.test(normalized.volumeMap) || !/LogicalDisk\.DeviceID="C:"/i.test(normalized.volumeMap)) blocked.push('C: to local SSD mapping is not confirmed');
+  if (!/certutil\.exe/i.test(normalized.certutil)) blocked.push('certutil is unavailable');
+  if (/\\acceptance\\A6-SSD-/i.test(normalized.residue)) blocked.push('A6 acceptance process residue exists');
+  const rawDigestInput = Object.keys(normalized).sort().map((key) => key + '\n' + normalized[key]).join('\n');
   const report = {
     schema_version: 1,
     status: blocked.length ? 'PREFLIGHT_BLOCKED' : 'PASS',
     checked_at_utc: new Date().toISOString(),
     target: { ip: config.ip, port: config.port || 22, hostname: expectedHostname, os_build: '7601', arch: 'x64' },
     profile: 'E22-SQLITE343-LOCAL-SSD',
-    facts: { ntfs: !blocked.includes('C: is not confirmed NTFS'), ssd_model: 'Samsung SSD 870 EVO', ssh_service: 'RUNNING' },
+    facts: {
+      ntfs: !blocked.includes('C: is not confirmed NTFS'),
+      free_space_bytes: freeMatch ? Number(freeMatch[1]) : null,
+      physical_drive: 0,
+      system_partition: 'Disk #0, Partition #1',
+      ssd_model: 'Samsung 870 EVO',
+      ssh_service: 'RUNNING',
+      certutil: !blocked.includes('certutil is unavailable'),
+      remote_time: (normalized.time.match(/LocalDateTime=([^\n]+)/i) || [null, null])[1],
+    },
     blockers: blocked,
-    raw_sha256: require('crypto').createHash('sha256').update(text).digest('hex'),
+    raw_sha256: require('crypto').createHash('sha256').update(rawDigestInput).digest('hex'),
   };
   if (options.output) writeJson(options.output, report);
   if (blocked.length) fail('preflight blocked: ' + blocked.join('; '), 'PREFLIGHT_BLOCKED');
@@ -131,14 +145,12 @@ function collect(config, options) {
 
 function postflight(config, options) {
   const remoteName = 'A6-SSD-' + requirePattern(options.runId, 'run ID', SAFE_ID_RE);
-  const fixed = '@echo off & echo A6_POSTFLIGHT_V1 & sc query BvSshServer & echo PROCESSES_BEGIN & wmic process where "ExecutablePath like \'C:\\\\acceptance\\\\' + remoteName + '\\\\%%\'" get ProcessId,ParentProcessId,ExecutablePath /format:csv & echo PROCESSES_END';
-  const result = ssh(config, 'cmd.exe /d /s /c "' + fixed.replace(/"/g, '\\"') + '"', 60000);
-  const text = result.stdout.replace(/\r/g, '');
-  const processSection = (text.match(/PROCESSES_BEGIN\n([\s\S]*?)PROCESSES_END/i) || [null, ''])[1];
+  const service = ssh(config, 'sc query BvSshServer', 30000).stdout.replace(/\r/g, '');
+  const processes = ssh(config, 'wmic process where "ExecutablePath like \'C:\\\\acceptance\\\\' + remoteName + '\\\\%%\'" get ProcessId,ParentProcessId,ExecutablePath /format:csv', 30000).stdout.replace(/\r/g, '');
   const blockers = [];
-  if (!/STATE\s*:\s*4\s+RUNNING/i.test(text)) blockers.push('BvSshServer is not RUNNING');
-  if (new RegExp('\\\\acceptance\\\\' + remoteName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(processSection)) blockers.push('acceptance process residue exists');
-  const report = { schema_version: 1, status: blockers.length ? 'RECOVERY_REQUIRED' : 'PASS', checked_at_utc: new Date().toISOString(), run_id: options.runId, ssh_port_reachable: true, ssh_service: /STATE\s*:\s*4\s+RUNNING/i.test(text), zero_residue: blockers.length === 0, blockers };
+  if (!/STATE\s*:\s*4\s+RUNNING/i.test(service)) blockers.push('BvSshServer is not RUNNING');
+  if (new RegExp('\\\\acceptance\\\\' + remoteName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(processes)) blockers.push('acceptance process residue exists');
+  const report = { schema_version: 1, status: blockers.length ? 'RECOVERY_REQUIRED' : 'PASS', checked_at_utc: new Date().toISOString(), run_id: options.runId, ssh_port_reachable: true, ssh_service: /STATE\s*:\s*4\s+RUNNING/i.test(service), zero_residue: blockers.length === 0, blockers };
   if (options.output) writeJson(options.output, report);
   if (blockers.length) fail('postflight failed: ' + blockers.join('; '), 'RECOVERY_REQUIRED');
   return report;
