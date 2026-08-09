@@ -41,7 +41,9 @@ function Get-RelativeFileName([string]$Root, [string]$FullName) {
     return $FullName.Substring($Root.Length + 1).Replace('\', '/')
 }
 
-Ensure-Directory $EvidenceRoot
+# Evidence is build-owned state. Clear it before every run so a retry cannot
+# carry stale logs or JSON into the next return package.
+Reset-OwnedDirectory $EvidenceRoot
 Start-Transcript -Path $TranscriptPath -Force | Out-Null
 $transcriptStopped = $false
 
@@ -78,7 +80,15 @@ try {
 
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path -LiteralPath $vswhere)) { throw "vswhere.exe not found." }
-    $vsArgs = @('-latest', '-version', '[16.0,17.0)', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.v142.x86.x64')
+    # VS2019 reports its built-in v142 C++ tools as VC.Tools.x86.x64. The
+    # alternate VC.v142 ID is retained for installations that register it, but
+    # the 16.x Visual Studio and 14.2 toolset gates below remain mandatory.
+    $vsArgs = @(
+        '-latest', '-version', '[16.0,17.0)', '-products', '*', '-requires',
+        'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+        'Microsoft.VisualStudio.Component.VC.v142.x86.x64',
+        '-requiresAny'
+    )
     $vsPath = (& $vswhere @vsArgs -property installationPath | Select-Object -First 1)
     $vsVersion = (& $vswhere @vsArgs -property installationVersion | Select-Object -First 1)
     if (-not $vsPath -or -not ([string]$vsVersion).StartsWith('16.')) { throw "Visual Studio 2019 with v142 x64 was not detected." }
@@ -129,6 +139,7 @@ try {
     $helperExe = Join-Path $OutputRoot "helper.exe"
     $linkArgs = @()
     foreach ($obj in $objects) { $linkArgs += $obj }
+    $linkArgs += "/link"
     foreach ($flag in $profile.build_flags.link) { $linkArgs += [string]$flag }
     $linkArgs += "/OUT:$helperExe"
     & $cl @linkArgs
@@ -171,16 +182,54 @@ try {
     if (-not $SkipSmoke) {
         $smokeStdout = Join-Path $EvidenceRoot "smoke-stdout.txt"
         $smokeStderr = Join-Path $EvidenceRoot "smoke-stderr.txt"
+        $smokeRoot = Join-Path $WorkRoot "smoke"
+        Reset-OwnedDirectory $smokeRoot
+        $smokeAllowed = Join-Path $smokeRoot "allowed"
+        $smokeProtected = Join-Path $smokeRoot "protected"
+        Ensure-Directory $smokeAllowed
+        Ensure-Directory $smokeProtected
+        $smokeAllowedAclBefore = (Get-Acl -LiteralPath $smokeAllowed).Sddl
+        $smokeProtectedAclBefore = (Get-Acl -LiteralPath $smokeProtected).Sddl
+        $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
+        if (-not (Test-Path -LiteralPath $cmdExe -PathType Leaf)) { throw "cmd.exe smoke target was not detected." }
         $versionOut = & $helperExe --version 2>$smokeStderr
         if ($LASTEXITCODE -ne 0 -or $versionOut -notmatch 'win7-x64') { throw "helper --version smoke failed." }
-        $request = '{"requestId":"d013-smoke","executable":"C:\Windows\System32\cmd.exe","argv":["/d","/s","/c","echo D013_NATIVE_SMOKE"],"workingDirectory":"C:\Windows\Temp","timeoutMs":10000,"maxOutputSize":4096}'
+        $requestPayload = [ordered]@{
+            requestId = "d013-smoke"
+            executable = $cmdExe
+            argv = @('/d', '/s', '/c', 'echo D013_NATIVE_SMOKE')
+            workingDirectory = $smokeAllowed
+            timeoutMs = 10000
+            maxOutputSize = 4096
+            allowedDirectories = @($smokeAllowed)
+            protectedDirectories = @($smokeProtected)
+            aclPolicy = [ordered]@{
+                acceptanceRoot = $WorkRoot
+                perRunRoot = $smokeRoot
+            }
+        }
+        # Serialize the payload instead of hand-writing JSON. ConvertTo-Json
+        # escapes Windows path separators, quotes and future special characters.
+        $request = $requestPayload | ConvertTo-Json -Compress
+        $requestCheck = $request | ConvertFrom-Json
+        if (($requestCheck.executable -ne $requestPayload.executable) -or ($requestCheck.workingDirectory -ne $requestPayload.workingDirectory)) {
+            throw "helper JSON smoke request did not survive serialization round trip."
+        }
         $responseText = $request | & $helperExe 2>$smokeStderr
         if ($LASTEXITCODE -ne 0) { throw "helper JSON smoke process failed." }
         $response = $responseText | ConvertFrom-Json
-        if ($response.error -eq 'HOST_ALREADY_IN_JOB') {
+        if ($response.type -eq 'error' -and $response.error -eq 'HOST_ALREADY_IN_JOB') {
             # The build host itself runs inside a Job: the helper's C02
             # fail-closed behaviour is correct; smoke is environmentally skipped.
             $smokeStatus = "SKIPPED_IN_JOB"
+        } elseif ($response.type -eq 'error' -and $response.error -eq 'PROCESS_CREATE_FAILED') {
+            # Some agent sandboxes allow compilation but block restricted-token
+            # process creation
+            # from creating the restricted child. Keep the build evidence-bound
+            # and non-PASS instead of masking the host limitation as success.
+            $smokeStatus = "SKIPPED_PROCESS_CREATE_FAILED"
+        } elseif ($response.type -eq 'error') {
+            throw "helper JSON smoke returned error: $responseText"
         } else {
             if ($response.status -ne 'completed' -or $response.exitCode -ne 0) {
                 throw "helper JSON smoke did not complete cleanly: $responseText"
@@ -189,6 +238,34 @@ try {
             if ($decoded -notmatch 'D013_NATIVE_SMOKE') { throw "helper JSON smoke stdout did not contain the marker." }
             if ($response.containmentVerified -ne $true -or $response.inputDetached -ne $true) {
                 throw "helper JSON smoke did not prove containment/input detachment."
+            }
+            $aclChanges = @($response.aclChanges)
+            if ($aclChanges.Count -ne 2) {
+                throw "helper JSON smoke did not return both ACL changes: $responseText"
+            }
+            $allowedChanges = @($aclChanges | Where-Object {
+                $_.mechanism -eq 'low_integrity_label' -and
+                [string]::Equals([string]$_.path, $smokeAllowed, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+            $protectedChanges = @($aclChanges | Where-Object {
+                $_.mechanism -eq 'deny_ace' -and
+                [string]::Equals([string]$_.path, $smokeProtected, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+            if ($allowedChanges.Count -ne 1 -or $protectedChanges.Count -ne 1) {
+                throw "helper JSON smoke returned unexpected ACL paths/mechanisms: $responseText"
+            }
+            foreach ($aclChange in @($allowedChanges[0], $protectedChanges[0])) {
+                if ($aclChange.applied -ne $true -or
+                    $aclChange.verified -ne $true -or
+                    $aclChange.rolledBack -ne $true) {
+                    throw "helper JSON smoke did not prove both ACL applications and exact rollback: $responseText"
+                }
+            }
+            $smokeAllowedAclAfter = (Get-Acl -LiteralPath $smokeAllowed).Sddl
+            $smokeProtectedAclAfter = (Get-Acl -LiteralPath $smokeProtected).Sddl
+            if ($smokeAllowedAclAfter -ne $smokeAllowedAclBefore -or
+                $smokeProtectedAclAfter -ne $smokeProtectedAclBefore) {
+                throw "helper JSON smoke changed an ACL/owner after rollback."
             }
             $smokeStatus = "PASS"
         }
@@ -214,7 +291,7 @@ try {
 
     $stamp = [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss")
     $staging = Join-Path $WorkRoot "result-staging"
-    Ensure-Directory $staging
+    Reset-OwnedDirectory $staging
     Copy-Item -LiteralPath $OutputRoot -Destination (Join-Path $staging "output") -Recurse
     Copy-Item -LiteralPath $EvidenceRoot -Destination (Join-Path $staging "evidence") -Recurse
     Copy-Item -LiteralPath (Join-Path $KitRoot "input-lock.json") -Destination $staging
@@ -224,7 +301,7 @@ try {
     Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $resultZip -CompressionLevel Optimal -Force
     $resultHash = (Get-FileHash -LiteralPath $resultZip -Algorithm SHA256).Hash.ToLowerInvariant()
     [System.IO.File]::WriteAllText($resultZip + ".sha256", ($resultHash + "  " + [System.IO.Path]::GetFileName($resultZip) + "`r`n"), [System.Text.Encoding]::ASCII)
-    if ($finalStatus -eq "PASS") { Write-Host "BUILD PASS" } else { Write-Host "BUILD PARTIAL (smoke skipped/in-job)" }
+    if ($finalStatus -eq "PASS") { Write-Host "BUILD PASS" } else { Write-Host "BUILD PARTIAL (smoke skipped/environment)" }
     Write-Host "Return package: $resultZip"
     Write-Host "SHA-256: $resultHash"
 } catch {

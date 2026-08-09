@@ -29,6 +29,14 @@ const SOURCES = [
 ];
 
 const EXCLUDED_DIRS = new Set(['work', 'output', 'evidence', 'result', 'candidate']);
+// Historical package sidecars live beside the kit for repository bookkeeping;
+// they are not build inputs and must not be listed as shipped files. Keeping
+// them out of PACKAGE_MANIFEST also prevents a hand-curated input ZIP from
+// failing the Win10 manifest gate when the sidecar points to an older ZIP.
+// Finder/Explorer metadata is neither a build input nor a reproducible
+// deliverable. Exclude it before calculating PACKAGE_MANIFEST so a local
+// directory view cannot make the manifest disagree with the handoff ZIP.
+const EXCLUDED_FILE_RE = /(?:\.zip\.sha256|(?:^|\/)(?:\.DS_Store|Thumbs\.db|\._[^/]+))$/i;
 
 function sha256File(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -43,10 +51,41 @@ function walk(dir, base) {
       if (EXCLUDED_DIRS.has(name)) continue;
       entries.push(...walk(full, base));
     } else {
-      entries.push(relative);
+      if (!EXCLUDED_FILE_RE.test(relative)) entries.push(relative);
     }
   }
   return entries;
+}
+
+// Security contract: LABEL_SECURITY_INFORMATION consumes the pSacl argument
+// (the final argument), never pDacl. Keep package generation fail-closed so the
+// positional PACL parameters cannot silently regress again.
+const helperSource = fs.readFileSync(path.join(HELPER_ROOT, 'helper.cpp'), 'utf8');
+if (!/LABEL_SECURITY_INFORMATION\s*,\s*nullptr\s*,\s*nullptr\s*,\s*nullptr\s*,\s*pLabelAcl\s*\)/.test(helperSource)) {
+  throw new Error('helper.cpp must pass the mandatory-label ACL as pSacl, with pDacl null');
+}
+if (/TokenImpersonation\s*,\s*&hImpersonation|CreateProcessWithTokenW\s*\(/.test(helperSource) ||
+    !/CreateProcessAsUserW\s*\(\s*hRestricted/.test(helperSource)) {
+  throw new Error('helper.cpp must pass the verified primary restricted token to CreateProcessAsUserW');
+}
+if (!/CreateRestrictedToken\s*\(\s*hSource\s*,\s*DISABLE_MAX_PRIVILEGE/.test(helperSource) ||
+    /privilegesToDelete/.test(helperSource)) {
+  throw new Error('helper.cpp must use DISABLE_MAX_PRIVILEGE and preserve SeChangeNotifyPrivilege');
+}
+if (!/DOMAIN_ALIAS_RID_ADMINS/.test(helperSource) ||
+    /SECURITY_WORLD_RID|SECURITY_WORLD_SID_AUTHORITY/.test(helperSource)) {
+  throw new Error('helper.cpp must make Administrators deny-only without disabling Everyone/World');
+}
+if (!/CurrentLabelAclMatches/.test(helperSource) ||
+    !/CurrentDaclMatches/.test(helperSource) ||
+    !/return\s+HELPER_ERR_ACL_ROLLBACK\s*;/.test(helperSource)) {
+  throw new Error('helper.cpp must verify exact ACL restoration and fail closed on rollback failure');
+}
+const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
+if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
+    !/Reset-OwnedDirectory\s+\$EvidenceRoot/.test(buildScript) ||
+    !/Reset-OwnedDirectory\s+\$staging/.test(buildScript)) {
+  throw new Error('build.ps1 must exercise protected ACLs and reset evidence/staging state');
 }
 
 // 1. Snapshot the live sources.
@@ -76,7 +115,7 @@ fs.writeFileSync(path.join(HERE, 'input-lock.json'), `${JSON.stringify(lock, nul
 
 // 3. PACKAGE_MANIFEST.json: every shipped kit file.
 const files = walk(HERE, HERE)
-  .filter((relative) => relative !== 'input-lock.json' && relative !== 'PACKAGE_MANIFEST.json' && relative !== 'prepare-kit.cjs')
+  .filter((relative) => relative !== 'input-lock.json' && relative !== 'PACKAGE_MANIFEST.json')
   .map((relative) => {
     const file = path.join(HERE, relative);
     return { path: relative, size: fs.statSync(file).size, sha256: sha256File(file) };

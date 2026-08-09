@@ -10,18 +10,21 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 - Visual Studio 2019 `[16.0,17.0)` Build Tools，含 "使用 C++ 的桌面开发" 与 MSVC v142 x64；
   VS2022 即使带 v142 也会被拒绝。
 - Windows SDK `10.0.19041.0`（含 x64 `mt.exe`）、Windows 10 自带 `tar.exe`。
+- 必须从 **x64 Native Tools Command Prompt for VS 2019** 启动构建，或先调用
+  `VC\Auxiliary\Build\vcvars64.bat`，以准备 `INCLUDE`、`LIB` 等 x64 工具链环境变量。
 - 至少 2 GB 可用磁盘空间；建议解压至短英文路径，例如 `C:\w7d013`。
 - **不需要 CMake、不需要 Python**：构建脚本直接用 `cl.exe`（构建闭包更小、更确定）。
+- MSVC 显式使用 `/utf-8` 读取 UTF-8 源码，不依赖构建机的 CP936/ACP。
 
 正常构建不访问网络。`PACKAGE_MANIFEST.json` 绑定包内全部文件；
 `input-lock.json` 另行锁定 `src/` 源码快照的逐文件 SHA-256。
 
 ## 执行
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-cd C:\w7d013
-.\build.ps1
+```cmd
+:: 在 “x64 Native Tools Command Prompt for VS 2019” 中执行
+cd /d C:\w7d013
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 成功时最后显示 `BUILD PASS`，并在 `result\` 生成：
@@ -37,7 +40,23 @@ cd C:\w7d013
 
 - `BUILD PASS` 只证明 Win10 构建闭包与 Win10 smoke 通过，**不等于 Win7 实机通过**。
 - 返回包复核前，`STATUS.json` 保持 `READY_FOR_WIN10_BUILD`，不是构建完成声明。
-- 任何非 x64、Win10+ 禁止 API、动态 CRT 依赖、manifest 嵌入失败或 smoke 失败都会 fail-closed。
+- 任何非 x64、Win10+ 禁止 API、动态 CRT 依赖或 manifest 嵌入失败都会 fail-closed。
+  若构建宿主环境阻止 smoke 创建受限子进程，脚本只会产出 `BUILD PARTIAL`
+  证据包，不得声明 Win10 PASS。
+- Win10 smoke 只使用包内 `work\smoke` 目录；`allowed` 子目录临时施加精确的低完整性
+  标签，`protected` 子目录临时施加写入 deny ACE。两条响应记录都必须证明已应用、
+  精确验证且已回滚。脚本不会修改 `C:\Windows\Temp`。
+- helper 若返回 `ACL_ROLLBACK_FAILED`，表示 ACL/完整性标签恢复未被证明；必须将该候选
+  判定为失败并保留错误消息，不得继续进入 Win7 上传或验收。
+- helper 强制验证 restricted token 为 primary token，并按 Windows restricted-token
+  合同通过 `CreateProcessAsUserW` 启动；禁止再走 impersonation token 或
+  `CreateProcessWithTokenW` 路径；
+  禁止把 impersonation token 用于该启动路径。
+- restricted token 使用 `DISABLE_MAX_PRIVILEGE`，保留 Windows 目录遍历所需的
+  `SeChangeNotifyPrivilege`，并把 Administrators SID 设为 deny-only；不得把
+  Everyone/World 设为 deny-only，否则可能移除 Windows 装载器所需的基础读/执行授权，
+  造成子进程以 `0xC0000022 (STATUS_ACCESS_DENIED)` 在用户代码运行前退出。
+- 每次构建都会先清空包内 `evidence/` 和返回 staging，避免重跑混入旧证据。
 - 收到 Win10 返回包后：复核外层 SHA-256 与 `build-result.json`，把
   `spike02_helper.exe` 放入 `candidate/` 并更新
   `spikes/02-terminal-containment/acceptance/d013/d013_profile.json` 的
@@ -48,4 +67,7 @@ cd C:\w7d013
 
 helper 在宿主已处于 Job 中时 fail-closed（`HOST_ALREADY_IN_JOB`）。若构建机 CI 本身
 在 Job 内运行 smoke，JSON round-trip 会返回该错误——这是预期行为，smoke 会标记为
-`SKIPPED_IN_JOB`（环境性跳过），不构成构建失败。
+`SKIPPED_IN_JOB`（环境性跳过）。某些 Agent 沙箱不在 Job 中但会阻止
+`CreateProcessAsUserW` 创建受限子进程，此时 smoke 会标记为
+`SKIPPED_PROCESS_CREATE_FAILED`。这些情况只允许形成 `BUILD PARTIAL` 证据包，
+不构成 Win10 PASS。

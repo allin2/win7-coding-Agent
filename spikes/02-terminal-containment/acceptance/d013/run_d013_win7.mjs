@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { parseCertutilHash, redactArgs, validateAcceptanceId } from '../run_fup_automation.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '..', '..', '..');
+const ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const DEFAULT_PROFILE = path.join(HERE, 'd013_profile.json');
 const SCRIPT = path.join(HERE, 'run_d013_win7.py');
 const LAUNCHER = path.join(HERE, 'run_d013_wmi.cmd');
@@ -47,6 +47,25 @@ function parseArgs(argv) {
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function sha256Sync(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
 function now() { return new Date().toISOString(); }
+
+function hasListeningSshPort22(output) {
+  return /(?:^|\s)(?:\d{1,3}(?:\.\d{1,3}){3}|\[::\]|::|\*):22(?:\s|$).*\bLISTENING\b/i.test(output || '');
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasNoD013Residue(output, acceptanceId) {
+  const markers = [
+    'spike02_helper\\.exe',
+    'run_d013_wmi\\.cmd',
+    'run_d013_win7\\.py',
+    'd013-results\\.json',
+    escapeRegex(acceptanceId),
+  ];
+  return !new RegExp(`(?:${markers.join('|')})`, 'i').test(output || '');
+}
 
 function isSafeRelative(value) {
   return typeof value === 'string' && value.length > 0 && !path.isAbsolute(value)
@@ -110,6 +129,11 @@ class Runner {
     this.stages = [];
     this.commands = 0;
     this.dryRun = args.dryRun;
+    this.remoteHarnessStarted = false;
+    this.remoteConnectionAttempted = false;
+    this.postflightDone = false;
+    this.finished = false;
+    this.finalReport = null;
     this.remoteRoot = `${profile.target.acceptance_root}\\${args.acceptanceId}`;
     this.remoteDataRoot = `${profile.target.data_root}\\${args.acceptanceId}`;
     fs.mkdirSync(path.dirname(this.reportPath), { recursive: true });
@@ -158,11 +182,13 @@ class Runner {
 
   ssh(stage, remoteArgv, timeout = 30000) {
     if (this.dryRun) return { status: null, stdout: '', stderr: '', error: 'dry-run: not executed' };
+    this.remoteConnectionAttempted = true;
     return this.run(stage, 'ssh', this.sshArgs(remoteArgv), timeout);
   }
 
   scp(stage, local, remote, timeout = 120000) {
     if (this.dryRun) return { status: null, stdout: '', stderr: '', error: 'dry-run: not executed' };
+    this.remoteConnectionAttempted = true;
     const argv = [
       '-i', this.profile.ssh.private_key,
       '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
@@ -175,6 +201,7 @@ class Runner {
 
   download(stage, remote, local) {
     if (this.dryRun) return { status: null, stdout: '', stderr: '', error: 'dry-run: not executed' };
+    this.remoteConnectionAttempted = true;
     const argv = [
       '-i', this.profile.ssh.private_key,
       '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
@@ -210,27 +237,76 @@ class Runner {
     return stage;
   }
 
+  runPostflightStage() {
+    if (this.postflightDone) return;
+    if (!this.dryRun && !this.remoteConnectionAttempted) return;
+    this.postflightDone = true;
+    this.stage('REM-D08', 'post-flight system-state verification', (stage) => {
+      if (this.dryRun) return { status: 'PASS' };
+      const checks = {
+        bitvise: this.ssh(stage, ['sc', 'query', this.profile.remote.bitvise_service]),
+        port22: this.ssh(stage, ['netstat -ano | findstr ":22"']),
+        residue: this.ssh(stage, ['wmic.exe', 'process', 'get', 'Name,CommandLine,ProcessId', '/format:csv']),
+      };
+      stage.postflight = Object.fromEntries(Object.entries(checks).map(([keyName, value]) => [keyName, { exit_code: value.exit_code, stdout: value.stdout, stderr: value.stderr }]));
+      const serviceText = `${checks.bitvise.stdout || ''}\n${checks.bitvise.stderr || ''}`;
+      const bitviseRunning = checks.bitvise.exit_code === 0
+        && /\bBvSshServer\b/i.test(serviceText) && /\bRUNNING\b/i.test(serviceText);
+      const port22Listening = checks.port22.exit_code === 0
+        && hasListeningSshPort22(checks.port22.stdout);
+      const noResidue = checks.residue.exit_code === 0
+        && hasNoD013Residue(checks.residue.stdout, this.args.acceptanceId);
+      return bitviseRunning && port22Listening && noResidue
+        ? { status: 'PASS', postflight_note: 'BvSshServer RUNNING, port 22 LISTENING, no D-013 process residue' }
+        : { status: 'FAIL', failure: { code: 'POSTFLIGHT_SYSTEM_STATE_FAILED', message: 'management channel or residue check failed after run' } };
+    }, 120000);
+  }
+
   runAll() {
-    this.stage('REM-D01', 'governance and locked candidate check', (stage) => {
+    try {
+      return this._runAllStages();
+    } finally {
+      // Every remote attempt has a mandatory post-flight check, including
+      // failures before the detached harness is created. finish() normally
+      // performs this first; this finally covers unexpected exceptions.
+      if (!this.finished) this.runPostflightStage();
+    }
+  }
+
+  _runAllStages() {
+    this.stage('REM-D01', 'governance and locked candidate + lease check', (stage) => {
       validateD013Profile(this.profile);
+      const gates = this.profile.gates || {};
       if (this.dryRun) {
-        stage.baseline = { profile_id: this.profile.profile_id, gates: this.profile.gates };
+        stage.baseline = { profile_id: this.profile.profile_id, gates };
         return { status: 'PASS' };
+      }
+      // Control-plane gate: Win7 may only be reached under an explicit lease
+      // grant. A missing or NOT_GRANTED lease fails closed before any SSH.
+      if (gates['GATE-WIN7-LEASE'] !== 'GRANTED') {
+        return { status: 'FAIL', failure: { code: 'WIN7_LEASE_NOT_GRANTED', message: String(gates['GATE-WIN7-LEASE'] ?? 'MISSING') } };
+      }
+      // The locked candidate hash must be a real 64-hex SHA-256. The
+      // PENDING_WIN10_BUILD sentinel means the Win10 return package has not
+      // arrived; it is not evidence and must never satisfy the execute gate.
+      const locked = this.profile.candidate.sha256;
+      if (typeof locked !== 'string' || !/^[0-9a-f]{64}$/.test(locked)) {
+        return { status: 'FAIL', failure: { code: 'CANDIDATE_HASH_NOT_LOCKED', message: String(locked) } };
       }
       const candidate = path.join(ROOT, this.profile.candidate.path);
       if (!fs.existsSync(candidate)) {
         return { status: 'FAIL', failure: { code: 'CANDIDATE_MISSING', message: candidate } };
       }
       const candidateHash = sha256Sync(candidate);
-      const locked = this.profile.candidate.sha256;
+      if (candidateHash !== locked) {
+        return { status: 'FAIL', failure: { code: 'CANDIDATE_HASH_MISMATCH', message: `${candidateHash} != ${locked}` } };
+      }
       stage.baseline = {
         profile_id: this.profile.profile_id,
         candidate: { path: candidate, sha256: candidateHash, locked_sha256: locked },
-        gates: this.profile.gates, private_key_content_read: false,
+        gates, private_key_content_read: false,
       };
-      return locked === 'PENDING_WIN10_BUILD' || candidateHash === locked
-        ? { status: 'PASS' }
-        : { status: 'FAIL', failure: { code: 'CANDIDATE_HASH_MISMATCH', message: candidateHash } };
+      return { status: 'PASS' };
     }, 30000);
     if (!this.dryRun && this.stages.at(-1).status === 'FAIL') return this.finish();
 
@@ -246,15 +322,22 @@ class Runner {
         privs: this.ssh(stage, ['whoami', '/priv']),
         python: this.ssh(stage, [this.profile.remote.python, '--version']),
         bitvise: this.ssh(stage, ['sc', 'query', this.profile.remote.bitvise_service]),
+        port22: this.ssh(stage, ['netstat -ano | findstr ":22"']),
+        residue: this.ssh(stage, ['wmic.exe', 'process', 'get', 'Name,CommandLine,ProcessId', '/format:csv']),
       };
       stage.preflight = Object.fromEntries(Object.entries(checks).map(([keyName, value]) => [keyName, { exit_code: value.exit_code, stdout: value.stdout, stderr: value.stderr }]));
       const text = Object.values(checks).map((x) => `${x.stdout}\n${x.stderr}`).join('\n');
       const hasSeImpersonate = /SeImpersonatePrivilege/i.test(checks.privs.stdout || '');
       stage.preflight.se_impersonate_present = hasSeImpersonate;
+      const port22Listening = checks.port22.exit_code === 0
+        && hasListeningSshPort22(checks.port22.stdout);
+      const noResidue = checks.residue.exit_code === 0
+        && hasNoD013Residue(checks.residue.stdout, this.args.acceptanceId);
       return checks.ver.exit_code === 0 && /7601/.test(text) && checks.whoami.exit_code === 0 && /dccs-chaizl/i.test(text)
         && checks.python.exit_code === 0 && /3\.8\.10/.test(text) && checks.bitvise.exit_code === 0 && /RUNNING/i.test(text)
+        && port22Listening && noResidue
         ? { status: 'PASS', preflight_note: hasSeImpersonate ? 'SeImpersonatePrivilege present (CreateProcessWithTokenW usable)' : 'SeImpersonatePrivilege ABSENT: helper token application may fail with ERROR_PRIVILEGE_NOT_HELD' }
-        : { status: 'FAIL', failure: { code: 'WIN7_PREFLIGHT_FAILED', message: 'strict Win7 or Bitvise preflight failed' } };
+        : { status: 'FAIL', failure: { code: 'WIN7_PREFLIGHT_FAILED', message: 'strict Win7, Bitvise, port-22 or residue preflight failed' } };
     }, 120000);
     if (!this.dryRun && this.stages.at(-1).status === 'FAIL') return this.finish();
 
@@ -313,6 +396,7 @@ class Runner {
       if (launch.exit_code !== 0 || !/ReturnValue\s*=\s*0/i.test(`${launch.stdout}\n${launch.stderr}`)) {
         return { status: 'FAIL', failure: { code: 'WMI_LAUNCH_FAILED', message: 'D-013 harness was not created' } };
       }
+      this.remoteHarnessStarted = true;
       const resultRemote = `${this.remoteRoot}\\d013-results.json`;
       const deadline = Date.now() + 300000;
       let completion = null;
@@ -325,7 +409,10 @@ class Runner {
       return completion?.exit_code === 0
         ? { status: 'PASS' } : { status: 'FAIL', failure: { code: 'D013_HARNESS_TIMEOUT', message: 'result file not created before deadline' } };
     }, 360000);
-    if (!this.dryRun && this.stages.at(-1).status === 'FAIL') return this.finish();
+    if (!this.dryRun && this.stages.at(-1).status === 'FAIL') {
+      this.runPostflightStage();
+      return this.finish();
+    }
 
     this.stage('REM-D07', 'evidence retrieval and classification', (stage) => {
       if (this.dryRun) return { status: 'PASS' };
@@ -341,21 +428,58 @@ class Runner {
       const results = readJson(path.join(this.evidenceDir, 'remote-d013-results.json'));
       const statuses = {};
       for (const item of results.cases || []) statuses[item.id] = item.status;
+      const requiredCaseIds = [
+        'C01-job-tree-kill', 'C02-host-already-in-job', 'C03-restricted-token-boundary',
+        'C04-acl-boundary', 'C04-authorization-gate', 'C05-loopback-network',
+        'C06-argv-whitelist', 'C07-timeout-process-tree', 'C07-output-cap',
+      ];
+      const observedCaseIds = (results.cases || []).map((item) => item.id);
+      const missingCaseIds = requiredCaseIds.filter((id) => !observedCaseIds.includes(id));
+      const duplicateCaseIds = observedCaseIds.filter((id, index) => observedCaseIds.indexOf(id) !== index);
+      const exitCodeText = fs.readFileSync(path.join(this.evidenceDir, 'remote-d013-exit-code.txt'), 'utf8').trim();
+      const harnessExitCode = /^-?[0-9]+$/.test(exitCodeText) ? Number(exitCodeText) : NaN;
       stage.classification = {
         cases: statuses,
+        required_case_ids: requiredCaseIds,
+        missing_case_ids: missingCaseIds,
+        duplicate_case_ids: duplicateCaseIds,
         taskkill_used: results.taskkill_used,
+        harness_exit_code: harnessExitCode,
         formal_c05: results.scope?.formal_c05 || 'ENVIRONMENT_MISSING',
         files,
       };
-      const allPass = (results.cases || []).every((item) => item.status === 'PASS');
-      return results.taskkill_used === false
-        ? { status: allPass ? 'PASS' : 'PARTIAL', evidence: files, results }
-        : { status: 'FAIL', failure: { code: 'TASKKILL_USED', message: 'harness reported taskkill usage' }, evidence: files };
+      const completeCaseSet = missingCaseIds.length === 0 && duplicateCaseIds.length === 0
+        && observedCaseIds.length === requiredCaseIds.length;
+      const allPass = completeCaseSet && (results.cases || []).every((item) => item.status === 'PASS');
+      if (results.taskkill_used === false && harnessExitCode === 0 && allPass) {
+        return { status: 'PASS', evidence: files, results };
+      }
+      if (results.taskkill_used === false && harnessExitCode === 0 && completeCaseSet) {
+        return { status: 'PARTIAL', evidence: files, results };
+      }
+      const code = results.taskkill_used === true
+        ? 'TASKKILL_USED'
+        : harnessExitCode !== 0
+          ? 'HARNESS_EXIT_CODE_NONZERO'
+          : 'EVIDENCE_CASE_SET_INVALID';
+      const message = results.taskkill_used === true
+        ? 'harness reported taskkill usage'
+        : harnessExitCode !== 0
+          ? `harness exit code ${harnessExitCode} is not 0`
+          : `required case set incomplete (missing=${missingCaseIds.join(',')}, duplicates=${duplicateCaseIds.join(',')})`;
+      return { status: 'FAIL', failure: { code, message }, evidence: files, results };
     }, 180000);
+    if (!this.dryRun && this.stages.at(-1).status === 'FAIL') {
+      this.runPostflightStage();
+      return this.finish();
+    }
+    this.runPostflightStage();
     return this.finish();
   }
 
   finish() {
+    if (this.finished) return this.finalReport;
+    this.runPostflightStage();
     const statuses = this.stages.map((stage) => stage.status);
     const report = {
       schema_version: 1, plan_id: this.profile.profile_id, acceptance_id: this.args.acceptanceId,
@@ -372,8 +496,9 @@ class Runner {
       result: {
         automatic_status: this.dryRun ? 'DRY_RUN'
           : statuses.every((s) => s === 'PASS') ? 'D013_EXECUTION_PASS'
-            : statuses.includes('PARTIAL') ? 'PARTIAL'
-              : 'FAIL_CLOSED',
+            : statuses.includes('FAIL') ? 'FAIL_CLOSED'
+              : statuses.includes('PARTIAL') ? 'PARTIAL'
+                : 'FAIL_CLOSED',
         formal_c05: 'ENVIRONMENT_MISSING',
         classification: 'D013_CONTAINMENT_EVIDENCE_READY',
       },
@@ -382,6 +507,8 @@ class Runner {
     fs.writeFileSync(this.reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     const rows = this.stages.map((stage) => `<tr><td>${stage.id}</td><td>${stage.name}</td><td>${stage.status}</td><td>${stage.stdout_file || '-'}<br>${stage.stderr_file || '-'}</td></tr>`).join('');
     fs.writeFileSync(this.htmlPath, `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>D-013 ${this.args.acceptanceId}</title><style>body{font:15px/1.6 system-ui,sans-serif;max-width:1100px;margin:auto;padding:24px}table{border-collapse:collapse;width:100%}td,th{padding:8px;border-bottom:1px solid #ddd;text-align:left}.PASS{color:#08765b}.FAIL{color:#a33232}.NOT_PERFORMED,.PARTIAL{color:#a35a00}</style><h1>SPIKE_02 D-013 containment acceptance</h1><p>结果：<strong>${report.result.automatic_status}</strong>；C05 正式状态：<strong>ENVIRONMENT_MISSING</strong>（仅 loopback）。</p><table><tr><th>ID</th><th>阶段</th><th>状态</th><th>证据</th></tr>${rows}</table></html>\n`, 'utf8');
+    this.finished = true;
+    this.finalReport = report;
     return report;
   }
 }

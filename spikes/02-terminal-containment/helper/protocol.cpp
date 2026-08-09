@@ -15,7 +15,8 @@
  *     "allowNetwork": false,          // recorded only; never claimed as isolation
  *     "allowedDirectories": ["C:\\workspace"],
  *     "protectedDirectories": ["C:\\outside"],  // deny ACE + rollback (C04)
- *     "allowExecutables": []                    // argv allow-list extras (C06)
+ *     "aclPolicy": {"acceptanceRoot": "C:\\acceptance",
+ *                   "perRunRoot": "C:\\acceptance\\A4-xxx\\generated"}
  *   }
  *
  * Success response:
@@ -188,12 +189,49 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
         return false;
     }
 
-    const JsonValue* extras = JsonObjectGet(root, L"allowExecutables");
-    if (extras && !ExtractStringArray(*extras, &config->extraExecutables, error)) {
-        *error = "invalid 'allowExecutables'";
-        return false;
+    const JsonValue* policy = JsonObjectGet(root, L"aclPolicy");
+    if (policy) {
+        if (policy->type != JsonValue::Type::Object) {
+            *error = "invalid 'aclPolicy'";
+            return false;
+        }
+        const JsonValue* acceptanceRoot = JsonObjectGet(*policy, L"acceptanceRoot");
+        const JsonValue* perRunRoot = JsonObjectGet(*policy, L"perRunRoot");
+        if (!acceptanceRoot || !JsonAsString(*acceptanceRoot, &config->aclPolicy.acceptanceRoot) ||
+            config->aclPolicy.acceptanceRoot.empty() ||
+            !perRunRoot || !JsonAsString(*perRunRoot, &config->aclPolicy.perRunRoot) ||
+            config->aclPolicy.perRunRoot.empty()) {
+            *error = "invalid 'aclPolicy' (acceptanceRoot + perRunRoot required)";
+            return false;
+        }
+        config->aclPolicy.valid = true;
     }
 
+    return true;
+}
+
+bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error) {
+    if (config.allowedDirectories.empty() && config.protectedDirectories.empty()) return true;
+    if (!config.aclPolicy.valid) {
+        if (error) *error = L"ACL changes requested without a valid aclPolicy";
+        return false;
+    }
+    if (!PathWithinRoot(config.aclPolicy.perRunRoot, config.aclPolicy.acceptanceRoot)) {
+        if (error) *error = L"perRunRoot is outside acceptanceRoot: " + config.aclPolicy.perRunRoot;
+        return false;
+    }
+    for (const std::wstring& dir : config.allowedDirectories) {
+        if (!PathWithinRoot(dir, config.aclPolicy.perRunRoot)) {
+            if (error) *error = L"allowedDirectory outside perRunRoot: " + dir;
+            return false;
+        }
+    }
+    for (const std::wstring& dir : config.protectedDirectories) {
+        if (!PathWithinRoot(dir, config.aclPolicy.perRunRoot)) {
+            if (error) *error = L"protectedDirectory outside perRunRoot: " + dir;
+            return false;
+        }
+    }
     return true;
 }
 

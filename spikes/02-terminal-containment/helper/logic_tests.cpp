@@ -6,8 +6,12 @@
  *     depth bomb, trailing garbage.
  *   - ParseJsonConfig mapping incl. bounds clamping.
  *   - argv command-line quoting (spaces, quotes, empty args, Chinese paths).
- *   - Allow-list: System32 tools, bare names, extras, cmd.exe /d /s /c and
- *     /k rejection, non-whitelisted executables (C06).
+ *   - Path-shape classification: absolute vs bare/UNC/device/drive-relative/
+ *     trailing-dot paths.
+ *   - Allow-list: direct System32 tools only, canonical absolute path required,
+ *     System32evil/subdir rejection, cmd.exe /d /s /c and /k rejection,
+ *     non-whitelisted executables (C06).
+ *   - ACL policy: per-run-root containment (boundary-safe) + ValidateAclPolicy.
  *   - Result rendering: exitCode/base64/truncation/aclChanges fields.
  *
  * Build & run (macOS/Linux build host):
@@ -127,6 +131,23 @@ static void TestParseJsonConfig() {
     CHECK(config.timeoutMs == 3600000);
     CHECK(config.maxOutputSize == 1024);
 
+    // aclPolicy parsing.
+    ProcessConfig policyConfig;
+    const std::string withPolicy =
+        "{\"requestId\":\"p1\",\"executable\":\"C:\\\\Windows\\\\System32\\\\cmd.exe\","
+        "\"argv\":[\"/d\",\"/s\",\"/c\",\"dir\"],"
+        "\"aclPolicy\":{\"acceptanceRoot\":\"C:\\\\acc\",\"perRunRoot\":\"C:\\\\acc\\\\A1\\\\generated\"}}";
+    CHECK(ParseJsonConfig(withPolicy, &policyConfig, &error));
+    CHECK(policyConfig.aclPolicy.valid);
+    CHECK(policyConfig.aclPolicy.acceptanceRoot == L"C:\\acc");
+    CHECK(policyConfig.aclPolicy.perRunRoot == L"C:\\acc\\A1\\generated");
+
+    // Malformed aclPolicy rejected.
+    CHECK(!ParseJsonConfig("{\"executable\":\"C:\\\\Windows\\\\System32\\\\cmd.exe\",\"argv\":[],\"aclPolicy\":{}}",
+                           &config, &error));
+    CHECK(!ParseJsonConfig("{\"executable\":\"C:\\\\Windows\\\\System32\\\\cmd.exe\",\"argv\":[],\"aclPolicy\":\"nope\"}",
+                           &config, &error));
+
     // Schema violations.
     CHECK(!ParseJsonConfig("{\"argv\":[]}", &config, &error));
     CHECK(!ParseJsonConfig("{\"executable\":\"\",\"argv\":[]}", &config, &error));
@@ -158,17 +179,43 @@ static void TestArgvBuilder() {
 
 static void TestWhitelist() {
     WhitelistConfig config;
-    config.windowsDirectory = L"C:\\Windows";
+    config.system32Directory = L"C:\\Windows\\System32";
 
-    // System32 tools allowed.
+    // Direct System32 tools allowed (canonical absolute drive paths, any case).
     CHECK(CheckWhitelist(L"C:\\Windows\\System32\\cmd.exe",
                          {L"/d", L"/s", L"/c", L"dir"}, config) == WhitelistDecision::Allow);
-    CHECK(CheckWhitelist(L"cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
-          WhitelistDecision::Allow);
     CHECK(CheckWhitelist(L"C:\\Windows\\System32\\where.exe", {}, config) ==
           WhitelistDecision::Allow);
-    CHECK(CheckWhitelist(L"reg.exe", {}, config) == WhitelistDecision::Allow);
-    CHECK(CheckWhitelist(L"whoami.exe", {}, config) == WhitelistDecision::Allow);
+    CHECK(CheckWhitelist(L"C:\\WINDOWS\\SYSTEM32\\WHOAMI.EXE", {}, config) ==
+          WhitelistDecision::Allow);
+    CHECK(CheckWhitelist(L"c:\\windows\\system32\\findstr.exe", {}, config) ==
+          WhitelistDecision::Allow);
+
+    // Bare names are rejected (only canonical absolute paths are accepted).
+    CHECK(CheckWhitelist(L"cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"reg.exe", {}, config) == WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"whoami.exe", {}, config) == WhitelistDecision::RejectExecutable);
+
+    // Path-shape bypasses rejected.
+    CHECK(CheckWhitelist(L".\\cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"C:cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"\\\\server\\share\\cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"\\\\.\\Device\\cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32\\cmd.exe ", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32.\\cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+
+    // System32evil sibling and System32 subdirectories rejected.
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32evil\\cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32\\sub\\cmd.exe", {L"/d", L"/s", L"/c", L"dir"}, config) ==
+          WhitelistDecision::RejectExecutable);
 
     // Non-whitelisted executables rejected (C06).
     CHECK(CheckWhitelist(L"C:\\Windows\\System32\\notepad.exe", {}, config) ==
@@ -179,19 +226,81 @@ static void TestWhitelist() {
           WhitelistDecision::RejectExecutable);
 
     // cmd.exe contract: /d /s /c required, /k rejected.
-    CHECK(CheckWhitelist(L"cmd.exe", {L"/c", L"dir"}, config) == WhitelistDecision::RejectArgv);
-    CHECK(CheckWhitelist(L"cmd.exe", {L"/d", L"/s", L"/k", L"dir"}, config) ==
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32\\cmd.exe", {L"/c", L"dir"}, config) ==
           WhitelistDecision::RejectArgv);
-    CHECK(CheckWhitelist(L"cmd.exe", {L"/D", L"/S", L"/C", L"dir"}, config) ==
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32\\cmd.exe", {L"/d", L"/s", L"/k", L"dir"}, config) ==
+          WhitelistDecision::RejectArgv);
+    CHECK(CheckWhitelist(L"C:\\Windows\\System32\\cmd.exe", {L"/D", L"/S", L"/C", L"dir"}, config) ==
           WhitelistDecision::Allow);
+}
 
-    // Caller-provided extra executables.
-    WhitelistConfig withExtra = config;
-    withExtra.extraExecutables.push_back(L"C:\\tools\\python.exe");
-    CHECK(CheckWhitelist(L"C:\\tools\\python.exe", {L"x.py"}, withExtra) ==
-          WhitelistDecision::Allow);
-    CHECK(CheckWhitelist(L"C:\\tools\\python.exe", {L"x.py"}, config) ==
-          WhitelistDecision::RejectExecutable);
+static void TestPathShape() {
+    CHECK(ClassifyPathShape(L"C:\\Windows\\System32\\cmd.exe") == PathShape::Absolute);
+    CHECK(ClassifyPathShape(L"c:/windows/system32/cmd.exe") == PathShape::Absolute);
+    CHECK(ClassifyPathShape(L"cmd.exe") == PathShape::BareName);
+    CHECK(ClassifyPathShape(L"C:cmd.exe") == PathShape::DriveRelative);
+    CHECK(ClassifyPathShape(L"C:") == PathShape::DriveRelative);
+    CHECK(ClassifyPathShape(L"\\\\server\\share\\cmd.exe") == PathShape::Unc);
+    CHECK(ClassifyPathShape(L"\\\\.\\COM1") == PathShape::Device);
+    CHECK(ClassifyPathShape(L"\\\\?\\C:\\x") == PathShape::Device);
+    CHECK(ClassifyPathShape(L".\\cmd.exe") == PathShape::Relative);
+    CHECK(ClassifyPathShape(L"..\\x.exe") == PathShape::Relative);
+    CHECK(ClassifyPathShape(L"\\cmd.exe") == PathShape::Relative);
+    CHECK(ClassifyPathShape(L"foo\\bar.exe") == PathShape::Relative);
+    CHECK(ClassifyPathShape(L"C:\\Windows\\System32\\cmd.exe ") == PathShape::TrailingDotOrSpace);
+    CHECK(ClassifyPathShape(L"C:\\Windows\\System32.\\cmd.exe") == PathShape::TrailingDotOrSpace);
+    CHECK(ClassifyPathShape(std::wstring(L"C:\\a\0b", 5)) == PathShape::EmbeddedNul);
+}
+
+static void TestAclPolicy() {
+    // Boundary-safe containment.
+    CHECK(PathWithinRoot(L"C:\\acc\\A1\\generated", L"C:\\acc"));
+    CHECK(PathWithinRoot(L"C:\\acc\\A1\\generated\\c03", L"C:\\acc\\A1\\generated"));
+    CHECK(PathWithinRoot(L"C:\\acc\\A1\\generated", L"C:\\acc\\A1\\generated"));
+    CHECK(!PathWithinRoot(L"C:\\acc2\\x", L"C:\\acc"));
+    CHECK(!PathWithinRoot(L"C:\\acc\\A1\\generatedevil", L"C:\\acc\\A1\\generated"));
+
+    CHECK(IsUnderSystem32(L"C:\\Windows\\System32\\cmd.exe", L"C:\\Windows\\System32"));
+    CHECK(!IsUnderSystem32(L"C:\\Windows\\System32", L"C:\\Windows\\System32"));
+    CHECK(!IsUnderSystem32(L"C:\\Windows\\System32evil\\cmd.exe", L"C:\\Windows\\System32"));
+
+    // ValidateAclPolicy: valid policy passes; escapes are refused.
+    ProcessConfig ok;
+    ok.aclPolicy.valid = true;
+    ok.aclPolicy.acceptanceRoot = L"C:\\acc";
+    ok.aclPolicy.perRunRoot = L"C:\\acc\\A1\\generated";
+    ok.allowedDirectories = {L"C:\\acc\\A1\\generated\\c03"};
+    ok.protectedDirectories = {L"C:\\acc\\A1\\generated\\protected-outside"};
+    std::wstring error;
+    CHECK(ValidateAclPolicy(ok, &error));
+
+    ProcessConfig none;  // no ACL request -> valid without a policy
+    CHECK(ValidateAclPolicy(none, &error));
+
+    ProcessConfig noPolicy;  // ACL request without policy -> refused
+    noPolicy.allowedDirectories = {L"C:\\x"};
+    CHECK(!ValidateAclPolicy(noPolicy, &error));
+
+    ProcessConfig badRoot;  // perRunRoot outside acceptanceRoot -> refused
+    badRoot.aclPolicy.valid = true;
+    badRoot.aclPolicy.acceptanceRoot = L"C:\\acc";
+    badRoot.aclPolicy.perRunRoot = L"C:\\elsewhere";
+    badRoot.allowedDirectories = {L"C:\\elsewhere\\c03"};
+    CHECK(!ValidateAclPolicy(badRoot, &error));
+
+    ProcessConfig badTarget;  // target outside perRunRoot -> refused
+    badTarget.aclPolicy.valid = true;
+    badTarget.aclPolicy.acceptanceRoot = L"C:\\acc";
+    badTarget.aclPolicy.perRunRoot = L"C:\\acc\\A1\\generated";
+    badTarget.protectedDirectories = {L"C:\\Windows"};
+    CHECK(!ValidateAclPolicy(badTarget, &error));
+
+    ProcessConfig sibling;  // sibling-prefix target -> refused
+    sibling.aclPolicy.valid = true;
+    sibling.aclPolicy.acceptanceRoot = L"C:\\acc";
+    sibling.aclPolicy.perRunRoot = L"C:\\acc\\A1\\generated";
+    sibling.allowedDirectories = {L"C:\\acc\\A1\\generatedevil"};
+    CHECK(!ValidateAclPolicy(sibling, &error));
 }
 
 static void TestRenderResult() {
@@ -242,7 +351,9 @@ int main() {
     TestJsonParser();
     TestParseJsonConfig();
     TestArgvBuilder();
+    TestPathShape();
     TestWhitelist();
+    TestAclPolicy();
     TestRenderResult();
 
     if (gFailures == 0) {

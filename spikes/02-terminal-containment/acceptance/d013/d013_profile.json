@@ -41,7 +41,7 @@
     "evidence_files": [
       "d013-results.json", "d013-stdout.txt", "d013-stderr.txt",
       "d013-exit-code.txt", "launcher-whoami.txt", "launcher-privs.txt",
-      "bitvise-after.txt"
+      "bitvise-after.txt", "port22-after.txt", "residue-after.txt"
     ]
   },
   "gates": {

@@ -6,9 +6,10 @@
  *   - Job Object (KILL_ON_JOB_CLOSE + process/active limits) with a
  *     fail-closed host probe (C02: host already in a Job -> refuse, Win7
  *     cannot nest Jobs).
- *   - Restricted Token (all privileges deleted, sensitive groups deny-only,
- *     Low Integrity mandatory label) actually applied to the child via
- *     CreateProcessWithTokenW (C03).
+ *   - Restricted Token (maximum privileges disabled while preserving normal
+ *     directory traversal, Administrators deny-only, Low Integrity mandatory
+ *     label) actually applied to the child via
+ *     CreateProcessAsUserW with a restricted primary token (C03).
  *   - ACL handling: Low-Integrity mandatory label on allowed directories so
  *     the low-integrity child can write inside the workspace; explicit deny
  *     ACEs on protectedDirectories with automatic rollback (C04).
@@ -72,8 +73,19 @@ constexpr SIZE_T kJobProcessMemoryLimit = 512ULL * 1024 * 1024;
 #define HELPER_ERR_JSON_PARSE 8
 #define HELPER_ERR_HOST_IN_JOB 9
 #define HELPER_ERR_INTERNAL 10
+#define HELPER_ERR_ACL_POLICY 11
+#define HELPER_ERR_ACL_ROLLBACK 12
 
 // ─── Structures ──────────────────────────────────────────────────────────────
+
+// ACL-change policy (C04 hardening): Low-Integrity labels and deny ACEs may
+// only be applied inside perRunRoot, which must itself live under
+// acceptanceRoot. `valid` is true only when both roots were provided.
+struct AclPolicy {
+    std::wstring acceptanceRoot;
+    std::wstring perRunRoot;
+    bool valid = false;
+};
 
 // Decoded request configuration (strings owned by the struct).
 struct ProcessConfig {
@@ -86,7 +98,7 @@ struct ProcessConfig {
     bool allowNetwork = false;  // recorded only; never claimed as isolation
     std::vector<std::wstring> allowedDirectories;    // workspace (low label)
     std::vector<std::wstring> protectedDirectories;  // deny ACE + rollback (C04)
-    std::vector<std::wstring> extraExecutables;      // argv allow-list extras
+    AclPolicy aclPolicy;                              // ACL-change authorization
 };
 
 // Per-directory ACL change record returned to the caller (C04 audit).
@@ -111,6 +123,9 @@ struct ProcessResult {
     std::vector<unsigned char> stdoutBytes;
     std::vector<unsigned char> stderrBytes;
     std::vector<AclChangeRecord> aclChanges;
+    // Structured detail for fatal setup/rollback errors. Normal execution
+    // responses remain unchanged; fatal protocol errors include this message.
+    std::string errorMessage;
 };
 
 // ─── Win32 orchestration (implemented in helper.cpp) ─────────────────────────
@@ -121,12 +136,41 @@ struct ProcessResult {
 // a positive answer means fail-closed (C02/P11). Returns true on probe failure.
 bool HostIsInJob();
 
+// Canonicalize `executable` to the resolved absolute path (GetFullPathNameW +
+// GetFinalPathNameByHandleW, reparse-safe). Returns false with *error on
+// rejection: bare name, UNC, device, drive-relative, trailing-dot/space path,
+// unopenable file, or a reparse escape to a non-absolute path.
+bool ResolveExecutablePath(const std::wstring& executable, std::wstring* canonical,
+                           std::wstring* error);
+
+// GetNamedSecurityInfoW returns ACL pointers into an owning security-descriptor
+// buffer. Keep both together; freeing the PACL directly is invalid.
+struct SecurityDescriptorSnapshot {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PACL acl = nullptr;  // non-owning view into `descriptor`; may be nullptr
+};
+
+// Capture the current LABEL_SECURITY_INFORMATION so it can be restored later.
+// On success `restore` owns the returned security descriptor. A null `acl`
+// means the original object had no explicit label and restore must clear it.
+bool CaptureLowIntegrityLabel(const std::wstring& directory,
+                              SecurityDescriptorSnapshot* restore,
+                              std::wstring* error);
+
+// Restore a previously captured label ACL. The snapshot remains owned by the
+// caller and must be released after this call. Returns false on failure.
+bool RestoreLowIntegrityLabel(const std::wstring& directory,
+                              const SecurityDescriptorSnapshot& restore,
+                              std::wstring* error);
+
 // Create a configured Job Object (KILL_ON_JOB_CLOSE + limits). Returns NULL on
 // failure.
 HANDLE CreateConfiguredJobObject();
 
-// Build the restricted token (privileges deleted, sensitive groups deny-only,
-// Low Integrity). Returns NULL on failure.
+// Build the restricted primary token (maximum privileges disabled while
+// retaining SeChangeNotifyPrivilege, Administrators deny-only, Low Integrity).
+// Everyone/World remains enabled so baseline OS read/execute grants remain
+// usable by the Windows loader. Returns NULL on failure.
 HANDLE CreateRestrictedProcessToken();
 
 // Apply the Low-Integrity mandatory label to `directory` so a low-integrity
@@ -134,13 +178,15 @@ HANDLE CreateRestrictedProcessToken();
 bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error);
 
 // Add a deny ACE for `userSid` to `directory` (write/create/delete rights),
-// returning the previous DACL in *restoreAcl for rollback. Returns false on
-// failure.
-bool ApplyDenyAce(const std::wstring& directory, PSID userSid, PACL* restoreAcl,
-                  std::wstring* error);
+// returning the previous DACL and its owning security descriptor in `restore`
+// for rollback. Returns false on failure.
+bool ApplyDenyAce(const std::wstring& directory, PSID userSid,
+                  SecurityDescriptorSnapshot* restore, std::wstring* error);
 
-// Restore a previously captured DACL (rollback). Returns false on failure.
-bool RestoreDirectoryDacl(const std::wstring& directory, PACL restoreAcl,
+// Restore a previously captured DACL (rollback). The snapshot remains owned by
+// the caller and must be released after this call. Returns false on failure.
+bool RestoreDirectoryDacl(const std::wstring& directory,
+                          const SecurityDescriptorSnapshot& restore,
                           std::wstring* error);
 
 #endif  // _WIN32
@@ -156,6 +202,12 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result);
 // protocol violations.
 bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
                      std::string* error);
+
+// Validate that every ACL target in `config` stays inside perRunRoot and that
+// perRunRoot stays inside acceptanceRoot (boundary-safe, case-insensitive).
+// Pure path logic so the policy is unit-testable off-Windows. Returns true
+// when no ACL change is requested (nothing to authorize).
+bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error);
 
 // Render the execution result as a JSON response line (UTF-8, binary-safe via
 // base64 for stdout/stderr).

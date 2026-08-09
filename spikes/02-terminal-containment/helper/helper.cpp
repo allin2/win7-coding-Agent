@@ -11,15 +11,21 @@
  *   C01  Job Object            KILL_ON_JOB_CLOSE + active-process + per-process
  *                              memory limits; whole-tree reclamation on timeout
  *                              via TerminateJobObject (never taskkill, N06).
- *   C03  Restricted Token      all privileges deleted, Everyone + Administrators
- *                              deny-only, Low Integrity mandatory label; the
+ *   C03  Restricted Token      maximum privileges disabled while preserving
+ *                              SeChangeNotifyPrivilege, Administrators deny-only,
+ *                              Low Integrity mandatory label; the
  *                              token is actually applied to the child through
- *                              CreateProcessWithTokenW.
+ *                              CreateProcessAsUserW.
  *   C04  ACL                   Low-Integrity label on allowedDirectories so the
  *                              low-integrity child can write inside the
  *                              workspace; explicit deny ACEs on
  *                              protectedDirectories with automatic rollback.
- *   C06/C09 Structured argv    allow-list + proper command-line quoting.
+ *                              A4-3: ACL changes are authorized by aclPolicy
+ *                              (only inside the per-run root, which must be
+ *                              under the acceptance root) and the original
+ *                              integrity label is captured and restored.
+ *   C06/C09 Structured argv    allow-list (canonical absolute System32 path
+ *                              only) + proper command-line quoting.
  *   C07  Timeout/output cap    TerminateJobObject on timeout; per-stream byte
  *                              caps with truncation marker, pipes continuously
  *                              drained (P02 — no deadlock).
@@ -35,10 +41,12 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #ifdef _WIN32
+
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
@@ -49,6 +57,14 @@ namespace spike02 {
 namespace {
 
 #ifdef _WIN32
+
+#ifndef DELETE_CHILD  // winnt.h on MSVC; guard for cross-compilers
+#define DELETE_CHILD 0x00000080
+#endif
+
+constexpr DWORD kProtectedWriteDenyMask =
+    FILE_ADD_FILE | FILE_ADD_SUBDIRECTORY | FILE_WRITE_DATA | FILE_APPEND_DATA |
+    FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | DELETE | DELETE_CHILD;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -111,25 +127,198 @@ PSID GetTokenUserSid(HANDLE token) {
     return sid;
 }
 
-// Verify a low-integrity mandatory label is present on a directory.
+void ReleaseSecurityDescriptorSnapshot(SecurityDescriptorSnapshot* snapshot) {
+    if (!snapshot) return;
+    if (snapshot->descriptor) LocalFree(snapshot->descriptor);
+    snapshot->descriptor = nullptr;
+    snapshot->acl = nullptr;
+}
+
+bool AclsEqual(PACL left, PACL right) {
+    if (!left || !right) return left == right;
+    ACL_SIZE_INFORMATION leftInfo = {};
+    ACL_SIZE_INFORMATION rightInfo = {};
+    if (!GetAclInformation(left, &leftInfo, sizeof(leftInfo), AclSizeInformation) ||
+        !GetAclInformation(right, &rightInfo, sizeof(rightInfo), AclSizeInformation)) {
+        return false;
+    }
+    if (leftInfo.AceCount != rightInfo.AceCount) return false;
+    for (DWORD i = 0; i < leftInfo.AceCount; ++i) {
+        ACE_HEADER* leftAce = nullptr;
+        ACE_HEADER* rightAce = nullptr;
+        if (!GetAce(left, i, reinterpret_cast<void**>(&leftAce)) ||
+            !GetAce(right, i, reinterpret_cast<void**>(&rightAce)) ||
+            leftAce->AceSize != rightAce->AceSize ||
+            std::memcmp(leftAce, rightAce, leftAce->AceSize) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool CurrentDaclMatches(const std::wstring& directory, PACL expected,
+                        std::wstring* error) {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PACL current = nullptr;
+    const DWORD result = GetNamedSecurityInfoW(
+        const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION, nullptr, nullptr, &current, nullptr, &descriptor);
+    if (result != ERROR_SUCCESS || !descriptor) {
+        if (error) *error = L"GetNamedSecurityInfoW(DACL verify) failed: " + WinErrorText(result);
+        if (descriptor) LocalFree(descriptor);
+        return false;
+    }
+    const bool equal = AclsEqual(current, expected);
+    if (!equal && error) *error = L"restored DACL does not match the captured DACL";
+    LocalFree(descriptor);
+    return equal;
+}
+
+bool CurrentLabelAclMatches(const std::wstring& directory, PACL expected,
+                            std::wstring* error) {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PACL current = nullptr;
+    const DWORD result = GetNamedSecurityInfoW(
+        const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+        LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, &current, &descriptor);
+    if (result != ERROR_SUCCESS || !descriptor) {
+        if (error) *error = L"GetNamedSecurityInfoW(label verify) failed: " + WinErrorText(result);
+        if (descriptor) LocalFree(descriptor);
+        return false;
+    }
+    const bool equal = AclsEqual(current, expected);
+    if (!equal && error) *error = L"restored mandatory-label ACL does not match the captured ACL";
+    LocalFree(descriptor);
+    return equal;
+}
+
+// Resolve `dir` to its final path via a real handle (reparse points followed,
+// \\?\ prefix stripped). Fails closed when the object does not exist or cannot
+// be opened — a target we cannot resolve must not be trusted.
+bool ResolveDirPath(const std::wstring& dir, std::wstring* resolved, std::wstring* error) {
+    wchar_t full[MAX_PATH * 2] = {};
+    const DWORD fullLen = GetFullPathNameW(dir.c_str(),
+                                           static_cast<DWORD>(MAX_PATH * 2), full, nullptr);
+    if (fullLen == 0 || fullLen >= MAX_PATH * 2) {
+        if (error) *error = L"GetFullPathNameW failed for: " + dir;
+        return false;
+    }
+    HANDLE hDir = CreateFileW(std::wstring(full, fullLen).c_str(), 0,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (hDir == INVALID_HANDLE_VALUE) {
+        if (error) *error = L"directory not openable: " + dir;
+        return false;
+    }
+    wchar_t finalBuf[MAX_PATH * 2] = {};
+    const DWORD finalLen = GetFinalPathNameByHandleW(
+        hDir, finalBuf, static_cast<DWORD>(MAX_PATH * 2), FILE_NAME_NORMALIZED);
+    CloseHandle(hDir);
+    if (finalLen == 0 || finalLen >= MAX_PATH * 2) {
+        if (error) *error = L"GetFinalPathNameByHandleW failed for: " + dir;
+        return false;
+    }
+    std::wstring finalPath(finalBuf, finalLen);
+    if (finalPath.rfind(L"\\\\?\\", 0) == 0) finalPath = finalPath.substr(4);
+    *resolved = finalPath;
+    return true;
+}
+
+bool ResolveExecutablePathInternal(const std::wstring& executable, std::wstring* canonical,
+                                   std::wstring* error) {
+    // First gate: only drive-letter absolute request paths are accepted.
+    if (ClassifyPathShape(executable) != PathShape::Absolute) {
+        if (error) *error = L"executable must be an absolute drive path (bare names, "
+                            L"UNC, device, drive-relative and trailing-dot/space paths are rejected)";
+        return false;
+    }
+    wchar_t full[MAX_PATH * 2] = {};
+    const DWORD fullLen = GetFullPathNameW(executable.c_str(),
+                                           static_cast<DWORD>(MAX_PATH * 2), full, nullptr);
+    if (fullLen == 0 || fullLen >= MAX_PATH * 2) {
+        if (error) *error = L"GetFullPathNameW failed for executable: " + executable;
+        return false;
+    }
+    const std::wstring resolved(full, fullLen);
+    // Resolve the final path through a real handle: a junction/symlink pointing
+    // outside System32 resolves to its real target, so the allow-list on the
+    // final path catches the escape (the file must exist and be openable).
+    HANDLE hFile = CreateFileW(
+        resolved.c_str(), 0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        if (error) *error = L"CreateFileW failed (executable not openable): " + executable;
+        return false;
+    }
+    wchar_t finalBuf[MAX_PATH * 2] = {};
+    const DWORD finalLen = GetFinalPathNameByHandleW(
+        hFile, finalBuf, static_cast<DWORD>(MAX_PATH * 2), FILE_NAME_NORMALIZED);
+    CloseHandle(hFile);
+    if (finalLen == 0 || finalLen >= MAX_PATH * 2) {
+        if (error) *error = L"GetFinalPathNameByHandleW failed for executable: " + executable;
+        return false;
+    }
+    std::wstring finalPath(finalBuf, finalLen);
+    if (finalPath.rfind(L"\\\\?\\", 0) == 0) finalPath = finalPath.substr(4);
+    // Second gate: the final path must still be a local absolute path — a
+    // reparse escape to a UNC/relative/device path is rejected here.
+    if (ClassifyPathShape(finalPath) != PathShape::Absolute) {
+        if (error) *error = L"resolved path is not an absolute drive path (reparse escape?)";
+        return false;
+    }
+    *canonical = finalPath;
+    return true;
+}
+
+// Verify the exact low-integrity mandatory label installed by
+// ApplyLowIntegrityLabel: Low SID, NO_WRITE_UP, and inheritable to children.
 bool VerifyLowIntegrityLabel(const std::wstring& directory) {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
     PACL pLabelAcl = nullptr;
     const DWORD result = GetNamedSecurityInfoW(
         const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-        LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, &pLabelAcl, nullptr);
-    if (result != ERROR_SUCCESS || !pLabelAcl) return false;
-    const bool present = pLabelAcl->AceCount >= 1;
-    if (pLabelAcl) LocalFree(pLabelAcl);
+        LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, &pLabelAcl, &descriptor);
+    if (result != ERROR_SUCCESS || !descriptor || !pLabelAcl) {
+        if (descriptor) LocalFree(descriptor);
+        return false;
+    }
+    PSID lowSid = nullptr;
+    if (!ConvertStringSidToSidW(L"S-1-16-4096", &lowSid)) {
+        LocalFree(descriptor);
+        return false;
+    }
+    bool present = false;
+    const BYTE requiredFlags = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
+    for (DWORD i = 0; i < pLabelAcl->AceCount && !present; ++i) {
+        ACE_HEADER* header = nullptr;
+        if (!GetAce(pLabelAcl, i, reinterpret_cast<void**>(&header)) ||
+            header->AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE) {
+            continue;
+        }
+        SYSTEM_MANDATORY_LABEL_ACE* ace =
+            reinterpret_cast<SYSTEM_MANDATORY_LABEL_ACE*>(header);
+        PSID aceSid = reinterpret_cast<PSID>(&ace->SidStart);
+        present = EqualSid(aceSid, lowSid) &&
+                  ace->Mask == SYSTEM_MANDATORY_LABEL_NO_WRITE_UP &&
+                  (header->AceFlags & requiredFlags) == requiredFlags;
+    }
+    LocalFree(lowSid);
+    LocalFree(descriptor);
     return present;
 }
 
 // Verify a deny ACE for `userSid` is present in the directory DACL.
 bool VerifyDenyAce(const std::wstring& directory, PSID userSid) {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
     PACL pDacl = nullptr;
     const DWORD result = GetNamedSecurityInfoW(
         const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-        DACL_SECURITY_INFORMATION, nullptr, nullptr, &pDacl, nullptr, nullptr);
-    if (result != ERROR_SUCCESS || !pDacl) return false;
+        DACL_SECURITY_INFORMATION, nullptr, nullptr, &pDacl, nullptr, &descriptor);
+    if (result != ERROR_SUCCESS || !descriptor || !pDacl) {
+        if (descriptor) LocalFree(descriptor);
+        return false;
+    }
     bool found = false;
     for (DWORD i = 0; i < pDacl->AceCount && !found; ++i) {
         ACE_HEADER* header = nullptr;
@@ -137,9 +326,14 @@ bool VerifyDenyAce(const std::wstring& directory, PSID userSid) {
         if (header->AceType != ACCESS_DENIED_ACE_TYPE) continue;
         ACCESS_DENIED_ACE* ace = reinterpret_cast<ACCESS_DENIED_ACE*>(header);
         PSID aceSid = reinterpret_cast<PSID>(&ace->SidStart);
-        if (EqualSid(aceSid, userSid)) found = true;
+        const BYTE requiredFlags = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
+        if (EqualSid(aceSid, userSid) &&
+            (ace->Mask & kProtectedWriteDenyMask) == kProtectedWriteDenyMask &&
+            (header->AceFlags & requiredFlags) == requiredFlags) {
+            found = true;
+        }
     }
-    if (pDacl) LocalFree(pDacl);
+    LocalFree(descriptor);
     return found;
 }
 
@@ -192,6 +386,11 @@ void DrainUntilEof(HANDLE hPipe, std::vector<unsigned char>* buffer,
 
 #ifdef _WIN32
 
+bool ResolveExecutablePath(const std::wstring& executable, std::wstring* canonical,
+                           std::wstring* error) {
+    return ResolveExecutablePathInternal(executable, canonical, error);
+}
+
 bool HostIsInJob() {
     BOOL inJob = FALSE;
     // Fail closed when the probe itself fails.
@@ -223,57 +422,40 @@ HANDLE CreateRestrictedProcessToken() {
     HANDLE hSource = nullptr;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hSource)) return nullptr;
 
-    // 1. Enumerate every privilege and schedule it for deletion.
-    std::vector<LUID_AND_ATTRIBUTES> privilegesToDelete;
-    {
-        DWORD size = 0;
-        GetTokenInformation(hSource, TokenPrivileges, nullptr, 0, &size);
-        if (size == 0) { CloseHandle(hSource); return nullptr; }
-        std::vector<unsigned char> buffer(size);
-        if (!GetTokenInformation(hSource, TokenPrivileges, buffer.data(), size, &size)) {
-            CloseHandle(hSource);
-            return nullptr;
-        }
-        TOKEN_PRIVILEGES* tokenPrivs = reinterpret_cast<TOKEN_PRIVILEGES*>(buffer.data());
-        for (DWORD i = 0; i < tokenPrivs->PrivilegeCount; ++i) {
-            LUID_AND_ATTRIBUTES entry = {};
-            entry.Luid = tokenPrivs->Privileges[i].Luid;
-            privilegesToDelete.push_back(entry);
-        }
-    }
-
-    // 2. Disable Everyone (World) and Administrators as deny-only.
+    // 1. Disable Administrators as deny-only. Do not disable Everyone/World:
+    // core OS objects may grant baseline read/execute access only through
+    // Everyone, so making it deny-only can let CreateProcessAsUserW create the
+    // process but make the Windows loader terminate it with
+    // STATUS_ACCESS_DENIED (0xC0000022) before user code runs. The remaining
+    // containment layers are DISABLE_MAX_PRIVILEGE, Low Integrity, the Job,
+    // and the explicit protected-directory deny ACE.
     std::vector<SID_AND_ATTRIBUTES> sidsToDisable;
-    PSID worldSid = nullptr;
     PSID adminsSid = nullptr;
-    {
-        SID_IDENTIFIER_AUTHORITY worldAuth = SECURITY_WORLD_SID_AUTHORITY;
-        if (AllocateAndInitializeSid(&worldAuth, 1, SECURITY_WORLD_RID, 0, 0, 0, 0, 0, 0, 0,
-                                     &worldSid)) {
-            sidsToDisable.push_back({worldSid, SE_GROUP_USE_FOR_DENY_ONLY});
-        }
-        SID_IDENTIFIER_AUTHORITY ntAuth = SECURITY_NT_AUTHORITY;
-        if (AllocateAndInitializeSid(&ntAuth, 2, SECURITY_BUILTIN_DOMAIN_RID,
-                                     DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &adminsSid)) {
-            sidsToDisable.push_back({adminsSid, SE_GROUP_USE_FOR_DENY_ONLY});
-        }
+    SID_IDENTIFIER_AUTHORITY ntAuth = SECURITY_NT_AUTHORITY;
+    if (!AllocateAndInitializeSid(&ntAuth, 2, SECURITY_BUILTIN_DOMAIN_RID,
+                                  DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &adminsSid)) {
+        CloseHandle(hSource);
+        return nullptr;
     }
+    sidsToDisable.push_back({adminsSid, 0});
 
-    // 3. Create the restricted token with all privileges deleted.
+    // 2. DISABLE_MAX_PRIVILEGE disables every privilege except
+    // SeChangeNotifyPrivilege. Windows deliberately preserves that privilege
+    // so normal directory traversal continues to work; manually deleting it
+    // can make an otherwise valid working directory unusable.
     HANDLE hRestricted = nullptr;
     const BOOL created = CreateRestrictedToken(
-        hSource, 0,
+        hSource, DISABLE_MAX_PRIVILEGE,
         static_cast<DWORD>(sidsToDisable.size()),
         sidsToDisable.empty() ? nullptr : sidsToDisable.data(),
-        static_cast<DWORD>(privilegesToDelete.size()),
-        privilegesToDelete.empty() ? nullptr : privilegesToDelete.data(),
+        0, nullptr,
         0, nullptr, &hRestricted);
 
     for (SID_AND_ATTRIBUTES& sid : sidsToDisable) FreeSid(sid.Sid);
     CloseHandle(hSource);
     if (!created || !hRestricted) return nullptr;
 
-    // 4. Drop to Low Integrity (mandatory label S-1-16-4096).
+    // 3. Drop to Low Integrity (mandatory label S-1-16-4096).
     PSID lowSid = nullptr;
     if (!ConvertStringSidToSidW(L"S-1-16-4096", &lowSid)) {
         CloseHandle(hRestricted);
@@ -311,9 +493,12 @@ bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error) 
             ACE_HEADER* header = reinterpret_cast<ACE_HEADER*>(
                 reinterpret_cast<unsigned char*>(pLabelAcl) + sizeof(ACL));
             header->AceFlags = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
+            // Mandatory labels are stored in the SACL. SetNamedSecurityInfoW's
+            // final ACL arguments are pDacl followed by pSacl, so pDacl must
+            // stay null and the label ACL must be passed as pSacl.
             const DWORD result = SetNamedSecurityInfoW(
                 const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-                LABEL_SECURITY_INFORMATION, nullptr, nullptr, pLabelAcl, nullptr);
+                LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, pLabelAcl);
             if (result == ERROR_SUCCESS) {
                 ok = true;
             } else if (error) {
@@ -330,26 +515,26 @@ bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error) 
     return ok;
 }
 
-bool ApplyDenyAce(const std::wstring& directory, PSID userSid, PACL* restoreAcl,
-                  std::wstring* error) {
-    *restoreAcl = nullptr;
+bool ApplyDenyAce(const std::wstring& directory, PSID userSid,
+                  SecurityDescriptorSnapshot* restore, std::wstring* error) {
+    if (!restore) {
+        if (error) *error = L"DACL restore snapshot output is null";
+        return false;
+    }
+    *restore = {};
+    PSECURITY_DESCRIPTOR oldDescriptor = nullptr;
     PACL pOldDacl = nullptr;
     DWORD result = GetNamedSecurityInfoW(
         const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-        DACL_SECURITY_INFORMATION, nullptr, nullptr, &pOldDacl, nullptr, nullptr);
-    if (result != ERROR_SUCCESS) {
+        DACL_SECURITY_INFORMATION, nullptr, nullptr, &pOldDacl, nullptr, &oldDescriptor);
+    if (result != ERROR_SUCCESS || !oldDescriptor || !pOldDacl) {
         if (error) *error = L"GetNamedSecurityInfoW(DACL) failed: " + WinErrorText(result);
+        if (oldDescriptor) LocalFree(oldDescriptor);
         return false;
     }
 
     EXPLICIT_ACCESSW explicitAccess = {};
-    explicitAccess.grfAccessPermissions =
-        FILE_ADD_FILE | FILE_ADD_SUBDIRECTORY | FILE_WRITE_DATA | FILE_APPEND_DATA |
-        FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | DELETE
-#ifndef DELETE_CHILD  // winnt.h on MSVC; guard for cross-compilers
-#define DELETE_CHILD 0x00000080
-#endif
-        | DELETE_CHILD;
+    explicitAccess.grfAccessPermissions = kProtectedWriteDenyMask;
     explicitAccess.grfAccessMode = DENY_ACCESS;
     explicitAccess.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
     explicitAccess.Trustee.TrusteeForm = TRUSTEE_IS_SID;
@@ -359,7 +544,7 @@ bool ApplyDenyAce(const std::wstring& directory, PSID userSid, PACL* restoreAcl,
     result = SetEntriesInAclW(1, &explicitAccess, pOldDacl, &pNewDacl);
     if (result != ERROR_SUCCESS) {
         if (error) *error = L"SetEntriesInAclW failed: " + WinErrorText(result);
-        LocalFree(pOldDacl);
+        if (oldDescriptor) LocalFree(oldDescriptor);
         return false;
     }
 
@@ -369,22 +554,63 @@ bool ApplyDenyAce(const std::wstring& directory, PSID userSid, PACL* restoreAcl,
     LocalFree(pNewDacl);
     if (result != ERROR_SUCCESS) {
         if (error) *error = L"SetNamedSecurityInfoW(DACL) failed: " + WinErrorText(result);
-        LocalFree(pOldDacl);
+        if (oldDescriptor) LocalFree(oldDescriptor);
         return false;
     }
-    *restoreAcl = pOldDacl;
+    restore->descriptor = oldDescriptor;
+    restore->acl = pOldDacl;
     return true;
 }
 
-bool RestoreDirectoryDacl(const std::wstring& directory, PACL restoreAcl,
+bool RestoreDirectoryDacl(const std::wstring& directory,
+                          const SecurityDescriptorSnapshot& restore,
                           std::wstring* error) {
     const DWORD result = SetNamedSecurityInfoW(
         const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-        DACL_SECURITY_INFORMATION, nullptr, nullptr, restoreAcl, nullptr);
-    if (result != ERROR_SUCCESS && error) {
-        *error = L"SetNamedSecurityInfoW(restore) failed: " + WinErrorText(result);
+        DACL_SECURITY_INFORMATION, nullptr, nullptr, restore.acl, nullptr);
+    if (result != ERROR_SUCCESS) {
+        if (error) *error = L"SetNamedSecurityInfoW(restore) failed: " + WinErrorText(result);
+        return false;
     }
-    return result == ERROR_SUCCESS;
+    return CurrentDaclMatches(directory, restore.acl, error);
+}
+
+bool CaptureLowIntegrityLabel(const std::wstring& directory,
+                              SecurityDescriptorSnapshot* restore,
+                              std::wstring* error) {
+    if (!restore) {
+        if (error) *error = L"label restore snapshot output is null";
+        return false;
+    }
+    *restore = {};
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PACL pLabelAcl = nullptr;
+    const DWORD result = GetNamedSecurityInfoW(
+        const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+        LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, &pLabelAcl, &descriptor);
+    if (result != ERROR_SUCCESS) {
+        if (error) *error = L"GetNamedSecurityInfoW(LABEL) failed: " + WinErrorText(result);
+        if (descriptor) LocalFree(descriptor);
+        return false;
+    }
+    // Keep the descriptor even when pLabelAcl is null: restoring a null ACL
+    // clears the label and returns the directory to its pre-run state.
+    restore->descriptor = descriptor;
+    restore->acl = pLabelAcl;
+    return true;
+}
+
+bool RestoreLowIntegrityLabel(const std::wstring& directory,
+                              const SecurityDescriptorSnapshot& restore,
+                              std::wstring* error) {
+    const DWORD result = SetNamedSecurityInfoW(
+        const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+        LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, restore.acl);
+    if (result != ERROR_SUCCESS) {
+        if (error) *error = L"SetNamedSecurityInfoW(label restore) failed: " + WinErrorText(result);
+        return false;
+    }
+    return CurrentLabelAclMatches(directory, restore.acl, error);
 }
 
 int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) {
@@ -399,26 +625,80 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         CloseHandle(hJob);
         return HELPER_ERR_TOKEN_CREATE;
     }
-    HANDLE hImpersonation = nullptr;
-    if (!DuplicateTokenEx(hRestricted, TOKEN_ALL_ACCESS, nullptr, SecurityImpersonation,
-                          TokenImpersonation, &hImpersonation)) {
+    // CreateProcessAsUserW accepts the restricted version of the caller's
+    // primary token without requiring SeAssignPrimaryTokenPrivilege. Keep the
+    // token primary and verify that contract before launch.
+    TOKEN_TYPE restrictedType = TokenImpersonation;
+    DWORD restrictedTypeSize = 0;
+    if (!GetTokenInformation(hRestricted, TokenType, &restrictedType,
+                             sizeof(restrictedType), &restrictedTypeSize) ||
+        restrictedType != TokenPrimary) {
+        result->errorMessage = "restricted token is not a primary token";
         CloseHandle(hRestricted);
         CloseHandle(hJob);
         return HELPER_ERR_TOKEN_CREATE;
     }
 
-    // ─── ACL setup (C03/C04) ─────────────────────────────────────────────
-    std::vector<AclChangeRecord> aclRecords;
-    std::wstring aclError;
-    bool fatalAclFailure = false;
+    auto failAclPolicy = [&]() {
+        CloseHandle(hRestricted);
+        CloseHandle(hJob);
+        return HELPER_ERR_ACL_POLICY;
+    };
 
-    for (const std::wstring& dir : config.allowedDirectories) {
+    // ─── ACL setup (C03/C04) ─────────────────────────────────────────────
+    // Policy first (A4-3): Low-Integrity labels and deny ACEs may only be
+    // applied inside perRunRoot (which must be under acceptanceRoot). Every
+    // target is reparse-resolved before authorization, so a `..` or junction
+    // escape cannot disguise an out-of-root directory.
+    std::vector<std::wstring> allowedDirs;
+    std::vector<std::wstring> protectedDirs;
+    std::wstring aclError;
+    if (!config.allowedDirectories.empty() || !config.protectedDirectories.empty()) {
+        if (!config.aclPolicy.valid) return failAclPolicy();
+        ProcessConfig canonical = config;
+        canonical.allowedDirectories.clear();
+        canonical.protectedDirectories.clear();
+        if (!ResolveDirPath(config.aclPolicy.acceptanceRoot,
+                            &canonical.aclPolicy.acceptanceRoot, &aclError) ||
+            !ResolveDirPath(config.aclPolicy.perRunRoot,
+                            &canonical.aclPolicy.perRunRoot, &aclError)) {
+            return failAclPolicy();
+        }
+        for (const std::wstring& dir : config.allowedDirectories) {
+            std::wstring resolved;
+            if (!ResolveDirPath(dir, &resolved, &aclError)) return failAclPolicy();
+            canonical.allowedDirectories.push_back(resolved);
+        }
+        for (const std::wstring& dir : config.protectedDirectories) {
+            std::wstring resolved;
+            if (!ResolveDirPath(dir, &resolved, &aclError)) return failAclPolicy();
+            canonical.protectedDirectories.push_back(resolved);
+        }
+        if (!ValidateAclPolicy(canonical, &aclError)) return failAclPolicy();
+        allowedDirs = canonical.allowedDirectories;
+        protectedDirs = canonical.protectedDirectories;
+    }
+
+    std::vector<AclChangeRecord> aclRecords;
+    bool fatalAclFailure = false;
+    struct LabelRestore { std::wstring path; SecurityDescriptorSnapshot original; };
+    std::vector<LabelRestore> pendingLabelRestores;
+
+    for (const std::wstring& dir : allowedDirs) {
         AclChangeRecord record;
         record.path = dir;
         record.mechanism = L"low_integrity_label";
+        SecurityDescriptorSnapshot original;
+        if (!CaptureLowIntegrityLabel(dir, &original, &record.error)) {
+            fatalAclFailure = true;  // cannot guarantee rollback -> fail closed
+            aclRecords.push_back(record);
+            continue;  // never mutate a directory we cannot restore
+        }
+        pendingLabelRestores.push_back({dir, original});
         record.applied = ApplyLowIntegrityLabel(dir, &record.error);
         if (record.applied) {
             record.verified = VerifyLowIntegrityLabel(dir);
+            if (!record.verified) fatalAclFailure = true;
         } else {
             fatalAclFailure = true;  // workspace write would fail -> fail closed
         }
@@ -426,37 +706,68 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     }
 
     PSID userSid = GetTokenUserSid(hRestricted);
-    std::vector<std::pair<std::wstring, PACL>> pendingRestores;
-    for (const std::wstring& dir : config.protectedDirectories) {
+    struct DaclRestore { std::wstring path; SecurityDescriptorSnapshot original; };
+    std::vector<DaclRestore> pendingRestores;
+    for (const std::wstring& dir : protectedDirs) {
         AclChangeRecord record;
         record.path = dir;
         record.mechanism = L"deny_ace";
-        PACL restoreAcl = nullptr;
-        if (userSid && ApplyDenyAce(dir, userSid, &restoreAcl, &record.error)) {
+        SecurityDescriptorSnapshot restore;
+        if (userSid && ApplyDenyAce(dir, userSid, &restore, &record.error)) {
             record.applied = true;
             record.verified = VerifyDenyAce(dir, userSid);
-            pendingRestores.emplace_back(dir, restoreAcl);
+            pendingRestores.push_back({dir, restore});
+            if (!record.verified) fatalAclFailure = true;
         } else {
-            record.applied = false;  // defense-in-depth only; low integrity still blocks
+            record.applied = false;
+            fatalAclFailure = true;  // protected-directory policy must be effective
         }
         aclRecords.push_back(record);
     }
 
-    auto rollbackDenyAces = [&]() {
+    auto rollbackAllAcl = [&](std::wstring* rollbackError) {
+        bool rollbackOk = true;
         for (auto& entry : pendingRestores) {
-            RestoreDirectoryDacl(entry.first, entry.second, nullptr);
-            LocalFree(entry.second);
+            std::wstring localError;
+            const bool restored = RestoreDirectoryDacl(entry.path, entry.original, &localError);
+            if (!restored && rollbackError && rollbackError->empty()) {
+                *rollbackError = L"DACL " + entry.path + L": " + localError;
+            }
+            rollbackOk = restored && rollbackOk;
+            ReleaseSecurityDescriptorSnapshot(&entry.original);
         }
         pendingRestores.clear();
+        for (auto& entry : pendingLabelRestores) {
+            std::wstring localError;
+            const bool restored = RestoreLowIntegrityLabel(entry.path, entry.original, &localError);
+            if (!restored && rollbackError && rollbackError->empty()) {
+                *rollbackError = L"label " + entry.path + L": " + localError;
+            }
+            rollbackOk = restored && rollbackOk;
+            ReleaseSecurityDescriptorSnapshot(&entry.original);
+        }
+        pendingLabelRestores.clear();
+        return rollbackOk;
+    };
+
+    auto failAfterRollback = [&](int primaryError) {
+        std::wstring rollbackError;
+        if (!rollbackAllAcl(&rollbackError)) {
+            result->errorMessage = "ACL rollback failed";
+            if (!rollbackError.empty()) {
+                result->errorMessage += ": " + WideToUtf8(rollbackError);
+            }
+            return HELPER_ERR_ACL_ROLLBACK;
+        }
+        return primaryError;
     };
 
     if (fatalAclFailure) {
-        rollbackDenyAces();
+        const int failure = failAfterRollback(HELPER_ERR_ACL_SET);
         if (userSid) LocalFree(userSid);
-        CloseHandle(hImpersonation);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
-        return HELPER_ERR_ACL_SET;
+        return failure;
     }
 
     // ─── Pipes + input detachment (P02/C19) ───────────────────────────────
@@ -467,18 +778,32 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     sa.nLength = sizeof(sa);
     sa.bInheritHandle = TRUE;
 
-    if (!CreatePipe(&hOutRead, &hOutWrite, &sa, 0) ||
-        !CreatePipe(&hErrRead, &hErrWrite, &sa, 0)) {
-        rollbackDenyAces();
+    if (!CreatePipe(&hOutRead, &hOutWrite, &sa, 0)) {
+        const int failure = failAfterRollback(HELPER_ERR_PROCESS_CREATE);
         if (userSid) LocalFree(userSid);
-        CloseHandle(hImpersonation);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
-        return HELPER_ERR_PROCESS_CREATE;
+        return failure;
+    }
+    if (!CreatePipe(&hErrRead, &hErrWrite, &sa, 0)) {
+        CloseHandle(hOutRead); CloseHandle(hOutWrite);
+        const int failure = failAfterRollback(HELPER_ERR_PROCESS_CREATE);
+        if (userSid) LocalFree(userSid);
+        CloseHandle(hRestricted);
+        CloseHandle(hJob);
+        return failure;
     }
     // The read ends must never be inherited by the child.
-    SetHandleInformation(hOutRead, HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(hErrRead, HANDLE_FLAG_INHERIT, 0);
+    if (!SetHandleInformation(hOutRead, HANDLE_FLAG_INHERIT, 0) ||
+        !SetHandleInformation(hErrRead, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(hOutRead); CloseHandle(hOutWrite);
+        CloseHandle(hErrRead); CloseHandle(hErrWrite);
+        const int failure = failAfterRollback(HELPER_ERR_PROCESS_CREATE);
+        if (userSid) LocalFree(userSid);
+        CloseHandle(hRestricted);
+        CloseHandle(hJob);
+        return failure;
+    }
 
     hNullIn = CreateFileW(L"\\\\.\\NUL", GENERIC_READ | GENERIC_WRITE,
                           FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING,
@@ -486,12 +811,11 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     if (hNullIn == INVALID_HANDLE_VALUE) {
         CloseHandle(hOutRead); CloseHandle(hOutWrite);
         CloseHandle(hErrRead); CloseHandle(hErrWrite);
-        rollbackDenyAces();
+        const int failure = failAfterRollback(HELPER_ERR_PROCESS_CREATE);
         if (userSid) LocalFree(userSid);
-        CloseHandle(hImpersonation);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
-        return HELPER_ERR_PROCESS_CREATE;
+        return failure;
     }
 
     STARTUPINFOW si = {};
@@ -508,8 +832,14 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     std::wstring mutableCommandLine = commandLine;
     const wchar_t* cwd = config.workingDirectory.empty() ? nullptr : config.workingDirectory.c_str();
 
-    BOOL created = CreateProcessWithTokenW(
-        hImpersonation, 0, config.executable.c_str(), &mutableCommandLine[0],
+    // Microsoft documents CreateProcessAsUserW as the launch path for a
+    // restricted primary token. bInheritHandles must stay TRUE because the
+    // child's stdio handles are the explicitly inheritable pipe/NUL handles
+    // installed in STARTUPINFO. The process remains suspended until it is
+    // assigned to and verified inside the Job Object below.
+    BOOL created = CreateProcessAsUserW(
+        hRestricted, config.executable.c_str(), &mutableCommandLine[0],
+        nullptr, nullptr, TRUE,
         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, nullptr, cwd, &si, &pi);
 
     if (!created) {
@@ -517,15 +847,15 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         CloseHandle(hNullIn);
         CloseHandle(hOutRead); CloseHandle(hOutWrite);
         CloseHandle(hErrRead); CloseHandle(hErrWrite);
-        rollbackDenyAces();
+        const int failure = failAfterRollback(HELPER_ERR_PROCESS_CREATE);
+        if (failure != HELPER_ERR_ACL_ROLLBACK) {
+            result->errorMessage = "CreateProcessAsUserW failed: Win32 error " +
+                                   std::to_string(static_cast<unsigned long>(lastError));
+        }
         if (userSid) LocalFree(userSid);
-        CloseHandle(hImpersonation);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
-        // Surface the Win32 error through result->aclChanges? Keep the error
-        // code; the protocol layer reports PROCESS_CREATE_FAILED.
-        (void)lastError;
-        return HELPER_ERR_PROCESS_CREATE;
+        return failure;
     }
 
     // ─── Assign to Job and verify (C01/C02-verification) ─────────────────
@@ -536,12 +866,11 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         CloseHandle(hNullIn);
         CloseHandle(hOutRead); CloseHandle(hOutWrite);
         CloseHandle(hErrRead); CloseHandle(hErrWrite);
-        rollbackDenyAces();
+        const int failure = failAfterRollback(HELPER_ERR_JOB_CREATE);
         if (userSid) LocalFree(userSid);
-        CloseHandle(hImpersonation);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
-        return HELPER_ERR_JOB_CREATE;
+        return failure;
     }
     BOOL inJob = FALSE;
     result->containmentVerified =
@@ -553,12 +882,11 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         CloseHandle(hNullIn);
         CloseHandle(hOutRead); CloseHandle(hOutWrite);
         CloseHandle(hErrRead); CloseHandle(hErrWrite);
-        rollbackDenyAces();
+        const int failure = failAfterRollback(HELPER_ERR_JOB_CREATE);
         if (userSid) LocalFree(userSid);
-        CloseHandle(hImpersonation);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
-        return HELPER_ERR_JOB_CREATE;
+        return failure;
     }
 
     ResumeThread(pi.hThread);
@@ -617,29 +945,57 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     GetExitCodeProcess(pi.hProcess, &result->exitCode);
     result->inputDetached = true;
 
-    // ─── Cleanup: restore ACLs (C04 rollback), close job last (C01) ───────
+    // ─── Cleanup: restore ACLs + labels (C04/A4-3 rollback), close last ───
+    bool rollbackSucceeded = true;
+    std::wstring firstRollbackError;
     for (auto& entry : pendingRestores) {
         for (AclChangeRecord& record : aclRecords) {
-            if (record.mechanism == L"deny_ace" && record.path == entry.first) {
-                record.rolledBack = RestoreDirectoryDacl(entry.first, entry.second, &record.error);
+            if (record.mechanism == L"deny_ace" && record.path == entry.path) {
+                record.rolledBack = RestoreDirectoryDacl(entry.path, entry.original, &record.error);
+                if (!record.rolledBack) {
+                    rollbackSucceeded = false;
+                    if (firstRollbackError.empty()) firstRollbackError = record.error;
+                }
                 break;
             }
         }
-        LocalFree(entry.second);
+        ReleaseSecurityDescriptorSnapshot(&entry.original);
     }
     pendingRestores.clear();
+    for (auto& entry : pendingLabelRestores) {
+        for (AclChangeRecord& record : aclRecords) {
+            if (record.mechanism == L"low_integrity_label" && record.path == entry.path) {
+                std::wstring labelError;
+                record.rolledBack = RestoreLowIntegrityLabel(entry.path, entry.original, &labelError);
+                if (!record.rolledBack && record.error.empty()) record.error = labelError;
+                if (!record.rolledBack) {
+                    rollbackSucceeded = false;
+                    if (firstRollbackError.empty()) firstRollbackError = labelError;
+                }
+                break;
+            }
+        }
+        ReleaseSecurityDescriptorSnapshot(&entry.original);
+    }
+    pendingLabelRestores.clear();
 
     CloseHandle(pi.hProcess);
     CloseHandle(hNullIn);
     CloseHandle(hOutRead);
     CloseHandle(hErrRead);
-    CloseHandle(hImpersonation);
     CloseHandle(hRestricted);
     if (userSid) LocalFree(userSid);
     result->aclChanges = std::move(aclRecords);
 
     // KILL_ON_JOB_CLOSE: any straggler dies here (whole-tree reclamation).
     CloseHandle(hJob);
+    if (!rollbackSucceeded) {
+        result->errorMessage = "ACL rollback failed";
+        if (!firstRollbackError.empty()) {
+            result->errorMessage += ": " + WideToUtf8(firstRollbackError);
+        }
+        return HELPER_ERR_ACL_ROLLBACK;
+    }
     return HELPER_OK;
 }
 
@@ -696,13 +1052,29 @@ int RunHelperLoop() {
         }
         requestId = WideToUtf8(config.requestId);
 
-        // C06: argv allow-list.
+        // C06: argv allow-list. The executable is canonicalized to its final
+        // path first; the allow-list and CreateProcessAsUserW both use that
+        // same canonical path, so the binary actually launched is the one that
+        // passed the allow-list (no bare-name or reparse-escape bypass).
         WhitelistConfig whitelist;
-        wchar_t windirBuf[MAX_PATH] = {};
-        const UINT windirLen = GetWindowsDirectoryW(windirBuf, MAX_PATH);
-        whitelist.windowsDirectory = windirLen ? std::wstring(windirBuf, windirLen)
-                                               : std::wstring(L"C:\\Windows");
-        whitelist.extraExecutables = config.extraExecutables;
+        wchar_t sys32Buf[MAX_PATH] = {};
+        const UINT sys32Len = GetSystemDirectoryW(sys32Buf, MAX_PATH);
+        whitelist.system32Directory = sys32Len ? std::wstring(sys32Buf, sys32Len)
+                                               : std::wstring(L"C:\\Windows\\System32");
+
+        std::wstring canonical;
+        std::wstring pathError;
+        if (!ResolveExecutablePath(config.executable, &canonical, &pathError)) {
+            const std::string out = RenderErrorJson(
+                requestId, "EXECUTABLE_PATH_REJECTED",
+                "executable path rejected: " + WideToUtf8(pathError));
+            std::fwrite(out.data(), 1, out.size(), stdout);
+            std::fputc('\n', stdout);
+            std::fflush(stdout);
+            continue;
+        }
+        config.executable = canonical;
+
         const WhitelistDecision decision =
             CheckWhitelist(config.executable, config.argv, whitelist);
         if (decision != WhitelistDecision::Allow) {
@@ -724,8 +1096,10 @@ int RunHelperLoop() {
             else if (errorCode == HELPER_ERR_JOB_CREATE) code = "JOB_CREATE_FAILED";
             else if (errorCode == HELPER_ERR_TOKEN_CREATE) code = "TOKEN_CREATE_FAILED";
             else if (errorCode == HELPER_ERR_ACL_SET) code = "ACL_SET_FAILED";
+            else if (errorCode == HELPER_ERR_ACL_POLICY) code = "ACL_POLICY_REJECTED";
+            else if (errorCode == HELPER_ERR_ACL_ROLLBACK) code = "ACL_ROLLBACK_FAILED";
             else if (errorCode == HELPER_ERR_PROCESS_CREATE) code = "PROCESS_CREATE_FAILED";
-            const std::string out = RenderErrorJson(requestId, code, "");
+            const std::string out = RenderErrorJson(requestId, code, result.errorMessage);
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
@@ -756,9 +1130,12 @@ int wmain(int argc, wchar_t* argv[]) {
 
     // The helper's own stdio must never be inherited by children: the child
     // would otherwise reach the JSON channel (C19 structural input detachment).
-    SetHandleInformation(GetStdHandle(STD_INPUT_HANDLE), HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(GetStdHandle(STD_OUTPUT_HANDLE), HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(GetStdHandle(STD_ERROR_HANDLE), HANDLE_FLAG_INHERIT, 0);
+    if (!SetHandleInformation(GetStdHandle(STD_INPUT_HANDLE), HANDLE_FLAG_INHERIT, 0) ||
+        !SetHandleInformation(GetStdHandle(STD_OUTPUT_HANDLE), HANDLE_FLAG_INHERIT, 0) ||
+        !SetHandleInformation(GetStdHandle(STD_ERROR_HANDLE), HANDLE_FLAG_INHERIT, 0)) {
+        std::fprintf(stderr, "spike02-helper: failed to make protocol handles non-inheritable\n");
+        return HELPER_ERR_PROCESS_CREATE;
+    }
 
     if (argc >= 2) {
         const std::wstring flag = argv[1];
@@ -772,7 +1149,9 @@ int wmain(int argc, wchar_t* argv[]) {
                 "restricted environment (Job Object + Restricted Token + Low Integrity +\n"
                 "ACL), and write one JSON response per line to stdout.\n"
                 "Request keys: executable, argv, workingDirectory, timeoutMs, maxOutputSize,\n"
-                "allowNetwork, allowedDirectories, protectedDirectories, allowExecutables.\n");
+                "allowNetwork, allowedDirectories, protectedDirectories, aclPolicy.\n"
+                "executable must be a canonical absolute System32 path; ACL changes require\n"
+                "aclPolicy (acceptanceRoot + perRunRoot) and stay inside perRunRoot.\n");
             return 0;
         }
     }

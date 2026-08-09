@@ -59,9 +59,14 @@ else
 fi
 
 # ── C03: Restricted Token actually applied to the child ──────────────────────
-for token in CreateRestrictedToken SetTokenInformation TokenIntegrityLevel CreateProcessWithTokenW DuplicateTokenEx; do
+for token in CreateRestrictedToken DISABLE_MAX_PRIVILEGE SetTokenInformation TokenIntegrityLevel CreateProcessAsUserW; do
     if grep -q "${token}" "${HELPER_CPP}"; then pass "C03: ${token} present"; else fail "C03: ${token} missing"; fi
 done
+if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" || grep -q 'SECURITY_WORLD_RID\|SECURITY_WORLD_SID_AUTHORITY' "${HELPER_CPP}"; then
+    fail "C03: obsolete impersonation/Everyone deny-only path must stay absent"
+else
+    pass "C03: obsolete impersonation/Everyone deny-only path absent"
+fi
 if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
 
 # ── C04: ACL boundary with rollback ──────────────────────────────────────────

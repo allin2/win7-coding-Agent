@@ -7,8 +7,9 @@
  *   2. the harness end-to-end flow against the mock helper (request shape,
  *      C06/C07 classification, evidence JSON schema),
  *   3. the orchestrator dry-run (no SSH/SCP, NOT_PERFORMED stages),
- *   4. the execute-mode gate (REM-D01 fails closed with CANDIDATE_MISSING
- *      before any SSH could run — the Win10 build has not returned yet),
+ *   4. the execute-mode gate (REM-D01 fails closed — WIN7_LEASE_NOT_GRANTED
+ *      without a lease; the PENDING_WIN10_BUILD sentinel and any locked-hash
+ *      mismatch are also rejected before any SSH could run),
  *   5. profile validation rejections.
  */
 'use strict';
@@ -59,7 +60,8 @@ try {
   check('policy refuses out-of-root target', deny.status === 1 && /"allowed": false/.test(deny.stdout));
 
   // ── 2. Harness end-to-end against the mock helper ─────────────────────────
-  const harnessRoot = path.join(tempRoot, 'harness-root');
+  const acceptanceRoot = path.join(tempRoot, 'acceptance-root');
+  const harnessRoot = path.join(acceptanceRoot, 'harness-root');
   const fixtures = path.join(tempRoot, 'fixtures.json');
   const requestLog = path.join(tempRoot, 'requests.json');
   const resultsOut = path.join(tempRoot, 'results.json');
@@ -75,12 +77,13 @@ try {
   }));
 
   fs.chmodSync(MOCK, 0o755);
-  const harnessRun = run(PY, [HARNESS, '--acceptance-id', 'A4-20260807-000001', '--helper', MOCK, '--root', harnessRoot, '--out', resultsOut], {
+  const harnessRun = run(PY, [HARNESS, '--acceptance-id', 'A4-20260807-000001', '--helper', MOCK,
+    '--root', harnessRoot, '--acceptance-root', acceptanceRoot, '--out', resultsOut], {
     env: { ...process.env, D013_MOCK_FIXTURES: fixtures, D013_MOCK_LOG: requestLog },
     timeout: 60000,
   });
   check('harness completes with mock helper', harnessRun.status === 1, harnessRun.stderr);
-  check('harness writes evidence JSON', fs.existsSync(resultsOut));
+  check('harness writes evidence JSON', fs.existsSync(resultsOut), harnessRun.stderr);
 
   const results = JSON.parse(fs.readFileSync(resultsOut, 'utf8'));
   check('evidence schema', results.schema_version === 1 && Array.isArray(results.cases) && results.taskkill_used === false);
@@ -121,18 +124,41 @@ try {
   check('dry-run stages are NOT_PERFORMED', dryReport.stages.every((s) => s.status === 'NOT_PERFORMED'));
   check('dry-run safety: win7 not connected', dryReport.safety.win7_connected === false);
 
-  // ── 4. Execute-mode gate: no Win10 candidate -> fail closed before SSH ────
+  // ── 4. Execute-mode gate: lease + locked hash -> fail closed before SSH ────
+  const profile = JSON.parse(fs.readFileSync(PROFILE, 'utf8'));
   const execOut = path.join(tempRoot, 'exec.json');
   const execRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000003', '--out', execOut], { timeout: 60000 });
-  check('execute-mode exits non-zero without candidate', execRun.status === 1, execRun.stderr);
+  check('execute-mode exits non-zero without lease', execRun.status === 1, execRun.stderr);
   const execReport = JSON.parse(fs.readFileSync(execOut, 'utf8'));
   const first = execReport.stages[0];
-  check('REM-D01 fails closed with CANDIDATE_MISSING',
-    first.id === 'REM-D01' && first.status === 'FAIL' && first.failure?.code === 'CANDIDATE_MISSING');
+  check('REM-D01 fails closed with WIN7_LEASE_NOT_GRANTED',
+    first.id === 'REM-D01' && first.status === 'FAIL' && first.failure?.code === 'WIN7_LEASE_NOT_GRANTED');
   check('no SSH attempted when gated', execReport.safety.win7_connected === false && execReport.command_count === 0);
 
+  // A granted lease alone is not enough: the locked hash must be a real
+  // 64-hex SHA-256. The PENDING_WIN10_BUILD sentinel is not evidence and must
+  // never satisfy the execute gate.
+  const sentinel = { ...profile, candidate: { ...profile.candidate, sha256: 'PENDING_WIN10_BUILD' }, gates: { ...profile.gates, 'GATE-WIN7-LEASE': 'GRANTED' } };
+  fs.writeFileSync(path.join(tempRoot, 'granted-sentinel.json'), JSON.stringify(sentinel));
+  const sentinelOut = path.join(tempRoot, 'sentinel.json');
+  const sentinelRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000005', '--profile', path.join(tempRoot, 'granted-sentinel.json'), '--out', sentinelOut], { timeout: 60000 });
+  const sentinelReport = JSON.parse(fs.readFileSync(sentinelOut, 'utf8'));
+  check('sentinel hash rejected even when lease granted', sentinelRun.status === 1
+    && sentinelReport.stages[0]?.failure?.code === 'CANDIDATE_HASH_NOT_LOCKED');
+  check('no SSH attempted on sentinel hash', sentinelReport.safety.win7_connected === false && sentinelReport.command_count === 0);
+
+  // A granted lease with a 64-hex hash that does not match the candidate is
+  // also fail-closed: no binary may run under a foreign locked hash.
+  const mismatch = { ...profile, candidate: { path: 'spikes/02-terminal-containment/acceptance/d013/run_d013_win7.py', sha256: '0'.repeat(64) }, gates: { ...profile.gates, 'GATE-WIN7-LEASE': 'GRANTED' } };
+  fs.writeFileSync(path.join(tempRoot, 'mismatch.json'), JSON.stringify(mismatch));
+  const mismatchOut = path.join(tempRoot, 'mismatch-report.json');
+  const mismatchRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000006', '--profile', path.join(tempRoot, 'mismatch.json'), '--out', mismatchOut], { timeout: 60000 });
+  const mismatchReport = JSON.parse(fs.readFileSync(mismatchOut, 'utf8'));
+  check('hash mismatch fails closed', mismatchRun.status === 1
+    && mismatchReport.stages[0]?.failure?.code === 'CANDIDATE_HASH_MISMATCH');
+  check('no SSH attempted on hash mismatch', mismatchReport.safety.win7_connected === false && mismatchReport.command_count === 0);
+
   // ── 5. Profile validation rejections ──────────────────────────────────────
-  const profile = JSON.parse(fs.readFileSync(PROFILE, 'utf8'));
   const badTarget = { ...profile, target: { ...profile.target, address: '10.0.0.1' } };
   fs.writeFileSync(path.join(tempRoot, 'bad-target.json'), JSON.stringify(badTarget));
   const badTargetRun = run(NODE, [ORCHESTRATOR, '--dry-run', '--acceptance-id', 'A4-20260807-000004', '--profile', path.join(tempRoot, 'bad-target.json')]);

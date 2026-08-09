@@ -28,7 +28,8 @@ helper on directories the harness created inside the per-run root, and are
 rolled back by the helper; the harness verifies the rollback.
 
 Run (on Win7):  python run_d013_win7.py --acceptance-id A4-YYYYMMDD-xxx \
-    --helper <path>\spike02_helper.exe --root <root> --out results.json
+    --helper <path>\spike02_helper.exe --root <root> --acceptance-root <acceptance_root> \
+    --out results.json
 Policy check (any host): python run_d013_win7.py --check-policy <root> <target>
 """
 import argparse
@@ -287,36 +288,53 @@ def case(case_id, status, expected, actual, **extra):
     return result
 
 
+def acl_rollback_record(response, mechanism):
+    """Return the matching ACL audit record, or None when it is absent."""
+    for record in (response or {}).get("aclChanges", []):
+        if record.get("mechanism") == mechanism:
+            return record
+    return None
+
+
 def run_cases(record, files, args, cmd):
     cases = record["cases"]
     system32 = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "System32")
+    # ACL changes are only authorized inside the per-run root, which must itself
+    # live under the acceptance root (helper enforces the same boundary — the
+    # harness value here is passed through and re-resolved by the helper).
+    acl_policy = {"acceptanceRoot": args.acceptance_root, "perRunRoot": args.root}
 
     # ── C01: Job Object whole-tree kill ──────────────────────────────────────
     c01 = helper_request(args.helper, {
         "requestId": "c01-tree-kill", "executable": cmd,
         "argv": ["/d", "/s", "/c", files["c01_script"]],
         "workingDirectory": files["c01_root"], "timeoutMs": 8000, "maxOutputSize": 4096,
-        "allowedDirectories": [files["c01_root"]]})
+        "allowedDirectories": [files["c01_root"]], "aclPolicy": acl_policy})
     time.sleep(2)
     residual = tasklist_filter("ping.exe")
     response = c01.get("response") or {}
+    label_record = acl_rollback_record(response, "low_integrity_label")
     c01_pass = (response.get("status") == "completed"
                 and response.get("containmentVerified") is True
                 and response.get("inputDetached") is True
+                and label_record is not None
+                and label_record.get("applied") is True
+                and label_record.get("verified") is True
+                and label_record.get("rolledBack") is True
                 and not residual.get("error")
                 and "ping.exe" not in (residual.get("stdout") or "").lower())
     cases.append(case(
         "C01-job-tree-kill",
         "PASS" if c01_pass else "FAIL",
-        "detached ping inside the Job is killed; zero residual; containment and input detachment reported",
-        c01, residual_tasklist=residual["stdout"]))
+        "detached ping inside the Job is killed; zero residual; containment/input detachment and label rollback reported",
+        c01, residual_tasklist=residual["stdout"], label_rollback=label_record))
 
     # ── C03: Restricted Token boundary (fixed semantics) ─────────────────────
     c03 = helper_request(args.helper, {
         "requestId": "c03-restricted-boundary", "executable": cmd,
         "argv": ["/d", "/s", "/c", files["c03_script"]],
         "workingDirectory": files["c03_root"], "timeoutMs": 10000, "maxOutputSize": 8192,
-        "allowedDirectories": [files["c03_root"]]})
+        "allowedDirectories": [files["c03_root"]], "aclPolicy": acl_policy})
     inside = os.path.exists(os.path.join(files["c03_root"], "inside-probe.txt"))
     outside = os.path.exists(os.path.join(files["outside_root"], "outside-probe.txt"))
     registry_text = ""
@@ -339,9 +357,14 @@ def run_cases(record, files, args, cmd):
                        or "error" in registry_text.lower())
     low_integrity = "S-1-16-4096" in groups_text
     privileges_deleted = "SeDebugPrivilege" not in privs_text
+    c03_label = acl_rollback_record(c03.get("response") or {}, "low_integrity_label")
     c03_pass = (c03.get("response", {}).get("status") == "completed"
                 and inside and not outside and registry_denied
-                and low_integrity and privileges_deleted)
+                and low_integrity and privileges_deleted
+                and c03_label is not None
+                and c03_label.get("applied") is True
+                and c03_label.get("verified") is True
+                and c03_label.get("rolledBack") is True)
     cases.append(case(
         "C03-restricted-token-boundary", "PASS" if c03_pass else "FAIL",
         "inside workspace write succeeds; outside write and protected registry read fail; "
@@ -349,7 +372,8 @@ def run_cases(record, files, args, cmd):
         c03, probes={"inside_created": inside, "outside_created": outside,
                      "protected_registry_denied": registry_denied,
                      "child_low_integrity": low_integrity,
-                     "child_privileges_deleted": privileges_deleted},
+                     "child_privileges_deleted": privileges_deleted,
+                     "label_rollback": c03_label},
         token_evidence={"groups": groups_text, "privileges": privs_text}))
 
     # ── C04: ACL boundary with authorization, verification and rollback ──────
@@ -360,7 +384,7 @@ def run_cases(record, files, args, cmd):
         "argv": ["/d", "/s", "/c", files["c04_script"]],
         "workingDirectory": files["c04_root"], "timeoutMs": 10000, "maxOutputSize": 8192,
         "allowedDirectories": [files["c04_root"]],
-        "protectedDirectories": [files["outside_root"]]})
+        "protectedDirectories": [files["outside_root"]], "aclPolicy": acl_policy})
     after = icacls_dacl(files["outside_root"])
     protected_probe = os.path.exists(os.path.join(files["outside_root"],
                                                   "c04-protected-probe.txt"))
@@ -388,7 +412,7 @@ def run_cases(record, files, args, cmd):
         "requestId": "c05-loopback", "executable": cmd,
         "argv": ["/d", "/s", "/c", files["c05_script"]],
         "workingDirectory": files["c05_root"], "timeoutMs": 15000, "maxOutputSize": 8192,
-        "allowedDirectories": [files["c05_root"]]})
+        "allowedDirectories": [files["c05_root"]], "aclPolicy": acl_policy})
     network_result = None
     if os.path.exists(files["c05_result"]):
         with open(files["c05_result"], "r", encoding="utf-8") as stream:
@@ -397,11 +421,17 @@ def run_cases(record, files, args, cmd):
                      and network_result
                      and all(network_result.get(key) is True
                              for key in ("tcp", "udp", "dns_localhost")))
+    c05_label = acl_rollback_record(c05.get("response") or {}, "low_integrity_label")
+    loopback_pass = (loopback_pass
+                     and c05_label is not None
+                     and c05_label.get("applied") is True
+                     and c05_label.get("verified") is True
+                     and c05_label.get("rolledBack") is True)
     cases.append(case(
         "C05-loopback-network", "PASS" if loopback_pass else "FAIL",
         "restricted child reaches local TCP/UDP fixtures and resolves localhost; "
         "measurement recorded, NOT an isolation assertion",
-        c05, measurement=network_result,
+        c05, measurement=network_result, label_rollback=c05_label,
         formal_classification=FORMAL_C05,
         note="Job/Token/ACL cannot block Winsock; formal no-network/enterprise "
              "conclusion requires approved endpoints and audit (GATE-NET)"))
@@ -484,6 +514,7 @@ def main():
     parser.add_argument("--acceptance-id")
     parser.add_argument("--helper")
     parser.add_argument("--root")
+    parser.add_argument("--acceptance-root", default=r"C:\Win7CodingAgent\acceptance")
     parser.add_argument("--out")
     parser.add_argument("--check-policy", nargs=2, metavar=("ROOT", "TARGET"))
     args = parser.parse_args()
@@ -498,7 +529,19 @@ def main():
         parser.error("--acceptance-id/--helper/--root/--out are required outside --check-policy")
 
     root = os.path.abspath(args.root)
+    # On the native (Win7) host the acceptance root is a real absolute path:
+    # resolve it, create it if missing, and refuse a per-run root that escapes
+    # the boundary (the helper re-enforces the same check, fail-closed). On a
+    # dev host a Windows-style value like the default is not absolute, so pass
+    # it through untouched — the helper resolves the real path on Win7.
+    if os.path.isabs(args.acceptance_root):
+        acceptance_root = os.path.abspath(args.acceptance_root)
+        if not (root == acceptance_root or root.startswith(acceptance_root + os.sep)):
+            parser.error("--root must be inside --acceptance-root (ACL authorization boundary)")
+        os.makedirs(acceptance_root, exist_ok=True)
+        args.acceptance_root = acceptance_root
     os.makedirs(root, exist_ok=True)
+    args.root = root
     system32 = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "System32")
     cmd = os.path.join(system32, "cmd.exe")
     record = {
