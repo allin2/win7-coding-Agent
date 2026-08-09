@@ -14,7 +14,7 @@ Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Blocking-Reason: A4 non-interactive Win7 evidence is recorded, but formal SPIKE_02 remains NO_GO_FORMAL_GAPS (6/19 direct PASS; C03 FAIL; C04/C05 and terminal/build-chain gates remain open)
+Blocking-Reason: D-013 v15 Win10 PASS; D-013 Win7 NOT_PERFORMED pending ADR-0065 signed lease; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (6/19 direct PASS; terminal gates remain open)
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -113,10 +113,10 @@ Blocking-Reason: A4 non-interactive Win7 evidence is recorded, but formal SPIKE_
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Win10-Native-Build: PASS_WITH_PACKAGING_GAP
+Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15 PASS
 Evidence: A4-20260805-123467, A4-20260806-140606, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip
 Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
-Blocking-Reason: C03 FAIL; C04 MANUAL_GATE; C05 ENVIRONMENT_MISSING; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED; D-013 source-to-binary closure OPEN
+Blocking-Reason: historical C03 FAIL/C04 MANUAL_GATE/C05 ENVIRONMENT_MISSING; D-013 v15 Win7 NOT_PERFORMED pending signed lease; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
@@ -139,3 +139,14 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
 `build-result.json` 仍覆盖全部运行时输出。当前仓库的 winpty 集成与正式测试 harness 仍含骨架/TODO，
 所以 T01～T05/N01～N05 不能直接进入 Win7 执行；D-013 helper 也不在本次构建范围。完整 SPIKE_02
 继续为 `NO_GO_FORMAL_GAPS`，但阻塞原因不再笼统记作 Win10 构建主机缺失。
+
+2026-08-09/10 已完成 D-013 v15 返回包复核与预执行同步：返回 ZIP SHA-256 为
+`1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f`，锁定 helper 为
+`5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b`，input-lock 为
+`166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386`。开发机逻辑测试、
+D-013 harness 与 containment 静态检查 30/30 均为 `PASS`；Win10 v15 为 `PASS`；Win7 仍为
+`NOT_PERFORMED`，本轮锁定目标为 `192.168.1.11 / dccs-chaizl / Windows 7 build 7601`。
+ADR-0065 协调器要求固定 Ed25519 公钥验证、Git 外唯一租约 ledger 与两小时
+签名租约，Worker 只能产生 `CANDIDATE_EVIDENCE`。收到人工授权前不签名、不将租约置为
+`GRANTED`、不运行 SSH/SCP。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产
+Runner 或交互终端 Gate。

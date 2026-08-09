@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "record_id": "WIN10-NATIVE-BUILDS-20260807-01",
-  "recorded_at": "2026-08-07T08:56:50+08:00",
-  "scope": "Review of two independent Windows 10 native build return packages; this is build-host evidence, not Windows 7 target acceptance.",
+  "record_id": "WIN10-NATIVE-BUILDS-20260810-01",
+  "recorded_at": "2026-08-10T01:02:53+08:00",
+  "scope": "Review of three Windows 10 native build return packages, including D-013 v15; this is build-host evidence, not Windows 7 target acceptance.",
   "shared_build_host": {
     "operating_system": "Windows 10 Pro 10.0.19045 x64",
     "visual_studio": "2019 16.11.37507.1",
@@ -13,9 +13,47 @@
     "electron_node": "16.17.1",
     "electron_module_abi": 110,
     "network_required": false,
-    "status": "DEMONSTRATED_BY_TWO_BUILDS"
+    "status": "DEMONSTRATED_BY_THREE_BUILDS"
   },
   "results": [
+    {
+      "track": "A4",
+      "dependency_id": "D-013",
+      "component": "SPIKE_02 native containment helper v15",
+      "archive": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
+      "archive_sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
+      "declared_build_result": "PASS",
+      "review_status": "PASS",
+      "build_prerequisite": "CLEARED",
+      "readiness": "AWAITING_SIGNED_WIN7_LEASE",
+      "checks": {
+        "developer_logic_tests": "PASS",
+        "containment_static_checks": "PASS_30_OF_30",
+        "d013_harness": "PASS",
+        "zip_integrity": "PASS",
+        "input_lock_match": "PASS",
+        "build_profile_match": "PASS",
+        "windows_10_smoke": "PASS",
+        "pe_api_crt_analysis": "PASS",
+        "pe_x64": "PASS"
+      },
+      "native_artifacts": [
+        {
+          "path": "output/helper.exe",
+          "sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b"
+        }
+      ],
+      "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
+      "coordinator": "ADR-0065_SIGNED_LEASE_REQUIRED",
+      "win7_target": "192.168.1.11 / dccs-chaizl / Windows 7 SP1 x64 build 7601",
+      "worker_maximum_classification": "CANDIDATE_EVIDENCE",
+      "win7_validation": "NOT_PERFORMED",
+      "remaining_cases": ["C01", "C02", "C03", "C04", "C05", "C06", "C07"],
+      "notes": [
+        "The ignored candidate was re-extracted from the reviewed v15 return package and its SHA-256 was rechecked.",
+        "No Win7 lease has been signed or granted; no SSH/SCP execution is authorized by this record."
+      ]
+    },
     {
       "track": "A5",
       "dependency_id": "D-011",
@@ -134,8 +172,8 @@
     }
   ],
   "cross_track_progress": {
-    "D-017_shared_build_profile": "DEMONSTRATED_BY_TWO_BUILDS",
-    "A4_D-013": "SOURCE_TO_BINARY_CLOSURE_OPEN",
+    "D-017_shared_build_profile": "DEMONSTRATED_BY_THREE_BUILDS",
+    "A4_D-013": "WIN10_V15_PASS_AWAITING_SIGNED_WIN7_LEASE",
     "A5_D-011": "NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION",
     "A6_D-014": "READY_FOR_WIN7_VALIDATION",
     "A7": "NO_INDEPENDENT_BUILD_RESULT; PACKAGING_AND_WIN7_RC_NOT_PERFORMED"

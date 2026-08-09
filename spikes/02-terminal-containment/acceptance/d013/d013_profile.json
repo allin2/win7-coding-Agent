@@ -11,7 +11,7 @@
     "spikes/02-terminal-containment/test/**"
   ],
   "target": {
-    "address": "10.67.149.40",
+    "address": "192.168.1.11",
     "user": "dccs-chaizl",
     "os": "Windows 7 SP1 x64 build 7601",
     "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
@@ -56,7 +56,7 @@
   },
   "gates": {
     "GATE-WIN10-BUILD": "PASS",
-    "GATE-WIN7-LEASE": "NOT_GRANTED",
+    "GATE-WIN7-LEASE": "SIGNED_LEASE_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",
     "GATE-PROD": "AUTHORIZATION_BLOCKED"

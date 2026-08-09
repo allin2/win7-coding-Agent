@@ -154,29 +154,30 @@
   可达，但缺少批准的外部/企业端点和网络审计，因此正式 C05 保持 `ENVIRONMENT_MISSING`。
 - 完整 SPIKE_02 仍为 `NO_GO_FORMAL_GAPS`：19 个原子项中直接通过 6 项（C01、C02、C06、
   C07、C08、N06）；C04 需要人工 ACL 授权。A5/D-011 的 Electron 22 ABI 工件已经由 Win10 构建
-  并复核，但终端集成/harness 仍未完成，T01～T05/N01～N05 尚未执行；D-013 helper 的可复现
-  源码→二进制闭包也仍缺失。生产 Runner 不在本轮授权范围。
+  并复核，但终端集成/harness 仍未完成，T01～T05/N01～N05 尚未执行。D-013 v15 的 Win10
+  源码→二进制闭包已复核为 `PASS`，但本轮 Win7 为 `NOT_PERFORMED`，正在等待 ADR-0065 签名租约；
+  生产 Runner 不在本轮授权范围。
 - 机器可读状态见 [`status/a4-execution-beta-latest.json`](status/a4-execution-beta-latest.json)，
   自动化与补充审计见 [A4 报告索引](reports/README.md)。A1～A3 已接受证据及 A4-14/A4-20/A4-21
   历史原始证据均未改写。
 
-## Win10 原生构建前置进展（2026-08-07）
+## Win10 原生构建前置进展（更新至 2026-08-10）
 
-两次独立返回包均已完成结构、哈希、工具链、ABI、PE/API/CRT、smoke 和合规材料复核。共享 D-017
+三条原生构建返回均已完成适用的结构、哈希、工具链、PE/API/CRT、smoke 和合规材料复核。共享 D-017
 Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验证”，不代表对应 A5/A6/A7 已验收完成。
 完整机器可读台账见
 [`status/win10-native-builds-latest.json`](status/win10-native-builds-latest.json)。
 
 | 轨道 / 组件 | Win10 结果 | 已解除的卡点 | 当前仍阻塞 |
 |---|---|---|---|
+| A4 / D-013 helper v15 | `PASS`；返回包 `1b4dc360…4000d4f`，helper `5689b612…10e2b`，input-lock `166c4e5b…86386`；开发机 logic/harness 与 containment 30/30 均 `PASS` | D-013 源码→二进制构建闭包已锁定，不需要 v16 重构建 | Win7 `192.168.1.11 / dccs-chaizl / build 7601` 为 `NOT_PERFORMED`；等待 ADR-0065 唯一签名租约和 C01～C07 实机验收，Worker 最多输出 `CANDIDATE_EVIDENCE` |
 | A5 / D-011 node-pty + winpty | `PASS_WITH_PACKAGING_GAP`；返回包 `c938f115…46ea`，三项原生工件均为 x64，ABI 110 与 smoke 通过 | 不再缺 Electron 22 ABI 的 node-pty/winpty 工件，可开展终端集成和 Win7 验证 | 返回包缺内部总清单；终端集成/harness 仍为骨架/TODO；T01～T05/N01～N05 `NOT_PERFORMED` |
 | A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | 本行只记录 2026-08-07 Win10 构建前置；后续 Win7 正式结果见下文 A6 章节 |
-| A4 / D-013 helper | 两次返回包均未包含 | Win10/VS2019/v142/SDK19041 共享构建 Profile 已实证可用 | helper 源码→二进制可复现闭包仍为 `OPEN`；A4 的 C03/C04/C05 结论不变 |
 | A7 / 发布包装 | 没有独立 Win10 构建结果 | 后续可复用已锁定的 D-011、D-014 文件哈希 | 仍需产品装配、原生模块 ASAR 外置、统一返回/发布 manifest、安装/升级/回滚和 Win7 RC 验证 |
 
-因此，原先因“缺少 Win10 构建”而停滞的两项中，A5/D-011 和 A6/D-014 的**构建前置已经完成**；
-它们的阻塞已转移到仓库集成、验收 harness 与 Win7 实测。A4/D-013 与 A7 发布闭包没有被这两次
-构建自动完成。
+因此 A4/D-013、A5/D-011 和 A6/D-014 的 Win10 构建前置均已完成；阻塞已经转移到受控集成、
+签名租约和 Win7 实测。A4/D-013 的 Win10 `PASS` 不构成 Win7 `PASS`，完整 SPIKE_02 继续为
+`PARTIAL / NO_GO_FORMAL_GAPS`，不得解除生产 Runner 或交互终端 Gate。
 
 ## A6 正式 Win7 本地 SSD 存储验收（2026-08-10）
 
