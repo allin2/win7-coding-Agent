@@ -19,8 +19,10 @@ function validateEvidence(options) {
   const preflight = readJson(options.preflightFile);
   const postflight = readJson(options.postflightFile);
   const runner = readJson(path.join(options.evidenceRoot, 'runner-result.json'));
+  const smoke = readJson(path.join(options.evidenceRoot, 'runtime-smoke.json'));
   if (preflight.status !== 'PASS' || preflight.profile !== PROFILE_ID) fail('preflight did not pass formal SSD profile', 'PREFLIGHT_BLOCKED');
   if (postflight.status !== 'PASS' || !postflight.zero_residue || !postflight.ssh_service) fail('postflight did not pass', 'RECOVERY_REQUIRED');
+  if (smoke.status !== 'PASS' || smoke.electron !== '22.3.27' || Number(smoke.node_abi) !== 110 || smoke.sqlite !== '3.43.1' || smoke.fts5 !== true || smoke.wal !== 'wal' || Number(smoke.package_files_verified) !== manifest.files.length) fail('Win7 runtime/hash smoke did not pass', 'RUNTIME_SMOKE_FAILED');
   if (runner.exit_code !== 0 || runner.run_id !== lease.run_id || runner.invocations.length !== 7 || runner.invocations.some((item) => item.exit_code !== 0)) fail('fixed runner did not complete all invocations', 'EVIDENCE_INCOMPLETE');
 
   const summaries = summariesUnder(path.join(options.evidenceRoot, 'evidence'));
@@ -80,6 +82,16 @@ function validateEvidence(options) {
       s03_files_per_sec: Object.fromEntries(['3k', '10k', '30k'].map((scale) => [scale, observed.get('S03-' + scale).result.metrics.filesPerSec])),
       s05_p95_ms: observed.get('S05').result.metrics.p95Ms,
       s06_after_mb: observed.get('S06').result.metrics.afterSizeMb,
+    },
+    runtime_smoke: {
+      electron: smoke.electron,
+      node: smoke.node,
+      node_abi: smoke.node_abi,
+      better_sqlite3: smoke.better_sqlite3,
+      sqlite: smoke.sqlite,
+      fts5: smoke.fts5,
+      wal: smoke.wal,
+      package_files_verified: smoke.package_files_verified,
     },
     no_go_reasons: noGoReasons,
     preflight_sha256: sha256File(options.preflightFile),

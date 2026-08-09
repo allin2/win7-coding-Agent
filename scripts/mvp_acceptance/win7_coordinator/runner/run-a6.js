@@ -28,12 +28,24 @@ const crypto = require('crypto');
 const manifestSha = crypto.createHash('sha256').update(manifestRaw).digest('hex');
 if (manifestSha !== lease.package_manifest_sha256) fail('manifest/lease SHA-256 mismatch');
 
+// Win7-side half of the bidirectional hash reconciliation. The Mac package
+// builder computed this manifest; the target hashes every delivered file again
+// before loading native code or creating evidence.
+for (const item of manifest.files) {
+  const file = path.resolve(packageRoot, ...item.path.split('/'));
+  if (!file.startsWith(packageRoot + path.sep) || !fs.existsSync(file)) fail('manifest file missing or outside package: ' + item.path);
+  if (fs.statSync(file).size !== item.bytes) fail('manifest size mismatch: ' + item.path);
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  if (digest !== item.sha256) fail('manifest SHA-256 mismatch: ' + item.path);
+}
+
 const electron = path.join(packageRoot, 'runtime', 'electron', 'electron.exe');
 const benchmark = path.join(packageRoot, 'harness', 'benchmark', 'benchmark.js');
 const evidenceRoot = path.join(packageRoot, 'evidence');
 const tempRoot = path.join(packageRoot, 'tmp');
 const logsRoot = path.join(packageRoot, 'logs');
-for (const dir of [evidenceRoot, tempRoot, logsRoot]) fs.mkdirSync(dir, { recursive: true });
+const workRoot = path.join(packageRoot, 'work');
+for (const dir of [evidenceRoot, tempRoot, logsRoot, workRoot]) fs.mkdirSync(dir, { recursive: true });
 
 const common = [
   benchmark,
@@ -65,6 +77,41 @@ const env = Object.assign({}, process.env, {
   TEMP: tempRoot,
   TMP: tempRoot,
 });
+
+// Exact runtime/native/database smoke precedes the performance matrix.
+const smoke = {
+  schema_version: 1,
+  checked_at_utc: new Date().toISOString(),
+  electron: process.versions.electron || null,
+  node: process.versions.node,
+  node_abi: Number(process.versions.modules),
+  better_sqlite3: '8.7.0',
+  sqlite: null,
+  fts5: false,
+  wal: null,
+  package_files_verified: manifest.files.length,
+  status: 'FAIL',
+};
+let smokeDb;
+try {
+  if (smoke.electron !== '22.3.27') fail('Electron version mismatch: ' + smoke.electron);
+  if (smoke.node_abi !== 110) fail('Electron Node ABI mismatch: ' + smoke.node_abi);
+  const Database = require(env.A6_BS3_ROOT);
+  smokeDb = new Database(path.join(workRoot, 'runtime-smoke.db'));
+  smoke.sqlite = smokeDb.prepare('select sqlite_version() as version').get().version;
+  if (smoke.sqlite !== '3.43.1') fail('SQLite version mismatch: ' + smoke.sqlite);
+  const options = smokeDb.pragma('compile_options').map((row) => String(row.compile_options || row));
+  smoke.fts5 = options.some((value) => value === 'ENABLE_FTS5');
+  if (!smoke.fts5) fail('SQLite FTS5 is not enabled');
+  smoke.wal = String(smokeDb.pragma('journal_mode = WAL', { simple: true })).toLowerCase();
+  if (smoke.wal !== 'wal') fail('SQLite WAL mode unavailable: ' + smoke.wal);
+  smokeDb.exec('CREATE VIRTUAL TABLE smoke_fts USING fts5(content); INSERT INTO smoke_fts(content) VALUES (\'中文 FTS5 smoke\');');
+  if (smokeDb.prepare("SELECT COUNT(*) AS c FROM smoke_fts WHERE smoke_fts MATCH 'FTS5'").get().c !== 1) fail('FTS5 smoke query failed');
+  smoke.status = 'PASS';
+} finally {
+  if (smokeDb) smokeDb.close();
+  fs.writeFileSync(path.join(packageRoot, 'runtime-smoke.json'), JSON.stringify(smoke, null, 2) + '\n', 'utf8');
+}
 const runResult = {
   schema_version: 1,
   run_id: lease.run_id,

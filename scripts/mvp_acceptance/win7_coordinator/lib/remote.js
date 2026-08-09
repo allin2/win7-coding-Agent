@@ -138,7 +138,7 @@ function collect(config, options) {
   ensureDir(options.outputRoot);
   const remoteName = 'A6-SSD-' + requirePattern(options.runId, 'run ID', SAFE_ID_RE);
   const remoteBase = target(config) + ':/C:/acceptance/' + remoteName + '/';
-  for (const name of ['evidence', 'logs', 'runner-result.json', 'manifest.json']) {
+  for (const name of ['evidence', 'logs', 'runner-result.json', 'runtime-smoke.json', 'manifest.json']) {
     run(config.scp || 'scp', scpArgs(config).concat(['-r', remoteBase + name, options.outputRoot]), { timeoutMs: 20 * 60 * 1000, code: 'SCP_RETURN_FAILED' });
   }
 }

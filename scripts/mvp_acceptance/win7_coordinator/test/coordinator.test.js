@@ -90,6 +90,7 @@ test('validator alone emits formal WIN7_PASS for complete bound evidence', () =>
     writeJson(path.join(dir, 'run-summary.json'), { schema_version: 2, spike: 'SPIKE_04', media: 'ssd', scale, evidence: commonEvidence, results });
   }
   writeJson(path.join(evidenceRoot, 'runner-result.json'), { exit_code: 0, run_id: signed.lease.run_id, invocations: summaries.map(([id]) => ({ id, exit_code: 0 })) });
+  writeJson(path.join(evidenceRoot, 'runtime-smoke.json'), { status: 'PASS', electron: '22.3.27', node: '16.17.1', node_abi: 110, better_sqlite3: '8.7.0', sqlite: '3.43.1', fts5: true, wal: 'wal', package_files_verified: JSON.parse(fs.readFileSync(pkg.manifestPath)).files.length });
   const preflightFile = path.join(ctx.root, 'preflight.json');
   const postflightFile = path.join(ctx.root, 'postflight.json');
   writeJson(preflightFile, { status: 'PASS', profile: 'E22-SQLITE343-LOCAL-SSD' });
