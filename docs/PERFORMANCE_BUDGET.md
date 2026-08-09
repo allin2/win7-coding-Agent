@@ -22,10 +22,10 @@
 | 2 | Desktop Shell 常驻内存（Renderer + GPU 进程合计） | ≤ 300MB | 任务管理器/`tasklist` 采样，空闲会话 10 分钟均值 | SPIKE_01 | Go ≤ 300MB；No-Go > 450MB | 未实测 |
 | 3 | Agent Core 常驻内存（独立 utilityProcess） | ≤ 180MB | 同上，含 SQLite 缓存 | SPIKE_01 | Go ≤ 180MB；No-Go > 280MB | 未实测 |
 | 4 | Runner/终端宿主内存（每实例） | ≤ 60MB | 运行长输出命令期间峰值 | SPIKE_02 | Go ≤ 60MB；No-Go > 100MB | 未实测 |
-| 5 | 代码索引吞吐（FTS 首次全量） | ≥ 120 文件/s；规模上限 3 万文件 | 标准样本仓库（混合中英文源码）计时；本地 NTFS SSD | SPIKE_04 | Go ≥ 120 文件/s；No-Go < 60 文件/s | 未实测 |
-| 6 | 事件批量写入（EventStore，WAL + 批量事务） | ≥ 300 events/s 持续 | 合成事件流压测 60s，本地 NTFS SSD | SPIKE_04 | Go ≥ 300；No-Go < 150 | 未实测 |
-| 7 | 单事件/索引库体积 | ≤ 512MB，超限滚动清理 | 长会话模拟 + 清理策略验证 | SPIKE_04 | Go：清理后功能完整；No-Go：清理导致恢复/审计断链 | 未实测 |
-| 8 | 代码检索延迟（FTS 查询，3 万文件库） | P95 ≤ 1.2s | 100 次代表性查询取 P95 | SPIKE_04 | Go ≤ 1.2s；No-Go > 2.5s | 未实测 |
+| 5 | 代码索引吞吐（FTS 首次全量） | ≥ 120 文件/s；规模上限 3 万文件 | 标准样本仓库（混合中英文源码）计时；本地 NTFS SSD | SPIKE_04 | Go ≥ 120 文件/s；No-Go < 60 文件/s | 达标：3k 1312.34、10k 1213.89、30k 1089.52 文件/s（[A6 WIN7_PASS](status/a6-storage-latest.json)） |
+| 6 | 事件批量写入（EventStore，WAL + 批量事务） | ≥ 300 events/s 持续 | 合成事件流压测 60s，本地 NTFS SSD | SPIKE_04 | Go ≥ 300；No-Go < 150 | 达标：60s、61650.86 events/s（[A6 WIN7_PASS](status/a6-storage-latest.json)） |
+| 7 | 单事件/索引库体积 | ≤ 512MB，超限滚动清理 | 长会话模拟 + 清理策略验证 | SPIKE_04 | Go：清理后功能完整；No-Go：清理导致恢复/审计断链 | 达标：517.79MB 触发、清理后 199.60MB，完整性通过（[A6 WIN7_PASS](status/a6-storage-latest.json)） |
+| 8 | 代码检索延迟（FTS 查询，3 万文件库） | P95 ≤ 1.2s | 100 次代表性查询取 P95 | SPIKE_04 | Go ≤ 1.2s；No-Go > 2.5s | 达标：100 次 P95 183ms（[A6 WIN7_PASS](status/a6-storage-latest.json)） |
 | 9 | 任务并发上限 | 2（默认；同工作区写操作串行） | 并发 2 任务时预算 #2/#3/#4/#10 复测不超限 | SPIKE_01 + PHASE_06 | Go：并发 2 下全部不超限；No-Go：降为串行 1 | 未实测 |
 | 10 | 应用总内存占用（全部进程合计） | ≤ 55% 物理内存（8GB 机 ≈ 4.4GB，含并发 2 + 索引中） | 最重负载场景采样峰值 | SPIKE_01（初测）+ PHASE_07（终验） | Go ≤ 55%；No-Go > 70% | 未实测 |
 | 11 | 上下文输入水位 / 输出预留 | 输入触发水位 ≤ 模型窗口 75%；输出预留 ≥ 20% | 记录 ContextManifest 的窗口、分区 token 与预留；典型任务 100 Step 采样 | PHASE_06 + SPIKE_04 | Go：无超窗且受保护条目不丢失；No-Go：静默截断或超窗 | 未实测 |

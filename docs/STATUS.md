@@ -170,7 +170,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 | 轨道 / 组件 | Win10 结果 | 已解除的卡点 | 当前仍阻塞 |
 |---|---|---|---|
 | A5 / D-011 node-pty + winpty | `PASS_WITH_PACKAGING_GAP`；返回包 `c938f115…46ea`，三项原生工件均为 x64，ABI 110 与 smoke 通过 | 不再缺 Electron 22 ABI 的 node-pty/winpty 工件，可开展终端集成和 Win7 验证 | 返回包缺内部总清单；终端集成/harness 仍为骨架/TODO；T01～T05/N01～N05 `NOT_PERFORMED` |
-| A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | indexer/benchmark/fixtures/crash-recovery harness 尚缺；S01～S08 `NOT_PERFORMED` |
+| A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | 本行只记录 2026-08-07 Win10 构建前置；后续 Win7 正式结果见下文 A6 章节 |
 | A4 / D-013 helper | 两次返回包均未包含 | Win10/VS2019/v142/SDK19041 共享构建 Profile 已实证可用 | helper 源码→二进制可复现闭包仍为 `OPEN`；A4 的 C03/C04/C05 结论不变 |
 | A7 / 发布包装 | 没有独立 Win10 构建结果 | 后续可复用已锁定的 D-011、D-014 文件哈希 | 仍需产品装配、原生模块 ASAR 外置、统一返回/发布 manifest、安装/升级/回滚和 Win7 RC 验证 |
 
@@ -178,11 +178,28 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 它们的阻塞已转移到仓库集成、验收 harness 与 Win7 实测。A4/D-013 与 A7 发布闭包没有被这两次
 构建自动完成。
 
+## A6 正式 Win7 本地 SSD 存储验收（2026-08-10）
+
+- A6 `20260810-06` 已获协调器正式 `WIN7_PASS`，唯一正式 Profile 为
+  `E22-SQLITE343-LOCAL-SSD`：`dccs-chaizl-PC`、Win7 SP1 x64 build 7601、本地 NTFS Samsung 870 EVO、
+  Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、WAL。签名租约绑定
+  提交 `2a07d6db8d95816e84d7919898d46abfd543a8af` 与包 manifest
+  `11500d96a0e0504339ce547bd3f80d76aacb2bb66f439f97f349d94b9fa7ea86`；Mac/Win7 双向哈希、轮前/轮后、
+  BvSshServer/SSH 22 和零残留均通过。机器可读的唯一正式状态为
+  [`status/a6-storage-latest.json`](status/a6-storage-latest.json)。
+- 性能预算 #5～#8 全部达标：S01 60 秒 61650.86 QPS；S03 为 1312.34（3k）、1213.89（10k）、
+  1089.52（30k）文件/s；S05 100 次查询 P95 183ms；S06 在 517.79MB 触发、清理后 199.60MB，
+  完整性通过。S02、S04、S07、S08、F01～F06、P08/C11-PATH 也均通过。
+- 原始返回证据约 1.2GB，位于本地忽略归档
+  `A6/WIN7_A6_SSD_EVIDENCE_20260810-06/`；正式状态列出每个返回文件的大小和 SHA-256。历史 SSD
+  evidence 与 disposition 保持不变。此结论只覆盖本地 SSD，不推断 HDD、网络盘或未知介质性能，
+  也不表示生产 EventStore 或索引服务已实现。
+
 ## MVP 已接受的延期项
 
 - Electron 可运行入口已经形成 Win7 实证；完整五视图、安装器、跨模块用户任务和卸载/回滚仍是下一阶段产品装配工作。
 - SPIKE_01 T03 按 ADR-0055 接受“父侧无 stdin 句柄、无数据进入”的 MVP 语义；正式合同的子侧 `readable=true` 事实保持不变，后续 Core 仍需显式关闭/隔离。
-- SPIKE_02 的 node-pty/winpty 工件已具备，但仍缺完整终端集成/harness、D-013 helper 构建闭包与 Win7 终端矩阵；SPIKE_04 的 Electron ABI SQLite 绑定已具备，但仍缺 indexer、benchmark、恢复 harness 与 Win7 S01～S08。机械盘门禁按负责人裁决不再阻断 MVP。
+- SPIKE_02 的 node-pty/winpty 工件已具备，但仍缺完整终端集成/harness、D-013 helper 构建闭包与 Win7 终端矩阵；SPIKE_04 的本地 SSD Spike 已正式通过，生产 EventStore/索引服务仍未实现。机械盘门禁已由 ADR-0066 取代为正式 SSD Profile。
 - 在上述原生能力补齐前，真实本地 Runner/终端继续 fail-closed，状态使用有容量上限的内存实现，Gateway 显示为未配置或 Replay；不得静默降级成不受控执行。
 - D-012 官方原 ZIP 含 GCM；本次受控派生包已完成绑定当前 SHA-256 的完整 G10 MVP 矩阵，正式交付仍需 SBOM/许可证闭包；当前远端完整 Git不能替代。
 - Phase 1 的 CPython 3.8.10 与 Win7 capability probe 已补齐；Phase 1/2 仍缺架构 Gate 解除、冻结合同要求的获授权物理断网/干净环境证据，Phase 2 也没有独立 Win7 只读 Agent 入口。
@@ -193,10 +210,11 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 1. 以已通过 Win7 smoke 的 Electron 入口装配会话、流式输出、diff/审批、诊断和 Replay 用户任务；受阻能力继续显式不可用。
 2. 增加自包含离线目录/包、启动脚本、版本 manifest、升级/回滚和卸载残留验证。
-3. 使用已复核的 D-011/D-014 工件补齐终端与存储验收 harness；在已实证的 D-017 Profile 下构建 D-013 helper，并分别恢复 Win7 Runner、终端和持久化 Gate。
+3. 使用已复核的 D-011 工件补齐终端验收 harness；将已通过的 D-014 SSD Spike 作为生产存储设计输入，在单独授权下实现 EventStore/索引服务；在已实证的 D-017 Profile 下构建 D-013 helper，并分别恢复 Win7 Runner、终端和持久化 Gate。
 4. 企业代理/CA/模型/更新服务具备后执行 E7；正式候选阶段再补视觉、重启、物理断网和严格干净环境证据。
 
-机械盘门禁保持负责人默认 `PASS`；D-014 构建 Gate 已解除，但 SPIKE_04 仍为 `NOT_PERFORMED`，也不自动更新未实测的性能预算。
+ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 Gate 与 SPIKE_04 Win7 验收均已通过，
+性能预算 #5～#8 已按正式证据更新。HDD、网络盘与未知介质仍没有性能支持声明。
 
 ## 状态使用规则
 

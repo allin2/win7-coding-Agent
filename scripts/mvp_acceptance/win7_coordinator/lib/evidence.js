@@ -16,6 +16,14 @@ function validateEvidence(options) {
   if (!SHA256_RE.test(lease.package_manifest_sha256)) fail('lease manifest hash invalid', 'LEASE_INVALID');
   const manifest = verifyPackage(options.packageRoot, lease.package_manifest_sha256);
   if (manifest.source_commit !== lease.source_commit || manifest.profile !== PROFILE_ID) fail('manifest binding mismatch', 'PACKAGE_INVALID');
+  const returnedManifestFile = path.join(options.evidenceRoot, 'manifest.json');
+  if (!fs.existsSync(returnedManifestFile) || sha256File(returnedManifestFile) !== lease.package_manifest_sha256) {
+    fail('returned Win7 package manifest hash does not match signed lease', 'PACKAGE_HASH_MISMATCH');
+  }
+  const returnedManifest = readJson(returnedManifestFile);
+  if (returnedManifest.source_commit !== lease.source_commit || returnedManifest.profile !== PROFILE_ID) {
+    fail('returned Win7 package manifest binding mismatch', 'PACKAGE_INVALID');
+  }
   const preflight = readJson(options.preflightFile);
   const postflight = readJson(options.postflightFile);
   const runner = readJson(path.join(options.evidenceRoot, 'runner-result.json'));
@@ -74,6 +82,7 @@ function validateEvidence(options) {
     lease_id: lease.lease_id,
     source_commit: lease.source_commit,
     package_manifest_sha256: lease.package_manifest_sha256,
+    returned_package_manifest_sha256: sha256File(returnedManifestFile),
     profile: PROFILE_ID,
     target: lease.target,
     validated_at_utc: new Date().toISOString(),

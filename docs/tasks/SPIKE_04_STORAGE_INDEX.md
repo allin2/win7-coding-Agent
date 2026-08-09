@@ -12,9 +12,9 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: SPIKE
 Target Branch: spike/04-storage-index
 Phase-Gate: N/A (SPIKE)
-Win7-Compatibility: PROVISIONAL
-Win7-Validation: NOT_PERFORMED
-Blocking-Reason: ADR-0066 approved the local SSD formal Profile; Win7-Validation stays NOT_PERFORMED until a new signed-lease run is validated by the coordinator
+Win7-Compatibility: PASS_FOR_E22_SQLITE343_LOCAL_SSD
+Win7-Validation: WIN7_PASS
+Blocking-Reason: NONE_FOR_SPIKE; this does not authorize production EventStore, index service, HDD support, or network-drive support
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -85,8 +85,8 @@ Blocking-Reason: ADR-0066 approved the local SSD formal Profile; Win7-Validation
 ## 9. 验证记录
 
 ```
-Win7-Compatibility: PROVISIONAL
-Win7-Validation: NOT_PERFORMED
+Win7-Compatibility: PASS_FOR_E22_SQLITE343_LOCAL_SSD
+Win7-Validation: WIN7_PASS
 Win10-Native-Build: PASS
 D-014: READY_FOR_WIN7_VALIDATION
 Build-Kit-Archive: spikes/04-storage-index/build-win10/dist/WIN10_A6_SQLITE_BUILD_KIT_20260807-01.zip
@@ -95,7 +95,9 @@ Return-Archive: A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip
 Return-Archive-SHA256: 2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794
 Native-Artifact-SHA256: 7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc
 Formal-Profile: E22-SQLITE343-LOCAL-SSD
-Blocking-Reason: new signed-lease Win7 SSD standard matrix has not yet been validated by the coordinator
+Formal-Run-ID: 20260810-06
+Formal-Status: WIN7_PASS (docs/status/a6-storage-latest.json)
+Blocking-Reason: NONE_FOR_SPIKE; production integration remains outside this Spike authorization
 ```
 
 2026-08-07 已复核 Win10 返回包：包内 247 项返回清单与实际文件的大小/SHA-256 全部匹配；
@@ -103,7 +105,15 @@ Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、colum
 `THREADSAFE=2`、WAL、中文+空格路径和项目 schema smoke 均为 `PASS`。`better_sqlite3.node`
 为 PE32+ x64，不含禁止的 Win10+ API 或动态 CRT 依赖。因此 D-014 的 Win10 构建前置已解除。
 
-该结果只证明原生绑定已具备进入 Win7 验证的条件。indexer、benchmark、样本生成器、崩溃恢复
-harness 与签名租约候选证据接口现已具备；但在新 run ID 的正式标准矩阵经协调器校验前，
-SPIKE_04 仍为 `NOT_PERFORMED`，不能宣称存储、FTS 或性能 Gate 通过。历史 SSD 证据与 disposition
-保持原样，不追溯升级。
+上述 2026-08-07 表述是当时的构建前置事实。2026-08-10 的新 run ID `20260810-06` 已在
+`dccs-chaizl-PC`（Win7 SP1 x64 build 7601、本地 NTFS Samsung 870 EVO SSD）完成签名租约范围内的
+S01～S08、F01～F06 与 P08/C11-PATH。协调器复核租约、当前提交/manifest、Win7 端 133 文件哈希、
+Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、WAL、全部标准参数、
+轮前/轮后和零残留后，输出 [`WIN7_PASS`](../status/a6-storage-latest.json)。
+
+实测：S01 60 秒 61650.86 QPS；S03 分别为 1312.34（3k）、1213.89（10k）、1089.52（30k）文件/s；
+S05 的 100 次 P95 为 183ms；S06 在 517.79MB 触发清理并回落至 199.60MB，完整性通过。原始返回
+证据（数据库、JSON、日志、smoke、lease、manifest）保存在本地忽略归档
+`A6/WIN7_A6_SSD_EVIDENCE_20260810-06/`；其逐文件 SHA-256 清单由正式状态文件锁定。历史 SSD
+evidence 与 disposition 未追溯改写。此结论仅覆盖 `E22-SQLITE343-LOCAL-SSD`，不外推到 HDD、网络盘
+或未知介质，也不构成生产 EventStore/索引服务实现完成。

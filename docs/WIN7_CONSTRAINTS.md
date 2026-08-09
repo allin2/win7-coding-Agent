@@ -230,6 +230,12 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 |---|---|---|---|
 | D-014 / `E22-SQLITE343-LOCAL-SSD` | Win7 SP1 x64 build 7601、Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、WAL、本地 NTFS SSD；目标机 Samsung 870 EVO 必须由型号与卷映射共同确认 | SPIKE_04 S01～S08、F01～F06、P08/C11-PATH；新 run ID、签名租约、当前 commit/manifest 与协调器正式状态 | HDD、网络盘与未知介质不在本轮性能支持声明内；不实现生产 EventStore、索引服务或 HDD 降级代码 |
 
+#### 2026-08-10 A6 正式 Win7 SSD 验收结果
+
+| Profile / run | 复核事实 | 正式结论 | 边界 |
+|---|---|---|---|
+| D-014 / `E22-SQLITE343-LOCAL-SSD` / `20260810-06` | 目标 `dccs-chaizl-PC`、Win7 SP1 x64 build 7601、`Disk #0 Partition #1 → C:`、本地 NTFS Samsung 870 EVO；Electron 22.3.27、ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、WAL 和 133 个包文件均由目标端复核。签名租约绑定提交 `2a07d6db8d95816e84d7919898d46abfd543a8af` 与 manifest `11500d96a0e0504339ce547bd3f80d76aacb2bb66f439f97f349d94b9fa7ea86`；S01～S08、F01～F06、P08/C11-PATH、轮前/轮后、零残留均通过。 | [`WIN7_PASS`](status/a6-storage-latest.json)；性能 #5～#8 见 `PERFORMANCE_BUDGET.md`。 | 仅本地 SSD Profile；HDD、网络盘、未知介质和生产 EventStore/索引服务仍不在本轮结论内。 |
+
 
 ## 7. 已知兼容性陷阱（实现时必须规避）
 
