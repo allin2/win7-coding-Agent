@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "package": "WIN10_D013_HELPER_BUILD_KIT",
-  "revision": "2026-08-10",
+  "revision": "2026-08-09",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T00:00:00.000Z",
+  "generated_at": "2026-08-09T17:13:30.535Z",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
   "excluded": [
@@ -16,13 +16,13 @@
   "files": [
     {
       "path": "README_BUILD.md",
-      "size": 4351,
-      "sha256": "c88135998480ef599668af79254c1470e5aa6de0bc500537e47b4848da94980d"
+      "size": 4568,
+      "sha256": "80ba7301e22df30e77344fa5e4a99f189ecfce86d661486f6a47b1e0ed87512a"
     },
     {
       "path": "STATUS.json",
-      "size": 1784,
-      "sha256": "60384d186f96486ae2a4af67feaf76181a952b0fde702a33822ef694935ce180"
+      "size": 2076,
+      "sha256": "db4e02429dbe3277deedc04061f8d1335fe50b6cb54fb4ee13f17d0233388ede"
     },
     {
       "path": "build-profile.json",
@@ -40,9 +40,14 @@
       "sha256": "d5bcc8b0074e4c3ada637b1faac5fc212a90664d840add1e7667dee09a6e4d5e"
     },
     {
+      "path": "package-kit.cjs",
+      "size": 2687,
+      "sha256": "e9e07d9ff1972d374cf65ef60cb657c11b3045a6f7c5b30d5468935991692ef1"
+    },
+    {
       "path": "prepare-kit.cjs",
-      "size": 6455,
-      "sha256": "da88e4327edea2ad81025eded8c40fb91636dacb17b35d8044a0872261f561b9"
+      "size": 6586,
+      "sha256": "66787e2a9690581640538f9f22c693dc32a64ec23e4a757b8f53c73ce43722bc"
     },
     {
       "path": "src/CMakeLists.txt",
@@ -61,8 +66,8 @@
     },
     {
       "path": "src/helper.cpp",
-      "size": 51011,
-      "sha256": "cfcb52e0bf00863be1906d137a79d6411350fb6dec9bc7d4fa3b856f67b71685"
+      "size": 52149,
+      "sha256": "2930a73f6f8936a9ca7b09ec9b33cc49186660863188de748fea049a2263b5c5"
     },
     {
       "path": "src/helper.h",
@@ -97,7 +102,7 @@
     {
       "path": "input-lock.json",
       "size": 2108,
-      "sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386"
+      "sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e"
     }
   ]
 }

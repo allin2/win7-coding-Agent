@@ -2,46 +2,48 @@
   "schema_version": 1,
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
-  "status": "WIN10_PASS_READY_FOR_WIN7_VALIDATION",
-  "generated_at": "2026-08-10T00:00:00Z",
-  "implementation_commit": "2e833e0",
-  "win10_build_executed": true,
-  "win10_return_package_reviewed": true,
-  "win7_validation": "NOT_PERFORMED",
+  "status": "READY_FOR_WIN10_BUILD",
+  "generated_at": "2026-08-09T17:12:37Z",
+  "implementation_commit": "a64f1ac5654523f684b9981f780ab0b5543939b9",
+  "build_revision": "v16-recovery",
+  "win10_build_executed": false,
+  "win10_return_package_reviewed": false,
+  "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
     "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
     "location": "external_to_git",
-    "review_status": "PASS",
+    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
     "completed_at": "2026-08-09T13:26:58.7805763Z"
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
+    "sha256": "PENDING_V16_WIN10_BUILD",
     "git_ignored": true
   },
   "evidence": {
-    "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
-    "win10_smoke": "PASS",
-    "pe_api_crt_analysis": "PASS",
+    "input_lock_sha256": "SEE_INPUT_LOCK_AND_PACKAGE_MANIFEST",
+    "win10_smoke": "NOT_PERFORMED",
+    "pe_api_crt_analysis": "NOT_PERFORMED",
     "architecture": "x64",
     "toolset": "v142",
     "windows_sdk": "10.0.19041.0",
     "crt": "static /MT"
   },
   "gates": {
-    "GATE-WIN10-BUILD": "PASS",
-    "GATE-WIN7-LEASE": "NOT_GRANTED",
+    "GATE-WIN10-BUILD": "READY_FOR_V16_BUILD",
+    "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "WIN7_LEASE_GRANTED before any Win7 connection",
-    "Win7 C01/C03/C04/C06/C07 execution and evidence review"
+    "v16 Win10 build and returned-package review",
+    "recovery review before any new Win7 lease"
   ],
   "notes": [
-    "Win10 PASS covers the exact v15 input lock, native build, PE/API/CRT checks and native smoke; it is not a Win7 or A4 overall PASS.",
+    "The v15 Win10 build remains historical PASS evidence but failed Win7 C01/C03/C04/C05 with ACL_ROLLBACK_FAILED and is superseded for further acceptance.",
+    "v16 treats Win7 null and zero-ACE LABEL ACLs as equivalent while keeping DACL comparison strict, and adds a canonical zero-length evidence hash fallback after certutil failure.",
     "The reviewed return ZIP remains outside Git; only its filename and SHA-256 are recorded.",
-    "The candidate helper is present locally under candidate/ and ignored by Git.",
-    "No Win7 SSH/SCP operation is authorized until GATE-WIN7-LEASE is explicitly GRANTED."
+    "The v15 candidate may remain locally under candidate/ for evidence preservation but cannot satisfy the v16 pending hash gate.",
+    "No Win7 SSH/SCP operation is authorized while recovery is required."
   ]
 }
