@@ -1,0 +1,13 @@
+# Local CMake build output directories (generated, not part of the baseline).
+build/
+build-mac/
+build-win10/
+
+# Generated outputs of the D-013 Win10 build kit (reproducible; not committed).
+build-win10-kit/result/
+build-win10-kit/work/
+build-win10-kit/output/
+build-win10-kit/evidence/
+
+*.o
+*.exe

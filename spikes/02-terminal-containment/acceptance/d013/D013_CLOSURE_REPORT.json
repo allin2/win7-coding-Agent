@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "track": "D-013",
+  "title": "A4/D-013 Helper 与 containment 闭包",
+  "date": "2026-08-10",
+  "branch": "codex/a4-d013-closure",
+  "base_commit": "86f6d69",
+  "head_commit": "2e833e0",
+  "commits": [
+    "3ec201c",
+    "6f47f50",
+    "17ca1f7",
+    "2e833e0"
+  ],
+  "modified_files": {
+    "helper": [
+      "helper.cpp",
+      "helper.h",
+      "json_parser.h/.cpp",
+      "argv_builder.h/.cpp",
+      "whitelist.h/.cpp",
+      "protocol.cpp",
+      "logic_tests.cpp",
+      "CMakeLists.txt",
+      ".gitignore"
+    ],
+    "helper/build-win10-kit": [
+      "build-profile.json",
+      "build.ps1",
+      "helper.exe.manifest",
+      "input-lock.json",
+      "PACKAGE_MANIFEST.json",
+      "prepare-kit.cjs",
+      "README_BUILD.md",
+      "STATUS.json",
+      "src/*",
+      "WIN7_D013_HELPER_BUILDKIT_20260807.zip.sha256"
+    ],
+    "acceptance/d013": [
+      "run_d013_win7.py",
+      "run_d013_win7.mjs",
+      "run_d013_wmi.cmd",
+      "mock_helper.py",
+      "test_d013_harness.mjs",
+      "d013_profile.json",
+      "D013_CLOSURE_REPORT.md"
+    ],
+    "test": [
+      "test_containment.sh",
+      ".gitignore"
+    ]
+  },
+  "c03_fix": {
+    "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
+    "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; Administrators is deny-only while Everyone/World remains enabled; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
+    "status": "IMPLEMENTED; LOCAL_TESTED; WIN10_NATIVE_SMOKE_PASS; Win7 re-run pending WIN7_LEASE_GRANTED"
+  },
+  "win10_build_kit": {
+    "path": "spikes/02-terminal-containment/helper/build-win10-kit/",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
+    "return_package_location": "external_to_git",
+    "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
+    "helper_sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
+    "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
+    "manifest_files": 17,
+    "lock_sources": 13,
+    "status": "PASS",
+    "win10_build_executed": true,
+    "win10_smoke": "PASS",
+    "pe_api_crt_analysis": "PASS",
+    "win7_validation": "NOT_PERFORMED"
+  },
+  "tests": [
+    {
+      "command": "cmake -S helper -B helper/build-mac && cmake --build helper/build-mac --target logic_tests && ./helper/build-mac/logic_tests",
+      "result": "ALL PASS"
+    },
+    {
+      "command": "x86_64-w64-mingw32-g++ compile+link (Win32 helper)",
+      "result": "PASS (0 warnings, PE32+ x86-64)"
+    },
+    {
+      "command": "bash test/test_containment.sh",
+      "result": "30 pass / 0 fail"
+    },
+    {
+      "command": "node acceptance/d013/test_d013_harness.mjs",
+      "result": "ALL PASS"
+    },
+    {
+      "command": "Win10 v15 build.ps1 + native smoke + PE/API/CRT review",
+      "result": "PASS"
+    }
+  ],
+  "coverage": {
+    "C01": "IMPLEMENTED; static PASS; Win7 evidence pending (A4 non-interactive tree kill historically PASS)",
+    "C02": "IMPLEMENTED; static PASS; historical supplementary PASS; re-run pending",
+    "C03": "FIXED; logic-tested; harness ready; Win7 re-run pending — NOT claimed PASS",
+    "C04": "IMPLEMENTED (low label + deny ACE + rollback + authorization gate); harness ready; Win7 pending",
+    "C05": "loopback measurement only; formal ENVIRONMENT_MISSING",
+    "C06": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
+    "C07": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
+    "C08": "bounded by design; NOT_MEASURED for new helper",
+    "N06": "static assertion PASS; no taskkill path"
+  },
+  "unexecuted": [
+    "Win7 connection (WIN7_LEASE_GRANTED not received; zero SSH/SCP issued)",
+    "Win7 C01/C03/C04/C06/C07 evidence with the new helper"
+  ],
+  "blockers": [
+    "WIN7_LEASE_GRANTED missing",
+    "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
+  ],
+  "note": "Win10 PASS is synchronized inside the A4 worktree only. Public docs/STATUS.md and formal SPIKE_02 task status remain coordinator-owned on the integration branch. Win7 remains NOT_PERFORMED."
+}
