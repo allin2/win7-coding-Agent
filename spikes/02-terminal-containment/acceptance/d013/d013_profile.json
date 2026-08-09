@@ -11,7 +11,7 @@
     "spikes/02-terminal-containment/test/**"
   ],
   "target": {
-    "address": "10.67.149.40",
+    "address": "192.168.1.11",
     "user": "dccs-chaizl",
     "os": "Windows 7 SP1 x64 build 7601",
     "acceptance_root": "C:\\Win7CodingAgent\\acceptance",

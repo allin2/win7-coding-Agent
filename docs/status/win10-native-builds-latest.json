@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "record_id": "WIN10-NATIVE-BUILDS-20260810-01",
-  "recorded_at": "2026-08-10T00:47:24+08:00",
+  "recorded_at": "2026-08-10T01:02:53+08:00",
   "scope": "Review of three Windows 10 native build return packages, including D-013 v15; this is build-host evidence, not Windows 7 target acceptance.",
   "shared_build_host": {
     "operating_system": "Windows 10 Pro 10.0.19045 x64",
@@ -45,6 +45,7 @@
       ],
       "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
       "coordinator": "ADR-0065_SIGNED_LEASE_REQUIRED",
+      "win7_target": "192.168.1.11 / dccs-chaizl / Windows 7 SP1 x64 build 7601",
       "worker_maximum_classification": "CANDIDATE_EVIDENCE",
       "win7_validation": "NOT_PERFORMED",
       "remaining_cases": ["C01", "C02", "C03", "C04", "C05", "C06", "C07"],

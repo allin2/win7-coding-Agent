@@ -45,7 +45,7 @@ try {
     state: 'GRANTED',
     commit: 'a'.repeat(40),
     acceptance_id: 'A4-20260810-000001',
-    target: { address: '10.67.149.40', user: 'dccs-chaizl', os: 'Windows 7 SP1 x64 build 7601' },
+    target: { address: '192.168.1.11', user: 'dccs-chaizl', os: 'Windows 7 SP1 x64 build 7601' },
     scope: { track: 'A4', acceptance: 'D-013', minimum_acl: 'PER_RUN_ROOT_ONLY' },
     artifact_manifest_sha256: 'b'.repeat(64),
     nonce: 'c'.repeat(64),
@@ -95,6 +95,10 @@ try {
     ledger.transition('A4-20260810-000001', 'RETURNED', '2026-08-10T00:05:00Z');
     ledger.transition('A4-20260810-000001', 'RELEASED', '2026-08-10T00:06:00Z');
     assert.equal(ledger.active().length, 0);
+  });
+  check('unsigned request can be made permanently ungrantable', () => {
+    ledger.transition('A4-20260810-000002', 'REQUEST_SUPERSEDED', '2026-08-10T00:07:00Z');
+    assert.throws(() => ledger.grant('A4-20260810-000002', '3'.repeat(64), '2026-08-10T00:08:00Z'), /not REQUESTED/);
   });
 
   const passReport = {

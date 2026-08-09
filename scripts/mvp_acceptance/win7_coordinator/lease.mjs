@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const ACTIVE_STATES = new Set(['GRANTED', 'RUNNING']);
 const TRANSITIONS = new Map([
-  ['REQUESTED', new Set(['GRANTED'])],
+  ['REQUESTED', new Set(['GRANTED', 'REQUEST_SUPERSEDED'])],
   ['GRANTED', new Set(['RUNNING'])],
   ['RUNNING', new Set(['RETURNED', 'RECOVERY_REQUIRED'])],
   ['RETURNED', new Set(['RELEASED'])],

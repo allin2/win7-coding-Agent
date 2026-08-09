@@ -170,7 +170,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 | 轨道 / 组件 | Win10 结果 | 已解除的卡点 | 当前仍阻塞 |
 |---|---|---|---|
-| A4 / D-013 helper v15 | `PASS`；返回包 `1b4dc360…4000d4f`，helper `5689b612…10e2b`，input-lock `166c4e5b…86386`；开发机 logic/harness 与 containment 30/30 均 `PASS` | D-013 源码→二进制构建闭包已锁定，不需要 v16 重构建 | Win7 `NOT_PERFORMED`；等待 ADR-0065 唯一签名租约和 C01～C07 实机验收，Worker 最多输出 `CANDIDATE_EVIDENCE` |
+| A4 / D-013 helper v15 | `PASS`；返回包 `1b4dc360…4000d4f`，helper `5689b612…10e2b`，input-lock `166c4e5b…86386`；开发机 logic/harness 与 containment 30/30 均 `PASS` | D-013 源码→二进制构建闭包已锁定，不需要 v16 重构建 | Win7 `192.168.1.11 / dccs-chaizl / build 7601` 为 `NOT_PERFORMED`；等待 ADR-0065 唯一签名租约和 C01～C07 实机验收，Worker 最多输出 `CANDIDATE_EVIDENCE` |
 | A5 / D-011 node-pty + winpty | `PASS_WITH_PACKAGING_GAP`；返回包 `c938f115…46ea`，三项原生工件均为 x64，ABI 110 与 smoke 通过 | 不再缺 Electron 22 ABI 的 node-pty/winpty 工件，可开展终端集成和 Win7 验证 | 返回包缺内部总清单；终端集成/harness 仍为骨架/TODO；T01～T05/N01～N05 `NOT_PERFORMED` |
 | A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | indexer/benchmark/fixtures/crash-recovery harness 尚缺；S01～S08 `NOT_PERFORMED` |
 | A7 / 发布包装 | 没有独立 Win10 构建结果 | 后续可复用已锁定的 D-011、D-014 文件哈希 | 仍需产品装配、原生模块 ASAR 外置、统一返回/发布 manifest、安装/升级/回滚和 Win7 RC 验证 |

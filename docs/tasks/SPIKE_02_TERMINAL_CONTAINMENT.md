@@ -145,7 +145,8 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
 `5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b`，input-lock 为
 `166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386`。开发机逻辑测试、
 D-013 harness 与 containment 静态检查 30/30 均为 `PASS`；Win10 v15 为 `PASS`；Win7 仍为
-`NOT_PERFORMED`。ADR-0065 协调器要求固定 Ed25519 公钥验证、Git 外唯一租约 ledger 与两小时
+`NOT_PERFORMED`，本轮锁定目标为 `192.168.1.11 / dccs-chaizl / Windows 7 build 7601`。
+ADR-0065 协调器要求固定 Ed25519 公钥验证、Git 外唯一租约 ledger 与两小时
 签名租约，Worker 只能产生 `CANDIDATE_EVIDENCE`。收到人工授权前不签名、不将租约置为
 `GRANTED`、不运行 SSH/SCP。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产
 Runner 或交互终端 Gate。

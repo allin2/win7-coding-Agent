@@ -10,6 +10,8 @@ Worker always stops at `CANDIDATE_EVIDENCE`.
 - Git-external state: `.acceptance/win7-coordinator/`.
 - Private key: `.acceptance/win7-coordinator/lease_private.pem`, mode `0600`.
 - Ledger invariant: no more than one lease may be `GRANTED` or `RUNNING`.
+- An unsigned request whose binding changes is retained as
+  `REQUEST_SUPERSEDED`; it can never be granted.
 - Signed bytes: the exact UTF-8 bytes of `lease-payload.json`; the signature is
   Ed25519 and the sidecar records the payload SHA-256 and fixed key ID.
 
