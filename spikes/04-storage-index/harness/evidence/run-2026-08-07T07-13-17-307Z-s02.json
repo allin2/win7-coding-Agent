@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S02",
+  "name": "Crash recovery (WAL)",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 15000,
+    "s06LimitMb": 128
+  },
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "elapsedMs": 267,
+  "metrics": {
+    "status": "PASS",
+    "integrity": true,
+    "totalRows": 3000,
+    "completeRows": 6,
+    "partialBatchDetected": false,
+    "lastCompleteBatch": 5,
+    "killAtBatch": 7,
+    "batchCounts": [
+      {
+        "batch": 0,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 1,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 2,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 3,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 4,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 5,
+        "rows": 500,
+        "complete": 1
+      }
+    ]
+  },
+  "raw": {
+    "status": "PASS",
+    "integrity": true,
+    "totalRows": 3000,
+    "completeRows": 6,
+    "partialBatchDetected": false,
+    "consistent": true,
+    "killAtBatch": 7,
+    "batchSize": 500,
+    "totalBatches": 20,
+    "lastCompleteBatch": 5,
+    "lastCompleteId": 3000,
+    "traceCompleteIds": [
+      1000,
+      1500,
+      2000,
+      2500,
+      3000
+    ],
+    "batchCounts": [
+      {
+        "batch": 0,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 1,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 2,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 3,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 4,
+        "rows": 500,
+        "complete": 1
+      },
+      {
+        "batch": 5,
+        "rows": 500,
+        "complete": 1
+      }
+    ]
+  },
+  "pass": {
+    "met": true,
+    "note": "PASS = integrity ok + no partial batch + trace_complete semantics"
+  }
+}

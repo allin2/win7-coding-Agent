@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S03",
+  "name": "FTS5 full index throughput",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 15000,
+    "s06LimitMb": 128
+  },
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "elapsedMs": 24899,
+  "metrics": {
+    "scale": "10k",
+    "files": 30000,
+    "filesPerSec": 1363.5743829825917,
+    "elapsedMs": 22001,
+    "truncated": false,
+    "truncationReason": null,
+    "skipped": 0
+  },
+  "raw": {
+    "mode": "full",
+    "root": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\30k",
+    "scan": {
+      "filesScanned": 30000,
+      "dirs": 5005,
+      "truncated": false,
+      "truncationReason": null,
+      "errors": []
+    },
+    "indexed": 30000,
+    "skipped": 0,
+    "errors": 0,
+    "elapsedMs": 22001,
+    "startedAt": 1786086815541
+  },
+  "pass": {
+    "met": true,
+    "noGo": false,
+    "note": "Go >=120 files/s, No-Go <60; dev-machine value is trend only"
+  }
+}

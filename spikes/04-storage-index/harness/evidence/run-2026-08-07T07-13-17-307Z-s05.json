@@ -1,0 +1,746 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "S05",
+  "name": "Query latency P95 (30k files)",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 15000,
+    "s06LimitMb": 128
+  },
+  "startedAtUtc": "2026-08-07T07:13:17.307Z",
+  "elapsedMs": 29275,
+  "metrics": {
+    "p95Ms": 136.05,
+    "p50Ms": 39,
+    "p99Ms": 139.1800000000001,
+    "count": 100,
+    "queryTypes": 12
+  },
+  "raw": [
+    {
+      "i": 0,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 76,
+      "hits": 10813
+    },
+    {
+      "i": 1,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 64,
+      "hits": 9928
+    },
+    {
+      "i": 2,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 3,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 4,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 14,
+      "hits": 2496
+    },
+    {
+      "i": 5,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 85,
+      "hits": 15012
+    },
+    {
+      "i": 6,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 136,
+      "hits": 20025
+    },
+    {
+      "i": 7,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 8,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 9,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 10,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 132,
+      "hits": 20002
+    },
+    {
+      "i": 11,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 7,
+      "hits": 723
+    },
+    {
+      "i": 12,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 72,
+      "hits": 10813
+    },
+    {
+      "i": 13,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 62,
+      "hits": 9928
+    },
+    {
+      "i": 14,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 15,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 40,
+      "hits": 7500
+    },
+    {
+      "i": 16,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 14,
+      "hits": 2496
+    },
+    {
+      "i": 17,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 86,
+      "hits": 15012
+    },
+    {
+      "i": 18,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 137,
+      "hits": 20025
+    },
+    {
+      "i": 19,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 20,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 21,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 22,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 132,
+      "hits": 20002
+    },
+    {
+      "i": 23,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 6,
+      "hits": 723
+    },
+    {
+      "i": 24,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 74,
+      "hits": 10813
+    },
+    {
+      "i": 25,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 65,
+      "hits": 9928
+    },
+    {
+      "i": 26,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 27,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 28,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 14,
+      "hits": 2496
+    },
+    {
+      "i": 29,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 84,
+      "hits": 15012
+    },
+    {
+      "i": 30,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 157,
+      "hits": 20025
+    },
+    {
+      "i": 31,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 12,
+      "hits": 697
+    },
+    {
+      "i": 32,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 33,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 34,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 128,
+      "hits": 20002
+    },
+    {
+      "i": 35,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 6,
+      "hits": 723
+    },
+    {
+      "i": 36,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 75,
+      "hits": 10813
+    },
+    {
+      "i": 37,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 63,
+      "hits": 9928
+    },
+    {
+      "i": 38,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 39,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 40,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 13,
+      "hits": 2496
+    },
+    {
+      "i": 41,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 85,
+      "hits": 15012
+    },
+    {
+      "i": 42,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 139,
+      "hits": 20025
+    },
+    {
+      "i": 43,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 44,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 45,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 46,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 134,
+      "hits": 20002
+    },
+    {
+      "i": 47,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 7,
+      "hits": 723
+    },
+    {
+      "i": 48,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 72,
+      "hits": 10813
+    },
+    {
+      "i": 49,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 63,
+      "hits": 9928
+    },
+    {
+      "i": 50,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 51,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 52,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 13,
+      "hits": 2496
+    },
+    {
+      "i": 53,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 86,
+      "hits": 15012
+    },
+    {
+      "i": 54,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 136,
+      "hits": 20025
+    },
+    {
+      "i": 55,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 56,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 57,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 58,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 132,
+      "hits": 20002
+    },
+    {
+      "i": 59,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 7,
+      "hits": 723
+    },
+    {
+      "i": 60,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 72,
+      "hits": 10813
+    },
+    {
+      "i": 61,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 63,
+      "hits": 9928
+    },
+    {
+      "i": 62,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 63,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 64,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 13,
+      "hits": 2496
+    },
+    {
+      "i": 65,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 86,
+      "hits": 15012
+    },
+    {
+      "i": 66,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 137,
+      "hits": 20025
+    },
+    {
+      "i": 67,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 68,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 69,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 70,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 133,
+      "hits": 20002
+    },
+    {
+      "i": 71,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 7,
+      "hits": 723
+    },
+    {
+      "i": 72,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 71,
+      "hits": 10813
+    },
+    {
+      "i": 73,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 63,
+      "hits": 9928
+    },
+    {
+      "i": 74,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 75,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 76,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 13,
+      "hits": 2496
+    },
+    {
+      "i": 77,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 85,
+      "hits": 15012
+    },
+    {
+      "i": 78,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 139,
+      "hits": 20025
+    },
+    {
+      "i": 79,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 80,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 81,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 82,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 133,
+      "hits": 20002
+    },
+    {
+      "i": 83,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 6,
+      "hits": 723
+    },
+    {
+      "i": 84,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 73,
+      "hits": 10813
+    },
+    {
+      "i": 85,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 63,
+      "hits": 9928
+    },
+    {
+      "i": 86,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 87,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 39,
+      "hits": 7500
+    },
+    {
+      "i": 88,
+      "type": "path",
+      "term": "测试",
+      "latencyMs": 13,
+      "hits": 2496
+    },
+    {
+      "i": 89,
+      "type": "path",
+      "term": "source",
+      "latencyMs": 85,
+      "hits": 15012
+    },
+    {
+      "i": 90,
+      "type": "content",
+      "term": "分布式",
+      "latencyMs": 135,
+      "hits": 20025
+    },
+    {
+      "i": 91,
+      "type": "content",
+      "term": "系统设计",
+      "latencyMs": 6,
+      "hits": 697
+    },
+    {
+      "i": 92,
+      "type": "content",
+      "term": "索引优化",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 93,
+      "type": "content",
+      "term": "事务处理",
+      "latencyMs": 1,
+      "hits": 0
+    },
+    {
+      "i": 94,
+      "type": "content",
+      "term": "持久化",
+      "latencyMs": 128,
+      "hits": 20002
+    },
+    {
+      "i": 95,
+      "type": "content",
+      "term": "监控告警",
+      "latencyMs": 7,
+      "hits": 723
+    },
+    {
+      "i": 96,
+      "type": "path",
+      "term": "文件",
+      "latencyMs": 83,
+      "hits": 10813
+    },
+    {
+      "i": 97,
+      "type": "path",
+      "term": "模块",
+      "latencyMs": 63,
+      "hits": 9928
+    },
+    {
+      "i": 98,
+      "type": "path",
+      "term": "中文",
+      "latencyMs": 0,
+      "hits": 0
+    },
+    {
+      "i": 99,
+      "type": "path",
+      "term": "源码",
+      "latencyMs": 40,
+      "hits": 7500
+    }
+  ],
+  "pass": {
+    "met": true,
+    "noGo": false,
+    "note": "Go P95<=1200ms, No-Go >2500ms; dev-machine value is trend only"
+  }
+}

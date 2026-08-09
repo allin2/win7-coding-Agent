@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "runId": "2026-08-07T07-56-07-972Z",
+  "startedAtUtc": "2026-08-07T07:56:07.972Z",
+  "backend": "better-sqlite3",
+  "media": "ssd",
+  "samples": "C:\\Win7CodingAgent\\acceptance\\a6\\samples\\10k",
+  "scale": "10k",
+  "win7_validation": "VALIDATED",
+  "results": [
+    {
+      "case": "S06",
+      "name": "512MB limit and rolling cleanup",
+      "status": "MET",
+      "noGo": null,
+      "metrics": {
+        "limitMb": 512,
+        "targetMb": 256,
+        "grownRows": 49200,
+        "grownSizeMb": 517.7904586791992,
+        "cleanupTriggered": true,
+        "deletedRows": 49200,
+        "afterSizeMb": 199.59765625,
+        "sizeShrank": true,
+        "backUnderTarget": true,
+        "beforeConsistent": true,
+        "afterConsistent": true,
+        "integrity": true
+      },
+      "file": "run-2026-08-07T07-56-07-972Z-s06.json"
+    }
+  ]
+}
