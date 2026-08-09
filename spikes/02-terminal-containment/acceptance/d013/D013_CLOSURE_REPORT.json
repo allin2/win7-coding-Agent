@@ -2,13 +2,15 @@
   "schema_version": 1,
   "track": "D-013",
   "title": "A4/D-013 Helper 与 containment 闭包",
-  "date": "2026-08-07",
+  "date": "2026-08-10",
   "branch": "codex/a4-d013-closure",
   "base_commit": "86f6d69",
-  "head_commit": "6f47f50",
+  "head_commit": "2e833e0",
   "commits": [
     "3ec201c",
-    "6f47f50"
+    "6f47f50",
+    "17ca1f7",
+    "2e833e0"
   ],
   "modified_files": {
     "helper": [
@@ -50,19 +52,23 @@
   },
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
-    "fix": "CreateProcessWithTokenW applies a token with all privileges deleted, Everyone/Administrators deny-only, Low Integrity S-1-16-4096; Low-Integrity mandatory label on allowedDirectories; outside writes blocked by mandatory integrity policy",
-    "status": "IMPLEMENTED_LOCAL_TESTED; Win7 re-run pending WIN7_LEASE_GRANTED"
+    "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; Administrators is deny-only while Everyone/World remains enabled; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
+    "status": "IMPLEMENTED; LOCAL_TESTED; WIN10_NATIVE_SMOKE_PASS; Win7 re-run pending WIN7_LEASE_GRANTED"
   },
   "win10_build_kit": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/",
-    "transport_zip": "spikes/02-terminal-containment/helper/build-win10-kit/result/WIN7_D013_HELPER_BUILDKIT_20260807.zip",
-    "sha256": "9cf93d0d307dc97ace1529b56c8d08bb5d9d43f09680dbf284cbe951086c4b4d",
-    "manifest_sha256": "20059b768501248b46a76f1c1e33e42a1acd5d6c2bc6f86f60d4a0acaf01ca1c",
-    "lock_sha256": "2d907fb0f63cb8f9fceba2e610e4bc7acef8fc9f52372e9f275ccf524c1beef7",
-    "manifest_files": 16,
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
+    "return_package_location": "external_to_git",
+    "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
+    "helper_sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
+    "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
+    "manifest_files": 17,
     "lock_sources": 13,
-    "status": "READY_FOR_WIN10_BUILD",
-    "win10_build_executed": false
+    "status": "PASS",
+    "win10_build_executed": true,
+    "win10_smoke": "PASS",
+    "pe_api_crt_analysis": "PASS",
+    "win7_validation": "NOT_PERFORMED"
   },
   "tests": [
     {
@@ -75,19 +81,15 @@
     },
     {
       "command": "bash test/test_containment.sh",
-      "result": "29 pass / 0 fail"
+      "result": "30 pass / 0 fail"
     },
     {
       "command": "node acceptance/d013/test_d013_harness.mjs",
       "result": "ALL PASS"
     },
     {
-      "command": "node acceptance/test_remaining_acceptance_audit.mjs",
-      "result": "PASS (baseline)"
-    },
-    {
-      "command": "node acceptance/test_fup_automation.mjs",
-      "result": "PRE-EXISTING FAIL (out of scope)"
+      "command": "Win10 v15 build.ps1 + native smoke + PE/API/CRT review",
+      "result": "PASS"
     }
   ],
   "coverage": {
@@ -102,14 +104,12 @@
     "N06": "static assertion PASS; no taskkill path"
   },
   "unexecuted": [
-    "Win10 build.ps1 execution (READY_FOR_WIN10_BUILD only)",
     "Win7 connection (WIN7_LEASE_GRANTED not received; zero SSH/SCP issued)",
     "Win7 C01/C03/C04/C06/C07 evidence with the new helper"
   ],
   "blockers": [
     "WIN7_LEASE_GRANTED missing",
-    "actual Win10 return package missing",
-    "pre-existing test_fup_automation.mjs baseline failure (stale gate expectations, outside allowed scope)"
+    "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "The commit containing this report is the branch tip; HEAD_COMMIT above is the last functional/code commit"
+  "note": "Win10 PASS is synchronized inside the A4 worktree only. Public docs/STATUS.md and formal SPIKE_02 task status remain coordinator-owned on the integration branch. Win7 remains NOT_PERFORMED."
 }

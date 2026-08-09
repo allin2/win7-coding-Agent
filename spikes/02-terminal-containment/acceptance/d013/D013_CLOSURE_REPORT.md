@@ -1,14 +1,15 @@
 # D-013 Helper 与 containment 闭包报告
 
-> 分支 `codex/a4-d013-closure` · 2026-08-07
+> 分支 `codex/a4-d013-closure` · 2026-08-10
 > 工作目录：`/Users/qlyf/Developer/win7-agent-a4`
 
 ## 1. 提交
 
 - **BASE_COMMIT**：`86f6d69`（`chore(build): archive Win10 native review baseline`，与 main 同点）
-- **HEAD_COMMIT**：`176d3a1`（`docs(spike02): D-013 closure report…`）
+- **IMPLEMENTATION_COMMIT**：`2e833e0`（`fix(spike02): harden D-013 helper for v15`）
   - 代码提交：`3ec201c`（`feat(spike02): D-013 helper containment closure…`）
   - 构建包修正：`6f47f50`（`fix(spike02): commit D-013 Win10 build kit…`）
+  - 首版闭包报告：`17ca1f7`（`docs(spike02): D-013 closure report…`）
 
 ## 2. 修改文件（仅允许路径内）
 
@@ -36,13 +37,14 @@
 却从未把它应用到子进程（`CreateProcessW` 使用默认 token，`hToken` 创建后即被丢弃），
 子进程以完整用户权限运行，故工作区外写入成功。
 
-**修复**：helper 现在通过 `CreateProcessWithTokenW` 把受限 token 真正应用到子进程：
-全部特权删除（枚举后全部删除）、Everyone 与 Administrators 组 deny-only、
-`SetTokenInformation(TokenIntegrityLevel)` 降为 Low Integrity（S-1-16-4096）；
+**修复**：helper 现在通过 `CreateProcessAsUserW` 把受限 primary token 真正应用到子进程：
+`CreateRestrictedToken(DISABLE_MAX_PRIVILEGE)` 保留 Windows 目录遍历需要的
+`SeChangeNotifyPrivilege`，仅把 Administrators 组设为 deny-only，不禁用 Everyone/World，
+并用 `SetTokenInformation(TokenIntegrityLevel)` 降为 Low Integrity（S-1-16-4096）；
 同时给 `allowedDirectories` 打 Low-Integrity 强制标签（子进程可在工作区内写），
 工作区外目录无低完整性标签 → 写被强制完整性策略拒绝。注册表读取由 SAM DACL + 删权
-双重拒绝。`whoami /groups` 将显示 `S-1-16-4096`、`whoami /priv` 无 `SeDebugPrivilege`
-（harness 断言）。
+双重拒绝。标签与 deny ACE 均执行精确应用、验证和回滚；回滚无法证明时以
+`ACL_ROLLBACK_FAILED` 失败关闭。
 
 **D-013 harness**（`acceptance/d013/run_d013_win7.py`）：
 - C01 Job 整树必杀（detached ping 残留=0）；C02 宿主在 Job → `HOST_ALREADY_IN_JOB` fail-closed；
@@ -52,32 +54,34 @@
   DACL 复原；**最小授权**策略门拒绝 per-run root 之外的所有 ACL 目标；
 - C05 仅记录 loopback TCP/UDP/DNS 实测，`formal_c05=ENVIRONMENT_MISSING`，不宣称隔离；
 - C06 argv 白名单（notepad、cmd /k → `ARGV_REJECTED`）；C07 超时/输出上限。
-- 编排器 `run_d013_win7.mjs`：`--dry-run` 零 SSH；execute 模式在候选二进制缺失时
-  REM-D01 `CANDIDATE_MISSING` fail-closed（不会连接 Win7）。
+- 编排器 `run_d013_win7.mjs`：`--dry-run` 零 SSH；execute 模式先检查唯一 Win7 lease，
+  再检查候选 SHA-256，缺 lease、哨兵哈希或哈希失配均在 SSH 前 fail-closed；前后置检查
+  还覆盖 Bitvise、TCP 22 和本轮 D-013 进程残留。
 
 ## 4. Win10 构建包（D-013）
 
 - **路径**：`spikes/02-terminal-containment/helper/build-win10-kit/`
-- **传输 ZIP**：`spikes/02-terminal-containment/helper/build-win10-kit/result/WIN7_D013_HELPER_BUILDKIT_20260807.zip`
-- **ZIP SHA-256**：`9cf93d0d307dc97ace1529b56c8d08bb5d9d43f09680dbf284cbe951086c4b4d`
-  （`.sha256` 已随仓库提交）
-- **清单闭包**：`PACKAGE_MANIFEST.json` 绑定 16 个文件（校验 0 失配）、
-  `input-lock.json` 锁定 13 个源码/脚本条目（校验 0 失配）——含输入锁、环境探测
-  （`build.ps1` [2/7] Win10/VS2019/v142/SDK19041 严格探测）、PE/API/CRT 检查
-  （dumpbin x64 + 禁止导入 + 动态 CRT 闭合）、manifest（asInvoker + Win7 supportedOS）、
-  返回包 `.sha256`。
-- **状态**：`STATUS.json` = **`READY_FOR_WIN10_BUILD`**（无实际 Win10 返回包，不得宣称构建完成）。
+- **已验收返回 ZIP**：`WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip`（保留在 Git 外）
+- **ZIP SHA-256**：`1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f`
+- **helper SHA-256**：`5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b`
+- **输入绑定**：包内 `input-lock.json` 与工作树逐字节一致，SHA-256 为
+  `166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386`。
+- **Win10 证据**：Win10 19045、VS2019 16.11、MSVC 14.29/v142、SDK 10.0.19041.0、
+  x64、静态 `/MT`、manifest、PE/API/CRT 与 native smoke 全部 `PASS`；smoke 子进程退出码 0，
+  `containmentVerified=true`、`inputDetached=true`，Low Integrity 标签和 deny ACE 均
+  `applied/verified/rolledBack=true`。
+- **分层状态**：开发机 `PASS`；Win10 **`PASS`**；Win7 `NOT_PERFORMED`；A4/D-013 总体
+  仍等待唯一 Win7 lease 与实机验收，不得写成总体 PASS。
 
-## 5. 测试命令与结果（2026-08-07，macOS 开发机）
+## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
 | 命令 | 结果 |
 |------|------|
 | `cmake -S helper -B helper/build-mac && cmake --build helper/build-mac --target logic_tests && ./helper/build-mac/logic_tests` | `logic_tests: ALL PASS` |
 | `x86_64-w64-mingw32-g++ … -c helper.cpp json_parser.cpp argv_builder.cpp whitelist.cpp protocol.cpp` + 链接 | 5/5 编译零警告，链接出 PE32+ x86-64 exe（编译/链接检查） |
-| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 29 / 失败 0（含 N06 无 taskkill 断言） |
+| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 30 / 失败 0（含 N06 无 taskkill 断言） |
 | `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（策略门/mock 端到端/编排器 dry-run/execute 门禁/负向校验） |
-| `node acceptance/test_remaining_acceptance_audit.mjs` | PASS（基线） |
-| `node acceptance/test_fup_automation.mjs` | **预存在失败**（dry-run stage 分类期望过期：期望 PASS 但现为 ENVIRONMENT_MISSING/NOT_PERFORMED；超出本任务允许修改范围，未改动） |
+| Win10 v15 `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS` |
 
 ## 6. C01～C08/N06 覆盖情况
 
@@ -85,7 +89,7 @@
 |---|------|------|----------|-----------|
 | C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | A4-20260805 非交互树杀 PASS；新 helper 待 lease 重验 |
 | C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | A4-20260806 补充 PASS；新 helper 待重验 |
-| C03 | Restricted Token 减权 | **已修复**：token 真实应用 + 低完整性 + 删权 | 逻辑测试 + harness 就绪 | **待重跑**（修复前 FAIL 根因已消除，未宣称 PASS） |
+| C03 | Restricted Token 减权 | **已修复**：primary restricted token + DISABLE_MAX_PRIVILEGE + 低完整性 | 本地测试 + Win10 native smoke PASS | **待重跑**（历史 FAIL 未被 Win10 证据改写） |
 | C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | harness（含回滚核对）就绪 | 待执行（MANUAL_GATE 语义收敛为最小授权） |
 | C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | `ENVIRONMENT_MISSING`（保持） |
 | C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | 待执行 |
@@ -96,10 +100,11 @@
 ## 7. 未执行验证与阻塞
 
 - **未连接 Win7**：未收到 `WIN7_LEASE_GRANTED`，按指令全程未发起任何 SSH/SCP。
-- **无实际 Win10 返回包**：构建包仅 `READY_FOR_WIN10_BUILD`；收到返回包后需
-  复核外层 SHA-256 → 放置 `candidate/spike02_helper.exe` → 更新 `d013_profile.json` 哈希
-  → lease 后执行 `run_d013_win7.mjs --execute-win7`。
-- **C03/C04/C06/C07 的 Win7 实证**：待以上两步。
-- **预存在基线失败**：`test_fup_automation.mjs`（gate 分类期望过期），不在允许修改范围。
+- **Win10 已通过且候选已锁定**：本地 `candidate/spike02_helper.exe` 与已验收 helper 哈希一致，
+  该目录由 Git 忽略；返回 ZIP 不提交 Git。
+- **C01/C03/C04/C06/C07 的 Win7 实证**：仍待唯一 lease 后执行。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
+
+公共 `docs/STATUS.md`、`docs/status/win10-native-builds-latest.json` 和正式 SPIKE_02 任务书
+由整合分支协调者统一同步；A4 worktree 不直接改写这些公共状态文件。

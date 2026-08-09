@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "package": "WIN10_D013_HELPER_BUILD_KIT",
-  "revision": "2026-08-09",
+  "revision": "2026-08-10",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-09T11:50:52.556Z",
+  "generated_at": "2026-08-10T00:00:00.000Z",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
   "excluded": [
@@ -21,8 +21,8 @@
     },
     {
       "path": "STATUS.json",
-      "size": 1042,
-      "sha256": "dc539e43ee7081e3d4864fb7ecb8e02e9d69b0cf2c22971023eb0dd00624869c"
+      "size": 1784,
+      "sha256": "60384d186f96486ae2a4af67feaf76181a952b0fde702a33822ef694935ce180"
     },
     {
       "path": "build-profile.json",
