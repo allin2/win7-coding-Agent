@@ -5,15 +5,20 @@
 - **任务书**：`docs/tasks/SPIKE_04_STORAGE_INDEX.md`
 - **状态**：APPROVED_FOR_IMPLEMENTATION
 - **Win10 原生构建**：PASS；D-014 `READY_FOR_WIN7_VALIDATION`
-- **Win7 实机验证**：**PASS（SSD 实机）**，2026-08-07；S01–S08 全部 Go（详见 `GO_NOGO_WIN7_20260807.md`）
+- **Win7 实机验证**：**SSD 实机通过（非机械盘证据）**，2026-08-07；S01–S08 全部 Go（详见 `GO_NOGO_WIN7_20260807.md`）
+- **证据处置**：**SSD 结果按 ADR-0065 §7 追加 `REJECTED_AS_FORMAL_EVIDENCE` / `SSD_SURROGATE`**，
+  机械盘性能预算（S01/S03/S05）不作为正式机械盘证据；处置清单见
+  `harness/evidence/DISPOSITION_20260807.json`（原始证据哈希锁定不变）
 - **Harness 实现**：已完成（`harness/`，2026-08-07）
 - **开发机验证**：S01–S08 全用例在 python3 sqlite3（3.43.2）后端起驱动跑通，数据仅作趋势参考
 - **成果迁入**：成果已迁入 `src/state/`（待 Win7 验证；原型 `schema.sql`、`migrations.ts` 已吸收到正式模块）
 
-> **Win7-Validation: VALIDATED（SSD）** — 2026-08-07 在 Win7 SP1 x64 实机（Samsung SSD 870 EVO）用锁定
-> better-sqlite3（ABI 110）跑通 S01–S08，全部 Go。**注意：数据为 SSD 实机，非机械盘**；
-> S01/S03/S05 的机械盘达标（机械盘门禁按负责人裁决默认 PASS）未实测。性能预算状态位建议
-> 标注"SSD 实测，机械盘待测"。
+> **Win7-Validation: VALIDATED（SSD，历史事实）** — 2026-08-07 在 Win7 SP1 x64 实机（Samsung SSD 870 EVO）用锁定
+> better-sqlite3（ABI 110）跑通 S01–S08，全部 Go。**注意：数据为 SSD 实机，非机械盘**。
+> **ADR-0065 §7 证据处置**：原始 `win7_validation: VALIDATED` 字段与证据文件哈希**全部保留不变**，
+> 仅追加 `REJECTED_AS_FORMAL_EVIDENCE` / `SSD_SURROGATE` disposition（`DISPOSITION_20260807.json`）：
+> S01/S03/S05（机械盘性能预算 #6/#5/#8）拒绝为正式机械盘证据；S02/S04/S06/S07/S08/F/P（功能/完整性，
+> 介质无关）保留为候选功能证据。新证据使用新 run ID，worker 不再自报 VALIDATED。
 
 ## Win10 离线构建包
 
@@ -121,7 +126,15 @@ set A6_BS3_NATIVE=<解压目录>\runtime\node_modules\better-sqlite3\build\Relea
 set A6_MEDIA=ssd
 # 3) 用锁定 Electron 运行时（含 Node 16.17.1）以 node 模式运行 benchmark：
 set ELECTRON_RUN_AS_NODE=1
-<解压目录>\runtime\electron\electron.exe benchmark\benchmark.js --backend better-sqlite3 --scale 30k
+<解压目录>\runtime\electron\electron.exe benchmark\benchmark.js --backend better-sqlite3 --scale 30k --media ssd --candidate-evidence
+# --candidate-evidence 标记为待协调器校验的候选证据（evidence_grade=CANDIDATE_EVIDENCE）。
+# worker 不自报 VALIDATED（--win7-validated 已移除，ADR-0065 §3）；正式 WIN7_PASS 仅由
+# 协调器证据校验器计算。开发机/趋势运行不加该标志，evidence_grade 为 DEVELOPMENT。
+# 候选证据还必须提供下列协调器绑定参数：
+#   --lease <lease.json> --lease-signature <lease.json.sig> --public-key <coordinator-public.pem>
+#   --source-commit <40位Git提交> --package-manifest-sha256 <64位SHA-256>
+# 新证据 schema_version=2；签名、期限、commit、manifest、目标主机、scope、SSD Profile 或
+# 标准参数任一不匹配即 LEASE_INVALID，且不得生成候选证据。
 # 注意：harness 无 --runtime-root 参数（benchmark.js parseArgs 未知参数即抛错）；
 # 运行时定位一律通过 A6_BS3_ROOT / A6_BS3_NATIVE 环境变量，勿传命令行。
 # 生成样本（若需三档规模）：
@@ -130,8 +143,15 @@ set ELECTRON_RUN_AS_NODE=1
 
 > **介质诚实性**：当前 Win7 为 SSD。任何跑出的 S01–S08 数据若介质为 SSD，必须在报告与
 > 结构化 JSON 中标记 `media.type=ssd` 且注明"非机械盘数据"，不得冒充机械盘性能。
-> 机械盘（5400/7200rpm）是任务书 §3 的目标测试机，但当前 Win7 实机为 SSD，机械盘
-> 门禁按负责人裁决默认 PASS，不得把该裁决写成机械盘性能实测。
+> 机械盘（5400/7200rpm）是任务书 §3 的目标测试机，但当前 Win7 实机为 SSD；按 ADR-0065 §7
+> 处置，SSD 结果不构成机械盘正式通过证据，机械盘门禁不得据此判 PASS（达标待实测），
+> 也不得把该处置写成机械盘性能实测。
+> **证据分级（ADR-0065）**：SSD 替代机械盘的性能结果只能进 `SURROGATE`/`REJECTED_AS_FORMAL_EVIDENCE`
+> （既有证据处置见 `harness/evidence/DISPOSITION_20260807.json`）；新证据用新 run ID，
+> `evidence_grade` 仅 `DEVELOPMENT`|`CANDIDATE_EVIDENCE`。
+> `--candidate-evidence` 必须绑定 Ed25519 签名租约；缺失、过期、签名错误、commit/manifest/主机/
+> scope/参数不匹配均 fail-closed。Win7 的 `wmic MediaType=Fixed hard disk media` 不能区分 SSD/HDD，
+> harness 将其视为 `unknown`；正式介质事实由协调器结合磁盘型号与卷映射独立复核。
 
 ## Go/No-Go 报告模板
 

@@ -8,7 +8,8 @@
     "bench": "node benchmark/benchmark.js",
     "test:fixtures": "node test/test_fixtures.js",
     "test:indexer": "node test/test_indexer.js",
-    "test:crash": "node test/test_crash_recovery.js"
+    "test:crash": "node test/test_crash_recovery.js",
+    "test:evidence": "node test/test_evidence_contract.js"
   },
   "engines": {
     "node": ">=16.0.0"

@@ -10,7 +10,7 @@
  *
  * 本用例在 Win7 NTFS 上验证真实路径行为（无 Win10 长路径策略，MAX_PATH 260）。
  *
- * Win7-Validation: VALIDATED (2026-08-07)
+ * Historical Win7 SSD execution exists; formal status is coordinator-owned.
  */
 
 const fs = require('fs');

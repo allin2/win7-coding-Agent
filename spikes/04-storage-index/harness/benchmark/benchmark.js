@@ -22,6 +22,7 @@ const path = require('path');
 const { openDatabase } = require('../lib/db');
 const { initSchema } = require('../lib/indexer');
 const { detectDiskType } = require('../lib/disk-type');
+const { PROFILE_ID, verifyCandidateLease } = require('../lib/lease');
 const fixtures = require('../lib/fixtures');
 
 const CASES = [
@@ -47,7 +48,12 @@ function parseArgs(argv) {
     media: null,
     evidenceDir: null,
     genFixtures: false,
-    win7Validated: false,
+    evidenceGrade: 'DEVELOPMENT',
+    leasePath: null,
+    leaseSignaturePath: null,
+    publicKeyPath: null,
+    sourceCommit: process.env.A6_SOURCE_COMMIT || null,
+    packageManifestSha256: process.env.A6_PACKAGE_MANIFEST_SHA256 || null,
     s06LimitMb: 512,
     s06TargetMb: 256,
   };
@@ -62,12 +68,20 @@ function parseArgs(argv) {
     else if (a === '--media') opts.media = next();
     else if (a === '--evidence-dir') opts.evidenceDir = next();
     else if (a === '--gen-fixtures') opts.genFixtures = true;
-    else if (a === '--win7-validated') opts.win7Validated = true;
+    else if (a === '--candidate-evidence') opts.evidenceGrade = 'CANDIDATE_EVIDENCE';
+    else if (a === '--lease') opts.leasePath = next();
+    else if (a === '--lease-signature') opts.leaseSignaturePath = next();
+    else if (a === '--public-key') opts.publicKeyPath = next();
+    else if (a === '--source-commit') opts.sourceCommit = next();
+    else if (a === '--package-manifest-sha256') opts.packageManifestSha256 = next();
     else if (a === '--s06-limit-mb') opts.s06LimitMb = Number(next());
     else if (a === '--s06-target-mb') opts.s06TargetMb = Number(next());
     else if (a === '--s05-reps') opts.s05Reps = Number(next());
     else if (a === '--s04-modify-n') opts.s04ModifyN = Number(next());
     else if (a === '--help') { opts.help = true; }
+    else if (a === '--win7-validated') {
+      throw new Error('--win7-validated removed in ADR-0065 §3: worker no longer self-claims; use --candidate-evidence');
+    }
     else { throw new Error('unknown arg: ' + a); }
   }
   return opts;
@@ -91,13 +105,45 @@ async function main() {
   --media <ssd|hdd|unknown>                  显式介质声明（覆盖探测）
   --s06-limit-mb / --s06-target-mb           S06 阈值（开发机可调小）
   --evidence-dir <dir>                       输出目录（默认 harness/evidence）
-  --win7-validated                           标记为 Win7 实机验收证据（仅显式授权时用）
+  --candidate-evidence                       标记为待协调器校验的候选证据（CANDIDATE_EVIDENCE；
+                                             正式 WIN7_PASS 仅由协调器证据校验器计算，worker 不自报）
+  --lease <json>                             候选证据所需的 Ed25519 签名租约
+  --lease-signature <file>                   detached signature（默认 <lease>.sig）
+  --public-key <pem>                         协调器公钥（默认 harness/keys 下锁定公钥）
+  --source-commit <sha1>                     包绑定的 40 位源提交
+  --package-manifest-sha256 <sha256>         自包含包 manifest SHA-256
   --help`);
     return;
   }
 
   const media = detectDiskType(opts.media);
   const startUtc = new Date().toISOString();
+  const wanted = opts.cases || CASES.map((c) => c.id);
+  const acceptance = opts.evidenceGrade === 'CANDIDATE_EVIDENCE'
+    ? verifyCandidateLease({
+        leasePath: opts.leasePath,
+        signaturePath: opts.leaseSignaturePath,
+        publicKeyPath: opts.publicKeyPath,
+        sourceCommit: opts.sourceCommit,
+        packageManifestSha256: opts.packageManifestSha256,
+        observedHostname: os.hostname(),
+        media,
+        cases: wanted,
+        scale: opts.scale,
+        durationMs: opts.durationMs,
+        s05Reps: opts.s05Reps || 100,
+        s06LimitMb: opts.s06LimitMb,
+        s06TargetMb: opts.s06TargetMb,
+      })
+    : {
+        grade: 'DEVELOPMENT',
+        profile: null,
+        runId: null,
+        leaseId: null,
+        sourceCommit: null,
+        packageManifestSha256: null,
+        target: null,
+      };
 
   // 样本
   let sampleRoot = opts.samples;
@@ -122,7 +168,6 @@ async function main() {
   const dbDir = path.join(evidenceDir, '..', 'work', 'db', ts);
   fs.mkdirSync(dbDir, { recursive: true });
 
-  const wanted = opts.cases || CASES.map((c) => c.id);
   const results = [];
   const schemaSql = fs.readFileSync(path.join(__dirname, '..', 'schema', 'spike04.sql'), 'utf8');
 
@@ -180,7 +225,7 @@ async function main() {
     }
 
     const entry = {
-      schema_version: 1,
+      schema_version: 2,
       spike: 'SPIKE_04',
       case: c.id,
       name: c.name,
@@ -197,13 +242,20 @@ async function main() {
       media: {
         type: media,
         declared: !!opts.media,
-        note: media === 'hdd' ? 'mechanical disk' : media === 'ssd' ? 'SSD data, NOT mechanical disk' : 'unknown',
+        profile: media === 'ssd' ? PROFILE_ID : null,
+        note: media === 'ssd' ? 'local SSD acceptance profile' : 'outside validated SSD profile',
       },
-      win7: {
-        validated: opts.win7Validated,
-        note: opts.win7Validated
-          ? 'PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据'
-          : 'NOT_PERFORMED: Win7 实机验收未执行，本数据仅开发机趋势参考',
+      evidence: {
+        grade: acceptance.grade,
+        profile: acceptance.profile,
+        run_id: acceptance.runId,
+        lease_id: acceptance.leaseId,
+        source_commit: acceptance.sourceCommit,
+        package_manifest_sha256: acceptance.packageManifestSha256,
+        target: acceptance.target,
+        note: acceptance.grade === 'CANDIDATE_EVIDENCE'
+          ? 'CANDIDATE_EVIDENCE: 实机执行候选证据，正式 WIN7_PASS 仅由协调器证据校验器计算（worker 不自报）'
+          : 'DEVELOPMENT: 开发机结果，仅趋势参考，非正式验收证据',
       },
       params: {
         scale: opts.scale,
@@ -232,7 +284,7 @@ async function main() {
   }
 
   const summary = {
-    schema_version: 1,
+    schema_version: 2,
     spike: 'SPIKE_04',
     runId: ts,
     startedAtUtc: startUtc,
@@ -240,7 +292,15 @@ async function main() {
     media: media,
     samples: sampleRoot,
     scale: opts.scale,
-    win7_validation: opts.win7Validated ? 'VALIDATED' : 'NOT_PERFORMED',
+    evidence: {
+      grade: acceptance.grade,
+      profile: acceptance.profile,
+      run_id: acceptance.runId,
+      lease_id: acceptance.leaseId,
+      source_commit: acceptance.sourceCommit,
+      package_manifest_sha256: acceptance.packageManifestSha256,
+      target: acceptance.target,
+    },
     results,
   };
   const sumFile = path.join(evidenceDir, `run-${ts}-summary.json`);

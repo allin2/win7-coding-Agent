@@ -13,7 +13,7 @@
  * 本用例与 S 系列（S01-S08 性能/可靠性）互补：S 系列负责任务书 §4 硬指标，
  * F 系列负责 README 功能矩阵。二者共用同一 schema 与驱动。
  *
- * Win7-Validation: VALIDATED (2026-08-07)
+ * Historical Win7 SSD execution exists; formal status is coordinator-owned.
  */
 
 const fs = require('fs');
