@@ -132,6 +132,11 @@ try {
       && ORCHESTRATOR_SOURCE.includes("'EVIDENCE_HASH_MISMATCH'")
       && ORCHESTRATOR_SOURCE.includes('remote_sha256: remoteHash')
       && ORCHESTRATOR_SOURCE.includes('local_sha256: localHash'));
+  check('empty evidence uses fail-closed Win7 zero-length fallback',
+    ORCHESTRATOR_SOURCE.includes('ZERO_LENGTH_CANONICAL_AFTER_CERTUTIL_FAILURE')
+      && ORCHESTRATOR_SOURCE.includes("const EMPTY_SHA256 = 'e3b0c442")
+      && ORCHESTRATOR_SOURCE.includes('remoteSize === 0')
+      && ORCHESTRATOR_SOURCE.includes('attempt <= 3'));
   check('evidence download loop is unique',
     (ORCHESTRATOR_SOURCE.match(/for \(const name of this\.profile\.remote\.evidence_files\)/g) || []).length === 1);
   check('preflight documents CreateProcessAsUserW path',

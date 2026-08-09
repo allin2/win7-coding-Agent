@@ -48,6 +48,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
   精确验证且已回滚。脚本不会修改 `C:\Windows\Temp`。
 - helper 若返回 `ACL_ROLLBACK_FAILED`，表示 ACL/完整性标签恢复未被证明；必须将该候选
   判定为失败并保留错误消息，不得继续进入 Win7 上传或验收。
+- Win7 清除最后一条 mandatory-label ACE 后，可能把原始 `null` label ACL 物化为合法的
+  `0 ACE` ACL；v16 只在 LABEL 比较中把两者视为“无显式标签”，DACL 仍逐 ACE 严格比较。
 - helper 强制验证 restricted token 为 primary token，并按 Windows restricted-token
   合同通过 `CreateProcessAsUserW` 启动；禁止再走 impersonation token 或
   `CreateProcessWithTokenW` 路径；

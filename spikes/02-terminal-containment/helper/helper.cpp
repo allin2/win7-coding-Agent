@@ -156,6 +156,29 @@ bool AclsEqual(PACL left, PACL right) {
     return true;
 }
 
+// Win7 may materialize an absent LABEL_SECURITY_INFORMATION ACL as a valid
+// zero-ACE ACL after SetNamedSecurityInfoW clears the last mandatory label.
+// Those two representations both mean "no explicit mandatory label". This
+// equivalence is LABEL-only: a null DACL and an empty DACL have very different
+// access semantics and must continue through strict AclsEqual comparison.
+bool LabelAclsEqual(PACL left, PACL right) {
+    if (left && right) return AclsEqual(left, right);
+    if (!left && !right) return true;
+    PACL present = left ? left : right;
+    ACL_SIZE_INFORMATION info = {};
+    return GetAclInformation(present, &info, sizeof(info), AclSizeInformation) &&
+           info.AceCount == 0;
+}
+
+std::wstring DescribeAclShape(PACL acl) {
+    if (!acl) return L"null";
+    ACL_SIZE_INFORMATION info = {};
+    if (!GetAclInformation(acl, &info, sizeof(info), AclSizeInformation)) {
+        return L"invalid";
+    }
+    return std::to_wstring(info.AceCount) + L" ACE(s)";
+}
+
 bool CurrentDaclMatches(const std::wstring& directory, PACL expected,
                         std::wstring* error) {
     PSECURITY_DESCRIPTOR descriptor = nullptr;
@@ -186,8 +209,12 @@ bool CurrentLabelAclMatches(const std::wstring& directory, PACL expected,
         if (descriptor) LocalFree(descriptor);
         return false;
     }
-    const bool equal = AclsEqual(current, expected);
-    if (!equal && error) *error = L"restored mandatory-label ACL does not match the captured ACL";
+    const bool equal = LabelAclsEqual(current, expected);
+    if (!equal && error) {
+        *error = L"restored mandatory-label ACL does not match the captured ACL"
+                 L" (captured=" + DescribeAclShape(expected) +
+                 L", current=" + DescribeAclShape(current) + L")";
+    }
     LocalFree(descriptor);
     return equal;
 }
