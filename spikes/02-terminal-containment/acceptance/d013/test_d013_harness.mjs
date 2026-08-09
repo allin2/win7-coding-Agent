@@ -29,6 +29,7 @@ const HARNESS = path.join(HERE, 'run_d013_win7.py');
 const ORCHESTRATOR = path.join(HERE, 'run_d013_win7.mjs');
 const MOCK = path.join(HERE, 'mock_helper.py');
 const PROFILE = path.join(HERE, 'd013_profile.json');
+const ORCHESTRATOR_SOURCE = fs.readFileSync(ORCHESTRATOR, 'utf8');
 
 function run(command, args, opts = {}) {
   return spawnSync(command, args, { encoding: 'utf8', shell: false, ...opts });
@@ -123,6 +124,19 @@ try {
     dryReport.stages.every((s) => s.commands.every((c) => c.command !== 'ssh' && c.command !== 'scp')));
   check('dry-run stages are NOT_PERFORMED', dryReport.stages.every((s) => s.status === 'NOT_PERFORMED'));
   check('dry-run safety: win7 not connected', dryReport.safety.win7_connected === false);
+  check('worker only emits candidate evidence', ORCHESTRATOR_SOURCE.includes('D013_CANDIDATE_EVIDENCE')
+    && ORCHESTRATOR_SOURCE.includes("classification: 'CANDIDATE_EVIDENCE'")
+    && !ORCHESTRATOR_SOURCE.includes('D013_EXECUTION_PASS'));
+  check('evidence retrieval captures remote and local SHA-256',
+    ORCHESTRATOR_SOURCE.includes("'EVIDENCE_REMOTE_HASH_FAILED'")
+      && ORCHESTRATOR_SOURCE.includes("'EVIDENCE_HASH_MISMATCH'")
+      && ORCHESTRATOR_SOURCE.includes('remote_sha256: remoteHash')
+      && ORCHESTRATOR_SOURCE.includes('local_sha256: localHash'));
+  check('evidence download loop is unique',
+    (ORCHESTRATOR_SOURCE.match(/for \(const name of this\.profile\.remote\.evidence_files\)/g) || []).length === 1);
+  check('preflight documents CreateProcessAsUserW path',
+    ORCHESTRATOR_SOURCE.includes('restricted primary token uses CreateProcessAsUserW')
+      && !ORCHESTRATOR_SOURCE.includes('CreateProcessWithTokenW usable'));
 
   // ── 4. Execute-mode gate: lease + locked hash -> fail closed before SSH ────
   const profile = JSON.parse(fs.readFileSync(PROFILE, 'utf8'));
