@@ -6,6 +6,10 @@ const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Electron patches fs for .asar virtual files. Package reconciliation must
+// hash the raw archive bytes delivered by SCP, not the virtual archive view.
+process.noAsar = true;
+
 function fail(message) {
   process.stderr.write('A6_RUNNER_FATAL: ' + message + '\n');
   process.exit(1);
