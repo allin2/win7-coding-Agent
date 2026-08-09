@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "algorithm": "Ed25519",
+  "key_id": "ed25519:453fbdaa74edae07fc3e3cee0963e6f5a4744fc53ac68fa640680362220526ca",
+  "private_key_location": "GIT_EXTERNAL_COORDINATOR_STATE"
+}

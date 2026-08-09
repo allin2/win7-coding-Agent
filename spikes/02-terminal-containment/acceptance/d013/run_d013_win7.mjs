@@ -19,21 +19,34 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseCertutilHash, redactArgs, validateAcceptanceId } from '../run_fup_automation.mjs';
+import {
+  buildArtifactManifest,
+  jsonBytes,
+  sha256Bytes,
+  verifyLeaseFiles,
+} from '../../../../scripts/mvp_acceptance/win7_coordinator/lease.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const DEFAULT_PROFILE = path.join(HERE, 'd013_profile.json');
 const SCRIPT = path.join(HERE, 'run_d013_win7.py');
 const LAUNCHER = path.join(HERE, 'run_d013_wmi.cmd');
+const LEASE_PUBLIC_KEY = path.join(ROOT, 'scripts/mvp_acceptance/win7_coordinator/lease_public.pem');
 
 function parseArgs(argv) {
-  const args = { executeWin7: false, dryRun: false, profile: DEFAULT_PROFILE, acceptanceId: null, out: null };
+  const args = {
+    executeWin7: false, dryRun: false, profile: DEFAULT_PROFILE, acceptanceId: null, out: null,
+    leasePayload: null, leaseSignature: null, leaseNonce: null,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--execute-win7') args.executeWin7 = true;
     else if (argv[i] === '--dry-run') args.dryRun = true;
     else if (argv[i] === '--profile') args.profile = path.resolve(argv[++i]);
     else if (argv[i] === '--acceptance-id') args.acceptanceId = argv[++i];
     else if (argv[i] === '--out') args.out = path.resolve(argv[++i]);
+    else if (argv[i] === '--lease-payload') args.leasePayload = path.resolve(argv[++i]);
+    else if (argv[i] === '--lease-signature') args.leaseSignature = path.resolve(argv[++i]);
+    else if (argv[i] === '--lease-nonce') args.leaseNonce = argv[++i];
     else if (argv[i] === '--help') args.help = true;
     else throw new Error(`unknown argument: ${argv[i]}`);
   }
@@ -41,12 +54,21 @@ function parseArgs(argv) {
   if (!args.executeWin7 && !args.dryRun) throw new Error('explicit --execute-win7 or --dry-run is required');
   if (!args.acceptanceId) throw new Error('--acceptance-id is required');
   validateAcceptanceId(args.acceptanceId);
+  if (args.executeWin7 && (!args.leasePayload || !args.leaseSignature || !args.leaseNonce)) {
+    throw new Error('--execute-win7 requires --lease-payload, --lease-signature and --lease-nonce');
+  }
   return args;
 }
 
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function sha256Sync(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
 function now() { return new Date().toISOString(); }
+
+function repoHead() {
+  const result = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, shell: false, encoding: 'utf8' });
+  if (result.status !== 0 || !/^[0-9a-f]{40}$/.test(result.stdout.trim())) throw new Error('cannot resolve integration commit');
+  return result.stdout.trim();
+}
 
 function hasListeningSshPort22(output) {
   return /(?:^|\s)(?:\d{1,3}(?:\.\d{1,3}){3}|\[::\]|::|\*):22(?:\s|$).*\bLISTENING\b/i.test(output || '');
@@ -282,9 +304,22 @@ class Runner {
         return { status: 'PASS' };
       }
       // Control-plane gate: Win7 may only be reached under an explicit lease
-      // grant. A missing or NOT_GRANTED lease fails closed before any SSH.
-      if (gates['GATE-WIN7-LEASE'] !== 'GRANTED') {
-        return { status: 'FAIL', failure: { code: 'WIN7_LEASE_NOT_GRANTED', message: String(gates['GATE-WIN7-LEASE'] ?? 'MISSING') } };
+      // signed by the fixed ADR-0065 public key. Profile text is not authority.
+      let lease;
+      try {
+        const manifest = buildArtifactManifest(ROOT, this.profile);
+        lease = verifyLeaseFiles(this.args.leasePayload, this.args.leaseSignature, LEASE_PUBLIC_KEY, {
+          acceptance_id: this.args.acceptanceId,
+          commit: repoHead(),
+          target: this.profile.target,
+          scope: { track: 'A4', acceptance: 'D-013', minimum_acl: 'PER_RUN_ROOT_ONLY' },
+          artifact_manifest_sha256: sha256Bytes(jsonBytes(manifest)),
+          nonce: this.args.leaseNonce,
+          allowed_remote_roots: [this.remoteRoot, this.remoteDataRoot],
+          forbidden_operations: this.profile.forbidden_operations,
+        });
+      } catch (error) {
+        return { status: 'FAIL', failure: { code: 'SIGNED_WIN7_LEASE_INVALID', message: String(error.message || error) } };
       }
       // The locked candidate hash must be a real 64-hex SHA-256. The
       // PENDING_WIN10_BUILD sentinel means the Win10 return package has not
@@ -304,7 +339,15 @@ class Runner {
       stage.baseline = {
         profile_id: this.profile.profile_id,
         candidate: { path: candidate, sha256: candidateHash, locked_sha256: locked },
-        gates, private_key_content_read: false,
+        gates, lease: {
+          key_id: lease.key_id,
+          nonce: lease.nonce,
+          issued_at: lease.issued_at,
+          expires_at: lease.expires_at,
+          artifact_manifest_sha256: lease.artifact_manifest_sha256,
+          signature_verified: true,
+        },
+        private_key_content_read: false,
       };
       return { status: 'PASS' };
     }, 30000);
@@ -525,7 +568,7 @@ class Runner {
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help) {
-  process.stdout.write('Usage: node run_d013_win7.mjs --dry-run|--execute-win7 --acceptance-id A4-YYYYMMDD-xxx [--profile profile.json] [--out report.json]\n');
+  process.stdout.write('Usage: node run_d013_win7.mjs --dry-run|--execute-win7 --acceptance-id A4-YYYYMMDD-xxx [--profile profile.json] [--out report.json] [--lease-payload file --lease-signature file --lease-nonce hex]\n');
 } else {
   const profile = readJson(args.profile);
   validateD013Profile(profile);
