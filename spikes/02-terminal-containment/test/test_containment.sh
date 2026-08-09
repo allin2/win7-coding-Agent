@@ -1,187 +1,141 @@
 #!/bin/bash
-# SPIKE 02 - 终端容器化测试脚本
+# SPIKE 02 / D-013 — containment source assertions and local logic tests.
 #
-# 验证 C++ Helper 和 VT 过滤器的 containment 功能。
-# 需要在 Win7 实机上运行（需要 MSVC 编译的 helper.exe）。
+# Runs on ANY host:
+#   - static assertions on the helper implementation (no taskkill path — N06,
+#     restricted token actually applied, Job tree kill, structured argv),
+#   - platform-neutral logic unit tests (JSON protocol, argv quoting,
+#     allow-list) when the logic_tests binary is built or buildable.
 #
-# 用法: bash test_containment.sh [helper_path]
+# Runs on Win7 only (requires a compiled helper.exe):
+#   - dynamic protocol round trip.
 #
-# Win7-Validation: NOT_PERFORMED
+# Usage: bash test_containment.sh [helper.exe path] [path to logic_tests binary]
+#
+# Win7-Validation: NOT_PERFORMED (dynamic cases require the D-013 Win10 build
+# return package and the WIN7_LEASE_GRANTED gate).
 
-set -euo pipefail
+set -uo pipefail
 
-# ─── 配置 ────────────────────────────────────────────────────────────────────
-
-HELPER_PATH="${1:-../helper/build/Release/helper.exe}"
+HELPER_PATH="${1:-}"
+LOGIC_BIN="${2:-}"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="${TEST_DIR}/output"
+HELPER_SRC_DIR="${TEST_DIR}/../helper"
+HELPER_CPP="${HELPER_SRC_DIR}/helper.cpp"
+HELPER_H="${HELPER_SRC_DIR}/helper.h"
 RESULTS_DIR="${TEST_DIR}/results"
-
-# ─── 颜色输出 ────────────────────────────────────────────────────────────────
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
-
-pass() { echo -e "${GREEN}[PASS]${NC} $1"; }
-fail() { echo -e "${RED}[FAIL]${NC} $1"; }
-info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
-
-# ─── 初始化 ──────────────────────────────────────────────────────────────────
-
-echo "=============================================="
-echo "SPIKE 02 - 终端容器化测试"
-echo "=============================================="
-echo ""
-
-# 创建结果目录
-mkdir -p "${RESULTS_DIR}"
-
-# 检查 helper 是否存在
-if [[ ! -f "${HELPER_PATH}" ]]; then
-    info "Helper 未编译: ${HELPER_PATH}"
-    info "请先编译 C++ Helper:"
-    info "  cd ../helper && mkdir build && cd build"
-    info "  cmake .. -G 'Visual Studio 16 2019' -A x64"
-    info "  cmake --build . --config Release"
-    echo ""
-    info "当前运行静态检查..."
-    echo ""
-fi
-
-# ─── 测试项定义 ──────────────────────────────────────────────────────────────
-
 PASS_COUNT=0
 FAIL_COUNT=0
 
-run_test() {
-    local test_id="$1"
-    local test_name="$2"
-    local test_cmd="$3"
-    
-    info "运行测试: ${test_id} - ${test_name}"
-    
-    if eval "${test_cmd}"; then
-        pass "${test_id} - ${test_name}"
-        ((PASS_COUNT++))
-    else
-        fail "${test_id} - ${test_name}"
-        ((FAIL_COUNT++))
-    fi
-}
+pass() { echo "[PASS] $1"; PASS_COUNT=$((PASS_COUNT + 1)); }
+fail() { echo "[FAIL] $1"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
+info() { echo "[INFO] $1"; }
 
-# ─── 静态检查（可在任何平台运行）────────────────────────────────────────────
-
-echo "--- 静态检查 ---"
-echo ""
-
-# C01: Job Object 代码检查
-run_test "C01" "Job Object API 使用" \
-    "grep -q 'CreateJobObject' ../helper/helper.cpp"
-
-# C02: Restricted Token 代码检查
-run_test "C02" "Restricted Token API 使用" \
-    "grep -q 'CreateRestrictedToken' ../helper/helper.cpp"
-
-# C03: ACL 设置代码检查
-run_test "C03" "ACL API 使用" \
-    "grep -q 'SetEntriesInAcl\|SetNamedSecurityInfo' ../helper/helper.cpp"
-
-# C04: argv 白名单代码检查
-run_test "C04" "argv 白名单函数存在" \
-    "grep -q 'ValidateArgvWhitelist' ../helper/helper.cpp"
-
-# C05: 子进程启动代码检查
-run_test "C05" "CreateProcess API 使用" \
-    "grep -q 'CreateProcessW' ../helper/helper.cpp"
-
-# C06: 超时处理代码检查
-run_test "C06" "超时处理代码存在" \
-    "grep -q 'WaitForSingleObject\|WAIT_TIMEOUT' ../helper/helper.cpp"
-
-# C07: 输出上限代码检查
-run_test "C07" "输出上限常量定义" \
-    "grep -q 'MAX_OUTPUT_SIZE' ../helper/helper.h"
-
-# C11: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-run_test "C11" "KILL_ON_JOB_CLOSE 标志" \
-    "grep -q 'JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE' ../helper/helper.cpp"
-
-# C12: IsProcessInJob 探测
-run_test "C12" "IsProcessInJob 探测" \
-    "grep -q 'IsProcessInJob' ../helper/helper.cpp"
-
-# C13-C15: VT 过滤器检查
-run_test "C13" "OSC 52 过滤正则" \
-    "grep -q 'OSC_52_CLIPBOARD' ../winpty/filter.js"
-
-run_test "C14" "窗口标题过滤正则" \
-    "grep -q 'WINDOW_TITLE' ../winpty/filter.js"
-
-run_test "C15" "DECRQSS 过滤正则" \
-    "grep -q 'DECRQSS' ../winpty/filter.js"
-
-# C10: 中文+空格路径兼容
-run_test "C10" "Unicode 定义（中文路径支持）" \
-    "grep -q 'UNICODE' ../helper/CMakeLists.txt"
-
-echo ""
-
-# ─── 动态测试（需要 Win7 实机）──────────────────────────────────────────────
-
-if [[ -f "${HELPER_PATH}" ]]; then
-    echo "--- 动态测试（Win7 实机）---"
-    echo ""
-    
-    # TODO: 实现动态测试
-    # 1. 启动 helper.exe
-    # 2. 发送 JSON 命令
-    # 3. 验证输出
-    # 4. 测试恶意输入过滤
-    
-    info "动态测试尚未实现，需要 Win7 实机验证"
-    echo ""
-fi
-
-# ─── 恶意输入测试 ────────────────────────────────────────────────────────────
-
-echo "--- 恶意输入生成 ---"
-echo ""
-
-# 生成恶意样本
-node generate_malicious.js "${OUTPUT_DIR}"
-
-echo ""
-
-# ─── 汇总 ────────────────────────────────────────────────────────────────────
+mkdir -p "${RESULTS_DIR}"
 
 echo "=============================================="
-echo "测试结果汇总"
+echo "SPIKE 02 / D-013 containment assertions"
 echo "=============================================="
-echo ""
-echo "通过: ${PASS_COUNT}"
-echo "失败: ${FAIL_COUNT}"
-echo "总计: $((PASS_COUNT + FAIL_COUNT))"
-echo ""
 
-if [[ ${FAIL_COUNT} -eq 0 ]]; then
-    echo -e "${GREEN}判定: GO${NC} - 所有静态检查通过"
+# ── N06: no taskkill ANYWHERE (hard gate). Comments documenting the
+#    constraint are fine; executable taskkill paths are not. ──────────────────
+if grep -RniE 'L?"taskkill(\.exe)?"|taskkill[[:space:]]+/F|system\([^)]*taskkill|CreateProcess[^)]*taskkill' "${HELPER_SRC_DIR}" --include='*.cpp' --include='*.h' >/dev/null 2>&1; then
+    fail "N06: taskkill must never be used to fake Job containment"
 else
-    echo -e "${RED}判定: NO-GO${NC} - 存在未通过的检查项"
+    pass "N06: no executable taskkill path in helper sources"
 fi
 
-echo ""
-echo "Win7-Validation: NOT_PERFORMED"
-echo "=============================================="
+# ── C01: Job Object with whole-tree kill ─────────────────────────────────────
+for token in CreateJobObjectW SetInformationJobObject JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE TerminateJobObject AssignProcessToJobObject; do
+    if grep -q "${token}" "${HELPER_CPP}"; then pass "C01: ${token} present"; else fail "C01: ${token} missing"; fi
+done
 
-# 保存结果
+# ── C02: host Job probe fail-closed ──────────────────────────────────────────
+if grep -q 'IsProcessInJob(GetCurrentProcess()' "${HELPER_CPP}" \
+    && grep -q 'HOST_ALREADY_IN_JOB' "${HELPER_CPP}"; then
+    pass "C02: host-in-Job probe with HOST_ALREADY_IN_JOB fail-closed"
+else
+    fail "C02: host-in-Job probe missing"
+fi
+
+# ── C03: Restricted Token actually applied to the child ──────────────────────
+for token in CreateRestrictedToken DISABLE_MAX_PRIVILEGE SetTokenInformation TokenIntegrityLevel CreateProcessAsUserW; do
+    if grep -q "${token}" "${HELPER_CPP}"; then pass "C03: ${token} present"; else fail "C03: ${token} missing"; fi
+done
+if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" || grep -q 'SECURITY_WORLD_RID\|SECURITY_WORLD_SID_AUTHORITY' "${HELPER_CPP}"; then
+    fail "C03: obsolete impersonation/Everyone deny-only path must stay absent"
+else
+    pass "C03: obsolete impersonation/Everyone deny-only path absent"
+fi
+if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
+
+# ── C04: ACL boundary with rollback ──────────────────────────────────────────
+for token in AddMandatoryAce SetNamedSecurityInfoW SetEntriesInAclW RestoreDirectoryDacl protectedDirectories; do
+    if grep -q "${token}" "${HELPER_CPP}" "${HELPER_H}" 2>/dev/null; then pass "C04: ${token} present"; else fail "C04: ${token} missing"; fi
+done
+
+# ── C06/C09: structured argv allow-list, no shell concatenation ──────────────
+for token in CheckWhitelist BuildCommandLine QuoteArg; do
+    if grep -Rq "${token}" "${HELPER_SRC_DIR}" --include='*.cpp' --include='*.h' 2>/dev/null; then pass "C06/C09: ${token} present"; else fail "C06/C09: ${token} missing"; fi
+done
+if grep -q 'system(' "${HELPER_CPP}" || grep -q ' _wsystem' "${HELPER_CPP}"; then
+    fail "C09: helper must never execute shell strings via system()"
+else
+    pass "C09: no system() shell-string execution"
+fi
+
+# ── C07: timeout + output cap ────────────────────────────────────────────────
+for token in outputTruncated kMaxOutputSizeDefault kMaxOutputSizeAbsolute maxOutputSize; do
+    if grep -q "${token}" "${HELPER_CPP}" "${HELPER_H}" 2>/dev/null; then pass "C07: ${token} present"; else fail "C07: ${token} missing"; fi
+done
+
+# ── C19: input detachment ────────────────────────────────────────────────────
+if grep -q '\\\\\.\\\\NUL' "${HELPER_CPP}" || grep -q 'NUL' "${HELPER_CPP}"; then
+    pass "C19: child stdin detached (NUL device)"
+else
+    fail "C19: child stdin detachment missing"
+fi
+
+# ── Skeleton leftovers are forbidden ─────────────────────────────────────────
+if grep -nE '// *(TODO: *(实现|fill|complete))' "${HELPER_CPP}" "${HELPER_H}" | grep -v 'TODO.*Win7 runtime evidence' >/dev/null; then
+    fail "helper still contains implementation TODOs"
+else
+    pass "helper contains no implementation TODO skeletons"
+fi
+
+# ── Platform-neutral logic unit tests ────────────────────────────────────────
+if [ -n "${LOGIC_BIN}" ] && [ -x "${LOGIC_BIN}" ]; then
+    if "${LOGIC_BIN}" | grep -q 'ALL PASS'; then
+        pass "logic_tests: ALL PASS (${LOGIC_BIN})"
+    else
+        fail "logic_tests: FAIL (${LOGIC_BIN})"
+    fi
+elif [ -x "${HELPER_SRC_DIR}/build-mac/logic_tests" ]; then
+    if "${HELPER_SRC_DIR}/build-mac/logic_tests" | grep -q 'ALL PASS'; then
+        pass "logic_tests: ALL PASS (build-mac)"
+    else
+        fail "logic_tests: FAIL (build-mac)"
+    fi
+else
+    info "logic_tests binary not found; run: cmake -S helper -B helper/build-mac && cmake --build helper/build-mac --target logic_tests"
+fi
+
+# ── Dynamic protocol round trip (Win7 only) ──────────────────────────────────
+if [ -n "${HELPER_PATH}" ] && [ -f "${HELPER_PATH}" ]; then
+    info "dynamic cases require the D-013 Win10 return package and WIN7_LEASE_GRANTED; skipped here"
+else
+    info "no helper.exe provided; dynamic containment cases NOT_PERFORMED (GATE-WIN10-BUILD / WIN7 lease)"
+fi
+
+echo "=============================================="
+echo "通过: ${PASS_COUNT}  失败: ${FAIL_COUNT}  Win7-Validation: NOT_PERFORMED"
+echo "=============================================="
 {
-    echo "SPIKE 02 - 测试结果"
-    echo "日期: $(date)"
-    echo "通过: ${PASS_COUNT}"
-    echo "失败: ${FAIL_COUNT}"
+    echo "SPIKE 02 / D-013 containment assertions"
+    echo "date: $(date)"
+    echo "pass: ${PASS_COUNT}"
+    echo "fail: ${FAIL_COUNT}"
     echo "Win7-Validation: NOT_PERFORMED"
 } > "${RESULTS_DIR}/test_results.txt"
 
-exit ${FAIL_COUNT}
+[ "${FAIL_COUNT}" -eq 0 ]

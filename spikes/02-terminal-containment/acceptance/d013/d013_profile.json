@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "profile_id": "D013-CLOSURE-01",
+  "orchestration_head": "2e833e0",
+  "source_head": "2e833e0",
+  "win7_validation": "NOT_PERFORMED",
+  "implementation_allowlist": [
+    "spikes/02-terminal-containment/**",
+    "spikes/02-terminal-containment/helper/**",
+    "spikes/02-terminal-containment/acceptance/**",
+    "spikes/02-terminal-containment/test/**"
+  ],
+  "target": {
+    "address": "10.67.149.40",
+    "user": "dccs-chaizl",
+    "os": "Windows 7 SP1 x64 build 7601",
+    "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
+    "data_root": "C:\\Win7CodingAgent\\data"
+  },
+  "ssh": {
+    "private_key": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/id_rsa_win7accept",
+    "known_hosts": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/ssh/known_hosts_win7",
+    "connect_timeout_seconds": 8,
+    "strict_host_key_checking": true,
+    "batch_mode": true,
+    "identities_only": true
+  },
+  "candidate": {
+    "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
+    "sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
+    "note": "Extracted from the reviewed v15 Win10 PASS return package; ignored by Git"
+  },
+  "win10_return_package": {
+    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
+    "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
+    "review_status": "PASS",
+    "win10_smoke": "PASS",
+    "pe_api_crt_analysis": "PASS",
+    "reviewed_at": "2026-08-09",
+    "committed_to_git": false
+  },
+  "upload_files": [
+    {"local": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe", "remote": "spike02_helper.exe"},
+    {"local": "spikes/02-terminal-containment/acceptance/d013/run_d013_win7.py", "remote": "run_d013_win7.py"},
+    {"local": "spikes/02-terminal-containment/acceptance/d013/run_d013_wmi.cmd", "remote": "run_d013_wmi.cmd"}
+  ],
+  "remote": {
+    "bitvise_service": "BvSshServer",
+    "python": "C:\\acceptance\\python38_mvp\\python.exe",
+    "launcher": "run_d013_wmi.cmd",
+    "evidence_files": [
+      "d013-results.json", "d013-stdout.txt", "d013-stderr.txt",
+      "d013-exit-code.txt", "launcher-whoami.txt", "launcher-privs.txt",
+      "bitvise-after.txt", "port22-after.txt", "residue-after.txt"
+    ]
+  },
+  "gates": {
+    "GATE-WIN10-BUILD": "PASS",
+    "GATE-WIN7-LEASE": "NOT_GRANTED",
+    "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
+    "GATE-NET": "ENVIRONMENT_MISSING",
+    "GATE-PROD": "AUTHORIZATION_BLOCKED"
+  },
+  "forbidden_operations": [
+    "taskkill", "shutdown", "restart", "reboot", "netsh", "route", "firewall",
+    "sc config", "sc stop", "sc delete", "startup", "proxy", "Set-NetIPInterface"
+  ]
+}

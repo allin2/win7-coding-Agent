@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
+  "generated_at": "2026-08-09T11:50:52.549Z",
+  "sources": [
+    {
+      "path": "src/helper.cpp",
+      "size": 51011,
+      "sha256": "cfcb52e0bf00863be1906d137a79d6411350fb6dec9bc7d4fa3b856f67b71685"
+    },
+    {
+      "path": "src/helper.h",
+      "size": 9708,
+      "sha256": "71c882ec8af1353c082d71e2fecd8ad3addef71f6a220ab1c6a14a2d3da9248d"
+    },
+    {
+      "path": "src/json_parser.cpp",
+      "size": 12913,
+      "sha256": "bfbd048d605e3cdabb9bb139a1cb38244ca2c74f7aa47415bcbe8607968d5ae8"
+    },
+    {
+      "path": "src/json_parser.h",
+      "size": 2653,
+      "sha256": "559eaa6d53f001a4bdcf436c031ea554bebfd9ef7811b21b977261a10536ef65"
+    },
+    {
+      "path": "src/argv_builder.cpp",
+      "size": 1774,
+      "sha256": "80a0e14cb6104f51288dea9cf1fc22e1a78e569b8ba20041c6dd8b159168c930"
+    },
+    {
+      "path": "src/argv_builder.h",
+      "size": 1091,
+      "sha256": "8e3952658304e34049abac271e27fd01d61f298b12160f284fd029f292727992"
+    },
+    {
+      "path": "src/whitelist.cpp",
+      "size": 6335,
+      "sha256": "c665805199a998ae146325b3831f42991d0bb719050b81af28d4fd30eaf0c24f"
+    },
+    {
+      "path": "src/whitelist.h",
+      "size": 3335,
+      "sha256": "49d2117bc9d6463cbbc2dae12b964a85e364c4480d8835d83e42bbe20c6d31a4"
+    },
+    {
+      "path": "src/protocol.cpp",
+      "size": 12226,
+      "sha256": "c5a5f8bfabab3df15118e178e9807048ce69607e386fe15708a103d5209c3145"
+    },
+    {
+      "path": "src/CMakeLists.txt",
+      "size": 3265,
+      "sha256": "9330a980fe54a92574ce99e2e8402bf494b37da7dba0493990e06d4e8e7de8c2"
+    },
+    {
+      "path": "build.ps1",
+      "size": 18964,
+      "sha256": "a04a496162a827e345bdb968ae1fa3a7073fd51f0ade3f67f7cd5adc5db06622"
+    },
+    {
+      "path": "build-profile.json",
+      "size": 2455,
+      "sha256": "b4d8db26cbb0a1ab9f8a1769bd08e110b28392b44e0ffc244ebd53bf83311d30"
+    },
+    {
+      "path": "helper.exe.manifest",
+      "size": 1119,
+      "sha256": "d5bcc8b0074e4c3ada637b1faac5fc212a90664d840add1e7667dee09a6e4d5e"
+    }
+  ]
+}
