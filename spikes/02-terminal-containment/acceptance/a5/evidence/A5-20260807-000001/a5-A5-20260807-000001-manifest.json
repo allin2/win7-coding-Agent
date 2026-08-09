@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "manifest_type": "A5_TERMINAL_CANDIDATE_INTERNAL",
+  "package": "A5_TERMINAL_CANDIDATE",
+  "revision": "A5-20260807-000001",
+  "generated_at": "2026-08-07T03:49:59.778Z",
+  "source_zip": {
+    "path": "/Users/qlyf/Developer/win7-coding-Agent/WIN7_NATIVE_ARTIFACTS_20260806-160514.zip",
+    "size": 98468748,
+    "sha256": "c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea",
+    "locked": "c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea",
+    "match": true,
+    "readonly": true
+  },
+  "native_lock": [
+    {
+      "name": "pty.node",
+      "sha256": "4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5",
+      "locked": "4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5",
+      "match": true
+    },
+    {
+      "name": "winpty-agent.exe",
+      "sha256": "51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d",
+      "locked": "51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d",
+      "match": true
+    },
+    {
+      "name": "winpty.dll",
+      "sha256": "cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b",
+      "locked": "cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b",
+      "match": true
+    }
+  ],
+  "candidate_runtime": {
+    "node_pty_root": "node_modules/node-pty",
+    "file_count": 23,
+    "all_hashed": true,
+    "files": [
+      {
+        "path": "package.json",
+        "size": 1451,
+        "sha256": "2e394103681ff5e76260b3470e6141946be9e1a039c67cd1d26853320b69c771"
+      },
+      {
+        "path": "LICENSE",
+        "size": 3326,
+        "sha256": "a3d60eaf32d2fb09c9d82ef39f14bd6e2c0f3ca7de30daa827486c0d6f8b6e9f"
+      },
+      {
+        "path": "README.md",
+        "size": 6925,
+        "sha256": "538ee0b9c964d6a7b8a2000330c9f5526986811d46b0e590752e20685a501a39"
+      },
+      {
+        "path": "lib/index.js",
+        "size": 1972,
+        "sha256": "a417bef7e10455a2f538a729d722c22e91305ada0f87ada9c168a15cc9f01505"
+      },
+      {
+        "path": "lib/index.js.map",
+        "size": 964,
+        "sha256": "a84a7e2fc7f91901682875cd6d9fa9d8d73b2b4415a5e4d1a811ac6e9dc26f8e"
+      },
+      {
+        "path": "lib/windowsTerminal.js",
+        "size": 7408,
+        "sha256": "cfaad7a0d8be0f2494e122094b1b71bbeb0309f8741568f7e715810561449279"
+      },
+      {
+        "path": "lib/windowsTerminal.js.map",
+        "size": 4717,
+        "sha256": "aaad20e7a644c0f10a16e971dcd0024d39675784fcaca8052036aa7462807feb"
+      },
+      {
+        "path": "lib/windowsPtyAgent.js",
+        "size": 11985,
+        "sha256": "56c84e134442e4dee7dfc0f31e4301af3107bfcc2cf83964c7208345425348cb"
+      },
+      {
+        "path": "lib/windowsPtyAgent.js.map",
+        "size": 8547,
+        "sha256": "d7e176cbb193c4c13b042af3c3005530834d3f6e3ce6b0d036cf75f2a01b811f"
+      },
+      {
+        "path": "lib/terminal.js",
+        "size": 7125,
+        "sha256": "563c438fabfb9179581ec95a876afa62c1ada50ba969efed4f878735237af78b"
+      },
+      {
+        "path": "lib/terminal.js.map",
+        "size": 5596,
+        "sha256": "b4b4822e8ecaee597b10bbc59aed0c51ab27e7fa327f457e798b91be364338fc"
+      },
+      {
+        "path": "lib/interfaces.js",
+        "size": 233,
+        "sha256": "56e4173f09aad26173f9d4c79800fda0b808c34424f987ef8d671cc931119a0a"
+      },
+      {
+        "path": "lib/interfaces.js.map",
+        "size": 124,
+        "sha256": "8ad6939566c34a59f5b7e49307050b73102acce29eed11c12e02fc3d765cc276"
+      },
+      {
+        "path": "lib/utils.js",
+        "size": 580,
+        "sha256": "0765d919bbdb2651a789512df8d28df7ef74c9f17ff9ed99ac1d4f90dd0494e2"
+      },
+      {
+        "path": "lib/utils.js.map",
+        "size": 443,
+        "sha256": "b9182979707bb1a03769fa8c6c9df5685ae9e393b95e3a6d493ab59752a18414"
+      },
+      {
+        "path": "lib/eventEmitter2.js",
+        "size": 1600,
+        "sha256": "f1c14613aa90c10def4ca7238329270871997eb26f919f7074dc25533e3e75dd"
+      },
+      {
+        "path": "lib/eventEmitter2.js.map",
+        "size": 1155,
+        "sha256": "2300f735c0a048d5b56a2821362f33cc9a811746b8a5b9552854f91a51f52810"
+      },
+      {
+        "path": "lib/types.js",
+        "size": 228,
+        "sha256": "408bf8287717b6322cc380ea66caf1b5e366dcf697707ae2f3cc454e08f3b151"
+      },
+      {
+        "path": "lib/types.js.map",
+        "size": 114,
+        "sha256": "980a71159075a8183a9a7981ac504e6c277785c33a1fc17eb6908d4abbb128da"
+      },
+      {
+        "path": "build/Release/pty.node",
+        "size": 268800,
+        "sha256": "4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5"
+      },
+      {
+        "path": "build/Release/winpty-agent.exe",
+        "size": 281088,
+        "sha256": "51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d"
+      },
+      {
+        "path": "build/Release/winpty.dll",
+        "size": 228352,
+        "sha256": "cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b"
+      },
+      {
+        "path": "typings/node-pty.d.ts",
+        "size": 6634,
+        "sha256": "260bb2ee34fcc8fcdd31822dd8bec3a2ae7e572b95078c5aa5f4c0611176c489"
+      }
+    ]
+  },
+  "candidate_harness": {
+    "files": [
+      {
+        "path": "winpty/filter.js",
+        "size": 13624,
+        "sha256": "4de7e4276caa735bcf38fc30d7bd4277b929d16e7385fa5b70e335ccf392e799"
+      },
+      {
+        "path": "winpty/winpty_host.js",
+        "size": 3906,
+        "sha256": "e5f78de941e9b26086c6366889c0ce11c06351c4779ae74f7406c7749c31728c"
+      },
+      {
+        "path": "winpty/terminal_session.js",
+        "size": 8030,
+        "sha256": "45beb0e8bb9e453beda4a4dd911519e3443e2965387ec1ef06d5b6c3096b1d46"
+      },
+      {
+        "path": "acceptance/a5/a5-mock-pty.js",
+        "size": 3477,
+        "sha256": "7797a5d73406f4d7e473d9df6bb2528d88e9839ece5eb5b25f67c3ac6de81d2f"
+      },
+      {
+        "path": "acceptance/a5/a5-d013-client.js",
+        "size": 3988,
+        "sha256": "8ac0da15afea19bbef2bee8a5c43d16c2bdcb5625db1fc2b1eee6254f8419cac"
+      },
+      {
+        "path": "acceptance/a5/a5-terminal-host.js",
+        "size": 6742,
+        "sha256": "077434bc37a4e46bc3444026ecfcf8812917e179219bb53e46de88f296f7c164"
+      },
+      {
+        "path": "acceptance/a5/a5-terminal-harness.js",
+        "size": 23305,
+        "sha256": "7785cdd8ae656fa4f3c7f2fa49049b0c8874e5764d4247567886eaa662269462"
+      },
+      {
+        "path": "acceptance/a5/a5-manifest.js",
+        "size": 8115,
+        "sha256": "89db33012a00107bc38c2bf263d2d7ccc8103ca4e9864aaceb5b59f40c8e8662"
+      },
+      {
+        "path": "acceptance/a5/a5-electron-main.js",
+        "size": 2188,
+        "sha256": "7099866c3f8179c66752e7139f3c5cac8cb2047587879d2afaa950cc4fb24d05"
+      },
+      {
+        "path": "acceptance/a5/a5-run.js",
+        "size": 9670,
+        "sha256": "8e16cca59e001091392481c981c94f0486f28702ea6c421d7da16f7706445543"
+      }
+    ]
+  },
+  "gaps": {
+    "original_zip_internal_manifest": "ORIGINAL_ZIP_LACKS_RETURN_PACKAGE_MANIFEST.json",
+    "d013_source_binary_closure": "OPEN",
+    "win7_validation": "NOT_PERFORMED"
+  }
+}

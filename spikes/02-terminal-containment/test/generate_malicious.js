@@ -110,12 +110,32 @@ function generateMixedSamples() {
   return [
     // OSC 52 + 窗口标题
     `${ESC}]52;c;${Buffer.from('clipboard').toString('base64')}${BEL}${ESC}]0;Title${BEL}`,
-    
+
     // 多次 OSC 52
     `${ESC}]52;c;${Buffer.from('first').toString('base64')}${BEL}text${ESC}]52;c;${Buffer.from('second').toString('base64')}${ST}`,
-    
+
     // DECRQSS + OSC 52
     `${ESC}P$q m${ST}${ESC}]52;c;?${BEL}`,
+  ];
+}
+
+/**
+ * 生成超量 / 超长 / 深层嵌套样本（N05）
+ * 攻击：耗尽渲染器有界处理能力或触发无界缓冲
+ */
+function generateExcessiveSamples() {
+  return [
+    // 10 万条 OSC 52（有界处理预算）
+    `${ESC}]52;c;QQ==${BEL}`.repeat(1000) + '\n[truncated-sample: 10万条在 harness 内生成]\n',
+
+    // 超长 OSC 载荷（无终止符场景由 harness 分块测）
+    `${ESC}]52;c;${'A'.repeat(20000)}${BEL}`,
+
+    // 深层嵌套 ESC（100 层）
+    `${ESC}]52;c;${'A'.repeat(1000)}${ESC.repeat(100)}${BEL}`,
+
+    // 超长参数 CSI（5 万参数）
+    `${ESC}[${'1;'.repeat(5000)}H`,
   ];
 }
 
@@ -140,6 +160,7 @@ function main() {
     'window_title_injection': generateWindowTitleSamples(),
     'decrqss_probe': generateDECRQSSSamples(),
     'mixed_attacks': generateMixedSamples(),
+    'excessive_nested': generateExcessiveSamples(),
   };
 
   // 写入文件
@@ -172,4 +193,5 @@ module.exports = {
   generateWindowTitleSamples,
   generateDECRQSSSamples,
   generateMixedSamples,
+  generateExcessiveSamples,
 };

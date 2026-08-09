@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A5-20260807-000001",
+  "mode": "dev",
+  "generated_at": "2026-08-07T03:50:09.896Z",
+  "evidence_class": "DEVELOPMENT_PASS_NOT_WIN7_EVIDENCE",
+  "cases": [
+    {
+      "id": "T01",
+      "title": "全屏 TUI 渲染通路（alt-screen 保真前置）",
+      "status": "DEVELOPMENT_PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "alt-screen 进入/退出与文本在过滤后完整保留，会话保持运行；真实 TUI 保真待 Win7。",
+      "notes": "win7_gated",
+      "subchecks": [
+        {
+          "name": "alt-screen-enter-preserved",
+          "ok": true
+        },
+        {
+          "name": "alt-screen-exit-preserved",
+          "ok": true
+        },
+        {
+          "name": "tui-text-present",
+          "ok": true
+        },
+        {
+          "name": "session-still-running",
+          "ok": true
+        },
+        {
+          "name": "tui-candidates-probe",
+          "ok": null,
+          "note": "Win7 实机探测 vim/htop 类 TUI；开发机记 NOT_PERFORMED"
+        }
+      ]
+    },
+    {
+      "id": "T02",
+      "title": "Unicode/中文回显（chcp 65001 / 936 脚本与回显通路）",
+      "status": "DEVELOPMENT_PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "harness 正确构造 chcp 脚本并解析回显；CP936 真实边界待 Win7。",
+      "notes": "win7_gated",
+      "subchecks": [
+        {
+          "name": "chcp-65001-sent",
+          "ok": true
+        },
+        {
+          "name": "chinese-echo-sent",
+          "ok": true
+        },
+        {
+          "name": "chcp-936-sent",
+          "ok": true
+        },
+        {
+          "name": "utf8-roundtrip-observed",
+          "ok": true
+        },
+        {
+          "name": "cp936-degraded-path-recorded",
+          "ok": null,
+          "note": "Win7 记录 CP936 下中文/emoji 边界；开发机记 NOT_PERFORMED"
+        }
+      ]
+    },
+    {
+      "id": "T03",
+      "title": "resize 尺寸同步",
+      "status": "DEVELOPMENT_PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "harness 发起 resize 并观测尺寸变化回显；Win7 无花屏残留待实测。",
+      "notes": "win7_gated",
+      "subchecks": [
+        {
+          "name": "mode-con-sent",
+          "ok": true
+        },
+        {
+          "name": "resize-issued",
+          "ok": true
+        },
+        {
+          "name": "resize-reflected-in-output",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "T04",
+      "title": "Ctrl 信号传递（Ctrl+C 中断前台进程）",
+      "status": "DEVELOPMENT_PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "harness 向 pty 写入 \\x03 并观测中断回显；Win7 真实进程中断待实测。",
+      "notes": "win7_gated",
+      "subchecks": [
+        {
+          "name": "foreground-loop-started",
+          "ok": true
+        },
+        {
+          "name": "ctrl-c-sent",
+          "ok": true
+        },
+        {
+          "name": "interrupt-observed",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "T05",
+      "title": "会话回收（D-013 Job Object 进程树必杀）",
+      "status": "NOT_PERFORMED",
+      "evidence_class": "WIN7",
+      "detail": "D-013 helper 缺席（源码→二进制闭包未合入），不宣称回收 PASS。",
+      "notes": "D_013_HELPER_ABSENT",
+      "subchecks": [
+        {
+          "name": "d013-helper-probe",
+          "ok": false,
+          "note": "helper 路径 spike02_helper.exe 不存在"
+        }
+      ]
+    },
+    {
+      "id": "N01",
+      "title": "模型/Agent Core 结构性无法写入终端 stdin",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "模型处理器路径源码不含任何 pty stdin 写调用（N01 结构性）；模型侧全部写尝试被拒，pty 写入计数为 0。",
+      "notes": "win7_end_to_end_pending",
+      "subchecks": [
+        {
+          "name": "blocked-events-fired",
+          "ok": true
+        },
+        {
+          "name": "model-writes-never-reach-pty",
+          "ok": true
+        },
+        {
+          "name": "static-no-write-in-model-path",
+          "ok": true
+        },
+        {
+          "name": "win7-end-to-end-confirm",
+          "ok": null,
+          "note": "Win7 真实通道 + 真实 pty 端到端确认待授权 lease"
+        }
+      ]
+    },
+    {
+      "id": "N02",
+      "title": "恶意 OSC 52 剪贴板注入被过滤",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "OSC52 全部剥离（stats.osc52Count=5），周边文本保留；Win7 剪贴板无变化待实测。",
+      "notes": "win7_clipboard_check_pending",
+      "subchecks": [
+        {
+          "name": "osc52-stripped-bel",
+          "ok": true
+        },
+        {
+          "name": "osc52-stripped-st",
+          "ok": true
+        },
+        {
+          "name": "surrounding-text-preserved",
+          "ok": true
+        },
+        {
+          "name": "osc52-stats-recorded",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "N03",
+      "title": "恶意窗口标题 OSC 0/2 注入被过滤",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "标题注入全部剥离（windowTitleCount=3）。",
+      "notes": "",
+      "subchecks": [
+        {
+          "name": "title-stripped",
+          "ok": true
+        },
+        {
+          "name": "overlong-title-bounded",
+          "ok": true
+        },
+        {
+          "name": "title-stats-recorded",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "N04",
+      "title": "DECRQSS / 设备应答类序列不诱导终端回写 stdin",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "DECRQSS 与 DA/DSR/CPR 全部剥离，输出处理全程 pty 写入计数为 0（无回写）。",
+      "notes": "",
+      "subchecks": [
+        {
+          "name": "decrqss-stripped",
+          "ok": true
+        },
+        {
+          "name": "device-answer-stripped",
+          "ok": true
+        },
+        {
+          "name": "no-writeback-to-stdin",
+          "ok": true
+        },
+        {
+          "name": "answer-stats-recorded",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "N05",
+      "title": "超量 / 超长 / 深层嵌套控制序列有界处理",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "5万 OSC52 + 超长 OSC + 100 层嵌套 + 5万参数 CSI 在 14ms 内完成，输出 0 字节，无挂起。",
+      "notes": "elapsedMs=14, outBytes=0, osc52=50000, overlong=2, nested=1",
+      "subchecks": [
+        {
+          "name": "bounded-time",
+          "ok": true
+        },
+        {
+          "name": "bounded-output",
+          "ok": true
+        },
+        {
+          "name": "excessive-stripped",
+          "ok": true
+        },
+        {
+          "name": "overlong-bounded",
+          "ok": true
+        },
+        {
+          "name": "nested-bounded",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "N06",
+      "title": "禁止 taskkill 冒充 containment",
+      "status": "PASS",
+      "evidence_class": "DEVELOPMENT",
+      "detail": "A5 终端路径无 taskkill 冒充 containment（N06）",
+      "notes": "",
+      "subchecks": [
+        {
+          "name": "no-taskkill-ref",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "DEVELOPMENT_PASS": 4,
+    "NOT_PERFORMED": 1,
+    "PASS": 6
+  },
+  "formal": {
+    "win7_passed": 0,
+    "win7_pending": true
+  },
+  "win7_validation": "NOT_PERFORMED_PENDING_LEASE",
+  "note": "开发机确定性结果，不构成 Win7 实机证据；T01-T04 保真与 Win7 端到端待授权 lease。"
+}

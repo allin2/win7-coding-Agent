@@ -1,0 +1,11 @@
+[DEVELOPMENT_PASS] T01 全屏 TUI 渲染通路（alt-screen 保真前置） — alt-screen 进入/退出与文本在过滤后完整保留，会话保持运行；真实 TUI 保真待 Win7。
+[DEVELOPMENT_PASS] T02 Unicode/中文回显（chcp 65001 / 936 脚本与回显通路） — harness 正确构造 chcp 脚本并解析回显；CP936 真实边界待 Win7。
+[DEVELOPMENT_PASS] T03 resize 尺寸同步 — harness 发起 resize 并观测尺寸变化回显；Win7 无花屏残留待实测。
+[DEVELOPMENT_PASS] T04 Ctrl 信号传递（Ctrl+C 中断前台进程） — harness 向 pty 写入 \x03 并观测中断回显；Win7 真实进程中断待实测。
+[NOT_PERFORMED] T05 会话回收（D-013 Job Object 进程树必杀） — D-013 helper 缺席（源码→二进制闭包未合入），不宣称回收 PASS。
+[PASS] N01 模型/Agent Core 结构性无法写入终端 stdin — 模型处理器路径源码不含任何 pty stdin 写调用（N01 结构性）；模型侧全部写尝试被拒，pty 写入计数为 0。
+[PASS] N02 恶意 OSC 52 剪贴板注入被过滤 — OSC52 全部剥离（stats.osc52Count=5），周边文本保留；Win7 剪贴板无变化待实测。
+[PASS] N03 恶意窗口标题 OSC 0/2 注入被过滤 — 标题注入全部剥离（windowTitleCount=3）。
+[PASS] N04 DECRQSS / 设备应答类序列不诱导终端回写 stdin — DECRQSS 与 DA/DSR/CPR 全部剥离，输出处理全程 pty 写入计数为 0（无回写）。
+[PASS] N05 超量 / 超长 / 深层嵌套控制序列有界处理 — 5万 OSC52 + 超长 OSC + 100 层嵌套 + 5万参数 CSI 在 14ms 内完成，输出 0 字节，无挂起。
+[PASS] N06 禁止 taskkill 冒充 containment — A5 终端路径无 taskkill 冒充 containment（N06）
