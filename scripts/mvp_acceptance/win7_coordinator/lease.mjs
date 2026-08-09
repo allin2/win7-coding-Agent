@@ -11,6 +11,7 @@ const TRANSITIONS = new Map([
   ['GRANTED', new Set(['RUNNING'])],
   ['RUNNING', new Set(['RETURNED', 'RECOVERY_REQUIRED'])],
   ['RETURNED', new Set(['RELEASED'])],
+  ['RECOVERY_REQUIRED', new Set(['RECOVERY_REVIEWED'])],
 ]);
 
 export function canonicalJson(value) {
@@ -213,6 +214,9 @@ export class LeaseLedger {
 
   grant(acceptanceId, leasePayloadSha256, at) {
     return this.mutate((ledger) => {
+      if (ledger.leases.some((lease) => lease.state === 'RECOVERY_REQUIRED')) {
+        throw new Error('unresolved RECOVERY_REQUIRED blocks every new lease');
+      }
       if (this.active(ledger).length !== 0) throw new Error('another GRANTED/RUNNING lease is active');
       const lease = ledger.leases.find((item) => item.acceptance_id === acceptanceId);
       if (!lease || lease.state !== 'REQUESTED') throw new Error('lease is not REQUESTED');

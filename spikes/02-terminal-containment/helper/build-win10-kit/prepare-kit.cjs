@@ -77,9 +77,11 @@ if (!/DOMAIN_ALIAS_RID_ADMINS/.test(helperSource) ||
   throw new Error('helper.cpp must make Administrators deny-only without disabling Everyone/World');
 }
 if (!/CurrentLabelAclMatches/.test(helperSource) ||
+    !/LabelAclsEqual/.test(helperSource) ||
+    !/info\.AceCount\s*==\s*0/.test(helperSource) ||
     !/CurrentDaclMatches/.test(helperSource) ||
     !/return\s+HELPER_ERR_ACL_ROLLBACK\s*;/.test(helperSource)) {
-  throw new Error('helper.cpp must verify exact ACL restoration and fail closed on rollback failure');
+  throw new Error('helper.cpp must verify DACL restoration, Win7 LABEL null/zero-ACE equivalence, and fail closed on rollback failure');
 }
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
 if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||

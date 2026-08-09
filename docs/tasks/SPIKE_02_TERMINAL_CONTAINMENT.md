@@ -14,7 +14,7 @@ Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Blocking-Reason: D-013 v15 Win10 PASS; D-013 Win7 NOT_PERFORMED pending ADR-0065 signed lease; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (6/19 direct PASS; terminal gates remain open)
+Blocking-Reason: D-013 v15 Win7 FAIL_CLOSED; RECOVERY_REQUIRED pending v16 Win10 build/review; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (terminal gates remain open)
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -113,10 +113,10 @@ Blocking-Reason: D-013 v15 Win10 PASS; D-013 Win7 NOT_PERFORMED pending ADR-0065
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15 PASS
+Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15 PASS historical, v16 NOT_PERFORMED
 Evidence: A4-20260805-123467, A4-20260806-140606, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip
 Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
-Blocking-Reason: historical C03 FAIL/C04 MANUAL_GATE/C05 ENVIRONMENT_MISSING; D-013 v15 Win7 NOT_PERFORMED pending signed lease; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
+Blocking-Reason: D-013 A4-20260810-000002 FAIL_CLOSED/RECOVERY_REQUIRED; v16 Win10 build and review pending; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
@@ -143,10 +143,14 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
 2026-08-09/10 已完成 D-013 v15 返回包复核与预执行同步：返回 ZIP SHA-256 为
 `1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f`，锁定 helper 为
 `5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b`，input-lock 为
-`166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386`。开发机逻辑测试、
-D-013 harness 与 containment 静态检查 30/30 均为 `PASS`；Win10 v15 为 `PASS`；Win7 仍为
-`NOT_PERFORMED`，本轮锁定目标为 `192.168.1.11 / dccs-chaizl / Windows 7 build 7601`。
-ADR-0065 协调器要求固定 Ed25519 公钥验证、Git 外唯一租约 ledger 与两小时
-签名租约，Worker 只能产生 `CANDIDATE_EVIDENCE`。收到人工授权前不签名、不将租约置为
-`GRANTED`、不运行 SSH/SCP。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产
-Runner 或交互终端 Gate。
+`166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386`。Win10 v15 为历史
+`PASS`，但 `A4-20260810-000002` 在 `192.168.1.11` 的 Win7 执行为 `FAIL_CLOSED`：C01/C03/
+C04/C05 共享 `ACL_ROLLBACK_FAILED`，证据回收对空 stderr 又遇到 `certutil 0x800703EE`；后置
+Bitvise、22 端口与零进程残留检查为 `PASS`。v16 recovery 仅在 LABEL ACL 中接受 Win7 的
+`null ⇔ 0 ACE` 等价表示，DACL 仍严格比较，并为远端严格零字节文件增加规范空 SHA-256 fallback。
+开发机 logic/harness 与静态检查 31/31 通过；构建包
+`WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v16.zip` SHA-256 为
+`33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362`，尚未进行 Win10 构建。
+ledger 保持 `RECOVERY_REQUIRED`，协调器拒绝任何新 `grant`，直到人工复核并显式转为
+`RECOVERY_REVIEWED`。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner
+或交互终端 Gate。

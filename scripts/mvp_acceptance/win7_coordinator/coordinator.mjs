@@ -180,7 +180,10 @@ function verify(args) {
 function transition(args) {
   requireAcceptanceId(args.acceptance_id);
   const next = String(args.to || '').toUpperCase();
-  const allowed = new Set(['REQUEST_SUPERSEDED', 'RUNNING', 'RETURNED', 'RELEASED', 'RECOVERY_REQUIRED']);
+  const allowed = new Set([
+    'REQUEST_SUPERSEDED', 'RUNNING', 'RETURNED', 'RELEASED',
+    'RECOVERY_REQUIRED', 'RECOVERY_REVIEWED',
+  ]);
   if (!allowed.has(next)) throw new Error('invalid transition target');
   const ledger = new LeaseLedger(statePaths(args).ledger);
   const lease = ledger.transition(args.acceptance_id, next, new Date().toISOString());

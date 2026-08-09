@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "record_id": "WIN10-NATIVE-BUILDS-20260810-01",
-  "recorded_at": "2026-08-10T01:02:53+08:00",
-  "scope": "Review of three Windows 10 native build return packages, including D-013 v15; this is build-host evidence, not Windows 7 target acceptance.",
+  "recorded_at": "2026-08-10T01:12:37+08:00",
+  "scope": "Historical review of three Windows 10 native build return packages plus the D-013 v16 recovery build-input kit; this record does not promote an unbuilt v16 input to Windows 10 or Windows 7 PASS.",
   "shared_build_host": {
     "operating_system": "Windows 10 Pro 10.0.19045 x64",
     "visual_studio": "2019 16.11.37507.1",
@@ -19,23 +19,24 @@
     {
       "track": "A4",
       "dependency_id": "D-013",
-      "component": "SPIKE_02 native containment helper v15",
+      "component": "SPIKE_02 native containment helper v15 historical candidate / v16 recovery input",
       "archive": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
       "archive_sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
-      "declared_build_result": "PASS",
-      "review_status": "PASS",
-      "build_prerequisite": "CLEARED",
-      "readiness": "AWAITING_SIGNED_WIN7_LEASE",
+      "declared_build_result": "V15_PASS; V16_NOT_PERFORMED",
+      "review_status": "V15_PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
+      "build_prerequisite": "V16_BUILD_REQUIRED",
+      "readiness": "READY_FOR_HUMAN_WIN10_V16_BUILD",
       "checks": {
         "developer_logic_tests": "PASS",
-        "containment_static_checks": "PASS_30_OF_30",
+        "containment_static_checks": "PASS_31_OF_31",
         "d013_harness": "PASS",
         "zip_integrity": "PASS",
         "input_lock_match": "PASS",
         "build_profile_match": "PASS",
-        "windows_10_smoke": "PASS",
-        "pe_api_crt_analysis": "PASS",
-        "pe_x64": "PASS"
+        "v15_windows_10_smoke": "PASS_HISTORICAL",
+        "v15_pe_api_crt_analysis": "PASS_HISTORICAL",
+        "v15_pe_x64": "PASS_HISTORICAL",
+        "v16_windows_10_build": "NOT_PERFORMED"
       },
       "native_artifacts": [
         {
@@ -44,14 +45,31 @@
         }
       ],
       "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
-      "coordinator": "ADR-0065_SIGNED_LEASE_REQUIRED",
+      "v16_input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
+      "v16_build_kit": {
+        "filename": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v16.zip",
+        "sha256": "33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362",
+        "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
+        "status": "READY_FOR_HUMAN_WIN10_BUILD"
+      },
+      "coordinator": "ADR-0065_RECOVERY_REQUIRED",
       "win7_target": "192.168.1.11 / dccs-chaizl / Windows 7 SP1 x64 build 7601",
       "worker_maximum_classification": "CANDIDATE_EVIDENCE",
-      "win7_validation": "NOT_PERFORMED",
+      "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
+      "latest_win7_run": {
+        "acceptance_id": "A4-20260810-000002",
+        "result": "FAIL_CLOSED",
+        "passed_stages": ["REM-D01", "REM-D02", "REM-D03", "REM-D04", "REM-D05", "REM-D06", "REM-D08"],
+        "failed_stage": "REM-D07",
+        "failed_cases": ["C01", "C03", "C04", "C05"],
+        "shared_case_error": "ACL_ROLLBACK_FAILED",
+        "postflight": "PASS_ZERO_PROCESS_RESIDUE"
+      },
       "remaining_cases": ["C01", "C02", "C03", "C04", "C05", "C06", "C07"],
       "notes": [
-        "The ignored candidate was re-extracted from the reviewed v15 return package and its SHA-256 was rechecked.",
-        "No Win7 lease has been signed or granted; no SSH/SCP execution is authorized by this record."
+        "The v15 candidate remains historical evidence and must not receive another lease.",
+        "The v16 ZIP is a build-input kit, not a returned executable or Windows 10 PASS.",
+        "No new lease may be granted until v16 is built, reviewed and the RECOVERY_REQUIRED record is explicitly reviewed."
       ]
     },
     {
@@ -173,7 +191,7 @@
   ],
   "cross_track_progress": {
     "D-017_shared_build_profile": "DEMONSTRATED_BY_THREE_BUILDS",
-    "A4_D-013": "WIN10_V15_PASS_AWAITING_SIGNED_WIN7_LEASE",
+    "A4_D-013": "RECOVERY_REQUIRED_V16_BUILD_KIT_READY",
     "A5_D-011": "NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION",
     "A6_D-014": "READY_FOR_WIN7_VALIDATION",
     "A7": "NO_INDEPENDENT_BUILD_RESULT; PACKAGING_AND_WIN7_RC_NOT_PERFORMED"

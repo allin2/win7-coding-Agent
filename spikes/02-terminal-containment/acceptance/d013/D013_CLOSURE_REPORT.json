@@ -5,12 +5,14 @@
   "date": "2026-08-10",
   "branch": "codex/a4-d013-closure",
   "base_commit": "86f6d69",
-  "head_commit": "2e833e0",
+  "head_commit": "a64f1ac",
   "commits": [
     "3ec201c",
     "6f47f50",
     "17ca1f7",
-    "2e833e0"
+    "2e833e0",
+    "cf536cd",
+    "a64f1ac"
   ],
   "modified_files": {
     "helper": [
@@ -31,6 +33,7 @@
       "input-lock.json",
       "PACKAGE_MANIFEST.json",
       "prepare-kit.cjs",
+      "package-kit.cjs",
       "README_BUILD.md",
       "STATUS.json",
       "src/*",
@@ -53,7 +56,7 @@
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
     "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; Administrators is deny-only while Everyone/World remains enabled; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
-    "status": "IMPLEMENTED; LOCAL_TESTED; WIN10_NATIVE_SMOKE_PASS; Win7 re-run pending WIN7_LEASE_GRANTED"
+    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 recovery fix LOCAL_TESTED; Win10 rebuild pending"
   },
   "win10_build_kit": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/",
@@ -68,7 +71,19 @@
     "win10_build_executed": true,
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
-    "win7_validation": "NOT_PERFORMED"
+    "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED"
+  },
+  "recovery_v16": {
+    "trigger_acceptance_id": "A4-20260810-000002",
+    "v15_result": "FAIL_CLOSED",
+    "root_cause": "Win7 materializes an absent mandatory-label ACL as a valid zero-ACE ACL after label removal; v15 treated the two equivalent LABEL representations as different. certutil also returned 0x800703EE for an empty redirected stderr evidence file.",
+    "fix_commit": "a64f1ac5654523f684b9981f780ab0b5543939b9",
+    "fix": "Treat null and zero-ACE ACLs as equivalent only for LABEL_SECURITY_INFORMATION while preserving strict DACL comparison; retry certutil and allow the canonical empty SHA-256 only after a remote zero-byte size proof.",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v16.zip",
+    "build_kit_sha256": "33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362",
+    "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
+    "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
+    "status": "READY_FOR_HUMAN_WIN10_BUILD"
   },
   "tests": [
     {
@@ -81,7 +96,7 @@
     },
     {
       "command": "bash test/test_containment.sh",
-      "result": "30 pass / 0 fail"
+      "result": "31 pass / 0 fail"
     },
     {
       "command": "node acceptance/d013/test_d013_harness.mjs",
@@ -93,23 +108,24 @@
     }
   ],
   "coverage": {
-    "C01": "IMPLEMENTED; static PASS; Win7 evidence pending (A4 non-interactive tree kill historically PASS)",
+    "C01": "v15 FAIL due shared ACL_ROLLBACK_FAILED; v16 recovery fix local static PASS; Win10 rebuild pending",
     "C02": "IMPLEMENTED; static PASS; historical supplementary PASS; re-run pending",
-    "C03": "FIXED; logic-tested; harness ready; Win7 re-run pending — NOT claimed PASS",
-    "C04": "IMPLEMENTED (low label + deny ACE + rollback + authorization gate); harness ready; Win7 pending",
-    "C05": "loopback measurement only; formal ENVIRONMENT_MISSING",
+    "C03": "v15 boundary probes succeeded but label rollback representation failed; v16 fix local-tested; NOT claimed PASS",
+    "C04": "v15 authorization/DACL probes succeeded but label rollback representation failed; v16 fix local-tested",
+    "C05": "v15 loopback measurement succeeded but label rollback representation failed; formal ENVIRONMENT_MISSING",
     "C06": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
     "C07": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
     "C08": "bounded by design; NOT_MEASURED for new helper",
     "N06": "static assertion PASS; no taskkill path"
   },
   "unexecuted": [
-    "Win7 connection (WIN7_LEASE_GRANTED not received; zero SSH/SCP issued)",
-    "Win7 C01/C03/C04/C06/C07 evidence with the new helper"
+    "v16 Win10 native build/smoke/PE/API/CRT validation",
+    "new Win7 lease and v16 C01-C07 evidence"
   ],
   "blockers": [
-    "WIN7_LEASE_GRANTED missing",
+    "v16 Win10 return package missing",
+    "RECOVERY_REQUIRED must be reviewed before a new lease",
     "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "Win10 PASS is synchronized inside the A4 worktree only. Public docs/STATUS.md and formal SPIKE_02 task status remain coordinator-owned on the integration branch. Win7 remains NOT_PERFORMED."
+  "note": "v15 Win10 PASS remains historical, but A4-20260810-000002 is FAIL_CLOSED and the ledger remains RECOVERY_REQUIRED. v16 is ready for human Win10 build; public state remains coordinator-owned."
 }

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "profile_id": "D013-CLOSURE-01",
-  "orchestration_head": "2e833e0",
-  "source_head": "2e833e0",
-  "win7_validation": "NOT_PERFORMED",
+  "orchestration_head": "a64f1ac",
+  "source_head": "a64f1ac",
+  "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "implementation_allowlist": [
     "spikes/02-terminal-containment/**",
     "spikes/02-terminal-containment/helper/**",
@@ -27,13 +27,13 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
-    "note": "Extracted from the reviewed v15 Win10 PASS return package; ignored by Git"
+    "sha256": "PENDING_V16_WIN10_BUILD",
+    "note": "v15 is retained as historical evidence but is not eligible for another Win7 lease; v16 return package pending"
   },
   "win10_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
     "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
-    "review_status": "PASS",
+    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
     "reviewed_at": "2026-08-09",
@@ -55,8 +55,8 @@
     ]
   },
   "gates": {
-    "GATE-WIN10-BUILD": "PASS",
-    "GATE-WIN7-LEASE": "SIGNED_LEASE_REQUIRED",
+    "GATE-WIN10-BUILD": "READY_FOR_V16_BUILD",
+    "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",
     "GATE-PROD": "AUTHORIZATION_BLOCKED"

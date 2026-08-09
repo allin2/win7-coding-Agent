@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
-  "generated_at": "2026-08-09T11:50:52.549Z",
+  "generated_at": "2026-08-09T17:13:30.533Z",
   "sources": [
     {
       "path": "src/helper.cpp",
-      "size": 51011,
-      "sha256": "cfcb52e0bf00863be1906d137a79d6411350fb6dec9bc7d4fa3b856f67b71685"
+      "size": 52149,
+      "sha256": "2930a73f6f8936a9ca7b09ec9b33cc49186660863188de748fea049a2263b5c5"
     },
     {
       "path": "src/helper.h",

@@ -32,6 +32,7 @@ const DEFAULT_PROFILE = path.join(HERE, 'd013_profile.json');
 const SCRIPT = path.join(HERE, 'run_d013_win7.py');
 const LAUNCHER = path.join(HERE, 'run_d013_wmi.cmd');
 const LEASE_PUBLIC_KEY = path.join(ROOT, 'scripts/mvp_acceptance/win7_coordinator/lease_public.pem');
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 function parseArgs(argv) {
   const args = {
@@ -462,10 +463,38 @@ class Runner {
       const files = [];
       for (const name of this.profile.remote.evidence_files) {
         const remoteWindows = `${this.remoteRoot}\\${name}`;
-        const remoteHashProbe = this.ssh(stage, ['certutil', '-hashfile', remoteWindows, 'SHA256']);
-        const remoteHash = parseCertutilHash(remoteHashProbe.stdout);
+        let remoteHashProbe = null;
+        let remoteHash = null;
+        let remoteHashAttempts = 0;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          remoteHashAttempts = attempt;
+          remoteHashProbe = this.ssh(stage, ['certutil', '-hashfile', remoteWindows, 'SHA256']);
+          remoteHash = parseCertutilHash(remoteHashProbe.stdout);
+          if (remoteHashProbe.exit_code === 0 && /^[0-9a-f]{64}$/.test(remoteHash || '')) break;
+          if (attempt < 3) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+        }
+        let remoteHashMethod = 'CERTUTIL_SHA256';
+        let remoteSize = null;
         if (remoteHashProbe.exit_code !== 0 || !/^[0-9a-f]{64}$/.test(remoteHash || '')) {
-          return { status: 'FAIL', failure: { code: 'EVIDENCE_REMOTE_HASH_FAILED', message: name } };
+          const sizeProbe = this.ssh(stage, [
+            'cmd.exe', '/d', '/s', '/c', `for %I in ("${remoteWindows}") do @echo %~zI`,
+          ]);
+          const sizeText = String(sizeProbe.stdout || '').trim();
+          remoteSize = /^\d+$/.test(sizeText) ? Number(sizeText) : null;
+          if (sizeProbe.exit_code === 0 && remoteSize === 0) {
+            // Win7 certutil can return 0x800703EE for an empty redirected file.
+            // A remote size of exactly zero plus a downloaded local empty hash
+            // is an equivalent, fail-closed proof of the canonical empty hash.
+            remoteHash = EMPTY_SHA256;
+            remoteHashMethod = 'ZERO_LENGTH_CANONICAL_AFTER_CERTUTIL_FAILURE';
+          } else {
+            return {
+              status: 'FAIL',
+              failure: { code: 'EVIDENCE_REMOTE_HASH_FAILED', message: name },
+              remote_hash_attempts: remoteHashAttempts,
+              remote_size: remoteSize,
+            };
+          }
         }
         const local = path.join(this.evidenceDir, `remote-${name}`);
         const result = this.download(stage, `${this.remoteRoot.replace(/\\/g, '/')}/${name}`, local);
@@ -473,7 +502,11 @@ class Runner {
           return { status: 'FAIL', failure: { code: 'EVIDENCE_RETRIEVAL_FAILED', message: name } };
         }
         const localHash = sha256Sync(local);
-        files.push({ name, path: local, remote_sha256: remoteHash, local_sha256: localHash });
+        files.push({
+          name, path: local, remote_sha256: remoteHash, local_sha256: localHash,
+          remote_hash_method: remoteHashMethod, remote_hash_attempts: remoteHashAttempts,
+          remote_size: remoteSize,
+        });
         if (remoteHash !== localHash) {
           return { status: 'FAIL', failure: { code: 'EVIDENCE_HASH_MISMATCH', message: name }, files };
         }

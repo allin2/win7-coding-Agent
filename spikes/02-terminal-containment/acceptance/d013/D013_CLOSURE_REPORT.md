@@ -70,8 +70,8 @@
   x64、静态 `/MT`、manifest、PE/API/CRT 与 native smoke 全部 `PASS`；smoke 子进程退出码 0，
   `containmentVerified=true`、`inputDetached=true`，Low Integrity 标签和 deny ACE 均
   `applied/verified/rolledBack=true`。
-- **分层状态**：开发机 `PASS`；Win10 **`PASS`**；Win7 `NOT_PERFORMED`；A4/D-013 总体
-  仍等待唯一 Win7 lease 与实机验收，不得写成总体 PASS。
+- **分层状态**：v15 开发机与 Win10 为历史 `PASS`；Win7 `FAIL_CLOSED_RECOVERY_REQUIRED`；
+  v15 不得再次获得租约，v16 正等待 Win10 构建。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -79,7 +79,7 @@
 |------|------|
 | `cmake -S helper -B helper/build-mac && cmake --build helper/build-mac --target logic_tests && ./helper/build-mac/logic_tests` | `logic_tests: ALL PASS` |
 | `x86_64-w64-mingw32-g++ … -c helper.cpp json_parser.cpp argv_builder.cpp whitelist.cpp protocol.cpp` + 链接 | 5/5 编译零警告，链接出 PE32+ x86-64 exe（编译/链接检查） |
-| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 30 / 失败 0（含 N06 无 taskkill 断言） |
+| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 31 / 失败 0（含 Win7 LABEL null/0-ACE 等价与 DACL 隔离断言） |
 | `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（策略门/mock 端到端/编排器 dry-run/execute 门禁/负向校验） |
 | Win10 v15 `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS` |
 
@@ -87,11 +87,11 @@
 
 | # | 用例 | 实现 | 本地验证 | Win7 证据 |
 |---|------|------|----------|-----------|
-| C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | A4-20260805 非交互树杀 PASS；新 helper 待 lease 重验 |
+| C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v15 因共享 `ACL_ROLLBACK_FAILED` 为 FAIL；v16 待构建 |
 | C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | A4-20260806 补充 PASS；新 helper 待重验 |
-| C03 | Restricted Token 减权 | **已修复**：primary restricted token + DISABLE_MAX_PRIVILEGE + 低完整性 | 本地测试 + Win10 native smoke PASS | **待重跑**（历史 FAIL 未被 Win10 证据改写） |
-| C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | harness（含回滚核对）就绪 | 待执行（MANUAL_GATE 语义收敛为最小授权） |
-| C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | `ENVIRONMENT_MISSING`（保持） |
+| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + 低完整性 | v16 recovery 本地测试 PASS | v15 探针边界成立，但 LABEL 回滚表示误判；正式 FAIL |
+| C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 就绪 | v15 DACL/授权探针成立，但 LABEL 回滚表示误判；正式 FAIL |
+| C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | v16 harness loopback 就绪 | v15 测量成立但共享回滚失败；正式 `ENVIRONMENT_MISSING` |
 | C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | 待执行 |
 | C07 | 超时/输出上限 | TerminateJobObject + 逐流截断标记 | 逻辑测试 + harness 就绪 | 待执行 |
 | C08 | Runner 内存 | 设计有界（Job 内存限制 + 输出上限 64MB）；未实测 | — | `NOT_MEASURED`（A4 C09 历史 <60MB，新 helper 待测） |
@@ -99,12 +99,26 @@
 
 ## 7. 未执行验证与阻塞
 
-- **未连接 Win7**：未收到 `WIN7_LEASE_GRANTED`，按指令全程未发起任何 SSH/SCP。
-- **Win10 已通过且候选已锁定**：本地 `candidate/spike02_helper.exe` 与已验收 helper 哈希一致，
-  该目录由 Git 忽略；返回 ZIP 不提交 Git。
-- **C01/C03/C04/C06/C07 的 Win7 实证**：仍待唯一 lease 后执行。
+- **v15 Win7 已 fail-closed**：`A4-20260810-000002` 的轮前、上传、smoke、harness 启动与
+  后置零残留检查通过；C01/C03/C04/C05 因 `ACL_ROLLBACK_FAILED` 失败，REM-D07 又遇到空
+  `d013-stderr.txt` 的 `certutil 0x800703EE`。ledger 保持 `RECOVERY_REQUIRED`。
+- **v15 候选已封存**：本地 ignored candidate 仅作历史证据，不得再次满足执行 Gate。
+- **v16 必须先通过 Win10**：返回包复核完成前不得签发下一份 Win7 租约。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
 
 公共 `docs/STATUS.md`、`docs/status/win10-native-builds-latest.json` 和正式 SPIKE_02 任务书
 由整合分支协调者统一同步；A4 worktree 不直接改写这些公共状态文件。
+
+## 8. v16 recovery 构建交接（2026-08-10）
+
+- 修复提交：`a64f1ac5654523f684b9981f780ab0b5543939b9`。
+- LABEL 回滚：仅对 `LABEL_SECURITY_INFORMATION` 接受 Win7 的 `null ⇔ 0 ACE` 无显式标签
+  表示；DACL 继续严格逐 ACE 比较。
+- 空证据：`certutil` 最多重试三次；仍失败时仅在远端大小严格为 0 且下载后本地 SHA-256
+  等于标准空文件哈希时接受，否则 fail-closed。
+- v16 构建包：`WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v16.zip`，SHA-256
+  `33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362`。
+- input lock：`6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e`；
+  package manifest：`18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23`。
+- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；尚未执行 v16 Win10 构建或新 Win7 验收。

@@ -100,6 +100,16 @@ try {
     ledger.transition('A4-20260810-000002', 'REQUEST_SUPERSEDED', '2026-08-10T00:07:00Z');
     assert.throws(() => ledger.grant('A4-20260810-000002', '3'.repeat(64), '2026-08-10T00:08:00Z'), /not REQUESTED/);
   });
+  check('unresolved recovery blocks every new grant', () => {
+    ledger.request({ acceptance_id: 'A4-20260810-000003', requested_at: '2026-08-10T00:09:00Z' });
+    ledger.grant('A4-20260810-000003', '4'.repeat(64), '2026-08-10T00:10:00Z');
+    ledger.transition('A4-20260810-000003', 'RUNNING', '2026-08-10T00:11:00Z');
+    ledger.transition('A4-20260810-000003', 'RECOVERY_REQUIRED', '2026-08-10T00:12:00Z');
+    ledger.request({ acceptance_id: 'A4-20260810-000004', requested_at: '2026-08-10T00:13:00Z' });
+    assert.throws(() => ledger.grant('A4-20260810-000004', '5'.repeat(64), '2026-08-10T00:14:00Z'), /unresolved RECOVERY_REQUIRED/);
+    ledger.transition('A4-20260810-000003', 'RECOVERY_REVIEWED', '2026-08-10T00:15:00Z');
+    assert.equal(ledger.grant('A4-20260810-000004', '5'.repeat(64), '2026-08-10T00:16:00Z').state, 'GRANTED');
+  });
 
   const passReport = {
     result: { automatic_status: 'D013_CANDIDATE_EVIDENCE', classification: 'CANDIDATE_EVIDENCE' },

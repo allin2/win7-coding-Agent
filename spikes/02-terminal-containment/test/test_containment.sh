@@ -73,6 +73,13 @@ if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4
 for token in AddMandatoryAce SetNamedSecurityInfoW SetEntriesInAclW RestoreDirectoryDacl protectedDirectories; do
     if grep -q "${token}" "${HELPER_CPP}" "${HELPER_H}" 2>/dev/null; then pass "C04: ${token} present"; else fail "C04: ${token} missing"; fi
 done
+if grep -q 'LabelAclsEqual' "${HELPER_CPP}" \
+    && grep -q 'info.AceCount == 0' "${HELPER_CPP}" \
+    && grep -q 'a null DACL and an empty DACL have very different' "${HELPER_CPP}"; then
+    pass "C04: Win7 null/zero-ACE LABEL equivalence is isolated from DACL comparison"
+else
+    fail "C04: Win7 LABEL rollback equivalence or DACL isolation missing"
+fi
 
 # ── C06/C09: structured argv allow-list, no shell concatenation ──────────────
 for token in CheckWhitelist BuildCommandLine QuoteArg; do

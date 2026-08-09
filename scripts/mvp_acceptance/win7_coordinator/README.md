@@ -11,6 +11,10 @@
 `init-key → prepare-a4 → grant → run-a4 → grade-a4 → transition --to RELEASED`；只有显式的
 `run-a4` 会连接 Win7。
 
+任一未关闭的 `RECOVERY_REQUIRED` 都会阻止后续 `grant`；只有人工复核修复和证据后显式转为
+`RECOVERY_REVIEWED`，协调器才重新开放租约签发。目标或 commit 变化的未签名请求保留为
+`REQUEST_SUPERSEDED`，不得重新启用。
+
 ## A6 / SPIKE_04
 
 `cli.js` 与 `lib/`、`runner/` 服务 A6：私钥由 `WIN7_ACCEPTANCE_SIGNING_KEY_FILE` 指定，父目录
