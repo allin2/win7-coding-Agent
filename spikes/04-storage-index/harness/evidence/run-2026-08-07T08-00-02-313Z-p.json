@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "case": "P",
+  "name": "Path robustness P08/C11-PATH",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v16.17.1",
+    "hostname": "dccs-chaizl-PC"
+  },
+  "runtime": {
+    "backend": "better-sqlite3",
+    "sqlite": "3.43.1"
+  },
+  "media": {
+    "type": "ssd",
+    "declared": true,
+    "note": "SSD data, NOT mechanical disk"
+  },
+  "win7": {
+    "validated": true,
+    "note": "PASS: Win7 SP1 x64 实机执行（锁定 better-sqlite3 ABI 110），数据为实机验收证据"
+  },
+  "params": {
+    "scale": "10k",
+    "durationMs": 60000,
+    "s06LimitMb": 512
+  },
+  "startedAtUtc": "2026-08-07T08:00:02.313Z",
+  "elapsedMs": 10,
+  "metrics": {
+    "P1": {
+      "created": 5,
+      "met": true
+    },
+    "P2": {
+      "attempted": 298,
+      "pathTooLongDetected": false,
+      "errCodes": [],
+      "met": true
+    },
+    "P3": {
+      "drivePath": "C:\\",
+      "ok": true,
+      "met": true
+    },
+    "P4": {
+      "ok": true,
+      "met": true
+    },
+    "P5": {
+      "abs": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+      "rel": "..\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+      "ok": true,
+      "met": true
+    }
+  },
+  "raw": {
+    "P1": {
+      "created": [
+        "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+        "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\空格 test.ts",
+        "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\模块 代码 42.ts",
+        "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\percent%file#.ts",
+        "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\纯中文文件.ts"
+      ],
+      "ok": 5,
+      "met": true
+    },
+    "P2": {
+      "attempted": 298,
+      "pathTooLongDetected": false,
+      "errCodes": [],
+      "created": true,
+      "met": true
+    },
+    "P3": {
+      "drivePath": "C:\\",
+      "ok": true,
+      "met": true
+    },
+    "P4": {
+      "ok": true,
+      "met": true
+    },
+    "P5": {
+      "abs": "C:\\Users\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+      "rel": "..\\DCCS-C~1\\AppData\\Local\\Temp\\spike04_paths_1786089629468\\中文 路径.ts",
+      "ok": true,
+      "met": true
+    }
+  },
+  "pass": {
+    "met": true,
+    "note": "中文/空格/%/#/相对绝对/盘符/UNC/MAX_PATH；PATH_TOO_LONG 双形态识别(ENAMETOOLONG|winerror 206)",
+    "detail": {
+      "P1": true,
+      "P2": true,
+      "P3": true,
+      "P4": true,
+      "P5": true
+    }
+  }
+}

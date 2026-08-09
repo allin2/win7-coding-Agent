@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "spike": "SPIKE_04",
+  "document": "EVIDENCE_DISPOSITION",
+  "applied_at_utc": "2026-08-07T09:01:42.289Z",
+  "authority": {
+    "adr": "ADR-0065 §7",
+    "ruling": "保留+追加 disposition：真实 Win7 SSD 执行且已提交的证据，保留原始 win7_validation: VALIDATED 字段与文件哈希不变，仅追加 REJECTED_AS_FORMAL_EVIDENCE / SSD_SURROGATE disposition；新证据使用新 run ID",
+    "adjudicated": "2026-08-07"
+  },
+  "original_evidence": {
+    "kept_unchanged": true,
+    "note": "本清单所列全部原始证据文件未做任何修改。每条文件的 sha256 即锁定值：任何改动即违约，且与清单不匹配。原始 win7_validation: VALIDATED 字段作为历史事实保留（介质为 SSD，非机械盘）。"
+  },
+  "runs": [
+    {
+      "run_id": "2026-08-07T07-13-17-307Z",
+      "started_at_utc": "2026-08-07T07:13:17.307Z",
+      "media": "ssd",
+      "original_win7_validation": "VALIDATED",
+      "cases": ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08"],
+      "files": [
+        {"name": "run-2026-08-07T07-13-17-307Z-s01.json", "sha256": "726bb385aa830d92de24ad2fd9380bf496f6f118ea230beac2c371a66085d507"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s02.json", "sha256": "bf6cdcfe7abb6758fa81a50ef85014596efad923746a1933ba2ee0501acd5908"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s03.json", "sha256": "184b9508fa5b3b8a9179b24fc4877636c2070544521fbdcaa051d11f5e724e87"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s04.json", "sha256": "0235806cb750f6db0991f1b18b7ada453d29ed8d2a0602c23a582364647352ed"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s05.json", "sha256": "947eef83dbc88c4c933b9c54ce65a0705ca00757a5b628f82de4f6be08b126e7"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s06.json", "sha256": "d100dcb2e7579b3e5b500b45953ecae2f290897ad3cae091cc4ff328cdc72569"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s07.json", "sha256": "f3721af86677a6ec2cb2232647d3e01c20b3d7b4c9d45e2373283748efdf3cd6"},
+        {"name": "run-2026-08-07T07-13-17-307Z-s08.json", "sha256": "f29d21461ba02ba4facda2ff844252b6ffa596bde7e68304121660d8620ca2a7"},
+        {"name": "run-2026-08-07T07-13-17-307Z-summary.json", "sha256": "1e0d158691e938d9f54764bf597706c47edb00a28bfa2786b3c3da169b09197e"}
+      ]
+    },
+    {
+      "run_id": "2026-08-07T07-56-07-972Z",
+      "started_at_utc": "2026-08-07T07:56:07.972Z",
+      "media": "ssd",
+      "original_win7_validation": "VALIDATED",
+      "cases": ["S06"],
+      "note": "真 512MB 阈值补充验证（517.8MB→199.6MB，integrity ok）",
+      "files": [
+        {"name": "run-2026-08-07T07-56-07-972Z-s06.json", "sha256": "56a454347f0bd709d6e717a185449997494c0d756a75e3021645dc3a14d80890"},
+        {"name": "run-2026-08-07T07-56-07-972Z-summary.json", "sha256": "6a9c2b1ca3634684edcafedc463be6714a22a35f0fe8a155dbf7dd1550c5624e"}
+      ]
+    },
+    {
+      "run_id": "2026-08-07T08-00-02-313Z",
+      "started_at_utc": "2026-08-07T08:00:02.313Z",
+      "media": "ssd",
+      "original_win7_validation": "VALIDATED",
+      "cases": ["F", "P"],
+      "note": "F01-F06 功能矩阵与 P08/C11-PATH 路径健壮性补充验证",
+      "files": [
+        {"name": "run-2026-08-07T08-00-02-313Z-f.json", "sha256": "2490030a154e3859a4d45ede1e759b5f36fd1419e76f63ddb4feb185b1e0edc9"},
+        {"name": "run-2026-08-07T08-00-02-313Z-p.json", "sha256": "f6cd0d79bbf43b828b0ebd1a88d84ed51d4b75bc424a96daae952bb83cd18094"},
+        {"name": "run-2026-08-07T08-00-02-313Z-summary.json", "sha256": "b85f7bfa0be74500a09741693ec113fb4a09a8207699db30471a65b27f4625a6"}
+      ]
+    }
+  ],
+  "grading": {
+    "disposition_applied": "REJECTED_AS_FORMAL_EVIDENCE",
+    "grade": "SURROGATE",
+    "reason": "SSD_SURROGATE",
+    "mechanical_disk_dependent_performance_cases": {
+      "cases": ["S01", "S03", "S05"],
+      "budgets": ["#6", "#5", "#8"],
+      "note": "机械盘目标机性能证据被拒绝：SSD 实机数据不代表机械盘性能。S01 QPS 80805、S03 1363.6 files/s、S05 P95 136ms 均为 SSD 结果；机械盘达标未实测（GO_NOGO_WIN7_20260807.md 预算状态位提案 #5/#6/#8 标为『SSD 实测，机械盘待测』）。"
+    },
+    "media_independent_cases_kept": {
+      "cases": ["S02", "S04", "S06", "S07", "S08", "F01-F06", "P08/C11-PATH"],
+      "grade": "CANDIDATE_EVIDENCE",
+      "note": "功能/完整性/路径健壮性验证与介质无关（S06 判据为数据完整性，非吞吐），SSD 结果有效；正式 WIN7_PASS 仍待协调器证据校验器复核。"
+    }
+  },
+  "new_evidence_policy": {
+    "new_run_id_required": true,
+    "worker_self_claim_removed": true,
+    "note": "新证据必须使用新 run ID（harness 按时间戳自动生成）。benchmark.js 已移除 --win7-validated 自报（ADR-0065 §3），evidence_grade 仅输出 DEVELOPMENT 或 CANDIDATE_EVIDENCE，不再自报 VALIDATED。"
+  },
+  "references": {
+    "report": "GO_NOGO_WIN7_20260807.md",
+    "benchmark": "harness/benchmark/benchmark.js",
+    "task_doc": "docs/tasks/SPIKE_04_STORAGE_INDEX.md",
+    "adr": "docs/DECISIONS.md ADR-0065"
+  }
+}
