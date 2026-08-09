@@ -336,7 +336,7 @@ class Runner {
       return checks.ver.exit_code === 0 && /7601/.test(text) && checks.whoami.exit_code === 0 && /dccs-chaizl/i.test(text)
         && checks.python.exit_code === 0 && /3\.8\.10/.test(text) && checks.bitvise.exit_code === 0 && /RUNNING/i.test(text)
         && port22Listening && noResidue
-        ? { status: 'PASS', preflight_note: hasSeImpersonate ? 'SeImpersonatePrivilege present (CreateProcessWithTokenW usable)' : 'SeImpersonatePrivilege ABSENT: helper token application may fail with ERROR_PRIVILEGE_NOT_HELD' }
+        ? { status: 'PASS', preflight_note: 'restricted primary token uses CreateProcessAsUserW; SeImpersonatePrivilege is observational only' }
         : { status: 'FAIL', failure: { code: 'WIN7_PREFLIGHT_FAILED', message: 'strict Win7, Bitvise, port-22 or residue preflight failed' } };
     }, 120000);
     if (!this.dryRun && this.stages.at(-1).status === 'FAIL') return this.finish();
@@ -418,12 +418,22 @@ class Runner {
       if (this.dryRun) return { status: 'PASS' };
       const files = [];
       for (const name of this.profile.remote.evidence_files) {
+        const remoteWindows = `${this.remoteRoot}\\${name}`;
+        const remoteHashProbe = this.ssh(stage, ['certutil', '-hashfile', remoteWindows, 'SHA256']);
+        const remoteHash = parseCertutilHash(remoteHashProbe.stdout);
+        if (remoteHashProbe.exit_code !== 0 || !/^[0-9a-f]{64}$/.test(remoteHash || '')) {
+          return { status: 'FAIL', failure: { code: 'EVIDENCE_REMOTE_HASH_FAILED', message: name } };
+        }
         const local = path.join(this.evidenceDir, `remote-${name}`);
         const result = this.download(stage, `${this.remoteRoot.replace(/\\/g, '/')}/${name}`, local);
         if (result.exit_code !== 0 || !fs.existsSync(local)) {
           return { status: 'FAIL', failure: { code: 'EVIDENCE_RETRIEVAL_FAILED', message: name } };
         }
-        files.push({ name, path: local, sha256: sha256Sync(local) });
+        const localHash = sha256Sync(local);
+        files.push({ name, path: local, remote_sha256: remoteHash, local_sha256: localHash });
+        if (remoteHash !== localHash) {
+          return { status: 'FAIL', failure: { code: 'EVIDENCE_HASH_MISMATCH', message: name }, files };
+        }
       }
       const results = readJson(path.join(this.evidenceDir, 'remote-d013-results.json'));
       const statuses = {};
@@ -495,12 +505,12 @@ class Runner {
       stages: this.stages,
       result: {
         automatic_status: this.dryRun ? 'DRY_RUN'
-          : statuses.every((s) => s === 'PASS') ? 'D013_EXECUTION_PASS'
+          : statuses.every((s) => s === 'PASS') ? 'D013_CANDIDATE_EVIDENCE'
             : statuses.includes('FAIL') ? 'FAIL_CLOSED'
               : statuses.includes('PARTIAL') ? 'PARTIAL'
                 : 'FAIL_CLOSED',
         formal_c05: 'ENVIRONMENT_MISSING',
-        classification: 'D013_CONTAINMENT_EVIDENCE_READY',
+        classification: 'CANDIDATE_EVIDENCE',
       },
       command_count: this.commands,
     };
@@ -521,6 +531,6 @@ if (args.help) {
   validateD013Profile(profile);
   const report = new Runner(args, profile).runAll();
   process.stdout.write(`${JSON.stringify({ report: report.reportPath, html: report.htmlPath, mode: report.mode, automatic_status: report.result.automatic_status }, null, 2)}\n`);
-  process.exitCode = report.result.automatic_status === 'D013_EXECUTION_PASS' ? 0
+  process.exitCode = report.result.automatic_status === 'D013_CANDIDATE_EVIDENCE' ? 0
     : report.result.automatic_status === 'DRY_RUN' ? 0 : 1;
 }
