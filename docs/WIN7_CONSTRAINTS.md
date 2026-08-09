@@ -222,6 +222,14 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | CPython 3.8.10 x64 embeddable | ZIP `abbe314e9b41603dde0a823b76f5bbbe17b3de3e5ac4ef06b759da5466711271`；Win7 证据 `validation/phase1/evidence/phase1_probe_MVP-20260802-07.json`、`-09.json`、`-10.json` | Phase 1 Win7 前置 probe 连续 3 次 18/18 PASS；不自动放行冻结 E1/E2 Gate。 |
 | 机械盘门禁 | 项目负责人明确默认 `PASS`；本机实际介质为 Samsung 870 EVO SSD | 不再阻断 MVP；不得将该裁决写成机械盘性能或 better-sqlite3 实测。 |
 
+#### 2026-08-10 A6 正式 SSD Profile 补充（ADR-0066）
+
+本节只追加当前正式 Profile，不追溯改写上述 MVP 历史裁决或既有 SSD evidence disposition。
+
+| ID / Profile | 精确运行时与介质 | 正式范围 | 排除范围 |
+|---|---|---|---|
+| D-014 / `E22-SQLITE343-LOCAL-SSD` | Win7 SP1 x64 build 7601、Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、WAL、本地 NTFS SSD；目标机 Samsung 870 EVO 必须由型号与卷映射共同确认 | SPIKE_04 S01～S08、F01～F06、P08/C11-PATH；新 run ID、签名租约、当前 commit/manifest 与协调器正式状态 | HDD、网络盘与未知介质不在本轮性能支持声明内；不实现生产 EventStore、索引服务或 HDD 降级代码 |
+
 
 ## 7. 已知兼容性陷阱（实现时必须规避）
 

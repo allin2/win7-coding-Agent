@@ -14,7 +14,7 @@ Target Branch: spike/04-storage-index
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern build host, but Win7-Validation stays NOT_PERFORMED until executed on Win7 SP1 x64 hardware
+Blocking-Reason: ADR-0066 approved the local SSD formal Profile; Win7-Validation stays NOT_PERFORMED until a new signed-lease run is validated by the coordinator
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -26,7 +26,7 @@ Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern buil
 
 ## 1. 目标
 
-在 Win7 实机（机械盘）验证 Node 侧 SQLite 绑定（D-014，候选 better-sqlite3 + FTS5）
+在 Win7 实机、本地 NTFS SSD 的正式 Profile（D-014，better-sqlite3 + FTS5）验证 Node 侧 SQLite 绑定
 的 WAL 批量写吞吐、FTS 首次索引吞吐与增量延迟、检索延迟，为 ADR-0033 性能预算
 #5/#6/#7/#8 提供实测证据。此 Spike 同时证伪/证实 Python Core 演进被否决的性能前提
 （ADR-0029 背景）。
@@ -41,7 +41,8 @@ Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern buil
 - SQLite 绑定：better-sqlite3 锁定版本，编译内嵌 SQLite（锁定版本）+ 启用 FTS5；
   按 Electron 22 ABI 用 D-017 工具链预编译（哈希入库时锁定，§6.1）。
 - 数据库位于本地磁盘（禁网络盘，P10）；WAL 模式。
-- 测试机：Win7 SP1 x64，机械硬盘（5400/7200 rpm 各一档若可获得）。
+- 测试机：Win7 SP1 x64，本地 NTFS SSD；正式 Profile 为 `E22-SQLITE343-LOCAL-SSD`。
+- HDD、网络盘和未知介质不在本轮性能支持声明内；不得由 SSD 结果推断其性能。
 - 样本仓库：混合中英文源码，规模覆盖 3 千 / 1 万 / 3 万文件三档。
 
 ## 4. 验证矩阵
@@ -50,7 +51,7 @@ Blocking-Reason: PC-003 ruled 2026-07-29; scaffolding may proceed on modern buil
 |---|------|----------|
 | S01 | WAL 批量事务写入 QPS（合成事件流 60s 持续） | 预算 #6（≥300，No-Go <150） |
 | S02 | 崩溃安全：写入中途断电/杀进程后重开 | WAL 恢复无损坏，`trace_complete` 语义可判定 |
-| S03 | FTS5 首次全量索引吞吐（3 档规模，机械盘） | 预算 #5（≥120 文件/s，上限 3 万文件） |
+| S03 | FTS5 首次全量索引吞吐（3 档规模，本地 SSD） | 预算 #5（≥120 文件/s，上限 3 万文件） |
 | S04 | 增量索引延迟（改动 N 个文件后再索引） | 记录延迟；增量显著优于全量 |
 | S05 | 检索延迟 P95（3 万文件库、100 次代表性查询，含中文分词） | 预算 #8（P95 ≤1.2s） |
 | S06 | 库体积上限与滚动清理 | 预算 #7：超 512MB 触发清理，清理后恢复/审计不断链 |
@@ -93,7 +94,8 @@ Build-Kit-SHA256: 53fce2129987d9c09a8e78f1aeacd79b04a334c873154079e81565de371dde
 Return-Archive: A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip
 Return-Archive-SHA256: 2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794
 Native-Artifact-SHA256: 7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc
-Blocking-Reason: indexer/benchmark/fixtures/crash-recovery harness missing; Win7 S01-S08 NOT_PERFORMED
+Formal-Profile: E22-SQLITE343-LOCAL-SSD
+Blocking-Reason: new signed-lease Win7 SSD standard matrix has not yet been validated by the coordinator
 ```
 
 2026-08-07 已复核 Win10 返回包：包内 247 项返回清单与实际文件的大小/SHA-256 全部匹配；
@@ -101,6 +103,7 @@ Electron 22.3.27 / ABI 110、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、colum
 `THREADSAFE=2`、WAL、中文+空格路径和项目 schema smoke 均为 `PASS`。`better_sqlite3.node`
 为 PE32+ x64，不含禁止的 Win10+ API 或动态 CRT 依赖。因此 D-014 的 Win10 构建前置已解除。
 
-该结果只证明原生绑定已具备进入 Win7 验证的条件。当前仓库尚无 §6 要求的 indexer、benchmark、
-样本生成器与崩溃恢复 harness，S01～S08 也没有 Win7 数据，故 SPIKE_04 仍为 `NOT_PERFORMED`，
-不能宣称存储、FTS 或性能 Gate 通过。
+该结果只证明原生绑定已具备进入 Win7 验证的条件。indexer、benchmark、样本生成器、崩溃恢复
+harness 与签名租约候选证据接口现已具备；但在新 run ID 的正式标准矩阵经协调器校验前，
+SPIKE_04 仍为 `NOT_PERFORMED`，不能宣称存储、FTS 或性能 Gate 通过。历史 SSD 证据与 disposition
+保持原样，不追溯升级。

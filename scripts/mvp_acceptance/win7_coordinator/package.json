@@ -1,0 +1,13 @@
+{
+  "name": "win7-acceptance-coordinator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ADR-0065/0066 fail-closed Win7 acceptance coordinator",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -686,3 +686,25 @@
   事实来源，开发机/缩短/SSD 结果不再可能冒充正式实机通过。代价是新增一个签名/校验工具面与人工
   配合项（Win10 D-013 构建、Win7 交互观察、机械盘环境、企业启动器环境、私钥位置），且轮前检查
   不满足时本轮拒绝执行（不自行启动服务/改防火墙/重启）。
+
+## ADR-0066 A6 以本地 SSD 作为唯一正式存储 Profile
+
+- 状态：Accepted（2026-08-10，项目负责人决定取消机械盘 Gate 并推进正式 SSD 验收）
+- 背景：ADR-0065 为防止历史 SSD 结果冒充机械盘性能证据，将 SSD 限定为替代证据，并要求 A6
+  正式证据确认机械盘。当前唯一正式目标机 `dccs-chaizl-PC` 的系统盘为 Samsung 870 EVO，本轮
+  项目目标也已明确为该实际部署 Profile；继续寻找 HDD 不再提供与正式部署相符的验收价值。
+- 决策：（1）A6 唯一正式存储 Profile 固定为 `E22-SQLITE343-LOCAL-SSD`：Win7 SP1 x64 build
+  7601、Electron 22.3.27、better-sqlite3 8.7.0、SQLite 3.43.1、FTS5、WAL、本地 NTFS SSD。
+  （2）本 ADR 仅取代 ADR-0065 第 6 条中“SSD 只能是 SURROGATE/正式证据必须确认机械盘”的 A6
+  介质规则，以及 SPIKE_04 的机械盘测量要求；ADR-0065 的签名租约、Worker 不自报 PASS、证据
+  分级、双向哈希、轮前/轮后 fail-closed、单一租约和 A4→A6 实施顺序继续有效。（3）性能预算
+  #5～#8 的数值与 Go/No-Go 阈值保持不变，只把测量介质改为本地 SSD。（4）历史 SSD evidence
+  与 `REJECTED_AS_FORMAL_EVIDENCE` / `SSD_SURROGATE` disposition 字节及哈希保持不变；只有当前
+  代码、新 run ID、当前包 manifest 和有效签名租约的重新执行，才可由协调器定为 `WIN7_PASS`。
+  （5）目标机固定为 `dccs-chaizl@192.168.1.11:22`；验收不得修改网络、Bitvise、服务、PATH 或
+  系统配置。SSD 身份必须由型号、本地 NTFS 卷与物理盘映射共同确认，不得只凭 WMIC 的通用
+  `Fixed hard disk media` 字段。（6）HDD、网络盘与未知介质不在本轮性能支持声明内；不得由 SSD
+  结果外推其性能，也不在 A6 实现生产 EventStore、索引服务或 HDD 降级代码。
+- 后果：A6 可以在真实部署介质上形成正式证据，且不降低任何既有性能与完整性阈值；证据仍由
+  协调器单独定级。项目对 HDD、网络盘或未知介质不作本轮性能承诺，如未来纳入支持范围，必须
+  新增 Profile、任务授权和独立实测。
