@@ -25,6 +25,7 @@ const ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const DEFAULT_PROFILE = path.join(HERE, 'd013_profile.json');
 const SCRIPT = path.join(HERE, 'run_d013_win7.py');
 const LAUNCHER = path.join(HERE, 'run_d013_wmi.cmd');
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 function parseArgs(argv) {
   const args = { executeWin7: false, dryRun: false, profile: DEFAULT_PROFILE, acceptanceId: null, out: null };
@@ -83,7 +84,7 @@ function validateD013Profile(profile) {
       || !profile.implementation_allowlist.includes('spikes/02-terminal-containment/**')) {
     throw new Error('profile must authorize only the SPIKE_02 implementation allowlist');
   }
-  if (!profile.target || !/^10\.67\.149\.40$/.test(profile.target.address)
+  if (!profile.target || !/^192\.168\.1\.11$/.test(profile.target.address)
       || profile.target.user !== 'dccs-chaizl'
       || profile.target.acceptance_root !== 'C:\\Win7CodingAgent\\acceptance'
       || profile.target.data_root !== 'C:\\Win7CodingAgent\\data') {
@@ -336,7 +337,7 @@ class Runner {
       return checks.ver.exit_code === 0 && /7601/.test(text) && checks.whoami.exit_code === 0 && /dccs-chaizl/i.test(text)
         && checks.python.exit_code === 0 && /3\.8\.10/.test(text) && checks.bitvise.exit_code === 0 && /RUNNING/i.test(text)
         && port22Listening && noResidue
-        ? { status: 'PASS', preflight_note: hasSeImpersonate ? 'SeImpersonatePrivilege present (CreateProcessWithTokenW usable)' : 'SeImpersonatePrivilege ABSENT: helper token application may fail with ERROR_PRIVILEGE_NOT_HELD' }
+        ? { status: 'PASS', preflight_note: 'restricted primary token uses CreateProcessAsUserW; SeImpersonatePrivilege is observational only' }
         : { status: 'FAIL', failure: { code: 'WIN7_PREFLIGHT_FAILED', message: 'strict Win7, Bitvise, port-22 or residue preflight failed' } };
     }, 120000);
     if (!this.dryRun && this.stages.at(-1).status === 'FAIL') return this.finish();
@@ -418,12 +419,54 @@ class Runner {
       if (this.dryRun) return { status: 'PASS' };
       const files = [];
       for (const name of this.profile.remote.evidence_files) {
+        const remoteWindows = `${this.remoteRoot}\\${name}`;
+        let remoteHashProbe = null;
+        let remoteHash = null;
+        let remoteHashAttempts = 0;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          remoteHashAttempts = attempt;
+          remoteHashProbe = this.ssh(stage, ['certutil', '-hashfile', remoteWindows, 'SHA256']);
+          remoteHash = parseCertutilHash(remoteHashProbe.stdout);
+          if (remoteHashProbe.exit_code === 0 && /^[0-9a-f]{64}$/.test(remoteHash || '')) break;
+          if (attempt < 3) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+        }
+        let remoteHashMethod = 'CERTUTIL_SHA256';
+        let remoteSize = null;
+        if (remoteHashProbe.exit_code !== 0 || !/^[0-9a-f]{64}$/.test(remoteHash || '')) {
+          const sizeProbe = this.ssh(stage, [
+            'cmd.exe', '/d', '/s', '/c', `for %I in ("${remoteWindows}") do @echo %~zI`,
+          ]);
+          const sizeText = String(sizeProbe.stdout || '').trim();
+          remoteSize = /^\d+$/.test(sizeText) ? Number(sizeText) : null;
+          if (sizeProbe.exit_code === 0 && remoteSize === 0) {
+            // Win7 certutil can return 0x800703EE for an empty redirected file.
+            // A remote size of exactly zero plus a downloaded local empty hash
+            // is an equivalent, fail-closed proof of the canonical empty hash.
+            remoteHash = EMPTY_SHA256;
+            remoteHashMethod = 'ZERO_LENGTH_CANONICAL_AFTER_CERTUTIL_FAILURE';
+          } else {
+            return {
+              status: 'FAIL',
+              failure: { code: 'EVIDENCE_REMOTE_HASH_FAILED', message: name },
+              remote_hash_attempts: remoteHashAttempts,
+              remote_size: remoteSize,
+            };
+          }
+        }
         const local = path.join(this.evidenceDir, `remote-${name}`);
         const result = this.download(stage, `${this.remoteRoot.replace(/\\/g, '/')}/${name}`, local);
         if (result.exit_code !== 0 || !fs.existsSync(local)) {
           return { status: 'FAIL', failure: { code: 'EVIDENCE_RETRIEVAL_FAILED', message: name } };
         }
-        files.push({ name, path: local, sha256: sha256Sync(local) });
+        const localHash = sha256Sync(local);
+        files.push({
+          name, path: local, remote_sha256: remoteHash, local_sha256: localHash,
+          remote_hash_method: remoteHashMethod, remote_hash_attempts: remoteHashAttempts,
+          remote_size: remoteSize,
+        });
+        if (remoteHash !== localHash) {
+          return { status: 'FAIL', failure: { code: 'EVIDENCE_HASH_MISMATCH', message: name }, files };
+        }
       }
       const results = readJson(path.join(this.evidenceDir, 'remote-d013-results.json'));
       const statuses = {};
@@ -495,12 +538,12 @@ class Runner {
       stages: this.stages,
       result: {
         automatic_status: this.dryRun ? 'DRY_RUN'
-          : statuses.every((s) => s === 'PASS') ? 'D013_EXECUTION_PASS'
+          : statuses.every((s) => s === 'PASS') ? 'D013_CANDIDATE_EVIDENCE'
             : statuses.includes('FAIL') ? 'FAIL_CLOSED'
               : statuses.includes('PARTIAL') ? 'PARTIAL'
                 : 'FAIL_CLOSED',
         formal_c05: 'ENVIRONMENT_MISSING',
-        classification: 'D013_CONTAINMENT_EVIDENCE_READY',
+        classification: 'CANDIDATE_EVIDENCE',
       },
       command_count: this.commands,
     };
@@ -521,6 +564,6 @@ if (args.help) {
   validateD013Profile(profile);
   const report = new Runner(args, profile).runAll();
   process.stdout.write(`${JSON.stringify({ report: report.reportPath, html: report.htmlPath, mode: report.mode, automatic_status: report.result.automatic_status }, null, 2)}\n`);
-  process.exitCode = report.result.automatic_status === 'D013_EXECUTION_PASS' ? 0
+  process.exitCode = report.result.automatic_status === 'D013_CANDIDATE_EVIDENCE' ? 0
     : report.result.automatic_status === 'DRY_RUN' ? 0 : 1;
 }

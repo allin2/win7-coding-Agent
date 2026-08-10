@@ -2,28 +2,52 @@
   "schema_version": 1,
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
-  "status": "WIN10_PASS_READY_FOR_WIN7_VALIDATION",
-  "generated_at": "2026-08-10T00:00:00Z",
-  "implementation_commit": "2e833e0",
+  "status": "WIN7_PASS",
+  "generated_at": "2026-08-10T22:41:00+08:00",
+  "implementation_commit": "8dbe62fbcf2cd05baec3fae1760b96f7bcf8a75d",
+  "build_revision": "v21-recovery",
   "win10_build_executed": true,
   "win10_return_package_reviewed": true,
-  "win7_validation": "NOT_PERFORMED",
-  "return_package": {
-    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
-    "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
-    "location": "external_to_git",
-    "review_status": "PASS",
-    "completed_at": "2026-08-09T13:26:58.7805763Z"
+  "win7_validation": "PASS",
+  "v21_return_package": {
+    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
+    "helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "status": "PASS",
+    "stage": "COMPLETE",
+    "candidate_eligible": true,
+    "completed_at": "2026-08-10T13:31:11.1977824Z"
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
+    "sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "size": 268800,
+    "locked_from": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
     "git_ignored": true
   },
+  "win7_acceptance": {
+    "acceptance_id": "A4-20260810-000004",
+    "coordinator": "ADR-0065",
+    "classification": "WIN7_PASS",
+    "status": "PASS",
+    "accepted_commit": "20b4480ab2ea4f53b3ccee7df39e47755ed92102",
+    "artifact_manifest_sha256": "e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136",
+    "grade_sha256": "68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a",
+    "lease_final_state": "RELEASED",
+    "all_rem_stages": "PASS",
+    "required_cases": "PASS",
+    "formal_c05": "ENVIRONMENT_MISSING"
+  },
   "evidence": {
-    "input_lock_sha256": "166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "build_result_schema": 3,
+    "process_capture_selftest": "PASS",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
+    "logic_tests": "PASS",
     "architecture": "x64",
     "toolset": "v142",
     "windows_sdk": "10.0.19041.0",
@@ -31,17 +55,18 @@
   },
   "gates": {
     "GATE-WIN10-BUILD": "PASS",
-    "GATE-WIN7-LEASE": "NOT_GRANTED",
+    "GATE-WIN7-LEASE": "RELEASED_AFTER_WIN7_PASS",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "WIN7_LEASE_GRANTED before any Win7 connection",
-    "Win7 C01/C03/C04/C06/C07 execution and evidence review"
+    "formal C05 enterprise/network evidence remains ENVIRONMENT_MISSING for the complete SPIKE_02 claim",
+    "terminal integration and T01-T05/N01-N05 remain outside this D-013 result"
   ],
   "notes": [
-    "Win10 PASS covers the exact v15 input lock, native build, PE/API/CRT checks and native smoke; it is not a Win7 or A4 overall PASS.",
-    "The reviewed return ZIP remains outside Git; only its filename and SHA-256 are recorded.",
-    "The candidate helper is present locally under candidate/ and ignored by Git.",
-    "No Win7 SSH/SCP operation is authorized until GATE-WIN7-LEASE is explicitly GRANTED."
+    "The v21 ARTIFACTS return package passed schema-v3, input-lock, manifest, helper hash, capture self-test, v142 logic tests, native smoke, PE/API/CRT and token/ACL audit review.",
+    "The ignored candidate is locked to the reviewed v21 helper and is not committed to Git.",
+    "ADR-0065 graded A4-20260810-000004 as WIN7_PASS and released the unique lease; active leases returned to zero.",
+    "A4-20260810-000003 is RECOVERY_REVIEWED and remains historical.",
+    "This result does not claim strong network isolation or release the production Runner/interactive terminal gates."
   ]
 }

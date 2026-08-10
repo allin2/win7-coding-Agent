@@ -23,6 +23,11 @@
  *   {"schema_version":1,"type":"execution_result","requestId":...,"status":"completed",
  *    "exitCode":0,"executionTimeMs":16,"timedOut":false,"canceled":false,
  *    "outputTruncated":false,"containmentVerified":true,"inputDetached":true,
+ *    "tokenAudit":{"source":"suspended_child_process_token","verified":true,
+ *      "isRestricted":true,"tokenType":"primary","restrictedSidSetVerified":true,
+ *      "userRestrictedSid":true,"worldRestrictedSid":true,
+ *      "administratorsRestrictedSid":false,"restrictedSidCount":8,
+ *      "integritySid":"S-1-16-4096","integrityRid":4096},
  *    "stdoutSize":0,"stderrSize":0,"stdoutBase64":"","stderrBase64":"",
  *    "aclChanges":[{"path":...,"mechanism":...,"applied":true,"verified":true,"rolledBack":true}]}
  *
@@ -254,6 +259,27 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
     out += result.containmentVerified ? "true" : "false";
     out += ",\"inputDetached\":";
     out += result.inputDetached ? "true" : "false";
+    out += ",\"tokenAudit\":{\"source\":\"suspended_child_process_token\",\"verified\":";
+    out += result.tokenAudit.verified ? "true" : "false";
+    out += ",\"isRestricted\":";
+    out += result.tokenAudit.isRestricted ? "true" : "false";
+    out += ",\"tokenType\":\"";
+    out += result.tokenAudit.isPrimary ? "primary" : "not_primary";
+    out += "\",\"restrictedSidSetVerified\":";
+    out += result.tokenAudit.restrictedSidSetVerified ? "true" : "false";
+    out += ",\"userRestrictedSid\":";
+    out += result.tokenAudit.userRestrictedSid ? "true" : "false";
+    out += ",\"worldRestrictedSid\":";
+    out += result.tokenAudit.worldRestrictedSid ? "true" : "false";
+    out += ",\"administratorsRestrictedSid\":";
+    out += result.tokenAudit.administratorsRestrictedSid ? "true" : "false";
+    out += ",\"restrictedSidCount\":";
+    out += std::to_string(static_cast<unsigned long>(result.tokenAudit.restrictedSidCount));
+    out += ",\"integritySid\":\"";
+    out += JsonEscape(result.tokenAudit.integritySid);
+    out += "\",\"integrityRid\":";
+    out += std::to_string(static_cast<unsigned long>(result.tokenAudit.integrityRid));
+    out += "}";
     out += ",\"stdoutSize\":";
     out += std::to_string(static_cast<long long>(result.stdoutBytes.size()));
     out += ",\"stderrSize\":";

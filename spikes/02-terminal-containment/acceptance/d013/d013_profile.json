@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "profile_id": "D013-CLOSURE-01",
-  "orchestration_head": "2e833e0",
-  "source_head": "2e833e0",
-  "win7_validation": "NOT_PERFORMED",
+  "orchestration_head": "6fbb374",
+  "source_head": "8dbe62f",
+  "win7_validation": "PASS",
   "implementation_allowlist": [
     "spikes/02-terminal-containment/**",
     "spikes/02-terminal-containment/helper/**",
@@ -11,7 +11,7 @@
     "spikes/02-terminal-containment/test/**"
   ],
   "target": {
-    "address": "10.67.149.40",
+    "address": "192.168.1.11",
     "user": "dccs-chaizl",
     "os": "Windows 7 SP1 x64 build 7601",
     "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
@@ -27,17 +27,83 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b",
-    "note": "Extracted from the reviewed v15 Win10 PASS return package; ignored by Git"
+    "sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "size": 268800,
+    "win7_validation": "PASS",
+    "note": "Locked from the reviewed v21 PASS/ARTIFACTS return package and graded WIN7_PASS by the ADR-0065 coordinator under A4-20260810-000004. The binary remains Git-ignored."
   },
   "win10_return_package": {
-    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
-    "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
-    "review_status": "PASS",
+    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
+    "build_revision": "v21-recovery",
+    "review_status": "PASS_READY_FOR_WIN7_RECOVERY_APPROVAL",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
-    "reviewed_at": "2026-08-09",
+    "process_capture_selftest": "PASS",
+    "logic_tests": "PASS",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "reviewed_at": "2026-08-10",
     "committed_to_git": false
+  },
+  "v18_prebuild_review": {
+    "build_revision": "v18-recovery",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v18.zip",
+    "build_kit_sha256": "9aad29ba2c7b01903accd102297f747a21a33ce212a92e24439f2f15e714f9c6",
+    "input_lock_sha256": "ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617",
+    "package_manifest_sha256": "371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1",
+    "review_status": "NO_GO_PREBUILD_REVIEW",
+    "win10_build": "NOT_PERFORMED",
+    "win7_validation": "NOT_PERFORMED"
+  },
+  "v19_win10_failure_review": {
+    "build_revision": "v19-recovery",
+    "return_package": "WIN7_D013_HELPER_DIAGNOSTICS_20260810-071922.zip",
+    "return_package_sha256": "48e3a418a05661bfb55e74d656125f960f1e2998ef1d01c61067976150cfee4c",
+    "helper_sha256": "8132323b418e08315bc4fc192626a4e2733b6568fd67541835bc987b4ca482e9",
+    "input_lock_sha256": "42183eaa52679965a0cc0092544b626c1131fcb68961f4e53feb73f97767eacd",
+    "package_manifest_sha256": "b4558a1b3b3fef7d7ddd6c36a666c34f0eada2234ba9564c974017529c45c070",
+    "build_status": "FAIL",
+    "failure_stage": "WIN10_SMOKE",
+    "candidate_eligible": false,
+    "archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v19-win10-smoke-fail"
+  },
+  "v20_win10_failure_report": {
+    "build_revision": "v20-recovery",
+    "return_package": "WIN7_D013_HELPER_DIAGNOSTICS_20260810-094532.zip",
+    "return_package_sha256": "NOT_VERIFIED_RETURN_NOT_PRESENT",
+    "helper_sha256": "NOT_VERIFIED_RETURN_NOT_PRESENT",
+    "reported_status": "FAIL",
+    "reported_failure_stage": "WIN10_SMOKE",
+    "reported_failure_code": "BUILD_WIN10_SMOKE_FAILED",
+    "candidate_eligible": false,
+    "source_root_cause": "Bare Task.GetResult calls emitted VoidTaskResult objects and polluted the PowerShell function result under Windows PowerShell 5.1.",
+    "review_status": "SOURCE_ROOT_CAUSE_CONFIRMED_RETURN_PACKAGE_PENDING_RECEIPT"
+  },
+  "v21_win10_return_review": {
+    "build_revision": "v21-recovery",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v21.zip",
+    "build_kit_sha256": "8c014442282a30837068ba5355d81a3105b987dd3bb73a619222af6f6f8a7e49",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "return_package_sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
+    "helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "candidate_eligible": true,
+    "win10_status": "PASS",
+    "win7_validation": "PASS",
+    "status": "WIN7_PASS"
+  },
+  "win7_acceptance": {
+    "acceptance_id": "A4-20260810-000004",
+    "accepted_commit": "20b4480ab2ea4f53b3ccee7df39e47755ed92102",
+    "artifact_manifest_sha256": "e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136",
+    "run_report_sha256": "fec80d7c64d5f329db8363e2ae522de4e024c949dd63e7ca6dcfc7324b937f99",
+    "grade_sha256": "68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a",
+    "classification": "WIN7_PASS",
+    "status": "PASS",
+    "lease_final_state": "RELEASED",
+    "formal_c05": "ENVIRONMENT_MISSING"
   },
   "upload_files": [
     {"local": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe", "remote": "spike02_helper.exe"},
@@ -56,7 +122,7 @@
   },
   "gates": {
     "GATE-WIN10-BUILD": "PASS",
-    "GATE-WIN7-LEASE": "NOT_GRANTED",
+    "GATE-WIN7-LEASE": "RELEASED_AFTER_WIN7_PASS",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",
     "GATE-PROD": "AUTHORIZATION_BLOCKED"
