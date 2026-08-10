@@ -4,8 +4,9 @@
  * The helper establishes a restricted execution environment for a child
  * process tree:
  *   - Job Object (KILL_ON_JOB_CLOSE + process/active limits) with a
- *     fail-closed host probe (C02: host already in a Job -> refuse, Win7
- *     cannot nest Jobs).
+ *     fail-closed host probe. On Win7 an inherited host Job is accepted only
+ *     when its flags permit a verified child breakaway before assignment to
+ *     the helper-owned Job; nested Jobs remain prohibited.
  *   - Restricted Token (maximum privileges disabled while preserving normal
  *     directory traversal, Administrators deny-only, Low Integrity mandatory
  *     label) actually applied to the child via
@@ -66,6 +67,8 @@ constexpr SIZE_T kJobProcessMemoryLimit = 512ULL * 1024 * 1024;
 // returning the required buffer size. Keep the numeric value portable so the
 // v19 empty TokenRestrictedSids regression can be unit-tested off Windows.
 constexpr DWORD kWinErrorInsufficientBuffer = 122;
+constexpr DWORD kJobLimitBreakawayOk = 0x00000800;
+constexpr DWORD kJobLimitSilentBreakawayOk = 0x00001000;
 
 // TOKEN_GROUPS uses an ANYSIZE_ARRAY, so sizeof(TOKEN_GROUPS) includes storage
 // for one entry. A legal empty TokenRestrictedSids result needs only the
@@ -75,6 +78,33 @@ inline bool TokenGroupsSizeProbeAccepted(bool querySucceeded, DWORD queryError,
                                          DWORD returnedSize, DWORD headerSize) {
     return returnedSize >= headerSize &&
            (querySucceeded || queryError == kWinErrorInsufficientBuffer);
+}
+
+enum class HostJobLaunchMode {
+    NoHostJob,
+    ExplicitBreakaway,
+    SilentBreakaway,
+    Blocked,
+    ProbeFailed,
+};
+
+// Pure policy decision kept portable for logic tests. Win7 cannot nest Jobs:
+// an inherited host Job is usable only if Windows documents an explicit or
+// silent breakaway path. Probe ambiguity always fails closed.
+inline HostJobLaunchMode DecideHostJobLaunchMode(bool inJobProbeSucceeded,
+                                                 bool inJob,
+                                                 bool jobInfoQuerySucceeded,
+                                                 DWORD limitFlags) {
+    if (!inJobProbeSucceeded) return HostJobLaunchMode::ProbeFailed;
+    if (!inJob) return HostJobLaunchMode::NoHostJob;
+    if (!jobInfoQuerySucceeded) return HostJobLaunchMode::ProbeFailed;
+    if ((limitFlags & kJobLimitSilentBreakawayOk) != 0) {
+        return HostJobLaunchMode::SilentBreakaway;
+    }
+    if ((limitFlags & kJobLimitBreakawayOk) != 0) {
+        return HostJobLaunchMode::ExplicitBreakaway;
+    }
+    return HostJobLaunchMode::Blocked;
 }
 
 // ─── Error codes (kept stable for protocol consumers) ────────────────────────
@@ -163,6 +193,10 @@ struct ProcessResult {
     bool outputTruncated = false;
     bool containmentVerified = false;
     bool inputDetached = false;
+    bool hostJobDetected = false;
+    std::string hostJobBreakaway = "none";
+    DWORD hostJobLimitFlags = 0;
+    bool childJobAssignmentVerified = false;
     std::vector<unsigned char> stdoutBytes;
     std::vector<unsigned char> stderrBytes;
     RestrictedTokenAudit tokenAudit;
@@ -176,9 +210,15 @@ struct ProcessResult {
 
 #ifdef _WIN32
 
-// Probe: is the CURRENT process already in any Job? Win7 cannot nest Jobs, so
-// a positive answer means fail-closed (C02/P11). Returns true on probe failure.
-bool HostIsInJob();
+struct HostJobLaunchPlan {
+    HostJobLaunchMode mode = HostJobLaunchMode::ProbeFailed;
+    DWORD limitFlags = 0;
+    DWORD probeError = 0;
+};
+
+// Probe the CURRENT process Job and select the only permitted Win7 launch
+// path. A host Job without documented breakaway flags remains fail-closed.
+HostJobLaunchPlan InspectHostJobLaunchPlan();
 
 // Canonicalize `executable` to the resolved absolute path (GetFullPathNameW +
 // GetFinalPathNameByHandleW, reparse-safe). Returns false with *error on

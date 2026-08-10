@@ -95,7 +95,9 @@ class NativeRunner {
             this.emit('runner.truncated', requestId, { stream: 'stdout', omittedBytes: capturedOut.omittedBytes });
         if (capturedErr.truncated)
             this.emit('runner.truncated', requestId, { stream: 'stderr', omittedBytes: capturedErr.omittedBytes });
-        const containmentOk = response.containmentVerified && response.inputDetached && response.tokenAudit?.verified &&
+        const hostJobOk = response.hostJob?.childJobAssignmentVerified === true &&
+            (!response.hostJob.detected || response.hostJob.breakaway === 'explicit' || response.hostJob.breakaway === 'silent');
+        const containmentOk = response.containmentVerified && response.inputDetached && hostJobOk && response.tokenAudit?.verified &&
             response.tokenAudit.isRestricted && response.tokenAudit.restrictedSidSetVerified && response.tokenAudit.integrityRid === 4096;
         const aclOk = response.aclChanges.every((change) => !change.applied || (change.verified && change.rolledBack));
         const status = !containmentOk || !aclOk ? 'cleanup_failed'

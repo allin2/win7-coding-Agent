@@ -118,6 +118,13 @@ if (!/CurrentLabelAclMatches/.test(helperSource) ||
     !/return\s+HELPER_ERR_ACL_ROLLBACK\s*;/.test(helperSource)) {
   throw new Error('helper.cpp must verify DACL restoration, Win7 LABEL null/zero-ACE equivalence, and fail closed on rollback failure');
 }
+if (!/QueryInformationJobObject\s*\(\s*nullptr\s*,\s*JobObjectExtendedLimitInformation/.test(helperSource) ||
+    !/CREATE_BREAKAWAY_FROM_JOB/.test(helperSource) ||
+    !/DecideHostJobLaunchMode/.test(helperSource) ||
+    !/IsProcessInJob\s*\(\s*pi\.hProcess\s*,\s*nullptr\s*,\s*&childInAnyJob\s*\)/.test(helperSource) ||
+    !/childJobAssignmentVerified/.test(helperSource)) {
+  throw new Error('helper.cpp must fail closed on inherited Win7 Jobs unless child breakaway and reassignment are both verified');
+}
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
 if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/Reset-OwnedDirectory\s+\$EvidenceRoot/.test(buildScript) ||

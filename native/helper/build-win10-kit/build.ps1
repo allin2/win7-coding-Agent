@@ -622,6 +622,13 @@ try {
             if ($response.containmentVerified -ne $true -or $response.inputDetached -ne $true) {
                 throw "helper JSON smoke did not prove containment/input detachment."
             }
+            $hostJob = $response.PSObject.Properties['hostJob']
+            if (-not $hostJob -or
+                $hostJob.Value.detected -ne $false -or
+                $hostJob.Value.breakaway -ne 'none' -or
+                $hostJob.Value.childJobAssignmentVerified -ne $true) {
+                throw "helper JSON smoke did not prove the no-host-Job assignment contract: $responseText"
+            }
             $tokenAuditProperty = $response.PSObject.Properties['tokenAudit']
             if (-not $tokenAuditProperty) {
                 throw "helper JSON smoke did not return the trusted child-token audit: $responseText"

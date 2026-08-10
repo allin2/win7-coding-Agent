@@ -55,6 +55,20 @@ static void TestTokenGroupsSizeProbe() {
     CHECK(!TokenGroupsSizeProbeAccepted(false, 0, 4, 4));
 }
 
+static void TestHostJobLaunchPolicy() {
+    CHECK(DecideHostJobLaunchMode(true, false, false, 0) == HostJobLaunchMode::NoHostJob);
+    CHECK(DecideHostJobLaunchMode(true, true, true, kJobLimitBreakawayOk) ==
+          HostJobLaunchMode::ExplicitBreakaway);
+    CHECK(DecideHostJobLaunchMode(true, true, true, kJobLimitSilentBreakawayOk) ==
+          HostJobLaunchMode::SilentBreakaway);
+    CHECK(DecideHostJobLaunchMode(true, true, true,
+                                  kJobLimitBreakawayOk | kJobLimitSilentBreakawayOk) ==
+          HostJobLaunchMode::SilentBreakaway);
+    CHECK(DecideHostJobLaunchMode(true, true, true, 0) == HostJobLaunchMode::Blocked);
+    CHECK(DecideHostJobLaunchMode(false, false, false, 0) == HostJobLaunchMode::ProbeFailed);
+    CHECK(DecideHostJobLaunchMode(true, true, false, 0) == HostJobLaunchMode::ProbeFailed);
+}
+
 static void TestJsonParser() {
     // Full valid request with Chinese + spaces.
     const std::string request =
@@ -325,6 +339,7 @@ static void TestRenderResult() {
     result.executionTimeMs = 16;
     result.containmentVerified = true;
     result.inputDetached = true;
+    result.childJobAssignmentVerified = true;
     result.tokenAudit.verified = true;
     result.tokenAudit.isRestricted = true;
     result.tokenAudit.isPrimary = true;
@@ -350,6 +365,8 @@ static void TestRenderResult() {
     CHECK(json.find("\"exitCode\":0") != std::string::npos);
     CHECK(json.find("\"containmentVerified\":true") != std::string::npos);
     CHECK(json.find("\"inputDetached\":true") != std::string::npos);
+    CHECK(json.find("\"hostJob\":{\"detected\":false,\"breakaway\":\"none\"") != std::string::npos);
+    CHECK(json.find("\"childJobAssignmentVerified\":true") != std::string::npos);
     CHECK(json.find("\"source\":\"suspended_child_process_token\"") != std::string::npos);
     CHECK(json.find("\"verified\":true") != std::string::npos);
     CHECK(json.find("\"isRestricted\":true") != std::string::npos);
@@ -386,6 +403,7 @@ static void TestRenderResult() {
 
 int main() {
     TestTokenGroupsSizeProbe();
+    TestHostJobLaunchPolicy();
     TestJsonParser();
     TestParseJsonConfig();
     TestArgvBuilder();

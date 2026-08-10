@@ -2,10 +2,10 @@
   "schema_version": 1,
   "track": "D-013-production-runner",
   "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
-  "status": "READY_FOR_WIN10_BUILD",
-  "build_revision": "v22-production-protocol",
-  "win10_build_executed": false,
-  "win10_return_package_reviewed": false,
+  "status": "REBUILD_REQUIRED_FOR_ELECTRON_HOST_JOB_BREAKAWAY",
+  "build_revision": "v23-production-host-job-breakaway",
+  "win10_build_executed": true,
+  "win10_return_package_reviewed": true,
   "win7_validation": "NOT_PERFORMED",
   "source_baseline": {
     "validated_revision": "D-013-v21",
@@ -17,8 +17,22 @@
     "idleTimeoutMs and idleTimedOut",
     "production version banner"
   ],
+  "win10_build_evidence": {
+    "completed_at": "2026-08-10T16:16:15.2420704Z",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-161615.zip",
+    "return_package_sha256": "22f946b18eb6d12134dabe1ac2af04d9c97e1749e2843242336bbc20fd1315f9",
+    "helper_sha256": "b48e535d7a4e955cdec0557904e745bdc36d799dc1eeaeb688d3fc24f6aa0c5e",
+    "source_commit": "2adc9b2f4c64ef34ac57fed968fca93bac9b3b97",
+    "toolchain": "VS2019 16.11.37507.1 / MSVC 14.29.30133 / SDK 10.0.19041.0 / x64 / static CRT",
+    "review": "PASS"
+  },
+  "win10_build_disposition": {
+    "status": "REJECTED_AS_PRODUCT_CANDIDATE",
+    "reason": "v22 unconditionally returns HOST_ALREADY_IN_JOB on the previously evidenced Electron Win7 launch path",
+    "reusable_as_formal_win7_candidate": false
+  },
   "blocked_on": [
-    "Win10 VS2019/v142 offline build and return-package review",
+    "Win10 VS2019/v142 rebuild of the v23 host-Job breakaway delta and return-package review",
     "ADR-0065 signed Win7 L01-L10 lease"
   ]
 }

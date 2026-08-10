@@ -26,6 +26,12 @@ export interface NativeHelperExecutionResult {
   outputTruncated: boolean;
   containmentVerified: boolean;
   inputDetached: boolean;
+  hostJob: {
+    detected: boolean;
+    breakaway: 'none' | 'explicit' | 'silent';
+    limitFlags: number;
+    childJobAssignmentVerified: boolean;
+  };
   tokenAudit: {
     verified: boolean;
     isRestricted: boolean;

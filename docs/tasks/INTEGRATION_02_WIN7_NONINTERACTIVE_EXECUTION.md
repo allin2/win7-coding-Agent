@@ -74,6 +74,35 @@ Renderer 进程权限和模型可调用的通用 `terminal.exec`。
 该 ZIP 是 Git 忽略的本地交接物，不是 Win7 运行包。必须在 D-017 锁定的 Win10/VS2019/v142
 构建机执行 `build.ps1`，返回新的 ARTIFACTS ZIP 与 sidecar；旧 v21 helper 二进制不能替代本修订。
 
+### 3.2 Win10 返回包复核（2026-08-11）
+
+- 返回包：`WIN7_D013_HELPER_ARTIFACTS_20260810-161615.zip`
+- 外层 SHA-256：`22f946b18eb6d12134dabe1ac2af04d9c97e1749e2843242336bbc20fd1315f9`
+- 生产 helper SHA-256：`b48e535d7a4e955cdec0557904e745bdc36d799dc1eeaeb688d3fc24f6aa0c5e`
+- 构建宿主：Windows 10 build 19045、VS2019 `16.11.37507.1`、MSVC `14.29.30133`、
+  Windows SDK `10.0.19041.0`、x64、静态 CRT。
+- 返回清单逐文件哈希、输入锁、源码提交 `2adc9b2f4c64ef34ac57fed968fca93bac9b3b97`、
+  PowerShell 原始字节捕获、logic tests、PE/API/CRT 检查及 Win10 containment smoke 均独立复核通过。
+  smoke 证明 Restricted Primary Token、Low Integrity、Job Object、stdin 关闭及两项临时 ACL 精确回滚。
+- 构建脚本裁决：`BUILD PASS / candidate_eligible=true`。但产品复核发现该 v22 helper 对
+  `IsProcessInJob(self)=true` 无条件返回 `HOST_ALREADY_IN_JOB`；A5-20260810-152500 已证明
+  Electron Win7 产品派生路径确实处于宿主 Job。因此该返回包追加定性为
+  `REJECTED_AS_PRODUCT_CANDIDATE`，不得上传执行 L01～L10，也不得启用生产 Runner。
+
+### 3.3 v23 宿主 Job breakaway 收口
+
+- 不关闭 Electron Renderer sandbox，不用 WMI/CPython 绕开生产路径，也不把 Win7 Job 嵌套
+  伪装成可用。
+- helper 查询当前 Job 的 `JobObjectExtendedLimitInformation`。只有宿主明确提供
+  `BREAKAWAY_OK` 或 `SILENT_BREAKAWAY_OK` 时才尝试创建 suspended restricted child；显式模式
+  加 `CREATE_BREAKAWAY_FROM_JOB`，silent 模式依赖宿主 Job 的自动 breakaway。
+- child 在 `ResumeThread` 前必须先证明不属于任何 Job，再证明已加入 helper 自建的
+  `KILL_ON_JOB_CLOSE` Job；两步任一不确定均 fail-closed。响应增加 `hostJob` 审计，
+  `NativeRunner` 将它纳入 containment 判定。
+- 该源码增量必须重新经过 D-017 Win10 构建与返回包复核。之后 L01 必须从真实 Electron 产品
+  路径验证 breakaway；若目标 Job 不允许 breakaway，则停止本地 Runner，另行裁决外部 Broker
+  或远程执行，不能回退为无 Job 执行。
+
 ## 4. 人工门禁
 
 - H1：签发租约前确认 `192.168.1.11` 空闲，允许新验收目录和仅限该目录的临时 ACL。

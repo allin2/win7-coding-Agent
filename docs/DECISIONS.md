@@ -724,3 +724,21 @@
 - 后果：低风险非交互执行可进入产品 L01～L10 实机验收；升级后的 helper 在锁定 D-017 工具链重新
   构建、绑定哈希并取得 Win7 正式结果前仍是候选，不得把开发机单测或既有 v21 二进制替代为产品通过。
   C05 继续不提供网络隔离，高风险与未经验证的 Git profile 仍拒绝或路由远程。
+
+## ADR-0068 Win7 Electron 宿主 Job 只允许经验证的 breakaway
+
+- 状态：Accepted（2026-08-11，依据 ADR-0066/0067 的 fail-closed 产品验收要求）
+- 背景：A5-20260810-152500 已实证，从 Win7 Electron 主进程直接派生 D-013 helper 会返回
+  `HOST_ALREADY_IN_JOB`；v22 生产 Helper 仍对任何宿主 Job 无条件拒绝。它在独立 Win10 会话的
+  构建与 smoke 虽然通过，却不能证明 Electron 产品路径可用。使用 WMI → CPython 的 A5 T05
+  独立宿主路径只适合 containment 复验，不能替代生产 `NativeRunner` 路径。
+- 决策：（1）保留 Win7 禁止嵌套 Job 的边界；helper 只在当前 Job 的扩展限制明确包含
+  `BREAKAWAY_OK` 或 `SILENT_BREAKAWAY_OK` 时尝试 child breakaway。（2）restricted child 必须
+  suspended 创建；显式模式使用 `CREATE_BREAKAWAY_FROM_JOB`，随后先以
+  `IsProcessInJob(child, NULL)` 证明已离开宿主 Job，再分配至 helper 自建 Job 并再次验证。
+  （3）响应携带 `hostJob.detected/breakaway/limitFlags/childJobAssignmentVerified`；产品
+  `NativeRunner` 把该审计纳入 containment 判定。（4）无 breakaway flag、查询失败、child 未
+  脱离或重新分配失败均 fail-closed；不允许通过 `--no-sandbox`、无 Job 执行或生产 WMI 绕过。
+- 后果：v22 Win10 PASS 包定性为 `REJECTED_AS_PRODUCT_CANDIDATE`，必须重建 v23。Win7 L01 必须
+  从真实 Electron 产品路径证明 breakaway 与新 Job 归属；若 Electron Job 不允许 breakaway，
+  本地 Runner 维持不可用，后续只能另行批准外部 Broker 架构或远程执行。

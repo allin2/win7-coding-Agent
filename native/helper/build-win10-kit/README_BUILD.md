@@ -5,7 +5,8 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 构建机不连接 Windows 7，也不访问或修改 Win7 测试机。
 
 本修订来自 `native/helper/**`，在已验证 v21 基线上增加强制 `schema_version`/`requestId`、
-`idleTimeoutMs` 和 `idleTimedOut`。旧 v21 二进制不得替代本修订的 Win10 返回工件。
+`idleTimeoutMs`、`idleTimedOut`，以及 Win7 宿主 Job 的可验证 breakaway 路径。旧 v21/v22
+二进制不得替代本修订的 Win10 返回工件。
 
 ## 构建机前置（严格锁定，D-017）
 
@@ -111,9 +112,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 ## C02 说明
 
-helper 在宿主已处于 Job 中时 fail-closed（`HOST_ALREADY_IN_JOB`）。若构建机 CI 本身
-在 Job 内运行 smoke，JSON round-trip 会返回该错误——这是预期行为，smoke 会标记为
-`SKIPPED_IN_JOB`（环境性跳过）。某些 Agent 沙箱不在 Job 中但会阻止
+helper 在宿主已处于 Job 中时先查询当前 Job flags。只有 `BREAKAWAY_OK` 或
+`SILENT_BREAKAWAY_OK` 存在，且 suspended child 经 `IsProcessInJob` 证明已经脱离宿主 Job 后，
+才允许把 child 分配到 helper 自建 Job；其他情况仍 fail-closed 为 `HOST_ALREADY_IN_JOB`。
+若构建机 CI 的 Job 不允许 breakaway，smoke 会标记为 `SKIPPED_IN_JOB`（环境性跳过）。某些
+Agent 沙箱不在 Job 中但会阻止
 `CreateProcessAsUserW` 创建受限子进程，此时 smoke 会标记为
 `SKIPPED_PROCESS_CREATE_FAILED`。这些情况只允许形成 `BUILD PARTIAL` 证据包，
 不构成 Win10 PASS。
