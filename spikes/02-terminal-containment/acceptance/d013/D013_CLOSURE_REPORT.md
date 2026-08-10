@@ -45,10 +45,13 @@ v17 又在 `CREATE_SUSPENDED` 子进程恢复执行前直接打开该实际子�
 `TokenType`、`IsTokenRestricted` 与 `TokenIntegrityLevel` 验证其为 restricted primary
 Low Integrity；但 v17 构造 token 时传入的 `RestrictedSidCount` 为 0，导致
 `IsTokenRestricted()` 必然为 false，Win10 smoke 因而在 `ResumeThread` 前以
-`TOKEN_CREATE_FAILED` 失败关闭。v18 修复此自相矛盾：保持 Everyone/World 在普通 SID
-集合中启用，同时将 World 作为唯一 restricting SID，并在实际 suspended child token 的
-`TokenRestrictedSids` 中精确核验数量为 1 且 SID 为 World；再与 `TokenPrimary`、
-`IsTokenRestricted=true`、Low Integrity SID/RID 共同构成恢复执行前的 fail-closed 审计。
+`TOKEN_CREATE_FAILED` 失败关闭。v18 用 sole-World restricting SID 修复了空集合矛盾，
+但构建前复核发现这会让第二次访问检查只依赖目标对象的 World allow ACE，存在 DACL
+兼容风险，故 v18 未执行 Win10 构建。v19 改为从源 primary token 派生 TokenUser 和全部
+enabled、非 deny-only TokenGroups，去重排序并排除 Administrators；实际 suspended child
+的 `TokenRestrictedSids` 必须与派生集合精确一致、包含用户和 World、不含 Administrators，
+再与 `TokenPrimary`、`IsTokenRestricted=true`、Low Integrity SID/RID 共同构成恢复执行前
+的 fail-closed 审计。
 Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 同时给 `allowedDirectories` 打 Low-Integrity 强制标签（子进程可在工作区内写），
 工作区外目录无低完整性标签 → 写被强制完整性策略拒绝。注册表读取由 SAM DACL + 删权
@@ -84,8 +87,9 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 - **分层状态**：v15 开发机与 Win10 为历史 `PASS`，Win7 为
   `FAIL_CLOSED_RECOVERY_REQUIRED`；v16 开发机与 Win10 为 `PASS`，Win7 也因 C03 缺少
   可信 Low Integrity 观测而 `FAIL_CLOSED_RECOVERY_REQUIRED`；v17 Win10 smoke 因空
-  restricting-SID 列表与审计合同冲突而 `FAIL_CLOSED_TOKEN_CREATE_FAILED`；v18 开发机
-  预检通过，等待 Win10 构建。不得把任一层级写成总体 PASS。
+  restricting-SID 列表与审计合同冲突而 `FAIL_CLOSED_TOKEN_CREATE_FAILED`；v18 为
+  `NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED`；v19 本地与独立包审计通过，等待 Win10
+  构建。不得把任一层级写成总体 PASS。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -93,12 +97,13 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 |------|------|
 | `cmake -S helper -B helper/build-mac && cmake --build helper/build-mac --target logic_tests && ./helper/build-mac/logic_tests` | `logic_tests: ALL PASS` |
 | `x86_64-w64-mingw32-g++ … -c helper.cpp json_parser.cpp argv_builder.cpp whitelist.cpp protocol.cpp` + 链接 | 5/5 编译零警告，链接出 PE32+ x86-64 exe（编译/链接检查） |
-| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 33 / 失败 0（含 exact World restricting SID、actual suspended child token audit、Win7 LABEL null/0-ACE 等价与 DACL 隔离断言） |
-| `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（含精确 World/Low SID 正向、错误 Low SID 与 v17 空 restricting SID fail-closed 负向） |
+| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 36 / 失败 0（含 source-derived restricting SID、actual suspended child token audit、schema v3 finalizer、raw-smoke 顺序与 logic-tests 闭包） |
+| `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（含错误 Low SID、v17 空集合、v18 sole-World、集合不匹配、Admin 混入和用户 SID 缺失负向） |
 | Win10 v15 `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS` |
 | Win10 v16-recovery `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS`；返回包与 input lock 精确匹配 |
 | v17 MinGW 交叉编译 + 链接 | 5/5 编译零警告；PE32+ x86-64 链接 PASS（代理证据，不替代 Win10 v142） |
 | v18 MinGW 交叉编译 + 链接 | 5/5 编译零警告；PE32+ x86-64 链接 PASS（代理证据，不替代 Win10 v142） |
+| v19 ZIP 独立解包 + CMake logic tests + MinGW 交叉编译 | 20 个包文件精确匹配；`logic_tests: ALL PASS`；5/5 零警告；PE32+ x86-64；禁止文件 0 |
 
 ## 6. C01～C08/N06 覆盖情况
 
@@ -106,7 +111,7 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 |---|------|------|----------|-----------|
 | C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
 | C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
-| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + sole World restricting SID + actual child token audit | v18 本地正/负向与交叉编译 PASS | v16 边界探针成立但可信 Low SID 未观测；v17 Win10 smoke 暴露空 restricting SID bug，均正式 FAIL |
+| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + source-derived exact restricting SID set + actual child token audit | v19 本地正/负向与交叉编译 PASS | v16 可信 Low SID 未观测；v17 空集合 FAIL；v18 构建前阻断；v19 Win7 待测 |
 | C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 与 Win10 smoke PASS | v16 `A4-20260810-000003` PASS |
 | C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | v16 loopback PASS；正式仍为 `ENVIRONMENT_MISSING` |
 | C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | v16 `A4-20260810-000003` PASS |
@@ -129,7 +134,7 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 - **v17 Win10 smoke 已失败关闭**：普通 CMD 复跑在 suspended child token 审计阶段返回
   `TOKEN_CREATE_FAILED`；源码确认 `RestrictedSidCount=0` 与 `IsTokenRestricted=true` 要求
   矛盾。用户未提供机器生成的 v17 返回 ZIP 或日志包，故不得虚构 native 证据。
-- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v18 Win10 返回包
+- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v19 Win10 返回包
   复核和新的人工 recovery 授权完成前不得签名或连接 Win7。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
@@ -192,5 +197,34 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
   `9aad29ba2c7b01903accd102297f747a21a33ce212a92e24439f2f15e714f9c6`。
 - input lock：`ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617`；
   package manifest：`371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1`。
-- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；Win10 v18 与 Win7 v18 均
-  `NOT_PERFORMED`，当前活跃租约为 0，不得连接 Win7。
+- 构建前复核新增三项阻断：sole-World 的第二次 DACL 检查风险、catch 可绕过返回包
+  finalizer、`logic_tests.cpp` 未进入输入闭包。
+- 当前状态：`NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED`；Win7 v18 也为
+  `NOT_PERFORMED`。v18 未交付人工构建，当前活跃租约为 0。
+
+## 11. v19 修复与构建交接（2026-08-10）
+
+- 源码修复提交：`59872dc41f33339a140f6ddf7bacacf714190ff2`。
+- Restricted Token：从源 primary token 派生 TokenUser 与所有 enabled、非 deny-only
+  TokenGroups，规范排序去重，明确排除 Administrators；源 token 已受限、集合为空、缺少
+  用户 SID 或 World 均失败关闭。实际 suspended child 必须证明集合精确相等、包含用户和
+  World、不含 Administrators，并满足 `TokenPrimary`、`IsTokenRestricted=true` 和精确
+  Low Integrity `S-1-16-4096 / 4096`，才能执行 `ResumeThread`。
+- 结构化审计新增 `restrictedSidSetVerified`、`userRestrictedSid`、
+  `administratorsRestrictedSid`；`restrictedSidCount` 为环境相关数量，不再固定为 1。
+- 构建闭包：`build-result.json` 升级 schema v3；raw smoke 在解析前落盘；统一 finalizer
+  为 PASS 生成 `ARTIFACTS`（退出码 0），为 PARTIAL/FAIL 生成不可候选的 `DIAGNOSTICS`
+  （退出码 2/1）。正式编译前自动执行 synthetic `TOKEN_CREATE_FAILED` 打包自测。
+- `logic_tests.cpp` 已进入 `src/`、input lock 和 package manifest，Win10 脚本将以 v142
+  直接编译运行 logic tests。
+- 本地验证：`logic_tests: ALL PASS`；containment 36/36；D-013 harness 全部 PASS，且
+  dry-run 零 SSH/SCP；MinGW 五个 Win32 编译单元零警告并链接 PE32+ x64。
+- v19 构建包：`WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v19.zip`，SHA-256
+  `29a559e1cf6673e7371470012c6a756ddc0a2c0565d88d0146ead3861e43dedf`。
+- input lock：`42183eaa52679965a0cc0092544b626c1131fcb68961f4e53feb73f97767eacd`；
+  package manifest：`b4558a1b3b3fef7d7ddd6c36a666c34f0eada2234ba9564c974017529c45c070`。
+- 独立包审计：20 个 ZIP 文件与 19 项 manifest 加 manifest 自身精确一致；14 项 input
+  lock 全部匹配；从 ZIP 解出的 CMake logic tests 通过，实际源码交叉编译/链接通过；
+  私钥、EXE、旧 evidence、缓存和未声明文件均为 0。
+- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；v19 Win10 与 Win7 均 `NOT_PERFORMED`；
+  A4 Gate 继续 `FAIL_CLOSED_RECOVERY_REQUIRED`，不得连接 Win7 或签发租约。

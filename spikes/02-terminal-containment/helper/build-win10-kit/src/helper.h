@@ -118,10 +118,21 @@ struct RestrictedTokenAudit {
     bool verified = false;
     bool isRestricted = false;
     bool isPrimary = false;
+    bool restrictedSidSetVerified = false;
+    bool userRestrictedSid = false;
     bool worldRestrictedSid = false;
+    bool administratorsRestrictedSid = false;
     DWORD restrictedSidCount = 0;
     std::wstring integritySid;
     DWORD integrityRid = 0;
+};
+
+// Canonical SID-set expectation derived from the source primary token before
+// CreateRestrictedToken. The child audit compares TokenRestrictedSids against
+// this exact sorted set without exposing account SID strings in the protocol.
+struct RestrictedSidExpectation {
+    std::vector<std::wstring> canonicalSids;
+    std::wstring userSid;
 };
 
 // Execution result (stdout/stderr as bytes + base64 rendering at output time).
@@ -182,19 +193,23 @@ bool RestoreLowIntegrityLabel(const std::wstring& directory,
 HANDLE CreateConfiguredJobObject();
 
 // Build the restricted primary token (maximum privileges disabled while
-// retaining SeChangeNotifyPrivilege, Administrators deny-only, Everyone as the
-// sole restricting SID, Low Integrity). Everyone remains enabled in the normal
-// SID list so baseline loader/window-station grants are not denied; its second
-// role as a restricting SID makes the restricted-token semantics explicit.
-// Returns NULL on failure.
-HANDLE CreateRestrictedProcessToken();
+// retaining SeChangeNotifyPrivilege, Administrators deny-only, Low Integrity).
+// The restricting set is derived from the source TokenUser plus every enabled,
+// non-deny-only TokenGroup except Administrators. This preserves the ordinary
+// non-admin ACL coverage needed by the loader, working directory, window
+// station and desktop while giving IsTokenRestricted a real SID-list contract.
+// Returns NULL on any source-token ambiguity or creation failure.
+HANDLE CreateRestrictedProcessToken(RestrictedSidExpectation* expectation,
+                                    std::wstring* error);
 
 // Open and audit the token attached to `childProcess` while the child is still
-// suspended. Success requires a restricted primary token with exactly one
-// restricting SID (Everyone/World) whose mandatory integrity SID is exactly
-// Low Integrity (S-1-16-4096). Any query failure or mismatch returns false so
-// launch can fail closed before ResumeThread.
-bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
+// suspended. Success requires the exact source-derived restricting SID set,
+// including TokenUser and Everyone/World but excluding Administrators, plus a
+// Low Integrity mandatory SID of S-1-16-4096. Any mismatch fails closed before
+// ResumeThread.
+bool AuditRestrictedChildToken(HANDLE childProcess,
+                               const RestrictedSidExpectation& expectation,
+                               RestrictedTokenAudit* audit,
                                std::wstring* error);
 
 // Apply the Low-Integrity mandatory label to `directory` so a low-integrity

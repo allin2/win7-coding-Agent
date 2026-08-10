@@ -23,6 +23,8 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER_SRC_DIR="${TEST_DIR}/../helper"
 HELPER_CPP="${HELPER_SRC_DIR}/helper.cpp"
 HELPER_H="${HELPER_SRC_DIR}/helper.h"
+BUILD_KIT_DIR="${HELPER_SRC_DIR}/build-win10-kit"
+BUILD_SCRIPT="${BUILD_KIT_DIR}/build.ps1"
 RESULTS_DIR="${TEST_DIR}/results"
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -129,6 +131,26 @@ if grep -q '\\\\\.\\\\NUL' "${HELPER_CPP}" || grep -q 'NUL' "${HELPER_CPP}"; the
     pass "C19: child stdin detached (NUL device)"
 else
     fail "C19: child stdin detachment missing"
+fi
+
+# ── v19 Win10 build/diagnostics closure ──────────────────────────────────────
+if grep -q 'function New-ReturnPackage' "${BUILD_SCRIPT}" \
+    && grep -q 'function Test-ReturnPackageWriter' "${BUILD_SCRIPT}" \
+    && grep -q 'WIN7_D013_HELPER_DIAGNOSTICS_' "${BUILD_SCRIPT}" \
+    && grep -q 'schema_version = 3' "${BUILD_SCRIPT}"; then
+    pass "D-013 build: schema v3 single finalizer covers FAIL diagnostics"
+else
+    fail "D-013 build: schema v3 diagnostics finalizer contract missing"
+fi
+raw_write_line="$(grep -n 'WriteAllText(' "${BUILD_SCRIPT}" | awk -F: '$1 > 400 {print $1; exit}')"
+smoke_parse_line="$(grep -n '\$response = \$responseText | ConvertFrom-Json' "${BUILD_SCRIPT}" | cut -d: -f1)"
+if [ -n "${raw_write_line}" ] && [ -n "${smoke_parse_line}" ] \
+    && [ "${raw_write_line}" -lt "${smoke_parse_line}" ] \
+    && grep -q "'logic_tests.cpp'" "${BUILD_SCRIPT}" \
+    && grep -q "'logic_tests.cpp'" "${BUILD_KIT_DIR}/prepare-kit.cjs"; then
+    pass "D-013 build: raw smoke precedes parse and logic_tests is in the locked Win10 closure"
+else
+    fail "D-013 build: raw smoke ordering or logic_tests closure missing"
 fi
 
 # ── Skeleton leftovers are forbidden ─────────────────────────────────────────

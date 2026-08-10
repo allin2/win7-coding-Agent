@@ -22,6 +22,7 @@ const HELPER_ROOT = path.resolve(HERE, '..');
 
 const SOURCES = [
   'helper.cpp', 'helper.h',
+  'logic_tests.cpp',
   'json_parser.cpp', 'json_parser.h',
   'argv_builder.cpp', 'argv_builder.h',
   'whitelist.cpp', 'whitelist.h',
@@ -85,14 +86,19 @@ if (!/DOMAIN_ALIAS_RID_ADMINS/.test(helperSource) ||
     /sidsToDisable\.push_back\s*\(\s*\{\s*worldSid/.test(helperSource)) {
   throw new Error('helper.cpp must make Administrators deny-only without putting Everyone/World in the deny-only list');
 }
-if (!/SECURITY_WORLD_SID_AUTHORITY/.test(helperSource) ||
-    !/SECURITY_WORLD_RID/.test(helperSource) ||
-    !/sidsToRestrict\.push_back\s*\(\s*\{\s*worldSid/.test(helperSource) ||
+if (!/GetTokenInformation\s*\(\s*hSource\s*,\s*TokenUser/.test(helperSource) ||
+    !/GetTokenInformation\s*\(\s*hSource\s*,\s*TokenGroups/.test(helperSource) ||
+    !/SE_GROUP_ENABLED/.test(helperSource) ||
+    !/SE_GROUP_USE_FOR_DENY_ONLY/.test(helperSource) ||
+    !/WinBuiltinAdministratorsSid/.test(helperSource) ||
     !/static_cast<DWORD>\(sidsToRestrict\.size\(\)\)\s*,\s*sidsToRestrict\.data\(\)/.test(helperSource) ||
-    !/GetTokenInformation\s*\(\s*hChildToken\s*,\s*TokenRestrictedSids/.test(helperSource) ||
-    !/restrictedSidCount\s*==\s*1/.test(helperSource) ||
-    !/worldRestrictedSid/.test(helperSource)) {
-  throw new Error('helper.cpp must pass Everyone as the sole restricting SID and audit that exact list on the suspended child');
+    !/ReadRestrictedSidStrings\s*\(\s*hChildToken/.test(helperSource) ||
+    !/actualRestrictedSids\s*==\s*expectation\.canonicalSids/.test(helperSource) ||
+    !/restrictedSidSetVerified/.test(helperSource) ||
+    !/userRestrictedSid/.test(helperSource) ||
+    !/administratorsRestrictedSid/.test(helperSource) ||
+    /restrictedSidCount\s*==\s*1/.test(helperSource)) {
+  throw new Error('helper.cpp must derive the restricting SID set from enabled source user/groups, exclude Administrators and audit exact child equality');
 }
 if (!/CurrentLabelAclMatches/.test(helperSource) ||
     !/LabelAclsEqual/.test(helperSource) ||
@@ -104,8 +110,14 @@ if (!/CurrentLabelAclMatches/.test(helperSource) ||
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
 if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/Reset-OwnedDirectory\s+\$EvidenceRoot/.test(buildScript) ||
-    !/Reset-OwnedDirectory\s+\$staging/.test(buildScript)) {
-  throw new Error('build.ps1 must exercise protected ACLs and reset evidence/staging state');
+    !/New-ReturnPackage/.test(buildScript) ||
+    !/Test-ReturnPackageWriter/.test(buildScript) ||
+    !/WIN7_D013_HELPER_DIAGNOSTICS_/.test(buildScript) ||
+    !/schema_version\s*=\s*3/.test(buildScript) ||
+    !/RETURN_PACKAGE_MANIFEST\.json/.test(buildScript) ||
+    !/Persist the raw helper response before parsing/.test(buildScript) ||
+    /catch\s*\{[^}]*\bexit\b/.test(buildScript)) {
+  throw new Error('build.ps1 must exercise protected ACLs and preserve PASS/PARTIAL/FAIL evidence through the single return-package finalizer');
 }
 
 // 1. Snapshot the live sources.

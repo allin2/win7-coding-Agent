@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "profile_id": "D013-CLOSURE-01",
-  "orchestration_head": "0c7313b",
-  "source_head": "0c7313b",
+  "orchestration_head": "59872dc",
+  "source_head": "59872dc",
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "implementation_allowlist": [
     "spikes/02-terminal-containment/**",
@@ -27,9 +27,9 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "PENDING_V18_WIN10_BUILD",
+    "sha256": "PENDING_V19_WIN10_BUILD",
     "win7_validation": "NOT_PERFORMED",
-    "note": "The ignored path may still contain the archived v16 candidate, but it cannot satisfy the v18 pending hash gate. A reviewed v18 return package is required."
+    "note": "The ignored path may still contain the archived v16 candidate, but it cannot satisfy the v19 pending hash gate. Only a reviewed v19 PASS/ARTIFACTS return package may replace it."
   },
   "win10_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
@@ -43,12 +43,22 @@
     "reviewed_at": "2026-08-10",
     "committed_to_git": false
   },
-  "pending_win10_build": {
+  "v18_prebuild_review": {
     "build_revision": "v18-recovery",
     "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v18.zip",
     "build_kit_sha256": "9aad29ba2c7b01903accd102297f747a21a33ce212a92e24439f2f15e714f9c6",
     "input_lock_sha256": "ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617",
     "package_manifest_sha256": "371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1",
+    "review_status": "NO_GO_PREBUILD_REVIEW",
+    "win10_build": "NOT_PERFORMED",
+    "win7_validation": "NOT_PERFORMED"
+  },
+  "pending_win10_build": {
+    "build_revision": "v19-recovery",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v19.zip",
+    "build_kit_sha256": "29a559e1cf6673e7371470012c6a756ddc0a2c0565d88d0146ead3861e43dedf",
+    "input_lock_sha256": "42183eaa52679965a0cc0092544b626c1131fcb68961f4e53feb73f97767eacd",
+    "package_manifest_sha256": "b4558a1b3b3fef7d7ddd6c36a666c34f0eada2234ba9564c974017529c45c070",
     "status": "READY_FOR_HUMAN_WIN10_BUILD"
   },
   "upload_files": [
@@ -67,7 +77,7 @@
     ]
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V18_BUILD",
+    "GATE-WIN10-BUILD": "READY_FOR_V19_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",

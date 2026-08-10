@@ -3,9 +3,9 @@
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T03:03:07Z",
-  "implementation_commit": "0c7313bc0a8fc043831fbc1e74c81476ed14eb26",
-  "build_revision": "v18-recovery",
+  "generated_at": "2026-08-10T14:03:21+08:00",
+  "implementation_commit": "59872dc41f33339a140f6ddf7bacacf714190ff2",
+  "build_revision": "v19-recovery",
   "win10_build_executed": false,
   "win10_return_package_reviewed": false,
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
@@ -18,31 +18,34 @@
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "PENDING_V18_WIN10_BUILD",
+    "sha256": "PENDING_V19_WIN10_BUILD",
     "git_ignored": true
   },
   "evidence": {
     "input_lock_sha256": "SEE_INPUT_LOCK_AND_PACKAGE_MANIFEST",
+    "build_result_schema": 3,
     "win10_smoke": "NOT_PERFORMED",
     "pe_api_crt_analysis": "NOT_PERFORMED",
+    "logic_tests": "LOCAL_PASS_WIN10_V142_NOT_PERFORMED",
     "architecture": "x64",
     "toolset": "v142",
     "windows_sdk": "10.0.19041.0",
     "crt": "static /MT"
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V18_BUILD",
+    "GATE-WIN10-BUILD": "READY_FOR_V19_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "v18 Win10 build and returned-package review",
+    "v19 Win10 build and returned-package review",
     "recovery review before any new Win7 lease"
   ],
   "notes": [
-    "v17 Win10 native smoke failed closed with TOKEN_CREATE_FAILED; source review confirmed it passed no restricting SID while requiring IsTokenRestricted=true.",
-    "v18 passes Everyone/World as the sole restricting SID, keeps World out of the deny-only list, and audits the actual suspended child TokenRestrictedSids list before ResumeThread.",
-    "The v17 input kit and source root-cause report are preserved outside Git; no v17 machine-generated return ZIP was available.",
+    "v18 is NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED: sole-World restricting SID can fail the restricted-token second access check on objects without a World allow ACE.",
+    "v18 also lacked logic_tests.cpp in its input closure and could lose diagnostics because its catch path exited before return packaging.",
+    "v19 derives the canonical restricting SID set from TokenUser plus enabled non-deny-only TokenGroups, excludes Administrators, and audits exact child equality before ResumeThread.",
+    "v19 build-result schema v3 and one finalizer produce ARTIFACTS only for PASS; PARTIAL/FAIL produce ineligible DIAGNOSTICS packages.",
     "The v16 Win10 build remains historical PASS evidence but is superseded for further Win7 acceptance.",
     "No Win7 SSH/SCP operation is authorized while recovery is required."
   ]

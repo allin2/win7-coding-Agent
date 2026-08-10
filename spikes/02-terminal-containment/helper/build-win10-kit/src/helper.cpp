@@ -445,11 +445,186 @@ HANDLE CreateConfiguredJobObject() {
     return hJob;
 }
 
-HANDLE CreateRestrictedProcessToken() {
-    HANDLE hSource = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hSource)) return nullptr;
+bool SidToCanonicalString(PSID sid, std::wstring* value, std::wstring* error) {
+    if (!sid || !IsValidSid(sid) || !value) {
+        if (error) *error = L"invalid SID";
+        return false;
+    }
+    LPWSTR text = nullptr;
+    if (!ConvertSidToStringSidW(sid, &text) || !text) {
+        if (error) *error = L"ConvertSidToStringSidW failed: " +
+                            WinErrorText(GetLastError());
+        return false;
+    }
+    *value = text;
+    LocalFree(text);
+    return true;
+}
 
-    // 1. Disable Administrators as deny-only. Do not disable Everyone/World:
+bool ReadRestrictedSidStrings(HANDLE token, std::vector<std::wstring>* values,
+                              std::wstring* error) {
+    if (!token || !values) {
+        if (error) *error = L"token or restricted-SID output is null";
+        return false;
+    }
+    values->clear();
+    DWORD size = 0;
+    SetLastError(ERROR_SUCCESS);
+    GetTokenInformation(token, TokenRestrictedSids, nullptr, 0, &size);
+    if (size < sizeof(TOKEN_GROUPS) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        if (error) *error = L"GetTokenInformation(TokenRestrictedSids size) failed: " +
+                            WinErrorText(GetLastError());
+        return false;
+    }
+    std::vector<unsigned char> buffer(size);
+    if (!GetTokenInformation(token, TokenRestrictedSids, buffer.data(), size, &size)) {
+        if (error) *error = L"GetTokenInformation(TokenRestrictedSids) failed: " +
+                            WinErrorText(GetLastError());
+        return false;
+    }
+    TOKEN_GROUPS* groups = reinterpret_cast<TOKEN_GROUPS*>(buffer.data());
+    values->reserve(groups->GroupCount);
+    for (DWORD i = 0; i < groups->GroupCount; ++i) {
+        std::wstring text;
+        if (!SidToCanonicalString(groups->Groups[i].Sid, &text, error)) return false;
+        values->push_back(text);
+    }
+    std::sort(values->begin(), values->end());
+    return true;
+}
+
+HANDLE CreateRestrictedProcessToken(RestrictedSidExpectation* expectation,
+                                    std::wstring* error) {
+    if (!expectation) {
+        if (error) *error = L"restricted-SID expectation output is null";
+        return nullptr;
+    }
+    *expectation = {};
+    HANDLE hSource = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hSource)) {
+        if (error) *error = L"OpenProcessToken(source) failed: " +
+                            WinErrorText(GetLastError());
+        return nullptr;
+    }
+
+    // Refuse to derive a second-generation restricted token. Windows would
+    // intersect the requested set with the source restricting set, making the
+    // expected ACL coverage ambiguous and environment-dependent.
+    std::vector<std::wstring> sourceRestrictedSids;
+    if (!ReadRestrictedSidStrings(hSource, &sourceRestrictedSids, error) ||
+        !sourceRestrictedSids.empty()) {
+        if (error && error->empty()) {
+            *error = L"source token already contains restricting SIDs";
+        }
+        CloseHandle(hSource);
+        return nullptr;
+    }
+
+    // Derive an ACL-compatible restricting set from TokenUser plus every
+    // enabled, non-deny-only group except Administrators. A sole World SID is
+    // insufficient because many ordinary executable, DLL and workspace DACLs
+    // grant through Users, Authenticated Users, the user SID or the logon SID.
+    std::vector<PSID> ownedRestrictedSids;
+    std::vector<std::wstring> canonicalRestrictedSids;
+    bool hasWorldSid = false;
+    auto releaseRestrictedSids = [&]() {
+        for (PSID sid : ownedRestrictedSids) LocalFree(sid);
+        ownedRestrictedSids.clear();
+    };
+    auto addRestrictingSid = [&](PSID sourceSid, bool isUser) {
+        if (!sourceSid || !IsValidSid(sourceSid)) {
+            if (error) *error = L"source token returned an invalid SID";
+            return false;
+        }
+        if (IsWellKnownSid(sourceSid, WinBuiltinAdministratorsSid)) return true;
+        std::wstring canonical;
+        if (!SidToCanonicalString(sourceSid, &canonical, error)) return false;
+        if (std::find(canonicalRestrictedSids.begin(), canonicalRestrictedSids.end(),
+                      canonical) != canonicalRestrictedSids.end()) {
+            if (isUser) expectation->userSid = canonical;
+            return true;
+        }
+        const DWORD sidLength = GetLengthSid(sourceSid);
+        PSID copy = LocalAlloc(LPTR, sidLength);
+        if (!copy || !CopySid(sidLength, copy, sourceSid)) {
+            const DWORD copyError = GetLastError();
+            if (copy) LocalFree(copy);
+            if (error) *error = L"CopySid(restricting set) failed: " +
+                                WinErrorText(copyError);
+            return false;
+        }
+        ownedRestrictedSids.push_back(copy);
+        canonicalRestrictedSids.push_back(canonical);
+        if (isUser) expectation->userSid = canonical;
+        if (IsWellKnownSid(sourceSid, WinWorldSid)) hasWorldSid = true;
+        return true;
+    };
+
+    DWORD userSize = 0;
+    SetLastError(ERROR_SUCCESS);
+    GetTokenInformation(hSource, TokenUser, nullptr, 0, &userSize);
+    if (userSize < sizeof(TOKEN_USER) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        if (error) *error = L"GetTokenInformation(TokenUser size) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hSource);
+        return nullptr;
+    }
+    std::vector<unsigned char> userBuffer(userSize);
+    if (!GetTokenInformation(hSource, TokenUser, userBuffer.data(), userSize, &userSize) ||
+        !addRestrictingSid(reinterpret_cast<TOKEN_USER*>(userBuffer.data())->User.Sid, true)) {
+        if (error && error->empty()) {
+            *error = L"GetTokenInformation(TokenUser) or user SID copy failed";
+        }
+        releaseRestrictedSids();
+        CloseHandle(hSource);
+        return nullptr;
+    }
+
+    DWORD groupsSize = 0;
+    SetLastError(ERROR_SUCCESS);
+    GetTokenInformation(hSource, TokenGroups, nullptr, 0, &groupsSize);
+    if (groupsSize < sizeof(TOKEN_GROUPS) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        if (error) *error = L"GetTokenInformation(TokenGroups size) failed: " +
+                            WinErrorText(GetLastError());
+        releaseRestrictedSids();
+        CloseHandle(hSource);
+        return nullptr;
+    }
+    std::vector<unsigned char> groupsBuffer(groupsSize);
+    if (!GetTokenInformation(hSource, TokenGroups, groupsBuffer.data(), groupsSize,
+                             &groupsSize)) {
+        if (error) *error = L"GetTokenInformation(TokenGroups) failed: " +
+                            WinErrorText(GetLastError());
+        releaseRestrictedSids();
+        CloseHandle(hSource);
+        return nullptr;
+    }
+    TOKEN_GROUPS* sourceGroups = reinterpret_cast<TOKEN_GROUPS*>(groupsBuffer.data());
+    for (DWORD i = 0; i < sourceGroups->GroupCount; ++i) {
+        const SID_AND_ATTRIBUTES& group = sourceGroups->Groups[i];
+        if (!(group.Attributes & SE_GROUP_ENABLED) ||
+            (group.Attributes & SE_GROUP_USE_FOR_DENY_ONLY)) {
+            continue;
+        }
+        if (!addRestrictingSid(group.Sid, false)) {
+            releaseRestrictedSids();
+            CloseHandle(hSource);
+            return nullptr;
+        }
+    }
+    if (ownedRestrictedSids.empty() || expectation->userSid.empty() || !hasWorldSid) {
+        if (error) *error = L"source token did not yield a non-empty user+World restricting set";
+        releaseRestrictedSids();
+        CloseHandle(hSource);
+        return nullptr;
+    }
+    std::sort(canonicalRestrictedSids.begin(), canonicalRestrictedSids.end());
+    expectation->canonicalSids = canonicalRestrictedSids;
+
+    // Disable Administrators as deny-only. Do not disable the other enabled
+    // groups: the derived restricting set must retain their ordinary ACL
+    // coverage while DISABLE_MAX_PRIVILEGE, Low Integrity and explicit ACLs
+    // enforce the actual containment boundary.
     // core OS objects may grant baseline read/execute access only through
     // Everyone, so making it deny-only can let CreateProcessAsUserW create the
     // process but make the Windows loader terminate it with
@@ -461,29 +636,20 @@ HANDLE CreateRestrictedProcessToken() {
     SID_IDENTIFIER_AUTHORITY ntAuth = SECURITY_NT_AUTHORITY;
     if (!AllocateAndInitializeSid(&ntAuth, 2, SECURITY_BUILTIN_DOMAIN_RID,
                                   DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &adminsSid)) {
+        if (error) *error = L"AllocateAndInitializeSid(Administrators) failed: " +
+                            WinErrorText(GetLastError());
+        releaseRestrictedSids();
         CloseHandle(hSource);
         return nullptr;
     }
     sidsToDisable.push_back({adminsSid, 0});
-
-    // 2. Add Everyone/World as the sole restricting SID. This is not the
-    // deny-only list above: access checks must first pass the normal user/group
-    // SID set and then also match an Everyone allow ACE. Keeping World enabled
-    // in the normal list preserves the loader/window-station baseline that v14
-    // lost, while the non-empty restricting list gives IsTokenRestricted its
-    // documented TRUE semantics.
     std::vector<SID_AND_ATTRIBUTES> sidsToRestrict;
-    PSID worldSid = nullptr;
-    SID_IDENTIFIER_AUTHORITY worldAuth = SECURITY_WORLD_SID_AUTHORITY;
-    if (!AllocateAndInitializeSid(&worldAuth, 1, SECURITY_WORLD_RID,
-                                  0, 0, 0, 0, 0, 0, 0, &worldSid)) {
-        for (SID_AND_ATTRIBUTES& sid : sidsToDisable) FreeSid(sid.Sid);
-        CloseHandle(hSource);
-        return nullptr;
+    sidsToRestrict.reserve(ownedRestrictedSids.size());
+    for (PSID sid : ownedRestrictedSids) {
+        sidsToRestrict.push_back({sid, 0});
     }
-    sidsToRestrict.push_back({worldSid, 0});
 
-    // 3. DISABLE_MAX_PRIVILEGE disables every privilege except
+    // DISABLE_MAX_PRIVILEGE disables every privilege except
     // SeChangeNotifyPrivilege. Windows deliberately preserves that privilege
     // so normal directory traversal continues to work; manually deleting it
     // can make an otherwise valid working directory unusable.
@@ -495,15 +661,22 @@ HANDLE CreateRestrictedProcessToken() {
         0, nullptr,
         static_cast<DWORD>(sidsToRestrict.size()),
         sidsToRestrict.data(), &hRestricted);
+    const DWORD createError = created ? ERROR_SUCCESS : GetLastError();
 
     for (SID_AND_ATTRIBUTES& sid : sidsToDisable) FreeSid(sid.Sid);
-    for (SID_AND_ATTRIBUTES& sid : sidsToRestrict) FreeSid(sid.Sid);
+    releaseRestrictedSids();
     CloseHandle(hSource);
-    if (!created || !hRestricted) return nullptr;
+    if (!created || !hRestricted) {
+        if (error) *error = L"CreateRestrictedToken failed: " +
+                            WinErrorText(createError);
+        return nullptr;
+    }
 
-    // 4. Drop to Low Integrity (mandatory label S-1-16-4096).
+    // Drop to Low Integrity (mandatory label S-1-16-4096).
     PSID lowSid = nullptr;
     if (!ConvertStringSidToSidW(L"S-1-16-4096", &lowSid)) {
+        if (error) *error = L"ConvertStringSidToSidW(Low Integrity) failed: " +
+                            WinErrorText(GetLastError());
         CloseHandle(hRestricted);
         return nullptr;
     }
@@ -513,18 +686,24 @@ HANDLE CreateRestrictedProcessToken() {
     const BOOL levelOk = SetTokenInformation(
         hRestricted, TokenIntegrityLevel, &label,
         static_cast<DWORD>(sizeof(TOKEN_MANDATORY_LABEL) + GetLengthSid(lowSid)));
+    const DWORD levelError = levelOk ? ERROR_SUCCESS : GetLastError();
     LocalFree(lowSid);
     if (!levelOk) {
+        if (error) *error = L"SetTokenInformation(TokenIntegrityLevel) failed: " +
+                            WinErrorText(levelError);
         CloseHandle(hRestricted);
         return nullptr;
     }
     return hRestricted;
 }
 
-bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
+bool AuditRestrictedChildToken(HANDLE childProcess,
+                               const RestrictedSidExpectation& expectation,
+                               RestrictedTokenAudit* audit,
                                std::wstring* error) {
-    if (!childProcess || !audit) {
-        if (error) *error = L"child process or token-audit output is null";
+    if (!childProcess || !audit || expectation.canonicalSids.empty() ||
+        expectation.userSid.empty()) {
+        if (error) *error = L"child process, token-audit output or SID expectation is invalid";
         return false;
     }
     *audit = {};
@@ -547,45 +726,22 @@ bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
     audit->isPrimary = tokenType == TokenPrimary;
     audit->isRestricted = IsTokenRestricted(hChildToken) ? true : false;
 
-    DWORD restrictedSize = 0;
-    SetLastError(ERROR_SUCCESS);
-    GetTokenInformation(hChildToken, TokenRestrictedSids, nullptr, 0, &restrictedSize);
-    if (restrictedSize < sizeof(TOKEN_GROUPS) ||
-        GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-        if (error) *error = L"GetTokenInformation(TokenRestrictedSids size) failed: " +
-                            WinErrorText(GetLastError());
+    std::vector<std::wstring> actualRestrictedSids;
+    if (!ReadRestrictedSidStrings(hChildToken, &actualRestrictedSids, error)) {
         CloseHandle(hChildToken);
         return false;
     }
-    std::vector<unsigned char> restrictedBuffer(restrictedSize);
-    if (!GetTokenInformation(hChildToken, TokenRestrictedSids,
-                             restrictedBuffer.data(), restrictedSize, &restrictedSize)) {
-        if (error) *error = L"GetTokenInformation(TokenRestrictedSids) failed: " +
-                            WinErrorText(GetLastError());
-        CloseHandle(hChildToken);
-        return false;
-    }
-    TOKEN_GROUPS* restrictedGroups =
-        reinterpret_cast<TOKEN_GROUPS*>(restrictedBuffer.data());
-    audit->restrictedSidCount = restrictedGroups->GroupCount;
-
-    PSID auditWorldSid = nullptr;
-    SID_IDENTIFIER_AUTHORITY auditWorldAuth = SECURITY_WORLD_SID_AUTHORITY;
-    if (!AllocateAndInitializeSid(&auditWorldAuth, 1, SECURITY_WORLD_RID,
-                                  0, 0, 0, 0, 0, 0, 0, &auditWorldSid)) {
-        if (error) *error = L"AllocateAndInitializeSid(World audit) failed: " +
-                            WinErrorText(GetLastError());
-        CloseHandle(hChildToken);
-        return false;
-    }
-    for (DWORD i = 0; i < restrictedGroups->GroupCount; ++i) {
-        if (restrictedGroups->Groups[i].Sid &&
-            EqualSid(restrictedGroups->Groups[i].Sid, auditWorldSid)) {
-            audit->worldRestrictedSid = true;
-            break;
-        }
-    }
-    FreeSid(auditWorldSid);
+    audit->restrictedSidCount = static_cast<DWORD>(actualRestrictedSids.size());
+    audit->restrictedSidSetVerified = actualRestrictedSids == expectation.canonicalSids;
+    audit->userRestrictedSid = std::binary_search(actualRestrictedSids.begin(),
+                                                  actualRestrictedSids.end(),
+                                                  expectation.userSid);
+    audit->worldRestrictedSid = std::binary_search(actualRestrictedSids.begin(),
+                                                   actualRestrictedSids.end(),
+                                                   std::wstring(L"S-1-1-0"));
+    audit->administratorsRestrictedSid = std::binary_search(
+        actualRestrictedSids.begin(), actualRestrictedSids.end(),
+        std::wstring(L"S-1-5-32-544"));
 
     DWORD integritySize = 0;
     SetLastError(ERROR_SUCCESS);
@@ -637,11 +793,14 @@ bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
     CloseHandle(hChildToken);
 
     audit->verified = audit->isPrimary && audit->isRestricted &&
-                      audit->worldRestrictedSid && audit->restrictedSidCount == 1 &&
+                      audit->restrictedSidSetVerified && audit->userRestrictedSid &&
+                      audit->worldRestrictedSid && !audit->administratorsRestrictedSid &&
+                      audit->restrictedSidCount == expectation.canonicalSids.size() &&
                       audit->integrityRid == SECURITY_MANDATORY_LOW_RID &&
                       audit->integritySid == L"S-1-16-4096";
     if (!audit->verified && error) {
-        *error = L"child token is not a World-restricted primary Low Integrity token";
+        *error = L"child token does not match the source-derived non-admin restricting set "
+                 L"and primary Low Integrity contract";
     }
     return audit->verified;
 }
@@ -791,8 +950,15 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     HANDLE hJob = CreateConfiguredJobObject();
     if (!hJob) return HELPER_ERR_JOB_CREATE;
 
-    HANDLE hRestricted = CreateRestrictedProcessToken();
+    RestrictedSidExpectation restrictedSidExpectation;
+    std::wstring restrictedTokenError;
+    HANDLE hRestricted = CreateRestrictedProcessToken(&restrictedSidExpectation,
+                                                       &restrictedTokenError);
     if (!hRestricted) {
+        result->errorMessage = "restricted token creation failed";
+        if (!restrictedTokenError.empty()) {
+            result->errorMessage += ": " + WideToUtf8(restrictedTokenError);
+        }
         CloseHandle(hJob);
         return HELPER_ERR_TOKEN_CREATE;
     }
@@ -1066,7 +1232,8 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     // is retained only as supplemental evidence by the harness. A failed or
     // non-Low audit kills the child and fails closed before any user code runs.
     std::wstring tokenAuditError;
-    if (!AuditRestrictedChildToken(pi.hProcess, &result->tokenAudit,
+    if (!AuditRestrictedChildToken(pi.hProcess, restrictedSidExpectation,
+                                   &result->tokenAudit,
                                    &tokenAuditError)) {
         TerminateProcess(pi.hProcess, 1);
         CloseHandle(pi.hProcess);
@@ -1338,7 +1505,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("spike02-helper 0.2.2-d013 win7-x64 (world-restricted-token+child-token-audit+acl)\n");
+            std::printf("spike02-helper 0.2.3-d013 win7-x64 (derived-restricting-set+child-token-audit+acl)\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {

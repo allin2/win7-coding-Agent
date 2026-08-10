@@ -5,7 +5,7 @@
   "date": "2026-08-10",
   "branch": "codex/a4-d013-closure",
   "base_commit": "86f6d69",
-  "head_commit": "0c7313b",
+  "head_commit": "59872dc",
   "commits": [
     "3ec201c",
     "6f47f50",
@@ -17,7 +17,8 @@
     "aaf2b0b",
     "3619bc7",
     "e1e73a1",
-    "0c7313b"
+    "0c7313b",
+    "59872dc"
   ],
   "modified_files": {
     "helper": [
@@ -51,7 +52,8 @@
       "mock_helper.py",
       "test_d013_harness.mjs",
       "d013_profile.json",
-      "D013_CLOSURE_REPORT.md"
+      "D013_CLOSURE_REPORT.md",
+      "D013_V18_PREBUILD_AUDIT.md"
     ],
     "test": [
       "test_containment.sh",
@@ -60,8 +62,8 @@
   },
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
-    "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; Administrators is deny-only while Everyone/World remains enabled; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
-    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 Win10 smoke FAIL_CLOSED because the token had no restricting SID; v18 World restricting-SID fix is LOCAL_TESTED and awaiting Win10 build"
+    "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; v19 derives a canonical restricting SID set from TokenUser plus enabled non-deny-only source groups, excludes Administrators and audits exact child equality; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
+    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 Win10 smoke FAIL_CLOSED because the token had no restricting SID; v18 NO_GO_PREBUILD_REVIEW; v19 LOCAL_TESTED and awaiting Win10 build"
   },
   "win10_build_kit": {
     "revision": "v15",
@@ -131,7 +133,29 @@
     "build_kit_sha256": "9aad29ba2c7b01903accd102297f747a21a33ce212a92e24439f2f15e714f9c6",
     "input_lock_sha256": "ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617",
     "package_manifest_sha256": "371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1",
-    "local_validation": "PASS (logic tests, containment 33/33, D-013 positive/negative harness, MinGW compile/link)",
+    "local_validation": "PASS but superseded by prebuild security/closure review",
+    "win10_smoke": "NOT_PERFORMED",
+    "pe_api_crt_analysis": "NOT_PERFORMED",
+    "win7_validation": "NOT_PERFORMED",
+    "a4_gate": "FAIL_CLOSED_RECOVERY_REQUIRED",
+    "prebuild_blockers": [
+      "sole-World restricting SID may deny access to objects without a World allow ACE",
+      "catch could exit before return-package finalization",
+      "logic_tests.cpp was absent from src/input-lock/package manifest"
+    ],
+    "status": "NO_GO_PREBUILD_REVIEW"
+  },
+  "recovery_v19": {
+    "trigger": "v18 prebuild security and diagnostic-closure review",
+    "v18_result": "NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED",
+    "fix_commit": "59872dc41f33339a140f6ddf7bacacf714190ff2",
+    "fix": "Derive a sorted unique restricting SID set from TokenUser and enabled non-deny-only TokenGroups, exclude Administrators, require nonempty user/World membership and exact suspended-child equality before ResumeThread. Add schema-v3 PASS/PARTIAL/FAIL finalization, raw smoke capture, synthetic diagnostic packaging self-test, and v142 logic-tests closure.",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v19.zip",
+    "build_kit_sha256": "29a559e1cf6673e7371470012c6a756ddc0a2c0565d88d0146ead3861e43dedf",
+    "input_lock_sha256": "42183eaa52679965a0cc0092544b626c1131fcb68961f4e53feb73f97767eacd",
+    "package_manifest_sha256": "b4558a1b3b3fef7d7ddd6c36a666c34f0eada2234ba9564c974017529c45c070",
+    "local_validation": "PASS (logic tests; containment 36/36; D-013 positive plus v17/v18/mismatch/Admin/missing-user/Low-SID negatives; MinGW 5-unit warning-clean compile and PE32+ x64 link)",
+    "independent_package_audit": "PASS (20 exact ZIP files; 19 manifest entries; 14 input-lock entries; extracted CMake logic tests PASS; extracted source cross-compile/link PASS; forbidden files 0)",
     "win10_smoke": "NOT_PERFORMED",
     "pe_api_crt_analysis": "NOT_PERFORMED",
     "win7_validation": "NOT_PERFORMED",
@@ -149,7 +173,7 @@
     },
     {
       "command": "bash test/test_containment.sh",
-      "result": "33 pass / 0 fail"
+      "result": "36 pass / 0 fail"
     },
     {
       "command": "node acceptance/d013/test_d013_harness.mjs",
@@ -170,12 +194,16 @@
     {
       "command": "v18 x86_64-w64-mingw32-g++ compile+link",
       "result": "PASS (0 warnings, PE32+ x86-64; surrogate only)"
+    },
+    {
+      "command": "v19 extracted-kit CMake logic tests + x86_64-w64-mingw32-g++ compile/link",
+      "result": "PASS (logic_tests ALL PASS; 5 units, 0 warnings, PE32+ x86-64; surrogate only)"
     }
   ],
   "coverage": {
     "C01": "v16 A4-20260810-000003 PASS",
     "C02": "v16 A4-20260810-000003 PASS",
-    "C03": "v16 boundary probes passed but trusted Low SID observation failed; v17 actual child audit exposed a deterministic empty-restricting-SID source bug in Win10 smoke; v18 requires exactly one World restricting SID plus Low Integrity and passes local positive/negative tests and cross-compile; Win10 rebuild pending",
+    "C03": "v16 boundary probes passed but trusted Low SID observation failed; v17 exposed an empty restricting-SID bug; v18 sole-World was blocked in prebuild review; v19 requires exact source-derived user/enabled-group set equality, excludes Administrators, retains Low Integrity and passes local positive/negative tests and cross-compile; Win10 rebuild pending",
     "C04": "v16 A4-20260810-000003 PASS including label and deny-ACE rollback",
     "C05": "v16 loopback PASS; formal ENVIRONMENT_MISSING",
     "C06": "v16 A4-20260810-000003 PASS",
@@ -184,14 +212,14 @@
     "N06": "static assertion PASS; no taskkill path"
   },
   "unexecuted": [
-    "v18 Win10 native build/smoke/PE/API/CRT validation",
-    "new Win7 lease and v18 C01-C07 evidence"
+    "v19 Win10 native v142 build/logic-tests/smoke/PE/API/CRT validation",
+    "new Win7 lease and v19 C01-C07 evidence"
   ],
   "blockers": [
-    "v18 Win10 return package missing",
+    "v19 Win10 return package missing",
     "A4-20260810-000003 RECOVERY_REQUIRED must be reviewed before a new lease",
-    "a new signed lease must bind the reviewed v18 candidate and final integration commit",
+    "a new signed lease must bind the reviewed v19 candidate and final integration commit",
     "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "v15 and v16 Win10 PASS remain historical. v17 Win10 smoke failed closed and its source root cause is confirmed. A4-20260810-000002 is RECOVERY_REVIEWED, A4-20260810-000003 is FAIL_CLOSED/RECOVERY_REQUIRED, active leases are zero, v18 is ready for human Win10 build, and public state remains coordinator-owned."
+  "note": "v15 and v16 Win10 PASS remain historical. v17 Win10 smoke failed closed. v18 was blocked before Win10 build. A4-20260810-000002 is RECOVERY_REVIEWED, A4-20260810-000003 is FAIL_CLOSED/RECOVERY_REQUIRED, active leases are zero, v19 is ready for human Win10 build, and public state remains coordinator-owned."
 }
