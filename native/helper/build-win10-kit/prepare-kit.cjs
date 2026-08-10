@@ -19,6 +19,11 @@ const path = require('node:path');
 
 const HERE = __dirname;
 const HELPER_ROOT = path.resolve(HERE, '..');
+const SOURCE_COMMIT = fs.readFileSync(path.join(HERE, 'SOURCE_COMMIT.txt'), 'utf8').trim();
+const SOURCE_COMMIT_TIMESTAMP = fs.readFileSync(path.join(HERE, 'SOURCE_COMMIT_TIMESTAMP.txt'), 'utf8').trim();
+if (!/^[a-f0-9]{40}$/.test(SOURCE_COMMIT) || Number.isNaN(Date.parse(SOURCE_COMMIT_TIMESTAMP))) {
+  throw new Error('source commit binding is invalid');
+}
 
 const SOURCES = [
   'helper.cpp', 'helper.h',
@@ -155,14 +160,16 @@ const lockEntries = SOURCES.map((source) => {
   const file = path.join(HERE, 'src', source);
   return { path: `src/${source}`, size: fs.statSync(file).size, sha256: sha256File(file) };
 });
-for (const kitFile of ['build.ps1', 'build-profile.json', 'helper.exe.manifest']) {
+for (const kitFile of ['build.ps1', 'build-profile.json', 'helper.exe.manifest', 'SOURCE_COMMIT.txt', 'SOURCE_COMMIT_TIMESTAMP.txt']) {
   const file = path.join(HERE, kitFile);
   lockEntries.push({ path: kitFile, size: fs.statSync(file).size, sha256: sha256File(file) });
 }
 const lock = {
   schema_version: 1,
   profile: 'WIN10-VS2019-V142-SDK19041-D013-HELPER-X64',
-  generated_at: new Date().toISOString(),
+  source_commit: SOURCE_COMMIT,
+  source_commit_timestamp: SOURCE_COMMIT_TIMESTAMP,
+  generated_at: SOURCE_COMMIT_TIMESTAMP,
   sources: lockEntries,
 };
 fs.writeFileSync(path.join(HERE, 'input-lock.json'), `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
@@ -178,9 +185,11 @@ files.push({ path: 'input-lock.json', size: fs.statSync(path.join(HERE, 'input-l
 const manifest = {
   schema_version: 1,
   package: 'WIN10_D013_HELPER_BUILD_KIT',
+  source_commit: lock.source_commit,
+  source_commit_timestamp: SOURCE_COMMIT_TIMESTAMP,
   revision: new Date().toISOString().slice(0, 10),
   status: 'READY_FOR_WIN10_BUILD',
-  generated_at: new Date().toISOString(),
+  generated_at: SOURCE_COMMIT_TIMESTAMP,
   delivery_type: 'offline Win10 build-input kit; not a Win7 runtime package',
   expected_host: 'Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0',
   excluded: ['work/', 'output/', 'evidence/', 'result/', 'candidate/'],
