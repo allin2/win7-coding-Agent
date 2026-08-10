@@ -60,6 +60,21 @@ constexpr long long kDefaultTimeoutMs = 30000;
 constexpr DWORD kJobActiveProcessLimit = 64;
 constexpr SIZE_T kJobProcessMemoryLimit = 512ULL * 1024 * 1024;
 
+// GetTokenInformation size probes normally fail with this Win32 error while
+// returning the required buffer size. Keep the numeric value portable so the
+// v19 empty TokenRestrictedSids regression can be unit-tested off Windows.
+constexpr DWORD kWinErrorInsufficientBuffer = 122;
+
+// TOKEN_GROUPS uses an ANYSIZE_ARRAY, so sizeof(TOKEN_GROUPS) includes storage
+// for one entry. A legal empty TokenRestrictedSids result needs only the
+// GroupCount header. Accept the size probe when that header fits and the API
+// either succeeded or reported the documented insufficient-buffer result.
+inline bool TokenGroupsSizeProbeAccepted(bool querySucceeded, DWORD queryError,
+                                         DWORD returnedSize, DWORD headerSize) {
+    return returnedSize >= headerSize &&
+           (querySucceeded || queryError == kWinErrorInsufficientBuffer);
+}
+
 // ─── Error codes (kept stable for protocol consumers) ────────────────────────
 
 #define HELPER_OK 0
@@ -111,6 +126,30 @@ struct AclChangeRecord {
     std::wstring error;
 };
 
+// Trusted audit of the token attached to the actual child process while that
+// process is still suspended. This intentionally does not rely on `whoami` or
+// localized console output from inside the restricted process (C03).
+struct RestrictedTokenAudit {
+    bool verified = false;
+    bool isRestricted = false;
+    bool isPrimary = false;
+    bool restrictedSidSetVerified = false;
+    bool userRestrictedSid = false;
+    bool worldRestrictedSid = false;
+    bool administratorsRestrictedSid = false;
+    DWORD restrictedSidCount = 0;
+    std::wstring integritySid;
+    DWORD integrityRid = 0;
+};
+
+// Canonical SID-set expectation derived from the source primary token before
+// CreateRestrictedToken. The child audit compares TokenRestrictedSids against
+// this exact sorted set without exposing account SID strings in the protocol.
+struct RestrictedSidExpectation {
+    std::vector<std::wstring> canonicalSids;
+    std::wstring userSid;
+};
+
 // Execution result (stdout/stderr as bytes + base64 rendering at output time).
 struct ProcessResult {
     DWORD exitCode = 0;
@@ -122,6 +161,7 @@ struct ProcessResult {
     bool inputDetached = false;
     std::vector<unsigned char> stdoutBytes;
     std::vector<unsigned char> stderrBytes;
+    RestrictedTokenAudit tokenAudit;
     std::vector<AclChangeRecord> aclChanges;
     // Structured detail for fatal setup/rollback errors. Normal execution
     // responses remain unchanged; fatal protocol errors include this message.
@@ -169,9 +209,23 @@ HANDLE CreateConfiguredJobObject();
 
 // Build the restricted primary token (maximum privileges disabled while
 // retaining SeChangeNotifyPrivilege, Administrators deny-only, Low Integrity).
-// Everyone/World remains enabled so baseline OS read/execute grants remain
-// usable by the Windows loader. Returns NULL on failure.
-HANDLE CreateRestrictedProcessToken();
+// The restricting set is derived from the source TokenUser plus every enabled,
+// non-deny-only TokenGroup except Administrators. This preserves the ordinary
+// non-admin ACL coverage needed by the loader, working directory, window
+// station and desktop while giving IsTokenRestricted a real SID-list contract.
+// Returns NULL on any source-token ambiguity or creation failure.
+HANDLE CreateRestrictedProcessToken(RestrictedSidExpectation* expectation,
+                                    std::wstring* error);
+
+// Open and audit the token attached to `childProcess` while the child is still
+// suspended. Success requires the exact source-derived restricting SID set,
+// including TokenUser and Everyone/World but excluding Administrators, plus a
+// Low Integrity mandatory SID of S-1-16-4096. Any mismatch fails closed before
+// ResumeThread.
+bool AuditRestrictedChildToken(HANDLE childProcess,
+                               const RestrictedSidExpectation& expectation,
+                               RestrictedTokenAudit* audit,
+                               std::wstring* error);
 
 // Apply the Low-Integrity mandatory label to `directory` so a low-integrity
 // child can write inside it. Returns false on failure (fail-closed).

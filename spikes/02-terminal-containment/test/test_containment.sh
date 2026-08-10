@@ -23,6 +23,8 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER_SRC_DIR="${TEST_DIR}/../helper"
 HELPER_CPP="${HELPER_SRC_DIR}/helper.cpp"
 HELPER_H="${HELPER_SRC_DIR}/helper.h"
+BUILD_KIT_DIR="${HELPER_SRC_DIR}/build-win10-kit"
+BUILD_SCRIPT="${BUILD_KIT_DIR}/build.ps1"
 RESULTS_DIR="${TEST_DIR}/results"
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -62,12 +64,49 @@ fi
 for token in CreateRestrictedToken DISABLE_MAX_PRIVILEGE SetTokenInformation TokenIntegrityLevel CreateProcessAsUserW; do
     if grep -q "${token}" "${HELPER_CPP}"; then pass "C03: ${token} present"; else fail "C03: ${token} missing"; fi
 done
-if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" || grep -q 'SECURITY_WORLD_RID\|SECURITY_WORLD_SID_AUTHORITY' "${HELPER_CPP}"; then
+if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" \
+    || grep -q 'sidsToDisable.push_back({worldSid' "${HELPER_CPP}"; then
     fail "C03: obsolete impersonation/Everyone deny-only path must stay absent"
 else
     pass "C03: obsolete impersonation/Everyone deny-only path absent"
 fi
+if grep -q 'GetTokenInformation(hSource, TokenUser' "${HELPER_CPP}" \
+    && grep -q 'GetTokenInformation(hSource, TokenGroups' "${HELPER_CPP}" \
+    && grep -q 'SE_GROUP_ENABLED' "${HELPER_CPP}" \
+    && grep -q 'SE_GROUP_USE_FOR_DENY_ONLY' "${HELPER_CPP}" \
+    && grep -q 'WinBuiltinAdministratorsSid' "${HELPER_CPP}" \
+    && grep -q 'sidsToRestrict.data()' "${HELPER_CPP}"; then
+    pass "C03: restricting SID set is derived from enabled source user/groups with Administrators excluded"
+else
+    fail "C03: source-derived restricting-SID construction contract missing"
+fi
+if grep -q 'actualRestrictedSids == expectation.canonicalSids' "${HELPER_CPP}" \
+    && grep -q 'restrictedSidSetVerified' "${HELPER_CPP}" \
+    && grep -q 'userRestrictedSid' "${HELPER_CPP}" \
+    && grep -q 'administratorsRestrictedSid' "${HELPER_CPP}" \
+    && ! grep -q 'restrictedSidCount == 1' "${HELPER_CPP}"; then
+    pass "C03: child restricting SID set is audited exactly and v18 sole-World count gate is absent"
+else
+    fail "C03: exact source/child restricting-SID audit contract missing"
+fi
+if grep -q 'TokenGroupsSizeProbeAccepted' "${HELPER_CPP}" \
+    && grep -q 'sizeQueryError' "${HELPER_CPP}" \
+    && grep -q 'size, sizeof(DWORD)' "${HELPER_CPP}" \
+    && grep -q 'groups->GroupCount == 0' "${HELPER_CPP}" \
+    && ! grep -E 'TokenRestrictedSids.{0,160}size.*sizeof\(TOKEN_GROUPS\)' "${HELPER_CPP}" >/dev/null; then
+    pass "C03: empty source TokenRestrictedSids header is accepted and v19 sizeof bug is absent"
+else
+    fail "C03: empty TokenRestrictedSids regression contract missing"
+fi
 if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
+if grep -q 'AuditRestrictedChildToken(pi.hProcess' "${HELPER_CPP}" \
+    && grep -q 'OpenProcessToken(childProcess, TOKEN_QUERY' "${HELPER_CPP}" \
+    && grep -q 'GetTokenInformation(hChildToken, TokenIntegrityLevel' "${HELPER_CPP}" \
+    && grep -q 'suspended_child_process_token' "${HELPER_SRC_DIR}/protocol.cpp"; then
+    pass "C03: actual suspended child token is audited before execution"
+else
+    fail "C03: trusted suspended-child token audit missing"
+fi
 
 # ── C04: ACL boundary with rollback ──────────────────────────────────────────
 for token in AddMandatoryAce SetNamedSecurityInfoW SetEntriesInAclW RestoreDirectoryDacl protectedDirectories; do
@@ -101,6 +140,41 @@ if grep -q '\\\\\.\\\\NUL' "${HELPER_CPP}" || grep -q 'NUL' "${HELPER_CPP}"; the
     pass "C19: child stdin detached (NUL device)"
 else
     fail "C19: child stdin detachment missing"
+fi
+
+# ── v20 Win10 build/diagnostics closure ──────────────────────────────────────
+if grep -q 'function New-ReturnPackage' "${BUILD_SCRIPT}" \
+    && grep -q 'function Test-ReturnPackageWriter' "${BUILD_SCRIPT}" \
+    && grep -q 'WIN7_D013_HELPER_DIAGNOSTICS_' "${BUILD_SCRIPT}" \
+    && grep -q 'schema_version = 3' "${BUILD_SCRIPT}"; then
+    pass "D-013 build: schema v3 single finalizer covers FAIL diagnostics"
+else
+    fail "D-013 build: schema v3 diagnostics finalizer contract missing"
+fi
+raw_write_line="$(grep -n 'WriteAllBytes(\$StdoutPath' "${BUILD_SCRIPT}" | cut -d: -f1)"
+utf8_decode_line="$(grep -n '\$stdoutText = \$utf8.GetString(\$stdoutBytes)' "${BUILD_SCRIPT}" | cut -d: -f1)"
+smoke_parse_line="$(grep -n '\$response = \$responseText | ConvertFrom-Json' "${BUILD_SCRIPT}" | cut -d: -f1)"
+if [ -n "${raw_write_line}" ] && [ -n "${utf8_decode_line}" ] && [ -n "${smoke_parse_line}" ] \
+    && [ "${raw_write_line}" -lt "${utf8_decode_line}" ] \
+    && [ "${utf8_decode_line}" -lt "${smoke_parse_line}" ] \
+    && grep -q 'CopyToAsync(\$stdoutBuffer)' "${BUILD_SCRIPT}" \
+    && grep -q 'UTF8Encoding(\$false, \$true)' "${BUILD_SCRIPT}" \
+    && grep -q '\$null = \$stdoutTask.GetAwaiter().GetResult()' "${BUILD_SCRIPT}" \
+    && grep -q '\$null = \$stderrTask.GetAwaiter().GetResult()' "${BUILD_SCRIPT}" \
+    && ! grep -qE '^[[:space:]]*\$(stdout|stderr)Task\.GetAwaiter\(\)\.GetResult\(\)' "${BUILD_SCRIPT}" \
+    && grep -q 'function Get-ValidatedProcessCapture' "${BUILD_SCRIPT}" \
+    && grep -q 'PROCESS_CAPTURE_SELFTEST' "${BUILD_SCRIPT}" \
+    && grep -q 'output_object_count = \$captureProbeItems.Count' "${BUILD_SCRIPT}" \
+    && grep -q 'process_capture_selftest = \$CaptureStatus' "${BUILD_SCRIPT}" \
+    && grep -q '\$versionCaptureItems = @(Invoke-Utf8ProcessBytes' "${BUILD_SCRIPT}" \
+    && grep -q '\$smokeCaptureItems = @(Invoke-Utf8ProcessBytes' "${BUILD_SCRIPT}" \
+    && ! grep -qE '@\(Invoke-Utf8ProcessBytes.*\)\[-1\]' "${BUILD_SCRIPT}" \
+    && ! grep -q '\$request | & \$helperExe' "${BUILD_SCRIPT}" \
+    && grep -q "'logic_tests.cpp'" "${BUILD_SCRIPT}" \
+    && grep -q "'logic_tests.cpp'" "${BUILD_KIT_DIR}/prepare-kit.cjs"; then
+    pass "D-013 build: single-object capture contract and raw-byte UTF-8 ordering are enforced"
+else
+    fail "D-013 build: capture output contract, UTF-8 ordering or logic_tests closure missing"
 fi
 
 # ── Skeleton leftovers are forbidden ─────────────────────────────────────────

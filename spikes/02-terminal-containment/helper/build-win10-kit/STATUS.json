@@ -2,31 +2,39 @@
   "schema_version": 1,
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
-  "status": "WIN10_PASS_RECOVERY_REVIEW_REQUIRED",
-  "generated_at": "2026-08-09T17:38:17.5437913Z",
-  "implementation_commit": "a64f1ac5654523f684b9981f780ab0b5543939b9",
-  "build_revision": "v16-recovery",
+  "status": "WIN10_PASS_READY_FOR_RECOVERY_APPROVAL",
+  "generated_at": "2026-08-10T21:40:00+08:00",
+  "implementation_commit": "8dbe62fbcf2cd05baec3fae1760b96f7bcf8a75d",
+  "build_revision": "v21-recovery",
   "win10_build_executed": true,
   "win10_return_package_reviewed": true,
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
-  "return_package": {
-    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
-    "sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
-    "location": "external_to_git",
-    "review_status": "PASS",
-    "completed_at": "2026-08-09T17:38:17.5437913Z"
+  "v21_return_package": {
+    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
+    "helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "status": "PASS",
+    "stage": "COMPLETE",
+    "candidate_eligible": true,
+    "completed_at": "2026-08-10T13:31:11.1977824Z"
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba",
-    "git_ignored": true,
-    "win7_validation": "NOT_PERFORMED"
+    "sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "size": 268800,
+    "locked_from": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "git_ignored": true
   },
   "evidence": {
-    "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
-    "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "build_result_schema": 3,
+    "process_capture_selftest": "PASS",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
+    "logic_tests": "PASS",
     "architecture": "x64",
     "toolset": "v142",
     "windows_sdk": "10.0.19041.0",
@@ -38,15 +46,13 @@
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "human recovery review before A4-20260810-000002 can become RECOVERY_REVIEWED",
-    "a new signed Win7 lease bound to the v16 candidate and final integration commit"
+    "A4-20260810-000003 recovery review",
+    "a new signed Win7 lease bound to the v21 candidate and final integration commit"
   ],
   "notes": [
-    "The v15 Win10 build remains historical PASS evidence but failed Win7 C01/C03/C04/C05 with ACL_ROLLBACK_FAILED and is superseded for further acceptance.",
-    "v16 treats Win7 null and zero-ACE LABEL ACLs as equivalent while keeping DACL comparison strict, and adds a canonical zero-length evidence hash fallback after certutil failure.",
-    "The v16 Win10 build, native smoke and PE/API/CRT review passed; this does not constitute Win7 validation.",
-    "The reviewed return ZIP remains outside Git; only its filename and SHA-256 are recorded.",
-    "The v15 candidate and A4-20260810-000002 raw recovery evidence are preserved in the Git-external archive before the ignored candidate is replaced by v16.",
-    "No Win7 SSH/SCP operation is authorized while recovery is required."
+    "The v21 ARTIFACTS return package passed schema-v3, input-lock, manifest, helper hash, capture self-test, v142 logic tests, native smoke, PE/API/CRT and token/ACL audit review.",
+    "The ignored candidate is locked to the reviewed v21 helper and is not committed to Git.",
+    "v21 Win7 validation is NOT_PERFORMED; historical A4-20260810-000003 remains RECOVERY_REQUIRED.",
+    "No Win7 SSH/SCP operation or lease signature is authorized by this status synchronization."
   ]
 }

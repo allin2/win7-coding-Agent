@@ -44,6 +44,20 @@ if log_path:
         json.dump(entries, stream, ensure_ascii=False)
 
 request_id = request.get("requestId", "")
+if os.environ.get("D013_MOCK_SIDE_EFFECTS") == "1" and request_id == "c03-restricted-boundary":
+    # Local classification test only: emulate the file-boundary observations
+    # produced by the Win7 cmd script. This never claims on-target execution.
+    working_directory = request.get("workingDirectory", "")
+    if working_directory:
+        with open(os.path.join(working_directory, "inside-probe.txt"), "w",
+                  encoding="utf-8") as stream:
+            stream.write("inside\n")
+        with open(os.path.join(working_directory, "protected-registry.txt"), "w",
+                  encoding="utf-8") as stream:
+            stream.write("ERROR: Access is denied.\n")
+        with open(os.path.join(working_directory, "token-privs.txt"), "w",
+                  encoding="utf-8") as stream:
+            stream.write("SeChangeNotifyPrivilege enabled\n")
 if request_id in fixtures:
     response = fixtures[request_id]
 else:
@@ -52,6 +66,14 @@ else:
         "status": "completed", "exitCode": 0, "executionTimeMs": 1,
         "timedOut": False, "canceled": False, "outputTruncated": False,
         "containmentVerified": True, "inputDetached": True,
+        "tokenAudit": {
+            "source": "suspended_child_process_token", "verified": True,
+            "isRestricted": True, "tokenType": "primary",
+            "restrictedSidSetVerified": True, "userRestrictedSid": True,
+            "worldRestrictedSid": True, "administratorsRestrictedSid": False,
+            "restrictedSidCount": 8,
+            "integritySid": "S-1-16-4096", "integrityRid": 4096,
+        },
         "stdoutSize": 0, "stderrSize": 0, "stdoutBase64": "", "stderrBase64": "",
         "aclChanges": [],
     }

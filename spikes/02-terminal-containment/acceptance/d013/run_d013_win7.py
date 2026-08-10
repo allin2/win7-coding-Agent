@@ -6,7 +6,9 @@ Covers the D-013 helper contract at the SPIKE_02 level:
                                  zero residual after helper returns
   C02  Host already in a Job     helper must fail closed with
                                  HOST_ALREADY_IN_JOB (Win7 cannot nest Jobs)
-  C03  Restricted Token          low integrity (S-1-16-4096), privileges
+  C03  Restricted Token          actual suspended child token audited as a
+                                 restricted primary Low Integrity token
+                                 (S-1-16-4096), privileges
                                  deleted, workspace-inside write OK, workspace-
                                  outside write blocked, protected registry read
                                  denied
@@ -296,6 +298,13 @@ def acl_rollback_record(response, mechanism):
     return None
 
 
+def read_console_text(path):
+    """Read Win7 console evidence while keeping local mock tests portable."""
+    encoding = "mbcs" if os.name == "nt" else "utf-8"
+    with open(path, "r", encoding=encoding, errors="replace") as stream:
+        return stream.read()
+
+
 def run_cases(record, files, args, cmd):
     cases = record["cases"]
     system32 = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "System32")
@@ -340,22 +349,35 @@ def run_cases(record, files, args, cmd):
     registry_text = ""
     registry_path = os.path.join(files["c03_root"], "protected-registry.txt")
     if os.path.exists(registry_path):
-        with open(registry_path, "r", encoding="mbcs", errors="replace") as stream:
-            registry_text = stream.read()
+        registry_text = read_console_text(registry_path)
     groups_text = ""
     groups_path = os.path.join(files["c03_root"], "token-groups.txt")
     if os.path.exists(groups_path):
-        with open(groups_path, "r", encoding="mbcs", errors="replace") as stream:
-            groups_text = stream.read()
+        groups_text = read_console_text(groups_path)
     privs_text = ""
     privs_path = os.path.join(files["c03_root"], "token-privs.txt")
     if os.path.exists(privs_path):
-        with open(privs_path, "r", encoding="mbcs", errors="replace") as stream:
-            privs_text = stream.read()
+        privs_text = read_console_text(privs_path)
     registry_denied = ("access is denied" in registry_text.lower()
                        or "拒绝访问" in registry_text
                        or "error" in registry_text.lower())
-    low_integrity = "S-1-16-4096" in groups_text
+    # Trusted C03 evidence comes from the helper opening the actual suspended
+    # child process token and querying TokenIntegrityLevel before ResumeThread.
+    # Win7 `whoami /groups` may itself fail with ERROR_ACCESS_DENIED under the
+    # restricted token, so its localized output is supplemental only.
+    token_audit = (c03.get("response") or {}).get("tokenAudit") or {}
+    low_integrity = (token_audit.get("source") == "suspended_child_process_token"
+                     and token_audit.get("verified") is True
+                     and token_audit.get("isRestricted") is True
+                     and token_audit.get("tokenType") == "primary"
+                     and token_audit.get("restrictedSidSetVerified") is True
+                     and token_audit.get("userRestrictedSid") is True
+                     and token_audit.get("worldRestrictedSid") is True
+                     and token_audit.get("administratorsRestrictedSid") is False
+                     and isinstance(token_audit.get("restrictedSidCount"), int)
+                     and token_audit.get("restrictedSidCount") >= 2
+                     and token_audit.get("integritySid") == "S-1-16-4096"
+                     and token_audit.get("integrityRid") == 4096)
     privileges_deleted = "SeDebugPrivilege" not in privs_text
     c03_label = acl_rollback_record(c03.get("response") or {}, "low_integrity_label")
     c03_pass = (c03.get("response", {}).get("status") == "completed"
@@ -374,7 +396,9 @@ def run_cases(record, files, args, cmd):
                      "child_low_integrity": low_integrity,
                      "child_privileges_deleted": privileges_deleted,
                      "label_rollback": c03_label},
-        token_evidence={"groups": groups_text, "privileges": privs_text}))
+        token_evidence={"trusted_child_token_audit": token_audit,
+                        "whoami_groups_supplemental": groups_text,
+                        "privileges": privs_text}))
 
     # ── C04: ACL boundary with authorization, verification and rollback ──────
     policy = check_policy(args.root, files["outside_root"])
