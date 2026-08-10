@@ -84,7 +84,7 @@ function validateD013Profile(profile) {
       || !profile.implementation_allowlist.includes('spikes/02-terminal-containment/**')) {
     throw new Error('profile must authorize only the SPIKE_02 implementation allowlist');
   }
-  if (!profile.target || !/^10\.67\.149\.40$/.test(profile.target.address)
+  if (!profile.target || !/^192\.168\.1\.11$/.test(profile.target.address)
       || profile.target.user !== 'dccs-chaizl'
       || profile.target.acceptance_root !== 'C:\\Win7CodingAgent\\acceptance'
       || profile.target.data_root !== 'C:\\Win7CodingAgent\\data') {

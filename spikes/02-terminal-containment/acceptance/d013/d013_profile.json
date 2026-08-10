@@ -11,7 +11,7 @@
     "spikes/02-terminal-containment/test/**"
   ],
   "target": {
-    "address": "10.67.149.40",
+    "address": "192.168.1.11",
     "user": "dccs-chaizl",
     "os": "Windows 7 SP1 x64 build 7601",
     "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
@@ -27,16 +27,20 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "PENDING_V16_WIN10_BUILD",
-    "note": "v15 is retained as historical evidence but is not eligible for another Win7 lease; v16 return package pending"
+    "sha256": "68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba",
+    "win7_validation": "NOT_PERFORMED",
+    "note": "Extracted from the reviewed v16 Win10 PASS return package; ignored by Git. v15 is retained as historical FAIL_CLOSED recovery evidence."
   },
   "win10_return_package": {
-    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
-    "sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
-    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
+    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
+    "sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
+    "build_revision": "v16-recovery",
+    "review_status": "PASS",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
-    "reviewed_at": "2026-08-09",
+    "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
+    "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
+    "reviewed_at": "2026-08-10",
     "committed_to_git": false
   },
   "upload_files": [
@@ -55,7 +59,7 @@
     ]
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V16_BUILD",
+    "GATE-WIN10-BUILD": "PASS",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",
