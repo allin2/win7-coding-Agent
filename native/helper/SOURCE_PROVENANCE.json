@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "component": "D-013-v21-production-migration",
+  "source_branch": "codex/a4-d013-closure",
+  "source_commit": "3e7c9b2",
+  "validated_helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+  "win7_evidence": ["A4-20260810-000004", "A5-20260810-153300"],
+  "production_changes": [
+    "require schema_version and requestId",
+    "add idleTimeoutMs and idleTimedOut",
+    "rename the version banner"
+  ]
+}

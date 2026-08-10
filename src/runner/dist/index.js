@@ -5,7 +5,7 @@
  * @remarks 统一导出 Runner 接口、Mock 实现、审批逻辑和 Containment 探测
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MockContainmentProbe = exports.checkApproval = exports.fingerprintApprovalRequest = exports.buildRunApprovalRequest = exports.ApprovalLedger = exports.findProhibitedShellHost = exports.UnavailableRunner = exports.MockRunner = exports.captureText = exports.OutputCapture = exports.RunnerErrorCode = exports.RunnerError = void 0;
+exports.MockContainmentProbe = exports.checkApproval = exports.fingerprintApprovalRequest = exports.buildRunApprovalRequest = exports.ApprovalLedger = exports.NativeRunner = exports.StdioHelperTransport = exports.parseNativeHelperResponse = exports.ProfileResolutionError = exports.ExecutableProfileRegistry = exports.validateRequest = exports.findProhibitedShellHost = exports.UnavailableRunner = exports.MockRunner = exports.captureBytes = exports.captureText = exports.OutputCapture = exports.RunnerErrorCode = exports.RunnerError = void 0;
 // 类型定义
 var types_1 = require("./types");
 Object.defineProperty(exports, "RunnerError", { enumerable: true, get: function () { return types_1.RunnerError; } });
@@ -13,11 +13,22 @@ Object.defineProperty(exports, "RunnerErrorCode", { enumerable: true, get: funct
 var output_1 = require("./output");
 Object.defineProperty(exports, "OutputCapture", { enumerable: true, get: function () { return output_1.OutputCapture; } });
 Object.defineProperty(exports, "captureText", { enumerable: true, get: function () { return output_1.captureText; } });
+Object.defineProperty(exports, "captureBytes", { enumerable: true, get: function () { return output_1.captureBytes; } });
 // Runner 接口与 Mock 实现
 var runner_1 = require("./runner");
 Object.defineProperty(exports, "MockRunner", { enumerable: true, get: function () { return runner_1.MockRunner; } });
 Object.defineProperty(exports, "UnavailableRunner", { enumerable: true, get: function () { return runner_1.UnavailableRunner; } });
 Object.defineProperty(exports, "findProhibitedShellHost", { enumerable: true, get: function () { return runner_1.findProhibitedShellHost; } });
+Object.defineProperty(exports, "validateRequest", { enumerable: true, get: function () { return runner_1.validateRequest; } });
+var profiles_1 = require("./profiles");
+Object.defineProperty(exports, "ExecutableProfileRegistry", { enumerable: true, get: function () { return profiles_1.ExecutableProfileRegistry; } });
+Object.defineProperty(exports, "ProfileResolutionError", { enumerable: true, get: function () { return profiles_1.ProfileResolutionError; } });
+var native_protocol_1 = require("./native-protocol");
+Object.defineProperty(exports, "parseNativeHelperResponse", { enumerable: true, get: function () { return native_protocol_1.parseNativeHelperResponse; } });
+var native_transport_1 = require("./native-transport");
+Object.defineProperty(exports, "StdioHelperTransport", { enumerable: true, get: function () { return native_transport_1.StdioHelperTransport; } });
+var native_runner_1 = require("./native-runner");
+Object.defineProperty(exports, "NativeRunner", { enumerable: true, get: function () { return native_runner_1.NativeRunner; } });
 // 审批逻辑
 var approval_1 = require("./approval");
 Object.defineProperty(exports, "ApprovalLedger", { enumerable: true, get: function () { return approval_1.ApprovalLedger; } });

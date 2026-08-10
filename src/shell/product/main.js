@@ -19,6 +19,7 @@ const { createDesktopRequestHandler } = require('./desktop-ipc');
 const { installSessionPolicy, installWindowPolicy } = require('./security-policy');
 const { createDesktopHost } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
+const { createProductRunner } = require('./runner-runtime');
 const { schemaValidator } = require('../dist/ipc/schema');
 const { IPCDirection, IPCMessageType } = require('../dist/ipc/messages');
 
@@ -30,6 +31,8 @@ const startedAt = new Date().toISOString();
 const mvpId = readArgument('--mvp-id=') || 'MVP-UNKNOWN';
 const smokeReportPath = readArgument('--smoke-report=');
 const acceptanceEventReportPath = readArgument('--acceptance-event-report=');
+const runnerManifestPath = readArgument('--runner-manifest=');
+const runnerManifestSha256 = readArgument('--runner-manifest-sha256=');
 const smokeTimeoutMs = boundedInteger(readArgument('--smoke-timeout-ms='), 20000, 5000, 60000);
 
 const runtimeState = {
@@ -62,6 +65,16 @@ function sha256(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+function requireModuleFromProduct(relativeName) {
+  const candidates = [
+    path.join(__dirname, '../../', relativeName),
+    path.join(__dirname, '../', relativeName),
+  ];
+  const candidate = candidates.find((item) => fs.existsSync(item));
+  if (!candidate) throw new Error(`Product module is not packaged: ${relativeName}`);
+  return require(candidate);
+}
+
 function writeSmokeReport(status, exitCode, summary) {
   if (!smokeReportPath) return;
   const report = {
@@ -82,8 +95,10 @@ function writeSmokeReport(status, exitCode, summary) {
       preload_js: sha256(preloadPath),
       renderer_html: sha256(rendererEntry),
       renderer_event_queue: sha256(path.join(rendererRoot, 'event-queue.js')),
+      renderer_runner_log: sha256(path.join(rendererRoot, 'runner-log.js')),
       renderer_js: sha256(path.join(rendererRoot, 'renderer.js')),
       renderer_css: sha256(path.join(rendererRoot, 'styles.css')),
+      runner_runtime: sha256(path.join(productRoot, 'runner-runtime.js')),
     },
     command: [process.execPath].concat(process.argv.slice(1)),
     timestamps: {
@@ -344,6 +359,18 @@ if (!hasSingleInstanceLock) {
       onRequestBlocked: (url) => runtimeState.blockedRequests.push(url),
       onPermissionDenied: (permission) => runtimeState.deniedPermissions.push(permission),
     });
+    let productRunner = null;
+    if (runnerManifestPath || runnerManifestSha256) {
+      try {
+        productRunner = createProductRunner({
+          runnerModule: requireModuleFromProduct('runner/dist'),
+          manifestPath: runnerManifestPath,
+          expectedManifestSha256: runnerManifestSha256,
+        });
+      } catch (error) {
+        runtimeState.errors.push('runner-manifest:' + String(error && error.message ? error.message : error));
+      }
+    }
     desktopHost = createDesktopHost({
       recoveryDirectory: path.join(app.getPath('userData'), 'a2-recovery'),
       credentialVault: createDpapiCredentialVault({
@@ -351,6 +378,7 @@ if (!hasSingleInstanceLock) {
         userDataPath: app.getPath('userData'),
         platform: process.platform,
       }),
+      ...(productRunner ? { runner: productRunner.runner, runnerAcceptanceAction: productRunner.acceptanceAction } : {}),
       onTaskEvent: (event, task) => {
         if (acceptanceEventReportPath && acceptanceEvents.length < 5000) {
           acceptanceEvents.push(sanitizeAcceptanceValue(event));

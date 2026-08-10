@@ -5,7 +5,7 @@
  * process; production execution remains fail-closed.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UnavailableRunner = exports.MockRunner = exports.findProhibitedShellHost = void 0;
+exports.rejected = exports.result = exports.validateRequest = exports.UnavailableRunner = exports.MockRunner = exports.findProhibitedShellHost = void 0;
 const types_1 = require("./types");
 const approval_1 = require("./approval");
 const output_1 = require("./output");
@@ -148,6 +148,7 @@ function validateRequest(request) {
     }
     return undefined;
 }
+exports.validateRequest = validateRequest;
 function isSensitiveEnvironmentName(key) {
     return /(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|API[_-]?KEY|PRIVATE[_-]?KEY)/i.test(key) ||
         /^SSH_AUTH_SOCK$/i.test(key);
@@ -173,9 +174,11 @@ function result(status, exitCode, stdout, stderr, durationMs, error, cleanupFail
         ...(error ? { error } : {}),
     };
 }
+exports.result = result;
 function rejected(code, message, recommendedAction) {
     return result('rejected', null, '', message, 0, { code, message, recommendedAction });
 }
+exports.rejected = rejected;
 function isAbsolutePath(value) {
     return value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\]+\\[^\\]+/.test(value);
 }

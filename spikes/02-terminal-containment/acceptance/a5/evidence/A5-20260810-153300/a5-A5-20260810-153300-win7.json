@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A5-20260810-153300",
+  "generated_at": "2026-08-10T15:36:57Z",
+  "mode": "win7-t05-only-python",
+  "evidence_grade": "CANDIDATE_EVIDENCE",
+  "lease_id": "lease-A5-20260810-153300",
+  "source_commit": "be57695df7f4831b2cf46851b5d5b38ad4a9fd1c",
+  "package_manifest_sha256": "9c8a694d413e6f45b49025ece53cbe6a3b9ae245e0df3806a41f7b165c724f99",
+  "cases": [
+    {
+      "id": "T05",
+      "title": "会话回收（D-013 Job Object 进程树必杀）",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "D-013 v21 后台 ping 进程树已由 Job 回收，零残留且 Low Integrity 标签已回滚。",
+      "notes": "D013_V21_CONTAINMENT_CONFIRMED",
+      "subchecks": [
+        {
+          "name": "d013-v21-response",
+          "ok": true
+        },
+        {
+          "name": "request-id-bound",
+          "ok": true
+        },
+        {
+          "name": "containment-verified",
+          "ok": true
+        },
+        {
+          "name": "stdin-detached",
+          "ok": true
+        },
+        {
+          "name": "not-timed-out",
+          "ok": true
+        },
+        {
+          "name": "helper-exit-zero",
+          "ok": true
+        },
+        {
+          "name": "low-integrity-label-applied",
+          "ok": true
+        },
+        {
+          "name": "acl-label-rolled-back",
+          "ok": true
+        },
+        {
+          "name": "ping-process-zero-residue",
+          "ok": true,
+          "note": "信息: 没有运行的任务匹配指定标准。\r\n"
+        }
+      ],
+      "helper_response": {
+        "schema_version": 1,
+        "type": "execution_result",
+        "requestId": "t05-A5-20260810-153300",
+        "status": "completed",
+        "exitCode": 0,
+        "executionTimeMs": 16,
+        "timedOut": false,
+        "canceled": false,
+        "outputTruncated": false,
+        "containmentVerified": true,
+        "inputDetached": true,
+        "tokenAudit": {
+          "source": "suspended_child_process_token",
+          "verified": true,
+          "isRestricted": true,
+          "tokenType": "primary",
+          "restrictedSidSetVerified": true,
+          "userRestrictedSid": true,
+          "worldRestrictedSid": true,
+          "administratorsRestrictedSid": false,
+          "restrictedSidCount": 11,
+          "integritySid": "S-1-16-4096",
+          "integrityRid": 4096
+        },
+        "stdoutSize": 0,
+        "stderrSize": 0,
+        "stdoutBase64": "",
+        "stderrBase64": "",
+        "aclChanges": [
+          {
+            "path": "C:\\Win7CodingAgent\\acceptance\\a5\\A5-20260810-153300\\t05-work",
+            "mechanism": "low_integrity_label",
+            "applied": true,
+            "verified": true,
+            "rolledBack": true,
+            "error": ""
+          }
+        ],
+        "helperExitCode": 0,
+        "helperStderr": ""
+      },
+      "residue_probe": {
+        "exitCode": 0,
+        "stdout": "信息: 没有运行的任务匹配指定标准。\r\n",
+        "stderr": "",
+        "present": false
+      }
+    }
+  ],
+  "counts": {
+    "PASS": 1
+  },
+  "win7_validation": "COORDINATOR_POSTFLIGHT_PENDING"
+}

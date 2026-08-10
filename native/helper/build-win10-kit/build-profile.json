@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
+  "build_host": {
+    "os": "Windows 10 x64",
+    "visual_studio_product_version": "[16.0,17.0)",
+    "platform_toolset": "v142",
+    "msvc_version_family": "14.2",
+    "windows_sdk_version": "10.0.19041.0",
+    "compiler": "cl.exe (x64, direct invocation; CMake not required)",
+    "archive_tool": "Windows 10 tar.exe (bsdtar)"
+  },
+  "target": {
+    "os": "Windows 7 SP1 x64",
+    "winver": "0x0601",
+    "architecture": "x64",
+    "crt": "static /MT (no VCRUNTIME140/MSVCP140/UCRTBASE dynamic dependencies)",
+    "profile_source": "D-013 / D-017 (docs/WIN7_CONSTRAINTS.md)"
+  },
+  "build_flags": {
+    "compile": [
+      "/nologo", "/EHsc", "/W4", "/O2", "/MT", "/std:c++17", "/utf-8",
+      "/DUNICODE", "/D_UNICODE", "/D_WIN32_WINNT=0x0601", "/DWINVER=0x0601",
+      "/D_CRT_SECURE_NO_WARNINGS"
+    ],
+    "link": ["/SUBSYSTEM:CONSOLE", "advapi32.lib", "user32.lib"],
+    "manifest": "helper.exe.manifest embedded via mt.exe (asInvoker + Win7 supportedOS)"
+  },
+  "forbidden_imports": [
+    "CreatePseudoConsole",
+    "ResizePseudoConsole",
+    "ClosePseudoConsole",
+    "GetSystemTimePreciseAsFileTime",
+    "SetThreadDescription",
+    "GetThreadDescription",
+    "SetProcessInformation",
+    "GetSystemCpuSetInformation",
+    "GetTempPath2W"
+  ],
+  "dynamic_crt_patterns": [
+    "VCRUNTIME[0-9_]*.DLL",
+    "MSVCP[0-9_]*.DLL",
+    "UCRTBASE.DLL",
+    "API-MS-WIN-CRT-*.DLL"
+  ],
+  "source_contract": {
+    "origin": "native/helper/** (production migration from validated D-013 v21)",
+    "snapshot": "src/",
+    "locked_by": "input-lock.json",
+    "files": [
+      "src/helper.cpp", "src/helper.h",
+      "src/logic_tests.cpp",
+      "src/json_parser.cpp", "src/json_parser.h",
+      "src/argv_builder.cpp", "src/argv_builder.h",
+      "src/whitelist.cpp", "src/whitelist.h",
+      "src/protocol.cpp", "src/CMakeLists.txt"
+    ]
+  },
+  "delivery": {
+    "build_result_schema": 3,
+    "pass_return_package": "WIN7_D013_HELPER_ARTIFACTS_<utc-stamp>.zip",
+    "partial_fail_return_package": "WIN7_D013_HELPER_DIAGNOSTICS_<utc-stamp>.zip",
+    "return_package_hash_file": "<return-package>.sha256",
+    "return_package_manifest": "RETURN_PACKAGE_MANIFEST.json",
+    "native_output_capture": "stdout/stderr BaseStream bytes are persisted with WriteAllBytes before strict UTF-8 decoding and JSON parsing",
+    "artifacts": ["output/helper.exe"],
+    "evidence": [
+      "evidence/environment.json", "evidence/input-verification.json",
+      "evidence/pe-api-crt-analysis.json", "evidence/build-result.json",
+      "evidence/logic-tests.txt", "evidence/return-package-selftest.json",
+      "evidence/capture-selftest.json", "evidence/capture-selftest-stdout.bin",
+      "evidence/capture-selftest-stderr.bin",
+      "evidence/smoke-stdout.txt", "evidence/smoke-stderr.txt",
+      "evidence/build-transcript.txt"
+    ],
+    "status_marker": "STATUS.json -> READY_FOR_WIN10_BUILD until an eligible PASS/ARTIFACTS return package is reviewed"
+  }
+}

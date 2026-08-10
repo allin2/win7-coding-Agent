@@ -78,7 +78,7 @@ export interface TaskSubmitPayload {
   sessionId: string;
   prompt: string;
   context?: Record<string, unknown>;
-  scenario?: 'structure' | 'encoding' | 'cancellable' | 'edit' | 'undo';
+  scenario?: 'structure' | 'encoding' | 'cancellable' | 'edit' | 'undo' | 'runner_acceptance';
 }
 
 export interface TaskCancelPayload {
@@ -143,6 +143,11 @@ export interface TaskEventPayload {
   timestamp: string;
   data: Record<string, unknown>;
 }
+
+export const RUNNER_TASK_EVENT_KINDS = [
+  'runner.started', 'runner.stdout', 'runner.stderr', 'runner.truncated', 'runner.finished',
+] as const;
+export type RunnerTaskEventKind = typeof RUNNER_TASK_EVENT_KINDS[number];
 
 // ─── Core → Renderer Payloads ────────────────────────────────────────────────
 

@@ -150,7 +150,7 @@ export class UnavailableRunner implements IRunner {
   }
 }
 
-function validateRequest(request: RunRequest): { code: RunnerErrorCode; message: string; action: string } | undefined {
+export function validateRequest(request: RunRequest): { code: RunnerErrorCode; message: string; action: string } | undefined {
   if (!request || !request.command || /[\r\n\0]/.test(request.command)) {
     return {
       code: RunnerErrorCode.INVALID_REQUEST,
@@ -218,7 +218,7 @@ function isSensitiveEnvironmentName(key: string): boolean {
     /^SSH_AUTH_SOCK$/i.test(key);
 }
 
-function result(
+export function result(
   status: RunStatus,
   exitCode: number | null,
   stdout: string,
@@ -249,7 +249,7 @@ function result(
   };
 }
 
-function rejected(code: RunnerErrorCode, message: string, recommendedAction: string): RunResult {
+export function rejected(code: RunnerErrorCode, message: string, recommendedAction: string): RunResult {
   return result('rejected', null, '', message, 0, { code, message, recommendedAction });
 }
 

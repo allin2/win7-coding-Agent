@@ -706,3 +706,21 @@
   ADR-0065 协调器签发。
 - 后果：v1 失去交互 TUI，但获得可审计、可取消、有界且不暴露键盘注入面的执行基础；生产 Runner
   的启用仍受 D-013 Win7 正式证据门禁约束，未通过时 UI 必须如实显示能力不可用。
+
+
+## ADR-0067 A5 门禁解除并采用签名清单注入生产 NativeRunner
+
+- 状态：Accepted（2026-08-10，依据项目负责人已批准的 ADR-0066 实施计划与 A5 正式证据）
+- 背景：A5-20260810-153300 已在独立 ADR-0065 签名租约下完成 T05；协调器评级 `WIN7_PASS`，
+  Restricted Token、Low Integrity、临时 ACL 回滚、Job 进程树回收、轮前/轮后零残留和租约释放
+  均已验证。生产迁移门禁因此满足，但产品仍需防止模型、Renderer 或可变环境把任意路径注册为命令。
+- 决策：（1）生产迁移以 D-013 v21 源码为基线，单请求 helper 协议增加 request ID、总/空闲超时和
+  结构化双流结果；（2）`NativeRunner` 只解析产品注入的 profile ID，并在每轮执行前复核可执行文件
+  规范路径与 SHA-256；Shell、高风险、未知、路径越界或哈希不符全部拒绝；（3）产品注入必须使用
+  外部固定 SHA-256 的版本化 Runner manifest，manifest 再锁定 helper 与 profile 工件，装配失败即
+  回退 `UnavailableRunner`；（4）Runner 只作为固定内部适配器或验收动作装配，不注册模型可调用的
+  `terminal.exec`，`terminal.input` 兼容消息永久返回 `CAPABILITY_UNAVAILABLE`；（5）输出仅经
+  `task.event` 投影至有界只读日志并清理 VT/OSC、剪贴板序列和危险链接。
+- 后果：低风险非交互执行可进入产品 L01～L10 实机验收；升级后的 helper 在锁定 D-017 工具链重新
+  构建、绑定哈希并取得 Win7 正式结果前仍是候选，不得把开发机单测或既有 v21 二进制替代为产品通过。
+  C05 继续不提供网络隔离，高风险与未经验证的 Git profile 仍拒绝或路由远程。

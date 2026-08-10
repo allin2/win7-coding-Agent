@@ -9,8 +9,8 @@ Target Branch: codex/win7-noninteractive-runner
 Authorization: Project owner implementation request, 2026-08-10
 Phase-Gate: IMPLEMENTING
 Win7-Compatibility: PROVISIONAL
-Win7-Validation: NOT_PERFORMED
-Blocking-Reason: A4 D-013 v21 is WIN7_PASS; A5 signed-lease T05 and product L01-L10 remain open
+Win7-Validation: A4_D013_AND_A5_T05_WIN7_PASS
+Blocking-Reason: Product NativeRunner L01-L10 and H3 read-only log review remain open
 ```
 
 ### 0.1 允许路径
@@ -47,12 +47,31 @@ Renderer 进程权限和模型可调用的通用 `terminal.exec`。
    `NativeRunner` 与只读日志。
 4. C05 只记录网络实际可达性，不宣称本地网络隔离；需要强隔离的命令拒绝或路由远程。
 
+### 2.1 A5 门禁解除记录（2026-08-10）
+
+- `A5-20260810-153300` 在目标 `192.168.1.11` 上以独立 Ed25519 签名租约执行 T05；租约绑定
+  `be57695df7f4831b2cf46851b5d5b38ad4a9fd1c`、候选 manifest 和 D-013 v21 helper 哈希。
+- T05 的 Job Object 进程树回收、Restricted Token、Low Integrity、临时 ACL 回滚和零 `ping.exe`
+  残留全部通过；轮前/轮后残留均为空，Bitvise 始终为 `RUNNING`。
+- 协调器评级为 `WIN7_PASS`，租约完整经历 `GRANTED → RUNNING → RETURNED → RELEASED`。
+  A5 核心门禁因此解除，允许迁移生产 helper 并实现低风险非交互 Runner；正式 C05 仍不构成网络隔离。
+
 ## 3. Runtime Profile 与交付
 
 - 协调器：开发/验收机 Node.js 标准库；私钥位于 Git 外，Worker 仅持公钥。
 - helper：D-013、MSVC v142、Windows SDK 10.0.19041、x64、静态 CRT，目标 Win7 SP1 build 7601。
 - 产品宿主：Electron 22.3.27 内嵌 Node 16.17.1；自包含内网/离线包，不在目标机在线解析依赖。
 - 降级：签名、哈希、containment 或清理任一不确定即 `UnavailableRunner`/`cleanup_failed`。
+
+### 3.1 生产 helper 构建候选
+
+- 离线 Win10 构建包：`native/helper/build-win10-kit/result/WIN7_D013_PRODUCTION_HELPER_BUILDKIT_20260810.zip`
+- ZIP SHA-256：`c6f8f6e3aeb5ae20e89be0416a84f536a5e2f17f65ef611f3d41f5b19a938d81`
+- `PACKAGE_MANIFEST.json`：`2a0fc3cbf70c8b70b80921cee79b431681267275cf4bb1c88fce3be47725a582`
+- `input-lock.json`：`514e8a7d2d3f132225fb5c698239b96821b541d253fbee633a83df2931b1670f`
+
+该 ZIP 是 Git 忽略的本地交接物，不是 Win7 运行包。必须在 D-017 锁定的 Win10/VS2019/v142
+构建机执行 `build.ps1`，返回新的 ARTIFACTS ZIP 与 sidecar；旧 v21 helper 二进制不能替代本修订。
 
 ## 4. 人工门禁
 

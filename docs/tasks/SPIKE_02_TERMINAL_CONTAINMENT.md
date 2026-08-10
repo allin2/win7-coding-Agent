@@ -170,3 +170,17 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
   Job，未建立新的 containment，正式评级保持 `CANDIDATE_EVIDENCE`，未签发 `WIN7_PASS`。
 - 修正方向固定为复用 A4 已验证的 WMI → CPython → helper 独立宿主路径，避免 Electron Job
   继承；旧目录和失败证据保留，不清理、不复用，下一轮必须使用新 acceptance ID 与新租约。
+
+### A5 T05 正式复验通过（A5-20260810-153300）
+
+- 使用新 Ed25519 签名租约和独立 WMI → CPython → helper 宿主路径；目标为 `192.168.1.11`，
+  Win7 SP1 build 7601 x64。preflight/postflight 均为零残留，Bitvise 保持 `RUNNING`，五项工件
+  哈希与租约绑定值一致。
+- T05 `PASS`：D-013 v21 Job 回收后台 `ping.exe` 进程树，Restricted Token、Low Integrity、
+  stdin detached 和仅限 `t05-work` 的临时标签/ACL 回滚均通过，轮后无相关进程、文件或 ACL 残留。
+- 协调器正式评级 `WIN7_PASS`，租约生命周期为
+  `GRANTED → RUNNING → RETURNED → RELEASED`。机器可读结论见
+  `acceptance/a5/evidence/A5-20260810-153300/coordinator-grade.json`。
+- 正式结论为
+  `NO_GO_INTERACTIVE_WINPTY / CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`；
+  T01～T04 的 winpty 输入缺陷保持 No-Go，C05 仍为环境缺失且不宣称网络隔离。

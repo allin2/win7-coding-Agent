@@ -1,4 +1,7 @@
 import { CapturedStream } from './types';
+import { TextDecoder } from 'util';
+
+export type StreamEncoding = 'utf-8' | 'cp936' | 'auto';
 
 /**
  * Bounded byte capture which retains complete output until its cap is crossed,
@@ -15,7 +18,10 @@ export class OutputCapture {
   private _bytesRead = 0;
   private _truncated = false;
 
-  constructor(private readonly maxBytes: number) {
+  constructor(
+    private readonly maxBytes: number,
+    private readonly preferredEncoding: StreamEncoding = 'utf-8',
+  ) {
     if (!Number.isInteger(maxBytes) || maxBytes < 0) {
       throw new TypeError('maxBytes must be a non-negative integer');
     }
@@ -63,10 +69,11 @@ export class OutputCapture {
       ? Buffer.concat([this.head, this.tail])
       : Buffer.concat(this.complete);
     const omittedBytes = this._bytesRead - retained.length;
-    const decoded = retained.toString('utf8');
+    const decodedResult = decodeBytes(retained, this.preferredEncoding);
+    const decoded = decodedResult.text;
     const replacementCount = (decoded.match(/\uFFFD/g) ?? []).length;
     const text = this._truncated
-      ? `${this.head.toString('utf8')}\n\n[output truncated: ${omittedBytes} bytes omitted; refine the command or filter its output]\n\n${this.tail.toString('utf8')}`
+      ? `${decodeBytes(this.head, this.preferredEncoding).text}\n\n[output truncated: ${omittedBytes} bytes omitted; refine the command or filter its output]\n\n${decodeBytes(this.tail, this.preferredEncoding).text}`
       : decoded;
     return {
       text,
@@ -74,7 +81,7 @@ export class OutputCapture {
       bytesRetained: retained.length,
       omittedBytes,
       truncated: this._truncated,
-      encoding: replacementCount === 0 ? 'utf-8' : 'unknown',
+      encoding: replacementCount === 0 ? decodedResult.encoding : 'unknown',
       replacementCount,
     };
   }
@@ -84,4 +91,38 @@ export function captureText(value: string, maxBytes: number): CapturedStream {
   const capture = new OutputCapture(maxBytes);
   capture.append(value);
   return capture.toResult();
+}
+
+export function captureBytes(
+  value: Buffer,
+  maxBytes: number,
+  encoding: StreamEncoding = 'auto',
+): CapturedStream {
+  const capture = new OutputCapture(maxBytes, encoding);
+  capture.append(value);
+  return capture.toResult();
+}
+
+function decodeBytes(value: Buffer, preferred: StreamEncoding): {
+  text: string;
+  encoding: CapturedStream['encoding'];
+} {
+  if (preferred === 'cp936') return decodeCp936(value);
+  const utf8 = value.toString('utf8');
+  if (preferred === 'utf-8' || !utf8.includes('\uFFFD')) {
+    return { text: utf8, encoding: utf8.includes('\uFFFD') ? 'unknown' : 'utf-8' };
+  }
+  const cp936 = decodeCp936(value);
+  return cp936.text.includes('\uFFFD')
+    ? { text: utf8, encoding: 'unknown' }
+    : cp936;
+}
+
+function decodeCp936(value: Buffer): { text: string; encoding: CapturedStream['encoding'] } {
+  try {
+    const text = new TextDecoder('gbk', { fatal: false }).decode(value);
+    return { text, encoding: text.includes('\uFFFD') ? 'unknown' : 'cp936' };
+  } catch (_error) {
+    return { text: value.toString('utf8'), encoding: 'unknown' };
+  }
 }

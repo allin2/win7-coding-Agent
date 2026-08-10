@@ -1,0 +1,11 @@
+build/
+build-mac/
+build-win10/
+build-win10-kit/result/
+build-win10-kit/work/
+build-win10-kit/output/
+build-win10-kit/evidence/
+build-win10-kit/candidate/
+
+*.o
+*.exe
