@@ -75,25 +75,25 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 ## 4. Win10 构建包（D-013）
 
 - **路径**：`spikes/02-terminal-containment/helper/build-win10-kit/`
-- **当前已验收返回 ZIP**：`WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip`（v16，保留在 Git 外）
-- **ZIP SHA-256**：`daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac`
-- **helper SHA-256**：`68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba`
+- **当前已验收返回 ZIP**：`WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip`（v21，保留在 Git 外）
+- **ZIP SHA-256**：`5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef`
+- **helper SHA-256**：`98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5`
 - **输入绑定**：包内 `input-lock.json` 与工作树逐字节一致，SHA-256 为
-  `6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e`；构建包
+  `60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b`；构建包
   `PACKAGE_MANIFEST.json` SHA-256 为
-  `18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23`。
+  `636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710`。
 - **Win10 证据**：Win10 19045、VS2019 16.11、MSVC 14.29/v142、SDK 10.0.19041.0、
-  x64、静态 `/MT`、manifest、PE/API/CRT 与 native smoke 全部 `PASS`；smoke 子进程退出码 0，
-  `containmentVerified=true`、`inputDetached=true`，Low Integrity 标签和 deny ACE 均
-  `applied/verified/rolledBack=true`。
+  x64、静态 `/MT`、schema-v3 capture selftest、logic tests、manifest、PE/API/CRT 与 native
+  smoke 全部 `PASS`；`candidate_eligible=true`。实际 suspended child 的 restricted SID 集合、
+  Low Integrity `S-1-16-4096 / 4096` 和 ACL apply/verify/rollback 合同均通过。
 - **分层状态**：v15 开发机与 Win10 为历史 `PASS`，Win7 为
   `FAIL_CLOSED_RECOVERY_REQUIRED`；v16 开发机与 Win10 为 `PASS`，Win7 也因 C03 缺少
   可信 Low Integrity 观测而 `FAIL_CLOSED_RECOVERY_REQUIRED`；v17 Win10 smoke 因空
   restricting-SID 列表与审计合同冲突而 `FAIL_CLOSED_TOKEN_CREATE_FAILED`；v18 为
   `NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED`；v19 Win10 编译与静态闭包通过，但 native
   smoke 因空 `TokenRestrictedSids` 尺寸判断错误而 `FAIL_CLOSED`，其 diagnostics 不具候选
-  资格；v20 又因 PowerShell capture 输出污染在 smoke 前失败关闭；v21 修复后等待 Win10
-  构建。不得把任一层级写成总体 PASS。
+  资格；v20 又因 PowerShell capture 输出污染在 smoke 前失败关闭；v21 Win10 已 `PASS`，
+  Win7 为 `NOT_PERFORMED`，等待 recovery 审批。不得把任一层级写成总体 PASS。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -139,7 +139,7 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
   `TOKEN_CREATE_FAILED`；源码确认 `RestrictedSidCount=0` 与 `IsTokenRestricted=true` 要求
   矛盾。用户未提供机器生成的 v17 返回 ZIP 或日志包，故不得虚构 native 证据。
 - **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v21 Win10 返回包
-  复核和新的人工 recovery 授权完成前不得签名或连接 Win7。
+  已复核并锁定候选，但新的人工 recovery 授权完成前不得签名或连接 Win7。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
 
@@ -276,5 +276,12 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
   `8c014442282a30837068ba5355d81a3105b987dd3bb73a619222af6f6f8a7e49`。
 - input lock：`60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b`；
   package manifest：`636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710`。
-- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；v21 Win10 与 Win7 均 `NOT_PERFORMED`；A4 Gate
-  继续 `FAIL_CLOSED_RECOVERY_REQUIRED`，不得连接 Win7 或签发租约。
+- v21 返回包：`WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip`，SHA-256
+  `5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef`；helper SHA-256
+  `98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5`，大小 268800 字节。
+- 实机 Win10 结果：schema v3 `PASS/COMPLETE`、`candidate_eligible=true`；capture selftest、
+  v142 logic tests、native smoke、PE/API/CRT、input lock 与包 manifest 全部通过。返回包已复制
+  到 Git 外归档，ignored candidate 已锁定为上述 helper。
+- 当前状态：v21 Win10 `PASS`，v21 Win7 `NOT_PERFORMED`；A4 Gate 继续
+  `FAIL_CLOSED_RECOVERY_REQUIRED`，等待 `A4-20260810-000003` recovery 人工复核和新的签名
+  租约，不得提前连接 Win7。

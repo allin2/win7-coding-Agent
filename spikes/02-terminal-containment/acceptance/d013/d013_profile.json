@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "profile_id": "D013-CLOSURE-01",
-  "orchestration_head": "8dbe62f",
+  "orchestration_head": "6fbb374",
   "source_head": "8dbe62f",
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "implementation_allowlist": [
@@ -27,19 +27,22 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "PENDING_V21_WIN10_BUILD",
+    "sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "size": 268800,
     "win7_validation": "NOT_PERFORMED",
-    "note": "The ignored path may still contain the archived v16 candidate, but it cannot satisfy the v21 pending hash gate. Only a reviewed v21 PASS/ARTIFACTS return package may replace it."
+    "note": "Locked from the reviewed v21 PASS/ARTIFACTS return package. The binary remains Git-ignored and has not been validated on Win7."
   },
   "win10_return_package": {
-    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
-    "sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
-    "build_revision": "v16-recovery",
-    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
+    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
+    "build_revision": "v21-recovery",
+    "review_status": "PASS_READY_FOR_WIN7_RECOVERY_APPROVAL",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
-    "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
-    "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
+    "process_capture_selftest": "PASS",
+    "logic_tests": "PASS",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
     "reviewed_at": "2026-08-10",
     "committed_to_git": false
   },
@@ -77,13 +80,19 @@
     "source_root_cause": "Bare Task.GetResult calls emitted VoidTaskResult objects and polluted the PowerShell function result under Windows PowerShell 5.1.",
     "review_status": "SOURCE_ROOT_CAUSE_CONFIRMED_RETURN_PACKAGE_PENDING_RECEIPT"
   },
-  "pending_win10_build": {
+  "v21_win10_return_review": {
     "build_revision": "v21-recovery",
     "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v21.zip",
     "build_kit_sha256": "8c014442282a30837068ba5355d81a3105b987dd3bb73a619222af6f6f8a7e49",
     "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
     "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
-    "status": "READY_FOR_HUMAN_WIN10_BUILD"
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "return_package_sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
+    "helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "candidate_eligible": true,
+    "win10_status": "PASS",
+    "win7_validation": "NOT_PERFORMED",
+    "status": "READY_FOR_WIN7_RECOVERY_APPROVAL"
   },
   "upload_files": [
     {"local": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe", "remote": "spike02_helper.exe"},
@@ -101,7 +110,7 @@
     ]
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V21_BUILD",
+    "GATE-WIN10-BUILD": "PASS",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",
