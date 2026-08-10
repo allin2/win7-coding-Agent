@@ -68,6 +68,14 @@ else
     pass "C03: obsolete impersonation/Everyone deny-only path absent"
 fi
 if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
+if grep -q 'AuditRestrictedChildToken(pi.hProcess' "${HELPER_CPP}" \
+    && grep -q 'OpenProcessToken(childProcess, TOKEN_QUERY' "${HELPER_CPP}" \
+    && grep -q 'GetTokenInformation(hChildToken, TokenIntegrityLevel' "${HELPER_CPP}" \
+    && grep -q 'suspended_child_process_token' "${HELPER_SRC_DIR}/protocol.cpp"; then
+    pass "C03: actual suspended child token is audited before execution"
+else
+    fail "C03: trusted suspended-child token audit missing"
+fi
 
 # ── C04: ACL boundary with rollback ──────────────────────────────────────────
 for token in AddMandatoryAce SetNamedSecurityInfoW SetEntriesInAclW RestoreDirectoryDacl protectedDirectories; do

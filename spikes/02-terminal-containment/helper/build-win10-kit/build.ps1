@@ -239,6 +239,19 @@ try {
             if ($response.containmentVerified -ne $true -or $response.inputDetached -ne $true) {
                 throw "helper JSON smoke did not prove containment/input detachment."
             }
+            $tokenAuditProperty = $response.PSObject.Properties['tokenAudit']
+            if (-not $tokenAuditProperty) {
+                throw "helper JSON smoke did not return the trusted child-token audit: $responseText"
+            }
+            $tokenAudit = $tokenAuditProperty.Value
+            if ($tokenAudit.source -ne 'suspended_child_process_token' -or
+                $tokenAudit.verified -ne $true -or
+                $tokenAudit.isRestricted -ne $true -or
+                $tokenAudit.tokenType -ne 'primary' -or
+                $tokenAudit.integritySid -ne 'S-1-16-4096' -or
+                [int64]$tokenAudit.integrityRid -ne 4096) {
+                throw "helper JSON smoke did not prove the actual child is a restricted primary Low Integrity token: $responseText"
+            }
             $aclChanges = @($response.aclChanges)
             if ($aclChanges.Count -ne 2) {
                 throw "helper JSON smoke did not return both ACL changes: $responseText"

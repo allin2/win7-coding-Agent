@@ -12,7 +12,7 @@
  *     System32evil/subdir rejection, cmd.exe /d /s /c and /k rejection,
  *     non-whitelisted executables (C06).
  *   - ACL policy: per-run-root containment (boundary-safe) + ValidateAclPolicy.
- *   - Result rendering: exitCode/base64/truncation/aclChanges fields.
+ *   - Result rendering: exitCode/base64/truncation/tokenAudit/aclChanges fields.
  *
  * Build & run (macOS/Linux build host):
  *   cmake -S helper -B helper/build-mac -DCMAKE_BUILD_TYPE=Release
@@ -309,6 +309,11 @@ static void TestRenderResult() {
     result.executionTimeMs = 16;
     result.containmentVerified = true;
     result.inputDetached = true;
+    result.tokenAudit.verified = true;
+    result.tokenAudit.isRestricted = true;
+    result.tokenAudit.isPrimary = true;
+    result.tokenAudit.integritySid = L"S-1-16-4096";
+    result.tokenAudit.integrityRid = 4096;
     const std::string text = "hello 中文\n";
     result.stdoutBytes.assign(text.begin(), text.end());
     AclChangeRecord record;
@@ -324,6 +329,12 @@ static void TestRenderResult() {
     CHECK(json.find("\"exitCode\":0") != std::string::npos);
     CHECK(json.find("\"containmentVerified\":true") != std::string::npos);
     CHECK(json.find("\"inputDetached\":true") != std::string::npos);
+    CHECK(json.find("\"source\":\"suspended_child_process_token\"") != std::string::npos);
+    CHECK(json.find("\"verified\":true") != std::string::npos);
+    CHECK(json.find("\"isRestricted\":true") != std::string::npos);
+    CHECK(json.find("\"tokenType\":\"primary\"") != std::string::npos);
+    CHECK(json.find("\"integritySid\":\"S-1-16-4096\"") != std::string::npos);
+    CHECK(json.find("\"integrityRid\":4096") != std::string::npos);
     CHECK(json.find("\"stdoutSize\":13") != std::string::npos);
     // "hello 中文\n" = 68 65 6c 6c 6f 20 e4 b8 ad e6 96 87 0a (13 bytes)
     CHECK(json.find("\"stdoutBase64\":\"aGVsbG8g5Lit5paHCg==\"") != std::string::npos);

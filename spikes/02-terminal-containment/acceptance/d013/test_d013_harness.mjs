@@ -70,6 +70,7 @@ try {
   const protectedDir = path.join(harnessRoot, 'protected-outside');
 
   fs.writeFileSync(fixtures, JSON.stringify({
+    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', integritySid: 'S-1-16-4096', integrityRid: 4096 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(harnessRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
     'c06-argv-reject': { schema_version: 1, type: 'error', requestId: 'c06-argv-reject', error: 'ARGV_REJECTED', message: 'mock' },
     'c06-cmd-k-reject': { schema_version: 1, type: 'error', requestId: 'c06-cmd-k-reject', error: 'ARGV_REJECTED', message: 'mock' },
     'c07-timeout': { schema_version: 1, type: 'execution_result', requestId: 'c07-timeout', status: 'completed', exitCode: 1, executionTimeMs: 3005, timedOut: true, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [] },
@@ -80,7 +81,7 @@ try {
   fs.chmodSync(MOCK, 0o755);
   const harnessRun = run(PY, [HARNESS, '--acceptance-id', 'A4-20260807-000001', '--helper', MOCK,
     '--root', harnessRoot, '--acceptance-root', acceptanceRoot, '--out', resultsOut], {
-    env: { ...process.env, D013_MOCK_FIXTURES: fixtures, D013_MOCK_LOG: requestLog },
+    env: { ...process.env, D013_MOCK_FIXTURES: fixtures, D013_MOCK_LOG: requestLog, D013_MOCK_SIDE_EFFECTS: '1' },
     timeout: 60000,
   });
   check('harness completes with mock helper', harnessRun.status === 1, harnessRun.stderr);
@@ -94,11 +95,31 @@ try {
   check('C07-timeout classified PASS (fixture)', byId['C07-timeout-process-tree'] === 'PASS');
   check('C07-output-cap classified PASS (fixture)', byId['C07-output-cap'] === 'PASS');
   check('C04-authorization-gate classified PASS (policy)', byId['C04-authorization-gate'] === 'PASS');
-  // On a non-Windows host the file-based cases cannot pass — that is expected
-  // and proves the harness does not fake Win7-only assertions.
-  check('C01/C03/C05 NOT faked on non-Windows host',
-    ['C01-job-tree-kill', 'C03-restricted-token-boundary', 'C05-loopback-network']
+  check('C03 classification requires trusted suspended-child token audit',
+    byId['C03-restricted-token-boundary'] === 'PASS'
+      && results.cases.find((entry) => entry.id === 'C03-restricted-token-boundary')
+        ?.token_evidence?.trusted_child_token_audit?.integritySid === 'S-1-16-4096');
+  // The remaining file/process/network cases cannot pass on a non-Windows
+  // host; this proves the local fixture does not fake their target evidence.
+  check('C01/C05 NOT faked on non-Windows host',
+    ['C01-job-tree-kill', 'C05-loopback-network']
       .every((id) => byId[id] === 'FAIL'));
+
+  // A helper response that claims verification but binds the wrong integrity
+  // SID must still fail closed. This protects the exact C03 trust contract.
+  const badAuditRoot = path.join(acceptanceRoot, 'bad-audit-root');
+  const badAuditOut = path.join(tempRoot, 'bad-audit-results.json');
+  fs.writeFileSync(fixtures, JSON.stringify({
+    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', integritySid: 'S-1-16-8192', integrityRid: 8192 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(badAuditRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
+  }));
+  const badAuditRun = run(PY, [HARNESS, '--acceptance-id', 'A4-20260807-000009', '--helper', MOCK,
+    '--root', badAuditRoot, '--acceptance-root', acceptanceRoot, '--out', badAuditOut], {
+    env: { ...process.env, D013_MOCK_FIXTURES: fixtures, D013_MOCK_LOG: requestLog, D013_MOCK_SIDE_EFFECTS: '1' },
+    timeout: 60000,
+  });
+  const badAuditResults = JSON.parse(fs.readFileSync(badAuditOut, 'utf8'));
+  check('C03 rejects a mismatched trusted integrity SID', badAuditRun.status === 1
+    && badAuditResults.cases.find((entry) => entry.id === 'C03-restricted-token-boundary')?.status === 'FAIL');
 
   // Request-shape recording: the harness must send the right protocol.
   const requests = JSON.parse(fs.readFileSync(requestLog, 'utf8'));

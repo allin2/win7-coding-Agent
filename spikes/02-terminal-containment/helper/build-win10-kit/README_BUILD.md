@@ -54,6 +54,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
   合同通过 `CreateProcessAsUserW` 启动；禁止再走 impersonation token 或
   `CreateProcessWithTokenW` 路径；
   禁止把 impersonation token 用于该启动路径。
+- v17 在子进程仍为 `CREATE_SUSPENDED` 时直接打开该实际子进程的 token，使用
+  `TokenType`、`IsTokenRestricted` 与 `TokenIntegrityLevel` 验证其为 restricted primary
+  Low Integrity（`S-1-16-4096`），并把结构化 `tokenAudit` 写入响应；任一查询或字段不匹配
+  都在 `ResumeThread` 前终止子进程并失败关闭。受限进程中的本地化 `whoami /groups`
+  只作补充文本证据，不再是 C03 的可信判据。
 - restricted token 使用 `DISABLE_MAX_PRIVILEGE`，保留 Windows 目录遍历所需的
   `SeChangeNotifyPrivilege`，并把 Administrators SID 设为 deny-only；不得把
   Everyone/World 设为 deny-only，否则可能移除 Windows 装载器所需的基础读/执行授权，

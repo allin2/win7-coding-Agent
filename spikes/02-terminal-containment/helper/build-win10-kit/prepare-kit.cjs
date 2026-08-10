@@ -72,6 +72,15 @@ if (!/CreateRestrictedToken\s*\(\s*hSource\s*,\s*DISABLE_MAX_PRIVILEGE/.test(hel
     /privilegesToDelete/.test(helperSource)) {
   throw new Error('helper.cpp must use DISABLE_MAX_PRIVILEGE and preserve SeChangeNotifyPrivilege');
 }
+const childAuditIndex = helperSource.indexOf('AuditRestrictedChildToken(pi.hProcess');
+const resumeIndex = helperSource.indexOf('ResumeThread(pi.hThread)');
+if (childAuditIndex < 0 || resumeIndex < 0 || childAuditIndex > resumeIndex ||
+    !/OpenProcessToken\s*\(\s*childProcess\s*,\s*TOKEN_QUERY/.test(helperSource) ||
+    !/GetTokenInformation\s*\(\s*hChildToken\s*,\s*TokenIntegrityLevel/.test(helperSource) ||
+    !/IsTokenRestricted\s*\(\s*hChildToken\s*\)/.test(helperSource) ||
+    !/SECURITY_MANDATORY_LOW_RID/.test(helperSource)) {
+  throw new Error('helper.cpp must audit the actual suspended child as a restricted primary Low Integrity token before ResumeThread');
+}
 if (!/DOMAIN_ALIAS_RID_ADMINS/.test(helperSource) ||
     /SECURITY_WORLD_RID|SECURITY_WORLD_SID_AUTHORITY/.test(helperSource)) {
   throw new Error('helper.cpp must make Administrators deny-only without disabling Everyone/World');

@@ -502,6 +502,90 @@ HANDLE CreateRestrictedProcessToken() {
     return hRestricted;
 }
 
+bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
+                               std::wstring* error) {
+    if (!childProcess || !audit) {
+        if (error) *error = L"child process or token-audit output is null";
+        return false;
+    }
+    *audit = {};
+
+    HANDLE hChildToken = nullptr;
+    if (!OpenProcessToken(childProcess, TOKEN_QUERY, &hChildToken)) {
+        if (error) *error = L"OpenProcessToken(child) failed: " + WinErrorText(GetLastError());
+        return false;
+    }
+
+    TOKEN_TYPE tokenType = TokenImpersonation;
+    DWORD tokenTypeSize = 0;
+    if (!GetTokenInformation(hChildToken, TokenType, &tokenType,
+                             sizeof(tokenType), &tokenTypeSize)) {
+        if (error) *error = L"GetTokenInformation(TokenType) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+    audit->isPrimary = tokenType == TokenPrimary;
+    audit->isRestricted = IsTokenRestricted(hChildToken) ? true : false;
+
+    DWORD integritySize = 0;
+    SetLastError(ERROR_SUCCESS);
+    GetTokenInformation(hChildToken, TokenIntegrityLevel, nullptr, 0, &integritySize);
+    if (integritySize < sizeof(TOKEN_MANDATORY_LABEL) ||
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        if (error) *error = L"GetTokenInformation(TokenIntegrityLevel size) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+    std::vector<unsigned char> integrityBuffer(integritySize);
+    if (!GetTokenInformation(hChildToken, TokenIntegrityLevel,
+                             integrityBuffer.data(), integritySize, &integritySize)) {
+        if (error) *error = L"GetTokenInformation(TokenIntegrityLevel) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+
+    TOKEN_MANDATORY_LABEL* label =
+        reinterpret_cast<TOKEN_MANDATORY_LABEL*>(integrityBuffer.data());
+    PSID sid = label->Label.Sid;
+    if (!sid || !IsValidSid(sid) ||
+        !(label->Label.Attributes & SE_GROUP_INTEGRITY)) {
+        if (error) *error = L"child TokenIntegrityLevel returned an invalid mandatory label";
+        CloseHandle(hChildToken);
+        return false;
+    }
+
+    const UCHAR subAuthorityCount = *GetSidSubAuthorityCount(sid);
+    if (subAuthorityCount == 0) {
+        if (error) *error = L"child integrity SID has no RID";
+        CloseHandle(hChildToken);
+        return false;
+    }
+    audit->integrityRid =
+        *GetSidSubAuthority(sid, static_cast<DWORD>(subAuthorityCount - 1));
+
+    LPWSTR sidText = nullptr;
+    if (!ConvertSidToStringSidW(sid, &sidText) || !sidText) {
+        if (error) *error = L"ConvertSidToStringSidW(child integrity) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+    audit->integritySid = sidText;
+    LocalFree(sidText);
+    CloseHandle(hChildToken);
+
+    audit->verified = audit->isPrimary && audit->isRestricted &&
+                      audit->integrityRid == SECURITY_MANDATORY_LOW_RID &&
+                      audit->integritySid == L"S-1-16-4096";
+    if (!audit->verified && error) {
+        *error = L"child token is not a restricted primary Low Integrity token";
+    }
+    return audit->verified;
+}
+
 bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error) {
     PSID lowSid = nullptr;
     if (!ConvertStringSidToSidW(L"S-1-16-4096", &lowSid)) {
@@ -916,6 +1000,33 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         return failure;
     }
 
+    // C03 trusted observation: audit the token attached to the actual child
+    // process while it is still suspended. `whoami /groups` can fail under a
+    // correctly restricted Win7 token (localized ERROR_ACCESS_DENIED), so it
+    // is retained only as supplemental evidence by the harness. A failed or
+    // non-Low audit kills the child and fails closed before any user code runs.
+    std::wstring tokenAuditError;
+    if (!AuditRestrictedChildToken(pi.hProcess, &result->tokenAudit,
+                                   &tokenAuditError)) {
+        TerminateProcess(pi.hProcess, 1);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        CloseHandle(hNullIn);
+        CloseHandle(hOutRead); CloseHandle(hOutWrite);
+        CloseHandle(hErrRead); CloseHandle(hErrWrite);
+        const int failure = failAfterRollback(HELPER_ERR_TOKEN_CREATE);
+        if (failure != HELPER_ERR_ACL_ROLLBACK) {
+            result->errorMessage = "restricted child token audit failed";
+            if (!tokenAuditError.empty()) {
+                result->errorMessage += ": " + WideToUtf8(tokenAuditError);
+            }
+        }
+        if (userSid) LocalFree(userSid);
+        CloseHandle(hRestricted);
+        CloseHandle(hJob);
+        return failure;
+    }
+
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
 
@@ -1167,7 +1278,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("spike02-helper 0.2.0-d013 win7-x64 (job+restricted-token+acl)\n");
+            std::printf("spike02-helper 0.2.1-d013 win7-x64 (job+restricted-token+child-token-audit+acl)\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {
