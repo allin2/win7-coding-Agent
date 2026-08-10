@@ -32,6 +32,10 @@
     "win7_validation": "PASS",
     "note": "Locked from the reviewed v21 PASS/ARTIFACTS return package and graded WIN7_PASS by the ADR-0065 coordinator under A4-20260810-000004. The binary remains Git-ignored."
   },
+  "package_manifest": {
+    "path": "spikes/02-terminal-containment/helper/build-win10-kit/PACKAGE_MANIFEST.json",
+    "sha256": "00c22fa07f9758e041e9a4a12a6223cdd2f15963a613c32f8a3c01724f7a63ad"
+  },
   "win10_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
     "sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",

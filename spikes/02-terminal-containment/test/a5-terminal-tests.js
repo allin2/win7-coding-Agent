@@ -30,6 +30,7 @@ const { VTFilter } = require(path.join(SPIKE_ROOT, 'winpty', 'filter'));
 const { TerminalSession, INPUT_MODE, STATE } = require(path.join(SPIKE_ROOT, 'winpty', 'terminal_session'));
 const { MockPtyModule } = require(path.join(A5, 'a5-mock-pty'));
 const { runSuite, InProcessDriver } = require(path.join(A5, 'a5-terminal-harness'));
+const { buildRequest } = require(path.join(A5, 'a5-d013-client'));
 
 const ESC = '\x1b';
 const BEL = '\x07';
@@ -337,12 +338,46 @@ test('manifest：D-011 ZIP 只读生成，原生哈希与锁定值匹配', () =>
   const { manifest } = generateManifest({ zipPath: DEFAULT_ZIP, spikeRoot: SPIKE_ROOT, outDir, revision: 'A5-test-manifest' });
   assert.strictEqual(manifest.source_zip.match, true);
   assert.ok(manifest.native_lock.every((n) => n.match === true), JSON.stringify(manifest.native_lock));
+  assert.strictEqual(manifest.containment_helper.match, true);
+  assert.strictEqual(manifest.containment_helper.sha256, '98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5');
   assert.ok(manifest.candidate_runtime.files.some((f) => f.path === 'build/Release/pty.node'));
   assert.strictEqual(manifest.source_zip.readonly, true);
   // 原始 ZIP 未被改动：外层哈希仍等于锁定值
   const { execFileSync } = require('child_process');
   const now = execFileSync('shasum', ['-a', '256', DEFAULT_ZIP], { encoding: 'utf8' }).split(' ')[0];
   assert.strictEqual(now, 'c938f115c242bf37ec364070ad9b80df173cacd43fd3df9db84aa13126f346ea');
+});
+
+test('A5 候选包冻结：签租约后复用 manifest 并拒绝文件漂移', () => {
+  const { assembleCandidate, verifyPreparedCandidate } = require(path.join(A5, 'a5-run'));
+  const candidateDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'a5-frozen-')), 'candidate');
+  const prepared = assembleCandidate(DEFAULT_ZIP, candidateDir);
+  assert.doesNotThrow(() => verifyPreparedCandidate(candidateDir, prepared.manifest));
+  const target = path.join(candidateDir, prepared.manifest.candidate_harness.files[0].path);
+  assert.ok(fs.existsSync(path.join(candidateDir, 'spike02_helper.exe')));
+  fs.appendFileSync(target, '\n// drift\n');
+  assert.throws(() => verifyPreparedCandidate(candidateDir, prepared.manifest), /HASH_MISMATCH/);
+});
+
+test('D-013 v21 请求：requestId、/d /s /c 与 ACL policy 均显式携带', () => {
+  const request = buildRequest({
+    requestId: 't05-A5-test',
+    executable: 'C:\\Windows\\System32\\cmd.exe',
+    argv: ['/d', '/s', '/c', 'C:\\acc\\A5-test\\t05-work\\t05-tree.cmd'],
+    workingDirectory: 'C:\\acc\\A5-test\\t05-work',
+    timeoutMs: 15000,
+    maxOutputSize: 1024,
+    allowedDirectories: ['C:\\acc\\A5-test\\t05-work'],
+    aclPolicy: { acceptanceRoot: 'C:\\acc', perRunRoot: 'C:\\acc\\A5-test\\t05-work' },
+  });
+  assert.strictEqual(request.requestId, 't05-A5-test');
+  assert.deepStrictEqual(request.argv.slice(0, 3), ['/d', '/s', '/c']);
+  assert.strictEqual(request.aclPolicy.acceptanceRoot, 'C:\\acc');
+  assert.throws(() => buildRequest({
+    requestId: 'bad', executable: 'C:\\Windows\\System32\\cmd.exe', argv: [],
+    workingDirectory: 'C:\\acc', timeoutMs: 1, maxOutputSize: 1,
+    allowedDirectories: ['C:\\acc'],
+  }), /requires aclPolicy/);
 });
 
 // ─── 5. 静态断言 ──────────────────────────────────────────────────────────────
@@ -357,6 +392,14 @@ test('N06 静态：A5 终端路径无 taskkill 执行调用', () => {
   const { assertNoTaskkill } = require(path.join(A5, 'a5-terminal-harness'));
   const check = assertNoTaskkill(SPIKE_ROOT);
   assert.ok(check.ok, check.detail);
+});
+
+test('协调器门禁：A5 锁定新 IP 且不再接受布尔 lease 开关', () => {
+  const source = fs.readFileSync(path.join(A5, 'a5-run.js'), 'utf8');
+  assert.ok(source.includes("address: '192.168.1.11'"));
+  assert.ok(source.includes('verifyLeaseBundle'));
+  assert.ok(!source.includes('--lease-granted'));
+  assert.ok(!source.includes('WIN7_LEASE_GRANTED'));
 });
 
 // ─── 6. runSuite 集成 ─────────────────────────────────────────────────────────

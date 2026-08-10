@@ -26,6 +26,7 @@ const LOCKED = {
   'pty.node': '4b4444b8b491192af10a1b60765efd1eec530ad5892d6fc1ac3f069a1a9abae5',
   'winpty-agent.exe': '51846f58b3eeadaabd7a137c3b2f9abaa49dfa96f1af9dd2e1b813643b8f6a5d',
   'winpty.dll': 'cb8300eedab637f002b91f5403dc877355a160f5d334aac723d54cc70f36aa9b',
+  'spike02_helper.exe': '98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5',
 };
 
 const NODE_PTY_SUBTREE = [
@@ -195,6 +196,7 @@ function generateManifest(opts) {
     'acceptance/a5/a5-terminal-harness.js',
     'acceptance/a5/a5-manifest.js',
     'acceptance/a5/a5-electron-main.js',
+    'acceptance/a5/a5_wmi.cmd',
     'acceptance/a5/a5-run.js',
   ].map((rel) => {
     const abs = path.join(spikeRoot, rel);
@@ -216,6 +218,20 @@ function generateManifest(opts) {
       readonly: true,
     },
     native_lock: nativeLock,
+    containment_helper: (() => {
+      const helper = path.join(spikeRoot, 'helper', 'build-win10-kit', 'candidate', 'spike02_helper.exe');
+      if (!fs.existsSync(helper)) throw new Error(`D-013 v21 helper 不存在: ${helper}`);
+      const actual = sha256File(helper);
+      return {
+        path: 'spike02_helper.exe',
+        source: 'helper/build-win10-kit/candidate/spike02_helper.exe',
+        size: fs.statSync(helper).size,
+        sha256: actual,
+        locked: LOCKED['spike02_helper.exe'],
+        match: actual === LOCKED['spike02_helper.exe'],
+        d013_revision: 'v21-recovery',
+      };
+    })(),
     candidate_runtime: {
       node_pty_root: 'node_modules/node-pty',
       file_count: runtimeFiles.length,
@@ -227,7 +243,7 @@ function generateManifest(opts) {
     },
     gaps: {
       original_zip_internal_manifest: 'ORIGINAL_ZIP_LACKS_RETURN_PACKAGE_MANIFEST.json',
-      d013_source_binary_closure: 'OPEN',
+      d013_source_binary_closure: 'WIN7_PASS_A4_20260810_000004',
       win7_validation: 'NOT_PERFORMED',
     },
   };

@@ -30,7 +30,7 @@ Blocking-Reason: PC-003 ruled 2026-07-29 (ADR-0036); pending SPIKE_02/03 Go and 
 ## 1. 目标
 
 Node Agent Core（状态机、上下文管理、Policy、Broker、能力令牌）+ 通用 Runner
-（C++ helper containment + Approval 三档）+ Git Adapter 集成 + winpty 交互终端
+（C++ helper containment + Approval 三档）+ Git Adapter 集成 + 非交互只读日志
 + 并发配额（默认 2，同工作区写操作串行锁）。**Phase 2 §3 契约逐条对账移植**（ADR-0029）。
 
 ## 2. 非目标
@@ -44,7 +44,7 @@ Node Agent Core（状态机、上下文管理、Policy、Broker、能力令牌�
 - Runner：Core 派生子进程，经 C++ helper（D-013）建立 Job Object + Restricted Token
   + ACL + argv 白名单 + **尽力限制网络（best-effort，非安全边界）**（ADR-0030，SPIKE_02 冻结的 helper 接口 argv + JSON over stdio）。
   Job/Token/ACL 不阻断 Winsock；强制断网须走远程隔离或企业 WFP，不得在本地宣称禁网/硬隔离。
-- 终端：独立 winpty 宿主（D-011，ADR-0031），stdin 仅接用户输入；Runner 无 pty、stdin 关闭。
+- 终端：ADR-0066 已裁决 Win7 v1 不交付 winpty；Runner 无 pty、stdin 关闭，输出进入只读日志。
 - Git：经 Git Adapter（D-012，ADR-0032 隔离配置 + 命令白名单）。
 
 ## 4. 核心机制
@@ -70,7 +70,7 @@ Node Agent Core（状态机、上下文管理、Policy、Broker、能力令牌�
 - 状态机/Policy/Broker 单元 + Replay 一致性（对账 Phase 2 F 矩阵）。
 - Runner containment 集成（复用 SPIKE_02 负向用例）：进程树必杀、注入拒绝、网络可达性实测（记录 best-effort 限制的实际效果，不作隔离断言）。
 - Git Adapter 集成（复用 SPIKE_03 G10 矩阵）。
-- 终端：模型不能写 stdin（N01）、VT/OSC 过滤、会话回收。
+- 日志：无输入 IPC、VT/OSC 过滤、有界输出、取消与会话回收。
 - 并发：2 任务并发 + 同工作区写串行；资源不超 #4/#9/#10。
 - 静态门禁 G1~G10；安全负向 C19/C20/containment。
 

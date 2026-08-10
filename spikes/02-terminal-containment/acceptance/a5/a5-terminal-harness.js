@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { TerminalSession, INPUT_MODE, STATE } = require(path.join(__dirname, '..', '..', 'winpty', 'terminal_session'));
 const { D013HelperClient, buildRequest } = require('./a5-d013-client');
 
@@ -256,29 +257,68 @@ async function testT05(driver, ctx) {
   const helperPath = ctx.helperPath;
   if (!D013HelperClient.isPresent(helperPath)) {
     return record('T05', '会话回收（D-013 Job Object 进程树必杀）', 'NOT_PERFORMED', 'WIN7',
-      'D-013 helper 缺席（源码→二进制闭包未合入），不宣称回收 PASS。',
+      'D-013 helper 缺席，不宣称回收 PASS。',
       'D_013_HELPER_ABSENT', [
         { name: 'd013-helper-probe', ok: false, note: `helper 路径 ${helperPath} 不存在` },
       ]);
   }
-  // helper 存在时才执行；回收断言需要 Win7 实机 tasklist 取证
+  if (process.platform !== 'win32' || !ctx.acceptanceRoot || !ctx.perRunRoot || !ctx.acceptanceId) {
+    return record('T05', '会话回收（D-013 Job Object 进程树必杀）', 'NOT_PERFORMED', 'WIN7',
+      'helper 已存在，但 T05 仅可在带 acceptanceRoot/perRunRoot/acceptanceId 的 Win7 正式上下文执行。',
+      'WIN7_CONTEXT_REQUIRED');
+  }
+
+  fs.mkdirSync(ctx.perRunRoot, { recursive: true });
+  const scriptPath = path.win32.join(ctx.perRunRoot, 't05-tree.cmd');
+  fs.writeFileSync(scriptPath,
+    '@echo off\r\nstart "" /b ping.exe -n 60 127.0.0.1 > nul\r\nexit /b 0\r\n',
+    { encoding: 'utf8' });
+
   const client = new D013HelperClient(helperPath);
   const windir = process.env.WINDIR || 'C:\\Windows';
-  const cmd = path.win32 ? path.win32.join(windir, 'System32', 'cmd.exe') : `${windir}\\System32\\cmd.exe`;
-  const resp = await client.request(buildRequest({
-    executable: cmd,
-    argv: ['/c', 'start', '/b', 'cmd', '/c', 'ping -n 5 127.0.0.1 >nul'],
-    workingDirectory: windir,
-    timeoutMs: 15000,
-    maxOutputSize: 1 << 20,
-    allowedDirectories: [windir],
-  }));
-  await client.close();
-  return record('T05', '会话回收（D-013 Job Object 进程树必杀）', 'NOT_PERFORMED', 'WIN7',
-    `helper 存在且请求已发出（exit=${resp.exitCode ?? resp.error}）；进程树零残留需 Win7 tasklist 取证，当前不宣称 PASS。`,
-    'WIN7_VERIFICATION_PENDING', [
-      { name: 'd013-request', ok: resp.exitCode !== undefined },
-    ]);
+  const cmd = path.win32.join(windir, 'System32', 'cmd.exe');
+  let resp;
+  try {
+    resp = await client.request(buildRequest({
+      requestId: `t05-${ctx.acceptanceId}`,
+      executable: cmd,
+      argv: ['/d', '/s', '/c', scriptPath],
+      workingDirectory: ctx.perRunRoot,
+      timeoutMs: 15000,
+      maxOutputSize: 1 << 20,
+      allowedDirectories: [ctx.perRunRoot],
+      aclPolicy: { acceptanceRoot: ctx.acceptanceRoot, perRunRoot: ctx.perRunRoot },
+    }), 30000);
+  } finally {
+    await client.close();
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  const residue = spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq ping.exe', '/FO', 'CSV', '/NH'], {
+    shell: false, encoding: 'utf8', timeout: 15000, windowsHide: true,
+  });
+  const residueText = `${residue.stdout || ''}\n${residue.stderr || ''}`;
+  const pingRemains = /ping\.exe/i.test(residueText);
+  const label = Array.isArray(resp.aclChanges)
+    ? resp.aclChanges.find((item) => item.mechanism === 'low_integrity_label')
+    : null;
+  const subchecks = [
+    { name: 'd013-v21-response', ok: resp.type === 'execution_result' && resp.status === 'completed' },
+    { name: 'request-id-bound', ok: resp.requestId === `t05-${ctx.acceptanceId}` },
+    { name: 'containment-verified', ok: resp.containmentVerified === true },
+    { name: 'stdin-detached', ok: resp.inputDetached === true },
+    { name: 'not-timed-out', ok: resp.timedOut === false },
+    { name: 'helper-exit-zero', ok: resp.exitCode === 0 },
+    { name: 'low-integrity-label-applied', ok: label?.applied === true && label?.verified === true },
+    { name: 'acl-label-rolled-back', ok: label?.rolledBack === true },
+    { name: 'ping-process-zero-residue', ok: residue.status === 0 && !pingRemains, note: residueText.trim().slice(0, 2048) },
+  ];
+  const passed = subchecks.every((item) => item.ok === true);
+  return record('T05', '会话回收（D-013 Job Object 进程树必杀）', passed ? 'PASS' : 'FAIL', 'WIN7',
+    passed
+      ? 'D-013 v21 在签名租约的每轮目录内启动后台 ping；helper 退出后 Job 关闭并确认 ping.exe 零残留，临时 Low Integrity 标签已回滚。'
+      : `T05 回收断言失败（helper=${resp.error || resp.status || 'unknown'}，pingResidue=${pingRemains}）。`,
+    passed ? 'D013_V21_CONTAINMENT_CONFIRMED' : 'D013_V21_T05_FAILED', subchecks);
 }
 
 // ─── N01 ~ N06 ────────────────────────────────────────────────────────────────
@@ -527,6 +567,9 @@ async function runSuite(opts) {
   const ctx = {
     sourceRoot: opts.sourceRoot,
     helperPath: opts.helperPath || 'spike02_helper.exe',
+    acceptanceRoot: opts.acceptanceRoot || null,
+    perRunRoot: opts.perRunRoot || null,
+    acceptanceId: opts.acceptanceId || null,
     // winpty 交互式 stdin 输入在 Win7 实测不可用（conin write 不生效）。
     // probe 决定 T/N 系列走"正常交互验证"还是"记录缺陷"分支。
     interactiveInput: null,
@@ -564,4 +607,4 @@ async function runSuite(opts) {
   return { cases, counts, formal: { win7_passed: win7Passed, win7_pending: true } };
 }
 
-module.exports = { runSuite, InProcessDriver, record, assertNoStdinWriteInModelPath, assertNoTaskkill };
+module.exports = { runSuite, testT05, InProcessDriver, record, assertNoStdinWriteInModelPath, assertNoTaskkill };

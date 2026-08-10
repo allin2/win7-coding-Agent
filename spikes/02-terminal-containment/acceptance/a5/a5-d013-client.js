@@ -1,17 +1,17 @@
 /**
  * A5 - D-013 Helper 客户端（冻结接口：argv + JSON over stdio）
  *
- * 冻结协议（SPIKE_02 §7）：
+ * D-013 v21 协议（SPIKE_02 §7）：
  *   请求（stdin，每行一个 JSON）：
- *     { "executable", "argv": [...], "workingDirectory",
- *       "timeoutMs", "maxOutputSize", "allowNetwork", "allowedDirectories": [...] }
+ *     { "requestId", "executable", "argv": [...], "workingDirectory",
+ *       "timeoutMs", "maxOutputSize", "allowNetwork", "allowedDirectories": [...],
+ *       "aclPolicy": { "acceptanceRoot", "perRunRoot" } }
  *   响应（stdout，每行一个 JSON）：
- *     { "exitCode", "executionTimeMs", "timedOut", "outputTruncated",
- *       "stdoutSize", "stderrSize" }  或  { "error": "..." }
+ *     { "schema_version": 1, "type": "execution_result", "requestId", ... }
+ *     或 { "schema_version": 1, "type": "error", "requestId", "error": "..." }
  *
  * T05（会话回收）依赖 D-013 的 Job Object（KILL_ON_JOB_CLOSE）保证进程树必杀。
- * 本模块只在 helper 二进制实际存在并可在目标机运行时执行回收断言；
- * D-013 源码→二进制闭包未合入前，T05 必须保持 NOT_PERFORMED，不得宣称 PASS。
+ * 本模块只在 helper 二进制实际存在并可在目标机运行时执行回收断言。
  *
  * Win7-Validation: NOT_PERFORMED
  */
@@ -63,7 +63,11 @@ class D013HelperClient {
     await this.start();
     const response = this._nextResponse(timeoutMs);
     this.child.stdin.write(`${JSON.stringify(request)}\n`, 'utf8');
-    return response;
+    const value = await response;
+    if (value.requestId !== request.requestId) {
+      throw new Error(`D-013 response requestId mismatch: ${String(value.requestId)}`);
+    }
+    return value;
   }
 
   async close() {
@@ -112,8 +116,17 @@ class D013HelperClient {
 /**
  * 构造一条标准的 helper 请求。
  */
-function buildRequest({ executable, argv, workingDirectory, timeoutMs, maxOutputSize, allowNetwork = false, allowedDirectories = [] }) {
+function buildRequest({ requestId, executable, argv, workingDirectory, timeoutMs, maxOutputSize,
+  allowNetwork = false, allowedDirectories = [], protectedDirectories = [], aclPolicy }) {
+  if (typeof requestId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(requestId)) {
+    throw new Error('D-013 requestId is required and must be protocol-safe');
+  }
+  if ((allowedDirectories.length > 0 || protectedDirectories.length > 0)
+      && (!aclPolicy || !aclPolicy.acceptanceRoot || !aclPolicy.perRunRoot)) {
+    throw new Error('D-013 v21 requires aclPolicy for every ACL target');
+  }
   return {
+    requestId,
     executable,
     argv: argv || [],
     workingDirectory,
@@ -121,6 +134,8 @@ function buildRequest({ executable, argv, workingDirectory, timeoutMs, maxOutput
     maxOutputSize,
     allowNetwork,
     allowedDirectories,
+    protectedDirectories,
+    ...(aclPolicy ? { aclPolicy } : {}),
   };
 }
 

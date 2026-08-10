@@ -22,33 +22,54 @@ function argValue(name, fallback) {
 
 const acceptanceId = argValue('--acceptance-id', `A5-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-000000`);
 const outDir = argValue('--out', path.join(__dirname, 'evidence', acceptanceId));
-const helperPath = argValue('--helper', '');
 const spikeRoot = path.resolve(__dirname, '..', '..');
+const helperPath = argValue('--helper', path.join(spikeRoot, 'spike02_helper.exe'));
+const acceptanceRoot = argValue('--acceptance-root', 'C:\\Win7CodingAgent\\acceptance');
+const perRunRoot = argValue('--per-run-root', path.join(spikeRoot, 't05-work'));
+const leaseId = argValue('--lease-id', '');
+const sourceCommit = argValue('--source-commit', '');
+const packageManifestSha256 = argValue('--package-manifest-sha256', '');
+const t05Only = process.argv.includes('--t05-only');
 
-const { runSuite, InProcessDriver } = require(path.join(__dirname, 'a5-terminal-harness'));
+const { runSuite, testT05 } = require(path.join(__dirname, 'a5-terminal-harness'));
 const { HostDriver } = require(path.join(__dirname, 'a5-host-driver'));
 
 app.on('ready', async () => {
   try {
-    const host = utilityProcess.fork(path.join(__dirname, 'a5-terminal-host.js'), [], {
-      serviceName: 'a5-terminal-host',
-      stdio: 'inherit',
-    });
-    const driver = new HostDriver(host);
-    const result = await runSuite({ driver, sourceRoot: spikeRoot, helperPath });
+    let result;
+    if (t05Only) {
+      const t05 = await testT05(null, {
+        sourceRoot: spikeRoot, helperPath, acceptanceRoot, perRunRoot, acceptanceId,
+      });
+      result = { cases: [t05], counts: { [t05.status]: 1 }, formal: { win7_passed: t05.status === 'PASS' ? 1 : 0 } };
+    } else {
+      const host = utilityProcess.fork(path.join(__dirname, 'a5-terminal-host.js'), [], {
+        serviceName: 'a5-terminal-host',
+        stdio: 'inherit',
+      });
+      const driver = new HostDriver(host);
+      result = await runSuite({
+        driver, sourceRoot: spikeRoot, helperPath, acceptanceRoot, perRunRoot, acceptanceId,
+      });
+    }
     fs.mkdirSync(outDir, { recursive: true });
     const summary = {
+      schema_version: 1,
       acceptance_id: acceptanceId,
       generated_at: new Date().toISOString(),
-      mode: 'win7',
+      mode: t05Only ? 'win7-t05-only' : 'win7',
+      evidence_grade: 'CANDIDATE_EVIDENCE',
+      lease_id: leaseId,
+      source_commit: sourceCommit,
+      package_manifest_sha256: packageManifestSha256,
       cases: result.cases,
       counts: result.counts,
-      win7_validation: 'PENDING_OWNER_VERIFICATION',
+      win7_validation: 'COORDINATOR_POSTFLIGHT_PENDING',
     };
     const outFile = path.join(outDir, `a5-${acceptanceId}-win7.json`);
     fs.writeFileSync(outFile, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
     process.stdout.write(`A5_WIN7_RESULT_WRITTEN ${outFile}\n`);
-    app.exit(0);
+    app.exit(result.cases.every((item) => item.status === 'PASS' || item.id !== 'T05') ? 0 : 2);
   } catch (error) {
     process.stderr.write(`A5_WIN7_FAILED ${error && error.stack || error}\n`);
     app.exit(2);

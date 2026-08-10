@@ -19,6 +19,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseCertutilHash, redactArgs, validateAcceptanceId } from '../run_fup_automation.mjs';
+import { verifyLeaseBundle } from '../../../../scripts/mvp_acceptance/win7_coordinator/core.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..', '..');
@@ -28,13 +29,16 @@ const LAUNCHER = path.join(HERE, 'run_d013_wmi.cmd');
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 function parseArgs(argv) {
-  const args = { executeWin7: false, dryRun: false, profile: DEFAULT_PROFILE, acceptanceId: null, out: null };
+  const args = { executeWin7: false, dryRun: false, profile: DEFAULT_PROFILE, acceptanceId: null, out: null, lease: null, leaseSignature: null, coordinatorPublicKey: null };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--execute-win7') args.executeWin7 = true;
     else if (argv[i] === '--dry-run') args.dryRun = true;
     else if (argv[i] === '--profile') args.profile = path.resolve(argv[++i]);
     else if (argv[i] === '--acceptance-id') args.acceptanceId = argv[++i];
     else if (argv[i] === '--out') args.out = path.resolve(argv[++i]);
+    else if (argv[i] === '--lease') args.lease = path.resolve(argv[++i]);
+    else if (argv[i] === '--lease-signature') args.leaseSignature = path.resolve(argv[++i]);
+    else if (argv[i] === '--coordinator-public-key') args.coordinatorPublicKey = path.resolve(argv[++i]);
     else if (argv[i] === '--help') args.help = true;
     else throw new Error(`unknown argument: ${argv[i]}`);
   }
@@ -84,7 +88,7 @@ function validateD013Profile(profile) {
       || !profile.implementation_allowlist.includes('spikes/02-terminal-containment/**')) {
     throw new Error('profile must authorize only the SPIKE_02 implementation allowlist');
   }
-  if (!profile.target || !/^192\.168\.1\.11$/.test(profile.target.address)
+  if (!profile.target || profile.target.address !== '192.168.1.11'
       || profile.target.user !== 'dccs-chaizl'
       || profile.target.acceptance_root !== 'C:\\Win7CodingAgent\\acceptance'
       || profile.target.data_root !== 'C:\\Win7CodingAgent\\data') {
@@ -104,6 +108,10 @@ function validateD013Profile(profile) {
   }
   if (!profile.candidate || !isSpike02Relative(profile.candidate.path)) {
     throw new Error('candidate path must remain inside SPIKE_02');
+  }
+  if (!profile.package_manifest || !isSpike02Relative(profile.package_manifest.path)
+      || !/^[0-9a-f]{64}$/.test(profile.package_manifest.sha256)) {
+    throw new Error('package manifest path/hash must remain locked inside SPIKE_02');
   }
   if (!Array.isArray(profile.upload_files) || profile.upload_files.length < 3) {
     throw new Error('profile upload allowlist is incomplete');
@@ -135,6 +143,7 @@ class Runner {
     this.postflightDone = false;
     this.finished = false;
     this.finalReport = null;
+    this.lease = null;
     this.remoteRoot = `${profile.target.acceptance_root}\\${args.acceptanceId}`;
     this.remoteDataRoot = `${profile.target.data_root}\\${args.acceptanceId}`;
     fs.mkdirSync(path.dirname(this.reportPath), { recursive: true });
@@ -282,10 +291,8 @@ class Runner {
         stage.baseline = { profile_id: this.profile.profile_id, gates };
         return { status: 'PASS' };
       }
-      // Control-plane gate: Win7 may only be reached under an explicit lease
-      // grant. A missing or NOT_GRANTED lease fails closed before any SSH.
-      if (gates['GATE-WIN7-LEASE'] !== 'GRANTED') {
-        return { status: 'FAIL', failure: { code: 'WIN7_LEASE_NOT_GRANTED', message: String(gates['GATE-WIN7-LEASE'] ?? 'MISSING') } };
+      if (!this.args.lease || !this.args.leaseSignature || !this.args.coordinatorPublicKey) {
+        return { status: 'FAIL', failure: { code: 'SIGNED_WIN7_LEASE_REQUIRED', message: 'lease, detached signature and coordinator public key are required' } };
       }
       // The locked candidate hash must be a real 64-hex SHA-256. The
       // PENDING_WIN10_BUILD sentinel means the Win10 return package has not
@@ -302,9 +309,39 @@ class Runner {
       if (candidateHash !== locked) {
         return { status: 'FAIL', failure: { code: 'CANDIDATE_HASH_MISMATCH', message: `${candidateHash} != ${locked}` } };
       }
+      const manifest = path.join(ROOT, this.profile.package_manifest.path);
+      if (!fs.existsSync(manifest) || sha256Sync(manifest) !== this.profile.package_manifest.sha256) {
+        return { status: 'FAIL', failure: { code: 'PACKAGE_MANIFEST_HASH_MISMATCH', message: manifest } };
+      }
+      const headResult = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, shell: false, encoding: 'utf8' });
+      if (headResult.status !== 0 || !/^[0-9a-f]{40}$/.test((headResult.stdout || '').trim())) {
+        return { status: 'FAIL', failure: { code: 'SOURCE_COMMIT_UNAVAILABLE', message: headResult.stderr || 'git rev-parse failed' } };
+      }
+      try {
+        this.lease = verifyLeaseBundle(
+          fs.readFileSync(this.args.lease),
+          fs.readFileSync(this.args.leaseSignature),
+          fs.readFileSync(this.args.coordinatorPublicKey),
+          {
+            sourceCommit: headResult.stdout.trim(),
+            packageManifestSha256: this.profile.package_manifest.sha256,
+            targetIp: this.profile.target.address,
+            suite: 'SPIKE_02_D013',
+          },
+        );
+      } catch (error) {
+        return { status: 'FAIL', failure: { code: error.code || 'LEASE_INVALID', message: error.message } };
+      }
+      if (this.lease.artifact_hashes['spike02_helper.exe'] !== candidateHash) {
+        return { status: 'FAIL', failure: { code: 'LEASE_ARTIFACT_HASH_MISMATCH', message: candidateHash } };
+      }
       stage.baseline = {
         profile_id: this.profile.profile_id,
         candidate: { path: candidate, sha256: candidateHash, locked_sha256: locked },
+        package_manifest_sha256: this.profile.package_manifest.sha256,
+        source_commit: headResult.stdout.trim(),
+        lease_id: this.lease.lease_id,
+        evidence_grade: 'CANDIDATE_EVIDENCE',
         gates, private_key_content_read: false,
       };
       return { status: 'PASS' };
@@ -475,6 +512,7 @@ class Runner {
         'C01-job-tree-kill', 'C02-host-already-in-job', 'C03-restricted-token-boundary',
         'C04-acl-boundary', 'C04-authorization-gate', 'C05-loopback-network',
         'C06-argv-whitelist', 'C07-timeout-process-tree', 'C07-output-cap',
+        'C08-runner-memory', 'N06-no-taskkill',
       ];
       const observedCaseIds = (results.cases || []).map((item) => item.id);
       const missingCaseIds = requiredCaseIds.filter((id) => !observedCaseIds.includes(id));
@@ -535,6 +573,10 @@ class Runner {
         win7_connected: this.stages.some((s) => s.commands.some((c) => c.command === 'ssh')),
       },
       gates: this.profile.gates,
+      evidence_grade: this.dryRun ? 'DEVELOPMENT' : 'CANDIDATE_EVIDENCE',
+      lease_id: this.lease?.lease_id ?? null,
+      source_commit: this.lease?.source_commit ?? null,
+      package_manifest_sha256: this.lease?.package_manifest_sha256 ?? null,
       stages: this.stages,
       result: {
         automatic_status: this.dryRun ? 'DRY_RUN'
@@ -558,7 +600,7 @@ class Runner {
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help) {
-  process.stdout.write('Usage: node run_d013_win7.mjs --dry-run|--execute-win7 --acceptance-id A4-YYYYMMDD-xxx [--profile profile.json] [--out report.json]\n');
+  process.stdout.write('Usage: node run_d013_win7.mjs --dry-run|--execute-win7 --acceptance-id A4-YYYYMMDD-xxx [--profile profile.json] [--out report.json] [--lease lease.json --lease-signature lease.sig --coordinator-public-key public.pem]\n');
 } else {
   const profile = readJson(args.profile);
   validateD013Profile(profile);

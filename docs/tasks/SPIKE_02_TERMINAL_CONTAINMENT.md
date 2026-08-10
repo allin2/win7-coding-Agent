@@ -157,4 +157,7 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
 - 取证：Electron/node-pty/winpty-agent/python 零残留，`BvSshServer` 保持 RUNNING。
 - 结论：完整 SPIKE_02 仍为 `NO_GO_FORMAL_GAPS`；交互终端在 Win7 因 winpty 输入缺陷不可用，
   C19 过滤精确性（OSC52/标题/DECRQSS/有界）由开发机单测覆盖，Win7 端到端注入受 winpty 输入
-  缺陷阻断，正式结论待 owner 对 ADR-0031 降级路径的裁决。
+  缺陷阻断。项目负责人已于 2026-08-10 通过 ADR-0066 裁决采用非交互 Runner + 只读日志；
+  winpty 方向正式为 `NO_GO_INTERACTIVE_WINPTY`。D-013 v21 已在 A4-20260810-000004 的 ADR-0065
+  签名租约下取得 `WIN7_PASS`；A5 T05 仍须用独立签名租约复验，正式 C05 仍为
+  `ENVIRONMENT_MISSING`，不得宣称本地网络隔离。
