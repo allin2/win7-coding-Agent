@@ -3,9 +3,9 @@
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T01:29:41Z",
-  "implementation_commit": "3619bc7cb509d5313b86cff2b28c3744cc60294d",
-  "build_revision": "v17-recovery",
+  "generated_at": "2026-08-10T03:03:07Z",
+  "implementation_commit": "0c7313bc0a8fc043831fbc1e74c81476ed14eb26",
+  "build_revision": "v18-recovery",
   "win10_build_executed": false,
   "win10_return_package_reviewed": false,
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
@@ -18,7 +18,7 @@
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "PENDING_V17_WIN10_BUILD",
+    "sha256": "PENDING_V18_WIN10_BUILD",
     "git_ignored": true
   },
   "evidence": {
@@ -31,19 +31,19 @@
     "crt": "static /MT"
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V17_BUILD",
+    "GATE-WIN10-BUILD": "READY_FOR_V18_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "v17 Win10 build and returned-package review",
+    "v18 Win10 build and returned-package review",
     "recovery review before any new Win7 lease"
   ],
   "notes": [
-    "A4-20260810-000003 remains historical FAIL_CLOSED evidence because Win7 whoami /groups could not provide a trusted Low Integrity observation.",
-    "v17 audits the actual suspended child process token with TokenType, IsTokenRestricted and TokenIntegrityLevel, and fails closed before ResumeThread unless the integrity SID is exactly S-1-16-4096.",
+    "v17 Win10 native smoke failed closed with TOKEN_CREATE_FAILED; source review confirmed it passed no restricting SID while requiring IsTokenRestricted=true.",
+    "v18 passes Everyone/World as the sole restricting SID, keeps World out of the deny-only list, and audits the actual suspended child TokenRestrictedSids list before ResumeThread.",
+    "The v17 input kit and source root-cause report are preserved outside Git; no v17 machine-generated return ZIP was available.",
     "The v16 Win10 build remains historical PASS evidence but is superseded for further Win7 acceptance.",
-    "The v16 return ZIP, candidate, signed lease, ledger snapshot and raw evidence are preserved outside Git; the coordinator private key is excluded.",
     "No Win7 SSH/SCP operation is authorized while recovery is required."
   ]
 }

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "profile_id": "D013-CLOSURE-01",
-  "orchestration_head": "3619bc7",
-  "source_head": "3619bc7",
+  "orchestration_head": "0c7313b",
+  "source_head": "0c7313b",
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "implementation_allowlist": [
     "spikes/02-terminal-containment/**",
@@ -27,9 +27,9 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "PENDING_V17_WIN10_BUILD",
+    "sha256": "PENDING_V18_WIN10_BUILD",
     "win7_validation": "NOT_PERFORMED",
-    "note": "The ignored path may still contain the archived v16 candidate, but it cannot satisfy the v17 pending hash gate. A reviewed v17 return package is required."
+    "note": "The ignored path may still contain the archived v16 candidate, but it cannot satisfy the v18 pending hash gate. A reviewed v18 return package is required."
   },
   "win10_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
@@ -44,11 +44,11 @@
     "committed_to_git": false
   },
   "pending_win10_build": {
-    "build_revision": "v17-recovery",
-    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v17.zip",
-    "build_kit_sha256": "1d2ba2e558772bda16d9a51ab11ed83728346019229ecbdda822025893e0a328",
-    "input_lock_sha256": "d74cb07cf114ca582ec429761d77fdc70900beed6631c0ffd4306bf0bbbd77b7",
-    "package_manifest_sha256": "b2e0f107d2e6d2dae17973730bcb3c1e61af18df53a28b8aed07eec5f26c0744",
+    "build_revision": "v18-recovery",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v18.zip",
+    "build_kit_sha256": "9aad29ba2c7b01903accd102297f747a21a33ce212a92e24439f2f15e714f9c6",
+    "input_lock_sha256": "ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617",
+    "package_manifest_sha256": "371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1",
     "status": "READY_FOR_HUMAN_WIN10_BUILD"
   },
   "upload_files": [
@@ -67,7 +67,7 @@
     ]
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V17_BUILD",
+    "GATE-WIN10-BUILD": "READY_FOR_V18_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",

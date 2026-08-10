@@ -24,7 +24,8 @@
  *    "exitCode":0,"executionTimeMs":16,"timedOut":false,"canceled":false,
  *    "outputTruncated":false,"containmentVerified":true,"inputDetached":true,
  *    "tokenAudit":{"source":"suspended_child_process_token","verified":true,
- *      "isRestricted":true,"tokenType":"primary",
+ *      "isRestricted":true,"tokenType":"primary","worldRestrictedSid":true,
+ *      "restrictedSidCount":1,
  *      "integritySid":"S-1-16-4096","integrityRid":4096},
  *    "stdoutSize":0,"stderrSize":0,"stdoutBase64":"","stderrBase64":"",
  *    "aclChanges":[{"path":...,"mechanism":...,"applied":true,"verified":true,"rolledBack":true}]}
@@ -263,7 +264,11 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
     out += result.tokenAudit.isRestricted ? "true" : "false";
     out += ",\"tokenType\":\"";
     out += result.tokenAudit.isPrimary ? "primary" : "not_primary";
-    out += "\",\"integritySid\":\"";
+    out += "\",\"worldRestrictedSid\":";
+    out += result.tokenAudit.worldRestrictedSid ? "true" : "false";
+    out += ",\"restrictedSidCount\":";
+    out += std::to_string(static_cast<unsigned long>(result.tokenAudit.restrictedSidCount));
+    out += ",\"integritySid\":\"";
     out += JsonEscape(result.tokenAudit.integritySid);
     out += "\",\"integrityRid\":";
     out += std::to_string(static_cast<unsigned long>(result.tokenAudit.integrityRid));

@@ -466,7 +466,24 @@ HANDLE CreateRestrictedProcessToken() {
     }
     sidsToDisable.push_back({adminsSid, 0});
 
-    // 2. DISABLE_MAX_PRIVILEGE disables every privilege except
+    // 2. Add Everyone/World as the sole restricting SID. This is not the
+    // deny-only list above: access checks must first pass the normal user/group
+    // SID set and then also match an Everyone allow ACE. Keeping World enabled
+    // in the normal list preserves the loader/window-station baseline that v14
+    // lost, while the non-empty restricting list gives IsTokenRestricted its
+    // documented TRUE semantics.
+    std::vector<SID_AND_ATTRIBUTES> sidsToRestrict;
+    PSID worldSid = nullptr;
+    SID_IDENTIFIER_AUTHORITY worldAuth = SECURITY_WORLD_SID_AUTHORITY;
+    if (!AllocateAndInitializeSid(&worldAuth, 1, SECURITY_WORLD_RID,
+                                  0, 0, 0, 0, 0, 0, 0, &worldSid)) {
+        for (SID_AND_ATTRIBUTES& sid : sidsToDisable) FreeSid(sid.Sid);
+        CloseHandle(hSource);
+        return nullptr;
+    }
+    sidsToRestrict.push_back({worldSid, 0});
+
+    // 3. DISABLE_MAX_PRIVILEGE disables every privilege except
     // SeChangeNotifyPrivilege. Windows deliberately preserves that privilege
     // so normal directory traversal continues to work; manually deleting it
     // can make an otherwise valid working directory unusable.
@@ -476,13 +493,15 @@ HANDLE CreateRestrictedProcessToken() {
         static_cast<DWORD>(sidsToDisable.size()),
         sidsToDisable.empty() ? nullptr : sidsToDisable.data(),
         0, nullptr,
-        0, nullptr, &hRestricted);
+        static_cast<DWORD>(sidsToRestrict.size()),
+        sidsToRestrict.data(), &hRestricted);
 
     for (SID_AND_ATTRIBUTES& sid : sidsToDisable) FreeSid(sid.Sid);
+    for (SID_AND_ATTRIBUTES& sid : sidsToRestrict) FreeSid(sid.Sid);
     CloseHandle(hSource);
     if (!created || !hRestricted) return nullptr;
 
-    // 3. Drop to Low Integrity (mandatory label S-1-16-4096).
+    // 4. Drop to Low Integrity (mandatory label S-1-16-4096).
     PSID lowSid = nullptr;
     if (!ConvertStringSidToSidW(L"S-1-16-4096", &lowSid)) {
         CloseHandle(hRestricted);
@@ -527,6 +546,46 @@ bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
     }
     audit->isPrimary = tokenType == TokenPrimary;
     audit->isRestricted = IsTokenRestricted(hChildToken) ? true : false;
+
+    DWORD restrictedSize = 0;
+    SetLastError(ERROR_SUCCESS);
+    GetTokenInformation(hChildToken, TokenRestrictedSids, nullptr, 0, &restrictedSize);
+    if (restrictedSize < sizeof(TOKEN_GROUPS) ||
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        if (error) *error = L"GetTokenInformation(TokenRestrictedSids size) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+    std::vector<unsigned char> restrictedBuffer(restrictedSize);
+    if (!GetTokenInformation(hChildToken, TokenRestrictedSids,
+                             restrictedBuffer.data(), restrictedSize, &restrictedSize)) {
+        if (error) *error = L"GetTokenInformation(TokenRestrictedSids) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+    TOKEN_GROUPS* restrictedGroups =
+        reinterpret_cast<TOKEN_GROUPS*>(restrictedBuffer.data());
+    audit->restrictedSidCount = restrictedGroups->GroupCount;
+
+    PSID auditWorldSid = nullptr;
+    SID_IDENTIFIER_AUTHORITY auditWorldAuth = SECURITY_WORLD_SID_AUTHORITY;
+    if (!AllocateAndInitializeSid(&auditWorldAuth, 1, SECURITY_WORLD_RID,
+                                  0, 0, 0, 0, 0, 0, 0, &auditWorldSid)) {
+        if (error) *error = L"AllocateAndInitializeSid(World audit) failed: " +
+                            WinErrorText(GetLastError());
+        CloseHandle(hChildToken);
+        return false;
+    }
+    for (DWORD i = 0; i < restrictedGroups->GroupCount; ++i) {
+        if (restrictedGroups->Groups[i].Sid &&
+            EqualSid(restrictedGroups->Groups[i].Sid, auditWorldSid)) {
+            audit->worldRestrictedSid = true;
+            break;
+        }
+    }
+    FreeSid(auditWorldSid);
 
     DWORD integritySize = 0;
     SetLastError(ERROR_SUCCESS);
@@ -578,10 +637,11 @@ bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
     CloseHandle(hChildToken);
 
     audit->verified = audit->isPrimary && audit->isRestricted &&
+                      audit->worldRestrictedSid && audit->restrictedSidCount == 1 &&
                       audit->integrityRid == SECURITY_MANDATORY_LOW_RID &&
                       audit->integritySid == L"S-1-16-4096";
     if (!audit->verified && error) {
-        *error = L"child token is not a restricted primary Low Integrity token";
+        *error = L"child token is not a World-restricted primary Low Integrity token";
     }
     return audit->verified;
 }
@@ -1278,7 +1338,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("spike02-helper 0.2.1-d013 win7-x64 (job+restricted-token+child-token-audit+acl)\n");
+            std::printf("spike02-helper 0.2.2-d013 win7-x64 (world-restricted-token+child-token-audit+acl)\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {

@@ -3,7 +3,7 @@
   "package": "WIN10_D013_HELPER_BUILD_KIT",
   "revision": "2026-08-10",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T01:31:36.636Z",
+  "generated_at": "2026-08-10T03:04:10.976Z",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
   "excluded": [
@@ -16,13 +16,13 @@
   "files": [
     {
       "path": "README_BUILD.md",
-      "size": 5037,
-      "sha256": "69c637b2389f6792ffa2ea29eb76d28672627823084516b58b2da6b8ea6075a3"
+      "size": 5498,
+      "sha256": "d0dcd2aeca86d740c310e385070a9bae950c43896256687bd301f06a20a99080"
     },
     {
       "path": "STATUS.json",
-      "size": 2117,
-      "sha256": "08d288c16cdd77494f3862af7912d607a5a9c05d0e51938d42852eff9b3783e1"
+      "size": 2091,
+      "sha256": "f31cd3eb9ad0a32a0adea698ba9e316c544772631d1810c6860c178677148366"
     },
     {
       "path": "build-profile.json",
@@ -31,8 +31,8 @@
     },
     {
       "path": "build.ps1",
-      "size": 19760,
-      "sha256": "87a8f0785eaf3101c3ee7fa778e4b27ada29a6d7aeeb0fc6b4df38e94c601ed0"
+      "size": 19885,
+      "sha256": "801e416ad4de505f05b5b765d704c80505463d0e4730edc90c63ae0e1e5a4c29"
     },
     {
       "path": "helper.exe.manifest",
@@ -46,8 +46,8 @@
     },
     {
       "path": "prepare-kit.cjs",
-      "size": 7264,
-      "sha256": "03f436bc0f950447b57185c665a1259e6482b1e11650ed4ce484d718677cf3fe"
+      "size": 7901,
+      "sha256": "589ea70c13f689d73285267232ebf0841a0184ad14001b84364ca8b4dd7089ba"
     },
     {
       "path": "src/CMakeLists.txt",
@@ -66,13 +66,13 @@
     },
     {
       "path": "src/helper.cpp",
-      "size": 56835,
-      "sha256": "77d99018cb759a8956f3c47b08c9aaa0ababe71650ce4adabda233cc899d8d80"
+      "size": 59754,
+      "sha256": "a6db50af7cda92563a015be05ffb27b89942971ab1087dd50124816e024c6964"
     },
     {
       "path": "src/helper.h",
-      "size": 10591,
-      "sha256": "2bf0c66a2f99761ae18006e62ffd55c8aee1bae17d8fc557ad8a516b77639a28"
+      "size": 10845,
+      "sha256": "3b90a196fbab2455137b2ad91c8e8f50bceecc65863fa71b285b708cbe300bb5"
     },
     {
       "path": "src/json_parser.cpp",
@@ -86,8 +86,8 @@
     },
     {
       "path": "src/protocol.cpp",
-      "size": 12987,
-      "sha256": "56ee29baedd7c117ba62f03991e7d1a3b4b440f81118eb2316bd854cbf5c9796"
+      "size": 13284,
+      "sha256": "cb0fb6a242be568a5dab556824a4a5b3ae694148a058266129318e0151cdf114"
     },
     {
       "path": "src/whitelist.cpp",
@@ -102,7 +102,7 @@
     {
       "path": "input-lock.json",
       "size": 2109,
-      "sha256": "d74cb07cf114ca582ec429761d77fdc70900beed6631c0ffd4306bf0bbbd77b7"
+      "sha256": "ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617"
     }
   ]
 }

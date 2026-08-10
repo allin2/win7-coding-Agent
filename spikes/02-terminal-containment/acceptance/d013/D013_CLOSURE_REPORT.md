@@ -43,8 +43,13 @@
 并用 `SetTokenInformation(TokenIntegrityLevel)` 降为 Low Integrity（S-1-16-4096）；
 v17 又在 `CREATE_SUSPENDED` 子进程恢复执行前直接打开该实际子进程 token，用
 `TokenType`、`IsTokenRestricted` 与 `TokenIntegrityLevel` 验证其为 restricted primary
-Low Integrity，并把精确 SID/RID 写入结构化 `tokenAudit`。任何查询失败或不匹配都在
-`ResumeThread` 前终止子进程并失败关闭；Win7 本地化 `whoami /groups` 只保留作补充文本证据。
+Low Integrity；但 v17 构造 token 时传入的 `RestrictedSidCount` 为 0，导致
+`IsTokenRestricted()` 必然为 false，Win10 smoke 因而在 `ResumeThread` 前以
+`TOKEN_CREATE_FAILED` 失败关闭。v18 修复此自相矛盾：保持 Everyone/World 在普通 SID
+集合中启用，同时将 World 作为唯一 restricting SID，并在实际 suspended child token 的
+`TokenRestrictedSids` 中精确核验数量为 1 且 SID 为 World；再与 `TokenPrimary`、
+`IsTokenRestricted=true`、Low Integrity SID/RID 共同构成恢复执行前的 fail-closed 审计。
+Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 同时给 `allowedDirectories` 打 Low-Integrity 强制标签（子进程可在工作区内写），
 工作区外目录无低完整性标签 → 写被强制完整性策略拒绝。注册表读取由 SAM DACL + 删权
 双重拒绝。标签与 deny ACE 均执行精确应用、验证和回滚；回滚无法证明时以
@@ -78,8 +83,9 @@ Low Integrity，并把精确 SID/RID 写入结构化 `tokenAudit`。任何查询
   `applied/verified/rolledBack=true`。
 - **分层状态**：v15 开发机与 Win10 为历史 `PASS`，Win7 为
   `FAIL_CLOSED_RECOVERY_REQUIRED`；v16 开发机与 Win10 为 `PASS`，Win7 也因 C03 缺少
-  可信 Low Integrity 观测而 `FAIL_CLOSED_RECOVERY_REQUIRED`；v17 开发机预检通过，等待
-  Win10 构建。不得把任一层级写成总体 PASS。
+  可信 Low Integrity 观测而 `FAIL_CLOSED_RECOVERY_REQUIRED`；v17 Win10 smoke 因空
+  restricting-SID 列表与审计合同冲突而 `FAIL_CLOSED_TOKEN_CREATE_FAILED`；v18 开发机
+  预检通过，等待 Win10 构建。不得把任一层级写成总体 PASS。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -87,11 +93,12 @@ Low Integrity，并把精确 SID/RID 写入结构化 `tokenAudit`。任何查询
 |------|------|
 | `cmake -S helper -B helper/build-mac && cmake --build helper/build-mac --target logic_tests && ./helper/build-mac/logic_tests` | `logic_tests: ALL PASS` |
 | `x86_64-w64-mingw32-g++ … -c helper.cpp json_parser.cpp argv_builder.cpp whitelist.cpp protocol.cpp` + 链接 | 5/5 编译零警告，链接出 PE32+ x86-64 exe（编译/链接检查） |
-| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 32 / 失败 0（含 actual suspended child token audit、Win7 LABEL null/0-ACE 等价与 DACL 隔离断言） |
-| `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（含精确 Low SID 正向与错误 SID fail-closed 负向） |
+| `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 33 / 失败 0（含 exact World restricting SID、actual suspended child token audit、Win7 LABEL null/0-ACE 等价与 DACL 隔离断言） |
+| `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（含精确 World/Low SID 正向、错误 Low SID 与 v17 空 restricting SID fail-closed 负向） |
 | Win10 v15 `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS` |
 | Win10 v16-recovery `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS`；返回包与 input lock 精确匹配 |
 | v17 MinGW 交叉编译 + 链接 | 5/5 编译零警告；PE32+ x86-64 链接 PASS（代理证据，不替代 Win10 v142） |
+| v18 MinGW 交叉编译 + 链接 | 5/5 编译零警告；PE32+ x86-64 链接 PASS（代理证据，不替代 Win10 v142） |
 
 ## 6. C01～C08/N06 覆盖情况
 
@@ -99,7 +106,7 @@ Low Integrity，并把精确 SID/RID 写入结构化 `tokenAudit`。任何查询
 |---|------|------|----------|-----------|
 | C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
 | C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
-| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + actual child token audit | v17 本地正/负向与交叉编译 PASS | v16 边界探针成立，但 `whoami /groups` 拒绝访问，可信 Low SID 未观测，正式 FAIL |
+| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + sole World restricting SID + actual child token audit | v18 本地正/负向与交叉编译 PASS | v16 边界探针成立但可信 Low SID 未观测；v17 Win10 smoke 暴露空 restricting SID bug，均正式 FAIL |
 | C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 与 Win10 smoke PASS | v16 `A4-20260810-000003` PASS |
 | C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | v16 loopback PASS；正式仍为 `ENVIRONMENT_MISSING` |
 | C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | v16 `A4-20260810-000003` PASS |
@@ -119,7 +126,10 @@ Low Integrity，并把精确 SID/RID 写入结构化 `tokenAudit`。任何查询
   与 REM-D08 均通过，但 C03 无法从 `whoami /groups` 取得 Low SID，整体仍 fail-closed。
 - **v16 原始证据已封存**：签名租约、artifact manifest、ledger 快照、全部原始 evidence、
   v16 返回 ZIP 与旧候选已复制到 Git 外归档；原文件未移动或改写，私钥未归档。
-- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v17 Win10 返回包
+- **v17 Win10 smoke 已失败关闭**：普通 CMD 复跑在 suspended child token 审计阶段返回
+  `TOKEN_CREATE_FAILED`；源码确认 `RestrictedSidCount=0` 与 `IsTokenRestricted=true` 要求
+  矛盾。用户未提供机器生成的 v17 返回 ZIP 或日志包，故不得虚构 native 证据。
+- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v18 Win10 返回包
   复核和新的人工 recovery 授权完成前不得签名或连接 Win7。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
@@ -160,5 +170,27 @@ Low Integrity，并把精确 SID/RID 写入结构化 `tokenAudit`。任何查询
   `1d2ba2e558772bda16d9a51ab11ed83728346019229ecbdda822025893e0a328`。
 - input lock：`d74cb07cf114ca582ec429761d77fdc70900beed6631c0ffd4306bf0bbbd77b7`；
   package manifest：`b2e0f107d2e6d2dae17973730bcb3c1e61af18df53a28b8aed07eec5f26c0744`。
-- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；Win10 v17 与 Win7 v17 均 `NOT_PERFORMED`，
-  `A4-20260810-000003` 保持 `RECOVERY_REQUIRED`，不得签发新租约。
+- Win10 结果：普通 CMD smoke 在子进程恢复前返回 `TOKEN_CREATE_FAILED`，正式状态为
+  `WIN10_SMOKE_FAIL_CLOSED_SOURCE_ROOT_CAUSE_CONFIRMED`；没有机器生成的 v17 返回 ZIP，
+  PE/API/CRT 结果不可用。
+- 失败材料归档：`/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v17-win10-smoke-fail`；
+  含 v17 输入包、sidecar、根因报告及逐文件 SHA-256 manifest，不包含协调器私钥。
+- 当前状态：Win7 v17 `NOT_PERFORMED`，`A4-20260810-000003` 保持
+  `RECOVERY_REQUIRED`，不得签发新租约。
+
+## 10. v18 World restricting SID 构建交接（2026-08-10）
+
+- 修复提交：`0c7313bc0a8fc043831fbc1e74c81476ed14eb26`。
+- 修复合同：World/Everyone 保持普通 SID 启用，同时作为唯一 `SidsToRestrict` 项；实际
+  suspended child token 必须满足 `TokenPrimary`、`IsTokenRestricted=true`、
+  `restrictedSidCount=1`、`worldRestrictedSid=true`、Low Integrity SID `S-1-16-4096`
+  与 RID `4096`，否则在 `ResumeThread` 前失败关闭。
+- 本地验证：`logic_tests: ALL PASS`；containment 静态检查 33/33；D-013 harness 正向、
+  错误 Low SID 与 v17 空 restricting SID 负向全部 PASS；MinGW 5/5 编译零警告并链接
+  PE32+ x86-64。
+- v18 构建包：`WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v18.zip`，SHA-256
+  `9aad29ba2c7b01903accd102297f747a21a33ce212a92e24439f2f15e714f9c6`。
+- input lock：`ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617`；
+  package manifest：`371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1`。
+- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；Win10 v18 与 Win7 v18 均
+  `NOT_PERFORMED`，当前活跃租约为 0，不得连接 Win7。
