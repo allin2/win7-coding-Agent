@@ -2,13 +2,13 @@
   "schema_version": 1,
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
-  "status": "WIN10_PASS_READY_FOR_RECOVERY_APPROVAL",
-  "generated_at": "2026-08-10T21:40:00+08:00",
+  "status": "WIN7_PASS",
+  "generated_at": "2026-08-10T22:41:00+08:00",
   "implementation_commit": "8dbe62fbcf2cd05baec3fae1760b96f7bcf8a75d",
   "build_revision": "v21-recovery",
   "win10_build_executed": true,
   "win10_return_package_reviewed": true,
-  "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
+  "win7_validation": "PASS",
   "v21_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
     "sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
@@ -27,6 +27,19 @@
     "locked_from": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
     "git_ignored": true
   },
+  "win7_acceptance": {
+    "acceptance_id": "A4-20260810-000004",
+    "coordinator": "ADR-0065",
+    "classification": "WIN7_PASS",
+    "status": "PASS",
+    "accepted_commit": "20b4480ab2ea4f53b3ccee7df39e47755ed92102",
+    "artifact_manifest_sha256": "e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136",
+    "grade_sha256": "68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a",
+    "lease_final_state": "RELEASED",
+    "all_rem_stages": "PASS",
+    "required_cases": "PASS",
+    "formal_c05": "ENVIRONMENT_MISSING"
+  },
   "evidence": {
     "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
     "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
@@ -42,17 +55,18 @@
   },
   "gates": {
     "GATE-WIN10-BUILD": "PASS",
-    "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
+    "GATE-WIN7-LEASE": "RELEASED_AFTER_WIN7_PASS",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "A4-20260810-000003 recovery review",
-    "a new signed Win7 lease bound to the v21 candidate and final integration commit"
+    "formal C05 enterprise/network evidence remains ENVIRONMENT_MISSING for the complete SPIKE_02 claim",
+    "terminal integration and T01-T05/N01-N05 remain outside this D-013 result"
   ],
   "notes": [
     "The v21 ARTIFACTS return package passed schema-v3, input-lock, manifest, helper hash, capture self-test, v142 logic tests, native smoke, PE/API/CRT and token/ACL audit review.",
     "The ignored candidate is locked to the reviewed v21 helper and is not committed to Git.",
-    "v21 Win7 validation is NOT_PERFORMED; historical A4-20260810-000003 remains RECOVERY_REQUIRED.",
-    "No Win7 SSH/SCP operation or lease signature is authorized by this status synchronization."
+    "ADR-0065 graded A4-20260810-000004 as WIN7_PASS and released the unique lease; active leases returned to zero.",
+    "A4-20260810-000003 is RECOVERY_REVIEWED and remains historical.",
+    "This result does not claim strong network isolation or release the production Runner/interactive terminal gates."
   ]
 }

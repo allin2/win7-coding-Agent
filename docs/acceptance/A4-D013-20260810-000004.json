@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "record_id": "A4-D013-20260810-000004",
+  "suite": "SPIKE_02_D013_CONTAINMENT_WIN7",
+  "classification": "WIN7_PASS",
+  "status": "PASS",
+  "graded_at": "2026-08-10T14:39:02.355Z",
+  "coordinator": "ADR-0065",
+  "accepted_commit": "20b4480ab2ea4f53b3ccee7df39e47755ed92102",
+  "target": {
+    "address": "192.168.1.11",
+    "user": "dccs-chaizl",
+    "os": "Windows 7 SP1 x64 build 7601",
+    "python": "CPython 3.8.10 AMD64"
+  },
+  "scope": {
+    "track": "A4",
+    "acceptance": "D-013",
+    "minimum_acl": "PER_RUN_ROOT_ONLY"
+  },
+  "artifact_binding": {
+    "helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "input_lock_sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b",
+    "package_manifest_sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710",
+    "artifact_manifest_sha256": "e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136",
+    "win10_return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",
+    "win10_return_package_sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef"
+  },
+  "lease": {
+    "acceptance_id": "A4-20260810-000004",
+    "key_id": "ed25519:453fbdaa74edae07fc3e3cee0963e6f5a4744fc53ac68fa640680362220526ca",
+    "nonce": "ac3a9f2bd499e6f9b25756bff30d259b034e74728a1ae74624f7711b3ed7aa78",
+    "issued_at": "2026-08-10T14:37:20.196Z",
+    "expires_at": "2026-08-10T16:37:20.196Z",
+    "final_state": "RELEASED",
+    "unsigned_request_sha256": "768292c35f5e4432bc1ac68c202fdff50f516050527ac10b927fb0b47797ebf0",
+    "payload_sha256": "ec81fecfbd9ff28088dfcc085127668a7ee83969a1ca9cc9f503f6eb392e0165",
+    "signature_record_sha256": "8b0d45178148fcc6092d6153f3a0dc4049d3c604ac3cb3ccf68c7850ade45eb4",
+    "signature_verified": true
+  },
+  "stages": {
+    "REM-D01": "PASS",
+    "REM-D02": "PASS",
+    "REM-D03": "PASS",
+    "REM-D04": "PASS",
+    "REM-D05": "PASS",
+    "REM-D06": "PASS",
+    "REM-D07": "PASS",
+    "REM-D08": "PASS"
+  },
+  "cases": {
+    "C01-job-tree-kill": "PASS",
+    "C02-host-already-in-job": "PASS",
+    "C03-restricted-token-boundary": "PASS",
+    "C04-acl-boundary": "PASS",
+    "C04-authorization-gate": "PASS",
+    "C05-loopback-network": "PASS",
+    "C06-argv-whitelist": "PASS",
+    "C07-timeout-process-tree": "PASS",
+    "C07-output-cap": "PASS"
+  },
+  "trusted_token_observation": {
+    "source": "suspended_child_process_token",
+    "verified": true,
+    "is_restricted": true,
+    "token_type": "primary",
+    "restricted_sid_set_verified": true,
+    "user_restricted_sid": true,
+    "world_restricted_sid": true,
+    "administrators_restricted_sid": false,
+    "restricted_sid_count": 11,
+    "integrity_sid": "S-1-16-4096",
+    "integrity_rid": 4096
+  },
+  "evidence_sha256": {
+    "d013-results.json": "4f69280c687d3d1d4d1ebb858ce40ef2137b9eb6b39cf556137935a925734832",
+    "d013-stdout.txt": "93fa40e6f5fccae1716d2b7161e21870ea4cc7f25ff9ddeb25cb4e4d531cc49e",
+    "d013-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "d013-exit-code.txt": "9aca8dfce962538fb8131d73f84cada05e4dc79f5a0d3612c511b1150f3e33e2",
+    "launcher-whoami.txt": "dc97ada8a8e9c3ace7d9f1afacc0683a38eb20e70a3d43e6769b33cd654fc1d0",
+    "launcher-privs.txt": "32985d704dacbb50b7fa09bf97d4a13eac1c5d03ce5cf574c4887aac11e9cdd5",
+    "bitvise-after.txt": "7d985e9fc78951ca68e1c952628a7811304c5ff807c15bdca69856b0ae8f034f",
+    "port22-after.txt": "68ce5af0ced2f17f7fee38a64e501dd7e7e74f66d010c92ef495681fb89afb62",
+    "residue-after.txt": "82ac1934d5d9858260904dcb12562ae6469a4c73aeb4e1ce6f58b508444e40fa"
+  },
+  "coordinator_outputs": {
+    "run_report_sha256": "fec80d7c64d5f329db8363e2ae522de4e024c949dd63e7ca6dcfc7324b937f99",
+    "grade_sha256": "68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a"
+  },
+  "postflight": {
+    "bitvise": "RUNNING",
+    "ssh_port_22": "LISTENING",
+    "d013_process_residue": 0,
+    "taskkill_used": false,
+    "management_channel_mutated": false,
+    "network_configuration_mutated": false,
+    "rebooted": false
+  },
+  "limitations": {
+    "formal_c05": "ENVIRONMENT_MISSING",
+    "network_statement": "Loopback TCP/UDP/DNS reachability was measured; no strong network-isolation claim is made.",
+    "production_runner_gate": "NOT_RELEASED_BY_THIS_RECORD",
+    "interactive_terminal_gate": "NOT_RELEASED_BY_THIS_RECORD"
+  },
+  "raw_evidence": {
+    "location": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v21-win7-pass/A4-20260810-000004",
+    "file_count": 32,
+    "sha256_manifest": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v21-win7-pass/SHA256SUMS.txt",
+    "sha256_manifest_sha256": "591a15b543c7c448cdaebec811d3d282c2e5806bb94dc39aa28c03bda8bee83a",
+    "private_key_included": false
+  }
+}

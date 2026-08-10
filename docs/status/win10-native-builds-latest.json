@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "record_id": "WIN10-NATIVE-BUILDS-20260810-01",
-  "recorded_at": "2026-08-10T21:50:00+08:00",
+  "recorded_at": "2026-08-10T22:41:00+08:00",
   "scope": "Current review of Windows 10 native build return packages, including the D-013 v21 recovery candidate; Windows 10 build evidence does not constitute Windows 7 target acceptance.",
   "shared_build_host": {
     "operating_system": "Windows 10 Pro 10.0.19045 x64",
@@ -25,7 +25,7 @@
       "declared_build_result": "PASS",
       "review_status": "PASS",
       "build_prerequisite": "CLEARED",
-      "readiness": "AWAITING_RECOVERY_REVIEW_AND_SIGNED_WIN7_LEASE",
+      "readiness": "WIN7_PASS",
       "checks": {
         "developer_logic_tests": "PASS",
         "containment_static_checks": "PASS_37_OF_37",
@@ -56,18 +56,24 @@
         "return_archive_sha256": "5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef",
         "status": "BUILT_AND_REVIEWED_PASS"
       },
-      "coordinator": "ADR-0065_RECOVERY_REQUIRED",
+      "coordinator": "ADR-0065_WIN7_PASS_RELEASED",
       "win7_target": "192.168.1.11 / dccs-chaizl / Windows 7 SP1 x64 build 7601",
       "worker_maximum_classification": "CANDIDATE_EVIDENCE",
-      "win7_validation": "V15_FAIL_CLOSED; V16_FAIL_CLOSED_RECOVERY_REQUIRED; V21_NOT_PERFORMED",
+      "win7_validation": "V15_FAIL_CLOSED; V16_FAIL_CLOSED_RECOVERY_REVIEWED; V21_WIN7_PASS",
       "latest_win7_run": {
-        "acceptance_id": "A4-20260810-000003",
-        "result": "FAIL_CLOSED",
-        "failed_case": "C03",
-        "failure": "TRUSTED_LOW_INTEGRITY_OBSERVATION_UNAVAILABLE",
-        "postflight": "PASS_ZERO_PROCESS_RESIDUE"
+        "result": "WIN7_PASS",
+        "acceptance_id": "A4-20260810-000004",
+        "accepted_commit": "20b4480ab2ea4f53b3ccee7df39e47755ed92102",
+        "artifact_manifest_sha256": "e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136",
+        "grade_sha256": "68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a",
+        "lease_final_state": "RELEASED",
+        "stages": "REM-D01_THROUGH_REM-D08_PASS",
+        "required_cases": "9_OF_9_PASS",
+        "bidirectional_hashes": "PASS",
+        "postflight": "PASS_ZERO_PROCESS_RESIDUE",
+        "formal_c05": "ENVIRONMENT_MISSING"
       },
-      "remaining_cases": ["C01", "C02", "C03", "C04", "C05", "C06", "C07"],
+      "remaining_cases": [],
       "historical_v15": {
         "archive": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
         "archive_sha256": "1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f",
@@ -87,9 +93,9 @@
       },
       "notes": [
         "The v15 candidate and A4-20260810-000002 raw evidence remain historical and must not receive another lease.",
-        "The v16 candidate and A4-20260810-000003 raw evidence remain historical and RECOVERY_REQUIRED.",
-        "The v21 Windows 10 PASS and locked candidate do not constitute Windows 7 validation.",
-        "No new lease may be granted until A4-20260810-000003 is explicitly reviewed."
+        "The v16 candidate and A4-20260810-000003 raw evidence remain historical; its recovery is RECOVERY_REVIEWED.",
+        "The v21 candidate was executed under the signed A4-20260810-000004 lease and graded WIN7_PASS by the ADR-0065 coordinator.",
+        "Formal C05 enterprise/network evidence remains ENVIRONMENT_MISSING; this record does not release production Runner or interactive terminal gates."
       ]
     },
     {
@@ -211,7 +217,7 @@
   ],
   "cross_track_progress": {
     "D-017_shared_build_profile": "DEMONSTRATED_BY_FOUR_BUILDS",
-    "A4_D-013": "RECOVERY_REQUIRED_V21_WIN10_PASS_CANDIDATE_LOCKED",
+    "A4_D-013": "V21_WIN10_PASS_WIN7_PASS_LEASE_RELEASED",
     "A5_D-011": "NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION",
     "A6_D-014": "READY_FOR_WIN7_VALIDATION",
     "A7": "NO_INDEPENDENT_BUILD_RESULT; PACKAGING_AND_WIN7_RC_NOT_PERFORMED"

@@ -157,7 +157,11 @@
   并复核，但终端集成/harness 仍未完成，T01～T05/N01～N05 尚未执行。D-013 v15 的 Win10
   源码→二进制闭包为历史 `PASS`；`A4-20260810-000002` 已在 Win7 fail-closed：轮前、上传、smoke、
   harness 启动和后置零残留通过，但 C01/C03/C04/C05 共享 `ACL_ROLLBACK_FAILED`，REM-D07 又遇到
-  空 stderr 的 `certutil 0x800703EE`。ledger 现为 `RECOVERY_REQUIRED`，生产 Runner 不开放。
+  空 stderr 的 `certutil 0x800703EE`。该轮 ledger 当时为 `RECOVERY_REQUIRED`，生产 Runner 未开放。
+- v21 recovery 已在签名租约 `A4-20260810-000004` 下完成：REM-D01～D08、C01～C07 的九个
+  必需用例、上传/回收双向 SHA-256 与后置零残留检查全部通过；ADR-0065 协调器在 commit
+  `20b4480ab2ea4f53b3ccee7df39e47755ed92102` 上分级为 `WIN7_PASS`，租约已 `RELEASED`，活跃
+  租约为 0。C05 仅证明 loopback 可达，正式企业/网络证据仍为 `ENVIRONMENT_MISSING`。
 - 机器可读状态见 [`status/a4-execution-beta-latest.json`](status/a4-execution-beta-latest.json)，
   自动化与补充审计见 [A4 报告索引](reports/README.md)。A1～A3 已接受证据及 A4-14/A4-20/A4-21
   历史原始证据均未改写。
@@ -171,14 +175,14 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 | 轨道 / 组件 | Win10 结果 | 已解除的卡点 | 当前仍阻塞 |
 |---|---|---|---|
-| A4 / D-013 helper | v21 Win10 `PASS`：返回包 `5d3bdd6b…f8ef`、helper `98964fc5…ce5`、input-lock `60ddd80c…795b`；capture selftest、v142 logic、native smoke、PE/API/CRT 与开发机 containment 37/37 均 `PASS` | v21 源码→二进制闭包和 ignored helper 候选已锁定；restricted SID 精确集合、Low Integrity 与 ACL rollback 合同已在 Win10 native smoke 通过 | `A4-20260810-000003` 仍为 `FAIL_CLOSED_RECOVERY_REQUIRED`，v21 Win7 为 `NOT_PERFORMED`；等待 recovery 人工复核和绑定最终整合提交的新签名租约 |
+| A4 / D-013 helper | v21 Win10 `PASS`：返回包 `5d3bdd6b…f8ef`、helper `98964fc5…ce5`、input-lock `60ddd80c…795b`；capture selftest、v142 logic、native smoke、PE/API/CRT 与开发机 containment 37/37 均 `PASS` | `A4-20260810-000004` 已由 ADR-0065 协调器分级为 `WIN7_PASS`；restricted primary、精确 SID 集合、Low Integrity、ACL rollback、C01～C07、双向哈希和后置零残留均通过，租约已释放 | D-013 已解除；完整 SPIKE_02 仍缺正式 C05 企业/网络证据和终端 T01～T05/N01～N05，不解除生产 Runner 或交互终端 Gate |
 | A5 / D-011 node-pty + winpty | `PASS_WITH_PACKAGING_GAP`；返回包 `c938f115…46ea`，三项原生工件均为 x64，ABI 110 与 smoke 通过 | 不再缺 Electron 22 ABI 的 node-pty/winpty 工件，可开展终端集成和 Win7 验证 | 返回包缺内部总清单；终端集成/harness 仍为骨架/TODO；T01～T05/N01～N05 `NOT_PERFORMED` |
 | A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | 本行只记录 2026-08-07 Win10 构建前置；后续 Win7 正式结果见下文 A6 章节 |
 | A7 / 发布包装 | 没有独立 Win10 构建结果 | 后续可复用已锁定的 D-011、D-014 文件哈希 | 仍需产品装配、原生模块 ASAR 外置、统一返回/发布 manifest、安装/升级/回滚和 Win7 RC 验证 |
 
-因此 A4/D-013 v21、A5/D-011 和 A6/D-014 的 Win10 构建前置均已完成。A4 的 v21 Win10
-`PASS` 不改写历史 Win7 的 `FAIL_CLOSED`，也不构成 v21 Win7 `PASS`；完整 SPIKE_02 继续为
-`PARTIAL / NO_GO_FORMAL_GAPS`，不得解除生产 Runner 或交互终端 Gate。
+因此 A4/D-013 v21、A5/D-011 和 A6/D-014 的 Win10 构建前置均已完成；A4/D-013 v21 又已取得
+协调器正式 `WIN7_PASS`。该结论只解除 D-013 containment helper 的 Win7 Gate；完整 SPIKE_02
+继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不得解除生产 Runner、交互终端 Gate 或强网络隔离声明。
 
 ## A6 正式 Win7 本地 SSD 存储验收（2026-08-10）
 

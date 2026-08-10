@@ -93,7 +93,8 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
   `NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED`；v19 Win10 编译与静态闭包通过，但 native
   smoke 因空 `TokenRestrictedSids` 尺寸判断错误而 `FAIL_CLOSED`，其 diagnostics 不具候选
   资格；v20 又因 PowerShell capture 输出污染在 smoke 前失败关闭；v21 Win10 已 `PASS`，
-  Win7 为 `NOT_PERFORMED`，等待 recovery 审批。不得把任一层级写成总体 PASS。
+  `A4-20260810-000004` 又由 ADR-0065 协调器分级为 `WIN7_PASS`。完整 SPIKE_02 仍有终端与
+  正式 C05 缺口，不得把 D-013 结果扩大为总体 PASS。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -113,13 +114,13 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 
 | # | 用例 | 实现 | 本地验证 | Win7 证据 |
 |---|------|------|----------|-----------|
-| C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
-| C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
-| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + source-derived exact restricting SID set + actual child token audit | v21 本地正/负向与交叉编译 PASS | v16 可信 Low SID 未观测；v17 空集合 FAIL；v18 构建前阻断；v19 查询 FAIL；v20 capture FAIL；v21 Win7 待测 |
-| C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 与 Win10 smoke PASS | v16 `A4-20260810-000003` PASS |
-| C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | v16 loopback PASS；正式仍为 `ENVIRONMENT_MISSING` |
-| C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | v16 `A4-20260810-000003` PASS |
-| C07 | 超时/输出上限 | TerminateJobObject + 逐流截断标记 | 逻辑测试 + harness 就绪 | v16 timeout/output-cap 均 PASS |
+| C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v21 `A4-20260810-000004` PASS |
+| C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | v21 `A4-20260810-000004` PASS |
+| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + source-derived exact restricting SID set + actual child token audit | v21 本地正/负向与交叉编译 PASS | v21 trusted child-token audit PASS：restricted primary、精确 SID 集合、Low `S-1-16-4096 / 4096` |
+| C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v21 harness 与 Win10 smoke PASS | v21 label/deny ACE apply/verify/rollback PASS |
+| C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | v21 loopback TCP/UDP/DNS PASS；正式仍为 `ENVIRONMENT_MISSING` |
+| C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | v21 `A4-20260810-000004` PASS |
+| C07 | 超时/输出上限 | TerminateJobObject + 逐流截断标记 | 逻辑测试 + harness 就绪 | v21 timeout/output-cap 均 PASS |
 | C08 | Runner 内存 | 设计有界（Job 内存限制 + 输出上限 64MB）；未实测 | — | `NOT_MEASURED`（A4 C09 历史 <60MB，新 helper 待测） |
 | N06 | 禁止 taskkill 冒充 | 无任何 taskkill 路径（TerminateJobObject/Job close） | 静态断言 PASS | 代码评审断言成立 |
 
@@ -138,8 +139,9 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 - **v17 Win10 smoke 已失败关闭**：普通 CMD 复跑在 suspended child token 审计阶段返回
   `TOKEN_CREATE_FAILED`；源码确认 `RestrictedSidCount=0` 与 `IsTokenRestricted=true` 要求
   矛盾。用户未提供机器生成的 v17 返回 ZIP 或日志包，故不得虚构 native 证据。
-- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v21 Win10 返回包
-  已复核并锁定候选，但新的人工 recovery 授权完成前不得签名或连接 Win7。
+- **v21 Win7 recovery 已完成**：`A4-20260810-000003` 已转为 `RECOVERY_REVIEWED`；签名租约
+  `A4-20260810-000004` 绑定最终整合 commit 与 v21 helper，REM-D01～D08 和九个必需用例全部
+  通过，协调器分级为 `WIN7_PASS` 后已 `RELEASED`，当前活跃租约为 0。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
 
@@ -184,8 +186,8 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
   PE/API/CRT 结果不可用。
 - 失败材料归档：`/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v17-win10-smoke-fail`；
   含 v17 输入包、sidecar、根因报告及逐文件 SHA-256 manifest，不包含协调器私钥。
-- 当前状态：Win7 v17 `NOT_PERFORMED`，`A4-20260810-000003` 保持
-  `RECOVERY_REQUIRED`，不得签发新租约。
+- 当时状态：Win7 v17 `NOT_PERFORMED`，`A4-20260810-000003` 保持
+  `RECOVERY_REQUIRED`，不得签发新租约；该记录已在 v21 执行前人工转为 `RECOVERY_REVIEWED`。
 
 ## 10. v18 World restricting SID 构建交接（2026-08-10）
 
@@ -282,6 +284,16 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 - 实机 Win10 结果：schema v3 `PASS/COMPLETE`、`candidate_eligible=true`；capture selftest、
   v142 logic tests、native smoke、PE/API/CRT、input lock 与包 manifest 全部通过。返回包已复制
   到 Git 外归档，ignored candidate 已锁定为上述 helper。
-- 当前状态：v21 Win10 `PASS`，v21 Win7 `NOT_PERFORMED`；A4 Gate 继续
-  `FAIL_CLOSED_RECOVERY_REQUIRED`，等待 `A4-20260810-000003` recovery 人工复核和新的签名
-  租约，不得提前连接 Win7。
+- Win7 正式验收：`A4-20260810-000004`，签名租约绑定 commit
+  `20b4480ab2ea4f53b3ccee7df39e47755ed92102` 与 artifact manifest
+  `e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136`。REM-D01～D08、九个
+  必需用例、上传与九份回收证据双向 SHA-256、Bitvise/22 端口和零 D-013 残留全部通过。
+- C03 可信观测为 suspended child process token：restricted primary、源派生 SID 集合精确一致、
+  含用户和 World、不含 Administrators、Low Integrity `S-1-16-4096 / 4096`；ACL label 与 deny
+  ACE 均 `applied/verified/rolledBack=true`。
+- 协调器 grade SHA-256 为 `68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a`，
+  结论为 `WIN7_PASS / PASS`；租约已 `RELEASED`，活跃租约为 0。原始证据已保存在 Git 外归档，
+  私钥未包含。
+- 当前分层状态：v21 Win10 `PASS`，D-013 v21 Win7 `WIN7_PASS`；正式 C05 仍为
+  `ENVIRONMENT_MISSING`，完整 SPIKE_02 继续 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner、
+  交互终端 Gate 或强网络隔离声明。

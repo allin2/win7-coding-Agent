@@ -14,7 +14,7 @@ Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Blocking-Reason: D-013 A4-20260810-000003 remains FAIL_CLOSED/RECOVERY_REQUIRED; v21 Win10 PASS and candidate locked, but v21 Win7 NOT_PERFORMED pending RECOVERY_REVIEWED and a new signed lease; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (terminal gates remain open)
+Blocking-Reason: D-013 v21 is ADR-0065 WIN7_PASS under A4-20260810-000004; formal C05 enterprise/network evidence and terminal T01-T05/N01-N05 remain open, so SPIKE_02 remains NO_GO_FORMAL_GAPS
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -112,11 +112,11 @@ Blocking-Reason: D-013 A4-20260810-000003 remains FAIL_CLOSED/RECOVERY_REQUIRED;
 
 ```
 Win7-Compatibility: PROVISIONAL
-Win7-Validation: PARTIAL
+Win7-Validation: PARTIAL (D-013 v21 WIN7_PASS; terminal matrix incomplete)
 Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15/v16 PASS historical, v21 PASS current
-Evidence: A4-20260805-123467, A4-20260806-140606, A4-20260810-000003, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip, WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip
-Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
-Blocking-Reason: D-013 A4-20260810-000003 FAIL_CLOSED/RECOVERY_REQUIRED; v21 Win7 NOT_PERFORMED pending recovery review and signed lease; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
+Evidence: A4-20260805-123467, A4-20260806-140606, A4-20260810-000004, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip, WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip
+Result: C01/C02/C03/C04/C06/C07/C08/N06 PASS (8/19 formal atomic cases); D-013 v21 WIN7_PASS
+Blocking-Reason: formal C05 enterprise/network evidence remains ENVIRONMENT_MISSING; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
@@ -155,7 +155,7 @@ Bitvise、22 端口与零进程残留检查为 `PASS`。v16 recovery 仅在 LABE
 `daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac`，helper SHA-256 为
 `68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba`；native smoke、x64、
 静态 CRT、PE/API/CRT 和 input-lock 核验均为 `PASS`。v16 Win7 仍为 `NOT_PERFORMED`。
-ledger 保持 `RECOVERY_REQUIRED`，协调器拒绝任何新 `grant`，直到人工复核并显式转为
+该轮 ledger 当时保持 `RECOVERY_REQUIRED`，协调器拒绝任何新 `grant`，直到人工复核并显式转为
 `RECOVERY_REVIEWED`。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner
 或交互终端 Gate。
 
@@ -169,3 +169,17 @@ CRT 与 PE/API/CRT 均为 `PASS`，`candidate_eligible=true`。上述结论仅�
 v21 Win7 仍为 `NOT_PERFORMED`，`A4-20260810-000003` 仍是 `RECOVERY_REQUIRED`。人工 recovery
 复核和新签名租约完成前不得连接 Win7。完整 SPIKE_02 继续为
 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner、交互终端 Gate 或强网络隔离声明。
+
+随后在最终整合 commit `20b4480ab2ea4f53b3ccee7df39e47755ed92102` 上签发唯一 Ed25519
+租约 `A4-20260810-000004`，绑定 artifact manifest
+`e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136` 和上述 v21 helper。
+Win7 SP1 x64 build 7601 上 REM-D01～D08、C01～C07 的九个必需用例、上传与九份回收证据
+双向 SHA-256、Bitvise/22 端口及后置零 D-013 残留全部通过。C03 可信 suspended-child token
+观测证明 restricted primary、源派生 SID 集合精确一致、用户/World 存在、Administrators 不存在、
+Low Integrity `S-1-16-4096 / 4096`；ACL label 与 deny ACE 均完成 apply/verify/rollback。
+ADR-0065 协调器 grade 为 `WIN7_PASS / PASS`，租约已 `RELEASED`，活跃租约为 0。
+
+该结果正式解除 D-013 containment helper 的 Win7 Gate，但 C05 仍只记录 loopback TCP/UDP/DNS
+可达，正式企业/网络证据为 `ENVIRONMENT_MISSING`；终端 T01～T05/N01～N05 仍未执行。因此完整
+SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner、交互终端 Gate 或强网络
+隔离声明。正式派生记录为 `docs/acceptance/A4-D013-20260810-000004.json`，原始证据保存在 Git 外。
