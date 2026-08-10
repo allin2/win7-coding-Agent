@@ -27,6 +27,7 @@ test('residue parser is acceptance-scoped', () => {
 test('A5 residue parser also treats T05 ping as a formal residue', () => {
   const output = 'HOST,ping.exe,ping.exe -n 60 127.0.0.1,202\n';
   assert.equal(parseResidues(output, 'A5-20260810-000001').length, 1);
+  assert.equal(parseResidues(output, 'D013-RUNNER-20260811-010000').length, 1);
   assert.equal(parseResidues(output, 'A4-20260810-000001').length, 0);
 });
 
@@ -70,4 +71,30 @@ test('A5 artifact map is confined to acceptance\\a5\\<id>', () => {
     ...a5,
     artifactMap: { helper: 'C:\\Win7CodingAgent\\acceptance\\A5-20260810-000001\\spike02_helper.exe' },
   }, runner), (error) => error.code === 'ARTIFACT_PATH_DENIED');
+});
+
+test('Runner postflight may hash only the fixed Electron runtime outside its per-run root', () => {
+  const runnerOptions = { ...options, acceptanceId: 'D013-RUNNER-20260811-010000', phase: 'postflight' };
+  const outputs = new Map([
+    ['cmd.exe', 'Microsoft Windows [Version 6.1.7601]'],
+    ['hostname', 'WIN7-A5\r\n'],
+    ['wmic.exe:os', 'BuildNumber=7601\r\nOSArchitecture=64-bit'],
+    ['sc', 'STATE : 4 RUNNING'],
+    ['wmic.exe:process', 'Node,CommandLine,Name,ProcessId\r\n'],
+    ['certutil.exe', `${'c '.repeat(63)}c\r\n`],
+  ]);
+  const fakeSsh = (_command, args) => {
+    const remote = args.slice(args.indexOf(`${runnerOptions.user}@${runnerOptions.targetIp}`) + 1);
+    const key = remote[0] === 'wmic.exe' ? `wmic.exe:${remote[1]}` : remote[0];
+    return { status: 0, stdout: outputs.get(key) || '', stderr: '' };
+  };
+  assert.doesNotThrow(() => probeWin7({
+    ...runnerOptions, artifactMap: { electron: 'C:\\acceptance\\electron\\electron.exe' },
+  }, fakeSsh));
+  assert.throws(() => probeWin7({
+    ...runnerOptions, artifactMap: { helper: 'C:\\Windows\\System32\\whoami.exe' },
+  }, fakeSsh), (error) => error.code === 'ARTIFACT_PATH_DENIED');
+  assert.throws(() => probeWin7({
+    ...runnerOptions, artifactMap: { electron: 'C:\\acceptance\\electron\\other.exe' },
+  }, fakeSsh), (error) => error.code === 'ARTIFACT_PATH_DENIED');
 });

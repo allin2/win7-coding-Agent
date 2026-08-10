@@ -2,10 +2,10 @@
   "schema_version": 1,
   "track": "D-013-production-runner",
   "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
-  "status": "REBUILD_REQUIRED_FOR_ELECTRON_HOST_JOB_BREAKAWAY",
+  "status": "WIN10_BUILD_PASS_AWAITING_WIN7_L01_L10",
   "build_revision": "v23-production-host-job-breakaway",
-  "win10_build_executed": false,
-  "win10_return_package_reviewed": false,
+  "win10_build_executed": true,
+  "win10_return_package_reviewed": true,
   "win7_validation": "NOT_PERFORMED",
   "source_baseline": {
     "validated_revision": "D-013-v21",
@@ -31,8 +31,17 @@
     "reason": "v22 unconditionally returns HOST_ALREADY_IN_JOB on the previously evidenced Electron Win7 launch path",
     "reusable_as_formal_win7_candidate": false
   },
+  "v23_win10_build_evidence": {
+    "completed_at": "2026-08-10T16:44:56.7938654Z",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-164456.zip",
+    "return_package_sha256": "9b1dbd3d404d74d56e20a7b051681a9985b31b95f2ff9d0f1e0553badabb9390",
+    "helper_sha256": "d275605124527f292307fd45e2ab4b9af850d22af53ca6f7e8ee795fab629a5c",
+    "source_commit": "e41bc9dbf7ebcad3570ef3d6cb4491e6cb1f630a",
+    "toolchain": "VS2019 16.11.37507.1 / MSVC 14.29.30133 / SDK 10.0.19041.0 / x64 / static CRT",
+    "version": "win7-agent-helper 1.1.0-d013-v23 win7-x64",
+    "review": "PASS"
+  },
   "blocked_on": [
-    "Win10 VS2019/v142 rebuild of the v23 host-Job breakaway delta and return-package review",
     "ADR-0065 signed Win7 L01-L10 lease"
   ]
 }

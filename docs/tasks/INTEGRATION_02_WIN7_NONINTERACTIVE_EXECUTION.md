@@ -103,6 +103,39 @@ Renderer 进程权限和模型可调用的通用 `terminal.exec`。
   路径验证 breakaway；若目标 Job 不允许 breakaway，则停止本地 Runner，另行裁决外部 Broker
   或远程执行，不能回退为无 Job 执行。
 
+### 3.4 v23 Win10 返回包复核（2026-08-11）
+
+- 返回包：`WIN7_D013_HELPER_ARTIFACTS_20260810-164456.zip`
+- 外层 SHA-256：`9b1dbd3d404d74d56e20a7b051681a9985b31b95f2ff9d0f1e0553badabb9390`
+- helper SHA-256：`d275605124527f292307fd45e2ab4b9af850d22af53ca6f7e8ee795fab629a5c`
+- 版本：`win7-agent-helper 1.1.0-d013-v23 win7-x64`
+- 返回清单 22 个文件全部匹配；源码提交、输入锁、构建 Profile、PowerShell 原始字节捕获、
+  logic tests、PE/API/CRT 和 Win10 smoke 均复核通过。smoke 证明无宿主 Job 时 child 先处于
+  Job 外，再成功加入 helper 自建 Job；Restricted Primary Token、Low Integrity、stdin 关闭及
+  两项临时 ACL 精确回滚均成立。
+- 裁决：`BUILD PASS / candidate_eligible=true / REVIEW PASS`。该结果只授权准备 Win7 产品
+  L01～L10；Electron 宿主 Job 的 breakaway 仍必须由正式签名租约下的 L01 实机证明。
+
+### 3.5 Win7 NativeRunner L01～L10 正式矩阵
+
+验收 ID 固定为 `D013-RUNNER-20260811-010000`，目录固定为
+`C:\Win7CodingAgent\acceptance\D013-RUNNER-20260811-010000`。包清单、产品 Release Manifest、
+v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed25519 签名租约；Worker
+只生成 `CANDIDATE_EVIDENCE`，协调器完成无残留 postflight 后才可评级 `WIN7_PASS`。
+
+| 用例 | 正式判定 |
+|------|----------|
+| L01 | 真实 Electron 产品路径检测宿主 Job，使用获准 breakaway，并在启动前证明 child 已重新加入 helper 的 `KILL_ON_JOB_CLOSE` Job |
+| L02 | 签名租约、源码提交、包清单、Release Manifest、helper 与 Electron 哈希全部匹配 |
+| L03 | 未登记 Profile、Shell Host 与高风险本地 Profile 在启动 helper 前拒绝 |
+| L04 | CP936、CRLF、中文及空格工作目录均产生结构化结果 |
+| L05 | stdout/stderr 独立上限与截断提示生效 |
+| L06 | 总超时后整个进程树回收且无 `ping.exe` 残留 |
+| L07 | 空闲超时独立生效且无 `ping.exe` 残留 |
+| L08 | 取消关闭单请求 helper，并由 Job 回收 child，无 helper/ping 残留 |
+| L09 | 每轮仅在 `work\*` 应用、验证并回滚 Low Integrity/临时 ACL |
+| L10 | 轮后 helper、ping 与验收 ID 残留均为空，Bitvise 仍为 `RUNNING`，L01～L09 全部通过 |
+
 ## 4. 人工门禁
 
 - H1：签发租约前确认 `192.168.1.11` 空闲，允许新验收目录和仅限该目录的临时 ACL。

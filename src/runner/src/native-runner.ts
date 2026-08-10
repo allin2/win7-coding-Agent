@@ -108,6 +108,9 @@ export class NativeRunner implements IRunner {
     const status = !containmentOk || !aclOk ? 'cleanup_failed'
       : response.idleTimedOut ? 'idle_timeout' : response.timedOut ? 'timeout' : response.canceled ? 'cancelled' : 'exited';
     const failed = status !== 'exited';
+    const containmentDetail = `host_job_detected=${response.hostJob.detected};breakaway=${response.hostJob.breakaway};` +
+      `limit_flags=${response.hostJob.limitFlags};child_job_assignment_verified=${response.hostJob.childJobAssignmentVerified};` +
+      `acl_changes=${response.aclChanges.length};acl_rollback_verified=${aclOk}`;
     const runResult: RunResult = {
       schemaVersion: '2.0', status, exitCode: status === 'exited' ? response.exitCode : null,
       stdout: capturedOut, stderr: capturedErr, durationMs: response.executionTimeMs,
@@ -115,7 +118,7 @@ export class NativeRunner implements IRunner {
         requested: response.timedOut || response.canceled || status === 'cleanup_failed',
         processTreeReaped: containmentOk && aclOk,
         containment: containmentOk ? 'job_object' : 'none',
-        ...(!containmentOk || !aclOk ? { detail: 'Helper could not prove containment or ACL rollback' } : {}),
+        detail: !containmentOk || !aclOk ? `Helper could not prove containment or ACL rollback;${containmentDetail}` : containmentDetail,
       },
       ...(failed ? { error: {
         code: RunnerErrorCode.CONTAINMENT_UNAVAILABLE,

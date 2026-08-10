@@ -71,7 +71,10 @@ describe('NativeRunner production boundary', () => {
     }) }) });
     await expect(runner.execute(request())).resolves.toMatchObject({
       status: 'exited', exitCode: 0, stdout: { text: 'ok' }, stderr: { text: 'warning' },
-      termination: { processTreeReaped: true, containment: 'job_object' },
+      termination: {
+        processTreeReaped: true, containment: 'job_object',
+        detail: 'host_job_detected=false;breakaway=none;limit_flags=0;child_job_assignment_verified=true;acl_changes=0;acl_rollback_verified=true',
+      },
     });
   });
 

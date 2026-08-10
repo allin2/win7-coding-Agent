@@ -19,7 +19,7 @@ export function parseCertutilHash(output) {
 
 export function parseResidues(output, acceptanceId) {
   const markers = ['spike02_helper.exe', 'winpty-agent.exe', acceptanceId.toLowerCase()];
-  if (acceptanceId.startsWith('A5-')) markers.push('ping.exe');
+  if (acceptanceId.startsWith('A5-') || acceptanceId.startsWith('D013-RUNNER-')) markers.push('ping.exe');
   return String(output || '').split(/\r?\n/).filter((line) => {
     const lower = line.toLowerCase();
     return markers.some((marker) => lower.includes(marker));
@@ -48,10 +48,15 @@ function validateArtifactMap(value, acceptanceId) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const suiteSegment = acceptanceId.startsWith('A5-') ? 'a5\\' : '';
   const expectedRoot = `c:\\win7codingagent\\acceptance\\${suiteSegment}${acceptanceId.toLowerCase()}\\`;
+  const fixedRuntimeArtifacts = {
+    electron: 'c:\\acceptance\\electron\\electron.exe',
+  };
   const result = {};
   for (const [name, remotePath] of Object.entries(value)) {
+    const normalizedPath = typeof remotePath === 'string' ? remotePath.toLowerCase() : '';
+    const fixedRuntimeMatch = fixedRuntimeArtifacts[name] === normalizedPath;
     if (!/^[A-Za-z0-9_.-]+$/.test(name) || typeof remotePath !== 'string'
-        || /[\r\n\0]/.test(remotePath) || !remotePath.toLowerCase().startsWith(expectedRoot)) {
+        || /[\r\n\0]/.test(remotePath) || (!normalizedPath.startsWith(expectedRoot) && !fixedRuntimeMatch)) {
       fail('ARTIFACT_PATH_DENIED', `artifact ${name} is outside the signed per-run root`);
     }
     result[name] = remotePath;
