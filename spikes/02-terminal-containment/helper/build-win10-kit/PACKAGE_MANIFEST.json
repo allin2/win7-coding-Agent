@@ -3,7 +3,7 @@
   "package": "WIN10_D013_HELPER_BUILD_KIT",
   "revision": "2026-08-10",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T09:37:21.399Z",
+  "generated_at": "2026-08-10T11:40:40.575Z",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
   "excluded": [
@@ -16,23 +16,23 @@
   "files": [
     {
       "path": "README_BUILD.md",
-      "size": 7662,
-      "sha256": "c3d842320306295a1b7423a811600dc1da49695e945f6f52dc79d352c21b97f2"
+      "size": 8400,
+      "sha256": "d27e46776f9cbf17e477ecea407c94f927f703f3604364f30a8bcf0dfc4b5f07"
     },
     {
       "path": "STATUS.json",
-      "size": 2551,
-      "sha256": "07547a00d8f623fd8d2faaed9df1d35d82246a0107d2129a7d1e9e94913764b6"
+      "size": 2467,
+      "sha256": "ae9c98daf1330e8a2c65c1e96a0810bd8989629dd3e410f4a7ab5f97c34e3602"
     },
     {
       "path": "build-profile.json",
-      "size": 2879,
-      "sha256": "5962a2f1b384a49bc4ea40e10772ca27e5dd9aa78f8538809d9a543e1c031f6b"
+      "size": 3005,
+      "sha256": "b2824ed782c16b238674c2b7aa99502d7970be1dc34ec83c08009eb1930709f1"
     },
     {
       "path": "build.ps1",
-      "size": 34327,
-      "sha256": "aa0e057efbf7d30b61dff3a5c5d690fbedb4197816dc6503870e8a97af2d3ef1"
+      "size": 38367,
+      "sha256": "2ec856bf76f1b0c2f5b7d8bc0a8c870d222d3e2742a89303ae3fcd9ba9e3c369"
     },
     {
       "path": "helper.exe.manifest",
@@ -46,8 +46,8 @@
     },
     {
       "path": "prepare-kit.cjs",
-      "size": 9397,
-      "sha256": "7e921a8ac392e5374205cb4e5b527ea6625dfccd2f85b8f8311fdbeb71faa418"
+      "size": 10358,
+      "sha256": "f6a1961c4d763cbd42b248fc39973bd24208b687ccc10c14760a74c59ff064c1"
     },
     {
       "path": "src/CMakeLists.txt",
@@ -107,7 +107,7 @@
     {
       "path": "input-lock.json",
       "size": 2263,
-      "sha256": "ac2e15432be66871ea87138aca42a8154c85d39b0a12bb50d5582e92b102771b"
+      "sha256": "60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b"
     }
   ]
 }

@@ -10,8 +10,8 @@
   - 代码提交：`3ec201c`（`feat(spike02): D-013 helper containment closure…`）
   - 构建包修正：`6f47f50`（`fix(spike02): commit D-013 Win10 build kit…`）
   - 首版闭包报告：`17ca1f7`（`docs(spike02): D-013 closure report…`）
-- **CURRENT_RECOVERY_SOURCE**：`141bd832eda2287d0e4f88911b9fe091d14a1720`
-  （`fix(spike02): recover v19 token probe and UTF-8 smoke`）
+- **CURRENT_RECOVERY_SOURCE**：`8dbe62fbcf2cd05baec3fae1760b96f7bcf8a75d`
+  （`fix(spike02): enforce PowerShell capture output contract`）
 
 ## 2. 修改文件（仅允许路径内）
 
@@ -92,7 +92,8 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
   restricting-SID 列表与审计合同冲突而 `FAIL_CLOSED_TOKEN_CREATE_FAILED`；v18 为
   `NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED`；v19 Win10 编译与静态闭包通过，但 native
   smoke 因空 `TokenRestrictedSids` 尺寸判断错误而 `FAIL_CLOSED`，其 diagnostics 不具候选
-  资格；v20 修复后等待 Win10 构建。不得把任一层级写成总体 PASS。
+  资格；v20 又因 PowerShell capture 输出污染在 smoke 前失败关闭；v21 修复后等待 Win10
+  构建。不得把任一层级写成总体 PASS。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -114,7 +115,7 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 |---|------|------|----------|-----------|
 | C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
 | C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | v16 `A4-20260810-000003` PASS |
-| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + source-derived exact restricting SID set + actual child token audit | v20 本地正/负向与交叉编译 PASS | v16 可信 Low SID 未观测；v17 空集合 FAIL；v18 构建前阻断；v19 Win10 smoke FAIL；v20 Win7 待测 |
+| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + source-derived exact restricting SID set + actual child token audit | v21 本地正/负向与交叉编译 PASS | v16 可信 Low SID 未观测；v17 空集合 FAIL；v18 构建前阻断；v19 查询 FAIL；v20 capture FAIL；v21 Win7 待测 |
 | C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 与 Win10 smoke PASS | v16 `A4-20260810-000003` PASS |
 | C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | harness loopback 就绪 | v16 loopback PASS；正式仍为 `ENVIRONMENT_MISSING` |
 | C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | v16 `A4-20260810-000003` PASS |
@@ -137,7 +138,7 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 - **v17 Win10 smoke 已失败关闭**：普通 CMD 复跑在 suspended child token 审计阶段返回
   `TOKEN_CREATE_FAILED`；源码确认 `RestrictedSidCount=0` 与 `IsTokenRestricted=true` 要求
   矛盾。用户未提供机器生成的 v17 返回 ZIP 或日志包，故不得虚构 native 证据。
-- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v20 Win10 返回包
+- **新租约仍被阻止**：`A4-20260810-000003` 保持 `RECOVERY_REQUIRED`；v21 Win10 返回包
   复核和新的人工 recovery 授权完成前不得签名或连接 Win7。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
@@ -253,5 +254,27 @@ Win7 本地化 `whoami /groups` 只保留作补充文本证据。
 - 独立包审计：20 个 ZIP 文件、19 项 manifest 和 14 项 input lock 精确匹配；包内源码与
   工作树逐字节一致；解包后 logic tests 与 MinGW 五单元编译/PE32+ x64 链接通过；禁止
   文件为 0。
-- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；v20 Win10 与 Win7 均 `NOT_PERFORMED`；A4 Gate
+- 人工构建报告：v20 编译、logic tests 与 PE/API/CRT 通过，但 Windows PowerShell 5.1 将
+  两次裸 `GetResult()` 的 `VoidTaskResult` 与 capture dictionary 一起输出；函数变为
+  `Object[]`，在 StrictMode 下访问 `.exit_code` 失败。最终为 `BUILD FAIL / 不可候选`。
+- 报告中的 `WIN7_D013_HELPER_DIAGNOSTICS_20260810-094532.zip` 尚未出现在 Mac 下载目录，
+  因而外层完整哈希和内部 evidence 仍待实包复核，不在此虚构 PASS。
+
+## 13. v21 PowerShell 单对象 capture 合同（2026-08-10）
+
+- 修复提交：`8dbe62fbcf2cd05baec3fae1760b96f7bcf8a75d`。
+- 两个 Task `GetResult()` 及所有 process/stream 方法结果均显式赋给 `$null`；函数只返回一个
+  `PSCustomObject`。所有调用点先物化数组，再要求数量恰好为 1、五项属性完整；禁止用
+  `[-1]` 隐藏额外输出。
+- 正式编译前运行 Windows PowerShell 子进程 capture 自测：以 ASCII probe 源码按 codepoint
+  生成中英文 marker，精确要求 11 个 UTF-8 字节、零 stderr、严格解码、raw bytes 先落盘。
+  结果进入 schema-v3 `process_capture_selftest` 字段和独立 evidence。
+- 本地回归：build-script contract 当前脚本与 4 个负向变体全部 PASS；containment 37/37；
+  logic tests PASS；v21 独立包的 20 个 ZIP 条目、19 项 manifest、14 项 input lock 精确匹配；
+  MinGW 五单元零警告并链接 PE32+ x64；禁止文件为 0。
+- v21 构建包：`WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v21.zip`，SHA-256
+  `8c014442282a30837068ba5355d81a3105b987dd3bb73a619222af6f6f8a7e49`。
+- input lock：`60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b`；
+  package manifest：`636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710`。
+- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；v21 Win10 与 Win7 均 `NOT_PERFORMED`；A4 Gate
   继续 `FAIL_CLOSED_RECOVERY_REQUIRED`，不得连接 Win7 或签发租约。

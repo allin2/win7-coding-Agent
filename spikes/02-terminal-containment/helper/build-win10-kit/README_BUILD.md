@@ -12,7 +12,7 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 - Windows SDK `10.0.19041.0`（含 x64 `mt.exe`）、Windows 10 自带 `tar.exe`。
 - 必须从 **x64 Native Tools Command Prompt for VS 2019** 启动构建，或先调用
   `VC\Auxiliary\Build\vcvars64.bat`，以准备 `INCLUDE`、`LIB` 等 x64 工具链环境变量。
-- 至少 2 GB 可用磁盘空间；v20 必须解压至全新短英文路径 `C:\w7d013-v20`。
+- 至少 2 GB 可用磁盘空间；v21 必须解压至全新短英文路径 `C:\w7d013-v21`。
 - **不需要 CMake、不需要 Python**：构建脚本直接用 `cl.exe`（构建闭包更小、更确定）。
 - MSVC 显式使用 `/utf-8` 读取 UTF-8 源码，不依赖构建机的 CP936/ACP。
 
@@ -23,7 +23,7 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 
 ```cmd
 :: 在 “x64 Native Tools Command Prompt for VS 2019” 中执行
-cd /d C:\w7d013-v20
+cd /d C:\w7d013-v21
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
@@ -86,12 +86,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
   构建脚本以 `BaseStream` 并发捕获 stdout/stderr 原始字节，先 `WriteAllBytes` 落盘，再用
   throw-on-invalid-bytes 的 UTF-8 解码器转换并解析 JSON。任何无效 UTF-8 仍失败关闭，原始
   字节保留在 `DIAGNOSTICS` 包内。
+- v20 的 helper 编译、logic tests 与 PE/API/CRT 据人工构建报告通过，但 PowerShell 5.1
+  把两次未抑制的 `GetResult()` 结果连同 capture dictionary 一起作为函数输出，导致
+  `Set-StrictMode 2.0` 下访问 `.exit_code` 失败；v20 为 `BUILD FAIL`，不是候选。
+- v21 将所有 Task/process/stream 方法结果显式抑制为 `$null`，函数只返回一个
+  `PSCustomObject`；三个调用点都要求输出对象数恰好为 1 且五项属性完整。正式编译前还会
+  启动 Windows PowerShell 子进程，验证 11 字节 UTF-8 中英文 marker、零 stderr、严格解码
+  和 raw bytes 先落盘。失败会在编译前生成不可候选 diagnostics，不会继续消耗构建时间。
 - restricted token 使用 `DISABLE_MAX_PRIVILEGE`，保留 Windows 目录遍历所需的
   `SeChangeNotifyPrivilege`，并把 Administrators SID 设为 deny-only；不得把
   Everyone/World 设为 deny-only，否则可能移除 Windows 装载器所需的基础读/执行授权，
   造成子进程以 `0xC0000022 (STATUS_ACCESS_DENIED)` 在用户代码运行前退出。
 - 每次构建都会先清空包内 `evidence/` 和返回 staging，避免重跑混入旧证据。
-- `logic_tests.cpp` 属于 v20 锁定源码闭包；Win10 构建使用同一 v142 工具链直接编译并运行
+- `logic_tests.cpp` 属于 v21 锁定源码闭包；Win10 构建使用同一 v142 工具链直接编译并运行
   logic tests，失败同样必须进入 `DIAGNOSTICS` 包。
 - 收到 Win10 返回包后：复核外层 SHA-256 与 `build-result.json`，把
   `spike02_helper.exe` 放入 `candidate/` 并更新

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
-  "generated_at": "2026-08-10T09:37:21.387Z",
+  "generated_at": "2026-08-10T11:40:40.566Z",
   "sources": [
     {
       "path": "src/helper.cpp",
@@ -60,13 +60,13 @@
     },
     {
       "path": "build.ps1",
-      "size": 34327,
-      "sha256": "aa0e057efbf7d30b61dff3a5c5d690fbedb4197816dc6503870e8a97af2d3ef1"
+      "size": 38367,
+      "sha256": "2ec856bf76f1b0c2f5b7d8bc0a8c870d222d3e2742a89303ae3fcd9ba9e3c369"
     },
     {
       "path": "build-profile.json",
-      "size": 2879,
-      "sha256": "5962a2f1b384a49bc4ea40e10772ca27e5dd9aa78f8538809d9a543e1c031f6b"
+      "size": 3005,
+      "sha256": "b2824ed782c16b238674c2b7aa99502d7970be1dc34ec83c08009eb1930709f1"
     },
     {
       "path": "helper.exe.manifest",

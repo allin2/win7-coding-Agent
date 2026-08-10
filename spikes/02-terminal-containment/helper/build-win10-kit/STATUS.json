@@ -3,31 +3,31 @@
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T16:00:00+08:00",
-  "implementation_commit": "141bd832eda2287d0e4f88911b9fe091d14a1720",
-  "build_revision": "v20-recovery",
+  "generated_at": "2026-08-10T18:30:00+08:00",
+  "implementation_commit": "8dbe62fbcf2cd05baec3fae1760b96f7bcf8a75d",
+  "build_revision": "v21-recovery",
   "win10_build_executed": false,
   "win10_return_package_reviewed": false,
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
-  "v19_failure_return": {
-    "filename": "WIN7_D013_HELPER_DIAGNOSTICS_20260810-071922.zip",
-    "sha256": "48e3a418a05661bfb55e74d656125f960f1e2998ef1d01c61067976150cfee4c",
-    "helper_sha256": "8132323b418e08315bc4fc192626a4e2733b6568fd67541835bc987b4ca482e9",
-    "input_lock_sha256": "42183eaa52679965a0cc0092544b626c1131fcb68961f4e53feb73f97767eacd",
-    "package_manifest_sha256": "b4558a1b3b3fef7d7ddd6c36a666c34f0eada2234ba9564c974017529c45c070",
-    "status": "FAIL_CLOSED_WIN10_SMOKE",
-    "stage": "WIN10_SMOKE",
+  "v20_reported_failure": {
+    "filename": "WIN7_D013_HELPER_DIAGNOSTICS_20260810-094532.zip",
+    "sha256": "NOT_VERIFIED_RETURN_NOT_PRESENT",
+    "helper_sha256": "NOT_VERIFIED_RETURN_NOT_PRESENT",
+    "reported_status": "FAIL",
+    "reported_stage": "WIN10_SMOKE",
+    "reported_failure_code": "BUILD_WIN10_SMOKE_FAILED",
     "candidate_eligible": false,
-    "archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v19-win10-smoke-fail"
+    "review_status": "SOURCE_ROOT_CAUSE_CONFIRMED_RETURN_PACKAGE_PENDING_RECEIPT"
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "PENDING_V20_WIN10_BUILD",
+    "sha256": "PENDING_V21_WIN10_BUILD",
     "git_ignored": true
   },
   "evidence": {
     "input_lock_sha256": "SEE_INPUT_LOCK_AND_PACKAGE_MANIFEST",
     "build_result_schema": 3,
+    "process_capture_selftest": "LOCAL_CONTRACT_PASS_WIN10_POWERSHELL_NOT_PERFORMED",
     "win10_smoke": "NOT_PERFORMED",
     "pe_api_crt_analysis": "NOT_PERFORMED",
     "logic_tests": "LOCAL_PASS_WIN10_V142_NOT_PERFORMED",
@@ -37,19 +37,19 @@
     "crt": "static /MT"
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V20_BUILD",
+    "GATE-WIN10-BUILD": "READY_FOR_V21_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "v20 Win10 build and returned-package review",
+    "v21 Win10 build and returned-package review",
     "recovery review before any new Win7 lease"
   ],
   "notes": [
-    "v19 returned a valid schema-v3 DIAGNOSTICS package: compilation, logic tests and PE/API/CRT passed, but Win10 smoke failed closed before candidate eligibility.",
-    "v19 treated the legal four-byte GroupCount=0 TokenRestrictedSids result as smaller than TOKEN_GROUPS; v20 accepts the empty header and bounds-checks non-empty arrays.",
-    "v19 PowerShell 5.1 native output capture decoded helper UTF-8 with the host code page; v20 captures raw BaseStream bytes, persists them first, then uses strict UTF-8.",
-    "The v16 Win10 build remains historical PASS evidence but is superseded for further Win7 acceptance.",
+    "v20 is user-reported BUILD FAIL at WIN10_SMOKE and candidate_eligible=false; the diagnostics return package is not yet present locally for full hash and manifest review.",
+    "The v20 root cause is confirmed in source: two bare Task.GetResult calls polluted the PowerShell function output with VoidTaskResult objects.",
+    "v21 suppresses all task/process/stream method results, returns one PSCustomObject, validates one object plus five properties at every call site, and rejects last-item masking.",
+    "v21 executes an exact UTF-8 child-PowerShell capture self-test before compiler discovery and records its result in schema-v3 build evidence.",
     "No Win7 SSH/SCP operation is authorized while recovery is required."
   ]
 }
