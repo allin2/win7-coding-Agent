@@ -159,12 +159,22 @@ if [ -n "${raw_write_line}" ] && [ -n "${utf8_decode_line}" ] && [ -n "${smoke_p
     && [ "${utf8_decode_line}" -lt "${smoke_parse_line}" ] \
     && grep -q 'CopyToAsync(\$stdoutBuffer)' "${BUILD_SCRIPT}" \
     && grep -q 'UTF8Encoding(\$false, \$true)' "${BUILD_SCRIPT}" \
+    && grep -q '\$null = \$stdoutTask.GetAwaiter().GetResult()' "${BUILD_SCRIPT}" \
+    && grep -q '\$null = \$stderrTask.GetAwaiter().GetResult()' "${BUILD_SCRIPT}" \
+    && ! grep -qE '^[[:space:]]*\$(stdout|stderr)Task\.GetAwaiter\(\)\.GetResult\(\)' "${BUILD_SCRIPT}" \
+    && grep -q 'function Get-ValidatedProcessCapture' "${BUILD_SCRIPT}" \
+    && grep -q 'PROCESS_CAPTURE_SELFTEST' "${BUILD_SCRIPT}" \
+    && grep -q 'output_object_count = \$captureProbeItems.Count' "${BUILD_SCRIPT}" \
+    && grep -q 'process_capture_selftest = \$CaptureStatus' "${BUILD_SCRIPT}" \
+    && grep -q '\$versionCaptureItems = @(Invoke-Utf8ProcessBytes' "${BUILD_SCRIPT}" \
+    && grep -q '\$smokeCaptureItems = @(Invoke-Utf8ProcessBytes' "${BUILD_SCRIPT}" \
+    && ! grep -qE '@\(Invoke-Utf8ProcessBytes.*\)\[-1\]' "${BUILD_SCRIPT}" \
     && ! grep -q '\$request | & \$helperExe' "${BUILD_SCRIPT}" \
     && grep -q "'logic_tests.cpp'" "${BUILD_SCRIPT}" \
     && grep -q "'logic_tests.cpp'" "${BUILD_KIT_DIR}/prepare-kit.cjs"; then
-    pass "D-013 build: native stdout bytes are persisted before strict UTF-8 decode/JSON parse"
+    pass "D-013 build: single-object capture contract and raw-byte UTF-8 ordering are enforced"
 else
-    fail "D-013 build: raw-byte UTF-8 ordering or logic_tests closure missing"
+    fail "D-013 build: capture output contract, UTF-8 ordering or logic_tests closure missing"
 fi
 
 # ── Skeleton leftovers are forbidden ─────────────────────────────────────────

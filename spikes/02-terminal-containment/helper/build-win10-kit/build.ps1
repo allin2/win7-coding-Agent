@@ -59,33 +59,50 @@ function Invoke-Utf8ProcessBytes(
     $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
     if ($null -ne $StandardInputText) {
         $stdinBytes = $utf8.GetBytes(([string]$StandardInputText) + "`r`n")
-        $process.StandardInput.BaseStream.Write($stdinBytes, 0, $stdinBytes.Length)
-        $process.StandardInput.BaseStream.Flush()
+        $null = $process.StandardInput.BaseStream.Write($stdinBytes, 0, $stdinBytes.Length)
+        $null = $process.StandardInput.BaseStream.Flush()
     }
-    $process.StandardInput.Close()
-    $process.WaitForExit()
-    $stdoutTask.GetAwaiter().GetResult()
-    $stderrTask.GetAwaiter().GetResult()
+    $null = $process.StandardInput.Close()
+    $null = $process.WaitForExit()
+    # Windows PowerShell 5.1 can surface VoidTaskResult from these calls. Any
+    # unsuppressed value becomes part of the function output and turns the
+    # intended capture object into Object[]. Keep the output contract exact.
+    $null = $stdoutTask.GetAwaiter().GetResult()
+    $null = $stderrTask.GetAwaiter().GetResult()
 
     $stdoutBytes = $stdoutBuffer.ToArray()
     $stderrBytes = $stderrBuffer.ToArray()
     # These are the actual native bytes. Keep this ordering before GetString so
     # invalid UTF-8 remains recoverable in a DIAGNOSTICS return package.
-    [System.IO.File]::WriteAllBytes($StdoutPath, $stdoutBytes)
-    [System.IO.File]::WriteAllBytes($StderrPath, $stderrBytes)
+    $null = [System.IO.File]::WriteAllBytes($StdoutPath, $stdoutBytes)
+    $null = [System.IO.File]::WriteAllBytes($StderrPath, $stderrBytes)
     $stdoutText = $utf8.GetString($stdoutBytes)
     $stderrText = $utf8.GetString($stderrBytes)
     $exitCode = $process.ExitCode
-    $stdoutBuffer.Dispose()
-    $stderrBuffer.Dispose()
-    $process.Dispose()
-    return [ordered]@{
+    $null = $stdoutBuffer.Dispose()
+    $null = $stderrBuffer.Dispose()
+    $null = $process.Dispose()
+    return [pscustomobject][ordered]@{
         exit_code = $exitCode
         stdout_text = $stdoutText
         stderr_text = $stderrText
         stdout_size = $stdoutBytes.Length
         stderr_size = $stderrBytes.Length
     }
+}
+
+function Get-ValidatedProcessCapture([object[]]$Items, [string]$Context) {
+    if ($null -eq $Items -or $Items.Count -ne 1) {
+        $actualCount = $(if ($null -eq $Items) { 0 } else { $Items.Count })
+        throw "$Context process capture output contract failed: expected 1 object, got $actualCount."
+    }
+    $capture = $Items[0]
+    foreach ($propertyName in @("exit_code", "stdout_text", "stderr_text", "stdout_size", "stderr_size")) {
+        if ($null -eq $capture.PSObject.Properties[$propertyName]) {
+            throw "$Context process capture output contract failed: missing property $propertyName."
+        }
+    }
+    return $capture
 }
 
 function Reset-OwnedDirectory([string]$Path) {
@@ -126,6 +143,7 @@ function New-ReturnPackage(
     [string]$SmokeStatus,
     [string]$PeStatus,
     [string]$LogicStatus,
+    [string]$CaptureStatus,
     [bool]$CandidateEligible,
     [string]$PackageOutputRoot,
     [string]$PackageEvidenceRoot,
@@ -153,6 +171,7 @@ function New-ReturnPackage(
         crt = "static /MT"
         manifest = "embedded"
         logic_tests = $LogicStatus
+        process_capture_selftest = $CaptureStatus
         win10_smoke = $SmokeStatus
         pe_api_crt_analysis = $PeStatus
         win7_validation = "NOT_PERFORMED"
@@ -217,6 +236,7 @@ function Test-ReturnPackageWriter {
         -FailureCode "TOKEN_CREATE_FAILED" -FailureMessage "synthetic failure" `
         -HelperError "TOKEN_CREATE_FAILED" -ProfileId "SELFTEST" -SdkVersion "SELFTEST" `
         -SmokeStatus "FAIL" -PeStatus "NOT_PERFORMED" -LogicStatus "NOT_PERFORMED" `
+        -CaptureStatus "NOT_PERFORMED" `
         -CandidateEligible $false -PackageOutputRoot $selfOutput `
         -PackageEvidenceRoot $selfEvidence -PackageResultRoot $selfResult
     if (-not ([System.IO.Path]::GetFileName([string]$created.path).StartsWith("WIN7_D013_HELPER_DIAGNOSTICS_"))) {
@@ -234,7 +254,8 @@ function Test-ReturnPackageWriter {
         $selfResultJson.stage -ne "SELFTEST" -or
         $selfResultJson.failure_code -ne "TOKEN_CREATE_FAILED" -or
         $selfResultJson.candidate_eligible -ne $false -or
-        $selfResultJson.helper_error -ne "TOKEN_CREATE_FAILED") {
+        $selfResultJson.helper_error -ne "TOKEN_CREATE_FAILED" -or
+        $selfResultJson.process_capture_selftest -ne "NOT_PERFORMED") {
         throw "return-package self-test build-result contract mismatch"
     }
     $returnManifestPath = Join-Path $extract "RETURN_PACKAGE_MANIFEST.json"
@@ -276,6 +297,7 @@ $sdkVersion = "UNKNOWN"
 $smokeStatus = "NOT_PERFORMED"
 $peStatus = "NOT_PERFORMED"
 $logicStatus = "NOT_PERFORMED"
+$captureStatus = "NOT_PERFORMED"
 $candidateEligible = $false
 $returnPackage = $null
 $transcriptStarted = $false
@@ -297,7 +319,7 @@ try {
     $profileId = [string]$profile.profile
 
     $currentStage = "VERIFY_INPUT"
-    Write-Host "[1/8] Verify full package manifest and locked source snapshot"
+    Write-Host "[1/9] Verify full package manifest and locked source snapshot"
     $packageManifest = Get-Content -LiteralPath (Join-Path $KitRoot "PACKAGE_MANIFEST.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($entry in $packageManifest.files) {
         $path = Join-Path $KitRoot ([string]$entry.path).Replace('/', '\')
@@ -319,8 +341,45 @@ try {
     }
     Write-Json ([ordered]@{ schema_version = 1; status = "PASS"; sources = $verifiedSources }) (Join-Path $EvidenceRoot "input-verification.json")
 
+    $currentStage = "PROCESS_CAPTURE_SELFTEST"
+    Write-Host "[2/9] Verify PowerShell 5.1 single-object and strict UTF-8 capture contract"
+    $captureProbeScript = Join-Path $WorkRoot "capture-selftest.ps1"
+    $captureProbeStdout = Join-Path $EvidenceRoot "capture-selftest-stdout.bin"
+    $captureProbeStderr = Join-Path $EvidenceRoot "capture-selftest-stderr.bin"
+    # Keep this probe source ASCII so Windows PowerShell 5.1 never depends on
+    # BOM/ACP detection. The child constructs the non-ASCII marker by codepoint
+    # and emits it with an explicitly strict UTF-8 console encoding.
+    $captureProbeSource = '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false, $true); [Console]::Out.Write("D013_" + [char]0x4E2D + [char]0x6587)'
+    $null = [System.IO.File]::WriteAllText($captureProbeScript, $captureProbeSource, [System.Text.Encoding]::ASCII)
+    $powershellExe = Join-Path $PSHOME "powershell.exe"
+    if (-not (Test-Path -LiteralPath $powershellExe -PathType Leaf)) {
+        throw "Windows PowerShell executable was not detected for capture self-test."
+    }
+    $captureProbeArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $captureProbeScript + '"'
+    $captureProbeItems = @(Invoke-Utf8ProcessBytes -FilePath $powershellExe `
+        -Arguments $captureProbeArguments -StandardInputText $null `
+        -StdoutPath $captureProbeStdout -StderrPath $captureProbeStderr)
+    $captureProbe = Get-ValidatedProcessCapture -Items $captureProbeItems -Context "capture self-test"
+    $expectedCaptureMarker = "D013_" + [char]0x4E2D + [char]0x6587
+    if ([int]$captureProbe.exit_code -ne 0 -or [string]$captureProbe.stdout_text -ne $expectedCaptureMarker -or
+        [int]$captureProbe.stdout_size -ne 11 -or [int]$captureProbe.stderr_size -ne 0) {
+        throw "PowerShell process capture self-test did not preserve the exact UTF-8 payload."
+    }
+    $captureStatus = "PASS"
+    Write-Json ([ordered]@{
+        schema_version = 1
+        status = "PASS"
+        output_object_count = $captureProbeItems.Count
+        exit_code = [int]$captureProbe.exit_code
+        stdout_size = [int]$captureProbe.stdout_size
+        stderr_size = [int]$captureProbe.stderr_size
+        decoded_marker = [string]$captureProbe.stdout_text
+        raw_bytes_persisted_before_decode = $true
+        strict_utf8 = $true
+    }) (Join-Path $EvidenceRoot "capture-selftest.json")
+
     $currentStage = "RETURN_PACKAGE_SELFTEST"
-    Write-Host "[2/8] Verify FAIL diagnostics finalizer with a synthetic TOKEN_CREATE_FAILED"
+    Write-Host "[3/9] Verify FAIL diagnostics finalizer with a synthetic TOKEN_CREATE_FAILED"
     Test-ReturnPackageWriter
     Write-Json ([ordered]@{
         schema_version = 1
@@ -331,7 +390,7 @@ try {
     }) (Join-Path $EvidenceRoot "return-package-selftest.json")
 
     $currentStage = "VERIFY_BUILD_HOST"
-    Write-Host "[3/8] Enforce Win10 + VS2019 + v142 + SDK 10.0.19041.0"
+    Write-Host "[4/9] Enforce Win10 + VS2019 + v142 + SDK 10.0.19041.0"
     if (-not [Environment]::Is64BitOperatingSystem) { throw "A 64-bit Windows build host is required." }
     $os = Get-CimInstance Win32_OperatingSystem
     if ($os.Caption -notlike "*Windows 10*") { throw "This locked profile requires Windows 10 x64; detected: $($os.Caption)." }
@@ -379,7 +438,7 @@ try {
     Write-Json $environment (Join-Path $EvidenceRoot "environment.json")
 
     $currentStage = "BUILD_LOGIC_TESTS"
-    Write-Host "[4/8] Build and run platform-neutral logic tests with v142"
+    Write-Host "[5/9] Build and run platform-neutral logic tests with v142"
     Reset-OwnedDirectory $WorkRoot
     Reset-OwnedDirectory $OutputRoot
     Ensure-Directory $ResultRoot
@@ -421,7 +480,7 @@ try {
     $logicStatus = "PASS"
 
     $currentStage = "BUILD_HELPER"
-    Write-Host "[5/8] Build spike02_helper.exe (static CRT, Win7 target)"
+    Write-Host "[6/9] Build spike02_helper.exe (static CRT, Win7 target)"
     $objDir = Join-Path $WorkRoot "obj"
     Ensure-Directory $objDir
     $sources = @('helper.cpp', 'json_parser.cpp', 'argv_builder.cpp', 'whitelist.cpp', 'protocol.cpp')
@@ -442,12 +501,12 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $helperExe)) { throw "link failed (exit $LASTEXITCODE)." }
 
     $currentStage = "EMBED_MANIFEST"
-    Write-Host "[6/8] Embed application manifest"
+    Write-Host "[7/9] Embed application manifest"
     & $mt -nologo -manifest (Join-Path $KitRoot "helper.exe.manifest") -outputresource:"$helperExe;#1"
     if ($LASTEXITCODE -ne 0) { throw "mt.exe manifest embedding failed (exit $LASTEXITCODE)." }
 
     $currentStage = "PE_API_CRT_GATE"
-    Write-Host "[7/8] Fail closed on PE architecture, forbidden APIs and CRT closure"
+    Write-Host "[8/9] Fail closed on PE architecture, forbidden APIs and CRT closure"
     $peResults = @()
     $peFailure = $false
     $crtRegex = '(?i)\b(?:VCRUNTIME[0-9_A-Z]*|MSVCP[0-9_A-Z]*|UCRTBASE|API-MS-WIN-CRT-[0-9A-Z-]+)\.DLL\b'
@@ -480,7 +539,7 @@ try {
     $peStatus = "PASS"
 
     $currentStage = "WIN10_SMOKE"
-    Write-Host "[8/8] Win10 smoke: version, JSON round trip and exact token/ACL audit"
+    Write-Host "[9/9] Win10 smoke: version, JSON round trip and exact token/ACL audit"
     $smokeStatus = "SKIPPED_REQUESTED"
     if (-not $SkipSmoke) {
         $smokeStdout = Join-Path $EvidenceRoot "smoke-stdout.txt"
@@ -497,8 +556,9 @@ try {
         if (-not (Test-Path -LiteralPath $cmdExe -PathType Leaf)) { throw "cmd.exe smoke target was not detected." }
         $versionStdout = Join-Path $EvidenceRoot "version-stdout.txt"
         $versionStderr = Join-Path $EvidenceRoot "version-stderr.txt"
-        $versionCapture = Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "--version" `
-            -StandardInputText $null -StdoutPath $versionStdout -StderrPath $versionStderr
+        $versionCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "--version" `
+            -StandardInputText $null -StdoutPath $versionStdout -StderrPath $versionStderr)
+        $versionCapture = Get-ValidatedProcessCapture -Items $versionCaptureItems -Context "helper --version"
         if ($versionCapture.exit_code -ne 0 -or $versionCapture.stdout_text -notmatch 'win7-x64') {
             throw "helper --version smoke failed."
         }
@@ -523,8 +583,9 @@ try {
         if (($requestCheck.executable -ne $requestPayload.executable) -or ($requestCheck.workingDirectory -ne $requestPayload.workingDirectory)) {
             throw "helper JSON smoke request did not survive serialization round trip."
         }
-        $smokeCapture = Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
-            -StandardInputText $request -StdoutPath $smokeStdout -StderrPath $smokeStderr
+        $smokeCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+            -StandardInputText $request -StdoutPath $smokeStdout -StderrPath $smokeStderr)
+        $smokeCapture = Get-ValidatedProcessCapture -Items $smokeCaptureItems -Context "helper JSON smoke"
         $smokeProcessExit = [int]$smokeCapture.exit_code
         $responseText = ([string]$smokeCapture.stdout_text) -replace "[\r\n]+$", ""
         if ($smokeProcessExit -ne 0) {
@@ -637,6 +698,9 @@ try {
     if ($smokeStatus -eq "NOT_PERFORMED" -or $smokeStatus -like "SKIPPED*") {
         $smokeStatus = "FAIL"
     }
+    if ($currentStage -eq "PROCESS_CAPTURE_SELFTEST" -and $captureStatus -eq "NOT_PERFORMED") {
+        $captureStatus = "FAIL"
+    }
     [Console]::Error.WriteLine("BUILD ERROR: " + $failureMessage)
 } finally {
     if ($transcriptStarted) { try { Stop-Transcript | Out-Null } catch {} }
@@ -646,7 +710,8 @@ try {
     $returnPackage = New-ReturnPackage -Status $buildStatus -CurrentStage $currentStage `
         -FailureCode $failureCode -FailureMessage $failureMessage -HelperError $helperError `
         -ProfileId $profileId -SdkVersion $sdkVersion -SmokeStatus $smokeStatus `
-        -PeStatus $peStatus -LogicStatus $logicStatus -CandidateEligible $candidateEligible `
+        -PeStatus $peStatus -LogicStatus $logicStatus -CaptureStatus $captureStatus `
+        -CandidateEligible $candidateEligible `
         -PackageOutputRoot $OutputRoot -PackageEvidenceRoot $EvidenceRoot `
         -PackageResultRoot $ResultRoot
     $packagingSucceeded = $true

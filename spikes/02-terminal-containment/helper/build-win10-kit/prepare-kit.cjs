@@ -122,9 +122,21 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/schema_version\s*=\s*3/.test(buildScript) ||
     !/RETURN_PACKAGE_MANIFEST\.json/.test(buildScript) ||
     !/function\s+Invoke-Utf8ProcessBytes/.test(buildScript) ||
+    !/function\s+Get-ValidatedProcessCapture/.test(buildScript) ||
     !/CopyToAsync\s*\(\s*\$stdoutBuffer\s*\)/.test(buildScript) ||
+    !/\$null\s*=\s*\$stdoutTask\.GetAwaiter\(\)\.GetResult\(\)/.test(buildScript) ||
+    !/\$null\s*=\s*\$stderrTask\.GetAwaiter\(\)\.GetResult\(\)/.test(buildScript) ||
+    /(?:^|\n)\s*\$stdoutTask\.GetAwaiter\(\)\.GetResult\(\)/.test(buildScript) ||
+    /(?:^|\n)\s*\$stderrTask\.GetAwaiter\(\)\.GetResult\(\)/.test(buildScript) ||
     !/WriteAllBytes\s*\(\s*\$StdoutPath\s*,\s*\$stdoutBytes\s*\)/.test(buildScript) ||
     !/UTF8Encoding\s*\(\s*\$false\s*,\s*\$true\s*\)/.test(buildScript) ||
+    !/PROCESS_CAPTURE_SELFTEST/.test(buildScript) ||
+    !/expectedCaptureMarker\s*=\s*"D013_"\s*\+\s*\[char\]0x4E2D\s*\+\s*\[char\]0x6587/.test(buildScript) ||
+    !/output_object_count\s*=\s*\$captureProbeItems\.Count/.test(buildScript) ||
+    !/process_capture_selftest\s*=\s*\$CaptureStatus/.test(buildScript) ||
+    !/\$versionCaptureItems\s*=\s*@\(Invoke-Utf8ProcessBytes/.test(buildScript) ||
+    !/\$smokeCaptureItems\s*=\s*@\(Invoke-Utf8ProcessBytes/.test(buildScript) ||
+    /@\(Invoke-Utf8ProcessBytes[\s\S]{0,500}?\)\s*\[-1\]/.test(buildScript) ||
     /\$request\s*\|\s*&\s*\$helperExe/.test(buildScript) ||
     /catch\s*\{[^}]*\bexit\b/.test(buildScript)) {
   throw new Error('build.ps1 must exercise protected ACLs and preserve PASS/PARTIAL/FAIL evidence through the single return-package finalizer');

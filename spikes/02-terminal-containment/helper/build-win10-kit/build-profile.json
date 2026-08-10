@@ -68,6 +68,8 @@
       "evidence/environment.json", "evidence/input-verification.json",
       "evidence/pe-api-crt-analysis.json", "evidence/build-result.json",
       "evidence/logic-tests.txt", "evidence/return-package-selftest.json",
+      "evidence/capture-selftest.json", "evidence/capture-selftest-stdout.bin",
+      "evidence/capture-selftest-stderr.bin",
       "evidence/smoke-stdout.txt", "evidence/smoke-stderr.txt",
       "evidence/build-transcript.txt"
     ],
