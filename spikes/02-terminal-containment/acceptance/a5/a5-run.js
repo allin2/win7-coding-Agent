@@ -254,6 +254,7 @@ function assembleCandidate(zipPath, candidateDir) {
     'acceptance/a5/a5-terminal-harness.js',
     'acceptance/a5/a5-host-driver.js',
     'acceptance/a5/a5-electron-main.js',
+    'acceptance/a5/a5_t05_win7.py',
     'acceptance/a5/a5-manifest.js',
     'acceptance/a5/a5-run.js',
     'acceptance/a5/a5_wmi.cmd',
@@ -345,10 +346,10 @@ async function runWin7(args) {
 
   const remoteBase = `${WIN7.acceptanceRoot}\\a5\\${args.acceptanceId}`;
   const remotePosix = remoteBase.replace(/\\/g, '/');
-  assertNoForbidden(`${WIN7.electron} a5-electron-main.js --acceptance-id ${args.acceptanceId}`);
+  assertNoForbidden(`${WIN7.remotePython} a5_t05_win7.py --acceptance-id ${args.acceptanceId}`);
 
-  if (remoteHash(WIN7.electron) !== '2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb') {
-    throw new Error('WIN7_ELECTRON_HASH_MISMATCH');
+  if (remoteHash(WIN7.remotePython) !== '5275c42f7359fa2c7ec473be3240e57d5ce5b9301a26bd2e98e89bb9db074581') {
+    throw new Error('WIN7_PYTHON_HASH_MISMATCH');
   }
   const rootProbe = spawnSync('ssh', sshArgs(`cmd.exe /d /s /c if exist ${remoteBase} (exit /b 17) else (exit /b 0)`), {
     shell: false, encoding: 'utf8', timeout: 30000,

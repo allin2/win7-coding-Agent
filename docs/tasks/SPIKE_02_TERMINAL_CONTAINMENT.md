@@ -161,3 +161,12 @@ Electron ABI 110 smoke。2026-08-07 已复核返回包
   winpty 方向正式为 `NO_GO_INTERACTIVE_WINPTY`。D-013 v21 已在 A4-20260810-000004 的 ADR-0065
   签名租约下取得 `WIN7_PASS`；A5 T05 仍须用独立签名租约复验，正式 C05 仍为
   `ENVIRONMENT_MISSING`，不得宣称本地网络隔离。
+
+### A5 T05 首轮正式复验（A5-20260810-152500）
+
+- Ed25519 租约完整走完 `GRANTED → RUNNING → RETURNED → RELEASED`；preflight 和 postflight
+  均确认 build 7601 x64、Bitvise `RUNNING`、零相关进程残留，五项远端工件哈希与租约一致。
+- T05 按 fail-closed 返回 `HOST_ALREADY_IN_JOB`：helper 由 Electron 主进程派生并继承 Chromium
+  Job，未建立新的 containment，正式评级保持 `CANDIDATE_EVIDENCE`，未签发 `WIN7_PASS`。
+- 修正方向固定为复用 A4 已验证的 WMI → CPython → helper 独立宿主路径，避免 Electron Job
+  继承；旧目录和失败证据保留，不清理、不复用，下一轮必须使用新 acceptance ID 与新租约。

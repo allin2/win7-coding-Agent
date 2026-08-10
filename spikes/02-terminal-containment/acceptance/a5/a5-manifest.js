@@ -196,6 +196,7 @@ function generateManifest(opts) {
     'acceptance/a5/a5-terminal-harness.js',
     'acceptance/a5/a5-manifest.js',
     'acceptance/a5/a5-electron-main.js',
+    'acceptance/a5/a5_t05_win7.py',
     'acceptance/a5/a5_wmi.cmd',
     'acceptance/a5/a5-run.js',
   ].map((rel) => {

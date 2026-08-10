@@ -46,7 +46,8 @@ function runRemote(options, remoteArgv, runner) {
 
 function validateArtifactMap(value, acceptanceId) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const expectedRoot = `c:\\win7codingagent\\acceptance\\${acceptanceId.toLowerCase()}\\`;
+  const suiteSegment = acceptanceId.startsWith('A5-') ? 'a5\\' : '';
+  const expectedRoot = `c:\\win7codingagent\\acceptance\\${suiteSegment}${acceptanceId.toLowerCase()}\\`;
   const result = {};
   for (const [name, remotePath] of Object.entries(value)) {
     if (!/^[A-Za-z0-9_.-]+$/.test(name) || typeof remotePath !== 'string'

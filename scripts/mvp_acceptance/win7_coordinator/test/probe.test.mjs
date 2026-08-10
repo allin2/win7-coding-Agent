@@ -48,3 +48,26 @@ test('read-only probe builds coordinator snapshot with fake SSH transport', () =
   assert.equal(snapshot.target.hostname, 'WIN7-A5');
   assert.deepEqual(snapshot.residues, []);
 });
+
+test('A5 artifact map is confined to acceptance\\a5\\<id>', () => {
+  const a5 = { ...options, acceptanceId: 'A5-20260810-000001', phase: 'postflight' };
+  const goodPath = 'C:\\Win7CodingAgent\\acceptance\\a5\\A5-20260810-000001\\spike02_helper.exe';
+  const outputs = new Map([
+    ['cmd.exe', 'Microsoft Windows [Version 6.1.7601]'],
+    ['hostname', 'WIN7-A5\r\n'],
+    ['wmic.exe:os', 'BuildNumber=7601\r\nOSArchitecture=64-bit'],
+    ['sc', 'STATE : 4 RUNNING'],
+    ['wmic.exe:process', 'Node,CommandLine,Name,ProcessId\r\n'],
+    ['certutil.exe', `${'a '.repeat(63)}a\r\n`],
+  ]);
+  const runner = (_command, args) => {
+    const remote = args.slice(args.indexOf(`${a5.user}@${a5.targetIp}`) + 1);
+    const key = remote[0] === 'wmic.exe' ? `wmic.exe:${remote[1]}` : remote[0];
+    return { status: 0, stdout: outputs.get(key) || '', stderr: '' };
+  };
+  assert.doesNotThrow(() => probeWin7({ ...a5, artifactMap: { helper: goodPath } }, runner));
+  assert.throws(() => probeWin7({
+    ...a5,
+    artifactMap: { helper: 'C:\\Win7CodingAgent\\acceptance\\A5-20260810-000001\\spike02_helper.exe' },
+  }, runner), (error) => error.code === 'ARTIFACT_PATH_DENIED');
+});

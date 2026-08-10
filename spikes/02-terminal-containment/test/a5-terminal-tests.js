@@ -380,6 +380,21 @@ test('D-013 v21 请求：requestId、/d /s /c 与 ACL policy 均显式携带', (
   }), /requires aclPolicy/);
 });
 
+test('正式 T05 使用 WMI→CPython→helper，避免继承 Electron Chromium Job', () => {
+  const launcher = fs.readFileSync(path.join(A5, 'a5_wmi.cmd'), 'utf8');
+  const harness = fs.readFileSync(path.join(A5, 'a5_t05_win7.py'), 'utf8');
+  assert.ok(launcher.includes('python38_mvp\\python.exe'));
+  assert.ok(launcher.includes('a5_t05_win7.py'));
+  assert.ok(!launcher.includes('electron.exe'));
+  assert.ok(harness.includes('"argv": ["/d", "/s", "/c", script_path]'));
+  assert.ok(harness.includes('"aclPolicy"'));
+  assert.ok(!/(?:Popen|run|call|check_output)\s*\([^\n]*taskkill/i.test(harness));
+  const compiled = spawnSync('python3', ['-c', `compile(open(${JSON.stringify(path.join(A5, 'a5_t05_win7.py'))}, encoding='utf-8').read(), 'a5_t05_win7.py', 'exec')`], {
+    shell: false, encoding: 'utf8', timeout: 10000,
+  });
+  assert.strictEqual(compiled.status, 0, compiled.stderr);
+});
+
 // ─── 5. 静态断言 ──────────────────────────────────────────────────────────────
 
 test('N01 静态：模型处理器路径无 pty 写调用', () => {

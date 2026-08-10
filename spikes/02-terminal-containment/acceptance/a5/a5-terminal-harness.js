@@ -123,6 +123,7 @@ function assertNoTaskkill(sourceRoot) {
     'acceptance/a5/a5-manifest.js',
     'acceptance/a5/a5-run.js',
     'acceptance/a5/a5-electron-main.js',
+    'acceptance/a5/a5_t05_win7.py',
   ];
   // 只标记"实际调用 taskkill 子进程"的行（含 spawn/exec/child_process），
   // 允许文档/守卫列表等纯文本提及。
@@ -132,7 +133,8 @@ function assertNoTaskkill(sourceRoot) {
     // 先剥离 // 行注释，避免扫描器自身注释命中；纯文本提及与守卫列表不算执行。
     return lines.some((line) => {
       const code = line.replace(/\/\/.*$/, '');
-      return /taskkill/i.test(code) && /(spawn\(|spawnSync\(|execFile\(|execFileSync\(|exec\(|child_process\.)/i.test(code);
+      return /taskkill/i.test(code)
+        && /(spawn\(|spawnSync\(|execFile\(|execFileSync\(|exec\(|child_process\.|subprocess\.(?:Popen|run|call|check_output))/i.test(code);
     });
   });
   return hits.length === 0
