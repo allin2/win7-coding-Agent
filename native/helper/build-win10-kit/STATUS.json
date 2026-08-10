@@ -4,8 +4,8 @@
   "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
   "status": "REBUILD_REQUIRED_FOR_ELECTRON_HOST_JOB_BREAKAWAY",
   "build_revision": "v23-production-host-job-breakaway",
-  "win10_build_executed": true,
-  "win10_return_package_reviewed": true,
+  "win10_build_executed": false,
+  "win10_return_package_reviewed": false,
   "win7_validation": "NOT_PERFORMED",
   "source_baseline": {
     "validated_revision": "D-013-v21",
@@ -17,7 +17,7 @@
     "idleTimeoutMs and idleTimedOut",
     "production version banner"
   ],
-  "win10_build_evidence": {
+  "superseded_v22_win10_build_evidence": {
     "completed_at": "2026-08-10T16:16:15.2420704Z",
     "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-161615.zip",
     "return_package_sha256": "22f946b18eb6d12134dabe1ac2af04d9c97e1749e2843242336bbc20fd1315f9",

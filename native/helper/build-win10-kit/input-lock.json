@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
-  "source_commit": "2adc9b2f4c64ef34ac57fed968fca93bac9b3b97",
-  "source_commit_timestamp": "2026-08-10T16:00:35.000Z",
-  "generated_at": "2026-08-10T16:00:35.000Z",
+  "source_commit": "652eccbb00dbe47cdbe9a6a337b2f3024c88b0b4",
+  "source_commit_timestamp": "2026-08-11T00:28:38+08:00",
+  "generated_at": "2026-08-11T00:28:38+08:00",
   "sources": [
     {
       "path": "src/helper.cpp",
-      "size": 69339,
-      "sha256": "7e842ed4ff5b2c22528add157f853e0e25bfc6db1a0a017781b32ce3e597dae4"
+      "size": 72340,
+      "sha256": "42fe453c03250f9f75607ce5a622ea93e76a0af2ab18d917c2e6d506452aa8f0"
     },
     {
       "path": "src/helper.h",
-      "size": 12684,
-      "sha256": "994f8c4ec609c0179c6bff161f02eddc92979478a3c10547a56ced5291f0c77f"
+      "size": 14307,
+      "sha256": "e4ac22c704c8f6f7b9053b233f25daf7e16d3f414aa9b71a81086472cd636c56"
     },
     {
       "path": "src/logic_tests.cpp",
-      "size": 19655,
-      "sha256": "e84b1219db7a0d3397ce355d5a8ac03a2b2540355163d3216e0b77b734a4c324"
+      "size": 20765,
+      "sha256": "8286af1f559c5057f0123a5c15a7484c3c7d4a2556d31854c72a5dc1acacaa67"
     },
     {
       "path": "src/json_parser.cpp",
@@ -52,8 +52,8 @@
     },
     {
       "path": "src/protocol.cpp",
-      "size": 14617,
-      "sha256": "c62b8fef2005ad56b01a9a4b287fb9b473d636ef86439e1175b1406880213149"
+      "size": 15136,
+      "sha256": "220a1f37f6befd90234e374a71c55b2446e152062fb8fd3fba2658b190b08f76"
     },
     {
       "path": "src/CMakeLists.txt",
@@ -62,8 +62,8 @@
     },
     {
       "path": "build.ps1",
-      "size": 38431,
-      "sha256": "a268b49e630072ec0465ba4ae31f4b175c91c340ce7227be4405808de885d86f"
+      "size": 38832,
+      "sha256": "163dcd66b3db4e38bc9b699f14110174ac88cb060f992e91c56c8c3119be6239"
     },
     {
       "path": "build-profile.json",
@@ -78,12 +78,12 @@
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "9e53628b0a385971a28753a07edbe5797f4f8bb728d9c3b86bb3752d5edc75f8"
+      "sha256": "e4c9c99341541ebb4c9152af6e0e3a199cf1912252b39233aff13ef85c72c4bd"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
-      "size": 25,
-      "sha256": "9f60c048527e9b86356fe88dd8c4c1f1ea3c957ea7484638c4595dfa70a68932"
+      "size": 26,
+      "sha256": "53ac93f5ceaed2699c7b30c6731396e13e49018d76d8c6f1d963023a309d685a"
     }
   ]
 }

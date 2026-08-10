@@ -63,13 +63,13 @@ Renderer 进程权限和模型可调用的通用 `terminal.exec`。
 - 产品宿主：Electron 22.3.27 内嵌 Node 16.17.1；自包含内网/离线包，不在目标机在线解析依赖。
 - 降级：签名、哈希、containment 或清理任一不确定即 `UnavailableRunner`/`cleanup_failed`。
 
-### 3.1 生产 helper 构建候选
+### 3.1 生产 helper v23 构建候选
 
-- source commit：`2adc9b2f4c64ef34ac57fed968fca93bac9b3b97`
-- 离线 Win10 构建包：`native/helper/build-win10-kit/result/WIN7_D013_PRODUCTION_HELPER_BUILDKIT_20260811_BOUND.zip`
-- ZIP SHA-256：`cca2db6d2fdf1e9f355f1a38d5e4d60fcda4130bee307809005db3347a331564`
-- `PACKAGE_MANIFEST.json`：`674dd540137142722ea7d686559818cb12cf7305992cfe4f3572aabc5c4b2135`
-- `input-lock.json`：`9c534060d2d00807722dfd6d670dabd031f32d4f9b020223220d0c2c07fa6e08`
+- source commit：`652eccbb00dbe47cdbe9a6a337b2f3024c88b0b4`
+- 离线 Win10 构建包：`native/helper/build-win10-kit/result/WIN7_D013_PRODUCTION_HELPER_BUILDKIT_20260811_V23_BOUND.zip`
+- ZIP SHA-256：`a977706338b039b355547573594d92aedbe03e353b791fdf2ff2de84e17c1d12`
+- `PACKAGE_MANIFEST.json`：`a1519b2f3b551fe6d94dab484a11d2b8f9494262673b023d4893063620d320a1`
+- `input-lock.json`：`c485b75c16d3d3479d1cb474a55cfc8709ee4d6ba49f5328be814b5eb8f09853`
 
 该 ZIP 是 Git 忽略的本地交接物，不是 Win7 运行包。必须在 D-017 锁定的 Win10/VS2019/v142
 构建机执行 `build.ps1`，返回新的 ARTIFACTS ZIP 与 sidecar；旧 v21 helper 二进制不能替代本修订。

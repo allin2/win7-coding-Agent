@@ -23,6 +23,8 @@
  *   {"schema_version":1,"type":"execution_result","requestId":...,"status":"completed",
  *    "exitCode":0,"executionTimeMs":16,"timedOut":false,"canceled":false,
  *    "outputTruncated":false,"containmentVerified":true,"inputDetached":true,
+ *    "hostJob":{"detected":false,"breakaway":"none","limitFlags":0,
+ *      "childJobAssignmentVerified":true},
  *    "tokenAudit":{"source":"suspended_child_process_token","verified":true,
  *      "isRestricted":true,"tokenType":"primary","restrictedSidSetVerified":true,
  *      "userRestrictedSid":true,"worldRestrictedSid":true,
@@ -280,6 +282,15 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
     out += result.containmentVerified ? "true" : "false";
     out += ",\"inputDetached\":";
     out += result.inputDetached ? "true" : "false";
+    out += ",\"hostJob\":{\"detected\":";
+    out += result.hostJobDetected ? "true" : "false";
+    out += ",\"breakaway\":\"";
+    out += result.hostJobBreakaway;
+    out += "\",\"limitFlags\":";
+    out += std::to_string(static_cast<unsigned long>(result.hostJobLimitFlags));
+    out += ",\"childJobAssignmentVerified\":";
+    out += result.childJobAssignmentVerified ? "true" : "false";
+    out += "}";
     out += ",\"tokenAudit\":{\"source\":\"suspended_child_process_token\",\"verified\":";
     out += result.tokenAudit.verified ? "true" : "false";
     out += ",\"isRestricted\":";

@@ -6,8 +6,11 @@
  * one JSON response line to stdout.
  *
  * Containment chain (each layer fails closed):
- *   C02  Host Job probe        IsProcessInJob(self, NULL) -> refuse on Win7
- *                              (Jobs are not nestable on Win7, P11).
+ *   C02  Host Job probe        Win7 Jobs are not nestable. A helper inherited
+ *                              into a host Job may proceed only when that Job
+ *                              advertises BREAKAWAY_OK or SILENT_BREAKAWAY_OK;
+ *                              the suspended child must be proven outside the
+ *                              host Job before assignment to the helper Job.
  *   C01  Job Object            KILL_ON_JOB_CLOSE + active-process + per-process
  *                              memory limits; whole-tree reclamation on timeout
  *                              via TerminateJobObject (never taskkill, N06).
@@ -419,11 +422,28 @@ bool ResolveExecutablePath(const std::wstring& executable, std::wstring* canonic
     return ResolveExecutablePathInternal(executable, canonical, error);
 }
 
-bool HostIsInJob() {
+HostJobLaunchPlan InspectHostJobLaunchPlan() {
+    HostJobLaunchPlan plan;
     BOOL inJob = FALSE;
-    // Fail closed when the probe itself fails.
-    if (!IsProcessInJob(GetCurrentProcess(), nullptr, &inJob)) return true;
-    return inJob ? true : false;
+    if (!IsProcessInJob(GetCurrentProcess(), nullptr, &inJob)) {
+        plan.probeError = GetLastError();
+        plan.mode = HostJobLaunchMode::ProbeFailed;
+        return plan;
+    }
+    if (!inJob) {
+        plan.mode = HostJobLaunchMode::NoHostJob;
+        return plan;
+    }
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+    if (!QueryInformationJobObject(nullptr, JobObjectExtendedLimitInformation,
+                                   &info, sizeof(info), nullptr)) {
+        plan.probeError = GetLastError();
+        plan.mode = HostJobLaunchMode::ProbeFailed;
+        return plan;
+    }
+    plan.limitFlags = info.BasicLimitInformation.LimitFlags;
+    plan.mode = DecideHostJobLaunchMode(true, true, true, plan.limitFlags);
+    return plan;
 }
 
 HANDLE CreateConfiguredJobObject() {
@@ -964,8 +984,26 @@ bool RestoreLowIntegrityLabel(const std::wstring& directory,
 }
 
 int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) {
-    // C02: fail closed when the host is already inside a Job (Win7 cannot nest).
-    if (HostIsInJob()) return HELPER_ERR_HOST_IN_JOB;
+    // C02: Win7 cannot nest Jobs. Permit an inherited host Job only when its
+    // documented flags allow the child to break away before we assign it to
+    // the helper-owned containment Job.
+    const HostJobLaunchPlan hostPlan = InspectHostJobLaunchPlan();
+    result->hostJobLimitFlags = hostPlan.limitFlags;
+    result->hostJobDetected = hostPlan.mode != HostJobLaunchMode::NoHostJob;
+    if (hostPlan.mode == HostJobLaunchMode::ProbeFailed) {
+        result->errorMessage = "host Job probe failed: Win32 error " +
+                               std::to_string(static_cast<unsigned long>(hostPlan.probeError));
+        return HELPER_ERR_HOST_IN_JOB;
+    }
+    if (hostPlan.mode == HostJobLaunchMode::Blocked) {
+        result->errorMessage = "host Job does not permit child breakaway";
+        return HELPER_ERR_HOST_IN_JOB;
+    }
+    if (hostPlan.mode == HostJobLaunchMode::ExplicitBreakaway) {
+        result->hostJobBreakaway = "explicit";
+    } else if (hostPlan.mode == HostJobLaunchMode::SilentBreakaway) {
+        result->hostJobBreakaway = "silent";
+    }
 
     HANDLE hJob = CreateConfiguredJobObject();
     if (!hJob) return HELPER_ERR_JOB_CREATE;
@@ -1194,10 +1232,14 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     // child's stdio handles are the explicitly inheritable pipe/NUL handles
     // installed in STARTUPINFO. The process remains suspended until it is
     // assigned to and verified inside the Job Object below.
+    DWORD creationFlags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
+    if (hostPlan.mode == HostJobLaunchMode::ExplicitBreakaway) {
+        creationFlags |= CREATE_BREAKAWAY_FROM_JOB;
+    }
     BOOL created = CreateProcessAsUserW(
         hRestricted, config.executable.c_str(), &mutableCommandLine[0],
         nullptr, nullptr, TRUE,
-        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, nullptr, cwd, &si, &pi);
+        creationFlags, nullptr, cwd, &si, &pi);
 
     if (!created) {
         const DWORD lastError = GetLastError();
@@ -1208,6 +1250,27 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         if (failure != HELPER_ERR_ACL_ROLLBACK) {
             result->errorMessage = "CreateProcessAsUserW failed: Win32 error " +
                                    std::to_string(static_cast<unsigned long>(lastError));
+        }
+        if (userSid) LocalFree(userSid);
+        CloseHandle(hRestricted);
+        CloseHandle(hJob);
+        return failure;
+    }
+
+    // Before assignment the suspended child must be outside every Job. This
+    // proves that an inherited Win7 host Job was actually escaped; merely
+    // observing a permissive flag is not sufficient evidence.
+    BOOL childInAnyJob = TRUE;
+    if (!IsProcessInJob(pi.hProcess, nullptr, &childInAnyJob) || childInAnyJob) {
+        TerminateProcess(pi.hProcess, 1);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        CloseHandle(hNullIn);
+        CloseHandle(hOutRead); CloseHandle(hOutWrite);
+        CloseHandle(hErrRead); CloseHandle(hErrWrite);
+        const int failure = failAfterRollback(HELPER_ERR_JOB_CREATE);
+        if (failure != HELPER_ERR_ACL_ROLLBACK) {
+            result->errorMessage = "suspended child did not break away from the host Job";
         }
         if (userSid) LocalFree(userSid);
         CloseHandle(hRestricted);
@@ -1232,6 +1295,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     BOOL inJob = FALSE;
     result->containmentVerified =
         IsProcessInJob(pi.hProcess, hJob, &inJob) && inJob;
+    result->childJobAssignmentVerified = result->containmentVerified;
     if (!result->containmentVerified) {
         TerminateProcess(pi.hProcess, 1);
         CloseHandle(pi.hProcess);
