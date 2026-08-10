@@ -118,6 +118,8 @@ struct RestrictedTokenAudit {
     bool verified = false;
     bool isRestricted = false;
     bool isPrimary = false;
+    bool worldRestrictedSid = false;
+    DWORD restrictedSidCount = 0;
     std::wstring integritySid;
     DWORD integrityRid = 0;
 };
@@ -180,15 +182,18 @@ bool RestoreLowIntegrityLabel(const std::wstring& directory,
 HANDLE CreateConfiguredJobObject();
 
 // Build the restricted primary token (maximum privileges disabled while
-// retaining SeChangeNotifyPrivilege, Administrators deny-only, Low Integrity).
-// Everyone/World remains enabled so baseline OS read/execute grants remain
-// usable by the Windows loader. Returns NULL on failure.
+// retaining SeChangeNotifyPrivilege, Administrators deny-only, Everyone as the
+// sole restricting SID, Low Integrity). Everyone remains enabled in the normal
+// SID list so baseline loader/window-station grants are not denied; its second
+// role as a restricting SID makes the restricted-token semantics explicit.
+// Returns NULL on failure.
 HANDLE CreateRestrictedProcessToken();
 
 // Open and audit the token attached to `childProcess` while the child is still
-// suspended. Success requires a restricted primary token whose mandatory
-// integrity SID is exactly Low Integrity (S-1-16-4096). Any query failure or
-// mismatch returns false so launch can fail closed before ResumeThread.
+// suspended. Success requires a restricted primary token with exactly one
+// restricting SID (Everyone/World) whose mandatory integrity SID is exactly
+// Low Integrity (S-1-16-4096). Any query failure or mismatch returns false so
+// launch can fail closed before ResumeThread.
 bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
                                std::wstring* error);
 

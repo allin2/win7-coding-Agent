@@ -70,7 +70,7 @@ try {
   const protectedDir = path.join(harnessRoot, 'protected-outside');
 
   fs.writeFileSync(fixtures, JSON.stringify({
-    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', integritySid: 'S-1-16-4096', integrityRid: 4096 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(harnessRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
+    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', worldRestrictedSid: true, restrictedSidCount: 1, integritySid: 'S-1-16-4096', integrityRid: 4096 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(harnessRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
     'c06-argv-reject': { schema_version: 1, type: 'error', requestId: 'c06-argv-reject', error: 'ARGV_REJECTED', message: 'mock' },
     'c06-cmd-k-reject': { schema_version: 1, type: 'error', requestId: 'c06-cmd-k-reject', error: 'ARGV_REJECTED', message: 'mock' },
     'c07-timeout': { schema_version: 1, type: 'execution_result', requestId: 'c07-timeout', status: 'completed', exitCode: 1, executionTimeMs: 3005, timedOut: true, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [] },
@@ -110,7 +110,7 @@ try {
   const badAuditRoot = path.join(acceptanceRoot, 'bad-audit-root');
   const badAuditOut = path.join(tempRoot, 'bad-audit-results.json');
   fs.writeFileSync(fixtures, JSON.stringify({
-    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', integritySid: 'S-1-16-8192', integrityRid: 8192 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(badAuditRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
+    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', worldRestrictedSid: true, restrictedSidCount: 1, integritySid: 'S-1-16-8192', integrityRid: 8192 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(badAuditRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
   }));
   const badAuditRun = run(PY, [HARNESS, '--acceptance-id', 'A4-20260807-000009', '--helper', MOCK,
     '--root', badAuditRoot, '--acceptance-root', acceptanceRoot, '--out', badAuditOut], {
@@ -120,6 +120,23 @@ try {
   const badAuditResults = JSON.parse(fs.readFileSync(badAuditOut, 'utf8'));
   check('C03 rejects a mismatched trusted integrity SID', badAuditRun.status === 1
     && badAuditResults.cases.find((entry) => entry.id === 'C03-restricted-token-boundary')?.status === 'FAIL');
+
+  // Reproduce the v17 construction/audit contradiction: claiming a restricted
+  // token without the sole World restricting SID must fail closed even when
+  // every Low Integrity field is otherwise correct.
+  const missingWorldRoot = path.join(acceptanceRoot, 'missing-world-root');
+  const missingWorldOut = path.join(tempRoot, 'missing-world-results.json');
+  fs.writeFileSync(fixtures, JSON.stringify({
+    'c03-restricted-boundary': { schema_version: 1, type: 'execution_result', requestId: 'c03-restricted-boundary', status: 'completed', exitCode: 0, executionTimeMs: 30, timedOut: false, canceled: false, outputTruncated: false, containmentVerified: true, inputDetached: true, tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', worldRestrictedSid: false, restrictedSidCount: 0, integritySid: 'S-1-16-4096', integrityRid: 4096 }, stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [{ path: path.join(missingWorldRoot, 'c03-boundary'), mechanism: 'low_integrity_label', applied: true, verified: true, rolledBack: true, error: '' }] },
+  }));
+  const missingWorldRun = run(PY, [HARNESS, '--acceptance-id', 'A4-20260807-000010', '--helper', MOCK,
+    '--root', missingWorldRoot, '--acceptance-root', acceptanceRoot, '--out', missingWorldOut], {
+    env: { ...process.env, D013_MOCK_FIXTURES: fixtures, D013_MOCK_LOG: requestLog, D013_MOCK_SIDE_EFFECTS: '1' },
+    timeout: 60000,
+  });
+  const missingWorldResults = JSON.parse(fs.readFileSync(missingWorldOut, 'utf8'));
+  check('C03 rejects the v17 empty restricting-SID contract', missingWorldRun.status === 1
+    && missingWorldResults.cases.find((entry) => entry.id === 'C03-restricted-token-boundary')?.status === 'FAIL');
 
   // Request-shape recording: the harness must send the right protocol.
   const requests = JSON.parse(fs.readFileSync(requestLog, 'utf8'));

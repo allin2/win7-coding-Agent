@@ -248,6 +248,8 @@ try {
                 $tokenAudit.verified -ne $true -or
                 $tokenAudit.isRestricted -ne $true -or
                 $tokenAudit.tokenType -ne 'primary' -or
+                $tokenAudit.worldRestrictedSid -ne $true -or
+                [int64]$tokenAudit.restrictedSidCount -ne 1 -or
                 $tokenAudit.integritySid -ne 'S-1-16-4096' -or
                 [int64]$tokenAudit.integrityRid -ne 4096) {
                 throw "helper JSON smoke did not prove the actual child is a restricted primary Low Integrity token: $responseText"

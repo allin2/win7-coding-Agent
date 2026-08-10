@@ -82,8 +82,17 @@ if (childAuditIndex < 0 || resumeIndex < 0 || childAuditIndex > resumeIndex ||
   throw new Error('helper.cpp must audit the actual suspended child as a restricted primary Low Integrity token before ResumeThread');
 }
 if (!/DOMAIN_ALIAS_RID_ADMINS/.test(helperSource) ||
-    /SECURITY_WORLD_RID|SECURITY_WORLD_SID_AUTHORITY/.test(helperSource)) {
-  throw new Error('helper.cpp must make Administrators deny-only without disabling Everyone/World');
+    /sidsToDisable\.push_back\s*\(\s*\{\s*worldSid/.test(helperSource)) {
+  throw new Error('helper.cpp must make Administrators deny-only without putting Everyone/World in the deny-only list');
+}
+if (!/SECURITY_WORLD_SID_AUTHORITY/.test(helperSource) ||
+    !/SECURITY_WORLD_RID/.test(helperSource) ||
+    !/sidsToRestrict\.push_back\s*\(\s*\{\s*worldSid/.test(helperSource) ||
+    !/static_cast<DWORD>\(sidsToRestrict\.size\(\)\)\s*,\s*sidsToRestrict\.data\(\)/.test(helperSource) ||
+    !/GetTokenInformation\s*\(\s*hChildToken\s*,\s*TokenRestrictedSids/.test(helperSource) ||
+    !/restrictedSidCount\s*==\s*1/.test(helperSource) ||
+    !/worldRestrictedSid/.test(helperSource)) {
+  throw new Error('helper.cpp must pass Everyone as the sole restricting SID and audit that exact list on the suspended child');
 }
 if (!/CurrentLabelAclMatches/.test(helperSource) ||
     !/LabelAclsEqual/.test(helperSource) ||

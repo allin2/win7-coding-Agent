@@ -370,6 +370,8 @@ def run_cases(record, files, args, cmd):
                      and token_audit.get("verified") is True
                      and token_audit.get("isRestricted") is True
                      and token_audit.get("tokenType") == "primary"
+                     and token_audit.get("worldRestrictedSid") is True
+                     and token_audit.get("restrictedSidCount") == 1
                      and token_audit.get("integritySid") == "S-1-16-4096"
                      and token_audit.get("integrityRid") == 4096)
     privileges_deleted = "SeDebugPrivilege" not in privs_text

@@ -59,6 +59,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
   Low Integrity（`S-1-16-4096`），并把结构化 `tokenAudit` 写入响应；任一查询或字段不匹配
   都在 `ResumeThread` 前终止子进程并失败关闭。受限进程中的本地化 `whoami /groups`
   只作补充文本证据，不再是 C03 的可信判据。
+- v18 修复 v17 构造/审计矛盾：`CreateRestrictedToken` 现在把 Everyone/World 作为唯一
+  restricting SID（不是 deny-only SID），实际 suspended child 的 `TokenRestrictedSids`
+  也必须精确为单项 World SID。这样 `IsTokenRestricted` 具有文档定义的 TRUE 语义，同时
+  Everyone 仍保留在普通 enabled SID 集合中，避免重现 v14 在 Windows loader、window
+  station 或 desktop 基础授权上的 `0xC0000022`。
 - restricted token 使用 `DISABLE_MAX_PRIVILEGE`，保留 Windows 目录遍历所需的
   `SeChangeNotifyPrivilege`，并把 Administrators SID 设为 deny-only；不得把
   Everyone/World 设为 deny-only，否则可能移除 Windows 装载器所需的基础读/执行授权，

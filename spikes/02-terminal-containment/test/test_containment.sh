@@ -62,10 +62,19 @@ fi
 for token in CreateRestrictedToken DISABLE_MAX_PRIVILEGE SetTokenInformation TokenIntegrityLevel CreateProcessAsUserW; do
     if grep -q "${token}" "${HELPER_CPP}"; then pass "C03: ${token} present"; else fail "C03: ${token} missing"; fi
 done
-if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" || grep -q 'SECURITY_WORLD_RID\|SECURITY_WORLD_SID_AUTHORITY' "${HELPER_CPP}"; then
+if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" \
+    || grep -q 'sidsToDisable.push_back({worldSid' "${HELPER_CPP}"; then
     fail "C03: obsolete impersonation/Everyone deny-only path must stay absent"
 else
     pass "C03: obsolete impersonation/Everyone deny-only path absent"
+fi
+if grep -q 'sidsToRestrict.push_back({worldSid' "${HELPER_CPP}" \
+    && grep -q 'sidsToRestrict.data()' "${HELPER_CPP}" \
+    && grep -q 'TokenRestrictedSids' "${HELPER_CPP}" \
+    && grep -q 'worldRestrictedSid' "${HELPER_CPP}"; then
+    pass "C03: Everyone is the sole restricting SID and is audited on the child"
+else
+    fail "C03: non-empty Everyone restricting-SID contract missing"
 fi
 if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
 if grep -q 'AuditRestrictedChildToken(pi.hProcess' "${HELPER_CPP}" \
