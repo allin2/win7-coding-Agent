@@ -111,6 +111,17 @@ struct AclChangeRecord {
     std::wstring error;
 };
 
+// Trusted audit of the token attached to the actual child process while that
+// process is still suspended. This intentionally does not rely on `whoami` or
+// localized console output from inside the restricted process (C03).
+struct RestrictedTokenAudit {
+    bool verified = false;
+    bool isRestricted = false;
+    bool isPrimary = false;
+    std::wstring integritySid;
+    DWORD integrityRid = 0;
+};
+
 // Execution result (stdout/stderr as bytes + base64 rendering at output time).
 struct ProcessResult {
     DWORD exitCode = 0;
@@ -122,6 +133,7 @@ struct ProcessResult {
     bool inputDetached = false;
     std::vector<unsigned char> stdoutBytes;
     std::vector<unsigned char> stderrBytes;
+    RestrictedTokenAudit tokenAudit;
     std::vector<AclChangeRecord> aclChanges;
     // Structured detail for fatal setup/rollback errors. Normal execution
     // responses remain unchanged; fatal protocol errors include this message.
@@ -172,6 +184,13 @@ HANDLE CreateConfiguredJobObject();
 // Everyone/World remains enabled so baseline OS read/execute grants remain
 // usable by the Windows loader. Returns NULL on failure.
 HANDLE CreateRestrictedProcessToken();
+
+// Open and audit the token attached to `childProcess` while the child is still
+// suspended. Success requires a restricted primary token whose mandatory
+// integrity SID is exactly Low Integrity (S-1-16-4096). Any query failure or
+// mismatch returns false so launch can fail closed before ResumeThread.
+bool AuditRestrictedChildToken(HANDLE childProcess, RestrictedTokenAudit* audit,
+                               std::wstring* error);
 
 // Apply the Low-Integrity mandatory label to `directory` so a low-integrity
 // child can write inside it. Returns false on failure (fail-closed).

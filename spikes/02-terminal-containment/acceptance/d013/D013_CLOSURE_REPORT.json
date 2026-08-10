@@ -5,7 +5,7 @@
   "date": "2026-08-10",
   "branch": "codex/a4-d013-closure",
   "base_commit": "86f6d69",
-  "head_commit": "a37ba44",
+  "head_commit": "3619bc7",
   "commits": [
     "3ec201c",
     "6f47f50",
@@ -13,7 +13,9 @@
     "2e833e0",
     "cf536cd",
     "a64f1ac",
-    "a37ba44"
+    "a37ba44",
+    "aaf2b0b",
+    "3619bc7"
   ],
   "modified_files": {
     "helper": [
@@ -57,7 +59,7 @@
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
     "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; Administrators is deny-only while Everyone/World remains enabled; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
-    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 recovery fix LOCAL_TESTED and WIN10 PASS; Win7 revalidation pending"
+    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 child-token audit LOCAL_TESTED and awaiting Win10 build"
   },
   "win10_build_kit": {
     "revision": "v15",
@@ -93,7 +95,23 @@
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
     "win7_validation": "NOT_PERFORMED",
-    "status": "WIN10_PASS_RECOVERY_REVIEW_REQUIRED"
+    "status": "WIN10_PASS_WIN7_FAIL_CLOSED_RECOVERY_REQUIRED"
+  },
+  "recovery_v17": {
+    "trigger_acceptance_id": "A4-20260810-000003",
+    "v16_result": "FAIL_CLOSED",
+    "root_cause": "The restricted Win7 child returned ERROR_ACCESS_DENIED from localized whoami /groups, so the harness could not independently observe S-1-16-4096 even though the file, registry, privilege, ACL rollback and postflight probes behaved correctly.",
+    "fix_commit": "3619bc7cb509d5313b86cff2b28c3744cc60294d",
+    "fix": "Before ResumeThread, open the actual suspended child process token and require TokenPrimary, IsTokenRestricted=true, TokenIntegrityLevel SID S-1-16-4096 and RID 4096; emit the structured tokenAudit and fail closed on any query or mismatch. whoami /groups remains supplemental only.",
+    "archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v16-win7-recovery/A4-20260810-000003",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v17.zip",
+    "build_kit_sha256": "1d2ba2e558772bda16d9a51ab11ed83728346019229ecbdda822025893e0a328",
+    "input_lock_sha256": "d74cb07cf114ca582ec429761d77fdc70900beed6631c0ffd4306bf0bbbd77b7",
+    "package_manifest_sha256": "b2e0f107d2e6d2dae17973730bcb3c1e61af18df53a28b8aed07eec5f26c0744",
+    "win10_smoke": "NOT_PERFORMED",
+    "pe_api_crt_analysis": "NOT_PERFORMED",
+    "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
+    "status": "READY_FOR_HUMAN_WIN10_BUILD"
   },
   "tests": [
     {
@@ -106,7 +124,7 @@
     },
     {
       "command": "bash test/test_containment.sh",
-      "result": "31 pass / 0 fail"
+      "result": "32 pass / 0 fail"
     },
     {
       "command": "node acceptance/d013/test_d013_harness.mjs",
@@ -119,26 +137,32 @@
     {
       "command": "Win10 v16-recovery build.ps1 + native smoke + PE/API/CRT review",
       "result": "PASS"
+    },
+    {
+      "command": "v17 x86_64-w64-mingw32-g++ compile+link",
+      "result": "PASS (0 warnings, PE32+ x86-64; surrogate only)"
     }
   ],
   "coverage": {
-    "C01": "v15 FAIL due shared ACL_ROLLBACK_FAILED; v16 recovery fix local static and Win10 smoke PASS; Win7 re-run pending",
-    "C02": "IMPLEMENTED; static PASS; historical supplementary PASS; re-run pending",
-    "C03": "v15 boundary probes succeeded but label rollback representation failed; v16 fix local-tested and Win10 smoke PASS; Win7 NOT_PERFORMED",
-    "C04": "v15 authorization/DACL probes succeeded but label rollback representation failed; v16 fix local-tested and Win10 smoke PASS; Win7 NOT_PERFORMED",
-    "C05": "v15 loopback measurement succeeded but label rollback representation failed; v16 Win7 NOT_PERFORMED; formal ENVIRONMENT_MISSING",
-    "C06": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
-    "C07": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
+    "C01": "v16 A4-20260810-000003 PASS",
+    "C02": "v16 A4-20260810-000003 PASS",
+    "C03": "v16 boundary probes passed but trusted Low SID observation failed; v17 actual suspended-child token audit local positive/negative tests and cross-compile PASS; Win10 rebuild pending",
+    "C04": "v16 A4-20260810-000003 PASS including label and deny-ACE rollback",
+    "C05": "v16 loopback PASS; formal ENVIRONMENT_MISSING",
+    "C06": "v16 A4-20260810-000003 PASS",
+    "C07": "v16 timeout and output-cap cases PASS",
     "C08": "bounded by design; NOT_MEASURED for new helper",
     "N06": "static assertion PASS; no taskkill path"
   },
   "unexecuted": [
-    "new Win7 lease and v16 C01-C07 evidence"
+    "v17 Win10 native build/smoke/PE/API/CRT validation",
+    "new Win7 lease and v17 C01-C07 evidence"
   ],
   "blockers": [
-    "RECOVERY_REQUIRED must be reviewed before a new lease",
-    "a new signed lease must bind the v16 candidate and final integration commit",
+    "v17 Win10 return package missing",
+    "A4-20260810-000003 RECOVERY_REQUIRED must be reviewed before a new lease",
+    "a new signed lease must bind the reviewed v17 candidate and final integration commit",
     "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "v15 Win10 PASS remains historical and A4-20260810-000002 remains FAIL_CLOSED/RECOVERY_REQUIRED. v16 Win10 is PASS, v16 Win7 is NOT_PERFORMED, and public state remains coordinator-owned."
+  "note": "v15 and v16 Win10 PASS remain historical. A4-20260810-000002 is RECOVERY_REVIEWED, A4-20260810-000003 is FAIL_CLOSED/RECOVERY_REQUIRED, active leases are zero, v17 is ready for Win10 build preparation, and public state remains coordinator-owned."
 }

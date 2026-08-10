@@ -2,51 +2,48 @@
   "schema_version": 1,
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
-  "status": "WIN10_PASS_RECOVERY_REVIEW_REQUIRED",
-  "generated_at": "2026-08-09T17:38:17.5437913Z",
-  "implementation_commit": "a64f1ac5654523f684b9981f780ab0b5543939b9",
-  "build_revision": "v16-recovery",
-  "win10_build_executed": true,
-  "win10_return_package_reviewed": true,
+  "status": "READY_FOR_WIN10_BUILD",
+  "generated_at": "2026-08-10T01:29:41Z",
+  "implementation_commit": "3619bc7cb509d5313b86cff2b28c3744cc60294d",
+  "build_revision": "v17-recovery",
+  "win10_build_executed": false,
+  "win10_return_package_reviewed": false,
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
     "sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
     "location": "external_to_git",
-    "review_status": "PASS",
+    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
     "completed_at": "2026-08-09T17:38:17.5437913Z"
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba",
-    "git_ignored": true,
-    "win7_validation": "NOT_PERFORMED"
+    "sha256": "PENDING_V17_WIN10_BUILD",
+    "git_ignored": true
   },
   "evidence": {
-    "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
-    "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
-    "win10_smoke": "PASS",
-    "pe_api_crt_analysis": "PASS",
+    "input_lock_sha256": "SEE_INPUT_LOCK_AND_PACKAGE_MANIFEST",
+    "win10_smoke": "NOT_PERFORMED",
+    "pe_api_crt_analysis": "NOT_PERFORMED",
     "architecture": "x64",
     "toolset": "v142",
     "windows_sdk": "10.0.19041.0",
     "crt": "static /MT"
   },
   "gates": {
-    "GATE-WIN10-BUILD": "PASS",
+    "GATE-WIN10-BUILD": "READY_FOR_V17_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "human recovery review before A4-20260810-000002 can become RECOVERY_REVIEWED",
-    "a new signed Win7 lease bound to the v16 candidate and final integration commit"
+    "v17 Win10 build and returned-package review",
+    "recovery review before any new Win7 lease"
   ],
   "notes": [
-    "The v15 Win10 build remains historical PASS evidence but failed Win7 C01/C03/C04/C05 with ACL_ROLLBACK_FAILED and is superseded for further acceptance.",
-    "v16 treats Win7 null and zero-ACE LABEL ACLs as equivalent while keeping DACL comparison strict, and adds a canonical zero-length evidence hash fallback after certutil failure.",
-    "The v16 Win10 build, native smoke and PE/API/CRT review passed; this does not constitute Win7 validation.",
-    "The reviewed return ZIP remains outside Git; only its filename and SHA-256 are recorded.",
-    "The v15 candidate and A4-20260810-000002 raw recovery evidence are preserved in the Git-external archive before the ignored candidate is replaced by v16.",
+    "A4-20260810-000003 remains historical FAIL_CLOSED evidence because Win7 whoami /groups could not provide a trusted Low Integrity observation.",
+    "v17 audits the actual suspended child process token with TokenType, IsTokenRestricted and TokenIntegrityLevel, and fails closed before ResumeThread unless the integrity SID is exactly S-1-16-4096.",
+    "The v16 Win10 build remains historical PASS evidence but is superseded for further Win7 acceptance.",
+    "The v16 return ZIP, candidate, signed lease, ledger snapshot and raw evidence are preserved outside Git; the coordinator private key is excluded.",
     "No Win7 SSH/SCP operation is authorized while recovery is required."
   ]
 }

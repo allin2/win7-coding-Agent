@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "profile_id": "D013-CLOSURE-01",
-  "orchestration_head": "a64f1ac",
-  "source_head": "a64f1ac",
+  "orchestration_head": "3619bc7",
+  "source_head": "3619bc7",
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
   "implementation_allowlist": [
     "spikes/02-terminal-containment/**",
@@ -27,21 +27,29 @@
   },
   "candidate": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe",
-    "sha256": "68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba",
+    "sha256": "PENDING_V17_WIN10_BUILD",
     "win7_validation": "NOT_PERFORMED",
-    "note": "Extracted from the reviewed v16 Win10 PASS return package; ignored by Git. v15 is retained as historical FAIL_CLOSED recovery evidence."
+    "note": "The ignored path may still contain the archived v16 candidate, but it cannot satisfy the v17 pending hash gate. A reviewed v17 return package is required."
   },
   "win10_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
     "sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
     "build_revision": "v16-recovery",
-    "review_status": "PASS",
+    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
     "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
     "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
     "reviewed_at": "2026-08-10",
     "committed_to_git": false
+  },
+  "pending_win10_build": {
+    "build_revision": "v17-recovery",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v17.zip",
+    "build_kit_sha256": "1d2ba2e558772bda16d9a51ab11ed83728346019229ecbdda822025893e0a328",
+    "input_lock_sha256": "d74cb07cf114ca582ec429761d77fdc70900beed6631c0ffd4306bf0bbbd77b7",
+    "package_manifest_sha256": "b2e0f107d2e6d2dae17973730bcb3c1e61af18df53a28b8aed07eec5f26c0744",
+    "status": "READY_FOR_HUMAN_WIN10_BUILD"
   },
   "upload_files": [
     {"local": "spikes/02-terminal-containment/helper/build-win10-kit/candidate/spike02_helper.exe", "remote": "spike02_helper.exe"},
@@ -59,7 +67,7 @@
     ]
   },
   "gates": {
-    "GATE-WIN10-BUILD": "PASS",
+    "GATE-WIN10-BUILD": "READY_FOR_V17_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-ACL": "MINIMAL_AUTHORIZATION_UNDER_PER_RUN_ROOT",
     "GATE-NET": "ENVIRONMENT_MISSING",

@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
-  "generated_at": "2026-08-09T17:13:30.533Z",
+  "generated_at": "2026-08-10T01:31:36.625Z",
   "sources": [
     {
       "path": "src/helper.cpp",
-      "size": 52149,
-      "sha256": "2930a73f6f8936a9ca7b09ec9b33cc49186660863188de748fea049a2263b5c5"
+      "size": 56835,
+      "sha256": "77d99018cb759a8956f3c47b08c9aaa0ababe71650ce4adabda233cc899d8d80"
     },
     {
       "path": "src/helper.h",
-      "size": 9708,
-      "sha256": "71c882ec8af1353c082d71e2fecd8ad3addef71f6a220ab1c6a14a2d3da9248d"
+      "size": 10591,
+      "sha256": "2bf0c66a2f99761ae18006e62ffd55c8aee1bae17d8fc557ad8a516b77639a28"
     },
     {
       "path": "src/json_parser.cpp",
@@ -45,8 +45,8 @@
     },
     {
       "path": "src/protocol.cpp",
-      "size": 12226,
-      "sha256": "c5a5f8bfabab3df15118e178e9807048ce69607e386fe15708a103d5209c3145"
+      "size": 12987,
+      "sha256": "56ee29baedd7c117ba62f03991e7d1a3b4b440f81118eb2316bd854cbf5c9796"
     },
     {
       "path": "src/CMakeLists.txt",
@@ -55,8 +55,8 @@
     },
     {
       "path": "build.ps1",
-      "size": 18964,
-      "sha256": "a04a496162a827e345bdb968ae1fa3a7073fd51f0ade3f67f7cd5adc5db06622"
+      "size": 19760,
+      "sha256": "87a8f0785eaf3101c3ee7fa778e4b27ada29a6d7aeeb0fc6b4df38e94c601ed0"
     },
     {
       "path": "build-profile.json",
