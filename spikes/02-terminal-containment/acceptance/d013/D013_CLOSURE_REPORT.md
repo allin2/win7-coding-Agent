@@ -61,17 +61,20 @@
 ## 4. Win10 构建包（D-013）
 
 - **路径**：`spikes/02-terminal-containment/helper/build-win10-kit/`
-- **已验收返回 ZIP**：`WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip`（保留在 Git 外）
-- **ZIP SHA-256**：`1b4dc3609bd10a02f1199ef4fd18696f74d208b6ef5758e03b628146a4000d4f`
-- **helper SHA-256**：`5689b612daf78cf746716e8aabc491bc00abd4abdc1f498c8301651c5ff10e2b`
+- **当前已验收返回 ZIP**：`WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip`（v16，保留在 Git 外）
+- **ZIP SHA-256**：`daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac`
+- **helper SHA-256**：`68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba`
 - **输入绑定**：包内 `input-lock.json` 与工作树逐字节一致，SHA-256 为
-  `166c4e5b5a1e269a1dcc976b01a154acd5394404b35498038856b2c55d586386`。
+  `6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e`；构建包
+  `PACKAGE_MANIFEST.json` SHA-256 为
+  `18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23`。
 - **Win10 证据**：Win10 19045、VS2019 16.11、MSVC 14.29/v142、SDK 10.0.19041.0、
   x64、静态 `/MT`、manifest、PE/API/CRT 与 native smoke 全部 `PASS`；smoke 子进程退出码 0，
   `containmentVerified=true`、`inputDetached=true`，Low Integrity 标签和 deny ACE 均
   `applied/verified/rolledBack=true`。
-- **分层状态**：v15 开发机与 Win10 为历史 `PASS`；Win7 `FAIL_CLOSED_RECOVERY_REQUIRED`；
-  v15 不得再次获得租约，v16 正等待 Win10 构建。
+- **分层状态**：v15 开发机与 Win10 为历史 `PASS`，Win7 为
+  `FAIL_CLOSED_RECOVERY_REQUIRED`；v16 开发机与 Win10 为 `PASS`，Win7 为
+  `NOT_PERFORMED`。旧 recovery 完成人工复核前不得签发新租约。
 
 ## 5. 测试命令与结果（2026-08-10，macOS 开发机 + 2026-08-09 Win10）
 
@@ -82,16 +85,17 @@
 | `bash test/test_containment.sh "" helper/build-mac/logic_tests` | 通过 31 / 失败 0（含 Win7 LABEL null/0-ACE 等价与 DACL 隔离断言） |
 | `node acceptance/d013/test_d013_harness.mjs` | `D-013 harness tests: ALL PASS`（策略门/mock 端到端/编排器 dry-run/execute 门禁/负向校验） |
 | Win10 v15 `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS` |
+| Win10 v16-recovery `build.ps1` + native smoke + PE/API/CRT 复核 | `PASS`；返回包与 input lock 精确匹配 |
 
 ## 6. C01～C08/N06 覆盖情况
 
 | # | 用例 | 实现 | 本地验证 | Win7 证据 |
 |---|------|------|----------|-----------|
-| C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v15 因共享 `ACL_ROLLBACK_FAILED` 为 FAIL；v16 待构建 |
+| C01 | Job 进程树必杀 | KILL_ON_JOB_CLOSE + TerminateJobObject + 进程/内存限制 | 静态断言 PASS | v15 因共享 `ACL_ROLLBACK_FAILED` 为 FAIL；v16 Win7 待重验 |
 | C02 | 宿主在 Job fail-closed | IsProcessInJob(self) → HOST_ALREADY_IN_JOB | 静态断言 PASS | A4-20260806 补充 PASS；新 helper 待重验 |
-| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + 低完整性 | v16 recovery 本地测试 PASS | v15 探针边界成立，但 LABEL 回滚表示误判；正式 FAIL |
-| C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 就绪 | v15 DACL/授权探针成立，但 LABEL 回滚表示误判；正式 FAIL |
-| C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | v16 harness loopback 就绪 | v15 测量成立但共享回滚失败；正式 `ENVIRONMENT_MISSING` |
+| C03 | Restricted Token 减权 | primary restricted token + DISABLE_MAX_PRIVILEGE + 低完整性 | v16 recovery 本地测试和 Win10 smoke PASS | v15 探针边界成立但 LABEL 回滚表示误判；v16 Win7 `NOT_PERFORMED` |
+| C04 | ACL 工作区外拒绝 | Low 标签 + deny ACE + 回滚 + 授权策略门 | v16 harness 与 Win10 smoke PASS | v15 DACL/授权探针成立但 LABEL 回滚表示误判；v16 Win7 `NOT_PERFORMED` |
+| C05 | 网络可达性实测 | 仅测量记录；不阻断、不宣称隔离 | v16 harness loopback 就绪 | v15 测量成立但共享回滚失败；v16 Win7 `NOT_PERFORMED`，正式仍为 `ENVIRONMENT_MISSING` |
 | C06 | argv 白名单 | System32 工具 + cmd /d /s /c + 拒绝 /k | 逻辑测试 PASS + harness | 待执行 |
 | C07 | 超时/输出上限 | TerminateJobObject + 逐流截断标记 | 逻辑测试 + harness 就绪 | 待执行 |
 | C08 | Runner 内存 | 设计有界（Job 内存限制 + 输出上限 64MB）；未实测 | — | `NOT_MEASURED`（A4 C09 历史 <60MB，新 helper 待测） |
@@ -102,8 +106,12 @@
 - **v15 Win7 已 fail-closed**：`A4-20260810-000002` 的轮前、上传、smoke、harness 启动与
   后置零残留检查通过；C01/C03/C04/C05 因 `ACL_ROLLBACK_FAILED` 失败，REM-D07 又遇到空
   `d013-stderr.txt` 的 `certutil 0x800703EE`。ledger 保持 `RECOVERY_REQUIRED`。
-- **v15 候选已封存**：本地 ignored candidate 仅作历史证据，不得再次满足执行 Gate。
-- **v16 必须先通过 Win10**：返回包复核完成前不得签发下一份 Win7 租约。
+- **v15 候选与原始证据已封存**：`A4-20260810-000002` 保持历史 FAIL_CLOSED 结论，
+  不得再次满足执行 Gate；Git 外归档不包含协调器私钥。
+- **v16 Win10 已通过**：返回包、input lock、native smoke 与 PE/API/CRT 均已复核；
+  该结论不构成 Win7 PASS。
+- **新租约仍被阻止**：旧 ledger 保持 `RECOVERY_REQUIRED`，必须人工复核后才能生成新的
+  已签名租约。
 - **D-011 包内 helper 快照**（`build-win10/kit/project/helper`）仍为旧骨架且禁止修改，
   已由 `helper/build-win10-kit` 取代；正式集成时以新快照为准。
 
@@ -121,4 +129,8 @@
   `33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362`。
 - input lock：`6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e`；
   package manifest：`18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23`。
-- 当前状态：`READY_FOR_HUMAN_WIN10_BUILD`；尚未执行 v16 Win10 构建或新 Win7 验收。
+- v16 返回包：`WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip`，SHA-256
+  `daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac`；helper SHA-256
+  `68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba`。
+- 当前状态：`WIN10_PASS_RECOVERY_REVIEW_REQUIRED`；v16 Win7 为 `NOT_PERFORMED`，
+  尚未关闭旧 recovery 或签发新租约。

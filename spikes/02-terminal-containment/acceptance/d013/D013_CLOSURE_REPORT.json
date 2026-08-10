@@ -5,14 +5,15 @@
   "date": "2026-08-10",
   "branch": "codex/a4-d013-closure",
   "base_commit": "86f6d69",
-  "head_commit": "a64f1ac",
+  "head_commit": "a37ba44",
   "commits": [
     "3ec201c",
     "6f47f50",
     "17ca1f7",
     "2e833e0",
     "cf536cd",
-    "a64f1ac"
+    "a64f1ac",
+    "a37ba44"
   ],
   "modified_files": {
     "helper": [
@@ -56,9 +57,10 @@
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
     "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; Administrators is deny-only while Everyone/World remains enabled; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
-    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 recovery fix LOCAL_TESTED; Win10 rebuild pending"
+    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 recovery fix LOCAL_TESTED and WIN10 PASS; Win7 revalidation pending"
   },
   "win10_build_kit": {
+    "revision": "v15",
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/",
     "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260809-132658.zip",
     "return_package_location": "external_to_git",
@@ -71,7 +73,8 @@
     "win10_build_executed": true,
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
-    "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED"
+    "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
+    "superseded_for_win7_recovery": true
   },
   "recovery_v16": {
     "trigger_acceptance_id": "A4-20260810-000002",
@@ -83,7 +86,14 @@
     "build_kit_sha256": "33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362",
     "input_lock_sha256": "6bc8708fcba0d05c9a7b54391eb9b59a7f802ebf15fb18f9bf267f63d4f7199e",
     "package_manifest_sha256": "18eccff4e961357de66feffd557aec03dcafc9674af9faf1851556c06e3ffd23",
-    "status": "READY_FOR_HUMAN_WIN10_BUILD"
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
+    "return_package_sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
+    "helper_sha256": "68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba",
+    "completed_at": "2026-08-09T17:38:17.5437913Z",
+    "win10_smoke": "PASS",
+    "pe_api_crt_analysis": "PASS",
+    "win7_validation": "NOT_PERFORMED",
+    "status": "WIN10_PASS_RECOVERY_REVIEW_REQUIRED"
   },
   "tests": [
     {
@@ -105,27 +115,30 @@
     {
       "command": "Win10 v15 build.ps1 + native smoke + PE/API/CRT review",
       "result": "PASS"
+    },
+    {
+      "command": "Win10 v16-recovery build.ps1 + native smoke + PE/API/CRT review",
+      "result": "PASS"
     }
   ],
   "coverage": {
-    "C01": "v15 FAIL due shared ACL_ROLLBACK_FAILED; v16 recovery fix local static PASS; Win10 rebuild pending",
+    "C01": "v15 FAIL due shared ACL_ROLLBACK_FAILED; v16 recovery fix local static and Win10 smoke PASS; Win7 re-run pending",
     "C02": "IMPLEMENTED; static PASS; historical supplementary PASS; re-run pending",
-    "C03": "v15 boundary probes succeeded but label rollback representation failed; v16 fix local-tested; NOT claimed PASS",
-    "C04": "v15 authorization/DACL probes succeeded but label rollback representation failed; v16 fix local-tested",
-    "C05": "v15 loopback measurement succeeded but label rollback representation failed; formal ENVIRONMENT_MISSING",
+    "C03": "v15 boundary probes succeeded but label rollback representation failed; v16 fix local-tested and Win10 smoke PASS; Win7 NOT_PERFORMED",
+    "C04": "v15 authorization/DACL probes succeeded but label rollback representation failed; v16 fix local-tested and Win10 smoke PASS; Win7 NOT_PERFORMED",
+    "C05": "v15 loopback measurement succeeded but label rollback representation failed; v16 Win7 NOT_PERFORMED; formal ENVIRONMENT_MISSING",
     "C06": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
     "C07": "IMPLEMENTED; logic-tested; harness ready; Win7 pending",
     "C08": "bounded by design; NOT_MEASURED for new helper",
     "N06": "static assertion PASS; no taskkill path"
   },
   "unexecuted": [
-    "v16 Win10 native build/smoke/PE/API/CRT validation",
     "new Win7 lease and v16 C01-C07 evidence"
   ],
   "blockers": [
-    "v16 Win10 return package missing",
     "RECOVERY_REQUIRED must be reviewed before a new lease",
+    "a new signed lease must bind the v16 candidate and final integration commit",
     "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "v15 Win10 PASS remains historical, but A4-20260810-000002 is FAIL_CLOSED and the ledger remains RECOVERY_REQUIRED. v16 is ready for human Win10 build; public state remains coordinator-owned."
+  "note": "v15 Win10 PASS remains historical and A4-20260810-000002 remains FAIL_CLOSED/RECOVERY_REQUIRED. v16 Win10 is PASS, v16 Win7 is NOT_PERFORMED, and public state remains coordinator-owned."
 }
