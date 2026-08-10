@@ -14,7 +14,7 @@ Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Blocking-Reason: D-013 v15 Win7 FAIL_CLOSED; RECOVERY_REQUIRED pending v16 Win10 build/review; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (terminal gates remain open)
+Blocking-Reason: D-013 v15 Win7 FAIL_CLOSED; v16 Win10 PASS but Win7 NOT_PERFORMED pending RECOVERY_REVIEWED and a new signed lease; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (terminal gates remain open)
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -113,10 +113,10 @@ Blocking-Reason: D-013 v15 Win7 FAIL_CLOSED; RECOVERY_REQUIRED pending v16 Win10
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15 PASS historical, v16 NOT_PERFORMED
-Evidence: A4-20260805-123467, A4-20260806-140606, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip
+Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15 PASS historical, v16 PASS
+Evidence: A4-20260805-123467, A4-20260806-140606, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip, WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip
 Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
-Blocking-Reason: D-013 A4-20260810-000002 FAIL_CLOSED/RECOVERY_REQUIRED; v16 Win10 build and review pending; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
+Blocking-Reason: D-013 A4-20260810-000002 FAIL_CLOSED/RECOVERY_REQUIRED; v16 Win7 NOT_PERFORMED pending recovery review and signed lease; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
@@ -150,7 +150,11 @@ Bitvise、22 端口与零进程残留检查为 `PASS`。v16 recovery 仅在 LABE
 `null ⇔ 0 ACE` 等价表示，DACL 仍严格比较，并为远端严格零字节文件增加规范空 SHA-256 fallback。
 开发机 logic/harness 与静态检查 31/31 通过；构建包
 `WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v16.zip` SHA-256 为
-`33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362`，尚未进行 Win10 构建。
+`33608ce194a26c01e87559f2e376d271f8f6a62dcf3695d04f42776e03a10362`。v16 Win10 返回包
+`WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip` SHA-256 为
+`daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac`，helper SHA-256 为
+`68c05f1c69cd2d54a50bde00ed60b52161fd3891b08ed82d597aae694935d6ba`；native smoke、x64、
+静态 CRT、PE/API/CRT 和 input-lock 核验均为 `PASS`。v16 Win7 仍为 `NOT_PERFORMED`。
 ledger 保持 `RECOVERY_REQUIRED`，协调器拒绝任何新 `grant`，直到人工复核并显式转为
 `RECOVERY_REVIEWED`。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner
 或交互终端 Gate。

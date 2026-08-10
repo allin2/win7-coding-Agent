@@ -171,13 +171,13 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 | 轨道 / 组件 | Win10 结果 | 已解除的卡点 | 当前仍阻塞 |
 |---|---|---|---|
-| A4 / D-013 helper | v15 返回包/Win10 为历史 `PASS`，但 Win7 `FAIL_CLOSED`；v16 recovery 构建包 `33608ce1…10362` 已准备，input-lock `6bc8708f…7199e`；开发机 logic/harness 与 containment 31/31 `PASS` | 已修复 Win7 LABEL `null ⇔ 0 ACE` 表示差异和空证据哈希 fallback，DACL 仍严格比较 | v16 Win10 构建、返回包复核与 recovery 人工关闭尚未进行；Win7 为 `FAIL_CLOSED_RECOVERY_REQUIRED`，不得签发新租约 |
+| A4 / D-013 helper | v16 Win10 `PASS`：返回包 `daaaf362…f5ac`、helper `68c05f1c…d6ba`、input-lock `6bc8708f…7199e`；开发机 logic/harness 与 containment 31/31 `PASS` | v16 源码→二进制闭包已锁定；Win7 LABEL `null ⇔ 0 ACE` recovery 修复和空证据哈希 fallback 已进入候选，DACL 仍严格比较 | v15 Win7 仍为 `FAIL_CLOSED_RECOVERY_REQUIRED`，v16 Win7 为 `NOT_PERFORMED`；等待 recovery 人工复核和绑定最终整合提交的新签名租约 |
 | A5 / D-011 node-pty + winpty | `PASS_WITH_PACKAGING_GAP`；返回包 `c938f115…46ea`，三项原生工件均为 x64，ABI 110 与 smoke 通过 | 不再缺 Electron 22 ABI 的 node-pty/winpty 工件，可开展终端集成和 Win7 验证 | 返回包缺内部总清单；终端集成/harness 仍为骨架/TODO；T01～T05/N01～N05 `NOT_PERFORMED` |
 | A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | 本行只记录 2026-08-07 Win10 构建前置；后续 Win7 正式结果见下文 A6 章节 |
 | A7 / 发布包装 | 没有独立 Win10 构建结果 | 后续可复用已锁定的 D-011、D-014 文件哈希 | 仍需产品装配、原生模块 ASAR 外置、统一返回/发布 manifest、安装/升级/回滚和 Win7 RC 验证 |
 
-因此 A5/D-011 和 A6/D-014 的既有 Win10 构建前置已完成；A4/D-013 因 v15 Win7 失败重新进入
-v16 Win10 构建 Gate。v16 输入包不是 Win10 PASS，完整 SPIKE_02 继续为
+因此 A4/D-013 v16、A5/D-011 和 A6/D-014 的 Win10 构建前置均已完成。A4 的 v16 Win10
+`PASS` 不改写 v15 Win7 的 `FAIL_CLOSED`，也不构成 v16 Win7 `PASS`；完整 SPIKE_02 继续为
 `PARTIAL / NO_GO_FORMAL_GAPS`，不得解除生产 Runner 或交互终端 Gate。
 
 ## A6 正式 Win7 本地 SSD 存储验收（2026-08-10）
