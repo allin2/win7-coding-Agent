@@ -65,11 +65,11 @@ Renderer 进程权限和模型可调用的通用 `terminal.exec`。
 
 ### 3.1 生产 helper v23 构建候选
 
-- source commit：`652eccbb00dbe47cdbe9a6a337b2f3024c88b0b4`
+- source commit：`e41bc9dbf7ebcad3570ef3d6cb4491e6cb1f630a`
 - 离线 Win10 构建包：`native/helper/build-win10-kit/result/WIN7_D013_PRODUCTION_HELPER_BUILDKIT_20260811_V23_BOUND.zip`
-- ZIP SHA-256：`a977706338b039b355547573594d92aedbe03e353b791fdf2ff2de84e17c1d12`
-- `PACKAGE_MANIFEST.json`：`a1519b2f3b551fe6d94dab484a11d2b8f9494262673b023d4893063620d320a1`
-- `input-lock.json`：`c485b75c16d3d3479d1cb474a55cfc8709ee4d6ba49f5328be814b5eb8f09853`
+- ZIP SHA-256：`c16e8743e93c9dee64e32722ed15ee072413157cfa3594bfdf9d2b0db375dc48`
+- `PACKAGE_MANIFEST.json`：`2332f5cf045949d2b2267269ffb2dfe33f66f7832770de8a09178c098ff76968`
+- `input-lock.json`：`f6f3ea7440f7f038ccbe7889692bcf685d2f70cd6915be2130d6369be9a28d11`
 
 该 ZIP 是 Git 忽略的本地交接物，不是 Win7 运行包。必须在 D-017 锁定的 Win10/VS2019/v142
 构建机执行 `build.ps1`，返回新的 ARTIFACTS ZIP 与 sidecar；旧 v21 helper 二进制不能替代本修订。
