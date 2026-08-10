@@ -14,7 +14,7 @@ Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Blocking-Reason: D-013 v15 Win7 FAIL_CLOSED; v16 Win10 PASS but Win7 NOT_PERFORMED pending RECOVERY_REVIEWED and a new signed lease; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (terminal gates remain open)
+Blocking-Reason: D-013 A4-20260810-000003 remains FAIL_CLOSED/RECOVERY_REQUIRED; v21 Win10 PASS and candidate locked, but v21 Win7 NOT_PERFORMED pending RECOVERY_REVIEWED and a new signed lease; formal SPIKE_02 remains NO_GO_FORMAL_GAPS (terminal gates remain open)
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -113,10 +113,10 @@ Blocking-Reason: D-013 v15 Win7 FAIL_CLOSED; v16 Win10 PASS but Win7 NOT_PERFORM
 ```
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: PARTIAL
-Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15 PASS historical, v16 PASS
-Evidence: A4-20260805-123467, A4-20260806-140606, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip, WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip
+Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15/v16 PASS historical, v21 PASS current
+Evidence: A4-20260805-123467, A4-20260806-140606, A4-20260810-000003, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip, WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip
 Result: C01/C02/C06/C07/C08/N06 PASS (6/19 formal atomic cases)
-Blocking-Reason: D-013 A4-20260810-000002 FAIL_CLOSED/RECOVERY_REQUIRED; v16 Win7 NOT_PERFORMED pending recovery review and signed lease; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
+Blocking-Reason: D-013 A4-20260810-000003 FAIL_CLOSED/RECOVERY_REQUIRED; v21 Win7 NOT_PERFORMED pending recovery review and signed lease; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认
@@ -158,3 +158,14 @@ Bitvise、22 端口与零进程残留检查为 `PASS`。v16 recovery 仅在 LABE
 ledger 保持 `RECOVERY_REQUIRED`，协调器拒绝任何新 `grant`，直到人工复核并显式转为
 `RECOVERY_REVIEWED`。完整 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner
 或交互终端 Gate。
+
+2026-08-10 已完成 v21 Win10 返回包复核：`WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip`
+SHA-256 为 `5d3bdd6be432ea6781fe756aad32d62a88275bbe6ffefb9f58228f55f220f8ef`，锁定的 ignored
+helper SHA-256 为 `98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5`；input lock 为
+`60ddd80cde85a23b2ed4db7f6d20a86d73a606f44887892e5a72dab3db9a795b`，package manifest 为
+`636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710`。schema v3、capture
+selftest、v142 logic tests、native smoke、restricted token/Low Integrity/ACL audit、x64、静态
+CRT 与 PE/API/CRT 均为 `PASS`，`candidate_eligible=true`。上述结论仅为 Win10 构建闭包；
+v21 Win7 仍为 `NOT_PERFORMED`，`A4-20260810-000003` 仍是 `RECOVERY_REQUIRED`。人工 recovery
+复核和新签名租约完成前不得连接 Win7。完整 SPIKE_02 继续为
+`PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner、交互终端 Gate 或强网络隔离声明。
