@@ -463,6 +463,8 @@ bool SidToCanonicalString(PSID sid, std::wstring* value, std::wstring* error) {
 
 bool ReadRestrictedSidStrings(HANDLE token, std::vector<std::wstring>* values,
                               std::wstring* error) {
+    static_assert(kWinErrorInsufficientBuffer == ERROR_INSUFFICIENT_BUFFER,
+                  "portable Win32 error constant must remain exact");
     if (!token || !values) {
         if (error) *error = L"token or restricted-SID output is null";
         return false;
@@ -470,10 +472,18 @@ bool ReadRestrictedSidStrings(HANDLE token, std::vector<std::wstring>* values,
     values->clear();
     DWORD size = 0;
     SetLastError(ERROR_SUCCESS);
-    GetTokenInformation(token, TokenRestrictedSids, nullptr, 0, &size);
-    if (size < sizeof(TOKEN_GROUPS) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+    const BOOL sizeQuerySucceeded =
+        GetTokenInformation(token, TokenRestrictedSids, nullptr, 0, &size);
+    const DWORD sizeQueryError = sizeQuerySucceeded ? ERROR_SUCCESS : GetLastError();
+    // A token with no restricting SIDs is the normal source-token case. On
+    // Windows 10 it can report only the four-byte GroupCount header, which is
+    // smaller than sizeof(TOKEN_GROUPS) because Groups is an ANYSIZE_ARRAY.
+    if (!TokenGroupsSizeProbeAccepted(sizeQuerySucceeded ? true : false,
+                                      sizeQueryError, size, sizeof(DWORD))) {
         if (error) *error = L"GetTokenInformation(TokenRestrictedSids size) failed: " +
-                            WinErrorText(GetLastError());
+                            WinErrorText(sizeQueryError) + L" (code=" +
+                            std::to_wstring(sizeQueryError) + L", size=" +
+                            std::to_wstring(size) + L")";
         return false;
     }
     std::vector<unsigned char> buffer(size);
@@ -483,6 +493,15 @@ bool ReadRestrictedSidStrings(HANDLE token, std::vector<std::wstring>* values,
         return false;
     }
     TOKEN_GROUPS* groups = reinterpret_cast<TOKEN_GROUPS*>(buffer.data());
+    if (groups->GroupCount == 0) return true;
+    const size_t entriesOffset = FIELD_OFFSET(TOKEN_GROUPS, Groups);
+    const size_t fixedEntriesAvailable =
+        buffer.size() >= entriesOffset ?
+            (buffer.size() - entriesOffset) / sizeof(SID_AND_ATTRIBUTES) : 0;
+    if (groups->GroupCount > fixedEntriesAvailable) {
+        if (error) *error = L"TokenRestrictedSids returned a truncated SID array";
+        return false;
+    }
     values->reserve(groups->GroupCount);
     for (DWORD i = 0; i < groups->GroupCount; ++i) {
         std::wstring text;
@@ -1505,7 +1524,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("spike02-helper 0.2.3-d013 win7-x64 (derived-restricting-set+child-token-audit+acl)\n");
+            std::printf("spike02-helper 0.2.4-d013 win7-x64 (empty-restricted-probe+derived-set+child-audit+acl)\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {

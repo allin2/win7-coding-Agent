@@ -3,22 +3,26 @@
   "track": "D-013",
   "closure": "D-013 source -> Win10 toolchain -> binary",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-08-10T14:03:21+08:00",
-  "implementation_commit": "59872dc41f33339a140f6ddf7bacacf714190ff2",
-  "build_revision": "v19-recovery",
+  "generated_at": "2026-08-10T16:00:00+08:00",
+  "implementation_commit": "141bd832eda2287d0e4f88911b9fe091d14a1720",
+  "build_revision": "v20-recovery",
   "win10_build_executed": false,
   "win10_return_package_reviewed": false,
   "win7_validation": "FAIL_CLOSED_RECOVERY_REQUIRED",
-  "return_package": {
-    "filename": "WIN7_D013_HELPER_ARTIFACTS_20260809-173817.zip",
-    "sha256": "daaaf36268776b534d8ddda7e82d853f80e574be63caa1b407c5950b338af5ac",
-    "location": "external_to_git",
-    "review_status": "PASS_SUPERSEDED_FOR_WIN7_RECOVERY",
-    "completed_at": "2026-08-09T17:38:17.5437913Z"
+  "v19_failure_return": {
+    "filename": "WIN7_D013_HELPER_DIAGNOSTICS_20260810-071922.zip",
+    "sha256": "48e3a418a05661bfb55e74d656125f960f1e2998ef1d01c61067976150cfee4c",
+    "helper_sha256": "8132323b418e08315bc4fc192626a4e2733b6568fd67541835bc987b4ca482e9",
+    "input_lock_sha256": "42183eaa52679965a0cc0092544b626c1131fcb68961f4e53feb73f97767eacd",
+    "package_manifest_sha256": "b4558a1b3b3fef7d7ddd6c36a666c34f0eada2234ba9564c974017529c45c070",
+    "status": "FAIL_CLOSED_WIN10_SMOKE",
+    "stage": "WIN10_SMOKE",
+    "candidate_eligible": false,
+    "archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v19-win10-smoke-fail"
   },
   "candidate": {
     "path": "candidate/spike02_helper.exe",
-    "sha256": "PENDING_V19_WIN10_BUILD",
+    "sha256": "PENDING_V20_WIN10_BUILD",
     "git_ignored": true
   },
   "evidence": {
@@ -33,19 +37,18 @@
     "crt": "static /MT"
   },
   "gates": {
-    "GATE-WIN10-BUILD": "READY_FOR_V19_BUILD",
+    "GATE-WIN10-BUILD": "READY_FOR_V20_BUILD",
     "GATE-WIN7-LEASE": "RECOVERY_REQUIRED",
     "GATE-NET": "ENVIRONMENT_MISSING"
   },
   "blocked_on": [
-    "v19 Win10 build and returned-package review",
+    "v20 Win10 build and returned-package review",
     "recovery review before any new Win7 lease"
   ],
   "notes": [
-    "v18 is NO_GO_PREBUILD_REVIEW / WIN10_NOT_PERFORMED: sole-World restricting SID can fail the restricted-token second access check on objects without a World allow ACE.",
-    "v18 also lacked logic_tests.cpp in its input closure and could lose diagnostics because its catch path exited before return packaging.",
-    "v19 derives the canonical restricting SID set from TokenUser plus enabled non-deny-only TokenGroups, excludes Administrators, and audits exact child equality before ResumeThread.",
-    "v19 build-result schema v3 and one finalizer produce ARTIFACTS only for PASS; PARTIAL/FAIL produce ineligible DIAGNOSTICS packages.",
+    "v19 returned a valid schema-v3 DIAGNOSTICS package: compilation, logic tests and PE/API/CRT passed, but Win10 smoke failed closed before candidate eligibility.",
+    "v19 treated the legal four-byte GroupCount=0 TokenRestrictedSids result as smaller than TOKEN_GROUPS; v20 accepts the empty header and bounds-checks non-empty arrays.",
+    "v19 PowerShell 5.1 native output capture decoded helper UTF-8 with the host code page; v20 captures raw BaseStream bytes, persists them first, then uses strict UTF-8.",
     "The v16 Win10 build remains historical PASS evidence but is superseded for further Win7 acceptance.",
     "No Win7 SSH/SCP operation is authorized while recovery is required."
   ]

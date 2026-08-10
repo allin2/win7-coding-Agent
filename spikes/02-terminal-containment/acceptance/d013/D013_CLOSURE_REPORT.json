@@ -5,7 +5,7 @@
   "date": "2026-08-10",
   "branch": "codex/a4-d013-closure",
   "base_commit": "86f6d69",
-  "head_commit": "59872dc",
+  "head_commit": "141bd83",
   "commits": [
     "3ec201c",
     "6f47f50",
@@ -18,7 +18,8 @@
     "3619bc7",
     "e1e73a1",
     "0c7313b",
-    "59872dc"
+    "59872dc",
+    "141bd83"
   ],
   "modified_files": {
     "helper": [
@@ -53,7 +54,8 @@
       "test_d013_harness.mjs",
       "d013_profile.json",
       "D013_CLOSURE_REPORT.md",
-      "D013_V18_PREBUILD_AUDIT.md"
+      "D013_V18_PREBUILD_AUDIT.md",
+      "D013_V19_WIN10_FAILURE_REPORT.md"
     ],
     "test": [
       "test_containment.sh",
@@ -63,7 +65,7 @@
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
     "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; v19 derives a canonical restricting SID set from TokenUser plus enabled non-deny-only source groups, excludes Administrators and audits exact child equality; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
-    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 Win10 smoke FAIL_CLOSED because the token had no restricting SID; v18 NO_GO_PREBUILD_REVIEW; v19 LOCAL_TESTED and awaiting Win10 build"
+    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 Win10 smoke FAIL_CLOSED because the token had no restricting SID; v18 NO_GO_PREBUILD_REVIEW; v19 Win10 smoke FAIL_CLOSED; v20 LOCAL_TESTED and awaiting Win10 build"
   },
   "win10_build_kit": {
     "revision": "v15",
@@ -134,8 +136,11 @@
     "input_lock_sha256": "ec5ae7d1b9e1c88f06b558e116e9ffdf718b1e12a9fb0bbf33004db74ef31617",
     "package_manifest_sha256": "371b790d166c969d1ed624acc21c9dfd18bbe6774f8d26a50f6ce2c608f856a1",
     "local_validation": "PASS but superseded by prebuild security/closure review",
-    "win10_smoke": "NOT_PERFORMED",
-    "pe_api_crt_analysis": "NOT_PERFORMED",
+    "return_package": "WIN7_D013_HELPER_DIAGNOSTICS_20260810-071922.zip",
+    "return_package_sha256": "48e3a418a05661bfb55e74d656125f960f1e2998ef1d01c61067976150cfee4c",
+    "helper_sha256": "8132323b418e08315bc4fc192626a4e2733b6568fd67541835bc987b4ca482e9",
+    "win10_smoke": "FAIL_CLOSED_TOKEN_RESTRICTED_SIDS_QUERY",
+    "pe_api_crt_analysis": "PASS",
     "win7_validation": "NOT_PERFORMED",
     "a4_gate": "FAIL_CLOSED_RECOVERY_REQUIRED",
     "prebuild_blockers": [
@@ -160,6 +165,26 @@
     "pe_api_crt_analysis": "NOT_PERFORMED",
     "win7_validation": "NOT_PERFORMED",
     "a4_gate": "FAIL_CLOSED_RECOVERY_REQUIRED",
+    "candidate_eligible": false,
+    "failure_stage": "WIN10_SMOKE",
+    "failure_archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v19-win10-smoke-fail",
+    "status": "FAIL_CLOSED"
+  },
+  "recovery_v20": {
+    "trigger": "v19 Win10 smoke failure and corrupted PowerShell 5.1 native-output capture",
+    "v19_result": "FAIL / candidate_eligible=false",
+    "root_cause": "The source token's legal empty TokenRestrictedSids result contains only a DWORD GroupCount=0 header, but v19 required sizeof(TOKEN_GROUPS). Windows PowerShell 5.1 also decoded UTF-8 helper output with the host code page before recording it, corrupting Chinese JSON error text.",
+    "fix_commit": "141bd832eda2287d0e4f88911b9fe091d14a1720",
+    "fix": "Accept the DWORD header for an empty restricted-SID set while bounds-checking non-empty arrays. Capture stdout/stderr BaseStream bytes concurrently, persist with WriteAllBytes, then decode with strict UTF-8 before JSON parsing.",
+    "build_kit": "WIN7_D013_HELPER_BUILDKIT_20260810-RECOVERY-v20.zip",
+    "build_kit_sha256": "00128babb7ce733768cf09cb077859a8946ad87e59ee5f82fd0fe738fe67d362",
+    "input_lock_sha256": "ac2e15432be66871ea87138aca42a8154c85d39b0a12bb50d5582e92b102771b",
+    "package_manifest_sha256": "c8d61f1170e06176726ed16edfac61fb49d382f40e8f91f7a16f25ec5ada1616",
+    "local_validation": "PASS (logic tests; containment 37/37; D-013 harness; MinGW 5-unit warning-clean compile and PE32+ x64 link; dry-run zero SSH/SCP)",
+    "win10_smoke": "NOT_PERFORMED",
+    "pe_api_crt_analysis": "NOT_PERFORMED",
+    "win7_validation": "NOT_PERFORMED",
+    "a4_gate": "FAIL_CLOSED_RECOVERY_REQUIRED",
     "status": "READY_FOR_HUMAN_WIN10_BUILD"
   },
   "tests": [
@@ -173,7 +198,7 @@
     },
     {
       "command": "bash test/test_containment.sh",
-      "result": "36 pass / 0 fail"
+      "result": "37 pass / 0 fail"
     },
     {
       "command": "node acceptance/d013/test_d013_harness.mjs",
@@ -203,7 +228,7 @@
   "coverage": {
     "C01": "v16 A4-20260810-000003 PASS",
     "C02": "v16 A4-20260810-000003 PASS",
-    "C03": "v16 boundary probes passed but trusted Low SID observation failed; v17 exposed an empty restricting-SID bug; v18 sole-World was blocked in prebuild review; v19 requires exact source-derived user/enabled-group set equality, excludes Administrators, retains Low Integrity and passes local positive/negative tests and cross-compile; Win10 rebuild pending",
+    "C03": "v16 boundary probes passed but trusted Low SID observation failed; v17 exposed an empty restricting-SID bug; v18 sole-World was blocked in prebuild review; v19 Win10 smoke exposed an empty TokenRestrictedSids size-probe bug; v20 preserves exact source-derived user/enabled-group equality, accepts the empty source header and passes local positive/negative tests and cross-compile; Win10 rebuild pending",
     "C04": "v16 A4-20260810-000003 PASS including label and deny-ACE rollback",
     "C05": "v16 loopback PASS; formal ENVIRONMENT_MISSING",
     "C06": "v16 A4-20260810-000003 PASS",
@@ -212,14 +237,14 @@
     "N06": "static assertion PASS; no taskkill path"
   },
   "unexecuted": [
-    "v19 Win10 native v142 build/logic-tests/smoke/PE/API/CRT validation",
-    "new Win7 lease and v19 C01-C07 evidence"
+    "v20 Win10 native v142 build/logic-tests/smoke/PE/API/CRT validation",
+    "new Win7 lease and v20 C01-C07 evidence"
   ],
   "blockers": [
-    "v19 Win10 return package missing",
+    "v20 Win10 return package missing",
     "A4-20260810-000003 RECOVERY_REQUIRED must be reviewed before a new lease",
-    "a new signed lease must bind the reviewed v19 candidate and final integration commit",
+    "a new signed lease must bind the reviewed v20 candidate and final integration commit",
     "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "v15 and v16 Win10 PASS remain historical. v17 Win10 smoke failed closed. v18 was blocked before Win10 build. A4-20260810-000002 is RECOVERY_REVIEWED, A4-20260810-000003 is FAIL_CLOSED/RECOVERY_REQUIRED, active leases are zero, v19 is ready for human Win10 build, and public state remains coordinator-owned."
+  "note": "v15 and v16 Win10 PASS remain historical. v17 and v19 Win10 smoke failed closed. v18 was blocked before Win10 build. A4-20260810-000002 is RECOVERY_REVIEWED, A4-20260810-000003 is FAIL_CLOSED/RECOVERY_REQUIRED, active leases are zero, v20 is ready for human Win10 build, and public state remains coordinator-owned."
 }

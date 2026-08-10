@@ -62,6 +62,7 @@
     "partial_fail_return_package": "WIN7_D013_HELPER_DIAGNOSTICS_<utc-stamp>.zip",
     "return_package_hash_file": "<return-package>.sha256",
     "return_package_manifest": "RETURN_PACKAGE_MANIFEST.json",
+    "native_output_capture": "stdout/stderr BaseStream bytes are persisted with WriteAllBytes before strict UTF-8 decoding and JSON parsing",
     "artifacts": ["output/helper.exe"],
     "evidence": [
       "evidence/environment.json", "evidence/input-verification.json",

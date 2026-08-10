@@ -42,6 +42,19 @@ static int gFailures = 0;
         }                                                                \
     } while (0)
 
+static void TestTokenGroupsSizeProbe() {
+    // v19 regression: a normal source token can return only the four-byte
+    // GroupCount header for an empty TokenRestrictedSids list.
+    CHECK(TokenGroupsSizeProbeAccepted(false, kWinErrorInsufficientBuffer, 4, 4));
+    CHECK(TokenGroupsSizeProbeAccepted(true, 0, 4, 4));
+
+    // No readable GroupCount header, or an unrelated Win32 failure, must stay
+    // fail-closed.
+    CHECK(!TokenGroupsSizeProbeAccepted(false, kWinErrorInsufficientBuffer, 3, 4));
+    CHECK(!TokenGroupsSizeProbeAccepted(false, 5, 4, 4));
+    CHECK(!TokenGroupsSizeProbeAccepted(false, 0, 4, 4));
+}
+
 static void TestJsonParser() {
     // Full valid request with Chinese + spaces.
     const std::string request =
@@ -369,6 +382,7 @@ static void TestRenderResult() {
 }
 
 int main() {
+    TestTokenGroupsSizeProbe();
     TestJsonParser();
     TestParseJsonConfig();
     TestArgvBuilder();

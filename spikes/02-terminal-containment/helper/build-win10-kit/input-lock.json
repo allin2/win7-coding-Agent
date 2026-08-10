@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64",
-  "generated_at": "2026-08-10T07:01:43.484Z",
+  "generated_at": "2026-08-10T09:37:21.387Z",
   "sources": [
     {
       "path": "src/helper.cpp",
-      "size": 67455,
-      "sha256": "b8e1effff65409116271b59f8fb497e880a26595d4811338c0a9a761023f3b03"
+      "size": 68616,
+      "sha256": "fc583c8b66071a1f6a75c5983aaebe611e18a5629fe5923bd345612736bd3f70"
     },
     {
       "path": "src/helper.h",
-      "size": 11607,
-      "sha256": "5a73928195d7ddb5977a2adcf6a5f1b9ad8ef92cb302eb5ccf2ec228214f04c0"
+      "size": 12476,
+      "sha256": "9bcd11bcadcf448a7e0b24dd2a2a6861cd3e80bbd8fd7a9c7a3a17b111f07881"
     },
     {
       "path": "src/logic_tests.cpp",
-      "size": 18596,
-      "sha256": "2eee81eb6e7bb36ade60d91db0e0151ab6f9315ba69bd992b7fb4dbc72c22b37"
+      "size": 19250,
+      "sha256": "d5f1876315d79179655046bd95222e9fd33ab32d091fccb4b9fc9f9167af9bf5"
     },
     {
       "path": "src/json_parser.cpp",
@@ -60,13 +60,13 @@
     },
     {
       "path": "build.ps1",
-      "size": 31885,
-      "sha256": "aceef5952759d439dd37685321e1ce339c37b939b3cb1b8558a66119ec6ee768"
+      "size": 34327,
+      "sha256": "aa0e057efbf7d30b61dff3a5c5d690fbedb4197816dc6503870e8a97af2d3ef1"
     },
     {
       "path": "build-profile.json",
-      "size": 2737,
-      "sha256": "bafe5958784fe7c18be152dc90ff1887af04756c14cc3116d5942e215e2ecb57"
+      "size": 2879,
+      "sha256": "5962a2f1b384a49bc4ea40e10772ca27e5dd9aa78f8538809d9a543e1c031f6b"
     },
     {
       "path": "helper.exe.manifest",
