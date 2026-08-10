@@ -60,6 +60,21 @@ constexpr long long kDefaultTimeoutMs = 30000;
 constexpr DWORD kJobActiveProcessLimit = 64;
 constexpr SIZE_T kJobProcessMemoryLimit = 512ULL * 1024 * 1024;
 
+// GetTokenInformation size probes normally fail with this Win32 error while
+// returning the required buffer size. Keep the numeric value portable so the
+// v19 empty TokenRestrictedSids regression can be unit-tested off Windows.
+constexpr DWORD kWinErrorInsufficientBuffer = 122;
+
+// TOKEN_GROUPS uses an ANYSIZE_ARRAY, so sizeof(TOKEN_GROUPS) includes storage
+// for one entry. A legal empty TokenRestrictedSids result needs only the
+// GroupCount header. Accept the size probe when that header fits and the API
+// either succeeded or reported the documented insufficient-buffer result.
+inline bool TokenGroupsSizeProbeAccepted(bool querySucceeded, DWORD queryError,
+                                         DWORD returnedSize, DWORD headerSize) {
+    return returnedSize >= headerSize &&
+           (querySucceeded || queryError == kWinErrorInsufficientBuffer);
+}
+
 // ─── Error codes (kept stable for protocol consumers) ────────────────────────
 
 #define HELPER_OK 0

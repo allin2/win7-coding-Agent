@@ -27,6 +27,67 @@ function Write-Json([object]$Value, [string]$Path) {
     [System.IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding($false)))
 }
 
+function Invoke-Utf8ProcessBytes(
+    [string]$FilePath,
+    [string]$Arguments,
+    [AllowNull()][object]$StandardInputText,
+    [string]$StdoutPath,
+    [string]$StderrPath
+) {
+    # Windows PowerShell 5.1 decodes native-command output with its console/OEM
+    # code page. That corrupts UTF-8 helper JSON on Chinese hosts and can let a
+    # DBCS lead byte consume the closing quote. Read both redirected streams as
+    # bytes, persist them before decoding, then apply strict UTF-8 explicitly.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = $Arguments
+    $startInfo.WorkingDirectory = $KitRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) { throw "Failed to start UTF-8 process: $FilePath" }
+
+    $stdoutBuffer = New-Object System.IO.MemoryStream
+    $stderrBuffer = New-Object System.IO.MemoryStream
+    $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdoutBuffer)
+    $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderrBuffer)
+    $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+    if ($null -ne $StandardInputText) {
+        $stdinBytes = $utf8.GetBytes(([string]$StandardInputText) + "`r`n")
+        $process.StandardInput.BaseStream.Write($stdinBytes, 0, $stdinBytes.Length)
+        $process.StandardInput.BaseStream.Flush()
+    }
+    $process.StandardInput.Close()
+    $process.WaitForExit()
+    $stdoutTask.GetAwaiter().GetResult()
+    $stderrTask.GetAwaiter().GetResult()
+
+    $stdoutBytes = $stdoutBuffer.ToArray()
+    $stderrBytes = $stderrBuffer.ToArray()
+    # These are the actual native bytes. Keep this ordering before GetString so
+    # invalid UTF-8 remains recoverable in a DIAGNOSTICS return package.
+    [System.IO.File]::WriteAllBytes($StdoutPath, $stdoutBytes)
+    [System.IO.File]::WriteAllBytes($StderrPath, $stderrBytes)
+    $stdoutText = $utf8.GetString($stdoutBytes)
+    $stderrText = $utf8.GetString($stderrBytes)
+    $exitCode = $process.ExitCode
+    $stdoutBuffer.Dispose()
+    $stderrBuffer.Dispose()
+    $process.Dispose()
+    return [ordered]@{
+        exit_code = $exitCode
+        stdout_text = $stdoutText
+        stderr_text = $stderrText
+        stdout_size = $stdoutBytes.Length
+        stderr_size = $stderrBytes.Length
+    }
+}
+
 function Reset-OwnedDirectory([string]$Path) {
     $root = [System.IO.Path]::GetFullPath($KitRoot).TrimEnd('\')
     $target = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
@@ -434,13 +495,11 @@ try {
         $smokeProtectedAclBefore = (Get-Acl -LiteralPath $smokeProtected).Sddl
         $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
         if (-not (Test-Path -LiteralPath $cmdExe -PathType Leaf)) { throw "cmd.exe smoke target was not detected." }
+        $versionStdout = Join-Path $EvidenceRoot "version-stdout.txt"
         $versionStderr = Join-Path $EvidenceRoot "version-stderr.txt"
-        $versionOut = @(& $helperExe --version 2>$versionStderr)
-        $versionExit = $LASTEXITCODE
-        [System.IO.File]::WriteAllLines(
-            (Join-Path $EvidenceRoot "version-stdout.txt"), [string[]]$versionOut,
-            [System.Text.Encoding]::UTF8)
-        if ($versionExit -ne 0 -or (($versionOut -join "`n") -notmatch 'win7-x64')) {
+        $versionCapture = Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "--version" `
+            -StandardInputText $null -StdoutPath $versionStdout -StderrPath $versionStderr
+        if ($versionCapture.exit_code -ne 0 -or $versionCapture.stdout_text -notmatch 'win7-x64') {
             throw "helper --version smoke failed."
         }
         $requestPayload = [ordered]@{
@@ -464,14 +523,10 @@ try {
         if (($requestCheck.executable -ne $requestPayload.executable) -or ($requestCheck.workingDirectory -ne $requestPayload.workingDirectory)) {
             throw "helper JSON smoke request did not survive serialization round trip."
         }
-        $responseLines = @($request | & $helperExe 2>$smokeStderr)
-        $smokeProcessExit = $LASTEXITCODE
-        $responseText = $responseLines -join "`r`n"
-        # Persist the raw helper response before parsing or asserting it. A
-        # malformed/error response must survive in the diagnostics package.
-        [System.IO.File]::WriteAllText(
-            $smokeStdout, ($responseText + "`r`n"),
-            (New-Object System.Text.UTF8Encoding($false)))
+        $smokeCapture = Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+            -StandardInputText $request -StdoutPath $smokeStdout -StderrPath $smokeStderr
+        $smokeProcessExit = [int]$smokeCapture.exit_code
+        $responseText = ([string]$smokeCapture.stdout_text) -replace "[\r\n]+$", ""
         if ($smokeProcessExit -ne 0) {
             $smokeStatus = "FAIL"
             throw "helper JSON smoke process failed (exit $smokeProcessExit)."

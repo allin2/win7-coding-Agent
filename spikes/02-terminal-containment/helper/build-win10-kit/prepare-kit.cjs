@@ -100,6 +100,12 @@ if (!/GetTokenInformation\s*\(\s*hSource\s*,\s*TokenUser/.test(helperSource) ||
     /restrictedSidCount\s*==\s*1/.test(helperSource)) {
   throw new Error('helper.cpp must derive the restricting SID set from enabled source user/groups, exclude Administrators and audit exact child equality');
 }
+if (!/TokenGroupsSizeProbeAccepted\s*\([^;]*sizeof\s*\(\s*DWORD\s*\)\s*\)/s.test(helperSource) ||
+    /TokenRestrictedSids[\s\S]{0,400}?size\s*<\s*sizeof\s*\(\s*TOKEN_GROUPS\s*\)/.test(helperSource) ||
+    !/groups->GroupCount\s*==\s*0\)\s*return\s+true/.test(helperSource) ||
+    !/TokenRestrictedSids returned a truncated SID array/.test(helperSource)) {
+  throw new Error('helper.cpp must accept the v19 empty TokenRestrictedSids header and bounds-check non-empty arrays');
+}
 if (!/CurrentLabelAclMatches/.test(helperSource) ||
     !/LabelAclsEqual/.test(helperSource) ||
     !/info\.AceCount\s*==\s*0/.test(helperSource) ||
@@ -115,7 +121,11 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/WIN7_D013_HELPER_DIAGNOSTICS_/.test(buildScript) ||
     !/schema_version\s*=\s*3/.test(buildScript) ||
     !/RETURN_PACKAGE_MANIFEST\.json/.test(buildScript) ||
-    !/Persist the raw helper response before parsing/.test(buildScript) ||
+    !/function\s+Invoke-Utf8ProcessBytes/.test(buildScript) ||
+    !/CopyToAsync\s*\(\s*\$stdoutBuffer\s*\)/.test(buildScript) ||
+    !/WriteAllBytes\s*\(\s*\$StdoutPath\s*,\s*\$stdoutBytes\s*\)/.test(buildScript) ||
+    !/UTF8Encoding\s*\(\s*\$false\s*,\s*\$true\s*\)/.test(buildScript) ||
+    /\$request\s*\|\s*&\s*\$helperExe/.test(buildScript) ||
     /catch\s*\{[^}]*\bexit\b/.test(buildScript)) {
   throw new Error('build.ps1 must exercise protected ACLs and preserve PASS/PARTIAL/FAIL evidence through the single return-package finalizer');
 }

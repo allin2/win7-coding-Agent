@@ -89,6 +89,15 @@ if grep -q 'actualRestrictedSids == expectation.canonicalSids' "${HELPER_CPP}" \
 else
     fail "C03: exact source/child restricting-SID audit contract missing"
 fi
+if grep -q 'TokenGroupsSizeProbeAccepted' "${HELPER_CPP}" \
+    && grep -q 'sizeQueryError' "${HELPER_CPP}" \
+    && grep -q 'size, sizeof(DWORD)' "${HELPER_CPP}" \
+    && grep -q 'groups->GroupCount == 0' "${HELPER_CPP}" \
+    && ! grep -E 'TokenRestrictedSids.{0,160}size.*sizeof\(TOKEN_GROUPS\)' "${HELPER_CPP}" >/dev/null; then
+    pass "C03: empty source TokenRestrictedSids header is accepted and v19 sizeof bug is absent"
+else
+    fail "C03: empty TokenRestrictedSids regression contract missing"
+fi
 if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
 if grep -q 'AuditRestrictedChildToken(pi.hProcess' "${HELPER_CPP}" \
     && grep -q 'OpenProcessToken(childProcess, TOKEN_QUERY' "${HELPER_CPP}" \
@@ -133,7 +142,7 @@ else
     fail "C19: child stdin detachment missing"
 fi
 
-# ── v19 Win10 build/diagnostics closure ──────────────────────────────────────
+# ── v20 Win10 build/diagnostics closure ──────────────────────────────────────
 if grep -q 'function New-ReturnPackage' "${BUILD_SCRIPT}" \
     && grep -q 'function Test-ReturnPackageWriter' "${BUILD_SCRIPT}" \
     && grep -q 'WIN7_D013_HELPER_DIAGNOSTICS_' "${BUILD_SCRIPT}" \
@@ -142,15 +151,20 @@ if grep -q 'function New-ReturnPackage' "${BUILD_SCRIPT}" \
 else
     fail "D-013 build: schema v3 diagnostics finalizer contract missing"
 fi
-raw_write_line="$(grep -n 'WriteAllText(' "${BUILD_SCRIPT}" | awk -F: '$1 > 400 {print $1; exit}')"
+raw_write_line="$(grep -n 'WriteAllBytes(\$StdoutPath' "${BUILD_SCRIPT}" | cut -d: -f1)"
+utf8_decode_line="$(grep -n '\$stdoutText = \$utf8.GetString(\$stdoutBytes)' "${BUILD_SCRIPT}" | cut -d: -f1)"
 smoke_parse_line="$(grep -n '\$response = \$responseText | ConvertFrom-Json' "${BUILD_SCRIPT}" | cut -d: -f1)"
-if [ -n "${raw_write_line}" ] && [ -n "${smoke_parse_line}" ] \
-    && [ "${raw_write_line}" -lt "${smoke_parse_line}" ] \
+if [ -n "${raw_write_line}" ] && [ -n "${utf8_decode_line}" ] && [ -n "${smoke_parse_line}" ] \
+    && [ "${raw_write_line}" -lt "${utf8_decode_line}" ] \
+    && [ "${utf8_decode_line}" -lt "${smoke_parse_line}" ] \
+    && grep -q 'CopyToAsync(\$stdoutBuffer)' "${BUILD_SCRIPT}" \
+    && grep -q 'UTF8Encoding(\$false, \$true)' "${BUILD_SCRIPT}" \
+    && ! grep -q '\$request | & \$helperExe' "${BUILD_SCRIPT}" \
     && grep -q "'logic_tests.cpp'" "${BUILD_SCRIPT}" \
     && grep -q "'logic_tests.cpp'" "${BUILD_KIT_DIR}/prepare-kit.cjs"; then
-    pass "D-013 build: raw smoke precedes parse and logic_tests is in the locked Win10 closure"
+    pass "D-013 build: native stdout bytes are persisted before strict UTF-8 decode/JSON parse"
 else
-    fail "D-013 build: raw smoke ordering or logic_tests closure missing"
+    fail "D-013 build: raw-byte UTF-8 ordering or logic_tests closure missing"
 fi
 
 # ── Skeleton leftovers are forbidden ─────────────────────────────────────────
