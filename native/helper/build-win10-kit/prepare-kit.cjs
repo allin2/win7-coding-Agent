@@ -67,6 +67,9 @@ function walk(dir, base) {
 // (the final argument), never pDacl. Keep package generation fail-closed so the
 // positional PACL parameters cannot silently regress again.
 const helperSource = fs.readFileSync(path.join(HELPER_ROOT, 'helper.cpp'), 'utf8');
+if (!/win7-agent-helper 1\.1\.0-d013-v23 win7-x64/.test(helperSource)) {
+  throw new Error('helper.cpp must expose the locked v23 production version banner');
+}
 if (!/LABEL_SECURITY_INFORMATION\s*,\s*nullptr\s*,\s*nullptr\s*,\s*nullptr\s*,\s*pLabelAcl\s*\)/.test(helperSource)) {
   throw new Error('helper.cpp must pass the mandatory-label ACL as pSacl, with pDacl null');
 }

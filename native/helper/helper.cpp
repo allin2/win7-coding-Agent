@@ -1601,7 +1601,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("win7-agent-helper 1.0.0-d013-v21 win7-x64\n");
+            std::printf("win7-agent-helper 1.1.0-d013-v23 win7-x64\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {

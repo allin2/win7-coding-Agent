@@ -1,4 +1,4 @@
-# D-013 v21 Production Helper Win10 离线构建包
+# D-013 v23 Production Helper Win10 离线构建包
 
 本包在独立的 Windows 10 x64 构建机上，离线构建生产非交互 Runner helper（Job Object /
 Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 / 整树回收）。
@@ -16,7 +16,7 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 - Windows SDK `10.0.19041.0`（含 x64 `mt.exe`）、Windows 10 自带 `tar.exe`。
 - 必须从 **x64 Native Tools Command Prompt for VS 2019** 启动构建，或先调用
   `VC\Auxiliary\Build\vcvars64.bat`，以准备 `INCLUDE`、`LIB` 等 x64 工具链环境变量。
-- 至少 2 GB 可用磁盘空间；v21 必须解压至全新短英文路径 `C:\w7d013-v21`。
+- 至少 2 GB 可用磁盘空间；v23 必须解压至全新短英文路径 `C:\w7d013-v23`。
 - **不需要 CMake、不需要 Python**：构建脚本直接用 `cl.exe`（构建闭包更小、更确定）。
 - MSVC 显式使用 `/utf-8` 读取 UTF-8 源码，不依赖构建机的 CP936/ACP。
 
@@ -27,7 +27,7 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 
 ```cmd
 :: 在 “x64 Native Tools Command Prompt for VS 2019” 中执行
-cd /d C:\w7d013-v21
+cd /d C:\w7d013-v23
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 

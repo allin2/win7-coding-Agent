@@ -559,7 +559,8 @@ try {
         $versionCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "--version" `
             -StandardInputText $null -StdoutPath $versionStdout -StderrPath $versionStderr)
         $versionCapture = Get-ValidatedProcessCapture -Items $versionCaptureItems -Context "helper --version"
-        if ($versionCapture.exit_code -ne 0 -or $versionCapture.stdout_text -notmatch 'win7-x64') {
+        if ($versionCapture.exit_code -ne 0 -or
+            ([string]$versionCapture.stdout_text).Trim() -ne 'win7-agent-helper 1.1.0-d013-v23 win7-x64') {
             throw "helper --version smoke failed."
         }
         $requestPayload = [ordered]@{
