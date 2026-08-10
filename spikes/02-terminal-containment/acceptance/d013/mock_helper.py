@@ -69,7 +69,9 @@ else:
         "tokenAudit": {
             "source": "suspended_child_process_token", "verified": True,
             "isRestricted": True, "tokenType": "primary",
-            "worldRestrictedSid": True, "restrictedSidCount": 1,
+            "restrictedSidSetVerified": True, "userRestrictedSid": True,
+            "worldRestrictedSid": True, "administratorsRestrictedSid": False,
+            "restrictedSidCount": 8,
             "integritySid": "S-1-16-4096", "integrityRid": 4096,
         },
         "stdoutSize": 0, "stderrSize": 0, "stdoutBase64": "", "stderrBase64": "",

@@ -68,13 +68,24 @@ if grep -q 'CreateProcessWithTokenW' "${HELPER_CPP}" \
 else
     pass "C03: obsolete impersonation/Everyone deny-only path absent"
 fi
-if grep -q 'sidsToRestrict.push_back({worldSid' "${HELPER_CPP}" \
-    && grep -q 'sidsToRestrict.data()' "${HELPER_CPP}" \
-    && grep -q 'TokenRestrictedSids' "${HELPER_CPP}" \
-    && grep -q 'worldRestrictedSid' "${HELPER_CPP}"; then
-    pass "C03: Everyone is the sole restricting SID and is audited on the child"
+if grep -q 'GetTokenInformation(hSource, TokenUser' "${HELPER_CPP}" \
+    && grep -q 'GetTokenInformation(hSource, TokenGroups' "${HELPER_CPP}" \
+    && grep -q 'SE_GROUP_ENABLED' "${HELPER_CPP}" \
+    && grep -q 'SE_GROUP_USE_FOR_DENY_ONLY' "${HELPER_CPP}" \
+    && grep -q 'WinBuiltinAdministratorsSid' "${HELPER_CPP}" \
+    && grep -q 'sidsToRestrict.data()' "${HELPER_CPP}"; then
+    pass "C03: restricting SID set is derived from enabled source user/groups with Administrators excluded"
 else
-    fail "C03: non-empty Everyone restricting-SID contract missing"
+    fail "C03: source-derived restricting-SID construction contract missing"
+fi
+if grep -q 'actualRestrictedSids == expectation.canonicalSids' "${HELPER_CPP}" \
+    && grep -q 'restrictedSidSetVerified' "${HELPER_CPP}" \
+    && grep -q 'userRestrictedSid' "${HELPER_CPP}" \
+    && grep -q 'administratorsRestrictedSid' "${HELPER_CPP}" \
+    && ! grep -q 'restrictedSidCount == 1' "${HELPER_CPP}"; then
+    pass "C03: child restricting SID set is audited exactly and v18 sole-World count gate is absent"
+else
+    fail "C03: exact source/child restricting-SID audit contract missing"
 fi
 if grep -q 'S-1-16-4096' "${HELPER_CPP}"; then pass "C03: Low Integrity S-1-16-4096 applied"; else fail "C03: Low Integrity SID missing"; fi
 if grep -q 'AuditRestrictedChildToken(pi.hProcess' "${HELPER_CPP}" \

@@ -312,8 +312,11 @@ static void TestRenderResult() {
     result.tokenAudit.verified = true;
     result.tokenAudit.isRestricted = true;
     result.tokenAudit.isPrimary = true;
+    result.tokenAudit.restrictedSidSetVerified = true;
+    result.tokenAudit.userRestrictedSid = true;
     result.tokenAudit.worldRestrictedSid = true;
-    result.tokenAudit.restrictedSidCount = 1;
+    result.tokenAudit.administratorsRestrictedSid = false;
+    result.tokenAudit.restrictedSidCount = 8;
     result.tokenAudit.integritySid = L"S-1-16-4096";
     result.tokenAudit.integrityRid = 4096;
     const std::string text = "hello 中文\n";
@@ -335,8 +338,11 @@ static void TestRenderResult() {
     CHECK(json.find("\"verified\":true") != std::string::npos);
     CHECK(json.find("\"isRestricted\":true") != std::string::npos);
     CHECK(json.find("\"tokenType\":\"primary\"") != std::string::npos);
+    CHECK(json.find("\"restrictedSidSetVerified\":true") != std::string::npos);
+    CHECK(json.find("\"userRestrictedSid\":true") != std::string::npos);
     CHECK(json.find("\"worldRestrictedSid\":true") != std::string::npos);
-    CHECK(json.find("\"restrictedSidCount\":1") != std::string::npos);
+    CHECK(json.find("\"administratorsRestrictedSid\":false") != std::string::npos);
+    CHECK(json.find("\"restrictedSidCount\":8") != std::string::npos);
     CHECK(json.find("\"integritySid\":\"S-1-16-4096\"") != std::string::npos);
     CHECK(json.find("\"integrityRid\":4096") != std::string::npos);
     CHECK(json.find("\"stdoutSize\":13") != std::string::npos);
