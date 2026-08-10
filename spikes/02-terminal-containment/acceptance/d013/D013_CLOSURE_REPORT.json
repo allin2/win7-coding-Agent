@@ -3,9 +3,9 @@
   "track": "D-013",
   "title": "A4/D-013 Helper 与 containment 闭包",
   "date": "2026-08-10",
-  "branch": "codex/a4-d013-closure",
+  "branch": "codex/integrated-robustness",
   "base_commit": "86f6d69",
-  "head_commit": "6fbb374",
+  "head_commit": "20b4480",
   "commits": [
     "3ec201c",
     "6f47f50",
@@ -70,7 +70,7 @@
   "c03_fix": {
     "root_cause": "skeleton LaunchRestrictedProcess created a restricted token but never applied it to the child (CreateProcessW with the default token)",
     "fix": "CreateProcessAsUserW applies a restricted primary token created with DISABLE_MAX_PRIVILEGE, preserving SeChangeNotifyPrivilege; v19 derives a canonical restricting SID set from TokenUser plus enabled non-deny-only source groups, excludes Administrators and audits exact child equality; Low Integrity S-1-16-4096 and verified ACL rollback enforce the workspace boundary",
-    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 Win10 smoke FAIL_CLOSED because the token had no restricting SID; v18 NO_GO_PREBUILD_REVIEW; v19 and v20 Win10 smoke FAIL_CLOSED; v21 Win10 PASS and awaiting Win7 recovery approval"
+    "status": "v15 WIN7 FAIL_CLOSED (ACL_ROLLBACK_FAILED); v16 Win10 PASS but Win7 FAIL_CLOSED because Low Integrity could not be trustedly observed; v17 Win10 smoke FAIL_CLOSED because the token had no restricting SID; v18 NO_GO_PREBUILD_REVIEW; v19 and v20 Win10 smoke FAIL_CLOSED; v21 Win10 PASS and ADR-0065 coordinator WIN7_PASS"
   },
   "win10_build_kit": {
     "revision": "v15",
@@ -219,10 +219,18 @@
     "logic_tests": "PASS",
     "win10_smoke": "PASS",
     "pe_api_crt_analysis": "PASS",
-    "win7_validation": "NOT_PERFORMED",
-    "a4_gate": "FAIL_CLOSED_RECOVERY_REQUIRED",
+    "win7_validation": "PASS",
+    "a4_gate": "WIN7_PASS",
     "archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v21-win10-pass",
-    "status": "WIN10_PASS_READY_FOR_RECOVERY_APPROVAL"
+    "win7_acceptance_id": "A4-20260810-000004",
+    "accepted_commit": "20b4480ab2ea4f53b3ccee7df39e47755ed92102",
+    "artifact_manifest_sha256": "e05af8860c8a4982e9b2c01eb7256a9936c84bbb64eadd02f77041d96fb51136",
+    "run_report_sha256": "fec80d7c64d5f329db8363e2ae522de4e024c949dd63e7ca6dcfc7324b937f99",
+    "grade_sha256": "68488e499fae9f31c7265681bab5ef33aa5e10780f5d746457906beefb00e60a",
+    "lease_final_state": "RELEASED",
+    "formal_c05": "ENVIRONMENT_MISSING",
+    "win7_archive": "/Users/qlyf/Downloads/A4-D013-archive/2026-08-10-v21-win7-pass/A4-20260810-000004",
+    "status": "WIN7_PASS"
   },
   "tests": [
     {
@@ -272,26 +280,26 @@
     {
       "command": "Win10 v21 build.ps1 + capture selftest + v142 logic tests + native smoke + PE/API/CRT review",
       "result": "PASS (schema v3 COMPLETE; candidate_eligible=true; reviewed ARTIFACTS return package)"
+    },
+    {
+      "command": "ADR-0065 A4-20260810-000004 signed lease + Win7 REM-D01-D08 + coordinator grade",
+      "result": "WIN7_PASS (9 required cases PASS; bidirectional hashes and postflight PASS; lease RELEASED)"
     }
   ],
   "coverage": {
-    "C01": "v16 A4-20260810-000003 PASS",
-    "C02": "v16 A4-20260810-000003 PASS",
-    "C03": "v16 boundary probes passed but trusted Low SID observation failed; v17 exposed an empty restricting-SID bug; v18 sole-World was blocked in prebuild review; v19 exposed the empty TokenRestrictedSids size-probe bug; v20 fixed it but its PowerShell capture wrapper failed before smoke; v21 Win10 native smoke proves the restricted primary token, exact SID set, Low Integrity and ACL audit contract; Win7 recovery validation remains pending",
-    "C04": "v16 A4-20260810-000003 PASS including label and deny-ACE rollback",
-    "C05": "v16 loopback PASS; formal ENVIRONMENT_MISSING",
-    "C06": "v16 A4-20260810-000003 PASS",
-    "C07": "v16 timeout and output-cap cases PASS",
+    "C01": "v21 A4-20260810-000004 PASS",
+    "C02": "v21 A4-20260810-000004 PASS",
+    "C03": "v21 A4-20260810-000004 PASS with trusted suspended-child token audit: restricted primary, exact SID set and Low Integrity S-1-16-4096 / 4096",
+    "C04": "v21 A4-20260810-000004 PASS including label and deny-ACE rollback",
+    "C05": "v21 loopback TCP/UDP/DNS measurement PASS; formal enterprise/network evidence remains ENVIRONMENT_MISSING",
+    "C06": "v21 A4-20260810-000004 PASS",
+    "C07": "v21 timeout and output-cap cases PASS",
     "C08": "bounded by design; NOT_MEASURED for new helper",
     "N06": "static assertion PASS; no taskkill path"
   },
-  "unexecuted": [
-    "new Win7 lease and v21 C01-C07 evidence"
-  ],
+  "unexecuted": [],
   "blockers": [
-    "A4-20260810-000003 RECOVERY_REQUIRED must be reviewed before a new lease",
-    "a new signed lease must bind the reviewed v21 candidate and final integration commit",
     "formal C05 enterprise/network evidence is ENVIRONMENT_MISSING"
   ],
-  "note": "v15 and v16 Win10 PASS remain historical. v17, v19 and user-reported v20 Win10 smoke failed closed. v18 was blocked before Win10 build. v21 Win10 is PASS and its ignored helper candidate is locked. A4-20260810-000002 is RECOVERY_REVIEWED, A4-20260810-000003 remains FAIL_CLOSED/RECOVERY_REQUIRED, active leases are zero, and public state remains coordinator-owned."
+  "note": "v15 and v16 Win10 PASS remain historical. v17, v19 and user-reported v20 Win10 smoke failed closed. v18 was blocked before Win10 build. v21 Win10 is PASS, its ignored helper candidate is locked, and ADR-0065 graded A4-20260810-000004 WIN7_PASS. A4-20260810-000002 and 000003 are RECOVERY_REVIEWED, 000004 is RELEASED, active leases are zero, formal C05 remains ENVIRONMENT_MISSING, and public state remains coordinator-owned."
 }
