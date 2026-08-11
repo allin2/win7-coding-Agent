@@ -178,6 +178,20 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 它们的阻塞已转移到仓库集成、验收 harness 与 Win7 实测。A4/D-013 与 A7 发布闭包没有被这两次
 构建自动完成。
 
+## A5 非交互 Runner v24 构建收口（2026-08-11）
+
+- D-013 v24 返回包 `WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip` 已独立复核为
+  `BUILD PASS / candidate_eligible=true / REVIEW PASS`；外层 SHA-256 为
+  `5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c`，helper SHA-256 为
+  `7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134`。
+- 返回包绑定源码提交 `78113f49db6ec94f803ae38518c42eaa740448ba` 和锁定的
+  Win10/VS2019/v142/SDK 10.0.19041/x64/static CRT Profile；内部 24 项清单、logic tests、
+  PE/API/CRT、严格 UTF-8 捕获、普通执行和合作取消 smoke 全部通过。取消 smoke 证明 helper
+  在返回 `canceled=true` 前完成 Job 回收和 Low Integrity 的精确 SDDL 回滚。
+- v23 首轮 Win7 L08 的 ACL 残留记录仍保留且该候选仍为拒绝状态。v24 目前仅解除 Win10 构建
+  门禁；下一步必须在 `10.49.123.40` 上使用新验收目录、新提交和新 ADR-0065 签名租约重跑
+  L01～L10，轮前/轮后进程与 ACL 零残留后才可把 A5 非交互 Runner 标记为 Win7 PASS。
+
 ## MVP 已接受的延期项
 
 - Electron 可运行入口已经形成 Win7 实证；完整五视图、安装器、跨模块用户任务和卸载/回滚仍是下一阶段产品装配工作。

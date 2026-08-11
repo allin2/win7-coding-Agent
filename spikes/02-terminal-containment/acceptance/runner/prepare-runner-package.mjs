@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..', '..');
-const EXPECTED_HELPER_SHA256 = 'd275605124527f292307fd45e2ab4b9af850d22af53ca6f7e8ee795fab629a5c';
+const EXPECTED_HELPER_SHA256 = '7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134';
 const SHA_RE = /^[a-f0-9]{64}$/;
 
 function parse(argv) {
@@ -48,7 +48,7 @@ function main() {
   const remoteRoot = `C:\\Win7CodingAgent\\acceptance\\${args.acceptanceId}`;
   const acceptanceRoot = 'C:\\Win7CodingAgent\\acceptance';
   const helper = path.join(REPO, 'native', 'helper', 'build-win10-kit', 'candidate', 'spike02_helper.exe');
-  if (hashFile(helper) !== EXPECTED_HELPER_SHA256) throw new Error('v23 helper candidate hash mismatch');
+  if (hashFile(helper) !== EXPECTED_HELPER_SHA256) throw new Error('v24 helper candidate hash mismatch');
   copy(helper, path.join(out, 'spike02_helper.exe'));
   copy(path.join(HERE, 'runner-win7-harness.js'), path.join(out, 'runner-win7-harness.js'));
   copy(path.join(HERE, 'runner_wmi.cmd'), path.join(out, 'runner_wmi.cmd'));
@@ -72,7 +72,7 @@ function main() {
   };
   const releaseManifest = {
     schema_version: 1,
-    release: 'win7-native-runner-v23-acceptance',
+    release: 'win7-native-runner-v24-acceptance',
     acceptance_id: args.acceptanceId,
     helper: { path: 'spike02_helper.exe', sha256: EXPECTED_HELPER_SHA256 },
     profiles: [

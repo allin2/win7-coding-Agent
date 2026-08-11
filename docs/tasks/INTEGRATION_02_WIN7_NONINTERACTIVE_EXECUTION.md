@@ -154,6 +154,23 @@ v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed2551
   5 秒内没有结构化确认才允许强制终止，并必须返回 `cleanup_failed`。该增量须重新执行 D-017
   Win10 构建/返回包复核，并在新 IP、新提交和新租约下重跑 L01～L10。
 
+### 3.7 v24 Win10 返回包复核（2026-08-11）
+
+- 返回包：`WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip`
+- 外层 SHA-256：`5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c`
+- helper SHA-256：`7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134`
+- 版本：`win7-agent-helper 1.2.0-d013-v24 win7-x64`
+- 返回包外层 sidecar、ZIP 完整性及内部 24 项逐文件大小/哈希均独立复核通过；包内
+  `PACKAGE_MANIFEST.json`、`input-lock.json`、`build-profile.json` 与仓库锁定副本逐字节一致，
+  源码提交绑定 `78113f49db6ec94f803ae38518c42eaa740448ba`。
+- 构建宿主为 Windows 10 build 19045、VS2019 `16.11.37507.1`、MSVC `14.29.30133`、
+  Windows SDK `10.0.19041.0`、x64、静态 CRT；logic tests、PE/API/CRT、严格 UTF-8 原始字节
+  捕获和普通执行 smoke 均为 PASS。
+- 合作取消 smoke 返回 `canceled=true`、`containmentVerified=true`，并证明 Low Integrity 已应用、
+  已验证、已回滚；构建脚本还以取消前后 SDDL 完全相等作为硬门禁。裁决为
+  `BUILD PASS / candidate_eligible=true / REVIEW PASS`，仅授权准备新租约下的 Win7 L01～L10，
+  不构成 Win7 PASS，也不允许复用旧租约。
+
 ## 4. 人工门禁
 
 - H1：签发租约前确认当前目标 `10.49.123.40` 空闲，允许新验收目录和仅限该目录的临时 ACL。

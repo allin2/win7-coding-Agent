@@ -2,10 +2,10 @@
   "schema_version": 1,
   "track": "D-013-production-runner",
   "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
-  "status": "V24_REBUILD_REQUIRED_FOR_COOPERATIVE_CANCEL_ROLLBACK",
+  "status": "V24_WIN10_BUILD_PASS_AWAITING_WIN7_L01_L10",
   "build_revision": "v24-production-cooperative-cancel",
-  "win10_build_executed": false,
-  "win10_return_package_reviewed": false,
+  "win10_build_executed": true,
+  "win10_return_package_reviewed": true,
   "win7_validation": "V23_FAILED_ACL_RESIDUE",
   "source_baseline": {
     "validated_revision": "D-013-v21",
@@ -52,8 +52,20 @@
     "relocation_attestation_sha256": "2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1",
     "reusable_as_formal_win7_candidate": false
   },
+  "v24_win10_build_evidence": {
+    "completed_at": "2026-08-11T10:51:27.8839374Z",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip",
+    "return_package_sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+    "return_manifest_file_count": 24,
+    "helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "source_commit": "78113f49db6ec94f803ae38518c42eaa740448ba",
+    "toolchain": "VS2019 16.11.37507.1 / MSVC 14.29.30133 / SDK 10.0.19041.0 / x64 / static CRT",
+    "version": "win7-agent-helper 1.2.0-d013-v24 win7-x64",
+    "cooperative_cancel_smoke": "PASS_WITH_EXACT_ACL_ROLLBACK",
+    "review": "PASS"
+  },
   "blocked_on": [
-    "Win10 VS2019/v142 rebuild of v24 and return-package review",
-    "new ADR-0065 lease bound to 10.49.123.40"
+    "new ADR-0065 lease bound to 10.49.123.40 and a fresh per-run acceptance directory",
+    "formal Win7 L01-L10 with zero process and ACL residue"
   ]
 }
