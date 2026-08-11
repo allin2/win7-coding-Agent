@@ -76,7 +76,7 @@ for (const item of manifests) {
   writeText(path.join(out, item.command), [
     '@echo off',
     'setlocal',
-    `if not exist "%~dp0work\\h3" mkdir "%~dp0work\\h3"`,
+    `if not exist "${WORK_ROOT}\\h3" mkdir "${WORK_ROOT}\\h3"`,
     `"C:\\acceptance\\electron\\electron.exe" "%~dp0product" --mvp-id=H3-${ACCEPTANCE_ID} --runner-manifest="%~dp0${item.filename}" --runner-manifest-sha256=${manifestHash} --user-data-dir="%~dp0${item.userData}"`,
     '',
   ].join('\r\n'));

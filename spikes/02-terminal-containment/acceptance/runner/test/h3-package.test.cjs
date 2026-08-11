@@ -30,7 +30,10 @@ const cancelManifest = readJson('runner-h3-cancel-manifest.json');
 assert.deepEqual(logManifest.acceptance_action.args, ['-n', '10', '-w', '10', '127.0.0.1']);
 assert.equal(logManifest.acceptance_action.max_stdout_bytes, 128);
 assert.deepEqual(cancelManifest.acceptance_action.args, ['-t', '127.0.0.1']);
-assert.match(fs.readFileSync(path.join(out, 'start-h3-log.cmd'), 'utf8'), /runner-manifest-sha256=[a-f0-9]{64}/);
+const logCommand = fs.readFileSync(path.join(out, 'start-h3-log.cmd'), 'utf8');
+assert.match(logCommand, /runner-manifest-sha256=[a-f0-9]{64}/);
+assert.match(logCommand, /C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-020000\\work\\h3/);
+assert.doesNotMatch(logCommand, /%~dp0work/);
 assert.match(fs.readFileSync(path.join(out, 'README-H3.txt'), 'utf8'), /No terminal input/);
 process.stdout.write('h3-package-tests: ALL PASS\n');
 
