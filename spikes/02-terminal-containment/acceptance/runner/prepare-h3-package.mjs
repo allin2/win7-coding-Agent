@@ -46,7 +46,11 @@ const baseProfile = {
   acl_policy: {
     acceptance_root: 'C:\\Win7CodingAgent\\acceptance',
     per_run_root: REMOTE_ROOT,
-    apply_low_integrity_to_work_dir: true,
+    // H3 exercises a read-only ping profile from an interactive, non-elevated
+    // desktop session. The child token remains Low Integrity; no workspace
+    // write is required, so mutating the workspace label would add privilege
+    // requirements unrelated to the read-only log acceptance.
+    apply_low_integrity_to_work_dir: false,
   },
 };
 const manifests = [
@@ -100,7 +104,7 @@ writeText(path.join(out, 'README-H3.txt'), [
   '2. start-h3-log.cmd: verify stdout is visible, the truncation notice is visible, and the log box scrolls.',
   '3. start-h3-cancel.cmd: start the same scenario, wait for stdout, click 取消, and verify the UI reports cancelled.',
   '4. No terminal input, paste, key injection or arbitrary command field is present.',
-  '5. Close each window after recording the result. ACL/Low Integrity is limited to work\\h3 and must roll back.',
+  '5. Close each window after recording the result. The child remains Low Integrity; this read-only H3 profile does not mutate the work\\h3 label.',
   '',
 ].join('\r\n'));
 
