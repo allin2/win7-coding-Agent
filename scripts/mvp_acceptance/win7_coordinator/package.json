@@ -2,10 +2,10 @@
   "name": "win7-acceptance-coordinator",
   "version": "1.0.0",
   "private": true,
-  "description": "ADR-0065/0066 fail-closed Win7 acceptance coordinator",
-  "license": "UNLICENSED",
+  "description": "ADR-0065 fail-closed Win7 acceptance coordinator for A4/A5/A6",
+  "license": "Apache-2.0",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js test/*.test.mjs"
   },
   "engines": {
     "node": ">=18.0.0"

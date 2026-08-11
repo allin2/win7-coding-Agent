@@ -183,3 +183,34 @@ ADR-0065 协调器 grade 为 `WIN7_PASS / PASS`，租约已 `RELEASED`，活跃�
 可达，正式企业/网络证据为 `ENVIRONMENT_MISSING`；终端 T01～T05/N01～N05 仍未执行。因此完整
 SPIKE_02 继续为 `PARTIAL / NO_GO_FORMAL_GAPS`，不解除生产 Runner、交互终端 Gate 或强网络
 隔离声明。正式派生记录为 `docs/acceptance/A4-D013-20260810-000004.json`，原始证据保存在 Git 外。
+
+### A5 Win7 交互终端裁决（A5-20260807-100000）
+
+- D-011 候选包的三个原生工件哈希与锁定值一致，Electron 22.3.27 在 Win7 上可以启动
+  node-pty/winpty、执行 `cmd /c` 并读取 conout。
+- 向交互 conin 写入 CRLF、CR 或命令均无响应，T01～T04 以
+  `WINPTY_INTERACTIVE_INPUT_DEFECT` 失败；N01/N06 通过，其余交互注入项因输入缺陷无法形成
+  端到端 PASS。
+- 按 Go/No-Go 判据和规范 ADR-0067，Win7 v1 正式采用
+  `NO_GO_INTERACTIVE_WINPTY`，不提供 Renderer 终端输入、粘贴或模型到终端 stdin 的路径。
+
+### A5 T05 正式复验（A5-20260810-152500 / A5-20260810-153300）
+
+- 首轮从 Electron Job 派生 helper，正确 fail-closed 为 `HOST_ALREADY_IN_JOB`，仅形成
+  `CANDIDATE_EVIDENCE`；未冒充 containment PASS。
+- 第二轮使用独立签名租约和 A4 已验证的 WMI → CPython → helper 宿主路径。T05 的 Job 进程树
+  回收、Restricted Token、Low Integrity、stdin detached、临时 ACL 回滚及零进程/ACL 残留全部
+  通过；Bitvise 轮前/轮后保持 `RUNNING`，五项工件哈希与租约一致。
+- 协调器评级 `WIN7_PASS`，租约完整经历 `GRANTED → RUNNING → RETURNED → RELEASED`。正式结果为
+  `NO_GO_INTERACTIVE_WINPTY / CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`。
+
+### 生产非交互 Runner 与 H3 收口（D013-RUNNER-20260811-020000）
+
+- v24 helper 已经过 D-017 Win10 构建复核，Win7 L01～L10 在真实 Electron 产品路径全部 PASS；
+  Host Job breakaway、重新分配到 helper Job、合作取消、双流上限、CP936/中文空格路径、ACL 回滚
+  和 postflight 零残留均有签名证据。
+- H3 r2 在普通 Win7 桌面会话验证只读有界日志、截断、滚动与合作取消，结论为
+  `H3_READONLY_STREAMING_LOG_UI_PASS`；只读 profile 不修改工作目录 Integrity Label。
+- 项目负责人于 2026-08-12 确认：完整交互 SPIKE 不标为 PASS，但上述正式 No-Go 与非交互 Runner
+  Win7 PASS 构成 Win7 v1 的完成结论，`A7_GATE=PASS_FOR_WIN7_V1_RC`。C05 仍不提供网络隔离，
+  高风险、任意 Shell、未知程序和交互终端继续 fail-closed。

@@ -3,7 +3,7 @@
  * SPIKE_02 native helper is available. No implementation in this file starts a
  * process; production execution remains fail-closed.
  */
-import { RunRequest, RunResult, RunStatus } from './types';
+import { RunRequest, RunResult, RunnerConfig, RunnerErrorCode, RunStatus } from './types';
 import { ApprovalLedger } from './approval';
 export declare function findProhibitedShellHost(command: string): string | null;
 /** Only harness/programming defects may reject this promise. */
@@ -33,4 +33,11 @@ export declare class MockRunner implements IRunner {
 export declare class UnavailableRunner implements IRunner {
     execute(_request: RunRequest): Promise<RunResult>;
 }
+export declare function validateRequest(request: RunRequest): {
+    code: RunnerErrorCode;
+    message: string;
+    action: string;
+} | undefined;
+export declare function result(status: RunStatus, exitCode: number | null, stdout: string, stderr: string, durationMs: number, error?: RunResult['error'], cleanupFailed?: boolean, outputConfig?: RunnerConfig): RunResult;
+export declare function rejected(code: RunnerErrorCode, message: string, recommendedAction: string): RunResult;
 //# sourceMappingURL=runner.d.ts.map

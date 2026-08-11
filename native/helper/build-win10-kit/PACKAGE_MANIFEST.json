@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "package": "WIN10_D013_HELPER_BUILD_KIT",
+  "source_commit": "78113f49db6ec94f803ae38518c42eaa740448ba",
+  "source_commit_timestamp": "2026-08-11T09:19:59+08:00",
+  "revision": "2026-08-11",
+  "status": "READY_FOR_WIN10_BUILD",
+  "generated_at": "2026-08-11T09:19:59+08:00",
+  "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
+  "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
+  "excluded": [
+    "work/",
+    "output/",
+    "evidence/",
+    "result/",
+    "candidate/"
+  ],
+  "files": [
+    {
+      "path": "README_BUILD.md",
+      "size": 9271,
+      "sha256": "b1553a34552108046f721112e6746a4d76b43e58faab9dba874c30f2169f7762"
+    },
+    {
+      "path": "SOURCE_COMMIT.txt",
+      "size": 41,
+      "sha256": "529b8780d315a1a82ee3ff0c1ca59242c1d8d22f0a9638b9c6383aaeb1282a04"
+    },
+    {
+      "path": "SOURCE_COMMIT_TIMESTAMP.txt",
+      "size": 26,
+      "sha256": "ea8deabfe367f308bf8997d6c8ada4ea671c902428341b2ec4486237764f9ec5"
+    },
+    {
+      "path": "STATUS.json",
+      "size": 2894,
+      "sha256": "96570381dcea68751d7cc3fd772930015341fc6d6858890a77af9791919437b7"
+    },
+    {
+      "path": "build-profile.json",
+      "size": 3029,
+      "sha256": "397214aec46568d88074dc6521d821ab1fc9b64ac29f01d22893a5f044a9f24c"
+    },
+    {
+      "path": "build.ps1",
+      "size": 42252,
+      "sha256": "a4790cccb35ed6a279bf13e4cc016d0f791f28a4da871435f3ef52332c0d3cb9"
+    },
+    {
+      "path": "helper.exe.manifest",
+      "size": 1119,
+      "sha256": "d5bcc8b0074e4c3ada637b1faac5fc212a90664d840add1e7667dee09a6e4d5e"
+    },
+    {
+      "path": "package-kit.cjs",
+      "size": 2687,
+      "sha256": "e9e07d9ff1972d374cf65ef60cb657c11b3045a6f7c5b30d5468935991692ef1"
+    },
+    {
+      "path": "prepare-kit.cjs",
+      "size": 12412,
+      "sha256": "0e894ad1a606f30dde5c1b79c6da2dafd9bc9ffa61ad110c02040cac3d66dc3a"
+    },
+    {
+      "path": "src/CMakeLists.txt",
+      "size": 3265,
+      "sha256": "9330a980fe54a92574ce99e2e8402bf494b37da7dba0493990e06d4e8e7de8c2"
+    },
+    {
+      "path": "src/argv_builder.cpp",
+      "size": 1774,
+      "sha256": "80a0e14cb6104f51288dea9cf1fc22e1a78e569b8ba20041c6dd8b159168c930"
+    },
+    {
+      "path": "src/argv_builder.h",
+      "size": 1091,
+      "sha256": "8e3952658304e34049abac271e27fd01d61f298b12160f284fd029f292727992"
+    },
+    {
+      "path": "src/helper.cpp",
+      "size": 74596,
+      "sha256": "e7251328657bf548d48c98c9370da3952cf4ac9d6033cb0f52d0c7c466dce15f"
+    },
+    {
+      "path": "src/helper.h",
+      "size": 14733,
+      "sha256": "6fe7d7c7d7959039873849e248dd70056b743ca230f02d751790093cdc7afed2"
+    },
+    {
+      "path": "src/json_parser.cpp",
+      "size": 12913,
+      "sha256": "bfbd048d605e3cdabb9bb139a1cb38244ca2c74f7aa47415bcbe8607968d5ae8"
+    },
+    {
+      "path": "src/json_parser.h",
+      "size": 2653,
+      "sha256": "559eaa6d53f001a4bdcf436c031ea554bebfd9ef7811b21b977261a10536ef65"
+    },
+    {
+      "path": "src/logic_tests.cpp",
+      "size": 21222,
+      "sha256": "1bb501ec68adc5b7db871537b03d6923da4d5afc782e02f8b5181460def1a815"
+    },
+    {
+      "path": "src/protocol.cpp",
+      "size": 16142,
+      "sha256": "8dbe47baedeacf17e32f20e1a48ecee5c7501688d332fa6bc893e4f6759f4a1e"
+    },
+    {
+      "path": "src/whitelist.cpp",
+      "size": 6335,
+      "sha256": "c665805199a998ae146325b3831f42991d0bb719050b81af28d4fd30eaf0c24f"
+    },
+    {
+      "path": "src/whitelist.h",
+      "size": 3335,
+      "sha256": "49d2117bc9d6463cbbc2dae12b964a85e364c4480d8835d83e42bbe20c6d31a4"
+    },
+    {
+      "path": "input-lock.json",
+      "size": 2693,
+      "sha256": "4a2d5d9606795aaf6687cae2e36ab1aac67d22113ed42cd6552490cabdaf23eb"
+    }
+  ]
+}

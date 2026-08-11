@@ -1,30 +1,40 @@
-# Win7 Acceptance Coordinator
+# Win7 acceptance coordinator
 
-该目录是 ADR-0065/ADR-0066 的 Node.js 标准库控制面。A4/D-013 与 A6/SPIKE_04 Worker
-均只能输出 `CANDIDATE_EVIDENCE`；正式 `WIN7_PASS` 只由对应协调器在签名租约、工件哈希、
-轮前/轮后和完整证据均通过后写入。
+This stdlib-only control plane implements ADR-0065. It signs one immutable `GRANTED` lease, stores the
+authoritative lifecycle separately, validates pre/post-flight snapshots, and is the only component allowed to
+promote candidate evidence to `WIN7_PASS`.
 
-## A4 / D-013
+The private Ed25519 key must remain outside Git. `init-key` refuses to overwrite either key. Workers receive only
+the canonical lease JSON, detached signature, and public key. No command here changes Win7 services, networking,
+firewall, registry, or machine configuration.
 
-`coordinator.mjs`、`lease.mjs`、`lease_public.pem` 与 `lease_public.json` 服务 A4：私钥和 ledger
-在 Git 外 `.acceptance/win7-coordinator/`，私钥权限必须为 `0600`。流程为
-`init-key → prepare-a4 → grant → run-a4 → grade-a4 → transition --to RELEASED`；只有显式的
-`run-a4` 会连接 Win7。
+Current A5/Runner coordinator public key: `keys/coordinator-ed25519-public-a5.pem`; SHA-256
+`b7e2a704ae56a2f2c1e36a3acef28de689b5fec9d24ec5970476cbc26a1b4d95`. The matching private key is external
+and must never be copied into this repository or an acceptance package.
 
-任一未关闭的 `RECOVERY_REQUIRED` 都会阻止后续 `grant`；只有人工复核修复和证据后显式转为
-`RECOVERY_REVIEWED`，协调器才重新开放租约签发。目标或 commit 变化的未签名请求保留为
-`REQUEST_SUPERSEDED`，不得重新启用。
+Lifecycle: `request → grant → start → return → release`. A failed post-flight enters `RECOVERY_REQUIRED` and
+blocks another active lease; only `recover` with a clean post-flight snapshot can move it to `RETURNED`. If the
+same physical host changes IP while recovery is pending, `recover-relocated` additionally requires the original
+strict host-key alias, matching hostname/artifacts, explicit owner authorization, and a coordinator-signed
+relocation attestation. It cannot resume execution or promote evidence; the next run needs a new lease.
+An expired signed lease remains invalid for `verify`, `start`, `return`, and `grade`; expiration is ignored only
+for `recover`/`recover-relocated` and the final `release`, because cleanup must remain possible after the execution
+window closes.
+Run `node cli.mjs` without a valid command to see the structured fail-closed error.
 
-## A6 / SPIKE_04
+`probe-win7.mjs` performs the coordinator-owned, read-only target snapshot over strict SSH. It checks the locked
+`192.168.1.11` identity against the existing known-hosts record, Bitvise state, SSH reachability, scoped process/ACL
+residue, and optional `certutil` artifact hashes;
+it never starts/stops services or changes networking/system configuration.
 
-`cli.js` 与 `lib/`、`runner/` 服务 A6：私钥由 `WIN7_ACCEPTANCE_SIGNING_KEY_FILE` 指定，父目录
-必须为 `0700`、文件必须为 `0600`，不得进入仓库、Win7、包、argv、日志或证据。SSH 固定启用
-`BatchMode`、`IdentitiesOnly`、`StrictHostKeyChecking=yes` 和独立 `known_hosts`。固定流程为：
+## A4 / D-013 and A6 / SPIKE_04 compatibility
 
-```text
-package-create → lease-create → preflight → execute → collect → postflight → validate → release
-```
+The earlier A4 coordinator remains in `coordinator.mjs`, `lease.mjs`, `lease_public.pem` and
+`lease_public.json`. The A6 CommonJS coordinator remains in `cli.js`, `lib/` and `runner/`; its locked public
+key stays at `keys/coordinator-ed25519-public.pem` with SHA-256
+`2d1669fdc62c9b4fa6d0a4e5e8a763f613c12fc57622f44691afea9e69ae079b`. These keys are intentionally distinct
+and neither public-key path may be substituted when verifying historical evidence.
 
-正式参数固定为 S01 60 秒、S03 3k/10k/30k、S05 30k/100 次、S06 512MB/256MB，以及
-S02/S04/S07/S08/F/P。包在 Win7 上不执行 `npm install`、不编译原生模块，也不修改网络、Bitvise、
-服务、PATH 或系统配置。`validate` 是唯一能够写 `docs/status/a6-storage-latest.json` 的命令。
+A6 formal flow remains `package-create → lease-create → preflight → execute → collect → postflight → validate
+→ release`. The package is offline and may not install dependencies or change Win7 networking, Bitvise, services,
+PATH or system configuration. `validate` is the only A6 command allowed to write the derived formal status.

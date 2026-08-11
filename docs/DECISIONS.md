@@ -211,7 +211,7 @@
 
 ## ADR-0031 交互终端：独立 winpty 宿主进程；模型输入与用户输入硬隔离
 
-- 状态：Accepted（2026-07-29，项目负责人裁决通过，见 PENDING_CONFIRMATIONS PC-003；Win7 可交付结论仍以对应 Spike/阶段的 Win7 SP1 x64 实机验证为准，未通过前不得表述为"已满足 Win7"）
+- 状态：Superseded by ADR-0066（2026-08-10；历史正文与 A5 原始证据保持不变）
 - 背景：Win7 无 ConPTY，交互终端只能经 winpty 0.4.3（D-011）。pty 天然合并输入输出通道，若 Agent 可写终端 stdin，模型输出注入按键即成为权限旁路；终端回显含不可信数据（命令输出、仓库内容），VT/OSC 序列可攻击渲染端（C19）。
 - 决策：（1）交互终端由**独立 winpty 宿主进程**承载（C++ helper 的终端模式），每会话唯一 pty，宿主不复用于 Agent Runner。（2）pty stdin **仅接受 Renderer 用户键盘输入事件通道**；Agent Core / 模型输出没有任何通往 pty stdin 的 IPC 路径（结构性缺失，而非策略过滤）。（3）Agent 的命令执行（Runner）一律无 pty、stdin 关闭、非交互。（4）终端输出按不可信数据处理：进入 Renderer 前过滤/白名单 VT 与 OSC 序列（尤其 OSC 52 剪贴板、标题注入、DECRQSS 应答类）；xterm.js 渲染层禁用回应答特性。（5）终端会话具备取消、背压、输出上限与强制终止（进程树回收经 Job Object）。
 - 后果：终端保真度受 winpty 限制（全屏 TUI/Unicode/resize 由 SPIKE_02 实测，No-Go 时降级为非交互命令 + 流式日志视图）；换来模型注入按键攻击面的结构性消除。C19 负向用例（恶意 VT/OSC、模型尝试写 stdin 必须失败）为 SPIKE_02 硬门槛。
@@ -708,3 +708,115 @@
 - 后果：A6 可以在真实部署介质上形成正式证据，且不降低任何既有性能与完整性阈值；证据仍由
   协调器单独定级。项目对 HDD、网络盘或未知介质不作本轮性能承诺，如未来纳入支持范围，必须
   新增 Profile、任务授权和独立实测。
+
+## ADR-0067 Win7 v1 放弃 winpty 交互终端，采用受控非交互 Runner 与只读日志
+
+- 状态：Accepted（2026-08-10，项目负责人批准 A5 后续实施计划）
+- 背景：A5 在 Win7 SP1 x64 上实测 `node-pty 0.10.0 + winpty 0.4.4-dev` 可启动并读取
+  conout，但向交互 conin 写入 CRLF、CR 或命令均无响应，T01～T04 因
+  `WINPTY_INTERACTIVE_INPUT_DEFECT` 失败。继续交付交互终端会形成不可用能力，也会扩大 C19
+  输入注入面；D-013 v21 已在 A4-20260810-000004 的 ADR-0065 签名租约下取得 `WIN7_PASS`，
+  A5 仍须以独立签名租约完成 T05 回收复验后才能解除生产迁移门禁。
+- 决策：（1）Win7 v1 不交付 winpty/node-pty 交互终端，不提供 Renderer 终端输入、粘贴、发送按键
+  或模型到终端 stdin 的路径；D-011 和 A5 仅作为历史 No-Go 证据保留。（2）命令能力改为无 PTY、
+  stdin 关闭的非交互 Runner；只有产品注入的可信可执行 profile 可执行，Shell 宿主、任意路径和
+  模型拼接命令一律拒绝。（3）Runner 输出经 `task.event` 的 `runner.started/stdout/stderr/truncated/finished`
+  投影到只读有界日志，清理危险 VT/OSC，不复用模型流事件。（4）D-013 的 Restricted Token、Low
+  Integrity、ACL、Job Object 与清理关键项以及 A5 T05 在各自签名租约下通过前，产品默认继续使用
+  `UnavailableRunner`；高风险命令始终拒绝或路由远程，本地 containment 不宣称网络隔离。
+  （5）实现、迁移和验收由 `INTEGRATION_02_WIN7_NONINTERACTIVE_EXECUTION.md` 授权，正式状态仅由
+  ADR-0065 协调器签发。
+- 后果：v1 失去交互 TUI，但获得可审计、可取消、有界且不暴露键盘注入面的执行基础；生产 Runner
+  的启用仍受 D-013 Win7 正式证据门禁约束，未通过时 UI 必须如实显示能力不可用。
+
+
+## ADR-0068 A5 门禁解除并采用签名清单注入生产 NativeRunner
+
+- 状态：Accepted（2026-08-10，依据项目负责人已批准的 ADR-0067 实施计划与 A5 正式证据）
+- 背景：A5-20260810-153300 已在独立 ADR-0065 签名租约下完成 T05；协调器评级 `WIN7_PASS`，
+  Restricted Token、Low Integrity、临时 ACL 回滚、Job 进程树回收、轮前/轮后零残留和租约释放
+  均已验证。生产迁移门禁因此满足，但产品仍需防止模型、Renderer 或可变环境把任意路径注册为命令。
+- 决策：（1）生产迁移以 D-013 v21 源码为基线，单请求 helper 协议增加 request ID、总/空闲超时和
+  结构化双流结果；（2）`NativeRunner` 只解析产品注入的 profile ID，并在每轮执行前复核可执行文件
+  规范路径与 SHA-256；Shell、高风险、未知、路径越界或哈希不符全部拒绝；（3）产品注入必须使用
+  外部固定 SHA-256 的版本化 Runner manifest，manifest 再锁定 helper 与 profile 工件，装配失败即
+  回退 `UnavailableRunner`；（4）Runner 只作为固定内部适配器或验收动作装配，不注册模型可调用的
+  `terminal.exec`，`terminal.input` 兼容消息永久返回 `CAPABILITY_UNAVAILABLE`；（5）输出仅经
+  `task.event` 投影至有界只读日志并清理 VT/OSC、剪贴板序列和危险链接。
+- 后果：低风险非交互执行可进入产品 L01～L10 实机验收；升级后的 helper 在锁定 D-017 工具链重新
+  构建、绑定哈希并取得 Win7 正式结果前仍是候选，不得把开发机单测或既有 v21 二进制替代为产品通过。
+  C05 继续不提供网络隔离，高风险与未经验证的 Git profile 仍拒绝或路由远程。
+
+## ADR-0069 Win7 Electron 宿主 Job 只允许经验证的 breakaway
+
+- 状态：Accepted（2026-08-11，依据 ADR-0067/0068 的 fail-closed 产品验收要求）
+- 背景：A5-20260810-152500 已实证，从 Win7 Electron 主进程直接派生 D-013 helper 会返回
+  `HOST_ALREADY_IN_JOB`；v22 生产 Helper 仍对任何宿主 Job 无条件拒绝。它在独立 Win10 会话的
+  构建与 smoke 虽然通过，却不能证明 Electron 产品路径可用。使用 WMI → CPython 的 A5 T05
+  独立宿主路径只适合 containment 复验，不能替代生产 `NativeRunner` 路径。
+- 决策：（1）保留 Win7 禁止嵌套 Job 的边界；helper 只在当前 Job 的扩展限制明确包含
+  `BREAKAWAY_OK` 或 `SILENT_BREAKAWAY_OK` 时尝试 child breakaway。（2）restricted child 必须
+  suspended 创建；显式模式使用 `CREATE_BREAKAWAY_FROM_JOB`，随后先以
+  `IsProcessInJob(child, NULL)` 证明已离开宿主 Job，再分配至 helper 自建 Job 并再次验证。
+  （3）响应携带 `hostJob.detected/breakaway/limitFlags/childJobAssignmentVerified`；产品
+  `NativeRunner` 把该审计纳入 containment 判定。（4）无 breakaway flag、查询失败、child 未
+  脱离或重新分配失败均 fail-closed；不允许通过 `--no-sandbox`、无 Job 执行或生产 WMI 绕过。
+- 后果：v22 Win10 PASS 包定性为 `REJECTED_AS_PRODUCT_CANDIDATE`，必须重建 v23。Win7 L01 必须
+  从真实 Electron 产品路径证明 breakaway 与新 Job 归属；若 Electron Job 不允许 breakaway，
+  本地 Runner 维持不可用，后续只能另行批准外部 Broker 架构或远程执行。
+
+## ADR-0070 验收中途目标 IP 迁移只允许签名恢复，不允许复用执行租约
+
+- 状态：Accepted（2026-08-11，项目负责人通知 Win7 IP 从 `192.168.1.11` 变更为
+  `10.49.123.40`，并授权恢复精确的 `work\l08` 空目录）
+- 背景：`D013-RUNNER-20260811-010000` 已绑定旧 IP 并进入 `RECOVERY_REQUIRED`，随后目标机 IP
+  发生变化。直接把新地址写成旧租约目标会改写签名事实；永久保留活动恢复租约又会阻塞所有后续
+  正式验收。新地址提供的 ECDSA/RSA SSH 主机公钥与旧 known-hosts 记录逐字节一致，hostname、
+  Win7 build、架构、Bitvise 和锁定工件亦可独立复核。
+- 决策：（1）旧租约不得在新 IP 恢复执行、重跑用例或评级；仅允许 `recover-relocated` 完成清理
+  状态闭环。（2）迁移恢复必须同时证明新快照零残留、工件哈希匹配、hostname 相同、严格主机
+  指纹检查启用且 `HostKeyAlias` 指向旧租约 IP，并携带项目负责人明确授权记录。（3）协调器以
+  现有 Ed25519 私钥签名 `RECOVERY_TARGET_RELOCATION` attestation，将旧/新 IP、hostname、旧
+  指纹别名和干净快照哈希写入状态历史；任一不匹配即拒绝。（4）恢复完成后旧租约只能
+  `RETURNED→RELEASED`；过期租约也只允许完成 `recover`/`recover-relocated` 和最终 `release`，
+  不得重新执行、返回或评级。任何后续执行必须以 `10.49.123.40`、新 commit/manifest 和新期限
+  签发全新租约。
+- 后果：IP 迁移不会被伪装成原租约内执行，也不会绕过残留门禁；协调器可以在同一物理主机严格
+  身份连续性成立时关闭恢复状态。旧地址记录作为审计别名保留，不修改 Win7 网络、服务或防火墙。
+
+## ADR-0071 NativeRunner 取消必须由 Helper 协作确认 ACL 回滚
+
+- 状态：Accepted（2026-08-11，依据首轮 L08 正式证据的 fail-closed 修复）
+- 背景：v23 产品传输层在收到 `AbortSignal` 后直接终止 helper。Windows Job 的
+  `KILL_ON_JOB_CLOSE` 确实回收了 `ping.exe`，但 helper 进程同时失去执行 Low Integrity ACL
+  回滚的机会，导致 `work\l08` 留下 `Low Mandatory Level`。仅凭 helper 进程退出就把取消标记为
+  cleanup confirmed 是错误的安全结论。
+- 决策：（1）每个 helper 进程只接受一条执行请求；取消只能通过同一 stdin 的第二条
+  `{schema_version:1,type:"cancel",requestId}` 控制消息触发，request ID 不匹配或控制消息畸形均
+  fail-closed。（2）helper 检测取消后终止自建 Job、等待 child 退出、排空双流并恢复此前捕获的
+  DACL/Integrity Label；只有所有恢复验证通过才返回 `canceled=true`。（3）产品等待结构化取消
+  响应；5 秒未确认才强制终止 helper，此时一律 `cleanup_failed`，不得假定 ACL 已恢复。
+  （4）L10 和协调器 postflight 都必须独立扫描验收 `work` 根的 Low Integrity 残留，不能只信任
+  Worker 响应。（5）该协议升级为 v24，必须重新通过 D-017 构建、Win10 粘包取消 smoke 和 Win7
+  L01～L10；v23 不得复用。
+- 后果：取消反馈需要一次 helper 协作往返，最坏情况下在 5 秒后失败关闭，但不会再把“child 已被
+  Job 杀死”误报为“ACL 已恢复”。Renderer/模型仍没有 child stdin 或任意进程输入能力；控制消息
+  仅存在于产品 transport 与单请求 helper 之间。
+
+## ADR-0072 只读 Runner Profile 不修改工作目录 Integrity Label
+
+- 状态：Accepted（2026-08-11，依据 H3 普通桌面会话的 fail-closed 结果与 r2 实机复验）
+- 背景：D-013 V24 的 L09 已在正式签名租约下证明临时 Low Integrity Label 可应用、验证并回滚。
+  但首个 H3 UI 包把同一变更无条件用于只读 ping profile；在普通交互式桌面会话创建的 `work\h3`
+  上，label restore 返回 `ACCESS_DENIED`，产品正确报 `cleanup_failed`。H3 只验证有界只读日志和
+  取消反馈，child 不需要写工作区；把工作区标签变更混入该 profile 增加了无关权限要求。
+- 决策：（1）Restricted Primary Token 的 Low Integrity 与工作目录 Mandatory Label 是两个独立
+  控制面，不得用后者是否启用判断 child 是否减权。（2）只读且不写工作区的可信 profile 将
+  `apply_low_integrity_to_work_dir` 固定为 `false`；helper 仍必须验证 child 为 Low Integrity、stdin
+  关闭、Job 归属和进程树清理，路径、argv、哈希与风险策略不变。（3）只有明确需要 Low Integrity
+  child 写入指定工作目录的 profile 才可启用临时 label；启用时必须具备轮前权限证明、逐轮精确
+  回滚和独立 postflight，任一步不确定仍返回 `cleanup_failed`。（4）H3 r2 必须在 Win7 普通桌面
+  会话验证日志、截断、滚动和合作取消，并在窗口关闭后取得零进程/ACL 残留快照。
+- 后果：只读 Runner 不再为无写入需求修改用户工作区安全描述符，降低普通桌面会话的失败面，但不
+  放宽 child containment。需要本地写入的未来 profile 不能借用本 ADR 绕过临时 label 与回滚门禁；
+  任意 Shell、高风险命令、未登记程序和交互式终端继续拒绝。

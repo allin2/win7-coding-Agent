@@ -18,7 +18,7 @@ export {
   RunnerErrorCode,
 } from './types';
 
-export { OutputCapture, captureText } from './output';
+export { OutputCapture, captureText, captureBytes, StreamEncoding } from './output';
 
 // Runner 接口与 Mock 实现
 export {
@@ -27,7 +27,24 @@ export {
   UnavailableRunner,
   MockRunnerConfig,
   findProhibitedShellHost,
+  validateRequest,
 } from './runner';
+
+export {
+  ExecutableProfile,
+  ResolvedExecutableProfile,
+  ExecutableProfileRegistry,
+  ProfileResolutionError,
+} from './profiles';
+export {
+  NativeHelperRequest,
+  NativeHelperResponse,
+  NativeHelperExecutionResult,
+  NativeHelperErrorResult,
+  parseNativeHelperResponse,
+} from './native-protocol';
+export { HelperTransport, HelperTransportResult, StdioHelperTransport } from './native-transport';
+export { NativeRunner, NativeRunnerOptions, RunnerEvent, RunnerEventKind } from './native-runner';
 
 // 审批逻辑
 export {

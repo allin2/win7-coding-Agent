@@ -67,6 +67,12 @@ function createDesktopRequestHandler(options) {
         case IPCMessageType.DIAGNOSTICS_REQUEST:
           if (config.runtimeState) config.runtimeState.diagnosticsRequested = true;
           return { ok: true, diagnostics: config.buildDiagnostics() };
+        case IPCMessageType.TERMINAL_INPUT:
+          return requestError({
+            code: 'CAPABILITY_UNAVAILABLE',
+            message: 'Win7 v1 不提供终端输入、粘贴或按键注入能力。',
+            recommendedAction: '使用产品注入的受信非交互 Runner profile；stdin 始终关闭。',
+          });
         default:
           return requestError({
             code: 'CAPABILITY_UNAVAILABLE',

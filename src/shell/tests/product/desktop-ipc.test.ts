@@ -78,4 +78,14 @@ describe('Desktop IPC acceptance boundary', () => {
     expect(result).toEqual({ ok: true, settings: { mode: 'replay' } });
     expect(host.clearSavedApiKey).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps terminal.input as a compatibility schema but always returns unavailable', async () => {
+    const { handler } = setup();
+    const result = await handler({ trusted: true }, message(
+      IPCMessageType.TERMINAL_INPUT,
+      'session-a',
+      { sessionId: 'session-a', data: 'dir\r' },
+    ));
+    expect(result).toMatchObject({ ok: false, error: { code: 'CAPABILITY_UNAVAILABLE' } });
+  });
 });

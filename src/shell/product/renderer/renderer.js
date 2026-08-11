@@ -9,6 +9,7 @@ const state = {
   filePaths: new Set(),
   pendingApproval: null,
   scenario: 'structure',
+  runnerLog: null,
 };
 
 function byId(id) { return document.getElementById(id); }
@@ -246,6 +247,10 @@ function resetTaskView() {
   state.taskId = null; state.pendingApproval = null; state.eventQueue = window.win7AgentEventQueue.create(120); state.eventCount = 0; state.filePaths.clear();
   byId('timeline').textContent = ''; byId('file-activity').textContent = ''; byId('final-result').textContent = '任务运行中，等待 Replay 结果。'; setText('result-limit', ''); byId('file-empty').hidden = false;
   byId('approval-panel').hidden = true; byId('approve-task').disabled = true; byId('reject-task').disabled = true; byId('undo-task').disabled = true;
+  state.runnerLog = window.win7AgentRunnerLog.create(64 * 1024);
+  byId('runner-stdout').textContent = ''; byId('runner-stderr').textContent = '';
+  setText('runner-stdout-limit', ''); setText('runner-stderr-limit', '');
+  setText('runner-log-summary', '尚无非交互执行。'); setText('runner-log-state', '未运行'); byId('runner-log-state').className = 'state idle';
 }
 
 async function runTask() {
@@ -360,6 +365,7 @@ function processTaskEvent(event) {
   if (!event || !event.taskId || (state.taskId && event.taskId !== state.taskId)) return;
   state.eventCount += 1;
   const data = event.data || {};
+  if (event.eventKind.indexOf('runner.') === 0) { renderRunnerEvent(event.eventKind, data); return; }
   if (event.eventKind === 'task.accepted') appendTimeline(event.eventKind, '任务已进入 Core Runtime');
   else if (event.eventKind === 'tool.started') appendTimeline(event.eventKind, `${data.toolName || 'tool'} 已开始`);
   else if (event.eventKind === 'tool.completed') appendTimeline(event.eventKind, `${data.toolName || 'tool'} · ${data.status || 'completed'}`);
@@ -374,6 +380,30 @@ function processTaskEvent(event) {
   else if (event.eventKind === 'task.completed') { appendTimeline(event.eventKind, '任务完成'); setText('task-state', '已完成'); byId('task-state').className = 'state completed'; byId('approval-panel').hidden = true; byId('undo-task').disabled = state.scenario !== 'edit'; finishTaskUi(); }
   else if (event.eventKind === 'task.cancelled') { appendTimeline(event.eventKind, '任务已取消'); setText('task-state', '已取消'); byId('task-state').className = 'state cancelled'; finishTaskUi(); }
   else if (event.eventKind === 'task.failed' || event.eventKind === 'error.occurred') { appendTimeline(event.eventKind, data.message || data.outcome || '任务失败'); showError(data); finishTaskUi(); }
+}
+
+function renderRunnerEvent(kind, data) {
+  if (!state.runnerLog) state.runnerLog = window.win7AgentRunnerLog.create(64 * 1024);
+  if (kind === 'runner.started') {
+    setText('runner-log-state', '运行中'); byId('runner-log-state').className = 'state running';
+    setText('runner-log-summary', `${data.profileId || '受信 profile'} · ${data.cwd || ''}`);
+  } else if (kind === 'runner.stdout' || kind === 'runner.stderr') {
+    const stream = kind === 'runner.stdout' ? 'stdout' : 'stderr';
+    const update = state.runnerLog.append(stream, data.text || '');
+    if (update.accepted) {
+      const target = byId(`runner-${stream}`); target.textContent = update.text; target.scrollTop = target.scrollHeight;
+      if (update.truncated) setText(`runner-${stream}-limit`, '· 已保留最近 64K 字符');
+    }
+  } else if (kind === 'runner.truncated') {
+    const stream = data.stream === 'stderr' ? 'stderr' : 'stdout';
+    state.runnerLog.markTruncated(stream);
+    setText(`runner-${stream}-limit`, `· 已截断 ${Number(data.omittedBytes) || 0} bytes`);
+  } else if (kind === 'runner.finished') {
+    const status = String(data.status || 'failed');
+    setText('runner-log-state', status); byId('runner-log-state').className = `state ${status === 'exited' ? 'completed' : status}`;
+    setText('runner-log-summary', `状态 ${status} · ${Number(data.durationMs) || 0} ms${data.exitCode == null ? '' : ` · exit ${data.exitCode}`}`);
+  }
+  appendTimeline(kind, kind === 'runner.stdout' || kind === 'runner.stderr' ? `${Number(data.bytes) || 0} bytes` : data);
 }
 
 function finishTaskUi() { byId('run-task').disabled = !state.session; byId('close-session').disabled = !state.session; byId('cancel-task').disabled = true; byId('task-prompt').disabled = false; byId('scenario').disabled = false; }
@@ -399,6 +429,7 @@ async function initialize() {
   });
   if (!window.win7Agent || typeof window.win7Agent.onTaskEvent !== 'function') { showError({ message: 'Preload A1 API unavailable', recommendedAction: '重新启动可信本地入口。' }); return; }
   state.eventQueue = window.win7AgentEventQueue.create(120);
+  state.runnerLog = window.win7AgentRunnerLog.create(64 * 1024);
   window.win7Agent.onTaskEvent(handleTaskEvent);
   await refreshDiagnostics();
   await refreshGatewaySettings();

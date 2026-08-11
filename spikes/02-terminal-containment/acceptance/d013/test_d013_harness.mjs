@@ -7,13 +7,15 @@
  *   2. the harness end-to-end flow against the mock helper (request shape,
  *      C06/C07 classification, evidence JSON schema),
  *   3. the orchestrator dry-run (no SSH/SCP, NOT_PERFORMED stages),
- *   4. the execute-mode gate requires a signed ADR-0065 lease before Runner
- *      construction or any SSH/SCP can occur,
+ *   4. the execute-mode gate (REM-D01 fails closed without a signed lease;
+ *      the PENDING_WIN10_BUILD sentinel and any locked-hash
+ *      mismatch are also rejected before any SSH could run),
  *   5. profile validation rejections.
  */
 'use strict';
 
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -235,21 +237,59 @@ try {
   check('preflight documents CreateProcessAsUserW path',
     ORCHESTRATOR_SOURCE.includes('restricted primary token uses CreateProcessAsUserW')
       && !ORCHESTRATOR_SOURCE.includes('CreateProcessWithTokenW usable'));
-  check('fixed Ed25519 public key replaces mutable profile grant',
-    ORCHESTRATOR_SOURCE.includes("win7_coordinator/lease_public.pem")
-      && ORCHESTRATOR_SOURCE.includes('verifyLeaseFiles(')
-      && !ORCHESTRATOR_SOURCE.includes("gates['GATE-WIN7-LEASE'] !== 'GRANTED'"));
 
-  // ── 4. Execute-mode gate: signed lease arguments are mandatory ────────────
+  // ── 4. Execute-mode gate: lease + locked hash -> fail closed before SSH ────
   const profile = JSON.parse(fs.readFileSync(PROFILE, 'utf8'));
   const execOut = path.join(tempRoot, 'exec.json');
   const execRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000003', '--out', execOut], { timeout: 60000 });
   check('execute-mode exits non-zero without lease', execRun.status === 1, execRun.stderr);
-  check('missing signed lease is rejected before report or SSH',
-    /requires --lease-payload/.test(execRun.stderr) && !fs.existsSync(execOut));
-  check('profile cannot self-grant Win7 lease',
-    profile.gates['GATE-WIN7-LEASE'] === 'RECOVERY_REQUIRED'
-      && profile.gates['GATE-WIN7-LEASE'] !== 'GRANTED');
+  const execReport = JSON.parse(fs.readFileSync(execOut, 'utf8'));
+  const first = execReport.stages[0];
+  check('REM-D01 fails closed with SIGNED_WIN7_LEASE_REQUIRED',
+    first.id === 'REM-D01' && first.status === 'FAIL' && first.failure?.code === 'SIGNED_WIN7_LEASE_REQUIRED');
+  check('no SSH attempted when gated', execReport.safety.win7_connected === false && execReport.command_count === 0);
+
+  // A granted lease alone is not enough: the locked hash must be a real
+  // 64-hex SHA-256. The PENDING_WIN10_BUILD sentinel is not evidence and must
+  // never satisfy the execute gate.
+  const fakeLease = path.join(tempRoot, 'fake-lease.json');
+  const fakeSignature = path.join(tempRoot, 'fake-lease.sig');
+  const fakePublicKey = path.join(tempRoot, 'fake-public.pem');
+  fs.writeFileSync(fakeLease, '{}\n');
+  fs.writeFileSync(fakeSignature, 'invalid');
+  fs.writeFileSync(fakePublicKey, 'invalid');
+  const leaseArgs = ['--lease', fakeLease, '--lease-signature', fakeSignature, '--coordinator-public-key', fakePublicKey];
+  const sentinel = { ...profile, candidate: { ...profile.candidate, sha256: 'PENDING_WIN10_BUILD' } };
+  fs.writeFileSync(path.join(tempRoot, 'granted-sentinel.json'), JSON.stringify(sentinel));
+  const sentinelOut = path.join(tempRoot, 'sentinel.json');
+  const sentinelRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000005', '--profile', path.join(tempRoot, 'granted-sentinel.json'), '--out', sentinelOut, ...leaseArgs], { timeout: 60000 });
+  const sentinelReport = JSON.parse(fs.readFileSync(sentinelOut, 'utf8'));
+  check('sentinel hash rejected even when lease granted', sentinelRun.status === 1
+    && sentinelReport.stages[0]?.failure?.code === 'CANDIDATE_HASH_NOT_LOCKED');
+  check('no SSH attempted on sentinel hash', sentinelReport.safety.win7_connected === false && sentinelReport.command_count === 0);
+
+  // A granted lease with a 64-hex hash that does not match the candidate is
+  // also fail-closed: no binary may run under a foreign locked hash.
+  const mismatch = { ...profile, candidate: { path: 'spikes/02-terminal-containment/acceptance/d013/run_d013_win7.py', sha256: '0'.repeat(64) } };
+  fs.writeFileSync(path.join(tempRoot, 'mismatch.json'), JSON.stringify(mismatch));
+  const mismatchOut = path.join(tempRoot, 'mismatch-report.json');
+  const mismatchRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000006', '--profile', path.join(tempRoot, 'mismatch.json'), '--out', mismatchOut, ...leaseArgs], { timeout: 60000 });
+  const mismatchReport = JSON.parse(fs.readFileSync(mismatchOut, 'utf8'));
+  check('hash mismatch fails closed', mismatchRun.status === 1
+    && mismatchReport.stages[0]?.failure?.code === 'CANDIDATE_HASH_MISMATCH');
+  check('no SSH attempted on hash mismatch', mismatchReport.safety.win7_connected === false && mismatchReport.command_count === 0);
+
+  // A present but invalid signature is rejected after candidate and manifest
+  // hashes are verified, still before the first SSH command.
+  const scriptHash = crypto.createHash('sha256').update(fs.readFileSync(HARNESS)).digest('hex');
+  const invalidSignatureProfile = { ...profile, candidate: { path: 'spikes/02-terminal-containment/acceptance/d013/run_d013_win7.py', sha256: scriptHash } };
+  fs.writeFileSync(path.join(tempRoot, 'invalid-signature-profile.json'), JSON.stringify(invalidSignatureProfile));
+  const invalidSignatureOut = path.join(tempRoot, 'invalid-signature-report.json');
+  const invalidSignatureRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000007', '--profile', path.join(tempRoot, 'invalid-signature-profile.json'), '--out', invalidSignatureOut, ...leaseArgs], { timeout: 60000 });
+  const invalidSignatureReport = JSON.parse(fs.readFileSync(invalidSignatureOut, 'utf8'));
+  check('invalid coordinator signature fails closed', invalidSignatureRun.status === 1
+    && ['LEASE_SIGNATURE_INVALID', 'ERR_OSSL_UNSUPPORTED'].includes(invalidSignatureReport.stages[0]?.failure?.code));
+  check('no SSH attempted on invalid signature', invalidSignatureReport.safety.win7_connected === false && invalidSignatureReport.command_count === 0);
 
   // ── 5. Profile validation rejections ──────────────────────────────────────
   const badTarget = { ...profile, target: { ...profile.target, address: '10.0.0.1' } };

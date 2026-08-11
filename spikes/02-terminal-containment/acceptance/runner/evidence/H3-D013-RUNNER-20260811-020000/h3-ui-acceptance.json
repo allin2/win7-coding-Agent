@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "evidence_id": "H3-D013-RUNNER-20260811-020000",
+  "evidence_class": "HUMAN_UI_ACCEPTANCE",
+  "status": "PASS",
+  "target": {
+    "ip": "192.168.1.11",
+    "hostname": "dccs-chaizl-PC",
+    "os_build": "7601",
+    "arch": "x64"
+  },
+  "formal_runner_evidence": {
+    "run_id": "D013-RUNNER-20260811-020000",
+    "source_commit": "0dd6852150a23f82d685ddf699f875172051f4c8",
+    "helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "coordinator_grade": "WIN7_PASS"
+  },
+  "h3_package": {
+    "source_commit": "4eebdbbcae83f1f3e63870747e676fe2207bf78b",
+    "remote_root": "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-020000\\h3-product-r2",
+    "package_manifest_sha256": "fc827208ed7fd7dc72cbc8537900743eed400d40575cea62a8ef9fb137464852",
+    "log_manifest_sha256": "ea8e061e3ad8abd65a41b90321ed86075947a96aac8c3d5549cf5db4732edb51",
+    "cancel_manifest_sha256": "6598cf49cf388a0651ec8149ee9daef941ef4de371acb996af1b94cb469c4a45",
+    "electron_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "file_count": 860,
+    "on_target_package_verification": "PASS"
+  },
+  "initial_fail_closed_observation": {
+    "original_package_manifest_sha256": "fc970862ee4b988739236542b33f51a6ad29302bb60088a8ecb3efcb5b01850d",
+    "status": "cleanup_failed",
+    "error": "SetNamedSecurityInfoW(label restore) failed: access denied",
+    "capture_sha256": "fb9f3c49594b4ba622f56a497933fb4f13ed9ad4bd62bc97a73b5cd910ac52c1",
+    "recovery_postflight": "ZERO_PROCESS_AND_LOW_INTEGRITY_RESIDUE",
+    "disposition": "REJECTED_AS_H3_UI_PACKAGE"
+  },
+  "remediation": {
+    "commit": "4eebdbbcae83f1f3e63870747e676fe2207bf78b",
+    "decision": "Read-only H3 profiles do not mutate the workspace integrity label; the helper-created child remains a Restricted Primary Low Integrity token inside the verified Job.",
+    "profile_apply_low_integrity_to_work_dir": false
+  },
+  "manual_cases": [
+    {
+      "id": "H3-LOG",
+      "status": "PASS",
+      "observations": {
+        "stdout_visible_bytes": 486,
+        "stderr_separate": true,
+        "stdout_truncated_omitted_bytes": 358,
+        "scrollbar_visible": true,
+        "runner_status": "exited",
+        "exit_code": 1,
+        "duration_ms": 9079,
+        "task_completed_feedback": true,
+        "terminal_input_capability_visible": false
+      },
+      "capture_sha256": "64842587c87007f92b3cb96d097fb321fe69d86596ae3a8e2dec0db07f2a74ea"
+    },
+    {
+      "id": "H3-CANCEL",
+      "status": "PASS",
+      "observations": {
+        "task_cancelling_feedback": true,
+        "runner_status": "cancelled",
+        "task_cancelled_feedback": true,
+        "stdout_visible_bytes": 113,
+        "stderr_separate": true,
+        "duration_ms": 1685,
+        "cleanup_failed": false
+      },
+      "capture_sha256": "e4bb8d5424f2ed68de11ee2e84283efbe99c531e4dfadf44085d6c9cfc29798e"
+    }
+  ],
+  "final_postflight": {
+    "observed_at_utc": "2026-08-11T15:42:40.768Z",
+    "residues": [],
+    "acl_root": "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-020000\\work",
+    "bitvise_state": "RUNNING",
+    "artifact_hashes_match": true
+  },
+  "conclusion": "H3_READONLY_STREAMING_LOG_UI_PASS"
+}

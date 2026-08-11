@@ -2,6 +2,7 @@
  * @module runner/types
  * @description Runner 接口层类型定义 — 执行结果、配置、请求与 Containment 状态
  */
+/// <reference types="node" />
 /** Expected, non-bug outcomes of one execution attempt. */
 export type RunStatus = 'exited' | 'timeout' | 'idle_timeout' | 'cancelled' | 'spawn_failed' | 'rejected' | 'capability_unavailable' | 'cleanup_failed';
 /** Bounded decoded representation of one byte stream. */
@@ -11,8 +12,7 @@ export interface CapturedStream {
     bytesRetained: number;
     omittedBytes: number;
     truncated: boolean;
-    /** The native helper will later supply CP936 detection; mocks use UTF-8. */
-    encoding: 'utf-8' | 'unknown';
+    encoding: 'utf-8' | 'cp936' | 'unknown';
     replacementCount: number;
 }
 /** A model- and UI-actionable failure. Expected execution failures never throw. */
@@ -64,6 +64,8 @@ export interface RunnerConfig {
  * @remarks 结构化 argv，绝不拼接 shell 字符串（C09 约束）
  */
 export interface RunRequest {
+    /** Stable caller correlation ID. NativeRunner generates one when omitted. */
+    requestId?: string;
     /** 要执行的命令（如 'git', 'node'） */
     command: string;
     /** 结构化参数数组；元字符作为普通参数数据传递，不经 Shell 解释 */
@@ -74,6 +76,8 @@ export interface RunRequest {
     approvalLevel: 'read_only' | 'workspace_write';
     /** workspace-write 必须携带的精确审批绑定 */
     approval?: ApprovalExecutionBinding;
+    /** Cancellation is advisory until the helper confirms whole-tree cleanup. */
+    signal?: AbortSignal;
 }
 export declare enum RunnerErrorCode {
     CONTAINMENT_UNAVAILABLE = "CONTAINMENT_UNAVAILABLE",
@@ -82,7 +86,13 @@ export declare enum RunnerErrorCode {
     APPROVAL_REQUIRED = "APPROVAL_REQUIRED",
     APPROVAL_INVALID = "APPROVAL_INVALID",
     APPROVAL_REPLAYED = "APPROVAL_REPLAYED",
-    SENSITIVE_ENVIRONMENT_REJECTED = "SENSITIVE_ENVIRONMENT_REJECTED"
+    SENSITIVE_ENVIRONMENT_REJECTED = "SENSITIVE_ENVIRONMENT_REJECTED",
+    PROFILE_NOT_FOUND = "PROFILE_NOT_FOUND",
+    PROFILE_PATH_INVALID = "PROFILE_PATH_INVALID",
+    PROFILE_HASH_MISMATCH = "PROFILE_HASH_MISMATCH",
+    PROFILE_RISK_REJECTED = "PROFILE_RISK_REJECTED",
+    HELPER_PROTOCOL_ERROR = "HELPER_PROTOCOL_ERROR",
+    HELPER_CRASHED = "HELPER_CRASHED"
 }
 export declare class RunnerError extends Error {
     readonly code: RunnerErrorCode;

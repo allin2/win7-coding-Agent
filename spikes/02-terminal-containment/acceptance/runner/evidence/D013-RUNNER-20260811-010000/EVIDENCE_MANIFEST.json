@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "run_id": "D013-RUNNER-20260811-010000",
+  "evidence_grade": "CANDIDATE_EVIDENCE",
+  "disposition": "REJECTED_AS_PRODUCT_CANDIDATE_RECOVERED",
+  "source_commit": "27cf8deb3c4368f2a88d00a0cf542c9d306f77fa",
+  "old_target_ip": "192.168.1.11",
+  "recovery_target_ip": "10.49.123.40",
+  "relocation_attestation_sha256": "2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1",
+  "files": [
+    {
+      "path": "bitvise-after.txt",
+      "size": 352,
+      "sha256": "7d985e9fc78951ca68e1c952628a7811304c5ff807c15bdca69856b0ae8f034f"
+    },
+    {
+      "path": "coordinator-lifecycle.json",
+      "size": 2948,
+      "sha256": "1510deaf225816c6ac2d2dd0beaef3c8290e632562005855a0410f352f3b6b44"
+    },
+    {
+      "path": "coordinator-postflight-recovery-required.json",
+      "size": 1021,
+      "sha256": "6cde00fa2ab848f1286bfb93b6b7f252c75c102769057029dd45d8fe3f9479c9"
+    },
+    {
+      "path": "coordinator-preflight.json",
+      "size": 329,
+      "sha256": "59751629663e35a63ecdc74b06c3cffb092e825d666d0a550924fd22b71c5728"
+    },
+    {
+      "path": "coordinator-recovery-relocated.json",
+      "size": 959,
+      "sha256": "0b35786f70b975f1117ee82fb7111d86e8d19315c7cb2e45d7f511bb928c33bd"
+    },
+    {
+      "path": "coordinator-upload-check.json",
+      "size": 821,
+      "sha256": "5e149c990341b323dbb54cdd979e73eaca9a7e12c2c9ff17ae6901adcc88340b"
+    },
+    {
+      "path": "harness-exit-code.txt",
+      "size": 4,
+      "sha256": "9b754061bcede7d9b31fef4eb5b66ca37588ea876c56edad4c22894745494921"
+    },
+    {
+      "path": "harness-stderr.txt",
+      "size": 86,
+      "sha256": "5237ac7a3fe32e6b45b44f93968020c8681000bab8b0be0f20a60203bb7870eb"
+    },
+    {
+      "path": "harness-stdout.txt",
+      "size": 141,
+      "sha256": "10affd792ffa9273dba4e3b90d466bb646d5aae46276a2ed1a29e8c8ae9c2d82"
+    },
+    {
+      "path": "launcher-whoami.txt",
+      "size": 28,
+      "sha256": "dc97ada8a8e9c3ace7d9f1afacc0683a38eb20e70a3d43e6769b33cd654fc1d0"
+    },
+    {
+      "path": "lease.json",
+      "size": 1051,
+      "sha256": "4a7c84c5beb52a4e949dff00a564de312f4831fc0aaf994bf0b6f15af1cc9649"
+    },
+    {
+      "path": "lease.sig",
+      "size": 64,
+      "sha256": "db8c45924cb0caf9fa8ac8f4b1e5aaff0e49f596b06f099c7ed60cd04e9ea0e5"
+    },
+    {
+      "path": "package-manifest.json",
+      "size": 3006,
+      "sha256": "2e8310ebbe10e99647322dfd05025ca579db146bd1ddf254aa41b8405b383487"
+    },
+    {
+      "path": "runner-D013-RUNNER-20260811-010000-win7.json",
+      "size": 6532,
+      "sha256": "f1c5c846beccfcd7802ac77af97c468392a98e90e50b5e64ff710d5b67f3a03d"
+    },
+    {
+      "path": "runner-release-manifest.json",
+      "size": 2522,
+      "sha256": "683bd84f288641736b6335cdc4a9dbc10a65dd43db7164b5c8c31a1395367fce"
+    }
+  ]
+}

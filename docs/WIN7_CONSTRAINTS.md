@@ -153,9 +153,9 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-008 | Python `winreg` | Phase 1 只读 OS 版本探测 | 只读固定键；禁止历史任务写注册表 | 来源失败时继续其他探测 | 历史批准（限定用途） | ADR-0015 |
 | D-009 | Electron 22.3.27 x64 | Codex-like 桌面 Shell | 最后支持 Win7 的 Electron 主版本最终补丁；内含 Chromium 108 / Node 16.17.1 | 全栈 EOL；只加载可信本地 UI，开放网页远程化 | 架构候选；未获实现授权 | ADR-0027 |
 | D-010 | Node.js 12.22.12 portable x64 | 可选独立 CLI、Agent Host 或旧插件宿主 | Node 12 最终版；上游最后正式测试 Win7 为 12.14.1，必须实机复验 | EOL；Electron 客户端无需因此额外安装 Node 12 | 架构候选；未获实现授权 | ADR-0027 |
-| D-011 | `node-pty` 0.10.0 + 其内置 `winpty` 0.4.4-dev 精确快照 x64 | 可选交互终端兼容模式 | Win7 无 ConPTY；按 Electron 22 ABI 重编译，版本裁决见 ADR-0063 | 上游均停维护；全屏 TUI、Unicode、resize、Ctrl 与回收均需实测 | SPIKE_02 已授权；生产未授权 | ADR-0027 / ADR-0063 |
+| D-011 | `node-pty` 0.10.0 + 其内置 `winpty` 0.4.4-dev 精确快照 x64 | 历史交互终端候选 | A5 在 Win7 实测交互输入不可用；工件只保留为 No-Go 证据 | 上游均停维护；v1 不交付、不进入生产路径 | No-Go（ADR-0066） | ADR-0027 / ADR-0063 / ADR-0066 |
 | D-012 | Git for Windows 2.46.2 x64（优先 MinGit/裁剪包） | Git / Worktree 正式能力 | 最后支持 Win7/8 的 Git for Windows 系列最终补丁候选 | 已停止获得后续安全修复；隔离配置，默认移除/禁用 Git LFS、GCM 等未独立评审组件 | 架构候选；未获实现授权 | ADR-0027 |
-| D-013 | Win32 Runner（Job Object / Restricted Token / ACL） | 进程树、限额、减权执行 | Win7 API 可用；推荐 C++ x64 原生辅助程序 | Job 不可嵌套；同用户减权不等价强沙箱 | 架构候选；未获实现授权 | ADR-0027 |
+| D-013 | Win32 Runner（Job Object / Restricted Token / ACL） | 进程树、限额、减权执行 | v21 已在 A4/A5 的独立租约下通过 containment/T05；V24（SHA-256 `7f86dac8...0d1c134`）又在 `D013-RUNNER-20260811-020000` 完成产品 L01～L10 `WIN7_PASS`，H3 r2 只读日志与取消界面验收通过 | Job 不可嵌套；同用户减权不等价强沙箱；C05 仅回环观测、不提供网络隔离；只读 profile 不修改工作目录 Integrity Label | `CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`；任意 Shell、高风险命令与未登记 Profile 继续拒绝 | ADR-0027 / ADR-0065 / ADR-0066 / ADR-0070 / ADR-0071 |
 | D-014 | `better-sqlite3` 8.7.0 + 内嵌 SQLite 3.43.1（FTS5） | 桌面状态、事件、审计与代码检索索引 | 在 D-017 构建机按 Electron 22 ABI 110 重编译；固定 `ENABLE_FTS5`、`ENABLE_COLUMN_METADATA`、`THREADSAFE=2` | 数据库只放本地盘；迁移和恢复版本化；旧 SQLite 漏洞由项目回补 | SPIKE_04 已授权；生产未授权 | ADR-0027 / ADR-0033 / ADR-0064 |
 | D-015 | Win7 x64 上的 .NET Framework 4.8 | 可选 WPF/WinForms 客户端或辅助程序 | Win7 SP1 可安装的最高 .NET Framework；在 Win7 上已无厂商支持 | 需要独立安装前置与 EOL 风险评审 | 架构候选；未获实现授权 | ADR-0027 |
 | D-016 | 自定义 fail-closed Updater | 企业内网或离线更新 | 使用 Authenticode/WinVerifyTrust 或内置公钥签名清单 + 包哈希 | 不得在验签错误时继续安装；必须旁路安装和回滚 | 架构候选；未获实现授权 | ADR-0027 |

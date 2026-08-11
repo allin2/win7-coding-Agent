@@ -14,6 +14,12 @@ var RunnerErrorCode;
     RunnerErrorCode["APPROVAL_INVALID"] = "APPROVAL_INVALID";
     RunnerErrorCode["APPROVAL_REPLAYED"] = "APPROVAL_REPLAYED";
     RunnerErrorCode["SENSITIVE_ENVIRONMENT_REJECTED"] = "SENSITIVE_ENVIRONMENT_REJECTED";
+    RunnerErrorCode["PROFILE_NOT_FOUND"] = "PROFILE_NOT_FOUND";
+    RunnerErrorCode["PROFILE_PATH_INVALID"] = "PROFILE_PATH_INVALID";
+    RunnerErrorCode["PROFILE_HASH_MISMATCH"] = "PROFILE_HASH_MISMATCH";
+    RunnerErrorCode["PROFILE_RISK_REJECTED"] = "PROFILE_RISK_REJECTED";
+    RunnerErrorCode["HELPER_PROTOCOL_ERROR"] = "HELPER_PROTOCOL_ERROR";
+    RunnerErrorCode["HELPER_CRASHED"] = "HELPER_CRASHED";
 })(RunnerErrorCode || (exports.RunnerErrorCode = RunnerErrorCode = {}));
 class RunnerError extends Error {
     constructor(code, message, recommendedAction) {

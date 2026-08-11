@@ -1,0 +1,1 @@
+{"artifact_hashes":{},"observed_at_utc":"2026-08-11T11:29:10.134Z","phase":"preflight","residues":[],"schema_version":1,"service":{"name":"BvSshServer","state":"RUNNING"},"ssh":{"port":22,"reachable":true,"strict_host_key_checking":true},"target":{"arch":"x64","hostname":"dccs-chaizl-PC","ip":"192.168.1.11","os_build":"7601"}}

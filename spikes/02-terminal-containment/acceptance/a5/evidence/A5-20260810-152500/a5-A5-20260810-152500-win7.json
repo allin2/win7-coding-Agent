@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A5-20260810-152500",
+  "generated_at": "2026-08-10T15:28:56.889Z",
+  "mode": "win7-t05-only",
+  "evidence_grade": "CANDIDATE_EVIDENCE",
+  "lease_id": "lease-A5-20260810-152500",
+  "source_commit": "cbf75e4d8309d105b37fb422917aa2e747d0802c",
+  "package_manifest_sha256": "3c356289326af31641c394cd3be2f24d39acab8caa32f6b8e506d97f68b20e79",
+  "cases": [
+    {
+      "id": "T05",
+      "title": "会话回收（D-013 Job Object 进程树必杀）",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "T05 回收断言失败（helper=HOST_ALREADY_IN_JOB，pingResidue=false）。",
+      "notes": "D013_V21_T05_FAILED",
+      "subchecks": [
+        {
+          "name": "d013-v21-response",
+          "ok": false
+        },
+        {
+          "name": "request-id-bound",
+          "ok": true
+        },
+        {
+          "name": "containment-verified",
+          "ok": false
+        },
+        {
+          "name": "stdin-detached",
+          "ok": false
+        },
+        {
+          "name": "not-timed-out",
+          "ok": false
+        },
+        {
+          "name": "helper-exit-zero",
+          "ok": false
+        },
+        {
+          "name": "low-integrity-label-applied",
+          "ok": false
+        },
+        {
+          "name": "acl-label-rolled-back",
+          "ok": false
+        },
+        {
+          "name": "ping-process-zero-residue",
+          "ok": true,
+          "note": "��Ϣ: û�����е�����ƥ��ָ����׼��"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "FAIL": 1
+  },
+  "win7_validation": "COORDINATOR_POSTFLIGHT_PENDING"
+}

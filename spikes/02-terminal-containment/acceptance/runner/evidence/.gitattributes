@@ -1,0 +1,3 @@
+**/*.txt -diff -text
+**/*.log -diff -text
+**/*.sig binary

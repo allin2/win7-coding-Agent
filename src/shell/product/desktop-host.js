@@ -13,6 +13,7 @@ function loadModules() {
     gateway: requireModule('gateway/dist'),
     state: requireModule('state/dist'),
     workspace: requireModule('workspace/dist'),
+    runner: requireModule('runner/dist'),
   };
 }
 
@@ -33,6 +34,7 @@ function createDesktopHost(options) {
   const state = modules.state;
   const workspace = modules.workspace;
   const gateway = modules.gateway;
+  const runnerExecutor = config.runner || new modules.runner.UnavailableRunner();
   const maxSessions = config.maxSessions || 16;
   const maxEvents = config.maxEvents || 10_000;
   const credentialVault = config.credentialVault || null;
@@ -146,12 +148,70 @@ function createDesktopHost(options) {
       writeIntent: input && input.writeIntent ? input.writeIntent : undefined,
       write: scenario === 'edit' || scenario === 'undo' ? session.writeContext : undefined,
       pendingApproval: null,
+      runnerAbort: scenario === 'runner_acceptance' ? new AbortController() : null,
     };
     activeTask = task;
     session.tasks.set(task.taskId, task);
     emitTaskEvent(task, 'task.accepted', { status: 'accepted', scenario });
-    void runTask(task, session);
+    if (scenario === 'runner_acceptance') void runRunnerAcceptance(task, session);
+    else void runTask(task, session);
     return { taskId: task.taskId, sessionId: task.sessionId, status: 'accepted', scenario };
+  }
+
+  async function runRunnerAcceptance(task, session) {
+    const action = config.runnerAcceptanceAction || {};
+    const request = {
+      requestId: `${task.taskId}-acceptance`,
+      command: action.profileId || 'unconfigured-runner-profile',
+      args: Array.isArray(action.args) ? action.args.slice() : [],
+      approvalLevel: 'read_only',
+      signal: task.runnerAbort.signal,
+      config: {
+        timeoutMs: action.timeoutMs || 15_000,
+        idleTimeoutMs: action.idleTimeoutMs || 5_000,
+        maxStdoutBytes: action.maxStdoutBytes || 64 * 1024,
+        maxStderrBytes: action.maxStderrBytes || 64 * 1024,
+        workDir: session.workspacePath,
+        stdinPolicy: 'closed',
+      },
+    };
+    emitTaskEvent(task, 'runner.started', { profileId: request.command, cwd: session.workspacePath });
+    try {
+      task.result = await runnerExecutor.execute(request);
+      if (task.result.stdout && task.result.stdout.text) emitTaskEvent(task, 'runner.stdout', {
+        text: task.result.stdout.text, bytes: task.result.stdout.bytesRead,
+      });
+      if (task.result.stderr && task.result.stderr.text) emitTaskEvent(task, 'runner.stderr', {
+        text: task.result.stderr.text, bytes: task.result.stderr.bytesRead,
+      });
+      if (task.result.stdout && task.result.stdout.truncated) emitTaskEvent(task, 'runner.truncated', {
+        stream: 'stdout', omittedBytes: task.result.stdout.omittedBytes,
+      });
+      if (task.result.stderr && task.result.stderr.truncated) emitTaskEvent(task, 'runner.truncated', {
+        stream: 'stderr', omittedBytes: task.result.stderr.omittedBytes,
+      });
+      emitTaskEvent(task, 'runner.finished', {
+        status: task.result.status, exitCode: task.result.exitCode, durationMs: task.result.durationMs,
+      });
+      if (task.result.status === 'exited') {
+        task.status = 'completed';
+        emitTaskEvent(task, 'task.completed', { outcome: 'completed', runnerStatus: task.result.status });
+      } else if (task.result.status === 'cancelled') {
+        task.status = 'cancelled';
+        emitTaskEvent(task, 'task.cancelled', { outcome: 'cancelled', runnerStatus: task.result.status });
+      } else {
+        task.status = 'failed';
+        emitTaskEvent(task, 'task.failed', task.result.error || { message: `Runner ${task.result.status}` });
+      }
+    } catch (error) {
+      task.status = 'failed';
+      task.result = { status: 'failed', error: serializeError(error) };
+      emitTaskEvent(task, 'runner.finished', { status: 'failed', durationMs: 0 });
+      emitTaskEvent(task, 'task.failed', serializeError(error));
+    } finally {
+      task.runnerAbort = null;
+      if (activeTask === task) activeTask = null;
+    }
   }
 
   function getSettings() {
@@ -440,7 +500,9 @@ function createDesktopHost(options) {
     if (!task || task.taskId !== taskId) throw productError('TASK_NOT_ACTIVE', '任务不存在或已经结束', '刷新会话时间线后重试。');
     task.status = 'cancelling';
     emitTaskEvent(task, 'task.cancelling', { status: 'cancelling' });
-    const acknowledgement = task.protocol
+    const acknowledgement = task.runnerAbort
+      ? (task.runnerAbort.abort(), { runId: task.runId, accepted: true })
+      : task.protocol
       ? await task.protocol.submit({ kind: 'turn.cancel', runId: task.runId })
       : { runId: task.runId, accepted: false };
     return { taskId, ...acknowledgement };
@@ -688,7 +750,7 @@ function createDesktopHost(options) {
           : gatewaySettings.mode === 'gateway'
             ? `configured-${gatewaySettings.gatewayUrl && gatewaySettings.gatewayUrl.toLowerCase().startsWith('http://') ? 'http' : 'https'}-node-${getCredentialPersistenceStatus().saved ? 'dpapi-current-user' : 'memory'}-credentials`
             : 'replay-default',
-        runner: 'unavailable-fail-closed',
+        runner: config.runnerAcceptanceAction ? 'native-trusted-profile-only' : 'unavailable-no-validated-release-helper',
         git: 'unavailable-not-probed',
         terminal: 'unavailable',
       },
@@ -777,7 +839,7 @@ function normalizeWorkspacePath(candidatePath) {
 }
 
 function normalizeScenario(value, prompt) {
-  if (value === 'structure' || value === 'encoding' || value === 'cancellable' || value === 'edit' || value === 'undo') return value;
+  if (value === 'structure' || value === 'encoding' || value === 'cancellable' || value === 'edit' || value === 'undo' || value === 'runner_acceptance') return value;
   if (/修改|写入|edit|write/i.test(prompt)) return 'edit';
   if (/取消|cancel/i.test(prompt)) return 'cancellable';
   if (/GBK|CP936|编码|encoding/i.test(prompt)) return 'encoding';
@@ -789,7 +851,7 @@ function serializeError(error) {
     code: error && error.code ? String(error.code) : 'DESKTOP_RUNTIME_ERROR',
     message: error && error.message ? String(error.message) : String(error),
     recoverable: true,
-    recommendedAction: '检查工作区和只读能力状态后重试；Runner、终端与真实 Gateway 当前不可用。',
+    recommendedAction: '检查工作区和能力状态后重试；终端输入永久不可用，Runner 仅接受产品注入的受信 profile。',
   };
 }
 

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "A5-20260810-153300",
+  "lease_id": "lease-A5-20260810-153300",
+  "grade": "WIN7_PASS",
+  "reason": "all signed required cases passed",
+  "target": {
+    "ip": "192.168.1.11",
+    "hostname": "dccs-chaizl-PC",
+    "os_build": 7601,
+    "architecture": "x64"
+  },
+  "binding": {
+    "source_commit": "be57695df7f4831b2cf46851b5d5b38ad4a9fd1c",
+    "package_manifest_sha256": "9c8a694d413e6f45b49025ece53cbe6a3b9ae245e0df3806a41f7b165c724f99",
+    "helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "lease_json_sha256": "f812ffee05386b3d08d1f5112a8ab9851f3c28d65d6c02284b450f8a49f9039f",
+    "lease_signature_sha256": "8a6c8f5e272cad7579bf2211d3603fed97474ce1aca9b39679a151b32f524682",
+    "coordinator_public_key_sha256": "b7e2a704ae56a2f2c1e36a3acef28de689b5fec9d24ec5970476cbc26a1b4d95"
+  },
+  "evidence": {
+    "worker_result_sha256": "11fa7f4653619bbdc1014882a3dfbc85c30d5006aff345b9f4f6cb23c7e729d7",
+    "preflight_sha256": "37f5e4be413ff630107fe5d435118a449f0cc3169c3b51f23360c885cc5a8b46",
+    "postflight_sha256": "ed9fe4319562cbbcb79463f893e540673f98ba28ac17ef9dac4fbc58ba589bb0",
+    "required_cases": ["T05"],
+    "case_results": { "T05": "PASS" },
+    "preflight_residue": [],
+    "postflight_residue": [],
+    "artifact_hashes_match": true,
+    "bitvise_before": "RUNNING",
+    "bitvise_after": "RUNNING"
+  },
+  "lease_lifecycle": {
+    "states": ["GRANTED", "RUNNING", "RETURNED", "RELEASED"],
+    "released": true,
+    "active_lease_id_after_release": null
+  },
+  "decision": "NO_GO_INTERACTIVE_WINPTY / CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER"
+}

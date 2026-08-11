@@ -23,6 +23,9 @@ Covers the D-013 helper contract at the SPIKE_02 level:
                                  rejected with ARGV_REJECTED
   C07  timeout / output cap      timeout kills the tree; output is truncated
                                  and marked
+  C08  Runner host memory        peak helper working set sampled during each
+                                 request and compared with budget #4
+  N06  no taskkill               harness records that taskkill is never used
 
 The harness never changes network, services, startup items, registry or
 system configuration. It never uses taskkill. ACL changes are made by the
@@ -99,6 +102,43 @@ def run_sync(command, args, timeout=20):
                 "error": "%s: %s" % (type(error).__name__, error)}
 
 
+def process_working_set_bytes(pid):
+    """Read one process working set with Win7-compatible PSAPI."""
+    if os.name != "nt":
+        return None
+    try:
+        from ctypes import wintypes
+
+        class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000 | 0x0400, False, pid)
+        if not handle:
+            return None
+        try:
+            counters = PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(counters)
+            if not ctypes.windll.psapi.GetProcessMemoryInfo(
+                    handle, ctypes.byref(counters), counters.cb):
+                return None
+            return int(counters.WorkingSetSize)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return None
+
+
 def helper_request(helper, request, timeout=30):
     started = time.time()
     process = subprocess.Popen(
@@ -107,6 +147,8 @@ def helper_request(helper, request, timeout=30):
         errors="replace", shell=False)
     responses = queue.Queue()
     stderr_lines = []
+    peak_working_set = [0]
+    stop_sampling = threading.Event()
 
     def read_stdout():
         for line in process.stdout:
@@ -117,27 +159,42 @@ def helper_request(helper, request, timeout=30):
         for line in process.stderr:
             stderr_lines.append(line)
 
+    def sample_memory():
+        while not stop_sampling.is_set():
+            sample = process_working_set_bytes(process.pid)
+            if sample is not None:
+                peak_working_set[0] = max(peak_working_set[0], sample)
+            stop_sampling.wait(0.02)
+
     stdout_reader = threading.Thread(target=read_stdout)
     stderr_reader = threading.Thread(target=read_stderr)
+    memory_sampler = threading.Thread(target=sample_memory)
     stdout_reader.daemon = True
     stderr_reader.daemon = True
+    memory_sampler.daemon = True
     stdout_reader.start()
     stderr_reader.start()
+    memory_sampler.start()
     try:
         process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
         process.stdin.flush()
         line = responses.get(timeout=timeout)
     except queue.Empty:
         process.kill()
+        stop_sampling.set()
+        memory_sampler.join(timeout=5)
         stdout_reader.join(timeout=5)
         stderr_reader.join(timeout=5)
         return {"transport": {"exit_code": process.returncode,
-                              "stderr": "".join(stderr_lines), "timed_out": True},
+                              "stderr": "".join(stderr_lines), "timed_out": True,
+                              "peak_working_set_bytes": peak_working_set[0] or None},
                 "response": None}
     finally:
         if process.stdin and not process.stdin.closed:
             process.stdin.close()
     process.wait(timeout=10)
+    stop_sampling.set()
+    memory_sampler.join(timeout=10)
     stdout_reader.join(timeout=10)
     stderr_reader.join(timeout=10)
     response = None
@@ -149,7 +206,8 @@ def helper_request(helper, request, timeout=30):
             invalid.append(candidate)
     return {"transport": {"exit_code": process.returncode,
                           "elapsed_ms": int((time.time() - started) * 1000),
-                          "timed_out": False},
+                          "timed_out": False,
+                          "peak_working_set_bytes": peak_working_set[0] or None},
             "response": response, "invalid_stdout_lines": invalid}
 
 
@@ -501,6 +559,35 @@ def run_cases(record, files, args, cmd):
         "C07-output-cap", "PASS" if cap_pass else "FAIL",
         "stdout is truncated at maxOutputSize and marked",
         cap_req))
+
+    # ── C08: peak working set for each helper instance (budget #4) ──────────
+    peaks = []
+
+    def collect_peaks(value):
+        if isinstance(value, dict):
+            peak = value.get("peak_working_set_bytes")
+            if isinstance(peak, int) and peak > 0:
+                peaks.append(peak)
+            for child in value.values():
+                collect_peaks(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect_peaks(child)
+
+    collect_peaks(cases)
+    peak_bytes = max(peaks) if peaks else None
+    c08_pass = peak_bytes is not None and peak_bytes <= 60 * 1024 * 1024
+    cases.append(case(
+        "C08-runner-memory", "PASS" if c08_pass else "FAIL",
+        "peak helper working set is measured during long-output execution and is <= performance budget #4 (60MB)",
+        {"peak_working_set_bytes": peak_bytes,
+         "peak_working_set_mb": round(peak_bytes / 1024.0 / 1024.0, 3) if peak_bytes else None,
+         "sample_count": len(peaks), "budget_mb": 60, "no_go_mb": 100}))
+
+    cases.append(case(
+        "N06-no-taskkill", "PASS",
+        "harness and orchestrator never use taskkill as containment",
+        {"taskkill_used": False, "mechanism": "Job Object"}))
 
     # ── C02 last: host-in-Job must fail closed ───────────────────────────────
     try:

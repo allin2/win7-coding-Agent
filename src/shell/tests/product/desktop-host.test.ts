@@ -3,7 +3,11 @@ import * as os from 'os';
 import * as path from 'path';
 
 const { createDesktopHost } = require('../../product/desktop-host') as {
-  createDesktopHost(options?: { onTaskEvent?: (event: any) => void }): any;
+  createDesktopHost(options?: {
+    onTaskEvent?: (event: any) => void;
+    runner?: { execute(request: any): Promise<any> };
+    runnerAcceptanceAction?: Record<string, unknown>;
+  }): any;
 };
 
 describe('Desktop Alpha 1 composition root', () => {
@@ -87,5 +91,32 @@ describe('Desktop Alpha 1 composition root', () => {
     expect(acknowledgement.accepted).toBe(true);
     expect(events.some((event) => event.eventKind === 'task.cancelled')).toBe(true);
     expect(events.some((event) => event.eventKind === 'task.completed')).toBe(false);
+  });
+
+  it('projects a product-injected Runner result through task.event without terminal input', async () => {
+    const events: any[] = [];
+    const runner = { execute: jest.fn(async () => ({
+      schemaVersion: '2.0', status: 'exited', exitCode: 0, durationMs: 7,
+      stdout: { text: 'runner output\r\n', bytesRead: 15, bytesRetained: 15, omittedBytes: 0, truncated: false, encoding: 'utf-8', replacementCount: 0 },
+      stderr: { text: '', bytesRead: 0, bytesRetained: 0, omittedBytes: 0, truncated: false, encoding: 'utf-8', replacementCount: 0 },
+      termination: { requested: false, processTreeReaped: true, containment: 'job_object' },
+    })) };
+    host = createDesktopHost({
+      runner,
+      runnerAcceptanceAction: { profileId: 'win7-whoami', args: ['/all'] },
+      onTaskEvent: (event: any) => events.push(event),
+    });
+    await host.selectWorkspace(root);
+    const session = host.createSession({});
+    host.submitTask({ sessionId: session.sessionId, prompt: '执行固定验收动作', scenario: 'runner_acceptance' });
+    await waitForIdle();
+
+    expect(runner.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: 'win7-whoami', args: ['/all'], approvalLevel: 'read_only',
+      config: expect.objectContaining({ stdinPolicy: 'closed', workDir: fs.realpathSync(root) }),
+    }));
+    expect(events.map((event) => event.eventKind)).toEqual(expect.arrayContaining([
+      'runner.started', 'runner.stdout', 'runner.finished', 'task.completed',
+    ]));
   });
 });

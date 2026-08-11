@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "track": "D-013-production-runner",
+  "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10 -> H3 UI",
+  "status": "V24_WIN7_L01_L10_AND_H3_PASS",
+  "build_revision": "v24-production-cooperative-cancel",
+  "win10_build_executed": true,
+  "win10_return_package_reviewed": true,
+  "win7_validation": "V24_WIN7_AND_H3_PASS",
+  "source_baseline": {
+    "validated_revision": "D-013-v21",
+    "validated_helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
+    "formal_evidence": ["A4-20260810-000004", "A5-20260810-153300"]
+  },
+  "production_delta": [
+    "required schema_version and requestId",
+    "idleTimeoutMs and idleTimedOut",
+    "production version banner",
+    "request-bound cooperative cancellation before exact ACL rollback"
+  ],
+  "superseded_v22_win10_build_evidence": {
+    "completed_at": "2026-08-10T16:16:15.2420704Z",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-161615.zip",
+    "return_package_sha256": "22f946b18eb6d12134dabe1ac2af04d9c97e1749e2843242336bbc20fd1315f9",
+    "helper_sha256": "b48e535d7a4e955cdec0557904e745bdc36d799dc1eeaeb688d3fc24f6aa0c5e",
+    "source_commit": "2adc9b2f4c64ef34ac57fed968fca93bac9b3b97",
+    "toolchain": "VS2019 16.11.37507.1 / MSVC 14.29.30133 / SDK 10.0.19041.0 / x64 / static CRT",
+    "review": "PASS"
+  },
+  "win10_build_disposition": {
+    "status": "REJECTED_AS_PRODUCT_CANDIDATE",
+    "reason": "v22 unconditionally returns HOST_ALREADY_IN_JOB on the previously evidenced Electron Win7 launch path",
+    "reusable_as_formal_win7_candidate": false
+  },
+  "v23_win10_build_evidence": {
+    "completed_at": "2026-08-10T16:44:56.7938654Z",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260810-164456.zip",
+    "return_package_sha256": "9b1dbd3d404d74d56e20a7b051681a9985b31b95f2ff9d0f1e0553badabb9390",
+    "helper_sha256": "d275605124527f292307fd45e2ab4b9af850d22af53ca6f7e8ee795fab629a5c",
+    "source_commit": "e41bc9dbf7ebcad3570ef3d6cb4491e6cb1f630a",
+    "toolchain": "VS2019 16.11.37507.1 / MSVC 14.29.30133 / SDK 10.0.19041.0 / x64 / static CRT",
+    "version": "win7-agent-helper 1.1.0-d013-v23 win7-x64",
+    "review": "PASS"
+  },
+  "v23_win7_disposition": {
+    "run_id": "D013-RUNNER-20260811-010000",
+    "status": "REJECTED_AS_PRODUCT_CANDIDATE",
+    "reason": "transport terminated the helper before l08 Low Integrity rollback completed",
+    "helper_and_ping_residue": false,
+    "acl_residue": "work\\l08 retained Low Mandatory Level until authorized recovery",
+    "recovery_state": "RELEASED",
+    "relocation_attestation_sha256": "2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1",
+    "reusable_as_formal_win7_candidate": false
+  },
+  "v24_win10_build_evidence": {
+    "completed_at": "2026-08-11T10:51:27.8839374Z",
+    "return_package": "WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip",
+    "return_package_sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+    "return_manifest_file_count": 24,
+    "helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "source_commit": "78113f49db6ec94f803ae38518c42eaa740448ba",
+    "toolchain": "VS2019 16.11.37507.1 / MSVC 14.29.30133 / SDK 10.0.19041.0 / x64 / static CRT",
+    "version": "win7-agent-helper 1.2.0-d013-v24 win7-x64",
+    "cooperative_cancel_smoke": "PASS_WITH_EXACT_ACL_ROLLBACK",
+    "review": "PASS"
+  },
+  "v24_win7_evidence": {
+    "run_id": "D013-RUNNER-20260811-020000",
+    "target_ip": "192.168.1.11",
+    "source_commit": "0dd6852150a23f82d685ddf699f875172051f4c8",
+    "package_manifest_sha256": "aa165f62e2f474240dc47cd106cffc8a47fd8aa3e9c3b65189f41d55a07e2434",
+    "helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "cases": "L01-L10_ALL_PASS",
+    "postflight": "ZERO_PROCESS_AND_LOW_INTEGRITY_RESIDUE",
+    "coordinator_grade": "WIN7_PASS",
+    "lifecycle": "GRANTED_TO_RUNNING_TO_RETURNED_TO_RELEASED"
+  },
+  "h3_ui_evidence": {
+    "evidence_id": "H3-D013-RUNNER-20260811-020000",
+    "source_commit": "4eebdbbcae83f1f3e63870747e676fe2207bf78b",
+    "package_manifest_sha256": "fc827208ed7fd7dc72cbc8537900743eed400d40575cea62a8ef9fb137464852",
+    "cases": "READONLY_LOG_AND_CANCEL_PASS",
+    "postflight": "ZERO_PROCESS_AND_LOW_INTEGRITY_RESIDUE",
+    "status": "H3_READONLY_STREAMING_LOG_UI_PASS"
+  },
+  "blocked_on": []
+}

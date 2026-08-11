@@ -46,6 +46,7 @@
               <option value="encoding">中文路径 / GBK / CRLF 读取</option>
               <option value="cancellable">可取消长流式任务</option>
               <option value="edit">A2 受控单文件修改（需审批）</option>
+              <option value="runner_acceptance">非交互 Runner 验收动作（固定 profile）</option>
             </select>
           </label>
           <div class="run-actions"><button id="run-task" class="button primary" type="button" disabled>开始任务</button><button id="cancel-task" class="button danger" type="button" disabled>取消</button></div>
@@ -60,6 +61,17 @@
         </section>
         <div class="timeline-heading"><h3>执行时间线</h3><span id="timeline-note" class="muted">事件按 State 序列投影</span></div>
         <ol id="timeline" class="timeline"></ol>
+        <section id="runner-log-panel" class="runner-log-panel" aria-label="非交互 Runner 只读日志">
+          <div class="runner-log-heading">
+            <div><h3>Runner 只读日志</h3><p id="runner-log-summary" class="muted">尚无非交互执行。</p></div>
+            <span id="runner-log-state" class="state idle">未运行</span>
+          </div>
+          <div class="runner-log-grid">
+            <div><div class="stream-label stdout">STDOUT <span id="runner-stdout-limit"></span></div><pre id="runner-stdout" class="runner-log-box" tabindex="0"></pre></div>
+            <div><div class="stream-label stderr">STDERR <span id="runner-stderr-limit"></span></div><pre id="runner-stderr" class="runner-log-box stderr" tabindex="0"></pre></div>
+          </div>
+          <p class="runner-log-note">日志只读且有界；VT/OSC、剪贴板控制序列和危险链接已移除。取消使用上方“取消”按钮。</p>
+        </section>
         <div class="result-heading"><h3>最终结果</h3><span id="result-limit" class="muted"></span></div>
         <pre id="final-result" class="result-box">尚未运行任务。</pre>
         <button id="undo-task" class="button small" type="button" disabled>准备撤销（仍需审批）</button>
@@ -112,10 +124,12 @@
       <span><i class="dot ok"></i>State <b>有界内存</b></span>
       <span><i class="dot ok"></i>Workspace <b>只读</b></span>
       <span><i class="dot off"></i>Gateway <b>未配置</b></span>
-      <span><i class="dot off"></i>Runner / Terminal <b>不可用</b></span>
+      <span><i class="dot ok"></i>Runner <b>受信非交互</b></span>
+      <span><i class="dot off"></i>Terminal <b>永久禁用</b></span>
     </footer>
   </main>
   <script src="event-queue.js"></script>
+  <script src="runner-log.js"></script>
   <script src="gateway-settings-payload.js"></script>
   <script src="renderer.js"></script>
 </body>
