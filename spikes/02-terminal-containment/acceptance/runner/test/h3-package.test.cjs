@@ -35,6 +35,11 @@ assert.match(logCommand, /runner-manifest-sha256=[a-f0-9]{64}/);
 assert.match(logCommand, /C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-020000\\work\\h3/);
 assert.doesNotMatch(logCommand, /%~dp0work/);
 assert.match(fs.readFileSync(path.join(out, 'README-H3.txt'), 'utf8'), /No terminal input/);
+assert(packageManifest.files.some((entry) => entry.path === 'verify-h3-package.cjs'));
+assert(packageManifest.files.some((entry) => entry.path === 'verify-h3-package.cmd'));
+const verify = spawnSync(process.execPath, [path.join(out, 'verify-h3-package.cjs')], { encoding: 'utf8' });
+assert.equal(verify.status, 0, verify.stderr || verify.stdout);
+assert.match(verify.stdout, /^H3_PACKAGE_VERIFY_PASS files=\d+\n$/);
 process.stdout.write('h3-package-tests: ALL PASS\n');
 
 function readJson(name) { return JSON.parse(fs.readFileSync(path.join(out, name), 'utf8')); }

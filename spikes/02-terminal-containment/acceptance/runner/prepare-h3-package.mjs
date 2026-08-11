@@ -28,6 +28,13 @@ for (const moduleName of ['core', 'gateway', 'runner', 'state', 'workspace']) {
 }
 copyDependency('ajv', new Set());
 copyFile(helper, path.join(out, 'spike02_helper.exe'));
+copyFile(path.join(HERE, 'verify-h3-package.cjs'), path.join(out, 'verify-h3-package.cjs'));
+writeText(path.join(out, 'verify-h3-package.cmd'), [
+  '@echo off',
+  '"C:\\acceptance\\electron\\electron.exe" "%~dp0verify-h3-package.cjs"',
+  'exit /b %ERRORLEVEL%',
+  '',
+].join('\r\n'));
 
 const baseProfile = {
   id: 'win7-ping',
@@ -89,10 +96,11 @@ writeText(path.join(out, 'README-H3.txt'), [
   `Select workspace: ${WORK_ROOT}\\h3`,
   'Scenario: 非交互 Runner 验收动作（固定 profile）',
   '',
-  '1. start-h3-log.cmd: verify stdout is visible, the truncation notice is visible, and the log box scrolls.',
-  '2. start-h3-cancel.cmd: start the same scenario, wait for stdout, click 取消, and verify the UI reports cancelled.',
-  '3. No terminal input, paste, key injection or arbitrary command field is present.',
-  '4. Close each window after recording the result. ACL/Low Integrity is limited to work\\h3 and must roll back.',
+  '1. verify-h3-package.cmd: verify the complete package before launching either UI command.',
+  '2. start-h3-log.cmd: verify stdout is visible, the truncation notice is visible, and the log box scrolls.',
+  '3. start-h3-cancel.cmd: start the same scenario, wait for stdout, click 取消, and verify the UI reports cancelled.',
+  '4. No terminal input, paste, key injection or arbitrary command field is present.',
+  '5. Close each window after recording the result. ACL/Low Integrity is limited to work\\h3 and must roll back.',
   '',
 ].join('\r\n'));
 
