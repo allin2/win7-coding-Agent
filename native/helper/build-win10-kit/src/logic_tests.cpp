@@ -186,6 +186,16 @@ static void TestParseJsonConfig() {
     CHECK(!ParseJsonConfig("garbage", &config, &error));
 }
 
+static void TestCancelControl() {
+    std::string error;
+    CHECK(ParseCancelControl(
+        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"r1\"}", L"r1", &error));
+    CHECK(!ParseCancelControl(
+        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"stale\"}", L"r1", &error));
+    CHECK(!ParseCancelControl(
+        "{\"schema_version\":1,\"type\":\"execute\",\"requestId\":\"r1\"}", L"r1", &error));
+}
+
 static void TestArgvBuilder() {
     CHECK(QuoteArg(L"plain") == L"plain");
     CHECK(QuoteArg(L"") == L"\"\"");
@@ -406,6 +416,7 @@ int main() {
     TestHostJobLaunchPolicy();
     TestJsonParser();
     TestParseJsonConfig();
+    TestCancelControl();
     TestArgvBuilder();
     TestPathShape();
     TestWhitelist();

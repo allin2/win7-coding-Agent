@@ -18,7 +18,8 @@
  *     (C07, never taskkill — N06), bounded output with truncation (P02/C07),
  *     and whole-tree reclamation on job close.
  *
- * Protocol: one JSON request per line on stdin, one JSON response on stdout.
+ * Protocol: one JSON execution request, optional matching cancel control,
+ * and one JSON response per helper process.
  * Interface is frozen for SPIKE_02 (argv + JSON over stdio).
  *
  * Compile: MSVC v142 (VS2019), target Windows 7 SP1 x64, static CRT.
@@ -122,6 +123,7 @@ inline HostJobLaunchMode DecideHostJobLaunchMode(bool inJobProbeSucceeded,
 #define HELPER_ERR_INTERNAL 10
 #define HELPER_ERR_ACL_POLICY 11
 #define HELPER_ERR_ACL_ROLLBACK 12
+#define HELPER_ERR_CANCEL_PROTOCOL 13
 
 // ─── Structures ──────────────────────────────────────────────────────────────
 
@@ -300,6 +302,13 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result);
 // protocol violations.
 bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
                      std::string* error);
+
+// Parse the only control message accepted after the single execution request.
+// The request ID must match so a stale or cross-request cancel cannot affect
+// another helper process.
+bool ParseCancelControl(const std::string& jsonUtf8,
+                        const std::wstring& expectedRequestId,
+                        std::string* error);
 
 // Validate that every ACL target in `config` stays inside perRunRoot and that
 // perRunRoot stays inside acceptanceRoot (boundary-safe, case-insensitive).
