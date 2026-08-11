@@ -7,10 +7,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: INTEGRATION_HARDENING
 Target Branch: codex/win7-noninteractive-runner
 Authorization: Project owner implementation request, 2026-08-10
-Phase-Gate: IMPLEMENTING
-Win7-Compatibility: PROVISIONAL
-Win7-Validation: A4_D013_AND_A5_T05_WIN7_PASS
-Blocking-Reason: H3 read-only log review remains open
+Phase-Gate: COMPLETE
+Win7-Compatibility: VALIDATED_FOR_LOW_RISK_NONINTERACTIVE_RUNNER
+Win7-Validation: A4_D013_A5_T05_AND_H3_WIN7_PASS
+Blocking-Reason: NONE
 ```
 
 ### 0.1 允许路径
@@ -197,8 +197,28 @@ v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed2551
   证据继续保留。该结论不扩大为任意 Shell、本地高风险命令或交互式 winpty，整合任务仍需 H3
   只读流式日志界面人工验收后才能收口。
 
+### 3.10 H3 只读流式日志界面结论（2026-08-11）
+
+- 首个 H3 包在普通交互式桌面会话中对只读工作区请求临时 Integrity Label 变更，回滚返回
+  `ACCESS_DENIED`；产品正确返回 `cleanup_failed`。负责人关闭窗口后，两次协调器只读检查均为
+  `residues=[]`，没有 helper、ping 或 Low Integrity 标签残留。该包定性为
+  `REJECTED_AS_H3_UI_PACKAGE`，不覆盖、不删除，保留失败哈希。
+- ADR-0071 将“低完整性 child token”和“为可写工作目录临时降低 Integrity Label”拆分为两个
+  独立能力。H3 是只读 ping profile，不需要 child 写工作区，因此 r2 保留 Restricted Primary
+  Low Integrity token、Job containment、stdin 关闭和路径/哈希策略，但不修改 `work\h3` 标签。
+- r2 绑定 source commit `4eebdbbcae83f1f3e63870747e676fe2207bf78b`，包清单 SHA-256 为
+  `fc827208ed7fd7dc72cbc8537900743eed400d40575cea62a8ef9fb137464852`；Win7 端 860 文件逐项校验和
+  helper、Electron、两个 profile manifest 哈希复核全部通过。
+- 负责人在 Win7 确认：STDOUT 可见且与 STDERR 分栏、486 bytes 输出按 128-byte 上限显示
+  358 bytes 截断提示、日志框可滚动；取消路径依次显示 `task.cancelling`、`runner.finished
+  status=cancelled` 和 `task.cancelled`，耗时 1685 ms；界面无终端输入、粘贴、按键注入或任意
+  命令字段。
+- 最终协调器 postflight 于 `2026-08-11T15:42:40.768Z` 记录 `residues=[]`、`work` 全树无
+  Low Integrity 残留、Bitvise `RUNNING` 且全部 H3 工件哈希匹配。H3 结论为
+  `H3_READONLY_STREAMING_LOG_UI_PASS`，本整合任务不再有开放阻塞。
+
 ## 4. 人工门禁
 
 - H1：签发租约前确认当前目标 `192.168.1.11` 空闲，允许新验收目录和仅限该目录的临时 ACL。
 - H2：发现进程、文件或 ACL 残留时暂停并报告，不自动强杀或删除。
-- H3：自动验证完成后由负责人确认 Win7 只读日志的可见性、滚动、截断和取消反馈。
+- H3：`PASS`；负责人已确认 Win7 只读日志的可见性、滚动、截断和取消反馈，最终轮后零残留。

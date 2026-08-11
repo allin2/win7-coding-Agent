@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "track": "D-013-production-runner",
-  "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
-  "status": "V24_WIN7_L01_L10_PASS",
+  "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10 -> H3 UI",
+  "status": "V24_WIN7_L01_L10_AND_H3_PASS",
   "build_revision": "v24-production-cooperative-cancel",
   "win10_build_executed": true,
   "win10_return_package_reviewed": true,
-  "win7_validation": "V24_WIN7_PASS",
+  "win7_validation": "V24_WIN7_AND_H3_PASS",
   "source_baseline": {
     "validated_revision": "D-013-v21",
     "validated_helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
@@ -75,7 +75,13 @@
     "coordinator_grade": "WIN7_PASS",
     "lifecycle": "GRANTED_TO_RUNNING_TO_RETURNED_TO_RELEASED"
   },
-  "blocked_on": [
-    "H3 read-only streaming log UI review before full integration closeout"
-  ]
+  "h3_ui_evidence": {
+    "evidence_id": "H3-D013-RUNNER-20260811-020000",
+    "source_commit": "4eebdbbcae83f1f3e63870747e676fe2207bf78b",
+    "package_manifest_sha256": "fc827208ed7fd7dc72cbc8537900743eed400d40575cea62a8ef9fb137464852",
+    "cases": "READONLY_LOG_AND_CANCEL_PASS",
+    "postflight": "ZERO_PROCESS_AND_LOW_INTEGRITY_RESIDUE",
+    "status": "H3_READONLY_STREAMING_LOG_UI_PASS"
+  },
+  "blocked_on": []
 }

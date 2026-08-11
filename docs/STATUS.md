@@ -194,7 +194,14 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   `RUNNING`。协调器评级为 `WIN7_PASS`，生命周期已 `RELEASED` 且无活动租约。
 - A5 的生产非交互 Runner containment 核心卡点因此正式解除，结论为
   `CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`。交互式 winpty 继续 No-Go，任意 Shell、
-  高风险本地命令与未登记 Profile 继续拒绝；剩余人工门禁为 H3 只读流式日志界面验收。
+  高风险本地命令与未登记 Profile 继续拒绝。
+- H3 r2 已在 Win7 普通交互式桌面会话完成只读日志与取消验收：STDOUT/STDERR 分栏、滚动、
+  358-byte 截断提示、`task.cancelling → runner.finished(cancelled) → task.cancelled` 反馈均通过，
+  界面不存在终端输入能力。最终 postflight 为 `residues=[]`、无 Low Integrity 标签残留、Bitvise
+  `RUNNING` 且 H3 工件哈希匹配。首包的标签回滚 `ACCESS_DENIED` 失败及干净恢复证据继续保留；
+  ADR-0071 明确只读 profile 不修改工作目录 Integrity Label，child token 仍保持 Low Integrity。
+- A5 非交互 Runner + 只读日志整合任务现为 `COMPLETE`，结论为
+  `H3_READONLY_STREAMING_LOG_UI_PASS / CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`。
 
 ## MVP 已接受的延期项
 

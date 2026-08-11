@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "evidence_id": "H3-D013-RUNNER-20260811-020000",
+  "evidence_grade": "HUMAN_UI_ACCEPTANCE",
+  "disposition": "H3_READONLY_STREAMING_LOG_UI_PASS",
+  "source_commit": "4eebdbbcae83f1f3e63870747e676fe2207bf78b",
+  "target_ip": "192.168.1.11",
+  "package_manifest_sha256": "fc827208ed7fd7dc72cbc8537900743eed400d40575cea62a8ef9fb137464852",
+  "files": [
+    {
+      "path": "coordinator-final-postflight.json",
+      "size": 844,
+      "sha256": "515f5d81148e710e5388ed572d308b354f7b4d5f496b1e34b126b6a72732e1fb"
+    },
+    {
+      "path": "h3-ui-acceptance.json",
+      "size": 3236,
+      "sha256": "2ce7e5419fcc95f0e34021dd1f94b048615280271565f7992730a39d94a96892"
+    }
+  ]
+}

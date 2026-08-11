@@ -780,3 +780,21 @@
 - 后果：取消反馈需要一次 helper 协作往返，最坏情况下在 5 秒后失败关闭，但不会再把“child 已被
   Job 杀死”误报为“ACL 已恢复”。Renderer/模型仍没有 child stdin 或任意进程输入能力；控制消息
   仅存在于产品 transport 与单请求 helper 之间。
+
+## ADR-0071 只读 Runner Profile 不修改工作目录 Integrity Label
+
+- 状态：Accepted（2026-08-11，依据 H3 普通桌面会话的 fail-closed 结果与 r2 实机复验）
+- 背景：D-013 V24 的 L09 已在正式签名租约下证明临时 Low Integrity Label 可应用、验证并回滚。
+  但首个 H3 UI 包把同一变更无条件用于只读 ping profile；在普通交互式桌面会话创建的 `work\h3`
+  上，label restore 返回 `ACCESS_DENIED`，产品正确报 `cleanup_failed`。H3 只验证有界只读日志和
+  取消反馈，child 不需要写工作区；把工作区标签变更混入该 profile 增加了无关权限要求。
+- 决策：（1）Restricted Primary Token 的 Low Integrity 与工作目录 Mandatory Label 是两个独立
+  控制面，不得用后者是否启用判断 child 是否减权。（2）只读且不写工作区的可信 profile 将
+  `apply_low_integrity_to_work_dir` 固定为 `false`；helper 仍必须验证 child 为 Low Integrity、stdin
+  关闭、Job 归属和进程树清理，路径、argv、哈希与风险策略不变。（3）只有明确需要 Low Integrity
+  child 写入指定工作目录的 profile 才可启用临时 label；启用时必须具备轮前权限证明、逐轮精确
+  回滚和独立 postflight，任一步不确定仍返回 `cleanup_failed`。（4）H3 r2 必须在 Win7 普通桌面
+  会话验证日志、截断、滚动和合作取消，并在窗口关闭后取得零进程/ACL 残留快照。
+- 后果：只读 Runner 不再为无写入需求修改用户工作区安全描述符，降低普通桌面会话的失败面，但不
+  放宽 child containment。需要本地写入的未来 profile 不能借用本 ADR 绕过临时 label 与回滚门禁；
+  任意 Shell、高风险命令、未登记程序和交互式终端继续拒绝。
