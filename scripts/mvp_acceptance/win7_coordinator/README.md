@@ -23,6 +23,6 @@ window closes.
 Run `node cli.mjs` without a valid command to see the structured fail-closed error.
 
 `probe-win7.mjs` performs the coordinator-owned, read-only target snapshot over strict SSH. It checks the locked
-`10.49.123.40` identity (using the previously locked `192.168.1.11` host-key alias while the local known-hosts
-record is retained), Bitvise state, SSH reachability, scoped process/ACL residue, and optional `certutil` artifact hashes;
+`192.168.1.11` identity against the existing known-hosts record, Bitvise state, SSH reachability, scoped process/ACL
+residue, and optional `certutil` artifact hashes;
 it never starts/stops services or changes networking/system configuration.

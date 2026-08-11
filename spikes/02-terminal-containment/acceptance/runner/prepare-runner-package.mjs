@@ -104,7 +104,7 @@ function main() {
     package: 'WIN7_NATIVE_RUNNER_L01_L10',
     acceptance_id: args.acceptanceId,
     source_commit: args.sourceCommit,
-    target: { ip: '10.49.123.40', os_build: '7601', arch: 'x64' },
+    target: { ip: '192.168.1.11', os_build: '7601', arch: 'x64' },
     suite: 'NATIVE_RUNNER_L01_L10',
     cases: ['L01', 'L02', 'L03', 'L04', 'L05', 'L06', 'L07', 'L08', 'L09', 'L10'],
     files,

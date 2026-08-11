@@ -48,7 +48,7 @@ function verifyLease(args, root) {
     throw new Error('LEASE_PATH_BINDING_INVALID');
   }
   if (lease.run_id !== args.acceptanceId || lease.source_commit !== args.sourceCommit ||
-      lease.package_manifest_sha256 !== args.packageManifestSha256 || lease.target.ip !== '10.49.123.40' ||
+      lease.package_manifest_sha256 !== args.packageManifestSha256 || lease.target.ip !== '192.168.1.11' ||
       lease.target.os_build !== '7601' || lease.target.arch !== 'x64' || lease.scope.suite !== SUITE) {
     throw new Error('LEASE_BINDING_MISMATCH');
   }

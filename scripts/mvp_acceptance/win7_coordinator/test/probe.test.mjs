@@ -3,15 +3,14 @@ import test from 'node:test';
 import { buildSshArgs, parseAclResidues, parseCertutilHash, parseResidues, probeWin7 } from '../probe-win7.mjs';
 
 const options = {
-  targetIp: '10.49.123.40', user: 'dccs-chaizl', privateKey: '/outside/key', knownHosts: '/outside/known',
-  hostKeyAlias: '192.168.1.11',
+  targetIp: '192.168.1.11', user: 'dccs-chaizl', privateKey: '/outside/key', knownHosts: '/outside/known',
   acceptanceId: 'A4-20260810-000001', phase: 'preflight', artifactMap: {},
 };
 
 test('SSH argv is strict and never uses a local shell', () => {
   const args = buildSshArgs(options, ['hostname']);
   assert.ok(args.includes('StrictHostKeyChecking=yes'));
-  assert.ok(args.includes('HostKeyAlias=192.168.1.11'));
+  assert.ok(!args.some((item) => item.startsWith('HostKeyAlias=')));
   assert.ok(args.includes('BatchMode=yes'));
   assert.equal(args.at(-1), 'hostname');
 });
@@ -54,7 +53,7 @@ test('read-only probe builds coordinator snapshot with fake SSH transport', () =
   const snapshot = probeWin7(options, runner);
   assert.equal(snapshot.service.state, 'RUNNING');
   assert.equal(snapshot.target.hostname, 'WIN7-A5');
-  assert.equal(snapshot.ssh.host_key_alias, '192.168.1.11');
+  assert.equal(snapshot.ssh.host_key_alias, undefined);
   assert.deepEqual(snapshot.residues, []);
 });
 

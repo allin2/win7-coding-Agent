@@ -81,7 +81,7 @@ function validateAclRoot(value, acceptanceId) {
 }
 
 export function probeWin7(options, runner = spawnSync) {
-  if (options.targetIp !== '10.49.123.40' || options.user !== 'dccs-chaizl') fail('TARGET_DENIED', 'probe target is not the locked Win7 host');
+  if (options.targetIp !== '192.168.1.11' || options.user !== 'dccs-chaizl') fail('TARGET_DENIED', 'probe target is not the locked Win7 host');
   if (options.hostKeyAlias && options.hostKeyAlias !== '192.168.1.11') fail('HOST_KEY_ALIAS_DENIED', 'host key alias is not the previously locked Win7 identity');
   if (!ACCEPTANCE_ID_RE.test(options.acceptanceId)) fail('INVALID_ACCEPTANCE_ID', 'acceptance id is invalid');
   const version = runRemote(options, ['cmd.exe', '/d', '/s', '/c', 'ver'], runner);
@@ -113,7 +113,7 @@ export function probeWin7(options, runner = spawnSync) {
 }
 
 function parseArgs(argv) {
-  const args = { targetIp: '10.49.123.40', user: 'dccs-chaizl', phase: 'preflight', artifactMap: {} };
+  const args = { targetIp: '192.168.1.11', user: 'dccs-chaizl', phase: 'preflight', artifactMap: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const item = argv[i];
     if (item === '--target-ip') args.targetIp = argv[++i];
