@@ -10,7 +10,7 @@ Authorization: Project owner implementation request, 2026-08-10
 Phase-Gate: IMPLEMENTING
 Win7-Compatibility: PROVISIONAL
 Win7-Validation: A4_D013_AND_A5_T05_WIN7_PASS
-Blocking-Reason: Product NativeRunner L01-L10 and H3 read-only log review remain open
+Blocking-Reason: H3 read-only log review remains open
 ```
 
 ### 0.1 允许路径
@@ -180,6 +180,22 @@ v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed2551
   严格 known-hosts 记录。该回切不复用旧租约，也不改写首轮在 `10.49.123.40` 完成的迁移恢复证据。
 - 新提交、V24 helper、系统 Profile 与 Electron 哈希必须在签发前重新绑定；轮前或轮后出现任何
   进程/ACL 残留即进入 H2，不自动强杀或删除。
+
+### 3.9 v24 Win7 NativeRunner 正式结论（2026-08-11）
+
+- `D013-RUNNER-20260811-020000` 在 `192.168.1.11` 上以新 ADR-0065 Ed25519 租约执行；租约绑定
+  source commit `0dd6852150a23f82d685ddf699f875172051f4c8`、package manifest
+  `aa165f62e2f474240dc47cd106cffc8a47fd8aa3e9c3b65189f41d55a07e2434`、V24 helper
+  `7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134` 与 Electron 锁定哈希。
+- L01～L10 全部 PASS：真实 Electron 宿主使用显式 breakaway 后重新加入 helper Job；未知 Profile、
+  Shell 和高风险本地执行在 helper 前拒绝；CP936/CRLF/中文空格路径、双流截断、总/空闲超时、
+  合作取消、ACL 应用/验证/回滚与全树清理均通过。
+- 正式轮后快照 `residues=[]`，`work` 全树无 Low Integrity 残留，helper/ping 均不存在，六项远端
+  工件哈希匹配且 Bitvise 保持 `RUNNING`。协调器评级为 `WIN7_PASS`，生命周期完整到
+  `RELEASED` 且 `active_lease_id=null`。
+- D-013 V24 因此达到 `CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`；v23 的失败与恢复
+  证据继续保留。该结论不扩大为任意 Shell、本地高风险命令或交互式 winpty，整合任务仍需 H3
+  只读流式日志界面人工验收后才能收口。
 
 ## 4. 人工门禁
 

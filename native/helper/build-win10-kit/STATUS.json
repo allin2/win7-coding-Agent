@@ -2,11 +2,11 @@
   "schema_version": 1,
   "track": "D-013-production-runner",
   "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
-  "status": "V24_WIN10_BUILD_PASS_AWAITING_WIN7_L01_L10",
+  "status": "V24_WIN7_L01_L10_PASS",
   "build_revision": "v24-production-cooperative-cancel",
   "win10_build_executed": true,
   "win10_return_package_reviewed": true,
-  "win7_validation": "V23_FAILED_ACL_RESIDUE",
+  "win7_validation": "V24_WIN7_PASS",
   "source_baseline": {
     "validated_revision": "D-013-v21",
     "validated_helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
@@ -64,8 +64,18 @@
     "cooperative_cancel_smoke": "PASS_WITH_EXACT_ACL_ROLLBACK",
     "review": "PASS"
   },
+  "v24_win7_evidence": {
+    "run_id": "D013-RUNNER-20260811-020000",
+    "target_ip": "192.168.1.11",
+    "source_commit": "0dd6852150a23f82d685ddf699f875172051f4c8",
+    "package_manifest_sha256": "aa165f62e2f474240dc47cd106cffc8a47fd8aa3e9c3b65189f41d55a07e2434",
+    "helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "cases": "L01-L10_ALL_PASS",
+    "postflight": "ZERO_PROCESS_AND_LOW_INTEGRITY_RESIDUE",
+    "coordinator_grade": "WIN7_PASS",
+    "lifecycle": "GRANTED_TO_RUNNING_TO_RETURNED_TO_RELEASED"
+  },
   "blocked_on": [
-    "new ADR-0065 lease bound to 192.168.1.11 and a fresh per-run acceptance directory",
-    "formal Win7 L01-L10 with zero process and ACL residue"
+    "H3 read-only streaming log UI review before full integration closeout"
   ]
 }

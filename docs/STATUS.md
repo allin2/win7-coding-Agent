@@ -188,9 +188,13 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   Win10/VS2019/v142/SDK 10.0.19041/x64/static CRT Profile；内部 24 项清单、logic tests、
   PE/API/CRT、严格 UTF-8 捕获、普通执行和合作取消 smoke 全部通过。取消 smoke 证明 helper
   在返回 `canceled=true` 前完成 Job 回收和 Low Integrity 的精确 SDDL 回滚。
-- v23 首轮 Win7 L08 的 ACL 残留记录仍保留且该候选仍为拒绝状态。v24 目前仅解除 Win10 构建
-  门禁；项目负责人已将正式目标切回 `192.168.1.11`，下一步必须使用新验收目录、新提交和新 ADR-0065 签名租约重跑
-  L01～L10，轮前/轮后进程与 ACL 零残留后才可把 A5 非交互 Runner 标记为 Win7 PASS。
+- v23 首轮 Win7 L08 的 ACL 残留记录仍保留且该候选仍为拒绝状态。V24 已在
+  `D013-RUNNER-20260811-020000`、目标 `192.168.1.11` 和新 ADR-0065 签名租约下完成 L01～L10，
+  10 项全部 PASS；轮后 helper/ping 与 Low Integrity 残留均为零，工件哈希匹配，Bitvise 保持
+  `RUNNING`。协调器评级为 `WIN7_PASS`，生命周期已 `RELEASED` 且无活动租约。
+- A5 的生产非交互 Runner containment 核心卡点因此正式解除，结论为
+  `CONTAINMENT_READY_FOR_LOW_RISK_NONINTERACTIVE_RUNNER`。交互式 winpty 继续 No-Go，任意 Shell、
+  高风险本地命令与未登记 Profile 继续拒绝；剩余人工门禁为 H3 只读流式日志界面验收。
 
 ## MVP 已接受的延期项
 

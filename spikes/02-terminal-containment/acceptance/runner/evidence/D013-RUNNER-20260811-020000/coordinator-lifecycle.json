@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "active_lease_id": null,
+  "lease": {
+    "detail": {
+      "postflight_sha256": "d5e9264578ab3eee94ad8d092f52c94d95f1262584817d3f3affa52a1cdfd1bc"
+    },
+    "history": [
+      {
+        "at_utc": "2026-08-11T11:32:33.254Z",
+        "state": "GRANTED"
+      },
+      {
+        "at_utc": "2026-08-11T11:54:13.836Z",
+        "detail": {
+          "preflight_sha256": "7fa6a2f0d1faff0dbf9f4e832fa1a2a70b516da5998a86959a5f11f71ef8c1ae"
+        },
+        "state": "RUNNING"
+      },
+      {
+        "at_utc": "2026-08-11T14:24:50.874Z",
+        "detail": {
+          "postflight_sha256": "d5e9264578ab3eee94ad8d092f52c94d95f1262584817d3f3affa52a1cdfd1bc"
+        },
+        "state": "RETURNED"
+      },
+      {
+        "at_utc": "2026-08-11T14:25:59.283Z",
+        "state": "RELEASED"
+      }
+    ],
+    "lease_id": "lease-D013-RUNNER-20260811-020000",
+    "state": "RELEASED",
+    "suite": "NATIVE_RUNNER_L01_L10",
+    "target": {
+      "arch": "x64",
+      "hostname": "dccs-chaizl-PC",
+      "ip": "192.168.1.11",
+      "os_build": "7601",
+      "port": 22
+    }
+  }
+}
