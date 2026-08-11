@@ -12,9 +12,9 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: SPIKE
 Target Branch: spike/02-terminal-containment
 Phase-Gate: N/A (SPIKE)
-Win7-Compatibility: PROVISIONAL
-Win7-Validation: PARTIAL
-Blocking-Reason: D-013 v21 is ADR-0065 WIN7_PASS under A4-20260810-000004; formal C05 enterprise/network evidence and terminal T01-T05/N01-N05 remain open, so SPIKE_02 remains NO_GO_FORMAL_GAPS
+Win7-Compatibility: CONCLUDED_FOR_WIN7_V1
+Win7-Validation: NO_GO_INTERACTIVE_WINPTY; WIN7_PASS_FOR_LOW_RISK_NONINTERACTIVE_RUNNER
+Blocking-Reason: NONE_FOR_A7_WIN7_V1_RC; C05 network isolation, interactive terminal, arbitrary shell, high-risk and unknown profiles remain unsupported
 ```
 
 ### 0.2 路径白名单（获批后生效）
@@ -111,12 +111,13 @@ Blocking-Reason: D-013 v21 is ADR-0065 WIN7_PASS under A4-20260810-000004; forma
 ## 9. 验证记录
 
 ```
-Win7-Compatibility: PROVISIONAL
-Win7-Validation: PARTIAL (D-013 v21 WIN7_PASS; terminal matrix incomplete)
-Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v15/v16 PASS historical, v21 PASS current
-Evidence: A4-20260805-123467, A4-20260806-140606, A4-20260810-000004, WIN7_NATIVE_ARTIFACTS_20260806-160514.zip, WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip
-Result: C01/C02/C03/C04/C06/C07/C08/N06 PASS (8/19 formal atomic cases); D-013 v21 WIN7_PASS
-Blocking-Reason: formal C05 enterprise/network evidence remains ENVIRONMENT_MISSING; terminal integration/harness INCOMPLETE; T01-T05/N01-N05 NOT_PERFORMED
+Win7-Compatibility: CONCLUDED_FOR_WIN7_V1
+Win7-Validation: NO_GO_INTERACTIVE_WINPTY; WIN7_PASS_FOR_LOW_RISK_NONINTERACTIVE_RUNNER
+Win10-Native-Build: D-011 PASS_WITH_PACKAGING_GAP; D-013 v21/v24 PASS
+Evidence: A4-20260810-000004, A5-20260807-100000, A5-20260810-153300, D013-RUNNER-20260811-020000, H3-D013-RUNNER-20260811-020000
+Result: D-013 containment and production low-risk noninteractive Runner WIN7_PASS; interactive winpty NO_GO
+A7-Gate: PASS_FOR_WIN7_V1_RC
+Blocking-Reason: NONE_FOR_A7_WIN7_V1_RC; C05 network isolation, interactive terminal, arbitrary shell, high-risk and unknown profiles remain unsupported
 ```
 
 A4 无人值守编排 AUTO-00～AUTO-07 和 Win7 非交互 helper 14 项矩阵均已通过；补充执行确认

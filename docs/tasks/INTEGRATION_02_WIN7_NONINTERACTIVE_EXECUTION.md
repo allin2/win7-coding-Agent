@@ -147,7 +147,7 @@ v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed2551
   定性为 `REJECTED_AS_PRODUCT_CANDIDATE`，不得复用。
 - 项目负责人授权只删除并重建空 `work\l08`。目标 IP 随后变更为 `10.49.123.40`；新地址的
   ECDSA/RSA 主机公钥与旧 known-hosts 逐字节一致，干净恢复快照证明进程/ACL 零残留、Bitvise
-  正常且工件哈希未变。协调器按 ADR-0069 签发迁移恢复证明
+  正常且工件哈希未变。协调器按 ADR-0070 签发迁移恢复证明
   `2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1`，旧租约最终 `RELEASED`。
 - v24 改为单执行请求 + request ID 绑定的协作取消。产品先写执行请求，取消时写第二条
   `cancel` 控制消息；helper 终止 Job、等待 child、精确回滚 ACL 后才返回 `canceled=true`。
@@ -203,7 +203,7 @@ v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed2551
   `ACCESS_DENIED`；产品正确返回 `cleanup_failed`。负责人关闭窗口后，两次协调器只读检查均为
   `residues=[]`，没有 helper、ping 或 Low Integrity 标签残留。该包定性为
   `REJECTED_AS_H3_UI_PACKAGE`，不覆盖、不删除，保留失败哈希。
-- ADR-0071 将“低完整性 child token”和“为可写工作目录临时降低 Integrity Label”拆分为两个
+- ADR-0072 将“低完整性 child token”和“为可写工作目录临时降低 Integrity Label”拆分为两个
   独立能力。H3 是只读 ping profile，不需要 child 写工作区，因此 r2 保留 Restricted Primary
   Low Integrity token、Job containment、stdin 关闭和路径/哈希策略，但不修改 `work\h3` 标签。
 - r2 绑定 source commit `4eebdbbcae83f1f3e63870747e676fe2207bf78b`，包清单 SHA-256 为

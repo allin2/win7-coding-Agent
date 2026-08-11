@@ -3,14 +3,14 @@
 ## 0. 实现授权（ADR-0011 / C14）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: INTEGRATION_CLOSEOUT
 Target Branch: codex/integrated-robustness
 Authorization: Project owner implementation request, 2026-08-12
-Phase-Gate: APPROVED_FOR_CLOSEOUT
+Phase-Gate: A7_GATE_PASS_FOR_WIN7_V1_RC
 Win7-Compatibility: EVIDENCE_REUSE_ONLY
 Win7-Validation: NO_NEW_WIN7_EXECUTION
-Blocking-Reason: A5_NOT_INTEGRATED_AND_A7_GATE_NOT_RECORDED
+Blocking-Reason: NONE_FOR_A7_WORKTREE_CREATION; RC_BUILD_AND_WIN7_ACCEPTANCE_NOT_PERFORMED
 ```
 
 ### 0.1 允许路径
@@ -46,3 +46,13 @@ Shell/任意路径/高风险命令，也不把 Job、Restricted Token 或 ACL �
 - 本任务只形成整合提交、正式状态、工件归档记录、worktree 收口和 A7 Gate。
 - 收口期间不签发 Win7 租约，不连接目标机，不修改网络、路由、防火墙、PATH、服务或系统配置。
 - A7 的 RC 构建、安装、升级、回滚、卸载和 Win7 实机验收由独立 `RC_01` 任务书授权。
+
+## 4. 收口结果
+
+- A4 `eee6219`、A5 `af589dc`、A6 `fb2084d` 均已进入整合祖先链；A5 采用非快进合并。
+- SPIKE_02 以交互 winpty No-Go、低风险非交互 Runner Win7 PASS 受限收口；SPIKE_04 保持
+  `WIN7_PASS`，A7 Gate 为 `PASS_FOR_WIN7_V1_RC`。
+- 中央归档共 205 个文件、1,469,654,891 字节，manifest SHA-256 为
+  `df4aa1957eb6c12a4311138424702fe92ba4d1da6a96a11734e5bda9a0327cea`；逐文件和原路径链接复核通过。
+- A4、A6、A5 worktree 已按顺序、不带 `--force` 移除，分支引用保留；详细机器可读结果见
+  `docs/status/integration-closeout-latest.json`。

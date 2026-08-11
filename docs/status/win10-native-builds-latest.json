@@ -218,9 +218,38 @@
   "cross_track_progress": {
     "D-017_shared_build_profile": "DEMONSTRATED_BY_FOUR_BUILDS",
     "A4_D-013": "V21_WIN10_PASS_WIN7_PASS_LEASE_RELEASED",
-    "A5_D-011": "NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION",
-    "A6_D-014": "READY_FOR_WIN7_VALIDATION",
+    "A5_D-011": "WIN10_PASS_WITH_PACKAGING_GAP; NO_GO_INTERACTIVE_WINPTY; LOW_RISK_NONINTERACTIVE_RUNNER_WIN7_PASS",
+    "A6_D-014": "WIN10_PASS; SPIKE_04_LOCAL_SSD_WIN7_PASS",
     "A7": "NO_INDEPENDENT_BUILD_RESULT; PACKAGING_AND_WIN7_RC_NOT_PERFORMED"
   },
-  "formal_acceptance": "NOT_COMPLETE"
+  "post_build_formal_validation": {
+    "schema_version": 1,
+    "recorded_at": "2026-08-12T00:52:14+08:00",
+    "a4": {
+      "source_commit": "eee6219",
+      "result": "D013_V21_WIN10_PASS_AND_WIN7_PASS",
+      "lease_final_state": "RELEASED"
+    },
+    "a5": {
+      "source_commit": "af589dc",
+      "interactive_terminal": "NO_GO_INTERACTIVE_WINPTY",
+      "low_risk_noninteractive_runner": "WIN7_PASS",
+      "readonly_log_ui": "H3_READONLY_STREAMING_LOG_UI_PASS",
+      "lease_final_state": "RELEASED"
+    },
+    "a6": {
+      "source_commit": "fb2084d",
+      "profile": "E22-SQLITE343-LOCAL-SSD",
+      "result": "SPIKE_04_WIN7_PASS",
+      "lease_final_state": "RELEASED"
+    },
+    "a7_gate": "PASS_FOR_WIN7_V1_RC",
+    "limitations": [
+      "No interactive winpty terminal",
+      "No local network-isolation claim",
+      "No arbitrary shell, high-risk command or unknown Runner profile",
+      "RC build and Win7 acceptance are not performed"
+    ]
+  },
+  "formal_acceptance": "A7_GATE_PASS_FOR_WIN7_V1_RC; RC_NOT_PERFORMED"
 }

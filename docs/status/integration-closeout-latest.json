@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "record_id": "A4-A5-A6-CLOSEOUT-20260812",
+  "recorded_at": "2026-08-12T00:52:14+08:00",
+  "task": "docs/tasks/INTEGRATION_03_A4_A6_A5_CLOSEOUT.md",
+  "target_branch": "codex/integrated-robustness",
+  "integration_parent_commit": "a5e14d28367967861ef45539faea3f083dd01876",
+  "source_heads": {
+    "a4": {
+      "branch": "codex/a4-d013-closure",
+      "commit": "eee6219ec41f98e48115eeb96ff58aba3020ba70"
+    },
+    "a5": {
+      "branch": "codex/win7-noninteractive-runner",
+      "commit": "af589dc43ff7626820883992d69e723d1986802b"
+    },
+    "a6": {
+      "branch": "codex/a6-ssd-formal-acceptance",
+      "commit": "fb2084d57cc5ce63076acb25d08b7eb55814721a"
+    }
+  },
+  "ancestor_check": "PASS",
+  "adr_import": {
+    "a6_canonical": "ADR-0066",
+    "a5_branch_local_range": "ADR-0066..ADR-0071",
+    "canonical_range": "ADR-0067..ADR-0072",
+    "raw_evidence_rewritten": false
+  },
+  "formal_results": {
+    "spike_02_interactive": "NO_GO_INTERACTIVE_WINPTY",
+    "spike_02_low_risk_noninteractive_runner": "WIN7_PASS",
+    "spike_02_readonly_log_ui": "H3_READONLY_STREAMING_LOG_UI_PASS",
+    "spike_04": "WIN7_PASS",
+    "a7_gate": "PASS_FOR_WIN7_V1_RC",
+    "renderer_terminal_input": "DISABLED",
+    "network_isolation_claim": "NOT_SUPPORTED"
+  },
+  "validation": {
+    "npm_verify": "PASS_7_MODULES_969_TESTS",
+    "docs_check": "PASS",
+    "coordinator": "PASS_19_TESTS",
+    "a5_terminal": "PASS_29_TESTS",
+    "runner_harness": "PASS",
+    "h3_package": "PASS",
+    "d013_harness": "PASS",
+    "d013_build_contract": "PASS_CURRENT_AND_4_NEGATIVE_MUTATIONS",
+    "a6_storage_harness": "PASS",
+    "tracked_json_parse": "PASS_196_FILES",
+    "diff_check_from_baseline": "PASS",
+    "private_key_and_forbidden_tracking_scan": "PASS",
+    "a5_raw_evidence_hash_unchanged": "PASS_53_FILES",
+    "a6_returned_evidence_manifest": "PASS_48_FILES"
+  },
+  "archive": {
+    "root": "/Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812",
+    "manifest": "/Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/CLOSEOUT_MANIFEST.json",
+    "manifest_sha256": "df4aa1957eb6c12a4311138424702fe92ba4d1da6a96a11734e5bda9a0327cea",
+    "file_count": 205,
+    "total_bytes": 1469654891,
+    "copy_hash_verification": "PASS",
+    "original_path_or_symlink_hash_verification": "PASS",
+    "read_only": true,
+    "ordinary_development_node_modules_archived": false,
+    "private_keys_archived": false
+  },
+  "worktrees": {
+    "removed_without_force": [
+      "/Users/qlyf/Developer/win7-agent-a4",
+      "/Users/qlyf/Developer/win7-agent-a6",
+      "/Users/qlyf/Developer/win7-agent-a5"
+    ],
+    "branches_preserved": true,
+    "original_artifact_paths_recreated_as_read_only_symlinks": true,
+    "prune": "PASS"
+  },
+  "win7_activity_during_closeout": {
+    "lease_issued": false,
+    "connected": false,
+    "network_or_system_mutation": false,
+    "rebooted": false
+  },
+  "rc_status": "NOT_PERFORMED",
+  "rc_blocking_reason": "RC_BUILD_AND_WIN7_ACCEPTANCE_NOT_PERFORMED"
+}

@@ -44,7 +44,7 @@ Node Agent Core（状态机、上下文管理、Policy、Broker、能力令牌�
 - Runner：Core 派生子进程，经 C++ helper（D-013）建立 Job Object + Restricted Token
   + ACL + argv 白名单 + **尽力限制网络（best-effort，非安全边界）**（ADR-0030，SPIKE_02 冻结的 helper 接口 argv + JSON over stdio）。
   Job/Token/ACL 不阻断 Winsock；强制断网须走远程隔离或企业 WFP，不得在本地宣称禁网/硬隔离。
-- 终端：ADR-0066 已裁决 Win7 v1 不交付 winpty；Runner 无 pty、stdin 关闭，输出进入只读日志。
+- 终端：ADR-0067 已裁决 Win7 v1 不交付 winpty；Runner 无 pty、stdin 关闭，输出进入只读日志。
 - Git：经 Git Adapter（D-012，ADR-0032 隔离配置 + 命令白名单）。
 
 ## 4. 核心机制

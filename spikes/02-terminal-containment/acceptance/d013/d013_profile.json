@@ -34,7 +34,7 @@
   },
   "package_manifest": {
     "path": "spikes/02-terminal-containment/helper/build-win10-kit/PACKAGE_MANIFEST.json",
-    "sha256": "00c22fa07f9758e041e9a4a12a6223cdd2f15963a613c32f8a3c01724f7a63ad"
+    "sha256": "636425baaca113b29cf82dbf074f4facf3f00772cec8134b166c812b41c1b710"
   },
   "win10_return_package": {
     "filename": "WIN7_D013_HELPER_ARTIFACTS_20260810-133111.zip",

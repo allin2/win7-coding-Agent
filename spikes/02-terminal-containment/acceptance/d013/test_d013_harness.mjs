@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '..', '..', '..');
+const ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const PY = '/usr/bin/python3';
 const NODE = process.execPath;
 const HARNESS = path.join(HERE, 'run_d013_win7.py');
@@ -240,6 +240,13 @@ try {
 
   // ── 4. Execute-mode gate: lease + locked hash -> fail closed before SSH ────
   const profile = JSON.parse(fs.readFileSync(PROFILE, 'utf8'));
+  const lockedManifest = path.join(ROOT, profile.package_manifest.path);
+  const lockedManifestHash = crypto.createHash('sha256')
+    .update(fs.readFileSync(lockedManifest))
+    .digest('hex');
+  check('profile package manifest SHA-256 matches repository bytes',
+    lockedManifestHash === profile.package_manifest.sha256,
+    `${lockedManifestHash} != ${profile.package_manifest.sha256}`);
   const execOut = path.join(tempRoot, 'exec.json');
   const execRun = run(NODE, [ORCHESTRATOR, '--execute-win7', '--acceptance-id', 'A4-20260807-000003', '--out', execOut], { timeout: 60000 });
   check('execute-mode exits non-zero without lease', execRun.status === 1, execRun.stderr);
