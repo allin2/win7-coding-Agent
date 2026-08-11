@@ -136,8 +136,26 @@ v23 helper、Electron 和系统 Profile 均以 SHA-256 绑定至 ADR-0065 Ed2551
 | L09 | 每轮仅在 `work\*` 应用、验证并回滚 Low Integrity/临时 ACL |
 | L10 | 轮后 helper、ping 与验收 ID 残留均为空，Bitvise 仍为 `RUNNING`，L01～L09 全部通过 |
 
+### 3.6 首轮正式 Runner 证据与 v24 收口
+
+- `D013-RUNNER-20260811-010000` 在旧目标 IP `192.168.1.11` 的签名租约下执行。L01 已证明
+  Electron 宿主 Job `detected=true`、`breakaway=silent`、child 重新加入 helper Job；L02/L03、
+  L05、L07～L09 的主要合同亦通过。L01/L04 仅因 harness 把非零工具退出码误判为 Runner 未执行，
+  L06 因 `idleTimeoutMs > timeoutMs` 被本地合同拒绝，均需在下轮修正后复验。
+- L08 暴露真实产品缺陷：`StdioHelperTransport` 取消时直接终止 helper，Job 成功回收 child，但
+  helper 未能执行 `work\l08` 的 Low Integrity 回滚。协调器据此进入 `RECOVERY_REQUIRED`，v23
+  定性为 `REJECTED_AS_PRODUCT_CANDIDATE`，不得复用。
+- 项目负责人授权只删除并重建空 `work\l08`。目标 IP 随后变更为 `10.49.123.40`；新地址的
+  ECDSA/RSA 主机公钥与旧 known-hosts 逐字节一致，干净恢复快照证明进程/ACL 零残留、Bitvise
+  正常且工件哈希未变。协调器按 ADR-0069 签发迁移恢复证明
+  `2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1`，旧租约最终 `RELEASED`。
+- v24 改为单执行请求 + request ID 绑定的协作取消。产品先写执行请求，取消时写第二条
+  `cancel` 控制消息；helper 终止 Job、等待 child、精确回滚 ACL 后才返回 `canceled=true`。
+  5 秒内没有结构化确认才允许强制终止，并必须返回 `cleanup_failed`。该增量须重新执行 D-017
+  Win10 构建/返回包复核，并在新 IP、新提交和新租约下重跑 L01～L10。
+
 ## 4. 人工门禁
 
-- H1：签发租约前确认 `192.168.1.11` 空闲，允许新验收目录和仅限该目录的临时 ACL。
+- H1：签发租约前确认当前目标 `10.49.123.40` 空闲，允许新验收目录和仅限该目录的临时 ACL。
 - H2：发现进程、文件或 ACL 残留时暂停并报告，不自动强杀或删除。
 - H3：自动验证完成后由负责人确认 Win7 只读日志的可见性、滚动、截断和取消反馈。

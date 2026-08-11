@@ -26,11 +26,17 @@ export function parseResidues(output, acceptanceId) {
   }).map((line) => ({ raw: line.slice(0, 4096) }));
 }
 
+export function parseAclResidues(output) {
+  return String(output || '').split(/\r?\n/).filter((line) => /Low Mandatory Level/i.test(line))
+    .map((line) => ({ kind: 'ACL_INTEGRITY_LABEL', raw: line.trim().slice(0, 4096) }));
+}
+
 export function buildSshArgs(options, remoteArgv) {
   return [
     '-i', options.privateKey,
     '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
     '-o', 'StrictHostKeyChecking=yes', '-o', `UserKnownHostsFile=${options.knownHosts}`,
+    ...(options.hostKeyAlias ? ['-o', `HostKeyAlias=${options.hostKeyAlias}`] : []),
     `${options.user}@${options.targetIp}`,
     ...remoteArgv,
   ];
@@ -64,8 +70,19 @@ function validateArtifactMap(value, acceptanceId) {
   return result;
 }
 
+function validateAclRoot(value, acceptanceId) {
+  if (!value) return undefined;
+  const suiteSegment = acceptanceId.startsWith('A5-') ? 'a5\\' : '';
+  const expected = `c:\\win7codingagent\\acceptance\\${suiteSegment}${acceptanceId.toLowerCase()}\\work`;
+  if (typeof value !== 'string' || /[\r\n\0]/.test(value) || value.toLowerCase() !== expected) {
+    fail('ACL_ROOT_DENIED', 'ACL audit root must be the signed per-run work directory');
+  }
+  return value;
+}
+
 export function probeWin7(options, runner = spawnSync) {
-  if (options.targetIp !== '192.168.1.11' || options.user !== 'dccs-chaizl') fail('TARGET_DENIED', 'probe target is not the locked Win7 host');
+  if (options.targetIp !== '10.49.123.40' || options.user !== 'dccs-chaizl') fail('TARGET_DENIED', 'probe target is not the locked Win7 host');
+  if (options.hostKeyAlias && options.hostKeyAlias !== '192.168.1.11') fail('HOST_KEY_ALIAS_DENIED', 'host key alias is not the previously locked Win7 identity');
   if (!ACCEPTANCE_ID_RE.test(options.acceptanceId)) fail('INVALID_ACCEPTANCE_ID', 'acceptance id is invalid');
   const version = runRemote(options, ['cmd.exe', '/d', '/s', '/c', 'ver'], runner);
   const hostname = runRemote(options, ['hostname'], runner).trim();
@@ -78,30 +95,36 @@ export function probeWin7(options, runner = spawnSync) {
   for (const [name, remotePath] of Object.entries(validateArtifactMap(options.artifactMap, options.acceptanceId))) {
     artifactHashes[name] = parseCertutilHash(runRemote(options, ['certutil.exe', '-hashfile', remotePath, 'SHA256'], runner));
   }
+  const aclRoot = validateAclRoot(options.aclRoot, options.acceptanceId);
+  const aclOutput = aclRoot ? runRemote(options, ['icacls.exe', aclRoot, '/T', '/C'], runner) : '';
 
   return {
     schema_version: 1,
     phase: options.phase,
     observed_at_utc: new Date().toISOString(),
     service: { name: 'BvSshServer', state: /\bSTATE\s*:\s*4\s+RUNNING\b|\bRUNNING\b/i.test(service) ? 'RUNNING' : 'NOT_RUNNING' },
-    ssh: { port: 22, reachable: true, strict_host_key_checking: true },
+    ssh: { port: 22, reachable: true, strict_host_key_checking: true,
+      ...(options.hostKeyAlias ? { host_key_alias: options.hostKeyAlias } : {}) },
     target: { ip: options.targetIp, hostname, os_build: '7601', arch: 'x64' },
-    residues: parseResidues(processes, options.acceptanceId),
+    residues: [...parseResidues(processes, options.acceptanceId), ...parseAclResidues(aclOutput)],
+    ...(aclRoot ? { acl_audit: { root: aclRoot, checked: true } } : {}),
     artifact_hashes: artifactHashes,
   };
 }
 
 function parseArgs(argv) {
-  const args = { targetIp: '192.168.1.11', user: 'dccs-chaizl', phase: 'preflight', artifactMap: {} };
+  const args = { targetIp: '10.49.123.40', user: 'dccs-chaizl', phase: 'preflight', artifactMap: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const item = argv[i];
     if (item === '--target-ip') args.targetIp = argv[++i];
     else if (item === '--user') args.user = argv[++i];
     else if (item === '--private-key') args.privateKey = path.resolve(argv[++i]);
     else if (item === '--known-hosts') args.knownHosts = path.resolve(argv[++i]);
+    else if (item === '--host-key-alias') args.hostKeyAlias = argv[++i];
     else if (item === '--acceptance-id') args.acceptanceId = argv[++i];
     else if (item === '--phase') args.phase = argv[++i];
     else if (item === '--artifact-map') args.artifactMap = JSON.parse(fs.readFileSync(path.resolve(argv[++i]), 'utf8'));
+    else if (item === '--acl-root') args.aclRoot = argv[++i];
     else if (item === '--out') args.out = path.resolve(argv[++i]);
     else fail('CLI_ERROR', `unknown argument: ${item}`);
   }

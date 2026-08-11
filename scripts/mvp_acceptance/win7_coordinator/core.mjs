@@ -144,7 +144,9 @@ export function verifyLeaseBundle(raw, signature, publicKeyPem, expected = {}) {
   validateArtifactHashes(lease.artifact_hashes);
   requireString(lease.source_commit, 'source_commit', COMMIT_RE);
   requireString(lease.package_manifest_sha256, 'package_manifest_sha256', SHA256_RE);
-  if (Date.parse(lease.expires_at_utc) <= (expected.nowMs ?? Date.now())) fail('LEASE_EXPIRED', 'signed lease is expired');
+  if (!expected.allowExpired && Date.parse(lease.expires_at_utc) <= (expected.nowMs ?? Date.now())) {
+    fail('LEASE_EXPIRED', 'signed lease is expired');
+  }
   const checks = [
     ['source_commit', expected.sourceCommit],
     ['package_manifest_sha256', expected.packageManifestSha256],
@@ -222,6 +224,46 @@ export function recoverLease(filename, lease, cleanSnapshot) {
   const check = evaluateFlightSnapshot('postflight', cleanSnapshot, lease);
   if (!check.ok) fail('RECOVERY_STILL_REQUIRED', 'recovery snapshot is not clean', check.failures);
   return transition(filename, lease.lease_id, ['RECOVERY_REQUIRED'], 'RETURNED', { recovery_snapshot_sha256: sha256Bytes(canonicalJson(cleanSnapshot)) });
+}
+
+export function recoverRelocatedLease(filename, lease, cleanSnapshot, relocation, privateKeyPem) {
+  if (!relocation || relocation.schema_version !== 1 || relocation.reason !== 'TARGET_IP_CHANGED_DURING_RECOVERY'
+      || relocation.authorization !== 'PROJECT_OWNER_CONFIRMED') {
+    fail('RELOCATION_INVALID', 'recovery relocation requires an explicit project-owner authorization record');
+  }
+  if (relocation.old_target_ip !== lease.target.ip || relocation.new_target_ip !== cleanSnapshot?.target?.ip
+      || relocation.host_key_alias !== lease.target.ip || relocation.old_target_ip === relocation.new_target_ip) {
+    fail('RELOCATION_BINDING_MISMATCH', 'recovery relocation does not bind the signed old target and observed new target');
+  }
+  if (String(cleanSnapshot?.target?.hostname || '').toLowerCase() !== String(lease.target.hostname).toLowerCase()
+      || cleanSnapshot?.ssh?.strict_host_key_checking !== true
+      || cleanSnapshot?.ssh?.host_key_alias !== lease.target.ip) {
+    fail('RELOCATION_IDENTITY_UNVERIFIED', 'relocated recovery did not prove the same hostname and locked SSH host key');
+  }
+  const relocatedLease = { ...lease, target: { ...lease.target, ip: relocation.new_target_ip } };
+  const check = evaluateFlightSnapshot('postflight', cleanSnapshot, relocatedLease);
+  if (!check.ok) fail('RECOVERY_STILL_REQUIRED', 'relocated recovery snapshot is not clean', check.failures);
+  const recoverySnapshotSha256 = sha256Bytes(canonicalJson(cleanSnapshot));
+  const attestation = {
+    schema_version: 1,
+    type: 'RECOVERY_TARGET_RELOCATION',
+    lease_id: lease.lease_id,
+    old_target_ip: lease.target.ip,
+    new_target_ip: relocation.new_target_ip,
+    hostname: cleanSnapshot.target.hostname,
+    host_key_alias: relocation.host_key_alias,
+    authorization: relocation.authorization,
+    reason: relocation.reason,
+    recovery_snapshot_sha256: recoverySnapshotSha256,
+  };
+  const attestationRaw = Buffer.from(canonicalJson(attestation), 'utf8');
+  const attestationSignature = crypto.sign(null, attestationRaw, privateKeyPem);
+  return transition(filename, lease.lease_id, ['RECOVERY_REQUIRED'], 'RETURNED', {
+    recovery_snapshot_sha256: recoverySnapshotSha256,
+    relocation_attestation: attestation,
+    relocation_attestation_sha256: sha256Bytes(attestationRaw),
+    relocation_signature_base64: attestationSignature.toString('base64'),
+  });
 }
 
 export function gradeCandidateEvidence(lease, evidence, coordinatorState) {

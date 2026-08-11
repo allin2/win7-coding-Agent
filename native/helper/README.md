@@ -4,8 +4,10 @@ This directory is the production migration of the D-013 v21 containment source v
 Windows 7 SP1 x64 by `A4-20260810-000004` and `A5-20260810-153300`.
 
 Runtime profile: MSVC v142 / Windows SDK 10.0.19041 / x64 / static CRT, targeting Win7 SP1
-build 7601. The process accepts exactly one versioned JSON request per process through stdin
-and returns one JSON result through stdout. Child stdin is always `NUL`; command execution is
+build 7601. The process accepts exactly one versioned JSON execution request per process through
+stdin, optionally accepts one request-bound cooperative cancel control, and returns one JSON result
+through stdout. It acknowledges cancellation only after Job termination and exact ACL rollback.
+Child stdin is always `NUL`; command execution is
 structured argv without a shell; Job Object, Restricted Token, Low Integrity, bounded output,
 total/idle timeout, and ACL rollback all fail closed.
 

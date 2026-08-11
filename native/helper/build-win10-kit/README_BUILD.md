@@ -1,11 +1,12 @@
-# D-013 v23 Production Helper Win10 离线构建包
+# D-013 v24 Production Helper Win10 离线构建包
 
 本包在独立的 Windows 10 x64 构建机上，离线构建生产非交互 Runner helper（Job Object /
 Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 / 整树回收）。
 构建机不连接 Windows 7，也不访问或修改 Win7 测试机。
 
 本修订来自 `native/helper/**`，在已验证 v21 基线上增加强制 `schema_version`/`requestId`、
-`idleTimeoutMs`、`idleTimedOut`，以及 Win7 宿主 Job 的可验证 breakaway 路径。旧 v21/v22
+`idleTimeoutMs`、`idleTimedOut`、Win7 宿主 Job 的可验证 breakaway 路径，以及 request-bound
+协作取消和取消后的精确 ACL 回滚。旧 v21～v23
 二进制不得替代本修订的 Win10 返回工件。
 
 ## 构建机前置（严格锁定，D-017）
@@ -16,7 +17,7 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 - Windows SDK `10.0.19041.0`（含 x64 `mt.exe`）、Windows 10 自带 `tar.exe`。
 - 必须从 **x64 Native Tools Command Prompt for VS 2019** 启动构建，或先调用
   `VC\Auxiliary\Build\vcvars64.bat`，以准备 `INCLUDE`、`LIB` 等 x64 工具链环境变量。
-- 至少 2 GB 可用磁盘空间；v23 必须解压至全新短英文路径 `C:\w7d013-v23`。
+- 至少 2 GB 可用磁盘空间；v24 必须解压至全新短英文路径 `C:\w7d013-v24`。
 - **不需要 CMake、不需要 Python**：构建脚本直接用 `cl.exe`（构建闭包更小、更确定）。
 - MSVC 显式使用 `/utf-8` 读取 UTF-8 源码，不依赖构建机的 CP936/ACP。
 
@@ -27,7 +28,7 @@ Restricted Token / Low Integrity / ACL / 结构化 argv / 超时 / 输出上限 
 
 ```cmd
 :: 在 “x64 Native Tools Command Prompt for VS 2019” 中执行
-cd /d C:\w7d013-v23
+cd /d C:\w7d013-v24
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
@@ -64,6 +65,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
   精确验证且已回滚。脚本不会修改 `C:\Windows\Temp`。
 - helper 若返回 `ACL_ROLLBACK_FAILED`，表示 ACL/完整性标签恢复未被证明；必须将该候选
   判定为失败并保留错误消息，不得继续进入 Win7 上传或验收。
+- v24 每个 helper 只处理一个执行请求；取消只能通过同一 stdin 上第二条、request ID 完全匹配的
+  `cancel` 控制消息触发。Helper 必须先终止自建 Job、等待 child 退出并精确恢复 ACL，再返回
+  `canceled=true`；构建 smoke 会把执行请求和取消消息一次写入管道，覆盖粘包读取路径。
 - Win7 清除最后一条 mandatory-label ACE 后，可能把原始 `null` label ACL 物化为合法的
   `0 ACE` ACL；v16 只在 LABEL 比较中把两者视为“无显式标签”，DACL 仍逐 ACE 严格比较。
 - helper 强制验证 restricted token 为 primary token，并按 Windows restricted-token

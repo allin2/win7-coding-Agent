@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "package": "WIN7_NATIVE_RUNNER_L01_L10",
+  "acceptance_id": "D013-RUNNER-20260811-010000",
+  "source_commit": "27cf8deb3c4368f2a88d00a0cf542c9d306f77fa",
+  "target": {
+    "ip": "192.168.1.11",
+    "os_build": "7601",
+    "arch": "x64"
+  },
+  "suite": "NATIVE_RUNNER_L01_L10",
+  "cases": [
+    "L01",
+    "L02",
+    "L03",
+    "L04",
+    "L05",
+    "L06",
+    "L07",
+    "L08",
+    "L09",
+    "L10"
+  ],
+  "files": [
+    {
+      "path": "coordinator-ed25519-public.pem",
+      "size": 113,
+      "sha256": "b7e2a704ae56a2f2c1e36a3acef28de689b5fec9d24ec5970476cbc26a1b4d95"
+    },
+    {
+      "path": "runner-release-manifest.json",
+      "size": 2522,
+      "sha256": "683bd84f288641736b6335cdc4a9dbc10a65dd43db7164b5c8c31a1395367fce"
+    },
+    {
+      "path": "runner-win7-harness.js",
+      "size": 14701,
+      "sha256": "f30dc60d373d13df8dcb16bb2460887060e3e0382a5a697b160aef973deb4c5b"
+    },
+    {
+      "path": "runner_wmi.cmd",
+      "size": 1121,
+      "sha256": "d28221300e42fbf9efa6fc469943f4ec3c31bbc046a2cbc4c3f45b465aa9cb6a"
+    },
+    {
+      "path": "runtime/runner/approval.js",
+      "size": 9805,
+      "sha256": "07b0bb0a7fda1cefa1c14f6792f3e313e7976c2274b41d39fb6765a98cca2839"
+    },
+    {
+      "path": "runtime/runner/containment.js",
+      "size": 2518,
+      "sha256": "d66041b26a9cf6c035a209c01de5ad7addd5cc3a91d9f95b8eb2284b6a809e97"
+    },
+    {
+      "path": "runtime/runner/index.js",
+      "size": 3858,
+      "sha256": "8bfe45aacba0ccc91b6674b0da4eaa2baf93e642e9e578c71b966ad9a9a5d7d8"
+    },
+    {
+      "path": "runtime/runner/native-protocol.js",
+      "size": 853,
+      "sha256": "add0561496a8a1da7b72df40e7e75a8ec7c220e6b19620c419e0a775ed3979d0"
+    },
+    {
+      "path": "runtime/runner/native-runner.js",
+      "size": 10067,
+      "sha256": "b9418029d2a359b1e531e4e5ccfd3d82447cc2eebd18a3eb93348eec8457fc42"
+    },
+    {
+      "path": "runtime/runner/native-transport.js",
+      "size": 4585,
+      "sha256": "eabc1aeffdb339caff3f0f091f0c25073939c6dbe12421f68c1e998133c233b5"
+    },
+    {
+      "path": "runtime/runner/output.js",
+      "size": 4401,
+      "sha256": "38211fd96711ba3a360c45c9c6eebe63147ce52b1cf30e74331d2b44e191881c"
+    },
+    {
+      "path": "runtime/runner/profiles.js",
+      "size": 5181,
+      "sha256": "0bfbfc47368e39cef8177e6302dfbd19935b0456e74e4bc328c457e76537e0aa"
+    },
+    {
+      "path": "runtime/runner/runner.js",
+      "size": 11048,
+      "sha256": "5fe134e1dbfb04ca5d55ac0b80ee38db47e744878fa5c2894437d0ebc2070fb5"
+    },
+    {
+      "path": "runtime/runner/types.js",
+      "size": 1646,
+      "sha256": "25bd09ef916c0d29ebac458ae2b289b937a8d5a3d0c07acb654f25406aff5c31"
+    },
+    {
+      "path": "runtime/runner-runtime.js",
+      "size": 3997,
+      "sha256": "d6aa7e36cc8641a2c88a3af37a01cfb365af676f6fd538760fd2a688883873b1"
+    },
+    {
+      "path": "spike02_helper.exe",
+      "size": 270336,
+      "sha256": "d275605124527f292307fd45e2ab4b9af850d22af53ca6f7e8ee795fab629a5c"
+    }
+  ]
+}

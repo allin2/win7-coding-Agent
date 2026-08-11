@@ -2,11 +2,11 @@
   "schema_version": 1,
   "track": "D-013-production-runner",
   "closure": "production source -> locked Win10 toolchain -> binary -> Win7 L01-L10",
-  "status": "WIN10_BUILD_PASS_AWAITING_WIN7_L01_L10",
-  "build_revision": "v23-production-host-job-breakaway",
-  "win10_build_executed": true,
-  "win10_return_package_reviewed": true,
-  "win7_validation": "NOT_PERFORMED",
+  "status": "V24_REBUILD_REQUIRED_FOR_COOPERATIVE_CANCEL_ROLLBACK",
+  "build_revision": "v24-production-cooperative-cancel",
+  "win10_build_executed": false,
+  "win10_return_package_reviewed": false,
+  "win7_validation": "V23_FAILED_ACL_RESIDUE",
   "source_baseline": {
     "validated_revision": "D-013-v21",
     "validated_helper_sha256": "98964fc5d73cc57a580fa2a810ef251ff7aa2b192d79d019299bac8909168ce5",
@@ -15,7 +15,8 @@
   "production_delta": [
     "required schema_version and requestId",
     "idleTimeoutMs and idleTimedOut",
-    "production version banner"
+    "production version banner",
+    "request-bound cooperative cancellation before exact ACL rollback"
   ],
   "superseded_v22_win10_build_evidence": {
     "completed_at": "2026-08-10T16:16:15.2420704Z",
@@ -41,7 +42,18 @@
     "version": "win7-agent-helper 1.1.0-d013-v23 win7-x64",
     "review": "PASS"
   },
+  "v23_win7_disposition": {
+    "run_id": "D013-RUNNER-20260811-010000",
+    "status": "REJECTED_AS_PRODUCT_CANDIDATE",
+    "reason": "transport terminated the helper before l08 Low Integrity rollback completed",
+    "helper_and_ping_residue": false,
+    "acl_residue": "work\\l08 retained Low Mandatory Level until authorized recovery",
+    "recovery_state": "RELEASED",
+    "relocation_attestation_sha256": "2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1",
+    "reusable_as_formal_win7_candidate": false
+  },
   "blocked_on": [
-    "ADR-0065 signed Win7 L01-L10 lease"
+    "Win10 VS2019/v142 rebuild of v24 and return-package review",
+    "new ADR-0065 lease bound to 10.49.123.40"
   ]
 }

@@ -13,6 +13,8 @@ class StdioHelperTransport {
         return new Promise((resolve) => {
             let settled = false;
             let forcedExit = null;
+            let cancelRequested = false;
+            let cancellationEscalated = false;
             let forcedExitTimer;
             let stdout = Buffer.alloc(0);
             let stderr = Buffer.alloc(0);
@@ -28,11 +30,23 @@ class StdioHelperTransport {
                 resolve(result);
             };
             const onAbort = () => {
-                forcedExit = 'cancelled';
-                child?.kill();
-                forcedExitTimer = setTimeout(() => finish({
-                    kind: 'cancelled', detail: 'Helper did not close after cancellation', cleanupConfirmed: false,
-                }), 5000);
+                if (cancelRequested || settled)
+                    return;
+                cancelRequested = true;
+                try {
+                    child?.stdin.end(`${JSON.stringify({ schema_version: 1, type: 'cancel', requestId: request.requestId })}\n`, 'utf8');
+                }
+                catch (_error) {
+                    cancellationEscalated = true;
+                    child?.kill();
+                }
+                forcedExitTimer = setTimeout(() => {
+                    cancellationEscalated = true;
+                    child?.kill();
+                    forcedExitTimer = setTimeout(() => finish({
+                        kind: 'cancelled', detail: 'Helper did not acknowledge cooperative cancellation', cleanupConfirmed: false,
+                    }), 5000);
+                }, 5000);
             };
             const watchdog = setTimeout(() => {
                 forcedExit = 'watchdog_timeout';
@@ -67,12 +81,12 @@ class StdioHelperTransport {
             child.once('close', (code) => {
                 if (settled)
                     return;
-                if (forcedExit === 'cancelled') {
-                    finish({ kind: 'cancelled', detail: 'Helper closed its validated KILL_ON_JOB_CLOSE Job after cancellation', cleanupConfirmed: true });
-                    return;
-                }
                 if (forcedExit === 'watchdog_timeout') {
                     finish({ kind: 'watchdog_timeout', detail: 'Helper required watchdog termination', cleanupConfirmed: false });
+                    return;
+                }
+                if (cancellationEscalated) {
+                    finish({ kind: 'cancelled', detail: 'Helper required forced termination during cancellation', cleanupConfirmed: false });
                     return;
                 }
                 const lines = stdout.toString('utf8').trim().split(/\r?\n/).filter(Boolean);
@@ -81,17 +95,21 @@ class StdioHelperTransport {
                     return;
                 }
                 try {
-                    finish({ kind: 'response', response: (0, native_protocol_1.parseNativeHelperResponse)(lines[0], request.requestId) });
+                    const response = (0, native_protocol_1.parseNativeHelperResponse)(lines[0], request.requestId);
+                    if (cancelRequested && (response.type !== 'execution_result' || response.canceled !== true)) {
+                        finish({ kind: 'cancelled', detail: 'Helper response did not acknowledge cancellation', cleanupConfirmed: false });
+                        return;
+                    }
+                    finish({ kind: 'response', response });
                 }
                 catch (error) {
                     finish({ kind: 'helper_crashed', detail: String(error), cleanupConfirmed: true });
                 }
             });
             signal?.addEventListener('abort', onAbort, { once: true });
+            child.stdin.write(`${JSON.stringify(request)}\n`, 'utf8');
             if (signal?.aborted)
                 onAbort();
-            else
-                child.stdin.end(`${JSON.stringify(request)}\n`, 'utf8');
         });
     }
 }

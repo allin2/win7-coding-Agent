@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import {
   CoordinatorError, canonicalJson, createLeaseRequest, gradeCandidateEvidence, grantLease,
-  initializeKeyPair, loadState, recoverLease, registerGrantedLease, releaseLease, returnLease, startLease,
+  initializeKeyPair, loadState, recoverLease, recoverRelocatedLease, registerGrantedLease, releaseLease, returnLease, startLease,
   verifyLeaseBundle,
 } from '../core.mjs';
 
@@ -41,6 +41,8 @@ test('canonical signed lease verifies exact bindings and rejects tampering/expir
   assert.equal(lease.state, 'GRANTED');
   assert.throws(() => verifyLeaseBundle(Buffer.from(granted.raw.toString().replace('192.168.1.11', '192.168.1.12')), granted.signature, pair.publicKey), (error) => error.code === 'LEASE_SIGNATURE_INVALID');
   assert.throws(() => verifyLeaseBundle(granted.raw, granted.signature, pair.publicKey, { nowMs: Date.parse('2026-08-12T00:00:00Z') }), (error) => error.code === 'LEASE_EXPIRED');
+  assert.doesNotThrow(() => verifyLeaseBundle(granted.raw, granted.signature, pair.publicKey,
+    { nowMs: Date.parse('2026-08-12T00:00:00Z'), allowExpired: true }));
 });
 
 test('key initialization is no-overwrite and private mode is restrictive', () => {
@@ -77,6 +79,33 @@ test('preflight blocks before RUNNING and postflight residue requires recovery',
   assert.throws(() => recoverLease(stateFile, lease, snapshot(lease, { residues: [{ pid: 42 }] })), (error) => error.code === 'RECOVERY_STILL_REQUIRED');
   recoverLease(stateFile, lease, snapshot(lease));
   assert.equal(loadState(stateFile).leases[lease.lease_id].state, 'RETURNED');
+});
+
+test('relocated recovery is signed, closes only recovery, and verifies the locked host identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'coordinator-relocation-'));
+  const stateFile = path.join(root, 'state.json');
+  const pair = keyPair();
+  const lease = grantLease(createLeaseRequest(spec(), new Date('2026-08-10T00:00:00Z')),
+    pair.privateKey, new Date('2026-08-10T00:01:00Z')).lease;
+  registerGrantedLease(stateFile, lease);
+  startLease(stateFile, lease, snapshot(lease));
+  returnLease(stateFile, lease, snapshot(lease, { residues: [{ kind: 'ACL_INTEGRITY_LABEL' }] }));
+  const relocated = snapshot(lease, {
+    ssh: { port: 22, reachable: true, strict_host_key_checking: true, host_key_alias: '192.168.1.11' },
+    target: { ip: '10.49.123.40', hostname: 'win7-a5', os_build: '7601', arch: 'x64' },
+  });
+  const relocation = {
+    schema_version: 1, reason: 'TARGET_IP_CHANGED_DURING_RECOVERY', authorization: 'PROJECT_OWNER_CONFIRMED',
+    old_target_ip: '192.168.1.11', new_target_ip: '10.49.123.40', host_key_alias: '192.168.1.11',
+  };
+  recoverRelocatedLease(stateFile, lease, relocated, relocation, pair.privateKey);
+  const detail = loadState(stateFile).leases[lease.lease_id].detail;
+  assert.equal(loadState(stateFile).leases[lease.lease_id].state, 'RETURNED');
+  assert.equal(detail.relocation_attestation.new_target_ip, '10.49.123.40');
+  assert.equal(crypto.verify(null, Buffer.from(canonicalJson(detail.relocation_attestation)), pair.publicKey,
+    Buffer.from(detail.relocation_signature_base64, 'base64')), true);
+  assert.throws(() => recoverRelocatedLease(stateFile, lease, { ...relocated, ssh: { port: 22, reachable: true } },
+    relocation, pair.privateKey), (error) => error.code === 'RELOCATION_IDENTITY_UNVERIFIED');
 });
 
 test('formal grade requires every signed required case and exact evidence binding', () => {

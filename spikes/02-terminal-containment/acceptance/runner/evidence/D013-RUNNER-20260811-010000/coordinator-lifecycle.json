@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "active_lease_id": null,
+  "lease": {
+    "detail": {
+      "recovery_snapshot_sha256": "0b35786f70b975f1117ee82fb7111d86e8d19315c7cb2e45d7f511bb928c33bd",
+      "relocation_attestation": {
+        "authorization": "PROJECT_OWNER_CONFIRMED",
+        "host_key_alias": "192.168.1.11",
+        "hostname": "dccs-chaizl-PC",
+        "lease_id": "lease-D013-RUNNER-20260811-010000",
+        "new_target_ip": "10.49.123.40",
+        "old_target_ip": "192.168.1.11",
+        "reason": "TARGET_IP_CHANGED_DURING_RECOVERY",
+        "recovery_snapshot_sha256": "0b35786f70b975f1117ee82fb7111d86e8d19315c7cb2e45d7f511bb928c33bd",
+        "schema_version": 1,
+        "type": "RECOVERY_TARGET_RELOCATION"
+      },
+      "relocation_attestation_sha256": "2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1",
+      "relocation_signature_base64": "VT2XsBDhTxZ7LkP61kk73CxcaQMOSppvtK8uG3XNavk5qDx0rnPgv3Qc/dIHlR7jdtPfEtmvb1HlmR3sARJtAQ=="
+    },
+    "history": [
+      {
+        "at_utc": "2026-08-10T17:07:51.098Z",
+        "state": "GRANTED"
+      },
+      {
+        "at_utc": "2026-08-10T17:08:09.317Z",
+        "detail": {
+          "preflight_sha256": "59751629663e35a63ecdc74b06c3cffb092e825d666d0a550924fd22b71c5728"
+        },
+        "state": "RUNNING"
+      },
+      {
+        "at_utc": "2026-08-10T17:11:26.101Z",
+        "detail": {
+          "failures": [
+            "residue inventory is not empty (1)"
+          ]
+        },
+        "state": "RECOVERY_REQUIRED"
+      },
+      {
+        "at_utc": "2026-08-11T01:03:20.080Z",
+        "detail": {
+          "recovery_snapshot_sha256": "0b35786f70b975f1117ee82fb7111d86e8d19315c7cb2e45d7f511bb928c33bd",
+          "relocation_attestation": {
+            "authorization": "PROJECT_OWNER_CONFIRMED",
+            "host_key_alias": "192.168.1.11",
+            "hostname": "dccs-chaizl-PC",
+            "lease_id": "lease-D013-RUNNER-20260811-010000",
+            "new_target_ip": "10.49.123.40",
+            "old_target_ip": "192.168.1.11",
+            "reason": "TARGET_IP_CHANGED_DURING_RECOVERY",
+            "recovery_snapshot_sha256": "0b35786f70b975f1117ee82fb7111d86e8d19315c7cb2e45d7f511bb928c33bd",
+            "schema_version": 1,
+            "type": "RECOVERY_TARGET_RELOCATION"
+          },
+          "relocation_attestation_sha256": "2d136ccdc1df21a0414cf78278ca80984d97dcaf406e117c77eb2ec3092200d1",
+          "relocation_signature_base64": "VT2XsBDhTxZ7LkP61kk73CxcaQMOSppvtK8uG3XNavk5qDx0rnPgv3Qc/dIHlR7jdtPfEtmvb1HlmR3sARJtAQ=="
+        },
+        "state": "RETURNED"
+      },
+      {
+        "at_utc": "2026-08-11T01:03:55.554Z",
+        "state": "RELEASED"
+      }
+    ],
+    "lease_id": "lease-D013-RUNNER-20260811-010000",
+    "state": "RELEASED",
+    "suite": "NATIVE_RUNNER_L01_L10",
+    "target": {
+      "arch": "x64",
+      "hostname": "dccs-chaizl-PC",
+      "ip": "192.168.1.11",
+      "os_build": "7601",
+      "port": 22
+    }
+  }
+}

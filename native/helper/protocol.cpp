@@ -236,6 +236,29 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
     return true;
 }
 
+bool ParseCancelControl(const std::string& jsonUtf8,
+                        const std::wstring& expectedRequestId,
+                        std::string* error) {
+    JsonValue root;
+    if (!JsonParse(jsonUtf8, &root, error) || root.type != JsonValue::Type::Object) {
+        *error = "cancel control must be a JSON object";
+        return false;
+    }
+    const JsonValue* schemaVersion = JsonObjectGet(root, L"schema_version");
+    const JsonValue* type = JsonObjectGet(root, L"type");
+    const JsonValue* requestId = JsonObjectGet(root, L"requestId");
+    std::wstring controlType;
+    std::wstring controlRequestId;
+    if (!schemaVersion || JsonAsInt(*schemaVersion, -1) != 1 ||
+        !type || !JsonAsString(*type, &controlType) || controlType != L"cancel" ||
+        !requestId || !JsonAsString(*requestId, &controlRequestId) ||
+        controlRequestId != expectedRequestId) {
+        *error = "cancel control schema, type, or requestId mismatch";
+        return false;
+    }
+    return true;
+}
+
 bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error) {
     if (config.allowedDirectories.empty() && config.protectedDirectories.empty()) return true;
     if (!config.aclPolicy.valid) {

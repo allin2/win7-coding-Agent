@@ -560,7 +560,7 @@ try {
             -StandardInputText $null -StdoutPath $versionStdout -StderrPath $versionStderr)
         $versionCapture = Get-ValidatedProcessCapture -Items $versionCaptureItems -Context "helper --version"
         if ($versionCapture.exit_code -ne 0 -or
-            ([string]$versionCapture.stdout_text).Trim() -ne 'win7-agent-helper 1.1.0-d013-v23 win7-x64') {
+            ([string]$versionCapture.stdout_text).Trim() -ne 'win7-agent-helper 1.2.0-d013-v24 win7-x64') {
             throw "helper --version smoke failed."
         }
         $requestPayload = [ordered]@{
@@ -677,6 +677,60 @@ try {
             if ($smokeAllowedAclAfter -ne $smokeAllowedAclBefore -or
                 $smokeProtectedAclAfter -ne $smokeProtectedAclBefore) {
                 throw "helper JSON smoke changed an ACL/owner after rollback."
+            }
+
+            # v24 cancellation must be cooperative: the helper receives a
+            # request-bound second JSON line, kills its Job, restores the
+            # original integrity label, and only then acknowledges canceled.
+            $cancelAllowed = Join-Path $smokeRoot "cancel-allowed"
+            Ensure-Directory $cancelAllowed
+            $cancelAllowedAclBefore = (Get-Acl -LiteralPath $cancelAllowed).Sddl
+            $pingExe = Join-Path $env:SystemRoot "System32\ping.exe"
+            if (-not (Test-Path -LiteralPath $pingExe -PathType Leaf)) { throw "ping.exe cancel smoke target was not detected." }
+            $cancelRequestPayload = [ordered]@{
+                schema_version = 1
+                requestId = "d013-cancel-smoke"
+                executable = $pingExe
+                argv = @('-t', '127.0.0.1')
+                workingDirectory = $cancelAllowed
+                timeoutMs = 10000
+                idleTimeoutMs = 5000
+                maxOutputSize = 4096
+                allowedDirectories = @($cancelAllowed)
+                protectedDirectories = @()
+                aclPolicy = [ordered]@{ acceptanceRoot = $WorkRoot; perRunRoot = $smokeRoot }
+            }
+            $cancelControlPayload = [ordered]@{
+                schema_version = 1
+                type = "cancel"
+                requestId = "d013-cancel-smoke"
+            }
+            $cancelInput = ($cancelRequestPayload | ConvertTo-Json -Compress) + "`n" +
+                ($cancelControlPayload | ConvertTo-Json -Compress) + "`n"
+            $cancelStdout = Join-Path $EvidenceRoot "cancel-smoke-stdout.txt"
+            $cancelStderr = Join-Path $EvidenceRoot "cancel-smoke-stderr.txt"
+            $cancelCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+                -StandardInputText $cancelInput -StdoutPath $cancelStdout -StderrPath $cancelStderr)
+            $cancelCapture = Get-ValidatedProcessCapture -Items $cancelCaptureItems -Context "helper cooperative cancel smoke"
+            if ([int]$cancelCapture.exit_code -ne 0) { throw "helper cooperative cancel smoke process failed." }
+            $cancelResponseText = ([string]$cancelCapture.stdout_text) -replace "[\r\n]+$", ""
+            $cancelResponse = $cancelResponseText | ConvertFrom-Json
+            $cancelAclChanges = @($cancelResponse.aclChanges)
+            if ($cancelResponse.type -ne 'execution_result' -or
+                $cancelResponse.canceled -ne $true -or
+                $cancelResponse.timedOut -ne $false -or
+                $cancelResponse.idleTimedOut -ne $false -or
+                $cancelResponse.containmentVerified -ne $true -or
+                $cancelAclChanges.Count -ne 1 -or
+                $cancelAclChanges[0].mechanism -ne 'low_integrity_label' -or
+                $cancelAclChanges[0].applied -ne $true -or
+                $cancelAclChanges[0].verified -ne $true -or
+                $cancelAclChanges[0].rolledBack -ne $true) {
+                throw "helper cooperative cancel smoke did not prove containment and exact ACL rollback: $cancelResponseText"
+            }
+            $cancelAllowedAclAfter = (Get-Acl -LiteralPath $cancelAllowed).Sddl
+            if ($cancelAllowedAclAfter -ne $cancelAllowedAclBefore) {
+                throw "helper cooperative cancel smoke changed the integrity label after rollback."
             }
             $smokeStatus = "PASS"
         }

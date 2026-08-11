@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   CoordinatorError, createLeaseRequest, grantLease, gradeCandidateEvidence,
-  initializeKeyPair, loadState, recoverLease, registerGrantedLease, releaseLease, returnLease,
+  initializeKeyPair, loadState, recoverLease, recoverRelocatedLease, registerGrantedLease, releaseLease, returnLease,
   startLease, verifyLeaseBundle,
 } from './core.mjs';
 
@@ -46,17 +46,23 @@ async function main() {
   }
   const raw = fs.readFileSync(required(args, 'lease'));
   const signature = fs.readFileSync(required(args, 'signature'));
+  const recoveryOnly = args.command === 'recover' || args.command === 'recover-relocated' || args.command === 'release';
   const lease = verifyLeaseBundle(raw, signature, fs.readFileSync(required(args, 'publicKey')), {
     sourceCommit: args.sourceCommit, packageManifestSha256: args.packageManifestSha256,
-    targetIp: args.targetIp, suite: args.suite,
+    targetIp: args.targetIp, suite: args.suite, allowExpired: recoveryOnly,
   });
   if (args.command === 'verify') { console.log(JSON.stringify({ ok: true, lease_id: lease.lease_id })); return; }
   if (args.command === 'start') { startLease(required(args, 'state'), lease, jsonFile(required(args, 'snapshot'))); return; }
   if (args.command === 'return') { returnLease(required(args, 'state'), lease, jsonFile(required(args, 'snapshot'))); return; }
   if (args.command === 'recover') { recoverLease(required(args, 'state'), lease, jsonFile(required(args, 'snapshot'))); return; }
+  if (args.command === 'recover-relocated') {
+    recoverRelocatedLease(required(args, 'state'), lease, jsonFile(required(args, 'snapshot')),
+      jsonFile(required(args, 'relocation')), fs.readFileSync(required(args, 'privateKey')));
+    return;
+  }
   if (args.command === 'release') { releaseLease(required(args, 'state'), lease.lease_id); return; }
   if (args.command === 'grade') { console.log(JSON.stringify(gradeCandidateEvidence(lease, jsonFile(required(args, 'evidence')), loadState(required(args, 'state'))))); return; }
-  throw new Error('command must be init-key, request, grant, verify, start, return, recover, release, or grade');
+  throw new Error('command must be init-key, request, grant, verify, start, return, recover, recover-relocated, release, or grade');
 }
 
 main().catch((error) => {

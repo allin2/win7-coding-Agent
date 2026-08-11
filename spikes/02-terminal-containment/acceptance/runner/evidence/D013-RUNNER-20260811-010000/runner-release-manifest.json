@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "release": "win7-native-runner-v23-acceptance",
+  "acceptance_id": "D013-RUNNER-20260811-010000",
+  "helper": {
+    "path": "spike02_helper.exe",
+    "sha256": "d275605124527f292307fd45e2ab4b9af850d22af53ca6f7e8ee795fab629a5c"
+  },
+  "profiles": [
+    {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "risk": "low",
+      "output_encoding": "cp936",
+      "working_directory_roots": [
+        "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-010000"
+      ],
+      "argv_policy": {
+        "exact": [
+          [],
+          [
+            "/all"
+          ]
+        ]
+      },
+      "acl_policy": {
+        "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
+        "per_run_root": "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-010000",
+        "apply_low_integrity_to_work_dir": true
+      }
+    },
+    {
+      "id": "win7-ping",
+      "executable_path": "C:\\Windows\\System32\\ping.exe",
+      "sha256": "14262982a64551fde126339b22b993b6e4aed520e53dd882e67d887b6b66f942",
+      "risk": "low",
+      "output_encoding": "cp936",
+      "working_directory_roots": [
+        "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-010000"
+      ],
+      "argv_policy": {
+        "exact": [
+          [
+            "-n",
+            "2",
+            "127.0.0.1"
+          ],
+          [
+            "-n",
+            "4",
+            "-w",
+            "10",
+            "127.0.0.1"
+          ],
+          [
+            "-t",
+            "127.0.0.1"
+          ]
+        ]
+      },
+      "acl_policy": {
+        "acceptance_root": "C:\\Win7CodingAgent\\acceptance",
+        "per_run_root": "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-010000",
+        "apply_low_integrity_to_work_dir": true
+      }
+    },
+    {
+      "id": "high-risk-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "risk": "high",
+      "output_encoding": "cp936",
+      "working_directory_roots": [
+        "C:\\Win7CodingAgent\\acceptance\\D013-RUNNER-20260811-010000"
+      ],
+      "argv_policy": {
+        "exact": [
+          []
+        ]
+      }
+    }
+  ],
+  "acceptance_action": {
+    "profile_id": "win7-whoami",
+    "args": [],
+    "timeout_ms": 15000,
+    "idle_timeout_ms": 5000,
+    "max_stdout_bytes": 65536,
+    "max_stderr_bytes": 65536
+  }
+}

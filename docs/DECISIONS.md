@@ -742,3 +742,41 @@
 - 后果：v22 Win10 PASS 包定性为 `REJECTED_AS_PRODUCT_CANDIDATE`，必须重建 v23。Win7 L01 必须
   从真实 Electron 产品路径证明 breakaway 与新 Job 归属；若 Electron Job 不允许 breakaway，
   本地 Runner 维持不可用，后续只能另行批准外部 Broker 架构或远程执行。
+
+## ADR-0069 验收中途目标 IP 迁移只允许签名恢复，不允许复用执行租约
+
+- 状态：Accepted（2026-08-11，项目负责人通知 Win7 IP 从 `192.168.1.11` 变更为
+  `10.49.123.40`，并授权恢复精确的 `work\l08` 空目录）
+- 背景：`D013-RUNNER-20260811-010000` 已绑定旧 IP 并进入 `RECOVERY_REQUIRED`，随后目标机 IP
+  发生变化。直接把新地址写成旧租约目标会改写签名事实；永久保留活动恢复租约又会阻塞所有后续
+  正式验收。新地址提供的 ECDSA/RSA SSH 主机公钥与旧 known-hosts 记录逐字节一致，hostname、
+  Win7 build、架构、Bitvise 和锁定工件亦可独立复核。
+- 决策：（1）旧租约不得在新 IP 恢复执行、重跑用例或评级；仅允许 `recover-relocated` 完成清理
+  状态闭环。（2）迁移恢复必须同时证明新快照零残留、工件哈希匹配、hostname 相同、严格主机
+  指纹检查启用且 `HostKeyAlias` 指向旧租约 IP，并携带项目负责人明确授权记录。（3）协调器以
+  现有 Ed25519 私钥签名 `RECOVERY_TARGET_RELOCATION` attestation，将旧/新 IP、hostname、旧
+  指纹别名和干净快照哈希写入状态历史；任一不匹配即拒绝。（4）恢复完成后旧租约只能
+  `RETURNED→RELEASED`；过期租约也只允许完成 `recover`/`recover-relocated` 和最终 `release`，
+  不得重新执行、返回或评级。任何后续执行必须以 `10.49.123.40`、新 commit/manifest 和新期限
+  签发全新租约。
+- 后果：IP 迁移不会被伪装成原租约内执行，也不会绕过残留门禁；协调器可以在同一物理主机严格
+  身份连续性成立时关闭恢复状态。旧地址记录作为审计别名保留，不修改 Win7 网络、服务或防火墙。
+
+## ADR-0070 NativeRunner 取消必须由 Helper 协作确认 ACL 回滚
+
+- 状态：Accepted（2026-08-11，依据首轮 L08 正式证据的 fail-closed 修复）
+- 背景：v23 产品传输层在收到 `AbortSignal` 后直接终止 helper。Windows Job 的
+  `KILL_ON_JOB_CLOSE` 确实回收了 `ping.exe`，但 helper 进程同时失去执行 Low Integrity ACL
+  回滚的机会，导致 `work\l08` 留下 `Low Mandatory Level`。仅凭 helper 进程退出就把取消标记为
+  cleanup confirmed 是错误的安全结论。
+- 决策：（1）每个 helper 进程只接受一条执行请求；取消只能通过同一 stdin 的第二条
+  `{schema_version:1,type:"cancel",requestId}` 控制消息触发，request ID 不匹配或控制消息畸形均
+  fail-closed。（2）helper 检测取消后终止自建 Job、等待 child 退出、排空双流并恢复此前捕获的
+  DACL/Integrity Label；只有所有恢复验证通过才返回 `canceled=true`。（3）产品等待结构化取消
+  响应；5 秒未确认才强制终止 helper，此时一律 `cleanup_failed`，不得假定 ACL 已恢复。
+  （4）L10 和协调器 postflight 都必须独立扫描验收 `work` 根的 Low Integrity 残留，不能只信任
+  Worker 响应。（5）该协议升级为 v24，必须重新通过 D-017 构建、Win10 粘包取消 smoke 和 Win7
+  L01～L10；v23 不得复用。
+- 后果：取消反馈需要一次 helper 协作往返，最坏情况下在 5 秒后失败关闭，但不会再把“child 已被
+  Job 杀死”误报为“ACL 已恢复”。Renderer/模型仍没有 child stdin 或任意进程输入能力；控制消息
+  仅存在于产品 transport 与单请求 helper 之间。

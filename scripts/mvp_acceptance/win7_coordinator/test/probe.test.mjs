@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildSshArgs, parseCertutilHash, parseResidues, probeWin7 } from '../probe-win7.mjs';
+import { buildSshArgs, parseAclResidues, parseCertutilHash, parseResidues, probeWin7 } from '../probe-win7.mjs';
 
 const options = {
-  targetIp: '192.168.1.11', user: 'dccs-chaizl', privateKey: '/outside/key', knownHosts: '/outside/known',
+  targetIp: '10.49.123.40', user: 'dccs-chaizl', privateKey: '/outside/key', knownHosts: '/outside/known',
+  hostKeyAlias: '192.168.1.11',
   acceptanceId: 'A4-20260810-000001', phase: 'preflight', artifactMap: {},
 };
 
 test('SSH argv is strict and never uses a local shell', () => {
   const args = buildSshArgs(options, ['hostname']);
   assert.ok(args.includes('StrictHostKeyChecking=yes'));
+  assert.ok(args.includes('HostKeyAlias=192.168.1.11'));
   assert.ok(args.includes('BatchMode=yes'));
   assert.equal(args.at(-1), 'hostname');
 });
@@ -31,6 +33,11 @@ test('A5 residue parser also treats T05 ping as a formal residue', () => {
   assert.equal(parseResidues(output, 'A4-20260810-000001').length, 0);
 });
 
+test('ACL residue parser detects a leftover Low Integrity label', () => {
+  assert.equal(parseAclResidues('path Users:(I)(M)\r\n  Mandatory Label\\Low Mandatory Level:(OI)(CI)(NW)').length, 1);
+  assert.deepEqual(parseAclResidues('path Users:(I)(M)'), []);
+});
+
 test('read-only probe builds coordinator snapshot with fake SSH transport', () => {
   const outputs = new Map([
     ['cmd.exe', 'Microsoft Windows [Version 6.1.7601]'],
@@ -47,6 +54,7 @@ test('read-only probe builds coordinator snapshot with fake SSH transport', () =
   const snapshot = probeWin7(options, runner);
   assert.equal(snapshot.service.state, 'RUNNING');
   assert.equal(snapshot.target.hostname, 'WIN7-A5');
+  assert.equal(snapshot.ssh.host_key_alias, '192.168.1.11');
   assert.deepEqual(snapshot.residues, []);
 });
 

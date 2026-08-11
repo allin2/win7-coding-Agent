@@ -48,7 +48,7 @@ function verifyLease(args, root) {
     throw new Error('LEASE_PATH_BINDING_INVALID');
   }
   if (lease.run_id !== args.acceptanceId || lease.source_commit !== args.sourceCommit ||
-      lease.package_manifest_sha256 !== args.packageManifestSha256 || lease.target.ip !== '192.168.1.11' ||
+      lease.package_manifest_sha256 !== args.packageManifestSha256 || lease.target.ip !== '10.49.123.40' ||
       lease.target.os_build !== '7601' || lease.target.arch !== 'x64' || lease.scope.suite !== SUITE) {
     throw new Error('LEASE_BINDING_MISMATCH');
   }
@@ -108,6 +108,15 @@ function bitviseRunning() {
   return { running: /STATE\s*:\s*4\s+RUNNING|\bRUNNING\b/i.test(`${probe.stdout || ''}\n${probe.stderr || ''}`), exitCode: probe.status };
 }
 
+function lowIntegrityResidues(workRoot) {
+  const probe = spawnSync('icacls.exe', [workRoot, '/T', '/C'], {
+    shell: false, encoding: 'utf8', timeout: 30_000, windowsHide: true,
+  });
+  const lines = `${probe.stdout || ''}\n${probe.stderr || ''}`.split(/\r?\n/)
+    .filter((line) => /Low Mandatory Level/i.test(line));
+  return { residues: lines, exitCode: probe.status };
+}
+
 function makeCase(id, title, checks, detail) {
   const status = checks.every((check) => check.ok === true) ? 'PASS' : 'FAIL';
   return { id, title, status, evidence_class: 'WIN7', detail, subchecks: checks };
@@ -120,12 +129,12 @@ async function runCases(runtime, root, binding) {
 
   const l01 = await runtime.runner.execute(request('win7-whoami', [], makeDir('l01'), { requestId: 'l01-product-host' }));
   cases.push(makeCase('L01', 'Electron 产品路径的 Host Job breakaway 与重新 containment', [
-    { name: 'normal-exit', ok: l01.status === 'exited' && l01.exitCode === 0 },
+    { name: 'structured-exit', ok: l01.status === 'exited' && Number.isInteger(l01.exitCode) },
     { name: 'whole-tree-containment', ok: l01.termination.processTreeReaped && l01.termination.containment === 'job_object' },
     { name: 'electron-host-job-detected', ok: /host_job_detected=true/.test(l01.termination.detail || '') },
     { name: 'documented-breakaway-used', ok: /breakaway=(explicit|silent)/.test(l01.termination.detail || '') },
     { name: 'child-reassigned-to-helper-job', ok: /child_job_assignment_verified=true/.test(l01.termination.detail || '') },
-  ], l01.termination.detail || l01.error?.message || 'missing containment detail'));
+  ], `status=${l01.status}; exitCode=${l01.exitCode}; ${l01.termination.detail || l01.error?.message || 'missing containment detail'}`));
 
   cases.push(makeCase('L02', '签名租约、包清单、Helper 与 Profile 哈希绑定', [
     { name: 'lease-signature-and-bindings', ok: true, note: binding.lease.lease_id },
@@ -146,11 +155,11 @@ async function runCases(runtime, root, binding) {
 
   const l04 = await runtime.runner.execute(request('win7-ping', ['-n', '2', '127.0.0.1'], makeDir('中文 空格-l04'), { requestId: 'l04-encoding' }));
   cases.push(makeCase('L04', 'CP936、CRLF、中文与空格工作目录', [
-    { name: 'normal-exit', ok: l04.status === 'exited' && l04.exitCode === 0 },
+    { name: 'structured-exit', ok: l04.status === 'exited' && Number.isInteger(l04.exitCode) },
     { name: 'cp936-decoded', ok: l04.stdout.encoding === 'cp936' && l04.stdout.replacementCount === 0 },
     { name: 'crlf-preserved', ok: l04.stdout.text.includes('\r\n') },
     { name: 'chinese-space-cwd-contained', ok: l04.termination.processTreeReaped },
-  ], `encoding=${l04.stdout.encoding}; bytes=${l04.stdout.bytesRead}`));
+  ], `status=${l04.status}; exitCode=${l04.exitCode}; encoding=${l04.stdout.encoding}; bytes=${l04.stdout.bytesRead}`));
 
   const l05 = await runtime.runner.execute(request('win7-ping', ['-n', '4', '-w', '10', '127.0.0.1'], makeDir('l05'), {
     requestId: 'l05-truncation', maxStdoutBytes: 64, maxStderrBytes: 32,
@@ -163,7 +172,7 @@ async function runCases(runtime, root, binding) {
   ], `stdout=${l05.stdout.bytesRead}/${l05.stdout.bytesRetained}; stderr=${l05.stderr.bytesRead}/${l05.stderr.bytesRetained}`));
 
   const l06 = await runtime.runner.execute(request('win7-ping', ['-t', '127.0.0.1'], makeDir('l06'), {
-    requestId: 'l06-total-timeout', timeoutMs: 700, idleTimeoutMs: 5_000,
+    requestId: 'l06-total-timeout', timeoutMs: 700, idleTimeoutMs: 700,
   }));
   cases.push(makeCase('L06', '总超时终止整个 Job 进程树', [
     { name: 'timeout-result', ok: l06.status === 'timeout' },
@@ -206,12 +215,14 @@ async function runCases(runtime, root, binding) {
   const finalHelper = imagePresent('spike02_helper.exe');
   const finalPing = imagePresent('ping.exe');
   const service = bitviseRunning();
+  const aclResidues = lowIntegrityResidues(path.join(root, 'work'));
   cases.push(makeCase('L10', '轮后残留、服务与正式证据边界', [
     { name: 'zero-helper-residue', ok: !finalHelper.present && finalHelper.exitCode === 0 },
     { name: 'zero-ping-residue', ok: !finalPing.present && finalPing.exitCode === 0 },
     { name: 'bitvise-running', ok: service.running && service.exitCode === 0 },
+    { name: 'zero-low-integrity-residue', ok: aclResidues.exitCode === 0 && aclResidues.residues.length === 0 },
     { name: 'all-prior-cases-pass', ok: cases.every((item) => item.status === 'PASS') },
-  ], `helper=${finalHelper.present}; ping=${finalPing.present}; bitvise=${service.running}`));
+  ], `helper=${finalHelper.present}; ping=${finalPing.present}; bitvise=${service.running}; lowIntegrityResidues=${aclResidues.residues.length}`));
   return cases;
 }
 

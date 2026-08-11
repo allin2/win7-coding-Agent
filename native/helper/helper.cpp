@@ -1,9 +1,9 @@
 /**
  * SPIKE 02 / D-013 — C++ Helper main + Win32 containment orchestration.
  *
- * Win32 console application: reads one JSON request per line from stdin,
- * runs the requested executable inside a restricted environment, and writes
- * one JSON response line to stdout.
+ * Win32 console application: reads one JSON execution request from stdin,
+ * accepts only a matching cooperative cancel control while it runs, and
+ * writes one JSON response line to stdout before exiting.
  *
  * Containment chain (each layer fails closed):
  *   C02  Host Job probe        Win7 Jobs are not nestable. A helper inherited
@@ -57,6 +57,11 @@
 #endif
 
 namespace spike02 {
+
+#ifdef _WIN32
+bool ReadJsonLine(std::string* line);
+#endif
+
 namespace {
 
 #ifdef _WIN32
@@ -68,6 +73,37 @@ namespace {
 constexpr DWORD kProtectedWriteDenyMask =
     FILE_ADD_FILE | FILE_ADD_SUBDIRECTORY | FILE_WRITE_DATA | FILE_APPEND_DATA |
     FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | DELETE | DELETE_CHILD;
+
+std::string gStdinPending;
+
+bool StdinJsonLineAvailable(std::string* error) {
+    if (gStdinPending.find('\n') != std::string::npos) return true;
+    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD available = 0;
+    if (PeekNamedPipe(input, nullptr, 0, nullptr, &available, nullptr)) return available > 0;
+    const DWORD lastError = GetLastError();
+    if (lastError == ERROR_BROKEN_PIPE) return !gStdinPending.empty();
+    *error = "PeekNamedPipe(cancel control) failed: Win32 error " +
+             std::to_string(static_cast<unsigned long>(lastError));
+    return false;
+}
+
+bool PollCancellationControl(const std::wstring& requestId, bool* canceled,
+                             std::string* error) {
+    *canceled = false;
+    const bool available = StdinJsonLineAvailable(error);
+    if (!error->empty()) return false;
+    if (!available) return true;
+    std::string line;
+    if (!ReadJsonLine(&line)) {
+        *error = "cancel control pipe closed before a complete message";
+        return false;
+    }
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (!ParseCancelControl(line, requestId, error)) return false;
+    *canceled = true;
+    return true;
+}
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -1356,6 +1392,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     const ULONGLONG startTime = GetTickCount64();
     ULONGLONG lastActivity = startTime;
     bool done = false;
+    bool cancelProtocolFailed = false;
     while (!done) {
         const ULONGLONG elapsed = GetTickCount64() - startTime;
         DWORD slice = 50;
@@ -1372,6 +1409,18 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         DrainAvailable(hErrRead, &result->stderrBytes, cap, &result->outputTruncated,
                        &outputActivity);
         if (outputActivity) lastActivity = GetTickCount64();
+        bool cancellationRequested = false;
+        std::string cancellationError;
+        if (!PollCancellationControl(config.requestId, &cancellationRequested,
+                                     &cancellationError)) {
+            cancelProtocolFailed = true;
+            result->errorMessage = cancellationError;
+            done = true;
+        } else if (cancellationRequested) {
+            result->canceled = true;
+            done = true;
+        }
+        if (done) continue;
         if (waitResult == WAIT_OBJECT_0) {
             done = true;
         } else if (waitResult == WAIT_TIMEOUT) {
@@ -1391,7 +1440,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     }
     result->executionTimeMs = static_cast<long long>(GetTickCount64() - startTime);
 
-    if (result->timedOut || result->idleTimedOut) {
+    if (result->timedOut || result->idleTimedOut || result->canceled || cancelProtocolFailed) {
         // Kill the whole tree — never taskkill (N06).
         TerminateJobObject(hJob, 1);
     } else {
@@ -1457,6 +1506,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         }
         return HELPER_ERR_ACL_ROLLBACK;
     }
+    if (cancelProtocolFailed) return HELPER_ERR_CANCEL_PROTOCOL;
     return HELPER_OK;
 }
 
@@ -1466,22 +1516,25 @@ bool ReadJsonLine(std::string* line) {
     line->clear();
     char buffer[4096];
     while (true) {
+        const size_t newline = gStdinPending.find('\n');
+        if (newline != std::string::npos) {
+            line->assign(gStdinPending.data(), newline);
+            gStdinPending.erase(0, newline + 1);
+            return true;
+        }
+        if (gStdinPending.size() >= static_cast<size_t>(kMaxJsonInputBytes) + 1) {
+            *line = gStdinPending;
+            gStdinPending.clear();
+            return true;
+        }
         DWORD bytesRead = 0;
         if (!ReadFile(GetStdHandle(STD_INPUT_HANDLE), buffer, sizeof(buffer), &bytesRead, nullptr) ||
             bytesRead == 0) {
-            return false;  // EOF
+            *line = gStdinPending;
+            gStdinPending.clear();
+            return !line->empty();  // accept a final line without LF; otherwise clean EOF
         }
-        for (DWORD i = 0; i < bytesRead; ++i) {
-            const char ch = buffer[i];
-            if (ch == '\n') {
-                // A complete line (possibly with a trailing '\r').
-                return true;
-            }
-            line->push_back(ch);
-            if (line->size() >= static_cast<size_t>(kMaxJsonInputBytes) + 1) {
-                return true;  // caller will reject an oversized line
-            }
-        }
+        gStdinPending.append(buffer, bytesRead);
     }
 }
 
@@ -1509,7 +1562,7 @@ int RunHelperLoop() {
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
-            continue;
+            return HELPER_OK;
         }
         requestId = WideToUtf8(config.requestId);
 
@@ -1532,7 +1585,7 @@ int RunHelperLoop() {
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
-            continue;
+            return HELPER_OK;
         }
         config.executable = canonical;
 
@@ -1546,7 +1599,7 @@ int RunHelperLoop() {
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
-            continue;
+            return HELPER_OK;
         }
 
         ProcessResult result;
@@ -1559,18 +1612,20 @@ int RunHelperLoop() {
             else if (errorCode == HELPER_ERR_ACL_SET) code = "ACL_SET_FAILED";
             else if (errorCode == HELPER_ERR_ACL_POLICY) code = "ACL_POLICY_REJECTED";
             else if (errorCode == HELPER_ERR_ACL_ROLLBACK) code = "ACL_ROLLBACK_FAILED";
+            else if (errorCode == HELPER_ERR_CANCEL_PROTOCOL) code = "CANCEL_PROTOCOL_INVALID";
             else if (errorCode == HELPER_ERR_PROCESS_CREATE) code = "PROCESS_CREATE_FAILED";
             const std::string out = RenderErrorJson(requestId, code, result.errorMessage);
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
-            continue;
+            return HELPER_OK;
         }
 
         const std::string out = RenderResultJson(requestId, result);
         std::fwrite(out.data(), 1, out.size(), stdout);
         std::fputc('\n', stdout);
         std::fflush(stdout);
+        return HELPER_OK;
     }
     return HELPER_OK;
 }
@@ -1601,14 +1656,14 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("win7-agent-helper 1.1.0-d013-v23 win7-x64\n");
+            std::printf("win7-agent-helper 1.2.0-d013-v24 win7-x64\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {
             std::printf(
-                "spike02-helper: read one JSON request per line from stdin, run it in a\n"
+                "spike02-helper: read one JSON execution request from stdin, run it in a\n"
                 "restricted environment (Job Object + Restricted Token + Low Integrity +\n"
-                "ACL), and write one JSON response per line to stdout.\n"
+                "ACL), accept only a matching cancel control, and write one JSON response.\n"
                 "Request keys: schema_version, requestId, executable, argv, workingDirectory,\n"
                 "timeoutMs, idleTimeoutMs, maxOutputSize,\n"
                 "allowNetwork, allowedDirectories, protectedDirectories, aclPolicy.\n"

@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "acceptance_id": "D013-RUNNER-20260811-010000",
+  "generated_at": "2026-08-10T17:09:55.288Z",
+  "mode": "win7-electron-native-runner-l01-l10",
+  "evidence_grade": "CANDIDATE_EVIDENCE",
+  "lease_id": "lease-D013-RUNNER-20260811-010000",
+  "source_commit": "27cf8deb3c4368f2a88d00a0cf542c9d306f77fa",
+  "package_manifest_sha256": "2e8310ebbe10e99647322dfd05025ca579db146bd1ddf254aa41b8405b383487",
+  "cases": [
+    {
+      "id": "L01",
+      "title": "Electron 产品路径的 Host Job breakaway 与重新 containment",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "host_job_detected=true;breakaway=silent;limit_flags=15360;child_job_assignment_verified=true;acl_changes=1;acl_rollback_verified=true",
+      "subchecks": [
+        {
+          "name": "normal-exit",
+          "ok": false
+        },
+        {
+          "name": "whole-tree-containment",
+          "ok": true
+        },
+        {
+          "name": "electron-host-job-detected",
+          "ok": true
+        },
+        {
+          "name": "documented-breakaway-used",
+          "ok": true
+        },
+        {
+          "name": "child-reassigned-to-helper-job",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L02",
+      "title": "签名租约、包清单、Helper 与 Profile 哈希绑定",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "Ed25519 lease and both manifest layers were verified before NativeRunner construction.",
+      "subchecks": [
+        {
+          "name": "lease-signature-and-bindings",
+          "ok": true,
+          "note": "lease-D013-RUNNER-20260811-010000"
+        },
+        {
+          "name": "package-manifest-bound",
+          "ok": true
+        },
+        {
+          "name": "release-manifest-injected",
+          "ok": true
+        },
+        {
+          "name": "helper-hash-injected",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L03",
+      "title": "未知 Profile、Shell 与高风险本地执行拒绝",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "All prohibited requests were rejected before helper transport.",
+      "subchecks": [
+        {
+          "name": "unknown-profile-rejected",
+          "ok": true
+        },
+        {
+          "name": "shell-rejected",
+          "ok": true
+        },
+        {
+          "name": "high-risk-rejected",
+          "ok": true
+        },
+        {
+          "name": "rejection-left-no-helper",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L04",
+      "title": "CP936、CRLF、中文与空格工作目录",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "encoding=cp936; bytes=204",
+      "subchecks": [
+        {
+          "name": "normal-exit",
+          "ok": false
+        },
+        {
+          "name": "cp936-decoded",
+          "ok": true
+        },
+        {
+          "name": "crlf-preserved",
+          "ok": true
+        },
+        {
+          "name": "chinese-space-cwd-contained",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L05",
+      "title": "stdout/stderr 独立上限与截断提示",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "stdout=274/64; stderr=0/0",
+      "subchecks": [
+        {
+          "name": "normal-exit",
+          "ok": true
+        },
+        {
+          "name": "stdout-truncated",
+          "ok": true
+        },
+        {
+          "name": "stderr-independent",
+          "ok": true
+        },
+        {
+          "name": "truncation-marker",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L06",
+      "title": "总超时终止整个 Job 进程树",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "Runner timeoutMs and idleTimeoutMs must be positive integers with idleTimeoutMs <= timeoutMs",
+      "subchecks": [
+        {
+          "name": "timeout-result",
+          "ok": false
+        },
+        {
+          "name": "tree-reaped",
+          "ok": true
+        },
+        {
+          "name": "zero-ping-residue",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L07",
+      "title": "空闲超时独立于总超时",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "Execution ended with idle_timeout",
+      "subchecks": [
+        {
+          "name": "idle-timeout-result",
+          "ok": true
+        },
+        {
+          "name": "tree-reaped",
+          "ok": true
+        },
+        {
+          "name": "zero-ping-residue",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L08",
+      "title": "取消关闭 Helper 并由 KILL_ON_JOB_CLOSE 回收 child",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "Helper closed its validated KILL_ON_JOB_CLOSE Job after cancellation",
+      "subchecks": [
+        {
+          "name": "cancelled-result",
+          "ok": true
+        },
+        {
+          "name": "cleanup-confirmed",
+          "ok": true
+        },
+        {
+          "name": "zero-helper-residue",
+          "ok": true
+        },
+        {
+          "name": "zero-ping-residue",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L09",
+      "title": "每轮 Low Integrity ACL 应用、验证与回滚",
+      "status": "PASS",
+      "evidence_class": "WIN7",
+      "detail": "host_job_detected=true;breakaway=silent;limit_flags=15360;child_job_assignment_verified=true;acl_changes=1;acl_rollback_verified=true",
+      "subchecks": [
+        {
+          "name": "normal-exit",
+          "ok": true
+        },
+        {
+          "name": "acl-change-recorded",
+          "ok": true
+        },
+        {
+          "name": "acl-rollback-verified",
+          "ok": true
+        },
+        {
+          "name": "containment-retained",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "id": "L10",
+      "title": "轮后残留、服务与正式证据边界",
+      "status": "FAIL",
+      "evidence_class": "WIN7",
+      "detail": "helper=false; ping=false; bitvise=true",
+      "subchecks": [
+        {
+          "name": "zero-helper-residue",
+          "ok": true
+        },
+        {
+          "name": "zero-ping-residue",
+          "ok": true
+        },
+        {
+          "name": "bitvise-running",
+          "ok": true
+        },
+        {
+          "name": "all-prior-cases-pass",
+          "ok": false
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "FAIL": 4,
+    "PASS": 6
+  },
+  "win7_validation": "COORDINATOR_POSTFLIGHT_PENDING"
+}

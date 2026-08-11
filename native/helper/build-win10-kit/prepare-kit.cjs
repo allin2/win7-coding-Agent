@@ -67,8 +67,8 @@ function walk(dir, base) {
 // (the final argument), never pDacl. Keep package generation fail-closed so the
 // positional PACL parameters cannot silently regress again.
 const helperSource = fs.readFileSync(path.join(HELPER_ROOT, 'helper.cpp'), 'utf8');
-if (!/win7-agent-helper 1\.1\.0-d013-v23 win7-x64/.test(helperSource)) {
-  throw new Error('helper.cpp must expose the locked v23 production version banner');
+if (!/win7-agent-helper 1\.2\.0-d013-v24 win7-x64/.test(helperSource)) {
+  throw new Error('helper.cpp must expose the locked v24 production version banner');
 }
 if (!/LABEL_SECURITY_INFORMATION\s*,\s*nullptr\s*,\s*nullptr\s*,\s*nullptr\s*,\s*pLabelAcl\s*\)/.test(helperSource)) {
   throw new Error('helper.cpp must pass the mandatory-label ACL as pSacl, with pDacl null');
@@ -128,6 +128,14 @@ if (!/QueryInformationJobObject\s*\(\s*nullptr\s*,\s*JobObjectExtendedLimitInfor
     !/childJobAssignmentVerified/.test(helperSource)) {
   throw new Error('helper.cpp must fail closed on inherited Win7 Jobs unless child breakaway and reassignment are both verified');
 }
+const cancelPollIndex = helperSource.indexOf('PollCancellationControl(config.requestId');
+const rollbackIndex = helperSource.indexOf('// ─── Cleanup: restore ACLs + labels');
+if (cancelPollIndex < 0 || rollbackIndex < 0 || cancelPollIndex > rollbackIndex ||
+    !/ParseCancelControl\s*\(\s*line\s*,\s*requestId/.test(helperSource) ||
+    !/result->canceled\s*=\s*true/.test(helperSource) ||
+    !/result->timedOut\s*\|\|\s*result->idleTimedOut\s*\|\|\s*result->canceled/.test(helperSource)) {
+  throw new Error('helper.cpp must cooperatively cancel the Job and complete ACL rollback before acknowledgement');
+}
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
 if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/Reset-OwnedDirectory\s+\$EvidenceRoot/.test(buildScript) ||
@@ -149,6 +157,9 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/expectedCaptureMarker\s*=\s*"D013_"\s*\+\s*\[char\]0x4E2D\s*\+\s*\[char\]0x6587/.test(buildScript) ||
     !/output_object_count\s*=\s*\$captureProbeItems\.Count/.test(buildScript) ||
     !/process_capture_selftest\s*=\s*\$CaptureStatus/.test(buildScript) ||
+    !/d013-cancel-smoke/.test(buildScript) ||
+    !/helper cooperative cancel smoke/.test(buildScript) ||
+    !/cancelAclChanges\[0\]\.rolledBack\s*-ne\s*\$true/.test(buildScript) ||
     !/\$versionCaptureItems\s*=\s*@\(Invoke-Utf8ProcessBytes/.test(buildScript) ||
     !/\$smokeCaptureItems\s*=\s*@\(Invoke-Utf8ProcessBytes/.test(buildScript) ||
     /@\(Invoke-Utf8ProcessBytes[\s\S]{0,500}?\)\s*\[-1\]/.test(buildScript) ||
