@@ -41,7 +41,7 @@
       "id": "RC-04",
       "requirement": "Electron, Core, low-risk Runner and local-SSD Storage start as one product and disabled capabilities are explicit.",
       "surfaces": ["src/shell/product", "src/runner", "src/state"],
-      "evidence": ["src/shell/product/rc-composition.js", "src/shell/product/main.js", "scripts/release/test/rc-composition.test.mjs"],
+      "evidence": ["src/shell/product/rc-composition.js", "src/shell/product/main.js", "scripts/release/test/rc-composition.test.mjs", "docs/status/a7-rc-development-latest.json"],
       "status": "partial",
       "gap": "The release composition and structural product tests pass, but the exact packaged Electron/D-013/D-014 Windows process has not executed this new RC path.",
       "action": "Execute the packaged Electron product smoke on the precise Win10 environment, then repeat under the new Win7 RC lease.",

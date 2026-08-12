@@ -9,7 +9,7 @@
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
   "executed_at": "2026-08-04T17:55:44+08:00",
-  "last_updated_at": "2026-08-12T00:52:14+08:00",
+  "last_updated_at": "2026-08-12T11:46:46+08:00",
   "post_baseline_updates": [
     {
       "record": "docs/status/win10-native-builds-latest.json",
@@ -21,6 +21,12 @@
       "status": "A4_A5_A6_INTEGRATED_AND_A7_GATE_PASS_FOR_WIN7_V1_RC",
       "win7_formal_acceptance_changed": true,
       "scope": "SPIKE_02 constrained closeout and SPIKE_04 local SSD acceptance; RC not performed"
+    },
+    {
+      "record": "docs/status/a7-rc-development-latest.json",
+      "status": "RC04_DEVELOPER_PASS_WINDOWS_SMOKE_PENDING",
+      "win7_formal_acceptance_changed": false,
+      "scope": "D-013/D-014 RC product composition, persistent EventLedger and deterministic developer package; Win10, Win7 and RC not performed"
     }
   ],
   "environment": {
@@ -215,6 +221,25 @@
     "a7_gate": "PASS_FOR_WIN7_V1_RC",
     "rc": "NOT_PERFORMED",
     "evidence": "docs/status/integration-closeout-latest.json"
+  },
+  "a7_rc_development_supplement": {
+    "schema_version": 1,
+    "record_id": "A7-RC-DEVELOPMENT-20260812-02",
+    "status": "RC04_DEVELOPER_PASS_WINDOWS_SMOKE_PENDING",
+    "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
+    "candidate_sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "developer_validation": {
+      "modules": 7,
+      "tests": 981,
+      "release_contract_tests": 10,
+      "deterministic_rebuilds": 2,
+      "independent_zip_verifier": "PASS"
+    },
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED",
+    "win7_lease_issued": false,
+    "evidence": "docs/status/a7-rc-development-latest.json"
   },
   "a1_a3_closeout": {
     "schema_version": 1,

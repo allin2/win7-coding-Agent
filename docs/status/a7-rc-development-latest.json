@@ -1,18 +1,23 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260812-01",
-  "recorded_at_utc": "2026-08-12T03:02:50Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260812-02",
+  "recorded_at_utc": "2026-08-12T03:46:46Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
-  "artifact_source_commit": "691f6bbfa26fd00863943b79ffc310406280b09d",
-  "status": "A7_FIRST_SLICE_DEVELOPER_PASS",
+  "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
+  "status": "RC04_DEVELOPER_PASS_WINDOWS_SMOKE_PENDING",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
     "external native runtime layout",
     "versioned manifest, SBOM and license inventory",
-    "independent per-file ZIP verification"
+    "independent per-file ZIP verification",
+    "manifest-bound D-013 low-risk Runner composition",
+    "D-014 SQLite V2 EventLedger with WAL and FTS5 profile checks",
+    "fail-closed startup integrity and recovery validation",
+    "explicit disabled capability diagnostics",
+    "two-start Windows RC-04 smoke harness"
   ],
   "locked_inputs": {
     "electron_zip_sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
@@ -22,9 +27,9 @@
   "candidate": {
     "path": "release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "git_tracking": "IGNORED_BUILD_OUTPUT",
-    "size": 100866545,
-    "sha256": "86f8221c4bd078300759224d01519b62f76ab43d76766e934ca227342cfdc169",
-    "manifest_file_count": 727,
+    "size": 100877883,
+    "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "manifest_file_count": 731,
     "external_native_file_count": 2,
     "deterministic_rebuild_count": 2,
     "deterministic_rebuild_sha256_match": true
@@ -32,12 +37,26 @@
   "developer_validation": {
     "release_contract_tests": {
       "status": "PASS",
-      "tests": 5
+      "tests": 10
     },
     "full_repository_verify": {
       "status": "PASS",
       "modules": 7,
-      "tests": 969
+      "tests": 981
+    },
+    "rc04_composition_contract": {
+      "status": "PASS",
+      "qualification": "DEVELOPMENT_STRUCTURAL_TESTS_ONLY",
+      "windows_product_process": "NOT_PERFORMED"
+    },
+    "state_module": {
+      "status": "PASS",
+      "tests": 231,
+      "native_abi110_load_on_developer_host": "NOT_APPLICABLE_MACOS"
+    },
+    "shell_module": {
+      "status": "PASS",
+      "tests": 127
     },
     "documentation_check": {
       "status": "PASS",
@@ -51,15 +70,17 @@
   "gates": {
     "developer_package_assembly": "PASS",
     "developer_full_regression": "PASS",
-    "product_assembly": "NOT_PERFORMED",
+    "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
+    "rc04_windows_product_smoke": "NOT_PERFORMED",
     "win10": "NOT_PERFORMED",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
-    "RC-04 product assembly with D-013 and D-014 production adapters",
-    "RC-05 final product Runner routing",
-    "RC-06 persistent SQLite EventStore integration",
+    "RC-04 exact packaged Electron/D-013/D-014 Windows product smoke",
+    "RC-04 repeat under the new signed Win7 RC lease",
+    "RC-05 native Windows Runner positive, rejection, cancellation and reap matrix",
+    "RC-06 actual ABI 110 binding load, restart recovery, Unicode path and local-SSD matrix",
     "RC-07 upgrade and rollback lifecycle",
     "RC-08 uninstall and zero-residue lifecycle",
     "precise Win10 verification and a new signed Win7 RC lease"
