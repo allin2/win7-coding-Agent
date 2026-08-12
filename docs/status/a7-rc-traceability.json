@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC-TRACEABILITY-20260812-01",
+  "source_task": "docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md",
+  "baseline_commit": "793cc4799c81d9dc27d236826a344a39d86137ec",
+  "branch_start_commit": "87893490d7c5e54552af98e193b4c12a9eb42bc4",
+  "overall_status": "IMPLEMENTATION_IN_PROGRESS",
+  "win7_validation": "NOT_PERFORMED",
+  "requirements": [
+    {
+      "id": "RC-01",
+      "requirement": "A clean Win7 host installs and starts without an online download and with every prerequisite declared.",
+      "surfaces": ["release/win7-rc", "scripts/release", "installation lifecycle"],
+      "evidence": ["release/win7-rc/rc-input-lock.json", "scripts/release/build-win7-rc.mjs"],
+      "status": "partial",
+      "gap": "Offline payload assembly is implemented; clean-host installation and first-start evidence are not performed.",
+      "action": "Complete installer lifecycle scripts and execute RC-01 under a new signed Win7 lease.",
+      "acceptance": "No network access, all locked payload files present, installer and first start exit zero on clean Win7."
+    },
+    {
+      "id": "RC-02",
+      "requirement": "Outer ZIP, release manifest and every runtime file have matching developer and Win7 SHA-256 values.",
+      "surfaces": ["release manifest", "ZIP sidecar", "Win7 evidence"],
+      "evidence": ["scripts/release/build-win7-rc.mjs", "scripts/release/verify-win7-rc.mjs"],
+      "status": "partial",
+      "gap": "Developer-side manifest and sidecar verification are implemented; Win7 certutil comparison is not performed.",
+      "action": "Bind the final Win10 return hash, upload under the RC lease and compare every required hash with certutil.",
+      "acceptance": "Developer verifier and Win7 coordinator independently report identical SHA-256 values."
+    },
+    {
+      "id": "RC-03",
+      "requirement": "Native modules are x64 ABI 110 and outside ASAR; locked PE/API/CRT evidence remains attached.",
+      "surfaces": ["resources/native", "release manifest", "Win10 evidence"],
+      "evidence": ["release/win7-rc/rc-input-lock.json", "scripts/release/build-win7-rc.mjs"],
+      "status": "partial",
+      "gap": "External native layout and locked hashes are enforced; final Win10 PE/API/CRT revalidation is not performed.",
+      "action": "Run the exact Win10 toolchain verification against the unique RC ZIP.",
+      "acceptance": "No .node/helper/DLL exists under app or ASAR; ABI, x64 and forbidden API/CRT checks pass."
+    },
+    {
+      "id": "RC-04",
+      "requirement": "Electron, Core, low-risk Runner and local-SSD Storage start as one product and disabled capabilities are explicit.",
+      "surfaces": ["src/shell/product", "src/runner", "src/state"],
+      "evidence": [],
+      "status": "missing",
+      "gap": "Runner is conditionally injectable and State is in-memory; production D-014 assembly is absent.",
+      "action": "Add fail-closed release bootstrap and production local-SSD event store integration.",
+      "acceptance": "Product smoke proves all four boundaries and reports disabled interactive terminal and unsupported media."
+    },
+    {
+      "id": "RC-05",
+      "requirement": "Only locked low-risk structured Runner profiles execute; interactive input, arbitrary shell and high-risk profiles are rejected.",
+      "surfaces": ["src/runner", "src/shell/product"],
+      "evidence": ["src/runner/tests/native-runner.test.ts", "src/shell/tests/product/runner-runtime.test.ts"],
+      "status": "partial",
+      "gap": "Module and prior Win7 profile evidence pass, but the final RC product route is not exercised.",
+      "action": "Bind the RC runner manifest to install-relative paths and execute positive and negative RC cases.",
+      "acceptance": "Structured command/output/cancel/reap pass and all forbidden inputs fail closed."
+    },
+    {
+      "id": "RC-06",
+      "requirement": "WAL/FTS5 persistence survives restart and supports Unicode, bounded cleanup and the local SSD profile.",
+      "surfaces": ["src/state", "resources/native/storage"],
+      "evidence": ["spikes/04-storage-index/GO_NOGO_WIN7_20260807.md"],
+      "status": "partial",
+      "gap": "D-014 Spike passes but production State still uses the in-memory ledger.",
+      "action": "Implement and test the versioned SQLite EventStore adapter and restart recovery.",
+      "acceptance": "RC-06 matrix passes on local NTFS SSD and rejects unsupported media claims."
+    },
+    {
+      "id": "RC-07",
+      "requirement": "Upgrade succeeds and injected failure restores the original version, data and manifest without mixed files.",
+      "surfaces": ["scripts/release", "installation lifecycle"],
+      "evidence": [],
+      "status": "missing",
+      "gap": "No RC upgrade or rollback implementation exists.",
+      "action": "Implement side-by-side staging, hash verification, atomic activation and rollback evidence.",
+      "acceptance": "Success and injected-failure paths both preserve a single coherent version."
+    },
+    {
+      "id": "RC-08",
+      "requirement": "Uninstall removes product and transient resources with an explicit user-data retention policy and zero process/lock residue.",
+      "surfaces": ["scripts/release", "installation lifecycle"],
+      "evidence": [],
+      "status": "missing",
+      "gap": "No RC uninstall implementation or retention policy exists.",
+      "action": "Implement uninstall and residue audit without services, PATH or registry unless separately authorized.",
+      "acceptance": "Product files and transient state are absent, retained user data matches policy and process/lock count is zero."
+    },
+    {
+      "id": "RC-09",
+      "requirement": "Bitvise and SSH 22 remain available before and after every round with no prohibited system mutation or reboot.",
+      "surfaces": ["Win7 coordinator", "preflight", "postflight"],
+      "evidence": [],
+      "status": "unverifiable",
+      "gap": "A7 has not issued a Win7 lease or connected to the target.",
+      "action": "Add RC-specific signed preflight/postflight and run only after developer and Win10 PASS.",
+      "acceptance": "Both snapshots pass and prohibited mutation flags are false."
+    },
+    {
+      "id": "RC-10",
+      "requirement": "Only the coordinator may issue WIN7_PASS after validating a new signed RC lease and all required evidence.",
+      "surfaces": ["Win7 coordinator", "evidence manifest", "formal status"],
+      "evidence": [],
+      "status": "unverifiable",
+      "gap": "No A7 lease, run ID or RC evidence exists.",
+      "action": "Define the RC scoring profile after the unique RC artifact is locked.",
+      "acceptance": "Coordinator signature, required cases, hashes and lifecycle evidence all validate before PASS."
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+out/
+work/
+*.zip
+*.zip.sha256
