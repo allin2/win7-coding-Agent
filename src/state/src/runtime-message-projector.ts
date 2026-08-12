@@ -1,5 +1,5 @@
 /** Event-backed implementation of Core's structural RuntimeMessageProjector port. */
-import { InMemoryEventLedger, JsonValue, projectThread } from './event-protocol';
+import { EventLedger, JsonValue, projectThread } from './event-protocol';
 
 export interface RuntimeProjectionRequest {
   readonly sessionId: string;
@@ -10,7 +10,7 @@ export interface RuntimeProjectionRequest {
 }
 
 export class RuntimeMessageProjection {
-  constructor(private readonly ledger: InMemoryEventLedger) {}
+  constructor(private readonly ledger: EventLedger) {}
 
   projectMessages(input: RuntimeProjectionRequest): readonly JsonValue[] {
     const events = this.ledger.queryThread(input.threadId)

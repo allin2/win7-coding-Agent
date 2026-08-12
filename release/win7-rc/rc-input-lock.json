@@ -8,6 +8,16 @@
     "architecture": "x64",
     "delivery": "SELF_CONTAINED_OFFLINE_WIN7_X64"
   },
+  "runtime_profiles": {
+    "runner": {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "executable_sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "output_encoding": "cp936",
+      "working_directory_token": "${RC_RUNNER_WORK_ROOT}",
+      "argv_exact": [[], ["/all"]]
+    }
+  },
   "inputs": {
     "electron_zip": {
       "filename": "electron-v22.3.27-win32-x64.zip",

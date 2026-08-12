@@ -124,21 +124,28 @@ export function buildRelease(options) {
       interactive_terminal: 'DISABLED',
     },
   });
-  writeJson(path.join(appRoot, 'rc-runtime.json'), {
-    schema_version: 1,
-    release_id: lock.release_id,
-    native_layout: 'EXTERNAL_TO_APP_AND_ASAR',
-    runner_helper: '../native/runner/spike02_helper.exe',
-    storage_module: '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
-    storage_profile: lock.inputs.storage_return_zip.profile,
-    unsupported: ['interactive-winpty', 'arbitrary-shell', 'network-drive-storage', 'hdd-performance-claim'],
-  });
-
   fs.mkdirSync(path.join(nativeRoot, 'runner'), { recursive: true });
   fs.writeFileSync(path.join(nativeRoot, 'runner', 'spike02_helper.exe'), helperBytes);
+  const runnerManifestPath = path.join(nativeRoot, 'runner', 'runner-manifest.json');
+  writeJson(runnerManifestPath, createRunnerManifest(lock));
+  const runnerManifestSha256 = sha256File(runnerManifestPath);
   extractStorageRuntime(storageZip, nativeRoot);
   assertNativeOutsideApp(stage);
   verifyPackagedJavaScript(appRoot);
+  writeJson(path.join(appRoot, 'rc-runtime.json'), {
+    schema_version: 1,
+    release_id: lock.release_id,
+    version: lock.version,
+    native_layout: 'EXTERNAL_TO_APP_AND_ASAR',
+    runner_manifest: '../native/runner/runner-manifest.json',
+    runner_manifest_sha256: runnerManifestSha256,
+    runner_work_directory: 'runner-work',
+    storage_module_root: '../native/storage/node_modules/better-sqlite3',
+    storage_native_binding: '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+    storage_database: 'state/agent-events-v2.db',
+    storage_profile: lock.inputs.storage_return_zip.profile,
+    unsupported: ['interactive-winpty', 'arbitrary-shell', 'network-drive-storage', 'hdd-performance-claim'],
+  });
 
   const licensesRoot = path.join(stage, 'licenses');
   fs.mkdirSync(licensesRoot, { recursive: true });
@@ -151,6 +158,7 @@ export function buildRelease(options) {
   writeJson(path.join(stage, 'SBOM.cdx.json'), sbom);
   fs.writeFileSync(path.join(stage, 'THIRD_PARTY_LICENSES.md'), licenseInventory(lock), 'utf8');
   fs.writeFileSync(path.join(stage, 'INSTALLATION.md'), installationGuide(lock), 'utf8');
+  fs.copyFileSync(path.join(root, 'release', 'win7-rc', 'rc04-smoke.cjs'), path.join(stage, 'RC04_SMOKE.cjs'));
 
   const files = createFileManifest(stage, lock.forbidden_payload_patterns);
   const manifest = {
@@ -185,6 +193,7 @@ export function buildRelease(options) {
     },
   };
   writeJson(path.join(stage, 'release-manifest.json'), manifest);
+  verifyStagedRcContract(stage, manifest);
 
   const zipPath = path.join(outputRoot, `${packageName}.zip`);
   fs.rmSync(zipPath, { force: true });
@@ -230,6 +239,7 @@ export function verifyReleaseZip(zipPath, sidecarPath, lockPath) {
   const nativeEntries = entries.filter((entry) => /\.(?:node|dll|exe)$/i.test(entry.name) && entry.name.includes('/resources/native/'));
   const appNativeEntries = entries.filter((entry) => /\.(?:node|dll)$/i.test(entry.name) && entry.name.includes('/resources/app/'));
   if (nativeEntries.length < 2 || appNativeEntries.length !== 0) throw new Error('RC_NATIVE_LAYOUT_INVALID');
+  verifyArchivedRcContract(archiveByName, rootPrefix, manifest);
   return {
     zip_sha256: actualZipHash,
     file_count: manifest.files.length,
@@ -238,6 +248,70 @@ export function verifyReleaseZip(zipPath, sidecarPath, lockPath) {
     manifest,
     native_file_count: nativeEntries.length,
   };
+}
+
+function verifyStagedRcContract(stage, manifest) {
+  const runtimePath = path.join(stage, 'resources', 'app', 'rc-runtime.json');
+  const runnerManifestPath = path.join(stage, 'resources', 'native', 'runner', 'runner-manifest.json');
+  const helperPath = path.join(stage, 'resources', 'native', 'runner', 'spike02_helper.exe');
+  const storagePath = path.join(stage, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+  validateRcDocuments(
+    loadJson(runtimePath),
+    loadJson(runnerManifestPath),
+    manifest,
+    sha256File(runnerManifestPath),
+    sha256File(helperPath),
+    sha256File(storagePath),
+  );
+}
+
+function verifyArchivedRcContract(archiveByName, rootPrefix, manifest) {
+  const bytes = (relativePath) => {
+    const entry = archiveByName.get(`${rootPrefix}${relativePath}`);
+    if (!entry) throw new Error(`RC_CONTRACT_FILE_MISSING:${relativePath}`);
+    return readZipEntry(entry);
+  };
+  const runtimeBytes = bytes('resources/app/rc-runtime.json');
+  const runnerBytes = bytes('resources/native/runner/runner-manifest.json');
+  const helperBytes = bytes('resources/native/runner/spike02_helper.exe');
+  const storageBytes = bytes('resources/native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node');
+  validateRcDocuments(
+    JSON.parse(runtimeBytes.toString('utf8')),
+    JSON.parse(runnerBytes.toString('utf8')),
+    manifest,
+    sha256Bytes(runnerBytes),
+    sha256Bytes(helperBytes),
+    sha256Bytes(storageBytes),
+  );
+}
+
+function validateRcDocuments(runtime, runnerManifest, manifest, runnerManifestHash, helperHash, storageHash) {
+  const expectedUnsupported = ['interactive-winpty', 'arbitrary-shell', 'network-drive-storage', 'hdd-performance-claim'];
+  if (!runtime || runtime.schema_version !== 1 || runtime.release_id !== manifest.release_id || runtime.version !== manifest.version ||
+      runtime.native_layout !== 'EXTERNAL_TO_APP_AND_ASAR' || runtime.runner_manifest !== '../native/runner/runner-manifest.json' ||
+      runtime.storage_module_root !== '../native/storage/node_modules/better-sqlite3' ||
+      runtime.storage_native_binding !== '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node' ||
+      runtime.storage_database !== 'state/agent-events-v2.db' || runtime.runner_work_directory !== 'runner-work' ||
+      runtime.storage_profile !== 'E22-SQLITE343-LOCAL-SSD' || runtime.runner_manifest_sha256 !== runnerManifestHash ||
+      !expectedUnsupported.every((item) => runtime.unsupported && runtime.unsupported.includes(item))) {
+    throw new Error('RC_RUNTIME_CONTRACT_INVALID');
+  }
+  if (!runnerManifest || runnerManifest.schema_version !== 1 || !runnerManifest.helper ||
+      runnerManifest.helper.path !== 'spike02_helper.exe' || runnerManifest.helper.sha256 !== helperHash ||
+      !Array.isArray(runnerManifest.profiles) || runnerManifest.profiles.length !== 1) {
+    throw new Error('RC_RUNNER_MANIFEST_INVALID');
+  }
+  const profile = runnerManifest.profiles[0];
+  if (profile.id !== 'win7-whoami' || profile.executable_path !== 'C:\\Windows\\System32\\whoami.exe' ||
+      profile.risk !== 'low' || profile.output_encoding !== 'cp936' ||
+      !Array.isArray(profile.working_directory_roots) || profile.working_directory_roots.length !== 1 ||
+      profile.working_directory_roots[0] !== '${RC_RUNNER_WORK_ROOT}') {
+    throw new Error('RC_RUNNER_PROFILE_INVALID');
+  }
+  if (manifest.required_native.runner_helper !== helperHash || manifest.required_native.better_sqlite3_node !== storageHash ||
+      manifest.required_native.electron_abi !== 110) {
+    throw new Error('RC_REQUIRED_NATIVE_INVALID');
+  }
 }
 
 function validateLock(lock) {
@@ -249,6 +323,41 @@ function validateLock(lock) {
       throw new Error('RC_INPUT_LOCK_HASH_INVALID');
     }
   }
+  const runner = lock.runtime_profiles && lock.runtime_profiles.runner;
+  if (!runner || runner.id !== 'win7-whoami' || runner.executable_path !== 'C:\\Windows\\System32\\whoami.exe' ||
+      !/^[a-f0-9]{64}$/.test(runner.executable_sha256 || '') || runner.working_directory_token !== '${RC_RUNNER_WORK_ROOT}' ||
+      !Array.isArray(runner.argv_exact)) {
+    throw new Error('RC_RUNNER_PROFILE_LOCK_INVALID');
+  }
+}
+
+function createRunnerManifest(lock) {
+  const runner = lock.runtime_profiles.runner;
+  return {
+    schema_version: 1,
+    release: `${lock.release_id}-${lock.version}`,
+    helper: {
+      path: 'spike02_helper.exe',
+      sha256: lock.inputs.runner_return_zip.required_entry_sha256,
+    },
+    profiles: [{
+      id: runner.id,
+      executable_path: runner.executable_path,
+      sha256: runner.executable_sha256,
+      risk: 'low',
+      output_encoding: runner.output_encoding,
+      working_directory_roots: [runner.working_directory_token],
+      argv_policy: { exact: runner.argv_exact },
+    }],
+    acceptance_action: {
+      profile_id: runner.id,
+      args: [],
+      timeout_ms: 15_000,
+      idle_timeout_ms: 5_000,
+      max_stdout_bytes: 65_536,
+      max_stderr_bytes: 65_536,
+    },
+  };
 }
 
 function validateSourceCommit(value) {
@@ -404,5 +513,13 @@ function installationGuide(lock) {
     `- Delivery: ${lock.target.delivery}; the installer must not download at runtime.\n` +
     `- Supported storage: local NTFS SSD under profile ${lock.inputs.storage_return_zip.profile}.\n` +
     `- Interactive terminal, arbitrary shell, service installation, PATH changes, firewall changes and reboot are not included.\n` +
-    `- This package is a developer candidate until separate Win10 and signed Win7 RC gates pass.\n`;
+    `- This package is a developer candidate until separate Win10 and signed Win7 RC gates pass.\n\n` +
+    `## RC-04 Windows product smoke\n\n` +
+    `From cmd.exe, use a fresh evidence directory and user-data directory:\n\n` +
+    `\`\`\`text\n` +
+    `set ELECTRON_RUN_AS_NODE=1\n` +
+    `electron.exe RC04_SMOKE.cjs --evidence=C:\\rc04-evidence --user-data=C:\\rc04-user-data\n` +
+    `set ELECTRON_RUN_AS_NODE=\n` +
+    `\`\`\`\n\n` +
+    `The harness runs two clean product starts and records only RC-04 product-smoke evidence; it does not declare full Win10 or Win7 PASS.\n`;
 }

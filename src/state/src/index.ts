@@ -64,6 +64,7 @@ export {
   JsonValue,
   EventEnvelopeInputV2,
   EventEnvelopeV2,
+  EventLedger,
   EventProtocolWarning,
   ProjectedToolResult,
   FileChangeProjection,
@@ -71,6 +72,13 @@ export {
   InMemoryEventLedger,
   projectThread,
 } from './event-protocol';
+export {
+  SqliteDatabase,
+  SqliteEventLedger,
+  SqliteEventLedgerOptions,
+  SqliteRuntimeProfile,
+  SqliteStatement,
+} from './sqlite-event-ledger';
 export { EventSubscription, EventStream } from './event-stream';
 export {
   RuntimeEventLike,

@@ -38,7 +38,7 @@ function createDesktopHost(options) {
   const maxSessions = config.maxSessions || 16;
   const maxEvents = config.maxEvents || 10_000;
   const credentialVault = config.credentialVault || null;
-  const ledger = new state.InMemoryEventLedger(maxEvents);
+  const ledger = config.ledger || new state.InMemoryEventLedger(maxEvents);
   const eventStream = new state.EventStream();
   const eventSubscription = eventStream.subscribe(config.maxPendingEvents || 1_024);
   const broker = new core.CapabilityBroker();
@@ -171,11 +171,11 @@ function createDesktopHost(options) {
         idleTimeoutMs: action.idleTimeoutMs || 5_000,
         maxStdoutBytes: action.maxStdoutBytes || 64 * 1024,
         maxStderrBytes: action.maxStderrBytes || 64 * 1024,
-        workDir: session.workspacePath,
+        workDir: config.runnerWorkDirectory || session.workspacePath,
         stdinPolicy: 'closed',
       },
     };
-    emitTaskEvent(task, 'runner.started', { profileId: request.command, cwd: session.workspacePath });
+    emitTaskEvent(task, 'runner.started', { profileId: request.command, cwd: request.config.workDir });
     try {
       task.result = await runnerExecutor.execute(request);
       if (task.result.stdout && task.result.stdout.text) emitTaskEvent(task, 'runner.stdout', {
@@ -735,14 +735,15 @@ function createDesktopHost(options) {
   }
 
   function getDiagnostics() {
+    const identity = config.productIdentity || {};
     return {
       schemaVersion: 1,
-      product: 'Win7 Coding Agent Desktop Alpha 3',
-      version: '0.5.0-a3.2',
+      product: identity.product || 'Win7 Coding Agent Desktop Alpha 3',
+      version: identity.version || '0.5.0-a3.2',
       capabilities: {
         shell: 'trusted-local-electron',
         core: 'replay-runtime',
-        state: `bounded-in-memory:${maxEvents}`,
+        state: config.stateCapability || `bounded-in-memory:${maxEvents}`,
         workspace: 'readonly-list-search-read + trusted-single-file-approval',
         write: 'single-file-str-replace-atomic-rollback-undo-reapproval',
         gateway: gatewaySettings.mode === 'deepseek'
@@ -754,6 +755,11 @@ function createDesktopHost(options) {
         git: 'unavailable-not-probed',
         terminal: 'unavailable',
       },
+      disabledCapabilities: config.disabledCapabilities || {
+        interactiveTerminal: 'disabled-not-packaged',
+        arbitraryShell: 'disabled-structured-runner-only',
+      },
+      stateRuntimeProfile: config.stateRuntimeProfile || null,
       selectedWorkspace,
       sessionCount: sessions.size,
       activeTask: activeTask ? { taskId: activeTask.taskId, status: activeTask.status } : null,
@@ -773,6 +779,7 @@ function createDesktopHost(options) {
     eventSubscription.unsubscribe();
     sessions.clear();
     activeTask = null;
+    if (typeof config.closeState === 'function') config.closeState();
   }
 
   function requireSession(sessionId) {

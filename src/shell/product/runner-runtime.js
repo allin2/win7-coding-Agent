@@ -21,20 +21,25 @@ function createProductRunner(options) {
   const releaseRoot = path.dirname(manifestPath);
   const helperPath = resolveReleaseFile(releaseRoot, manifest.helper.path);
   if (digest(fs.readFileSync(helperPath)) !== manifest.helper.sha256) throw new Error('RUNNER_HELPER_HASH_MISMATCH');
-  const profiles = manifest.profiles.map((profile) => ({
+  const profiles = manifest.profiles.map((profile) => {
+    if (config.requireLowRiskOnly === true && profile.risk !== 'low') {
+      throw new Error(`RUNNER_PROFILE_RISK_PROHIBITED:${profile.id || 'unknown'}`);
+    }
+    return ({
     id: profile.id,
-    executablePath: profile.executable_path,
+    executablePath: expandRuntimePath(profile.executable_path, config),
     sha256: profile.sha256,
     risk: profile.risk,
     outputEncoding: profile.output_encoding || 'auto',
-    workingDirectoryRoots: profile.working_directory_roots,
+    workingDirectoryRoots: profile.working_directory_roots.map((item) => expandRuntimePath(item, config)),
     validateArgs: compileArgPolicy(profile.argv_policy),
     ...(profile.acl_policy ? { aclPolicy: {
-      acceptanceRoot: profile.acl_policy.acceptance_root,
-      perRunRoot: profile.acl_policy.per_run_root,
+      acceptanceRoot: expandRuntimePath(profile.acl_policy.acceptance_root, config),
+      perRunRoot: expandRuntimePath(profile.acl_policy.per_run_root, config),
       applyLowIntegrityToWorkDir: profile.acl_policy.apply_low_integrity_to_work_dir === true,
     } } : {}),
-  }));
+    });
+  });
   const registry = new runnerModule.ExecutableProfileRegistry(profiles);
   return {
     runner: new runnerModule.NativeRunner({
@@ -45,6 +50,15 @@ function createProductRunner(options) {
     manifestSha256: manifestHash,
     helperSha256: manifest.helper.sha256,
   };
+}
+
+function expandRuntimePath(value, config) {
+  if (value === '${RC_RUNNER_WORK_ROOT}') {
+    if (!config.runnerWorkRoot) throw new Error('RUNNER_WORK_ROOT_REQUIRED');
+    return fs.realpathSync(config.runnerWorkRoot);
+  }
+  if (typeof value !== 'string' || value.includes('${')) throw new Error('RUNNER_PATH_TOKEN_INVALID');
+  return value;
 }
 
 function resolveReleaseFile(releaseRoot, relativePath) {

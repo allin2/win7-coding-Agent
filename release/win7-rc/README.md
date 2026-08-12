@@ -3,12 +3,19 @@
 This directory contains the deterministic, fail-closed packaging contract for `RC_01`.
 Generated payloads, ZIP files and evidence stay under ignored `out/` and are not committed.
 
-The first A7 slice assembles the locked Electron 22.3.27 runtime, the D-013 v24 helper,
+The A7 package assembles the locked Electron 22.3.27 runtime, the D-013 v24 helper,
 the D-014 ABI 110 storage runtime and the compiled application modules. It generates a
-versioned release manifest, CycloneDX SBOM, license inventory and ZIP sidecar.
+versioned release manifest, CycloneDX SBOM, license inventory and ZIP sidecar. The RC
+composition root automatically verifies and opens a fixed low-risk `whoami` Runner profile
+plus the versioned SQLite V2 event ledger when Electron starts.
 
-It does **not** claim RC PASS. Product assembly, installation lifecycle, the precise Win10
-toolchain return and the new signed Win7 RC lease remain separate gates.
+The product refuses startup when the release manifest, Runner manifest, helper, SQLite
+binding, SQLite 3.43.1 identity, WAL mode or required FTS5 compile options do not match.
+Interactive winpty/node-pty, arbitrary Shell, network-drive storage and HDD performance
+claims are not packaged and appear as disabled capabilities in diagnostics.
+
+It does **not** claim RC PASS. Exact packaged Electron startup, installation lifecycle, the
+precise Win10 return and the new signed Win7 RC lease remain separate gates.
 
 Run from the repository root:
 

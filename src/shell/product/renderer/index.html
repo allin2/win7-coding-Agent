@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Win7 Coding Agent · Desktop Alpha 3.2</title>
+  <title>Win7 Coding Agent · Release Candidate</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">WINDOWS 7 · CONTROLLED GATEWAY ALPHA</p>
+        <p class="eyebrow">WINDOWS 7 · CONTROLLED RELEASE CANDIDATE</p>
         <h1>Win7 Coding Agent</h1>
         <p class="subline">Shell → Core → State → Workspace → Replay / Gateway</p>
       </div>
@@ -31,8 +31,8 @@
       <aside class="panel sidebar">
         <div class="panel-heading"><h2>会话</h2><div><button id="new-session" class="button small" type="button" disabled>新建</button><button id="close-session" class="button small" type="button" disabled>关闭</button></div></div>
         <ul id="session-list" class="session-list"></ul>
-        <p id="session-empty" class="empty">选择工作区后创建内存会话。</p>
-        <div class="capability-note"><strong>当前边界</strong><p>单工作区、单活动任务。重启后不恢复会话。</p></div>
+        <p id="session-empty" class="empty">选择工作区后创建会话。</p>
+        <div class="capability-note"><strong>当前边界</strong><p>单工作区、单活动任务。会话列表保留在当前进程；事件事实由诊断所示 State 后端记录。</p></div>
       </aside>
 
       <section class="panel task-panel">
@@ -121,7 +121,7 @@
     <footer class="footer-status" aria-label="能力状态">
       <span><i class="dot ok"></i>Shell <b>可信本地</b></span>
       <span><i class="dot ok"></i>Core <b>Replay</b></span>
-      <span><i class="dot ok"></i>State <b>有界内存</b></span>
+      <span><i class="dot ok"></i>State <b id="state-capability">待诊断</b></span>
       <span><i class="dot ok"></i>Workspace <b>只读</b></span>
       <span><i class="dot off"></i>Gateway <b>未配置</b></span>
       <span><i class="dot ok"></i>Runner <b>受信非交互</b></span>

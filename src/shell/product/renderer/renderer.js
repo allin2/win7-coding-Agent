@@ -90,12 +90,20 @@ function renderDiagnostics(diagnostics) {
     ['Workspace', diagnostics.capabilities && diagnostics.capabilities.workspace],
     ['Gateway', diagnostics.capabilities && diagnostics.capabilities.gateway],
     ['Runner', diagnostics.capabilities && diagnostics.capabilities.runner],
+    ['Terminal', diagnostics.capabilities && diagnostics.capabilities.terminal],
+    ['Git', diagnostics.capabilities && diagnostics.capabilities.git],
     ['Electron', diagnostics.runtime && diagnostics.runtime.electron],
   ];
+  const disabled = diagnostics.disabledCapabilities || {};
+  Object.keys(disabled).sort().forEach((name) => entries.push([`禁用：${name}`, disabled[name]]));
   entries.forEach(([name, value]) => {
     const term = document.createElement('dt'); const detail = document.createElement('dd');
     term.textContent = name; detail.textContent = value || '不可用'; target.appendChild(term); target.appendChild(detail);
   });
+  const stateCapability = diagnostics.capabilities && diagnostics.capabilities.state;
+  setText('state-capability', typeof stateCapability === 'string' && stateCapability.indexOf('sqlite-wal-fts5:') === 0
+    ? '本地 SQLite WAL/FTS5'
+    : '有界内存');
 }
 
 async function refreshDiagnostics() {
@@ -190,7 +198,7 @@ async function chooseWorkspace() {
   const created = await call(() => window.win7Agent.createSession(state.workspacePath));
   if (created && created.session) {
     state.session = created.session;
-    setText('session-status', '会话已创建 · 进程内内存状态');
+    setText('session-status', '会话已创建 · 事件已接入 State');
     byId('run-task').disabled = false;
     byId('close-session').disabled = false;
     await refreshSessions();
@@ -204,7 +212,7 @@ async function createSession() {
   const result = await call(() => window.win7Agent.createSession(state.workspacePath));
   if (!result || !result.session) return;
   state.session = result.session;
-  setText('session-status', '会话已创建 · 进程内内存状态');
+  setText('session-status', '会话已创建 · 事件已接入 State');
   byId('run-task').disabled = false;
   byId('close-session').disabled = false;
   await refreshSessions();
@@ -216,7 +224,7 @@ async function closeSession() {
   const result = await call(() => window.win7Agent.closeSession(state.session.sessionId));
   if (!result) return;
   state.session = null;
-  setText('session-status', '会话已关闭，可重新创建内存会话');
+  setText('session-status', '会话已关闭，可重新创建会话');
   byId('run-task').disabled = true;
   byId('close-session').disabled = true;
   await refreshSessions();

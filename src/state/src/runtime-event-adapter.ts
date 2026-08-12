@@ -3,8 +3,8 @@
  * State does not import Core, so the packages remain independently testable.
  */
 import {
+  EventLedger,
   EventEnvelopeV2,
-  InMemoryEventLedger,
   JsonValue,
 } from './event-protocol';
 import { EventStream } from './event-stream';
@@ -32,7 +32,7 @@ export const RUNTIME_EVENT_TYPE_MAP: Readonly<Record<string, string>> = Object.f
 /** Implements Core's RuntimeEventSink shape and makes the V2 ledger the seq authority. */
 export class RuntimeEventLedgerSink {
   constructor(
-    private readonly ledger: InMemoryEventLedger,
+    private readonly ledger: EventLedger,
     private readonly stream?: EventStream,
   ) {}
 
