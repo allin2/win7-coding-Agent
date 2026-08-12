@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC-DEVELOPMENT-20260812-01",
+  "recorded_at_utc": "2026-08-12T03:02:50Z",
+  "release_id": "WIN7-CODING-AGENT-RC1",
+  "version": "0.1.0-rc.1",
+  "branch": "codex/a7-release-candidate",
+  "artifact_source_commit": "691f6bbfa26fd00863943b79ffc310406280b09d",
+  "status": "A7_FIRST_SLICE_DEVELOPER_PASS",
+  "scope": [
+    "deterministic offline package assembly",
+    "locked input and inner payload hash verification",
+    "external native runtime layout",
+    "versioned manifest, SBOM and license inventory",
+    "independent per-file ZIP verification"
+  ],
+  "locked_inputs": {
+    "electron_zip_sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+    "runner_return_zip_sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+    "storage_return_zip_sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794"
+  },
+  "candidate": {
+    "path": "release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "git_tracking": "IGNORED_BUILD_OUTPUT",
+    "size": 100866545,
+    "sha256": "86f8221c4bd078300759224d01519b62f76ab43d76766e934ca227342cfdc169",
+    "manifest_file_count": 727,
+    "external_native_file_count": 2,
+    "deterministic_rebuild_count": 2,
+    "deterministic_rebuild_sha256_match": true
+  },
+  "developer_validation": {
+    "release_contract_tests": {
+      "status": "PASS",
+      "tests": 5
+    },
+    "full_repository_verify": {
+      "status": "PASS",
+      "modules": 7,
+      "tests": 969
+    },
+    "documentation_check": {
+      "status": "PASS",
+      "checked_files": 67,
+      "task_files": 18
+    },
+    "independent_zip_verifier": "PASS",
+    "json_parse": "PASS",
+    "diff_check": "PASS"
+  },
+  "gates": {
+    "developer_package_assembly": "PASS",
+    "developer_full_regression": "PASS",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining_requirements": [
+    "RC-04 product assembly with D-013 and D-014 production adapters",
+    "RC-05 final product Runner routing",
+    "RC-06 persistent SQLite EventStore integration",
+    "RC-07 upgrade and rollback lifecycle",
+    "RC-08 uninstall and zero-residue lifecycle",
+    "precise Win10 verification and a new signed Win7 RC lease"
+  ],
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "interactive_winpty_included": false,
+    "network_or_system_configuration_changed": false
+  }
+}
