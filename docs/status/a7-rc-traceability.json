@@ -53,8 +53,8 @@
       "surfaces": ["src/runner", "src/shell/product"],
       "evidence": ["src/runner/tests/native-runner.test.ts", "src/shell/tests/product/runner-runtime.test.ts", "release/win7-rc/rc-input-lock.json", "scripts/release/test/rc-composition.test.mjs", "release/win7-rc/rc0506-windows-validation.cjs", "scripts/release/verify-rc0506-evidence.mjs", "docs/status/a7-rc0506-validation-kit-latest.json"],
       "status": "partial",
-      "gap": "The final RC route is manifest-bound to one low-risk whoami profile and rejects high-risk profiles structurally; native execution/cancel/reap has not run from the new RC artifact.",
-      "action": "Build the candidate-bound external validation kit, execute product/harness positive, rejection and cooperative cancellation cases on Windows, then independently verify the returned JSON before the Win7 lease.",
+      "gap": "Attempt 1 failed closed at RC05-P02 because the validation harness incorrectly used restricted whoami for exit-code-zero output/truncation; its unbound external ASAR preload also made the round ineligible for gate advancement. The product route itself remains unchanged and manifest-bound.",
+      "action": "Rerun the candidate-bound v2 kit with its runtime-hash-bound loopback ping positive/truncation profile, no NODE_OPTIONS or preload, fresh evidence roots, cooperative cancellation and independent returned-evidence verification before the Win7 lease.",
       "acceptance": "Structured command/output/cancel/reap pass and all forbidden inputs fail closed."
     },
     {
@@ -63,8 +63,8 @@
       "surfaces": ["src/state", "resources/native/storage"],
       "evidence": ["spikes/04-storage-index/GO_NOGO_WIN7_20260807.md", "src/state/src/sqlite-event-ledger.ts", "src/state/tests/unit/sqlite-event-ledger.test.ts", "release/win7-rc/rc0506-windows-validation.cjs", "scripts/release/verify-rc0506-evidence.mjs", "docs/status/a7-rc0506-validation-kit-latest.json"],
       "status": "partial",
-      "gap": "The production V2 SQLite ledger, WAL/FTS5 profile checks, atomic batches and structural reopen recovery pass; the ABI 110 binding cannot load on the macOS development host and the full RC-06 Windows matrix is not performed.",
-      "action": "Build the candidate-bound external validation kit and run actual binding load, FTS5, reopen recovery, Unicode path, atomic bounds, corruption rejection and local-SSD checks on Windows; independently verify JSON before repeating under the Win7 lease.",
+      "gap": "Attempt 1 reported all RC-06 cases passing, but the process used an unbound external ASAR preload and did not return the production test database, so the result is provisional and not accepted for gate advancement.",
+      "action": "Rerun the v2 kit without external preload; return both production and intentionally corrupted databases with the JSON reports so the independent verifier can bind their sizes and SHA-256 before the Win7 lease.",
       "acceptance": "RC-06 matrix passes on local NTFS SSD and rejects unsupported media claims."
     },
     {

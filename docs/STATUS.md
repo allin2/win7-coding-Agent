@@ -254,7 +254,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 状态层已接入 schema v1 的 SQLite V2 EventLedger，覆盖 WAL/FTS5/Profile 检查、原子批次、事件
   指纹、线程序列、容量上限、启动恢复扫描和关闭 checkpoint。当前持久化的是审计事件事实；完整
   session catalog 仍为进程内状态，不宣称重启后的完整会话恢复。
-- 开发机 `npm run verify` 通过 7 个模块共 981 项测试，release/RC 合同 10/10 通过。由同一干净提交
+- 开发机 `npm run verify` 通过 7 个模块共 981 项测试，release/RC 合同 19/19 通过。由同一干净提交
   和锁定输入连续两次生成的 ZIP 字节一致：731 个 manifest 文件、100,877,883 字节、SHA-256
   `909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5`；独立逐文件校验通过。
 - 锁定候选已在 Windows x64 上完成两轮真实产品入口 smoke：Electron 22.3.27、Renderer/诊断、
@@ -270,13 +270,17 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   已记录为非阻断文案不一致且原始字节保持不变。机器可读记录见
   [`a7-rc-development-latest.json`](status/a7-rc-development-latest.json) 和
   [`a7-rc04-windows-smoke-latest.json`](status/a7-rc04-windows-smoke-latest.json)。
-- RC-05/RC-06 已形成不改动产品候选的独立 Windows 验证包，工具提交为 `7132c5e`，两次确定性
-  构建均得到 11,333 字节、SHA-256
-  `d4c092004380e98227fae0522db6b3b8f515b71fa4715ed99d400a08f9fdb917`。验证包锁定原产品
-  `90916647…f1d5`，覆盖 Runner 正向/拒绝/合作取消/零残留和 Storage ABI/WAL/FTS5/恢复/边界/
-  本地 SSD；harness-only loopback ping 不进入产品 manifest。当前状态为
-  `RC04_PASS_RC0506_WINDOWS_KIT_READY`，RC-05/RC-06 Windows 结果仍为 `NOT_PERFORMED`。机器可读
-  记录见 [`a7-rc0506-validation-kit-latest.json`](status/a7-rc0506-validation-kit-latest.json)。
+- RC0506 首轮 Windows 返回按 fail-closed 裁决：RC05-P02 失败，RC-06 虽报告 7/7，但由于执行前加载
+  未受 KIT manifest 约束的外部 `noasar.js`，且未返回生产测试库，不能进入正式 PASS。首轮 5 个原始
+  返回物已按字节只读归档至
+  `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt1-20260813/`。
+- 不改动产品候选的 v2 验证包已由提交 `46ccd90` 修复：ASAR 模式由 manifest 绑定 harness 内部设置，
+  禁止 `NODE_OPTIONS`/外部 preload；P02 改用实时哈希绑定的回环 `ping.exe`；失败总是生成 summary、
+  fatal 且退出码为 1；返回的生产/篡改数据库由独立验证器复算。两次确定性构建均得到 12,294 字节、
+  SHA-256 `3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a`。当前状态为
+  `RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY`；v2 的 RC-05/RC-06 仍未执行，Win7 与 RC 均为
+  `NOT_PERFORMED`。机器可读记录见
+  [`a7-rc0506-validation-kit-latest.json`](status/a7-rc0506-validation-kit-latest.json)。
 
 ## MVP 已接受的延期项
 

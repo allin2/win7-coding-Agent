@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC0506-VALIDATION-KIT-20260813-01",
-  "recorded_at_utc": "2026-08-13T14:51:15Z",
+  "record_id": "A7-RC0506-VALIDATION-KIT-20260813-02",
+  "recorded_at_utc": "2026-08-13T15:56:48Z",
   "branch": "codex/a7-release-candidate",
-  "kit_source_commit": "7132c5ea85e0cc649ced53760027a84cabfa9629",
-  "status": "READY_FOR_WINDOWS_EXECUTION",
+  "kit_source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
+  "status": "ATTEMPT1_FAIL_CLOSED_V2_READY_FOR_WINDOWS_EXECUTION",
   "target_candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
@@ -14,23 +14,42 @@
     "changed_by_validation_kit": false
   },
   "validation_kit": {
-    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260813.zip",
-    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260813.zip",
-    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-validation-kit-20260813",
+    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260813-v2.zip",
+    "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260813-V2",
+    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260813-v2.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-validation-kit-v2-20260813",
     "archive_mode": "READ_ONLY_BYTE_PRESERVED",
-    "size": 11333,
-    "sha256": "d4c092004380e98227fae0522db6b3b8f515b71fa4715ed99d400a08f9fdb917",
-    "sidecar_sha256": "c62236aad2bb6b792a532588678966597799834331df15b66bb58f80d391faa8",
-    "build_result_sha256": "fc782d3cf8bfca0abf407d22f65fb65156922df11a09ae41b35456e75aa9f192",
+    "size": 12294,
+    "sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
+    "sidecar_sha256": "1d5fad40f664a30ebe744e480644d1c149a122c9b4c4950059e2a8170ade05bb",
+    "build_result_sha256": "e31ef327a00da1138b49c5f1669fa59c73640a33899bcf766006acf0e5ceb9fe",
     "zip_files": 4,
     "deterministic_rebuilds": 2,
     "deterministic_rebuild_sha256_match": true
   },
+  "attempt_1": {
+    "status": "FAIL_CLOSED",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt1-20260813",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "rc05": "FAIL_RC05_P02",
+    "rc06": "PROVISIONAL_PASS_NOT_FORMALLY_ACCEPTED_EXTERNAL_PRELOAD",
+    "summary": "NOT_GENERATED",
+    "fatal": "RC0506_SUMMARY_INVALID",
+    "reported_process_exit_code": 0,
+    "adjudication": "REJECTED_FOR_GATE_ADVANCEMENT",
+    "evidence_sha256": {
+      "report": "518e74f8b55579716cff8f452bab7853ac868134c6a2ee7672af9c859ba0bb54",
+      "rc05": "729087fbe764aadf5ee43f0bde1d8350f4eaf3340364ad172f4259f629b366d8",
+      "fatal": "2efdb2e0baad13c3b42e2005d1e2a937f107b3b90dd5250d5b738242213ec7b9",
+      "rc06": "6a93f9d96d6745129d668c629cc5e8dc5f54d9b1911e4252a1f1e40c83452f3d",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e"
+    }
+  },
   "coverage": {
     "rc05": [
       "product unknown and Shell rejection",
-      "product whoami when the host bytes equal the Win7 target hash",
-      "runtime-hash-bound harness-only whoami positive containment",
+      "product whoami structured exit and containment when host bytes equal the Win7 target hash",
+      "runtime-hash-bound harness-only loopback ping positive output and truncation",
       "unknown, Shell, interactive stdin, secret overlay and high-risk rejection",
       "harness-only loopback ping cooperative cancellation and zero new process residue"
     ],
@@ -41,7 +60,8 @@
       "FTS Unicode query and quick_check",
       "atomic capacity and payload bounds",
       "fingerprint corruption rejection on an isolated copy",
-      "UNC rejection, WAL/SHM cleanup and local NTFS SSD identity"
+      "UNC rejection, WAL/SHM cleanup and local NTFS SSD identity",
+      "returned production and intentionally corrupted databases independently hash-bound"
     ]
   },
   "developer_validation": {
@@ -52,24 +72,26 @@
     },
     "release_contract_tests": {
       "status": "PASS",
-      "tests": 14
+      "tests": 19
     },
     "documentation_check": "PASS",
     "syntax_check": "PASS",
     "diff_check": "PASS",
-    "independent_return_verifier": "IMPLEMENTED_NOT_YET_EXECUTED"
+    "independent_return_verifier": "PASS_SYNTHETIC_AND_ATTEMPT1_REJECTED"
   },
   "qualification": {
     "harness_only_profiles_enter_product_manifest": false,
     "external_network_target_used": false,
     "win10_system_binary_hash_difference": "RECORDED_AS_TARGET_PROFILE_DEFERRED_NOT_SUBSTITUTED",
+    "external_node_options_or_preload": "PROHIBITED",
+    "fresh_evidence_and_user_data_roots": "REQUIRED",
     "product_candidate_rebuild_required": false
   },
   "gates": {
     "rc04_windows_product_smoke": "PASS",
-    "rc05_windows": "NOT_PERFORMED",
-    "rc06_windows": "NOT_PERFORMED",
-    "win10": "PARTIAL_RC04_SMOKE_ONLY",
+    "rc05_windows": "ATTEMPT1_FAIL_CLOSED_V2_NOT_PERFORMED",
+    "rc06_windows": "ATTEMPT1_PROVISIONAL_PASS_NOT_ACCEPTED_V2_NOT_PERFORMED",
+    "win10": "PARTIAL_RC04_SMOKE_ONLY_RC0506_ATTEMPT1_FAIL_CLOSED",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },

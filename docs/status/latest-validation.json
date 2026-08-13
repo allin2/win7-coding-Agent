@@ -9,7 +9,7 @@
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
   "executed_at": "2026-08-04T17:55:44+08:00",
-  "last_updated_at": "2026-08-13T22:51:15+08:00",
+  "last_updated_at": "2026-08-13T23:56:48+08:00",
   "post_baseline_updates": [
     {
       "record": "docs/status/win10-native-builds-latest.json",
@@ -24,9 +24,9 @@
     },
     {
       "record": "docs/status/a7-rc-development-latest.json",
-      "status": "RC04_PASS_RC0506_WINDOWS_KIT_READY",
+      "status": "RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY",
       "win7_formal_acceptance_changed": false,
-      "scope": "RC-04 Windows product smoke passed; deterministic candidate-bound RC-05/RC-06 Windows validation kit is ready, not yet executed; Win10 remains partial, Win7 and RC not performed"
+      "scope": "RC-04 Windows product smoke passed; RC0506 attempt 1 failed closed and did not advance gates; deterministic manifest-bound v2 is ready but not executed; Win10 remains partial, Win7 and RC not performed"
     }
   ],
   "environment": {
@@ -224,14 +224,14 @@
   },
   "a7_rc_development_supplement": {
     "schema_version": 1,
-    "record_id": "A7-RC-DEVELOPMENT-20260813-04",
-    "status": "RC04_PASS_RC0506_WINDOWS_KIT_READY",
+    "record_id": "A7-RC-DEVELOPMENT-20260813-05",
+    "status": "RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY",
     "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
     "candidate_sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
     "developer_validation": {
       "modules": 7,
       "tests": 981,
-      "release_contract_tests": 10,
+      "release_contract_tests": 19,
       "deterministic_rebuilds": 2,
       "independent_zip_verifier": "PASS"
     },
@@ -239,9 +239,9 @@
     "rc": "NOT_PERFORMED",
     "win7_lease_issued": false,
     "rc04_windows_product_smoke": "PASS",
-    "rc05_windows": "NOT_PERFORMED",
-    "rc06_windows": "NOT_PERFORMED",
-    "win10": "PARTIAL_RC04_SMOKE_ONLY",
+    "rc05_windows": "ATTEMPT1_FAIL_CLOSED_V2_NOT_PERFORMED",
+    "rc06_windows": "ATTEMPT1_PROVISIONAL_PASS_NOT_ACCEPTED_V2_NOT_PERFORMED",
+    "win10": "PARTIAL_RC04_SMOKE_ONLY_RC0506_ATTEMPT1_FAIL_CLOSED",
     "evidence": [
       "docs/status/a7-rc-development-latest.json",
       "docs/status/a7-rc04-windows-smoke-latest.json",
