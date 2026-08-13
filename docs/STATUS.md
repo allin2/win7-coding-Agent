@@ -263,12 +263,20 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   与两轮原始 JSON 的 SHA-256 已在开发机复算，并与候选 release manifest 及 8 个关键产品文件
   逐项绑定。只读原始归档位于
   `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc04-windows-smoke-20260813/`。
-- 当前结论升级为 `RC04_WINDOWS_PRODUCT_SMOKE_PASS_RC0506_PENDING`，但 Win10 仅为
-  `PARTIAL_RC04_SMOKE_ONLY`；RC-05/RC-06、完整 Win10 门禁、新 Win7 租约与 RC 总体结论均未完成。
+- RC-04 限定结论为 `PASS`；在 RC-05/RC-06 工具包形成前，阶段状态曾为
+  `RC04_WINDOWS_PRODUCT_SMOKE_PASS_RC0506_PENDING`。Win10 仍仅为 `PARTIAL_RC04_SMOKE_ONLY`；
+  RC-05/RC-06、完整 Win10 门禁、新 Win7 租约与 RC 总体结论均未完成。
   返回报告中“State remains in-memory”是与同报告 SQLite/WAL 和数据库事实矛盾的遗留 MVP 注释，
   已记录为非阻断文案不一致且原始字节保持不变。机器可读记录见
   [`a7-rc-development-latest.json`](status/a7-rc-development-latest.json) 和
   [`a7-rc04-windows-smoke-latest.json`](status/a7-rc04-windows-smoke-latest.json)。
+- RC-05/RC-06 已形成不改动产品候选的独立 Windows 验证包，工具提交为 `7132c5e`，两次确定性
+  构建均得到 11,333 字节、SHA-256
+  `d4c092004380e98227fae0522db6b3b8f515b71fa4715ed99d400a08f9fdb917`。验证包锁定原产品
+  `90916647…f1d5`，覆盖 Runner 正向/拒绝/合作取消/零残留和 Storage ABI/WAL/FTS5/恢复/边界/
+  本地 SSD；harness-only loopback ping 不进入产品 manifest。当前状态为
+  `RC04_PASS_RC0506_WINDOWS_KIT_READY`，RC-05/RC-06 Windows 结果仍为 `NOT_PERFORMED`。机器可读
+  记录见 [`a7-rc0506-validation-kit-latest.json`](status/a7-rc0506-validation-kit-latest.json)。
 
 ## MVP 已接受的延期项
 

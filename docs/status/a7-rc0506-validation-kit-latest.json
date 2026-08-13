@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC0506-VALIDATION-KIT-20260813-01",
+  "recorded_at_utc": "2026-08-13T14:51:15Z",
+  "branch": "codex/a7-release-candidate",
+  "kit_source_commit": "7132c5ea85e0cc649ced53760027a84cabfa9629",
+  "status": "READY_FOR_WINDOWS_EXECUTION",
+  "target_candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
+    "size": 100877883,
+    "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "release_manifest_sha256": "4f550728c1743492dbd66bd417db312d69f6694d276a1fe3ecbd8d4cfda5bbaa",
+    "changed_by_validation_kit": false
+  },
+  "validation_kit": {
+    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260813.zip",
+    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260813.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-validation-kit-20260813",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 11333,
+    "sha256": "d4c092004380e98227fae0522db6b3b8f515b71fa4715ed99d400a08f9fdb917",
+    "sidecar_sha256": "c62236aad2bb6b792a532588678966597799834331df15b66bb58f80d391faa8",
+    "build_result_sha256": "fc782d3cf8bfca0abf407d22f65fb65156922df11a09ae41b35456e75aa9f192",
+    "zip_files": 4,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true
+  },
+  "coverage": {
+    "rc05": [
+      "product unknown and Shell rejection",
+      "product whoami when the host bytes equal the Win7 target hash",
+      "runtime-hash-bound harness-only whoami positive containment",
+      "unknown, Shell, interactive stdin, secret overlay and high-risk rejection",
+      "harness-only loopback ping cooperative cancellation and zero new process residue"
+    ],
+    "rc06": [
+      "actual ABI 110 native binding load",
+      "SQLite 3.43.1, WAL, FTS5 and compile-option identity",
+      "Unicode and space path close/reopen recovery",
+      "FTS Unicode query and quick_check",
+      "atomic capacity and payload bounds",
+      "fingerprint corruption rejection on an isolated copy",
+      "UNC rejection, WAL/SHM cleanup and local NTFS SSD identity"
+    ]
+  },
+  "developer_validation": {
+    "full_repository_verify": {
+      "status": "PASS",
+      "modules": 7,
+      "tests": 981
+    },
+    "release_contract_tests": {
+      "status": "PASS",
+      "tests": 14
+    },
+    "documentation_check": "PASS",
+    "syntax_check": "PASS",
+    "diff_check": "PASS",
+    "independent_return_verifier": "IMPLEMENTED_NOT_YET_EXECUTED"
+  },
+  "qualification": {
+    "harness_only_profiles_enter_product_manifest": false,
+    "external_network_target_used": false,
+    "win10_system_binary_hash_difference": "RECORDED_AS_TARGET_PROFILE_DEFERRED_NOT_SUBSTITUTED",
+    "product_candidate_rebuild_required": false
+  },
+  "gates": {
+    "rc04_windows_product_smoke": "PASS",
+    "rc05_windows": "NOT_PERFORMED",
+    "rc06_windows": "NOT_PERFORMED",
+    "win10": "PARTIAL_RC04_SMOKE_ONLY",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "system_configuration_changed": false,
+    "rebooted": false
+  }
+}

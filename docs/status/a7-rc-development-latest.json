@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260813-03",
-  "recorded_at_utc": "2026-08-13T14:34:47Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260813-04",
+  "recorded_at_utc": "2026-08-13T14:51:15Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
-  "status": "RC04_WINDOWS_PRODUCT_SMOKE_PASS_RC0506_PENDING",
+  "status": "RC04_PASS_RC0506_WINDOWS_KIT_READY",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -37,7 +37,7 @@
   "developer_validation": {
     "release_contract_tests": {
       "status": "PASS",
-      "tests": 10
+      "tests": 14
     },
     "full_repository_verify": {
       "status": "PASS",
@@ -59,6 +59,13 @@
       "status": "PASS",
       "tests": 127
     },
+    "rc0506_windows_validation_kit": {
+      "status": "READY_FOR_WINDOWS_EXECUTION",
+      "source_commit": "7132c5ea85e0cc649ced53760027a84cabfa9629",
+      "zip_sha256": "d4c092004380e98227fae0522db6b3b8f515b71fa4715ed99d400a08f9fdb917",
+      "deterministic_rebuilds": 2,
+      "evidence": "docs/status/a7-rc0506-validation-kit-latest.json"
+    },
     "documentation_check": {
       "status": "PASS",
       "checked_files": 67,
@@ -73,6 +80,8 @@
     "developer_full_regression": "PASS",
     "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
     "rc04_windows_product_smoke": "PASS",
+    "rc05_windows": "NOT_PERFORMED",
+    "rc06_windows": "NOT_PERFORMED",
     "win10": "PARTIAL_RC04_SMOKE_ONLY",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
