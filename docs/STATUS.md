@@ -245,7 +245,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   [`integration-closeout-latest.json`](status/integration-closeout-latest.json)。A7 已从该唯一基线启动；
   后续开发进展不会改写本次 A4/A5/A6 收口证据。
 
-## A7 RC-04 产品装配开发验证（2026-08-12）
+## A7 RC-04 产品装配与 Windows smoke（更新至 2026-08-13）
 
 - 提交 `f24d9a42a915dcab9eecb1e61d0870ac11a84555` 已建立 manifest 绑定的产品 composition root：
   Electron 创建 Renderer 前逐文件校验并装配 D-013 v24 低风险 `whoami` Runner 与 D-014
@@ -257,11 +257,18 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 开发机 `npm run verify` 通过 7 个模块共 981 项测试，release/RC 合同 10/10 通过。由同一干净提交
   和锁定输入连续两次生成的 ZIP 字节一致：731 个 manifest 文件、100,877,883 字节、SHA-256
   `909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5`；独立逐文件校验通过。
-- 当前结论仅为 `RC04_DEVELOPER_PASS_WINDOWS_SMOKE_PENDING`。精确打包 Electron 启动、真实
-  D-013/D-014 Windows 加载与双启动恢复 smoke 尚未执行，因此 Win10、Win7 和 RC 均保持
-  `NOT_PERFORMED`，也没有签发或复用 Win7 租约。机器可读记录见
+- 锁定候选已在 Windows x64 上完成两轮真实产品入口 smoke：Electron 22.3.27、Renderer/诊断、
+  安全基线、D-013 `win7-whoami` Runner composition、D-014 SQLite 3.43.1/WAL composition
+  全部通过，两轮退出码均为 0；状态库为 49,152 字节，关闭后无 `-wal`/`-shm` 残留。返回 summary
+  与两轮原始 JSON 的 SHA-256 已在开发机复算，并与候选 release manifest 及 8 个关键产品文件
+  逐项绑定。只读原始归档位于
+  `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc04-windows-smoke-20260813/`。
+- 当前结论升级为 `RC04_WINDOWS_PRODUCT_SMOKE_PASS_RC0506_PENDING`，但 Win10 仅为
+  `PARTIAL_RC04_SMOKE_ONLY`；RC-05/RC-06、完整 Win10 门禁、新 Win7 租约与 RC 总体结论均未完成。
+  返回报告中“State remains in-memory”是与同报告 SQLite/WAL 和数据库事实矛盾的遗留 MVP 注释，
+  已记录为非阻断文案不一致且原始字节保持不变。机器可读记录见
   [`a7-rc-development-latest.json`](status/a7-rc-development-latest.json) 和
-  [`a7-rc-traceability.json`](status/a7-rc-traceability.json)。
+  [`a7-rc04-windows-smoke-latest.json`](status/a7-rc04-windows-smoke-latest.json)。
 
 ## MVP 已接受的延期项
 

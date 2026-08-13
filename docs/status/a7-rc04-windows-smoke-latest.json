@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC04-WINDOWS-SMOKE-20260813-01",
+  "recorded_at_utc": "2026-08-13T14:34:47Z",
+  "release_id": "WIN7-CODING-AGENT-RC1",
+  "version": "0.1.0-rc.1",
+  "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
+  "candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "size": 100877883,
+    "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "release_manifest_sha256": "4f550728c1743492dbd66bd417db312d69f6694d276a1fe3ecbd8d4cfda5bbaa",
+    "package_binding": "PASS"
+  },
+  "execution": {
+    "started_at": "2026-08-13T14:26:58.644Z",
+    "finished_at": "2026-08-13T14:26:59.346Z",
+    "platform": "win32",
+    "architecture": "x64",
+    "windows_edition_build": "NOT_RECORDED",
+    "electron": "22.3.27",
+    "node": "16.17.1",
+    "chrome": "108.0.5359.215",
+    "rounds": 2,
+    "exit_codes": [0, 0],
+    "stderr_empty": true
+  },
+  "cases": {
+    "PRODUCT_ENTRY_START_RENDER_EXIT": "PASS",
+    "PRODUCT_SECURITY_BASELINE": "PASS",
+    "RC_PRODUCT_COMPOSITION": "PASS",
+    "runner_profile": "win7-whoami",
+    "storage_profile": "E22-SQLITE343-LOCAL-SSD",
+    "sqlite_version": "3.43.1",
+    "journal_mode": "wal",
+    "interactive_terminal": "disabled-winpty-node-pty-not-packaged",
+    "arbitrary_shell": "disabled-fixed-low-risk-profile-only"
+  },
+  "state_database": {
+    "path": "C:\\rc04-user-data\\state\\agent-events-v2.db",
+    "size": 49152,
+    "sha256": "ef9a5bdd1f0ee4353794e0aaf1c3c0d32b1d81ac2afcf0282eb951ee8f45d52a",
+    "wal_shm_residue": []
+  },
+  "evidence_archive": {
+    "root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc04-windows-smoke-20260813",
+    "mode": "READ_ONLY_BYTE_PRESERVED",
+    "files": [
+      {
+        "name": "RC04_WINDOWS_PRODUCT_SMOKE_REPORT.txt",
+        "size": 8431,
+        "sha256": "b26a7c417c29f7a921b9cb40242e646ed26c5cb235e65fff3129f778c918de72"
+      },
+      {
+        "name": "rc04-product-smoke-summary.json",
+        "size": 1286,
+        "sha256": "b9c603497e6c30a422968fd300a481edfc6c40781e87336d04017b7293f6f856"
+      },
+      {
+        "name": "rc04-product-smoke-round-1.json",
+        "size": 3738,
+        "sha256": "11a85076e1e783978667b075c807579fe38146d248443062999c0bcac500f65d"
+      },
+      {
+        "name": "rc04-product-smoke-round-2.json",
+        "size": 3738,
+        "sha256": "2368b6db565575d8aac2f62126cccc874591a78db3404e2e2c6b8a2784552603"
+      }
+    ]
+  },
+  "independent_review": {
+    "json_parse": "PASS",
+    "summary_round_hash_binding": "PASS",
+    "repository_validator": "PASS",
+    "candidate_release_manifest_binding": "PASS",
+    "candidate_product_file_hash_binding": "PASS",
+    "returned_certutil_get_file_hash_match": "PASS_AS_RECORDED_IN_RETURN_REPORT",
+    "local_archive_hash_recalculation": "PASS"
+  },
+  "known_reporting_inconsistency": {
+    "field": "round reports notes[1]",
+    "text": "Runner remains fail-closed, State remains in-memory and Gateway remains unconfigured/Replay for this MVP increment.",
+    "disposition": "NON_BLOCKING_STALE_MVP_NOTE",
+    "reason": "The same reports prove RC_PRODUCT_COMPOSITION with SQLite 3.43.1/WAL, and the harness independently binds and hashes the persistent state database. Original evidence bytes remain unchanged."
+  },
+  "gates": {
+    "rc04_windows_product_smoke": "PASS",
+    "win10": "PARTIAL_RC04_SMOKE_ONLY",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "system_configuration_changed": false,
+    "rebooted": false
+  }
+}

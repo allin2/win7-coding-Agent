@@ -41,10 +41,10 @@
       "id": "RC-04",
       "requirement": "Electron, Core, low-risk Runner and local-SSD Storage start as one product and disabled capabilities are explicit.",
       "surfaces": ["src/shell/product", "src/runner", "src/state"],
-      "evidence": ["src/shell/product/rc-composition.js", "src/shell/product/main.js", "scripts/release/test/rc-composition.test.mjs", "docs/status/a7-rc-development-latest.json"],
+      "evidence": ["src/shell/product/rc-composition.js", "src/shell/product/main.js", "scripts/release/test/rc-composition.test.mjs", "docs/status/a7-rc-development-latest.json", "docs/status/a7-rc04-windows-smoke-latest.json"],
       "status": "partial",
-      "gap": "The release composition and structural product tests pass, but the exact packaged Electron/D-013/D-014 Windows process has not executed this new RC path.",
-      "action": "Execute the packaged Electron product smoke on the precise Win10 environment, then repeat under the new Win7 RC lease.",
+      "gap": "The exact packaged Electron/D-013/D-014 Windows product smoke passed twice; the same RC-04 case has not run under a new signed Win7 RC lease.",
+      "action": "Preserve the locked candidate and repeat RC-04 under the new Win7 RC lease after the remaining developer and Win10 gates pass.",
       "acceptance": "Product smoke proves all four boundaries and reports disabled interactive terminal and unsupported media."
     },
     {

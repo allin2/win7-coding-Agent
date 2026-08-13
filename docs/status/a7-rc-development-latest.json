@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260812-02",
-  "recorded_at_utc": "2026-08-12T03:46:46Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260813-03",
+  "recorded_at_utc": "2026-08-13T14:34:47Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
-  "status": "RC04_DEVELOPER_PASS_WINDOWS_SMOKE_PENDING",
+  "status": "RC04_WINDOWS_PRODUCT_SMOKE_PASS_RC0506_PENDING",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -47,7 +47,8 @@
     "rc04_composition_contract": {
       "status": "PASS",
       "qualification": "DEVELOPMENT_STRUCTURAL_TESTS_ONLY",
-      "windows_product_process": "NOT_PERFORMED"
+      "windows_product_process": "PASS",
+      "evidence": "docs/status/a7-rc04-windows-smoke-latest.json"
     },
     "state_module": {
       "status": "PASS",
@@ -71,13 +72,12 @@
     "developer_package_assembly": "PASS",
     "developer_full_regression": "PASS",
     "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
-    "rc04_windows_product_smoke": "NOT_PERFORMED",
-    "win10": "NOT_PERFORMED",
+    "rc04_windows_product_smoke": "PASS",
+    "win10": "PARTIAL_RC04_SMOKE_ONLY",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
-    "RC-04 exact packaged Electron/D-013/D-014 Windows product smoke",
     "RC-04 repeat under the new signed Win7 RC lease",
     "RC-05 native Windows Runner positive, rejection, cancellation and reap matrix",
     "RC-06 actual ABI 110 binding load, restart recovery, Unicode path and local-SSD matrix",
