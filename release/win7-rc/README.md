@@ -41,15 +41,19 @@ node scripts/release/build-rc0506-validation-kit.mjs \
   --candidate-zip release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip
 ```
 
-The v2 kit disables Electron ASAR interception inside the manifest-bound harness before it
+The v3 kit disables Electron ASAR interception inside the manifest-bound harness before it
 fully verifies the extracted release manifest; external `NODE_OPTIONS` or preload scripts
 are prohibited. It then exercises the packaged
-D-013 helper and D-014 binding. Its loopback `ping.exe` profile exists only inside the
-acceptance harness to make positive output, truncation and cooperative cancellation
-deterministic; it is runtime-hash bound and never enters the product manifest or Renderer
-command surface. Restricted `whoami.exe` may return a localized nonzero exit after a
+D-013 helper and D-014 binding. Its manifest-bound local probe runs through the candidate's
+own hash-bound `electron.exe`, emits fixed CP936 bytes and waits deterministically for the
+cancellation case without accessing the network. It never enters the product manifest or
+Renderer command surface. Restricted `whoami.exe` may return a localized nonzero exit after a
 structurally valid contained launch, so product-profile success requires a structured exit
 and verified containment rather than an incorrect exit-code-zero assumption.
+
+Use the included `RUN_RC0506.cmd` entry point. It records
+`rc0506-process-exit-code.txt` after the Electron process exits and returns the same code,
+so a JSON FAIL cannot be reported together with an unexamined shell success code.
 
 Returned evidence is reviewed independently with:
 

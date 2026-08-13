@@ -281,6 +281,15 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   `RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY`；v2 的 RC-05/RC-06 仍未执行，Win7 与 RC 均为
   `NOT_PERFORMED`。机器可读记录见
   [`a7-rc0506-validation-kit-latest.json`](status/a7-rc0506-validation-kit-latest.json)。
+- v2 随后在普通 Win10 CMD 完成执行并保持 fail-closed：RC-06 的 7 项、生产数据库 `quick_check`、
+  2 条连续事件、FTS 与零 WAL/SHM 残留已独立复核为 `PASS`；RC-05 的 P02 因回环 `ping.exe`
+  返回 exit 1 而失败。该轮还暴露一个真实 C11 缺陷：CP936 head/tail 截断文本出现替换字符，
+  但旧实现错误记录 `replacement_count=0`。返回报告写出的进程退出码 0 又与 harness 的
+  `process.exit(1)` 合同冲突，因此 RC-05 与组合门禁均保持 `FAIL_CLOSED`。
+- 2026-08-14 的 v3 源码修复已就绪：Runner 对截断 head/tail 分别做多字节边界对齐；RC-05
+  改用 KIT manifest 绑定的本地固定字节探针，通过候选自身哈希绑定的 `electron.exe` 执行，
+  不访问网络；`RUN_RC0506.cmd` 会记录并原样返回真实子进程退出码。当前仍需从该修复提交重建
+  产品候选和 v3 KIT 后执行 Windows 复验，故不得提前声明新的 RC-04、RC-05 或完整 Win10 PASS。
 
 ## MVP 已接受的延期项
 

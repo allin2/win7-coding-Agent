@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260813-05",
-  "recorded_at_utc": "2026-08-13T15:56:48Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260814-06",
+  "recorded_at_utc": "2026-08-14T06:30:00Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
-  "status": "RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY",
+  "status": "RC04_PASS_RC06_V2_PASS_RC05_V2_FAIL_CLOSED_V3_SOURCE_FIX_READY",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -42,7 +42,7 @@
     "full_repository_verify": {
       "status": "PASS",
       "modules": 7,
-      "tests": 981
+      "tests": 983
     },
     "rc04_composition_contract": {
       "status": "PASS",
@@ -60,7 +60,7 @@
       "tests": 127
     },
     "rc0506_windows_validation_kit": {
-      "status": "ATTEMPT1_FAIL_CLOSED_V2_READY_FOR_WINDOWS_EXECUTION",
+      "status": "ATTEMPT2_V2_FAIL_CLOSED_V3_SOURCE_FIX_READY_FOR_CANDIDATE_REBUILD",
       "source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
       "zip_sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
       "deterministic_rebuilds": 2,
@@ -80,16 +80,17 @@
     "developer_full_regression": "PASS",
     "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
     "rc04_windows_product_smoke": "PASS",
-    "rc05_windows": "ATTEMPT1_FAIL_CLOSED_V2_NOT_PERFORMED",
-    "rc06_windows": "ATTEMPT1_PROVISIONAL_PASS_NOT_ACCEPTED_V2_NOT_PERFORMED",
-    "win10": "PARTIAL_RC04_SMOKE_ONLY_RC0506_ATTEMPT1_FAIL_CLOSED",
+    "rc05_windows": "ATTEMPT2_V2_FAIL_CLOSED_V3_NOT_PERFORMED",
+    "rc06_windows": "ATTEMPT2_V2_PASS_V3_NOT_PERFORMED",
+    "win10": "PARTIAL_RC04_RC06_PASS_RC05_FAIL_CLOSED",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
     "RC-04 repeat under the new signed Win7 RC lease",
-    "rerun RC-05 native Windows Runner positive, rejection, cancellation and reap matrix with the manifest-bound v2 kit",
-    "rerun RC-06 actual ABI 110 binding load, restart recovery, Unicode path and local-SSD matrix without external preload",
+    "rebuild the product candidate so the CP936 truncation fix is manifest-bound",
+    "run RC-05 native Windows Runner positive, rejection, cancellation and reap matrix with the v3 network-free probe",
+    "rerun RC-06 against the rebuilt candidate and manifest-bound v3 kit",
     "RC-07 upgrade and rollback lifecycle",
     "RC-08 uninstall and zero-residue lifecycle",
     "precise Win10 verification and a new signed Win7 RC lease"

@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC0506-VALIDATION-KIT-20260813-02",
-  "recorded_at_utc": "2026-08-13T15:56:48Z",
+  "record_id": "A7-RC0506-VALIDATION-KIT-20260814-03",
+  "recorded_at_utc": "2026-08-14T06:30:00Z",
   "branch": "codex/a7-release-candidate",
   "kit_source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
-  "status": "ATTEMPT1_FAIL_CLOSED_V2_READY_FOR_WINDOWS_EXECUTION",
+  "status": "ATTEMPT2_V2_FAIL_CLOSED_V3_SOURCE_FIX_READY_FOR_CANDIDATE_REBUILD",
   "target_candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
@@ -45,6 +45,53 @@
       "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e"
     }
   },
+  "attempt_2_v2": {
+    "status": "FAIL_CLOSED",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt2-v2-20260814",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "kit_sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
+    "candidate_sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "rc05": "FAIL_RC05_P02",
+    "rc06": "PASS",
+    "summary": "FAIL",
+    "fatal": "RC0506_CASES_FAILED:RC05=FAIL:RC06=PASS",
+    "reported_process_exit_code": 0,
+    "expected_process_exit_code": 1,
+    "exit_code_evidence": "CONTRADICTS_MANIFEST_BOUND_HARNESS_PROCESS_EXIT_1",
+    "adjudication": "RC06_WINDOWS_PASS_RC05_AND_COMBINED_GATE_FAIL_CLOSED",
+    "independent_review": {
+      "full_verifier": "REJECTED_FATAL_EVIDENCE_PRESENT",
+      "rc05_validator": "FAIL_RC05_CASE_FAILED_RC05_P02",
+      "rc06_validator": "PASS",
+      "production_database_quick_check": "ok",
+      "production_events": 2,
+      "fts_rows": 2,
+      "wal_shm_residue": []
+    },
+    "defects": [
+      "loopback ping is environment-dependent and returned exit code 1",
+      "CP936 head/tail truncation emitted replacement characters while replacement_count remained zero",
+      "human report exit code 0 contradicts the harness fail-closed exit contract"
+    ],
+    "evidence_sha256": {
+      "summary": "186029697e596f5125606c6ec402b7e6883480838636901bc828d256aafad9fd",
+      "fatal": "89b8d9077906b927bc744db4b9ec28acbb2dd9db41101c7cb2cf2c5ed75e276e",
+      "report": "c40124398e77f1ce15b580915654fa2f501720a188167f22e14b7ccc75c9bcaf",
+      "rc05": "bbf1fb52a38f38a66c4f335828a05fb81765e735fa26900560434c658b3a0502",
+      "rc06": "5439758ff131d17d15c62d6355efd8e23c73ccbd100c45217c4403d40715e60c",
+      "production_database": "0070c1167018ca652c54638da8c0a81d922efe44a81013d31ad6e08b6a9b9640",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e"
+    }
+  },
+  "v3_remediation": {
+    "status": "SOURCE_FIX_READY_FOR_CANDIDATE_REBUILD",
+    "runner_output": "BOUNDARY_ALIGNED_CP936_UTF8_HEAD_TAIL_DECODING",
+    "positive_probe": "MANIFEST_BOUND_NETWORK_FREE_LOCAL_BYTE_PROBE_VIA_CANDIDATE_ELECTRON",
+    "process_exit_capture": "RUN_RC0506_CMD_RECORDS_AND_RETURNS_EXACT_CHILD_EXIT_CODE",
+    "product_command_surface_changed": false,
+    "new_dependency": false,
+    "windows_execution": "NOT_PERFORMED"
+  },
   "coverage": {
     "rc05": [
       "product unknown and Shell rejection",
@@ -68,11 +115,19 @@
     "full_repository_verify": {
       "status": "PASS",
       "modules": 7,
-      "tests": 981
+      "tests": 983
     },
     "release_contract_tests": {
       "status": "PASS",
       "tests": 19
+    },
+    "runner_targeted_tests": {
+      "status": "PASS",
+      "tests": 67
+    },
+    "rc0506_contract_tests": {
+      "status": "PASS",
+      "tests": 9
     },
     "documentation_check": "PASS",
     "syntax_check": "PASS",
@@ -89,9 +144,9 @@
   },
   "gates": {
     "rc04_windows_product_smoke": "PASS",
-    "rc05_windows": "ATTEMPT1_FAIL_CLOSED_V2_NOT_PERFORMED",
-    "rc06_windows": "ATTEMPT1_PROVISIONAL_PASS_NOT_ACCEPTED_V2_NOT_PERFORMED",
-    "win10": "PARTIAL_RC04_SMOKE_ONLY_RC0506_ATTEMPT1_FAIL_CLOSED",
+    "rc05_windows": "ATTEMPT2_V2_FAIL_CLOSED_V3_NOT_PERFORMED",
+    "rc06_windows": "ATTEMPT2_V2_PASS_V3_NOT_PERFORMED",
+    "win10": "PARTIAL_RC04_RC06_PASS_RC05_FAIL_CLOSED",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },

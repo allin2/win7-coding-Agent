@@ -28,6 +28,10 @@ Blocking-Reason: RC_BUILD_AND_WIN7_ACCEPTANCE_NOT_PERFORMED
 禁止修改 D-013/D-014 已验收原始证据，禁止引入交互 winpty、任意 Shell、模型终端输入、
 未登记网络目标或新的系统配置能力。任何额外产品能力必须另行授权。
 
+项目负责人于 2026-08-14 明确授权本任务修复 `src/runner/src/output.ts` 的有界输出
+多字节截断边界，并在 `src/runner/tests/**` 增加对应 CP936/UTF-8 回归测试。该授权只修复
+C11 编码与既有输出上限合同，不增加 Profile、命令、权限、网络或交互能力。
+
 ## 1. RC 固定合同
 
 | 项目 | 锁定值 |

@@ -13,10 +13,10 @@ const { spawnSync } = require('child_process');
 
 const CASE_PASS = 'PASS';
 const CASE_SKIP = 'NOT_APPLICABLE_TARGET_PROFILE_HASH';
-const RC05_PING_ARGUMENTS = Object.freeze({
-  positive: Object.freeze(['-n', '2', '127.0.0.1']),
-  truncated: Object.freeze(['-n', '4', '-w', '10', '127.0.0.1']),
-  cancellation: Object.freeze(['-t', '127.0.0.1']),
+const RC05_LOCAL_PROBE_MODES = Object.freeze({
+  positive: 'positive',
+  truncated: 'bounded',
+  cancellation: 'wait-for-cancel',
 });
 
 async function main(argv) {
@@ -73,7 +73,7 @@ async function main(argv) {
 async function runRc05(args, lock, modules, candidate) {
   const workRoot = path.join(args.userDataRoot, 'rc05-runner-work');
   fs.mkdirSync(workRoot, { recursive: true });
-  const before = processSnapshot(['spike02_helper.exe', 'ping.exe']);
+  const before = processSnapshot(['spike02_helper.exe', 'electron.exe']);
   const product = modules.createRcComposition({
     applicationRoot: modules.applicationRoot,
     userDataPath: path.join(args.userDataRoot, 'rc05-product'),
@@ -90,9 +90,13 @@ async function runRc05(args, lock, modules, candidate) {
     ], { unknown: summarizeRun(productUnknown), shell: summarizeRun(productShell) }));
 
     const whoamiPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe');
-    const pingPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'ping.exe');
+    const electronPath = path.join(args.packageRoot, 'electron.exe');
+    const localProbePath = path.join(__dirname, 'RC0506_LOCAL_PROBE.cjs');
     const whoamiHash = sha256(whoamiPath);
-    const pingHash = sha256(pingPath);
+    const electronHash = sha256(electronPath);
+    const localProbeHash = sha256(localProbePath);
+    const probeArgs = Object.fromEntries(Object.entries(RC05_LOCAL_PROBE_MODES)
+      .map(([name, mode]) => [name, [localProbePath, mode]]));
     const productHashMatch = whoamiHash === candidate.product_whoami_sha256;
     if (productHashMatch) {
       const positive = await product.runner.execute(request('win7-whoami', [], product.runnerWorkDirectory, 'rc05-product-positive'));
@@ -109,25 +113,25 @@ async function runRc05(args, lock, modules, candidate) {
 
     const registry = new modules.runnerModule.ExecutableProfileRegistry([
       profile('rc05-harness-whoami', whoamiPath, whoamiHash, workRoot, (values) => values.length === 0 || same(values, ['/all'])),
-      profile('rc05-harness-ping', pingPath, pingHash, workRoot, (values) => Object.values(RC05_PING_ARGUMENTS).some((allowed) => same(values, allowed))),
+      profile('rc05-harness-local-probe', electronPath, electronHash, workRoot, (values) => Object.values(probeArgs).some((allowed) => same(values, allowed))),
       { ...profile('rc05-high-risk-whoami', whoamiPath, whoamiHash, workRoot, (values) => values.length === 0), risk: 'high' },
     ]);
     const harnessRunner = new modules.runnerModule.NativeRunner({
       registry,
       transport: new modules.runnerModule.StdioHelperTransport(candidate.runner_helper_path),
     });
-    const positive = await harnessRunner.execute(request('rc05-harness-ping', RC05_PING_ARGUMENTS.positive, workRoot, 'rc05-harness-positive'));
+    const positive = await harnessRunner.execute(request('rc05-harness-local-probe', probeArgs.positive, workRoot, 'rc05-harness-positive'));
     const truncated = await harnessRunner.execute({
-      ...request('rc05-harness-ping', RC05_PING_ARGUMENTS.truncated, workRoot, 'rc05-harness-truncated'),
+      ...request('rc05-harness-local-probe', probeArgs.truncated, workRoot, 'rc05-harness-truncated'),
       config: { ...request('x', [], workRoot, 'x').config, maxStdoutBytes: 128, maxStderrBytes: 128 },
     });
-    cases.push(testCase('RC05-P02', 'Packaged NativeRunner and helper execute a runtime-hash-bound low-risk loopback probe', [
+    cases.push(testCase('RC05-P02', 'Packaged NativeRunner and helper execute a manifest-bound network-free local probe', [
       assertion('exited-zero', positive.status === 'exited' && positive.exitCode === 0),
-      assertion('cp936-output', positive.stdout.encoding === 'cp936' && positive.stdout.replacementCount === 0),
+      assertion('cp936-output', positive.stdout.encoding === 'cp936' && positive.stdout.replacementCount === 0 && positive.stdout.text.includes('中文')),
       assertion('stdout-nonempty', positive.stdout.bytesRead > 0),
       assertion('whole-tree-containment', positive.termination.processTreeReaped && positive.termination.containment === 'job_object'),
-      assertion('bounded-output', truncated.status === 'exited' && truncated.exitCode === 0 && truncated.stdout.truncated && truncated.stdout.bytesRetained === 128),
-    ], { positive: summarizeRun(positive), bounded: summarizeRun(truncated), ping_sha256: pingHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE' }));
+      assertion('bounded-output', truncated.status === 'exited' && truncated.exitCode === 0 && truncated.stdout.truncated && truncated.stdout.bytesRetained <= 128 && truncated.stdout.replacementCount === 0 && !truncated.stdout.text.includes('\uFFFD')),
+    ], { positive: summarizeRun(positive), bounded: summarizeRun(truncated), electron_sha256: electronHash, local_probe_sha256: localProbeHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE', network_used: false }));
 
     const unknown = await harnessRunner.execute(request('not-registered', [], workRoot, 'rc05-negative-unknown'));
     const shell = await harnessRunner.execute(request('powershell.exe', ['-NoProfile'], workRoot, 'rc05-negative-shell'));
@@ -144,28 +148,28 @@ async function runRc05(args, lock, modules, candidate) {
 
     const controller = new AbortController();
     const cancelling = harnessRunner.execute({
-      ...request('rc05-harness-ping', RC05_PING_ARGUMENTS.cancellation, workRoot, 'rc05-cancel'),
+      ...request('rc05-harness-local-probe', probeArgs.cancellation, workRoot, 'rc05-cancel'),
       signal: controller.signal,
       config: { ...request('x', [], workRoot, 'x').config, timeoutMs: 20_000, idleTimeoutMs: 5_000 },
     });
     setTimeout(() => controller.abort(), 750);
     const cancelled = await cancelling;
     await delay(1000);
-    const afterCancel = processSnapshot(['spike02_helper.exe', 'ping.exe']);
+    const afterCancel = processSnapshot(['spike02_helper.exe', 'electron.exe']);
     cases.push(testCase('RC05-C01', 'Cooperative cancellation is acknowledged before helper exit and leaves no new process', [
       assertion('cancelled', cancelled.status === 'cancelled'),
       assertion('cleanup-confirmed', cancelled.termination.processTreeReaped && cancelled.termination.containment === 'job_object'),
       assertion('zero-new-helper', noNewPids(before['spike02_helper.exe'], afterCancel['spike02_helper.exe'])),
-      assertion('zero-new-ping', noNewPids(before['ping.exe'], afterCancel['ping.exe'])),
-    ], { result: summarizeRun(cancelled), before, after: afterCancel, ping_sha256: pingHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE' }));
+      assertion('zero-new-electron', noNewPids(before['electron.exe'], afterCancel['electron.exe'])),
+    ], { result: summarizeRun(cancelled), before, after: afterCancel, electron_sha256: electronHash, local_probe_sha256: localProbeHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE', network_used: false }));
   } finally {
     product.close();
   }
   await delay(500);
-  const after = processSnapshot(['spike02_helper.exe', 'ping.exe']);
-  cases.push(testCase('RC05-Z01', 'Round postflight contains no new helper or ping process', [
+  const after = processSnapshot(['spike02_helper.exe', 'electron.exe']);
+  cases.push(testCase('RC05-Z01', 'Round postflight contains no new helper or probe Electron process', [
     assertion('helper', noNewPids(before['spike02_helper.exe'], after['spike02_helper.exe'])),
-    assertion('ping', noNewPids(before['ping.exe'], after['ping.exe'])),
+    assertion('electron', noNewPids(before['electron.exe'], after['electron.exe'])),
   ], { before, after }));
   const required = cases.filter((item) => item.status !== CASE_SKIP);
   const allRequiredPass = required.every((item) => item.status === CASE_PASS);
@@ -512,4 +516,4 @@ function finishFatal(error, argv, terminate = (codeValue) => process.exit(codeVa
   terminate(1);
 }
 
-module.exports = { RC05_PING_ARGUMENTS, finishFatal, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit };
+module.exports = { RC05_LOCAL_PROBE_MODES, finishFatal, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit };

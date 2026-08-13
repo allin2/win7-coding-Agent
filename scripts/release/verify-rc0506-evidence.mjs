@@ -22,6 +22,10 @@ try {
   const rc05Path = path.join(evidenceRoot, 'rc05-runner-windows.json');
   const rc06Path = path.join(evidenceRoot, 'rc06-storage-windows.json');
   const summary = validators.validateSummary(read(summaryPath));
+  const exitCodePath = path.join(evidenceRoot, 'rc0506-process-exit-code.txt');
+  if (!fs.existsSync(exitCodePath) || fs.readFileSync(exitCodePath, 'ascii').trim() !== 'RC0506_EXIT_CODE=0') {
+    throw new Error('RC0506_PROCESS_EXIT_CODE_NOT_ZERO');
+  }
   const rc05 = validators.validateRc05Report(read(rc05Path));
   const rc06 = validators.validateRc06Report(read(rc06Path));
   if (summary.reports.rc05.sha256 !== sha256(rc05Path) || summary.reports.rc06.sha256 !== sha256(rc06Path)) throw new Error('RC0506_REPORT_HASH_MISMATCH');

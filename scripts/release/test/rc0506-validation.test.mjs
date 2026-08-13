@@ -12,14 +12,25 @@ const require = createRequire(import.meta.url);
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
 const harnessPath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-windows-validation.cjs');
+const localProbePath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-local-probe.cjs');
+const wrapperPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0506.cmd');
 const verifierPath = path.join(repositoryRoot, 'scripts', 'release', 'verify-rc0506-evidence.mjs');
-const { RC05_PING_ARGUMENTS, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit } = require(harnessPath);
+const { RC05_LOCAL_PROBE_MODES, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit } = require(harnessPath);
 
-test('RC0506 owns ASAR mode and locks ping-only positive arguments', () => {
+test('RC0506 owns ASAR mode and locks network-free local probe modes', () => {
   assert.equal(process.noAsar, true);
-  assert.deepEqual([...RC05_PING_ARGUMENTS.positive], ['-n', '2', '127.0.0.1']);
-  assert.deepEqual([...RC05_PING_ARGUMENTS.truncated], ['-n', '4', '-w', '10', '127.0.0.1']);
-  assert.deepEqual([...RC05_PING_ARGUMENTS.cancellation], ['-t', '127.0.0.1']);
+  assert.deepEqual(RC05_LOCAL_PROBE_MODES, {
+    positive: 'positive', truncated: 'bounded', cancellation: 'wait-for-cancel',
+  });
+  const positive = spawnSync(process.execPath, [localProbePath, RC05_LOCAL_PROBE_MODES.positive]);
+  const bounded = spawnSync(process.execPath, [localProbePath, RC05_LOCAL_PROBE_MODES.truncated]);
+  assert.equal(positive.status, 0);
+  assert.deepEqual(positive.stdout, Buffer.from([0xd6, 0xd0, 0xce, 0xc4, 0x0d, 0x0a]));
+  assert.equal(bounded.status, 0);
+  assert.equal(bounded.stdout.length, 400);
+  const wrapper = fs.readFileSync(wrapperPath, 'utf8');
+  assert.match(wrapper, /rc0506-process-exit-code\.txt/);
+  assert.match(wrapper, /exit \/b %RC0506_EXIT_CODE%/);
 });
 
 test('RC0506 accepts a structurally contained nonzero restricted whoami exit', () => {
@@ -110,6 +121,7 @@ test('RC0506 independent verifier binds reports, databases and rejects fatal evi
   fs.writeFileSync(rc06Path, `${JSON.stringify(rc06)}\n`, 'utf8');
   const summary = { schema_version: 1, suite: 'A7_RC05_RC06_WINDOWS_VALIDATION', status: 'PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED', kit: { kit_id: lock.kit_id, integrity: 'PASS' }, candidate: { release_manifest_sha256: lock.candidate.release_manifest_sha256 }, reports: { rc05: { sha256: hash(rc05Path), status: rc05.status }, rc06: { sha256: hash(rc06Path), status: rc06.status } }, gates: { win10: 'PARTIAL_RC05_RC06_WINDOWS_VALIDATION_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' } };
   fs.writeFileSync(path.join(root, 'rc0506-windows-summary.json'), `${JSON.stringify(summary)}\n`, 'utf8');
+  fs.writeFileSync(path.join(root, 'rc0506-process-exit-code.txt'), 'RC0506_EXIT_CODE=0\n', 'ascii');
   const accepted = spawnSync(process.execPath, [verifierPath, root], { cwd: repositoryRoot, encoding: 'utf8' });
   assert.equal(accepted.status, 0, accepted.stderr);
   assert.equal(JSON.parse(accepted.stdout).status, 'PASS');
