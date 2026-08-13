@@ -6,10 +6,10 @@
   "target": "WINDOWS_X64_PRE_WIN7_LEASE_VALIDATION",
   "candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
-    "source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
-    "size": 100877883,
-    "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
-    "release_manifest_sha256": "4f550728c1743492dbd66bd417db312d69f6694d276a1fe3ecbd8d4cfda5bbaa",
+    "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "release_manifest_sha256": "ff1a46ffa517dc84602767db144cffcae6bdcfc3300ca52949001997141932d0",
     "runner_manifest_sha256": "7d21722d0c9357f1189e8341d78d53ffbe8240c08df25f706dd23680af793ef8",
     "runner_helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
     "storage_binding_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc"

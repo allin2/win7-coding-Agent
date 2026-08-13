@@ -5,8 +5,8 @@
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
-  "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
-  "status": "RC04_PASS_RC06_V2_PASS_RC05_V2_FAIL_CLOSED_V3_SOURCE_FIX_READY",
+  "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+  "status": "V3_CANDIDATE_REBUILT_WINDOWS_RC04_RC05_RC06_NOT_PERFORMED",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -27,8 +27,8 @@
   "candidate": {
     "path": "release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "git_tracking": "IGNORED_BUILD_OUTPUT",
-    "size": 100877883,
-    "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
     "manifest_file_count": 731,
     "external_native_file_count": 2,
     "deterministic_rebuild_count": 2,
@@ -60,7 +60,7 @@
       "tests": 127
     },
     "rc0506_windows_validation_kit": {
-      "status": "ATTEMPT2_V2_FAIL_CLOSED_V3_SOURCE_FIX_READY_FOR_CANDIDATE_REBUILD",
+      "status": "ATTEMPT2_V2_FAIL_CLOSED_V3_CANDIDATE_REBUILT_KIT_PENDING",
       "source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
       "zip_sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
       "deterministic_rebuilds": 2,
@@ -79,16 +79,16 @@
     "developer_package_assembly": "PASS",
     "developer_full_regression": "PASS",
     "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
-    "rc04_windows_product_smoke": "PASS",
-    "rc05_windows": "ATTEMPT2_V2_FAIL_CLOSED_V3_NOT_PERFORMED",
-    "rc06_windows": "ATTEMPT2_V2_PASS_V3_NOT_PERFORMED",
-    "win10": "PARTIAL_RC04_RC06_PASS_RC05_FAIL_CLOSED",
+    "rc04_windows_product_smoke": "PRIOR_CANDIDATE_PASS_CURRENT_CANDIDATE_NOT_PERFORMED",
+    "rc05_windows": "PRIOR_CANDIDATE_V2_FAIL_CLOSED_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
+    "rc06_windows": "PRIOR_CANDIDATE_V2_PASS_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
+    "win10": "CURRENT_CANDIDATE_NOT_PERFORMED",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
     "RC-04 repeat under the new signed Win7 RC lease",
-    "rebuild the product candidate so the CP936 truncation fix is manifest-bound",
+    "rerun RC-04 Windows product smoke against candidate 39eecb6a...040c9",
     "run RC-05 native Windows Runner positive, rejection, cancellation and reap matrix with the v3 network-free probe",
     "rerun RC-06 against the rebuilt candidate and manifest-bound v3 kit",
     "RC-07 upgrade and rollback lifecycle",
