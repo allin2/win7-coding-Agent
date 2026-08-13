@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260813",
+  "source_date_epoch": 1786550400,
+  "target": "WINDOWS_X64_PRE_WIN7_LEASE_VALIDATION",
+  "candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
+    "size": 100877883,
+    "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "release_manifest_sha256": "4f550728c1743492dbd66bd417db312d69f6694d276a1fe3ecbd8d4cfda5bbaa",
+    "runner_manifest_sha256": "7d21722d0c9357f1189e8341d78d53ffbe8240c08df25f706dd23680af793ef8",
+    "runner_helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "storage_binding_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc"
+  },
+  "rc05": {
+    "product_profile": "win7-whoami",
+    "harness_only_cancellation_profile": "system32-ping-loopback-runtime-hash-bound",
+    "required_negative_codes": [
+      "PROFILE_NOT_FOUND",
+      "SHELL_HOST_PROHIBITED",
+      "INVALID_REQUEST",
+      "SENSITIVE_ENVIRONMENT_REJECTED",
+      "PROFILE_RISK_REJECTED"
+    ]
+  },
+  "rc06": {
+    "profile": "E22-SQLITE343-LOCAL-SSD",
+    "sqlite": "3.43.1",
+    "journal_mode": "wal",
+    "required_compile_options": ["ENABLE_FTS5", "ENABLE_COLUMN_METADATA", "THREADSAFE=2"],
+    "required_path_profile": "UNICODE_AND_SPACE_LOCAL_NTFS",
+    "network_drive": "REJECT"
+  },
+  "gates": {
+    "win10": "PARTIAL_RC05_RC06_WINDOWS_VALIDATION_ONLY",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "forbidden_actions": [
+    "network-route-firewall-change",
+    "PATH-service-registry-change",
+    "reboot",
+    "interactive-terminal",
+    "external-network-target"
+  ]
+}

@@ -30,3 +30,28 @@ an independently verified mirror is required. The build never downloads dependen
 The source commit is read from `HEAD`, and the build fails if tracked or untracked source
 changes exist. `--allow-uncommitted` is only for local negative-test development and must
 not be used to produce a candidate for Win10 or Win7 validation.
+
+## RC-05 / RC-06 Windows validation kit
+
+RC-05 and RC-06 use a separate validation ZIP so the product candidate and its completed
+RC-04 evidence keep the same SHA-256. Build the kit only from a clean committed tree:
+
+```text
+node scripts/release/build-rc0506-validation-kit.mjs \
+  --candidate-zip release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip
+```
+
+The kit fully verifies the extracted release manifest before exercising the packaged
+D-013 helper and D-014 binding. Its loopback `ping.exe` profile exists only inside the
+acceptance harness to make cooperative cancellation deterministic; it is runtime-hash
+bound and never enters the product manifest or Renderer command surface.
+
+Returned evidence is reviewed independently with:
+
+```text
+node scripts/release/verify-rc0506-evidence.mjs /absolute/path/to/returned-evidence
+```
+
+A Windows harness result remains a pre-lease result. A Win10 system-binary hash that does
+not equal the locked Win7 `whoami.exe` hash is recorded as a target-specific deferral,
+not silently substituted. Win7 and RC stay `NOT_PERFORMED` until the new signed lease.
