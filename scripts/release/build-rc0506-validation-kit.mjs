@@ -38,7 +38,10 @@ try {
   writeJson(path.join(payload, 'KIT_MANIFEST.json'), manifest);
   const outputRoot = path.resolve(args.output || path.join(repositoryRoot, 'release', 'win7-rc', 'out'));
   fs.mkdirSync(outputRoot, { recursive: true });
-  const zipPath = path.join(outputRoot, 'RC0506_WINDOWS_VALIDATION_KIT_20260813.zip');
+  if (!/^RC0506_WINDOWS_VALIDATION_KIT_[A-Za-z0-9._-]+\.zip$/.test(lock.output_filename || '')) {
+    throw new Error('VALIDATION_KIT_OUTPUT_FILENAME_INVALID');
+  }
+  const zipPath = path.join(outputRoot, lock.output_filename);
   const files = writeDeterministicZip(payload, zipPath, lock.source_date_epoch);
   const zipHash = sha256(zipPath);
   fs.writeFileSync(`${zipPath}.sha256`, `${zipHash}  ${path.basename(zipPath)}\n`, 'ascii');

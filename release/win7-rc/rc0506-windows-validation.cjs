@@ -1,5 +1,11 @@
 'use strict';
 
+// Electron keeps ASAR interception enabled in ELECTRON_RUN_AS_NODE mode. The
+// release manifest hashes the outer .asar bytes, so validation must use normal
+// filesystem semantics. Keep this inside the manifest-bound harness; an
+// external NODE_OPTIONS preload would execute unverified code first.
+process.noAsar = true;
+
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -7,12 +13,20 @@ const { spawnSync } = require('child_process');
 
 const CASE_PASS = 'PASS';
 const CASE_SKIP = 'NOT_APPLICABLE_TARGET_PROFILE_HASH';
+const RC05_PING_ARGUMENTS = Object.freeze({
+  positive: Object.freeze(['-n', '2', '127.0.0.1']),
+  truncated: Object.freeze(['-n', '4', '-w', '10', '127.0.0.1']),
+  cancellation: Object.freeze(['-t', '127.0.0.1']),
+});
 
 async function main(argv) {
   if (process.platform !== 'win32' || process.arch !== 'x64') {
     throw new Error(`RC0506_WINDOWS_X64_REQUIRED:${process.platform}:${process.arch}`);
   }
   const args = parseArguments(argv);
+  if (process.env.NODE_OPTIONS) throw new Error('RC0506_NODE_OPTIONS_PROHIBITED');
+  requireFreshDirectory(args.evidenceRoot, 'RC0506_EVIDENCE_ROOT_NOT_EMPTY');
+  requireFreshDirectory(args.userDataRoot, 'RC0506_USER_DATA_ROOT_NOT_EMPTY');
   const kit = verifyKit(__dirname);
   const lock = readJson(path.join(__dirname, 'VALIDATION_LOCK.json'), 'VALIDATION_LOCK');
   const candidate = verifyCandidate(args.packageRoot, lock.candidate);
@@ -46,10 +60,14 @@ async function main(argv) {
       rc: 'NOT_PERFORMED',
     },
   };
-  validateSummary(summary);
+  validateSummaryShape(summary);
   writeJson(path.join(args.evidenceRoot, 'rc0506-windows-summary.json'), summary);
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-  if (!summary.status.startsWith('PASS')) process.exitCode = 1;
+  if (!summary.status.startsWith('PASS')) {
+    throw new Error(`RC0506_CASES_FAILED:RC05=${rc05.status}:RC06=${rc06.status}`);
+  }
+  validateSummary(summary);
+  return summary;
 }
 
 async function runRc05(args, lock, modules, candidate) {
@@ -79,9 +97,7 @@ async function runRc05(args, lock, modules, candidate) {
     if (productHashMatch) {
       const positive = await product.runner.execute(request('win7-whoami', [], product.runnerWorkDirectory, 'rc05-product-positive'));
       cases.push(testCase('RC05-P01', 'Exact product profile executes with verified containment', [
-        assertion('exited-zero', positive.status === 'exited' && positive.exitCode === 0),
-        assertion('stdout-nonempty', positive.stdout.bytesRead > 0),
-        assertion('tree-reaped', positive.termination.processTreeReaped && positive.termination.containment === 'job_object'),
+        ...productWhoamiAssertions(positive),
       ], summarizeRun(positive)));
     } else {
       cases.push({
@@ -93,24 +109,25 @@ async function runRc05(args, lock, modules, candidate) {
 
     const registry = new modules.runnerModule.ExecutableProfileRegistry([
       profile('rc05-harness-whoami', whoamiPath, whoamiHash, workRoot, (values) => values.length === 0 || same(values, ['/all'])),
-      profile('rc05-harness-ping', pingPath, pingHash, workRoot, (values) => same(values, ['-t', '127.0.0.1'])),
+      profile('rc05-harness-ping', pingPath, pingHash, workRoot, (values) => Object.values(RC05_PING_ARGUMENTS).some((allowed) => same(values, allowed))),
       { ...profile('rc05-high-risk-whoami', whoamiPath, whoamiHash, workRoot, (values) => values.length === 0), risk: 'high' },
     ]);
     const harnessRunner = new modules.runnerModule.NativeRunner({
       registry,
       transport: new modules.runnerModule.StdioHelperTransport(candidate.runner_helper_path),
     });
-    const positive = await harnessRunner.execute(request('rc05-harness-whoami', [], workRoot, 'rc05-harness-positive'));
+    const positive = await harnessRunner.execute(request('rc05-harness-ping', RC05_PING_ARGUMENTS.positive, workRoot, 'rc05-harness-positive'));
     const truncated = await harnessRunner.execute({
-      ...request('rc05-harness-whoami', ['/all'], workRoot, 'rc05-harness-truncated'),
+      ...request('rc05-harness-ping', RC05_PING_ARGUMENTS.truncated, workRoot, 'rc05-harness-truncated'),
       config: { ...request('x', [], workRoot, 'x').config, maxStdoutBytes: 128, maxStderrBytes: 128 },
     });
-    cases.push(testCase('RC05-P02', 'Packaged NativeRunner and helper execute a runtime-hash-bound low-risk system binary', [
+    cases.push(testCase('RC05-P02', 'Packaged NativeRunner and helper execute a runtime-hash-bound low-risk loopback probe', [
       assertion('exited-zero', positive.status === 'exited' && positive.exitCode === 0),
       assertion('cp936-output', positive.stdout.encoding === 'cp936' && positive.stdout.replacementCount === 0),
+      assertion('stdout-nonempty', positive.stdout.bytesRead > 0),
       assertion('whole-tree-containment', positive.termination.processTreeReaped && positive.termination.containment === 'job_object'),
-      assertion('bounded-output', truncated.status === 'exited' && truncated.stdout.truncated && truncated.stdout.bytesRetained === 128),
-    ], { positive: summarizeRun(positive), bounded: summarizeRun(truncated), whoami_sha256: whoamiHash }));
+      assertion('bounded-output', truncated.status === 'exited' && truncated.exitCode === 0 && truncated.stdout.truncated && truncated.stdout.bytesRetained === 128),
+    ], { positive: summarizeRun(positive), bounded: summarizeRun(truncated), ping_sha256: pingHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE' }));
 
     const unknown = await harnessRunner.execute(request('not-registered', [], workRoot, 'rc05-negative-unknown'));
     const shell = await harnessRunner.execute(request('powershell.exe', ['-NoProfile'], workRoot, 'rc05-negative-shell'));
@@ -127,7 +144,7 @@ async function runRc05(args, lock, modules, candidate) {
 
     const controller = new AbortController();
     const cancelling = harnessRunner.execute({
-      ...request('rc05-harness-ping', ['-t', '127.0.0.1'], workRoot, 'rc05-cancel'),
+      ...request('rc05-harness-ping', RC05_PING_ARGUMENTS.cancellation, workRoot, 'rc05-cancel'),
       signal: controller.signal,
       config: { ...request('x', [], workRoot, 'x').config, timeoutMs: 20_000, idleTimeoutMs: 5_000 },
     });
@@ -262,6 +279,13 @@ function runRc06(args, lock, modules, candidate, environment) {
     assertion('physical-ssd', ssd),
   ], { logical_disk: environment.logical_disk, physical_disk: environment.physical_disk }));
 
+  const databaseSha256 = sha256(databasePath);
+  const evidenceDatabaseName = 'rc06-production-state.db';
+  const evidenceDatabasePath = path.join(args.evidenceRoot, evidenceDatabaseName);
+  fs.copyFileSync(databasePath, evidenceDatabasePath);
+  if (fs.statSync(evidenceDatabasePath).size !== fs.statSync(databasePath).size || sha256(evidenceDatabasePath) !== databaseSha256) {
+    throw new Error('RC06_PRODUCTION_DATABASE_EVIDENCE_MISMATCH');
+  }
   const allPass = cases.every((item) => item.status === CASE_PASS);
   return {
     schema_version: 1,
@@ -269,7 +293,7 @@ function runRc06(args, lock, modules, candidate, environment) {
     status: allPass ? 'PASS' : 'FAIL',
     candidate_sha256: lock.candidate.sha256,
     native_binding_sha256: sha256(candidate.storage_binding_path),
-    database: { path: databasePath, size: fs.statSync(databasePath).size, sha256: sha256(databasePath), wal_shm_residue: noResidue ? [] : ['present'] },
+    database: { path: databasePath, evidence_file: evidenceDatabaseName, size: fs.statSync(databasePath).size, sha256: databaseSha256, wal_shm_residue: noResidue ? [] : ['present'] },
     cases,
     win7_validation: 'NOT_PERFORMED',
   };
@@ -395,7 +419,12 @@ function profile(id, executablePath, digest, workRoot, validateArgs) { return { 
 function event(eventId, payload, type = 'message.added') { return { eventId, schemaVersion: 2, sessionId: 'rc06-session', threadId: 'rc06-thread', turnId: 'rc06-turn', runId: 'rc06-run', occurredAt: '2026-08-13T00:00:00.000Z', type, payload }; }
 function same(left, right) { return left.length === right.length && left.every((value, index) => value === right[index]); }
 function code(result) { return result && result.error && result.error.code; }
-function summarizeRun(value) { return { status: value.status, exit_code: value.exitCode, stdout: value.stdout && { bytes_read: value.stdout.bytesRead, bytes_retained: value.stdout.bytesRetained, truncated: value.stdout.truncated, encoding: value.stdout.encoding, replacement_count: value.stdout.replacementCount }, stderr: value.stderr && { bytes_read: value.stderr.bytesRead, truncated: value.stderr.truncated }, termination: value.termination, error_code: code(value) }; }
+function productWhoamiAssertions(value) { return [
+  assertion('structured-exit', value.status === 'exited' && Number.isInteger(value.exitCode), 'Restricted whoami may return a localized access-denied exit code.'),
+  assertion('cp936-output', value.stdout && value.stdout.encoding === 'cp936' && value.stdout.replacementCount === 0),
+  assertion('tree-reaped', value.termination && value.termination.processTreeReaped && value.termination.containment === 'job_object'),
+]; }
+function summarizeRun(value) { return { status: value.status, exit_code: value.exitCode, stdout: value.stdout && { bytes_read: value.stdout.bytesRead, bytes_retained: value.stdout.bytesRetained, truncated: value.stdout.truncated, encoding: value.stdout.encoding, replacement_count: value.stdout.replacementCount, text: bounded(value.stdout.text) }, stderr: value.stderr && { bytes_read: value.stderr.bytesRead, bytes_retained: value.stderr.bytesRetained, truncated: value.stderr.truncated, encoding: value.stderr.encoding, replacement_count: value.stderr.replacementCount, text: bounded(value.stderr.text) }, termination: value.termination, error_code: code(value) }; }
 function assertion(name, ok, note) { return { name, ok: ok === true, ...(note ? { note } : {}) }; }
 function testCase(id, summary, assertions, evidence) { return { case_id: id, status: assertions.every((item) => item.ok) ? CASE_PASS : 'FAIL', summary, assertions, evidence }; }
 function noNewPids(before, after) { return after.every((pid) => before.includes(pid)); }
@@ -404,6 +433,9 @@ function imagePids(name) { const result = run('tasklist.exe', ['/FI', `IMAGENAME
 function run(file, args) { return spawnSync(file, args, { shell: false, windowsHide: true, encoding: 'utf8', timeout: 30_000 }); }
 function parseKeyValue(value) { return Object.fromEntries(String(value).split(/\r?\n/).map((line) => line.trim()).filter((line) => line.includes('=')).map((line) => { const at = line.indexOf('='); return [line.slice(0, at), line.slice(at + 1)]; })); }
 function sameOrNested(candidate, root) { const relative = path.relative(root, candidate); return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)); }
+function requireFreshDirectory(value, errorCode) {
+  if (fs.existsSync(value) && fs.readdirSync(value).length !== 0) throw new Error(errorCode);
+}
 function canonicalProspectivePath(value) {
   let current = path.resolve(value);
   const suffix = [];
@@ -445,32 +477,39 @@ function validateRc06Report(value) {
     const matches = value.cases.filter((item) => item && item.case_id === id);
     if (matches.length !== 1 || matches[0].status !== CASE_PASS) throw new Error(`RC06_CASE_FAILED:${id}`);
   }
-  if (!value.database || !Array.isArray(value.database.wal_shm_residue) || value.database.wal_shm_residue.length !== 0 || value.win7_validation !== 'NOT_PERFORMED') {
+  if (!value.database || value.database.evidence_file !== 'rc06-production-state.db' || !/^[a-f0-9]{64}$/.test(value.database.sha256 || '') || !Number.isInteger(value.database.size) || value.database.size <= 0 || !Array.isArray(value.database.wal_shm_residue) || value.database.wal_shm_residue.length !== 0 || value.win7_validation !== 'NOT_PERFORMED') {
     throw new Error('RC06_GATE_INVALID');
   }
   return value;
 }
 function validateSummary(value) {
-  if (!value || value.schema_version !== 1 || value.suite !== 'A7_RC05_RC06_WINDOWS_VALIDATION' || !value.reports || !value.gates || !String(value.status).startsWith('PASS')) throw new Error('RC0506_SUMMARY_INVALID');
+  validateSummaryShape(value);
+  if (!String(value.status).startsWith('PASS')) throw new Error('RC0506_SUMMARY_CASES_NOT_PASS');
+  return value;
+}
+function validateSummaryShape(value) {
+  if (!value || value.schema_version !== 1 || value.suite !== 'A7_RC05_RC06_WINDOWS_VALIDATION' || !value.reports || !value.gates || !['PASS', 'PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED', 'FAIL'].includes(value.status)) throw new Error('RC0506_SUMMARY_INVALID');
   if (value.gates.win10 !== 'PARTIAL_RC05_RC06_WINDOWS_VALIDATION_ONLY' || value.gates.win7 !== 'NOT_PERFORMED' || value.gates.rc !== 'NOT_PERFORMED') throw new Error('RC0506_SUMMARY_GATE_INVALID');
   return value;
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2)).catch((error) => {
-    try {
-      const args = parseArguments(process.argv.slice(2));
-      fs.mkdirSync(args.evidenceRoot, { recursive: true });
-      writeJson(path.join(args.evidenceRoot, 'rc0506-windows-fatal.json'), {
-        schema_version: 1, suite: 'A7_RC05_RC06_WINDOWS_VALIDATION', status: 'FAIL',
-        error: message(error), win10: 'FAIL_CLOSED', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED',
-      });
-    } catch (writeError) {
-      process.stderr.write(`RC0506_FATAL_EVIDENCE_WRITE_FAILED:${message(writeError)}\n`);
-    }
-    process.stderr.write(`RC0506_VALIDATION_FAILED:${message(error)}\n`);
-    process.exitCode = 1;
-  });
+  main(process.argv.slice(2)).catch((error) => finishFatal(error, process.argv.slice(2)));
 }
 
-module.exports = { parseArguments, testCase, validateRc05Report, validateRc06Report, validateSummary, verifyKit };
+function finishFatal(error, argv, terminate = (codeValue) => process.exit(codeValue)) {
+  try {
+    const args = parseArguments(argv);
+    fs.mkdirSync(args.evidenceRoot, { recursive: true });
+    writeJson(path.join(args.evidenceRoot, 'rc0506-windows-fatal.json'), {
+      schema_version: 1, suite: 'A7_RC05_RC06_WINDOWS_VALIDATION', status: 'FAIL',
+      error: message(error), win10: 'FAIL_CLOSED', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED',
+    });
+  } catch (writeError) {
+    fs.writeSync(2, `RC0506_FATAL_EVIDENCE_WRITE_FAILED:${message(writeError)}\n`);
+  }
+  fs.writeSync(2, `RC0506_VALIDATION_FAILED:${message(error)}\n`);
+  terminate(1);
+}
+
+module.exports = { RC05_PING_ARGUMENTS, finishFatal, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit };

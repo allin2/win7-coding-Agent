@@ -13,6 +13,11 @@ const validators = require(path.join(repositoryRoot, 'release', 'win7-rc', 'rc05
 try {
   const evidenceRoot = path.resolve(process.argv[2] || '');
   if (!process.argv[2] || !fs.statSync(evidenceRoot).isDirectory()) throw new Error('USAGE:verify-rc0506-evidence.mjs <evidence-directory>');
+  const fatalPath = path.join(evidenceRoot, 'rc0506-windows-fatal.json');
+  if (fs.existsSync(fatalPath)) {
+    const fatal = read(fatalPath);
+    throw new Error(`RC0506_FATAL_EVIDENCE_PRESENT:${fatal.error || 'UNKNOWN'}`);
+  }
   const summaryPath = path.join(evidenceRoot, 'rc0506-windows-summary.json');
   const rc05Path = path.join(evidenceRoot, 'rc05-runner-windows.json');
   const rc06Path = path.join(evidenceRoot, 'rc06-storage-windows.json');
@@ -21,8 +26,17 @@ try {
   const rc06 = validators.validateRc06Report(read(rc06Path));
   if (summary.reports.rc05.sha256 !== sha256(rc05Path) || summary.reports.rc06.sha256 !== sha256(rc06Path)) throw new Error('RC0506_REPORT_HASH_MISMATCH');
   if (summary.reports.rc05.status !== rc05.status || summary.reports.rc06.status !== rc06.status) throw new Error('RC0506_REPORT_STATUS_MISMATCH');
+  const databasePath = evidenceFile(evidenceRoot, rc06.database.evidence_file);
+  if (!fs.existsSync(databasePath) || fs.statSync(databasePath).size !== rc06.database.size || sha256(databasePath) !== rc06.database.sha256) {
+    throw new Error('RC0506_PRODUCTION_DATABASE_MISMATCH');
+  }
+  const corruptionCase = rc06.cases.find((item) => item.case_id === 'RC06-N02');
+  const corruptionPath = evidenceFile(evidenceRoot, 'rc06-intentionally-corrupted-probe.db');
+  if (!corruptionCase || !fs.existsSync(corruptionPath) || sha256(corruptionPath) !== corruptionCase.evidence.probe_sha256) {
+    throw new Error('RC0506_CORRUPTION_PROBE_MISMATCH');
+  }
   const lock = read(path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-validation-lock.json'));
-  if (summary.candidate.release_manifest_sha256 !== lock.candidate.release_manifest_sha256 || rc05.candidate_sha256 !== lock.candidate.sha256 || rc06.candidate_sha256 !== lock.candidate.sha256 || rc06.native_binding_sha256 !== lock.candidate.storage_binding_sha256) {
+  if (!summary.kit || summary.kit.kit_id !== lock.kit_id || summary.kit.integrity !== 'PASS' || summary.candidate.release_manifest_sha256 !== lock.candidate.release_manifest_sha256 || rc05.candidate_sha256 !== lock.candidate.sha256 || rc06.candidate_sha256 !== lock.candidate.sha256 || rc06.native_binding_sha256 !== lock.candidate.storage_binding_sha256) {
     throw new Error('RC0506_CANDIDATE_BINDING_MISMATCH');
   }
   process.stdout.write(`${JSON.stringify({
@@ -44,3 +58,7 @@ try {
 
 function read(filePath) { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
 function sha256(filePath) { return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'); }
+function evidenceFile(root, name) {
+  if (!/^[A-Za-z0-9._-]+$/.test(name || '')) throw new Error('RC0506_EVIDENCE_FILENAME_INVALID');
+  return path.join(root, name);
+}
