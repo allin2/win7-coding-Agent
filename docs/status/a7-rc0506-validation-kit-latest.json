@@ -4,7 +4,7 @@
   "recorded_at_utc": "2026-08-14T06:30:00Z",
   "branch": "codex/a7-release-candidate",
   "kit_source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
-  "status": "ATTEMPT2_V2_FAIL_CLOSED_V3_CANDIDATE_REBUILT_KIT_PENDING",
+  "status": "V3_READY_FOR_WINDOWS_RC04_RC05_RC06_EXECUTION",
   "target_candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
@@ -16,7 +16,7 @@
     "deterministic_rebuild_sha256_match": true,
     "prior_candidate_archive": "/Users/qlyf/Developer/win7-agent-artifacts/a7/product-candidate-f24d9a4-20260812"
   },
-  "validation_kit": {
+  "validation_kit_v2": {
     "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260813-v2.zip",
     "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260813-V2",
     "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260813-v2.zip",
@@ -27,6 +27,23 @@
     "sidecar_sha256": "1d5fad40f664a30ebe744e480644d1c149a122c9b4c4950059e2a8170ade05bb",
     "build_result_sha256": "e31ef327a00da1138b49c5f1669fa59c73640a33899bcf766006acf0e5ceb9fe",
     "zip_files": 4,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true
+  },
+  "validation_kit": {
+    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260814-v3.zip",
+    "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260814-V3",
+    "source_commit": "f47fd8404ca3490d9ab6b78aa9eb204d48890dd1",
+    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260814-v3.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-v3-ready-20260814/kit",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 13502,
+    "sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
+    "sidecar_sha256": "386cefe7d6c8eb4b90367faefe55d9e43c47afc290e7c51c998234fcc5a30714",
+    "build_result_sha256": "2828e87e6a58e3937c786b0b76d2db0bbb5419c409aa84aba1cd0e011ce9f17d",
+    "manifest_sha256": "ff0eb5fe1298275f95ca9fadb26366d124c3d0249d808c6b51ca37ec2cc2887c",
+    "zip_files": 6,
+    "manifest_bound_payload_files": 5,
     "deterministic_rebuilds": 2,
     "deterministic_rebuild_sha256_match": true
   },
@@ -87,22 +104,43 @@
     }
   },
   "v3_remediation": {
-    "status": "CANDIDATE_REBUILT_VALIDATION_KIT_PENDING",
+    "status": "CANDIDATE_AND_VALIDATION_KIT_READY",
     "runner_output": "BOUNDARY_ALIGNED_CP936_UTF8_HEAD_TAIL_DECODING",
     "positive_probe": "MANIFEST_BOUND_NETWORK_FREE_LOCAL_BYTE_PROBE_VIA_CANDIDATE_ELECTRON",
     "process_exit_capture": "RUN_RC0506_CMD_RECORDS_AND_RETURNS_EXACT_CHILD_EXIT_CODE",
     "product_command_surface_changed": false,
     "new_dependency": false,
     "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "validation_kit_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
     "windows_execution": "NOT_PERFORMED"
   },
-  "coverage": {
+  "v2_coverage": {
     "rc05": [
       "product unknown and Shell rejection",
       "product whoami structured exit and containment when host bytes equal the Win7 target hash",
       "runtime-hash-bound harness-only loopback ping positive output and truncation",
       "unknown, Shell, interactive stdin, secret overlay and high-risk rejection",
       "harness-only loopback ping cooperative cancellation and zero new process residue"
+    ],
+    "rc06": [
+      "actual ABI 110 native binding load",
+      "SQLite 3.43.1, WAL, FTS5 and compile-option identity",
+      "Unicode and space path close/reopen recovery",
+      "FTS Unicode query and quick_check",
+      "atomic capacity and payload bounds",
+      "fingerprint corruption rejection on an isolated copy",
+      "UNC rejection, WAL/SHM cleanup and local NTFS SSD identity",
+      "returned production and intentionally corrupted databases independently hash-bound"
+    ]
+  },
+  "v3_coverage": {
+    "rc05": [
+      "product unknown and Shell rejection",
+      "product whoami structured exit and containment when host bytes equal the Win7 target hash",
+      "candidate-electron-hash-bound manifest probe positive CP936 output and boundary-safe truncation",
+      "unknown, Shell, interactive stdin, secret overlay and high-risk rejection",
+      "network-free local probe cooperative cancellation and zero new helper/electron process residue",
+      "wrapper-recorded process exit code"
     ],
     "rc06": [
       "actual ABI 110 native binding load",
@@ -136,7 +174,7 @@
     "documentation_check": "PASS",
     "syntax_check": "PASS",
     "diff_check": "PASS",
-    "independent_return_verifier": "PASS_SYNTHETIC_AND_ATTEMPT1_REJECTED"
+    "independent_return_verifier": "PASS_SYNTHETIC_AND_ATTEMPT1_ATTEMPT2_REJECTED"
   },
   "qualification": {
     "harness_only_profiles_enter_product_manifest": false,
@@ -147,7 +185,7 @@
     "product_candidate_rebuild_required": false
   },
   "gates": {
-    "rc04_windows_product_smoke": "PRIOR_CANDIDATE_PASS_CURRENT_CANDIDATE_NOT_PERFORMED",
+    "rc04_windows_product_smoke": "PRIOR_CANDIDATE_PASS_CURRENT_CANDIDATE_READY_NOT_PERFORMED",
     "rc05_windows": "PRIOR_CANDIDATE_V2_FAIL_CLOSED_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
     "rc06_windows": "PRIOR_CANDIDATE_V2_PASS_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
     "win10": "CURRENT_CANDIDATE_NOT_PERFORMED",

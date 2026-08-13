@@ -291,7 +291,10 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   不访问网络；`RUN_RC0506.cmd` 会记录并原样返回真实子进程退出码。提交 `963eabe` 已两次
   确定性重建出相同的新产品 ZIP，SHA-256 为 `39eecb6a…040c9`，包内 Runner 修复与源构建哈希
   一致。旧候选 `90916647…f1d5` 已移入只读归档；它的 RC-04/RC-06 PASS 不自动继承给新候选。
-  当前仍需生成 v3 KIT 并对新候选重跑 Windows RC-04/05/06，故不得提前声明新的 Win10 PASS。
+  v3 KIT 已由提交 `f47fd84` 两次确定性生成相同的 13,502 字节 ZIP，SHA-256 为
+  `9cbe6be7…72b1e`，6 个 ZIP 文件和 5 个 manifest payload 全部独立复核。新候选与 KIT 已归档至
+  `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-v3-ready-20260814/`；当前仍需在普通 Win10
+  CMD 对新候选重跑 RC-04/05/06，故不得提前声明新的 Win10 PASS。
 
 ## MVP 已接受的延期项
 

@@ -6,7 +6,7 @@
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
-  "status": "V3_CANDIDATE_REBUILT_WINDOWS_RC04_RC05_RC06_NOT_PERFORMED",
+  "status": "V3_CANDIDATE_AND_KIT_READY_WINDOWS_RC04_RC05_RC06_NOT_PERFORMED",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -60,9 +60,9 @@
       "tests": 127
     },
     "rc0506_windows_validation_kit": {
-      "status": "ATTEMPT2_V2_FAIL_CLOSED_V3_CANDIDATE_REBUILT_KIT_PENDING",
-      "source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
-      "zip_sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
+      "status": "V3_READY_FOR_WINDOWS_EXECUTION",
+      "source_commit": "f47fd8404ca3490d9ab6b78aa9eb204d48890dd1",
+      "zip_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
       "deterministic_rebuilds": 2,
       "evidence": "docs/status/a7-rc0506-validation-kit-latest.json"
     },
@@ -79,7 +79,7 @@
     "developer_package_assembly": "PASS",
     "developer_full_regression": "PASS",
     "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
-    "rc04_windows_product_smoke": "PRIOR_CANDIDATE_PASS_CURRENT_CANDIDATE_NOT_PERFORMED",
+    "rc04_windows_product_smoke": "PRIOR_CANDIDATE_PASS_CURRENT_CANDIDATE_READY_NOT_PERFORMED",
     "rc05_windows": "PRIOR_CANDIDATE_V2_FAIL_CLOSED_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
     "rc06_windows": "PRIOR_CANDIDATE_V2_PASS_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
     "win10": "CURRENT_CANDIDATE_NOT_PERFORMED",
