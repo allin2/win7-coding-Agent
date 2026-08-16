@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC0506-VALIDATION-KIT-20260816-05",
-  "recorded_at_utc": "2026-08-16T14:17:29Z",
+  "record_id": "A7-RC0506-VALIDATION-KIT-20260816-06",
+  "recorded_at_utc": "2026-08-16T14:38:30Z",
   "branch": "codex/a7-release-candidate",
   "kit_source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
-  "status": "V4_READY_FOR_WINDOWS_RC05_RC06_RERUN",
+  "status": "V4_WINDOWS_EXECUTED_RC05_RC06_PASS_INDEPENDENTLY_VERIFIED",
   "target_candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
@@ -160,7 +160,7 @@
     }
   },
   "v4_remediation": {
-    "status": "KIT_READY_TWO_DETERMINISTIC_BUILDS_MATCH",
+    "status": "EXECUTED_AND_VERIFIED_ON_WINDOWS_SEE_ATTEMPT_4_V4",
     "source_commits": {
       "harness_fix": "8388222",
       "kit_bound_commit": "ef1486e9ea1560574b1c4a5fc24d86287d01f056"
@@ -189,7 +189,50 @@
     "deterministic_rebuild_sha256_match": true,
     "target_candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
     "readme_candidate_hash_fixed": true,
-    "windows_execution": "NOT_PERFORMED"
+    "windows_execution": "PERFORMED_20260816_SEE_ATTEMPT_4_V4"
+  },
+  "attempt_4_v4": {
+    "status": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "executed_at_local": "2026-08-16 22:32 (+0800)",
+    "host": "Windows 10 专业版 19045 x64, local NTFS SSD (WD Blue SN570 500GB, C:)",
+    "kit_sha256": "ff5a26efefff947df4166cf2f3a49cddfcd5c7f17d81301360654493b358c6d5",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "return_zip": {
+      "path": "/Users/qlyf/Downloads/return-to-dev-20260816(1).zip",
+      "size": 17718,
+      "sha256": "9c3d5baee581a369ba3a9b7cd287bb1c2ae23f6c2c54b6041911be794f39080d",
+      "manifest_entries_verified": "10/10 size and SHA-256 match; all JSON parseable"
+    },
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt4-v4-20260816",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "rc05": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "rc06": "PASS",
+    "summary": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "reported_process_exit_code": 0,
+    "expected_process_exit_code": 0,
+    "exit_code_contract": "HONORED",
+    "rc05_case_detail": {
+      "RC05-N01": "PASS",
+      "RC05-P01": "NOT_APPLICABLE_TARGET_PROFILE_HASH (expected Win7 whoami pin deferral)",
+      "RC05-P02": "PASS - findstr exit 0, 215 bytes CP936 with replacement_count=0; bounded run retained 127 of 215 bytes with 88 omitted and zero replacement characters",
+      "RC05-N02": "PASS",
+      "RC05-C01": "PASS - ping 127.0.0.1 cancelled with job_object containment, child_job_assignment_verified and acl_rollback_verified",
+      "RC05-Z01": "PASS"
+    },
+    "fixture_binding_verified": "fixture_sha256 matched the harness-recorded constant f1e8bf3520cd6add983e8f824236b8bc0ea8524f09ca5850c18b9c9744367da9",
+    "independent_verifier": "PASS (verify-rc0506-evidence.mjs bound kit_id, candidate, report hashes, both databases and exit code)",
+    "process_residue": { "electron_before": 0, "electron_after": 0, "helper_before": 0, "helper_after": 0 },
+    "adjudication": "RC05_AND_RC06_WINDOWS_PRELEASE_PASS_ON_CURRENT_CANDIDATE_WIN7_LEASE_STILL_REQUIRED",
+    "evidence_sha256": {
+      "summary": "5fd47acb513a6d2fea0c86404e09f07dda1fbe5b642eb204aa14d7aaed6bdda7",
+      "rc05": "538d45c049f5f98872881973490bd9bd9b4f5259c33d9d4f517dd079469c3501",
+      "rc06": "a637ac3956d563bebfee0c25f1f0140ac29eb3180b53db2cd1e13f423b7a5788",
+      "production_database": "0070c1167018ca652c54638da8c0a81d922efe44a81013d31ad6e08b6a9b9640",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e",
+      "process_exit_code": "743a85a3c778602ff33758167525939a65eaf865b4d69b0398587c2060d964aa",
+      "report_md": "505f8244f498b7a5f4bcb09643f8efc951c816a8b57148b9e1898f9a9a807e23",
+      "transcript": "172ccb6f69141556965d27b93f87bed62f522ccccfe1131ef31542d90f65aea8"
+    }
   },
   "v2_coverage": {
     "rc05": [
@@ -264,9 +307,9 @@
   },
   "gates": {
     "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS_WIN7_LEASE_NOT_PERFORMED",
-    "rc05_windows": "CURRENT_CANDIDATE_V3_FAIL_CLOSED_V4_READY_NOT_EXECUTED",
-    "rc06_windows": "CURRENT_CANDIDATE_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
-    "win10": "NOT_PASS_RC05_BLOCKED_RC04_RC06_WINDOWS_EVIDENCE_COMPLETE",
+    "rc05_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc06_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "win10": "RC04_RC05_RC06_WINDOWS_EVIDENCE_COMPLETE_FULL_WIN10_LAYER_PENDING_RC03_RC07_RC08",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },

@@ -52,9 +52,9 @@
       "requirement": "Only locked low-risk structured Runner profiles execute; interactive input, arbitrary shell and high-risk profiles are rejected.",
       "surfaces": ["src/runner", "src/shell/product"],
       "evidence": ["src/runner/tests/native-runner.test.ts", "src/shell/tests/product/runner-runtime.test.ts", "release/win7-rc/rc-input-lock.json", "scripts/release/test/rc-composition.test.mjs", "release/win7-rc/rc0506-windows-validation.cjs", "scripts/release/verify-rc0506-evidence.mjs", "docs/status/a7-rc0506-validation-kit-latest.json", "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/rc0506-evidence"],
-      "status": "blocked",
-      "gap": "v3 Windows attempt (2026-08-16) failed closed at RC05-P02 and RC05-C01 with CONTAINMENT_UNAVAILABLE: the harness profile rc05-harness-local-probe used the packaged electron.exe, which the D-013 native helper C06 allow-list rejects by design (real-System32 direct children only). Rejection, zero-residue and product-route negative cases pass; the harness-only positive/bounded/cancellation probe design is incompatible with the helper boundary.",
-      "action": "Ship a v4 kit whose RC-05 probe uses helper-allowed System32 tools with a harness-generated hash-bound deterministic local fixture (findstr positive/bounded, loopback ping cancellation), add a JS registry vs helper allow-list compatibility contract check, and rerun on Windows without expanding the product helper allow-list or rebuilding the product candidate.",
+      "status": "partial",
+      "gap": "v4 Windows attempt (2026-08-16) passed: all six cases PASS except the expected RC05-P01 Win7 whoami hash deferral, giving PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED on Windows 10 19045. findstr fixture probe proved CP936 decoding, 127-of-215-byte boundary-aligned truncation with zero replacement characters and loopback ping cooperative cancellation with verified Job/ACL rollback; the independent verifier bound kit, candidate, reports, databases and exit code 0. The same matrix has not run under a new signed Win7 RC lease, where RC05-P01 becomes executable with the real Win7 whoami bytes.",
+      "action": "Repeat the RC-05 matrix under the new signed Win7 RC lease after RC-07/RC-08 and the final Win10 RC-03 closure; on Win7 the RC05-P01 product profile case must execute instead of deferring.",
       "acceptance": "Structured command/output/cancel/reap pass and all forbidden inputs fail closed."
     },
     {
@@ -63,8 +63,8 @@
       "surfaces": ["src/state", "resources/native/storage"],
       "evidence": ["spikes/04-storage-index/GO_NOGO_WIN7_20260807.md", "src/state/src/sqlite-event-ledger.ts", "src/state/tests/unit/sqlite-event-ledger.test.ts", "release/win7-rc/rc0506-windows-validation.cjs", "scripts/release/verify-rc0506-evidence.mjs", "docs/status/a7-rc0506-validation-kit-latest.json", "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/rc0506-evidence"],
       "status": "partial",
-      "gap": "The current candidate 39eecb6a...040c9 passed the full RC-06 matrix (7/7) on Windows 10 19045 local NTFS SSD on 2026-08-16, with the production and intentionally corrupted databases returned and independently hash-bound; the same matrix has not run under a new signed Win7 RC lease.",
-      "action": "Rerun RC-06 unchanged with the v4 kit round on Windows, then repeat under the new Win7 RC lease.",
+      "gap": "The current candidate 39eecb6a...040c9 passed the full RC-06 matrix (7/7) twice on Windows 10 19045 local NTFS SSD (v3 and v4 rounds on 2026-08-16), with the production and intentionally corrupted databases returned and independently hash-bound (quick_check=ok); the same matrix has not run under a new signed Win7 RC lease.",
+      "action": "Rerun RC-06 under the new Win7 RC lease together with the full RC matrix.",
       "acceptance": "RC-06 matrix passes on local NTFS SSD and rejects unsupported media claims."
     },
     {

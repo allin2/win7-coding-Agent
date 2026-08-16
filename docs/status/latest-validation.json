@@ -30,9 +30,9 @@
     },
     {
       "record": "docs/status/a7-rc-development-latest.json",
-      "status": "V4_KIT_READY_WINDOWS_RC05_RC06_RERUN_PENDING",
+      "status": "V4_WINDOWS_RC04_RC05_RC06_PASS_WIN7_LEASE_AND_RC0708_PENDING",
       "win7_formal_acceptance_changed": false,
-      "scope": "2026-08-16 Windows 10 19045 round with candidate 39eecb6a...040c9 and the v3 kit: RC-04 two-round PASS, RC-06 full PASS with returned databases, RC-05 fail-closed at P02/C01 because the harness electron.exe probe is incompatible with the D-013 helper C06 allow-list; process exit code contract honored (1); return package archived byte-preserved; the v4 kit redesign (helper-allowed System32 findstr fixture and loopback-only ping cancellation, mirrored allow-list preflight plus contract tests) built deterministically twice to ff5a26ef...c6d5 bound to commit ef1486e with the product candidate unchanged; Win7 and RC remain not performed"
+      "scope": "The v4 kit round (2026-08-16 22:32, Windows 10 19045, local NTFS SSD, candidate 39eecb6a...040c9 unchanged) returned RC-05 PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED and RC-06 PASS with exit code 0; the independent verifier bound kit_id, candidate, report hashes, both databases and the exit-code contract; findstr fixture probe proved CP936 and boundary-aligned 127/215-byte truncation with zero replacement characters and loopback ping cancellation verified Job containment and ACL rollback; return package 9c3d5bae...080d (10/10 manifest verified) archived byte-preserved; RC-04/05/06 Windows evidence on the current candidate is complete, remaining gates are RC-07/RC-08, the final Win10 RC-03 closure and the new signed Win7 RC lease"
     }
   ],
   "environment": {
@@ -230,8 +230,8 @@
   },
   "a7_rc_development_supplement": {
     "schema_version": 1,
-    "record_id": "A7-RC-DEVELOPMENT-20260816-08",
-    "status": "V4_KIT_READY_WINDOWS_RC05_RC06_RERUN_PENDING",
+    "record_id": "A7-RC-DEVELOPMENT-20260816-09",
+    "status": "V4_WINDOWS_RC04_RC05_RC06_PASS_WIN7_LEASE_AND_RC0708_PENDING",
     "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
     "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
     "developer_validation": {
@@ -245,10 +245,11 @@
     "rc": "NOT_PERFORMED",
     "win7_lease_issued": false,
     "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS",
-    "rc05_windows": "V3_FAIL_CLOSED_HELPER_ALLOW_LIST_V4_KIT_READY_NOT_EXECUTED",
-    "rc06_windows": "V3_WIN10_PASS_CURRENT_CANDIDATE",
-    "win10": "NOT_PASS_RC05_BLOCKED_RC04_RC06_WINDOWS_EVIDENCE_COMPLETE",
+    "rc05_windows": "V4_WIN10_PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "rc06_windows": "V4_WIN10_PASS_CURRENT_CANDIDATE",
+    "win10": "RC04_RC05_RC06_WINDOWS_EVIDENCE_COMPLETE_FULL_WIN10_LAYER_PENDING_RC03_RC07_RC08",
     "windows_attempt_3_return_zip_sha256": "5e02a7e567df8fcf2323ec96dcced394c3fec5f778bf81e105bcbff0a8106a0e",
+    "windows_attempt_4_return_zip_sha256": "9c3d5baee581a369ba3a9b7cd287bb1c2ae23f6c2c54b6041911be794f39080d",
     "v4_validation_kit_sha256": "ff5a26efefff947df4166cf2f3a49cddfcd5c7f17d81301360654493b358c6d5",
     "evidence": [
       "docs/status/a7-rc-development-latest.json",
