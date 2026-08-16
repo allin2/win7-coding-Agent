@@ -16,6 +16,7 @@
 | [win7_remaining_constraints_acceptance_plan](2026-08/win7_remaining_constraints_acceptance_plan.html) | 08-02 | C01–C20 剩余约束覆盖矩阵、执行包、证据接口与停止条件 |
 | [a4_automated_acceptance_orchestration_2026-08-05](2026-08/a4_automated_acceptance_orchestration_2026-08-05.html) | 08-05 | A4 AUTO-00～07 fail-closed 编排方案与 A4-20260805-123467 Win7 14/14 自动执行结果；独立 Gate 不计入 PASS |
 | [A4-20260806-140606 补充验收审计](../../spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.html) | 08-06 | Win7 C02 Job fail-closed、C03 Restricted Token 边界失败、C05 loopback 可达性及正式网络环境缺失分类 |
+| [A7 Agent 交接快照](2026-08/A7_AGENT_HANDOFF_20260816.md) | 08-16 | A7 当前候选、v3 Windows 返回证据、RC-05 fail-closed 根因、剩余 RC 门禁与接手顺序 |
 
 ## 2026-07
 
