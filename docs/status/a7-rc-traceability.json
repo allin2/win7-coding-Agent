@@ -71,20 +71,20 @@
       "id": "RC-07",
       "requirement": "Upgrade succeeds and injected failure restores the original version, data and manifest without mixed files.",
       "surfaces": ["scripts/release", "installation lifecycle"],
-      "evidence": [],
-      "status": "missing",
-      "gap": "No RC upgrade or rollback implementation exists.",
-      "action": "Implement side-by-side staging, hash verification, atomic activation and rollback evidence.",
+      "evidence": ["release/win7-rc/rc0708-upgrade.cjs", "release/win7-rc/RUN_RC0708_UPGRADE.cmd", "release/win7-rc/rc0708-zip.cjs", "release/win7-rc/rc0708-lifecycle-lock.json", "scripts/release/build-rc0708-lifecycle-kit.mjs", "scripts/release/verify-rc0708-evidence.mjs", "scripts/release/test/rc0708-lifecycle.test.mjs", "docs/status/a7-rc0708-lifecycle-kit-latest.json"],
+      "status": "partial",
+      "gap": "The v1 lifecycle kit implements side-by-side staging with strict manifest tree equality, wrapper-performed rename activation, injected staged-file corruption detection, injected post-activation corruption with byte-identical rollback and user-data invariance audits; it was built deterministically twice (0103998b...f1ff) bound to commit e10b2a1 and the unchanged candidate. Windows execution of the three-scenario matrix has not been performed.",
+      "action": "Run the three RC0708 upgrade rounds on Windows 10 per the kit README (previous f24d9a4 candidate as the install under test), return the evidence set and verify it with verify-rc0708-evidence.mjs; then repeat under the new Win7 RC lease.",
       "acceptance": "Success and injected-failure paths both preserve a single coherent version."
     },
     {
       "id": "RC-08",
       "requirement": "Uninstall removes product and transient resources with an explicit user-data retention policy and zero process/lock residue.",
       "surfaces": ["scripts/release", "installation lifecycle"],
-      "evidence": [],
-      "status": "missing",
-      "gap": "No RC uninstall implementation or retention policy exists.",
-      "action": "Implement uninstall and residue audit without services, PATH or registry unless separately authorized.",
+      "evidence": ["release/win7-rc/rc0708-uninstall.cjs", "release/win7-rc/RUN_RC0708_UNINSTALL.cmd", "release/win7-rc/rc0708-lifecycle-lock.json", "scripts/release/verify-rc0708-evidence.mjs", "scripts/release/test/rc0708-lifecycle.test.mjs", "docs/status/a7-rc0708-lifecycle-kit-latest.json"],
+      "status": "partial",
+      "gap": "The v1 lifecycle kit implements quarantine-hosted uninstall with a file-lock probe, explicit retain/purge user-data policy, host-aware zero-process audits and transcript-proven quarantine removal; the product creates no registry, service or PATH entries. Windows execution of both policy rounds has not been performed.",
+      "action": "Run the retain and purge RC0708 uninstall rounds on Windows 10 per the kit README (fresh product re-extract before the purge round), return the evidence set and verify it; then repeat under the new Win7 RC lease.",
       "acceptance": "Product files and transient state are absent, retained user data matches policy and process/lock count is zero."
     },
     {

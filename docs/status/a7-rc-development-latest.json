@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260816-09",
-  "recorded_at_utc": "2026-08-16T14:38:30Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260816-10",
+  "recorded_at_utc": "2026-08-16T15:14:03Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
-  "status": "V4_WINDOWS_RC04_RC05_RC06_PASS_WIN7_LEASE_AND_RC0708_PENDING",
+  "status": "RC0708_LIFECYCLE_KIT_READY_WINDOWS_EXECUTION_PENDING",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -37,7 +37,7 @@
   "developer_validation": {
     "release_contract_tests": {
       "status": "PASS",
-      "tests": 22
+      "tests": 31
     },
     "full_repository_verify": {
       "status": "PASS",
@@ -90,6 +90,13 @@
       },
       "evidence": "docs/status/a7-rc0506-validation-kit-latest.json"
     },
+    "rc0708_lifecycle_kit": {
+      "status": "V1_READY_FOR_WINDOWS_EXECUTION",
+      "source_commit": "e10b2a145e91c4c8e952ac305192e54f20d5a495",
+      "zip_sha256": "0103998bf39fca18aa08df40a5056a0a96d3194f906790039ce9db7bd044f1ff",
+      "deterministic_rebuilds": 2,
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
     "documentation_check": {
       "status": "PASS",
       "checked_files": 67,
@@ -111,10 +118,9 @@
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
-    "RC-07 upgrade and rollback lifecycle",
-    "RC-08 uninstall and zero-residue lifecycle",
+    "run the RC0708 lifecycle kit (0103998b...f1ff) upgrade and uninstall matrix on Windows",
     "final Win10 layer closure: precise RC-03 PE/API/CRT gate over the unique RC ZIP",
-    "RC-04/RC-05/RC-06 and the full RC-01..RC-10 matrix under a new signed Win7 RC lease"
+    "RC-04/RC-05/RC-06/RC-07/RC-08 and the full RC-01..RC-10 matrix under a new signed Win7 RC lease"
   ],
   "safety": {
     "win7_lease_issued": false,
