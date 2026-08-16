@@ -307,12 +307,18 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/`。
   当前分层结论：`RC04=Windows PASS / RC05=FAIL_CLOSED / RC06=Windows PASS / WIN10=NOT_PASS /
   WIN7=NOT_PERFORMED / RC=NOT_PERFORMED`。
-- v4 修复方向已定且不扩大产品 helper allow-list：RC-05 探针改用 helper 已允许的 System32
-  `findstr.exe` 配合 harness 内生成、哈希记录的确定性本地 GBK fixture 完成正例与 128 字节
-  边界截断验证，取消用例改用回环 `ping.exe`（仅 127.0.0.1，无外部网络）；同时为
-  “JS registry profile 必须与原生 helper allow-list 相容”增加自动化合同检查，防止再生成
-  理论上无法通过 helper 的 KIT。产品候选字节不变（继续锁定 `39eecb6a…040c9`），v4 轮通过后
-  RC-04/05/06 结果继续绑定同一候选。
+- v4 修复已完成并通过两次确定性构建，且不扩大产品 helper allow-list：RC-05 探针改用 helper 已允许的
+  System32 `findstr.exe` 读取 harness 内生成的确定性 GBK fixture（215 字节，SHA-256
+  `f1e8bf35…7da9`，正例含中文解码、截断用例压 128 字节上限验证多字节边界对齐），取消用例改用
+  仅 127.0.0.1 的 System32 `ping.exe`；harness 内置 C06 allow-list 镜像并对全部 harness profile
+  做执行前预检，新增 fixture 确定性与 allow-list 相容性（含 v3 electron.exe 回归负例）合同测试，
+  release 合同测试由 19 项增至 22 项（RC0506 合同 9→12），全量 `npm run verify` 7 模块通过。
+  产品候选字节不变（继续锁定 `39eecb6a…040c9`）。v4 KIT
+  `RC0506_WINDOWS_VALIDATION_KIT_20260816-v4.zip`（14,239 字节，SHA-256 `ff5a26ef…c6d5`，
+  绑定提交 `ef1486e`）两次构建字节一致，内含 README 候选哈希已修正为当前候选；已归档至
+  `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-v4-ready-20260816/kit/`。下一步是在普通
+  Win10 CMD 以新 KIT 重跑 RC-05/RC-06（RC-04 可按同候选既有两轮 PASS 引用），通过后才可准备
+  完整 Win10 分层门禁与新的 A7 RC Win7 签名租约。
 
 ## MVP 已接受的延期项
 
