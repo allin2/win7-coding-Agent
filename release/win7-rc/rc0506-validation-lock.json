@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260814-V3",
-  "output_filename": "RC0506_WINDOWS_VALIDATION_KIT_20260814-v3.zip",
-  "source_date_epoch": 1786550400,
+  "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260816-V4",
+  "output_filename": "RC0506_WINDOWS_VALIDATION_KIT_20260816-v4.zip",
+  "source_date_epoch": 1786896000,
   "target": "WINDOWS_X64_PRE_WIN7_LEASE_VALIDATION",
   "candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
@@ -17,8 +17,9 @@
   "rc05": {
     "product_profile": "win7-whoami",
     "product_profile_success_contract": "STRUCTURED_EXIT_WITH_VERIFIED_CONTAINMENT",
-    "harness_only_positive_profile": "candidate-electron-manifest-bound-network-free-probe",
-    "harness_only_cancellation_profile": "candidate-electron-manifest-bound-network-free-probe",
+    "harness_only_positive_profile": "system32-findstr-runtime-hash-bound-local-fixture",
+    "harness_only_cancellation_profile": "system32-ping-loopback-only-runtime-hash-bound",
+    "helper_allowlist_contract": "HARNESS_PROFILES_MUST_PASS_MIRRORED_C06_ALLOWLIST_PREFLIGHT",
     "required_negative_codes": [
       "PROFILE_NOT_FOUND",
       "SHELL_HOST_PROHIBITED",

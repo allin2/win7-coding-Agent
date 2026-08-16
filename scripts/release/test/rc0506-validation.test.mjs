@@ -7,27 +7,55 @@ import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { TextDecoder } from 'node:util';
 
 const require = createRequire(import.meta.url);
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
 const harnessPath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-windows-validation.cjs');
-const localProbePath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-local-probe.cjs');
 const wrapperPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0506.cmd');
 const verifierPath = path.join(repositoryRoot, 'scripts', 'release', 'verify-rc0506-evidence.mjs');
-const { RC05_LOCAL_PROBE_MODES, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit } = require(harnessPath);
+const { RC05_HELPER_SYSTEM32_ALLOWLIST, RC05_HARNESS_PROBE_TOOLS, RC05_FINDSTR_MARKER, RC05_PING_CANCEL_ARGS, buildRc05FindstrFixture, helperAllowListDecision, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit } = require(harnessPath);
 
-test('RC0506 owns ASAR mode and locks network-free local probe modes', () => {
-  assert.equal(process.noAsar, true);
-  assert.deepEqual(RC05_LOCAL_PROBE_MODES, {
-    positive: 'positive', truncated: 'bounded', cancellation: 'wait-for-cancel',
-  });
-  const positive = spawnSync(process.execPath, [localProbePath, RC05_LOCAL_PROBE_MODES.positive]);
-  const bounded = spawnSync(process.execPath, [localProbePath, RC05_LOCAL_PROBE_MODES.truncated]);
-  assert.equal(positive.status, 0);
-  assert.deepEqual(positive.stdout, Buffer.from([0xd6, 0xd0, 0xce, 0xc4, 0x0d, 0x0a]));
-  assert.equal(bounded.status, 0);
-  assert.equal(bounded.stdout.length, 400);
+test('RC0506 findstr fixture is deterministic GBK bytes with the ASCII marker', () => {
+  const fixture = buildRc05FindstrFixture();
+  const repeat = buildRc05FindstrFixture();
+  assert.equal(fixture.equals(repeat), true);
+  assert.equal(fixture.length, 215);
+  assert.equal(hashBytes(fixture), 'f1e8bf3520cd6add983e8f824236b8bc0ea8524f09ca5850c18b9c9744367da9');
+  assert.equal(fixture.subarray(0, RC05_FINDSTR_MARKER.length).toString('ascii'), RC05_FINDSTR_MARKER);
+  assert.deepEqual(fixture.subarray(13, 17), Buffer.from([0xd6, 0xd0, 0xce, 0xc4]));
+  assert.equal(fixture.subarray(fixture.length - 2).equals(Buffer.from([0x0d, 0x0a])), true);
+  assert.equal(new TextDecoder('gbk').decode(fixture).includes('中文'), true);
+});
+
+test('RC0506 harness probe tools pass the mirrored helper allow-list (v3 regression)', () => {
+  const systemRoot = 'C:\\Windows';
+  const tools = new Set([RC05_HARNESS_PROBE_TOOLS.positive, RC05_HARNESS_PROBE_TOOLS.bounded, RC05_HARNESS_PROBE_TOOLS.cancellation, 'whoami.exe']);
+  assert.deepEqual(RC05_PING_CANCEL_ARGS, ['-n', '30', '127.0.0.1']);
+  assert.equal(RC05_PING_CANCEL_ARGS[2], '127.0.0.1');
+  for (const tool of tools) {
+    const decision = helperAllowListDecision(path.win32.join(systemRoot, 'System32', tool), systemRoot);
+    assert.equal(decision.allowed, true, `${tool}: ${decision.reason}`);
+  }
+  const v3Bug = helperAllowListDecision('C:\\rc-v3-20260816\\product\\electron.exe', systemRoot);
+  assert.equal(v3Bug.allowed, false);
+  assert.equal(v3Bug.reason, 'NOT_DIRECT_SYSTEM32_CHILD');
+});
+
+test('RC0506 mirrored helper allow-list rejects the C06 negative shapes', () => {
+  const systemRoot = 'C:\\Windows';
+  assert.equal(helperAllowListDecision('C:\\Windows\\System32evil\\whoami.exe', systemRoot).reason, 'NOT_DIRECT_SYSTEM32_CHILD');
+  assert.equal(helperAllowListDecision('C:\\Windows\\System32\\sub\\whoami.exe', systemRoot).reason, 'NOT_DIRECT_SYSTEM32_CHILD');
+  assert.equal(helperAllowListDecision('C:\\Windows\\System32\\electron.exe', systemRoot).reason, 'TOOL_NOT_IN_ALLOWLIST');
+  assert.equal(helperAllowListDecision('C:\\Windows\\System32\\whoami.exe. ', systemRoot).reason, 'TRAILING_DOT_OR_SPACE_COMPONENT');
+  assert.equal(helperAllowListDecision('System32\\whoami.exe', systemRoot).reason, 'PATH_NOT_DRIVE_ABSOLUTE');
+  assert.equal(helperAllowListDecision('whoami.exe', systemRoot).reason, 'PATH_NOT_DRIVE_ABSOLUTE');
+  assert.equal(helperAllowListDecision('\\\\localhost\\c$\\Windows\\System32\\whoami.exe', systemRoot).reason, 'PATH_NOT_DRIVE_ABSOLUTE');
+  assert.deepEqual([...RC05_HELPER_SYSTEM32_ALLOWLIST].sort(), ['certutil.exe', 'cmd.exe', 'findstr.exe', 'ping.exe', 'reg.exe', 'tasklist.exe', 'where.exe', 'whoami.exe']);
+});
+
+test('RC0506 wrapper records and returns the exact child exit code', () => {
   const wrapper = fs.readFileSync(wrapperPath, 'utf8');
   assert.match(wrapper, /rc0506-process-exit-code\.txt/);
   assert.match(wrapper, /exit \/b %RC0506_EXIT_CODE%/);
@@ -146,3 +174,4 @@ test('RC0506 kit manifest rejects changed harness bytes', () => {
 });
 
 function hash(filePath) { return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'); }
+function hashBytes(value) { return crypto.createHash('sha256').update(value).digest('hex'); }

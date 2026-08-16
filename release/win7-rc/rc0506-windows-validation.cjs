@@ -13,11 +13,24 @@ const { spawnSync } = require('child_process');
 
 const CASE_PASS = 'PASS';
 const CASE_SKIP = 'NOT_APPLICABLE_TARGET_PROFILE_HASH';
-const RC05_LOCAL_PROBE_MODES = Object.freeze({
-  positive: 'positive',
-  truncated: 'bounded',
-  cancellation: 'wait-for-cancel',
+// Mirror of the D-013 native helper C06 allow-list
+// (spikes/02-terminal-containment/helper/whitelist.cpp): only real-System32
+// direct children with these basenames can ever pass the helper. Every profile
+// the harness registers for actual execution must stay inside this set; the
+// v3 kit shipped an electron.exe probe that the helper correctly rejected
+// with CONTAINMENT_UNAVAILABLE, burning a Windows round.
+const RC05_HELPER_SYSTEM32_ALLOWLIST = Object.freeze([
+  'certutil.exe', 'cmd.exe', 'findstr.exe', 'ping.exe',
+  'reg.exe', 'tasklist.exe', 'where.exe', 'whoami.exe',
+]);
+const RC05_HARNESS_PROBE_TOOLS = Object.freeze({
+  positive: 'findstr.exe',
+  bounded: 'findstr.exe',
+  cancellation: 'ping.exe',
 });
+const RC05_FINDSTR_MARKER = 'RC0506_MARKER';
+const RC05_FINDSTR_PAYLOAD_REPEATS = 50;
+const RC05_PING_CANCEL_ARGS = Object.freeze(['-n', '30', '127.0.0.1']);
 
 async function main(argv) {
   if (process.platform !== 'win32' || process.arch !== 'x64') {
@@ -89,14 +102,21 @@ async function runRc05(args, lock, modules, candidate) {
       assertion('shell-host', productShell.status === 'rejected' && code(productShell) === 'SHELL_HOST_PROHIBITED'),
     ], { unknown: summarizeRun(productUnknown), shell: summarizeRun(productShell) }));
 
-    const whoamiPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe');
-    const electronPath = path.join(args.packageRoot, 'electron.exe');
-    const localProbePath = path.join(__dirname, 'RC0506_LOCAL_PROBE.cjs');
+    const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+    const whoamiPath = path.join(systemRoot, 'System32', 'whoami.exe');
+    const findstrPath = path.join(systemRoot, 'System32', RC05_HARNESS_PROBE_TOOLS.positive);
+    const pingPath = path.join(systemRoot, 'System32', RC05_HARNESS_PROBE_TOOLS.cancellation);
     const whoamiHash = sha256(whoamiPath);
-    const electronHash = sha256(electronPath);
-    const localProbeHash = sha256(localProbePath);
-    const probeArgs = Object.fromEntries(Object.entries(RC05_LOCAL_PROBE_MODES)
-      .map(([name, mode]) => [name, [localProbePath, mode]]));
+    const findstrHash = sha256(findstrPath);
+    const pingHash = sha256(pingPath);
+    const fixturePath = path.join(workRoot, 'RC0506_FINDSTR_FIXTURE.txt');
+    fs.writeFileSync(fixturePath, buildRc05FindstrFixture());
+    const fixtureHash = sha256(fixturePath);
+    const findstrArgs = [`/C:${RC05_FINDSTR_MARKER}`, fixturePath];
+    for (const harnessExecutable of [whoamiPath, findstrPath, pingPath]) {
+      const decision = helperAllowListDecision(harnessExecutable, systemRoot);
+      if (!decision.allowed) throw new Error(`RC05_HELPER_ALLOWLIST_INCOMPATIBLE:${harnessExecutable}:${decision.reason}`);
+    }
     const productHashMatch = whoamiHash === candidate.product_whoami_sha256;
     if (productHashMatch) {
       const positive = await product.runner.execute(request('win7-whoami', [], product.runnerWorkDirectory, 'rc05-product-positive'));
@@ -113,25 +133,26 @@ async function runRc05(args, lock, modules, candidate) {
 
     const registry = new modules.runnerModule.ExecutableProfileRegistry([
       profile('rc05-harness-whoami', whoamiPath, whoamiHash, workRoot, (values) => values.length === 0 || same(values, ['/all'])),
-      profile('rc05-harness-local-probe', electronPath, electronHash, workRoot, (values) => Object.values(probeArgs).some((allowed) => same(values, allowed))),
+      profile('rc05-harness-findstr', findstrPath, findstrHash, workRoot, (values) => same(values, findstrArgs)),
+      profile('rc05-harness-ping', pingPath, pingHash, workRoot, (values) => same(values, [...RC05_PING_CANCEL_ARGS])),
       { ...profile('rc05-high-risk-whoami', whoamiPath, whoamiHash, workRoot, (values) => values.length === 0), risk: 'high' },
     ]);
     const harnessRunner = new modules.runnerModule.NativeRunner({
       registry,
       transport: new modules.runnerModule.StdioHelperTransport(candidate.runner_helper_path),
     });
-    const positive = await harnessRunner.execute(request('rc05-harness-local-probe', probeArgs.positive, workRoot, 'rc05-harness-positive'));
+    const positive = await harnessRunner.execute(request('rc05-harness-findstr', findstrArgs, workRoot, 'rc05-harness-positive'));
     const truncated = await harnessRunner.execute({
-      ...request('rc05-harness-local-probe', probeArgs.truncated, workRoot, 'rc05-harness-truncated'),
+      ...request('rc05-harness-findstr', findstrArgs, workRoot, 'rc05-harness-truncated'),
       config: { ...request('x', [], workRoot, 'x').config, maxStdoutBytes: 128, maxStderrBytes: 128 },
     });
-    cases.push(testCase('RC05-P02', 'Packaged NativeRunner and helper execute a manifest-bound network-free local probe', [
+    cases.push(testCase('RC05-P02', 'Packaged NativeRunner and helper execute a helper-allowed System32 probe over a harness-generated hash-bound local fixture', [
       assertion('exited-zero', positive.status === 'exited' && positive.exitCode === 0),
       assertion('cp936-output', positive.stdout.encoding === 'cp936' && positive.stdout.replacementCount === 0 && positive.stdout.text.includes('中文')),
       assertion('stdout-nonempty', positive.stdout.bytesRead > 0),
       assertion('whole-tree-containment', positive.termination.processTreeReaped && positive.termination.containment === 'job_object'),
       assertion('bounded-output', truncated.status === 'exited' && truncated.exitCode === 0 && truncated.stdout.truncated && truncated.stdout.bytesRetained <= 128 && truncated.stdout.replacementCount === 0 && !truncated.stdout.text.includes('\uFFFD')),
-    ], { positive: summarizeRun(positive), bounded: summarizeRun(truncated), electron_sha256: electronHash, local_probe_sha256: localProbeHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE', network_used: false }));
+    ], { positive: summarizeRun(positive), bounded: summarizeRun(truncated), findstr_sha256: findstrHash, fixture_path: fixturePath, fixture_sha256: fixtureHash, fixture_size: 13 + RC05_FINDSTR_PAYLOAD_REPEATS * 4 + 2, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE', network_used: false }));
 
     const unknown = await harnessRunner.execute(request('not-registered', [], workRoot, 'rc05-negative-unknown'));
     const shell = await harnessRunner.execute(request('powershell.exe', ['-NoProfile'], workRoot, 'rc05-negative-shell'));
@@ -148,7 +169,7 @@ async function runRc05(args, lock, modules, candidate) {
 
     const controller = new AbortController();
     const cancelling = harnessRunner.execute({
-      ...request('rc05-harness-local-probe', probeArgs.cancellation, workRoot, 'rc05-cancel'),
+      ...request('rc05-harness-ping', [...RC05_PING_CANCEL_ARGS], workRoot, 'rc05-cancel'),
       signal: controller.signal,
       config: { ...request('x', [], workRoot, 'x').config, timeoutMs: 20_000, idleTimeoutMs: 5_000 },
     });
@@ -161,7 +182,7 @@ async function runRc05(args, lock, modules, candidate) {
       assertion('cleanup-confirmed', cancelled.termination.processTreeReaped && cancelled.termination.containment === 'job_object'),
       assertion('zero-new-helper', noNewPids(before['spike02_helper.exe'], afterCancel['spike02_helper.exe'])),
       assertion('zero-new-electron', noNewPids(before['electron.exe'], afterCancel['electron.exe'])),
-    ], { result: summarizeRun(cancelled), before, after: afterCancel, electron_sha256: electronHash, local_probe_sha256: localProbeHash, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE', network_used: false }));
+    ], { result: summarizeRun(cancelled), before, after: afterCancel, ping_sha256: pingHash, loopback_only: true, external_network_used: false, profile_scope: 'HARNESS_ONLY_NOT_PRODUCT_COMMAND_SURFACE' }));
   } finally {
     product.close();
   }
@@ -422,6 +443,29 @@ function request(command, args, workDir, requestId) {
 function profile(id, executablePath, digest, workRoot, validateArgs) { return { id, executablePath, sha256: digest, risk: 'low', outputEncoding: 'cp936', workingDirectoryRoots: [workRoot], validateArgs }; }
 function event(eventId, payload, type = 'message.added') { return { eventId, schemaVersion: 2, sessionId: 'rc06-session', threadId: 'rc06-thread', turnId: 'rc06-turn', runId: 'rc06-run', occurredAt: '2026-08-13T00:00:00.000Z', type, payload }; }
 function same(left, right) { return left.length === right.length && left.every((value, index) => value === right[index]); }
+function buildRc05FindstrFixture() {
+  // The marker stays ASCII so findstr's literal /C: search is codepage
+  // independent; the payload is GBK 中文 (D6 D0 CE C4) repeated so the matched
+  // bytes prove CP936 decoding and boundary-aligned head/tail truncation.
+  const marker = Buffer.from(RC05_FINDSTR_MARKER, 'ascii');
+  const payload = Buffer.alloc(RC05_FINDSTR_PAYLOAD_REPEATS * 4);
+  for (let index = 0; index < RC05_FINDSTR_PAYLOAD_REPEATS; index += 1) {
+    payload.set([0xd6, 0xd0, 0xce, 0xc4], index * 4);
+  }
+  return Buffer.concat([marker, payload, Buffer.from([0x0d, 0x0a])]);
+}
+function helperAllowListDecision(executablePath, systemRoot) {
+  const normalized = String(executablePath || '').replace(/\//g, '\\');
+  if (!/^[A-Za-z]:\\.+$/.test(normalized)) return { allowed: false, reason: 'PATH_NOT_DRIVE_ABSOLUTE' };
+  const components = normalized.split('\\').filter((component) => component.length > 0);
+  if (components.some((component) => /[. ]$/.test(component))) return { allowed: false, reason: 'TRAILING_DOT_OR_SPACE_COMPONENT' };
+  const system32 = String(systemRoot || '').replace(/\//g, '\\').concat('\\System32');
+  const directory = components.slice(0, -1).join('\\');
+  const basename = components[components.length - 1].toLowerCase();
+  if (!directory || directory.toLowerCase() !== system32.toLowerCase()) return { allowed: false, reason: 'NOT_DIRECT_SYSTEM32_CHILD' };
+  if (!RC05_HELPER_SYSTEM32_ALLOWLIST.includes(basename)) return { allowed: false, reason: 'TOOL_NOT_IN_ALLOWLIST' };
+  return { allowed: true, reason: 'OK' };
+}
 function code(result) { return result && result.error && result.error.code; }
 function productWhoamiAssertions(value) { return [
   assertion('structured-exit', value.status === 'exited' && Number.isInteger(value.exitCode), 'Restricted whoami may return a localized access-denied exit code.'),
@@ -516,4 +560,4 @@ function finishFatal(error, argv, terminate = (codeValue) => process.exit(codeVa
   terminate(1);
 }
 
-module.exports = { RC05_LOCAL_PROBE_MODES, finishFatal, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit };
+module.exports = { RC05_HELPER_SYSTEM32_ALLOWLIST, RC05_HARNESS_PROBE_TOOLS, RC05_FINDSTR_MARKER, RC05_PING_CANCEL_ARGS, buildRc05FindstrFixture, helperAllowListDecision, finishFatal, parseArguments, productWhoamiAssertions, requireFreshDirectory, testCase, validateRc05Report, validateRc06Report, validateSummary, validateSummaryShape, verifyKit };

@@ -23,7 +23,6 @@ try {
   fs.mkdirSync(payload, { recursive: true });
   const sources = [
     ['RC0506_WINDOWS_VALIDATION.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-windows-validation.cjs')],
-    ['RC0506_LOCAL_PROBE.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0506-local-probe.cjs')],
     ['RUN_RC0506.cmd', path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0506.cmd')],
     ['VALIDATION_LOCK.json', lockPath],
     ['README.txt', path.join(repositoryRoot, 'release', 'win7-rc', 'RC0506_WINDOWS_VALIDATION_README.txt')],
