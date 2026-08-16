@@ -9,7 +9,7 @@
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
   "executed_at": "2026-08-04T17:55:44+08:00",
-  "last_updated_at": "2026-08-13T23:56:48+08:00",
+  "last_updated_at": "2026-08-16T22:06:48+08:00",
   "post_baseline_updates": [
     {
       "record": "docs/status/win10-native-builds-latest.json",
@@ -27,6 +27,12 @@
       "status": "RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY",
       "win7_formal_acceptance_changed": false,
       "scope": "RC-04 Windows product smoke passed; RC0506 attempt 1 failed closed and did not advance gates; deterministic manifest-bound v2 is ready but not executed; Win10 remains partial, Win7 and RC not performed"
+    },
+    {
+      "record": "docs/status/a7-rc-development-latest.json",
+      "status": "V3_WINDOWS_RC04_RC06_PASS_RC05_FAIL_CLOSED_WIN10_GATE_NOT_PASS",
+      "win7_formal_acceptance_changed": false,
+      "scope": "2026-08-16 Windows 10 19045 round with candidate 39eecb6a...040c9 and the v3 kit: RC-04 two-round PASS, RC-06 full PASS with returned databases, RC-05 fail-closed at P02/C01 because the harness electron.exe probe is incompatible with the D-013 helper C06 allow-list; process exit code contract honored (1); return package archived byte-preserved; v4 remediation in progress; Win7 and RC remain not performed"
     }
   ],
   "environment": {
@@ -224,13 +230,13 @@
   },
   "a7_rc_development_supplement": {
     "schema_version": 1,
-    "record_id": "A7-RC-DEVELOPMENT-20260813-05",
-    "status": "RC04_PASS_RC0506_ATTEMPT1_FAIL_CLOSED_V2_READY",
-    "artifact_source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
-    "candidate_sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "record_id": "A7-RC-DEVELOPMENT-20260816-07",
+    "status": "V3_WINDOWS_RC04_RC06_PASS_RC05_FAIL_CLOSED_WIN10_GATE_NOT_PASS",
+    "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
     "developer_validation": {
       "modules": 7,
-      "tests": 981,
+      "tests": 983,
       "release_contract_tests": 19,
       "deterministic_rebuilds": 2,
       "independent_zip_verifier": "PASS"
@@ -238,14 +244,16 @@
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED",
     "win7_lease_issued": false,
-    "rc04_windows_product_smoke": "PASS",
-    "rc05_windows": "ATTEMPT1_FAIL_CLOSED_V2_NOT_PERFORMED",
-    "rc06_windows": "ATTEMPT1_PROVISIONAL_PASS_NOT_ACCEPTED_V2_NOT_PERFORMED",
-    "win10": "PARTIAL_RC04_SMOKE_ONLY_RC0506_ATTEMPT1_FAIL_CLOSED",
+    "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS",
+    "rc05_windows": "V3_FAIL_CLOSED_HELPER_ALLOW_LIST_INCOMPATIBLE",
+    "rc06_windows": "V3_WIN10_PASS_CURRENT_CANDIDATE",
+    "win10": "NOT_PASS_RC05_BLOCKED_RC04_RC06_WINDOWS_EVIDENCE_COMPLETE",
+    "windows_attempt_3_return_zip_sha256": "5e02a7e567df8fcf2323ec96dcced394c3fec5f778bf81e105bcbff0a8106a0e",
     "evidence": [
       "docs/status/a7-rc-development-latest.json",
       "docs/status/a7-rc04-windows-smoke-latest.json",
-      "docs/status/a7-rc0506-validation-kit-latest.json"
+      "docs/status/a7-rc0506-validation-kit-latest.json",
+      "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816"
     ]
   },
   "a1_a3_closeout": {

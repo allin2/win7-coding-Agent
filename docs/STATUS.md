@@ -295,6 +295,24 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   `9cbe6be7…72b1e`，6 个 ZIP 文件和 5 个 manifest payload 全部独立复核。新候选与 KIT 已归档至
   `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-v3-ready-20260814/`；当前仍需在普通 Win10
   CMD 对新候选重跑 RC-04/05/06，故不得提前声明新的 Win10 PASS。
+- 2026-08-16 v3 Windows 轮已在 Win10 专业版 19045 x64（本地 NTFS SSD）完成并按 fail-closed 裁决：
+  RC-04 两轮各 3/3 PASS、退出码 0、无 WAL/SHM 与进程残留；RC-06 全 7 项 PASS，生产库与篡改库
+  均已返回并独立哈希绑定（`quick_check=ok`）；RC-05 的 P02/C01 因
+  `CONTAINMENT_UNAVAILABLE` 失败——v3 harness 以候选 `electron.exe` 注册
+  `rc05-harness-local-probe`，而 D-013 原生 helper 的 C06 allow-list（真实 System32 直属
+  8 个工具）在创建 Job 前拒绝该可执行文件。helper 的拒绝本身是正确的 fail-closed 行为，
+  定性为 v3 验证设计与原生安全边界不兼容，不是环境噪音。本轮 `RUN_RC0506.cmd` 真实退出码为 1，
+  退出码合同首次得到履行。返回包 `return-to-dev-20260816.zip`（22,204 字节，SHA-256
+  `5e02a7e5…a6a0e`）15/15 manifest 项复核一致，已按字节只读归档至
+  `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/`。
+  当前分层结论：`RC04=Windows PASS / RC05=FAIL_CLOSED / RC06=Windows PASS / WIN10=NOT_PASS /
+  WIN7=NOT_PERFORMED / RC=NOT_PERFORMED`。
+- v4 修复方向已定且不扩大产品 helper allow-list：RC-05 探针改用 helper 已允许的 System32
+  `findstr.exe` 配合 harness 内生成、哈希记录的确定性本地 GBK fixture 完成正例与 128 字节
+  边界截断验证，取消用例改用回环 `ping.exe`（仅 127.0.0.1，无外部网络）；同时为
+  “JS registry profile 必须与原生 helper allow-list 相容”增加自动化合同检查，防止再生成
+  理论上无法通过 helper 的 KIT。产品候选字节不变（继续锁定 `39eecb6a…040c9`），v4 轮通过后
+  RC-04/05/06 结果继续绑定同一候选。
 
 ## MVP 已接受的延期项
 

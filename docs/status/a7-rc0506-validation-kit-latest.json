@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC0506-VALIDATION-KIT-20260814-03",
-  "recorded_at_utc": "2026-08-14T06:30:00Z",
+  "record_id": "A7-RC0506-VALIDATION-KIT-20260816-04",
+  "recorded_at_utc": "2026-08-16T14:06:14Z",
   "branch": "codex/a7-release-candidate",
   "kit_source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
-  "status": "V3_READY_FOR_WINDOWS_RC04_RC05_RC06_EXECUTION",
+  "status": "V3_WINDOWS_EXECUTED_RC05_FAIL_CLOSED_RC06_PASS_V4_REMEDIATION_IN_PROGRESS",
   "target_candidate": {
     "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
     "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
@@ -104,7 +104,7 @@
     }
   },
   "v3_remediation": {
-    "status": "CANDIDATE_AND_VALIDATION_KIT_READY",
+    "status": "EXECUTED_ON_WINDOWS_FAIL_CLOSED_AT_RC05",
     "runner_output": "BOUNDARY_ALIGNED_CP936_UTF8_HEAD_TAIL_DECODING",
     "positive_probe": "MANIFEST_BOUND_NETWORK_FREE_LOCAL_BYTE_PROBE_VIA_CANDIDATE_ELECTRON",
     "process_exit_capture": "RUN_RC0506_CMD_RECORDS_AND_RETURNS_EXACT_CHILD_EXIT_CODE",
@@ -112,7 +112,63 @@
     "new_dependency": false,
     "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
     "validation_kit_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
-    "windows_execution": "NOT_PERFORMED"
+    "windows_execution": "PERFORMED_20260816_SEE_ATTEMPT_3_V3"
+  },
+  "attempt_3_v3": {
+    "status": "FAIL_CLOSED",
+    "executed_at_local": "2026-08-16 21:25 (+0800)",
+    "host": "Windows 10 专业版 19045 x64 (win-2jq66je4htq\\administrator)",
+    "media": "local NTFS SSD (WD Blue SN570 500GB NVMe, C:)",
+    "return_zip": {
+      "path": "/Users/qlyf/Downloads/return-to-dev-20260816.zip",
+      "size": 22204,
+      "sha256": "5e02a7e567df8fcf2323ec96dcced394c3fec5f778bf81e105bcbff0a8106a0e",
+      "manifest_entries_verified": "15/15 size and SHA-256 match; 7/7 JSON parseable"
+    },
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "kit_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "rc05": "FAIL_RC05_P02_C01_CONTAINMENT_UNAVAILABLE",
+    "rc06": "PASS",
+    "rc04_companion_smoke": "PASS_TWO_ROUNDS_3_OF_3_EXIT_0",
+    "summary": "FAIL",
+    "fatal": "RC0506_CASES_FAILED:RC05=FAIL:RC06=PASS",
+    "reported_process_exit_code": 1,
+    "expected_process_exit_code": 1,
+    "exit_code_contract": "HONORED",
+    "adjudication": "RC06_WINDOWS_PASS_RC05_V3_HARNESS_INCOMPATIBLE_WITH_HELPER_ALLOW_LIST",
+    "root_cause": "The v3 harness registered the packaged electron.exe as profile rc05-harness-local-probe. The D-013 native helper's independent C06 allow-list (spikes/02-terminal-containment/helper/whitelist.cpp) only allows real-System32 direct children cmd/where/reg/whoami/findstr/ping/tasklist/certutil, so the helper rejected electron.exe before creating the Job with CONTAINMENT_UNAVAILABLE. The rejection itself is correct fail-closed helper behavior; the v3 kit design was incompatible with it.",
+    "rc05_case_detail": {
+      "RC05-N01": "PASS",
+      "RC05-P01": "NOT_APPLICABLE_TARGET_PROFILE_HASH (Win10 whoami bytes differ from the Win7 target pin; expected)",
+      "RC05-P02": "FAIL - positive and bounded requests returned capability_unavailable/CONTAINMENT_UNAVAILABLE, containment=none",
+      "RC05-N02": "PASS",
+      "RC05-C01": "FAIL - cancellation never reached a cancellable child process; cancelled and job_object assertions failed",
+      "RC05-Z01": "PASS"
+    },
+    "process_residue": { "electron_before": 0, "electron_after": 0, "helper_before": 0, "helper_after": 0 },
+    "evidence_sha256": {
+      "summary": "f93b7c00ba07d13bd86187cf70620e4e5e2390bb8c49e628c8a676c2c80956d7",
+      "fatal": "89b8d9077906b927bc744db4b9ec28acbb2dd9db41101c7cb2cf2c5ed75e276e",
+      "rc05": "eeacd3d21582efc32f6a61bafa7b4927fd39944c4fad5d4cdb9d236676275059",
+      "rc06": "c50675d5b847007986a81332ae7476e76297d40884ead0f7627962718de48404",
+      "rc04_summary": "d7b284aaefad2cb9388946694b1e267f472abd4c9bf7821839c02163382b19c7",
+      "production_database": "0070c1167018ca652c54638da8c0a81d922efe44a81013d31ad6e08b6a9b9640",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e",
+      "process_exit_code": "9de812fa5276b3a3d182ee7aa40b84876f6f99612ed87ee2d8083b34253bbc66"
+    }
+  },
+  "v4_remediation": {
+    "status": "IN_PROGRESS",
+    "constraint": "DO_NOT_EXPAND_PRODUCT_HELPER_ALLOW_LIST",
+    "positive_probe": "SYSTEM32_FINDSTR_RUNTIME_HASH_BOUND_LOCAL_DETERMINISTIC_FIXTURE",
+    "bounded_probe": "SAME_FINDSTR_FIXTURE_UNDER_128_BYTE_OUTPUT_CAP",
+    "cancellation_probe": "SYSTEM32_PING_LOOPBACK_ONLY_RUNTIME_HASH_BOUND",
+    "helper_allowlist_contract_check": "TO_BE_ADDED_TO_RELEASE_CONTRACT_TESTS",
+    "fixture_binding": "BYTES_GENERATED_BY_MANIFEST_BOUND_HARNESS_CODE_SHA256_RECORDED_IN_EVIDENCE",
+    "external_network": false,
+    "product_candidate_rebuild_required": false
   },
   "v2_coverage": {
     "rc05": [
@@ -185,10 +241,10 @@
     "product_candidate_rebuild_required": false
   },
   "gates": {
-    "rc04_windows_product_smoke": "PRIOR_CANDIDATE_PASS_CURRENT_CANDIDATE_READY_NOT_PERFORMED",
-    "rc05_windows": "PRIOR_CANDIDATE_V2_FAIL_CLOSED_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
-    "rc06_windows": "PRIOR_CANDIDATE_V2_PASS_CURRENT_CANDIDATE_V3_NOT_PERFORMED",
-    "win10": "CURRENT_CANDIDATE_NOT_PERFORMED",
+    "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc05_windows": "CURRENT_CANDIDATE_V3_FAIL_CLOSED_HELPER_ALLOW_LIST_V4_IN_PROGRESS",
+    "rc06_windows": "CURRENT_CANDIDATE_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "win10": "NOT_PASS_RC05_BLOCKED_RC04_RC06_WINDOWS_EVIDENCE_COMPLETE",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },
