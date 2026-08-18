@@ -22,9 +22,9 @@ const PREVIOUS_CANDIDATE = Object.freeze({
   sha256: '909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5',
 });
 const LIFECYCLE_KIT = Object.freeze({
-  filename: 'RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip',
-  size: 18407,
-  sha256: '0103998bf39fca18aa08df40a5056a0a96d3194f906790039ce9db7bd044f1ff',
+  filename: 'RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2.zip',
+  size: 20952,
+  sha256: '0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2',
 });
 
 try {
@@ -49,17 +49,17 @@ try {
   for (const [name, source] of deliverable) fs.copyFileSync(source, path.join(payload, name));
   const manifest = {
     schema_version: 1,
-    deliverable: 'A7-RC0708-WIN10-DELIVERY-20260816-V1',
+    deliverable: 'A7-RC0708-WIN10-DELIVERY-20260819-V2',
     source_commit: head,
     kit_id: lock.kit_id,
-    kit_sha256: kitManifest,
+    kit_manifest_sha256: kitManifest,
     packages: deliverable.map(([name]) => packageEntry(payload, name)),
   };
   writeJson(path.join(payload, 'RC0708_WIN10_DELIVERY_SHA256.txt'), manifest);
   fs.copyFileSync(path.join(repositoryRoot, 'release', 'win7-rc', 'RC0708_WIN10_OPERATION_PROMPT.txt'), path.join(payload, 'RC0708_WIN10_OPERATION_PROMPT.txt'));
   const outputRoot = path.resolve(args.output || path.join(repositoryRoot, 'release', 'win7-rc', 'out'));
   fs.mkdirSync(outputRoot, { recursive: true });
-  const zipPath = path.join(outputRoot, 'RC0708_WIN10_DELIVERY_20260816.zip');
+  const zipPath = path.join(outputRoot, 'RC0708_WIN10_DELIVERY_20260819-v2.zip');
   writeDeterministicZip(payload, zipPath, EPOCH_SECONDS);
   const zipHash = sha256(zipPath);
   fs.writeFileSync(`${zipPath}.sha256`, `${zipHash}  ${path.basename(zipPath)}\n`, 'ascii');
@@ -74,7 +74,8 @@ try {
     prompt: 'RC0708_WIN10_OPERATION_PROMPT.txt',
     target_candidate_sha256: lock.candidate.sha256,
     previous_candidate_sha256: PREVIOUS_CANDIDATE.sha256,
-    kit_sha256: kitManifest,
+    kit_sha256: LIFECYCLE_KIT.sha256,
+    kit_manifest_sha256: kitManifest,
   };
   writeJson(path.join(outputRoot, 'rc0708-win10-delivery-build-result.json'), result);
   fs.rmSync(temporary, { recursive: true, force: true });

@@ -20,6 +20,8 @@ const upgradeWrapperPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_
 const uninstallWrapperPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0708_UNINSTALL.cmd');
 const verifierPath = path.join(repositoryRoot, 'scripts', 'release', 'verify-rc0708-evidence.mjs');
 const kitBuilderPath = path.join(repositoryRoot, 'scripts', 'release', 'build-rc0708-lifecycle-kit.mjs');
+const deliveryBuilderPath = path.join(repositoryRoot, 'scripts', 'release', 'build-rc0708-win10-delivery.mjs');
+const operationPromptPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RC0708_WIN10_OPERATION_PROMPT.txt');
 const upgrade = require(upgradePath);
 const uninstall = require(uninstallPath);
 const zipModule = require(zipModulePath);
@@ -268,6 +270,21 @@ test('RC0708 v2 builder binds matching module names and CRLF wrappers', (t) => {
   }
   assert.match(getZipEntry(zipPath, 'rc0708-upgrade.cjs').toString('utf8'), /process\.noAsar = true/);
   assert.match(getZipEntry(zipPath, 'rc0708-uninstall.cjs').toString('utf8'), /process\.noAsar = true/);
+});
+
+test('RC0708 v2 delivery contract locks the immutable kit and prohibits field repair', () => {
+  const source = fs.readFileSync(deliveryBuilderPath, 'utf8');
+  const prompt = fs.readFileSync(operationPromptPath, 'utf8');
+  assert.match(source, /RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2\.zip/);
+  assert.match(source, /0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2/);
+  assert.match(source, /RC0708_WIN10_DELIVERY_20260819-v2\.zip/);
+  assert.match(source, /kit_manifest_sha256: kitManifest/);
+  assert.match(source, /kit_sha256: LIFECYCLE_KIT\.sha256/);
+  assert.match(prompt, /禁止在 KIT 目录新增、复制、重命名或修改任何 \.cjs\/\.cmd\/\.json 控制文件/);
+  assert.match(prompt, /kit_provenance/);
+  assert.match(prompt, /RC0708_UPGRADE_EXIT_CODE=0/);
+  assert.match(prompt, /RC0708_UNINSTALL_EXIT_CODE=0/);
+  assert.doesNotMatch(prompt, /(?:^|\s)RC0708_EXIT_CODE=0/);
 });
 
 function makeInstallTree(commit) {
