@@ -9,7 +9,7 @@
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
   "executed_at": "2026-08-04T17:55:44+08:00",
-  "last_updated_at": "2026-08-16T22:06:48+08:00",
+  "last_updated_at": "2026-08-19T00:54:19+08:00",
   "post_baseline_updates": [
     {
       "record": "docs/status/win10-native-builds-latest.json",
@@ -33,6 +33,12 @@
       "status": "V4_WINDOWS_RC04_RC05_RC06_PASS_WIN7_LEASE_AND_RC0708_PENDING",
       "win7_formal_acceptance_changed": false,
       "scope": "The v4 kit round (2026-08-16 22:32, Windows 10 19045, local NTFS SSD, candidate 39eecb6a...040c9 unchanged) returned RC-05 PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED and RC-06 PASS with exit code 0; the independent verifier bound kit_id, candidate, report hashes, both databases and the exit-code contract; findstr fixture probe proved CP936 and boundary-aligned 127/215-byte truncation with zero replacement characters and loopback ping cancellation verified Job containment and ACL rollback; return package 9c3d5bae...080d (10/10 manifest verified) archived byte-preserved; RC-04/05/06 Windows evidence on the current candidate is complete, remaining gates are RC-07/RC-08, the final Win10 RC-03 closure and the new signed Win7 RC lease"
+    },
+    {
+      "record": "docs/status/a7-rc0708-lifecycle-kit-latest.json",
+      "status": "V1_RESULT_REJECTED_KIT_MUTATED_V2_IMMUTABLE_DELIVERY_READY",
+      "win7_formal_acceptance_changed": false,
+      "scope": "The 2026-08-19 v1 Windows return reported five PASS rounds but disclosed unmanifested aliases and edits to manifest-bound control files, so the evidence was rejected fail-closed with no gate effect. Immutable v2 binds exact entrypoint and KIT_MANIFEST provenance, rejects extra control files, packages ASCII CRLF wrappers, and was built twice byte-identically as kit 0c3be032...55d2 and delivery f7ced50b...61137. RC-07/08 v2 Windows execution, final Win10 RC-03 and all Win7 RC validation remain not performed."
     }
   ],
   "environment": {
@@ -257,6 +263,29 @@
       "docs/status/a7-rc0506-validation-kit-latest.json",
       "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816"
     ]
+  },
+  "a7_rc0708_lifecycle_supplement": {
+    "schema_version": 1,
+    "record_id": "A7-RC0708-LIFECYCLE-KIT-20260819-03",
+    "status": "V1_RESULT_REJECTED_KIT_MUTATED_V2_IMMUTABLE_DELIVERY_READY",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "v1_windows_attempt": {
+      "formal_disposition": "FAIL_CLOSED_KIT_MUTATED_EVIDENCE_INELIGIBLE",
+      "return_zip_sha256": "22134211f16409e39eb45dbbc804aafd214c5a685b94910d214b7dc43c78780e",
+      "gate_effect": "NONE"
+    },
+    "v2": {
+      "kit_sha256": "0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2",
+      "kit_manifest_sha256": "929c3a1853bd9b06eb958cdba1527f56e73ae1469f705742c09049a11a859e17",
+      "delivery_sha256": "f7ced50b9072f25448dede7e33a9eaf6d61ac0e75c481b0e31e78f4baf261137",
+      "deterministic_rebuilds": 2,
+      "windows_execution": "NOT_PERFORMED"
+    },
+    "win10": "RC04_RC05_RC06_COMPLETE_RC03_RC07_RC08_PENDING",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED",
+    "win7_lease_issued": false,
+    "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
   },
   "a1_a3_closeout": {
     "schema_version": 1,
