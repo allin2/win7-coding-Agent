@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-WIN10-RC-CLOSEOUT-20260819-01",
+  "recorded_at_utc": "2026-08-18T17:24:44Z",
+  "branch": "codex/a7-release-candidate",
+  "source_task": "docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md",
+  "status": "WIN10_PASS_WIN7_AND_RC_NOT_PERFORMED",
+  "candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "working_path": "release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "manifest_files": 731,
+    "native_files": 2,
+    "developer_zip_verifier": "PASS"
+  },
+  "rc03_native_closure": {
+    "status": "PASS_BY_EXACT_BYTE_CONTINUITY_TO_WIN10_PE_API_CRT_EVIDENCE",
+    "native_entries_under_asar": 0,
+    "runner_helper": {
+      "candidate_path": "resources/native/runner/spike02_helper.exe",
+      "candidate_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "win10_return_zip": "/Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a5/win10-return/WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip",
+      "win10_return_zip_sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+      "win10_artifact_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "byte_match": true,
+      "pe_x64": "PASS",
+      "forbidden_imports": [],
+      "dynamic_crt_dependencies": [],
+      "crt": "static /MT",
+      "win10_smoke": "PASS",
+      "build_profile": "WIN10-VS2019-V142-SDK19041-D013-HELPER-X64"
+    },
+    "storage_native": {
+      "candidate_path": "resources/native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "candidate_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "win10_return_zip": "/Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a6/A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "win10_return_zip_sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "win10_artifact_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "byte_match": true,
+      "electron_abi": 110,
+      "pe_x64": "PASS",
+      "forbidden_imports": [],
+      "dynamic_crt_dependencies": [],
+      "rc06_actual_binding_load": "PASS",
+      "sqlite": "3.43.1",
+      "fts5": "PASS",
+      "wal": "PASS"
+    }
+  },
+  "windows_product_validation": {
+    "rc04": "PASS_TWO_ROUNDS",
+    "rc05": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "rc06": "PASS",
+    "rc0506_return_zip_sha256": "9c3d5baee581a369ba3a9b7cd287bb1c2ae23f6c2c54b6041911be794f39080d",
+    "rc07": "PASS",
+    "rc08": "PASS"
+  },
+  "rc0708_attempt_2_v2": {
+    "return_zip": "/Users/qlyf/Downloads/RC0708_V2_WINDOWS_RETURN_20260819-011417.zip",
+    "return_zip_size": 17794,
+    "return_zip_sha256": "00464f63dd9808d8cf52da2692539acb25261d04e36ad200c3591b3db2047ba8",
+    "report_sha256": "883da1a6583aa608bb8c03213115a3e152515cd1103474d7d081b8002965652d",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt2-v2-20260819",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "evidence_files": 20,
+    "independent_verifier": "PASS",
+    "kit_sha256": "0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2",
+    "kit_manifest_sha256": "929c3a1853bd9b06eb958cdba1527f56e73ae1469f705742c09049a11a859e17",
+    "reports": [
+      { "case": "RC07-success", "status": "PASS", "sha256": "104108c86b870314f1c7896668ab5c49eb84bd7a6908819dd11efb0c50e8f6e6" },
+      { "case": "RC07-corrupt-staged-file", "status": "PASS", "sha256": "a06c376f6f7e48de578e9bdd125d0758fdb65eeac4677ca4c5463db74adf0122" },
+      { "case": "RC07-activation-corruption", "status": "PASS", "sha256": "5189418d604b6a5ec72a8cf5ab8594499dcfb086b3c1540989297e176c5b8cc6" },
+      { "case": "RC08-retain", "status": "PASS", "sha256": "949e2dc9abddbba06b76b1cefc9958690f9e7650461b08ba288c3cc18bdd6dca" },
+      { "case": "RC08-purge", "status": "PASS", "sha256": "a6eab83a8ac200313ae77afb87cc32271e021be13f0a57a3a40a7dc155150e0e" }
+    ],
+    "kit_mutated": false,
+    "unexpected_control_files": [],
+    "residue": "NONE",
+    "system_configuration_changed": false,
+    "report_narrative_note": "The phrase 'did not use wrapper scripts' is interpreted as no additional or modified wrapper scripts; manifest-bound official RUN_RC0708_*.cmd execution is proven by the reports and transcripts."
+  },
+  "gates": {
+    "developer": "PASS",
+    "win10": "PASS",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "network_or_system_configuration_changed": false,
+    "rebooted": false
+  },
+  "remaining_requirements": [
+    "issue a new unique signed A7 Win7 RC lease",
+    "execute the full RC-01 through RC-10 matrix on Windows 7 SP1 x64",
+    "perform final coordinator hash, service, SSH 22 and zero-residue adjudication before RC PASS"
+  ]
+}

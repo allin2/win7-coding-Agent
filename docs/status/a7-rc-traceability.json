@@ -33,8 +33,8 @@
       "surfaces": ["resources/native", "release manifest", "Win10 evidence"],
       "evidence": ["release/win7-rc/rc-input-lock.json", "scripts/release/build-win7-rc.mjs"],
       "status": "partial",
-      "gap": "External native layout and locked hashes are enforced; final Win10 PE/API/CRT revalidation is not performed.",
-      "action": "Run the exact Win10 toolchain verification against the unique RC ZIP.",
+      "gap": "Win10 is closed by exact byte continuity: the unique RC ZIP contains only two external native files, whose hashes exactly equal the prior Win10 PE/API/CRT PASS artifacts (D-013 v24 helper 7f86dac8...c134 and D-014 ABI-110 storage native 7138aa23...15cc); no native entry exists under ASAR. The same unique RC ZIP has not completed the new signed Win7 RC matrix.",
+      "action": "Under the new signed Win7 RC lease, compare the unique RC ZIP and both native files with certutil and execute the RC-03 target checks without rebuilding or substituting bytes.",
       "acceptance": "No .node/helper/DLL exists under app or ASAR; ABI, x64 and forbidden API/CRT checks pass."
     },
     {
@@ -73,8 +73,8 @@
       "surfaces": ["scripts/release", "installation lifecycle"],
       "evidence": ["release/win7-rc/RC0708_WIN10_OPERATION_PROMPT.txt", "scripts/release/build-rc0708-win10-delivery.mjs", "release/win7-rc/rc0708-upgrade.cjs", "release/win7-rc/RUN_RC0708_UPGRADE.cmd", "release/win7-rc/rc0708-zip.cjs", "release/win7-rc/rc0708-lifecycle-lock.json", "scripts/release/build-rc0708-lifecycle-kit.mjs", "scripts/release/verify-rc0708-evidence.mjs", "scripts/release/test/rc0708-lifecycle.test.mjs", "docs/status/a7-rc0708-lifecycle-kit-latest.json"],
       "status": "partial",
-      "gap": "The first Windows attempt reported all three upgrade scenarios PASS but changed manifest-bound and unmanifested control files locally, so it was rejected fail-closed with no gate effect. Immutable v2 (kit 0c3be032...55d2, manifest 929c3a18...9e17, delivery f7ced50b...61137) fixes module naming, noAsar and CMD line endings and enforces exact kit provenance; v2 Windows execution has not been performed.",
-      "action": "Run the three RC0708 v2 upgrade rounds on Windows 10 without any local kit change, return the byte-preserved evidence set and verify it against the exact v2 kit ZIP with verify-rc0708-evidence.mjs --kit; then repeat under the new Win7 RC lease.",
+      "gap": "Immutable v2 Windows attempt 2 passed all three upgrade scenarios with exit code zero, exact kit provenance and no residue; the byte-preserved return ZIP 00464f63...7ba8 passed the independent verifier against kit 0c3be032...55d2. The same matrix has not run under a new signed Win7 RC lease.",
+      "action": "Repeat the three manifest-bound v2 upgrade scenarios against the unique RC ZIP under the new Win7 RC lease and preserve preflight/postflight and certutil evidence.",
       "acceptance": "Success and injected-failure paths both preserve a single coherent version."
     },
     {
@@ -83,8 +83,8 @@
       "surfaces": ["scripts/release", "installation lifecycle"],
       "evidence": ["release/win7-rc/RC0708_WIN10_OPERATION_PROMPT.txt", "scripts/release/build-rc0708-win10-delivery.mjs", "release/win7-rc/rc0708-uninstall.cjs", "release/win7-rc/RUN_RC0708_UNINSTALL.cmd", "release/win7-rc/rc0708-lifecycle-lock.json", "scripts/release/verify-rc0708-evidence.mjs", "scripts/release/test/rc0708-lifecycle.test.mjs", "docs/status/a7-rc0708-lifecycle-kit-latest.json"],
       "status": "partial",
-      "gap": "The first Windows attempt reported retain and purge PASS but used locally changed kit control files, so it was rejected fail-closed with no gate effect. Immutable v2 (kit 0c3be032...55d2, manifest 929c3a18...9e17, delivery f7ced50b...61137) enforces exact kit provenance and rejects aliases or wrapper edits; v2 Windows execution has not been performed.",
-      "action": "Run the retain and purge RC0708 v2 uninstall rounds on Windows 10 without any local kit change (fresh product re-extract before purge), return byte-preserved evidence and verify it against the exact v2 kit ZIP; then repeat under the new Win7 RC lease.",
+      "gap": "Immutable v2 Windows attempt 2 passed retain and purge with exit code zero, exact kit provenance, explicit data policy and no lifecycle residue; the byte-preserved return ZIP 00464f63...7ba8 passed the independent verifier against kit 0c3be032...55d2. The same matrix has not run under a new signed Win7 RC lease.",
+      "action": "Repeat retain and purge against the unique RC ZIP under the new Win7 RC lease and preserve preflight/postflight, certutil and zero-residue evidence.",
       "acceptance": "Product files and transient state are absent, retained user data matches policy and process/lock count is zero."
     },
     {

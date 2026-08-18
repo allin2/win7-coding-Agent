@@ -166,7 +166,7 @@
   自动化与补充审计见 [A4 报告索引](reports/README.md)。A1～A3 已接受证据及 A4-14/A4-20/A4-21
   历史原始证据均未改写。
 
-## Win10 原生构建前置进展（更新至 2026-08-10）
+## Win10 原生构建与 A7 产品层进展（更新至 2026-08-19）
 
 三条原生构建返回均已完成适用的结构、哈希、工具链、PE/API/CRT、smoke 和合规材料复核。共享 D-017
 Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验证”，不代表对应 A5/A6/A7 已验收完成。
@@ -178,7 +178,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 | A4 / D-013 helper | v21 Win10 `PASS`：返回包 `5d3bdd6b…f8ef`、helper `98964fc5…ce5`、input-lock `60ddd80c…795b`；capture selftest、v142 logic、native smoke、PE/API/CRT 与开发机 containment 37/37 均 `PASS` | `A4-20260810-000004` 已由 ADR-0065 协调器分级为 `WIN7_PASS`；restricted primary、精确 SID 集合、Low Integrity、ACL rollback、C01～C07、双向哈希和后置零残留均通过，租约已释放 | D-013 已解除；C05 不提供网络隔离，交互终端、高风险和未知 Profile 继续拒绝 |
 | A5 / D-011 node-pty + winpty | `PASS_WITH_PACKAGING_GAP`；返回包 `c938f115…46ea`，三项原生工件均为 x64，ABI 110 与 smoke 通过 | Win7 实测裁决为 `NO_GO_INTERACTIVE_WINPTY`；D-013 v24 低风险非交互 Runner 与 H3 只读日志已分别取得正式 `WIN7_PASS` | 交互终端不进入 Win7 v1；返回包内部总清单缺口由 A7 统一发布 manifest/SBOM 收口 |
 | A6 / D-014 better-sqlite3 | `PASS`；返回包 `2cb0cd32…2794`，247 项清单全匹配，WAL/FTS5/schema smoke 通过 | D-014 已为 `READY_FOR_WIN7_VALIDATION`，不再缺 SQLite Electron ABI 工件 | 本行只记录 2026-08-07 Win10 构建前置；后续 Win7 正式结果见下文 A6 章节 |
-| A7 / 发布包装 | 尚无独立 Win10 PASS；开发机已从提交 `f24d9a4` 两次构建相同 RC ZIP `90916647…f1d5` | D-013 v24 与 D-014 已按发布 manifest 外置并装配；开发机 981 项回归、10 项 release/RC 合同和独立 ZIP 校验通过 | 精确 Windows 产品 smoke、Win10 分层结论、安装/升级/回滚/卸载和新 Win7 RC 租约仍未执行 |
+| A7 / 发布包装 | 当前唯一 RC ZIP `39eecb6a…040c9` 已取得完整 `WIN10_PASS`：RC-04 两轮、RC-05/06、RC-07/08 以及 RC-03 原生字节连续性全部通过 | D-013 v24 与 D-014 以精确 Win10 PE/API/CRT PASS 字节按 manifest 外置装配；升级、故障回滚、retain/purge 卸载和零残留均已在 Win10 验证 | 新的唯一签名 Win7 RC 租约与 RC-01～RC-10 完整矩阵尚未执行，故 Win7/RC 仍为 `NOT_PERFORMED` |
 
 因此 A4/D-013 v21、A5/D-011 和 A6/D-014 的 Win10 构建前置均已完成；A4/D-013 v21 又已取得
 协调器正式 `WIN7_PASS`。结合 A5 v24 非交互 Runner 与 H3 正式证据，SPIKE_02 以
@@ -381,12 +381,29 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-win10-delivery-v2-20260819/`。开发机全量
   `npm run verify` 983 项通过，RC0708 合同 12 项通过；v2 Windows 五轮仍为 `NOT_PERFORMED`，
   当前 Win10 总门禁继续等待 RC-03、RC-07、RC-08，Win7/RC 仍为 `NOT_PERFORMED`。
+- 2026-08-19 01:14，v2 Windows attempt 2 返回包
+  `RC0708_V2_WINDOWS_RETURN_20260819-011417.zip`（17,794 字节，SHA-256 `00464f63…7ba8`）与
+  sidecar 本地复核一致，ZIP 20 个证据文件完整；开发机以精确 KIT `0c3be032…55d2` 执行
+  `verify-rc0708-evidence.mjs --kit` 独立复核 PASS。RC-07 success、staged corruption、activation
+  corruption 三轮及 RC-08 retain/purge 两轮均 status PASS、exit code 0；五份 provenance 精确绑定
+  manifest `929c3a18…9e17`，`unexpected_control_files=[]`，无生命周期或进程残留。返回包和报告已
+  逐字节只读归档至
+  `/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt2-v2-20260819/`。报告中的
+  “未用包装脚本”按证据解释为“未用额外或修改后的包装脚本”；正式 manifest 绑定的
+  `RUN_RC0708_*.cmd` 执行由报告与 transcript 共同证明，不构成阻断。
+- RC-03 同日按精确字节连续性收口：唯一 RC ZIP 内仅有两个 ASAR 外置原生文件；helper
+  `7f86dac8…c134` 与 D-013 v24 Win10 返回包逐字节一致（x64、静态 CRT、forbidden API/动态 CRT
+  扫描和 smoke PASS），`better_sqlite3.node` `7138aa23…15cc` 与 D-014 Win10 返回包逐字节一致
+  （x64、Electron ABI 110、forbidden API/动态 CRT、WAL/FTS5 PASS），且 RC-06 已在当前候选真实
+  加载。由此当前候选的完整分层裁决为 **`WIN10_PASS`**；A7 尚未签发 Win7 租约，Win7 与 RC
+  继续为 `NOT_PERFORMED`。机器可读收口见
+  [`a7-win10-rc-closeout-latest.json`](status/a7-win10-rc-closeout-latest.json)。
 
 ## MVP 已接受的延期项
 
 - Electron 可运行入口已经形成 Win7 实证；完整五视图、安装器、跨模块用户任务和卸载/回滚仍是下一阶段产品装配工作。
 - SPIKE_01 T03 按 ADR-0055 接受“父侧无 stdin 句柄、无数据进入”的 MVP 语义；正式合同的子侧 `readable=true` 事实保持不变，后续 Core 仍需显式关闭/隔离。
-- SPIKE_02 已受限收口：交互 winpty 为 No-Go，低风险非交互 Runner 与 H3 只读日志为 Win7 PASS；C05 网络隔离、任意 Shell、高风险和未知 Profile 仍未开放。SPIKE_04 的本地 SSD Spike 已正式通过；A7 已实现生产 EventLedger 装配，但精确 Windows 与新 Win7 RC 验证尚未执行。机械盘门禁已由 ADR-0066 取代为正式 SSD Profile。
+- SPIKE_02 已受限收口：交互 winpty 为 No-Go，低风险非交互 Runner 与 H3 只读日志为 Win7 PASS；C05 网络隔离、任意 Shell、高风险和未知 Profile 仍未开放。SPIKE_04 的本地 SSD Spike 已正式通过；A7 已实现生产 EventLedger 装配并取得完整 Win10 PASS，但新 Win7 RC 验证尚未执行。机械盘门禁已由 ADR-0066 取代为正式 SSD Profile。
 - 低风险登记 Profile 已在 A7 开发候选中经清单装配；交互终端、任意 Shell、高风险和未知 Profile 继续 fail-closed。A7 的审计事件事实使用有容量上限的 SQLite EventLedger，session catalog 仍为进程内状态；不得把开发机结构测试或持久事件扩大为 Windows 原生加载、完整会话恢复或 RC PASS。
 - D-012 官方原 ZIP 含 GCM；本次受控派生包已完成绑定当前 SHA-256 的完整 G10 MVP 矩阵，正式交付仍需 SBOM/许可证闭包；当前远端完整 Git不能替代。
 - Phase 1 的 CPython 3.8.10 与 Win7 capability probe 已补齐；Phase 1/2 仍缺架构 Gate 解除、冻结合同要求的获授权物理断网/干净环境证据，Phase 2 也没有独立 Win7 只读 Agent 入口。

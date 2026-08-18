@@ -8,8 +8,9 @@ Task Type: RELEASE_CANDIDATE
 Target Branch: codex/a7-release-candidate
 Phase-Gate: APPROVED_FOR_IMPLEMENTATION
 Win7-Compatibility: PROVISIONAL
+Win10-Validation: PASS
 Win7-Validation: NOT_PERFORMED
-Blocking-Reason: RC_BUILD_AND_WIN7_ACCEPTANCE_NOT_PERFORMED
+Blocking-Reason: WIN7_RC_ACCEPTANCE_NOT_PERFORMED
 ```
 
 授权依据：项目负责人 2026-08-12 明确批准在 A4/A5/A6 唯一干净收口提交
@@ -67,6 +68,14 @@ SQLite 原生文件继续锁定为
    `certutil` 双向核对，执行安装、首次启动、升级、失败回滚、卸载和零残留矩阵。
 
 三个层级必须分别记录，任一层不得冒充另一层。
+
+截至 2026-08-19，唯一候选
+`Win7CodingAgent-0.1.0-rc.1-win7-x64.zip`（SHA-256
+`39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9`）已取得完整
+`Win10-Validation: PASS`：RC-04/05/06 产品层验证、RC-07/08 v2 生命周期矩阵均通过，RC-03 由候选
+内两个 ASAR 外置原生文件与既有 Win10 PE/API/CRT PASS 返回包的逐字节同哈希关系收口。机器可读
+证据为 `docs/status/a7-win10-rc-closeout-latest.json`。该结论不改变 Win7 与 RC 的
+`NOT_PERFORMED`，也不授权复用旧租约。
 
 ## 4. 唯一 Win7 租约
 

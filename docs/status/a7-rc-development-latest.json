@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260819-12",
-  "supersedes": "A7-RC-DEVELOPMENT-20260818-11",
-  "recorded_at_utc": "2026-08-18T16:54:19Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260819-13",
+  "supersedes": "A7-RC-DEVELOPMENT-20260819-12",
+  "recorded_at_utc": "2026-08-18T17:24:44Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
-  "status": "RC0708_V1_RESULT_REJECTED_V2_DELIVERY_READY_WINDOWS_REEXECUTION_PENDING",
+  "status": "WIN10_PASS_WIN7_AND_RC_NOT_PERFORMED",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -118,6 +118,24 @@
       "gate_effect": "NONE",
       "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
     },
+    "rc0708_windows_attempt_2": {
+      "status": "RC07_RC08_WINDOWS_PASS",
+      "reported_rounds": "3 RC07 + 2 RC08 PASS",
+      "independent_verifier": "PASS",
+      "return_zip_sha256": "00464f63dd9808d8cf52da2692539acb25261d04e36ad200c3591b3db2047ba8",
+      "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt2-v2-20260819",
+      "kit_mutated": false,
+      "residue": "NONE",
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
+    "rc03_native_closure": {
+      "status": "PASS_BY_EXACT_BYTE_CONTINUITY_TO_WIN10_PE_API_CRT_EVIDENCE",
+      "runner_helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "storage_native_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "candidate_native_files": 2,
+      "native_entries_under_asar": 0,
+      "evidence": "docs/status/a7-win10-rc-closeout-latest.json"
+    },
     "documentation_check": {
       "status": "PASS",
       "checked_files": 68,
@@ -134,13 +152,14 @@
     "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS_WIN7_LEASE_NOT_PERFORMED",
     "rc05_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
     "rc06_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
-    "win10": "RC04_RC05_RC06_WINDOWS_EVIDENCE_COMPLETE_RC0708_V1_REJECTED_FULL_WIN10_LAYER_PENDING_RC03_RC07_RC08",
+    "rc07_windows": "CURRENT_CANDIDATE_V2_WIN10_PASS",
+    "rc08_windows": "CURRENT_CANDIDATE_V2_WIN10_PASS",
+    "rc03_windows": "PASS_EXACT_NATIVE_BYTE_CONTINUITY",
+    "win10": "PASS",
     "win7": "NOT_PERFORMED",
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
-    "execute the immutable RC0708 v2 Win10 delivery matrix (5 rounds: 3 upgrade + 2 uninstall) without local kit changes and verify the returned evidence against the exact kit ZIP",
-    "final Win10 layer closure: precise RC-03 PE/API/CRT gate over the unique RC ZIP",
     "RC-04/RC-05/RC-06/RC-07/RC-08 and the full RC-01..RC-10 matrix under a new signed Win7 RC lease"
   ],
   "safety": {
