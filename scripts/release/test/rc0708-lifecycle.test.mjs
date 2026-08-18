@@ -7,7 +7,7 @@ import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { writeDeterministicZip, crc32 as referenceCrc32 } from '../zip-utils.mjs';
+import { getZipEntry, readZipEntries, writeDeterministicZip, crc32 as referenceCrc32 } from '../zip-utils.mjs';
 
 const require = createRequire(import.meta.url);
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -15,12 +15,15 @@ const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
 const upgradePath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-upgrade.cjs');
 const uninstallPath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-uninstall.cjs');
 const zipModulePath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-zip.cjs');
+const integrityModulePath = path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-kit-integrity.cjs');
 const upgradeWrapperPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0708_UPGRADE.cmd');
 const uninstallWrapperPath = path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0708_UNINSTALL.cmd');
 const verifierPath = path.join(repositoryRoot, 'scripts', 'release', 'verify-rc0708-evidence.mjs');
+const kitBuilderPath = path.join(repositoryRoot, 'scripts', 'release', 'build-rc0708-lifecycle-kit.mjs');
 const upgrade = require(upgradePath);
 const uninstall = require(uninstallPath);
 const zipModule = require(zipModulePath);
+const integrityModule = require(integrityModulePath);
 const lock = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-lifecycle-lock.json'), 'utf8'));
 
 test('RC0708 zip module extracts writeDeterministicZip archives byte-identically', () => {
@@ -114,11 +117,12 @@ test('RC0708 corruption victim selection and snapshot equality stay deterministi
 });
 
 test('RC0708 report validators bind cases, candidate and gates', () => {
-  const good = (suite, id, extra) => ({
+  const good = (suite, id, extra, entrypoint = 'rc0708-upgrade.cjs') => ({
     schema_version: 1, suite, status: 'PASS', candidate_zip_sha256: lock.candidate.sha256,
     product_command_surface_changed: false, external_network_used: false, system_configuration_changed: false,
     win7_validation: 'NOT_PERFORMED',
     gates: { win10: 'PARTIAL_RC0708_LIFECYCLE_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' },
+    kit_provenance: syntheticProvenance(entrypoint),
     cases: [{ case_id: id, status: 'PASS' }, { case_id: 'RC07-Z01', status: 'PASS' }],
     ...extra,
   });
@@ -133,6 +137,7 @@ test('RC0708 report validators bind cases, candidate and gates', () => {
     external_network_used: false, system_configuration_changed: false, registry_or_service_or_path_touched: false,
     win7_validation: 'NOT_PERFORMED',
     gates: { win10: 'PARTIAL_RC0708_LIFECYCLE_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' },
+    kit_provenance: syntheticProvenance('rc0708-uninstall.cjs'),
     cases: [{ case_id: 'RC08-D01', status: 'PASS' }, { case_id: 'RC08-D02', status: 'PASS' }, { case_id: 'RC08-Z01', status: 'PASS' }],
   };
   assert.equal(uninstall.validateRc08Report(rc08, lock, 'retain').status, 'PASS');
@@ -162,11 +167,15 @@ test('RC0708 wrappers stay ASCII, record exit codes and orchestrate renames', ()
     assert.match(content, /cd \/d "%~dp0"/);
   }
   const upgradeWrapper = fs.readFileSync(upgradeWrapperPath, 'ascii');
+  assert.doesNotMatch(upgradeWrapper, /RC0708_UPGRADE\.cjs/);
+  assert.match(upgradeWrapper, /rc0708-upgrade\.cjs/);
   assert.match(upgradeWrapper, /ren "%PRODUCT_ROOT%" "%BASE%\.rollback-rc0708"/);
   assert.match(upgradeWrapper, /ren "%STAGING%" "%BASE%"/);
   assert.match(upgradeWrapper, /"--phase=verify-rollback"/);
   assert.match(upgradeWrapper, /rc0708-upgrade-exit-code-%SCENARIO%\.txt/);
   const uninstallWrapper = fs.readFileSync(uninstallWrapperPath, 'ascii');
+  assert.doesNotMatch(uninstallWrapper, /RC0708_UNINSTALL\.cjs/);
+  assert.match(uninstallWrapper, /rc0708-uninstall\.cjs/);
   assert.match(uninstallWrapper, /ren "%PRODUCT_ROOT%" "%BASE%\.quarantine-rc0708"/);
   assert.match(uninstallWrapper, /"%QUARANTINE%\\electron\.exe"/);
   assert.match(uninstallWrapper, /RC0708_QUARANTINE_REMOVED=1/);
@@ -175,12 +184,14 @@ test('RC0708 wrappers stay ASCII, record exit codes and orchestrate renames', ()
 
 test('RC0708 independent verifier accepts a complete matrix and rejects gaps', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rc0708-return-'));
+  const kit = makeSyntheticKit();
   const rc07Case = { status: 'PASS' };
   const base07 = {
     schema_version: 1, suite: 'RC07_WINDOWS_UPGRADE_ROLLBACK', status: 'PASS',
     candidate_zip_sha256: lock.candidate.sha256, product_command_surface_changed: false,
     external_network_used: false, system_configuration_changed: false, win7_validation: 'NOT_PERFORMED',
     gates: { win10: 'PARTIAL_RC0708_LIFECYCLE_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' },
+    kit_provenance: kit.provenance('rc0708-upgrade.cjs'),
     cases: [rc07Case, { case_id: 'RC07-Z01', status: 'PASS' }],
   };
   for (const [scenario, id] of [['success', 'RC07-U01'], ['corrupt-staged-file', 'RC07-U02'], ['activation-corruption', 'RC07-U03']]) {
@@ -195,18 +206,68 @@ test('RC0708 independent verifier accepts a complete matrix and rejects gaps', (
       external_network_used: false, system_configuration_changed: false, registry_or_service_or_path_touched: false,
       win7_validation: 'NOT_PERFORMED',
       gates: { win10: 'PARTIAL_RC0708_LIFECYCLE_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' },
+      kit_provenance: kit.provenance('rc0708-uninstall.cjs'),
       cases: [{ case_id: 'RC08-D01', status: 'PASS' }, { case_id: 'RC08-D02', status: 'PASS' }, { case_id: 'RC08-Z01', status: 'PASS' }],
     })}\n`, 'utf8');
     fs.writeFileSync(path.join(root, `rc0708-uninstall-exit-code-${policy}.txt`), 'RC0708_UNINSTALL_EXIT_CODE=0\n', 'ascii');
     fs.writeFileSync(path.join(root, `rc0708-uninstall-transcript-${policy}.txt`), `RC0708_UNINSTALL_POLICY=${policy}\r\nRC0708_UNINSTALL_BRANCH=cleanup_quarantine\r\nRC0708_QUARANTINE_REMOVED=1\r\n`, 'ascii');
   }
-  const accepted = spawnSync(process.execPath, [verifierPath, root], { cwd: repositoryRoot, encoding: 'utf8' });
+  const accepted = spawnSync(process.execPath, [verifierPath, root, '--kit', kit.zip], { cwd: repositoryRoot, encoding: 'utf8' });
   assert.equal(accepted.status, 0, accepted.stderr);
   assert.equal(JSON.parse(accepted.stdout).status, 'PASS');
   fs.rmSync(path.join(root, 'rc07-upgrade-success.json'));
-  const rejected = spawnSync(process.execPath, [verifierPath, root], { cwd: repositoryRoot, encoding: 'utf8' });
+  const rejected = spawnSync(process.execPath, [verifierPath, root, '--kit', kit.zip], { cwd: repositoryRoot, encoding: 'utf8' });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /RC0708_UPGRADE_REPORT_MISSING:success/);
+});
+
+test('RC0708 kit integrity rejects aliases and mutated manifest-bound files', () => {
+  const kit = makeSyntheticKit();
+  const accepted = integrityModule.verifyKitDirectory(kit.directory, 'rc0708-upgrade.cjs', {
+    kitId: lock.kit_id,
+    candidateSha256: lock.candidate.sha256,
+  });
+  assert.deepEqual(accepted, kit.provenance('rc0708-upgrade.cjs'));
+  fs.writeFileSync(path.join(kit.directory, 'rc0708-upgrade-alias.cjs'), 'module.exports = {};\n', 'utf8');
+  assert.throws(() => integrityModule.verifyKitDirectory(kit.directory, 'rc0708-upgrade.cjs', {
+    kitId: lock.kit_id,
+    candidateSha256: lock.candidate.sha256,
+  }), /RC0708_KIT_UNMANIFESTED_CONTROL_FILE/);
+  fs.rmSync(path.join(kit.directory, 'rc0708-upgrade-alias.cjs'));
+  fs.appendFileSync(path.join(kit.directory, 'RUN_RC0708_UPGRADE.cmd'), 'rem changed\r\n', 'ascii');
+  assert.throws(() => integrityModule.verifyKitDirectory(kit.directory, 'rc0708-upgrade.cjs', {
+    kitId: lock.kit_id,
+    candidateSha256: lock.candidate.sha256,
+  }), /RC0708_KIT_FILE_MISMATCH:RUN_RC0708_UPGRADE\.cmd/);
+});
+
+test('RC0708 v2 builder binds matching module names and CRLF wrappers', (t) => {
+  const candidate = path.join(repositoryRoot, 'release', 'win7-rc', 'out', lock.candidate.filename);
+  if (!fs.existsSync(candidate)) t.skip('candidate zip not built locally');
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'rc0708-kit-build-'));
+  const built = spawnSync(process.execPath, [kitBuilderPath, '--candidate-zip', candidate, '--output', output, '--allow-uncommitted'], {
+    cwd: repositoryRoot, encoding: 'utf8',
+  });
+  assert.equal(built.status, 0, built.stderr);
+  const zipPath = path.join(output, lock.output_filename);
+  const names = readZipEntries(zipPath).map((entry) => entry.name);
+  for (const required of ['rc0708-upgrade.cjs', 'rc0708-uninstall.cjs', 'rc0708-zip.cjs', 'rc0708-kit-integrity.cjs']) {
+    assert.ok(names.includes(required), `missing ${required}`);
+  }
+  assert.ok(!names.includes('RC0708_UPGRADE.cjs'));
+  const manifest = JSON.parse(getZipEntry(zipPath, 'KIT_MANIFEST.json').toString('utf8'));
+  for (const item of manifest.files) {
+    const bytes = getZipEntry(zipPath, item.path);
+    assert.equal(bytes.length, item.size);
+    assert.equal(hashBytes(bytes), item.sha256);
+  }
+  for (const wrapper of ['RUN_RC0708_UPGRADE.cmd', 'RUN_RC0708_UNINSTALL.cmd']) {
+    const bytes = getZipEntry(zipPath, wrapper);
+    assert.equal(bytes.equals(Buffer.from(bytes.toString('ascii'), 'ascii')), true);
+    assertCrLfOnly(bytes);
+  }
+  assert.match(getZipEntry(zipPath, 'rc0708-upgrade.cjs').toString('utf8'), /process\.noAsar = true/);
+  assert.match(getZipEntry(zipPath, 'rc0708-uninstall.cjs').toString('utf8'), /process\.noAsar = true/);
 });
 
 function makeInstallTree(commit) {
@@ -231,3 +292,79 @@ function flipMiddleByte(filePath) {
 }
 
 function hash(filePath) { return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'); }
+function hashBytes(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+
+function syntheticProvenance(entrypoint) {
+  const files = {
+    'rc0708-upgrade.cjs': '1'.repeat(64),
+    'rc0708-uninstall.cjs': '2'.repeat(64),
+  };
+  return {
+    schema_version: 1,
+    kit_id: lock.kit_id,
+    source_commit: 'a'.repeat(40),
+    target_candidate_sha256: lock.candidate.sha256,
+    manifest_sha256: 'b'.repeat(64),
+    manifest_files_verified: true,
+    entrypoint,
+    entrypoint_sha256: files[entrypoint],
+    files_sha256: files,
+    unexpected_control_files: [],
+  };
+}
+
+function makeSyntheticKit() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rc0708-kit-fixture-'));
+  const directory = path.join(root, 'kit');
+  fs.mkdirSync(directory);
+  const contents = {
+    'rc0708-upgrade.cjs': "'use strict';\n",
+    'rc0708-uninstall.cjs': "'use strict';\n",
+    'RUN_RC0708_UPGRADE.cmd': '@echo off\r\n',
+    'RUN_RC0708_UNINSTALL.cmd': '@echo off\r\n',
+    'LIFECYCLE_LOCK.json': '{}\n',
+  };
+  for (const [name, content] of Object.entries(contents)) fs.writeFileSync(path.join(directory, name), content, name.endsWith('.cmd') ? 'ascii' : 'utf8');
+  const files = Object.keys(contents).sort().map((name) => ({
+    path: name,
+    size: fs.statSync(path.join(directory, name)).size,
+    sha256: hash(path.join(directory, name)),
+  }));
+  const manifest = {
+    schema_version: 1,
+    kit_id: lock.kit_id,
+    source_commit: 'a'.repeat(40),
+    target_candidate_sha256: lock.candidate.sha256,
+    files,
+  };
+  const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(path.join(directory, 'KIT_MANIFEST.json'), manifestBytes);
+  const zip = path.join(root, 'kit.zip');
+  writeDeterministicZip(directory, zip, 1786896000);
+  const filesSha256 = Object.fromEntries(files.map((item) => [item.path, item.sha256]));
+  return {
+    directory,
+    zip,
+    provenance(entrypoint) {
+      return {
+        schema_version: 1,
+        kit_id: manifest.kit_id,
+        source_commit: manifest.source_commit,
+        target_candidate_sha256: manifest.target_candidate_sha256,
+        manifest_sha256: hashBytes(manifestBytes),
+        manifest_files_verified: true,
+        entrypoint,
+        entrypoint_sha256: filesSha256[entrypoint],
+        files_sha256: filesSha256,
+        unexpected_control_files: [],
+      };
+    },
+  };
+}
+
+function assertCrLfOnly(bytes) {
+  for (let index = 0; index < bytes.length; index += 1) {
+    if (bytes[index] === 0x0a) assert.equal(bytes[index - 1], 0x0d, `bare LF at ${index}`);
+    if (bytes[index] === 0x0d) assert.equal(bytes[index + 1], 0x0a, `bare CR at ${index}`);
+  }
+}

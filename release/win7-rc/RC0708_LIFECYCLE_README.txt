@@ -1,4 +1,4 @@
-A7 RC-07 / RC-08 Windows lifecycle kit v1
+A7 RC-07 / RC-08 Windows lifecycle kit v2
 
 This kit validates upgrade, rollback and uninstall of the already locked product
 ZIP. It does not modify the product package bytes, and it must not be used to
@@ -15,6 +15,12 @@ proves a real version advance. Keep this kit outside that directory. Use fresh
 evidence and user-data directories for the whole matrix; never reuse a
 previous round. The harness writes marker files into the user-data root; the
 roots must be absent or empty at the start.
+
+Do not rename, copy, patch or add .cjs/.cmd/.json control files inside the kit
+directory. Every harness phase verifies KIT_MANIFEST.json, all manifest-bound
+files, its exact entrypoint and the absence of unmanifested control aliases.
+The packaged CMD wrappers are ASCII with CRLF line endings and are themselves
+manifest-bound. Any local repair makes the round fail closed and ineligible.
 
 RC-07 upgrade matrix (three rounds, one evidence root, fresh user-data per
 round is not required - the same root is snapshotted and must stay untouched):

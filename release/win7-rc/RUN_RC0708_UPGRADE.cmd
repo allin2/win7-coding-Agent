@@ -19,7 +19,7 @@ set "BRANCH=stage"
 set "NODE_OPTIONS="
 set "ELECTRON_RUN_AS_NODE=1"
 
-"%PRODUCT_ROOT%\electron.exe" "%~dp0RC0708_UPGRADE.cjs" "--phase=stage" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
+"%PRODUCT_ROOT%\electron.exe" "%~dp0rc0708-upgrade.cjs" "--phase=stage" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
 set "RC0708_EXIT_CODE=%ERRORLEVEL%"
 if "%RC0708_EXIT_CODE%"=="42" goto activate
 if "%RC0708_EXIT_CODE%"=="0" goto residue
@@ -32,7 +32,7 @@ if errorlevel 1 goto activate_failed
 ren "%STAGING%" "%BASE%"
 if errorlevel 1 goto activation_incomplete
 set "BRANCH=verify"
-"%PRODUCT_ROOT%\electron.exe" "%~dp0RC0708_UPGRADE.cjs" "--phase=verify" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
+"%PRODUCT_ROOT%\electron.exe" "%~dp0rc0708-upgrade.cjs" "--phase=verify" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
 set "RC0708_EXIT_CODE=%ERRORLEVEL%"
 if "%RC0708_EXIT_CODE%"=="43" goto rollback
 if "%RC0708_EXIT_CODE%"=="0" goto cleanup_rollback
@@ -50,14 +50,14 @@ if errorlevel 1 goto rollback_failed
 ren "%ROLLBACK%" "%BASE%"
 if errorlevel 1 goto rollback_failed
 set "BRANCH=verify_rollback"
-"%PRODUCT_ROOT%\electron.exe" "%~dp0RC0708_UPGRADE.cjs" "--phase=verify-rollback" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
+"%PRODUCT_ROOT%\electron.exe" "%~dp0rc0708-upgrade.cjs" "--phase=verify-rollback" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
 set "RC0708_EXIT_CODE=%ERRORLEVEL%"
 if "%RC0708_EXIT_CODE%"=="0" goto residue
 goto finish
 
 :residue
 set "BRANCH=residue"
-"%PRODUCT_ROOT%\electron.exe" "%~dp0RC0708_UPGRADE.cjs" "--phase=residue" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
+"%PRODUCT_ROOT%\electron.exe" "%~dp0rc0708-upgrade.cjs" "--phase=residue" "--scenario=%SCENARIO%" "--product=%PRODUCT_ROOT%" "--new-zip=%NEW_ZIP%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
 set "RC0708_EXIT_CODE=%ERRORLEVEL%"
 goto finish
 

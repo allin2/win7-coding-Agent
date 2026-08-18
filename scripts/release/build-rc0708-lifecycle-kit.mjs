@@ -22,15 +22,16 @@ try {
   const payload = path.join(temporary, 'payload');
   fs.mkdirSync(payload, { recursive: true });
   const sources = [
-    ['RC0708_UPGRADE.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-upgrade.cjs')],
-    ['RC0708_UNINSTALL.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-uninstall.cjs')],
-    ['RC0708_ZIP.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-zip.cjs')],
+    ['rc0708-upgrade.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-upgrade.cjs')],
+    ['rc0708-uninstall.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-uninstall.cjs')],
+    ['rc0708-zip.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-zip.cjs')],
+    ['rc0708-kit-integrity.cjs', path.join(repositoryRoot, 'release', 'win7-rc', 'rc0708-kit-integrity.cjs')],
     ['RUN_RC0708_UPGRADE.cmd', path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0708_UPGRADE.cmd')],
     ['RUN_RC0708_UNINSTALL.cmd', path.join(repositoryRoot, 'release', 'win7-rc', 'RUN_RC0708_UNINSTALL.cmd')],
     ['LIFECYCLE_LOCK.json', lockPath],
     ['README.txt', path.join(repositoryRoot, 'release', 'win7-rc', 'RC0708_LIFECYCLE_README.txt')],
   ];
-  for (const [name, source] of sources) fs.copyFileSync(source, path.join(payload, name));
+  for (const [name, source] of sources) copyPayload(source, path.join(payload, name), name);
   const manifest = {
     schema_version: 1,
     kit_id: lock.kit_id,
@@ -94,6 +95,16 @@ function parseArguments(argv) {
 }
 
 function fileEntry(root, name) { const filePath = path.join(root, name); return { path: name, size: fs.statSync(filePath).size, sha256: sha256(filePath) }; }
+function copyPayload(source, destination, name) {
+  const bytes = fs.readFileSync(source);
+  if (!name.toLowerCase().endsWith('.cmd')) {
+    fs.writeFileSync(destination, bytes);
+    return;
+  }
+  const text = bytes.toString('ascii');
+  if (!bytes.equals(Buffer.from(text, 'ascii'))) throw new Error(`CMD_NOT_ASCII:${name}`);
+  fs.writeFileSync(destination, text.replace(/\r\n|\r|\n/g, '\r\n'), 'ascii');
+}
 function writeJson(filePath, value) { fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); }
 function sha256(filePath) { return digest(fs.readFileSync(filePath)); }
 function digest(value) { return crypto.createHash('sha256').update(value).digest('hex'); }

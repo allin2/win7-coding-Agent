@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "kit_id": "A7-RC0708-WINDOWS-LIFECYCLE-20260816-V1",
-  "output_filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip",
+  "kit_id": "A7-RC0708-WINDOWS-LIFECYCLE-20260819-V2",
+  "output_filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2.zip",
   "source_date_epoch": 1786896000,
   "target": "WINDOWS_X64_PRE_WIN7_LEASE_LIFECYCLE_VALIDATION",
   "candidate": {

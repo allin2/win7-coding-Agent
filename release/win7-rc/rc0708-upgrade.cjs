@@ -1,5 +1,9 @@
 'use strict';
 
+// Electron's ASAR hook changes fs.stat/readFile semantics for .asar paths.
+// Lifecycle verification must hash the package's raw on-disk bytes.
+process.noAsar = true;
+
 // RC-07 upgrade/rollback lifecycle harness. The .cmd wrapper performs all
 // directory renames between phases because this script always runs from the
 // product's own electron.exe, and Windows cannot rename a directory that
@@ -14,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { extractZip } = require('./rc0708-zip.cjs');
+const { verifyKitDirectory, sameProvenance } = require('./rc0708-kit-integrity.cjs');
 
 const EXIT = Object.freeze({ OK: 0, FATAL: 1, STAGE_COMPLETE: 42, ROLLBACK_REQUIRED: 43 });
 const RC0708_SCENARIOS = Object.freeze(['success', 'corrupt-staged-file', 'activation-corruption']);
@@ -34,6 +39,10 @@ async function main(argv) {
   const args = parseArguments(argv);
   if (process.env.NODE_OPTIONS) throw new Error('RC0708_NODE_OPTIONS_PROHIBITED');
   const lock = readJson(path.join(__dirname, 'LIFECYCLE_LOCK.json'), 'RC0708_LOCK');
+  args.kitProvenance = verifyKitDirectory(__dirname, path.basename(__filename), {
+    kitId: lock.kit_id,
+    candidateSha256: lock.candidate.sha256,
+  });
   if (!RC0708_SCENARIOS.includes(args.scenario)) throw new Error(`RC0708_SCENARIO_INVALID:${args.scenario}`);
   const statePath = path.join(args.evidenceRoot, `rc0708-upgrade-state-${args.scenario}.json`);
   const routes = {
@@ -94,6 +103,7 @@ async function phaseStage(args, lock, statePath) {
     new_manifest_sha256: staged.manifestSha256,
     new_source_commit: staged.sourceCommit,
     user_data_snapshot: userDataSnapshot,
+    kit_provenance: args.kitProvenance,
     phase: 'staged',
   };
   if (args.scenario === 'corrupt-staged-file') {
@@ -119,6 +129,7 @@ async function phaseStage(args, lock, statePath) {
 
 async function phaseVerify(args, lock, statePath) {
   const state = readJson(statePath, 'RC0708_STATE');
+  requireMatchingProvenance(state, args);
   if (state.scenario !== args.scenario || state.phase !== 'staged') throw new Error(`RC0708_STATE_PHASE_INVALID:${state.phase}`);
   const productRoot = fs.realpathSync(args.productRoot);
   if (productRoot !== state.product_root) throw new Error('RC0708_PRODUCT_ROOT_CHANGED');
@@ -149,6 +160,7 @@ async function phaseVerify(args, lock, statePath) {
 
 async function phaseVerifyRollback(args, lock, statePath) {
   const state = readJson(statePath, 'RC0708_STATE');
+  requireMatchingProvenance(state, args);
   if (state.scenario !== args.scenario || state.phase !== 'verify_failed') throw new Error(`RC0708_STATE_PHASE_INVALID:${state.phase}`);
   const productRoot = fs.realpathSync(args.productRoot);
   if (productRoot !== state.product_root) throw new Error('RC0708_PRODUCT_ROOT_CHANGED');
@@ -167,6 +179,7 @@ async function phaseVerifyRollback(args, lock, statePath) {
 
 async function phaseResidue(args, lock, statePath) {
   const state = readJson(statePath, 'RC0708_STATE');
+  requireMatchingProvenance(state, args);
   const productRoot = fs.realpathSync(args.productRoot);
   const siblings = lifecyclePaths(productRoot);
   const before = processSnapshot();
@@ -220,6 +233,7 @@ async function phaseResidue(args, lock, statePath) {
     product_command_surface_changed: false,
     external_network_used: false,
     system_configuration_changed: false,
+    kit_provenance: args.kitProvenance,
     win7_validation: 'NOT_PERFORMED',
     gates: { win10: 'PARTIAL_RC0708_LIFECYCLE_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' },
   };
@@ -227,6 +241,12 @@ async function phaseResidue(args, lock, statePath) {
   if (fs.existsSync(evidencePath)) throw new Error(`RC0708_EVIDENCE_ALREADY_EXISTS:${evidencePath}`);
   writeJson(evidencePath, report);
   return allPass ? EXIT.OK : EXIT.FATAL;
+}
+
+function requireMatchingProvenance(state, args) {
+  if (!state.kit_provenance || !sameProvenance(state.kit_provenance, args.kitProvenance)) {
+    throw new Error('RC0708_KIT_PROVENANCE_CHANGED_BETWEEN_PHASES');
+  }
 }
 
 function lifecyclePaths(productRoot) {
@@ -393,9 +413,18 @@ function validateRc07Report(value, lock, scenario) {
     const matches = value.cases.filter((item) => item && item.case_id === id);
     if (matches.length !== 1 || matches[0].status !== 'PASS') throw new Error(`RC07_CASE_FAILED:${id}`);
   }
-  if (value.candidate_zip_sha256 !== lock.candidate.sha256 || value.product_command_surface_changed !== false || value.external_network_used !== false || value.system_configuration_changed !== false || value.win7_validation !== 'NOT_PERFORMED') throw new Error('RC07_GATE_INVALID');
+  if (value.candidate_zip_sha256 !== lock.candidate.sha256 || value.product_command_surface_changed !== false || value.external_network_used !== false || value.system_configuration_changed !== false || value.win7_validation !== 'NOT_PERFORMED' || !validProvenance(value.kit_provenance, lock, 'rc0708-upgrade.cjs')) throw new Error('RC07_GATE_INVALID');
   if (!value.gates || value.gates.win10 !== 'PARTIAL_RC0708_LIFECYCLE_ONLY' || value.gates.win7 !== 'NOT_PERFORMED' || value.gates.rc !== 'NOT_PERFORMED') throw new Error('RC07_GATE_INVALID');
   return value;
+}
+
+function validProvenance(value, lock, entrypoint) {
+  return Boolean(value && value.schema_version === 1 && value.kit_id === lock.kit_id &&
+    value.target_candidate_sha256 === lock.candidate.sha256 && value.manifest_files_verified === true &&
+    value.entrypoint === entrypoint && /^[a-f0-9]{40}$/.test(value.source_commit || '') &&
+    /^[a-f0-9]{64}$/.test(value.manifest_sha256 || '') && /^[a-f0-9]{64}$/.test(value.entrypoint_sha256 || '') &&
+    value.files_sha256 && typeof value.files_sha256 === 'object' &&
+    Array.isArray(value.unexpected_control_files) && value.unexpected_control_files.length === 0);
 }
 
 if (require.main === module) {

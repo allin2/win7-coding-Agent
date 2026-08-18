@@ -1,5 +1,8 @@
 'use strict';
 
+// Preserve raw ASAR bytes for strict release-manifest verification.
+process.noAsar = true;
+
 // RC-08 uninstall and zero-residue lifecycle harness. Phases:
 //   preflight (hosted by the product electron.exe before any rename)
 //   finalize   (hosted by the quarantined copy after the wrapper renames the
@@ -12,6 +15,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { verifyKitDirectory, sameProvenance } = require('./rc0708-kit-integrity.cjs');
 
 const RC0708_POLICIES = Object.freeze(['retain', 'purge']);
 const RC0708_SUFFIX_STAGING = '.staging-rc0708';
@@ -28,6 +32,10 @@ async function main(argv) {
   const args = parseArguments(argv);
   if (process.env.NODE_OPTIONS) throw new Error('RC0708_NODE_OPTIONS_PROHIBITED');
   const lock = readJson(path.join(__dirname, 'LIFECYCLE_LOCK.json'), 'RC0708_LOCK');
+  args.kitProvenance = verifyKitDirectory(__dirname, path.basename(__filename), {
+    kitId: lock.kit_id,
+    candidateSha256: lock.candidate.sha256,
+  });
   if (!RC0708_POLICIES.includes(args.policy)) throw new Error(`RC0708_POLICY_INVALID:${args.policy}`);
   const statePath = path.join(args.evidenceRoot, `rc0708-uninstall-state-${args.policy}.json`);
   if (args.phase === 'preflight') return phasePreflight(args, lock, statePath);
@@ -78,6 +86,7 @@ async function phasePreflight(args, lock, statePath) {
     install_source_commit: install.sourceCommit,
     install_file_count: install.fileCount,
     user_data_snapshot: userDataSnapshot,
+    kit_provenance: args.kitProvenance,
     lock_probe: 'PASSED',
     lock_probe_target: 'version',
     phase: 'preflighted',
@@ -87,6 +96,9 @@ async function phasePreflight(args, lock, statePath) {
 
 async function phaseFinalize(args, lock, statePath) {
   const state = readJson(statePath, 'RC0708_STATE');
+  if (!state.kit_provenance || !sameProvenance(state.kit_provenance, args.kitProvenance)) {
+    throw new Error('RC0708_KIT_PROVENANCE_CHANGED_BETWEEN_PHASES');
+  }
   if (state.policy !== args.policy || state.phase !== 'preflighted') throw new Error(`RC0708_STATE_PHASE_INVALID:${state.phase}`);
   const productRoot = state.product_root;
   if (fs.existsSync(productRoot)) throw new Error('RC0708_PRODUCT_ROOT_STILL_PRESENT');
@@ -133,6 +145,7 @@ async function phaseFinalize(args, lock, statePath) {
     external_network_used: false,
     system_configuration_changed: false,
     registry_or_service_or_path_touched: false,
+    kit_provenance: args.kitProvenance,
     win7_validation: 'NOT_PERFORMED',
     gates: { win10: 'PARTIAL_RC0708_LIFECYCLE_ONLY', win7: 'NOT_PERFORMED', rc: 'NOT_PERFORMED' },
   };
@@ -212,9 +225,18 @@ function validateRc08Report(value, lock, policy) {
     const matches = value.cases.filter((item) => item && item.case_id === id);
     if (matches.length !== 1 || matches[0].status !== 'PASS') throw new Error(`RC08_CASE_FAILED:${id}`);
   }
-  if (value.candidate_zip_sha256 !== lock.candidate.sha256 || value.product_command_surface_changed !== false || value.external_network_used !== false || value.system_configuration_changed !== false || value.registry_or_service_or_path_touched !== false || value.win7_validation !== 'NOT_PERFORMED') throw new Error('RC08_GATE_INVALID');
+  if (value.candidate_zip_sha256 !== lock.candidate.sha256 || value.product_command_surface_changed !== false || value.external_network_used !== false || value.system_configuration_changed !== false || value.registry_or_service_or_path_touched !== false || value.win7_validation !== 'NOT_PERFORMED' || !validProvenance(value.kit_provenance, lock)) throw new Error('RC08_GATE_INVALID');
   if (!value.gates || value.gates.win10 !== 'PARTIAL_RC0708_LIFECYCLE_ONLY' || value.gates.win7 !== 'NOT_PERFORMED' || value.gates.rc !== 'NOT_PERFORMED') throw new Error('RC08_GATE_INVALID');
   return value;
+}
+
+function validProvenance(value, lock) {
+  return Boolean(value && value.schema_version === 1 && value.kit_id === lock.kit_id &&
+    value.target_candidate_sha256 === lock.candidate.sha256 && value.manifest_files_verified === true &&
+    value.entrypoint === 'rc0708-uninstall.cjs' && /^[a-f0-9]{40}$/.test(value.source_commit || '') &&
+    /^[a-f0-9]{64}$/.test(value.manifest_sha256 || '') && /^[a-f0-9]{64}$/.test(value.entrypoint_sha256 || '') &&
+    value.files_sha256 && typeof value.files_sha256 === 'object' &&
+    Array.isArray(value.unexpected_control_files) && value.unexpected_control_files.length === 0);
 }
 
 if (require.main === module) {

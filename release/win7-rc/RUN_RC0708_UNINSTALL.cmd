@@ -17,14 +17,14 @@ set "BRANCH=preflight"
 set "NODE_OPTIONS="
 set "ELECTRON_RUN_AS_NODE=1"
 
-"%PRODUCT_ROOT%\electron.exe" "%~dp0RC0708_UNINSTALL.cjs" "--phase=preflight" "--policy=%POLICY%" "--product=%PRODUCT_ROOT%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
+"%PRODUCT_ROOT%\electron.exe" "%~dp0rc0708-uninstall.cjs" "--phase=preflight" "--policy=%POLICY%" "--product=%PRODUCT_ROOT%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
 set "RC0708_EXIT_CODE=%ERRORLEVEL%"
 if not "%RC0708_EXIT_CODE%"=="0" goto finish
 
 ren "%PRODUCT_ROOT%" "%BASE%.quarantine-rc0708"
 if errorlevel 1 goto quarantine_failed
 set "BRANCH=finalize"
-"%QUARANTINE%\electron.exe" "%~dp0RC0708_UNINSTALL.cjs" "--phase=finalize" "--policy=%POLICY%" "--product=%PRODUCT_ROOT%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
+"%QUARANTINE%\electron.exe" "%~dp0rc0708-uninstall.cjs" "--phase=finalize" "--policy=%POLICY%" "--product=%PRODUCT_ROOT%" "--evidence=%EVIDENCE_ROOT%" "--user-data=%USER_DATA_ROOT%"
 set "RC0708_EXIT_CODE=%ERRORLEVEL%"
 
 set "BRANCH=cleanup_quarantine"
