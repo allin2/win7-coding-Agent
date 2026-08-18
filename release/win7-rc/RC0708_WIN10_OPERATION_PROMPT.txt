@@ -1,0 +1,102 @@
+A7 RC-07 / RC-08 Windows 生命周期验证 —— Win10 执行提示词
+============================================================
+
+本提示词用于在 Win10 上执行 A7 RC 候选的升级/回滚(RC-07)与卸载清理(RC-08)
+验证矩阵。交付包内共 4 个文件 + 1 份哈希清单:
+
+  1) Win7CodingAgent-0.1.0-rc.1-win7-x64.zip
+     = 新候选(必须保持此文件名,harness 会校验 basename)
+     size 100878367, SHA-256 39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9
+  2) Win7CodingAgent-0.1.0-rc.1-win7-x64-PREVIOUS-f24d9a4.zip
+     = 上一版候选(升级源,source commit f24d9a4)的改名字节副本,哈希与锁定旧版一致
+     size 100877883, SHA-256 909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5
+  3) RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip
+     = 生命周期 harness KIT(解压到产品目录之外)
+     size 18407,     SHA-256 0103998bf39fca18aa08df40a5056a0a96d3194f906790039ce9db7bd044f1ff
+  4) RC0708_WIN10_DELIVERY_SHA256.txt = 上述三项的锁定哈希/大小清单
+  5) 本提示词 = 本文件
+
+一、接收后第一步:双向哈希核对
+------------------------------
+用普通 cmd.exe 逐个执行(对交付包内三个 ZIP 分别核对,并可与 PowerShell
+Get-FileHash 交叉验证):
+
+  certutil -hashfile C:\rc0708\Win7CodingAgent-0.1.0-rc.1-win7-x64.zip SHA256
+  certutil -hashfile C:\rc0708\Win7CodingAgent-0.1.0-rc.1-win7-x64-PREVIOUS-f24d9a4.zip SHA256
+  certutil -hashfile C:\rc0708\RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip SHA256
+
+三个结果必须分别等于上面第 1/2/3 项的锁定值,否则立即停止并原样返回。
+
+二、目录布局(全部在本地 NTFS SSD,证据目录全程全新)
+---------------------------------------------------
+  C:\rc0708\
+    Win7CodingAgent-0.1.0-rc.1-win7-x64.zip          <- 新候选 ZIP,文件名不得改动
+    Win7CodingAgent-0.1.0-rc.1-win7-x64-PREVIOUS-f24d9a4.zip
+    product\      <- 把旧版 ZIP(第 2 项)解压到此,作为升级源安装
+    evidence\     <- 全新空目录,整个矩阵共用(升级+卸载全部证据都落在这里)
+    user-data\    <- 全新空目录(升级矩阵与 retain 卸载轮共用)
+    user-data2\   <- 全新空目录(purge 卸载轮专用)
+    product2\     <- 空(purge 轮前把新版 ZIP 解压到此)
+  C:\rc0708-kit\  <- 把 KIT(第 3 项)解压到此,必须在产品目录之外
+
+注意:新版 ZIP 保持原文件名是硬性要求;旧版 ZIP 带 -PREVIOUS-f24d9a4 后缀,
+正是为了避免与新版同名导致 Windows 无法分辨,哈希与锁定旧版一致,可直接使用。
+
+三、执行顺序(普通 cmd.exe,共五轮;每轮必须按下方断言检查)
+---------------------------------------------------------
+RC-07 升级矩阵(三轮,同一 evidence 根;每轮之间 product 保持上一轮留下的已验证安装):
+
+  第 1 轮 success:
+    C:\rc0708-kit\RUN_RC0708_UPGRADE.cmd C:\rc0708\product C:\rc0708\Win7CodingAgent-0.1.0-rc.1-win7-x64.zip C:\rc0708\evidence C:\rc0708\user-data success
+    -> 把 product 从旧版升级到锁定新候选,验证激活与零残留
+
+  第 2 轮 corrupt-staged-file:
+    C:\rc0708-kit\RUN_RC0708_UPGRADE.cmd C:\rc0708\product C:\rc0708\Win7CodingAgent-0.1.0-rc.1-win7-x64.zip C:\rc0708\evidence C:\rc0708\user-data corrupt-staged-file
+    -> 在激活前篡改一个暂存文件,验证在激活前被检出,product 保持第 1 轮升级后的完好安装
+
+  第 3 轮 activation-corruption:
+    C:\rc0708-kit\RUN_RC0708_UPGRADE.cmd C:\rc0708\product C:\rc0708\Win7CodingAgent-0.1.0-rc.1-win7-x64.zip C:\rc0708\evidence C:\rc0708\user-data activation-corruption
+    -> 激活后损坏已激活文件,验证回滚到与第 1 轮完全字节一致的安装
+
+  每轮断言:exit code 必须为 0;
+  证据目录内生成 rc07-upgrade-<scenario>.json、rc0708-upgrade-exit-code-<scenario>.txt、
+  rc0708-upgrade-transcript-<scenario>.txt;exit-code 文件内容必须为
+  RC0708_EXIT_CODE=0;transcript 必须含 RC0708_UPGRADE_SCENARIO=<scenario> 与
+  RC0708_UPGRADE_BRANCH=residue。
+
+RC-08 卸载矩阵(两轮,同一 evidence 根):
+
+  第 4 轮 retain:
+    C:\rc0708-kit\RUN_RC0708_UNINSTALL.cmd C:\rc0708\product C:\rc0708\user-data C:\rc0708\evidence retain
+    -> 卸载保留用户数据:user-data 内容必须与卸载前快照一致
+
+  第 5 轮 purge(先做两步准备):
+    (a) 把新版 ZIP(第 1 项)解压到 C:\rc0708\product2
+    (b) 确认 C:\rc0708\user-data2 为空
+    C:\rc0708-kit\RUN_RC0708_UNINSTALL.cmd C:\rc0708\product2 C:\rc0708\user-data2 C:\rc0708\evidence purge
+    -> 卸载并清除用户数据:user-data2 必须被删除
+
+  每轮断言:exit code 必须为 0;
+  生成 rc08-uninstall-<policy>.json、rc0708-uninstall-exit-code-<policy>.txt、
+  rc0708-uninstall-transcript-<policy>.txt;exit-code 文件内容必须为
+  RC0708_EXIT_CODE=0;transcript 必须含 RC0708_UNINSTALL_POLICY=<policy>、
+  RC0708_UNINSTALL_BRANCH=cleanup_quarantine 与 RC0708_QUARANTINE_REMOVED=1。
+
+通用约束(全程适用):
+  - 产品不得处于运行状态;harness 会先做进程与文件锁检查。
+  - 目录改名由 KIT 内 .cmd 包装器执行(harness 自身从产品 electron.exe 运行)。
+  - 禁止任何网络/路由/防火墙/PATH/服务/注册表修改,禁止重启、安装软件、
+    运行时下载、NODE_OPTIONS 或外部 preload,禁止交互式终端。
+  - 任何一轮失败(fatal / exit 非 0 / 断言不满足):停止后续轮次,原样返回全部证据。
+
+四、返回要求
+------------
+把整个 C:\rc0708\evidence 目录原样打包返回(包括全部 5 份 JSON 报告、
+5 份 exit-code、5 份 transcript 及全部状态文件),逐字节保存,不得修改、重排
+或"修正"任何内容。evidence 目录在返回前不得做任何清理。
+
+五、结论效力(预租约)
+--------------------
+harness 全绿只是 Windows 预租约结果:不构成 Win10、Win7 或 RC PASS。
+生命周期用例必须在新的签名 RC 租约下、于 Win7 SP1 x64 实机上重新执行,
+由协调器依据 RC-01..RC-10 矩阵与证据评分后,才能签发 WIN7_PASS。

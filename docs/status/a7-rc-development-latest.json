@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-DEVELOPMENT-20260816-10",
-  "recorded_at_utc": "2026-08-16T15:14:03Z",
+  "record_id": "A7-RC-DEVELOPMENT-20260818-11",
+  "supersedes": "A7-RC-DEVELOPMENT-20260816-10",
+  "recorded_at_utc": "2026-08-18T15:45:00Z",
   "release_id": "WIN7-CODING-AGENT-RC1",
   "version": "0.1.0-rc.1",
   "branch": "codex/a7-release-candidate",
   "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
-  "status": "RC0708_LIFECYCLE_KIT_READY_WINDOWS_EXECUTION_PENDING",
+  "status": "RC0708_WIN10_DELIVERY_PACKAGE_READY_WINDOWS_EXECUTION_PENDING",
   "scope": [
     "deterministic offline package assembly",
     "locked input and inner payload hash verification",
@@ -17,7 +18,8 @@
     "D-014 SQLite V2 EventLedger with WAL and FTS5 profile checks",
     "fail-closed startup integrity and recovery validation",
     "explicit disabled capability diagnostics",
-    "two-start Windows RC-04 smoke harness"
+    "two-start Windows RC-04 smoke harness",
+    "single Win10 delivery ZIP: locked new candidate, renamed previous-candidate copy, lifecycle kit, SHA-256 manifest and operator prompt"
   ],
   "locked_inputs": {
     "electron_zip_sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
@@ -97,6 +99,16 @@
       "deterministic_rebuilds": 2,
       "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
     },
+    "rc0708_win10_delivery": {
+      "status": "V1_HANDED_TO_WIN10_SINGLE_DELIVERY_ZIP",
+      "zip_sha256": "9b49b6a1356c76688400dcdb69a6d204c7c1ed8049605b613d5e17b47f008ef2",
+      "builder": "scripts/release/build-rc0708-win10-delivery.mjs",
+      "source_commit": "624c7d1258835180ebfd947fd606c82b7b5c49b6",
+      "deterministic_rebuilds": 2,
+      "packages": "locked new candidate 39eecb6a...040c9 + renamed previous candidate 90916647...f1d5 + lifecycle kit 0103998b...f1ff",
+      "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-win10-delivery-20260816",
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
     "documentation_check": {
       "status": "PASS",
       "checked_files": 67,
@@ -118,7 +130,7 @@
     "rc": "NOT_PERFORMED"
   },
   "remaining_requirements": [
-    "run the RC0708 lifecycle kit (0103998b...f1ff) upgrade and uninstall matrix on Windows",
+    "execute the RC0708 Win10 delivery matrix (5 rounds: 3 upgrade + 2 uninstall) and verify the returned evidence with verify-rc0708-evidence.mjs",
     "final Win10 layer closure: precise RC-03 PE/API/CRT gate over the unique RC ZIP",
     "RC-04/RC-05/RC-06/RC-07/RC-08 and the full RC-01..RC-10 matrix under a new signed Win7 RC lease"
   ],
