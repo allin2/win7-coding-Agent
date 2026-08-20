@@ -845,3 +845,26 @@
   由同一 release manifest 绑定；代价是启动时增加完整性与恢复扫描，数据库 schema 或持久化范围
   的未来变化必须提升版本并另行设计迁移。RC-04 的 Windows product smoke 未完成前仍是部分收口，
   本 ADR 不签发 Win7 租约，也不授权交互终端或新增产品能力。
+
+## ADR-0074 A8 采用 Agent-first 产品模型并冻结 A7 RC
+
+- 状态：Accepted（2026-08-20，依据负责人确认的 Agent-first 产品需求合同 v1）
+- 背景：A7 `0.1.0-rc.1` 已证明 Electron、受控非交互 Runner、SQLite EventLedger、确定性发布闭包和
+  Win7 生命周期可以在锁定候选上通过，但其主界面仍以固定场景、显式“开始任务”、Gateway 配置和原始
+  事件时间线为中心。真实试用暴露 `gateway.delta` 被逐 chunk 渲染成独立行等问题；现状是可验收的
+  控制台，不是开发者可持续使用的 Coding Agent。负责人明确要求学习 Codex/ZCode 的对话优先、Goal、
+  工具卡片、Review 与按需上下文体验，同时保持 Win7、内网模型和受控执行边界。
+- 决策：（1）冻结 A7 RC 的源码标签、候选字节、证据和长期归档；A8 从干净 main 以
+  `codex/a8-agent-first-product` 和 `0.2.0-alpha.1` 独立开发，任何 A8 PASS 必须绑定新候选。（2）产品
+  入口改为工作区+多会话+自然语言输入，支持直接执行/先计划；固定场景降为提示词模板，验收场景移入
+  Diagnostics。（3）Gateway chunk 保持原始审计，Renderer 按 task/request/index 连续性聚合为 Assistant
+  消息；计划、工具、Runner、测试、审批和错误成为可折叠卡片。（4）Agent 只生成带基线哈希的多文件
+  准备区，用户在 Review 逐文件接受/拒绝后才写入；完整会话、Goal、Review 和中断事实采用版本化持久化，
+  恢复时重新验证基线且不自动续跑。（5）首发只承诺登记的内网模型、D-013 低风险非交互 Runner 与
+  D-014 本地 SSD Profile；Terminal 与 Agent Runner 输入隔离，旧 winpty No-Go 保持有效；Browser 只
+  允许可信本地预览、系统浏览器和登记内网目标。（6）完整编辑器、Git 写操作、任意 Shell、多 Agent、
+  后台并发、任意浏览器自动化、插件市场、自动更新和无审批全自动模式不进入 A8 MVP。（7）开发机、
+  Win10、Win7 的真实产品旅程分别验收，旧 RC 或 harness PASS 不得替代。
+- 后果：A8 可以围绕开发者工作流重构，而不用破坏已验证回退基线；代价是产品状态、会话恢复、Terminal
+  和 Browser 需要新的设计与实机证据，版本从 `0.2.0-alpha.1` 重新进入发布周期。Electron 22 缺少现代
+  强隔离的事实必须显式呈现，不能以体验对标为由取消 C08、C17～C20 或虚构安全等价性。

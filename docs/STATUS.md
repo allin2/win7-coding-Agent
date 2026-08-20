@@ -14,10 +14,24 @@
 | 快照标记 | `backup/integrated-snapshot-20260731` |
 | 当前主线状态 | `A7_RC_INTEGRATED / RC_PASS` |
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
+| A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；三层验证均 `NOT_PERFORMED` |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
+
+## A8 Agent-first 产品体验（2026-08-20）
+
+- 负责人已确认 [`Agent-first 产品需求合同 v1`](prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md)，
+  并授权 [`A8_AGENT_FIRST_PRODUCT_EXPERIENCE`](tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md) 在独立
+  `codex/a8-agent-first-product` 分支实现。目标是把固定场景验收控制台重构为对话优先的 Coding Agent：
+  自然语言启动、直接/计划模式、连续 Assistant 消息、工具卡片、上下文引用、多文件 Review、真实测试、
+  会话/Goal 恢复以及隔离的 Terminal/受限 Browser 工作区。
+- 当前状态仅为 `APPROVED_FOR_IMPLEMENTATION`。A8 尚未形成候选，开发机、Win10、Win7 均为
+  `NOT_PERFORMED`；A7 `0.1.0-rc.1` 保持只读冻结，其 `RC_PASS` 不自动传递给 A8。
+- 现有 `NO_GO_INTERACTIVE_WINPTY` 继续有效。A8 Terminal 必须形成新的运行时 Profile 与 Win7 证据，
+  否则只能保持清晰的 disabled/fail-closed 状态；不得以缺少现代强隔离为由放开任意 Shell、模型输入、
+  未登记浏览或系统配置修改。
 
 ## 验证状态
 

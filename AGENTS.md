@@ -18,14 +18,17 @@
 
 ## 3. 当前阶段（必须先确认再动手）
 
-- 当前并行推进四条受控轨道：**阶段 0 文档基线**、**阶段 1/2 冻结合同的 Win7 收口**、
-  **阶段 3–7 整合候选**以及 **SPIKE_01~04 实机验证**。当前分支
-  `codex/integrated-robustness` 的直接任务书为
-  `docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md`、
-  `docs/tasks/DOCS_01_DOCUMENTATION_BASELINE.md` 与
-  `docs/tasks/MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md`；后者仅授权 MVP 实机验收
-  harness、证据与文档收口，不扩大任何生产功能或 Phase 1/2 冻结合同（ADR-0054）。
-  状态以 `docs/STATUS.md` 和 `docs/tasks/README.md` 为准。
+- **A8 Agent-first 产品体验线（ADR-0074）**：项目负责人已确认
+  `docs/prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md`，实现任务为
+  `docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`，仅在
+  `codex/a8-agent-first-product` 分支及任务书允许路径内生效。A8 目标版本为 `0.2.0-alpha.1`，
+  不修改已验收 `0.1.0-rc.1`，也不继承其产品 PASS；开发机、Win10、Win7 新候选三层验收前不得
+  宣称 A8 MVP 或 RC 完成。交互 winpty、任意 Shell、Git 写操作、任意公网浏览、多 Agent、自动更新、
+  无审批完全自主模式继续不在授权范围内。
+- 当前 `main` 已完成 A4/A5/A6 整合、A7 `0.1.0-rc.1` 三层验收和长期归档，状态为
+  `A7_RC_INTEGRATED / RC_PASS`。历史阶段 0～7、MVP、INTEGRATION 与 SPIKE 任务继续按各自任务书
+  保留状态和边界，但不构成 A8 的额外实现授权；A8 只能使用上一条列出的任务书和路径。状态以
+  `docs/STATUS.md` 和 `docs/tasks/README.md` 为准。
 - 阶段 1 任务文档：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`（允许路径见该文档 §0.2）。
 - **阶段 2（ADR-0025）**：任务文档 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（Task Type: FORMAL_PHASE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。实现仅在 `phase/02-readonly-agent` 分支上进行；目标工作区全程只读、不接入真实模型、不修改用户代码；原型成果只能按该文档 §5 迁移矩阵选择性吸收，禁止整体合并/cherry-pick 原型分支。Win7 实机验收前不得宣称阶段 2 完成。
 - 阶段 0/1 主线**不接入大模型、不修改用户代码**；阶段 2 的只读 Agent Loop 仅在其任务书授权范围内实现（Mock/Replay 驱动，同样禁止真实模型与网络）。

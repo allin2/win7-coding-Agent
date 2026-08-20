@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-AGENT-FIRST-PRODUCT-20260820-01",
+  "recorded_at": "2026-08-20",
+  "status": "APPROVED_FOR_IMPLEMENTATION",
+  "phase_gate": "A8_IMPLEMENTATION_AUTHORIZED",
+  "target_branch": "codex/a8-agent-first-product",
+  "target_version": "0.2.0-alpha.1",
+  "authorization_parent_commit": "39632dc99fe08342f221e43fef078f041f440f12",
+  "requirements": {
+    "path": "docs/prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md",
+    "status": "OWNER_CONFIRMED",
+    "confirmed_at": "2026-08-20"
+  },
+  "task": "docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md",
+  "validation": {
+    "developer": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "frozen_rc": {
+    "version": "0.1.0-rc.1",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "disposition": "READ_ONLY_TECHNICAL_BASELINE_NOT_A8_PASS"
+  },
+  "first_stage": "A8-00",
+  "blocking_reason": "A8_IMPLEMENTATION_AND_THREE_LAYER_PRODUCT_ACCEPTANCE_NOT_PERFORMED"
+}
