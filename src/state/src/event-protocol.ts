@@ -57,6 +57,15 @@ export interface ThreadProjection {
   readonly warnings: readonly EventProtocolWarning[];
 }
 
+/** Storage boundary shared by the in-memory reference and the D-014 SQLite implementation. */
+export interface EventLedger {
+  submit(input: EventEnvelopeInputV2): EventEnvelopeV2;
+  submitBatch(inputs: readonly EventEnvelopeInputV2[]): EventEnvelopeV2[];
+  queryThread(threadId: string): readonly EventEnvelopeV2[];
+  getById(eventId: string): EventEnvelopeV2 | undefined;
+  readonly size: number;
+}
+
 const KNOWN_TYPES = new Set<string>([
   'turn.started', 'turn.suspended', 'turn.resumed', 'turn.finished',
   'step.started', 'step.retry', 'step.completed', 'state.transition',
@@ -68,7 +77,7 @@ const KNOWN_TYPES = new Set<string>([
 ]);
 
 /** An in-memory reference ledger. It is deliberately not claimed as durable recovery. */
-export class InMemoryEventLedger {
+export class InMemoryEventLedger implements EventLedger {
   private readonly eventsByThread = new Map<string, EventEnvelopeV2[]>();
   private readonly eventsById = new Map<string, EventEnvelopeV2>();
 
@@ -242,17 +251,26 @@ export function projectThread(events: readonly EventEnvelopeV2[]): ThreadProject
   return { messages: compactedMessages, toolResults, fileChanges, usage, activeCompactionIds, warnings };
 }
 
-function validateV2Input(input: EventEnvelopeInputV2): void {
+export function validateV2Input(input: EventEnvelopeInputV2): void {
   if (input.schemaVersion !== 2 || !input.eventId || !input.sessionId || !input.threadId || !input.turnId || !input.runId || !input.type) throw constraint('V2 event identity fields are required');
   if (!Number.isFinite(Date.parse(input.occurredAt))) throw constraint('occurredAt must be a valid UTC timestamp');
   try { JSON.stringify(input.payload); } catch { throw constraint('payload must be JSON serializable'); }
 }
-function constraint(message: string): StateError { return new StateError(StateErrorCode.EVENTSTORE_CONSTRAINT_VIOLATION, message); }
-function cloneInput(input: EventEnvelopeInputV2): EventEnvelopeInputV2 { return JSON.parse(JSON.stringify(input)) as EventEnvelopeInputV2; }
-function freezeEvent(event: EventEnvelopeV2): EventEnvelopeV2 { return Object.freeze(event); }
-function eventFingerprint(event: Omit<EventEnvelopeV2, 'seq'> | EventEnvelopeV2): string {
-  const { seq: _seq, ...identity } = event as EventEnvelopeV2;
-  return JSON.stringify(identity);
+export function constraint(message: string): StateError { return new StateError(StateErrorCode.EVENTSTORE_CONSTRAINT_VIOLATION, message); }
+export function cloneInput(input: EventEnvelopeInputV2): EventEnvelopeInputV2 { return JSON.parse(JSON.stringify(input)) as EventEnvelopeInputV2; }
+export function freezeEvent(event: EventEnvelopeV2): EventEnvelopeV2 { return Object.freeze(event); }
+export function eventFingerprint(event: Omit<EventEnvelopeV2, 'seq'> | EventEnvelopeV2): string {
+  return JSON.stringify({
+    eventId: event.eventId,
+    schemaVersion: event.schemaVersion,
+    sessionId: event.sessionId,
+    threadId: event.threadId,
+    turnId: event.turnId,
+    runId: event.runId,
+    occurredAt: event.occurredAt,
+    type: event.type,
+    payload: event.payload,
+  });
 }
 function objectPayload(payload: JsonValue): { [key: string]: JsonValue } { return payload !== null && !Array.isArray(payload) && typeof payload === 'object' ? payload : {}; }
 function stringField(payload: { [key: string]: JsonValue }, name: string): string | undefined { return typeof payload[name] === 'string' ? payload[name] as string : undefined; }

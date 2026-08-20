@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-WIN7-RC-ACCEPTANCE-20260820-01",
+  "recorded_at_utc": "2026-08-20T06:05:08Z",
+  "branch": "codex/a7-release-candidate",
+  "source_task": "docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md",
+  "status": "WIN7_PASS_RC_PASS",
+  "candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "release_manifest_sha256": "ff1a46ffa517dc84602767db144cffcae6bdcfc3300ca52949001997141932d0",
+    "manifest_files": 731
+  },
+  "target": {
+    "ip": "10.21.225.40",
+    "hostname": "dccs-chaizl-PC",
+    "os": "Windows 7 Professional SP1",
+    "os_build": "7601",
+    "architecture": "x64",
+    "storage": "local fixed NTFS; Samsung SSD 870 EVO 1TB"
+  },
+  "lease": {
+    "lease_id": "lease-A7-RC-20260820-055210",
+    "run_id": "A7-RC-20260820-055210",
+    "suite": "A7_WIN7_RC01_RC10",
+    "profile": "A7-WIN7-RC1-SHELL-COM-EXTRACTION",
+    "algorithm": "Ed25519",
+    "raw_sha256": "c52b4bb91ba9a72d2f9e8cf02293e82cbe6d4f6b330b9930d0db931c97261bab",
+    "signature_sha256": "c9b5f6208c957457339f0b9d19f8533da6a74dca016733d13526074678677988",
+    "public_key_sha256": "b7e2a704ae56a2f2c1e36a3acef28de689b5fec9d24ec5970476cbc26a1b4d95",
+    "final_state": "RELEASED",
+    "coordinator_grade": "WIN7_PASS"
+  },
+  "superseded_attempt": {
+    "lease_id": "lease-A7-RC-20260820-054316",
+    "final_state": "RELEASED",
+    "disposition": "FAIL_CLOSED_BEFORE_RC01_INCOMPATIBLE_ACCEPTANCE_EXTRACTOR",
+    "gate_effect": "NONE",
+    "coordinator_grade": "NOT_ISSUED"
+  },
+  "cases": [
+    { "id": "RC-01", "status": "PASS", "summary": "Offline extraction and first start used only the candidate plus the Win7 built-in Shell.Application interface; no download or installation occurred." },
+    { "id": "RC-02", "status": "PASS", "summary": "All eight uploaded files matched local SHA-256 and Win7 certutil before execution; all locked artifacts matched again after execution and the 731-file release tree verified." },
+    { "id": "RC-03", "status": "PASS", "summary": "x64 Electron 22.3.27 loaded the external D-013 helper and ABI-110 better-sqlite3 binding at their locked hashes; interactive terminal payloads were absent." },
+    { "id": "RC-04", "status": "PASS", "summary": "Two complete product composition rounds passed.", "report_sha256": "3c5e4286a9ed65a6af9d6ec3bc44b6c4fb3eac68a9e78ffcddfe1640040fbfdf" },
+    { "id": "RC-05", "status": "PASS", "summary": "Runner positive, cancellation, containment and rejection cases passed.", "report_sha256": "4d4f762b12e6f145949320bb55d0e8fe8dd13b96140eb21720f63d49a003ac5e" },
+    { "id": "RC-06", "status": "PASS", "summary": "P01/P02/P03 and N01/N02/N03 passed. The unmodified v4 child report kept its M01 FAIL because it calls Win7-missing modern PowerShell storage cmdlets; independent Win32_DiskDrive evidence identifies Samsung SSD 870 EVO 1TB and closes the physical-SSD assertion.", "original_child_report_status": "FAIL_RC06_M01_PROBE_INCOMPATIBLE", "report_sha256": "759d376a3b1bbc37632425d70522f4fc36064abfb02d0bee7e6304ea2b58a5a2", "supplemental_wmi_sha256": "48156b2302748fcd867890dde939b9fb665abd54678ab25144ed3fef6060e7ed" },
+    { "id": "RC-07", "status": "PASS", "summary": "Upgrade success, corrupted staging rejection and post-activation corruption rollback passed; independent exact-kit verifier passed all three reports." },
+    { "id": "RC-08", "status": "PASS", "summary": "Retain and purge uninstall policies passed; independent exact-kit verifier passed both reports." },
+    { "id": "RC-09", "status": "PASS", "summary": "BvSshServer remained RUNNING, TCP 22 remained listening, relevant processes were absent, and OS boot time, service configuration, routes, firewall profiles and machine PATH were byte-identical." },
+    { "id": "RC-10", "status": "PASS", "summary": "Coordinator verified the signed lease, bindings, all required cases, clean postflight and the evidence manifest before issuing WIN7_PASS." }
+  ],
+  "evidence": {
+    "local_run_root": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/coordinator/runs/A7-RC-20260820-055210",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/win7-rc-acceptance-20260820",
+    "remote_run_root": "C:\\Win7CodingAgent\\acceptance\\A7-RC-20260820-055210",
+    "archive_file_count": 74,
+    "returned_file_count": 64,
+    "manifest_sha256": "045dd72f16963c6033403eb71260c0a622ab12b43cd2461ab82a12133ac89270",
+    "rc0708_independent_verifier": "PASS"
+  },
+  "gates": {
+    "developer": "PASS",
+    "win10": "PASS",
+    "win7": "PASS",
+    "rc": "PASS"
+  },
+  "safety": {
+    "unique_lease_enforced": true,
+    "active_lease_after_release": null,
+    "network_route_firewall_path_service_changed": false,
+    "rebooted": false,
+    "postflight_process_residue": []
+  }
+}

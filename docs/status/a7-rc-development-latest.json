@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC-DEVELOPMENT-20260819-13",
+  "supersedes": "A7-RC-DEVELOPMENT-20260819-12",
+  "recorded_at_utc": "2026-08-18T17:24:44Z",
+  "release_id": "WIN7-CODING-AGENT-RC1",
+  "version": "0.1.0-rc.1",
+  "branch": "codex/a7-release-candidate",
+  "artifact_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+  "status": "WIN10_PASS_WIN7_AND_RC_NOT_PERFORMED",
+  "scope": [
+    "deterministic offline package assembly",
+    "locked input and inner payload hash verification",
+    "external native runtime layout",
+    "versioned manifest, SBOM and license inventory",
+    "independent per-file ZIP verification",
+    "manifest-bound D-013 low-risk Runner composition",
+    "D-014 SQLite V2 EventLedger with WAL and FTS5 profile checks",
+    "fail-closed startup integrity and recovery validation",
+    "explicit disabled capability diagnostics",
+    "two-start Windows RC-04 smoke harness",
+    "single Win10 delivery ZIP: locked new candidate, renamed previous-candidate copy, lifecycle kit, SHA-256 manifest and operator prompt"
+  ],
+  "locked_inputs": {
+    "electron_zip_sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+    "runner_return_zip_sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+    "storage_return_zip_sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794"
+  },
+  "candidate": {
+    "path": "release/win7-rc/out/Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "git_tracking": "IGNORED_BUILD_OUTPUT",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "manifest_file_count": 731,
+    "external_native_file_count": 2,
+    "deterministic_rebuild_count": 2,
+    "deterministic_rebuild_sha256_match": true
+  },
+  "developer_validation": {
+    "release_contract_tests": {
+      "status": "PASS",
+      "tests": 34
+    },
+    "full_repository_verify": {
+      "status": "PASS",
+      "modules": 7,
+      "tests": 983
+    },
+    "rc04_composition_contract": {
+      "status": "PASS",
+      "qualification": "DEVELOPMENT_STRUCTURAL_TESTS_ONLY",
+      "windows_product_process": "PASS",
+      "evidence": "docs/status/a7-rc04-windows-smoke-latest.json"
+    },
+    "state_module": {
+      "status": "PASS",
+      "tests": 231,
+      "native_abi110_load_on_developer_host": "NOT_APPLICABLE_MACOS"
+    },
+    "shell_module": {
+      "status": "PASS",
+      "tests": 127
+    },
+    "rc0506_windows_validation_kit": {
+      "status": "V4_EXECUTED_RC05_RC06_PASS",
+      "v3_source_commit": "f47fd8404ca3490d9ab6b78aa9eb204d48890dd1",
+      "v3_zip_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
+      "v4_source_commit": "ef1486e9ea1560574b1c4a5fc24d86287d01f056",
+      "v4_zip_sha256": "ff5a26efefff947df4166cf2f3a49cddfcd5c7f17d81301360654493b358c6d5",
+      "v4_deterministic_rebuilds": 2,
+      "windows_attempt_3": {
+        "executed": "2026-08-16",
+        "host": "Windows 10 19045 x64",
+        "rc04": "PASS_TWO_ROUNDS",
+        "rc05": "FAIL_CLOSED_HELPER_ALLOW_LIST_INCOMPATIBLE",
+        "rc06": "PASS",
+        "process_exit_code": 1,
+        "return_zip_sha256": "5e02a7e567df8fcf2323ec96dcced394c3fec5f778bf81e105bcbff0a8106a0e",
+        "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816",
+        "evidence": "docs/status/a7-rc0506-validation-kit-latest.json"
+      },
+      "windows_attempt_4": {
+        "executed": "2026-08-16",
+        "host": "Windows 10 19045 x64",
+        "rc05": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+        "rc06": "PASS",
+        "process_exit_code": 0,
+        "independent_verifier": "PASS",
+        "return_zip_sha256": "9c3d5baee581a369ba3a9b7cd287bb1c2ae23f6c2c54b6041911be794f39080d",
+        "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt4-v4-20260816",
+        "evidence": "docs/status/a7-rc0506-validation-kit-latest.json"
+      },
+      "evidence": "docs/status/a7-rc0506-validation-kit-latest.json"
+    },
+    "rc0708_lifecycle_kit": {
+      "status": "V2_IMMUTABLE_KIT_READY_FOR_WINDOWS_EXECUTION",
+      "source_commit": "5eb2b29ee7955c33bbd18d8f2ec0aa9752f88dd4",
+      "zip_sha256": "0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2",
+      "manifest_sha256": "929c3a1853bd9b06eb958cdba1527f56e73ae1469f705742c09049a11a859e17",
+      "deterministic_rebuilds": 2,
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
+    "rc0708_win10_delivery": {
+      "status": "V2_READY_FOR_WIN10_REEXECUTION",
+      "zip_sha256": "f7ced50b9072f25448dede7e33a9eaf6d61ac0e75c481b0e31e78f4baf261137",
+      "builder": "scripts/release/build-rc0708-win10-delivery.mjs",
+      "source_commit": "2f4bccf395c907b0cf1a3416c9888a12e647d025",
+      "deterministic_rebuilds": 2,
+      "packages": "locked new candidate 39eecb6a...040c9 + renamed previous candidate 90916647...f1d5 + immutable lifecycle kit 0c3be032...55d2",
+      "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-win10-delivery-v2-20260819",
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
+    "rc0708_windows_attempt_1": {
+      "status": "FAIL_CLOSED_KIT_MUTATED_EVIDENCE_INELIGIBLE",
+      "reported_rounds": "3 RC07 + 2 RC08 reported PASS but not accepted",
+      "return_zip_sha256": "22134211f16409e39eb45dbbc804aafd214c5a685b94910d214b7dc43c78780e",
+      "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt1-v1-20260819",
+      "gate_effect": "NONE",
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
+    "rc0708_windows_attempt_2": {
+      "status": "RC07_RC08_WINDOWS_PASS",
+      "reported_rounds": "3 RC07 + 2 RC08 PASS",
+      "independent_verifier": "PASS",
+      "return_zip_sha256": "00464f63dd9808d8cf52da2692539acb25261d04e36ad200c3591b3db2047ba8",
+      "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt2-v2-20260819",
+      "kit_mutated": false,
+      "residue": "NONE",
+      "evidence": "docs/status/a7-rc0708-lifecycle-kit-latest.json"
+    },
+    "rc03_native_closure": {
+      "status": "PASS_BY_EXACT_BYTE_CONTINUITY_TO_WIN10_PE_API_CRT_EVIDENCE",
+      "runner_helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "storage_native_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "candidate_native_files": 2,
+      "native_entries_under_asar": 0,
+      "evidence": "docs/status/a7-win10-rc-closeout-latest.json"
+    },
+    "documentation_check": {
+      "status": "PASS",
+      "checked_files": 68,
+      "task_files": 18
+    },
+    "independent_zip_verifier": "PASS",
+    "json_parse": "PASS",
+    "diff_check": "PASS"
+  },
+  "gates": {
+    "developer_package_assembly": "PASS",
+    "developer_full_regression": "PASS",
+    "product_assembly": "DEVELOPMENT_STRUCTURAL_PASS",
+    "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc05_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc06_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc07_windows": "CURRENT_CANDIDATE_V2_WIN10_PASS",
+    "rc08_windows": "CURRENT_CANDIDATE_V2_WIN10_PASS",
+    "rc03_windows": "PASS_EXACT_NATIVE_BYTE_CONTINUITY",
+    "win10": "PASS",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining_requirements": [
+    "RC-04/RC-05/RC-06/RC-07/RC-08 and the full RC-01..RC-10 matrix under a new signed Win7 RC lease"
+  ],
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "interactive_winpty_included": false,
+    "network_or_system_configuration_changed": false
+  }
+}

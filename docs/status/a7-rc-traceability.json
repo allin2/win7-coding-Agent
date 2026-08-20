@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC-TRACEABILITY-20260820-02",
+  "supersedes": "A7-RC-TRACEABILITY-20260812-01",
+  "source_task": "docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md",
+  "baseline_commit": "793cc4799c81d9dc27d236826a344a39d86137ec",
+  "candidate_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+  "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+  "overall_status": "RC_PASS",
+  "win7_validation": "PASS",
+  "formal_evidence": "docs/status/a7-win7-rc-acceptance-latest.json",
+  "requirements": [
+    { "id": "RC-01", "status": "pass", "evidence": ["offline Shell.Application extraction", "RC04 first start"] },
+    { "id": "RC-02", "status": "pass", "evidence": ["local and Win7 certutil dual hashes", "731-file release manifest verification"] },
+    { "id": "RC-03", "status": "pass", "evidence": ["external native layout", "D-013 helper loaded", "ABI-110 better-sqlite3 loaded", "Win10 PE/API/CRT byte continuity"] },
+    { "id": "RC-04", "status": "pass", "evidence": ["two-round Win7 product composition summary 3c5e4286...fbfdf"] },
+    { "id": "RC-05", "status": "pass", "evidence": ["Win7 Runner report 4d4f762b...ac5e"] },
+    { "id": "RC-06", "status": "pass", "evidence": ["P01/P02/P03/N01/N02/N03 PASS", "Win32_DiskDrive SSD supplement 48156b23...e7ed"], "note": "The unmodified v4 child report remains FAIL only for M01 because its Win10-only storage cmdlets are unavailable on Win7; coordinator supplementation proves the same physical-SSD assertion." },
+    { "id": "RC-07", "status": "pass", "evidence": ["success", "corrupt-staged-file", "activation-corruption", "independent exact-kit verifier PASS"] },
+    { "id": "RC-08", "status": "pass", "evidence": ["retain", "purge", "independent exact-kit verifier PASS"] },
+    { "id": "RC-09", "status": "pass", "evidence": ["Bitvise RUNNING", "SSH 22 LISTENING", "zero relevant process residue", "byte-identical boot/service/routes/firewall/PATH snapshots"] },
+    { "id": "RC-10", "status": "pass", "evidence": ["Ed25519 lease lease-A7-RC-20260820-055210", "64-file evidence manifest 045dd72f...9270", "coordinator WIN7_PASS", "lease RELEASED"] }
+  ]
+}

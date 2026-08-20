@@ -14,8 +14,8 @@
 | 阶段 1：Capability Probe | 进行中 | 仅现有 Phase 1 任务书白名单 |
 | 阶段 2：只读代码分析 Agent | 进行中 | 仅现有 Phase 2 分支与白名单 |
 | SPIKE_01~04（Win7 兼容性验证，见下） | 分项收口：SPIKE_02 低风险非交互 PASS/交互 No-Go；SPIKE_04 本地 SSD PASS；SPIKE_01/03 保持既有证据口径 | 各 Spike 任务书白名单 |
-| 阶段 3–7 | 候选实现已进入 main；当前 main `ec9d27a` 的 7 模块 969 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
-| A7 Win7 v1 RC | `A7_GATE=PASS_FOR_WIN7_V1_RC`；独立分支已授权，RC 未构建/未验收，尚未进入 main | `codex/a7-release-candidate` 的 `RC_01` 任务书 |
+| 阶段 3–7 | 候选实现已进入 main；A7 收口基线 7 模块 983 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
+| A7 Win7 v1 RC | `RC_PASS`；已完成三层验证、RC-01～RC-10 和 main 整合 | `RC_01_WIN7_RELEASE_CANDIDATE.md` |
 
 对标 Codex 的整体裁决记录于 ADR-0028~0035，并已由 ADR-0036 接受（附 Spike 条件）；
 性能口径统一引用 `docs/PERFORMANCE_BUDGET.md`（ADR-0033）。
@@ -104,8 +104,8 @@
 - 用户交互终端与 Agent 非交互工具执行采用隔离通道；当前 Win7 v1 明确不装配交互 winpty，
   未来若重新引入，必须另立授权任务并重新完成兼容性、安全与实机验收。
 - 并发与多 Agent 可在资源、锁和审计模型就绪后逐步启用，不再被全局禁止。
-- D-013 v24 低风险非交互 Runner 已取得 Win7 PASS，等待 A7 产品装配；交互终端、任意 Shell、
-  高风险和未知 Profile 继续 fail-closed，不能由 Mock 或历史 `taskkill` 路径替代。
+- D-013 v24 低风险非交互 Runner 已在 A7 RC 完成产品装配与 Win7 验收；
+  交互终端、任意 Shell、高风险和未知 Profile 继续 fail-closed，不能由 Mock 或历史 `taskkill` 路径替代。
 
 ## 阶段 7 — Desktop Shell、集成与交付（最小真实入口已通过 Win7 MVP smoke，完整产品待装配）
 
@@ -118,20 +118,20 @@
 ## Phase 3–7 整合基线
 
 - 任务书：`docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md`。
-- `codex/integrated-robustness` 的 A4/A5/A6 收口提交 `793cc47` 已进入 main；当前 main 为
-  `ec9d27a`，与 `origin/main` 同步，7 模块 969 项开发机回归通过。
+- `codex/integrated-robustness` 的 A4/A5/A6 收口提交 `793cc47` 已进入 main；A7 又从该
+  唯一基线完成产品装配、发布闭包和三层验收。
 - 开发机证据和测试数量不在路线图中维护；请以 [`docs/STATUS.md`](STATUS.md) 和
   [`docs/status/latest-validation.json`](status/latest-validation.json) 中绑定 commit 的验证记录为准。
-- 仍缺：A7 产品装配与 RC-01～RC-10、Win7 E1/E2/E5/E7、企业代理/CA、完整发布闭包、
-  正式五视图与跨模块用户任务。SPIKE_02/04 的技术输入已形成受限结论，但不自动关闭 Phase 6/7 或 RC。
+- 仍缺：Win7 E1/E2/E5/E7、企业代理/CA、正式发布治理、完整五视图与跨模块用户任务。
+  A7 `RC_PASS` 不自动关闭这些独立 Phase 或企业 Gate。
 
-## A7 — Windows 7 v1 发布候选（独立分支已授权，main 尚未包含）
+## A7 — Windows 7 v1 发布候选（RC_PASS）
 
 - 基线：A4/A5/A6 收口提交 `793cc47`；工作分支 `codex/a7-release-candidate`。
 - 目标：只装配已验收的 D-013 v24 低风险非交互 Runner 与 D-014 本地 SSD Storage，生成自包含
   Win7 x64 RC，并完成 ASAR 外置、manifest、SBOM、许可证、安装、升级、失败回滚和卸载闭包。
-- 当前状态：任务授权已经存在于 A7 分支；截至 main `ec9d27a`，A7 任务书/实现尚未进入 main，
-  开发机、Win10 和 Win7 RC 验收均未产生，因此不得称为 RC PASS。
+- 当前状态：唯一 RC ZIP `39eecb6a…040c9` 已取得开发机、Win10 和 Win7 三层 PASS；
+  签名租约 `lease-A7-RC-20260820-055210` 已释放，协调器评分 `WIN7_PASS`。
 
 ## 后续扩展轨（未来待授权）
 

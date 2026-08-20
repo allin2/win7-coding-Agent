@@ -20,6 +20,7 @@ const { installSessionPolicy, installWindowPolicy } = require('./security-policy
 const { createDesktopHost } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
 const { createProductRunner } = require('./runner-runtime');
+const { createRcComposition } = require('./rc-composition');
 const { schemaValidator } = require('../dist/ipc/schema');
 const { IPCDirection, IPCMessageType } = require('../dist/ipc/messages');
 
@@ -47,6 +48,7 @@ const runtimeState = {
 let mainWindow = null;
 let smokeTimer = null;
 let desktopHost = null;
+let rcComposition = null;
 const acceptanceEvents = [];
 let acceptanceReportWritten = false;
 
@@ -135,6 +137,22 @@ function writeSmokeReport(status, exitCode, summary) {
         },
         evidence: [],
       },
+      ...(rcComposition ? [{
+        case_id: 'RC_PRODUCT_COMPOSITION',
+        status,
+        summary: 'The release composition verified its manifest-bound D-013 Runner and D-014 SQLite runtime before creating the Renderer.',
+        metrics: {
+          release_id: rcComposition.releaseId,
+          version: rcComposition.version,
+          runner_profile: rcComposition.runnerAcceptanceAction.profileId,
+          storage_profile: rcComposition.stateRuntimeProfile.profile,
+          sqlite_version: rcComposition.stateRuntimeProfile.sqliteVersion,
+          journal_mode: rcComposition.stateRuntimeProfile.journalMode,
+          interactive_terminal: rcComposition.disabledCapabilities.interactiveTerminal,
+          arbitrary_shell: rcComposition.disabledCapabilities.arbitraryShell,
+        },
+        evidence: [],
+      }] : []),
     ],
     evidence: [],
     notes: [
@@ -360,7 +378,19 @@ if (!hasSingleInstanceLock) {
       onPermissionDenied: (permission) => runtimeState.deniedPermissions.push(permission),
     });
     let productRunner = null;
-    if (runnerManifestPath || runnerManifestSha256) {
+    const rcRuntimePath = path.join(__dirname, '..', 'rc-runtime.json');
+    if (fs.existsSync(rcRuntimePath)) {
+      rcComposition = createRcComposition({
+        applicationRoot: path.join(__dirname, '..'),
+        userDataPath: app.getPath('userData'),
+        stateModule: requireModuleFromProduct('state/dist'),
+        runnerModule: requireModuleFromProduct('runner/dist'),
+      });
+      productRunner = {
+        runner: rcComposition.runner,
+        acceptanceAction: rcComposition.runnerAcceptanceAction,
+      };
+    } else if (runnerManifestPath || runnerManifestSha256) {
       try {
         productRunner = createProductRunner({
           runnerModule: requireModuleFromProduct('runner/dist'),
@@ -379,6 +409,15 @@ if (!hasSingleInstanceLock) {
         platform: process.platform,
       }),
       ...(productRunner ? { runner: productRunner.runner, runnerAcceptanceAction: productRunner.acceptanceAction } : {}),
+      ...(rcComposition ? {
+        ledger: rcComposition.ledger,
+        closeState: () => rcComposition.close(),
+        runnerWorkDirectory: rcComposition.runnerWorkDirectory,
+        stateCapability: rcComposition.stateCapability,
+        stateRuntimeProfile: rcComposition.stateRuntimeProfile,
+        disabledCapabilities: rcComposition.disabledCapabilities,
+        productIdentity: { product: 'Win7 Coding Agent RC', version: rcComposition.version },
+      } : {}),
       onTaskEvent: (event, task) => {
         if (acceptanceEventReportPath && acceptanceEvents.length < 5000) {
           acceptanceEvents.push(sanitizeAcceptanceValue(event));
@@ -406,7 +445,22 @@ if (!hasSingleInstanceLock) {
     } catch (error) {
       process.stderr.write('ACCEPTANCE_REPORT_ERROR:' + String(error && error.message ? error.message : error) + '\n');
     }
-    if (desktopHost) desktopHost.dispose();
+    if (desktopHost) {
+      try {
+        desktopHost.dispose();
+      } catch (error) {
+        runtimeState.errors.push('dispose:' + String(error && error.message ? error.message : error));
+        process.stderr.write('PRODUCT_DISPOSE_ERROR:' + String(error && error.stack ? error.stack : error) + '\n');
+      }
+    } else if (rcComposition) {
+      try {
+        rcComposition.close();
+      } catch (error) {
+        runtimeState.errors.push('dispose-rc:' + String(error && error.message ? error.message : error));
+        process.stderr.write('RC_DISPOSE_ERROR:' + String(error && error.stack ? error.stack : error) + '\n');
+      }
+    }
     desktopHost = null;
+    rcComposition = null;
   });
 }

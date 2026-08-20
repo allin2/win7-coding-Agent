@@ -820,3 +820,28 @@
 - 后果：只读 Runner 不再为无写入需求修改用户工作区安全描述符，降低普通桌面会话的失败面，但不
   放宽 child containment。需要本地写入的未来 profile 不能借用本 ADR 绕过临时 label 与回滚门禁；
   任意 Shell、高风险命令、未登记程序和交互式终端继续拒绝。
+
+## ADR-0073 RC v1 采用清单绑定的产品装配与 SQLite V2 事件账本
+
+- 状态：Accepted（2026-08-12，依据 `RC_01_WIN7_RELEASE_CANDIDATE.md` 的 RC-04 授权）
+- 背景：A4/A5 已证明 D-013 受控非交互 Runner 的 Win7 边界，A6 已证明 D-014
+  `better-sqlite3 8.7.0 / SQLite 3.43.1` 的正式存储 Profile；但既有桌面宿主仍以开发期的条件注入
+  和内存 EventLedger 运作，不能证明安装候选真正装配了锁定原生工件、持久状态和 fail-closed
+  启动路径。RC-04 必须把两条已验收能力接入同一产品入口，同时保持 Win10、Win7 和 RC 验收门禁
+  相互独立。
+- 决策：（1）当安装包内存在 `rc-runtime.json` 时，Electron 主进程必须在创建 Renderer 前完成
+  RC composition；它逐文件复核 release manifest、D-013 helper、D-014 native binding 和
+  `better-sqlite3` 包版本，任何缺失、哈希或 ABI/Profile 不匹配均拒绝启动。（2）RC v1 只注册一个
+  manifest 锁定的低风险 `whoami.exe` 非交互 Runner profile，工作目录位于私有 RC 数据根；交互
+  终端、任意 Shell、网络盘和 HDD 性能声明保持关闭。（3）状态层采用 schema version 1 的 SQLite
+  EventLedger，事件协议保持 V2；固定 SQLite 3.43.1、FTS5、WAL、`quick_check`、单线程模式和
+  ABI 110，写入使用原子事务，事件不可变且按线程连续编号，并执行 64 KiB 单事件与 100,000 条
+  容量上限。（4）启动恢复必须验证全部已存事件指纹及线程序列，损坏或缺口 fail-closed；正常关闭
+  执行 WAL truncate checkpoint 并关闭数据库。（5）持久化范围仅为审计事件事实；现有桌面 session
+  catalog 继续为进程内状态，不得把“重启后事件仍可读取”扩大为完整会话恢复承诺。（6）开发机的
+  结构、单测与确定性打包只能形成 `DEVELOPMENT_PASS`；Win10 产品 smoke、Win7 唯一租约验收和
+  RC 总体结论必须分别执行并记录，禁止相互替代。
+- 后果：RC 安装候选拥有单一、可审计且失败关闭的 D-013/D-014 产品装配入口，原生工件与运行配置
+  由同一 release manifest 绑定；代价是启动时增加完整性与恢复扫描，数据库 schema 或持久化范围
+  的未来变化必须提升版本并另行设计迁移。RC-04 的 Windows product smoke 未完成前仍是部分收口，
+  本 ADR 不签发 Win7 租约，也不授权交互终端或新增产品能力。

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "release_id": "WIN7-CODING-AGENT-RC1",
+  "version": "0.1.0-rc.1",
+  "source_date_epoch": 1786464000,
+  "target": {
+    "os": "Windows 7 SP1 build 7601",
+    "architecture": "x64",
+    "delivery": "SELF_CONTAINED_OFFLINE_WIN7_X64"
+  },
+  "runtime_profiles": {
+    "runner": {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "executable_sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "output_encoding": "cp936",
+      "working_directory_token": "${RC_RUNNER_WORK_ROOT}",
+      "argv_exact": [[], ["/all"]]
+    }
+  },
+  "inputs": {
+    "electron_zip": {
+      "filename": "electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+      "required_entry": "electron.exe",
+      "required_entry_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+    },
+    "runner_return_zip": {
+      "filename": "WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip",
+      "sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+      "required_entry": "output/helper.exe",
+      "required_entry_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "profile": "D-013-v24-low-risk-noninteractive"
+    },
+    "storage_return_zip": {
+      "filename": "WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "required_entry": "output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "required_entry_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "version": "8.7.0",
+      "sqlite": "3.43.1",
+      "electron_abi": 110,
+      "profile": "E22-SQLITE343-LOCAL-SSD"
+    }
+  },
+  "forbidden_payload_patterns": [
+    "node_modules/.cache/",
+    ".git/",
+    ".env",
+    "id_rsa",
+    "private.pem",
+    "winpty",
+    "node-pty"
+  ]
+}

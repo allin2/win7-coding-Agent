@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC0708-LIFECYCLE-KIT-20260819-04",
+  "supersedes": "A7-RC0708-LIFECYCLE-KIT-20260819-03",
+  "recorded_at_utc": "2026-08-18T17:24:44Z",
+  "branch": "codex/a7-release-candidate",
+  "source_task": "docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md",
+  "status": "V2_WINDOWS_RC07_RC08_PASS_FULL_WIN10_PASS_WIN7_RC_NOT_PERFORMED",
+  "scope": [
+    "RC-07 side-by-side staging with strict release-manifest tree equality",
+    "wrapper-performed sibling directory rename activation and rollback",
+    "injected staged-file corruption detection before activation",
+    "injected post-activation corruption with byte-identical rollback and no mixed versions",
+    "RC-08 uninstall with quarantine hosting and explicit retain/purge user-data policy",
+    "zero-residue audits with host-process-aware process snapshots",
+    "exact child exit-code recording for every phase and round",
+    "single delivery ZIP packaging the locked new candidate, the renamed previous-candidate copy, the lifecycle kit, a SHA-256 manifest and the operator prompt"
+  ],
+  "validation_kit_v1": {
+    "filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip",
+    "kit_id": "A7-RC0708-WINDOWS-LIFECYCLE-20260816-V1",
+    "source_commit": "e10b2a145e91c4c8e952ac305192e54f20d5a495",
+    "working_path": "release/win7-rc/out/RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-lifecycle-kit-v1-20260816",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 18407,
+    "sha256": "0103998bf39fca18aa08df40a5056a0a96d3194f906790039ce9db7bd044f1ff",
+    "zip_files": 8,
+    "manifest_bound_payload_files": 7,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true,
+    "target_candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "windows_execution": "EXECUTED_ATTEMPT_1_EVIDENCE_INELIGIBLE"
+  },
+  "win10_delivery_v1": {
+    "deliverable": "A7-RC0708-WIN10-DELIVERY-20260816-V1",
+    "zip_filename": "RC0708_WIN10_DELIVERY_20260816.zip",
+    "zip_size": 201260387,
+    "zip_sha256": "9b49b6a1356c76688400dcdb69a6d204c7c1ed8049605b613d5e17b47f008ef2",
+    "builder": "scripts/release/build-rc0708-win10-delivery.mjs",
+    "source_commit": "624c7d1258835180ebfd947fd606c82b7b5c49b6",
+    "working_path": "release/win7-rc/out/RC0708_WIN10_DELIVERY_20260816.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-win10-delivery-20260816",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true,
+    "packages": [
+      {
+        "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+        "size": 100878367,
+        "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+        "role": "locked new candidate - name preserved because the harness stage binds basename"
+      },
+      {
+        "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64-PREVIOUS-f24d9a4.zip",
+        "size": 100877883,
+        "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+        "role": "renamed byte copy of the previous candidate f24d9a4 - upgrade source proving a real version advance"
+      },
+      {
+        "filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260816-v1.zip",
+        "size": 18407,
+        "sha256": "0103998bf39fca18aa08df40a5056a0a96d3194f906790039ce9db7bd044f1ff",
+        "role": "lifecycle harness kit"
+      }
+    ],
+    "inner_manifest": "RC0708_WIN10_DELIVERY_SHA256.txt",
+    "operator_prompt": "RC0708_WIN10_OPERATION_PROMPT.txt",
+    "handoff": "DELIVERED_TO_USER_FOR_WIN10_EXECUTION_20260818"
+  },
+  "windows_attempt_1_v1": {
+    "executed": "2026-08-19",
+    "host": "Windows 10 19045 x64",
+    "operator_claim": "FIVE_ROUNDS_PASS",
+    "formal_disposition": "FAIL_CLOSED_KIT_MUTATED_EVIDENCE_INELIGIBLE",
+    "reason": "The operator added alias CJS files, injected process.noAsar, changed manifest-bound CMD wrappers and added a new orchestration CMD before execution. The reports therefore describe an unmanifested local derivative rather than the delivered v1 kit. The report also incorrectly stated that CMD wrappers were outside KIT_MANIFEST; both wrappers were manifest-bound in v1.",
+    "return_zip": {
+      "original_path": "/Users/qlyf/Downloads/return-to-dev-20260819.zip",
+      "archive_path": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt1-v1-20260819/return-to-dev-20260819.zip",
+      "size": 14725,
+      "sha256": "22134211f16409e39eb45dbbc804aafd214c5a685b94910d214b7dc43c78780e",
+      "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+      "returned_files": 21
+    },
+    "reported_rounds": { "rc07": 3, "rc08": 2, "report_statuses": "PASS", "accepted_for_gate": false },
+    "gate_effect": "NONE"
+  },
+  "validation_kit_v2": {
+    "filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2.zip",
+    "kit_id": "A7-RC0708-WINDOWS-LIFECYCLE-20260819-V2",
+    "source_commit": "5eb2b29ee7955c33bbd18d8f2ec0aa9752f88dd4",
+    "working_path": "release/win7-rc/out/RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-lifecycle-kit-v2-20260819",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 20952,
+    "sha256": "0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2",
+    "manifest_sha256": "929c3a1853bd9b06eb958cdba1527f56e73ae1469f705742c09049a11a859e17",
+    "zip_files": 9,
+    "manifest_bound_payload_files": 8,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true,
+    "target_candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "fixes": [
+      "package and require paths use the same lower-hyphen module names",
+      "process.noAsar is set before file-system verification",
+      "packaged CMD wrappers are ASCII CRLF and manifest-bound",
+      "every phase verifies KIT_MANIFEST, exact entrypoint hash and absence of unmanifested control files",
+      "reports carry kit_provenance and the independent verifier binds it to the delivered kit ZIP"
+    ],
+    "windows_execution": "PASS_ATTEMPT_2"
+  },
+  "win10_delivery_v2": {
+    "deliverable": "A7-RC0708-WIN10-DELIVERY-20260819-V2",
+    "zip_filename": "RC0708_WIN10_DELIVERY_20260819-v2.zip",
+    "zip_size": 201263145,
+    "zip_sha256": "f7ced50b9072f25448dede7e33a9eaf6d61ac0e75c481b0e31e78f4baf261137",
+    "builder": "scripts/release/build-rc0708-win10-delivery.mjs",
+    "source_commit": "2f4bccf395c907b0cf1a3416c9888a12e647d025",
+    "working_path": "release/win7-rc/out/RC0708_WIN10_DELIVERY_20260819-v2.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-win10-delivery-v2-20260819",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true,
+    "kit_manifest_sha256": "929c3a1853bd9b06eb958cdba1527f56e73ae1469f705742c09049a11a859e17",
+    "packages": [
+      { "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip", "size": 100878367, "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9", "role": "locked new candidate" },
+      { "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64-PREVIOUS-f24d9a4.zip", "size": 100877883, "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5", "role": "renamed byte-identical previous candidate used as the upgrade source" },
+      { "filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2.zip", "size": 20952, "sha256": "0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2", "role": "immutable lifecycle harness kit" }
+    ],
+    "inner_manifest": "RC0708_WIN10_DELIVERY_SHA256.txt",
+    "operator_prompt": "RC0708_WIN10_OPERATION_PROMPT.txt",
+    "handoff": "EXECUTED_AND_INDEPENDENTLY_VERIFIED_PASS"
+  },
+  "windows_attempt_2_v2": {
+    "executed": "2026-08-19",
+    "host": "Windows 10 19045 x64",
+    "formal_disposition": "RC07_RC08_WINDOWS_PASS",
+    "return_zip": {
+      "original_path": "/Users/qlyf/Downloads/RC0708_V2_WINDOWS_RETURN_20260819-011417.zip",
+      "archive_path": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0708-windows-attempt2-v2-20260819/RC0708_V2_WINDOWS_RETURN_20260819-011417.zip",
+      "size": 17794,
+      "sha256": "00464f63dd9808d8cf52da2692539acb25261d04e36ad200c3591b3db2047ba8",
+      "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+      "evidence_files": 20
+    },
+    "report_sha256": "883da1a6583aa608bb8c03213115a3e152515cd1103474d7d081b8002965652d",
+    "independent_verifier": "PASS",
+    "reported_rounds": { "rc07": 3, "rc08": 2, "statuses": "PASS", "exit_codes": "ZERO" },
+    "kit_provenance": {
+      "kit_id": "A7-RC0708-WINDOWS-LIFECYCLE-20260819-V2",
+      "kit_sha256": "0c3be0323e07b5caa1541ad9c0daa7977440c47b625ef64b559eccadb0f155d2",
+      "manifest_sha256": "929c3a1853bd9b06eb958cdba1527f56e73ae1469f705742c09049a11a859e17",
+      "manifest_files_verified": true,
+      "unexpected_control_files": []
+    },
+    "residue": "NONE",
+    "system_configuration_changed": false,
+    "gate_effect": "RC07_WINDOWS_PASS_AND_RC08_WINDOWS_PASS"
+  },
+  "design": {
+    "activation_mechanism": "Sibling directory renames performed by the cmd wrapper between harness phases; the harness always runs from an electron.exe inside a tree that must never be renamed while live",
+    "phase_exit_contract": { "ok": 0, "fatal": 1, "stage_complete_activation": 42, "rollback_required": 43 },
+    "upgrade_scenarios": ["success", "corrupt-staged-file", "activation-corruption"],
+    "pre_upgrade_install": "previous candidate f24d9a4 ZIP 909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5 (archived read-only) so RC07-U01 proves a real version advance",
+    "extraction": "Candidate zip nests one root directory; the harness extracts to a scratch sibling and renames the zip root into place as the staging directory",
+    "uninstall": "preflight lock probe on the version file (electron.exe hosts the harness and cannot be renamed), quarantine rename, finalize applies retain/purge policy, wrapper removes quarantine and the transcript proves removal",
+    "process_snapshots": "host-aware: the only permitted electron.exe is the harness process itself",
+    "registration_surface": "none - no registry, service or PATH entries are created by the product",
+    "same_name_resolution": "the new and previous candidates share the base filename, so the previous candidate is delivered as a renamed byte copy with an identical SHA-256; Windows can then distinguish the two without touching the locked new candidate filename"
+  },
+  "developer_validation": {
+    "full_repository_verify": { "status": "PASS", "modules": 7, "tests": 983 },
+    "release_contract_tests": { "status": "PASS", "tests": 34 },
+    "rc0708_contract_tests": { "status": "PASS", "tests": 12 },
+    "candidate_zip_layout_contract": "PASS (731-entry nesting verified against the real 39eecb6a...040c9 artifact)",
+    "kit_integrity_contract": "PASS (manifest-bound exact entrypoint, no unmanifested control files and report provenance required)",
+    "delivery_builder_contract": "PASS (locked package hashes verified, KIT ZIP and KIT_MANIFEST hashes separated, deterministic rebuild twice with identical SHA-256)",
+    "v1_attempt_under_v2_verifier": "REJECTED_AS_EXPECTED",
+    "documentation_check": "PASS",
+    "json_parse": "PASS",
+    "diff_check": "PASS"
+  },
+  "qualification": {
+    "product_candidate_rebuild_required": false,
+    "product_command_surface_changed": false,
+    "external_network_used": false,
+    "new_dependency": false,
+    "interactive_terminal_included": false
+  },
+  "gates": {
+    "rc07_windows": "PASS",
+    "rc08_windows": "PASS",
+    "win10": "PASS",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "system_configuration_changed": false,
+    "rebooted": false
+  }
+}

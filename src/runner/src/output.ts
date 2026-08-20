@@ -65,22 +65,38 @@ export class OutputCapture {
   }
 
   toResult(): CapturedStream {
-    const retained = this._truncated
-      ? Buffer.concat([this.head, this.tail])
-      : Buffer.concat(this.complete);
-    const omittedBytes = this._bytesRead - retained.length;
+    if (this._truncated) {
+      // Head and tail are separated by omitted bytes, so decoding their
+      // concatenation can pair bytes that were never adjacent. Align both cut
+      // edges independently to preserve CP936/UTF-8 character boundaries.
+      const head = decodeAtTruncationBoundary(this.head, this.preferredEncoding, 'end');
+      const tail = decodeAtTruncationBoundary(this.tail, this.preferredEncoding, 'start');
+      const bytesRetained = head.bytes.length + tail.bytes.length;
+      const omittedBytes = this._bytesRead - bytesRetained;
+      const replacementCount = countReplacements(head.text) + countReplacements(tail.text);
+      const encoding = replacementCount === 0 && head.encoding === tail.encoding
+        ? head.encoding
+        : 'unknown';
+      return {
+        text: `${head.text}\n\n[output truncated: ${omittedBytes} bytes omitted; refine the command or filter its output]\n\n${tail.text}`,
+        bytesRead: this._bytesRead,
+        bytesRetained,
+        omittedBytes,
+        truncated: true,
+        encoding,
+        replacementCount,
+      };
+    }
+
+    const retained = Buffer.concat(this.complete);
     const decodedResult = decodeBytes(retained, this.preferredEncoding);
-    const decoded = decodedResult.text;
-    const replacementCount = (decoded.match(/\uFFFD/g) ?? []).length;
-    const text = this._truncated
-      ? `${decodeBytes(this.head, this.preferredEncoding).text}\n\n[output truncated: ${omittedBytes} bytes omitted; refine the command or filter its output]\n\n${decodeBytes(this.tail, this.preferredEncoding).text}`
-      : decoded;
+    const replacementCount = countReplacements(decodedResult.text);
     return {
-      text,
+      text: decodedResult.text,
       bytesRead: this._bytesRead,
       bytesRetained: retained.length,
-      omittedBytes,
-      truncated: this._truncated,
+      omittedBytes: 0,
+      truncated: false,
       encoding: replacementCount === 0 ? decodedResult.encoding : 'unknown',
       replacementCount,
     };
@@ -116,6 +132,31 @@ function decodeBytes(value: Buffer, preferred: StreamEncoding): {
   return cp936.text.includes('\uFFFD')
     ? { text: utf8, encoding: 'unknown' }
     : cp936;
+}
+
+function decodeAtTruncationBoundary(
+  value: Buffer,
+  preferred: StreamEncoding,
+  boundary: 'start' | 'end',
+): { bytes: Buffer; text: string; encoding: CapturedStream['encoding'] } {
+  const original = decodeBytes(value, preferred);
+  if (!original.text.includes('\uFFFD')) return { bytes: value, ...original };
+
+  // CP936 needs at most one cut byte removed; UTF-8 needs at most three.
+  // `auto` may select either encoding, so it uses the larger safe bound.
+  const maxTrim = preferred === 'cp936' ? 1 : 3;
+  for (let trim = 1; trim <= Math.min(maxTrim, value.length); trim += 1) {
+    const candidate = boundary === 'start'
+      ? value.subarray(trim)
+      : value.subarray(0, value.length - trim);
+    const decoded = decodeBytes(candidate, preferred);
+    if (!decoded.text.includes('\uFFFD')) return { bytes: candidate, ...decoded };
+  }
+  return { bytes: value, ...original };
+}
+
+function countReplacements(value: string): number {
+  return (value.match(/\uFFFD/g) ?? []).length;
 }
 
 function decodeCp936(value: Buffer): { text: string; encoding: CapturedStream['encoding'] } {

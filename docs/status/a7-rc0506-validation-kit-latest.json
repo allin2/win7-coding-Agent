@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "record_id": "A7-RC0506-VALIDATION-KIT-20260816-06",
+  "recorded_at_utc": "2026-08-16T14:38:30Z",
+  "branch": "codex/a7-release-candidate",
+  "kit_source_commit": "46ccd9009f19db2de79f1c166392fc441a031fc6",
+  "status": "V4_WINDOWS_EXECUTED_RC05_RC06_PASS_INDEPENDENTLY_VERIFIED",
+  "target_candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "release_manifest_sha256": "ff1a46ffa517dc84602767db144cffcae6bdcfc3300ca52949001997141932d0",
+    "changed_by_validation_kit": false,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true,
+    "prior_candidate_archive": "/Users/qlyf/Developer/win7-agent-artifacts/a7/product-candidate-f24d9a4-20260812"
+  },
+  "validation_kit_v2": {
+    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260813-v2.zip",
+    "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260813-V2",
+    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260813-v2.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-validation-kit-v2-20260813",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 12294,
+    "sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
+    "sidecar_sha256": "1d5fad40f664a30ebe744e480644d1c149a122c9b4c4950059e2a8170ade05bb",
+    "build_result_sha256": "e31ef327a00da1138b49c5f1669fa59c73640a33899bcf766006acf0e5ceb9fe",
+    "zip_files": 4,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true
+  },
+  "validation_kit": {
+    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260814-v3.zip",
+    "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260814-V3",
+    "source_commit": "f47fd8404ca3490d9ab6b78aa9eb204d48890dd1",
+    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260814-v3.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-v3-ready-20260814/kit",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 13502,
+    "sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
+    "sidecar_sha256": "386cefe7d6c8eb4b90367faefe55d9e43c47afc290e7c51c998234fcc5a30714",
+    "build_result_sha256": "2828e87e6a58e3937c786b0b76d2db0bbb5419c409aa84aba1cd0e011ce9f17d",
+    "manifest_sha256": "ff0eb5fe1298275f95ca9fadb26366d124c3d0249d808c6b51ca37ec2cc2887c",
+    "zip_files": 6,
+    "manifest_bound_payload_files": 5,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true
+  },
+  "attempt_1": {
+    "status": "FAIL_CLOSED",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt1-20260813",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "rc05": "FAIL_RC05_P02",
+    "rc06": "PROVISIONAL_PASS_NOT_FORMALLY_ACCEPTED_EXTERNAL_PRELOAD",
+    "summary": "NOT_GENERATED",
+    "fatal": "RC0506_SUMMARY_INVALID",
+    "reported_process_exit_code": 0,
+    "adjudication": "REJECTED_FOR_GATE_ADVANCEMENT",
+    "evidence_sha256": {
+      "report": "518e74f8b55579716cff8f452bab7853ac868134c6a2ee7672af9c859ba0bb54",
+      "rc05": "729087fbe764aadf5ee43f0bde1d8350f4eaf3340364ad172f4259f629b366d8",
+      "fatal": "2efdb2e0baad13c3b42e2005d1e2a937f107b3b90dd5250d5b738242213ec7b9",
+      "rc06": "6a93f9d96d6745129d668c629cc5e8dc5f54d9b1911e4252a1f1e40c83452f3d",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e"
+    }
+  },
+  "attempt_2_v2": {
+    "status": "FAIL_CLOSED",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt2-v2-20260814",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "kit_sha256": "3aaaa718efe68ba45e1b510cab707d147f42230a8b9fd692df014a891f108a8a",
+    "candidate_sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+    "rc05": "FAIL_RC05_P02",
+    "rc06": "PASS",
+    "summary": "FAIL",
+    "fatal": "RC0506_CASES_FAILED:RC05=FAIL:RC06=PASS",
+    "reported_process_exit_code": 0,
+    "expected_process_exit_code": 1,
+    "exit_code_evidence": "CONTRADICTS_MANIFEST_BOUND_HARNESS_PROCESS_EXIT_1",
+    "adjudication": "RC06_WINDOWS_PASS_RC05_AND_COMBINED_GATE_FAIL_CLOSED",
+    "independent_review": {
+      "full_verifier": "REJECTED_FATAL_EVIDENCE_PRESENT",
+      "rc05_validator": "FAIL_RC05_CASE_FAILED_RC05_P02",
+      "rc06_validator": "PASS",
+      "production_database_quick_check": "ok",
+      "production_events": 2,
+      "fts_rows": 2,
+      "wal_shm_residue": []
+    },
+    "defects": [
+      "loopback ping is environment-dependent and returned exit code 1",
+      "CP936 head/tail truncation emitted replacement characters while replacement_count remained zero",
+      "human report exit code 0 contradicts the harness fail-closed exit contract"
+    ],
+    "evidence_sha256": {
+      "summary": "186029697e596f5125606c6ec402b7e6883480838636901bc828d256aafad9fd",
+      "fatal": "89b8d9077906b927bc744db4b9ec28acbb2dd9db41101c7cb2cf2c5ed75e276e",
+      "report": "c40124398e77f1ce15b580915654fa2f501720a188167f22e14b7ccc75c9bcaf",
+      "rc05": "bbf1fb52a38f38a66c4f335828a05fb81765e735fa26900560434c658b3a0502",
+      "rc06": "5439758ff131d17d15c62d6355efd8e23c73ccbd100c45217c4403d40715e60c",
+      "production_database": "0070c1167018ca652c54638da8c0a81d922efe44a81013d31ad6e08b6a9b9640",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e"
+    }
+  },
+  "v3_remediation": {
+    "status": "EXECUTED_ON_WINDOWS_FAIL_CLOSED_AT_RC05",
+    "runner_output": "BOUNDARY_ALIGNED_CP936_UTF8_HEAD_TAIL_DECODING",
+    "positive_probe": "MANIFEST_BOUND_NETWORK_FREE_LOCAL_BYTE_PROBE_VIA_CANDIDATE_ELECTRON",
+    "process_exit_capture": "RUN_RC0506_CMD_RECORDS_AND_RETURNS_EXACT_CHILD_EXIT_CODE",
+    "product_command_surface_changed": false,
+    "new_dependency": false,
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "validation_kit_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
+    "windows_execution": "PERFORMED_20260816_SEE_ATTEMPT_3_V3"
+  },
+  "attempt_3_v3": {
+    "status": "FAIL_CLOSED",
+    "executed_at_local": "2026-08-16 21:25 (+0800)",
+    "host": "Windows 10 专业版 19045 x64 (win-2jq66je4htq\\administrator)",
+    "media": "local NTFS SSD (WD Blue SN570 500GB NVMe, C:)",
+    "return_zip": {
+      "path": "/Users/qlyf/Downloads/return-to-dev-20260816.zip",
+      "size": 22204,
+      "sha256": "5e02a7e567df8fcf2323ec96dcced394c3fec5f778bf81e105bcbff0a8106a0e",
+      "manifest_entries_verified": "15/15 size and SHA-256 match; 7/7 JSON parseable"
+    },
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "kit_sha256": "9cbe6be7e530c0f57245010db6d21845a925ca38632cda6075924f9aa7172b1e",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "rc05": "FAIL_RC05_P02_C01_CONTAINMENT_UNAVAILABLE",
+    "rc06": "PASS",
+    "rc04_companion_smoke": "PASS_TWO_ROUNDS_3_OF_3_EXIT_0",
+    "summary": "FAIL",
+    "fatal": "RC0506_CASES_FAILED:RC05=FAIL:RC06=PASS",
+    "reported_process_exit_code": 1,
+    "expected_process_exit_code": 1,
+    "exit_code_contract": "HONORED",
+    "adjudication": "RC06_WINDOWS_PASS_RC05_V3_HARNESS_INCOMPATIBLE_WITH_HELPER_ALLOW_LIST",
+    "root_cause": "The v3 harness registered the packaged electron.exe as profile rc05-harness-local-probe. The D-013 native helper's independent C06 allow-list (spikes/02-terminal-containment/helper/whitelist.cpp) only allows real-System32 direct children cmd/where/reg/whoami/findstr/ping/tasklist/certutil, so the helper rejected electron.exe before creating the Job with CONTAINMENT_UNAVAILABLE. The rejection itself is correct fail-closed helper behavior; the v3 kit design was incompatible with it.",
+    "rc05_case_detail": {
+      "RC05-N01": "PASS",
+      "RC05-P01": "NOT_APPLICABLE_TARGET_PROFILE_HASH (Win10 whoami bytes differ from the Win7 target pin; expected)",
+      "RC05-P02": "FAIL - positive and bounded requests returned capability_unavailable/CONTAINMENT_UNAVAILABLE, containment=none",
+      "RC05-N02": "PASS",
+      "RC05-C01": "FAIL - cancellation never reached a cancellable child process; cancelled and job_object assertions failed",
+      "RC05-Z01": "PASS"
+    },
+    "process_residue": { "electron_before": 0, "electron_after": 0, "helper_before": 0, "helper_after": 0 },
+    "evidence_sha256": {
+      "summary": "f93b7c00ba07d13bd86187cf70620e4e5e2390bb8c49e628c8a676c2c80956d7",
+      "fatal": "89b8d9077906b927bc744db4b9ec28acbb2dd9db41101c7cb2cf2c5ed75e276e",
+      "rc05": "eeacd3d21582efc32f6a61bafa7b4927fd39944c4fad5d4cdb9d236676275059",
+      "rc06": "c50675d5b847007986a81332ae7476e76297d40884ead0f7627962718de48404",
+      "rc04_summary": "d7b284aaefad2cb9388946694b1e267f472abd4c9bf7821839c02163382b19c7",
+      "production_database": "0070c1167018ca652c54638da8c0a81d922efe44a81013d31ad6e08b6a9b9640",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e",
+      "process_exit_code": "9de812fa5276b3a3d182ee7aa40b84876f6f99612ed87ee2d8083b34253bbc66"
+    }
+  },
+  "v4_remediation": {
+    "status": "EXECUTED_AND_VERIFIED_ON_WINDOWS_SEE_ATTEMPT_4_V4",
+    "source_commits": {
+      "harness_fix": "8388222",
+      "kit_bound_commit": "ef1486e9ea1560574b1c4a5fc24d86287d01f056"
+    },
+    "constraint": "PRODUCT_HELPER_ALLOW_LIST_NOT_EXPANDED",
+    "positive_probe": "SYSTEM32_FINDSTR_RUNTIME_HASH_BOUND_LOCAL_DETERMINISTIC_FIXTURE",
+    "bounded_probe": "SAME_FINDSTR_FIXTURE_UNDER_128_BYTE_OUTPUT_CAP",
+    "cancellation_probe": "SYSTEM32_PING_LOOPBACK_ONLY_RUNTIME_HASH_BOUND",
+    "helper_allowlist_contract_check": "ADDED_HARNESS_PREFLIGHT_PLUS_12_RC0506_CONTRACT_TESTS",
+    "fixture_binding": "215_BYTES_GENERATED_BY_MANIFEST_BOUND_HARNESS_CODE_SHA256_f1e8bf3520cd6add983e8f824236b8bc0ea8524f09ca5850c18b9c9744367da9_RECORDED_IN_EVIDENCE",
+    "external_network": false,
+    "product_candidate_rebuild_required": false
+  },
+  "validation_kit_v4": {
+    "filename": "RC0506_WINDOWS_VALIDATION_KIT_20260816-v4.zip",
+    "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260816-V4",
+    "source_commit": "ef1486e9ea1560574b1c4a5fc24d86287d01f056",
+    "working_path": "release/win7-rc/out/RC0506_WINDOWS_VALIDATION_KIT_20260816-v4.zip",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-v4-ready-20260816/kit",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "size": 14239,
+    "sha256": "ff5a26efefff947df4166cf2f3a49cddfcd5c7f17d81301360654493b358c6d5",
+    "zip_files": 5,
+    "manifest_bound_payload_files": 4,
+    "deterministic_rebuilds": 2,
+    "deterministic_rebuild_sha256_match": true,
+    "target_candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "readme_candidate_hash_fixed": true,
+    "windows_execution": "PERFORMED_20260816_SEE_ATTEMPT_4_V4"
+  },
+  "attempt_4_v4": {
+    "status": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "executed_at_local": "2026-08-16 22:32 (+0800)",
+    "host": "Windows 10 专业版 19045 x64, local NTFS SSD (WD Blue SN570 500GB, C:)",
+    "kit_sha256": "ff5a26efefff947df4166cf2f3a49cddfcd5c7f17d81301360654493b358c6d5",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "return_zip": {
+      "path": "/Users/qlyf/Downloads/return-to-dev-20260816(1).zip",
+      "size": 17718,
+      "sha256": "9c3d5baee581a369ba3a9b7cd287bb1c2ae23f6c2c54b6041911be794f39080d",
+      "manifest_entries_verified": "10/10 size and SHA-256 match; all JSON parseable"
+    },
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt4-v4-20260816",
+    "archive_mode": "READ_ONLY_BYTE_PRESERVED",
+    "rc05": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "rc06": "PASS",
+    "summary": "PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED",
+    "reported_process_exit_code": 0,
+    "expected_process_exit_code": 0,
+    "exit_code_contract": "HONORED",
+    "rc05_case_detail": {
+      "RC05-N01": "PASS",
+      "RC05-P01": "NOT_APPLICABLE_TARGET_PROFILE_HASH (expected Win7 whoami pin deferral)",
+      "RC05-P02": "PASS - findstr exit 0, 215 bytes CP936 with replacement_count=0; bounded run retained 127 of 215 bytes with 88 omitted and zero replacement characters",
+      "RC05-N02": "PASS",
+      "RC05-C01": "PASS - ping 127.0.0.1 cancelled with job_object containment, child_job_assignment_verified and acl_rollback_verified",
+      "RC05-Z01": "PASS"
+    },
+    "fixture_binding_verified": "fixture_sha256 matched the harness-recorded constant f1e8bf3520cd6add983e8f824236b8bc0ea8524f09ca5850c18b9c9744367da9",
+    "independent_verifier": "PASS (verify-rc0506-evidence.mjs bound kit_id, candidate, report hashes, both databases and exit code)",
+    "process_residue": { "electron_before": 0, "electron_after": 0, "helper_before": 0, "helper_after": 0 },
+    "adjudication": "RC05_AND_RC06_WINDOWS_PRELEASE_PASS_ON_CURRENT_CANDIDATE_WIN7_LEASE_STILL_REQUIRED",
+    "evidence_sha256": {
+      "summary": "5fd47acb513a6d2fea0c86404e09f07dda1fbe5b642eb204aa14d7aaed6bdda7",
+      "rc05": "538d45c049f5f98872881973490bd9bd9b4f5259c33d9d4f517dd079469c3501",
+      "rc06": "a637ac3956d563bebfee0c25f1f0140ac29eb3180b53db2cd1e13f423b7a5788",
+      "production_database": "0070c1167018ca652c54638da8c0a81d922efe44a81013d31ad6e08b6a9b9640",
+      "corruption_probe": "81870940ded84ff0c9149b132979ea003139f66da06ce6af2f3217efea004a2e",
+      "process_exit_code": "743a85a3c778602ff33758167525939a65eaf865b4d69b0398587c2060d964aa",
+      "report_md": "505f8244f498b7a5f4bcb09643f8efc951c816a8b57148b9e1898f9a9a807e23",
+      "transcript": "172ccb6f69141556965d27b93f87bed62f522ccccfe1131ef31542d90f65aea8"
+    }
+  },
+  "v2_coverage": {
+    "rc05": [
+      "product unknown and Shell rejection",
+      "product whoami structured exit and containment when host bytes equal the Win7 target hash",
+      "runtime-hash-bound harness-only loopback ping positive output and truncation",
+      "unknown, Shell, interactive stdin, secret overlay and high-risk rejection",
+      "harness-only loopback ping cooperative cancellation and zero new process residue"
+    ],
+    "rc06": [
+      "actual ABI 110 native binding load",
+      "SQLite 3.43.1, WAL, FTS5 and compile-option identity",
+      "Unicode and space path close/reopen recovery",
+      "FTS Unicode query and quick_check",
+      "atomic capacity and payload bounds",
+      "fingerprint corruption rejection on an isolated copy",
+      "UNC rejection, WAL/SHM cleanup and local NTFS SSD identity",
+      "returned production and intentionally corrupted databases independently hash-bound"
+    ]
+  },
+  "v3_coverage": {
+    "rc05": [
+      "product unknown and Shell rejection",
+      "product whoami structured exit and containment when host bytes equal the Win7 target hash",
+      "candidate-electron-hash-bound manifest probe positive CP936 output and boundary-safe truncation",
+      "unknown, Shell, interactive stdin, secret overlay and high-risk rejection",
+      "network-free local probe cooperative cancellation and zero new helper/electron process residue",
+      "wrapper-recorded process exit code"
+    ],
+    "rc06": [
+      "actual ABI 110 native binding load",
+      "SQLite 3.43.1, WAL, FTS5 and compile-option identity",
+      "Unicode and space path close/reopen recovery",
+      "FTS Unicode query and quick_check",
+      "atomic capacity and payload bounds",
+      "fingerprint corruption rejection on an isolated copy",
+      "UNC rejection, WAL/SHM cleanup and local NTFS SSD identity",
+      "returned production and intentionally corrupted databases independently hash-bound"
+    ]
+  },
+  "developer_validation": {
+    "full_repository_verify": {
+      "status": "PASS",
+      "modules": 7,
+      "tests": 983
+    },
+    "release_contract_tests": {
+      "status": "PASS",
+      "tests": 22
+    },
+    "runner_targeted_tests": {
+      "status": "PASS",
+      "tests": 67
+    },
+    "rc0506_contract_tests": {
+      "status": "PASS",
+      "tests": 12
+    },
+    "documentation_check": "PASS",
+    "syntax_check": "PASS",
+    "diff_check": "PASS",
+    "independent_return_verifier": "PASS_SYNTHETIC_AND_ATTEMPT1_ATTEMPT2_REJECTED",
+    "independent_v4_kit_verifier": "PASS_KIT_MANIFEST_LOCK_AND_README_BINDINGS_RECHECKED"
+  },
+  "qualification": {
+    "harness_only_profiles_enter_product_manifest": false,
+    "external_network_target_used": false,
+    "win10_system_binary_hash_difference": "RECORDED_AS_TARGET_PROFILE_DEFERRED_NOT_SUBSTITUTED",
+    "external_node_options_or_preload": "PROHIBITED",
+    "fresh_evidence_and_user_data_roots": "REQUIRED",
+    "product_candidate_rebuild_required": false
+  },
+  "gates": {
+    "rc04_windows_product_smoke": "CURRENT_CANDIDATE_WIN10_TWO_ROUND_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc05_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "rc06_windows": "CURRENT_CANDIDATE_V4_WIN10_PASS_WIN7_LEASE_NOT_PERFORMED",
+    "win10": "RC04_RC05_RC06_WINDOWS_EVIDENCE_COMPLETE_FULL_WIN10_LAYER_PENDING_RC03_RC07_RC08",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "safety": {
+    "win7_lease_issued": false,
+    "win7_connected": false,
+    "system_configuration_changed": false,
+    "rebooted": false
+  }
+}

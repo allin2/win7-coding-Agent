@@ -1,6 +1,7 @@
 import {
   ApprovalLedger,
   buildRunApprovalRequest,
+  captureBytes,
   captureText,
   findProhibitedShellHost,
   MockRunner,
@@ -130,6 +131,40 @@ describe('bounded output capture', () => {
   it('counts UTF-8 bytes rather than JavaScript characters', () => {
     const captured = captureText('中文', 6);
     expect(captured).toMatchObject({ bytesRead: 6, bytesRetained: 6, truncated: false, text: '中文' });
+  });
+
+  it('aligns both CP936 truncation edges without replacement characters', () => {
+    // GBK bytes for 中文中文. A six-byte cap cuts both the three-byte head
+    // and the three-byte tail inside a DBCS pair.
+    const captured = captureBytes(Buffer.from([
+      0xd6, 0xd0, 0xce, 0xc4, 0xd6, 0xd0, 0xce, 0xc4,
+    ]), 6, 'cp936');
+    expect(captured).toMatchObject({
+      bytesRead: 8,
+      bytesRetained: 4,
+      omittedBytes: 4,
+      truncated: true,
+      encoding: 'cp936',
+      replacementCount: 0,
+    });
+    expect(captured.text).toContain('中');
+    expect(captured.text).toContain('文');
+    expect(captured.text).not.toContain('\uFFFD');
+  });
+
+  it('aligns both UTF-8 truncation edges without replacement characters', () => {
+    const captured = captureBytes(Buffer.from('中文中文', 'utf8'), 8, 'utf-8');
+    expect(captured).toMatchObject({
+      bytesRead: 12,
+      bytesRetained: 6,
+      omittedBytes: 6,
+      truncated: true,
+      encoding: 'utf-8',
+      replacementCount: 0,
+    });
+    expect(captured.text).toContain('中');
+    expect(captured.text).toContain('文');
+    expect(captured.text).not.toContain('\uFFFD');
   });
 
   it('applies independent stdout and stderr caps in MockRunner', async () => {

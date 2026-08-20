@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "kit_id": "A7-RC0506-WINDOWS-VALIDATION-20260816-V4",
+  "output_filename": "RC0506_WINDOWS_VALIDATION_KIT_20260816-v4.zip",
+  "source_date_epoch": 1786896000,
+  "target": "WINDOWS_X64_PRE_WIN7_LEASE_VALIDATION",
+  "candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "release_manifest_sha256": "ff1a46ffa517dc84602767db144cffcae6bdcfc3300ca52949001997141932d0",
+    "runner_manifest_sha256": "7d21722d0c9357f1189e8341d78d53ffbe8240c08df25f706dd23680af793ef8",
+    "runner_helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "storage_binding_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc"
+  },
+  "rc05": {
+    "product_profile": "win7-whoami",
+    "product_profile_success_contract": "STRUCTURED_EXIT_WITH_VERIFIED_CONTAINMENT",
+    "harness_only_positive_profile": "system32-findstr-runtime-hash-bound-local-fixture",
+    "harness_only_cancellation_profile": "system32-ping-loopback-only-runtime-hash-bound",
+    "helper_allowlist_contract": "HARNESS_PROFILES_MUST_PASS_MIRRORED_C06_ALLOWLIST_PREFLIGHT",
+    "required_negative_codes": [
+      "PROFILE_NOT_FOUND",
+      "SHELL_HOST_PROHIBITED",
+      "INVALID_REQUEST",
+      "SENSITIVE_ENVIRONMENT_REJECTED",
+      "PROFILE_RISK_REJECTED"
+    ]
+  },
+  "rc06": {
+    "profile": "E22-SQLITE343-LOCAL-SSD",
+    "sqlite": "3.43.1",
+    "journal_mode": "wal",
+    "required_compile_options": ["ENABLE_FTS5", "ENABLE_COLUMN_METADATA", "THREADSAFE=2"],
+    "required_path_profile": "UNICODE_AND_SPACE_LOCAL_NTFS",
+    "network_drive": "REJECT"
+  },
+  "gates": {
+    "win10": "PARTIAL_RC05_RC06_WINDOWS_VALIDATION_ONLY",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  },
+  "forbidden_actions": [
+    "network-route-firewall-change",
+    "PATH-service-registry-change",
+    "reboot",
+    "interactive-terminal",
+    "external-network-target"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kit_id": "A7-RC0708-WINDOWS-LIFECYCLE-20260819-V2",
+  "output_filename": "RC0708_WINDOWS_LIFECYCLE_KIT_20260819-v2.zip",
+  "source_date_epoch": 1786896000,
+  "target": "WINDOWS_X64_PRE_WIN7_LEASE_LIFECYCLE_VALIDATION",
+  "candidate": {
+    "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+    "source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "size": 100878367,
+    "sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "release_manifest_sha256": "ff1a46ffa517dc84602767db144cffcae6bdcfc3300ca52949001997141932d0",
+    "runner_helper_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "storage_binding_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc"
+  },
+  "upgrade": {
+    "scenarios": ["success", "corrupt-staged-file", "activation-corruption"],
+    "phase_exit_contract": { "ok": 0, "fatal": 1, "stage_complete_activation": 42, "rollback_required": 43 },
+    "wrapper_fatal_codes": { "activation_rename_failed": 65, "activation_incomplete": 66, "rollback_failed": 68 },
+    "sibling_suffixes": { "staging": ".staging-rc0708", "rollback": ".rollback-rc0708", "quarantine": ".quarantine-rc0708" },
+    "activation_mechanism": "SIBLING_DIRECTORY_RENAMES_BY_CMD_WRAPPER_BETWEEN_HARNESS_PHASES",
+    "verification": "STRICT_RELEASE_MANIFEST_TREE_EQUALITY_BEFORE_AND_AFTER_EVERY_TRANSITION",
+    "pre_upgrade_install": {
+      "requirement": "ANY_COHERENT_MANIFEST_VERIFIED_INSTALL_RC07_U01_REQUIRES_A_DIFFERENT_MANIFEST_THAN_THE_LOCKED_CANDIDATE",
+      "recommended": {
+        "filename": "Win7CodingAgent-0.1.0-rc.1-win7-x64.zip",
+        "source_commit": "f24d9a42a915dcab9eecb1e61d0870ac11a84555",
+        "size": 100877883,
+        "sha256": "909166478a8766ed380221d7b349e4db841651516be42feba7db281e0678f1d5",
+        "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/product-candidate-f24d9a4-20260812"
+      }
+    }
+  },
+  "uninstall": {
+    "policies": ["retain", "purge"],
+    "default_policy": "retain",
+    "quarantine_suffix": ".quarantine-rc0708",
+    "wrapper_fatal_codes": { "quarantine_rename_failed": 65, "quarantine_removal_failed": 69 },
+    "registration_surface": "NONE_NO_REGISTRY_SERVICE_OR_PATH_ENTRIES_ARE_CREATED_BY_THIS_PRODUCT"
+  },
+  "forbidden_actions": [
+    "network-route-firewall-change",
+    "PATH-service-registry-change",
+    "reboot",
+    "interactive-terminal",
+    "external-network-target",
+    "runtime-download-or-update"
+  ],
+  "gates": {
+    "win10": "PARTIAL_RC0708_LIFECYCLE_ONLY",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  }
+}
