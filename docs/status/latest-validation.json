@@ -9,7 +9,7 @@
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
   "executed_at": "2026-08-04T17:55:44+08:00",
-  "last_updated_at": "2026-08-19T01:24:44+08:00",
+  "last_updated_at": "2026-08-20T14:05:08+08:00",
   "post_baseline_updates": [
     {
       "record": "docs/status/win10-native-builds-latest.json",
@@ -45,6 +45,12 @@
       "status": "WIN10_PASS_WIN7_AND_RC_NOT_PERFORMED",
       "win7_formal_acceptance_changed": false,
       "scope": "Immutable RC0708 v2 attempt 2 passed all three RC-07 and both RC-08 rounds and the independent exact-kit verifier; return ZIP 00464f63...7ba8 is archived byte-preserved. RC-03 is closed by exact candidate-byte continuity to the prior D-013 v24 and D-014 Win10 x64/ABI110 PE/API/CRT PASS artifacts, with two native files external to ASAR. The complete A7 Win10 layer is PASS; no A7 Win7 lease has been issued and Win7/RC remain NOT_PERFORMED."
+    },
+    {
+      "record": "docs/status/a7-win7-rc-acceptance-latest.json",
+      "status": "WIN7_PASS_RC_PASS",
+      "win7_formal_acceptance_changed": true,
+      "scope": "Unique Ed25519 lease lease-A7-RC-20260820-055210 bound candidate 39eecb6a...040c9, target 10.21.225.40/dccs-chaizl-PC and all RC-01..RC-10 required cases. The coordinator accepted all cases after clean pre/postflight and a 64-file evidence manifest; the lease was released and active_lease_id returned to null."
     }
   ],
   "environment": {
@@ -311,6 +317,43 @@
     "rc": "NOT_PERFORMED",
     "win7_lease_issued": false,
     "evidence": "docs/status/a7-win10-rc-closeout-latest.json"
+  },
+  "a7_win7_rc_acceptance_supplement": {
+    "schema_version": 1,
+    "record_id": "A7-WIN7-RC-ACCEPTANCE-20260820-01",
+    "status": "WIN7_PASS_RC_PASS",
+    "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+    "candidate_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "target": "10.21.225.40 / dccs-chaizl-PC / Windows 7 SP1 x64 build 7601",
+    "lease_id": "lease-A7-RC-20260820-055210",
+    "lease_final_state": "RELEASED",
+    "coordinator_grade": "WIN7_PASS",
+    "required_cases": {
+      "RC-01": "PASS",
+      "RC-02": "PASS",
+      "RC-03": "PASS",
+      "RC-04": "PASS",
+      "RC-05": "PASS",
+      "RC-06": "PASS_WITH_UNMODIFIED_CHILD_FAIL_AND_WIN7_WMI_SSD_SUPPLEMENT",
+      "RC-07": "PASS",
+      "RC-08": "PASS",
+      "RC-09": "PASS",
+      "RC-10": "PASS"
+    },
+    "rc06_child_report": "FAIL_RC06_M01_PROBE_INCOMPATIBLE; P01/P02/P03/N01/N02/N03 PASS; Win32_DiskDrive identifies Samsung SSD 870 EVO 1TB",
+    "postflight": "BvSshServer RUNNING; SSH 22 LISTENING; relevant process residue empty; OS boot time, service config, routes, firewall and machine PATH byte-identical",
+    "returned_evidence_files": 64,
+    "evidence_manifest_sha256": "045dd72f16963c6033403eb71260c0a622ab12b43cd2461ab82a12133ac89270",
+    "archive_root": "/Users/qlyf/Developer/win7-agent-artifacts/a7/win7-rc-acceptance-20260820",
+    "archive_file_count": 74,
+    "active_lease_after_release": null,
+    "gates": {
+      "developer": "PASS",
+      "win10": "PASS",
+      "win7": "PASS",
+      "rc": "PASS"
+    },
+    "evidence": "docs/status/a7-win7-rc-acceptance-latest.json"
   },
   "a1_a3_closeout": {
     "schema_version": 1,

@@ -1,111 +1,24 @@
 {
   "schema_version": 1,
-  "record_id": "A7-RC-TRACEABILITY-20260812-01",
+  "record_id": "A7-RC-TRACEABILITY-20260820-02",
+  "supersedes": "A7-RC-TRACEABILITY-20260812-01",
   "source_task": "docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md",
   "baseline_commit": "793cc4799c81d9dc27d236826a344a39d86137ec",
-  "branch_start_commit": "87893490d7c5e54552af98e193b4c12a9eb42bc4",
-  "overall_status": "IMPLEMENTATION_IN_PROGRESS",
-  "win7_validation": "NOT_PERFORMED",
+  "candidate_source_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+  "candidate_sha256": "39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9",
+  "overall_status": "RC_PASS",
+  "win7_validation": "PASS",
+  "formal_evidence": "docs/status/a7-win7-rc-acceptance-latest.json",
   "requirements": [
-    {
-      "id": "RC-01",
-      "requirement": "A clean Win7 host installs and starts without an online download and with every prerequisite declared.",
-      "surfaces": ["release/win7-rc", "scripts/release", "installation lifecycle"],
-      "evidence": ["release/win7-rc/rc-input-lock.json", "scripts/release/build-win7-rc.mjs"],
-      "status": "partial",
-      "gap": "Offline payload assembly is implemented; clean-host installation and first-start evidence are not performed.",
-      "action": "Complete installer lifecycle scripts and execute RC-01 under a new signed Win7 lease.",
-      "acceptance": "No network access, all locked payload files present, installer and first start exit zero on clean Win7."
-    },
-    {
-      "id": "RC-02",
-      "requirement": "Outer ZIP, release manifest and every runtime file have matching developer and Win7 SHA-256 values.",
-      "surfaces": ["release manifest", "ZIP sidecar", "Win7 evidence"],
-      "evidence": ["scripts/release/build-win7-rc.mjs", "scripts/release/verify-win7-rc.mjs"],
-      "status": "partial",
-      "gap": "Developer-side manifest and sidecar verification are implemented; Win7 certutil comparison is not performed.",
-      "action": "Bind the final Win10 return hash, upload under the RC lease and compare every required hash with certutil.",
-      "acceptance": "Developer verifier and Win7 coordinator independently report identical SHA-256 values."
-    },
-    {
-      "id": "RC-03",
-      "requirement": "Native modules are x64 ABI 110 and outside ASAR; locked PE/API/CRT evidence remains attached.",
-      "surfaces": ["resources/native", "release manifest", "Win10 evidence"],
-      "evidence": ["release/win7-rc/rc-input-lock.json", "scripts/release/build-win7-rc.mjs"],
-      "status": "partial",
-      "gap": "Win10 is closed by exact byte continuity: the unique RC ZIP contains only two external native files, whose hashes exactly equal the prior Win10 PE/API/CRT PASS artifacts (D-013 v24 helper 7f86dac8...c134 and D-014 ABI-110 storage native 7138aa23...15cc); no native entry exists under ASAR. The same unique RC ZIP has not completed the new signed Win7 RC matrix.",
-      "action": "Under the new signed Win7 RC lease, compare the unique RC ZIP and both native files with certutil and execute the RC-03 target checks without rebuilding or substituting bytes.",
-      "acceptance": "No .node/helper/DLL exists under app or ASAR; ABI, x64 and forbidden API/CRT checks pass."
-    },
-    {
-      "id": "RC-04",
-      "requirement": "Electron, Core, low-risk Runner and local-SSD Storage start as one product and disabled capabilities are explicit.",
-      "surfaces": ["src/shell/product", "src/runner", "src/state"],
-      "evidence": ["src/shell/product/rc-composition.js", "src/shell/product/main.js", "scripts/release/test/rc-composition.test.mjs", "docs/status/a7-rc-development-latest.json", "docs/status/a7-rc04-windows-smoke-latest.json", "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/rc04-evidence"],
-      "status": "partial",
-      "gap": "The current candidate 39eecb6a...040c9 passed two Windows 10 19045 product-entry smoke rounds (3/3 each, exit 0, no WAL/SHM or process residue) on 2026-08-16; the same RC-04 case has not run under a new signed Win7 RC lease.",
-      "action": "Preserve the locked candidate and repeat RC-04 under the new Win7 RC lease after RC-05 is unblocked and the remaining developer and Win10 gates pass.",
-      "acceptance": "Product smoke proves all four boundaries and reports disabled interactive terminal and unsupported media."
-    },
-    {
-      "id": "RC-05",
-      "requirement": "Only locked low-risk structured Runner profiles execute; interactive input, arbitrary shell and high-risk profiles are rejected.",
-      "surfaces": ["src/runner", "src/shell/product"],
-      "evidence": ["src/runner/tests/native-runner.test.ts", "src/shell/tests/product/runner-runtime.test.ts", "release/win7-rc/rc-input-lock.json", "scripts/release/test/rc-composition.test.mjs", "release/win7-rc/rc0506-windows-validation.cjs", "scripts/release/verify-rc0506-evidence.mjs", "docs/status/a7-rc0506-validation-kit-latest.json", "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/rc0506-evidence"],
-      "status": "partial",
-      "gap": "v4 Windows attempt (2026-08-16) passed: all six cases PASS except the expected RC05-P01 Win7 whoami hash deferral, giving PASS_WITH_WIN7_TARGET_PROFILE_DEFERRED on Windows 10 19045. findstr fixture probe proved CP936 decoding, 127-of-215-byte boundary-aligned truncation with zero replacement characters and loopback ping cooperative cancellation with verified Job/ACL rollback; the independent verifier bound kit, candidate, reports, databases and exit code 0. The same matrix has not run under a new signed Win7 RC lease, where RC05-P01 becomes executable with the real Win7 whoami bytes.",
-      "action": "Repeat the RC-05 matrix under the new signed Win7 RC lease after RC-07/RC-08 and the final Win10 RC-03 closure; on Win7 the RC05-P01 product profile case must execute instead of deferring.",
-      "acceptance": "Structured command/output/cancel/reap pass and all forbidden inputs fail closed."
-    },
-    {
-      "id": "RC-06",
-      "requirement": "WAL/FTS5 persistence survives restart and supports Unicode, bounded cleanup and the local SSD profile.",
-      "surfaces": ["src/state", "resources/native/storage"],
-      "evidence": ["spikes/04-storage-index/GO_NOGO_WIN7_20260807.md", "src/state/src/sqlite-event-ledger.ts", "src/state/tests/unit/sqlite-event-ledger.test.ts", "release/win7-rc/rc0506-windows-validation.cjs", "scripts/release/verify-rc0506-evidence.mjs", "docs/status/a7-rc0506-validation-kit-latest.json", "/Users/qlyf/Developer/win7-agent-artifacts/a7/rc0506-windows-attempt3-v3-20260816/rc0506-evidence"],
-      "status": "partial",
-      "gap": "The current candidate 39eecb6a...040c9 passed the full RC-06 matrix (7/7) twice on Windows 10 19045 local NTFS SSD (v3 and v4 rounds on 2026-08-16), with the production and intentionally corrupted databases returned and independently hash-bound (quick_check=ok); the same matrix has not run under a new signed Win7 RC lease.",
-      "action": "Rerun RC-06 under the new Win7 RC lease together with the full RC matrix.",
-      "acceptance": "RC-06 matrix passes on local NTFS SSD and rejects unsupported media claims."
-    },
-    {
-      "id": "RC-07",
-      "requirement": "Upgrade succeeds and injected failure restores the original version, data and manifest without mixed files.",
-      "surfaces": ["scripts/release", "installation lifecycle"],
-      "evidence": ["release/win7-rc/RC0708_WIN10_OPERATION_PROMPT.txt", "scripts/release/build-rc0708-win10-delivery.mjs", "release/win7-rc/rc0708-upgrade.cjs", "release/win7-rc/RUN_RC0708_UPGRADE.cmd", "release/win7-rc/rc0708-zip.cjs", "release/win7-rc/rc0708-lifecycle-lock.json", "scripts/release/build-rc0708-lifecycle-kit.mjs", "scripts/release/verify-rc0708-evidence.mjs", "scripts/release/test/rc0708-lifecycle.test.mjs", "docs/status/a7-rc0708-lifecycle-kit-latest.json"],
-      "status": "partial",
-      "gap": "Immutable v2 Windows attempt 2 passed all three upgrade scenarios with exit code zero, exact kit provenance and no residue; the byte-preserved return ZIP 00464f63...7ba8 passed the independent verifier against kit 0c3be032...55d2. The same matrix has not run under a new signed Win7 RC lease.",
-      "action": "Repeat the three manifest-bound v2 upgrade scenarios against the unique RC ZIP under the new Win7 RC lease and preserve preflight/postflight and certutil evidence.",
-      "acceptance": "Success and injected-failure paths both preserve a single coherent version."
-    },
-    {
-      "id": "RC-08",
-      "requirement": "Uninstall removes product and transient resources with an explicit user-data retention policy and zero process/lock residue.",
-      "surfaces": ["scripts/release", "installation lifecycle"],
-      "evidence": ["release/win7-rc/RC0708_WIN10_OPERATION_PROMPT.txt", "scripts/release/build-rc0708-win10-delivery.mjs", "release/win7-rc/rc0708-uninstall.cjs", "release/win7-rc/RUN_RC0708_UNINSTALL.cmd", "release/win7-rc/rc0708-lifecycle-lock.json", "scripts/release/verify-rc0708-evidence.mjs", "scripts/release/test/rc0708-lifecycle.test.mjs", "docs/status/a7-rc0708-lifecycle-kit-latest.json"],
-      "status": "partial",
-      "gap": "Immutable v2 Windows attempt 2 passed retain and purge with exit code zero, exact kit provenance, explicit data policy and no lifecycle residue; the byte-preserved return ZIP 00464f63...7ba8 passed the independent verifier against kit 0c3be032...55d2. The same matrix has not run under a new signed Win7 RC lease.",
-      "action": "Repeat retain and purge against the unique RC ZIP under the new Win7 RC lease and preserve preflight/postflight, certutil and zero-residue evidence.",
-      "acceptance": "Product files and transient state are absent, retained user data matches policy and process/lock count is zero."
-    },
-    {
-      "id": "RC-09",
-      "requirement": "Bitvise and SSH 22 remain available before and after every round with no prohibited system mutation or reboot.",
-      "surfaces": ["Win7 coordinator", "preflight", "postflight"],
-      "evidence": [],
-      "status": "unverifiable",
-      "gap": "A7 has not issued a Win7 lease or connected to the target.",
-      "action": "Add RC-specific signed preflight/postflight and run only after developer and Win10 PASS.",
-      "acceptance": "Both snapshots pass and prohibited mutation flags are false."
-    },
-    {
-      "id": "RC-10",
-      "requirement": "Only the coordinator may issue WIN7_PASS after validating a new signed RC lease and all required evidence.",
-      "surfaces": ["Win7 coordinator", "evidence manifest", "formal status"],
-      "evidence": [],
-      "status": "unverifiable",
-      "gap": "No A7 lease, run ID or RC evidence exists.",
-      "action": "Define the RC scoring profile after the unique RC artifact is locked.",
-      "acceptance": "Coordinator signature, required cases, hashes and lifecycle evidence all validate before PASS."
-    }
+    { "id": "RC-01", "status": "pass", "evidence": ["offline Shell.Application extraction", "RC04 first start"] },
+    { "id": "RC-02", "status": "pass", "evidence": ["local and Win7 certutil dual hashes", "731-file release manifest verification"] },
+    { "id": "RC-03", "status": "pass", "evidence": ["external native layout", "D-013 helper loaded", "ABI-110 better-sqlite3 loaded", "Win10 PE/API/CRT byte continuity"] },
+    { "id": "RC-04", "status": "pass", "evidence": ["two-round Win7 product composition summary 3c5e4286...fbfdf"] },
+    { "id": "RC-05", "status": "pass", "evidence": ["Win7 Runner report 4d4f762b...ac5e"] },
+    { "id": "RC-06", "status": "pass", "evidence": ["P01/P02/P03/N01/N02/N03 PASS", "Win32_DiskDrive SSD supplement 48156b23...e7ed"], "note": "The unmodified v4 child report remains FAIL only for M01 because its Win10-only storage cmdlets are unavailable on Win7; coordinator supplementation proves the same physical-SSD assertion." },
+    { "id": "RC-07", "status": "pass", "evidence": ["success", "corrupt-staged-file", "activation-corruption", "independent exact-kit verifier PASS"] },
+    { "id": "RC-08", "status": "pass", "evidence": ["retain", "purge", "independent exact-kit verifier PASS"] },
+    { "id": "RC-09", "status": "pass", "evidence": ["Bitvise RUNNING", "SSH 22 LISTENING", "zero relevant process residue", "byte-identical boot/service/routes/firewall/PATH snapshots"] },
+    { "id": "RC-10", "status": "pass", "evidence": ["Ed25519 lease lease-A7-RC-20260820-055210", "64-file evidence manifest 045dd72f...9270", "coordinator WIN7_PASS", "lease RELEASED"] }
   ]
 }

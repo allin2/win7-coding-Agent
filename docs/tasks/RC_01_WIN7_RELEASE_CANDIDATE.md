@@ -3,14 +3,14 @@
 ## 0. 实现授权（ADR-0011 / C14）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: RELEASE_CANDIDATE
 Target Branch: codex/a7-release-candidate
-Phase-Gate: APPROVED_FOR_IMPLEMENTATION
-Win7-Compatibility: PROVISIONAL
+Phase-Gate: RC_PASS
+Win7-Compatibility: PASS
 Win10-Validation: PASS
-Win7-Validation: NOT_PERFORMED
-Blocking-Reason: WIN7_RC_ACCEPTANCE_NOT_PERFORMED
+Win7-Validation: PASS
+Blocking-Reason: NONE
 ```
 
 授权依据：项目负责人 2026-08-12 明确批准在 A4/A5/A6 唯一干净收口提交
@@ -108,3 +108,18 @@ SQLite 原生文件继续锁定为
   `node_modules` 与缓存跟踪检查通过。
 - 在完成上述条件前，本任务始终保持 `Win7-Validation: NOT_PERFORMED` 或客观 fail-closed 状态，
   不得标记 RC 完成。
+
+## 7. Win7 RC 正式裁决（2026-08-20）
+
+- 候选 `Win7CodingAgent-0.1.0-rc.1-win7-x64.zip`（SHA-256
+  `39eecb6a683f90dea12e58dbeee070ec0bc4dd1706a08bd4f1967343e28040c9`）在
+  `dccs-chaizl-PC`（Windows 7 SP1 x64 build 7601）完成 RC-01～RC-10。
+- 唯一有效租约 `lease-A7-RC-20260820-055210` 使用 Ed25519 签名，绑定候选、发布 manifest、
+  验证 kit、Win7 内置 Shell 提取脚本、目标身份和全部 required cases；生命周期已干净完成并释放。
+- RC06 原始 v4 子报告保留 `RC06-M01` FAIL：其物理盘探针错误调用 Win7 不存在的现代 PowerShell
+  Storage cmdlet。其余六个功能/负向用例全部 PASS，协调器以 Win7 `Win32_DiskDrive` 原始证据确认
+  本地固定 NTFS 系统盘为 Samsung SSD 870 EVO 1TB 后补足 M01；未改写原始子报告。
+- 轮前轮后 `BvSshServer=RUNNING`、TCP 22 可用、相关进程零残留；OS 启动时间、Bitvise 配置、
+  路由、防火墙、机器 PATH 均字节一致。协调器最终评分为 `WIN7_PASS`，故本任务 `RC_PASS`。
+- 机器可读事实来源：`docs/status/a7-win7-rc-acceptance-latest.json`；本地回收证据 manifest SHA-256
+  为 `045dd72f16963c6033403eb71260c0a622ab12b43cd2461ab82a12133ac89270`。
