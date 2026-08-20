@@ -61,6 +61,25 @@
     "manifest_sha256": "045dd72f16963c6033403eb71260c0a622ab12b43cd2461ab82a12133ac89270",
     "rc0708_independent_verifier": "PASS"
   },
+  "release_governance": {
+    "main_commit": "bd43c63e3f6a8deab3479c902929aa1f62f7c841",
+    "origin_main_verified": true,
+    "artifact_source_tag": "artifact-source/win7-v0.1.0-rc.1",
+    "artifact_source_tag_commit": "963eabe81080184041ed3a4d16ee79b8bc01d56c",
+    "acceptance_tag": "acceptance/win7-v0.1.0-rc.1",
+    "acceptance_tag_commit": "bd43c63e3f6a8deab3479c902929aa1f62f7c841",
+    "long_term_archive": {
+      "root": "/Users/qlyf/Developer/win7-agent-artifacts/releases/win7-v0.1.0-rc.1",
+      "created_at_utc": "2026-08-20T06:54:36.010Z",
+      "read_only": true,
+      "item_count": 139,
+      "total_size": 309627153,
+      "manifest": "CLOSEOUT_MANIFEST.json",
+      "manifest_sha256": "ec67c340d5df7ea113dd99457fef9074842ee3dd4ea6f8755b87e2657e364b95",
+      "sbom_sha256": "b63730bf8a23d97852d1ee32fd2394185621c6dc5ebe87c066ccf01170b838c9",
+      "verification": "PASS"
+    }
+  },
   "gates": {
     "developer": "PASS",
     "win10": "PASS",

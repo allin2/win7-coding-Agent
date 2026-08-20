@@ -426,6 +426,14 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 首次租约 `lease-A7-RC-20260820-054316` 因验收用 7za 与 Win7 不兼容，在 RC-01 前 fail-closed，
   经干净 postflight 后释放且未评分，门禁影响为 NONE。机器可读事实来源为
   [`a7-win7-rc-acceptance-latest.json`](status/a7-win7-rc-acceptance-latest.json)。
+- A7 已以非快进方式进入 main `bd43c63`，且该提交已与 `origin/main` 一致。双层注释标签
+  `artifact-source/win7-v0.1.0-rc.1` 绑定实际构建源 `963eabe`，
+  `acceptance/win7-v0.1.0-rc.1` 绑定验收收口 `bd43c63`，两者均已推送远端。
+- RC 长期只读归档为 `/Users/qlyf/Developer/win7-agent-artifacts/releases/win7-v0.1.0-rc.1/`：
+  139 项、309,627,153 字节，`CLOSEOUT_MANIFEST.json` SHA-256 为
+  `ec67c340d5df7ea113dd99457fef9074842ee3dd4ea6f8755b87e2657e364b95`。逐文件大小/SHA-256、
+  清单 sidecar、候选 ZIP、发布 manifest、SBOM、许可证、最终 Win10 与 Win7 证据均已复核，
+  且不含私钥、凭据、缓存或历史失败尝试的重复副本。
 
 ## MVP 已接受的延期项
 
@@ -440,7 +448,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 ## RC PASS 后续边界
 
-1. A7 状态提交进入整合/主线和发布标签属于后续整合动作，不改变本次候选字节或实机证据；执行前仍需按发布治理复核提交祖先和工作树洁净度。
+1. A7 状态已进入 main，双层标签与长期归档已完成；这些治理动作没有改变候选字节或实机证据。
 2. 交互 winpty、任意 Shell、高风险/未知 Profile、网络隔离声明和未登记在线更新继续关闭；任何开放均需新任务书、依赖评审和独立 Win7 验收。
 3. 企业代理/CA/模型/更新服务具备后再执行 E7；视觉、冷重启、物理断网或严格全新 OS 证据不得从本次隔离目录验收外推。
 4. 保留候选 ZIP、签名租约、64 项回收证据和稳定归档的哈希绑定；不得重写原始 RC06-v4 FAIL 子报告或 RC0708 原始报告。
