@@ -7,8 +7,9 @@
 命令能力路由、验证、状态记录和审计。
 
 > 当前结论：项目已完成 `MVP-20260802-14` 的 Win7 产品入口实机收口，状态为
-> `OWNER_ACCEPTED_FOR_MVP`；这不是正式发布通过。真实 Runner/终端、SQLite 持久化、
-> 企业 Gateway、安装升级闭包及部分正式 Phase/Spike Gate 仍待完成。
+> `OWNER_ACCEPTED_FOR_MVP`；A4/A5/A6 又已完成主线收口，低风险非交互 Runner 与本地 SSD
+> SQLite/FTS5 Profile 均取得正式 Win7 证据，`A7_GATE=PASS_FOR_WIN7_V1_RC`。这仍不是正式发布：
+> A7 只在独立分支获授权，RC 产品装配、安装升级回滚卸载和企业 E7 尚未完成。
 
 [当前状态](docs/STATUS.md) · [架构](docs/ARCHITECTURE.md) ·
 [路线图](docs/ROADMAP.md) · [任务书索引](docs/tasks/README.md) ·
@@ -33,11 +34,13 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 | Phase 1 Capability Probe | MVP 准备性实测完成；正式 Gate 未开放 | Win7 标准树 18/18 × 3；中文+空格路径 17 PASS + 1 个预期降级 |
 | Phase 2 只读 Agent | 开发机合同已验证；Win7 正式验收待执行 | 保持 Python 3.8.10、只读、Mock/Replay、零网络合同 |
 | Phase 3–7 TypeScript 基线 | 主线整合 | Gateway、Workspace、State、Core/Runner、Git Adapter、Shell 的模块化候选实现已纳入 `main` |
-| 开发机整仓回归 | `PASS` | 7 个模块、907 项测试；Gateway loopback 已在受控环境复测 |
+| 开发机整仓回归 | `PASS` | 当前 main `ec9d27a`：7 个模块、969 项测试；lint/build/静态设计门通过 |
 | Win7 Electron 产品入口 | `OWNER_ACCEPTED_FOR_MVP` | Electron 22.3.27 启动、沙箱 Renderer、只读诊断、正常退出和进程清理已有实证 |
-| Desktop Alpha 2 | 开发机实现完成；Win7 A2-W03/W04 通过 | 拒绝不写入与批准后原子写入已实测；其余 A2-W01～W15 门禁仍待收口 |
+| Desktop Alpha 2 | `MVP PASS` | Win7 A2-W01～W15 证据齐备；拒绝不写入、批准后原子写入、撤销与恢复闭环已实测，正式 Phase Gate 不随 MVP 自动关闭 |
 | SPIKE_03 Git Adapter | MVP 14/14 | 受控 MinGit 派生包通过 G10 矩阵；正式 SBOM、许可证和网络审计闭包待补 |
-| SPIKE_02 / SPIKE_04 | MVP 延期接受 | 原生 containment/终端与 Electron ABI SQLite 工件未完成，产品路径保持 fail-closed/有界内存模式 |
+| SPIKE_02 | 受限收口 | D-013 v24 低风险非交互 Runner 与 H3 只读日志正式 Win7 PASS；交互 winpty No-Go，任意 Shell/高风险/未知 Profile 继续拒绝 |
+| SPIKE_04 | `WIN7_PASS` | D-014 在本地 NTFS SSD Profile 完成 S01～S08、F01～F06、P08 与性能 #5～#8；生产装配仍属 A7 |
+| A7 发布候选 | 独立分支已授权 | `codex/a7-release-candidate` 已锁定 RC 合同；尚未进入 main，开发机/Win10/Win7 RC 均未执行 |
 
 最新的可变状态只在 [`docs/STATUS.md`](docs/STATUS.md) 和
 [`docs/status/latest-validation.json`](docs/status/latest-validation.json) 维护；历史报告不覆盖当前结论。
@@ -51,9 +54,10 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 - **Workspace**：边界校验、只读 list/search/read、编码与换行识别、哈希绑定计划、
   有界 Diff、一次性审批、原子替换、回滚、恢复清单和撤销新计划。
 - **State/Audit**：版本化事件协议、确定性投影、幂等与冲突检测、多订阅背压和有界内存实现；
-  SQLite/WAL 的正式产品持久化等待 SPIKE_04。
+  D-014 SQLite/WAL/FTS5 技术 Profile 已通过 Win7，本地生产持久化等待 A7 装配。
 - **Runner 与 Git Adapter**：结构化 argv、双超时、双流字节上限、关闭 stdin、能力拒绝语义，
-  以及 Git 配置隔离、命令白名单和 Session Guard；真实本地执行等待 SPIKE_02。
+  以及 Git 配置隔离、命令白名单和 Session Guard；D-013 v24 低风险非交互执行已获 Win7 PASS，
+  交互终端、任意 Shell、高风险和未知 Profile 继续 fail-closed。
 - **Desktop Shell**：Electron 安全策略、Schema 校验 IPC、只读诊断、Replay 纵向切片，
   以及 Desktop Alpha 2 的受控单文件修改 UI。
 
@@ -61,8 +65,9 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 
 | 能力 | MVP 行为 | 放行条件 |
 |---|---|---|
-| 真实本地命令与交互终端 | `capability_unavailable`，fail-closed | SPIKE_02 原生 helper、Job Object、winpty/node-pty 及 Win7 实测 |
-| 跨重启持久状态与代码索引 | 有容量上限的内存状态 | SPIKE_04 Electron ABI SQLite/FTS5、崩溃恢复与性能实测 |
+| 低风险非交互命令 | 输入 Profile 已通过，main 尚未形成 RC 产品装配 | A7 接入 D-013 v24，并完成 RC-05/生命周期验收 |
+| 交互终端、任意 Shell 和高风险命令 | 明确拒绝，fail-closed | Win7 v1 不交付交互 winpty；未来能力必须另立任务与实机验收 |
+| 跨重启持久状态与代码索引 | D-014 技术 Profile 已通过，当前产品仍使用有界内存 | A7 接入生产 EventStore/索引并完成 RC-06/升级恢复验收 |
 | 真实模型与企业网络 | 未配置或确定性 Replay | 企业代理/CA、凭据生命周期、Provider 与 E7 端到端验收 |
 | 多文件/任意编码写入 | 明确拒绝 | 新任务书、事务合同、编码往返和扩展实机矩阵 |
 | 安装、升级和回滚发布闭包 | 尚无正式发行包 | 自包含包、签名/SBOM、升级回滚、卸载残留和干净机验证 |
@@ -84,8 +89,8 @@ flowchart LR
     Policy --> Workspace
     Policy --> Runner
 
-    Runner -. "SPIKE_02 前 fail-closed" .-> Blocked1["Job Object / Terminal"]
-    State -. "SPIKE_04 前" .-> Memory["Bounded Memory"]
+    Runner -. "A7 前仅开放已验收 Profile" .-> Blocked1["交互/高风险继续拒绝"]
+    State -. "A7 装配前" .-> Memory["Bounded Memory"]
 ```
 
 Renderer 不直接获得文件、进程、凭据或任意网络权限。高权限操作必须经过版本化 Schema、
@@ -192,11 +197,12 @@ validation/                      实机证据和交叉论证
 
 ## 路线图
 
-1. 在已通过 Win7 smoke 的 Electron 入口上完成会话、流式输出、诊断、Replay 和 Alpha 2
-   用户任务的实机收口。
-2. 交付自包含离线包、版本 manifest、签名/SBOM、安装升级、回滚和卸载验证。
-3. 在现代 Windows 构建机完成 SPIKE_02 原生 containment/终端工件与 SPIKE_04 SQLite/FTS5 工件，
-   通过 Win7 实测后再开放真实 Runner 和持久化能力。
+1. 在 A7 独立分支把已验收 D-013 v24 非交互 Runner 与 D-014 本地 SSD Storage 装入产品；
+   不装配交互 winpty、任意 Shell或高风险 Profile。
+2. 生成唯一自包含 Win7 x64 RC，完成 ASAR 外置、版本 manifest、SBOM/许可证、安装升级、
+   失败回滚和卸载闭包。
+3. 分别取得开发机、精确 Win10 工具链和新签名租约下的 Win7 RC-01～RC-10 证据；完成前
+   不将 A4/A5/A6 单项 PASS 写成 RC PASS。
 4. 在企业代理、CA、模型和更新服务就绪后执行 E7，补齐正式候选的视觉、重启、物理断网和
    严格干净环境证据。
 

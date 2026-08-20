@@ -105,9 +105,10 @@ Gateway 不再限定为 Python 标准库 HTTP 客户端。任务书必须选择�
 | `win7_agent.probe` | `[历史冻结实现]` | Phase 1 继续使用 CPython 3.8.10 标准库；完成状态仍取决于 Win7 E1/E2 验收 |
 | 只读代码分析 Agent | `[当前已授权]` | 仅按 Phase 2 任务书、指定分支与允许路径实现；Mock/Replay、目标工作区只读、无真实模型/网络 |
 | Desktop Shell | `[MVP 入口已实机验证/完整装配待完成]` | IPC Schema、安全策略、Updater 基线和最小权限 main/preload/renderer 已实现；Win7 启动/诊断/退出 smoke PASS，五视图与跨模块 E2E 仍缺 |
-| Gateway / Workspace / State | `[理论实现/待实机]` | Phase 3–5 源码已汇入整合分支；企业网络、SQLite 原生绑定与 Win7 证据未完成 |
-| Agent Core / Runner / Git Adapter | `[契约骨架/受阻]` | Policy、Broker、状态与 Mock 已实现；真实 Runner 在 SPIKE_02 前 fail-closed |
-| 交互终端、后台服务、插件、多 Agent | `[未来待授权或待实机]` | 终端等待 SPIKE_02；插件/多 Agent 不在 v1 |
+| Gateway / Workspace / State | `[候选实现已入 main/产品验收待完成]` | Phase 3–5 源码已入 main；D-014 本地 SSD Profile 已 Win7 PASS，生产 EventStore/索引接入和企业 E7 仍待 A7/正式 Phase 验收 |
+| Agent Core / Runner / Git Adapter | `[候选实现已入 main/Runner 受限放行]` | Policy、Broker、状态与 Git Adapter 已实现；D-013 v24 低风险非交互 Runner 已 Win7 PASS，等待 A7 产品装配；任意 Shell/高风险继续拒绝 |
+| 交互终端、后台服务、插件、多 Agent | `[No-Go 或未来待授权]` | Win7 v1 交互 winpty 已 No-Go，采用只读日志；插件/多 Agent 不在 v1 |
+| A7 发布候选 | `[独立分支已授权/main 尚未包含]` | 只装配已验收 D-013/D-014 输入；RC 构建、安装升级回滚卸载和 Win7 RC-01～RC-10 均未完成 |
 
 ADR-0027 不修改 Phase 1/2 的 Python 3.8.10、标准库、零网络、只读、分支和路径白名单合同。
 Phase 3–7 的授权来源为 ADR-0036、各阶段任务书与整合任务书，不来自本文架构描述。

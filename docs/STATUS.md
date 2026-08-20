@@ -7,11 +7,14 @@
 | 项目 | 当前值 |
 |---|---|
 | 远程默认分支 | `main` |
-| 受控整合来源 | `codex/integrated-robustness` |
-| 最新结构化证据绑定提交 | `b2019f022f910b2b8df150ad94c3bccdefa1fa7b` |
+| 当前 main HEAD | `ec9d27afe3ee2cd6bde9c67c9e0311b201615ed4`（与 `origin/main` 同步；本次状态更新前工作树干净） |
+| A4/A5/A6 收口基线 | `793cc4799c81d9dc27d236826a344a39d86137ec`（标签 `baseline/a456-closeout-20260812`） |
+| 受控整合来源 | `codex/integrated-robustness`（已成为 main 祖先） |
+| A1～A3 历史结构化证据绑定提交 | `b2019f022f910b2b8df150ad94c3bccdefa1fa7b` |
 | 候选快照 | `8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c` |
 | 快照标记 | `backup/integrated-snapshot-20260731` |
-| 主线整合 | `MAINLINE_INTEGRATION_2026-08-02` |
+| 当前主线状态 | `A4_A5_A6_MAINLINE_PROMOTED / READY_FOR_A7_WIN7_V1_RC` |
+| A7 工作轨 | `codex/a7-release-candidate` @ `87893490d7c5e54552af98e193b4c12a9eb42bc4`；已授权但尚未进入 main，RC 未构建/未验收 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -19,6 +22,10 @@
 
 ## 验证状态
 
+- 当前 main 开发机回归：`PASS` — 2026-08-12 在 `ec9d27a` 运行 `npm run verify`，7 个模块
+  969 项全部通过（Gateway 202、Workspace 80、State 219、Core 225、Runner 65、
+  Git Adapter 51、Shell 127），同时通过 TypeScript 检查、构建与静态设计门。该结果证明
+  A4/A5/A6 收口后的 main 可回归，不替代 A7 RC 或新的 Win7 实机验收。
 - 当前 A1～A3 收口工作区已建立最终指纹；最新证据编号为 `A1-A3-CLOSEOUT-20260804-01`（见
   `status/mvp-baselines/`），SHA-256 为
   `597eab41ee7fdedd1227ab92b9c318ce55d1965fad7e316620821e88115faf21`。历史 Win7 MVP 产品
@@ -229,7 +236,9 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 ## A4/A5/A6 整合收口与 A7 Gate（2026-08-12）
 
-- A4 `eee6219`、A5 `af589dc`、A6 `fb2084d` 已进入 `codex/integrated-robustness` 祖先链。
+- A4 `eee6219`、A5 `af589dc`、A6 `fb2084d` 已进入 `codex/integrated-robustness` 祖先链，
+  收口提交 `793cc47` 又已成为当前 main `ec9d27a` 的祖先；main 与 `origin/main` 同步，本次状态
+  更新开始前工作树干净。
   A6 继续使用规范 ADR-0066；A5 分支本地 ADR-0066～0071 以规范 ADR-0067～0072 导入，原始
   Win7 证据字节未重写。
 - SPIKE_02 正式受限结论为 `NO_GO_INTERACTIVE_WINPTY` 与
@@ -242,7 +251,8 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   的逐文件大小及 SHA-256 均一致。
 - A4、A6、A5 worktree 已按顺序且不带 `--force` 移除，分支引用保留，原绝对工件路径通过只读
   符号链接继续可访问。机器可读单一事实来源为
-  [`integration-closeout-latest.json`](status/integration-closeout-latest.json)。A7 RC 尚未构建或验收。
+  [`integration-closeout-latest.json`](status/integration-closeout-latest.json)。A7 已在独立分支
+  `codex/a7-release-candidate` 获得实现授权，但任务书与实现尚未进入 main，RC 仍未构建或验收。
 
 ## MVP 已接受的延期项
 

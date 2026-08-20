@@ -38,7 +38,8 @@ Phase 1/2 保持历史冻结合同；ADR-0028~0035 已由 ADR-0036 条件接受�
 ### 当前未授权
 
 - Phase 1/2 不接入真实模型、不修改目标用户代码；其合同不被新客户端追溯扩大。
-- SPIKE_02 通过前不定稿真实 Runner containment 或交互终端，不用 `taskkill` 冒充隔离。
+- SPIKE_02 已受限裁决：仅 D-013 v24 低风险非交互 Runner 可进入 A7 装配；交互 winpty 为
+  No-Go，任意 Shell、高风险、未知 Profile 与网络隔离声明继续拒绝，不用 `taskkill` 冒充隔离。
 - v1 不实现 full-access 本地等价、插件宿主或多 Agent（ADR-0030/0034/0035）。
 - 未列入获批任务书白名单的实现仍未授权。
 

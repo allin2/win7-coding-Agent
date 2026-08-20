@@ -13,8 +13,9 @@
 | 阶段 0：工程基线 | 进行中 | 文档/ADR 可维护 |
 | 阶段 1：Capability Probe | 进行中 | 仅现有 Phase 1 任务书白名单 |
 | 阶段 2：只读代码分析 Agent | 进行中 | 仅现有 Phase 2 分支与白名单 |
-| SPIKE_01~04（Win7 兼容性验证，见下） | 已授权，尚未完成实机验证 | 各 Spike 任务书白名单 |
-| 阶段 3–7 | 理论先行候选已形成；历史快照有开发机回归，当前工作树尚未建立最终验证记录 | 各阶段任务书 + `INTEGRATION_01` |
+| SPIKE_01~04（Win7 兼容性验证，见下） | 分项收口：SPIKE_02 低风险非交互 PASS/交互 No-Go；SPIKE_04 本地 SSD PASS；SPIKE_01/03 保持既有证据口径 | 各 Spike 任务书白名单 |
+| 阶段 3–7 | 候选实现已进入 main；当前 main `ec9d27a` 的 7 模块 969 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
+| A7 Win7 v1 RC | `A7_GATE=PASS_FOR_WIN7_V1_RC`；独立分支已授权，RC 未构建/未验收，尚未进入 main | `codex/a7-release-candidate` 的 `RC_01` 任务书 |
 
 对标 Codex 的整体裁决记录于 ADR-0028~0035，并已由 ADR-0036 接受（附 Spike 条件）；
 性能口径统一引用 `docs/PERFORMANCE_BUDGET.md`（ADR-0033）。
@@ -57,7 +58,7 @@
 - Python 资产去向：Phase 2 §3 契约、错误码、事件 schema、退出码与 §7 F 编号测试矩阵，
   作为 Node Core 的规范来源逐条对账继承（ADR-0029；对账清单见 `docs/tasks/PHASE_06_AGENT_CORE_RUNNER.md`）。
 
-## 架构验证轨 — 四个 Win7 Spike（已授权，实机证据待补）
+## 架构验证轨 — 四个 Win7 Spike（已授权，按分项证据裁决）
 
 这是新客户端立项前的阻断门槛，不占用 ADR-0012 冻结的阶段编号（ADR-0034）。每个 Spike
 有独立任务书（`docs/tasks/SPIKE_NN_*.md`）、独立分支 `spike/*`、白名单限 `spikes/**`，
@@ -66,9 +67,9 @@
 | Spike | 验证对象 | No-Go 后果（已在 ADR 预声明） |
 |---|---|---|
 | SPIKE_01_WIN7_RUNTIME_BASELINE | Electron 22.3.27 冷启动/内存/GPU 降级（P17）/中文空格路径/单实例/Renderer 隔离与出站阻断/崩溃日志/干净卸载；测预算 #1/#2/#3/#9/#10 | 切换 .NET 4.8 WPF（D-015）重跑本 Spike（ADR-0028 降级阶梯） |
-| SPIKE_02_TERMINAL_CONTAINMENT | C++ helper 的 Job Object/Restricted Token 进程树必杀（P11、`IsProcessInJob` fail-closed）；node-pty 0.10.0 内置 winpty 0.4.4-dev 精确快照终端矩阵；C19 负向注入；测预算 #4 | containment 失败→高风险命令拒绝/远程；winpty 失败→非交互命令 + 流式日志视图（ADR-0030/0031） |
+| SPIKE_02_TERMINAL_CONTAINMENT | **受限收口**：D-013 v24 低风险非交互 Runner 与 H3 只读日志为 Win7 PASS；交互 winpty 为 `NO_GO_INTERACTIVE_WINPTY` | Win7 v1 采用非交互命令 + 只读流式日志；任意 Shell、高风险、未知 Profile 和网络隔离声明继续拒绝 |
 | SPIKE_03_GIT_ADAPTER | MinGit 2.46.2 隔离配置下 G10 恶意仓库负向矩阵（hooks/filters/textconv/pager/helper/fsmonitor 零逃逸） | Git 降级只读观测，写操作远程化（ADR-0032） |
-| SPIKE_04_STORAGE_INDEX | SQLite 绑定（D-014）WAL 批量写 QPS、FTS 索引吞吐与增量延迟（机械盘）；测预算 #5/#6/#7/#8 | 关键事件同步 + 非关键异步合并；索引超限切远程索引服务（ADR-0033） |
+| SPIKE_04_STORAGE_INDEX | **Win7 PASS**：D-014 在 `E22-SQLITE343-LOCAL-SSD` Profile 完成 WAL/FTS5、S01～S08、F01～F06、P08 与预算 #5～#8 | 仅支持本地 NTFS SSD 证据；HDD、网络盘和未知介质不继承结论，生产装配由 A7 完成 |
 
 四个 Spike 相互独立、可并行。Spike 的通过只决定技术 Profile 是否可进入正式设计，
 不自动授权生产 Desktop Shell，也不改变 Phase 1/2。
@@ -81,28 +82,30 @@
 - 现代 Browser Use、沙箱执行和不适合 Win7 本地承载的高风险能力通过 Gateway 远程化。
 - 前置：阶段 1 的相关探测结论；网络目标、安全模型和交付模式获批；真实 Win7 TLS/代理验收方案完备。
 
-## 阶段 4 — Workspace 与文件工具（理论实现已汇入，待 SPIKE_04/Win7）
+## 阶段 4 — Workspace 与文件工具（理论实现已汇入，SPIKE_04 前置已解除，正式 Win7 待验）
 
 - 规划任务书：`docs/tasks/PHASE_04_WORKSPACE_WRITE.md`（分支 `phase/04-workspace-write`）；前置：SPIKE_04 Go。
 - 目标：编码感知读取/搜索、未知编码策略、CRLF/LF 保持、工作区根边界、junction/reparse point 防逃逸。
 - 写能力按独立风险门控引入：补丁预览、用户确认、备份/快照、原子替换、验证和回滚。
 - 与 Desktop Shell 的差异预览、文件引用协议先定义 Schema，再选择实现运行时。
 
-## 阶段 5 — 状态、事件与审计（内存基线已汇入，SQLite/Win7 待验证）
+## 阶段 5 — 状态、事件与审计（内存基线已汇入，SQLite Profile 已验证，生产接入待 A7）
 
 - 规划任务书：`docs/tasks/PHASE_05_STATE_AUDIT.md`（分支 `phase/05-state-audit`）；前置：SPIKE_04 Go。
 - 目标：带版本号的状态/事件 Schema、任务恢复、操作审计、导出、保留与清理策略。
-- SQLite 是优先候选而非唯一强制实现；任务书必须验证所选绑定、原生依赖和升级迁移在 Win7 上可交付。
+- D-014 SQLite/WAL/FTS5 的本地 SSD 技术 Profile 已通过 Win7；生产 EventStore、迁移、升级和跨重启恢复仍须在 A7 产品包中验收。
 - 为多任务、后台协调器和断线恢复建立一致性边界，但不在本阶段默认开启这些产品能力。
 
-## 阶段 6 — Agent Core、Policy 与 Runner（契约骨架已汇入，真实 Runner 被阻断）
+## 阶段 6 — Agent Core、Policy 与 Runner（契约骨架已汇入，低风险非交互 Profile 已解除）
 
 - 规划任务书：`docs/tasks/PHASE_06_AGENT_CORE_RUNNER.md`（分支 `phase/06-agent-core-runner`）；前置：SPIKE_02/03 Go + 阶段 3/4/5 完成；含 Phase 2 契约逐条对账移植（ADR-0029）。
 - 目标：任务状态机、上下文、工具编排、Policy/Broker、权限确认、通用 Runner、测试验证、取消与恢复。
 - Runner 必须使用结构化参数并强制超时、输出上限、进程树终止、工作区边界和审计。
-- 用户交互终端与 Agent 非交互工具执行采用隔离通道；winpty 仅在兼容性验证通过后使用。
+- 用户交互终端与 Agent 非交互工具执行采用隔离通道；当前 Win7 v1 明确不装配交互 winpty，
+  未来若重新引入，必须另立授权任务并重新完成兼容性、安全与实机验收。
 - 并发与多 Agent 可在资源、锁和审计模型就绪后逐步启用，不再被全局禁止。
-- 当前真实 Runner 在 SPIKE_02 前 fail-closed；Mock 仅用于测试，尚无可交付的完整 Agent 编排循环。
+- D-013 v24 低风险非交互 Runner 已取得 Win7 PASS，等待 A7 产品装配；交互终端、任意 Shell、
+  高风险和未知 Profile 继续 fail-closed，不能由 Mock 或历史 `taskkill` 路径替代。
 
 ## 阶段 7 — Desktop Shell、集成与交付（最小真实入口已通过 Win7 MVP smoke，完整产品待装配）
 
@@ -115,12 +118,20 @@
 ## Phase 3–7 整合基线
 
 - 任务书：`docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md`。
-- 分支：`codex/integrated-robustness`；以 Phase 6 为基础，保留历史合并 Phase 5/7，
-  Phase 3/4 由祖先关系继承。
+- `codex/integrated-robustness` 的 A4/A5/A6 收口提交 `793cc47` 已进入 main；当前 main 为
+  `ec9d27a`，与 `origin/main` 同步，7 模块 969 项开发机回归通过。
 - 开发机证据和测试数量不在路线图中维护；请以 [`docs/STATUS.md`](STATUS.md) 和
   [`docs/status/latest-validation.json`](status/latest-validation.json) 中绑定 commit 的验证记录为准。
-- 仍缺：四项 SPIKE 的正式合同收口、Win7 E1/E2/E5/E7、企业代理/CA、原生依赖闭包、
-  真实 Runner、完整五视图与端到端用户任务。最小 Electron 入口已不再是缺失项。
+- 仍缺：A7 产品装配与 RC-01～RC-10、Win7 E1/E2/E5/E7、企业代理/CA、完整发布闭包、
+  正式五视图与跨模块用户任务。SPIKE_02/04 的技术输入已形成受限结论，但不自动关闭 Phase 6/7 或 RC。
+
+## A7 — Windows 7 v1 发布候选（独立分支已授权，main 尚未包含）
+
+- 基线：A4/A5/A6 收口提交 `793cc47`；工作分支 `codex/a7-release-candidate`。
+- 目标：只装配已验收的 D-013 v24 低风险非交互 Runner 与 D-014 本地 SSD Storage，生成自包含
+  Win7 x64 RC，并完成 ASAR 外置、manifest、SBOM、许可证、安装、升级、失败回滚和卸载闭包。
+- 当前状态：任务授权已经存在于 A7 分支；截至 main `ec9d27a`，A7 任务书/实现尚未进入 main，
+  开发机、Win10 和 Win7 RC 验收均未产生，因此不得称为 RC PASS。
 
 ## 后续扩展轨（未来待授权）
 

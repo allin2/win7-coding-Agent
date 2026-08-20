@@ -9,7 +9,7 @@
   "candidate_commit": "8b032772e0c632ec990cc6dfa75fbce4d5f2bb1c",
   "candidate_tag": "backup/integrated-snapshot-20260731",
   "executed_at": "2026-08-04T17:55:44+08:00",
-  "last_updated_at": "2026-08-12T00:52:14+08:00",
+  "last_updated_at": "2026-08-12T10:40:43+08:00",
   "post_baseline_updates": [
     {
       "record": "docs/status/win10-native-builds-latest.json",
@@ -23,6 +23,36 @@
       "scope": "SPIKE_02 constrained closeout and SPIKE_04 local SSD acceptance; RC not performed"
     }
   ],
+  "current_main_snapshot": {
+    "observed_date": "2026-08-12",
+    "branch": "main",
+    "head_commit": "ec9d27afe3ee2cd6bde9c67c9e0311b201615ed4",
+    "origin_main_in_sync": true,
+    "working_tree_clean_before_document_update": true,
+    "a456_closeout_commit": "793cc4799c81d9dc27d236826a344a39d86137ec",
+    "a456_closeout_is_ancestor": true,
+    "development_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 969,
+      "gateway": 202,
+      "workspace": 80,
+      "state": 219,
+      "core": 225,
+      "runner": 65,
+      "git_adapter": 51,
+      "shell": 127
+    },
+    "a7": {
+      "branch": "codex/a7-release-candidate",
+      "observed_head": "87893490d7c5e54552af98e193b4c12a9eb42bc4",
+      "authorization": "APPROVED_FOR_IMPLEMENTATION_ON_A7_BRANCH",
+      "included_in_main": false,
+      "rc_build": "NOT_PERFORMED",
+      "win7_validation": "NOT_PERFORMED"
+    }
+  },
   "environment": {
     "development_host": "macOS build host",
     "win7_target": "Windows 7 Professional SP1 x64 build 7601; ThinkPad T460; 16 GB RAM; Intel HD 520; Samsung 870 EVO SSD",
@@ -52,9 +82,9 @@
     {"suite":"mvp_input_hash_manifest","command":"shasum -a 256 <locked-local-acceptance-inputs>","status":"PASS","exit_code":0,"metrics":{"hashed_inputs":11,"remote_only_hashes_recorded":3,"release_package":false},"evidence":"docs/acceptance/MVP-20260802-12_manifest.sha256.txt"},
     {"suite":"mvp_product_manifest","command":"shasum -a 256 -c docs/acceptance/MVP-20260802-14_product_manifest.sha256.txt","status":"PASS","exit_code":0,"metrics":{"product_files":7,"win7_reports":2,"release_package":false},"evidence":"docs/acceptance/MVP-20260802-14_product_manifest.sha256.txt"},
     {"suite":"SPIKE_01","status":"PARTIAL","evidence":["spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-05_formal.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-08_short.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-05_cleanup.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-08_cleanup_retest.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_formal.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_short.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_MVP-20260802-12_cleanup_v3.json","spikes/01-win7-runtime-baseline/acceptance/evidence/report_spike01_stdio_MVP-20260802-12.json","spikes/01-win7-runtime-baseline/acceptance/evidence/spike01_MVP-20260802-12_stdout_stderr.txt"],"metrics":{"idle_memory_samples":10,"average_private_kb":71290.8,"renderer_crash_dump_count":1,"network_correction":"MVP-20260802-08","cleanup_retests":3,"latest_t03":"FAIL","latest_t03_resident_memory_samples":3,"latest_t03_working_set_bytes":39342080,"latest_t03_stdin_readable":true,"latest_t03_parent_has_stdin":false,"latest_t03_data_seen":false,"latest_t03_pipe_variant":"stdin value other than ignore is not supported","latest_t03_exit_code":0,"latest_t10":"PASS"}},
-    {"suite":"SPIKE_02","status":"PARTIAL","win10_native_build":"PASS_WITH_PACKAGING_GAP","d011_readiness":"NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION","d013_source_binary_closure":"OPEN","win7_terminal_cases":"NOT_PERFORMED","evidence":["docs/status/win10-native-builds-latest.json","spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.html"]},
+    {"suite":"SPIKE_02","snapshot_role":"HISTORICAL_MVP_BASELINE","status":"PARTIAL","win10_native_build":"PASS_WITH_PACKAGING_GAP","d011_readiness":"NATIVE_ARTIFACT_READY_FOR_INTEGRATION_AND_WIN7_VALIDATION","d013_source_binary_closure":"OPEN_AT_THIS_HISTORICAL_SNAPSHOT","win7_terminal_cases":"NOT_PERFORMED_AT_THIS_HISTORICAL_SNAPSHOT","current_disposition":"NO_GO_INTERACTIVE_WINPTY; WIN7_PASS_FOR_LOW_RISK_NONINTERACTIVE_RUNNER; H3_READONLY_STREAMING_LOG_UI_PASS","current_evidence":"docs/status/integration-closeout-latest.json","evidence":["docs/status/win10-native-builds-latest.json","spikes/02-terminal-containment/acceptance/evidence/A4-20260806-140606/remaining-acceptance-audit.html"]},
     {"suite":"SPIKE_03","status":"PASS","evidence":["spikes/03-git-adapter/acceptance/evidence/report_spike03_MVP-20260802-06.json","spikes/03-git-adapter/acceptance/evidence/report_spike03_MVP-20260802-12.json","spikes/03-git-adapter/acceptance/evidence/spike03_MVP-20260802-12_stdout_stderr.txt","spikes/03-git-adapter/acceptance/evidence/stale_process_cleanup_MVP-20260802-12.txt"],"metrics":{"cases":14,"pass":14,"process_snapshots":8,"network_connections":0,"latest_mvp_id":"MVP-20260802-12"}},
-    {"suite":"SPIKE_04","status":"NOT_PERFORMED","win10_native_build":"PASS","d014_readiness":"READY_FOR_WIN7_VALIDATION","mechanical_disk_gate":"PASS","acceptance_harness":"MISSING","win7_cases":"S01-S08 NOT_PERFORMED","evidence":["docs/status/win10-native-builds-latest.json","docs/tasks/SPIKE_04_STORAGE_INDEX.md"]}
+    {"suite":"SPIKE_04","snapshot_role":"HISTORICAL_MVP_BASELINE","status":"NOT_PERFORMED","win10_native_build":"PASS","d014_readiness":"READY_FOR_WIN7_VALIDATION","historical_acceptance_harness":"MISSING_AT_THIS_HISTORICAL_SNAPSHOT","historical_win7_cases":"S01-S08 NOT_PERFORMED_AT_THIS_HISTORICAL_SNAPSHOT","current_disposition":"WIN7_PASS_LOCAL_SSD_PROFILE","current_evidence":"docs/status/a6-storage-latest.json","evidence":["docs/status/win10-native-builds-latest.json","docs/tasks/SPIKE_04_STORAGE_INDEX.md"]}
   ],
   "surrogates": [
     "E5_SURROGATE_PASS: new C:\\acceptance deployment and isolated userData replace a strict clean OS",
@@ -63,13 +93,13 @@
     "OWNER_ACCEPTED_FOR_MVP: GPU black-screen, window focus and other visual checks deferred",
     "MECHANICAL_DISK_GATE_OWNER_ACCEPTED: PASS by project-owner MVP decision; actual target remains SSD and no performance claim is inferred",
     "T03_OWNER_DECISION: parent-side stdin is absent and no data was observed; child-readable NUL-like semantics is accepted for MVP only",
-    "CAPABILITY_DEFERRED_FAIL_CLOSED: D-011 and D-014 native artifacts are built but not integrated or validated on Win7; native Runner/terminal remain unavailable, persistence stays bounded in-memory, Replay stays default, and optional DeepSeek A3R does not enable enterprise E7"
+    "A4_A5_A6_CLOSEOUT: D-013 v24 low-risk noninteractive Runner and D-014 local-SSD storage profile have formal Win7 evidence; interactive winpty is No-Go, high-risk/unknown profiles remain denied, production storage remains bounded in-memory until A7 integration, and optional DeepSeek A3R does not enable enterprise E7"
   ],
   "suite_results": {
     "SPIKE_01": "OWNER_ACCEPTED_FOR_MVP (formal cases remain PARTIAL/FAIL/surrogate)",
-    "SPIKE_02": "OWNER_ACCEPTED_FOR_MVP (formal PARTIAL; D-011 artifact ready, integration/harness and D-013 deferred and fail-closed)",
+    "SPIKE_02": "NO_GO_INTERACTIVE_WINPTY; WIN7_PASS_FOR_LOW_RISK_NONINTERACTIVE_RUNNER; H3_READONLY_STREAMING_LOG_UI_PASS",
     "SPIKE_03": "PASS",
-    "SPIKE_04": "OWNER_ACCEPTED_FOR_MVP (formal NOT_PERFORMED; D-014 ready for Win7 validation; in-memory mode; mechanical_disk_gate=PASS)",
+    "SPIKE_04": "WIN7_PASS for E22-SQLITE343-LOCAL-SSD; production EventStore/index integration remains A7 scope",
     "PHASE_01": "OWNER_ACCEPTED_FOR_MVP (formal Gate unchanged)",
     "PHASE_02": "OWNER_ACCEPTED_FOR_MVP (formal Gate unchanged)",
     "PHASE_03_TO_07": "OWNER_ACCEPTED_FOR_MVP + A3_REAL_MODEL_PUBLIC_NETWORK_PASS (formal Phase/E7 deferred)"
@@ -80,8 +110,8 @@
     "the real Electron product entry now starts, renders diagnostics and exits on Win7, but no installer, full five-view workflow or cross-module user-task E2E is packaged",
     "SPIKE_01 formal cold reboot, visual/focus, passive packet evidence and real two-task load remain deferred; T03 strict child-readable criterion is not changed by the MVP owner decision",
     "Phase 1/2 formal E1/E2 gates still require their architecture authorization and frozen-contract evidence",
-    "SPIKE_02 D-011 Electron ABI artifacts are available, but terminal integration and acceptance harness remain incomplete, T01-T05/N01-N05 are not performed, and the D-013 helper reproducible source-to-binary closure remains open before real local Runner/terminal can be enabled",
-    "SPIKE_04 D-014 better-sqlite3 Electron ABI artifact is ready for Win7 validation, but indexer/benchmark/fixture/recovery harnesses and Win7 S01-S08 remain incomplete before persistence and FTS can be enabled",
+    "A7 has an authorized task only on codex/a7-release-candidate; its task and implementation are not in main, and no deterministic RC package or development/Win10/Win7 RC result exists",
+    "production assembly of the Win7-passed D-013 v24 low-risk noninteractive Runner and D-014 local-SSD storage profile remains incomplete; interactive winpty, arbitrary shell, high-risk/unknown profiles and network-isolation claims remain denied",
     "enterprise Gateway/proxy/CA/PAC/model and update services remain unavailable for formal E7; public DeepSeek A3R is not an enterprise substitute"
   ],
   "a3_controlled_gateway_supplement": {

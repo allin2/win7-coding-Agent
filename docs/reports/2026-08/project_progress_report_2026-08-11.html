@@ -52,8 +52,8 @@
 
   <section class="panel conclusion">
     <h2>一、总体结论</h2>
-    <p><strong>当前项目管理估算完成度约 74%。</strong>截至 2026-08-12，A4、A5、A6 已完成统一整合收口：D-013 v24 低风险非交互 Runner 在 Win7 的 L01～L10 全部通过，H3 只读日志界面通过，A6 本地 SSD 存储 Spike 正式 <code>WIN7_PASS</code>；交互 winpty 明确为 <code>NO_GO_INTERACTIVE_WINPTY</code>。三个 Worker 提交均已成为整合提交 <code>793cc47</code> 的祖先。</p>
-    <p>项目已从“原生能力分散验证”进入 A7 Windows 7 v1 发布候选阶段。A7 已从唯一干净收口提交创建，任务状态为 <code>APPROVED_FOR_IMPLEMENTATION</code>；但<strong>RC 构建和 RC Win7 验收均未执行，正式发布级完成模块仍为 0/10</strong>。当前关键工作转为产品装配、自包含离线包、统一 manifest/SBOM/许可证、安装/升级/回滚/卸载以及新的唯一 Win7 RC 租约验收。企业 E7 外部环境仍未就绪。</p>
+    <p><strong>当前项目管理估算完成度约 74%。</strong>截至 2026-08-12，A4、A5、A6 已完成统一整合收口：D-013 v24 低风险非交互 Runner 在 Win7 的 L01～L10 全部通过，H3 只读日志界面通过，A6 本地 SSD 存储 Spike 正式 <code>WIN7_PASS</code>；交互 winpty 明确为 <code>NO_GO_INTERACTIVE_WINPTY</code>。三个 Worker 提交均已成为整合提交 <code>793cc47</code> 的祖先，该收口又已进入当前 main <code>ec9d27a</code>。</p>
+    <p>项目已从“原生能力分散验证”进入 A7 Windows 7 v1 发布候选阶段。A7 已从唯一干净收口提交创建，任务状态为 <code>APPROVED_FOR_IMPLEMENTATION</code>，但该任务书和后续实现仅位于独立分支 <code>codex/a7-release-candidate</code>，尚未进入 main；<strong>RC 构建和 RC Win7 验收均未执行，正式发布级完成模块仍为 0/10</strong>。当前关键工作转为产品装配、自包含离线包、统一 manifest/SBOM/许可证、安装/升级/回滚/卸载以及新的唯一 Win7 RC 租约验收。企业 E7 外部环境仍未就绪。</p>
   </section>
 
   <h2>二、完成度估算依据</h2>
@@ -95,7 +95,7 @@
         <tr><td>当前阻塞问题</td><td>2 个发布级阻塞面</td><td>A7 RC 构建与 Win7 验收尚未执行；企业 E7 环境未提供。Runner v24 已不再是阻塞。</td></tr>
         <tr><td>Git</td><td>main 121 个提交；整合基线 120 个；A7 121 个</td><td><code>main</code> 已 fast-forward 至整合收口提交并新增本报告；A7 在同一基线上新增一项 RC 授权提交。</td></tr>
         <tr><td>收口基线</td><td><code>793cc4799c81d9dc27d236826a344a39d86137ec</code></td><td>A4/A5/A6 均为其祖先；已建立标签 <code>baseline/a456-closeout-20260812</code>；A7 HEAD 为 <code>8789349</code>。</td></tr>
-        <tr><td>工作区</td><td>main、整合与 A7 工作树均已收口</td><td>4 个历史 PARTIAL ZIP 和 3 个 sidecar 已移出仓库；正式构建与验收工件继续以中央归档和状态台账为准。</td></tr>
+        <tr><td>工作区</td><td>状态更新前 main、整合与 A7 工作树均已收口</td><td>main 与 origin/main 同步；4 个历史 PARTIAL ZIP 和 3 个 sidecar 已移出仓库；正式构建与验收工件继续以中央归档和状态台账为准。</td></tr>
         <tr><td>CI/CD</td><td>未发现 CI/CD 配置</td><td>已有本地 <code>npm run verify</code>、文档检查、Win7 签名租约协调器和验收脚本，但没有仓库级持续集成流水线。</td></tr>
       </tbody>
     </table>
@@ -110,13 +110,13 @@
         <tr><td>Phase 1 Capability Probe</td><td>Win7 环境、运行时、文件、进程、工具探测</td><td class="status warn">待验收</td><td class="num">90%</td><td>18 项探测、结构化 JSON/SQLite 证据、错误与降级合同</td><td>20/20 开发机；Win7 18/18×3，E2 为 17 PASS + 1 预期降级</td><td>正式解除 E1/E2 Gate、补严格干净/断网授权证据</td></tr>
         <tr><td>Model Gateway</td><td>流式协议、TLS、代理、鉴权、重试、取消</td><td class="status warn">基本完成</td><td class="num">82%</td><td>HTTPS/TLS fail-closed、SSE、有限重试、DeepSeek Provider、取消</td><td>202/202；A3 15/15；公网真实模型完成/取消链路通过</td><td>企业代理/PAC、企业 CA、企业模型与正式 E7</td></tr>
         <tr><td>Workspace</td><td>读取、搜索、Plan/Apply、Diff、审批、原子写入/回滚</td><td class="status warn">基本完成</td><td class="num">85%</td><td>只读工具、单文件受控修改、撤销、恢复和边界校验</td><td>80/80；A2/A3 单文件闭环 15/15</td><td>正式 Phase 4 E5/E6、扩展编码/长路径/事务范围</td></tr>
-        <tr><td>State / Audit</td><td>事件、投影、Replay、审计、恢复</td><td class="status warn">A7 装配中</td><td class="num">72%</td><td>版本化事件、确定性投影、背压、有界内存、审计导出；D-014 输入已锁定</td><td>整合测试通过；A6 SQLite/FTS5 本地 SSD Profile 正式 Win7 PASS</td><td>在 A7 接入生产 EventStore，完成迁移、重启恢复和容量策略</td></tr>
+        <tr><td>State / Audit</td><td>事件、投影、Replay、审计、恢复</td><td class="status warn">A7 独立分支待装配</td><td class="num">72%</td><td>版本化事件、确定性投影、背压、有界内存、审计导出；D-014 输入已锁定</td><td>整合测试通过；A6 SQLite/FTS5 本地 SSD Profile 正式 Win7 PASS</td><td>在 A7 接入生产 EventStore，完成迁移、重启恢复和容量策略</td></tr>
         <tr><td>Agent Core</td><td>状态机、上下文、Policy、Broker、Verification Gate</td><td class="status warn">基本完成</td><td class="num">82%</td><td>单 Agent Loop、四维预算、审批恢复、取消、验证熔断、上下文压缩</td><td>225/225；设计静态门通过</td><td>装配生产 Runner/持久化/桌面端形成正式 E5</td></tr>
         <tr><td>Runner / Containment</td><td>结构化命令、超时、双流限制、进程树、ACL/令牌</td><td class="status ok">受限收口</td><td class="num">82%</td><td>D-013 v24、签名 Profile、合作取消和 H3 只读日志均已完成；交互输入保持关闭</td><td>Runner v24 Win7 L01～L10 全过；H3 通过；轮前后零残留</td><td>A7 仅装配已验收低风险 Profile，并完成 RC 级负向与生命周期验证</td></tr>
         <tr><td>Git Adapter</td><td>Git 隔离配置、白名单、会话安全</td><td class="status warn">待验收</td><td class="num">78%</td><td>隔离环境、命令白名单、Session Guard、经 Runner 执行</td><td>51/51；受控 MinGit MVP 14/14</td><td>正式 SBOM/许可证/裁剪清单、网络审计和 Phase Gate</td></tr>
-        <tr><td>Desktop Shell</td><td>桌面 UI、IPC、安全、诊断、审批、Gateway 设置</td><td class="status warn">A7 装配中</td><td class="num">78%</td><td>安全 Renderer、只读诊断、流式任务、Diff/审批/撤销、DPAPI 与 H3 只读日志基线</td><td>整合测试通过；A1～A3 MVP/Alpha 与 H3 实机验收完成</td><td>RC 产品装配、禁用能力展示、完整用户任务与 E7</td></tr>
+        <tr><td>Desktop Shell</td><td>桌面 UI、IPC、安全、诊断、审批、Gateway 设置</td><td class="status warn">A7 独立分支待装配</td><td class="num">78%</td><td>安全 Renderer、只读诊断、流式任务、Diff/审批/撤销、DPAPI 与 H3 只读日志基线</td><td>整合测试通过；A1～A3 MVP/Alpha 与 H3 实机验收完成</td><td>RC 产品装配、禁用能力展示、完整用户任务与 E7</td></tr>
         <tr><td>Storage / Index</td><td>SQLite/WAL、FTS5、索引、查询、清理</td><td class="status ok">Spike PASS</td><td class="num">80%</td><td>D-014 构建、Spike harness、功能/性能/路径/清理矩阵完成</td><td>A6 Win7 SSD：S01～S08、F01～F06、P08 全过；P95 183ms</td><td>A7 生产集成与重启恢复；不外推 HDD/网络盘</td></tr>
-        <tr><td>包装 / Updater / 发布</td><td>自包含包、签名、SBOM、安装升级、回滚卸载</td><td class="status warn">A7 已授权</td><td class="num">30%</td><td>RC 合同、路径白名单、锁定原生输入、manifest/SBOM/许可证和验收矩阵已定义</td><td>A7 任务已授权；RC-01～RC-10 均未执行</td><td>生成唯一 RC、完成开发机/Win10/Win7 三层 PASS 与完整生命周期验证</td></tr>
+        <tr><td>包装 / Updater / 发布</td><td>自包含包、签名、SBOM、安装升级、回滚卸载</td><td class="status warn">A7 独立分支已授权</td><td class="num">30%</td><td>RC 合同、路径白名单、锁定原生输入、manifest/SBOM/许可证和验收矩阵已定义</td><td>A7 任务已授权但尚未进入 main；RC-01～RC-10 均未执行</td><td>生成唯一 RC、完成开发机/Win10/Win7 三层 PASS 与完整生命周期验证</td></tr>
       </tbody>
     </table>
     <p class="note">交互终端不再作为 v1 待交付模块：A5 已实测 winpty 交互输入缺陷，ADR-0066 已决定 v1 不交付交互 PTY，改为受控非交互 Runner + 只读日志。这是完成技术裁决，不是“终端功能完成”。</p>
@@ -260,7 +260,7 @@
         <tr><td>M1 Win7 MVP 产品入口</td><td class="status ok">已完成</td><td class="num">100%</td><td>OWNER_ACCEPTED_FOR_MVP；启动、诊断、退出和零残留有证据</td></tr>
         <tr><td>M2 A2/A3 受控写入与模型链路</td><td class="status ok">已完成</td><td class="num">100%</td><td>A2/A3 15/15；真实模型完成、取消、审批和撤销闭环</td></tr>
         <tr><td>M3 原生兼容与技术路线</td><td class="status ok">已完成</td><td class="num">100%</td><td>D-013 v24、H3、A6 通过；交互终端 No-Go 已裁决；A4/A5/A6 已整合</td></tr>
-        <tr><td>M4 产品级执行与持久化装配</td><td class="status warn">A7 进行中</td><td class="num">65%</td><td>输入能力均已验收，当前进行 Runner/SQLite 产品级装配和 RC 打包</td></tr>
+        <tr><td>M4 产品级执行与持久化装配</td><td class="status warn">A7 独立分支已授权</td><td class="num">65%</td><td>输入能力均已验收；产品级装配和 RC 打包尚未形成可验证产物</td></tr>
         <tr><td>M5 正式发布与企业验收</td><td class="status warn">已授权未验收</td><td class="num">25%</td><td>A7 RC 合同已锁定；缺实际 RC、安装升级回滚、Win7 RC 和企业 E7</td></tr>
       </tbody>
     </table>
@@ -271,7 +271,7 @@
     <ul>
       <li>整合正式状态：<a href="../../STATUS.md">main / docs/STATUS.md</a></li>
       <li>A4/A5/A6 收口单一事实源：<a href="../../status/integration-closeout-latest.json">integration-closeout-latest.json</a></li>
-      <li>A7 RC 任务书：<a href="/Users/qlyf/Developer/win7-agent-a7/docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md">RC_01_WIN7_RELEASE_CANDIDATE.md</a></li>
+      <li>A7 RC 任务书：仅位于 <code>codex/a7-release-candidate</code> 分支的 <code>docs/tasks/RC_01_WIN7_RELEASE_CANDIDATE.md</code>；main 尚未包含，分支边界见 <a href="../../tasks/README.md">任务书索引</a></li>
       <li>项目约束：<a href="../../../AGENTS.md">AGENTS.md</a>；兼容性与依赖：<a href="../../WIN7_CONSTRAINTS.md">docs/WIN7_CONSTRAINTS.md</a></li>
       <li>架构与路线：<a href="../../ARCHITECTURE.md">docs/ARCHITECTURE.md</a>、<a href="../../ROADMAP.md">docs/ROADMAP.md</a></li>
       <li>健壮性问题 R-01～R-50：<a href="../../ROBUSTNESS_AUDIT.md">docs/ROBUSTNESS_AUDIT.md</a></li>

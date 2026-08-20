@@ -22,6 +22,10 @@
 
 > SPIKE 任务书只按正式证据同步验证状态。SPIKE_02 的受限结论只开放低风险非交互 Runner 的 A7 RC 装配；交互 winpty、网络隔离、任意 Shell、高风险及未知 Profile 继续 fail-closed。MVP 独立实测结果见 `validation/README.md`、`docs/STATUS.md` 和 `docs/status/latest-validation.json`，不会把 MVP 证据冒充正式任务 Gate。
 
+> 当前 main 为 `ec9d27a`，已包含 A4/A5/A6 收口，但不包含 A7 的 `RC_01` 任务书或实现。
+> A7 仅在 `codex/a7-release-candidate` 分支获授权；合入 main 前仍以该分支任务书为准，且
+> `RC_BUILD_AND_WIN7_ACCEPTANCE_NOT_PERFORMED`。
+
 MVP-20260802-14 已由项目负责人按 ADR-0055 以 `OWNER_ACCEPTED_FOR_MVP` 收口，并完成真实 Electron 产品入口的启动、Renderer 诊断和正常退出实测；延期项不改变各正式任务状态，也不解除 Phase 1/2、SPIKE_02/04 或 E7 的正式 Gate。
 
 ## 待 Win7 验收
