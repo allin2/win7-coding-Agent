@@ -344,6 +344,17 @@ schema v2 10/10 均通过；新候选 ZIP SHA-256 为
 RC 对此候选保持 `NOT_PERFORMED`，机器可读证据见
 [`a8-06-conversation-scroll-layout-fix-checkpoint-20260821.json`](../status/a8-06-conversation-scroll-layout-fix-checkpoint-20260821.json)。
 
+同日 Win10 用户反馈“＋ 文本”没有任何可用响应。复核确认文本附件与 Goal 编辑仍调用 Renderer 的
+`window.prompt()`，没有可靠的 Electron 产品交互。源码提交 `a7682b0cf43a634d4622ef920d57615f35b39fc7`
+已将两条链路替换为应用内模态表单：文本附件具备可见标签、UTF-8 字节计数、64 KiB 上限、空内容和同名
+附件错误、取消/焦点恢复及成功上下文标签；Goal 表单具备 2,000 字符边界、revision 绑定与保存反馈。
+真实 Electron smoke 新增 `A8UX-02-TEXT-ATTACHMENT-DIALOG` 并进入 A8-06 验证包必验清单。Shell 197 项、
+仓库 1089 项、打包/证据合同 4/4 与 5/5、schema v2 10/10 均通过；新候选 ZIP SHA-256 为
+`363fbfb0fab71d3293c7aa9549930c9dfc5f22dfbcc0a1a342acdcef8f8bb053`，manifest SHA-256 为
+`92fd342fe3e35750935cede7bcf80b147cd83b894cd536f33279007d952a214c`，两次构建一致。Win10、Win7 和 RC
+对该候选保持 `NOT_PERFORMED`，证据见
+[`a8-06-text-context-dialog-fix-checkpoint-20260821.json`](../status/a8-06-text-context-dialog-fix-checkpoint-20260821.json)。
+
 ## 4. 事件、状态与安全不变量
 
 - Gateway 原始 chunk 继续逐项审计；Renderer 仅在展示投影层按 `taskId + requestId + 连续 index` 聚合。
