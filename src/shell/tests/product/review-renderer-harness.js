@@ -25,6 +25,14 @@
       status: 'ACTIVE',
       taskCount: 0,
     };
+    const secondarySession = {
+      ...session,
+      sessionId: 'session-qa-2',
+      threadId: 'thread-qa-2',
+      label: 'Secondary Session',
+      createdAt: '2026-08-21T00:01:00.000Z',
+    };
+    const sessions = [session, secondarySession];
     const files = [
       { relativePath: 'src/app.ts', operation: 'MODIFY', beforeEncoding: 'utf-8', afterEncoding: 'utf-8', beforeEol: 'lf', afterEol: 'lf', decision: 'PENDING', writable: true, diff: { unifiedDiff: '@@ -1 +1 @@\n-old\n+new\n' } },
       { relativePath: 'src/new.ts', operation: 'CREATE', beforeEncoding: 'utf-8', afterEncoding: 'utf-8', beforeEol: 'none', afterEol: 'lf', decision: 'PENDING', writable: true, diff: { unifiedDiff: '@@ -0,0 +1 @@\n+new file\n' } },
@@ -34,6 +42,7 @@
     let taskEventListener;
     let approval;
     let eventSequence = 0;
+    let activeTask = null;
     const calls = [];
 
     function clone(value) { return value === undefined ? null : JSON.parse(JSON.stringify(value)); }
@@ -58,19 +67,20 @@
       };
     }
     function report(state) {
-      const value = { state, calls: clone(calls), review: clone(review), approval: clone(approval) };
+      const value = { state, calls: clone(calls), sessions: clone(sessions), activeTask: clone(activeTask), review: clone(review), approval: clone(approval) };
       window.__reviewHarnessReport = value;
       window.parent.postMessage({ type: 'review-harness-state', value }, '*');
     }
-    function emit(eventKind, data) {
+    function emit(eventKind, data, task) {
       if (typeof taskEventListener !== 'function') return;
+      const sourceTask = task || activeTask || { taskId: review.taskId, sessionId: review.sessionId, threadId: session.threadId };
       taskEventListener({
-        taskId: review.taskId,
+        taskId: sourceTask.taskId,
         eventId: `qa:${eventKind}:${eventSequence + 1}`,
         eventKind,
         sequence: ++eventSequence,
         timestamp: new Date().toISOString(),
-        data: { ...clone(data || {}), sessionId: session.sessionId, threadId: session.threadId, turnId: 'turn-qa-1', runId: 'run-qa-1' },
+        data: { ...clone(data || {}), sessionId: sourceTask.sessionId, threadId: sourceTask.threadId || session.threadId, turnId: 'turn-qa-1', runId: 'run-qa-1' },
       });
     }
     function result() { return { result: { review: clone(review) } }; }
@@ -85,14 +95,39 @@
     return {
       getDiagnostics: async () => ({ capabilities: { core: 'replay', state: 'memory', workspace: 'readonly', runner: 'unavailable', terminal: 'unavailable' } }),
       getSettings: async () => ({ settings: { mode: 'replay', gatewayUrl: '', model: 'replay', caBundlePath: '', credentials: { apiKeySaved: false, persistenceAvailable: false } } }),
-      listSessions: async () => ({ sessions: [clone(session)] }),
-      getSession: async () => ({ projection: { schemaVersion: 1, session: clone(session), goal: null, contextTurns: [] } }),
+      listSessions: async () => ({ sessions: clone(sessions) }),
+      getSession: async (sessionId) => ({ projection: { schemaVersion: 1, session: clone(sessions.find((candidate) => candidate.sessionId === sessionId)), goal: null, contextTurns: [] } }),
+      selectWorkspace: async () => ({ selected: { workspaceId: session.workspaceId, workspacePath: session.workspacePath, displayName: 'review-harness' } }),
+      createSession: async () => {
+        const created = { ...secondarySession, sessionId: `session-qa-${sessions.length + 1}`, threadId: `thread-qa-${sessions.length + 1}`, label: `Session ${sessions.length + 1}`, createdAt: new Date().toISOString(), status: 'ACTIVE' };
+        sessions.push(created); calls.push({ method: 'createSession', sessionId: created.sessionId }); report('session:created'); return { session: clone(created) };
+      },
+      closeSession: async (sessionId) => {
+        const target = sessions.find((candidate) => candidate.sessionId === sessionId);
+        if (!target) return { ok: false, error: { message: 'session not found' } };
+        target.status = 'ARCHIVED'; target.archivedAt = new Date().toISOString(); calls.push({ method: 'closeSession', sessionId }); report(`session:archived:${sessionId}`);
+        return { result: { sessionId, archived: true, status: 'ARCHIVED' } };
+      },
       listWorkspace: async () => ({ result: { path: '', entries: [] } }),
       readWorkspaceFile: async () => ({ result: { path: 'src/app.ts', encoding: 'utf-8', lines: [{ line: 1, text: 'old' }], startLine: 1, endLine: 1 } }),
       getRecovery: async () => ({ recovery: { pending: null } }),
       onTaskEvent: (callback) => { taskEventListener = callback; return () => { taskEventListener = null; }; },
       signalReady: () => { report('ready'); window.parent.postMessage({ type: 'review-harness-ready' }, '*'); },
+      submitTask: async (sessionId, prompt) => {
+        activeTask = { taskId: `task-qa-${Date.now()}`, sessionId, threadId: sessions.find((candidate) => candidate.sessionId === sessionId).threadId };
+        eventSequence = 0; calls.push({ method: 'submitTask', sessionId, prompt }); report('task:submitting');
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const task = clone(activeTask); setTimeout(() => emit('task.accepted', { status: 'accepted' }, task), 0);
+        return { task: { ...task, status: 'accepted', scenario: 'structure' } };
+      },
+      cancelTask: async (sessionId, taskId) => {
+        calls.push({ method: 'cancelTask', sessionId, taskId }); report('task:cancelling');
+        const task = clone(activeTask); setTimeout(() => { emit('task.cancelled', { outcome: 'cancelled' }, task); activeTask = null; report('task:cancelled'); }, 30);
+        return { result: { taskId, cancellationRequested: true } };
+      },
       submitReviewTask: async (_sessionId, prompt) => {
+        activeTask = { taskId: review.taskId, sessionId: session.sessionId, threadId: session.threadId };
+        eventSequence = 0;
         calls.push({ method: 'submitReviewTask', prompt });
         report('submitted');
         setTimeout(() => emit('task.accepted', { status: 'accepted' }), 0);
@@ -124,6 +159,7 @@
         report('applied');
         emit('review.applied', { review: clone(review), result: { status: 'APPLIED', success: true, zeroWrites: false } });
         emit('task.completed', { outcome: 'completed', reviewStatus: 'APPLIED' });
+        activeTask = null;
         return { result: { review: clone(review), result: { status: 'APPLIED', success: true, zeroWrites: false } } };
       },
     };

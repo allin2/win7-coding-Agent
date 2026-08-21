@@ -264,6 +264,15 @@ function createDesktopHost(options) {
     const session = createSessionRuntime(record);
     sessions.set(session.sessionId, session);
   });
+  const restoredActiveSessions = Array.from(sessions.values()).filter((session) => session.status === 'ACTIVE');
+  const restoredWorkspaceIds = new Set(restoredActiveSessions.map((session) => session.workspaceId));
+  if (restoredWorkspaceIds.size > 1) {
+    throw productError('WORKSPACE_SESSION_BOUND', '恢复数据包含多个活动工作区', '在 Diagnostics 检查会话数据并归档冲突会话。');
+  }
+  if (restoredActiveSessions.length > 0) {
+    selectedWorkspace = restoredActiveSessions[0].workspacePath;
+    selectedWorkspaceId = restoredActiveSessions[0].workspaceId;
+  }
 
   eventTimer = setInterval(flushEvents, 10);
 

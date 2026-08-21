@@ -14,5 +14,9 @@
     return isCurrentTask(session, taskRunning, activeTaskSessionId) ? '停止并关闭' : '关闭当前会话';
   }
 
-  root.win7AgentSessionUi = Object.freeze({ isCurrentTask, selectNextSession, closeLabel });
+  function shouldPreserveActiveTask(taskRunning, activeTaskSessionId, closingSessionId) {
+    return Boolean(taskRunning && activeTaskSessionId && activeTaskSessionId !== closingSessionId);
+  }
+
+  root.win7AgentSessionUi = Object.freeze({ isCurrentTask, selectNextSession, closeLabel, shouldPreserveActiveTask });
 }(window));

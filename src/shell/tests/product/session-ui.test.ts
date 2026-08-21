@@ -12,6 +12,7 @@ describe('A8 session UI helpers', () => {
     isCurrentTask: (session: Session | null, taskRunning: boolean, activeTaskSessionId: string | null) => boolean;
     selectNextSession: (sessions: Session[], closedSessionId: string) => Session | null;
     closeLabel: (session: Session | null, taskRunning: boolean, activeTaskSessionId: string | null) => string;
+    shouldPreserveActiveTask: (taskRunning: boolean, activeTaskSessionId: string | null, closingSessionId: string) => boolean;
   };
 
   it('recognizes only the active task for the selected session', () => {
@@ -32,5 +33,12 @@ describe('A8 session UI helpers', () => {
     expect(api.selectNextSession(sessions, 'closed')?.sessionId).toBe('next');
     expect(api.selectNextSession(sessions, 'next')?.sessionId).toBe('other');
     expect(api.selectNextSession([{ sessionId: 'closed', status: 'ARCHIVED' }], 'closed')).toBeNull();
+  });
+
+  it('preserves an active task only when a different session is being archived', () => {
+    expect(api.shouldPreserveActiveTask(true, 'task-session', 'idle-session')).toBe(true);
+    expect(api.shouldPreserveActiveTask(true, 'task-session', 'task-session')).toBe(false);
+    expect(api.shouldPreserveActiveTask(false, 'task-session', 'idle-session')).toBe(false);
+    expect(api.shouldPreserveActiveTask(true, null, 'idle-session')).toBe(false);
   });
 });

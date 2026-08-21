@@ -123,7 +123,7 @@
     .sim-light.red { background: #e9877f; }
     .sim-light.yellow { background: #e8c56c; }
     .sim-light.green { background: #4fbc78; }
-    
+
     .sim-journey-selector {
       display: flex;
       align-items: center;
@@ -162,7 +162,7 @@
       background: var(--bg);
       position: relative;
     }
-    
+
     /* Left Rail */
     .rail {
       background: var(--rail);
@@ -242,7 +242,7 @@
     .rail-heading { padding: 0 6px 4px; color: var(--muted); font: 10px var(--mono); text-transform: uppercase; }
     .rail-heading button { border: 0; background: transparent; color: var(--muted); font-size: 16px; padding: 0 4px; }
     .rail-heading button:hover { color: var(--green); }
-    
+
     .session-list, .file-list { list-style: none; padding: 0; margin: 0; }
     .session-list { overflow-y: auto; flex: 1; min-height: 60px; max-height: 120px; }
     .session-list li {
@@ -312,7 +312,7 @@
       position: relative;
       overflow: hidden;
     }
-    
+
     .conversation-header {
       height: 56px;
       flex-shrink: 0;
@@ -372,7 +372,7 @@
       scrollbar-width: thin;
       scrollbar-color: #353e39 transparent;
     }
-    
+
     .welcome {
       max-width: 540px;
       margin: 20px auto 14px;
@@ -448,7 +448,7 @@
     .card-header strong { font-size: 11px; }
     .card-header span { color: var(--muted); font: 9px var(--mono); }
     .card-body { padding: 8px 10px; color: #c3cac5; font-size: 11px; line-height: 1.45; }
-    
+
     /* Structured Compact Plan Card Styling */
     .plan-card {
       border: 1px solid #3c5264;
@@ -536,7 +536,7 @@
     .tool-card.completed { border-left-color: var(--green2); }
     .approval-card { border-left: 3px solid var(--amber); }
     .error-card { border-left: 3px solid var(--red); }
-    
+
     .card-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 0 10px 8px; }
     .card button, .drawer-actions button, .recovery button, .modal-actions button {
       border: 1px solid var(--line);
@@ -665,7 +665,7 @@
     .inspector section { padding-bottom: 10px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
     .section-title h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin: 0; }
     .section-title > span { color: var(--muted); font: 9px var(--mono); }
-    
+
     .workspace-tree { list-style: none; margin: 4px 0 0; padding: 0; max-height: 120px; overflow-y: auto; }
     .workspace-tree li {
       display: grid;
@@ -843,10 +843,10 @@
     .guide-article li { margin-bottom: 5px; }
     .guide-article code { background: #1b221d; color: #a2e8b6; padding: 2px 4px; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
     .guide-article pre { background: #0c0f0d; border: 1px solid var(--line); padding: 10px; border-radius: 5px; font: 11px/1.45 var(--mono); color: #d4ded7; margin: 10px 0; overflow-x: auto; }
-    
+
     .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .grid-3col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-    
+
     .feature-card {
       background: #161b18;
       border: 1px solid var(--line);
@@ -929,7 +929,7 @@
             </div>
             <span><strong>Win7 实机交互模拟工作台</strong> (支持鼠标滚轮自由翻阅 · 全 12 场景无死角演示)</span>
           </div>
-          
+
           <!-- 12 User Journeys Selector -->
           <div class="sim-journey-selector">
             <label for="sim-journey-select" style="font-size:11px;color:var(--muted)">选择演练旅程：</label>
@@ -1278,7 +1278,7 @@
             <div class="modal-card">
               <h3>＋ 添加自定义文本上下文附件</h3>
               <p class="quiet" style="margin-bottom:8px;">输入要附加给 Agent 的代码片段、报错堆栈或配置（最多 64KB 预算）：</p>
-              
+
               <!-- Quick Preset Samples -->
               <div class="modal-presets">
                 <button type="button" class="modal-preset-btn" data-preset="gbk">📄 预设: GBK 乱码日志</button>
@@ -1287,7 +1287,7 @@
               </div>
 
               <textarea id="sim-attach-content" placeholder="输入或粘贴错误日志、配置信息..."></textarea>
-              
+
               <div class="modal-actions">
                 <button type="button" id="sim-btn-cancel-attach" class="secondary">取消</button>
                 <button type="button" id="sim-btn-confirm-attach" class="primary">✓ 添加至输入框</button>
@@ -1339,7 +1339,7 @@
       <div class="guide-article">
         <h2>📖 产品定义与设计哲学</h2>
         <p><strong>Win7 Coding Agent</strong> 是专门面向 <strong>Windows 7 SP1 x64</strong> 遗留系统与受限企业内网环境打造的对话式 Coding Agent 执行端与客户端。</p>
-        
+
         <div class="callout">
           <strong>为什么选择 Agent-First 而非传统 IDE 插件？</strong>
           <p>在工业制造、银行内网及专用设备等大量 Windows 7 场景下，缺乏现代 VSCode/Docker 运行条件。本产品采用“对话即工作区、低视觉噪声、按需检查、准备区审批”的 Agent-First 架构，无需复杂配置，开箱即用。</p>
@@ -2271,7 +2271,7 @@
             `;
             container.appendChild(tool2Div);
             appendAudit('review.staged', 'files=2 status=READY');
-            
+
             // Update Review Panel State
             secReview.hidden = false;
             secViewer.hidden = true;

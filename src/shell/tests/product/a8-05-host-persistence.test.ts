@@ -81,11 +81,27 @@ describe('A8-05 Desktop Host durable Review projection', () => {
     fs.writeFileSync(path.join(workspaceRoot, 'sample.ts'), 'external drift\n', 'utf8');
 
     secondHost = createDesktopHost({ sessionCatalog: catalog, reviewDirectory });
-    await secondHost.selectWorkspace(workspaceRoot);
+    expect(secondHost.getSelectedWorkspace()).toBe(fs.realpathSync(workspaceRoot));
     const reopened = secondHost.listSessions()[0];
     expect(reopened.taskCount).toBe(1);
     const projection = secondHost.getSessionProjection(session.sessionId);
     expect(projection.persistedTasks).toEqual([expect.objectContaining({ state: 'AWAITING_REVIEW' })]);
     expect(secondHost.getReview({ sessionId: session.sessionId, taskId: accepted.taskId }).review.status).toBe('STALE');
+    expect(secondHost.createSession({ label: 'after restart' })).toEqual(expect.objectContaining({
+      workspacePath: fs.realpathSync(workspaceRoot),
+      status: 'ACTIVE',
+    }));
+  });
+
+  it('fails closed when restored active sessions span more than one workspace', () => {
+    const catalog = durableCatalog();
+    const otherWorkspace = path.join(workspaceRoot, 'other-workspace');
+    fs.mkdirSync(otherWorkspace);
+    const firstWorkspace = catalog.ensureWorkspace(workspaceRoot);
+    const secondWorkspace = catalog.ensureWorkspace(otherWorkspace);
+    catalog.createSession({ workspaceId: firstWorkspace.workspaceId, label: 'first' });
+    catalog.createSession({ workspaceId: secondWorkspace.workspaceId, label: 'second' });
+
+    expect(() => createDesktopHost({ sessionCatalog: catalog, reviewDirectory })).toThrow('恢复数据包含多个活动工作区');
   });
 });

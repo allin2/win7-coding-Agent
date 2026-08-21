@@ -25,11 +25,14 @@ const state = {
   conversationViews: new Map(),
   renderSessionId: null,
   activeTaskSessionId: null,
+  cancelRequested: false,
   pendingCloseSessionId: null,
   pendingContexts: new Map(),
   explorerPath: '',
   viewer: null,
   lastFocusedElement: null,
+  lastInspectorFocusedElement: null,
+  lastNavigationFocusedElement: null,
 };
 
 function byId(id) { return document.getElementById(id); }
@@ -50,6 +53,7 @@ function ensureConversationView(sessionId) {
   const view = document.createElement('div'); view.className = 'session-view'; view.dataset.sessionId = sessionId;
   const welcome = document.createElement('section'); welcome.className = 'welcome';
   welcome.innerHTML = '<div class="welcome-glyph">⌘</div><p class="kicker">AGENT-FIRST WORKSPACE</p><h2>先描述你想完成的事。</h2><p>按需添加文件、目录或文本上下文；工具实际读取的文件会单独记录。</p>';
+  welcome.querySelector('.welcome-glyph').setAttribute('aria-hidden', 'true');
   const suggestions = document.createElement('div'); suggestions.className = 'suggestions';
   [['分析这个工作区的代码结构，并指出最重要的入口。', '梳理代码结构'], ['检查中文路径、编码与 CRLF 兼容风险。', '检查 Win7 兼容性']].forEach(([prompt, label]) => {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = `${label} →`;
@@ -379,8 +383,9 @@ function renderFileActivity() {
   const paths = state.session ? state.filePathsBySession.get(state.session.sessionId) || new Set() : new Set();
   const list = byId('file-activity'); list.textContent = '';
   paths.forEach((filePath) => {
-    const item = document.createElement('li'); item.textContent = filePath; item.tabIndex = 0;
-    item.addEventListener('click', () => openWorkspaceFile(filePath)); list.appendChild(item);
+    const item = document.createElement('li');
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = filePath;
+    button.addEventListener('click', () => openWorkspaceFile(filePath)); item.appendChild(button); list.appendChild(item);
   });
   byId('file-empty').hidden = paths.size > 0; setText('file-count', paths.size);
 }
@@ -440,6 +445,7 @@ async function openWorkspaceFile(filePath, startLine) {
   state.viewer = { result: result.result, selectionStart: null, selectionEnd: null };
   byId('viewer-panel').hidden = false; setText('viewer-file', result.result.path); setText('viewer-range', '未选择');
   byId('viewer-search').value = ''; renderViewerLines();
+  toggleInspector(true);
 }
 
 function renderViewerLines() {
@@ -447,7 +453,7 @@ function renderViewerLines() {
   if (!state.viewer) return;
   const query = byId('viewer-search').value.toLocaleLowerCase();
   state.viewer.result.lines.forEach((line) => {
-    const row = document.createElement('div'); row.className = 'code-line'; row.dataset.line = String(line.line);
+    const row = document.createElement('button'); row.type = 'button'; row.className = 'code-line'; row.dataset.line = String(line.line);
     if (query && line.text.toLocaleLowerCase().includes(query)) row.classList.add('match');
     if (state.viewer.selectionStart && line.line >= state.viewer.selectionStart && line.line <= state.viewer.selectionEnd) row.classList.add('selected');
     const number = document.createElement('span'); number.className = 'line-no'; number.textContent = line.line;
@@ -519,6 +525,7 @@ function attachText() {
 
 function resetTaskState() {
   state.taskId = null; state.pendingApproval = null; state.pendingPlanApproval = null;
+  state.cancelRequested = false;
   state.review = null; state.reviewTaskId = null; state.reviewFilePath = null; state.reviewApproval = null;
   if (byId('review-panel')) byId('review-panel').hidden = true;
   setText('review-nav-state', '待准备');
@@ -535,16 +542,18 @@ function setRunning(running) {
   const viewingActive = running && state.session && state.session.sessionId === state.activeTaskSessionId;
   const closingCurrent = Boolean(state.session && state.pendingCloseSessionId === state.session.sessionId);
   byId('run-task').hidden = viewingActive; byId('cancel-task').hidden = !viewingActive;
-  byId('cancel-task').disabled = !viewingActive; byId('run-task').disabled = running || closingCurrent || !state.session || state.session.status !== 'ACTIVE' || !byId('task-prompt').value.trim();
+  byId('cancel-task').disabled = !viewingActive || state.cancelRequested; byId('run-task').disabled = running || closingCurrent || !state.session || state.session.status !== 'ACTIVE' || !byId('task-prompt').value.trim();
   byId('task-prompt').disabled = closingCurrent || !state.session || state.session.status !== 'ACTIVE';
   byId('attach-text').disabled = closingCurrent || !state.session || state.session.status !== 'ACTIVE' || running;
-  const closeButton = byId('close-session');
   const canClose = Boolean(state.session && state.session.status === 'ACTIVE');
-  const closeLabel = viewingActive ? '停止并关闭' : '关闭当前会话';
-  closeButton.disabled = !canClose || closingCurrent;
-  closeButton.textContent = closeLabel;
-  closeButton.title = viewingActive ? '先停止当前任务，再关闭会话' : '归档当前会话';
-  closeButton.setAttribute('aria-label', closeLabel);
+  const closeLabel = window.win7AgentSessionUi.closeLabel(state.session, running, state.activeTaskSessionId);
+  ['close-session', 'close-session-header'].forEach((id) => {
+    const closeButton = byId(id);
+    closeButton.disabled = !canClose || closingCurrent;
+    closeButton.textContent = id === 'close-session-header' && closeLabel === '关闭当前会话' ? '关闭会话' : closeLabel;
+    closeButton.title = viewingActive ? '先停止当前任务，再关闭会话' : '归档当前会话';
+    closeButton.setAttribute('aria-label', closeLabel);
+  });
   byId('mode-direct').disabled = running; byId('mode-plan').disabled = running;
 }
 
@@ -565,15 +574,16 @@ async function runTask(submission) {
   state.scenario = submission && submission.scenario ? submission.scenario : byId('scenario').value;
   state.executionMode = submission && submission.executionMode ? submission.executionMode : state.executionMode;
   const refs = submission && submission.refs ? submission.refs : activeContexts().map(({ key, ...ref }) => ref);
+  const submissionSessionId = state.session.sessionId;
   state.lastSubmission = { prompt, scenario: state.scenario, executionMode: state.executionMode, refs };
-  state.renderSessionId = state.session.sessionId;
+  state.renderSessionId = submissionSessionId;
   createMessage('user', state.executionMode === 'plan' ? '你 · 先计划' : '你 · 直接做', prompt);
   state.renderSessionId = null;
-  byId('task-prompt').value = ''; state.pendingContexts.set(state.session.sessionId, []); renderContextChips(); resizeComposer();
-  state.activeTaskSessionId = state.session.sessionId; setRunning(true); setTaskState('运行中', 'running');
+  byId('task-prompt').value = ''; state.pendingContexts.set(submissionSessionId, []); renderContextChips(); resizeComposer();
+  state.activeTaskSessionId = submissionSessionId; setRunning(true); setTaskState('运行中', 'running');
   const result = state.scenario === 'review'
-    ? await call(() => window.win7Agent.submitReviewTask(state.session.sessionId, prompt))
-    : await call(() => window.win7Agent.submitTask(state.session.sessionId, prompt, state.scenario, state.executionMode, refs));
+    ? await call(() => window.win7Agent.submitReviewTask(submissionSessionId, prompt))
+    : await call(() => window.win7Agent.submitTask(submissionSessionId, prompt, state.scenario, state.executionMode, refs));
   const task = result && (result.task || result.result);
   if (!task || !task.taskId) {
     const pendingCloseSessionId = state.pendingCloseSessionId;
@@ -583,8 +593,8 @@ async function runTask(submission) {
     return;
   }
   state.taskId = task.taskId;
-  if (state.pendingCloseSessionId === state.session.sessionId) {
-    setText('session-status', '正在停止任务，完成后关闭会话…');
+  if (state.pendingCloseSessionId === submissionSessionId) {
+    if (state.session && state.session.sessionId === submissionSessionId) setText('session-status', '正在停止任务，完成后关闭会话…');
     void cancelTask();
   }
 }
@@ -592,17 +602,21 @@ async function runTask(submission) {
 function retryLastTask() { if (state.lastSubmission && !state.taskRunning) void runTask(state.lastSubmission); }
 
 async function cancelTask() {
-  if (!state.taskId || !state.session) return false;
-  setTaskState('正在停止', 'running'); byId('cancel-task').disabled = true;
-  const result = await call(() => window.win7Agent.cancelTask(state.session.sessionId, state.taskId));
-  if (!result) { byId('cancel-task').disabled = false; return false; }
+  if (!state.taskId || !state.activeTaskSessionId) return false;
+  const taskId = state.taskId;
+  const sessionId = state.activeTaskSessionId;
+  state.cancelRequested = true;
+  const previousRenderSessionId = state.renderSessionId; state.renderSessionId = sessionId;
+  setTaskState('正在停止', 'running'); state.renderSessionId = previousRenderSessionId; byId('cancel-task').disabled = true;
+  const result = await call(() => window.win7Agent.cancelTask(sessionId, taskId));
+  if (!result) { state.cancelRequested = false; setRunning(state.taskRunning); return false; }
   return true;
 }
 
 function finishTask(label, className) {
   const finishedTaskSessionId = state.activeTaskSessionId;
   const pendingCloseSessionId = state.pendingCloseSessionId === finishedTaskSessionId ? state.pendingCloseSessionId : null;
-  setTaskState(label, className); setRunning(false); state.projector.close('TASK_TERMINAL'); state.activeTaskSessionId = null;
+  setTaskState(label, className); state.cancelRequested = false; setRunning(false); state.projector.close('TASK_TERMINAL'); state.activeTaskSessionId = null;
   if (pendingCloseSessionId) void archiveSession(pendingCloseSessionId);
 }
 
@@ -697,6 +711,7 @@ function renderRunnerEvent(kind, data) {
 function renderSessions(sessions) {
   state.sessions = sessions;
   byId('session-list').textContent = '';
+  byId('archived-session-list').textContent = '';
   sessions.forEach((session) => {
     ensureConversationView(session.sessionId);
     const item = document.createElement('li');
@@ -705,14 +720,17 @@ function renderSessions(sessions) {
     button.title = session.workspacePath;
     button.setAttribute('aria-label', `${session.label}${session.status === 'ARCHIVED' ? '（归档，只读）' : ''}`);
     button.setAttribute('aria-current', state.session && session.sessionId === state.session.sessionId ? 'true' : 'false');
-    item.dataset.status = session.status === 'ARCHIVED' ? '归档' : '';
     if (session.status === 'ARCHIVED') item.classList.add('archived');
     if (state.session && session.sessionId === state.session.sessionId) item.classList.add('active');
-    button.addEventListener('click', () => { state.session = session; activateConversation(session.sessionId); updateSessionUi(); renderSessions(sessions); void refreshRecovery(); void refreshSessionProjection(); if (session.status === 'ACTIVE') void refreshWorkspace(''); });
+    button.addEventListener('click', () => { state.session = session; activateConversation(session.sessionId); updateSessionUi(); renderSessions(sessions); toggleNavigation(false); void refreshRecovery(); void refreshSessionProjection(); if (session.status === 'ACTIVE') void refreshWorkspace(''); });
     item.appendChild(button);
-    byId('session-list').appendChild(item);
+    byId(session.status === 'ARCHIVED' ? 'archived-session-list' : 'session-list').appendChild(item);
   });
-  byId('session-empty').hidden = sessions.length > 0;
+  const activeCount = sessions.filter((session) => session.status === 'ACTIVE').length;
+  const archivedCount = sessions.length - activeCount;
+  byId('session-empty').hidden = activeCount > 0;
+  byId('archived-sessions').hidden = archivedCount === 0;
+  setText('archived-session-count', archivedCount);
 }
 
 function updateSessionUi() {
@@ -740,6 +758,7 @@ async function createSession() { if (!state.workspacePath) return; const result 
 
 async function archiveSession(sessionId) {
   if (!sessionId) return false;
+  const preserveActiveTask = window.win7AgentSessionUi.shouldPreserveActiveTask(state.taskRunning, state.activeTaskSessionId, sessionId);
   const result = await call(() => window.win7Agent.closeSession(sessionId));
   if (!result) {
     if (state.pendingCloseSessionId === sessionId) {
@@ -751,10 +770,12 @@ async function archiveSession(sessionId) {
   await refreshSessions();
   const next = window.win7AgentSessionUi.selectNextSession(state.sessions, sessionId);
   state.session = next;
-  state.taskId = null;
-  state.renderSessionId = null;
+  if (!preserveActiveTask) {
+    state.taskId = null;
+    state.renderSessionId = null;
+  }
   if (state.pendingCloseSessionId === sessionId) state.pendingCloseSessionId = null;
-  if (!next) resetTaskState();
+  if (!next && !preserveActiveTask) resetTaskState();
   renderSessions(state.sessions);
   updateSessionUi();
   await refreshSessionProjection();
@@ -854,28 +875,95 @@ function resizeComposer() { const input = byId('task-prompt'); input.style.heigh
 function toggleDrawer(id, open) {
   const drawer = byId(id);
   if (!drawer) return;
+  const workbench = document.querySelector('.workbench');
   if (open) {
+    if (byId('navigation-rail').classList.contains('open')) toggleNavigation(false);
+    if (byId('inspector').classList.contains('open')) toggleInspector(false);
     state.lastFocusedElement = document.activeElement;
     drawer.hidden = false;
+    if (workbench) { workbench.inert = true; workbench.setAttribute('aria-hidden', 'true'); }
     const closeButton = drawer.querySelector('.drawer-panel [data-close]');
     if (closeButton) closeButton.focus();
     return;
   }
   drawer.hidden = true;
+  if (workbench) { workbench.inert = false; workbench.removeAttribute('aria-hidden'); }
   if (state.lastFocusedElement && typeof state.lastFocusedElement.focus === 'function') state.lastFocusedElement.focus();
   state.lastFocusedElement = null;
+}
+
+function trapDrawerFocus(event, drawer) {
+  if (!drawer || event.key !== 'Tab') return false;
+  const panel = drawer.querySelector('.drawer-panel');
+  if (!panel) return false;
+  const focusable = Array.from(panel.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'))
+    .filter((node) => !node.hidden && node.getAttribute('aria-hidden') !== 'true');
+  if (focusable.length === 0) return false;
+  const first = focusable[0]; const last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+    event.preventDefault(); last.focus(); return true;
+  }
+  if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+    event.preventDefault(); first.focus(); return true;
+  }
+  return false;
+}
+
+function narrowInspector() { return window.matchMedia && window.matchMedia('(max-width: 1050px)').matches; }
+function narrowNavigation() { return window.matchMedia && window.matchMedia('(max-width: 760px)').matches; }
+
+function toggleNavigation(open) {
+  const rail = byId('navigation-rail'); const backdrop = byId('navigation-backdrop');
+  if (!rail || !backdrop) return;
+  const shouldOpen = Boolean(open && narrowNavigation());
+  if (shouldOpen) {
+    state.lastNavigationFocusedElement = document.activeElement;
+    rail.classList.add('open'); backdrop.hidden = false;
+  } else {
+    rail.classList.remove('open'); backdrop.hidden = true;
+  }
+  byId('open-navigation').setAttribute('aria-expanded', String(shouldOpen));
+  if (shouldOpen) byId('close-navigation').focus();
+  else if (state.lastNavigationFocusedElement && typeof state.lastNavigationFocusedElement.focus === 'function') {
+    state.lastNavigationFocusedElement.focus(); state.lastNavigationFocusedElement = null;
+  }
+}
+
+function toggleInspector(open, focusTarget) {
+  const inspector = byId('inspector');
+  const backdrop = byId('inspector-backdrop');
+  if (!inspector || !backdrop) return;
+  const shouldOpen = Boolean(open && narrowInspector());
+  if (shouldOpen) {
+    if (byId('navigation-rail').classList.contains('open')) toggleNavigation(false);
+    state.lastInspectorFocusedElement = document.activeElement;
+    inspector.classList.add('open');
+    backdrop.hidden = false;
+  } else {
+    inspector.classList.remove('open');
+    backdrop.hidden = true;
+  }
+  byId('open-inspector').setAttribute('aria-expanded', String(shouldOpen));
+  byId('review-nav').setAttribute('aria-expanded', String(shouldOpen));
+  if (shouldOpen) {
+    const target = focusTarget || byId('close-inspector');
+    if (target && typeof target.focus === 'function') target.focus();
+  } else if (state.lastInspectorFocusedElement && typeof state.lastInspectorFocusedElement.focus === 'function') {
+    state.lastInspectorFocusedElement.focus();
+    state.lastInspectorFocusedElement = null;
+  }
 }
 
 async function initialize() {
   if (!window.win7Agent || typeof window.win7Agent.onTaskEvent !== 'function') { showError({ message: '可信 Preload API 不可用。' }); return; }
   resetTaskState();
-  byId('workspace-select').addEventListener('click', chooseWorkspace); byId('new-session').addEventListener('click', createSession); byId('close-session').addEventListener('click', closeSession);
+  byId('workspace-select').addEventListener('click', chooseWorkspace); byId('new-session').addEventListener('click', createSession); byId('close-session').addEventListener('click', closeSession); byId('close-session-header').addEventListener('click', closeSession);
   byId('empty-session-action').addEventListener('click', () => { if (state.workspacePath) void createSession(); else void chooseWorkspace(); });
   byId('edit-goal').addEventListener('click', editGoal); byId('achieve-goal').addEventListener('click', () => resolveGoal('ACHIEVED')); byId('abandon-goal').addEventListener('click', () => resolveGoal('ABANDONED'));
   byId('attach-text').addEventListener('click', attachText);
   byId('workspace-up').addEventListener('click', () => { const parts = state.explorerPath.split(/[\\/]+/).filter(Boolean); parts.pop(); void refreshWorkspace(parts.join('/')); });
   byId('viewer-search').addEventListener('input', renderViewerLines);
-  byId('review-nav').addEventListener('click', () => { byId('review-panel').hidden = false; byId('review-panel').scrollIntoView({ block: 'nearest' }); });
+  byId('review-nav').addEventListener('click', () => { byId('review-panel').hidden = false; toggleInspector(true, byId('review-panel')); byId('review-panel').scrollIntoView({ block: 'nearest' }); });
   byId('review-accept').addEventListener('click', () => decideReviewFile('ACCEPTED'));
   byId('review-reject').addEventListener('click', () => decideReviewFile('REJECTED'));
   byId('review-issue-approval').addEventListener('click', issueReviewApproval);
@@ -889,14 +977,18 @@ async function initialize() {
   byId('task-prompt').addEventListener('input', resizeComposer); byId('task-prompt').addEventListener('keydown', (event) => window.win7AgentComposerController.handleKeydown(event, () => runTask()));
   document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => { byId('task-prompt').value = button.dataset.prompt; resizeComposer(); byId('task-prompt').focus(); }));
   byId('open-settings').addEventListener('click', () => toggleDrawer('settings-drawer', true)); byId('open-diagnostics').addEventListener('click', () => toggleDrawer('diagnostics-drawer', true));
+  byId('open-navigation').addEventListener('click', () => toggleNavigation(true)); byId('close-navigation').addEventListener('click', () => toggleNavigation(false)); byId('navigation-backdrop').addEventListener('click', () => toggleNavigation(false));
+  byId('open-inspector').addEventListener('click', () => toggleInspector(true)); byId('close-inspector').addEventListener('click', () => toggleInspector(false)); byId('inspector-backdrop').addEventListener('click', () => toggleInspector(false));
   document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => toggleDrawer(button.dataset.close, false)));
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
     const drawer = Array.from(document.querySelectorAll('.drawer:not([hidden])')).pop();
-    if (!drawer) return;
-    event.preventDefault();
-    toggleDrawer(drawer.id, false);
+    if (drawer && trapDrawerFocus(event, drawer)) return;
+    if (event.key !== 'Escape') return;
+    if (drawer) { event.preventDefault(); toggleDrawer(drawer.id, false); return; }
+    if (byId('inspector').classList.contains('open')) { event.preventDefault(); toggleInspector(false); }
+    else if (byId('navigation-rail').classList.contains('open')) { event.preventDefault(); toggleNavigation(false); }
   });
+  window.addEventListener('resize', () => { if (!narrowInspector()) toggleInspector(false); if (!narrowNavigation()) toggleNavigation(false); });
   byId('restore-recovery').addEventListener('click', restoreRecovery); byId('refresh-diagnostics').addEventListener('click', refreshDiagnostics); byId('save-gateway-settings').addEventListener('click', saveGatewaySettings); byId('clear-saved-api-key').addEventListener('click', clearSavedApiKey); byId('gateway-mode').addEventListener('change', () => renderGatewayMode(byId('gateway-mode').value));
   window.win7Agent.onTaskEvent(handleTaskEvent);
   updateEmptySession(); await refreshDiagnostics(); await refreshGatewaySettings(); await refreshSessions(); window.win7Agent.signalReady();
