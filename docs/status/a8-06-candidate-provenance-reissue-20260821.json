@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-CANDIDATE-PROVENANCE-REISSUE-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "status": "PASS_CANDIDATE_SOURCE_COMMIT_REMOTE_REACHABLE",
+  "reason": "Reissue the packaged-Electron validation candidate from an already pushed immutable source commit; do not amend the source commit after building.",
+  "source": {
+    "commit": "03c4d6e20b58a7897c9e1c6427143f75bef98a57",
+    "branch_head_before_build": "03c4d6e20b58a7897c9e1c6427143f75bef98a57",
+    "upstream_head_before_build": "03c4d6e20b58a7897c9e1c6427143f75bef98a57",
+    "upstream": "origin/codex/a8-agent-first-product",
+    "ahead_behind_before_build": "0_0",
+    "worktree_before_build": "CLEAN",
+    "remote_reachability_before_build": "PASS"
+  },
+  "candidate": {
+    "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "package_sha256": "5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e",
+    "manifest_sha256": "8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7",
+    "source_commit": "03c4d6e20b58a7897c9e1c6427143f75bef98a57",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "deterministic_builds": 2,
+    "deterministic_result": "PASS_BYTE_IDENTICAL"
+  },
+  "developer_smoke": {
+    "evidence": "docs/status/a8-06-developer-package-smoke-20260821.json",
+    "schema_version": 2,
+    "status": "PASS",
+    "case_count": 10,
+    "storage_profile": "DEVELOPER_FAKE_SQLITE",
+    "candidate_manifest_sha256": "8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7",
+    "candidate_unchanged": true,
+    "external_gate_effect": "NONE"
+  },
+  "evidence_commit_policy": {
+    "method": "ORDINARY_CHILD_COMMIT",
+    "amend": "PROHIBITED",
+    "candidate_rebuild_after_evidence_commit": "NOT_REQUIRED_BUILD_DEPENDENT_EVIDENCE_IS_OUTSIDE_CANDIDATE"
+  },
+  "supersedes_for_external_execution": {
+    "source_commit": "3d8f1b3c3526266df3b6b7770e75f431c7cccfed",
+    "package_sha256": "6a6cb5e76da6acf544d3060f3d40401496039679855725f84634f85ac167bfb5",
+    "manifest_sha256": "ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f",
+    "reason": "The source commit was not an ancestor of the pushed branch after an amended evidence commit."
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "next_checkpoint": "A8_06_WIN10_SAME_CANDIDATE_ACCEPTANCE"
+}

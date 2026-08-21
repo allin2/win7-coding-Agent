@@ -558,9 +558,12 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
   包内 `electron.exe -v` 并校验工件哈希。
 - A8-03/A8-04 在拉起真实 Electron GUI 测试窗口前净化子进程环境变量（清除 `ELECTRON_RUN_AS_NODE`）。
 - 增补了“无系统 Node 仍可执行验证套件”的自动化合同测试（`scripts/release/test/a8-package.test.mjs`）。
-- 修复已在干净提交 `3d8f1b3c3526266df3b6b7770e75f431c7cccfed` 上重建两次，结果字节一致：
-  ZIP SHA-256 `6a6cb5e76da6acf544d3060f3d40401496039679855725f84634f85ac167bfb5`，manifest SHA-256
-  `ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f`，`source_dirty: false`、
+- 修复已从远端可达的干净提交 `03c4d6e20b58a7897c9e1c6427143f75bef98a57` 重建两次，结果字节一致：
+  ZIP SHA-256 `5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e`，manifest SHA-256
+  `8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7`，`source_dirty: false`、
   `external_acceptance_eligible: true`。
+- 该候选取代 source commit 不在分支历史中的 `3d8f1b3…` 候选；新证据使用普通追加提交，不 amend
+  `03c4d6e`。开发机 schema v2 smoke 10/10 PASS 且候选未改变，追踪见
+  [`a8-06-candidate-provenance-reissue-20260821.json`](status/a8-06-candidate-provenance-reissue-20260821.json)。
 
 模块窗口不得直接修改本页或 README、ROADMAP、DECISIONS；由整合窗口在验证完成后统一更新。

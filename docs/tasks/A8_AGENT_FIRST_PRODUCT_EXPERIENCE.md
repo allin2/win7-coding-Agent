@@ -298,6 +298,13 @@ surrogate 归档、正式执行由包内 schema v2 命令接管。原始历史�
 作为脚本宿主，彻底消除外部 `node.exe` 假设，`preflight` 与所有 smoke 入口不再依赖系统 PATH 中的 Node；
 自动化合同测试增加了“无系统 Node 仍可执行验证套件”的强校验。
 
+为确保候选 `source_commit` 可从远端分支追溯，正式外部候选已从已推送且干净的
+`03c4d6e20b58a7897c9e1c6427143f75bef98a57` 重新构建两次：ZIP SHA-256
+`5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e`，manifest SHA-256
+`8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7`。该候选 `source_dirty: false`、
+`external_acceptance_eligible: true`，并已通过候选外 schema v2 开发机 smoke；后续证据只允许普通追加提交，
+不得 amend 构建源码提交。
+
 ## 4. 事件、状态与安全不变量
 
 - Gateway 原始 chunk 继续逐项审计；Renderer 仅在展示投影层按 `taskId + requestId + 连续 index` 聚合。
