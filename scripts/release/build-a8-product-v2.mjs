@@ -206,7 +206,7 @@ function createValidationKit(root, sourceCommit, lock) {
       win7: windowsCommands('win7'),
       lifecycle: 'record ZIP and release-manifest SHA-256; install in a new directory beside A7; execute startup/restart/recovery, parallel co-existence, upgrade failure injection and uninstall cleanup; preserve evidence before deleting only the new candidate directory',
     },
-    expected_cases: ['A8K-01', 'A8K-02', 'A8K-03', 'A8K-04', 'A8K-05', 'A8R-01-02-ELECTRON-REVIEW', 'A8T-01-TERMINAL-DISABLED', 'A8P-01-REOPEN-PROJECTION', 'A8P-02-INTERRUPT-EXECUTION', 'A8P-03-REVIEW-DRIFT', 'A8P-04-FAIL-CLOSED-CORRUPTION', 'A8M-01-A7-SENSITIVE-EXCLUSION', 'A8M-02-ALLOWLIST-IMPORT', 'A8M-03-MIGRATION-RETRY', 'A8C-01-SENSITIVE-DATA-BLOCK'],
+    expected_cases: ['A8K-01', 'A8K-02', 'A8K-03', 'A8K-04', 'A8K-05', 'A8R-01-02-ELECTRON-REVIEW', 'A8UX-01-CONVERSATION-SCROLL', 'A8T-01-TERMINAL-DISABLED', 'A8P-01-REOPEN-PROJECTION', 'A8P-02-INTERRUPT-EXECUTION', 'A8P-03-REVIEW-DRIFT', 'A8P-04-FAIL-CLOSED-CORRUPTION', 'A8M-01-A7-SENSITIVE-EXCLUSION', 'A8M-02-ALLOWLIST-IMPORT', 'A8M-03-MIGRATION-RETRY', 'A8C-01-SENSITIVE-DATA-BLOCK'],
     evidence_schema: {
       schema_version: 2,
       required_fields: ['schema_version', 'record_id', 'status', 'candidate_id', 'candidate_manifest_sha256', 'runtime_profile', 'cases', 'external_validation', 'cleanup', 'operator', 'recorded_at'],
