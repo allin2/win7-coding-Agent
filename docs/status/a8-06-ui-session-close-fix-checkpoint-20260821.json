@@ -40,6 +40,18 @@
       "status": "PASS",
       "tests": 4
     },
+    "developer_schema_v2_smoke": {
+      "command": "cd release/win7-product-v2/out/.work/Win7CodingAgent-0.2.0-alpha.1-win7-x64 && node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate-root=. --manifest=./release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=developer --operator=AUTOMATED_DEVELOPER --report=../a8-evidence-developer/a8-05-persistence-ui-session-close.json",
+      "status": "PASS_SCHEMA_V2_DEVELOPER_FAKE_SQLITE",
+      "cases": 10,
+      "candidate_manifest_sha256": "a9dac4195c9800f300570f5d4eb86807a2fed7cfe6deb3b48424f6198008dcd6",
+      "candidate_unchanged": true,
+      "external_validation": {
+        "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+        "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+        "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+      }
+    },
     "clean_build_1": {
       "command": "node scripts/release/build-a8-product-v2.mjs --electron-zip spikes/04-storage-index/build-win10/kit/inputs/electron-v22.3.27-win32-x64.zip --runner-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a5/win10-return/WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip --storage-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a6/A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip --output release/win7-product-v2/out --source-commit f0511916536fa9244e67d0455e1f7c8c0f16e4a6",
       "status": "PASS_DEVELOPER_PACKAGE_INTEGRITY"

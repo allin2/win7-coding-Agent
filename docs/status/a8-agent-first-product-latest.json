@@ -148,6 +148,7 @@
         "validation_kit": "docs/status/a8-06-package-validation-kit-20260821.json",
         "checkpoint": "docs/status/a8-06-ui-session-close-fix-checkpoint-20260821.json",
         "developer_package_smoke": "docs/status/a8-06-developer-package-smoke-20260821.json",
+        "ui_session_close_schema_v2_smoke": "docs/status/a8-06-ui-session-close-fix-checkpoint-20260821.json",
         "independent_review_followup": "docs/status/a8-06-independent-review-followup-20260821.json",
         "gate_report": "docs/reports/2026-08/a8_06_package_validation_ready_2026-08-21.html",
         "developer_package_integrity": "PASS_CLEAN_SOURCE_EXTERNAL_ELIGIBLE",
