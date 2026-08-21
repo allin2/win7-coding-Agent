@@ -152,7 +152,7 @@
         "gate_report": "docs/reports/2026-08/a8_06_package_validation_ready_2026-08-21.html",
         "developer_package_integrity": "PASS_CLEAN_SOURCE_EXTERNAL_ELIGIBLE",
         "repository_verify": "PASS_7_MODULES_1074_TESTS",
-        "docs_check": "PASS_94_FILES_19_TASK_FILES",
+        "docs_check": "PASS_93_FILES_19_TASK_FILES",
         "product_assembly": "NOT_PERFORMED",
         "fixture_reproducibility": "PASS_BYTE_IDENTICAL",
         "a8k04_repair": "PASS_SCHEMA_V2_MANIFEST_BINDING_ELECTRON_ABI110_RUNNER_AND_EXTERNAL_EVIDENCE_ROOT",

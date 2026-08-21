@@ -36,7 +36,7 @@
     {
       "id": "A8-06-DEV-VERIFY",
       "command": "npm run verify && npm run docs:check && git diff --check",
-      "expected": "7 modules / 1074 tests PASS; docs checker 94 files / 19 task files PASS; diff check PASS"
+      "expected": "7 modules / 1074 tests PASS; docs checker 93 files / 19 task files PASS; diff check PASS"
     },
     {
       "id": "A8-06-PACKAGE-CONTRACT",
