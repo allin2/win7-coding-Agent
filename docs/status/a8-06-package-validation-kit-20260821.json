@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "record_id": "A8-06-PACKAGE-VALIDATION-KIT-20260821-03",
+  "record_id": "A8-06-PACKAGE-VALIDATION-KIT-20260821-04",
   "recorded_at": "2026-08-21",
   "branch": "codex/a8-agent-first-product",
   "stage": "A8-06",
@@ -10,10 +10,10 @@
     "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
     "version": "0.2.0-alpha.1",
     "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
-    "package_sha256": "5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e",
+    "package_sha256": "4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6",
     "sidecar_sha256_verified": true,
-    "manifest_sha256": "8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7",
-    "source_commit": "03c4d6e20b58a7897c9e1c6427143f75bef98a57",
+    "manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+    "source_commit": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
     "source_dirty": false,
     "external_acceptance_eligible": true,
     "inputs_are_not_a7_pass": true,
@@ -36,12 +36,12 @@
     {
       "id": "A8-06-DEV-VERIFY",
       "command": "npm run verify && npm run docs:check && git diff --check",
-      "expected": "7 modules / 1074 tests PASS; docs checker 89 files / 19 task files PASS; diff check PASS"
+      "expected": "7 modules / 1074 tests PASS; docs checker 94 files / 19 task files PASS; diff check PASS"
     },
     {
       "id": "A8-06-PACKAGE-CONTRACT",
       "command": "node --test scripts/release/test/a8-package.test.mjs scripts/release/test/a8-validation-evidence.test.mjs scripts/release/test/release-contract.test.mjs scripts/release/test/zip-utils.test.mjs",
-      "expected": "12 tests PASS, including ABI/OS-layer/manifest/source-dirty/evidence-root negative coverage"
+      "expected": "14 tests PASS, including physical ASAR/original-fs/ABI/OS-layer/manifest/source-dirty/evidence-root negative coverage"
     },
     {
       "id": "A8-06-PACKAGE-SMOKE-DEVELOPER",
@@ -51,8 +51,8 @@
   ],
   "windows_commands": {
     "eligibility": "READY_SAME_CANDIDATE_EXTERNAL_ENV_REQUIRED",
-    "instruction": "Verify package SHA-256 5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e and manifest SHA-256 8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7 to each of the four validation entrypoints.",
-    "expected_manifest_sha256": "8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7",
+    "instruction": "Verify package SHA-256 4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6 and manifest SHA-256 0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea to each of the four validation entrypoints.",
+    "expected_manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
     "command_sets": {
       "win10": "A8_06_VALIDATION_KIT.json.commands.win10",
       "win7": "A8_06_VALIDATION_KIT.json.commands.win7"
@@ -110,7 +110,8 @@
   "operator_notes": [
     "This package is an independent A8 developer candidate. No A7 PASS is inherited.",
     "A real D-014 invocation must use the packaged Electron wrapper; direct standalone Node loading is prohibited and a fake SQLite report can never unlock Win10/Win7.",
-    "The locked package was built twice from clean source commit 03c4d6e20b58a7897c9e1c6427143f75bef98a57 with byte-identical output (package SHA-256 5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e, manifest SHA-256 8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7) and is eligible for formal external execution.",
+    "The locked package was built twice from clean source commit fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9 with byte-identical output (package SHA-256 4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6, manifest SHA-256 0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea) and is eligible for formal external execution.",
+    "The superseded package SHA-256 5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e remains a Win10 A8-03 FAIL and must not be resumed.",
     "If any external environment is unavailable, record NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE and preserve the same-candidate hash set."
   ]
 }

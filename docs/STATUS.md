@@ -15,7 +15,7 @@
 | 当前主线状态 | `A7_RC_INTEGRATED / RC_PASS` |
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
-| A8 当前阶段 | `A8-06 / A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED`；Win10 现场发现旧候选 ASAR 完整性假阴性，旧候选已拒绝，等待干净源码重建 |
+| A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；ASAR 修复候选已从远端可达干净源码双构建并通过开发机 smoke，等待新候选 Win10/Win7 验收 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -28,10 +28,10 @@
   `codex/a8-agent-first-product` 分支实现。目标是把固定场景验收控制台重构为对话优先的 Coding Agent：
   自然语言启动、直接/计划模式、连续 Assistant 消息、工具卡片、上下文引用、多文件 Review、真实测试、
   会话/Goal 恢复以及隔离的 Terminal/受限 Browser 工作区。
-- 当前代码修复达到 `A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED`，尚未重新签发
-  `A8_DEVELOPER_COMPLETE_VALIDATION_READY`，也不是 `COMPLETE / A8_RC_PASS`。旧候选的 Win10 A8-03 为
-  `FAIL_A8_03_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE`，后续用例为 `NOT_RUN`；Win7 仍为
-  `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE`。A7 `0.1.0-rc.1` 保持只读冻结，其 `RC_PASS` 不自动传递给 A8。
+- ASAR 修复新候选已重新签发为 `A8_DEVELOPER_COMPLETE_VALIDATION_READY`，但不是
+  `COMPLETE / A8_RC_PASS`。新候选尚未在 Win10/Win7 执行；旧候选的 Win10 A8-03
+  `FAIL_A8_03_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE` 与后续 `NOT_RUN` 保留为历史现场事实。A7
+  `0.1.0-rc.1` 保持只读冻结，其 `RC_PASS` 不自动传递给 A8。
 - A8-00 已完成并取得文档 Gate `A8_00_DESIGN_PASS`。冻结合同为
   [`A8-00 产品架构与数据合同`](prds/A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md)，关键裁决为
   ADR-0075，追踪报告为
@@ -577,6 +577,10 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
   `.asar` manifest fixture、Electron 接口选择/缺失拒绝与打包闭包测试。修复记录见
   [`a8-06-win10-asar-field-failure-20260821.json`](status/a8-06-win10-asar-field-failure-20260821.json)。
 - 旧 ZIP `5b24fe7e…ae6e` 保持 Win10 A8-03 FAIL，A8-04/A8-05/联合验证为 NOT_RUN，不得用手工哈希改写为
-  PASS。当前下一步是提交并推送源码修复，从该干净提交双构建和 schema v2 smoke 后签发新候选。
+  PASS。修复提交 `fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9` 已推送且从远端分支可达；干净工作区
+  两次构建字节一致，新 ZIP SHA-256 `4ab0c2ce…12ad6`、manifest SHA-256 `0ab06b5c…503ea`。
+- 新候选的 schema v2 开发机 smoke 10/10 PASS，执行前后 ZIP/manifest 未改变；机器可读重新签发见
+  [`a8-06-asar-candidate-reissue-20260821.json`](status/a8-06-asar-candidate-reissue-20260821.json)。新候选
+  Win10/Win7/RC 仍为 NOT_PERFORMED，下一步须全新解压并从 A8-03 重新执行。
 
 模块窗口不得直接修改本页或 README、ROADMAP、DECISIONS；由整合窗口在验证完成后统一更新。

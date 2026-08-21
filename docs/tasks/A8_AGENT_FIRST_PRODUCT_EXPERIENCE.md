@@ -8,8 +8,8 @@ Task Type: PRODUCT_EXPERIENCE
 Target Branch: codex/a8-agent-first-product
 Target Version: 0.2.0-alpha.1
 Phase-Gate: A8_IMPLEMENTATION_AUTHORIZED
-Developer-Validation: A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED
-Win10-Validation: FAIL_A8_03_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE
+Developer-Validation: A8_DEVELOPER_COMPLETE_VALIDATION_READY
+Win10-Validation: NOT_PERFORMED_NEW_CANDIDATE
 Win7-Validation: NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE
 Blocking-Reason: WIN10_WIN7_EXTERNAL_ENV_REQUIRED
 ```
@@ -310,6 +310,13 @@ ASAR 虚拟文件系统把物理 `resources/default_app.asar` 报告为目录而
 规则保持 `NOT_RUN`。ADR-0088 已将候选完整性读取切换到 Electron `original-fs` 并增加 `.asar`、接口选择、
 缺失拒绝和打包闭包回归。旧候选 `5b24fe7e…ae6e` 不再具备外部执行资格；必须从推送且干净的新源码提交
 双构建、运行 schema v2 开发机 smoke 并以普通证据提交重新签发后，Win10 才能从 A8-03 重新验收。
+
+ADR-0088 修复已形成普通源码提交 `fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9` 并推送；HEAD 与 upstream
+一致的干净工作区完成两次字节一致构建。新 ZIP SHA-256 为
+`4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6`，manifest SHA-256 为
+`0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea`；schema v2 开发机 smoke 10/10
+PASS 且候选哈希未改变。新候选恢复 `A8_DEVELOPER_COMPLETE_VALIDATION_READY`，但 Win10/Win7/RC 对此候选
+仍为 `NOT_PERFORMED`；旧候选的 Win10 FAIL 保留在独立现场记录中，不继承也不覆盖。
 
 ## 4. 事件、状态与安全不变量
 
