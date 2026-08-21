@@ -3,15 +3,16 @@
   "record_id": "A8-06-UI-SESSION-CLOSE-FIX-20260821-01",
   "recorded_at": "2026-08-21",
   "branch": "codex/a8-agent-first-product",
-  "source_commit": "f0511916536fa9244e67d0455e1f7c8c0f16e4a6",
+  "source_commit": "9b9056a048601c7873708cf295229543d76ecbf1",
   "working_tree_at_build": "CLEAN",
   "stage": "A8-06",
   "requirement_ids": ["A8-01", "A8-02", "A8-03", "A8-06"],
-  "checkpoint": "Renderer session closing, empty-session recovery, drawer keyboard dismissal and product artifact traceability",
+  "checkpoint": "Renderer session closing, close-pending race lock, empty-session recovery, drawer keyboard dismissal and product artifact traceability",
   "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
   "closed_gaps": [
     "The active session close control remains available while its task is running and now performs cancel-then-archive after an authoritative terminal event.",
     "The last active session no longer falls back to the archived session; the Renderer exposes an explicit no-session action.",
+    "A close-pending session is locked until archive completion; switching to another session does not cancel or misapply the pending archive.",
     "Session rows are semantic buttons with current-session state, drawer Escape/focus restoration is wired, and constrained-width overflow is guarded.",
     "The new session-ui.js dependency is included in artifact hashes, package source traceability and both A8-03/A8-04 smoke hash checks."
   ],
@@ -41,10 +42,10 @@
       "tests": 4
     },
     "developer_schema_v2_smoke": {
-      "command": "cd release/win7-product-v2/out/.work/Win7CodingAgent-0.2.0-alpha.1-win7-x64 && node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate-root=. --manifest=./release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=developer --operator=AUTOMATED_DEVELOPER --report=../a8-evidence-developer/a8-05-persistence-ui-session-close.json",
+      "command": "cd release/win7-product-v2/out/.work/Win7CodingAgent-0.2.0-alpha.1-win7-x64 && node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate-root=. --manifest=./release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=developer --operator=AUTOMATED_DEVELOPER --report=../a8-evidence-developer/a8-05-persistence-ui-session-close-race-fix.json",
       "status": "PASS_SCHEMA_V2_DEVELOPER_FAKE_SQLITE",
       "cases": 10,
-      "candidate_manifest_sha256": "a9dac4195c9800f300570f5d4eb86807a2fed7cfe6deb3b48424f6198008dcd6",
+      "candidate_manifest_sha256": "c9e694b2aca6031aec3bd892f6fdf04ec55c9ea575f400c3ae56b962263b42fa",
       "candidate_unchanged": true,
       "external_validation": {
         "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
@@ -53,7 +54,7 @@
       }
     },
     "clean_build_1": {
-      "command": "node scripts/release/build-a8-product-v2.mjs --electron-zip spikes/04-storage-index/build-win10/kit/inputs/electron-v22.3.27-win32-x64.zip --runner-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a5/win10-return/WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip --storage-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a6/A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip --output release/win7-product-v2/out --source-commit f0511916536fa9244e67d0455e1f7c8c0f16e4a6",
+      "command": "node scripts/release/build-a8-product-v2.mjs --electron-zip spikes/04-storage-index/build-win10/kit/inputs/electron-v22.3.27-win32-x64.zip --runner-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a5/win10-return/WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip --storage-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a6/A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip --output release/win7-product-v2/out --source-commit 9b9056a048601c7873708cf295229543d76ecbf1",
       "status": "PASS_DEVELOPER_PACKAGE_INTEGRITY"
     },
     "clean_build_2": {
@@ -63,14 +64,14 @@
   },
   "candidate": {
     "path": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
-    "sha256": "73150048d1322503f184150661684e4c72ffa2fb1fe20d4176aa796b2a8e9ca0",
-    "size_bytes": 101014454,
-    "sidecar_sha256": "73150048d1322503f184150661684e4c72ffa2fb1fe20d4176aa796b2a8e9ca0",
-    "manifest_sha256": "a9dac4195c9800f300570f5d4eb86807a2fed7cfe6deb3b48424f6198008dcd6",
-    "sbom_sha256": "467796ed2ddf4aace57261cb02f28e5a46cc1519f3f838139c5b7edc54253a47",
-    "validation_kit_sha256": "e7a8d316346e9d88f10042e4053e10e52cbdee4c76be401bcd755a948352745a",
+    "sha256": "0604147d82db1f3a5516d09986a8adaf4b2c4259aab6864409360811675aacd8",
+    "size_bytes": 101014527,
+    "sidecar_sha256": "0604147d82db1f3a5516d09986a8adaf4b2c4259aab6864409360811675aacd8",
+    "manifest_sha256": "c9e694b2aca6031aec3bd892f6fdf04ec55c9ea575f400c3ae56b962263b42fa",
+    "sbom_sha256": "3ee658a4cead27bddfbb95cba6ba87a29c3cd27d7512908f13a978fe027a4cc9",
+    "validation_kit_sha256": "5d05feb275f58a7356b267ec9ebc3e03fe1d6a934483f56c4367b41b1671776a",
     "manifest_file_count": 759,
-    "source_commit": "f0511916536fa9244e67d0455e1f7c8c0f16e4a6",
+    "source_commit": "9b9056a048601c7873708cf295229543d76ecbf1",
     "source_dirty": false,
     "external_acceptance_eligible": true,
     "gates": {
