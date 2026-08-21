@@ -283,11 +283,16 @@ SQLite 结构 smoke。候选 manifest 只写入 `developer_package_integrity: PA
 manifest 复算、候选外 evidence、包内 Electron Node-mode 和 evidence-set 联合校验；相关开发机负向与
 合同测试通过。首版 dirty 候选及其结论已被修复检查点取代；ADR-0086 进一步把需要回填候选哈希的 current
 status 与构建后报告留在候选外，消除 manifest 自引用。修复已固定在干净提交
-`02598e11c3214bdbf09742c46bd213101075c805`，不带 `--allow-uncommitted` 的两次真实输入构建字节一致：ZIP
-SHA-256 `3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b`，manifest SHA-256
-`ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7`，`source_dirty: false` 且
+`7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0`，不带 `--allow-uncommitted` 的两次真实输入构建字节一致：ZIP
+SHA-256 `d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9`，manifest SHA-256
+`85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c`，`source_dirty: false` 且
 `external_acceptance_eligible: true`。A8-06 开发机 Validation Ready 已重新签发；唯一剩余工作是同一候选的
 Electron 22/Win10/Win7 正式执行和负责人 RC 复核。
+
+后续独立审查提出的 P0-01/P0-02/P1-01/P1-02/P2-01 已逐条复核。前三项和 dirty-source 项属于修复前
+快照；本轮新增 validation 全量相对模块闭包扫描，并把旧 A8-03/A8-04 source kit 明确标为仅供 schema v1
+surrogate 归档、正式执行由包内 schema v2 命令接管。原始历史报告不回填虚假的候选绑定。新锁定候选及
+逐项结论见 [`a8-06-independent-review-followup-20260821.json`](../status/a8-06-independent-review-followup-20260821.json)。
 
 ## 4. 事件、状态与安全不变量
 

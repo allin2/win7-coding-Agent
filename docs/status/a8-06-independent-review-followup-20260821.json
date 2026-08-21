@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-INDEPENDENT-REVIEW-FOLLOWUP-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "status": "PASS_NO_OPEN_DEVELOPER_VALIDATION_BLOCKER",
+  "review_scope": "Independent review findings P0-01, P0-02, P1-01, P1-02 and P2-01",
+  "findings": {
+    "P0-01": {
+      "status": "FIXED_AND_REVERIFIED",
+      "result": "A8-05 formal command invokes run-a8-05-electron-smoke.mjs, which launches the manifest-bound packaged Electron with ELECTRON_RUN_AS_NODE=1; standalone Node does not load ABI 110."
+    },
+    "P0-02": {
+      "status": "FIXED_AND_REGRESSION_HARDENED",
+      "result": "All six validation modules are packaged. The package test now scans every relative ESM import in validation/*.mjs and requires its target to exist."
+    },
+    "P1-01": {
+      "status": "FIXED_AND_REVERIFIED",
+      "result": "Win10 and Win7 reports/screenshots use sibling ..\\a8-evidence-<layer> roots; package tests reject candidate-internal evidence command patterns."
+    },
+    "P1-02": {
+      "status": "ARCHIVAL_CLASSIFICATION_CLARIFIED_NOT_REWRITTEN",
+      "result": "The schema-v1 Electron 41 reports are immutable historical developer-surrogate evidence, are excluded from the candidate and are ineligible for formal A8-06 verification. Formal reports are newly generated schema v2 records bound to one candidate manifest."
+    },
+    "P2-01": {
+      "status": "FIXED_AND_REVERIFIED",
+      "result": "The replacement candidate was built from clean commit 7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0 and records source_dirty=false plus external_acceptance_eligible=true."
+    }
+  },
+  "changes": {
+    "implementation_commit": "7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0",
+    "package_test": "scripts/release/test/a8-package.test.mjs",
+    "builder": "scripts/release/build-a8-product-v2.mjs",
+    "a8_03_source_kit": "docs/status/a8-03-electron-review-validation-kit-20260821.json",
+    "a8_04_source_kit": "docs/status/a8-04-boundary-validation-kit-20260821.json"
+  },
+  "validation": {
+    "repository_verify": "PASS_7_MODULES_1074_TESTS",
+    "release_and_evidence_contracts": "PASS_12_TESTS",
+    "docs_check": "PASS_89_FILES_19_TASK_FILES",
+    "diff_check": "PASS",
+    "deterministic_real_input_build": "PASS_TWO_CLEAN_BUILDS_BYTE_IDENTICAL",
+    "developer_candidate_smoke": "PASS_SCHEMA_V2_10_CASES_CANDIDATE_UNCHANGED",
+    "validation_relative_module_closure": "PASS_ALL_PACKAGED_RELATIVE_IMPORTS_RESOLVED",
+    "historical_surrogate_exclusion": "PASS_SCHEMA_V1_REPORTS_NOT_IN_CANDIDATE"
+  },
+  "candidate": {
+    "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "package_sha256": "d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9",
+    "manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
+    "source_commit": "7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0",
+    "source_dirty": false,
+    "external_acceptance_eligible": true
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "gate": "A8_06_PACKAGE_AND_VALIDATION_READY",
+  "overall": "A8_DEVELOPER_COMPLETE_VALIDATION_READY"
+}

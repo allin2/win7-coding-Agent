@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
-  "record_id": "A8-05-PERSISTENCE-20260821075046",
-  "recorded_at": "2026-08-21T07:50:46.973Z",
+  "record_id": "A8-05-PERSISTENCE-20260821080033",
+  "recorded_at": "2026-08-21T08:00:33.683Z",
   "status": "PASS",
   "storage_profile": "DEVELOPER_FAKE_SQLITE",
-  "database_path": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a8-05-persistence-smoke-BFDvKc/state/agent-events-v2.db",
+  "database_path": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a8-05-persistence-smoke-lzjmsR/state/agent-events-v2.db",
   "database_sha256_before": null,
-  "database_sha256_after": "bb0518e33b228302a5b85995d2bf69be6c88623dd9d54e8608225c904f33d3e4",
-  "report_sha256": "18464219a64779ecdfe323bba41f9aefb70b31b12958674bfb502fa2bdb8db1c",
+  "database_sha256_after": "fb19d44ffe6996956733fd728e3179da15818457a5323672a0a32018b46b5b58",
+  "report_sha256": "1535203f9ce8af0315ee793f6f4e7fef05c3135582e9a85e58f80abd1d90e381",
   "cases": [
     {
       "id": "A8P-01-REOPEN-PROJECTION",
@@ -61,13 +61,13 @@
     }
   ],
   "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
-  "candidate_manifest_sha256": "ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7",
+  "candidate_manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
   "candidate": {
     "release_id": "WIN7-CODING-AGENT-A8-ALPHA1",
     "version": "0.2.0-alpha.1",
-    "source_commit": "02598e11c3214bdbf09742c46bd213101075c805",
+    "source_commit": "7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0",
     "source_dirty": false,
-    "manifest_sha256": "ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7",
+    "manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
     "manifested_file_count": 758
   },
   "runtime_profile": {
@@ -84,7 +84,7 @@
     "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
   },
   "cleanup": {
-    "temporary_root": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a8-05-persistence-smoke-BFDvKc",
+    "temporary_root": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a8-05-persistence-smoke-lzjmsR",
     "status": "REMOVED_AFTER_PASS",
     "candidate_unchanged": true
   },

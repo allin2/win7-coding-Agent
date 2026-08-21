@@ -148,6 +148,7 @@
         "validation_kit": "docs/status/a8-06-package-validation-kit-20260821.json",
         "checkpoint": "docs/status/a8-06-validation-repair-checkpoint-20260821.json",
         "developer_package_smoke": "docs/status/a8-06-developer-package-smoke-20260821.json",
+        "independent_review_followup": "docs/status/a8-06-independent-review-followup-20260821.json",
         "gate_report": "docs/reports/2026-08/a8_06_package_validation_ready_2026-08-21.html",
         "developer_package_integrity": "PASS_CLEAN_SOURCE_EXTERNAL_ELIGIBLE",
         "repository_verify": "PASS_7_MODULES_1074_TESTS",
@@ -155,7 +156,7 @@
         "product_assembly": "NOT_PERFORMED",
         "fixture_reproducibility": "PASS_BYTE_IDENTICAL",
         "a8k04_repair": "PASS_SCHEMA_V2_MANIFEST_BINDING_ELECTRON_ABI110_RUNNER_AND_EXTERNAL_EVIDENCE_ROOT",
-        "clean_candidate": "PASS_SOURCE_COMMIT_02598E11C3214BDBF09742C46BD213101075C805_PACKAGE_SHA256_3A842B68075380726F8F3AFDC5812A3D4F2CC97436BBFFFD34EEADEF8E9BCF7B_MANIFEST_SHA256_ED8847E3A291B03BD0C619D400F0892F7A2BC7B3516CF61460590852C1CFB1B7",
+        "clean_candidate": "PASS_SOURCE_COMMIT_7CCAED6B98E4EBB9F77D993D22C3ED136BDEB8C0_PACKAGE_SHA256_D1E8DBBE5E9A09E8D50FC1411C11E48DE6D0BB734D7BCE1D957BB42D3F45AEF9_MANIFEST_SHA256_85C874843947478307515DE4A56391FC7CBEE2689FBFFB5B7AF8508E3873087C",
         "external_layers": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
       },
       "remaining": [

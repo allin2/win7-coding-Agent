@@ -8,7 +8,8 @@
 
 | 报告 | 日期 | 类型 |
 |------|------|------|
-| [a8_06_validation_repair_2026-08-21](2026-08/a8_06_validation_repair_2026-08-21.html) | 08-21 | A8-06 独立复核修复：Electron ABI 110 执行、evidence schema v2、完整 manifest/同一候选绑定与 dirty candidate fail-closed；等待干净提交重建 |
+| [a8_06_independent_review_followup_2026-08-21](2026-08/a8_06_independent_review_followup_2026-08-21.html) | 08-21 | A8-06 后续独立审查五项发现逐条复核：运行阻断已关闭，补齐 validation 相对模块闭包测试与 schema v1 surrogate/schema v2 正式证据分层 |
+| [a8_06_validation_repair_2026-08-21](2026-08/a8_06_validation_repair_2026-08-21.html) | 08-21 | A8-06 独立复核修复：Electron ABI 110 执行、evidence schema v2、完整 manifest/同一候选绑定、dirty candidate fail-closed 与干净候选重建 |
 | [a8_06_package_validation_ready_2026-08-21](2026-08/a8_06_package_validation_ready_2026-08-21.html) | 08-21 | A8-06 独立输入哈希闭包、确定性 ZIP、manifest/SBOM/许可证、A8-03/A8-04/A8-05 验证包与生命周期模板；开发机候选完整性 PASS，Win10/Win7/RC 未执行 |
 | [a8_04_terminal_browser_settings_gate_2026-08-21](2026-08/a8_04_terminal_browser_settings_gate_2026-08-21.html) | 08-21 | A8-04 Runner/Terminal/Browser/Settings/Diagnostics 开发机实现 Gate：8-case 真实 Electron surrogate、CSP/Preload/IPC/RunnerLog 边界；只解除 A8-05，不构成三层或 RC PASS |
 | [a8_05_persistence_recovery_migration_gate_2026-08-21](2026-08/a8_05_persistence_recovery_migration_gate_2026-08-21.html) | 08-21 | A8-05 持久化/恢复/迁移开发机实现 Gate：结构化 SQLite seam、Review 重开漂移、活动任务中断、A7 白名单迁移与敏感值 fail-closed；只解除 A8-06，不构成三层或 RC PASS |

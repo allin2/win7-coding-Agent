@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A8-06 独立审查复核与补强</title>
+<style>body{margin:0;background:#0f141b;color:#e9eef6;font:15px/1.65 system-ui,sans-serif}main{max-width:980px;margin:auto;padding:48px 28px}h1{font-size:38px;line-height:1.15}.eyebrow{color:#7bd9b5;letter-spacing:.12em}.card,.callout{border:1px solid #344154;background:#171e28;border-radius:14px;padding:18px 22px;margin:20px 0}.ok{border-color:#48ab83}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #303b4b;padding:10px}code{color:#a3e8cc}a{color:#8fc8ff}.muted{color:#acb7c7}</style></head>
+<body><main><div class="eyebrow">WIN7 CODING AGENT · A8-06 · REVIEW FOLLOW-UP</div><h1>独立审查复核与补强</h1>
+<p class="callout ok"><strong>结论：</strong>审查中的两个 P0、两个 P1 和一个 P2 均已逐条核对。四项运行阻断属于修复前快照，当前候选已关闭；本轮进一步补齐了 validation 全量相对模块闭包测试，并消除了旧 source kit 被误作正式命令的可能。没有剩余开发机阻断项。</p>
+<section class="card"><h2>发现处置</h2><table><tr><th>发现</th><th>当前结论</th><th>验证</th></tr>
+<tr><td>P0-01 · ABI 110</td><td>包内 Electron Node-mode wrapper 加载 D-014；普通 Node 仅负责结构化启动</td><td>命令合同、ABI 负向测试</td></tr>
+<tr><td>P0-02 · 模块遗漏</td><td>6 个验证模块完整随包，新增所有相对 ESM import 的闭包扫描</td><td>打包 fixture 与闭包断言 PASS</td></tr>
+<tr><td>P1-01 · 证据路径</td><td>报告和截图只写候选兄弟目录</td><td>候选内路径负向与命令静态断言 PASS</td></tr>
+<tr><td>P1-02 · schema v1</td><td>旧 Electron 41 报告保留为历史 surrogate，不伪造候选绑定；正式验收只接受新生成 schema v2</td><td>旧报告不入候选，source kit 标记 superseded</td></tr>
+<tr><td>P2-01 · dirty source</td><td>新候选来自干净提交，具备外部执行资格</td><td><code>source_dirty=false</code></td></tr></table></section>
+<section class="card"><h2>锁定候选</h2><p>源码 <code>7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0</code><br>ZIP <code>d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9</code><br>Manifest <code>85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c</code></p><p>两次真实输入干净构建字节一致；开发机 schema v2 smoke 10/10 PASS，候选未改变。</p></section>
+<p class="callout"><strong>边界：</strong>Electron 22 Windows、Win10、Win7 与 RC 仍为 <code>NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE</code> / <code>NOT_PERFORMED</code>。本报告不继承 A7 PASS。</p>
+<p class="muted">机器可读证据：<a href="../../status/a8-06-independent-review-followup-20260821.json">independent review follow-up</a></p></main></body></html>

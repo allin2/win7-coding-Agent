@@ -10,10 +10,10 @@
     "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
     "version": "0.2.0-alpha.1",
     "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
-    "package_sha256": "3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b",
+    "package_sha256": "d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9",
     "sidecar_sha256_verified": true,
-    "manifest_sha256": "ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7",
-    "source_commit": "02598e11c3214bdbf09742c46bd213101075c805",
+    "manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
+    "source_commit": "7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0",
     "source_dirty": false,
     "external_acceptance_eligible": true,
     "inputs_are_not_a7_pass": true,
@@ -51,8 +51,8 @@
   ],
   "windows_commands": {
     "eligibility": "READY_SAME_CANDIDATE_EXTERNAL_ENV_REQUIRED",
-    "instruction": "Verify package SHA-256 3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b and manifest SHA-256 ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7 to each of the four validation entrypoints.",
-    "expected_manifest_sha256": "ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7",
+    "instruction": "Verify package SHA-256 d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9 and manifest SHA-256 85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c to each of the four validation entrypoints.",
+    "expected_manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
     "command_sets": {
       "win10": "A8_06_VALIDATION_KIT.json.commands.win10",
       "win7": "A8_06_VALIDATION_KIT.json.commands.win7"
@@ -81,6 +81,17 @@
     "same_candidate_required": true,
     "same_candidate_enforcement": "All three reports must pass verify-a8-evidence-set.mjs against one clean candidate manifest."
   },
+  "evidence_classes": {
+    "historical_surrogate_schema_v1": {
+      "formal_acceptance_eligible": false,
+      "included_in_candidate": false,
+      "authority": "Historical Electron 41 developer evidence only"
+    },
+    "formal_candidate_schema_v2": {
+      "required": true,
+      "authority": "A8_06_VALIDATION_KIT.json commands.win10 or commands.win7"
+    }
+  },
   "lifecycle": {
     "install": "Extract to a new dedicated directory; verify ZIP sidecar and release-manifest before startup; create a new userData/state root.",
     "coexistence": "Keep the frozen A7 0.1.0-rc.1 directory and database untouched; run A8 beside it with a unique userData root.",
@@ -99,7 +110,7 @@
   "operator_notes": [
     "This package is an independent A8 developer candidate. No A7 PASS is inherited.",
     "A real D-014 invocation must use the packaged Electron wrapper; direct standalone Node loading is prohibited and a fake SQLite report can never unlock Win10/Win7.",
-    "The locked package was built twice from clean source commit 02598e11c3214bdbf09742c46bd213101075c805 with byte-identical output and is eligible for formal external execution.",
+    "The locked package was built twice from clean source commit 7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0 with byte-identical output and is eligible for formal external execution.",
     "If any external environment is unavailable, record NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE and preserve the same-candidate hash set."
   ]
 }
