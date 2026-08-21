@@ -8,8 +8,8 @@ Task Type: PRODUCT_EXPERIENCE
 Target Branch: codex/a8-agent-first-product
 Target Version: 0.2.0-alpha.1
 Phase-Gate: A8_IMPLEMENTATION_AUTHORIZED
-Developer-Validation: A8_DEVELOPER_COMPLETE_VALIDATION_READY
-Win10-Validation: NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE
+Developer-Validation: A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED
+Win10-Validation: FAIL_A8_03_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE
 Win7-Validation: NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE
 Blocking-Reason: WIN10_WIN7_EXTERNAL_ENV_REQUIRED
 ```
@@ -304,6 +304,12 @@ surrogate 归档、正式执行由包内 schema v2 命令接管。原始历史�
 `8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7`。该候选 `source_dirty: false`、
 `external_acceptance_eligible: true`，并已通过候选外 schema v2 开发机 smoke；后续证据只允许普通追加提交，
 不得 amend 构建源码提交。
+
+2026-08-21 Win10 19045 首轮执行确认旧候选 ZIP/manifest/运行时/native 预检通过，但 A8-03 因 Electron
+ASAR 虚拟文件系统把物理 `resources/default_app.asar` 报告为目录而 fail-closed；A8-04、A8-05 和证据集按
+规则保持 `NOT_RUN`。ADR-0088 已将候选完整性读取切换到 Electron `original-fs` 并增加 `.asar`、接口选择、
+缺失拒绝和打包闭包回归。旧候选 `5b24fe7e…ae6e` 不再具备外部执行资格；必须从推送且干净的新源码提交
+双构建、运行 schema v2 开发机 smoke 并以普通证据提交重新签发后，Win10 才能从 A8-03 重新验收。
 
 ## 4. 事件、状态与安全不变量
 

@@ -48,7 +48,7 @@ A8-06 只负责 `0.2.0-alpha.1` 的确定性产品候选装配、运行时/原�
   回滚/卸载和失败回收步骤。任何一层不可用写 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE`，不得写 PASS。
 - 候选可以携带签发前已冻结的阶段合同和检查点，但不得复制需要回填最终 ZIP/manifest 哈希的
   `a8-agent-first-product-latest.json` 或构建后验收报告；这类证据必须位于候选外，以避免自引用和包内过期状态。
-- 正式 A8-03/A8-04/A8-05 报告使用 evidence schema v2，逐份复算候选完整 manifest，记录相同
+- 正式 A8-03/A8-04/A8-05 报告使用 evidence schema v2，逐份通过 Electron `original-fs` 物理视图复算候选完整 manifest（包括物理 `.asar` 文件），记录相同
   `candidate_id + candidate_manifest_sha256`，并由 evidence-set verifier 联合校验；调用者自填标签不能替代
   候选绑定。报告、截图、stdout/stderr 和临时数据库必须写在候选目录外，执行前后候选文件集合及哈希不变。
 - 早期 Electron 41 开发机 surrogate 报告保留原始 schema v1 字节作为历史实现证据，不得伪造候选 ID 或
@@ -67,7 +67,7 @@ A8-06 只负责 `0.2.0-alpha.1` 的确定性产品候选装配、运行时/原�
 | A8K-01 | 缺失/错误输入和禁止文件 fail-closed，候选目录不会产生半包 |
 | A8K-02 | Fixture 输入可重复构建，ZIP/manifest/SBOM/许可证与 sidecar 哈希字节一致 |
 | A8K-03 | native 外置目录、rc-runtime、disabled capabilities、manifest 双向校验合同通过 |
-| A8K-04 | 同一干净候选的 A8-03/A8-04/A8-05 命令可直接在 Windows 执行；Electron ABI 110、schema v2、manifest 全树与候选外证据集联合校验 |
+| A8K-04 | 同一干净候选的 A8-03/A8-04/A8-05 命令可直接在 Windows 执行；Electron ABI 110、schema v2、`original-fs` 物理 manifest 全树与候选外证据集联合校验 |
 | A8K-05 | 安装/并行共存/升级/故障回滚/卸载说明明确不改网络、PATH、服务、注册表或旧 RC |
 
 开发机 Gate 只表示打包和验收准备完成；Electron 22.3.27、Win10、Win7 与最终 `A8_RC_PASS` 仍必须

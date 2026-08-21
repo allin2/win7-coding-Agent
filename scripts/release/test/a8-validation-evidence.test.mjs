@@ -8,6 +8,7 @@ import {
   assertEvidenceOutsideCandidate,
   bindCandidate,
   finalizeEvidenceReport,
+  selectCandidateFileSystem,
   validateEvidenceReport,
 } from '../../../src/shell/tests/product/a8-validation-evidence.mjs';
 
@@ -17,14 +18,19 @@ function candidateFixture(sourceDirty = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a8-evidence-candidate-'));
   fs.mkdirSync(path.join(root, 'resources', 'app'), { recursive: true });
   const payload = Buffer.from('candidate-payload');
+  const asarPayload = Buffer.from('physical-asar-payload');
   fs.writeFileSync(path.join(root, 'resources', 'app', 'index.js'), payload);
+  fs.writeFileSync(path.join(root, 'resources', 'default_app.asar'), asarPayload);
   const manifest = {
     schema_version: 1,
     release_id: 'A8-TEST-CANDIDATE',
     version: '0.2.0-alpha.1',
     source_commit: '1'.repeat(40),
     source_dirty: sourceDirty,
-    files: [{ path: 'resources/app/index.js', size: payload.length, sha256: sha256(payload) }],
+    files: [
+      { path: 'resources/app/index.js', size: payload.length, sha256: sha256(payload) },
+      { path: 'resources/default_app.asar', size: asarPayload.length, sha256: sha256(asarPayload) },
+    ],
   };
   fs.writeFileSync(path.join(root, 'release-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return root;
@@ -57,6 +63,27 @@ test('candidate binding verifies the complete manifested tree and evidence schem
   assert.equal(report.external_validation.win10, 'PASS');
   assert.equal(validateEvidenceReport(report, { validationLayer: 'win10', expectedCaseIds: ['A8-TEST-CASE'] }), report);
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('candidate binding selects Electron original-fs for physical ASAR verification and fails closed without it', () => {
+  const physicalFs = { existsSync() {}, statSync() {}, readFileSync() {}, readdirSync() {} };
+  let loadCount = 0;
+  assert.equal(selectCandidateFileSystem({ electron: '22.3.27' }, () => {
+    loadCount += 1;
+    return physicalFs;
+  }), physicalFs);
+  assert.equal(loadCount, 1);
+  assert.equal(selectCandidateFileSystem({ node: process.versions.node }, () => {
+    throw new Error('must not load outside Electron');
+  }), fs);
+  assert.throws(
+    () => selectCandidateFileSystem({ electron: '22.3.27' }, () => { throw new Error('original-fs unavailable'); }),
+    /A8_PHYSICAL_FILESYSTEM_UNAVAILABLE:original-fs unavailable/,
+  );
+  assert.throws(
+    () => selectCandidateFileSystem({ electron: '22.3.27' }, () => ({})),
+    /A8_PHYSICAL_FILESYSTEM_UNAVAILABLE:missing_existsSync/,
+  );
 });
 
 test('candidate binding fails closed on payload tamper, unmanifested files and in-candidate evidence', () => {

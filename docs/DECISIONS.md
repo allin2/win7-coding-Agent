@@ -1104,3 +1104,19 @@
 - 背景：首版 A8-06 验证套件在 `A8_06_VALIDATION_KIT.json` 与运行指令中假设目标环境已在 PATH 安装 `node.exe`（`where node`、`node validation\...`）。在干净 Windows 7 SP1 x64 或 Windows 10 验证机上，未安装外部 Node.js 时将无法直接运行验证套件，违反了 C13（不得假设未声明工具）与 C07/C12（离线自包含交付）约束。
 - 决策：（1）验证套件（`preflight`、`a8_03`、`a8_04`、`a8_05`、`verify_set`）全面改用包内 `electron.exe` 以 Node 模式（`set ELECTRON_RUN_AS_NODE=1&& .\electron.exe`）作为脚本执行宿主，彻底消除外部 `node.exe` 依赖。（2）`preflight` 命令移除 `where node` 与 `node --version`，改为通过 `set ELECTRON_RUN_AS_NODE=1&& .\electron.exe -v` 探测运行时，并校验 `electron.exe`、`release-manifest.json` 与 `better_sqlite3.node` 的 SHA-256。（3）A8-03 与 A8-04 真实 Electron 界面 Smoke 脚本在拉起子 Electron 界面进程前显式清除子环境中的 `ELECTRON_RUN_AS_NODE`，确保 GUI 窗口与 IPC 正常初始化。（4）增补“无系统 Node 仍可执行验证套件”的自动化合同测试，锁定命令前缀、环境净化与模块闭包。
 - 后果：目标机在无系统 Node 的干净环境下解压即可完整执行三层验收命令集；不引入新的外部依赖或提权操作，保持 A8 候选包自包含与不可变性。
+
+## ADR-0088 A8 候选完整性校验使用 Electron 物理文件系统视图
+
+- 状态：Accepted（2026-08-21，Win10 A8-03 现场假阴性修复）
+- 背景：候选 `5b24fe7e…ae6e` 在 Win10 19045 完成 ZIP、manifest、Electron 与 native binding 预检后，
+  A8-03 在绑定候选时误报 `resources/default_app.asar` 缺失。现场以 `certutil` 复算的物理文件大小和
+  SHA-256 均与 manifest 一致；根因是 ADR-0087 引入的 Electron Node-mode 宿主会让普通 `node:fs` 通过
+  ASAR 虚拟文件系统观察 `.asar`，将物理归档文件报告为目录。
+- 决策：（1）候选 manifest、payload 哈希和完整目录树只能通过 Electron 内建 `original-fs` 的物理视图读取；
+  非 Electron 开发机测试继续使用 `node:fs`。（2）Electron 环境无法取得具备 `existsSync`、`statSync`、
+  `readFileSync`、`readdirSync` 的 `original-fs` 时以 `A8_PHYSICAL_FILESYSTEM_UNAVAILABLE` fail-closed，禁止
+  回退到 ASAR 感知视图或用 `certutil` 手工结果绕过正式入口。（3）回归测试必须包含 manifest 内物理
+  `resources/default_app.asar`、Electron 选择物理接口、接口缺失拒绝和打包后验证模块合同。
+- 后果：候选完整性验证仍复算 manifest 全树，但不会把合法物理 ASAR 当成缺失文件；产品运行时的 ASAR
+  行为、Policy、Broker、IPC 与审批边界均不改变。旧候选的 Win10 A8-03 保持 FAIL，后续项保持 NOT_RUN；
+  只有包含本裁决并从远端可达干净源码提交重建的新候选才可重新进入外部验收。

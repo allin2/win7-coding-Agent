@@ -15,7 +15,7 @@
 | 当前主线状态 | `A7_RC_INTEGRATED / RC_PASS` |
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
-| A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；开发机候选完整性与验收包已形成，外部三层仍未执行 |
+| A8 当前阶段 | `A8-06 / A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED`；Win10 现场发现旧候选 ASAR 完整性假阴性，旧候选已拒绝，等待干净源码重建 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -28,9 +28,10 @@
   `codex/a8-agent-first-product` 分支实现。目标是把固定场景验收控制台重构为对话优先的 Coding Agent：
   自然语言启动、直接/计划模式、连续 Assistant 消息、工具卡片、上下文引用、多文件 Review、真实测试、
   会话/Goal 恢复以及隔离的 Terminal/受限 Browser 工作区。
-- 当前状态已达到 `A8_DEVELOPER_COMPLETE_VALIDATION_READY`，但不是 `COMPLETE / A8_RC_PASS`。
-  同一 A8 候选的 Win10/Win7 环境和 Electron 22 Windows native 执行当前不可用，均保持
-  `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE`；A7 `0.1.0-rc.1` 保持只读冻结，其 `RC_PASS` 不自动传递给 A8。
+- 当前代码修复达到 `A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED`，尚未重新签发
+  `A8_DEVELOPER_COMPLETE_VALIDATION_READY`，也不是 `COMPLETE / A8_RC_PASS`。旧候选的 Win10 A8-03 为
+  `FAIL_A8_03_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE`，后续用例为 `NOT_RUN`；Win7 仍为
+  `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE`。A7 `0.1.0-rc.1` 保持只读冻结，其 `RC_PASS` 不自动传递给 A8。
 - A8-00 已完成并取得文档 Gate `A8_00_DESIGN_PASS`。冻结合同为
   [`A8-00 产品架构与数据合同`](prds/A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md)，关键裁决为
   ADR-0075，追踪报告为
@@ -565,5 +566,17 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
 - 该候选取代 source commit 不在分支历史中的 `3d8f1b3…` 候选；新证据使用普通追加提交，不 amend
   `03c4d6e`。开发机 schema v2 smoke 10/10 PASS 且候选未改变，追踪见
   [`a8-06-candidate-provenance-reissue-20260821.json`](status/a8-06-candidate-provenance-reissue-20260821.json)。
+
+### A8-06 Win10 ASAR 物理文件校验修复（ADR-0088，2026-08-21）
+
+- Win10 19045 x64/NTFS/NVMe 现场已通过旧候选 ZIP、manifest、Electron 22.3.27 和
+  `better_sqlite3.node` 哈希预检；A8-03 随后误报物理 `resources/default_app.asar` 缺失并按规则停止。
+- 独立 `certutil` 复算确认该文件大小 109138、SHA-256 `db1bfd…724f4` 与 manifest 相同。根因是包内
+  Electron Node-mode 的普通 `node:fs` 对 `.asar` 启用虚拟目录视图，不是候选字节损坏。
+- 验证器现显式使用 Electron 内建 `original-fs` 复算候选物理树，接口不可用时结构化 fail-closed；新增
+  `.asar` manifest fixture、Electron 接口选择/缺失拒绝与打包闭包测试。修复记录见
+  [`a8-06-win10-asar-field-failure-20260821.json`](status/a8-06-win10-asar-field-failure-20260821.json)。
+- 旧 ZIP `5b24fe7e…ae6e` 保持 Win10 A8-03 FAIL，A8-04/A8-05/联合验证为 NOT_RUN，不得用手工哈希改写为
+  PASS。当前下一步是提交并推送源码修复，从该干净提交双构建和 schema v2 smoke 后签发新候选。
 
 模块窗口不得直接修改本页或 README、ROADMAP、DECISIONS；由整合窗口在验证完成后统一更新。

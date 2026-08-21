@@ -187,6 +187,9 @@ test('A8 package validation kit contract executes without system Node in PATH (å
       assert.match(content, /ELECTRON_RUN_AS_NODE:\s*'1'/);
     }
   }
+  const evidenceModule = fs.readFileSync(path.join(validationDir, 'a8-validation-evidence.mjs'), 'utf8');
+  assert.match(evidenceModule, /require\('original-fs'\)/);
+  assert.match(evidenceModule, /A8_PHYSICAL_FILESYSTEM_UNAVAILABLE/);
   assertRelativeModuleClosure(validationDir);
 
   fs.rmSync(root, { recursive: true, force: true });

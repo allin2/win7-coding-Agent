@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>A8-06 Win10 ASAR 验证修复</title>
+<style>body{font:15px/1.6 system-ui,sans-serif;max-width:960px;margin:36px auto;padding:0 24px;color:#18212f}h1,h2{color:#173b66}code{background:#eef3f8;padding:2px 5px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccd6e0;padding:8px;text-align:left}.fail{color:#9d1c1c}.ok{color:#176b3a}.note{background:#fff5d8;border-left:4px solid #d89a00;padding:12px}</style></head>
+<body><h1>A8-06 Win10 ASAR 验证假阴性修复</h1>
+<p class="note"><strong>当前结论：</strong>旧候选没有物理损坏，但其验证器无法在 Electron Node-mode 下正确识别物理 <code>.asar</code>，因此旧候选保持 Win10 A8-03 FAIL，不能继续外部验收。</p>
+<h2>现场事实</h2><table><tr><th>检查</th><th>结论</th></tr><tr><td>ZIP / manifest / Electron / native binding 预检</td><td class="ok">PASS</td></tr><tr><td>A8-03 候选绑定</td><td class="fail">FAIL：A8_CANDIDATE_FILE_MISSING:resources/default_app.asar</td></tr><tr><td>物理 ASAR 大小与 SHA-256</td><td class="ok">109138 bytes，certutil 与 manifest 一致</td></tr><tr><td>A8-04 / A8-05 / verify-set</td><td>NOT_RUN（按 fail-closed 停止）</td></tr></table>
+<h2>修复</h2><p>ADR-0088 要求 manifest、payload 哈希和目录遍历在 Electron 中使用内建 <code>original-fs</code> 物理视图；接口不可用时返回 <code>A8_PHYSICAL_FILESYSTEM_UNAVAILABLE</code>，禁止静默回退。回归覆盖物理 ASAR、接口选择、缺失拒绝和候选打包闭包。</p>
+<h2>重新签发条件</h2><p>修复必须形成普通源码提交并推送；再从远端可达且干净的同一提交构建两次、确认字节一致，运行 schema v2 开发机 smoke，最后用普通证据提交记录新哈希。Win10 使用全新解压目录从 A8-03 重新开始。</p></body></html>

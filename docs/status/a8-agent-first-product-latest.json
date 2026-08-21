@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "record_id": "A8-AGENT-FIRST-PRODUCT-20260821-15",
+  "record_id": "A8-AGENT-FIRST-PRODUCT-20260821-16",
   "recorded_at": "2026-08-21",
-  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "status": "A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED",
   "phase_gate": "A8_IMPLEMENTATION_AUTHORIZED",
   "target_branch": "codex/a8-agent-first-product",
   "target_version": "0.2.0-alpha.1",
@@ -135,12 +135,12 @@
       ]
     },
     "A8-06": {
-      "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
-      "gate": "A8_06_PACKAGE_AND_VALIDATION_READY",
+      "status": "A8_DEVELOPER_REPAIR_VALIDATED_REBUILD_REQUIRED",
+      "gate": "A8_06_CLEAN_CANDIDATE_REBUILD_REQUIRED",
       "scope": "DETERMINISTIC_A8_ALPHA1_PACKAGE_MANIFEST_SBOM_LICENSES_AND_THREE_LAYER_VALIDATION_KIT",
-      "gate_pass": true,
+      "gate_pass": false,
       "developer_evidence": {
-        "decision": "ADR-0084 / ADR-0085 / ADR-0086 / ADR-0087",
+        "decision": "ADR-0084 / ADR-0085 / ADR-0086 / ADR-0087 / ADR-0088",
         "contract": "docs/prds/A8_06_DETERMINISTIC_PACKAGE_AND_VALIDATION_CONTRACT.md",
         "input_lock": "release/win7-product-v2/a8-06-input-lock.json",
         "builder": "scripts/release/build-a8-product-v2.mjs",
@@ -158,9 +158,14 @@
         "a8k04_repair": "PASS_SCHEMA_V2_MANIFEST_BINDING_ELECTRON_ABI110_RUNNER_AND_EXTERNAL_EVIDENCE_ROOT",
         "clean_candidate": "PASS_SOURCE_COMMIT_03C4D6E20B58A7897C9E1C6427143F75BEF98A57_PACKAGE_SHA256_5B24FE7EAD243569E12C38C947AA31C1A04091BDEA1EBA3E8BD4B0BB3966AE6E_MANIFEST_SHA256_8DEF5B3F8E3421009CF8B079FB87EAF61896CE36F82BFCEFFF9C8F2A60A993A7",
         "candidate_provenance_reissue": "docs/status/a8-06-candidate-provenance-reissue-20260821.json",
-        "external_layers": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+        "field_failure": "docs/status/a8-06-win10-asar-field-failure-20260821.json",
+        "old_candidate_disposition": "REJECTED_ZIP_5B24FE7E_WIN10_A8_03_FAIL_ASAR_FALSE_NEGATIVE",
+        "repair": "PASS_ORIGINAL_FS_PHYSICAL_TREE_TARGETED_TESTS_REBUILD_REQUIRED",
+        "external_layers": "WIN10_FAIL_A8_03_OLD_CANDIDATE_WIN7_NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
       },
       "remaining": [
+        "Push the ordinary repair source commit and rebuild the candidate twice from that clean remote-reachable commit",
+        "Run developer schema v2 smoke and issue new package/manifest hashes in an ordinary evidence commit",
         "Electron 22.3.27 x64 with D-014 native binding on an executable Windows host",
         "Win10 and Win7 same-candidate product journeys and lifecycle evidence",
         "A8_RC_PASS owner review; do not inherit A7 RC PASS"
@@ -168,8 +173,8 @@
     }
   },
   "validation": {
-    "developer": "PASS_A8_DEVELOPER_COMPLETE_VALIDATION_READY_CLEAN_SAME_CANDIDATE_LOCKED",
-    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "developer": "PASS_REPAIR_TARGETED_TESTS_REBUILD_REQUIRED",
+    "win10": "FAIL_A8_03_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE_OLD_CANDIDATE_REJECTED",
     "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
     "rc": "NOT_PERFORMED"
   },
@@ -179,6 +184,6 @@
     "disposition": "READ_ONLY_TECHNICAL_BASELINE_NOT_A8_PASS"
   },
   "first_stage": "A8-00",
-  "next_stage": "A8_06_EXTERNAL_PRODUCT_ACCEPTANCE",
-  "blocking_reason": "WIN10_WIN7_EXTERNAL_ENV_REQUIRED"
+  "next_stage": "A8_06_CLEAN_CANDIDATE_REBUILD",
+  "blocking_reason": "OLD_CANDIDATE_REJECTED_REBUILD_REQUIRED"
 }

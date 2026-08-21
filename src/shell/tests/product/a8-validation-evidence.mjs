@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+
+const require = createRequire(import.meta.url);
 
 export const A8_EVIDENCE_SCHEMA_VERSION = 2;
 export const A8_EVIDENCE_RESULT_VALUES = Object.freeze([
@@ -36,14 +39,29 @@ function sha256Bytes(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+export function selectCandidateFileSystem(runtimeVersions = process.versions, loadOriginalFs = () => require('original-fs')) {
+  if (!runtimeVersions || !runtimeVersions.electron) return fs;
+  try {
+    const physicalFs = loadOriginalFs();
+    for (const method of ['existsSync', 'statSync', 'readFileSync', 'readdirSync']) {
+      if (!physicalFs || typeof physicalFs[method] !== 'function') throw new Error(`missing_${method}`);
+    }
+    return physicalFs;
+  } catch (error) {
+    throw new Error(`A8_PHYSICAL_FILESYSTEM_UNAVAILABLE:${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+const candidateFs = selectCandidateFileSystem();
+
 function sha256File(filePath) {
-  return sha256Bytes(fs.readFileSync(filePath));
+  return sha256Bytes(candidateFs.readFileSync(filePath));
 }
 
 function listFiles(root) {
   const files = [];
   function visit(current, relative) {
-    const entries = fs.readdirSync(current, { withFileTypes: true })
+    const entries = candidateFs.readdirSync(current, { withFileTypes: true })
       .sort((left, right) => left.name.localeCompare(right.name, 'en'));
     for (const entry of entries) {
       const item = relative ? `${relative}/${entry.name}` : entry.name;
@@ -114,9 +132,9 @@ export function bindCandidate(options) {
   const manifestPath = path.resolve(options.manifestPath || path.join(candidateRoot, 'release-manifest.json'));
   const expectedManifestPath = path.join(candidateRoot, 'release-manifest.json');
   if (manifestPath !== expectedManifestPath) throw new Error('A8_CANDIDATE_MANIFEST_LOCATION_INVALID');
-  if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) throw new Error('A8_CANDIDATE_MANIFEST_MISSING');
+  if (!candidateFs.existsSync(manifestPath) || !candidateFs.statSync(manifestPath).isFile()) throw new Error('A8_CANDIDATE_MANIFEST_MISSING');
 
-  const manifestBytes = fs.readFileSync(manifestPath);
+  const manifestBytes = candidateFs.readFileSync(manifestPath);
   const manifestSha256 = sha256Bytes(manifestBytes);
   if (options.expectedManifestSha256) {
     const expected = requireSha256(options.expectedManifestSha256, 'A8_EXPECTED_MANIFEST_SHA256');
@@ -139,8 +157,8 @@ export function bindCandidate(options) {
     }
     expectedFiles.set(relativePath, file);
     const absolute = path.join(candidateRoot, ...relativePath.split('/'));
-    if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) throw new Error(`A8_CANDIDATE_FILE_MISSING:${relativePath}`);
-    const size = fs.statSync(absolute).size;
+    if (!candidateFs.existsSync(absolute) || !candidateFs.statSync(absolute).isFile()) throw new Error(`A8_CANDIDATE_FILE_MISSING:${relativePath}`);
+    const size = candidateFs.statSync(absolute).size;
     const digest = sha256File(absolute);
     if (size !== file.size || digest !== file.sha256) throw new Error(`A8_CANDIDATE_FILE_MISMATCH:${relativePath}`);
   }
