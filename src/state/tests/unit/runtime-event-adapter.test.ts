@@ -81,3 +81,26 @@ describe('RuntimeEventLedgerSink', () => {
     ]);
   });
 });
+
+describe('Review proposal event redaction', () => {
+  it('keeps base64 proposal bytes out of tool, plan and approval facts', () => {
+    const ledger = new InMemoryEventLedger();
+    const sink = new RuntimeEventLedgerSink(ledger);
+    const secret = 'known-api-key-value';
+    const proposalsJson = JSON.stringify([{ relativePath: 'secret.txt', operation: 'MODIFY', afterContentBase64: Buffer.from(secret).toString('base64') }]);
+    const base = {
+      schemaVersion: '1.0' as const,
+      sequence: 1,
+      timestamp: '2026-08-21T00:00:00.000Z',
+      sessionId: 'session-1', threadId: 'thread-1', turnId: 'turn-1', runId: 'run-1',
+    };
+    sink.append({ ...base, type: 'tool.request', payload: { id: 'call-1', toolName: 'workspace.review_prepare', args: { proposalsJson } } });
+    sink.append({ ...base, sequence: 2, type: 'model.plan', payload: { plan: { toolCalls: [{ call: { id: 'call-1', toolName: 'workspace.review_prepare', args: { proposalsJson } } }] } } });
+    sink.append({ ...base, sequence: 3, type: 'approval.requested', payload: { plan: { toolCalls: [{ call: { id: 'call-1', toolName: 'workspace.review_prepare', args: { proposalsJson } } }] } } });
+    const stored = JSON.stringify(ledger.queryThread('thread-1'));
+    expect(stored).not.toContain(secret);
+    expect(stored).not.toContain(Buffer.from(secret).toString('base64'));
+    expect(stored).toContain('[REDACTED_REVIEW_PROPOSALS]');
+    expect(stored).toContain('proposalCount');
+  });
+});

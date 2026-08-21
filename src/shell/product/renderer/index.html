@@ -4,133 +4,41 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Win7 Coding Agent · Release Candidate</title>
+  <title>Win7 Coding Agent</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="a8-workspace.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">WINDOWS 7 · CONTROLLED RELEASE CANDIDATE</p>
-        <h1>Win7 Coding Agent</h1>
-        <p class="subline">Shell → Core → State → Workspace → Replay / Gateway</p>
-      </div>
-      <div class="top-actions">
-        <span id="runtime-status" class="status pending">正在检查</span>
-        <button id="workspace-select" class="button primary" type="button">选择工作区</button>
-      </div>
-    </header>
+  <main class="workbench">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">W7</span><div><strong>Coding Agent</strong><small>LOCAL WORKBENCH</small></div></div>
+      <button id="workspace-select" class="workspace-card" type="button"><span>WORKSPACE</span><strong id="workspace-name">选择本地工作区</strong><small id="workspace-path">尚未选择</small></button>
+      <nav class="product-nav" aria-label="产品区域">
+        <button class="nav-item active" type="button"><span>◈</span>Agent</button>
+        <button id="review-nav" class="nav-item" type="button" title="查看当前任务 Review"><span>◇</span>Review <i id="review-nav-state">待准备</i></button>
+        <button class="nav-item" type="button" disabled title="交互终端未授权"><span>›_</span>Terminal <i>禁用</i></button>
+        <button class="nav-item" type="button" disabled title="任意公网浏览未授权"><span>◎</span>Browser <i>禁用</i></button>
+      </nav>
+      <section class="rail-section sessions"><div class="rail-heading"><span>会话</span><button id="new-session" type="button" disabled aria-label="新建会话">＋</button></div><ul id="session-list" class="session-list"></ul><p id="session-empty" class="quiet">选择工作区后自动创建会话。</p></section>
+      <section class="goal-card"><span>GOAL</span><strong id="goal-text">尚未设置 Goal</strong><p id="goal-meta">每个会话同时只有一个活动 Goal。</p><div class="goal-actions"><button id="edit-goal" type="button" disabled>编辑</button><button id="achieve-goal" type="button" disabled>达成</button><button id="abandon-goal" type="button" disabled>放弃</button></div></section>
+      <div class="rail-bottom"><button id="open-settings" class="utility" type="button">⚙ 设置</button><button id="open-diagnostics" class="utility" type="button">⌁ 诊断</button><button id="close-session" class="utility danger-text" type="button" disabled>关闭当前会话</button></div>
+    </aside>
 
-    <section class="workspace-bar" aria-label="当前工作区">
-      <span class="label">工作区</span>
-      <strong id="workspace-path">尚未选择</strong>
-      <span id="session-status" class="muted">请先选择一个本地目录</span>
+    <section class="conversation-pane">
+      <header class="conversation-header"><div><span class="breadcrumb">AGENT / <b id="session-label">未连接会话</b></span><h1>和工作区一起思考</h1></div><div class="header-status"><span id="runtime-status" class="connection pending"><i></i>检查中</span><span id="task-state" class="task-pill idle">空闲</span></div></header>
+      <div id="error-banner" class="global-error" role="alert" hidden></div>
+      <div id="conversation" class="conversation" aria-live="polite"></div>
+      <footer class="composer-wrap"><div id="context-chips" class="context-chips" hidden></div><div class="composer"><textarea id="task-prompt" rows="1" maxlength="8000" placeholder="询问代码、规划修改或描述一个任务…" aria-label="任务描述"></textarea><div class="composer-bar"><button id="attach-text" class="attach" type="button" disabled>＋ 文本</button><div class="mode-switch" role="radiogroup" aria-label="执行模式"><button id="mode-direct" class="active" type="button" role="radio" aria-checked="true">直接做</button><button id="mode-plan" type="button" role="radio" aria-checked="false">先计划</button></div><span class="composer-hint">Enter 发送 · Shift+Enter 换行</span><button id="run-task" class="send" type="button" disabled aria-label="发送任务">↑</button><button id="cancel-task" class="stop" type="button" hidden disabled aria-label="停止任务">■</button></div></div><p id="session-status" class="status-line">选择一个本地工作区开始。模型不能绕过审批、Runner 或审计边界。</p></footer>
     </section>
 
-    <section class="columns">
-      <aside class="panel sidebar">
-        <div class="panel-heading"><h2>会话</h2><div><button id="new-session" class="button small" type="button" disabled>新建</button><button id="close-session" class="button small" type="button" disabled>关闭</button></div></div>
-        <ul id="session-list" class="session-list"></ul>
-        <p id="session-empty" class="empty">选择工作区后创建会话。</p>
-        <div class="capability-note"><strong>当前边界</strong><p>单工作区、单活动任务。会话列表保留在当前进程；事件事实由诊断所示 State 后端记录。</p></div>
-      </aside>
-
-      <section class="panel task-panel">
-        <div class="panel-heading"><div><p class="eyebrow">READ-ONLY TASK</p><h2>分析任务</h2></div><span id="task-state" class="state idle">空闲</span></div>
-        <label class="field-label" for="task-prompt">告诉当前模型你想了解什么</label>
-        <textarea id="task-prompt" rows="4" maxlength="8000" placeholder="例如：分析这个工作区的代码结构"></textarea>
-        <div class="task-controls">
-          <label class="scenario-label" for="scenario">任务场景
-            <select id="scenario">
-              <option value="structure">正常代码结构分析</option>
-              <option value="encoding">中文路径 / GBK / CRLF 读取</option>
-              <option value="cancellable">可取消长流式任务</option>
-              <option value="edit">A2 受控单文件修改（需审批）</option>
-              <option value="runner_acceptance">非交互 Runner 验收动作（固定 profile）</option>
-            </select>
-          </label>
-          <div class="run-actions"><button id="run-task" class="button primary" type="button" disabled>开始任务</button><button id="cancel-task" class="button danger" type="button" disabled>取消</button></div>
-        </div>
-        <div id="error-banner" class="error-banner" role="alert" hidden></div>
-        <section id="approval-panel" class="approval-panel" hidden aria-live="polite">
-          <div class="panel-heading"><h3>单文件 Diff 审批</h3><span class="state awaiting">一次性审批</span></div>
-          <p id="approval-description" class="muted"></p>
-          <dl id="approval-details" class="details"></dl>
-          <pre id="approval-diff" class="diff-box"></pre>
-          <div class="run-actions"><button id="approve-task" class="button primary" type="button">批准并写入</button><button id="reject-task" class="button danger" type="button">拒绝</button></div>
-        </section>
-        <div class="timeline-heading"><h3>执行时间线</h3><span id="timeline-note" class="muted">事件按 State 序列投影</span></div>
-        <ol id="timeline" class="timeline"></ol>
-        <section id="runner-log-panel" class="runner-log-panel" aria-label="非交互 Runner 只读日志">
-          <div class="runner-log-heading">
-            <div><h3>Runner 只读日志</h3><p id="runner-log-summary" class="muted">尚无非交互执行。</p></div>
-            <span id="runner-log-state" class="state idle">未运行</span>
-          </div>
-          <div class="runner-log-grid">
-            <div><div class="stream-label stdout">STDOUT <span id="runner-stdout-limit"></span></div><pre id="runner-stdout" class="runner-log-box" tabindex="0"></pre></div>
-            <div><div class="stream-label stderr">STDERR <span id="runner-stderr-limit"></span></div><pre id="runner-stderr" class="runner-log-box stderr" tabindex="0"></pre></div>
-          </div>
-          <p class="runner-log-note">日志只读且有界；VT/OSC、剪贴板控制序列和危险链接已移除。取消使用上方“取消”按钮。</p>
-        </section>
-        <div class="result-heading"><h3>最终结果</h3><span id="result-limit" class="muted"></span></div>
-        <pre id="final-result" class="result-box">尚未运行任务。</pre>
-        <button id="undo-task" class="button small" type="button" disabled>准备撤销（仍需审批）</button>
-      </section>
-
-      <aside class="panel inspector">
-        <div class="panel-heading"><h2>文件活动</h2><span class="muted">只读</span></div>
-        <ul id="file-activity" class="file-list"></ul>
-        <p id="file-empty" class="empty">工具读取的文件会出现在这里。</p>
-        <div class="divider"></div>
-        <section id="recovery-panel" class="approval-panel" hidden>
-          <div class="panel-heading"><h2>未完成写入恢复</h2><span class="state failed">需人工确认</span></div>
-          <p id="recovery-detail" class="muted">检测到未完成事务；不会自动继续写入。</p>
-          <button id="restore-recovery" class="button danger" type="button">恢复原文件</button>
-        </section>
-        <div class="divider"></div>
-        <section class="gateway-settings" aria-label="Gateway 设置">
-          <div class="panel-heading"><h2>Gateway 设置</h2><span class="muted">DPAPI 可选</span></div>
-          <label class="field-label" for="gateway-mode">连接模式</label>
-          <select id="gateway-mode">
-            <option value="replay">Replay（默认，不出站）</option>
-            <option value="gateway">Gateway（显式 HTTP/HTTPS）</option>
-            <option value="deepseek">DeepSeek 真实模型（公网 HTTPS）</option>
-          </select>
-          <label class="field-label compact" for="gateway-url">Gateway HTTP/HTTPS URL</label>
-          <input id="gateway-url" class="text-input" type="url" placeholder="http://10.67.149.40:8443/v1">
-          <label class="field-label compact" for="gateway-model">模型</label>
-          <select id="gateway-model">
-            <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-            <option value="deepseek-v4-pro">deepseek-v4-pro</option>
-          </select>
-          <label class="field-label compact" for="gateway-ca">CA bundle 路径</label>
-          <input id="gateway-ca" class="text-input" type="text" placeholder="验收包内 CA bundle">
-          <label class="field-label compact" for="gateway-api-key">API key</label>
-          <input id="gateway-api-key" class="text-input" type="password" autocomplete="off" placeholder="输入新 key，或使用已保存的 DPAPI 凭据">
-          <label class="credential-option" for="gateway-remember-api-key"><input id="gateway-remember-api-key" type="checkbox"> 使用 Windows DPAPI 为当前用户记住 API key</label>
-          <div class="gateway-actions"><button id="save-gateway-settings" class="button small" type="button">应用设置</button><button id="clear-saved-api-key" class="button small danger" type="button" disabled>清除已保存 key</button></div>
-          <p id="gateway-settings-status" class="muted settings-note">默认 Replay，不建立网络连接。</p>
-          <div id="deepseek-network-warning" class="capability-note" hidden><strong>公网真实模型</strong><p>隔离工作区内容将发送到 DeepSeek，可能产生费用。API key 可仅驻留内存，或经 Windows DPAPI 加密后绑定当前用户保存。</p></div>
-        </section>
-        <div class="divider"></div>
-        <div class="panel-heading"><h2>诊断</h2><button id="refresh-diagnostics" class="button small" type="button">刷新</button></div>
-        <dl id="diagnostics" class="details"></dl>
-      </aside>
-    </section>
-
-    <footer class="footer-status" aria-label="能力状态">
-      <span><i class="dot ok"></i>Shell <b>可信本地</b></span>
-      <span><i class="dot ok"></i>Core <b>Replay</b></span>
-      <span><i class="dot ok"></i>State <b id="state-capability">待诊断</b></span>
-      <span><i class="dot ok"></i>Workspace <b>只读</b></span>
-      <span><i class="dot off"></i>Gateway <b>未配置</b></span>
-      <span><i class="dot ok"></i>Runner <b>受信非交互</b></span>
-      <span><i class="dot off"></i>Terminal <b>永久禁用</b></span>
-    </footer>
+    <aside class="inspector"><header><div><span>INSPECTOR</span><h2>只读代码</h2></div><span class="readonly">READ ONLY</span></header><section class="explorer"><div class="section-title"><h3>工作区</h3><button id="workspace-up" type="button" disabled>上一级</button></div><p id="explorer-path" class="quiet">/</p><ul id="workspace-tree" class="workspace-tree"></ul><p id="workspace-tree-empty" class="quiet">选择会话后浏览。</p></section><section id="review-panel" class="review-panel" hidden><div class="section-title"><h3>Review 准备区</h3><span id="review-status">未准备</span></div><p id="review-summary" class="quiet">Agent 提案只写入私有准备区；接受/拒绝不会修改工作区。</p><ul id="review-files" class="review-files" aria-label="Review 文件列表"></ul><pre id="review-diff" class="review-diff" aria-live="polite">选择文件查看 Diff。</pre><div class="review-actions"><button id="review-reject" class="danger" type="button" disabled>拒绝文件</button><button id="review-accept" class="primary" type="button" disabled>接受文件</button></div><div class="review-apply-actions"><button id="review-issue-approval" class="secondary" type="button" disabled>生成应用审批</button><button id="review-apply" class="primary" type="button" disabled>应用已接受变更</button></div><div class="review-validation"><div class="section-title"><h3>验证</h3><span id="review-validation-state">NOT_RUN</span></div><p id="review-validation-detail" class="quiet" aria-live="polite">尚未登记验证；没有合格 Runner Profile 时保持 NOT_RUN。</p><button id="review-validation-not-run" class="secondary" type="button" disabled>记录未运行</button></div><p id="review-unverified" class="quiet"></p></section><section id="viewer-panel" class="viewer-panel" hidden><div class="section-title"><h3 id="viewer-file">文件</h3><span id="viewer-range">未选择</span></div><div class="viewer-tools"><input id="viewer-search" type="search" placeholder="在文件中查找"><input id="viewer-jump" type="number" min="1" placeholder="行"><button id="viewer-jump-go" type="button">跳转</button></div><div id="code-viewer" class="code-viewer" tabindex="0"></div><div class="viewer-actions"><button id="explain-selection" type="button">解释选区</button><button id="fix-selection" type="button">修复选区</button><button id="add-selection-context" class="primary" type="button">加入上下文</button></div></section><section><div class="section-title"><h3>本轮使用文件</h3><span id="file-count">0</span></div><ul id="file-activity" class="file-list"></ul><p id="file-empty" class="quiet">工具实际读取的文件会在这里出现。</p></section><section id="recovery-panel" class="recovery" hidden><div class="section-title"><h3>恢复</h3><span>需确认</span></div><p id="recovery-detail"></p><button id="restore-recovery" type="button">恢复原文件</button></section><section><div class="section-title"><h3>能力边界</h3></div><dl class="boundary"><div><dt>Renderer FS</dt><dd>无能力</dd></div><div><dt>Workspace</dt><dd>校验 IPC</dd></div><div><dt>Writes</dt><dd>精确审批</dd></div><div><dt>Terminal</dt><dd>不可用</dd></div></dl></section></aside>
   </main>
-  <script src="event-queue.js"></script>
-  <script src="runner-log.js"></script>
-  <script src="gateway-settings-payload.js"></script>
-  <script src="renderer.js"></script>
+
+  <div id="settings-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="settings-drawer" aria-label="关闭"></button><section class="drawer-panel"><header><div><span>CONNECTION</span><h2>模型与 Gateway</h2></div><button type="button" data-close="settings-drawer">×</button></header><label for="gateway-mode">连接模式</label><select id="gateway-mode"><option value="replay">Replay（默认，不出站）</option><option value="gateway">受控 Gateway</option><option value="deepseek">DeepSeek 公网模型</option></select><label for="gateway-url">Gateway URL</label><input id="gateway-url" type="url" placeholder="http://10.67.149.40:8443/v1"><label for="gateway-model">模型</label><select id="gateway-model"><option value="deepseek-v4-flash">deepseek-v4-flash</option><option value="deepseek-v4-pro">deepseek-v4-pro</option></select><label for="gateway-ca">CA bundle 路径</label><input id="gateway-ca" type="text" placeholder="验收包内 CA bundle"><label for="gateway-api-key">API key</label><input id="gateway-api-key" type="password" autocomplete="off" placeholder="仅进程内存，或使用 DPAPI"><label class="check"><input id="gateway-remember-api-key" type="checkbox"> 使用 Windows DPAPI 为当前用户保存</label><div id="deepseek-network-warning" class="notice" hidden>工作区内容将发送到 DeepSeek，可能产生费用。</div><p id="gateway-settings-status" class="quiet">默认 Replay，不建立网络连接。</p><div class="drawer-actions"><button id="clear-saved-api-key" class="secondary" type="button" disabled>清除已保存 key</button><button id="save-gateway-settings" class="primary" type="button">应用设置</button></div></section></div>
+
+  <div id="diagnostics-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="diagnostics-drawer" aria-label="关闭"></button><section class="drawer-panel wide"><header><div><span>RAW FACTS</span><h2>诊断与原始事件</h2></div><button type="button" data-close="diagnostics-drawer">×</button></header><label for="scenario">开发验收场景</label><select id="scenario"><option value="structure">代码结构分析</option><option value="encoding">中文路径 / GBK / CRLF</option><option value="review">多文件 Review 准备区</option><option value="cancellable">可取消长流式任务</option><option value="edit">受控单文件修改</option><option value="runner_acceptance">固定 Runner 验收</option></select><div class="diag-grid"><dl id="diagnostics" class="diagnostics"></dl><div><div class="section-title"><h3>原始事件</h3><span id="timeline-note">最近 120 条</span></div><ol id="timeline" class="timeline"></ol></div></div><section id="runner-log-panel" class="runner-panel"><div class="section-title"><div><h3>Runner 只读日志</h3><p id="runner-log-summary" class="quiet">尚无非交互执行。</p></div><span id="runner-log-state" class="task-pill idle">未运行</span></div><div class="runner-grid"><div><small>STDOUT <span id="runner-stdout-limit"></span></small><pre id="runner-stdout"></pre></div><div><small>STDERR <span id="runner-stderr-limit"></span></small><pre id="runner-stderr"></pre></div></div></section><button id="refresh-diagnostics" class="secondary" type="button">刷新诊断</button></section></div>
+
+  <template id="message-template"><article class="message"><div class="avatar"></div><div class="message-body"><div class="message-meta"></div><div class="message-content"></div></div></article></template>
+  <script src="event-queue.js"></script><script src="conversation-projector.js"></script><script src="composer-controller.js"></script><script src="runner-log.js"></script><script src="gateway-settings-payload.js"></script><script src="renderer.js"></script>
 </body>
 </html>

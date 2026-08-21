@@ -39,6 +39,11 @@ describe('Desktop Alpha 3 Gateway settings boundary', () => {
       persistence: 'process-memory-only',
     }));
     expect(JSON.stringify(host.getSettings())).not.toContain('a3-secret-key');
+    expect(host.getDiagnostics().systemPrompt).toEqual(expect.objectContaining({
+      schemaVersion: 1,
+      version: 'a8-system-prompt-v1',
+      sha256: 'f1bdcace084d27d71383b4ddfe81cef61029796a36859995c6e9614f1cbc9160',
+    }));
   });
 
   it('explicitly configures HTTPS Gateway with process-memory credentials', () => {

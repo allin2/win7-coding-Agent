@@ -107,6 +107,18 @@ describe('safety', () => {
       expect(result.error).toContain('WORKSPACE_BOUNDARY_VIOLATION');
       fs.rmSync(outsideRoot, { recursive: true, force: true });
     });
+
+    it('fails closed for a dangling symlink target instead of treating it as a new file', () => {
+      const link = path.join(tmpRoot, 'dangling');
+      try {
+        fs.symlinkSync(path.join(tmpRoot, 'missing-target.txt'), link);
+      } catch {
+        return;
+      }
+      const result = validatePath('dangling', tmpRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('WORKSPACE_BOUNDARY_VIOLATION');
+    });
   });
 
   // -----------------------------------------------------------------------

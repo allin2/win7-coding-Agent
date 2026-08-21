@@ -155,6 +155,11 @@ export {
 } from './workspace-tools';
 
 export {
+  reviewToolSpecs,
+  registerReviewTools,
+} from './review-tools';
+
+export {
   VerificationRequirement,
   TaskAcceptance,
   VerificationEvidence,

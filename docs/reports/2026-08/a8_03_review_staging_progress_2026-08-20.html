@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A8-03 Review 准备区实现进度</title>
+  <style>
+    :root{--ink:#17231d;--muted:#617068;--paper:#f3f0e7;--card:#fffdf8;--line:#d6d7cd;--green:#1f6b46;--blue:#315f83;--amber:#946415;--red:#883e37;--soft:#e9efe9}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.65 "Segoe UI",Arial,sans-serif}.page{max-width:1180px;margin:auto;padding:48px 34px 80px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;border-bottom:2px solid var(--ink);padding-bottom:28px}.eyebrow{font:12px Consolas,monospace;letter-spacing:.16em;color:var(--green)}h1{font-size:40px;line-height:1.08;margin:12px 0}.lead{max-width:780px;color:var(--muted);font-size:17px}.status{background:#fff7e5;border:1px solid #cdb57d;padding:17px}.status strong,.status span{display:block}.status strong{color:var(--amber);font:700 13px Consolas,monospace}.status span{margin-top:8px;color:var(--muted);font-size:12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:25px 0}.metric,.card{background:var(--card);border:1px solid var(--line)}.metric{padding:16px}.metric strong{display:block;font-size:23px}.metric span{font-size:12px;color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:7px;margin:18px 0 32px}nav a{color:var(--green);text-decoration:none;border:1px solid var(--line);background:var(--card);padding:5px 9px;font-size:12px}h2{font-size:23px;margin:38px 0 13px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.card{padding:18px}.card p,.card ul{margin:0;color:var(--muted)}.card ul{padding-left:20px}.callout{padding:16px 19px;background:#edf5ef;border-left:4px solid var(--green);margin:14px 0}.callout.warn{background:#fff7e5;border-color:var(--amber)}.callout.stop{background:#fff0ed;border-color:var(--red)}table{width:100%;border-collapse:collapse;background:var(--card);font-size:13px}th,td{padding:10px 12px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#e9eae2;font-size:11px;letter-spacing:.06em;text-transform:uppercase}.pass{color:var(--green);font-weight:700}.partial{color:var(--amber);font-weight:700}.blocked{color:var(--red);font-weight:700}.flow{display:flex;align-items:center;gap:7px;overflow:auto;padding:10px 0}.flow span{white-space:nowrap;border:1px solid var(--line);background:var(--card);padding:8px 11px;font:12px Consolas,monospace}.flow b{color:var(--green)}code{font-family:Consolas,monospace;background:#e8e9e2;padding:2px 5px}.footer{margin-top:40px;border-top:1px solid var(--line);padding-top:17px;color:var(--muted);font-size:12px}@media(max-width:820px){.hero,.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}h1{font-size:32px}}
+  </style>
+</head>
+<body><main class="page">
+  <header class="hero">
+    <div><div class="eyebrow">WIN7 CODING AGENT · A8-03</div><h1>Review 准备区<br>实现进度</h1><p class="lead">本报告记录开发计划启动后的可验证实现结果。它是进度证据，不是 A8-03 Gate 报告；未完成的真实 Runner、Renderer 自动化与 Win10/Win7 验收保持明确未完成。</p></div>
+    <aside class="status"><strong>IMPLEMENTATION_IN_PROGRESS</strong><span>当前阶段：A8-03</span><span>目标分支：codex/a8-agent-first-product</span><span>Gate：尚未签发</span><span>交付候选：未形成</span></aside>
+  </header>
+
+  <section class="metrics"><div class="metric"><strong>M1–M5</strong><span>核心工作包已实现</span></div><div class="metric"><strong>3</strong><span>产品 Review action 层级</span></div><div class="metric"><strong>90+</strong><span>Workspace 单元/集成测试</span></div><div class="metric"><strong>0</strong><span>正式工作区副作用于 Review/决定阶段</span></div></section>
+  <nav><a href="#outcome">结果</a><a href="#trace">需求追踪</a><a href="#evidence">证据</a><a href="#boundary">边界</a><a href="#next">下一步</a></nav>
+
+  <h2 id="outcome">1. 本轮结果</h2>
+  <section class="grid"><article class="card"><h3>已落地</h3><ul><li><code>ReviewSetV1</code>、FileItem、ValidationRun、revision 和三个确定性 SHA-256 摘要。</li><li>私有 content-addressed blobs；CREATE / MODIFY / DELETE、Diff、编码、BOM、EOL 和二进制拒写。</li><li>逐文件决定、accepted subset、精确 session/task 审批、漂移零写入、批量回滚和 RECOVERY_REQUIRED 锁。</li><li>全部拒绝自动进入 <code>REJECTED</code> 并完成任务；<code>APPLIED/REJECTED</code> 清理私有字节。</li><li>Agent/Replay 通过 <code>workspace.review_prepare</code> 结构化工具进入 Host staging；V2 事件对提案正文做摘要脱敏，Renderer 只经精确 IPC。</li></ul></article><article class="card"><h3>仍保持未完成</h3><ul><li>当前 Runner 只有 <code>win7-whoami</code>，没有真实项目测试 Profile；不能产生项目测试 PASS。</li><li>Chromium DOM/srcdoc Harness 已完成 Review 交互并留证；真实 Electron/IPC Review 交互与视觉 QA 尚未执行。</li><li>Win10、Win7、RC 三层 A8 验收均为 <code>NOT_PERFORMED</code>。</li><li>A8-04 Terminal/Browser 与 A8-05 完整持久化不在本轮范围。</li></ul></article></section>
+  <p class="callout warn"><strong>状态裁决：</strong>代码已经进入 A8-03 实现阶段，但不能把开发机回归或 Replay 证据写成 <code>A8_03_REVIEW_APPLY_PASS</code>，也不能继承 A7 RC PASS。</p>
+
+  <h2 id="trace">2. 需求—实现追踪</h2>
+  <table><thead><tr><th>需求</th><th>实现证据</th><th>当前判断</th><th>Gate 前剩余动作</th></tr></thead><tbody>
+    <tr><td>A8R-01</td><td>三类操作、排序、Diff、编码/EOL、before/after hash 在 <code>review-staging.ts</code>；确定性 fixture。</td><td class="pass">实现并有测试</td><td>Renderer 视觉与候选包复核。</td></tr>
+    <tr><td>A8R-02</td><td><code>decide</code>、accepted subset、全拒绝 REJECTED；产品事件 <code>review.updated</code>。</td><td class="pass">实现并有测试</td><td>真实 UI 逐文件旅程。</td></tr>
+    <tr><td>A8R-03</td><td>决定/提案变化提升 revision；旧 approval/validation 绑定结构化失效。</td><td class="pass">实现并有测试</td><td>跨重启持久化留到 A8-05。</td></tr>
+    <tr><td>A8R-04</td><td>Apply 前全 accepted 目标预检；任一 drift 返回 STALE、zeroWrites=true。</td><td class="pass">实现并有测试</td><td>Win10/Win7 文件系统复测。</td></tr>
+    <tr><td>A8R-05</td><td>备份、原子替换、字节验证、逆序回滚；回滚不确定时清单 + 写锁。</td><td class="pass">实现并有故障注入测试</td><td>候选包故障注入与恢复 UI。</td></tr>
+    <tr><td>A8R-06</td><td>UTF-8/UTF-16LE/GBK、BOM、CRLF/mixed EOL 显式 metadata；binary 不可接受。</td><td class="pass">实现并有测试</td><td>Win7 CP936 实机证据。</td></tr>
+    <tr><td>A8R-07</td><td>ValidationRun 绑定 preview/revision/validated-set；PASS 仅 trusted complete adapter；NOT_RUN 可记录。</td><td class="partial">语义实现；真实 Profile 缺失</td><td>登记并实测低风险项目 Runner，或保持 NOT_RUN。</td></tr>
+    <tr><td>A8C-01</td><td>已知 credential 值在 prompt、Workspace 工具结果、Provider chunk/响应/工具参数、before/after/blob/Diff/validation/事件中命中即在持久化前拒绝或清理。</td><td class="pass">受控 Provider 与完整 Host 持久化边界已测</td><td>目标候选报告再扫描。</td></tr>
+    <tr><td>A8C-02</td><td>Review action 精确字段校验、Policy 白名单、Preload 最小 API；伪造 approval 被拒。</td><td class="partial">Host/IPC 单测、静态合同及真实 Electron 8 项执行入口已通过</td><td>执行真实 Electron 自动化与包内审计。</td></tr>
+  </tbody></table>
+
+  <h2 id="evidence">3. 已执行证据</h2>
+  <div class="flow"><span>Workspace</span><b>→</b><span>Core</span><b>→</b><span>Shell Host/IPC</span><b>→</b><span>Root verify</span><b>→</b><span>Docs / diff</span></div>
+    <section class="grid"><article class="card"><h3>模块回归</h3><ul><li>Workspace：lint/build/test；Review staging 97 tests PASS。</li><li>Core：lint/build/test；结构化 Review tool 与 Policy 白名单 229 tests PASS。</li><li>State：lint/build/test；V2 RuntimeEvent 提案脱敏 236 tests PASS。</li><li>Shell：lint/build/test；Host、IPC、Renderer seam、提示词/凭据边界与 Electron 执行合同 169 tests PASS。</li><li>Gateway、Runner、Git Adapter：既有回归保持 PASS。</li></ul></article><article class="card"><h3>静态与交互</h3><ul><li><code>npm run verify</code>：7 模块、1051 tests 编译/静态/测试通过；结果仍不等于 Win7 实机。</li><li><code>npm run docs:check</code>：80 文件 / 19 任务文件通过。</li><li>本地静态浏览器 QA：1280×720 与 1024×720 均无水平溢出，产品导航、边界文案和 Preload 缺失错误态可见；<a href="a8_03_renderer_static_1280x720.jpg">1280 截图</a> / <a href="a8_03_renderer_static_1024x720.jpg">1024 截图</a> / <a href="../../status/a8-03-renderer-static-qa-20260821.json">静态 JSON 证据</a>。</li><li>Chromium DOM/srcdoc Harness 完成三文件 Review 旅程（2 接受、1 拒绝、NOT_RUN、审批、Apply、任务已完成）；<a href="a8_03_renderer_review_interactive_1280x720.jpg">交互截图</a> / <a href="../../status/a8-03-renderer-interactive-qa-20260821.json">交互 JSON 证据</a>。该证据使用 stub Preload，不替代 Electron/IPC。</li><li>真实 Electron 移交入口已扩展为 8 项矩阵，覆盖 STALE 零写入、RECOVERY_REQUIRED UI 恢复和外层 SHA-256 复算；<a href="a8_03_electron_review_validation_handoff_2026-08-21.html">执行手册</a> / <a href="../../status/a8-03-electron-review-validation-kit-20260821.json">机器可读包</a>。本地 GUI 审批服务不可用，执行保持 NOT_PERFORMED。</li><li><code>git diff --check</code>：通过；Git fsmonitor 提示为环境噪声，不影响命令结果。</li><li>实现路径保持在 A8 任务书白名单内，未新增依赖、Runner Profile 或网络目标。</li></ul></article></section>
+
+  <h2 id="boundary">4. 安全与副作用边界</h2>
+  <p class="callout"><strong>Review/decision 阶段零工作区写入：</strong>Replay 只调用结构化 <code>workspace.review_prepare</code>；Host 将字节放入按任务隔离的私有 staging。接受/拒绝只改变 ReviewSet 事实，正式工作区只有在精确 approval 通过、全量预检成功后才进入 Apply。</p>
+  <table><thead><tr><th>边界</th><th>本轮事实</th><th>没有宣称</th></tr></thead><tbody>
+    <tr><td>凭据</td><td>Host 只把已知值作为 tainted bytes 交给 staging scanner；Review public DTO 不带 blob 内容。</td><td>未知秘密的完备识别。</td></tr>
+    <tr><td>验证</td><td><code>PASS</code> 必须 trustedAdapter + complete + non-truncated + profileId；模型文字不能升级为 PASS。</td><td>真实项目测试 PASS。</td></tr>
+    <tr><td>恢复</td><td>回滚不确定写 recovery manifest，状态为 RECOVERY_REQUIRED，后续写入锁定。</td><td>A8-05 重启后完整恢复。</td></tr>
+    <tr><td>Renderer</td><td>Preload 暴露 Review 专用方法，IPC 拒绝未知 action/字段/hash；Chromium DOM Harness 已覆盖完整 UI journey。</td><td>真实 Electron Preload/IPC 越权与视觉 Gate。</td></tr>
+  </tbody></table>
+
+  <h2 id="next">5. 下一步开发计划</h2>
+  <section class="grid"><article class="card"><h3>收口 A8-03</h3><ul><li>Chromium DOM Harness 已覆盖 Review 创建、文件选择、接受/拒绝、NOT_RUN、审批和 Apply；仍需真实 Electron Preload/IPC 自动化与视觉 QA。</li><li>继续补齐漂移、失败恢复的候选包 UI 旅程；Host/Workspace 故障注入已通过开发机测试。</li><li>跑 A8R/A8C 矩阵与产品候选包审计，生成独立 Gate 报告；未满足项保持 PARTIAL/NOT_PERFORMED。</li></ul></article><article class="card"><h3>严格不扩展</h3><ul><li>不把 <code>win7-whoami</code> 改称项目测试 Profile。</li><li>不新增任意 Shell、Terminal、Browser、Git 写操作或依赖。</li><li>不把本进度报告、Replay 或开发机测试写成 A8-03 PASS。</li></ul></article></section>
+  <p class="callout stop"><strong>阶段门禁：</strong>只有 A8R-01～07、A8C-01/02 的开发机行为与真实 Electron 证据闭合，才可签发 <code>A8_03_REVIEW_APPLY_PASS</code> 并进入 A8-04。Win10、Win7 不继承旧 PASS，继续作为 A8-06 同一锁定候选的任务级硬门槛。</p>
+  <footer class="footer">报告更新：2026-08-21（初始基线：2026-08-20） · 分支：codex/a8-agent-first-product · 状态：IMPLEMENTATION_IN_PROGRESS · 依据：A8-00 frozen contract / A8-03 development plan / ADR-0080 / PRD v1</footer>
+</main></body></html>

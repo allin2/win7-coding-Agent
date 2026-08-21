@@ -339,6 +339,60 @@ describe('AgentRuntime production Agent Loop', () => {
     ]);
   });
 
+  it('pauses plan mode before the first tool and resumes only after explicit approval', async () => {
+    const harness = createHarness();
+    const first = await harness.runtime.run(createRequest({ executionMode: 'plan' }));
+
+    expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+    expect(first.state).toBe(AgentState.AWAITING_APPROVAL);
+    expect(first.checkpoint).toBeDefined();
+    expect(harness.executorCalls).toHaveLength(0);
+    expect(harness.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'approval.requested',
+        payload: expect.objectContaining({ approvalKind: 'execution_plan' }),
+      }),
+    ]));
+
+    const resumed = await harness.runtime.run(createRequest({
+      executionMode: 'plan',
+      resumeCheckpoint: first.checkpoint,
+      planApprovalDecision: 'approved',
+    }));
+
+    expect(resumed.outcome).toBe(TurnOutcome.COMPLETED);
+    expect(harness.executorCalls).toEqual(['call-1']);
+    expect(harness.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'approval.resolved',
+        payload: expect.objectContaining({
+          approvalKind: 'execution_plan', resolution: 'approved',
+        }),
+      }),
+    ]));
+  });
+
+  it('rejects a plan without starting any tool', async () => {
+    const harness = createHarness();
+    const first = await harness.runtime.run(createRequest({ executionMode: 'plan' }));
+    const rejected = await harness.runtime.run(createRequest({
+      executionMode: 'plan',
+      resumeCheckpoint: first.checkpoint,
+      planApprovalDecision: 'rejected',
+    }));
+
+    expect(rejected.outcome).toBe(TurnOutcome.CANCELLED);
+    expect(harness.executorCalls).toHaveLength(0);
+    expect(harness.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'approval.resolved',
+        payload: expect.objectContaining({
+          approvalKind: 'execution_plan', resolution: 'rejected',
+        }),
+      }),
+    ]));
+  });
+
   it('applies agent.update_plan internally and recites the new revision at the tail', async () => {
     const updatePlan: RuntimePlan = {
       schemaVersion: '1.0',

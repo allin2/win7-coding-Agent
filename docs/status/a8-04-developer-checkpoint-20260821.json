@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-04-DEVELOPER-CHECKPOINT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "head_commit": "cd9c443b7d818c5bcf1ad43175fd4d113f00cb6",
+  "working_tree": "DIRTY_EXPECTED_A8_CHANGES_PRESERVED",
+  "stage": "A8-04",
+  "status": "COMPLETE_FOR_DEVELOPER_IMPLEMENTATION_GATE",
+  "gate": "A8_04_RUNNER_TERMINAL_BROWSER_SETTINGS_DIAGNOSTICS_PASS",
+  "next_stage": "A8-05",
+  "requirements": {
+    "A8T-01": "PASS_DEVELOPER_SURROGATE_TERMINAL_DISABLED_AND_IPC_FAIL_CLOSED",
+    "A8B-01": "PASS_DEVELOPER_SURROGATE_BROWSER_DISABLED_AND_NAVIGATION_DENY",
+    "A8R-08": "PASS_RUNNER_PRESENTATION_UNAVAILABLE_NO_VALIDATED_PROFILE",
+    "A8R-09": "PASS_RUNNER_LOG_64_KIB_CONTROL_AND_LINK_REDACTION",
+    "A8D-01": "PASS_SETTINGS_PASSWORD_AND_CREDENTIAL_REDACTION",
+    "A8D-02": "PASS_DIAGNOSTICS_SYSTEM_PROMPT_VERSION_HASH_AND_REDACTION",
+    "A8C-03": "PASS_CSP_PRELOAD_NAVIGATION_WINDOW_PERMISSION_AND_OUTBOUND_BOUNDARY",
+    "A8C-04": "PASS_TERMINAL_INPUT_CAPABILITY_UNAVAILABLE"
+  },
+  "closed_gaps": [
+    "Terminal and Browser are visible as explicit disabled/fail-closed states in the production Renderer.",
+    "Preload exposes no terminal, pty, stdin, arbitrary browser or navigation method.",
+    "The direct compatibility terminal.input IPC path returns structured CAPABILITY_UNAVAILABLE without input side effects.",
+    "Runner presentation remains honest when no project Profile is registered; no model text is treated as PASS.",
+    "RunnerLog sanitizes OSC/CSI/control sequences and dangerous links while bounding each stdout/stderr stream to 64 KiB.",
+    "Settings fake-key round trip leaves the password field empty and returns only non-sensitive persistence metadata.",
+    "Diagnostics exposes versioned System Prompt/hash and capability state without the fake credential sentinel.",
+    "A real Electron 8-case production boundary path passes with independent outer recomputation of 10 artifact hashes."
+  ],
+  "modified_files": [
+    "docs/prds/A8_04_TERMINAL_BROWSER_BOUNDARY_CONTRACT.md",
+    "docs/DECISIONS.md",
+    "src/shell/product/main.js",
+    "src/shell/tests/product/run-electron-a8-04-boundary-smoke.mjs",
+    "src/shell/tests/product/a8-04-boundary-contract.test.ts",
+    "docs/status/a8-04-boundary-electron-qa-20260821.json",
+    "docs/reports/2026-08/a8_04_boundary_electron_1280x720.png",
+    "docs/status/a8-04-boundary-validation-kit-20260821.json",
+    "docs/reports/2026-08/a8_04_terminal_browser_settings_gate_2026-08-21.html"
+  ],
+  "locked_contracts": {
+    "decision": "ADR-0082",
+    "system_prompt_version": "a8-system-prompt-v1",
+    "system_prompt_sha256": "f1bdcace084d27d71383b4ddfe81cef61029796a36859995c6e9614f1cbc9160",
+    "contract": "docs/prds/A8_04_TERMINAL_BROWSER_BOUNDARY_CONTRACT.md",
+    "validation_kit": "docs/status/a8-04-boundary-validation-kit-20260821.json"
+  },
+  "validation": {
+    "targeted_shell_boundary": {
+      "command": "cd src/shell && node --check product/main.js && node --check tests/product/run-electron-a8-04-boundary-smoke.mjs && npm test -- --runInBand tests/product/a8-04-boundary-contract.test.ts tests/product/runner-log.test.ts tests/product/desktop-ipc.test.ts",
+      "status": "PASS",
+      "tests": 13
+    },
+    "real_electron_boundary_current": {
+      "status": "PASS_DEVELOPER_SURROGATE_ELECTRON",
+      "electron": "41.7.1-darwin-arm64",
+      "evidence": "docs/status/a8-04-boundary-electron-qa-20260821.json",
+      "screenshot": "docs/reports/2026-08/a8_04_boundary_electron_1280x720.png",
+      "cases": 8,
+      "outer_artifact_hash_recomputation": "PASS_10_FILES",
+      "settings_redaction": "PASS",
+      "diagnostics_system_prompt": "PASS",
+      "terminal_input": "PASS_CAPABILITY_UNAVAILABLE",
+      "runner_log": "PASS_64_KIB"
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1058,
+      "module_counts": {
+        "gateway": 202,
+        "workspace": 97,
+        "state": 236,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 176
+      }
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 83,
+      "task_files": 19
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "status": "PASS_WITH_FSMONITOR_WARNING",
+      "warning": "fsmonitor_ipc__send_query: unspecified error"
+    },
+    "json_parse": "PASS",
+    "dependency_change": "NONE",
+    "private_key_or_tracked_cache_scan": "PASS"
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "Re-run the same source-locked kit with Electron 22.3.27 x64 on the target validation host.",
+    "Keep Terminal disabled until a new Runtime Profile, threat model and Win7 evidence are authorized.",
+    "Implement and Gate A8-05 versioned persistence, migration, interruption and fail-closed recovery.",
+    "Run Win10/Win7 and final A8-06 product acceptance on one immutable candidate."
+  ],
+  "next_checkpoint": "Begin A8-05 persistence/recovery contract audit only after this developer implementation Gate record is retained."
+}

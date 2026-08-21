@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A8-01 Conversation Gate · 2026-08-20</title>
+  <style>
+    :root{--ink:#1d2923;--muted:#657169;--paper:#f5f2e9;--card:#fffdf7;--line:#d8d7cc;--green:#206b46;--amber:#9a6b17;--red:#8c3c35}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.65 "Segoe UI",Arial,sans-serif}.page{max-width:1120px;margin:auto;padding:54px 36px 80px}.hero{display:grid;grid-template-columns:1fr auto;gap:30px;padding-bottom:30px;border-bottom:2px solid var(--ink)}.eyebrow{font:12px Consolas,monospace;letter-spacing:.16em;color:var(--green)}h1{font-size:42px;line-height:1.1;margin:12px 0}.lead{max-width:720px;color:var(--muted);font-size:17px}.gate{align-self:start;border:1px solid var(--green);padding:18px 22px;background:#edf7f0;color:var(--green);font:700 13px Consolas,monospace}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:28px 0}.metric,.card{background:var(--card);border:1px solid var(--line)}.metric{padding:18px}.metric strong{display:block;font-size:25px}.metric span{color:var(--muted);font-size:12px}h2{font-size:22px;margin:38px 0 14px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.card{padding:20px}.card h3{margin:0 0 8px;font-size:16px}.card p{margin:0;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:12px 14px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#ecebe2;font-size:12px;letter-spacing:.06em}.pass{color:var(--green);font-weight:700}.boundary{border-left:4px solid var(--amber);background:#fff8e8;padding:16px 20px}.boundary strong{color:var(--amber)}code{font-family:Consolas,monospace;background:#ecece4;padding:2px 5px}.footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}@media(max-width:760px){.hero,.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}h1{font-size:32px}}
+  </style>
+</head>
+<body><main class="page">
+  <header class="hero"><div><div class="eyebrow">WIN7 CODING AGENT · A8-01</div><h1>对话主界面 Gate</h1><p class="lead">从固定场景验收控制台转向对话优先工作台；同时保持不可变事件、精确审批、单活动任务与 Renderer 最小权限边界。</p></div><div class="gate">A8_01_CONVERSATION_PASS</div></header>
+  <section class="metrics"><div class="metric"><strong>6 / 6</strong><span>A8E 确定性聚合用例</span></div><div class="metric"><strong>140</strong><span>Shell 测试</span></div><div class="metric"><strong>227</strong><span>Core 测试</span></div><div class="metric"><strong>PASS</strong><span>仓库级 verify</span></div></section>
+
+  <h2>交付结果</h2><section class="grid">
+    <article class="card"><h3>对话优先信息架构</h3><p>左侧工作区/会话/Goal，中间连续对话、计划和卡片，右侧只读文件活动；Settings 与 Diagnostics 独立，固定验收场景退出日常任务入口。</p></article>
+    <article class="card"><h3>Composer 与模式</h3><p>Enter 提交、Shift+Enter 换行、IME composing 不误提交；运行时主动作变为停止。直接模式立即执行，计划模式在首个工具前强制暂停。</p></article>
+    <article class="card"><h3>确定性流式投影</h3><p>按 task/request/index 聚合，非 delta、request 切换、缺口、乱序、终态和预算均关闭段；256 KiB 段与 1 MiB 消息上限按 UTF-8 字节执行。</p></article>
+    <article class="card"><h3>计划与工具卡片</h3><p>计划显示目标、路径、验证与风险。工具参数和结果可折叠；错误保留原对话并提供重试。计划拒绝不会启动任何工具。</p></article>
+  </section>
+
+  <h2>证据矩阵</h2><table><thead><tr><th>ID / 检查</th><th>断言</th><th>结果</th></tr></thead><tbody>
+    <tr><td>A8E-01 / A8E-02</td><td>中文逐字与英文 token 连续流合并，文字与顺序精确。</td><td class="pass">PASS</td></tr>
+    <tr><td>A8E-03</td><td>request 切换和任意非 delta 事实关闭活动段，不跨边界拼接。</td><td class="pass">PASS</td></tr>
+    <tr><td>A8E-04</td><td>重复幂等；冲突、缺口、乱序与终态迟到 fail-closed 并产生 warning。</td><td class="pass">PASS</td></tr>
+    <tr><td>A8E-05</td><td>UTF-8 256 KiB 段与 1 MiB 消息预算确定性切段/截断。</td><td class="pass">PASS</td></tr>
+    <tr><td>A8E-06</td><td>相同事实从空缓存重放得到相同 blocks、source seq 与 warnings。</td><td class="pass">PASS</td></tr>
+    <tr><td>计划审批</td><td>审批前零工具；完整可见计划哈希绑定批准/拒绝；批准恢复原 checkpoint。</td><td class="pass">PASS</td></tr>
+    <tr><td>原始审计</td><td>每个 Gateway chunk 和 final marker 先进入 <code>gateway.delta</code> V2 ledger，再投影到 UI。</td><td class="pass">PASS</td></tr>
+    <tr><td>视觉 QA</td><td>本地 Chromium 静态渲染检查三栏、Composer 和响应式层级，无遮挡或溢出。</td><td class="pass">PASS</td></tr>
+  </tbody></table>
+
+  <h2>验证命令</h2><table><thead><tr><th>命令</th><th>结果</th></tr></thead><tbody><tr><td><code>npm run verify</code></td><td class="pass">7 模块 lint / build / test 全部通过</td></tr><tr><td><code>npm test --workspace @win7-agent/shell -- --runInBand</code></td><td class="pass">19 suites / 140 tests</td></tr><tr><td><code>npm test --workspace @win7-agent/core -- --runInBand</code></td><td class="pass">20 suites / 227 tests</td></tr></tbody></table>
+
+  <p class="boundary"><strong>边界：</strong>本 Gate 只完成 A8-01 并解除 A8-02 的串行进入条件。A8 整体开发机十二旅程、Win10、Win7、候选打包和 RC 仍为 <code>NOT_PERFORMED</code>；A7 的 RC_PASS 不继承。</p>
+  <footer class="footer">记录日期：2026-08-20 · 分支：codex/a8-agent-first-product · 输入合同：ADR-0075 / A8-00 frozen contract</footer>
+</main></body></html>

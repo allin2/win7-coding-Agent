@@ -331,7 +331,7 @@ function validateLock(lock) {
   }
 }
 
-function createRunnerManifest(lock) {
+export function createRunnerManifest(lock) {
   const runner = lock.runtime_profiles.runner;
   return {
     schema_version: 1,
@@ -370,13 +370,13 @@ function requireFile(filePath, label) {
   return resolved;
 }
 
-function requireBuiltDirectory(root, moduleName) {
+export function requireBuiltDirectory(root, moduleName) {
   const directory = path.join(root, 'src', moduleName, 'dist');
   if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) throw new Error(`MODULE_BUILD_REQUIRED:${moduleName}`);
   return directory;
 }
 
-function copyRuntimeJavaScript(source, destination) {
+export function copyRuntimeJavaScript(source, destination) {
   fs.mkdirSync(destination, { recursive: true });
   const entries = fs.readdirSync(source, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'));
   for (const entry of entries) {
@@ -389,7 +389,7 @@ function copyRuntimeJavaScript(source, destination) {
   }
 }
 
-function copyRuntimeDependencies(root, appRoot) {
+export function copyRuntimeDependencies(root, appRoot) {
   const names = ['ajv', 'fast-deep-equal', 'fast-uri', 'json-schema-traverse', 'require-from-string'];
   return names.map((name) => {
     const source = path.join(root, 'src', 'shell', 'node_modules', name);
@@ -404,7 +404,7 @@ function copyRuntimeDependencies(root, appRoot) {
   });
 }
 
-function verifyPackagedJavaScript(appRoot) {
+export function verifyPackagedJavaScript(appRoot) {
   const requireFromApp = createRequire(path.join(appRoot, 'package.json'));
   for (const entry of [
     './dist/ipc/schema.js',
@@ -422,7 +422,7 @@ function verifyPackagedJavaScript(appRoot) {
   }
 }
 
-function extractStorageRuntime(storageZip, nativeRoot) {
+export function extractStorageRuntime(storageZip, nativeRoot) {
   const temporary = path.join(nativeRoot, '.storage-extract');
   const allowed = [
     'output/runtime/node_modules/better-sqlite3/',
@@ -438,7 +438,7 @@ function extractStorageRuntime(storageZip, nativeRoot) {
   fs.rmSync(temporary, { recursive: true, force: true });
 }
 
-function assertNativeOutsideApp(stage) {
+export function assertNativeOutsideApp(stage) {
   const appRoot = path.join(stage, 'resources', 'app');
   const bad = listPayloadFiles(appRoot).filter((name) => /\.(?:node|dll|exe)$/i.test(name));
   if (bad.length > 0) throw new Error(`NATIVE_INSIDE_APP_PROHIBITED:${bad.join(',')}`);
@@ -447,7 +447,7 @@ function assertNativeOutsideApp(stage) {
   if (!fs.existsSync(helper) || !fs.existsSync(sqlite)) throw new Error('REQUIRED_NATIVE_LAYOUT_MISSING');
 }
 
-function buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies) {
+export function buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies) {
   return {
     bomFormat: 'CycloneDX',
     specVersion: '1.5',
@@ -490,7 +490,7 @@ function component(type, name, version, license, hash, note) {
   };
 }
 
-function licenseInventory(lock) {
+export function licenseInventory(lock) {
   return `# Third-party licenses and support risk\n\n` +
     `This inventory is bound to ${lock.release_id} ${lock.version}. Full Electron Chromium notices are shipped as \`LICENSES.chromium.html\`.\n\n` +
     `| Component | Version | License | Delivery and risk |\n|---|---:|---|---|\n` +
@@ -507,7 +507,7 @@ function licenseInventory(lock) {
     `| require-from-string | 2.0.2 | MIT | ajv runtime dependency |\n`;
 }
 
-function installationGuide(lock) {
+export function installationGuide(lock) {
   return `# Installation prerequisites\n\n` +
     `- Target: ${lock.target.os}, ${lock.target.architecture}.\n` +
     `- Delivery: ${lock.target.delivery}; the installer must not download at runtime.\n` +

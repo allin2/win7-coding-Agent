@@ -74,6 +74,7 @@ const KNOWN_TYPES = new Set<string>([
   'file.changed', 'usage.recorded', 'approval.requested', 'approval.resolved',
   'policy.decision', 'budget.exceeded', 'verification.bundle', 'verification.feedback',
   'error.raised', 'compaction.applied', 'working_memory.updated',
+  'gateway.delta',
 ]);
 
 /** An in-memory reference ledger. It is deliberately not claimed as durable recovery. */

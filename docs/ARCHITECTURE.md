@@ -199,3 +199,40 @@ win7-coding-agent/
 - 不允许模型、Renderer、插件或远程服务绕过 Policy/Broker/Audit 直接执行。
 - 不因“企业内网风险较低”取消结构化参数、工作区边界、超时、输出上限、进程终止和完整性验证。
 - 不用架构文档、路线图或 ADR 候选项替代实现任务书与 Win7 实机验收。
+
+## 10. A8 Agent-first 产品投影与数据边界
+
+A8-00 已按 ADR-0075 冻结详细合同，权威字段、状态、哈希、迁移白名单和测试矩阵见
+[`A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md`](prds/A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md)。
+
+```mermaid
+flowchart LR
+    GW["Gateway 原始 chunk"] --> EV["Event Envelope V2\n不可变事实"]
+    EV --> PJ["确定性展示投影\ntask + request + index"]
+    PJ --> UI["对话 / 工具卡片 / Review"]
+    EV --> AU["Diagnostics / 脱敏审计"]
+    SS["Session / Goal / Task / Review\n权威产品状态"] <--> EV
+    RV["A8 私有准备区\ncontent-addressed blobs"] --> AP["Policy + 一次性审批"]
+    AP --> WS["Workspace 原子批量应用"]
+```
+
+- A8 v1 使用产品级单活动任务锁；Session/Thread 一对一但保留独立 ID，Turn 是用户提交，Task 是产品
+  目标，重试产生新 Run。后台队列和跨会话并发不在 A8 MVP。
+- 展示投影不是新的事实层。`gateway.delta` 原样写入 V2 EventLedger，连续文本只在投影层聚合；缓存
+  指纹不匹配就从原始 seq 重建。
+- Session、Goal、Task、Review 与迁移记录是权威状态，必须和关联事件在同一 SQLite transaction 提交；
+  schema、序列、指纹、实体或 blob 哈希异常时整体进入只读 Diagnostics。
+- Review 的准备区位于独立 A8 私有数据根。逐文件决定不写工作区；显式 Apply 精确绑定 accepted subset，
+  任一基线漂移零写入，任一应用失败全组回滚。
+- A7 数据根与 A8 分离；A7 事件只读归档，不导入 A8 活动数据库。迁移只接受明确版本化的工作区列表与
+  非敏感设置，凭据和恢复/临时数据全部排除。
+- 真实 Provider 请求使用 ADR-0079 冻结的 `a8-system-prompt-v1` 并记录提示词 SHA-256。提示词只描述
+  已注册工具的预期用法：`workspace.review_prepare` 可进入私有 staging，但正式工作区写能力仍只来自
+  ToolSpec、Policy、Broker、IPC 和精确 Apply 审批。已知凭据扫描位于 Provider、prompt 与工具结果的
+  持久化前边界，不能依赖提示词防泄漏。
+
+A8-02 先实现上述模型的存储中立 seam：State catalog 负责 schema version 1 的 Session/Goal 状态、
+追加事实和 snapshot/restore 确定性投影；Desktop Host 负责产品级单活动任务锁与运行期对象，归档只改
+状态而不删除实体。产品专用 A8 IPC 仅允许会话投影、Goal 修订、目录列表和文件读取，并拒绝额外字段；
+Workspace port 在主进程内完成 canonical path、reparse 和敏感路径检查，Renderer 不获得 `fs`。
+SQLite transaction、损坏隔离和完整会话恢复仍必须在 A8-05 实现后才可宣称持久化闭环。

@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-03-DEVELOPER-CHECKPOINT-20260821-04",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "head_commit": "cd9c443b7d818c5bcf1ad43175fdc4d113f00cb6",
+  "stage": "A8-03",
+  "status": "COMPLETE_FOR_DEVELOPER_IMPLEMENTATION_GATE",
+  "gate": "A8_03_REVIEW_APPLY_PASS",
+  "requirements": {
+    "A8R-01": "DEVELOPER_BEHAVIOR_PASS_WINDOWS_TARGET_NOT_PERFORMED",
+    "A8R-02": "DEVELOPER_BEHAVIOR_PASS_REAL_ELECTRON_SURROGATE_PASS",
+    "A8R-03": "DEVELOPER_BEHAVIOR_PASS",
+    "A8R-04": "DEVELOPER_BEHAVIOR_PASS_REAL_ELECTRON_SURROGATE_PASS_WINDOWS_TARGET_NOT_PERFORMED",
+    "A8R-05": "DEVELOPER_FAULT_INJECTION_PASS_REAL_ELECTRON_SURROGATE_PASS_WINDOWS_TARGET_NOT_PERFORMED",
+    "A8R-06": "DEVELOPER_BEHAVIOR_PASS_WIN7_CP936_NOT_PERFORMED",
+    "A8R-07": "NOT_RUN_SEMANTICS_PASS_REGISTERED_PROJECT_RUNNER_NOT_AVAILABLE",
+    "A8C-01": "DEVELOPER_CONTROLLED_PROVIDER_AND_PERSISTENCE_BOUNDARY_PASS",
+    "A8C-02": "HOST_IPC_STATIC_RENDERER_AND_REAL_ELECTRON_SURROGATE_PASS_TARGET_ELECTRON_NOT_PERFORMED"
+  },
+  "closed_gaps": [
+    "A3 read-only system prompt replaced by versioned A8 System Prompt V1 for private Review staging.",
+    "System prompt version and SHA-256 are exposed through Diagnostics and locked by tests.",
+    "Controlled Gateway Provider can call workspace.review_prepare without receiving workspace.str_replace.",
+    "Known credential values are blocked in user prompts before Turn creation.",
+    "Known credential values are blocked in Workspace tool results before ordinary event or chat evidence.",
+    "Known credential values and their base64/Bearer forms are blocked in Provider chunks, responses and tool arguments before gateway.delta persistence.",
+    "A real Electron Review smoke path is implemented with production BrowserWindow, Preload, IPC, Host, staging and Renderer; its 8-case matrix includes forged approval, STALE zero-write, RECOVERY_REQUIRED UI restoration and screenshot capture.",
+    "The outer runner independently recomputes product artifact SHA-256 values, validates all 8 PASS cases and rejects undersized screenshots.",
+    "A locked validation handoff and machine-readable source-contract kit document Electron 22/Node 16.17.1 Windows execution, cleanup and failure recovery."
+  ],
+  "modified_files": [
+    "docs/prds/A8_03_SYSTEM_PROMPT_CONTRACT.md",
+    "docs/DECISIONS.md",
+    "src/shell/product/gateway-runtime.js",
+    "src/shell/product/desktop-host.js",
+    "src/shell/product/main.js",
+    "src/shell/tests/product/run-electron-review-smoke.mjs",
+    "src/shell/tests/product/electron-review-smoke-contract.test.ts",
+    "docs/reports/2026-08/a8_03_electron_review_validation_handoff_2026-08-21.html",
+    "docs/status/a8-03-electron-review-validation-kit-20260821.json",
+    "docs/reports/README.md",
+    "docs/tasks/README.md",
+    "docs/reports/2026-08/a8_03_review_staging_progress_2026-08-20.html",
+    "src/shell/tests/product/gateway-runtime.test.ts",
+    "src/shell/tests/product/desktop-host.test.ts",
+    "src/shell/tests/product/desktop-a3.test.ts",
+    "src/shell/product/renderer/renderer.js",
+    "src/shell/tests/product/review-renderer-contract.test.ts",
+    "docs/reports/2026-08/a8_03_review_apply_gate_2026-08-21.html",
+    "docs/reports/2026-08/a8_03_electron_review_1280x720.png",
+    "docs/status/a8-03-electron-review-qa-20260821.json"
+  ],
+  "locked_contracts": {
+    "system_prompt_version": "a8-system-prompt-v1",
+    "system_prompt_sha256": "f1bdcace084d27d71383b4ddfe81cef61029796a36859995c6e9614f1cbc9160",
+    "decision": "ADR-0079"
+  },
+  "validation": {
+    "targeted_shell_gateway_and_host": {
+      "command": "cd src/shell && node --check tests/product/run-electron-review-smoke.mjs && npm test -- --runInBand tests/product/electron-review-smoke-contract.test.ts tests/product/desktop-host.test.ts tests/product/gateway-runtime.test.ts",
+      "status": "PASS",
+      "tests": 32
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1051,
+      "module_counts": {
+        "gateway": 202,
+        "workspace": 97,
+        "state": 236,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 169
+      }
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 80,
+      "task_files": 19
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "status": "PASS_WITH_FSMONITOR_WARNING",
+      "warning": "fsmonitor_ipc__send_query: unspecified error"
+    },
+    "json_parse": "PASS",
+    "dependency_change": "NONE",
+    "private_key_or_tracked_cache_scan": "PASS",
+    "real_electron_entry_pre_change_baseline": {
+      "status": "PASS_SURROGATE_ONLY",
+      "electron": "41.7.1-darwin-arm64",
+      "report": "/tmp/a8-electron41-baseline-smoke.json",
+      "disposition": "Pre-change product-entry evidence only; not current Review journey and not Electron 22 or Windows evidence."
+    },
+    "real_electron_review_current": {
+      "status": "PASS_DEVELOPER_SURROGATE_ELECTRON",
+      "reason": "Production Electron BrowserWindow/Preload/IPC/Host/Renderer 8-case journey passed after fixing task-scoped event queue and recovery-control terminal-state races.",
+      "evidence": "docs/status/a8-03-electron-review-qa-20260821.json",
+      "screenshot": "docs/reports/2026-08/a8_03_electron_review_1280x720.png",
+      "electron": "41.7.1-darwin-arm64",
+      "cases": 8,
+      "implemented_command_contract": "--a8-review-smoke-report + --a8-review-smoke-workspace + --a8-review-smoke-screenshot",
+      "reusable_runner": "src/shell/tests/product/run-electron-review-smoke.mjs",
+      "runner_contract_test": "PASS",
+      "case_matrix": 8,
+      "outer_artifact_hash_recomputation": "PASS"
+    }
+  },
+  "external_validation": {
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "Repeat the same runner with locked Electron 22.3.27 x64 on the target validation host; current surrogate evidence is developer-only.",
+    "Keep project validation as NOT_RUN until a task-authorized and C15/C16-reviewed project Runner Profile exists.",
+    "Run Win10 and Win7 filesystem, encoding, lifecycle and product journeys on one locked candidate.",
+    "Keep A8-03 external/target-runtime evidence separate; the developer implementation Gate is signed and only A8-04 is authorized."
+  ],
+  "next_checkpoint": "A8-03 developer implementation Gate is signed; begin A8-04 Runner/Terminal/Browser/Settings/Diagnostics contract and negative tests."
+}

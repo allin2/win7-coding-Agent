@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A8-06 验证链复核修复</title>
+<style>body{margin:0;background:#10141b;color:#e8edf5;font:15px/1.65 system-ui,sans-serif}main{max-width:980px;margin:auto;padding:48px 28px}h1{font-size:38px;line-height:1.15;margin:.2em 0}.eyebrow{color:#78d6b3;letter-spacing:.12em}.callout,.card{border:1px solid #334054;background:#171d27;border-radius:14px;padding:18px 22px;margin:20px 0}.warn{border-color:#d09b48}.ok{border-color:#47aa83}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #303948;padding:10px}code{color:#9ee6c8}a{color:#8fc8ff}.small{color:#aeb8c8}</style></head>
+<body><main><div class="eyebrow">WIN7 CODING AGENT · A8-06 · INDEPENDENT RECHECK</div><h1>验证链复核修复</h1>
+<p class="callout warn"><strong>修正结论：</strong>首版 A8K-04 PASS 不成立。缺陷已在开发机修复并补齐负向测试，但当前源码仍未提交，因此新包只属于 dirty developer candidate；A8-06 Validation Ready 尚未重新签发。</p>
+<section class="card"><h2>已确认并关闭的代码缺陷</h2><table><tr><th>缺陷</th><th>修复</th><th>开发机证据</th></tr>
+<tr><td>普通 Node 加载 Electron ABI 110 D-014</td><td>结构化包装器用包内 <code>electron.exe</code> Node-mode 执行；核对 Electron 22.3.27 / Node 16.17.1 / ABI 110</td><td>非目标 ABI fail-closed 测试</td></tr>
+<tr><td>报告字段与同一候选未绑定</td><td>evidence schema v2；逐文件复算完整 manifest；三报告联合 verifier</td><td>篡改、额外文件、候选错配负向测试</td></tr>
+<tr><td>证据写入不可变候选</td><td>报告/截图只允许候选兄弟 evidence 目录</td><td>候选内路径拒绝测试</td></tr>
+<tr><td>dirty 包可能被误交外部</td><td><code>external_acceptance_eligible=false</code>；正式工具启动前拒绝</td><td>dirty candidate fail-closed 测试</td></tr></table></section>
+<section class="card ok"><h2>验证结果</h2><p>全量仓库：7 模块 / 1074 tests PASS；Shell：25 suites / 182 tests PASS；release/evidence 合同：12 tests PASS；diff check PASS。机器可读事实见 <a href="../../status/a8-06-validation-repair-checkpoint-20260821.json">repair checkpoint</a>，设计裁决见 ADR-0085。</p></section>
+<p class="callout"><strong>剩余门禁：</strong>先审查并提交完整 A8 源码，从干净提交无 <code>--allow-uncommitted</code> 重建新候选；随后才可把同一 ZIP 交给 Win10/Win7。外部状态继续为 <code>NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE</code>，A7 RC PASS 不继承。</p>
+<p class="small">本报告不修改 A7 工件，不宣称 A8 RC PASS，也不把修复后的 dirty developer package 作为正式验收候选。</p></main></body></html>

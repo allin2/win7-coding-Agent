@@ -206,3 +206,39 @@ Phase 2 继续遵循 `PHASE_02_READONLY_CODE_ANALYSIS.md` 的测试矩阵和 E1/
 
 对 Phase 1，另保持原有红线：S1～S7 必须全部通过，Probe 不得留下文件/进程残留，JSON
 必须可解析且包含 Schema 必填字段，E1/E2 验收记录不可缺失。
+
+## 7. A8 串行产品 Gate
+
+A8 的阶段不得并行跳过。完整原子测试 ID 与断言见
+[`A8-00 产品架构与数据合同 §8`](prds/A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md#8-a8-01a8-05-确定性测试矩阵)。
+
+| Gate | 最低确定性证据 | 不能替代的证据 |
+|------|----------------|----------------|
+| A8-00 | PRD 追踪完整；信息架构、事件/状态/准备区/迁移字段冻结；JSON/HTML/链接与文档一致 | UI 草图或口头决定 |
+| A8-01 | A8E-01～06；中文/英文连续流、request 切换、非 delta、缺口/乱序/迟到、上限和缓存重建 | 原始 chunk 列表或单次视觉演示 |
+| A8-02 | A8S-01～04；标识归属、单活动任务锁、Goal、中文/空格/路径与只读边界 | 仅创建一个内存 Session |
+| A8-03 | A8R-01～07；多文件决定、审批哈希、漂移零写入、全组回滚、编码/EOL、真实验证 | 单文件 Diff 或模型声称已测试 |
+| A8-04 | C17/C19 负向测试、Runner 展示、Settings/Diagnostics；Terminal 无新 Profile 时 disabled | 旧 winpty 工件或开发机 Shell 可用 |
+| A8-05 | A8P-01～04、A8M-01～03、A8C-01～02；恢复、损坏、凭据扫描和原子迁移 | 只证明 EventLedger 可重开 |
+| A8-06 | 同一候选的开发机、Win10、Win7 十二条产品旅程，新 manifest/SBOM/许可证/哈希与唯一租约 | A7 RC PASS 或某一层 harness PASS |
+
+每个实现 Gate 必须同时检查权威事实、用户投影与副作用。A8-00 的文档 Gate 可以在开发机完成；它只解除
+A8-01 的进入条件，不是 A8 开发机产品 PASS，更不是 Win10、Win7 或 RC PASS。
+
+2026-08-20 A8-01 记录：`A8E-01`～`A8E-06` 与 Composer、计划审批零副作用、原始 Gateway 事实回归
+通过，仓库级 `npm run verify` 通过，Gate 为 `A8_01_CONVERSATION_PASS`。该结果只解除 A8-02 的
+进入条件；完整 A8 开发机十二旅程和 Windows 分层仍为 `NOT_PERFORMED`。
+
+2026-08-20 A8-02 记录：`A8S-01`～`A8S-04` 通过，覆盖标识归属/事件隔离、第二前台提交在实体创建前
+拒绝、Goal 修订与事实原子性/快照恢复一致，以及中文、空格、Win7 盘符/MAX_PATH、reparse 越界、
+24 项/64 KiB/500 行上下文上限和精确只读 IPC。仓库级 `npm run verify` 为 7 模块 1010 项 PASS，
+Gate 为 `A8_02_WORKSPACE_SESSION_CONTEXT_PASS`。只解除 A8-03；A8-05 完整持久化和三层产品验收未执行。
+
+2026-08-21 A8-03 检查点：A8R-01～06 的开发机行为、A8R-07 的诚实 `NOT_RUN` 语义、受控 Gateway
+Provider Review、A8 System Prompt V1 和已知凭据持久化前阻断均通过；仓库级 7 模块 1051 项、Shell
+169 项通过。真实 Electron Review 8-case 旅程虽已形成可复用执行器、外层工件哈希核验和合同测试，但本地 GUI 审批服务因用量限制拒绝
+本轮启动，状态曾为 `NOT_PERFORMED_LOCAL_GUI_APPROVAL_UNAVAILABLE`。随后在 GUI 审批恢复后，真实生产
+Electron 8-case 已 PASS（证据等级 `DEVELOPER_SURROGATE_ELECTRON`），因此开发机实现 Gate
+`A8_03_REVIEW_APPLY_PASS` 已签发，仅解除 A8-04；不构成 Electron 22、Win10、Win7 或 RC PASS。证据见
+[`a8_03_review_apply_gate_2026-08-21.html`](reports/2026-08/a8_03_review_apply_gate_2026-08-21.html) 和
+[`a8-03-electron-review-qa-20260821.json`](status/a8-03-electron-review-qa-20260821.json)。

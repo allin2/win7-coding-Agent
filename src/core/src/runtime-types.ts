@@ -37,6 +37,10 @@ export interface RuntimeRequest {
   taskId: string;
   runId: string;
   prompt: string;
+  /** Product execution contract. Plan mode suspends before the first tool call. */
+  executionMode?: 'direct' | 'plan';
+  /** Required when resuming a plan-mode checkpoint; the original plan is never regenerated. */
+  planApprovalDecision?: 'approved' | 'rejected';
   /** Trusted completion contract supplied by the orchestration boundary. */
   acceptance: TaskAcceptance;
   /** Additional explicit context; prefer contextBootstrap for a new Turn. */
@@ -317,6 +321,8 @@ export interface RuntimeCheckpoint {
   lastRuntimeSequence: number;
   budget: TurnBudget;
   pendingPlan: RuntimePlan;
+  /** Distinguishes product execution-plan consent from a tool-level write approval. */
+  approvalKind?: 'execution_plan' | 'tool';
   usage: TurnUsage;
   verificationRequirements: VerificationRequirement[];
   workingMemory?: WorkingMemorySnapshot;

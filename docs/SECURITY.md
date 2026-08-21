@@ -117,3 +117,31 @@ ADR-0027 不追溯放宽已批准任务：
 - 删除和覆盖前必须按任务风险提供备份、事务或可恢复操作；清理失败也必须记录。
 - 持久化协议和审计事件必须带版本号；解析不可信数据时设置大小、深度和字段限制。
 - 每个阶段按 `docs/EVALUATION.md` 执行与其 Runtime Profile 对应的安全测试。
+
+## 9. A8 会话、投影、准备区与迁移安全合同
+
+A8-00 的完整合同见
+[`A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md`](prds/A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md)，
+并由 ADR-0075 冻结。A8-01～A8-05 还必须满足：
+
+1. 原始 `gateway.delta` 先经过主进程 schema、归属、大小和序列校验并写入 EventLedger；Renderer 的
+   聚合投影不能修改、删除或替代原始审计事实。
+2. 投影必须有 256 KiB 段上限、1 MiB Assistant 消息上限、来源 seq/指纹和缺口关闭语义；迟到、乱序、
+   冲突或缓存漂移不能静默拼接。
+3. Renderer 只接收版本化展示 DTO 和最小动作 API。文件、blob、SQLite、凭据、进程和网络继续位于
+   main/Core/Adapter 边界之后；Review 视觉上的“接受”不等于写能力。
+4. Apply 的一次性授权必须绑定 Session、Task、Review revision、目标基线、预览与 accepted-set 哈希；
+   内容或决定变化、超时、主体变化和基线漂移全部废止授权。
+5. Gateway API key、Authorization、代理密码和 DPAPI 明文作为 tainted value；字段名与已知值扫描覆盖
+   事件、聊天、Review DB、blob、Diff、验证输出、日志和报告。命中时拒绝持久化，不记录原值。
+6. A7 source 只读打开；迁移代码不得解密或复制 `credentials.v1.json`，不得从旧事件推测工作区或会话，
+   不得操作 A7 安装目录、注册表、服务、PATH、网络、路由或防火墙。
+7. 未知 schema、事件序列缺口、指纹/实体/blob 哈希错误、Workspace 恢复不确定或半迁移临时目录清理
+   未确认时，产品只能进入只读 Diagnostics，不得部分加载后继续模型、Runner 或写入。
+8. A8-02 的产品专用 IPC 使用精确 action/payload 字段白名单并拒绝额外属性；只读文件接口最多返回
+   500 行/128 KiB，单轮上下文最多 24 项/64 KiB。文件和目录由主进程重新读取并计算 SHA-256，Renderer
+   传入的路径、内容哈希或范围不能直接成为权威事实。Win7 未形成长路径 Profile，达到 MAX_PATH 时
+   结构化拒绝；reparse 祖先越界同样 fail-closed。
+9. 真实 Gateway 使用 ADR-0079 的版本化 System Prompt，但提示词不产生 capability。已知 API key、代理
+   密码及其 Bearer/base64 形式在用户 prompt、Workspace 工具结果、Provider chunk/响应/工具参数进入
+   EventLedger、聊天投影或普通报告前阻断；错误只保留安全分类和不含原值的说明。

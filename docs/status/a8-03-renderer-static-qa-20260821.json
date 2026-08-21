@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "a8-03-renderer-static-qa.v1",
+  "stage": "A8-03",
+  "status": "STATIC_BROWSER_EVIDENCE_ONLY",
+  "branch": "codex/a8-agent-first-product",
+  "testedAt": "2026-08-21T00:13:48+08:00",
+  "target": "src/shell/product/renderer/index.html",
+  "harness": {
+    "kind": "local-static-http",
+    "url": "http://127.0.0.1:8765/index.html",
+    "preload": "unavailable",
+    "note": "The page was loaded as static HTML; no Electron Preload API or product IPC was available. This evidence does not cover interactive Review behavior."
+  },
+  "checks": [
+    {
+      "viewport": {"width": 1280, "height": 720},
+      "scrollWidth": 1280,
+      "scrollHeight": 720,
+      "horizontalOverflow": false,
+      "screenshot": "docs/reports/2026-08/a8_03_renderer_static_1280x720.jpg"
+    },
+    {
+      "viewport": {"width": 1024, "height": 720},
+      "scrollWidth": 1024,
+      "scrollHeight": 720,
+      "horizontalOverflow": false,
+      "screenshot": "docs/reports/2026-08/a8_03_renderer_static_1024x720.jpg"
+    }
+  ],
+  "domAssertions": {
+    "productNavigationPresent": true,
+    "workspaceBoundaryCopyPresent": true,
+    "preloadUnavailableErrorIsVisible": true,
+    "reviewInteractiveJourney": "NOT_RUN"
+  },
+  "gateImpact": {
+    "a8c02": "PARTIAL",
+    "a8_03_gate": "NOT_READY",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  }
+}

@@ -1,5 +1,8 @@
-const { createGatewayRuntimeModel, toOpenAIFunctionTool, toModelToolName } = require('../../product/gateway-runtime') as {
+const { A8_SYSTEM_PROMPT_SHA256, A8_SYSTEM_PROMPT_VERSION, createGatewayRuntimeModel, getSystemPromptContract, toOpenAIFunctionTool, toModelToolName } = require('../../product/gateway-runtime') as {
+  A8_SYSTEM_PROMPT_SHA256: string;
+  A8_SYSTEM_PROMPT_VERSION: string;
   createGatewayRuntimeModel: (core: any, gateway: any, provider: any, options?: any) => any;
+  getSystemPromptContract: () => { schemaVersion: number; version: string; sha256: string; content: string };
   toOpenAIFunctionTool: (spec: any) => any;
   toModelToolName: (name: string) => string;
 };
@@ -58,11 +61,16 @@ describe('Desktop Gateway RuntimeModel adapter', () => {
       },
     };
     const deltas: any[] = [];
+    const completions: any[] = [];
     const runtime = createGatewayRuntimeModel(
       { ApprovalLevel: { READ_ONLY: 'read_only' } },
       {},
       provider,
-      { model: 'deepseek-v4-flash', onChunk: (value: any) => deltas.push(value) },
+      {
+        model: 'deepseek-v4-flash',
+        onChunk: (value: any) => deltas.push(value),
+        onComplete: (value: any) => completions.push(value),
+      },
     );
     const plan = await runtime.createPlan({
       run: { runId: 'run-1' },
@@ -88,7 +96,12 @@ describe('Desktop Gateway RuntimeModel adapter', () => {
 
     expect(providerRequest.model).toBe('deepseek-v4-flash');
     expect(providerRequest.messages[0].role).toBe('system');
-    expect(providerRequest.messages[0].content).toContain('read-only');
+    expect(providerRequest.messages[0].content).toContain('[a8-system-prompt-v1]');
+    expect(providerRequest.messages[0].content).toContain('private A8 Review staging area');
+    expect(providerRequest.messages[0].content).toContain('never writes the target workspace');
+    expect(providerRequest.messages[0].content).toContain('separate exact Apply approval');
+    expect(providerRequest.messages[0].content).toContain('Only a trusted Runner or remote validation adapter can produce PASS');
+    expect(providerRequest.messages[0].content).toContain('Do not request or simulate process, terminal, arbitrary shell, Git write, arbitrary network, credential');
     expect(providerRequest.messages[2].toolCalls).toEqual([{
       id: 'prior-call',
       name: 'workspace_read_text',
@@ -109,6 +122,116 @@ describe('Desktop Gateway RuntimeModel adapter', () => {
     }));
     expect(plan.usage).toEqual({ inputTokens: 12, outputTokens: 3 });
     expect(deltas).toEqual([{ requestId: 'run-1-step-1', chunk: { content: 'partial', index: 0 } }]);
+    expect(completions).toEqual([{ requestId: 'run-1-step-1', index: 1, finishReason: 'tool_calls' }]);
+  });
+
+  it('locks the A8 System Prompt V1 bytes to a versioned SHA-256 contract', () => {
+    const contract = getSystemPromptContract();
+    expect(contract).toEqual({
+      schemaVersion: 1,
+      version: A8_SYSTEM_PROMPT_VERSION,
+      sha256: A8_SYSTEM_PROMPT_SHA256,
+      content: expect.stringContaining('workspace_review_prepare'),
+    });
+    expect(A8_SYSTEM_PROMPT_VERSION).toBe('a8-system-prompt-v1');
+    expect(A8_SYSTEM_PROMPT_SHA256).toBe('f1bdcace084d27d71383b4ddfe81cef61029796a36859995c6e9614f1cbc9160');
+    expect(contract.content).not.toContain('You are a read-only coding agent');
+    expect(contract.content).toContain('that action never writes the target workspace');
+    expect(contract.content).not.toContain('workspace.str_replace');
+  });
+
+  it('keeps a Review proposal model-call inside the registered ToolSpec boundary', async () => {
+    const reviewSpec = {
+      ...readSpec,
+      name: 'workspace.review_prepare',
+      description: 'Create a private Review proposal without writing the target workspace.',
+      inputSchema: {
+        properties: { proposalsJson: { type: 'string', description: 'Bounded JSON proposal.' } },
+        required: ['proposalsJson'],
+      },
+    };
+    let providerRequest: any;
+    const provider = {
+      async sendStreamRequest(request: any) {
+        providerRequest = request;
+        return {
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [{
+            id: 'review-call-1',
+            name: 'workspace_review_prepare',
+            arguments: '{"proposalsJson":"[]"}',
+          }],
+        };
+      },
+    };
+    const runtime = createGatewayRuntimeModel(
+      { ApprovalLevel: { READ_ONLY: 'read_only' } },
+      {},
+      provider,
+      { model: 'registered-internal-model' },
+    );
+    const plan = await runtime.createPlan({
+      run: { runId: 'run-review' },
+      step: 1,
+      messages: [{ role: 'user', content: 'Prepare a two-file Review.' }],
+      tools: [readSpec, reviewSpec],
+      toolChoice: 'auto',
+      signal: new AbortController().signal,
+    });
+
+    expect(providerRequest.tools.map((tool: any) => tool.name)).toEqual([
+      'workspace_read_text',
+      'workspace_review_prepare',
+    ]);
+    expect(plan.toolCalls[0].call).toEqual({
+      id: 'review-call-1',
+      toolName: 'workspace.review_prepare',
+      args: { proposalsJson: '[]' },
+      approvalLevel: 'read_only',
+    });
+  });
+
+  it('blocks known credential values before Gateway chunks or tool arguments reach callbacks', async () => {
+    const secret = 'known-provider-secret-value';
+    const deltas: any[] = [];
+    const provider = {
+      async sendStreamRequest(_request: any, onChunk: (chunk: any) => void) {
+        onChunk({ content: `unexpected ${secret}`, index: 0 });
+        return { content: '', finishReason: 'stop', toolCalls: [] };
+      },
+    };
+    const runtime = createGatewayRuntimeModel(
+      { ApprovalLevel: { READ_ONLY: 'read_only' } },
+      {},
+      provider,
+      { getSensitiveValues: () => [secret], onChunk: (value: any) => deltas.push(value) },
+    );
+    await expect(runtime.createPlan({
+      run: { runId: 'run-sensitive-chunk' }, step: 1,
+      messages: [{ role: 'user', content: 'Inspect.' }], tools: [readSpec], toolChoice: 'auto',
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: 'SENSITIVE_DATA_BLOCKED' });
+    expect(deltas).toEqual([]);
+
+    const encoded = Buffer.from(secret, 'utf8').toString('base64');
+    const toolProvider = {
+      async sendStreamRequest() {
+        return {
+          content: '', finishReason: 'tool_calls',
+          toolCalls: [{ id: 'secret-call', name: 'workspace_read_text', arguments: JSON.stringify({ path: encoded }) }],
+        };
+      },
+    };
+    const toolRuntime = createGatewayRuntimeModel(
+      { ApprovalLevel: { READ_ONLY: 'read_only' } }, {}, toolProvider,
+      { getSensitiveValues: () => [secret] },
+    );
+    await expect(toolRuntime.createPlan({
+      run: { runId: 'run-sensitive-tool' }, step: 1,
+      messages: [{ role: 'user', content: 'Inspect.' }], tools: [readSpec], toolChoice: 'auto',
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: 'SENSITIVE_DATA_BLOCKED' });
   });
 
   it('round-trips three sequential Core tool calls through model-safe aliases', async () => {

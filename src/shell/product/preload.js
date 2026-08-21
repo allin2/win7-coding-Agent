@@ -17,6 +17,15 @@ function request(type, sessionId, payload) {
   });
 }
 
+function a8Request(action, sessionId, payload) {
+  return ipcRenderer.invoke('product:a8-request', {
+    schemaVersion: 1,
+    action,
+    sessionId,
+    payload: payload || {},
+  });
+}
+
 const productApi = Object.freeze({
   getDiagnostics: () => ipcRenderer.invoke('product:get-diagnostics'),
   getSettings: () => request('settings.get', 'desktop', {}),
@@ -29,16 +38,44 @@ const productApi = Object.freeze({
   }),
   listSessions: () => request('session.list', 'desktop', {}),
   closeSession: (sessionId) => request('session.close', sessionId, { sessionId }),
-  submitTask: (sessionId, prompt, scenario) => request('task.submit', sessionId, {
+  getSession: (sessionId) => a8Request('session.get', sessionId, {}),
+  setGoal: (sessionId, text, expectedRevision) => a8Request('goal.set', sessionId, { text, expectedRevision }),
+  resolveGoal: (sessionId, status, expectedRevision) => a8Request('goal.resolve', sessionId, { status, expectedRevision }),
+  listWorkspace: (sessionId, path) => a8Request('workspace.list', sessionId, { path: path || '' }),
+  readWorkspaceFile: (sessionId, path, startLine, maxLines, encoding) => a8Request('workspace.read', sessionId, {
+    path,
+    ...(startLine ? { startLine } : {}),
+    ...(maxLines ? { maxLines } : {}),
+    ...(encoding ? { encoding } : {}),
+  }),
+  prepareReview: (sessionId, taskId, proposals) => a8Request('review.prepare', sessionId, { taskId, proposals }),
+  getReview: (sessionId, taskId) => a8Request('review.get', sessionId, { taskId }),
+  decideReview: (sessionId, taskId, relativePath, decision) => a8Request('review.decide', sessionId, { taskId, relativePath, decision }),
+  issueReviewApproval: (sessionId, taskId, subject) => a8Request('review.approval.issue', sessionId, { taskId, subject: subject || 'desktop-user' }),
+  applyReview: (sessionId, taskId, approval) => a8Request('review.apply', sessionId, { taskId, approval }),
+  recordReviewValidation: (sessionId, taskId, input) => a8Request('review.validation', sessionId, { taskId, ...input }),
+  restoreReviewRecovery: (sessionId, taskId) => a8Request('review.recovery', sessionId, { taskId }),
+  submitReviewTask: (sessionId, prompt) => a8Request('review.task.submit', sessionId, { prompt }),
+  submitTask: (sessionId, prompt, scenario, executionMode, refs) => request('task.submit', sessionId, {
     sessionId,
     prompt,
     ...(scenario ? { scenario } : {}),
+    ...((executionMode || (Array.isArray(refs) && refs.length > 0)) ? { context: {
+      ...(executionMode ? { executionMode } : {}),
+      ...(Array.isArray(refs) && refs.length > 0 ? { refs } : {}),
+    } } : {}),
   }),
   cancelTask: (sessionId, taskId) => request('task.cancel', sessionId, { taskId }),
   approveTask: (sessionId, taskId, approvalId, planHash, workspaceBaseHash) => request('task.approve', sessionId, {
     taskId, approvalId, planHash, workspaceBaseHash,
   }),
   rejectTask: (sessionId, taskId, approvalId, reason) => request('task.reject', sessionId, {
+    taskId, approvalId, reason,
+  }),
+  approvePlan: (sessionId, taskId, approvalId, planHash) => request('task.approve', sessionId, {
+    taskId, approvalId, planHash, workspaceBaseHash: 'execution-plan',
+  }),
+  rejectPlan: (sessionId, taskId, approvalId, _planHash, reason) => request('task.reject', sessionId, {
     taskId, approvalId, reason,
   }),
   prepareUndo: (sessionId, taskId) => request('task.undo_prepare', sessionId, { sessionId, taskId }),

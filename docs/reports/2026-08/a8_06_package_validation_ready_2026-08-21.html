@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A8-06 确定性打包与验收准备 Gate</title>
+  <style>
+    :root{color-scheme:light;--ink:#16202b;--muted:#52616f;--line:#d7e0e8;--ok:#0d6b4d;--hold:#8a5a00;--bg:#f5f8fb;--card:#fff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:1080px;margin:0 auto;padding:42px 24px 64px} header{background:#102a43;color:#fff;border-radius:18px;padding:30px 34px;margin-bottom:22px}
+    h1{font-size:30px;line-height:1.2;margin:0 0 10px} h2{font-size:20px;margin:30px 0 10px} p{margin:8px 0} .subtitle{color:#d7e9f5}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}.label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.value{font-weight:700;margin-top:5px}
+    table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}th,td{padding:11px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eaf1f7;font-size:13px}tr:last-child td{border-bottom:0}.pass{color:var(--ok);font-weight:700}.hold{color:var(--hold);font-weight:700}code{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.note{border-left:4px solid #4b8db8;background:#eaf4fb;padding:12px 15px;margin:14px 0}.small{font-size:13px;color:var(--muted)}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:24px 14px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="label" style="color:#b8d5e8">A8 Agent-first · 2026-08-21</div>
+    <h1>A8-06 确定性打包与三层验收准备</h1>
+    <p class="subtitle">开发机 Gate：<strong>A8_06_PACKAGE_AND_VALIDATION_READY</strong> · 状态：<strong>A8_DEVELOPER_COMPLETE_VALIDATION_READY</strong></p>
+  </header>
+
+  <div class="grid">
+    <div class="card"><div class="label">候选</div><div class="value">WIN7-CODING-AGENT-A8-ALPHA1<br>0.2.0-alpha.1</div></div>
+    <div class="card"><div class="label">ZIP SHA-256</div><div class="value"><code>9fbcd78d1750710c520e4e66c56fa837eab3b6be1a233f400766da820321c227</code></div></div>
+    <div class="card"><div class="label">外部层</div><div class="value hold">Win10/Win7：未执行</div></div>
+  </div>
+
+  <h2>Gate 结果</h2>
+  <table>
+    <thead><tr><th>Requirement ID</th><th>证据</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>A8K-01</td><td>缺失/改变输入、禁止 payload 的负向测试；失败时清理 <code>.work</code>，不发布半包。</td><td class="pass">PASS</td></tr>
+      <tr><td>A8K-02</td><td>fixture 两次构建 ZIP、manifest、SBOM、许可证和 sidecar 字节一致。</td><td class="pass">PASS</td></tr>
+      <tr><td>A8K-03</td><td><code>resources/app</code> 无 native；helper 与 better-sqlite3 位于 <code>resources/native</code>；manifest 外层重算 757/757。</td><td class="pass">PASS</td></tr>
+      <tr><td>A8K-04</td><td>候选携带 A8-03/A8-04/A8-05 Windows 入口、锁定命令、报告 Schema 和哈希核验。</td><td class="pass">PASS</td></tr>
+      <tr><td>A8K-05</td><td>安装、并存、升级失败、回滚、卸载和禁止系统动作已形成可执行说明。</td><td class="pass">PASS</td></tr>
+    </tbody>
+  </table>
+
+  <h2>锁定闭包</h2>
+  <table>
+    <tbody>
+      <tr><th>Electron ZIP</th><td><code>ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6</code><br>entry <code>electron.exe</code> → <code>2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb</code></td></tr>
+      <tr><th>D-013 v24</th><td><code>5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c</code><br>entry <code>output/helper.exe</code> → <code>7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134</code></td></tr>
+      <tr><th>D-014 8.7.0</th><td><code>2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794</code><br>SQLite 3.43.1 / ABI 110 / entry → <code>7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc</code></td></tr>
+      <tr><th>Manifest / SBOM</th><td>manifest <code>65c4e0cfa879a2bccd28114b7a37dd07af59d13d28fcb3cc62893536a74d7bf4</code><br>SBOM <code>8f057e562156b305f9d8ae841f8a0992a68acd91d6e49c7b938512e95386e0c6</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>开发机执行记录</h2>
+  <table>
+    <thead><tr><th>命令/入口</th><th>实际结果</th></tr></thead>
+    <tbody>
+      <tr><td><code>node --test scripts/release/test/a8-package.test.mjs</code></td><td class="pass">3 tests PASS</td></tr>
+      <tr><td>真实锁定输入构建器</td><td class="pass">A8_06_DEVELOPER_PACKAGE_INTEGRITY_PASS；ZIP 101,003,910 bytes</td></tr>
+      <tr><td>包内 A8-05 persistence smoke</td><td class="pass">10 cases PASS，<code>DEVELOPER_FAKE_SQLITE</code>（darwin-arm64）；D-014 native 未冒充 PASS</td></tr>
+      <tr><td><code>npm run verify</code></td><td class="pass">7 modules / 1073 tests PASS</td></tr>
+      <tr><td><code>git diff --check</code></td><td class="pass">PASS；仅有已知 <code>fsmonitor_ipc__send_query</code> warning</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><strong>外部门禁：</strong>当前没有可执行的 Electron 22 Windows native、Win10 或 Win7 环境。
+    因此 Electron 22、Win10、Win7 和 RC 均准确记录为 <code>NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE</code> / <code>NOT_PERFORMED</code>。
+    本 Gate 不继承 A7 RC PASS，也不把 fake SQLite、Replay、静态截图或 UI harness 当作产品 PASS。</div>
+
+  <p class="small">机器可读记录：<code>docs/status/a8-06-developer-checkpoint-20260821.json</code>、<code>docs/status/a8-06-package-validation-kit-20260821.json</code>。合同：<code>docs/prds/A8_06_DETERMINISTIC_PACKAGE_AND_VALIDATION_CONTRACT.md</code>；裁决：ADR-0084。</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,45 @@
+.workbench { grid-template-columns: 244px minmax(500px, 1fr) 380px; }
+.session-view { min-height: 100%; }
+.session-list li.archived { opacity: .55; }
+.session-list li::after { content: attr(data-status); float: right; color: var(--muted); font: 9px var(--mono); }
+.goal-actions, .viewer-actions { display: flex; gap: 6px; margin-top: 10px; }
+.goal-actions button, .viewer-actions button, .section-title button, .viewer-tools button, .attach {
+  border: 1px solid var(--line); background: #222824; color: #b9c1bb; padding: 5px 7px; font-size: 10px;
+}
+.goal-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.context-chips { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 7px; }
+.context-chip { flex: 0 0 auto; border: 1px solid #405047; background: #18221c; color: #bce6c8; padding: 5px 8px; font: 10px var(--mono); }
+.context-chip button { border: 0; background: transparent; color: var(--muted); margin-left: 6px; }
+.attach { margin-right: 7px; }
+.workspace-tree { list-style: none; margin: 9px 0 0; padding: 0; max-height: 190px; overflow: auto; }
+.workspace-tree li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; border-bottom: 1px solid #292e2b; }
+.workspace-tree button { border: 0; background: transparent; color: #bdc5bf; text-align: left; padding: 7px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-tree button[data-add-context] { color: var(--green); font-size: 10px; }
+.viewer-panel { padding-bottom: 12px !important; }
+.viewer-tools { display: grid; grid-template-columns: 1fr 58px auto; gap: 5px; margin: 10px 0 8px; }
+.viewer-tools input { min-width: 0; border: 1px solid var(--line); background: #0f1210; padding: 6px; font-size: 10px; }
+.code-viewer { height: 310px; overflow: auto; border: 1px solid var(--line); background: #0c0f0d; font: 11px/1.55 var(--mono); }
+.code-line { display: grid; grid-template-columns: 42px 1fr; min-width: max-content; width: 100%; color: #c7cec9; cursor: default; }
+.code-line:hover, .code-line.selected { background: #213128; }
+.code-line.match { box-shadow: inset 2px 0 var(--amber); }
+.line-no { position: sticky; left: 0; padding: 0 8px; text-align: right; color: #667069; background: #121613; user-select: none; }
+.line-code { padding: 0 10px; white-space: pre; }
+.viewer-actions button { flex: 1; }
+.viewer-actions .primary { color: var(--green); border-color: #3e6b4c; }
+.review-panel { padding-bottom: 12px !important; }
+.review-files { list-style: none; margin: 8px 0; padding: 0; max-height: 180px; overflow: auto; }
+.review-files li { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #292e2b; }
+.review-files button { flex: 1; min-width: 0; border: 0; background: transparent; color: #bdc5bf; padding: 7px 2px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-files li.selected { background: #213128; }
+.review-files .review-decision { color: var(--muted); font: 9px var(--mono); }
+.review-diff { min-height: 100px; max-height: 220px; overflow: auto; background: #0c0f0d; border: 1px solid var(--line); padding: 9px; font: 10px/1.5 var(--mono); white-space: pre-wrap; }
+.review-actions, .review-apply-actions { display: flex; gap: 6px; margin-top: 8px; }
+.review-actions button, .review-apply-actions button { flex: 1; border: 1px solid var(--line); background: #242a27; color: #b9c1bb; padding: 6px 5px; font-size: 10px; }
+.review-actions .primary, .review-apply-actions .primary { background: #2d6c45; border-color: #438759; color: white; }
+.review-actions .danger { color: #f1a49d; border-color: #70443f; }
+.review-actions button:disabled, .review-apply-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.review-validation { margin-top: 10px; padding-top: 9px; border-top: 1px dashed #39403c; }
+.review-validation .section-title>span { color: var(--amber); }
+.review-validation button { margin-top: 4px; }
+@media(max-width:1180px){.workbench{grid-template-columns:220px 1fr 330px}}
+@media(max-width:1050px){.workbench{grid-template-columns:220px 1fr}.inspector{display:none}}

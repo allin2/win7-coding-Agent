@@ -71,6 +71,21 @@ class ReplayModelAdapter {
 
     const read = last && last.toolName === 'workspace.read_text' ? last.output : undefined;
     const readPath = read && typeof read.path === 'string' ? read.path : '工作区文件';
+    if (this.scenario === 'review') {
+      if (last && last.toolName === 'workspace.review_prepare' && last.status === 'succeeded') {
+        return finalPlan('Replay 已将多文件提案写入私有 Review 准备区；工作区尚未修改，等待逐文件决定。');
+      }
+      if (last && last.toolName === 'workspace.review_prepare' && last.status === 'failed') {
+        return finalPlan(`Review 准备区创建失败：${writeFailureReason(last.output) || '提案未通过可信准备区校验。'}`);
+      }
+      const proposalsJson = reviewProposalsJson(
+        this.options.reviewProposals || deriveReviewProposals(read),
+      );
+      if (!proposalsJson) return finalPlan('Replay 没有收到多文件提案；请重新生成 Review 任务。');
+      return plan(this.core, 'Replay 已生成多文件准备区提案；等待可信 Host 写入私有 staging。', [
+        call(this.core, `review-prepare-${this.step}`, 'workspace.review_prepare', { proposalsJson }),
+      ]);
+    }
     if (this.scenario === 'edit' || this.scenario === 'undo') {
       if (last && last.toolName === 'workspace.str_replace' && last.status === 'denied') {
         return finalPlan('用户拒绝了这次单文件修改，Replay 保持工作区不变。');
@@ -131,6 +146,47 @@ function writeFailureReason(output) {
   return failed && typeof failed.error === 'string' ? failed.error : '';
 }
 
+function reviewProposalsJson(raw) {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 128) return '';
+  try {
+    const proposals = raw.map((proposal) => {
+      if (!proposal || typeof proposal !== 'object' || typeof proposal.relativePath !== 'string' || typeof proposal.operation !== 'string') {
+        throw new Error('invalid proposal');
+      }
+      const item = { relativePath: proposal.relativePath, operation: proposal.operation };
+      if (proposal.operation !== 'DELETE') {
+        const content = Buffer.isBuffer(proposal.afterContent)
+          ? proposal.afterContent
+          : typeof proposal.afterContentBase64 === 'string'
+            ? Buffer.from(proposal.afterContentBase64, 'base64')
+            : null;
+        if (!content) throw new Error('missing after content');
+        item.afterContentBase64 = content.toString('base64');
+      }
+      return item;
+    });
+    const encoded = JSON.stringify(proposals);
+    return Buffer.byteLength(encoded, 'utf8') <= 20 * 1024 * 1024 ? encoded : '';
+  } catch (_error) {
+    return '';
+  }
+}
+
+function deriveReviewProposals(read) {
+  if (!read || typeof read.path !== 'string' || !Array.isArray(read.lines)) return [];
+  const lines = read.lines
+    .filter((line) => line && typeof line.text === 'string')
+    .map((line) => line.text);
+  if (lines.length === 0) return [];
+  const first = `${lines[0]} // A8 Review Replay proposal`;
+  lines[0] = first;
+  return [{
+    relativePath: read.path,
+    operation: 'MODIFY',
+    afterContent: Buffer.from(`${lines.join('\n')}\n`, 'utf8'),
+  }];
+}
+
 function call(core, id, toolName, args) {
   return {
     call: {
@@ -164,7 +220,10 @@ function finalPlan(content) {
 }
 
 function toolObservations(messages) {
+  const lastUserIndex = messages.reduce((latest, message, index) =>
+    message && message.role === 'user' ? index : latest, -1);
   return messages
+    .slice(lastUserIndex + 1)
     .filter((message) => message && message.role === 'tool')
     .map((message) => {
       let value = {};

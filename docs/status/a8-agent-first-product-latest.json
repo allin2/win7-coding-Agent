@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "record_id": "A8-AGENT-FIRST-PRODUCT-20260820-01",
-  "recorded_at": "2026-08-20",
-  "status": "APPROVED_FOR_IMPLEMENTATION",
+  "record_id": "A8-AGENT-FIRST-PRODUCT-20260821-13",
+  "recorded_at": "2026-08-21",
+  "status": "A8_06_VALIDATION_KIT_REPAIR_PASS_CLEAN_CANDIDATE_PENDING",
   "phase_gate": "A8_IMPLEMENTATION_AUTHORIZED",
   "target_branch": "codex/a8-agent-first-product",
   "target_version": "0.2.0-alpha.1",
@@ -13,10 +13,162 @@
     "confirmed_at": "2026-08-20"
   },
   "task": "docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md",
+  "design_contract": {
+    "path": "docs/prds/A8_00_PRODUCT_ARCHITECTURE_AND_DATA_CONTRACT.md",
+    "status": "FROZEN_FOR_A8_IMPLEMENTATION",
+    "decision": "ADR-0075",
+    "report": "docs/reports/2026-08/a8_00_design_gate_2026-08-20.html"
+  },
+  "current_stage": "A8-06",
+  "stage_gates": {
+    "A8-00": {
+      "status": "COMPLETE",
+      "gate": "A8_00_DESIGN_PASS",
+      "scope": "INFORMATION_ARCHITECTURE_EVENT_AGGREGATION_SESSION_STATE_REVIEW_STAGING_MIGRATION_TEST_MATRIX",
+      "completed_at": "2026-08-20"
+    },
+    "A8-01": {
+      "status": "COMPLETE",
+      "gate": "A8_01_CONVERSATION_PASS",
+      "scope": "CONVERSATION_UI_COMPOSER_EXECUTION_MODES_STREAM_PROJECTION_TOOL_CARDS",
+      "completed_at": "2026-08-20",
+      "developer_evidence": {
+        "a8e": "A8E-01_THROUGH_A8E-06_PASS",
+        "integration_verify": "PASS",
+        "static_visual_qa": "PASS",
+        "report": "docs/reports/2026-08/a8_01_conversation_gate_2026-08-20.html"
+      }
+    },
+    "A8-02": {
+      "status": "COMPLETE",
+      "gate": "A8_02_WORKSPACE_SESSION_CONTEXT_PASS",
+      "scope": "WORKSPACE_MULTI_SESSION_GOAL_CONTEXT_REFERENCES_READONLY_CODE_VIEWER",
+      "completed_at": "2026-08-20",
+      "developer_evidence": {
+        "a8s": "A8S-01_THROUGH_A8S-04_PASS",
+        "integration_verify": "PASS_7_MODULES_1010_TESTS",
+        "shell_tests": "PASS_148",
+        "state_tests": "PASS_235",
+        "static_visual_qa": "PASS_1280X720_NO_PAGE_OVERFLOW",
+        "report": "docs/reports/2026-08/a8_02_workspace_session_context_gate_2026-08-20.html"
+      }
+    },
+    "A8-03": {
+      "status": "COMPLETE_FOR_DEVELOPER_IMPLEMENTATION_GATE",
+      "gate": "A8_03_REVIEW_APPLY_PASS",
+      "plan": "docs/reports/2026-08/a8_03_review_staging_development_plan_2026-08-20.html",
+      "progress_report": "docs/reports/2026-08/a8_03_review_staging_progress_2026-08-20.html",
+      "gate_pass": true,
+      "developer_evidence": {
+        "workspace_tests": "PASS_97",
+        "state_tests": "PASS_236",
+        "core_tests": "PASS_229",
+        "shell_tests": "PASS_169",
+        "integration_verify": "PASS_7_MODULES_1051_TESTS",
+        "docs_check": "PASS_80_FILES_19_TASK_FILES",
+        "renderer_static_browser_qa": "PASS_1280X720_AND_1024X720_NO_HORIZONTAL_OVERFLOW",
+        "renderer_static_browser_qa_evidence": "docs/status/a8-03-renderer-static-qa-20260821.json",
+        "renderer_chromium_harness": "PASS_REVIEW_CREATE_DECIDE_VALIDATE_APPROVE_APPLY",
+        "renderer_chromium_harness_evidence": "docs/status/a8-03-renderer-interactive-qa-20260821.json",
+        "system_prompt_contract": "PASS_A8_SYSTEM_PROMPT_V1_F1BDCACE084D27D71383B4DDFE81CEF61029796A36859995C6E9614F1CBC9160",
+        "controlled_gateway_review": "PASS_PRIVATE_STAGING_WITHOUT_WORKSPACE_WRITE_TOOL",
+        "known_credential_boundaries": "PASS_PROMPT_WORKSPACE_TOOL_PROVIDER_CHUNK_RESPONSE_AND_TOOL_ARGUMENT",
+        "developer_checkpoint": "docs/status/a8-03-developer-checkpoint-20260821.json",
+        "real_electron_review": "PASS_DEVELOPER_SURROGATE_ELECTRON",
+        "real_electron_review_runner_contract": "PASS_8_CASES_AND_OUTER_HASH_RECOMPUTATION",
+        "real_electron_review_validation_kit": "docs/status/a8-03-electron-review-validation-kit-20260821.json",
+        "real_electron_review_handoff": "docs/reports/2026-08/a8_03_electron_review_validation_handoff_2026-08-21.html"
+      },
+      "remaining": [
+        "锁定 Electron 22.3.27 x64、Win10、Win7 目标层复测；当前 surrogate 只属于开发机实现证据",
+        "真实项目测试 Runner Profile 仍未获登记；当前只允许并已验证诚实 NOT_RUN",
+        "Win10/Win7/RC 三层 A8 验收"
+      ]
+    },
+    "A8-04": {
+      "status": "COMPLETE_FOR_DEVELOPER_IMPLEMENTATION_GATE",
+      "gate": "A8_04_RUNNER_TERMINAL_BROWSER_SETTINGS_DIAGNOSTICS_PASS",
+      "scope": "RUNNER_PRESENTATION_TERMINAL_BROWSER_SETTINGS_DIAGNOSTICS_BOUNDARIES",
+      "gate_pass": true,
+      "developer_evidence": {
+        "targeted_boundary_tests": "PASS_13",
+        "real_electron_boundary": "PASS_DEVELOPER_SURROGATE_ELECTRON",
+        "real_electron_boundary_evidence": "docs/status/a8-04-boundary-electron-qa-20260821.json",
+        "real_electron_boundary_validation_kit": "docs/status/a8-04-boundary-validation-kit-20260821.json",
+        "real_electron_boundary_gate": "docs/reports/2026-08/a8_04_terminal_browser_settings_gate_2026-08-21.html",
+        "real_electron_boundary_cases": 8,
+        "outer_artifact_hash_recomputation": "PASS_10_FILES",
+        "terminal": "DISABLED_CAPABILITY_UNAVAILABLE",
+        "browser": "DISABLED_DENY_BY_DEFAULT",
+        "runner": "DISPLAY_ONLY_UNAVAILABLE_NO_VALIDATED_PROFILE"
+      },
+      "remaining": [
+        "锁定 Electron 22.3.27 x64、Win10、Win7 目标层复测；当前 surrogate 只属于开发机实现证据",
+        "Terminal 新 Runtime Profile、威胁模型和 Win7 证据尚未授权",
+        "Win10/Win7/RC 三层 A8 验收"
+      ]
+    },
+    "A8-05": {
+      "status": "COMPLETE_FOR_DEVELOPER_IMPLEMENTATION_GATE",
+      "gate": "A8_05_PERSISTENCE_RECOVERY_MIGRATION_PASS",
+      "scope": "VERSIONED_SESSION_GOAL_REVIEW_PERSISTENCE_INTERRUPTION_RECOVERY_AND_MIGRATION",
+      "gate_pass": true,
+      "developer_evidence": {
+        "persistence_contract": "docs/prds/A8_05_PERSISTENCE_RECOVERY_MIGRATION_CONTRACT.md",
+        "decision": "ADR-0083",
+        "checkpoint": "docs/status/a8-05-developer-checkpoint-20260821.json",
+        "validation_kit": "docs/status/a8-05-persistence-validation-kit-20260821.json",
+        "gate_report": "docs/reports/2026-08/a8_05_persistence_recovery_migration_gate_2026-08-21.html",
+        "state_tests": "PASS_245",
+        "workspace_tests": "PASS_98",
+        "shell_tests": "PASS_180",
+        "host_reopen_review_drift": "PASS",
+        "migration_allowlist_and_retry": "PASS",
+        "repository_verify": "PASS_7_MODULES_1072_TESTS",
+        "docs_check": "PASS_84_FILES_19_TASK_FILES",
+        "developer_profile": "DEVELOPER_FAKE_SQLITE_PLUS_HOST_REOPEN"
+      },
+      "remaining": [
+        "D-014 better-sqlite3 8.7.0 / SQLite 3.43.1 native execution on locked Electron 22.3.27 x64",
+        "Win10/Win7 and final A8-06 same-candidate product acceptance",
+        "Terminal new Profile and project Runner remain unchanged/disabled"
+      ]
+    },
+    "A8-06": {
+      "status": "VALIDATION_KIT_REPAIR_PASS_CLEAN_CANDIDATE_PENDING",
+      "gate": "A8_06_PACKAGE_AND_VALIDATION_READY_NOT_REISSUED",
+      "scope": "DETERMINISTIC_A8_ALPHA1_PACKAGE_MANIFEST_SBOM_LICENSES_AND_THREE_LAYER_VALIDATION_KIT",
+      "gate_pass": false,
+      "developer_evidence": {
+        "decision": "ADR-0084 / ADR-0085",
+        "contract": "docs/prds/A8_06_DETERMINISTIC_PACKAGE_AND_VALIDATION_CONTRACT.md",
+        "input_lock": "release/win7-product-v2/a8-06-input-lock.json",
+        "builder": "scripts/release/build-a8-product-v2.mjs",
+        "package_validation_test": "scripts/release/test/a8-package.test.mjs",
+        "validation_kit": "docs/status/a8-06-package-validation-kit-20260821.json",
+        "checkpoint": "docs/status/a8-06-validation-repair-checkpoint-20260821.json",
+        "gate_report": "docs/reports/2026-08/a8_06_package_validation_ready_2026-08-21.html",
+        "developer_package_integrity": "PASS_REPAIR_PACKAGE_SOURCE_DIRTY_EXTERNAL_INELIGIBLE",
+        "repository_verify": "PASS_7_MODULES_1074_TESTS",
+        "docs_check": "PASS_89_FILES_19_TASK_FILES",
+        "product_assembly": "NOT_PERFORMED",
+        "fixture_reproducibility": "PASS_BYTE_IDENTICAL",
+        "a8k04_repair": "PASS_SCHEMA_V2_MANIFEST_BINDING_ELECTRON_ABI110_RUNNER_AND_EXTERNAL_EVIDENCE_ROOT",
+        "clean_candidate": "PENDING_COMMITTED_CLEAN_SOURCE_REBUILD",
+        "external_layers": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+      },
+      "remaining": [
+        "Commit the reviewed A8 source and rebuild without --allow-uncommitted; dirty candidates are rejected before formal scoring",
+        "Electron 22.3.27 x64 with D-014 native binding on an executable Windows host",
+        "Win10 and Win7 same-candidate product journeys and lifecycle evidence",
+        "A8_RC_PASS owner review; do not inherit A7 RC PASS"
+      ]
+    }
+  },
   "validation": {
-    "developer": "NOT_PERFORMED",
-    "win10": "NOT_PERFORMED",
-    "win7": "NOT_PERFORMED",
+    "developer": "PASS_A8K04_REPAIR_IMPLEMENTATION_CLEAN_CANDIDATE_PENDING",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
     "rc": "NOT_PERFORMED"
   },
   "frozen_rc": {
@@ -25,5 +177,6 @@
     "disposition": "READ_ONLY_TECHNICAL_BASELINE_NOT_A8_PASS"
   },
   "first_stage": "A8-00",
-  "blocking_reason": "A8_IMPLEMENTATION_AND_THREE_LAYER_PRODUCT_ACCEPTANCE_NOT_PERFORMED"
+  "next_stage": "A8_06_CLEAN_CANDIDATE_REBUILD",
+  "blocking_reason": "CLEAN_COMMITTED_SOURCE_CANDIDATE_AND_WIN10_WIN7_EXTERNAL_ENV_REQUIRED"
 }

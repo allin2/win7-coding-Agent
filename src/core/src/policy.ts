@@ -56,6 +56,7 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
   'workspace.list_directory',
   'workspace.read_text',
   'workspace.search_text',
+  'workspace.review_prepare',
   'workspace.str_replace',
 ]);
 
