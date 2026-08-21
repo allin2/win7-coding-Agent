@@ -318,6 +318,19 @@ ADR-0088 修复已形成普通源码提交 `fc4e0deea9a0cfcd86037ebbbbd2bc40a4f7
 PASS 且候选哈希未改变。新候选恢复 `A8_DEVELOPER_COMPLETE_VALIDATION_READY`，但 Win10/Win7/RC 对此候选
 仍为 `NOT_PERFORMED`；旧候选的 Win10 FAIL 保留在独立现场记录中，不继承也不覆盖。
 
+2026-08-21 对用户 Windows 截图和 Gemini 3.7 只读复核结论的再次审计确认：旧 Chromium Harness 没有
+`closeSession`、`cancelTask`、普通 `submitTask` 或 `createSession` seam，不能证明其声称通过的会话关闭旅程；
+1024 px 时检查器被直接隐藏，760 px 以下整条导航被隐藏且没有恢复入口；关闭非任务会话会清空其他会话
+的活动 `taskId`；提交句柄返回前切换会话会使待关闭目标与当前会话误比较；Host 重开活动会话后也没有
+恢复所选工作区。源码提交 `7121853569c3ac5e386f4cb6f2ebc4e378e3312e` 已关闭这些缺口，新增标题栏关闭、
+活动/归档分组、窄宽检查器/导航抽屉、Drawer 焦点约束和语义化文件控件。Shell 191 项、仓库 1083 项、
+打包合同 4/4、证据合同 5/5 与 schema v2 10/10 通过；两次干净构建字节一致，ZIP SHA-256 为
+`e76b465b907c1679d912b963a8d86d181275a8fa53130cf61f7e451800e5f9ab`，manifest SHA-256 为
+`c3f51f9897ae7a2055580b6d74de3217acebcf865f4be50b046e1daf46b7eda8`。Chrome 151 正在运行且 native-host
+manifest 正确，但 ChatGPT Chrome 扩展未安装，因此本轮 Chrome Harness 准确记录为
+`NOT_PERFORMED_LOCAL_CHROME_EXTENSION_UNAVAILABLE`，不伪造 PASS；Win10/Win7/RC 同样保持未执行。机器可读
+证据见 [`a8-06-ui-interaction-audit-checkpoint-20260821.json`](../status/a8-06-ui-interaction-audit-checkpoint-20260821.json)。
+
 ## 4. 事件、状态与安全不变量
 
 - Gateway 原始 chunk 继续逐项审计；Renderer 仅在展示投影层按 `taskId + requestId + 连续 index` 聚合。
