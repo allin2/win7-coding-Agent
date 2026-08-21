@@ -331,6 +331,19 @@ manifest 正确，但 ChatGPT Chrome 扩展未安装，因此本轮 Chrome Harne
 `NOT_PERFORMED_LOCAL_CHROME_EXTENSION_UNAVAILABLE`，不伪造 PASS；Win10/Win7/RC 同样保持未执行。机器可读
 证据见 [`a8-06-ui-interaction-audit-checkpoint-20260821.json`](../status/a8-06-ui-interaction-audit-checkpoint-20260821.json)。
 
+2026-08-21 后续 Win10 长对话截图确认：生产 Renderer 的 Grid/Flex 自动最小高度会由长消息撑高，导致
+底部 Composer 落到窗口外且 conversation 不能成为有效滚动容器。源码提交
+`e6b3b348dfc86a30c8084db88563a56f6c5dc6e4` 已关闭该缺口：顶层工作台绑定单一视口，中间列及其 Grid/Flex
+祖先允许纵向收缩，conversation 独占 `overflow-y`，header 与 Composer 不收缩；流式输出仅在用户靠近
+底部时自动跟随。后续提交 `9fe439cb896667ac8fd8ebaeda1282b1e98eb9dc` 将真实 Electron smoke 的
+`A8UX-01-CONVERSATION-SCROLL` 纳入发布验证包必验清单，以确定性长内容验证页面无纵向溢出、Composer 在
+视口内且 conversation 具有有效滚动范围。Shell 194 项、仓库 1086 项、打包/证据合同 4/4 与 5/5、
+schema v2 10/10 均通过；新候选 ZIP SHA-256 为
+`123fe4a85871f6c9d693b516f25ff9cbdea9dbf9227005d8c9a814d008df3375`，manifest SHA-256 为
+`4a84d941556a4c89af0644de3278d18e0925c2d3e79cb42af1e921e4564a4af6`，两次干净构建一致。Win10、Win7 和
+RC 对此候选保持 `NOT_PERFORMED`，机器可读证据见
+[`a8-06-conversation-scroll-layout-fix-checkpoint-20260821.json`](../status/a8-06-conversation-scroll-layout-fix-checkpoint-20260821.json)。
+
 ## 4. 事件、状态与安全不变量
 
 - Gateway 原始 chunk 继续逐项审计；Renderer 仅在展示投影层按 `taskId + requestId + 连续 index` 聚合。
