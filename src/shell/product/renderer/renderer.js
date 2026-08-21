@@ -6,7 +6,10 @@ const state = {
   taskId: null,
   taskRunning: false,
   executionMode: 'direct',
-  scenario: 'structure',
+  // Ordinary product submissions use the Agent catalog. Diagnostics keeps
+  // explicit scenario values for acceptance harnesses, but it must not decide
+  // whether a user's prompt can reach Review staging.
+  scenario: 'agent',
   eventQueue: null,
   projector: null,
   filePaths: new Set(),
@@ -619,7 +622,7 @@ async function runTask(submission) {
   const prompt = submission && submission.prompt ? submission.prompt : byId('task-prompt').value.trim();
   if (!prompt || state.taskRunning) return;
   clearError(); resetTaskState();
-  state.scenario = submission && submission.scenario ? submission.scenario : byId('scenario').value;
+  state.scenario = submission && submission.scenario ? submission.scenario : 'agent';
   state.executionMode = submission && submission.executionMode ? submission.executionMode : state.executionMode;
   const refs = submission && submission.refs ? submission.refs : activeContexts().map(({ key, ...ref }) => ref);
   const submissionSessionId = state.session.sessionId;
@@ -711,6 +714,7 @@ function processTaskEvent(event) {
   else if (event.eventKind === 'plan.approval_requested') renderPlanApproval(data);
   else if (event.eventKind === 'plan.awaiting_approval') setTaskState('等待计划批准', 'awaiting');
   else if (event.eventKind === 'tool.started' || event.eventKind === 'tool.completed') renderTool(event.eventKind, data, event);
+  else if (event.eventKind === 'compaction.applied') renderCompaction(data);
   else if (event.eventKind === 'assistant.delta' && !state.projector.hasGatewayContent(event.taskId) && data.delta) createMessage('assistant', 'Agent', data.delta);
   else if (event.eventKind === 'file.reference') addFile(data.path);
   else if (event.eventKind === 'review.created' || event.eventKind === 'review.updated' || event.eventKind === 'review.validation_recorded' || event.eventKind === 'review.recovery') { state.reviewTaskId = event.taskId; renderReview(data.review); }
@@ -733,6 +737,15 @@ function processTaskEvent(event) {
   }
   else if (event.eventKind === 'error.occurred') renderTaskError(data);
   state.renderSessionId = null;
+}
+
+function renderCompaction(data) {
+  const value = data && typeof data === 'object' ? data : {};
+  const range = value.replacedSeqRange && Number.isInteger(value.replacedSeqRange.fromSeq) && Number.isInteger(value.replacedSeqRange.toSeq)
+    ? `事件 ${value.replacedSeqRange.fromSeq}–${value.replacedSeqRange.toSeq}`
+    : '早期历史';
+  const before = Number.isFinite(value.beforeTokens) ? ` · 压缩前约 ${value.beforeTokens.toLocaleString()} tokens` : '';
+  addCard('context-card', '上下文已压缩', '可恢复', `已折叠${range}${before}。原始事件仍保留；需要细节时会重新读取文件或重跑受控工具。`);
 }
 
 function renderUndoIfAvailable() {

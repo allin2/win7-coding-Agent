@@ -43,6 +43,13 @@ describe('A8 Review Renderer contract', () => {
     ].forEach((fragment) => expect(renderer).toContain(fragment));
   });
 
+  it('keeps ordinary Composer submissions on the Agent path and surfaces compaction', () => {
+    expect(renderer).toContain("scenario: 'agent'");
+    expect(renderer).toContain("submission && submission.scenario ? submission.scenario : 'agent'");
+    expect(renderer).toContain("event.eventKind === 'compaction.applied'");
+    expect(renderer).toContain('function renderCompaction(data)');
+  });
+
   it('keeps Review decisions and recovery fail-closed in the Renderer', () => {
     expect(renderer).toMatch(/review-accept'\)\.disabled = !canDecide \|\| !selected\.writable/);
     expect(renderer).toMatch(/review-issue-approval'\)\.disabled = !allDecided \|\| !hasAccepted/);

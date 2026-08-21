@@ -75,6 +75,47 @@ describe('Desktop Alpha 1 composition root', () => {
     expect(host.ledgerSize).toBeGreaterThan(0);
   });
 
+  it('routes an ordinary natural-language edit into Review staging without direct workspace write', async () => {
+    const events: any[] = [];
+    host = createDesktopHost({ onTaskEvent: (event: any) => events.push(event) });
+    await host.selectWorkspace(root);
+    const session = host.createSession({});
+    const accepted = host.submitTask({ sessionId: session.sessionId, prompt: '修改 sample.ts 并修复 hello 函数' });
+
+    await waitForEvent(events, 'review.created');
+
+    expect(accepted.scenario).toBe('agent');
+    expect(events.filter((event) => event.eventKind === 'tool.started').map((event) => event.data.toolName)).toContain('workspace.review_prepare');
+    const review = host.getReview({ sessionId: session.sessionId, taskId: accepted.taskId }).review;
+    expect(review.status).toBe('READY');
+    expect(fs.readFileSync(path.join(root, 'sample.ts'), 'utf8')).toContain('return "hello"');
+  });
+
+  it('emits a bounded product compaction marker when the reviewed input budget is crossed', async () => {
+    const events: any[] = [];
+    for (let fileIndex = 0; fileIndex < 4; fileIndex += 1) {
+      const body = Array.from({ length: 500 }, (_value, line) => `line-${fileIndex}-${line.toString().padStart(2, '0')}-${'x'.repeat(12)}`).join('\n') + '\n';
+      fs.writeFileSync(path.join(root, `context-${fileIndex}.txt`), body, 'utf8');
+    }
+    host = createDesktopHost({ onTaskEvent: (event: any) => events.push(event) });
+    await host.selectWorkspace(root);
+    const session = host.createSession({});
+    const accepted = host.submitTask({
+      sessionId: session.sessionId,
+      prompt: '分析这些上下文并给出摘要',
+      context: {
+        refs: Array.from({ length: 4 }, (_value, index) => ({ kind: 'file', path: `context-${index}.txt`, startLine: 1, endLine: 500 })),
+      },
+    });
+
+    const compaction = await waitForEvent(events, 'compaction.applied');
+    await waitForIdle();
+
+    expect(accepted.scenario).toBe('agent');
+    expect(compaction.data).toMatchObject({ compactionId: expect.any(String), replacedSeqRange: expect.any(Object) });
+    expect(compaction.data.summary).toBeUndefined();
+  });
+
   it('runs an A8-03 multi-file Review from private staging through exact apply', async () => {
     fs.writeFileSync(path.join(root, 'delete.txt'), 'remove me\n', 'utf8');
     const events: any[] = [];

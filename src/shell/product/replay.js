@@ -11,7 +11,7 @@
 class ReplayModelAdapter {
   constructor(core, scenario, options) {
     this.core = core;
-    this.scenario = scenario || 'structure';
+    this.scenario = scenario || 'agent';
     this.options = options || {};
     this.step = 0;
   }
@@ -71,7 +71,8 @@ class ReplayModelAdapter {
 
     const read = last && last.toolName === 'workspace.read_text' ? last.output : undefined;
     const readPath = read && typeof read.path === 'string' ? read.path : '工作区文件';
-    if (this.scenario === 'review') {
+    const reviewRequested = this.scenario === 'review' || (this.scenario === 'agent' && isModificationPrompt(input.messages));
+    if (reviewRequested) {
       if (last && last.toolName === 'workspace.review_prepare' && last.status === 'succeeded') {
         return finalPlan('Replay 已将多文件提案写入私有 Review 准备区；工作区尚未修改，等待逐文件决定。');
       }
@@ -113,6 +114,12 @@ class ReplayModelAdapter {
       ` 当前结果来自确定性 Replay，不代表真实模型调用。`,
     );
   }
+}
+
+function isModificationPrompt(messages) {
+  const user = (messages || []).find((message) => message && message.role === 'user');
+  const prompt = user && typeof user.content === 'string' ? user.content : '';
+  return /修改|写入|修复|新增|删除|重构|edit|write|fix|refactor|create|delete/i.test(prompt);
 }
 
 function writeCall(core, id, intent) {

@@ -429,7 +429,7 @@ function createDesktopHost(options) {
       result: null,
       protocol: null,
       writeIntent: input && input.writeIntent ? input.writeIntent : undefined,
-      reviewProposals: scenario === 'review' && input && Array.isArray(input.reviewProposals)
+      reviewProposals: isReviewCapableScenario(scenario) && input && Array.isArray(input.reviewProposals)
         ? input.reviewProposals
         : undefined,
       write: scenario === 'edit' || scenario === 'undo' ? session.writeContext : undefined,
@@ -850,7 +850,17 @@ function createDesktopHost(options) {
         },
       },
       contextItems: task.contextItems,
-      contextBudget: { maxTokens: 8_000, maxItems: 64, maxChars: 64_000 },
+      // A product-level input budget enables Core's proactive compaction even
+      // when the selected Provider does not advertise its native window. This
+      // is a reviewed product cap, not a claim about the Provider maximum.
+      contextBudget: {
+        maxTokens: 8_000,
+        maxItems: 64,
+        maxChars: 64_000,
+        modelWindowTokens: 8_000,
+        highWatermarkPercent: 75,
+        outputReservePercent: 20,
+      },
       turnBudget: task.scenario === 'cancellable'
         ? { maxSteps: 20, maxWallMs: 120_000, maxToolCalls: 20 }
         : { maxSteps: 12, maxWallMs: 30_000, maxToolCalls: 12 },
@@ -1020,7 +1030,7 @@ function createDesktopHost(options) {
 
   function createRuntime(workspaceRoot, task) {
     const writeMode = task.scenario === 'edit' || task.scenario === 'undo';
-    const reviewMode = task.scenario === 'review';
+    const reviewMode = isReviewCapableScenario(task.scenario);
     const registry = new core.ToolRegistry();
     if (writeMode) core.registerWorkspaceTools(registry);
     else {
@@ -1191,6 +1201,16 @@ function createDesktopHost(options) {
       emitTaskEvent(task, 'plan.presented', publicExecutionPlan(plan));
       const text = typeof plan.finalResponse === 'string' ? plan.finalResponse : (typeof plan.summary === 'string' ? plan.summary : '');
       if (text) emitTaskEvent(task, 'assistant.delta', { delta: text, final: Boolean(plan.finalResponse) });
+    } else if (event.type === 'compaction.applied') {
+      // Do not copy the summary body into the product projection a second
+      // time. State retains the authoritative summary and source range; the
+      // UI only needs a non-sensitive lifecycle marker.
+      emitTaskEvent(task, 'compaction.applied', {
+        compactionId: payload.compactionId,
+        replacedSeqRange: payload.replacedSeqRange,
+        reason: payload.reason,
+        beforeTokens: payload.beforeTokens,
+      });
     } else if (event.type === 'tool.call.started') {
       emitTaskEvent(task, 'tool.started', { toolCallId: payload.toolCallId, toolName: payload.toolName || 'unknown', args: payload.args || {} });
     } else if (event.type === 'tool.call.finished') {
@@ -1259,7 +1279,7 @@ function createDesktopHost(options) {
           state: 'failed',
           error: { code: 'REPLAN_REQUIRED', message: '审批前后工作区基线已变化，未执行写入。请重新生成单文件修改计划。' },
         });
-      } else if (outcome === 'completed' && task.scenario === 'review' && task.review) {
+      } else if (outcome === 'completed' && isReviewCapableScenario(task.scenario) && task.review) {
         // A Review task is complete from Core's perspective only after the
         // private proposal has been staged. Product completion waits for the
         // separate per-file decision and exact batch-apply lifecycle.
@@ -1557,7 +1577,7 @@ function createDesktopHost(options) {
     if (typeof taskId !== 'string' || !taskId) throw productError('REVIEW_INVALID', 'Review taskId is required.', '使用当前任务标识重试。');
     const task = findTask(taskId);
     if (!task || task.sessionId !== sessionId) throw productError('SESSION_SCOPE_DENIED', 'Review task 不属于当前会话。', '使用当前会话的 Review 标识。');
-    if (task.scenario !== 'review') throw productError('REVIEW_TASK_REQUIRED', '只有 Review 任务可以访问多文件准备区。', '重新提交 Review 模式任务后重试。');
+    if (!isReviewCapableScenario(task.scenario)) throw productError('REVIEW_TASK_REQUIRED', '只有 Review 任务可以访问多文件准备区（普通 Agent 或显式 Review）。', '从普通 Agent 对话重新生成修改提案后重试。');
     return task;
   }
 
@@ -1703,11 +1723,18 @@ function prepareContextRefs(rawRefs, session, workspace) {
 }
 
 function normalizeScenario(value, prompt) {
-  if (value === 'structure' || value === 'encoding' || value === 'cancellable' || value === 'edit' || value === 'undo' || value === 'runner_acceptance' || value === 'review') return value;
-  if (/修改|写入|edit|write/i.test(prompt)) return 'edit';
+  if (value === 'agent' || value === 'structure' || value === 'encoding' || value === 'cancellable' || value === 'edit' || value === 'undo' || value === 'runner_acceptance' || value === 'review') return value;
+  // Natural-language edits must enter the Review-first Agent path. The
+  // legacy A2 single-file write remains available only to explicit internal
+  // callers that pass scenario:'edit'.
+  if (/修改|写入|edit|write/i.test(prompt)) return 'agent';
   if (/取消|cancel/i.test(prompt)) return 'cancellable';
   if (/GBK|CP936|编码|encoding/i.test(prompt)) return 'encoding';
-  return 'structure';
+  return 'agent';
+}
+
+function isReviewCapableScenario(scenario) {
+  return scenario === 'review' || scenario === 'agent';
 }
 
 function normalizeReviewProposals(raw) {

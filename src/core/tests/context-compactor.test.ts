@@ -24,6 +24,7 @@ describe('deterministic context compactor', () => {
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].content.length).toBeLessThanOrEqual(1_024);
     expect(result.messages[0].content).toContain('recovery:');
+    expect(result.messages[0].content).toContain('authority: data_only');
     expect(result.replacedSeqRange).toEqual({ fromSeq: 1, toSeq: 42 });
   });
 });
