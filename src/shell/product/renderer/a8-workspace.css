@@ -1,4 +1,9 @@
-.workbench { grid-template-columns: 244px minmax(500px, 1fr) 380px; }
+.workbench { height: 100vh; min-height: 0; max-height: 100vh; grid-template-columns: 244px minmax(500px, 1fr) 380px; }
+.rail, .conversation-pane, .inspector { min-height: 0; }
+.conversation-pane { height: 100%; overflow: hidden; }
+.conversation-header { flex: 0 0 78px; }
+.conversation { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.composer-wrap { flex: 0 0 auto; }
 .session-view { min-height: 100%; }
 .session-list li.archived { opacity: .55; }
 .session-list li { padding: 0; margin: 2px 0; border-left: 2px solid transparent; cursor: default; }
@@ -57,7 +62,7 @@
 .inspector { min-width: 0; }
 .drawer { overscroll-behavior: contain; }
 .composer textarea:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
-html, body { overflow-x: hidden; }
+html, body { height: 100%; min-height: 0; overflow: hidden; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 html { color-scheme: dark; }
 .header-inspector-toggle, .header-navigation-toggle, .inspector-close, .navigation-close, .inspector-backdrop, .navigation-backdrop { display: none; }

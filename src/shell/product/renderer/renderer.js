@@ -33,13 +33,19 @@ const state = {
   lastFocusedElement: null,
   lastInspectorFocusedElement: null,
   lastNavigationFocusedElement: null,
+  conversationPinnedToBottom: true,
 };
 
 function byId(id) { return document.getElementById(id); }
 function setText(id, value) { const node = byId(id); if (node) node.textContent = String(value); }
 function safeJson(value) { try { return JSON.stringify(value, null, 2); } catch (_error) { return String(value); } }
 function limitText(value, maximum) { const text = typeof value === 'string' ? value : safeJson(value); return text.length <= maximum ? text : `${text.slice(0, maximum)}…`; }
-function scrollConversation() { const target = byId('conversation'); target.scrollTop = target.scrollHeight; }
+function scrollConversation(force) {
+  const target = byId('conversation');
+  if (!target || (!force && !state.conversationPinnedToBottom)) return;
+  target.scrollTop = target.scrollHeight;
+  state.conversationPinnedToBottom = true;
+}
 
 function currentRenderSessionId() { return state.renderSessionId || (state.session && state.session.sessionId); }
 function workspaceDisplayName(workspacePath) {
@@ -69,7 +75,7 @@ function activateConversation(sessionId) {
   if (sessionId) ensureConversationView(sessionId).hidden = false;
   const empty = byId('empty-session');
   if (empty) empty.hidden = Boolean(sessionId);
-  scrollConversation();
+  scrollConversation(true);
 }
 
 function updateEmptySession() {
@@ -577,6 +583,7 @@ async function runTask(submission) {
   const submissionSessionId = state.session.sessionId;
   state.lastSubmission = { prompt, scenario: state.scenario, executionMode: state.executionMode, refs };
   state.renderSessionId = submissionSessionId;
+  state.conversationPinnedToBottom = true;
   createMessage('user', state.executionMode === 'plan' ? '你 · 先计划' : '你 · 直接做', prompt);
   state.renderSessionId = null;
   byId('task-prompt').value = ''; state.pendingContexts.set(submissionSessionId, []); renderContextChips(); resizeComposer();
@@ -975,6 +982,10 @@ async function initialize() {
   byId('add-selection-context').addEventListener('click', () => { const ref = viewerRef(); if (ref) addContext(ref); });
   byId('run-task').addEventListener('click', () => runTask()); byId('cancel-task').addEventListener('click', cancelTask); byId('mode-direct').addEventListener('click', () => selectMode('direct')); byId('mode-plan').addEventListener('click', () => selectMode('plan'));
   byId('task-prompt').addEventListener('input', resizeComposer); byId('task-prompt').addEventListener('keydown', (event) => window.win7AgentComposerController.handleKeydown(event, () => runTask()));
+  byId('conversation').addEventListener('scroll', () => {
+    const target = byId('conversation');
+    state.conversationPinnedToBottom = window.win7AgentSessionUi.isNearConversationBottom(target);
+  });
   document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => { byId('task-prompt').value = button.dataset.prompt; resizeComposer(); byId('task-prompt').focus(); }));
   byId('open-settings').addEventListener('click', () => toggleDrawer('settings-drawer', true)); byId('open-diagnostics').addEventListener('click', () => toggleDrawer('diagnostics-drawer', true));
   byId('open-navigation').addEventListener('click', () => toggleNavigation(true)); byId('close-navigation').addEventListener('click', () => toggleNavigation(false)); byId('navigation-backdrop').addEventListener('click', () => toggleNavigation(false));

@@ -341,18 +341,43 @@ async function runA8ReviewElectronSmoke() {
   await waitForRenderer(`document.getElementById('review-status').textContent === 'APPLIED'`);
   await waitForRenderer(`document.getElementById('task-state').textContent === '已完成'`);
 
-  const renderer = await mainWindow.webContents.executeJavaScript(`(() => ({
-    nodeIntegration: typeof require !== 'undefined',
-    processExposed: typeof process !== 'undefined',
-    preloadApi: typeof window.win7Agent === 'object',
-    reviewStatus: document.getElementById('review-status').textContent,
-    validationStatus: document.getElementById('review-validation-state').textContent,
-    summary: document.getElementById('review-summary').textContent,
-    fileRows: Array.from(document.querySelectorAll('#review-files li')).map((item) => item.textContent),
-    horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    verticalOverflow: document.documentElement.scrollHeight - document.documentElement.clientHeight,
-    viewport: { width: window.innerWidth, height: window.innerHeight },
-  }))()`);
+  const renderer = await mainWindow.webContents.executeJavaScript(`(() => {
+    const conversation = document.getElementById('conversation');
+    const composer = document.querySelector('.composer-wrap');
+    const activeView = conversation.querySelector('.session-view:not([hidden])');
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.height = '2000px';
+    probe.style.pointerEvents = 'none';
+    activeView.appendChild(probe);
+    const composerRect = composer.getBoundingClientRect();
+    const scrollBefore = conversation.scrollTop;
+    conversation.scrollTop = conversation.scrollHeight;
+    const layout = {
+      composerTop: composerRect.top,
+      composerBottom: composerRect.bottom,
+      composerVisible: composerRect.top >= 0 && composerRect.bottom <= window.innerHeight,
+      conversationClientHeight: conversation.clientHeight,
+      conversationScrollHeight: conversation.scrollHeight,
+      scrollBefore,
+      scrollAfter: conversation.scrollTop,
+      scrollable: conversation.scrollHeight > conversation.clientHeight && conversation.scrollTop > 0,
+    };
+    probe.remove();
+    return {
+      nodeIntegration: typeof require !== 'undefined',
+      processExposed: typeof process !== 'undefined',
+      preloadApi: typeof window.win7Agent === 'object',
+      reviewStatus: document.getElementById('review-status').textContent,
+      validationStatus: document.getElementById('review-validation-state').textContent,
+      summary: document.getElementById('review-summary').textContent,
+      fileRows: Array.from(document.querySelectorAll('#review-files li')).map((item) => item.textContent),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      verticalOverflow: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      layout,
+    };
+  })()`);
   if (a8ReviewSmokeScreenshotPath) {
     fs.mkdirSync(path.dirname(a8ReviewSmokeScreenshotPath), { recursive: true });
     const image = await mainWindow.webContents.capturePage();
@@ -444,6 +469,7 @@ async function runA8ReviewElectronSmoke() {
     resultCase('A8R-05-RECOVERY-RENDERER', recoveryTask.taskId !== driftTask.taskId && recoveryDecisions.first === 'ACCEPTED' && recoveryDecisions.second === 'ACCEPTED' && recoveryBefore.status === 'RECOVERY_REQUIRED' && recoveryBefore.recoveryEnabled === true && recoveryAfter.status === 'READY' && recoveryAfter.recoveryEnabled === false && recoveryFinal.first.equals(initial.recoveryA) && recoveryFinal.second.equals(initial.recoveryB), '验证与回滚故障进入 RECOVERY_REQUIRED；用户经真实 Renderer 恢复后原字节一致且写锁解除。'),
     resultCase('A8C-02-RENDERER-CAPABILITY', renderer.nodeIntegration === false && renderer.processExposed === false && renderer.preloadApi === true, 'Renderer 无 Node/process，只获得冻结 Preload API。'),
     resultCase('A8R-01-VISUAL-BOUNDS', renderer.horizontalOverflow <= 0, '真实 Electron 视口无水平页面溢出。'),
+    resultCase('A8UX-01-CONVERSATION-SCROLL', renderer.verticalOverflow <= 0 && renderer.layout.composerVisible === true && renderer.layout.conversationClientHeight > 0 && renderer.layout.scrollable === true, '长对话只在中间内容区滚动，Composer 始终位于真实 Electron 视口内。'),
   ];
   const report = {
     schema_version: 1,

@@ -114,6 +114,17 @@ describe('A8 Review Renderer contract', () => {
     expect(workspaceCss).toContain('.rail.open{transform:translateX(0);visibility:visible;transition-delay:0s}');
   });
 
+  it('keeps the Composer visible while long conversation content owns the vertical scroll', () => {
+    expect(workspaceCss).toContain('.workbench { height: 100vh; min-height: 0; max-height: 100vh;');
+    expect(workspaceCss).toContain('.rail, .conversation-pane, .inspector { min-height: 0; }');
+    expect(workspaceCss).toContain('.conversation-pane { height: 100%; overflow: hidden; }');
+    expect(workspaceCss).toContain('.conversation { flex: 1 1 auto; min-height: 0; overflow-y: auto;');
+    expect(workspaceCss).toContain('.composer-wrap { flex: 0 0 auto; }');
+    expect(workspaceCss).toContain('html, body { height: 100%; min-height: 0; overflow: hidden; }');
+    expect(renderer).toContain('state.conversationPinnedToBottom = window.win7AgentSessionUi.isNearConversationBottom(target);');
+    expect(renderer).toContain('if (!target || (!force && !state.conversationPinnedToBottom)) return;');
+  });
+
   it('contains modal drawer focus and uses semantic controls for file interaction', () => {
     expect(renderer).toContain('function trapDrawerFocus(event, drawer)');
     expect(renderer).toContain('workbench.inert = true');

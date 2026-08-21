@@ -13,6 +13,7 @@ describe('A8 session UI helpers', () => {
     selectNextSession: (sessions: Session[], closedSessionId: string) => Session | null;
     closeLabel: (session: Session | null, taskRunning: boolean, activeTaskSessionId: string | null) => string;
     shouldPreserveActiveTask: (taskRunning: boolean, activeTaskSessionId: string | null, closingSessionId: string) => boolean;
+    isNearConversationBottom: (metrics: { scrollHeight: number; scrollTop: number; clientHeight: number }, threshold?: number) => boolean;
   };
 
   it('recognizes only the active task for the selected session', () => {
@@ -40,5 +41,12 @@ describe('A8 session UI helpers', () => {
     expect(api.shouldPreserveActiveTask(true, 'task-session', 'task-session')).toBe(false);
     expect(api.shouldPreserveActiveTask(false, 'task-session', 'idle-session')).toBe(false);
     expect(api.shouldPreserveActiveTask(true, null, 'idle-session')).toBe(false);
+  });
+
+  it('keeps streaming pinned only while the reader remains near the conversation bottom', () => {
+    expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 752, clientHeight: 400 })).toBe(true);
+    expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 700, clientHeight: 400 })).toBe(false);
+    expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 750, clientHeight: 400 }, 50)).toBe(true);
+    expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 749, clientHeight: 400 }, 50)).toBe(false);
   });
 });

@@ -18,5 +18,14 @@
     return Boolean(taskRunning && activeTaskSessionId && activeTaskSessionId !== closingSessionId);
   }
 
-  root.win7AgentSessionUi = Object.freeze({ isCurrentTask, selectNextSession, closeLabel, shouldPreserveActiveTask });
+  function isNearConversationBottom(metrics, threshold) {
+    const source = metrics || {};
+    const limit = Number.isFinite(threshold) ? Math.max(0, threshold) : 48;
+    const scrollHeight = Number.isFinite(source.scrollHeight) ? source.scrollHeight : 0;
+    const scrollTop = Number.isFinite(source.scrollTop) ? source.scrollTop : 0;
+    const clientHeight = Number.isFinite(source.clientHeight) ? source.clientHeight : 0;
+    return scrollHeight - scrollTop - clientHeight <= limit;
+  }
+
+  root.win7AgentSessionUi = Object.freeze({ isCurrentTask, selectNextSession, closeLabel, shouldPreserveActiveTask, isNearConversationBottom });
 }(window));
