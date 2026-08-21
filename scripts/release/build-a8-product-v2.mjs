@@ -228,7 +228,6 @@ function createValidationKit(root, sourceCommit, lock) {
 
 function copyEvidenceDocuments(root, stage) {
   const statusFiles = [
-    'a8-agent-first-product-latest.json',
     'a8-03-developer-checkpoint-20260821.json',
     'a8-03-electron-review-validation-kit-20260821.json',
     'a8-04-developer-checkpoint-20260821.json',

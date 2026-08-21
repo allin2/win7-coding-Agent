@@ -46,6 +46,8 @@ A8-06 只负责 `0.2.0-alpha.1` 的确定性产品候选装配、运行时/原�
   UTF-8 路径和无额外时间字段，重复构建字节一致。
 - `A8_06_VALIDATION_KIT.json` 锁定精确命令、expected case IDs、报告 schema、hash 双向核对、安装/升级/
   回滚/卸载和失败回收步骤。任何一层不可用写 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE`，不得写 PASS。
+- 候选可以携带签发前已冻结的阶段合同和检查点，但不得复制需要回填最终 ZIP/manifest 哈希的
+  `a8-agent-first-product-latest.json` 或构建后验收报告；这类证据必须位于候选外，以避免自引用和包内过期状态。
 - 正式 A8-03/A8-04/A8-05 报告使用 evidence schema v2，逐份复算候选完整 manifest，记录相同
   `candidate_id + candidate_manifest_sha256`，并由 evidence-set verifier 联合校验；调用者自填标签不能替代
   候选绑定。报告、截图、stdout/stderr 和临时数据库必须写在候选目录外，执行前后候选文件集合及哈希不变。

@@ -1085,3 +1085,15 @@
 - 后果：A8K-04 只能在 ABI、证据格式、manifest 和候选不可变性同时成立时签发；首版 dirty 候选及其
   `VALIDATION_READY` 记录被后续修复检查点取代，不能进入正式外部评分。修复不改变产品权限、D-014 二进制、
   A7 只读 RC 或 Win10/Win7 的 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` 状态。
+
+## ADR-0086 A8 构建后状态证据与不可变候选分离
+
+- 状态：Accepted（2026-08-21，A8-06 候选证据闭包补充）
+- 背景：`a8-agent-first-product-latest.json` 和构建后验收报告需要记录最终 ZIP/manifest 哈希。如果把这些文件
+  同时复制进受 manifest 保护的候选，它们只能记录构建前状态；回填最终哈希又会改变 manifest，形成自引用，
+  也会使候选在生成完成时立即携带过期状态。
+- 决策：A8 候选只携带签发前已冻结的合同、阶段检查点和可执行验证工具。需要回填最终候选哈希的 current
+  status、构建后验收报告及外部执行产物必须写在候选目录外，并通过 `candidate_id +
+  candidate_manifest_sha256` 绑定。构建器明确排除 `a8-agent-first-product-latest.json`；包测试必须防止回归。
+- 后果：候选字节和 manifest 保持不可变且无自引用；仓库中的 current status 可以在构建后如实签发，不会
+  改变已锁定候选。外部验收仍只能针对同一 manifest 哈希进行，不能因证据位于包外而跳过完整树校验。

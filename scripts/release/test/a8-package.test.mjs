@@ -59,6 +59,11 @@ test('A8 builder produces byte-identical fixture candidates and locked manifest 
   for (const fileName of ['a8-validation-evidence.mjs', 'run-a8-05-electron-smoke.mjs', 'verify-a8-evidence-set.mjs']) {
     assert.ok(fs.existsSync(path.join(two.stage, 'validation', fileName)));
   }
+  assert.equal(
+    fs.existsSync(path.join(two.stage, 'evidence', 'status', 'a8-agent-first-product-latest.json')),
+    false,
+    'build-dependent current status must remain outside the immutable candidate',
+  );
   assert.ok(fs.existsSync(path.join(two.stage, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')));
   fs.rmSync(root, { recursive: true, force: true });
 });
