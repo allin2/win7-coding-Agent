@@ -5,7 +5,7 @@
   "branch": "codex/a8-agent-first-product",
   "source_commit": "12eb866c8abc4601ee7bd4e095be68f555935dfe",
   "stage": "A8-06",
-  "status": "DEVELOPER_REPAIR_123_PASS_VALIDATION_READY",
+  "status": "DEVELOPER_REPAIR_123_CANDIDATE_READY",
   "requirements": {
     "A8-FIX-01": "PASS ordinary natural-language edit enters Agent Review staging; no direct workspace write",
     "A8-FIX-02": "PASS product-level context budget enables proactive compaction and emits a bounded UI marker",
@@ -52,6 +52,8 @@
   },
   "candidate": {
     "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "package_sha256": "99f50445f9eb63eb01e60acd3c65377aaae0ac33de39e23866c4e639db7b5257",
+    "manifest_sha256": "7fd2dc82edac202b7b54da4ed6af0d4413b6c4cb4fe91610539ba7c8d03d25bb",
     "source_dirty": false,
     "external_acceptance_eligible": true,
     "win10": "NOT_PERFORMED",
@@ -64,7 +66,6 @@
     "ocr": "OUT_OF_SCOPE"
   },
   "remaining": [
-    "Rebuild the final candidate after this evidence commit and record its final source, ZIP and manifest hashes.",
     "Run the same immutable candidate on Win10 and Win7; do not inherit A7 PASS.",
     "Keep DOCX/PDF/OCR out of this A8 candidate until a new contract and dependency profile are approved."
   ],
