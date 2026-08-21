@@ -533,12 +533,15 @@ function resetTaskState() {
 function setRunning(running) {
   state.taskRunning = running;
   const viewingActive = running && state.session && state.session.sessionId === state.activeTaskSessionId;
+  const closingCurrent = Boolean(state.session && state.pendingCloseSessionId === state.session.sessionId);
   byId('run-task').hidden = viewingActive; byId('cancel-task').hidden = !viewingActive;
-  byId('cancel-task').disabled = !viewingActive; byId('run-task').disabled = running || !state.session || state.session.status !== 'ACTIVE' || !byId('task-prompt').value.trim();
+  byId('cancel-task').disabled = !viewingActive; byId('run-task').disabled = running || closingCurrent || !state.session || state.session.status !== 'ACTIVE' || !byId('task-prompt').value.trim();
+  byId('task-prompt').disabled = closingCurrent || !state.session || state.session.status !== 'ACTIVE';
+  byId('attach-text').disabled = closingCurrent || !state.session || state.session.status !== 'ACTIVE' || running;
   const closeButton = byId('close-session');
   const canClose = Boolean(state.session && state.session.status === 'ACTIVE');
   const closeLabel = viewingActive ? '停止并关闭' : '关闭当前会话';
-  closeButton.disabled = !canClose || Boolean(state.pendingCloseSessionId);
+  closeButton.disabled = !canClose || closingCurrent;
   closeButton.textContent = closeLabel;
   closeButton.title = viewingActive ? '先停止当前任务，再关闭会话' : '归档当前会话';
   closeButton.setAttribute('aria-label', closeLabel);
@@ -558,7 +561,7 @@ async function runTask(submission) {
   if (!state.session) { showError({ message: '请先选择工作区并创建会话。' }); return; }
   const prompt = submission && submission.prompt ? submission.prompt : byId('task-prompt').value.trim();
   if (!prompt || state.taskRunning) return;
-  clearError(); state.pendingCloseSessionId = null; resetTaskState();
+  clearError(); resetTaskState();
   state.scenario = submission && submission.scenario ? submission.scenario : byId('scenario').value;
   state.executionMode = submission && submission.executionMode ? submission.executionMode : state.executionMode;
   const refs = submission && submission.refs ? submission.refs : activeContexts().map(({ key, ...ref }) => ref);
@@ -597,8 +600,8 @@ async function cancelTask() {
 }
 
 function finishTask(label, className) {
-  const pendingCloseSessionId = state.pendingCloseSessionId;
-  state.pendingCloseSessionId = null;
+  const finishedTaskSessionId = state.activeTaskSessionId;
+  const pendingCloseSessionId = state.pendingCloseSessionId === finishedTaskSessionId ? state.pendingCloseSessionId : null;
   setTaskState(label, className); setRunning(false); state.projector.close('TASK_TERMINAL'); state.activeTaskSessionId = null;
   if (pendingCloseSessionId) void archiveSession(pendingCloseSessionId);
 }
@@ -705,7 +708,7 @@ function renderSessions(sessions) {
     item.dataset.status = session.status === 'ARCHIVED' ? '归档' : '';
     if (session.status === 'ARCHIVED') item.classList.add('archived');
     if (state.session && session.sessionId === state.session.sessionId) item.classList.add('active');
-    button.addEventListener('click', () => { state.session = session; state.pendingCloseSessionId = null; activateConversation(session.sessionId); updateSessionUi(); renderSessions(sessions); void refreshRecovery(); void refreshSessionProjection(); if (session.status === 'ACTIVE') void refreshWorkspace(''); });
+    button.addEventListener('click', () => { state.session = session; activateConversation(session.sessionId); updateSessionUi(); renderSessions(sessions); void refreshRecovery(); void refreshSessionProjection(); if (session.status === 'ACTIVE') void refreshWorkspace(''); });
     item.appendChild(button);
     byId('session-list').appendChild(item);
   });
@@ -738,12 +741,19 @@ async function createSession() { if (!state.workspacePath) return; const result 
 async function archiveSession(sessionId) {
   if (!sessionId) return false;
   const result = await call(() => window.win7Agent.closeSession(sessionId));
-  if (!result) return false;
+  if (!result) {
+    if (state.pendingCloseSessionId === sessionId) {
+      state.pendingCloseSessionId = null;
+      updateSessionUi();
+    }
+    return false;
+  }
   await refreshSessions();
   const next = window.win7AgentSessionUi.selectNextSession(state.sessions, sessionId);
   state.session = next;
   state.taskId = null;
   state.renderSessionId = null;
+  if (state.pendingCloseSessionId === sessionId) state.pendingCloseSessionId = null;
   if (!next) resetTaskState();
   renderSessions(state.sessions);
   updateSessionUi();
