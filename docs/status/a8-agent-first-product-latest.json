@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "record_id": "A8-AGENT-FIRST-PRODUCT-20260821-17",
+  "record_id": "A8-AGENT-FIRST-PRODUCT-20260821-18",
   "recorded_at": "2026-08-21",
   "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
   "phase_gate": "A8_IMPLEMENTATION_AUTHORIZED",
@@ -146,17 +146,18 @@
         "builder": "scripts/release/build-a8-product-v2.mjs",
         "package_validation_test": "scripts/release/test/a8-package.test.mjs",
         "validation_kit": "docs/status/a8-06-package-validation-kit-20260821.json",
-        "checkpoint": "docs/status/a8-06-validation-repair-checkpoint-20260821.json",
+        "checkpoint": "docs/status/a8-06-ui-session-close-fix-checkpoint-20260821.json",
         "developer_package_smoke": "docs/status/a8-06-developer-package-smoke-20260821.json",
         "independent_review_followup": "docs/status/a8-06-independent-review-followup-20260821.json",
         "gate_report": "docs/reports/2026-08/a8_06_package_validation_ready_2026-08-21.html",
         "developer_package_integrity": "PASS_CLEAN_SOURCE_EXTERNAL_ELIGIBLE",
-        "repository_verify": "PASS_7_MODULES_1074_TESTS",
+        "repository_verify": "PASS_7_MODULES_1077_TESTS",
         "docs_check": "PASS_93_FILES_19_TASK_FILES",
         "product_assembly": "NOT_PERFORMED",
         "fixture_reproducibility": "PASS_BYTE_IDENTICAL",
         "a8k04_repair": "PASS_SCHEMA_V2_MANIFEST_BINDING_ELECTRON_ABI110_RUNNER_AND_EXTERNAL_EVIDENCE_ROOT",
-        "clean_candidate": "PASS_SOURCE_COMMIT_FC4E0DEEA9A0CFCD86037EBBBBD2BC40A4F74FF9_PACKAGE_SHA256_4AB0C2CEC31DCA6ECD563FD86F46ECB6470C4B0B8A7C74AA6F2F57F30CA12AD6_MANIFEST_SHA256_0AB06B5C38A434FE66C2B0AF70503ECB772F2EDE21EB6F1C3CDF42D2743503EA",
+        "clean_candidate": "PASS_SOURCE_COMMIT_F0511916536FA9244E67D0455E1F7C8C0F16E4A6_PACKAGE_SHA256_73150048D1322503F184150661684E4C72FFA2FB1FE20D4176AA796B2A8E9CA0_MANIFEST_SHA256_A9DAC4195C9800F300570F5D4EB86807A2FED7CFE6DEB3B48424F6198008DCD6",
+        "ui_session_close_fix": "docs/status/a8-06-ui-session-close-fix-checkpoint-20260821.json",
         "candidate_provenance_reissue": "docs/status/a8-06-candidate-provenance-reissue-20260821.json",
         "field_failure": "docs/status/a8-06-win10-asar-field-failure-20260821.json",
         "asar_repair_report": "docs/reports/2026-08/a8_06_win10_asar_validation_repair_2026-08-21.html",
@@ -173,7 +174,7 @@
     }
   },
   "validation": {
-    "developer": "PASS_A8_DEVELOPER_COMPLETE_VALIDATION_READY_CLEAN_ASAR_REPAIR_CANDIDATE_LOCKED",
+    "developer": "PASS_A8_DEVELOPER_COMPLETE_VALIDATION_READY_UI_SESSION_CLOSE_FIX_CANDIDATE_LOCKED",
     "win10": "NOT_PERFORMED_NEW_CANDIDATE_OLD_CANDIDATE_FAIL_ARCHIVED",
     "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
     "rc": "NOT_PERFORMED"
