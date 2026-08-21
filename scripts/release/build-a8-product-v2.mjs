@@ -213,6 +213,18 @@ function createValidationKit(root, sourceCommit, lock) {
       same_candidate_required: true,
       same_candidate_enforcement: 'Every report recomputes the complete release manifest, records its SHA-256, writes outside the immutable candidate, and must pass verify-a8-evidence-set.mjs.',
     },
+    evidence_classes: {
+      historical_surrogate_schema_v1: {
+        formal_acceptance_eligible: false,
+        included_in_candidate: false,
+        purpose: 'Historical developer implementation evidence only; never pass it to the A8-06 evidence-set verifier.',
+      },
+      formal_candidate_schema_v2: {
+        required: true,
+        authority: 'commands.win10 or commands.win7 in this kit',
+        binding: 'candidate_id + candidate_manifest_sha256 + runtime_profile + operator',
+      },
+    },
     artifact_hashes: Object.fromEntries(sourceFiles.map((item) => [relative(path.join(root, item)), sha256File(path.join(root, item))])),
     external_validation: { electron_22: 'NOT_PERFORMED', win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', rc: 'NOT_PERFORMED' },
     forbidden_actions: ['network-route-firewall-change', 'PATH-service-registry-change', 'reboot', 'interactive-terminal', 'arbitrary-browser-navigation', 'A7-database-write'],

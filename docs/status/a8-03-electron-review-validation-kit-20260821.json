@@ -4,8 +4,8 @@
   "recorded_at": "2026-08-21",
   "branch": "codex/a8-agent-first-product",
   "stage": "A8-03",
-  "status": "VALIDATION_READY_SOURCE_CONTRACT",
-  "gate_effect": "NONE_UNTIL_REAL_EXECUTION_PASSES",
+  "status": "SOURCE_CONTRACT_SUPERSEDED_FOR_FORMAL_EXECUTION_BY_A8_06_EVIDENCE_V2",
+  "gate_effect": "DEVELOPER_SURROGATE_ARCHIVE_ONLY",
   "runtime_contract": {
     "target_electron": "22.3.27",
     "target_node": "16.17.1",
@@ -17,7 +17,7 @@
   "entry": "src/shell/tests/product/run-electron-review-smoke.mjs",
   "commands": {
     "syntax_and_contract": "cd src/shell && node --check tests/product/run-electron-review-smoke.mjs && npm test -- --runInBand tests/product/electron-review-smoke-contract.test.ts",
-    "windows_target": "node src\\shell\\tests\\product\\run-electron-review-smoke.mjs \"--electron=C:\\locked-runtime\\electron.exe\" \"--product=C:\\candidate\\src\\shell\\product\" \"--report=C:\\evidence\\a8-03-electron-review.json\" \"--screenshot=C:\\evidence\\a8-03-electron-review.png\"",
+    "windows_target": "SUPERSEDED_USE_A8_06_VALIDATION_KIT_JSON_COMMANDS_WIN10_OR_WIN7",
     "developer_example": "node src/shell/tests/product/run-electron-review-smoke.mjs --electron=/absolute/path/to/Electron --product=/absolute/path/to/src/shell/product --report=/absolute/path/to/a8-03-electron-review.json --screenshot=/absolute/path/to/a8-03-electron-review.png"
   },
   "expected_cases": [
@@ -66,6 +66,7 @@
     "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
   },
   "operator_notes": [
+    "Formal Electron 22/Win10/Win7 execution authority is the schema-v2 command set packaged in A8_06_VALIDATION_KIT.json; this source-level kit and its schema-v1 surrogate report are archival only.",
     "A source-contract hash is not a release candidate or installer hash.",
     "Do not copy PASS from Chromium, Replay, Electron 41, A7 or another candidate.",
     "On failure, preserve the report, screenshot, stdout/stderr and temporary directory before cleanup.",

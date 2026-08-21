@@ -8,7 +8,7 @@ Gate: `A8_06_PACKAGE_AND_VALIDATION_READY`
 
 Source: `docs/prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md` §8、`docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md` §6
 
-Decision: `ADR-0084`；evidence 修订：`ADR-0085`
+Decision: `ADR-0084`；evidence 修订：`ADR-0085`、`ADR-0086`
 
 ## 1. 范围与停止边界
 
@@ -51,6 +51,8 @@ A8-06 只负责 `0.2.0-alpha.1` 的确定性产品候选装配、运行时/原�
 - 正式 A8-03/A8-04/A8-05 报告使用 evidence schema v2，逐份复算候选完整 manifest，记录相同
   `candidate_id + candidate_manifest_sha256`，并由 evidence-set verifier 联合校验；调用者自填标签不能替代
   候选绑定。报告、截图、stdout/stderr 和临时数据库必须写在候选目录外，执行前后候选文件集合及哈希不变。
+- 早期 Electron 41 开发机 surrogate 报告保留原始 schema v1 字节作为历史实现证据，不得伪造候选 ID 或
+  回填为 schema v2；A8-06 候选不得携带这些原始报告，旧 source kit 必须标明已由包内 schema v2 命令取代。
 - D-014 native smoke 必须由 manifest 绑定的包内 Electron 22.3.27 以 Node 模式执行，并显式校验 Win32 x64、
   Node 16.17.1、ABI 110 和 Win10/Win7 实际系统版本；普通 Node 不得直接加载 Electron binding，正式层也
   不得省略 `--require-d014`。`source_dirty: true` 的开发包不得进入

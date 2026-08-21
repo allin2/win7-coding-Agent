@@ -4,8 +4,8 @@
   "recorded_at": "2026-08-21",
   "branch": "codex/a8-agent-first-product",
   "stage": "A8-04",
-  "status": "VALIDATION_READY_SOURCE_CONTRACT",
-  "gate_effect": "NONE_UNTIL_REAL_EXECUTION_PASSES",
+  "status": "SOURCE_CONTRACT_SUPERSEDED_FOR_FORMAL_EXECUTION_BY_A8_06_EVIDENCE_V2",
+  "gate_effect": "DEVELOPER_SURROGATE_ARCHIVE_ONLY",
   "runtime_contract": {
     "target_electron": "22.3.27",
     "target_node": "16.17.1",
@@ -20,7 +20,7 @@
   "contract_test": "src/shell/tests/product/a8-04-boundary-contract.test.ts",
   "commands": {
     "syntax_and_contract": "cd src\\shell && node --check product\\main.js && node --check tests\\product\\run-electron-a8-04-boundary-smoke.mjs && npm test -- --runInBand tests\\product\\a8-04-boundary-contract.test.ts tests\\product\\runner-log.test.ts tests\\product\\desktop-ipc.test.ts",
-    "windows_target": "node src\\shell\\tests\\product\\run-electron-a8-04-boundary-smoke.mjs \"--electron=C:\\locked-runtime\\electron.exe\" \"--product=C:\\candidate\\src\\shell\\product\" \"--report=C:\\evidence\\a8-04-boundary.json\" \"--screenshot=C:\\evidence\\a8-04-boundary.png\"",
+    "windows_target": "SUPERSEDED_USE_A8_06_VALIDATION_KIT_JSON_COMMANDS_WIN10_OR_WIN7",
     "developer_example": "node src/shell/tests/product/run-electron-a8-04-boundary-smoke.mjs --electron=/absolute/path/to/Electron --product=/absolute/path/to/src/shell/product --report=/absolute/path/to/a8-04-boundary.json --screenshot=/absolute/path/to/a8-04-boundary.png"
   },
   "expected_cases": [
@@ -80,6 +80,7 @@
     "system_changes": "NONE"
   },
   "operator_notes": [
+    "Formal Electron 22/Win10/Win7 execution authority is the schema-v2 command set packaged in A8_06_VALIDATION_KIT.json; this source-level kit and its schema-v1 surrogate report are archival only.",
     "A8-04 developer surrogate evidence does not replace Electron 22.3.27 x64, Win10, Win7 or RC evidence.",
     "The project Runner remains display-only until a task-authorized C15/C16-registered Profile exists.",
     "Do not enable Terminal input or arbitrary Browser navigation while executing this kit.",

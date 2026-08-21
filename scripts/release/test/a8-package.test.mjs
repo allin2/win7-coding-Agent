@@ -11,6 +11,23 @@ import { writeDeterministicZip } from '../zip-utils.mjs';
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const HASH = '0'.repeat(64);
 
+function assertRelativeModuleClosure(directory) {
+  const modules = fs.readdirSync(directory).filter((fileName) => fileName.endsWith('.mjs')).sort();
+  assert.ok(modules.length > 0, 'validation module set must not be empty');
+  for (const fileName of modules) {
+    const source = fs.readFileSync(path.join(directory, fileName), 'utf8');
+    const specifiers = [];
+    for (const pattern of [/\bfrom\s+['"](\.[^'"]+)['"]/g, /\bimport\s+['"](\.[^'"]+)['"]/g]) {
+      for (const match of source.matchAll(pattern)) specifiers.push(match[1]);
+    }
+    for (const specifier of specifiers) {
+      const dependency = path.resolve(directory, specifier);
+      assert.ok(fs.existsSync(dependency), `${fileName} has missing packaged dependency ${specifier}`);
+      assert.ok(fs.statSync(dependency).isFile(), `${fileName} dependency ${specifier} must be a file`);
+    }
+  }
+}
+
 function fixture(root) {
   const inputs = path.join(root, 'inputs'); fs.mkdirSync(inputs, { recursive: true });
   const electronRoot = path.join(root, 'electron'); fs.mkdirSync(electronRoot, { recursive: true }); fs.writeFileSync(path.join(electronRoot, 'electron.exe'), 'electron-fixture'); fs.writeFileSync(path.join(electronRoot, 'LICENSE'), 'Electron MIT');
@@ -52,13 +69,31 @@ test('A8 builder produces byte-identical fixture candidates and locked manifest 
   const validationKit = JSON.parse(fs.readFileSync(path.join(two.stage, 'A8_06_VALIDATION_KIT.json'), 'utf8'));
   assert.equal(validationKit.schema_version, 2);
   assert.match(validationKit.commands.win10.a8_05, /run-a8-05-electron-smoke\.mjs/);
+  assert.match(validationKit.commands.win10.a8_05, /--electron=\.\\electron\.exe/);
+  assert.doesNotMatch(validationKit.commands.win10.a8_05, /run-a8-05-persistence-smoke\.mjs/);
   assert.match(validationKit.commands.win10.a8_05, /--validation-layer=win10/);
   assert.match(validationKit.commands.win7.verify_set, /verify-a8-evidence-set\.mjs/);
   assert.match(validationKit.commands.win7.a8_03, /\.\.\\a8-evidence-win7/);
+  for (const layer of ['win10', 'win7']) {
+    for (const commandName of ['a8_03', 'a8_04', 'a8_05', 'verify_set']) {
+      const command = validationKit.commands[layer][commandName];
+      assert.match(command, new RegExp(`\\.\\.\\\\a8-evidence-${layer}`));
+      assert.doesNotMatch(command, /(?:--report|--screenshot)=evidence\\/);
+    }
+  }
   assert.ok(validationKit.evidence_schema.required_fields.includes('candidate_manifest_sha256'));
   for (const fileName of ['a8-validation-evidence.mjs', 'run-a8-05-electron-smoke.mjs', 'verify-a8-evidence-set.mjs']) {
     assert.ok(fs.existsSync(path.join(two.stage, 'validation', fileName)));
   }
+  assertRelativeModuleClosure(path.join(two.stage, 'validation'));
+  assert.equal(validationKit.evidence_classes.historical_surrogate_schema_v1.formal_acceptance_eligible, false);
+  assert.equal(validationKit.evidence_classes.formal_candidate_schema_v2.required, true);
+  for (const sourceKit of ['a8-03-electron-review-validation-kit-20260821.json', 'a8-04-boundary-validation-kit-20260821.json']) {
+    const sourceKitRecord = JSON.parse(fs.readFileSync(path.join(two.stage, 'evidence', 'status', sourceKit), 'utf8'));
+    assert.match(sourceKitRecord.status, /SUPERSEDED_FOR_FORMAL_EXECUTION_BY_A8_06_EVIDENCE_V2/);
+  }
+  assert.equal(fs.existsSync(path.join(two.stage, 'evidence', 'status', 'a8-03-electron-review-qa-20260821.json')), false);
+  assert.equal(fs.existsSync(path.join(two.stage, 'evidence', 'status', 'a8-04-boundary-electron-qa-20260821.json')), false);
   assert.equal(
     fs.existsSync(path.join(two.stage, 'evidence', 'status', 'a8-agent-first-product-latest.json')),
     false,
