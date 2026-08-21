@@ -4,18 +4,18 @@
   "recorded_at": "2026-08-21",
   "branch": "codex/a8-agent-first-product",
   "stage": "A8-06",
-  "status": "REPAIR_PACKAGE_SOURCE_DIRTY_CLEAN_REBUILD_REQUIRED",
-  "gate_effect": "NONE_UNTIL_CLEAN_CANDIDATE_REBUILD",
+  "status": "VALIDATION_READY",
+  "gate_effect": "A8_06_PACKAGE_AND_VALIDATION_READY",
   "candidate": {
     "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
     "version": "0.2.0-alpha.1",
     "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
-    "package_sha256": "9b1d703c3365318091d76151c09a81823c3ff7456479d208afc5c68f4529f577",
+    "package_sha256": "3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b",
     "sidecar_sha256_verified": true,
-    "manifest_sha256": "1dfdcf90eaa0d7473729f6e09450551342e4fbc79680c00c069468f402a50b2b",
-    "source_commit": "cd9c443b7d818c5bcf1ad43175fd4d113f00cb6",
-    "source_dirty": true,
-    "external_acceptance_eligible": false,
+    "manifest_sha256": "ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7",
+    "source_commit": "02598e11c3214bdbf09742c46bd213101075c805",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
     "inputs_are_not_a7_pass": true,
     "input_lock": "release/win7-product-v2/a8-06-input-lock.json"
   },
@@ -50,8 +50,13 @@
     }
   ],
   "windows_commands": {
-    "eligibility": "BLOCKED_CURRENT_PACKAGE_SOURCE_DIRTY",
-    "instruction": "Do not execute or score the current dirty developer package. After a clean rebuild, use the exact win10/win7 command set embedded in A8_06_VALIDATION_KIT.json and independently match the new manifest SHA-256.",
+    "eligibility": "READY_SAME_CANDIDATE_EXTERNAL_ENV_REQUIRED",
+    "instruction": "Verify package SHA-256 3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b and manifest SHA-256 ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7 to each of the four validation entrypoints.",
+    "expected_manifest_sha256": "ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7",
+    "command_sets": {
+      "win10": "A8_06_VALIDATION_KIT.json.commands.win10",
+      "win7": "A8_06_VALIDATION_KIT.json.commands.win7"
+    },
     "required_entrypoints": [
       "validation\\run-a8-03-electron-review-smoke.mjs",
       "validation\\run-a8-04-boundary-smoke.mjs",
@@ -94,7 +99,7 @@
   "operator_notes": [
     "This package is an independent A8 developer candidate. No A7 PASS is inherited.",
     "A real D-014 invocation must use the packaged Electron wrapper; direct standalone Node loading is prohibited and a fake SQLite report can never unlock Win10/Win7.",
-    "The current source_dirty package is developer-only and is rejected before any formal Electron launch.",
+    "The locked package was built twice from clean source commit 02598e11c3214bdbf09742c46bd213101075c805 with byte-identical output and is eligible for formal external execution.",
     "If any external environment is unavailable, record NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE and preserve the same-candidate hash set."
   ]
 }

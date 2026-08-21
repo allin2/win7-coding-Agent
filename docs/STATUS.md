@@ -540,8 +540,11 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
   evidence schema v2、逐文件复算完整 manifest、记录相同 `candidate_manifest_sha256`、验证目标 ABI/操作者，
   并仅写入候选兄弟 evidence 目录；evidence-set verifier 联合检查 required cases 和同一候选。
 - `source_dirty: true` 的开发包现明确为 `external_acceptance_eligible: false`，正式 Win10/Win7 工具在启动
-  产品前拒绝。首版 `A8_DEVELOPER_COMPLETE_VALIDATION_READY` / A8K-04 PASS 被修复检查点取代；当前状态为
-  `A8_06_VALIDATION_KIT_REPAIR_PASS_CLEAN_CANDIDATE_PENDING`。须从干净提交无 `--allow-uncommitted` 重建后，
-  才能重新签发 A8-06 Validation Ready。Win10、Win7 和 RC 继续保持 `NOT_PERFORMED`，A7 PASS 不继承。
+  产品前拒绝。ADR-0086 同时把需要回填最终哈希的 current status/构建后报告移出不可变候选。修复已在
+  干净提交 `02598e11c3214bdbf09742c46bd213101075c805` 上无 `--allow-uncommitted` 重建两次，结果字节一致：
+  ZIP `3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b`，manifest
+  `ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7`，`source_dirty: false`、
+  `external_acceptance_eligible: true`。A8-06 状态已重新签发为 `A8_DEVELOPER_COMPLETE_VALIDATION_READY`；
+  Win10、Win7 和 RC 继续保持 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` / `NOT_PERFORMED`，A7 PASS 不继承。
 
 模块窗口不得直接修改本页或 README、ROADMAP、DECISIONS；由整合窗口在验证完成后统一更新。

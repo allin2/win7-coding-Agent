@@ -8,10 +8,10 @@ Task Type: PRODUCT_EXPERIENCE
 Target Branch: codex/a8-agent-first-product
 Target Version: 0.2.0-alpha.1
 Phase-Gate: A8_IMPLEMENTATION_AUTHORIZED
-Developer-Validation: A8_06_VALIDATION_KIT_REPAIR_PASS_CLEAN_CANDIDATE_PENDING
+Developer-Validation: A8_DEVELOPER_COMPLETE_VALIDATION_READY
 Win10-Validation: NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE
 Win7-Validation: NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE
-Blocking-Reason: CLEAN_COMMITTED_SOURCE_CANDIDATE_AND_WIN10_WIN7_EXTERNAL_ENV_REQUIRED
+Blocking-Reason: WIN10_WIN7_EXTERNAL_ENV_REQUIRED
 ```
 
 授权依据：项目负责人于 2026-08-20 完成四轮需求决策并明确确认
@@ -281,9 +281,13 @@ SQLite 结构 smoke。候选 manifest 只写入 `developer_package_integrity: PA
 2026-08-21 的独立复核发现首版 A8K-04 存在本地缺陷：D-014 由普通 Node 而不是 Electron ABI 110
 执行，三份报告未共同绑定 manifest，且证据写入候选目录。ADR-0085 已完成修复：统一 schema v2、完整
 manifest 复算、候选外 evidence、包内 Electron Node-mode 和 evidence-set 联合校验；相关开发机负向与
-合同测试通过。首版 `A8_DEVELOPER_COMPLETE_VALIDATION_READY` 结论因此被修复检查点取代。当前工作区仍有
-未提交的 A8 实现，修复后开发包会诚实记录 `source_dirty: true` 并被正式验证工具拒绝；只有从干净提交
-不带 `--allow-uncommitted` 重建新哈希后，才能重新签发 `A8_06_PACKAGE_AND_VALIDATION_READY`。
+合同测试通过。首版 dirty 候选及其结论已被修复检查点取代；ADR-0086 进一步把需要回填候选哈希的 current
+status 与构建后报告留在候选外，消除 manifest 自引用。修复已固定在干净提交
+`02598e11c3214bdbf09742c46bd213101075c805`，不带 `--allow-uncommitted` 的两次真实输入构建字节一致：ZIP
+SHA-256 `3a842b68075380726f8f3afdc5812a3d4f2cc97436bbfffd34eeadef8e9bcf7b`，manifest SHA-256
+`ed8847e3a291b03bd0c619d400f0892f7a2bc7b3516cf61460590852c1cfb1b7`，`source_dirty: false` 且
+`external_acceptance_eligible: true`。A8-06 开发机 Validation Ready 已重新签发；唯一剩余工作是同一候选的
+Electron 22/Win10/Win7 正式执行和负责人 RC 复核。
 
 ## 4. 事件、状态与安全不变量
 
