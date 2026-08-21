@@ -51,6 +51,7 @@ describe('A8-04 Terminal/Browser, Runner and Settings/Diagnostics boundary contr
     expect(runner).toContain('evidence.cases.length !== 8');
     expect(runner).toContain('A8_BOUNDARY_SCREENSHOT_INVALID');
     expect(runner).toContain("fs.rmSync(runRoot, { recursive: true, force: true })");
+    expect(runner).toContain('delete env.ELECTRON_RUN_AS_NODE');
     expect(runner).not.toContain('execSync');
     expect(runner).not.toContain('shell: true');
   });

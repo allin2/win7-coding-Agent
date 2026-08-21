@@ -294,6 +294,10 @@ Electron 22/Win10/Win7 正式执行和负责人 RC 复核。
 surrogate 归档、正式执行由包内 schema v2 命令接管。原始历史报告不回填虚假的候选绑定。新锁定候选及
 逐项结论见 [`a8-06-independent-review-followup-20260821.json`](../status/a8-06-independent-review-followup-20260821.json)。
 
+根据 ADR-0087，验证套件全面改用包内 Electron 22.3.27 的 Node 模式（`set ELECTRON_RUN_AS_NODE=1&& .\electron.exe`）
+作为脚本宿主，彻底消除外部 `node.exe` 假设，`preflight` 与所有 smoke 入口不再依赖系统 PATH 中的 Node；
+自动化合同测试增加了“无系统 Node 仍可执行验证套件”的强校验。
+
 ## 4. 事件、状态与安全不变量
 
 - Gateway 原始 chunk 继续逐项审计；Renderer 仅在展示投影层按 `taskId + requestId + 连续 index` 聚合。

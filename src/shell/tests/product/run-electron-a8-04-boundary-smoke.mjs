@@ -96,12 +96,15 @@ function main() {
     `--user-data-dir=${userData}`,
     '--smoke-timeout-ms=60000',
   ];
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
   const result = childProcess.spawnSync(electron, args, {
-    cwd: repositoryRoot,
+    cwd: binding ? binding.candidateRoot : repositoryRoot,
     encoding: 'utf8',
     stdio: 'inherit',
     timeout: 90_000,
     windowsHide: false,
+    env,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`A8_BOUNDARY_SMOKE_EXIT_${result.status}`);

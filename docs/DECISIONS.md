@@ -1097,3 +1097,10 @@
   candidate_manifest_sha256` 绑定。构建器明确排除 `a8-agent-first-product-latest.json`；包测试必须防止回归。
 - 后果：候选字节和 manifest 保持不可变且无自引用；仓库中的 current status 可以在构建后如实签发，不会
   改变已锁定候选。外部验收仍只能针对同一 manifest 哈希进行，不能因证据位于包外而跳过完整树校验。
+
+## ADR-0087 A8 验证套件全面采用包内 Electron 22.3.27 Node 模式消除外部 Node 依赖
+
+- 状态：Accepted（2026-08-21，A8-06 验证宿主自包含改造）
+- 背景：首版 A8-06 验证套件在 `A8_06_VALIDATION_KIT.json` 与运行指令中假设目标环境已在 PATH 安装 `node.exe`（`where node`、`node validation\...`）。在干净 Windows 7 SP1 x64 或 Windows 10 验证机上，未安装外部 Node.js 时将无法直接运行验证套件，违反了 C13（不得假设未声明工具）与 C07/C12（离线自包含交付）约束。
+- 决策：（1）验证套件（`preflight`、`a8_03`、`a8_04`、`a8_05`、`verify_set`）全面改用包内 `electron.exe` 以 Node 模式（`set ELECTRON_RUN_AS_NODE=1&& .\electron.exe`）作为脚本执行宿主，彻底消除外部 `node.exe` 依赖。（2）`preflight` 命令移除 `where node` 与 `node --version`，改为通过 `set ELECTRON_RUN_AS_NODE=1&& .\electron.exe -v` 探测运行时，并校验 `electron.exe`、`release-manifest.json` 与 `better_sqlite3.node` 的 SHA-256。（3）A8-03 与 A8-04 真实 Electron 界面 Smoke 脚本在拉起子 Electron 界面进程前显式清除子环境中的 `ELECTRON_RUN_AS_NODE`，确保 GUI 窗口与 IPC 正常初始化。（4）增补“无系统 Node 仍可执行验证套件”的自动化合同测试，锁定命令前缀、环境净化与模块闭包。
+- 后果：目标机在无系统 Node 的干净环境下解压即可完整执行三层验收命令集；不引入新的外部依赖或提权操作，保持 A8 候选包自包含与不可变性。

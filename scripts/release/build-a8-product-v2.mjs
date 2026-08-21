@@ -185,16 +185,16 @@ function createValidationKit(root, sourceCommit, lock) {
     const common = `--candidate-root=. --manifest=.\\release-manifest.json --expected-candidate-id=${lock.release_id} --validation-layer=${layer} --operator=%USERNAME%`;
     return {
       prepare_evidence_root: `if not exist ${evidenceRoot} mkdir ${evidenceRoot}`,
-      preflight: `where node && node --version && certutil -hashfile .\\electron.exe SHA256 && certutil -hashfile .\\release-manifest.json SHA256 && certutil -hashfile .\\resources\\native\\storage\\node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node SHA256`,
-      a8_03: `node validation\\run-a8-03-electron-review-smoke.mjs --electron=.\\electron.exe --product=.\\resources\\app\\product ${common} --report=${evidenceRoot}\\a8-03-electron-review.json --screenshot=${evidenceRoot}\\a8-03-electron-review.png`,
-      a8_04: `node validation\\run-a8-04-boundary-smoke.mjs --electron=.\\electron.exe --product=.\\resources\\app\\product ${common} --report=${evidenceRoot}\\a8-04-boundary.json --screenshot=${evidenceRoot}\\a8-04-boundary.png`,
-      a8_05: `node validation\\run-a8-05-electron-smoke.mjs --electron=.\\electron.exe ${common} --report=${evidenceRoot}\\a8-05-persistence.json`,
-      verify_set: `node validation\\verify-a8-evidence-set.mjs ${common} --a8-03=${evidenceRoot}\\a8-03-electron-review.json --a8-04=${evidenceRoot}\\a8-04-boundary.json --a8-05=${evidenceRoot}\\a8-05-persistence.json --report=${evidenceRoot}\\a8-evidence-set.json`,
+      preflight: `set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe -v && certutil -hashfile .\\electron.exe SHA256 && certutil -hashfile .\\release-manifest.json SHA256 && certutil -hashfile .\\resources\\native\\storage\\node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node SHA256`,
+      a8_03: `set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe validation\\run-a8-03-electron-review-smoke.mjs --electron=.\\electron.exe --product=.\\resources\\app\\product ${common} --report=${evidenceRoot}\\a8-03-electron-review.json --screenshot=${evidenceRoot}\\a8-03-electron-review.png`,
+      a8_04: `set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe validation\\run-a8-04-boundary-smoke.mjs --electron=.\\electron.exe --product=.\\resources\\app\\product ${common} --report=${evidenceRoot}\\a8-04-boundary.json --screenshot=${evidenceRoot}\\a8-04-boundary.png`,
+      a8_05: `set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe validation\\run-a8-05-electron-smoke.mjs --electron=.\\electron.exe ${common} --report=${evidenceRoot}\\a8-05-persistence.json`,
+      verify_set: `set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe validation\\verify-a8-evidence-set.mjs ${common} --a8-03=${evidenceRoot}\\a8-03-electron-review.json --a8-04=${evidenceRoot}\\a8-04-boundary.json --a8-05=${evidenceRoot}\\a8-05-persistence.json --report=${evidenceRoot}\\a8-evidence-set.json`,
     };
   };
   return {
     schema_version: 2,
-    kit_id: 'A8-06-VALIDATION-20260821-02',
+    kit_id: 'A8-06-VALIDATION-20260821-03',
     candidate_version: lock.version,
     source_commit: sourceCommit,
     source_files: Object.fromEntries(sourceFiles.map((item) => [item, sha256File(path.join(root, item))])),

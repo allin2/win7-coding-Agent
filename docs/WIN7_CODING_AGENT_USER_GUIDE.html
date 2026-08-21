@@ -1,0 +1,2411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Win7 Coding Agent 产品使用说明与全场景实机模拟手册</title>
+  <style>
+    :root {
+      --bg: #0e1110;
+      --rail: #151817;
+      --panel: #191d1b;
+      --panel2: #202522;
+      --line: #303632;
+      --text: #e8ece8;
+      --muted: #929b94;
+      --green: #9ee6b2;
+      --green2: #4fbc78;
+      --amber: #e8c56c;
+      --red: #e9877f;
+      --blue: #8db9dc;
+      --mono: Consolas, "Courier New", monospace;
+      --sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #080a09; color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #353e39; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4e5b53; }
+
+    /* Top Page Header */
+    .doc-header {
+      background: #111513;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .doc-brand { display: flex; align-items: center; gap: 12px; }
+    .doc-badge {
+      background: #202822;
+      border: 1px solid #516058;
+      color: var(--green);
+      font: 700 12px var(--mono);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    .doc-title-group h1 { font-size: 16px; font-weight: 600; color: #fff; }
+    .doc-title-group span { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+    .doc-nav-tabs {
+      display: flex;
+      gap: 4px;
+      background: #181d1b;
+      padding: 3px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+    .doc-tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+    .doc-tab-btn.active {
+      background: #27332b;
+      color: var(--green);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .doc-tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* Main Container */
+    .doc-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Simulator Frame Container */
+    .sim-wrapper {
+      background: var(--bg);
+      border: 1px solid #3c443f;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+      margin-bottom: 24px;
+    }
+    .sim-topbar {
+      background: #151917;
+      border-bottom: 1px solid var(--line);
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .sim-topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .sim-lights { display: flex; gap: 6px; }
+    .sim-light { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .sim-light.red { background: #e9877f; }
+    .sim-light.yellow { background: #e8c56c; }
+    .sim-light.green { background: #4fbc78; }
+    
+    .sim-journey-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sim-journey-selector select {
+      background: #202723;
+      border: 1px solid #3d4a41;
+      color: var(--green);
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      outline: none;
+    }
+    .tour-btn {
+      background: #242c27;
+      border: 1px solid #3a453f;
+      color: var(--green);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .tour-btn:hover {
+      background: #2d6c45;
+      color: #fff;
+      border-color: var(--green2);
+    }
+
+    /* Product Workbench UI Styles (Simulated App) */
+    .workbench {
+      height: 740px;
+      display: grid;
+      grid-template-columns: 240px minmax(460px, 1fr) 360px;
+      overflow: hidden;
+      background: var(--bg);
+      position: relative;
+    }
+    
+    /* Left Rail */
+    .rail {
+      background: var(--rail);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      padding: 14px 12px;
+      height: 100%;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 6px 12px;
+      flex-shrink: 0;
+    }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid #516058;
+      background: #202822;
+      color: var(--green);
+      font: 700 12px var(--mono);
+    }
+    .brand strong, .brand small { display: block; }
+    .brand strong { font-size: 13px; }
+    .brand small, .workspace-card span, .goal-card span, .drawer header span, .inspector header span, .kicker {
+      font: 9px var(--mono);
+      letter-spacing: .12em;
+      color: var(--muted);
+    }
+    .workspace-card {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: #1d211f;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      transition: border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .workspace-card:hover { border-color: #56645c; }
+    .workspace-card strong, .workspace-card small {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .workspace-card strong { margin: 2px 0 1px; font-size: 12px; color: #fff; }
+    .workspace-card small { color: var(--muted); font: 10px var(--mono); }
+
+    .product-nav { display: grid; gap: 2px; flex-shrink: 0; }
+    .nav-item, .utility {
+      border: 0;
+      background: transparent;
+      text-align: left;
+      color: #aeb6b0;
+      padding: 7px 9px;
+      font-size: 12px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-item span { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); }
+    .nav-item i { color: #707770; font: 9px var(--mono); font-style: normal; }
+    .nav-item.active { background: #263029; color: var(--green); box-shadow: inset 2px 0 var(--green2); }
+    .nav-item:disabled { cursor: not-allowed; color: #555c56; }
+
+    .rail-section { margin-top: 12px; min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .rail-heading, .section-title { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .rail-heading { padding: 0 6px 4px; color: var(--muted); font: 10px var(--mono); text-transform: uppercase; }
+    .rail-heading button { border: 0; background: transparent; color: var(--muted); font-size: 16px; padding: 0 4px; }
+    .rail-heading button:hover { color: var(--green); }
+    
+    .session-list, .file-list { list-style: none; padding: 0; margin: 0; }
+    .session-list { overflow-y: auto; flex: 1; min-height: 60px; max-height: 120px; }
+    .session-list li {
+      padding: 6px 8px;
+      margin: 2px 0;
+      color: #aeb6b0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      font-size: 11px;
+      border-radius: 2px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .session-list li:hover { background: #1c221e; }
+    .session-list li.active { background: #202622; color: var(--text); border-color: var(--green2); }
+    .session-list li.archived { opacity: .55; }
+    .quiet { color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .rail .quiet { padding: 0 6px; }
+
+    .goal-card {
+      margin-top: 8px;
+      border: 1px dashed #39403c;
+      padding: 8px 10px;
+      background: #121514;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .goal-card strong { display: block; margin: 4px 0; font-size: 11px; color: #cdd3cf; word-break: break-all; }
+    .goal-card p { color: var(--muted); font-size: 10px; line-height: 1.3; margin: 0; }
+    .goal-status-badge {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 6px;
+      background: #19261f;
+      border: 1px solid #3d6549;
+      color: var(--green);
+      font: 9px var(--mono);
+      border-radius: 3px;
+    }
+    .goal-actions, .viewer-actions { display: flex; gap: 4px; margin-top: 6px; }
+    .goal-actions button, .viewer-actions button, .section-title button, .viewer-tools button, .attach {
+      border: 1px solid var(--line);
+      background: #222824;
+      color: #b9c1bb;
+      padding: 3px 6px;
+      font-size: 10px;
+      border-radius: 3px;
+    }
+    .goal-actions button:hover:not(:disabled), .viewer-actions button:hover:not(:disabled) { background: #2b332e; color: #fff; }
+    .goal-actions button:disabled { opacity: .4; cursor: not-allowed; }
+
+    .rail-bottom { margin-top: auto; display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); flex-shrink: 0; }
+    .danger-text { color: #b67a75; }
+    .danger-text:hover { color: #e9877f; }
+
+    /* Center Conversation Pane (Strict Flex Constraints for Mouse Wheel Scrolling) */
+    .conversation-pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      height: 100%;
+      min-height: 0;
+      background: linear-gradient(180deg, #111513, #0f1211);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .conversation-header {
+      height: 56px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #111513;
+      z-index: 10;
+    }
+    .conversation-header h1 { font-size: 14px; margin: 1px 0 0; font-weight: 600; }
+    .breadcrumb { font: 9px var(--mono); letter-spacing: .08em; color: var(--muted); }
+    .breadcrumb b { color: #c5ccc7; }
+    .header-status { display: flex; gap: 6px; align-items: center; }
+    .connection, .task-pill, .readonly {
+      border: 1px solid var(--line);
+      padding: 3px 6px;
+      color: var(--muted);
+      font: 9px var(--mono);
+      text-transform: uppercase;
+      border-radius: 3px;
+    }
+    .connection i {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--amber);
+      margin-right: 4px;
+    }
+    .connection.ready i { background: var(--green2); }
+    .task-pill.idle { color: var(--muted); }
+    .task-pill.running { color: var(--amber); border-color: #6f6038; background: #262115; }
+    .task-pill.awaiting { color: var(--amber); border-color: #8c7336; background: #2c2514; font-weight: bold; }
+    .task-pill.completed { color: var(--green); border-color: #3d6549; background: #16241a; }
+    .task-pill.failed { color: var(--red); border-color: #6a413e; background: #241615; }
+
+    .global-error {
+      margin: 8px 16px 0;
+      padding: 6px 10px;
+      border: 1px solid #70453f;
+      background: #271b19;
+      color: #f0aaa2;
+      font-size: 11px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    /* Scrollable Conversation Stream */
+    .conversation {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 16px 20px;
+      scrollbar-width: thin;
+      scrollbar-color: #353e39 transparent;
+    }
+    
+    .welcome {
+      max-width: 540px;
+      margin: 20px auto 14px;
+      text-align: center;
+    }
+    .welcome-glyph {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 10px;
+      border: 1px solid #3d4d42;
+      background: #19221c;
+      color: var(--green);
+      font-size: 18px;
+      border-radius: 6px;
+    }
+    .welcome h2 { font-size: 18px; font-weight: 500; margin: 6px 0; }
+    .welcome > p:not(.kicker) { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .suggestions button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 9px 11px;
+      text-align: left;
+      color: #cdd3cf;
+      font-size: 11px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .suggestions button:hover { border-color: #59665e; background: #202723; }
+    .suggestions span { float: right; color: var(--green); }
+
+    /* Messages & Cards */
+    .message {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+    .avatar {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      font: 8px var(--mono);
+      border-radius: 3px;
+    }
+    .message.user .avatar:after { content: "YOU"; }
+    .message.assistant .avatar:after { content: "AI"; color: var(--green); }
+    .message-meta { color: var(--muted); font: 9px var(--mono); text-transform: uppercase; margin: 0 0 4px; }
+    .message-content { line-height: 1.5; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      margin: 8px 0 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #1c211e;
+    }
+    .card-header strong { font-size: 11px; }
+    .card-header span { color: var(--muted); font: 9px var(--mono); }
+    .card-body { padding: 8px 10px; color: #c3cac5; font-size: 11px; line-height: 1.45; }
+    
+    /* Structured Compact Plan Card Styling */
+    .plan-card {
+      border: 1px solid #3c5264;
+      border-left: 4px solid var(--blue);
+      background: #131a1f;
+    }
+    .plan-card .card-header {
+      background: #18232c;
+      border-bottom: 1px solid #2b3e4f;
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .plan-header-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #b7daf5;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .plan-top-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .plan-top-actions button {
+      padding: 3px 8px;
+      font-size: 10px;
+      border-radius: 3px;
+      font-weight: bold;
+    }
+    .plan-steps-list {
+      list-style: none;
+      padding: 0;
+      margin: 6px 0 4px;
+    }
+    .plan-step-item {
+      display: flex;
+      gap: 8px;
+      padding: 4px 6px;
+      margin-bottom: 3px;
+      background: #0e1418;
+      border: 1px solid #223240;
+      border-radius: 3px;
+      font-size: 11px;
+      align-items: center;
+    }
+    .plan-step-item.active {
+      border-color: var(--amber);
+      background: #1e1e16;
+    }
+    .plan-step-item.done {
+      border-color: #3d6549;
+      background: #111d16;
+      color: #9ee6b2;
+    }
+    .plan-step-badge {
+      font: 700 9px var(--mono);
+      padding: 1px 4px;
+      border-radius: 2px;
+      background: #1a2732;
+      color: var(--blue);
+      flex-shrink: 0;
+    }
+    .plan-step-item.done .plan-step-badge {
+      background: #163321;
+      color: var(--green);
+    }
+    .plan-risk-box {
+      margin-top: 5px;
+      padding: 4px 6px;
+      background: #272115;
+      border: 1px solid #735928;
+      border-radius: 3px;
+      font-size: 10px;
+      color: #ebd18e;
+    }
+
+    .tool-card { border-left: 3px solid #647168; }
+    .tool-card.running { border-left-color: var(--amber); }
+    .tool-card.completed { border-left-color: var(--green2); }
+    .approval-card { border-left: 3px solid var(--amber); }
+    .error-card { border-left: 3px solid var(--red); }
+    
+    .card-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 0 10px 8px; }
+    .card button, .drawer-actions button, .recovery button, .modal-actions button {
+      border: 1px solid var(--line);
+      background: #242a27;
+      color: #cdd3cf;
+      padding: 4px 10px;
+      font-size: 10px;
+      border-radius: 3px;
+    }
+    .card button.primary, .drawer-actions .primary, .review-actions .primary, .review-apply-actions .primary, .modal-actions .primary {
+      background: #2d6c45;
+      border-color: #438759;
+      color: white;
+    }
+    .card button.primary:hover, .drawer-actions .primary:hover, .modal-actions .primary:hover { background: #378254; }
+    .card button.secondary, .drawer-actions .secondary, .modal-actions .secondary, .secondary {
+      background: #202622;
+      border-color: var(--line);
+      color: #b9c1bb;
+    }
+    .card button.secondary:hover, .drawer-actions .secondary:hover, .modal-actions .secondary:hover { background: #2c3530; color: #fff; }
+    .card button.danger, .review-actions .danger { color: #f1a49d; border-color: #70443f; }
+    .card button.danger:hover { background: #3a2220; }
+
+    /* Composer (Strictly Fixed at Bottom) */
+    .composer-wrap {
+      flex-shrink: 0;
+      padding: 6px 18px 12px;
+      background: linear-gradient(180deg, rgba(15,18,17,0), #0f1211 25%);
+      border-top: 1px solid #242a27;
+      z-index: 10;
+    }
+    .context-chips { display: flex; gap: 5px; overflow-x: auto; padding: 0 0 5px; }
+    .context-chip {
+      flex: 0 0 auto;
+      border: 1px solid #405047;
+      background: #18221c;
+      color: #bce6c8;
+      padding: 2px 5px;
+      font: 9px var(--mono);
+      border-radius: 3px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .context-chip button { border: 0; background: transparent; color: var(--muted); margin-left: 3px; padding: 0 2px; }
+    .context-chip button:hover { color: #fff; }
+
+    .composer {
+      border: 1px solid #3a413d;
+      background: #191d1b;
+      box-shadow: 0 6px 16px rgba(0,0,0,.3);
+      border-radius: 5px;
+    }
+    .composer:focus-within { border-color: #637068; }
+    .composer textarea {
+      display: block;
+      width: 100%;
+      min-height: 38px;
+      max-height: 90px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      padding: 8px 10px;
+      color: var(--text);
+      line-height: 1.35;
+      font-size: 12px;
+    }
+    .composer-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 6px 6px;
+    }
+    .mode-switch {
+      display: flex;
+      border: 1px solid var(--line);
+      padding: 1px;
+      border-radius: 3px;
+      background: #121614;
+    }
+    .mode-switch button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 2px 5px;
+      font-size: 10px;
+      border-radius: 2px;
+    }
+    .mode-switch button.active { background: #303833; color: var(--green); font-weight: 600; }
+    .composer-hint { margin-left: 6px; color: #707871; font-size: 9px; }
+    .send, .stop {
+      margin-left: auto;
+      width: 24px;
+      height: 24px;
+      border: 0;
+      border-radius: 3px;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+    }
+    .send { background: var(--green2); color: #0e1711; font-weight: bold; }
+    .send:disabled { background: #343a36; color: #707771; cursor: not-allowed; }
+    .stop { background: #6e3b37; color: white; }
+    .status-line { text-align: center; margin: 4px 0 0; color: #707871; font-size: 9px; }
+
+    /* Right Inspector */
+    .inspector {
+      border-left: 1px solid var(--line);
+      padding: 12px 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
+      min-height: 0;
+    }
+    .inspector header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .inspector h2, .drawer h2 { font-size: 13px; margin: 1px 0 0; }
+    .inspector section { padding-bottom: 10px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+    .section-title h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin: 0; }
+    .section-title > span { color: var(--muted); font: 9px var(--mono); }
+    
+    .workspace-tree { list-style: none; margin: 4px 0 0; padding: 0; max-height: 120px; overflow-y: auto; }
+    .workspace-tree li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 1px solid #222724;
+      padding: 2px 0;
+    }
+    .workspace-tree button {
+      border: 0;
+      background: transparent;
+      color: #bdc5bf;
+      text-align: left;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .workspace-tree button:hover { color: #fff; }
+    .workspace-tree button.active-file { color: var(--green); font-weight: bold; }
+    .workspace-tree button[data-add-context] { color: var(--green); font-size: 9px; padding: 0 3px; }
+
+    /* Viewer Panel */
+    .viewer-tools { display: grid; grid-template-columns: 1fr 45px auto; gap: 4px; margin: 6px 0 4px; }
+    .viewer-tools input { border: 1px solid var(--line); background: #0f1210; padding: 3px 5px; font-size: 10px; border-radius: 3px; }
+    .code-viewer {
+      height: 150px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #0c0f0d;
+      font: 10px/1.45 var(--mono);
+      border-radius: 3px;
+    }
+    .code-line { display: grid; grid-template-columns: 28px 1fr; min-width: max-content; width: 100%; color: #c7cec9; cursor: default; }
+    .code-line:hover, .code-line.selected { background: #213128; }
+    .code-line.highlight-search { background: #3b3317; color: #f2e394; }
+    .line-no { position: sticky; left: 0; padding: 0 5px; text-align: right; color: #667069; background: #121613; user-select: none; }
+    .line-code { padding: 0 6px; white-space: pre; }
+    .viewer-actions button { flex: 1; }
+
+    /* Review Panel */
+    .review-files { list-style: none; margin: 4px 0; padding: 0; max-height: 80px; overflow-y: auto; }
+    .review-files li { display: flex; align-items: center; justify-content: space-between; gap: 4px; border-bottom: 1px solid #292e2b; padding: 3px; cursor: pointer; }
+    .review-files button { flex: 1; min-width: 0; border: 0; background: transparent; color: #bdc5bf; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+    .review-files li.selected { background: #213128; border-left: 2px solid var(--green2); }
+    .review-files .review-decision { color: var(--muted); font: 9px var(--mono); }
+    .review-diff {
+      min-height: 80px;
+      max-height: 120px;
+      overflow: auto;
+      background: #0c0f0d;
+      border: 1px solid var(--line);
+      padding: 5px 6px;
+      font: 9px/1.35 var(--mono);
+      white-space: pre-wrap;
+      border-radius: 3px;
+    }
+    .diff-add { color: var(--green); background: rgba(79, 188, 120, 0.1); }
+    .diff-del { color: var(--red); background: rgba(233, 135, 127, 0.1); }
+    .diff-meta { color: var(--blue); }
+
+    .review-actions, .review-apply-actions { display: flex; gap: 4px; margin-top: 4px; }
+    .review-actions button, .review-apply-actions button { flex: 1; border: 1px solid var(--line); background: #242a27; color: #b9c1bb; padding: 3px; font-size: 9px; border-radius: 3px; }
+    .review-validation { margin-top: 6px; padding-top: 4px; border-top: 1px dashed #39403c; }
+
+    .file-list li { font: 9px var(--mono); padding: 4px 0; border-bottom: 1px solid #222724; }
+    .boundary div { display: flex; justify-content: space-between; padding: 3px 0; font-size: 10px; }
+    .boundary dt { color: var(--muted); }
+    .boundary dd { margin: 0; font: 9px var(--mono); color: #fff; }
+
+    /* Drawers */
+    .drawer { position: absolute; inset: 0; z-index: 50; }
+    .drawer-backdrop { position: absolute; inset: 0; border: 0; background: rgba(0,0,0,.65); width: 100%; height: 100%; }
+    .drawer-panel {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 360px;
+      background: #171b19;
+      border-left: 1px solid var(--line);
+      padding: 16px;
+      overflow-y: auto;
+      box-shadow: -10px 0 30px rgba(0,0,0,.4);
+    }
+    .drawer-panel.wide { width: min(600px, 90%); }
+    .drawer header { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+    .drawer header button { border: 0; background: transparent; color: var(--muted); font-size: 18px; }
+    .drawer label { display: block; margin: 10px 0 4px; color: #aeb5b0; font-size: 11px; }
+    .drawer input, .drawer select { width: 100%; border: 1px solid var(--line); background: #101311; padding: 6px 8px; font-size: 11px; border-radius: 3px; color: #fff; }
+    .drawer .check { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-size: 11px; color: var(--muted); }
+    .drawer .check input { width: auto; }
+    .notice { border: 1px solid #725f36; background: #292316; padding: 8px; margin-top: 10px; color: #e8ca79; font-size: 11px; border-radius: 3px; }
+    .drawer-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+
+    .diag-grid { display: grid; grid-template-columns: 180px 1fr; gap: 12px; margin-top: 10px; }
+    .diagnostics { display: grid; grid-template-columns: auto 1fr; gap: 4px; margin: 0; font-size: 10px; }
+    .diagnostics dd { margin: 0; overflow-wrap: anywhere; color: var(--muted); }
+    .timeline { height: 160px; overflow-y: auto; margin: 6px 0 0; padding: 6px 6px 6px 18px; background: #0f1210; font: 9px var(--mono); color: #aab1ac; border: 1px solid var(--line); border-radius: 3px; }
+    .timeline li { margin: 3px 0; }
+    .event-kind { color: var(--green); }
+    .runner-panel { margin-top: 12px; }
+    .runner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .runner-grid pre { height: 90px; overflow: auto; background: #0e1110; padding: 6px; font: 9px var(--mono); white-space: pre-wrap; border: 1px solid var(--line); border-radius: 3px; }
+    .runner-grid small { color: var(--muted); font-size: 9px; }
+
+    /* Modals */
+    .modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-card {
+      width: 460px;
+      background: #171c19;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+    }
+    .modal-card h3 { font-size: 13px; margin-bottom: 6px; color: #fff; }
+    .modal-card textarea {
+      width: 100%;
+      height: 90px;
+      background: #0e1210;
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      color: #e8ece8;
+      font-size: 11px;
+      font-family: var(--mono);
+      border-radius: 4px;
+      outline: none;
+      resize: vertical;
+    }
+    .modal-card textarea:focus { border-color: #56645c; }
+    .modal-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin: 6px 0;
+    }
+    .modal-preset-btn {
+      background: #1e2621;
+      border: 1px solid #3d4a41;
+      color: #9ee6b2;
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+    .modal-preset-btn:hover { background: #2b3a30; }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    /* Guide Article Styles */
+    .guide-article {
+      background: #111513;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+    .guide-article h2 { font-size: 18px; color: #fff; margin-bottom: 14px; border-bottom: 1px solid var(--line); padding-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .guide-article h3 { font-size: 14px; color: var(--green); margin: 16px 0 6px; }
+    .guide-article p { color: #c8d0ca; margin-bottom: 10px; font-size: 13px; }
+    .guide-article ul, .guide-article ol { margin-left: 18px; margin-bottom: 12px; color: #c8d0ca; font-size: 13px; }
+    .guide-article li { margin-bottom: 5px; }
+    .guide-article code { background: #1b221d; color: #a2e8b6; padding: 2px 4px; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
+    .guide-article pre { background: #0c0f0d; border: 1px solid var(--line); padding: 10px; border-radius: 5px; font: 11px/1.45 var(--mono); color: #d4ded7; margin: 10px 0; overflow-x: auto; }
+    
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    
+    .feature-card {
+      background: #161b18;
+      border: 1px solid var(--line);
+      padding: 14px;
+      border-radius: 5px;
+    }
+    .feature-card h4 { font-size: 13px; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .feature-card p { font-size: 11px; color: var(--muted); margin: 0; }
+
+    .callout {
+      border-left: 4px solid var(--green2);
+      background: #141f18;
+      padding: 10px 14px;
+      margin: 14px 0;
+      border-radius: 0 5px 5px 0;
+    }
+    .callout.warning { border-left-color: var(--amber); background: #221e14; }
+    .callout.danger { border-left-color: var(--red); background: #261716; }
+    .callout strong { display: block; font-size: 12px; margin-bottom: 3px; color: #fff; }
+    .callout p { font-size: 11px; margin: 0; color: #cfd8d2; }
+
+    .shortcut-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+    .shortcut-table th, .shortcut-table td {
+      border: 1px solid var(--line);
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .shortcut-table th { background: #171d1a; color: var(--green); font-weight: 600; }
+    .shortcut-table tr:nth-child(even) { background: #131715; }
+    .shortcut-table kbd {
+      background: #242c27;
+      border: 1px solid #425247;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font: 10px var(--mono);
+      color: #fff;
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Global Header -->
+  <header class="doc-header">
+    <div class="doc-brand">
+      <span class="doc-badge">W7 v0.2.0</span>
+      <div class="doc-title-group">
+        <h1>Win7 Coding Agent 产品使用说明与全场景实机模拟手册</h1>
+        <span>Windows 7 SP1 x64 · 12 条完整用户旅程覆盖 · Agent-First Local Workbench</span>
+      </div>
+    </div>
+    <nav class="doc-nav-tabs">
+      <button class="doc-tab-btn active" data-target="tab-simulator">🎮 12场景实机模拟器</button>
+      <button class="doc-tab-btn" data-target="tab-arch">📖 产品定位与架构</button>
+      <button class="doc-tab-btn" data-target="tab-quickstart">🚀 3分钟极速上手</button>
+      <button class="doc-tab-btn" data-target="tab-workflow">💡 核心工作流与12旅程</button>
+      <button class="doc-tab-btn" data-target="tab-security">🛡️ 安全防线与权限</button>
+      <button class="doc-tab-btn" data-target="tab-shortcuts">⌨️ 快捷键与技巧</button>
+    </nav>
+  </header>
+
+  <main class="doc-container">
+
+    <!-- TAB 1: INTERACTIVE SIMULATOR (12 SCENARIOS COVERAGE) -->
+    <section id="tab-simulator" class="tab-content active">
+      <div class="sim-wrapper">
+        <div class="sim-topbar">
+          <div class="sim-topbar-left">
+            <div class="sim-lights">
+              <span class="sim-light red"></span>
+              <span class="sim-light yellow"></span>
+              <span class="sim-light green"></span>
+            </div>
+            <span><strong>Win7 实机交互模拟工作台</strong> (支持鼠标滚轮自由翻阅 · 全 12 场景无死角演示)</span>
+          </div>
+          
+          <!-- 12 User Journeys Selector -->
+          <div class="sim-journey-selector">
+            <label for="sim-journey-select" style="font-size:11px;color:var(--muted)">选择演练旅程：</label>
+            <select id="sim-journey-select">
+              <option value="j2">★ 旅程 2: 先计划模式与结构化拆解 (Plan-First)</option>
+              <option value="j1">旅程 1: 自然语言极速启动 (Natural Language Launch)</option>
+              <option value="j3">旅程 3: 上下文精准引用 (@ / 选区 / 文本附件)</option>
+              <option value="j4">旅程 4: 连续流式消息聚合 (Streaming Aggregation)</option>
+              <option value="j5">旅程 5: 工具调用卡片折叠与交互 (Tool Cards Lifecycle)</option>
+              <option value="j6">旅程 6: 多文件 Review 准备区与 Diff 审查</option>
+              <option value="j7">旅程 7: 一次性审批与原子批量应用 (Precise Approval)</option>
+              <option value="j8">旅程 8: 真实 Runner 验证闭环 (Test Runner Loop)</option>
+              <option value="j9">旅程 9: 任务中途取消与原地重试 (Cancel & Retry)</option>
+              <option value="j10">旅程 10: 会话多开、Goal 管理与恢复 (Sessions & Goal)</option>
+              <option value="j11">旅程 11: 安全防线与边界隔离 (Terminal / Browser Boundary)</option>
+              <option value="j12">旅程 12: 诊断中心与不可变事件审计 (Diagnostics & Ledger)</option>
+            </select>
+            <button class="tour-btn" id="btn-run-journey">▶ 执行所选旅程</button>
+            <button class="tour-btn" id="tour-reset" style="color:var(--muted)">↺ 重置</button>
+          </div>
+        </div>
+
+        <!-- Simulated App Layout -->
+        <div class="workbench">
+          <!-- LEFT RAIL -->
+          <aside class="rail">
+            <div class="brand">
+              <span class="brand-mark">W7</span>
+              <div><strong>Coding Agent</strong><small>LOCAL WORKBENCH</small></div>
+            </div>
+            <button id="sim-ws-select" class="workspace-card" type="button" title="点击切换本地工作区">
+              <span>WORKSPACE</span>
+              <strong id="sim-ws-name">C:\Projects\LegacyWin7App</strong>
+              <small id="sim-ws-path">win7-x64 · UTF-8/GBK · SQLite WAL</small>
+            </button>
+
+            <nav class="product-nav" aria-label="产品区域">
+              <button class="nav-item active" id="sim-nav-agent" type="button"><span>◈ Agent</span></button>
+              <button class="nav-item" id="sim-nav-review" type="button" title="查看当前任务 Review 准备区"><span>◇ Review</span> <i id="sim-review-nav-state">待准备</i></button>
+              <button class="nav-item" id="sim-nav-terminal" type="button" title="根据 ADR-0027/0075，交互终端未授权"><span>›_ Terminal</span> <i>禁用</i></button>
+              <button class="nav-item" id="sim-nav-browser" type="button" title="根据安全边界，公网浏览未授权"><span>◎ Browser</span> <i>禁用</i></button>
+            </nav>
+
+            <section class="rail-section">
+              <div class="rail-heading">
+                <span>会话列表 (多会话隔离)</span>
+                <button id="sim-new-session" type="button" title="新建会话">＋</button>
+              </div>
+              <ul id="sim-session-list" class="session-list">
+                <li class="active" data-session="1">
+                  <span>#1 修复 GBK 乱码与构建</span>
+                  <small style="color:var(--green)">RUN</small>
+                </li>
+                <li data-session="2">
+                  <span>#2 架构重构与模块解耦</span>
+                  <small style="color:var(--muted)">IDLE</small>
+                </li>
+                <li class="archived" data-session="3">
+                  <span>#3 网络驱动兼容性分析</span>
+                  <small style="color:var(--muted)">ARCH</small>
+                </li>
+              </ul>
+            </section>
+
+            <section class="goal-card">
+              <span>ACTIVE GOAL</span>
+              <strong id="sim-goal-text">修复 win32 conhost 终端中文显示与文件编码</strong>
+              <p id="sim-goal-meta">会话专属 Goal · 单任务权威上下文</p>
+              <div id="sim-rail-plan-indicator" class="goal-status-badge">计划就绪 · 待审批</div>
+              <div class="goal-actions">
+                <button id="sim-edit-goal" type="button">编辑</button>
+                <button id="sim-achieve-goal" type="button">达成</button>
+                <button id="sim-abandon-goal" type="button">放弃</button>
+              </div>
+            </section>
+
+            <div class="rail-bottom">
+              <button id="sim-btn-settings" class="utility" type="button">⚙ 设置 (Gateway/Key)</button>
+              <button id="sim-btn-diag" class="utility" type="button">⌁ 诊断与审计事件</button>
+              <button id="sim-btn-close-session" class="utility danger-text" type="button">归档当前会话</button>
+            </div>
+          </aside>
+
+          <!-- CENTER CONVERSATION PANE (STRICT FLEX CONSTRAINTS) -->
+          <section class="conversation-pane">
+            <header class="conversation-header">
+              <div>
+                <span class="breadcrumb">AGENT / <b id="sim-session-label">会话 #1 - 修复 GBK 乱码</b></span>
+                <h1>和工作区一起思考</h1>
+              </div>
+              <div class="header-status">
+                <span id="sim-conn-status" class="connection ready"><i></i><span id="sim-conn-text">REPLAY 本地</span></span>
+                <span id="sim-task-pill" class="task-pill idle">空闲</span>
+              </div>
+            </header>
+
+            <div id="sim-error-banner" class="global-error" hidden></div>
+
+            <!-- Scrollable Conversation Stream -->
+            <div id="sim-conversation" class="conversation">
+              <!-- Welcome State -->
+              <div id="sim-welcome" class="welcome">
+                <div class="welcome-glyph">◈</div>
+                <div class="kicker">WIN7 AGENT-FIRST WORKBENCH</div>
+                <h2>今天想对工作区做什么？</h2>
+                <p>支持自然语言代码分析、结构化规划、低风险只读工具检索与多文件受控 Review 准备区。</p>
+                <div class="suggestions">
+                  <button type="button" data-prompt="分析当前项目的代码结构与 Win7 兼容性边界" data-mode="direct">分析项目结构与兼容性 (直接做) <span>→</span></button>
+                  <button type="button" data-prompt="重构 parser.c 修复中文 GBK 编码转换问题，并输出 Review 准备区" data-mode="plan" style="border-color:var(--blue);background:#131c22;"><strong>📋 修复 GBK 编码问题 (先计划模式)</strong> <span>→</span></button>
+                  <button type="button" data-prompt="检索项目中所有涉及 Windows API 调用的文件" data-mode="direct">搜索 Win32 API 依赖 <span>→</span></button>
+                  <button type="button" data-prompt="运行只读测试套件并报告结果" data-mode="direct">执行只读验证测试 <span>→</span></button>
+                </div>
+              </div>
+
+              <!-- Message Flow Container -->
+              <div id="sim-messages-flow"></div>
+            </div>
+
+            <!-- Composer Footer (Fixed) -->
+            <footer class="composer-wrap">
+              <div id="sim-context-chips" class="context-chips" hidden></div>
+              <div class="composer">
+                <textarea id="sim-prompt-input" rows="1" placeholder="询问代码、规划修改或描述一个任务… (输入后按 Enter 发送)"></textarea>
+                <div class="composer-bar">
+                  <button id="sim-attach-text" class="attach" type="button">＋ 文本附件</button>
+                  <div class="mode-switch" role="radiogroup">
+                    <button id="sim-mode-direct" class="active" type="button">直接做</button>
+                    <button id="sim-mode-plan" type="button">先计划</button>
+                  </div>
+                  <span class="composer-hint">Enter 发送 · Shift+Enter 换行</span>
+                  <button id="sim-btn-send" class="send" type="button" title="发送任务">↑</button>
+                  <button id="sim-btn-stop" class="stop" type="button" hidden title="停止任务">■</button>
+                </div>
+              </div>
+              <p class="status-line">模型不能绕过审批、Runner 或审计边界 · 准备区修改须用户单次审批生效</p>
+            </footer>
+          </section>
+
+          <!-- RIGHT INSPECTOR -->
+          <aside class="inspector">
+            <header>
+              <div>
+                <span>INSPECTOR</span>
+                <h2 id="sim-inspector-title">只读检查器</h2>
+              </div>
+              <span class="readonly">READ ONLY</span>
+            </header>
+
+            <!-- Explorer section -->
+            <section class="explorer" id="sim-sec-explorer">
+              <div class="section-title">
+                <h3>工作区目录</h3>
+                <button id="sim-btn-ws-up" type="button" title="点击返回上一级">上一级</button>
+              </div>
+              <p id="sim-explorer-path" class="quiet">/src</p>
+              <ul class="workspace-tree" id="sim-file-tree">
+                <li>
+                  <button class="active-file" data-file="src/parser.c">📄 parser.c</button>
+                  <button data-add-context="src/parser.c" title="加入上下文">+ 上下文</button>
+                </li>
+                <li>
+                  <button data-file="src/encoding.c">📄 encoding.c</button>
+                  <button data-add-context="src/encoding.c" title="加入上下文">+ 上下文</button>
+                </li>
+                <li>
+                  <button data-file="include/win7_compat.h">📄 win7_compat.h</button>
+                  <button data-add-context="include/win7_compat.h" title="加入上下文">+ 上下文</button>
+                </li>
+                <li>
+                  <button data-file="Makefile">📄 Makefile</button>
+                  <button data-add-context="Makefile" title="加入上下文">+ 上下文</button>
+                </li>
+              </ul>
+            </section>
+
+            <!-- Review Staging Panel -->
+            <section id="sim-sec-review" class="review-panel" hidden>
+              <div class="section-title">
+                <h3>Review 准备区</h3>
+                <span id="sim-review-status" style="color:var(--amber);">2 文件待审</span>
+              </div>
+              <p class="quiet">Agent 提案位于私有暂存区，工作区未受影响。</p>
+              <ul class="review-files" id="sim-review-file-list">
+                <li class="selected" data-file="src/parser.c">
+                  <button type="button">src/parser.c [MODIFY]</button>
+                  <span class="review-decision" id="dec-parser">待定</span>
+                </li>
+                <li data-file="src/encoding.c">
+                  <button type="button">src/encoding.c [NEW]</button>
+                  <span class="review-decision" id="dec-encoding">待定</span>
+                </li>
+              </ul>
+              <pre class="review-diff" id="sim-review-diff-viewer"><span class="diff-meta">--- a/src/parser.c
++++ b/src/parser.c</span>
+@@ -45,7 +45,8 @@
+- char buf[256];
+- strcpy(buf, input);
++ wchar_t wbuf[512];
++ MultiByteToWideChar(CP_ACP, 0, input, -1, wbuf, 512);</pre>
+              <div class="review-actions">
+                <button id="sim-btn-reject-file" class="danger" type="button">拒绝此文件</button>
+                <button id="sim-btn-accept-file" class="primary" type="button">接受此文件</button>
+              </div>
+              <div class="review-apply-actions">
+                <button id="sim-btn-gen-approval" type="button">生成应用审批</button>
+                <button id="sim-btn-apply-changes" class="primary" type="button" disabled>应用已接受变更</button>
+              </div>
+              <div class="review-validation">
+                <div class="section-title">
+                  <h3>自动化验证</h3>
+                  <span id="sim-val-status">PASSED (2/2)</span>
+                </div>
+                <p class="quiet" id="sim-val-desc">结构化 Runner 执行测试通过，无回滚风险。</p>
+                <button id="sim-btn-run-tests" class="secondary" style="margin-top:6px;width:100%;">重新运行验证测试</button>
+              </div>
+            </section>
+
+            <!-- Code Viewer Panel -->
+            <section id="sim-sec-viewer" class="viewer-panel">
+              <div class="section-title">
+                <h3 id="sim-viewer-filename">src/parser.c</h3>
+                <span id="sim-viewer-range">1-15 行</span>
+              </div>
+              <div class="viewer-tools">
+                <input id="sim-viewer-search" type="search" placeholder="在文件中查找...">
+                <input id="sim-viewer-jump" type="number" min="1" max="15" placeholder="行号">
+                <button id="sim-btn-jump" type="button">跳转</button>
+              </div>
+              <div class="code-viewer" id="sim-code-viewer"></div>
+              <div class="viewer-actions">
+                <button id="sim-btn-explain" type="button">解释选区</button>
+                <button id="sim-btn-fix" type="button">修复选区</button>
+                <button id="sim-btn-add-ctx" class="primary" type="button">加入上下文</button>
+              </div>
+            </section>
+
+            <!-- Turn Active Files -->
+            <section>
+              <div class="section-title">
+                <h3>本轮使用文件</h3>
+                <span id="sim-file-count">2</span>
+              </div>
+              <ul class="file-list" id="sim-active-files">
+                <li>src/parser.c (read_file)</li>
+                <li>include/win7_compat.h (grep_search)</li>
+              </ul>
+            </section>
+
+            <!-- Security Boundary Info -->
+            <section>
+              <div class="section-title"><h3>Win7 安全能力边界</h3></div>
+              <dl class="boundary">
+                <div><dt>Renderer FS</dt><dd>无能力 (零权限)</dd></div>
+                <div><dt>Workspace 写入</dt><dd>准备区 + 精确审批</dd></div>
+                <div><dt>Runner 执行</dt><dd>结构化 argv + 超时回收</dd></div>
+                <div><dt>凭据保护</dt><dd>Windows DPAPI</dd></div>
+              </dl>
+            </section>
+          </aside>
+
+          <!-- SIMULATED SETTINGS DRAWER -->
+          <div id="sim-drawer-settings" class="drawer" hidden>
+            <div class="drawer-backdrop" id="sim-close-settings-bg"></div>
+            <section class="drawer-panel">
+              <header>
+                <div><span>SETTINGS</span><h2>连接与模型配置</h2></div>
+                <button type="button" id="sim-close-settings-btn">×</button>
+              </header>
+              <label>连接模式</label>
+              <select id="sim-set-mode">
+                <option value="replay">Replay（本地预演，不出站）</option>
+                <option value="gateway">受控内网 Gateway (企业推荐)</option>
+                <option value="deepseek">DeepSeek 远端大模型</option>
+              </select>
+              <label>Gateway URL</label>
+              <input type="url" value="http://10.67.149.40:8443/v1" placeholder="内网 Gateway 地址">
+              <label>模型选择</label>
+              <select>
+                <option>deepseek-v4-flash (高速轻量)</option>
+                <option>deepseek-v4-pro (复杂推理/大重构)</option>
+              </select>
+              <label>API Key</label>
+              <input type="password" value="sk-win7-corp-key-encrypted" placeholder="输入密钥">
+              <label class="check">
+                <input type="checkbox" checked> 使用 Windows DPAPI 安全加密存储
+              </label>
+              <div class="notice">
+                凭据仅保存在 DPAPI Vault，不会明文持久化到会话历史或审计日志中。
+              </div>
+              <div class="drawer-actions">
+                <button type="button" id="sim-btn-save-settings" class="primary">应用并保存设置</button>
+              </div>
+            </section>
+          </div>
+
+          <!-- SIMULATED DIAGNOSTICS DRAWER -->
+          <div id="sim-drawer-diag" class="drawer" hidden>
+            <div class="drawer-backdrop" id="sim-close-diag-bg"></div>
+            <section class="drawer-panel wide">
+              <header>
+                <div><span>AUDIT & FACTS</span><h2>系统诊断与不可变事件账本</h2></div>
+                <button type="button" id="sim-close-diag-btn">×</button>
+              </header>
+              <div class="diag-grid">
+                <div>
+                  <h4 style="font-size:11px;color:var(--green);margin-bottom:6px;">运行时状态</h4>
+                  <dl class="diagnostics">
+                    <dt>OS Target:</dt><dd>Win7 SP1 x64</dd>
+                    <dt>Schema Ver:</dt><dd>a8_schema_v1</dd>
+                    <dt>SQLite WAL:</dt><dd>rc_events_v2</dd>
+                    <dt>Memory:</dt><dd>48.2 MB</dd>
+                    <dt>Event Seq:</dt><dd id="diag-seq-val">#142 (连续无缺口)</dd>
+                  </dl>
+                </div>
+                <div>
+                  <div class="section-title">
+                    <h3>原始 EventEnvelopeV2 账本</h3>
+                    <span>只读审计</span>
+                  </div>
+                  <ol class="timeline" id="sim-diag-timeline">
+                    <li><span class="event-kind">session.created</span> seq=1 id=evt_019a</li>
+                    <li><span class="event-kind">task.started</span> seq=2 taskId=tsk_881a</li>
+                    <li><span class="event-kind">tool.invoked</span> seq=3 tool=read_file path=src/parser.c</li>
+                    <li><span class="event-kind">gateway.delta</span> seq=4 chunk="正在分析编码..."</li>
+                    <li><span class="event-kind">review.staged</span> seq=5 files=2 hash=sha256:7f89b...</li>
+                  </ol>
+                </div>
+              </div>
+              <div class="runner-panel">
+                <div class="section-title">
+                  <h3>Runner 隔离执行记录 (只读)</h3>
+                  <span class="task-pill completed" id="diag-runner-pill">EXIT 0</span>
+                </div>
+                <div class="runner-grid">
+                  <div><small>STDOUT (上限 64KB)</small><pre id="diag-runner-stdout">[test] Checking CP936 to UTF-8 conversion... OK
+[test] Checking win32 path parsing... OK
+2 passed, 0 failed.</pre></div>
+                  <div><small>STDERR</small><pre id="diag-runner-stderr">(empty)</pre></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- MODAL: ATTACH TEXT -->
+          <div id="sim-modal-attach" class="modal-overlay" hidden>
+            <div class="modal-card">
+              <h3>＋ 添加自定义文本上下文附件</h3>
+              <p class="quiet" style="margin-bottom:8px;">输入要附加给 Agent 的代码片段、报错堆栈或配置（最多 64KB 预算）：</p>
+              
+              <!-- Quick Preset Samples -->
+              <div class="modal-presets">
+                <button type="button" class="modal-preset-btn" data-preset="gbk">📄 预设: GBK 乱码日志</button>
+                <button type="button" class="modal-preset-btn" data-preset="gdi">🐛 预设: Win7 GDI 泄露堆栈</button>
+                <button type="button" class="modal-preset-btn" data-preset="make">⚙️ 预设: Win32 Makefile 报错</button>
+              </div>
+
+              <textarea id="sim-attach-content" placeholder="输入或粘贴错误日志、配置信息..."></textarea>
+              
+              <div class="modal-actions">
+                <button type="button" id="sim-btn-cancel-attach" class="secondary">取消</button>
+                <button type="button" id="sim-btn-confirm-attach" class="primary">✓ 添加至输入框</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODAL: WORKSPACE SELECTOR -->
+          <div id="sim-modal-ws" class="modal-overlay" hidden>
+            <div class="modal-card">
+              <h3>📁 选择本地 Windows 7 工作区</h3>
+              <p class="quiet" style="margin-bottom:10px;">切换工作区将加载其独立的会话与 SQLite 状态库：</p>
+              <div style="display:grid;gap:6px;">
+                <button type="button" class="tour-btn ws-pick" data-ws="C:\Projects\LegacyWin7App" data-tag="C++ · Win32 API">📂 C:\Projects\LegacyWin7App (传统 Win32 应用)</button>
+                <button type="button" class="tour-btn ws-pick" data-ws="D:\Repos\FinancialCore_Win32" data-tag="C · 银行账务内核">📂 D:\Repos\FinancialCore_Win32 (GBK/高保密)</button>
+                <button type="button" class="tour-btn ws-pick" data-ws="E:\Tools\LogParser_GBK" data-tag="Python · 日志解析">📂 E:\Tools\LogParser_GBK (工业网关)</button>
+              </div>
+              <div class="modal-actions">
+                <button type="button" id="sim-btn-close-ws-modal" class="secondary">关闭</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 12 Scenarios Explanation Below Simulator -->
+      <div class="guide-article" style="margin-top:16px;">
+        <h2>📋 12 场景全覆盖互动矩阵</h2>
+        <div class="grid-3col">
+          <div class="feature-card">
+            <h4>J1 ~ J4：输入与流式交互</h4>
+            <p><strong>J1:</strong> 自然语言即刻开始；<strong>J2:</strong> 先计划 4 步风险卡片与审批；<strong>J3:</strong> @文件与选区注入；<strong>J4:</strong> 连续 Token 无感聚合。</p>
+          </div>
+          <div class="feature-card">
+            <h4>J5 ~ J8：工具、Review 与测试</h4>
+            <p><strong>J5:</strong> 只读工具卡片折叠；<strong>J6:</strong> 多文件差异比对；<strong>J7:</strong> 一次性精确 Token 审批与原子应用；<strong>J8:</strong> Runner 验证与测试闭环。</p>
+          </div>
+          <div class="feature-card">
+            <h4>J9 ~ J12：安全、恢复与审计</h4>
+            <p><strong>J9:</strong> 长任务停止与原地重试；<strong>J10:</strong> 多会话/Goal 快照持久化；<strong>J11:</strong> Terminal/Browser 防御隔离；<strong>J12:</strong> 不可变事件账本。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ARCHITECTURE & PHILOSOPHY -->
+    <section id="tab-arch" class="tab-content">
+      <div class="guide-article">
+        <h2>📖 产品定义与设计哲学</h2>
+        <p><strong>Win7 Coding Agent</strong> 是专门面向 <strong>Windows 7 SP1 x64</strong> 遗留系统与受限企业内网环境打造的对话式 Coding Agent 执行端与客户端。</p>
+        
+        <div class="callout">
+          <strong>为什么选择 Agent-First 而非传统 IDE 插件？</strong>
+          <p>在工业制造、银行内网及专用设备等大量 Windows 7 场景下，缺乏现代 VSCode/Docker 运行条件。本产品采用“对话即工作区、低视觉噪声、按需检查、准备区审批”的 Agent-First 架构，无需复杂配置，开箱即用。</p>
+        </div>
+
+        <h3>核心分层架构模型</h3>
+        <div class="grid-2col">
+          <div class="feature-card">
+            <h4>💻 Win7 本地客户端 (Workbench)</h4>
+            <ul>
+              <li><strong>UI 交互端:</strong> 极简三栏布局，低内存占用，兼容 Win7 GDI/DWM 渲染。</li>
+              <li><strong>只读代码查看器:</strong> 支持代码跳转、高亮与选区上下文提取。</li>
+              <li><strong>Review 准备区:</strong> 多文件差异比对与逐文件审核。</li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <h4>🛡️ 本地安全执行引擎 (Host/Core)</h4>
+            <ul>
+              <li><strong>只读工具链:</strong> 安全读取代码、Grep 搜索、Git 历史状态分析。</li>
+              <li><strong>受控 Runner:</strong> 结构化 argv 执行非交互测试，超时与进程树回收。</li>
+              <li><strong>不可变 SQLite 账本:</strong> 完整审计追踪所有事件与决策。</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>三大核心设计原则</h3>
+        <ol>
+          <li><strong>对话中心 (Agent-First):</strong> 开发者无需理解复杂的底层 harness 或 lease 概念，通过自然语言描述需求，Agent 主动规划、检索与验证。</li>
+          <li><strong>多文件准备区 (Staging Area):</strong> Agent 对代码的任何修改提议首先在私有准备区生成，不直接触碰用户真实工作区。</li>
+          <li><strong>精确一次性审批 (Explicit Approval):</strong> 只有在用户完成 Diff 审查并点击“应用变更”后，才通过原子写入生效，并支持一键故障回滚。</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- TAB 3: QUICKSTART -->
+    <section id="tab-quickstart" class="tab-content">
+      <div class="guide-article">
+        <h2>🚀 3 分钟极速上手指南</h2>
+        <p>只需三步，即可在 Win7 环境中开启智能结对编程：</p>
+
+        <div class="grid-3col">
+          <div class="feature-card">
+            <h4>第一步：选定工作区与配置</h4>
+            <p>启动客户端后，点击左上角 <strong>“选择本地工作区”</strong>，选定待维护的代码目录。点击左下角 ⚙ 设置确认连接模式（支持离线 Replay、内网 Gateway 或 DeepSeek）。</p>
+          </div>
+          <div class="feature-card">
+            <h4>第二步：自然语言描述需求</h4>
+            <p>在底部输入框输入要完成的任务（如 <em>“排查 parser.c 中的内存泄漏并编写单元测试”</em>），选择 <strong>“直接做”</strong> 或 <strong>“先计划”</strong> 模式后按 <code>Enter</code> 发送。</p>
+          </div>
+          <div class="feature-card">
+            <h4>第三步：Review 审核与一键应用</h4>
+            <p>Agent 分析并执行完毕后，点击右侧 <strong>Review 准备区</strong> 查看文件变更 Diff。逐文件确认后点击 <strong>“应用已接受变更”</strong>，修改立即安全写入。</p>
+          </div>
+        </div>
+
+        <div class="callout warning">
+          <strong>⚠️ Win7 专属注意事项</strong>
+          <p>产品原生支持中文路径、空格路径及 GBK/CP936/UTF-8 各种编码格式。严禁在未经受控审批前手动跨进程修改正在执行任务的目标文件。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: WORKFLOW & 12 JOURNEYS -->
+    <section id="tab-workflow" class="tab-content">
+      <div class="guide-article">
+        <h2>💡 12 条核心用户旅程全景手册</h2>
+
+        <table class="shortcut-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>用户旅程 (User Journey)</th>
+              <th>交互触发与核心逻辑</th>
+              <th>安全与确定性保障</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>J1</strong></td>
+              <td>自然语言极速启动</td>
+              <td>直接在输入框输入任务按 Enter 提交，系统自动创建会话并启动流式回答</td>
+              <td>无需理解底层 harness/lease 术语</td>
+            </tr>
+            <tr>
+              <td><strong>J2</strong></td>
+              <td>先计划模式与任务拆解</td>
+              <td>切换“先计划”，Agent 首先给出 4 步规划（目标/拟修改/验证/风险）</td>
+              <td>必须用户点击“批准计划”后才调用工具</td>
+            </tr>
+            <tr>
+              <td><strong>J3</strong></td>
+              <td>上下文精准引用</td>
+              <td>通过 @文件、目录、代码查看器选区或文本附件注入上下文</td>
+              <td>有界预算控制（单轮≤24项，≤64KB）</td>
+            </tr>
+            <tr>
+              <td><strong>J4</strong></td>
+              <td>连续流式消息聚合</td>
+              <td>连续 <code>gateway.delta</code> 自动合并为自然消息段，支持 Markdown 与代码块</td>
+              <td>原始事件账本保真，展示层无感连续</td>
+            </tr>
+            <tr>
+              <td><strong>J5</strong></td>
+              <td>工具卡片折叠与交互</td>
+              <td>只读读取、Grep 检索以紧凑卡片展现，显示耗时与状态</td>
+              <td>只读工具零写入风险，可随时展开</td>
+            </tr>
+            <tr>
+              <td><strong>J6</strong></td>
+              <td>多文件 Review 准备区</td>
+              <td>修改提议保存在私有 Blob 暂存区，右侧 Unified Diff 红绿高亮显示</td>
+              <td>用户可逐文件标记“接受”或“拒绝”</td>
+            </tr>
+            <tr>
+              <td><strong>J7</strong></td>
+              <td>一次性审批与原子写入</td>
+              <td>生成绑定 SHA-256 哈希的一次性审批 Token，点击“应用”原子写入</td>
+              <td>自动备份基线，写入或验证失败立即回滚</td>
+            </tr>
+            <tr>
+              <td><strong>J8</strong></td>
+              <td>真实 Runner 验证闭环</td>
+              <td>非交互式执行自动化测试命令，输出回显在 Review 验证卡片中</td>
+              <td>结构化 argv 传参，无 Shell 拼接注入</td>
+            </tr>
+            <tr>
+              <td><strong>J9</strong></td>
+              <td>长任务取消与原地重试</td>
+              <td>运行中提交按钮变为红色“■ 停止”，点击即刻中断；失败卡片提供原地“重试”</td>
+              <td>中断不丢失上下文与暂存区</td>
+            </tr>
+            <tr>
+              <td><strong>J10</strong></td>
+              <td>多会话与 Goal 状态恢复</td>
+              <td>左侧会话独立切换，Goal 状态原子更新，异常重启自动标记 INTERRUPTED</td>
+              <td>SQLite WAL 保证跨重启零损坏</td>
+            </tr>
+            <tr>
+              <td><strong>J11</strong></td>
+              <td>Terminal/Browser 边界隔离</td>
+              <td>Terminal 与 Browser 保持禁用，禁止模型向交互终端注入按键</td>
+              <td>遵循 ADR-0027/0075 严格防御边界</td>
+            </tr>
+            <tr>
+              <td><strong>J12</strong></td>
+              <td>诊断中心与不可变审计</td>
+              <td>打开 ⌁ 诊断抽屉，实时查看 EventEnvelopeV2 账本与 Runner 原始日志</td>
+              <td>64KB 单事件上限，序列缺口严密监控</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TAB 5: SECURITY -->
+    <section id="tab-security" class="tab-content">
+      <div class="guide-article">
+        <h2>🛡️ 四道安全防线与能力边界</h2>
+        <p>本项目严格遵循 <code>AGENTS.md</code> 与 <code>WIN7_CONSTRAINTS.md</code> 最高安全红线：</p>
+
+        <div class="grid-2col">
+          <div class="feature-card">
+            <h4>防线 1：桌面 Renderer 零权限隔离</h4>
+            <p>UI 渲染进程严格禁用 Node 继承与直接文件系统操作，所有数据交互必须经过 Schema 强校验的 IPC 通道，彻底杜绝 XSS 越权。</p>
+          </div>
+          <div class="feature-card">
+            <h4>防线 2：非交互式 Runner 超时与隔离</h4>
+            <p>测试与验证命令采用结构化 argv 传参，严禁拼接执行未经审查的 Shell 字符串。配备独立超时控制与 Windows 进程树销毁机制。</p>
+          </div>
+          <div class="feature-card">
+            <h4>防线 3：凭据 Windows DPAPI 加密</h4>
+            <p>所有 Gateway API Key 均调用 Windows 底层 DPAPI (CryptProtectData) 进行当前用户凭据加密，禁止明文写入数据库或日志。</p>
+          </div>
+          <div class="feature-card">
+            <h4>防线 4：Terminal 与 Browser 严格边界</h4>
+            <p>明确禁止模型向交互终端注入不可控键盘按键或控制序列；禁止内置过时浏览器访问不受信任的公网页面。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: SHORTCUTS -->
+    <section id="tab-shortcuts" class="tab-content">
+      <div class="guide-article">
+        <h2>⌨️ 快捷键与高频操作速查表</h2>
+        <table class="shortcut-table">
+          <thead>
+            <tr>
+              <th>按键 / 动作</th>
+              <th>功能说明</th>
+              <th>生效区域</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><kbd>Enter</kbd></td>
+              <td>发送当前输入框中的任务内容</td>
+              <td>输入框 (Composer)</td>
+            </tr>
+            <tr>
+              <td><kbd>Shift</kbd> + <kbd>Enter</kbd></td>
+              <td>在输入框中插入换行，不触发提交</td>
+              <td>输入框 (Composer)</td>
+            </tr>
+            <tr>
+              <td><kbd>Esc</kbd></td>
+              <td>关闭打开的设置抽屉 (Settings)、诊断抽屉 (Diagnostics) 或模态弹窗</td>
+              <td>全局抽屉/弹窗</td>
+            </tr>
+            <tr>
+              <td><strong>单击代码行</strong></td>
+              <td>高亮选中单行或连续代码，用于解释/修复/上下文注入</td>
+              <td>只读代码查看器</td>
+            </tr>
+            <tr>
+              <td><strong>点击工作区卡片</strong></td>
+              <td>弹出工作区切换选择菜单</td>
+              <td>左侧导航栏</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Interactive Simulator Controller Script -->
+  <script>
+    (function() {
+      // Mock File System Data for Viewer & Staging
+      const fileContents = {
+        'src/parser.c': [
+          '#include <windows.h>',
+          '#include <stdio.h>',
+          '#include "win7_compat.h"',
+          '',
+          'int parse_config_file(const char* filepath) {',
+          '    // BUG: Win7 CP936 字符串未做宽字符转换直接解析导致乱码',
+          '    FILE* fp = fopen(filepath, "r");',
+          '    if (!fp) return -1;',
+          '    char line[512];',
+          '    while (fgets(line, sizeof(line), fp)) {',
+          '        process_line(line);',
+          '    }',
+          '    fclose(fp);',
+          '    return 0;',
+          '}'
+        ],
+        'src/encoding.c': [
+          '#include <windows.h>',
+          '#include "win7_compat.h"',
+          '',
+          'BOOL win7_convert_cp936_to_utf8(const char* in, char* out, int out_len) {',
+          '    wchar_t wbuf[1024];',
+          '    int wlen = MultiByteToWideChar(CP_ACP, 0, in, -1, wbuf, 1024);',
+          '    if (wlen <= 0) return FALSE;',
+          '    int ulen = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, out, out_len, NULL, NULL);',
+          '    return (ulen > 0);',
+          '}'
+        ],
+        'include/win7_compat.h': [
+          '#ifndef WIN7_COMPAT_H',
+          '#define WIN7_COMPAT_H',
+          '',
+          '#define WINVER 0x0601',
+          '#define _WIN32_WINNT 0x0601',
+          '#include <windows.h>',
+          '',
+          'BOOL win7_convert_cp936_to_utf8(const char* in, char* out, int out_len);',
+          '',
+          '#endif // WIN7_COMPAT_H'
+        ],
+        'Makefile': [
+          'CC = cl.exe',
+          'CFLAGS = /nologo /W3 /O2 /DWIN32 /D_WINDOWS',
+          'LDFLAGS = /SUBSYSTEM:CONSOLE,6.01 /MACHINE:X64',
+          '',
+          'all: app.exe',
+          '',
+          'app.exe: src/parser.obj src/encoding.obj',
+          '    link $(LDFLAGS) /OUT:app.exe src/parser.obj src/encoding.obj user32.lib',
+          '',
+          'clean:',
+          '    del *.obj app.exe'
+        ]
+      };
+
+      const diffContents = {
+        'src/parser.c': `<span class="diff-meta">--- a/src/parser.c
++++ b/src/parser.c</span>
+@@ -45,7 +45,8 @@
+<span class="diff-del">- char buf[256];</span>
+<span class="diff-del">- strcpy(buf, input);</span>
+<span class="diff-add">+ wchar_t wbuf[512];</span>
+<span class="diff-add">+ MultiByteToWideChar(CP_ACP, 0, input, -1, wbuf, 512);</span>`,
+        'src/encoding.c': `<span class="diff-meta">--- /dev/null
++++ b/src/encoding.c</span>
+@@ -0,0 +1,9 @@
+<span class="diff-add">+#include &lt;windows.h&gt;</span>
+<span class="diff-add">+#include "win7_compat.h"</span>
+<span class="diff-add">+BOOL win7_convert_cp936_to_utf8(const char* in, char* out, int out_len) {</span>
+<span class="diff-add">+    wchar_t wbuf[1024];</span>
+<span class="diff-add">+    MultiByteToWideChar(CP_ACP, 0, in, -1, wbuf, 1024);</span>
+<span class="diff-add">+    return WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, out, out_len, NULL, NULL) > 0;</span>
+<span class="diff-add">+}</span>`
+      };
+
+      // Tab Navigation
+      const tabBtns = document.querySelectorAll('.doc-tab-btn');
+      const tabContents = document.querySelectorAll('.tab-content');
+
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.getAttribute('data-target');
+          tabBtns.forEach(b => b.classList.remove('active'));
+          tabContents.forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById(targetId).classList.add('active');
+        });
+      });
+
+      // Simulator State
+      const sim = {
+        mode: 'plan',
+        running: false,
+        activeFile: 'src/parser.c',
+        reviewStaged: false,
+        sessionCount: 3,
+        contextFiles: [],
+        activeWorkspace: 'C:\\Projects\\LegacyWin7App'
+      };
+
+      // DOM Elements
+      const promptInput = document.getElementById('sim-prompt-input');
+      const btnSend = document.getElementById('sim-btn-send');
+      const btnStop = document.getElementById('sim-btn-stop');
+      const messagesFlow = document.getElementById('sim-messages-flow');
+      const welcome = document.getElementById('sim-welcome');
+      const taskPill = document.getElementById('sim-task-pill');
+      const contextChips = document.getElementById('sim-context-chips');
+      const modeDirect = document.getElementById('sim-mode-direct');
+      const modePlan = document.getElementById('sim-mode-plan');
+      const secReview = document.getElementById('sim-sec-review');
+      const secViewer = document.getElementById('sim-sec-viewer');
+      const secExplorer = document.getElementById('sim-sec-explorer');
+      const navAgent = document.getElementById('sim-nav-agent');
+      const navReview = document.getElementById('sim-nav-review');
+      const navTerminal = document.getElementById('sim-nav-terminal');
+      const navBrowser = document.getElementById('sim-nav-browser');
+      const reviewNavState = document.getElementById('sim-review-nav-state');
+      const diagTimeline = document.getElementById('sim-diag-timeline');
+      const railPlanIndicator = document.getElementById('sim-rail-plan-indicator');
+      const codeViewer = document.getElementById('sim-code-viewer');
+      const viewerFilename = document.getElementById('sim-viewer-filename');
+      const viewerRange = document.getElementById('sim-viewer-range');
+      const reviewDiffViewer = document.getElementById('sim-review-diff-viewer');
+
+      // Modals & Drawers
+      const modalAttach = document.getElementById('sim-modal-attach');
+      const modalWs = document.getElementById('sim-modal-ws');
+      const drawerSettings = document.getElementById('sim-drawer-settings');
+      const drawerDiag = document.getElementById('sim-drawer-diag');
+
+      // Load File into Code Viewer
+      function loadFile(filePath) {
+        sim.activeFile = filePath;
+        const lines = fileContents[filePath] || ['// (空文件)'];
+        viewerFilename.innerText = filePath;
+        viewerRange.innerText = `1-${lines.length} 行`;
+        document.getElementById('sim-viewer-jump').max = lines.length;
+
+        codeViewer.innerHTML = lines.map((line, idx) => {
+          const lineNum = idx + 1;
+          const isSelected = (filePath === 'src/parser.c' && (lineNum === 6 || lineNum === 7));
+          return `
+            <div class="code-line ${isSelected ? 'selected' : ''}" data-line="${lineNum}">
+              <span class="line-no">${lineNum}</span>
+              <span class="line-code">${escapeHtml(line)}</span>
+            </div>
+          `;
+        }).join('');
+
+        // Re-bind line selection
+        codeViewer.querySelectorAll('.code-line').forEach(lineEl => {
+          lineEl.addEventListener('click', () => {
+            lineEl.classList.toggle('selected');
+          });
+        });
+
+        // Update active file class in file tree
+        document.querySelectorAll('#sim-file-tree button[data-file]').forEach(b => {
+          if (b.getAttribute('data-file') === filePath) b.classList.add('active-file');
+          else b.classList.remove('active-file');
+        });
+      }
+      loadFile('src/parser.c');
+
+      // Tree File Click Handlers
+      document.querySelectorAll('#sim-file-tree button[data-file]').forEach(b => {
+        b.addEventListener('click', () => {
+          loadFile(b.getAttribute('data-file'));
+        });
+      });
+
+      // Up button
+      document.getElementById('sim-btn-ws-up').addEventListener('click', () => {
+        alert('当前已处于工作区根目录 /src');
+      });
+
+      // Code Viewer Jump
+      document.getElementById('sim-btn-jump').addEventListener('click', () => {
+        const lineNum = parseInt(document.getElementById('sim-viewer-jump').value);
+        if (lineNum) {
+          const targetEl = codeViewer.querySelector(`.code-line[data-line="${lineNum}"]`);
+          if (targetEl) {
+            codeViewer.querySelectorAll('.code-line').forEach(l => l.classList.remove('selected'));
+            targetEl.classList.add('selected');
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      });
+      document.getElementById('sim-viewer-jump').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('sim-btn-jump').click();
+      });
+
+      // Code Viewer Search
+      document.getElementById('sim-viewer-search').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        codeViewer.querySelectorAll('.code-line').forEach(lineEl => {
+          const text = lineEl.querySelector('.line-code').innerText.toLowerCase();
+          if (query && text.includes(query)) {
+            lineEl.classList.add('highlight-search');
+          } else {
+            lineEl.classList.remove('highlight-search');
+          }
+        });
+      });
+
+      // Review File List Item Click (Switch Diff)
+      document.querySelectorAll('#sim-review-file-list li').forEach(li => {
+        li.addEventListener('click', () => {
+          document.querySelectorAll('#sim-review-file-list li').forEach(x => x.classList.remove('selected'));
+          li.classList.add('selected');
+          const f = li.getAttribute('data-file');
+          reviewDiffViewer.innerHTML = diffContents[f] || '(无差异)';
+        });
+      });
+
+      // Global Esc Key Handler
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          modalAttach.hidden = true;
+          modalWs.hidden = true;
+          drawerSettings.hidden = true;
+          drawerDiag.hidden = true;
+        }
+      });
+
+      // Initialize Mode Switch
+      function setMode(newMode) {
+        sim.mode = newMode;
+        if (newMode === 'plan') {
+          modePlan.classList.add('active');
+          modeDirect.classList.remove('active');
+          railPlanIndicator.innerText = '先计划模式 (待生成)';
+          railPlanIndicator.style.borderColor = 'var(--blue)';
+          railPlanIndicator.style.color = 'var(--blue)';
+        } else {
+          modeDirect.classList.add('active');
+          modePlan.classList.remove('active');
+          railPlanIndicator.innerText = '直接执行模式';
+          railPlanIndicator.style.borderColor = '#3d6549';
+          railPlanIndicator.style.color = 'var(--green)';
+        }
+      }
+      setMode('plan');
+
+      modeDirect.addEventListener('click', () => setMode('direct'));
+      modePlan.addEventListener('click', () => setMode('plan'));
+
+      // Workspace selector
+      document.getElementById('sim-ws-select').addEventListener('click', () => modalWs.hidden = false);
+      document.getElementById('sim-btn-close-ws-modal').addEventListener('click', () => modalWs.hidden = true);
+      document.querySelectorAll('.ws-pick').forEach(b => {
+        b.addEventListener('click', () => {
+          sim.activeWorkspace = b.getAttribute('data-ws');
+          document.getElementById('sim-ws-name').innerText = sim.activeWorkspace;
+          document.getElementById('sim-ws-path').innerText = b.getAttribute('data-tag');
+          modalWs.hidden = true;
+          appendAudit('workspace.switched', `path="${sim.activeWorkspace}"`);
+        });
+      });
+
+      // Text Attachment Modal & Quick Presets
+      document.getElementById('sim-attach-text').addEventListener('click', () => {
+        modalAttach.hidden = false;
+        document.getElementById('sim-attach-content').focus();
+      });
+      document.getElementById('sim-btn-cancel-attach').addEventListener('click', () => modalAttach.hidden = true);
+
+      document.querySelectorAll('.modal-preset-btn').forEach(pb => {
+        pb.addEventListener('click', () => {
+          const p = pb.getAttribute('data-preset');
+          const txt = document.getElementById('sim-attach-content');
+          if (p === 'gbk') {
+            txt.value = `[ERROR 2026-08-21 16:30] CP936 Decode Error in conhost.dll\nFailed line: "配置加载成功 (0x80070002)"\nEncoding mismatch: source is GBK, parser assumed UTF-8.`;
+          } else if (p === 'gdi') {
+            txt.value = `[FATAL] GDI Object Leak in WinMain\nHandle count exceeded 9900 (limit 10000 on Win7 SP1 x64).\nCallstack: CreateCompatibleDC -> SelectObject (missing DeleteDC).`;
+          } else {
+            txt.value = `[BUILD] Makefile.win7:42: *** target pattern contains no '%'. Stop.\nCompiler: MSVC 2010 / WinSDK 7.1A x64.`;
+          }
+        });
+      });
+
+      document.getElementById('sim-btn-confirm-attach').addEventListener('click', () => {
+        const val = document.getElementById('sim-attach-content').value.trim();
+        const snippetName = val.length > 0 ? (val.split('\n')[0].substring(0, 20) + '...') : '日志附件 (64B)';
+        addContextChip(`文本: ${snippetName}`);
+        document.getElementById('sim-attach-content').value = '';
+        modalAttach.hidden = true;
+        promptInput.focus();
+      });
+
+      // Prompt suggestions with Auto Mode Sync
+      document.querySelectorAll('.suggestions button').forEach(b => {
+        b.addEventListener('click', () => {
+          const reqMode = b.getAttribute('data-mode') || 'plan';
+          setMode(reqMode);
+          promptInput.value = b.getAttribute('data-prompt');
+          promptInput.focus();
+        });
+      });
+
+      // Add context chip
+      function addContextChip(fileName) {
+        if (sim.contextFiles.includes(fileName)) return;
+        sim.contextFiles.push(fileName);
+        renderContextChips();
+      }
+      function renderContextChips() {
+        if (sim.contextFiles.length === 0) {
+          contextChips.hidden = true;
+          contextChips.innerHTML = '';
+          return;
+        }
+        contextChips.hidden = false;
+        contextChips.innerHTML = sim.contextFiles.map(f => `
+          <div class="context-chip">
+            <span>@${f}</span>
+            <button type="button" data-del="${f}">×</button>
+          </div>
+        `).join('');
+        contextChips.querySelectorAll('button[data-del]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const delFile = btn.getAttribute('data-del');
+            sim.contextFiles = sim.contextFiles.filter(x => x !== delFile);
+            renderContextChips();
+          });
+        });
+      }
+
+      // Add context from file tree
+      document.querySelectorAll('button[data-add-context]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          addContextChip(btn.getAttribute('data-add-context'));
+        });
+      });
+
+      // Add context from selection button
+      document.getElementById('sim-btn-add-ctx').addEventListener('click', () => {
+        addContextChip(sim.activeFile + ' (L6-7)');
+      });
+
+      // Explain / Fix selection
+      document.getElementById('sim-btn-explain').addEventListener('click', () => {
+        addContextChip(sim.activeFile + ' (L6-7)');
+        setMode('direct');
+        executeTask('请解释选区代码在 Win7 CP936 编码下的潜在乱码缺陷与修复方案。');
+      });
+      document.getElementById('sim-btn-fix').addEventListener('click', () => {
+        addContextChip(sim.activeFile + ' (L6-7)');
+        setMode('plan');
+        executeTask('请为选区代码制定计划并修复，使用 MultiByteToWideChar 安全转换。');
+      });
+
+      // Switch Nav Tabs (Agent / Review / Terminal / Browser)
+      navAgent.addEventListener('click', () => {
+        navAgent.classList.add('active');
+        navReview.classList.remove('active');
+        secViewer.hidden = false;
+        secExplorer.hidden = false;
+        secReview.hidden = true;
+      });
+      navReview.addEventListener('click', () => {
+        navReview.classList.add('active');
+        navAgent.classList.remove('active');
+        secViewer.hidden = true;
+        secExplorer.hidden = true;
+        secReview.hidden = false;
+      });
+      navTerminal.addEventListener('click', () => {
+        alert('【安全边界生效】根据 ADR-0027/ADR-0075，旧 winpty 处于 NO_GO 状态，禁止 Agent 向交互终端注入输入。');
+      });
+      navBrowser.addEventListener('click', () => {
+        alert('【安全边界生效】内置 Electron 处于 deny-by-default 状态，禁止公网任意网页自动化浏览。');
+      });
+
+      // Goal Actions
+      document.getElementById('sim-edit-goal').addEventListener('click', () => {
+        const newGoal = prompt('请输入当前会话的新 Goal 描述：', document.getElementById('sim-goal-text').innerText);
+        if (newGoal) {
+          document.getElementById('sim-goal-text').innerText = newGoal;
+          appendAudit('goal.updated', `goal="${newGoal}"`);
+        }
+      });
+      document.getElementById('sim-achieve-goal').addEventListener('click', () => {
+        alert('🎉 恭喜！当前 Goal 已标记为达成 (ACHIEVED)');
+        document.getElementById('sim-goal-text').innerHTML = '<span style="color:var(--green)">✓ 目标已达成</span>';
+        appendAudit('goal.achieved', 'status=ACHIEVED');
+      });
+      document.getElementById('sim-abandon-goal').addEventListener('click', () => {
+        if (confirm('确认放弃当前 Goal 吗？')) {
+          document.getElementById('sim-goal-text').innerText = '(已放弃)';
+          appendAudit('goal.abandoned', 'status=ABANDONED');
+        }
+      });
+
+      // Sessions List Click
+      document.querySelectorAll('#sim-session-list li').forEach(li => {
+        li.addEventListener('click', () => {
+          document.querySelectorAll('#sim-session-list li').forEach(x => x.classList.remove('active'));
+          li.classList.add('active');
+          document.getElementById('sim-session-label').innerText = li.querySelector('span').innerText;
+          appendAudit('session.switched', `sessionId=${li.getAttribute('data-session')}`);
+        });
+      });
+      document.getElementById('sim-new-session').addEventListener('click', () => {
+        sim.sessionCount++;
+        const ul = document.getElementById('sim-session-list');
+        const newLi = document.createElement('li');
+        newLi.setAttribute('data-session', sim.sessionCount);
+        newLi.innerHTML = `<span>#${sim.sessionCount} 新建探索会话</span><small style="color:var(--green)">NEW</small>`;
+        newLi.addEventListener('click', () => {
+          document.querySelectorAll('#sim-session-list li').forEach(x => x.classList.remove('active'));
+          newLi.classList.add('active');
+          document.getElementById('sim-session-label').innerText = `#${sim.sessionCount} 新建探索会话`;
+        });
+        ul.appendChild(newLi);
+        newLi.click();
+        appendAudit('session.created', `sessionId=${sim.sessionCount}`);
+      });
+      document.getElementById('sim-btn-close-session').addEventListener('click', () => {
+        const activeLi = document.querySelector('#sim-session-list li.active');
+        if (activeLi) {
+          activeLi.classList.add('archived');
+          activeLi.querySelector('small').innerText = 'ARCH';
+          activeLi.querySelector('small').style.color = 'var(--muted)';
+          appendAudit('session.archived', `sessionId=${activeLi.getAttribute('data-session')}`);
+        }
+      });
+
+      // Drawers (Settings & Diag)
+      document.getElementById('sim-btn-settings').addEventListener('click', () => drawerSettings.hidden = false);
+      document.getElementById('sim-close-settings-btn').addEventListener('click', () => drawerSettings.hidden = true);
+      document.getElementById('sim-close-settings-bg').addEventListener('click', () => drawerSettings.hidden = true);
+      document.getElementById('sim-btn-save-settings').addEventListener('click', () => {
+        const mode = document.getElementById('sim-set-mode').value;
+        const statusEl = document.getElementById('sim-conn-text');
+        if (mode === 'replay') statusEl.innerText = 'REPLAY 本地';
+        else if (mode === 'gateway') statusEl.innerText = 'GATEWAY 内网';
+        else statusEl.innerText = 'DEEPSEEK 远端';
+        drawerSettings.hidden = true;
+      });
+
+      document.getElementById('sim-btn-diag').addEventListener('click', () => drawerDiag.hidden = false);
+      document.getElementById('sim-close-diag-btn').addEventListener('click', () => drawerDiag.hidden = true);
+      document.getElementById('sim-close-diag-bg').addEventListener('click', () => drawerDiag.hidden = true);
+
+      // Review Decisions
+      document.getElementById('sim-btn-accept-file').addEventListener('click', () => {
+        const activeReviewLi = document.querySelector('#sim-review-file-list li.selected');
+        const decSpan = activeReviewLi ? activeReviewLi.querySelector('.review-decision') : document.getElementById('dec-parser');
+        if (decSpan) {
+          decSpan.innerText = '✓ 接受';
+          decSpan.style.color = 'var(--green)';
+        }
+        document.getElementById('sim-btn-apply-changes').disabled = false;
+        appendAudit('review.decided', `file=${activeReviewLi ? activeReviewLi.getAttribute('data-file') : 'src/parser.c'} decision=ACCEPTED`);
+      });
+      document.getElementById('sim-btn-reject-file').addEventListener('click', () => {
+        const activeReviewLi = document.querySelector('#sim-review-file-list li.selected');
+        const decSpan = activeReviewLi ? activeReviewLi.querySelector('.review-decision') : document.getElementById('dec-parser');
+        if (decSpan) {
+          decSpan.innerText = '✗ 拒绝';
+          decSpan.style.color = 'var(--red)';
+        }
+        appendAudit('review.decided', `file=${activeReviewLi ? activeReviewLi.getAttribute('data-file') : 'src/parser.c'} decision=REJECTED`);
+      });
+      document.getElementById('sim-btn-gen-approval').addEventListener('click', () => {
+        alert('【一次性精确审批已生成】Token: appr_sha256_91a0b3f814...\n该 Token 仅单次有效，精确绑定当前已接受文件集合。');
+        appendAudit('approval.generated', 'token=appr_sha256_91a0... boundFiles=1');
+      });
+      document.getElementById('sim-btn-apply-changes').addEventListener('click', () => {
+        alert('【受控原子应用成功】变更已写入正式工作区，并保存基线快照备份！');
+        document.getElementById('sim-review-status').innerText = '已应用';
+        document.getElementById('sim-review-status').style.color = 'var(--green)';
+        reviewNavState.innerText = '已完成';
+        appendAudit('workspace.applied', 'status=COMMITTED files=1 backupHash=sha256:4a7e...');
+      });
+      document.getElementById('sim-btn-run-tests').addEventListener('click', () => {
+        document.getElementById('sim-val-status').innerText = 'RUNNING...';
+        setTimeout(() => {
+          document.getElementById('sim-val-status').innerText = 'PASSED (2/2)';
+          alert('自动化验证测试全部通过，无回归！');
+          appendAudit('validation.executed', 'profile=D-013 result=PASS passed=2 failed=0');
+        }, 500);
+      });
+
+      // Append Audit Log Helper
+      function appendAudit(eventKind, details) {
+        const li = document.createElement('li');
+        const seq = diagTimeline.children.length + 1;
+        li.innerHTML = `<span class="event-kind">${eventKind}</span> seq=${seq} ${details}`;
+        diagTimeline.appendChild(li);
+        diagTimeline.scrollTop = diagTimeline.scrollHeight;
+        document.getElementById('diag-seq-val').innerText = `#${seq} (连续无缺口)`;
+      }
+
+      // Execution Engine Simulation
+      function executeTask(userText, forcePlan = false) {
+        if (!userText.trim()) return;
+        welcome.hidden = true;
+        promptInput.value = '';
+        sim.running = true;
+        btnSend.hidden = true;
+        btnStop.hidden = false;
+        btnStop.disabled = false;
+        taskPill.className = 'task-pill running';
+        taskPill.innerText = '运行中';
+
+        // 1. User Message
+        const userMsg = document.createElement('article');
+        userMsg.className = 'message user';
+        userMsg.innerHTML = `
+          <div class="avatar"></div>
+          <div class="message-body">
+            <div class="message-meta">YOU · 刚刚</div>
+            <div class="message-content">${escapeHtml(userText)}</div>
+          </div>
+        `;
+        messagesFlow.appendChild(userMsg);
+        appendAudit('task.started', `taskId=tsk_${Math.floor(Math.random()*10000)}`);
+
+        // 2. Assistant Thinking & Content Container
+        const aiMsg = document.createElement('article');
+        aiMsg.className = 'message assistant';
+        const uniqueAiId = 'ai-msg-' + Date.now();
+        aiMsg.innerHTML = `
+          <div class="avatar"></div>
+          <div class="message-body">
+            <div class="message-meta">AI · 正在规划与分析</div>
+            <div class="message-content" id="${uniqueAiId}"></div>
+          </div>
+        `;
+        messagesFlow.appendChild(aiMsg);
+        const aiContent = aiMsg.querySelector('#' + uniqueAiId);
+
+        const isPlanMode = forcePlan || sim.mode === 'plan';
+
+        if (isPlanMode) {
+          // Explicit Plan-First Mode with Header Approval Controls
+          railPlanIndicator.innerText = '计划待审批 (4步)';
+          railPlanIndicator.style.color = 'var(--amber)';
+          railPlanIndicator.style.borderColor = 'var(--amber)';
+
+          aiContent.innerHTML = `
+            <div class="card plan-card" id="active-plan-card">
+              <div class="card-header">
+                <div class="plan-header-title">
+                  <span>📋 结构化执行计划 (Plan v1)</span>
+                  <span id="plan-status-pill" style="color:var(--amber);font-size:10px;font-weight:bold;">[待用户审批]</span>
+                </div>
+                <!-- Prominent Approval Buttons directly in Header -->
+                <div class="plan-top-actions" id="plan-top-actions">
+                  <button type="button" class="danger" id="btn-plan-reject">放弃</button>
+                  <button type="button" class="primary" id="btn-plan-approve">✓ 批准执行计划 (Approve)</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div style="font-size:11px;margin-bottom:4px;">
+                  🎯 <strong>目标:</strong> 修复 <code>parser.c</code> 编码缺陷，适配 Win7 conhost 宽字符输出与 GBK 往返。
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">
+                  📁 <strong>拟读文件:</strong> <code>src/parser.c</code>, <code>include/win7_compat.h</code> | <strong>拟写准备区:</strong> <code>src/parser.c</code>, <code>src/encoding.c</code>
+                </div>
+
+                <ul class="plan-steps-list">
+                  <li class="plan-step-item" id="pstep-1">
+                    <span class="plan-step-badge">步骤 1</span>
+                    <div><strong>只读检索:</strong> 扫描 <code>parser.c</code> 中的文件读写与字符串转换逻辑。</div>
+                  </li>
+                  <li class="plan-step-item" id="pstep-2">
+                    <span class="plan-step-badge">步骤 2</span>
+                    <div><strong>方案生成:</strong> 使用 Win32 原生 <code>MultiByteToWideChar</code> 实现 CP936 宽字符安全转换。</div>
+                  </li>
+                  <li class="plan-step-item" id="pstep-3">
+                    <span class="plan-step-badge">步骤 3</span>
+                    <div><strong>暂存准备区:</strong> 生成 2 个文件 Unified Diff 推送至 Review 准备区，工作区保持只读。</div>
+                  </li>
+                  <li class="plan-step-item" id="pstep-4">
+                    <span class="plan-step-badge">步骤 4</span>
+                    <div><strong>自动化验证:</strong> 结构化调用测试 Runner 运行编码转换单元测试，验证无乱码。</div>
+                  </li>
+                </ul>
+
+                <div class="plan-risk-box">
+                  🛡️ <strong>Win7 安全控制：</strong> 严格使用 Win7 SP1 API；未经验收审批绝不直接写入用户工作区。
+                </div>
+              </div>
+            </div>
+          `;
+          appendAudit('plan.generated', 'steps=4 mode=plan approvalCheck=REQUIRED');
+          taskPill.className = 'task-pill awaiting';
+          taskPill.innerText = '等待批准';
+
+          // Smooth scroll within conversation
+          const convEl = document.getElementById('sim-conversation');
+          if (convEl) convEl.scrollTop = convEl.scrollHeight;
+
+          // Bind Approval Button
+          document.getElementById('btn-plan-approve').addEventListener('click', function() {
+            document.getElementById('plan-status-pill').innerText = '[✓ 计划已批准]';
+            document.getElementById('plan-status-pill').style.color = 'var(--green)';
+            document.getElementById('plan-top-actions').innerHTML = '<span style="color:var(--green);font-size:10px;font-weight:bold;">✓ 正在执行...</span>';
+            appendAudit('plan.approved', 'planId=plan_01 userApproved=true');
+            railPlanIndicator.innerText = '计划执行中 (1/4)';
+            proceedWithExecution(aiContent, true);
+          });
+
+          // Bind Reject Button
+          document.getElementById('btn-plan-reject').addEventListener('click', function() {
+            document.getElementById('plan-status-pill').innerText = '[✗ 计划已放弃]';
+            document.getElementById('plan-status-pill').style.color = 'var(--red)';
+            document.getElementById('plan-top-actions').innerHTML = '<span style="color:var(--red);font-size:10px;">未进行修改</span>';
+            appendAudit('plan.rejected', 'planId=plan_01 userApproved=false');
+            finishTask('cancelled');
+          });
+
+        } else {
+          // Direct Mode Execution
+          aiContent.innerHTML = `
+            <p>已接收任务，当前处于 <strong>「直接执行」</strong> 模式。正在启动只读工具进行代码检索与补丁准备：</p>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">
+              ⚡ <strong>快速规划:</strong> 1. 读取源码分析 -> 2. 生成暂存补丁 -> 3. 提交 Review 审查
+            </div>
+          `;
+          proceedWithExecution(aiContent, false);
+        }
+      }
+
+      function proceedWithExecution(container, hasPlanCard) {
+        taskPill.className = 'task-pill running';
+        taskPill.innerText = '工具执行中';
+
+        if (hasPlanCard) {
+          const step1 = document.getElementById('pstep-1');
+          if (step1) step1.className = 'plan-step-item active';
+        }
+
+        setTimeout(() => {
+          // Tool 1: read_file
+          if (hasPlanCard) {
+            const step1 = document.getElementById('pstep-1');
+            if (step1) step1.className = 'plan-step-item done';
+            const step2 = document.getElementById('pstep-2');
+            if (step2) step2.className = 'plan-step-item active';
+            railPlanIndicator.innerText = '计划执行中 (2/4)';
+          }
+
+          const tool1Div = document.createElement('div');
+          tool1Div.className = 'card tool-card completed';
+          tool1Div.innerHTML = `
+            <div class="card-header">
+              <strong>🛠️ Tool: read_file ("src/parser.c")</strong>
+              <span>耗时 12ms · 状态 PASS</span>
+            </div>
+            <div class="card-body">
+              成功读取 15 行源码 (SHA-256: <code>a819f0...</code>)，检测到未做宽字符转换的 <code>fopen</code> 调用。
+            </div>
+          `;
+          container.appendChild(tool1Div);
+          appendAudit('tool.invoked', 'tool=read_file path=src/parser.c');
+
+          const convEl = document.getElementById('sim-conversation');
+          if (convEl) convEl.scrollTop = convEl.scrollHeight;
+
+          setTimeout(() => {
+            // Tool 2: Review Staging
+            if (hasPlanCard) {
+              const step2 = document.getElementById('pstep-2');
+              if (step2) step2.className = 'plan-step-item done';
+              const step3 = document.getElementById('pstep-3');
+              if (step3) step3.className = 'plan-step-item done';
+              const step4 = document.getElementById('pstep-4');
+              if (step4) step4.className = 'plan-step-item done';
+              railPlanIndicator.innerText = '计划执行完毕 (4/4)';
+              railPlanIndicator.style.color = 'var(--green)';
+              railPlanIndicator.style.borderColor = 'var(--green)';
+            }
+
+            const tool2Div = document.createElement('div');
+            tool2Div.className = 'card tool-card completed';
+            tool2Div.innerHTML = `
+              <div class="card-header">
+                <strong>📦 Review 准备区已就绪</strong>
+                <span>2 个受控文件待审</span>
+              </div>
+              <div class="card-body">
+                已在私有暂存区生成修改方案 (工作区未受改动)：
+                <ul style="margin:3px 0 0 14px;">
+                  <li><code>src/parser.c [MODIFY]</code>: 增加宽字符安全转换</li>
+                  <li><code>src/encoding.c [NEW]</code>: 新增 CP936 回退逻辑</li>
+                </ul>
+              </div>
+              <div class="card-actions">
+                <button type="button" class="primary" id="btn-jump-review-now">切换至 Review 面板审查 Diff</button>
+              </div>
+            `;
+            container.appendChild(tool2Div);
+            appendAudit('review.staged', 'files=2 status=READY');
+            
+            // Update Review Panel State
+            secReview.hidden = false;
+            secViewer.hidden = true;
+            secExplorer.hidden = true;
+            navReview.classList.add('active');
+            navAgent.classList.remove('active');
+            reviewNavState.innerText = '待审核';
+            reviewNavState.style.color = 'var(--amber)';
+
+            const jumpBtn = tool2Div.querySelector('#btn-jump-review-now');
+            if (jumpBtn) {
+              jumpBtn.addEventListener('click', () => {
+                navReview.click();
+              });
+            }
+
+            if (convEl) convEl.scrollTop = convEl.scrollHeight;
+
+            finishTask('completed');
+          }, 700);
+        }, 500);
+      }
+
+      function finishTask(status) {
+        sim.running = false;
+        btnSend.hidden = false;
+        btnStop.hidden = true;
+        if (status === 'completed') {
+          taskPill.className = 'task-pill completed';
+          taskPill.innerText = '完成';
+        } else {
+          taskPill.className = 'task-pill failed';
+          taskPill.innerText = '已取消';
+        }
+      }
+
+      function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      // Send Button & Enter Key
+      btnSend.addEventListener('click', () => {
+        executeTask(promptInput.value);
+      });
+      promptInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          executeTask(promptInput.value);
+        }
+      });
+      btnStop.addEventListener('click', () => {
+        finishTask('cancelled');
+      });
+
+      // 12 User Journeys Handler
+      document.getElementById('btn-run-journey').addEventListener('click', () => {
+        const j = document.getElementById('sim-journey-select').value;
+        switch(j) {
+          case 'j2': // 先计划模式与结构化拆解
+            setMode('plan');
+            executeTask('重构 parser.c 并修复 Win7 GBK 中文字符集乱码问题', true);
+            break;
+          case 'j1': // 自然语言启动
+            setMode('direct');
+            executeTask('请扫描当前工作区的 C 源码，排查是否有 Win10+ 专属 API 依赖并报告兼容性结论。');
+            break;
+          case 'j3': // 上下文引用
+            addContextChip('src/parser.c');
+            addContextChip('include/win7_compat.h');
+            addContextChip('文本: GBK 乱码日志 (64B)');
+            promptInput.value = '请结合上述 3 个上下文引用文件，生成详细修复代码。';
+            promptInput.focus();
+            break;
+          case 'j4': // 流式消息
+            setMode('direct');
+            executeTask('生成详细的 Win7 SP1 内存与进程隔离安全审计分析报告');
+            break;
+          case 'j5': // 工具卡片折叠
+            setMode('direct');
+            executeTask('执行只读代码分析与 Grep 关键词搜索');
+            break;
+          case 'j6': // Review 准备区
+            setMode('plan');
+            executeTask('生成多文件编码修复补丁并提交 Review 准备区', true);
+            break;
+          case 'j7': // 一次性审批
+            navReview.click();
+            document.getElementById('sim-btn-accept-file').click();
+            document.getElementById('sim-btn-gen-approval').click();
+            break;
+          case 'j8': // 测试闭环
+            navReview.click();
+            document.getElementById('sim-btn-run-tests').click();
+            break;
+          case 'j9': // 取消与重试
+            executeTask('执行长时间运行的大规模跨模块扫描...');
+            setTimeout(() => {
+              btnStop.click();
+              alert('【长任务已安全停止】会话上下文已保留，点击可原地发起重试。');
+            }, 400);
+            break;
+          case 'j10': // 会话与 Goal
+            document.getElementById('sim-new-session').click();
+            document.getElementById('sim-edit-goal').click();
+            break;
+          case 'j11': // 安全边界
+            navTerminal.click();
+            break;
+          case 'j12': // 诊断中心
+            document.getElementById('sim-btn-diag').click();
+            break;
+        }
+      });
+
+      document.getElementById('tour-reset').addEventListener('click', () => {
+        messagesFlow.innerHTML = '';
+        welcome.hidden = false;
+        sim.contextFiles = [];
+        renderContextChips();
+        taskPill.className = 'task-pill idle';
+        taskPill.innerText = '空闲';
+        navAgent.click();
+        reviewNavState.innerText = '待准备';
+        reviewNavState.style.color = 'var(--muted)';
+        document.getElementById('dec-parser').innerText = '待定';
+        document.getElementById('dec-parser').style.color = 'var(--muted)';
+        document.getElementById('dec-encoding').innerText = '待定';
+        document.getElementById('dec-encoding').style.color = 'var(--muted)';
+        document.getElementById('sim-btn-apply-changes').disabled = true;
+        loadFile('src/parser.c');
+        setMode('plan');
+      });
+
+    })();
+  </script>
+</body>
+</html>

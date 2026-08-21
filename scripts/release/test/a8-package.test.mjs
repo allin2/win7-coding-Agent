@@ -68,17 +68,24 @@ test('A8 builder produces byte-identical fixture candidates and locked manifest 
   assert.equal(two.manifest.external_acceptance_eligible, !two.manifest.source_dirty);
   const validationKit = JSON.parse(fs.readFileSync(path.join(two.stage, 'A8_06_VALIDATION_KIT.json'), 'utf8'));
   assert.equal(validationKit.schema_version, 2);
-  assert.match(validationKit.commands.win10.a8_05, /run-a8-05-electron-smoke\.mjs/);
+  assert.match(validationKit.commands.win10.preflight, /set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe -v/);
+  assert.doesNotMatch(validationKit.commands.win10.preflight, /where node/);
+  assert.doesNotMatch(validationKit.commands.win7.preflight, /where node/);
+  assert.match(validationKit.commands.win10.a8_05, /set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe validation\\run-a8-05-electron-smoke\.mjs/);
   assert.match(validationKit.commands.win10.a8_05, /--electron=\.\\electron\.exe/);
   assert.doesNotMatch(validationKit.commands.win10.a8_05, /run-a8-05-persistence-smoke\.mjs/);
   assert.match(validationKit.commands.win10.a8_05, /--validation-layer=win10/);
-  assert.match(validationKit.commands.win7.verify_set, /verify-a8-evidence-set\.mjs/);
+  assert.match(validationKit.commands.win7.verify_set, /set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe validation\\verify-a8-evidence-set\.mjs/);
   assert.match(validationKit.commands.win7.a8_03, /\.\.\\a8-evidence-win7/);
   for (const layer of ['win10', 'win7']) {
-    for (const commandName of ['a8_03', 'a8_04', 'a8_05', 'verify_set']) {
+    for (const commandName of ['preflight', 'a8_03', 'a8_04', 'a8_05', 'verify_set']) {
       const command = validationKit.commands[layer][commandName];
-      assert.match(command, new RegExp(`\\.\\.\\\\a8-evidence-${layer}`));
-      assert.doesNotMatch(command, /(?:--report|--screenshot)=evidence\\/);
+      assert.match(command, /^set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe/);
+      assert.doesNotMatch(command, /(?:^|\s|&&)node(?:\.exe)?\s/);
+      if (commandName !== 'preflight') {
+        assert.match(command, new RegExp(`\\.\\.\\\\a8-evidence-${layer}`));
+        assert.doesNotMatch(command, /(?:--report|--screenshot)=evidence\\/);
+      }
     }
   }
   assert.ok(validationKit.evidence_schema.required_fields.includes('candidate_manifest_sha256'));
@@ -121,5 +128,66 @@ test('A8 builder rejects a forbidden payload and removes the partial work tree',
   const outputRoot = path.join(root, 'out');
   assert.throws(() => buildA8ProductCandidate({ repositoryRoot: process.cwd(), lockPath: inputs.lockPath, electronZip: inputs.electronZip, runnerZip: inputs.runnerZip, storageZip: inputs.storageZip, outputRoot, allowUncommitted: true }), /FORBIDDEN_PAYLOAD/);
   assert.equal(fs.existsSync(path.join(outputRoot, '.work')), false);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('A8 package validation kit contract executes without system Node in PATH (包内 Electron Node-mode 闭包)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a8-package-no-node-'));
+  const inputs = fixture(root);
+  const candidate = buildA8ProductCandidate({
+    repositoryRoot: process.cwd(),
+    lockPath: inputs.lockPath,
+    electronZip: inputs.electronZip,
+    runnerZip: inputs.runnerZip,
+    storageZip: inputs.storageZip,
+    outputRoot: path.join(root, 'out'),
+    allowUncommitted: true,
+  });
+
+  const kit = JSON.parse(fs.readFileSync(path.join(candidate.stage, 'A8_06_VALIDATION_KIT.json'), 'utf8'));
+  const requiredEntrypoints = [
+    'run-a8-03-electron-review-smoke.mjs',
+    'run-a8-04-boundary-smoke.mjs',
+    'run-a8-05-electron-smoke.mjs',
+    'verify-a8-evidence-set.mjs',
+  ];
+
+  for (const layer of ['win10', 'win7']) {
+    const commands = kit.commands[layer];
+    assert.ok(commands, `commands.${layer} must exist`);
+
+    // 1. Preflight must verify packaged electron.exe in node mode and certutil hashes, never querying system node
+    assert.match(commands.preflight, /^set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe -v/);
+    assert.doesNotMatch(commands.preflight, /\bwhere\s+node\b/i);
+    assert.doesNotMatch(commands.preflight, /\bnode(?:\.exe)?\s+--version\b/i);
+
+    // 2. All smoke/verification commands must use packaged electron.exe in node mode
+    for (const key of ['a8_03', 'a8_04', 'a8_05', 'verify_set']) {
+      const cmd = commands[key];
+      assert.match(cmd, /^set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe\s+validation\\/);
+      assert.doesNotMatch(cmd, /(?:^|\s|&&)node(?:\.exe)?\s+/);
+    }
+  }
+
+  // 3. Packaged validation scripts closure
+  const validationDir = path.join(candidate.stage, 'validation');
+  for (const script of requiredEntrypoints) {
+    const scriptPath = path.join(validationDir, script);
+    assert.ok(fs.existsSync(scriptPath), `Packaged validation script ${script} must exist`);
+    const content = fs.readFileSync(scriptPath, 'utf8');
+
+    // UI smoke scripts must sanitize child environment by deleting ELECTRON_RUN_AS_NODE before launching GUI Electron
+    if (script.includes('review-smoke') || script.includes('boundary-smoke')) {
+      assert.match(content, /delete\s+env\.ELECTRON_RUN_AS_NODE/);
+      assert.match(content, /childProcess\.spawnSync\(electron,\s*args/);
+    }
+
+    // ABI 110 smoke must explicitly bind ELECTRON_RUN_AS_NODE for D-014 SQLite binding
+    if (script.includes('run-a8-05-electron-smoke')) {
+      assert.match(content, /ELECTRON_RUN_AS_NODE:\s*'1'/);
+    }
+  }
+  assertRelativeModuleClosure(validationDir);
+
   fs.rmSync(root, { recursive: true, force: true });
 });

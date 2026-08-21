@@ -8,7 +8,7 @@ Gate: `A8_06_PACKAGE_AND_VALIDATION_READY`
 
 Source: `docs/prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md` §8、`docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md` §6
 
-Decision: `ADR-0084`；evidence 修订：`ADR-0085`、`ADR-0086`
+Decision: `ADR-0084`；evidence 修订：`ADR-0085`、`ADR-0086`、`ADR-0087`
 
 ## 1. 范围与停止边界
 
@@ -53,9 +53,11 @@ A8-06 只负责 `0.2.0-alpha.1` 的确定性产品候选装配、运行时/原�
   候选绑定。报告、截图、stdout/stderr 和临时数据库必须写在候选目录外，执行前后候选文件集合及哈希不变。
 - 早期 Electron 41 开发机 surrogate 报告保留原始 schema v1 字节作为历史实现证据，不得伪造候选 ID 或
   回填为 schema v2；A8-06 候选不得携带这些原始报告，旧 source kit 必须标明已由包内 schema v2 命令取代。
-- D-014 native smoke 必须由 manifest 绑定的包内 Electron 22.3.27 以 Node 模式执行，并显式校验 Win32 x64、
-  Node 16.17.1、ABI 110 和 Win10/Win7 实际系统版本；普通 Node 不得直接加载 Electron binding，正式层也
-  不得省略 `--require-d014`。`source_dirty: true` 的开发包不得进入
+- 验证套件（`preflight`、`a8_03`、`a8_04`、`a8_05`、`verify_set`）全面由包内 `electron.exe` 以 Node 模式
+  （`set ELECTRON_RUN_AS_NODE=1&& .\electron.exe`）作为宿主执行，目标环境不依赖外部 `node.exe`。
+  A8-03/A8-04 在拉起真实 Electron GUI 测试窗口前清除子进程的 `ELECTRON_RUN_AS_NODE`。
+  D-014 native smoke 显式校验 Win32 x64、Node 16.17.1、ABI 110 和 Win10/Win7 实际系统版本；
+  正式层不得省略 `--require-d014`。`source_dirty: true` 的开发包不得进入
   Win10/Win7 正式评分，验证工具必须在启动产品前 fail-closed。
 
 ## 5. 必须通过的开发机检查点

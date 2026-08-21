@@ -41,6 +41,7 @@ describe('A8 real Electron Review smoke contract', () => {
     expect(runner).toContain('A8_ELECTRON_REVIEW_CASE_MATRIX_INVALID');
     expect(runner).toContain('A8_ELECTRON_REVIEW_SCREENSHOT_INVALID');
     expect(runner).toContain("fs.rmSync(runRoot, { recursive: true, force: true })");
+    expect(runner).toContain('delete env.ELECTRON_RUN_AS_NODE');
     expect(runner).not.toContain('execSync');
     expect(runner).not.toContain('shell: true');
   });
