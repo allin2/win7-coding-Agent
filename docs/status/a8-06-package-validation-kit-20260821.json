@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "record_id": "A8-06-PACKAGE-VALIDATION-KIT-20260821-02",
+  "record_id": "A8-06-PACKAGE-VALIDATION-KIT-20260821-03",
   "recorded_at": "2026-08-21",
   "branch": "codex/a8-agent-first-product",
   "stage": "A8-06",
@@ -10,10 +10,10 @@
     "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
     "version": "0.2.0-alpha.1",
     "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
-    "package_sha256": "d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9",
+    "package_sha256": "6a6cb5e76da6acf544d3060f3d40401496039679855725f84634f85ac167bfb5",
     "sidecar_sha256_verified": true,
-    "manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
-    "source_commit": "7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0",
+    "manifest_sha256": "ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f",
+    "source_commit": "3d8f1b3c3526266df3b6b7770e75f431c7cccfed",
     "source_dirty": false,
     "external_acceptance_eligible": true,
     "inputs_are_not_a7_pass": true,
@@ -51,8 +51,8 @@
   ],
   "windows_commands": {
     "eligibility": "READY_SAME_CANDIDATE_EXTERNAL_ENV_REQUIRED",
-    "instruction": "Verify package SHA-256 d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9 and manifest SHA-256 85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c to each of the four validation entrypoints.",
-    "expected_manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
+    "instruction": "Verify package SHA-256 6a6cb5e76da6acf544d3060f3d40401496039679855725f84634f85ac167bfb5 and manifest SHA-256 ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f to each of the four validation entrypoints.",
+    "expected_manifest_sha256": "ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f",
     "command_sets": {
       "win10": "A8_06_VALIDATION_KIT.json.commands.win10",
       "win7": "A8_06_VALIDATION_KIT.json.commands.win7"
@@ -63,7 +63,7 @@
       "validation\\run-a8-05-electron-smoke.mjs",
       "validation\\verify-a8-evidence-set.mjs"
     ],
-    "d014_runtime": "The standalone node command only launches run-a8-05-electron-smoke.mjs; the native binding is loaded by the manifest-bound electron.exe child with ELECTRON_RUN_AS_NODE=1 and ABI 110.",
+    "d014_runtime": "All validation commands (preflight, a8_03, a8_04, a8_05, verify_set) are executed by the packaged Electron 22.3.27 in Node mode (set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe); standalone Node is not required.",
     "evidence_location": "Sibling ..\\a8-evidence-win10 or ..\\a8-evidence-win7; never inside the candidate directory"
   },
   "expected_case_ids": [
@@ -110,7 +110,7 @@
   "operator_notes": [
     "This package is an independent A8 developer candidate. No A7 PASS is inherited.",
     "A real D-014 invocation must use the packaged Electron wrapper; direct standalone Node loading is prohibited and a fake SQLite report can never unlock Win10/Win7.",
-    "The locked package was built twice from clean source commit 7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0 with byte-identical output and is eligible for formal external execution.",
+    "The locked package was built twice from clean source commit 3d8f1b3c3526266df3b6b7770e75f431c7cccfed with byte-identical output (package SHA-256 6a6cb5e76da6acf544d3060f3d40401496039679855725f84634f85ac167bfb5, manifest SHA-256 ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f) and is eligible for formal external execution.",
     "If any external environment is unavailable, record NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE and preserve the same-candidate hash set."
   ]
 }

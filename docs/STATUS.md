@@ -551,4 +551,16 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
   不可用于正式评分的历史 surrogate，未伪造 manifest 绑定；A8-03/A8-04 source kit 已明确由 A8-06 schema v2
   正式命令取代。机器可读复核见 [`a8-06-independent-review-followup-20260821.json`](status/a8-06-independent-review-followup-20260821.json)。
 
+### A8-06 消除外部 Node.exe 假设（ADR-0087，2026-08-21）
+
+- 验证套件全面改用包内 Electron 22.3.27 的 Node 模式（`set ELECTRON_RUN_AS_NODE=1&& .\electron.exe`）
+  作为脚本宿主，彻底消除外部 `node.exe` 假设；`preflight` 移除 `where node` 检查，改为探测
+  包内 `electron.exe -v` 并校验工件哈希。
+- A8-03/A8-04 在拉起真实 Electron GUI 测试窗口前净化子进程环境变量（清除 `ELECTRON_RUN_AS_NODE`）。
+- 增补了“无系统 Node 仍可执行验证套件”的自动化合同测试（`scripts/release/test/a8-package.test.mjs`）。
+- 修复已在干净提交 `3d8f1b3c3526266df3b6b7770e75f431c7cccfed` 上重建两次，结果字节一致：
+  ZIP SHA-256 `6a6cb5e76da6acf544d3060f3d40401496039679855725f84634f85ac167bfb5`，manifest SHA-256
+  `ef782dabf39f6ea59a8d3ee9a06889cbab8c6984a159bcdf39748190f2da160f`，`source_dirty: false`、
+  `external_acceptance_eligible: true`。
+
 模块窗口不得直接修改本页或 README、ROADMAP、DECISIONS；由整合窗口在验证完成后统一更新。
