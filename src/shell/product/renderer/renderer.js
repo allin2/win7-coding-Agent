@@ -403,12 +403,12 @@ function activeContexts() {
 }
 
 function addContext(ref) {
-  if (!state.session || state.session.status !== 'ACTIVE') return;
+  if (!state.session || state.session.status !== 'ACTIVE') return false;
   const refs = activeContexts();
   const key = `${ref.kind}:${ref.path || ref.label || ''}:${ref.startLine || ''}:${ref.endLine || ''}`;
-  if (refs.some((item) => item.key === key)) return;
-  if (refs.length >= 24) { showError({ message: '单轮最多添加 24 项上下文。' }); return; }
-  refs.push({ key, ...ref }); renderContextChips();
+  if (refs.some((item) => item.key === key)) return false;
+  if (refs.length >= 24) { showError({ message: '单轮最多添加 24 项上下文。' }); return false; }
+  refs.push({ key, ...ref }); renderContextChips(); return true;
 }
 
 function renderContextChips() {
@@ -508,12 +508,28 @@ function renderGoal(goal) {
   state.goal = goal;
 }
 
-async function editGoal() {
-  if (!state.session) return;
-  const text = window.prompt('设置当前会话 Goal', state.goal ? state.goal.text : '');
-  if (!text) return;
-  const result = await call(() => window.win7Agent.setGoal(state.session.sessionId, text, state.goal ? state.goal.revision : 0));
-  if (result && result.result) renderGoal(result.result.goal);
+function setFieldError(errorId, inputId, message) {
+  const error = byId(errorId); error.textContent = message || ''; error.hidden = !message;
+  if (message && inputId) byId(inputId).focus();
+}
+
+function openGoalEditor() {
+  if (!state.session || state.session.status !== 'ACTIVE') return;
+  byId('goal-editor-text').value = state.goal ? state.goal.text : '';
+  setFieldError('goal-editor-error', null, '');
+  toggleDrawer('goal-editor-drawer', true, byId('goal-editor-text'));
+}
+
+async function submitGoalEditor(event) {
+  event.preventDefault();
+  if (!state.session || state.session.status !== 'ACTIVE') return;
+  const validation = window.win7AgentSessionUi.validateGoalText(byId('goal-editor-text').value);
+  if (!validation.ok) { setFieldError('goal-editor-error', 'goal-editor-text', validation.error); return; }
+  const button = byId('goal-editor-submit'); button.disabled = true; button.textContent = '保存中…';
+  const result = await call(() => window.win7Agent.setGoal(state.session.sessionId, validation.text, state.goal ? state.goal.revision : 0));
+  button.disabled = false; button.textContent = '保存 Goal';
+  if (!result || !result.result) { setFieldError('goal-editor-error', 'goal-editor-text', '保存失败，请检查当前会话状态后重试。'); return; }
+  renderGoal(result.result.goal); toggleDrawer('goal-editor-drawer', false);
 }
 
 async function resolveGoal(status) {
@@ -522,11 +538,36 @@ async function resolveGoal(status) {
   if (result && result.result) renderGoal(result.result.goal);
 }
 
+function updateTextAttachmentCounter() {
+  const bytes = window.win7AgentSessionUi.utf8ByteLength(byId('text-context-content').value);
+  setText('text-context-counter', `${bytes.toLocaleString()} B / 64 KiB`);
+  byId('text-context-counter').classList.toggle('over-limit', bytes > 64 * 1024);
+}
+
 function attachText() {
-  const content = window.prompt('粘贴文本上下文（单轮总量上限 64 KiB）', '');
-  if (!content) return;
-  const label = window.prompt('附件名称', 'notes.txt') || 'notes.txt';
-  addContext({ kind: 'text', label: label.slice(0, 120), content });
+  if (!state.session || state.session.status !== 'ACTIVE' || state.taskRunning) return;
+  setFieldError('text-context-error', null, '');
+  updateTextAttachmentCounter();
+  toggleDrawer('text-context-drawer', true, byId('text-context-label'));
+}
+
+function submitTextAttachment(event) {
+  event.preventDefault();
+  const refs = activeContexts();
+  if (refs.length >= 24) { setFieldError('text-context-error', 'text-context-content', '单轮最多添加 24 项上下文，请先移除一项。'); return; }
+  const validation = window.win7AgentSessionUi.validateTextAttachment({
+    label: byId('text-context-label').value,
+    content: byId('text-context-content').value,
+    existingLabels: refs.filter((ref) => ref.kind === 'text').map((ref) => ref.label),
+  });
+  updateTextAttachmentCounter();
+  if (!validation.ok) { setFieldError('text-context-error', validation.field === 'label' ? 'text-context-label' : 'text-context-content', validation.error); return; }
+  if (!addContext({ kind: 'text', label: validation.label, content: validation.content })) {
+    setFieldError('text-context-error', 'text-context-label', '没有添加附件；请检查名称或当前上下文数量。'); return;
+  }
+  setText('session-status', `已添加文本上下文：${validation.label} · ${validation.bytes.toLocaleString()} B`);
+  byId('text-context-label').value = 'notes.txt'; byId('text-context-content').value = ''; updateTextAttachmentCounter();
+  toggleDrawer('text-context-drawer', false);
 }
 
 function resetTaskState() {
@@ -551,6 +592,7 @@ function setRunning(running) {
   byId('cancel-task').disabled = !viewingActive || state.cancelRequested; byId('run-task').disabled = running || closingCurrent || !state.session || state.session.status !== 'ACTIVE' || !byId('task-prompt').value.trim();
   byId('task-prompt').disabled = closingCurrent || !state.session || state.session.status !== 'ACTIVE';
   byId('attach-text').disabled = closingCurrent || !state.session || state.session.status !== 'ACTIVE' || running;
+  byId('attach-text').title = closingCurrent ? '会话正在关闭' : !state.session ? '请先创建会话' : state.session.status !== 'ACTIVE' ? '归档会话不能添加上下文' : running ? '任务运行期间不能修改本轮上下文' : '添加文本上下文';
   const canClose = Boolean(state.session && state.session.status === 'ACTIVE');
   const closeLabel = window.win7AgentSessionUi.closeLabel(state.session, running, state.activeTaskSessionId);
   ['close-session', 'close-session-header'].forEach((id) => {
@@ -879,7 +921,7 @@ async function clearSavedApiKey() { const result = await call(() => window.win7A
 
 function resizeComposer() { const input = byId('task-prompt'); input.style.height = 'auto'; input.style.height = `${Math.min(170, input.scrollHeight)}px`; byId('run-task').disabled = state.taskRunning || !state.session || state.session.status !== 'ACTIVE' || !input.value.trim(); }
 
-function toggleDrawer(id, open) {
+function toggleDrawer(id, open, focusTarget) {
   const drawer = byId(id);
   if (!drawer) return;
   const workbench = document.querySelector('.workbench');
@@ -889,8 +931,8 @@ function toggleDrawer(id, open) {
     state.lastFocusedElement = document.activeElement;
     drawer.hidden = false;
     if (workbench) { workbench.inert = true; workbench.setAttribute('aria-hidden', 'true'); }
-    const closeButton = drawer.querySelector('.drawer-panel [data-close]');
-    if (closeButton) closeButton.focus();
+    const initialFocus = focusTarget || drawer.querySelector('.drawer-panel [data-initial-focus]') || drawer.querySelector('.drawer-panel [data-close]');
+    if (initialFocus) initialFocus.focus();
     return;
   }
   drawer.hidden = true;
@@ -966,8 +1008,9 @@ async function initialize() {
   resetTaskState();
   byId('workspace-select').addEventListener('click', chooseWorkspace); byId('new-session').addEventListener('click', createSession); byId('close-session').addEventListener('click', closeSession); byId('close-session-header').addEventListener('click', closeSession);
   byId('empty-session-action').addEventListener('click', () => { if (state.workspacePath) void createSession(); else void chooseWorkspace(); });
-  byId('edit-goal').addEventListener('click', editGoal); byId('achieve-goal').addEventListener('click', () => resolveGoal('ACHIEVED')); byId('abandon-goal').addEventListener('click', () => resolveGoal('ABANDONED'));
+  byId('edit-goal').addEventListener('click', openGoalEditor); byId('goal-editor-form').addEventListener('submit', submitGoalEditor); byId('achieve-goal').addEventListener('click', () => resolveGoal('ACHIEVED')); byId('abandon-goal').addEventListener('click', () => resolveGoal('ABANDONED'));
   byId('attach-text').addEventListener('click', attachText);
+  byId('text-context-form').addEventListener('submit', submitTextAttachment); byId('text-context-content').addEventListener('input', updateTextAttachmentCounter);
   byId('workspace-up').addEventListener('click', () => { const parts = state.explorerPath.split(/[\\/]+/).filter(Boolean); parts.pop(); void refreshWorkspace(parts.join('/')); });
   byId('viewer-search').addEventListener('input', renderViewerLines);
   byId('review-nav').addEventListener('click', () => { byId('review-panel').hidden = false; toggleInspector(true, byId('review-panel')); byId('review-panel').scrollIntoView({ block: 'nearest' }); });

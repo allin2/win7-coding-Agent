@@ -14,6 +14,9 @@ describe('A8 session UI helpers', () => {
     closeLabel: (session: Session | null, taskRunning: boolean, activeTaskSessionId: string | null) => string;
     shouldPreserveActiveTask: (taskRunning: boolean, activeTaskSessionId: string | null, closingSessionId: string) => boolean;
     isNearConversationBottom: (metrics: { scrollHeight: number; scrollTop: number; clientHeight: number }, threshold?: number) => boolean;
+    utf8ByteLength: (value: string) => number;
+    validateTextAttachment: (input: { label?: string; content?: string; existingLabels?: string[] }) => { ok: boolean; label: string; content: string; bytes: number; field?: string; error?: string };
+    validateGoalText: (value: string) => { ok: boolean; text: string; error?: string };
   };
 
   it('recognizes only the active task for the selected session', () => {
@@ -48,5 +51,19 @@ describe('A8 session UI helpers', () => {
     expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 700, clientHeight: 400 })).toBe(false);
     expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 750, clientHeight: 400 }, 50)).toBe(true);
     expect(api.isNearConversationBottom({ scrollHeight: 1200, scrollTop: 749, clientHeight: 400 }, 50)).toBe(false);
+  });
+
+  it('validates UTF-8 text attachments and rejects empty, oversized or duplicate labels', () => {
+    expect(api.utf8ByteLength('中文A😀')).toBe(11);
+    expect(api.validateTextAttachment({ label: '', content: '' })).toMatchObject({ ok: false, field: 'content', label: 'notes.txt' });
+    expect(api.validateTextAttachment({ label: 'notes.txt', content: '内容', existingLabels: ['NOTES.TXT'] })).toMatchObject({ ok: false, field: 'label' });
+    expect(api.validateTextAttachment({ label: 'large.txt', content: '中'.repeat(21846) })).toMatchObject({ ok: false, field: 'content', bytes: 65538 });
+    expect(api.validateTextAttachment({ label: '  需求.txt  ', content: '中文' })).toMatchObject({ ok: true, label: '需求.txt', bytes: 6 });
+  });
+
+  it('validates Goal input before sending revision-bound IPC', () => {
+    expect(api.validateGoalText('   ')).toMatchObject({ ok: false });
+    expect(api.validateGoalText('x'.repeat(2001))).toMatchObject({ ok: false });
+    expect(api.validateGoalText('  完成验收  ')).toEqual({ ok: true, text: '完成验收' });
   });
 });

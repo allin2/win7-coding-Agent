@@ -302,11 +302,28 @@ async function runA8ReviewElectronSmoke() {
     { relativePath: 'docs/obsolete.md', operation: 'DELETE' },
   ];
 
-  await mainWindow.webContents.executeJavaScript(`(() => {
+  const textAttachment = await mainWindow.webContents.executeJavaScript(`(() => {
     const first = document.querySelector('#session-list li');
     if (!first) throw new Error('A8_REVIEW_SMOKE_SESSION_NOT_RENDERED');
     first.click();
-    return { nodeIntegration: typeof require !== 'undefined', processExposed: typeof process !== 'undefined', preloadApi: typeof window.win7Agent === 'object' };
+    const trigger = document.getElementById('attach-text');
+    if (trigger.disabled) throw new Error('A8_TEXT_ATTACHMENT_TRIGGER_DISABLED');
+    trigger.click();
+    const drawer = document.getElementById('text-context-drawer');
+    const opened = drawer.hidden === false && document.activeElement === document.getElementById('text-context-label');
+    document.getElementById('text-context-label').value = '验收说明.txt';
+    document.getElementById('text-context-content').value = 'Win10 文本上下文验收';
+    document.getElementById('text-context-content').dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('text-context-form').requestSubmit();
+    return {
+      opened,
+      closedAfterSubmit: drawer.hidden === true,
+      chipText: document.getElementById('context-chips').textContent,
+      counterReset: document.getElementById('text-context-counter').textContent === '0 B / 64 KiB',
+      nodeIntegration: typeof require !== 'undefined',
+      processExposed: typeof process !== 'undefined',
+      preloadApi: typeof window.win7Agent === 'object',
+    };
   })()`);
   const task = desktopHost.submitTask({
     sessionId: a8ReviewSmokeSession.sessionId,
@@ -470,6 +487,7 @@ async function runA8ReviewElectronSmoke() {
     resultCase('A8C-02-RENDERER-CAPABILITY', renderer.nodeIntegration === false && renderer.processExposed === false && renderer.preloadApi === true, 'Renderer 无 Node/process，只获得冻结 Preload API。'),
     resultCase('A8R-01-VISUAL-BOUNDS', renderer.horizontalOverflow <= 0, '真实 Electron 视口无水平页面溢出。'),
     resultCase('A8UX-01-CONVERSATION-SCROLL', renderer.verticalOverflow <= 0 && renderer.layout.composerVisible === true && renderer.layout.conversationClientHeight > 0 && renderer.layout.scrollable === true, '长对话只在中间内容区滚动，Composer 始终位于真实 Electron 视口内。'),
+    resultCase('A8UX-02-TEXT-ATTACHMENT-DIALOG', textAttachment.opened === true && textAttachment.closedAfterSubmit === true && textAttachment.chipText.includes('@text 验收说明.txt') && textAttachment.counterReset === true, '“＋ 文本”打开应用内对话框，提交后生成当前轮上下文标签并关闭对话框。'),
   ];
   const report = {
     schema_version: 1,

@@ -24,6 +24,7 @@
 .context-chip { flex: 0 0 auto; border: 1px solid #405047; background: #18221c; color: #bce6c8; padding: 5px 8px; font: 10px var(--mono); }
 .context-chip button { border: 0; background: transparent; color: var(--muted); margin-left: 6px; }
 .attach { margin-right: 7px; }
+.attach:disabled { opacity: .4; cursor: not-allowed; }
 .workspace-tree { list-style: none; margin: 9px 0 0; padding: 0; max-height: 190px; overflow: auto; }
 .workspace-tree li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; border-bottom: 1px solid #292e2b; }
 .workspace-tree button { border: 0; background: transparent; color: #bdc5bf; text-align: left; padding: 7px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -61,6 +62,14 @@
 .conversation { min-width: 0; overflow-x: hidden; }
 .inspector { min-width: 0; }
 .drawer { overscroll-behavior: contain; }
+.drawer-panel.modal-panel { left: 50%; right: auto; top: 50%; bottom: auto; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); transform: translate(-50%, -50%); box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+.drawer-panel.modal-panel.compact { width: min(500px, calc(100vw - 32px)); }
+.drawer textarea { width: 100%; min-height: 120px; resize: vertical; border: 1px solid var(--line); background: #101311; padding: 10px; line-height: 1.55; }
+.drawer textarea:focus-visible, .drawer input:focus-visible { border-color: var(--green2); }
+.field-meta { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-top: 7px; }
+.field-meta .quiet { margin: 0; }
+.field-meta span { flex: 0 0 auto; color: var(--muted); font: 10px var(--mono); font-variant-numeric: tabular-nums; }
+.field-error { margin: 10px 0 0; padding: 8px 10px; border: 1px solid #70453f; background: #271b19; color: #f0aaa2; }
 .composer textarea:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
 html, body { height: 100%; min-height: 0; overflow: hidden; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }

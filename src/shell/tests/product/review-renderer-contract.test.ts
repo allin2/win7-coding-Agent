@@ -133,6 +133,20 @@ describe('A8 Review Renderer contract', () => {
     expect(renderer).toContain("const button = document.createElement('button'); button.type = 'button'; button.textContent = filePath;");
   });
 
+  it('uses in-product accessible forms for text context and Goal editing without native prompt dialogs', () => {
+    ['text-context-drawer', 'text-context-form', 'text-context-label', 'text-context-content', 'text-context-error', 'goal-editor-drawer', 'goal-editor-form', 'goal-editor-text', 'goal-editor-error']
+      .forEach((id) => expect(html).toContain(`id="${id}"`));
+    expect(html).toContain('role="dialog" aria-modal="true" aria-labelledby="text-context-title"');
+    expect(html).toContain('role="dialog" aria-modal="true" aria-labelledby="goal-editor-title"');
+    expect(renderer).toContain('function submitTextAttachment(event)');
+    expect(renderer).toContain('window.win7AgentSessionUi.validateTextAttachment');
+    expect(renderer).toContain('function submitGoalEditor(event)');
+    expect(renderer).toContain('window.win7AgentSessionUi.validateGoalText');
+    expect(renderer).not.toContain('window.prompt');
+    expect(workspaceCss).toContain('.drawer-panel.modal-panel');
+    expect(workspaceCss).toContain('.attach:disabled');
+  });
+
   it('gives the Chromium harness real close, cancel, archive and create seams', () => {
     expect(harness).toContain('closeSession: async (sessionId) =>');
     expect(harness).toContain('cancelTask: async (sessionId, taskId) =>');

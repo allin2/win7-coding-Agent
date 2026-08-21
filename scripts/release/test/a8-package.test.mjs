@@ -78,6 +78,7 @@ test('A8 builder produces byte-identical fixture candidates and locked manifest 
   assert.match(validationKit.commands.win7.verify_set, /set ELECTRON_RUN_AS_NODE=1&& \.\\electron\.exe validation\\verify-a8-evidence-set\.mjs/);
   assert.match(validationKit.commands.win7.a8_03, /\.\.\\a8-evidence-win7/);
   assert.ok(validationKit.expected_cases.includes('A8UX-01-CONVERSATION-SCROLL'));
+  assert.ok(validationKit.expected_cases.includes('A8UX-02-TEXT-ATTACHMENT-DIALOG'));
   for (const layer of ['win10', 'win7']) {
     for (const commandName of ['preflight', 'a8_03', 'a8_04', 'a8_05', 'verify_set']) {
       const command = validationKit.commands[layer][commandName];
