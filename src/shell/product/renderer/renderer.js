@@ -25,9 +25,11 @@ const state = {
   conversationViews: new Map(),
   renderSessionId: null,
   activeTaskSessionId: null,
+  pendingCloseSessionId: null,
   pendingContexts: new Map(),
   explorerPath: '',
   viewer: null,
+  lastFocusedElement: null,
 };
 
 function byId(id) { return document.getElementById(id); }
@@ -37,6 +39,10 @@ function limitText(value, maximum) { const text = typeof value === 'string' ? va
 function scrollConversation() { const target = byId('conversation'); target.scrollTop = target.scrollHeight; }
 
 function currentRenderSessionId() { return state.renderSessionId || (state.session && state.session.sessionId); }
+function workspaceDisplayName(workspacePath) {
+  const parts = String(workspacePath || '').split(/[\\/]+/).filter(Boolean);
+  return parts[parts.length - 1] || '已连接工作区';
+}
 
 function ensureConversationView(sessionId) {
   if (!sessionId) return byId('conversation');
@@ -57,7 +63,21 @@ function ensureConversationView(sessionId) {
 function activateConversation(sessionId) {
   state.conversationViews.forEach((view, id) => { view.hidden = id !== sessionId; });
   if (sessionId) ensureConversationView(sessionId).hidden = false;
+  const empty = byId('empty-session');
+  if (empty) empty.hidden = Boolean(sessionId);
   scrollConversation();
+}
+
+function updateEmptySession() {
+  const empty = byId('empty-session');
+  if (!empty) return;
+  empty.hidden = Boolean(state.session);
+  const action = byId('empty-session-action');
+  if (action) {
+    const hasWorkspace = Boolean(state.workspacePath);
+    action.textContent = hasWorkspace ? '新建会话' : '选择工作区';
+    action.setAttribute('aria-label', hasWorkspace ? '新建会话' : '选择工作区');
+  }
 }
 
 function setTaskState(label, className) {
@@ -385,7 +405,7 @@ function renderContextChips() {
   activeContexts().forEach((ref, index) => {
     const chip = document.createElement('span'); chip.className = 'context-chip';
     chip.appendChild(document.createTextNode(`@${ref.kind} ${ref.path || ref.label}${ref.startLine ? `:${ref.startLine}-${ref.endLine}` : ''}`));
-    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×';
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', `移除上下文 ${ref.path || ref.label || index + 1}`);
     remove.addEventListener('click', () => { activeContexts().splice(index, 1); renderContextChips(); });
     chip.appendChild(remove); target.appendChild(chip);
   });
@@ -405,7 +425,7 @@ async function refreshWorkspace(pathValue) {
     open.addEventListener('click', () => entry.type === 'directory' ? refreshWorkspace(entry.path) : entry.type === 'file' ? openWorkspaceFile(entry.path) : undefined);
     row.appendChild(open);
     if (entry.type === 'directory' || entry.type === 'file') {
-      const add = document.createElement('button'); add.type = 'button'; add.dataset.addContext = 'true'; add.textContent = '+CTX';
+      const add = document.createElement('button'); add.type = 'button'; add.dataset.addContext = 'true'; add.textContent = '+CTX'; add.setAttribute('aria-label', `加入上下文 ${entry.name}`);
       add.addEventListener('click', () => addContext({ kind: entry.type === 'file' ? 'file' : 'directory', path: entry.path })); row.appendChild(add);
     }
     tree.appendChild(row);
@@ -515,7 +535,13 @@ function setRunning(running) {
   const viewingActive = running && state.session && state.session.sessionId === state.activeTaskSessionId;
   byId('run-task').hidden = viewingActive; byId('cancel-task').hidden = !viewingActive;
   byId('cancel-task').disabled = !viewingActive; byId('run-task').disabled = running || !state.session || state.session.status !== 'ACTIVE' || !byId('task-prompt').value.trim();
-  byId('close-session').disabled = !state.session || state.session.status !== 'ACTIVE' || viewingActive;
+  const closeButton = byId('close-session');
+  const canClose = Boolean(state.session && state.session.status === 'ACTIVE');
+  const closeLabel = viewingActive ? '停止并关闭' : '关闭当前会话';
+  closeButton.disabled = !canClose || Boolean(state.pendingCloseSessionId);
+  closeButton.textContent = closeLabel;
+  closeButton.title = viewingActive ? '先停止当前任务，再关闭会话' : '归档当前会话';
+  closeButton.setAttribute('aria-label', closeLabel);
   byId('mode-direct').disabled = running; byId('mode-plan').disabled = running;
 }
 
@@ -532,7 +558,7 @@ async function runTask(submission) {
   if (!state.session) { showError({ message: '请先选择工作区并创建会话。' }); return; }
   const prompt = submission && submission.prompt ? submission.prompt : byId('task-prompt').value.trim();
   if (!prompt || state.taskRunning) return;
-  clearError(); resetTaskState();
+  clearError(); state.pendingCloseSessionId = null; resetTaskState();
   state.scenario = submission && submission.scenario ? submission.scenario : byId('scenario').value;
   state.executionMode = submission && submission.executionMode ? submission.executionMode : state.executionMode;
   const refs = submission && submission.refs ? submission.refs : activeContexts().map(({ key, ...ref }) => ref);
@@ -546,19 +572,36 @@ async function runTask(submission) {
     ? await call(() => window.win7Agent.submitReviewTask(state.session.sessionId, prompt))
     : await call(() => window.win7Agent.submitTask(state.session.sessionId, prompt, state.scenario, state.executionMode, refs));
   const task = result && (result.task || result.result);
-  if (!task || !task.taskId) { setRunning(false); setTaskState('提交失败', 'failed'); return; }
+  if (!task || !task.taskId) {
+    const pendingCloseSessionId = state.pendingCloseSessionId;
+    state.pendingCloseSessionId = null;
+    setRunning(false); setTaskState('提交失败', 'failed');
+    if (pendingCloseSessionId) void archiveSession(pendingCloseSessionId);
+    return;
+  }
   state.taskId = task.taskId;
+  if (state.pendingCloseSessionId === state.session.sessionId) {
+    setText('session-status', '正在停止任务，完成后关闭会话…');
+    void cancelTask();
+  }
 }
 
 function retryLastTask() { if (state.lastSubmission && !state.taskRunning) void runTask(state.lastSubmission); }
 
 async function cancelTask() {
-  if (!state.taskId || !state.session) return;
+  if (!state.taskId || !state.session) return false;
   setTaskState('正在停止', 'running'); byId('cancel-task').disabled = true;
-  await call(() => window.win7Agent.cancelTask(state.session.sessionId, state.taskId));
+  const result = await call(() => window.win7Agent.cancelTask(state.session.sessionId, state.taskId));
+  if (!result) { byId('cancel-task').disabled = false; return false; }
+  return true;
 }
 
-function finishTask(label, className) { setTaskState(label, className); setRunning(false); state.projector.close('TASK_TERMINAL'); state.activeTaskSessionId = null; }
+function finishTask(label, className) {
+  const pendingCloseSessionId = state.pendingCloseSessionId;
+  state.pendingCloseSessionId = null;
+  setTaskState(label, className); setRunning(false); state.projector.close('TASK_TERMINAL'); state.activeTaskSessionId = null;
+  if (pendingCloseSessionId) void archiveSession(pendingCloseSessionId);
+}
 
 function handleTaskEvent(event) {
   if (event && event.taskId && state.taskId && event.taskId !== state.taskId && event.eventKind === 'task.accepted' && !state.taskRunning) {
@@ -653,10 +696,17 @@ function renderSessions(sessions) {
   byId('session-list').textContent = '';
   sessions.forEach((session) => {
     ensureConversationView(session.sessionId);
-    const item = document.createElement('li'); item.textContent = session.label; item.title = session.workspacePath; item.dataset.status = session.status === 'ARCHIVED' ? '归档' : '';
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'session-item'; button.textContent = session.label;
+    button.title = session.workspacePath;
+    button.setAttribute('aria-label', `${session.label}${session.status === 'ARCHIVED' ? '（归档，只读）' : ''}`);
+    button.setAttribute('aria-current', state.session && session.sessionId === state.session.sessionId ? 'true' : 'false');
+    item.dataset.status = session.status === 'ARCHIVED' ? '归档' : '';
     if (session.status === 'ARCHIVED') item.classList.add('archived');
-    if (state.session && session.sessionId === state.session.sessionId) item.className = 'active';
-    item.addEventListener('click', () => { state.session = session; activateConversation(session.sessionId); updateSessionUi(); renderSessions(sessions); void refreshRecovery(); void refreshSessionProjection(); if (session.status === 'ACTIVE') void refreshWorkspace(''); });
+    if (state.session && session.sessionId === state.session.sessionId) item.classList.add('active');
+    button.addEventListener('click', () => { state.session = session; state.pendingCloseSessionId = null; activateConversation(session.sessionId); updateSessionUi(); renderSessions(sessions); void refreshRecovery(); void refreshSessionProjection(); if (session.status === 'ACTIVE') void refreshWorkspace(''); });
+    item.appendChild(button);
     byId('session-list').appendChild(item);
   });
   byId('session-empty').hidden = sessions.length > 0;
@@ -666,7 +716,6 @@ function updateSessionUi() {
   setText('session-label', state.session ? state.session.label : '未连接会话');
   setText('session-status', state.session ? `${state.session.status === 'ARCHIVED' ? '只读归档' : '当前会话'}：${state.session.label} · 产品级单前台任务` : '选择一个本地工作区开始。');
   const active = Boolean(state.session && state.session.status === 'ACTIVE');
-  byId('close-session').disabled = !active || (state.taskRunning && state.activeTaskSessionId === state.session.sessionId);
   byId('run-task').disabled = !active || state.taskRunning || !byId('task-prompt').value.trim();
   byId('task-prompt').disabled = !active;
   byId('attach-text').disabled = !active || state.taskRunning;
@@ -674,6 +723,7 @@ function updateSessionUi() {
   if (state.taskRunning) setTaskState(state.session && state.session.sessionId === state.activeTaskSessionId ? '运行中' : '另一会话运行中', 'running');
   else setTaskState('空闲', 'idle');
   renderFileActivity();
+  updateEmptySession();
 }
 
 async function chooseWorkspace() {
@@ -684,8 +734,71 @@ async function chooseWorkspace() {
 }
 
 async function createSession() { if (!state.workspacePath) return; const result = await call(() => window.win7Agent.createSession(state.workspacePath)); if (result && result.session) { state.session = result.session; ensureConversationView(state.session.sessionId); activateConversation(state.session.sessionId); updateSessionUi(); await refreshSessions(); await refreshSessionProjection(); await refreshWorkspace(''); } }
-async function closeSession() { if (!state.session || state.session.status !== 'ACTIVE' || (state.taskRunning && state.activeTaskSessionId === state.session.sessionId)) return; const result = await call(() => window.win7Agent.closeSession(state.session.sessionId)); if (result) { const previousId = state.session.sessionId; await refreshSessions(); state.session = state.sessions.find((item) => item.status === 'ACTIVE' && item.sessionId !== previousId) || state.sessions.find((item) => item.sessionId === previousId) || null; updateSessionUi(); await refreshSessionProjection(); } }
-async function refreshSessions() { const result = await call(() => window.win7Agent.listSessions()); if (result) renderSessions(result.sessions || []); }
+
+async function archiveSession(sessionId) {
+  if (!sessionId) return false;
+  const result = await call(() => window.win7Agent.closeSession(sessionId));
+  if (!result) return false;
+  await refreshSessions();
+  const next = window.win7AgentSessionUi.selectNextSession(state.sessions, sessionId);
+  state.session = next;
+  state.taskId = null;
+  state.renderSessionId = null;
+  if (!next) resetTaskState();
+  renderSessions(state.sessions);
+  updateSessionUi();
+  await refreshSessionProjection();
+  await refreshRecovery();
+  if (next && next.status === 'ACTIVE') await refreshWorkspace('');
+  return true;
+}
+
+async function closeSession() {
+  const session = state.session;
+  if (!session || session.status !== 'ACTIVE') return;
+  const currentTask = window.win7AgentSessionUi.isCurrentTask(session, state.taskRunning, state.activeTaskSessionId);
+  if (currentTask) {
+    if (!state.taskId) {
+      state.pendingCloseSessionId = session.sessionId;
+      setText('session-status', '正在等待任务句柄，随后停止并关闭会话…');
+      setRunning(true);
+      return;
+    }
+    state.pendingCloseSessionId = session.sessionId;
+    setText('session-status', '正在停止任务，完成后关闭会话…');
+    setRunning(true);
+    if (!await cancelTask()) state.pendingCloseSessionId = null;
+    setRunning(state.taskRunning);
+    return;
+  }
+  await archiveSession(session.sessionId);
+}
+async function refreshSessions() {
+  const result = await call(() => window.win7Agent.listSessions());
+  if (!result) return;
+  const sessions = result.sessions || [];
+  renderSessions(sessions);
+  if (!state.session) {
+    const initial = window.win7AgentSessionUi.selectNextSession(sessions, '');
+    if (initial) {
+      state.session = initial;
+      state.workspacePath = initial.workspacePath || state.workspacePath;
+      if (state.workspacePath) {
+        setText('workspace-name', workspaceDisplayName(state.workspacePath));
+        setText('workspace-path', state.workspacePath);
+        byId('new-session').disabled = false;
+      }
+      renderSessions(sessions);
+      activateConversation(initial.sessionId);
+      updateSessionUi();
+      await refreshRecovery();
+      await refreshSessionProjection();
+      if (initial.status === 'ACTIVE') await refreshWorkspace('');
+    } else {
+      updateSessionUi();
+    }
+  }
+}
 
 async function refreshRecovery() {
   if (!state.session || state.session.status !== 'ACTIVE' || typeof window.win7Agent.getRecovery !== 'function') { byId('recovery-panel').hidden = true; return; }
@@ -727,12 +840,27 @@ async function saveGatewaySettings() {
 async function clearSavedApiKey() { const result = await call(() => window.win7Agent.clearSavedApiKey()); if (result && result.settings) { byId('gateway-mode').value = 'replay'; renderCredentialPersistence(result.settings); renderGatewayMode('replay'); } }
 
 function resizeComposer() { const input = byId('task-prompt'); input.style.height = 'auto'; input.style.height = `${Math.min(170, input.scrollHeight)}px`; byId('run-task').disabled = state.taskRunning || !state.session || state.session.status !== 'ACTIVE' || !input.value.trim(); }
-function toggleDrawer(id, open) { byId(id).hidden = !open; }
+
+function toggleDrawer(id, open) {
+  const drawer = byId(id);
+  if (!drawer) return;
+  if (open) {
+    state.lastFocusedElement = document.activeElement;
+    drawer.hidden = false;
+    const closeButton = drawer.querySelector('.drawer-panel [data-close]');
+    if (closeButton) closeButton.focus();
+    return;
+  }
+  drawer.hidden = true;
+  if (state.lastFocusedElement && typeof state.lastFocusedElement.focus === 'function') state.lastFocusedElement.focus();
+  state.lastFocusedElement = null;
+}
 
 async function initialize() {
   if (!window.win7Agent || typeof window.win7Agent.onTaskEvent !== 'function') { showError({ message: '可信 Preload API 不可用。' }); return; }
   resetTaskState();
   byId('workspace-select').addEventListener('click', chooseWorkspace); byId('new-session').addEventListener('click', createSession); byId('close-session').addEventListener('click', closeSession);
+  byId('empty-session-action').addEventListener('click', () => { if (state.workspacePath) void createSession(); else void chooseWorkspace(); });
   byId('edit-goal').addEventListener('click', editGoal); byId('achieve-goal').addEventListener('click', () => resolveGoal('ACHIEVED')); byId('abandon-goal').addEventListener('click', () => resolveGoal('ABANDONED'));
   byId('attach-text').addEventListener('click', attachText);
   byId('workspace-up').addEventListener('click', () => { const parts = state.explorerPath.split(/[\\/]+/).filter(Boolean); parts.pop(); void refreshWorkspace(parts.join('/')); });
@@ -752,9 +880,16 @@ async function initialize() {
   document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => { byId('task-prompt').value = button.dataset.prompt; resizeComposer(); byId('task-prompt').focus(); }));
   byId('open-settings').addEventListener('click', () => toggleDrawer('settings-drawer', true)); byId('open-diagnostics').addEventListener('click', () => toggleDrawer('diagnostics-drawer', true));
   document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => toggleDrawer(button.dataset.close, false)));
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const drawer = Array.from(document.querySelectorAll('.drawer:not([hidden])')).pop();
+    if (!drawer) return;
+    event.preventDefault();
+    toggleDrawer(drawer.id, false);
+  });
   byId('restore-recovery').addEventListener('click', restoreRecovery); byId('refresh-diagnostics').addEventListener('click', refreshDiagnostics); byId('save-gateway-settings').addEventListener('click', saveGatewaySettings); byId('clear-saved-api-key').addEventListener('click', clearSavedApiKey); byId('gateway-mode').addEventListener('change', () => renderGatewayMode(byId('gateway-mode').value));
   window.win7Agent.onTaskEvent(handleTaskEvent);
-  await refreshDiagnostics(); await refreshGatewaySettings(); await refreshSessions(); window.win7Agent.signalReady();
+  updateEmptySession(); await refreshDiagnostics(); await refreshGatewaySettings(); await refreshSessions(); window.win7Agent.signalReady();
 }
 
 window.addEventListener('DOMContentLoaded', initialize, { once: true });

@@ -87,6 +87,7 @@ function a8ReviewArtifactHashes() {
     gateway_runtime_js: path.join(productRoot, 'gateway-runtime.js'),
     renderer_html: rendererEntry,
     renderer_js: path.join(rendererRoot, 'renderer.js'),
+    renderer_session_ui: path.join(rendererRoot, 'session-ui.js'),
     renderer_css: path.join(rendererRoot, 'styles.css'),
     renderer_a8_css: path.join(rendererRoot, 'a8-workspace.css'),
   };
@@ -132,6 +133,7 @@ function writeSmokeReport(status, exitCode, summary) {
       renderer_event_queue: sha256(path.join(rendererRoot, 'event-queue.js')),
       renderer_runner_log: sha256(path.join(rendererRoot, 'runner-log.js')),
       renderer_js: sha256(path.join(rendererRoot, 'renderer.js')),
+      renderer_session_ui: sha256(path.join(rendererRoot, 'session-ui.js')),
       renderer_css: sha256(path.join(rendererRoot, 'styles.css')),
       runner_runtime: sha256(path.join(productRoot, 'runner-runtime.js')),
     },

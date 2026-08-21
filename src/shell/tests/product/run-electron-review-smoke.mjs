@@ -48,6 +48,7 @@ function verifyArtifactHashes(product, evidence) {
     gateway_runtime_js: path.join(product, 'gateway-runtime.js'),
     renderer_html: path.join(product, 'renderer/index.html'),
     renderer_js: path.join(product, 'renderer/renderer.js'),
+    renderer_session_ui: path.join(product, 'renderer/session-ui.js'),
     renderer_css: path.join(product, 'renderer/styles.css'),
     renderer_a8_css: path.join(product, 'renderer/a8-workspace.css'),
   };

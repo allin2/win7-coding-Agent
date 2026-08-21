@@ -171,6 +171,7 @@ function createValidationKit(root, sourceCommit, lock) {
     'docs/prds/A8_05_PERSISTENCE_RECOVERY_MIGRATION_CONTRACT.md',
     'docs/prds/A8_06_DETERMINISTIC_PACKAGE_AND_VALIDATION_CONTRACT.md',
     'src/shell/product/desktop-host.js',
+    'src/shell/product/renderer/session-ui.js',
     'src/shell/product/rc-composition.js',
     'src/state/src/a8-persistence.ts',
     'src/shell/tests/product/run-electron-review-smoke.mjs',

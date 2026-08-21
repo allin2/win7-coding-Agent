@@ -66,4 +66,18 @@ describe('A8 Review Renderer contract', () => {
   it('re-enables recovery after the terminal failure clears taskRunning', () => {
     expect(renderer).toContain("if (state.review && state.review.status === 'RECOVERY_REQUIRED') renderReview(state.review);");
   });
+
+  it('keeps session closing usable after the last active session is archived', () => {
+    expect(html).toContain('id="empty-session"');
+    expect(html).toContain('id="empty-session-action"');
+    expect(html).toContain('aria-label="关闭当前会话"');
+    expect(html).toContain('role="dialog" aria-modal="true"');
+    expect(renderer).toContain('pendingCloseSessionId');
+    expect(renderer).toContain('async function archiveSession(sessionId)');
+    expect(renderer).toContain('selectNextSession(state.sessions, sessionId)');
+    expect(renderer).toContain("state.session = next;");
+    expect(renderer).toContain("closeLabel = viewingActive ? '停止并关闭' : '关闭当前会话'");
+    expect(renderer).toContain("event.key !== 'Escape'");
+    expect(renderer).toContain("button.className = 'session-item'");
+  });
 });

@@ -1,6 +1,12 @@
 .workbench { grid-template-columns: 244px minmax(500px, 1fr) 380px; }
 .session-view { min-height: 100%; }
 .session-list li.archived { opacity: .55; }
+.session-list li { padding: 0; margin: 2px 0; border-left: 2px solid transparent; cursor: default; }
+.session-list li.active { border-color: var(--green2); }
+.session-list .session-item { display: block; width: 100%; border: 0; background: transparent; color: #aeb6b0; padding: 9px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-list .session-item:hover { background: #202622; color: var(--text); }
+.session-list li.active .session-item { color: var(--text); }
+.session-list .session-item[aria-current="true"] { font-weight: 600; }
 .session-list li::after { content: attr(data-status); float: right; color: var(--muted); font: 9px var(--mono); }
 .goal-actions, .viewer-actions { display: flex; gap: 6px; margin-top: 10px; }
 .goal-actions button, .viewer-actions button, .section-title button, .viewer-tools button, .attach {
@@ -41,5 +47,19 @@
 .review-validation { margin-top: 10px; padding-top: 9px; border-top: 1px dashed #39403c; }
 .review-validation .section-title>span { color: var(--amber); }
 .review-validation button { margin-top: 4px; }
+.empty-session { max-width: 520px; margin: 12vh auto; text-align: center; }
+.empty-session h2 { margin: 10px 0; font-size: 22px; font-weight: 500; }
+.empty-session p:not(.kicker) { color: var(--muted); line-height: 1.6; }
+.empty-session .primary { border: 1px solid #438759; background: #2d6c45; color: #fff; padding: 8px 14px; }
+.conversation { min-width: 0; overflow-x: hidden; }
+.inspector { min-width: 0; }
+.drawer { overscroll-behavior: contain; }
+.composer textarea:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+html, body { overflow-x: hidden; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+select { color-scheme: dark; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
 @media(max-width:1180px){.workbench{grid-template-columns:220px 1fr 330px}}
 @media(max-width:1050px){.workbench{grid-template-columns:220px 1fr}.inspector{display:none}}
