@@ -12,8 +12,9 @@ export { HelperTransport, HelperTransportResult, StdioHelperTransport } from './
 export { NativeRunner, NativeRunnerOptions, RunnerEvent, RunnerEventKind } from './native-runner';
 export { ApprovalResult, ApprovalGrant, ApprovalRecord, ApprovalValidation, ApprovalLedger, buildRunApprovalRequest, fingerprintApprovalRequest, checkApproval, } from './approval';
 export { IContainmentProbe, MockContainmentProbe, MockContainmentConfig, } from './containment';
-export { TrustedShellRequest, TrustedShellResult, TrustedShellRunner, } from './trusted-shell-runner';
-export { ShellKind, DetectedShell, ShellDetectionOptions, detectSystemShells, getActiveShell, } from './shell-detection';
-export { BackgroundProcessHandle, PollResult, BackgroundProcessManager, } from './background-process-manager';
-export { killProcessTree, } from './process-cleanup';
+export { TrustedShellRequest, TrustedShellResult, TrustedShellTermination, TrustedShellRunnerOptions, TrustedShellRunner, buildTrustedShellInvocation, decodeShellBytes, } from './trusted-shell-runner';
+export { TrustedShellLoopAdapter, TrustedShellLoopAdapterHandle, LoopRunnerOptions, LoopRunnerResult, createTrustedShellLoopAdapter, } from './trusted-shell-adapter';
+export { ShellKind, DetectedShell, ShellSelection, ShellDetectionOptions, detectSystemShells, selectShell, getActiveShell, } from './shell-detection';
+export { BackgroundProcessHandle, PollResult, ProbeFact, BackgroundProcessManager, } from './background-process-manager';
+export { killProcessTree, KillResult, } from './process-cleanup';
 //# sourceMappingURL=index.d.ts.map

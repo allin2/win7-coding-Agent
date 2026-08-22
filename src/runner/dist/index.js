@@ -5,7 +5,7 @@
  * @remarks 统一导出 Runner 接口、Mock 实现、审批逻辑和 Containment 探测
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.killProcessTree = exports.BackgroundProcessManager = exports.getActiveShell = exports.detectSystemShells = exports.TrustedShellRunner = exports.MockContainmentProbe = exports.checkApproval = exports.fingerprintApprovalRequest = exports.buildRunApprovalRequest = exports.ApprovalLedger = exports.NativeRunner = exports.StdioHelperTransport = exports.parseNativeHelperResponse = exports.ProfileResolutionError = exports.ExecutableProfileRegistry = exports.validateRequest = exports.findProhibitedShellHost = exports.UnavailableRunner = exports.MockRunner = exports.captureBytes = exports.captureText = exports.OutputCapture = exports.RunnerErrorCode = exports.RunnerError = void 0;
+exports.killProcessTree = exports.BackgroundProcessManager = exports.getActiveShell = exports.selectShell = exports.detectSystemShells = exports.createTrustedShellLoopAdapter = exports.decodeShellBytes = exports.buildTrustedShellInvocation = exports.TrustedShellRunner = exports.MockContainmentProbe = exports.checkApproval = exports.fingerprintApprovalRequest = exports.buildRunApprovalRequest = exports.ApprovalLedger = exports.NativeRunner = exports.StdioHelperTransport = exports.parseNativeHelperResponse = exports.ProfileResolutionError = exports.ExecutableProfileRegistry = exports.validateRequest = exports.findProhibitedShellHost = exports.UnavailableRunner = exports.MockRunner = exports.captureBytes = exports.captureText = exports.OutputCapture = exports.RunnerErrorCode = exports.RunnerError = void 0;
 // 类型定义
 var types_1 = require("./types");
 Object.defineProperty(exports, "RunnerError", { enumerable: true, get: function () { return types_1.RunnerError; } });
@@ -41,8 +41,13 @@ Object.defineProperty(exports, "MockContainmentProbe", { enumerable: true, get: 
 // A9 TrustedShellRunner 与后台进程管理
 var trusted_shell_runner_1 = require("./trusted-shell-runner");
 Object.defineProperty(exports, "TrustedShellRunner", { enumerable: true, get: function () { return trusted_shell_runner_1.TrustedShellRunner; } });
+Object.defineProperty(exports, "buildTrustedShellInvocation", { enumerable: true, get: function () { return trusted_shell_runner_1.buildTrustedShellInvocation; } });
+Object.defineProperty(exports, "decodeShellBytes", { enumerable: true, get: function () { return trusted_shell_runner_1.decodeShellBytes; } });
+var trusted_shell_adapter_1 = require("./trusted-shell-adapter");
+Object.defineProperty(exports, "createTrustedShellLoopAdapter", { enumerable: true, get: function () { return trusted_shell_adapter_1.createTrustedShellLoopAdapter; } });
 var shell_detection_1 = require("./shell-detection");
 Object.defineProperty(exports, "detectSystemShells", { enumerable: true, get: function () { return shell_detection_1.detectSystemShells; } });
+Object.defineProperty(exports, "selectShell", { enumerable: true, get: function () { return shell_detection_1.selectShell; } });
 Object.defineProperty(exports, "getActiveShell", { enumerable: true, get: function () { return shell_detection_1.getActiveShell; } });
 var background_process_manager_1 = require("./background-process-manager");
 Object.defineProperty(exports, "BackgroundProcessManager", { enumerable: true, get: function () { return background_process_manager_1.BackgroundProcessManager; } });

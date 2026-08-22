@@ -69,23 +69,39 @@ export {
 export {
   TrustedShellRequest,
   TrustedShellResult,
+  TrustedShellTermination,
+  TrustedShellRunnerOptions,
   TrustedShellRunner,
+  buildTrustedShellInvocation,
+  decodeShellBytes,
 } from './trusted-shell-runner';
+
+export {
+  TrustedShellLoopAdapter,
+  TrustedShellLoopAdapterHandle,
+  LoopRunnerOptions,
+  LoopRunnerResult,
+  createTrustedShellLoopAdapter,
+} from './trusted-shell-adapter';
 
 export {
   ShellKind,
   DetectedShell,
+  ShellSelection,
   ShellDetectionOptions,
   detectSystemShells,
+  selectShell,
   getActiveShell,
 } from './shell-detection';
 
 export {
   BackgroundProcessHandle,
   PollResult,
+  ProbeFact,
   BackgroundProcessManager,
 } from './background-process-manager';
 
 export {
   killProcessTree,
+  KillResult,
 } from './process-cleanup';

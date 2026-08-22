@@ -257,6 +257,8 @@ export {
   A9ModelPort,
   A9WorkspacePort,
   A9ReviewStagingPort,
+  A9RunnerExecutionOptions,
+  A9RunnerExecutionResult,
   A9RunnerPort,
   A9AgentLoopConfig,
   A9TurnResult,

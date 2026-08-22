@@ -98,14 +98,38 @@ export interface A9ReviewStagingPort {
   stageDelete(path: string, options?: { recursive?: boolean; turnId?: string }): Promise<unknown>;
 }
 
+export interface A9RunnerExecutionOptions {
+  cwd?: string;
+  /** 可选任务级 deadline；未提供时不施加固定硬超时（A9/C08）。 */
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  background?: boolean;
+  shellKind?: string;
+  shellPath?: string;
+  /** 产品级环境覆盖（工作区设置），不来自模型参数。 */
+  envOverlay?: Record<string, string>;
+  maxOutputBytes?: number;
+}
+
+export interface A9RunnerExecutionResult {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  timedOut: boolean;
+  cancelled?: boolean;
+  rawStdoutBytes?: number;
+  rawStderrBytes?: number;
+  /** 有界原始日志路径（stdout/stderr），预览截断后仍可回看。 */
+  logPaths?: { stdout: string; stderr: string };
+  backgroundHandle?: string;
+  processTreeReaped?: boolean;
+  residueRisk?: boolean;
+  softDurationExceeded?: boolean;
+}
+
 export interface A9RunnerPort {
-  execute(command: string, options?: { cwd?: string; timeoutMs?: number; signal?: AbortSignal }): Promise<{
-    exitCode: number;
-    stdout: string;
-    stderr: string;
-    durationMs: number;
-    timedOut: boolean;
-  }>;
+  execute(command: string, options?: A9RunnerExecutionOptions): Promise<A9RunnerExecutionResult>;
 }
 
 export interface A9AgentLoopConfig {
@@ -115,6 +139,8 @@ export interface A9AgentLoopConfig {
   runner: A9RunnerPort;
   /** Review 模式必填：缺失时 Review 写操作按结构化错误拒绝，绝不直写工作区。 */
   reviewStaging?: A9ReviewStagingPort;
+  /** 产品级 Shell 选择与环境覆盖（工作区设置），逐次传入 Runner。 */
+  shellOptions?: { kind?: string; path?: string; envOverlay?: Record<string, string> };
   policyEngine?: PolicyEngine;
   permissionMode?: PermissionMode;
   maxStepsPerTurn?: number;
@@ -260,6 +286,9 @@ export class A9AgentLoop {
     }
 
     const result = await this.executeValidatedToolCall(turnId, suspended.pending, suspended.signal);
+    if (result.residueRisk) {
+      return this.residueStop(turnId, suspended.stepCount, suspended.toolCallsExecuted, result.logPaths);
+    }
     return this.runLoop(
       turnId,
       options.signal ?? suspended.signal,
@@ -267,6 +296,22 @@ export class A9AgentLoop {
       suspended.toolCallsExecuted + (result.executed ? 1 : 0),
       suspended.queue,
     );
+  }
+
+  /** 清理无法证明时停止后续自动执行并如实报告残留（C08 / W7C-09）。 */
+  private residueStop(
+    turnId: string,
+    stepCount: number,
+    toolCallsExecuted: number,
+    logPaths?: { stdout: string; stderr: string },
+  ): A9TurnResult {
+    return this.finalize(turnId, {
+      turnId,
+      outcome: TurnOutcome.FAILED,
+      finalMessage: 'Shell process cleanup could not be confirmed. Automatic execution stopped; possible process residue requires manual inspection before continuing.',
+      totalSteps: stepCount,
+      toolCallsExecuted,
+    }, 'turn_failed', { error: 'residue risk', ...(logPaths ? { logPaths } : {}) });
   }
 
   private async runLoop(
@@ -565,6 +610,9 @@ export class A9AgentLoop {
 
       const execResult = await this.executeValidatedToolCall(turnId, { ...tc }, signal);
       if (execResult.executed) executed++;
+      if (execResult.residueRisk) {
+        return { kind: 'final', result: this.residueStop(turnId, stepCount, executed, execResult.logPaths) };
+      }
     }
     return { kind: 'continue', stepCount, toolCallsExecuted: executed };
   }
@@ -630,7 +678,7 @@ export class A9AgentLoop {
     turnId: string,
     tc: A9ModelToolCall,
     signal: AbortSignal | undefined,
-  ): Promise<{ executed: boolean; result: string }> {
+  ): Promise<{ executed: boolean; result: string; residueRisk?: boolean; logPaths?: { stdout: string; stderr: string } }> {
     let parsedArgs: Record<string, unknown> = {};
     try {
       parsedArgs = tc.arguments ? JSON.parse(tc.arguments) : {};
@@ -655,23 +703,27 @@ export class A9AgentLoop {
 
     let toolResultStr = '';
     let executed = false;
+    let residueRisk: boolean | undefined;
+    let logPaths: { stdout: string; stderr: string } | undefined;
     try {
-      const result = await this.dispatchTool(tc.name, args, turnId, signal);
-      toolResultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-      executed = true;
+      const outcome = await this.dispatchTool(tc.name, args, turnId, signal);
+      toolResultStr = typeof outcome.payload === 'string' ? outcome.payload : JSON.stringify(outcome.payload, null, 2);
+      residueRisk = outcome.residueRisk;
+      logPaths = outcome.logPaths;
+      executed = !residueRisk;
     } catch (err: any) {
       toolResultStr = `Tool execution error: ${err.message}`;
     }
 
     if (toolResultStr.length > this.maxToolResultChars) {
-      toolResultStr = `${toolResultStr.slice(0, this.maxToolResultChars)}\n[Tool output truncated at ${this.maxToolResultChars} characters]`;
+      toolResultStr = `${toolResultStr.slice(0, this.maxToolResultChars)}\n[Tool output truncated at ${this.maxToolResultChars} characters; full output preserved in tool logs]`;
     }
 
     this.emitEvent({
       type: 'tool_end',
       turnId,
       timestamp: new Date().toISOString(),
-      data: { toolName: tc.name, result: toolResultStr.slice(0, 1000) },
+      data: { toolName: tc.name, result: toolResultStr.slice(0, 1000), ...(residueRisk ? { residueRisk: true } : {}) },
     });
 
     this.conversationHistory.push({
@@ -680,7 +732,7 @@ export class A9AgentLoop {
       toolName: tc.name,
       content: toolResultStr,
     });
-    return { executed, result: toolResultStr };
+    return { executed, result: toolResultStr, ...(residueRisk ? { residueRisk } : {}), ...(logPaths ? { logPaths } : {}) };
   }
 
   private async dispatchTool(
@@ -688,32 +740,57 @@ export class A9AgentLoop {
     args: Record<string, any>,
     turnId: string,
     signal?: AbortSignal,
-  ): Promise<any> {
+  ): Promise<{ payload: any; residueRisk?: boolean; logPaths?: { stdout: string; stderr: string } }> {
     const ws = this.config.workspaceService;
     switch (name) {
       case 'list':
-        return await ws.list(args.path ?? '', { recursive: args.recursive, maxEntries: args.maxEntries });
+        return { payload: await ws.list(args.path ?? '', { recursive: args.recursive, maxEntries: args.maxEntries }) };
       case 'read':
-        return await ws.read(args.path, { startLine: args.startLine, maxLines: args.maxLines, encoding: args.encoding });
+        return { payload: await ws.read(args.path, { startLine: args.startLine, maxLines: args.maxLines, encoding: args.encoding }) };
       case 'search':
-        return await ws.search(args.pattern, { path: args.path, isRegex: args.isRegex, maxMatches: args.maxMatches });
+        return { payload: await ws.search(args.pattern, { path: args.path, isRegex: args.isRegex, maxMatches: args.maxMatches }) };
       case 'write':
-        return await ws.write(args.path, args.content, { encoding: args.encoding, turnId });
+        return { payload: await ws.write(args.path, args.content, { encoding: args.encoding, turnId }) };
       case 'edit':
-        return await ws.edit(args.path, args.oldText, args.newText, { turnId });
+        return { payload: await ws.edit(args.path, args.oldText, args.newText, { turnId }) };
       case 'copy':
-        return await ws.copy(args.source, args.destination, { overwrite: args.overwrite, turnId });
+        return { payload: await ws.copy(args.source, args.destination, { overwrite: args.overwrite, turnId }) };
       case 'move':
-        return await ws.move(args.source, args.destination, { overwrite: args.overwrite, turnId });
+        return { payload: await ws.move(args.source, args.destination, { overwrite: args.overwrite, turnId }) };
       case 'delete':
-        return await ws.delete(args.path, { recursive: args.recursive, permanent: args.permanent, turnId });
-      case 'shell':
-        // timeoutMs 为可选软 deadline；未提供时不施加固定硬超时（A9/C08 局部取代）。
-        return await this.config.runner.execute(args.command, {
-          cwd: args.cwd || undefined,
-          timeoutMs: args.timeoutMs,
-          signal,
+        return { payload: await ws.delete(args.path, { recursive: args.recursive, permanent: args.permanent, turnId }) };
+      case 'shell': {
+        // timeoutMs 为可选任务级 deadline；未提供时不施加固定硬超时（A9/C08 局部取代）。
+        // background/shell kind/path/env 由产品级配置传入，不取自模型参数。
+        const shellResult = await this.config.runner.execute(args.command, {
+          cwd: args.cwd || this.config.workspaceRoot,
+          ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
+          ...(args.background !== undefined ? { background: args.background } : {}),
+          ...(this.config.shellOptions?.kind !== undefined ? { shellKind: this.config.shellOptions.kind } : {}),
+          ...(this.config.shellOptions?.path !== undefined ? { shellPath: this.config.shellOptions.path } : {}),
+          ...(this.config.shellOptions?.envOverlay !== undefined ? { envOverlay: this.config.shellOptions.envOverlay } : {}),
+          ...(signal ? { signal } : {}),
         });
+        const payload = {
+          exitCode: shellResult.exitCode,
+          stdout: shellResult.stdout,
+          stderr: shellResult.stderr,
+          durationMs: shellResult.durationMs,
+          timedOut: shellResult.timedOut,
+          ...(shellResult.rawStdoutBytes !== undefined ? { rawStdoutBytes: shellResult.rawStdoutBytes } : {}),
+          ...(shellResult.rawStderrBytes !== undefined ? { rawStderrBytes: shellResult.rawStderrBytes } : {}),
+          ...(shellResult.logPaths ? { logPaths: shellResult.logPaths } : {}),
+          ...(shellResult.backgroundHandle ? { backgroundHandle: shellResult.backgroundHandle } : {}),
+          ...(shellResult.residueRisk
+            ? { residueWarning: 'Process tree cleanup could NOT be confirmed. Manual residue inspection is required before continuing.' }
+            : {}),
+        };
+        return {
+          payload,
+          ...(shellResult.residueRisk ? { residueRisk: true as const } : {}),
+          ...(shellResult.logPaths ? { logPaths: shellResult.logPaths } : {}),
+        };
+      }
       case 'update_plan': {
         this.visiblePlan = {
           plan: args.plan,
@@ -727,10 +804,12 @@ export class A9AgentLoop {
           data: { plan: args.plan, explanation: args.explanation ?? '' },
         });
         return {
-          success: true,
-          plan: args.plan,
-          explanation: args.explanation ?? '',
-          note: 'Plan updated and visible to the user.',
+          payload: {
+            success: true,
+            plan: args.plan,
+            explanation: args.explanation ?? '',
+            note: 'Plan updated and visible to the user.',
+          },
         };
       }
       default:
