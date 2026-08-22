@@ -1,20 +1,15 @@
 /**
- * A9-05 开发机旅程测试（J1/J2/J4/J5）。
+ * A9-05 开发机旅程测试（R5 重建：行为化 fixture，真实项目与真实测试命令）。
  *
- * 说明（诚实边界）：模型端为本地 OpenAI-compatible fixture（回环地址），
- * Loop/Provider/Workspace/Runner/Git 全部为真实实现；这是开发机旅程证据，
- * 不构成真实模型旅程或 Win7 旅程（REAL_PROVIDER_SMOKE=NOT_PERFORMED）。
- *
- * - J1 项目解释：按需 list/read/search，不预加载全仓库；
- * - J2 缺陷修复：定位→修改→运行验证→已验证完成（COMPLETED + verified）；
- * - J4 Shell 与 Git：真实临时 Git 仓库 + 本地裸远端；git status/add 自主执行，
- *   commit/push 走审批；push 拒绝零副作用、批准后真实推送；
- * - J5 撤销与恢复：轮内文件撤销 + 模拟崩溃重启后从磁盘 checkpoint 恢复，
- *   不重放模型、Shell、Git 或审批。
+ * 证据分级（诚实边界）：
+ * - FIXTURE MODEL：模型端为回环行为化 fixture（根据收到的 messages 与 tool 结果
+ *   决定下一步，不按剧本盲吐）；Loop/Workspace/Runner/Git/Runtime/SQLite 均为真实实现。
+ * - REAL MODEL J1～J3：NOT_PERFORMED（无真实 Provider 凭据；见真实 Provider smoke 入口）。
+ * - Windows PS/CMD/DPI：NOT_PERFORMED（非 Windows 环境只记录 sh/dev_host_only）。
  */
 import { execFileSync } from 'child_process';
-import * as http from 'http';
 import * as fs from 'fs';
+import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -23,39 +18,37 @@ import { A9AgentLoop, PermissionMode, TurnOutcome } from '../../core/src';
 import { A9WorkspaceService } from '../../workspace/src';
 import { TrustedShellRunner, createTrustedShellLoopAdapter } from '../../runner/src';
 
-function sse(res: http.ServerResponse, obj: unknown): void {
-  res.write(`data: ${JSON.stringify(obj)}\n\n`);
-}
+// ---------------------------------------------------------------------------
+// 行为化 fixture 模型
+// ---------------------------------------------------------------------------
 
-function toolCall(res: http.ServerResponse, id: string, name: string, args: unknown): void {
-  sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id, function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: 'tool_calls' }] });
-}
+interface ToolStep { tool: { id: string; name: string; args: unknown } }
+type NextStep = ToolStep | { content: string } | { done: true; content?: string };
 
-function finalAnswer(res: http.ServerResponse, content: string): void {
-  sse(res, { choices: [{ delta: { content }, finish_reason: 'stop' }] });
-}
-
-interface ScriptedServer {
-  baseUrl: string;
-  requestBodies: any[];
-  close: () => Promise<void>;
-}
-
-/** fixture 模型：按脚本顺序返回 tool_calls/最终回答；脚本末项重复。 */
-function startScriptedModel(script: Array<{ tool?: { id: string; name: string; args: unknown }; content?: string }>): Promise<ScriptedServer> {
-  const requestBodies: any[] = [];
-  let round = 0;
+/** behave(seen) 基于已回执的工具结果决定下一步；seen 为 `${name}:${content前缀}` 列表。 */
+function startBehaviorModel(behave: (seen: string[], fullMessages: any[]) => NextStep): Promise<{ baseUrl: string; close: () => Promise<void>; requests: any[] }> {
+  const requests: any[] = [];
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let body = '';
       req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
       req.on('end', () => {
-        try { requestBodies.push(JSON.parse(body)); } catch (_e) { requestBodies.push(null); }
+        let parsed: any = null;
+        try { parsed = JSON.parse(body); } catch (_e) { /* keep */ }
+        requests.push(parsed);
+        const messages = parsed?.messages ?? [];
+        const seen: string[] = messages
+          .filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo')
+          .map((m: any) => `${m.name}:${String(m.content).slice(0, 400)}`);
+        const next = behave(seen, messages);
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-        const step = script[Math.min(round, script.length - 1)];
-        round += 1;
-        if (step.tool) toolCall(res, step.tool.id, step.tool.name, step.tool.args);
-        else finalAnswer(res, step.content ?? 'done');
+        const send = (obj: unknown) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+        if ((next as any).tool) {
+          const t = (next as any).tool;
+          send({ choices: [{ delta: { tool_calls: [{ index: 0, id: t.id, function: { name: t.name, arguments: JSON.stringify(t.args) } }] }, finish_reason: 'tool_calls' }] });
+        } else {
+          send({ choices: [{ delta: { content: (next as any).content ?? (next as any).done ? ((next as any).content ?? 'done') : 'done' }, finish_reason: 'stop' }] });
+        }
         res.write('data: [DONE]\n\n');
         res.end();
       });
@@ -63,280 +56,492 @@ function startScriptedModel(script: Array<{ tool?: { id: string; name: string; a
     server.listen(0, '127.0.0.1', () => {
       resolve({
         baseUrl: `http://127.0.0.1:${(server.address() as any).port}`,
-        requestBodies,
+        requests,
         close: () => new Promise<void>((done) => server.close(() => done())),
       });
     });
   });
 }
 
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd, stdio: 'pipe' }).toString('utf8');
+function toolResultContents(messages: any[]): string {
+  return messages.filter((m) => m.role === 'tool' && m.name !== 'probe_test_echo').map((m) => String(m.content)).join('\n--\n');
 }
 
-describe('A9-05 journeys (dev machine, fixture model, real runtime stack)', () => {
-  let workspace: string;
+function makeLoop(workspaceRoot: string, baseUrl: string, extra: Record<string, unknown> = {}) {
+  const service = new A9WorkspaceService(workspaceRoot);
+  const loop = new A9AgentLoop({
+    workspaceRoot,
+    provider: new OpenAICompatibleProvider({ baseUrl, model: 'fixture-model' }),
+    workspaceService: service,
+    runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
+    permissionMode: PermissionMode.FULL_ACCESS,
+    externalChangePort: service,
+    ...extra,
+  });
+  return { loop, service };
+}
+
+// ---------------------------------------------------------------------------
+// J1：项目解释（必须实际读取 AGENTS.md；文件引用来自工具结果）
+// ---------------------------------------------------------------------------
+
+describe('J1 (FIXTURE MODEL): project explanation reads AGENTS.md and real config', () => {
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j-'));
+    workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j1-'));
+    fs.writeFileSync(path.join(workspaceRoot, 'AGENTS.md'), '# Rules\nAlways use structured argv; tests must actually run.\n');
+    fs.writeFileSync(path.join(workspaceRoot, 'package.json'), '{\n  "name": "demo-app",\n  "version": "1.4.2"\n}\n');
+    fs.mkdirSync(path.join(workspaceRoot, 'src'));
+    fs.writeFileSync(path.join(workspaceRoot, 'src', 'index.ts'), 'export const VERSION = "1.4.2";\n');
+    fs.writeFileSync(path.join(workspaceRoot, 'big-generated.txt'), 'noise\n'.repeat(50));
   });
 
-  afterEach(() => {
-    fs.rmSync(workspace, { recursive: true, force: true });
-  });
+  afterEach(() => { fs.rmSync(workspaceRoot, { recursive: true, force: true }); });
 
-  it('J1: explains an unknown project using on-demand list/read/search only', async () => {
-    // 一个小型“未知项目”。
-    fs.mkdirSync(path.join(workspace, 'src'));
-    fs.writeFileSync(path.join(workspace, 'AGENTS.md'), '# Rules\nUse structured argv.\n');
-    fs.writeFileSync(path.join(workspace, 'src', 'index.ts'), 'export const VERSION = "1.0.0";\n');
-    fs.writeFileSync(path.join(workspace, 'package.json'), '{\n  "name": "demo",\n  "version": "1.0.0"\n}\n');
-    fs.writeFileSync(path.join(workspace, 'big-generated.txt'), 'noise\n'.repeat(500));
-
-    const model = await startScriptedModel([
-      { tool: { id: 'l1', name: 'list', args: {} } },
-      { tool: { id: 'r1', name: 'read', args: { path: 'package.json' } } },
-      { tool: { id: 's1', name: 'search', args: { pattern: 'VERSION' } } },
-      { tool: { id: 'r2', name: 'read', args: { path: 'src/index.ts' } } },
-      { content: '该项目是 demo v1.0.0：package.json 定义名称与版本，src/index.ts 导出 VERSION=1.0.0，遵循 AGENTS.md 的结构化 argv 规则。' },
-    ]);
+  it('reads AGENTS.md, project config and a source file on demand; answer cites only read files', async () => {
+    const model = await startBehaviorModel((seen, messages) => {
+      // 行为锚点基于工具结果内容（而非文件名出现在内容中的假设）。
+      if (!seen.some((e) => e.startsWith('list:'))) return { tool: { id: 'l1', name: 'list', args: {} } };
+      if (!seen.some((e) => e.startsWith('read:') && e.includes('structured argv'))) return { tool: { id: 'a1', name: 'read', args: { path: 'AGENTS.md' } } };
+      if (!seen.some((e) => e.startsWith('read:') && e.includes('demo-app'))) return { tool: { id: 'p1', name: 'read', args: { path: 'package.json' } } };
+      if (!seen.some((e) => e.startsWith('search:'))) return { tool: { id: 's1', name: 'search', args: { pattern: 'VERSION' } } };
+      if (!seen.some((e) => e.startsWith('read:') && e.includes('export const VERSION'))) return { tool: { id: 'i1', name: 'read', args: { path: 'src/index.ts' } } };
+      // 最终回答只引用已读文件（fixture 从真实工具结果构造答案）。
+      const contents = toolResultContents(messages);
+      const files = ['AGENTS.md', 'package.json', 'src/index.ts'].filter((f) => contents.includes(f));
+      return { done: true, content: `Project explained from ${files.join(', ')}: version 1.4.2, rules require real test runs.` };
+    });
     try {
-      const loop = new A9AgentLoop({
-        workspaceRoot: workspace,
-        provider: new OpenAICompatibleProvider({ baseUrl: model.baseUrl, model: 'fixture' }),
-        workspaceService: new A9WorkspaceService(workspace),
-        runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
-        permissionMode: PermissionMode.FULL_ACCESS,
-      });
-      const result = await loop.runTurn('解释这个项目的结构和版本');
+      const { loop } = makeLoop(workspaceRoot, model.baseUrl);
+      const result = await loop.runTurn('解释这个项目');
       expect(result.outcome).toBe(TurnOutcome.COMPLETED);
-      expect(result.toolCallsExecuted).toBe(4);
-      // 4 次模型请求都在拿到工具结果之后（按需读取，无预加载全仓库：请求 1 只有 user 消息）。
-      expect(model.requestBodies[0].messages.length).toBe(2);
-      const finalReq = model.requestBodies[model.requestBodies.length - 1];
-      const toolContents = finalReq.messages.filter((m: any) => m.role === 'tool').map((m: any) => m.content).join('\n');
-      expect(toolContents).toContain('demo');
+
+      const finalRequest = model.requests[model.requests.length - 1];
+      const toolContents = toolResultContents(finalRequest.messages);
+      // 必须实际读取 AGENTS.md（未读取则本断言失败）。
+      expect(toolContents).toContain('structured argv');
+      expect(toolContents).toContain('demo-app');
       expect(toolContents).toContain('VERSION');
-    } finally {
-      await model.close();
-    }
-  }, 20_000);
-
-  it('J2: fixes a real defect and reaches verified completion', async () => {
-    fs.writeFileSync(path.join(workspace, 'calc.ts'), 'export function add(a: number, b: number) {\n  return a - b;\n}\n');
-
-    const model = await startScriptedModel([
-      { tool: { id: 'r1', name: 'read', args: { path: 'calc.ts' } } },
-      { tool: { id: 'e1', name: 'edit', args: { path: 'calc.ts', oldText: 'return a - b;', newText: 'return a + b;' } } },
-      { tool: { id: 's1', name: 'shell', args: { command: 'node -e "console.log(require(\'assert\').ok) ; console.log(\'tests passed\')"' } } },
-      { content: '缺陷已修复：calc.ts 的 add 现在返回 a + b；验证命令已运行并通过。' },
-    ]);
-    try {
-      const loop = new A9AgentLoop({
-        workspaceRoot: workspace,
-        provider: new OpenAICompatibleProvider({ baseUrl: model.baseUrl, model: 'fixture' }),
-        workspaceService: new A9WorkspaceService(workspace),
-        runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
-        permissionMode: PermissionMode.FULL_ACCESS,
-      });
-      const result = await loop.runTurn('修复 calc.ts 里的缺陷并验证');
-      // 修改后运行了成功的验证命令 → 已验证完成。
-      expect(result.outcome).toBe(TurnOutcome.COMPLETED);
-      expect(result.verification).toBe('verified');
-      expect(fs.readFileSync(path.join(workspace, 'calc.ts'), 'utf8')).toContain('return a + b;');
-    } finally {
-      await model.close();
-    }
-  }, 20_000);
-
-  it('J2-negative: writes without verification end as completed_with_warnings, never fake verified', async () => {
-    fs.writeFileSync(path.join(workspace, 'a.ts'), 'const x = 1;\n');
-    const model = await startScriptedModel([
-      { tool: { id: 'r1', name: 'read', args: { path: 'a.ts' } } },
-      { tool: { id: 'e1', name: 'edit', args: { path: 'a.ts', oldText: 'const x = 1;', newText: 'const x = 2;' } } },
-      { content: '修改完成。' },
-    ]);
-    try {
-      const loop = new A9AgentLoop({
-        workspaceRoot: workspace,
-        provider: new OpenAICompatibleProvider({ baseUrl: model.baseUrl, model: 'fixture' }),
-        workspaceService: new A9WorkspaceService(workspace),
-        runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
-        permissionMode: PermissionMode.FULL_ACCESS,
-      });
-      const result = await loop.runTurn('把 x 改成 2');
-      expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
-      expect(result.verification).toBe('unverified');
-    } finally {
-      await model.close();
-    }
-  }, 20_000);
-
-  describe('J4: shell and git with real repository and local bare remote', () => {
-    let bareRemote: string;
-
-    beforeEach(() => {
-      git(workspace, 'init', '-q', '-b', 'main');
-      git(workspace, 'config', 'user.email', 'agent@example.com');
-      git(workspace, 'config', 'user.name', 'A9 Agent');
-      fs.writeFileSync(path.join(workspace, 'README.md'), '# j4\n');
-      git(workspace, 'add', 'README.md');
-      git(workspace, 'commit', '-q', '-m', 'init');
-      bareRemote = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j4-remote-'));
-      git(bareRemote, 'init', '-q', '--bare', '-b', 'main');
-      git(workspace, 'remote', 'add', 'origin', bareRemote);
-    });
-
-    afterEach(() => {
-      fs.rmSync(bareRemote, { recursive: true, force: true });
-    });
-
-    function buildLoop(modelBaseUrl: string): A9AgentLoop {
-      return new A9AgentLoop({
-        workspaceRoot: workspace,
-        provider: new OpenAICompatibleProvider({ baseUrl: modelBaseUrl, model: 'fixture' }),
-        workspaceService: new A9WorkspaceService(workspace),
-        runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
-        permissionMode: PermissionMode.FULL_ACCESS,
-        shellOptions: { kind: 'sh' },
-      });
-    }
-
-    it('runs status/add autonomously, requires approval for commit, then applies it after approval', async () => {
-      fs.writeFileSync(path.join(workspace, 'feature.txt'), 'new feature\n');
-      const model = await startScriptedModel([
-        { tool: { id: 'st', name: 'shell', args: { command: 'git status --porcelain=v1' } } },
-        { tool: { id: 'ad', name: 'shell', args: { command: 'git add feature.txt' } } },
-        { tool: { id: 'cm', name: 'shell', args: { command: 'git commit -m "add feature"' } } },
-        { content: '已按用户要求提交 feature.txt。' },
-      ]);
-      try {
-        const loop = buildLoop(model.baseUrl);
-        const first = await loop.runTurn('查看状态、暂存 feature.txt 并提交');
-        // commit 仅在用户明确要求时创建 → 进入审批。
-        expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
-        expect(first.pendingApproval?.toolName).toBe('shell');
-        expect(first.pendingApproval?.reason).toContain('commit');
-
-        const resumed = await loop.resumeAfterApproval({
-          approvalId: first.pendingApproval!.approvalId,
-          decision: 'approved',
-          bindingDigest: first.pendingApproval!.bindingDigest,
-        });
-        expect(resumed.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
-        expect(git(workspace, 'log', '--oneline')).toContain('add feature');
-      } finally {
-        await model.close();
+      // 最终答案中的文件引用必须能从工具结果得到。
+      for (const file of ['AGENTS.md', 'package.json', 'src/index.ts']) {
+        expect(result.finalMessage).toContain(file);
+        expect(toolContents).toContain(file);
       }
-    }, 30_000);
-
-    it('denied push has zero side effects on the remote; approved push really pushes', async () => {
-      fs.writeFileSync(path.join(workspace, 'to-push.txt'), 'payload\n');
-      git(workspace, 'add', 'to-push.txt');
-      git(workspace, 'commit', '-q', '-m', 'commit to push');
-
-      // 拒绝路径。
-      const denyModel = await startScriptedModel([
-        { tool: { id: 'p1', name: 'shell', args: { command: 'git push origin main' } } },
-        { content: '推送被拒绝，未执行。' },
-      ]);
-      try {
-        const denyLoop = buildLoop(denyModel.baseUrl);
-        const first = await denyLoop.runTurn('推送 main 到 origin');
-        expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
-        expect(first.pendingApproval?.reason).toContain('push');
-        const denied = await denyLoop.resumeAfterApproval({
-          approvalId: first.pendingApproval!.approvalId,
-          decision: 'denied',
-          bindingDigest: first.pendingApproval!.bindingDigest,
-        });
-        expect(denied.outcome).toBe(TurnOutcome.BLOCKED);
-        // 远端裸仓库没有任何分支引用 → 拒绝零副作用。
-        expect(git(bareRemote, 'for-each-ref')).toBe('');
-      } finally {
-        await denyModel.close();
-      }
-
-      // 批准路径：真实推送成功。
-      const allowModel = await startScriptedModel([
-        { tool: { id: 'p2', name: 'shell', args: { command: 'git push origin main' } } },
-        { content: '推送完成。' },
-      ]);
-      try {
-        const allowLoop = buildLoop(allowModel.baseUrl);
-        const first = await allowLoop.runTurn('推送 main 到 origin');
-        expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
-        const done = await allowLoop.resumeAfterApproval({
-          approvalId: first.pendingApproval!.approvalId,
-          decision: 'approved',
-          bindingDigest: first.pendingApproval!.bindingDigest,
-        });
-        // push 成功执行且无本地工作区副作用需要验证 → 正常完成。
-        expect(done.outcome).toBe(TurnOutcome.COMPLETED);
-        expect(git(bareRemote, 'for-each-ref')).toContain('refs/heads/main');
-      } finally {
-        await allowModel.close();
-      }
-    }, 40_000);
-  });
-
-  it('J5: undoes turn changes and restores a checkpoint after a simulated crash (no replay)', async () => {
-    const original = 'const value = 1;\n';
-    fs.writeFileSync(path.join(workspace, 'state.ts'), original);
-
-    const model = await startScriptedModel([
-      { tool: { id: 'r1', name: 'read', args: { path: 'state.ts' } } },
-      { tool: { id: 'e1', name: 'edit', args: { path: 'state.ts', oldText: 'const value = 1;', newText: 'const value = 2;' } } },
-      { content: '已修改。' },
-    ]);
-    let service: A9WorkspaceService | undefined;
-    try {
-      service = new A9WorkspaceService(workspace);
-      const loop = new A9AgentLoop({
-        workspaceRoot: workspace,
-        provider: new OpenAICompatibleProvider({ baseUrl: model.baseUrl, model: 'fixture' }),
-        workspaceService: service,
-        runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
-        permissionMode: PermissionMode.FULL_ACCESS,
-      });
-      const result = await loop.runTurn('把 value 改成 2');
-      expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
-      expect(fs.readFileSync(path.join(workspace, 'state.ts'), 'utf8')).toBe('const value = 2;\n');
-
-      // 撤销本轮变化。
-      const undo = service.getCheckpointManager().undoTurn(result.turnId);
-      expect(undo.errors).toEqual([]);
-      expect(fs.readFileSync(path.join(workspace, 'state.ts'), 'utf8')).toBe(original);
-
-      // 重新执行一轮并模拟崩溃：新服务实例从磁盘 checkpoint 恢复。
-      const model2 = await startScriptedModel([
-        { tool: { id: 'r1', name: 'read', args: { path: 'state.ts' } } },
-        { tool: { id: 'e1', name: 'edit', args: { path: 'state.ts', oldText: 'const value = 1;', newText: 'const value = 3;' } } },
-        { content: '已修改。' },
-      ]);
-      try {
-        const crashLoop = new A9AgentLoop({
-          workspaceRoot: workspace,
-          provider: new OpenAICompatibleProvider({ baseUrl: model2.baseUrl, model: 'fixture' }),
-          workspaceService: service,
-          runner: createTrustedShellLoopAdapter(new TrustedShellRunner()),
-          permissionMode: PermissionMode.FULL_ACCESS,
-        });
-        const second = await crashLoop.runTurn('把 value 改成 3');
-        expect(fs.readFileSync(path.join(workspace, 'state.ts'), 'utf8')).toBe('const value = 3;\n');
-
-        // 崩溃：丢弃内存态，重建服务（重启等价物），仅恢复事实，不重放任何动作。
-        const revived = new A9WorkspaceService(workspace);
-        const restored = revived.getCheckpointManager().loadCheckpoint(second.turnId);
-        expect(restored).toBeDefined();
-        const undoAfterCrash = revived.getCheckpointManager().undoTurn(second.turnId);
-        expect(undoAfterCrash.errors).toEqual([]);
-        expect(fs.readFileSync(path.join(workspace, 'state.ts'), 'utf8')).toBe(original);
-      } finally {
-        await model2.close();
-      }
+      // 未预加载全仓库：第一次请求只有 system+user 两条消息。
+      expect(model.requests[0].messages.length).toBe(2);
     } finally {
       await model.close();
     }
   }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// J2：缺陷修复（真实可运行项目；同一测试先失败后通过）
+// ---------------------------------------------------------------------------
+
+function writeJ2Project(workspaceRoot: string, buggy: boolean) {
+  fs.writeFileSync(path.join(workspaceRoot, 'calc.js'), buggy
+    ? 'exports.add = (a, b) => a - b;\n'
+    : 'exports.add = (a, b) => a + b;\n');
+  // 测试命令必须导入并执行被修改模块（禁止只打印 tests passed）。
+  fs.writeFileSync(path.join(workspaceRoot, 'test.js'), [
+    "const calc = require('./calc.js');",
+    'if (calc.add(1, 2) !== 3) { console.error("FAIL: add(1,2) =", calc.add(1, 2)); process.exit(1); }',
+    'console.log("PASS: add works");',
+    '',
+  ].join('\n'));
+}
+
+describe('J2 (FIXTURE MODEL): bug fix with a real failing-then-passing test', () => {
+  let workspaceRoot: string;
+
+  beforeEach(() => {
+    workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j2-'));
+    writeJ2Project(workspaceRoot, true);
+  });
+
+  afterEach(() => { fs.rmSync(workspaceRoot, { recursive: true, force: true }); });
+
+  it('runs the real test before (fails) and after (passes) the fix; completion is verified', async () => {
+    const model = await startBehaviorModel((seen) => {
+      if (!seen.some((e) => e.startsWith('shell:'))) {
+        return { tool: { id: 't0', name: 'shell', args: { command: 'node test.js' } } };
+      }
+      const tested = seen.some((e) => e.startsWith('shell:') && e.includes('PASS: add works'));
+      if (!tested) {
+        if (!seen.some((e) => e.startsWith('read:'))) return { tool: { id: 'r1', name: 'read', args: { path: 'calc.js' } } };
+        if (!seen.some((e) => e.startsWith('edit:'))) return { tool: { id: 'e1', name: 'edit', args: { path: 'calc.js', oldText: 'a - b', newText: 'a + b' } } };
+        return { tool: { id: 't1', name: 'shell', args: { command: 'node test.js' } } };
+      }
+      return { done: true, content: 'calc.js add fixed; node test.js now passes (was failing before the fix).' };
+    });
+    try {
+      const { loop } = makeLoop(workspaceRoot, model.baseUrl);
+      const result = await loop.runTurn('修复 add 并运行测试');
+      expect(result.outcome).toBe(TurnOutcome.COMPLETED);
+      expect(result.verification).toBe('verified');
+
+      // 修改前测试真实失败、修改后同一命令真实通过。
+      const firstTest = model.requests.find((r) => toolResultContents(r.messages).includes('FAIL: add(1,2)'));
+      const passingTest = model.requests.find((r) => toolResultContents(r.messages).includes('PASS: add works'));
+      expect(firstTest).toBeDefined();
+      expect(passingTest).toBeDefined();
+      expect(fs.readFileSync(path.join(workspaceRoot, 'calc.js'), 'utf8')).toContain('a + b');
+    } finally {
+      await model.close();
+    }
+  }, 30_000);
+
+  it('recovers from a first wrong fix when the test still fails, then verifies', async () => {
+    const model = await startBehaviorModel((seen) => {
+      const edits = seen.filter((e) => e.startsWith('edit:')).length;
+      const passing = seen.some((e) => e.startsWith('shell:') && e.includes('PASS: add works'));
+      if (!seen.some((e) => e.startsWith('read:'))) return { tool: { id: 'r1', name: 'read', args: { path: 'calc.js' } } };
+      if (edits === 0) {
+        // 第一次修复：改错方向（仍会失败）。
+        return { tool: { id: 'e1', name: 'edit', args: { path: 'calc.js', oldText: 'a - b', newText: 'a - b - 0' } } };
+      }
+      if (!passing) {
+        if (edits === 1 && seen.some((e) => e.startsWith('shell:'))) {
+          // 测试仍失败 → 根据失败继续修复。
+          return { tool: { id: 'e2', name: 'edit', args: { path: 'calc.js', oldText: 'a - b - 0', newText: 'a + b' } } };
+        }
+        return { tool: { id: 't1', name: 'shell', args: { command: 'node test.js' } } };
+      }
+      return { done: true, content: 'Second fix landed after the first attempt still failed the real test.' };
+    });
+    try {
+      const { loop } = makeLoop(workspaceRoot, model.baseUrl);
+      const result = await loop.runTurn('修复 add');
+      expect(result.outcome).toBe(TurnOutcome.COMPLETED);
+      expect(result.verification).toBe('verified');
+      // 两轮真实测试执行：一次失败（改错后），一次通过（改对后）。
+      const contents = toolResultContents(model.requests[model.requests.length - 1].messages);
+      expect(contents).toContain('FAIL: add(1,2)');
+      expect(contents).toContain('PASS: add works');
+      expect(fs.readFileSync(path.join(workspaceRoot, 'calc.js'), 'utf8')).toContain('a + b');
+    } finally {
+      await model.close();
+    }
+  }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// J3：小功能（跨两个源码文件 + 一个测试文件 + 真实项目脚本）
+// ---------------------------------------------------------------------------
+
+describe('J3 (FIXTURE MODEL): cross-file feature with real project script', () => {
+  let workspaceRoot: string;
+
+  beforeEach(() => {
+    workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j3-'));
+    fs.writeFileSync(path.join(workspaceRoot, 'stringUtils.js'), 'exports.capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);\n');
+    fs.writeFileSync(path.join(workspaceRoot, 'run-checks.js'), "require('./testSlug.js'); console.log('script: all checks done');\n");
+  });
+
+  afterEach(() => { fs.rmSync(workspaceRoot, { recursive: true, force: true }); });
+
+  it('implements slugify across two files plus a test, runs the real script, stays in scope', async () => {
+    const model = await startBehaviorModel((seen) => {
+      const scriptRan = seen.some((e) => e.startsWith('shell:') && e.includes('all checks done'));
+      if (!seen.some((e) => e.startsWith('read:') && e.includes('capitalize'))) return { tool: { id: 'r1', name: 'read', args: { path: 'stringUtils.js' } } };
+      if (!seen.some((e) => e.startsWith('edit:'))) {
+        return { tool: { id: 'e1', name: 'edit', args: { path: 'stringUtils.js', oldText: 'exports.capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);', newText: "exports.capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);\nexports.slugify = (s) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');" } } };
+      }
+      if (!seen.some((e) => e.startsWith('write:') && e.includes('slug.js'))) {
+        return { tool: { id: 'w1', name: 'write', args: { path: 'slug.js', content: "const { slugify } = require('./stringUtils.js');\nmodule.exports = { slugify, kebab: (s) => slugify(s) };\n" } } };
+      }
+      if (!seen.some((e) => e.startsWith('write:') && e.includes('testSlug.js'))) {
+        return { tool: { id: 'w2', name: 'write', args: { path: 'testSlug.js', content: "const { slugify, capitalize } = require('./stringUtils.js');\nconst slug = require('./slug.js');\nif (slugify('Hello World') !== 'hello-world') { console.error('SLUG FAIL'); process.exit(1); }\nif (slug.kebab('A B') !== 'a-b') { console.error('SLUG FAIL'); process.exit(1); }\nif (capitalize('x') !== 'X') { console.error('SLUG FAIL'); process.exit(1); }\nconsole.log('SLUG PASS');\n" } } };
+      }
+      if (!scriptRan) {
+        return { tool: { id: 's1', name: 'shell', args: { command: 'node run-checks.js' } } };
+      }
+      return { done: true, content: 'slugify implemented across stringUtils.js + slug.js with testSlug.js; project script run-checks.js passes.' };
+    });
+    try {
+      const { loop, service } = makeLoop(workspaceRoot, model.baseUrl);
+      const result = await loop.runTurn('实现 slugify 小功能并验证');
+      expect(result.outcome).toBe(TurnOutcome.COMPLETED);
+      expect(result.verification).toBe('verified');
+
+      // 真实文件与测试结果可核验。
+      expect(fs.readFileSync(path.join(workspaceRoot, 'stringUtils.js'), 'utf8')).toContain('exports.slugify');
+      expect(fs.existsSync(path.join(workspaceRoot, 'slug.js'))).toBe(true);
+      const contents = toolResultContents(model.requests[model.requests.length - 1].messages);
+      expect(contents).toContain('SLUG PASS');
+      expect(contents).toContain('all checks done');
+
+      // 不做无关重构：本轮变更只涉及功能相关文件。
+      const changed = service.getCheckpointManager().getTurnDiff(result.turnId).map((d) => d.path);
+      for (const p of changed) {
+        expect(['stringUtils.js', 'slug.js', 'testSlug.js', 'run-checks.js']).toContain(p);
+      }
+    } finally {
+      await model.close();
+    }
+  }, 40_000);
+});
+
+// ---------------------------------------------------------------------------
+// J4：Shell 与 Git（真实临时仓库 + 裸远端；git pull 自主；push 审批绑定）
+// ---------------------------------------------------------------------------
+
+describe('J4 (FIXTURE MODEL, sh/dev_host_only): shell and git with real repo and bare remote', () => {
+  let workspaceRoot: string;
+  let bareRemote: string;
+
+  function git(cwd: string, ...args: string[]): string {
+    return execFileSync('git', args, { cwd, stdio: 'pipe' }).toString('utf8');
+  }
+
+  beforeEach(() => {
+    workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j4-'));
+    git(workspaceRoot, 'init', '-q', '-b', 'main');
+    git(workspaceRoot, 'config', 'user.email', 'agent@example.com');
+    git(workspaceRoot, 'config', 'user.name', 'A9 Agent');
+    fs.writeFileSync(path.join(workspaceRoot, 'README.md'), '# j4\n');
+    git(workspaceRoot, 'add', 'README.md');
+    git(workspaceRoot, 'commit', '-q', '-m', 'init');
+    bareRemote = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j4-remote-'));
+    git(bareRemote, 'init', '-q', '--bare', '-b', 'main');
+    git(workspaceRoot, 'remote', 'add', 'origin', bareRemote);
+    // 同步基线：先推送 init，使后续 pull 可以 fast-forward（避免分叉冲突）。
+    git(workspaceRoot, 'push', '-q', 'origin', 'main');
+  });
+
+  afterEach(() => {
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    fs.rmSync(bareRemote, { recursive: true, force: true });
+  });
+
+  function buildLoop(baseUrl: string) {
+    return makeLoop(workspaceRoot, baseUrl, { shellOptions: { kind: 'sh' } });
+  }
+
+  it('classifies git pull as autonomous and really pulls from the bare remote', async () => {
+    // 在远端制造一个新提交（经第二个克隆推送）。
+    const helper = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j4-helper-'));
+    try {
+      git(helper, 'clone', '-q', bareRemote, 'repo');
+      const repoDir = path.join(helper, 'repo');
+      git(repoDir, 'config', 'user.email', 'helper@example.com');
+      git(repoDir, 'config', 'user.name', 'Helper');
+      fs.writeFileSync(path.join(repoDir, 'remote-note.txt'), 'from remote\n');
+      git(repoDir, 'add', 'remote-note.txt');
+      git(repoDir, 'commit', '-q', '-m', 'remote change');
+      git(repoDir, 'push', '-q', 'origin', 'main');
+
+      const model = await startBehaviorModel((seen) => {
+        if (!seen.some((e) => e.startsWith('shell:'))) {
+          return { tool: { id: 'p1', name: 'shell', args: { command: 'git pull origin main' } } };
+        }
+        return { done: true, content: 'pulled' };
+      });
+      try {
+        const { loop } = buildLoop(model.baseUrl);
+        const result = await loop.runTurn('拉取远端更新');
+        // pull 自主执行：不进入审批。
+        expect(result.outcome).not.toBe(TurnOutcome.NEEDS_APPROVAL);
+        expect(fs.existsSync(path.join(workspaceRoot, 'remote-note.txt'))).toBe(true);
+        // pull 修改工作区且无验证 → 诚实带警告完成。
+        expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
+      } finally {
+        await model.close();
+      }
+    } finally {
+      fs.rmSync(helper, { recursive: true, force: true });
+    }
+  }, 40_000);
+
+  it('commit requires approval; the pending approval binds the real git target; denial is zero-side-effect', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'feature.txt'), 'feature\n');
+    git(workspaceRoot, 'add', 'feature.txt');
+    const model = await startBehaviorModel((seen, messages) => {
+      const committed = seen.some((e) => e.startsWith('shell:') && e.includes('"exitCode": 0'));
+      const lastUser = [...messages].reverse().find((m: any) => m.role === 'user');
+      const isRetry = String(lastUser?.content ?? '').includes('再次尝试');
+      if (committed) return { done: true, content: 'committed after approval' };
+      if (!seen.some((e) => e.startsWith('shell:')) || (isRetry && seen.some((e) => e.includes('denied')))) {
+        return { tool: { id: 'c1', name: 'shell', args: { command: 'git commit -a -m "add feature"' } } };
+      }
+      return { done: true, content: 'denied; not committed' };
+    });
+    try {
+      const { loop } = buildLoop(model.baseUrl);
+      const first = await loop.runTurn('提交 feature.txt');
+      expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+      expect(first.pendingApproval?.toolName).toBe('shell');
+      expect(first.pendingApproval?.gitBinding).toBeDefined();
+      expect(first.pendingApproval?.gitBinding?.commandSha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(first.pendingApproval?.summary).toContain('git commit');
+
+      const denied = await loop.resumeAfterApproval({
+        approvalId: first.pendingApproval!.approvalId,
+        decision: 'denied',
+        bindingDigest: first.pendingApproval!.bindingDigest,
+      });
+      expect(denied.outcome).toBe(TurnOutcome.BLOCKED);
+      expect(git(workspaceRoot, 'log', '--oneline')).not.toContain('add feature');
+
+      // 批准后真实提交（携带完整绑定回复）。
+      const second = await loop.runTurn('再次尝试提交');
+      expect(second.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+      await loop.resumeAfterApproval({
+        approvalId: second.pendingApproval!.approvalId,
+        decision: 'approved',
+        bindingDigest: second.pendingApproval!.bindingDigest,
+      });
+      expect(git(workspaceRoot, 'log', '--oneline')).toContain('add feature');
+    } finally {
+      await model.close();
+    }
+  }, 40_000);
+
+  it('push denial leaves the remote untouched; approved push with binding lands', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'to-push.txt'), 'payload\n');
+    git(workspaceRoot, 'add', 'to-push.txt');
+    git(workspaceRoot, 'commit', '-q', '-m', 'commit to push');
+    const remoteRefBefore = git(bareRemote, 'for-each-ref');
+
+    const denyModel = await startBehaviorModel((seen) => {
+      if (!seen.some((e) => e.startsWith('shell:'))) {
+        return { tool: { id: 'p1', name: 'shell', args: { command: 'git push origin main' } } };
+      }
+      return { done: true, content: 'push was denied' };
+    });
+    try {
+      const denyLoop = buildLoop(denyModel.baseUrl).loop;
+      const first = await denyLoop.runTurn('推送');
+      expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+      expect(first.pendingApproval?.gitBinding?.remote).toBe('origin');
+      expect(first.pendingApproval?.gitBinding?.branch).toBe('main');
+      expect(first.pendingApproval?.gitBinding?.force).toBe(false);
+      const denied = await denyLoop.resumeAfterApproval({
+        approvalId: first.pendingApproval!.approvalId,
+        decision: 'denied',
+        bindingDigest: first.pendingApproval!.bindingDigest,
+      });
+      expect(denied.outcome).toBe(TurnOutcome.BLOCKED);
+      // 拒绝零副作用：远端 ref 保持推送前状态（hash 不变）。
+      expect(git(bareRemote, 'for-each-ref')).toBe(remoteRefBefore);
+    } finally {
+      await denyModel.close();
+    }
+
+    const allowModel = await startBehaviorModel((seen) => {
+      if (!seen.some((e) => e.startsWith('shell:'))) {
+        return { tool: { id: 'p2', name: 'shell', args: { command: 'git push origin main' } } };
+      }
+      return { done: true, content: 'pushed' };
+    });
+    try {
+      const allowLoop = buildLoop(allowModel.baseUrl).loop;
+      const first = await allowLoop.runTurn('推送');
+      const done = await allowLoop.resumeAfterApproval({
+        approvalId: first.pendingApproval!.approvalId,
+        decision: 'approved',
+        bindingDigest: first.pendingApproval!.bindingDigest,
+      });
+      expect(done.outcome).toBe(TurnOutcome.COMPLETED);
+      // 批准后真实推送：远端 ref 前进到本地 HEAD。
+      const localHead = git(workspaceRoot, 'rev-parse', 'HEAD').trim();
+      expect(git(bareRemote, 'for-each-ref')).toContain(localHead);
+    } finally {
+      await allowModel.close();
+    }
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// J5：撤销与恢复（产品 A9 Runtime + 真实 SQLite；模拟进程关闭）
+// ---------------------------------------------------------------------------
+
+describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with real SQLite', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { createA9AgentRuntime } = require('../../shell/product/a9-agent-runtime') as any;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { A9PersistenceManager } = require('../../state/dist') as any;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Database = require('better-sqlite3') as any;
+
+  let root: string;
+  let workspaceRoot: string;
+  let dataRoot: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-j5-'));
+    workspaceRoot = path.join(root, 'ws');
+    dataRoot = path.join(root, 'data');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    fs.mkdirSync(dataRoot, { recursive: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'state.ts'), 'const value = 1;\n');
+  });
+
+  afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
+
+  function makeRuntime() {
+    return createA9AgentRuntime({
+      workspaceRoot,
+      dataRoot,
+      ownerId: `j5-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),
+    });
+  }
+
+  it('recovers mode/provider/checkpoint/interruption after a simulated process close, without replay', async () => {
+    const model = await startBehaviorModel((seen) => {
+      const readTargets = seen.filter((e) => e.startsWith('read:')).map((e) => e.slice(5, 60));
+      if (!readTargets.some((t) => t.includes('state.ts'))) return { tool: { id: 'r1', name: 'read', args: { path: 'state.ts' } } };
+      if (!seen.some((e) => e.startsWith('edit:'))) return { tool: { id: 'e1', name: 'edit', args: { path: 'state.ts', oldText: 'const value = 1;', newText: 'const value = 2;' } } };
+      return { done: true, content: 'edited state.ts' };
+    });
+    try {
+      // 第一段进程：模式、Provider、任务与 checkpoint。
+      const runtime1 = makeRuntime();
+      runtime1.setMode('full_access');
+      await runtime1.configureProvider({ baseUrl: model.baseUrl, model: 'fixture-model', skipProbe: true });
+      const turn = await runtime1.submitTurn('把 value 改成 2');
+      expect(turn.ok).toBe(true);
+      expect(fs.readFileSync(path.join(workspaceRoot, 'state.ts'), 'utf8')).toBe('const value = 2;\n');
+      // 模拟崩溃前有一个活动任务（真实崩溃会留下 active 记录）。
+      const rawDb = new Database(path.join(dataRoot, 'a9-state.db'));
+      rawDb.prepare("INSERT OR REPLACE INTO a9_tasks (task_id, session_id, status, created_at, updated_at) VALUES ('crash-task', 'a9-desktop', 'active', ?, ?)")
+        .run(new Date().toISOString(), new Date().toISOString());
+      rawDb.close();
+      runtime1.shutdown();
+
+      // 第二段进程：运行时重建（模拟重启）。
+      const runtime2 = makeRuntime();
+      const snapshot = runtime2.getSnapshot();
+      expect(snapshot.mode).toBe('full_access');
+      expect(snapshot.provider.configured).toBe(true);
+      expect(snapshot.provider.model).toBe('fixture-model');
+      expect(snapshot.checkpoints.length).toBeGreaterThanOrEqual(1);
+      expect(snapshot.interruptions.some((i: any) => i.id === 'crash-task')).toBe(true);
+      // 不自动重放：时间线为空（没有自动执行任何模型/Shell/Git/审批）。
+      expect(snapshot.timeline).toEqual([]);
+
+      // 撤销恢复真实文件内容。
+      const undo = runtime2.undoTurn(turn.result.turnId);
+      expect(undo.ok).toBe(true);
+      expect(undo.outcome.errors).toEqual([]);
+      expect(fs.readFileSync(path.join(workspaceRoot, 'state.ts'), 'utf8')).toBe('const value = 1;\n');
+      runtime2.shutdown();
+
+      // A9PersistenceManager 直接打开同一数据库可读取 checkpoint 事实（真实 SQLite）。
+      const persistence = A9PersistenceManager.open({
+        databasePath: path.join(dataRoot, 'a9-state.db'),
+        openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),
+        dataRoot,
+      });
+      expect(persistence.status).toBe('ready');
+      if (persistence.status === 'ready') {
+        expect(persistence.manager.listCheckpoints('a9-desktop').length).toBeGreaterThanOrEqual(1);
+      }
+    } finally {
+      await model.close();
+    }
+  }, 40_000);
 });

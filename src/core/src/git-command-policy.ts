@@ -96,7 +96,7 @@ const READ_ONLY_SUBCOMMANDS = new Set([
 ]);
 
 const AUTONOMOUS_LOCAL_WRITE = new Set([
-  'fetch', 'add', 'stash', 'merge', 'rebase', 'restore', 'switch', 'checkout',
+  'fetch', 'pull', 'add', 'stash', 'merge', 'rebase', 'restore', 'switch', 'checkout',
   'commit', 'init', 'apply', 'am', 'cherry-pick', 'revert', 'reset', 'clean',
   'push', 'tag --delete', 'branch --delete', 'mv', 'rm',
 ]);
@@ -257,7 +257,7 @@ function autonomous(command: string, reason: string, mutatesWorktree = false): G
 
 /** 本地写但可自主执行的 git 子命令（影响工作区/暂存区/提交历史）。 */
 const MUTATING_LOCAL_SUBCOMMANDS = new Set([
-  'add', 'stash', 'merge', 'rebase', 'restore', 'switch', 'checkout', 'apply',
+  'pull', 'add', 'stash', 'merge', 'rebase', 'restore', 'switch', 'checkout', 'apply',
   'am', 'cherry-pick', 'revert', 'init', 'mv', 'rm',
 ]);
 

@@ -236,6 +236,9 @@ function createA9AgentRuntime(options) {
   const timeline = [];
   const MAX_TIMELINE = 500;
 
+  // 独立于 loop 的工作区服务：撤销/Diff/Git 是状态操作，不需要 Provider。
+  const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
+
   function ensureRuntime() {
     if (!lockHeld) {
       const err = new Error(`A9_WORKSPACE_LOCKED: 工作区写锁由 ${lock.holder} 持有`);
@@ -587,19 +590,20 @@ function createA9AgentRuntime(options) {
     };
   }
 
+  function workspaceServiceForState() {
+    return loopWorkspaceService || standaloneWorkspaceService;
+  }
+
   function undoTurn(turnId) {
-    if (!loopWorkspaceService) throw new Error('A9_RUNTIME_NOT_STARTED');
-    return { ok: true, outcome: loopWorkspaceService.getCheckpointManager().undoTurn(String(turnId)) };
+    return { ok: true, outcome: workspaceServiceForState().getCheckpointManager().undoTurn(String(turnId)) };
   }
 
   function undoFile(turnId, relPath) {
-    if (!loopWorkspaceService) throw new Error('A9_RUNTIME_NOT_STARTED');
-    return { ok: true, outcome: loopWorkspaceService.getCheckpointManager().undoFile(String(turnId), String(relPath)) };
+    return { ok: true, outcome: workspaceServiceForState().getCheckpointManager().undoFile(String(turnId), String(relPath)) };
   }
 
   function getDiff(turnId) {
-    if (!loopWorkspaceService) throw new Error('A9_RUNTIME_NOT_STARTED');
-    return { ok: true, diff: loopWorkspaceService.getCheckpointManager().getTurnDiff(String(turnId)) };
+    return { ok: true, diff: workspaceServiceForState().getCheckpointManager().getTurnDiff(String(turnId)) };
   }
 
   async function gitStatus() {

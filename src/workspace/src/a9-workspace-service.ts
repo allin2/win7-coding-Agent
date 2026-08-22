@@ -128,13 +128,23 @@ export interface ExternalChangeReport {
 }
 
 export class A9WorkspaceService {
+  public readonly workspaceRoot: string;
   private readonly ignoreFilter: IgnoreFilter;
   private readonly checkpointManager: CheckpointManager;
   private readonly baselines = new Map<string, BaselineFact>();
 
-  constructor(public readonly workspaceRoot: string) {
-    this.ignoreFilter = createWorkspaceIgnoreFilter(workspaceRoot);
-    this.checkpointManager = new CheckpointManager(workspaceRoot);
+  constructor(workspaceRoot: string) {
+    // 规范化工作区根本身（macOS /var → /private/var、junction 等），
+    // 否则 realpathSync 的文件会得到跨前缀的 ../../ 相对路径。
+    let canonicalRoot = workspaceRoot;
+    try {
+      canonicalRoot = fs.realpathSync(workspaceRoot);
+    } catch (_err) {
+      canonicalRoot = path.resolve(workspaceRoot);
+    }
+    this.workspaceRoot = canonicalRoot;
+    this.ignoreFilter = createWorkspaceIgnoreFilter(canonicalRoot);
+    this.checkpointManager = new CheckpointManager(canonicalRoot);
   }
 
   getCheckpointManager(): CheckpointManager {

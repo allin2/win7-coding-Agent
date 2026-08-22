@@ -32,6 +32,7 @@ describe('A9-05: git command classification', () => {
       'git log --oneline -5',
       'git branch',
       'git fetch origin',
+      'git pull origin main',
       'git add -A',
       'git stash',
       'git merge feature-x',
