@@ -356,11 +356,11 @@ describe('A9-01 regression: strict tool schema validation', () => {
 
 describe('A9-01 regression: persisted mode settings fail closed', () => {
   it('corrupted persisted values must not escalate to full access', () => {
-    expect(parseWorkspaceModeSettings(null).status).toBe('needs_selection');
-    expect(parseWorkspaceModeSettings({ schemaVersion: 1, workspaceRoot: '/ws', selectedAt: 'now', permissionMode: 'full-access!!' }).status).toBe('needs_selection');
-    expect(parseWorkspaceModeSettings({ schemaVersion: 2, workspaceRoot: '/ws', selectedAt: 'now', permissionMode: 'full_access' }).status).toBe('needs_selection');
-    expect(parseWorkspaceModeSettings(undefined).status).toBe('needs_selection');
-    const ok = parseWorkspaceModeSettings({ schemaVersion: 1, workspaceRoot: '/ws', selectedAt: 'now', permissionMode: 'read_only' });
+    expect(parseWorkspaceModeSettings(null, '/ws').status).toBe('needs_selection');
+    expect(parseWorkspaceModeSettings({ schemaVersion: 2, workspaceRoot: '/other', selectedAt: 'now', permissionMode: 'full_access' }, '/ws').status).toBe('needs_selection');
+    expect(parseWorkspaceModeSettings({ schemaVersion: 3, workspaceRoot: '/ws', selectedAt: 'now', permissionMode: 'full_access' }, '/ws').status).toBe('needs_selection');
+    expect(parseWorkspaceModeSettings(undefined, '/ws').status).toBe('needs_selection');
+    const ok = parseWorkspaceModeSettings({ schemaVersion: 2, workspaceRoot: '/ws', selectedAt: 'now', permissionMode: 'read_only', auditTrail: [] }, '/ws');
     expect(ok.status).toBe('configured');
   });
 
