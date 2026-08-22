@@ -18,6 +18,8 @@ const {
 } = require('./policy');
 const { createDesktopRequestHandler } = require('./desktop-ipc');
 const { createA8ProductRequestHandler } = require('./a8-product-ipc');
+const { createA9ProductRequestHandler } = require('./a9-product-ipc');
+const { createA9AgentRuntime } = require('./a9-agent-runtime');
 const { installSessionPolicy, installWindowPolicy } = require('./security-policy');
 const { createDesktopHost } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
@@ -828,6 +830,30 @@ ipcMain.handle('product:a8-request', createA8ProductRequestHandler({
   getDesktopHost: () => desktopHost,
   isValidRendererSender: validRendererSender,
 }));
+
+// A9 Trusted Agent Runtime（A9-06）：Renderer 只经此窄 IPC 访问。
+let a9RuntimeInstance = null;
+function getOrCreateA9Runtime() {
+  if (!a9RuntimeInstance) {
+    const a9DataRoot = path.join(app.getPath('userData'), 'a9');
+    const workspaceRoot = desktopHost && desktopHost.getActiveWorkspacePath
+      ? desktopHost.getActiveWorkspacePath()
+      : process.env.WIN7AGENT_A9_WORKSPACE || a9DataRoot;
+    a9RuntimeInstance = createA9AgentRuntime({
+      workspaceRoot,
+      dataRoot: a9DataRoot,
+      ownerId: `main-${process.pid}`,
+    });
+  }
+  return a9RuntimeInstance;
+}
+ipcMain.handle('product:a9-request', createA9ProductRequestHandler({
+  getA9Runtime: getOrCreateA9Runtime,
+  isValidRendererSender: validRendererSender,
+}));
+app.on('will-quit', () => {
+  if (a9RuntimeInstance) a9RuntimeInstance.shutdown();
+});
 
 function buildDiagnostics() {
   const diagnostics = desktopHost ? desktopHost.getDiagnostics() : {};

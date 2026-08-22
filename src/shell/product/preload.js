@@ -26,8 +26,30 @@ function a8Request(action, sessionId, payload) {
   });
 }
 
+function a9Request(action, payload) {
+  return ipcRenderer.invoke('product:a9-request', {
+    schemaVersion: 1,
+    action,
+    payload: payload || {},
+  });
+}
+
 const productApi = Object.freeze({
   getDiagnostics: () => ipcRenderer.invoke('product:get-diagnostics'),
+  a9: Object.freeze({
+    snapshot: () => a9Request('a9.snapshot.get', {}),
+    setMode: (mode) => a9Request('a9.mode.set', { mode }),
+    configureProvider: (values) => a9Request('a9.provider.configure', values),
+    probeProvider: () => a9Request('a9.provider.probe', {}),
+    submitTurn: (prompt) => a9Request('a9.turn.submit', { prompt }),
+    resumeApproval: (approved) => a9Request('a9.turn.resumeApproval', { approved }),
+    stop: () => a9Request('a9.turn.stop', {}),
+    listCheckpoints: () => a9Request('a9.checkpoint.list', {}),
+    undoTurn: (turnId) => a9Request('a9.checkpoint.undoTurn', { turnId }),
+    undoFile: (turnId, path) => a9Request('a9.checkpoint.undoFile', { turnId, path }),
+    getDiff: (turnId) => a9Request('a9.diff.get', { turnId }),
+    gitStatus: () => a9Request('a9.git.status', {}),
+  }),
   getSettings: () => request('settings.get', 'desktop', {}),
   setSettings: (values) => request('settings.set', 'desktop', { values }),
   clearSavedApiKey: () => request('settings.credential_clear', 'desktop', { credential: 'api-key' }),
