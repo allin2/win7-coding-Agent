@@ -19,10 +19,13 @@ describe('A9-01: Permission Modes and Policy Engine', () => {
       expect(normalizePermissionMode('readonly')).toBe(PermissionMode.READ_ONLY);
     });
 
-    it('defaults unknown inputs to full_access', () => {
-      expect(normalizePermissionMode(undefined)).toBe(PermissionMode.FULL_ACCESS);
-      expect(normalizePermissionMode(null)).toBe(PermissionMode.FULL_ACCESS);
-      expect(normalizePermissionMode('invalid')).toBe(PermissionMode.FULL_ACCESS);
+    it('returns undefined for unknown, missing, or corrupted values (fail-closed)', () => {
+      expect(normalizePermissionMode(undefined)).toBeUndefined();
+      expect(normalizePermissionMode(null)).toBeUndefined();
+      expect(normalizePermissionMode('invalid')).toBeUndefined();
+      expect(normalizePermissionMode('FULL ACCESS')).toBeUndefined();
+      expect(normalizePermissionMode('')).toBeUndefined();
+      expect(normalizePermissionMode(42)).toBeUndefined();
     });
   });
 

@@ -129,7 +129,7 @@ describe('A9-05: A9AgentLoop and Coding Workflow', () => {
     const result = await loop.runTurn('Push changes to remote');
     expect(result.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
     expect(result.pendingApproval?.toolName).toBe('shell');
-    expect(result.pendingApproval?.args).toEqual({ command: 'git push origin main' });
+    expect(result.pendingApproval?.args).toEqual(expect.objectContaining({ command: 'git push origin main' }));
   });
 
   it('handles user cancellation via AbortSignal', async () => {

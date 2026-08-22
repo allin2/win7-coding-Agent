@@ -10,6 +10,7 @@ export {
   ApprovalLevel,
   PermissionMode,
   normalizePermissionMode,
+  isPermissionMode,
   PolicyVerdict,
   TaskLifecycle,
   ToolCall,
@@ -164,7 +165,16 @@ export {
 export {
   a9ToolSpecs,
   registerA9Tools,
+  normalizeToolCallArgs,
 } from './a9-tools';
+
+export {
+  WORKSPACE_MODE_SETTINGS_SCHEMA_VERSION,
+  WorkspaceModeSettingsV1,
+  WorkspaceModeSettingsState,
+  parseWorkspaceModeSettings,
+  WorkspaceModeSettingsStore,
+} from './a9-mode-settings';
 
 export {
   A9_SYSTEM_PROMPT_VERSION,
@@ -242,10 +252,15 @@ export {
 
 export {
   A9LoopEvent,
+  A9LoopMessage,
+  A9ModelToolCall,
   A9ModelPort,
   A9WorkspacePort,
+  A9ReviewStagingPort,
   A9RunnerPort,
   A9AgentLoopConfig,
   A9TurnResult,
+  A9PendingToolCall,
+  A9VisiblePlan,
   A9AgentLoop,
 } from './a9-agent-loop';

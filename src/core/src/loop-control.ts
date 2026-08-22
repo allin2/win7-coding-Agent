@@ -98,6 +98,14 @@ export class LoopDetector {
       this.recent.every((item) => item === signature)
     );
   }
+
+  /**
+   * 循环检测按 Turn 重置：连续重复计数不得跨用户 Turn 累积，
+   * 否则上一轮的正常调用会被误判为卡死。
+   */
+  reset(): void {
+    this.recent.length = 0;
+  }
 }
 
 function stableSerialize(value: unknown): string {

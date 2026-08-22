@@ -325,3 +325,43 @@ export function registerA9Tools(registry: ToolRegistry, mode: PermissionMode = P
     registry.register(spec);
   }
 }
+
+/**
+ * 已知参数别名（snake_case → 规范 camelCase）。别名只做名称级映射，
+ * `timeout_seconds` 额外换算为毫秒；映射后仍未知字段由 ToolRegistry 按
+ * additionalProperties:false 拒绝。
+ */
+const TOOL_ARG_ALIASES: Readonly<Record<string, Record<string, string>>> = {
+  list: { max_entries: 'maxEntries' },
+  read: { start_line: 'startLine', max_lines: 'maxLines' },
+  search: { is_regex: 'isRegex', max_matches: 'maxMatches' },
+  edit: { old_text: 'oldText', new_text: 'newText' },
+  shell: {},
+  update_plan: {},
+};
+
+/**
+ * 将模型提交的工具参数按别名表规范化。返回规范化后的参数副本；
+ * 未经别名覆盖的未知字段保持原样，交由 ToolRegistry 的
+ * additionalProperties:false 校验拒绝。
+ */
+export function normalizeToolCallArgs(
+  toolName: string,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const aliases = TOOL_ARG_ALIASES[toolName];
+  if (!aliases) return { ...args };
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (key === 'timeout_seconds' && toolName === 'shell') {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized.timeoutMs = value * 1000;
+        continue;
+      }
+    }
+    const mapped = aliases[key];
+    if (mapped) normalized[mapped] = value;
+    else normalized[key] = value;
+  }
+  return normalized;
+}

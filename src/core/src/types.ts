@@ -93,16 +93,22 @@ export enum PermissionMode {
 }
 
 /**
- * 规范化权限模式输入
+ * 规范化权限模式输入。
+ *
+ * 未知、缺失或损坏的持久化值必须返回 `undefined`（fail-closed），由调用方进入
+ * 显式的模式选择流程；绝不允许静默提升为 Full Access（A9-01 回归约束）。
  */
-export function normalizePermissionMode(input: unknown): PermissionMode {
-  if (typeof input === 'string') {
-    const normalized = input.trim().toLowerCase();
-    if (normalized === 'full_access' || normalized === 'fullaccess') return PermissionMode.FULL_ACCESS;
-    if (normalized === 'review') return PermissionMode.REVIEW;
-    if (normalized === 'read_only' || normalized === 'readonly') return PermissionMode.READ_ONLY;
-  }
-  return PermissionMode.FULL_ACCESS;
+export function normalizePermissionMode(input: unknown): PermissionMode | undefined {
+  if (typeof input !== 'string') return undefined;
+  const normalized = input.trim().toLowerCase();
+  if (normalized === 'full_access' || normalized === 'fullaccess') return PermissionMode.FULL_ACCESS;
+  if (normalized === 'review') return PermissionMode.REVIEW;
+  if (normalized === 'read_only' || normalized === 'readonly') return PermissionMode.READ_ONLY;
+  return undefined;
+}
+
+export function isPermissionMode(input: unknown): input is PermissionMode {
+  return normalizePermissionMode(input) !== undefined;
 }
 
 /**
