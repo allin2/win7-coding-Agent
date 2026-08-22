@@ -239,3 +239,13 @@ export {
   RuntimeCancelAcknowledgement,
   AgentRuntimeProtocol,
 } from './runtime-protocol';
+
+export {
+  A9LoopEvent,
+  A9ModelPort,
+  A9WorkspacePort,
+  A9RunnerPort,
+  A9AgentLoopConfig,
+  A9TurnResult,
+  A9AgentLoop,
+} from './a9-agent-loop';
