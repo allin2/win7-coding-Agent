@@ -120,6 +120,7 @@ function createA9AgentRuntime(options) {
         workspaceService,
         runner: runnerAdapter,
         permissionMode,
+        externalChangePort: workspaceService,
         shellOptions: {
           kind: shellSelection.kind,
           ...(shellSelection.version ? { version: shellSelection.version } : {}),
@@ -212,8 +213,12 @@ function createA9AgentRuntime(options) {
           verification: result.verification,
           finalMessage: result.finalMessage,
           toolCallsExecuted: result.toolCallsExecuted,
+          ...(result.externalChanges ? { externalChanges: result.externalChanges } : {}),
         },
       });
+      if (result.externalChanges && result.externalChanges.length > 0) {
+        persistence.recordToolEvent('a9-desktop', result.turnId, 'external.changes', { changes: result.externalChanges });
+      }
       agentStatus = result.outcome;
       return { ok: true, result };
     } catch (error) {

@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { buildContentDiffPreview } from './diff';
 
-export const CHECKPOINT_SCHEMA_VERSION = 2;
+export const CHECKPOINT_SCHEMA_VERSION = 3;
 
 export interface FileChangeRecord {
   filePath: string;
@@ -35,12 +35,21 @@ export interface FileChangeRecord {
   timestamp: string;
 }
 
+/** 外部（Shell/Git/项目脚本）造成的不可恢复变化标记。 */
+export interface UnrecoverableExternalChange {
+  path: string;
+  kind: 'created' | 'modified' | 'deleted' | 'renamed' | 'outside' | 'too_large' | 'backup_failed';
+  reason: string;
+}
+
 export interface TurnCheckpoint {
   schemaVersion: typeof CHECKPOINT_SCHEMA_VERSION;
   turnId: string;
   createdAt: string;
   updatedAt: string;
   changes: Record<string, FileChangeRecord>;
+  /** v3：显式标记为不可恢复的外部变化（不静默遗漏）。 */
+  unrecoverable: Record<string, UnrecoverableExternalChange>;
 }
 
 export interface UndoOutcome {
@@ -81,9 +90,13 @@ export class CheckpointManager {
     if (!fs.existsSync(manifestPath)) return undefined;
     try {
       const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as TurnCheckpoint;
-      if (parsed.schemaVersion !== CHECKPOINT_SCHEMA_VERSION || parsed.turnId !== turnId) {
+      if (parsed.schemaVersion !== CHECKPOINT_SCHEMA_VERSION && parsed.schemaVersion !== 2) {
         throw new Error(`checkpoint manifest schema mismatch for ${turnId}`);
       }
+      if (parsed.turnId !== turnId) {
+        throw new Error(`checkpoint manifest turn mismatch for ${turnId}`);
+      }
+      if (!parsed.unrecoverable) parsed.unrecoverable = {};
       this.checkpoints.set(turnId, parsed);
       return parsed;
     } catch (err) {
@@ -128,10 +141,12 @@ export class CheckpointManager {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         changes: {},
+        unrecoverable: {},
       };
       this.checkpoints.set(turnId, checkpoint);
       this.persist(checkpoint);
     }
+    if (!checkpoint.unrecoverable) checkpoint.unrecoverable = {};
     return checkpoint;
   }
 
@@ -382,6 +397,68 @@ export class CheckpointManager {
     if (!expectedHash) return undefined;
     const current = this.hashBytes(fs.readFileSync(absPath));
     return current === expectedHash ? undefined : '文件在变更后被外部修改';
+  }
+
+  /**
+   * 记录外部（Shell/Git/脚本）造成的可恢复变化：created → undo 删除；
+   * modified/deleted → 用提供的内容 blob 恢复原始内容。
+   */
+  recordExternalFact(
+    turnId: string,
+    relPath: string,
+    action: 'created' | 'modified' | 'deleted',
+    options: { originalBlobPath?: string; newBlobPath?: string; originalHash?: string; newHash?: string } = {},
+  ): void {
+    const checkpoint = this.startTurn(turnId);
+    const existing = checkpoint.changes[relPath];
+    if (existing && existing.action !== 'create' && existing.originalBlobPath) {
+      // 已有工具写入记录（含轮初原始内容）优先，不覆盖更强的事实。
+      this.persist(checkpoint);
+      return;
+    }
+    const record: FileChangeRecord = existing ?? {
+      filePath: relPath,
+      action: 'create',
+      isDirectory: false,
+      timestamp: new Date().toISOString(),
+    };
+    if (action === 'created') {
+      record.action = 'create';
+      record.newBlobPath = options.newBlobPath ?? record.newBlobPath;
+      record.newHash = options.newHash ?? record.newHash;
+    } else if (action === 'modified') {
+      record.action = 'modify';
+      record.originalBlobPath = options.originalBlobPath ?? record.originalBlobPath;
+      record.originalHash = options.originalHash ?? record.originalHash;
+      record.newBlobPath = options.newBlobPath ?? record.newBlobPath;
+      record.newHash = options.newHash ?? record.newHash;
+    } else {
+      record.action = 'delete';
+      record.originalBlobPath = options.originalBlobPath ?? record.originalBlobPath;
+      record.originalHash = options.originalHash ?? record.originalHash;
+    }
+    checkpoint.changes[relPath] = record;
+    this.persist(checkpoint);
+  }
+
+  /** 显式标记不可恢复的外部变化（不静默遗漏）。 */
+  recordUnrecoverableExternal(turnId: string, change: UnrecoverableExternalChange): void {
+    const checkpoint = this.startTurn(turnId);
+    checkpoint.unrecoverable[change.path] = change;
+    this.persist(checkpoint);
+  }
+
+  /** 读取外部变化报告（含可恢复与不可恢复），供 Diff/SQLite/UI 共用。 */
+  getExternalChanges(turnId: string): {
+    recoverable: Array<{ path: string; action: 'create' | 'modify' | 'delete' }>;
+    unrecoverable: UnrecoverableExternalChange[];
+  } {
+    const checkpoint = this.loadCheckpoint(turnId);
+    if (!checkpoint) return { recoverable: [], unrecoverable: [] };
+    return {
+      recoverable: Object.values(checkpoint.changes).map((r) => ({ path: r.filePath, action: r.action })),
+      unrecoverable: Object.values(checkpoint.unrecoverable ?? {}),
+    };
   }
 
   /**

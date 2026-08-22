@@ -99,7 +99,7 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
     const fixture = await startFixtureModel([
       { tool: { id: 'r1', name: 'read', args: { path: 'calc.ts' } } },
       { tool: { id: 'e1', name: 'edit', args: { path: 'calc.ts', oldText: 'return a - b;', newText: 'return a + b;' } } },
-      { tool: { id: 's1', name: 'shell', args: { command: 'echo verified' } } },
+      { tool: { id: 's1', name: 'shell', args: { command: 'node -e \"console.log(\'verified\')\"' } } },
       { content: 'Fixed and verified.' },
     ]);
     try {

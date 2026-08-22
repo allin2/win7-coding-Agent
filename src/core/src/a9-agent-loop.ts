@@ -134,6 +134,92 @@ export interface A9RunnerPort {
   execute(command: string, options?: A9RunnerExecutionOptions): Promise<A9RunnerExecutionResult>;
 }
 
+/** R3：外部变化报告（与 workspace ExternalChangeReport 结构一致）。 */
+export interface A9ExternalChangeReport {
+  changes: Array<{ path: string; kind: 'created' | 'modified' | 'deleted' | 'renamed'; recoverable: boolean; restoredVia?: string }>;
+  unrecoverable: Array<{ path: string; kind: string; reason: string }>;
+}
+
+/** R3：Shell/Git/项目脚本外部变化的轮前基线与轮后收集端口。 */
+export interface A9ExternalChangePort {
+  freezeTurnBaseline(turnId: string, options?: { signal?: AbortSignal }): Promise<unknown>;
+  collectExternalChanges(turnId: string, baseline: unknown, options?: { signal?: AbortSignal }): Promise<A9ExternalChangeReport>;
+}
+
+/** 纯输出/查看类命令（以及其组合）不构成验证证据。 */
+const OUTPUT_ONLY_COMMANDS = new Set([
+  'echo', 'printf', 'true', ':', 'pwd', 'cd', 'whoami', 'date', 'uname', 'hostname',
+  'ls', 'dir', 'cat', 'type', 'print', 'ver', 'id', 'env', 'set', 'which', 'where',
+]);
+/** 具备执行/验证能力的常见运行器：出现即视为验证候选。 */
+const RUNNER_COMMANDS = new Set([
+  'node', 'node.exe', 'python', 'python3', 'python.exe', 'py', 'npm', 'npx', 'yarn', 'pnpm',
+  'jest', 'vitest', 'mocha', 'pytest', 'py.test', 'mvn', 'gradle', 'dotnet', 'msbuild',
+  'make', 'gmake', 'bash', 'sh', 'zsh', 'powershell', 'powershell.exe', 'pwsh', 'cmd', 'cmd.exe',
+  'git', 'git.exe', 'tsc', 'eslint', 'go', 'cargo', 'ruby', 'php', 'perl',
+]);
+
+/**
+ * 判断一条命令是否不可能构成验证证据：所有出现的命令词都是纯输出/查看类
+ * 且不含任何执行运行器。`echo ... | node ...`、`npm test`、`bash -c` 等
+ * 都因为含运行器而被视为验证候选；`echo done`、`ls`、`cat x` 不算。
+ */
+export function isNonVerifyingCommand(command: string): boolean {
+  const tokens = tokenizeSimple(command);
+  if (tokens.length === 0) return true;
+  const commandWords = tokens.map((t) => t.toLowerCase());
+  const hasRunner = commandWords.some((word) => RUNNER_COMMANDS.has(word));
+  if (hasRunner) return false;
+  // 以“命令位置”出现的词（首个词，以及 | && ; 后的首词）判断。
+  let expectCommand = true;
+  for (const word of commandWords) {
+    if (expectCommand) {
+      if (!OUTPUT_ONLY_COMMANDS.has(word)) return false;
+      expectCommand = false;
+    } else if (word === '|' || word === '||' || word === '&&' || word === ';') {
+      expectCommand = true;
+    }
+  }
+  return true;
+}
+
+/** 轻量 tokenizer：处理引号内内容为一个 token（供命令分类）。 */
+function tokenizeSimple(command: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let quote: '\"' | '\'' | undefined;
+  let hasToken = false;
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i];
+    if (quote) {
+      if (ch === quote) { quote = undefined; continue; }
+      current += ch;
+      continue;
+    }
+    if (ch === '\"' || ch === '\'') { quote = ch; hasToken = true; continue; }
+    if (/\s/.test(ch)) {
+      if (hasToken || current) { tokens.push(current); current = ''; hasToken = false; }
+      continue;
+    }
+    if (ch === '|' || ch === ';') {
+      if (hasToken || current) { tokens.push(current); current = ''; hasToken = false; }
+      tokens.push(ch === ';' ? ';' : (command[i + 1] === '|' ? '||' : '|'));
+      if (ch === '|' && command[i + 1] === '|') i += 1;
+      continue;
+    }
+    if (ch === '&') {
+      if (hasToken || current) { tokens.push(current); current = ''; hasToken = false; }
+      tokens.push(command[i + 1] === '&' ? '&&' : '&');
+      if (command[i + 1] === '&') i += 1;
+      continue;
+    }
+    current += ch;
+    hasToken = true;
+  }
+  if (hasToken || current) tokens.push(current);
+  return tokens;
+}
+
 export interface A9AgentLoopConfig {
   workspaceRoot: string;
   provider: A9ModelPort;
@@ -145,6 +231,8 @@ export interface A9AgentLoopConfig {
   shellOptions?: { kind?: string; path?: string; version?: string; envOverlay?: Record<string, string> };
   /** NEEDS_APPROVAL 挂起时同步持久化 pending 审批（等待用户前调用）。 */
   onApprovalPending?: (approval: A9ApprovalRequest) => void | Promise<void>;
+  /** R3：外部变化端口（提供时，Shell/Git 变化进入同一 checkpoint/Diff/undo 链路）。 */
+  externalChangePort?: A9ExternalChangePort;
   policyEngine?: PolicyEngine;
   permissionMode?: PermissionMode;
   maxStepsPerTurn?: number;
@@ -267,6 +355,8 @@ export interface A9TurnResult {
   verification?: A9VerificationStatus;
   /** onEvent 处理器抛出的错误（不得静默吞掉）。 */
   eventHandlerErrors?: string[];
+  /** R3：本轮 Shell/Git/脚本造成的工作区变化（与 checkpoint/Diff 同源）。 */
+  externalChanges?: Array<{ path: string; kind: string; recoverable: boolean }>;
 }
 
 export interface A9VisiblePlan {
@@ -303,6 +393,9 @@ export class A9AgentLoop {
   private eventHandlerErrors: string[] = [];
   private turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
   private turnSequence = 0;
+  private frozenBaseline: unknown;
+  private baselineFrozen = false;
+  private externalChanges: Array<{ path: string; kind: string; recoverable: boolean }> = [];
 
   constructor(private readonly config: A9AgentLoopConfig) {
     this.permissionMode = config.permissionMode ?? PermissionMode.FULL_ACCESS;
@@ -342,6 +435,9 @@ export class A9AgentLoop {
     this.loopDetector.reset();
     this.eventHandlerErrors = [];
     this.turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
+    this.frozenBaseline = undefined;
+    this.baselineFrozen = false;
+    this.externalChanges = [];
     this.turnSequence += 1;
     const turnId = `turn-${Date.now()}-${this.turnSequence}`;
     this.currentTurnId = turnId;
@@ -683,6 +779,17 @@ export class A9AgentLoop {
         continue;
       }
 
+      // R3：第一个潜在副作用工具前冻结轮前内容基线（读工具不冻结）。
+      if (!this.baselineFrozen && this.config.externalChangePort && this.isPotentialSideEffectTool(tc.name)) {
+        try {
+          this.frozenBaseline = await this.config.externalChangePort.freezeTurnBaseline(turnId, { signal });
+          this.baselineFrozen = true;
+        } catch (err) {
+          this.eventHandlerErrors.push(`freezeTurnBaseline failed: ${err instanceof Error ? err.message : String(err)}`);
+          this.baselineFrozen = true; // 失败也标记已尝试；后续变化将无法恢复并如实暴露
+        }
+      }
+
       // Review 模式的写工具直接进入 staging（对正式工作区零副作用），不经 PolicyEngine 请求写令牌。
       if (this.permissionMode === PermissionMode.REVIEW && this.isStagedWriteTool(tc.name)) {
         if (!this.config.reviewStaging) {
@@ -787,6 +894,34 @@ export class A9AgentLoop {
     return ['write', 'edit', 'copy', 'move', 'delete'].includes(name);
   }
 
+  private isPotentialSideEffectTool(name: string): boolean {
+    return name === 'shell' || this.isStagedWriteTool(name);
+  }
+
+  private async collectExternal(turnId: string, signal: AbortSignal | undefined): Promise<void> {
+    if (!this.config.externalChangePort || !this.baselineFrozen) return;
+    try {
+      // 收集不携带用户取消信号：取消后仍必须如实记录已发生的文件变化。
+      const report = await this.config.externalChangePort.collectExternalChanges(turnId, this.frozenBaseline);
+      const changes = Array.isArray(report) ? report : (report?.changes ?? []);
+      if (changes.length > 0) {
+        this.externalChanges.push(...changes);
+        // 外部（Shell）造成的真实文件变化：计为副作用并使既有验证失效。
+        this.turnStats.mutations = true;
+        this.turnStats.verifiedAfterMutation = false;
+        this.emitEvent({
+          type: 'tool_end',
+          turnId,
+          timestamp: new Date().toISOString(),
+          data: { externalChanges: changes },
+        });
+      }
+    } catch (err) {
+      // 收集失败不得吞掉，也不得丢失工具结果。
+      this.eventHandlerErrors.push(`collectExternalChanges failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   private async executeStagedWrite(
     turnId: string,
     tc: A9ModelToolCall,
@@ -871,6 +1006,7 @@ export class A9AgentLoop {
     let executed = false;
     let residueRisk: boolean | undefined;
     let logPaths: { stdout: string; stderr: string } | undefined;
+    const isShellTool = tc.name === 'shell';
     try {
       const outcome = await this.dispatchTool(tc.name, args, turnId, signal);
       toolResultStr = typeof outcome.payload === 'string' ? outcome.payload : JSON.stringify(outcome.payload, null, 2);
@@ -879,6 +1015,12 @@ export class A9AgentLoop {
       executed = !residueRisk;
     } catch (err: any) {
       toolResultStr = `Tool execution error: ${err.message}`;
+      // R3：失败/取消的 Shell 也必须收集已发生的文件变化。
+      if (isShellTool) await this.collectExternal(turnId, signal);
+    }
+    if (isShellTool) {
+      // 成功、超时、取消、residueRisk 后都要收集变化（同一 checkpoint 链路）。
+      await this.collectExternal(turnId, signal);
     }
 
     if (toolResultStr.length > this.maxToolResultChars) {
@@ -890,16 +1032,25 @@ export class A9AgentLoop {
       if (this.permissionMode === PermissionMode.FULL_ACCESS && ['write', 'edit', 'copy', 'move', 'delete'].includes(tc.name)) {
         // Review staging 不触碰正式工作区，不计为副作用。
         this.turnStats.mutations = true;
+        // 验证之后又发生源码修改 → 回到 unverified。
+        this.turnStats.verifiedAfterMutation = false;
       } else if (tc.name === 'shell' && !residueRisk) {
         // git 写操作经分类器计入副作用（A9-T02：Shell 变化纳入同一审计链路）。
         const gitDecision = typeof args.command === 'string' ? classifyGitCommand(args.command) : null;
         if (gitDecision?.mutatesWorktree) {
           this.turnStats.mutations = true;
+          this.turnStats.verifiedAfterMutation = false;
         }
-        // shell 成功执行且此前存在文件副作用 → 视为验证证据。
+        // 只有“非纯输出”的命令成功执行且此前存在文件副作用 → 才算验证证据；
+        // echo/ls/cat 等纯输出命令成功不产生 verified。
+        const command = typeof args.command === 'string' ? args.command : '';
         try {
           const parsed = JSON.parse(toolResultStr);
-          if (typeof parsed.exitCode === 'number' && parsed.exitCode === 0 && this.turnStats.mutations && !gitDecision?.mutatesWorktree) {
+          if (
+            typeof parsed.exitCode === 'number' && parsed.exitCode === 0 &&
+            this.turnStats.mutations && !gitDecision?.mutatesWorktree &&
+            !isNonVerifyingCommand(command)
+          ) {
             this.turnStats.verifiedAfterMutation = true;
           }
         } catch (_parseErr) { /* 非 JSON 结果无法证明验证 */ }
@@ -1011,9 +1162,12 @@ export class A9AgentLoop {
     eventData: Record<string, unknown> = {},
   ): A9TurnResult {
     const withPlan = this.visiblePlan ? { ...result, plan: { ...this.visiblePlan } } : result;
-    const withErrors = this.eventHandlerErrors.length > 0
-      ? { ...withPlan, eventHandlerErrors: [...this.eventHandlerErrors] }
+    const withExternal = this.externalChanges.length > 0
+      ? { ...withPlan, externalChanges: [...this.externalChanges] }
       : withPlan;
+    const withErrors = this.eventHandlerErrors.length > 0
+      ? { ...withExternal, eventHandlerErrors: [...this.eventHandlerErrors] }
+      : withExternal;
     if (eventType) {
       this.emitEvent({ type: eventType, turnId, timestamp: new Date().toISOString(), data: eventData });
     }

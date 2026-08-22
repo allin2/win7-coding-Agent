@@ -1189,3 +1189,22 @@
   跨 Turn 一律结构化拒绝）。（4）turnId 增加进程内序号保证跨 Turn 唯一。
 - 后果：审批记录可审计到确切目标；目标、参数或摘要变化即失效；Renderer 旧 boolean 协议不再可用（IPC 未发布，
   无兼容负担）。拒绝路径保持零副作用并已记录真实目标。
+
+## ADR-0092 Shell 与外部工具的工作区变化进入同一 Checkpoint 与诚实验证语义
+
+- 状态：Accepted（2026-08-22，A9 R3 修复轮）
+- 背景：Shell 执行（如 `printf changed > via-shell.txt`）真实修改工作区后，getDiff(turnId) 为空、
+  undoTurn 报未找到 Checkpoint、Turn 被标 completed/not_applicable；同时任何 shell 成功（含 `echo`）
+  都可能把未验证的修改标成 verified。
+- 决策：（1）A9AgentLoop 通过 A9ExternalChangePort（由 A9WorkspaceService 实现）在本轮第一个潜在副作用
+  工具前冻结有界内容基线（遵循 ignore；文件数 2000/单文件 2 MiB/总量 40 MiB 上限），并在每次 shell 执行后
+  （成功、失败、取消或 residueRisk）扫描轮前/轮后变化：created → undo 删除；modified/deleted（有基线 blob）→
+  恢复原内容；同哈希 delete+create 对识别为 rename；超限、备份失败、无基线的目标显式写入
+  `unrecoverable` 清单，不静默遗漏。（2）外部变化与工具写入共用同一 checkpoint 记录（schema v3 增加
+  `unrecoverable`，v2 可读兼容），Diff、undo、SQLite 事实与 UI 使用同一份记录；外部变化同时使既有验证
+  失效并计为副作用。（3）收集不携带用户取消信号——取消后仍必须如实记录已发生的变化。（4）诚实验证语义：
+  `isNonVerifyingCommand` 将纯输出/查看类命令（echo/printf/ls/cat/type 等，且不含 node/python/npm/jest/
+  git 等运行器）排除在验证证据之外；只有验证候选命令成功（exitCode 0）且发生在最后一次源码修改之后才
+  标记 verified；验证后再次修改（工具或外部）即回到 unverified。
+- 后果：Shell/Git/项目脚本造成的文件变化全部可审计、可恢复（或显式标记不可恢复）；`echo tests passed`
+  不再能把代码修改标成已验证。基线冻结有界，大仓库按上限截断并显式标记。

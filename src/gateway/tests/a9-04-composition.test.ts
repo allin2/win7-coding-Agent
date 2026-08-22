@@ -49,7 +49,7 @@ function startFixture(): Promise<FixtureServer> {
           sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_edit', function: { name: 'edit', arguments: JSON.stringify({ path: 'calc.ts', oldText: 'return a - b;', newText: 'return a + b;' }) } }] }, finish_reason: 'tool_calls' }] });
         } else if (toolNames.includes('edit') && !toolNames.includes('shell')) {
           // 第 3 轮：运行验证命令。
-          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_shell', function: { name: 'shell', arguments: JSON.stringify({ command: 'echo verified: calc fixed' }) } }] }, finish_reason: 'tool_calls' }] });
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_shell', function: { name: 'shell', arguments: JSON.stringify({ command: String.raw`node -e "if (1 + 2 !== 3) process.exit(1); console.log('verified: calc fixed')"` }) } }] }, finish_reason: 'tool_calls' }] });
         } else {
           // 第 4 轮：最终回答。
           sse(res, { choices: [{ delta: { content: 'Bug fixed: calc.ts now returns a + b; verification command passed.' }, finish_reason: 'stop' }] });

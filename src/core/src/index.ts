@@ -266,6 +266,9 @@ export {
 export {
   A9LoopEvent,
   A9LoopMessage,
+  A9ExternalChangePort,
+  A9ExternalChangeReport,
+  isNonVerifyingCommand,
   A9ModelToolCall,
   A9ModelPort,
   A9WorkspacePort,

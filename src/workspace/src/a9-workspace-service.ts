@@ -110,6 +110,22 @@ const MAX_WHOLE_READ_BYTES = 8 * 1024 * 1024;
 const MAX_SEARCH_FILE_BYTES = 1024 * 1024;
 /** 搜索最多扫描的文件数，防止同步全库扫描。 */
 const MAX_SEARCH_FILES = 20_000;
+/** 轮前内容基线上限：文件数、单文件字节、总字节（超出部分显式标记不可恢复）。 */
+const MAX_BASELINE_FILES = 2000;
+const MAX_BASELINE_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_BASELINE_TOTAL_BYTES = 40 * 1024 * 1024;
+
+export interface TurnContentBaseline {
+  turnId: string;
+  frozenAt: string;
+  files: Record<string, { sha256: string; blobPath: string; size: number }>;
+  skipped: Array<{ path: string; reason: 'too_large' | 'backup_failed' | 'outside' }>;
+}
+
+export interface ExternalChangeReport {
+  changes: Array<{ path: string; kind: 'created' | 'modified' | 'deleted' | 'renamed'; recoverable: boolean; restoredVia?: 'delete-new' | 'restore-original' }>;
+  unrecoverable: Array<{ path: string; kind: string; reason: string }>;
+}
 
 export class A9WorkspaceService {
   private readonly ignoreFilter: IgnoreFilter;
@@ -790,6 +806,176 @@ export class A9WorkspaceService {
       outsideWorkspace: isOutside,
       recoverableVia: `checkpoint ${turnId} (undo file or turn)`,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // R3：Shell/Git/项目脚本外部变化的轮前基线与轮后收集
+  // -------------------------------------------------------------------------
+
+  /**
+   * 冻结轮前内容基线（第一个潜在副作用前调用）：遵循 ignore；文件数/单文件/
+   * 总量有界；超限或读取失败显式记入 skipped（后续变化将标记不可恢复）。
+   */
+  async freezeTurnBaseline(turnId: string, options: { signal?: AbortSignal } = {}): Promise<TurnContentBaseline> {
+    const files: TurnContentBaseline['files'] = {};
+    const skipped: TurnContentBaseline['skipped'] = [];
+    let totalBytes = 0;
+    let fileCount = 0;
+
+    const stack: string[] = [this.workspaceRoot];
+    const visited = new Set<string>([this.safeRealPath(this.workspaceRoot)].filter((v): v is string => v !== undefined));
+    while (stack.length > 0) {
+      if (options.signal?.aborted) throw new Error('基线冻结已被取消');
+      const dir = stack.pop()!;
+      let dirents: fs.Dirent[];
+      try {
+        dirents = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (_e) {
+        continue;
+      }
+      for (const dirent of dirents) {
+        const fullPath = path.join(dir, dirent.name);
+        const rel = path.relative(this.workspaceRoot, fullPath).replace(/\\/g, '/');
+        if (rel.startsWith('.agent_recovery')) continue;
+        if (this.ignoreFilter.isIgnored(rel, dirent.isDirectory())) continue;
+        if (dirent.isDirectory()) {
+          const real = this.safeRealPath(fullPath);
+          if (real && !visited.has(real)) {
+            visited.add(real);
+            stack.push(fullPath);
+          }
+        } else if (dirent.isFile()) {
+          if (fileCount >= MAX_BASELINE_FILES) {
+            skipped.push({ path: rel, reason: 'too_large' });
+            continue;
+          }
+          let stat: fs.Stats;
+          try {
+            stat = fs.statSync(fullPath);
+          } catch (_e) {
+            skipped.push({ path: rel, reason: 'backup_failed' });
+            continue;
+          }
+          if (stat.size > MAX_BASELINE_FILE_BYTES || totalBytes + stat.size > MAX_BASELINE_TOTAL_BYTES) {
+            skipped.push({ path: rel, reason: 'too_large' });
+            continue;
+          }
+          try {
+            const content = fs.readFileSync(fullPath);
+            const blobPath = this.checkpointManager.saveToRecovery(rel, content);
+            const sha256 = crypto.createHash('sha256').update(content).digest('hex');
+            files[rel] = { sha256, blobPath, size: stat.size };
+            totalBytes += stat.size;
+            fileCount += 1;
+          } catch (_e) {
+            skipped.push({ path: rel, reason: 'backup_failed' });
+          }
+        }
+      }
+    }
+
+    return { turnId, frozenAt: new Date().toISOString(), files, skipped };
+  }
+
+  /**
+   * 轮后收集外部变化并写入同一份 checkpoint 记录（Diff/undo/SQLite/UI 共用）：
+   * created → undo 删除；modified/deleted（有基线 blob）→ 恢复原内容；
+   * rename = 同哈希的 delete+create 对；无基线/超限/失败 → 显式不可恢复标记。
+   */
+  async collectExternalChanges(
+    turnId: string,
+    baseline: TurnContentBaseline,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<ExternalChangeReport> {
+    const report: ExternalChangeReport = { changes: [], unrecoverable: [] };
+    const current = new Map<string, { sha256: string; size: number }>();
+    const stack: string[] = [this.workspaceRoot];
+    const visited = new Set<string>([this.safeRealPath(this.workspaceRoot)].filter((v): v is string => v !== undefined));
+    while (stack.length > 0) {
+      if (options.signal?.aborted) throw new Error('外部变化收集已被取消');
+      const dir = stack.pop()!;
+      let dirents: fs.Dirent[];
+      try {
+        dirents = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (_e) {
+        continue;
+      }
+      for (const dirent of dirents) {
+        const fullPath = path.join(dir, dirent.name);
+        const rel = path.relative(this.workspaceRoot, fullPath).replace(/\\/g, '/');
+        if (rel.startsWith('.agent_recovery')) continue;
+        if (this.ignoreFilter.isIgnored(rel, dirent.isDirectory())) continue;
+        if (dirent.isDirectory()) {
+          const real = this.safeRealPath(fullPath);
+          if (real && !visited.has(real)) {
+            visited.add(real);
+            stack.push(fullPath);
+          }
+        } else if (dirent.isFile()) {
+          try {
+            const stat = fs.statSync(fullPath);
+            if (stat.size <= MAX_BASELINE_FILE_BYTES) {
+              const hash = crypto.createHash('sha256').update(fs.readFileSync(fullPath)).digest('hex');
+              current.set(rel, { sha256: hash, size: stat.size });
+            } else {
+              current.set(rel, { sha256: `too-large:${stat.size}`, size: stat.size });
+            }
+          } catch (_e) { /* unreadable now */ }
+        }
+      }
+    }
+
+    const skippedPaths = new Set(baseline.skipped.map((item) => item.path));
+    const createdHashes = new Map<string, string>();
+
+    // 新建与修改。
+    for (const [rel, fact] of current) {
+      const before = baseline.files[rel];
+      if (!before) {
+        createdHashes.set(fact.sha256, rel);
+        this.checkpointManager.recordExternalFact(turnId, rel, 'created', { newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256 });
+        report.changes.push({ path: rel, kind: 'created', recoverable: true, restoredVia: 'delete-new' });
+        continue;
+      }
+      if (before.sha256 !== fact.sha256) {
+        if (skippedPaths.has(rel)) {
+          this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: '轮前基线未覆盖该文件（超限或备份失败），无法恢复原内容' });
+          report.unrecoverable.push({ path: rel, kind: 'modified', reason: 'baseline-missing' });
+          report.changes.push({ path: rel, kind: 'modified', recoverable: false });
+        } else {
+          this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
+            originalBlobPath: before.blobPath,
+            originalHash: before.sha256,
+            newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
+          });
+          report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
+        }
+      }
+    }
+
+    // 删除与重命名（同哈希 delete+create 对 → renamed）。
+    for (const [rel, before] of Object.entries(baseline.files)) {
+      if (current.has(rel)) continue;
+      const renamedTo = createdHashes.get(before.sha256);
+      if (renamedTo && renamedTo !== rel) {
+        this.checkpointManager.recordExternalFact(turnId, rel, 'deleted', { originalBlobPath: before.blobPath, originalHash: before.sha256 });
+        report.changes.push({ path: rel, kind: 'renamed', recoverable: true, restoredVia: 'restore-original' });
+        report.changes.push({ path: renamedTo, kind: 'renamed', recoverable: true, restoredVia: 'delete-new' });
+        continue;
+      }
+      this.checkpointManager.recordExternalFact(turnId, rel, 'deleted', { originalBlobPath: before.blobPath, originalHash: before.sha256 });
+      report.changes.push({ path: rel, kind: 'deleted', recoverable: true, restoredVia: 'restore-original' });
+    }
+
+    return report;
+  }
+
+  private safeRealPath(target: string): string | undefined {
+    try {
+      return fs.realpathSync(target);
+    } catch (_err) {
+      return undefined;
+    }
   }
 
   // -------------------------------------------------------------------------
