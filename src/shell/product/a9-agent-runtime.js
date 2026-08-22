@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const { serializeError } = require('./desktop-host');
+const { createDpapiCredentialVault } = require('./credential-vault');
 
 function requireModule(relativeName) {
   const candidates = [
@@ -82,14 +83,156 @@ function createA9AgentRuntime(options) {
   // ----- R2：pending 审批（SQLite 记录来自原始 pending 对象） -----
   let currentPendingApproval = null;
 
-  // ----- Provider（正式 UI 默认真实 Provider；未配置即拒绝执行） -----
-  let providerConfig = null;
-  let provider = null;
-
-  // ----- Agent Loop 状态 -----
+  // ----- Agent Loop 状态（声明先于 provider 恢复，避免 TDZ） -----
   let loop = null;
   let activeController = null;
   let agentStatus = 'idle';
+
+  // ----- Provider（R4：非秘密配置版本化持久化；秘密仅 DPAPI；未配置即拒绝执行） -----
+  const PROVIDER_CONFIG_SCHEMA_VERSION = 1;
+  const providerConfigPath = path.join(dataRoot, 'a9-provider-config.v1.json');
+
+  // DPAPI 不可用时降级为仅内存（vault 构造抛错 → 捕获），不另造明文凭据文件。
+  let apiKeySource = 'none'; // 'dpapi' | 'memory' | 'none'
+  function createVaultFor(slot) {
+    try {
+      return createDpapiCredentialVault({
+        safeStorage: config.safeStorage,
+        // vaultPlatform 仅供开发/测试用 fake safeStorage 验证 DPAPI 合同；
+        // 生产路径保持 process.platform（真实 DPAPI 仅 Windows）。
+        platform: config.vaultPlatform || process.platform,
+        userDataPath: path.join(dataRoot, slot),
+      });
+    } catch (_err) {
+      return null;
+    }
+  }
+  const apiKeyVault = createVaultFor('a9-vault-apikey');
+  const secretsVault = createVaultFor('a9-vault-secrets');
+
+  let providerConfig = null;       // 非秘密配置（可持久化）
+  let memoryApiKey = null;         // DPAPI 不可用/未记住时仅内存
+  let memorySecrets = null;        // header 值/代理密码（仅内存）
+  let providerProbe = null;        // { classification, checkedAt, latencyMs, error? }
+  let providerDiagnostics = null;  // fail-closed 诊断（不删除证据）
+  let provider = null;
+
+  function redactSecrets(text) {
+    let out = String(text);
+    const secrets = [memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
+      ...(memorySecrets && memorySecrets.headerValues ? Object.values(memorySecrets.headerValues) : [])];
+    for (const secret of secrets) {
+      if (typeof secret === 'string' && secret.length > 0) out = out.split(secret).join('***redacted***');
+    }
+    return out;
+  }
+
+  function readPersistedProviderConfig() {
+    try {
+      if (!fs.existsSync(providerConfigPath)) return null;
+      const doc = JSON.parse(fs.readFileSync(providerConfigPath, 'utf8'));
+      if (!doc || doc.schemaVersion !== PROVIDER_CONFIG_SCHEMA_VERSION) {
+        providerDiagnostics = { code: 'A9_PROVIDER_CONFIG_SCHEMA_MISMATCH', detail: `schemaVersion=${doc && doc.schemaVersion}` };
+        return null;
+      }
+      return doc;
+    } catch (err) {
+      providerDiagnostics = { code: 'A9_PROVIDER_CONFIG_UNPARSABLE', detail: redactSecrets(err.message) };
+      return null;
+    }
+  }
+
+  function writePersistedProviderConfig(doc) {
+    const tmp = `${providerConfigPath}.tmp-${process.pid}-${Date.now()}`;
+    fs.mkdirSync(path.dirname(providerConfigPath), { recursive: true });
+    fs.writeFileSync(tmp, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+    fs.renameSync(tmp, providerConfigPath);
+  }
+
+  /** 加载已保存的秘密：DPAPI 优先；解密失败 fail-closed（保留诊断证据，不删除）。 */
+  function loadPersistedSecrets() {
+    let apiKey = null;
+    let secrets = null;
+    if (apiKeyVault && apiKeyVault.getStatus().saved) {
+      try {
+        apiKey = apiKeyVault.loadApiKey();
+      } catch (err) {
+        providerDiagnostics = { code: err && err.code ? err.code : 'A9_PROVIDER_SECRET_LOAD_FAILED', detail: redactSecrets(err.message) };
+      }
+    }
+    if (secretsVault && secretsVault.getStatus().saved) {
+      try {
+        secrets = JSON.parse(secretsVault.loadApiKey());
+      } catch (err) {
+        providerDiagnostics = providerDiagnostics || { code: err && err.code ? err.code : 'A9_PROVIDER_SECRET_LOAD_FAILED', detail: redactSecrets(err.message) };
+      }
+    }
+    return { apiKey, secrets };
+  }
+
+  function buildProviderInstance(probeMode) {
+    const headerValues = (memorySecrets && memorySecrets.headerValues) || {};
+    const headers = {};
+    for (const name of providerConfig.customHeaderNames || []) {
+      if (typeof headerValues[name] === 'string' && headerValues[name]) headers[name] = headerValues[name];
+    }
+    const proxy = providerConfig.proxy
+      ? {
+        host: providerConfig.proxy.host,
+        port: providerConfig.proxy.port,
+        ...(providerConfig.proxy.protocol ? { protocol: providerConfig.proxy.protocol } : {}),
+        ...(providerConfig.proxy.username ? { auth: { username: providerConfig.proxy.username, password: (memorySecrets && memorySecrets.proxyPassword) || '' } } : {}),
+      }
+      : undefined;
+    return new modules.gateway.OpenAICompatibleProvider({
+      baseUrl: providerConfig.baseUrl,
+      model: providerConfig.model,
+      ...(memoryApiKey ? { apiKey: memoryApiKey } : {}),
+      ...(Object.keys(headers).length > 0 ? { customHeaders: headers } : {}),
+      ...(providerConfig.caBundle ? { tlsConfig: { caBundle: providerConfig.caBundle, verifyCertificate: true } } : {}),
+      ...(providerConfig.allowInsecureTLS ? { allowInsecureTLS: true } : {}),
+      ...(proxy ? { proxyConfig: proxy } : {}),
+      ...(probeMode ? {
+        // 探测使用短超时/低重试：不可达服务快速分类，不阻塞保存流程。
+        timeoutMs: 5_000,
+        totalTimeoutMs: 15_000,
+        noDataTimeoutMs: 10_000,
+        retryConfig: { maxRetries: 1, initialDelayMs: 200, maxDelayMs: 500, backoffMultiplier: 2 },
+      } : {}),
+    });
+  }
+
+  function rebuildProvider() {
+    if (!providerConfig) { provider = null; return; }
+    loop = null;
+    provider = buildProviderInstance(false);
+  }
+
+  // 启动时恢复：非秘密配置 + DPAPI 秘密（失败 fail-closed 进入诊断，不覆盖）。
+  (function restoreProviderConfig() {
+    const doc = readPersistedProviderConfig();
+    if (!doc) return;
+    providerConfig = {
+      baseUrl: doc.baseUrl,
+      model: doc.model,
+      customHeaderNames: doc.customHeaderNames || [],
+      ...(doc.caBundle ? { caBundle: doc.caBundle } : {}),
+      allowInsecureTLS: doc.allowInsecureTLS === true,
+      ...(doc.proxy ? { proxy: doc.proxy } : {}),
+      keyRemembered: doc.keyRemembered === true,
+    };
+    providerProbe = doc.probe || null;
+    const loaded = loadPersistedSecrets();
+    memoryApiKey = loaded.apiKey;
+    memorySecrets = loaded.secrets;
+    apiKeySource = memoryApiKey ? 'dpapi' : 'none';
+    if (providerConfig.keyRemembered && !memoryApiKey && !providerDiagnostics) {
+      providerDiagnostics = { code: 'A9_PROVIDER_KEY_NOT_RESTORED', detail: '标记为已记住但密文缺失（可能已被清除）' };
+    }
+    rebuildProvider();
+  })();
+
+  // ----- Agent Loop 状态 -----
   const timeline = [];
   const MAX_TIMELINE = 500;
 
@@ -108,6 +251,18 @@ function createA9AgentRuntime(options) {
       const err = new Error('A9_PROVIDER_UNCONFIGURED: 尚未配置真实 OpenAI-compatible Provider（正式产品不默认 Replay）');
       err.code = 'A9_PROVIDER_UNCONFIGURED';
       throw err;
+    }
+    if (providerProbe) {
+      if (providerProbe.classification === 'unavailable') {
+        const err = new Error(`A9_PROVIDER_UNVERIFIED: Provider probe 失败（${redactSecrets(providerProbe.error || 'unknown')}）；不得宣称 Agent 可用`);
+        err.code = 'A9_PROVIDER_UNVERIFIED';
+        throw err;
+      }
+      if (providerProbe.classification === 'chat_only') {
+        const err = new Error('A9_PROVIDER_CHAT_ONLY: 该服务无可靠 tool_calls，仅标记为聊天能力；Agent 工具循环不可用');
+        err.code = 'A9_PROVIDER_CHAT_ONLY';
+        throw err;
+      }
     }
     if (!loop) {
       const workspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
@@ -163,7 +318,12 @@ function createA9AgentRuntime(options) {
     if (timeline.length > MAX_TIMELINE) timeline.splice(0, timeline.length - MAX_TIMELINE);
   }
 
-  function configureProvider(input) {
+  /**
+   * 配置 Provider：非秘密配置原子持久化；API Key 仅经 DPAPI 保存（不可用则
+   * 仅内存并如实报告）；保存时执行最小真实 Tool Calling probe 并分类
+   * tool_calling / chat_only / unavailable；模型切换保留会话上下文。
+   */
+  async function configureProvider(input) {
     const values = input || {};
     if (typeof values.baseUrl !== 'string' || !/^https?:\/\//i.test(values.baseUrl)) {
       throw new Error('A9_PROVIDER_CONFIG_INVALID: baseUrl 必须是 http(s) URL（允许任意 Base URL）');
@@ -171,30 +331,132 @@ function createA9AgentRuntime(options) {
     if (typeof values.model !== 'string' || values.model.trim().length === 0) {
       throw new Error('A9_PROVIDER_CONFIG_INVALID: model 必须是手工填写的模型 ID');
     }
+
+    const customHeaders = values.customHeaders && typeof values.customHeaders === 'object' ? values.customHeaders : {};
+    const customHeaderNames = Object.keys(customHeaders);
+    const headerValues = {};
+    for (const name of customHeaderNames) headerValues[name] = String(customHeaders[name] ?? '');
+
+    const proxyInput = values.proxy && typeof values.proxy === 'object' ? values.proxy : null;
+    const remember = values.rememberApiKey === true;
+
+    const previousHistory = loop ? loop.getConversationHistory() : null;
+
     providerConfig = {
       baseUrl: values.baseUrl.trim(),
       model: values.model.trim(),
-      customHeaders: values.customHeaders && typeof values.customHeaders === 'object' ? values.customHeaders : undefined,
-      caBundle: values.caBundle,
+      customHeaderNames,
+      ...(values.caBundle ? { caBundle: String(values.caBundle) } : {}),
       allowInsecureTLS: values.allowInsecureTLS === true,
-      proxy: values.proxy && typeof values.proxy === 'object' ? values.proxy : undefined,
+      ...(proxyInput ? {
+        proxy: {
+          host: String(proxyInput.host),
+          port: Number(proxyInput.port),
+          ...(proxyInput.protocol ? { protocol: proxyInput.protocol } : {}),
+          ...(proxyInput.username !== undefined ? { username: String(proxyInput.username) } : {}),
+        },
+      } : {}),
+      keyRemembered: remember,
     };
-    loop = null;
-    provider = new modules.gateway.OpenAICompatibleProvider({
+    memoryApiKey = typeof values.apiKey === 'string' && values.apiKey ? values.apiKey : memoryApiKey;
+    memorySecrets = {
+      headerValues,
+      ...(proxyInput && proxyInput.password ? { proxyPassword: String(proxyInput.password) } : {}),
+    };
+
+    // API Key / 秘密仅经 DPAPI 保存；失败保留诊断并降级仅内存（不写明文）。
+    apiKeySource = 'none';
+    let apiKeyPersisted = false;
+    if (remember && memoryApiKey) {
+      if (apiKeyVault) {
+        try {
+          apiKeyVault.saveApiKey(memoryApiKey);
+          apiKeyPersisted = true;
+        } catch (err) {
+          providerDiagnostics = { code: err && err.code ? err.code : 'A9_PROVIDER_KEY_SAVE_FAILED', detail: redactSecrets(err.message) };
+        }
+      } else {
+        providerDiagnostics = { code: 'A9_PROVIDER_DPAPI_UNAVAILABLE', detail: '当前环境无 DPAPI（非 Windows 或 safeStorage 不可用）：API Key 仅保存在进程内存' };
+      }
+      if (secretsVault) {
+        try {
+          secretsVault.saveApiKey(JSON.stringify(memorySecrets));
+        } catch (err) {
+          providerDiagnostics = providerDiagnostics || { code: err && err.code ? err.code : 'A9_PROVIDER_SECRET_SAVE_FAILED', detail: redactSecrets(err.message) };
+        }
+      }
+      apiKeySource = apiKeyPersisted ? 'dpapi' : 'memory';
+    } else if (remember === false) {
+      try { if (apiKeyVault) apiKeyVault.clearApiKey(); } catch (_err) { /* best effort */ }
+      try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
+      apiKeySource = memoryApiKey ? 'memory' : 'none';
+    } else {
+      apiKeySource = memoryApiKey ? 'memory' : 'none';
+    }
+
+    rebuildProvider();
+
+    // 保存配置时执行最小真实 Tool Calling probe（分类进入持久化与审计）。
+    if (values.skipProbe === true) {
+      providerProbe = { classification: 'skipped', checkedAt: new Date().toISOString(), note: '显式跳过（仅测试注入）' };
+    } else {
+      providerProbe = await classifyProviderWithProbe();
+    }
+
+    writePersistedProviderConfig({
+      schemaVersion: PROVIDER_CONFIG_SCHEMA_VERSION,
       baseUrl: providerConfig.baseUrl,
       model: providerConfig.model,
-      ...(values.apiKey ? { apiKey: values.apiKey } : {}),
-      ...(providerConfig.customHeaders ? { customHeaders: providerConfig.customHeaders } : {}),
-      ...(providerConfig.caBundle ? { tlsConfig: { caBundle: providerConfig.caBundle, verifyCertificate: true } } : {}),
-      ...(providerConfig.allowInsecureTLS ? { allowInsecureTLS: true } : {}),
-      ...(providerConfig.proxy ? { proxyConfig: providerConfig.proxy } : {}),
+      customHeaderNames,
+      ...(providerConfig.caBundle ? { caBundle: providerConfig.caBundle } : {}),
+      allowInsecureTLS: providerConfig.allowInsecureTLS,
+      ...(providerConfig.proxy ? { proxy: providerConfig.proxy } : {}),
+      keyRemembered: remember === true && apiKeyPersisted === true,
+      probe: providerProbe,
+      updatedAt: new Date().toISOString(),
     });
-    return { ok: true, baseUrl: providerConfig.baseUrl, model: providerConfig.model };
+    persistence.recordToolEvent('a9-desktop', null, 'provider.configure', {
+      baseUrl: providerConfig.baseUrl,
+      model: providerConfig.model,
+      classification: providerProbe.classification,
+      keyRemembered: providerConfig.keyRemembered === true,
+    });
+
+    // 模型切换：从既有会话历史（标准化事件投影）重建上下文，不丢已完成工具结果。
+    if (previousHistory && previousHistory.length > 0 && loop) {
+      loop.restoreConversationHistory(previousHistory);
+    }
+
+    return {
+      ok: true,
+      baseUrl: providerConfig.baseUrl,
+      model: providerConfig.model,
+      probe: providerProbe,
+      keyRemembered: providerConfig.keyRemembered === true,
+    };
+  }
+
+  async function classifyProviderWithProbe() {
+    if (!providerConfig) return { classification: 'unavailable', checkedAt: new Date().toISOString(), error: 'provider not built' };
+    try {
+      const probe = await buildProviderInstance(true).probeCapability();
+      return {
+        classification: probe.ok && probe.hasToolCalling ? 'tool_calling' : probe.ok ? 'chat_only' : 'unavailable',
+        checkedAt: new Date().toISOString(),
+        latencyMs: probe.latencyMs,
+        hasStreaming: probe.hasStreaming,
+        ...(probe.error ? { error: redactSecrets(probe.error) } : {}),
+      };
+    } catch (err) {
+      return { classification: 'unavailable', checkedAt: new Date().toISOString(), error: redactSecrets(err.message) };
+    }
   }
 
   async function probeProvider() {
     if (!provider) throw new Error('A9_PROVIDER_UNCONFIGURED');
-    return provider.probeCapability();
+    const probe = await provider.probeCapability();
+    providerProbe = await classifyProviderWithProbe();
+    return probe;
   }
 
   async function submitTurn(prompt) {
@@ -302,8 +564,20 @@ function createA9AgentRuntime(options) {
       modeRecommended: 'full_access',
       shell: { kind: shellSelection.kind, version: shellSelection.version, evidence: shellSelection.evidence, reason: shellSelection.reason },
       provider: providerConfig
-        ? { configured: true, baseUrl: providerConfig.baseUrl, model: providerConfig.model, insecureTLS: providerConfig.allowInsecureTLS === true }
-        : { configured: false, note: '正式产品使用真实 OpenAI-compatible Provider；Replay 仅测试入口' },
+        ? {
+          configured: true,
+          baseUrl: providerConfig.baseUrl,
+          model: providerConfig.model,
+          insecureTLS: providerConfig.allowInsecureTLS === true,
+          probe: providerProbe,
+          apiKey: {
+            remembered: providerConfig.keyRemembered === true,
+            source: apiKeySource,
+            vaultAvailable: Boolean(apiKeyVault),
+          },
+          ...(providerDiagnostics ? { diagnostics: providerDiagnostics } : {}),
+        }
+        : { configured: false, note: '正式产品使用真实 OpenAI-compatible Provider；Replay 仅测试入口', ...(providerDiagnostics ? { diagnostics: providerDiagnostics } : {}) },
       agentStatus,
       ...(currentPendingApproval ? { pendingApproval: currentPendingApproval } : {}),
       timeline: timeline.slice(-100),

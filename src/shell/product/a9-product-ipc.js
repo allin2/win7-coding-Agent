@@ -67,7 +67,7 @@ function createA9ProductRequestHandler(options) {
           return runtime.setMode(payload.mode);
         }
         case A9_ACTIONS.PROVIDER_CONFIGURE: {
-          const allowed = ['baseUrl', 'model', 'apiKey', 'customHeaders', 'caBundle', 'allowInsecureTLS', 'proxy'];
+          const allowed = ['baseUrl', 'model', 'apiKey', 'rememberApiKey', 'customHeaders', 'caBundle', 'allowInsecureTLS', 'proxy'];
           for (const key of Object.keys(payload)) {
             if (!allowed.includes(key)) throw Object.assign(new Error(`A9_PAYLOAD_INVALID: unknown '${key}'`), { code: 'A9_PAYLOAD_INVALID' });
           }

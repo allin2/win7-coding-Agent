@@ -1208,3 +1208,24 @@
   标记 verified；验证后再次修改（工具或外部）即回到 unverified。
 - 后果：Shell/Git/项目脚本造成的文件变化全部可审计、可恢复（或显式标记不可恢复）；`echo tests passed`
   不再能把代码修改标成已验证。基线冻结有界，大仓库按上限截断并显式标记。
+
+## ADR-0093 A9 Provider 非秘密配置版本化持久化与 DPAPI 秘密分离
+
+- 状态：Accepted（2026-08-22，A9 R4 修复轮）
+- 背景：A9 Provider 配置与 API Key 只存于进程内存，重启后 provider.configured=false；
+  产品路径未接既有 DPAPI credential-vault；切换模型直接丢弃 loop 会话。
+- 决策：（1）非秘密配置（baseUrl、模型 ID、自定义 Header 名、CA 路径、代理主机/端口/协议/用户名、
+  allowInsecureTLS、keyRemembered、probe 结论）持久化为 `a9-provider-config.v1.json`
+  （schemaVersion=1，临时文件+原子替换；损坏/未知 schema fail-closed 进入诊断，不覆盖）。
+  （2）秘密一律不进该文件：API Key 经 `a9-vault-apikey`、Header 值与代理密码合并经
+  `a9-vault-secrets`，两者都是既有 createDpapiCredentialVault 实例（Electron safeStorage /
+  Windows DPAPI Current User）；DPAPI 不可用时降级仅内存并在快照如实显示未记住。
+  （3）vault 支持 platform 注入仅供开发/测试以 fake safeStorage 验证 DPAPI 成功/失败/损坏/账户
+  不匹配合同，不得据此宣称真实 Windows DPAPI PASS；密文损坏 fail-closed 保留诊断证据不删除。
+  （4）保存配置时用短超时专用 Provider 实例执行最小真实 Tool Calling probe，分类
+  tool_calling/chat_only/unavailable 并持久化与审计；unavailable/chat_only 拒绝 Agent Turn，
+  无可靠 tool_calls 只标聊天能力，不自动回退 Replay。（5）模型切换时保留 loop 会话历史并
+  restoreConversationHistory 重建，不丢已完成工具结果；API Key/Authorization/代理密码经
+  redactSecrets 不进入事件、日志、快照或错误文本。
+- 后果：Provider 配置跨重启恢复且密钥永不明文落盘；探针结论与密钥记忆状态可审计；
+  本机（非 Windows）证据为注入式 fake DPAPI 合同验证。

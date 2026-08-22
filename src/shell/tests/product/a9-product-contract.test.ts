@@ -23,17 +23,30 @@ function sse(res: http.ServerResponse, obj: unknown): void {
 function startFixtureModel(script: Array<{ tool?: { id: string; name: string; args: unknown }; content?: string }>): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   let round = 0;
   return new Promise((resolve) => {
-    const server = http.createServer((_req, res) => {
-      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-      const step = script[Math.min(round, script.length - 1)];
-      round += 1;
-      if (step.tool) {
-        sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: step.tool.id, function: { name: step.tool.name, arguments: JSON.stringify(step.tool.args) } }] }, finish_reason: 'tool_calls' }] });
-      } else {
-        sse(res, { choices: [{ delta: { content: step.content ?? 'done' }, finish_reason: 'stop' }] });
-      }
-      res.write('data: [DONE]\n\n');
-      res.end();
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
+      req.on('end', () => {
+        let parsed: any = null;
+        try { parsed = JSON.parse(body); } catch (_e) { /* keep */ }
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        // 能力探测请求：以 probe_test_echo 应答（真实 tool_calls 证明）。
+        if (parsed?.tools?.[0]?.function?.name === 'probe_test_echo') {
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'probe_1', function: { name: 'probe_test_echo', arguments: '{"message":"probe_ok"}' } }] }, finish_reason: 'tool_calls' }] });
+          res.write('data: [DONE]\n\n');
+          res.end();
+          return;
+        }
+        const step = script[Math.min(round, script.length - 1)];
+        round += 1;
+        if (step.tool) {
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: step.tool.id, function: { name: step.tool.name, arguments: JSON.stringify(step.tool.args) } }] }, finish_reason: 'tool_calls' }] });
+        } else {
+          sse(res, { choices: [{ delta: { content: step.content ?? 'done' }, finish_reason: 'stop' }] });
+        }
+        res.write('data: [DONE]\n\n');
+        res.end();
+      });
     });
     server.listen(0, '127.0.0.1', () => {
       resolve({
@@ -106,13 +119,15 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
       fs.writeFileSync(path.join(env.workspaceRoot, 'calc.ts'), 'export function add(a, b) {\n  return a - b;\n}\n');
       const runtime = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
       runtime.setMode('full_access');
-      const configured = runtime.configureProvider({
+      const configured = await runtime.configureProvider({
         baseUrl: fixture.baseUrl,
         model: 'my-manual-model-id',
         customHeaders: { 'X-Workspace': 'a9' },
       });
       expect(configured.ok).toBe(true);
       expect(configured.model).toBe('my-manual-model-id');
+      expect(configured.probe.classification).toBe('tool_calling');
+      expect(configured.keyRemembered).toBe(false);
 
       const turn = await runtime.submitTurn('fix the bug');
       expect(turn.ok).toBe(true);
