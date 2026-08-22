@@ -42,18 +42,19 @@ describe('A9-03: A9WorkspaceService', () => {
   });
 
   it('performs write and edit with atomic replacement and checkpoints', async () => {
-    // Write
+    // Write (new file)
     const writeRes = await service.write('test.ts', 'const a = 10;\nconst b = 20;\n', { turnId: 'turn-1' });
     expect(writeRes.created).toBe(true);
     expect(fs.readFileSync(path.join(tempDir, 'test.ts'), 'utf8')).toBe('const a = 10;\nconst b = 20;\n');
 
-    // Edit
+    // Edit（写入后基线已刷新，可直接编辑）
     const editRes = await service.edit('test.ts', 'const a = 10;', 'const a = 100;', { turnId: 'turn-1' });
     expect(editRes.replaced).toBe(true);
     expect(fs.readFileSync(path.join(tempDir, 'test.ts'), 'utf8')).toBe('const a = 100;\nconst b = 20;\n');
 
     // Edit error on ambiguous match
     fs.writeFileSync(path.join(tempDir, 'dup.txt'), 'dup\ndup\n');
+    await service.read('dup.txt');
     await expect(service.edit('dup.txt', 'dup', 'new')).rejects.toThrow(/多处匹配/);
 
     // Edit error on missing anchor
@@ -74,9 +75,11 @@ describe('A9-03: A9WorkspaceService', () => {
     expect(fs.existsSync(path.join(tempDir, 'copied.txt'))).toBe(false);
     expect(fs.existsSync(path.join(tempDir, 'moved.txt'))).toBe(true);
 
-    // Delete
+    // Delete（默认 permanent:false 进入恢复区）
     const delRes = await service.delete('moved.txt');
     expect(delRes.deleted).toBe(true);
+    expect(delRes.permanent).toBe(false);
+    expect(delRes.recoverableVia).toBeDefined();
     expect(fs.existsSync(path.join(tempDir, 'moved.txt'))).toBe(false);
   });
 });

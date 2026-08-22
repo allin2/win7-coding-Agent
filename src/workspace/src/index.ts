@@ -38,6 +38,16 @@ export {
 // Encoding detection
 export { detectEncoding } from './encoding';
 export { decodeBuffer } from './encoding';
+export {
+  encodeText,
+  reencodePreservingOriginal,
+  detectEolStyle,
+  normalizeEol,
+  applyTrailingNewlinePolicy,
+  bomPrefixFor,
+  EncodingWriteError,
+} from './encoding';
+export type { WritableEncoding, EolStyle, PreserveEncodingResult } from './encoding';
 
 export {
   canonicalJson,
@@ -117,6 +127,7 @@ export {
   A9SearchResult,
   A9WriteResult,
   A9EditResult,
+  A9DeleteResult,
 } from './a9-workspace-service';
 
 export {

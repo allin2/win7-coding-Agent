@@ -1,6 +1,11 @@
 /**
  * @module checkpoint-manager
  * @description A9 工作区 Checkpoint、Diff、撤销与删除恢复管理 (PRD §5 A9-F03 / ADR-0089)
+ *
+ * 合同：Checkpoint 不只存在内存——pre-mutation 原始内容写入产品恢复区
+ * （content-addressed blob / 目录快照），轮清单持久化为版本化 JSON；
+ * 撤销支持按文件与按 Turn，撤销前校验当前文件漂移；崩溃后可从磁盘恢复；
+ * 恢复失败必须结构化报告，不允许静默吞错。
  */
 
 import * as fs from 'fs';
@@ -8,80 +13,215 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { buildContentDiffPreview } from './diff';
 
+export const CHECKPOINT_SCHEMA_VERSION = 2;
+
 export interface FileChangeRecord {
   filePath: string;
   action: 'create' | 'modify' | 'delete';
+  isDirectory: boolean;
   originalHash?: string;
-  originalContent?: Buffer;
+  /** 单文件原始内容 blob（恢复区内路径）。 */
+  originalBlobPath?: string;
+  /** 目录原始内容快照（恢复区内路径）。 */
+  originalSnapshotPath?: string;
+  /**
+   * 轮内当前状态快照：路径在本轮内被新建后再次变更/删除时，捕获当时的
+   * 实际内容用于恢复；不覆盖 original*（轮初语义）。
+   */
+  currentStateBlobPath?: string;
+  currentStateSnapshotPath?: string;
   newHash?: string;
-  newContent?: Buffer;
+  newBlobPath?: string;
   timestamp: string;
 }
 
 export interface TurnCheckpoint {
+  schemaVersion: typeof CHECKPOINT_SCHEMA_VERSION;
   turnId: string;
   createdAt: string;
-  changes: Map<string, FileChangeRecord>;
-  baselineHashes: Map<string, string>;
+  updatedAt: string;
+  changes: Record<string, FileChangeRecord>;
+}
+
+export interface UndoOutcome {
+  restored: string[];
+  errors: string[];
+  /** 撤销时发现文件被外部修改、未覆盖的路径。 */
+  drifted: string[];
 }
 
 export class CheckpointManager {
   private readonly checkpoints = new Map<string, TurnCheckpoint>();
-  private readonly recoveryDir: string;
+  private readonly recoveryRoot: string;
+  private readonly blobsRoot: string;
+  private readonly snapshotsRoot: string;
+  private readonly manifestsRoot: string;
 
-  constructor(private readonly workspaceRoot: string) {
-    this.recoveryDir = path.join(workspaceRoot, '.agent_recovery');
+  constructor(private readonly workspaceRoot: string, recoveryRoot?: string) {
+    this.recoveryRoot = recoveryRoot ?? path.join(workspaceRoot, '.agent_recovery');
+    this.blobsRoot = path.join(this.recoveryRoot, 'blobs');
+    this.snapshotsRoot = path.join(this.recoveryRoot, 'snapshots');
+    this.manifestsRoot = path.join(this.recoveryRoot, 'checkpoints');
+  }
+
+  getRecoveryRoot(): string {
+    return this.recoveryRoot;
+  }
+
+  private manifestPath(turnId: string): string {
+    const safe = turnId.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    return path.join(this.manifestsRoot, `${safe}.json`);
+  }
+
+  /** 加载（含崩溃后恢复）：优先内存，其次磁盘清单。 */
+  loadCheckpoint(turnId: string): TurnCheckpoint | undefined {
+    const memory = this.checkpoints.get(turnId);
+    if (memory) return memory;
+    const manifestPath = this.manifestPath(turnId);
+    if (!fs.existsSync(manifestPath)) return undefined;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as TurnCheckpoint;
+      if (parsed.schemaVersion !== CHECKPOINT_SCHEMA_VERSION || parsed.turnId !== turnId) {
+        throw new Error(`checkpoint manifest schema mismatch for ${turnId}`);
+      }
+      this.checkpoints.set(turnId, parsed);
+      return parsed;
+    } catch (err) {
+      throw new Error(`无法读取 Checkpoint 清单 ${manifestPath}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  listPersistedTurns(): string[] {
+    if (!fs.existsSync(this.manifestsRoot)) return [];
+    return fs
+      .readdirSync(this.manifestsRoot)
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => name.slice(0, -5));
+  }
+
+  private persist(checkpoint: TurnCheckpoint): void {
+    checkpoint.updatedAt = new Date().toISOString();
+    fs.mkdirSync(this.manifestsRoot, { recursive: true });
+    const target = this.manifestPath(checkpoint.turnId);
+    const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
+    try {
+      fs.writeFileSync(tmp, `${JSON.stringify(checkpoint, null, 2)}\n`, 'utf8');
+      fs.renameSync(tmp, target);
+    } catch (err) {
+      // 清单持久化失败必须暴露：撤销保证依赖磁盘事实，不能只在内存成立。
+      try {
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      } catch (_cleanupErr) { /* best effort */ }
+      throw new Error(`Checkpoint 清单写入失败 (${target}): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   /**
    * 开启一轮新的 Checkpoint 事务
    */
   startTurn(turnId: string): TurnCheckpoint {
-    let checkpoint = this.checkpoints.get(turnId);
+    let checkpoint = this.loadCheckpoint(turnId);
     if (!checkpoint) {
       checkpoint = {
+        schemaVersion: CHECKPOINT_SCHEMA_VERSION,
         turnId,
         createdAt: new Date().toISOString(),
-        changes: new Map(),
-        baselineHashes: new Map(),
+        updatedAt: new Date().toISOString(),
+        changes: {},
       };
       this.checkpoints.set(turnId, checkpoint);
+      this.persist(checkpoint);
     }
     return checkpoint;
   }
 
-  /**
-   * 在发生副作用前记录文件原始内容基线
-   */
-  recordPreMutation(turnId: string, targetPath: string): void {
-    const checkpoint = this.startTurn(turnId);
-    const absPath = path.resolve(this.workspaceRoot, targetPath);
+  private hashBytes(content: Buffer): string {
+    return crypto.createHash('sha256').update(content).digest('hex');
+  }
 
-    if (!checkpoint.changes.has(targetPath)) {
-      if (fs.existsSync(absPath)) {
-        try {
-          const content = fs.readFileSync(absPath);
-          const hash = crypto.createHash('sha256').update(content).digest('hex');
-          checkpoint.baselineHashes.set(targetPath, hash);
-          checkpoint.changes.set(targetPath, {
-            filePath: targetPath,
-            action: 'modify',
-            originalHash: hash,
-            originalContent: content,
-            timestamp: new Date().toISOString(),
-          });
-        } catch (_e) {
-          // ignore read error
-        }
-      } else {
-        // 新建文件
-        checkpoint.changes.set(targetPath, {
-          filePath: targetPath,
-          action: 'create',
-          timestamp: new Date().toISOString(),
-        });
-      }
+  private storeBlob(content: Buffer): string {
+    const hash = this.hashBytes(content);
+    const blobPath = path.join(this.blobsRoot, hash.slice(0, 2), hash);
+    if (!fs.existsSync(blobPath)) {
+      fs.mkdirSync(path.dirname(blobPath), { recursive: true });
+      const tmp = `${blobPath}.tmp-${process.pid}-${Date.now()}`;
+      fs.writeFileSync(tmp, content);
+      fs.renameSync(tmp, blobPath);
     }
+    return blobPath;
+  }
+
+  /** 递归快照目录到恢复区（用于目录删除/覆盖的恢复）。 */
+  private snapshotDirectory(absDir: string, turnId: string, relPath: string): string {
+    const target = path.join(this.snapshotsRoot, turnId.replace(/[^a-zA-Z0-9._-]+/g, '_'), relPath.replace(/[\\/]/g, '__'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(absDir, target, { recursive: true });
+    return target;
+  }
+
+  /**
+   * 在发生副作用前记录文件/目录内容基线。失败抛出结构化错误——
+   * 无法建立可撤销基线时宁可拒绝变更，也不产生不可恢复副作用。
+   * 对轮内已存在的记录，补充“当前状态”快照以支持后续变更/删除的恢复。
+   */
+  recordPreMutation(turnId: string, targetPath: string): FileChangeRecord {
+    const checkpoint = this.startTurn(turnId);
+    const existing = checkpoint.changes[targetPath];
+
+    const absPath = path.resolve(this.workspaceRoot, targetPath);
+    const pathExists = fs.existsSync(absPath);
+    const pathIsDirectory = pathExists && fs.statSync(absPath).isDirectory();
+
+    if (existing) {
+      if (pathExists && pathIsDirectory) {
+        if (!existing.originalSnapshotPath && !existing.currentStateSnapshotPath) {
+          existing.currentStateSnapshotPath = this.snapshotDirectory(absPath, turnId, targetPath);
+        }
+        existing.isDirectory = true;
+      } else if (pathExists) {
+        if (!existing.originalBlobPath && !existing.newBlobPath && !existing.currentStateBlobPath) {
+          const content = fs.readFileSync(absPath);
+          existing.currentStateBlobPath = this.storeBlob(content);
+        }
+      }
+      this.persist(checkpoint);
+      return existing;
+    }
+
+    let record: FileChangeRecord;
+    if (pathExists) {
+      if (pathIsDirectory) {
+        const snapshotPath = this.snapshotDirectory(absPath, turnId, targetPath);
+        record = {
+          filePath: targetPath,
+          action: 'modify',
+          isDirectory: true,
+          originalSnapshotPath: snapshotPath,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        const content = fs.readFileSync(absPath);
+        const hash = this.hashBytes(content);
+        record = {
+          filePath: targetPath,
+          action: 'modify',
+          isDirectory: false,
+          originalHash: hash,
+          originalBlobPath: this.storeBlob(content),
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } else {
+      record = {
+        filePath: targetPath,
+        action: 'create',
+        isDirectory: false,
+        timestamp: new Date().toISOString(),
+      };
+    }
+    checkpoint.changes[targetPath] = record;
+    this.persist(checkpoint);
+    return record;
   }
 
   /**
@@ -90,105 +230,188 @@ export class CheckpointManager {
   recordPostMutation(turnId: string, targetPath: string, action: 'create' | 'modify' | 'delete'): void {
     const checkpoint = this.startTurn(turnId);
     const absPath = path.resolve(this.workspaceRoot, targetPath);
-    const existing = checkpoint.changes.get(targetPath) || {
+    const existing = checkpoint.changes[targetPath] ?? {
       filePath: targetPath,
       action,
+      isDirectory: false,
       timestamp: new Date().toISOString(),
     };
 
     if (action === 'delete') {
       existing.action = 'delete';
       existing.newHash = undefined;
-      existing.newContent = undefined;
-      // 保存至恢复区备份
-      if (existing.originalContent) {
-        this.saveToRecovery(targetPath, existing.originalContent);
-      }
-    } else if (fs.existsSync(absPath)) {
-      try {
-        const content = fs.readFileSync(absPath);
-        existing.newContent = content;
-        existing.newHash = crypto.createHash('sha256').update(content).digest('hex');
-      } catch (_e) {
-        // ignore
-      }
+      existing.newBlobPath = undefined;
+    } else if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+      const content = fs.readFileSync(absPath);
+      existing.newHash = this.hashBytes(content);
+      existing.newBlobPath = this.storeBlob(content);
+    } else {
+      existing.newHash = undefined;
+      existing.newBlobPath = undefined;
     }
 
-    checkpoint.changes.set(targetPath, existing);
+    checkpoint.changes[targetPath] = existing;
+    this.persist(checkpoint);
   }
 
   /**
-   * 撤销整轮 Turn 的所有文件修改
+   * 撤销整轮 Turn 的所有文件修改。撤销前检查当前文件漂移：外部修改过的
+   * 条目被跳过并计入 drifted，不盲目覆盖。
    */
-  undoTurn(turnId: string): { restored: string[]; errors: string[] } {
-    const checkpoint = this.checkpoints.get(turnId);
+  undoTurn(turnId: string): UndoOutcome {
+    const checkpoint = this.loadCheckpoint(turnId);
     if (!checkpoint) {
-      return { restored: [], errors: [`未找到 Checkpoint: ${turnId}`] };
+      return { restored: [], errors: [`未找到 Checkpoint: ${turnId}`], drifted: [] };
     }
+    const outcome: UndoOutcome = { restored: [], errors: [], drifted: [] };
+    // 逆序撤销：后写的先撤。
+    const paths = Object.keys(checkpoint.changes).reverse();
+    for (const relPath of paths) {
+      this.undoOne(checkpoint, relPath, outcome);
+    }
+    return outcome;
+  }
 
-    const restored: string[] = [];
-    const errors: string[] = [];
+  /** 按单文件撤销本轮变化。 */
+  undoFile(turnId: string, relPath: string): UndoOutcome {
+    const checkpoint = this.loadCheckpoint(turnId);
+    if (!checkpoint) {
+      return { restored: [], errors: [`未找到 Checkpoint: ${turnId}`], drifted: [] };
+    }
+    if (!checkpoint.changes[relPath]) {
+      return { restored: [], errors: [`Checkpoint ${turnId} 中没有 ${relPath} 的记录`], drifted: [] };
+    }
+    const outcome: UndoOutcome = { restored: [], errors: [], drifted: [] };
+    this.undoOne(checkpoint, relPath, outcome);
+    return outcome;
+  }
 
-    for (const [relPath, record] of checkpoint.changes.entries()) {
-      const absPath = path.resolve(this.workspaceRoot, relPath);
-      try {
-        if (record.action === 'create') {
-          // 新建的文件撤销为删除
-          if (fs.existsSync(absPath)) {
-            fs.unlinkSync(absPath);
-            restored.push(`${relPath} (已移除新建文件)`);
+  private undoOne(checkpoint: TurnCheckpoint, relPath: string, outcome: UndoOutcome): void {
+    const record = checkpoint.changes[relPath];
+    const absPath = path.resolve(this.workspaceRoot, relPath);
+    try {
+      if (record.action === 'create') {
+        // 新建的文件/目录撤销为删除；漂移（外部改写）时不盲删。
+        if (fs.existsSync(absPath)) {
+          const drift = this.describeDrift(absPath, record.newHash);
+          if (drift) {
+            outcome.drifted.push(`${relPath} (${drift})`);
+            return;
           }
-        } else if (record.action === 'modify' || record.action === 'delete') {
-          // 修改或删除的文件撤销为恢复原内容
-          if (record.originalContent) {
-            const parentDir = path.dirname(absPath);
-            if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
-            fs.writeFileSync(absPath, record.originalContent);
-            restored.push(`${relPath} (已恢复原始版本)`);
+          if (fs.statSync(absPath).isDirectory()) {
+            fs.rmSync(absPath, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(absPath);
           }
         }
-      } catch (err: any) {
-        errors.push(`撤销 ${relPath} 失败: ${err.message}`);
+        outcome.restored.push(`${relPath} (已移除新建文件)`);
+        delete checkpoint.changes[relPath];
+        return;
       }
-    }
 
-    return { restored, errors };
+      if (record.action === 'delete') {
+        // 删除撤销为恢复内容：优先轮初原始内容，其次轮内当前状态快照；
+        // 都不存在说明是“轮内新建后删除”，净效果为不存在，无需恢复。
+        if (fs.existsSync(absPath)) {
+          outcome.drifted.push(`${relPath} (删除后被外部重建，未覆盖)`);
+          return;
+        }
+        const restoreSnapshot = record.originalSnapshotPath ?? record.currentStateSnapshotPath;
+        const restoreBlob = record.originalBlobPath ?? record.currentStateBlobPath;
+        if (record.isDirectory && restoreSnapshot) {
+          if (!fs.existsSync(restoreSnapshot)) {
+            outcome.errors.push(`撤销删除 ${relPath} 失败: 目录快照缺失 (${restoreSnapshot})`);
+            return;
+          }
+          fs.mkdirSync(path.dirname(absPath), { recursive: true });
+          fs.cpSync(restoreSnapshot, absPath, { recursive: true });
+          outcome.restored.push(`${relPath} (已恢复目录及内容)`);
+        } else if (!record.isDirectory && restoreBlob) {
+          if (!fs.existsSync(restoreBlob)) {
+            outcome.errors.push(`撤销删除 ${relPath} 失败: 原始内容 blob 缺失 (${restoreBlob})`);
+            return;
+          }
+          fs.mkdirSync(path.dirname(absPath), { recursive: true });
+          fs.copyFileSync(restoreBlob, absPath);
+          outcome.restored.push(`${relPath} (已恢复原始版本)`);
+        } else if (!restoreSnapshot && !restoreBlob) {
+          outcome.restored.push(`${relPath} (轮内新建后删除，净效果保持不存在)`);
+        } else {
+          outcome.errors.push(`撤销删除 ${relPath} 失败: 恢复内容记录类型不匹配`);
+        }
+        delete checkpoint.changes[relPath];
+        return;
+      }
+
+      // modify：恢复原始内容；当前状态与 post-mutation 哈希不一致时视为漂移。
+      if (fs.existsSync(absPath)) {
+        const drift = this.describeDrift(absPath, record.newHash);
+        if (drift) {
+          outcome.drifted.push(`${relPath} (${drift})`);
+          return;
+        }
+      }
+      if (record.isDirectory && record.originalSnapshotPath) {
+        fs.rmSync(absPath, { recursive: true, force: true });
+        fs.cpSync(record.originalSnapshotPath, absPath, { recursive: true });
+        outcome.restored.push(`${relPath} (已恢复原始目录)`);
+      } else if (record.originalBlobPath) {
+        if (!fs.existsSync(record.originalBlobPath)) {
+          outcome.errors.push(`撤销修改 ${relPath} 失败: 原始内容 blob 缺失`);
+          return;
+        }
+        fs.mkdirSync(path.dirname(absPath), { recursive: true });
+        fs.copyFileSync(record.originalBlobPath, absPath);
+        outcome.restored.push(`${relPath} (已恢复原始版本)`);
+      } else {
+        // 原本不存在（create 语义被记为 modify）→ 撤销为删除。
+        if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
+        outcome.restored.push(`${relPath} (已移除新建文件)`);
+      }
+      delete checkpoint.changes[relPath];
+    } catch (err: any) {
+      outcome.errors.push(`撤销 ${relPath} 失败: ${err.message}`);
+    }
+    this.persist(checkpoint);
+  }
+
+  private describeDrift(absPath: string, expectedHash: string | undefined): string | undefined {
+    if (!fs.existsSync(absPath)) {
+      return expectedHash ? '文件在变更后消失' : undefined;
+    }
+    if (!expectedHash) return undefined;
+    const current = this.hashBytes(fs.readFileSync(absPath));
+    return current === expectedHash ? undefined : '文件在变更后被外部修改';
   }
 
   /**
    * 获取指定 Turn 的变更清单和 Diff
    */
   getTurnDiff(turnId: string): Array<{ path: string; action: string; diffText: string }> {
-    const checkpoint = this.checkpoints.get(turnId);
+    const checkpoint = this.loadCheckpoint(turnId);
     if (!checkpoint) return [];
 
     const results: Array<{ path: string; action: string; diffText: string }> = [];
-
-    for (const [relPath, record] of checkpoint.changes.entries()) {
-      const diff = buildContentDiffPreview(
-        record.originalContent ?? null,
-        record.newContent ?? null,
-      );
-
-      results.push({
-        path: relPath,
-        action: record.action,
-        diffText: diff.unifiedDiff,
-      });
+    for (const [relPath, record] of Object.entries(checkpoint.changes)) {
+      const original = record.originalBlobPath && fs.existsSync(record.originalBlobPath)
+        ? fs.readFileSync(record.originalBlobPath)
+        : null;
+      const next = record.newBlobPath && fs.existsSync(record.newBlobPath)
+        ? fs.readFileSync(record.newBlobPath)
+        : null;
+      const diff = buildContentDiffPreview(original, next);
+      results.push({ path: relPath, action: record.action, diffText: diff.unifiedDiff });
     }
-
     return results;
   }
 
-  private saveToRecovery(relPath: string, content: Buffer): void {
-    try {
-      if (!fs.existsSync(this.recoveryDir)) {
-        fs.mkdirSync(this.recoveryDir, { recursive: true });
-      }
-      const safeName = relPath.replace(/[\\/]/g, '_') + `.${Date.now()}.bak`;
-      fs.writeFileSync(path.join(this.recoveryDir, safeName), content);
-    } catch (_e) {
-      // 忽略恢复区保存失败
-    }
+  getTurnChanges(turnId: string): FileChangeRecord[] {
+    const checkpoint = this.loadCheckpoint(turnId);
+    return checkpoint ? Object.values(checkpoint.changes).map((r) => ({ ...r })) : [];
+  }
+
+  /** 供删除恢复区使用的显式接口：把文件内容存入恢复区并返回路径。 */
+  saveToRecovery(relPath: string, content: Buffer): string {
+    return this.storeBlob(content);
   }
 }

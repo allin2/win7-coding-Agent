@@ -22,7 +22,8 @@ describe('A9-03: CheckpointManager and Undo', () => {
     const filePath = 'code.ts';
     fs.writeFileSync(path.join(tempDir, filePath), 'const original = true;\n', 'utf8');
 
-    // Turn 1: modify existing file
+    // Turn 1: modify existing file（先 read 建立基线）
+    await service.read(filePath);
     await service.edit(filePath, 'const original = true;', 'const original = false;', { turnId: 'turn-1' });
     expect(fs.readFileSync(path.join(tempDir, filePath), 'utf8')).toContain('false');
 
