@@ -835,14 +835,16 @@ ipcMain.handle('product:a8-request', createA8ProductRequestHandler({
 let a9RuntimeInstance = null;
 function getOrCreateA9Runtime() {
   if (!a9RuntimeInstance) {
-    const a9DataRoot = path.join(app.getPath('userData'), 'a9');
-    const workspaceRoot = desktopHost && desktopHost.getActiveWorkspacePath
-      ? desktopHost.getActiveWorkspacePath()
-      : process.env.WIN7AGENT_A9_WORKSPACE || a9DataRoot;
+    // WIN7AGENT_A9_DATAROOT / WIN7AGENT_A9_ELECTRON_SQLITE 仅供开发机 smoke 显式覆盖；
+    // 生产使用 userData 与包内 Electron-ABI 原生模块。
+    const a9DataRoot = process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
+    const workspaceRoot = process.env.WIN7AGENT_A9_WORKSPACE
+      || (desktopHost && desktopHost.getActiveWorkspacePath ? desktopHost.getActiveWorkspacePath() : a9DataRoot);
     a9RuntimeInstance = createA9AgentRuntime({
       workspaceRoot,
       dataRoot: a9DataRoot,
       ownerId: `main-${process.pid}`,
+      ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE } : {}),
     });
   }
   return a9RuntimeInstance;

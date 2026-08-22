@@ -28,7 +28,7 @@ function a8Request(action, sessionId, payload) {
 
 function a9Request(action, payload) {
   return ipcRenderer.invoke('product:a9-request', {
-    schemaVersion: 1,
+    schemaVersion: 2, // ADR-0091：v2 携带 approvalId/decision/bindingDigest
     action,
     payload: payload || {},
   });

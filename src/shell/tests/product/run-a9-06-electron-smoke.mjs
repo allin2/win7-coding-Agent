@@ -51,15 +51,17 @@ const fixtureServer = http.createServer((req, res) => {
   req.on('end', () => {
     let parsed = {};
     try { parsed = JSON.parse(body); } catch (_e) { /* keep */ }
-    const toolNames = (parsed.messages ?? []).filter((m) => m.role === 'tool').map((m) => m.name);
+    const toolNames = (parsed.messages ?? []).filter((m) => m.role === 'tool' && m.name !== 'probe_test_echo').map((m) => m.name);
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-    if (toolNames.length === 0) {
+    if (parsed?.tools?.[0]?.function?.name === 'probe_test_echo') {
+      send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'p1', function: { name: 'probe_test_echo', arguments: '{"message":"probe_ok"}' } }] }, finish_reason: 'tool_calls' }] });
+    } else if (!toolNames.includes('read')) {
       send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'r1', function: { name: 'read', arguments: '{"path":"calc.ts"}' } }] }, finish_reason: 'tool_calls' }] });
     } else if (!toolNames.includes('edit')) {
       send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'e1', function: { name: 'edit', arguments: JSON.stringify({ path: 'calc.ts', oldText: 'return a - b;', newText: 'return a + b;' }) } }] }, finish_reason: 'tool_calls' }] });
     } else if (!toolNames.includes('shell')) {
-      send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 's1', function: { name: 'shell', arguments: '{"command":"echo smoke-verified"}' } }] }, finish_reason: 'tool_calls' }] });
+      send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 's1', function: { name: 'shell', arguments: JSON.stringify({ command: String.raw`node -e "if (1 + 2 !== 3) process.exit(1); console.log('smoke-verified')"` }) } }] }, finish_reason: 'tool_calls' }] });
     } else {
       send({ choices: [{ delta: { content: 'Fixed and verified.' }, finish_reason: 'stop' }] });
     }
@@ -69,37 +71,48 @@ const fixtureServer = http.createServer((req, res) => {
   });
 });
 
-const smokeMain = path.join(scriptRoot, 'a9-06-smoke-main.cjs');
+// 正式产品入口（真实 main.js + 真实 preload + 真实 index.html/renderer.js）。
+const productMain = path.join(repositoryRoot, 'src/shell/product/main.js');
+const electronSqliteRoot = argument('electron-sqlite', '/tmp/a9-electron-native');
+if (!fs.existsSync(path.join(electronSqliteRoot, 'node_modules', 'better-sqlite3'))) {
+  console.error(JSON.stringify({ status: 'ELECTRON_SQLITE_UNAVAILABLE', reason: `missing ${electronSqliteRoot}` }, null, 2));
+  process.exit(2);
+}
 
 await new Promise((resolve) => fixtureServer.listen(0, '127.0.0.1', resolve));
 const fixturePort = fixtureServer.address().port;
 
-const child = childProcess.spawn(electronPath, [smokeMain], {
+const fixtureUrl = `http://127.0.0.1:${fixturePort}`;
+
+
+
+// 进程内驱动：driver entry require 正式 product/main.js 并驱动真实 DOM。
+const driverEntry = path.join(scriptRoot, 'a9-06-driver-entry.cjs');
+const child = childProcess.spawn(electronPath, [driverEntry], {
   env: {
     ...process.env,
     A9_SMOKE_WORKSPACE: workspaceRoot,
     A9_SMOKE_DATAROOT: dataRoot,
-    A9_SMOKE_FIXTURE_URL: `http://127.0.0.1:${fixturePort}`,
+    A9_SMOKE_FIXTURE_URL: fixtureUrl,
     A9_SMOKE_OUT: outPath,
-    A9_SMOKE_PRELOAD: path.join(repositoryRoot, 'src/shell/product/preload.js'),
-    A9_SMOKE_ELECTRON_SQLITE: argument('electron-sqlite', '/tmp/a9-electron-native'),
+    WIN7AGENT_A9_WORKSPACE: workspaceRoot,
+    WIN7AGENT_A9_DATAROOT: dataRoot,
+    WIN7AGENT_A9_ELECTRON_SQLITE: electronSqliteRoot,
     ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
   },
   stdio: ['ignore', 'inherit', 'inherit'],
 });
-
 const timeout = setTimeout(() => {
   try { child.kill('SIGKILL'); } catch (_e) { /* already gone */ }
-}, 120_000);
-
-const exitCode = await new Promise((resolve) => child.on('exit', resolve));
+}, 240_000);
+await new Promise((resolve) => child.on('exit', resolve));
 clearTimeout(timeout);
 fixtureServer.close();
-
 let report = { status: 'SMOKE_NO_REPORT' };
 if (fs.existsSync(outPath)) {
   report = JSON.parse(fs.readFileSync(outPath, 'utf8'));
 }
+
 report.fixtureRounds = round;
 fs.rmSync(root, { recursive: true, force: true });
 fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

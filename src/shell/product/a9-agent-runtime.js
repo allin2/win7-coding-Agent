@@ -54,9 +54,20 @@ function createA9AgentRuntime(options) {
     return new Database(databasePath, opts && opts.readonly ? { readonly: true } : {});
   });
 
+  // Electron-ABI better-sqlite3 显式路径 + 预检（Node-ABI 二进制无法在 Electron
+  // 主进程加载；缺少显式路径时产品路径在 Electron 下明确不可用，不冒充 PASS）。
+  let resolvedOpenDatabase = openDatabase;
+  if (config.electronSqliteRoot) {
+    const preflight = preflightElectronSqlite(config.electronSqliteRoot);
+    if (!preflight.ok) {
+      return createSqliteUnavailableRuntime(preflight.reason);
+    }
+    resolvedOpenDatabase = preflight.openDatabase;
+  }
+
   const persistenceOutcome = modules.state.A9PersistenceManager.open({
     databasePath: path.join(dataRoot, 'a9-state.db'),
-    openDatabase,
+    openDatabase: resolvedOpenDatabase,
     dataRoot,
   });
   if (persistenceOutcome.status !== 'ready') {
@@ -633,6 +644,44 @@ function createA9AgentRuntime(options) {
     getDiff,
     gitStatus,
     shutdown,
+  };
+}
+
+function preflightElectronSqlite(root) {
+  try {
+    const modulePath = path.join(String(root), 'node_modules', 'better-sqlite3');
+    // eslint-disable-next-line global-require
+    const Database = require(modulePath);
+    const probe = new Database(':memory:');
+    const version = probe.prepare('select sqlite_version() v').get();
+    probe.close();
+    return {
+      ok: true,
+      sqliteVersion: version && version.v,
+      openDatabase: (databasePath, opts) => new Database(databasePath, opts && opts.readonly ? { readonly: true } : {}),
+    };
+  } catch (err) {
+    return { ok: false, reason: `${err && err.message ? err.message : String(err)}` };
+  }
+}
+
+function createSqliteUnavailableRuntime(reason) {
+  return {
+    protocolVersion: 1,
+    status: 'electron_sqlite_unavailable',
+    diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: reason },
+    configureProvider() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    probeProvider() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    async submitTurn() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE', message: 'Electron-ABI better-sqlite3 预检失败，A9 持久化不可用。' } }; },
+    async resumeApproval() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
+    stop() { return { ok: false }; },
+    setMode() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    getSnapshot() { return { schemaVersion: 1, status: 'electron_sqlite_unavailable', diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: reason } }; },
+    undoTurn() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    undoFile() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    getDiff() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    async gitStatus() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
+    shutdown() {},
   };
 }
 
