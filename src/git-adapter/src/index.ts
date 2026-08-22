@@ -43,3 +43,12 @@ export {
 } from './adapter';
 
 export { GitSessionGuard } from './session';
+
+// A9 Trusted Git 投影
+export {
+  TrustedGitProjection,
+  TrustedGitStatusEntry,
+  TrustedGitExternalMechanism,
+  projectTrustedGit,
+  detectExternalMechanisms,
+} from './trusted-projection';

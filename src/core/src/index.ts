@@ -169,6 +169,15 @@ export {
 } from './a9-tools';
 
 export {
+  GitCommandCategory,
+  GitCommandDecision,
+  GitCommandApprovalBinding,
+  classifyGitCommand,
+  tokenizeCommand,
+  gitApprovalStillValid,
+} from './git-command-policy';
+
+export {
   WORKSPACE_MODE_SETTINGS_SCHEMA_VERSION,
   WorkspaceModeSettingsV1,
   WorkspaceModeSettingsState,

@@ -1,16 +1,19 @@
 import * as crypto from 'crypto';
 
 /**
- * The six exhaustive outcomes for one user- or system-triggered Turn.
+ * The exhaustive outcomes for one user- or system-triggered Turn.
  * NEEDS_APPROVAL is a serializable suspension point rather than a terminal
- * Thread state.
+ * Thread state. COMPLETED_WITH_WARNINGS 与 BLOCKED 支撑诚实完成三态
+ * （A9-A05）：未验证的完成不冒充已验证完成。
  */
 export enum TurnOutcome {
   COMPLETED = 'completed',
+  COMPLETED_WITH_WARNINGS = 'completed_with_warnings',
   NEEDS_APPROVAL = 'needs_approval',
   BUDGET_EXCEEDED = 'budget_exceeded',
   CANCELLED = 'cancelled',
   STUCK = 'stuck',
+  BLOCKED = 'blocked',
   FAILED = 'failed',
 }
 

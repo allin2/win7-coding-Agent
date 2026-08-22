@@ -7,6 +7,7 @@
 import { ToolCall, ApprovalLevel, PolicyDecision, PolicyVerdict, CapabilityToken } from './types';
 import { bindCapabilityToToolCall } from './approval-binding';
 import { policyDeniedError } from './errors';
+import { classifyGitCommand } from './git-command-policy';
 
 const PROHIBITED_SHELL_HOSTS = new Set([
   'cmd',
@@ -72,31 +73,37 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 检查是否属于 A9-M03 规定的必须一次性确认的操作
+ * 检查是否属于 A9-M03 规定的必须一次性确认的操作。
+ * Git 命令使用 tokenize 分类器（git-command-policy），不依赖可绕过的正则。
  */
 function checkAlwaysConfirmOperation(toolCall: ToolCall): { needsConfirm: boolean; reason?: string } {
   if (toolCall.toolName === 'delete' && toolCall.args.permanent === true) {
     return { needsConfirm: true, reason: '永久删除文件/目录操作需要用户显式确认' };
   }
   if (toolCall.toolName === 'shell') {
-    const cmd = typeof toolCall.args.command === 'string' ? toolCall.args.command.trim() : '';
-    // Git push, force push, remote delete
-    if (/\bgit\s+push\b/i.test(cmd)) {
-      return { needsConfirm: true, reason: '外部 git push 操作需要用户显式确认' };
+    const cmd = typeof toolCall.args.command === 'string' ? toolCall.args.command : '';
+    if (cmd.trim().length === 0) return { needsConfirm: false };
+
+    const gitDecision = classifyGitCommand(cmd);
+    if (gitDecision) {
+      if (gitDecision.category === 'always_confirm') {
+        return { needsConfirm: true, reason: `${gitDecision.reason}（${gitDecision.binding.summary}）` };
+      }
+      if (gitDecision.category === 'commit_requires_user_request') {
+        return { needsConfirm: true, reason: `${gitDecision.reason}（${gitDecision.binding.summary}）` };
+      }
+      return { needsConfirm: false };
     }
-    if (/\bgit\s+branch\s+(?:-[dD]|--delete)\b/i.test(cmd) && /origin|upstream|remotes/i.test(cmd)) {
-      return { needsConfirm: true, reason: '删除远端分支操作需要用户显式确认' };
-    }
-    // Destructive Git
-    if (/\bgit\s+reset\s+--hard\b/i.test(cmd) || /\bgit\s+clean\s+-[a-zA-Z]*f/i.test(cmd)) {
-      return { needsConfirm: true, reason: '破坏性 Git 重置/清理操作需要用户显式确认' };
-    }
-    // Package publishing
-    if (/\b(?:npm|yarn|pnpm|cargo|twine)\s+publish\b/i.test(cmd) || /\btwine\s+upload\b/i.test(cmd)) {
+
+    // 非 Git 的外部写/系统级操作。
+    const nonGit = cmd.trim();
+    if (/\b(?:npm|yarn|pnpm|cargo|twine)\s+publish\b/i.test(nonGit)) {
       return { needsConfirm: true, reason: '发布/上传包操作需要用户显式确认' };
     }
-    // System / Registry elevation / modification
-    if (/\b(?:reg(?:\.exe)?\s+(?:add|delete|import)|net(?:\.exe)?\s+user|sc(?:\.exe)?\s+(?:config|create|delete)|icacls(?:\.exe)?)\b/i.test(cmd)) {
+    if (/\btwine\s+upload\b/i.test(nonGit)) {
+      return { needsConfirm: true, reason: '发布/上传包操作需要用户显式确认' };
+    }
+    if (/\b(?:reg(?:\.exe)?\s+(?:add|delete|import)|net(?:\.exe)?\s+user|sc(?:\.exe)?\s+(?:config|create|delete)|icacls(?:\.exe)?)\b/i.test(nonGit)) {
       return { needsConfirm: true, reason: '系统服务/注册表/权限变更操作需要用户显式确认' };
     }
   }

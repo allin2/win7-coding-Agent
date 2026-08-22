@@ -15,7 +15,7 @@ describe('A9-01: System Prompt V2', () => {
     expect(prompt.version).toBe(A9_SYSTEM_PROMPT_VERSION);
     expect(prompt.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(prompt.content).toContain('FULL ACCESS');
-    expect(prompt.content).toContain('Default Shell: powershell');
+    expect(prompt.content).toContain('Shell: powershell');
     expect(prompt.content).toContain('Instruction Hierarchy');
     expect(prompt.content).toContain('AGENTS.md');
     expect(prompt.content).toContain('Honest Verification');

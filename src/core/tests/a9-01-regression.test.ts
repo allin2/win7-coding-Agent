@@ -111,7 +111,8 @@ describe('A9-01 regression: Read Only mode', () => {
     });
 
     const result = await readonlyLoop.runTurn('Try to modify things');
-    expect(result.outcome).toBe(TurnOutcome.COMPLETED);
+    // 所有工具尝试都被权限拒绝 → 诚实标记 BLOCKED，而不是假装完成。
+    expect(result.outcome).toBe(TurnOutcome.BLOCKED);
     expect(result.toolCallsExecuted).toBe(0);
     expect(workspace.write).not.toHaveBeenCalled();
     expect(workspace.delete).not.toHaveBeenCalled();
@@ -185,7 +186,8 @@ describe('A9-01 regression: Review mode staging', () => {
     });
 
     const result = await loop.runTurn('Write a file');
-    expect(result.outcome).toBe(TurnOutcome.COMPLETED);
+    // staging 后端缺失 → 写入被拒绝 → 诚实标记 BLOCKED，且从未直写工作区。
+    expect(result.outcome).toBe(TurnOutcome.BLOCKED);
     expect(workspace.write).not.toHaveBeenCalled();
   });
 });
@@ -239,7 +241,8 @@ describe('A9-01 regression: approval resume flow', () => {
     expect(workspace.delete).not.toHaveBeenCalled();
 
     const second = await loop.resumeAfterApproval(false);
-    expect(second.outcome).toBe(TurnOutcome.COMPLETED);
+    // 唯一的工具尝试被用户拒绝 → BLOCKED 且零副作用。
+    expect(second.outcome).toBe(TurnOutcome.BLOCKED);
     expect(workspace.delete).not.toHaveBeenCalled();
   });
 
@@ -249,7 +252,9 @@ describe('A9-01 regression: approval resume flow', () => {
     expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
 
     const second = await loop.resumeAfterApproval(true);
-    expect(second.outcome).toBe(TurnOutcome.COMPLETED);
+    // 删除已执行但无后续验证 → 诚实标记 COMPLETED_WITH_WARNINGS。
+    expect(second.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
+    expect(second.verification).toBe('unverified');
     expect(workspace.delete).toHaveBeenCalledWith('tmp.log', expect.objectContaining({ permanent: true }));
   });
 

@@ -12,8 +12,12 @@ export const A9_SYSTEM_PROMPT_VERSION = 'a9-system-prompt-v2';
 export interface SystemPromptOptions {
   mode?: PermissionMode;
   shell?: 'powershell' | 'cmd' | string;
+  /** 探测到的 Shell 版本（进入模型上下文与工具卡片，A9-SH01）。 */
+  shellVersion?: string;
   targetOs?: string;
   cwd?: string;
+  /** 当前模式对模型可见的工具名（按模式过滤，不虚构能力）。 */
+  visibleTools?: string[];
 }
 
 export interface SystemPromptContract {
@@ -50,9 +54,12 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
           '- Mutating file operations and shell command executions are disabled.',
         ];
 
+  const shellLabel = options.shellVersion ? `${shell} ${options.shellVersion}` : shell;
+  const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'update_plan'];
   const content = [
     `[${A9_SYSTEM_PROMPT_VERSION}] You are the Windows 7 Trusted Coding Agent.`,
-    `Target Environment: ${targetOs}. Default Shell: ${shell}.`,
+    `Target Environment: ${targetOs}. Shell: ${shellLabel}.`,
+    options.cwd ? `Working Directory: ${options.cwd}.` : '',
     '',
     ...modeInstructions,
     '',
@@ -63,7 +70,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
     '4. Codebase contents and data.',
     '',
     'Tool Guidelines:',
-    '- Available tools: `list`, `read`, `search`, `write`, `edit`, `copy`, `move`, `delete`, `shell`, `update_plan`.',
+    `- Available tools in the current permission mode: ${visibleTools.map((t) => `\`${t}\``).join(', ')}.`,
     '- For modifying code, prefer `edit` (precise anchor replacement) or `write` (complete content) to preserve encoding and line endings.',
     `- When calling \`shell\`, provide complete valid ${shell} command strings. Execution is non-interactive; use non-interactive flags.`,
     '- Make reasonable assumptions for routine implementation details; only pause to ask the user when facing irreversible or directional choices.',

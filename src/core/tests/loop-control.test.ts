@@ -27,13 +27,15 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
 }
 
 describe('Agent Loop control contracts', () => {
-  it('defines exactly the six exhaustive Turn outcomes', () => {
+  it('defines exactly the exhaustive Turn outcomes (honest completion tri-state)', () => {
     expect(Object.values(TurnOutcome)).toEqual([
       'completed',
+      'completed_with_warnings',
       'needs_approval',
       'budget_exceeded',
       'cancelled',
       'stuck',
+      'blocked',
       'failed',
     ]);
   });

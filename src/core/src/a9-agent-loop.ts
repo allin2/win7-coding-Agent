@@ -21,6 +21,7 @@ import {
 import { PolicyEngine } from './policy';
 import { ToolRegistry } from './tools';
 import { a9ToolSpecs, normalizeToolCallArgs } from './a9-tools';
+import { classifyGitCommand } from './git-command-policy';
 import { buildA9SystemPrompt } from './system-prompt';
 import { LoopDetector, TurnOutcome } from './loop-control';
 import { AgentError, AgentErrorCode } from './errors';
@@ -140,7 +141,7 @@ export interface A9AgentLoopConfig {
   /** Review 模式必填：缺失时 Review 写操作按结构化错误拒绝，绝不直写工作区。 */
   reviewStaging?: A9ReviewStagingPort;
   /** 产品级 Shell 选择与环境覆盖（工作区设置），逐次传入 Runner。 */
-  shellOptions?: { kind?: string; path?: string; envOverlay?: Record<string, string> };
+  shellOptions?: { kind?: string; path?: string; version?: string; envOverlay?: Record<string, string> };
   policyEngine?: PolicyEngine;
   permissionMode?: PermissionMode;
   maxStepsPerTurn?: number;
@@ -156,6 +157,9 @@ export interface A9PendingToolCall {
   reason: string;
 }
 
+/** 诚实完成三态（A9-A05）：verified 需要真实验证证据。 */
+export type A9VerificationStatus = 'verified' | 'unverified' | 'not_applicable';
+
 export interface A9TurnResult {
   turnId: string;
   outcome: TurnOutcome;
@@ -164,6 +168,9 @@ export interface A9TurnResult {
   toolCallsExecuted: number;
   plan?: A9VisiblePlan;
   pendingApproval?: A9PendingToolCall;
+  verification?: A9VerificationStatus;
+  /** onEvent 处理器抛出的错误（不得静默吞掉）。 */
+  eventHandlerErrors?: string[];
 }
 
 export interface A9VisiblePlan {
@@ -195,6 +202,8 @@ export class A9AgentLoop {
   private suspended: SuspendedTurn | undefined;
   private currentTurnId = '';
   private visiblePlan: A9VisiblePlan | undefined;
+  private eventHandlerErrors: string[] = [];
+  private turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
 
   constructor(private readonly config: A9AgentLoopConfig) {
     this.permissionMode = config.permissionMode ?? PermissionMode.FULL_ACCESS;
@@ -232,6 +241,8 @@ export class A9AgentLoop {
     this.suspended = undefined;
     // 循环检测按 Turn 重置，避免跨用户 Turn 累积误判。
     this.loopDetector.reset();
+    this.eventHandlerErrors = [];
+    this.turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
     const turnId = `turn-${Date.now()}`;
     this.currentTurnId = turnId;
     const maxSteps = this.config.maxStepsPerTurn || 30;
@@ -247,6 +258,9 @@ export class A9AgentLoop {
       const systemPromptContract = buildA9SystemPrompt({
         cwd: this.config.workspaceRoot,
         mode: this.permissionMode,
+        shell: this.config.shellOptions?.kind,
+        ...(this.config.shellOptions?.version ? { shellVersion: this.config.shellOptions.version } : {}),
+        visibleTools: this.getVisibleTools(),
       });
       this.conversationHistory.push({ role: 'system', content: systemPromptContract.content });
     }
@@ -404,20 +418,32 @@ export class A9AgentLoop {
 
       const toolCalls = response.toolCalls || [];
 
-      // 模型未调用工具：给出最终结论，Turn 完成。
+      // 模型未调用工具：给出最终结论。按诚实完成规则分类：
+      // 有副作用但无后续成功验证 → COMPLETED_WITH_WARNINGS；全部工具失败 → BLOCKED。
       if (toolCalls.length === 0) {
         const finalContent = response.content || 'Task complete.';
         this.conversationHistory.push({
           role: 'assistant',
           content: finalContent,
         });
+        let outcome = TurnOutcome.COMPLETED;
+        const stats = this.turnStats;
+        if (stats.attempted > 0 && stats.executed === 0) {
+          outcome = TurnOutcome.BLOCKED;
+        } else if (stats.mutations && !stats.verifiedAfterMutation) {
+          outcome = TurnOutcome.COMPLETED_WITH_WARNINGS;
+        }
+        const verification: A9VerificationStatus = stats.mutations
+          ? (stats.verifiedAfterMutation ? 'verified' : 'unverified')
+          : 'not_applicable';
         return this.finalize(turnId, {
           turnId,
-          outcome: TurnOutcome.COMPLETED,
+          outcome,
           finalMessage: finalContent,
           totalSteps: stepCount,
           toolCallsExecuted,
-        }, 'turn_completed', { finalMessage: response.content });
+          verification,
+        }, 'turn_completed', { finalMessage: response.content, outcome, verification });
       }
 
       // 保留 assistant tool_calls 协议事实，供下一轮模型请求组装。
@@ -486,6 +512,8 @@ export class A9AgentLoop {
         continue;
       }
 
+      this.turnStats.attempted += 1;
+
       // 循环卡死检测（同一 Turn 内连续重复）。
       if (this.loopDetector.observe(tc.name, parsedArgs)) {
         return {
@@ -553,6 +581,9 @@ export class A9AgentLoop {
           content: staged,
         });
         executed++;
+        if (!staged.startsWith('Error:')) {
+          this.turnStats.executed += 1;
+        }
         continue;
       }
 
@@ -719,6 +750,27 @@ export class A9AgentLoop {
       toolResultStr = `${toolResultStr.slice(0, this.maxToolResultChars)}\n[Tool output truncated at ${this.maxToolResultChars} characters; full output preserved in tool logs]`;
     }
 
+    if (executed) {
+      this.turnStats.executed += 1;
+      if (this.permissionMode === PermissionMode.FULL_ACCESS && ['write', 'edit', 'copy', 'move', 'delete'].includes(tc.name)) {
+        // Review staging 不触碰正式工作区，不计为副作用。
+        this.turnStats.mutations = true;
+      } else if (tc.name === 'shell' && !residueRisk) {
+        // git 写操作经分类器计入副作用（A9-T02：Shell 变化纳入同一审计链路）。
+        const gitDecision = typeof args.command === 'string' ? classifyGitCommand(args.command) : null;
+        if (gitDecision?.mutatesWorktree) {
+          this.turnStats.mutations = true;
+        }
+        // shell 成功执行且此前存在文件副作用 → 视为验证证据。
+        try {
+          const parsed = JSON.parse(toolResultStr);
+          if (typeof parsed.exitCode === 'number' && parsed.exitCode === 0 && this.turnStats.mutations && !gitDecision?.mutatesWorktree) {
+            this.turnStats.verifiedAfterMutation = true;
+          }
+        } catch (_parseErr) { /* 非 JSON 结果无法证明验证 */ }
+      }
+    }
+
     this.emitEvent({
       type: 'tool_end',
       turnId,
@@ -824,17 +876,49 @@ export class A9AgentLoop {
     eventData: Record<string, unknown> = {},
   ): A9TurnResult {
     const withPlan = this.visiblePlan ? { ...result, plan: { ...this.visiblePlan } } : result;
+    const withErrors = this.eventHandlerErrors.length > 0
+      ? { ...withPlan, eventHandlerErrors: [...this.eventHandlerErrors] }
+      : withPlan;
     if (eventType) {
       this.emitEvent({ type: eventType, turnId, timestamp: new Date().toISOString(), data: eventData });
     }
-    return withPlan;
+    return withErrors;
+  }
+
+  /**
+   * 模型切换时从标准化事件账本重建上下文（A9-GW03）：外部持久层将
+   * 会话投影为 loop 消息后注入，替代原 System Prompt 重建新模型上下文。
+   */
+  restoreConversationHistory(messages: A9LoopMessage[]): void {
+    if (messages.length === 0) return;
+    const rebuilt: A9LoopMessage[] = messages.some((m) => m.role === 'system')
+      ? [...messages]
+      : [
+        {
+          role: 'system',
+          content: buildA9SystemPrompt({
+            cwd: this.config.workspaceRoot,
+            mode: this.permissionMode,
+            shell: this.config.shellOptions?.kind,
+            ...(this.config.shellOptions?.version ? { shellVersion: this.config.shellOptions.version } : {}),
+            visibleTools: this.getVisibleTools(),
+          }).content,
+        },
+        ...messages,
+      ];
+    this.conversationHistory.length = 0;
+    this.conversationHistory.push(...rebuilt.map((m) => ({ ...m })));
   }
 
   private emitEvent(event: A9LoopEvent): void {
     if (this.config.onEvent) {
       try {
         this.config.onEvent(event);
-      } catch (_e) {}
+      } catch (err) {
+        // 事件处理器错误不得静默吞掉：记录并在 Turn 结果中暴露。
+        const message = `onEvent(${event.type}) handler failed: ${err instanceof Error ? err.message : String(err)}`;
+        if (this.eventHandlerErrors.length < 50) this.eventHandlerErrors.push(message);
+      }
     }
   }
 }
