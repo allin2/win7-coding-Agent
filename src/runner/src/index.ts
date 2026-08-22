@@ -64,3 +64,28 @@ export {
   MockContainmentProbe,
   MockContainmentConfig,
 } from './containment';
+
+// A9 TrustedShellRunner 与后台进程管理
+export {
+  TrustedShellRequest,
+  TrustedShellResult,
+  TrustedShellRunner,
+} from './trusted-shell-runner';
+
+export {
+  ShellKind,
+  DetectedShell,
+  ShellDetectionOptions,
+  detectSystemShells,
+  getActiveShell,
+} from './shell-detection';
+
+export {
+  BackgroundProcessHandle,
+  PollResult,
+  BackgroundProcessManager,
+} from './background-process-manager';
+
+export {
+  killProcessTree,
+} from './process-cleanup';
