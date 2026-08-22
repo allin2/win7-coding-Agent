@@ -21,10 +21,11 @@ import {
 import { PolicyEngine } from './policy';
 import { ToolRegistry } from './tools';
 import { a9ToolSpecs, normalizeToolCallArgs } from './a9-tools';
-import { classifyGitCommand } from './git-command-policy';
 import { buildA9SystemPrompt } from './system-prompt';
 import { LoopDetector, TurnOutcome } from './loop-control';
+import * as crypto from 'crypto';
 import { AgentError, AgentErrorCode } from './errors';
+import { classifyGitCommand, GitCommandApprovalBinding } from './git-command-policy';
 
 export interface A9LoopEvent {
   type:
@@ -142,6 +143,8 @@ export interface A9AgentLoopConfig {
   reviewStaging?: A9ReviewStagingPort;
   /** 产品级 Shell 选择与环境覆盖（工作区设置），逐次传入 Runner。 */
   shellOptions?: { kind?: string; path?: string; version?: string; envOverlay?: Record<string, string> };
+  /** NEEDS_APPROVAL 挂起时同步持久化 pending 审批（等待用户前调用）。 */
+  onApprovalPending?: (approval: A9ApprovalRequest) => void | Promise<void>;
   policyEngine?: PolicyEngine;
   permissionMode?: PermissionMode;
   maxStepsPerTurn?: number;
@@ -150,11 +153,103 @@ export interface A9AgentLoopConfig {
   onEvent?: (event: A9LoopEvent) => void;
 }
 
-export interface A9PendingToolCall {
+/**
+ * 不可变审批对象（A9-01/R2）：挂起时生成并在等待用户前持久化；
+ * 恢复执行前校验 approvalId 与 bindingDigest 与当前挂起调用完全一致。
+ */
+export interface A9ApprovalRequest {
+  approvalId: string;
+  turnId: string;
   callId: string;
   toolName: string;
   args: Record<string, unknown>;
+  /** 人类可读操作摘要（审批 UI 展示）。 */
+  summary: string;
+  /** 绑定摘要：目标/参数/摘要变化即失效。 */
+  bindingDigest: string;
+  /** shell 工具为 git 操作时携带目标绑定。 */
+  gitBinding?: GitCommandApprovalBinding;
   reason: string;
+}
+
+export interface A9ApprovalDecision {
+  approvalId: string;
+  decision: 'approved' | 'denied';
+  bindingDigest: string;
+}
+
+/** 计算 approvalId：turn + call + digest 的短哈希（同一挂起可重算验证）。 */
+function computeApprovalId(turnId: string, callId: string, bindingDigest: string): string {
+  return `apr-${crypto.createHash('sha256').update(`${turnId}\n${callId}\n${bindingDigest}`).digest('hex').slice(0, 24)}`;
+}
+
+/** canonical JSON（键排序），供 bindingDigest 稳定计算。 */
+export function canonicalizeArgsJson(args: Record<string, unknown>): string {
+  return JSON.stringify(args, (_key, value) => {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      return Object.keys(value as Record<string, unknown>).sort()
+        .reduce<Record<string, unknown>>((acc, k) => { acc[k] = (value as Record<string, unknown>)[k]; return acc; }, {});
+    }
+    return value;
+  });
+}
+
+/** bindingDigest：callId + toolName + canonical args + summary。 */
+export function computeApprovalBindingDigest(callId: string, toolName: string, args: Record<string, unknown>, summary: string): string {
+  return crypto.createHash('sha256')
+    .update(`${callId}\n${toolName}\n${canonicalizeArgsJson(args)}\n${summary}`, 'utf8')
+    .digest('hex');
+}
+
+function buildApprovalSummary(toolName: string, args: Record<string, any>): string {
+  if (toolName === 'delete') {
+    return `delete path=${String(args.path)} permanent=${String(args.permanent === true)}`;
+  }
+  if (toolName === 'shell') {
+    const command = typeof args.command === 'string' ? args.command : '';
+    const git = classifyGitCommand(command);
+    if (git) return git.binding.summary;
+    return `shell: ${command.slice(0, 160)}`;
+  }
+  if (toolName === 'write') return `write path=${String(args.path)}`;
+  if (toolName === 'edit') return `edit path=${String(args.path)}`;
+  if (toolName === 'copy') return `copy ${String(args.source)} -> ${String(args.destination)}`;
+  if (toolName === 'move') return `move ${String(args.source)} -> ${String(args.destination)}`;
+  return `${toolName} ${JSON.stringify(args).slice(0, 120)}`;
+}
+
+function safeParseArgs(raw: string | undefined): Record<string, unknown> {
+  try {
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch (_err) {
+    return {};
+  }
+}
+
+export function buildA9ApprovalRequest(
+  turnId: string,
+  callId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  reason: string,
+): A9ApprovalRequest {
+  const summary = buildApprovalSummary(toolName, args as Record<string, any>);
+  const bindingDigest = computeApprovalBindingDigest(callId, toolName, args, summary);
+  const gitBinding = toolName === 'shell' && typeof (args as any).command === 'string'
+    ? classifyGitCommand((args as any).command)?.binding
+    : undefined;
+  return {
+    approvalId: computeApprovalId(turnId, callId, bindingDigest),
+    turnId,
+    callId,
+    toolName,
+    args,
+    summary,
+    bindingDigest,
+    ...(gitBinding ? { gitBinding } : {}),
+    reason,
+  };
 }
 
 /** 诚实完成三态（A9-A05）：verified 需要真实验证证据。 */
@@ -167,7 +262,8 @@ export interface A9TurnResult {
   totalSteps: number;
   toolCallsExecuted: number;
   plan?: A9VisiblePlan;
-  pendingApproval?: A9PendingToolCall;
+  /** 挂起审批（不可变绑定对象；恢复必须携带 approvalId + bindingDigest）。 */
+  pendingApproval?: A9ApprovalRequest;
   verification?: A9VerificationStatus;
   /** onEvent 处理器抛出的错误（不得静默吞掉）。 */
   eventHandlerErrors?: string[];
@@ -187,6 +283,8 @@ interface SuspendedTurn {
   queue: A9ModelToolCall[];
   pending: A9ModelToolCall;
   reason: string;
+  /** 挂起时生成并已持久化的不可变审批对象。 */
+  approval: A9ApprovalRequest;
 }
 
 /** 进入模型历史的工具结果默认上限（约 16 KiB）。 */
@@ -204,6 +302,7 @@ export class A9AgentLoop {
   private visiblePlan: A9VisiblePlan | undefined;
   private eventHandlerErrors: string[] = [];
   private turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
+  private turnSequence = 0;
 
   constructor(private readonly config: A9AgentLoopConfig) {
     this.permissionMode = config.permissionMode ?? PermissionMode.FULL_ACCESS;
@@ -243,7 +342,8 @@ export class A9AgentLoop {
     this.loopDetector.reset();
     this.eventHandlerErrors = [];
     this.turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
-    const turnId = `turn-${Date.now()}`;
+    this.turnSequence += 1;
+    const turnId = `turn-${Date.now()}-${this.turnSequence}`;
     this.currentTurnId = turnId;
     const maxSteps = this.config.maxStepsPerTurn || 30;
 
@@ -275,13 +375,34 @@ export class A9AgentLoop {
    * - approved=true：执行原 tool call 并继续循环；
    * - approved=false：向模型回执“用户已拒绝”，原 tool call 零副作用。
    */
-  async resumeAfterApproval(approved: boolean, options: { signal?: AbortSignal } = {}): Promise<A9TurnResult> {
+  async resumeAfterApproval(input: A9ApprovalDecision, options: { signal?: AbortSignal } = {}): Promise<A9TurnResult> {
     const suspended = this.suspended;
     if (!suspended) {
       throw new AgentError(AgentErrorCode.RUNTIME_INPUT_INVALID, 'No suspended turn awaiting approval.', {}, '先通过 runTurn 触发 NEEDS_APPROVAL。');
     }
+    if (!input || typeof input !== 'object' || !input.approvalId || !input.bindingDigest ||
+        (input.decision !== 'approved' && input.decision !== 'denied')) {
+      throw new AgentError(AgentErrorCode.APPROVAL_INVALID, '审批回复必须携带 approvalId、decision(approved|denied) 与 bindingDigest。', {}, '使用挂起审批返回的完整审批对象回复。');
+    }
+    if (input.approvalId !== suspended.approval.approvalId) {
+      throw new AgentError(AgentErrorCode.APPROVAL_INVALID, `approvalId 不匹配（期望 ${suspended.approval.approvalId}）`, {}, '审批与挂起调用不对应；重新确认当前挂起的审批。');
+    }
+    // 与当前挂起调用重算摘要比对（与挂起时相同的规范化管道，含默认值填充）：
+    // 目标、参数或摘要变化后旧审批失效。
+    const currentArgs = this.normalizePendingArgs(suspended.pending);
+    const currentDigest = computeApprovalBindingDigest(
+      suspended.pending.id,
+      suspended.pending.name,
+      currentArgs,
+      buildApprovalSummary(suspended.pending.name, currentArgs as Record<string, any>),
+    );
+    if (input.bindingDigest !== currentDigest || input.bindingDigest !== suspended.approval.bindingDigest) {
+      throw new AgentError(AgentErrorCode.APPROVAL_INVALID, 'bindingDigest 与当前挂起调用不一致；审批已失效。', {}, '目标或参数已变化，重新审批新请求。');
+    }
+    // 一次性消费：先清空挂起再执行；重复/跨 Turn 请求都会因无挂起被拒绝。
     this.suspended = undefined;
     const { turnId } = suspended;
+    const approved = input.decision === 'approved';
 
     if (!approved) {
       this.conversationHistory.push({
@@ -605,12 +726,18 @@ export class A9AgentLoop {
       }
 
       if (decision.verdict === PolicyVerdict.ASK) {
+        const reason = decision.reason || 'Policy requires user approval for high impact operation';
+        const approval = buildA9ApprovalRequest(turnId, tc.id, tc.name, validatedCall.args, reason);
         this.emitEvent({
           type: 'approval_required',
           turnId,
           timestamp: new Date().toISOString(),
-          data: { toolName: tc.name, args: validatedCall.args, callId: tc.id, reason: decision.reason },
+          data: { toolName: tc.name, args: validatedCall.args, callId: tc.id, reason, approvalId: approval.approvalId, bindingDigest: approval.bindingDigest, summary: approval.summary },
         });
+        // 等待用户前先持久化 pending 审批（不可变绑定对象）。
+        if (this.config.onApprovalPending) {
+          await this.config.onApprovalPending(approval);
+        }
         // 挂起：保留原 tool call 与同批剩余队列，审批后恢复。
         this.suspended = {
           turnId,
@@ -619,22 +746,18 @@ export class A9AgentLoop {
           toolCallsExecuted: executed,
           queue: queue.slice(index + 1),
           pending: { ...tc },
-          reason: decision.reason || 'Policy requires user approval for high impact operation',
+          reason,
+          approval,
         };
         return {
           kind: 'suspended',
           result: this.finalize(turnId, {
             turnId,
             outcome: TurnOutcome.NEEDS_APPROVAL,
-            finalMessage: `High impact operation requires confirmation: ${tc.name}`,
+            finalMessage: `High impact operation requires confirmation: ${approval.summary}`,
             totalSteps: stepCount,
             toolCallsExecuted: executed,
-            pendingApproval: {
-              callId: tc.id,
-              toolName: tc.name,
-              args: validatedCall.args,
-              reason: decision.reason || 'Policy requires user approval for high impact operation',
-            },
+            pendingApproval: approval,
           }),
         };
       }
@@ -646,6 +769,18 @@ export class A9AgentLoop {
       }
     }
     return { kind: 'continue', stepCount, toolCallsExecuted: executed };
+  }
+
+  /** 与挂起时一致的参数规范化（别名 → ToolRegistry normalizeCall 默认值填充）。 */
+  private normalizePendingArgs(tc: A9ModelToolCall): Record<string, unknown> {
+    const spec = this.toolRegistry.resolve(tc.name);
+    const validated = this.toolRegistry.normalizeCall({
+      id: tc.id,
+      toolName: tc.name,
+      args: normalizeToolCallArgs(tc.name, safeParseArgs(tc.arguments)),
+      approvalLevel: spec.approvalLevel,
+    });
+    return validated.args;
   }
 
   private isStagedWriteTool(name: string): boolean {

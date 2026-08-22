@@ -179,9 +179,13 @@ export {
 
 export {
   WORKSPACE_MODE_SETTINGS_SCHEMA_VERSION,
-  WorkspaceModeSettingsV1,
+  ModeAuditEntry,
+  WorkspaceModeSettingsV2,
   WorkspaceModeSettingsState,
+  canonicalizeWorkspacePath,
+  workspaceSettingsFileKey,
   parseWorkspaceModeSettings,
+  parseLegacyForMigration,
   WorkspaceModeSettingsStore,
 } from './a9-mode-settings';
 
@@ -271,7 +275,11 @@ export {
   A9RunnerPort,
   A9AgentLoopConfig,
   A9TurnResult,
-  A9PendingToolCall,
+  A9ApprovalRequest,
+  A9ApprovalDecision,
   A9VisiblePlan,
   A9AgentLoop,
+  buildA9ApprovalRequest,
+  computeApprovalBindingDigest,
+  canonicalizeArgsJson,
 } from './a9-agent-loop';

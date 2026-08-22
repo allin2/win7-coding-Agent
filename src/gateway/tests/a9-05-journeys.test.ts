@@ -218,7 +218,11 @@ describe('A9-05 journeys (dev machine, fixture model, real runtime stack)', () =
         expect(first.pendingApproval?.toolName).toBe('shell');
         expect(first.pendingApproval?.reason).toContain('commit');
 
-        const resumed = await loop.resumeAfterApproval(true);
+        const resumed = await loop.resumeAfterApproval({
+          approvalId: first.pendingApproval!.approvalId,
+          decision: 'approved',
+          bindingDigest: first.pendingApproval!.bindingDigest,
+        });
         expect(resumed.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
         expect(git(workspace, 'log', '--oneline')).toContain('add feature');
       } finally {
@@ -241,7 +245,11 @@ describe('A9-05 journeys (dev machine, fixture model, real runtime stack)', () =
         const first = await denyLoop.runTurn('推送 main 到 origin');
         expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
         expect(first.pendingApproval?.reason).toContain('push');
-        const denied = await denyLoop.resumeAfterApproval(false);
+        const denied = await denyLoop.resumeAfterApproval({
+          approvalId: first.pendingApproval!.approvalId,
+          decision: 'denied',
+          bindingDigest: first.pendingApproval!.bindingDigest,
+        });
         expect(denied.outcome).toBe(TurnOutcome.BLOCKED);
         // 远端裸仓库没有任何分支引用 → 拒绝零副作用。
         expect(git(bareRemote, 'for-each-ref')).toBe('');
@@ -258,7 +266,11 @@ describe('A9-05 journeys (dev machine, fixture model, real runtime stack)', () =
         const allowLoop = buildLoop(allowModel.baseUrl);
         const first = await allowLoop.runTurn('推送 main 到 origin');
         expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
-        const done = await allowLoop.resumeAfterApproval(true);
+        const done = await allowLoop.resumeAfterApproval({
+          approvalId: first.pendingApproval!.approvalId,
+          decision: 'approved',
+          bindingDigest: first.pendingApproval!.bindingDigest,
+        });
         // push 成功执行且无本地工作区副作用需要验证 → 正常完成。
         expect(done.outcome).toBe(TurnOutcome.COMPLETED);
         expect(git(bareRemote, 'for-each-ref')).toContain('refs/heads/main');

@@ -23,7 +23,11 @@ const A9_ACTIONS = Object.freeze({
   GIT_STATUS: 'a9.git.status',
 });
 
-const A9_IPC_SCHEMA_VERSION = 1;
+/**
+ * v2（ADR-0091）：a9.turn.resumeApproval 的 payload 从 boolean 升级为
+ * { approvalId, decision, bindingDigest }，与不可变审批绑定对象配套。
+ */
+const A9_IPC_SCHEMA_VERSION = 2;
 
 function exactObject(value, keys, code) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -76,8 +80,11 @@ function createA9ProductRequestHandler(options) {
           return runtime.submitTurn(payload.prompt);
         }
         case A9_ACTIONS.TURN_RESUME_APPROVAL: {
-          exactObject(payload, ['approved'], 'A9_PAYLOAD_INVALID');
-          return runtime.resumeApproval(payload.approved);
+          exactObject(payload, ['approvalId', 'decision', 'bindingDigest'], 'A9_PAYLOAD_INVALID');
+          if (payload.decision !== 'approved' && payload.decision !== 'denied') {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: decision must be approved|denied'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return runtime.resumeApproval(payload);
         }
         case A9_ACTIONS.TURN_STOP:
           return runtime.stop();

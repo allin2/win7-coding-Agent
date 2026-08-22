@@ -240,7 +240,11 @@ describe('A9-01 regression: approval resume flow', () => {
     expect(first.pendingApproval?.callId).toBe('pdel');
     expect(workspace.delete).not.toHaveBeenCalled();
 
-    const second = await loop.resumeAfterApproval(false);
+    const second = await loop.resumeAfterApproval({
+      approvalId: first.pendingApproval!.approvalId,
+      decision: 'denied',
+      bindingDigest: first.pendingApproval!.bindingDigest,
+    });
     // 唯一的工具尝试被用户拒绝 → BLOCKED 且零副作用。
     expect(second.outcome).toBe(TurnOutcome.BLOCKED);
     expect(workspace.delete).not.toHaveBeenCalled();
@@ -251,7 +255,11 @@ describe('A9-01 regression: approval resume flow', () => {
     const first = await loop.runTurn('Delete the log permanently');
     expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
 
-    const second = await loop.resumeAfterApproval(true);
+    const second = await loop.resumeAfterApproval({
+      approvalId: first.pendingApproval!.approvalId,
+      decision: 'approved',
+      bindingDigest: first.pendingApproval!.bindingDigest,
+    });
     // 删除已执行但无后续验证 → 诚实标记 COMPLETED_WITH_WARNINGS。
     expect(second.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
     expect(second.verification).toBe('unverified');
@@ -260,8 +268,27 @@ describe('A9-01 regression: approval resume flow', () => {
 
   it('resume without a suspended turn is a structured error', async () => {
     const { loop } = buildLoop();
-    await expect(loop.resumeAfterApproval(true)).rejects.toThrow(/No suspended turn/);
+    await expect(loop.resumeAfterApproval({ approvalId: 'apr-x', decision: 'approved', bindingDigest: '0'.repeat(64) })).rejects.toThrow(/No suspended turn/);
   });
+
+  it('rejects forged digest and replayed approvals', async () => {
+    const { loop, workspace } = buildLoop();
+    const first = await loop.runTurn('Delete the log permanently');
+    expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+    const approval = first.pendingApproval!;
+
+    // 伪造摘要拒绝。
+    await expect(loop.resumeAfterApproval({ approvalId: approval.approvalId, decision: 'approved', bindingDigest: 'f'.repeat(64) }))
+      .rejects.toThrow(/bindingDigest|APPROVAL_INVALID/i);
+
+    // 消费一次后重复审批拒绝（一次性）。
+    await loop.resumeAfterApproval({ approvalId: approval.approvalId, decision: 'approved', bindingDigest: approval.bindingDigest });
+    await expect(loop.resumeAfterApproval({ approvalId: approval.approvalId, decision: 'approved', bindingDigest: approval.bindingDigest }))
+      .rejects.toThrow(/No suspended turn/);
+    expect(workspace.delete).toHaveBeenCalledTimes(1);
+  });
+
+
 });
 
 describe('A9-01 regression: strict tool schema validation', () => {
@@ -340,20 +367,19 @@ describe('A9-01 regression: persisted mode settings fail closed', () => {
   it('store round-trips an explicit choice and reports missing settings as needs_selection', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-mode-'));
     try {
-      const store = new WorkspaceModeSettingsStore(path.join(dir, 'modes', 'ws.v1.json'));
-      expect(store.load().status).toBe('needs_selection');
+      const store = new WorkspaceModeSettingsStore(path.join(dir, 'modes', 'ws-test.json'));
+      expect(store.load('/ws').status).toBe('needs_selection');
       const saved = store.save('/ws', PermissionMode.REVIEW);
       expect(saved.permissionMode).toBe(PermissionMode.REVIEW);
-      const loaded = store.load();
+      const loaded = store.load('/ws');
       expect(loaded.status).toBe('configured');
       if (loaded.status === 'configured') {
         expect(loaded.settings.permissionMode).toBe(PermissionMode.REVIEW);
       }
 
       // 写入损坏内容后必须保持 needs_selection，而不是默认 Full Access。
-      const settingsPath = (store as unknown as { settingsPath: string }).settingsPath;
-      fs.writeFileSync(settingsPath, '{corrupted', 'utf8');
-      const corrupted = store.load();
+      fs.writeFileSync(path.join(dir, 'modes', 'ws-test.json'), '{corrupted', 'utf8');
+      const corrupted = store.load('/ws');
       expect(corrupted.status).toBe('needs_selection');
       if (corrupted.status === 'needs_selection') {
         expect(corrupted.reason).toBe('unparsable');

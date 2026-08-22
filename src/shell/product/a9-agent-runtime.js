@@ -63,19 +63,24 @@ function createA9AgentRuntime(options) {
   }
   const persistence = persistenceOutcome.manager;
 
-  // ----- 工作区模式（fail-closed，无默认 Full Access） -----
+  // ----- 工作区模式（R1：键绑定 canonical 路径的 SHA-256，fail-closed） -----
+  const canonicalWorkspace = modules.core.canonicalizeWorkspacePath(workspaceRoot);
   const modeStore = new modules.core.WorkspaceModeSettingsStore(
-    modules.core.WorkspaceModeSettingsStore.settingsFilePathFor(dataRoot, path.basename(workspaceRoot)),
+    modules.core.WorkspaceModeSettingsStore.settingsFilePathFor(dataRoot, workspaceRoot),
+    { legacyPath: modules.core.WorkspaceModeSettingsStore.legacyBasenameFilePathFor(dataRoot, workspaceRoot) },
   );
-  let permissionMode = modeStore.load().status === 'configured'
-    ? modeStore.load().settings.permissionMode
+  let permissionMode = modeStore.load(workspaceRoot).status === 'configured'
+    ? modeStore.load(workspaceRoot).settings.permissionMode
     : undefined;
-  const persistedMode = persistence.getWorkspaceMode(workspaceRoot);
+  const persistedMode = persistence.getWorkspaceMode(canonicalWorkspace);
   if (permissionMode === undefined && persistedMode !== undefined) permissionMode = persistedMode;
 
   // ----- 工作区单写锁（多窗口） -----
-  const lock = persistence.acquireWorkspaceLock(workspaceRoot, ownerId);
+  const lock = persistence.acquireWorkspaceLock(canonicalWorkspace, ownerId);
   const lockHeld = lock.acquired === true;
+
+  // ----- R2：pending 审批（SQLite 记录来自原始 pending 对象） -----
+  let currentPendingApproval = null;
 
   // ----- Provider（正式 UI 默认真实 Provider；未配置即拒绝执行） -----
   let providerConfig = null;
@@ -124,6 +129,23 @@ function createA9AgentRuntime(options) {
           persistence.recordToolEvent('a9-desktop', event.turnId, event.type, {
             type: event.type,
             data: event.data,
+          });
+        },
+        onApprovalPending: (approval) => {
+          // 等待用户前持久化 pending 审批（含真实工具与目标绑定）。
+          currentPendingApproval = approval;
+          persistence.recordApproval({
+            approvalId: approval.approvalId,
+            sessionId: 'a9-desktop',
+            turnId: approval.turnId,
+            toolName: approval.toolName,
+            binding: {
+              summary: approval.summary,
+              bindingDigest: approval.bindingDigest,
+              args: approval.args,
+              ...(approval.gitBinding ? { git: approval.gitBinding } : {}),
+            },
+            decision: 'pending',
           });
         },
       });
@@ -181,6 +203,7 @@ function createA9AgentRuntime(options) {
       activeController = new AbortController();
       agentStatus = 'running';
       const result = await activeLoop.runTurn(String(prompt || ''), { signal: activeController.signal });
+      currentPendingApproval = result.pendingApproval || currentPendingApproval;
       persistence.saveCheckpoint({
         turnId: result.turnId,
         sessionId: 'a9-desktop',
@@ -201,20 +224,39 @@ function createA9AgentRuntime(options) {
     }
   }
 
-  async function resumeApproval(approved) {
+  async function resumeApproval(input) {
     try {
+      if (!input || typeof input !== 'object' || !input.approvalId || !input.bindingDigest ||
+          (input.decision !== 'approved' && input.decision !== 'denied')) {
+        throw new Error('A9_APPROVAL_INPUT_INVALID: 回复必须携带 approvalId、decision 与 bindingDigest');
+      }
       const activeLoop = ensureRuntime();
       if (activeController) throw new Error('A9_TURN_ALREADY_ACTIVE');
       activeController = new AbortController();
-      const result = await activeLoop.resumeAfterApproval(approved === true, { signal: activeController.signal });
+      // R2.7：SQLite 记录来自原始 pending 审批，而不是恢复执行后的结果。
+      const original = currentPendingApproval;
+      if (!original || original.approvalId !== input.approvalId) {
+        throw new Error('A9_APPROVAL_UNKNOWN: 没有匹配的挂起审批');
+      }
+      const result = await activeLoop.resumeAfterApproval({
+        approvalId: input.approvalId,
+        decision: input.decision,
+        bindingDigest: input.bindingDigest,
+      }, { signal: activeController.signal });
       persistence.recordApproval({
-        approvalId: `ap-${result.turnId}-${Date.now()}`,
+        approvalId: original.approvalId,
         sessionId: 'a9-desktop',
-        turnId: result.turnId,
-        toolName: result.pendingApproval ? result.pendingApproval.toolName : 'unknown',
-        binding: result.pendingApproval ? result.pendingApproval.args : {},
-        decision: approved === true ? 'approved' : 'denied',
+        turnId: original.turnId,
+        toolName: original.toolName,
+        binding: {
+          summary: original.summary,
+          bindingDigest: original.bindingDigest,
+          args: original.args,
+          ...(original.gitBinding ? { git: original.gitBinding } : {}),
+        },
+        decision: input.decision,
       });
+      currentPendingApproval = null;
       agentStatus = result.outcome;
       return { ok: true, result };
     } catch (error) {
@@ -239,7 +281,8 @@ function createA9AgentRuntime(options) {
     }
     permissionMode = mode;
     modeStore.save(workspaceRoot, mode);
-    persistence.setWorkspaceMode(workspaceRoot, mode);
+    persistence.setWorkspaceMode(canonicalWorkspace, mode);
+    persistence.recordToolEvent('a9-desktop', null, 'mode.set', { mode, workspace: canonicalWorkspace });
     loop = null;
     return { ok: true, mode };
   }
@@ -257,6 +300,7 @@ function createA9AgentRuntime(options) {
         ? { configured: true, baseUrl: providerConfig.baseUrl, model: providerConfig.model, insecureTLS: providerConfig.allowInsecureTLS === true }
         : { configured: false, note: '正式产品使用真实 OpenAI-compatible Provider；Replay 仅测试入口' },
       agentStatus,
+      ...(currentPendingApproval ? { pendingApproval: currentPendingApproval } : {}),
       timeline: timeline.slice(-100),
       checkpoints: persistence.listCheckpoints('a9-desktop'),
       interruptions: persistence.listInterruptions(),

@@ -1157,3 +1157,35 @@
   只读/Review 控制台。代价是 Full Access 与 Shell 拥有当前用户的真实副作用，Git hooks、项目脚本、网络和
   仓库内容不再被强隔离；产品必须在首次启用时如实告知，并依赖用户选择可信环境、checkpoint/撤销、审计和
   外部操作确认降低误操作风险。Phase 1/2、A7、A8 与其历史候选继续按旧合同解释，本 ADR 不追溯改写其证据。
+
+## ADR-0090 A9 工作区权限模式存储键绑定 canonical 路径哈希
+
+- 状态：Accepted（2026-08-22，A9 R1 修复轮）
+- 背景：v1 模式设置以 `path.basename(workspaceRoot)` 作为文件键，两个绝对路径不同、末级目录同名的工作区
+  （如 `/one/project` 与 `/two/project`）会共用 `workspace-modes/project.v1.json`，第二个工作区首次打开即静默
+  继承第一个工作区的 `full_access`，违反 A9-M01“首次打开必须显式选择”与 fail-closed 原则。
+- 决策：（1）v2 存储键为 canonical absolute workspace path 的 SHA-256（`ws-<hex>.json`），canonical 合同为：
+  统一分隔符（win32 反斜杠/其他正斜杠）、绝对化、去末尾分隔符（保留根）、win32 盘符小写且整路径大小写不敏感
+  （含 UNC），POSIX 大小写敏感。（2）文档 v2 含 canonical `workspaceRoot`、`permissionMode`、`selectedAt` 与
+  有界 `auditTrail`；加载时验证文档工作区与当前工作区一致，不一致返回 `workspace_mismatch` 的
+  `needs_selection`，绝不读取其模式值。（3）v1 basename 文档仅在内部 `workspaceRoot` 与当前工作区精确匹配时
+  迁移到 v2 键；不匹配、损坏、未知 schema 一律 `needs_selection`，不默认 Full Access。（4）SQLite 侧的
+  `a9_workspaces` 同步改用 canonical 路径作主键。（5）模式切换写入 JSON `auditTrail` 与 SQLite 事件双审计。
+- 后果：同名目录工作区彻底隔离；Windows 长路径/非法字符不再影响文件名；旧数据只能通过精确匹配迁移，
+  其余进入显式选择流程。POSIX 开发机上大小写不同的路径是不同工作区（与平台语义一致）。
+
+## ADR-0091 A9 审批使用不可变绑定对象并在 IPC v2 携带摘要
+
+- 状态：Accepted（2026-08-22，A9 R2 修复轮）
+- 背景：NEEDS_APPROVAL 只向产品层暴露 boolean 恢复接口，SQLite `a9_approvals` 在恢复执行后才补记
+  `tool_name="unknown"`、`binding_json={}`；无法证明审批与实际执行目标一致，也无法表达“参数变化后旧审批失效”。
+- 决策：（1）Core 在 NEEDS_APPROVAL 时构造不可变 `A9ApprovalRequest`：`approvalId`（turn+call+digest 短哈希）、
+  `turnId`、`callId`、`toolName`、canonical args、人类可读 `summary`、`bindingDigest`
+  （sha256(callId+toolName+canonicalArgs+summary)，别名规范化与默认值填充后计算）、shell 为 git 操作时的
+  remote/branch/force/deleteTarget/commandSha256 绑定。（2）`onApprovalPending` 钩子在等待用户前把 pending
+  审批持久化；SQLite 记录一律来自该原始 pending 对象。（3）恢复接口改为
+  `{ approvalId, decision, bindingDigest }`（IPC `a9.turn.resumeApproval`，schema v2）；Core 在消费前用与挂起时
+  相同的规范化管道重算摘要并比对，同时校验 `approvalId`；通过后先清空挂起再执行（一次性消费，重复/伪造/
+  跨 Turn 一律结构化拒绝）。（4）turnId 增加进程内序号保证跨 Turn 唯一。
+- 后果：审批记录可审计到确切目标；目标、参数或摘要变化即失效；Renderer 旧 boolean 协议不再可用（IPC 未发布，
+  无兼容负担）。拒绝路径保持零副作用并已记录真实目标。
