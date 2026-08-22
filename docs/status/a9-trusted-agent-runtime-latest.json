@@ -1,141 +1,73 @@
 {
   "schema_version": 1,
-  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260822-02",
-  "recorded_at": "2026-08-22",
-  "status": "A9_01_TO_A9_06_REPAIR_PARTIAL_IMPLEMENTATION",
+  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260823-03",
+  "recorded_at": "2026-08-23",
+  "status": "A9_R1_TO_R6_REPAIR_INDEPENDENT_REVIEW_READY",
   "phase_gate": "A9_IMPLEMENTATION_AUTHORIZED",
   "target_branch": "codex/a9-trusted-agent-runtime",
   "target_version": "0.3.0-alpha.1",
   "source_baseline_commit": "6c32692121f66a0431d226003389eaa22200e152",
-  "repair_baseline": {
+  "repair_lineage": {
     "review_baseline_commit": "b22ca9d",
-    "repaired_from_commit": "0d1ca11",
-    "independent_review_verdict": "PARTIAL_IMPLEMENTATION_READY_FOR_REVIEW"
+    "first_repair_commit": "0d91edb",
+    "r1_to_r6_baseline": "0d91edbad530e367d7af8242425c237da30c82b3",
+    "r1_to_r6_commits": ["336f35c", "7a649cf", "de5f168", "c9a234d", "990b84d", "23df5f4"]
   },
   "requirements": {
     "path": "docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md",
     "status": "OWNER_CONFIRMED",
     "confirmed_at": "2026-08-22"
   },
-  "decision": "ADR-0089",
+  "decision": "ADR-0089 + ADR-0090/0091/0092/0093 (repair ADRs)",
   "task": "docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md",
-  "current_stage": "A9-06",
-  "stage_gates": {
-    "A9-00": {
-      "status": "COMPLETE",
-      "gate": "A9_00_DESIGN_AND_GAP_PASS",
-      "scope": "OWNER_CONFIRMED_PRD_ADR_TASK_RUNTIME_PROFILE_TRACEABILITY_PHASES_AND_ACCEPTANCE",
-      "developer_evidence": {
-        "docs_check": "PASS_96_FILES_20_TASK_FILES",
-        "repository_quick_verify": "PASS_7_MODULES_COMPILE_AND_STATIC_GATES"
-      }
+  "repairs": {
+    "R1_workspace_mode_isolation": {
+      "status": "FIXED_DEVELOPER_VERIFIED",
+      "evidence": "core 270 tests incl. a9-r1-r2-regression (same-basename isolation, restart restore, corrupted fail-closed, exact-match legacy migration, audit trail)",
+      "adr": "ADR-0090"
     },
-    "A9-01": {
-      "status": "COMPLETE",
-      "gate": "A9_01_MODES_AND_POLICY_DEVELOPER_PASS",
-      "scope": "MODES_TOOLS_SYSTEM_PROMPT_AND_FULL_ACCESS_POLICY",
-      "developer_evidence": {
-        "core_tests": "PASS_267_TESTS",
-        "regressions": "READ_ONLY_DIRECT_ALLOW, READ_ONLY_NO_WRITE_DELETE_SHELL, REVIEW_STAGING_ONLY, APPROVAL_DENY_ZERO_SIDE_EFFECTS, APPROVAL_RESUME_CONTINUES_ORIGINAL_CALL, CORRUPTED_MODE_FAIL_CLOSED",
-        "verify_quick": "PASS_7_MODULES"
-      },
-      "not_performed": ["WIN7_ON_DEVICE_MATRIX"]
+    "R2_approval_binding_and_audit": {
+      "status": "FIXED_DEVELOPER_VERIFIED",
+      "evidence": "immutable A9ApprovalRequest persisted before suspension; SQLite records from the original pending object (delete/path/permanent, git remote/branch/force/digest); digest/replay/cross-turn rejections; IPC v2",
+      "adr": "ADR-0091"
     },
-    "A9-02": {
-      "status": "PARTIAL_IMPLEMENTATION",
-      "gate": "A9_02_TRUSTED_SHELL_RUNNER_DEVELOPER_PARTIAL",
-      "scope": "TRUSTED_SHELL_RUNNER_POWERSHELL_CMD_MANAGED_BACKGROUND_PROCESSES",
-      "developer_evidence": {
-        "runner_tests": "PASS_96_TESTS",
-        "honest_termination_and_residue": "PASS",
-        "bounded_raw_logs_and_gbk_decode": "PASS",
-        "background_honest_start_bounded_logs_probe_only_recovery": "PASS",
-        "loop_adapter": "PASS_NO_DEFAULT_HARD_TIMEOUT"
-      },
-      "partial_reasons": [
-        "POWERSHELL_5.1_AND_CMD_MATRICES_REQUIRE_WINDOWS (development host executed POSIX sh only, labeled dev_host_only)",
-        "D-013 helper execution path covered via transport seam and fake; real Win7 helper run NOT_PERFORMED"
-      ]
+    "R3_shell_changes_into_checkpoint": {
+      "status": "FIXED_DEVELOPER_VERIFIED",
+      "evidence": "10 real-stack regressions: shell create/modify/delete/rename enter diff+undo; non-zero exits and cancellations still collected; echo never verifies; real test verifies; post-test edit resets to unverified",
+      "adr": "ADR-0092"
     },
-    "A9-03": {
-      "status": "COMPLETE",
-      "gate": "A9_03_WORKSPACE_TOOLS_AND_CHECKPOINT_DEVELOPER_PASS",
-      "scope": "FULL_ACCESS_WORKSPACE_TOOLS_ENCODING_CHECKPOINTS_UNDO_AND_RESTORE",
-      "developer_evidence": {
-        "workspace_tests": "PASS_121_TESTS",
-        "reproduction_experiments_automated": [
-          "A_GBK_BYTES_d6d0cec4",
-          "B_UTF16LE_BOM_PRESERVED",
-          "C_DIRECTORY_DELETE_UNDO_RESTORES_CONTENTS",
-          "D_BASELINE_DRIFT_REJECTS_OVERWRITE"
-        ],
-        "persistent_checkpoint_crash_recovery": "PASS",
-        "copy_overwrite_undo_restores_original": "PASS"
-      },
-      "not_performed": ["JUNCTION_UNC_MAX_PATH_WIN7_SPECIFIC_MATRIX"]
+    "R4_provider_persistence_dpapi": {
+      "status": "FIXED_DEVELOPER_VERIFIED (fake-DPAPI contract; real Windows DPAPI NOT_PERFORMED)",
+      "evidence": "8 regressions: restart restoration, plaintext scans over dataRoot+SQLite, fake-DPAPI round-trip, memory-only degradation, corrupted ciphertext fail-closed, chat_only/unavailable classification, model-switch history preservation",
+      "adr": "ADR-0093"
     },
-    "A9-04": {
-      "status": "PARTIAL_IMPLEMENTATION",
-      "gate": "A9_04_OPENAI_PROVIDER_DEVELOPER_PARTIAL",
-      "scope": "OPENAI_COMPATIBLE_PROVIDER_STREAMING_TOOL_CALLS_PROBING_AND_DPAPI",
-      "developer_evidence": {
-        "gateway_tests": "PASS_229_TESTS",
-        "multi_turn_tool_calls_protocol": "PASS_SECOND_REQUEST_NO_400",
-        "sse_cross_chunk_tail_buffer_done_malformed": "PASS",
-        "proxy_total_and_nodata_timeouts_retry_policy": "PASS",
-        "two_behaviorally_different_fixtures": "PASS",
-        "real_composition_loop_provider_fixture_workspace_runner": "PASS"
-      },
-      "partial_reasons": [
-        "REAL_PROVIDER_SMOKE=NOT_PERFORMED (no dedicated base URL/model/test credentials provided by the owner)"
-      ]
+    "R5_behavioral_journeys": {
+      "status": "FIXED_DEVELOPER_VERIFIED (FIXTURE MODEL only)",
+      "evidence": "behavioral fixture J1(AGENTS.md actually read, citations from tool results) J2(real failing-then-passing node test + wrong-first-fix recovery) J3(new cross-file feature + real script + scoped diff) J4(git pull autonomous, commit/push approval bindings, deny zero-side-effect, approve lands on bare remote) J5(product runtime + real SQLite restart recovery, no replay)"
     },
-    "A9-05": {
-      "status": "PARTIAL_IMPLEMENTATION",
-      "gate": "A9_05_AGENT_LOOP_AND_GIT_DEVELOPER_PARTIAL",
-      "scope": "TRUSTED_AGENT_LOOP_GIT_WORKFLOW_AND_HONEST_COMPLETION_STATES",
-      "developer_evidence": {
-        "core_tests": "PASS_267_TESTS_INCLUDING_GIT_COMMAND_POLICY",
-        "honest_completion_tri_state_and_blocked": "PASS",
-        "git_approval_binding_remote_branch_force_digest_invalidation": "PASS",
-        "trusted_git_projection_real_temp_repos_hooks_helpers_non_git_degradation": "PASS_56_GIT_ADAPTER_TESTS",
-        "developer_journeys": "J1_J2_J4_J5_PASS_WITH_LOOPBACK_FIXTURE_MODEL, J2_NEGATIVE_UNVERIFIED_PASS, J4_REAL_TEMP_GIT_REPO_AND_BARE_REMOTE_PUSH_DENY_ZERO_SIDE_EFFECTS_APPROVED_PUSH_LANDS"
-      },
-      "partial_reasons": [
-        "J1-J3 with a REAL model NOT_PERFORMED (no provider credentials)",
-        "journeys used a scripted loopback fixture model, honestly labeled as developer-machine evidence"
-      ]
-    },
-    "A9-06": {
-      "status": "PARTIAL_IMPLEMENTATION",
-      "gate": "A9_06_DESKTOP_AND_RECOVERY_DEVELOPER_PARTIAL",
-      "scope": "DESKTOP_RUNTIME_IPC_SQLITE_MIGRATION_AND_RECOVERY",
-      "developer_evidence": {
-        "state_tests_real_sqlite": "PASS_254_TESTS",
-        "shell_tests": "PASS_207_TESTS",
-        "migration_backup_unknown_schema_refusal_diagnostics_retention_lock_no_replay": "PASS_WITH_REAL_BETTER_SQLITE3_8_7_0",
-        "electron_smoke": "PASS_8_CASES_REAL_ELECTRON_22_3_27 (mode selection, fixture provider config, verified tool journey, diff, stop+undo, restart checkpoint recovery, renderer boundary)",
-        "renderer_replay_default_removed": "PASS (a9 runtime refuses turns until a real provider is configured)"
-      },
-      "partial_reasons": [
-        "1366x768_AND_100_125_DPI_VALIDATION=NOT_PERFORMED (no Windows display environment on this dev host)",
-        "full A9 renderer panels (tool timeline, approval targets, shell output views) remain API-only; A8 visual surface retained"
-      ]
+    "R6_production_electron_ui": {
+      "status": "FIXED_DEVELOPER_VERIFIED",
+      "evidence": "real product main.js + real preload + real index.html/renderer.js; 8/8 Electron smoke PASS on real Electron 22.3.27 driving actual DOM (mode dialog, provider form+probe, verified tool journey, diff, undo, structured IPC rejection, restart snapshot facts); Electron-ABI sqlite preflight with ELECTRON_SQLITE_UNAVAILABLE refusal"
     }
   },
   "validation": {
-    "developer_product": "PARTIAL_IMPLEMENTATION_READY_FOR_REVIEW",
+    "developer_fixture": "PASS (core 270 / runner 96 / workspace 121 / gateway 241 / git-adapter 56 / state 254 / shell 217 = 1255 tests; npm run verify PASS)",
+    "real_electron_product_entry": "PASS (8/8 A9S cases, real Electron 22.3.27)",
+    "real_provider_smoke": "NOT_PERFORMED (entry ready: run-a9-real-provider-smoke.mjs; awaiting owner-provided dedicated credentials)",
+    "real_model_j1_to_j3": "NOT_PERFORMED",
+    "windows_powershell_cmd_helper": "NOT_PERFORMED (dev host POSIX sh only, labeled dev_host_only)",
+    "dpi_1366x768": "NOT_PERFORMED",
     "win10": "NOT_PERFORMED",
     "win7": "NOT_PERFORMED",
-    "alpha1": "NOT_PERFORMED",
-    "real_provider_smoke": "NOT_PERFORMED"
+    "alpha1": "NOT_PERFORMED"
   },
-  "a8_disposition": "FROZEN_HISTORICAL_REVIEW_FIRST_BASELINE_NOT_A9_PASS",
-  "next_stage": "INDEPENDENT_VERIFICATION_OF_A9_01_TO_A9_06_REPAIRS",
+  "a8_disposition": "FROZEN_HISTORICAL_REVIEW_FIRST_BASELINE_NOT_A9_PASS (A8 surfaces keep their labels in the A9 renderer)",
+  "next_stage": "INDEPENDENT_VERIFICATION_OF_R1_TO_R6_REPAIRS",
   "blocking_reason": [
-    "REAL_PROVIDER_SMOKE requires owner-provided dedicated base URL, model and test credentials",
-    "PowerShell 5.1 / CMD matrices and D-013 helper lifecycle require a Windows host",
-    "1366x768 / DPI layout validation requires a Windows display environment",
-    "Win7 J1-J5 five journeys and candidate packaging remain A9-07 scope and are NOT_PERFORMED"
-  ]
+    "REAL_PROVIDER_SMOKE and real-model J1-J3 require owner-provided dedicated base URL, model and test credentials",
+    "PowerShell 5.1 / CMD matrices, D-013 helper lifecycle, Win7 junction/UNC/MAX_PATH require a Windows host",
+    "1366x768 / 100%/125% DPI validation requires a Windows display environment",
+    "A9-07 packaging and Win7 J1-J5 remain out of scope for this round and are NOT_PERFORMED"
+  ],
+  "not_entered": ["A9-07", "release/win7-product-v3", "push"]
 }
