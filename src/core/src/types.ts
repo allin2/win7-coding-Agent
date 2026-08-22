@@ -72,15 +72,37 @@ export interface ToolCall {
   };
 }
 
-/**
- * ApprovalLevel 枚举 — 工具调用审批级别（ADR-0030）
- * @remarks 本地只暴露 ADR-0030 允许的两档；外部传入 full_access 时由边界校验拒绝
- */
 export enum ApprovalLevel {
   /** 只读操作：无需审批 */
   READ_ONLY = 'read_only',
-  /** 工作区写操作：需要能力令牌验证 */
+  /** Review 模式：工作区写操作需要复核/能力令牌 */
+  REVIEW = 'review',
+  /** 历史工作区写入别名（向后兼容） */
   WORKSPACE_WRITE = 'workspace_write',
+  /** Full Access 模式：可信工作区直接执行 */
+  FULL_ACCESS = 'full_access',
+}
+
+/**
+ * A9 PermissionMode 枚举 — 三种产品权限模式（PRD §2 A9-M01 / ADR-0089）
+ */
+export enum PermissionMode {
+  FULL_ACCESS = 'full_access',
+  REVIEW = 'review',
+  READ_ONLY = 'read_only',
+}
+
+/**
+ * 规范化权限模式输入
+ */
+export function normalizePermissionMode(input: unknown): PermissionMode {
+  if (typeof input === 'string') {
+    const normalized = input.trim().toLowerCase();
+    if (normalized === 'full_access' || normalized === 'fullaccess') return PermissionMode.FULL_ACCESS;
+    if (normalized === 'review') return PermissionMode.REVIEW;
+    if (normalized === 'read_only' || normalized === 'readonly') return PermissionMode.READ_ONLY;
+  }
+  return PermissionMode.FULL_ACCESS;
 }
 
 /**

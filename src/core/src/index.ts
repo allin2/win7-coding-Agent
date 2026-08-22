@@ -8,6 +8,8 @@
 export {
   AgentState,
   ApprovalLevel,
+  PermissionMode,
+  normalizePermissionMode,
   PolicyVerdict,
   TaskLifecycle,
   ToolCall,
@@ -158,6 +160,18 @@ export {
   reviewToolSpecs,
   registerReviewTools,
 } from './review-tools';
+
+export {
+  a9ToolSpecs,
+  registerA9Tools,
+} from './a9-tools';
+
+export {
+  A9_SYSTEM_PROMPT_VERSION,
+  SystemPromptOptions,
+  SystemPromptContract,
+  buildA9SystemPrompt,
+} from './system-prompt';
 
 export {
   VerificationRequirement,

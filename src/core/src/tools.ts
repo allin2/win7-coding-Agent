@@ -5,12 +5,17 @@ export type ToolInputType = 'string' | 'number' | 'boolean' | 'string[]';
 
 export type ToolInputValue = string | number | boolean | string[];
 
-/** Reviewed capability vocabulary; extending it requires Policy review. */
 export type ToolCapability =
   | 'agent_control.update_plan'
   | 'code.search'
   | 'workspace.read'
   | 'workspace.search'
+  | 'workspace.list'
+  | 'workspace.write'
+  | 'workspace.edit'
+  | 'workspace.manage'
+  | 'workspace.review'
+  | 'shell.exec'
   | 'workspace_write';
 
 /**
