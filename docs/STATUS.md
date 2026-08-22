@@ -16,10 +16,28 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
+| A9 Trusted Agent Runtime | A9-00 `A9_00_DESIGN_AND_GAP_PASS`；`0.3.0-alpha.1` / `codex/a9-trusted-agent-runtime`；A9-01 `AUTHORIZED_NOT_STARTED`，功能与 Win7 均 `NOT_PERFORMED` |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
+
+## A9 Trusted Agent Runtime（2026-08-22）
+
+- 产品负责人已确认
+  [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
+  和 ADR-0089；实现任务为 [`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，状态
+  `APPROVED_FOR_IMPLEMENTATION`，目标分支 `codex/a9-trusted-agent-runtime`，版本 `0.3.0-alpha.1`。
+- A9 从最新干净 A8 代码基线启动，复用对话/会话/Goal、Agent Runtime、上下文压缩、Review、SQLite、
+  DPAPI、Electron Renderer 隔离与确定性打包。A8 候选和证据保持历史原样，不继承为 A9 产品 PASS。
+- A9 取代 A8 默认不可用的关键产品策略：可信工作区推荐 Full Access，允许通用 PowerShell/CMD Shell、
+  直接多文件写入、工作区外显式路径、真实 Git 配置和用户网络；外部写、破坏性 Git、永久删除和系统级
+  操作继续目标绑定确认。该模式不是 Win7 强沙箱。
+- A9-00 文档与差距 Gate 已取得 `A9_00_DESIGN_AND_GAP_PASS`，只解除 A9-01；A9 功能实现、真实产品旅程、
+  Win10、Win7 和 Alpha PASS 均为 `NOT_PERFORMED`。权威差距与交付计划见
+  [`A9 Trusted Agent 差距与交付计划`](reports/2026-08/a9_trusted_agent_gap_and_delivery_plan_2026-08-22.html)。
+- Office 专用能力不进入 A9 Alpha 1；首要交付是代码阅读、编辑、文件管理、Shell、测试、Git、Diff、
+  撤销和重启恢复的五条真实 Coding Agent 旅程。
 
 ## A8 Agent-first 产品体验（2026-08-20）
 

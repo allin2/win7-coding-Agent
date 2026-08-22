@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260822-01",
+  "recorded_at": "2026-08-22",
+  "status": "A9_00_DESIGN_AND_GAP_PASS",
+  "phase_gate": "A9_IMPLEMENTATION_AUTHORIZED",
+  "target_branch": "codex/a9-trusted-agent-runtime",
+  "target_version": "0.3.0-alpha.1",
+  "source_baseline_commit": "6c32692121f66a0431d226003389eaa22200e152",
+  "requirements": {
+    "path": "docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md",
+    "status": "OWNER_CONFIRMED",
+    "confirmed_at": "2026-08-22"
+  },
+  "decision": "ADR-0089",
+  "task": "docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md",
+  "traceability_report": "docs/reports/2026-08/a9_trusted_agent_gap_and_delivery_plan_2026-08-22.html",
+  "current_stage": "A9-00",
+  "stage_gates": {
+    "A9-00": {
+      "status": "COMPLETE",
+      "gate": "A9_00_DESIGN_AND_GAP_PASS",
+      "scope": "OWNER_CONFIRMED_PRD_ADR_TASK_RUNTIME_PROFILE_TRACEABILITY_PHASES_AND_ACCEPTANCE",
+      "developer_evidence": {
+        "docs_check": "PASS_96_FILES_20_TASK_FILES",
+        "html_parse": "PASS",
+        "html_relative_links": "PASS_29",
+        "repository_quick_verify": "PASS_7_MODULES_COMPILE_AND_STATIC_GATES"
+      }
+    },
+    "A9-01": {
+      "status": "AUTHORIZED_NOT_STARTED",
+      "scope": "MODES_TOOLS_SYSTEM_PROMPT_AND_FULL_ACCESS_POLICY"
+    }
+  },
+  "validation": {
+    "developer_product": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "alpha1": "NOT_PERFORMED"
+  },
+  "a8_disposition": "FROZEN_HISTORICAL_REVIEW_FIRST_BASELINE_NOT_A9_PASS",
+  "next_stage": "A9-01",
+  "blocking_reason": null
+}

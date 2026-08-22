@@ -3,9 +3,9 @@
 ## 1. 安全定位
 
 Win7 端 Agent 是能够读取代码、修改文件、执行命令并与远程/内网模型通信的本地程序。
-部署场景是企业内部，恶意对抗风险可低于公网产品，但模型输出、仓库内容、工具返回值、
-依赖包和更新包仍属于不可信输入。安全策略以**最小权限、明确授权、边界隔离、完整留痕、
-可回滚**为核心。
+部署场景是企业内部。历史/A8 模式将模型输出、仓库内容、工具返回值、依赖包和更新包作为不可信输入，
+以最小权限和隔离为核心；A9 Trusted Full Access 则由用户明确选择可信工作区和当前账户，优先现实可用，
+以**权限如实披露、完整留痕、可取消、可回滚和外部操作确认**为核心，不宣称本地强沙箱。
 
 Windows 7 是唯一固定客户端平台。Python、Node.js、Electron、.NET Framework、原生组件
 与第三方依赖均可在获批 Runtime Profile 中使用；任何运行时选择都不能降低本文件的安全
@@ -29,24 +29,26 @@ Windows 7 是唯一固定客户端平台。Python、Node.js、Electron、.NET Fr
 
 ## 3. 工具执行与文件边界
 
-1. Agent 工具不得执行模型拼接的 Shell 字符串；参数必须以结构化数据传递，并在执行前进行
-   schema、路径、命令和权限校验。
+1. 历史/隔离 Agent 工具不得执行模型拼接的 Shell 字符串。A9 TrustedShellRunner 可按 ADR-0089
+   执行完整 PowerShell/CMD 文本，但请求仍须通过 schema、模式、工作目录、日志和审计边界。
 2. Agent Runner 与用户交互终端是两个权限域。交互终端必须由独立获批任务书实现，不能成为
    模型绕过 Policy、批准或审计的后门。
-3. Agent 发起的非交互命令必须设置超时、stdout/stderr 字节上限，并能终止进程树；用户
+3. Agent 发起的非交互命令必须设置 stdout/stderr 字节上限并能取消和终止进程树；历史隔离 Profile
+   继续使用硬超时，A9 长命令可以使用软时长提示和可选 deadline；用户
    交互终端必须具备取消、背压、会话上限与强制终止。Win7 能力不足时必须采用已验证适配器
    或明确降级，不能把“父进程已退出”等同于“进程树已清理”。
-4. 默认工作区内访问；工作区外读写、覆盖、删除、注册表、服务、提权和系统配置修改必须由
-   任务书、权限策略和用户确认共同授权，并提供恢复或回滚路径。
+4. 历史/Review 模式默认工作区内访问。A9 Full Access 可访问当前用户有权访问的工作区外显式路径并醒目
+   标识；永久/批量删除、注册表、服务、提权和系统配置修改仍须任务书、策略和用户确认，并提供恢复路径。
 5. 路径校验必须覆盖盘符、UNC、中文/空格、`..`、大小写、短文件名、符号链接、junction 和
    reparse point，避免仅凭字符串前缀判断边界。
-6. Job Object 无法可靠建立时，写工作区、运行构建脚本或其他高风险命令必须在启动前拒绝，
-   或移至远程隔离环境。`taskkill /T /F` 只可作为历史/低风险兼容回收手段，不能被报告为与
-   Job Object、独立低权限账户或远程沙箱等价。
-7. Git 只能经专用适配器调用。适配器必须使用隔离的 system/global 配置和净化环境、固定
+6. 历史隔离 Profile 在 Job Object 无法可靠建立时必须拒绝高风险命令或远程执行。A9 Trusted Full Access
+   可在用户确认的可信环境继续，但必须报告 containment 缺失、停止后续自动执行并指导残留检查；
+   `taskkill /T /F` 不能被报告为与 Job Object、独立低权限账户或远程沙箱等价。
+7. 历史/隔离 Git 只能经专用适配器调用。适配器必须使用隔离的 system/global 配置和净化环境、固定
    命令/选项，覆盖或拒绝仓库级 `core.hooksPath`、filter、textconv、external diff、pager、
-   editor、credential/SSH/askpass 与 remote helper 等可执行入口；无法证明安全时拒绝本地
-   操作或远程执行。Git LFS 默认不随 Git 自动启用，需独立 Profile。
+   editor、credential/SSH/askpass 与 remote helper 等可执行入口。A9 Full Access 可经 TrustedShell 使用
+   用户真实 Git 环境，结构化 Adapter 只负责状态/Diff；该路径的 hooks/helpers 明确具有当前用户执行权。
+   Git LFS 仍不是随包前置。
 8. 用户交互终端的 stdin 只接受明确的用户输入事件；模型、插件与普通工具结果不得获得该
    能力。终端输出视为不可信，禁用或确认 OSC 52 剪贴板、OSC 8 链接、窗口控制、文件传输和
    等价扩展；粘贴需显示来源并避免被模型静默触发。
@@ -73,8 +75,8 @@ Electron 内核打开不可信网页。
 
 ## 5. 网络、模型与凭据
 
-- 网络不是全局禁止项，但每个任务必须声明目标、协议、认证、超时、重试、代理、日志脱敏和
-  失败模式；未声明目标一律拒绝。
+- 网络不是全局禁止项。历史/受控 Gateway 必须声明目标；A9 Full Access 的 Shell/项目工具继承用户网络且
+  不设域名白名单，外部写操作执行尽力行为确认。Provider 仍须记录协议、认证、重试、代理、脱敏和失败模式。
 - 模型推理默认位于企业内网或受控远程服务。发送上下文遵循最小必要原则，并记录文件范围、
   工具名称和决策结果，不在普通日志中记录完整源码或提示词载荷。
 - 凭据由专用配置或凭据适配器提供；不得写入源码、版本库、JSON 报告、SQLite 事件正文或
@@ -145,3 +147,18 @@ A8-00 的完整合同见
 9. 真实 Gateway 使用 ADR-0079 的版本化 System Prompt，但提示词不产生 capability。已知 API key、代理
    密码及其 Bearer/base64 形式在用户 prompt、Workspace 工具结果、Provider chunk/响应/工具参数进入
    EventLedger、聊天投影或普通报告前阻断；错误只保留安全分类和不含原值的说明。
+
+## 10. A9 Trusted Full Access 风险接受
+
+A9 的安全合同由 ADR-0089 和
+[`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
+定义。首次启用 Full Access 必须清楚说明：
+
+1. Agent、Shell、Git hooks、项目脚本和依赖安装拥有当前 Windows 用户的真实权限；
+2. Win7、Electron 22、PowerShell 5.1、Git 2.46.2 和项目工具均可能 EOL，产品不提供现代沙箱等价；
+3. Shell 网络不隔离，仓库内容可能触发项目命令的间接执行；
+4. checkpoint、Diff、回收区、审计和审批降低误操作风险，但不能保证所有副作用可逆；
+5. 用户应在受信项目、受限账号、可恢复工作副本和合适网络分段中使用 Full Access。
+
+A9 仍禁止 Renderer 直接获得 Node/fs/进程/凭据/任意网络，禁止模型向用户交互终端注入 stdin，禁止自动提权，
+默认验证 TLS，并对 Provider 凭据强制 DPAPI/内存保存和日志脱敏。可用性优先不等于关闭这些产品边界。

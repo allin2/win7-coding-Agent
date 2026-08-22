@@ -9,7 +9,9 @@
 > 当前结论：项目已完成 `MVP-20260802-14` 的 Win7 产品入口实机收口，状态为
 > `OWNER_ACCEPTED_FOR_MVP`；A4/A5/A6 已完成主线收口，A7 发布候选又已取得
 > 开发机、Win10 和 Win7 三层 PASS，唯一签名租约下 RC-01～RC-10 全部通过。
-> 当前状态为 `RC_PASS`，但不会据此冒充企业 E7 或未经批准的正式发布。
+> A8 Review-first 产品已达到开发机 Validation Ready，但外部三层未完成。2026-08-22 又建立 A9
+> Trusted Agent Runtime：需求、ADR 与任务书已确认，目标 `0.3.0-alpha.1`，当前仅为
+> `APPROVED_FOR_IMPLEMENTATION / NOT_PERFORMED`，不继承 A7/A8 PASS。
 
 [当前状态](docs/STATUS.md) · [架构](docs/ARCHITECTURE.md) ·
 [路线图](docs/ROADMAP.md) · [任务书索引](docs/tasks/README.md) ·
@@ -41,6 +43,8 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 | SPIKE_02 | 受限收口 | D-013 v24 低风险非交互 Runner 与 H3 只读日志正式 Win7 PASS；交互 winpty No-Go，任意 Shell/高风险/未知 Profile 继续拒绝 |
 | SPIKE_04 | `WIN7_PASS` | D-014 在本地 NTFS SSD Profile 完成 S01～S08、F01～F06、P08 与性能 #5～#8；A7 已完成产品装配 |
 | A7 发布候选 | `RC_PASS` | 唯一 RC ZIP `39eecb6a…040c9` 已通过 RC-01～RC-10；交互 winpty、任意 Shell、高风险 Profile 仍不包含 |
+| A8 Agent-first | `A8_DEVELOPER_COMPLETE_VALIDATION_READY` | 对话/会话/Review/SQLite/确定性包开发机 Gate 已闭合；最新候选 Win10/Win7 未执行 |
+| A9 Trusted Agent Runtime | `APPROVED_FOR_IMPLEMENTATION` | 已确认 Full Access、PowerShell/CMD、直接文件工具、真实 Git、开放 Provider 与五条 Win7 Coding 旅程；功能尚未实现 |
 
 最新的可变状态只在 [`docs/STATUS.md`](docs/STATUS.md) 和
 [`docs/status/latest-validation.json`](docs/status/latest-validation.json) 维护；历史报告不覆盖当前结论。
@@ -61,15 +65,16 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 - **Desktop Shell**：Electron 安全策略、Schema 校验 IPC、只读诊断、Replay 纵向切片，
   以及 Desktop Alpha 2 的受控单文件修改 UI。
 
-### 当前不会静默开放的能力
+### 当前实现与 A9 已授权方向
 
 | 能力 | MVP 行为 | 放行条件 |
 |---|---|---|
-| 低风险非交互命令 | 仅开放 RC manifest 锁定的 D-013 v24 Profile | 增加新 Profile 必须另行授权并重跑 Win7 验收 |
-| 交互终端、任意 Shell 和高风险命令 | 明确拒绝，fail-closed | Win7 v1 不交付交互 winpty；未来能力必须另立任务与实机验收 |
-| 跨重启持久状态与代码索引 | A7 已验收持久审计事件；完整 session catalog 仍为进程内状态 | 完整会话恢复需新任务书和版本化迁移验收 |
-| 真实模型与企业网络 | 未配置或确定性 Replay | 企业代理/CA、凭据生命周期、Provider 与 E7 端到端验收 |
-| 多文件/任意编码写入 | 明确拒绝 | 新任务书、事务合同、编码往返和扩展实机矩阵 |
+| 低风险非交互命令 | 当前仅开放锁定 D-013 Profile | A9-02 实现 TrustedShellRunner 并重新执行 Win7 进程矩阵 |
+| 交互终端 | 明确拒绝，winpty No-Go | 不进入 A9 Alpha 1；模型 Shell 仍关闭 stdin |
+| 任意 Shell | 当前代码拒绝 PowerShell/CMD | A9 已授权 PowerShell 5.1 优先、CMD 降级的通用 Shell；尚未实现 |
+| 跨重启持久状态 | A8 已完成 SQLite Session/Goal/Review 开发机 Gate | A9-06 增加模式、checkpoint、Shell/Git 恢复事实并重新验收 |
+| 真实模型与企业网络 | A8 有受控 Gateway/DeepSeek，正式 UI 默认 Replay | A9-04 泛化任意 OpenAI-compatible Provider，正式 UI 默认真实模型 |
+| 多文件/任意编码写入 | 当前只有 A8 staging 与 A2 单文件路径 | A9-03 直接文件工具、每轮 checkpoint、UTF-16/CP936 与 Shell 外部变化 |
 | 安装、升级和回滚发布闭包 | A7 RC 闭包已通过，尚未获得正式发布批准 | 进入生产发布前需完成版本标签、渠道、支持周期和发布治理 |
 
 ## 架构概览

@@ -76,14 +76,14 @@ S1～S7 不应被用于推导“全项目只能 Python/标准库/ASCII CLI”。
 |------|------|----------|
 | G1 Profile 一致性 | 读取二进制/包元数据并与任务书和锁文件比对 | 版本、架构、入口和依赖完全一致 |
 | G2 语法与加载 | 使用 Profile 的实际编译器、解释器或打包器执行编译/加载 | 零错误，未使用超出 Profile 的语法/API |
-| G3 进程执行汇点 | 扫描各语言进程 API，并核对 Runner/终端适配器调用链 | 无模型拼接 Shell；无绕过 Policy/审计的敏感调用；高风险命令无可靠 containment 时安全拒绝 |
+| G3 进程执行汇点 | 扫描各语言进程 API，并核对 Runner/TrustedShellRunner/终端适配器调用链 | 历史 Profile 无模型拼接 Shell；A9 完整命令只进入 TrustedShellRunner；无 Renderer/UI 绕过 Policy/审计的敏感调用 |
 | G4 编码与路径 | 扫描文本 I/O、IPC 和路径边界代码 | 显式编码或字节保持；覆盖中文、空格、盘符、UNC/reparse 风险 |
 | G5 Win7 API | 导入表、最低系统版本、运行时 API 和依赖文档复核 | 不依赖 Win10+ 本地 API；可选能力有可测降级 |
 | G6 依赖闭包 | 对照锁文件、打包清单、SBOM、许可证、来源和哈希 | 无未登记或运行期临时获取的依赖 |
 | G7 Electron/UI 隔离 | 检查 BrowserWindow、preload、IPC、CSP、Session 请求过滤、权限处理器、导航与网络配置 | 满足 `SECURITY.md` §4；不加载不可信远程网页，Renderer 无未声明出站能力 |
 | G8 数据与审计 | 检查持久化 schema、错误模型、脱敏和版本字段 | 数据可迁移；异常不静默；敏感信息不进入普通日志 |
 | G9 授权范围 | 比对任务书状态、分支和允许路径 | 满足 `AGENTS.md` C14，零越界实现 |
-| G10 Git 间接执行 | 检查 Git Adapter 的 system/global/repository 配置、环境与命令白名单 | hooks、filters、textconv、pager、external diff、credential/SSH helper、fsmonitor 等不能旁路 Runner；LFS/GCM 未评审时禁用 |
+| G10 Git 间接执行 | 分层检查历史隔离 Git Adapter 与 A9 Trusted Git | 历史 Profile 的 hooks/filters/helpers 不能旁路；A9 真实 Git 必须经 TrustedShell、显示非隔离状态并对破坏性/远端写操作执行目标绑定审批 |
 
 不适用项必须在任务书和验收记录中写明理由；不能直接删除检查项。
 
@@ -152,7 +152,7 @@ Phase 2 继续遵循 `PHASE_02_READONLY_CODE_ANALYSIS.md` 的测试矩阵和 E1/
 | W7C-06 | 导航、网络与权限策略 | 拒绝远程脚本、未知导航、新窗口、外部协议、未声明 HTTP(S)/WebSocket 出站和设备权限；现代网页转远程服务 |
 | W7C-07 | IPC 权限 | 未登记通道和畸形参数被拒绝；敏感操作经过 Policy/批准/审计 |
 | W7C-08 | 模型/网关断连 | UI 保持响应，状态清晰，可取消或重试，不丢失本地审计 |
-| W7C-09 | Runner containment | 可靠 Job 下超时后进程树清零；无法建立 containment 时高风险命令启动前拒绝，低风险降级无残留且明确标记 |
+| W7C-09 | Runner containment | 历史 Profile 在超时后进程树清零；A9 Shell 在取消/deadline 后清理并报告残留，回收不确定时停止后续自动执行且不得虚报隔离 |
 | W7C-10 | 包完整性与回滚 | 篡改包被拒绝；失败安装/更新可恢复上一版本 |
 | W7C-11 | 缺失可选工具 | Git、终端或插件缺失时给出能力状态，不导致客户端整体退出 |
 | W7C-12 | 长时运行与退出 | 句柄/内存/日志无失控增长；退出无残留受管进程 |
@@ -164,7 +164,8 @@ Phase 2 继续遵循 `PHASE_02_READONLY_CODE_ANALYSIS.md` 的测试矩阵和 E1/
 
 每个阶段按声明能力执行：
 
-1. 记录所有实际网络连接并与任务书目标白名单比对；Phase 1/2 必须保持零网络。
+1. 记录所有实际网络连接并与任务书网络合同比对；A9 Full Access 可无域名白名单但须区分 Provider 与
+   Shell/项目工具出站，Phase 1/2 必须保持零网络。
 2. 对比运行前后文件、进程、注册表、服务和系统配置；除获批变更外无残留。
 3. 日志、报告、崩溃文件和 IPC 中无凭据、完整环境变量、证书正文或未授权源码。
 4. 注入越界路径、畸形 IPC、危险参数、恶意 Git 配置/属性/Hook、终端 VT/OSC、错误证书、
@@ -195,14 +196,17 @@ Phase 2 继续遵循 `PHASE_02_READONLY_CODE_ANALYSIS.md` 的测试矩阵和 E1/
 1. 未在任务书要求的 Win7 环境执行，却声称目标端完成。
 2. 出现未捕获异常、UI 无响应、受管进程残留或资源无限增长。
 3. 使用未登记运行时/依赖/网络目标，或依赖验收机偶然存在的工具。
-4. 模型可绕过 Policy、权限确认或审计直接执行进程、读写越界文件。
+4. 模型可绕过 Policy、权限模式、必要确认或审计直接执行进程；历史/Review 模式可越界写文件，或 A9
+   Full Access 的工作区外操作未醒目标识。
 5. 交付包完整性失败仍继续安装/运行，或不可恢复的更新失败。
 6. 文本编码/路径处理破坏用户文件，或持久化数据缺少版本。
 7. 适用的静态、安全或动态检查失败。
 8. 实现超出 C14 任务授权、分支或路径白名单。
 9. 声称完成但没有可追溯验收记录。
-10. 无可靠 containment 仍本地执行高风险 Agent 命令，或把 `taskkill` 降级报告为等价沙箱。
-11. Git/终端/Renderer 可通过间接执行、stdin 注入或未声明出站绕过 Runner、Policy 或审计。
+10. 历史隔离 Profile 无可靠 containment 仍执行高风险命令；或 A9 在回收不确定后继续自动执行、未报告残留，
+    或把 `taskkill` 降级报告为等价沙箱。
+11. Git/终端/Renderer 可绕过对应 Profile 的 Runner、Policy 或审计；A9 Trusted Git 的 hooks/helpers 未被
+    如实标识，或 push/force/delete 等外部/破坏性操作绕过确认。
 
 对 Phase 1，另保持原有红线：S1～S7 必须全部通过，Probe 不得留下文件/进程残留，JSON
 必须可解析且包含 Schema 必填字段，E1/E2 验收记录不可缺失。
@@ -242,3 +246,22 @@ Electron 8-case 已 PASS（证据等级 `DEVELOPER_SURROGATE_ELECTRON`），因�
 `A8_03_REVIEW_APPLY_PASS` 已签发，仅解除 A8-04；不构成 Electron 22、Win10、Win7 或 RC PASS。证据见
 [`a8_03_review_apply_gate_2026-08-21.html`](reports/2026-08/a8_03_review_apply_gate_2026-08-21.html) 和
 [`a8-03-electron-review-qa-20260821.json`](status/a8-03-electron-review-qa-20260821.json)。
+
+## 8. A9 Trusted Agent Runtime Gate
+
+A9 的原子测试、阶段和五条旅程以
+[`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md) §5～§7 为权威。最低产品 Gate：
+
+| Gate | 最低证据 | 不能替代的证据 |
+|---|---|---|
+| A9-00 | PRD/ADR/任务书/差距矩阵一致；需求有稳定 ID、代码状态和验收项 | 口头确认或 A8 文件名 |
+| A9-01 | 三模式、ToolSpec、System Prompt V2；Read Only/Review 负向与 Full Access 正向 | 只改 UI 文案 |
+| A9-02 | PowerShell 5.1/CMD、管道/重定向、中文编码、取消、后台进程和残留矩阵 | 结构化 MockRunner |
+| A9-03 | 多文件工具、编码/EOL、基线冲突、checkpoint、外部变化和撤销 | A8 单文件或 staging Apply |
+| A9-04 | 两个兼容 fixture + 一个真实 Provider 的 SSE/tool_calls/取消/DPAPI | Replay 或固定 DeepSeek URL |
+| A9-05 | 开发机 J1～J5、Git 确认、副作用不重放和诚实完成三态 | 模型文字声称测试通过 |
+| A9-06 | 真实 Electron 模式/工具/Diff/恢复旅程、SQLite A9 迁移和多窗口锁 | 静态 HTML 或内存 catalog |
+| A9-07 | 同一候选 ZIP/manifest/SBOM/许可证、Win7 J1～J5、生命周期和残留 | A7/A8 PASS、Win10 或开发机 |
+
+A9 Alpha 1 允许 Win10 smoke 在内部 Alpha 阶段非阻塞，但 Win7 五旅程、数据恢复和干净包必须全部通过；
+进入 RC 前补齐同一候选 Win10 证据。Office、IDE/LSP、交互终端、Browser、多 Agent 和插件为不适用项。

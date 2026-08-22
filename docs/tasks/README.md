@@ -18,6 +18,7 @@
 | [INTEGRATION_03](INTEGRATION_03_A4_A6_A5_CLOSEOUT.md) | INTEGRATION_CLOSEOUT | COMPLETE | A7_GATE_PASS_FOR_WIN7_V1_RC | NO_NEW_WIN7_EXECUTION |
 | [RC_01](RC_01_WIN7_RELEASE_CANDIDATE.md) | RELEASE_CANDIDATE | COMPLETE | RC_PASS | PASS |
 | [A8](A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md) | PRODUCT_EXPERIENCE | APPROVED_FOR_IMPLEMENTATION | A8_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE |
+| [A9](A9_TRUSTED_AGENT_RUNTIME.md) | PRODUCT_RUNTIME | APPROVED_FOR_IMPLEMENTATION | A9_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
 | [DOCS_01](DOCS_01_DOCUMENTATION_BASELINE.md) | DOCUMENTATION_GOVERNANCE | APPROVED_FOR_IMPLEMENTATION | READY_FOR_REVIEW | N/A |
 | [MVP_01](MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md) | MVP_ACCEPTANCE_HARDENING | MVP_ACCEPTED_WITH_DEFERRALS | MVP_ACCEPTED | OWNER_ACCEPTED_FOR_MVP |
 | [PROTOTYPE](PROTOTYPE_FULL_AGENT_SKELETON.md) | ARCHITECTURE_PROTOTYPE | APPROVED_FOR_IMPLEMENTATION | APPROVED_FOR_IMPLEMENTATION | N/A |
@@ -45,6 +46,13 @@
 > [`a8-05-persistence-validation-kit-20260821.json`](../status/a8-05-persistence-validation-kit-20260821.json)。A8-06 打包检查点与外部执行包见
 > [`a8-06-developer-checkpoint-20260821.json`](../status/a8-06-developer-checkpoint-20260821.json) 和
 > [`a8-06-package-validation-kit-20260821.json`](../status/a8-06-package-validation-kit-20260821.json)；这些 Gate 只表示开发机候选和验收准备完成，不代表 A8 三层产品验收通过。
+
+> A9 由 ADR-0089 和负责人确认的
+> [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](../prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
+> 授权，从最新干净 A8 代码基线创建 `codex/a9-trusted-agent-runtime`，目标版本 `0.3.0-alpha.1`。
+> A9 复用 A8 UI/Core/State/打包资产，但采用可信工作区 Full Access、通用 PowerShell/CMD Shell、直接文件
+> 写入、真实 Git 和开放 OpenAI-compatible Provider。A8 的历史证据保持不变且不构成 A9 PASS。
+> A9-00 已取得 `A9_00_DESIGN_AND_GAP_PASS`，只解除 A9-01；功能与 Win7 仍为 `NOT_PERFORMED`。
 
 MVP-20260802-14 已由项目负责人按 ADR-0055 以 `OWNER_ACCEPTED_FOR_MVP` 收口，并完成真实 Electron 产品入口的启动、Renderer 诊断和正常退出实测；延期项不改变各正式任务状态，也不解除 Phase 1/2、SPIKE_02/04 或 E7 的正式 Gate。
 

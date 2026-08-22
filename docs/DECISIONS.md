@@ -1120,3 +1120,40 @@
 - 后果：候选完整性验证仍复算 manifest 全树，但不会把合法物理 ASAR 当成缺失文件；产品运行时的 ASAR
   行为、Policy、Broker、IPC 与审批边界均不改变。旧候选的 Win10 A8-03 保持 FAIL，后续项保持 NOT_RUN；
   只有包含本裁决并从远端可达干净源码提交重建的新候选才可重新进入外部验收。
+
+## ADR-0089 A9 采用可信环境 Full Access 与通用 Shell，现实可用性优先
+
+- 状态：Accepted（2026-08-22，项目负责人完成 GrillMe Q1～Q179 并确认全部产品决策）
+- 背景：A8 已建立对话、会话、上下文、Review、SQLite 恢复、DPAPI 和确定性打包基线，但其产品合同继续
+  禁止 Full Access、任意 Shell、直接工作区写入、真实 Git 工作流和开放 OpenAI-compatible Provider。
+  这些限制来自“Win7 无现代强沙箱，所以本地能力必须默认拒绝”的安全优先模型。项目负责人明确目标不是
+  在 Win7 上虚构强安全边界，而是在用户自行选择可信工作区、账号和网络环境的前提下，快速交付可以阅读、
+  编写、管理文件、运行项目命令、测试和 Git 的现实 Coding Agent。继续在 A8 上叠加例外会同时违反
+  A8 任务书、C09/C20 和 Review-first 数据合同，且会让大多数正常开发任务保持不可用。
+- 决策：（1）建立 A9 Trusted Agent Runtime，版本 `0.3.0-alpha.1`，分支
+  `codex/a9-trusted-agent-runtime`，需求合同为
+  `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`，实现授权为
+  `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`；A8 冻结为历史 Review-first 产品线，不继续投入旧产品形态的
+  功能开发，也不继承其未完成的 Win10/Win7/RC 结论。（2）权限模式改为 Full Access、Review、Read Only；
+  可信工作区推荐 Full Access，使用当前 Windows 用户权限，允许直接文件写入、工作区外显式路径、项目依赖、
+  真实 Git 配置和本地网络能力；不自动提权。外部写、破坏性 Git、永久/批量删除和系统级操作继续要求绑定
+  可见目标的一次性确认，但该策略是防误操作行为边界，不宣称 Shell 级强隔离。（3）为 A9 局部取代 C09：
+  模型可调用 `shell` 提交完整 PowerShell/CMD 命令字符串、管道、重定向和项目脚本；所有执行仍必须经过
+  TrustedShellRunner、IPC Schema、审计、输出上限、取消和进程生命周期管理，Renderer/业务 UI 不能直接
+  `child_process`。（4）Shell 自动选择工作区覆盖 → PowerShell 5.1 → CMD；WMF 5.1 推荐但不是硬前置，
+  PowerShell 2～4 Best Effort，Git Bash 仅用户可选。普通 Shell 调用关闭 stdin 且每次独立进程；支持有界
+  托管后台开发进程。（5）为 A9 局部取代 C08 的固定硬超时要求：普通命令可以没有任意短硬 deadline，但必须
+  有软时长提示、可取消、输出上限、进程树终止和残留状态；任务或用户仍可设置 deadline。（6）为 A9 局部
+  取代 C20/ADR-0032：结构化 Git Adapter 继续服务状态、Diff 和历史展示，Trusted Full Access 允许 Shell
+  使用真实 Git、hooks、filters、helpers 和用户凭据环境；push/force push/远端删除始终确认。（7）Provider
+  首版统一为任意 Base URL 的 OpenAI-compatible Chat Completions + SSE + 原生 tool calls；正式 UI 默认真实
+  Provider，Replay 只留测试；API Key 继续 DPAPI/内存保存。（8）Full Access 直接写工作区并建立每轮 checkpoint、
+  Diff 与撤销；Review 继续复用 A8 staging，Read Only 继续拒绝写入。Shell/外部程序造成的文件变化也进入轮前/
+  轮后审计。（9）Electron Renderer 隔离、窄 IPC、凭据脱敏、TLS 默认验证、原子写入、SQLite 版本化、取消、
+  输出控制、进程清理和 Win7 实机证据继续保留；不得把“可用性优先”写成“无审计、无恢复或无边界”。
+  （10）Office 专用能力、内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场和自动更新不进入
+  A9 Alpha 1；首先完成五条真实 Coding Agent 旅程。
+- 后果：A9 可以覆盖真实开发项目依赖的 Shell、Git 和直接编辑能力，不再因 Win7 缺乏现代沙箱而把产品锁成
+  只读/Review 控制台。代价是 Full Access 与 Shell 拥有当前用户的真实副作用，Git hooks、项目脚本、网络和
+  仓库内容不再被强隔离；产品必须在首次启用时如实告知，并依赖用户选择可信环境、checkpoint/撤销、审计和
+  外部操作确认降低误操作风险。Phase 1/2、A7、A8 与其历史候选继续按旧合同解释，本 ADR 不追溯改写其证据。

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A9 Trusted Agent 差距与交付计划</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17211c;
+      --muted: #65736a;
+      --line: #d9e2dc;
+      --paper: #fbfcfa;
+      --panel: #ffffff;
+      --green: #176b48;
+      --green-soft: #e5f4ec;
+      --amber: #8a5a00;
+      --amber-soft: #fff2d5;
+      --red: #9b2c2c;
+      --red-soft: #fde8e7;
+      --blue: #275b8c;
+      --blue-soft: #e8f1fb;
+      --violet: #6951a3;
+      --violet-soft: #f0ebfb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; color: var(--ink); background: #edf2ee; }
+    main { max-width: 1460px; margin: 0 auto; background: var(--paper); min-height: 100vh; box-shadow: 0 0 44px rgba(28, 51, 39, .12); }
+    header { padding: 58px 64px 42px; color: white; background: linear-gradient(125deg, #102b20 0%, #174b35 60%, #27664a 100%); }
+    header .eyebrow { margin: 0 0 12px; color: #9ee0bd; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 900px; font-size: clamp(34px, 5vw, 58px); line-height: 1.08; letter-spacing: -.035em; }
+    header .lede { max-width: 980px; margin: 22px 0 0; color: #d9eee2; font-size: 18px; }
+    header .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    header .meta span { border: 1px solid rgba(255,255,255,.24); border-radius: 999px; padding: 6px 11px; background: rgba(255,255,255,.07); }
+    section { padding: 38px 64px; border-bottom: 1px solid var(--line); }
+    h2 { margin: 0 0 18px; font-size: 27px; letter-spacing: -.02em; }
+    h3 { margin: 24px 0 10px; font-size: 18px; }
+    p { max-width: 1080px; }
+    a { color: #176447; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    .callout { padding: 20px 24px; border-left: 5px solid var(--green); border-radius: 8px; background: var(--green-soft); font-size: 17px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .metric { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .metric strong { display: block; font-size: 30px; line-height: 1.1; }
+    .metric span { color: var(--muted); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .card { padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .card h3 { margin-top: 0; }
+    ul, ol { padding-left: 22px; }
+    li + li { margin-top: 7px; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    th, td { padding: 11px 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th { position: sticky; top: 0; z-index: 1; background: #e8efe9; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+    td { font-size: 13px; }
+    code { padding: 1px 5px; border-radius: 5px; background: #edf1ee; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .92em; }
+    .status { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .implemented { color: var(--green); background: var(--green-soft); }
+    .partial { color: var(--amber); background: var(--amber-soft); }
+    .missing { color: var(--red); background: var(--red-soft); }
+    .divergent { color: var(--violet); background: var(--violet-soft); }
+    .unverifiable { color: var(--blue); background: var(--blue-soft); }
+    .out { color: #5e6260; background: #ecefed; }
+    .risk { color: var(--red); font-weight: 700; }
+    .phase { display: grid; grid-template-columns: 74px 1fr 1fr; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+    .phase:first-of-type { border-top: 0; }
+    .phase b { color: var(--green); }
+    .small { color: var(--muted); font-size: 13px; }
+    footer { padding: 32px 64px 54px; color: var(--muted); }
+    @media (max-width: 920px) {
+      header, section, footer { padding-left: 24px; padding-right: 24px; }
+      .grid, .two { grid-template-columns: 1fr; }
+      .phase { grid-template-columns: 1fr; gap: 4px; }
+      .table-wrap { overflow-x: auto; }
+      table { min-width: 1120px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Win7 Coding Agent · Requirements-to-code audit</p>
+    <h1>A9 Trusted Agent 差距与交付计划</h1>
+    <p class="lede">结论先行：现有 A8 不是“什么都没有”，而是已经拥有可复用的产品壳、Agent Core、状态与交付基线；真正让 Coding Agent 大多数时候不可用的，是四项主动设计限制，而不是 Windows 7 本身。</p>
+    <div class="meta"><span>2026-08-22</span><span>目标 0.3.0-alpha.1</span><span>分支 codex/a9-trusted-agent-runtime</span><span>基线 6c326921…</span></div>
+  </header>
+
+  <section>
+    <div class="callout"><strong>A9-00 裁决：PASS。</strong>建立独立 A9，不把 Full Access、通用 Shell、直接写入和真实 Git 偷塞进 A8。A8 历史证据保留；A9 复用其资产并重新完成 Coding Agent 五旅程与 Win7 验收。本结论只解除 A9-01，不代表任何 A9 功能或 Win7 旅程已完成。</div>
+    <h3>权威输入</h3>
+    <p><a href="../../prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md">A9 产品需求合同 V1</a> · <a href="../../tasks/A9_TRUSTED_AGENT_RUNTIME.md">A9 实现任务书</a> · <a href="../../DECISIONS.md">ADR-0089</a> · <a href="../../tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md">A8 历史任务书</a></p>
+  </section>
+
+  <section>
+    <h2>覆盖概览</h2>
+    <div class="grid">
+      <div class="metric"><strong>4</strong><span>已实现，可直接复用</span></div>
+      <div class="metric"><strong>16</strong><span>部分实现，需要接通产品闭环</span></div>
+      <div class="metric"><strong>10</strong><span>缺失或与新需求相反</span></div>
+      <div class="metric"><strong>2</strong><span>待 Win7 证据 / 明确非目标</span></div>
+    </div>
+    <p class="small">统计单位为本报告 32 个需求簇，不是代码文件数。状态只基于可连接入口、测试和现有证据，不因文件名或 UI 文案自动判定完成。</p>
+  </section>
+
+  <section>
+    <h2>哪些是 Win7 导致，哪些是设计导致</h2>
+    <div class="two">
+      <div class="card">
+        <h3>Win7 客观约束</h3>
+        <ul>
+          <li>干净 Win7 的 PowerShell 版本不一致，可能只有 2.0；必须探测 5.1 并保留 CMD。</li>
+          <li>没有 ConPTY，交互终端不应进入 Alpha 1；普通非交互 Shell 不受此限制。</li>
+          <li>Electron 22、Node 16、Git 2.46.2、WMF 5.1 均为 EOL 栈，需要固定工件和实机证据。</li>
+          <li>CP936、PowerShell 5.1 输出编码、传统 MAX_PATH、junction 和 Job 嵌套需要专门适配。</li>
+          <li>不能假设有 Git、Python、Node、curl、Git Bash 或管理员权限，缺失时必须局部降级。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>现有产品设计问题</h3>
+        <ul>
+          <li class="risk">Policy 明确拒绝 Full Access，并把 Shell 宿主列为 prohibited。</li>
+          <li class="risk">正式工作区写入强制经过 Review staging，无法像主流 Agent 一样直接迭代。</li>
+          <li class="risk">Git 被隔离白名单限制，网络 Git 明确禁止，真实 hooks/helper 项目不能工作。</li>
+          <li class="risk">正式 UI 默认 Replay；真实 Provider 固定 DeepSeek URL 和模型联合类型。</li>
+          <li>文件工具面不完整，缺 copy/move/delete、轮级 checkpoint 和 Shell 外部变化恢复。</li>
+          <li>项目 Runner 只有固定验收 Profile，无法运行真实项目测试和构建。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>最高风险差距</h2>
+    <ol>
+      <li><strong>通用 Shell 完全相反：</strong><a href="../../../src/core/src/policy.ts">Core Policy</a>、<a href="../../../src/runner/src/native-runner.ts">NativeRunner</a> 都主动拒绝 PowerShell/CMD/bash；不是 Win7 做不到。</li>
+      <li><strong>Full Access 不存在：</strong><a href="../../../src/core/src/policy.ts">PolicyEngine</a> 对 <code>full_access</code> 明确返回 deny，桌面端只有只读或审批路径。</li>
+      <li><strong>真实项目 Runner 未接通：</strong><a href="../../../src/shell/product/desktop-host.js">Desktop Host</a> 默认 <code>UnavailableRunner</code>，只有固定 acceptance action。</li>
+      <li><strong>Provider 伪开放：</strong><a href="../../../src/gateway/src/provider/deepseek-openai.ts">DeepSeek Provider</a> 强制固定域名和模型；<a href="../../../src/shell/product/renderer/index.html">设置 UI</a> 默认 Replay。</li>
+      <li><strong>恢复粒度不足：</strong><a href="../../../src/workspace/src/trusted-write.ts">Trusted write</a> 只覆盖单文件 UTF-8 精确替换；A8 Review 不是 Full Access 每轮 checkpoint。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>需求—代码追踪矩阵</h2>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>可测试需求</th><th>表面</th><th>当前证据</th><th>状态</th><th>精确差距</th><th>最小行动</th><th>验收</th></tr></thead>
+      <tbody>
+        <tr><td>A9-M01</td><td>Full Access / Review / Read Only 三模式</td><td>Core、UI、State</td><td><a href="../../../src/core/src/policy.ts">policy.ts</a> 明确拒绝 full_access</td><td><span class="status divergent">divergent</span></td><td>只有 read/workspace-write 语义</td><td>新增 A9 模式事实、迁移和工具目录</td><td>A9M-01</td></tr>
+        <tr><td>A9-T01</td><td>九个基础工具 + update_plan</td><td>Core、Workspace、Gateway</td><td><a href="../../../src/core/src/tools.ts">ToolRegistry</a> 与只读/Review 工具存在</td><td><span class="status partial">partial</span></td><td>缺稳定简名、copy/move/delete/shell 产品入口</td><td>冻结 A9 ToolSpec V1 并接入 Host</td><td>A9T-01</td></tr>
+        <tr><td>A9-SH01</td><td>PowerShell 5.1 优先，CMD 降级</td><td>Runner、Settings</td><td>无 Shell 版本探测或方言配置入口</td><td><span class="status missing">missing</span></td><td>当前把 Shell 当禁止项</td><td>实现 D-019 capability probe</td><td>A9SH-01</td></tr>
+        <tr><td>A9-SH02</td><td>完整命令、管道、重定向、项目脚本</td><td>Runner、Core</td><td><a href="../../../src/core/src/policy.ts">policy.ts</a> 和 <a href="../../../src/runner/src/native-runner.ts">native-runner.ts</a> 拒绝 Shell host</td><td><span class="status divergent">divergent</span></td><td>结构化 argv 不能表达真实 Shell 工作流</td><td>新增并隔离 TrustedShellRunner</td><td>A9SH-02</td></tr>
+        <tr><td>A9-SH03</td><td>托管后台 start/poll/stop</td><td>Runner、State、UI</td><td>现有 Runner 只有一次 execute</td><td><span class="status missing">missing</span></td><td>无法同时运行开发服务器和后续工具</td><td>版本化 process handle 与上限</td><td>A9SH-03</td></tr>
+        <tr><td>A9-SH04</td><td>有界原始日志、模型预览、控制序列过滤</td><td>Runner、UI、State</td><td><a href="../../../src/runner/src/output.ts">output.ts</a>、Runner events 已有截断</td><td><span class="status partial">partial</span></td><td>没有通用 Shell 原始日志/保留策略</td><td>拆分 raw log reference 与 sanitized preview</td><td>A9SH-02/03</td></tr>
+        <tr><td>A9-F01</td><td>Full Access 可显式访问工作区外路径</td><td>Workspace、Policy、UI</td><td><a href="../../../src/workspace/src/readonly.ts">readonly.ts</a> 与 A8 Host 强制根边界</td><td><span class="status divergent">divergent</span></td><td>工作区外一律拒绝</td><td>模式感知路径决策与醒目标识</td><td>A9F-02</td></tr>
+        <tr><td>A9-F02</td><td>UTF-8/UTF-16/CP936 与 EOL 保持</td><td>Workspace</td><td><a href="../../../src/workspace/src/encoding.ts">encoding.ts</a> 有基础检测；A2 trusted write 只接受 UTF-8</td><td><span class="status partial">partial</span></td><td>产品写闭环不覆盖完整编码矩阵</td><td>统一 read/edit/write 编码合同</td><td>A9F-01</td></tr>
+        <tr><td>A9-F03</td><td>每轮 checkpoint、外部变化、撤销</td><td>Workspace、State</td><td>A8 Review 回滚与 A2 单文件恢复可复用</td><td><span class="status partial">partial</span></td><td>缺轮级、多文件、Shell 变化基线</td><td>新增 turn checkpoint ledger</td><td>A9F-03</td></tr>
+        <tr><td>A9-G01</td><td>结构化展示 + 真实 Git 工作流</td><td>Git、Shell、UI</td><td><a href="../../../src/git-adapter/src/adapter.ts">GitAdapter</a> 强制 isolation</td><td><span class="status divergent">divergent</span></td><td>hooks/filter/helper 被禁且所有 Git 必须 Adapter</td><td>保留 projection，执行走 TrustedShell</td><td>A9G-01</td></tr>
+        <tr><td>A9-G02</td><td>fetch/pull、本地写、push 确认</td><td>Git、Approval</td><td><a href="../../../src/git-adapter/src/whitelist.ts">whitelist.ts</a> 明确禁止网络 Git</td><td><span class="status missing">missing</span></td><td>完整 Git 旅程不可用</td><td>行为分类与目标绑定审批</td><td>A9G-01/02</td></tr>
+        <tr><td>A9-GW01</td><td>任意 Base URL 的 Chat Completions/tool_calls</td><td>Gateway、Settings</td><td><a href="../../../src/gateway/src/provider/deepseek-openai.ts">DeepSeek Provider</a> 支持 SSE/tool_calls 但固定域名/模型</td><td><span class="status divergent">divergent</span></td><td>不是通用 OpenAI-compatible</td><td>泛化 Provider 与配置 schema</td><td>A9GW-01/02</td></tr>
+        <tr><td>A9-GW02</td><td>DPAPI、TLS、CA、代理、自定义 Header</td><td>Gateway、Shell</td><td><a href="../../../src/shell/product/credential-vault.js">credential-vault.js</a> 与 TLS/代理已有</td><td><span class="status partial">partial</span></td><td>Header/任意 Provider/不安全 TLS 显式状态不完整</td><td>Provider 级配置与脱敏扩展</td><td>A9GW-01/03</td></tr>
+        <tr><td>A9-GW03</td><td>三次适用重试、取消、副作用不重放</td><td>Gateway、Core</td><td><a href="../../../src/core/src/model-retry.ts">model-retry.ts</a>、Gateway cancel 已有</td><td><span class="status partial">partial</span></td><td>未在开放 Provider + 真实工具副作用闭环验证</td><td>增加幂等/恢复集成测试</td><td>A9GW-02</td></tr>
+        <tr><td>A9-GW04</td><td>Token/费用和可配置预算</td><td>Core、UI、State</td><td>Core 有 token estimator/usage，UI 无完整费用配置</td><td><span class="status partial">partial</span></td><td>费用估算和模型上限状态缺失</td><td>Provider capability + UI budget</td><td>A9GW-02</td></tr>
+        <tr><td>A9-A01</td><td>AGENTS 指令层级</td><td>Core</td><td><a href="../../../src/core/src/agents-discovery.ts">agents-discovery.ts</a> 有 root→cwd 确定性发现</td><td><span class="status implemented">implemented</span></td><td>需调整用户当前指令优先级文案</td><td>保留实现，补 A9 契约测试</td><td>A9A-01</td></tr>
+        <tr><td>A9-A02</td><td>轻量探测、按需搜索、ignore、无向量库</td><td>Core、Workspace</td><td>有 context bootstrap 和有界搜索；忽略仅硬编码少量目录</td><td><span class="status partial">partial</span></td><td>缺 .gitignore/.agentignore 和大仓取消证据</td><td>实现 ignore resolver</td><td>A9A-01</td></tr>
+        <tr><td>A9-A03</td><td>预算内自主修复，三次无进展暂停</td><td>Core</td><td><a href="../../../src/core/src/loop-control.ts">LoopDetector</a>、预算、retry 已有</td><td><span class="status partial">partial</span></td><td>真实 Shell/测试工具尚未接通</td><td>复用 Runtime，替换工具目录和完成投影</td><td>A9A-02</td></tr>
+        <tr><td>A9-A04</td><td>事件账本上下文与无隐形长期记忆</td><td>Core、State</td><td><a href="../../../src/core/src/context-compactor.ts">context-compactor.ts</a> 保护指令并压缩历史</td><td><span class="status implemented">implemented</span></td><td>Provider 切换 UI 尚需接线</td><td>保持合同，补迁移集成</td><td>A9A-01</td></tr>
+        <tr><td>A9-A05</td><td>已验证/警告/阻塞三态</td><td>Core、UI</td><td>Core 有 verification/outcome；A8 UI 投影偏 Review</td><td><span class="status partial">partial</span></td><td>没有 A9 用户可见完成三态</td><td>标准化 completion projection</td><td>A9A-02</td></tr>
+        <tr><td>A9-ST01</td><td>不同工作区并行，同工作区单写锁</td><td>Core、Desktop</td><td>A8 有产品级单活动任务锁</td><td><span class="status partial">partial</span></td><td>当前锁粒度过大，多窗口并行未实现</td><td>改为 workspace-scoped writer lease</td><td>A9M-01/A9UI-01</td></tr>
+        <tr><td>A9-ST02</td><td>SQLite 结构化实体与事件</td><td>State</td><td><a href="../../../src/state/src/a8-persistence.ts">A8 persistence</a>、EventLedger 与 schema 已有开发机 Gate</td><td><span class="status implemented">implemented</span></td><td>A9 namespace/迁移另做，不重写基础</td><td>扩展 schema，保留不可变事件</td><td>A9S-01</td></tr>
+        <tr><td>A9-ST03</td><td>中断后显式继续，不重放副作用</td><td>State、Core、Runner</td><td>A8 recovery coordinator 已实现活动任务 interrupted</td><td><span class="status partial">partial</span></td><td>Shell/Git/background/checkpoint 状态尚不存在</td><td>新增 A9 恢复实体与探测</td><td>A9S-01</td></tr>
+        <tr><td>A9-ST04</td><td>90 天/空间上限/标记保留</td><td>State、Diagnostics</td><td>EventLedger 有容量上限，缺产品保留策略</td><td><span class="status missing">missing</span></td><td>无法按任务和日志类型安全清理</td><td>版本化 retention policy</td><td>A9S-01</td></tr>
+        <tr><td>A9-UI01</td><td>轻量对话式桌面客户端</td><td>Renderer</td><td><a href="../../../src/shell/product/renderer/index.html">A8 UI</a> 已有工作区/会话/Goal/对话/检查器</td><td><span class="status implemented">implemented</span></td><td>无需重建 IDE</td><td>最小改造模式、Shell、Diff 状态</td><td>A9UI-01</td></tr>
+        <tr><td>A9-UI02</td><td>紧凑工具时间线与文件级 Diff/撤销</td><td>Renderer、Workspace</td><td>A8 工具卡与 Review Diff 已有</td><td><span class="status partial">partial</span></td><td>强绑定 staging，缺直接写/轮撤销视图</td><td>抽象 A9 change set projection</td><td>A9UI-01</td></tr>
+        <tr><td>A9-UI03</td><td>首次工作区/模式/Provider 三步配置</td><td>Renderer、Host</td><td>设置抽屉已有，但 <a href="../../../src/shell/product/renderer/index.html">默认 Replay</a> 且无模式选择</td><td><span class="status partial">partial</span></td><td>不能三分钟进入真实 Agent</td><td>真实 Provider 默认与 onboarding</td><td>A9UI-01</td></tr>
+        <tr><td>A9-D01</td><td>Win7 x64 自包含 ZIP 与能力降级</td><td>Release、Runtime</td><td>A8 v2 确定性包和 Electron/D013/D014 input lock 已有</td><td><span class="status partial">partial</span></td><td>A9 新模块、D-019、数据根和验证包未装配</td><td>新建 release/win7-product-v3</td><td>A9PKG-01</td></tr>
+        <tr><td>A9-D02</td><td>旁路升级、无遥测、脱敏诊断包</td><td>Release、State、UI</td><td>A8 并存/迁移/Diagnostics 基线可复用</td><td><span class="status partial">partial</span></td><td>90 天保留和 A9 诊断导出未实现</td><td>扩展迁移/诊断 schema</td><td>A9S-01/A9PKG-01</td></tr>
+        <tr><td>A9-P02</td><td>J1～J5 五条真实 Coding 旅程</td><td>全栈</td><td>A8 只有 Review/只读/固定 Runner 旅程</td><td><span class="status missing">missing</span></td><td>Shell、直接编辑、真实测试和 Git 断链</td><td>按 A9-01～06 形成最小纵向切片</td><td>J1～J5</td></tr>
+        <tr><td>A9-AC02</td><td>同一候选 Win7 五旅程 PASS</td><td>Release、Acceptance</td><td>A8 最新候选 Win7 为 NOT_PERFORMED</td><td><span class="status unverifiable">unverifiable</span></td><td>当前环境无目标层证据</td><td>A9-07 干净 Win7 执行</td><td>A9_ALPHA1_PASS</td></tr>
+        <tr><td>A9-NG</td><td>Office/IDE/终端/Browser/多 Agent 等不阻塞</td><td>范围</td><td>A8 Terminal/Browser disabled；Office 尚未引入</td><td><span class="status out">out-of-scope</span></td><td>不是缺陷，不进入 Alpha 1</td><td>保持未装配</td><td>任务书非目标检查</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>交付顺序</h2>
+    <div class="phase"><b>A9-00</b><span>合同、ADR、差距矩阵、Profile</span><span>先合法化并锁定边界，避免在 A8 白名单中越权。</span></div>
+    <div class="phase"><b>A9-01</b><span>权限模式与工具目录</span><span>让 Full Access 在 Core 层真实存在，同时守住 Review/Read Only。</span></div>
+    <div class="phase"><b>A9-02</b><span>TrustedShellRunner</span><span>PowerShell 5.1/CMD、取消、输出和后台进程是 Coding 可用性的主干。</span></div>
+    <div class="phase"><b>A9-03</b><span>文件与 checkpoint</span><span>直接多文件编辑、编码保持、Shell 外部变化和撤销形成恢复闭环。</span></div>
+    <div class="phase"><b>A9-04</b><span>开放 Provider</span><span>移除 DeepSeek/Replay 硬编码，用真实 tool_calls 驱动工具。</span></div>
+    <div class="phase"><b>A9-05</b><span>Agent Loop、测试与 Git</span><span>完成开发机五旅程和副作用不重放。</span></div>
+    <div class="phase"><b>A9-06</b><span>桌面与持久化</span><span>最小 UI 改造、A9 SQLite 迁移、多窗口锁和诊断。</span></div>
+    <div class="phase"><b>A9-07</b><span>自包含包与 Win7</span><span>同一不可变候选 J1～J5 全通过后才签发 Alpha 1 PASS。</span></div>
+  </section>
+
+  <section>
+    <h2>产品边界最终裁决</h2>
+    <div class="two">
+      <div class="card"><h3>Alpha 1 必须有</h3><p>真实模型、代码读取/搜索、直接编辑、文件管理、通用 Shell、测试/构建、Git、三模式、Diff/撤销、会话恢复和 Win7 自包含交付。</p></div>
+      <div class="card"><h3>Alpha 1 明确不做</h3><p>Office 专用格式、内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场、自动更新与后台 Agent 守护。</p></div>
+    </div>
+  </section>
+
+  <footer>A9-00 文档 Gate 为 A9_00_DESIGN_AND_GAP_PASS。本报告是需求—代码追踪基线，不是功能实现或 Win7 PASS。状态随每个 A9 Gate 以新证据更新，不能通过改写需求隐藏差距。</footer>
+</main>
+</body>
+</html>

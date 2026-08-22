@@ -70,14 +70,16 @@ Core 是运行时无关的逻辑边界，可以由经批准的 Python、Node.js�
 
 ### 2.3 Runner / Tool Host
 
-Runner 是进程与高风险本地能力的唯一入口：
+Runner / TrustedShellRunner 是进程与高风险本地能力的唯一入口：
 
-- 接收结构化 `executable + argv + cwd + env allowlist`，禁止执行模型拼接的 Shell 字符串。
+- 历史与隔离 Runner 接收结构化 `executable + argv + cwd + env allowlist`；A9 TrustedShellRunner 按
+  ADR-0089 接收完整 PowerShell/CMD 命令文本，但仍位于 Tool Schema、Policy、IPC、审计、输出和取消边界之后。
 - 强制超时、标准输入策略、输出上限、进程树终止和结构化错误。
 - 文件读写、补丁、Git、测试、终端和未来插件能力均通过可审计 Tool Adapter 暴露。
 - Agent 命令默认非交互；用户终端使用独立会话、独立权限和独立审计类型。
-- Git 使用专用 Adapter 和隔离的配置/环境；hooks、filters、textconv、pager、external
-  diff、credential/SSH helper、fsmonitor 等间接执行入口必须覆盖、拒绝或移至远程。
+- 历史/隔离 Git 使用专用 Adapter 和隔离配置。A9 Full Access 的结构化 Adapter 负责状态/Diff 展示，
+  真实 Git 命令可经 TrustedShell 使用用户 hooks、filters、textconv、pager、credential/SSH helper 和 fsmonitor；
+  该路径明确不是隔离 Git，并对破坏性/远端写操作执行行为确认。
 - 用户终端的 stdin 能力只授予明确的用户输入事件，模型/Core/插件不能向其注入命令、
   按键或粘贴；终端输出的 VT/OSC、链接、剪贴板和外部协议按不可信输入限制。
 - 写操作遵守“校验前置 → 备份/快照 → 原子替换 → 验证 → 可回滚”。
@@ -118,8 +120,8 @@ Phase 3–7 的授权来源为 ADR-0036、各阶段任务书与整合任务书�
 1. **Profile 驱动**：每个可交付组件声明 OS 补丁、架构、精确运行时、依赖闭包、入口、工作目录、可写目录、网络和降级策略。
 2. **能力探测优先**：启动和安装先读取 Probe/Preflight 结果；缺失能力时禁用功能并解释原因，不以不安全替代静默继续。
 3. **界面与权限分离**：Desktop Renderer 不持有文件、进程、凭据或网络任意访问权；所有高权限动作走窄 IPC 和 Broker。
-4. **执行不可旁路**：业务逻辑、插件和 UI 不得直接启动进程或写工作区；Runner 统一执行
-   C08/C09，Git 和用户终端还分别满足 C20/C19。
+4. **执行不可旁路**：业务逻辑、插件和 UI 不得直接启动进程或写工作区；Runner/TrustedShellRunner 统一
+   执行对应的 C08/C09 Profile，Git 和用户终端分别满足其任务范围内的 C20/C19。
 5. **协议与状态版本化**：报告、IPC、远程协议、SQLite/事件和插件 Manifest 均带版本并支持拒绝不兼容输入。
 6. **审计先于副作用**：先记录意图和授权，再执行；结果、截断、取消、超时和回滚均成为事件。
 7. **最小本地攻击面**：旧 Chromium 不访问不可信 Web；Browser Use、现代沙箱和高风险第三方集成优先远程化。
@@ -197,7 +199,9 @@ win7-coding-agent/
 
 - 不把 Win10+ API、ConPTY、WSL2、Docker Desktop 或现代 Chromium 安全能力伪装成本地可用。
 - 不允许模型、Renderer、插件或远程服务绕过 Policy/Broker/Audit 直接执行。
-- 不因“企业内网风险较低”取消结构化参数、工作区边界、超时、输出上限、进程终止和完整性验证。
+- 不因“企业内网风险较低”取消版本化 Tool Schema、审计、输出上限、取消、进程终止和完整性验证。
+  A9 可以使用完整 Shell 字符串、工作区外显式路径和无固定硬 deadline 的命令，但必须按 ADR-0089 如实
+  标识真实权限、软时长、残留和恢复能力。
 - 不用架构文档、路线图或 ADR 候选项替代实现任务书与 Win7 实机验收。
 
 ## 10. A8 Agent-first 产品投影与数据边界
@@ -236,3 +240,32 @@ A8-02 先实现上述模型的存储中立 seam：State catalog 负责 schema ve
 状态而不删除实体。产品专用 A8 IPC 仅允许会话投影、Goal 修订、目录列表和文件读取，并拒绝额外字段；
 Workspace port 在主进程内完成 canonical path、reparse 和敏感路径检查，Renderer 不获得 `fs`。
 SQLite transaction、损坏隔离和完整会话恢复仍必须在 A8-05 实现后才可宣称持久化闭环。
+
+## 11. A9 Trusted Agent Runtime 投影
+
+A9 的权威需求和实现授权分别为
+[`WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md) 与
+[`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，关键裁决为 ADR-0089。
+
+```mermaid
+flowchart LR
+    UI["Electron Renderer\n对话 / 工具 / Diff"] -->|"Schema IPC"| HOST["Desktop Host / Core"]
+    HOST --> MODE["Mode Policy\nFull Access / Review / Read Only"]
+    MODE --> FILE["File Tools\ncheckpoint / atomic / undo"]
+    MODE --> SHELL["TrustedShellRunner\nPowerShell 5.1 / CMD"]
+    MODE --> GIT["Git Projection + Trusted Git"]
+    HOST <--> GW["OpenAI-compatible Gateway"]
+    FILE --> LEDGER["SQLite EventLedger"]
+    SHELL --> LEDGER
+    GIT --> LEDGER
+    GW --> LEDGER
+```
+
+- Full Access 使用当前 Windows 用户的真实本地权限，不宣称沙箱；Review 保留 A8 staging，Read Only 继续
+  只读。模式选择是产品权限事实，不由模型或仓库内容决定。
+- TrustedShellRunner 与历史结构化 Runner 并存。普通命令每次独立进程、stdin 关闭；开发服务器使用
+  有界后台句柄。PowerShell 5.1 首选，CMD 保底。
+- 文件工具和 Shell 共享每轮 checkpoint、轮前/轮后基线、Diff 与恢复事实；外部程序修改不能绕过审计。
+- Git Adapter 不再是 A9 所有 Git 执行的唯一入口，但继续提供 UI 可消费的结构化状态和 Diff。
+- Gateway 首版只实现 OpenAI-compatible Chat Completions/SSE/tool_calls；Replay 留在测试入口。
+- A9 复用 A8 Session/Goal/Core/State/Renderer/打包资产，但使用独立版本、数据 namespace、候选与 Win7 证据。

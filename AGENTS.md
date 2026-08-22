@@ -18,6 +18,15 @@
 
 ## 3. 当前阶段（必须先确认再动手）
 
+- **A9 Trusted Agent Runtime（ADR-0089）**：项目负责人已确认
+  `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`，实现任务为
+  `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`，状态 `APPROVED_FOR_IMPLEMENTATION`，仅在
+  `codex/a9-trusted-agent-runtime` 分支及任务书允许路径内生效。A9 目标版本为 `0.3.0-alpha.1`，
+  从最新干净 A8 代码基线复用会话/UI/Core/State/打包资产，但不继承 A8 产品 PASS。A9 在可信工作区
+  提供 Full Access、通用 PowerShell/CMD Shell、直接文件写入和真实 Git；C08/C09/C20 与 A8 Review-first
+  的局部取代范围以 ADR-0089 和 A9 任务书为准。A9 仍保持 Renderer 隔离、Schema IPC、审计、取消、
+  输出上限、进程清理、凭据脱敏、TLS 默认验证、checkpoint 和 Win7 实机硬门槛。Office 专用能力、
+  内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场和自动更新不在 A9 Alpha 1。
 - **A8 Agent-first 产品体验线（ADR-0074）**：项目负责人已确认
   `docs/prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md`，实现任务为
   `docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`，仅在
@@ -49,8 +58,8 @@
 | C05 | **项目级已废止（ADR-0027）**：Python 3.9+ 禁用清单不再约束非历史组件；编号仅保留给 Phase 1/2 冻结合同解释 | 新任务按 C15 的组件 Profile 验收；历史任务仍按 Python 3.8.10 验收 |
 | C06 | Win7 目标端禁止依赖 Windows 10+ 专属 API；构建端或远程服务不受此项限制 | 见 `docs/WIN7_CONSTRAINTS.md` §4 能力矩阵 |
 | C07 | 运行时下载、安装或更新只在任务书明确授权时允许，且必须版本锁定、完整性验证、失败回滚；默认优先自包含交付 | 断网启动测试或受控更新测试；验证签名/哈希与回滚 |
-| C08 | Agent 发起的非交互命令必须有超时、输出上限和进程树终止；用户交互终端必须有取消、背压、会话上限和强制终止机制。无法建立可靠 containment 时，高风险命令必须拒绝或远程执行，`taskkill` 降级不得冒充安全隔离 | 代码审查 + `docs/EVALUATION.md` 进程生命周期测试项 |
-| C09 | Agent 工具禁止执行模型拼接的 Shell 字符串；默认使用结构化 argv/`execFile`。固定脚本或交互终端只能通过经任务书批准的 Runner/终端适配器 | 跨语言静态扫描 + Runner/终端集成测试 |
+| C08 | Agent 发起的进程必须有输出上限、取消和进程树终止；历史/隔离 Profile 继续使用硬超时。A9 TrustedShell 可不设置任意固定硬 deadline，但必须提供软时长提示、用户取消、可选任务 deadline 和残留状态，且不得把 `taskkill` 降级冒充安全隔离；用户交互终端仍须独立授权 | 代码审查 + `docs/EVALUATION.md` 进程生命周期测试项 |
+| C09 | 默认 Runner 使用结构化 argv/`execFile`。A9 按 ADR-0089 明确授权的 TrustedShellRunner 可以执行模型提交的完整 PowerShell/CMD 字符串、管道和重定向，但仍须经 Tool Schema、IPC、Runner、审计、输出控制与取消；Renderer/业务 UI 不得直接执行进程。历史任务继续禁止模型拼接 Shell | 跨语言执行汇点扫描 + A9 Shell/历史 Runner 分层集成测试 |
 | C10 | 路径逻辑必须兼容中文路径、空格路径、Windows 盘符/反斜杠 | 测试矩阵含中文、空格、混合路径用例 |
 | C11 | 文本 I/O 必须显式声明编码；未知或需保持原样的内容按字节处理，禁止依赖系统默认编码 | 各语言静态检查 + 中文/CP936/UTF-8/CRLF 往返测试 |
 | C12 | 每个任务必须声明交付模式（自包含离线包、企业内网安装或受控更新）和全部运行前置；禁止未声明的在线依赖 | 干净 Win7 环境安装、启动、升级和回滚验收 |
@@ -61,7 +70,7 @@
 | C17 | 桌面 Renderer 不得直接获得文件、进程、凭据或任意网络权限；浏览器自身的 `fetch`/WebSocket/导航/权限请求也必须受 CSP 与会话级白名单约束。高权限操作必须经 Schema 校验的 IPC、Policy、批准与审计 | Electron/桌面安全配置、实际出站连接与 IPC 越权测试 |
 | C18 | Win7 不具备的强隔离、现代浏览器或运行时能力必须明确降级或移至受维护的内网服务，不得以兼容层名义虚构等价安全性 | 能力矩阵、威胁模型和端到端降级测试 |
 | C19 | 用户交互终端与 Agent Runner 必须保持输入能力隔离：模型不得向用户终端注入按键、粘贴或控制序列；终端输出按不可信数据处理并限制剪贴板、链接和窗口控制序列 | 能力路由检查 + 恶意 VT/OSC、粘贴、链接与模型注入负向测试 |
-| C20 | Git 必须通过专用适配器运行；仅结构化 argv 不足以阻止 hooks、filters、textconv、external diff、pager、credential/SSH helper、fsmonitor 等间接执行，任务书必须定义配置隔离、命令白名单和高风险操作策略 | 恶意仓库配置/属性/Hook 负向测试 + 进程与网络审计 |
+| C20 | 历史任务与隔离模式 Git 必须通过专用适配器。A9 Full Access 可按 ADR-0089 经 TrustedShell 使用用户真实 Git 配置、hooks、filters、textconv、pager、credential/SSH helper 和 fsmonitor；结构化 Adapter 继续提供状态/Diff，破坏性与远端写操作执行目标绑定确认。不得把该模式描述为隔离 Git | 历史 G10 负向测试 + A9 真实 Git/审批/审计矩阵 |
 
 ## 5. Agent 工作流程规则
 
@@ -79,7 +88,7 @@
 ## 6. 通用实现规则
 
 - 运行时级别：Phase 1/2 与既有原型的 Python 源码继续以 CPython 3.8.10 为门槛；新组件按任务书声明的 Node.js、Electron、Python、.NET Framework 或原生工具链版本编译、测试并验证 Win7 兼容性。
-- 子进程统一通过经任务书批准的 Runner/终端适配器调用；业务代码和 UI 不得绕过 Policy、权限 Broker 与审计直接执行进程。
+- 子进程统一通过经任务书批准的 Runner、TrustedShellRunner 或终端适配器调用；业务代码和 UI 不得绕过 Policy、权限 Broker 与审计直接执行进程。
 - GUI、协议和文件使用 Unicode/UTF-8；直连 Win7 conhost 的输出由控制台 Profile 负责 CP936、VT 和非 ASCII 降级，历史 Phase 1/2 CLI 继续保持 ASCII-only。
 - 所有持久化数据格式必须有版本号字段。
 - 每个模块必须可独立测试，失败必须产生结构化错误（见各阶段任务文档的错误模型）。
@@ -88,6 +97,7 @@
 
 - Agent 工具调用默认禁止等待 stdin；用户直接操作的交互终端必须由独立任务书授权，并与 Agent Runner 隔离，不能被模型用来绕过 Policy、批准或审计。
 - 禁止未声明的注册表、服务、提权和系统配置修改；确有需要时必须由任务书、权限策略和用户确认共同授权，并提供回滚。
-- 禁止访问任务书未声明的网络目标；Phase 1/2 的零网络合同继续有效。
+- 禁止访问任务书未声明的网络目标；A9 Full Access 按 ADR-0089 明确授权继承用户网络且不设域名白名单，
+  但外部写操作继续执行行为确认。Phase 1/2 和其他未获 A9 授权任务的零网络/白名单合同继续有效。
 - 禁止生成"占位式"文档或 TODO 空章节——每条规则必须可执行、可测试。
 - 禁止静默吞异常：捕获后必须记录到结构化输出。
