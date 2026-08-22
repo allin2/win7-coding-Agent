@@ -108,3 +108,24 @@ export {
   buildApplyApprovalRequest,
   applyPlan,
 } from './apply';
+
+// A9 Full Access Workspace Service, Checkpoint & Ignore Filter
+export {
+  A9WorkspaceService,
+  A9ListResult,
+  A9ReadResult,
+  A9SearchResult,
+  A9WriteResult,
+  A9EditResult,
+} from './a9-workspace-service';
+
+export {
+  createWorkspaceIgnoreFilter,
+  IgnoreFilter,
+} from './a9-ignore';
+
+export {
+  CheckpointManager,
+  TurnCheckpoint,
+  FileChangeRecord,
+} from './checkpoint-manager';
