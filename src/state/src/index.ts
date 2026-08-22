@@ -124,3 +124,8 @@ export type {
   A8RecoveryReport,
   A8ReviewPersistenceStatus,
 } from './a8-persistence';
+
+export {
+  A9_SCHEMA_VERSION,
+  A9PersistenceManager,
+} from './a9-persistence';
