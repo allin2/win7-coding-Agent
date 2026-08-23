@@ -122,6 +122,8 @@ function createA9AgentRuntime(options) {
   let agentStatus = 'idle';
   // F4：模型切换时保存的会话历史；新 loop 惰性创建后恢复并一次性清除。
   let pendingConversationHistory = null;
+  // F5：当前 Turn 的 task/turn/run 生命周期句柄。
+  let activeLifecycle = null;
 
   // ----- Provider（R4：非秘密配置版本化持久化；秘密仅 DPAPI；未配置即拒绝执行） -----
   const PROVIDER_CONFIG_SCHEMA_VERSION = 1;
@@ -320,6 +322,13 @@ function createA9AgentRuntime(options) {
         },
         onEvent: (event) => {
           pushTimeline(event);
+          // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
+          if (event.type === 'turn_started' && activeLifecycle && !activeLifecycle.turnId) {
+            const runId = `run-${event.turnId}`;
+            persistence.upsertTurn(event.turnId, activeLifecycle.taskId, a9SessionId, 'active');
+            persistence.upsertRun(runId, event.turnId, a9SessionId, 'active');
+            activeLifecycle = { ...activeLifecycle, turnId: event.turnId, runId };
+          }
           persistence.recordToolEvent(a9SessionId, event.turnId, event.type, {
             type: event.type,
             data: event.data,
@@ -521,12 +530,39 @@ function createA9AgentRuntime(options) {
   }
 
   async function submitTurn(prompt) {
+    let createdTaskId = null;
     try {
       const activeLoop = ensureRuntime();
       if (activeController) throw new Error('A9_TURN_ALREADY_ACTIVE');
       activeController = new AbortController();
       agentStatus = 'running';
+      // F5：Turn 开始前创建并持久化 active task。
+      createdTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      persistence.upsertTask(createdTaskId, a9SessionId, 'active');
+      activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null };
       const result = await activeLoop.runTurn(String(prompt || ''), { signal: activeController.signal });
+      // turn_started 已写入 active turn/run；这里补齐句柄（幂等）。
+      const runId = activeLifecycle && activeLifecycle.runId ? activeLifecycle.runId : `run-${result.turnId}`;
+      if (!activeLifecycle || !activeLifecycle.turnId) {
+        persistence.upsertTurn(result.turnId, createdTaskId, a9SessionId, 'active');
+        persistence.upsertRun(runId, result.turnId, a9SessionId, 'active');
+      }
+      activeLifecycle = { taskId: createdTaskId, turnId: result.turnId, runId };
+      // 终态映射：等待审批保留 active；其余按真实 outcome 落库。
+      const finalTurnStatus = result.outcome === 'needs_approval' ? 'active'
+        : result.outcome === 'completed' ? 'completed'
+          : result.outcome === 'completed_with_warnings' ? 'completed_with_warnings'
+            : result.outcome === 'blocked' ? 'blocked'
+              : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
+      const finalRunTaskStatus = result.outcome === 'needs_approval' ? 'active'
+        : result.outcome === 'completed' || result.outcome === 'completed_with_warnings' ? 'completed'
+          : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
+      if (result.outcome !== 'needs_approval') {
+        persistence.upsertTurn(result.turnId, createdTaskId, a9SessionId, finalTurnStatus);
+        persistence.upsertRun(runId, result.turnId, a9SessionId, finalRunTaskStatus === 'completed' ? 'completed' : finalRunTaskStatus);
+        persistence.upsertTask(createdTaskId, a9SessionId, finalRunTaskStatus);
+        activeLifecycle = null;
+      }
       currentPendingApproval = result.pendingApproval || currentPendingApproval;
       persistence.saveCheckpoint({
         turnId: result.turnId,
@@ -546,6 +582,16 @@ function createA9AgentRuntime(options) {
       return { ok: true, result };
     } catch (error) {
       agentStatus = 'failed';
+      // F5：Provider 异常/取消/进程异常 → 明确 failed（或 cancelled）状态落库。
+      if (createdTaskId) {
+        const cancelled = error && /cancel|abort/i.test(String(error.message || ''));
+        persistence.upsertTask(createdTaskId, a9SessionId, cancelled ? 'cancelled' : 'failed');
+        if (activeLifecycle && activeLifecycle.turnId) {
+          persistence.upsertTurn(activeLifecycle.turnId, createdTaskId, a9SessionId, cancelled ? 'cancelled' : 'failed');
+          persistence.upsertRun(activeLifecycle.runId, activeLifecycle.turnId, a9SessionId, cancelled ? 'cancelled' : 'failed');
+        }
+      }
+      activeLifecycle = null;
       return { ok: false, error: serializeError(error) };
     } finally {
       activeController = null;
@@ -585,6 +631,22 @@ function createA9AgentRuntime(options) {
         decision: input.decision,
       });
       currentPendingApproval = null;
+      // F5：resume 继续更新原 task/turn/run，不创建无关联状态。
+      const lifecycle = activeLifecycle || null;
+      if (lifecycle && lifecycle.turnId) {
+        const finalTurnStatus = result.outcome === 'needs_approval' ? 'active'
+          : result.outcome === 'completed' ? 'completed'
+            : result.outcome === 'completed_with_warnings' ? 'completed_with_warnings'
+              : result.outcome === 'blocked' ? 'blocked'
+                : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
+        const finalTaskStatus = result.outcome === 'needs_approval' ? 'active'
+          : result.outcome === 'completed' || result.outcome === 'completed_with_warnings' ? 'completed'
+            : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
+        persistence.upsertTurn(lifecycle.turnId, lifecycle.taskId, a9SessionId, finalTurnStatus);
+        persistence.upsertRun(lifecycle.runId, lifecycle.turnId, a9SessionId, finalTaskStatus === 'completed' ? 'completed' : finalTaskStatus);
+        persistence.upsertTask(lifecycle.taskId, a9SessionId, finalTaskStatus);
+        if (result.outcome !== 'needs_approval') activeLifecycle = null;
+      }
       agentStatus = result.outcome;
       return { ok: true, result };
     } catch (error) {

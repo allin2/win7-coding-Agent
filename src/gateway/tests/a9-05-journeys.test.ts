@@ -7,14 +7,15 @@
  * - REAL MODEL J1～J3：NOT_PERFORMED（无真实 Provider 凭据；见真实 Provider smoke 入口）。
  * - Windows PS/CMD/DPI：NOT_PERFORMED（非 Windows 环境只记录 sh/dev_host_only）。
  */
-import { execFileSync } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
 import { OpenAICompatibleProvider } from '../src';
-import { A9AgentLoop, PermissionMode, TurnOutcome } from '../../core/src';
+import { A9AgentLoop, PermissionMode, TurnOutcome, canonicalizeWorkspacePath } from '../../core/src';
 import { A9WorkspaceService } from '../../workspace/src';
 import { TrustedShellRunner, createTrustedShellLoopAdapter } from '../../runner/src';
 
@@ -455,8 +456,51 @@ describe('J4 (FIXTURE MODEL, sh/dev_host_only): shell and git with real repo and
 });
 
 // ---------------------------------------------------------------------------
-// J5：撤销与恢复（产品 A9 Runtime + 真实 SQLite；模拟进程关闭）
+// J5：撤销与恢复（产品 A9 Runtime + 真实 SQLite；真实子进程崩溃后重启）
 // ---------------------------------------------------------------------------
+
+/** 延迟 fixture：read 工具回执后不结束响应（保持 Turn active），可解锁。 */
+function startStallFixture(): Promise<{ baseUrl: string; close: () => Promise<void>; release: () => void }> {
+  let released = false;
+  const pending: import('http').ServerResponse[] = [];
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
+      req.on('end', () => {
+        const parsed = JSON.parse(body);
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        const sse = (obj: unknown) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+        const toolMsgs = (parsed.messages ?? []).filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo');
+        if (toolMsgs.length === 0) {
+          sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'r1', function: { name: 'read', arguments: '{"path":"note.txt"}' } }] }, finish_reason: 'tool_calls' }] });
+          res.write('data: [DONE]\n\n');
+          res.end();
+        } else if (released) {
+          sse({ choices: [{ delta: { content: 'late final' }, finish_reason: 'stop' }] });
+          res.write('data: [DONE]\n\n');
+          res.end();
+        } else {
+          pending.push(res); // 不结束：模型“停住”，Turn 保持 active。
+        }
+      });
+    });
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        baseUrl: `http://127.0.0.1:${(server.address() as any).port}`,
+        close: () => new Promise<void>((done) => server.close(() => done())),
+        release: () => {
+          released = true;
+          for (const res of pending.splice(0)) {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'late final' }, finish_reason: 'stop' }] })}\n\n`);
+            res.write('data: [DONE]\n\n');
+            res.end();
+          }
+        },
+      });
+    });
+  });
+}
 
 describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with real SQLite', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -477,6 +521,7 @@ describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with rea
     fs.mkdirSync(workspaceRoot, { recursive: true });
     fs.mkdirSync(dataRoot, { recursive: true });
     fs.writeFileSync(path.join(workspaceRoot, 'state.ts'), 'const value = 1;\n');
+    fs.writeFileSync(path.join(workspaceRoot, 'note.txt'), 'n\n');
   });
 
   afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
@@ -490,40 +535,72 @@ describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with rea
     });
   }
 
-  it('recovers mode/provider/checkpoint/interruption after a simulated process close, without replay', async () => {
+  it('recovers mode/provider/checkpoint/interruption after a real subprocess crash, without replay', async () => {
     const model = await startBehaviorModel((seen) => {
       const readTargets = seen.filter((e) => e.startsWith('read:')).map((e) => e.slice(5, 60));
       if (!readTargets.some((t) => t.includes('state.ts'))) return { tool: { id: 'r1', name: 'read', args: { path: 'state.ts' } } };
       if (!seen.some((e) => e.startsWith('edit:'))) return { tool: { id: 'e1', name: 'edit', args: { path: 'state.ts', oldText: 'const value = 1;', newText: 'const value = 2;' } } };
       return { done: true, content: 'edited state.ts' };
     });
+    const stall = await startStallFixture();
+    const markerFile = path.join(root, 'crash.marker');
     try {
-      // 第一段进程：模式、Provider、任务与 checkpoint。
+      // 第一段进程：模式、Provider、已完成任务与 checkpoint。
       const runtime1 = makeRuntime();
       runtime1.setMode('full_access');
       await runtime1.configureProvider({ baseUrl: model.baseUrl, model: 'fixture-model', skipProbe: true });
       const turn = await runtime1.submitTurn('把 value 改成 2');
       expect(turn.ok).toBe(true);
       expect(fs.readFileSync(path.join(workspaceRoot, 'state.ts'), 'utf8')).toBe('const value = 2;\n');
-      // 模拟崩溃前有一个活动任务（真实崩溃会留下 active 记录）。
-      const rawDb = new Database(path.join(dataRoot, 'a9-state.db'));
-      rawDb.prepare("INSERT OR REPLACE INTO a9_tasks (task_id, session_id, status, created_at, updated_at) VALUES ('crash-task', 'a9-desktop', 'active', ?, ?)")
-        .run(new Date().toISOString(), new Date().toISOString());
-      rawDb.close();
       runtime1.shutdown();
 
-      // 第二段进程：运行时重建（模拟重启）。
+      // 真实子进程崩溃：启动 runtime，确认 active task/turn/run 已落库后 exit(70)
+      // （不 shutdown、不清理），模拟进程崩溃留下的活动状态。
+      const childLog = path.join(root, 'child.log');
+      const logStream = fs.openSync(childLog, 'a');
+      const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'shell', 'tests', 'product', 'a9-f5-crash-child.cjs')], {
+        env: {
+          ...process.env,
+          A9_F5_WORKSPACE: workspaceRoot,
+          A9_F5_DATAROOT: dataRoot,
+          A9_F5_FIXTURE_URL: stall.baseUrl,
+          A9_F5_MARKER: markerFile,
+        },
+        stdio: ['ignore', 'ignore', logStream],
+      });
+      child.on('exit', () => { fs.closeSync(logStream); });
+      const markerDeadline = Date.now() + 30_000;
+      while (!fs.existsSync(markerFile) && Date.now() < markerDeadline) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      expect(fs.existsSync(markerFile)).toBe(true);
+      // 子进程用 pid 存活探测等待退出（jest 下 exit 事件可能不投递）。
+      const exitDeadline = Date.now() + 15_000;
+      let exited = false;
+      while (Date.now() < exitDeadline) {
+        const childPid = child.pid ?? 0;
+        try { process.kill(childPid, 0); await new Promise((r) => setTimeout(r, 150)); } catch (_e) { exited = true; break; }
+      }
+      expect(exited).toBe(true);
+      expect(child.exitCode).toBe(70);
+
+      // 第二段进程：运行时重建（模拟重启）→ active → interrupted，只恢复事实。
       const runtime2 = makeRuntime();
       const snapshot = runtime2.getSnapshot();
       expect(snapshot.mode).toBe('full_access');
       expect(snapshot.provider.configured).toBe(true);
-      expect(snapshot.provider.model).toBe('fixture-model');
+      // 子进程最后持久化的 Provider 配置（stall fixture）被恢复；非秘密配置不丢失。
+      expect(snapshot.provider.baseUrl).toBe(stall.baseUrl);
+      expect(snapshot.provider.model).toBe('fixture');
       expect(snapshot.checkpoints.length).toBeGreaterThanOrEqual(1);
-      expect(snapshot.interruptions.some((i: any) => i.id === 'crash-task')).toBe(true);
+      // 真实中断事实：task/turn/run 三个层级都从 active → interrupted。
+      expect(snapshot.interruptions.some((i: any) => i.kind === 'task')).toBe(true);
+      expect(snapshot.interruptions.some((i: any) => i.kind === 'turn')).toBe(true);
+      expect(snapshot.interruptions.some((i: any) => i.kind === 'run')).toBe(true);
       // 不自动重放：时间线为空（没有自动执行任何模型/Shell/Git/审批）。
       expect(snapshot.timeline).toEqual([]);
 
-      // 撤销恢复真实文件内容。
+      // 撤销恢复真实文件内容（已完成轮的 checkpoint）。
       const undo = runtime2.undoTurn(turn.result.turnId);
       expect(undo.ok).toBe(true);
       expect(undo.outcome.errors).toEqual([]);
@@ -531,6 +608,8 @@ describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with rea
       runtime2.shutdown();
 
       // A9PersistenceManager 直接打开同一数据库可读取 checkpoint 事实（真实 SQLite）。
+      const canonical = canonicalizeWorkspacePath(workspaceRoot);
+      const a9SessionId = `a9-${crypto.createHash('sha256').update(canonical, 'utf8').digest('hex').slice(0, 16)}`;
       const persistence = A9PersistenceManager.open({
         databasePath: path.join(dataRoot, 'a9-state.db'),
         openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),
@@ -538,10 +617,12 @@ describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with rea
       });
       expect(persistence.status).toBe('ready');
       if (persistence.status === 'ready') {
-        expect(persistence.manager.listCheckpoints('a9-desktop').length).toBeGreaterThanOrEqual(1);
+        expect(persistence.manager.listCheckpoints(a9SessionId).length).toBeGreaterThanOrEqual(1);
       }
     } finally {
+      stall.release();
       await model.close();
+      await stall.close();
     }
-  }, 40_000);
+  }, 90_000);
 });
