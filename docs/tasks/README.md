@@ -54,8 +54,8 @@
 > 写入、真实 Git 和开放 OpenAI-compatible Provider。A8 的历史证据保持不变且不构成 A9 PASS。
 > A9-00 已取得 `A9_00_DESIGN_AND_GAP_PASS`；A9-01～A9-06 开发机 Gate 已完成，包含真实 Provider、
 > 真实模型 J1～J3、真实 Git/SQLite 副作用旅程和 Electron 22 三进程 38/38。A9-07 现为
-> `IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS`：v3 脏源码开发候选已双构建一致，但不可参加外部验收；
-> 干净候选、Win10/Win7 与 `A9_ALPHA1_PASS` 均为 `NOT_PERFORMED`。
+> `IN_PROGRESS`：实现提交 `8659c53` 的 v3 干净候选已双构建一致并可进入外部验收；Win10/Win7 与
+> `A9_ALPHA1_PASS` 均为 `NOT_PERFORMED`。
 
 MVP-20260802-14 已由项目负责人按 ADR-0055 以 `OWNER_ACCEPTED_FOR_MVP` 收口，并完成真实 Electron 产品入口的启动、Renderer 诊断和正常退出实测；延期项不改变各正式任务状态，也不解除 Phase 1/2、SPIKE_02/04 或 E7 的正式 Gate。
 

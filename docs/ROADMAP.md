@@ -17,7 +17,7 @@
 | 阶段 3–7 | 候选实现已进入 main；A7 收口基线 7 模块 983 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
 | A7 Win7 v1 RC | `RC_PASS`；已完成三层验证、RC-01～RC-10 和 main 整合 | `RC_01_WIN7_RELEASE_CANDIDATE.md` |
 | A8 Agent-first | `A8_DEVELOPER_COMPLETE_VALIDATION_READY`；历史 Review-first 候选，外部三层未完成 | `A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md` |
-| A9 Trusted Agent Runtime | A9-01～A9-06 开发机 Gate PASS；A9-07 `IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS`；Win10/Win7 未执行 | `A9_TRUSTED_AGENT_RUNTIME.md` |
+| A9 Trusted Agent Runtime | A9-01～A9-06 开发机 Gate PASS；A9-07 干净候选已就绪；Win10/Win7 未执行 | `A9_TRUSTED_AGENT_RUNTIME.md` |
 
 对标 Codex 的整体裁决记录于 ADR-0028~0035，并已由 ADR-0036 接受（附 Spike 条件）；
 性能口径统一引用 `docs/PERFORMANCE_BUDGET.md`（ADR-0033）。
@@ -147,8 +147,8 @@
 - 串行顺序：A9-00 文档/差距 → A9-01 模式/工具 → A9-02 Shell → A9-03 文件/checkpoint →
   A9-04 Provider → A9-05 Loop/Git → A9-06 UI/State → A9-07 包与 Win7 五旅程。
 - 当前检查点：A9-04 真实 Provider、A9-05 真实模型 J1～J3/真实副作用 J4～J5、A9-06 真实 Electron
-  三进程 38/38 和仓库 1307 项均通过；A9-07 已开始，v3 脏源码开发候选完成双构建一致与包级完整性，
-  但不可进入外部评分；干净候选和 Windows 证据保持未执行。
+  三进程 38/38 和仓库 1307 项均通过；A9-07 已从实现提交 `8659c53` 生成双构建一致、可进入外部评分的
+  v3 干净候选；Windows 证据保持未执行。
 - 非目标：Office 专用能力、内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场、自动更新。
 - 完成门槛：同一自包含候选在干净 Win7 SP1 x64 完成五条真实 Coding Agent 旅程；开发机、Win10 或
   A8/A7 历史 PASS 不能替代。

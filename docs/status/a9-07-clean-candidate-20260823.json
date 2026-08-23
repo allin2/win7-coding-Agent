@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-07-CLEAN-CANDIDATE-20260823-01",
+  "recorded_at": "2026-08-23",
+  "stage": "A9-07",
+  "status": "CLEAN_CANDIDATE_READY_FOR_WINDOWS_VALIDATION",
+  "source_commit": "8659c53cc49bd2c1e507d410aa9f7a4b12f0d46c",
+  "source_dirty": false,
+  "external_acceptance_eligible": true,
+  "candidate": {
+    "release_id": "WIN7-CODING-AGENT-A9-ALPHA1",
+    "version": "0.3.0-alpha.1",
+    "filename": "Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip",
+    "package_sha256_first_build": "05fa45deb11541a458363f6dd7f1ba7c448b2b4d9ad369af21c30c7497abd03a",
+    "package_sha256_second_build": "05fa45deb11541a458363f6dd7f1ba7c448b2b4d9ad369af21c30c7497abd03a",
+    "manifest_sha256": "104b4fa55f28048e60b1778d5307d6bceab45e1a849e36ee50108c12e3c478d9",
+    "manifest_file_count": 774,
+    "deterministic_double_build": "PASS",
+    "zip_sidecar": "PASS",
+    "zip_full_tree_readback": "PASS"
+  },
+  "locked_inputs": {
+    "electron_22_3_27": "PASS",
+    "d013_v24_helper": "PASS",
+    "better_sqlite3_8_7_0_sqlite_3_43_1_abi_110": "PASS"
+  },
+  "gates": {
+    "developer_package_integrity": "PASS",
+    "clean_source_candidate": "PASS",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "alpha1": "NOT_PERFORMED"
+  },
+  "next": "Run RUN_A9_07_INTEGRITY.cmd with the original ZIP path, then execute same-candidate Win10/Win7 acceptance.",
+  "credential_handling": "NO_REAL_API_KEY_IN_CANDIDATE_OR_EVIDENCE"
+}
