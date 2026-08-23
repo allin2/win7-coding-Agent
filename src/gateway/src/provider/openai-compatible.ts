@@ -111,6 +111,17 @@ export interface ProviderCapabilityProbeResult {
 const DEFAULT_TOTAL_TIMEOUT_MS = 300_000;
 const DEFAULT_NO_DATA_TIMEOUT_MS = 120_000;
 
+/**
+ * OpenAI-compatible function parameters must be an object JSON Schema. Core's
+ * ToolInputSchema historically models only the object body (properties,
+ * required, additionalProperties), so normalize that internal shorthand at
+ * the Provider wire boundary. Explicit vendor schemas keep their declared type.
+ */
+function normalizeFunctionParameters(parameters: Record<string, unknown>): Record<string, unknown> {
+  if (parameters.type !== undefined) return { ...parameters };
+  return { ...parameters, type: 'object' };
+}
+
 /** 不可重试的 HTTP 状态：认证、参数与工具格式错误。 */
 const NON_RETRYABLE_STATUS = new Set([400, 401, 403, 404, 405, 422]);
 
@@ -286,7 +297,7 @@ export class OpenAICompatibleProvider {
           function: {
             name: t.name,
             description: t.description,
-            parameters: t.parameters,
+            parameters: normalizeFunctionParameters(t.parameters),
           },
         })),
         tool_choice: request.toolChoice || 'auto',

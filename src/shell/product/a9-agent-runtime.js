@@ -154,6 +154,13 @@ function createA9AgentRuntime(options) {
   let providerDiagnostics = null;  // fail-closed 诊断（不删除证据）
   let provider = null;
 
+  function hasSecretMaterial(secrets) {
+    return Boolean(secrets) && (
+      Boolean(secrets.proxyPassword) ||
+      Boolean(secrets.headerValues && Object.keys(secrets.headerValues).length > 0)
+    );
+  }
+
   function redactSecrets(text) {
     let out = String(text);
     const secrets = [memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
@@ -262,9 +269,10 @@ function createA9AgentRuntime(options) {
     const loaded = loadPersistedSecrets();
     memoryApiKey = loaded.apiKey;
     memorySecrets = loaded.secrets;
-    apiKeySource = memoryApiKey ? 'dpapi' : 'none';
-    if (providerConfig.keyRemembered && !memoryApiKey && !providerDiagnostics) {
-      providerDiagnostics = { code: 'A9_PROVIDER_KEY_NOT_RESTORED', detail: '标记为已记住但密文缺失（可能已被清除）' };
+    const restoredSecret = Boolean(memoryApiKey) || hasSecretMaterial(memorySecrets);
+    apiKeySource = restoredSecret ? 'dpapi' : 'none';
+    if (providerConfig.keyRemembered && !restoredSecret && !providerDiagnostics) {
+      providerDiagnostics = { code: 'A9_PROVIDER_KEY_NOT_RESTORED', detail: '标记为已记住但 DPAPI 秘密未恢复（可能已被清除）' };
     }
     rebuildProvider();
   })();
@@ -382,6 +390,8 @@ function createA9AgentRuntime(options) {
     if (typeof values.model !== 'string' || values.model.trim().length === 0) {
       throw new Error('A9_PROVIDER_CONFIG_INVALID: model 必须是手工填写的模型 ID');
     }
+    // 新配置尝试从干净诊断状态开始；本次 DPAPI/probe 失败会重新写入真实原因。
+    providerDiagnostics = null;
 
     const customHeaders = values.customHeaders && typeof values.customHeaders === 'object' ? values.customHeaders : {};
     const customHeaderNames = Object.keys(customHeaders);
@@ -441,12 +451,16 @@ function createA9AgentRuntime(options) {
       } catch (err) {
         providerDiagnostics = providerDiagnostics || { code: err && err.code ? err.code : 'A9_PROVIDER_SECRET_SAVE_FAILED', detail: redactSecrets(err.message) };
       }
+    } else if (remember && hasSecretMaterial(memorySecrets)) {
+      providerDiagnostics = providerDiagnostics || { code: 'A9_PROVIDER_DPAPI_UNAVAILABLE', detail: '当前环境无 DPAPI（非 Windows 或 safeStorage 不可用）：Header/代理秘密仅保存在进程内存' };
     }
     if (remember === false) {
       try { if (apiKeyVault) apiKeyVault.clearApiKey(); } catch (_err) { /* best effort */ }
       try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
     }
-    apiKeySource = apiKeyPersisted ? 'dpapi' : (memoryApiKey ? 'memory' : 'none');
+    const persistedSecret = apiKeyPersisted || secretsPersisted;
+    apiKeySource = persistedSecret ? 'dpapi'
+      : (memoryApiKey || hasSecretMaterial(memorySecrets)) ? 'memory' : 'none';
 
     rebuildProvider();
 
@@ -457,6 +471,9 @@ function createA9AgentRuntime(options) {
       providerProbe = await classifyProviderWithProbe();
     }
 
+    const keyRemembered = remember === true && persistedSecret === true && (await verifyPersistedSecretsReadable());
+    // 返回值、当前快照、审计和重启后的 JSON 必须使用同一个已验证事实。
+    providerConfig.keyRemembered = keyRemembered;
     writePersistedProviderConfig({
       schemaVersion: PROVIDER_CONFIG_SCHEMA_VERSION,
       baseUrl: providerConfig.baseUrl,
@@ -467,7 +484,7 @@ function createA9AgentRuntime(options) {
       ...(providerConfig.proxy ? { proxy: providerConfig.proxy } : {}),
       // F4：keyRemembered=true 仅表示秘密（API Key 或 Header/代理密码）已成功经 DPAPI
       // 持久化且当前可读取；仅内存（memory）在返回值与快照中都显示未记住。
-      keyRemembered: remember === true && (apiKeyPersisted || secretsPersisted) === true && (await verifyPersistedSecretsReadable()),
+      keyRemembered,
       probe: providerProbe,
       updatedAt: new Date().toISOString(),
     });
@@ -529,10 +546,94 @@ function createA9AgentRuntime(options) {
     return probe;
   }
 
+  function statusesForOutcome(outcome) {
+    if (outcome === 'needs_approval') return { turn: 'active', task: 'active', run: 'active' };
+    if (outcome === 'completed') return { turn: 'completed', task: 'completed', run: 'completed' };
+    if (outcome === 'completed_with_warnings') return { turn: 'completed_with_warnings', task: 'completed', run: 'completed' };
+    if (outcome === 'blocked') return { turn: 'blocked', task: 'failed', run: 'failed' };
+    if (outcome === 'cancelled') return { turn: 'cancelled', task: 'cancelled', run: 'cancelled' };
+    return { turn: 'failed', task: 'failed', run: 'failed' };
+  }
+
+  function checkpointPayloadFor(result, pendingApproval) {
+    return {
+      schemaVersion: 1,
+      outcome: result.outcome,
+      verification: result.verification || 'not_applicable',
+      finalMessage: result.finalMessage || '',
+      toolCallsExecuted: Number.isFinite(result.toolCallsExecuted) ? result.toolCallsExecuted : 0,
+      externalChanges: Array.isArray(result.externalChanges) ? result.externalChanges : [],
+      ...(pendingApproval ? {
+        pendingApproval: {
+          approvalId: pendingApproval.approvalId,
+          toolName: pendingApproval.toolName,
+          bindingDigest: pendingApproval.bindingDigest,
+        },
+      } : {}),
+    };
+  }
+
+  /** submit/resume 共用的唯一终态汇点：SQLite、快照和 checkpoint 同步更新。 */
+  function persistTurnResult(lifecycle, result) {
+    const statuses = statusesForOutcome(result.outcome);
+    const pendingApproval = result.outcome === 'needs_approval'
+      ? (result.pendingApproval || currentPendingApproval)
+      : null;
+    persistence.upsertTurn(result.turnId, lifecycle.taskId, a9SessionId, statuses.turn, {
+      schemaVersion: 1,
+      outcome: result.outcome,
+      verification: result.verification,
+    });
+    persistence.upsertRun(lifecycle.runId, result.turnId, a9SessionId, statuses.run);
+    persistence.upsertTask(lifecycle.taskId, a9SessionId, statuses.task);
+    currentPendingApproval = pendingApproval;
+    persistence.saveCheckpoint({
+      turnId: result.turnId,
+      sessionId: a9SessionId,
+      payload: checkpointPayloadFor(result, pendingApproval),
+    });
+    if (result.externalChanges && result.externalChanges.length > 0) {
+      persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', { changes: result.externalChanges });
+    }
+    agentStatus = result.outcome;
+    activeLifecycle = result.outcome === 'needs_approval' ? lifecycle : null;
+  }
+
+  function persistUnexpectedFailure(error, lifecycle) {
+    agentStatus = 'failed';
+    if (!lifecycle) return;
+    const detail = redactSecrets(error && error.message ? error.message : String(error));
+    try {
+      persistence.upsertTask(lifecycle.taskId, a9SessionId, 'failed');
+      if (lifecycle.turnId) {
+        persistence.upsertTurn(lifecycle.turnId, lifecycle.taskId, a9SessionId, 'failed', { schemaVersion: 1, error: detail });
+        persistence.upsertRun(lifecycle.runId, lifecycle.turnId, a9SessionId, 'failed');
+        persistence.saveCheckpoint({
+          turnId: lifecycle.turnId,
+          sessionId: a9SessionId,
+          payload: {
+            schemaVersion: 1,
+            outcome: 'failed',
+            verification: 'not_applicable',
+            finalMessage: detail,
+            toolCallsExecuted: 0,
+            externalChanges: [],
+          },
+        });
+      }
+    } catch (persistenceError) {
+      // 返回给调用方的错误包含持久化失败，不能静默冒充已落终态。
+      if (error && (typeof error === 'object' || typeof error === 'function')) {
+        error.persistenceError = redactSecrets(persistenceError && persistenceError.message ? persistenceError.message : String(persistenceError));
+      }
+    }
+    activeLifecycle = null;
+    currentPendingApproval = null;
+  }
+
   async function submitTurn(prompt) {
     let createdTaskId = null;
     try {
-      const activeLoop = ensureRuntime();
       if (activeController) throw new Error('A9_TURN_ALREADY_ACTIVE');
       activeController = new AbortController();
       agentStatus = 'running';
@@ -540,6 +641,7 @@ function createA9AgentRuntime(options) {
       createdTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       persistence.upsertTask(createdTaskId, a9SessionId, 'active');
       activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null };
+      const activeLoop = ensureRuntime();
       const result = await activeLoop.runTurn(String(prompt || ''), { signal: activeController.signal });
       // turn_started 已写入 active turn/run；这里补齐句柄（幂等）。
       const runId = activeLifecycle && activeLifecycle.runId ? activeLifecycle.runId : `run-${result.turnId}`;
@@ -547,51 +649,17 @@ function createA9AgentRuntime(options) {
         persistence.upsertTurn(result.turnId, createdTaskId, a9SessionId, 'active');
         persistence.upsertRun(runId, result.turnId, a9SessionId, 'active');
       }
-      activeLifecycle = { taskId: createdTaskId, turnId: result.turnId, runId };
-      // 终态映射：等待审批保留 active；其余按真实 outcome 落库。
-      const finalTurnStatus = result.outcome === 'needs_approval' ? 'active'
-        : result.outcome === 'completed' ? 'completed'
-          : result.outcome === 'completed_with_warnings' ? 'completed_with_warnings'
-            : result.outcome === 'blocked' ? 'blocked'
-              : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
-      const finalRunTaskStatus = result.outcome === 'needs_approval' ? 'active'
-        : result.outcome === 'completed' || result.outcome === 'completed_with_warnings' ? 'completed'
-          : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
-      if (result.outcome !== 'needs_approval') {
-        persistence.upsertTurn(result.turnId, createdTaskId, a9SessionId, finalTurnStatus);
-        persistence.upsertRun(runId, result.turnId, a9SessionId, finalRunTaskStatus === 'completed' ? 'completed' : finalRunTaskStatus);
-        persistence.upsertTask(createdTaskId, a9SessionId, finalRunTaskStatus);
-        activeLifecycle = null;
-      }
-      currentPendingApproval = result.pendingApproval || currentPendingApproval;
-      persistence.saveCheckpoint({
-        turnId: result.turnId,
-        sessionId: a9SessionId,
-        payload: {
-          outcome: result.outcome,
-          verification: result.verification,
-          finalMessage: result.finalMessage,
-          toolCallsExecuted: result.toolCallsExecuted,
-          ...(result.externalChanges ? { externalChanges: result.externalChanges } : {}),
-        },
-      });
-      if (result.externalChanges && result.externalChanges.length > 0) {
-        persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', { changes: result.externalChanges });
-      }
-      agentStatus = result.outcome;
+      const lifecycle = { taskId: createdTaskId, turnId: result.turnId, runId };
+      activeLifecycle = lifecycle;
+      persistTurnResult(lifecycle, result);
       return { ok: true, result };
     } catch (error) {
-      agentStatus = 'failed';
-      // F5：Provider 异常/取消/进程异常 → 明确 failed（或 cancelled）状态落库。
-      if (createdTaskId) {
-        const cancelled = error && /cancel|abort/i.test(String(error.message || ''));
-        persistence.upsertTask(createdTaskId, a9SessionId, cancelled ? 'cancelled' : 'failed');
-        if (activeLifecycle && activeLifecycle.turnId) {
-          persistence.upsertTurn(activeLifecycle.turnId, createdTaskId, a9SessionId, cancelled ? 'cancelled' : 'failed');
-          persistence.upsertRun(activeLifecycle.runId, activeLifecycle.turnId, a9SessionId, cancelled ? 'cancelled' : 'failed');
-        }
+      let failureLifecycle = activeLifecycle || (createdTaskId ? { taskId: createdTaskId, turnId: null, runId: null } : null);
+      if (failureLifecycle && !failureLifecycle.turnId) {
+        const failureTurnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        failureLifecycle = { ...failureLifecycle, turnId: failureTurnId, runId: `run-${failureTurnId}` };
       }
-      activeLifecycle = null;
+      persistUnexpectedFailure(error, failureLifecycle);
       return { ok: false, error: serializeError(error) };
     } finally {
       activeController = null;
@@ -599,24 +667,30 @@ function createA9AgentRuntime(options) {
   }
 
   async function resumeApproval(input) {
+    let resumeProducedResult = false;
     try {
       if (!input || typeof input !== 'object' || !input.approvalId || !input.bindingDigest ||
           (input.decision !== 'approved' && input.decision !== 'denied')) {
-        throw new Error('A9_APPROVAL_INPUT_INVALID: 回复必须携带 approvalId、decision 与 bindingDigest');
+        const err = new Error('A9_APPROVAL_INPUT_INVALID: 回复必须携带 approvalId、decision 与 bindingDigest');
+        err.code = 'A9_APPROVAL_INPUT_INVALID';
+        throw err;
+      }
+      const original = currentPendingApproval;
+      if (!original || original.approvalId !== input.approvalId) {
+        const err = new Error('A9_APPROVAL_UNKNOWN: 没有匹配的挂起审批');
+        err.code = 'A9_APPROVAL_UNKNOWN';
+        throw err;
       }
       const activeLoop = ensureRuntime();
       if (activeController) throw new Error('A9_TURN_ALREADY_ACTIVE');
       activeController = new AbortController();
       // R2.7：SQLite 记录来自原始 pending 审批，而不是恢复执行后的结果。
-      const original = currentPendingApproval;
-      if (!original || original.approvalId !== input.approvalId) {
-        throw new Error('A9_APPROVAL_UNKNOWN: 没有匹配的挂起审批');
-      }
       const result = await activeLoop.resumeAfterApproval({
         approvalId: input.approvalId,
         decision: input.decision,
         bindingDigest: input.bindingDigest,
       }, { signal: activeController.signal });
+      resumeProducedResult = true;
       persistence.recordApproval({
         approvalId: original.approvalId,
         sessionId: a9SessionId,
@@ -630,26 +704,17 @@ function createA9AgentRuntime(options) {
         },
         decision: input.decision,
       });
-      currentPendingApproval = null;
-      // F5：resume 继续更新原 task/turn/run，不创建无关联状态。
       const lifecycle = activeLifecycle || null;
       if (lifecycle && lifecycle.turnId) {
-        const finalTurnStatus = result.outcome === 'needs_approval' ? 'active'
-          : result.outcome === 'completed' ? 'completed'
-            : result.outcome === 'completed_with_warnings' ? 'completed_with_warnings'
-              : result.outcome === 'blocked' ? 'blocked'
-                : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
-        const finalTaskStatus = result.outcome === 'needs_approval' ? 'active'
-          : result.outcome === 'completed' || result.outcome === 'completed_with_warnings' ? 'completed'
-            : result.outcome === 'cancelled' ? 'cancelled' : 'failed';
-        persistence.upsertTurn(lifecycle.turnId, lifecycle.taskId, a9SessionId, finalTurnStatus);
-        persistence.upsertRun(lifecycle.runId, lifecycle.turnId, a9SessionId, finalTaskStatus === 'completed' ? 'completed' : finalTaskStatus);
-        persistence.upsertTask(lifecycle.taskId, a9SessionId, finalTaskStatus);
-        if (result.outcome !== 'needs_approval') activeLifecycle = null;
+        persistTurnResult(lifecycle, result);
+      } else {
+        const err = new Error('A9_LIFECYCLE_MISSING: 挂起审批缺少 task/turn/run 生命周期事实');
+        err.code = 'A9_LIFECYCLE_MISSING';
+        throw err;
       }
-      agentStatus = result.outcome;
       return { ok: true, result };
     } catch (error) {
+      if (resumeProducedResult) persistUnexpectedFailure(error, activeLifecycle);
       return { ok: false, error: serializeError(error) };
     } finally {
       activeController = null;

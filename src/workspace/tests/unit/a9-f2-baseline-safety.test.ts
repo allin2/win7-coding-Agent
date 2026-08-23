@@ -43,6 +43,32 @@ describe('F2: skipped baseline files are never treated as created', () => {
     expect(undo.errors.some((e) => e.includes('big.bin') && e.includes('无法恢复'))).toBe(true);
   });
 
+  it('an unchanged oversized file produces no false external change', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'unchanged-large.bin'), Buffer.alloc(BIG, 0x33));
+    const baseline = await service.freezeTurnBaseline('t-unchanged');
+    expect(baseline.skipped.some((s) => s.path === 'unchanged-large.bin')).toBe(true);
+
+    const report = await service.collectExternalChanges('t-unchanged', baseline);
+    expect(report.changes).toEqual([]);
+    expect(report.unrecoverable).toEqual([]);
+  });
+
+  it('a same-size oversized file with a changed mtime is conservatively reported modified', async () => {
+    const target = path.join(workspaceRoot, 'same-size-large.bin');
+    fs.writeFileSync(target, Buffer.alloc(BIG, 0x33));
+    const baseline = await service.freezeTurnBaseline('t-mtime');
+    const before = baseline.skipped.find((s) => s.path === 'same-size-large.bin');
+    expect(before?.mtimeMs).toBeDefined();
+
+    fs.writeFileSync(target, Buffer.alloc(BIG, 0x44));
+    const future = new Date((before!.mtimeMs as number) + 2_000);
+    fs.utimesSync(target, future, future);
+    const report = await service.collectExternalChanges('t-mtime', baseline);
+    expect(report.changes).toContainEqual(expect.objectContaining({
+      path: 'same-size-large.bin', kind: 'modified', recoverable: false,
+    }));
+  });
+
   it('an existing oversized file deleted by shell is reported unrecoverable (no fake restore)', async () => {
     fs.writeFileSync(path.join(workspaceRoot, 'large.dat'), Buffer.alloc(BIG, 0x63));
     const baseline = await service.freezeTurnBaseline('t2');
@@ -71,22 +97,42 @@ describe('F2: skipped baseline files are never treated as created', () => {
   });
 
   it('a file skipped by the total-capacity limit is not misjudged as created', async () => {
-    // 三个 1.5MB 文件：每个低于单文件上限，总量超过 40MB？不，改用多个文件逼近总量上限会太慢；
-    // 改为：一个 1.9MB（可入库）+ 一个 3MB（超单文件上限），验证两类原因并存时的安全语义。
-    fs.writeFileSync(path.join(workspaceRoot, 'ok.bin'), Buffer.alloc(1.9 * 1024 * 1024, 0x01));
-    fs.writeFileSync(path.join(workspaceRoot, 'over-total.bin'), Buffer.alloc(BIG, 0x02));
+    const belowSingleFileLimit = Math.floor(1.9 * 1024 * 1024);
+    for (let i = 0; i < 22; i += 1) {
+      fs.writeFileSync(path.join(workspaceRoot, `total-${String(i).padStart(2, '0')}.bin`), Buffer.alloc(belowSingleFileLimit, i));
+    }
     const baseline = await service.freezeTurnBaseline('t4');
-    expect(baseline.files['ok.bin']).toBeDefined();
-    expect(baseline.skipped.some((s) => s.path === 'over-total.bin')).toBe(true);
+    const totalCapacitySkipped = baseline.skipped.find((s) => s.size === belowSingleFileLimit);
+    expect(Object.keys(baseline.files).length).toBeGreaterThan(0);
+    expect(totalCapacitySkipped).toBeDefined();
 
-    fs.appendFileSync(path.join(workspaceRoot, 'over-total.bin'), 'x');
+    const skippedPath = totalCapacitySkipped!.path;
+    fs.appendFileSync(path.join(workspaceRoot, skippedPath), 'x');
     const report = await service.collectExternalChanges('t4', baseline);
-    const entry = report.changes.find((c) => c.path === 'over-total.bin');
+    const entry = report.changes.find((c) => c.path === skippedPath);
     expect(entry?.kind).toBe('modified');
     expect(entry?.recoverable).toBe(false);
     const undo = service.getCheckpointManager().undoTurn('t4');
-    expect(fs.existsSync(path.join(workspaceRoot, 'over-total.bin'))).toBe(true);
-    expect(undo.errors.some((e) => e.includes('over-total.bin'))).toBe(true);
+    expect(fs.existsSync(path.join(workspaceRoot, skippedPath))).toBe(true);
+    expect(undo.errors.some((e) => e.includes(skippedPath))).toBe(true);
+  });
+
+  it('a baseline read failure keeps stat facts and does not invent a change when the file is unchanged', async () => {
+    const target = path.join(workspaceRoot, 'temporarily-unreadable.txt');
+    fs.writeFileSync(target, 'stable-content', 'utf8');
+    class ReadFailureWorkspaceService extends A9WorkspaceService {
+      protected readBaselineFile(filePath: string): Buffer {
+        if (path.basename(filePath) === path.basename(target)) throw new Error('forced baseline read failure');
+        return super.readBaselineFile(filePath);
+      }
+    }
+    const readFailureService = new ReadFailureWorkspaceService(workspaceRoot);
+    const baseline = await readFailureService.freezeTurnBaseline('t-read-failure');
+    expect(baseline.skipped.some((s) => s.path === 'temporarily-unreadable.txt' && s.reason === 'backup_failed')).toBe(true);
+
+    const report = await readFailureService.collectExternalChanges('t-read-failure', baseline);
+    expect(report.changes).toEqual([]);
+    expect(report.unrecoverable).toEqual([]);
   });
 
   it('rename of a baseline-skipped file is explicitly unrecoverable on both sides', async () => {

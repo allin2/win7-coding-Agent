@@ -7,9 +7,12 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: PRODUCT_RUNTIME
 Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
-Phase-Gate: A9_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_07_IN_PROGRESS
 Requirements: docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md
-Developer-Validation: NOT_PERFORMED
+Developer-Validation: A9_01_TO_A9_06_PASS
+Formal-Serial-Gate: A9-07_IN_PROGRESS
+Current-Stage: A9-07
+Current-Stage-Status: IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS
 Win10-Validation: NOT_PERFORMED
 Win7-Validation: NOT_PERFORMED
 ```
@@ -120,6 +123,102 @@ Win7-Validation: NOT_PERFORMED
 串行阶段和五条产品旅程。`npm run docs:check` 通过 96 个文档文件/20 个任务书，HTML 可解析且 29 个相对链接
 全部存在，`npm run verify:quick` 通过七个 TypeScript 模块编译/静态门。以上只证明 A9 可以合法进入 A9-01，
 不证明 Full Access、Shell、文件工具、Provider、Git 或任何 Win7 产品旅程已经实现。
+
+### 3.2 A9-01～A9-06 实现检查点（2026-08-23）
+
+```text
+Implementation-Coverage: A9-01_TO_A9-06_PRESENT_IN_WORKTREE
+Developer-Fixture: PASS
+Developer-Electron-22-Smoke: PASS
+Formal-Serial-Gate: A9-07_IN_PROGRESS
+A9-07: IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS
+Win10-Validation: NOT_PERFORMED
+Win7-Validation: NOT_PERFORMED
+```
+
+A9-01～A9-06 对应代码和开发机 Gate 均已取得 PASS。A9-04 使用真实 DeepSeek Provider 完成 SSE、
+原生 tool calling、真实修复/测试与取消；A9-05 使用同一真实模型完成 J1～J3，fixture J4/J5 使用真实
+Git/审批与 SQLite/子进程；A9-06 当前工作树的真实 Electron 22 三进程产品入口 38/38 通过。
+A9-07 已开始并完成 v3 开发候选的输入锁、装配、全树 manifest、敏感信息排除和双构建一致性；该候选
+来自未提交工作树，明确为 `external_acceptance_eligible=false`，不能进入 Windows 正式评分。干净源码候选、
+Win10、Win7 和 `A9_ALPHA1_PASS` 均未执行。机器可读检查点见
+[`a9-trusted-agent-runtime-latest.json`](../status/a9-trusted-agent-runtime-latest.json)。
+
+### 3.3 A9-04 真实 Provider Gate 记录（2026-08-23）
+
+```text
+Stage: A9-04
+Status: COMPLETE
+Gate: A9_04_REAL_PROVIDER_PASS
+Provider: https://api.deepseek.com / deepseek-v4-flash
+Credential: USER_SUPPLIED_EPHEMERAL_NOT_RECORDED
+Next-Stage: A9-05
+Next-Stage-Status: IN_PROGRESS_REAL_MODEL_J1_J3
+```
+
+首次完整工具目录请求暴露了 fixture 未发现的兼容缺陷：Core 工具参数 shorthand 缺少真实 Provider 要求的
+顶层 `type: object`。Provider wire 边界统一补齐后，Gateway 241 项回归通过，真实闭环达到
+`completed / verified`，执行五次工具调用和真实 `node test.js`，取消也得到 `cancelled`。脱敏原始结论见
+[`a9-04-real-provider-deepseek-20260823.json`](../status/a9-04-real-provider-deepseek-20260823.json)。
+
+### 3.4 A9-05 Agent Loop/Git Gate 记录（2026-08-23）
+
+```text
+Stage: A9-05
+Status: COMPLETE
+Gate: A9_05_REAL_MODEL_AND_FIVE_JOURNEYS_PASS
+Real-Model-J1-J3: PASS
+Behavioral-J4-J5: PASS_WITH_REAL_GIT_SQLITE_AND_PROCESS_SIDE_EFFECTS
+Next-Stage: A9-06
+Next-Stage-Status: COMPLETE
+```
+
+DeepSeek `deepseek-v4-flash` 在隔离临时项目中实际读取 `AGENTS.md`、项目配置和源码并引用证据（J1），
+完成真实缺陷修复与 `node test.js`（J2），完成范围受控的三文件小功能与真实项目脚本（J3）。J4/J5
+继续由行为化 fixture 驱动，但 Git pull/commit/push、审批绑定、拒绝零副作用、SQLite 中断恢复和无重放
+均为真实本地实现与副作用。证据见
+[`a9-05-real-model-journeys-deepseek-20260823.json`](../status/a9-05-real-model-journeys-deepseek-20260823.json)。
+
+### 3.5 A9-06 Desktop/State Gate 与 A9-07 授权（2026-08-23）
+
+```text
+Stage: A9-06
+Status: COMPLETE
+Gate: A9_06_DESKTOP_STATE_AND_LIFECYCLE_PASS
+Electron-22-Product-Entry: PASS_38_OF_38
+Repository-Validation: PASS_1302_OF_1302
+Next-Stage: A9-07
+Next-Stage-Status: AUTHORIZED_NOT_STARTED
+Win10-Validation: NOT_PERFORMED
+Win7-Validation: NOT_PERFORMED
+```
+
+三次独立 Electron 22.3.27 产品入口进程覆盖模式、Provider、工具旅程、Diff、审批真实目标、拒绝零副作用、
+重启事实、无模型重放、旧审批精确拒绝，以及 UI Stop 后真实 Shell PID 回收和零活动生命周期。A9-01～
+A9-06 开发机 Gate 汇总见
+[`a9-01-to-a9-06-developer-gates-20260823.json`](../status/a9-01-to-a9-06-developer-gates-20260823.json)。
+A9-07 只获得开始打包与 Windows 验收的授权，不表示已有候选或任何 Windows/Alpha PASS。
+
+### 3.6 A9-07 v3 开发候选检查点（2026-08-23）
+
+```text
+Stage: A9-07
+Status: IN_PROGRESS
+Developer-Package-Integrity: PASS
+Deterministic-Double-Build: PASS
+Source-Dirty: true
+External-Acceptance-Eligible: false
+Win10-Validation: NOT_PERFORMED
+Win7-Validation: NOT_PERFORMED
+Alpha1: NOT_PERFORMED
+```
+
+v3 构建器已装配 A9 正式 `main.js`/Preload/Renderer、Core/Gateway/Runner/State/Workspace 和此前 v2
+遗漏的 `git-adapter`，并通过包内 `a9-runtime.json` 自动绑定外置 Electron ABI 110 SQLite。默认 A9 数据
+根为 `%LOCALAPPDATA%\Win7CodingAgent\a9`，仅显式 `--portable` 使用包旁数据；完整性工具只使用包内
+`electron.exe` Node mode。真实锁定输入双构建字节一致，但因源码未提交只能作为开发替代证据；实际哈希
+只记录在候选之外的进展文件，避免把构建结果循环写回候选输入。进展记录见
+[`a9-07-developer-package-progress-20260823.json`](../status/a9-07-developer-package-progress-20260823.json)。
 
 ## 4. 关键实现合同
 

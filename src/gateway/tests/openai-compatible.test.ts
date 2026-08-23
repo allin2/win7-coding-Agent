@@ -9,6 +9,7 @@ describe('A9-04: OpenAICompatibleProvider', () => {
   let server: http.Server;
   let serverPort: number;
   let baseUrl: string;
+  const requestBodies: any[] = [];
 
   beforeAll((done) => {
     server = http.createServer((req, res) => {
@@ -17,6 +18,7 @@ describe('A9-04: OpenAICompatibleProvider', () => {
         req.on('data', (d) => { body += d; });
         req.on('end', () => {
           const parsed = JSON.parse(body);
+          requestBodies.push(parsed);
 
           // 模拟 401 场景
           if (parsed.model === 'invalid-auth-model') {
@@ -110,7 +112,7 @@ describe('A9-04: OpenAICompatibleProvider', () => {
     expect(response.finishReason).toBe(FinishReason.STOP);
   });
 
-  it('streams tool_calls and parses function arguments', async () => {
+  it('normalizes Core shorthand to an object JSON Schema and parses streamed tool_calls', async () => {
     const provider = new OpenAICompatibleProvider({
       baseUrl,
       model: 'test-model',
@@ -121,7 +123,15 @@ describe('A9-04: OpenAICompatibleProvider', () => {
         id: 'req-2',
         model: 'test-model',
         messages: [{ role: 'user', content: 'run tool' }],
-        tools: [{ name: 'probe_test_echo', description: 'test', parameters: {} }],
+        tools: [{
+          name: 'probe_test_echo',
+          description: 'test',
+          parameters: {
+            properties: { message: { type: 'string', description: 'echo message' } },
+            required: ['message'],
+            additionalProperties: false,
+          },
+        }],
       },
       () => {},
     );
@@ -130,6 +140,13 @@ describe('A9-04: OpenAICompatibleProvider', () => {
     expect(response.toolCalls).toBeDefined();
     expect(response.toolCalls?.[0].name).toBe('probe_test_echo');
     expect(response.toolCalls?.[0].arguments).toBe('{"message":"probe_ok"}');
+    const wireParameters = requestBodies[requestBodies.length - 1].tools[0].function.parameters;
+    expect(wireParameters).toEqual({
+      type: 'object',
+      properties: { message: { type: 'string', description: 'echo message' } },
+      required: ['message'],
+      additionalProperties: false,
+    });
   });
 
   it('performs capability probe and reports successful tool calling', async () => {

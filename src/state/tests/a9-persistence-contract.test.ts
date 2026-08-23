@@ -6,6 +6,7 @@
  * 工作区单写锁与多窗口行为；模式值损坏不默认 Full Access。
  */
 /// <reference path="./better-sqlite3.d.ts" />
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -24,6 +25,10 @@ function makeDataRoot(): { dataRoot: string; dbPath: string; cleanup: () => void
     dbPath: path.join(dataRoot, 'a9.db'),
     cleanup: () => fs.rmSync(dataRoot, { recursive: true, force: true }),
   };
+}
+
+function sha256(filePath: string): string {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 describe('A9-06: A9 persistence with a real SQLite adapter', () => {
@@ -52,15 +57,22 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect((db.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(A9_SCHEMA_VERSION);
   });
 
-  it('fails closed on unknown newer schema instead of overwriting', () => {
-    {
-      const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
-      expect(outcome.status).toBe('ready');
-    }
-    // 直接篡改版本为未来版本，模拟“由更新应用创建的库”。
+  it('refuses an unknown newer schema without changing bytes, journal mode or sidecar files', () => {
+    // 用 DELETE journal 构造未来版本库，以证明拒绝路径没有先切换到 WAL。
     const raw = new Database(env.dbPath);
-    raw.prepare('UPDATE a9_meta SET schema_version = ? WHERE id = 1').run(A9_SCHEMA_VERSION + 1);
+    raw.pragma('journal_mode = DELETE');
+    raw.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, ${A9_SCHEMA_VERSION + 1}, '2026-08-23T00:00:00.000Z', '2026-08-23T00:00:00.000Z');
+      CREATE TABLE future_only (evidence TEXT NOT NULL);
+      INSERT INTO future_only VALUES ('must remain byte-identical');
+    `);
     raw.close();
+    const beforeHash = sha256(env.dbPath);
+    const beforeFiles = fs.readdirSync(env.dataRoot).sort();
 
     const second = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
     expect(second.status).toBe('schema_refused');
@@ -68,9 +80,133 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
       expect(second.reason).toContain('拒绝覆盖');
       expect(second.foundVersion).toBe(A9_SCHEMA_VERSION + 1);
     }
-    // 原库未被降级改写。
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    expect(fs.readdirSync(env.dataRoot).sort()).toEqual(beforeFiles);
+    expect(fs.existsSync(`${env.dbPath}-wal`)).toBe(false);
+    expect(fs.existsSync(`${env.dbPath}-shm`)).toBe(false);
+
+    // 原库未被降级改写，也没有改变 journal mode。
     const check = new Database(env.dbPath, { readonly: true });
     expect((check.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(A9_SCHEMA_VERSION + 1);
+    expect(String(check.pragma('journal_mode', { simple: true })).toLowerCase()).toBe('delete');
+    check.close();
+  });
+
+  it.each([1, 2])('backs up and atomically migrates a v%s database so failed turns are truthful and existing rows survive', (legacyVersion) => {
+    const v2 = new Database(env.dbPath);
+    v2.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, ${legacyVersion}, '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+      CREATE TABLE a9_turns (
+        turn_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','cancelled','interrupted')),
+        outcome_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE INDEX idx_a9_turns_session_test ON a9_turns (session_id, updated_at);
+      INSERT INTO a9_turns VALUES ('turn-existing', 'task-existing', 'session-existing', 'blocked', '{"reason":"kept"}', '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+    `);
+    v2.close();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    expect(outcome.backupPath).toBeDefined();
+    expect(fs.existsSync(outcome.backupPath!)).toBe(true);
+    expect((outcome.manager.db.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(3);
+    expect(outcome.manager.db.prepare("SELECT status, outcome_json FROM a9_turns WHERE turn_id = 'turn-existing'").get()).toEqual({
+      status: 'blocked', outcome_json: '{"reason":"kept"}',
+    });
+    expect(outcome.manager.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_a9_turns_session_test'").get()).toEqual({
+      name: 'idx_a9_turns_session_test',
+    });
+
+    outcome.manager.upsertTurn('turn-existing', 'task-existing', 'session-existing', 'failed', { reason: 'provider' });
+    expect((outcome.manager.db.prepare("SELECT status FROM a9_turns WHERE turn_id = 'turn-existing'").get() as any).status).toBe('failed');
+    outcome.manager.db.close();
+
+    const reopened = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(reopened.status).toBe('ready');
+    if (reopened.status === 'ready') {
+      expect((reopened.manager.db.prepare("SELECT status FROM a9_turns WHERE turn_id = 'turn-existing'").get() as any).status).toBe('failed');
+    }
+  });
+
+  it('creates a transaction-consistent migration backup containing committed rows still present only in WAL', () => {
+    const writer = new Database(env.dbPath);
+    writer.pragma('journal_mode = WAL');
+    writer.pragma('wal_autocheckpoint = 0');
+    writer.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, 2, '2026-08-23T00:00:00.000Z', '2026-08-23T00:00:00.000Z');
+      CREATE TABLE a9_turns (
+        turn_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','cancelled','interrupted')),
+        outcome_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_turns VALUES ('turn-old', 'task', 'session', 'blocked', '{}', '2026-08-23T00:00:00.000Z', '2026-08-23T00:00:00.000Z');
+    `);
+    writer.pragma('wal_checkpoint(TRUNCATE)');
+
+    // 活动读事务阻止 latest 页 checkpoint 回主库，但 latest 已经提交。
+    const reader = new Database(env.dbPath, { readonly: true });
+    reader.exec('BEGIN');
+    expect(reader.prepare('SELECT turn_id FROM a9_turns').all()).toEqual([{ turn_id: 'turn-old' }]);
+    writer.prepare(`
+      INSERT INTO a9_turns VALUES ('turn-latest', 'task', 'session', 'blocked', '{}',
+        '2026-08-23T00:01:00.000Z', '2026-08-23T00:01:00.000Z')
+    `).run();
+    expect(fs.statSync(`${env.dbPath}-wal`).size).toBeGreaterThan(0);
+
+    try {
+      const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+      expect(outcome.status).toBe('ready');
+      if (outcome.status !== 'ready') return;
+      expect(outcome.backupPath).toBeDefined();
+
+      const backup = new Database(outcome.backupPath!, { readonly: true });
+      expect((backup.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(2);
+      expect((backup.prepare('SELECT turn_id FROM a9_turns ORDER BY turn_id').all() as any[]).map((row) => row.turn_id)).toEqual([
+        'turn-latest', 'turn-old',
+      ]);
+      backup.close();
+
+      expect((outcome.manager.db.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(3);
+      expect((outcome.manager.db.prepare('SELECT turn_id FROM a9_turns ORDER BY turn_id').all() as any[]).map((row) => row.turn_id)).toEqual([
+        'turn-latest', 'turn-old',
+      ]);
+      outcome.manager.db.close();
+    } finally {
+      reader.exec('ROLLBACK');
+      reader.close();
+      writer.close();
+    }
+  });
+
+  it('rolls back a malformed v2 migration and enters diagnostics without rewriting the schema marker', () => {
+    const malformed = new Database(env.dbPath);
+    malformed.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, 2, '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+      CREATE TABLE a9_turns (turn_id TEXT PRIMARY KEY, broken TEXT NOT NULL);
+      INSERT INTO a9_turns VALUES ('turn-broken', 'evidence');
+    `);
+    malformed.close();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.hint).toContain('已回滚');
+    const check = new Database(env.dbPath, { readonly: true });
+    expect((check.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(2);
+    expect(check.prepare("SELECT broken FROM a9_turns WHERE turn_id = 'turn-broken'").get()).toEqual({ broken: 'evidence' });
     check.close();
   });
 

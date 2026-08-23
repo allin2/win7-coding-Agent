@@ -11,7 +11,7 @@
     "build": "tsc",
     "test": "jest",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "lint": "tsc --noEmit && node --check product/policy.js && node --check product/credential-vault.js && node --check product/desktop-host.js && node --check product/desktop-ipc.js && node --check product/main.js && node --check product/a9-product-ipc.js && node --check product/a9-agent-runtime.js && node --check product/preload.js && node --check product/runner-runtime.js && node --check product/renderer/event-queue.js && node --check product/renderer/gateway-settings-payload.js && node --check product/renderer/runner-log.js && node --check product/renderer/a9-agent-panel.js && node --check product/renderer/renderer.js"
+    "lint": "tsc --noEmit && node --check product/policy.js && node --check product/credential-vault.js && node --check product/desktop-host.js && node --check product/desktop-ipc.js && node --check product/main.js && node --check product/a9-product-ipc.js && node --check product/a9-agent-runtime.js && node --check product/a9-package-runtime.js && node --check product/preload.js && node --check product/runner-runtime.js && node --check product/renderer/event-queue.js && node --check product/renderer/gateway-settings-payload.js && node --check product/renderer/runner-log.js && node --check product/renderer/a9-agent-panel.js && node --check product/renderer/renderer.js"
   },
   "dependencies": {
     "ajv": "^8.12.0"

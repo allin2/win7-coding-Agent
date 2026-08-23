@@ -193,7 +193,11 @@ describe('R4: provider config persistence and DPAPI integration', () => {
     try {
       const first = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
       first.setMode('full_access');
-      await first.configureProvider({ baseUrl: fixture.baseUrl, model: 'm', apiKey: 'sk-dpapi-roundtrip', rememberApiKey: true });
+      const configured = await first.configureProvider({ baseUrl: fixture.baseUrl, model: 'm', apiKey: 'sk-dpapi-roundtrip', rememberApiKey: true });
+      expect(configured.keyRemembered).toBe(true);
+      const immediate = first.getSnapshot();
+      expect(immediate.provider.apiKey.remembered).toBe(true);
+      expect(immediate.provider.apiKey.source).toBe('dpapi');
       first.shutdown();
 
       const second = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
@@ -328,12 +332,17 @@ describe('R4: provider config persistence and DPAPI integration', () => {
       const first = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
       first.setMode('full_access');
       // 仅自定义认证 Header，无 API Key。
-      await first.configureProvider({
+      const configured = await first.configureProvider({
         baseUrl: fixture.baseUrl,
         model: 'header-only-m',
         customHeaders: { 'X-Auth-Token': 'hdr-secret-value-42' },
         rememberApiKey: true,
       });
+      expect(configured.keyRemembered).toBe(true);
+      const immediate = first.getSnapshot();
+      expect(immediate.provider.apiKey.remembered).toBe(true);
+      expect(immediate.provider.apiKey.source).toBe('dpapi');
+      expect(immediate.provider.diagnostics).toBeUndefined();
       first.shutdown();
 
       const second = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
@@ -341,6 +350,8 @@ describe('R4: provider config persistence and DPAPI integration', () => {
       expect(snap.provider.configured).toBe(true);
       expect(snap.provider.model).toBe('header-only-m');
       expect(snap.provider.apiKey.remembered).toBe(true);
+      expect(snap.provider.apiKey.source).toBe('dpapi');
+      expect(snap.provider.diagnostics).toBeUndefined();
       // Header 值经 fake-DPAPI 恢复：能完成一轮真实任务（fixture 收到 Header）。
       const turn = await second.submitTurn('go');
       expect(turn.ok).toBe(true);

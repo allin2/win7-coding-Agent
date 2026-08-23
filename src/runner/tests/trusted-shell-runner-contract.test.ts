@@ -103,6 +103,37 @@ describe('A9-02 regression: honest termination and logs', () => {
     expect(result.termination.detail).toContain('NOT a sandbox-equivalent');
   });
 
+  it('reaps a real POSIX shell descendant and waits for cleanup proof before returning cancelled', async () => {
+    if (process.platform === 'win32') return;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-shell-tree-'));
+    const marker = path.join(root, 'child.pid');
+    const childScript = path.join(root, 'child.cjs');
+    fs.writeFileSync(childScript, `'use strict';\nrequire('fs').writeFileSync(process.argv[2], String(process.pid));\nsetInterval(() => {}, 1000);\n`, 'utf8');
+    const quote = (value: string) => `"${value.replace(/"/g, '\\"')}"`;
+    const runner = new TrustedShellRunner({ logDir });
+    const controller = new AbortController();
+    try {
+      const execution = runner.execute({
+        command: `${quote(process.execPath)} ${quote(childScript)} ${quote(marker)}`,
+        signal: controller.signal,
+      });
+      const deadline = Date.now() + 10_000;
+      while (!fs.existsSync(marker) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(fs.existsSync(marker)).toBe(true);
+      const descendantPid = Number(fs.readFileSync(marker, 'utf8'));
+      controller.abort();
+      const result = await execution;
+      expect(result.status).toBe('cancelled');
+      expect(result.termination.processTreeReaped).toBe(true);
+      expect(result.residueRisk).toBeUndefined();
+      expect(() => process.kill(descendantPid, 0)).toThrow();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('writes bounded raw logs and preserves exit code despite preview truncation', async () => {
     const runner = new TrustedShellRunner({ logDir });
     const result = await runner.execute({

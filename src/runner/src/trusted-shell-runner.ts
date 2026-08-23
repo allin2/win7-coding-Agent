@@ -159,6 +159,7 @@ export class TrustedShellRunner {
       let isTimedOut = false;
       let softDurationExceeded = false;
       let killOutcome: { success: boolean; error?: string; method: string } | undefined;
+      let terminationPromise: Promise<{ success: boolean; error?: string; method: string }> | undefined;
       let timeoutTimer: NodeJS.Timeout | undefined;
       let softTimer: NodeJS.Timeout | undefined;
       const logCapture = new BoundedLogCapture(this.logDir, requestId, this.maxLogBytes);
@@ -170,6 +171,9 @@ export class TrustedShellRunner {
           env: { ...process.env, ...(request.envOverlay || {}) },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
+          // POSIX 必须让 Shell 成为独立进程组组长，kill(-pid) 才能覆盖其后代。
+          // Windows 继续由 taskkill /T 或 Job Object 负责进程树回收。
+          detached: process.platform !== 'win32',
           ...(verbatim ? { windowsVerbatimArguments: true } : {}),
         });
       } catch (err: any) {
@@ -245,23 +249,21 @@ export class TrustedShellRunner {
       };
 
       const onAbort = async () => {
-        if (settled || isCancelled) return;
+        if (settled || isCancelled || isTimedOut) return;
         isCancelled = true;
-        if (child.pid) {
-          killOutcome = await killProcessTree(child.pid);
-        } else {
-          killOutcome = { success: true, method: 'already_gone', error: undefined };
-        }
+        terminationPromise = child.pid
+          ? killProcessTree(child.pid)
+          : Promise.resolve({ success: true, method: 'already_gone', error: undefined });
+        killOutcome = await terminationPromise;
       };
 
       const onTimeout = async () => {
-        if (settled || isTimedOut) return;
+        if (settled || isTimedOut || isCancelled) return;
         isTimedOut = true;
-        if (child.pid) {
-          killOutcome = await killProcessTree(child.pid);
-        } else {
-          killOutcome = { success: true, method: 'already_gone' };
-        }
+        terminationPromise = child.pid
+          ? killProcessTree(child.pid)
+          : Promise.resolve({ success: true, method: 'already_gone' });
+        killOutcome = await terminationPromise;
       };
 
       if (request.signal) {
@@ -309,7 +311,12 @@ export class TrustedShellRunner {
         if (softTimer) clearTimeout(softTimer);
       });
 
-      child.on('close', (code) => finalize(code));
+      child.on('close', (code) => {
+        // close 可能早于异步 liveness 验证完成；先等 killOutcome，避免把已经
+        // 证明回收的取消误报为 residueRisk/failed。
+        if (terminationPromise) void terminationPromise.then(() => finalize(code));
+        else finalize(code);
+      });
     });
   }
 

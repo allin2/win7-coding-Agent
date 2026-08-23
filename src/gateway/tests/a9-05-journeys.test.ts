@@ -4,7 +4,8 @@
  * 证据分级（诚实边界）：
  * - FIXTURE MODEL：模型端为回环行为化 fixture（根据收到的 messages 与 tool 结果
  *   决定下一步，不按剧本盲吐）；Loop/Workspace/Runner/Git/Runtime/SQLite 均为真实实现。
- * - REAL MODEL J1～J3：NOT_PERFORMED（无真实 Provider 凭据；见真实 Provider smoke 入口）。
+ * - REAL MODEL J1～J3：J2 已由 DeepSeek 真实 Provider 完成 verified 修复/测试；
+ *   J1/J3 的自动验收已装配在真实 Provider smoke，仍等待外部执行结果。
  * - Windows PS/CMD/DPI：NOT_PERFORMED（非 Windows 环境只记录 sh/dev_host_only）。
  */
 import { execFileSync, spawn } from 'child_process';

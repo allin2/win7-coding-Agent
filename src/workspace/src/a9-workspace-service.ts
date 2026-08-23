@@ -856,10 +856,6 @@ export class A9WorkspaceService {
             stack.push(fullPath);
           }
         } else if (dirent.isFile()) {
-          if (fileCount >= MAX_BASELINE_FILES) {
-            skipped.push({ path: rel, reason: 'too_large', size: fs.statSync(fullPath).size, mtimeMs: fs.statSync(fullPath).mtimeMs });
-            continue;
-          }
           let stat: fs.Stats;
           try {
             stat = fs.statSync(fullPath);
@@ -867,12 +863,16 @@ export class A9WorkspaceService {
             skipped.push({ path: rel, reason: 'backup_failed' });
             continue;
           }
+          if (fileCount >= MAX_BASELINE_FILES) {
+            skipped.push({ path: rel, reason: 'too_large', size: stat.size, mtimeMs: stat.mtimeMs });
+            continue;
+          }
           if (stat.size > MAX_BASELINE_FILE_BYTES || totalBytes + stat.size > MAX_BASELINE_TOTAL_BYTES) {
             skipped.push({ path: rel, reason: 'too_large', size: stat.size, mtimeMs: stat.mtimeMs });
             continue;
           }
           try {
-            const content = fs.readFileSync(fullPath);
+            const content = this.readBaselineFile(fullPath);
             const blobPath = this.checkpointManager.saveToRecovery(rel, content);
             const sha256 = crypto.createHash('sha256').update(content).digest('hex');
             files[rel] = { sha256, blobPath, size: stat.size };
@@ -899,7 +899,7 @@ export class A9WorkspaceService {
     options: { signal?: AbortSignal } = {},
   ): Promise<ExternalChangeReport> {
     const report: ExternalChangeReport = { changes: [], unrecoverable: [] };
-    const current = new Map<string, { sha256: string; size: number }>();
+    const current = new Map<string, { sha256: string; size: number; mtimeMs: number }>();
     const stack: string[] = [this.workspaceRoot];
     const visited = new Set<string>([this.safeRealPath(this.workspaceRoot)].filter((v): v is string => v !== undefined));
     while (stack.length > 0) {
@@ -923,15 +923,23 @@ export class A9WorkspaceService {
             stack.push(fullPath);
           }
         } else if (dirent.isFile()) {
+          let stat: fs.Stats;
           try {
-            const stat = fs.statSync(fullPath);
+            stat = fs.statSync(fullPath);
+          } catch (_e) {
+            continue;
+          }
+          try {
             if (stat.size <= MAX_BASELINE_FILE_BYTES) {
               const hash = crypto.createHash('sha256').update(fs.readFileSync(fullPath)).digest('hex');
-              current.set(rel, { sha256: hash, size: stat.size });
+              current.set(rel, { sha256: hash, size: stat.size, mtimeMs: stat.mtimeMs });
             } else {
-              current.set(rel, { sha256: `too-large:${stat.size}`, size: stat.size });
+              current.set(rel, { sha256: `too-large:${stat.size}`, size: stat.size, mtimeMs: stat.mtimeMs });
             }
-          } catch (_e) { /* unreadable now */ }
+          } catch (_e) {
+            // 内容当前不可读时仍保留 stat 事实，避免把仍存在的文件误判为删除。
+            current.set(rel, { sha256: `unreadable:${stat.size}:${stat.mtimeMs}`, size: stat.size, mtimeMs: stat.mtimeMs });
+          }
         }
       }
     }
@@ -945,9 +953,11 @@ export class A9WorkspaceService {
       const before = baseline.files[rel];
       const skippedFact = skippedFacts.get(rel);
       if (!before && skippedFact) {
-        // 基线跳过的既有文件被修改：modified + 不可恢复（绝不进入 created/delete-new）。
-        const mtimeChanged = skippedFact.mtimeMs === undefined || (current.get(rel) && String(fact.size) !== 'NaN' && skippedFact.size !== undefined && skippedFact.size !== fact.size) || skippedFact.mtimeMs !== undefined;
-        void mtimeChanged;
+        // skipped 不含内容，只能比较冻结时保存的 stat 事实。事实完整且未变化时
+        // 不制造虚假 Diff；事实缺失或 size/mtime 变化时保守标记不可恢复修改。
+        const metadataUnchanged = skippedFact.size !== undefined && skippedFact.mtimeMs !== undefined
+          && skippedFact.size === fact.size && skippedFact.mtimeMs === fact.mtimeMs;
+        if (metadataUnchanged) continue;
         this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
           newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
           unrecoverable: true,
@@ -1017,6 +1027,11 @@ export class A9WorkspaceService {
     } catch (_err) {
       return undefined;
     }
+  }
+
+  /** 可覆盖的基线读取汇点，生产默认按字节读取；测试用它稳定注入读取失败。 */
+  protected readBaselineFile(target: string): Buffer {
+    return fs.readFileSync(target);
   }
 
   // -------------------------------------------------------------------------

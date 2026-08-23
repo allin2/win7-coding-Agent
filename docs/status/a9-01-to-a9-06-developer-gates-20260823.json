@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-01-TO-A9-06-DEVELOPER-GATES-20260823-01",
+  "recorded_at": "2026-08-23",
+  "target_branch": "codex/a9-trusted-agent-runtime",
+  "source_baseline_commit": "958b26078730c28708d418ecf3b653a9e8060d2b",
+  "source_state": "VALIDATED_WORKTREE",
+  "decision": "A9_01_TO_A9_06_DEVELOPER_GATES_PASS_A9_07_AUTHORIZED_NOT_STARTED",
+  "gates": {
+    "A9-01": {
+      "status": "PASS",
+      "evidence": "Core 283/283 tests: three permission modes, A9 ToolSpec, System Prompt V2, Full Access policy, Review and Read Only non-regression"
+    },
+    "A9-02": {
+      "status": "PASS_DEVELOPER_CONTRACT",
+      "evidence": "Runner 97/97 tests: PowerShell UTF-16LE EncodedCommand and CMD /d /s /c contracts, shell selection/degradation, output limits/encoding, foreground/background lifecycle, cancellation and a real POSIX descendant reaped with proof",
+      "boundary": "Actual PowerShell 5.1, CMD and D-013 Job Object execution remain A9-07 Windows validation and are not claimed here"
+    },
+    "A9-03": {
+      "status": "PASS",
+      "evidence": "Workspace 130/130 tests: direct file tools, encoding/EOL, ignore, checkpoint/Diff/undo, external changes, skipped-baseline safety and aggregate limits"
+    },
+    "A9-04": {
+      "status": "PASS",
+      "evidence": "Real DeepSeek deepseek-v4-flash SSE/tool calling, verified fix/test loop and cancellation; strict tool JSON Schema interoperability repaired and regressed",
+      "report": "docs/status/a9-04-real-provider-deepseek-20260823.json"
+    },
+    "A9-05": {
+      "status": "PASS",
+      "evidence": "Real-model J1 read AGENTS.md/config/source and cited all paths; J2 completed a verified real fix; J3 made a scoped three-file feature and passed the real project script. Behavioral fixture J1-J5 additionally proves real Git pull/commit/push approval binding and real SQLite interruption recovery/no replay.",
+      "real_provider_report_sha256": "7e960ac667ea2b272ef7dcb67a2c10ab116f7647e60b7b04edbc2dfde2e4f067"
+    },
+    "A9-06": {
+      "status": "PASS",
+      "evidence": "Real Electron 22.3.27 three-process product entry 38/38: mode/provider/tool journey/Diff, true approval target and deny zero-side-effect, restart facts and no replay, precise stale approval, UI Stop, real Shell PID reaping and zero active lifecycle rows",
+      "electron_report_sha256": "473edb2fc55556e6e6cf95ea5327a501c8da546ec8cf1ca711dd70fb07f3aadd"
+    }
+  },
+  "validation": {
+    "repository": "PASS (1302/1302 tests across seven modules; lint/build/design guards pass)",
+    "docs": "PASS (96 checked files / 20 task files)",
+    "diff_check": "PASS",
+    "real_model_j1_to_j3": "PASS",
+    "real_electron_product_entry": "PASS (38/38)"
+  },
+  "next_stage": {
+    "stage": "A9-07",
+    "status": "AUTHORIZED_NOT_STARTED",
+    "scope": "v3 self-contained package, Win10 smoke, Win7 PowerShell/CMD/helper/platform matrix, Win7 J1-J5 and candidate signing"
+  },
+  "not_claimed": [
+    "A9-07_STARTED",
+    "WIN10_PASS",
+    "WIN7_PASS",
+    "WINDOWS_DPAPI_PASS",
+    "POWERSHELL_5_1_CMD_D013_PASS",
+    "A9_ALPHA1_PASS"
+  ]
+}

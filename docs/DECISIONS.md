@@ -1229,3 +1229,26 @@
   redactSecrets 不进入事件、日志、快照或错误文本。
 - 后果：Provider 配置跨重启恢复且密钥永不明文落盘；探针结论与密钥记忆状态可审计；
   本机（非 Windows）证据为注入式 fake DPAPI 合同验证。
+
+## ADR-0094 A9 SQLite Schema v3 保存真实 failed Turn 并统一提交/审批恢复终态
+
+- 状态：Accepted（2026-08-23，A9 F5/F6 缺陷修复轮）
+- 背景：A9 Schema v2 的 `a9_turns.status` CHECK 不允许 `failed`，Provider 或运行时失败只能被错误映射为
+  `blocked`，或在写终态时触发约束错误并留下 active 行。`submitTurn` 与 `resumeApproval` 还使用不同的状态
+  收尾路径：首次审批后的第二次审批可能被清空，checkpoint 未覆盖每次恢复结果，旧审批错误退化为通用
+  Desktop 错误。正常关闭后的重启证据若只检查 interruptions 是数组，也会把伪中断漏过。
+- 决策：（1）`A9_SCHEMA_VERSION` 升为 3，Turn 状态增加真实 `failed`。打开 v1/v2 数据库时先在 dataRoot
+  写迁移前备份，再在单个 SQLite transaction 内重建 `a9_turns` CHECK、复制全部行并恢复该表已有显式索引；
+  任一步失败全部回滚并进入 diagnostics，未知未来版本继续拒绝覆盖。（2）`submitTurn` 与
+  `resumeApproval` 共用唯一结果持久化汇点，同步 task/turn/run、agentStatus、当前审批和 checkpoint；
+  `needs_approval` 保持同一组实体 active 并保存返回的最新审批，只有非审批终态才清空。连续审批、批准和
+  拒绝始终复用同一 task/turn/run。（3）每次 submit/resume 结果覆盖 checkpoint，payload
+  `schemaVersion=1`，保存 outcome、verification、工具计数、外部变化和最小 pending 审批事实；旧 payload
+  仍可读取但不得自动重放。（4）Provider 初始化、请求或审批恢复期间的 Provider 失败落真实 `failed`
+  task/turn/run；用户取消保持 `cancelled`。输入校验或已消费/未知审批返回精确结构化错误且不得终止当前合法
+  pending 状态。（5）开发机 Electron 重启证据必须断言 `interruptions.length === 0`；真实 crash 的
+  active→interrupted 仍由独立子进程用例证明，任何恢复都只恢复事实、不重放模型或工具。
+- 后果：失败、取消、挂起审批和重启中断在 SQLite、快照及 checkpoint 中具有一致且可查询的语义；迁移前
+  旧库有可恢复备份，迁移失败不会半改表。代价是旧 v1/v2 数据库首次打开需要一次事务迁移并生成备份；
+  Schema v3 应用仍不能打开未知未来版本。该裁决不改变 Provider IPC 字段形状，也不授权 A9-07、真实
+  Provider、PowerShell/CMD 或 Win10/Win7 验收。

@@ -16,13 +16,13 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | A9-00 `A9_00_DESIGN_AND_GAP_PASS`；`0.3.0-alpha.1` / `codex/a9-trusted-agent-runtime`；A9-01 `AUTHORIZED_NOT_STARTED`，功能与 Win7 均 `NOT_PERFORMED` |
+| A9 Trusted Agent Runtime | `0.3.0-alpha.1` / `codex/a9-trusted-agent-runtime`；A9-01～A9-06 开发机 Gate PASS；A9-07 `IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS`；Win10/Win7 `NOT_PERFORMED` |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
-## A9 Trusted Agent Runtime（2026-08-22）
+## A9 Trusted Agent Runtime（2026-08-23）
 
 - 产品负责人已确认
   [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
@@ -33,8 +33,27 @@
 - A9 取代 A8 默认不可用的关键产品策略：可信工作区推荐 Full Access，允许通用 PowerShell/CMD Shell、
   直接多文件写入、工作区外显式路径、真实 Git 配置和用户网络；外部写、破坏性 Git、永久删除和系统级
   操作继续目标绑定确认。该模式不是 Win7 强沙箱。
-- A9-00 文档与差距 Gate 已取得 `A9_00_DESIGN_AND_GAP_PASS`，只解除 A9-01；A9 功能实现、真实产品旅程、
-  Win10、Win7 和 Alpha PASS 均为 `NOT_PERFORMED`。权威差距与交付计划见
+- A9-00 文档与差距 Gate 已取得 `A9_00_DESIGN_AND_GAP_PASS`。当前 A9-01～A9-06 对应实现、fixture
+  行为测试和开发机 Electron 22 产品入口 smoke 已存在；F2/F4/F5/F6 修复检查点见
+  [`a9-trusted-agent-runtime-latest.json`](status/a9-trusted-agent-runtime-latest.json)。这表示代码与开发机证据
+  可供独立复核，不等于六个正式串行 Gate 已全部签发。
+- A9-04 已使用 `https://api.deepseek.com` / `deepseek-v4-flash` 完成真实 SSE、tool calling、五次工具执行、
+  真实修复/测试与取消，Gate 为 `A9_04_REAL_PROVIDER_PASS`。首次运行发现工具 Schema 缺少顶层
+  `type: object`，统一 wire 修复后 Gateway 241 项与真实闭环均通过；凭据未写入证据。记录见
+  [`a9-04-real-provider-deepseek-20260823.json`](status/a9-04-real-provider-deepseek-20260823.json)。
+- A9-05 已完成：真实模型 J1 实际读取指令/配置/源码并引用路径，J2 完成真实修复和测试，J3 完成范围
+  受控的跨文件功能和真实项目脚本；行为化 J4/J5 使用真实 Git/审批和 SQLite/子进程副作用。记录见
+  [`a9-05-real-model-journeys-deepseek-20260823.json`](status/a9-05-real-model-journeys-deepseek-20260823.json)。
+- A9-06 当前工作树经 1307 项回归（含 A9-07 新增 5 项包运行时/DPAPI 宿主注入合同）和真实 Electron 22 三进程
+  38/38 重新验证，Gate 为
+  `A9_06_DESKTOP_STATE_AND_LIFECYCLE_PASS`。A9-01～A9-06 汇总见
+  [`a9-01-to-a9-06-developer-gates-20260823.json`](status/a9-01-to-a9-06-developer-gates-20260823.json)。
+  A9-07 已进入 `IN_PROGRESS`。v3 输入锁、A9 包内原生运行时绑定、全树 manifest、SBOM/许可证、无系统
+  Node 完整性入口和敏感信息排除已实现；真实锁定输入的脏源码开发候选双构建 SHA-256 均为
+  `364de65c…df23c9d`。该候选记录 `external_acceptance_eligible=false`，不能进入 Windows 评分；干净源码候选、
+  Win10、Win7 和 Alpha PASS 均为 `NOT_PERFORMED`。记录见
+  [`a9-07-developer-package-progress-20260823.json`](status/a9-07-developer-package-progress-20260823.json)。
+  权威差距与交付计划见
   [`A9 Trusted Agent 差距与交付计划`](reports/2026-08/a9_trusted_agent_gap_and_delivery_plan_2026-08-22.html)。
 - Office 专用能力不进入 A9 Alpha 1；首要交付是代码阅读、编辑、文件管理、Shell、测试、Git、Diff、
   撤销和重启恢复的五条真实 Coding Agent 旅程。

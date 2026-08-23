@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SqliteDatabase } from './sqlite-event-ledger';
 
-export const A9_SCHEMA_VERSION = 2 as const;
+export const A9_SCHEMA_VERSION = 3 as const;
 export const A9_DEFAULT_RETENTION_DAYS = 90;
 
 export type A9PermissionModeValue = 'full_access' | 'review' | 'read_only';
@@ -54,6 +54,31 @@ export class A9PersistenceManager {
    * 打开/迁移 A9 数据库。任何失败都返回结构化结果，不覆盖旧库。
    */
   static open(options: A9OpenOptions): A9OpenOutcome {
+    // 现有数据库必须先用只读连接探测。尤其是未来 schema，不能在拒绝前切换
+    // journal_mode、创建 WAL/SHM sidecar，或触发任何其他写入。
+    if (fs.existsSync(options.databasePath)) {
+      let probeDb: SqliteDatabase | undefined;
+      try {
+        probeDb = options.openDatabase(options.databasePath, { readonly: true });
+        const probedVersion = readSchemaVersion(probeDb);
+        if (probedVersion !== undefined && probedVersion > A9_SCHEMA_VERSION) {
+          return {
+            status: 'schema_refused',
+            reason: `数据库 schema 版本 ${probedVersion} 高于本应用支持的 ${A9_SCHEMA_VERSION}；拒绝覆盖，请使用更新版本的应用打开。`,
+            foundVersion: probedVersion,
+          };
+        }
+      } catch (err) {
+        return {
+          status: 'diagnostics',
+          error: err instanceof Error ? err.message : String(err),
+          hint: 'schema 探测失败，数据库可能损坏；进入受限诊断模式。',
+        };
+      } finally {
+        try { probeDb?.close(); } catch (_closeError) { /* best effort */ }
+      }
+    }
+
     let db: SqliteDatabase;
     try {
       db = options.openDatabase(options.databasePath);
@@ -65,23 +90,12 @@ export class A9PersistenceManager {
       };
     }
 
-    try {
-      db.exec('PRAGMA journal_mode = WAL');
-    } catch (_err) {
-      // 诊断环境下 WAL 可能失败；继续以默认模式只读探测。
-    }
-
-    // 检查现有 a9_meta。
+    // 写连接打开后再次检查，避免只读探测与迁移之间数据库被替换。
     let existingVersion: number | undefined;
     try {
-      const table = db.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='a9_meta'",
-      ).get() as unknown;
-      if (table) {
-        const row = db.prepare('SELECT schema_version FROM a9_meta LIMIT 1').get() as any;
-        existingVersion = row?.schema_version;
-      }
+      existingVersion = readSchemaVersion(db);
     } catch (err) {
+      try { db.close(); } catch (_closeError) { /* best effort */ }
       return {
         status: 'diagnostics',
         error: err instanceof Error ? err.message : String(err),
@@ -90,6 +104,7 @@ export class A9PersistenceManager {
     }
 
     if (existingVersion !== undefined && existingVersion > A9_SCHEMA_VERSION) {
+      try { db.close(); } catch (_closeError) { /* best effort */ }
       return {
         status: 'schema_refused',
         reason: `数据库 schema 版本 ${existingVersion} 高于本应用支持的 ${A9_SCHEMA_VERSION}；拒绝覆盖，请使用更新版本的应用打开。`,
@@ -97,15 +112,44 @@ export class A9PersistenceManager {
       };
     }
 
-    // 迁移前备份（存在旧 a9 表或 a8 表时）。
+    // 迁移前备份（只针对旧 A9 schema 或 A8 导入；当前 schema 重开无需重复备份）。
     let backupPath: string | undefined;
-    const hasExistingData = existingVersion !== undefined || a8TablesPresent(db);
-    if (hasExistingData && fs.existsSync(options.databasePath)) {
-      backupPath = backupDatabase(options.databasePath, options.dataRoot);
+    const hasA8Data = a8TablesPresent(db);
+    const hasExistingData = existingVersion !== undefined || hasA8Data;
+    const requiresMigrationBackup = hasA8Data
+      || (existingVersion !== undefined && existingVersion < A9_SCHEMA_VERSION);
+    if (requiresMigrationBackup && fs.existsSync(options.databasePath)) {
+      try {
+        backupPath = backupDatabase(db, options.dataRoot);
+      } catch (err) {
+        try { db.close(); } catch (_closeError) { /* best effort */ }
+        return {
+          status: 'diagnostics',
+          error: err instanceof Error ? err.message : String(err),
+          hint: '迁移前备份无法创建；原数据库未执行 schema 迁移。产品进入受限诊断模式。',
+        };
+      }
+    }
+
+    // 只有未来 schema 已拒绝、旧 schema 已完成一致性备份后，才允许切换 WAL。
+    try {
+      db.exec('PRAGMA journal_mode = WAL');
+    } catch (_err) {
+      // 诊断环境下 WAL 可能失败；后续 schema 操作仍会以结构化 diagnostics 失败。
     }
 
     const manager = new A9PersistenceManager(db, options.databasePath, options.retentionDays ?? A9_DEFAULT_RETENTION_DAYS);
-    manager.createSchema();
+    try {
+      manager.migrateSchema(existingVersion);
+      manager.createSchema();
+    } catch (err) {
+      try { db.close(); } catch (_closeError) { /* best effort */ }
+      return {
+        status: 'diagnostics',
+        error: err instanceof Error ? err.message : String(err),
+        hint: 'A9 schema 迁移失败；已回滚且迁移前备份保持可用。产品进入受限诊断模式，禁止继续执行任务。',
+      };
+    }
 
     let importedA8Workspaces = 0;
     if (hasExistingData) {
@@ -154,7 +198,7 @@ export class A9PersistenceManager {
         turn_id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
         session_id TEXT NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','cancelled','interrupted')),
+        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','failed','cancelled','interrupted')),
         outcome_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -227,6 +271,41 @@ export class A9PersistenceManager {
       this.db.prepare('UPDATE a9_meta SET schema_version = ?, updated_at = ? WHERE id = 1')
         .run(A9_SCHEMA_VERSION, now);
     }
+  }
+
+  /**
+   * A9 v3：Turn 增加真实 failed 终态。SQLite 不能原地修改 CHECK，故在同一
+   * 事务内重建表；任何一步失败都回滚，open() 返回 diagnostics。
+   */
+  private migrateSchema(existingVersion: number | undefined): void {
+    if (existingVersion === undefined || existingVersion >= 3 || !tablePresent(this.db, 'a9_turns')) return;
+    const turnIndexSql = (this.db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
+    ).all() as any[])
+      .map((row) => row.sql)
+      .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
+    const migrate = this.db.transaction(() => {
+      this.db.exec(`
+        ALTER TABLE a9_turns RENAME TO a9_turns_pre_v3;
+        CREATE TABLE a9_turns (
+          turn_id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','failed','cancelled','interrupted')),
+          outcome_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO a9_turns (turn_id, task_id, session_id, status, outcome_json, created_at, updated_at)
+        SELECT turn_id, task_id, session_id, status, outcome_json, created_at, updated_at
+        FROM a9_turns_pre_v3;
+        DROP TABLE a9_turns_pre_v3;
+      `);
+      for (const indexSql of turnIndexSql) this.db.exec(indexSql);
+      this.db.prepare('UPDATE a9_meta SET schema_version = ?, updated_at = ? WHERE id = 1')
+        .run(A9_SCHEMA_VERSION, new Date().toISOString());
+    });
+    migrate();
   }
 
   /**
@@ -307,7 +386,7 @@ export class A9PersistenceManager {
     turnId: string,
     taskId: string,
     sessionId: string,
-    status: 'active' | 'completed' | 'completed_with_warnings' | 'blocked' | 'cancelled' | 'interrupted',
+    status: 'active' | 'completed' | 'completed_with_warnings' | 'blocked' | 'failed' | 'cancelled' | 'interrupted',
     outcome: Record<string, unknown> = {},
   ): void {
     const now = new Date().toISOString();
@@ -540,13 +619,46 @@ function a8TablesPresent(db: SqliteDatabase): boolean {
   }
 }
 
-function backupDatabase(databasePath: string, dataRoot: string): string {
+function tablePresent(db: SqliteDatabase, tableName: string): boolean {
+  try {
+    const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(tableName);
+    return Boolean(row);
+  } catch (_err) {
+    return false;
+  }
+}
+
+function readSchemaVersion(db: SqliteDatabase): number | undefined {
+  const table = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='a9_meta'",
+  ).get() as unknown;
+  if (!table) return undefined;
+  const row = db.prepare('SELECT schema_version FROM a9_meta LIMIT 1').get() as any;
+  return row?.schema_version;
+}
+
+function backupDatabase(db: SqliteDatabase, dataRoot: string): string {
   const backupDir = path.join(dataRoot, 'backups');
   fs.mkdirSync(backupDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = path.join(backupDir, `pre-a9-${stamp}.db`);
-  fs.copyFileSync(databasePath, backupPath);
-  return backupPath;
+  let suffix = 0;
+  let backupPath: string;
+  do {
+    const uniqueSuffix = suffix === 0 ? '' : `-${suffix}`;
+    backupPath = path.join(backupDir, `pre-a9-${stamp}-${process.pid}${uniqueSuffix}.db`);
+    suffix += 1;
+  } while (fs.existsSync(backupPath));
+
+  try {
+    // VACUUM INTO 由 SQLite 生成事务一致的独立数据库；它会读取已提交的 WAL
+    // 页面，且不依赖 checkpoint 能否取得排他锁。
+    db.prepare('VACUUM INTO ?').run(backupPath);
+    return backupPath;
+  } catch (err) {
+    // 不把不完整快照暴露为可恢复备份。
+    try { fs.rmSync(backupPath, { force: true }); } catch (_cleanupError) { /* best effort */ }
+    throw err;
+  }
 }
 
 function displayNameFor(workspacePath: string): string {

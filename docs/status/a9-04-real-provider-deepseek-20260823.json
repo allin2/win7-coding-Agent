@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-04-REAL-PROVIDER-DEEPSEEK-20260823-01",
+  "recorded_at": "2026-08-23",
+  "source_baseline_commit": "958b26078730c28708d418ecf3b653a9e8060d2b",
+  "source_state": "WORKTREE_WITH_OPENAI_TOOL_SCHEMA_NORMALIZATION",
+  "provider": {
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "credential": "USER_SUPPLIED_EPHEMERAL_NOT_RECORDED",
+    "custom_headers": false,
+    "custom_ca": false,
+    "proxy": false
+  },
+  "result": "PASS",
+  "cases": [
+    {
+      "id": "RPS-01-CAPABILITY-PROBE",
+      "status": "PASS",
+      "evidence": "SSE streaming and native tool calling succeeded; measured latency 913 ms"
+    },
+    {
+      "id": "RPS-02-REAL-MODEL-TOOL-LOOP",
+      "status": "PASS",
+      "evidence": "completed / verified; 5 real tool calls across 4 model steps"
+    },
+    {
+      "id": "RPS-03-REAL-FIX-AND-VERIFY",
+      "status": "PASS",
+      "evidence": "real model fixed calc.js and verified it with the real node test.js command"
+    },
+    {
+      "id": "RPS-04-CANCEL",
+      "status": "PASS",
+      "evidence": "an in-flight real Provider turn reached the cancelled outcome"
+    }
+  ],
+  "defect_discovered": {
+    "symptom": "The initial full Agent Loop request was rejected with HTTP 400 while the one-tool capability probe passed",
+    "root_cause": "Core ToolInputSchema shorthand omitted the top-level JSON Schema type object required by the real Provider",
+    "repair": "OpenAICompatibleProvider now normalizes missing function parameter types to object at the wire boundary",
+    "regression": "Gateway lint/build and 241 tests passed, including a strict wire-payload assertion"
+  },
+  "gate": {
+    "a9_04": "PASS",
+    "a9_05": "IN_PROGRESS_REAL_MODEL_J1_J3",
+    "a9_06": "DEVELOPER_EVIDENCE_PRESENT_AWAITING_SERIAL_GATE",
+    "a9_07": "NOT_ENTERED"
+  },
+  "not_proven": [
+    "REAL_MODEL_J1",
+    "REAL_MODEL_J3",
+    "WINDOWS_DPAPI",
+    "POWERSHELL_5_1_AND_CMD",
+    "WIN10",
+    "WIN7"
+  ]
+}

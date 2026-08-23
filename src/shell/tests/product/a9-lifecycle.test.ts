@@ -97,6 +97,49 @@ function startQuickFixture(): Promise<{ baseUrl: string; close: () => Promise<vo
   });
 }
 
+function startApprovalFixture(options: { secondApproval?: boolean; failAfterFirstTool?: boolean } = {}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
+      req.on('end', () => {
+        const parsed = JSON.parse(body);
+        const toolMsgs = (parsed.messages ?? []).filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo');
+        if (options.failAfterFirstTool && toolMsgs.length > 0) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: 'forced resume provider failure' } }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        if (toolMsgs.length === 0) {
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'd1', function: { name: 'delete', arguments: '{"path":"note.txt","permanent":true}' } }] }, finish_reason: 'tool_calls' }] });
+        } else if (options.secondApproval && toolMsgs.length === 1) {
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'd2', function: { name: 'delete', arguments: '{"path":"second.txt","permanent":true}' } }] }, finish_reason: 'tool_calls' }] });
+        } else {
+          sse(res, { choices: [{ delta: { content: 'handled' }, finish_reason: 'stop' }] });
+        }
+        res.write('data: [DONE]\n\n');
+        res.end();
+      });
+    });
+    server.listen(0, '127.0.0.1', () => {
+      resolve({ baseUrl: `http://127.0.0.1:${(server.address() as any).port}`, close: () => new Promise<void>((done) => server.close(() => done())) });
+    });
+  });
+}
+
+function startFailingFixture(): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  return new Promise((resolve) => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'forced provider failure' } }));
+    });
+    server.listen(0, '127.0.0.1', () => {
+      resolve({ baseUrl: `http://127.0.0.1:${(server.address() as any).port}`, close: () => new Promise<void>((done) => server.close(() => done())) });
+    });
+  });
+}
+
 function makeEnv() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-f5-'));
   const workspaceRoot = path.join(root, 'ws');
@@ -128,6 +171,23 @@ function counts(env: ReturnType<typeof makeEnv>) {
     activeTurns: read('a9_turns', 'active'),
     activeRuns: read('a9_runs', 'active'),
     interruptedTasks: read('a9_tasks', 'interrupted'),
+    failedTasks: read('a9_tasks', 'failed'),
+    failedTurns: read('a9_turns', 'failed'),
+    failedRuns: read('a9_runs', 'failed'),
+  };
+  db.close();
+  return out;
+}
+
+function lifecycleFacts(env: ReturnType<typeof makeEnv>) {
+  const db = new Database(path.join(env.dataRoot, 'a9-state.db'), { readonly: true });
+  const checkpointRows = db.prepare('SELECT turn_id, payload_json FROM a9_checkpoints ORDER BY created_at').all() as any[];
+  const out = {
+    tasks: db.prepare('SELECT task_id, status FROM a9_tasks ORDER BY task_id').all() as any[],
+    turns: db.prepare('SELECT turn_id, status FROM a9_turns ORDER BY turn_id').all() as any[],
+    runs: db.prepare('SELECT run_id, status FROM a9_runs ORDER BY run_id').all() as any[],
+    approvals: db.prepare('SELECT approval_id, decision FROM a9_approvals ORDER BY created_at').all() as any[],
+    checkpoints: checkpointRows.map((row) => ({ turnId: row.turn_id, payload: JSON.parse(row.payload_json) })),
   };
   db.close();
   return out;
@@ -213,6 +273,7 @@ describe('F5: task/turn/run lifecycle is persisted by the product runtime', () =
       const runtime3 = makeRuntime(env);
       const resume = await runtime3.resumeApproval({ approvalId: 'apr-forged', decision: 'approved', bindingDigest: '0'.repeat(64) });
       expect(resume.ok).toBe(false);
+      expect(resume.error.code).toBe('A9_APPROVAL_UNKNOWN');
       runtime3.shutdown();
     } finally {
       fixture.release();
@@ -282,6 +343,162 @@ describe('F5: pending approval keeps active state and resume continues the same 
         await fixture.close();
       }
     } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('preserves a second pending approval, rejects the consumed old approval, and refreshes the same checkpoint', async () => {
+    const env = makeEnv();
+    fs.writeFileSync(path.join(env.workspaceRoot, 'second.txt'), 'second\n');
+    const fixture = await startApprovalFixture({ secondApproval: true });
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const first = await runtime.submitTurn('delete two files');
+      const firstApproval = first.result.pendingApproval;
+      expect(first.result.outcome).toBe('needs_approval');
+      expect(lifecycleFacts(env).checkpoints[0].payload).toEqual(expect.objectContaining({
+        schemaVersion: 1,
+        outcome: 'needs_approval',
+        pendingApproval: expect.objectContaining({ approvalId: firstApproval.approvalId }),
+      }));
+
+      const resumed = await runtime.resumeApproval({
+        approvalId: firstApproval.approvalId,
+        decision: 'approved',
+        bindingDigest: firstApproval.bindingDigest,
+      });
+      expect(resumed.ok).toBe(true);
+      expect(resumed.result.outcome).toBe('needs_approval');
+      const secondApproval = resumed.result.pendingApproval;
+      expect(secondApproval.approvalId).not.toBe(firstApproval.approvalId);
+      expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
+      let facts = lifecycleFacts(env);
+      expect(facts.tasks).toHaveLength(1);
+      expect(facts.turns).toHaveLength(1);
+      expect(facts.runs).toHaveLength(1);
+      expect(facts.checkpoints[0].payload).toEqual(expect.objectContaining({
+        schemaVersion: 1,
+        outcome: 'needs_approval',
+        toolCallsExecuted: 1,
+        externalChanges: expect.any(Array),
+        pendingApproval: expect.objectContaining({ approvalId: secondApproval.approvalId }),
+      }));
+
+      const malformed = await runtime.resumeApproval({
+        approvalId: secondApproval.approvalId,
+        decision: 'approved',
+      });
+      expect(malformed.ok).toBe(false);
+      expect(malformed.error.code).toBe('A9_APPROVAL_INPUT_INVALID');
+      expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
+
+      const wrongDigest = await runtime.resumeApproval({
+        approvalId: secondApproval.approvalId,
+        decision: 'approved',
+        bindingDigest: '0'.repeat(64),
+      });
+      expect(wrongDigest.ok).toBe(false);
+      expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
+
+      const stale = await runtime.resumeApproval({
+        approvalId: firstApproval.approvalId,
+        decision: 'approved',
+        bindingDigest: firstApproval.bindingDigest,
+      });
+      expect(stale.ok).toBe(false);
+      expect(stale.error.code).toBe('A9_APPROVAL_UNKNOWN');
+      expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
+
+      const denied = await runtime.resumeApproval({
+        approvalId: secondApproval.approvalId,
+        decision: 'denied',
+        bindingDigest: secondApproval.bindingDigest,
+      });
+      expect(denied.ok).toBe(true);
+      facts = lifecycleFacts(env);
+      expect(facts.tasks[0].status).not.toBe('active');
+      expect(facts.turns[0].status).not.toBe('active');
+      expect(facts.runs[0].status).not.toBe('active');
+      expect(facts.checkpoints[0].payload.outcome).toBe(denied.result.outcome);
+      expect(facts.checkpoints[0].payload.pendingApproval).toBeUndefined();
+      expect(fs.existsSync(path.join(env.workspaceRoot, 'note.txt'))).toBe(false);
+      expect(fs.existsSync(path.join(env.workspaceRoot, 'second.txt'))).toBe(true);
+      runtime.shutdown();
+    } finally {
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('persists a submit-time provider failure as failed with no active lifecycle rows', async () => {
+    const env = makeEnv();
+    const fixture = await startFailingFixture();
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const failed = await runtime.submitTurn('fail now');
+      expect(failed.ok).toBe(true);
+      expect(failed.result.outcome).toBe('failed');
+      const c = counts(env);
+      expect(c.failedTasks).toBe(1);
+      expect(c.failedTurns).toBe(1);
+      expect(c.failedRuns).toBe(1);
+      expect(c.activeTasks + c.activeTurns + c.activeRuns).toBe(0);
+      expect(lifecycleFacts(env).checkpoints[0].payload).toEqual(expect.objectContaining({ schemaVersion: 1, outcome: 'failed' }));
+      runtime.shutdown();
+    } finally {
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('persists provider initialization failure as a synthetic failed turn/run instead of leaking an active task', async () => {
+    const env = makeEnv();
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      const failed = await runtime.submitTurn('provider is not configured');
+      expect(failed.ok).toBe(false);
+      const c = counts(env);
+      expect(c.failedTasks).toBe(1);
+      expect(c.failedTurns).toBe(1);
+      expect(c.failedRuns).toBe(1);
+      expect(c.activeTasks + c.activeTurns + c.activeRuns).toBe(0);
+      expect(lifecycleFacts(env).checkpoints[0].payload).toEqual(expect.objectContaining({ schemaVersion: 1, outcome: 'failed' }));
+      runtime.shutdown();
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('persists a provider failure after approval resume as failed with no active rows', async () => {
+    const env = makeEnv();
+    const fixture = await startApprovalFixture({ failAfterFirstTool: true });
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const first = await runtime.submitTurn('delete then fail');
+      const approval = first.result.pendingApproval;
+      const failed = await runtime.resumeApproval({
+        approvalId: approval.approvalId,
+        decision: 'approved',
+        bindingDigest: approval.bindingDigest,
+      });
+      expect(failed.ok).toBe(true);
+      expect(failed.result.outcome).toBe('failed');
+      const c = counts(env);
+      expect(c.failedTasks).toBe(1);
+      expect(c.failedTurns).toBe(1);
+      expect(c.failedRuns).toBe(1);
+      expect(c.activeTasks + c.activeTurns + c.activeRuns).toBe(0);
+      expect(lifecycleFacts(env).checkpoints[0].payload).toEqual(expect.objectContaining({ schemaVersion: 1, outcome: 'failed' }));
+      runtime.shutdown();
+    } finally {
+      await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);

@@ -1,26 +1,29 @@
 {
   "schema_version": 1,
-  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260823-04",
+  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260823-09",
   "recorded_at": "2026-08-23",
-  "status": "A9_R1_TO_R6_AND_F1_TO_F6_REPAIR_INDEPENDENT_REVIEW_READY",
-  "phase_gate": "A9_IMPLEMENTATION_AUTHORIZED",
+  "status": "A9_01_TO_A9_06_PASS_A9_07_IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS",
+  "phase_gate": "A9_07_IN_PROGRESS",
+  "formal_serial_gate": "A9-07_IN_PROGRESS",
   "target_branch": "codex/a9-trusted-agent-runtime",
   "target_version": "0.3.0-alpha.1",
-  "source_baseline_commit": "6c32692121f66a0431d226003389eaa22200e152",
+  "source_baseline_commit": "958b26078730c28708d418ecf3b653a9e8060d2b",
   "repair_lineage": {
     "review_baseline_commit": "b22ca9d",
     "first_repair_commit": "0d91edb",
     "r1_to_r6_baseline": "0d91edbad530e367d7af8242425c237da30c82b3",
     "r1_to_r6_commits": ["336f35c", "7a649cf", "de5f168", "c9a234d", "990b84d", "23df5f4"],
     "f1_to_f6_baseline": "23b8e8a34d5406fceec4002a98fa05c550b10cf6",
-    "f1_to_f6_commits": ["d6d3a11", "f298afa", "49fd5a9", "02eb0ed", "843ebd9", "57b1641"]
+    "f1_to_f6_commits": ["d6d3a11", "f298afa", "49fd5a9", "02eb0ed", "843ebd9", "57b1641"],
+    "f2_f4_f5_f6_defect_baseline": "958b26078730c28708d418ecf3b653a9e8060d2b",
+    "f2_f4_f5_f6_delivery_state": "IMPLEMENTED_AND_DEVELOPER_VERIFIED_READY_FOR_A9_07"
   },
   "requirements": {
     "path": "docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md",
     "status": "OWNER_CONFIRMED",
     "confirmed_at": "2026-08-22"
   },
-  "decision": "ADR-0089 + ADR-0090/0091/0092/0093 (repair ADRs) + F1-F6 repair round (task instruction, no new ADR)",
+  "decision": "ADR-0089 + ADR-0090/0091/0092/0093/0094 (repair ADRs)",
   "task": "docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md",
   "repairs": {
     "R1_workspace_mode_isolation": {
@@ -44,8 +47,8 @@
       "adr": "ADR-0093"
     },
     "R5_behavioral_journeys": {
-      "status": "FIXED_DEVELOPER_VERIFIED (FIXTURE MODEL only)",
-      "evidence": "behavioral fixture J1(AGENTS.md actually read, citations from tool results) J2(real failing-then-passing node test + wrong-first-fix recovery) J3(new cross-file feature + real script + scoped diff) J4(git pull autonomous, commit/push approval bindings, deny zero-side-effect, approve lands on bare remote) J5(product runtime + real SQLite restart recovery, no replay)"
+      "status": "FIXED_DEVELOPER_AND_REAL_MODEL_VERIFIED",
+      "evidence": "DeepSeek deepseek-v4-flash real-model J1 read AGENTS.md/config/source and cited exact paths; J2 made a verified real fix; J3 made a scoped three-file feature and passed the real project script. Behavioral fixture J1-J5 additionally proves real Git pull/commit/push approval binding, deny zero-side-effect, and real SQLite/subprocess restart recovery without replay."
     },
     "R6_production_electron_ui": {
       "status": "FIXED_DEVELOPER_VERIFIED",
@@ -57,7 +60,7 @@
     },
     "F2_skipped_baseline_safety": {
       "status": "FIXED_DEVELOPER_VERIFIED",
-      "evidence": "baseline.skipped pre-existing files never enter created/delete-new; modify->modified+recoverable=false, delete->deleted+recoverable=false, rename->unrecoverable; undo preserves the scene; genuinely new large files still deletable; skip reasons cover single-file / total capacity / read failure"
+      "evidence": "9 focused regressions: unchanged skipped files create no Diff; same-size mtime change and size change are unrecoverable modified; 22 real files below 2 MiB exceed the 40 MiB aggregate cap; protected read failure retains stat facts; delete/rename/new-large/undo/cancel/non-zero regressions remain truthful"
     },
     "F3_mode_load_single_and_fail_closed": {
       "status": "FIXED_DEVELOPER_VERIFIED",
@@ -65,35 +68,55 @@
     },
     "F4_provider_history_and_credential_truth": {
       "status": "FIXED_DEVELOPER_VERIFIED (fake-DPAPI contract; real Windows DPAPI NOT_PERFORMED)",
-      "evidence": "rebuildProvider no longer clears the loop conversation history; after a model switch the first request carries user marker + assistant tool_calls + tool result; remembered=true means DPAPI-persisted and readable; UI shows 未记住; header/proxy vault save does not depend on an API key; header-only provider restores through fake-DPAPI restart; secrets absent from JSON/SQLite/log/event/error/snapshot"
+      "evidence": "10 focused regressions: API-key and Header-only fake-DPAPI configurations immediately and after restart report remembered=true/source=dpapi; remembered is computed once and shared by return/snapshot/audit/persisted config; header/proxy-only restoration counts as a restored secret; successful reconfiguration clears stale diagnostics; memory/corruption/plaintext-scan behavior remains fail-closed"
     },
     "F5_task_turn_run_lifecycle": {
       "status": "FIXED_DEVELOPER_VERIFIED",
-      "evidence": "submitTurn upserts task/turn/run (active on create, terminal on final, approval stays active, resume updates the same entity set); stop / provider error / process crash land explicit states; restart marks active->interrupted and restores only facts; J5 no longer forges crash rows via direct INSERT; J5 uses a real subprocess"
+      "evidence": "ADR-0094 / SQLite Schema v3; v1 and v2 use SQLite transaction-consistent VACUUM INTO backups before migration, retaining committed rows still present only in WAL plus explicit indexes; future schemas are probed read-only and rejected with byte-identical database, unchanged DELETE journal mode and no WAL/SHM sidecars; malformed migration rolls back. Lifecycle regressions cover consecutive approvals on one task/turn/run, per-result schemaVersion=1 checkpoints, precise stale approval, submit/resume/provider-initialization failed terminals, stop cancelled, zero active rows and real subprocess interruption without replay"
     },
     "F6_two_process_electron_smoke": {
       "status": "FIXED_DEVELOPER_VERIFIED",
-      "evidence": "two independent real Electron 22.3.27 processes against the same dataRoot; first binds workspace/mode/fixture provider, runs read/edit/real-test, Diff, triggers delete-permanent approval card (true target + 64-bit binding digest), denies with zero side effects, checkpoint then exits through will-quit (lock released); second restores mode/provider/checkpoint/interruption facts, old approval rejected, new turn works, and the restored-provider fresh-conversation request proves no model replay; delayed fixture stop -> cancelled with no managed process residue; invalid mode returns precise A9_MODE_INVALID; Electron-ABI SQLite preflight fail-closed"
+      "evidence": "38/38 real Electron 22.3.27 cases across three formal product-entry processes. Host verifies denied target file still exists; first process exports the true approvalId/bindingDigest; second process gets exact A9_APPROVAL_UNKNOWN with unchanged approval-row count and no file side effect; normal restart requires interruptions.length=0; OpenAI wire no-replay check uses tool_calls. Third process uses real main/preload/renderer UI to start a real long-running Shell child, clicks Stop, and proves cancelled, PID reaped and zero active task/turn/run rows; Electron-ABI SQLite preflight remains fail-closed"
+    },
+    "A9_04_real_provider_schema_interop": {
+      "status": "FIXED_REAL_PROVIDER_VERIFIED",
+      "evidence": "Initial real full-catalog request exposed HTTP 400 because Core ToolInputSchema shorthand lacked top-level type:object. OpenAICompatibleProvider now normalizes the wire schema; Gateway 241 tests pass. DeepSeek deepseek-v4-flash then passed SSE/tool calling, completed a verified real fix with 5 tool calls / 4 model steps, ran node test.js and reached cancelled on abort.",
+      "report": "docs/status/a9-04-real-provider-deepseek-20260823.json"
     }
   },
   "validation": {
-    "developer_fixture": "PASS (core 283 / runner 96 / workspace 127 / gateway 241 / git-adapter 56 / state 254 / shell 233 = 1290 tests; npm run verify PASS)",
-    "real_electron_product_entry": "PASS (A9-06 two-process smoke 32/32 cases on real Electron 22.3.27: A9F1 journey/approval card/deny-zero-side-effect, A9F2 restore/no-replay/old-approval-rejected, STOP cancelled/no-residue, A9F6 precise A9_MODE_INVALID, A9F0 workspace-bound/renderer-capability, SQLite ABI preflight fail-closed)",
-    "real_provider_smoke": "NOT_PERFORMED (entry ready: run-a9-real-provider-smoke.mjs; awaiting owner-provided dedicated credentials)",
-    "real_model_j1_to_j3": "NOT_PERFORMED",
+    "developer_fixture": "PASS (core 283 / runner 97 / workspace 130 / gateway 241 / git-adapter 56 / state 258 / shell 242 = 1307 tests; npm run verify PASS plus targeted safeStorage host-injection regression; npm run docs:check PASS 97 files; git diff --check PASS)",
+    "real_electron_product_entry": "PASS (A9-06 three-process smoke 38/38 cases on real Electron 22.3.27: real host-side deny file evidence, true old-approval replay rejection with stable approval table, zero normal-restart interruptions, OpenAI tool_calls no-replay, and formal UI Stop with real Shell PID reaping + cancelled SQLite terminal)",
+    "real_provider_smoke": "PASS (https://api.deepseek.com / deepseek-v4-flash; SSE + native tool calling + 5-call verified fix/test loop + cancellation; credential not recorded)",
+    "real_model_j1_to_j3": "PASS (DeepSeek deepseek-v4-flash: J1 instructions/config/source read + citations; J2 verified real fix/test; J3 scoped three-file feature + real project script)",
+    "a9_07_package_contract": "PASS (3/3 builder contracts + 5/5 package-runtime contracts; git-adapter closure, native binding, LOCALAPPDATA/portable selection, Electron safeStorage/DPAPI host injection, input tamper and secret scans)",
+    "a9_07_real_locked_input_double_build": "PASS_DEVELOPER_SURROGATE_ONLY (2/2 byte-identical ZIP SHA-256 364de65c75e81fba959e24f726bde6a44c25a72644fbdd347a3723a78df23c9d; source_dirty=true; external_acceptance_eligible=false)",
     "windows_powershell_cmd_helper": "NOT_PERFORMED (dev host POSIX sh only, labeled dev_host_only)",
     "dpi_1366x768": "NOT_PERFORMED",
     "win10": "NOT_PERFORMED",
     "win7": "NOT_PERFORMED",
     "alpha1": "NOT_PERFORMED"
   },
+  "a9_07_progress": {
+    "status": "IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS",
+    "record": "docs/status/a9-07-developer-package-progress-20260823.json",
+    "input_lock": "release/win7-product-v3/a9-07-input-lock.json",
+    "builder": "scripts/release/build-a9-product-v3.mjs",
+    "developer_candidate_sha256": "364de65c75e81fba959e24f726bde6a44c25a72644fbdd347a3723a78df23c9d",
+    "source_dirty": true,
+    "external_acceptance_eligible": false,
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "alpha1": "NOT_PERFORMED"
+  },
   "a8_disposition": "FROZEN_HISTORICAL_REVIEW_FIRST_BASELINE_NOT_A9_PASS (A8 surfaces keep their labels in the A9 renderer)",
-  "next_stage": "INDEPENDENT_VERIFICATION_OF_R1_TO_R6_AND_F1_TO_F6_REPAIRS",
+  "next_stage": "A9_07_PACKAGE_AND_WINDOWS_VALIDATION",
   "blocking_reason": [
-    "REAL_PROVIDER_SMOKE and real-model J1-J3 require owner-provided dedicated base URL, model and test credentials",
-    "PowerShell 5.1 / CMD matrices, D-013 helper lifecycle, Win7 junction/UNC/MAX_PATH require a Windows host",
-    "1366x768 / 100%/125% DPI validation requires a Windows display environment",
-    "A9-07 packaging and Win7 J1-J5 remain out of scope for this round and are NOT_PERFORMED"
+    "The current byte-identical v3 build is a dirty-source developer surrogate and is explicitly ineligible for formal Windows acceptance; a clean committed-source candidate must be rebuilt",
+    "PowerShell 5.1 / CMD matrices, D-013 helper lifecycle, Windows DPAPI, Win7 junction/UNC/MAX_PATH require a Windows host",
+    "1366x768 / 100%/125% DPI and Win10/Win7 product journeys require Windows display environments",
+    "A9_ALPHA1_PASS remains NOT_PERFORMED until the same immutable candidate completes A9-07"
   ],
-  "not_entered": ["A9-07", "release/win7-product-v3", "push"]
+  "in_progress": ["A9-07"],
+  "not_entered": ["Win10 external validation", "Win7 external validation", "A9_ALPHA1_PASS", "push"]
 }

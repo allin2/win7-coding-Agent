@@ -2,17 +2,19 @@
 'use strict';
 
 /**
- * A9-06 真实 Electron 开发机 smoke（双进程版，F6）。
+ * A9-06 真实 Electron 开发机 smoke（三进程版，F6）。
  *
- * 两次独立 Electron 进程：
+ * 三次独立 Electron 进程：
  * - 第一进程：绑定工作区（正式 selectWorkspace 链路）→ 模式 → fixture Provider →
  *   read/edit/真实测试 → Diff → 触发永久删除/git push 审批（校验审批卡真实目标与
  *   64 位绑定摘要）→ 拒绝零副作用 → checkpoint 后退出。
  * - 第二进程：同一 dataRoot 打开，恢复 mode/provider/checkpoint/interruption 事实；
  *   fixture 请求计数证明无模型重放；旧审批不可执行；新 Turn 可执行。
+ * - 第三进程：经正式 UI 发起真实长运行 Shell，点击 Stop 后验证 cancelled、
+ *   Shell 子 PID 消失且 SQLite 无 active task/turn/run。
  *
  * 附带（宿主进程内）：Electron-ABI SQLite 预检 fail-closed 负向断言、
- * delayed fixture 取消（stop）无残留进程、非法模式精确 A9_MODE_INVALID。
+ * 拒绝/旧审批文件副作用与审批表检查、非法模式精确 A9_MODE_INVALID。
  * 使用真实 Electron、真实 preload（窄 IPC）、真实 A9 运行时与真实 better-sqlite3；
  * 模型端为本地回环 fixture。
  *
@@ -24,10 +26,13 @@ import fs from 'fs';
 import http from 'http';
 import os from 'os';
 import path from 'path';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptRoot, '../../../..');
+const hostRequire = createRequire(path.join(repositoryRoot, 'package.json'));
+const HostDatabase = hostRequire('better-sqlite3');
 
 function argument(name, fallback) {
   const prefix = `--${name}=`;
@@ -54,6 +59,50 @@ fs.writeFileSync(path.join(workspaceRoot, 'calc.ts'), 'export function add(a, b)
 const cases = [];
 function record(id, passed, detail) {
   cases.push({ id, passed: passed === true, detail: detail || '' });
+}
+
+function readPersistenceFacts(targetDataRoot) {
+  const databasePath = path.join(targetDataRoot, 'a9-state.db');
+  if (!fs.existsSync(databasePath)) return { databasePath, missing: true };
+  const db = new HostDatabase(databasePath, { readonly: true });
+  try {
+    const count = (table, where = '') => Number(db.prepare(`SELECT COUNT(*) AS count FROM ${table} ${where}`).get().count);
+    const latestTurn = db.prepare('SELECT status, outcome_json AS outcomeJson FROM a9_turns ORDER BY updated_at DESC LIMIT 1').get() || null;
+    return {
+      databasePath,
+      approvalCount: count('a9_approvals'),
+      activeTasks: count('a9_tasks', "WHERE status = 'active'"),
+      activeTurns: count('a9_turns', "WHERE status = 'active'"),
+      activeRuns: count('a9_runs', "WHERE status = 'active'"),
+      latestTurn,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+function commandArgument(value) {
+  const rendered = String(value);
+  if (rendered.includes('"')) throw new Error(`Smoke fixture path contains unsupported quote: ${rendered}`);
+  return `"${rendered}"`;
+}
+
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function waitForPidExit(pid, timeoutMs = 15_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (!isPidAlive(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return !isPidAlive(pid);
 }
 
 // ---------------------------------------------------------------------------
@@ -144,10 +193,9 @@ const firstFixture = createFixture('first', (() => {
   };
 })());
 
-// 延迟 fixture：read 工具回执后不结束响应（保持 Turn active），可解锁。
-function createStallFixture() {
-  let released = false;
-  const pending = [];
+// Shell stall fixture：probe 正常返回；正式 Turn 发出真实 shell 工具调用。
+// shell 子进程自身保持运行，必须由 UI Stop → AbortSignal → Runner 进程树回收终止。
+function createShellStallFixture(command) {
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (d) => { body += d; });
@@ -155,31 +203,20 @@ function createStallFixture() {
       const parsed = JSON.parse(body);
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const sse = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-      const toolMsgs = (parsed.messages ?? []).filter((m) => m.role === 'tool' && m.name !== 'probe_test_echo');
-      if (toolMsgs.length === 0) {
-        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'r1', function: { name: 'read', arguments: '{"path":"calc.ts"}' } }] }, finish_reason: 'tool_calls' }] });
+      if (parsed?.tools?.[0]?.function?.name === 'probe_test_echo') {
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'stop-probe', function: { name: 'probe_test_echo', arguments: '{"message":"probe_ok"}' } }] }, finish_reason: 'tool_calls' }] });
         res.write('data: [DONE]\n\n');
         res.end();
-      } else if (released) {
-        sse({ choices: [{ delta: { content: 'late final' }, finish_reason: 'stop' }] });
-        res.write('data: [DONE]\n\n');
-        res.end();
-      } else {
-        pending.push(res);
+        return;
       }
+      sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'stall-shell', function: { name: 'shell', arguments: JSON.stringify({ command }) } }] }, finish_reason: 'tool_calls' }] });
+      res.write('data: [DONE]\n\n');
+      res.end();
     });
   });
   return {
     server,
     listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', resolve)),
-    release: () => {
-      released = true;
-      for (const res of pending.splice(0)) {
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'late final' }, finish_reason: 'stop' }] })}\n\n`);
-        res.write('data: [DONE]\n\n');
-        res.end();
-      }
-    },
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }
@@ -229,10 +266,20 @@ record('A9F6-SQLITE-ABI-PREFLIGHT', preflightResult === 0, `exit=${preflightResu
 
 const firstOut = path.join(root, 'first.json');
 const secondOut = path.join(root, 'second.json');
+const stopOut = path.join(root, 'stop.json');
+const stopWorkspaceRoot = path.join(root, 'stop-ws');
+const stopDataRoot = path.join(root, 'stop-data');
+const stopPidMarker = path.join(root, 'stop-child.pid');
+const stallChildPath = path.join(root, 'stall-child.cjs');
+fs.mkdirSync(stopWorkspaceRoot, { recursive: true });
+fs.mkdirSync(stopDataRoot, { recursive: true });
+fs.writeFileSync(path.join(stopWorkspaceRoot, 'calc.ts'), 'export const ready = true;\n', 'utf8');
+fs.writeFileSync(stallChildPath, `'use strict';\nconst fs = require('fs');\nfs.writeFileSync(process.argv[2], String(process.pid), 'utf8');\nsetInterval(() => {}, 1000);\n`, 'utf8');
+const stallCommand = `${commandArgument(process.execPath)} ${commandArgument(stallChildPath)} ${commandArgument(stopPidMarker)}`;
 
 await firstFixture.listen();
 const firstUrl = `http://127.0.0.1:${firstFixture.server.address().port}`;
-const stall = createStallFixture();
+const stall = createShellStallFixture(stallCommand);
 await stall.listen();
 const stallUrl = `http://127.0.0.1:${stall.server.address().port}`;
 
@@ -271,6 +318,9 @@ record('A9F1-EXIT-CODE', firstExit === 0, `exit=${firstExit}`);
 for (const c of firstReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
+const scratchPath = path.join(workspaceRoot, 'scratch.tmp');
+record('A9F1-APPROVAL-DENY-ZERO-SIDE-EFFECT', fs.existsSync(scratchPath), `exists=${fs.existsSync(scratchPath)} path=${scratchPath}`);
+const factsAfterFirst = readPersistenceFacts(dataRoot);
 const firstRequestsBefore = firstFixture.getRound();
 const firstRequestsSnapshot = firstFixture.getRequests().slice();
 record('A9F1-FIXTURE-REQUESTS', firstRequestsBefore >= 4, `rounds=${firstRequestsBefore}`);
@@ -283,6 +333,8 @@ try {
     ...baseEnv,
     A9_SMOKE_MODE: 'second',
     A9_SMOKE_OUT: secondOut,
+    A9_SMOKE_OLD_APPROVAL_ID: firstReport.oldApproval && firstReport.oldApproval.approvalId ? firstReport.oldApproval.approvalId : '',
+    A9_SMOKE_OLD_APPROVAL_DIGEST: firstReport.oldApproval && firstReport.oldApproval.bindingDigest ? firstReport.oldApproval.bindingDigest : '',
   }, [driverEntry, `--a9-smoke-workspace=${workspaceRoot}`]);
 } catch (err) {
   secondExit = 1;
@@ -296,6 +348,11 @@ record('A9F2-EXIT-CODE', secondExit === 0, `exit=${secondExit}`);
 for (const c of secondReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
+const factsAfterSecond = readPersistenceFacts(dataRoot);
+record('A9F2-OLD-APPROVAL-NO-NEW-ROW',
+  Number.isInteger(factsAfterFirst.approvalCount) && factsAfterSecond.approvalCount === factsAfterFirst.approvalCount,
+  `before=${factsAfterFirst.approvalCount}; after=${factsAfterSecond.approvalCount}`);
+record('A9F2-OLD-APPROVAL-ZERO-SIDE-EFFECT', fs.existsSync(scratchPath), `exists=${fs.existsSync(scratchPath)} path=${scratchPath}`);
 // 恢复的 Provider 在新 Turn 期间产生新的模型流量（证明配置真实生效且会讲话）。
 const restoredRequests = firstFixture.getRequests().slice(firstRequestsSnapshot.length);
 const restoredHasNewTraffic = restoredRequests.length >= 2;
@@ -305,67 +362,28 @@ record('A9F2-RESTORED-PROVIDER-TRAFFIC', restoredHasNewTraffic, `newRequests=${r
 const firstNew = restoredRequests[0];
 const fresh = Boolean(firstNew) && Array.isArray(firstNew.messages) &&
   firstNew.messages.some((m) => m.role === 'user' && String(m.content || '').includes('verify again')) &&
-  !firstNew.messages.some((m) => m.role === 'assistant' && Array.isArray(m.toolCalls) && m.toolCalls.length > 0) &&
+  !firstNew.messages.some((m) => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) &&
   !firstNew.messages.some((m) => m.role === 'tool');
 record('A9F2-NO-REPLAY-FRESH-CONVERSATION', fresh,
-  `firstNew=${fresh ? 'fresh' : JSON.stringify(firstNew && firstNew.messages ? firstNew.messages.map((m) => `${m.role}${m.role === 'assistant' && m.toolCalls ? '/tc' : ''}${m.role === 'user' ? ':' + String(m.content || '').slice(0, 40) : ''}`) : firstNew)}`);
+  `firstNew=${fresh ? 'fresh' : JSON.stringify(firstNew && firstNew.messages ? firstNew.messages.map((m) => `${m.role}${m.role === 'assistant' && m.tool_calls ? '/tc' : ''}${m.role === 'user' ? ':' + String(m.content || '').slice(0, 40) : ''}`) : firstNew)}`);
 
 // 旧审批不可执行：第二进程驱动已断言 resumeApproval 结构化拒绝。
 // （A9F2-OLD-APPROVAL-REJECTED 由驱动报告。）
 
 // ---------------------------------------------------------------------------
-// delayed fixture 停止（stop → cancelled）：宿主进程直接驱动 A9 runtime。
-// 第三进程：配置 stall fixture，submitTurn 进入 read 后保持 active，stop 后
-// 必须返回 cancelled 且无残留进程（a9_managed_processes 为空 / 无活动 PID）。
+// 正式 Electron 产品入口停止（stop → cancelled）：真实 main/preload/renderer
+// 发起长运行 Shell 子进程；UI Stop 后由宿主验证 PID 消失、SQLite 无 active 生命周期。
 // ---------------------------------------------------------------------------
-const stopOut = path.join(root, 'stop.json');
-const stopScript = path.join(root, 'stop-driver.cjs');
-fs.writeFileSync(stopScript, `'use strict';
-const fs = require('fs');
-const path = require('path');
-const { createA9AgentRuntime } = require(${JSON.stringify(path.join(repositoryRoot, 'src/shell/product/a9-agent-runtime.js'))});
-const Database = require(${JSON.stringify(path.join(electronSqliteRoot, 'node_modules/better-sqlite3'))});
-const root = ${JSON.stringify(root)};
-const ws = ${JSON.stringify(workspaceRoot)};
-const data = ${JSON.stringify(dataRoot)};
-const stallUrl = ${JSON.stringify(stallUrl)};
-const report = { status: 'RUNNING', cases: [] };
-const record = (id, passed, detail) => report.cases.push({ id, passed: passed === true, detail: detail || '' });
-async function main() {
-  const runtime = createA9AgentRuntime({
-    workspaceRoot: ws,
-    dataRoot: data,
-    ownerId: 'stop-' + process.pid,
-    openDatabase: (p, o) => new Database(p, o && o.readonly ? { readonly: true } : {}),
-  });
-  runtime.setMode('full_access');
-  await runtime.configureProvider({ baseUrl: stallUrl, model: 'stall-fixture', skipProbe: true });
-  // 提交后立刻轮询等待 active turn 落库（真实生命周期），然后 stop。
-  const turnPromise = runtime.submitTurn('start stalled turn');
-  const deadline = Date.now() + 30000;
-  let activeSeen = false;
-  while (Date.now() < deadline) {
-    const snap = runtime.getSnapshot();
-    if (snap.agentStatus === 'running') { activeSeen = true; break; }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  record('STOP-ACTIVE-SEEN', activeSeen, 'activeSeen=' + activeSeen);
-  const stopResult = runtime.stop();
-  record('STOP-RETURN', stopResult.ok === true, JSON.stringify(stopResult));
-  const turned = await turnPromise;
-  record('STOP-CANCELLED', turned.ok === true && turned.result.outcome === 'cancelled', JSON.stringify({ ok: turned.ok, outcome: turned.result && turned.result.outcome }));
-  const snap = runtime.getSnapshot();
-  record('STOP-NO-AGENT-RUNNING', snap.agentStatus !== 'running', 'agentStatus=' + snap.agentStatus);
-  record('STOP-NO-RESIDUE', Array.isArray(snap.managedProcesses) && snap.managedProcesses.length === 0, JSON.stringify(snap.managedProcesses));
-  runtime.shutdown();
-  report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
-  fs.writeFileSync(${JSON.stringify(stopOut)}, JSON.stringify(report, null, 2) + '\\n');
-}
-main().then(() => { process.exit(report.status === 'PASS' ? 0 : 1); }).catch((err) => { report.status = 'ERROR'; report.error = String(err && err.stack || err); try { fs.writeFileSync(${JSON.stringify(stopOut)}, JSON.stringify(report, null, 2) + '\\n'); } catch (_e) {} process.exit(1); });
-`);
 const stopExit = await runElectronProcess({
   ...baseEnv,
-}, [stopScript]);
+  A9_SMOKE_WORKSPACE: stopWorkspaceRoot,
+  A9_SMOKE_DATAROOT: stopDataRoot,
+  A9_SMOKE_MODE: 'stop',
+  A9_SMOKE_FIXTURE_URL: stallUrl,
+  A9_SMOKE_STOP_PID_MARKER: stopPidMarker,
+  A9_SMOKE_OUT: stopOut,
+  WIN7AGENT_A9_DATAROOT: stopDataRoot,
+}, [driverEntry, `--a9-smoke-workspace=${stopWorkspaceRoot}`]);
 let stopReport = { status: 'NO_REPORT' };
 if (fs.existsSync(stopOut)) {
   try { stopReport = JSON.parse(fs.readFileSync(stopOut, 'utf8')); } catch (_e) { /* keep */ }
@@ -374,6 +392,13 @@ record('A9F6-STOP-EXIT', stopExit === 0, `exit=${stopExit}`);
 for (const c of stopReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
+const stoppedPid = fs.existsSync(stopPidMarker) ? Number(fs.readFileSync(stopPidMarker, 'utf8').trim()) : 0;
+const pidReaped = stoppedPid > 0 ? await waitForPidExit(stoppedPid) : false;
+record('A9F6-STOP-SHELL-PID-REAPED', pidReaped, `pid=${stoppedPid}; alive=${stoppedPid > 0 ? isPidAlive(stoppedPid) : 'unknown'}`);
+const stopFacts = readPersistenceFacts(stopDataRoot);
+record('A9F6-STOP-NO-ACTIVE-LIFECYCLE',
+  stopFacts.activeTasks === 0 && stopFacts.activeTurns === 0 && stopFacts.activeRuns === 0 && stopFacts.latestTurn && stopFacts.latestTurn.status === 'cancelled',
+  JSON.stringify(stopFacts));
 
 const report = {
   schemaVersion: 1,
@@ -401,12 +426,11 @@ const report = {
   notes: [
     'Two independent Electron 22.3.27 processes against the same dataRoot; workspace bound via formal selectWorkspace (no WIN7AGENT_A9_WORKSPACE).',
     'The restored provider points at the first fixture; the second process fresh-conversation requests prove no model replay (no assistant tool_calls / tool history in the first request, new user prompt present).',
-    'Electron-ABI SQLite preflight is fail-closed; stop() returns cancelled with no managed process residue.',
+    'Electron-ABI SQLite preflight is fail-closed; the product UI stop path cancels a real long-running Shell child, reaps its PID, and leaves zero active task/turn/run rows.',
     'This is a real Electron developer-machine smoke; it is NOT Win7 evidence.',
   ],
 };
 
-stall.release();
 await firstFixture.close();
 await stall.close();
 if (!keepRoot) fs.rmSync(root, { recursive: true, force: true });

@@ -1,17 +1,17 @@
 'use strict';
 
 /**
- * A9-06 正式产品 Electron smoke 驱动入口（双进程版）。
+ * A9-06 正式产品 Electron smoke 驱动入口（多进程版）。
  *
  * 进程内 require 正式 product/main.js（真实入口、真实 preload、真实
  * index.html/renderer.js），经 BrowserWindow.getAllWindows() 在真实 DOM 上
  * 完成模式选择、Provider 配置、Turn、越权拒绝、Diff、撤销与重启恢复。
  *
- * 双进程模式：A9_SMOKE_MODE=first|second。first 绑定工作区/模式/fixture
+ * 多进程模式：A9_SMOKE_MODE=first|second|stop。first 绑定工作区/模式/fixture
  * Provider、跑 read/edit/真实测试、Diff、触发永久删除或 git push 审批，
- * 检查审批卡真实目标与绑定、拒绝零副作用，checkpoint 后退出；second 打开
+ * 检查审批卡真实目标与绑定、拒绝后交由宿主检查真实文件，checkpoint 后退出；second 打开
  * 相同 dataRoot，验证模式/Provider/checkpoint/中断恢复、fixture 请求计数
- * 证明无模型重放、旧审批不可执行，退出码 0。
+ * 证明无模型重放、旧审批不可执行；stop 经真实 UI 启动并取消 Shell 子进程。
  */
 
 const fs = require('fs');
@@ -71,8 +71,17 @@ async function main() {
 
   if (mode === 'first') {
     await runFirstProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
-  } else {
+  } else if (mode === 'second') {
     await runSecondProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'stop') {
+    await runStopProcess(win, exec, {
+      workspaceRoot,
+      dataRoot,
+      fixtureUrl,
+      pidMarker: process.env.A9_SMOKE_STOP_PID_MARKER,
+    });
+  } else {
+    throw new Error(`Unsupported A9_SMOKE_MODE: ${mode}`);
   }
 
   report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
@@ -129,12 +138,13 @@ async function runFirstProcess(win, exec, env) {
   const approvalValid = approval && (approval.summary.includes('permanent') || approval.summary.includes('git')) &&
     approval.approvalId.length > 0 && approval.digest && approval.digest.length === 64;
   record('A9F1-APPROVAL-CARD-TRUE-TARGET', approvalValid === true, JSON.stringify(approval));
+  report.oldApproval = approval ? { approvalId: approval.approvalId, bindingDigest: approval.digest } : null;
 
-  // 拒绝零副作用：拒绝后目标文件仍存在/远端未变（deny 不执行原操作）。
+  // Renderer 只证明拒绝完成；目标文件事实由宿主进程在 Electron 退出后直接检查。
   await exec('document.getElementById("a9-approval-deny").click(); true');
   await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, 'approval card closed');
   const afterDeny = await exec('(() => { const s = document.getElementById("a9-turn-outcome").textContent; return s; })()');
-  record('A9F1-APPROVAL-DENY-ZERO-SIDE-EFFECT', afterDeny.includes('blocked') || afterDeny.includes('completed') || afterDeny.includes('needs_approval'), `outcome=${afterDeny}`);
+  record('A9F1-APPROVAL-DENY-OUTCOME', afterDeny.includes('blocked') || afterDeny.includes('completed') || afterDeny.includes('needs_approval'), `outcome=${afterDeny}`);
 
   // checkpoint 事实落库（真实 SQLite；first 进程退出前保留）。
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ mode: r.snapshot.mode, provider: r.snapshot.provider.configured, model: r.snapshot.provider.model, checkpoints: r.snapshot.checkpoints.length }))');
@@ -148,17 +158,49 @@ async function runSecondProcess(win, exec, env) {
   record('A9F2-RESTORE-PROVIDER', snapshot.provider && snapshot.provider.configured === true && snapshot.provider.model === 'smoke-manual-model', `model=${snapshot.provider && snapshot.provider.model}`);
   record('A9F2-RESTORE-CHECKPOINT', (snapshot.checkpoints || []).length >= 1, `checkpoints=${(snapshot.checkpoints || []).length}`);
   // 真实中断恢复：first 进程已 checkpoint 后退出，无 active 任务 → 无 interrupted 伪造。
-  record('A9F2-INTERRUPTION-FACTS', Array.isArray(snapshot.interruptions), `interruptions=${JSON.stringify(snapshot.interruptions)}`);
+  record('A9F2-NO-SPURIOUS-INTERRUPTION', Array.isArray(snapshot.interruptions) && snapshot.interruptions.length === 0, `interruptions=${JSON.stringify(snapshot.interruptions)}`);
   // 不自动重放：时间线为空。
   record('A9F2-NO-REPLAY-TIMELINE', Array.isArray(snapshot.timeline) && snapshot.timeline.length === 0, `timeline=${snapshot.timeline.length}`);
   // 旧审批不可执行：无挂起审批却恢复 → 结构化拒绝（不新增实体、零副作用）。
-  const forged = await exec('(window.win7Agent.a9.resumeApproval("forged-approval", "approved", "0".repeat(64))).then(r => ({ ok: r.ok, code: r.error && r.error.code }))');
-  record('A9F2-OLD-APPROVAL-REJECTED', forged.ok === false && Boolean(forged.code), JSON.stringify(forged));
+  const oldApproval = {
+    approvalId: process.env.A9_SMOKE_OLD_APPROVAL_ID,
+    bindingDigest: process.env.A9_SMOKE_OLD_APPROVAL_DIGEST,
+  };
+  const rejected = await exec(`(window.win7Agent.a9.resumeApproval(${JSON.stringify(oldApproval.approvalId)}, "approved", ${JSON.stringify(oldApproval.bindingDigest)})).then(r => ({ ok: r.ok, code: r.error && r.error.code }))`);
+  record('A9F2-OLD-APPROVAL-REJECTED', rejected.ok === false && rejected.code === 'A9_APPROVAL_UNKNOWN', JSON.stringify(rejected));
 
   // 新 Turn 仍可执行（恢复的 Provider 已配置）；恢复请求由宿主按内容断言为全新会话。
   await exec('document.getElementById("a9-prompt").value = "verify again"; document.getElementById("a9-submit").click(); true');
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('completed') ? t : null)), 60_000, 'second turn outcome');
   record('A9F2-SECOND-TURN-WORKS', Boolean(outcome), `outcome=${outcome}`);
+}
+
+async function runStopProcess(win, exec, env) {
+  await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
+  await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.mode)').then((m) => (m === 'full_access' ? m : null)), 15_000, 'stop mode set');
+
+  await exec(`(() => {
+    document.getElementById('a9-provider-url').value = ${JSON.stringify(env.fixtureUrl)};
+    document.getElementById('a9-provider-model').value = 'shell-stall-fixture';
+    document.getElementById('a9-provider-apply').click();
+    return true;
+  })()`);
+  await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'stop provider probe');
+
+  await exec('document.getElementById("a9-prompt").value = "run the long shell task"; document.getElementById("a9-submit").click(); true');
+  const childPid = await waitFor(() => {
+    if (!env.pidMarker || !fs.existsSync(env.pidMarker)) return null;
+    const parsed = Number(fs.readFileSync(env.pidMarker, 'utf8').trim());
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, 45_000, 'shell child pid marker');
+  record('A9F6-STOP-SHELL-CHILD-STARTED', childPid > 0, `pid=${childPid}`);
+
+  const stopVisible = await exec('document.getElementById("a9-stop").hidden === false');
+  record('A9F6-STOP-UI-ACTIVE', stopVisible === true, `visible=${stopVisible}`);
+  await exec('document.getElementById("a9-stop").click(); true');
+  const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('cancelled') ? t : null)), 45_000, 'cancelled outcome');
+  const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)');
+  record('A9F6-STOP-TURN-CANCELLED', Boolean(outcome) && snapshot.agentStatus === 'cancelled', `outcome=${outcome}; agentStatus=${snapshot.agentStatus}`);
 }
 
 app.whenReady().then(main).then(() => {

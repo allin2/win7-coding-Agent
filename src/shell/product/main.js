@@ -20,6 +20,7 @@ const { createDesktopRequestHandler } = require('./desktop-ipc');
 const { createA8ProductRequestHandler } = require('./a8-product-ipc');
 const { createA9ProductRequestHandler } = require('./a9-product-ipc');
 const { createA9AgentRuntime } = require('./a9-agent-runtime');
+const { loadA9PackageRuntime } = require('./a9-package-runtime');
 const { installSessionPolicy, installWindowPolicy } = require('./security-policy');
 const { createDesktopHost } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
@@ -32,6 +33,9 @@ const productRoot = __dirname;
 const rendererRoot = path.join(productRoot, 'renderer');
 const rendererEntry = path.join(rendererRoot, 'index.html');
 const preloadPath = path.join(productRoot, 'preload.js');
+// v3 package only: bind the immutable native closure and select the documented
+// LOCALAPPDATA/portable data root before Electron creates its default userData.
+const a9PackageRuntime = loadA9PackageRuntime({ productRoot, app });
 const startedAt = new Date().toISOString();
 const mvpId = readArgument('--mvp-id=') || 'MVP-UNKNOWN';
 const smokeReportPath = readArgument('--smoke-report=');
@@ -863,7 +867,12 @@ function getOrCreateA9Runtime() {
     workspaceRoot: desiredWorkspace,
     dataRoot: a9DataRoot,
     ownerId: `main-${process.pid}`,
-    ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE } : {}),
+    // Windows package path: Electron safeStorage is the DPAPI boundary. Without
+    // this host injection Provider secrets silently degrade to process memory.
+    safeStorage,
+    ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE
+      ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE }
+      : a9PackageRuntime ? { electronSqliteRoot: a9PackageRuntime.storageRoot } : {}),
   });
   a9RuntimeWorkspace = desiredWorkspace;
   return a9RuntimeInstance;
@@ -898,7 +907,7 @@ ipcMain.handle('product:get-diagnostics', (event) => {
   return {
     schemaVersion: 1,
     product: 'Win7 Coding Agent',
-    version: '0.1.0-mvp',
+    version: a9PackageRuntime ? a9PackageRuntime.version : '0.1.0-mvp',
     runtime: {
       electron: process.versions.electron,
       node: process.versions.node,
