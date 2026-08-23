@@ -119,7 +119,8 @@ export interface TurnContentBaseline {
   turnId: string;
   frozenAt: string;
   files: Record<string, { sha256: string; blobPath: string; size: number }>;
-  skipped: Array<{ path: string; reason: 'too_large' | 'backup_failed' | 'outside' }>;
+  /** F2：基线未覆盖的既有文件事实（size/mtime 供 rename 启发式；不保存内容）。 */
+  skipped: Array<{ path: string; reason: 'too_large' | 'backup_failed' | 'outside'; size?: number; mtimeMs?: number }>;
 }
 
 export interface ExternalChangeReport {
@@ -856,7 +857,7 @@ export class A9WorkspaceService {
           }
         } else if (dirent.isFile()) {
           if (fileCount >= MAX_BASELINE_FILES) {
-            skipped.push({ path: rel, reason: 'too_large' });
+            skipped.push({ path: rel, reason: 'too_large', size: fs.statSync(fullPath).size, mtimeMs: fs.statSync(fullPath).mtimeMs });
             continue;
           }
           let stat: fs.Stats;
@@ -867,7 +868,7 @@ export class A9WorkspaceService {
             continue;
           }
           if (stat.size > MAX_BASELINE_FILE_BYTES || totalBytes + stat.size > MAX_BASELINE_TOTAL_BYTES) {
-            skipped.push({ path: rel, reason: 'too_large' });
+            skipped.push({ path: rel, reason: 'too_large', size: stat.size, mtimeMs: stat.mtimeMs });
             continue;
           }
           try {
@@ -878,7 +879,7 @@ export class A9WorkspaceService {
             totalBytes += stat.size;
             fileCount += 1;
           } catch (_e) {
-            skipped.push({ path: rel, reason: 'backup_failed' });
+            skipped.push({ path: rel, reason: 'backup_failed', size: stat.size, mtimeMs: stat.mtimeMs });
           }
         }
       }
@@ -935,12 +936,27 @@ export class A9WorkspaceService {
       }
     }
 
-    const skippedPaths = new Set(baseline.skipped.map((item) => item.path));
+    // F2：skipped = 冻结时已存在但基线未覆盖的文件（携带事实，不含内容）。
+    const skippedFacts = new Map(baseline.skipped.map((item) => [item.path, item]));
     const createdHashes = new Map<string, string>();
 
     // 新建与修改。
     for (const [rel, fact] of current) {
       const before = baseline.files[rel];
+      const skippedFact = skippedFacts.get(rel);
+      if (!before && skippedFact) {
+        // 基线跳过的既有文件被修改：modified + 不可恢复（绝不进入 created/delete-new）。
+        const mtimeChanged = skippedFact.mtimeMs === undefined || (current.get(rel) && String(fact.size) !== 'NaN' && skippedFact.size !== undefined && skippedFact.size !== fact.size) || skippedFact.mtimeMs !== undefined;
+        void mtimeChanged;
+        this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
+          newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
+          unrecoverable: true,
+        });
+        this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: `轮前基线未覆盖（${skippedFact.reason}），无法恢复原内容` });
+        report.unrecoverable.push({ path: rel, kind: 'modified', reason: skippedFact.reason });
+        report.changes.push({ path: rel, kind: 'modified', recoverable: false });
+        continue;
+      }
       if (!before) {
         createdHashes.set(fact.sha256, rel);
         this.checkpointManager.recordExternalFact(turnId, rel, 'created', { newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256 });
@@ -948,22 +964,16 @@ export class A9WorkspaceService {
         continue;
       }
       if (before.sha256 !== fact.sha256) {
-        if (skippedPaths.has(rel)) {
-          this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: '轮前基线未覆盖该文件（超限或备份失败），无法恢复原内容' });
-          report.unrecoverable.push({ path: rel, kind: 'modified', reason: 'baseline-missing' });
-          report.changes.push({ path: rel, kind: 'modified', recoverable: false });
-        } else {
-          this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
-            originalBlobPath: before.blobPath,
-            originalHash: before.sha256,
-            newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
-          });
-          report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
-        }
+        this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
+          originalBlobPath: before.blobPath,
+          originalHash: before.sha256,
+          newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
+        });
+        report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
       }
     }
 
-    // 删除与重命名（同哈希 delete+create 对 → renamed）。
+    // 删除与重命名（同哈希 delete+create 对 → renamed；skipped 侧明确不可恢复）。
     for (const [rel, before] of Object.entries(baseline.files)) {
       if (current.has(rel)) continue;
       const renamedTo = createdHashes.get(before.sha256);
@@ -975,6 +985,27 @@ export class A9WorkspaceService {
       }
       this.checkpointManager.recordExternalFact(turnId, rel, 'deleted', { originalBlobPath: before.blobPath, originalHash: before.sha256 });
       report.changes.push({ path: rel, kind: 'deleted', recoverable: true, restoredVia: 'restore-original' });
+    }
+
+    // 基线跳过的既有文件被删除/改名离开：明确不可恢复，undo 保留现场并报告。
+    for (const [rel, skippedFact] of skippedFacts) {
+      if (current.has(rel)) continue;
+      const sizeMatchRename = Array.from(current.entries()).find(([candidate, fact]) => {
+        void candidate;
+        return skippedFact.size !== undefined && fact.size === skippedFact.size;
+      });
+      const kind = sizeMatchRename ? 'renamed' : 'deleted';
+      this.checkpointManager.recordExternalFact(turnId, rel, 'deleted', { unrecoverable: true });
+      this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind, reason: `轮前基线未覆盖（${skippedFact.reason}），${kind === 'renamed' ? '疑似重命名' : '删除'}后原内容无法恢复` });
+      report.unrecoverable.push({ path: rel, kind, reason: skippedFact.reason });
+      report.changes.push({ path: rel, kind, recoverable: false });
+      if (sizeMatchRename) {
+        // 重命名的新路径同样标记不可恢复（不可伪装为可恢复的 delete-new）。
+        const newSide = sizeMatchRename[0];
+        this.checkpointManager.recordExternalFact(turnId, newSide, 'modified', { unrecoverable: true });
+        this.checkpointManager.recordUnrecoverableExternal(turnId, { path: newSide, kind: 'renamed', reason: '疑似自基线未覆盖文件重命名而来，两侧均不可恢复' });
+        report.unrecoverable.push({ path: newSide, kind: 'renamed', reason: 'rename-from-skipped' });
+      }
     }
 
     return report;

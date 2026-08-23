@@ -19,6 +19,8 @@ export interface FileChangeRecord {
   filePath: string;
   action: 'create' | 'modify' | 'delete';
   isDirectory: boolean;
+  /** F2：外部变化无原始内容可恢复（基线未覆盖）时为 true；undo 保留现场并如实报告。 */
+  unrecoverable?: boolean;
   originalHash?: string;
   /** 单文件原始内容 blob（恢复区内路径）。 */
   originalBlobPath?: string;
@@ -350,11 +352,21 @@ export class CheckpointManager {
           fs.copyFileSync(restoreBlob, absPath);
           outcome.restored.push(`${relPath} (已恢复原始版本)`);
         } else if (!restoreSnapshot && !restoreBlob) {
-          outcome.restored.push(`${relPath} (轮内新建后删除，净效果保持不存在)`);
+          if (record.unrecoverable === true) {
+            outcome.errors.push(`撤销删除 ${relPath} 失败: 轮前基线未覆盖该文件，原内容无法恢复`);
+          } else {
+            outcome.restored.push(`${relPath} (轮内新建后删除，净效果保持不存在)`);
+          }
         } else {
           outcome.errors.push(`撤销删除 ${relPath} 失败: 恢复内容记录类型不匹配`);
         }
         delete checkpoint.changes[relPath];
+        return;
+      }
+
+      // F2：无原始内容且标记不可恢复的修改 → 保留当前现场，绝不删除原文件。
+      if (record.unrecoverable === true && !record.originalBlobPath && !record.originalSnapshotPath) {
+        outcome.errors.push(`撤销 ${relPath} 失败: 该文件的轮前基线未覆盖（超限/读取失败），无法恢复原内容；当前内容已保留`);
         return;
       }
 
@@ -407,7 +419,7 @@ export class CheckpointManager {
     turnId: string,
     relPath: string,
     action: 'created' | 'modified' | 'deleted',
-    options: { originalBlobPath?: string; newBlobPath?: string; originalHash?: string; newHash?: string } = {},
+    options: { originalBlobPath?: string; newBlobPath?: string; originalHash?: string; newHash?: string; unrecoverable?: boolean } = {},
   ): void {
     const checkpoint = this.startTurn(turnId);
     const existing = checkpoint.changes[relPath];
@@ -437,6 +449,7 @@ export class CheckpointManager {
       record.originalBlobPath = options.originalBlobPath ?? record.originalBlobPath;
       record.originalHash = options.originalHash ?? record.originalHash;
     }
+    if (options.unrecoverable === true) record.unrecoverable = true;
     checkpoint.changes[relPath] = record;
     this.persist(checkpoint);
   }
