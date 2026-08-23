@@ -120,6 +120,8 @@ function createA9AgentRuntime(options) {
   let loop = null;
   let activeController = null;
   let agentStatus = 'idle';
+  // F4：模型切换时保存的会话历史；新 loop 惰性创建后恢复并一次性清除。
+  let pendingConversationHistory = null;
 
   // ----- Provider（R4：非秘密配置版本化持久化；秘密仅 DPAPI；未配置即拒绝执行） -----
   const PROVIDER_CONFIG_SCHEMA_VERSION = 1;
@@ -343,6 +345,10 @@ function createA9AgentRuntime(options) {
       });
       loopWorkspaceService = workspaceService;
       loopTrustedRunner = trustedRunner;
+      if (pendingConversationHistory && pendingConversationHistory.length > 0) {
+        loop.restoreConversationHistory(pendingConversationHistory);
+        pendingConversationHistory = null;
+      }
     }
     return loop;
   }
@@ -376,7 +382,9 @@ function createA9AgentRuntime(options) {
     const proxyInput = values.proxy && typeof values.proxy === 'object' ? values.proxy : null;
     const remember = values.rememberApiKey === true;
 
-    const previousHistory = loop ? loop.getConversationHistory() : null;
+    // F4：模型切换前保存完整标准化 conversation history；rebuildProvider 会
+    // 置空 loop，因此用 pending 缓存，在新 loop 创建后恢复并一次性清除。
+    pendingConversationHistory = loop ? loop.getConversationHistory() : null;
 
     providerConfig = {
       baseUrl: values.baseUrl.trim(),
@@ -392,7 +400,6 @@ function createA9AgentRuntime(options) {
           ...(proxyInput.username !== undefined ? { username: String(proxyInput.username) } : {}),
         },
       } : {}),
-      keyRemembered: remember,
     };
     memoryApiKey = typeof values.apiKey === 'string' && values.apiKey ? values.apiKey : memoryApiKey;
     memorySecrets = {
@@ -401,8 +408,10 @@ function createA9AgentRuntime(options) {
     };
 
     // API Key / 秘密仅经 DPAPI 保存；失败保留诊断并降级仅内存（不写明文）。
+    // F4：secretsVault（Header 值/代理密码）的保存不依赖 API Key 是否存在。
     apiKeySource = 'none';
     let apiKeyPersisted = false;
+    let secretsPersisted = false;
     if (remember && memoryApiKey) {
       if (apiKeyVault) {
         try {
@@ -414,21 +423,21 @@ function createA9AgentRuntime(options) {
       } else {
         providerDiagnostics = { code: 'A9_PROVIDER_DPAPI_UNAVAILABLE', detail: '当前环境无 DPAPI（非 Windows 或 safeStorage 不可用）：API Key 仅保存在进程内存' };
       }
-      if (secretsVault) {
-        try {
-          secretsVault.saveApiKey(JSON.stringify(memorySecrets));
-        } catch (err) {
-          providerDiagnostics = providerDiagnostics || { code: err && err.code ? err.code : 'A9_PROVIDER_SECRET_SAVE_FAILED', detail: redactSecrets(err.message) };
-        }
+    }
+    if (remember && secretsVault) {
+      try {
+        secretsVault.saveApiKey(JSON.stringify(memorySecrets));
+        secretsPersisted = Boolean(memorySecrets)
+          && (Object.keys(memorySecrets.headerValues || {}).length > 0 || Boolean(memorySecrets.proxyPassword));
+      } catch (err) {
+        providerDiagnostics = providerDiagnostics || { code: err && err.code ? err.code : 'A9_PROVIDER_SECRET_SAVE_FAILED', detail: redactSecrets(err.message) };
       }
-      apiKeySource = apiKeyPersisted ? 'dpapi' : 'memory';
-    } else if (remember === false) {
+    }
+    if (remember === false) {
       try { if (apiKeyVault) apiKeyVault.clearApiKey(); } catch (_err) { /* best effort */ }
       try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
-      apiKeySource = memoryApiKey ? 'memory' : 'none';
-    } else {
-      apiKeySource = memoryApiKey ? 'memory' : 'none';
     }
+    apiKeySource = apiKeyPersisted ? 'dpapi' : (memoryApiKey ? 'memory' : 'none');
 
     rebuildProvider();
 
@@ -447,7 +456,9 @@ function createA9AgentRuntime(options) {
       ...(providerConfig.caBundle ? { caBundle: providerConfig.caBundle } : {}),
       allowInsecureTLS: providerConfig.allowInsecureTLS,
       ...(providerConfig.proxy ? { proxy: providerConfig.proxy } : {}),
-      keyRemembered: remember === true && apiKeyPersisted === true,
+      // F4：keyRemembered=true 仅表示秘密（API Key 或 Header/代理密码）已成功经 DPAPI
+      // 持久化且当前可读取；仅内存（memory）在返回值与快照中都显示未记住。
+      keyRemembered: remember === true && (apiKeyPersisted || secretsPersisted) === true && (await verifyPersistedSecretsReadable()),
       probe: providerProbe,
       updatedAt: new Date().toISOString(),
     });
@@ -458,10 +469,7 @@ function createA9AgentRuntime(options) {
       keyRemembered: providerConfig.keyRemembered === true,
     });
 
-    // 模型切换：从既有会话历史（标准化事件投影）重建上下文，不丢已完成工具结果。
-    if (previousHistory && previousHistory.length > 0 && loop) {
-      loop.restoreConversationHistory(previousHistory);
-    }
+    // 模型切换：新 loop 在下次 ensureRuntime 时恢复会话历史（不丢已完成工具结果）。
 
     return {
       ok: true,
@@ -470,6 +478,23 @@ function createA9AgentRuntime(options) {
       probe: providerProbe,
       keyRemembered: providerConfig.keyRemembered === true,
     };
+  }
+
+  /** F4：验证 DPAPI 秘密已持久化且当前可读取（不返回明文）。 */
+  async function verifyPersistedSecretsReadable() {
+    try {
+      if (apiKeyVault && memoryApiKey) {
+        const loaded = apiKeyVault.loadApiKey();
+        if (loaded !== memoryApiKey) return false;
+      }
+      if (secretsVault && memorySecrets && Object.keys(memorySecrets.headerValues || {}).length + (memorySecrets.proxyPassword ? 1 : 0) > 0) {
+        const loaded = JSON.parse(secretsVault.loadApiKey());
+        if (JSON.stringify(loaded) !== JSON.stringify(memorySecrets)) return false;
+      }
+      return true;
+    } catch (_err) {
+      return false;
+    }
   }
 
   async function classifyProviderWithProbe() {
@@ -608,8 +633,10 @@ function createA9AgentRuntime(options) {
           insecureTLS: providerConfig.allowInsecureTLS === true,
           probe: providerProbe,
           apiKey: {
+            // F4：remembered 仅在 DPAPI 持久化成功且当前可读取时为 true；memory 表示未记住。
             remembered: providerConfig.keyRemembered === true,
             source: apiKeySource,
+            ...(apiKeySource === 'memory' ? { note: '未记住：仅保存在进程内存（DPAPI 不可用或未启用）' } : {}),
             vaultAvailable: Boolean(apiKeyVault),
           },
           ...(providerDiagnostics ? { diagnostics: providerDiagnostics } : {}),
