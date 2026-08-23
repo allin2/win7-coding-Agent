@@ -83,11 +83,31 @@ function createA9AgentRuntime(options) {
     modules.core.WorkspaceModeSettingsStore.settingsFilePathFor(dataRoot, workspaceRoot),
     { legacyPath: modules.core.WorkspaceModeSettingsStore.legacyBasenameFilePathFor(dataRoot, workspaceRoot) },
   );
-  let permissionMode = modeStore.load(workspaceRoot).status === 'configured'
-    ? modeStore.load(workspaceRoot).settings.permissionMode
-    : undefined;
-  const persistedMode = persistence.getWorkspaceMode(canonicalWorkspace);
-  if (permissionMode === undefined && persistedMode !== undefined) permissionMode = persistedMode;
+  // F3：modeStore.load 只调用一次，并保留完整状态（含 needs_selection reason）。
+  // 只有“配置文件确实不存在（missing）”时才允许 SQLite 恢复；JSON 损坏、
+  // schema 不支持、workspaceRoot 不匹配、哈希键与内容不一致一律 needs_selection。
+  let modeDiagnostics = null;
+  const modeState = modeStore.load(workspaceRoot);
+  let permissionMode = modeState.status === 'configured' ? modeState.settings.permissionMode : undefined;
+  if (modeState.status !== 'configured') {
+    if (modeState.reason === 'missing') {
+      // 唯一允许的 SQLite 恢复路径：配置文件确实不存在。
+      const persistedMode = persistence.getWorkspaceMode(canonicalWorkspace);
+      if (persistedMode !== undefined) permissionMode = persistedMode;
+    } else {
+      // JSON 损坏 / schema 不支持 / workspaceRoot 不匹配：保留证据，禁止回退。
+      modeDiagnostics = {
+        code: 'A9_MODE_FAIL_CLOSED',
+        reason: modeState.reason,
+        detail: String(modeState.detail || '').slice(0, 200),
+      };
+      persistence.recordToolEvent(a9SessionId, null, 'mode.fail_closed', {
+        workspace: canonicalWorkspace,
+        reason: modeState.reason,
+        detail: modeDiagnostics.detail,
+      });
+    }
+  }
 
   // ----- 工作区单写锁（多窗口） -----
   const lock = persistence.acquireWorkspaceLock(canonicalWorkspace, ownerId);
@@ -578,6 +598,7 @@ function createA9AgentRuntime(options) {
       lock: { held: lockHeld, holder: lock.holder },
       mode: permissionMode === undefined ? 'needs_selection' : permissionMode,
       modeRecommended: 'full_access',
+      ...(modeDiagnostics ? { modeDiagnostics } : {}),
       shell: { kind: shellSelection.kind, version: shellSelection.version, evidence: shellSelection.evidence, reason: shellSelection.reason },
       provider: providerConfig
         ? {
