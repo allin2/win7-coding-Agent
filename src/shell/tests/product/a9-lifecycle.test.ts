@@ -285,4 +285,37 @@ describe('F5: pending approval keeps active state and resume continues the same 
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it('stop during a stalled model request returns cancelled and leaves no active rows', async () => {
+    const env = makeEnv();
+    const fixture = await startDelayedFixture();
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const turnPromise = runtime.submitTurn('stalled turn');
+      // 等待 read 工具回执后模型停住（Turn 保持 active）。
+      const deadline = Date.now() + 30_000;
+      while (Date.now() < deadline) {
+        if (runtime.getSnapshot().agentStatus === 'running') break;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      const stopped = runtime.stop();
+      expect(stopped.ok).toBe(true);
+      const turned = await turnPromise;
+      expect(turned.ok).toBe(true);
+      // F5 状态语义：用户 stop 打断模型请求 → cancelled（不是 failed）。
+      expect(turned.result.outcome).toBe('cancelled');
+      const c = counts(env);
+      expect(c.activeTasks).toBe(0);
+      expect(c.activeTurns).toBe(0);
+      expect(c.activeRuns).toBe(0);
+      expect(c.tasks).toBeGreaterThanOrEqual(1);
+      runtime.shutdown();
+    } finally {
+      fixture.release();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

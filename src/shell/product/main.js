@@ -35,6 +35,7 @@ const preloadPath = path.join(productRoot, 'preload.js');
 const startedAt = new Date().toISOString();
 const mvpId = readArgument('--mvp-id=') || 'MVP-UNKNOWN';
 const smokeReportPath = readArgument('--smoke-report=');
+const a9SmokeWorkspace = readArgument('--a9-smoke-workspace=');
 const a8ReviewSmokeReportPath = readArgument('--a8-review-smoke-report=');
 const a8ReviewSmokeWorkspace = readArgument('--a8-review-smoke-workspace=');
 const a8ReviewSmokeScreenshotPath = readArgument('--a8-review-smoke-screenshot=');
@@ -999,6 +1000,11 @@ if (!hasSingleInstanceLock) {
       if (!a8ReviewSmokeReportPath || !a8ReviewSmokeWorkspace) throw new Error('A8_REVIEW_SMOKE_CONFIGURATION_INVALID');
       const selected = await desktopHost.selectWorkspace(a8ReviewSmokeWorkspace);
       a8ReviewSmokeSession = desktopHost.createSession({ workspacePath: selected.workspacePath, label: 'A8 Electron Review Smoke' });
+    }
+    // F1/F6：A9 smoke 走正式“活动工作区”绑定链路（main.js 同进程 selectWorkspace →
+    // getActiveWorkspacePath），不用 WIN7AGENT_A9_WORKSPACE 环境变量绕过。
+    if (a9SmokeWorkspace) {
+      await desktopHost.selectWorkspace(a9SmokeWorkspace);
     }
     mainWindow = createMainWindow();
     if (smokeReportPath || a8ReviewSmokeReportPath || a8BoundarySmokeReportPath) {

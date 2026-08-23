@@ -73,11 +73,16 @@ describe('F1: a9 IPC returns A9_WORKSPACE_REQUIRED before a workspace is confirm
 describe('F1: desktopHost exposes the confirmed active workspace', () => {
   it('returns null before selection and the selected path afterwards', () => {
     const host = createDesktopHost({ stateRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'f1-host-')) });
-    expect(host.getActiveWorkspacePath()).toBeNull();
-    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'f1-ws-'));
-    host.selectWorkspace(ws);
-    expect(host.getActiveWorkspacePath()).toBe(fs.realpathSync(ws));
-    fs.rmSync(ws, { recursive: true, force: true });
+    try {
+      expect(host.getActiveWorkspacePath()).toBeNull();
+      const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'f1-ws-'));
+      host.selectWorkspace(ws);
+      expect(host.getActiveWorkspacePath()).toBe(fs.realpathSync(ws));
+      fs.rmSync(ws, { recursive: true, force: true });
+    } finally {
+      // 关闭 desktopHost 的事件定时器，避免 Jest 挂住不退出。
+      host.dispose();
+    }
   });
 });
 

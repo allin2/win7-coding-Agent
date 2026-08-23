@@ -667,7 +667,10 @@ function createA9AgentRuntime(options) {
 
   function setMode(mode) {
     if (mode !== 'full_access' && mode !== 'review' && mode !== 'read_only') {
-      throw new Error('A9_MODE_INVALID');
+      // F6：精确 A9_MODE_INVALID（serializeError 依赖 error.code 透传）。
+      const err = new Error('A9_MODE_INVALID: 权限模式必须是 full_access/review/read_only');
+      err.code = 'A9_MODE_INVALID';
+      throw err;
     }
     permissionMode = mode;
     modeStore.save(workspaceRoot, mode);

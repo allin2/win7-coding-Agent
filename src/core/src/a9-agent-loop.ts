@@ -618,6 +618,17 @@ export class A9AgentLoop {
           { signal },
         );
       } catch (err: any) {
+        // 用户主动取消（stop）打断模型请求 → cancelled，而不是 failed；
+        // Provider 网络/鉴权异常仍是 failed（F5 状态语义）。
+        if (signal?.aborted) {
+          return this.finalize(turnId, {
+            turnId,
+            outcome: TurnOutcome.CANCELLED,
+            finalMessage: 'Turn cancelled by user',
+            totalSteps: stepCount,
+            toolCallsExecuted,
+          });
+        }
         this.emitEvent({
           type: 'turn_failed',
           turnId,
