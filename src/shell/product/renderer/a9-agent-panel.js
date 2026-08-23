@@ -25,7 +25,12 @@
     if (!surface) return;
     surface.dataset.a9Status = snapshot.status || 'ready';
 
-    // 状态栏：模式 / Shell / Provider / Agent。
+    // 状态栏：工作区（主进程确认的绝对路径）/ 模式 / Shell / Provider / Agent。
+    const workspaceNode = el('a9-workspace-value');
+    if (workspaceNode) {
+      workspaceNode.textContent = snapshot.workspaceRoot || '-';
+      workspaceNode.title = snapshot.workspaceRoot || '';
+    }
     text('a9-mode-value', snapshot.mode === 'needs_selection' ? '待选择' : snapshot.mode);
     text('a9-shell-value', snapshot.shell ? `${snapshot.shell.kind}${snapshot.shell.version ? ' ' + snapshot.shell.version : ''}` : '-');
     const provider = snapshot.provider || {};

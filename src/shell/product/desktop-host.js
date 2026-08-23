@@ -58,6 +58,8 @@ function createDesktopHost(options) {
   const host = {
     selectWorkspace,
     getSelectedWorkspace: () => selectedWorkspace,
+    // A9（F1）：主进程确认的当前活动工作区；未选择时为 null。
+    getActiveWorkspacePath: () => selectedWorkspace,
     createSession,
     listSessions,
     closeSession,

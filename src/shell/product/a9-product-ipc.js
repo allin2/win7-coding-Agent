@@ -56,6 +56,16 @@ function createA9ProductRequestHandler(options) {
         throw Object.assign(new Error(`A9_ACTION_UNAVAILABLE:${request.action}`), { code: 'A9_ACTION_UNAVAILABLE' });
       }
       const runtime = config.getA9Runtime ? config.getA9Runtime() : null;
+      if (runtime && runtime.__a9WorkspaceRequired === true) {
+        return {
+          ok: false,
+          error: {
+            code: 'A9_WORKSPACE_REQUIRED',
+            message: '尚未选择工作区：A9 runtime 只能绑定主进程确认的活动工作区。',
+            recommendedAction: '在产品中选择一个本地工作区后重试。',
+          },
+        };
+      }
       if (!runtime) throw Object.assign(new Error('A9_RUNTIME_UNAVAILABLE'), { code: 'A9_RUNTIME_UNAVAILABLE' });
 
       const payload = request.payload || {};

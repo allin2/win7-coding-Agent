@@ -833,20 +833,38 @@ ipcMain.handle('product:a8-request', createA8ProductRequestHandler({
 
 // A9 Trusted Agent Runtime（A9-06）：Renderer 只经此窄 IPC 访问。
 let a9RuntimeInstance = null;
+// F1：未选择工作区时的结构化哨兵（不创建 runtime，不落 userData）。
+const A9_WORKSPACE_REQUIRED_SENTINEL = Object.freeze({
+  __a9WorkspaceRequired: true,
+  status: 'workspace_required',
+});
+
+let a9RuntimeWorkspace = null;
+
 function getOrCreateA9Runtime() {
-  if (!a9RuntimeInstance) {
-    // WIN7AGENT_A9_DATAROOT / WIN7AGENT_A9_ELECTRON_SQLITE 仅供开发机 smoke 显式覆盖；
-    // 生产使用 userData 与包内 Electron-ABI 原生模块。
-    const a9DataRoot = process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
-    const workspaceRoot = process.env.WIN7AGENT_A9_WORKSPACE
-      || (desktopHost && desktopHost.getActiveWorkspacePath ? desktopHost.getActiveWorkspacePath() : a9DataRoot);
-    a9RuntimeInstance = createA9AgentRuntime({
-      workspaceRoot,
-      dataRoot: a9DataRoot,
-      ownerId: `main-${process.pid}`,
-      ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE } : {}),
-    });
+  // WIN7AGENT_A9_DATAROOT / WIN7AGENT_A9_ELECTRON_SQLITE 仅供开发机 smoke 显式覆盖；
+  // WIN7AGENT_A9_WORKSPACE 仅作显式测试覆盖保留，正式链路以主进程确认的活动工作区为准。
+  const a9DataRoot = process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
+  const activeWorkspace = desktopHost && typeof desktopHost.getActiveWorkspacePath === 'function'
+    ? desktopHost.getActiveWorkspacePath()
+    : null;
+  const desiredWorkspace = process.env.WIN7AGENT_A9_WORKSPACE || activeWorkspace;
+  if (!desiredWorkspace) return A9_WORKSPACE_REQUIRED_SENTINEL;
+
+  if (a9RuntimeInstance && a9RuntimeInstance.status === 'ready' && a9RuntimeWorkspace === desiredWorkspace) {
+    return a9RuntimeInstance;
   }
+  // 切换工作区：安全关闭旧 runtime（释放锁/后台进程）；模式、锁与 checkpoint 按工作区隔离。
+  if (a9RuntimeInstance && typeof a9RuntimeInstance.shutdown === 'function') {
+    try { a9RuntimeInstance.shutdown(); } catch (_err) { /* best effort */ }
+  }
+  a9RuntimeInstance = createA9AgentRuntime({
+    workspaceRoot: desiredWorkspace,
+    dataRoot: a9DataRoot,
+    ownerId: `main-${process.pid}`,
+    ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE } : {}),
+  });
+  a9RuntimeWorkspace = desiredWorkspace;
   return a9RuntimeInstance;
 }
 ipcMain.handle('product:a9-request', createA9ProductRequestHandler({

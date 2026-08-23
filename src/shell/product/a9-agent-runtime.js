@@ -77,6 +77,8 @@ function createA9AgentRuntime(options) {
 
   // ----- 工作区模式（R1：键绑定 canonical 路径的 SHA-256，fail-closed） -----
   const canonicalWorkspace = modules.core.canonicalizeWorkspacePath(workspaceRoot);
+  // F1：sessionId 按工作区派生，checkpoint/事件/审批不得跨工作区串用。
+  const a9SessionId = `a9-${require('crypto').createHash('sha256').update(canonicalWorkspace, 'utf8').digest('hex').slice(0, 16)}`;
   const modeStore = new modules.core.WorkspaceModeSettingsStore(
     modules.core.WorkspaceModeSettingsStore.settingsFilePathFor(dataRoot, workspaceRoot),
     { legacyPath: modules.core.WorkspaceModeSettingsStore.legacyBasenameFilePathFor(dataRoot, workspaceRoot) },
@@ -296,7 +298,7 @@ function createA9AgentRuntime(options) {
         },
         onEvent: (event) => {
           pushTimeline(event);
-          persistence.recordToolEvent('a9-desktop', event.turnId, event.type, {
+          persistence.recordToolEvent(a9SessionId, event.turnId, event.type, {
             type: event.type,
             data: event.data,
           });
@@ -306,7 +308,7 @@ function createA9AgentRuntime(options) {
           currentPendingApproval = approval;
           persistence.recordApproval({
             approvalId: approval.approvalId,
-            sessionId: 'a9-desktop',
+            sessionId: a9SessionId,
             turnId: approval.turnId,
             toolName: approval.toolName,
             binding: {
@@ -429,7 +431,7 @@ function createA9AgentRuntime(options) {
       probe: providerProbe,
       updatedAt: new Date().toISOString(),
     });
-    persistence.recordToolEvent('a9-desktop', null, 'provider.configure', {
+    persistence.recordToolEvent(a9SessionId, null, 'provider.configure', {
       baseUrl: providerConfig.baseUrl,
       model: providerConfig.model,
       classification: providerProbe.classification,
@@ -483,7 +485,7 @@ function createA9AgentRuntime(options) {
       currentPendingApproval = result.pendingApproval || currentPendingApproval;
       persistence.saveCheckpoint({
         turnId: result.turnId,
-        sessionId: 'a9-desktop',
+        sessionId: a9SessionId,
         payload: {
           outcome: result.outcome,
           verification: result.verification,
@@ -493,7 +495,7 @@ function createA9AgentRuntime(options) {
         },
       });
       if (result.externalChanges && result.externalChanges.length > 0) {
-        persistence.recordToolEvent('a9-desktop', result.turnId, 'external.changes', { changes: result.externalChanges });
+        persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', { changes: result.externalChanges });
       }
       agentStatus = result.outcome;
       return { ok: true, result };
@@ -526,7 +528,7 @@ function createA9AgentRuntime(options) {
       }, { signal: activeController.signal });
       persistence.recordApproval({
         approvalId: original.approvalId,
-        sessionId: 'a9-desktop',
+        sessionId: a9SessionId,
         turnId: original.turnId,
         toolName: original.toolName,
         binding: {
@@ -563,7 +565,7 @@ function createA9AgentRuntime(options) {
     permissionMode = mode;
     modeStore.save(workspaceRoot, mode);
     persistence.setWorkspaceMode(canonicalWorkspace, mode);
-    persistence.recordToolEvent('a9-desktop', null, 'mode.set', { mode, workspace: canonicalWorkspace });
+    persistence.recordToolEvent(a9SessionId, null, 'mode.set', { mode, workspace: canonicalWorkspace });
     loop = null;
     return { ok: true, mode };
   }
@@ -595,7 +597,7 @@ function createA9AgentRuntime(options) {
       agentStatus,
       ...(currentPendingApproval ? { pendingApproval: currentPendingApproval } : {}),
       timeline: timeline.slice(-100),
-      checkpoints: persistence.listCheckpoints('a9-desktop'),
+      checkpoints: persistence.listCheckpoints(a9SessionId),
       interruptions: persistence.listInterruptions(),
       managedProcesses: persistence.listManagedProcesses(workspaceRoot),
     };
