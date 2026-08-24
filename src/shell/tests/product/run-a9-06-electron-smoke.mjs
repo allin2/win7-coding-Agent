@@ -279,7 +279,8 @@ const stallChildPath = path.join(root, 'stall-child.cjs');
 fs.mkdirSync(stopWorkspaceRoot, { recursive: true });
 fs.mkdirSync(stopDataRoot, { recursive: true });
 fs.mkdirSync(workspaceSelectRoot, { recursive: true });
-fs.mkdirSync(workspaceSelectDataRoot, { recursive: true });
+// WIN7-03 / F02：模拟从未运行过产品的干净 Windows 用户。A9 dataRoot
+// 必须由正式 Runtime 首次创建，测试不得预先替产品创建该目录。
 fs.writeFileSync(path.join(stopWorkspaceRoot, 'calc.ts'), 'export const ready = true;\n', 'utf8');
 fs.writeFileSync(path.join(workspaceSelectRoot, 'README.md'), '# workspace selection smoke\n', 'utf8');
 fs.writeFileSync(stallChildPath, `'use strict';\nconst fs = require('fs');\nfs.writeFileSync(process.argv[2], String(process.pid), 'utf8');\nsetInterval(() => {}, 1000);\n`, 'utf8');
@@ -323,6 +324,9 @@ record('A9F0-WORKSPACE-SELECT-EXIT', workspaceSelectExit === 0, `exit=${workspac
 for (const c of workspaceSelectReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
+record('A9F0-FIRST-LAUNCH-DATA-ROOT',
+  fs.existsSync(path.join(workspaceSelectDataRoot, 'a9-state.db')),
+  `precreated=false; database=${path.join(workspaceSelectDataRoot, 'a9-state.db')}`);
 
 // 第一进程：绑定正式工作区、模式、fixture Provider、工具旅程、审批卡、拒绝零副作用、checkpoint。
 let firstExit = 0;

@@ -65,6 +65,12 @@ function createA9AgentRuntime(options) {
     resolvedOpenDatabase = preflight.openDatabase;
   }
 
+  // F02 / WIN7-03：干净 Windows 用户首次启动时 app.getPath('userData')
+  // 已由 Electron 创建，但 A9 子目录尚不存在。better-sqlite3 不会替宿主
+  // 创建数据库的父目录；直接 open 会进入 diagnostics runtime，Renderer 因而
+  // 得不到 needs_selection。数据根属于产品声明的 userData 边界，可安全按需创建。
+  fs.mkdirSync(dataRoot, { recursive: true });
+
   const persistenceOutcome = modules.state.A9PersistenceManager.open({
     databasePath: path.join(dataRoot, 'a9-state.db'),
     openDatabase: resolvedOpenDatabase,
@@ -749,6 +755,7 @@ function createA9AgentRuntime(options) {
     const shellSelection = modules.runner.selectShell({});
     return {
       schemaVersion: A9_PROTOCOL_VERSION,
+      status: 'ready',
       workspaceRoot,
       lock: { held: lockHeld, holder: lock.holder },
       mode: permissionMode === undefined ? 'needs_selection' : permissionMode,

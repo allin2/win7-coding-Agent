@@ -56,6 +56,7 @@ describe('A8 Review Renderer contract', () => {
     expect(renderer).toMatch(/state\.workspacePath = result\.selected\.workspacePath;[\s\S]*await refreshA9WorkspaceSurface\(\);[\s\S]*window\.win7Agent\.createSession/);
     expect(html).toContain('name="a9-mode-choice" value="full_access"');
     expect(html).toContain('Full Access（推荐）');
+    expect(html).toContain('id="a9-runtime-error"');
   });
 
   it('keeps Review decisions and recovery fail-closed in the Renderer', () => {

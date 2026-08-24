@@ -12,10 +12,36 @@
   function el(id) { return document.getElementById(id); }
   function text(id, value) { const node = el(id); if (node) node.textContent = value; }
 
+  function renderRuntimeError(error) {
+    const node = el('a9-runtime-error');
+    if (!node) return;
+    if (!error) {
+      node.textContent = '';
+      node.hidden = true;
+      return;
+    }
+    const code = error.code || 'A9_RUNTIME_UNAVAILABLE';
+    const detail = error.detail || error.error || error.message || error.reason || '';
+    const hint = error.hint || error.recommendedAction || '';
+    node.textContent = [code, detail, hint].filter(Boolean).join('：');
+    node.hidden = false;
+  }
+
   async function refreshSnapshot() {
     if (!a9) return null;
-    const response = await a9.snapshot();
-    if (!response || response.ok !== true) return null;
+    let response;
+    try {
+      response = await a9.snapshot();
+    } catch (error) {
+      renderRuntimeError({ code: 'A9_SNAPSHOT_FAILED', message: error && error.message ? error.message : String(error) });
+      return null;
+    }
+    if (!response || response.ok !== true) {
+      // 尚未选择工作区是正常的首次启动状态；选择后的真实初始化错误必须可见。
+      const error = response && response.error;
+      renderRuntimeError(error && error.code === 'A9_WORKSPACE_REQUIRED' ? null : error);
+      return null;
+    }
     renderSnapshot(response.snapshot);
     return response.snapshot;
   }
@@ -24,6 +50,10 @@
     const surface = el('a9-surface');
     if (!surface) return;
     surface.dataset.a9Status = snapshot.status || 'ready';
+    const diagnostics = snapshot.diagnostics;
+    renderRuntimeError(snapshot.status && snapshot.status !== 'ready'
+      ? { code: diagnostics && diagnostics.code ? diagnostics.code : `A9_RUNTIME_${String(snapshot.status).toUpperCase()}`, ...(diagnostics || {}) }
+      : null);
 
     // 状态栏：工作区（主进程确认的绝对路径）/ 模式 / Shell / Provider / Agent。
     const workspaceNode = el('a9-workspace-value');
@@ -31,17 +61,19 @@
       workspaceNode.textContent = snapshot.workspaceRoot || '-';
       workspaceNode.title = snapshot.workspaceRoot || '';
     }
-    text('a9-mode-value', snapshot.mode === 'needs_selection' ? '待选择' : snapshot.mode);
+    text('a9-mode-value', snapshot.mode === 'needs_selection' ? '待选择' : (snapshot.mode || '-'));
     text('a9-shell-value', snapshot.shell ? `${snapshot.shell.kind}${snapshot.shell.version ? ' ' + snapshot.shell.version : ''}` : '-');
     const provider = snapshot.provider || {};
     text('a9-provider-value', provider.configured ? `${provider.model} @ ${provider.baseUrl}` : '未配置（正式产品不默认 Replay）');
     text('a9-agent-value', String(snapshot.agentStatus || 'idle'));
-    text('a9-lock-value', snapshot.lock && snapshot.lock.held ? '本窗口持有写锁' : `被 ${snapshot.lock && snapshot.lock.holder} 持有`);
+    text('a9-lock-value', snapshot.lock
+      ? (snapshot.lock.held ? '本窗口持有写锁' : `被 ${snapshot.lock.holder || '其他窗口'} 持有`)
+      : '-');
 
     // 首次模式选择。
     const modeDialog = el('a9-mode-dialog');
     if (modeDialog) {
-      modeDialog.hidden = snapshot.mode !== 'needs_selection';
+      modeDialog.hidden = Boolean(snapshot.status && snapshot.status !== 'ready') || snapshot.mode !== 'needs_selection';
     }
     const modeRadios = surface.querySelectorAll('input[name="a9-mode-choice"]');
     modeRadios.forEach((radio) => { radio.checked = radio.value === snapshot.modeRecommended; });

@@ -86,6 +86,36 @@ describe('F1: desktopHost exposes the confirmed active workspace', () => {
   });
 });
 
+describe('F02: clean-user first launch bootstraps the A9 data root', () => {
+  it('creates a missing data directory before SQLite opens and reaches mode selection', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'f02-first-launch-'));
+    const workspaceRoot = path.join(root, '中文 空格项目');
+    const dataRoot = path.join(root, 'clean-user-data', 'a9');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    expect(fs.existsSync(dataRoot)).toBe(false);
+
+    const runtime = createA9AgentRuntime({
+      workspaceRoot,
+      dataRoot,
+      ownerId: `f02-${process.pid}`,
+      openDatabase: (databasePath: string, opts?: { readonly?: boolean }) => new Database(databasePath, opts?.readonly ? { readonly: true } : {}),
+    });
+    try {
+      expect(runtime.status).toBe('ready');
+      expect(fs.existsSync(dataRoot)).toBe(true);
+      expect(fs.existsSync(path.join(dataRoot, 'a9-state.db'))).toBe(true);
+      const snapshot = runtime.getSnapshot();
+      expect(snapshot.status).toBe('ready');
+      expect(snapshot.workspaceRoot).toBe(workspaceRoot);
+      expect(snapshot.mode).toBe('needs_selection');
+      expect(snapshot.modeRecommended).toBe('full_access');
+    } finally {
+      runtime.shutdown();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('F1: workspaces A and B stay isolated (mode, lock, checkpoints)', () => {
   let root: string;
   let dataRoot: string;
