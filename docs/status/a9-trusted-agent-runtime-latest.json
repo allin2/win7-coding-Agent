@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260823-10",
-  "recorded_at": "2026-08-23",
+  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260824-11",
+  "recorded_at": "2026-08-24",
   "status": "A9_01_TO_A9_06_PASS_A9_07_CLEAN_CANDIDATE_READY_FOR_WINDOWS",
   "phase_gate": "A9_07_IN_PROGRESS",
   "formal_serial_gate": "A9-07_IN_PROGRESS",
@@ -52,7 +52,7 @@
     },
     "R6_production_electron_ui": {
       "status": "FIXED_DEVELOPER_VERIFIED",
-      "evidence": "real product main.js + real preload + real index.html/renderer.js; 8/8 Electron smoke PASS on real Electron 22.3.27 driving actual DOM (mode dialog, provider form+probe, verified tool journey, diff, undo, structured IPC rejection, restart snapshot facts); Electron-ABI sqlite preflight with ELECTRON_SQLITE_UNAVAILABLE refusal"
+      "evidence": "real product main.js + real preload + real index.html/renderer.js; four-process Electron smoke PASS on real Electron 22.3.27 driving actual DOM, including first workspace selection followed by a visible/selectable/persisted Full Access option and successful ordinary Composer scenario=agent submission; Electron-ABI sqlite preflight with ELECTRON_SQLITE_UNAVAILABLE refusal"
     },
     "F1_real_active_workspace": {
       "status": "FIXED_DEVELOPER_VERIFIED",
@@ -85,12 +85,12 @@
     }
   },
   "validation": {
-    "developer_fixture": "PASS (core 283 / runner 97 / workspace 130 / gateway 241 / git-adapter 56 / state 258 / shell 242 = 1307 tests; npm run verify PASS plus targeted safeStorage host-injection regression; npm run docs:check PASS 97 files; git diff --check PASS)",
-    "real_electron_product_entry": "PASS (A9-06 three-process smoke 38/38 cases on real Electron 22.3.27: real host-side deny file evidence, true old-approval replay rejection with stable approval table, zero normal-restart interruptions, OpenAI tool_calls no-replay, and formal UI Stop with real Shell PID reaping + cancelled SQLite terminal)",
+    "developer_fixture": "PASS (core 283 / runner 97 / workspace 130 / gateway 241 / git-adapter 56 / state 258 / shell 245 = 1310 tests; npm run verify PASS; npm run docs:check PASS 97 files; git diff --check PASS)",
+    "real_electron_product_entry": "PASS (A9-06 four-process smoke 43/43 cases on real Electron 22.3.27: real first-workspace Full Access reachability/persistence, ordinary Composer scenario=agent IPC, host-side deny file evidence, true old-approval replay rejection, zero normal-restart interruptions, OpenAI tool_calls no-replay, and formal UI Stop with real Shell PID reaping + cancelled SQLite terminal)",
     "real_provider_smoke": "PASS (https://api.deepseek.com / deepseek-v4-flash; SSE + native tool calling + 5-call verified fix/test loop + cancellation; credential not recorded)",
     "real_model_j1_to_j3": "PASS (DeepSeek deepseek-v4-flash: J1 instructions/config/source read + citations; J2 verified real fix/test; J3 scoped three-file feature + real project script)",
     "a9_07_package_contract": "PASS (3/3 builder contracts + 5/5 package-runtime contracts; git-adapter closure, native binding, LOCALAPPDATA/portable selection, Electron safeStorage/DPAPI host injection, input tamper and secret scans)",
-    "a9_07_real_locked_input_double_build": "PASS_FORMAL_CANDIDATE (2/2 byte-identical ZIP SHA-256 05fa45deb11541a458363f6dd7f1ba7c448b2b4d9ad369af21c30c7497abd03a; manifest SHA-256 104b4fa55f28048e60b1778d5307d6bceab45e1a849e36ee50108c12e3c478d9; source_dirty=false; external_acceptance_eligible=true)",
+    "a9_07_real_locked_input_double_build": "PASS_FORMAL_CANDIDATE (2/2 byte-identical replacement ZIP SHA-256 5bee0069fd2595b7acc8ff9b7bee74f0298f57ba6174d31fe5af6b3d4b03d5b3; manifest SHA-256 8495850ad28f24e39b12a2ac59c8ace8fb26c2c766c48f1324c7fca11925c602; source_dirty=false; external_acceptance_eligible=true)",
     "windows_powershell_cmd_helper": "NOT_PERFORMED (dev host POSIX sh only, labeled dev_host_only)",
     "dpi_1366x768": "NOT_PERFORMED",
     "win10": "NOT_PERFORMED",
@@ -99,12 +99,12 @@
   },
   "a9_07_progress": {
     "status": "CLEAN_CANDIDATE_READY_FOR_WINDOWS_VALIDATION",
-    "record": "docs/status/a9-07-clean-candidate-20260823.json",
+    "record": "docs/status/a9-07-clean-candidate-20260824.json",
     "input_lock": "release/win7-product-v3/a9-07-input-lock.json",
     "builder": "scripts/release/build-a9-product-v3.mjs",
-    "candidate_sha256": "05fa45deb11541a458363f6dd7f1ba7c448b2b4d9ad369af21c30c7497abd03a",
-    "candidate_manifest_sha256": "104b4fa55f28048e60b1778d5307d6bceab45e1a849e36ee50108c12e3c478d9",
-    "candidate_source_commit": "8659c53cc49bd2c1e507d410aa9f7a4b12f0d46c",
+    "candidate_sha256": "5bee0069fd2595b7acc8ff9b7bee74f0298f57ba6174d31fe5af6b3d4b03d5b3",
+    "candidate_manifest_sha256": "8495850ad28f24e39b12a2ac59c8ace8fb26c2c766c48f1324c7fca11925c602",
+    "candidate_source_commit": "a1c1c086ac8e84e6a0b38f63e9de1b48f03c06ee",
     "source_dirty": false,
     "external_acceptance_eligible": true,
     "win10": "NOT_PERFORMED",
