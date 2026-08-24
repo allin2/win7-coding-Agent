@@ -240,7 +240,9 @@ Alpha1: NOT_PERFORMED
 缺失时 fail-closed，并在启动脚本中清除外部 `NODE_OPTIONS`。新候选来自干净源码且两次构建字节一致，
 在 Win7 SP1 x64 的独立 `WIN7-03` 目录重跑 Gate 3 后，ZIP、manifest、Full Tree、native/ABI 与无系统
 Node 五项全部 PASS。旧失败证据未覆盖；Gate 4～10、普通用户、PowerShell 5.1、真实 Git 与 J1～J5
-仍未执行或受阻，不能签发 `A9_ALPHA1_PASS`。机器可读记录见
+仍未执行或受阻，不能签发 `A9_ALPHA1_PASS`。随后已在 `C:\A9验收\工作区\中文 空格项目-03`
+准备不依赖系统 Node/Python 的一次性 CMD 项目，并确认其基线测试按设计真实失败，可供 J1～J3 使用；
+该目录未执行 `git init`，J4 继续等待用户明确授权和 Git 前置。机器可读记录见
 [`a9-07-win7-gate3-integrity-repair-20260824.json`](../status/a9-07-win7-gate3-integrity-repair-20260824.json)。
 
 ## 4. 关键实现合同

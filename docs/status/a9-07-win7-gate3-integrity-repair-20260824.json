@@ -61,6 +61,19 @@
       }
     }
   },
+  "disposable_workspace": {
+    "status": "READY_FOR_J1_TO_J3_AND_FILE_RECOVERY_JOURNEYS",
+    "path": "C:\\A9验收\\工作区\\中文 空格项目-03",
+    "runtime": "Windows 7 cmd.exe only; no system Node or Python required",
+    "contents": "AGENTS.md, project.json, text documentation, CMD source and a real project test",
+    "baseline_test": "EXPECTED_FAIL_CONFIRMED: expected 2 + 3 to equal 5, actual=-1",
+    "git_repository": false,
+    "git_init": "NOT_PERFORMED_REQUIRES_EXPLICIT_USER_REQUEST",
+    "evidence": [
+      "C:\\A9验收\\证据\\WIN7-03\\04-workspace-baseline-test.txt",
+      "C:\\A9验收\\证据\\WIN7-03\\04-workspace-baseline-file-list.txt"
+    ]
+  },
   "gates": {
     "gate1_reduced_recovery_baseline_for_new_round": "NOT_PERFORMED",
     "gate2_machine_facts_for_new_round": "NOT_PERFORMED",
@@ -72,7 +85,7 @@
   "remaining_blockers": [
     "P01: the current Win7 account is an enabled administrator with a high-integrity token; ordinary-user acceptance remains blocked",
     "P05/C01: Windows PowerShell is 2.0; the required PowerShell 5.1 path remains untested, while CMD fallback may be tested separately",
-    "J1-J5 workspace is empty and has no .git repository",
+    "The disposable J1-J3 workspace is ready, but it intentionally has no .git repository; git init requires an explicit user request",
     "Git, project Node and Python are absent from PATH; optional-missing degradation can be tested, but J4 real Git cannot pass without a scoped portable or installed Git prerequisite"
   ],
   "verdict": "GATE3_REPAIR_VERIFIED_ON_WIN7_NOT_A9_ALPHA1_PASS"

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260824-12",
+  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260824-13",
   "recorded_at": "2026-08-24",
   "status": "A9_01_TO_A9_06_PASS_A9_07_WIN7_GATE3_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED",
   "phase_gate": "A9_07_IN_PROGRESS",
@@ -116,7 +116,7 @@
   "blocking_reason": [
     "P01 ordinary-user validation is blocked because the current Win7 account has an enabled administrator high-integrity token",
     "PowerShell 5.1 is absent (only 2.0); the required 5.1 path remains blocked while CMD fallback can proceed separately",
-    "J1-J5 need a non-empty disposable code workspace and J4 needs scoped Git availability",
+    "A disposable CMD code workspace is ready for J1-J3, but J4 still needs scoped Git availability and explicit authorization before git init",
     "1366x768 / 100%/125% DPI and Win10/Win7 product journeys require Windows display environments",
     "A9_ALPHA1_PASS remains NOT_PERFORMED until the same immutable candidate completes A9-07"
   ],

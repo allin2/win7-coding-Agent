@@ -54,7 +54,8 @@
   1310 项与包测试 4/4 通过。新候选双构建一致，ZIP SHA-256 为 `37c3e51c…60080`、manifest SHA-256
   为 `63801337…1b626`，`source_dirty=false`。它已在 Win7 独立 `WIN7-03` 证据目录通过 ZIP、manifest、
   Full Tree、native/ABI 和无系统 Node 五项 Gate 3；Gate 4～10、Win10 和 Alpha PASS 仍为
-  `NOT_PERFORMED`。记录见
+  `NOT_PERFORMED`。中文+空格的一次性 CMD 工作区已准备并确认初始测试真实失败，可用于 J1～J3；该目录
+  尚无 `.git`，不会在缺少用户明确授权时自动初始化。记录见
   [`a9-07-win7-gate3-integrity-repair-20260824.json`](status/a9-07-win7-gate3-integrity-repair-20260824.json)。
   权威差距与交付计划见
   [`A9 Trusted Agent 差距与交付计划`](reports/2026-08/a9_trusted_agent_gap_and_delivery_plan_2026-08-22.html)。
