@@ -21,4 +21,6 @@ node scripts/release/build-a9-product-v3.mjs ^
 Windows 验收必须解压同一个 ZIP 到全新目录，在包外建立证据目录。默认数据位于
 `%LOCALAPPDATA%\Win7CodingAgent\a9`；只有显式传入 `--portable` 才使用包旁 `portable-data`。
 先运行 `RUN_A9_07_INTEGRITY.cmd <原始 ZIP 路径>` 绑定 ZIP/manifest 双哈希。Win10/Win7 未实际执行前
-始终保持 `NOT_PERFORMED`。
+始终保持 `NOT_PERFORMED`。完整性工具在 Electron Node mode 下强制使用 `original-fs` 读取物理文件字节，
+避免 Electron 的 ASAR 虚拟文件系统改变 `resources/default_app.asar` 的读取语义；启动脚本同时清除外部
+`NODE_OPTIONS`，防止预加载代码污染哈希边界。

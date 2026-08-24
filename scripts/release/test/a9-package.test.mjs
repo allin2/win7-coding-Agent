@@ -4,12 +4,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { createRequire } from 'node:module';
 import { buildA9ProductCandidate } from '../build-a9-product-v3.mjs';
 import { sha256File, writeJson } from '../release-contract.mjs';
 import { writeDeterministicZip } from '../zip-utils.mjs';
 
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const HASH = '0'.repeat(64);
+const require = createRequire(import.meta.url);
+const integrity = require('../../../release/win7-product-v3/a9-package-integrity.cjs');
 
 function fixture(root) {
   const inputs = path.join(root, 'inputs'); fs.mkdirSync(inputs, { recursive: true });
@@ -86,10 +89,35 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.equal(packageJson.version, '0.3.0-alpha.1');
   assert.equal(packageJson.main, 'product/main.js');
   assert.equal(packageJson.runtime_profile.state_schema, 3);
-  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /ELECTRON_RUN_AS_NODE=1/);
+  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "ELECTRON_RUN_AS_NODE=1"/);
+  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "NODE_OPTIONS="/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /--package-zip=%~f1/);
   assert.doesNotMatch(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /\bnode(?:\.exe)?\b/i);
   assert.match(fs.readFileSync(path.join(second.stage, 'validation', 'a9-package-integrity.cjs'), 'utf8'), /package_sha256: packageSha256/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('A9 integrity uses Electron original-fs so physical ASAR bytes are not virtualized', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-integrity-asar-'));
+  const resources = path.join(root, 'resources');
+  fs.mkdirSync(resources, { recursive: true });
+  const payload = Buffer.from('physical-default-app-asar');
+  fs.writeFileSync(path.join(resources, 'default_app.asar'), payload);
+  const manifest = { files: [{ path: 'resources/default_app.asar', size: payload.length, sha256: digest(payload) }] };
+  const patchedFs = {
+    ...fs,
+    readFileSync(filePath, ...args) {
+      if (String(filePath).endsWith(`${path.sep}default_app.asar`)) return Buffer.from('electron-virtualized-asar-view');
+      return fs.readFileSync(filePath, ...args);
+    },
+  };
+  assert.equal(integrity.selectPhysicalFileSystem({ electron: '22.3.27' }, () => fs), fs);
+  assert.throws(() => integrity.verifyFullTree(root, manifest, patchedFs), /mismatch:resources\/default_app\.asar/);
+  assert.doesNotThrow(() => integrity.verifyFullTree(root, manifest, fs));
+  assert.throws(
+    () => integrity.selectPhysicalFileSystem({ electron: '22.3.27' }, () => { throw new Error('original-fs unavailable'); }),
+    /A9_PHYSICAL_FILESYSTEM_UNAVAILABLE:original-fs unavailable/,
+  );
   fs.rmSync(root, { recursive: true, force: true });
 });
 

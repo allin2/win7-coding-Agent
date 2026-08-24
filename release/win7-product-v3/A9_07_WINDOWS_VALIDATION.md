@@ -7,6 +7,7 @@
 3. 保留原始 ZIP 在解压目录之外，执行
    `RUN_A9_07_INTEGRITY.cmd C:\候选\Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`；工具使用包内
    `electron.exe` Node mode，现场计算 ZIP 和 manifest 双哈希，不得调用系统 Node。
+   校验器必须报告 `filesystem_profile=ELECTRON_ORIGINAL_FS_PHYSICAL_BYTES`；这是物理 ASAR 哈希的必要条件。
 4. 所有报告记录同一 `release_id`、ZIP SHA-256 和 `release-manifest.json` SHA-256。
 
 ## Win10 smoke（内部 Alpha 非阻塞，RC 前必须补齐）
