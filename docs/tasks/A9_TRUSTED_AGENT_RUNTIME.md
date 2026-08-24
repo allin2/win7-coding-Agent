@@ -12,9 +12,9 @@ Requirements: docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md
 Developer-Validation: A9_01_TO_A9_06_PASS
 Formal-Serial-Gate: A9-07_IN_PROGRESS
 Current-Stage: A9-07
-Current-Stage-Status: IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS
+Current-Stage-Status: IN_PROGRESS_WIN7_GATE3_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED
 Win10-Validation: NOT_PERFORMED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: PARTIAL_GATE3_PACKAGE_INTEGRITY_PASS_ONLY
 ```
 
 项目负责人于 2026-08-22 完成 GrillMe Q1～Q179 并确认需求合同、A9 阶段、分支、版本、取代范围、
@@ -131,9 +131,9 @@ Implementation-Coverage: A9-01_TO_A9-06_PRESENT_IN_WORKTREE
 Developer-Fixture: PASS
 Developer-Electron-22-Smoke: PASS
 Formal-Serial-Gate: A9-07_IN_PROGRESS
-A9-07: IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS
+A9-07: IN_PROGRESS_WIN7_GATE3_PACKAGE_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED
 Win10-Validation: NOT_PERFORMED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: PARTIAL_GATE3_PACKAGE_INTEGRITY_PASS_ONLY
 ```
 
 A9-01～A9-06 对应代码和开发机 Gate 均已取得 PASS。A9-04 使用真实 DeepSeek Provider 完成 SSE、
@@ -219,6 +219,29 @@ v3 构建器已装配 A9 正式 `main.js`/Preload/Renderer、Core/Gateway/Runner
 `electron.exe` Node mode。真实锁定输入双构建字节一致，但因源码未提交只能作为开发替代证据；实际哈希
 只记录在候选之外的进展文件，避免把构建结果循环写回候选输入。进展记录见
 [`a9-07-developer-package-progress-20260823.json`](../status/a9-07-developer-package-progress-20260823.json)。
+
+### 3.7 Win7 Gate 3 物理 ASAR 完整性修复（2026-08-24）
+
+```text
+Stage: A9-07
+Status: IN_PROGRESS
+Previous-Win7-Evidence: WIN7-02 / GATE3_FAIL_PRESERVED
+Repair-Commit: dce391c492a64a1e119d841ca1c41b18b2e3f60c
+Replacement-ZIP-SHA256: 37c3e51c3092fc022592be177969247e025c2c8a4357e76fc76300a37ad60080
+Replacement-Manifest-SHA256: 63801337df6fd75a2ccede17a954fd7c278c0f370e354294154a17e0a671b626
+Win7-Gate3-Package-Integrity: PASS
+Win7-Gate4-To-Gate10: NOT_PERFORMED
+Alpha1: NOT_PERFORMED
+```
+
+`WIN7-02` 首次完整性运行在 `resources/default_app.asar` 报告 Full Tree mismatch，但随后使用系统物理
+文件 API 复核时 size/hash 与 manifest 一致。根因不是文件自恢复，而是 A9 校验器在 Electron Node mode
+下误用被 ASAR hook 接管的 `fs` 读取物理 `.asar`。修复后的校验器强制使用 Electron `original-fs`、
+缺失时 fail-closed，并在启动脚本中清除外部 `NODE_OPTIONS`。新候选来自干净源码且两次构建字节一致，
+在 Win7 SP1 x64 的独立 `WIN7-03` 目录重跑 Gate 3 后，ZIP、manifest、Full Tree、native/ABI 与无系统
+Node 五项全部 PASS。旧失败证据未覆盖；Gate 4～10、普通用户、PowerShell 5.1、真实 Git 与 J1～J5
+仍未执行或受阻，不能签发 `A9_ALPHA1_PASS`。机器可读记录见
+[`a9-07-win7-gate3-integrity-repair-20260824.json`](../status/a9-07-win7-gate3-integrity-repair-20260824.json)。
 
 ## 4. 关键实现合同
 

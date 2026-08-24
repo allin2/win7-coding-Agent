@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | `0.3.0-alpha.1` / `codex/a9-trusted-agent-runtime`；A9-01～A9-06 开发机 Gate PASS；A9-07 干净候选已就绪；Win10/Win7 `NOT_PERFORMED` |
+| A9 Trusted Agent Runtime | `0.3.0-alpha.1` / `codex/a9-trusted-agent-runtime`；A9-01～A9-06 开发机 Gate PASS；修复候选已在 Win7 通过 Gate 3 完整性；Gate 4～10 与 Alpha PASS 仍 `NOT_PERFORMED` |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -48,11 +48,14 @@
   38/38 重新验证，Gate 为
   `A9_06_DESKTOP_STATE_AND_LIFECYCLE_PASS`。A9-01～A9-06 汇总见
   [`a9-01-to-a9-06-developer-gates-20260823.json`](status/a9-01-to-a9-06-developer-gates-20260823.json)。
-  A9-07 已进入 `IN_PROGRESS`。v3 输入锁、A9 包内原生运行时绑定、全树 manifest、SBOM/许可证、无系统
-  Node 完整性入口和敏感信息排除已实现。实现提交 `8659c53` 的干净源码正式候选双构建一致，ZIP SHA-256
-  为 `05fa45de…7abd03a`、manifest SHA-256 为 `104b4fa5…e3c478d9`，并记录
-  `external_acceptance_eligible=true`。Win10、Win7 和 Alpha PASS 仍为 `NOT_PERFORMED`。记录见
-  [`a9-07-clean-candidate-20260823.json`](status/a9-07-clean-candidate-20260823.json)。
+  A9-07 已进入 `IN_PROGRESS`。Win7 `WIN7-02` 对候选 `5bee0069…d5b3` 的 Gate 3 首次 Full Tree 校验在
+  `resources/default_app.asar` 失败，旧失败证据保持不变。根因是 Electron ASAR hook 改变了校验器的
+  `fs` 读取语义；提交 `dce391c` 改为 `original-fs` 物理字节并清除 `NODE_OPTIONS`，新增回归后仓库
+  1310 项与包测试 4/4 通过。新候选双构建一致，ZIP SHA-256 为 `37c3e51c…60080`、manifest SHA-256
+  为 `63801337…1b626`，`source_dirty=false`。它已在 Win7 独立 `WIN7-03` 证据目录通过 ZIP、manifest、
+  Full Tree、native/ABI 和无系统 Node 五项 Gate 3；Gate 4～10、Win10 和 Alpha PASS 仍为
+  `NOT_PERFORMED`。记录见
+  [`a9-07-win7-gate3-integrity-repair-20260824.json`](status/a9-07-win7-gate3-integrity-repair-20260824.json)。
   权威差距与交付计划见
   [`A9 Trusted Agent 差距与交付计划`](reports/2026-08/a9_trusted_agent_gap_and_delivery_plan_2026-08-22.html)。
 - Office 专用能力不进入 A9 Alpha 1；首要交付是代码阅读、编辑、文件管理、Shell、测试、Git、Diff、

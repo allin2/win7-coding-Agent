@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-07-WIN7-GATE3-INTEGRITY-REPAIR-20260824-01",
+  "recorded_at": "2026-08-24",
+  "stage": "A9-07",
+  "status": "WIN7_GATE3_PACKAGE_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED",
+  "previous_round": {
+    "evidence_root": "C:\\A9验收\\证据\\WIN7-02\\",
+    "candidate_package_sha256": "5bee0069fd2595b7acc8ff9b7bee74f0298f57ba6174d31fe5af6b3d4b03d5b3",
+    "candidate_manifest_sha256": "8495850ad28f24e39b12a2ac59c8ace8fb26c2c766c48f1324c7fca11925c602",
+    "gate3": "FAIL",
+    "failure": "A9PKG-INTEGRITY-FULL-TREE mismatch:resources/default_app.asar",
+    "preservation": "FAILURE_EVIDENCE_LEFT_UNCHANGED"
+  },
+  "root_cause": {
+    "classification": "VALIDATION_HARNESS_FALSE_NEGATIVE",
+    "detail": "The A9 integrity harness ran under Electron Node mode but used Electron's ASAR-intercepted fs. That API virtualized resources/default_app.asar instead of reading its physical archive bytes. A subsequent certutil comparison read the physical file and therefore matched the manifest.",
+    "reproduction": {
+      "physical_size": 109138,
+      "electron_fs_size": 0,
+      "physical_sha256": "db1bfd33134e8235fa4fa6fa58775bb4b6520706a91d1c3d5be21ad7dc5724f4",
+      "original_fs_sha256": "db1bfd33134e8235fa4fa6fa58775bb4b6520706a91d1c3d5be21ad7dc5724f4"
+    }
+  },
+  "repair": {
+    "source_commit": "dce391c492a64a1e119d841ca1c41b18b2e3f60c",
+    "physical_filesystem": "ELECTRON_ORIGINAL_FS_PHYSICAL_BYTES",
+    "node_options_sanitized": true,
+    "fail_closed_if_original_fs_unavailable": true,
+    "regression_test": "scripts/release/test/a9-package.test.mjs"
+  },
+  "replacement_candidate": {
+    "release_id": "WIN7-CODING-AGENT-A9-ALPHA1",
+    "version": "0.3.0-alpha.1",
+    "filename": "Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip",
+    "package_sha256_first_build": "37c3e51c3092fc022592be177969247e025c2c8a4357e76fc76300a37ad60080",
+    "package_sha256_second_build": "37c3e51c3092fc022592be177969247e025c2c8a4357e76fc76300a37ad60080",
+    "manifest_sha256": "63801337df6fd75a2ccede17a954fd7c278c0f370e354294154a17e0a671b626",
+    "manifest_file_count": 774,
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "deterministic_double_build": "PASS",
+    "local_path": "release/win7-product-v3/out/integrity-physical-fs-fix/Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip"
+  },
+  "validation": {
+    "targeted_package_tests": "PASS (4/4)",
+    "repository_verify": "PASS (1310/1310)",
+    "docs_check": "PASS",
+    "developer_electron22_surrogate": "FULL_TREE_PASS; native/hash cases PASS; Windows packaged-executable identity intentionally unavailable on macOS",
+    "win7_gate3": {
+      "status": "PASS",
+      "evidence_root": "C:\\A9验收\\证据\\WIN7-03\\",
+      "report_sha256": "c3c7a0b548493e9f7a541784ea04d61e6b4593d0fbae13f355911c2e36e026ac",
+      "runtime": "Windows 7 SP1 6.1.7601 x64 / Electron 22.3.27 / Node 16.17.1 / ABI 110",
+      "cases": {
+        "zip_binding": "PASS",
+        "manifest": "PASS",
+        "full_tree": "PASS",
+        "native_abi": "PASS",
+        "no_system_node": "PASS"
+      }
+    }
+  },
+  "gates": {
+    "gate1_reduced_recovery_baseline_for_new_round": "NOT_PERFORMED",
+    "gate2_machine_facts_for_new_round": "NOT_PERFORMED",
+    "gate3_package_integrity": "PASS",
+    "gate4_to_gate10": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "alpha1": "NOT_PERFORMED"
+  },
+  "remaining_blockers": [
+    "P01: the current Win7 account is an enabled administrator with a high-integrity token; ordinary-user acceptance remains blocked",
+    "P05/C01: Windows PowerShell is 2.0; the required PowerShell 5.1 path remains untested, while CMD fallback may be tested separately",
+    "J1-J5 workspace is empty and has no .git repository",
+    "Git, project Node and Python are absent from PATH; optional-missing degradation can be tested, but J4 real Git cannot pass without a scoped portable or installed Git prerequisite"
+  ],
+  "verdict": "GATE3_REPAIR_VERIFIED_ON_WIN7_NOT_A9_ALPHA1_PASS"
+}
