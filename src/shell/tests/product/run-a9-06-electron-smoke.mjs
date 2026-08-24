@@ -2,9 +2,11 @@
 'use strict';
 
 /**
- * A9-06 真实 Electron 开发机 smoke（三进程版，F6）。
+ * A9-06 真实 Electron 开发机 smoke（四进程版，F6）。
  *
- * 三次独立 Electron 进程：
+ * 四次独立 Electron 进程：
+ * - 首次工作区进程：无预绑定工作区启动 → 正式 picker → Full Access 可见并持久化 →
+ *   主 Composer scenario:agent 通过编译后的 desktop IPC Schema；
  * - 第一进程：绑定工作区（正式 selectWorkspace 链路）→ 模式 → fixture Provider →
  *   read/edit/真实测试 → Diff → 触发永久删除/git push 审批（校验审批卡真实目标与
  *   64 位绑定摘要）→ 拒绝零副作用 → checkpoint 后退出。
@@ -267,13 +269,19 @@ record('A9F6-SQLITE-ABI-PREFLIGHT', preflightResult === 0, `exit=${preflightResu
 const firstOut = path.join(root, 'first.json');
 const secondOut = path.join(root, 'second.json');
 const stopOut = path.join(root, 'stop.json');
+const workspaceSelectOut = path.join(root, 'workspace-select.json');
+const workspaceSelectRoot = path.join(root, 'workspace-select-ws');
+const workspaceSelectDataRoot = path.join(root, 'workspace-select-data');
 const stopWorkspaceRoot = path.join(root, 'stop-ws');
 const stopDataRoot = path.join(root, 'stop-data');
 const stopPidMarker = path.join(root, 'stop-child.pid');
 const stallChildPath = path.join(root, 'stall-child.cjs');
 fs.mkdirSync(stopWorkspaceRoot, { recursive: true });
 fs.mkdirSync(stopDataRoot, { recursive: true });
+fs.mkdirSync(workspaceSelectRoot, { recursive: true });
+fs.mkdirSync(workspaceSelectDataRoot, { recursive: true });
 fs.writeFileSync(path.join(stopWorkspaceRoot, 'calc.ts'), 'export const ready = true;\n', 'utf8');
+fs.writeFileSync(path.join(workspaceSelectRoot, 'README.md'), '# workspace selection smoke\n', 'utf8');
 fs.writeFileSync(stallChildPath, `'use strict';\nconst fs = require('fs');\nfs.writeFileSync(process.argv[2], String(process.pid), 'utf8');\nsetInterval(() => {}, 1000);\n`, 'utf8');
 const stallCommand = `${commandArgument(process.execPath)} ${commandArgument(stallChildPath)} ${commandArgument(stopPidMarker)}`;
 
@@ -296,6 +304,25 @@ const baseEnv = {
   WIN7AGENT_A9_ELECTRON_SQLITE: electronSqliteRoot,
   ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
 };
+
+// 真实首次启动顺序：Renderer 先收到 A9_WORKSPACE_REQUIRED，用户随后通过
+// workspace.select 选择目录；A9 必须刷新并显示 Full Access 模式选项。
+const workspaceSelectExit = await runElectronProcess({
+  ...baseEnv,
+  A9_SMOKE_WORKSPACE: workspaceSelectRoot,
+  A9_SMOKE_DATAROOT: workspaceSelectDataRoot,
+  A9_SMOKE_MODE: 'workspace_select',
+  A9_SMOKE_OUT: workspaceSelectOut,
+  WIN7AGENT_A9_DATAROOT: workspaceSelectDataRoot,
+}, [driverEntry]);
+let workspaceSelectReport = { status: 'NO_REPORT' };
+if (fs.existsSync(workspaceSelectOut)) {
+  try { workspaceSelectReport = JSON.parse(fs.readFileSync(workspaceSelectOut, 'utf8')); } catch (_e) { /* keep */ }
+}
+record('A9F0-WORKSPACE-SELECT-EXIT', workspaceSelectExit === 0, `exit=${workspaceSelectExit}`);
+for (const c of workspaceSelectReport.cases || []) {
+  record(c.id, c.passed === true, c.detail || '');
+}
 
 // 第一进程：绑定正式工作区、模式、fixture Provider、工具旅程、审批卡、拒绝零副作用、checkpoint。
 let firstExit = 0;
@@ -414,6 +441,7 @@ const report = {
     sqlite_root: electronSqliteRoot,
   },
   processes: [
+    { phase: 'workspace_select', exit: workspaceSelectExit, report: workspaceSelectReport.status },
     { phase: 'first', exit: firstExit, report: firstReport.status },
     { phase: 'second', exit: secondExit, report: secondReport.status },
     { phase: 'stop', exit: stopExit, report: stopReport.status },
@@ -424,6 +452,7 @@ const report = {
   cases,
   external_validation: { win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE' },
   notes: [
+    'A separate first-use Electron process starts without a workspace, drives the formal workspace picker, and proves the Full Access mode is reachable after selection.',
     'Two independent Electron 22.3.27 processes against the same dataRoot; workspace bound via formal selectWorkspace (no WIN7AGENT_A9_WORKSPACE).',
     'The restored provider points at the first fixture; the second process fresh-conversation requests prove no model replay (no assistant tool_calls / tool history in the first request, new user prompt present).',
     'Electron-ABI SQLite preflight is fail-closed; the product UI stop path cancels a real long-running Shell child, reaps its PID, and leaves zero active task/turn/run rows.',
@@ -436,7 +465,7 @@ await stall.close();
 if (!keepRoot) fs.rmSync(root, { recursive: true, force: true });
 fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 if (keepRoot) {
-  for (const f of ['first.json', 'second.json', 'stop.json']) {
+  for (const f of ['workspace-select.json', 'first.json', 'second.json', 'stop.json']) {
     const p = path.join(root, f);
     if (fs.existsSync(p)) console.log(`${f} @ ${p}`);
   }

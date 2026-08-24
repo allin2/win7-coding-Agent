@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * A9-06 正式产品 Electron smoke 驱动入口（多进程版）。
+ * A9-06 正式产品 Electron smoke 驱动入口（四进程版）。
  *
  * 进程内 require 正式 product/main.js（真实入口、真实 preload、真实
  * index.html/renderer.js），经 BrowserWindow.getAllWindows() 在真实 DOM 上
@@ -16,7 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
 const productMain = path.join(repositoryRoot, 'src/shell/product/main.js');
@@ -41,13 +41,18 @@ async function waitFor(condition, timeoutMs, label) {
 }
 
 async function main() {
+  const mode = process.env.A9_SMOKE_MODE || 'first';
+  const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
+  if (mode === 'workspace_select') {
+    // Start with no active workspace, then drive the real workspace.select IPC.
+    // The dialog replacement is confined to this acceptance process.
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
+  }
   // 正式产品入口（真实 main.js：注册全部产品 IPC 并打开真实窗口）。
   require(productMain);
 
-  const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
   const dataRoot = process.env.A9_SMOKE_DATAROOT;
   const fixtureUrl = process.env.A9_SMOKE_FIXTURE_URL;
-  const mode = process.env.A9_SMOKE_MODE || 'first';
 
   const win = await waitFor(() => {
     const page = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('renderer/index.html'));
@@ -56,6 +61,12 @@ async function main() {
   const exec = (code) => win.webContents.executeJavaScript(code);
 
   await waitFor(() => exec('document.readyState === "complete"'), 20_000, 'renderer ready');
+
+  if (mode === 'workspace_select') {
+    await runWorkspaceSelectionProcess(exec, { workspaceRoot });
+    report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
+    return;
+  }
 
   // 工作区经正式 selectWorkspace 链路绑定（main.js 同进程已完成）；A9 面板出现。
   const surface = await waitFor(() => exec('(() => { const s = document.getElementById("a9-surface"); return s && !s.hidden && s.dataset.a9Status ? { visible: true, workspace: document.getElementById("a9-workspace-value").textContent } : null; })()'), 20_000, 'A9 surface');
@@ -85,6 +96,55 @@ async function main() {
   }
 
   report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
+}
+
+async function runWorkspaceSelectionProcess(exec, env) {
+  const initial = await exec(`(async () => {
+    const snapshot = await window.win7Agent.a9.snapshot();
+    return {
+      code: snapshot.error && snapshot.error.code,
+      dialogHidden: document.getElementById('a9-mode-dialog').hidden,
+    };
+  })()`);
+  record('A9F0-WORKSPACE-REQUIRED-BEFORE-SELECTION', initial.code === 'A9_WORKSPACE_REQUIRED' && initial.dialogHidden === true, JSON.stringify(initial));
+
+  await exec('document.getElementById("workspace-select").click(); true');
+  const selected = await waitFor(() => exec(`(() => {
+    const dialogNode = document.getElementById('a9-mode-dialog');
+    const fullAccess = document.querySelector('input[name="a9-mode-choice"][value="full_access"]');
+    const shownWorkspace = document.getElementById('a9-workspace-value').textContent;
+    if (dialogNode.hidden || !fullAccess || !shownWorkspace.includes(${JSON.stringify(env.workspaceRoot.split(/[\\/]/).pop())})) return null;
+    return {
+      dialogVisible: true,
+      fullAccessVisible: fullAccess.offsetParent !== null || !fullAccess.hidden,
+      fullAccessChecked: fullAccess.checked,
+      workspace: shownWorkspace,
+      errorHidden: document.getElementById('error-banner').hidden,
+    };
+  })()`), 20_000, 'workspace selection and A9 mode dialog');
+  record('A9F0-FULL-ACCESS-REACHABLE-AFTER-WORKSPACE', selected.dialogVisible === true && selected.fullAccessVisible === true && selected.fullAccessChecked === true && selected.errorHidden === true, JSON.stringify(selected));
+
+  await exec('document.getElementById("a9-mode-apply").click(); true');
+  const mode = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.ok && r.snapshot.mode === "full_access" ? r.snapshot.mode : null)'), 15_000, 'full access selection');
+  record('A9F0-FULL-ACCESS-SELECTION-PERSISTED', mode === 'full_access', `mode=${mode}`);
+
+  // Regression for the Win10 field failure: the ordinary main Composer sends
+  // scenario:"agent" through desktop:request. It must pass the compiled IPC
+  // schema and reach the Host instead of throwing IPC_SCHEMA_INVALID.
+  await exec(`(() => {
+    const prompt = document.getElementById('task-prompt');
+    prompt.value = '分析这个工作区的代码结构';
+    prompt.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('run-task').click();
+    return true;
+  })()`);
+  const composer = await waitFor(() => exec(`(() => {
+    const state = document.getElementById('task-state').textContent;
+    const error = document.getElementById('error-banner');
+    if (state !== '已完成' && state !== '失败') return null;
+    return { state, errorHidden: error.hidden, error: error.textContent };
+  })()`), 30_000, 'ordinary Composer terminal state');
+  record('A9F0-MAIN-COMPOSER-AGENT-IPC', composer.state === '已完成' && composer.errorHidden === true && !composer.error.includes('IPC_SCHEMA_INVALID'), JSON.stringify(composer));
 }
 
 async function runFirstProcess(win, exec, env) {

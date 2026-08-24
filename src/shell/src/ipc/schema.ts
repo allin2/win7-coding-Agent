@@ -75,7 +75,7 @@ const payloadSchemas: Record<string, object> = {
       sessionId: { type: 'string', minLength: 1 },
       prompt: { type: 'string', minLength: 1 },
       context: { type: 'object' },
-      scenario: { type: 'string', enum: ['structure', 'encoding', 'cancellable', 'edit', 'undo', 'runner_acceptance'] },
+      scenario: { type: 'string', enum: ['agent', 'structure', 'encoding', 'cancellable', 'edit', 'undo', 'runner_acceptance'] },
     },
     additionalProperties: false,
   },

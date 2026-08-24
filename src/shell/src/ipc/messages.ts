@@ -78,7 +78,7 @@ export interface TaskSubmitPayload {
   sessionId: string;
   prompt: string;
   context?: Record<string, unknown>;
-  scenario?: 'structure' | 'encoding' | 'cancellable' | 'edit' | 'undo' | 'runner_acceptance';
+  scenario?: 'agent' | 'structure' | 'encoding' | 'cancellable' | 'edit' | 'undo' | 'runner_acceptance';
 }
 
 export interface TaskCancelPayload {

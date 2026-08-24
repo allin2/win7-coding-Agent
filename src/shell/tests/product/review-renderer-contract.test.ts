@@ -50,6 +50,14 @@ describe('A8 Review Renderer contract', () => {
     expect(renderer).toContain('function renderCompaction(data)');
   });
 
+  it('refreshes the A9 mode surface after the user confirms the first workspace', () => {
+    expect(renderer).toContain('async function refreshA9WorkspaceSurface()');
+    expect(renderer).toContain("typeof panel.refreshSnapshot !== 'function'");
+    expect(renderer).toMatch(/state\.workspacePath = result\.selected\.workspacePath;[\s\S]*await refreshA9WorkspaceSurface\(\);[\s\S]*window\.win7Agent\.createSession/);
+    expect(html).toContain('name="a9-mode-choice" value="full_access"');
+    expect(html).toContain('Full Access（推荐）');
+  });
+
   it('keeps Review decisions and recovery fail-closed in the Renderer', () => {
     expect(renderer).toMatch(/review-accept'\)\.disabled = !canDecide \|\| !selected\.writable/);
     expect(renderer).toMatch(/review-issue-approval'\)\.disabled = !allDecided \|\| !hasAccepted/);

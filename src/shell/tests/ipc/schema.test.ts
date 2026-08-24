@@ -44,6 +44,16 @@ describe('SchemaValidator', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('task.submit accepts the ordinary Composer agent scenario', () => {
+      const msg = makeValidMessage({
+        type: IPCMessageType.TASK_SUBMIT,
+        payload: { sessionId: 'sess-001', prompt: '帮我修复并验证', scenario: 'agent' },
+      });
+      const result = validator.validateMessage(msg);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it('diff.preview 合法消息通过', () => {
       const msg = makeValidMessage({
         type: IPCMessageType.DIFF_PREVIEW,
