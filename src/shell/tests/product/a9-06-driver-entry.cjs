@@ -63,7 +63,7 @@ async function main() {
   await waitFor(() => exec('document.readyState === "complete"'), 20_000, 'renderer ready');
 
   if (mode === 'workspace_select') {
-    await runWorkspaceSelectionProcess(exec, { workspaceRoot });
+    await runWorkspaceSelectionProcess(win, exec, { workspaceRoot });
     report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
     return;
   }
@@ -98,7 +98,7 @@ async function main() {
   report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
 }
 
-async function runWorkspaceSelectionProcess(exec, env) {
+async function runWorkspaceSelectionProcess(win, exec, env) {
   const initial = await exec(`(async () => {
     const snapshot = await window.win7Agent.a9.snapshot();
     return {
@@ -123,6 +123,16 @@ async function runWorkspaceSelectionProcess(exec, env) {
     };
   })()`), 20_000, 'workspace selection and A9 mode dialog');
   record('A9F0-FULL-ACCESS-REACHABLE-AFTER-WORKSPACE', selected.dialogVisible === true && selected.fullAccessVisible === true && selected.fullAccessChecked === true && selected.errorHidden === true, JSON.stringify(selected));
+
+  const screenshotPath = process.env.A9_SMOKE_WORKSPACE_SELECT_SCREENSHOT;
+  if (screenshotPath) {
+    win.setSize(860, 620);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+    const image = await win.webContents.capturePage();
+    fs.writeFileSync(screenshotPath, image.toPNG());
+    record('A9F0-MODE-DIALOG-SCREENSHOT', fs.existsSync(screenshotPath), screenshotPath);
+  }
 
   await exec('document.getElementById("a9-mode-apply").click(); true');
   const mode = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.ok && r.snapshot.mode === "full_access" ? r.snapshot.mode : null)'), 15_000, 'full access selection');

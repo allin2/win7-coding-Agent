@@ -72,11 +72,26 @@
 
     // 首次模式选择。
     const modeDialog = el('a9-mode-dialog');
-    if (modeDialog) {
-      modeDialog.hidden = Boolean(snapshot.status && snapshot.status !== 'ready') || snapshot.mode !== 'needs_selection';
-    }
     const modeRadios = surface.querySelectorAll('input[name="a9-mode-choice"]');
     modeRadios.forEach((radio) => { radio.checked = radio.value === snapshot.modeRecommended; });
+    text('a9-mode-workspace', snapshot.workspaceRoot || '尚未绑定工作区');
+    if (modeDialog) {
+      const needsSelection = !(snapshot.status && snapshot.status !== 'ready') && snapshot.mode === 'needs_selection';
+      if (needsSelection) {
+        const wasOpen = modeDialog.open === true;
+        modeDialog.hidden = false;
+        if (!wasOpen) {
+          if (typeof modeDialog.showModal === 'function') modeDialog.showModal();
+          else modeDialog.setAttribute('open', '');
+          const recommended = Array.from(modeRadios).find((radio) => radio.checked);
+          if (recommended && typeof recommended.focus === 'function') recommended.focus();
+        }
+      } else {
+        if (modeDialog.open && typeof modeDialog.close === 'function') modeDialog.close();
+        else modeDialog.removeAttribute('open');
+        modeDialog.hidden = true;
+      }
+    }
 
     // Provider 状态（不回显密钥）。
     const apiKey = provider.apiKey || {};
@@ -165,13 +180,27 @@
   }
 
   async function chooseMode(mode) {
-    const response = await a9.setMode(mode);
-    if (response && response.ok === true) {
-      await refreshSnapshot();
-    } else {
-      text('a9-mode-error', (response && response.error && response.error.message) || '模式设置失败');
+    const applyButton = el('a9-mode-apply');
+    if (applyButton) {
+      applyButton.disabled = true;
+      applyButton.setAttribute('aria-busy', 'true');
     }
-    return response;
+    try {
+      const response = await a9.setMode(mode);
+      if (response && response.ok === true) {
+        await refreshSnapshot();
+      } else {
+        const modeError = el('a9-mode-error');
+        if (modeError) modeError.hidden = false;
+        text('a9-mode-error', (response && response.error && response.error.message) || '模式设置失败');
+      }
+      return response;
+    } finally {
+      if (applyButton) {
+        applyButton.disabled = false;
+        applyButton.removeAttribute('aria-busy');
+      }
+    }
   }
 
   async function applyProviderForm() {
@@ -285,6 +314,8 @@
       const checked = surface.querySelector('input[name="a9-mode-choice"]:checked');
       if (checked) void chooseMode(checked.value);
     });
+    const modeDialog = el('a9-mode-dialog');
+    if (modeDialog) modeDialog.addEventListener('cancel', (event) => { event.preventDefault(); });
     on('a9-provider-apply', () => { void applyProviderForm(); });
     on('a9-provider-probe', () => { void runProbe(); });
     on('a9-submit', () => { void submitPrompt(); });

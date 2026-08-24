@@ -4,8 +4,30 @@
 #a9-surface .a9-status { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin: 8px 0; }
 #a9-surface .a9-status div { display: flex; gap: 6px; font-size: 12px; }
 #a9-surface .a9-status dt { color: var(--muted-fg, #8a94a6); }
-#a9-mode-dialog { border: 1px solid #444; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+#a9-mode-dialog { width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 32px); margin: auto; padding: 0; overflow: auto; border: 1px solid #4b5850; background: #171b19; color: var(--text); box-shadow: 0 24px 80px rgba(0,0,0,.7); }
+#a9-mode-dialog::backdrop { background: rgba(5,8,6,.72); }
+#a9-mode-dialog form { display: grid; gap: 16px; padding: 24px; }
+#a9-mode-dialog .a9-mode-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 0 0 16px; border-bottom: 1px solid var(--line); }
+#a9-mode-dialog .a9-mode-header h2 { margin: 5px 0 0; font-size: 20px; font-weight: 600; }
+#a9-mode-dialog .a9-mode-header>span { flex: 0 0 auto; border: 1px solid #526159; padding: 5px 8px; color: var(--green); font: 10px var(--mono); text-transform: uppercase; }
+#a9-mode-dialog .kicker { margin: 0; }
+#a9-mode-dialog .a9-mode-workspace { margin: 0; padding: 9px 11px; border: 1px solid #354139; background: #101411; color: #c7d0c9; font: 11px/1.5 var(--mono); overflow-wrap: anywhere; }
+#a9-mode-dialog .a9-mode-intro { margin: -4px 0 0; color: #aeb7b0; font-size: 13px; line-height: 1.6; }
+#a9-mode-dialog fieldset { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+#a9-mode-dialog legend { margin-bottom: 8px; color: #cbd2cd; font-size: 12px; font-weight: 600; }
+#a9-mode-dialog .a9-mode-option { display: grid; grid-template-columns: 20px 1fr; align-items: center; gap: 12px; min-height: 68px; margin: 0; padding: 11px 13px; border: 1px solid #39433d; background: #1d221f; cursor: pointer; }
+#a9-mode-dialog .a9-mode-option:hover, #a9-mode-dialog .a9-mode-option:focus-within { border-color: #66806f; background: #222a25; }
+#a9-mode-dialog .a9-mode-option input { width: 18px; height: 18px; margin: 0; accent-color: var(--green2); }
+#a9-mode-dialog .a9-mode-option span, #a9-mode-dialog .a9-mode-option strong, #a9-mode-dialog .a9-mode-option small { display: block; }
+#a9-mode-dialog .a9-mode-option strong { color: #e8ece8; font-size: 13px; }
+#a9-mode-dialog .a9-mode-option input:checked+span strong { color: var(--green); }
+#a9-mode-dialog .a9-mode-option em { margin-left: 6px; color: var(--green); font: normal 9px var(--mono); }
+#a9-mode-dialog .a9-mode-option small { margin-top: 4px; color: #9ca69f; font-size: 11px; line-height: 1.45; }
+#a9-mode-dialog #a9-mode-error { margin: 0; }
+#a9-mode-dialog #a9-mode-apply { min-height: 44px; border: 1px solid #438759; background: #2d6c45; color: #fff; font-weight: 600; }
+#a9-mode-dialog #a9-mode-apply:disabled { cursor: wait; opacity: .65; }
 #a9-mode-dialog[hidden] { display: none; }
+@media(max-height:620px){#a9-mode-dialog form{gap:10px;padding:16px}#a9-mode-dialog .a9-mode-header{padding-bottom:10px}#a9-mode-dialog .a9-mode-option{min-height:56px;padding:8px 11px}}
 #a9-surface .a9-row { display: flex; gap: 8px; margin-top: 6px; }
 #a9-surface .a9-output { max-height: 220px; overflow: auto; background: #10141c; padding: 8px; font-size: 12px; white-space: pre-wrap; }
 #a9-surface .a9-timeline { margin: 6px 0 6px 18px; font-size: 12px; }

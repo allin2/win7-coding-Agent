@@ -5,6 +5,8 @@ describe('A8 Review Renderer contract', () => {
   const productRoot = path.join(__dirname, '../../product');
   const html = fs.readFileSync(path.join(productRoot, 'renderer/index.html'), 'utf8');
   const renderer = fs.readFileSync(path.join(productRoot, 'renderer/renderer.js'), 'utf8');
+  const a9Panel = fs.readFileSync(path.join(productRoot, 'renderer/a9-agent-panel.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(productRoot, 'renderer/styles.css'), 'utf8');
   const workspaceCss = fs.readFileSync(path.join(productRoot, 'renderer/a8-workspace.css'), 'utf8');
   const harness = fs.readFileSync(path.join(__dirname, 'review-renderer-harness.js'), 'utf8');
 
@@ -55,8 +57,14 @@ describe('A8 Review Renderer contract', () => {
     expect(renderer).toContain("typeof panel.refreshSnapshot !== 'function'");
     expect(renderer).toMatch(/state\.workspacePath = result\.selected\.workspacePath;[\s\S]*await refreshA9WorkspaceSurface\(\);[\s\S]*window\.win7Agent\.createSession/);
     expect(html).toContain('name="a9-mode-choice" value="full_access"');
-    expect(html).toContain('Full Access（推荐）');
+    expect(html).toContain('Full Access <em>推荐</em>');
     expect(html).toContain('id="a9-runtime-error"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('id="a9-mode-workspace"');
+    expect(a9Panel).toContain("modeDialog.showModal()");
+    expect(a9Panel).toContain("modeDialog.addEventListener('cancel'");
+    expect(styles).toContain('#a9-mode-dialog::backdrop');
+    expect(styles).toContain('max-height: calc(100vh - 32px)');
   });
 
   it('keeps Review decisions and recovery fail-closed in the Renderer', () => {

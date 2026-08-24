@@ -270,6 +270,7 @@ const firstOut = path.join(root, 'first.json');
 const secondOut = path.join(root, 'second.json');
 const stopOut = path.join(root, 'stop.json');
 const workspaceSelectOut = path.join(root, 'workspace-select.json');
+const workspaceSelectScreenshot = path.join(root, 'workspace-select.png');
 const workspaceSelectRoot = path.join(root, 'workspace-select-ws');
 const workspaceSelectDataRoot = path.join(root, 'workspace-select-data');
 const stopWorkspaceRoot = path.join(root, 'stop-ws');
@@ -314,6 +315,7 @@ const workspaceSelectExit = await runElectronProcess({
   A9_SMOKE_DATAROOT: workspaceSelectDataRoot,
   A9_SMOKE_MODE: 'workspace_select',
   A9_SMOKE_OUT: workspaceSelectOut,
+  A9_SMOKE_WORKSPACE_SELECT_SCREENSHOT: workspaceSelectScreenshot,
   WIN7AGENT_A9_DATAROOT: workspaceSelectDataRoot,
 }, [driverEntry]);
 let workspaceSelectReport = { status: 'NO_REPORT' };
@@ -469,7 +471,7 @@ await stall.close();
 if (!keepRoot) fs.rmSync(root, { recursive: true, force: true });
 fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 if (keepRoot) {
-  for (const f of ['workspace-select.json', 'first.json', 'second.json', 'stop.json']) {
+  for (const f of ['workspace-select.json', 'workspace-select.png', 'first.json', 'second.json', 'stop.json']) {
     const p = path.join(root, f);
     if (fs.existsSync(p)) console.log(`${f} @ ${p}`);
   }
