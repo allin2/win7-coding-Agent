@@ -810,7 +810,10 @@ function createA9AgentRuntime(options) {
   }
 
   function shutdown() {
-    persistence.releaseWorkspaceLock(workspaceRoot, ownerId);
+    // 锁的主键必须与 acquireWorkspaceLock 使用完全相同的 canonical 路径。
+    // Windows 上 canonicalWorkspace 会统一为小写；使用原始 workspaceRoot
+    // 会让 SQLite 的区分大小写比较删除不到锁，正常退出后留下 main-<旧 PID>。
+    persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
     if (loopTrustedRunner) {
       loopTrustedRunner.getBackgroundManager().dispose({ stopManaged: true }).catch(() => undefined);
     }

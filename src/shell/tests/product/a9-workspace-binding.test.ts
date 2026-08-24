@@ -182,6 +182,20 @@ describe('F1: workspaces A and B stay isolated (mode, lock, checkpoints)', () =>
     }
   }, 30_000);
 
+  it('releases the lock with the same canonical workspace key used to acquire it', () => {
+    const runtime = makeRuntime(`${wsA}${path.sep}`);
+    expect(runtime.getSnapshot().lock.held).toBe(true);
+    runtime.shutdown();
+
+    const db = new Database(path.join(dataRoot, 'a9-state.db'), { readonly: true });
+    try {
+      const locks = db.prepare('SELECT workspace_path, owner_id FROM a9_workspace_locks').all();
+      expect(locks).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
   it('invalid mode returns precise A9_MODE_INVALID, not a generic error', () => {
     const runtime = makeRuntime(wsA);
     expect(() => runtime.setMode('bogus-mode')).toThrow(/A9_MODE_INVALID/);
