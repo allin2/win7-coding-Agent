@@ -26,6 +26,8 @@
 #a9-mode-dialog #a9-mode-error { margin: 0; }
 #a9-mode-dialog #a9-mode-apply { min-height: 44px; border: 1px solid #438759; background: #2d6c45; color: #fff; font-weight: 600; }
 #a9-mode-dialog #a9-mode-apply:disabled { cursor: wait; opacity: .65; }
+#a9-mode-dialog .a9-mode-actions { display: flex; justify-content: flex-end; gap: 8px; }
+#a9-mode-dialog #a9-mode-cancel { min-height: 44px; border: 1px solid var(--line); background: #242a27; }
 #a9-mode-dialog[hidden] { display: none; }
 @media(max-height:620px){#a9-mode-dialog form{gap:10px;padding:16px}#a9-mode-dialog .a9-mode-header{padding-bottom:10px}#a9-mode-dialog .a9-mode-option{min-height:56px;padding:8px 11px}}
 #a9-surface .a9-row { display: flex; gap: 8px; margin-top: 6px; }

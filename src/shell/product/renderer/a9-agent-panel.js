@@ -12,6 +12,60 @@
   function el(id) { return document.getElementById(id); }
   function text(id, value) { const node = el(id); if (node) node.textContent = value; }
 
+  const MODE_LABELS = Object.freeze({
+    full_access: 'Full Access',
+    review: 'Review',
+    read_only: 'Read Only',
+    needs_selection: '待选择',
+  });
+  let lastSnapshot = null;
+
+  function modeLabel(mode) { return MODE_LABELS[mode] || String(mode || '-'); }
+
+  function closeModeDialog() {
+    const modeDialog = el('a9-mode-dialog');
+    if (!modeDialog) return;
+    if (modeDialog.open && typeof modeDialog.close === 'function') modeDialog.close();
+    else modeDialog.removeAttribute('open');
+    modeDialog.hidden = true;
+  }
+
+  function configureModeDialog(snapshot, open) {
+    const modeDialog = el('a9-mode-dialog');
+    if (!modeDialog) return;
+    const configured = snapshot.mode !== 'needs_selection';
+    const selectedMode = configured ? snapshot.mode : (snapshot.modeRecommended || 'full_access');
+    const modeRadios = modeDialog.querySelectorAll('input[name="a9-mode-choice"]');
+    modeRadios.forEach((radio) => { radio.checked = radio.value === selectedMode; });
+    text('a9-mode-workspace', snapshot.workspaceRoot || '尚未绑定工作区');
+    text('a9-mode-kicker', 'WORKSPACE PERMISSIONS');
+    text('a9-mode-title', configured ? '更改此工作区的权限' : '选择此工作区的权限');
+    text('a9-mode-badge', configured ? '可随时更改' : '首次设置');
+    text('a9-mode-intro', configured
+      ? '当前模式已保存到此工作区。重新选择后立即保存；正在执行的当前轮不会改变，下一轮使用新模式。'
+      : '每个工作区单独保存权限。推荐 Full Access；它使用当前 Windows 用户权限，不提供额外沙箱。');
+    text('a9-mode-apply', configured ? '保存权限模式' : '使用所选模式');
+    const cancel = el('a9-mode-cancel');
+    if (cancel) cancel.hidden = !configured;
+    modeDialog.dataset.modeConfigured = configured ? 'true' : 'false';
+    if (open) {
+      modeDialog.hidden = false;
+    } else if (!modeDialog.open) {
+      modeDialog.hidden = true;
+    }
+    if (open && !modeDialog.open) {
+      if (typeof modeDialog.showModal === 'function') modeDialog.showModal();
+      else modeDialog.setAttribute('open', '');
+      const selected = Array.from(modeRadios).find((radio) => radio.checked);
+      if (selected && typeof selected.focus === 'function') selected.focus();
+    }
+  }
+
+  function openModeDialog() {
+    if (!lastSnapshot || lastSnapshot.status !== 'ready' || !lastSnapshot.workspaceRoot) return;
+    configureModeDialog(lastSnapshot, true);
+  }
+
   function renderRuntimeError(error) {
     const node = el('a9-runtime-error');
     if (!node) return;
@@ -40,6 +94,8 @@
       // 尚未选择工作区是正常的首次启动状态；选择后的真实初始化错误必须可见。
       const error = response && response.error;
       renderRuntimeError(error && error.code === 'A9_WORKSPACE_REQUIRED' ? null : error);
+      const modeButton = el('a9-mode-open');
+      if (modeButton) modeButton.hidden = true;
       return null;
     }
     renderSnapshot(response.snapshot);
@@ -49,6 +105,7 @@
   function renderSnapshot(snapshot) {
     const surface = el('a9-surface');
     if (!surface) return;
+    lastSnapshot = snapshot;
     surface.dataset.a9Status = snapshot.status || 'ready';
     const diagnostics = snapshot.diagnostics;
     renderRuntimeError(snapshot.status && snapshot.status !== 'ready'
@@ -61,7 +118,15 @@
       workspaceNode.textContent = snapshot.workspaceRoot || '-';
       workspaceNode.title = snapshot.workspaceRoot || '';
     }
-    text('a9-mode-value', snapshot.mode === 'needs_selection' ? '待选择' : (snapshot.mode || '-'));
+    text('a9-mode-value', modeLabel(snapshot.mode));
+    const modeButton = el('a9-mode-open');
+    const modeAvailable = snapshot.status === 'ready' && Boolean(snapshot.workspaceRoot);
+    if (modeButton) {
+      modeButton.hidden = !modeAvailable;
+      modeButton.disabled = !modeAvailable;
+      modeButton.textContent = `权限：${modeLabel(snapshot.mode)}`;
+      modeButton.setAttribute('aria-label', `重新选择权限模式，当前为${modeLabel(snapshot.mode)}`);
+    }
     text('a9-shell-value', snapshot.shell ? `${snapshot.shell.kind}${snapshot.shell.version ? ' ' + snapshot.shell.version : ''}` : '-');
     const provider = snapshot.provider || {};
     text('a9-provider-value', provider.configured ? `${provider.model} @ ${provider.baseUrl}` : '未配置（正式产品不默认 Replay）');
@@ -70,27 +135,14 @@
       ? (snapshot.lock.held ? '本窗口持有写锁' : `被 ${snapshot.lock.holder || '其他窗口'} 持有`)
       : '-');
 
-    // 首次模式选择。
+    // 首次模式选择，或由全局头部按钮重新打开。
     const modeDialog = el('a9-mode-dialog');
-    const modeRadios = surface.querySelectorAll('input[name="a9-mode-choice"]');
-    modeRadios.forEach((radio) => { radio.checked = radio.value === snapshot.modeRecommended; });
-    text('a9-mode-workspace', snapshot.workspaceRoot || '尚未绑定工作区');
     if (modeDialog) {
       const needsSelection = !(snapshot.status && snapshot.status !== 'ready') && snapshot.mode === 'needs_selection';
-      if (needsSelection) {
-        const wasOpen = modeDialog.open === true;
-        modeDialog.hidden = false;
-        if (!wasOpen) {
-          if (typeof modeDialog.showModal === 'function') modeDialog.showModal();
-          else modeDialog.setAttribute('open', '');
-          const recommended = Array.from(modeRadios).find((radio) => radio.checked);
-          if (recommended && typeof recommended.focus === 'function') recommended.focus();
-        }
-      } else {
-        if (modeDialog.open && typeof modeDialog.close === 'function') modeDialog.close();
-        else modeDialog.removeAttribute('open');
-        modeDialog.hidden = true;
-      }
+      configureModeDialog(snapshot, needsSelection);
+      // A manually opened dialog remains open across unrelated snapshot refreshes;
+      // chooseMode closes it explicitly after the new mode is persisted.
+      if (needsSelection && modeDialog.open !== true) configureModeDialog(snapshot, true);
     }
 
     // Provider 状态（不回显密钥）。
@@ -188,6 +240,7 @@
     try {
       const response = await a9.setMode(mode);
       if (response && response.ok === true) {
+        closeModeDialog();
         await refreshSnapshot();
       } else {
         const modeError = el('a9-mode-error');
@@ -311,11 +364,23 @@
       if (node) node.addEventListener('click', handler);
     };
     on('a9-mode-apply', () => {
-      const checked = surface.querySelector('input[name="a9-mode-choice"]:checked');
+      const checked = document.querySelector('input[name="a9-mode-choice"]:checked');
       if (checked) void chooseMode(checked.value);
     });
+    on('a9-mode-open', () => { openModeDialog(); });
+    on('a9-mode-cancel', () => {
+      const modeDialog = el('a9-mode-dialog');
+      if (modeDialog && modeDialog.dataset.modeConfigured === 'true') closeModeDialog();
+    });
     const modeDialog = el('a9-mode-dialog');
-    if (modeDialog) modeDialog.addEventListener('cancel', (event) => { event.preventDefault(); });
+    if (modeDialog) {
+      modeDialog.addEventListener('cancel', (event) => {
+        if (modeDialog.dataset.modeConfigured !== 'true') event.preventDefault();
+      });
+      modeDialog.addEventListener('close', () => {
+        if (modeDialog.dataset.modeConfigured === 'true') modeDialog.hidden = true;
+      });
+    }
     on('a9-provider-apply', () => { void applyProviderForm(); });
     on('a9-provider-probe', () => { void runProbe(); });
     on('a9-submit', () => { void submitPrompt(); });
@@ -340,6 +405,7 @@
     bind,
     refreshSnapshot,
     chooseMode,
+    openModeDialog,
     applyProviderForm,
     runProbe,
     submitPrompt,
