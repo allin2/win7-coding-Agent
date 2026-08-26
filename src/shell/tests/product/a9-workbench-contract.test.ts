@@ -1,0 +1,76 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
+describe('A9 unified desktop workbench contract', () => {
+  const productRoot = path.join(__dirname, '../../product');
+  const html = fs.readFileSync(path.join(productRoot, 'renderer/workbench.html'), 'utf8');
+  const css = fs.readFileSync(path.join(productRoot, 'renderer/a9-workbench.css'), 'utf8');
+  const script = fs.readFileSync(path.join(productRoot, 'renderer/a9-workbench.js'), 'utf8');
+  const main = fs.readFileSync(path.join(productRoot, 'main.js'), 'utf8');
+
+  it('loads the unified workbench for the product while preserving the historical A8 smoke entry', () => {
+    expect(main).toContain("const legacyRendererEntry = path.join(rendererRoot, 'index.html');");
+    expect(main).toContain(": path.join(rendererRoot, 'workbench.html');");
+    expect(main).toContain("item.indexOf('--a8-review-smoke-') === 0");
+    expect(main).toContain("item.indexOf('--a8-boundary-smoke-') === 0");
+  });
+
+  it('has one visible A9 task entry and one central approval action area', () => {
+    expect((html.match(/id="task-prompt"/g) || [])).toHaveLength(1);
+    expect((html.match(/id="run-task"/g) || [])).toHaveLength(1);
+    expect((html.match(/id="cancel-task"/g) || [])).toHaveLength(1);
+    expect((html.match(/id="a9-approval-card"/g) || [])).toHaveLength(1);
+    expect(html).not.toContain('id="a9-prompt"');
+    expect(html.indexOf('id="a9-approval-card"')).toBeLessThan(html.indexOf('id="task-prompt"'));
+    expect(script).toContain('await a9.submitTurn(prompt)');
+    expect(script).not.toContain('api.submitTask');
+  });
+
+  it('limits Alpha 1 mode selection to Full Access and Read Only', () => {
+    expect(html).toContain('name="a9-mode-choice" value="full_access"');
+    expect(html).toContain('name="a9-mode-choice" value="read_only"');
+    expect(html).not.toContain('value="review"');
+    expect(html).toContain('Review</strong><p>完整准备、审批与应用工作流将在下一阶段提供');
+    expect(script).toContain("const SUPPORTED_MODES = new Set(['full_access', 'read_only']);");
+    expect(script).toContain("snapshot.mode === 'review'");
+  });
+
+  it('uses contextual Inspector tabs instead of a long duplicate control stack', () => {
+    ['files', 'changes', 'activity', 'environment'].forEach((name) => {
+      expect(html).toContain(`id="inspector-tab-${name}"`);
+      expect(html).toContain(`id="inspector-panel-${name}"`);
+    });
+    expect(html).not.toContain('Provider 配置（任意 Base URL');
+    expect(html).not.toContain('A8 历史能力');
+    expect(script).toContain("const TAB_IDS = ['files', 'changes', 'activity', 'environment'];");
+  });
+
+  it('keeps Provider secrets in one progressive Settings surface with explicit insecure TLS confirmation', () => {
+    expect((html.match(/id="a9-provider-key"/g) || [])).toHaveLength(1);
+    expect((html.match(/id="a9-provider-apply"/g) || [])).toHaveLength(1);
+    expect(html).toContain('<summary>企业网络</summary>');
+    expect(html).toContain('<summary>危险设置</summary>');
+    expect(html).toContain('id="a9-insecure-dialog"');
+    expect(script).toContain("el('a9-provider-key').value = '';");
+    expect(script).toContain("el('a9-provider-header-value').value = '';");
+  });
+
+  it('preserves the local CSP and Renderer isolation boundary', () => {
+    expect(html).toContain("default-src 'none'");
+    expect(html).toContain("connect-src 'none'");
+    expect(html).toContain("frame-src 'none'");
+    expect(script).not.toMatch(/require\(|child_process|\bfetch\(|WebSocket\(|XMLHttpRequest/);
+    expect(script).toContain('const api = root.win7Agent;');
+  });
+
+  it('defines semantic dark tokens, stable targets, responsive drawers and reduced motion', () => {
+    expect(css).toContain('--bg-canvas:');
+    expect(css).toContain('--text-primary:');
+    expect(css).toContain('--accent:');
+    expect(css).toContain('min-height: 44px');
+    expect(css).toContain('@media (max-width: 1199px)');
+    expect(css).toContain('@media (max-width: 799px)');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(css).toContain('grid-template-columns: 232px minmax(500px, 1fr) 360px');
+  });
+});

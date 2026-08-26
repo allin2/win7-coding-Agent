@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090d0e">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Win7 Coding Agent</title>
+  <link rel="stylesheet" href="a9-workbench.css">
+</head>
+<body>
+  <a class="skip-link" href="#task-prompt">跳到任务输入</a>
+  <main class="workbench" aria-label="A9 Trusted Agent 工作台">
+    <aside id="navigation-rail" class="rail" aria-label="工作区导航">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">W7</span>
+        <div><strong>Coding Agent</strong><small>TRUSTED WORKBENCH</small></div>
+        <button id="close-navigation" class="icon-button navigation-close" type="button" aria-label="关闭导航" title="关闭导航"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <button id="workspace-select" class="workspace-card" type="button" aria-describedby="workspace-path">
+        <span>WORKSPACE</span><strong id="workspace-name">选择本地工作区</strong><small id="workspace-path">尚未选择</small><span class="workspace-action">切换</span>
+      </button>
+      <nav class="product-nav" aria-label="产品区域">
+        <button class="nav-item active" type="button" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h7"/></svg><span>任务</span><i>当前</i></button>
+        <button class="nav-item roadmap" type="button" disabled aria-disabled="true" title="完整 Review 工作流计划在 Alpha 2 提供"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>Review</span><i>Alpha 2</i></button>
+      </nav>
+      <section class="rail-task" aria-labelledby="rail-task-title">
+        <span id="rail-task-title" class="eyebrow">CURRENT TASK</span>
+        <div class="rail-task-state"><i aria-hidden="true"></i><strong id="rail-task-value">等待任务</strong></div>
+        <p id="rail-task-detail">选择工作区并确认权限后开始。</p>
+      </section>
+      <div class="rail-spacer"></div>
+      <div class="trust-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6zM9 12l2 2 4-5"/></svg><p><strong>可信工作区</strong><span>Full Access 使用当前 Windows 用户权限，不是安全沙箱。</span></p></div>
+      <div class="rail-bottom">
+        <button id="open-settings" class="utility" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zM4 12l-2-1 2-4 2 1 2-1V4h8v3l2 1 2-1 2 4-2 1v2l2 1-2 4-2-1-2 1v2H8v-2l-2-1-2 1-2-4 2-1z"/></svg>设置</button>
+        <button id="open-diagnostics" class="utility" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l4-5 3 2 5-8 4 3M4 4v16h16"/></svg>诊断</button>
+      </div>
+    </aside>
+    <button id="navigation-backdrop" class="navigation-backdrop" type="button" aria-label="关闭导航" hidden></button>
+
+    <section class="conversation-pane" aria-labelledby="workbench-title">
+      <header class="conversation-header">
+        <div class="header-title">
+          <button id="open-navigation" class="icon-button header-navigation-toggle" type="button" aria-controls="navigation-rail" aria-expanded="false" aria-label="打开导航" title="导航"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <div><span class="breadcrumb">AGENT / <b id="workspace-label">未连接工作区</b></span><h1 id="workbench-title">和工作区一起完成任务</h1></div>
+        </div>
+        <div class="header-status">
+          <button id="a9-mode-open" class="status-control mode" type="button" hidden aria-controls="a9-mode-dialog" aria-haspopup="dialog">权限：待选择</button>
+          <button id="a9-provider-open" class="status-control provider" type="button" aria-controls="settings-drawer" aria-haspopup="dialog"><i aria-hidden="true"></i><span id="a9-provider-chip">Provider 未配置</span></button>
+          <span id="runtime-status" class="connection pending"><i aria-hidden="true"></i>检查中</span>
+          <span id="task-state" class="task-pill idle">空闲</span>
+          <button id="open-inspector" class="icon-button header-inspector-toggle" type="button" aria-controls="inspector" aria-expanded="false" aria-label="打开检查器" title="检查器"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM14 5v14"/></svg></button>
+        </div>
+      </header>
+      <div id="error-banner" class="global-error" role="alert" hidden></div>
+      <div id="conversation" class="conversation" aria-live="polite" aria-label="任务执行记录">
+        <section id="a9-empty-state" class="welcome">
+          <div class="welcome-glyph" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 6h16v20H8zM12 11h8M12 16h5M12 21h7"/></svg></div>
+          <p class="kicker">AGENT-FIRST WORKSPACE</p><h2>先描述你想完成的事。</h2>
+          <p>Agent 会在当前工作区读取文件、调用工具并记录真实结果。高影响操作会先请求你的明确批准。</p>
+          <div class="suggestions" aria-label="任务示例">
+            <button type="button" data-prompt="分析这个工作区的代码结构，并指出最重要的入口。"><span>梳理代码结构</span><b aria-hidden="true">→</b></button>
+            <button type="button" data-prompt="检查中文路径、编码、CRLF 与 Windows 7 兼容风险。"><span>检查 Win7 兼容性</span><b aria-hidden="true">→</b></button>
+          </div>
+        </section>
+        <div id="a9-task-stream" class="task-stream"></div>
+      </div>
+      <footer class="composer-wrap">
+        <section id="a9-approval-card" class="approval-dock" hidden aria-live="polite" aria-labelledby="a9-approval-heading">
+          <div class="approval-marker" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3zM12 9v4M12 16h.01"/></svg></div>
+          <div class="approval-copy"><div class="approval-heading"><span>APPROVAL REQUIRED</span><strong id="a9-approval-tool">-</strong></div><h2 id="a9-approval-heading">需要你的确认</h2><p id="a9-approval-summary"></p><p id="a9-approval-git" class="approval-binding"></p><p id="a9-approval-id" class="approval-id"></p><p id="a9-approval-error" class="field-error" role="alert" hidden></p></div>
+          <div class="approval-actions"><button id="a9-approval-deny" type="button" class="danger">拒绝</button><button id="a9-approval-approve" type="button" class="primary">批准此操作</button></div>
+        </section>
+        <div class="composer">
+          <label class="sr-only" for="task-prompt">任务描述</label>
+          <textarea id="task-prompt" name="task-prompt" rows="1" maxlength="8000" autocomplete="off" placeholder="描述要完成的任务，或询问当前代码…" aria-describedby="composer-guidance session-status"></textarea>
+          <div class="composer-bar"><span id="composer-guidance" class="composer-guidance"><b>Enter</b> 发送 <i>·</i> <b>Shift+Enter</b> 换行</span><button id="run-task" class="send" type="button" disabled aria-label="发送任务"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 7l5 5-5 5"/></svg><span>发送</span></button><button id="cancel-task" class="stop" type="button" hidden disabled aria-label="停止任务"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span>停止</span></button></div>
+        </div>
+        <p id="session-status" class="status-line" aria-live="polite">选择一个本地工作区开始。模型不能绕过批准、Runner 或审计边界。</p>
+      </footer>
+    </section>
+
+    <aside id="inspector" class="inspector" aria-label="检查器">
+      <header class="inspector-header"><div><span class="eyebrow">INSPECTOR</span><h2>工作区事实</h2></div><button id="close-inspector" class="icon-button inspector-close" type="button" aria-label="关闭检查器"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+      <div id="a9-surface" data-a9-surface="a9" hidden>
+        <div class="inspector-tabs" role="tablist" aria-label="检查器内容"><button id="inspector-tab-files" type="button" role="tab" aria-selected="true" aria-controls="inspector-panel-files" tabindex="0">文件</button><button id="inspector-tab-changes" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-changes" tabindex="-1">变更</button><button id="inspector-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-activity" tabindex="-1">活动</button><button id="inspector-tab-environment" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-environment" tabindex="-1">环境</button></div>
+        <div id="inspector-panel-files" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-files">
+          <section><div class="section-title"><h3>工作区</h3><button id="workspace-up" type="button" disabled>上一级</button></div><p id="explorer-path" class="path-line">/</p><ul id="workspace-tree" class="workspace-tree"></ul><p id="workspace-tree-empty" class="quiet">选择工作区后浏览文件。</p></section>
+          <section id="viewer-panel" hidden><div class="section-title"><h3 id="viewer-file">文件</h3><span id="viewer-range">未选择</span></div><div class="viewer-tools"><input id="viewer-search" type="search" autocomplete="off" aria-label="在文件中查找" placeholder="在文件中查找…"><input id="viewer-jump" type="number" min="1" aria-label="跳转到行号" placeholder="行号"><button id="viewer-jump-go" type="button">跳转</button></div><div id="code-viewer" class="code-viewer" tabindex="0" aria-label="代码查看器"></div></section>
+          <section><div class="section-title"><h3>本轮使用文件</h3><span id="file-count">0</span></div><ul id="file-activity" class="file-list"></ul><p id="file-empty" class="quiet">工具实际读取的文件会显示在这里。</p></section>
+        </div>
+        <div id="inspector-panel-changes" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-changes" hidden><section><div class="section-title"><h3>Diff</h3><span>工作区变更</span></div><pre id="a9-diff" class="a9-output">选择 checkpoint 查看 Diff。</pre></section><section><div class="section-title"><h3>Checkpoints</h3><span id="a9-checkpoint-count">0</span></div><ul id="a9-checkpoint-list" class="a9-checkpoints"></ul><p id="a9-undo-state" class="quiet"></p><p class="quiet">中断：<span id="a9-interruptions">无</span></p></section><section><div class="section-title"><h3>Git 状态</h3><button id="a9-git-refresh" type="button">刷新</button></div><p id="a9-git-status" class="quiet">未刷新。</p></section></div>
+        <div id="inspector-panel-activity" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-activity" hidden><section><div class="section-title"><h3>工具时间线</h3><span id="a9-agent-value">idle</span></div><ol id="a9-timeline" class="a9-timeline"></ol><p id="a9-turn-outcome" class="quiet"></p><p id="a9-turn-error" class="field-error" role="alert" hidden></p></section><section><details><summary>原始输出</summary><div class="output-tools"><span>STDOUT / STDERR</span><button id="a9-output-copy" type="button">复制</button></div><pre id="a9-shell-output" class="a9-output">尚无工具输出。</pre><p id="a9-output-note" class="quiet"></p></details></section></div>
+        <div id="inspector-panel-environment" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-environment" hidden><section><div class="section-title"><h3>运行环境</h3><span>可信事实</span></div><dl class="a9-status"><div><dt>工作区</dt><dd id="a9-workspace-value">-</dd></div><div><dt>模式</dt><dd id="a9-mode-value">-</dd></div><div><dt>Shell</dt><dd id="a9-shell-value">-</dd></div><div><dt>Provider</dt><dd id="a9-provider-value">-</dd></div><div><dt>写锁</dt><dd id="a9-lock-value">-</dd></div></dl><p id="a9-runtime-error" class="field-error" role="alert" hidden></p></section><section><div class="section-title"><h3>能力边界</h3></div><dl class="boundary"><div><dt>Renderer FS</dt><dd>无能力</dd></div><div><dt>Workspace</dt><dd>校验 IPC</dd></div><div><dt>Writes</dt><dd>模式 + 精确批准</dd></div><div><dt>Terminal</dt><dd>不可用</dd></div></dl></section></div>
+      </div>
+    </aside>
+    <button id="inspector-backdrop" class="inspector-backdrop" type="button" aria-label="关闭检查器" hidden></button>
+  </main>
+
+  <dialog id="a9-mode-dialog" hidden aria-modal="true" aria-labelledby="a9-mode-title" aria-describedby="a9-mode-intro"><form method="dialog"><header class="a9-mode-header"><div><p id="a9-mode-kicker" class="kicker">WORKSPACE PERMISSIONS</p><h2 id="a9-mode-title">选择此工作区的权限</h2></div><span id="a9-mode-badge">首次设置</span></header><p id="a9-mode-workspace" class="a9-mode-workspace"></p><p id="a9-mode-intro" class="a9-mode-intro">每个工作区单独保存权限。推荐 Full Access；它使用当前 Windows 用户权限，不提供额外沙箱。</p><fieldset><legend>Alpha 1 权限模式</legend><label class="a9-mode-option"><input type="radio" name="a9-mode-choice" value="full_access" checked><span><strong>Full Access <em>推荐</em></strong><small>允许直接读写文件、运行 Shell，并使用真实 Git。使用当前 Windows 用户权限，不是安全沙箱。</small></span></label><label class="a9-mode-option"><input type="radio" name="a9-mode-choice" value="read_only"><span><strong>Read Only</strong><small>仅阅读和分析；写入与 Shell 工具不可用。</small></span></label></fieldset><div class="alpha2-note"><span>ALPHA 2</span><div><strong>Review</strong><p>完整准备、审批与应用工作流将在下一阶段提供。本版本不可选择。</p></div></div><p id="a9-mode-error" class="field-error" role="alert" hidden></p><div class="a9-mode-actions"><button id="a9-mode-cancel" type="button" class="secondary">取消</button><button id="a9-mode-apply" type="button" class="primary">使用所选模式</button></div></form></dialog>
+
+  <div id="settings-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="settings-drawer" aria-label="关闭设置"></button><section class="drawer-panel settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title"><header><div><span class="eyebrow">PROVIDER SETTINGS</span><h2 id="settings-title">模型连接</h2><p>配置支持原生 tool_calls 的模型服务。密钥不会回显到界面或诊断。</p></div><button type="button" class="icon-button" data-close="settings-drawer" aria-label="关闭设置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header><div class="settings-status"><span id="a9-provider-key-state">key: 未配置</span><span id="a9-provider-probe-state">未探测</span></div><label for="a9-provider-url">Base URL</label><input id="a9-provider-url" type="url" autocomplete="url" placeholder="https://provider.example/v1"><label for="a9-provider-model">模型 ID</label><input id="a9-provider-model" type="text" autocomplete="off" placeholder="model-id"><label for="a9-provider-key">API Key</label><input id="a9-provider-key" type="password" autocomplete="off" placeholder="仅在此密码框输入"><label class="check"><input id="a9-provider-remember" type="checkbox"> 使用 Windows DPAPI 为当前用户保存</label><p id="a9-provider-error" class="field-error" role="alert" hidden></p><p id="a9-provider-diagnostics" class="field-error" role="alert" hidden></p><details class="settings-disclosure"><summary>企业网络</summary><div class="settings-group"><label for="a9-provider-ca">CA bundle 路径</label><input id="a9-provider-ca" type="text" autocomplete="off"><label for="a9-provider-header-name">自定义 Header 名</label><input id="a9-provider-header-name" type="text" autocomplete="off"><label for="a9-provider-header-value">Header 值</label><input id="a9-provider-header-value" type="password" autocomplete="off"><div class="field-pair"><label>代理主机<input id="a9-provider-proxy-host" type="text" autocomplete="off"></label><label>代理端口<input id="a9-provider-proxy-port" type="number" min="1" max="65535"></label></div></div></details><details class="settings-disclosure danger-zone"><summary>危险设置</summary><div class="settings-group"><label class="check"><input id="a9-provider-insecure" type="checkbox"> 允许不安全 TLS</label><p>关闭证书验证会暴露模型请求和工作区内容。应用前需要再次确认。</p></div></details><div class="drawer-actions"><button id="a9-provider-probe" class="secondary" type="button">重新探测</button><button id="a9-provider-apply" class="primary" type="button">应用并探测</button></div></section></div>
+  <dialog id="a9-insecure-dialog" hidden aria-modal="true" aria-labelledby="a9-insecure-title"><form method="dialog" class="confirmation-dialog"><span class="danger-kicker">DANGER</span><h2 id="a9-insecure-title">确认允许不安全 TLS？</h2><p>这会关闭 Provider 证书验证，可能暴露密钥、提示词和工作区内容。只应在已验证的隔离网络中临时使用。</p><div class="dialog-actions"><button id="a9-insecure-cancel" type="button" class="secondary">返回设置</button><button id="a9-insecure-confirm" type="button" class="danger">仍然应用</button></div></form></dialog>
+
+  <div id="diagnostics-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="diagnostics-drawer" aria-label="关闭诊断"></button><section class="drawer-panel wide" role="dialog" aria-modal="true" aria-labelledby="diagnostics-title"><header><div><span class="eyebrow">RAW FACTS</span><h2 id="diagnostics-title">诊断与运行时事实</h2></div><button class="icon-button" type="button" data-close="diagnostics-drawer" aria-label="关闭诊断"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header><dl id="diagnostics" class="diagnostics"></dl><button id="refresh-diagnostics" class="secondary" type="button">刷新诊断</button></section></div>
+
+  <script src="a9-workbench.js"></script>
+</body>
+</html>

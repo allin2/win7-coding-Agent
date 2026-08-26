@@ -31,7 +31,10 @@ const { IPCDirection, IPCMessageType } = require('../dist/ipc/messages');
 
 const productRoot = __dirname;
 const rendererRoot = path.join(productRoot, 'renderer');
-const rendererEntry = path.join(rendererRoot, 'index.html');
+const legacyRendererEntry = path.join(rendererRoot, 'index.html');
+const rendererEntry = process.argv.some((item) => item.indexOf('--a8-review-smoke-') === 0 || item.indexOf('--a8-boundary-smoke-') === 0)
+  ? legacyRendererEntry
+  : path.join(rendererRoot, 'workbench.html');
 const preloadPath = path.join(productRoot, 'preload.js');
 // v3 package only: bind the immutable native closure and select the documented
 // LOCALAPPDATA/portable data root before Electron creates its default userData.
