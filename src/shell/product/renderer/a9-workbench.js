@@ -26,6 +26,7 @@
     approvalDecision: null,
     lastFocused: null,
     insecureConfirmed: false,
+    providerHydratedSignature: null,
   };
 
   function el(id) { return document.getElementById(id); }
@@ -83,6 +84,7 @@
       snapshot && snapshot.status === 'ready' &&
       SUPPORTED_MODES.has(snapshot.mode) &&
       snapshot.provider && snapshot.provider.configured &&
+      snapshot.provider.probe && snapshot.provider.probe.classification === 'tool_calling' &&
       !state.running && snapshot.agentStatus !== 'needs_approval' &&
       el('task-prompt').value.trim(),
     );
@@ -103,6 +105,7 @@
     if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
     else if (blockedApproval) text('session-status', '先处理当前绑定审批；同一工作区一次只执行一个 A9 任务。');
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
+    else if (!snapshot.provider.probe || snapshot.provider.probe.classification !== 'tool_calling') text('session-status', 'Provider 尚未通过原生 tool_calls 探测；任务发送保持禁用。');
     else if (state.running) text('session-status', '任务正在执行；可随时停止。工具调用与退出码会写入活动记录。');
     else text('session-status', '当前工作区已就绪。高影响操作会在执行前显示精确目标并请求批准。');
   }
@@ -184,7 +187,11 @@
     text('a9-mode-apply', needsSelection ? '使用所选模式' : '保存权限模式');
     el('a9-mode-cancel').hidden = needsSelection;
     dialog.dataset.required = needsSelection ? 'true' : 'false';
-    if (forceOpen || needsSelection) openDialog(dialog);
+    if (forceOpen || needsSelection) {
+      openDialog(dialog);
+      const selected = dialog.querySelector('input[name="a9-mode-choice"]:checked');
+      if (selected && typeof selected.focus === 'function') selected.focus();
+    }
   }
 
   async function chooseMode() {
@@ -289,7 +296,9 @@
 
   function renderSnapshot(snapshot) {
     state.snapshot = snapshot;
-    el('a9-surface').hidden = false;
+    const surface = el('a9-surface');
+    surface.hidden = false;
+    surface.dataset.a9Status = snapshot.status || 'unknown';
     const ready = snapshot.status === 'ready';
     const workspace = snapshot.workspaceRoot || '';
     text('workspace-name', workspace ? pathName(workspace) : '选择本地工作区');
@@ -303,6 +312,23 @@
     text('a9-provider-chip', provider.configured ? (provider.probe && provider.probe.classification ? provider.probe.classification : provider.model) : 'Provider 未配置');
     text('a9-provider-key-state', provider.configured ? `key: ${provider.apiKey && provider.apiKey.remembered ? '已由 DPAPI 记住' : '仅当前进程'} (${provider.apiKey && provider.apiKey.source || 'none'})` : 'key: 未配置');
     text('a9-provider-probe-state', provider.probe ? provider.probe.classification : '未探测');
+    setFieldError('a9-provider-diagnostics', provider.diagnostics
+      ? `${provider.diagnostics.code || 'A9_PROVIDER_DIAGNOSTICS'}: ${provider.diagnostics.detail || 'Provider 需要检查。'}`
+      : '');
+    const providerHydratedSignature = JSON.stringify({
+      configured: provider.configured === true,
+      baseUrl: provider.baseUrl || '',
+      model: provider.model || '',
+      insecureTLS: provider.insecureTLS === true,
+      remembered: Boolean(provider.apiKey && provider.apiKey.remembered),
+    });
+    if (state.providerHydratedSignature !== providerHydratedSignature) {
+      el('a9-provider-url').value = provider.baseUrl || '';
+      el('a9-provider-model').value = provider.model || '';
+      el('a9-provider-insecure').checked = provider.insecureTLS === true;
+      el('a9-provider-remember').checked = Boolean(provider.apiKey && provider.apiKey.remembered);
+      state.providerHydratedSignature = providerHydratedSignature;
+    }
     text('a9-lock-value', snapshot.lock ? (snapshot.lock.held ? '本窗口持有写锁' : `由 ${snapshot.lock.holder || '其他窗口'} 持有`) : '-');
     text('a9-agent-value', snapshot.agentStatus || 'idle');
     const runtimeStatus = el('runtime-status');
@@ -318,7 +344,7 @@
     renderCheckpoints(snapshot);
     configureModeDialog(snapshot, false);
     const active = ['running', 'cancelling'].includes(snapshot.agentStatus);
-    state.running = active || state.running;
+    state.running = active;
     if (snapshot.pendingApproval || snapshot.agentStatus === 'needs_approval') setTaskState('等待批准', 'running', '操作已暂停，等待你的决定。');
     else if (active) setTaskState(snapshot.agentStatus === 'cancelling' ? '正在停止' : '运行中', 'running');
     else if (snapshot.agentStatus === 'failed') setTaskState('失败', 'failed');
@@ -334,7 +360,9 @@
         const code = response && response.error && response.error.code;
         if (code === 'A9_WORKSPACE_REQUIRED') {
           state.snapshot = null;
-          el('a9-surface').hidden = false;
+          const surface = el('a9-surface');
+          surface.hidden = false;
+          surface.dataset.a9Status = 'workspace_required';
           text('runtime-status', '等待工作区');
           syncComposer();
           return null;
@@ -519,6 +547,7 @@
         card.hidden = true;
         const result = response.result || {};
         appendTaskCard(result.outcome === 'completed' ? 'completed' : 'failed', decision === 'approved' ? 'Approval applied' : 'Approval denied', result.verification || 'not_applicable', result.finalMessage || (decision === 'approved' ? '已批准并继续执行。' : '已拒绝，未执行该操作。'));
+        text('a9-turn-outcome', `${result.outcome || '-'} · ${result.verification || 'not_applicable'}`);
         await refreshSnapshot();
         return response;
       } catch (error) {
@@ -697,6 +726,21 @@
     state.lastFocused = null;
   }
 
+  function trapFocus(container, event) {
+    const focusable = Array.from(container.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])'))
+      .filter((node) => !node.hidden && node.getAttribute('aria-hidden') !== 'true' && node.getClientRects().length > 0);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   async function refreshDiagnostics() {
     const response = await api.getDiagnostics();
     const target = el('diagnostics');
@@ -753,7 +797,8 @@
     document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => closeDrawer(button.dataset.close)));
     el('a9-provider-apply').addEventListener('click', () => { void applyProvider(false); });
     el('a9-provider-probe').addEventListener('click', () => { void probeProvider(); });
-    el('a9-insecure-cancel').addEventListener('click', () => closeDialog(el('a9-insecure-dialog')));
+    el('a9-insecure-cancel').addEventListener('click', () => { state.insecureConfirmed = false; closeDialog(el('a9-insecure-dialog')); });
+    el('a9-insecure-dialog').addEventListener('cancel', () => { state.insecureConfirmed = false; });
     el('a9-insecure-confirm').addEventListener('click', () => { state.insecureConfirmed = true; closeDialog(el('a9-insecure-dialog')); void applyProvider(true); });
     el('a9-approval-approve').addEventListener('click', () => { void decideApproval('approved'); });
     el('a9-approval-deny').addEventListener('click', () => { void decideApproval('denied'); });
@@ -780,6 +825,12 @@
     el('navigation-backdrop').addEventListener('click', closeNavigation);
     el('refresh-diagnostics').addEventListener('click', () => { void refreshDiagnostics(); });
     document.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab') {
+        const drawer = Array.from(document.querySelectorAll('.drawer:not([hidden])')).pop();
+        if (drawer) { trapFocus(drawer, event); return; }
+        if (inspectorIsDrawer() && el('inspector').classList.contains('open')) { trapFocus(el('inspector'), event); return; }
+        if (navigationIsDrawer() && el('navigation-rail').classList.contains('open')) { trapFocus(el('navigation-rail'), event); return; }
+      }
       if (event.key !== 'Escape') return;
       const drawer = Array.from(document.querySelectorAll('.drawer:not([hidden])')).pop();
       if (drawer) { event.preventDefault(); closeDrawer(drawer.id); return; }
@@ -798,6 +849,7 @@
     await refreshSnapshot();
     await refreshGit();
     await refreshDiagnostics();
+    if (!state.snapshot) el('workspace-select').focus();
     api.signalReady();
   }
 

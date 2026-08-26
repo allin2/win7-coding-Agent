@@ -141,7 +141,8 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .task-pill.failed { border-color: #6d3a38; color: var(--danger); }
 .header-navigation-toggle, .header-inspector-toggle { display: none; }
 
-.global-error { flex: 0 0 auto; padding: 10px 22px; border-bottom: 1px solid #75423e; background: var(--danger-bg); color: #ffc1bb; }
+.global-error { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 22px; border-bottom: 1px solid #75423e; background: var(--danger-bg); color: #ffc1bb; }
+.global-error button { flex: 0 0 auto; min-height: 36px; padding: 0 11px; border: 1px solid #92524c; background: transparent; color: #ffc1bb; }
 .conversation { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 34px max(28px, calc((100% - 760px) / 2)); scrollbar-gutter: stable; overscroll-behavior: contain; }
 .session-view { display: none !important; }
 .welcome { max-width: 700px; margin: 8vh auto 0; text-align: center; }

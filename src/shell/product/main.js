@@ -48,6 +48,8 @@ const a8ReviewSmokeWorkspace = readArgument('--a8-review-smoke-workspace=');
 const a8ReviewSmokeScreenshotPath = readArgument('--a8-review-smoke-screenshot=');
 const a8BoundarySmokeReportPath = readArgument('--a8-boundary-smoke-report=');
 const a8BoundarySmokeScreenshotPath = readArgument('--a8-boundary-smoke-screenshot=');
+const a9WorkbenchScreenshotPath = readArgument('--a9-workbench-screenshot=');
+const a9WorkbenchZoom = Number(readArgument('--a9-workbench-zoom=') || 1) === 1.25 ? 1.25 : 1;
 const acceptanceEventReportPath = readArgument('--acceptance-event-report=');
 const runnerManifestPath = readArgument('--runner-manifest=');
 const runnerManifestSha256 = readArgument('--runner-manifest-sha256=');
@@ -72,6 +74,7 @@ let a8ReviewSmokeSession = null;
 let a8ReviewSmokeFinished = false;
 let a8ReviewSmokeFailureMode = null;
 let a8BoundarySmokeFinished = false;
+let a9WorkbenchScreenshotWritten = false;
 
 function readArgument(prefix) {
   const value = process.argv.find((item) => item.indexOf(prefix) === 0);
@@ -763,6 +766,20 @@ function focusMainWindow() {
   mainWindow.focus();
 }
 
+async function captureA9WorkbenchScreenshot() {
+  if (!a9WorkbenchScreenshotPath || a9WorkbenchScreenshotWritten || !mainWindow || mainWindow.isDestroyed()) return;
+  a9WorkbenchScreenshotWritten = true;
+  mainWindow.setContentSize(1366, 768);
+  mainWindow.webContents.setZoomFactor(a9WorkbenchZoom);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await mainWindow.webContents.executeJavaScript("document.getElementById('workspace-select').focus(); true");
+  const image = await mainWindow.webContents.capturePage();
+  fs.mkdirSync(path.dirname(a9WorkbenchScreenshotPath), { recursive: true });
+  fs.writeFileSync(a9WorkbenchScreenshotPath, image.toPNG());
+  process.stdout.write(`A9_WORKBENCH_SCREENSHOT_WRITTEN:${a9WorkbenchScreenshotPath}\n`);
+  app.exit(0);
+}
+
 function createMainWindow() {
   const window = new BrowserWindow(createWindowOptions(preloadPath));
   window.setMenuBarVisibility(false);
@@ -930,7 +947,12 @@ ipcMain.on('product:renderer-ready', (event, payload) => {
     return;
   }
   runtimeState.rendererReady = true;
-  if (smokeReportPath) {
+  if (a9WorkbenchScreenshotPath) {
+    void captureA9WorkbenchScreenshot().catch((error) => {
+      process.stderr.write(`A9_WORKBENCH_SCREENSHOT_ERROR:${String(error && error.stack ? error.stack : error)}\n`);
+      app.exit(1);
+    });
+  } else if (smokeReportPath) {
     finishSmoke('PASS', 0, 'The real Electron product entry started, loaded the trusted local Renderer, returned diagnostics and exited normally.');
   } else if (a8ReviewSmokeReportPath) {
     void runA8ReviewElectronSmoke().catch(failA8ReviewSmoke);

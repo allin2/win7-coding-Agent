@@ -4,7 +4,7 @@
  * A9-06 正式产品 Electron smoke 驱动入口（四进程版）。
  *
  * 进程内 require 正式 product/main.js（真实入口、真实 preload、真实
- * index.html/renderer.js），经 BrowserWindow.getAllWindows() 在真实 DOM 上
+ * workbench.html/a9-workbench.js），经 BrowserWindow.getAllWindows() 在真实 DOM 上
  * 完成模式选择、Provider 配置、Turn、越权拒绝、Diff、撤销与重启恢复。
  *
  * 多进程模式：A9_SMOKE_MODE=first|second|stop。first 绑定工作区/模式/fixture
@@ -55,7 +55,7 @@ async function main() {
   const fixtureUrl = process.env.A9_SMOKE_FIXTURE_URL;
 
   const win = await waitFor(() => {
-    const page = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('renderer/index.html'));
+    const page = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('renderer/workbench.html'));
     return page || null;
   }, 30_000, 'production window');
   const exec = (code) => win.webContents.executeJavaScript(code);
@@ -138,23 +138,23 @@ async function runWorkspaceSelectionProcess(win, exec, env) {
   const mode = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.ok && r.snapshot.mode === "full_access" ? r.snapshot.mode : null)'), 15_000, 'full access selection');
   record('A9F0-FULL-ACCESS-SELECTION-PERSISTED', mode === 'full_access', `mode=${mode}`);
 
-  // Regression for the Win10 field failure: the ordinary main Composer sends
-  // scenario:"agent" through desktop:request. It must pass the compiled IPC
-  // schema and reach the Host instead of throwing IPC_SCHEMA_INVALID.
-  await exec(`(() => {
+  // The unified Composer is A9-only. Without a configured Provider it remains
+  // safely blocked and must not fall back to the historical A8 desktop request.
+  const composer = await exec(`(() => {
     const prompt = document.getElementById('task-prompt');
     prompt.value = '分析这个工作区的代码结构';
     prompt.dispatchEvent(new Event('input', { bubbles: true }));
-    document.getElementById('run-task').click();
-    return true;
-  })()`);
-  const composer = await waitFor(() => exec(`(() => {
-    const state = document.getElementById('task-state').textContent;
+    const send = document.getElementById('run-task');
     const error = document.getElementById('error-banner');
-    if (state !== '已完成' && state !== '失败') return null;
-    return { state, errorHidden: error.hidden, error: error.textContent };
-  })()`), 30_000, 'ordinary Composer terminal state');
-  record('A9F0-MAIN-COMPOSER-AGENT-IPC', composer.state === '已完成' && composer.errorHidden === true && !composer.error.includes('IPC_SCHEMA_INVALID'), JSON.stringify(composer));
+    return {
+      sendDisabled: send.disabled,
+      taskState: document.getElementById('task-state').textContent,
+      sessionStatus: document.getElementById('session-status').textContent,
+      errorHidden: error.hidden,
+      error: error.textContent,
+    };
+  })()`);
+  record('A9F0-MAIN-COMPOSER-A9-BOUNDARY', composer.sendDisabled === true && composer.taskState === '空闲' && composer.sessionStatus.includes('Provider 尚未配置') && composer.errorHidden === true && !composer.error.includes('IPC_SCHEMA_INVALID'), JSON.stringify(composer));
 }
 
 async function runFirstProcess(win, exec, env) {
@@ -174,36 +174,35 @@ async function runFirstProcess(win, exec, env) {
   record('A9F1-PROVIDER-CONFIG-PROBE', probe === 'tool_calling', `probe=${probe}`);
 
   // 真实工具旅程：read → edit → shell（真实测试命令）→ verified。
-  await exec('document.getElementById("a9-prompt").value = "fix the bug and verify"; document.getElementById("a9-submit").click(); true');
+  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "fix the bug and verify"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('completed') && t.includes('verified') ? t : null)), 90_000, 'turn outcome');
   const fileFixed = fs.readFileSync(path.join(env.workspaceRoot, 'calc.ts'), 'utf8').includes('a + b');
   record('A9F1-TOOL-JOURNEY', Boolean(outcome) && fileFixed, `outcome=${outcome}`);
 
   // Diff 可见（真实 checkpoint 按钮）。
   await waitFor(() => exec('document.getElementById("a9-checkpoint-list").querySelector("button") !== null'), 15_000, 'checkpoint buttons');
-  await exec('document.getElementById("a9-checkpoint-list").querySelector("button:nth-of-type(2)").click(); true');
+  await exec('document.getElementById("a9-checkpoint-list").querySelector("button").click(); true');
   const diff = await waitFor(() => exec('document.getElementById("a9-diff").textContent').then((t) => (t.includes('calc.ts') ? t : null)), 15_000, 'diff text');
   record('A9F1-DIFF', Boolean(diff), 'diff contains calc.ts');
 
   // 审批卡：模型触发永久删除（或 git push），等待审批卡出现并校验真实目标与绑定。
-  const approval = await waitFor(() => exec(`(async () => {
-    document.getElementById('a9-prompt').value = 'cleanup permanently and push';
-    document.getElementById('a9-submit').click();
-    const deadline = Date.now() + 60000;
-    while (Date.now() < deadline) {
-      const card = document.getElementById('a9-approval-card');
-      if (card && !card.hidden) {
-        return {
-          tool: document.getElementById('a9-approval-tool').textContent,
-          summary: document.getElementById('a9-approval-summary').textContent,
-          git: document.getElementById('a9-approval-git').textContent,
-          approvalId: document.getElementById('a9-approval-id').textContent,
-          digest: card.dataset.bindingDigest,
-        };
-      }
-      await new Promise((r) => setTimeout(r, 300));
-    }
-    return null;
+  await exec(`(() => {
+    const prompt = document.getElementById('task-prompt');
+    prompt.value = 'cleanup permanently and push';
+    prompt.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('run-task').click();
+    return true;
+  })()`);
+  const approval = await waitFor(() => exec(`(() => {
+    const card = document.getElementById('a9-approval-card');
+    if (!card || card.hidden) return null;
+    return {
+      tool: document.getElementById('a9-approval-tool').textContent,
+      summary: document.getElementById('a9-approval-summary').textContent,
+      git: document.getElementById('a9-approval-git').textContent,
+      approvalId: document.getElementById('a9-approval-id').textContent,
+      digest: card.dataset.bindingDigest,
+    };
   })()`), 90_000, 'approval card');
   const approvalValid = approval && (approval.summary.includes('permanent') || approval.summary.includes('git')) &&
     approval.approvalId.length > 0 && approval.digest && approval.digest.length === 64;
@@ -240,7 +239,7 @@ async function runSecondProcess(win, exec, env) {
   record('A9F2-OLD-APPROVAL-REJECTED', rejected.ok === false && rejected.code === 'A9_APPROVAL_UNKNOWN', JSON.stringify(rejected));
 
   // 新 Turn 仍可执行（恢复的 Provider 已配置）；恢复请求由宿主按内容断言为全新会话。
-  await exec('document.getElementById("a9-prompt").value = "verify again"; document.getElementById("a9-submit").click(); true');
+  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "verify again"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('completed') ? t : null)), 60_000, 'second turn outcome');
   record('A9F2-SECOND-TURN-WORKS', Boolean(outcome), `outcome=${outcome}`);
 }
@@ -257,7 +256,7 @@ async function runStopProcess(win, exec, env) {
   })()`);
   await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'stop provider probe');
 
-  await exec('document.getElementById("a9-prompt").value = "run the long shell task"; document.getElementById("a9-submit").click(); true');
+  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "run the long shell task"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
   const childPid = await waitFor(() => {
     if (!env.pidMarker || !fs.existsSync(env.pidMarker)) return null;
     const parsed = Number(fs.readFileSync(env.pidMarker, 'utf8').trim());
@@ -265,9 +264,9 @@ async function runStopProcess(win, exec, env) {
   }, 45_000, 'shell child pid marker');
   record('A9F6-STOP-SHELL-CHILD-STARTED', childPid > 0, `pid=${childPid}`);
 
-  const stopVisible = await exec('document.getElementById("a9-stop").hidden === false');
+  const stopVisible = await exec('document.getElementById("cancel-task").hidden === false');
   record('A9F6-STOP-UI-ACTIVE', stopVisible === true, `visible=${stopVisible}`);
-  await exec('document.getElementById("a9-stop").click(); true');
+  await exec('document.getElementById("cancel-task").click(); true');
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('cancelled') ? t : null)), 45_000, 'cancelled outcome');
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)');
   record('A9F6-STOP-TURN-CANCELLED', Boolean(outcome) && snapshot.agentStatus === 'cancelled', `outcome=${outcome}; agentStatus=${snapshot.agentStatus}`);

@@ -293,7 +293,7 @@ const stall = createShellStallFixture(stallCommand);
 await stall.listen();
 const stallUrl = `http://127.0.0.1:${stall.server.address().port}`;
 
-// 正式产品入口（真实 main.js + 真实 preload + 真实 index.html/renderer.js）。
+// 正式产品入口（真实 main.js + 真实 preload + 真实 workbench.html/a9-workbench.js）。
 // 工作区经正式 selectWorkspace 链路绑定（--a9-smoke-workspace），
 // 不用 WIN7AGENT_A9_WORKSPACE 环境变量绕过（F1/F6 硬门槛）。
 fs.writeFileSync(path.join(workspaceRoot, 'scratch.tmp'), 'will-be-deleted\n', 'utf8');

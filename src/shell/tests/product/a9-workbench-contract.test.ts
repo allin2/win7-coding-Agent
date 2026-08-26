@@ -7,12 +7,18 @@ describe('A9 unified desktop workbench contract', () => {
   const css = fs.readFileSync(path.join(productRoot, 'renderer/a9-workbench.css'), 'utf8');
   const script = fs.readFileSync(path.join(productRoot, 'renderer/a9-workbench.js'), 'utf8');
   const main = fs.readFileSync(path.join(productRoot, 'main.js'), 'utf8');
+  const smokeDriver = fs.readFileSync(path.join(__dirname, 'a9-06-driver-entry.cjs'), 'utf8');
 
   it('loads the unified workbench for the product while preserving the historical A8 smoke entry', () => {
     expect(main).toContain("const legacyRendererEntry = path.join(rendererRoot, 'index.html');");
     expect(main).toContain(": path.join(rendererRoot, 'workbench.html');");
     expect(main).toContain("item.indexOf('--a8-review-smoke-') === 0");
     expect(main).toContain("item.indexOf('--a8-boundary-smoke-') === 0");
+    expect(main).toContain("readArgument('--a9-workbench-screenshot=')");
+    expect(main).toContain('mainWindow.setContentSize(1366, 768);');
+    expect(main).toContain('mainWindow.webContents.setZoomFactor(a9WorkbenchZoom);');
+    expect(main).toContain("document.getElementById('workspace-select').focus()");
+    expect(main).toContain('mainWindow.webContents.capturePage()');
   });
 
   it('has one visible A9 task entry and one central approval action area', () => {
@@ -23,7 +29,19 @@ describe('A9 unified desktop workbench contract', () => {
     expect(html).not.toContain('id="a9-prompt"');
     expect(html.indexOf('id="a9-approval-card"')).toBeLessThan(html.indexOf('id="task-prompt"'));
     expect(script).toContain('await a9.submitTurn(prompt)');
+    expect(script).toContain("snapshot.provider.probe.classification === 'tool_calling'");
     expect(script).not.toContain('api.submitTask');
+  });
+
+  it('drives the production workbench contract in the formal Electron smoke', () => {
+    expect(smokeDriver).toContain("includes('renderer/workbench.html')");
+    expect(smokeDriver).toContain("getElementById('task-prompt')");
+    expect(smokeDriver).toContain("getElementById('run-task')");
+    expect(smokeDriver).toContain("getElementById(\"cancel-task\")");
+    expect(smokeDriver).toContain('A9F0-MAIN-COMPOSER-A9-BOUNDARY');
+    expect(smokeDriver).not.toContain('getElementById("a9-prompt")');
+    expect(smokeDriver).not.toContain('getElementById("a9-submit")');
+    expect(smokeDriver).not.toContain('getElementById("a9-stop")');
   });
 
   it('limits Alpha 1 mode selection to Full Access and Read Only', () => {
@@ -53,6 +71,7 @@ describe('A9 unified desktop workbench contract', () => {
     expect(html).toContain('id="a9-insecure-dialog"');
     expect(script).toContain("el('a9-provider-key').value = '';");
     expect(script).toContain("el('a9-provider-header-value').value = '';");
+    expect(script).toContain("setFieldError('a9-provider-diagnostics'");
   });
 
   it('preserves the local CSP and Renderer isolation boundary', () => {
@@ -72,5 +91,6 @@ describe('A9 unified desktop workbench contract', () => {
     expect(css).toContain('@media (max-width: 799px)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(css).toContain('grid-template-columns: 232px minmax(500px, 1fr) 360px');
+    expect(script).toContain('function trapFocus(container, event)');
   });
 });
