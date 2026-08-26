@@ -128,6 +128,56 @@ function startApprovalFixture(options: { secondApproval?: boolean; failAfterFirs
   });
 }
 
+/** 审批通过后的第二轮 Provider 请求保持挂起，用于观察恢复中的产品快照。 */
+function startHeldApprovalFixture(): Promise<{
+  baseUrl: string;
+  close: () => Promise<void>;
+  release: () => void;
+  resumed: Promise<void>;
+}> {
+  let releaseResponse: (() => void) | null = null;
+  let markResumed: (() => void) | null = null;
+  const resumed = new Promise<void>((resolve) => { markResumed = resolve; });
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
+      req.on('end', () => {
+        const parsed = JSON.parse(body);
+        const toolMsgs = (parsed.messages ?? []).filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo');
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        if (toolMsgs.length === 0) {
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'd1', function: { name: 'delete', arguments: '{"path":"note.txt","permanent":true}' } }] }, finish_reason: 'tool_calls' }] });
+          res.write('data: [DONE]\n\n');
+          res.end();
+          return;
+        }
+        if (markResumed) {
+          markResumed();
+          markResumed = null;
+        }
+        releaseResponse = () => {
+          sse(res, { choices: [{ delta: { content: 'handled' }, finish_reason: 'stop' }] });
+          res.write('data: [DONE]\n\n');
+          res.end();
+        };
+      });
+    });
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        baseUrl: `http://127.0.0.1:${(server.address() as any).port}`,
+        resumed,
+        release: () => {
+          const release = releaseResponse;
+          releaseResponse = null;
+          if (release) release();
+        },
+        close: () => new Promise<void>((done) => server.close(() => done())),
+      });
+    });
+  });
+}
+
 function startFailingFixture(): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
     const server = http.createServer((_req, res) => {
@@ -283,6 +333,56 @@ describe('F5: task/turn/run lifecycle is persisted by the product runtime', () =
 });
 
 describe('F5: pending approval keeps active state and resume continues the same entities', () => {
+  it('hides a claimed approval while resume is active and rejects a duplicate decision without consuming it twice', async () => {
+    const env = makeEnv();
+    const fixture = await startHeldApprovalFixture();
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const first = await runtime.submitTurn('delete note');
+      const approval = first.result.pendingApproval;
+      expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(approval.approvalId);
+      const blockedTurn = await runtime.submitTurn('must not replace the pending approval');
+      expect(blockedTurn.ok).toBe(false);
+      expect(blockedTurn.error.code).toBe('A9_APPROVAL_REQUIRED');
+      expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(approval.approvalId);
+
+      const resumedPromise = runtime.resumeApproval({
+        approvalId: approval.approvalId,
+        decision: 'approved',
+        bindingDigest: approval.bindingDigest,
+      });
+      await fixture.resumed;
+      expect(runtime.getSnapshot().pendingApproval).toBeUndefined();
+
+      const duplicate = await runtime.resumeApproval({
+        approvalId: approval.approvalId,
+        decision: 'approved',
+        bindingDigest: approval.bindingDigest,
+      });
+      expect(duplicate.ok).toBe(false);
+      expect(duplicate.error.code).toBe('A9_APPROVAL_DECISION_IN_PROGRESS');
+      expect(runtime.getSnapshot().pendingApproval).toBeUndefined();
+
+      const concurrentTurn = await runtime.submitTurn('must not run beside approval resume');
+      expect(concurrentTurn.ok).toBe(false);
+      expect(concurrentTurn.error.code).toBe('A9_TURN_ALREADY_ACTIVE');
+      expect(runtime.getSnapshot().pendingApproval).toBeUndefined();
+
+      fixture.release();
+      const resumed = await resumedPromise;
+      expect(resumed.ok).toBe(true);
+      expect(['completed', 'completed_with_warnings']).toContain(resumed.result.outcome);
+      expect(lifecycleFacts(env).approvals.filter((item) => item.decision === 'approved')).toHaveLength(1);
+      runtime.shutdown();
+    } finally {
+      fixture.release();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('needs_approval leaves task/turn/run active; denied resume closes them', async () => {
     const env = makeEnv();
     try {

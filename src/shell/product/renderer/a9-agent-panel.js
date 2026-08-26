@@ -19,6 +19,24 @@
     needs_selection: '待选择',
   });
   let lastSnapshot = null;
+  let approvalDecisionInFlight = null;
+
+  function clearApprovalError() {
+    const node = el('a9-approval-error');
+    if (!node) return;
+    node.textContent = '';
+    node.hidden = true;
+  }
+
+  function setApprovalDecisionBusy(busy) {
+    for (const id of ['a9-approval-approve', 'a9-approval-deny']) {
+      const button = el(id);
+      if (!button) continue;
+      button.disabled = busy;
+      if (busy) button.setAttribute('aria-busy', 'true');
+      else button.removeAttribute('aria-busy');
+    }
+  }
 
   function modeLabel(mode) { return MODE_LABELS[mode] || String(mode || '-'); }
 
@@ -157,8 +175,10 @@
     const approvalCard = el('a9-approval-card');
     if (approvalCard) {
       const pending = snapshot.pendingApproval;
+      const previousApprovalId = approvalCard.dataset.approvalId || '';
       approvalCard.hidden = !pending;
       if (pending) {
+        if (previousApprovalId !== pending.approvalId) clearApprovalError();
         text('a9-approval-summary', pending.summary);
         text('a9-approval-tool', pending.toolName);
         text('a9-approval-id', pending.approvalId);
@@ -168,7 +188,12 @@
           : '非 Git 操作');
         approvalCard.dataset.approvalId = pending.approvalId;
         approvalCard.dataset.bindingDigest = pending.bindingDigest;
+      } else {
+        delete approvalCard.dataset.approvalId;
+        delete approvalCard.dataset.bindingDigest;
+        clearApprovalError();
       }
+      setApprovalDecisionBusy(Boolean(approvalDecisionInFlight));
     }
 
     // 工具时间线。
@@ -320,14 +345,47 @@
   }
 
   async function decideApproval(decision) {
+    if (approvalDecisionInFlight) return approvalDecisionInFlight.promise;
     const card = el('a9-approval-card');
     if (!card || card.hidden) return null;
-    const response = await a9.resumeApproval(card.dataset.approvalId, decision, card.dataset.bindingDigest);
-    if (response && response.ok !== true) {
-      text('a9-approval-error', (response.error && response.error.message) || '审批回复失败');
-    }
-    await refreshSnapshot();
-    return response;
+    const approvalId = card.dataset.approvalId;
+    const bindingDigest = card.dataset.bindingDigest;
+    const operation = { approvalId, promise: null };
+    approvalDecisionInFlight = operation;
+    clearApprovalError();
+    setApprovalDecisionBusy(true);
+    operation.promise = (async () => {
+      let response;
+      try {
+        try {
+          response = await a9.resumeApproval(approvalId, decision, bindingDigest);
+        } catch (error) {
+          response = { ok: false, error: { message: error && error.message ? error.message : String(error) } };
+        }
+        if (response && response.ok === true) {
+          const resolvedCard = el('a9-approval-card');
+          if (resolvedCard && resolvedCard.dataset.approvalId === approvalId) {
+            resolvedCard.hidden = true;
+            delete resolvedCard.dataset.approvalId;
+            delete resolvedCard.dataset.bindingDigest;
+            clearApprovalError();
+          }
+        }
+        await refreshSnapshot();
+        const currentCard = el('a9-approval-card');
+        if (response && response.ok !== true && currentCard && !currentCard.hidden &&
+            currentCard.dataset.approvalId === approvalId) {
+          const errorNode = el('a9-approval-error');
+          if (errorNode) errorNode.hidden = false;
+          text('a9-approval-error', (response.error && response.error.message) || '审批回复失败');
+        }
+        return response;
+      } finally {
+        if (approvalDecisionInFlight === operation) approvalDecisionInFlight = null;
+        setApprovalDecisionBusy(false);
+      }
+    })();
+    return operation.promise;
   }
 
   async function showDiff(turnId) {

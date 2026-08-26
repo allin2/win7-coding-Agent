@@ -121,6 +121,7 @@ function createA9AgentRuntime(options) {
 
   // ----- R2：pending 审批（SQLite 记录来自原始 pending 对象） -----
   let currentPendingApproval = null;
+  let approvalDecisionInFlightId = null;
 
   // ----- Agent Loop 状态（声明先于 provider 恢复，避免 TDZ） -----
   let loop = null;
@@ -638,17 +639,28 @@ function createA9AgentRuntime(options) {
   }
 
   async function submitTurn(prompt) {
+    if (activeController) {
+      const err = new Error('A9_TURN_ALREADY_ACTIVE: 当前已有运行中的任务');
+      err.code = 'A9_TURN_ALREADY_ACTIVE';
+      return { ok: false, error: serializeError(err) };
+    }
+    if (currentPendingApproval) {
+      const err = new Error('A9_APPROVAL_REQUIRED: 请先处理当前挂起审批');
+      err.code = 'A9_APPROVAL_REQUIRED';
+      return { ok: false, error: serializeError(err) };
+    }
     let createdTaskId = null;
+    let ownedController = null;
     try {
-      if (activeController) throw new Error('A9_TURN_ALREADY_ACTIVE');
-      activeController = new AbortController();
+      ownedController = new AbortController();
+      activeController = ownedController;
       agentStatus = 'running';
       // F5：Turn 开始前创建并持久化 active task。
       createdTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       persistence.upsertTask(createdTaskId, a9SessionId, 'active');
       activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null };
       const activeLoop = ensureRuntime();
-      const result = await activeLoop.runTurn(String(prompt || ''), { signal: activeController.signal });
+      const result = await activeLoop.runTurn(String(prompt || ''), { signal: ownedController.signal });
       // turn_started 已写入 active turn/run；这里补齐句柄（幂等）。
       const runId = activeLifecycle && activeLifecycle.runId ? activeLifecycle.runId : `run-${result.turnId}`;
       if (!activeLifecycle || !activeLifecycle.turnId) {
@@ -668,12 +680,13 @@ function createA9AgentRuntime(options) {
       persistUnexpectedFailure(error, failureLifecycle);
       return { ok: false, error: serializeError(error) };
     } finally {
-      activeController = null;
+      if (activeController === ownedController) activeController = null;
     }
   }
 
   async function resumeApproval(input) {
     let resumeProducedResult = false;
+    let ownedController = null;
     try {
       if (!input || typeof input !== 'object' || !input.approvalId || !input.bindingDigest ||
           (input.decision !== 'approved' && input.decision !== 'denied')) {
@@ -688,14 +701,23 @@ function createA9AgentRuntime(options) {
         throw err;
       }
       const activeLoop = ensureRuntime();
-      if (activeController) throw new Error('A9_TURN_ALREADY_ACTIVE');
-      activeController = new AbortController();
+      if (activeController) {
+        const duplicate = approvalDecisionInFlightId === input.approvalId;
+        const err = new Error(duplicate
+          ? 'A9_APPROVAL_DECISION_IN_PROGRESS: 当前审批正在处理，请等待结果'
+          : 'A9_TURN_ALREADY_ACTIVE: 当前已有运行中的任务');
+        err.code = duplicate ? 'A9_APPROVAL_DECISION_IN_PROGRESS' : 'A9_TURN_ALREADY_ACTIVE';
+        throw err;
+      }
+      ownedController = new AbortController();
+      activeController = ownedController;
+      approvalDecisionInFlightId = input.approvalId;
       // R2.7：SQLite 记录来自原始 pending 审批，而不是恢复执行后的结果。
       const result = await activeLoop.resumeAfterApproval({
         approvalId: input.approvalId,
         decision: input.decision,
         bindingDigest: input.bindingDigest,
-      }, { signal: activeController.signal });
+      }, { signal: ownedController.signal });
       resumeProducedResult = true;
       persistence.recordApproval({
         approvalId: original.approvalId,
@@ -723,7 +745,8 @@ function createA9AgentRuntime(options) {
       if (resumeProducedResult) persistUnexpectedFailure(error, activeLifecycle);
       return { ok: false, error: serializeError(error) };
     } finally {
-      activeController = null;
+      if (ownedController && approvalDecisionInFlightId === (input && input.approvalId)) approvalDecisionInFlightId = null;
+      if (activeController === ownedController) activeController = null;
     }
   }
 
@@ -780,7 +803,9 @@ function createA9AgentRuntime(options) {
         }
         : { configured: false, note: '正式产品使用真实 OpenAI-compatible Provider；Replay 仅测试入口', ...(providerDiagnostics ? { diagnostics: providerDiagnostics } : {}) },
       agentStatus,
-      ...(currentPendingApproval ? { pendingApproval: currentPendingApproval } : {}),
+      // runTurn/resumeAfterApproval 尚未返回时不把审批暴露给 Renderer；否则旧卡片
+      // 可在控制器释放前再次提交，形成 A9_TURN_ALREADY_ACTIVE 竞态。
+      ...(currentPendingApproval && !activeController ? { pendingApproval: currentPendingApproval } : {}),
       timeline: timeline.slice(-100),
       checkpoints: persistence.listCheckpoints(a9SessionId),
       interruptions: persistence.listInterruptions(),
