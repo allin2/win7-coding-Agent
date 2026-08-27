@@ -264,6 +264,42 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(second.manager.countEvents()).toBe(2);
   });
 
+  it('projects persisted conversation facts without replaying requests or tools', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    manager.saveSession('s1', '/ws');
+    manager.upsertTask('task-conversation', 's1', 'completed');
+    manager.upsertTurn('turn-conversation-full-id', 'task-conversation', 's1', 'completed');
+    manager.recordModelEvent('s1', null, 'conversation.request', {
+      schemaVersion: 1,
+      taskId: 'task-conversation',
+      requestPrompt: '解释这个工作区',
+    });
+    manager.saveCheckpoint({
+      turnId: 'turn-conversation-full-id',
+      sessionId: 's1',
+      payload: {
+        schemaVersion: 1,
+        requestPrompt: '解释这个工作区',
+        outcome: 'completed',
+        verification: 'verified',
+        finalMessage: '已完成解释。',
+      },
+    });
+
+    expect(manager.listConversationFacts('s1')).toEqual([expect.objectContaining({
+      taskId: 'task-conversation',
+      turnId: 'turn-conversation-full-id',
+      requestPrompt: '解释这个工作区',
+      outcome: 'completed',
+      verification: 'verified',
+      finalMessage: '已完成解释。',
+    })]);
+    expect(manager.countEvents()).toBe(1);
+  });
+
   it('enforces the 90-day retention policy on events', () => {
     const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
     expect(outcome.status).toBe('ready');

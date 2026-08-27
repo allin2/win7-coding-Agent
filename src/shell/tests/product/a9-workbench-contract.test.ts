@@ -32,7 +32,18 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain("snapshot.provider.probe.classification === 'tool_calling'");
     expect(script).not.toContain('api.submitTask');
     expect(script).toContain('activeManagedProcesses(snapshot)');
-    expect(script).toContain("state.running ? '停止任务' : hasManaged ? '停止后台进程' : '停止'");
+    expect(script).toContain('snapshot.controls && snapshot.controls.canStop');
+    expect(script).toContain("stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止'");
+    expect(script).toContain('function renderConversation(snapshot)');
+  });
+
+  it('shows complete checkpoint identities and rebuilds persisted conversation cards', () => {
+    expect(script).toContain('identity.textContent = String(checkpoint.turnId);');
+    expect(script).toContain('identity.title = String(checkpoint.turnId);');
+    expect(script).not.toContain('String(checkpoint.turnId).slice(0, 16)');
+    expect(script).toContain('const facts = snapshot.conversation || [];');
+    expect(css).toContain('.checkpoint-id');
+    expect(css).toContain('overflow-wrap: anywhere');
   });
 
   it('waits for A9 managed-process cleanup before Electron quits', () => {

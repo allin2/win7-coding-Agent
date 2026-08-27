@@ -239,8 +239,10 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .a9-output { max-height: 280px; margin: 9px 0 0; overflow: auto; padding: 10px; border: 1px solid var(--line-soft); background: #070b0c; color: #c5d2d0; font: 11px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .a9-timeline { margin: 10px 0 0; padding-left: 22px; color: var(--text-secondary); font: 11px/1.6 var(--font-mono); }
 .a9-timeline li { margin: 7px 0; padding-left: 3px; }
-.a9-checkpoints li { display: flex; gap: 6px; margin-top: 6px; }
-.a9-checkpoints button { flex: 1; padding: 0 8px; border: 1px solid var(--line-soft); }
+.a9-checkpoints li { display: grid; gap: 7px; margin-top: 8px; padding: 9px; border: 1px solid var(--line-soft); background: #0b1112; }
+.checkpoint-id { color: #aebcba; font: 10px/1.5 var(--font-mono); overflow-wrap: anywhere; user-select: text; }
+.checkpoint-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.a9-checkpoints button { width: 100%; padding: 0 8px; border: 1px solid var(--line-soft); }
 .a9-status { margin: 8px 0 0; }
 .a9-status div, .boundary div { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
 .a9-status dt, .boundary dt { color: var(--text-muted); }

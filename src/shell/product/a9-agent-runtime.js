@@ -598,9 +598,10 @@ function createA9AgentRuntime(options) {
     return { turn: 'failed', task: 'failed', run: 'failed' };
   }
 
-  function checkpointPayloadFor(result, pendingApproval) {
+  function checkpointPayloadFor(result, pendingApproval, requestPrompt) {
     return {
       schemaVersion: 1,
+      ...(requestPrompt ? { requestPrompt } : {}),
       outcome: result.outcome,
       verification: result.verification || 'not_applicable',
       finalMessage: result.finalMessage || '',
@@ -633,7 +634,7 @@ function createA9AgentRuntime(options) {
     persistence.saveCheckpoint({
       turnId: result.turnId,
       sessionId: a9SessionId,
-      payload: checkpointPayloadFor(result, pendingApproval),
+      payload: checkpointPayloadFor(result, pendingApproval, lifecycle.requestPrompt),
     });
     if (result.externalChanges && result.externalChanges.length > 0) {
       persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', { changes: result.externalChanges });
@@ -656,6 +657,7 @@ function createA9AgentRuntime(options) {
           sessionId: a9SessionId,
           payload: {
             schemaVersion: 1,
+            ...(lifecycle.requestPrompt ? { requestPrompt: lifecycle.requestPrompt } : {}),
             outcome: 'failed',
             verification: 'not_applicable',
             finalMessage: detail,
@@ -693,17 +695,29 @@ function createA9AgentRuntime(options) {
       agentStatus = 'running';
       // F5：Turn 开始前创建并持久化 active task。
       createdTaskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const requestPrompt = String(prompt || '').slice(0, 8000);
+      const persistedRequestPrompt = redactSecrets(requestPrompt);
       persistence.upsertTask(createdTaskId, a9SessionId, 'active');
-      activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null };
+      persistence.recordModelEvent(a9SessionId, null, 'conversation.request', {
+        schemaVersion: 1,
+        taskId: createdTaskId,
+        requestPrompt: persistedRequestPrompt,
+      });
+      activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null, requestPrompt: persistedRequestPrompt };
       const activeLoop = ensureRuntime();
-      const result = await activeLoop.runTurn(String(prompt || ''), { signal: ownedController.signal });
+      const result = await activeLoop.runTurn(requestPrompt, { signal: ownedController.signal });
       // turn_started 已写入 active turn/run；这里补齐句柄（幂等）。
       const runId = activeLifecycle && activeLifecycle.runId ? activeLifecycle.runId : `run-${result.turnId}`;
       if (!activeLifecycle || !activeLifecycle.turnId) {
         persistence.upsertTurn(result.turnId, createdTaskId, a9SessionId, 'active');
         persistence.upsertRun(runId, result.turnId, a9SessionId, 'active');
       }
-      const lifecycle = { taskId: createdTaskId, turnId: result.turnId, runId };
+      const lifecycle = {
+        taskId: createdTaskId,
+        turnId: result.turnId,
+        runId,
+        requestPrompt: activeLifecycle && activeLifecycle.requestPrompt ? activeLifecycle.requestPrompt : persistedRequestPrompt,
+      };
       activeLifecycle = lifecycle;
       persistTurnResult(lifecycle, result);
       return { ok: true, result };
@@ -832,6 +846,8 @@ function createA9AgentRuntime(options) {
 
   function getSnapshot() {
     const shellSelection = modules.runner.selectShell({});
+    const managedProcesses = syncManagedProcessFacts();
+    const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting');
     return {
       schemaVersion: A9_PROTOCOL_VERSION,
       status: 'ready',
@@ -859,13 +875,18 @@ function createA9AgentRuntime(options) {
         }
         : { configured: false, note: '正式产品使用真实 OpenAI-compatible Provider；Replay 仅测试入口', ...(providerDiagnostics ? { diagnostics: providerDiagnostics } : {}) },
       agentStatus,
+      controls: {
+        canStop: Boolean(activeController) || activeManaged.length > 0,
+        stopKind: activeController ? 'turn' : activeManaged.length > 0 ? 'managed_process' : 'none',
+      },
       // runTurn/resumeAfterApproval 尚未返回时不把审批暴露给 Renderer；否则旧卡片
       // 可在控制器释放前再次提交，形成 A9_TURN_ALREADY_ACTIVE 竞态。
       ...(currentPendingApproval && !activeController ? { pendingApproval: currentPendingApproval } : {}),
       timeline: timeline.slice(-100),
       checkpoints: persistence.listCheckpoints(a9SessionId),
+      conversation: persistence.listConversationFacts(a9SessionId, 50),
       interruptions: persistence.listInterruptions(),
-      managedProcesses: syncManagedProcessFacts(),
+      managedProcesses,
     };
   }
 

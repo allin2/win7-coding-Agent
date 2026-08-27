@@ -676,14 +676,79 @@ describe('F5: pending approval keeps active state and resume continues the same 
       const running = runtime.getSnapshot().managedProcesses.filter((item: any) => item.lastProbeStatus === 'running');
       expect(running).toHaveLength(1);
       expect(running[0].pid).toBeGreaterThan(0);
+      expect(runtime.getSnapshot().controls).toEqual({ canStop: true, stopKind: 'managed_process' });
 
       const stopped = await runtime.stop();
       expect(stopped.ok).toBe(true);
       expect(stopped.stopped).toContain(running[0].handleId);
       const terminal = runtime.getSnapshot().managedProcesses.find((item: any) => item.handleId === running[0].handleId);
       expect(terminal.lastProbeStatus).toBe('stopped');
+      expect(runtime.getSnapshot().controls).toEqual({ canStop: false, stopKind: 'none' });
     } finally {
       await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('restores completed conversation facts after restart without replaying the turn', async () => {
+    const env = makeEnv();
+    const fixture = await startBackgroundFixture();
+    let first: any;
+    let reopened: any;
+    try {
+      first = makeRuntime(env);
+      first.setMode('full_access');
+      await first.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const turn = await first.submitTurn('restore this exact request after restart');
+      expect(turn.ok).toBe(true);
+      await first.stop();
+      await first.shutdown();
+
+      reopened = makeRuntime(env);
+      const snapshot = reopened.getSnapshot();
+      expect(snapshot.conversation).toEqual([expect.objectContaining({
+        turnId: turn.result.turnId,
+        requestPrompt: 'restore this exact request after restart',
+        outcome: 'completed',
+        finalMessage: expect.any(String),
+      })]);
+      expect(snapshot.timeline).toEqual([]);
+      expect(snapshot.pendingApproval).toBeUndefined();
+    } finally {
+      if (reopened) await reopened.shutdown();
+      else if (first) await first.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('redacts configured secret material from persisted conversation prompts', async () => {
+    const env = makeEnv();
+    const fixture = await startBackgroundFixture();
+    let first: any;
+    let reopened: any;
+    try {
+      first = makeRuntime(env);
+      first.setMode('full_access');
+      await first.configureProvider({
+        baseUrl: fixture.baseUrl,
+        model: 'fixture',
+        apiKey: 'a9-conversation-secret',
+        skipProbe: true,
+      });
+      const turn = await first.submitTurn('do not persist a9-conversation-secret in plaintext');
+      expect(turn.ok).toBe(true);
+      await first.stop();
+      await first.shutdown();
+
+      reopened = makeRuntime(env);
+      const serialized = JSON.stringify(reopened.getSnapshot().conversation);
+      expect(serialized).toContain('***redacted***');
+      expect(serialized).not.toContain('a9-conversation-secret');
+    } finally {
+      if (reopened) await reopened.shutdown();
+      else if (first) await first.shutdown();
       await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
     }

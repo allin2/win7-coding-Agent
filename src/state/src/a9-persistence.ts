@@ -478,6 +478,75 @@ export class A9PersistenceManager {
       .map((r) => ({ turnId: r.turn_id, createdAt: r.created_at }));
   }
 
+  /**
+   * Rebuilds the local conversation surface from persisted facts. This is a
+   * read-only projection: callers may render it after restart, but must never
+   * replay the prompt, model request, tools, approvals, or side effects.
+   */
+  listConversationFacts(sessionId: string, limit = 50): Array<{
+    taskId: string;
+    turnId: string | null;
+    requestPrompt: string;
+    outcome: string;
+    verification: string;
+    finalMessage: string;
+    createdAt: string;
+    updatedAt: string;
+  }> {
+    const cappedLimit = Math.max(1, Math.min(Number.isFinite(limit) ? Math.floor(limit) : 50, 100));
+    const taskRows = this.db.prepare(
+      'SELECT task_id, status, created_at, updated_at FROM a9_tasks WHERE session_id = ?',
+    ).all(sessionId) as any[];
+    const tasks = new Map(taskRows.map((row) => [row.task_id, row]));
+    const requestRows = this.db.prepare(`
+      SELECT payload_json, created_at FROM a9_events
+      WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request'
+      ORDER BY id DESC LIMIT ?
+    `).all(sessionId, cappedLimit) as any[];
+    const checkpointRows = this.db.prepare(`
+      SELECT c.turn_id, c.created_at, c.payload_json, t.task_id, t.status
+      FROM a9_checkpoints c
+      LEFT JOIN a9_turns t ON t.turn_id = c.turn_id
+      WHERE c.session_id = ?
+      ORDER BY c.created_at DESC LIMIT ?
+    `).all(sessionId, cappedLimit) as any[];
+
+    const facts = new Map<string, any>();
+    for (const row of requestRows.reverse()) {
+      const payload = safeParse(row.payload_json) as any;
+      if (!payload.taskId || typeof payload.requestPrompt !== 'string') continue;
+      const task = tasks.get(payload.taskId);
+      facts.set(payload.taskId, {
+        taskId: payload.taskId,
+        turnId: null,
+        requestPrompt: payload.requestPrompt,
+        outcome: task?.status === 'interrupted' ? 'interrupted' : task?.status || 'running',
+        verification: 'not_applicable',
+        finalMessage: '',
+        createdAt: row.created_at,
+        updatedAt: task?.updated_at || row.created_at,
+      });
+    }
+    for (const row of checkpointRows.reverse()) {
+      const payload = safeParse(row.payload_json) as any;
+      const taskId = row.task_id || `legacy:${row.turn_id}`;
+      const existing = facts.get(taskId);
+      facts.set(taskId, {
+        taskId,
+        turnId: row.turn_id,
+        requestPrompt: existing?.requestPrompt || (typeof payload.requestPrompt === 'string' ? payload.requestPrompt : ''),
+        outcome: payload.outcome || row.status || 'completed',
+        verification: payload.verification || 'not_applicable',
+        finalMessage: typeof payload.finalMessage === 'string' ? payload.finalMessage : '',
+        createdAt: existing?.createdAt || row.created_at,
+        updatedAt: row.created_at,
+      });
+    }
+    return Array.from(facts.values())
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+      .slice(-cappedLimit);
+  }
+
   recordApproval(approval: {
     approvalId: string;
     sessionId: string;

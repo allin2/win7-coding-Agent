@@ -27,6 +27,7 @@
     lastFocused: null,
     insecureConfirmed: false,
     providerHydratedSignature: null,
+    conversationSignature: null,
   };
 
   function el(id) { return document.getElementById(id); }
@@ -102,12 +103,16 @@
     const send = el('run-task');
     const stop = el('cancel-task');
     const hasManaged = activeManagedProcesses(snapshot).length > 0;
+    const canStop = state.running || hasManaged || Boolean(snapshot && snapshot.controls && snapshot.controls.canStop);
+    const stopKind = state.running
+      ? 'turn'
+      : snapshot && snapshot.controls ? snapshot.controls.stopKind : hasManaged ? 'managed_process' : 'none';
     prompt.disabled = blockedMode || blockedApproval || state.running;
     send.hidden = state.running;
-    stop.hidden = !state.running && !hasManaged;
+    stop.hidden = !canStop;
     send.disabled = !canSubmit();
-    stop.disabled = !state.running && !hasManaged;
-    text('cancel-task-label', state.running ? '停止任务' : hasManaged ? '停止后台进程' : '停止');
+    stop.disabled = !canStop;
+    text('cancel-task-label', stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止');
     if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
     else if (blockedApproval) text('session-status', '先处理当前绑定审批；同一工作区一次只执行一个 A9 任务。');
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
@@ -134,6 +139,7 @@
     const detail = document.createElement('span');
     heading.textContent = title;
     detail.textContent = meta || '';
+    detail.title = meta || '';
     header.appendChild(heading);
     header.appendChild(detail);
     const content = document.createElement('div');
@@ -287,17 +293,58 @@
     list.textContent = '';
     checkpoints.slice(-10).reverse().forEach((checkpoint) => {
       const item = document.createElement('li');
+      item.className = 'checkpoint-row';
+      const identity = document.createElement('code');
+      identity.className = 'checkpoint-id';
+      identity.textContent = String(checkpoint.turnId);
+      identity.title = String(checkpoint.turnId);
+      const actions = document.createElement('div');
+      actions.className = 'checkpoint-actions';
       const diff = document.createElement('button');
       diff.type = 'button';
-      diff.textContent = `查看 ${String(checkpoint.turnId).slice(0, 16)} Diff`;
+      diff.textContent = '查看 Diff';
+      diff.setAttribute('aria-label', `查看 ${checkpoint.turnId} Diff`);
       diff.addEventListener('click', () => { void showDiff(checkpoint.turnId); });
       const undo = document.createElement('button');
       undo.type = 'button';
       undo.textContent = '撤销';
+      undo.setAttribute('aria-label', `撤销 ${checkpoint.turnId}`);
       undo.addEventListener('click', () => { void undoTurn(checkpoint.turnId); });
-      item.appendChild(diff);
-      item.appendChild(undo);
+      actions.appendChild(diff);
+      actions.appendChild(undo);
+      item.appendChild(identity);
+      item.appendChild(actions);
       list.appendChild(item);
+    });
+  }
+
+  function renderConversation(snapshot) {
+    const facts = snapshot.conversation || [];
+    const signature = JSON.stringify(facts.map((fact) => [
+      fact.taskId, fact.turnId, fact.outcome, fact.updatedAt,
+      String(fact.requestPrompt || '').length, String(fact.finalMessage || '').length,
+    ]));
+    if (state.conversationSignature === signature) return;
+    state.conversationSignature = signature;
+    const stream = el('a9-task-stream');
+    stream.textContent = '';
+    el('a9-empty-state').hidden = facts.length > 0;
+    facts.forEach((fact) => {
+      const timestamp = fact.createdAt ? new Date(fact.createdAt).toLocaleString() : '';
+      if (fact.requestPrompt) appendTaskCard('request', 'Request', timestamp, fact.requestPrompt);
+      const kind = fact.outcome === 'completed'
+        ? 'completed'
+        : fact.outcome === 'running' || fact.outcome === 'needs_approval'
+          ? 'running'
+          : fact.outcome === 'interrupted' || fact.outcome === 'cancelled'
+            ? 'interrupted'
+            : 'failed';
+      const title = fact.requestPrompt ? fact.outcome : '历史任务';
+      const identity = fact.turnId || fact.taskId || timestamp;
+      const body = fact.finalMessage || (fact.outcome === 'interrupted'
+        ? '应用重启后恢复了中断事实；未重放模型、工具或旧审批。'
+        : '已恢复本地任务事实；此历史记录没有可显示的结果文本。');
+      appendTaskCard(kind, title, identity, body);
     });
   }
 
@@ -349,6 +396,7 @@
     renderApproval(snapshot);
     renderTimeline(snapshot);
     renderCheckpoints(snapshot);
+    renderConversation(snapshot);
     configureModeDialog(snapshot, false);
     const active = ['running', 'cancelling'].includes(snapshot.agentStatus);
     const managedActive = activeManagedProcesses(snapshot).length;
@@ -517,7 +565,9 @@
   }
 
   async function stopTurn() {
-    if (!state.running && activeManagedProcesses(state.snapshot).length === 0) return;
+    const canStop = state.running || activeManagedProcesses(state.snapshot).length > 0 ||
+      Boolean(state.snapshot && state.snapshot.controls && state.snapshot.controls.canStop);
+    if (!canStop) return;
     el('cancel-task').disabled = true;
     setTaskState('正在停止', 'running', '正在清理当前任务和受管子进程。');
     try {
