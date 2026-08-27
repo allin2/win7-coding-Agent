@@ -12,9 +12,11 @@ Requirements: docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md
 Developer-Validation: A9_01_TO_A9_06_PASS
 Formal-Serial-Gate: A9-07_IN_PROGRESS
 Current-Stage: A9-07
-Current-Stage-Status: IN_PROGRESS_WIN7_GATE3_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED
+Current-Stage-Status: IN_PROGRESS_WIN7_10_RESUME_AT_J4_J1_TO_J3_EVIDENCE_PENDING
 Win10-Validation: NOT_PERFORMED
-Win7-Validation: PARTIAL_GATE3_PACKAGE_INTEGRITY_PASS_ONLY
+Win7-Validation: WIN7_10_REVIEW_FAIL_PRESERVED_RESUME_AT_J4
+Scope-Amendment: ADR-0096
+Scope-Revalidation: DOCUMENT_ONLY_NO_CANDIDATE_BYTE_CHANGE
 ```
 
 项目负责人于 2026-08-22 完成 GrillMe Q1～Q179 并确认需求合同、A9 阶段、分支、版本、取代范围、
@@ -55,7 +57,7 @@ Alpha 1 交付 Windows 7 SP1 x64 自包含 ZIP，普通用户解压即用；不�
 | D-013 v24 helper | 复用 Job Object、输出和取消协议；新增 TrustedShell Profile 后重新做 Win7 进程矩阵 |
 | D-014 better-sqlite3 8.7.0 / SQLite 3.43.1 | 复用本地 SSD Profile、结构化会话和 EventLedger；A9 schema 独立迁移 |
 | A8 Desktop UI | 复用会话、Goal、对话、工具卡片、代码查看器、Settings、Diagnostics 与响应式布局 |
-| A8 Review staging | 保留为 Review 模式；Full Access 不强制经过 staging |
+| A8 Review staging | Alpha 1 不装配；完整 Review 模式延期至 `0.3.0-alpha.2`，A8 历史证据保持不变 |
 | A8 Gateway | 复用流式/tool_calls/取消/DPAPI；取代 DeepSeek 固定 URL/模型与 Replay 默认 |
 | A8 产品证据 | 只证明输入和可复用行为；不构成 A9 Full Access/Shell/Git/五旅程 PASS |
 
@@ -63,7 +65,7 @@ Alpha 1 交付 Windows 7 SP1 x64 自包含 ZIP，普通用户解压即用；不�
 
 ### 1.1 必须交付
 
-1. Full Access、Review、Read Only 三模式和工作区级记忆设置；
+1. Full Access、Read Only 两模式和工作区级记忆设置；Review 完整工作流延期至 Alpha 2；
 2. `list/read/search/write/edit/copy/move/delete/shell/update_plan` 工具；
 3. PowerShell 5.1 优先、CMD 降级、完整命令字符串、取消、日志和后台进程句柄；
 4. 直接多文件编辑、编码/EOL 保持、checkpoint、Diff、撤销、删除恢复和冲突检测；
@@ -75,8 +77,9 @@ Alpha 1 交付 Windows 7 SP1 x64 自包含 ZIP，普通用户解压即用；不�
 
 ### 1.2 明确非目标
 
-Office 专用格式、完整 IDE/LSP/调试器、用户交互终端、Browser 自动化、多 Agent、插件市场、自动更新、
-云同步、移动端、后台 Agent 守护和任意来源网页渲染不在 A9 Alpha 1。
+Review staging/文件级决定/Apply、Office 专用格式、完整 IDE/LSP/调试器、用户交互终端、Browser 自动化、
+多 Agent、插件市场、自动更新、云同步、移动端、后台 Agent 守护和任意来源网页渲染不在 A9 Alpha 1。
+Review 由 ADR-0096 移入 `0.3.0-alpha.2`，开始实现前必须另立任务书。
 
 ## 2. A9 局部取代合同
 
@@ -86,7 +89,7 @@ Office 专用格式、完整 IDE/LSP/调试器、用户交互终端、Browser �
 - C08：允许无固定硬 deadline 的长命令，但软提示、取消、输出上限和进程清理为硬门槛；
 - C20：允许 Full Access 使用真实 Git；结构化 Adapter 继续为 UI 提供状态/Diff；
 - ADR-0030：A9 提供 Full Access，但明确不是沙箱；
-- A8 Review-first：Full Access 直接写，Review 仍复用准备区；
+- A8 Review-first：Alpha 1 不继承 Review 产品工作流；Full Access 直接写，Review 延期至 Alpha 2；
 - A8 Replay-first：正式产品默认真实 Provider，Replay 只用于测试。
 
 不允许 Renderer、Preload、普通 UI 或业务模块直接调用 `child_process`、`fs`、凭据或任意网络；所有能力
@@ -97,12 +100,12 @@ Office 专用格式、完整 IDE/LSP/调试器、用户交互终端、Browser �
 | 阶段 | 交付 | 进入下一阶段的硬门槛 |
 |---|---|---|
 | A9-00 | PRD、ADR、任务书、差距矩阵、Runtime Profile 与测试合同 | 文档一致；需求均有稳定 ID、代码状态和验收项 |
-| A9-01 | 三模式、A9 ToolSpec、System Prompt V2、Full Access Policy | Read Only/Review 不回归；Full Access 不再被旧 Policy 拒绝 |
+| A9-01 | Alpha 1 支持模式、A9 ToolSpec、System Prompt V2、Full Access Policy | Read Only 不回归；Full Access 不再被旧 Policy 拒绝；Review 缺后端时 fail-closed 且不得静默提权 |
 | A9-02 | TrustedShellRunner、PowerShell/CMD 探测、取消、输出、后台进程 | Shell 正/负向矩阵和 helper 生命周期开发机测试通过 |
 | A9-03 | 文件工具、ignore、编码、checkpoint、Diff、撤销与删除恢复 | 多文件、外部变化、冲突、崩溃恢复和工作区外标识通过 |
 | A9-04 | OpenAICompatibleProvider、探测、DPAPI、代理/CA/Header、模型切换 | 至少两个兼容 fixture + 一个真实 Provider 工具闭环通过 |
 | A9-05 | Agent Loop、测试/构建、Git、完成判定与无进展暂停 | 开发机五旅程通过；副作用不重放；Git 确认绑定通过 |
-| A9-06 | Desktop UI、SQLite A9 迁移、诊断、保留策略与多窗口锁 | 真实 Electron 用户旅程、重启恢复、模式与审批 UI 通过 |
+| A9-06 | Desktop UI、SQLite A9 迁移、诊断、保留策略与多窗口锁 | 真实 Electron 用户旅程、重启恢复、受支持模式与审批 UI 通过；Review 缺后端零写入 |
 | A9-07 | v3 自包含包、Win10 smoke、Win7 五旅程与候选签发 | 同一候选完整性、生命周期和 Win7 核心旅程全部通过 |
 
 同一时间最多一个阶段处于 `IN_PROGRESS`。文档 Gate 不能冒充功能 PASS；开发机或 Win10 不能冒充 Win7。
@@ -136,7 +139,8 @@ Win10-Validation: NOT_PERFORMED
 Win7-Validation: PARTIAL_GATE3_PACKAGE_INTEGRITY_PASS_ONLY
 ```
 
-A9-01～A9-06 对应代码和开发机 Gate 均已取得 PASS。A9-04 使用真实 DeepSeek Provider 完成 SSE、
+A9-01～A9-06 对应代码和开发机 Gate 均已取得 PASS。ADR-0096 只调整 Alpha 1 验收范围，不修改产品实现，
+所以不使这些证据失效，也不单独触发新候选。A9-04 使用真实 DeepSeek Provider 完成 SSE、
 原生 tool calling、真实修复/测试与取消；A9-05 使用同一真实模型完成 J1～J3，fixture J4/J5 使用真实
 Git/审批与 SQLite/子进程；A9-06 当前工作树的真实 Electron 22 三进程产品入口 38/38 通过。
 A9-07 已开始并完成 v3 开发候选的输入锁、装配、全树 manifest、敏感信息排除和双构建一致性；该候选
@@ -197,7 +201,8 @@ Win7-Validation: NOT_PERFORMED
 重启事实、无模型重放、旧审批精确拒绝，以及 UI Stop 后真实 Shell PID 回收和零活动生命周期。A9-01～
 A9-06 开发机 Gate 汇总见
 [`a9-01-to-a9-06-developer-gates-20260823.json`](../status/a9-01-to-a9-06-developer-gates-20260823.json)。
-A9-07 只获得开始打包与 Windows 验收的授权，不表示已有候选或任何 Windows/Alpha PASS。
+A9-07 只获得开始打包与 Windows 验收的授权，不表示已有任何 Windows/Alpha PASS。ADR-0096 不改变候选
+字节；只有实现或关键环境发生变化时，才重跑受影响的开发机或 Windows Gate。
 
 ### 3.6 A9-07 v3 开发候选检查点（2026-08-23）
 
@@ -245,13 +250,48 @@ Node 五项全部 PASS。旧失败证据未覆盖；Gate 4～10、普通用户�
 该目录未执行 `git init`，J4 继续等待用户明确授权和 Git 前置。机器可读记录见
 [`a9-07-win7-gate3-integrity-repair-20260824.json`](../status/a9-07-win7-gate3-integrity-repair-20260824.json)。
 
+### 3.8 WIN7-10 Review 失败与 Alpha 1 范围调整（2026-08-25）
+
+```text
+Candidate: WIN7-10-GLOBAL-MODE-CLEAN
+Source-Commit: f6cc12984f59745cd0edcd16f387080d603ba553
+Win7-Full-Access: PASS
+Win7-Read-Only: PASS
+Win7-Review: FAIL_REVIEW_STAGING_BACKEND_NOT_CONFIGURED
+Historical-Disposition: PRESERVE_FAIL_NO_RETROACTIVE_REJUDGMENT
+Scope-Decision: ADR-0096_REVIEW_DEFERRED_TO_0.3.0-alpha.2
+Candidate-Continuation: WIN7-10_UNCHANGED_RESUME_AT_J4
+```
+
+WIN7-10 在正式 Desktop Runtime 中持久化 `review` 后，写工具得到结构化 fail-closed 错误，正式工作区零写入，
+但不存在 staging、文件级决定、审批或 Apply。原始失败证据保持在
+`C:\A9验收\证据\WIN7-10\gate4-review-staging-failure-20260825-01.txt`，SHA-256 为
+`F5CEA1D1B08797AFA846E7A63032CAD0000660DFF0FA3786310BABE38A99F571`。ADR-0096 将 Review 移入
+Alpha 2；WIN7-10 不改判。由于该决定只修改文档和验收范围，不改变 WIN7-10 产品字节，同一候选从现场
+实际检查点 J4 继续；Review 仍可见是 Alpha 1 已知限制，进入后只能 fail-closed，继续写入旅程前必须由用户
+显式切回 Full Access。状态记录见
+[`a9-alpha1-review-deferral-20260825.json`](../status/a9-alpha1-review-deferral-20260825.json)。
+
+| 要求 | 当前证据状态 | 继续动作 | 确定性验收 |
+|---|---|---|---|
+| A9-M01 Alpha 1 支持模式 | `pass`：Full Access/Read Only 已实机通过 | 保留既有证据 | 不因 Review 延期重跑 |
+| A9-M01 `review` 已知限制 | `fail-closed`：零写入，旧 Gate 4 FAIL 永久保留 | 发布说明标注；写入旅程前显式切回 Full Access | 不计 Alpha 1 PASS，也不静默提权 |
+| A9-M04 Alpha 2 Review | `out-of-scope` | Alpha 1 不实现；另立 Alpha 2 任务书 | Alpha 1 不签 Review PASS |
+| A9-AC01 开发机 | `pass` | 无实现变化，无需重跑 | 已归档 A9-01～A9-06 证据 |
+| A9-AC02 Win7 | `in-progress`：现场报告已到 J4 | 补归档 J1～J3，再从 J4 继续 | 同一 WIN7-10 完成剩余 Gate |
+
+2026-08-25 只读核对 `C:\A9验收\证据\WIN7-10` 时，只看到候选身份、完整性和 Review 失败五个文件；
+J1～J3 的执行事实尚未写入候选外证据目录。因此当前以操作者报告记录“已到 J4”，但 J1～J3 在最终裁决前
+保持 `EVIDENCE_PENDING`。应优先从现有应用审计、任务记录、工作区文件、测试输出和 Diff 补档，不做无意义重跑。
+
 ## 4. 关键实现合同
 
 ### 4.1 权限与工具
 
-- 将 `ApprovalLevel` 扩展为 `read_only / review / full_access`，历史 `workspace_write` 数据可读迁移。
+- Alpha 1 对用户提供 `read_only / full_access`；内部 `review` 枚举和缺后端 fail-closed 路径可保留用于兼容与纵深保护。
 - Full Access 工具无需每次能力令牌；始终确认操作仍使用目标绑定、一次性审批。
-- Read Only 工具目录不包含写、删除或 Shell；Review 写操作只进入 staging。
+- Read Only 工具目录不包含写、删除或 Shell；Alpha 1 UI 不得允许选择 Review。
+- 历史 `review` 设置不得静默变成 Full Access；必须显示 Alpha 2 延期诊断并要求显式选择可用模式。
 - 工具名和 JSON Schema 与 PRD A9-T01 一致，Gateway alias 必须双向无碰撞。
 
 ### 4.2 TrustedShellRunner
@@ -287,14 +327,22 @@ Node 五项全部 PASS。旧失败证据未覆盖；Gate 4～10、普通用户�
 ### 4.6 State 与恢复
 
 - 新增 A9 schema/namespace；迁移只读打开 A8 数据并采用白名单字段。
-- 活动任务、后台进程、审批、checkpoint 和模型请求具有版本化状态；重启只恢复事实，不自动执行。
+- A9 schema v4 将工作区与对话分离：每个工作区最多 16 个未归档对话，支持新建、切换、重命名、归档和
+  恢复；对话隔离任务、Turn、Run、审批、checkpoint、草稿和 Provider 文本上下文。
+- 活动任务、后台进程、审批、checkpoint 和模型请求具有版本化状态；重启恢复活动工作区、活动对话和完整
+  可见历史，但只向 Provider 提供最近 20 个完整文本轮次且最多 32,000 字符，不自动执行或重放副作用。
+- 旧工作区派生 Session 迁移为“历史对话”；迁移前创建可读备份和 SHA-256，失败事务回滚并进入 diagnostics。
+- 草稿由 Electron `safeStorage`/Windows DPAPI Current User 加密，SQLite 只保存 Base64 密文；不可用或解密
+  失败时仅内存并向用户提示，草稿不进入事件、日志、checkpoint、审批或模型。
+- 活动 Turn、待审批或托管后台进程存在时禁止切换工作区或对话。审批与 checkpoint 必须绑定完整对话和
+  Turn 身份，旧卡、重启卡或身份漂移卡不可执行。
 - 日志保留和空间清理由状态层记录决定，不依赖用户手工清目录。
 
 ## 5. 开发机测试矩阵
 
 | ID | 验收行为 |
 |---|---|
-| A9M-01 | 首次工作区模式选择、记忆、切换和 Read Only/Review 负向 |
+| A9M-01 | Full Access/Read Only 选择、记忆和切换；Review 缺后端 fail-closed、零写入且不静默提权 |
 | A9T-01 | A9 工具 Schema、未知字段、alias 和顺序工具循环 |
 | A9SH-01 | PowerShell 5.1 探测与 EncodedCommand/退出码；PS 缺失降级 CMD |
 | A9SH-02 | 管道、重定向、中文/空格 cwd、环境覆盖、非交互提示和取消 |
@@ -348,6 +396,7 @@ Win10 用于锁定 Electron/native ABI、包入口和真实 UI 快速回归。�
 同一不可变候选在干净 Win7 SP1 x64 普通用户环境执行：
 
 - 解压、首次启动、Provider 配置和退出/重启；
+- Full Access 与 Read Only 正/负向通过；Review 缺后端时零写入并作为 Alpha 2 延期/Alpha 1 已知限制；
 - J1～J5 全部通过；
 - PowerShell 5.1 与 CMD 降级；
 - 中文/空格路径、CP936/UTF-8/CRLF、可选 Git/Python/Node 缺失降级；
@@ -355,10 +404,18 @@ Win10 用于锁定 Electron/native ABI、包入口和真实 UI 快速回归。�
 - SQLite 重启、损坏备份和旧版回退；
 - 包前后 SHA-256、manifest 全树和证据目录分离。
 
+后续修复候选按 ADR-0097 执行影响范围增量复验：候选身份、完整性、启动绑定和后飞行每轮必做；历史失败、
+BLOCKED、证据不足及本次变更直接影响项必须重验。已有充分证据且未受影响的项目改为
+`INHERITED_EVIDENCE / OPTIONAL_REGRESSION`，保留原候选和证据路径，不要求机械重跑，也不得冒充当前候选
+现场 PASS。影响范围无法证明时必须扩大复验。
+
 ### 7.3 完成裁决
 
-只有 A9-00～A9-07 对应开发机 Gate 通过、同一候选 Win7 J1～J5 全部通过且无数据损坏/不可解释残留，
-才能标记 `A9_ALPHA1_PASS`。未执行项保持 `NOT_PERFORMED`；Best Effort 降级不得冒充正式支持。
+只有 A9-00～A9-07 对应开发机 Gate、ADR-0096 的 Review 延期处置、ADR-0097 要求的当前候选必验项通过、
+其余硬能力具有可追溯继承证据，且无数据损坏、不可解释残留或未处置硬失败，才能标记
+`A9_ALPHA1_PASS`。该 PASS 只覆盖 Full Access 与 Read Only，不能写成 Review PASS。报告必须区分
+`CURRENT_CANDIDATE_PASS`、`INHERITED_EVIDENCE` 与 `OPTIONAL_REGRESSION_NOT_RUN`；Best Effort 降级不得
+冒充正式支持。
 
 ## 8. 当前起点差距
 

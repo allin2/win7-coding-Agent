@@ -7,6 +7,8 @@ Target-Stage: A9 Trusted Agent Runtime
 Target-Version: 0.3.0-alpha.1
 Target-Branch: codex/a9-trusted-agent-runtime
 Decision: ADR-0089
+Scope-Amendment: ADR-0096
+Amended-At: 2026-08-25
 Source-Baseline: A8 latest clean code baseline at 6c32692121f66a0431d226003389eaa22200e152
 ```
 
@@ -15,6 +17,9 @@ Windows 7 SP1 x64 上快速交付一个现实可用的 Coding Agent，而不是�
 
 A8 `0.2.0-alpha.1` 的 Review-first 合同、候选和证据保持历史有效；A9 复用其代码与经过验证的运行时输入，
 但不继承 A8 的产品 PASS，也不继续沿用阻塞 Coding Agent 日常工作的默认权限模型。
+
+ADR-0096 基于 WIN7-10 Gate 4 的正式失败将 Alpha 1 权限范围收敛为 Full Access 与 Read Only；Review
+完整工作流移入 `0.3.0-alpha.2`。本修订不追溯改写 WIN7-10，也不把延期项冒充已实现。
 
 ## 1. 产品定义
 
@@ -42,16 +47,24 @@ OpenAI-compatible 服务，Win7 客户端负责项目理解、文件管理、代
 
 ## 2. 信任模型与权限模式
 
-### A9-M01 三种模式
+### A9-M01 Alpha 1 两种模式
 
 | 模式 | 默认行为 | 适用场景 |
 |---|---|---|
 | Full Access | 当前 Windows 用户可做的本地操作默认可由 Agent 执行 | 用户确认可信的日常开发工作区；推荐默认 |
-| Review | Agent 准备变更，用户在写入或高影响操作前复核 | 不熟悉项目或希望逐步检查 |
 | Read Only | 只允许读取、搜索、分析和无副作用探测 | 审查、解释或敏感项目 |
 
-首次打开工作区必须展示模式选择并推荐 Full Access；确认后记住工作区设置。模式切换进入审计，
-Read Only/Review 的约束不能被工作区文件或模型文本覆盖。
+Alpha 1 正式支持 Full Access 与 Read Only，并推荐可信工作区使用 Full Access；确认后记住工作区设置。
+模式切换进入审计，Read Only 的约束不能被工作区文件或模型文本覆盖。WIN7-10 仍显示 Review 入口，但该
+模式没有 staging 后端，是明确的 Alpha 1 已知限制：进入后必须 fail-closed、零写入，绝不静默提升为
+Full Access；完整 Review 工作流只在 Alpha 2 评分。
+
+### A9-M04 Alpha 2 Review（延期）
+
+`0.3.0-alpha.2` 恢复三模式目标：Agent 在 Review 中只把写操作放入私有准备区，用户逐文件接受或拒绝，
+审批绑定 Review revision、工作区基线、预览与 accepted-set 哈希后才允许原子 Apply。重启只恢复事实，
+不自动应用、不复用旧审批。该能力在独立任务书获批并完成开发机与 Win7 同候选验收前为
+`OUT_OF_SCOPE_ALPHA1 / NOT_IMPLEMENTED_ALPHA2`。
 
 ### A9-M02 Full Access 权限
 
@@ -161,7 +174,7 @@ PowerShell 5.1 使用 `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypas
 
 ### A9-F03 写入与撤销
 
-- Full Access 直接写正式工作区；Review 继续使用准备区；Read Only 禁止写入。
+- Alpha 1 中 Full Access 直接写正式工作区，Read Only 禁止写入；Review 准备区按 A9-M04 延期到 Alpha 2。
 - 每轮建立文件级 checkpoint，记录修改前哈希和可恢复内容；不依赖 Git 仓库。
 - 写入使用临时文件、原子替换和写后校验；失败保留恢复清单。
 - 用户可以按文件撤销本轮变化；删除默认进入回收站或产品恢复区，永久/批量删除始终确认。
@@ -250,8 +263,12 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 ### A9-ST01 任务和工作区
 
 - 每个目标形成独立任务，包含 Turn、Run、计划、工具事实和 checkpoint。
-- 不同工作区可在独立窗口并行；同一工作区同一时间只有一个写任务持有锁。
-- 用户可以查看其他会话；活动写锁不因 UI 切换而丢失。
+- Alpha 1 每个工作区最多 16 个未归档对话，支持新建、切换、重命名、归档和恢复，不支持永久删除；
+  现有工作区派生 Session 确定性迁移为“历史对话”。
+- 工作区是文件、权限和单写锁边界；对话隔离模型文本上下文、任务、Turn、Run、审批、checkpoint 和草稿。
+  Alpha 1 只允许单窗口、单活动对话和单执行任务，不提供后台多对话并发。
+- 活动 Turn、待审批或托管后台进程存在时禁止切换对话或工作区。归档当前对话后激活最近的未归档对话；
+  若不存在则创建空对话。恢复归档对话时激活它。
 
 ### A9-ST02 SQLite 事件账本
 
@@ -261,6 +278,10 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 ### A9-ST03 中断与恢复
 
 - 应用重启后把活动任务标记为中断，不自动重放模型或副作用；用户显式继续。
+- 重启恢复上次工作区、活动对话和完整本地可见历史；Provider 上下文只重建最近 20 个完整用户/助手文本
+  轮次且最多 32,000 字符，不包含工具、审批、Shell/Git 命令或可执行副作用。
+- 未发送草稿按对话保存。Windows 生产包必须经 `safeStorage`/DPAPI Current User 加密后再写 SQLite；
+  DPAPI 不可用、解密失败或账户不匹配时只保留内存并明确提示，草稿不得进入审计、checkpoint、审批或模型。
 - 未完成 Shell 命令不自动重连或重放；托管后台进程仅按 PID/命令探测。
 - 迁移前备份数据库；未知 schema、损坏或迁移失败进入受限诊断模式，不覆盖旧库。
 - A8 只迁移工作区、非敏感设置和可安全读取的历史会话；旧活动任务不自动继续，旧 Review 提案不自动应用。
@@ -282,9 +303,14 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 ### A9-UI02 任务交互
 
 - `Enter` 发送，`Shift+Enter` 换行，运行时主操作为停止。
+- 活动任务或托管后台进程存在时，Composer 与左侧当前任务区都显示同一权威 Stop；只有任务、后台句柄、
+  进程树和审批全部终止后才能显示清理完成，正常退出无法确认清理时必须明确失败。
 - 工具时间线默认紧凑展示名称、目标、状态和耗时，可展开完整 Shell、错误和 Diff。
-- Diff 支持统一/并排查看、文件级撤销和完整文件打开；行级挑选延后。
+- Diff 支持统一/并排查看、文件级撤销和完整文件打开；checkpoint 显示、复制、Diff 和撤销均绑定完整
+  Turn ID，不允许窄面板截断身份；行级挑选延后。
 - 外部操作审批可以按一个可见计划分组；破坏性操作与普通操作分开显示。
+- 每个对话同一时刻只有一张有效审批卡；审批绑定对话、任务、Turn、Approval 和目标。点击批准或拒绝后
+  两个按钮立即失效并显示处理中，重启前或身份不匹配的旧审批只能作为 interrupted 历史显示。
 
 ### A9-UI03 首次配置与本地化
 
@@ -315,6 +341,7 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 
 ## 13. Alpha 1 非目标
 
+- Review staging、逐文件接受/拒绝、Review Apply 与 Review 重启恢复；
 - DOCX/XLSX/PPTX/PDF 专用编辑与 Office/WPS COM；
 - 内置 IDE、LSP、调试器和代码补全；
 - 用户交互终端和模型向终端注入输入；
@@ -324,7 +351,8 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 - 公式重算、宏执行、复杂 PDF 原位编辑。
 
 办公能力不阻塞 Coding Agent Alpha 1。未来 Alpha 2 Office Lite 另立任务书，优先读取和创建简单副本，
-不承诺复杂现有文件的高保真编辑。
+不承诺复杂现有文件的高保真编辑。Office Lite 与 A9-M04 Review 是两个独立授权面，不因共享 Alpha 2
+版本标签而自动互相授权或合并验收。
 
 ## 14. 验收合同
 
@@ -332,7 +360,8 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 
 - 所有模块 lint/build/test、文档检查和 A9 新增契约测试通过；
 - 真实 Provider 完成最小 Tool Calling 探测；Replay 只能作为确定性测试证据；
-- Full Access、Review、Read Only、Shell、文件冲突、checkpoint、Git 和恢复的负向/正向矩阵通过。
+- Full Access、Read Only、Shell、文件冲突、checkpoint、Git 和恢复的负向/正向矩阵通过；
+- Review 不计入 Alpha 1 PASS；WIN7-10 中进入该模式时 Core 必须 fail-closed、零写入且不静默提权。
 
 ### A9-AC02 Windows 分层
 
@@ -345,7 +374,8 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 ### A9-AC03 PASS 裁决
 
 五条核心旅程、数据恢复和干净 Win7 交付必须全部通过；四条通过不能写成 PASS。次要 UI 或 Best Effort
-能力可以作为已知限制，但不能破坏代码读取、修改、Shell、验证、Git、撤销和恢复闭环。
+能力可以作为已知限制，但不能破坏代码读取、修改、Shell、验证、Git、撤销和恢复闭环。Alpha 1 PASS
+不代表 Review PASS；Review 只能在 Alpha 2 独立合同下评分。
 
 ## 15. 已确认的取代关系
 

@@ -250,7 +250,8 @@ A9 的权威需求和实现授权分别为
 ```mermaid
 flowchart LR
     UI["Electron Renderer\n对话 / 工具 / Diff"] -->|"Schema IPC"| HOST["Desktop Host / Core"]
-    HOST --> MODE["Mode Policy\nFull Access / Review / Read Only"]
+    HOST --> MODE["Alpha 1 Mode Policy\nFull Access / Read Only"]
+    HOST -. "Alpha 2" .-> REVIEW["Review staging\nDeferred by ADR-0096"]
     MODE --> FILE["File Tools\ncheckpoint / atomic / undo"]
     MODE --> SHELL["TrustedShellRunner\nPowerShell 5.1 / CMD"]
     MODE --> GIT["Git Projection + Trusted Git"]
@@ -261,11 +262,16 @@ flowchart LR
     GW --> LEDGER
 ```
 
-- Full Access 使用当前 Windows 用户的真实本地权限，不宣称沙箱；Review 保留 A8 staging，Read Only 继续
-  只读。模式选择是产品权限事实，不由模型或仓库内容决定。
+- Full Access 使用当前 Windows 用户的真实本地权限，不宣称沙箱；Read Only 继续只读。ADR-0096 将完整
+  Review staging 延期到 Alpha 2；WIN7-10 中仍可见的 Review 入口作为 Alpha 1 已知限制，只允许
+  fail-closed 和零写入，不能静默改为 Full Access。模式选择是产品权限事实，不由模型或仓库内容决定。
 - TrustedShellRunner 与历史结构化 Runner 并存。普通命令每次独立进程、stdin 关闭；开发服务器使用
   有界后台句柄。PowerShell 5.1 首选，CMD 保底。
 - 文件工具和 Shell 共享每轮 checkpoint、轮前/轮后基线、Diff 与恢复事实；外部程序修改不能绕过审计。
 - Git Adapter 不再是 A9 所有 Git 执行的唯一入口，但继续提供 UI 可消费的结构化状态和 Diff。
 - Gateway 首版只实现 OpenAI-compatible Chat Completions/SSE/tool_calls；Replay 留在测试入口。
 - A9 复用 A8 Session/Goal/Core/State/Renderer/打包资产，但使用独立版本、数据 namespace、候选与 Win7 证据。
+- A9 schema v4 将工作区作为文件/权限/单写锁边界，将对话作为任务、Turn、Run、审批、checkpoint、草稿和
+  Provider 文本上下文边界。主进程维护唯一活动对话；Runtime 和 IPC 对切换、归档、恢复及审批决策做身份校验。
+- SQLite 保存完整可见历史，Provider 只获得最近 20 个完整文本轮次且最多 32,000 字符；工具和副作用不进入
+  重建上下文。草稿在主进程经 `safeStorage` 加密，Renderer 不接触密文或 DPAPI 能力。

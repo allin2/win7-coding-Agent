@@ -1,103 +1,85 @@
-# AGENTS.md — win7-coding-agent 最高项目约束（单一事实来源）
+# AGENTS.md — win7-coding-agent 执行入口
 
-> 本文件是本仓库所有 Coding Agent（Claude、其他 LLM Agent、人类工程师）的**最高约束文档**。
-> 任何其他文档、注释、口头约定与本文件冲突时，以本文件为准。
-> 修改本文件必须在 `docs/DECISIONS.md` 中新增一条 ADR 说明理由。
+> 本文件是仓库级最高约束入口。详细规范由下列权威文档承载；发生冲突时按优先级裁决。修改本文件必须在 `docs/DECISIONS.md` 新增 ADR。
 
-## 1. 文档优先级（冲突裁决顺序）
+## 1. 项目定义与文档优先级
 
-1. `AGENTS.md`（本文件）
-2. `docs/WIN7_CONSTRAINTS.md`（兼容性红线）
-3. `docs/tasks/PHASE_XX_*.md`（当前阶段任务文档）
-4. `docs/ARCHITECTURE.md` / `docs/SECURITY.md`
+项目是在 **Windows 7 SP1 x64** 上运行的企业内部通用 Coding Agent 执行端与客户端；模型默认在远程或内网服务推理，Win7 端负责受控交互、文件与命令操作、验证、状态和审计。
+
+冲突优先级：
+
+1. `AGENTS.md`
+2. `docs/WIN7_CONSTRAINTS.md`
+3. 当前任务书（`docs/tasks/*.md`）
+4. `docs/ARCHITECTURE.md`、`docs/SECURITY.md`
 5. 其余文档
 
-## 2. 项目一句话定义
+规则缺失、任务书未授权或文档冲突时，停止相关实现并报告；不得自行扩大范围。
 
-构建一个运行在 **Windows 7 SP1 x64** 上的企业内部通用 Coding Agent 执行端与客户端；目标端可以使用经评审、固定版本并通过 Win7 实机验证的 Python、Node.js、Electron、.NET Framework、Win32 原生组件及第三方依赖。模型推理默认在远程/内网服务器完成，Win7 端负责交互界面、代码读取、受控修改、命令执行、测试验证、状态保存与审计（ADR-0027）。
+## 2. 当前有效阶段：A9
 
-## 3. 当前阶段（必须先确认再动手）
+- 当前任务：`docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`，状态 `APPROVED_FOR_IMPLEMENTATION`。
+- 生效分支：仅 `codex/a9-trusted-agent-runtime`；目标版本：`0.3.0-alpha.1`。
+- ADR-0096 将 Alpha 1 支持范围收敛为 Full Access 与 Read Only；完整 Review 工作流延期至
+  `0.3.0-alpha.2`。WIN7-10 中仍可见但无后端的 Review 是已知限制，只能 fail-closed，不能算 Alpha 1
+  支持能力或 Review PASS，也不得静默提升为 Full Access。
+- 当前状态：`A9_07_IN_PROGRESS`。WIN7-10 Gate 4 Review FAIL 保持历史原样；同一候选按修订后的 Alpha 1
+  范围从 J4 继续，不因纯文档范围调整重打包或重跑已完成项。J1～J3 的现场执行结果仍须归档到候选外证据
+  目录后才能计为正式 PASS；Win10、剩余 Gate 和 Alpha 尚未完成。最新事实见 `docs/STATUS.md` 与
+  `docs/tasks/README.md`。
+- A9 在可信工作区提供 Full Access、TrustedShell 和真实 Git；这不是安全沙箱。A9 对 C08/C09/C20 的局部替代仅以 ADR-0089 和 A9 任务书为准，不外推至历史任务或其他分支。
+- A9 仍必须经过 Schema IPC、Core/Policy、目标绑定批准与审计，并保留取消、输出上限、进程树清理、凭据脱敏、TLS 默认验证、checkpoint、Renderer 隔离和 Win7 实机硬门槛。
 
-- **A9 Trusted Agent Runtime（ADR-0089）**：项目负责人已确认
-  `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`，实现任务为
-  `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`，状态 `APPROVED_FOR_IMPLEMENTATION`，仅在
-  `codex/a9-trusted-agent-runtime` 分支及任务书允许路径内生效。A9 目标版本为 `0.3.0-alpha.1`，
-  从最新干净 A8 代码基线复用会话/UI/Core/State/打包资产，但不继承 A8 产品 PASS。A9 在可信工作区
-  提供 Full Access、通用 PowerShell/CMD Shell、直接文件写入和真实 Git；C08/C09/C20 与 A8 Review-first
-  的局部取代范围以 ADR-0089 和 A9 任务书为准。A9 仍保持 Renderer 隔离、Schema IPC、审计、取消、
-  输出上限、进程清理、凭据脱敏、TLS 默认验证、checkpoint 和 Win7 实机硬门槛。Office 专用能力、
-  内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场和自动更新不在 A9 Alpha 1。
-- **A8 Agent-first 产品体验线（ADR-0074）**：项目负责人已确认
-  `docs/prds/WIN7_AGENT_FIRST_PRODUCT_REQUIREMENTS_V1.md`，实现任务为
-  `docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`，仅在
-  `codex/a8-agent-first-product` 分支及任务书允许路径内生效。A8 目标版本为 `0.2.0-alpha.1`，
-  不修改已验收 `0.1.0-rc.1`，也不继承其产品 PASS；开发机、Win10、Win7 新候选三层验收前不得
-  宣称 A8 MVP 或 RC 完成。交互 winpty、任意 Shell、Git 写操作、任意公网浏览、多 Agent、自动更新、
-  无审批完全自主模式继续不在授权范围内。
-- 当前 `main` 已完成 A4/A5/A6 整合、A7 `0.1.0-rc.1` 三层验收和长期归档，状态为
-  `A7_RC_INTEGRATED / RC_PASS`。历史阶段 0～7、MVP、INTEGRATION 与 SPIKE 任务继续按各自任务书
-  保留状态和边界，但不构成 A8 的额外实现授权；A8 只能使用上一条列出的任务书和路径。状态以
-  `docs/STATUS.md` 和 `docs/tasks/README.md` 为准。
-- 阶段 1 任务文档：`docs/tasks/PHASE_01_CAPABILITY_PROBE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`（允许路径见该文档 §0.2）。
-- **阶段 2（ADR-0025）**：任务文档 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（Task Type: FORMAL_PHASE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。实现仅在 `phase/02-readonly-agent` 分支上进行；目标工作区全程只读、不接入真实模型、不修改用户代码；原型成果只能按该文档 §5 迁移矩阵选择性吸收，禁止整体合并/cherry-pick 原型分支。Win7 实机验收前不得宣称阶段 2 完成。
-- 阶段 0/1 主线**不接入大模型、不修改用户代码**；阶段 2 的只读 Agent Loop 仅在其任务书授权范围内实现（Mock/Replay 驱动，同样禁止真实模型与网络）。
-- 阶段边界以 `docs/ROADMAP.md` 为准；不得跨阶段实现未来功能。
-- **独立原型线（ADR-0023）**：`prototype/full-agent-skeleton` 分支上另有一条架构原型线，授权载体为 `docs/tasks/PROTOTYPE_FULL_AGENT_SKELETON.md`（Task Type: ARCHITECTURE_PROTOTYPE，状态 `APPROVED_FOR_IMPLEMENTATION`，允许路径见该文档 §8）。该授权**仅在原型分支上生效**；原型不替代 Phase 1、不得触碰 Phase 1 产物、不得整体合并 main、不接入真实模型、不修改目标用户代码。在 main 与其他分支上，本条不构成任何实现授权。
-- **新架构基线（ADR-0027）**：Python-only、stdlib-only、禁止 Node/Electron、最终仅 CLI 等项目级限制已经废止。Phase 1、Phase 2 与既有原型任务书仍按各自冻结合同执行；ADR-0027 不扩大其路径白名单，也不授权在当前分支实现桌面客户端。新的 Win7 客户端、运行时 Spike 或依赖栈必须另建 `APPROVED_FOR_IMPLEMENTATION` 任务书。
-- **PC-003 裁决（ADR-0036，2026-07-29）**：Win7 兼容性为基本要求，技术选型以程序最优化为目标。ADR-0028\~0035 方向获批（附条件：四项 SPIKE 实机验证通过后正式生效）。
-- **Phase 3-7 与 SPIKE 1-4 任务书授权升级**：`docs/tasks/PHASE_03_MODEL_GATEWAY.md` \~ `PHASE_07_DESKTOP_SHELL.md` 及 `SPIKE_01_WIN7_RUNTIME_BASELINE.md` \~ `SPIKE_04_STORAGE_INDEX.md` 可从 `DRAFT` 升级为 `APPROVED_FOR_IMPLEMENTATION`。实施策略：非终端/containment 模块可基于理论分析先行实现；终端层（winpty/node-pty）和进程 containment 模块须等 `SPIKE_02_TERMINAL_CONTAINMENT.md` 实机验证结论后定稿。
+## 3. 开始任务前必须读取
 
-## 4. 有效约束与历史编号（逐条可测试）
+1. 所有任务先读本文件。
+2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9 工作读 `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
+3. 按任务需要读取架构、安全、评估、PRD、ADR 或状态文档；不要无条件加载全部历史资料。
+4. 处理历史阶段时，按 `docs/tasks/README.md` 定位其任务书和分支合同；A9 授权不适用。
 
-| # | 约束 | 验证方式 |
-|---|------|----------|
-| C01 | 目标运行环境为 Windows 7 SP1 x64 | 在 Win7 SP1 x64 实机/VM 上跑通验收用例 |
-| C02 | **项目级已废止（ADR-0027）**：不再把 CPython 3.8.10 设为全项目唯一运行时；编号仅保留给 Phase 1/2 冻结合同解释 | 新任务不得把 C02 当作全局 Python 限制；历史任务仍按原文验收 |
-| C03 | **项目级已废止（ADR-0027）**：不再限制为 Python 标准库；编号仅保留给 Phase 1/2 冻结合同解释 | 新任务允许经 C16 评审的第三方依赖；历史任务仍按原文验收 |
-| C04 | **项目级已废止（ADR-0027）**：不再禁止 Node.js / Electron；编号仅保留给 Phase 1/2 冻结合同解释。Docker/WSL 仍不能作为 Win7 本地运行能力 | 新任务可选择兼容运行时；历史任务仍按原文验收 |
-| C05 | **项目级已废止（ADR-0027）**：Python 3.9+ 禁用清单不再约束非历史组件；编号仅保留给 Phase 1/2 冻结合同解释 | 新任务按 C15 的组件 Profile 验收；历史任务仍按 Python 3.8.10 验收 |
-| C06 | Win7 目标端禁止依赖 Windows 10+ 专属 API；构建端或远程服务不受此项限制 | 见 `docs/WIN7_CONSTRAINTS.md` §4 能力矩阵 |
-| C07 | 运行时下载、安装或更新只在任务书明确授权时允许，且必须版本锁定、完整性验证、失败回滚；默认优先自包含交付 | 断网启动测试或受控更新测试；验证签名/哈希与回滚 |
-| C08 | Agent 发起的进程必须有输出上限、取消和进程树终止；历史/隔离 Profile 继续使用硬超时。A9 TrustedShell 可不设置任意固定硬 deadline，但必须提供软时长提示、用户取消、可选任务 deadline 和残留状态，且不得把 `taskkill` 降级冒充安全隔离；用户交互终端仍须独立授权 | 代码审查 + `docs/EVALUATION.md` 进程生命周期测试项 |
-| C09 | 默认 Runner 使用结构化 argv/`execFile`。A9 按 ADR-0089 明确授权的 TrustedShellRunner 可以执行模型提交的完整 PowerShell/CMD 字符串、管道和重定向，但仍须经 Tool Schema、IPC、Runner、审计、输出控制与取消；Renderer/业务 UI 不得直接执行进程。历史任务继续禁止模型拼接 Shell | 跨语言执行汇点扫描 + A9 Shell/历史 Runner 分层集成测试 |
-| C10 | 路径逻辑必须兼容中文路径、空格路径、Windows 盘符/反斜杠 | 测试矩阵含中文、空格、混合路径用例 |
-| C11 | 文本 I/O 必须显式声明编码；未知或需保持原样的内容按字节处理，禁止依赖系统默认编码 | 各语言静态检查 + 中文/CP936/UTF-8/CRLF 往返测试 |
-| C12 | 每个任务必须声明交付模式（自包含离线包、企业内网安装或受控更新）和全部运行前置；禁止未声明的在线依赖 | 干净 Win7 环境安装、启动、升级和回滚验收 |
-| C13 | 不得假设目标机已安装任何未声明工具；必需工具必须随包交付或列为可探测前置，可选能力缺失时必须降级而非崩溃 | 干净环境与缺失能力矩阵测试 |
-| C14 | 实现代码采用**任务授权机制**：默认禁止编写实现代码；仅当当前任务文档标注 `Status: APPROVED_FOR_IMPLEMENTATION` 时方可实现，且实现文件只能位于该任务文档列出的允许路径内（ADR-0011） | 核对任务文档状态与路径白名单；白名单外出现实现文件即打回 |
-| C15 | 每个新组件必须声明 Runtime Profile：精确版本、目标架构、Win7 补丁前置、构建/运行边界、系统 API、降级路径和实机证据 | 核对 Profile、版本锁、二进制元数据与 Win7 实机报告 |
-| C16 | 运行时、框架、第三方库、原生模块和外部程序均可使用，但必须在 `docs/WIN7_CONSTRAINTS.md` §6 登记，锁定完整依赖树并记录来源、哈希、许可证、EOL 风险和交付闭包 | 依赖清单/SBOM、缓存工件、签名或哈希及干净环境安装验证 |
-| C17 | 桌面 Renderer 不得直接获得文件、进程、凭据或任意网络权限；浏览器自身的 `fetch`/WebSocket/导航/权限请求也必须受 CSP 与会话级白名单约束。高权限操作必须经 Schema 校验的 IPC、Policy、批准与审计 | Electron/桌面安全配置、实际出站连接与 IPC 越权测试 |
-| C18 | Win7 不具备的强隔离、现代浏览器或运行时能力必须明确降级或移至受维护的内网服务，不得以兼容层名义虚构等价安全性 | 能力矩阵、威胁模型和端到端降级测试 |
-| C19 | 用户交互终端与 Agent Runner 必须保持输入能力隔离：模型不得向用户终端注入按键、粘贴或控制序列；终端输出按不可信数据处理并限制剪贴板、链接和窗口控制序列 | 能力路由检查 + 恶意 VT/OSC、粘贴、链接与模型注入负向测试 |
-| C20 | 历史任务与隔离模式 Git 必须通过专用适配器。A9 Full Access 可按 ADR-0089 经 TrustedShell 使用用户真实 Git 配置、hooks、filters、textconv、pager、credential/SSH helper 和 fsmonitor；结构化 Adapter 继续提供状态/Diff，破坏性与远端写操作执行目标绑定确认。不得把该模式描述为隔离 Git | 历史 G10 负向测试 + A9 真实 Git/审批/审计矩阵 |
+已读取且未变化的大文件不重复读取。摘要不能替代当前任务所必需的原始约束。
 
-## 5. Agent 工作流程规则
+## 4. 实现授权与允许路径
 
-任何 Coding Agent 在本仓库工作时必须：
+- **C14：默认禁止编写实现代码。** 只有当前任务书状态为 `APPROVED_FOR_IMPLEMENTATION`，当前分支符合任务书，且目标文件位于任务书允许路径内，才可实现。不得通过修改白名单、临时豁免或借用其他阶段授权绕过检查。
+- 文档和 ADR 修改不受实现路径白名单限制，但仍受本文件的文档规则及用户任务范围约束。
+- 新运行时、框架、库、原生模块、外部程序或高风险系统 API，必须先按 `docs/WIN7_CONSTRAINTS.md` §6 登记并锁定版本、来源、哈希、许可证、风险和交付闭包（C15/C16）。
+- 影响接口、数据格式、兼容性或安全模型的决定必须新增 ADR。不得删除或改写 Accepted ADR 正文；只能新增 ADR，并在需要时将旧 ADR 状态标为 Superseded。
 
-1. **先读**：`AGENTS.md` → `docs/WIN7_CONSTRAINTS.md` → 当前阶段 `docs/tasks/PHASE_XX_*.md`。
-2. **只做当前阶段任务**。发现任务文档缺失或与本文件矛盾时，停止实现并在输出中列出矛盾，不得自行取舍。
-3. **实现授权检查**：动手写实现代码前，确认当前任务文档状态为 `APPROVED_FOR_IMPLEMENTATION`，且目标文件路径在该文档的允许路径清单内；文档与 ADR 文件的修改不受实现路径清单限制，但仍遵循本文件的文档规则。**禁止以“临时豁免某个目录”等任何方式绕过 C14**（ADR-0011）。
-4. **新增依赖**（运行时、框架、第三方库、高风险系统 API、原生模块和外部可执行文件）必须先在 `docs/WIN7_CONSTRAINTS.md` §6 登记评审记录，通过后方可使用。
-5. **关键设计决策**（影响接口、数据格式、兼容性、安全模型的决策）必须写入 `docs/DECISIONS.md`（ADR 风格），不允许只体现在代码里。
-6. **不得删除或改写已接受（Accepted）ADR 的正文**，只能新增 ADR 并将旧 ADR 状态行标记为 Superseded。
-7. 所有新写的 Markdown 和文本源码使用 UTF-8（无 BOM）编码、LF 换行；目标为 `.bat/.cmd` 等必须使用其他换行或编码时，由任务书显式声明。
-8. 输出物必须在其声明的交付模式与运行时 Profile 下完成 Win7 SP1 x64 验证，凡是"在我的机器上能跑"的验证一律不算通过；允许在现代开发环境开发与回归，但阶段完成标记以 Win7 验收为硬门槛（见 `docs/EVALUATION.md`）。
+## 5. 安全与兼容性红线
 
-## 6. 通用实现规则
+- **Win7 SP1 x64 是硬门槛。** 新组件必须声明 Runtime Profile、前置条件、构建/运行边界、系统 API、降级路径与实机证据；不得依赖未声明工具或 Windows 10+ 专属 API。开发机通过不等于 Win7 通过。
+- 路径必须兼容中文、空格、盘符和反斜杠。文本 I/O 显式指定编码；未知内容按字节处理。新 Markdown 和文本源码使用 UTF-8 无 BOM、LF；其他编码或换行仅限任务书明确授权的文件。
+- 持久化格式必须版本化。交付模式和全部运行前置必须声明；下载、安装、更新、注册表、服务、提权或系统配置修改仅在任务书明确授权、可审计且可回滚时允许。
+- 业务代码和 UI 不得绕过批准的 Runner、TrustedShellRunner、Policy 或审计执行进程。Agent 工具默认不等待 stdin；交互终端须独立授权并与 Agent Runner 隔离。
+- 进程必须有输出控制、用户取消和进程树清理；A9 是否使用固定 deadline 按 ADR-0089。不得把 `taskkill` 或 Full Access 描述成安全隔离。
+- Renderer 不得直接获得文件、进程、凭据或任意网络权限；高权限操作必须经 Schema IPC 和授权链。终端输出按不可信数据处理，模型不得向用户终端注入输入或控制序列。
+- 网络仅按任务书和 ADR 授权。A9 可继承用户网络且不设域名白名单，但外部写入、破坏性或高影响操作仍须执行目标绑定确认；不得关闭 TLS 默认验证，秘密不得进入日志、事件或快照。
+- 禁止静默吞异常和占位式规范。失败必须留下结构化、经过脱敏且不过量的诊断信息。
 
-- 运行时级别：Phase 1/2 与既有原型的 Python 源码继续以 CPython 3.8.10 为门槛；新组件按任务书声明的 Node.js、Electron、Python、.NET Framework 或原生工具链版本编译、测试并验证 Win7 兼容性。
-- 子进程统一通过经任务书批准的 Runner、TrustedShellRunner 或终端适配器调用；业务代码和 UI 不得绕过 Policy、权限 Broker 与审计直接执行进程。
-- GUI、协议和文件使用 Unicode/UTF-8；直连 Win7 conhost 的输出由控制台 Profile 负责 CP936、VT 和非 ASCII 降级，历史 Phase 1/2 CLI 继续保持 ASCII-only。
-- 所有持久化数据格式必须有版本号字段。
-- 每个模块必须可独立测试，失败必须产生结构化错误（见各阶段任务文档的错误模型）。
+## 6. 最小修改与验证
 
-## 7. 明确禁止事项（全局）
+- 先确认仓库、分支、任务状态和工作区；默认留在当前分支。保护用户已有改动，只修改当前请求需要的文件，不顺带重构、改名、格式化或清理。
+- 先定义可观察的成功条件，再做最小改动和与风险相称的验证。优先目标测试或局部静态检查；不默认运行全量测试。
+- 仅在修改 UI、布局、视觉交付物或用户明确要求时做浏览器、截图、渲染或视觉 QA。
+- 阶段完成和兼容性结论必须以任务书要求的证据为准；未执行的 Win7 实机验证必须明确标为未验证。
 
-- Agent 工具调用默认禁止等待 stdin；用户直接操作的交互终端必须由独立任务书授权，并与 Agent Runner 隔离，不能被模型用来绕过 Policy、批准或审计。
-- 禁止未声明的注册表、服务、提权和系统配置修改；确有需要时必须由任务书、权限策略和用户确认共同授权，并提供回滚。
-- 禁止访问任务书未声明的网络目标；A9 Full Access 按 ADR-0089 明确授权继承用户网络且不设域名白名单，
-  但外部写操作继续执行行为确认。Phase 1/2 和其他未获 A9 授权任务的零网络/白名单合同继续有效。
-- 禁止生成"占位式"文档或 TODO 空章节——每条规则必须可执行、可测试。
-- 禁止静默吞异常：捕获后必须记录到结构化输出。
+## 7. Auto Review 与工具成本控制
+
+- workspace 内普通读取、授权范围内编辑和相关的非破坏性本地检查直接执行，不为同一安全操作重复请求批准。
+- 仅在任务确需跨越沙箱、访问网络、启动外部应用、写外部系统、执行破坏性操作或扩大范围时申请批准；批准必须绑定具体目标和动作。
+- 普通代码或文档修改不自动启动浏览器、GUI、截图、HTML 渲染、外部应用或全量测试。优先使用 workspace 内可完成的安全路径。
+- 限制工具输出，只保留结论、失败位置和必要上下文；不重复执行已成功且输入未变化的检查，也不重复读取未变化的大文件。
+- Auto Review 拒绝后，不用命令变体反复尝试；改用实质上更安全的路径，否则停止并请求用户决定。
+- 不得为了减少审批而扩大权限、启用 Full Access、合并不相关操作、弱化审计或跳过必要确认。
+
+## 8. 权威文档与历史入口
+
+| 主题 | 权威来源 |
+|---|---|
+| Win7、C01–C20、Runtime Profile、依赖登记 | `docs/WIN7_CONSTRAINTS.md` |
+| A9 范围、允许路径、验收与非目标 | `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md` |
+| A9 产品需求与 Full Access 裁决 | `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`、ADR-0089 |
+| 当前状态与任务索引 | `docs/STATUS.md`、`docs/tasks/README.md` |
+| 架构、安全与评估 | `docs/ARCHITECTURE.md`、`docs/SECURITY.md`、`docs/EVALUATION.md` |
+| 历史阶段、A8、Phase、Prototype、Spike | `docs/STATUS.md`、`docs/tasks/README.md` 及对应任务书 |

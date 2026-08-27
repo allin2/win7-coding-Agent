@@ -162,3 +162,13 @@ A9 的安全合同由 ADR-0089 和
 
 A9 仍禁止 Renderer 直接获得 Node/fs/进程/凭据/任意网络，禁止模型向用户交互终端注入 stdin，禁止自动提权，
 默认验证 TLS，并对 Provider 凭据强制 DPAPI/内存保存和日志脱敏。可用性优先不等于关闭这些产品边界。
+
+ADR-0096 将 A9 Review 产品工作流延期至 Alpha 2。Alpha 1 只正式支持 Full Access 与 Read Only；WIN7-10
+仍可见的 Review 入口是已知限制。进入或恢复 `review` 时必须 fail-closed、保留审计且禁止静默提升到
+Full Access。Core 的“无 staging 后端则零写入拒绝”继续作为纵深保护，不构成 Alpha 1 Review 能力。
+
+ADR-0098 的对话身份是审批和恢复的安全边界：审批必须同时绑定对话、任务、Turn、Approval 和目标，活动
+Turn、待审批或托管后台进程存在时禁止切换对话/工作区；重启前审批一律 interrupted，不得恢复为可点击状态。
+本地完整历史不等于模型可执行上下文，Provider 只接收有界用户/助手文本，不接收旧工具、Shell、Git 或审批。
+未发送草稿仅允许由主进程通过 `safeStorage`/DPAPI Current User 加密后持久化，明文不得进入 SQLite、事件、
+日志、checkpoint、审批或 Provider；DPAPI 不可用时只能内存降级并向用户明示。

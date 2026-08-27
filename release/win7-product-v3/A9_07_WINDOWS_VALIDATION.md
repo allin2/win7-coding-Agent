@@ -1,5 +1,12 @@
 # A9-07 Windows 同候选验收
 
+> Alpha 1 范围按 ADR-0096 收敛为 Full Access 与 Read Only；Review 完整工作流延期至
+> `0.3.0-alpha.2`。WIN7-10 Review FAIL 保持历史原样并作为已知限制；只要候选哈希、运行树和关键环境
+> 未变化，就从实际检查点 J4 继续，不重跑已经完成的同候选项目。
+>
+> 后续修复候选按 ADR-0097 使用影响范围增量复验：身份/完整性/启动/后飞行每轮必做，历史失败和受影响项
+> 必须重验；此前已通过且未受影响的内容作为 `INHERITED_EVIDENCE / OPTIONAL_REGRESSION`，不再默认重复。
+
 ## 候选绑定
 
 1. 将 ZIP 和 `.sha256` 复制到 Win10/Win7，记录原始 SHA-256。
@@ -12,13 +19,17 @@
 
 ## Win10 smoke（内部 Alpha 非阻塞，RC 前必须补齐）
 
-- 普通用户启动正式 `electron.exe`，选择工作区并配置真实 Provider；退出后重新启动。
+- 普通用户启动正式 `electron.exe`，选择 Full Access 或 Read Only 工作区并配置真实 Provider；退出后重新启动。
+- 验证 Review 缺后端时 fail-closed、零写入且不会静默进入 Full Access；它不计入 Alpha 1 PASS。
 - 验证 Electron/native ABI、A9 状态库、Provider DPAPI 恢复、模式/Checkpoint 恢复和 Stop 清理。
 - 结果只能写 `PASS`、`FAIL` 或 `NOT_PERFORMED`，不能由开发机结果推断。
 
 ## Win7 SP1 x64 硬门槛
 
 - 解压、首次启动、Provider 配置、退出/重启；J1～J5 全部真实执行。
+- Full Access 与 Read Only 正/负向通过；Review 失败证据保留并按 Alpha 2 延期项处理。
+- 若现场已推进到 J4，先归档 J1～J3 的应用审计、文件、测试与 Diff 事实，再从 J4 继续；缺少外置归档
+  不要求重新执行，但最终裁决前状态只能是 `EVIDENCE_PENDING`。
 - PowerShell 5.1 优先和 CMD 降级；中文/空格路径、CP936、UTF-8、CRLF。
 - Git/Python/项目 Node 缺失时局部降级，客户端不得整体退出。
 - Stop 后检查进程树与残留；验证 SQLite 重启、损坏备份和旧版回退。

@@ -14,7 +14,7 @@
 | 阶段 1：Capability Probe | 进行中 | 仅现有 Phase 1 任务书白名单 |
 | 阶段 2：只读代码分析 Agent | 进行中 | 仅现有 Phase 2 分支与白名单 |
 | SPIKE_01~04（Win7 兼容性验证，见下） | 分项收口：SPIKE_02 低风险非交互 PASS/交互 No-Go；SPIKE_04 本地 SSD PASS；SPIKE_01/03 保持既有证据口径 | 各 Spike 任务书白名单 |
-| 阶段 3–7 | 按各阶段任务书与整合任务推进；A7 `RC_PASS` 不等于各独立 Phase/E5/E6/E7 Gate 关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
+| 阶段 3–7 | 候选实现已进入 main；A7 收口基线 7 模块 983 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
 | A7 Win7 v1 RC | `RC_PASS`；已完成三层验证、RC-01～RC-10 和 main 整合 | `RC_01_WIN7_RELEASE_CANDIDATE.md` |
 | A8 Agent-first | `A8_DEVELOPER_COMPLETE_VALIDATION_READY`；历史 Review-first 候选，外部三层未完成 | `A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md` |
 | A9 Trusted Agent Runtime | WIN7-10 Gate 4 Review FAIL 已保留；ADR-0096 将 Review 延期 Alpha 2；同一候选从 J4 继续，J1～J3 证据待归档 | `A9_TRUSTED_AGENT_RUNTIME.md` |
@@ -76,49 +76,64 @@
 四个 Spike 相互独立、可并行。Spike 的通过只决定技术 Profile 是否可进入正式设计，
 不自动授权生产 Desktop Shell，也不改变 Phase 1/2。
 
-## 阶段 3 — Model Gateway（按任务书实施）
+## 阶段 3 — Model Gateway（理论实现与定向加固完成，待 SPIKE/E7）
 
-- 任务书：`docs/tasks/PHASE_03_MODEL_GATEWAY.md`（分支 `phase/03-model-gateway`）。
-- 范围：版本化远程协议、模型/工具请求、流式事件、鉴权、代理、CA、超时、重试、幂等与断线恢复。
-- 门槛：阶段 1 相关探测、网络/安全/交付模式获批，以及真实 Win7 TLS/代理验收方案；不适合 Win7 本地承载的高风险能力通过 Gateway 远程化，精确运行时和依赖按任务书与 Spike 结果冻结。
+- 任务书：`docs/tasks/PHASE_03_MODEL_GATEWAY.md`（分支 `phase/03-model-gateway`）；源码已进入整合分支。重试、TLS fail-closed、协议版本、流截断和并发隔离已有开发机回归。
+- 目标：实现版本化远程协议、模型/工具请求、流式事件、鉴权、代理、CA、超时、重试、幂等与断线恢复。
+- Win7 端实现不再限定 `http.client`/`ssl` 或标准库；任务书根据兼容性 Spike 与安全评审选择精确运行时/依赖 Profile。
+- 现代 Browser Use、沙箱执行和不适合 Win7 本地承载的高风险能力通过 Gateway 远程化。
+- 前置：阶段 1 的相关探测结论；网络目标、安全模型和交付模式获批；真实 Win7 TLS/代理验收方案完备。
 
-## 阶段 4 — Workspace 与文件工具（按任务书实施）
+## 阶段 4 — Workspace 与文件工具（理论实现已汇入，SPIKE_04 前置已解除，正式 Win7 待验）
 
-- 任务书：`docs/tasks/PHASE_04_WORKSPACE_WRITE.md`（分支 `phase/04-workspace-write`）；前置：SPIKE_04 Go。
-- 范围：编码感知读取/搜索、未知编码策略、CRLF/LF 保持、工作区根边界、junction/reparse 防逃逸，以及独立风险门控的写入、验证和恢复。
-- 完成门槛：Schema、差异预览、用户确认、原子替换、备份/快照、验证和回滚均有任务书验收项。
+- 规划任务书：`docs/tasks/PHASE_04_WORKSPACE_WRITE.md`（分支 `phase/04-workspace-write`）；前置：SPIKE_04 Go。
+- 目标：编码感知读取/搜索、未知编码策略、CRLF/LF 保持、工作区根边界、junction/reparse point 防逃逸。
+- 写能力按独立风险门控引入：补丁预览、用户确认、备份/快照、原子替换、验证和回滚。
+- 与 Desktop Shell 的差异预览、文件引用协议先定义 Schema，再选择实现运行时。
 
-## 阶段 5 — 状态、事件与审计（按任务书实施）
+## 阶段 5 — 状态、事件与审计（内存基线已汇入，SQLite Profile 已验证，生产接入待 A7）
 
-- 任务书：`docs/tasks/PHASE_05_STATE_AUDIT.md`（分支 `phase/05-state-audit`）；前置：SPIKE_04 Go。
-- 范围：版本化状态/事件 Schema、任务恢复、操作审计、导出、保留/清理策略和一致性边界。
-- D-014 本地 SSD Profile 的证据只证明技术 Profile；生产 EventStore、迁移、升级和跨重启恢复仍须按产品任务书验收。
+- 规划任务书：`docs/tasks/PHASE_05_STATE_AUDIT.md`（分支 `phase/05-state-audit`）；前置：SPIKE_04 Go。
+- 目标：带版本号的状态/事件 Schema、任务恢复、操作审计、导出、保留与清理策略。
+- D-014 SQLite/WAL/FTS5 的本地 SSD 技术 Profile 已通过 Win7；生产 EventStore、迁移、升级和跨重启恢复仍须在 A7 产品包中验收。
+- 为多任务、后台协调器和断线恢复建立一致性边界，但不在本阶段默认开启这些产品能力。
 
-## 阶段 6 — Agent Core、Policy 与 Runner（按任务书实施）
+## 阶段 6 — Agent Core、Policy 与 Runner（契约骨架已汇入，低风险非交互 Profile 已解除）
 
-- 任务书：`docs/tasks/PHASE_06_AGENT_CORE_RUNNER.md`（分支 `phase/06-agent-core-runner`）；前置：SPIKE_02/03 Go + 阶段 3/4/5 完成，并按 ADR-0029 对账 Phase 2 契约。
-- 范围：任务状态机、上下文、工具编排、Policy/Broker、权限确认、Runner、测试验证、取消与恢复。
-- 硬边界：结构化参数、时限/软时长告警、输出上限、取消、进程树终止、工作区边界和审计；A9 TrustedShell 的固定 deadline 按 ADR-0089，不能省略取消、上限和清理报告。交互终端与 Agent 非交互执行隔离；交互 winpty、任意 Shell、高风险和未知 Profile 必须另立任务并重新验收。
+- 规划任务书：`docs/tasks/PHASE_06_AGENT_CORE_RUNNER.md`（分支 `phase/06-agent-core-runner`）；前置：SPIKE_02/03 Go + 阶段 3/4/5 完成；含 Phase 2 契约逐条对账移植（ADR-0029）。
+- 目标：任务状态机、上下文、工具编排、Policy/Broker、权限确认、通用 Runner、测试验证、取消与恢复。
+- Runner 必须使用结构化参数并强制超时、输出上限、进程树终止、工作区边界和审计。
+- 用户交互终端与 Agent 非交互工具执行采用隔离通道；当前 Win7 v1 明确不装配交互 winpty，
+  未来若重新引入，必须另立授权任务并重新完成兼容性、安全与实机验收。
+- 并发与多 Agent 可在资源、锁和审计模型就绪后逐步启用，不再被全局禁止。
+- D-013 v24 低风险非交互 Runner 已在 A7 RC 完成产品装配与 Win7 验收；
+  交互终端、任意 Shell、高风险和未知 Profile 继续 fail-closed，不能由 Mock 或历史 `taskkill` 路径替代。
 
-## 阶段 7 — Desktop Shell、集成与交付（按任务书实施）
+## 阶段 7 — Desktop Shell、集成与交付（最小真实入口已通过 Win7 MVP smoke，完整产品待装配）
 
-- 任务书：`docs/tasks/PHASE_07_DESKTOP_SHELL.md`（分支 `phase/07-desktop-shell`）；前置：SPIKE_01 Go + 阶段 6 完成；W7C-01～13 验收。
-- 范围：任务/会话 UI、流式事件、差异、审批、终端、设置、诊断和降级提示；Electron 22.3.27 仅按 ADR-0036/0055 的条件范围使用。
-- 完成门槛：自包含交付的版本/来源/哈希/SBOM、前置检查、升级/回滚，以及干净 Win7、普通用户、中文/空格路径、代理/断网、崩溃恢复和核心端到端工作流证据。
+- 规划任务书：`docs/tasks/PHASE_07_DESKTOP_SHELL.md`（分支 `phase/07-desktop-shell`）；前置：SPIKE_01 Go + 阶段 6 完成；W7C-01~13 全量验收。
+- 目标：任务/会话 UI、流式事件、差异、审批、终端、设置、诊断和可访问的降级提示。
+- Electron 22.3.27 方向已由 ADR-0036 条件接受；ADR-0055 增量已实现最小权限 main/preload/renderer 本地入口，并在 Win7 完成启动、诊断回传和退出 smoke。当前仍缺完整五视图、跨模块用户任务、安装器和正式 W7C/E5/E6/E7，不能称为完整桌面客户端。
+- 交付模式可为自包含离线包、企业内网安装或受控更新；任务书必须固定版本、来源、哈希/SBOM、前置检查、升级和回滚。
+- 完成标准必须覆盖干净 Win7 安装、普通用户启动、中文/空格路径、代理/断网、崩溃恢复与核心端到端工作流。
 
 ## Phase 3–7 整合基线
 
 - 任务书：`docs/tasks/INTEGRATION_01_ROBUSTNESS_HARDENING.md`。
-- A4/A5/A6 收口基线 `793cc47` 已进入 main；A7 从该基线完成产品装配、发布闭包和三层验收。
-- 开发机测试数量、逐次失败和候选哈希不在路线图中维护；以 [`docs/STATUS.md`](STATUS.md)、
-  [`docs/status/latest-validation.json`](status/latest-validation.json) 及对应任务/报告为准。
-- A7 `RC_PASS` 不自动关闭 Win7 E1/E2/E5/E7、企业代理/CA、正式发布治理或其他独立 Phase Gate。
+- `codex/integrated-robustness` 的 A4/A5/A6 收口提交 `793cc47` 已进入 main；A7 又从该
+  唯一基线完成产品装配、发布闭包和三层验收。
+- 开发机证据和测试数量不在路线图中维护；请以 [`docs/STATUS.md`](STATUS.md) 和
+  [`docs/status/latest-validation.json`](status/latest-validation.json) 中绑定 commit 的验证记录为准。
+- 仍缺：Win7 E1/E2/E5/E7、企业代理/CA、正式发布治理、完整五视图与跨模块用户任务。
+  A7 `RC_PASS` 不自动关闭这些独立 Phase 或企业 Gate。
 
 ## A7 — Windows 7 v1 发布候选（RC_PASS）
 
 - 基线：A4/A5/A6 收口提交 `793cc47`；工作分支 `codex/a7-release-candidate`。
-- 目标：只装配已验收的 D-013 v24 低风险非交互 Runner 与 D-014 本地 SSD Storage，生成自包含 Win7 x64 RC，并完成 ASAR 外置、manifest、SBOM、许可证、安装、升级/回滚和卸载闭包。
-- 当前裁决：唯一 RC 为 `RC_PASS`；详细候选、签名租约、历史 FAIL 和原始证据只在 [`docs/STATUS.md`](STATUS.md)、[`RC_01_WIN7_RELEASE_CANDIDATE.md`](tasks/RC_01_WIN7_RELEASE_CANDIDATE.md) 与状态 JSON 中维护。
+- 目标：只装配已验收的 D-013 v24 低风险非交互 Runner 与 D-014 本地 SSD Storage，生成自包含
+  Win7 x64 RC，并完成 ASAR 外置、manifest、SBOM、许可证、安装、升级、失败回滚和卸载闭包。
+- 当前状态：唯一 RC ZIP `39eecb6a…040c9` 已取得开发机、Win10 和 Win7 三层 PASS；
+  签名租约 `lease-A7-RC-20260820-055210` 已释放，协调器评分 `WIN7_PASS`。
 
 ## A9 — Trusted Agent Runtime（APPROVED_FOR_IMPLEMENTATION）
 
@@ -133,7 +148,9 @@
   `0.3.0-alpha.2`；WIN7-10 中仍可选择但只会 fail-closed 的 Review 作为已知限制，不计入 Alpha 1 PASS。
 - 串行顺序：A9-00 文档/差距 → A9-01 模式/工具 → A9-02 Shell → A9-03 文件/checkpoint →
   A9-04 Provider → A9-05 Loop/Git → A9-06 UI/State → A9-07 包与 Win7 五旅程。
-- 当前摘要：WIN7-10 的 Full Access 与 Read Only 通过；Review 在 Gate 4 `FAIL` 且 fail-closed，原始证据保持不变。ADR-0096 不改变候选字节；同一候选从 J4 继续，J1～J3 外置证据归档前保持 `EVIDENCE_PENDING`。
+- 当前检查点：WIN7-10 的 Full Access 与 Read Only 通过，Review 因正式 Runtime 无 staging 后端在 Gate 4
+  fail-closed；失败证据保持原样且不改判。ADR-0096 只重定验收范围，不改变候选字节；现场报告已完成
+  J1～J3 并推进到 J4，因此从 J4 继续。J1～J3 外置证据尚未归档，最终裁决前必须补齐。
 - 非目标：Office 专用能力、内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场、自动更新。
 - 完成门槛：同一自包含候选在干净 Win7 SP1 x64 完成五条真实 Coding Agent 旅程；开发机、Win10 或
   A8/A7 历史 PASS 不能替代。

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-ALPHA1-REVIEW-DEFERRAL-20260825-01",
+  "recorded_at": "2026-08-25",
+  "status": "ALPHA1_SCOPE_REBASED_REVIEW_DEFERRED_TO_ALPHA2_WIN7_10_RESUME_AT_J4",
+  "decision": "ADR-0096",
+  "target_branch": "codex/a9-trusted-agent-runtime",
+  "alpha1": {
+    "version": "0.3.0-alpha.1",
+    "permission_modes": [
+      "full_access",
+      "read_only"
+    ],
+    "review": "OUT_OF_SCOPE_DEFERRED_TO_0.3.0-alpha.2",
+    "known_limitation_disposition": [
+      "WIN7-10 still exposes Review but Alpha 1 does not support that mode",
+      "Review and persisted review mode remain fail-closed and zero-write",
+      "Review mode never silently becomes Full Access",
+      "The operator explicitly selects Full Access before continuing write journeys"
+    ],
+    "final_verdict": "NOT_PERFORMED_REMAINING_GATES_AND_EVIDENCE_RECONCILIATION_REQUIRED"
+  },
+  "alpha2": {
+    "version": "0.3.0-alpha.2",
+    "status": "PLANNED_NOT_AUTHORIZED",
+    "scope": [
+      "A9 dynamic private review staging",
+      "per-file accept and reject",
+      "revision and hash bound approval",
+      "atomic apply and stale baseline refusal",
+      "checkpoint, diff and undo integration",
+      "SQLite projection and restart without replay",
+      "A9 IPC, Renderer and Win7 same-candidate acceptance"
+    ],
+    "authorization_required": "A separate APPROVED_FOR_IMPLEMENTATION task document"
+  },
+  "historical_win7_10": {
+    "candidate_id": "WIN7-10-GLOBAL-MODE-CLEAN",
+    "source_commit": "f6cc12984f59745cd0edcd16f387080d603ba553",
+    "zip_sha256": "afbc68f7ab0a6b23975fc5ee5d07b35f0cbc26580e6775f5f22b9b54bc034399",
+    "manifest_sha256": "fa6ba75906d170d12ee695e0ec0a4a3bb51172e18c3eaa780e6e1a9ff7600adb",
+    "full_access": "PASS",
+    "read_only": "PASS",
+    "review": "FAIL_REVIEW_STAGING_BACKEND_NOT_CONFIGURED",
+    "evidence_path": "C:\\A9验收\\证据\\WIN7-10\\gate4-review-staging-failure-20260825-01.txt",
+    "evidence_sha256": "F5CEA1D1B08797AFA846E7A63032CAD0000660DFF0FA3786310BABE38A99F571",
+    "disposition": "IMMUTABLE_HISTORICAL_FAIL_NO_RETROACTIVE_REJUDGMENT",
+    "candidate_byte_change_from_scope_decision": false,
+    "acceptance_continuation": "RESUME_FROM_REPORTED_J4_CHECKPOINT"
+  },
+  "win7_10_continuation": {
+    "new_candidate_required": false,
+    "retain_same_candidate_completed_evidence": true,
+    "reported_checkpoint": "J4",
+    "external_evidence_directory_observation": "Only candidate identity, integrity and Review failure files were present during the 2026-08-25 read-only check",
+    "journeys": {
+      "J1": "OPERATOR_REPORTED_COMPLETE_EVIDENCE_PENDING",
+      "J2": "OPERATOR_REPORTED_COMPLETE_EVIDENCE_PENDING",
+      "J3": "OPERATOR_REPORTED_COMPLETE_EVIDENCE_PENDING",
+      "J4": "IN_PROGRESS",
+      "J5": "NOT_PERFORMED"
+    },
+    "remaining_work": [
+      "Archive existing J1 through J3 audit, file, test and diff facts without rerunning them",
+      "Complete J4 and J5 on the unchanged WIN7-10 candidate",
+      "PowerShell 5.1 and CMD fallback",
+      "path and encoding matrix",
+      "Stop and process-tree cleanup",
+      "SQLite restart, corruption and rollback",
+      "UI, DPI and missing-tool degradation",
+      "postflight residue and evidence index"
+    ],
+    "rerun_trigger": "Only candidate byte changes, implementation changes, material user-data migration changes or material environment changes require rerunning affected gates"
+  }
+}

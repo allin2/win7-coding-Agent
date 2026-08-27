@@ -255,13 +255,15 @@ A9 的原子测试、阶段和五条旅程以
 | Gate | 最低证据 | 不能替代的证据 |
 |---|---|---|
 | A9-00 | PRD/ADR/任务书/差距矩阵一致；需求有稳定 ID、代码状态和验收项 | 口头确认或 A8 文件名 |
-| A9-01 | 三模式、ToolSpec、System Prompt V2；Read Only/Review 负向与 Full Access 正向 | 只改 UI 文案 |
+| A9-01 | Alpha 1 Full Access/Read Only、ToolSpec、System Prompt V2；Review 缺后端时 fail-closed、零写入、不静默提权 | 把 Review 失败冒充功能 PASS |
 | A9-02 | PowerShell 5.1/CMD、管道/重定向、中文编码、取消、后台进程和残留矩阵 | 结构化 MockRunner |
 | A9-03 | 多文件工具、编码/EOL、基线冲突、checkpoint、外部变化和撤销 | A8 单文件或 staging Apply |
 | A9-04 | 两个兼容 fixture + 一个真实 Provider 的 SSE/tool_calls/取消/DPAPI | Replay 或固定 DeepSeek URL |
 | A9-05 | 开发机 J1～J5、Git 确认、副作用不重放和诚实完成三态 | 模型文字声称测试通过 |
-| A9-06 | 真实 Electron 模式/工具/Diff/恢复旅程、SQLite A9 迁移和多窗口锁 | 静态 HTML 或内存 catalog |
+| A9-06 | 真实 Electron 支持模式/工具/Diff/恢复旅程、Review 零写入、SQLite A9 迁移和多窗口锁 | 静态 HTML 或内存 catalog |
 | A9-07 | 同一候选 ZIP/manifest/SBOM/许可证、Win7 J1～J5、生命周期和残留 | A7/A8 PASS、Win10 或开发机 |
 
 A9 Alpha 1 允许 Win10 smoke 在内部 Alpha 阶段非阻塞，但 Win7 五旅程、数据恢复和干净包必须全部通过；
-进入 RC 前补齐同一候选 Win10 证据。Office、IDE/LSP、交互终端、Browser、多 Agent 和插件为不适用项。
+进入 RC 前补齐同一候选 Win10 证据。按 ADR-0096，Alpha 1 Review 为延期项而不是 PASS 项；WIN7-10 的
+Review 必须保持 fail-closed、零写入且不会静默 Full Access，并作为已知限制披露。Office、IDE/LSP、交互终端、Browser、
+多 Agent 和插件为不适用项。
