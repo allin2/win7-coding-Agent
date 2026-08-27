@@ -257,7 +257,9 @@ function createValidationKit(root, sourceCommit, lock) {
     launch: `.\\electron.exe`,
     launch_portable: `.\\electron.exe --portable`,
     evidence_root: `..\\a9-evidence-${layer}`,
-    required: layer === 'win7' ? 'J1-J5 + compatibility + lifecycle + recovery' : 'native ABI + startup/restart + provider/DPAPI + stop cleanup',
+    required: layer === 'win7'
+      ? 'candidate identity + integrity + startup + postflight + ADR-0098 impacted cases; other journeys follow ADR-0097 evidence inheritance'
+      : 'native ABI + startup/restart + provider/DPAPI + stop cleanup',
   });
   return {
     schema_version: 1,
@@ -273,6 +275,13 @@ function createValidationKit(root, sourceCommit, lock) {
       win7: windows('win7'),
     },
     required_win7_journeys: ['J1_PROJECT_EXPLANATION', 'J2_BUG_FIX', 'J3_SMALL_FEATURE', 'J4_SHELL_AND_GIT', 'J5_UNDO_AND_RECOVERY'],
+    win7_revalidation_policy: {
+      decision: 'ADR-0097',
+      every_candidate: ['IDENTITY', 'PACKAGE_INTEGRITY', 'STARTUP_BINDING', 'POSTFLIGHT'],
+      mandatory_impacted: ['A9_SCHEMA_V4_MIGRATION', 'MULTI_CONVERSATION', 'DPAPI_DRAFT', 'APPROVAL_IDENTITY', 'CHECKPOINT_IDENTITY', 'MANAGED_PROCESS_STOP'],
+      unaffected_previous_evidence: 'INHERITED_EVIDENCE_OR_OPTIONAL_REGRESSION_NOT_CURRENT_CANDIDATE_PASS',
+      review: 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION',
+    },
     same_candidate_binding: ['release_id', 'package_sha256', 'release_manifest_sha256'],
     external_validation: { win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', alpha: 'NOT_PERFORMED' },
     forbidden_actions: ['write-secret-to-report', 'evidence-inside-candidate', 'runtime-download', 'PATH-service-registry-firewall-change', 'claim-Windows-pass-from-developer-machine'],
@@ -355,7 +364,7 @@ function requiredInput(value, label) {
 }
 function sha256Bytes(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function git(root, args) { return execFileSync('git', ['-c', 'core.fsmonitor=false', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
-function licenseInventory(lock) { return `# A9 third-party licenses and support risk\n\n| Component | Version | License | Boundary |\n|---|---:|---|---|\n| Electron | ${lock.inputs.electron_zip.version} | MIT + Chromium notices | Trusted local UI; no untrusted web content |\n| D-013 helper | ${lock.inputs.runner_return_zip.version} | Apache-2.0 | Process containment compatibility input |\n| better-sqlite3 | ${lock.inputs.storage_return_zip.version} | MIT | Electron ABI 110; local data root |\n| SQLite | ${lock.inputs.storage_return_zip.sqlite} | Public Domain | A9 Schema v3, WAL/backup/recovery |\n| ajv/runtime closure | locked package tree | MIT/BSD | Offline IPC schema validation |\n\nElectron 22 and Node 16 are EOL inputs retained for Win7 compatibility. Win7 support is established only by same-candidate real-machine evidence.\n`; }
+function licenseInventory(lock) { return `# A9 third-party licenses and support risk\n\n| Component | Version | License | Boundary |\n|---|---:|---|---|\n| Electron | ${lock.inputs.electron_zip.version} | MIT + Chromium notices | Trusted local UI; no untrusted web content |\n| D-013 helper | ${lock.inputs.runner_return_zip.version} | Apache-2.0 | Process containment compatibility input |\n| better-sqlite3 | ${lock.inputs.storage_return_zip.version} | MIT | Electron ABI 110; local data root |\n| SQLite | ${lock.inputs.storage_return_zip.sqlite} | Public Domain | A9 Schema v4, WAL/backup/recovery |\n| ajv/runtime closure | locked package tree | MIT/BSD | Offline IPC schema validation |\n\nElectron 22 and Node 16 are EOL inputs retained for Win7 compatibility. Win7 support is established only by same-candidate real-machine evidence.\n`; }
 function installationGuide(lock) { return `# A9 Alpha 1 installation and rollback\n\n- Target: ${lock.target.os}, ${lock.target.architecture}; self-contained offline ZIP; ordinary user.\n- Extract to a new directory. Do not overwrite A7, A8 or an earlier A9 directory.\n- Run RUN_A9_07_INTEGRITY.cmd before first launch, then start electron.exe. No system Node is required.\n- Default state is %LOCALAPPDATA%\\Win7CodingAgent\\a9. Use electron.exe --portable only when package-adjacent state is explicitly wanted.\n- The application does not change PATH, services, registry or firewall and does not download a runtime.\n- Keep the old program directory during upgrade. On failure stop the new candidate and relaunch the old directory against the preserved data; retain corruption backups and evidence.\n- API keys must be entered only in Settings and are remembered only through Windows DPAPI. Never put them in validation commands or reports.\n- This package remains NOT_PERFORMED for Win10, Win7 and Alpha until same-candidate external evidence is recorded.\n`; }
 
 if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {

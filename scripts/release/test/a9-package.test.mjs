@@ -92,6 +92,11 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.equal(packageJson.runtime_profile.state_schema, 4);
   const runtimeProfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'a9-runtime.json'), 'utf8'));
   assert.equal(runtimeProfile.state_schema, 4);
+  const validationKit = JSON.parse(fs.readFileSync(path.join(second.stage, 'A9_07_VALIDATION_KIT.json'), 'utf8'));
+  assert.equal(validationKit.win7_revalidation_policy.decision, 'ADR-0097');
+  assert.ok(validationKit.win7_revalidation_policy.mandatory_impacted.includes('MULTI_CONVERSATION'));
+  assert.equal(validationKit.win7_revalidation_policy.review, 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION');
+  assert.match(fs.readFileSync(path.join(second.stage, 'THIRD_PARTY_LICENSES.md'), 'utf8'), /A9 Schema v4/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "ELECTRON_RUN_AS_NODE=1"/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "NODE_OPTIONS="/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /--package-zip=%~f1/);
