@@ -116,4 +116,35 @@ describe('A9-05: git command classification', () => {
     const quoted = classifyGitCommand('git commit -m "git push origin main"');
     expect(quoted?.category).toBe('commit_requires_user_request');
   });
+
+  it('requires approval for git push inside compound CMD wrappers', () => {
+    const command = 'cmd.exe /d /v:off /c \'set "GIT_CONFIG_COUNT=1" && C:\\acceptance\\mvp_mingit\\cmd\\git.exe -c "safe.directory=C:/A9验收/工作区/中文 空格项目-12" push a9-win7-13 a9/win7-13-j4:a9/win7-13-j4\'';
+    const decision = classifyGitCommand(command);
+    expect(decision?.category).toBe('always_confirm');
+    expect(decision?.binding).toMatchObject({
+      remote: 'a9-win7-13',
+      branch: 'a9/win7-13-j4',
+      force: false,
+    });
+    expect(decision?.binding.commandSha256).toHaveLength(64);
+  });
+
+  it('requires approval when a later compound segment is git push', () => {
+    const decision = classifyGitCommand('git status && git push origin release');
+    expect(decision?.category).toBe('always_confirm');
+    expect(decision?.binding).toMatchObject({ remote: 'origin', branch: 'release' });
+  });
+
+  it('shows every equally high-risk Git target in a compound approval summary', () => {
+    const decision = classifyGitCommand('git push origin main && git push backup release');
+    expect(decision?.binding.summary).toContain('remote=origin branch=main');
+    expect(decision?.binding.summary).toContain('remote=backup branch=release');
+  });
+
+  it('unwraps PowerShell command wrappers without treating echoed prose as execution', () => {
+    expect(classifyGitCommand('powershell.exe -NoProfile -Command "git push origin release"')?.category)
+      .toBe('always_confirm');
+    expect(classifyGitCommand('cmd.exe /d /s /c "echo git push origin release"')).toBeNull();
+    expect(classifyGitCommand('echo git push origin release')).toBeNull();
+  });
 });

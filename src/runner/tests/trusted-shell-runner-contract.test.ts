@@ -24,7 +24,26 @@ describe('A9-02 regression: shell invocation contracts', () => {
     const decoded = Buffer.from(invocation.args[6], 'base64').toString('utf16le');
     expect(decoded).toContain('Write-Output hi');
     expect(decoded).toContain('[Console]::OutputEncoding=[System.Text.Encoding]::UTF8');
-    expect(decoded).toContain('if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }');
+    expect(decoded).toContain('$a9NativeExitCode = $LASTEXITCODE');
+    expect(decoded).toContain('if ($null -ne $a9NativeExitCode) { exit [int]$a9NativeExitCode }');
+  });
+
+  it('separates a native command from exit normalization on Win7 PowerShell', () => {
+    const command = "& 'C:\\acceptance\\mvp_mingit\\cmd\\git.exe' push origin main";
+    const invocation = buildTrustedShellInvocation('powershell', 'powershell.exe', command);
+    const decoded = Buffer.from(invocation.args[6], 'base64').toString('utf16le');
+    expect(decoded).toContain(`${command}\r\n`);
+    expect(decoded).not.toContain(`${command} if (`);
+    expect(decoded).toContain('$a9CommandSucceeded = $?');
+    expect(decoded).toContain('$a9NativeExitCode = $LASTEXITCODE');
+  });
+
+  it('does not append normalization tokens to an explicit CMD payload', () => {
+    const command = 'cmd.exe /d /v:off /c \'set "GIT_CONFIG_COUNT=1" && C:\\acceptance\\mvp_mingit\\cmd\\git.exe push origin main\'';
+    const invocation = buildTrustedShellInvocation('powershell', 'powershell.exe', command);
+    const decoded = Buffer.from(invocation.args[6], 'base64').toString('utf16le');
+    expect(decoded).toContain(`${command}\r\n$a9CommandSucceeded = $?`);
+    expect(decoded).not.toContain(`${command} if (`);
   });
 
   it('builds CMD /d /s /c invocation and requires verbatim args', () => {

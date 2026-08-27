@@ -131,6 +131,24 @@ describe('PolicyEngine', () => {
       expect(decision.allowed).toBe(true);
       expect(decision.ruleId).toBe('POLICY_FULL_ACCESS_ALLOWED');
     });
+
+    it('asks before a git push hidden inside a compound CMD payload', () => {
+      const decision = engine.evaluate({
+        id: 'call-cmd-push',
+        toolName: 'shell',
+        args: {
+          command: 'cmd.exe /d /v:off /c \'set "GIT_CONFIG_COUNT=1" && C:\\tools\\git.exe push a9-win7-13 main:main\'',
+        },
+        approvalLevel: ApprovalLevel.FULL_ACCESS,
+      });
+      expect(decision).toMatchObject({
+        allowed: false,
+        verdict: PolicyVerdict.ASK,
+        ruleId: 'POLICY_ALWAYS_CONFIRM_REQUIRED',
+      });
+      expect(decision.reason).toContain('remote=a9-win7-13');
+      expect(decision.reason).toContain('branch=main');
+    });
   });
 
   it('evaluates approval facts without consulting a token store', () => {

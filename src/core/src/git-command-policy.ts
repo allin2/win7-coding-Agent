@@ -80,13 +80,75 @@ export function tokenizeCommand(command: string): string[] {
   return tokens;
 }
 
-function findGitStart(tokens: string[]): number {
-  // 支持前置包装（env VAR=x git ...、cd x && git ... 之外的常见形式只按 token 序列识别）。
-  for (let i = 0; i < tokens.length; i += 1) {
-    const t = tokens[i].toLowerCase();
-    if (t === 'git' || t === 'git.exe' || t.endsWith('/git') || t.endsWith('\\git.exe') || t.endsWith('/git.exe')) return i;
+function isGitExecutable(token: string): boolean {
+  const value = token.replace(/^@/, '').toLowerCase();
+  return value === 'git' || value === 'git.exe' || value.endsWith('/git') ||
+    value.endsWith('\\git.exe') || value.endsWith('/git.exe');
+}
+
+function executableIndex(tokens: string[]): number {
+  let index = 0;
+  while (index < tokens.length && (tokens[index] === '&' || tokens[index].toLowerCase() === 'call')) index += 1;
+  if (tokens[index]?.toLowerCase() === 'env') {
+    index += 1;
+    while (index < tokens.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[index]) || tokens[index].startsWith('-'))) index += 1;
   }
-  return -1;
+  return index;
+}
+
+function shellBasename(token: string): string {
+  return token.replace(/^@/, '').replace(/\\/g, '/').split('/').pop()!.toLowerCase();
+}
+
+/** Split executable command segments while preserving text inside shell quotes. */
+function splitShellSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | undefined;
+  for (let index = 0; index < command.length; index += 1) {
+    const ch = command[index];
+    if (quote) {
+      current += ch;
+      if (ch === quote && command[index - 1] !== '\\') quote = undefined;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === ';' || ch === '\n' || ch === '\r' || ch === '|' || ch === '&') {
+      if (current.trim()) segments.push(current.trim());
+      current = '';
+      if ((ch === '|' || ch === '&') && command[index + 1] === ch) index += 1;
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) segments.push(current.trim());
+  return segments;
+}
+
+function unwrapShellPayload(tokens: string[], start: number): string | undefined {
+  const shell = shellBasename(tokens[start] || '');
+  if (shell === 'cmd' || shell === 'cmd.exe') {
+    const commandIndex = tokens.findIndex((token, index) => index > start && token.toLowerCase() === '/c');
+    return commandIndex >= 0 ? tokens.slice(commandIndex + 1).join(' ') : undefined;
+  }
+  if (shell === 'powershell' || shell === 'powershell.exe' || shell === 'pwsh' || shell === 'pwsh.exe') {
+    const encodedIndex = tokens.findIndex((token, index) => index > start && /^-(?:encodedcommand|enc)$/i.test(token));
+    if (encodedIndex >= 0 && tokens[encodedIndex + 1]) {
+      try {
+        const decoded = Buffer.from(tokens[encodedIndex + 1], 'base64').toString('utf16le');
+        return decoded.length <= 256 * 1024 ? decoded : undefined;
+      } catch (_error) {
+        return undefined;
+      }
+    }
+    const commandIndex = tokens.findIndex((token, index) => index > start && /^-(?:command|c)$/i.test(token));
+    return commandIndex >= 0 ? tokens.slice(commandIndex + 1).join(' ') : undefined;
+  }
+  return undefined;
 }
 
 const READ_ONLY_SUBCOMMANDS = new Set([
@@ -106,9 +168,51 @@ const AUTONOMOUS_LOCAL_WRITE = new Set([
  * （由其他 shell 策略处理）。
  */
 export function classifyGitCommand(command: string): GitCommandDecision | null {
-  const tokens = tokenizeCommand(command);
-  const gitIndex = findGitStart(tokens);
-  if (gitIndex < 0) return null;
+  const decisions = collectGitDecisions(command, command, 0);
+  if (decisions.length === 0) return null;
+  const rank: Record<GitCommandCategory, number> = {
+    autonomous: 1,
+    commit_requires_user_request: 2,
+    always_confirm: 3,
+  };
+  const highestRank = Math.max(...decisions.map((decision) => rank[decision.category]));
+  const highest = decisions.filter((decision) => rank[decision.category] === highestRank);
+  const selected = highest[0];
+  const summaries = Array.from(new Set(highest.map((decision) => decision.binding.summary)));
+  return {
+    ...selected,
+    binding: {
+      ...selected.binding,
+      ...(summaries.length > 1 ? { summary: `compound git operations: ${summaries.join(' | ')}`.slice(0, 320) } : {}),
+    },
+    ...(summaries.length > 1
+      ? { reason: `复合 Shell 包含 ${summaries.length} 个同级 Git 操作，整条原始命令需要一次性目标绑定确认` }
+      : {}),
+    mutatesWorktree: decisions.some((decision) => decision.mutatesWorktree),
+  };
+}
+
+function collectGitDecisions(command: string, originalCommand: string, depth: number): GitCommandDecision[] {
+  if (depth > 4 || command.length > 256 * 1024) return [];
+  const decisions: GitCommandDecision[] = [];
+  for (const segment of splitShellSegments(command)) {
+    const tokens = tokenizeCommand(segment);
+    const start = executableIndex(tokens);
+    if (start >= tokens.length) continue;
+    if (isGitExecutable(tokens[start])) {
+      decisions.push(classifyGitTokens(tokens.slice(start), originalCommand));
+      continue;
+    }
+    const payload = unwrapShellPayload(tokens, start);
+    if (payload !== undefined && payload.trim() !== segment.trim()) {
+      decisions.push(...collectGitDecisions(payload, originalCommand, depth + 1));
+    }
+  }
+  return decisions;
+}
+
+function classifyGitTokens(tokens: string[], originalCommand: string): GitCommandDecision {
+  const gitIndex = 0;
 
   const rest = tokens.slice(gitIndex + 1);
   // 跳过全局选项及其带值参数。
@@ -124,7 +228,7 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
   if (!subcommand) {
     return {
       category: 'autonomous',
-      binding: bindingFor(command, { summary: 'git (no subcommand)' }),
+      binding: bindingFor(originalCommand, { summary: 'git (no subcommand)' }),
       reason: 'bare git invocation treated as read-only',
       mutatesWorktree: false,
     };
@@ -141,7 +245,7 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
     const deletesRemoteRef = args.some((a) => a === '--delete' || a === '-d');
     return {
       category: 'always_confirm',
-      binding: bindingFor(command, {
+      binding: bindingFor(originalCommand, {
         remote,
         branch,
         force: force || (refspec !== undefined && refspec.startsWith('+')),
@@ -158,19 +262,19 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
     if (hard) {
       return {
         category: 'always_confirm',
-        binding: bindingFor(command, { force: true, summary: `git reset --hard ${args.filter((a) => !a.startsWith('-')).join(' ')}`.trim() }),
+        binding: bindingFor(originalCommand, { force: true, summary: `git reset --hard ${args.filter((a) => !a.startsWith('-')).join(' ')}`.trim() }),
         reason: 'git reset --hard 丢弃工作区/索引修改，破坏性操作',
         mutatesWorktree: true,
       };
     }
-    return autonomous(command, 'git reset (soft/mixed) is a local operation', true);
+    return autonomous(originalCommand, 'git reset (soft/mixed) is a local operation', true);
   }
 
   if (subcommand === 'clean') {
     const target = args.filter((a) => !a.startsWith('-')).join(' ');
     return {
       category: 'always_confirm',
-      binding: bindingFor(command, { deleteTarget: target || '.', force: true, summary: `git clean ${args.join(' ')}` }),
+      binding: bindingFor(originalCommand, { deleteTarget: target || '.', force: true, summary: `git clean ${args.join(' ')}` }),
       reason: 'git clean 删除未跟踪文件，破坏性操作',
       mutatesWorktree: true,
     };
@@ -184,23 +288,23 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
       if (looksRemote || args.some((a) => a === '-D')) {
         return {
           category: 'always_confirm',
-          binding: bindingFor(command, { deleteTarget: target, force: args.some((a) => a === '-D'), summary: `git branch delete ${target}` }),
+          binding: bindingFor(originalCommand, { deleteTarget: target, force: args.some((a) => a === '-D'), summary: `git branch delete ${target}` }),
           reason: '删除分支（远端或强制）是破坏性操作',
           mutatesWorktree: true,
         };
       }
       return {
         category: 'always_confirm',
-        binding: bindingFor(command, { deleteTarget: target, force: false, summary: `git branch delete ${target}` }),
+        binding: bindingFor(originalCommand, { deleteTarget: target, force: false, summary: `git branch delete ${target}` }),
         reason: '删除本地分支需要确认',
         mutatesWorktree: true,
       };
     }
     // branch 列表/创建。
     if (args.filter((a) => !a.startsWith('-')).length === 0) {
-      return autonomous(command, 'git branch listing is read-only');
+      return autonomous(originalCommand, 'git branch listing is read-only');
     }
-    return autonomous(command, 'git branch create/rename is a local write', true);
+    return autonomous(originalCommand, 'git branch create/rename is a local write', true);
   }
 
   if (subcommand === 'tag') {
@@ -208,18 +312,18 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
       const target = lastNonFlag(args) ?? '';
       return {
         category: 'always_confirm',
-        binding: bindingFor(command, { deleteTarget: target, summary: `git tag delete ${target}` }),
+        binding: bindingFor(originalCommand, { deleteTarget: target, summary: `git tag delete ${target}` }),
         reason: '删除标签需要确认',
         mutatesWorktree: true,
       };
     }
-    return autonomous(command, 'git tag create/list is local', args.filter((a) => !a.startsWith('-')).length > 0);
+    return autonomous(originalCommand, 'git tag create/list is local', args.filter((a) => !a.startsWith('-')).length > 0);
   }
 
   if (subcommand === 'commit') {
     return {
       category: 'commit_requires_user_request',
-      binding: bindingFor(command, { summary: `git commit ${args.filter((a) => !a.startsWith('-')).join(' ')}`.trim() }),
+      binding: bindingFor(originalCommand, { summary: `git commit ${args.filter((a) => !a.startsWith('-')).join(' ')}`.trim() }),
       reason: '仅在用户明确要求时才创建 commit',
       mutatesWorktree: true,
     };
@@ -230,22 +334,22 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
     if (subcommand === 'remote' && (args[0] === 'add' || args[0] === 'remove' || args[0] === 'rm' || args[0] === 'set-url')) {
       return {
         category: 'always_confirm',
-        binding: bindingFor(command, { remote: lastNonFlag(args), summary: `git remote ${args.join(' ')}` }),
+        binding: bindingFor(originalCommand, { remote: lastNonFlag(args), summary: `git remote ${args.join(' ')}` }),
         reason: '修改 remote 配置需要确认',
         mutatesWorktree: false,
       };
     }
-    return autonomous(command, `git ${subcommand} is read-only`);
+    return autonomous(originalCommand, `git ${subcommand} is read-only`);
   }
 
   if (AUTONOMOUS_LOCAL_WRITE.has(subcommand)) {
-    return autonomous(command, `git ${subcommand} is a local operation`, MUTATING_LOCAL_SUBCOMMANDS.has(subcommand));
+    return autonomous(originalCommand, `git ${subcommand} is a local operation`, MUTATING_LOCAL_SUBCOMMANDS.has(subcommand));
   }
 
   // 未知子命令：保守按需确认，防止新破坏性子命令绕过。
   return {
     category: 'always_confirm',
-    binding: bindingFor(command, { summary: `git ${subcommand} ${args.join(' ')}`.slice(0, 160) }),
+    binding: bindingFor(originalCommand, { summary: `git ${subcommand} ${args.join(' ')}`.slice(0, 160) }),
     reason: `git 子命令 ${subcommand} 未在策略中列为可自主执行，保守要求确认`,
     mutatesWorktree: true,
   };

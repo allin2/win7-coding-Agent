@@ -507,11 +507,15 @@ export function buildTrustedShellInvocation(
 ): { exe: string; args: string[]; verbatim: boolean } {
   if (shellKind === 'powershell') {
     const wrappedScript = [
-      '$ProgressPreference=\'SilentlyContinue\';',
-      '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;',
+      '$ProgressPreference=\'SilentlyContinue\'',
+      '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8',
       command,
-      'if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }',
-    ].join(' ');
+      '$a9CommandSucceeded = $?',
+      '$a9NativeExitCode = $LASTEXITCODE',
+      'if ($null -ne $a9NativeExitCode) { exit [int]$a9NativeExitCode }',
+      'if (-not $a9CommandSucceeded) { exit 1 }',
+      'exit 0',
+    ].join('\r\n');
     const encodedCommand = Buffer.from(wrappedScript, 'utf16le').toString('base64');
     return {
       exe: shellExe,
