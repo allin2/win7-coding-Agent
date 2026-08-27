@@ -35,12 +35,31 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain('snapshot.controls && snapshot.controls.canStop');
     expect(script).toContain("stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止'");
     expect(script).toContain('function renderConversation(snapshot)');
+    expect((html.match(/id="rail-stop"/g) || [])).toHaveLength(1);
+    expect(script).toContain("el('rail-stop').addEventListener('click'");
+  });
+
+  it('provides isolated conversation navigation and per-conversation encrypted drafts', () => {
+    ['conversation-new', 'conversation-list', 'conversation-rename', 'conversation-archive', 'conversation-archive-list'].forEach((id) => {
+      expect(html).toContain(`id="${id}"`);
+    });
+    expect(script).toContain('function renderConversationDirectory(snapshot)');
+    expect(script).toContain('a9.createConversation()');
+    expect(script).toContain('a9.activateConversation(conversationId)');
+    expect(script).toContain('a9.archiveConversation(state.activeConversationId)');
+    expect(script).toContain('a9.restoreConversation(conversationId)');
+    expect(script).toContain("root.setTimeout(() => { void saveDraftNow(); }, 450)");
+    expect(script).toContain("a9.saveDraft(el('task-prompt').value)");
+    expect(css).toContain('.conversation-directory');
+    expect(css).toContain('.conversation-list');
   });
 
   it('shows complete checkpoint identities and rebuilds persisted conversation cards', () => {
     expect(script).toContain('identity.textContent = String(checkpoint.turnId);');
     expect(script).toContain('identity.title = String(checkpoint.turnId);');
     expect(script).not.toContain('String(checkpoint.turnId).slice(0, 16)');
+    expect(script).toContain("copy.textContent = '复制 ID';");
+    expect(script).toContain('copyText(String(checkpoint.turnId))');
     expect(script).toContain('const facts = snapshot.conversation || [];');
     expect(css).toContain('.checkpoint-id');
     expect(css).toContain('overflow-wrap: anywhere');
@@ -49,6 +68,16 @@ describe('A9 unified desktop workbench contract', () => {
   it('waits for A9 managed-process cleanup before Electron quits', () => {
     expect(main).toContain("app.on('before-quit', beginA9ShutdownBeforeQuit)");
     expect(main).toContain('await a9RuntimeInstance.shutdown()');
+    expect(main).toContain('A9_SHUTDOWN_RESIDUE');
+    expect(main).toContain("dialog.showErrorBox('无法确认安全退出'");
+  });
+
+  it('binds approvals to conversation/task/turn and disables both actions while processing', () => {
+    expect(script).toContain('card.dataset.conversationId = pending.conversationId');
+    expect(script).toContain('card.dataset.taskId = pending.taskId');
+    expect(script).toContain('card.dataset.turnId = pending.turnId');
+    expect(script).toContain('a9.resumeApproval(approvalId, decision, bindingDigest, conversationId, taskId, turnId)');
+    expect(script).toContain("button.textContent = busy ? '处理中…' : label");
   });
 
   it('drives the production workbench contract in the formal Electron smoke', () => {

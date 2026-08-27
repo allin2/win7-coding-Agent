@@ -28,6 +28,10 @@
     insecureConfirmed: false,
     providerHydratedSignature: null,
     conversationSignature: null,
+    activeConversationId: null,
+    draftHydratedConversationId: null,
+    draftTimer: null,
+    draftSaving: false,
   };
 
   function el(id) { return document.getElementById(id); }
@@ -102,6 +106,7 @@
     const prompt = el('task-prompt');
     const send = el('run-task');
     const stop = el('cancel-task');
+    const railStop = el('rail-stop');
     const hasManaged = activeManagedProcesses(snapshot).length > 0;
     const canStop = state.running || hasManaged || Boolean(snapshot && snapshot.controls && snapshot.controls.canStop);
     const stopKind = state.running
@@ -110,9 +115,13 @@
     prompt.disabled = blockedMode || blockedApproval || state.running;
     send.hidden = state.running;
     stop.hidden = !canStop;
+    railStop.hidden = !canStop;
     send.disabled = !canSubmit();
     stop.disabled = !canStop;
-    text('cancel-task-label', stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止');
+    railStop.disabled = !canStop;
+    const stopLabel = stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止';
+    text('cancel-task-label', stopLabel);
+    text('rail-stop-label', stopLabel);
     if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
     else if (blockedApproval) text('session-status', '先处理当前绑定审批；同一工作区一次只执行一个 A9 任务。');
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
@@ -237,12 +246,19 @@
     if (!pending) {
       delete card.dataset.approvalId;
       delete card.dataset.bindingDigest;
+      delete card.dataset.conversationId;
+      delete card.dataset.taskId;
+      delete card.dataset.turnId;
       setFieldError('a9-approval-error', '');
+      setApprovalBusy(false);
       return;
     }
     if (card.dataset.approvalId !== pending.approvalId) setFieldError('a9-approval-error', '');
     card.dataset.approvalId = pending.approvalId;
     card.dataset.bindingDigest = pending.bindingDigest;
+    card.dataset.conversationId = pending.conversationId;
+    card.dataset.taskId = pending.taskId;
+    card.dataset.turnId = pending.turnId;
     text('a9-approval-tool', pending.toolName || 'operation');
     text('a9-approval-summary', pending.summary || '高影响操作需要确认。');
     text('a9-approval-id', `approval: ${pending.approvalId}`);
@@ -310,8 +326,17 @@
       undo.textContent = '撤销';
       undo.setAttribute('aria-label', `撤销 ${checkpoint.turnId}`);
       undo.addEventListener('click', () => { void undoTurn(checkpoint.turnId); });
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.textContent = '复制 ID';
+      copy.setAttribute('aria-label', `复制完整 Turn ID ${checkpoint.turnId}`);
+      copy.addEventListener('click', () => {
+        const copied = copyText(String(checkpoint.turnId));
+        copy.textContent = copied ? '已复制' : '复制失败';
+      });
       actions.appendChild(diff);
       actions.appendChild(undo);
+      actions.appendChild(copy);
       item.appendChild(identity);
       item.appendChild(actions);
       list.appendChild(item);
@@ -320,10 +345,10 @@
 
   function renderConversation(snapshot) {
     const facts = snapshot.conversation || [];
-    const signature = JSON.stringify(facts.map((fact) => [
+    const signature = JSON.stringify([snapshot.activeConversationId, facts.map((fact) => [
       fact.taskId, fact.turnId, fact.outcome, fact.updatedAt,
       String(fact.requestPrompt || '').length, String(fact.finalMessage || '').length,
-    ]));
+    ])]);
     if (state.conversationSignature === signature) return;
     state.conversationSignature = signature;
     const stream = el('a9-task-stream');
@@ -348,8 +373,77 @@
     });
   }
 
+  function conversationStatusLabel(activity) {
+    if (activity === 'running') return '运行中';
+    if (activity === 'waiting_approval') return '待审批';
+    if (activity === 'interrupted') return '已中断';
+    return '空闲';
+  }
+
+  function appendConversationRow(list, conversation, snapshot, archived) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.disabled = archived || !(snapshot.conversationControls && snapshot.conversationControls.canSwitch)
+      || conversation.sessionId === snapshot.activeConversationId;
+    button.setAttribute('aria-current', String(conversation.sessionId === snapshot.activeConversationId));
+    button.title = conversation.title;
+    const title = document.createElement('strong');
+    const meta = document.createElement('small');
+    title.textContent = conversation.title || '新对话';
+    const updated = conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString() : '';
+    meta.textContent = `${conversationStatusLabel(conversation.activity)}${updated ? ` · ${updated}` : ''}`;
+    button.appendChild(title);
+    button.appendChild(meta);
+    if (!archived) button.addEventListener('click', () => { void switchConversation(conversation.sessionId); });
+    item.appendChild(button);
+    if (archived) {
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.className = 'conversation-restore';
+      restore.textContent = '恢复';
+      restore.disabled = !(snapshot.conversationControls && snapshot.conversationControls.canSwitch);
+      restore.addEventListener('click', () => { void restoreConversation(conversation.sessionId); });
+      item.appendChild(restore);
+    }
+    list.appendChild(item);
+  }
+
+  function renderConversationDirectory(snapshot) {
+    const conversations = snapshot.conversations || [];
+    const active = conversations.filter((item) => item.state === 'active');
+    const archived = conversations.filter((item) => item.state === 'archived');
+    const controls = snapshot.conversationControls || { canSwitch: false, maxActive: 16 };
+    const activeList = el('conversation-list');
+    const archivedList = el('conversation-archive-list');
+    activeList.textContent = '';
+    archivedList.textContent = '';
+    active.forEach((item) => appendConversationRow(activeList, item, snapshot, false));
+    archived.forEach((item) => appendConversationRow(archivedList, item, snapshot, true));
+    text('conversation-archive-count', archived.length);
+    el('conversation-archive-section').hidden = archived.length === 0;
+    el('conversation-new').disabled = !controls.canSwitch || active.length >= controls.maxActive;
+    el('conversation-rename').disabled = !snapshot.activeConversationId;
+    el('conversation-archive').disabled = !controls.canSwitch || !snapshot.activeConversationId;
+    text('conversation-directory-note', controls.canSwitch
+      ? `${active.length}/${controls.maxActive} 个未归档对话`
+      : `已锁定：${controls.reason || '当前任务尚未结束'}`);
+    const current = conversations.find((item) => item.sessionId === snapshot.activeConversationId);
+    if (current) text('workbench-title', current.title || '和工作区一起完成任务');
+  }
+
+  function hydrateDraft(snapshot) {
+    if (!snapshot.activeConversationId || state.draftHydratedConversationId === snapshot.activeConversationId) return;
+    state.draftHydratedConversationId = snapshot.activeConversationId;
+    const draft = snapshot.draft || { text: '', persistence: 'memory' };
+    el('task-prompt').value = draft.text || '';
+    text('draft-status', draft.note || (draft.persistence === 'dpapi' ? '草稿已由 Windows DPAPI 为当前用户保护。' : '草稿仅在当前进程保留。'));
+    resizeComposer();
+  }
+
   function renderSnapshot(snapshot) {
     state.snapshot = snapshot;
+    state.activeConversationId = snapshot.activeConversationId || null;
     const surface = el('a9-surface');
     surface.hidden = false;
     surface.dataset.a9Status = snapshot.status || 'unknown';
@@ -396,7 +490,13 @@
     renderApproval(snapshot);
     renderTimeline(snapshot);
     renderCheckpoints(snapshot);
+    renderConversationDirectory(snapshot);
     renderConversation(snapshot);
+    hydrateDraft(snapshot);
+    const context = snapshot.contextWindow || {};
+    const contextNote = el('context-window-note');
+    contextNote.hidden = !context.note;
+    contextNote.textContent = context.note || '';
     configureModeDialog(snapshot, false);
     const active = ['running', 'cancelling'].includes(snapshot.agentStatus);
     const managedActive = activeManagedProcesses(snapshot).length;
@@ -437,6 +537,93 @@
     }
   }
 
+  async function saveDraftNow() {
+    if (!a9 || !state.activeConversationId) return null;
+    if (state.draftTimer) {
+      root.clearTimeout(state.draftTimer);
+      state.draftTimer = null;
+    }
+    state.draftSaving = true;
+    try {
+      const response = await a9.saveDraft(el('task-prompt').value);
+      if (response && response.note) text('draft-status', response.note);
+      else if (response && response.persistence === 'dpapi') text('draft-status', '草稿已由 Windows DPAPI 为当前用户保护。');
+      return response;
+    } finally {
+      state.draftSaving = false;
+    }
+  }
+
+  function scheduleDraftSave() {
+    if (state.draftTimer) root.clearTimeout(state.draftTimer);
+    text('draft-status', '正在保存当前对话草稿…');
+    state.draftTimer = root.setTimeout(() => { void saveDraftNow(); }, 450);
+  }
+
+  async function runConversationOperation(operation) {
+    clearGlobalError();
+    try {
+      await saveDraftNow();
+      const response = await operation();
+      if (!response || response.ok !== true) {
+        showGlobalError(errorMessage(response, '对话操作失败。'), '刷新状态', () => { void refreshSnapshot(); });
+        return response;
+      }
+      state.conversationSignature = null;
+      state.draftHydratedConversationId = null;
+      await refreshSnapshot();
+      closeNavigation();
+      return response;
+    } catch (error) {
+      showGlobalError(errorMessage(error, '对话操作失败。'), '刷新状态', () => { void refreshSnapshot(); });
+      return null;
+    }
+  }
+
+  function createConversation() {
+    return runConversationOperation(() => a9.createConversation());
+  }
+
+  function switchConversation(conversationId) {
+    if (conversationId === state.activeConversationId) return Promise.resolve(null);
+    return runConversationOperation(() => a9.activateConversation(conversationId));
+  }
+
+  function restoreConversation(conversationId) {
+    return runConversationOperation(() => a9.restoreConversation(conversationId));
+  }
+
+  function archiveCurrentConversation() {
+    if (!state.activeConversationId) return Promise.resolve(null);
+    return runConversationOperation(() => a9.archiveConversation(state.activeConversationId));
+  }
+
+  function openRenameConversation() {
+    const current = ((state.snapshot && state.snapshot.conversations) || [])
+      .find((item) => item.sessionId === state.activeConversationId);
+    if (!current) return;
+    el('conversation-rename-input').value = current.title || '';
+    setFieldError('conversation-rename-error', '');
+    openDialog(el('conversation-rename-dialog'));
+    el('conversation-rename-input').focus();
+    el('conversation-rename-input').select();
+  }
+
+  async function applyConversationRename() {
+    const title = el('conversation-rename-input').value.trim();
+    if (!title) {
+      setFieldError('conversation-rename-error', '对话名称不能为空。');
+      return;
+    }
+    const response = await a9.renameConversation(state.activeConversationId, title);
+    if (!response || response.ok !== true) {
+      setFieldError('conversation-rename-error', errorMessage(response, '重命名失败。'));
+      return;
+    }
+    closeDialog(el('conversation-rename-dialog'));
+    await refreshSnapshot();
+  }
+
   async function ensureExplorerSession(workspaceRoot) {
     if (!workspaceRoot || state.explorerSessionId) return;
     const result = await api.listSessions();
@@ -451,6 +638,7 @@
   async function chooseWorkspace() {
     clearGlobalError();
     try {
+      await saveDraftNow();
       const result = await api.selectWorkspace();
       if (!result || !result.selected) return;
       let sessionsResult = await api.listSessions();
@@ -579,9 +767,10 @@
   }
 
   function setApprovalBusy(busy) {
-    ['a9-approval-approve', 'a9-approval-deny'].forEach((id) => {
+    [['a9-approval-approve', '批准此操作'], ['a9-approval-deny', '拒绝']].forEach(([id, label]) => {
       const button = el(id);
       button.disabled = busy;
+      button.textContent = busy ? '处理中…' : label;
       if (busy) button.setAttribute('aria-busy', 'true');
       else button.removeAttribute('aria-busy');
     });
@@ -593,12 +782,15 @@
     if (card.hidden || !card.dataset.approvalId) return null;
     const approvalId = card.dataset.approvalId;
     const bindingDigest = card.dataset.bindingDigest;
+    const conversationId = card.dataset.conversationId;
+    const taskId = card.dataset.taskId;
+    const turnId = card.dataset.turnId;
     setFieldError('a9-approval-error', '');
     setApprovalBusy(true);
     state.approvalDecision = (async () => {
       let response;
       try {
-        response = await a9.resumeApproval(approvalId, decision, bindingDigest);
+        response = await a9.resumeApproval(approvalId, decision, bindingDigest, conversationId, taskId, turnId);
         if (!response || response.ok !== true) {
           setFieldError('a9-approval-error', errorMessage(response, '审批回复失败，请刷新状态后重试。'));
           return response;
@@ -833,17 +1025,39 @@
     text('a9-output-note', copied ? '已复制当前可见输出。' : '复制不可用，请手工选择输出。');
   }
 
+  function copyText(value) {
+    const input = document.createElement('textarea');
+    input.value = String(value);
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+    input.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (_error) { copied = false; }
+    document.body.removeChild(input);
+    return copied;
+  }
+
   function bind() {
     el('workspace-select').addEventListener('click', () => { void chooseWorkspace(); });
-    el('task-prompt').addEventListener('input', resizeComposer);
+    el('task-prompt').addEventListener('input', () => { resizeComposer(); scheduleDraftSave(); });
+    el('task-prompt').addEventListener('blur', () => { void saveDraftNow(); });
     el('task-prompt').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
     });
     el('run-task').addEventListener('click', () => { void submitPrompt(); });
     el('cancel-task').addEventListener('click', () => { void stopTurn(); });
+    el('rail-stop').addEventListener('click', () => { void stopTurn(); });
+    el('conversation-new').addEventListener('click', () => { void createConversation(); });
+    el('conversation-rename').addEventListener('click', openRenameConversation);
+    el('conversation-archive').addEventListener('click', () => { void archiveCurrentConversation(); });
+    el('conversation-rename-cancel').addEventListener('click', () => closeDialog(el('conversation-rename-dialog')));
+    el('conversation-rename-apply').addEventListener('click', () => { void applyConversationRename(); });
     document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => {
       el('task-prompt').value = button.dataset.prompt;
       resizeComposer();
+      scheduleDraftSave();
       el('task-prompt').focus();
     }));
     el('a9-mode-open').addEventListener('click', () => { if (state.snapshot) configureModeDialog(state.snapshot, true); });

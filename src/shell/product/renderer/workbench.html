@@ -24,10 +24,18 @@
         <button class="nav-item active" type="button" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h7"/></svg><span>任务</span><i>当前</i></button>
         <button class="nav-item roadmap" type="button" disabled aria-disabled="true" title="完整 Review 工作流计划在 Alpha 2 提供"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>Review</span><i>Alpha 2</i></button>
       </nav>
+      <section class="conversation-directory" aria-labelledby="conversation-directory-title">
+        <header><span id="conversation-directory-title" class="eyebrow">CONVERSATIONS</span><button id="conversation-new" type="button" title="新建对话" aria-label="新建对话">+</button></header>
+        <ul id="conversation-list" class="conversation-list" aria-label="当前工作区对话"></ul>
+        <div class="conversation-current-actions"><button id="conversation-rename" type="button">重命名</button><button id="conversation-archive" type="button">归档</button></div>
+        <details id="conversation-archive-section" class="conversation-archive-section"><summary>已归档 <span id="conversation-archive-count">0</span></summary><ul id="conversation-archive-list" class="conversation-list archived" aria-label="已归档对话"></ul></details>
+        <p id="conversation-directory-note" class="quiet"></p>
+      </section>
       <section class="rail-task" aria-labelledby="rail-task-title">
         <span id="rail-task-title" class="eyebrow">CURRENT TASK</span>
         <div class="rail-task-state"><i aria-hidden="true"></i><strong id="rail-task-value">等待任务</strong></div>
         <p id="rail-task-detail">选择工作区并确认权限后开始。</p>
+        <button id="rail-stop" class="rail-stop" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span id="rail-stop-label">停止</span></button>
       </section>
       <div class="rail-spacer"></div>
       <div class="trust-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6zM9 12l2 2 4-5"/></svg><p><strong>可信工作区</strong><span>Full Access 使用当前 Windows 用户权限，不是安全沙箱。</span></p></div>
@@ -63,6 +71,7 @@
             <button type="button" data-prompt="检查中文路径、编码、CRLF 与 Windows 7 兼容风险。"><span>检查 Win7 兼容性</span><b aria-hidden="true">→</b></button>
           </div>
         </section>
+        <p id="context-window-note" class="context-window-note" hidden></p>
         <div id="a9-task-stream" class="task-stream"></div>
       </div>
       <footer class="composer-wrap">
@@ -76,7 +85,7 @@
           <textarea id="task-prompt" name="task-prompt" rows="1" maxlength="8000" autocomplete="off" placeholder="描述要完成的任务，或询问当前代码…" aria-describedby="composer-guidance session-status"></textarea>
           <div class="composer-bar"><span id="composer-guidance" class="composer-guidance"><b>Enter</b> 发送 <i>·</i> <b>Shift+Enter</b> 换行</span><button id="run-task" class="send" type="button" disabled aria-label="发送任务"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 7l5 5-5 5"/></svg><span>发送</span></button><button id="cancel-task" class="stop" type="button" hidden disabled aria-label="停止任务或后台进程"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span id="cancel-task-label">停止</span></button></div>
         </div>
-        <p id="session-status" class="status-line" aria-live="polite">选择一个本地工作区开始。模型不能绕过批准、Runner 或审计边界。</p>
+        <p id="session-status" class="status-line" aria-live="polite">选择一个本地工作区开始。模型不能绕过批准、Runner 或审计边界。</p><p id="draft-status" class="draft-status" aria-live="polite"></p>
       </footer>
     </section>
 
@@ -101,6 +110,8 @@
 
   <div id="settings-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="settings-drawer" aria-label="关闭设置"></button><section class="drawer-panel settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title"><header><div><span class="eyebrow">PROVIDER SETTINGS</span><h2 id="settings-title">模型连接</h2><p>配置支持原生 tool_calls 的模型服务。密钥不会回显到界面或诊断。</p></div><button type="button" class="icon-button" data-close="settings-drawer" aria-label="关闭设置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header><div class="settings-status"><span id="a9-provider-key-state">key: 未配置</span><span id="a9-provider-probe-state">未探测</span></div><label for="a9-provider-url">Base URL</label><input id="a9-provider-url" type="url" autocomplete="url" placeholder="https://provider.example/v1"><label for="a9-provider-model">模型 ID</label><input id="a9-provider-model" type="text" autocomplete="off" placeholder="model-id"><label for="a9-provider-key">API Key</label><input id="a9-provider-key" type="password" autocomplete="off" placeholder="仅在此密码框输入"><label class="check"><input id="a9-provider-remember" type="checkbox"> 使用 Windows DPAPI 为当前用户保存</label><p id="a9-provider-error" class="field-error" role="alert" hidden></p><p id="a9-provider-diagnostics" class="field-error" role="alert" hidden></p><details class="settings-disclosure"><summary>企业网络</summary><div class="settings-group"><label for="a9-provider-ca">CA bundle 路径</label><input id="a9-provider-ca" type="text" autocomplete="off"><label for="a9-provider-header-name">自定义 Header 名</label><input id="a9-provider-header-name" type="text" autocomplete="off"><label for="a9-provider-header-value">Header 值</label><input id="a9-provider-header-value" type="password" autocomplete="off"><div class="field-pair"><label>代理主机<input id="a9-provider-proxy-host" type="text" autocomplete="off"></label><label>代理端口<input id="a9-provider-proxy-port" type="number" min="1" max="65535"></label></div></div></details><details class="settings-disclosure danger-zone"><summary>危险设置</summary><div class="settings-group"><label class="check"><input id="a9-provider-insecure" type="checkbox"> 允许不安全 TLS</label><p>关闭证书验证会暴露模型请求和工作区内容。应用前需要再次确认。</p></div></details><div class="drawer-actions"><button id="a9-provider-probe" class="secondary" type="button">重新探测</button><button id="a9-provider-apply" class="primary" type="button">应用并探测</button></div></section></div>
   <dialog id="a9-insecure-dialog" hidden aria-modal="true" aria-labelledby="a9-insecure-title"><form method="dialog" class="confirmation-dialog"><span class="danger-kicker">DANGER</span><h2 id="a9-insecure-title">确认允许不安全 TLS？</h2><p>这会关闭 Provider 证书验证，可能暴露密钥、提示词和工作区内容。只应在已验证的隔离网络中临时使用。</p><div class="dialog-actions"><button id="a9-insecure-cancel" type="button" class="secondary">返回设置</button><button id="a9-insecure-confirm" type="button" class="danger">仍然应用</button></div></form></dialog>
+
+  <dialog id="conversation-rename-dialog" hidden aria-modal="true" aria-labelledby="conversation-rename-title"><form method="dialog" class="confirmation-dialog"><span class="kicker">CONVERSATION</span><h2 id="conversation-rename-title">重命名当前对话</h2><label for="conversation-rename-input">对话名称</label><input id="conversation-rename-input" type="text" maxlength="80" autocomplete="off"><p id="conversation-rename-error" class="field-error" role="alert" hidden></p><div class="dialog-actions"><button id="conversation-rename-cancel" type="button" class="secondary">取消</button><button id="conversation-rename-apply" type="button" class="primary">保存名称</button></div></form></dialog>
 
   <div id="diagnostics-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="diagnostics-drawer" aria-label="关闭诊断"></button><section class="drawer-panel wide" role="dialog" aria-modal="true" aria-labelledby="diagnostics-title"><header><div><span class="eyebrow">RAW FACTS</span><h2 id="diagnostics-title">诊断与运行时事实</h2></div><button class="icon-button" type="button" data-close="diagnostics-drawer" aria-label="关闭诊断"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header><dl id="diagnostics" class="diagnostics"></dl><button id="refresh-diagnostics" class="secondary" type="button">刷新诊断</button></section></div>
 
