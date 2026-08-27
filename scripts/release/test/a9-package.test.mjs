@@ -89,7 +89,9 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   const packageJson = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
   assert.equal(packageJson.version, '0.3.0-alpha.1');
   assert.equal(packageJson.main, 'product/main.js');
-  assert.equal(packageJson.runtime_profile.state_schema, 3);
+  assert.equal(packageJson.runtime_profile.state_schema, 4);
+  const runtimeProfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'a9-runtime.json'), 'utf8'));
+  assert.equal(runtimeProfile.state_schema, 4);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "ELECTRON_RUN_AS_NODE=1"/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "NODE_OPTIONS="/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /--package-zip=%~f1/);
