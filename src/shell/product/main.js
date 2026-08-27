@@ -874,7 +874,7 @@ function getA9DataRoot() {
   return process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
 }
 
-function getOrCreateA9Runtime() {
+async function getOrCreateA9Runtime() {
   // WIN7AGENT_A9_DATAROOT / WIN7AGENT_A9_ELECTRON_SQLITE 仅供开发机 smoke 显式覆盖；
   // WIN7AGENT_A9_WORKSPACE 仅作显式测试覆盖保留，正式链路以主进程确认的活动工作区为准。
   const a9DataRoot = getA9DataRoot();
@@ -889,7 +889,7 @@ function getOrCreateA9Runtime() {
   }
   // 切换工作区：安全关闭旧 runtime（释放锁/后台进程）；模式、锁与 checkpoint 按工作区隔离。
   if (a9RuntimeInstance && typeof a9RuntimeInstance.shutdown === 'function') {
-    try { a9RuntimeInstance.shutdown(); } catch (_err) { /* best effort */ }
+    try { await a9RuntimeInstance.shutdown(); } catch (_err) { /* 创建新 runtime 时仍由锁 fail-closed */ }
   }
   a9RuntimeInstance = createA9AgentRuntime({
     workspaceRoot: desiredWorkspace,
@@ -909,9 +909,28 @@ ipcMain.handle('product:a9-request', createA9ProductRequestHandler({
   getA9Runtime: getOrCreateA9Runtime,
   isValidRendererSender: validRendererSender,
 }));
-app.on('will-quit', () => {
-  if (a9RuntimeInstance) a9RuntimeInstance.shutdown();
-});
+let a9ShutdownComplete = false;
+let a9ShutdownInFlight = null;
+function beginA9ShutdownBeforeQuit(event) {
+  if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
+  event.preventDefault();
+  if (a9ShutdownInFlight) return;
+  a9ShutdownInFlight = (async () => {
+    try {
+      const result = await a9RuntimeInstance.shutdown();
+      if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
+        runtimeState.errors.push(`a9-shutdown-residue:${result.leftToSystem.join(';')}`);
+      }
+    } catch (error) {
+      runtimeState.errors.push('a9-shutdown:' + String(error && error.message ? error.message : error));
+      process.stderr.write('A9_SHUTDOWN_ERROR:' + String(error && error.stack ? error.stack : error) + '\n');
+    } finally {
+      a9ShutdownComplete = true;
+      app.quit();
+    }
+  })();
+}
+app.on('before-quit', beginA9ShutdownBeforeQuit);
 
 function buildDiagnostics() {
   const diagnostics = desktopHost ? desktopHost.getDiagnostics() : {};

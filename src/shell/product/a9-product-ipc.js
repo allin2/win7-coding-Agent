@@ -55,7 +55,7 @@ function createA9ProductRequestHandler(options) {
       if (!Object.values(A9_ACTIONS).includes(request.action)) {
         throw Object.assign(new Error(`A9_ACTION_UNAVAILABLE:${request.action}`), { code: 'A9_ACTION_UNAVAILABLE' });
       }
-      const runtime = config.getA9Runtime ? config.getA9Runtime() : null;
+      const runtime = config.getA9Runtime ? await config.getA9Runtime() : null;
       if (runtime && runtime.__a9WorkspaceRequired === true) {
         return {
           ok: false,

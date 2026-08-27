@@ -131,6 +131,7 @@ function createA9AgentRuntime(options) {
   let pendingConversationHistory = null;
   // F5：当前 Turn 的 task/turn/run 生命周期句柄。
   let activeLifecycle = null;
+  let shutdownPromise = null;
 
   // ----- Provider（R4：非秘密配置版本化持久化；秘密仅 DPAPI；未配置即拒绝执行） -----
   const PROVIDER_CONFIG_SCHEMA_VERSION = 1;
@@ -290,6 +291,41 @@ function createA9AgentRuntime(options) {
 
   // 独立于 loop 的工作区服务：撤销/Diff/Git 是状态操作，不需要 Provider。
   const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
+  // 后台进程生命周期独立于 Provider/Loop 重建；模型切换不得遗失句柄。
+  const loopTrustedRunner = new modules.runner.TrustedShellRunner();
+
+  function recordManagedHandle(handle) {
+    persistence.recordManagedProcess({
+      handleId: handle.handleId,
+      workspacePath: workspaceRoot,
+      ...(handle.pid ? { pid: handle.pid } : {}),
+      command: handle.command,
+      cwd: handle.cwd,
+      startedAt: handle.startTime,
+      lastProbeStatus: handle.status,
+      pidReusePossible: handle.pidReusePossible === true,
+    });
+  }
+
+  function syncManagedProcessFacts() {
+    const handles = loopTrustedRunner.getBackgroundManager().list();
+    handles.forEach(recordManagedHandle);
+    return persistence.listManagedProcesses(workspaceRoot);
+  }
+
+  // 崩溃恢复只采纳 PID 事实，不重放命令；PID 复用风险保留给显式 Stop 决策。
+  for (const fact of persistence.listManagedProcesses(workspaceRoot)) {
+    if ((fact.lastProbeStatus === 'running' || fact.lastProbeStatus === 'starting') && fact.pid) {
+      try {
+        recordManagedHandle(loopTrustedRunner.getBackgroundManager().adoptRecoveredFact(fact.handleId, {
+          pid: fact.pid,
+          command: fact.command,
+          cwd: fact.cwd,
+          startTime: fact.startedAt,
+        }));
+      } catch (_err) { /* 重复句柄保持现有管理器事实 */ }
+    }
+  }
 
   function ensureRuntime() {
     if (!lockHeld) {
@@ -321,8 +357,7 @@ function createA9AgentRuntime(options) {
     }
     if (!loop) {
       const workspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
-      const trustedRunner = new modules.runner.TrustedShellRunner();
-      const runnerAdapter = modules.runner.createTrustedShellLoopAdapter(trustedRunner);
+      const runnerAdapter = modules.runner.createTrustedShellLoopAdapter(loopTrustedRunner);
       const shellSelection = modules.runner.selectShell({});
       loop = new modules.core.A9AgentLoop({
         workspaceRoot,
@@ -348,6 +383,9 @@ function createA9AgentRuntime(options) {
             type: event.type,
             data: event.data,
           });
+          if (event.type === 'tool_end' && event.data && event.data.toolName === 'shell') {
+            syncManagedProcessFacts();
+          }
         },
         onApprovalPending: (approval) => {
           // 等待用户前持久化 pending 审批（含真实工具与目标绑定）。
@@ -368,7 +406,6 @@ function createA9AgentRuntime(options) {
         },
       });
       loopWorkspaceService = workspaceService;
-      loopTrustedRunner = trustedRunner;
       if (pendingConversationHistory && pendingConversationHistory.length > 0) {
         loop.restoreConversationHistory(pendingConversationHistory);
         pendingConversationHistory = null;
@@ -377,7 +414,6 @@ function createA9AgentRuntime(options) {
     return loop;
   }
   let loopWorkspaceService = null;
-  let loopTrustedRunner = null;
 
   function pushTimeline(event) {
     timeline.push({ type: event.type, turnId: event.turnId, timestamp: event.timestamp, data: event.data });
@@ -756,7 +792,27 @@ function createA9AgentRuntime(options) {
       agentStatus = 'cancelling';
       return { ok: true };
     }
-    return { ok: false, error: { code: 'NO_ACTIVE_TURN' } };
+    const manager = loopTrustedRunner.getBackgroundManager();
+    const active = manager.list().filter((item) => item.status === 'running' || item.status === 'starting');
+    if (active.length === 0) return { ok: false, error: { code: 'NO_ACTIVE_TURN_OR_MANAGED_PROCESS' } };
+    return (async () => {
+      const stopped = [];
+      const errors = [];
+      for (const handle of active) {
+        try {
+          const result = await manager.stop(handle.handleId);
+          recordManagedHandle(result);
+          stopped.push(handle.handleId);
+        } catch (error) {
+          errors.push({ handleId: handle.handleId, message: redactSecrets(error && error.message ? error.message : String(error)) });
+        }
+      }
+      syncManagedProcessFacts();
+      if (errors.length > 0) {
+        return { ok: false, stopped, errors, error: { code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED', message: '部分后台进程清理无法确认，请检查残留。' } };
+      }
+      return { ok: true, stopped };
+    })();
   }
 
   function setMode(mode) {
@@ -809,7 +865,7 @@ function createA9AgentRuntime(options) {
       timeline: timeline.slice(-100),
       checkpoints: persistence.listCheckpoints(a9SessionId),
       interruptions: persistence.listInterruptions(),
-      managedProcesses: persistence.listManagedProcesses(workspaceRoot),
+      managedProcesses: syncManagedProcessFacts(),
     };
   }
 
@@ -835,13 +891,43 @@ function createA9AgentRuntime(options) {
   }
 
   function shutdown() {
-    // 锁的主键必须与 acquireWorkspaceLock 使用完全相同的 canonical 路径。
-    // Windows 上 canonicalWorkspace 会统一为小写；使用原始 workspaceRoot
-    // 会让 SQLite 的区分大小写比较删除不到锁，正常退出后留下 main-<旧 PID>。
-    persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
-    if (loopTrustedRunner) {
-      loopTrustedRunner.getBackgroundManager().dispose({ stopManaged: true }).catch(() => undefined);
+    if (shutdownPromise) return shutdownPromise;
+    const manager = loopTrustedRunner.getBackgroundManager();
+    if (!activeController && manager.getActiveCount() === 0) {
+      // 保留既有无负载关闭语义：无需等待时同步释放锁，紧接着切换/重开
+      // 同一工作区不会短暂误报 A9_WORKSPACE_LOCKED。
+      persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
+      shutdownPromise = Promise.resolve({ stopped: [], leftToSystem: [] });
+      return shutdownPromise;
     }
+    shutdownPromise = (async () => {
+      try {
+        if (activeController) {
+          activeController.abort();
+          agentStatus = 'cancelling';
+          const deadline = Date.now() + 10_000;
+          while (activeController && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+        }
+        const before = manager.list();
+        const result = await manager.dispose({ stopManaged: true });
+        for (const handle of before) {
+          recordManagedHandle({
+            ...handle,
+            status: result.stopped.includes(handle.handleId) ? 'stopped' : handle.status,
+          });
+        }
+        if (activeController) {
+          result.leftToSystem.push('active turn cleanup did not settle before the 10 second shutdown deadline');
+        }
+        return result;
+      } finally {
+        // 锁只在清理等待结束后释放，防止新窗口继承尚未回收的旧 runtime。
+        persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
+      }
+    })();
+    return shutdownPromise;
   }
 
   return {

@@ -188,10 +188,11 @@ export class BackgroundProcessManager {
 
     const { handle, child } = entry;
     if (handle.status === 'running' || handle.status === 'starting') {
-      if (child?.pid) {
-        const kill = await killProcessTree(child.pid);
+      const targetPid = child?.pid ?? handle.pid;
+      if (targetPid) {
+        const kill = await killProcessTree(targetPid);
         if (!kill.success) {
-          throw new Error(`后台进程 ${handleId} (PID ${child.pid}) 清理无法确认: ${kill.error ?? 'unknown'}；可能存在残留，请手工检查。`);
+          throw new Error(`后台进程 ${handleId} (PID ${targetPid}) 清理无法确认: ${kill.error ?? 'unknown'}；可能存在残留，请手工检查。`);
         }
         handle.status = 'stopped';
       } else {
@@ -268,7 +269,10 @@ export class BackgroundProcessManager {
     if (options.stopManaged) {
       for (const [id, entry] of this.processes.entries()) {
         const status = entry.handle.status;
-        if ((status === 'running' || status === 'starting') && entry.child?.pid) {
+        if ((status === 'running' || status === 'starting') && entry.recoveredFact) {
+          // 重启恢复的 PID 可能已复用；应用退出不能代替用户确认去杀未知进程。
+          leftToSystem.push(`${id} (recovered PID fact requires explicit stop confirmation)`);
+        } else if ((status === 'running' || status === 'starting') && entry.child?.pid) {
           const kill = await killProcessTree(entry.child.pid);
           if (kill.success) {
             entry.handle.status = 'stopped';

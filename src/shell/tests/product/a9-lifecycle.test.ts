@@ -97,6 +97,32 @@ function startQuickFixture(): Promise<{ baseUrl: string; close: () => Promise<vo
   });
 }
 
+/** A9SH-03 fixture：启动真实托管后台进程后结束 Turn。 */
+function startBackgroundFixture(): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  const command = `${JSON.stringify(process.execPath)} -e "setInterval(() => {}, 1000)"`;
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
+      req.on('end', () => {
+        const parsed = JSON.parse(body);
+        const toolMsgs = (parsed.messages ?? []).filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo');
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        if (toolMsgs.length === 0) {
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'bg1', function: { name: 'shell', arguments: JSON.stringify({ command, background: true }) } }] }, finish_reason: 'tool_calls' }] });
+        } else {
+          sse(res, { choices: [{ delta: { content: 'background started' }, finish_reason: 'stop' }] });
+        }
+        res.write('data: [DONE]\n\n');
+        res.end();
+      });
+    });
+    server.listen(0, '127.0.0.1', () => {
+      resolve({ baseUrl: `http://127.0.0.1:${(server.address() as any).port}`, close: () => new Promise<void>((done) => server.close(() => done())) });
+    });
+  });
+}
+
 function startApprovalFixture(options: { secondApproval?: boolean; failAfterFirstTool?: boolean } = {}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
@@ -631,6 +657,54 @@ describe('F5: pending approval keeps active state and resume continues the same 
       runtime.shutdown();
     } finally {
       fixture.release();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('persists a managed background process and keeps Stop available after the turn completes', async () => {
+    const env = makeEnv();
+    const fixture = await startBackgroundFixture();
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const turn = await runtime.submitTurn('start a managed background process');
+      expect(turn.ok).toBe(true);
+      expect(turn.result.outcome).toBe('completed');
+
+      const running = runtime.getSnapshot().managedProcesses.filter((item: any) => item.lastProbeStatus === 'running');
+      expect(running).toHaveLength(1);
+      expect(running[0].pid).toBeGreaterThan(0);
+
+      const stopped = await runtime.stop();
+      expect(stopped.ok).toBe(true);
+      expect(stopped.stopped).toContain(running[0].handleId);
+      const terminal = runtime.getSnapshot().managedProcesses.find((item: any) => item.handleId === running[0].handleId);
+      expect(terminal.lastProbeStatus).toBe('stopped');
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('does not resolve shutdown until managed background processes are reaped', async () => {
+    const env = makeEnv();
+    const fixture = await startBackgroundFixture();
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      await runtime.submitTurn('start a managed background process');
+      const running = runtime.getSnapshot().managedProcesses.find((item: any) => item.lastProbeStatus === 'running');
+      expect(running.pid).toBeGreaterThan(0);
+
+      const result = await runtime.shutdown();
+      expect(result.leftToSystem).toEqual([]);
+      expect(result.stopped).toContain(running.handleId);
+      expect(() => process.kill(running.pid, 0)).toThrow();
+    } finally {
       await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
     }

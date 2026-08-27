@@ -123,6 +123,23 @@ describe('A9-02: BackgroundProcessManager', () => {
     expect(poll.logsDropped).toEqual({ stdout: 0, stderr: 0 });
   });
 
+  it('stops a user-confirmed recovered PID tree instead of only changing its status', async () => {
+    const child = require('child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore',
+    });
+    expect(child.pid).toBeDefined();
+    manager.adoptRecoveredFact('bg-recovered-stop', {
+      pid: child.pid!,
+      command: 'previous-session-command',
+      cwd: process.cwd(),
+      startTime: new Date().toISOString(),
+    });
+
+    const stopped = await manager.stop('bg-recovered-stop');
+    expect(stopped.status).toBe('stopped');
+    expect(BackgroundProcessManager.probeProcessAlive(child.pid!)).toBe(false);
+  });
+
   it('dispose can leave managed processes to the system without killing them', async () => {
     await manager.start(
       'bg-leave',

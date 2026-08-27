@@ -90,6 +90,10 @@
     );
   }
 
+  function activeManagedProcesses(snapshot) {
+    return ((snapshot && snapshot.managedProcesses) || []).filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting');
+  }
+
   function syncComposer() {
     const snapshot = state.snapshot;
     const blockedMode = !snapshot || snapshot.status !== 'ready' || !SUPPORTED_MODES.has(snapshot.mode);
@@ -97,16 +101,19 @@
     const prompt = el('task-prompt');
     const send = el('run-task');
     const stop = el('cancel-task');
+    const hasManaged = activeManagedProcesses(snapshot).length > 0;
     prompt.disabled = blockedMode || blockedApproval || state.running;
     send.hidden = state.running;
-    stop.hidden = !state.running;
+    stop.hidden = !state.running && !hasManaged;
     send.disabled = !canSubmit();
-    stop.disabled = !state.running;
+    stop.disabled = !state.running && !hasManaged;
+    text('cancel-task-label', state.running ? '停止任务' : hasManaged ? '停止后台进程' : '停止');
     if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
     else if (blockedApproval) text('session-status', '先处理当前绑定审批；同一工作区一次只执行一个 A9 任务。');
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
     else if (!snapshot.provider.probe || snapshot.provider.probe.classification !== 'tool_calling') text('session-status', 'Provider 尚未通过原生 tool_calls 探测；任务发送保持禁用。');
     else if (state.running) text('session-status', '任务正在执行；可随时停止。工具调用与退出码会写入活动记录。');
+    else if (hasManaged) text('session-status', '托管后台进程仍在运行；可继续工作，或点击“停止后台进程”回收进程树。');
     else text('session-status', '当前工作区已就绪。高影响操作会在执行前显示精确目标并请求批准。');
   }
 
@@ -344,10 +351,12 @@
     renderCheckpoints(snapshot);
     configureModeDialog(snapshot, false);
     const active = ['running', 'cancelling'].includes(snapshot.agentStatus);
+    const managedActive = activeManagedProcesses(snapshot).length;
     state.running = active;
     if (snapshot.pendingApproval || snapshot.agentStatus === 'needs_approval') setTaskState('等待批准', 'running', '操作已暂停，等待你的决定。');
     else if (active) setTaskState(snapshot.agentStatus === 'cancelling' ? '正在停止' : '运行中', 'running');
     else if (snapshot.agentStatus === 'failed') setTaskState('失败', 'failed');
+    else if (managedActive > 0) setTaskState(`后台运行 ${managedActive}`, 'running', '托管后台进程可通过下方停止按钮回收。');
     else setTaskState('空闲', 'idle');
     syncComposer();
   }
@@ -508,7 +517,7 @@
   }
 
   async function stopTurn() {
-    if (!state.running) return;
+    if (!state.running && activeManagedProcesses(state.snapshot).length === 0) return;
     el('cancel-task').disabled = true;
     setTaskState('正在停止', 'running', '正在清理当前任务和受管子进程。');
     try {

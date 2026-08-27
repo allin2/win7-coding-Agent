@@ -74,7 +74,7 @@
         <div class="composer">
           <label class="sr-only" for="task-prompt">任务描述</label>
           <textarea id="task-prompt" name="task-prompt" rows="1" maxlength="8000" autocomplete="off" placeholder="描述要完成的任务，或询问当前代码…" aria-describedby="composer-guidance session-status"></textarea>
-          <div class="composer-bar"><span id="composer-guidance" class="composer-guidance"><b>Enter</b> 发送 <i>·</i> <b>Shift+Enter</b> 换行</span><button id="run-task" class="send" type="button" disabled aria-label="发送任务"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 7l5 5-5 5"/></svg><span>发送</span></button><button id="cancel-task" class="stop" type="button" hidden disabled aria-label="停止任务"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span>停止</span></button></div>
+          <div class="composer-bar"><span id="composer-guidance" class="composer-guidance"><b>Enter</b> 发送 <i>·</i> <b>Shift+Enter</b> 换行</span><button id="run-task" class="send" type="button" disabled aria-label="发送任务"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 7l5 5-5 5"/></svg><span>发送</span></button><button id="cancel-task" class="stop" type="button" hidden disabled aria-label="停止任务或后台进程"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span id="cancel-task-label">停止</span></button></div>
         </div>
         <p id="session-status" class="status-line" aria-live="polite">选择一个本地工作区开始。模型不能绕过批准、Runner 或审计边界。</p>
       </footer>

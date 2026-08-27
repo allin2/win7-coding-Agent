@@ -31,6 +31,13 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain('await a9.submitTurn(prompt)');
     expect(script).toContain("snapshot.provider.probe.classification === 'tool_calling'");
     expect(script).not.toContain('api.submitTask');
+    expect(script).toContain('activeManagedProcesses(snapshot)');
+    expect(script).toContain("state.running ? '停止任务' : hasManaged ? '停止后台进程' : '停止'");
+  });
+
+  it('waits for A9 managed-process cleanup before Electron quits', () => {
+    expect(main).toContain("app.on('before-quit', beginA9ShutdownBeforeQuit)");
+    expect(main).toContain('await a9RuntimeInstance.shutdown()');
   });
 
   it('drives the production workbench contract in the formal Electron smoke', () => {
