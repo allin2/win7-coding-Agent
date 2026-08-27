@@ -175,6 +175,7 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-017 | Windows 10 x64 + VS 2019 `[16.0,17.0)` / MSVC v142 14.2x + Windows SDK 10.0.19041.0（目标 Win7 SP1 x64） | 构建 D-013 原生 helper 与 D-011 winpty 宿主 | 仅构建机依赖，目标机不安装；产物须静态链接 CRT 或随包携带经登记的 VC Runtime | CPython 3.8.10 AMD64、实际 VS/MSVC 补丁版本和 PE/API/CRT 证据必须记录 | SPIKE_02 已授权；生产未授权 | ADR-0028 / ADR-0063 |
 | D-018 | Electron 22.3.27 `safeStorage`（Windows DPAPI / Current User） | A3.2 API key 静态加密持久化 | 复用 D-009 随包 Electron，不新增模块或目标机前置；只在 main 进程、`app.ready` 后使用同步 `isEncryptionAvailable/encryptString/decryptString`，密文绑定当前 Windows 登录凭据 | 不可用、密文损坏或账户不匹配时 fail-closed 并降级为仅内存；不能防御同一用户上下文中的恶意进程；Electron 22 EOL 风险继续适用 | 批准（仅 A3.2 API key） | ADR-0062 |
 | D-019 | A9 TrustedShell Profile：Windows PowerShell 5.1 / `cmd.exe` + D-013 v24 helper | A9 完整命令、测试、构建与托管后台进程 | `cmd.exe` 为 Win7 自带保底；PowerShell 5.1 需 WMF 5.1 探测，不由 Alpha 自动安装；执行宿主继续为 Electron 22/Node 16 + D-013，新增命令 Profile 必须在 Win7 重验进程树/编码/取消 | 当前用户真实权限且不构成沙箱；PS 2～4 Best Effort；网络不隔离；无可靠回收时明确残留并停止后续自动执行 | A9 架构批准，实机待 A9-02/A9-07 | ADR-0089 |
+| D-020 | Electron 22.3.27 `safeStorage`（Windows DPAPI / Current User）A9 草稿 Profile | 按对话加密保存未发送草稿 | 复用 D-009/D-018 随包能力，不新增依赖或目标机前置；主进程加密后只把 Base64 密文写入 A9 SQLite | DPAPI 不可用、密文损坏或账户不匹配时仅内存且明确提示；草稿不进入事件、checkpoint、日志、审批或模型，除非用户主动发送 | A9 Alpha 1 批准，Win7 增量实机待 WIN7-17 | ADR-0098 |
 
 ### 6.1 架构候选依赖的 C16 评审档案（七问）
 
@@ -194,6 +195,7 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 | D-017 | Visual Studio 2019 `[16.0,17.0)` Build Tools（v142/14.2x）+ Windows SDK 10.0.19041.0 + CPython 3.8.10 AMD64（微软/Python 官方渠道） | 微软许可条款、PSF（仅构建机） | 安装介质不随包；脚本严格探测并记录实际 VS/MSVC 补丁版本，Profile 见 `spikes/02-terminal-containment/build-win10/kit/build-profile.json` | 不进入目标运行时 SBOM；每个原生产物保存 HEADERS/DEPENDENTS/IMPORTS，动态 CRT 必须随包闭包 | 工具链换版本须重跑构建与 SPIKE_02；Win7 兼容性只由实机证明 | 间接（其产物经 SPIKE_02/04 验证） |
 | D-018 | Electron v22.3.27 官方发布包内置 `safeStorage`；Windows 后端使用 DPAPI | 随 D-009 MIT/第三方许可证清单 | 不产生新工件；继续绑定 D-009 Electron ZIP/`electron.exe` 哈希 | 无新增传递依赖；密文格式由 Electron/Chromium OS crypt 实现负责 | Electron 22 已 EOL；本项目负责 schema、原子写入、失败关闭、清除和脱敏 | A3P Win7 保存→退出→重启→显式启用→清除、损坏密文、中文空格 userData、进程/Bitvise 清理 |
 | D-019 | Windows 7 自带 `cmd.exe`；WMF 5.1 中的 Windows PowerShell 5.1；D-013 v24 为本项目锁定 helper | Microsoft Windows/WMF 许可；D-013 Apache-2.0 | 系统组件不随 Alpha 包复制；D-013 哈希继续由 A9 release input lock 固定 | 不新增 npm 运行时依赖；调用参数、Shell 版本和编码进入 manifest/Profile | Win7/WMF 均 EOL；用户负责可信环境，项目负责命令传输、取消、日志、checkpoint 与残留诚实报告 | A9SH-01～03、Win7 J4、PowerShell 5.1/CMD 双路径 |
+| D-020 | Electron v22.3.27 官方发布包内置 `safeStorage`，Windows 后端使用 DPAPI；复用 D-018 已锁定来源与 Electron ZIP | 随 D-009 MIT/第三方许可证清单 | 不产生新工件；继续绑定 D-009 Electron ZIP/`electron.exe` 哈希 | 无新增传递依赖；SQLite 仅保存 schema 版本、会话 ID 与 Base64 密文 | Electron 22 已 EOL；项目负责草稿 schema、Current User 绑定、失败降级、清除和不进入审计/模型的秘密边界 | WIN7-17 新建/切换/重启草稿、DPAPI 不可用/损坏/账户不匹配和证据秘密扫描 |
 
 #### MVP-20260802 依赖复核补充记录（ADR-0054）
 

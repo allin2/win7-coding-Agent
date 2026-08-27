@@ -13,12 +13,29 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { SqliteDatabase } from './sqlite-event-ledger';
 
-export const A9_SCHEMA_VERSION = 3 as const;
+export const A9_SCHEMA_VERSION = 4 as const;
 export const A9_DEFAULT_RETENTION_DAYS = 90;
+export const A9_MAX_ACTIVE_CONVERSATIONS = 16;
 
 export type A9PermissionModeValue = 'full_access' | 'review' | 'read_only';
+export type A9ConversationStateValue = 'active' | 'archived';
+export type A9ConversationActivityValue = 'idle' | 'running' | 'waiting_approval' | 'interrupted';
+export type A9ConversationTitleSource = 'auto' | 'manual' | 'legacy';
+
+export interface A9ConversationRecord {
+  sessionId: string;
+  workspacePath: string;
+  title: string;
+  titleSource: A9ConversationTitleSource;
+  state: A9ConversationStateValue;
+  activity: A9ConversationActivityValue;
+  createdAt: string;
+  updatedAt: string;
+  lastActivatedAt: string;
+}
 
 export interface A9OpenOptions {
   databasePath: string;
@@ -29,7 +46,7 @@ export interface A9OpenOptions {
 }
 
 export type A9OpenOutcome =
-  | { status: 'ready'; manager: A9PersistenceManager; backupPath?: string; importedA8Workspaces: number }
+  | { status: 'ready'; manager: A9PersistenceManager; backupPath?: string; backupSha256?: string; importedA8Workspaces: number }
   | { status: 'schema_refused'; reason: string; foundVersion?: number }
   | { status: 'diagnostics'; error: string; hint: string };
 
@@ -114,13 +131,16 @@ export class A9PersistenceManager {
 
     // 迁移前备份（只针对旧 A9 schema 或 A8 导入；当前 schema 重开无需重复备份）。
     let backupPath: string | undefined;
+    let backupSha256: string | undefined;
     const hasA8Data = a8TablesPresent(db);
     const hasExistingData = existingVersion !== undefined || hasA8Data;
     const requiresMigrationBackup = hasA8Data
       || (existingVersion !== undefined && existingVersion < A9_SCHEMA_VERSION);
     if (requiresMigrationBackup && fs.existsSync(options.databasePath)) {
       try {
-        backupPath = backupDatabase(db, options.dataRoot);
+        const backup = backupDatabase(db, options.dataRoot);
+        backupPath = backup.path;
+        backupSha256 = backup.sha256;
       } catch (err) {
         try { db.close(); } catch (_closeError) { /* best effort */ }
         return {
@@ -157,7 +177,12 @@ export class A9PersistenceManager {
     }
 
     manager.markInterruptionsOnRestart();
-    return { status: 'ready', manager, ...(backupPath ? { backupPath } : {}), importedA8Workspaces };
+    return {
+      status: 'ready',
+      manager,
+      ...(backupPath ? { backupPath, backupSha256 } : {}),
+      importedA8Workspaces,
+    };
   }
 
   private createSchema(): void {
@@ -180,11 +205,22 @@ export class A9PersistenceManager {
       CREATE TABLE IF NOT EXISTS a9_sessions (
         session_id TEXT PRIMARY KEY,
         workspace_path TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '新对话',
+        title_source TEXT NOT NULL DEFAULT 'auto' CHECK (title_source IN ('auto','manual','legacy')),
+        state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
+        last_activated_at TEXT NOT NULL,
+        draft_ciphertext TEXT,
         metadata_json TEXT NOT NULL DEFAULT '{}'
       );
-      CREATE INDEX IF NOT EXISTS idx_a9_sessions_workspace ON a9_sessions (workspace_path);
+      CREATE INDEX IF NOT EXISTS idx_a9_sessions_workspace ON a9_sessions (workspace_path, state, last_activated_at);
+
+      CREATE TABLE IF NOT EXISTS a9_workspace_conversation_state (
+        workspace_path TEXT PRIMARY KEY,
+        active_session_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
 
       CREATE TABLE IF NOT EXISTS a9_tasks (
         task_id TEXT PRIMARY KEY,
@@ -227,7 +263,7 @@ export class A9PersistenceManager {
         turn_id TEXT,
         tool_name TEXT NOT NULL,
         binding_json TEXT NOT NULL,
-        decision TEXT NOT NULL CHECK (decision IN ('pending','approved','denied')),
+        decision TEXT NOT NULL CHECK (decision IN ('pending','approved','denied','interrupted')),
         decided_at TEXT,
         created_at TEXT NOT NULL
       );
@@ -273,39 +309,101 @@ export class A9PersistenceManager {
     }
   }
 
-  /**
-   * A9 v3：Turn 增加真实 failed 终态。SQLite 不能原地修改 CHECK，故在同一
-   * 事务内重建表；任何一步失败都回滚，open() 返回 diagnostics。
-   */
+  /** A9 v3 增加 failed Turn；v4 引入对话目录、活动对话和草稿密文。 */
   private migrateSchema(existingVersion: number | undefined): void {
-    if (existingVersion === undefined || existingVersion >= 3 || !tablePresent(this.db, 'a9_turns')) return;
-    const turnIndexSql = (this.db.prepare(
-      "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
-    ).all() as any[])
-      .map((row) => row.sql)
-      .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
-    const migrate = this.db.transaction(() => {
+    if (existingVersion === undefined) return;
+    let version = existingVersion;
+    if (version < 3 && tablePresent(this.db, 'a9_turns')) {
+      const turnIndexSql = (this.db.prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
+      ).all() as any[])
+        .map((row) => row.sql)
+        .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
+      const migrateV3 = this.db.transaction(() => {
+        this.db.exec(`
+          ALTER TABLE a9_turns RENAME TO a9_turns_pre_v3;
+          CREATE TABLE a9_turns (
+            turn_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','failed','cancelled','interrupted')),
+            outcome_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          INSERT INTO a9_turns (turn_id, task_id, session_id, status, outcome_json, created_at, updated_at)
+          SELECT turn_id, task_id, session_id, status, outcome_json, created_at, updated_at
+          FROM a9_turns_pre_v3;
+          DROP TABLE a9_turns_pre_v3;
+        `);
+        for (const indexSql of turnIndexSql) this.db.exec(indexSql);
+        this.db.prepare('UPDATE a9_meta SET schema_version = 3, updated_at = ? WHERE id = 1')
+          .run(new Date().toISOString());
+      });
+      migrateV3();
+      version = 3;
+    }
+    if (version >= 4) return;
+
+    const migrateV4 = this.db.transaction(() => {
+      const now = new Date().toISOString();
+      if (tablePresent(this.db, 'a9_sessions')) {
+        this.db.exec(`
+          ALTER TABLE a9_sessions ADD COLUMN title TEXT NOT NULL DEFAULT '新对话';
+          ALTER TABLE a9_sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'legacy' CHECK (title_source IN ('auto','manual','legacy'));
+          ALTER TABLE a9_sessions ADD COLUMN state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived'));
+          ALTER TABLE a9_sessions ADD COLUMN last_activated_at TEXT;
+          ALTER TABLE a9_sessions ADD COLUMN draft_ciphertext TEXT;
+        `);
+        this.db.prepare("UPDATE a9_sessions SET title = '历史对话', title_source = 'legacy', last_activated_at = COALESCE(updated_at, created_at, ?)")
+          .run(now);
+      } else {
+        this.db.exec(`
+          CREATE TABLE a9_sessions (
+            session_id TEXT PRIMARY KEY,
+            workspace_path TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '新对话',
+            title_source TEXT NOT NULL DEFAULT 'auto' CHECK (title_source IN ('auto','manual','legacy')),
+            state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_activated_at TEXT NOT NULL,
+            draft_ciphertext TEXT,
+            metadata_json TEXT NOT NULL DEFAULT '{}'
+          );
+        `);
+      }
       this.db.exec(`
-        ALTER TABLE a9_turns RENAME TO a9_turns_pre_v3;
-        CREATE TABLE a9_turns (
-          turn_id TEXT PRIMARY KEY,
-          task_id TEXT NOT NULL,
-          session_id TEXT NOT NULL,
-          status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','failed','cancelled','interrupted')),
-          outcome_json TEXT NOT NULL DEFAULT '{}',
-          created_at TEXT NOT NULL,
+        DROP INDEX IF EXISTS idx_a9_sessions_workspace;
+        CREATE INDEX idx_a9_sessions_workspace ON a9_sessions (workspace_path, state, last_activated_at);
+        CREATE TABLE IF NOT EXISTS a9_workspace_conversation_state (
+          workspace_path TEXT PRIMARY KEY,
+          active_session_id TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-        INSERT INTO a9_turns (turn_id, task_id, session_id, status, outcome_json, created_at, updated_at)
-        SELECT turn_id, task_id, session_id, status, outcome_json, created_at, updated_at
-        FROM a9_turns_pre_v3;
-        DROP TABLE a9_turns_pre_v3;
       `);
-      for (const indexSql of turnIndexSql) this.db.exec(indexSql);
-      this.db.prepare('UPDATE a9_meta SET schema_version = ?, updated_at = ? WHERE id = 1')
-        .run(A9_SCHEMA_VERSION, new Date().toISOString());
+      if (tablePresent(this.db, 'a9_approvals')) {
+        this.db.exec(`
+          ALTER TABLE a9_approvals RENAME TO a9_approvals_pre_v4;
+          CREATE TABLE a9_approvals (
+            approval_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            turn_id TEXT,
+            tool_name TEXT NOT NULL,
+            binding_json TEXT NOT NULL,
+            decision TEXT NOT NULL CHECK (decision IN ('pending','approved','denied','interrupted')),
+            decided_at TEXT,
+            created_at TEXT NOT NULL
+          );
+          INSERT INTO a9_approvals
+          SELECT approval_id, session_id, turn_id, tool_name, binding_json, decision, decided_at, created_at
+          FROM a9_approvals_pre_v4;
+          DROP TABLE a9_approvals_pre_v4;
+        `);
+      }
+      this.db.prepare('UPDATE a9_meta SET schema_version = 4, updated_at = ? WHERE id = 1').run(now);
     });
-    migrate();
+    migrateV4();
   }
 
   /**
@@ -366,9 +464,205 @@ export class A9PersistenceManager {
       this.db.prepare('UPDATE a9_sessions SET workspace_path = ?, updated_at = ?, metadata_json = ? WHERE session_id = ?')
         .run(workspacePath, now, JSON.stringify(metadata), sessionId);
     } else {
-      this.db.prepare('INSERT INTO a9_sessions (session_id, workspace_path, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?)')
-        .run(sessionId, workspacePath, now, now, JSON.stringify(metadata));
+      this.db.prepare(`
+        INSERT INTO a9_sessions
+          (session_id, workspace_path, title, title_source, state, created_at, updated_at, last_activated_at, draft_ciphertext, metadata_json)
+        VALUES (?, ?, '新对话', 'auto', 'active', ?, ?, ?, NULL, ?)
+      `).run(sessionId, workspacePath, now, now, now, JSON.stringify(metadata));
     }
+  }
+
+  /**
+   * 首次开启 v4 时确定性保留旧的“工作区派生 Session”；无旧事实时创建新对话。
+   */
+  ensureActiveConversation(workspacePath: string, legacySessionId: string, newSessionId: string): A9ConversationRecord {
+    const active = this.db.prepare(`
+      SELECT s.session_id FROM a9_workspace_conversation_state w
+      JOIN a9_sessions s ON s.session_id = w.active_session_id
+      WHERE w.workspace_path = ? AND s.workspace_path = ? AND s.state = 'active'
+    `).get(workspacePath, workspacePath) as any;
+    if (active?.session_id) return this.activateConversation(workspacePath, active.session_id);
+
+    if (this.sessionHasFacts(legacySessionId)) {
+      this.saveSession(legacySessionId, workspacePath, { migratedFromWorkspaceSession: true });
+      this.db.prepare(`
+        UPDATE a9_sessions
+        SET title = '历史对话', title_source = 'legacy', updated_at = ?
+        WHERE session_id = ?
+      `).run(new Date().toISOString(), legacySessionId);
+      return this.activateConversation(workspacePath, legacySessionId);
+    }
+    const mostRecent = this.db.prepare(`
+      SELECT session_id FROM a9_sessions
+      WHERE workspace_path = ? AND state = 'active'
+      ORDER BY last_activated_at DESC, created_at DESC LIMIT 1
+    `).get(workspacePath) as any;
+    if (mostRecent?.session_id) return this.activateConversation(workspacePath, mostRecent.session_id);
+    return this.createConversation(newSessionId, workspacePath);
+  }
+
+  createConversation(sessionId: string, workspacePath: string): A9ConversationRecord {
+    const activeCount = (this.db.prepare(`
+      SELECT COUNT(*) AS n FROM a9_sessions WHERE workspace_path = ? AND state = 'active'
+    `).get(workspacePath) as any)?.n ?? 0;
+    if (Number(activeCount) >= A9_MAX_ACTIVE_CONVERSATIONS) {
+      throw new Error(`A9_CONVERSATION_LIMIT: 每个工作区最多 ${A9_MAX_ACTIVE_CONVERSATIONS} 个未归档对话。`);
+    }
+    const now = new Date().toISOString();
+    const create = this.db.transaction(() => {
+      this.db.prepare(`
+        INSERT INTO a9_sessions
+          (session_id, workspace_path, title, title_source, state, created_at, updated_at, last_activated_at, draft_ciphertext, metadata_json)
+        VALUES (?, ?, '新对话', 'auto', 'active', ?, ?, ?, NULL, '{}')
+      `).run(sessionId, workspacePath, now, now, now);
+      this.setActiveConversation(workspacePath, sessionId, now);
+    });
+    create();
+    return this.requireConversation(sessionId);
+  }
+
+  activateConversation(workspacePath: string, sessionId: string): A9ConversationRecord {
+    const row = this.requireConversation(sessionId);
+    if (row.workspacePath !== workspacePath || row.state !== 'active') {
+      throw new Error('A9_CONVERSATION_NOT_ACTIVE: 对话不属于当前工作区或已归档。');
+    }
+    const now = new Date().toISOString();
+    const activate = this.db.transaction(() => {
+      this.db.prepare('UPDATE a9_sessions SET last_activated_at = ?, updated_at = ? WHERE session_id = ?')
+        .run(now, now, sessionId);
+      this.setActiveConversation(workspacePath, sessionId, now);
+    });
+    activate();
+    return this.requireConversation(sessionId);
+  }
+
+  renameConversation(sessionId: string, title: string): A9ConversationRecord {
+    if (typeof title !== 'string' || /[\u0000-\u001f\u007f-\u009f]/.test(title)) {
+      throw new Error('A9_CONVERSATION_TITLE_INVALID: 对话名称不能为空或包含控制字符。');
+    }
+    const normalized = normalizeConversationTitle(title, 80);
+    if (!normalized) throw new Error('A9_CONVERSATION_TITLE_INVALID: 对话名称不能为空或包含控制字符。');
+    this.requireConversation(sessionId);
+    this.db.prepare(`
+      UPDATE a9_sessions SET title = ?, title_source = 'manual', updated_at = ? WHERE session_id = ?
+    `).run(normalized, new Date().toISOString(), sessionId);
+    return this.requireConversation(sessionId);
+  }
+
+  maybeSetAutomaticTitle(sessionId: string, title: string): A9ConversationRecord {
+    const normalized = normalizeConversationTitle(title, 40) || '新对话';
+    this.requireConversation(sessionId);
+    this.db.prepare(`
+      UPDATE a9_sessions SET title = ?, updated_at = ?
+      WHERE session_id = ? AND title_source = 'auto' AND title = '新对话'
+    `).run(normalized, new Date().toISOString(), sessionId);
+    return this.requireConversation(sessionId);
+  }
+
+  archiveConversation(sessionId: string): A9ConversationRecord | null {
+    const row = this.requireConversation(sessionId);
+    if (this.getActiveConversationId(row.workspacePath) !== sessionId) {
+      throw new Error('A9_CONVERSATION_NOT_CURRENT: 只能归档当前对话。');
+    }
+    const archive = this.db.transaction(() => {
+      const now = new Date().toISOString();
+      this.db.prepare("UPDATE a9_sessions SET state = 'archived', updated_at = ? WHERE session_id = ?")
+        .run(now, sessionId);
+      const next = this.db.prepare(`
+        SELECT session_id FROM a9_sessions
+        WHERE workspace_path = ? AND state = 'active' AND session_id <> ?
+        ORDER BY last_activated_at DESC, created_at DESC LIMIT 1
+      `).get(row.workspacePath, sessionId) as any;
+      if (next?.session_id) this.setActiveConversation(row.workspacePath, next.session_id, now);
+      else this.db.prepare('DELETE FROM a9_workspace_conversation_state WHERE workspace_path = ?').run(row.workspacePath);
+      return next?.session_id ? this.requireConversation(next.session_id) : null;
+    });
+    return archive();
+  }
+
+  restoreConversation(sessionId: string): A9ConversationRecord {
+    const row = this.requireConversation(sessionId);
+    const activeCount = (this.db.prepare(`
+      SELECT COUNT(*) AS n FROM a9_sessions WHERE workspace_path = ? AND state = 'active'
+    `).get(row.workspacePath) as any)?.n ?? 0;
+    if (row.state === 'archived' && Number(activeCount) >= A9_MAX_ACTIVE_CONVERSATIONS) {
+      throw new Error(`A9_CONVERSATION_LIMIT: 每个工作区最多 ${A9_MAX_ACTIVE_CONVERSATIONS} 个未归档对话。`);
+    }
+    const now = new Date().toISOString();
+    const restore = this.db.transaction(() => {
+      this.db.prepare(`
+        UPDATE a9_sessions SET state = 'active', last_activated_at = ?, updated_at = ? WHERE session_id = ?
+      `).run(now, now, sessionId);
+      this.setActiveConversation(row.workspacePath, sessionId, now);
+    });
+    restore();
+    return this.requireConversation(sessionId);
+  }
+
+  listConversations(workspacePath: string): A9ConversationRecord[] {
+    return (this.db.prepare(`
+      SELECT s.*,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM a9_approvals a WHERE a.session_id = s.session_id AND a.decision = 'pending') THEN 'waiting_approval'
+          WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'active') THEN 'running'
+          WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'interrupted') THEN 'interrupted'
+          ELSE 'idle'
+        END AS activity
+      FROM a9_sessions s WHERE s.workspace_path = ?
+      ORDER BY CASE WHEN s.state = 'active' THEN 0 ELSE 1 END,
+        s.last_activated_at DESC, s.updated_at DESC
+    `).all(workspacePath) as any[]).map(conversationFromRow);
+  }
+
+  getActiveConversationId(workspacePath: string): string | null {
+    const row = this.db.prepare(`
+      SELECT s.session_id FROM a9_workspace_conversation_state w
+      JOIN a9_sessions s ON s.session_id = w.active_session_id
+      WHERE w.workspace_path = ? AND s.workspace_path = ? AND s.state = 'active'
+    `).get(workspacePath, workspacePath) as any;
+    return typeof row?.session_id === 'string' ? row.session_id : null;
+  }
+
+  setConversationDraftCiphertext(sessionId: string, ciphertext: string | null): void {
+    this.requireConversation(sessionId);
+    this.db.prepare('UPDATE a9_sessions SET draft_ciphertext = ?, updated_at = ? WHERE session_id = ?')
+      .run(ciphertext, new Date().toISOString(), sessionId);
+  }
+
+  getConversationDraftCiphertext(sessionId: string): string | null {
+    const row = this.db.prepare('SELECT draft_ciphertext FROM a9_sessions WHERE session_id = ?').get(sessionId) as any;
+    if (!row) throw new Error('A9_CONVERSATION_NOT_FOUND');
+    return typeof row.draft_ciphertext === 'string' ? row.draft_ciphertext : null;
+  }
+
+  private requireConversation(sessionId: string): A9ConversationRecord {
+    const row = this.db.prepare(`
+      SELECT s.*,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM a9_approvals a WHERE a.session_id = s.session_id AND a.decision = 'pending') THEN 'waiting_approval'
+          WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'active') THEN 'running'
+          WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'interrupted') THEN 'interrupted'
+          ELSE 'idle'
+        END AS activity
+      FROM a9_sessions s WHERE s.session_id = ?
+    `).get(sessionId) as any;
+    if (!row) throw new Error('A9_CONVERSATION_NOT_FOUND');
+    return conversationFromRow(row);
+  }
+
+  private setActiveConversation(workspacePath: string, sessionId: string, now: string): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO a9_workspace_conversation_state (workspace_path, active_session_id, updated_at)
+      VALUES (?, ?, ?)
+    `).run(workspacePath, sessionId, now);
+  }
+
+  private sessionHasFacts(sessionId: string): boolean {
+    for (const table of ['a9_tasks', 'a9_turns', 'a9_runs', 'a9_checkpoints', 'a9_approvals', 'a9_events']) {
+      const row = this.db.prepare(`SELECT 1 AS present FROM ${table} WHERE session_id = ? LIMIT 1`).get(sessionId);
+      if (row) return true;
+    }
+    return false;
   }
 
   upsertTask(taskId: string, sessionId: string, status: 'active' | 'completed' | 'failed' | 'cancelled' | 'interrupted'): void {
@@ -433,18 +727,24 @@ export class A9PersistenceManager {
       this.db.prepare('UPDATE a9_runs SET status = ?, updated_at = ? WHERE run_id = ?').run('interrupted', now, row.run_id);
       interrupted.push({ kind: 'run', id: row.run_id });
     }
+    // 重启前的审批不得重放。保留历史行，但终态标记为 interrupted。
+    this.db.prepare(`
+      UPDATE a9_approvals SET decision = 'interrupted', decided_at = ? WHERE decision = 'pending'
+    `).run(now);
     return interrupted;
   }
 
-  listInterruptions(): Array<{ kind: 'task' | 'turn' | 'run'; id: string; sessionId: string }> {
+  listInterruptions(sessionId?: string): Array<{ kind: 'task' | 'turn' | 'run'; id: string; sessionId: string }> {
     const result: Array<{ kind: 'task' | 'turn' | 'run'; id: string; sessionId: string }> = [];
-    for (const row of this.db.prepare("SELECT task_id, session_id FROM a9_tasks WHERE status = 'interrupted'").all() as any[]) {
+    const suffix = sessionId ? ' AND session_id = ?' : '';
+    const args = sessionId ? [sessionId] : [];
+    for (const row of this.db.prepare(`SELECT task_id, session_id FROM a9_tasks WHERE status = 'interrupted'${suffix}`).all(...args) as any[]) {
       result.push({ kind: 'task', id: row.task_id, sessionId: row.session_id });
     }
-    for (const row of this.db.prepare("SELECT turn_id, session_id FROM a9_turns WHERE status = 'interrupted'").all() as any[]) {
+    for (const row of this.db.prepare(`SELECT turn_id, session_id FROM a9_turns WHERE status = 'interrupted'${suffix}`).all(...args) as any[]) {
       result.push({ kind: 'turn', id: row.turn_id, sessionId: row.session_id });
     }
-    for (const row of this.db.prepare("SELECT run_id, session_id FROM a9_runs WHERE status = 'interrupted'").all() as any[]) {
+    for (const row of this.db.prepare(`SELECT run_id, session_id FROM a9_runs WHERE status = 'interrupted'${suffix}`).all(...args) as any[]) {
       result.push({ kind: 'run', id: row.run_id, sessionId: row.session_id });
     }
     return result;
@@ -483,7 +783,7 @@ export class A9PersistenceManager {
    * read-only projection: callers may render it after restart, but must never
    * replay the prompt, model request, tools, approvals, or side effects.
    */
-  listConversationFacts(sessionId: string, limit = 50): Array<{
+  listConversationFacts(sessionId: string, limit?: number): Array<{
     taskId: string;
     turnId: string | null;
     requestPrompt: string;
@@ -493,7 +793,9 @@ export class A9PersistenceManager {
     createdAt: string;
     updatedAt: string;
   }> {
-    const cappedLimit = Math.max(1, Math.min(Number.isFinite(limit) ? Math.floor(limit) : 50, 100));
+    const cappedLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.min(Math.floor(limit as number), 1000))
+      : undefined;
     const taskRows = this.db.prepare(
       'SELECT task_id, status, created_at, updated_at FROM a9_tasks WHERE session_id = ?',
     ).all(sessionId) as any[];
@@ -501,15 +803,15 @@ export class A9PersistenceManager {
     const requestRows = this.db.prepare(`
       SELECT payload_json, created_at FROM a9_events
       WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request'
-      ORDER BY id DESC LIMIT ?
-    `).all(sessionId, cappedLimit) as any[];
+      ORDER BY id DESC${cappedLimit ? ' LIMIT ?' : ''}
+    `).all(...(cappedLimit ? [sessionId, cappedLimit] : [sessionId])) as any[];
     const checkpointRows = this.db.prepare(`
       SELECT c.turn_id, c.created_at, c.payload_json, t.task_id, t.status
       FROM a9_checkpoints c
       LEFT JOIN a9_turns t ON t.turn_id = c.turn_id
       WHERE c.session_id = ?
-      ORDER BY c.created_at DESC LIMIT ?
-    `).all(sessionId, cappedLimit) as any[];
+      ORDER BY c.created_at DESC${cappedLimit ? ' LIMIT ?' : ''}
+    `).all(...(cappedLimit ? [sessionId, cappedLimit] : [sessionId])) as any[];
 
     const facts = new Map<string, any>();
     for (const row of requestRows.reverse()) {
@@ -542,9 +844,9 @@ export class A9PersistenceManager {
         updatedAt: row.created_at,
       });
     }
-    return Array.from(facts.values())
-      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
-      .slice(-cappedLimit);
+    const sorted = Array.from(facts.values())
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    return cappedLimit ? sorted.slice(-cappedLimit) : sorted;
   }
 
   recordApproval(approval: {
@@ -553,7 +855,7 @@ export class A9PersistenceManager {
     turnId?: string;
     toolName: string;
     binding: Record<string, unknown>;
-    decision: 'pending' | 'approved' | 'denied';
+    decision: 'pending' | 'approved' | 'denied' | 'interrupted';
   }): void {
     this.db.prepare(`
       INSERT OR REPLACE INTO a9_approvals (approval_id, session_id, turn_id, tool_name, binding_json, decision, decided_at, created_at)
@@ -706,7 +1008,7 @@ function readSchemaVersion(db: SqliteDatabase): number | undefined {
   return row?.schema_version;
 }
 
-function backupDatabase(db: SqliteDatabase, dataRoot: string): string {
+function backupDatabase(db: SqliteDatabase, dataRoot: string): { path: string; sha256: string } {
   const backupDir = path.join(dataRoot, 'backups');
   fs.mkdirSync(backupDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -722,7 +1024,14 @@ function backupDatabase(db: SqliteDatabase, dataRoot: string): string {
     // VACUUM INTO 由 SQLite 生成事务一致的独立数据库；它会读取已提交的 WAL
     // 页面，且不依赖 checkpoint 能否取得排他锁。
     db.prepare('VACUUM INTO ?').run(backupPath);
-    return backupPath;
+    const bytes = fs.readFileSync(backupPath);
+    if (bytes.length < 16 || bytes.subarray(0, 16).toString('ascii') !== 'SQLite format 3\u0000') {
+      throw new Error('迁移备份可读性检查失败：不是有效 SQLite 文件头。');
+    }
+    return {
+      path: backupPath,
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    };
   } catch (err) {
     // 不把不完整快照暴露为可恢复备份。
     try { fs.rmSync(backupPath, { force: true }); } catch (_cleanupError) { /* best effort */ }
@@ -733,6 +1042,29 @@ function backupDatabase(db: SqliteDatabase, dataRoot: string): string {
 function displayNameFor(workspacePath: string): string {
   const base = workspacePath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? workspacePath;
   return base.length > 0 ? base : workspacePath;
+}
+
+function conversationFromRow(row: any): A9ConversationRecord {
+  return {
+    sessionId: row.session_id,
+    workspacePath: row.workspace_path,
+    title: row.title,
+    titleSource: row.title_source,
+    state: row.state,
+    activity: row.activity || 'idle',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastActivatedAt: row.last_activated_at,
+  };
+}
+
+function normalizeConversationTitle(value: string, maxLength: number): string {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+    .trim();
 }
 
 function safeParse(text: string): Record<string, unknown> {
