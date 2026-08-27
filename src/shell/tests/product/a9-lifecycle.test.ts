@@ -235,6 +235,18 @@ function makeRuntime(env: ReturnType<typeof makeEnv>) {
   });
 }
 
+function approvalDecision(approval: any, decision: 'approved' | 'denied', overrides: Record<string, unknown> = {}) {
+  return {
+    approvalId: approval.approvalId,
+    decision,
+    bindingDigest: approval.bindingDigest,
+    conversationId: approval.conversationId,
+    taskId: approval.taskId,
+    turnId: approval.turnId,
+    ...overrides,
+  };
+}
+
 function counts(env: ReturnType<typeof makeEnv>) {
   const db = new Database(path.join(env.dataRoot, 'a9-state.db'), { readonly: true });
   const read = (table: string, status?: string) =>
@@ -347,7 +359,10 @@ describe('F5: task/turn/run lifecycle is persisted by the product runtime', () =
 
       // 旧审批不可执行（没有挂起审批却尝试恢复 → 结构化拒绝）。
       const runtime3 = makeRuntime(env);
-      const resume = await runtime3.resumeApproval({ approvalId: 'apr-forged', decision: 'approved', bindingDigest: '0'.repeat(64) });
+      const resume = await runtime3.resumeApproval({
+        approvalId: 'apr-forged', decision: 'approved', bindingDigest: '0'.repeat(64),
+        conversationId: 'a9c-forged', taskId: 'task-forged', turnId: 'turn-forged',
+      });
       expect(resume.ok).toBe(false);
       expect(resume.error.code).toBe('A9_APPROVAL_UNKNOWN');
       runtime3.shutdown();
@@ -369,24 +384,17 @@ describe('F5: pending approval keeps active state and resume continues the same 
       const first = await runtime.submitTurn('delete note');
       const approval = first.result.pendingApproval;
       expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(approval.approvalId);
+      expect(() => runtime.createConversation()).toThrow('A9_CONVERSATION_BUSY');
       const blockedTurn = await runtime.submitTurn('must not replace the pending approval');
       expect(blockedTurn.ok).toBe(false);
       expect(blockedTurn.error.code).toBe('A9_APPROVAL_REQUIRED');
       expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(approval.approvalId);
 
-      const resumedPromise = runtime.resumeApproval({
-        approvalId: approval.approvalId,
-        decision: 'approved',
-        bindingDigest: approval.bindingDigest,
-      });
+      const resumedPromise = runtime.resumeApproval(approvalDecision(approval, 'approved'));
       await fixture.resumed;
       expect(runtime.getSnapshot().pendingApproval).toBeUndefined();
 
-      const duplicate = await runtime.resumeApproval({
-        approvalId: approval.approvalId,
-        decision: 'approved',
-        bindingDigest: approval.bindingDigest,
-      });
+      const duplicate = await runtime.resumeApproval(approvalDecision(approval, 'approved'));
       expect(duplicate.ok).toBe(false);
       expect(duplicate.error.code).toBe('A9_APPROVAL_DECISION_IN_PROGRESS');
       expect(runtime.getSnapshot().pendingApproval).toBeUndefined();
@@ -451,11 +459,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
         expect(c.activeTurns).toBe(1);
         expect(c.activeRuns).toBe(1);
 
-        const denied = await runtime.resumeApproval({
-          approvalId: first.result.pendingApproval.approvalId,
-          decision: 'denied',
-          bindingDigest: first.result.pendingApproval.bindingDigest,
-        });
+        const denied = await runtime.resumeApproval(approvalDecision(first.result.pendingApproval, 'denied'));
         expect(denied.ok).toBe(true);
         c = counts(env);
         expect(c.activeTasks).toBe(0);
@@ -490,11 +494,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
         pendingApproval: expect.objectContaining({ approvalId: firstApproval.approvalId }),
       }));
 
-      const resumed = await runtime.resumeApproval({
-        approvalId: firstApproval.approvalId,
-        decision: 'approved',
-        bindingDigest: firstApproval.bindingDigest,
-      });
+      const resumed = await runtime.resumeApproval(approvalDecision(firstApproval, 'approved'));
       expect(resumed.ok).toBe(true);
       expect(resumed.result.outcome).toBe('needs_approval');
       const secondApproval = resumed.result.pendingApproval;
@@ -521,27 +521,18 @@ describe('F5: pending approval keeps active state and resume continues the same 
       expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
 
       const wrongDigest = await runtime.resumeApproval({
-        approvalId: secondApproval.approvalId,
-        decision: 'approved',
+        ...approvalDecision(secondApproval, 'approved'),
         bindingDigest: '0'.repeat(64),
       });
       expect(wrongDigest.ok).toBe(false);
       expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
 
-      const stale = await runtime.resumeApproval({
-        approvalId: firstApproval.approvalId,
-        decision: 'approved',
-        bindingDigest: firstApproval.bindingDigest,
-      });
+      const stale = await runtime.resumeApproval(approvalDecision(firstApproval, 'approved'));
       expect(stale.ok).toBe(false);
       expect(stale.error.code).toBe('A9_APPROVAL_UNKNOWN');
       expect(runtime.getSnapshot().pendingApproval.approvalId).toBe(secondApproval.approvalId);
 
-      const denied = await runtime.resumeApproval({
-        approvalId: secondApproval.approvalId,
-        decision: 'denied',
-        bindingDigest: secondApproval.bindingDigest,
-      });
+      const denied = await runtime.resumeApproval(approvalDecision(secondApproval, 'denied'));
       expect(denied.ok).toBe(true);
       facts = lifecycleFacts(env);
       expect(facts.tasks[0].status).not.toBe('active');
@@ -609,11 +600,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
       const first = await runtime.submitTurn('delete then fail');
       const approval = first.result.pendingApproval;
-      const failed = await runtime.resumeApproval({
-        approvalId: approval.approvalId,
-        decision: 'approved',
-        bindingDigest: approval.bindingDigest,
-      });
+      const failed = await runtime.resumeApproval(approvalDecision(approval, 'approved'));
       expect(failed.ok).toBe(true);
       expect(failed.result.outcome).toBe('failed');
       const c = counts(env);
@@ -718,6 +705,39 @@ describe('F5: pending approval keeps active state and resume continues the same 
     } finally {
       if (reopened) await reopened.shutdown();
       else if (first) await first.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('isolates visible and provider text context across conversations in one workspace', async () => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    let runtime: any;
+    try {
+      runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const firstId = runtime.getSnapshot().activeConversationId;
+      expect((await runtime.submitTurn('CONVERSATION_ONE_MARKER')).ok).toBe(true);
+      const secondId = runtime.createConversation().conversationId;
+      expect(secondId).not.toBe(firstId);
+      expect(runtime.getSnapshot().conversation).toEqual([]);
+      expect((await runtime.submitTurn('CONVERSATION_TWO_MARKER')).ok).toBe(true);
+
+      runtime.activateConversation(firstId);
+      expect(JSON.stringify(runtime.getSnapshot().conversation)).toContain('CONVERSATION_ONE_MARKER');
+      expect(JSON.stringify(runtime.getSnapshot().conversation)).not.toContain('CONVERSATION_TWO_MARKER');
+      const requestCount = fixture.requests.length;
+      expect((await runtime.submitTurn('CONVERSATION_ONE_FOLLOWUP')).ok).toBe(true);
+      const afterSwitch = fixture.requests.slice(requestCount)
+        .find((request: any) => !(request?.tools?.[0]?.function?.name === 'probe_test_echo'));
+      const serializedMessages = JSON.stringify(afterSwitch.messages);
+      expect(serializedMessages).toContain('CONVERSATION_ONE_MARKER');
+      expect(serializedMessages).toContain('CONVERSATION_ONE_FOLLOWUP');
+      expect(serializedMessages).not.toContain('CONVERSATION_TWO_MARKER');
+    } finally {
+      if (runtime) await runtime.shutdown();
       await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
     }

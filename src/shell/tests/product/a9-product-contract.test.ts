@@ -201,4 +201,34 @@ describe('A9-06: a9 product IPC schema validation', () => {
     const ok = await handler({}, { schemaVersion: A9_IPC_SCHEMA_VERSION, action: 'a9.mode.set', payload: { mode: 'read_only' } });
     expect(ok).toEqual({ ok: true, mode: 'read_only' });
   });
+
+  it('whitelists conversation and encrypted-draft actions while rejecting extra fields', async () => {
+    const calls: any[] = [];
+    const conversationHandler = createA9ProductRequestHandler({
+      getA9Runtime: () => ({
+        createConversation: () => ({ ok: true, conversationId: 'a9c-new' }),
+        activateConversation: (id: string) => { calls.push(['activate', id]); return { ok: true }; },
+        renameConversation: (id: string, title: string) => { calls.push(['rename', id, title]); return { ok: true }; },
+        archiveConversation: (id: string) => { calls.push(['archive', id]); return { ok: true }; },
+        restoreConversation: (id: string) => { calls.push(['restore', id]); return { ok: true }; },
+        saveDraft: (text: string) => { calls.push(['draft', text]); return { ok: true, persistence: 'dpapi' }; },
+      }),
+      isValidRendererSender: validSender,
+    });
+    const request = (action: string, payload: object) => conversationHandler({}, {
+      schemaVersion: A9_IPC_SCHEMA_VERSION, action, payload,
+    });
+    expect(await request('a9.conversation.create', {})).toEqual({ ok: true, conversationId: 'a9c-new' });
+    expect((await request('a9.conversation.activate', { conversationId: 'a9c-1' })).ok).toBe(true);
+    expect((await request('a9.conversation.rename', { conversationId: 'a9c-1', title: '名称' })).ok).toBe(true);
+    expect((await request('a9.conversation.archive', { conversationId: 'a9c-1' })).ok).toBe(true);
+    expect((await request('a9.conversation.restore', { conversationId: 'a9c-1' })).ok).toBe(true);
+    expect((await request('a9.draft.save', { text: '未发送草稿' })).ok).toBe(true);
+    expect(calls).toEqual([
+      ['activate', 'a9c-1'], ['rename', 'a9c-1', '名称'], ['archive', 'a9c-1'],
+      ['restore', 'a9c-1'], ['draft', '未发送草稿'],
+    ]);
+    const extra = await request('a9.draft.save', { text: 'x', leak: true });
+    expect(extra.error.code).toBe('A9_PAYLOAD_INVALID');
+  });
 });

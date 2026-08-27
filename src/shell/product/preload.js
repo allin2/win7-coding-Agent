@@ -28,7 +28,7 @@ function a8Request(action, sessionId, payload) {
 
 function a9Request(action, payload) {
   return ipcRenderer.invoke('product:a9-request', {
-    schemaVersion: 2, // ADR-0091：v2 携带 approvalId/decision/bindingDigest
+    schemaVersion: 3, // ADR-0098：对话隔离、草稿与完整审批身份绑定
     action,
     payload: payload || {},
   });
@@ -42,8 +42,16 @@ const productApi = Object.freeze({
     configureProvider: (values) => a9Request('a9.provider.configure', values),
     probeProvider: () => a9Request('a9.provider.probe', {}),
     submitTurn: (prompt) => a9Request('a9.turn.submit', { prompt }),
-    resumeApproval: (approvalId, decision, bindingDigest) => a9Request('a9.turn.resumeApproval', { approvalId, decision, bindingDigest }),
+    resumeApproval: (approvalId, decision, bindingDigest, conversationId, taskId, turnId) => a9Request('a9.turn.resumeApproval', {
+      approvalId, decision, bindingDigest, conversationId, taskId, turnId,
+    }),
     stop: () => a9Request('a9.turn.stop', {}),
+    createConversation: () => a9Request('a9.conversation.create', {}),
+    activateConversation: (conversationId) => a9Request('a9.conversation.activate', { conversationId }),
+    renameConversation: (conversationId, title) => a9Request('a9.conversation.rename', { conversationId, title }),
+    archiveConversation: (conversationId) => a9Request('a9.conversation.archive', { conversationId }),
+    restoreConversation: (conversationId) => a9Request('a9.conversation.restore', { conversationId }),
+    saveDraft: (text) => a9Request('a9.draft.save', { text }),
     listCheckpoints: () => a9Request('a9.checkpoint.list', {}),
     undoTurn: (turnId) => a9Request('a9.checkpoint.undoTurn', { turnId }),
     undoFile: (turnId, path) => a9Request('a9.checkpoint.undoFile', { turnId, path }),

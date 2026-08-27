@@ -16,6 +16,12 @@ const A9_ACTIONS = Object.freeze({
   TURN_SUBMIT: 'a9.turn.submit',
   TURN_RESUME_APPROVAL: 'a9.turn.resumeApproval',
   TURN_STOP: 'a9.turn.stop',
+  CONVERSATION_CREATE: 'a9.conversation.create',
+  CONVERSATION_ACTIVATE: 'a9.conversation.activate',
+  CONVERSATION_RENAME: 'a9.conversation.rename',
+  CONVERSATION_ARCHIVE: 'a9.conversation.archive',
+  CONVERSATION_RESTORE: 'a9.conversation.restore',
+  DRAFT_SAVE: 'a9.draft.save',
   CHECKPOINT_LIST: 'a9.checkpoint.list',
   CHECKPOINT_UNDO_TURN: 'a9.checkpoint.undoTurn',
   CHECKPOINT_UNDO_FILE: 'a9.checkpoint.undoFile',
@@ -24,10 +30,9 @@ const A9_ACTIONS = Object.freeze({
 });
 
 /**
- * v2（ADR-0091）：a9.turn.resumeApproval 的 payload 从 boolean 升级为
- * { approvalId, decision, bindingDigest }，与不可变审批绑定对象配套。
+ * v3（ADR-0098）：增加对话/草稿白名单，审批回复绑定对话+任务+Turn。
  */
-const A9_IPC_SCHEMA_VERSION = 2;
+const A9_IPC_SCHEMA_VERSION = 3;
 
 function exactObject(value, keys, code) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -90,7 +95,7 @@ function createA9ProductRequestHandler(options) {
           return runtime.submitTurn(payload.prompt);
         }
         case A9_ACTIONS.TURN_RESUME_APPROVAL: {
-          exactObject(payload, ['approvalId', 'decision', 'bindingDigest'], 'A9_PAYLOAD_INVALID');
+          exactObject(payload, ['approvalId', 'decision', 'bindingDigest', 'conversationId', 'taskId', 'turnId'], 'A9_PAYLOAD_INVALID');
           if (payload.decision !== 'approved' && payload.decision !== 'denied') {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: decision must be approved|denied'), { code: 'A9_PAYLOAD_INVALID' });
           }
@@ -98,6 +103,24 @@ function createA9ProductRequestHandler(options) {
         }
         case A9_ACTIONS.TURN_STOP:
           return runtime.stop();
+        case A9_ACTIONS.CONVERSATION_CREATE:
+          exactObject(payload, [], 'A9_PAYLOAD_INVALID');
+          return runtime.createConversation();
+        case A9_ACTIONS.CONVERSATION_ACTIVATE:
+          exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID');
+          return runtime.activateConversation(payload.conversationId);
+        case A9_ACTIONS.CONVERSATION_RENAME:
+          exactObject(payload, ['conversationId', 'title'], 'A9_PAYLOAD_INVALID');
+          return runtime.renameConversation(payload.conversationId, payload.title);
+        case A9_ACTIONS.CONVERSATION_ARCHIVE:
+          exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID');
+          return runtime.archiveConversation(payload.conversationId);
+        case A9_ACTIONS.CONVERSATION_RESTORE:
+          exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID');
+          return runtime.restoreConversation(payload.conversationId);
+        case A9_ACTIONS.DRAFT_SAVE:
+          exactObject(payload, ['text'], 'A9_PAYLOAD_INVALID');
+          return runtime.saveDraft(payload.text);
         case A9_ACTIONS.CHECKPOINT_LIST:
           return { ok: true, checkpoints: runtime.getSnapshot().checkpoints };
         case A9_ACTIONS.CHECKPOINT_UNDO_TURN: {

@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { serializeError } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
 
@@ -83,8 +84,14 @@ function createA9AgentRuntime(options) {
 
   // ----- 工作区模式（R1：键绑定 canonical 路径的 SHA-256，fail-closed） -----
   const canonicalWorkspace = modules.core.canonicalizeWorkspacePath(workspaceRoot);
-  // F1：sessionId 按工作区派生，checkpoint/事件/审批不得跨工作区串用。
-  const a9SessionId = `a9-${require('crypto').createHash('sha256').update(canonicalWorkspace, 'utf8').digest('hex').slice(0, 16)}`;
+  // v3 及更早版本按工作区派生 Session；v4 将它确定性迁移为“历史对话”。
+  const legacyA9SessionId = `a9-${crypto.createHash('sha256').update(canonicalWorkspace, 'utf8').digest('hex').slice(0, 16)}`;
+  let activeConversation = persistence.ensureActiveConversation(
+    canonicalWorkspace,
+    legacyA9SessionId,
+    createConversationId(),
+  );
+  let a9SessionId = activeConversation.sessionId;
   const modeStore = new modules.core.WorkspaceModeSettingsStore(
     modules.core.WorkspaceModeSettingsStore.settingsFilePathFor(dataRoot, workspaceRoot),
     { legacyPath: modules.core.WorkspaceModeSettingsStore.legacyBasenameFilePathFor(dataRoot, workspaceRoot) },
@@ -126,12 +133,81 @@ function createA9AgentRuntime(options) {
   // ----- Agent Loop 状态（声明先于 provider 恢复，避免 TDZ） -----
   let loop = null;
   let activeController = null;
-  let agentStatus = 'idle';
+  let agentStatus = activeConversation.activity === 'interrupted' ? 'interrupted' : 'idle';
   // F4：模型切换时保存的会话历史；新 loop 惰性创建后恢复并一次性清除。
-  let pendingConversationHistory = null;
+  let restoredContext = buildPersistedTextContext(persistence.listConversationFacts(a9SessionId));
+  let pendingConversationHistory = restoredContext.messages;
   // F5：当前 Turn 的 task/turn/run 生命周期句柄。
   let activeLifecycle = null;
   let shutdownPromise = null;
+
+  // ----- 按对话草稿（D-020：DPAPI Current User；失败时仅内存） -----
+  const memoryDrafts = new Map();
+  const draftDiagnostics = new Map();
+
+  function draftEncryptionAvailable() {
+    try {
+      return (config.vaultPlatform || process.platform) === 'win32'
+        && config.safeStorage
+        && typeof config.safeStorage.isEncryptionAvailable === 'function'
+        && config.safeStorage.isEncryptionAvailable() === true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function readDraft(sessionId) {
+    if (memoryDrafts.has(sessionId)) {
+      return {
+        text: memoryDrafts.get(sessionId),
+        persistence: 'memory',
+        note: draftDiagnostics.get(sessionId) || '草稿仅保存在当前进程内存中。',
+      };
+    }
+    const ciphertext = persistence.getConversationDraftCiphertext(sessionId);
+    if (!ciphertext) {
+      return draftEncryptionAvailable()
+        ? { text: '', persistence: 'dpapi' }
+        : { text: '', persistence: 'memory', note: 'Windows DPAPI 不可用，草稿仅在当前进程保留。' };
+    }
+    if (!draftEncryptionAvailable()) {
+      const note = 'Windows DPAPI 不可用，已保存草稿无法解密；原密文未被覆盖。';
+      draftDiagnostics.set(sessionId, note);
+      return { text: '', persistence: 'memory', note };
+    }
+    try {
+      return {
+        text: config.safeStorage.decryptString(Buffer.from(ciphertext, 'base64')),
+        persistence: 'dpapi',
+      };
+    } catch (_err) {
+      const note = 'DPAPI 草稿解密失败；原密文未被覆盖，本次降级为仅内存。';
+      memoryDrafts.set(sessionId, '');
+      draftDiagnostics.set(sessionId, note);
+      return { text: '', persistence: 'memory', note };
+    }
+  }
+
+  function saveDraft(text) {
+    const draft = String(text == null ? '' : text).slice(0, 32_000);
+    if (draftEncryptionAvailable()) {
+      try {
+        const ciphertext = draft.length > 0
+          ? config.safeStorage.encryptString(draft).toString('base64')
+          : null;
+        persistence.setConversationDraftCiphertext(a9SessionId, ciphertext);
+        memoryDrafts.delete(a9SessionId);
+        draftDiagnostics.delete(a9SessionId);
+        return { ok: true, persistence: 'dpapi' };
+      } catch (_err) {
+        // 不覆盖旧密文；当前草稿改为进程内存保留。
+      }
+    }
+    memoryDrafts.set(a9SessionId, draft);
+    const note = 'Windows DPAPI 不可用或加密失败，草稿仅在当前进程保留。';
+    draftDiagnostics.set(a9SessionId, note);
+    return { ok: true, persistence: 'memory', note };
+  }
 
   // ----- Provider（R4：非秘密配置版本化持久化；秘密仅 DPAPI；未配置即拒绝执行） -----
   const PROVIDER_CONFIG_SCHEMA_VERSION = 1;
@@ -327,6 +403,71 @@ function createA9AgentRuntime(options) {
     }
   }
 
+  function conversationBlockReason() {
+    if (activeController) return '当前任务正在执行';
+    if (currentPendingApproval) return '当前对话正在等待审批';
+    if (loopTrustedRunner.getBackgroundManager().getActiveCount() > 0) return '当前对话仍有托管后台进程';
+    return null;
+  }
+
+  function assertConversationSwitchAllowed() {
+    const reason = conversationBlockReason();
+    if (!reason) return;
+    const err = new Error(`A9_CONVERSATION_BUSY: ${reason}，停止或完成后才能切换对话/工作区。`);
+    err.code = 'A9_CONVERSATION_BUSY';
+    throw err;
+  }
+
+  function loadConversation(record) {
+    activeConversation = record;
+    a9SessionId = record.sessionId;
+    loop = null;
+    loopWorkspaceService = null;
+    currentPendingApproval = null;
+    approvalDecisionInFlightId = null;
+    activeLifecycle = null;
+    timeline.splice(0, timeline.length);
+    restoredContext = buildPersistedTextContext(persistence.listConversationFacts(a9SessionId));
+    pendingConversationHistory = restoredContext.messages;
+    agentStatus = record.activity === 'interrupted' ? 'interrupted' : 'idle';
+    return { ok: true, conversationId: a9SessionId };
+  }
+
+  function createConversation() {
+    assertConversationSwitchAllowed();
+    const record = persistence.createConversation(createConversationId(), canonicalWorkspace);
+    return loadConversation(record);
+  }
+
+  function activateConversation(sessionId) {
+    assertConversationSwitchAllowed();
+    if (String(sessionId) === a9SessionId) return { ok: true, conversationId: a9SessionId };
+    return loadConversation(persistence.activateConversation(canonicalWorkspace, String(sessionId)));
+  }
+
+  function renameConversation(sessionId, title) {
+    const record = persistence.renameConversation(String(sessionId), String(title));
+    if (record.sessionId === a9SessionId) activeConversation = record;
+    return { ok: true, conversation: record };
+  }
+
+  function archiveConversation(sessionId) {
+    assertConversationSwitchAllowed();
+    if (String(sessionId) !== a9SessionId) {
+      const err = new Error('A9_CONVERSATION_NOT_CURRENT: 只能归档当前对话。');
+      err.code = 'A9_CONVERSATION_NOT_CURRENT';
+      throw err;
+    }
+    let next = persistence.archiveConversation(a9SessionId);
+    if (!next) next = persistence.createConversation(createConversationId(), canonicalWorkspace);
+    return loadConversation(next);
+  }
+
+  function restoreConversation(sessionId) {
+    assertConversationSwitchAllowed();
+    return loadConversation(persistence.restoreConversation(String(sessionId)));
+  }
+
   function ensureRuntime() {
     if (!lockHeld) {
       const err = new Error(`A9_WORKSPACE_LOCKED: 工作区写锁由 ${lock.holder} 持有`);
@@ -396,6 +537,9 @@ function createA9AgentRuntime(options) {
             turnId: approval.turnId,
             toolName: approval.toolName,
             binding: {
+              conversationId: a9SessionId,
+              taskId: activeLifecycle && activeLifecycle.taskId,
+              turnId: approval.turnId,
               summary: approval.summary,
               bindingDigest: approval.bindingDigest,
               args: approval.args,
@@ -604,7 +748,7 @@ function createA9AgentRuntime(options) {
       ...(requestPrompt ? { requestPrompt } : {}),
       outcome: result.outcome,
       verification: result.verification || 'not_applicable',
-      finalMessage: result.finalMessage || '',
+      finalMessage: redactSecrets(result.finalMessage || ''),
       toolCallsExecuted: Number.isFinite(result.toolCallsExecuted) ? result.toolCallsExecuted : 0,
       externalChanges: Array.isArray(result.externalChanges) ? result.externalChanges : [],
       ...(pendingApproval ? {
@@ -639,6 +783,7 @@ function createA9AgentRuntime(options) {
     if (result.externalChanges && result.externalChanges.length > 0) {
       persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', { changes: result.externalChanges });
     }
+    restoredContext = buildPersistedTextContext(persistence.listConversationFacts(a9SessionId));
     agentStatus = result.outcome;
     activeLifecycle = result.outcome === 'needs_approval' ? lifecycle : null;
   }
@@ -676,6 +821,22 @@ function createA9AgentRuntime(options) {
     currentPendingApproval = null;
   }
 
+  function approvalIdentity(approval) {
+    return {
+      ...approval,
+      conversationId: a9SessionId,
+      taskId: activeLifecycle && activeLifecycle.taskId,
+      turnId: approval && (approval.turnId || (activeLifecycle && activeLifecycle.turnId)),
+      bindingDigest: approval && approval.bindingDigest,
+    };
+  }
+
+  function presentTurnResult(result) {
+    if (!result || result.outcome !== 'needs_approval') return result;
+    const approval = result.pendingApproval || currentPendingApproval;
+    return { ...result, pendingApproval: approvalIdentity(approval) };
+  }
+
   async function submitTurn(prompt) {
     if (activeController) {
       const err = new Error('A9_TURN_ALREADY_ACTIVE: 当前已有运行中的任务');
@@ -703,6 +864,8 @@ function createA9AgentRuntime(options) {
         taskId: createdTaskId,
         requestPrompt: persistedRequestPrompt,
       });
+      activeConversation = persistence.maybeSetAutomaticTitle(a9SessionId, persistedRequestPrompt);
+      saveDraft('');
       activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null, requestPrompt: persistedRequestPrompt };
       const activeLoop = ensureRuntime();
       const result = await activeLoop.runTurn(requestPrompt, { signal: ownedController.signal });
@@ -720,7 +883,7 @@ function createA9AgentRuntime(options) {
       };
       activeLifecycle = lifecycle;
       persistTurnResult(lifecycle, result);
-      return { ok: true, result };
+      return { ok: true, result: presentTurnResult(result) };
     } catch (error) {
       let failureLifecycle = activeLifecycle || (createdTaskId ? { taskId: createdTaskId, turnId: null, runId: null } : null);
       if (failureLifecycle && !failureLifecycle.turnId) {
@@ -739,8 +902,9 @@ function createA9AgentRuntime(options) {
     let ownedController = null;
     try {
       if (!input || typeof input !== 'object' || !input.approvalId || !input.bindingDigest ||
+          !input.conversationId || !input.taskId || !input.turnId ||
           (input.decision !== 'approved' && input.decision !== 'denied')) {
-        const err = new Error('A9_APPROVAL_INPUT_INVALID: 回复必须携带 approvalId、decision 与 bindingDigest');
+        const err = new Error('A9_APPROVAL_INPUT_INVALID: 回复必须携带对话/任务/Turn/approval 身份、decision 与 bindingDigest');
         err.code = 'A9_APPROVAL_INPUT_INVALID';
         throw err;
       }
@@ -748,6 +912,13 @@ function createA9AgentRuntime(options) {
       if (!original || original.approvalId !== input.approvalId) {
         const err = new Error('A9_APPROVAL_UNKNOWN: 没有匹配的挂起审批');
         err.code = 'A9_APPROVAL_UNKNOWN';
+        throw err;
+      }
+      const identity = approvalIdentity(original);
+      if (input.conversationId !== identity.conversationId || input.taskId !== identity.taskId ||
+          input.turnId !== identity.turnId || input.bindingDigest !== identity.bindingDigest) {
+        const err = new Error('A9_APPROVAL_STALE: 审批与当前对话/任务/Turn/目标绑定不匹配');
+        err.code = 'A9_APPROVAL_STALE';
         throw err;
       }
       const activeLoop = ensureRuntime();
@@ -775,6 +946,9 @@ function createA9AgentRuntime(options) {
         turnId: original.turnId,
         toolName: original.toolName,
         binding: {
+          conversationId: identity.conversationId,
+          taskId: identity.taskId,
+          turnId: identity.turnId,
           summary: original.summary,
           bindingDigest: original.bindingDigest,
           args: original.args,
@@ -790,7 +964,7 @@ function createA9AgentRuntime(options) {
         err.code = 'A9_LIFECYCLE_MISSING';
         throw err;
       }
-      return { ok: true, result };
+      return { ok: true, result: presentTurnResult(result) };
     } catch (error) {
       if (resumeProducedResult) persistUnexpectedFailure(error, activeLifecycle);
       return { ok: false, error: serializeError(error) };
@@ -840,6 +1014,7 @@ function createA9AgentRuntime(options) {
     modeStore.save(workspaceRoot, mode);
     persistence.setWorkspaceMode(canonicalWorkspace, mode);
     persistence.recordToolEvent(a9SessionId, null, 'mode.set', { mode, workspace: canonicalWorkspace });
+    pendingConversationHistory = loop ? loop.getConversationHistory() : pendingConversationHistory;
     loop = null;
     return { ok: true, mode };
   }
@@ -848,6 +1023,7 @@ function createA9AgentRuntime(options) {
     const shellSelection = modules.runner.selectShell({});
     const managedProcesses = syncManagedProcessFacts();
     const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting');
+    const blockReason = conversationBlockReason();
     return {
       schemaVersion: A9_PROTOCOL_VERSION,
       status: 'ready',
@@ -875,17 +1051,32 @@ function createA9AgentRuntime(options) {
         }
         : { configured: false, note: '正式产品使用真实 OpenAI-compatible Provider；Replay 仅测试入口', ...(providerDiagnostics ? { diagnostics: providerDiagnostics } : {}) },
       agentStatus,
+      activeConversationId: a9SessionId,
+      conversations: persistence.listConversations(canonicalWorkspace),
+      conversationControls: {
+        canSwitch: !blockReason,
+        reason: blockReason,
+        maxActive: modules.state.A9_MAX_ACTIVE_CONVERSATIONS || 16,
+      },
+      contextWindow: restoredContext.stats,
+      draft: readDraft(a9SessionId),
+      ...(persistenceOutcome.backupPath ? {
+        migrationBackup: {
+          path: persistenceOutcome.backupPath,
+          sha256: persistenceOutcome.backupSha256,
+        },
+      } : {}),
       controls: {
         canStop: Boolean(activeController) || activeManaged.length > 0,
         stopKind: activeController ? 'turn' : activeManaged.length > 0 ? 'managed_process' : 'none',
       },
       // runTurn/resumeAfterApproval 尚未返回时不把审批暴露给 Renderer；否则旧卡片
       // 可在控制器释放前再次提交，形成 A9_TURN_ALREADY_ACTIVE 竞态。
-      ...(currentPendingApproval && !activeController ? { pendingApproval: currentPendingApproval } : {}),
+      ...(currentPendingApproval && !activeController ? { pendingApproval: approvalIdentity(currentPendingApproval) } : {}),
       timeline: timeline.slice(-100),
       checkpoints: persistence.listCheckpoints(a9SessionId),
-      conversation: persistence.listConversationFacts(a9SessionId, 50),
-      interruptions: persistence.listInterruptions(),
+      conversation: persistence.listConversationFacts(a9SessionId),
+      interruptions: persistence.listInterruptions(a9SessionId),
       managedProcesses,
     };
   }
@@ -894,16 +1085,38 @@ function createA9AgentRuntime(options) {
     return loopWorkspaceService || standaloneWorkspaceService;
   }
 
+  function assertCheckpointForCurrentConversation(turnId) {
+    const checkpoint = persistence.getCheckpoint(String(turnId));
+    if (!checkpoint) {
+      const err = new Error('A9_CHECKPOINT_NOT_FOUND');
+      err.code = 'A9_CHECKPOINT_NOT_FOUND';
+      throw err;
+    }
+    if (checkpoint.sessionId !== a9SessionId) {
+      const err = new Error('A9_CHECKPOINT_CONVERSATION_MISMATCH: Checkpoint 不属于当前对话');
+      err.code = 'A9_CHECKPOINT_CONVERSATION_MISMATCH';
+      throw err;
+    }
+  }
+
   function undoTurn(turnId) {
+    assertCheckpointForCurrentConversation(turnId);
     return { ok: true, outcome: workspaceServiceForState().getCheckpointManager().undoTurn(String(turnId)) };
   }
 
   function undoFile(turnId, relPath) {
+    assertCheckpointForCurrentConversation(turnId);
     return { ok: true, outcome: workspaceServiceForState().getCheckpointManager().undoFile(String(turnId), String(relPath)) };
   }
 
   function getDiff(turnId) {
+    assertCheckpointForCurrentConversation(turnId);
     return { ok: true, diff: workspaceServiceForState().getCheckpointManager().getTurnDiff(String(turnId)) };
+  }
+
+  function canLeaveWorkspace() {
+    const reason = conversationBlockReason();
+    return { allowed: !reason, reason };
   }
 
   async function gitStatus() {
@@ -959,6 +1172,13 @@ function createA9AgentRuntime(options) {
     submitTurn,
     resumeApproval,
     stop,
+    saveDraft,
+    createConversation,
+    activateConversation,
+    renameConversation,
+    archiveConversation,
+    restoreConversation,
+    canLeaveWorkspace,
     setMode,
     getSnapshot,
     undoTurn,
@@ -966,6 +1186,45 @@ function createA9AgentRuntime(options) {
     getDiff,
     gitStatus,
     shutdown,
+  };
+}
+
+function createConversationId() {
+  return `a9c-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+/**
+ * 重启/切换时只恢复完整用户+助手文本轮；工具、审批和副作用不进入模型上下文。
+ */
+function buildPersistedTextContext(facts) {
+  const complete = (Array.isArray(facts) ? facts : []).filter((fact) =>
+    typeof fact.requestPrompt === 'string' && fact.requestPrompt.length > 0
+    && typeof fact.finalMessage === 'string' && fact.finalMessage.length > 0);
+  const selected = [];
+  let includedChars = 0;
+  for (let index = complete.length - 1; index >= 0 && selected.length < 20; index -= 1) {
+    const fact = complete[index];
+    const roundChars = fact.requestPrompt.length + fact.finalMessage.length;
+    if (includedChars + roundChars > 32_000) break;
+    selected.push(fact);
+    includedChars += roundChars;
+  }
+  selected.reverse();
+  const omittedRounds = Math.max(0, complete.length - selected.length);
+  return {
+    messages: selected.flatMap((fact) => [
+      { role: 'user', content: fact.requestPrompt },
+      { role: 'assistant', content: fact.finalMessage },
+    ]),
+    stats: {
+      includedRounds: selected.length,
+      includedChars,
+      omittedRounds,
+      visibleRounds: Array.isArray(facts) ? facts.length : 0,
+      maxRounds: 20,
+      maxChars: 32_000,
+      ...(omittedRounds > 0 ? { note: `更早的 ${omittedRounds} 个完整轮次仅在本地可见，未恢复给 Provider。` } : {}),
+    },
   };
 }
 
@@ -997,6 +1256,13 @@ function createSqliteUnavailableRuntime(reason) {
     async submitTurn() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE', message: 'Electron-ABI better-sqlite3 预检失败，A9 持久化不可用。' } }; },
     async resumeApproval() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
     stop() { return { ok: false }; },
+    saveDraft() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
+    createConversation() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    activateConversation() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    renameConversation() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    archiveConversation() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    restoreConversation() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     getSnapshot() { return { schemaVersion: 1, status: 'electron_sqlite_unavailable', diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: reason } }; },
     undoTurn() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
@@ -1017,6 +1283,13 @@ function createDiagnosticsRuntime(outcome) {
     async submitTurn() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE', message: '数据库受限诊断模式，禁止执行任务。' } }; },
     async resumeApproval() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE' } }; },
     stop() { return { ok: false }; },
+    saveDraft() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE' } }; },
+    createConversation() { throw new Error('A9_DIAGNOSTICS_MODE'); },
+    activateConversation() { throw new Error('A9_DIAGNOSTICS_MODE'); },
+    renameConversation() { throw new Error('A9_DIAGNOSTICS_MODE'); },
+    archiveConversation() { throw new Error('A9_DIAGNOSTICS_MODE'); },
+    restoreConversation() { throw new Error('A9_DIAGNOSTICS_MODE'); },
+    canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     getSnapshot() { return { schemaVersion: A9_PROTOCOL_VERSION, status: 'diagnostics', diagnostics: outcome }; },
     undoTurn() { throw new Error('A9_DIAGNOSTICS_MODE'); },

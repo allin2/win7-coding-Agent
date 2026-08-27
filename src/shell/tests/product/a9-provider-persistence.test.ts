@@ -387,4 +387,40 @@ describe('R4: provider config persistence and DPAPI integration', () => {
       await fixture.close();
     }
   }, 30_000);
+
+  it('encrypts drafts per conversation, restores them after restart, and never stores plaintext', async () => {
+    const secretDraft = '未发送草稿-DPAPI-ONLY-42';
+    const first = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
+    first.setMode('full_access');
+    const firstId = first.getSnapshot().activeConversationId;
+    expect(first.saveDraft(secretDraft)).toEqual({ ok: true, persistence: 'dpapi' });
+    const created = first.createConversation();
+    expect(created.ok).toBe(true);
+    expect(first.getSnapshot().draft.text).toBe('');
+    first.saveDraft('第二个对话草稿');
+    first.activateConversation(firstId);
+    expect(first.getSnapshot().draft).toEqual(expect.objectContaining({ text: secretDraft, persistence: 'dpapi' }));
+    await first.shutdown();
+
+    const rawDatabase = fs.readFileSync(path.join(env.dataRoot, 'a9-state.db'));
+    expect(rawDatabase.includes(Buffer.from(secretDraft, 'utf8'))).toBe(false);
+    const reopened = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
+    expect(reopened.getSnapshot().activeConversationId).toBe(firstId);
+    expect(reopened.getSnapshot().draft.text).toBe(secretDraft);
+    await reopened.shutdown();
+  });
+
+  it('keeps draft memory-only and reports the fallback when safeStorage is unavailable', async () => {
+    const runtime = makeRuntime();
+    const response = runtime.saveDraft('仅内存草稿');
+    expect(response.persistence).toBe('memory');
+    expect(response.note).toContain('仅在当前进程');
+    expect(runtime.getSnapshot().draft).toEqual(expect.objectContaining({
+      text: '仅内存草稿', persistence: 'memory',
+    }));
+    const db = new Database(path.join(env.dataRoot, 'a9-state.db'), { readonly: true });
+    expect((db.prepare('SELECT draft_ciphertext FROM a9_sessions').get() as any).draft_ciphertext).toBeNull();
+    db.close();
+    await runtime.shutdown();
+  });
 });

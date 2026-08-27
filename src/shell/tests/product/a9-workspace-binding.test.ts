@@ -57,14 +57,14 @@ describe('F1: a9 IPC returns A9_WORKSPACE_REQUIRED before a workspace is confirm
   });
 
   it('snapshot reports A9_WORKSPACE_REQUIRED (not DESKTOP_RUNTIME_ERROR)', async () => {
-    const response = await handler({}, { schemaVersion: 2, action: 'a9.snapshot.get', payload: {} });
+    const response = await handler({}, { schemaVersion: 3, action: 'a9.snapshot.get', payload: {} });
     expect(response.ok).toBe(false);
     expect(response.error.code).toBe('A9_WORKSPACE_REQUIRED');
     expect(response.error.recommendedAction).toContain('选择');
   });
 
   it('turn submission is refused with the same structured code', async () => {
-    const response = await handler({}, { schemaVersion: 2, action: 'a9.turn.submit', payload: { prompt: 'x' } });
+    const response = await handler({}, { schemaVersion: 3, action: 'a9.turn.submit', payload: { prompt: 'x' } });
     expect(response.ok).toBe(false);
     expect(response.error.code).toBe('A9_WORKSPACE_REQUIRED');
   });
@@ -203,7 +203,7 @@ describe('F1: workspaces A and B stay isolated (mode, lock, checkpoints)', () =>
       getA9Runtime: () => runtime,
       isValidRendererSender: () => true,
     });
-    return viaIpc({}, { schemaVersion: 2, action: 'a9.mode.set', payload: { mode: 'bogus-mode' } }).then((response: any) => {
+    return viaIpc({}, { schemaVersion: 3, action: 'a9.mode.set', payload: { mode: 'bogus-mode' } }).then((response: any) => {
       expect(response.ok).toBe(false);
       expect(String(response.error.message)).toMatch(/A9_MODE_INVALID/);
       runtime.shutdown();

@@ -889,7 +889,18 @@ async function getOrCreateA9Runtime() {
   }
   // 切换工作区：安全关闭旧 runtime（释放锁/后台进程）；模式、锁与 checkpoint 按工作区隔离。
   if (a9RuntimeInstance && typeof a9RuntimeInstance.shutdown === 'function') {
-    try { await a9RuntimeInstance.shutdown(); } catch (_err) { /* 创建新 runtime 时仍由锁 fail-closed */ }
+    const leave = typeof a9RuntimeInstance.canLeaveWorkspace === 'function'
+      ? a9RuntimeInstance.canLeaveWorkspace()
+      : { allowed: true };
+    if (!leave.allowed) {
+      throw Object.assign(new Error(`A9_WORKSPACE_BUSY: ${leave.reason}`), { code: 'A9_WORKSPACE_BUSY' });
+    }
+    const cleanup = await a9RuntimeInstance.shutdown();
+    if (cleanup && Array.isArray(cleanup.leftToSystem) && cleanup.leftToSystem.length > 0) {
+      throw Object.assign(new Error(`A9_WORKSPACE_CLEANUP_UNCONFIRMED: ${cleanup.leftToSystem.join(';')}`), {
+        code: 'A9_WORKSPACE_CLEANUP_UNCONFIRMED',
+      });
+    }
   }
   a9RuntimeInstance = createA9AgentRuntime({
     workspaceRoot: desiredWorkspace,
@@ -919,14 +930,15 @@ function beginA9ShutdownBeforeQuit(event) {
     try {
       const result = await a9RuntimeInstance.shutdown();
       if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
-        runtimeState.errors.push(`a9-shutdown-residue:${result.leftToSystem.join(';')}`);
+        throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
       }
+      a9ShutdownComplete = true;
+      app.quit();
     } catch (error) {
       runtimeState.errors.push('a9-shutdown:' + String(error && error.message ? error.message : error));
       process.stderr.write('A9_SHUTDOWN_ERROR:' + String(error && error.stack ? error.stack : error) + '\n');
-    } finally {
-      a9ShutdownComplete = true;
-      app.quit();
+      a9ShutdownInFlight = null;
+      dialog.showErrorBox('无法确认安全退出', '仍有 A9 任务或托管进程的清理结果无法确认。应用已取消正常退出，请在诊断中检查残留后重试。');
     }
   })();
 }
@@ -1078,7 +1090,25 @@ if (!hasSingleInstanceLock) {
         platform: process.platform,
       }),
       ...(activeWorkspaceStore ? {
-        onWorkspaceSelected: (workspacePath) => activeWorkspaceStore.save(workspacePath),
+        onWorkspaceSelected: async (workspacePath) => {
+          if (a9RuntimeInstance && a9RuntimeWorkspace && workspacePath !== a9RuntimeWorkspace) {
+            const leave = typeof a9RuntimeInstance.canLeaveWorkspace === 'function'
+              ? a9RuntimeInstance.canLeaveWorkspace()
+              : { allowed: true };
+            if (!leave.allowed) {
+              throw Object.assign(new Error(`A9_WORKSPACE_BUSY: ${leave.reason}`), { code: 'A9_WORKSPACE_BUSY' });
+            }
+            const cleanup = await a9RuntimeInstance.shutdown();
+            if (cleanup && Array.isArray(cleanup.leftToSystem) && cleanup.leftToSystem.length > 0) {
+              throw Object.assign(new Error(`A9_WORKSPACE_CLEANUP_UNCONFIRMED: ${cleanup.leftToSystem.join(';')}`), {
+                code: 'A9_WORKSPACE_CLEANUP_UNCONFIRMED',
+              });
+            }
+            a9RuntimeInstance = null;
+            a9RuntimeWorkspace = null;
+          }
+          activeWorkspaceStore.save(workspacePath);
+        },
       } : {}),
       ...(productRunner ? { runner: productRunner.runner, runnerAcceptanceAction: productRunner.acceptanceAction } : {}),
       ...(rcComposition ? {
