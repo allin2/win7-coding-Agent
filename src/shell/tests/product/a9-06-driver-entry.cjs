@@ -19,7 +19,7 @@ const path = require('path');
 const { app, BrowserWindow, dialog } = require('electron');
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
-const productMain = path.join(repositoryRoot, 'src/shell/product/main.js');
+const productMain = process.env.A9_SMOKE_PRODUCT_MAIN || path.join(repositoryRoot, 'src/shell/product/main.js');
 
 const report = { status: 'RUNNING', mode: process.env.A9_SMOKE_MODE || 'first', cases: [] };
 function record(id, passed, detail) {
@@ -202,12 +202,21 @@ async function runFirstProcess(win, exec, env) {
       git: document.getElementById('a9-approval-git').textContent,
       approvalId: document.getElementById('a9-approval-id').textContent,
       digest: card.dataset.bindingDigest,
+      conversationId: card.dataset.conversationId,
+      taskId: card.dataset.taskId,
+      turnId: card.dataset.turnId,
     };
   })()`), 90_000, 'approval card');
   const approvalValid = approval && (approval.summary.includes('permanent') || approval.summary.includes('git')) &&
     approval.approvalId.length > 0 && approval.digest && approval.digest.length === 64;
   record('A9F1-APPROVAL-CARD-TRUE-TARGET', approvalValid === true, JSON.stringify(approval));
-  report.oldApproval = approval ? { approvalId: approval.approvalId, bindingDigest: approval.digest } : null;
+  report.oldApproval = approval ? {
+    approvalId: approval.approvalId.replace(/^approval:\s*/, ''),
+    bindingDigest: approval.digest,
+    conversationId: approval.conversationId,
+    taskId: approval.taskId,
+    turnId: approval.turnId,
+  } : null;
 
   // Renderer 只证明拒绝完成；目标文件事实由宿主进程在 Electron 退出后直接检查。
   await exec('document.getElementById("a9-approval-deny").click(); true');
@@ -235,18 +244,62 @@ async function runSecondProcess(win, exec, env) {
   record('A9F2-NO-SPURIOUS-INTERRUPTION', Array.isArray(snapshot.interruptions) && snapshot.interruptions.length === 0, `interruptions=${JSON.stringify(snapshot.interruptions)}`);
   // 不自动重放：时间线为空。
   record('A9F2-NO-REPLAY-TIMELINE', Array.isArray(snapshot.timeline) && snapshot.timeline.length === 0, `timeline=${snapshot.timeline.length}`);
+
+  // Exercise the formal preload/Schema IPC path for the complete 16-conversation
+  // boundary and identity-scoped draft/archive/restore operations.
+  const conversations = await exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const initial = await api.snapshot();
+    const originalId = initial.snapshot.activeConversationId;
+    const created = [];
+    while ((await api.snapshot()).snapshot.conversations.filter((item) => !item.archivedAt).length < 16) {
+      const next = await api.createConversation();
+      if (!next.ok) return { ok: false, phase: 'create', next };
+      created.push(next.conversationId);
+    }
+    const seventeenth = await api.createConversation();
+    const currentId = (await api.snapshot()).snapshot.activeConversationId;
+    const renamed = await api.renameConversation(currentId, 'Electron IPC conversation 16');
+    const draftCurrent = await api.saveDraft('draft-conversation-16');
+    const switched = await api.activateConversation(originalId);
+    const draftOriginal = await api.saveDraft('draft-original');
+    const back = await api.activateConversation(currentId);
+    const currentDraft = (await api.snapshot()).snapshot.draft;
+    const archived = await api.archiveConversation(currentId);
+    const afterArchive = (await api.snapshot()).snapshot;
+    const restored = await api.restoreConversation(currentId);
+    const afterRestore = (await api.snapshot()).snapshot;
+    await api.activateConversation(originalId);
+    return {
+      ok: renamed.ok && draftCurrent.ok && switched.ok && draftOriginal.ok && back.ok && archived.ok && restored.ok,
+      seventeenth: { ok: seventeenth.ok, code: seventeenth.error && seventeenth.error.code },
+      currentDraft: currentDraft && currentDraft.text,
+      archivedCount: afterArchive.conversations.filter((item) => item.state === 'archived').length,
+      activeCount: afterRestore.conversations.filter((item) => item.state === 'active').length,
+      restoredActiveId: afterRestore.activeConversationId,
+      currentId,
+      created: created.length,
+    };
+  })()`);
+  record('A9F2-CONVERSATION-16-IPC-ISOLATION', conversations.ok === true && conversations.seventeenth.ok === false &&
+    conversations.seventeenth.code === 'A9_CONVERSATION_LIMIT' &&
+    conversations.currentDraft === 'draft-conversation-16' && conversations.archivedCount >= 1 &&
+    conversations.activeCount === 16 && conversations.restoredActiveId === conversations.currentId, JSON.stringify(conversations));
+
   // 旧审批不可执行：无挂起审批却恢复 → 结构化拒绝（不新增实体、零副作用）。
   const oldApproval = {
     approvalId: process.env.A9_SMOKE_OLD_APPROVAL_ID,
     bindingDigest: process.env.A9_SMOKE_OLD_APPROVAL_DIGEST,
+    conversationId: process.env.A9_SMOKE_OLD_APPROVAL_CONVERSATION,
+    taskId: process.env.A9_SMOKE_OLD_APPROVAL_TASK,
+    turnId: process.env.A9_SMOKE_OLD_APPROVAL_TURN,
   };
-  const rejected = await exec(`(window.win7Agent.a9.resumeApproval(${JSON.stringify(oldApproval.approvalId)}, "approved", ${JSON.stringify(oldApproval.bindingDigest)})).then(r => ({ ok: r.ok, code: r.error && r.error.code }))`);
+  const rejected = await exec(`(window.win7Agent.a9.resumeApproval(${JSON.stringify(oldApproval.approvalId)}, "approved", ${JSON.stringify(oldApproval.bindingDigest)}, ${JSON.stringify(oldApproval.conversationId)}, ${JSON.stringify(oldApproval.taskId)}, ${JSON.stringify(oldApproval.turnId)})).then(r => ({ ok: r.ok, code: r.error && r.error.code }))`);
   record('A9F2-OLD-APPROVAL-REJECTED', rejected.ok === false && rejected.code === 'A9_APPROVAL_UNKNOWN', JSON.stringify(rejected));
 
   // 新 Turn 仍可执行（恢复的 Provider 已配置）；恢复请求由宿主按内容断言为全新会话。
-  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "verify again"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
-  const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('completed') ? t : null)), 60_000, 'second turn outcome');
-  record('A9F2-SECOND-TURN-WORKS', Boolean(outcome), `outcome=${outcome}`);
+  const outcome = await exec('(window.win7Agent.a9.submitTurn("verify again")).then(r => ({ ok: r.ok, outcome: r.result && r.result.outcome, code: r.error && r.error.code }))');
+  record('A9F2-SECOND-TURN-WORKS', outcome.ok === true && outcome.outcome === 'completed', `outcome=${JSON.stringify(outcome)}`);
 }
 
 async function runStopProcess(win, exec, env) {
@@ -280,14 +333,14 @@ async function runStopProcess(win, exec, env) {
 app.whenReady().then(main).then(() => {
   fs.mkdirSync(path.dirname(process.env.A9_SMOKE_OUT), { recursive: true });
   fs.writeFileSync(process.env.A9_SMOKE_OUT, `${JSON.stringify(report, null, 2)}\n`);
-  // 走真实 will-quit → a9RuntimeInstance.shutdown() → releaseWorkspaceLock 路径，
-  // 让第二进程（真实重启）能获取同一工作区写锁；不能用 app.exit 跳过 will-quit。
-  app.emit('will-quit');
-  app.exit(report.status === 'PASS' ? 0 : 1);
+  // 走真实 before-quit → async a9RuntimeInstance.shutdown() → app.quit()
+  // → will-quit 路径。app.exit/手工 emit 会绕过产品的异步清理门并遗留工作区锁。
+  process.exitCode = report.status === 'PASS' ? 0 : 1;
+  app.quit();
 }).catch((error) => {
   report.status = 'ERROR';
   report.error = String(error && error.stack ? error.stack : error);
   try { fs.writeFileSync(process.env.A9_SMOKE_OUT, `${JSON.stringify(report, null, 2)}\n`); } catch (_e) { /* best effort */ }
-  try { app.emit('will-quit'); } catch (_e) { /* best effort */ }
-  app.exit(1);
+  process.exitCode = 1;
+  app.quit();
 });

@@ -81,9 +81,98 @@ export function tokenizeCommand(command: string): string[] {
 }
 
 function isGitExecutable(token: string): boolean {
-  const value = token.replace(/^@/, '').toLowerCase();
+  const value = token.replace(/^@/, '').replace(/^[({]+/, '').replace(/[)}]+$/, '').toLowerCase();
   return value === 'git' || value === 'git.exe' || value.endsWith('/git') ||
     value.endsWith('\\git.exe') || value.endsWith('/git.exe');
+}
+
+function shellKeyword(token: string | undefined): string {
+  return (token || '').replace(/^@/, '').replace(/^[({]+/, '').replace(/[)}]+$/, '').toLowerCase();
+}
+
+const GIT_PROSE_COMMANDS = new Set([
+  'echo', 'echo.', 'printf', 'rem', '::', 'write-output', 'write-host', 'out-host',
+]);
+
+function gitTokenIndex(tokens: string[], start: number): number {
+  const executable = shellKeyword(tokens[start]);
+  if (GIT_PROSE_COMMANDS.has(executable) || executable.startsWith('#')) return -1;
+  const index = tokens.findIndex((token, tokenIndex) => tokenIndex >= start && isGitExecutable(token));
+  if (index < 0) return -1;
+  if (tokens.slice(start, index).some((token) => GIT_PROSE_COMMANDS.has(shellKeyword(token)))) return -1;
+  return index;
+}
+
+function exposeControlPunctuation(command: string): string {
+  let result = '';
+  let quote: '"' | "'" | undefined;
+  for (let index = 0; index < command.length; index += 1) {
+    const ch = command[index];
+    if (quote) {
+      result += ch;
+      if (ch === quote && command[index - 1] !== '\\') quote = undefined;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      result += ch;
+    } else if (ch === '(' || ch === ')' || ch === '{' || ch === '}') {
+      result += ` ${ch} `;
+    } else {
+      result += ch;
+    }
+  }
+  return result;
+}
+
+function normalizeEmbeddedGitTokens(tokens: string[]): string[] {
+  const normalized = [...tokens];
+  normalized[0] = normalized[0].replace(/^[({]+/, '');
+  const last = normalized.length - 1;
+  normalized[last] = normalized[last].replace(/[)}]+$/, '');
+  return normalized;
+}
+
+function conservativeGitDecision(command: string): GitCommandDecision {
+  return {
+    category: 'always_confirm',
+    binding: bindingFor(command, { summary: 'unclassified compound Git execution (full command digest bound)' }),
+    reason: '复合 Shell 中检测到 Git 可执行词但无法完整分类，保守要求目标绑定确认',
+    mutatesWorktree: true,
+  };
+}
+
+/**
+ * Extract the executable body of the two control-flow forms used by the
+ * supported Win7 shells. This is deliberately narrower than a shell parser:
+ * prose such as `echo git push` remains data, while an actual command after a
+ * CMD `if` or inside a PowerShell script block is classified recursively.
+ */
+function unwrapConditionalPayload(tokens: string[], start: number): string | undefined {
+  if (shellKeyword(tokens[start]) !== 'if') return undefined;
+
+  // PowerShell: if (<condition>) { <command> }
+  const blockIndex = tokens.findIndex((token, index) => index > start && token.startsWith('{'));
+  if (blockIndex >= 0) {
+    const first = tokens[blockIndex].replace(/^\{+/, '');
+    return [first, ...tokens.slice(blockIndex + 1)].filter(Boolean).join(' ');
+  }
+
+  // CMD: if [not] exist <path> <command>, plus the equivalent one-argument
+  // predicates. Do not scan arbitrary later words: the command itself is
+  // recursively classified, which avoids treating `if exist x echo git push`
+  // as Git execution.
+  let cursor = start + 1;
+  if (shellKeyword(tokens[cursor]) === 'not') cursor += 1;
+  const predicate = shellKeyword(tokens[cursor]);
+  if (['exist', 'defined', 'errorlevel', 'cmdextversion'].includes(predicate)) {
+    cursor += 2;
+  } else if ((tokens[cursor] || '').includes('==')) {
+    cursor += 1;
+  } else {
+    return undefined;
+  }
+  return cursor < tokens.length ? tokens.slice(cursor).join(' ') : undefined;
 }
 
 function executableIndex(tokens: string[]): number {
@@ -169,7 +258,9 @@ const AUTONOMOUS_LOCAL_WRITE = new Set([
  */
 export function classifyGitCommand(command: string): GitCommandDecision | null {
   const decisions = collectGitDecisions(command, command, 0);
-  if (decisions.length === 0) return null;
+  if (decisions.length === 0) {
+    return containsExecutableGitRisk(command) ? conservativeGitDecision(command) : null;
+  }
   const rank: Record<GitCommandCategory, number> = {
     autonomous: 1,
     commit_requires_user_request: 2,
@@ -196,19 +287,37 @@ function collectGitDecisions(command: string, originalCommand: string, depth: nu
   if (depth > 4 || command.length > 256 * 1024) return [];
   const decisions: GitCommandDecision[] = [];
   for (const segment of splitShellSegments(command)) {
-    const tokens = tokenizeCommand(segment);
+    const tokens = tokenizeCommand(exposeControlPunctuation(segment));
     const start = executableIndex(tokens);
     if (start >= tokens.length) continue;
-    if (isGitExecutable(tokens[start])) {
-      decisions.push(classifyGitTokens(tokens.slice(start), originalCommand));
+    const embeddedGitIndex = gitTokenIndex(tokens, start);
+    if (embeddedGitIndex >= 0) {
+      decisions.push(classifyGitTokens(normalizeEmbeddedGitTokens(tokens.slice(embeddedGitIndex)), originalCommand));
       continue;
     }
     const payload = unwrapShellPayload(tokens, start);
     if (payload !== undefined && payload.trim() !== segment.trim()) {
       decisions.push(...collectGitDecisions(payload, originalCommand, depth + 1));
+      continue;
+    }
+    const conditionalPayload = unwrapConditionalPayload(tokens, start);
+    if (conditionalPayload !== undefined && conditionalPayload.trim() !== segment.trim()) {
+      decisions.push(...collectGitDecisions(conditionalPayload, originalCommand, depth + 1));
     }
   }
   return decisions;
+}
+
+function containsExecutableGitRisk(command: string): boolean {
+  // This fallback is used for parser depth/size limits and unfamiliar control
+  // syntax. Known prose sinks remain exempt; all other executable-looking Git
+  // tokens fail closed instead of becoming indistinguishable from “no Git”.
+  for (const segment of splitShellSegments(command)) {
+    const tokens = tokenizeCommand(exposeControlPunctuation(segment));
+    const start = executableIndex(tokens);
+    if (start < tokens.length && gitTokenIndex(tokens, start) >= 0) return true;
+  }
+  return false;
 }
 
 function classifyGitTokens(tokens: string[], originalCommand: string): GitCommandDecision {

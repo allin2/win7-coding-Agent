@@ -93,6 +93,24 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     check.close();
   });
 
+  it.each(['empty', 'wrong-row'])('fails closed on an %s a9_meta table without modifying the database', (shape) => {
+    const raw = new Database(env.dbPath);
+    raw.pragma('journal_mode = DELETE');
+    raw.exec('CREATE TABLE a9_meta (id INTEGER, schema_version INTEGER)');
+    if (shape === 'wrong-row') raw.exec(`INSERT INTO a9_meta VALUES (2, ${A9_SCHEMA_VERSION})`);
+    raw.close();
+    const beforeHash = sha256(env.dbPath);
+    const beforeFiles = fs.readdirSync(env.dataRoot).sort();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toContain('A9_SCHEMA_INVALID');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    expect(fs.readdirSync(env.dataRoot).sort()).toEqual(beforeFiles);
+    expect(fs.existsSync(`${env.dbPath}-wal`)).toBe(false);
+    expect(fs.existsSync(`${env.dbPath}-shm`)).toBe(false);
+  });
+
   it.each([1, 2])('backs up and atomically migrates a v%s database so failed turns are truthful and existing rows survive', (legacyVersion) => {
     const v2 = new Database(env.dbPath);
     v2.exec(`
@@ -303,6 +321,28 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(manager.countEvents()).toBe(1);
   });
 
+  it('reconciles only same-workspace interrupted Turns from durable checkpoint manifests', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    manager.saveSession('s-local', '/ws');
+    manager.saveSession('s-foreign', '/other');
+    manager.upsertTask('task-local', 's-local', 'active');
+    manager.upsertTurn('turn-local', 'task-local', 's-local', 'active');
+    manager.upsertTask('task-foreign', 's-foreign', 'active');
+    manager.upsertTurn('turn-foreign', 'task-foreign', 's-foreign', 'active');
+    manager.markInterruptionsOnRestart();
+
+    expect(manager.reconcileInterruptedWorkspaceCheckpoints('/ws', [
+      'turn-local', 'turn-foreign', 'turn-unknown', 'turn-local',
+    ])).toEqual(['turn-local']);
+    expect(manager.getCheckpoint('turn-local')?.payload).toEqual(expect.objectContaining({
+      outcome: 'interrupted', recoveredFromWorkspaceManifest: true,
+    }));
+    expect(manager.getCheckpoint('turn-foreign')).toBeNull();
+  });
+
   it('migrates v3 sessions and invalidates restart-era pending approvals without losing history', () => {
     const legacy = new Database(env.dbPath);
     legacy.exec(`
@@ -374,13 +414,34 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(manager.getActiveConversationId('C:/workspace')).toBe('a9c-second');
   });
 
+  it('archives the last conversation and creates its replacement atomically', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    manager.createConversation('a9c-only', '/ws');
+    const replacement = manager.archiveConversation('a9c-only', 'a9c-replacement');
+    expect(replacement?.sessionId).toBe('a9c-replacement');
+    expect(manager.getActiveConversationId('/ws')).toBe('a9c-replacement');
+    expect(manager.listConversations('/ws')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: 'a9c-only', state: 'archived' }),
+      expect.objectContaining({ sessionId: 'a9c-replacement', state: 'active' }),
+    ]));
+
+    // A failed replacement insert rolls the archive and active pointer back.
+    manager.archiveConversation('a9c-replacement', 'a9c-next');
+    expect(() => manager.archiveConversation('a9c-next', 'a9c-only')).toThrow();
+    expect(manager.getActiveConversationId('/ws')).toBe('a9c-next');
+    expect(manager.listConversations('/ws').find((item) => item.sessionId === 'a9c-next')?.state).toBe('active');
+  });
+
   it('enforces the 16 unarchived conversation limit without deleting archived history', () => {
     const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
     expect(outcome.status).toBe('ready');
     if (outcome.status !== 'ready') return;
     const manager = outcome.manager;
     for (let index = 0; index < 16; index += 1) manager.createConversation(`a9c-${index}`, '/ws');
-    expect(() => manager.createConversation('a9c-over-limit', '/ws')).toThrow('A9_CONVERSATION_LIMIT');
+    expect(() => manager.createConversation('a9c-over-limit', '/ws')).toThrow(expect.objectContaining({ code: 'A9_CONVERSATION_LIMIT' }));
     manager.archiveConversation('a9c-15');
     expect(manager.createConversation('a9c-replacement', '/ws').sessionId).toBe('a9c-replacement');
     expect(manager.listConversations('/ws').filter((item) => item.state === 'archived')).toHaveLength(1);

@@ -51,6 +51,10 @@ export function buildA9ProductCandidate(options) {
   assertHash('A9_RUNNER_ENTRY', sha256Bytes(helperBytes), lock.inputs.runner_return_zip.required_entry_sha256);
   assertHash('A9_STORAGE_ENTRY', sha256Bytes(storageBytes), lock.inputs.storage_return_zip.required_entry_sha256);
 
+  // Ignored dist directories are build outputs, never trusted inputs. Compile
+  // from the current source tree before creating any candidate work directory.
+  buildRuntimeDistributions(root);
+
   const outputRoot = path.resolve(options.outputRoot || path.join(root, 'release', 'win7-product-v3', 'out'));
   const workRoot = path.join(outputRoot, '.work');
   const packageName = `Win7CodingAgent-${lock.version}-win7-x64`;
@@ -124,9 +128,11 @@ export function buildA9ProductCandidate(options) {
     fs.copyFileSync(lockPath, path.join(stage, 'a9-07-input-lock.json'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'A9_07_WINDOWS_VALIDATION.md'), path.join(stage, 'A9_07_WINDOWS_VALIDATION.md'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_A9_07_INTEGRITY.cmd'), path.join(stage, 'RUN_A9_07_INTEGRITY.cmd'));
+    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_WIN7_17_REPORT_VERIFY.cmd'), path.join(stage, 'RUN_WIN7_17_REPORT_VERIFY.cmd'));
     const validationRoot = path.join(stage, 'validation');
     fs.mkdirSync(validationRoot, { recursive: true });
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-package-integrity.cjs'), path.join(validationRoot, 'a9-package-integrity.cjs'));
+    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-win7-17-report.cjs'), path.join(validationRoot, 'a9-win7-17-report.cjs'));
     writeJson(path.join(stage, 'A9_07_VALIDATION_KIT.json'), createValidationKit(root, sourceCommit, lock));
     copyContractEvidence(root, stage);
     scanSensitivePayload(stage);
@@ -235,6 +241,8 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     'resources/native/runner/spike02_helper.exe',
     'resources/native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
     'validation/a9-package-integrity.cjs',
+    'validation/a9-win7-17-report.cjs',
+    'RUN_WIN7_17_REPORT_VERIFY.cmd',
   ]) if (!byName.has(`${rootPrefix}${relative}`)) throw new Error(`A9_ZIP_CLOSURE_MISSING:${relative}`);
   if (entries.some((entry) => /(?:^|\/)(?:winpty|node-pty|portable-data)(?:\/|$)/i.test(entry.name))) throw new Error('A9_ZIP_FORBIDDEN_PAYLOAD');
   return { manifest, fileCount: manifest.files.length, zipSha256: sha256File(zipPath) };
@@ -245,12 +253,21 @@ function createValidationKit(root, sourceCommit, lock) {
     'docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md',
     'docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md',
     'src/shell/product/main.js',
+    'src/shell/product/desktop-host.js',
     'src/shell/product/active-workspace-store.js',
     'src/shell/product/a9-agent-runtime.js',
+    'src/shell/product/a9-product-ipc.js',
     'src/shell/product/a9-package-runtime.js',
+    'src/shell/product/preload.js',
+    'src/shell/product/renderer/a9-workbench.js',
     'src/runner/src/trusted-shell-runner.ts',
+    'src/runner/src/background-process-manager.ts',
+    'src/core/src/git-command-policy.ts',
+    'src/core/src/a9-agent-loop.ts',
     'src/state/src/a9-persistence.ts',
+    'src/workspace/src/checkpoint-manager.ts',
     'scripts/release/build-a9-product-v3.mjs',
+    'release/win7-product-v3/a9-win7-17-report.cjs',
   ];
   const windows = (layer) => ({
     integrity: `RUN_A9_07_INTEGRITY.cmd`,
@@ -263,7 +280,7 @@ function createValidationKit(root, sourceCommit, lock) {
   });
   return {
     schema_version: 1,
-    kit_id: 'A9-07-VALIDATION-20260823-01',
+    kit_id: 'A9-07-VALIDATION-20260828-02',
     candidate_id: lock.release_id,
     candidate_version: lock.version,
     source_commit: sourceCommit,
@@ -282,10 +299,85 @@ function createValidationKit(root, sourceCommit, lock) {
       unaffected_previous_evidence: 'INHERITED_EVIDENCE_OR_OPTIONAL_REGRESSION_NOT_CURRENT_CANDIDATE_PASS',
       review: 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION',
     },
+    incremental_win7_cases: createWin7IncrementalCases(),
     same_candidate_binding: ['release_id', 'package_sha256', 'release_manifest_sha256'],
     external_validation: { win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', alpha: 'NOT_PERFORMED' },
     forbidden_actions: ['write-secret-to-report', 'evidence-inside-candidate', 'runtime-download', 'PATH-service-registry-firewall-change', 'claim-Windows-pass-from-developer-machine'],
   };
+}
+
+function createWin7IncrementalCases() {
+  const caseOf = (caseId, preconditions, steps, expected, evidence) => ({
+    case_id: caseId,
+    preconditions,
+    steps,
+    expected,
+    assertions: expected.map((text, index) => ({ assertion_id: `${caseId}-A${index + 1}`, expected: text })),
+    evidence,
+  });
+  return [
+    caseOf('W17-CONVERSATION-16-ISOLATION',
+      ['1366x768 at 100% DPI, repeat at 125%', 'one Chinese/space workspace', 'Provider configured'],
+      ['create 16 unarchived conversations', 'rename/switch/archive/restore conversations', 'attempt a 17th conversation', 'start a Turn and verify switching is blocked'],
+      ['16 survive restart', '17th is refused', 'task/turn/run/approval/checkpoint/draft/provider context never crosses conversation identity'],
+      ['100% and 125% screenshots', 'redacted conversation export', 'SQLite identity query']),
+    caseOf('W17-HISTORY-BOUNDARY',
+      ['two conversations with distinguishable markers'],
+      ['create more than 20 local turns', 'restart and inspect full local history', 'submit after Provider context exceeds 20 turns and 32000 characters'],
+      ['local history remains complete', 'Provider request uses the documented bounded context', 'no marker from another conversation'],
+      ['redacted Provider request capture', 'local history screenshot', 'boundary counts']),
+    caseOf('W17-SCHEMA-V3-V4-ROLLBACK',
+      ['copy of a v3 database with known rows', 'write failure injection for migration copy'],
+      ['open once and record backup path/hash', 'verify legacy session becomes 历史对话', 'repeat with injected failure and malformed/empty a9_meta'],
+      ['backup SHA-256 precedes migration', 'success preserves facts', 'failure rolls back and enters diagnostics without WAL/SHM or source overwrite'],
+      ['database hashes before/after', 'backup file/hash', 'diagnostics screenshot']),
+    caseOf('W17-DPAPI-DRAFT',
+      ['ordinary-user Windows token', 'DPAPI available for Current User'],
+      ['save different drafts in two conversations', 'restart as same user', 'open as another user or corrupt ciphertext', 'scan data/evidence for plaintext'],
+      ['same user restores each draft', 'other user/corruption degrades to memory-only', 'plaintext is absent from SQLite/events/checkpoints/logs/snapshots'],
+      ['ciphertext row', 'redacted UI screenshots', 'plaintext scan result']),
+    caseOf('W17-APPROVAL-COMPOUND-SHELL',
+      ['local bare remote with safe.directory configured', 'PowerShell 5.1 and CMD fallback available'],
+      ['request git push through grouping, CMD if, PowerShell if block and cmd /c grouping', 'approve one exact target', 'retry an old/duplicate card and changed target', 'Stop a long approved Shell command'],
+      ['every push has one current identity-bound card', 'old/duplicate/changed approvals cannot execute', 'Stop reaches the resumed command and no remote write occurs before approval'],
+      ['approval identity JSON', 'remote refs before/after', 'process cleanup evidence']),
+    caseOf('W17-CHECKPOINT-CRASH',
+      ['file with known preimage', 'full checkpoint ID visible'],
+      ['modify the file in a Turn', 'terminate after workspace manifest write but before final Turn persistence', 'restart and copy full checkpoint ID', 'undo Turn'],
+      ['Turn is interrupted and not replayed', 'manifest binds only to its original conversation', 'undo restores the preimage after restart'],
+      ['manifest and SQLite rows', 'copied full checkpoint ID', 'before/after SHA-256']),
+    caseOf('W17-MANAGED-PROCESS-DOUBLE-STOP',
+      ['one foreground long command and one managed background command'],
+      ['Stop foreground Turn', 'Stop background process after Turn completion', 'restart with recovered PID fact', 'attempt normal exit', 'verify the PID in the system, stop it externally, then click Stop again and retry exit'],
+      ['both Stop paths remain reachable', 'unconfirmed recovered PID is never killed by the app and keeps the workspace lock', 'after external identity-aware stop, the second Stop observes exit and retry leaves zero residue'],
+      ['PID/tree snapshots', 'shutdown result', 'postflight process list']),
+    caseOf('W17-WIN7-PATH-ENCODING-TOKENS',
+      ['ordinary-user and administrator token runs', 'PowerShell 5.1 and CMD fallback', 'REDUCED_RECOVERY_BASELINE recorded'],
+      ['exercise Chinese/space, CP936/UTF-8/UTF-16, CRLF/LF, junction and near-MAX_PATH fixtures', 'repeat critical Shell/Stop flow under both tokens', 'record SSH/Bitvise strict-host-key handshake state without disabling verification'],
+      ['supported paths preserve bytes/newlines or fail structurally', 'token level is truthful', 'strict host-key verification remains enabled and handshake closure is classified as environment evidence'],
+      ['fixture hashes', 'token/elevation evidence', 'SSH/Bitvise verbose log', 'postflight residue scan']),
+  ];
+}
+
+function buildRuntimeDistributions(root) {
+  const npmName = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const npmExecutable = path.join(path.dirname(process.execPath), npmName);
+  if (!fs.existsSync(npmExecutable) || !fs.statSync(npmExecutable).isFile()) {
+    throw new Error(`A9_BUILD_TOOL_IDENTITY_UNAVAILABLE:${npmExecutable}`);
+  }
+  try {
+    execFileSync(npmExecutable, ['run', 'build', '--workspaces', '--if-present'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    const detail = String((error && (error.stderr || error.message)) || error).trim().slice(0, 2000);
+    throw new Error(`A9_RUNTIME_BUILD_FAILED:${detail}`);
+  }
+  for (const moduleName of ['shell', 'core', 'gateway', 'git-adapter', 'runner', 'state', 'workspace']) {
+    requireBuiltDirectory(root, moduleName);
+  }
 }
 
 function copyContractEvidence(root, stage) {

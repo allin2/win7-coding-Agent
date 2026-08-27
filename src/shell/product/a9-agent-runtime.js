@@ -39,6 +39,33 @@ function loadModules() {
 }
 
 const A9_PROTOCOL_VERSION = 1;
+function validateProviderBaseUrl(value) {
+  if (typeof value !== 'string') {
+    const err = new Error('A9_PROVIDER_CONFIG_INVALID: baseUrl 必须是 http(s) URL（允许任意 Base URL）');
+    err.code = 'A9_PROVIDER_CONFIG_INVALID';
+    throw err;
+  }
+  const trimmed = value.trim();
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch (_err) {
+    const err = new Error('A9_PROVIDER_CONFIG_INVALID: baseUrl 必须是有效的 http(s) URL');
+    err.code = 'A9_PROVIDER_CONFIG_INVALID';
+    throw err;
+  }
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) {
+    const err = new Error('A9_PROVIDER_CONFIG_INVALID: baseUrl 必须是有效的 http(s) URL');
+    err.code = 'A9_PROVIDER_CONFIG_INVALID';
+    throw err;
+  }
+  if (parsed.username || parsed.password || parsed.hash || parsed.search) {
+    const err = new Error('A9_PROVIDER_BASE_URL_CREDENTIALS_FORBIDDEN: baseUrl 不得包含 userinfo、query 或 fragment；请使用 API Key/Header/代理秘密字段');
+    err.code = 'A9_PROVIDER_BASE_URL_CREDENTIALS_FORBIDDEN';
+    throw err;
+  }
+  return trimmed;
+}
 
 function createA9AgentRuntime(options) {
   const config = options || {};
@@ -125,6 +152,7 @@ function createA9AgentRuntime(options) {
   // ----- 工作区单写锁（多窗口） -----
   const lock = persistence.acquireWorkspaceLock(canonicalWorkspace, ownerId);
   const lockHeld = lock.acquired === true;
+  let workspaceLockReleased = false;
 
   // ----- R2：pending 审批（SQLite 记录来自原始 pending 对象） -----
   let currentPendingApproval = null;
@@ -140,6 +168,7 @@ function createA9AgentRuntime(options) {
   // F5：当前 Turn 的 task/turn/run 生命周期句柄。
   let activeLifecycle = null;
   let shutdownPromise = null;
+  let checkpointRecoveryDiagnostics = null;
 
   // ----- 按对话草稿（D-020：DPAPI Current User；失败时仅内存） -----
   const memoryDrafts = new Map();
@@ -263,9 +292,13 @@ function createA9AgentRuntime(options) {
         providerDiagnostics = { code: 'A9_PROVIDER_CONFIG_SCHEMA_MISMATCH', detail: `schemaVersion=${doc && doc.schemaVersion}` };
         return null;
       }
+      doc.baseUrl = validateProviderBaseUrl(doc.baseUrl);
       return doc;
     } catch (err) {
-      providerDiagnostics = { code: 'A9_PROVIDER_CONFIG_UNPARSABLE', detail: redactSecrets(err.message) };
+      providerDiagnostics = {
+        code: err && err.code ? err.code : 'A9_PROVIDER_CONFIG_UNPARSABLE',
+        detail: redactSecrets(err && err.message ? err.message : String(err)),
+      };
       return null;
     }
   }
@@ -367,6 +400,22 @@ function createA9AgentRuntime(options) {
 
   // 独立于 loop 的工作区服务：撤销/Diff/Git 是状态操作，不需要 Provider。
   const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
+  try {
+    const checkpointManager = standaloneWorkspaceService.getCheckpointManager();
+    const persistedTurnIds = checkpointManager.listPersistedTurns();
+    // Validate manifest schema and embedded Turn identity before projecting a
+    // filename into SQLite. Corruption is fail-closed and never overwritten.
+    for (const turnId of persistedTurnIds) checkpointManager.loadCheckpoint(turnId);
+    persistence.reconcileInterruptedWorkspaceCheckpoints(
+      canonicalWorkspace,
+      persistedTurnIds,
+    );
+  } catch (err) {
+    checkpointRecoveryDiagnostics = {
+      code: 'A9_CHECKPOINT_RECONCILIATION_FAILED',
+      detail: redactSecrets(err && err.message ? err.message : String(err)),
+    };
+  }
   // 后台进程生命周期独立于 Provider/Loop 重建；模型切换不得遗失句柄。
   const loopTrustedRunner = new modules.runner.TrustedShellRunner();
 
@@ -458,8 +507,7 @@ function createA9AgentRuntime(options) {
       err.code = 'A9_CONVERSATION_NOT_CURRENT';
       throw err;
     }
-    let next = persistence.archiveConversation(a9SessionId);
-    if (!next) next = persistence.createConversation(createConversationId(), canonicalWorkspace);
+    const next = persistence.archiveConversation(a9SessionId, createConversationId());
     return loadConversation(next);
   }
 
@@ -472,6 +520,11 @@ function createA9AgentRuntime(options) {
     if (!lockHeld) {
       const err = new Error(`A9_WORKSPACE_LOCKED: 工作区写锁由 ${lock.holder} 持有`);
       err.code = 'A9_WORKSPACE_LOCKED';
+      throw err;
+    }
+    if (checkpointRecoveryDiagnostics) {
+      const err = new Error('A9_CHECKPOINT_RECONCILIATION_FAILED: 崩溃恢复的工作区清单无法与 SQLite 对账，已停止后续自动执行');
+      err.code = 'A9_CHECKPOINT_RECONCILIATION_FAILED';
       throw err;
     }
     if (permissionMode === undefined) {
@@ -571,9 +624,7 @@ function createA9AgentRuntime(options) {
    */
   async function configureProvider(input) {
     const values = input || {};
-    if (typeof values.baseUrl !== 'string' || !/^https?:\/\//i.test(values.baseUrl)) {
-      throw new Error('A9_PROVIDER_CONFIG_INVALID: baseUrl 必须是 http(s) URL（允许任意 Base URL）');
-    }
+    const validatedBaseUrl = validateProviderBaseUrl(values.baseUrl);
     if (typeof values.model !== 'string' || values.model.trim().length === 0) {
       throw new Error('A9_PROVIDER_CONFIG_INVALID: model 必须是手工填写的模型 ID');
     }
@@ -593,7 +644,7 @@ function createA9AgentRuntime(options) {
     pendingConversationHistory = loop ? loop.getConversationHistory() : null;
 
     providerConfig = {
-      baseUrl: values.baseUrl.trim(),
+      baseUrl: validatedBaseUrl,
       model: values.model.trim(),
       customHeaderNames,
       ...(values.caBundle ? { caBundle: String(values.caBundle) } : {}),
@@ -992,7 +1043,11 @@ function createA9AgentRuntime(options) {
           recordManagedHandle(result);
           stopped.push(handle.handleId);
         } catch (error) {
-          errors.push({ handleId: handle.handleId, message: redactSecrets(error && error.message ? error.message : String(error)) });
+          errors.push({
+            handleId: handle.handleId,
+            code: error && error.code ? String(error.code) : 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED',
+            message: redactSecrets(error && error.message ? error.message : String(error)),
+          });
         }
       }
       syncManagedProcessFacts();
@@ -1028,10 +1083,11 @@ function createA9AgentRuntime(options) {
       schemaVersion: A9_PROTOCOL_VERSION,
       status: 'ready',
       workspaceRoot,
-      lock: { held: lockHeld, holder: lock.holder },
+      lock: { held: lockHeld && !workspaceLockReleased, holder: lock.holder },
       mode: permissionMode === undefined ? 'needs_selection' : permissionMode,
       modeRecommended: 'full_access',
       ...(modeDiagnostics ? { modeDiagnostics } : {}),
+      ...(checkpointRecoveryDiagnostics ? { checkpointRecoveryDiagnostics } : {}),
       shell: { kind: shellSelection.kind, version: shellSelection.version, evidence: shellSelection.evidence, reason: shellSelection.reason },
       provider: providerConfig
         ? {
@@ -1127,41 +1183,52 @@ function createA9AgentRuntime(options) {
   function shutdown() {
     if (shutdownPromise) return shutdownPromise;
     const manager = loopTrustedRunner.getBackgroundManager();
+    const releaseWorkspaceLock = () => {
+      if (!workspaceLockReleased) {
+        if (lockHeld) persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
+        workspaceLockReleased = true;
+      }
+    };
     if (!activeController && manager.getActiveCount() === 0) {
       // 保留既有无负载关闭语义：无需等待时同步释放锁，紧接着切换/重开
       // 同一工作区不会短暂误报 A9_WORKSPACE_LOCKED。
-      persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
+      releaseWorkspaceLock();
       shutdownPromise = Promise.resolve({ stopped: [], leftToSystem: [] });
       return shutdownPromise;
     }
-    shutdownPromise = (async () => {
-      try {
-        if (activeController) {
-          activeController.abort();
-          agentStatus = 'cancelling';
-          const deadline = Date.now() + 10_000;
-          while (activeController && Date.now() < deadline) {
-            await new Promise((resolve) => setTimeout(resolve, 25));
-          }
+    const attempt = (async () => {
+      if (activeController) {
+        activeController.abort();
+        agentStatus = 'cancelling';
+        const deadline = Date.now() + 10_000;
+        while (activeController && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
         }
-        const before = manager.list();
-        const result = await manager.dispose({ stopManaged: true });
-        for (const handle of before) {
-          recordManagedHandle({
-            ...handle,
-            status: result.stopped.includes(handle.handleId) ? 'stopped' : handle.status,
-          });
-        }
-        if (activeController) {
-          result.leftToSystem.push('active turn cleanup did not settle before the 10 second shutdown deadline');
-        }
-        return result;
-      } finally {
-        // 锁只在清理等待结束后释放，防止新窗口继承尚未回收的旧 runtime。
-        persistence.releaseWorkspaceLock(canonicalWorkspace, ownerId);
       }
+      const before = manager.list();
+      const result = await manager.dispose({ stopManaged: true });
+      for (const handle of before) {
+        recordManagedHandle({
+          ...handle,
+          status: result.stopped.includes(handle.handleId) ? 'stopped' : handle.status,
+        });
+      }
+      if (activeController) {
+        result.leftToSystem.push('active turn cleanup did not settle before the 10 second shutdown deadline');
+      }
+      const cleanupConfirmed = !activeController && manager.getActiveCount() === 0 && result.leftToSystem.length === 0;
+      if (cleanupConfirmed) releaseWorkspaceLock();
+      return result;
     })();
-    return shutdownPromise;
+    shutdownPromise = attempt;
+    attempt.then(() => {
+      // A clean shutdown remains idempotently cached. An unresolved attempt is
+      // retryable after the user stops a recovered process or cleanup settles.
+      if (!workspaceLockReleased && shutdownPromise === attempt) shutdownPromise = null;
+    }, () => {
+      if (shutdownPromise === attempt) shutdownPromise = null;
+    });
+    return attempt;
   }
 
   return {

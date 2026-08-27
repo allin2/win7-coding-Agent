@@ -147,4 +147,46 @@ describe('A9-05: git command classification', () => {
     expect(classifyGitCommand('cmd.exe /d /s /c "echo git push origin release"')).toBeNull();
     expect(classifyGitCommand('echo git push origin release')).toBeNull();
   });
+
+  it('classifies grouped and conditional Git pushes used by Win7 shells', () => {
+    for (const command of [
+      '(git push origin main)',
+      'if exist README.md git push origin main',
+      'powershell.exe -NoProfile -Command "if (Test-Path .git) { git push origin main }"',
+      'cmd.exe /d /s /c "(git push origin main)"',
+    ]) {
+      expect(`${command} => ${classifyGitCommand(command)?.category}`)
+        .toBe(`${command} => always_confirm`);
+    }
+    expect(classifyGitCommand('(git push origin main)')?.binding)
+      .toEqual(expect.objectContaining({ remote: 'origin', branch: 'main' }));
+    expect(classifyGitCommand('if exist README.md echo git push origin main')).toBeNull();
+  });
+
+  it('fails closed for unfamiliar CMD and PowerShell control syntax', () => {
+    for (const command of [
+      'if /i "a"=="A" git push origin main',
+      'for %i in (1) do git push origin main',
+      'powershell.exe -NoProfile -Command "if($true){git push origin main}"',
+      'powershell.exe -NoProfile -Command "& { git push origin main }"',
+      'cmd.exe /d /s /c "for %i in (1) do git push origin main"',
+    ]) {
+      const decision = classifyGitCommand(command);
+      expect(`${command} => ${decision?.category}`).toBe(`${command} => always_confirm`);
+      expect(decision?.binding).toEqual(expect.objectContaining({
+        remote: 'origin', branch: 'main', commandSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }));
+    }
+  });
+
+  it('does not treat common prose and comment sinks as Git execution', () => {
+    for (const command of [
+      'echo git push origin main',
+      'rem git push origin main',
+      ':: git push origin main',
+      'Write-Output "git push origin main"',
+      'Write-Host "git push origin main"',
+      '# git push origin main',
+    ]) expect(classifyGitCommand(command)).toBeNull();
+  });
 });

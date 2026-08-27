@@ -34,6 +34,7 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain('activeManagedProcesses(snapshot)');
     expect(script).toContain('snapshot.controls && snapshot.controls.canStop');
     expect(script).toContain("stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止'");
+    expect(script).toContain('应用不会发送终止信号');
     expect(script).toContain('function renderConversation(snapshot)');
     expect((html.match(/id="rail-stop"/g) || [])).toHaveLength(1);
     expect(script).toContain("el('rail-stop').addEventListener('click'");

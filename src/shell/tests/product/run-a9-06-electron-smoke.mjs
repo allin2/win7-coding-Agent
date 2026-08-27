@@ -45,10 +45,15 @@ function argument(name, fallback) {
 
 const defaultElectron = path.join(repositoryRoot, 'node_modules', '.bin', 'electron');
 const electronPath = argument('electron', fs.existsSync(defaultElectron) ? defaultElectron : '');
+const productMain = path.resolve(argument('product-main', path.join(repositoryRoot, 'src/shell/product/main.js')));
 const outPath = argument('out', path.join(os.tmpdir(), `a9-06-electron-smoke-${Date.now()}.json`));
 const keepRoot = argument('keep-root', '') === '1';
 if (!electronPath || !fs.existsSync(electronPath)) {
   console.error(JSON.stringify({ status: 'ELECTRON_UNAVAILABLE', electronPath }, null, 2));
+  process.exit(2);
+}
+if (!fs.existsSync(productMain)) {
+  console.error(JSON.stringify({ status: 'PRODUCT_MAIN_UNAVAILABLE', productMain }, null, 2));
   process.exit(2);
 }
 
@@ -240,7 +245,6 @@ async function runElectronProcess(extraEnv, args = []) {
   });
 }
 
-const productMain = path.join(repositoryRoot, 'src/shell/product/main.js');
 const driverEntry = path.join(scriptRoot, 'a9-06-driver-entry.cjs');
 const electronSqliteRoot = argument('electron-sqlite', '/tmp/a9-electron-native');
 if (!fs.existsSync(path.join(electronSqliteRoot, 'node_modules', 'better-sqlite3'))) {
@@ -256,7 +260,7 @@ if (!fs.existsSync(path.join(electronSqliteRoot, 'node_modules', 'better-sqlite3
 const badRootProbe = path.join(root, 'bad-sqlite');
 fs.mkdirSync(badRootProbe, { recursive: true });
 const preflightScript = path.join(root, 'preflight-probe.cjs');
-fs.writeFileSync(preflightScript, `const { createA9AgentRuntime } = require(${JSON.stringify(path.join(repositoryRoot, 'src/shell/product/a9-agent-runtime.js'))});
+fs.writeFileSync(preflightScript, `const { createA9AgentRuntime } = require(${JSON.stringify(path.join(path.dirname(productMain), 'a9-agent-runtime.js'))});
 const r = createA9AgentRuntime({ workspaceRoot: ${JSON.stringify(workspaceRoot)}, dataRoot: ${JSON.stringify(path.join(root, 'data-bad'))}, ownerId: 'preflight-' + process.pid, electronSqliteRoot: ${JSON.stringify(badRootProbe)} });
 const snap = r.getSnapshot();
 console.log('PREFLIGHT_SNAPSHOT ' + JSON.stringify(snap));
@@ -306,6 +310,7 @@ const baseEnv = {
   WIN7AGENT_A9_DATAROOT: dataRoot,
   WIN7AGENT_A9_ELECTRON_SQLITE: electronSqliteRoot,
   ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
+  A9_SMOKE_PRODUCT_MAIN: productMain,
 };
 
 // 真实首次启动顺序：Renderer 先收到 A9_WORKSPACE_REQUIRED，用户随后通过
@@ -370,6 +375,9 @@ try {
     A9_SMOKE_OUT: secondOut,
     A9_SMOKE_OLD_APPROVAL_ID: firstReport.oldApproval && firstReport.oldApproval.approvalId ? firstReport.oldApproval.approvalId : '',
     A9_SMOKE_OLD_APPROVAL_DIGEST: firstReport.oldApproval && firstReport.oldApproval.bindingDigest ? firstReport.oldApproval.bindingDigest : '',
+    A9_SMOKE_OLD_APPROVAL_CONVERSATION: firstReport.oldApproval && firstReport.oldApproval.conversationId ? firstReport.oldApproval.conversationId : '',
+    A9_SMOKE_OLD_APPROVAL_TASK: firstReport.oldApproval && firstReport.oldApproval.taskId ? firstReport.oldApproval.taskId : '',
+    A9_SMOKE_OLD_APPROVAL_TURN: firstReport.oldApproval && firstReport.oldApproval.turnId ? firstReport.oldApproval.turnId : '',
   }, [driverEntry]);
 } catch (err) {
   secondExit = 1;
@@ -445,6 +453,7 @@ const report = {
     arch: process.arch,
     node: process.versions.node,
     electron_binary: electronPath,
+    product_main: productMain,
     sqlite_abi: 'electron-22.3.27 (modules 110)',
     sqlite_root: electronSqliteRoot,
   },

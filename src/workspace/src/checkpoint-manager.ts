@@ -79,9 +79,140 @@ export class CheckpointManager {
     return this.recoveryRoot;
   }
 
+  private assertSafeTurnId(turnId: string): void {
+    if (!/^[a-zA-Z0-9._-]+$/.test(turnId)) {
+      throw new Error(`checkpoint manifest contains unsafe turn id: ${turnId}`);
+    }
+  }
+
+  private isPlainRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+      && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+  }
+
+  private isWithin(root: string, candidate: string): boolean {
+    const relative = path.relative(path.resolve(root), path.resolve(candidate));
+    return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  }
+
+  private assertWorkspaceRelativePath(candidate: unknown, label: string): string {
+    if (typeof candidate !== 'string' || candidate.length === 0 || candidate.includes('\0')) {
+      throw new Error(`${label} must be a non-empty relative path`);
+    }
+    if (path.isAbsolute(candidate) || path.win32.isAbsolute(candidate)) {
+      throw new Error(`${label} must stay inside the workspace`);
+    }
+    const winNormalized = path.win32.normalize(candidate);
+    if (winNormalized === '.' || winNormalized === '..' || winNormalized.startsWith('..\\')) {
+      throw new Error(`${label} escapes the workspace`);
+    }
+    const resolved = path.resolve(this.workspaceRoot, candidate);
+    if (resolved === path.resolve(this.workspaceRoot) || !this.isWithin(this.workspaceRoot, resolved)) {
+      throw new Error(`${label} escapes the workspace`);
+    }
+    if (this.isWithin(this.recoveryRoot, resolved)) throw new Error(`${label} targets the recovery store`);
+    // Resolve the nearest existing ancestor as well, so a junction/symlink in
+    // a tampered manifest cannot redirect undo outside the trusted workspace.
+    let probe = resolved;
+    while (!fs.existsSync(probe) && path.dirname(probe) !== probe) probe = path.dirname(probe);
+    if (fs.existsSync(probe) && !this.isWithin(fs.realpathSync(this.workspaceRoot), fs.realpathSync(probe))) {
+      throw new Error(`${label} resolves outside the workspace`);
+    }
+    return candidate;
+  }
+
+  private assertRecoveryArtifact(candidate: unknown, root: string, label: string, kind: 'file' | 'directory'): string {
+    if (typeof candidate !== 'string' || candidate.length === 0 || candidate.includes('\0')) {
+      throw new Error(`${label} must be a recovery artifact path`);
+    }
+    const resolved = path.resolve(candidate);
+    if (!this.isWithin(root, resolved) || !fs.existsSync(resolved)) {
+      throw new Error(`${label} is missing or outside the recovery root`);
+    }
+    const canonicalRoot = fs.realpathSync(root);
+    const canonicalArtifact = fs.realpathSync(resolved);
+    if (!this.isWithin(canonicalRoot, canonicalArtifact)) {
+      throw new Error(`${label} resolves outside the recovery root`);
+    }
+    const stat = fs.statSync(canonicalArtifact);
+    if ((kind === 'file' && !stat.isFile()) || (kind === 'directory' && !stat.isDirectory())) {
+      throw new Error(`${label} has the wrong artifact type`);
+    }
+    return canonicalArtifact;
+  }
+
+  private validateBlob(candidate: unknown, expectedHash: unknown, label: string): void {
+    const blobPath = this.assertRecoveryArtifact(candidate, this.blobsRoot, label, 'file');
+    const name = path.basename(blobPath);
+    if (!/^[a-f0-9]{64}$/.test(name) || path.basename(path.dirname(blobPath)) !== name.slice(0, 2)) {
+      throw new Error(`${label} is not a content-addressed blob path`);
+    }
+    if (expectedHash !== undefined && (typeof expectedHash !== 'string' || expectedHash !== name)) {
+      throw new Error(`${label} does not match its declared SHA-256`);
+    }
+    const actual = this.hashBytes(fs.readFileSync(blobPath));
+    if (actual !== name) throw new Error(`${label} content SHA-256 mismatch`);
+  }
+
+  private validateCheckpoint(parsed: unknown, requestedTurnId: string): TurnCheckpoint {
+    if (!this.isPlainRecord(parsed)) throw new Error('checkpoint manifest must be an object');
+    if (parsed.schemaVersion !== CHECKPOINT_SCHEMA_VERSION && parsed.schemaVersion !== 2) {
+      throw new Error(`checkpoint manifest schema mismatch for ${requestedTurnId}`);
+    }
+    if (parsed.turnId !== requestedTurnId) throw new Error(`checkpoint manifest turn mismatch for ${requestedTurnId}`);
+    this.assertSafeTurnId(requestedTurnId);
+    for (const field of ['createdAt', 'updatedAt']) {
+      const value = parsed[field];
+      if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+        throw new Error(`checkpoint manifest ${field} is invalid`);
+      }
+    }
+    if (!this.isPlainRecord(parsed.changes)) throw new Error('checkpoint manifest changes must be an object');
+    for (const [key, raw] of Object.entries(parsed.changes)) {
+      if (!this.isPlainRecord(raw)) throw new Error(`checkpoint change ${key} must be an object`);
+      const filePath = this.assertWorkspaceRelativePath(raw.filePath, `checkpoint change ${key}.filePath`);
+      if (filePath !== key) throw new Error(`checkpoint change key does not match filePath: ${key}`);
+      if (!['create', 'modify', 'delete'].includes(String(raw.action))) throw new Error(`checkpoint change ${key} has invalid action`);
+      if (typeof raw.isDirectory !== 'boolean') throw new Error(`checkpoint change ${key} has invalid isDirectory`);
+      if (typeof raw.timestamp !== 'string' || !Number.isFinite(Date.parse(raw.timestamp))) {
+        throw new Error(`checkpoint change ${key} has invalid timestamp`);
+      }
+      if (raw.unrecoverable !== undefined && typeof raw.unrecoverable !== 'boolean') {
+        throw new Error(`checkpoint change ${key} has invalid unrecoverable flag`);
+      }
+      for (const hashField of ['originalHash', 'newHash']) {
+        const value = raw[hashField];
+        if (value !== undefined && (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value))) {
+          throw new Error(`checkpoint change ${key}.${hashField} is invalid`);
+        }
+      }
+      if (raw.originalBlobPath !== undefined) this.validateBlob(raw.originalBlobPath, raw.originalHash, `checkpoint change ${key}.originalBlobPath`);
+      if (raw.newBlobPath !== undefined) this.validateBlob(raw.newBlobPath, raw.newHash, `checkpoint change ${key}.newBlobPath`);
+      if (raw.currentStateBlobPath !== undefined) this.validateBlob(raw.currentStateBlobPath, undefined, `checkpoint change ${key}.currentStateBlobPath`);
+      for (const snapshotField of ['originalSnapshotPath', 'currentStateSnapshotPath']) {
+        if (raw[snapshotField] !== undefined) {
+          this.assertRecoveryArtifact(raw[snapshotField], this.snapshotsRoot, `checkpoint change ${key}.${snapshotField}`, 'directory');
+        }
+      }
+    }
+    const unrecoverable = parsed.unrecoverable === undefined ? {} : parsed.unrecoverable;
+    if (!this.isPlainRecord(unrecoverable)) throw new Error('checkpoint manifest unrecoverable must be an object');
+    for (const [key, raw] of Object.entries(unrecoverable)) {
+      if (!this.isPlainRecord(raw) || raw.path !== key || typeof raw.reason !== 'string' || raw.reason.length === 0
+        || !['created', 'modified', 'deleted', 'renamed', 'outside', 'too_large', 'backup_failed'].includes(String(raw.kind))) {
+        throw new Error(`checkpoint unrecoverable entry is invalid: ${key}`);
+      }
+      if (raw.kind !== 'outside') this.assertWorkspaceRelativePath(raw.path, `checkpoint unrecoverable ${key}.path`);
+    }
+    return {
+      ...(parsed as unknown as TurnCheckpoint),
+      unrecoverable: unrecoverable as Record<string, unknown> as Record<string, UnrecoverableExternalChange>,
+    };
+  }
+
   private manifestPath(turnId: string): string {
-    const safe = turnId.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    return path.join(this.manifestsRoot, `${safe}.json`);
+    this.assertSafeTurnId(turnId);
+    return path.join(this.manifestsRoot, `${turnId}.json`);
   }
 
   /** 加载（含崩溃后恢复）：优先内存，其次磁盘清单。 */
@@ -91,14 +222,7 @@ export class CheckpointManager {
     const manifestPath = this.manifestPath(turnId);
     if (!fs.existsSync(manifestPath)) return undefined;
     try {
-      const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as TurnCheckpoint;
-      if (parsed.schemaVersion !== CHECKPOINT_SCHEMA_VERSION && parsed.schemaVersion !== 2) {
-        throw new Error(`checkpoint manifest schema mismatch for ${turnId}`);
-      }
-      if (parsed.turnId !== turnId) {
-        throw new Error(`checkpoint manifest turn mismatch for ${turnId}`);
-      }
-      if (!parsed.unrecoverable) parsed.unrecoverable = {};
+      const parsed = this.validateCheckpoint(JSON.parse(fs.readFileSync(manifestPath, 'utf8')), turnId);
       this.checkpoints.set(turnId, parsed);
       return parsed;
     } catch (err) {

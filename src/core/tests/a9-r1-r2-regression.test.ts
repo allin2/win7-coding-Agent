@@ -274,4 +274,35 @@ describe('R2: immutable approval objects', () => {
     expect(persisted[0].args).toMatchObject({ path: 'real-target.txt', permanent: true });
     expect(Object.keys(persisted[0].args).length).toBeGreaterThan(0);
   });
+
+  it('uses the resumed AbortSignal for the approved Shell call', async () => {
+    let observedSignal: AbortSignal | undefined;
+    const runner: A9RunnerPort = {
+      execute: jest.fn().mockImplementation((_command, options) => new Promise((resolve) => {
+        observedSignal = options?.signal;
+        options?.signal?.addEventListener('abort', () => resolve({
+          status: 'cancelled', exitCode: null, stdout: '', stderr: '', durationMs: 1,
+          timedOut: false, cancelled: true, processTreeReaped: true,
+        }), { once: true });
+      })),
+    };
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/ws',
+      provider: modelReturning([{ id: 'p1', name: 'shell', arguments: JSON.stringify({ command: 'git push origin main' }) }]),
+      workspaceService: makeWorkspace(),
+      runner,
+      permissionMode: PermissionMode.FULL_ACCESS,
+    });
+    const first = await loop.runTurn('push it');
+    const controller = new AbortController();
+    const resumed = loop.resumeAfterApproval({
+      approvalId: first.pendingApproval!.approvalId,
+      decision: 'approved',
+      bindingDigest: first.pendingApproval!.bindingDigest,
+    }, { signal: controller.signal });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(observedSignal).toBe(controller.signal);
+    controller.abort();
+    await resumed;
+  });
 });

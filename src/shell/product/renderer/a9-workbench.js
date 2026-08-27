@@ -127,7 +127,12 @@
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
     else if (!snapshot.provider.probe || snapshot.provider.probe.classification !== 'tool_calling') text('session-status', 'Provider 尚未通过原生 tool_calls 探测；任务发送保持禁用。');
     else if (state.running) text('session-status', '任务正在执行；可随时停止。工具调用与退出码会写入活动记录。');
-    else if (hasManaged) text('session-status', '托管后台进程仍在运行；可继续工作，或点击“停止后台进程”回收进程树。');
+    else if (hasManaged) {
+      const recovered = activeManagedProcesses(snapshot).filter((item) => item.pidReusePossible === true);
+      text('session-status', recovered.length > 0
+        ? `检测到 ${recovered.length} 个重启恢复的 PID 事实；身份无法证明，应用不会发送终止信号。请在系统中核对并停止后再次点击“停止后台进程”。`
+        : '托管后台进程仍在运行；可继续工作，或点击“停止后台进程”回收进程树。');
+    }
     else text('session-status', '当前工作区已就绪。高影响操作会在执行前显示精确目标并请求批准。');
   }
 

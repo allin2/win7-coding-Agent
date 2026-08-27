@@ -516,13 +516,17 @@ export class A9AgentLoop {
       return this.runLoop(turnId, options.signal ?? suspended.signal, suspended.stepCount, suspended.toolCallsExecuted, suspended.queue);
     }
 
-    const result = await this.executeValidatedToolCall(turnId, suspended.pending, suspended.signal);
+    // The product runtime creates a fresh AbortController for the resumed
+    // execution. Use that signal for the approved call itself, not only for the
+    // following model loop, otherwise Stop cannot reach a long-running command.
+    const resumeSignal = options.signal ?? suspended.signal;
+    const result = await this.executeValidatedToolCall(turnId, suspended.pending, resumeSignal);
     if (result.residueRisk) {
       return this.residueStop(turnId, suspended.stepCount, suspended.toolCallsExecuted, result.logPaths);
     }
     return this.runLoop(
       turnId,
-      options.signal ?? suspended.signal,
+      resumeSignal,
       suspended.stepCount,
       suspended.toolCallsExecuted + (result.executed ? 1 : 0),
       suspended.queue,

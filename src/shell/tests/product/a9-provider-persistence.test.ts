@@ -188,6 +188,47 @@ describe('R4: provider config persistence and DPAPI integration', () => {
     }
   }, 20_000);
 
+  it('rejects credentials embedded in Base URL before any config or event persistence', async () => {
+    const runtime = makeRuntime();
+    const forbidden = [
+      'https://alice:url-userinfo-secret@example.test/v1',
+      'https://example.test/v1?api_key=query-secret-value',
+      'https://example.test/v1?accessToken=query-secret-value',
+      'https://example.test/v1?x-api-key=query-secret-value',
+      'https://example.test/v1?credential=query-secret-value',
+      'https://example.test/v1?foo=sk-query-secret-value',
+      'https://example.test/v1#fragment-secret-value',
+    ];
+    for (const baseUrl of forbidden) {
+      await expect(runtime.configureProvider({ baseUrl, model: 'm', skipProbe: true }))
+        .rejects.toMatchObject({ code: 'A9_PROVIDER_BASE_URL_CREDENTIALS_FORBIDDEN' });
+    }
+    expect(runtime.getSnapshot().provider.configured).toBe(false);
+    const persisted = listAllFiles(env.dataRoot).map((file) => fs.readFileSync(file));
+    for (const secret of ['url-userinfo-secret', 'query-secret-value', 'fragment-secret-value']) {
+      expect(persisted.some((content) => content.includes(secret))).toBe(false);
+    }
+    runtime.shutdown();
+  });
+
+  it('fails closed when an existing provider config contains URL credentials', () => {
+    fs.writeFileSync(path.join(env.dataRoot, 'a9-provider-config.v1.json'), JSON.stringify({
+      schemaVersion: 1,
+      baseUrl: 'https://example.test/v1?token=legacy-secret-in-url',
+      model: 'm',
+      customHeaderNames: [],
+      allowInsecureTLS: false,
+      keyRemembered: false,
+    }), 'utf8');
+    const runtime = makeRuntime();
+    const snapshot = runtime.getSnapshot();
+    expect(snapshot.provider.configured).toBe(false);
+    expect(snapshot.provider.diagnostics.code).toBe('A9_PROVIDER_BASE_URL_CREDENTIALS_FORBIDDEN');
+    expect(fs.readFileSync(path.join(env.dataRoot, 'a9-provider-config.v1.json'), 'utf8'))
+      .toContain('legacy-secret-in-url');
+    runtime.shutdown();
+  });
+
   it('saves and restores the API key through the injected (fake) DPAPI vault', async () => {
     const fixture = await startFixtureModel();
     try {

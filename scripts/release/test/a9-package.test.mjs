@@ -13,6 +13,7 @@ const digest = (value) => crypto.createHash('sha256').update(value).digest('hex'
 const HASH = '0'.repeat(64);
 const require = createRequire(import.meta.url);
 const integrity = require('../../../release/win7-product-v3/a9-package-integrity.cjs');
+const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 
 function fixture(root) {
   const inputs = path.join(root, 'inputs'); fs.mkdirSync(inputs, { recursive: true });
@@ -85,6 +86,8 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.equal(fs.existsSync(path.join(appRoot, 'rc-runtime.json')), false);
   assert.ok(fs.existsSync(path.join(second.stage, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')));
   assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-package-integrity.cjs')));
+  assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-17-report.cjs')));
+  assert.ok(fs.existsSync(path.join(second.stage, 'RUN_WIN7_17_REPORT_VERIFY.cmd')));
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
   assert.equal(packageJson.version, '0.3.0-alpha.1');
@@ -96,6 +99,18 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.equal(validationKit.win7_revalidation_policy.decision, 'ADR-0097');
   assert.ok(validationKit.win7_revalidation_policy.mandatory_impacted.includes('MULTI_CONVERSATION'));
   assert.equal(validationKit.win7_revalidation_policy.review, 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION');
+  assert.equal(validationKit.incremental_win7_cases.length, 8);
+  for (const validationCase of validationKit.incremental_win7_cases) {
+    assert.match(validationCase.case_id, /^W17-/);
+    assert.ok(validationCase.preconditions.length > 0);
+    assert.ok(validationCase.steps.length > 0);
+    assert.ok(validationCase.expected.length > 0);
+    assert.equal(validationCase.assertions.length, validationCase.expected.length);
+    assert.ok(validationCase.assertions.every((item) => item.assertion_id.startsWith(`${validationCase.case_id}-A`)));
+    assert.ok(validationCase.evidence.length > 0);
+  }
+  assert.ok(validationKit.source_artifact_hashes['src/core/src/git-command-policy.ts']);
+  assert.ok(validationKit.source_artifact_hashes['src/runner/src/background-process-manager.ts']);
   assert.match(fs.readFileSync(path.join(second.stage, 'THIRD_PARTY_LICENSES.md'), 'utf8'), /A9 Schema v4/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "ELECTRON_RUN_AS_NODE=1"/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "NODE_OPTIONS="/);
@@ -126,6 +141,40 @@ test('A9 integrity uses Electron original-fs so physical ASAR bytes are not virt
     () => integrity.selectPhysicalFileSystem({ electron: '22.3.27' }, () => { throw new Error('original-fs unavailable'); }),
     /A9_PHYSICAL_FILESYSTEM_UNAVAILABLE:original-fs unavailable/,
   );
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-17 report verifier requires candidate binding, every assertion, and hashed external evidence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win7-report-'));
+  const evidenceRoot = path.join(root, 'evidence');
+  fs.mkdirSync(evidenceRoot);
+  fs.writeFileSync(path.join(evidenceRoot, 'proof.txt'), 'external proof\n', 'utf8');
+  const evidence = [{ path: 'proof.txt', sha256: sha256File(path.join(evidenceRoot, 'proof.txt')) }];
+  const identity = {
+    release_id: 'WIN7-CODING-AGENT-A9-ALPHA1', version: '0.3.0-alpha.1', source_commit: 'a'.repeat(40),
+    package_filename: 'Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip', package_sha256: 'b'.repeat(64), manifest_sha256: 'c'.repeat(64),
+  };
+  const kit = {
+    incremental_win7_cases: Array.from({ length: 8 }, (_value, index) => ({
+      case_id: `W17-CASE-${index + 1}`,
+      assertions: [{ assertion_id: `W17-CASE-${index + 1}-A1`, expected: 'verified' }],
+    })),
+  };
+  const report = {
+    schema_version: 1, report_kind: 'WIN7_17_INCREMENTAL_ACCEPTANCE', candidate: identity, status: 'PASS',
+    results: kit.incremental_win7_cases.map((validationCase) => ({
+      case_id: validationCase.case_id, status: 'PASS', executions: [{
+        environment: {
+          windows_version: 'Windows 7 SP1 build 7601', architecture: 'x64', token_kind: 'ordinary-user',
+          elevation: 'not-elevated', dpi: '100%', shell_profile: 'POWERSHELL_5_1', evidence_root: fs.realpathSync(evidenceRoot),
+        },
+        assertions: [{ assertion_id: validationCase.assertions[0].assertion_id, passed: true, detail: 'observed on physical machine', evidence }],
+      }],
+    })),
+  };
+  assert.equal(win7Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs).status, 'PASS');
+  report.results[0].executions[0].assertions = [];
+  assert.throws(() => win7Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W17_ASSERTIONS_REQUIRED/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

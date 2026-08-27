@@ -1075,6 +1075,7 @@ if (!hasSingleInstanceLock) {
       activeWorkspaceStore = createActiveWorkspaceStore({ dataRoot: getA9DataRoot() });
     }
     desktopHost = createDesktopHost({
+      allowWorkspaceSwitchWithActiveSessions: !legacyRendererRequested,
       recoveryDirectory: path.join(app.getPath('userData'), 'a2-recovery'),
       reviewDirectory: path.join(app.getPath('userData'), 'a8-reviews'),
       ...(a8ReviewSmokeReportPath ? {
@@ -1090,7 +1091,7 @@ if (!hasSingleInstanceLock) {
         platform: process.platform,
       }),
       ...(activeWorkspaceStore ? {
-        onWorkspaceSelected: async (workspacePath) => {
+        onWorkspaceChanging: async (workspacePath) => {
           if (a9RuntimeInstance && a9RuntimeWorkspace && workspacePath !== a9RuntimeWorkspace) {
             const leave = typeof a9RuntimeInstance.canLeaveWorkspace === 'function'
               ? a9RuntimeInstance.canLeaveWorkspace()
@@ -1107,6 +1108,8 @@ if (!hasSingleInstanceLock) {
             a9RuntimeInstance = null;
             a9RuntimeWorkspace = null;
           }
+        },
+        onWorkspaceSelected: async (workspacePath) => {
           activeWorkspaceStore.save(workspacePath);
         },
       } : {}),

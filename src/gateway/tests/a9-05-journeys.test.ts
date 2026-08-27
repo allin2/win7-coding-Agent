@@ -9,14 +9,13 @@
  * - Windows PS/CMD/DPI：NOT_PERFORMED（非 Windows 环境只记录 sh/dev_host_only）。
  */
 import { execFileSync, spawn } from 'child_process';
-import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
 import { OpenAICompatibleProvider } from '../src';
-import { A9AgentLoop, PermissionMode, TurnOutcome, canonicalizeWorkspacePath } from '../../core/src';
+import { A9AgentLoop, PermissionMode, TurnOutcome } from '../../core/src';
 import { A9WorkspaceService } from '../../workspace/src';
 import { TrustedShellRunner, createTrustedShellLoopAdapter } from '../../runner/src';
 
@@ -609,8 +608,7 @@ describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with rea
       runtime2.shutdown();
 
       // A9PersistenceManager 直接打开同一数据库可读取 checkpoint 事实（真实 SQLite）。
-      const canonical = canonicalizeWorkspacePath(workspaceRoot);
-      const a9SessionId = `a9-${crypto.createHash('sha256').update(canonical, 'utf8').digest('hex').slice(0, 16)}`;
+      const a9SessionId = snapshot.activeConversationId;
       const persistence = A9PersistenceManager.open({
         databasePath: path.join(dataRoot, 'a9-state.db'),
         openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),

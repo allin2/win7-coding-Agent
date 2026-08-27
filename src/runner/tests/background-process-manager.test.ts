@@ -106,6 +106,29 @@ describe('A9-02: BackgroundProcessManager', () => {
     expect(poll.logsDropped.stdout).toBeGreaterThan(0);
   });
 
+  it('continues returning new log lines after the bounded ring shifts', async () => {
+    await manager.start(
+      'bg-ring-cursor',
+      'node ring cursor',
+      process.execPath,
+      ['-e', [
+        "for (let i = 0; i < 2300; i++) { console.log('old-out-' + i); console.error('old-err-' + i); }",
+        "setTimeout(() => { console.log('fresh-out'); console.error('fresh-err'); }, 700);",
+        'setTimeout(() => process.exit(0), 1300);',
+      ].join(' ')],
+      process.cwd(),
+    );
+    await new Promise((r) => setTimeout(r, 450));
+    const first = manager.poll('bg-ring-cursor');
+    expect(first.logsDropped.stdout).toBeGreaterThan(0);
+    expect(first.logsDropped.stderr).toBeGreaterThan(0);
+
+    await new Promise((r) => setTimeout(r, 550));
+    const second = manager.poll('bg-ring-cursor');
+    expect(second.stdoutDelta).toContain('fresh-out');
+    expect(second.stderrDelta).toContain('fresh-err');
+  });
+
   it('recovers after restart by probe-only facts (no auto-replay, PID-reuse flagged)', () => {
     const ownPid = process.pid;
     const handle = manager.adoptRecoveredFact('bg-recovered', {
@@ -123,7 +146,36 @@ describe('A9-02: BackgroundProcessManager', () => {
     expect(poll.logsDropped).toEqual({ stdout: 0, stderr: 0 });
   });
 
-  it('stops a user-confirmed recovered PID tree instead of only changing its status', async () => {
+  it('polls stderr with an independent cursor', async () => {
+    await manager.start(
+      'bg-asymmetric-logs',
+      'node asymmetric logs',
+      process.execPath,
+      ['-e', "console.log('out-1'); console.log('out-2'); console.error('err-1'); setTimeout(() => {}, 1000)"],
+      process.cwd(),
+    );
+    await new Promise((r) => setTimeout(r, 150));
+    const poll = manager.poll('bg-asymmetric-logs');
+    expect(poll.stdoutDelta).toContain('out-2');
+    expect(poll.stderrDelta).toContain('err-1');
+  });
+
+  it('retains unconfirmed recovered process facts after managed disposal', async () => {
+    manager.adoptRecoveredFact('bg-recovered-dispose', {
+      pid: process.pid,
+      command: 'previous-session-command',
+      cwd: process.cwd(),
+      startTime: new Date().toISOString(),
+    });
+    const result = await manager.dispose({ stopManaged: true });
+    expect(result.leftToSystem).toEqual([
+      'bg-recovered-dispose (recovered PID fact requires explicit stop confirmation)',
+    ]);
+    expect(manager.getActiveCount()).toBe(1);
+    expect(manager.list().map((handle) => handle.handleId)).toEqual(['bg-recovered-dispose']);
+  });
+
+  it('never kills a recovered PID without provable process identity', async () => {
     const child = require('child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
       stdio: 'ignore',
     });
@@ -135,9 +187,16 @@ describe('A9-02: BackgroundProcessManager', () => {
       startTime: new Date().toISOString(),
     });
 
-    const stopped = await manager.stop('bg-recovered-stop');
-    expect(stopped.status).toBe('stopped');
-    expect(BackgroundProcessManager.probeProcessAlive(child.pid!)).toBe(false);
+    await expect(manager.stop('bg-recovered-stop')).rejects.toMatchObject({
+      code: 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED',
+    });
+    expect(BackgroundProcessManager.probeProcessAlive(child.pid!)).toBe(true);
+
+    child.kill();
+    await new Promise<void>((resolve) => child.once('close', () => resolve()));
+    const observed = await manager.stop('bg-recovered-stop');
+    expect(observed.status).toBe('exited');
+    expect(observed.pidReusePossible).toBe(false);
   });
 
   it('dispose can leave managed processes to the system without killing them', async () => {

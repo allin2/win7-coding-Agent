@@ -158,11 +158,15 @@ export class BackgroundProcessManager {
     }
 
     const { handle, lastPolledStdoutIdx, lastPolledStderrIdx } = entry;
-    const stdoutDelta = handle.logs.stdout.slice(lastPolledStdoutIdx).join('\n');
-    const stderrDelta = handle.logs.stderr.slice(lastPolledStdoutIdx).join('\n');
+    const stdoutDelta = handle.logs.stdout
+      .slice(Math.max(0, lastPolledStdoutIdx - handle.droppedLogLines.stdout)).join('\n');
+    const stderrDelta = handle.logs.stderr
+      .slice(Math.max(0, lastPolledStderrIdx - handle.droppedLogLines.stderr)).join('\n');
 
-    entry.lastPolledStdoutIdx = handle.logs.stdout.length;
-    entry.lastPolledStderrIdx = handle.logs.stderr.length;
+    // Cursor is an absolute stream-line sequence, not an array index. Once the
+    // bounded buffer shifts, droppedLogLines is the retained window's origin.
+    entry.lastPolledStdoutIdx = handle.droppedLogLines.stdout + handle.logs.stdout.length;
+    entry.lastPolledStderrIdx = handle.droppedLogLines.stderr + handle.logs.stderr.length;
 
     return {
       handleId,
@@ -188,6 +192,18 @@ export class BackgroundProcessManager {
 
     const { handle, child } = entry;
     if (handle.status === 'running' || handle.status === 'starting') {
+      if (entry.recoveredFact) {
+        if (!handle.pid || !BackgroundProcessManager.probeProcessAlive(handle.pid)) {
+          handle.status = 'exited';
+          handle.pidReusePossible = false;
+          return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
+        }
+        const error = new Error(
+          `后台进程 ${handleId} (PID ${handle.pid}) 是重启后恢复的 PID 事实，无法证明仍是原进程；为避免 PID 复用误杀，应用不会发送停止信号。请在系统中核对并停止后再次点击 Stop。`,
+        ) as Error & { code: string };
+        error.code = 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED';
+        throw error;
+      }
       const targetPid = child?.pid ?? handle.pid;
       if (targetPid) {
         const kill = await killProcessTree(targetPid);
@@ -260,7 +276,8 @@ export class BackgroundProcessManager {
   }
 
   /**
-   * 应用退出策略：stopManaged=true 停止全部受管进程后清空；
+   * 应用退出策略：stopManaged=true 停止全部受管进程后移除已终止项；
+   * 清理无法确认的活动项必须保留，以便上层阻止退出并允许再次处置。
    * false 将进程留给系统（仅忘记句柄，不发送信号）。
    */
   async dispose(options: { stopManaged: boolean }): Promise<{ stopped: string[]; leftToSystem: string[] }> {
@@ -290,7 +307,12 @@ export class BackgroundProcessManager {
         }
       }
     }
-    this.processes.clear();
+    for (const [id, entry] of this.processes.entries()) {
+      const active = entry.handle.status === 'running' || entry.handle.status === 'starting';
+      // stopManaged=false 是用户明确选择“留给系统”，因此可以忘记句柄；
+      // stopManaged=true 时只有已终止项可移除，残留事实必须继续可见。
+      if (!options.stopManaged || !active) this.processes.delete(id);
+    }
     return { stopped, leftToSystem };
   }
 

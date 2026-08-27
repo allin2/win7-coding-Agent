@@ -794,4 +794,93 @@ describe('F5: pending approval keeps active state and resume continues the same 
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it('reconciles a crash-time workspace manifest before exposing checkpoint undo', async () => {
+    const env = makeEnv();
+    let first: any;
+    let reopened: any;
+    try {
+      first = makeRuntime(env);
+      const sessionId = first.getSnapshot().activeConversationId;
+      await first.shutdown();
+
+      const db = new Database(path.join(env.dataRoot, 'a9-state.db'));
+      const now = new Date().toISOString();
+      db.prepare('INSERT INTO a9_tasks (task_id, session_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run('task-crash-manifest', sessionId, 'active', now, now);
+      db.prepare('INSERT INTO a9_turns (turn_id, task_id, session_id, status, outcome_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('turn-crash-manifest-full-id', 'task-crash-manifest', sessionId, 'active', '{}', now, now);
+      db.prepare('INSERT INTO a9_runs (run_id, turn_id, session_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run('run-crash-manifest', 'turn-crash-manifest-full-id', sessionId, 'active', now, now);
+      db.close();
+
+      const { A9WorkspaceService } = require('../../../workspace/dist');
+      const workspace = new A9WorkspaceService(env.workspaceRoot);
+      await workspace.read('note.txt');
+      await workspace.write('note.txt', 'changed before crash\n', { turnId: 'turn-crash-manifest-full-id' });
+
+      reopened = makeRuntime(env);
+      const snapshot = reopened.getSnapshot();
+      expect(snapshot.checkpoints).toEqual(expect.arrayContaining([
+        expect.objectContaining({ turnId: 'turn-crash-manifest-full-id' }),
+      ]));
+      expect(snapshot.interruptions).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'turn', id: 'turn-crash-manifest-full-id' }),
+      ]));
+      expect(fs.readFileSync(path.join(env.workspaceRoot, 'note.txt'), 'utf8')).toBe('changed before crash\n');
+      expect(reopened.undoTurn('turn-crash-manifest-full-id').ok).toBe(true);
+      expect(fs.readFileSync(path.join(env.workspaceRoot, 'note.txt'), 'utf8')).toBe('n\n');
+    } finally {
+      if (reopened) await reopened.shutdown();
+      else if (first) await first.shutdown();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('keeps the workspace lock and allows shutdown retry while recovered PID cleanup is unresolved', async () => {
+    const env = makeEnv();
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+    let runtime: any;
+    let contender: any;
+    try {
+      const seed = makeRuntime(env);
+      await seed.shutdown();
+      const db = new Database(path.join(env.dataRoot, 'a9-state.db'));
+      db.prepare(`
+        INSERT INTO a9_managed_processes
+          (handle_id, workspace_path, pid, command, cwd, started_at, last_probe_status, pid_reuse_possible)
+        VALUES (?, ?, ?, ?, ?, ?, 'running', 0)
+      `).run('bg-recovered-shutdown', env.workspaceRoot, child.pid, 'previous command', env.workspaceRoot, new Date().toISOString());
+      db.close();
+
+      runtime = makeRuntime(env);
+      const unresolved = await runtime.shutdown();
+      expect(unresolved.leftToSystem[0]).toContain('recovered PID fact requires explicit stop confirmation');
+      expect(runtime.getSnapshot().controls).toEqual({ canStop: true, stopKind: 'managed_process' });
+      expect(runtime.getSnapshot().lock.held).toBe(true);
+
+      contender = makeRuntime(env);
+      expect(contender.getSnapshot().lock.held).toBe(false);
+      await contender.shutdown();
+      contender = null;
+
+      const guarded = await runtime.stop();
+      expect(guarded.ok).toBe(false);
+      expect(guarded.errors[0].code).toBe('A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED');
+      expect(child.pid && (() => { try { process.kill(child.pid!, 0); return true; } catch (_error) { return false; } })()).toBe(true);
+
+      child.kill();
+      await new Promise<void>((resolve) => child.once('close', () => resolve()));
+      expect((await runtime.stop()).ok).toBe(true);
+      const retried = await runtime.shutdown();
+      expect(retried.leftToSystem).toEqual([]);
+      expect(runtime.getSnapshot().lock.held).toBe(false);
+    } finally {
+      if (contender) await contender.shutdown();
+      if (runtime && runtime.getSnapshot().controls.canStop) await runtime.stop();
+      if (runtime) await runtime.shutdown();
+      if (child.pid && (() => { try { process.kill(child.pid, 0); return true; } catch (_err) { return false; } })()) child.kill('SIGKILL');
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

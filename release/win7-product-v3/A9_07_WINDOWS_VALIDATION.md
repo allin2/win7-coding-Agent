@@ -37,3 +37,30 @@
 
 验收时不得把 API Key 写入命令行、报告、截图文件名或候选目录。Key 只粘贴到产品 Settings 的
 API Key 输入框，并启用 DPAPI 记忆（若需要验证重启恢复）。
+
+## WIN7-17 最小增量执行合同
+
+包内 `A9_07_VALIDATION_KIT.json.incremental_win7_cases` 是本轮可机读合同；每项都给出前置、步骤、
+预期与证据类型。现场至少执行以下八组，不得只勾选标签或用开发机测试代替：
+
+1. `W17-CONVERSATION-16-ISOLATION`：16 个未归档对话、新建/切换/重命名/归档/恢复、17th 拒绝、
+   活动 Turn/审批/后台进程阻止切换，并在 1366×768 的 100%/125% DPI 各保存一组截图。
+2. `W17-HISTORY-BOUNDARY`：本地完整历史与 Provider 20 Turn/32000 字符边界；使用跨对话唯一 marker
+   证明 Provider 请求没有串线，抓包必须脱敏。
+3. `W17-SCHEMA-V3-V4-ROLLBACK`：v3→v4 备份路径和 SHA-256、“历史对话”、事务失败回滚，以及空/畸形
+   `a9_meta` 无 WAL/SHM、无原库改写的 fail-closed 证据。
+4. `W17-DPAPI-DRAFT`：普通用户 Current User DPAPI、同用户重启恢复、另一用户/损坏密文内存降级，
+   并扫描 SQLite、事件、checkpoint、日志和快照无草稿明文。
+5. `W17-APPROVAL-COMPOUND-SHELL`：分组、CMD `if`、PowerShell `if {}` 与 `cmd /c` 中的 `git push`
+   均只出现一张有效身份绑定卡；旧卡、重复点击和改目标不得执行；审批恢复后的长命令必须可 Stop。
+6. `W17-CHECKPOINT-CRASH`：工作区 manifest 已写而 Turn 终态未写时强制结束；重启不得重放，必须显示并
+   可复制完整 checkpoint ID，且只绑定原对话并能撤销恢复原 SHA-256。
+7. `W17-MANAGED-PROCESS-DOUBLE-STOP`：Turn 内 Stop 与 Turn 后后台进程 Stop 两条路径；recovered PID 未确认
+   时应用不得发送终止信号，必须取消正常退出并保留工作区锁；在系统中核对并停止该进程后，第二次 Stop
+   应观察到退出，随后重试退出且零残留。
+8. `W17-WIN7-PATH-ENCODING-TOKENS`：PowerShell 5.1/CMD、中文/空格、CP936/UTF-8/UTF-16、CRLF/LF、
+   junction、近 MAX_PATH、普通/管理员令牌、`REDUCED_RECOVERY_BASELINE`，以及不关闭严格主机密钥验证的
+   SSH/Bitvise 握手诊断。
+
+每组证据必须绑定 `release_id`、ZIP SHA-256、manifest SHA-256、Windows token/elevation、DPI、Shell Profile
+和外置 evidence root。任一组缺失只能记 `NOT_PERFORMED`/`EVIDENCE_PENDING`，不能推断 PASS。
