@@ -228,6 +228,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
   for (const entry of entries) if (!expected.has(entry.name)) throw new Error(`A9_ZIP_UNMANIFESTED_FILE:${entry.name}`);
   for (const relative of [
     'resources/app/product/main.js',
+    'resources/app/product/active-workspace-store.js',
     'resources/app/product/a9-package-runtime.js',
     'resources/app/git-adapter/dist/index.js',
     'resources/app/a9-runtime.json',
@@ -244,6 +245,7 @@ function createValidationKit(root, sourceCommit, lock) {
     'docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md',
     'docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md',
     'src/shell/product/main.js',
+    'src/shell/product/active-workspace-store.js',
     'src/shell/product/a9-agent-runtime.js',
     'src/shell/product/a9-package-runtime.js',
     'src/runner/src/trusted-shell-runner.ts',
@@ -301,6 +303,7 @@ function verifyA9Manifest(stage, manifest, lock) {
   for (const required of [
     path.join(appRoot, 'git-adapter', 'dist', 'index.js'),
     path.join(appRoot, 'a9-runtime.json'),
+    path.join(appRoot, 'product', 'active-workspace-store.js'),
     path.join(nativeRoot, 'runner', 'spike02_helper.exe'),
     path.join(nativeRoot, 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
   ]) if (!fs.existsSync(required)) throw new Error(`A9_PACKAGE_CLOSURE_MISSING:${required}`);

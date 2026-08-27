@@ -21,6 +21,7 @@ const { createA8ProductRequestHandler } = require('./a8-product-ipc');
 const { createA9ProductRequestHandler } = require('./a9-product-ipc');
 const { createA9AgentRuntime } = require('./a9-agent-runtime');
 const { loadA9PackageRuntime } = require('./a9-package-runtime');
+const { createActiveWorkspaceStore } = require('./active-workspace-store');
 const { installSessionPolicy, installWindowPolicy } = require('./security-policy');
 const { createDesktopHost } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
@@ -32,7 +33,8 @@ const { IPCDirection, IPCMessageType } = require('../dist/ipc/messages');
 const productRoot = __dirname;
 const rendererRoot = path.join(productRoot, 'renderer');
 const legacyRendererEntry = path.join(rendererRoot, 'index.html');
-const rendererEntry = process.argv.some((item) => item.indexOf('--a8-review-smoke-') === 0 || item.indexOf('--a8-boundary-smoke-') === 0)
+const legacyRendererRequested = process.argv.some((item) => item.indexOf('--a8-review-smoke-') === 0 || item.indexOf('--a8-boundary-smoke-') === 0);
+const rendererEntry = legacyRendererRequested
   ? legacyRendererEntry
   : path.join(rendererRoot, 'workbench.html');
 const preloadPath = path.join(productRoot, 'preload.js');
@@ -62,12 +64,14 @@ const runtimeState = {
   deniedPermissions: [],
   errors: [],
   productEvents: 0,
+  activeWorkspaceRestore: { status: 'not_checked' },
 };
 
 let mainWindow = null;
 let smokeTimer = null;
 let desktopHost = null;
 let rcComposition = null;
+let activeWorkspaceStore = null;
 const acceptanceEvents = [];
 let acceptanceReportWritten = false;
 let a8ReviewSmokeSession = null;
@@ -866,10 +870,14 @@ const A9_WORKSPACE_REQUIRED_SENTINEL = Object.freeze({
 
 let a9RuntimeWorkspace = null;
 
+function getA9DataRoot() {
+  return process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
+}
+
 function getOrCreateA9Runtime() {
   // WIN7AGENT_A9_DATAROOT / WIN7AGENT_A9_ELECTRON_SQLITE 仅供开发机 smoke 显式覆盖；
   // WIN7AGENT_A9_WORKSPACE 仅作显式测试覆盖保留，正式链路以主进程确认的活动工作区为准。
-  const a9DataRoot = process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
+  const a9DataRoot = getA9DataRoot();
   const activeWorkspace = desktopHost && typeof desktopHost.getActiveWorkspacePath === 'function'
     ? desktopHost.getActiveWorkspacePath()
     : null;
@@ -916,7 +924,43 @@ function buildDiagnostics() {
       arch: process.arch,
       platform: process.platform,
     },
+    activeWorkspaceRestore: runtimeState.activeWorkspaceRestore,
   };
+}
+
+async function restoreActiveWorkspace() {
+  if (!activeWorkspaceStore || !desktopHost) return;
+  let record;
+  try {
+    record = activeWorkspaceStore.load();
+  } catch (error) {
+    const code = error && error.code ? String(error.code) : 'A9_ACTIVE_WORKSPACE_RESTORE_FAILED';
+    runtimeState.activeWorkspaceRestore = { status: 'failed', code };
+    runtimeState.errors.push(`active-workspace-restore:${code}`);
+    return;
+  }
+  if (!record) {
+    runtimeState.activeWorkspaceRestore = { status: 'empty' };
+    return;
+  }
+  try {
+    const selected = await desktopHost.selectWorkspace(record.workspacePath);
+    const activeSession = desktopHost.listSessions().find((sessionRecord) =>
+      sessionRecord.status === 'ACTIVE' && sessionRecord.workspacePath === selected.workspacePath);
+    const sessionRecord = activeSession || desktopHost.createSession({
+      workspacePath: selected.workspacePath,
+      label: selected.displayName,
+    });
+    runtimeState.activeWorkspaceRestore = {
+      status: 'restored',
+      workspacePath: selected.workspacePath,
+      sessionId: sessionRecord.sessionId,
+    };
+  } catch (error) {
+    const code = error && error.code ? String(error.code) : 'A9_ACTIVE_WORKSPACE_RESTORE_FAILED';
+    runtimeState.activeWorkspaceRestore = { status: 'failed', code };
+    runtimeState.errors.push(`active-workspace-restore:${code}`);
+  }
 }
 
 ipcMain.handle('product:get-diagnostics', (event) => {
@@ -996,6 +1040,9 @@ if (!hasSingleInstanceLock) {
         runtimeState.errors.push('runner-manifest:' + String(error && error.message ? error.message : error));
       }
     }
+    if (!legacyRendererRequested) {
+      activeWorkspaceStore = createActiveWorkspaceStore({ dataRoot: getA9DataRoot() });
+    }
     desktopHost = createDesktopHost({
       recoveryDirectory: path.join(app.getPath('userData'), 'a2-recovery'),
       reviewDirectory: path.join(app.getPath('userData'), 'a8-reviews'),
@@ -1011,6 +1058,9 @@ if (!hasSingleInstanceLock) {
         userDataPath: app.getPath('userData'),
         platform: process.platform,
       }),
+      ...(activeWorkspaceStore ? {
+        onWorkspaceSelected: (workspacePath) => activeWorkspaceStore.save(workspacePath),
+      } : {}),
       ...(productRunner ? { runner: productRunner.runner, runnerAcceptanceAction: productRunner.acceptanceAction } : {}),
       ...(rcComposition ? {
         ledger: rcComposition.ledger,
@@ -1039,6 +1089,8 @@ if (!hasSingleInstanceLock) {
     // getActiveWorkspacePath），不用 WIN7AGENT_A9_WORKSPACE 环境变量绕过。
     if (a9SmokeWorkspace) {
       await desktopHost.selectWorkspace(a9SmokeWorkspace);
+    } else if (!legacyRendererRequested) {
+      await restoreActiveWorkspace();
     }
     mainWindow = createMainWindow();
     if (smokeReportPath || a8ReviewSmokeReportPath || a8BoundarySmokeReportPath) {

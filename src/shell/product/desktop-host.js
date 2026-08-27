@@ -284,6 +284,9 @@ function createDesktopHost(options) {
     if (Array.from(sessions.values()).some((session) => session.status === 'ACTIVE') && selectedWorkspace && normalized !== selectedWorkspace) {
       throw productError('WORKSPACE_SESSION_BOUND', '已有会话绑定当前工作区，不能切换到另一个目录', '关闭现有会话后再选择新的工作区。');
     }
+    if (typeof config.onWorkspaceSelected === 'function') {
+      await config.onWorkspaceSelected(normalized);
+    }
     selectedWorkspace = normalized;
     selectedWorkspaceId = sessionCatalog.ensureWorkspace(normalized).workspaceId;
     return {

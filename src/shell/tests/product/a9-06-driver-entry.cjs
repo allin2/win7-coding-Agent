@@ -221,8 +221,13 @@ async function runFirstProcess(win, exec, env) {
 }
 
 async function runSecondProcess(win, exec, env) {
-  // 重启恢复：模式、Provider 配置与 checkpoint 从同一 dataRoot 恢复。
+  // 重启恢复：不再通过命令行预绑定工作区；产品必须从同一 dataRoot
+  // 恢复活动工作区，再恢复模式、Provider 配置与 checkpoint。
   const snapshot = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)'), 15_000, 'snapshot');
+  const sessionsResult = await exec('(window.win7Agent.listSessions()).then(r => r.sessions)');
+  const activeSession = (sessionsResult || []).find((session) => session.status === 'ACTIVE');
+  const expectedWorkspace = fs.realpathSync(env.workspaceRoot);
+  record('A9F2-RESTORE-ACTIVE-WORKSPACE', snapshot.workspaceRoot === expectedWorkspace && activeSession && activeSession.workspacePath === expectedWorkspace, `expected=${expectedWorkspace}; snapshot=${snapshot.workspaceRoot}; session=${activeSession && activeSession.workspacePath}`);
   record('A9F2-RESTORE-MODE', snapshot.mode === 'full_access', `mode=${snapshot.mode}`);
   record('A9F2-RESTORE-PROVIDER', snapshot.provider && snapshot.provider.configured === true && snapshot.provider.model === 'smoke-manual-model', `model=${snapshot.provider && snapshot.provider.model}`);
   record('A9F2-RESTORE-CHECKPOINT', (snapshot.checkpoints || []).length >= 1, `checkpoints=${(snapshot.checkpoints || []).length}`);

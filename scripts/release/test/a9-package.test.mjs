@@ -80,6 +80,7 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   const appRoot = path.join(second.stage, 'resources', 'app');
   assert.ok(fs.existsSync(path.join(appRoot, 'git-adapter', 'dist', 'index.js')));
   assert.ok(fs.existsSync(path.join(appRoot, 'product', 'a9-package-runtime.js')));
+  assert.ok(fs.existsSync(path.join(appRoot, 'product', 'active-workspace-store.js')));
   assert.ok(fs.existsSync(path.join(appRoot, 'a9-runtime.json')));
   assert.equal(fs.existsSync(path.join(appRoot, 'rc-runtime.json')), false);
   assert.ok(fs.existsSync(path.join(second.stage, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')));

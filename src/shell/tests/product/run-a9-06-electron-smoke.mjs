@@ -10,7 +10,8 @@
  * - 第一进程：绑定工作区（正式 selectWorkspace 链路）→ 模式 → fixture Provider →
  *   read/edit/真实测试 → Diff → 触发永久删除/git push 审批（校验审批卡真实目标与
  *   64 位绑定摘要）→ 拒绝零副作用 → checkpoint 后退出。
- * - 第二进程：同一 dataRoot 打开，恢复 mode/provider/checkpoint/interruption 事实；
+ * - 第二进程：同一 dataRoot、无工作区命令行覆盖打开，恢复活动工作区与
+ *   mode/provider/checkpoint/interruption 事实；
  *   fixture 请求计数证明无模型重放；旧审批不可执行；新 Turn 可执行。
  * - 第三进程：经正式 UI 发起真实长运行 Shell，点击 Stop 后验证 cancelled、
  *   Shell 子 PID 消失且 SQLite 无 active task/turn/run。
@@ -358,7 +359,8 @@ const firstRequestsBefore = firstFixture.getRound();
 const firstRequestsSnapshot = firstFixture.getRequests().slice();
 record('A9F1-FIXTURE-REQUESTS', firstRequestsBefore >= 4, `rounds=${firstRequestsBefore}`);
 
-// 第二进程：同一 dataRoot 打开 → 恢复事实；恢复的 Provider 指向第一 fixture URL，
+// 第二进程：同一 dataRoot、无 --a9-smoke-workspace 打开 → 先恢复活动工作区，
+// 再恢复事实；恢复的 Provider 指向第一 fixture URL，
 // 新 Turn 的请求必须是全新会话（无第一进程历史重放，按请求内容证明）。
 let secondExit = 0;
 try {
@@ -368,7 +370,7 @@ try {
     A9_SMOKE_OUT: secondOut,
     A9_SMOKE_OLD_APPROVAL_ID: firstReport.oldApproval && firstReport.oldApproval.approvalId ? firstReport.oldApproval.approvalId : '',
     A9_SMOKE_OLD_APPROVAL_DIGEST: firstReport.oldApproval && firstReport.oldApproval.bindingDigest ? firstReport.oldApproval.bindingDigest : '',
-  }, [driverEntry, `--a9-smoke-workspace=${workspaceRoot}`]);
+  }, [driverEntry]);
 } catch (err) {
   secondExit = 1;
   record('A9F2-PROCESS-LAUNCH', false, String(err.message || err));
@@ -459,7 +461,7 @@ const report = {
   external_validation: { win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE' },
   notes: [
     'A separate first-use Electron process starts without a workspace, drives the formal workspace picker, and proves the Full Access mode is reachable after selection.',
-    'Two independent Electron 22.3.27 processes against the same dataRoot; workspace bound via formal selectWorkspace (no WIN7AGENT_A9_WORKSPACE).',
+    'Two independent Electron 22.3.27 processes use the same dataRoot; the first binds via formal selectWorkspace and the second restores that active workspace without a command-line or environment override.',
     'The restored provider points at the first fixture; the second process fresh-conversation requests prove no model replay (no assistant tool_calls / tool history in the first request, new user prompt present).',
     'Electron-ABI SQLite preflight is fail-closed; the product UI stop path cancels a real long-running Shell child, reaps its PID, and leaves zero active task/turn/run rows.',
     'This is a real Electron developer-machine smoke; it is NOT Win7 evidence.',
