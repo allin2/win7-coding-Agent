@@ -20,12 +20,14 @@ function sse(res: http.ServerResponse, obj: unknown): void {
 }
 
 /** 行为化 fixture：probe 应答 probe_test_echo；任务轮按 tool 回执推进。 */
-function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: boolean } = {}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: boolean } = {}): Promise<{ baseUrl: string; authorizations: Array<string | undefined>; close: () => Promise<void> }> {
+  const authorizations: Array<string | undefined> = [];
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let body = '';
       req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
       req.on('end', () => {
+        authorizations.push(typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined);
         let parsed: any = null;
         try { parsed = JSON.parse(body); } catch (_e) { /* keep */ }
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -54,6 +56,7 @@ function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: bo
     server.listen(0, '127.0.0.1', () => {
       resolve({
         baseUrl: `http://127.0.0.1:${(server.address() as any).port}`,
+        authorizations,
         close: () => new Promise<void>((done) => server.close(() => done())),
       });
     });
@@ -228,6 +231,50 @@ describe('R4: provider config persistence and DPAPI integration', () => {
       .toContain('legacy-secret-in-url');
     runtime.shutdown();
   });
+
+  it('fails closed for runtime or persisted attempts to disable TLS verification', async () => {
+    const runtime = makeRuntime();
+    await expect(runtime.configureProvider({
+      baseUrl: 'https://example.test/v1', model: 'm', allowInsecureTLS: true, skipProbe: true,
+    })).rejects.toMatchObject({ code: 'A9_PROVIDER_INSECURE_TLS_FORBIDDEN' });
+    runtime.shutdown();
+
+    fs.writeFileSync(path.join(env.dataRoot, 'a9-provider-config.v1.json'), JSON.stringify({
+      schemaVersion: 1,
+      baseUrl: 'https://example.test/v1',
+      model: 'm',
+      customHeaderNames: [],
+      allowInsecureTLS: true,
+      keyRemembered: false,
+    }), 'utf8');
+    const reopened = makeRuntime();
+    expect(reopened.getSnapshot().provider).toEqual(expect.objectContaining({
+      configured: false,
+      diagnostics: expect.objectContaining({ code: 'A9_PROVIDER_INSECURE_TLS_FORBIDDEN' }),
+    }));
+    reopened.shutdown();
+  });
+
+  it('does not reuse a remembered API key after the Provider origin changes', async () => {
+    const firstOrigin = await startFixtureModel();
+    const secondOrigin = await startFixtureModel();
+    try {
+      const runtime = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
+      runtime.setMode('full_access');
+      await runtime.configureProvider({
+        baseUrl: firstOrigin.baseUrl, model: 'm', apiKey: 'sk-origin-bound', rememberApiKey: true,
+      });
+      expect(firstOrigin.authorizations).toContain('Bearer sk-origin-bound');
+
+      await runtime.configureProvider({ baseUrl: secondOrigin.baseUrl, model: 'm', rememberApiKey: true });
+      expect(secondOrigin.authorizations.every((value) => value === undefined)).toBe(true);
+      expect(runtime.getSnapshot().provider.apiKey).toEqual(expect.objectContaining({ remembered: false, source: 'none' }));
+      runtime.shutdown();
+    } finally {
+      await firstOrigin.close();
+      await secondOrigin.close();
+    }
+  }, 20_000);
 
   it('saves and restores the API key through the injected (fake) DPAPI vault', async () => {
     const fixture = await startFixtureModel();

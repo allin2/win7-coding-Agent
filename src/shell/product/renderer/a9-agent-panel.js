@@ -288,7 +288,6 @@
       apiKey: (el('a9-provider-key') || {}).value || undefined,
       rememberApiKey: Boolean((el('a9-provider-remember') || {}).checked),
       caBundle: (el('a9-provider-ca') || {}).value || undefined,
-      allowInsecureTLS: Boolean((el('a9-provider-insecure') || {}).checked),
     };
     const headerName = (el('a9-provider-header-name') || {}).value || '';
     const headerValue = (el('a9-provider-header-value') || {}).value || '';

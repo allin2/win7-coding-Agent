@@ -34,8 +34,10 @@ import {
 } from '../transport';
 import {
   CredentialStore,
+  defaultTLSConfig,
   InMemoryCredentialStore,
   TLSConfig,
+  validateTLSConfig,
 } from '../security';
 import { SseParser, ToolCallAccumulator } from './sse-parser';
 
@@ -136,10 +138,24 @@ export class OpenAICompatibleProvider {
         'Base URL must be provided for OpenAICompatibleProvider',
       );
     }
+    if (config.allowInsecureTLS === true) {
+      throw new GatewayError(
+        ErrorCode.TLS_VERIFY_FAILED,
+        'TLS certificate verification cannot be disabled',
+      );
+    }
+    const tlsConfig = validateTLSConfig({ ...defaultTLSConfig(), ...(config.tlsConfig || {}) });
+    if (tlsConfig.caBundle && !fs.existsSync(tlsConfig.caBundle)) {
+      throw new GatewayError(
+        ErrorCode.TLS_VERIFY_FAILED,
+        `CA bundle does not exist: ${tlsConfig.caBundle}`,
+      );
+    }
     this.config = {
       ...config,
       baseUrl: config.baseUrl.replace(/\/+$/, ''),
       retryConfig: config.retryConfig || DEFAULT_RETRY_CONFIG,
+      tlsConfig,
     };
     this.store = config.credentialStore || new InMemoryCredentialStore();
     if (config.apiKey) {
@@ -321,9 +337,9 @@ export class OpenAICompatibleProvider {
     };
 
     if (isHttps) {
-      if (this.config.allowInsecureTLS) {
-        requestOptions.rejectUnauthorized = false;
-      } else if (this.config.tlsConfig?.caBundle && fs.existsSync(this.config.tlsConfig.caBundle)) {
+      requestOptions.rejectUnauthorized = true;
+      requestOptions.minVersion = this.config.tlsConfig?.minTLSVersion as tls.SecureVersion;
+      if (this.config.tlsConfig?.caBundle) {
         requestOptions.ca = fs.readFileSync(this.config.tlsConfig.caBundle);
       }
     }

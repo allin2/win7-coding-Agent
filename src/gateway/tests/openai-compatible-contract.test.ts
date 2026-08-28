@@ -415,7 +415,7 @@ describe('A9-04: retry, timeout and proxy behavior', () => {
 });
 
 describe('A9-04: custom TLS/CA configuration surface', () => {
-  it('accepts explicit CA bundle paths and insecure TLS opt-in flags', async () => {
+  it('accepts an existing CA bundle and rejects every TLS verification bypass', async () => {
     const caDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-ca-'));
     try {
       const caPath = path.join(caDir, 'ca.pem');
@@ -426,12 +426,19 @@ describe('A9-04: custom TLS/CA configuration surface', () => {
         tlsConfig: { caBundle: caPath, verifyCertificate: true, minTLSVersion: TLSVersion.TLS_1_2 },
       });
       expect(provider.getBaseUrl()).toBe('https://internal-gateway.example.com');
-      const insecure = new OpenAICompatibleProvider({
+      const partialTlsConfig = new OpenAICompatibleProvider({
+        baseUrl: 'https://internal-gateway.example.com', model: 'm',
+        tlsConfig: { caBundle: caPath, verifyCertificate: true } as any,
+      });
+      expect(partialTlsConfig.getBaseUrl()).toBe('https://internal-gateway.example.com');
+      expect(() => new OpenAICompatibleProvider({
+        baseUrl: 'https://internal-gateway.example.com', model: 'm', allowInsecureTLS: true,
+      })).toThrow('TLS certificate verification cannot be disabled');
+      expect(() => new OpenAICompatibleProvider({
         baseUrl: 'https://internal-gateway.example.com',
         model: 'm',
-        allowInsecureTLS: true,
-      });
-      expect(insecure.getBaseUrl()).toContain('https://');
+        tlsConfig: { caBundle: path.join(caDir, 'missing.pem'), verifyCertificate: true, minTLSVersion: TLSVersion.TLS_1_2 },
+      })).toThrow('CA bundle does not exist');
     } finally {
       fs.rmSync(caDir, { recursive: true, force: true });
     }

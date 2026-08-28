@@ -211,7 +211,7 @@ Alpha 1 正式支持 OpenAI-compatible `/v1/chat/completions`、SSE 流式响应
 
 - API Key 使用 Windows DPAPI Current User 保存；不可用时降级为仅内存。
 - 凭据字段、Authorization 和已知敏感环境变量进入 UI/日志/事件前脱敏；普通命令输出只做尽力识别。
-- 默认验证 TLS。Provider 可以提供醒目的“不安全 TLS”显式选项，但不能静默降级。
+- 始终验证 TLS 证书与主机名；Alpha 1 不提供关闭校验的选项，CA 路径缺失或不可读时 fail-closed（ADR-0100）。
 - Provider 凭据不传给模型工具或 Shell。
 
 ### A9-GW03 重试、取消与模型切换

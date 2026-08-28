@@ -279,9 +279,42 @@ function createA9AgentRuntime(options) {
     const secrets = [memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
       ...(memorySecrets && memorySecrets.headerValues ? Object.values(memorySecrets.headerValues) : [])];
     for (const secret of secrets) {
-      if (typeof secret === 'string' && secret.length > 0) out = out.split(secret).join('***redacted***');
+      if (typeof secret !== 'string' || secret.length === 0) continue;
+      const variants = [secret, Buffer.from(secret, 'utf8').toString('base64'), encodeURIComponent(secret)];
+      for (const variant of variants) {
+        if (variant && variant !== '***redacted***') out = out.split(variant).join('***redacted***');
+      }
     }
+    out = out.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@');
+    out = out.replace(/(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+/gi, '$1***redacted***');
     return out;
+  }
+
+  const SENSITIVE_FIELD = /(?:authorization|api[-_]?key|password|secret|access[-_]?token|refresh[-_]?token)/i;
+  function redactForProjection(value, key, seen) {
+    if (value === null || value === undefined) return value;
+    if (SENSITIVE_FIELD.test(String(key || ''))) return '***redacted***';
+    if (typeof value === 'string') return redactSecrets(value);
+    if (typeof value !== 'object') return value;
+    const visited = seen || new WeakSet();
+    if (visited.has(value)) return '[Circular]';
+    visited.add(value);
+    if (Array.isArray(value)) return value.map((item) => redactForProjection(item, '', visited));
+    const output = {};
+    for (const [field, item] of Object.entries(value)) {
+      output[field] = redactForProjection(item, field, visited);
+    }
+    return output;
+  }
+
+  function redactApproval(approval) {
+    if (!approval) return approval;
+    return {
+      ...approval,
+      summary: redactSecrets(approval.summary || ''),
+      args: redactForProjection(approval.args),
+      ...(approval.gitBinding ? { gitBinding: redactForProjection(approval.gitBinding) } : {}),
+    };
   }
 
   function readPersistedProviderConfig() {
@@ -291,6 +324,11 @@ function createA9AgentRuntime(options) {
       if (!doc || doc.schemaVersion !== PROVIDER_CONFIG_SCHEMA_VERSION) {
         providerDiagnostics = { code: 'A9_PROVIDER_CONFIG_SCHEMA_MISMATCH', detail: `schemaVersion=${doc && doc.schemaVersion}` };
         return null;
+      }
+      if (doc.allowInsecureTLS === true) {
+        const error = new Error('A9_PROVIDER_INSECURE_TLS_FORBIDDEN: TLS certificate verification cannot be disabled');
+        error.code = 'A9_PROVIDER_INSECURE_TLS_FORBIDDEN';
+        throw error;
       }
       doc.baseUrl = validateProviderBaseUrl(doc.baseUrl);
       return doc;
@@ -351,7 +389,6 @@ function createA9AgentRuntime(options) {
       ...(memoryApiKey ? { apiKey: memoryApiKey } : {}),
       ...(Object.keys(headers).length > 0 ? { customHeaders: headers } : {}),
       ...(providerConfig.caBundle ? { tlsConfig: { caBundle: providerConfig.caBundle, verifyCertificate: true } } : {}),
-      ...(providerConfig.allowInsecureTLS ? { allowInsecureTLS: true } : {}),
       ...(proxy ? { proxyConfig: proxy } : {}),
       ...(probeMode ? {
         // 探测使用短超时/低重试：不可达服务快速分类，不阻塞保存流程。
@@ -378,7 +415,6 @@ function createA9AgentRuntime(options) {
       model: doc.model,
       customHeaderNames: doc.customHeaderNames || [],
       ...(doc.caBundle ? { caBundle: doc.caBundle } : {}),
-      allowInsecureTLS: doc.allowInsecureTLS === true,
       ...(doc.proxy ? { proxy: doc.proxy } : {}),
       keyRemembered: doc.keyRemembered === true,
     };
@@ -565,7 +601,8 @@ function createA9AgentRuntime(options) {
           ...(shellSelection.version ? { version: shellSelection.version } : {}),
         },
         onEvent: (event) => {
-          pushTimeline(event);
+          const safeEvent = { ...event, data: redactForProjection(event.data) };
+          pushTimeline(safeEvent);
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
           if (event.type === 'turn_started' && activeLifecycle && !activeLifecycle.turnId) {
             const runId = `run-${event.turnId}`;
@@ -575,7 +612,7 @@ function createA9AgentRuntime(options) {
           }
           persistence.recordToolEvent(a9SessionId, event.turnId, event.type, {
             type: event.type,
-            data: event.data,
+            data: safeEvent.data,
           });
           if (event.type === 'tool_end' && event.data && event.data.toolName === 'shell') {
             syncManagedProcessFacts();
@@ -584,6 +621,7 @@ function createA9AgentRuntime(options) {
         onApprovalPending: (approval) => {
           // 等待用户前持久化 pending 审批（含真实工具与目标绑定）。
           currentPendingApproval = approval;
+          const safeApproval = redactApproval(approval);
           persistence.recordApproval({
             approvalId: approval.approvalId,
             sessionId: a9SessionId,
@@ -593,10 +631,10 @@ function createA9AgentRuntime(options) {
               conversationId: a9SessionId,
               taskId: activeLifecycle && activeLifecycle.taskId,
               turnId: approval.turnId,
-              summary: approval.summary,
+              summary: safeApproval.summary,
               bindingDigest: approval.bindingDigest,
-              args: approval.args,
-              ...(approval.gitBinding ? { git: approval.gitBinding } : {}),
+              args: safeApproval.args,
+              ...(safeApproval.gitBinding ? { git: safeApproval.gitBinding } : {}),
             },
             decision: 'pending',
           });
@@ -625,6 +663,11 @@ function createA9AgentRuntime(options) {
   async function configureProvider(input) {
     const values = input || {};
     const validatedBaseUrl = validateProviderBaseUrl(values.baseUrl);
+    if (values.allowInsecureTLS === true) {
+      const error = new Error('A9_PROVIDER_INSECURE_TLS_FORBIDDEN: TLS certificate verification cannot be disabled');
+      error.code = 'A9_PROVIDER_INSECURE_TLS_FORBIDDEN';
+      throw error;
+    }
     if (typeof values.model !== 'string' || values.model.trim().length === 0) {
       throw new Error('A9_PROVIDER_CONFIG_INVALID: model 必须是手工填写的模型 ID');
     }
@@ -643,12 +686,21 @@ function createA9AgentRuntime(options) {
     // 置空 loop，因此用 pending 缓存，在新 loop 创建后恢复并一次性清除。
     pendingConversationHistory = loop ? loop.getConversationHistory() : null;
 
+    const previousOrigin = providerConfig ? new URL(providerConfig.baseUrl).origin : null;
+    const nextOrigin = new URL(validatedBaseUrl).origin;
+    const suppliedApiKey = typeof values.apiKey === 'string' && values.apiKey.length > 0 ? values.apiKey : null;
+    const originChanged = Boolean(previousOrigin && previousOrigin !== nextOrigin);
+    if (originChanged && !suppliedApiKey) {
+      memoryApiKey = null;
+      try { if (apiKeyVault) apiKeyVault.clearApiKey(); } catch (_err) { /* best effort */ }
+      try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
+    }
+
     providerConfig = {
       baseUrl: validatedBaseUrl,
       model: values.model.trim(),
       customHeaderNames,
       ...(values.caBundle ? { caBundle: String(values.caBundle) } : {}),
-      allowInsecureTLS: values.allowInsecureTLS === true,
       ...(proxyInput ? {
         proxy: {
           host: String(proxyInput.host),
@@ -658,7 +710,7 @@ function createA9AgentRuntime(options) {
         },
       } : {}),
     };
-    memoryApiKey = typeof values.apiKey === 'string' && values.apiKey ? values.apiKey : memoryApiKey;
+    memoryApiKey = suppliedApiKey || memoryApiKey;
     memorySecrets = {
       headerValues,
       ...(proxyInput && proxyInput.password ? { proxyPassword: String(proxyInput.password) } : {}),
@@ -718,7 +770,6 @@ function createA9AgentRuntime(options) {
       model: providerConfig.model,
       customHeaderNames,
       ...(providerConfig.caBundle ? { caBundle: providerConfig.caBundle } : {}),
-      allowInsecureTLS: providerConfig.allowInsecureTLS,
       ...(providerConfig.proxy ? { proxy: providerConfig.proxy } : {}),
       // F4：keyRemembered=true 仅表示秘密（API Key 或 Header/代理密码）已成功经 DPAPI
       // 持久化且当前可读取；仅内存（memory）在返回值与快照中都显示未记住。
@@ -873,8 +924,9 @@ function createA9AgentRuntime(options) {
   }
 
   function approvalIdentity(approval) {
+    const safeApproval = redactApproval(approval);
     return {
-      ...approval,
+      ...safeApproval,
       conversationId: a9SessionId,
       taskId: activeLifecycle && activeLifecycle.taskId,
       turnId: approval && (approval.turnId || (activeLifecycle && activeLifecycle.turnId)),
@@ -1000,10 +1052,10 @@ function createA9AgentRuntime(options) {
           conversationId: identity.conversationId,
           taskId: identity.taskId,
           turnId: identity.turnId,
-          summary: original.summary,
+          summary: identity.summary,
           bindingDigest: original.bindingDigest,
-          args: original.args,
-          ...(original.gitBinding ? { git: original.gitBinding } : {}),
+          args: identity.args,
+          ...(identity.gitBinding ? { git: identity.gitBinding } : {}),
         },
         decision: input.decision,
       });
@@ -1094,7 +1146,6 @@ function createA9AgentRuntime(options) {
           configured: true,
           baseUrl: providerConfig.baseUrl,
           model: providerConfig.model,
-          insecureTLS: providerConfig.allowInsecureTLS === true,
           probe: providerProbe,
           apiKey: {
             // F4：remembered 仅在 DPAPI 持久化成功且当前可读取时为 true；memory 表示未记住。

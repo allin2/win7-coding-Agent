@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: WIN7-19 / 781b20e3da277570f85c28286d7ea5bbbdd5fa28
 Current Stage: A9-08
-Current Stage Status: A9_08A_APPROVAL_IPC_PASS
+Current Stage Status: A9_08B_SECRET_PROVIDER_TLS_PASS
 Target Candidate: WIN7-20
 Win7 Validation: NOT_PERFORMED_FOR_WIN7_20
 Decision: ADR-0100
@@ -42,11 +42,11 @@ Accepted ADR 和 WIN7-19 证据。
 
 | ID | 要求 | 当前状态 | 最小修复 | 开发机验收 | WIN7-20 必验 |
 |---|---|---|---|---|---|
-| A9R-01 | CMD/PowerShell 包装、转义或动态调用中的外部 Git 写入不得绕过审批 | divergent | 无法可靠静态解析时对可疑 Git push fail-closed；正确解析带值选项目标 | 分类器与 Policy 负向矩阵 | CMD/PS 5.1 真实拒绝/批准/变目标 |
-| A9R-02 | Alpha 1 Renderer 不得调用延期的 A8 Review 写入链 | divergent | A9 产品入口不暴露、不注册遗留 mutation IPC | Preload/main IPC 边界测试 | Read Only/Full Access 下遗留动作零写入 |
-| A9R-03 | 已知秘密不得进入事件、审批、SQLite、WAL、日志、checkpoint 或快照 | divergent | 在统一事件/审批持久化与展示边界递归脱敏 | 全 dataRoot 与 snapshot 扫描 | 普通用户秘密扫描 |
-| A9R-04 | Provider 凭据绑定目标；Base URL 改变不得复用旧 Key | divergent | origin 改变时清除内存/DPAPI Key，空 Key 不继承 | 双 Provider 捕获测试 | Provider 切换负向 |
-| A9R-05 | TLS 验证不得关闭；CA 缺失必须 fail-closed | divergent | 主进程拒绝 insecure 配置，Provider 拒绝缺失 CA | TLS/IPC 合同测试 | TLS/CA 负向 |
+| A9R-01 | CMD/PowerShell 包装、转义或动态调用中的外部 Git 写入不得绕过审批 | implemented | 无法可靠静态解析时对可疑 Git push fail-closed；正确解析带值选项目标 | 分类器与 Policy 负向矩阵 PASS | CMD/PS 5.1 真实拒绝/批准/变目标 |
+| A9R-02 | Alpha 1 Renderer 不得调用延期的 A8 Review 写入链 | implemented | A9 产品入口不暴露、不注册遗留 mutation IPC | Preload/main IPC 边界测试 PASS | Read Only/Full Access 下遗留动作零写入 |
+| A9R-03 | 已知秘密不得进入事件、审批、SQLite、WAL、日志、checkpoint 或快照 | implemented | 在统一事件/审批持久化与展示边界递归脱敏 | 全 dataRoot 与 snapshot 扫描 PASS | 普通用户秘密扫描 |
+| A9R-04 | Provider 凭据绑定目标；Base URL 改变不得复用旧 Key | implemented | origin 改变时清除内存/DPAPI Key，空 Key 不继承 | 双 Provider 捕获测试 PASS | Provider 切换负向 |
+| A9R-05 | TLS 验证不得关闭；CA 缺失必须 fail-closed | implemented | 主进程拒绝 insecure 配置，Provider 拒绝缺失 CA | TLS/IPC 合同测试 PASS | TLS/CA 负向 |
 | A9R-06 | 正式 A9 Shell 使用已锁定 D-013 helper；清理结果不得虚报 | partial | 接入 helper transport；无法证明整树清理时报告 residue | 正式 composition 与进程树测试 | 双 Stop、崩溃、退出零残留 |
 | A9R-07 | 无法清理时保留可操作窗口和锁，用户可重试/选择退出 | divergent | 关闭前完成退出决策；阻断时不销毁唯一窗口 | Electron 生命周期测试 | recovered PID/退出锁 |
 | A9R-08 | checkpoint undo 不得恢复错对象或删除 Turn 后数据 | divergent | 目录树哈希、无碰撞快照身份、漂移拒绝、undo 持久化 | 目录/重启/篡改测试 | checkpoint/undo 增量矩阵 |
@@ -72,6 +72,17 @@ Accepted ADR 和 WIN7-19 证据。
   只有显式历史 A8 smoke 参数可以启用，A9 仍可复用有界 workspace read DTO。
 - Core 定向测试 26/26、Shell 定向测试 8/8、Core TypeScript noEmit 和 Shell TypeScript/Node syntax 通过。
 - 本检查点只证明开发机合同；WIN7-20 的 CMD/PowerShell 审批和 A8 旁路零写入仍为必验。
+
+### 4.2 A9-08B 秘密、Provider 与 TLS 检查点（2026-08-29）
+
+- Agent Loop 事件、审批持久化和 Renderer 投影统一递归脱敏；已知秘密的原文、URL 编码与 Base64
+  形式不得进入 timeline、SQLite/WAL、checkpoint 或快照，内部执行对象仍保留原始目标用于摘要绑定。
+- API Key 只可在同一 Provider origin 内复用；切换 origin 且未输入新 Key 时，同时清除内存与 DPAPI
+  旧值，双 fixture 捕获证明新端点未收到旧 Authorization。
+- Workbench 与旧 Renderer 发送路径不再提供 insecure TLS 字段；IPC、Runtime 和 Gateway 分层拒绝关闭
+  证书验证，缺失 CA 路径在发起网络请求前 fail-closed。
+- Gateway 合同 14/14、Shell Provider/生命周期/IPC/Workbench 合同 53/53 通过；相关 TypeScript 构建、
+  JavaScript 语法和 diff 检查通过。此结果不替代 WIN7-20 的普通用户秘密、Provider 切换与 TLS/CA 负向复验。
 
 ## 5. 完成条件
 

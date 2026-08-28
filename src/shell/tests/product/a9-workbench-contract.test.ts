@@ -111,12 +111,14 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain("const TAB_IDS = ['files', 'changes', 'activity', 'environment'];");
   });
 
-  it('keeps Provider secrets in one progressive Settings surface with explicit insecure TLS confirmation', () => {
+  it('keeps Provider secrets in one progressive Settings surface with mandatory TLS verification', () => {
     expect((html.match(/id="a9-provider-key"/g) || [])).toHaveLength(1);
     expect((html.match(/id="a9-provider-apply"/g) || [])).toHaveLength(1);
     expect(html).toContain('<summary>企业网络</summary>');
-    expect(html).toContain('<summary>危险设置</summary>');
-    expect(html).toContain('id="a9-insecure-dialog"');
+    expect(html).toContain('TLS 证书与主机名验证始终开启');
+    expect(html).not.toContain('a9-provider-insecure');
+    expect(html).not.toContain('a9-insecure-dialog');
+    expect(script).not.toContain('allowInsecureTLS');
     expect(script).toContain("el('a9-provider-key').value = '';");
     expect(script).toContain("el('a9-provider-header-value').value = '';");
     expect(script).toContain("setFieldError('a9-provider-diagnostics'");

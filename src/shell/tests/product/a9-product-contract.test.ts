@@ -187,6 +187,21 @@ describe('A9-06: a9 product IPC schema validation', () => {
     expect(oldSchema.error.code).toBe('A9_SCHEMA_VERSION_UNSUPPORTED');
   });
 
+  it('rejects insecure TLS at the IPC schema boundary', async () => {
+    const configureProvider = jest.fn();
+    const providerHandler = createA9ProductRequestHandler({
+      getA9Runtime: () => ({ configureProvider }),
+      isValidRendererSender: validSender,
+    });
+    const response = await providerHandler({}, {
+      schemaVersion: A9_IPC_SCHEMA_VERSION,
+      action: 'a9.provider.configure',
+      payload: { baseUrl: 'https://example.test/v1', model: 'm', allowInsecureTLS: true },
+    });
+    expect(response).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
+    expect(configureProvider).not.toHaveBeenCalled();
+  });
+
   it('rejects non-whitelisted senders (renderer capability boundary)', async () => {
     const strict = createA9ProductRequestHandler({
       getA9Runtime: () => ({ getSnapshot: () => ({}) }),

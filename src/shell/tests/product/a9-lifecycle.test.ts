@@ -757,10 +757,21 @@ describe('F5: pending approval keeps active state and resume continues the same 
         apiKey: 'a9-conversation-secret',
         skipProbe: true,
       });
-      const turn = await first.submitTurn('do not persist a9-conversation-secret in plaintext');
+      const encodedSecret = Buffer.from('a9-conversation-secret', 'utf8').toString('base64');
+      const turn = await first.submitTurn(`do not persist a9-conversation-secret or ${encodedSecret} in plaintext`);
       expect(turn.ok).toBe(true);
+      const liveSnapshot = JSON.stringify(first.getSnapshot());
+      expect(liveSnapshot).toContain('***redacted***');
+      expect(liveSnapshot).not.toContain('a9-conversation-secret');
+      expect(liveSnapshot).not.toContain(encodedSecret);
       await first.stop();
       await first.shutdown();
+
+      for (const file of fs.readdirSync(env.dataRoot).map((name) => path.join(env.dataRoot, name))) {
+        if (!fs.statSync(file).isFile()) continue;
+        expect(fs.readFileSync(file).includes(Buffer.from('a9-conversation-secret', 'utf8'))).toBe(false);
+        expect(fs.readFileSync(file).includes(Buffer.from(encodedSecret, 'utf8'))).toBe(false);
+      }
 
       reopened = makeRuntime(env);
       const serialized = JSON.stringify(reopened.getSnapshot().conversation);

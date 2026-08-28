@@ -25,7 +25,6 @@
     running: false,
     approvalDecision: null,
     lastFocused: null,
-    insecureConfirmed: false,
     providerHydratedSignature: null,
     conversationSignature: null,
     activeConversationId: null,
@@ -472,13 +471,11 @@
       configured: provider.configured === true,
       baseUrl: provider.baseUrl || '',
       model: provider.model || '',
-      insecureTLS: provider.insecureTLS === true,
       remembered: Boolean(provider.apiKey && provider.apiKey.remembered),
     });
     if (state.providerHydratedSignature !== providerHydratedSignature) {
       el('a9-provider-url').value = provider.baseUrl || '';
       el('a9-provider-model').value = provider.model || '';
-      el('a9-provider-insecure').checked = provider.insecureTLS === true;
       el('a9-provider-remember').checked = Boolean(provider.apiKey && provider.apiKey.remembered);
       state.providerHydratedSignature = providerHydratedSignature;
     }
@@ -852,7 +849,6 @@
       apiKey: el('a9-provider-key').value || undefined,
       rememberApiKey: el('a9-provider-remember').checked,
       caBundle: el('a9-provider-ca').value.trim() || undefined,
-      allowInsecureTLS: el('a9-provider-insecure').checked,
     };
     const headerName = el('a9-provider-header-name').value.trim();
     const headerValue = el('a9-provider-header-value').value;
@@ -863,7 +859,7 @@
     return values;
   }
 
-  async function applyProvider(confirmed) {
+  async function applyProvider() {
     const values = providerValues();
     setFieldError('a9-provider-error', '');
     if (!values.baseUrl || !values.model) {
@@ -874,10 +870,6 @@
     const headerValue = el('a9-provider-header-value').value;
     if ((headerName && !headerValue) || (!headerName && headerValue)) {
       setFieldError('a9-provider-error', '自定义 Header 名和值必须同时填写。');
-      return;
-    }
-    if (values.allowInsecureTLS && !confirmed && !state.insecureConfirmed) {
-      openDialog(el('a9-insecure-dialog'));
       return;
     }
     const button = el('a9-provider-apply');
@@ -891,7 +883,6 @@
       }
       el('a9-provider-key').value = '';
       el('a9-provider-header-value').value = '';
-      state.insecureConfirmed = false;
       await refreshSnapshot();
     } catch (error) {
       setFieldError('a9-provider-error', errorMessage(error, 'Provider 配置失败。'));
@@ -1073,11 +1064,8 @@
     el('open-settings').addEventListener('click', () => openDrawer('settings-drawer'));
     el('open-diagnostics').addEventListener('click', () => { openDrawer('diagnostics-drawer'); void refreshDiagnostics(); });
     document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => closeDrawer(button.dataset.close)));
-    el('a9-provider-apply').addEventListener('click', () => { void applyProvider(false); });
+    el('a9-provider-apply').addEventListener('click', () => { void applyProvider(); });
     el('a9-provider-probe').addEventListener('click', () => { void probeProvider(); });
-    el('a9-insecure-cancel').addEventListener('click', () => { state.insecureConfirmed = false; closeDialog(el('a9-insecure-dialog')); });
-    el('a9-insecure-dialog').addEventListener('cancel', () => { state.insecureConfirmed = false; });
-    el('a9-insecure-confirm').addEventListener('click', () => { state.insecureConfirmed = true; closeDialog(el('a9-insecure-dialog')); void applyProvider(true); });
     el('a9-approval-approve').addEventListener('click', () => { void decideApproval('approved'); });
     el('a9-approval-deny').addEventListener('click', () => { void decideApproval('denied'); });
     el('a9-git-refresh').addEventListener('click', () => { void refreshGit(); });
