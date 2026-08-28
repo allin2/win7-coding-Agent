@@ -103,6 +103,22 @@ describe('A9-01: Permission Modes and Policy Engine', () => {
       };
       expect(policy.evaluate(publishCall).verdict).toBe(PolicyVerdict.ASK);
     });
+
+    it('does not allow shell escaping or dynamic invocation to bypass git push confirmation', () => {
+      for (const command of [
+        'cmd.exe /d /s /c "g^it push origin main"',
+        'powershell.exe -NoProfile -Command "g`it push origin main"',
+        'cmd.exe /d /s /c "set G=git && %G% push origin main"',
+        'powershell.exe -NoProfile -Command "$g=\'git\'; & $g push origin main"',
+      ]) {
+        expect(policy.evaluate({
+          id: `call-${command.length}`,
+          toolName: 'shell',
+          args: { command },
+          approvalLevel: ApprovalLevel.FULL_ACCESS,
+        }).verdict).toBe(PolicyVerdict.ASK);
+      }
+    });
   });
 
   describe('Read-Only and Review Regression Protection', () => {

@@ -264,9 +264,15 @@ const AUTONOMOUS_LOCAL_WRITE = new Set([
  * （由其他 shell 策略处理）。
  */
 export function classifyGitCommand(command: string): GitCommandDecision | null {
-  const decisions = collectGitDecisions(command, command, 0);
+  // The supported Win7 shells remove these escape characters before looking
+  // up the executable. Analyse that effective spelling while keeping the
+  // original command for the one-shot binding digest and user-visible audit.
+  const effectiveCommand = command.replace(/\^(?=.)/g, '').replace(/`(?=.)/g, '');
+  const decisions = collectGitDecisions(effectiveCommand, command, 0);
   if (decisions.length === 0) {
-    return containsExecutableGitRisk(command) ? conservativeGitDecision(command) : null;
+    return containsExecutableGitRisk(effectiveCommand) || containsDynamicGitPushRisk(command)
+      ? conservativeGitDecision(command)
+      : null;
   }
   const rank: Record<GitCommandCategory, number> = {
     autonomous: 1,
@@ -288,6 +294,16 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
       : {}),
     mutatesWorktree: decisions.some((decision) => decision.mutatesWorktree),
   };
+}
+
+function containsDynamicGitPushRisk(command: string): boolean {
+  if (!/\bpush\b/i.test(command)) return false;
+  // CMD and PowerShell can select an executable after static parsing through
+  // variable expansion or the call operator. We cannot safely bind a remote
+  // from these forms, so an executable-looking push fails closed.
+  return /%[A-Za-z_][A-Za-z0-9_]*%\s+push\b/i.test(command)
+    || /(?:^|[;&|]\s*|\bcall\s+)&?\s*\$[A-Za-z_][A-Za-z0-9_]*\s+push\b/i.test(command)
+    || /(?:^|[;&|]\s*|\bcall\s+)["'(]*\s*(?:%[A-Za-z_][A-Za-z0-9_]*%|\$[A-Za-z_][A-Za-z0-9_]*)\s+push\b/i.test(command);
 }
 
 function collectGitDecisions(command: string, originalCommand: string, depth: number): GitCommandDecision[] {
@@ -354,9 +370,9 @@ function classifyGitTokens(tokens: string[], originalCommand: string): GitComman
   const force = args.some((a) => /^(-f|--force)$/.test(a)) || subcommand === 'push' && args.some((a) => a.startsWith('-') && a.includes('force'));
 
   if (subcommand === 'push') {
-    const nonFlags = args.filter((a) => !a.startsWith('-'));
-    const remote = nonFlags[0] ?? 'origin';
-    const refspec = nonFlags[1];
+    const target = parsePushTarget(args);
+    const remote = target.remote;
+    const refspec = target.refspec;
     const branch = refspec?.split(':').pop()?.replace(/^refs\/heads\//, '');
     const deletesRemoteRef = args.some((a) => a === '--delete' || a === '-d');
     return {
@@ -468,6 +484,44 @@ function classifyGitTokens(tokens: string[], originalCommand: string): GitComman
     binding: bindingFor(originalCommand, { summary: `git ${subcommand} ${args.join(' ')}`.slice(0, 160) }),
     reason: `git 子命令 ${subcommand} 未在策略中列为可自主执行，保守要求确认`,
     mutatesWorktree: true,
+  };
+}
+
+function parsePushTarget(args: string[]): { remote: string; refspec?: string } {
+  const positional: string[] = [];
+  let repositoryOverride: string | undefined;
+  const optionsWithSeparateValue = new Set([
+    '-o', '--push-option', '--repo', '--receive-pack', '--exec',
+  ]);
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--') {
+      positional.push(...args.slice(index + 1));
+      break;
+    }
+    if (arg.startsWith('--repo=')) {
+      repositoryOverride = arg.slice('--repo='.length);
+      continue;
+    }
+    if (optionsWithSeparateValue.has(arg)) {
+      const value = args[index + 1];
+      if (value !== undefined) {
+        if (arg === '--repo') repositoryOverride = value;
+        index += 1;
+      }
+      continue;
+    }
+    if (arg.startsWith('-')) continue;
+    positional.push(arg);
+  }
+
+  if (repositoryOverride !== undefined) {
+    return { remote: repositoryOverride || 'origin', ...(positional[0] ? { refspec: positional[0] } : {}) };
+  }
+  return {
+    remote: positional[0] ?? 'origin',
+    ...(positional[1] ? { refspec: positional[1] } : {}),
   };
 }
 

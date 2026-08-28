@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: WIN7-19 / 781b20e3da277570f85c28286d7ea5bbbdd5fa28
 Current Stage: A9-08
-Current Stage Status: IN_PROGRESS_POST_REVIEW_FIXES
+Current Stage Status: A9_08A_APPROVAL_IPC_PASS
 Target Candidate: WIN7-20
 Win7 Validation: NOT_PERFORMED_FOR_WIN7_20
 Decision: ADR-0100
@@ -63,6 +63,15 @@ Accepted ADR 和 WIN7-19 证据。
 6. `A9-08F_WIN7_20_GO_FOR_ALPHA`：按 ADR-0097 完成候选必验项及所有直接受影响项。
 
 每批独立提交并推送；后一批不得把前一批失败掩盖为完成。开发机 PASS 不冒充 Win7 PASS。
+
+### 4.1 A9-08A 审批与 IPC 检查点（2026-08-28）
+
+- CMD caret、PowerShell backtick、CMD `%VAR%` 和 PowerShell call-operator 形式的 `git push` 均进入
+  `always_confirm`，原始完整命令仍绑定 SHA-256；`-o/--push-option/--repo` 不再错位显示 remote/branch。
+- 正常 A9 Preload 不暴露延期的 A8 Review mutation API；主进程 A8 IPC 同时拒绝 mutation action，
+  只有显式历史 A8 smoke 参数可以启用，A9 仍可复用有界 workspace read DTO。
+- Core 定向测试 26/26、Shell 定向测试 8/8、Core TypeScript noEmit 和 Shell TypeScript/Node syntax 通过。
+- 本检查点只证明开发机合同；WIN7-20 的 CMD/PowerShell 审批和 A8 旁路零写入仍为必验。
 
 ## 5. 完成条件
 

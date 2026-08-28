@@ -3,7 +3,7 @@ const { createA8ProductRequestHandler } = require('../../product/a8-product-ipc'
 };
 
 describe('A8 product IPC boundary', () => {
-  function setup() {
+  function setup(allowReviewMutations = true) {
     const host = {
       getSessionProjection: jest.fn(() => ({ schemaVersion: 1 })),
       setGoal: jest.fn((input) => input),
@@ -22,6 +22,7 @@ describe('A8 product IPC boundary', () => {
     const handler = createA8ProductRequestHandler({
       getDesktopHost: () => host,
       isValidRendererSender: (event: any) => event?.trusted === true,
+      allowReviewMutations,
     });
     return { host, handler };
   }
@@ -83,6 +84,18 @@ describe('A8 product IPC boundary', () => {
     }));
     expect(forged).toMatchObject({ ok: false, error: { code: 'A8_REQUEST_SCHEMA_INVALID' } });
     expect(host.applyReview).not.toHaveBeenCalled();
+  });
+
+  it('keeps bounded workspace reads but rejects every Review mutation in the A9 product entry', async () => {
+    const { host, handler } = setup(false);
+    const read = await handler({ trusted: true }, request('workspace.read', { path: 'sample.ts' }));
+    const prepared = await handler({ trusted: true }, request('review.prepare', {
+      taskId: 'task-1',
+      proposals: [{ relativePath: 'sample.ts', operation: 'CREATE', afterContentBase64: Buffer.from('x').toString('base64') }],
+    }));
+    expect(read.ok).toBe(true);
+    expect(prepared).toMatchObject({ ok: false, error: { code: 'A8_REVIEW_MUTATION_DISABLED_IN_A9' } });
+    expect(host.prepareReview).not.toHaveBeenCalled();
   });
 
   it('submits the diagnostics Review scenario through its own exact product action', async () => {

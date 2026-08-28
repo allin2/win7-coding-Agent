@@ -18,12 +18,25 @@ const ACTIONS = Object.freeze({
   REVIEW_TASK_SUBMIT: 'review.task.submit',
 });
 
+const REVIEW_MUTATION_ACTIONS = new Set([
+  ACTIONS.REVIEW_PREPARE,
+  ACTIONS.REVIEW_DECIDE,
+  ACTIONS.REVIEW_APPROVAL_ISSUE,
+  ACTIONS.REVIEW_APPLY,
+  ACTIONS.REVIEW_VALIDATION,
+  ACTIONS.REVIEW_RECOVERY,
+  ACTIONS.REVIEW_TASK_SUBMIT,
+]);
+
 function createA8ProductRequestHandler(options) {
   const config = options || {};
   return async function handleA8ProductRequest(event, request) {
     if (!config.isValidRendererSender(event)) throw new Error('RENDERER_CAPABILITY_DENIED');
     try {
       validateRequest(request);
+      if (REVIEW_MUTATION_ACTIONS.has(request.action) && config.allowReviewMutations !== true) {
+        throw codedError('A8_REVIEW_MUTATION_DISABLED_IN_A9');
+      }
       const host = config.getDesktopHost();
       if (!host) throw codedError('DESKTOP_HOST_UNAVAILABLE');
       switch (request.action) {

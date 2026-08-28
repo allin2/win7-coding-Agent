@@ -182,6 +182,30 @@ describe('A9-05: git command classification', () => {
     }
   });
 
+  it('fails closed for Win7 shell escaping and dynamic Git executable lookup', () => {
+    for (const command of [
+      'cmd.exe /d /s /c "g^it push origin main"',
+      'powershell.exe -NoProfile -Command "g`it push origin main"',
+      'cmd.exe /d /s /c "set G=git && %G% push origin main"',
+      'powershell.exe -NoProfile -Command "$g=\'git\'; & $g push origin main"',
+    ]) {
+      const decision = classifyGitCommand(command);
+      expect(`${command} => ${decision?.category}`).toBe(`${command} => always_confirm`);
+      expect(decision?.binding.commandSha256).toMatch(/^[a-f0-9]{64}$/);
+    }
+  });
+
+  it('binds push targets after options that consume a separate value', () => {
+    expect(classifyGitCommand('git push -o ci.skip origin main')?.binding)
+      .toEqual(expect.objectContaining({ remote: 'origin', branch: 'main' }));
+    expect(classifyGitCommand('git push --push-option trace=yes origin release')?.binding)
+      .toEqual(expect.objectContaining({ remote: 'origin', branch: 'release' }));
+    expect(classifyGitCommand('git push --repo backup release')?.binding)
+      .toEqual(expect.objectContaining({ remote: 'backup', branch: 'release' }));
+    expect(classifyGitCommand('git push --repo=backup release')?.binding)
+      .toEqual(expect.objectContaining({ remote: 'backup', branch: 'release' }));
+  });
+
   it('does not treat common prose and comment sinks as Git execution', () => {
     for (const command of [
       'echo git push origin main',

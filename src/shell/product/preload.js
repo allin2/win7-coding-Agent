@@ -3,6 +3,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 let messageCounter = 0;
+const legacyA8ReviewEnabled = process.argv.some((item) =>
+  item.indexOf('--a8-review-smoke-') === 0 || item.indexOf('--a8-boundary-smoke-') === 0);
 
 function request(type, sessionId, payload) {
   messageCounter += 1;
@@ -33,6 +35,17 @@ function a9Request(action, payload) {
     payload: payload || {},
   });
 }
+
+const legacyA8ReviewApi = legacyA8ReviewEnabled ? Object.freeze({
+  prepareReview: (sessionId, taskId, proposals) => a8Request('review.prepare', sessionId, { taskId, proposals }),
+  getReview: (sessionId, taskId) => a8Request('review.get', sessionId, { taskId }),
+  decideReview: (sessionId, taskId, relativePath, decision) => a8Request('review.decide', sessionId, { taskId, relativePath, decision }),
+  issueReviewApproval: (sessionId, taskId, subject) => a8Request('review.approval.issue', sessionId, { taskId, subject: subject || 'desktop-user' }),
+  applyReview: (sessionId, taskId, approval) => a8Request('review.apply', sessionId, { taskId, approval }),
+  recordReviewValidation: (sessionId, taskId, input) => a8Request('review.validation', sessionId, { taskId, ...input }),
+  restoreReviewRecovery: (sessionId, taskId) => a8Request('review.recovery', sessionId, { taskId }),
+  submitReviewTask: (sessionId, prompt) => a8Request('review.task.submit', sessionId, { prompt }),
+}) : Object.freeze({});
 
 const productApi = Object.freeze({
   getDiagnostics: () => ipcRenderer.invoke('product:get-diagnostics'),
@@ -78,14 +91,7 @@ const productApi = Object.freeze({
     ...(maxLines ? { maxLines } : {}),
     ...(encoding ? { encoding } : {}),
   }),
-  prepareReview: (sessionId, taskId, proposals) => a8Request('review.prepare', sessionId, { taskId, proposals }),
-  getReview: (sessionId, taskId) => a8Request('review.get', sessionId, { taskId }),
-  decideReview: (sessionId, taskId, relativePath, decision) => a8Request('review.decide', sessionId, { taskId, relativePath, decision }),
-  issueReviewApproval: (sessionId, taskId, subject) => a8Request('review.approval.issue', sessionId, { taskId, subject: subject || 'desktop-user' }),
-  applyReview: (sessionId, taskId, approval) => a8Request('review.apply', sessionId, { taskId, approval }),
-  recordReviewValidation: (sessionId, taskId, input) => a8Request('review.validation', sessionId, { taskId, ...input }),
-  restoreReviewRecovery: (sessionId, taskId) => a8Request('review.recovery', sessionId, { taskId }),
-  submitReviewTask: (sessionId, prompt) => a8Request('review.task.submit', sessionId, { prompt }),
+  ...legacyA8ReviewApi,
   submitTask: (sessionId, prompt, scenario, executionMode, refs) => request('task.submit', sessionId, {
     sessionId,
     prompt,

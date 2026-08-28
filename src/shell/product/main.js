@@ -858,6 +858,9 @@ ipcMain.handle('desktop:request', handleDesktopRequest);
 ipcMain.handle('product:a8-request', createA8ProductRequestHandler({
   getDesktopHost: () => desktopHost,
   isValidRendererSender: validRendererSender,
+  // A9 still reuses A8's bounded workspace-read DTOs. Deferred Review
+  // mutations are enabled only by the explicit historical smoke entry.
+  allowReviewMutations: legacyRendererRequested,
 }));
 
 // A9 Trusted Agent Runtime（A9-06）：Renderer 只经此窄 IPC 访问。
