@@ -49,9 +49,16 @@ export function tokenizeCommand(command: string): string[] {
     const ch = command[i];
     if (quote) {
       if (ch === '\\' && quote === '"' && i + 1 < command.length) {
-        current += command[i + 1];
-        i += 1;
-        continue;
+        const next = command[i + 1];
+        // Windows paths commonly appear inside CMD /c double-quoted payloads.
+        // A backslash before an ordinary path character is data, not a shell
+        // escape; dropping it can turn an absolute ...\git.exe into an
+        // unrecognised token and bypass the always-confirm Git policy.
+        if (next === '"' || next === '\\') {
+          current += next;
+          i += 1;
+          continue;
+        }
       }
       if (ch === quote) {
         quote = undefined;

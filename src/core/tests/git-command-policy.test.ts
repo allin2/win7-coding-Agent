@@ -154,12 +154,15 @@ describe('A9-05: git command classification', () => {
       'if exist README.md git push origin main',
       'powershell.exe -NoProfile -Command "if (Test-Path .git) { git push origin main }"',
       'cmd.exe /d /s /c "(git push origin main)"',
+      'cmd.exe /d /s /c "if exist alpha.txt (C:\\acceptance\\mvp_mingit\\cmd\\git.exe push origin HEAD:refs/heads/w18-cmd-if)"',
     ]) {
       expect(`${command} => ${classifyGitCommand(command)?.category}`)
         .toBe(`${command} => always_confirm`);
     }
     expect(classifyGitCommand('(git push origin main)')?.binding)
       .toEqual(expect.objectContaining({ remote: 'origin', branch: 'main' }));
+    expect(classifyGitCommand('cmd.exe /d /s /c "if exist alpha.txt (C:\\acceptance\\mvp_mingit\\cmd\\git.exe push origin HEAD:refs/heads/w18-cmd-if)"')?.binding)
+      .toEqual(expect.objectContaining({ remote: 'origin', branch: 'w18-cmd-if' }));
     expect(classifyGitCommand('if exist README.md echo git push origin main')).toBeNull();
   });
 

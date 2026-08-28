@@ -132,6 +132,61 @@ describe('A9-05: A9AgentLoop and Coding Workflow', () => {
     expect(result.pendingApproval?.args).toEqual(expect.objectContaining({ command: 'git push origin main' }));
   });
 
+  it('requires a fresh one-shot approval when the same absolute git push is requested in a new Turn', async () => {
+    const command = 'cmd.exe /d /s /c "if exist alpha.txt (C:\\acceptance\\mvp_mingit\\cmd\\git.exe push origin HEAD:refs/heads/w18-cmd-if)"';
+    const toolResponse = {
+      id: 'push-res',
+      content: '',
+      finishReason: 'tool_calls',
+      toolCalls: [{ id: 'tc-push', name: 'shell', arguments: JSON.stringify({ command }) }],
+    };
+    const finalResponse = { id: 'done', content: 'done', finishReason: 'stop' };
+    const mockModel: A9ModelPort = {
+      sendStreamRequest: jest.fn()
+        .mockResolvedValueOnce(toolResponse)
+        .mockResolvedValueOnce(finalResponse)
+        .mockResolvedValueOnce(toolResponse)
+        .mockResolvedValueOnce(finalResponse),
+    };
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/test/workspace',
+      provider: mockModel,
+      workspaceService: mockWorkspace,
+      runner: mockRunner,
+      permissionMode: PermissionMode.FULL_ACCESS,
+    });
+
+    const first = await loop.runTurn('first push');
+    expect(first.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+    expect(mockRunner.execute).not.toHaveBeenCalled();
+    await loop.resumeAfterApproval({
+      approvalId: first.pendingApproval!.approvalId,
+      decision: 'approved',
+      bindingDigest: first.pendingApproval!.bindingDigest,
+    });
+    expect(mockRunner.execute).toHaveBeenCalledTimes(1);
+
+    const second = await loop.runTurn('same push in a new turn');
+    expect(second.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+    expect(second.turnId).not.toBe(first.turnId);
+    expect(second.pendingApproval!.approvalId).not.toBe(first.pendingApproval!.approvalId);
+    expect(mockRunner.execute).toHaveBeenCalledTimes(1);
+
+    await expect(loop.resumeAfterApproval({
+      approvalId: first.pendingApproval!.approvalId,
+      decision: 'approved',
+      bindingDigest: first.pendingApproval!.bindingDigest,
+    })).rejects.toMatchObject({ code: 'APPROVAL_INVALID' });
+    expect(mockRunner.execute).toHaveBeenCalledTimes(1);
+
+    await loop.resumeAfterApproval({
+      approvalId: second.pendingApproval!.approvalId,
+      decision: 'approved',
+      bindingDigest: second.pendingApproval!.bindingDigest,
+    });
+    expect(mockRunner.execute).toHaveBeenCalledTimes(2);
+  });
+
   it('handles user cancellation via AbortSignal', async () => {
     const controller = new AbortController();
     controller.abort();
