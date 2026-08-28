@@ -16,24 +16,26 @@
 
 规则缺失、任务书未授权或文档冲突时，停止相关实现并报告；不得自行扩大范围。
 
-## 2. 当前交付基线：A9 Alpha 1
+## 2. 当前阶段：A9-08 后置独立审查修复
 
-- 已完成任务：`docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`，状态 `COMPLETE / A9_ALPHA1_PASS`。
-- 交付分支：`codex/a9-trusted-agent-runtime`；版本：`0.3.0-alpha.1`；WIN7-19 裁决：
-  `GO_FOR_ALPHA`。在新的任务书获批前，A9 实现授权不再开放。
+- 当前任务：`docs/tasks/A9_08_POST_REVIEW_HARDENING.md`，状态 `APPROVED_FOR_IMPLEMENTATION`。
+- 交付分支：`codex/a9-trusted-agent-runtime`；版本：`0.3.0-alpha.1`；目标候选：WIN7-20。
+  WIN7-19 仍是不可变历史验收里程碑，但后置独立审查发现未覆盖 P1，当前综合状态为
+  `FIX_BEFORE_ALPHA`，PR #3 在 A9-08 完成前不得合并。
 - ADR-0096 将 Alpha 1 支持范围收敛为 Full Access 与 Read Only；完整 Review 工作流延期至
   `0.3.0-alpha.2`。WIN7-10 中仍可见但无后端的 Review 是已知限制，只能 fail-closed，不能算 Alpha 1
   支持能力或 Review PASS，也不得静默提升为 Full Access。
-- 当前状态：WIN7-19 已按 ADR-0097 完成候选必验项、审批修复增量复验和后飞行检查，其余未受影响能力
-  使用可追溯继承证据；无 P0/P1，允许内部 Alpha 交付。Win10 同候选 smoke 仍须在 RC 前补齐，不能把
-  `GO_FOR_ALPHA` 写成 RC PASS。最新事实见 `docs/STATUS.md` 与 `docs/tasks/README.md`。
+- 当前状态：按 ADR-0100 分四批修复审批/IPC、秘密/Provider/TLS、进程生命周期和 checkpoint/迁移；
+  完成全量验证、第二轮独审和 WIN7-20 增量实机复验后，才能恢复 `GO_FOR_ALPHA`。最新事实见
+  `docs/STATUS.md` 与 `docs/tasks/README.md`。
 - A9 在可信工作区提供 Full Access、TrustedShell 和真实 Git；这不是安全沙箱。A9 对 C08/C09/C20 的局部替代仅以 ADR-0089 和 A9 任务书为准，不外推至历史任务或其他分支。
 - A9 仍必须经过 Schema IPC、Core/Policy、目标绑定批准与审计，并保留取消、输出上限、进程树清理、凭据脱敏、TLS 默认验证、checkpoint、Renderer 隔离和 Win7 实机硬门槛。
 
 ## 3. 开始任务前必须读取
 
 1. 所有任务先读本文件。
-2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9 工作读 `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
+2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9-08 工作同时读
+   `docs/tasks/A9_08_POST_REVIEW_HARDENING.md` 与 `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
 3. 按任务需要读取架构、安全、评估、PRD、ADR 或状态文档；不要无条件加载全部历史资料。
 4. 处理历史阶段时，按 `docs/tasks/README.md` 定位其任务书和分支合同；A9 授权不适用。
 

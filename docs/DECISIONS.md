@@ -1379,3 +1379,25 @@
   P2 包括 1366×768 对话列表拥挤、普通用户 PATH 无 Git、复用管理员所有仓库触发 `safe.directory`、
   Bitvise Session 0 的可见 DPAPI/GPU 降级。该裁决不授权关闭 TLS/SSH 校验、修改系统 PATH/注册表/服务，
   也不是公开发布或 RC PASS。
+
+## ADR-0100 WIN7-19 后置独立审查触发 A9-08 修复 Gate，历史候选保持不可变
+
+- 状态：Accepted（2026-08-28，项目负责人要求保留 WIN7-19 阶段基线并按独立审查结论执行修复）
+- 背景：WIN7-19 在 ADR-0097 当时定义的增量范围内完成现场验收并由 ADR-0099 裁决
+  `GO_FOR_ALPHA`。在合并 PR 前新增的独立代码审查覆盖审批、状态迁移、进程停止、checkpoint 和秘密
+  保护，并动态复现：（1）CMD caret、PowerShell backtick/动态调用可使 `git push` 未进入始终确认；
+  （2）含已配置秘密的 prompt 可进入 `turn_started`、SQLite WAL 与 Renderer timeline。审查还确认
+  Provider 跨目标 Key 复用、A8 mutation IPC 可达、D-013 未接入正式 A9、checkpoint/迁移等 P1。
+  这些是 WIN7-19 原验收未覆盖的存量缺陷，不是候选身份错位，也不得通过改写历史证据消除。
+- 决策：（1）WIN7-19 源码提交、ZIP、manifest、candidate identity、外置证据和 ADR-0099 当时的现场
+  结论保持不可变，作为可回退里程碑；PR #3 在新 Gate 完成前不合并。（2）新增
+  `A9_08_POST_REVIEW_HARDENING`，状态 `APPROVED_FOR_IMPLEMENTATION`，继续使用
+  `codex/a9-trusted-agent-runtime` 和 `0.3.0-alpha.1`，只修复独审确认的问题。（3）当前综合交付状态为
+  `FIX_BEFORE_ALPHA`；这补充而非追溯伪造 WIN7-19 的已执行范围。（4）修复按审批/IPC、秘密/Provider/TLS、
+  进程生命周期、checkpoint/状态迁移四批提交；每批补行为回归并可独立回退。（5）仓库最高安全红线优先：
+  A9 不再接受关闭 TLS 验证；PRD 中允许显式 insecure TLS 的低优先级条款由本 ADR 对 Alpha 1 取代。
+  （6）全部修复经全量验证和第二轮独立审查后构建 WIN7-20；按 ADR-0097 重验候选必验项及所有直接
+  受影响项，未受影响的 WIN7-19 证据只标为继承。（7）WIN7-20 重新取得 `GO_FOR_ALPHA` 后才允许合并。
+- 后果：风险通过不可变基线、小提交和增量实机复验控制，不靠把已知 P1 提前合并进 `main`。修复可能扩大
+  WIN7-20 的复验范围，特别是审批、秘密、Provider/TLS、进程、checkpoint 和迁移；开发机通过不能替代
+  Win7。Alpha 2 Review 继续不在本任务范围。
