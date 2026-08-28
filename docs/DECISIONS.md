@@ -1356,3 +1356,26 @@
 - 后果：A9 Alpha 1 获得可理解、可恢复且不会跨上下文串审批的多对话工作台；代价是 A9 schema 升级、一次
   迁移备份、更多 IPC/Renderer 状态以及 WIN7-17 的数据、审批、Stop、DPI 和秘密保护增量实机验证。任何
   数据丢失、上下文串用、陈旧审批可执行、Stop 后残留或退出清理失败均为本轮硬失败。
+
+## ADR-0099 A9 Alpha 1 以 WIN7-19 增量证据收口并进入内部交付
+
+- 状态：Accepted（2026-08-28，项目负责人确认 WIN7-19 可作为 Alpha 1 交付并要求阶段 PR）
+- 背景：WIN7-18 暴露复合 CMD 中绝对 `git.exe push` 未被高影响分类器识别、审批身份可复用的 P0。
+  修复提交 `781b20e3da277570f85c28286d7ea5bbbdd5fa28` 仅改变 Git 命令分词/分类和对应回归测试，并签发
+  WIN7-19。候选 ZIP SHA-256 为 `824a10cd213534aca87c348d8304b053d27a5bd896831daf528ed13b1c1c72b0`，
+  manifest SHA-256 为 `b483e9b0bcab19cf96114bda39e5d8a9ef8a48842c9aaabbaabfa7e87af12c26`，
+  `source_dirty=false`、780 文件、state schema v4、双构建字节一致。
+- 决策：（1）按 ADR-0097，WIN7-19 重新执行候选身份、包完整性、正式启动/退出/重启、直接受影响的审批
+  分类/身份/单次消费/变更目标零执行以及后飞行检查；其余七组未受影响能力采用 WIN7-17/18 可追溯继承
+  证据，不冒充 WIN7-19 现场重跑。（2）四个新 Turn 分别生成不同审批身份；三个拒绝 Turn 均为
+  `approval_required=1 / tool_start=0`，快速重复点击已批准卡仅产生一次 `tool_start`，变更目标重新出卡且
+  拒绝后零执行。已批准 push 只到达 Git 一次，并被 Git `safe.directory` 所有权保护阻止；bare remote
+  保持空，不能把它写成成功推送证据，但足以关闭审批绕过 P0。（3）正式 Electron 生命周期、包完整性
+  5/5、报告八个 case 结构校验、零受管进程残留、候选哈希不变和秘密扫描零命中通过；无 P0/P1，裁决为
+  `A9_ALPHA1_PASS / GO_FOR_ALPHA`。（4）报告校验器 schema 不支持 `INHERITED_EVIDENCE`，所以七个继承
+  case 仍显示 `EVIDENCE_PENDING`；此为证据表达限制，不追溯改成当前候选 PASS。（5）A9 实现任务收口，
+  根 `AGENTS.md` 改为已交付基线；Alpha 2 Review 必须另立任务书，Win10 同候选 smoke 在 RC 前补齐。
+- 后果：`0.3.0-alpha.1` 可供内部 Alpha 使用，支持 Full Access 与 Read Only，不支持完整 Review。接受的
+  P2 包括 1366×768 对话列表拥挤、普通用户 PATH 无 Git、复用管理员所有仓库触发 `safe.directory`、
+  Bitvise Session 0 的可见 DPAPI/GPU 降级。该裁决不授权关闭 TLS/SSH 校验、修改系统 PATH/注册表/服务，
+  也不是公开发布或 RC PASS。

@@ -18,7 +18,7 @@
 | [INTEGRATION_03](INTEGRATION_03_A4_A6_A5_CLOSEOUT.md) | INTEGRATION_CLOSEOUT | COMPLETE | A7_GATE_PASS_FOR_WIN7_V1_RC | NO_NEW_WIN7_EXECUTION |
 | [RC_01](RC_01_WIN7_RELEASE_CANDIDATE.md) | RELEASE_CANDIDATE | COMPLETE | RC_PASS | PASS |
 | [A8](A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md) | PRODUCT_EXPERIENCE | APPROVED_FOR_IMPLEMENTATION | A8_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE |
-| [A9](A9_TRUSTED_AGENT_RUNTIME.md) | PRODUCT_RUNTIME | APPROVED_FOR_IMPLEMENTATION | A9_07_IN_PROGRESS | WIN7_10_REVIEW_FAIL_PRESERVED_RESUME_AT_J4 |
+| [A9](A9_TRUSTED_AGENT_RUNTIME.md) | PRODUCT_RUNTIME | COMPLETE | A9_ALPHA1_PASS | WIN7_19_GO_FOR_ALPHA |
 | [DOCS_01](DOCS_01_DOCUMENTATION_BASELINE.md) | DOCUMENTATION_GOVERNANCE | APPROVED_FOR_IMPLEMENTATION | READY_FOR_REVIEW | N/A |
 | [MVP_01](MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md) | MVP_ACCEPTANCE_HARDENING | MVP_ACCEPTED_WITH_DEFERRALS | MVP_ACCEPTED | OWNER_ACCEPTED_FOR_MVP |
 | [PROTOTYPE](PROTOTYPE_FULL_AGENT_SKELETON.md) | ARCHITECTURE_PROTOTYPE | APPROVED_FOR_IMPLEMENTATION | APPROVED_FOR_IMPLEMENTATION | N/A |
@@ -52,15 +52,12 @@
 > 授权，从最新干净 A8 代码基线创建 `codex/a9-trusted-agent-runtime`，目标版本 `0.3.0-alpha.1`。
 > A9 复用 A8 UI/Core/State/打包资产，但采用可信工作区 Full Access、通用 PowerShell/CMD Shell、直接文件
 > 写入、真实 Git 和开放 OpenAI-compatible Provider。A8 的历史证据保持不变且不构成 A9 PASS。
-> A9-00 已取得 `A9_00_DESIGN_AND_GAP_PASS`；A9-01～A9-06 开发机 Gate 已完成，包含真实 Provider、
-> 真实模型 J1～J3、真实 Git/SQLite 副作用旅程和 Electron 22 三进程 38/38。A9-07 现为
-> `IN_PROGRESS`：提交 `dce391c` 修复 Electron ASAR 虚拟文件系统造成的物理哈希假失败；新候选
-> `37c3e51c…60080` 已在 Win7 独立 `WIN7-03` 证据目录通过 Gate 3 完整性。Win7 Gate 4～10、Win10 与
-> `A9_ALPHA1_PASS` 均为 `NOT_PERFORMED`。随后 WIN7-10 在 Gate 4 取得 Full Access/Read Only 局部 PASS，
-> 但 Review 因无 staging 后端正式 FAIL；证据保持原样、不追溯改判。ADR-0096 将 Alpha 1 收敛为
-> Full Access + Read Only，并将 Review 移入 `0.3.0-alpha.2`。该文档范围调整不改变 WIN7-10 字节，故
-> 不要求重打包或重跑已完成的同候选项目；现场从 J4 继续。J1～J3 的外置证据仍须补齐，所有剩余硬门槛
-> 完成前 Alpha 1 不得签发 PASS。
+> A9-00～A9-06 开发机 Gate 已完成；A9-07 最终候选 WIN7-19 来自干净提交
+> `781b20e3da277570f85c28286d7ea5bbbdd5fa28`，双构建字节一致，并在 Windows 7 SP1 x64 完成候选身份、
+> 5/5 完整性、正式 Electron 生命周期、审批 P0 增量复验和后飞行。四个新 Turn 的审批身份均不同，拒绝
+> 与变更目标零执行，快速重复点击只执行一次；无 P0/P1。其余七组未受影响能力按 ADR-0097 使用可追溯
+> 继承证据，WIN7-10 Review FAIL 仍保留并按 ADR-0096 延期到 Alpha 2。ADR-0099 已签发
+> `A9_ALPHA1_PASS / GO_FOR_ALPHA`；Win10 同候选 smoke 仍须在 RC 前补齐。
 
 MVP-20260802-14 已由项目负责人按 ADR-0055 以 `OWNER_ACCEPTED_FOR_MVP` 收口，并完成真实 Electron 产品入口的启动、Renderer 诊断和正常退出实测；延期项不改变各正式任务状态，也不解除 Phase 1/2、SPIKE_02/04 或 E7 的正式 Gate。
 

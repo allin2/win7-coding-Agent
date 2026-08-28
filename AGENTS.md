@@ -16,17 +16,17 @@
 
 规则缺失、任务书未授权或文档冲突时，停止相关实现并报告；不得自行扩大范围。
 
-## 2. 当前有效阶段：A9
+## 2. 当前交付基线：A9 Alpha 1
 
-- 当前任务：`docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`，状态 `APPROVED_FOR_IMPLEMENTATION`。
-- 生效分支：仅 `codex/a9-trusted-agent-runtime`；目标版本：`0.3.0-alpha.1`。
+- 已完成任务：`docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`，状态 `COMPLETE / A9_ALPHA1_PASS`。
+- 交付分支：`codex/a9-trusted-agent-runtime`；版本：`0.3.0-alpha.1`；WIN7-19 裁决：
+  `GO_FOR_ALPHA`。在新的任务书获批前，A9 实现授权不再开放。
 - ADR-0096 将 Alpha 1 支持范围收敛为 Full Access 与 Read Only；完整 Review 工作流延期至
   `0.3.0-alpha.2`。WIN7-10 中仍可见但无后端的 Review 是已知限制，只能 fail-closed，不能算 Alpha 1
   支持能力或 Review PASS，也不得静默提升为 Full Access。
-- 当前状态：`A9_07_IN_PROGRESS`。WIN7-10 Gate 4 Review FAIL 保持历史原样；同一候选按修订后的 Alpha 1
-  范围从 J4 继续，不因纯文档范围调整重打包或重跑已完成项。J1～J3 的现场执行结果仍须归档到候选外证据
-  目录后才能计为正式 PASS；Win10、剩余 Gate 和 Alpha 尚未完成。最新事实见 `docs/STATUS.md` 与
-  `docs/tasks/README.md`。
+- 当前状态：WIN7-19 已按 ADR-0097 完成候选必验项、审批修复增量复验和后飞行检查，其余未受影响能力
+  使用可追溯继承证据；无 P0/P1，允许内部 Alpha 交付。Win10 同候选 smoke 仍须在 RC 前补齐，不能把
+  `GO_FOR_ALPHA` 写成 RC PASS。最新事实见 `docs/STATUS.md` 与 `docs/tasks/README.md`。
 - A9 在可信工作区提供 Full Access、TrustedShell 和真实 Git；这不是安全沙箱。A9 对 C08/C09/C20 的局部替代仅以 ADR-0089 和 A9 任务书为准，不外推至历史任务或其他分支。
 - A9 仍必须经过 Schema IPC、Core/Policy、目标绑定批准与审计，并保留取消、输出上限、进程树清理、凭据脱敏、TLS 默认验证、checkpoint、Renderer 隔离和 Win7 实机硬门槛。
 

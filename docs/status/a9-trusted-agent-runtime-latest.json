@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260824-13",
-  "recorded_at": "2026-08-24",
-  "status": "A9_01_TO_A9_06_PASS_A9_07_WIN7_GATE3_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED",
-  "phase_gate": "A9_07_IN_PROGRESS",
-  "formal_serial_gate": "A9-07_IN_PROGRESS",
+  "record_id": "A9-TRUSTED-AGENT-RUNTIME-20260828-14",
+  "recorded_at": "2026-08-28",
+  "status": "A9_ALPHA1_PASS_WIN7_19_GO_FOR_ALPHA",
+  "phase_gate": "A9_ALPHA1_PASS",
+  "formal_serial_gate": "A9-07_COMPLETE",
   "target_branch": "codex/a9-trusted-agent-runtime",
   "target_version": "0.3.0-alpha.1",
-  "source_baseline_commit": "958b26078730c28708d418ecf3b653a9e8060d2b",
+  "source_baseline_commit": "781b20e3da277570f85c28286d7ea5bbbdd5fa28",
   "repair_lineage": {
     "review_baseline_commit": "b22ca9d",
     "first_repair_commit": "0d91edb",
@@ -90,36 +90,47 @@
     "real_provider_smoke": "PASS (https://api.deepseek.com / deepseek-v4-flash; SSE + native tool calling + 5-call verified fix/test loop + cancellation; credential not recorded)",
     "real_model_j1_to_j3": "PASS (DeepSeek deepseek-v4-flash: J1 instructions/config/source read + citations; J2 verified real fix/test; J3 scoped three-file feature + real project script)",
     "a9_07_package_contract": "PASS (4/4 builder/integrity contracts + 5/5 package-runtime contracts; Electron original-fs physical ASAR hashing, NODE_OPTIONS sanitization, git-adapter closure, native binding, LOCALAPPDATA/portable selection, Electron safeStorage/DPAPI host injection, input tamper and secret scans)",
-    "a9_07_real_locked_input_double_build": "PASS_FORMAL_CANDIDATE (2/2 byte-identical replacement ZIP SHA-256 37c3e51c3092fc022592be177969247e025c2c8a4357e76fc76300a37ad60080; manifest SHA-256 63801337df6fd75a2ccede17a954fd7c278c0f370e354294154a17e0a671b626; source_dirty=false; external_acceptance_eligible=true)",
-    "windows_powershell_cmd_helper": "NOT_PERFORMED (dev host POSIX sh only, labeled dev_host_only)",
-    "dpi_1366x768": "NOT_PERFORMED",
-    "win10": "NOT_PERFORMED",
-    "win7": "PARTIAL_GATE3_PACKAGE_INTEGRITY_PASS_ONLY (WIN7-03; Gate 4-10 NOT_PERFORMED)",
-    "alpha1": "NOT_PERFORMED"
+    "a9_07_real_locked_input_double_build": "PASS_FORMAL_CANDIDATE (WIN7-19; 2/2 byte-identical ZIP SHA-256 824a10cd213534aca87c348d8304b053d27a5bd896831daf528ed13b1c1c72b0; manifest SHA-256 b483e9b0bcab19cf96114bda39e5d8a9ef8a48842c9aaabbaabfa7e87af12c26; source_dirty=false; external_acceptance_eligible=true)",
+    "windows_powershell_cmd_helper": "PASS_WIN7_POWERSHELL_5_1_AND_CMD_FALLBACK_WITH_ADR_0097_INHERITANCE",
+    "dpi_1366x768": "PASS_WITH_P2_CONVERSATION_LIST_CRAMPED",
+    "win10": "DEFERRED_REQUIRED_BEFORE_RC",
+    "win7": "WIN7_19_GO_FOR_ALPHA_CURRENT_RECHECKS_PASS_PLUS_ADR_0097_INHERITED_EVIDENCE",
+    "alpha1": "A9_ALPHA1_PASS_GO_FOR_ALPHA"
   },
   "a9_07_progress": {
-    "status": "REPLACEMENT_CANDIDATE_WIN7_GATE3_INTEGRITY_PASS_REMAINING_GATES_NOT_PERFORMED",
-    "record": "docs/status/a9-07-win7-gate3-integrity-repair-20260824.json",
+    "status": "COMPLETE_WIN7_19_GO_FOR_ALPHA",
+    "record": "docs/status/a9-alpha1-win7-19-acceptance-20260828.json",
     "input_lock": "release/win7-product-v3/a9-07-input-lock.json",
     "builder": "scripts/release/build-a9-product-v3.mjs",
-    "candidate_sha256": "37c3e51c3092fc022592be177969247e025c2c8a4357e76fc76300a37ad60080",
-    "candidate_manifest_sha256": "63801337df6fd75a2ccede17a954fd7c278c0f370e354294154a17e0a671b626",
-    "candidate_source_commit": "dce391c492a64a1e119d841ca1c41b18b2e3f60c",
+    "candidate_sha256": "824a10cd213534aca87c348d8304b053d27a5bd896831daf528ed13b1c1c72b0",
+    "candidate_manifest_sha256": "b483e9b0bcab19cf96114bda39e5d8a9ef8a48842c9aaabbaabfa7e87af12c26",
+    "candidate_source_commit": "781b20e3da277570f85c28286d7ea5bbbdd5fa28",
     "source_dirty": false,
     "external_acceptance_eligible": true,
-    "win10": "NOT_PERFORMED",
-    "win7": "PARTIAL_GATE3_PACKAGE_INTEGRITY_PASS_ONLY",
-    "alpha1": "NOT_PERFORMED"
+    "win10": "DEFERRED_REQUIRED_BEFORE_RC",
+    "win7": "GO_FOR_ALPHA",
+    "alpha1": "A9_ALPHA1_PASS"
+  },
+  "win7_19_acceptance": {
+    "policy": "ADR-0097_CURRENT_CANDIDATE_RECHECK_PLUS_INHERITED_EVIDENCE",
+    "decision": "ADR-0099",
+    "identity_integrity": "PASS_5_OF_5",
+    "formal_start_exit_restart": "PASS",
+    "approval_regression": "PASS_FOUR_DISTINCT_IDENTITIES_THREE_REJECTIONS_ZERO_START_DOUBLE_CLICK_ONE_START_CHANGED_TARGET_ZERO_START",
+    "postflight": "PASS_ZERO_MANAGED_PROCESSES_HASHES_UNCHANGED_SECRET_SCAN_ZERO",
+    "report_verifier": "EXIT_0_EIGHT_CASES_STATUS_EVIDENCE_PENDING_BECAUSE_SCHEMA_HAS_NO_INHERITED_EVIDENCE",
+    "p0": [],
+    "p1": [],
+    "p2": [
+      "1366x768 conversation list is cramped and archived controls may require zoom-out",
+      "ordinary-user PATH has no Git; locked absolute path works",
+      "administrator-owned reused workspace triggers Git safe.directory",
+      "Bitvise Session 0 has visible DPAPI/GPU degradation"
+    ]
   },
   "a8_disposition": "FROZEN_HISTORICAL_REVIEW_FIRST_BASELINE_NOT_A9_PASS (A8 surfaces keep their labels in the A9 renderer)",
-  "next_stage": "A9_07_PACKAGE_AND_WINDOWS_VALIDATION",
-  "blocking_reason": [
-    "P01 ordinary-user validation is blocked because the current Win7 account has an enabled administrator high-integrity token",
-    "PowerShell 5.1 is absent (only 2.0); the required 5.1 path remains blocked while CMD fallback can proceed separately",
-    "A disposable CMD code workspace is ready for J1-J3, but J4 still needs scoped Git availability and explicit authorization before git init",
-    "1366x768 / 100%/125% DPI and Win10/Win7 product journeys require Windows display environments",
-    "A9_ALPHA1_PASS remains NOT_PERFORMED until the same immutable candidate completes A9-07"
-  ],
-  "in_progress": ["A9-07"],
-  "not_entered": ["Win10 external validation", "Win7 Gate 4-10", "A9_ALPHA1_PASS", "push"]
+  "next_stage": "ALPHA2_REQUIRES_NEW_TASK_WIN10_SMOKE_REQUIRED_BEFORE_RC",
+  "blocking_reason": [],
+  "in_progress": [],
+  "not_entered": ["Alpha 2 Review implementation", "Win10 same-candidate RC smoke", "RC qualification"]
 }

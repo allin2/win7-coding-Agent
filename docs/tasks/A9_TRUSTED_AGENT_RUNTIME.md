@@ -3,20 +3,21 @@
 ## 0. 实现授权（ADR-0011 / C14 / ADR-0089）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: PRODUCT_RUNTIME
 Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
-Phase-Gate: A9_07_IN_PROGRESS
+Phase-Gate: A9_ALPHA1_PASS
 Requirements: docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md
 Developer-Validation: A9_01_TO_A9_06_PASS
-Formal-Serial-Gate: A9-07_IN_PROGRESS
+Formal-Serial-Gate: A9-07_COMPLETE
 Current-Stage: A9-07
-Current-Stage-Status: IN_PROGRESS_WIN7_10_RESUME_AT_J4_J1_TO_J3_EVIDENCE_PENDING
-Win10-Validation: NOT_PERFORMED
-Win7-Validation: WIN7_10_REVIEW_FAIL_PRESERVED_RESUME_AT_J4
+Current-Stage-Status: COMPLETE_WIN7_19_GO_FOR_ALPHA
+Win10-Validation: DEFERRED_REQUIRED_BEFORE_RC
+Win7-Validation: WIN7_19_GO_FOR_ALPHA
 Scope-Amendment: ADR-0096
-Scope-Revalidation: DOCUMENT_ONLY_NO_CANDIDATE_BYTE_CHANGE
+Scope-Revalidation: ADR-0097_CURRENT_CANDIDATE_RECHECK_PLUS_INHERITED_EVIDENCE
+Acceptance-Decision: ADR-0099
 ```
 
 项目负责人于 2026-08-22 完成 GrillMe Q1～Q179 并确认需求合同、A9 阶段、分支、版本、取代范围、
@@ -284,6 +285,29 @@ Alpha 2；WIN7-10 不改判。由于该决定只修改文档和验收范围，�
 J1～J3 的执行事实尚未写入候选外证据目录。因此当前以操作者报告记录“已到 J4”，但 J1～J3 在最终裁决前
 保持 `EVIDENCE_PENDING`。应优先从现有应用审计、任务记录、工作区文件、测试输出和 Diff 补档，不做无意义重跑。
 
+### 3.9 WIN7-19 Alpha 1 收口（2026-08-28）
+
+```text
+Candidate: WIN7-19
+Source-Commit: 781b20e3da277570f85c28286d7ea5bbbdd5fa28
+ZIP-SHA256: 824a10cd213534aca87c348d8304b053d27a5bd896831daf528ed13b1c1c72b0
+Manifest-SHA256: b483e9b0bcab19cf96114bda39e5d8a9ef8a48842c9aaabbaabfa7e87af12c26
+Manifest-Files: 780
+State-Schema: 4
+Current-Candidate-Rechecks: PASS
+Inherited-Evidence: PASS_BY_ADR_0097_TRACEABILITY
+P0/P1: NONE
+Disposition: A9_ALPHA1_PASS / GO_FOR_ALPHA
+```
+
+WIN7-18 的复合 CMD/绝对 `git.exe push` 审批绕过由 WIN7-19 关闭。四个新 Turn 分别生成新的单次审批身份；
+拒绝、旧卡、重复点击和变更目标均未产生额外执行。候选还完成身份与 5/5 完整性、正式 Electron
+启动/退出/重启、普通用户正常关闭/历史恢复、后飞行零残留及秘密扫描。未受本次三文件修复影响的七组能力
+按 ADR-0097 继承 WIN7-17/18 证据；报告校验器因 schema 无 `INHERITED_EVIDENCE` 值而保留
+`EVIDENCE_PENDING`，不得误写成 WIN7-19 全量现场重跑。权威摘要见
+[`a9-alpha1-win7-19-acceptance-20260828.json`](../status/a9-alpha1-win7-19-acceptance-20260828.json) 和
+[`A9 Alpha 1 WIN7-19 收口报告`](../reports/2026-08/a9_alpha1_win7_19_closeout_2026-08-28.md)。
+
 ## 4. 关键实现合同
 
 ### 4.1 权限与工具
@@ -416,6 +440,9 @@ BLOCKED、证据不足及本次变更直接影响项必须重验。已有充分�
 `A9_ALPHA1_PASS`。该 PASS 只覆盖 Full Access 与 Read Only，不能写成 Review PASS。报告必须区分
 `CURRENT_CANDIDATE_PASS`、`INHERITED_EVIDENCE` 与 `OPTIONAL_REGRESSION_NOT_RUN`；Best Effort 降级不得
 冒充正式支持。
+
+WIN7-19 已按上述口径满足完成条件并由 ADR-0099 标记 `A9_ALPHA1_PASS / GO_FOR_ALPHA`。该结论不是
+Review PASS 或 RC PASS；Win10 同候选 smoke 仍须在 RC 前补齐。
 
 ## 8. 当前起点差距
 

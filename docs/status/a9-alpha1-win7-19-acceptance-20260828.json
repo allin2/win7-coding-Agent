@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-ALPHA1-WIN7-19-ACCEPTANCE-20260828",
+  "recorded_at": "2026-08-28",
+  "task": "docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md",
+  "decision": "A9_ALPHA1_PASS",
+  "disposition": "GO_FOR_ALPHA",
+  "candidate": {
+    "id": "WIN7-19",
+    "version": "0.3.0-alpha.1",
+    "source_commit": "781b20e3da277570f85c28286d7ea5bbbdd5fa28",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "zip_sha256": "824a10cd213534aca87c348d8304b053d27a5bd896831daf528ed13b1c1c72b0",
+    "manifest_sha256": "b483e9b0bcab19cf96114bda39e5d8a9ef8a48842c9aaabbaabfa7e87af12c26",
+    "manifest_file_count": 780,
+    "state_schema": 4,
+    "reproducibility": "PASS_BYTE_IDENTICAL_TWO_BUILDS"
+  },
+  "environment": {
+    "os": "Windows 7 Professional SP1 build 7601",
+    "architecture": "x64",
+    "display": "1366x768",
+    "powershell": "5.1.14409.1018",
+    "interactive_token": "ordinary-user",
+    "strict_ssh_host_key_verification": true
+  },
+  "current_candidate": {
+    "identity_and_integrity": "PASS_5_OF_5",
+    "electron_start_exit_restart": "PASS",
+    "ordinary_user_restart_and_history": "PASS",
+    "approval_identity_and_single_consumption": "PASS",
+    "postflight_zero_residue_and_secret_scan": "PASS",
+    "report_verifier": "EXIT_0_EIGHT_CASES_SCHEMA_VALID"
+  },
+  "approval_regression": {
+    "distinct_new_turn_cards": 4,
+    "rejected_turns": 3,
+    "rejected_turn_tool_start": 0,
+    "approved_double_click_tool_start": 1,
+    "changed_target_requires_new_card": true,
+    "bare_remote_refs": 0,
+    "closed_blocker": "WIN7-18-P0-APPROVAL-REUSE"
+  },
+  "inherited_evidence": {
+    "policy": "ADR-0097",
+    "baseline": "WIN7-17/WIN7-18",
+    "case_count": 7,
+    "status": "INHERITED_EVIDENCE_NOT_CURRENT_CANDIDATE_PASS",
+    "scope": [
+      "conversation/history/draft/provider-context isolation",
+      "schema v3 to v4 migration backup rollback and fail-closed",
+      "checkpoint identity crash recovery and undo",
+      "managed process stop recovered-PID protection and exit lock",
+      "PowerShell/CMD path encoding token and strict SSH behavior"
+    ]
+  },
+  "report_verifier_limitation": {
+    "reported_status": "EVIDENCE_PENDING",
+    "reason": "The executable schema has no INHERITED_EVIDENCE value; inherited cases are intentionally not relabeled as WIN7-19 execution."
+  },
+  "findings": {
+    "P0": [],
+    "P1": [],
+    "P2": [
+      "The conversation list is cramped at 1366x768 and archived controls may require zoom-out.",
+      "Git is absent from the ordinary-user PATH; the locked absolute executable path works.",
+      "The reused administrator-owned workspace triggers Git safe.directory protection.",
+      "Bitvise Session 0 visibly degrades DPAPI/GPU while the ordinary-user desktop remains authoritative."
+    ]
+  },
+  "accepted_deferrals": [
+    "Full Review workflow to 0.3.0-alpha.2.",
+    "Minor layout and 125% DPI polish to Alpha 2.",
+    "Win10 same-candidate smoke before RC."
+  ],
+  "residual_risks": [
+    "Seven unaffected groups use ADR-0097 inherited evidence rather than full WIN7-19 replay.",
+    "The approved push reached Git once but safe.directory prevented a successful push; the approval boundary itself was directly verified."
+  ],
+  "external_evidence": {
+    "storage": "candidate-external acceptance archive; raw reports and screenshots are intentionally excluded from Git",
+    "artifacts": [
+      "WIN7-19-final-disposition.json",
+      "win7-19-incremental-report.json",
+      "WIN7-19-INHERITED-EVIDENCE.json",
+      "W19-APPROVAL-EVENT-QUERY-FINAL.json",
+      "W19-PACKAGED-APPROVAL-CLASSIFIER.json",
+      "WIN7-19-postflight.json"
+    ]
+  }
+}
