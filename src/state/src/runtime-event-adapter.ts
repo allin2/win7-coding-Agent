@@ -58,7 +58,7 @@ function runtimeEventId(event: RuntimeEventLike): string {
 }
 
 function normalizePayload(event: RuntimeEventLike): JsonValue {
-  const payload = toJsonValue(event.payload);
+  const payload = redactReviewProposalPayload(toJsonValue(event.payload));
   if (payload === null || Array.isArray(payload) || typeof payload !== 'object') return payload;
   if (event.type === 'verification.feedback') {
     return {
@@ -81,6 +81,39 @@ function normalizePayload(event: RuntimeEventLike): JsonValue {
     };
   }
   return payload;
+}
+
+/**
+ * Review proposals contain base64 file bytes.  They are only an input to the
+ * trusted Product Host and must never be copied into the canonical event
+ * ledger, model-plan projection, or approval facts.  Keep bounded audit
+ * metadata while replacing the potentially sensitive body.
+ */
+function redactReviewProposalPayload(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) return value.map(redactReviewProposalPayload);
+  if (value === null || typeof value !== 'object') return value;
+  const record = value as { [key: string]: JsonValue };
+  const redacted = Object.fromEntries(
+    Object.entries(record).map(([key, item]) => [key, redactReviewProposalPayload(item)]),
+  ) as { [key: string]: JsonValue };
+  if (redacted.toolName === 'workspace.review_prepare' && redacted.args && typeof redacted.args === 'object' && !Array.isArray(redacted.args)) {
+    const args = redacted.args as { [key: string]: JsonValue };
+    const proposalsJson = typeof args.proposalsJson === 'string' ? args.proposalsJson : '';
+    let proposalCount: JsonValue = null;
+    try {
+      const parsed = JSON.parse(proposalsJson);
+      proposalCount = Array.isArray(parsed) ? parsed.length : null;
+    } catch {
+      proposalCount = null;
+    }
+    redacted.args = {
+      proposalsJson: '[REDACTED_REVIEW_PROPOSALS]',
+      proposalCount,
+      proposalBytes: proposalsJson.length,
+      sensitiveContentRedacted: true,
+    };
+  }
+  return redacted;
 }
 
 function toJsonValue(value: unknown): JsonValue {

@@ -37,6 +37,35 @@ export {
 
 // Encoding detection
 export { detectEncoding } from './encoding';
+export { decodeBuffer } from './encoding';
+
+export {
+  canonicalJson,
+  sha256,
+  ContentAddressedBlobStore,
+  ReviewApprovalLedger,
+  ReviewStagingSession,
+  createReviewStagingSession,
+} from './review-staging';
+export type {
+  ReviewOperation,
+  ReviewDecision,
+  ReviewStatus,
+  ReviewEncoding,
+  ReviewEol,
+  ValidationStatus,
+  ReviewDiffV1,
+  ReviewFileItemV1,
+  ReviewValidationRunV1,
+  ReviewSetV1,
+  ReviewProposal,
+  ReviewStagingOptions,
+  ReviewStagingRestoreOptions,
+  ReviewApplyPhase,
+  ReviewApprovalBindingV1,
+  ReviewApplyOperationResult,
+  ReviewApplyResult,
+} from './review-staging';
 
 // Path safety
 export { validatePath, isJunction } from './safety';

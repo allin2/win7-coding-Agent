@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-TEXT-CONTEXT-DIALOG-FIX-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "requirement_ids": ["IA-01", "A8E-01", "A8S-01", "A8UX-02-TEXT-ATTACHMENT-DIALOG"],
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "source_commit": "a7682b0cf43a634d4622ef920d57615f35b39fc7",
+  "source_commit_remote_reachable": true,
+  "working_tree_at_build": "CLEAN",
+  "field_observation": {
+    "source": "User report from the Windows product UI",
+    "status": "CONFIRMED_UNSUPPORTED_RENDERER_INTERACTION",
+    "symptom": "Clicking the enabled '＋ 文本' control produced no usable dialog or feedback.",
+    "root_cause": "The production Renderer delegated both text attachment and Goal editing to window.prompt(). Electron does not provide this browser-native prompt as a reliable product interaction, so the visible control had no dependable Windows execution path."
+  },
+  "closed_gaps": [
+    {
+      "id": "UI-10",
+      "severity": "HIGH",
+      "gap": "The text attachment entry had no dependable Electron dialog.",
+      "resolution": "An in-product modal form now collects a visible attachment name and multiline content, manages focus, supports Escape/backdrop/cancel, reports inline validation, counts UTF-8 bytes, rejects empty/over-64-KiB/duplicate-label input and creates the current-turn context chip on success."
+    },
+    {
+      "id": "UI-11",
+      "severity": "MEDIUM",
+      "gap": "Goal editing used the same unsupported native prompt path.",
+      "resolution": "Goal editing now uses a revision-bound in-product modal with a visible label, 2,000-character boundary, inline errors, loading state and focus restoration."
+    },
+    {
+      "id": "UI-12",
+      "severity": "MEDIUM",
+      "gap": "The disabled text attachment control looked actionable but gave no reason for being unavailable.",
+      "resolution": "The disabled state now has reduced emphasis, a non-action cursor and a state-specific title for missing, archived, running or closing sessions."
+    }
+  ],
+  "validation": {
+    "targeted_shell_tests": {
+      "command": "npm --workspace src/shell test -- --runInBand tests/product/session-ui.test.ts tests/product/review-renderer-contract.test.ts tests/product/electron-review-smoke-contract.test.ts",
+      "status": "PASS",
+      "suites": 3,
+      "tests": 22
+    },
+    "shell_lint": {
+      "command": "npm --workspace src/shell run lint",
+      "status": "PASS"
+    },
+    "shell_full_tests": {
+      "command": "npm --workspace src/shell test -- --runInBand",
+      "status": "PASS",
+      "suites": 26,
+      "tests": 197
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1089,
+      "breakdown": {
+        "gateway": 202,
+        "workspace": 98,
+        "state": 245,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 197
+      }
+    },
+    "package_contract": {
+      "command": "node --test scripts/release/test/a8-package.test.mjs",
+      "status": "PASS",
+      "tests": 4,
+      "required_cases": ["A8UX-01-CONVERSATION-SCROLL", "A8UX-02-TEXT-ATTACHMENT-DIALOG"]
+    },
+    "evidence_contract": {
+      "command": "node --test scripts/release/test/a8-validation-evidence.test.mjs",
+      "status": "PASS",
+      "tests": 5
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 93,
+      "task_files": 19
+    },
+    "developer_schema_v2_smoke": {
+      "status": "PASS",
+      "schema_version": 2,
+      "cases": 10,
+      "report_sha256": "b41edde0e7766b93e003ff044f391fde3974c830e717bcb31ce6a102554b36f9",
+      "candidate_unchanged": true
+    },
+    "target_electron_text_dialog_case": {
+      "case_id": "A8UX-02-TEXT-ATTACHMENT-DIALOG",
+      "status": "VALIDATION_READY_NOT_PERFORMED_ON_WINDOWS",
+      "acceptance": "A8-03 clicks the production control, requires the modal and initial focus, fills name/content, submits, requires the context chip, counter reset and modal close."
+    }
+  },
+  "candidate": {
+    "path": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "sha256": "363fbfb0fab71d3293c7aa9549930c9dfc5f22dfbcc0a1a342acdcef8f8bb053",
+    "size_bytes": 101020086,
+    "sidecar_sha256": "363fbfb0fab71d3293c7aa9549930c9dfc5f22dfbcc0a1a342acdcef8f8bb053",
+    "manifest_sha256": "92fd342fe3e35750935cede7bcf80b147cd83b894cd536f33279007d952a214c",
+    "sbom_sha256": "b89f004d210f108bcbcb95b060a749a6bebac5164b61bae450771b54f0ef8403",
+    "validation_kit_sha256": "f682e4d0d10224c358baf83d0de74a62fbecdebeb38b2f7ffaced17596e987c1",
+    "manifest_file_count": 759,
+    "source_commit": "a7682b0cf43a634d4622ef920d57615f35b39fc7",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "deterministic_builds": 2,
+    "gates": {
+      "developer_package_integrity": "PASS",
+      "product_assembly": "NOT_PERFORMED",
+      "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "rc": "NOT_PERFORMED"
+    }
+  },
+  "packaged_ui_artifacts": {
+    "resources/app/product/main.js": "cc618d5542c8e219f82068a77a3676abf3aca5b56cf8e084530416d780303e27",
+    "resources/app/product/renderer/index.html": "c18ee3b789780172ae0b9659c404aa4fa25053fc4c6af637c6e5c0da31f2257a",
+    "resources/app/product/renderer/renderer.js": "2c7792e6d1241fe6b68df6bbda19095d4fb23043e847173a2f98fda620ef2136",
+    "resources/app/product/renderer/a8-workspace.css": "3332f93861cc19ed42a1e826783d0b6f6731f877d2f1be17c09b254b281b266b",
+    "resources/app/product/renderer/session-ui.js": "c18a0c30632faeb319b76e208ecd3b607e4ddb5251fc3b8af552082dce053a2a"
+  },
+  "external_validation": {
+    "windows_electron_22_3_27": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "next_checkpoint": "Copy this exact ZIP and sidecar to Win10, run A8-03 and require both A8UX-01 and A8UX-02 PASS, then manually verify text attachment open/cancel/reopen/submit before continuing the same-candidate evidence set."
+}

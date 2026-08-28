@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-VALIDATION-REPAIR-CHECKPOINT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "gate": "A8_06_PACKAGE_AND_VALIDATION_READY",
+  "decision": "ADR-0085 / ADR-0086",
+  "review_findings": {
+    "standalone_node_electron_abi_110": "CONFIRMED_AND_FIXED",
+    "evidence_schema_and_same_candidate_binding": "CONFIRMED_AND_FIXED",
+    "dirty_source_external_candidate": "CONFIRMED_AND_FAIL_CLOSED",
+    "packaged_validation_module_closure": "PASS_ALL_RELATIVE_IMPORTS_RESOLVED",
+    "historical_schema_v1_reports": "ARCHIVAL_SURROGATE_EXCLUDED_FROM_FORMAL_CANDIDATE"
+  },
+  "requirements": {
+    "A8K-01": "PASS_RETAINED_AND_RERUN_INPUT_AND_FORBIDDEN_PAYLOAD_FAIL_CLOSED",
+    "A8K-02": "PASS_RETAINED_AND_RERUN_FIXTURE_BYTE_IDENTICAL",
+    "A8K-03": "PASS_RETAINED_MANIFEST_NATIVE_LAYOUT_AND_DISABLED_CAPABILITIES",
+    "A8K-04": "PASS_REPAIR_IMPLEMENTATION_SCHEMA_V2_MANIFEST_FULL_TREE_ELECTRON_ABI110_AND_EVIDENCE_SET_VERIFIER",
+    "A8K-05": "PASS_RETAINED_LIFECYCLE_BOUNDARY_DOCUMENTED",
+    "clean_formal_candidate": "PASS_SOURCE_COMMIT_AND_MANIFEST_LOCKED_EXTERNAL_ELIGIBLE"
+  },
+  "implemented": [
+    "D-014 is launched by the packaged electron.exe with ELECTRON_RUN_AS_NODE=1 and NODE_OPTIONS cleared; standalone Node never loads the ABI-110 binding.",
+    "A8-03/A8-04/A8-05 reports use evidence schema v2 and record candidate_id plus candidate_manifest_sha256.",
+    "Every report verifies the complete release-manifest file set; missing, changed, extra or symlink payloads fail closed.",
+    "Formal reports require Win32 x64, Electron 22.3.27, Node 16.17.1, ABI 110, operator identity and an explicit Win10/Win7 layer.",
+    "Reports and screenshots are written only to a sibling evidence root; verify-a8-evidence-set.mjs binds all reports to one manifest.",
+    "Dirty source packages record external_acceptance_eligible=false and are rejected before Electron startup. Generated out/ is ignored by the source check.",
+    "Build-dependent current status and post-build reports remain outside the immutable candidate, preventing self-reference and stale embedded state."
+  ],
+  "validation": {
+    "repository_verify": "PASS_7_MODULES_1074_TESTS",
+    "shell": "PASS_25_SUITES_182_TESTS",
+    "release_and_evidence_contracts": "PASS_12_TESTS",
+    "docs_check": "PASS_89_FILES_19_TASK_FILES",
+    "diff_check": "PASS",
+    "deterministic_real_input_rebuild": "PASS_TWO_CLEAN_BUILDS_BYTE_IDENTICAL",
+    "clean_source_guard": "PASS_EXIT_1_A8_SOURCE_WORKTREE_NOT_CLEAN_WITH_EXISTING_CANDIDATE_PRESERVED",
+    "developer_schema_v2_package_smoke": "PASS_10_CASES_FAKE_SQLITE_MANIFEST_85C874843947478307515DE4A56391FC7CBEE2689FBFFB5B7AF8508E3873087C_BOUND_CANDIDATE_UNCHANGED",
+    "developer_schema_v2_package_smoke_evidence": "docs/status/a8-06-developer-package-smoke-20260821.json",
+    "independent_review_followup": "docs/status/a8-06-independent-review-followup-20260821.json",
+    "formal_dirty_candidate_negative": "PASS_EXIT_1_A8_FORMAL_CANDIDATE_SOURCE_DIRTY_BEFORE_ELECTRON_START"
+  },
+  "candidate": {
+    "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "package_sha256": "d1e8dbbe5e9a09e8d50fc1411c11e48de6d0bb734d7bce1d957bb42d3f45aef9",
+    "manifest_sha256": "85c874843947478307515de4a56391fc7cbee2689fbffb5b7af8508e3873087c",
+    "source_commit": "7ccaed6b98e4ebb9f77d993d22c3ed136bdeb8c0",
+    "source_dirty": false,
+    "external_acceptance_eligible": true
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "Run the schema-v2 evidence set on the same clean candidate under Win10 and Win7.",
+    "Complete owner RC review only after both external layers pass; do not inherit A7 RC PASS."
+  ],
+  "next_checkpoint": "A8_06_WIN10_SAME_CANDIDATE_ACCEPTANCE"
+}

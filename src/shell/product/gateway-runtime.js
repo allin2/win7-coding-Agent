@@ -1,5 +1,19 @@
 'use strict';
 
+const crypto = require('crypto');
+
+const A8_SYSTEM_PROMPT_VERSION = 'a8-system-prompt-v1';
+const A8_SYSTEM_PROMPT = [
+  `[${A8_SYSTEM_PROMPT_VERSION}] You are the Win7 Coding Agent for an A8 conversation.`,
+  'Use only the tools supplied in this request, inspect workspace facts before proposing changes, and never invent file contents or execution results.',
+  'If workspace_review_prepare is supplied, you may create a bounded CREATE/MODIFY/DELETE proposal in the private A8 Review staging area; that action never writes the target workspace.',
+  'You cannot accept, approve, or apply Review files. Target-workspace changes require the user\'s per-file decisions and a separate exact Apply approval enforced outside the model.',
+  'Never claim tests passed from model text, inference, Replay, or an untrusted result. Only a trusted Runner or remote validation adapter can produce PASS; otherwise report the work as not run or unverified.',
+  'Do not request or simulate process, terminal, arbitrary shell, Git write, arbitrary network, credential, or any other capability that is not supplied.',
+  'If a required tool or validation capability is unavailable, state the limitation and preserve the Review or conversation facts instead of bypassing policy.',
+].join('\n');
+const A8_SYSTEM_PROMPT_SHA256 = crypto.createHash('sha256').update(A8_SYSTEM_PROMPT, 'utf8').digest('hex');
+
 /**
  * Product-side RuntimeModel adapter for the controlled A3 Gateway slice.
  * The adapter deliberately accepts only the Core model boundary and keeps all
@@ -12,30 +26,50 @@ function createGatewayRuntimeModel(core, gateway, provider, options) {
     async createPlan(input) {
       if (input.signal.aborted) throw cancelledError();
       const requestId = `${input.run.runId}-step-${input.step}`;
+      let lastChunkIndex = -1;
       const toolNames = createToolNameMap(input.tools);
-      const response = await provider.sendStreamRequest(
-        {
-          id: requestId,
-          model: config.model || 'controlled-a3-model',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a read-only coding agent. Use only the supplied tools, inspect the workspace before answering, never invent file contents, and never request write, process, terminal, Git, network, or credential capabilities.',
-            },
-            ...input.messages.map((message) => toGatewayMessage(message, toolNames.coreToModel)),
-          ],
-          tools: input.tools.map((spec) => toOpenAIFunctionTool(spec, toolNames.coreToModel.get(spec.name))),
-          toolChoice: input.toolChoice,
-          stream: true,
-        },
-        (chunk) => {
-          if (!input.signal.aborted && typeof config.onChunk === 'function') {
-            config.onChunk({ requestId, chunk });
-          }
-        },
-        { signal: input.signal },
-      );
+      const sensitiveValues = readSensitiveValues(config);
+      let response;
+      try {
+        response = await provider.sendStreamRequest(
+          {
+            id: requestId,
+            model: config.model || 'controlled-a3-model',
+            messages: [
+              {
+                role: 'system',
+                content: A8_SYSTEM_PROMPT,
+              },
+              ...input.messages.map((message) => toGatewayMessage(message, toolNames.coreToModel)),
+            ],
+            tools: input.tools.map((spec) => toOpenAIFunctionTool(spec, toolNames.coreToModel.get(spec.name))),
+            toolChoice: input.toolChoice,
+            stream: true,
+          },
+          (chunk) => {
+            assertNoSensitiveData(chunk, sensitiveValues);
+            if (!input.signal.aborted && typeof config.onChunk === 'function') {
+              lastChunkIndex = chunk.index;
+              config.onChunk({ requestId, chunk });
+            }
+          },
+          { signal: input.signal },
+        );
+        assertNoSensitiveData(response, sensitiveValues);
+      } catch (error) {
+        if (containsSensitiveData(error && error.message ? error.message : error, sensitiveValues)) {
+          throw sensitiveDataError();
+        }
+        throw error;
+      }
       if (input.signal.aborted) throw cancelledError();
+      if (typeof config.onComplete === 'function') {
+        config.onComplete({
+          requestId,
+          index: lastChunkIndex + 1,
+          finishReason: response.finishReason || null,
+        });
+      }
       return {
         schemaVersion: '1.0',
         summary: response.content || 'Gateway returned a structured plan.',
@@ -59,6 +93,58 @@ function createGatewayRuntimeModel(core, gateway, provider, options) {
       };
     },
   };
+}
+
+function readSensitiveValues(config) {
+  if (!config || typeof config.getSensitiveValues !== 'function') return [];
+  try {
+    const values = config.getSensitiveValues();
+    return Array.isArray(values)
+      ? values.filter((value) => typeof value === 'string' && value.length > 0)
+      : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function sensitiveRepresentations(values) {
+  const result = new Set();
+  for (const value of values) {
+    result.add(value);
+    result.add(Buffer.from(value, 'utf8').toString('base64'));
+    result.add(`Bearer ${value}`);
+  }
+  return Array.from(result).filter(Boolean);
+}
+
+function containsSensitiveData(value, sensitiveValues) {
+  if (!sensitiveValues || sensitiveValues.length === 0) return false;
+  let text;
+  try {
+    text = typeof value === 'string' ? value : JSON.stringify(value);
+  } catch (_error) {
+    text = String(value);
+  }
+  return sensitiveRepresentations(sensitiveValues).some((candidate) => text.includes(candidate));
+}
+
+function assertNoSensitiveData(value, sensitiveValues) {
+  if (containsSensitiveData(value, sensitiveValues)) throw sensitiveDataError();
+}
+
+function sensitiveDataError() {
+  const error = new Error('Gateway content matched a known sensitive value and was blocked before persistence.');
+  error.code = 'SENSITIVE_DATA_BLOCKED';
+  return error;
+}
+
+function getSystemPromptContract() {
+  return Object.freeze({
+    schemaVersion: 1,
+    version: A8_SYSTEM_PROMPT_VERSION,
+    sha256: A8_SYSTEM_PROMPT_SHA256,
+    content: A8_SYSTEM_PROMPT,
+  });
 }
 
 function toOpenAIFunctionTool(spec, modelName) {
@@ -152,4 +238,11 @@ function cancelledError() {
   return error;
 }
 
-module.exports = { createGatewayRuntimeModel, toOpenAIFunctionTool, toModelToolName };
+module.exports = {
+  A8_SYSTEM_PROMPT_SHA256,
+  A8_SYSTEM_PROMPT_VERSION,
+  createGatewayRuntimeModel,
+  getSystemPromptContract,
+  toOpenAIFunctionTool,
+  toModelToolName,
+};

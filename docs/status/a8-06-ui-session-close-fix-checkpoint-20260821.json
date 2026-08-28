@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-UI-SESSION-CLOSE-FIX-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "source_commit": "9b9056a048601c7873708cf295229543d76ecbf1",
+  "working_tree_at_build": "CLEAN",
+  "stage": "A8-06",
+  "requirement_ids": ["A8-01", "A8-02", "A8-03", "A8-06"],
+  "checkpoint": "Renderer session closing, close-pending race lock, empty-session recovery, drawer keyboard dismissal and product artifact traceability",
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "closed_gaps": [
+    "The active session close control remains available while its task is running and now performs cancel-then-archive after an authoritative terminal event.",
+    "The last active session no longer falls back to the archived session; the Renderer exposes an explicit no-session action.",
+    "A close-pending session is locked until archive completion; switching to another session does not cancel or misapply the pending archive.",
+    "Session rows are semantic buttons with current-session state, drawer Escape/focus restoration is wired, and constrained-width overflow is guarded.",
+    "The new session-ui.js dependency is included in artifact hashes, package source traceability and both A8-03/A8-04 smoke hash checks."
+  ],
+  "validation": {
+    "targeted_shell_tests": {
+      "command": "npm test -- --runInBand tests/product/session-ui.test.ts tests/product/review-renderer-contract.test.ts tests/product/electron-review-smoke-contract.test.ts",
+      "status": "PASS",
+      "suites": 3,
+      "tests": 11
+    },
+    "shell_full_tests": {
+      "command": "npm test -- --runInBand",
+      "status": "PASS",
+      "suites": 26,
+      "tests": 185
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1077,
+      "win10_win7_note": "This is development verification only and is not a Win10/Win7 PASS."
+    },
+    "package_contract": {
+      "command": "node --test scripts/release/test/a8-package.test.mjs",
+      "status": "PASS",
+      "tests": 4
+    },
+    "developer_schema_v2_smoke": {
+      "command": "cd release/win7-product-v2/out/.work/Win7CodingAgent-0.2.0-alpha.1-win7-x64 && node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate-root=. --manifest=./release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=developer --operator=AUTOMATED_DEVELOPER --report=../a8-evidence-developer/a8-05-persistence-ui-session-close-race-fix.json",
+      "status": "PASS_SCHEMA_V2_DEVELOPER_FAKE_SQLITE",
+      "cases": 10,
+      "candidate_manifest_sha256": "c9e694b2aca6031aec3bd892f6fdf04ec55c9ea575f400c3ae56b962263b42fa",
+      "candidate_unchanged": true,
+      "external_validation": {
+        "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+        "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+        "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+      }
+    },
+    "clean_build_1": {
+      "command": "node scripts/release/build-a8-product-v2.mjs --electron-zip spikes/04-storage-index/build-win10/kit/inputs/electron-v22.3.27-win32-x64.zip --runner-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a5/win10-return/WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip --storage-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a6/A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip --output release/win7-product-v2/out --source-commit 9b9056a048601c7873708cf295229543d76ecbf1",
+      "status": "PASS_DEVELOPER_PACKAGE_INTEGRITY"
+    },
+    "clean_build_2": {
+      "command": "repeat clean_build_1 with the same locked inputs and source commit",
+      "status": "PASS_BYTE_IDENTICAL"
+    }
+  },
+  "candidate": {
+    "path": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "sha256": "0604147d82db1f3a5516d09986a8adaf4b2c4259aab6864409360811675aacd8",
+    "size_bytes": 101014527,
+    "sidecar_sha256": "0604147d82db1f3a5516d09986a8adaf4b2c4259aab6864409360811675aacd8",
+    "manifest_sha256": "c9e694b2aca6031aec3bd892f6fdf04ec55c9ea575f400c3ae56b962263b42fa",
+    "sbom_sha256": "3ee658a4cead27bddfbb95cba6ba87a29c3cd27d7512908f13a978fe027a4cc9",
+    "validation_kit_sha256": "5d05feb275f58a7356b267ec9ebc3e03fe1d6a934483f56c4367b41b1671776a",
+    "manifest_file_count": 759,
+    "source_commit": "9b9056a048601c7873708cf295229543d76ecbf1",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "gates": {
+      "developer_package_integrity": "PASS",
+      "product_assembly": "NOT_PERFORMED",
+      "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "rc": "NOT_PERFORMED"
+    }
+  },
+  "external_validation": {
+    "windows_electron_22_3_27": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "next_checkpoint": "Run the exact candidate on Win10 and Win7; do not infer Windows behavior from Mac Chromium harness evidence."
+}

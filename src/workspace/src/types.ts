@@ -48,7 +48,15 @@ export type WorkspaceErrorCode =
   | 'APPROVAL_INVALID'
   | 'WORKSPACE_WRITE_LOCKED'
   | 'ATOMIC_REPLACE_FAILED'
-  | 'VERIFY_MISMATCH';
+  | 'VERIFY_MISMATCH'
+  | 'SENSITIVE_DATA_BLOCKED'
+  | 'REVIEW_INVALID'
+  | 'WORKSPACE_SENSITIVE_PATH'
+  | 'REVIEW_NOT_READY'
+  | 'REVIEW_STALE'
+  | 'BINARY_WRITE_DENIED'
+  | 'VALIDATION_INVALID'
+  | 'RECOVERY_REQUIRED';
 
 export class WorkspaceError extends Error {
   readonly code: WorkspaceErrorCode;

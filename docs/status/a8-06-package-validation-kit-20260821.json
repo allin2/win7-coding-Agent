@@ -1,0 +1,117 @@
+{
+  "schema_version": 2,
+  "record_id": "A8-06-PACKAGE-VALIDATION-KIT-20260821-04",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "status": "VALIDATION_READY",
+  "gate_effect": "A8_06_PACKAGE_AND_VALIDATION_READY",
+  "candidate": {
+    "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "package_sha256": "4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6",
+    "sidecar_sha256_verified": true,
+    "manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+    "source_commit": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "inputs_are_not_a7_pass": true,
+    "input_lock": "release/win7-product-v2/a8-06-input-lock.json"
+  },
+  "runtime_contract": {
+    "target_os": "Windows 7 SP1 x64",
+    "target_node": "16.17.1",
+    "target_electron": "22.3.27",
+    "electron_abi": 110,
+    "runner_profile": "win7-whoami / D-013 v24 low-risk noninteractive",
+    "storage_profile": "D-014-E22-SQLITE343-LOCAL-SSD",
+    "storage": "better-sqlite3 8.7.0 / SQLite 3.43.1 / FTS5 / COLUMN_METADATA / THREADSAFE=2",
+    "terminal": "DISABLED",
+    "browser": "DISABLED_DENY_BY_DEFAULT",
+    "arbitrary_shell": "DISABLED",
+    "git_write": "DISABLED"
+  },
+  "developer_commands": [
+    {
+      "id": "A8-06-DEV-VERIFY",
+      "command": "npm run verify && npm run docs:check && git diff --check",
+      "expected": "7 modules / 1074 tests PASS; docs checker 93 files / 19 task files PASS; diff check PASS"
+    },
+    {
+      "id": "A8-06-PACKAGE-CONTRACT",
+      "command": "node --test scripts/release/test/a8-package.test.mjs scripts/release/test/a8-validation-evidence.test.mjs scripts/release/test/release-contract.test.mjs scripts/release/test/zip-utils.test.mjs",
+      "expected": "14 tests PASS, including physical ASAR/original-fs/ABI/OS-layer/manifest/source-dirty/evidence-root negative coverage"
+    },
+    {
+      "id": "A8-06-PACKAGE-SMOKE-DEVELOPER",
+      "command": "cd release/win7-product-v2/out/.work/Win7CodingAgent-0.2.0-alpha.1-win7-x64 && node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate-root=. --manifest=./release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=developer --operator=AUTOMATED_DEVELOPER --report=../a8-evidence-developer/a8-05-persistence.json",
+      "expected": "schema v2; 10 cases PASS with DEVELOPER_FAKE_SQLITE; candidate manifest hash recorded; this is not D-014 PASS"
+    }
+  ],
+  "windows_commands": {
+    "eligibility": "READY_SAME_CANDIDATE_EXTERNAL_ENV_REQUIRED",
+    "instruction": "Verify package SHA-256 4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6 and manifest SHA-256 0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea, then execute the exact win10 or win7 command set embedded in A8_06_VALIDATION_KIT.json. Append --expected-manifest-sha256=0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea to each of the four validation entrypoints.",
+    "expected_manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+    "command_sets": {
+      "win10": "A8_06_VALIDATION_KIT.json.commands.win10",
+      "win7": "A8_06_VALIDATION_KIT.json.commands.win7"
+    },
+    "required_entrypoints": [
+      "validation\\run-a8-03-electron-review-smoke.mjs",
+      "validation\\run-a8-04-boundary-smoke.mjs",
+      "validation\\run-a8-05-electron-smoke.mjs",
+      "validation\\verify-a8-evidence-set.mjs"
+    ],
+    "d014_runtime": "All validation commands (preflight, a8_03, a8_04, a8_05, verify_set) are executed by the packaged Electron 22.3.27 in Node mode (set ELECTRON_RUN_AS_NODE=1&& .\\electron.exe); standalone Node is not required.",
+    "evidence_location": "Sibling ..\\a8-evidence-win10 or ..\\a8-evidence-win7; never inside the candidate directory"
+  },
+  "expected_case_ids": [
+    "A8K-01", "A8K-02", "A8K-03", "A8K-04", "A8K-05",
+    "A8R-01-02-ELECTRON-REVIEW", "A8C-02-FORGED-APPROVAL", "A8R-04-BASELINE-DRIFT-ZERO-WRITE",
+    "A8T-01-TERMINAL-DISABLED", "A8B-01-BROWSER-DISABLED", "A8R-09-RUNNER-LOG-BOUNDARY",
+    "A8P-01-REOPEN-PROJECTION", "A8P-02-INTERRUPT-EXECUTION", "A8P-03-REVIEW-DRIFT", "A8P-04-FAIL-CLOSED-CORRUPTION",
+    "A8M-01-A7-SENSITIVE-EXCLUSION", "A8M-02-ALLOWLIST-IMPORT", "A8M-03-MIGRATION-RETRY", "A8C-01-SENSITIVE-DATA-BLOCK"
+  ],
+  "evidence_schema": {
+    "schema_version": 2,
+    "required_fields": ["schema_version", "record_id", "status", "candidate_id", "candidate_manifest_sha256", "runtime_profile", "cases", "external_validation", "cleanup", "operator", "recorded_at"],
+    "case_result_values": ["PASS", "FAIL", "PARTIAL", "NOT_RUN", "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"],
+    "artifact_hashes_must_be_recomputed": true,
+    "same_candidate_required": true,
+    "same_candidate_enforcement": "All three reports must pass verify-a8-evidence-set.mjs against one clean candidate manifest."
+  },
+  "evidence_classes": {
+    "historical_surrogate_schema_v1": {
+      "formal_acceptance_eligible": false,
+      "included_in_candidate": false,
+      "authority": "Historical Electron 41 developer evidence only"
+    },
+    "formal_candidate_schema_v2": {
+      "required": true,
+      "authority": "A8_06_VALIDATION_KIT.json commands.win10 or commands.win7"
+    }
+  },
+  "lifecycle": {
+    "install": "Extract to a new dedicated directory; verify ZIP sidecar and release-manifest before startup; create a new userData/state root.",
+    "coexistence": "Keep the frozen A7 0.1.0-rc.1 directory and database untouched; run A8 beside it with a unique userData root.",
+    "startup_restart_recovery": "Run A8-03/A8-04/A8-05 on the same immutable directory; restart with active execution and AWAITING_REVIEW fixtures; never auto-run model, Runner, Terminal, Browser or Apply.",
+    "upgrade_failure": "Inject only a candidate-local manifest/runtime mismatch; preserve old directory and evidence; remove only the failed new directory after hashes are recorded.",
+    "rollback": "Stop the candidate, retain report/stdout/stderr/userData until hash validation, then remove only candidate-local files.",
+    "uninstall": "Remove only A8 directory and dedicated userData after evidence; never delete A7 data or alter PATH/services/registry/firewall/routes/reboot."
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "forbidden_actions": ["network-route-firewall-change", "PATH-service-registry-change", "reboot", "interactive-terminal", "arbitrary-browser-navigation", "A7-database-write", "runtime-download"],
+  "operator_notes": [
+    "This package is an independent A8 developer candidate. No A7 PASS is inherited.",
+    "A real D-014 invocation must use the packaged Electron wrapper; direct standalone Node loading is prohibited and a fake SQLite report can never unlock Win10/Win7.",
+    "The locked package was built twice from clean source commit fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9 with byte-identical output (package SHA-256 4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6, manifest SHA-256 0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea) and is eligible for formal external execution.",
+    "The superseded package SHA-256 5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e remains a Win10 A8-03 FAIL and must not be resumed.",
+    "If any external environment is unavailable, record NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE and preserve the same-candidate hash set."
+  ]
+}

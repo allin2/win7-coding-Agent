@@ -1,0 +1,101 @@
+{
+  "schema_version": 2,
+  "record_id": "A8-05-PERSISTENCE-20260821123014",
+  "recorded_at": "2026-08-21T12:30:14.349Z",
+  "status": "PASS",
+  "storage_profile": "DEVELOPER_FAKE_SQLITE",
+  "database_path": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a8-05-persistence-smoke-xBRbI6/state/agent-events-v2.db",
+  "database_sha256_before": null,
+  "database_sha256_after": "d7a9220365d4c58c40dafd8601a1cf090a3a3ee5644e5627dcfafe9e9859530e",
+  "report_sha256": "d643160782764a9c9a119ea8b88453d9c9ff4d165c95351f607fca303645d1d7",
+  "cases": [
+    {
+      "id": "A8P-01-REOPEN-PROJECTION",
+      "status": "PASS",
+      "detail": "Session/Goal/Turn/facts reopen consistently"
+    },
+    {
+      "id": "A8P-02-INTERRUPT-EXECUTION",
+      "status": "PASS",
+      "detail": "Executing task is interrupted without resume"
+    },
+    {
+      "id": "A8P-02-AWAITING-REVIEW-RETAINED",
+      "status": "PASS",
+      "detail": "User-gated Review remains retained"
+    },
+    {
+      "id": "A8P-03-REVIEW-DRIFT",
+      "status": "PASS",
+      "detail": "Restored Review baseline drift is stale before Apply"
+    },
+    {
+      "id": "A8P-04-FAIL-CLOSED-CORRUPTION",
+      "status": "PASS",
+      "detail": "Malformed catalog payload does not partially reopen"
+    },
+    {
+      "id": "A8P-04-SCHEMA-HASH-BOUNDARY",
+      "status": "PASS",
+      "detail": "Profile DEVELOPER_FAKE_SQLITE recorded; external runner must verify D-014"
+    },
+    {
+      "id": "A8M-01-A7-SENSITIVE-EXCLUSION",
+      "status": "PASS",
+      "detail": "Credentials and forbidden files are excluded"
+    },
+    {
+      "id": "A8M-02-ALLOWLIST-IMPORT",
+      "status": "PASS",
+      "detail": "Explicit allowlists produce marker/report hashes"
+    },
+    {
+      "id": "A8M-03-MIGRATION-RETRY",
+      "status": "PASS",
+      "detail": "Migration is idempotent after atomic completion"
+    },
+    {
+      "id": "A8C-01-SENSITIVE-DATA-BLOCK",
+      "status": "PASS",
+      "detail": "Known secret value is blocked before Review persistence"
+    }
+  ],
+  "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+  "candidate_manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+  "candidate": {
+    "release_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "source_commit": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
+    "source_dirty": false,
+    "manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+    "manifested_file_count": 758
+  },
+  "runtime_profile": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "electron": null,
+    "node": "20.10.0",
+    "node_abi": 115,
+    "system_version": "24.6.0"
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "cleanup": {
+    "temporary_root": "/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a8-05-persistence-smoke-xBRbI6",
+    "status": "REMOVED_AFTER_PASS",
+    "candidate_unchanged": true
+  },
+  "operator": {
+    "id": "AUTOMATED_DEVELOPER",
+    "mode": "AUTOMATED",
+    "validation_layer": "developer",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "20.10.0",
+    "electron": null,
+    "node_abi": 115
+  }
+}

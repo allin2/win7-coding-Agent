@@ -72,6 +72,24 @@ function createRcComposition(options) {
     }
     throw error;
   }
+  let sessionCatalog;
+  let recoveryReport = null;
+  if (typeof stateModule.A8PersistentCatalog === 'function') {
+    try {
+      sessionCatalog = new stateModule.A8PersistentCatalog(database, {
+        ...(config.a8ContractSha256 ? { contractSha256: config.a8ContractSha256 } : {}),
+      });
+      recoveryReport = new stateModule.A8RecoveryCoordinator(sessionCatalog).recover();
+      if (recoveryReport.status === 'READ_ONLY_RECOVERY_REQUIRED') {
+        throw new Error(`A8_RECOVERY_READ_ONLY:${recoveryReport.diagnostics.join(';')}`);
+      }
+    } catch (error) {
+      try { ledger.close(); } catch (closeError) {
+        throw new Error(`RC_SESSION_CATALOG_AND_STORAGE_CLOSE_FAILED:${message(error)};${message(closeError)}`);
+      }
+      throw error;
+    }
+  }
   let runner;
   try {
     runner = createProductRunner({
@@ -95,6 +113,9 @@ function createRcComposition(options) {
     releaseId: runtime.release_id,
     version: runtime.version,
     ledger,
+    database,
+    sessionCatalog,
+    recoveryReport,
     runner: runner.runner,
     runnerAcceptanceAction: runner.acceptanceAction,
     runnerWorkDirectory: runnerWorkRoot,

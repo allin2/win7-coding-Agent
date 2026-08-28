@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A8-03 Review Apply Gate</title>
+  <style>
+    :root{--ink:#172235;--muted:#607086;--line:#d7e0ea;--paper:#fff;--bg:#f4f7fb;--blue:#145dc3;--green:#16724c;--amber:#9b5a00}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}.page{max-width:1120px;margin:auto;padding:36px 26px 70px}.hero{background:linear-gradient(135deg,#11233f,#1761bd);color:#fff;border-radius:18px;padding:34px;display:flex;justify-content:space-between;gap:30px;box-shadow:0 16px 40px #142b501f}.eyebrow{letter-spacing:.14em;font-size:12px;color:#c3ddff}.hero h1{font-size:35px;line-height:1.12;margin:8px 0}.hero p{margin:0;color:#e0ecff}.badge{min-width:260px;border:1px solid #ffffff4d;background:#ffffff12;padding:18px;border-radius:13px}.badge strong,.badge span{display:block}.badge strong{font-size:20px}.badge span{margin-top:7px;color:#d9e9ff}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin-top:20px}.card{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:20px;box-shadow:0 7px 22px #1327470b}.wide{grid-column:1/-1}.card h2{font-size:20px;margin:0 0 10px}.card h3{font-size:16px;margin:0 0 8px}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;padding:10px 8px;border-bottom:1px solid var(--line)}th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.pass{color:var(--green);font-weight:700}.partial{color:var(--amber);font-weight:700}code{background:#edf2f8;padding:2px 5px;border-radius:4px;font:13px "SFMono-Regular",Consolas,monospace}a{color:var(--blue)}.callout{margin:20px 0 0;padding:15px 17px;border-radius:11px;background:#fff7e4;border:1px solid #eed9a5;color:#704600}.callout.ok{background:#edf9f3;border-color:#bfe4d2;color:#135f40}.small{color:var(--muted);font-size:13px}@media(max-width:760px){.hero,.grid{display:block}.badge{margin-top:18px}.wide{margin-top:17px}}
+  </style>
+</head>
+<body><main class="page">
+  <header class="hero"><div><div class="eyebrow">WIN7 CODING AGENT · A8-03</div><h1>Review Apply<br>开发机实现 Gate</h1><p>需求—代码—测试—证据已闭合；本 Gate 只解除 A8-04 实现，不是 A8 开发机完整 PASS，也不是 Win10/Win7/RC PASS。</p></div><aside class="badge"><strong>A8_03_REVIEW_APPLY_PASS</strong><span>Gate：开发机实现层</span><span>分支：codex/a8-agent-first-product</span><span>外部层：NOT_PERFORMED</span></aside></header>
+  <p class="callout ok"><strong>裁决：</strong>依据 A8-00 §8“开发机通过只解除对应串行实现 Gate”，A8-03 现在可以进入 A8-04。真实 Electron 证据使用本机 Electron 41.7.1 arm64，标记为 <code>DEVELOPER_SURROGATE_ELECTRON</code>；锁定 Electron 22.3.27 x64、Win10 和 Win7 仍须在 A8-06 对同一候选重新执行。</p>
+  <section class="grid">
+    <article class="card wide"><h2>需求追踪</h2><table><thead><tr><th>Requirement</th><th>开发机结果</th><th>主要证据</th><th>外部状态</th></tr></thead><tbody>
+      <tr><td>A8R-01</td><td class="pass">PASS</td><td>ReviewStaging 单元矩阵；真实 Electron 三类操作、排序、Diff、视觉边界。</td><td>Win7 编码/文件系统复测待 A8-06。</td></tr>
+      <tr><td>A8R-02</td><td class="pass">PASS</td><td>部分接受/拒绝、accepted subset、拒绝删除零副作用；Electron case。</td><td>目标平台待执行。</td></tr>
+      <tr><td>A8R-03</td><td class="pass">PASS</td><td>revision、旧审批/验证失效及身份绑定测试。</td><td>A8-05 持久化恢复另行验证。</td></tr>
+      <tr><td>A8R-04</td><td class="pass">PASS</td><td>漂移单元故障矩阵；Electron `STALE` 全组零写入 case。</td><td>目标平台待执行。</td></tr>
+      <tr><td>A8R-05</td><td class="pass">PASS</td><td>写入/验证/回滚故障注入；Electron `RECOVERY_REQUIRED` UI 恢复 case。</td><td>目标平台待执行。</td></tr>
+      <tr><td>A8R-06</td><td class="pass">PASS_DEVELOPER</td><td>UTF-8/UTF-16LE/GBK/CRLF/mixed EOL/二进制单元矩阵。</td><td>Win7 CP936 实机待执行。</td></tr>
+      <tr><td>A8R-07</td><td class="pass">PASS_NOT_RUN_SEMANTICS</td><td>可信 PASS 条件、FAIL/CANCELLED/截断/stale 与未登记 Profile 的 NOT_RUN。</td><td>没有授权项目 Runner，禁止宣称项目测试 PASS。</td></tr>
+      <tr><td>A8C-01</td><td class="pass">PASS</td><td>受控 Provider、prompt/Workspace tool/Provider chunk/response/argument/事件持久化前阻断。</td><td>真实内网凭据/目标环境待执行。</td></tr>
+      <tr><td>A8C-02</td><td class="pass">PASS_SURROGATE_ELECTRON</td><td>IPC 精确 schema、Preload 最小 API、伪造审批、真实 Electron 8-case 权限边界。</td><td>Electron 22/Win10/Win7 待执行。</td></tr>
+    </tbody></table></article>
+    <article class="card"><h2>真实 Electron 证据</h2><ul><li>报告：<a href="../../status/a8-03-electron-review-qa-20260821.json">a8-03-electron-review-qa-20260821.json</a></li><li>截图：<a href="a8_03_electron_review_1280x720.png">1280×720 PNG</a></li><li>8/8 cases PASS；报告 status PASS。</li><li>外层执行器独立复算 9 个产品工件哈希并校验 PNG。</li><li>覆盖三任务连续事件队列、终态恢复按钮竞态。</li></ul></article>
+    <article class="card"><h2>全量验证</h2><ul><li><code>npm run verify</code>：7 模块 / 1051 tests PASS。</li><li>Shell：169 tests PASS。</li><li><code>npm run docs:check</code>：80 files / 19 task files PASS。</li><li>JSON、Node syntax、私钥/缓存扫描 PASS。</li><li><code>git diff --check</code> PASS；fsmonitor warning 已记录为环境噪声。</li></ul></article>
+    <article class="card wide"><h2>边界与下一 Gate</h2><p>本 Gate 不授权新的 Runner Profile、Terminal、Browser、任意 Shell、Git 写操作、网络目标、持久化实现或 A8 RC 宣称。下一阶段为 A8-04：Runner 展示、Terminal/Browser disabled/fail-closed、Settings/Diagnostics；完成后才可进入 A8-05。</p><p class="small">机器可读状态：<a href="../../status/a8-03-developer-checkpoint-20260821.json">developer checkpoint</a> · <a href="../../status/a8-agent-first-product-latest.json">A8 latest</a> · <a href="../../status/a8-03-electron-review-validation-kit-20260821.json">validation kit</a></p></article>
+  </section>
+  <p class="callout"><strong>未完成且不隐藏：</strong>项目测试 Runner Profile、Electron 22.3.27 x64 目标运行时、Win10、Win7、A8-05/06、同一候选三层产品旅程均保持未完成状态；A7 RC PASS 不继承。</p>
+</main></body></html>

@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-CONVERSATION-SCROLL-LAYOUT-FIX-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "requirement_ids": ["IA-01", "A8E-01", "A8R-01-VISUAL-BOUNDS", "A8UX-01-CONVERSATION-SCROLL"],
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "source_commit": "9fe439cb896667ac8fd8ebaeda1282b1e98eb9dc",
+  "source_commit_remote_reachable": true,
+  "working_tree_at_build": "CLEAN",
+  "field_observation": {
+    "source": "User-supplied Windows screenshot",
+    "status": "CONFIRMED_SOURCE_LAYOUT_DEFECT",
+    "symptoms": [
+      "Long generated content extended below the visible window.",
+      "The conversation could not be scrolled to the actual bottom.",
+      "The bottom Composer was outside the viewport and therefore appeared absent."
+    ],
+    "root_cause": "The Grid and nested Flex height chain retained automatic minimum heights while the root workbench forced a 620px CSS minimum. Long conversation content therefore enlarged the middle column instead of shrinking the conversation into its intended overflow container."
+  },
+  "closed_gaps": [
+    {
+      "id": "UI-08",
+      "severity": "HIGH",
+      "gap": "Long conversation content could push the Composer outside the Windows viewport and leave the apparent scrollbar unable to reach it.",
+      "resolution": "The workbench is now bounded to one viewport; Grid/Flex children explicitly permit vertical shrinkage; the page is non-scrolling; conversation owns overflow-y; header and Composer are non-shrinking siblings."
+    },
+    {
+      "id": "UI-09",
+      "severity": "MEDIUM",
+      "gap": "Every streamed delta forced scrollTop to the bottom even after the user intentionally scrolled upward to read earlier output.",
+      "resolution": "Streaming follows the bottom only while the reader remains within a 48px bottom threshold. Session activation and a new user submission still intentionally move to the current bottom."
+    }
+  ],
+  "modified_files": [
+    "src/shell/product/renderer/a8-workspace.css",
+    "src/shell/product/renderer/renderer.js",
+    "src/shell/product/renderer/session-ui.js",
+    "src/shell/product/main.js",
+    "src/shell/tests/product/review-renderer-contract.test.ts",
+    "src/shell/tests/product/session-ui.test.ts",
+    "scripts/release/build-a8-product-v2.mjs",
+    "scripts/release/test/a8-package.test.mjs"
+  ],
+  "validation": {
+    "targeted_shell_tests": {
+      "command": "npm --workspace src/shell test -- --runInBand tests/product/session-ui.test.ts tests/product/review-renderer-contract.test.ts",
+      "status": "PASS",
+      "suites": 2,
+      "tests": 17
+    },
+    "shell_lint": {
+      "command": "npm --workspace src/shell run lint",
+      "status": "PASS"
+    },
+    "shell_full_tests": {
+      "command": "npm --workspace src/shell test -- --runInBand",
+      "status": "PASS",
+      "suites": 26,
+      "tests": 194
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1086,
+      "breakdown": {
+        "gateway": 202,
+        "workspace": 98,
+        "state": 245,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 194
+      }
+    },
+    "package_contract": {
+      "command": "node --test scripts/release/test/a8-package.test.mjs",
+      "status": "PASS",
+      "tests": 4,
+      "required_case": "A8UX-01-CONVERSATION-SCROLL"
+    },
+    "evidence_contract": {
+      "command": "node --test scripts/release/test/a8-validation-evidence.test.mjs",
+      "status": "PASS",
+      "tests": 5
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 93,
+      "task_files": 19
+    },
+    "developer_schema_v2_smoke": {
+      "command": "node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate-root=. --manifest=./release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=developer --operator=AUTOMATED_DEVELOPER",
+      "status": "PASS",
+      "schema_version": 2,
+      "cases": 10,
+      "report_sha256": "ba9a0dfe5a0d84c961b34a752e0b8bcea9886b399d0031760acd06ba012cf993",
+      "candidate_unchanged": true
+    },
+    "target_electron_layout_case": {
+      "case_id": "A8UX-01-CONVERSATION-SCROLL",
+      "status": "VALIDATION_READY_NOT_PERFORMED_ON_WINDOWS",
+      "acceptance": "A8-03 injects deterministic long content into the production Renderer and requires no document-level vertical overflow, a visible Composer, positive conversation height and an effective internal scroll range."
+    },
+    "chrome_renderer_harness": {
+      "status": "NOT_PERFORMED_LOCAL_CHROME_EXTENSION_UNAVAILABLE",
+      "role": "SUPPLEMENTARY_ONLY_NOT_A_WINDOWS_GATE"
+    }
+  },
+  "candidate": {
+    "path": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "sha256": "123fe4a85871f6c9d693b516f25ff9cbdea9dbf9227005d8c9a814d008df3375",
+    "size_bytes": 101017442,
+    "sidecar_sha256": "123fe4a85871f6c9d693b516f25ff9cbdea9dbf9227005d8c9a814d008df3375",
+    "manifest_sha256": "4a84d941556a4c89af0644de3278d18e0925c2d3e79cb42af1e921e4564a4af6",
+    "sbom_sha256": "2f37b5962b1284c6247889bbc9d570c7343a1b6ca408597b1fcfc5152b74eb8b",
+    "validation_kit_sha256": "bead2938cc9425db1a7ef0a2fe165e246abb8cb81f34856874a6d54acf82d591",
+    "manifest_file_count": 759,
+    "source_commit": "9fe439cb896667ac8fd8ebaeda1282b1e98eb9dc",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "deterministic_builds": 2,
+    "gates": {
+      "developer_package_integrity": "PASS",
+      "product_assembly": "NOT_PERFORMED",
+      "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "rc": "NOT_PERFORMED"
+    }
+  },
+  "packaged_ui_artifacts": {
+    "resources/app/product/main.js": "e0bb71c6bb64d40d93bcae0045ba04aa40528d78a9e5cb30be629ffaaa31bb36",
+    "resources/app/product/renderer/index.html": "cab7722b7c123e7248d7b3c39fe673866d73f31900dae971dc9a20ccf82100eb",
+    "resources/app/product/renderer/renderer.js": "6602db17b5cfeb4533cd8db85b0d1eb3dfbfdf89a09e9f768366ccabe161d307",
+    "resources/app/product/renderer/a8-workspace.css": "cbc2ab86b7e0bce00b11b93d2c2a420cbc453d12f517055aedf9bf2888422586",
+    "resources/app/product/renderer/session-ui.js": "b6f0fa614b518c47840ddc4b3f2155062aae8dc0ed957c1a727cf5473a182bf9"
+  },
+  "external_validation": {
+    "windows_electron_22_3_27": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "next_checkpoint": "Copy this exact ZIP and sidecar to Win10, verify SHA-256, run A8-03 first and require A8UX-01-CONVERSATION-SCROLL PASS, then continue A8-04, A8-05 and evidence-set verification without changing the candidate."
+}

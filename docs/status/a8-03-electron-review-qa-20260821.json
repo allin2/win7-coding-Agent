@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-03-ELECTRON-REVIEW-20260821010000",
+  "recorded_at": "2026-08-21T01:00:00.495Z",
+  "status": "PASS",
+  "evidence_class": "DEVELOPER_SURROGATE_ELECTRON",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "electron": "41.7.1",
+    "node": "24.15.0",
+    "chrome": "146.0.7680.216"
+  },
+  "command": [
+    "/private/tmp/a8-electron41.38pKsT/Electron.app/Contents/MacOS/Electron",
+    "/Users/qlyf/Developer/win7-coding-Agent/src/shell/product",
+    "--mvp-id=A8-03-ELECTRON-REVIEW",
+    "--a8-review-smoke-report=/Users/qlyf/Developer/win7-coding-Agent/docs/status/a8-03-electron-review-qa-20260821.json",
+    "--a8-review-smoke-workspace=/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/win7-a8-review-smoke-Fl9lKF/workspace",
+    "--a8-review-smoke-screenshot=/Users/qlyf/Developer/win7-coding-Agent/docs/reports/2026-08/a8_03_electron_review_1280x720.png",
+    "--user-data-dir=/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/win7-a8-review-smoke-Fl9lKF/user-data",
+    "--smoke-timeout-ms=60000"
+  ],
+  "artifact_hashes": {
+    "main_js": "b44dbcc6b0b6a985b66408763358297e323ee416605726e3d1f6dbf9a8c9254f",
+    "preload_js": "6d4f22432cd320b7bbd25df1b9cf735c8202121f7ed1789ca8512ea0072ecf95",
+    "desktop_host_js": "eedd4f4b9346ec3ce6df1ed2b16b9909aca6287d6618c71b067ee868d4677bbe",
+    "a8_product_ipc_js": "42a98572872a360eb2eee6b719a28abbeb4d1578b3727fbb61e384f14c13e7ab",
+    "gateway_runtime_js": "0f76342a704d6b526f639bd991985966e05cf9e9862e20a49bdf249dc155d4d4",
+    "renderer_html": "c243aa964912c4f60ce87ca086a7801c2a83eb65d4f9a9a98d03dd247cc25a8d",
+    "renderer_js": "057d1567971e5828657daca26477ee58f5fdf2bcf6cd4a64320d8e7de94e24ec",
+    "renderer_css": "22aa1391f94ffe1f011dd908b4dee6d8a25dde7ee7e8a0c8c291ea6fba0962a5",
+    "renderer_a8_css": "c5cb9b7d082f79a2e3f05d65eaf15779ebe432d15c5c051bb66f3983826b5344"
+  },
+  "system_prompt": {
+    "schemaVersion": 1,
+    "version": "a8-system-prompt-v1",
+    "sha256": "f1bdcace084d27d71383b4ddfe81cef61029796a36859995c6e9614f1cbc9160",
+    "content": "[a8-system-prompt-v1] You are the Win7 Coding Agent for an A8 conversation.\nUse only the tools supplied in this request, inspect workspace facts before proposing changes, and never invent file contents or execution results.\nIf workspace_review_prepare is supplied, you may create a bounded CREATE/MODIFY/DELETE proposal in the private A8 Review staging area; that action never writes the target workspace.\nYou cannot accept, approve, or apply Review files. Target-workspace changes require the user's per-file decisions and a separate exact Apply approval enforced outside the model.\nNever claim tests passed from model text, inference, Replay, or an untrusted result. Only a trusted Runner or remote validation adapter can produce PASS; otherwise report the work as not run or unverified.\nDo not request or simulate process, terminal, arbitrary shell, Git write, arbitrary network, credential, or any other capability that is not supplied.\nIf a required tool or validation capability is unavailable, state the limitation and preserve the Review or conversation facts instead of bypassing policy."
+  },
+  "workspace": {
+    "isolated": true,
+    "initial_sha256": {
+      "app": "74de46d292f7b4def7ddab8a4c935c51c592bb83a8aff4f9b9434326caa7c816",
+      "obsolete": "864edbe3600ed7f52568d6806addacb5f317c60a8578787975bcc1e63b66c4f3",
+      "drift_a": "8dc060a4ad58e4f29659daa31a2e2d6e966778be9a54982136369efa1ad607a4",
+      "drift_b": "f50adef6d4f557c4a6ccc8d0a8e826a6584b83528107340059b75cb1e0a46ca0",
+      "recovery_a": "82788109627d73715ae3ce9e8cd0aee711616cf72fc7740c416ddd7a9d4ca05c",
+      "recovery_b": "850123738dead3c4ea978c569e4ba146165a5bfb0e595ab365347b46bf792592"
+    },
+    "final_sha256": {
+      "app": "4c7bb3e072394db5952f3e8239979323235f64e22552085e7a0eb9fa1c025be5",
+      "created": "a568bdcc8ccc6cc56a201d8eee207a4ec38998aa78a0ad4edd66472ec50d7e41",
+      "obsolete": "864edbe3600ed7f52568d6806addacb5f317c60a8578787975bcc1e63b66c4f3",
+      "drift_a": "8dc060a4ad58e4f29659daa31a2e2d6e966778be9a54982136369efa1ad607a4",
+      "drift_b": "0e0934e53812e033041e4ffdde22fb1eaba50d2b94c6a223ad767ffc6525f02b",
+      "recovery_a": "82788109627d73715ae3ce9e8cd0aee711616cf72fc7740c416ddd7a9d4ca05c",
+      "recovery_b": "850123738dead3c4ea978c569e4ba146165a5bfb0e595ab365347b46bf792592"
+    }
+  },
+  "renderer": {
+    "nodeIntegration": false,
+    "processExposed": false,
+    "preloadApi": true,
+    "reviewStatus": "APPLIED",
+    "validationStatus": "NOT_RUN",
+    "summary": "2 已接受 · 1 已拒绝 · revision 4",
+    "fileRows": [
+      "DELETE · docs/obsolete.mdREJECTED",
+      "MODIFY · src/app.tsACCEPTED",
+      "CREATE · src/new.tsACCEPTED"
+    ],
+    "horizontalOverflow": 0,
+    "verticalOverflow": 0,
+    "viewport": {
+      "width": 1120,
+      "height": 732
+    }
+  },
+  "drift_renderer": {
+    "status": "STALE",
+    "taskState": "失败",
+    "fileRows": [
+      "MODIFY · src/drift-a.tsACCEPTED",
+      "MODIFY · src/drift-b.tsACCEPTED"
+    ]
+  },
+  "recovery_renderer": {
+    "before": {
+      "status": "RECOVERY_REQUIRED",
+      "recoveryEnabled": true,
+      "taskState": "失败"
+    },
+    "after": {
+      "status": "READY",
+      "recoveryEnabled": false,
+      "taskState": "等待 Review 决定"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "A8R-01-02-ELECTRON-REVIEW",
+      "status": "PASS",
+      "summary": "真实 Renderer 经 Preload/IPC 完成三文件逐项决定。"
+    },
+    {
+      "case_id": "A8R-07-NOT-RUN",
+      "status": "PASS",
+      "summary": "没有登记项目 Runner Profile 时真实显示 NOT_RUN。"
+    },
+    {
+      "case_id": "A8C-02-FORGED-APPROVAL",
+      "status": "PASS",
+      "summary": "伪造 accepted-set hash 的 Apply 经真实 IPC fail-closed。"
+    },
+    {
+      "case_id": "A8R-02-04-APPLY-SUBSET",
+      "status": "PASS",
+      "summary": "只应用已接受集合，拒绝删除项保持原字节。"
+    },
+    {
+      "case_id": "A8R-04-BASELINE-DRIFT-ZERO-WRITE",
+      "status": "PASS",
+      "summary": "第二个目标发生外部漂移时，真实 Renderer 显示 STALE，整组未写入任何提案字节。"
+    },
+    {
+      "case_id": "A8R-05-RECOVERY-RENDERER",
+      "status": "PASS",
+      "summary": "验证与回滚故障进入 RECOVERY_REQUIRED；用户经真实 Renderer 恢复后原字节一致且写锁解除。"
+    },
+    {
+      "case_id": "A8C-02-RENDERER-CAPABILITY",
+      "status": "PASS",
+      "summary": "Renderer 无 Node/process，只获得冻结 Preload API。"
+    },
+    {
+      "case_id": "A8R-01-VISUAL-BOUNDS",
+      "status": "PASS",
+      "summary": "真实 Electron 视口无水平页面溢出。"
+    }
+  ],
+  "external_validation": {
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "notes": [
+    "This run uses the real Electron BrowserWindow, production preload, product IPC validators, Desktop Host, Review staging and Renderer scripts.",
+    "A non-22 developer Electron is surrogate evidence only and cannot replace the locked Electron 22.3.27 Windows or Win7 product Gate.",
+    "No project Runner Profile exists; the validation result is intentionally NOT_RUN."
+  ]
+}

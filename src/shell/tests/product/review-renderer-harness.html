@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A8-03 Review Renderer Harness</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; background: #0d1110; overflow: hidden; }
+    #renderer-frame { display: block; width: 100%; height: 100%; border: 0; }
+    #qa-state { position: fixed; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  </style>
+</head>
+<body>
+  <iframe id="renderer-frame" title="A8-03 Review Renderer"></iframe>
+  <pre id="qa-state" aria-live="polite">loading</pre>
+  <script src="review-renderer-harness.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-UI-INTERACTION-AUDIT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "source_commit": "7121853569c3ac5e386f4cb6f2ebc4e378e3312e",
+  "source_commit_remote_reachable": true,
+  "working_tree_at_build": "CLEAN",
+  "stage": "A8-06",
+  "requirement_ids": ["IA-01", "SS-01", "A8S-01", "A8P-01", "A8C-02"],
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "reviewed_claim": {
+    "source": "Gemini 3.7 independent read-only review supplied by the user",
+    "disposition": "PARTIALLY_CONFIRMED_WITH_MATERIAL_EVIDENCE_GAPS",
+    "corrections": [
+      "The prior Chromium Harness did not implement closeSession, cancelTask, submitTask or createSession and therefore could not prove session closing or stop-then-close behavior.",
+      "The claimed 1086-test repository result is not the observed current baseline; the verified post-fix total is 1083 tests.",
+      "The reported 1024x720 no-overflow state did not prove usability because the inspector was display:none at that breakpoint.",
+      "The reported trailing whitespace in docs/WIN7_CODING_AGENT_USER_GUIDE.html was real and has been removed."
+    ]
+  },
+  "closed_gaps": [
+    {
+      "id": "UI-01",
+      "severity": "HIGH",
+      "gap": "Review and code inspection were unreachable at widths up to 1050 CSS pixels.",
+      "resolution": "The inspector is now a focusable overlay with a visible header entry, backdrop, close control and Escape dismissal."
+    },
+    {
+      "id": "UI-02",
+      "severity": "HIGH",
+      "gap": "The complete workspace/session rail disappeared below 760 CSS pixels with no recovery entry, matching the supplied Windows screenshot.",
+      "resolution": "A narrow-width navigation drawer, backdrop, header entry, focus restoration and Escape dismissal keep workspace, sessions, Goal, Settings and Diagnostics reachable."
+    },
+    {
+      "id": "UI-03",
+      "severity": "HIGH",
+      "gap": "Archiving idle session B while session A owned the active task cleared the global taskId, leaving A's Stop control unable to cancel.",
+      "resolution": "Archiving preserves the active task identity whenever the closed session is not the active-task session."
+    },
+    {
+      "id": "UI-04",
+      "severity": "HIGH",
+      "gap": "A stop-then-close request made before submit returned a task handle compared the pending close target with the newly selected session.",
+      "resolution": "Submission captures its originating session and cancellation always targets activeTaskSessionId plus the authoritative taskId."
+    },
+    {
+      "id": "UI-05",
+      "severity": "MEDIUM",
+      "gap": "Restored active sessions did not restore the Host selected workspace; New Session appeared enabled but failed WORKSPACE_REQUIRED.",
+      "resolution": "Host hydration restores the single active workspace and fails closed if corrupted state contains active sessions from multiple workspaces."
+    },
+    {
+      "id": "UI-06",
+      "severity": "MEDIUM",
+      "gap": "Close was buried at the bottom of the rail and archived sessions remained mixed with active sessions, making closure hard to discover and visually ambiguous.",
+      "resolution": "A synchronized Close Session action is present in the conversation header and archived sessions are grouped in a separate disclosure."
+    },
+    {
+      "id": "UI-07",
+      "severity": "MEDIUM",
+      "gap": "Settings and Diagnostics declared modal semantics without containing focus; file activity and code rows used non-semantic click targets.",
+      "resolution": "Drawers inert the workbench, wrap Tab focus and restore focus; file and code actions use buttons with visible focus states."
+    }
+  ],
+  "validation": {
+    "targeted_shell_tests": {
+      "command": "npm test -- --runInBand tests/product/review-renderer-contract.test.ts tests/product/session-ui.test.ts tests/product/a8-05-host-persistence.test.ts",
+      "status": "PASS",
+      "suites": 3,
+      "tests": 17
+    },
+    "shell_full_tests": {
+      "command": "npm test -- --runInBand",
+      "status": "PASS",
+      "suites": 26,
+      "tests": 191
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1083,
+      "breakdown": {
+        "gateway": 202,
+        "workspace": 98,
+        "state": 245,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 191
+      }
+    },
+    "package_contract": {
+      "command": "node scripts/release/test/a8-package.test.mjs",
+      "status": "PASS",
+      "tests": 4
+    },
+    "evidence_contract": {
+      "command": "node scripts/release/test/a8-validation-evidence.test.mjs",
+      "status": "PASS",
+      "tests": 5
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 93,
+      "task_files": 19
+    },
+    "developer_schema_v2_smoke": {
+      "status": "PASS_SCHEMA_V2_DEVELOPER_FAKE_SQLITE",
+      "cases": 10,
+      "report_sha256": "922fd7e080de746fc32b0529e0e9ad6ded449dd81d9e3d88764f767c411dc855",
+      "candidate_manifest_sha256": "c3f51f9897ae7a2055580b6d74de3217acebcf865f4be50b046e1daf46b7eda8",
+      "candidate_unchanged": true
+    },
+    "chrome_renderer_harness": {
+      "status": "NOT_PERFORMED_LOCAL_CHROME_EXTENSION_UNAVAILABLE",
+      "chrome": "151.0.7922.170_RUNNING",
+      "native_host_manifest": "PASS",
+      "chatgpt_browser_extension": "NOT_INSTALLED",
+      "extension_id": "hehggadaopoacecdllhhajmbjkdcmajg",
+      "note": "The harness now exposes real close/cancel/create seams, but no Chrome PASS is claimed without an attached extension session."
+    }
+  },
+  "candidate": {
+    "path": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "sha256": "e76b465b907c1679d912b963a8d86d181275a8fa53130cf61f7e451800e5f9ab",
+    "size_bytes": 101016620,
+    "sidecar_sha256": "e76b465b907c1679d912b963a8d86d181275a8fa53130cf61f7e451800e5f9ab",
+    "manifest_sha256": "c3f51f9897ae7a2055580b6d74de3217acebcf865f4be50b046e1daf46b7eda8",
+    "sbom_sha256": "b858533ba39089e99b54707527c4974dd564b8be3f1849762ffd731cd73fa74e",
+    "validation_kit_sha256": "8ef8d16f3d97d4dc0484fb1111781303a948d31a78ba61107c8d38af2d2c3129",
+    "manifest_file_count": 759,
+    "source_commit": "7121853569c3ac5e386f4cb6f2ebc4e378e3312e",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "deterministic_builds": 2,
+    "gates": {
+      "developer_package_integrity": "PASS",
+      "product_assembly": "NOT_PERFORMED",
+      "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "rc": "NOT_PERFORMED"
+    }
+  },
+  "packaged_ui_artifacts": {
+    "resources/app/product/renderer/index.html": "cab7722b7c123e7248d7b3c39fe673866d73f31900dae971dc9a20ccf82100eb",
+    "resources/app/product/renderer/renderer.js": "b730414ec3845c43a8d1d06a6cb05da8de046bc827c7d1374171da4df27533db",
+    "resources/app/product/renderer/a8-workspace.css": "12bd3b7786fce87c2f384159b6a68544366c42d051f16b37f277d07122cb9c3c",
+    "resources/app/product/renderer/session-ui.js": "6637742ebbb97bb0a8ee181c9dcb44f743703d2b0aabeea25078798de11fa209"
+  },
+  "external_validation": {
+    "windows_electron_22_3_27": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "next_checkpoint": "Attach the ChatGPT browser extension and execute the updated Chrome Render Harness, then run this exact candidate from A8-03 on Win10 and Win7."
+}

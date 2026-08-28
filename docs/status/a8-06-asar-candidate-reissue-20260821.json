@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-ASAR-CANDIDATE-REISSUE-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-06",
+  "requirements": ["A8K-02", "A8K-04", "C07", "C12", "C13"],
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "source": {
+    "commit": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
+    "upstream": "origin/codex/a8-agent-first-product",
+    "head_before_build": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
+    "upstream_head_before_build": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
+    "worktree_before_build": "CLEAN",
+    "remote_reachability_before_build": "PASS_PUSH_CONFIRMED"
+  },
+  "candidate": {
+    "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "package": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "package_sha256": "4ab0c2cec31dca6ecd563fd86f46ecb6470c4b0b8a7c74aa6f2f57f30ca12ad6",
+    "sidecar_sha256": "5396a6854ce590d63a73a232c246b6cedcf72a3eb143a711ddc2d0a6a3007245",
+    "manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+    "source_commit": "fc4e0deea9a0cfcd86037ebbbbd2bc40a4f74ff9",
+    "source_dirty": false,
+    "external_acceptance_eligible": true,
+    "manifested_file_count": 758,
+    "deterministic_builds": 2,
+    "deterministic_result": "PASS_BYTE_IDENTICAL"
+  },
+  "repair": {
+    "decision": "ADR-0088",
+    "field_failure_record": "docs/status/a8-06-win10-asar-field-failure-20260821.json",
+    "physical_candidate_filesystem": "ELECTRON_ORIGINAL_FS",
+    "unavailable_behavior": "FAIL_A8_PHYSICAL_FILESYSTEM_UNAVAILABLE",
+    "targeted_tests": "PASS_14",
+    "repository_verify": "PASS_7_MODULES_1074_TESTS",
+    "docs_check_before_evidence_commit": "PASS_93_FILES_19_TASK_FILES"
+  },
+  "developer_smoke": {
+    "evidence": "docs/status/a8-06-developer-package-smoke-20260821.json",
+    "schema_version": 2,
+    "status": "PASS",
+    "case_count": 10,
+    "storage_profile": "DEVELOPER_FAKE_SQLITE",
+    "candidate_manifest_sha256": "0ab06b5c38a434fe66c2b0af70503ecb772f2ede21eb6f1c3cdf42d2743503ea",
+    "candidate_unchanged_after_smoke": true,
+    "external_gate_effect": "NONE"
+  },
+  "supersedes_for_external_execution": {
+    "package_sha256": "5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e",
+    "manifest_sha256": "8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7",
+    "disposition": "WIN10_A8_03_FAIL_VALIDATION_HARNESS_ASAR_FALSE_NEGATIVE_DO_NOT_RESUME"
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_NEW_CANDIDATE",
+    "win10": "NOT_PERFORMED_NEW_CANDIDATE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "evidence_commit_policy": {
+    "method": "ORDINARY_CHILD_COMMIT",
+    "amend": "PROHIBITED",
+    "candidate_source_commit_must_remain_remote_reachable": true
+  },
+  "next_checkpoint": "A8_06_WIN10_FRESH_EXTRACTION_A8_03_REVALIDATION"
+}

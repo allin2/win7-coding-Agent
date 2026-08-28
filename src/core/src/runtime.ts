@@ -141,6 +141,7 @@ interface FinishOptions {
   summary?: string;
   evidenceBundle?: EvidenceBundle;
   checkpointPlan?: RuntimePlan;
+  checkpointApprovalKind?: 'execution_plan' | 'tool';
 }
 
 interface RunState {
@@ -249,6 +250,7 @@ export class AgentRuntime {
         lastRuntimeSequence: (this.sequenceByRun.get(request.runId) ?? 0) + 1,
         budget: { ...budget },
         pendingPlan: options.checkpointPlan,
+        approvalKind: options.checkpointApprovalKind ?? 'tool',
         usage: { ...usage },
         verificationRequirements: verificationRequirements.map((requirement) => ({ ...requirement })),
         workingMemory: workingMemory.snapshot(),
@@ -799,7 +801,7 @@ export class AgentRuntime {
       return await this.buildResult(
         request, vars, rs.toolResults, builtContext, budget, rs.usage,
         rs.verificationRequirements, workingMemory, TurnOutcome.NEEDS_APPROVAL,
-        { error, checkpointPlan: vars.plan },
+        { error, checkpointPlan: vars.plan, checkpointApprovalKind: 'tool' },
       );
     }
     const invalidApproval = resolved.find(
@@ -1040,6 +1042,33 @@ export class AgentRuntime {
           '重新生成上下文清单、变更预览和审批令牌。',
         );
       }
+      if (request.executionMode === 'plan' && checkpoint?.approvalKind === 'execution_plan' && !request.planApprovalDecision) {
+        throw new AgentError(
+          AgentErrorCode.APPROVAL_INVALID,
+          'Plan-mode checkpoint requires an explicit approval decision',
+          { runId: request.runId },
+          '仅通过已校验的计划批准或拒绝 IPC 恢复该 Turn。',
+        );
+      }
+      if (request.executionMode === 'plan' && checkpoint?.approvalKind === 'execution_plan' && request.planApprovalDecision === 'rejected') {
+        vars.plan = checkpoint.pendingPlan;
+        await this.emit(request, 'approval.resolved', {
+          approvalKind: 'execution_plan',
+          resolution: 'rejected',
+        });
+        vars.state = await this.transitionState(request, 'cancel', vars.state, { reason: 'plan_rejected' });
+        return await this.buildResult(
+          request, vars, toolResults, currentBuiltContext, budget, usage,
+          rs.verificationRequirements, workingMemory, TurnOutcome.CANCELLED,
+          { summary: 'Execution plan rejected by the user; no tool call was started.' },
+        );
+      }
+      if (request.executionMode === 'plan' && checkpoint?.approvalKind === 'execution_plan' && request.planApprovalDecision === 'approved') {
+        await this.emit(request, 'approval.resolved', {
+          approvalKind: 'execution_plan',
+          resolution: 'approved',
+        });
+      }
 
       while (true) {
         refreshElapsed();
@@ -1066,6 +1095,32 @@ export class AgentRuntime {
               ? { toolCalls: vars.plan.toolCalls.map(({ call }) => cloneToolCall(call)) }
               : {}),
           });
+        }
+
+        if (
+          request.executionMode === 'plan' &&
+          !checkpoint &&
+          vars.plan.toolCalls.length > 0
+        ) {
+          vars.state = await this.transitionState(request, 'submit_for_approval', vars.state, {
+            approvalKind: 'execution_plan',
+          });
+          await this.emit(request, 'approval.requested', {
+            approvalKind: 'execution_plan',
+            contextDigestSha256: currentBuiltContext.manifest.digestSha256,
+            plan: vars.plan,
+          });
+          const error = new AgentError(
+            AgentErrorCode.APPROVAL_REQUIRED,
+            'Execution plan requires explicit user confirmation',
+            { taskId: request.taskId },
+            '核对目标、文件、验证方式和风险后批准或拒绝该计划。',
+          );
+          return await this.buildResult(
+            request, vars, toolResults, currentBuiltContext, budget, usage,
+            rs.verificationRequirements, workingMemory, TurnOutcome.NEEDS_APPROVAL,
+            { error, checkpointPlan: vars.plan, checkpointApprovalKind: 'execution_plan' },
+          );
         }
 
         if (vars.plan.toolCalls.length === 0) {

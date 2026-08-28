@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-WIN10-ASAR-FIELD-FAILURE-20260821-01",
+  "recorded_at": "2026-08-21",
+  "stage": "A8-06",
+  "requirements": ["A8K-04", "C07", "C12", "C13"],
+  "status": "REPAIR_VALIDATED_REBUILD_REQUIRED",
+  "candidate": {
+    "package_sha256": "5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e",
+    "manifest_sha256": "8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7",
+    "source_commit": "03c4d6e20b58a7897c9e1c6427143f75bef98a57",
+    "disposition": "REJECTED_FOR_FURTHER_EXTERNAL_EXECUTION"
+  },
+  "win10_environment": {
+    "os": "Windows 10 Professional 10.0.19045 x64",
+    "filesystem": "NTFS",
+    "storage": "NVMe SSD"
+  },
+  "execution": {
+    "zip_sha256": "PASS",
+    "manifest_sha256": "PASS",
+    "electron_node": "PASS_V16_17_1",
+    "electron_exe_sha256": "PASS",
+    "better_sqlite3_node_sha256": "PASS",
+    "a8_03": "FAIL_A8_CANDIDATE_FILE_MISSING_RESOURCES_DEFAULT_APP_ASAR",
+    "a8_04": "NOT_RUN_FAIL_CLOSED_AFTER_A8_03",
+    "a8_05": "NOT_RUN_FAIL_CLOSED_AFTER_A8_03",
+    "verify_set": "NOT_RUN_FAIL_CLOSED_AFTER_A8_03"
+  },
+  "physical_file_diagnosis": {
+    "path": "resources/default_app.asar",
+    "size": 109138,
+    "sha256_manifest_match": true,
+    "electron_node_fs_exists": true,
+    "electron_node_fs_is_file": false,
+    "electron_node_fs_is_directory": true,
+    "root_cause": "ELECTRON_ASAR_VIRTUAL_FILESYSTEM_VIEW_USED_FOR_PHYSICAL_CANDIDATE_VERIFICATION"
+  },
+  "repair": {
+    "decision": "ADR-0088",
+    "implementation": "ELECTRON_ORIGINAL_FS_FOR_MANIFEST_PAYLOAD_HASH_AND_TREE_WALK",
+    "fallback": "PROHIBITED_FAIL_A8_PHYSICAL_FILESYSTEM_UNAVAILABLE",
+    "targeted_tests": "PASS_9_TOTAL_5_EVIDENCE_AND_4_PACKAGE",
+    "external_override": "PROHIBITED"
+  },
+  "external_validation": {
+    "win10": "FAIL_VALIDATION_HARNESS_DEFECT_OLD_CANDIDATE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "Commit and push the repair as an ordinary source commit",
+    "Build twice from the pushed clean source commit",
+    "Run developer schema v2 smoke against the rebuilt candidate",
+    "Record new package and manifest hashes in an ordinary evidence commit",
+    "Restart Win10 acceptance from A8-03 with a fresh extraction"
+  ],
+  "next_checkpoint": "A8_06_CLEAN_REMOTE_SOURCE_REBUILD"
+}

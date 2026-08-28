@@ -152,10 +152,22 @@ function normalizeForComparison(value: string): string {
 
 function findExistingAncestor(targetPath: string): string | undefined {
   let candidate = targetPath;
-  while (!fs.existsSync(candidate)) {
+  while (!hasDirectoryEntry(candidate)) {
     const parent = path.dirname(candidate);
     if (parent === candidate) return undefined;
     candidate = parent;
   }
   return candidate;
+}
+
+/** `existsSync` follows links and reports dangling links as missing.  The
+ * containment check must treat every directory entry, including a dangling
+ * reparse point, as existing so `realpathSync` can fail closed. */
+function hasDirectoryEntry(candidate: string): boolean {
+  try {
+    fs.lstatSync(candidate);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ENOENT';
+  }
 }

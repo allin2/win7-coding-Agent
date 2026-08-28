@@ -34,6 +34,7 @@ describe('Desktop IPC acceptance boundary', () => {
         return { taskId: 'task-1' };
       }),
       cancelTask: jest.fn(),
+      approveTask: jest.fn(() => ({ status: 'resuming' })),
       clearSavedApiKey: jest.fn(() => ({ mode: 'replay' })),
     };
     const handler = createDesktopRequestHandler({
@@ -87,5 +88,14 @@ describe('Desktop IPC acceptance boundary', () => {
       { sessionId: 'session-a', data: 'dir\r' },
     ));
     expect(result).toMatchObject({ ok: false, error: { code: 'CAPABILITY_UNAVAILABLE' } });
+  });
+
+  it('dispatches a session-scoped exact approval through the existing fail-closed envelope', async () => {
+    const { host, handler } = setup();
+    const payload = { taskId: 'task-1', approvalId: 'plan-1', planHash: 'a'.repeat(64) };
+    const envelope = { ...payload, workspaceBaseHash: 'execution-plan' };
+    const result = await handler({ trusted: true }, message(IPCMessageType.TASK_APPROVE, 'session-a', envelope));
+    expect(result).toEqual({ ok: true, result: { status: 'resuming' } });
+    expect(host.approveTask).toHaveBeenCalledWith(envelope);
   });
 });

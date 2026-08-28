@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A8-06 候选来源可达性重新签发</title>
+<style>body{margin:0;background:#10151c;color:#e8eef7;font:15px/1.65 system-ui,sans-serif}main{max-width:940px;margin:auto;padding:48px 28px}h1{font-size:38px;line-height:1.15}.eyebrow{color:#77d9b3;letter-spacing:.12em}.card,.callout{border:1px solid #344154;background:#171e28;border-radius:14px;padding:18px 22px;margin:20px 0}.ok{border-color:#48ad83}code{color:#a4e9cd;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #303b4b;padding:10px}a{color:#8fc8ff}.muted{color:#aeb9c9}</style></head>
+<body><main><div class="eyebrow">WIN7 CODING AGENT · A8-06 · PROVENANCE REISSUE</div><h1>候选来源可达性重新签发</h1>
+<p class="callout ok"><strong>结论：</strong>正式外部候选已从远端分支可达且工作区干净的源码提交重新构建；后续证据使用普通子提交，不再 amend 构建源码提交。</p>
+<section class="card"><h2>锁定关系</h2><table><tr><th>项目</th><th>值</th></tr>
+<tr><td>源码提交</td><td><code>03c4d6e20b58a7897c9e1c6427143f75bef98a57</code></td></tr>
+<tr><td>ZIP SHA-256</td><td><code>5b24fe7ead243569e12c38c947aa31c1a04091bdea1eba3e8bd4b0bb3966ae6e</code></td></tr>
+<tr><td>Manifest SHA-256</td><td><code>8def5b3f8e3421009cf8b079fb87eaf61896ce36f82bfcefff9c8f2a60a993a7</code></td></tr>
+<tr><td>构建</td><td>两次真实输入、干净工作区、字节一致</td></tr></table></section>
+<section class="card"><h2>开发机复验</h2><p>schema v2 持久化 smoke 10/10 PASS；报告绑定上述 manifest，临时目录已回收，候选文件集合与哈希未改变。该结果仍不替代 Electron 22 Windows、Win10 或 Win7 正式执行。</p></section>
+<p class="callout"><strong>取代关系：</strong>旧候选记录的 <code>3d8f1b3…</code> 不在已推送分支历史中，因此不得进入外部评分。本候选是新的唯一 Win10/Win7 移交对象。</p>
+<p class="muted">机器可读证据：<a href="../../status/a8-06-candidate-provenance-reissue-20260821.json">candidate provenance reissue</a></p></main></body></html>

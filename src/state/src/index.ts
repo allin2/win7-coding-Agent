@@ -89,3 +89,38 @@ export {
   RuntimeProjectionRequest,
   RuntimeMessageProjection,
 } from './runtime-message-projector';
+export {
+  A8GoalRecord,
+  A8GoalStatus,
+  A8SessionCatalog,
+  A8SessionCatalogOptions,
+  A8SessionCatalogSnapshot,
+  A8SessionFact,
+  A8SessionRecord,
+  A8SessionStatus,
+  A8TurnIdentity,
+  A8WorkspaceRecord,
+} from './a8-session-catalog';
+export {
+  A8_MAX_PERSISTED_JSON_BYTES,
+  A8_MAX_REVIEW_JSON_BYTES,
+  A8_PERSISTENCE_SCHEMA_VERSION,
+  A8MigrationRunner,
+  A8PersistentCatalog,
+  A8PersistenceError,
+  A8RecoveryCoordinator,
+} from './a8-persistence';
+export type {
+  A8MigrationResult,
+  A8MigrationSource,
+  A8PersistedReview,
+  A8PersistedReviewFile,
+  A8PersistedRun,
+  A8PersistedTask,
+  A8PersistedTaskState,
+  A8PersistedValidation,
+  A8PersistentCatalogOptions,
+  A8PersistenceErrorCode,
+  A8RecoveryReport,
+  A8ReviewPersistenceStatus,
+} from './a8-persistence';

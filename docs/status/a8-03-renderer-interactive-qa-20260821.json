@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "a8-03-renderer-interactive-qa.v1",
+  "stage": "A8-03",
+  "status": "PASS_CHROMIUM_DOM_HARNESS_ONLY",
+  "branch": "codex/a8-agent-first-product",
+  "testedAt": "2026-08-21T00:44:59+08:00",
+  "target": "src/shell/product/renderer/index.html",
+  "harness": {
+    "kind": "local-static-http-chromium-srcdoc",
+    "url": "http://127.0.0.1:8766/tests/product/review-renderer-harness.html",
+    "viewport": {"width": 1280, "height": 720},
+    "preload": "stubbed narrow API",
+    "ipc": "not connected to Electron main process",
+    "filesystem": "not available",
+    "note": "The production Renderer DOM, styles and event projector were exercised in Chromium with an injected in-memory API. This is interactive browser evidence, not Electron Preload/IPC or real workspace-write evidence."
+  },
+  "journey": [
+    "select Review Harness session",
+    "submit Review task with MODIFY/CREATE/DELETE proposals",
+    "observe review.awaiting_decision and task state 等待 Review 决定",
+    "accept src/app.ts",
+    "reject src/new.ts",
+    "accept docs/obsolete.md",
+    "record NOT_RUN validation because no project Runner Profile is registered",
+    "issue exact Review approval",
+    "apply accepted changes"
+  ],
+  "calls": [
+    "submitReviewTask",
+    "decideReview:src/app.ts:ACCEPTED",
+    "decideReview:src/new.ts:REJECTED",
+    "decideReview:docs/obsolete.md:ACCEPTED",
+    "recordReviewValidation:NOT_RUN",
+    "issueReviewApproval",
+    "applyReview"
+  ],
+  "final": {
+    "taskState": "已完成",
+    "reviewStatus": "APPLIED",
+    "accepted": ["src/app.ts", "docs/obsolete.md"],
+    "rejected": ["src/new.ts"],
+    "revision": 4,
+    "validation": "NOT_RUN",
+    "approvalIssued": true,
+    "horizontalOverflow": false
+  },
+  "evidence": {
+    "screenshot": "docs/reports/2026-08/a8_03_renderer_review_interactive_1280x720.jpg",
+    "harnessSource": "src/shell/tests/product/review-renderer-harness.js"
+  },
+  "gateImpact": {
+    "a8c02": "PARTIAL",
+    "a8_03_gate": "NOT_READY",
+    "electronPreloadIpc": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "rc": "NOT_PERFORMED"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-06-DEVELOPER-CHECKPOINT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "head_commit": "cd9c443b7d818c5bcf1ad43175fd4d113f00cb6",
+  "working_tree": "DIRTY_EXPECTED_A8_CHANGES_PRESERVED",
+  "stage": "A8-06",
+  "status": "A8_DEVELOPER_COMPLETE_VALIDATION_READY",
+  "gate": "A8_06_PACKAGE_AND_VALIDATION_READY",
+  "next_stage": "EXTERNAL_PRODUCT_ACCEPTANCE",
+  "requirements": {
+    "A8K-01": "PASS_MISSING_CHANGED_AND_FORBIDDEN_INPUTS_FAIL_CLOSED_WITHOUT_PUBLISHED_PARTIAL_PACKAGE",
+    "A8K-02": "PASS_FIXTURE_REBUILD_BYTE_IDENTICAL_ZIP_MANIFEST_SBOM_LICENSES_AND_SIDECAR",
+    "A8K-03": "PASS_NATIVE_OUTSIDE_APP_RC_RUNTIME_DISABLED_CAPABILITIES_AND_MANIFEST_BIDIRECTIONAL_HASHES",
+    "A8K-04": "PASS_SAME_CANDIDATE_A8_03_A8_04_A8_05_WINDOWS_COMMANDS_AND_EVIDENCE_SCHEMA_PACKAGED",
+    "A8K-05": "PASS_INSTALL_COEXISTENCE_UPGRADE_ROLLBACK_UNINSTALL_AND_FORBIDDEN_SYSTEM_ACTIONS_DOCUMENTED"
+  },
+  "locked_candidate": {
+    "candidate_id": "WIN7-CODING-AGENT-A8-ALPHA1",
+    "version": "0.2.0-alpha.1",
+    "source_commit": "cd9c443b7d818c5bcf1ad43175fd4d113f00cb6",
+    "source_dirty": true,
+    "input_lock": "release/win7-product-v2/a8-06-input-lock.json",
+    "electron_zip_sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+    "runner_zip_sha256": "5a65a023e33addc7b06bca6956443df8dc2e3bfab67649ac6d8c3ff4472d667c",
+    "storage_zip_sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+    "electron_entry_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb",
+    "runner_entry_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+    "storage_entry_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+    "electron_abi": 110,
+    "sqlite": "3.43.1"
+  },
+  "package": {
+    "path": "release/win7-product-v2/out/Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+    "sha256": "9fbcd78d1750710c520e4e66c56fa837eab3b6be1a233f400766da820321c227",
+    "size_bytes": 101003910,
+    "sidecar_verified": true,
+    "manifest_sha256": "65c4e0cfa879a2bccd28114b7a37dd07af59d13d28fcb3cc62893536a74d7bf4",
+    "sbom_sha256": "8f057e562156b305f9d8ae841f8a0992a68acd91d6e49c7b938512e95386e0c6",
+    "validation_kit_sha256": "9c7e8d477c33c2db8ccfc7eac12be9d2f83d79ac269c00ca7bc239a60e44f183",
+    "manifest_file_count": 756,
+    "archive_file_count": 757,
+    "status": "DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS",
+    "gates": {
+      "developer_package_integrity": "PASS",
+      "product_assembly": "NOT_PERFORMED",
+      "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+      "rc": "NOT_PERFORMED"
+    },
+    "native_layout": "PASS_RESOURCES_NATIVE_OUTSIDE_RESOURCES_APP",
+    "forbidden_payload_scan": "PASS_ZERO_MATCHES"
+  },
+  "validation": {
+    "package_contract_tests": {
+      "command": "node --test scripts/release/test/a8-package.test.mjs",
+      "status": "PASS",
+      "tests": 3,
+      "cases": ["missing-input", "forbidden-payload-cleanup", "byte-identical-rebuild"]
+    },
+    "real_locked_input_assembly": {
+      "command": "node scripts/release/build-a8-product-v2.mjs --electron-zip spikes/02-terminal-containment/build-win10/kit/inputs/electron-v22.3.27-win32-x64.zip --runner-zip /Users/qlyf/Developer/win7-agent-artifacts/closeout-20260812/a5/win10-return/WIN7_D013_HELPER_ARTIFACTS_20260811-105127.zip --storage-zip A6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip --output release/win7-product-v2/out --allow-uncommitted",
+      "status": "PASS_DEVELOPER_PACKAGE_INTEGRITY",
+      "build_result": "release/win7-product-v2/out/A8_06_BUILD_RESULT.json"
+    },
+    "repeat_locked_input_assembly": {
+      "command": "repeat the same build command against the same input lock and output directory",
+      "status": "PASS_BYTE_IDENTICAL",
+      "package_sha256": "9fbcd78d1750710c520e4e66c56fa837eab3b6be1a233f400766da820321c227",
+      "manifest_sha256": "65c4e0cfa879a2bccd28114b7a37dd07af59d13d28fcb3cc62893536a74d7bf4"
+    },
+    "package_outer_manifest_recompute": {
+      "command": "read ZIP entries; recompute manifest file count, hashes, forbidden payloads and native layout",
+      "status": "PASS",
+      "all_entries_manifested": true,
+      "forbidden_entries": 0,
+      "native_entries_outside_app": 2
+    },
+    "package_persistence_smoke": {
+      "command": "node validation/run-a8-05-persistence-smoke.mjs --product=. --candidate=A8-ALPHA1-DEVELOPER --report=evidence/a8-05-persistence.json",
+      "status": "PASS_DEVELOPER_FAKE_SQLITE",
+      "cases": 10,
+      "operator_platform": "darwin-arm64",
+      "d014_native": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1073,
+      "module_counts": {
+        "gateway": 202,
+        "workspace": 98,
+        "state": 245,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 181
+      }
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 88,
+      "task_files": 19
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "status": "PASS_WITH_FSMONITOR_WARNING",
+      "warning": "fsmonitor_ipc__send_query: unspecified error"
+    },
+    "json_parse": "PASS",
+    "dependency_change": "NONE",
+    "private_key_or_tracked_cache_scan": "PASS"
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "closed_gaps": [
+    "A8-06 input hashes and required ZIP entries are checked before any candidate stage is created.",
+    "Forbidden payload and partial-work-tree negative coverage is deterministic and fail-closed.",
+    "The candidate carries external native layout, rc-runtime, manifest, SBOM, license inventory, input lock, sidecar and validation entrypoints.",
+    "The package smoke uses a fake SQLite driver only on the developer Mac; the required D-014 native path remains an explicit external gate.",
+    "A8-03/A8-04/A8-05 evidence and same-candidate lifecycle commands are locked without inheriting A7 PASS."
+  ],
+  "remaining": [
+    "Run the same immutable ZIP on Electron 22.3.27 x64 with D-014 native binding on an executable Windows host.",
+    "Complete Win10 and Win7 product journeys, lifecycle evidence and owner review; preserve NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE until then.",
+    "Do not mark A8_RC_PASS or modify frozen A7 evidence."
+  ],
+  "next_checkpoint": "Provide the package and validation kit to an available Win10/Win7 executor; no local A8 implementation work remains."
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-03-ELECTRON-REVIEW-VALIDATION-KIT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-03",
+  "status": "SOURCE_CONTRACT_SUPERSEDED_FOR_FORMAL_EXECUTION_BY_A8_06_EVIDENCE_V2",
+  "gate_effect": "DEVELOPER_SURROGATE_ARCHIVE_ONLY",
+  "runtime_contract": {
+    "target_electron": "22.3.27",
+    "target_node": "16.17.1",
+    "target_arch": "x64",
+    "target_os": "Windows 7 SP1 x64",
+    "developer_surrogate_allowed": true,
+    "surrogate_gate_effect": "DEVELOPER_EVIDENCE_ONLY"
+  },
+  "entry": "src/shell/tests/product/run-electron-review-smoke.mjs",
+  "commands": {
+    "syntax_and_contract": "cd src/shell && node --check tests/product/run-electron-review-smoke.mjs && npm test -- --runInBand tests/product/electron-review-smoke-contract.test.ts",
+    "windows_target": "SUPERSEDED_USE_A8_06_VALIDATION_KIT_JSON_COMMANDS_WIN10_OR_WIN7",
+    "developer_example": "node src/shell/tests/product/run-electron-review-smoke.mjs --electron=/absolute/path/to/Electron --product=/absolute/path/to/src/shell/product --report=/absolute/path/to/a8-03-electron-review.json --screenshot=/absolute/path/to/a8-03-electron-review.png"
+  },
+  "expected_cases": [
+    "A8R-01-02-ELECTRON-REVIEW",
+    "A8R-07-NOT-RUN",
+    "A8C-02-FORGED-APPROVAL",
+    "A8R-02-04-APPLY-SUBSET",
+    "A8R-04-BASELINE-DRIFT-ZERO-WRITE",
+    "A8R-05-RECOVERY-RENDERER",
+    "A8C-02-RENDERER-CAPABILITY",
+    "A8R-01-VISUAL-BOUNDS"
+  ],
+  "pass_contract": {
+    "process_exit_code": 0,
+    "report_status": "PASS",
+    "all_cases": "PASS",
+    "minimum_screenshot_bytes": 1024,
+    "artifact_hashes": "RECOMPUTED_BY_OUTER_RUNNER_AND_MUST_MATCH_REPORT",
+    "project_validation": "NOT_RUN_UNTIL_REGISTERED_PROFILE_EXISTS"
+  },
+  "locked_source_hashes_sha256": {
+    "src/shell/product/main.js": "b44dbcc6b0b6a985b66408763358297e323ee416605726e3d1f6dbf9a8c9254f",
+    "src/shell/product/preload.js": "6d4f22432cd320b7bbd25df1b9cf735c8202121f7ed1789ca8512ea0072ecf95",
+    "src/shell/product/desktop-host.js": "eedd4f4b9346ec3ce6df1ed2b16b9909aca6287d6618c71b067ee868d4677bbe",
+    "src/shell/product/a8-product-ipc.js": "42a98572872a360eb2eee6b719a28abbeb4d1578b3727fbb61e384f14c13e7ab",
+    "src/shell/product/gateway-runtime.js": "0f76342a704d6b526f639bd991985966e05cf9e9862e20a49bdf249dc155d4d4",
+    "src/shell/product/renderer/index.html": "c243aa964912c4f60ce87ca086a7801c2a83eb65d4f9a9a98d03dd247cc25a8d",
+    "src/shell/product/renderer/renderer.js": "057d1567971e5828657daca26477ee58f5fdf2bcf6cd4a64320d8e7de94e24ec",
+    "src/shell/product/renderer/styles.css": "22aa1391f94ffe1f011dd908b4dee6d8a25dde7ee7e8a0c8c291ea6fba0962a5",
+    "src/shell/product/renderer/a8-workspace.css": "c5cb9b7d082f79a2e3f05d65eaf15779ebe432d15c5c051bb66f3983826b5344",
+    "src/shell/tests/product/run-electron-review-smoke.mjs": "ab18f369d2ce38928fc0a8291fad36a02b57e4aadb5de07edd72b434a1befba3",
+    "src/shell/tests/product/electron-review-smoke-contract.test.ts": "6c2a8479d2c4b8eabb1b57ec015c4d8cd6546cb83c73adfcfd91e076479e2b78",
+    "src/shell/tests/product/review-renderer-contract.test.ts": "a0240063d1076695abd25defa5acb36471c4bf411e428d173429a20b14d35b38"
+  },
+  "isolation_and_cleanup": {
+    "workspace": "UNIQUE_OS_TEMP_DIRECTORY",
+    "user_data": "UNIQUE_OS_TEMP_DIRECTORY",
+    "pass": "TEMP_DIRECTORY_REMOVED_AFTER_EVIDENCE_VALIDATION",
+    "failure": "TEMP_DIRECTORY_PRESERVED_FOR_DIAGNOSIS",
+    "system_changes": "NONE"
+  },
+  "execution_status": {
+    "developer_current_electron": "NOT_PERFORMED_LOCAL_GUI_APPROVAL_UNAVAILABLE",
+    "target_electron_22": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "operator_notes": [
+    "Formal Electron 22/Win10/Win7 execution authority is the schema-v2 command set packaged in A8_06_VALIDATION_KIT.json; this source-level kit and its schema-v1 surrogate report are archival only.",
+    "A source-contract hash is not a release candidate or installer hash.",
+    "Do not copy PASS from Chromium, Replay, Electron 41, A7 or another candidate.",
+    "On failure, preserve the report, screenshot, stdout/stderr and temporary directory before cleanup.",
+    "Use one immutable product directory for every layer and compare the report artifact_hashes before accepting evidence."
+  ]
+}

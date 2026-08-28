@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-04-BOUNDARY-VALIDATION-KIT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-04",
+  "status": "SOURCE_CONTRACT_SUPERSEDED_FOR_FORMAL_EXECUTION_BY_A8_06_EVIDENCE_V2",
+  "gate_effect": "DEVELOPER_SURROGATE_ARCHIVE_ONLY",
+  "runtime_contract": {
+    "target_electron": "22.3.27",
+    "target_node": "16.17.1",
+    "target_arch": "x64",
+    "target_os": "Windows 7 SP1 x64",
+    "developer_surrogate_allowed": true,
+    "surrogate_gate_effect": "DEVELOPER_IMPLEMENTATION_EVIDENCE_ONLY",
+    "terminal": "DISABLED_UNTIL_NEW_PROFILE_AND_WIN7_EVIDENCE",
+    "browser": "DISABLED_DENY_BY_DEFAULT"
+  },
+  "entry": "src/shell/tests/product/run-electron-a8-04-boundary-smoke.mjs",
+  "contract_test": "src/shell/tests/product/a8-04-boundary-contract.test.ts",
+  "commands": {
+    "syntax_and_contract": "cd src\\shell && node --check product\\main.js && node --check tests\\product\\run-electron-a8-04-boundary-smoke.mjs && npm test -- --runInBand tests\\product\\a8-04-boundary-contract.test.ts tests\\product\\runner-log.test.ts tests\\product\\desktop-ipc.test.ts",
+    "windows_target": "SUPERSEDED_USE_A8_06_VALIDATION_KIT_JSON_COMMANDS_WIN10_OR_WIN7",
+    "developer_example": "node src/shell/tests/product/run-electron-a8-04-boundary-smoke.mjs --electron=/absolute/path/to/Electron --product=/absolute/path/to/src/shell/product --report=/absolute/path/to/a8-04-boundary.json --screenshot=/absolute/path/to/a8-04-boundary.png"
+  },
+  "expected_cases": [
+    "A8T-01-TERMINAL-DISABLED",
+    "A8B-01-BROWSER-DISABLED",
+    "A8R-08-RUNNER-PRESENTATION",
+    "A8R-09-RUNNER-LOG-BOUNDARY",
+    "A8D-01-SETTINGS-REDACTION",
+    "A8D-02-DIAGNOSTICS-SYSTEM-PROMPT",
+    "A8C-04-IPC-TERMINAL-FAIL-CLOSED",
+    "A8C-03-CSP-PRELOAD-BOUNDARY"
+  ],
+  "pass_contract": {
+    "process_exit_code": 0,
+    "report_status": "PASS",
+    "all_cases": "PASS",
+    "minimum_screenshot_bytes": 1024,
+    "artifact_hashes": "RECOMPUTED_BY_OUTER_RUNNER_AND_MUST_MATCH_REPORT",
+    "project_runner": "DISPLAY_ONLY_UNAVAILABLE_UNTIL_REGISTERED_PROFILE",
+    "terminal_input": "CAPABILITY_UNAVAILABLE",
+    "external_layers": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "locked_source_hashes_sha256": {
+    "src/shell/product/main.js": "7c89d89e274acc0f1cdccf4b711aa6ad0b3b21e0a1472493b9ce177d5e7a13e0",
+    "src/shell/product/preload.js": "6d4f22432cd320b7bbd25df1b9cf735c8202121f7ed1789ca8512ea0072ecf95",
+    "src/shell/product/desktop-host.js": "eedd4f4b9346ec3ce6df1ed2b16b9909aca6287d6618c71b067ee868d4677bbe",
+    "src/shell/product/a8-product-ipc.js": "42a98572872a360eb2eee6b719a28abbeb4d1578b3727fbb61e384f14c13e7ab",
+    "src/shell/product/gateway-runtime.js": "0f76342a704d6b526f639bd991985966e05cf9e9862e20a49bdf249dc155d4d4",
+    "src/shell/product/security-policy.js": "c0b34d0d72df054dc60fa49c0d185e9824b370f5bb67d77b692dc11a9b00431f",
+    "src/shell/product/renderer/index.html": "c243aa964912c4f60ce87ca086a7801c2a83eb65d4f9a9a98d03dd247cc25a8d",
+    "src/shell/product/renderer/renderer.js": "057d1567971e5828657daca26477ee58f5fdf2bcf6cd4a64320d8e7de94e24ec",
+    "src/shell/product/renderer/styles.css": "22aa1391f94ffe1f011dd908b4dee6d8a25dde7ee7e8a0c8c291ea6fba0962a5",
+    "src/shell/product/renderer/a8-workspace.css": "c5cb9b7d082f79a2e3f05d65eaf15779ebe432d15c5c051bb66f3983826b5344",
+    "src/shell/product/renderer/runner-log.js": "15f73c85737b10b098d250212ad80b20679623661def4e62d17b01c8a8391418",
+    "src/shell/tests/product/run-electron-a8-04-boundary-smoke.mjs": "c405eda11195470dad9c9598608a867ee1bb5ec3e907821a343b35f2bcfae22a",
+    "src/shell/tests/product/a8-04-boundary-contract.test.ts": "aa3980a87ae50ad422528b3c924d263e05d8b04c8b83d3b008cc4acc08cbacc3"
+  },
+  "execution": {
+    "developer": {
+      "status": "PASS_DEVELOPER_SURROGATE_ELECTRON",
+      "electron": "41.7.1-darwin-arm64",
+      "report": "docs/status/a8-04-boundary-electron-qa-20260821.json",
+      "screenshot": "docs/reports/2026-08/a8_04_boundary_electron_1280x720.png",
+      "cases": 8,
+      "outer_artifact_hash_recomputation": "PASS",
+      "runner_log": "PASS_64_KIB_CONTROL_SEQUENCE_AND_DANGEROUS_LINK_REDACTION",
+      "terminal_input": "PASS_STRUCTURED_CAPABILITY_UNAVAILABLE"
+    },
+    "target_electron_22": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "isolation_and_cleanup": {
+    "user_data": "UNIQUE_OS_TEMP_DIRECTORY",
+    "pass": "TEMP_DIRECTORY_REMOVED_AFTER_EVIDENCE_VALIDATION",
+    "failure": "TEMP_DIRECTORY_PRESERVED_FOR_DIAGNOSIS",
+    "system_changes": "NONE"
+  },
+  "operator_notes": [
+    "Formal Electron 22/Win10/Win7 execution authority is the schema-v2 command set packaged in A8_06_VALIDATION_KIT.json; this source-level kit and its schema-v1 surrogate report are archival only.",
+    "A8-04 developer surrogate evidence does not replace Electron 22.3.27 x64, Win10, Win7 or RC evidence.",
+    "The project Runner remains display-only until a task-authorized C15/C16-registered Profile exists.",
+    "Do not enable Terminal input or arbitrary Browser navigation while executing this kit.",
+    "Use one immutable product directory for every layer and compare report artifact_hashes before accepting evidence."
+  ]
+}

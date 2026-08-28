@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A8-03 Electron Review 验证移交</title>
+  <style>
+    :root{color-scheme:light;--ink:#18212f;--muted:#607086;--line:#d9e1ea;--blue:#1663d6;--blue-soft:#edf4ff;--amber:#9a5a00;--amber-soft:#fff6df;--green:#176b47;--paper:#fff;--bg:#f3f6fa}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}.page{max-width:1120px;margin:0 auto;padding:42px 28px 72px}.hero{display:grid;grid-template-columns:1fr 320px;gap:28px;align-items:end;background:linear-gradient(135deg,#11213e,#174f9d);color:#fff;padding:36px;border-radius:18px;box-shadow:0 18px 46px #10254b2b}.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#bcd5ff}.hero h1{font-size:34px;line-height:1.14;margin:10px 0}.hero p{margin:0;color:#dce9ff}.status{background:#ffffff14;border:1px solid #ffffff33;border-radius:14px;padding:18px}.status strong,.status span{display:block}.status strong{font-size:18px}.status span{margin-top:7px;color:#dce9ff}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:20px}.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 8px 24px #14233a0d}.card h2,.card h3{margin:0 0 10px}.card h2{font-size:21px}.card h3{font-size:17px}.wide{grid-column:1/-1}.callout{margin-top:20px;padding:16px 18px;border-radius:12px;background:var(--amber-soft);border:1px solid #f0dca9;color:#6d4307}.ok{background:#edf9f3;border-color:#bfe3d1;color:var(--green)}code{font-family:"SFMono-Regular",Consolas,monospace;font-size:13px;background:#edf1f6;padding:2px 5px;border-radius:5px}pre{margin:12px 0 0;white-space:pre-wrap;word-break:break-word;background:#101927;color:#e8f0ff;border-radius:10px;padding:15px;overflow:auto;font:13px/1.55 "SFMono-Regular",Consolas,monospace}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}ul,ol{margin:8px 0 0;padding-left:21px}a{color:var(--blue)}.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--blue-soft);color:var(--blue);font-size:12px;font-weight:700}@media(max-width:780px){.hero,.grid{grid-template-columns:1fr}.page{padding:18px}.wide{grid-column:auto}}
+  </style>
+</head>
+<body><main class="page">
+  <header class="hero">
+    <div><div class="eyebrow">WIN7 CODING AGENT · A8-03</div><h1>真实 Electron Review<br>验证移交</h1><p>锁定执行入口、输入夹具、8 项行为矩阵、工件哈希与故障回收规则。本文是执行手册，不签发 A8-03 Gate。</p></div>
+    <aside class="status"><strong>VALIDATION READY</strong><span>当前执行：NOT_PERFORMED</span><span>本地原因：GUI 审批服务不可用</span><span>Win10 / Win7：外部环境不可用</span></aside>
+  </header>
+
+  <p class="callout"><strong>证据边界：</strong>只有实际启动生产 BrowserWindow、Preload、IPC、Desktop Host、Review staging 与 Renderer 后生成的 JSON/PNG 才能关闭真实 UI 缺口。Chromium Harness、Replay、Electron 41 入口基线和 A7 PASS 均不能替代。</p>
+
+  <section class="grid">
+    <article class="card"><h2>锁定输入</h2><ul><li>目标运行时：Electron <code>22.3.27</code> / Node <code>16.17.1</code> / x64。</li><li>目标系统：Windows 7 SP1 x64；Win10 为中间验收层。</li><li>执行器：<code>src/shell/tests/product/run-electron-review-smoke.mjs</code>。</li><li>完整源文件 SHA-256：<a href="../../status/a8-03-electron-review-validation-kit-20260821.json">机器可读验证包</a>。</li></ul></article>
+    <article class="card"><h2>隔离与副作用</h2><ul><li>每次执行创建唯一临时工作区和 Electron user-data。</li><li>只操作夹具目录；不修改真实项目、注册表、服务、PATH、网络或系统策略。</li><li>PASS 后自动清理临时目录；FAIL 时保留现场供诊断。</li><li>项目测试 Profile 未登记，必须诚实显示 <code>NOT_RUN</code>。</li></ul></article>
+
+    <article class="card wide"><h2>Windows 精确命令</h2><p>从候选仓库根目录执行；包含空格的参数必须整体加引号。报告与截图目录可预先存在，也可由执行器创建。</p><pre>node src\shell\tests\product\run-electron-review-smoke.mjs ^
+  "--electron=C:\locked-runtime\electron.exe" ^
+  "--product=C:\candidate\src\shell\product" ^
+  "--report=C:\evidence\a8-03-electron-review.json" ^
+  "--screenshot=C:\evidence\a8-03-electron-review.png"</pre><p>开发机替代运行使用同一参数合同；非 Electron 22 的结果只属于 <code>DEVELOPER_SURROGATE_ELECTRON</code>，不能作为 Windows 目标 Gate。</p></article>
+
+    <article class="card wide"><h2>必须同时 PASS 的 8 项</h2><table><thead><tr><th>ID</th><th>真实行为</th><th>判定重点</th></tr></thead><tbody>
+      <tr><td><code>A8R-01-02-ELECTRON-REVIEW</code></td><td>三文件逐项 Review</td><td>修改/新增接受，删除拒绝，均经真实 UI 与 IPC。</td></tr>
+      <tr><td><code>A8R-07-NOT-RUN</code></td><td>未登记 Runner</td><td>不得伪造测试 PASS。</td></tr>
+      <tr><td><code>A8C-02-FORGED-APPROVAL</code></td><td>篡改 accepted-set hash</td><td><code>APPROVAL_INVALID</code> 且零写入。</td></tr>
+      <tr><td><code>A8R-02-04-APPLY-SUBSET</code></td><td>应用接受子集</td><td>已拒绝删除文件保持原字节。</td></tr>
+      <tr><td><code>A8R-04-BASELINE-DRIFT-ZERO-WRITE</code></td><td>最后目标外部漂移</td><td>状态 STALE；此前目标也不得写入提案字节。</td></tr>
+      <tr><td><code>A8R-05-RECOVERY-RENDERER</code></td><td>验证与回滚故障</td><td>进入 RECOVERY_REQUIRED；用户恢复后原字节一致、写锁解除。</td></tr>
+      <tr><td><code>A8C-02-RENDERER-CAPABILITY</code></td><td>Renderer 权限边界</td><td>无 Node/process，只存在冻结 Preload API。</td></tr>
+      <tr><td><code>A8R-01-VISUAL-BOUNDS</code></td><td>真实视口布局</td><td>无水平页面溢出并生成 PNG。</td></tr>
+    </tbody></table></article>
+
+    <article class="card"><h2>自动核验</h2><ol><li>Electron 退出码必须为 0。</li><li>报告顶层与 8 个 case 都必须为 PASS。</li><li>外层执行器独立复算 9 个产品文件 SHA-256，并与报告逐项比较。</li><li>PNG 必须存在且大于 1024 bytes。</li></ol></article>
+    <article class="card"><h2>失败处置</h2><ol><li>保持 FAIL / NOT_PERFORMED 原值，不手工改报告。</li><li>保存 JSON、PNG、stdout、stderr 和打印的临时目录。</li><li>核对报告 <code>artifact_hashes</code> 与机器可读验证包；不一致即候选漂移。</li><li>修复后形成新哈希和新记录，不覆盖旧证据。</li></ol></article>
+  </section>
+
+  <p class="callout ok"><strong>进入 A8-04 的条件：</strong>A8-03 开发机行为矩阵与真实 Electron Review 证据闭合后，才可签发 <code>A8_03_REVIEW_APPLY_PASS</code>。Win10/Win7 仍需在 A8-06 对同一锁定候选分别验收；当前均保持 <code>NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE</code>。</p>
+</main></body></html>

@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "record_id": "A8-05-DEVELOPER-CHECKPOINT-20260821-01",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "head_commit": "cd9c443b7d818c5bcf1ad43175fd4d113f00cb6",
+  "working_tree": "DIRTY_EXPECTED_A8_CHANGES_PRESERVED",
+  "stage": "A8-05",
+  "status": "COMPLETE_FOR_DEVELOPER_IMPLEMENTATION_GATE",
+  "gate": "A8_05_PERSISTENCE_RECOVERY_MIGRATION_PASS",
+  "next_stage": "A8-06",
+  "requirements": {
+    "A8P-01": "PASS_DEVELOPER_FAKE_SQLITE_SESSION_GOAL_TURN_TASK_RUN_AND_HOST_PROJECTION_REOPEN",
+    "A8P-02": "PASS_ACTIVE_EXECUTION_INTERRUPTED_AND_USER_GATED_AWAITING_REVIEW_RETAINED",
+    "A8P-03": "PASS_RESTORED_REVIEW_REVALIDATES_BASELINE_AND_DRIFT_IS_STALE_ZERO_WRITE",
+    "A8P-04": "PASS_UNKNOWN_SCHEMA_JSON_HASH_ENTITY_REFERENCE_AND_SEQUENCE_FAILURES_READ_ONLY",
+    "A8M-01": "PASS_A7_EVENT_CREDENTIAL_WAL_SHM_AND_RUNNER_DATA_NOT_IMPORTED",
+    "A8M-02": "PASS_EXPLICIT_WORKSPACE_SETTINGS_ALLOWLIST_MARKER_REPORT_HASH",
+    "A8M-03": "PASS_UNKNOWN_SOURCE_LOCK_TEMP_ATOMIC_RENAME_IDEMPOTENT_RETRY",
+    "A8C-01": "PASS_KNOWN_SECRET_AND_CREDENTIAL_FIELDS_BLOCKED_BEFORE_PERSISTENCE"
+  },
+  "closed_gaps": [
+    "A8PersistentCatalog now uses the D-014 SqliteDatabase seam with a version marker, structured Session/Goal/Turn/Task/Run/fact tables and bounded SHA-256 checked summaries.",
+    "Desktop Host hydrates durable sessions and task projections, persists task/run transitions, Review file hash metadata and Validation summaries, and never auto-resumes execution.",
+    "Restored Review projections use the private staging root and re-check every target baseline before allowing an explicit user action; drift becomes STALE and Apply remains blocked.",
+    "Recovery is fail-closed for future schema, malformed JSON, hash drift, sequence/reference corruption and missing Review references; only executing states are atomically marked INTERRUPTED.",
+    "A7 migration is explicit and idempotent: only workspace/settings allowlists are imported; credentials, WAL/SHM, temporary and Runner data are excluded; marker/report writes are fsync/atomic.",
+    "No new runtime, dependency, command, network target, Terminal input or Browser capability was introduced."
+  ],
+  "modified_files": [
+    "docs/prds/A8_05_PERSISTENCE_RECOVERY_MIGRATION_CONTRACT.md",
+    "docs/DECISIONS.md",
+    "src/state/src/a8-persistence.ts",
+    "src/state/src/index.ts",
+    "src/state/tests/unit/a8-persistence.test.ts",
+    "src/workspace/src/review-staging.ts",
+    "src/workspace/src/index.ts",
+    "src/workspace/tests/unit/review-staging.test.ts",
+    "src/shell/product/desktop-host.js",
+    "src/shell/product/rc-composition.js",
+    "src/shell/product/main.js",
+    "src/shell/tests/product/a8-05-persistence-contract.test.ts",
+    "src/shell/tests/product/a8-05-host-persistence.test.ts",
+    "src/shell/tests/product/run-a8-05-persistence-smoke.mjs"
+  ],
+  "locked_contracts": {
+    "decision": "ADR-0083",
+    "contract": "docs/prds/A8_05_PERSISTENCE_RECOVERY_MIGRATION_CONTRACT.md",
+    "schema_version": 1,
+    "json_limits": {
+      "catalog": 262144,
+      "review": 524288
+    },
+    "recoverable_task_states": ["PLANNING", "EXECUTING", "VERIFYING", "APPLYING"],
+    "user_gated_task_states": ["AWAITING_PLAN_APPROVAL", "AWAITING_REVIEW"]
+  },
+  "validation": {
+    "state": {
+      "command": "cd src/state && npm run lint && npm run build && npm test -- --runInBand",
+      "status": "PASS",
+      "suites": 19,
+      "tests": 245
+    },
+    "workspace": {
+      "command": "cd src/workspace && npm run lint && npm run build && npm test -- --runInBand",
+      "status": "PASS",
+      "suites": 10,
+      "tests": 98
+    },
+    "shell": {
+      "command": "cd src/shell && npm run lint && npm run build && npm test -- --runInBand",
+      "status": "PASS",
+      "suites": 25,
+      "tests": 180,
+      "persistence_contract": "PASS_4",
+      "host_reopen_drift": "PASS"
+    },
+    "repository_verify": {
+      "command": "npm run verify",
+      "status": "PASS",
+      "modules": 7,
+      "tests": 1072,
+      "module_counts": {
+        "gateway": 202,
+        "workspace": 98,
+        "state": 245,
+        "core": 229,
+        "runner": 67,
+        "git_adapter": 51,
+        "shell": 180
+      }
+    },
+    "docs_check": {
+      "command": "npm run docs:check",
+      "status": "PASS",
+      "checked_files": 85,
+      "task_files": 19
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "status": "PASS_WITH_FSMONITOR_WARNING",
+      "warning": "fsmonitor_ipc__send_query: unspecified error"
+    },
+    "json_parse": "PASS",
+    "dependency_change": "NONE",
+    "private_key_or_tracked_cache_scan": "PASS"
+  },
+  "external_validation": {
+    "electron_22": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "Run the source-locked persistence/recovery kit against the D-014 better-sqlite3 8.7.0 SQLite 3.43.1 bundle on Electron 22.3.27 x64/Win10/Win7.",
+    "Run A8-06 deterministic package, manifest/SBOM/license closure and the same-candidate three-layer product acceptance.",
+    "Do not claim A8 developer complete, Win10/Win7 PASS or A8_RC_PASS until those external gates execute."
+  ],
+  "next_checkpoint": "Prepare A8-06 deterministic packaging and three-layer validation kit without changing the A8-05 contract."
+}

@@ -1,0 +1,141 @@
+{
+  "schema_version": 2,
+  "record_id": "A8-05-PERSISTENCE-VALIDATION-KIT-20260821-02",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/a8-agent-first-product",
+  "stage": "A8-05",
+  "status": "SOURCE_CONTRACT_SUPERSEDED_FOR_FORMAL_EXECUTION_BY_A8_06_EVIDENCE_V2",
+  "gate_effect": "NONE_UNTIL_D014_ELECTRON22_WIN10_WIN7_EXECUTION_PASSES",
+  "runtime_contract": {
+    "target_electron": "22.3.27",
+    "target_node": "16.17.1",
+    "target_arch": "x64",
+    "target_os": "Windows 7 SP1 x64",
+    "storage_profile": "D-014-E22-SQLITE343-LOCAL-SSD",
+    "storage_backend": "better-sqlite3 8.7.0 / SQLite 3.43.1",
+    "developer_fake_sqlite_allowed": true,
+    "developer_fake_sqlite_gate_effect": "DEVELOPER_IMPLEMENTATION_EVIDENCE_ONLY",
+    "external_layers": "REQUIRED_AND_NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"
+  },
+  "contracts": {
+    "decision": "ADR-0083",
+    "persistence": "docs/prds/A8_05_PERSISTENCE_RECOVERY_MIGRATION_CONTRACT.md",
+    "task": "docs/tasks/A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md",
+    "developer_checkpoint": "docs/status/a8-05-developer-checkpoint-20260821.json"
+  },
+  "developer_commands": [
+    {
+      "id": "A8-05-DEV-STATE",
+      "command": "cd src/state && npm run lint && npm run build && npm test -- --runInBand",
+      "expected": "19 suites / 245 tests PASS"
+    },
+    {
+      "id": "A8-05-DEV-WORKSPACE",
+      "command": "cd src/workspace && npm run lint && npm run build && npm test -- --runInBand",
+      "expected": "10 suites / 98 tests PASS"
+    },
+    {
+      "id": "A8-05-DEV-SHELL",
+      "command": "cd src/shell && npm run lint && npm run build && npm test -- --runInBand",
+      "expected": "25 suites / 180 tests PASS"
+    },
+    {
+      "id": "A8-05-DEV-REPOSITORY",
+      "command": "npm run verify && npm run docs:check && git diff --check",
+      "expected": "7 modules / 1072 tests PASS; docs 85/19 PASS; diff check PASS_WITH_FSMONITOR_WARNING only"
+    }
+  ],
+  "windows_external_commands": {
+    "formal_execution_authority": "Use the schema-v2 commands packaged in A8_06_VALIDATION_KIT.json; this source-level handoff cannot bind an immutable product manifest.",
+    "preflight": [
+      "where node",
+      "node --version",
+      "certutil -hashfile .\\electron.exe SHA256",
+      "certutil -hashfile .\\release-manifest.json SHA256",
+      "certutil -hashfile .\\resources\\native\\storage\\node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node SHA256"
+    ],
+    "target_node": "16.17.1",
+    "target_electron": "22.3.27",
+    "target_product": "One clean extracted A8-06 candidate root",
+    "commands": [
+      "if not exist ..\\a8-evidence-win10 mkdir ..\\a8-evidence-win10",
+      "node validation\\run-a8-05-electron-smoke.mjs --electron=.\\electron.exe --candidate-root=. --manifest=.\\release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=win10 --operator=%USERNAME% --report=..\\a8-evidence-win10\\a8-05-persistence.json",
+      "node validation\\verify-a8-evidence-set.mjs --candidate-root=. --manifest=.\\release-manifest.json --expected-candidate-id=WIN7-CODING-AGENT-A8-ALPHA1 --validation-layer=win10 --operator=%USERNAME% --a8-03=..\\a8-evidence-win10\\a8-03-electron-review.json --a8-04=..\\a8-evidence-win10\\a8-04-boundary.json --a8-05=..\\a8-evidence-win10\\a8-05-persistence.json --report=..\\a8-evidence-win10\\a8-evidence-set.json",
+      "certutil -hashfile ..\\a8-evidence-win10\\a8-05-persistence.json SHA256"
+    ],
+    "expected": {
+      "report_status": "PASS",
+      "storage": "D-014-E22-SQLITE343-LOCAL-SSD",
+      "future_schema": "READ_ONLY_RECOVERY_REQUIRED",
+      "active_task_restart": "INTERRUPTED_WITHOUT_EXECUTION",
+      "awaiting_review_restart": "RETAINED_FOR_EXPLICIT_USER_ACTION",
+      "review_drift": "STALE_ZERO_WRITE",
+      "migration": "IMPORTED_OR_NOOP_WITH_MARKER_REPORT_AND_HASH",
+      "credentials": "ZERO_RAW_OR_BASE64_OR_BEARER_HITS"
+    }
+  },
+  "evidence_schema": {
+    "schema_version": 2,
+    "required_fields": [
+      "schema_version",
+      "record_id",
+      "status",
+      "candidate_id",
+      "candidate_manifest_sha256",
+      "runtime_profile",
+      "database_path",
+      "database_sha256_before",
+      "database_sha256_after",
+      "report_sha256",
+      "cases",
+      "external_validation",
+      "cleanup",
+      "operator",
+      "recorded_at"
+    ],
+    "case_ids": [
+      "A8P-01-REOPEN-PROJECTION",
+      "A8P-02-INTERRUPT-EXECUTION",
+      "A8P-03-REVIEW-DRIFT",
+      "A8P-04-FAIL-CLOSED-CORRUPTION",
+      "A8M-01-A7-SENSITIVE-EXCLUSION",
+      "A8M-02-ALLOWLIST-IMPORT",
+      "A8M-03-MIGRATION-RETRY",
+      "A8C-01-SENSITIVE-DATA-BLOCK"
+    ],
+    "case_result_values": ["PASS", "FAIL", "PARTIAL", "NOT_RUN", "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE"]
+  },
+  "artifact_hashes_sha256": {
+    "docs/prds/A8_05_PERSISTENCE_RECOVERY_MIGRATION_CONTRACT.md": "30b8539b3c9216eb635f84f707694c035f01d25125653fe1f57f20fe757b9278",
+    "src/state/src/a8-persistence.ts": "3a822809faff1b670f6e9d7a52d24249726a20525ae96ca9cda5215852ab1ec8",
+    "src/state/tests/unit/a8-persistence.test.ts": "9f59d1e51e656636144b5db763e73e4df449f574b62e9b69f1566a31116d765d",
+    "src/workspace/src/review-staging.ts": "339e164bab43320ff3214db923c573e28653085d130521f5c7f1e0f1e164bfb3",
+    "src/shell/product/desktop-host.js": "a2b10a045ce23d610936c625eb51901e05f6c83bbe1cf26dacc7d22aee0e13c7",
+    "src/shell/product/rc-composition.js": "cabc96553111491974f0a186d0a96d23746a5586169bcad3a7fddd2052e2fe4",
+      "src/shell/tests/product/a8-05-persistence-contract.test.ts": "b280a71f6f5c1918f943a075b5447726b34854d064acefc69c2bd7c47ae96ee0",
+    "src/shell/tests/product/a8-05-host-persistence.test.ts": "780817214c2790c3ec9a3a9fc47ba56781e6bf5fcbc8f502a2f37aef739f718d",
+    "src/shell/tests/product/run-a8-05-persistence-smoke.mjs": "b7e4a342b3004319d868ce7200498e0576b2bcc0d655cb61b92aaa47224f3845"
+  },
+  "execution": {
+    "developer": {
+      "status": "PASS_DEVELOPER_FAKE_SQLITE_AND_HOST_REOPEN",
+      "checkpoint": "docs/status/a8-05-developer-checkpoint-20260821.json"
+    },
+    "electron_22": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "rc": "NOT_PERFORMED"
+  },
+  "isolation_and_cleanup": {
+    "developer": "Jest temp roots removed by tests",
+    "external": "Use unique user-data/database/evidence roots; remove only after hashes and report validation",
+    "failure": "Preserve the failing evidence root and migration report; never delete or rewrite the A7 source",
+    "system_changes": "NONE"
+  },
+  "operator_notes": [
+    "The fake SQLite driver proves the SqliteDatabase contract and transaction/recovery behavior but does not prove Win7 native better-sqlite3 compatibility.",
+    "Do not run the external kit against the frozen A7 0.1.0-rc.1 directory; copy one immutable A8 candidate and record its candidate_id and full manifest hash.",
+    "A8-05 recovery must not invoke model, Runner, Terminal, Browser or Apply. AWAITING_REVIEW may become foreground only after an explicit user Review action.",
+    "Any unknown version, malformed JSON, sequence gap, reference mismatch, hash drift or raw credential hit is a fail-closed read-only result, never a partial PASS."
+  ]
+}
