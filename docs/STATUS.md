@@ -33,8 +33,14 @@
   IPC 旁路；A9-08B 已关闭事件/审批持久化秘密泄漏、跨 Provider origin 旧 Key 复用、TLS 校验关闭和缺失
   CA 静默忽略；A9-08C 已将正式前台/后台 Shell 接入 D-013 helper，收紧整树回收真实性、双 Stop 和
   窗口销毁前退出裁决。第四批进一步完成 checkpoint v4 目录树哈希/无碰撞快照/undo 单次持久化、跨工作区
-  对话操作拒绝、v2→v4 整体原子迁移与真实 A8 物理库只读白名单导入；Workspace 142、State 269 和 Shell
-  受影响入口/全包回归通过。当前进入 A9-08E 全量验证与第二轮独立审查，尚未构建 WIN7-20。
+  对话操作拒绝、v2→v4（含最终 schema/index 创建）整体原子迁移与真实 A8 物理库只读白名单导入；
+  轮初文件/目录快照不可覆盖、restore swap/旧 checkpoint fail-closed、物理 v4 schema 完整校验、Provider
+  generation 隔离、递归秘密脱敏、崩溃后两阶段 checkpoint 对账和清理不确定事实跨重启闭环。最终开发机
+  7 模块共 1482 tests、docs/diff
+  检查通过。独立审查同时确认锁定的 D-013 v24 Low Integrity/低风险白名单协议不能承载 A9 Full Access，
+  且缺少 envOverlay、真实无 deadline 与 managed ready acknowledgement；该修复需要新 ADR/任务授权
+  `native/helper/**`。安全、进程、checkpoint/状态三路最终独立复核均为 P0/P1/P2=0，授权范围内闭环 PASS；
+  当前状态仍为 `A9_08E_BLOCKED_D013_CONTRACT / FIX_BEFORE_ALPHA`，尚未构建 WIN7-20。
 - 产品负责人已确认
   [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
   和 ADR-0089/ADR-0096；实现任务为 [`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，状态

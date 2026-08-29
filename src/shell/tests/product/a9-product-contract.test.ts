@@ -148,7 +148,7 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
       const diff = runtime.getDiff(turn.result.turnId);
       expect(diff.ok).toBe(true);
       expect(JSON.stringify(diff.diff)).toContain('calc.ts');
-      const undone = runtime.undoTurn(turn.result.turnId);
+      const undone = await runtime.undoTurn(turn.result.turnId);
       expect(undone.ok).toBe(true);
       expect(fs.readFileSync(path.join(env.workspaceRoot, 'calc.ts'), 'utf8')).toContain('a - b');
 

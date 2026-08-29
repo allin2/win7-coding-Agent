@@ -40,6 +40,24 @@ describe('A9-02: BackgroundProcessManager', () => {
     expect(stopped.status).toBe('stopped');
   });
 
+  it('contains a spawned process when durable state persistence fails', async () => {
+    const failing = new BackgroundProcessManager(undefined, (text) => text, () => [], () => {
+      throw new Error('SQLITE_FULL');
+    });
+    try {
+      await expect(failing.start(
+        'bg-persist-failure',
+        'long-running child',
+        process.execPath,
+        ['-e', 'setInterval(() => {}, 1000)'],
+        process.cwd(),
+      )).rejects.toMatchObject({ code: 'A9_BACKGROUND_STATE_PERSIST_FAILED', cleanupConfirmed: true });
+      expect(failing.getActiveCount()).toBe(0);
+    } finally {
+      await failing.cleanupAll();
+    }
+  });
+
   it('holds Windows background work in the D-013 helper until bound cancellation is confirmed', async () => {
     let finish!: (value: any) => void;
     let cancelCount = 0;
@@ -53,10 +71,10 @@ describe('A9-02: BackgroundProcessManager', () => {
           cancelCount += 1;
           const response: NativeHelperExecutionResult = {
             schema_version: 1, type: 'execution_result', requestId: 'bg-helper', status: 'completed',
-            exitCode: 1, executionTimeMs: 20, timedOut: false, canceled: true, outputTruncated: false,
+            exitCode: 1, executionTimeMs: 20, timedOut: false, idleTimedOut: false, canceled: true, outputTruncated: false,
             containmentVerified: true, inputDetached: true,
             hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
-            tokenAudit: { verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, integrityRid: 4096 },
+            tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, userRestrictedSid: true, worldRestrictedSid: true, administratorsRestrictedSid: false, restrictedSidCount: 2, integritySid: 'S-1-16-4096', integrityRid: 4096 },
             stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [],
           };
           finish({ kind: 'response', response });
@@ -196,6 +214,22 @@ describe('A9-02: BackgroundProcessManager', () => {
     expect(poll.stderrDelta).toContain('err-1');
   });
 
+  it('redacts a secret split across background output chunks before poll exposure', async () => {
+    const secret = 'BG-SPLIT-SECRET';
+    manager = new BackgroundProcessManager(
+      undefined,
+      (text) => text.split(secret).join('***redacted***'),
+      () => [secret],
+    );
+    const script = "process.stdout.write('BG-SPLIT-'); setTimeout(() => process.stdout.write('SECRET'), 30)";
+    await manager.start('bg-secret-split', script, process.execPath, ['-e', script], process.cwd());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const poll = manager.poll('bg-secret-split');
+    expect(poll.stdoutDelta).toContain('***redacted***');
+    expect(poll.stdoutDelta).not.toContain(secret);
+  });
+
   it('retains unconfirmed recovered process facts after managed disposal', async () => {
     manager.adoptRecoveredFact('bg-recovered-dispose', {
       pid: process.pid,
@@ -209,6 +243,102 @@ describe('A9-02: BackgroundProcessManager', () => {
     ]);
     expect(manager.getActiveCount()).toBe(1);
     expect(manager.list().map((handle) => handle.handleId)).toEqual(['bg-recovered-dispose']);
+  });
+
+  it('retains an unconfirmed helper cleanup fact across repeated shutdown attempts', async () => {
+    let finish!: (value: any) => void;
+    const completion = new Promise<any>((resolve) => { finish = resolve; });
+    const helperTransport = {
+      invoke: jest.fn(),
+      startManaged: jest.fn(() => ({
+        pid: 7332,
+        completion,
+        cancel: () => finish({ kind: 'cancelled', detail: 'cleanup unconfirmed', cleanupConfirmed: false }),
+      })),
+    };
+    manager = new BackgroundProcessManager(helperTransport as any);
+    const request: NativeHelperRequest = {
+      schema_version: 1, requestId: 'bg-unconfirmed', executable: 'cmd.exe', argv: ['/d', '/s', '/c', 'ping -t 127.0.0.1'],
+      workingDirectory: 'C:\\acceptance', timeoutMs: 60_000, idleTimeoutMs: 60_000,
+      maxOutputSize: 1024, allowNetwork: false, allowedDirectories: [], protectedDirectories: [],
+    };
+    await manager.start('bg-unconfirmed', 'ping', 'cmd.exe', [], 'C:\\acceptance', undefined, request);
+
+    const first = await manager.dispose({ stopManaged: true });
+    const second = await manager.dispose({ stopManaged: true });
+
+    expect(first.leftToSystem).toEqual([expect.stringContaining('helper cleanup unconfirmed')]);
+    expect(second.leftToSystem).toEqual([expect.stringContaining('helper cleanup unconfirmed')]);
+    expect(manager.getActiveCount()).toBe(1);
+    expect(manager.list()).toEqual([expect.objectContaining({ handleId: 'bg-unconfirmed', cleanupRequired: true })]);
+  });
+
+  it('publishes a helper terminal state so products can replace the persisted cleanup_required fact', async () => {
+    let finish!: (value: any) => void;
+    const completion = new Promise<any>((resolve) => { finish = resolve; });
+    const states: any[] = [];
+    const helperTransport = {
+      invoke: jest.fn(),
+      startManaged: jest.fn(() => ({ pid: 7441, completion, cancel: jest.fn() })),
+    };
+    manager = new BackgroundProcessManager(helperTransport as any, undefined, undefined, (handle) => states.push(handle));
+    const request: NativeHelperRequest = {
+      schema_version: 1, requestId: 'bg-natural', executable: 'cmd.exe', argv: ['/c', 'echo ok'],
+      workingDirectory: 'C:\\acceptance', timeoutMs: 60_000, idleTimeoutMs: 60_000,
+      maxOutputSize: 1024, allowNetwork: false, allowedDirectories: [], protectedDirectories: [],
+    };
+    await manager.start('bg-natural', 'echo ok', 'cmd.exe', [], 'C:\\acceptance', undefined, request);
+    finish({
+      kind: 'response',
+      response: {
+        schema_version: 1, type: 'execution_result', requestId: 'bg-natural', status: 'completed',
+        exitCode: 0, executionTimeMs: 20, timedOut: false, canceled: false, outputTruncated: false,
+        containmentVerified: true, inputDetached: true,
+        hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
+        tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, userRestrictedSid: true, worldRestrictedSid: true, administratorsRestrictedSid: false, restrictedSidCount: 2, integritySid: 'S-1-16-4096', integrityRid: 4096 },
+        stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [],
+      },
+    });
+    await completion;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(states).toEqual([
+      expect.objectContaining({ handleId: 'bg-natural', status: 'running', cleanupRequired: true }),
+      expect.objectContaining({ handleId: 'bg-natural', status: 'exited', cleanupRequired: false }),
+    ]);
+  });
+
+  it('persists the running helper fact immediately and rejects contradictory cleanup proof', async () => {
+    let finish!: (value: any) => void;
+    const completion = new Promise<any>((resolve) => { finish = resolve; });
+    const states: any[] = [];
+    const helperTransport = {
+      invoke: jest.fn(),
+      startManaged: jest.fn(() => ({ pid: 7442, completion, cancel: jest.fn() })),
+    };
+    manager = new BackgroundProcessManager(helperTransport as any, undefined, undefined, (handle) => states.push(handle));
+    const request: NativeHelperRequest = {
+      schema_version: 1, requestId: 'bg-contradictory', executable: 'cmd.exe', argv: ['/c', 'echo ok'],
+      workingDirectory: 'C:\\acceptance', timeoutMs: 60_000, idleTimeoutMs: 60_000,
+      maxOutputSize: 1024, allowNetwork: false, allowedDirectories: [], protectedDirectories: [],
+    };
+    await manager.start('bg-contradictory', 'echo ok', 'cmd.exe', [], 'C:\\acceptance', undefined, request);
+    expect(states).toEqual([expect.objectContaining({ status: 'running', cleanupRequired: true, pid: 7442 })]);
+
+    finish({
+      kind: 'response',
+      response: {
+        schema_version: 1, type: 'execution_result', requestId: 'bg-contradictory', status: 'completed',
+        exitCode: 0, executionTimeMs: 20, timedOut: false, canceled: false, outputTruncated: false,
+        containmentVerified: true, inputDetached: true,
+        hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: false },
+        tokenAudit: { source: 'suspended_child_process_token', verified: false, isRestricted: false, tokenType: 'primary', restrictedSidSetVerified: false, userRestrictedSid: false, worldRestrictedSid: false, administratorsRestrictedSid: true, restrictedSidCount: 0, integritySid: 'S-1-16-8192', integrityRid: 4096 },
+        stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [],
+      },
+    });
+    await completion;
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(states[states.length - 1]).toEqual(expect.objectContaining({ status: 'failed', cleanupRequired: true }));
   });
 
   it('never kills a recovered PID without provable process identity', async () => {

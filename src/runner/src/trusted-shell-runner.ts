@@ -20,9 +20,10 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { selectShell, ShellKind } from './shell-detection';
-import { BackgroundProcessManager } from './background-process-manager';
+import { BackgroundProcessHandle, BackgroundProcessManager } from './background-process-manager';
 import { killProcessTree } from './process-cleanup';
 import { HelperTransport } from './native-transport';
+import { decodeNativeHelperBase64, hasCompleteHelperCleanupProof } from './native-protocol';
 
 export interface TrustedShellRequest {
   id?: string;
@@ -82,6 +83,12 @@ export interface TrustedShellRunnerOptions {
   maxLogBytes?: number;
   /** 仅供确定性合同测试覆盖；生产始终使用 process.platform。 */
   platform?: NodeJS.Platform;
+  /** 产品注入的仅内存脱敏器；执行参数仍保留原值，输出/日志投影先脱敏。 */
+  redactText?: (text: string) => string;
+  /** 当前进程见过的秘密值；用于跨 chunk 的原始字节日志脱敏。 */
+  getSensitiveValues?: () => readonly string[];
+  /** Product persistence hook for asynchronous background terminal states. */
+  onBackgroundStateChange?: (handle: BackgroundProcessHandle) => void;
 }
 
 /** 单流原始日志默认上限（1 MiB）。 */
@@ -99,7 +106,14 @@ export class TrustedShellRunner {
     this.platform = options.platform ?? process.platform;
     this.backgroundManager = new BackgroundProcessManager(
       options.helperTransport && this.platform === 'win32' ? options.helperTransport : undefined,
+      (text) => this.redact(text),
+      () => this.options.getSensitiveValues?.() ?? [],
+      (handle) => this.options.onBackgroundStateChange?.(handle),
     );
+  }
+
+  private redact(text: string): string {
+    return this.options.redactText ? this.options.redactText(text) : text;
   }
 
   getBackgroundManager(): BackgroundProcessManager {
@@ -169,7 +183,7 @@ export class TrustedShellRunner {
       let terminationPromise: Promise<{ success: boolean; error?: string; method: string }> | undefined;
       let timeoutTimer: NodeJS.Timeout | undefined;
       let softTimer: NodeJS.Timeout | undefined;
-      const logCapture = new BoundedLogCapture(this.logDir, requestId, this.maxLogBytes);
+      const logCapture = new BoundedLogCapture(this.logDir, requestId, this.maxLogBytes, this.options.getSensitiveValues);
 
       let child: ReturnType<typeof spawn>;
       try {
@@ -201,8 +215,8 @@ export class TrustedShellRunner {
 
         const stdoutDecode = decodeShellBytes(stdoutBuf);
         const stderrDecode = decodeShellBytes(stderrBuf);
-        const { text: stdoutText, truncated: stdoutTruncated } = truncateOutput(stdoutDecode.text, maxOutputBytes, maxOutputLines);
-        const { text: stderrText, truncated: stderrTruncated } = truncateOutput(stderrDecode.text, maxOutputBytes, maxOutputLines);
+        const { text: stdoutText, truncated: stdoutTruncated } = truncateOutput(this.redact(stdoutDecode.text), maxOutputBytes, maxOutputLines);
+        const { text: stderrText, truncated: stderrTruncated } = truncateOutput(this.redact(stderrDecode.text), maxOutputBytes, maxOutputLines);
         const truncated = stdoutTruncated || stderrTruncated || totalStdoutBytes > stdoutBuf.length || totalStderrBytes > stderrBuf.length;
 
         let status: TrustedShellResult['status'] = 'exited';
@@ -341,14 +355,17 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
     maxOutputLines: number,
   ): Promise<TrustedShellResult> {
+    const helperTimeoutMs = request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000;
     const helperRequest = {
       schema_version: 1 as const,
       requestId,
       executable: exe,
       argv: args,
       workingDirectory: cwd,
-      timeoutMs: request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000,
-      idleTimeoutMs: 0,
+      timeoutMs: helperTimeoutMs,
+      // D-013 v24 interprets explicit zero as 1ms. Equal to the total deadline
+      // disables any shorter idle kill while preserving its schema contract.
+      idleTimeoutMs: helperTimeoutMs,
       maxOutputSize: Math.max(maxOutputBytes, 1024),
       allowNetwork: false as const,
       allowedDirectories: [],
@@ -369,13 +386,23 @@ export class TrustedShellRunner {
       };
     }
     const response = transport.response;
-    const stdoutBuf = Buffer.from(response.stdoutBase64, 'base64');
-    const stderrBuf = Buffer.from(response.stderrBase64, 'base64');
+    let stdoutBuf: Buffer;
+    let stderrBuf: Buffer;
+    try {
+      stdoutBuf = decodeNativeHelperBase64(response.stdoutBase64, response.stdoutSize, 'stdoutBase64');
+      stderrBuf = decodeNativeHelperBase64(response.stderrBase64, response.stderrSize, 'stderrBase64');
+    } catch (error) {
+      return {
+        ...mapHelperFailure(String(error), 'protocol_error', false),
+        durationMs: Date.now() - startTime,
+        shell: shellMeta,
+      };
+    }
     const stdoutDecode = decodeShellBytes(stdoutBuf);
     const stderrDecode = decodeShellBytes(stderrBuf);
-    const { text: stdoutText, truncated: outTruncated } = truncateOutput(stdoutDecode.text, maxOutputBytes, maxOutputLines);
-    const { text: stderrText, truncated: errTruncated } = truncateOutput(stderrDecode.text, maxOutputBytes, maxOutputLines);
-    const containmentOk = response.containmentVerified && response.inputDetached;
+    const { text: stdoutText, truncated: outTruncated } = truncateOutput(this.redact(stdoutDecode.text), maxOutputBytes, maxOutputLines);
+    const { text: stderrText, truncated: errTruncated } = truncateOutput(this.redact(stderrDecode.text), maxOutputBytes, maxOutputLines);
+    const containmentOk = hasCompleteHelperCleanupProof(response);
     const status: TrustedShellResult['status'] = response.canceled
       ? 'cancelled'
       : response.timedOut || response.idleTimedOut
@@ -417,6 +444,7 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
   ): Promise<TrustedShellResult> {
     try {
+      const helperTimeoutMs = request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000;
       const helperRequest = this.options.helperTransport && this.platform === 'win32'
         ? {
           schema_version: 1 as const,
@@ -424,8 +452,8 @@ export class TrustedShellRunner {
           executable: exe,
           argv: args,
           workingDirectory: cwd,
-          timeoutMs: request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000,
-          idleTimeoutMs: 0,
+          timeoutMs: helperTimeoutMs,
+          idleTimeoutMs: helperTimeoutMs,
           maxOutputSize: Math.max(maxOutputBytes, 1024),
           allowNetwork: false as const,
           allowedDirectories: [],
@@ -441,7 +469,7 @@ export class TrustedShellRunner {
           status: 'failed',
           exitCode: null,
           stdout: '',
-          stderr: handle.logs.stderr.join('') || 'Background process failed to start (no PID assigned).',
+          stderr: this.redact(handle.logs.stderr.join('')) || 'Background process failed to start (no PID assigned).',
           rawStdoutBytes: 0,
           rawStderrBytes: 0,
           truncated: false,
@@ -475,6 +503,8 @@ export class TrustedShellRunner {
         },
       };
     } catch (err: any) {
+      const spawned = err?.backgroundProcessSpawned === true;
+      const cleanupConfirmed = spawned && err?.cleanupConfirmed === true;
       return {
         schemaVersion: '2.0',
         status: 'failed',
@@ -487,7 +517,17 @@ export class TrustedShellRunner {
         durationMs: Date.now() - startTime,
         shell: shellMeta,
         encoding: 'utf-8',
-        termination: { requested: false, processTreeReaped: true, containment: 'none', detail: 'start rejected before spawn; nothing left running' },
+        termination: {
+          requested: spawned,
+          processTreeReaped: spawned ? cleanupConfirmed : true,
+          containment: spawned && this.platform === 'win32' ? 'job_object' : 'none',
+          detail: spawned
+            ? cleanupConfirmed
+              ? 'process started but state persistence failed; controlled cleanup was confirmed'
+              : 'process started but state persistence failed; cleanup remains unconfirmed'
+            : 'start rejected before spawn; nothing left running',
+        },
+        ...((spawned && !cleanupConfirmed) ? { residueRisk: true } : {}),
         error: String(err?.message || err),
       };
     }
@@ -649,15 +689,20 @@ function truncateOutput(content: string, maxBytes: number, maxLines: number): { 
 
 /** 有界原始日志：按字节上限落盘 stdout/stderr，截断记录在文件尾。 */
 class BoundedLogCapture {
-  private stdoutFd: number | undefined;
-  private stderrFd: number | undefined;
+  private readonly stdoutChunks: Buffer[] = [];
+  private readonly stderrChunks: Buffer[] = [];
   private stdoutWritten = 0;
   private stderrWritten = 0;
   private stdoutTruncated = false;
   private stderrTruncated = false;
   readonly paths: { stdout: string; stderr: string };
 
-  constructor(logDir: string, requestId: string, private readonly maxBytes: number) {
+  constructor(
+    logDir: string,
+    requestId: string,
+    private readonly maxBytes: number,
+    private readonly getSensitiveValues?: () => readonly string[],
+  ) {
     try {
       fs.mkdirSync(logDir, { recursive: true });
     } catch (_err) {
@@ -678,28 +723,20 @@ class BoundedLogCapture {
   }
 
   private append(stream: 'stdout' | 'stderr', chunk: Buffer): void {
-    try {
-      if (stream === 'stdout') {
-        if (this.stdoutFd === undefined) this.stdoutFd = fs.openSync(this.paths.stdout, 'a');
-        this.writeBounded(this.stdoutFd, chunk, 'stdout');
-      } else {
-        if (this.stderrFd === undefined) this.stderrFd = fs.openSync(this.paths.stderr, 'a');
-        this.writeBounded(this.stderrFd, chunk, 'stderr');
-      }
-    } catch (_err) {
-      // 日志写失败不能影响命令执行；调用方仍拿到字节计数与截断事实。
-    }
+    this.writeBounded(chunk, stream);
   }
 
-  private writeBounded(fd: number, chunk: Buffer, stream: 'stdout' | 'stderr'): void {
+  private writeBounded(chunk: Buffer, stream: 'stdout' | 'stderr'): void {
     const written = stream === 'stdout' ? this.stdoutWritten : this.stderrWritten;
-    if (written >= this.maxBytes) {
+    const overlap = maxSensitiveVariantBytes(this.getSensitiveValues?.() ?? []);
+    const captureLimit = this.maxBytes + overlap;
+    if (written >= captureLimit) {
       if (stream === 'stdout') this.stdoutTruncated = true;
       else this.stderrTruncated = true;
       return;
     }
-    const slice = written + chunk.length > this.maxBytes ? chunk.subarray(0, this.maxBytes - written) : chunk;
-    fs.writeSync(fd, slice);
+    const slice = written + chunk.length > captureLimit ? chunk.subarray(0, captureLimit - written) : chunk;
+    (stream === 'stdout' ? this.stdoutChunks : this.stderrChunks).push(Buffer.from(slice));
     if (stream === 'stdout') {
       this.stdoutWritten += slice.length;
       if (written + chunk.length > this.maxBytes) this.stdoutTruncated = true;
@@ -710,19 +747,99 @@ class BoundedLogCapture {
   }
 
   finish(): void {
-    for (const [fd, stream] of [[this.stdoutFd, 'stdout'], [this.stderrFd, 'stderr']] as Array<[number | undefined, 'stdout' | 'stderr']>) {
-      if (fd === undefined) continue;
+    for (const stream of ['stdout', 'stderr'] as const) {
+      const chunks = stream === 'stdout' ? this.stdoutChunks : this.stderrChunks;
+      if (chunks.length === 0) continue;
       const truncated = stream === 'stdout' ? this.stdoutTruncated : this.stderrTruncated;
-      if (truncated) {
-        try {
-          fs.writeSync(fd, `\n[raw log truncated at ${this.maxBytes} bytes]`);
-        } catch (_err) { /* best effort */ }
-      }
       try {
-        fs.closeSync(fd);
+        let content = redactSensitiveBytes(Buffer.concat(chunks), this.getSensitiveValues?.() ?? []);
+        if (content.length > this.maxBytes) content = content.subarray(0, this.maxBytes);
+        if (truncated) content = Buffer.concat([content, Buffer.from(`\n[raw log truncated at ${this.maxBytes} bytes]`, 'utf8')]);
+        fs.writeFileSync(this.paths[stream], content);
       } catch (_err) { /* best effort */ }
     }
-    this.stdoutFd = undefined;
-    this.stderrFd = undefined;
+    this.stdoutChunks.length = 0;
+    this.stderrChunks.length = 0;
   }
+}
+
+function replaceAllBytes(content: Buffer, needle: Buffer, replacement: Buffer): Buffer {
+  if (needle.length === 0) return content;
+  const parts: Buffer[] = [];
+  let cursor = 0;
+  let found = content.indexOf(needle, cursor);
+  if (found < 0) return content;
+  while (found >= 0) {
+    parts.push(content.subarray(cursor, found), replacement);
+    cursor = found + needle.length;
+    found = content.indexOf(needle, cursor);
+  }
+  parts.push(content.subarray(cursor));
+  return Buffer.concat(parts);
+}
+
+function redactSensitiveBytes(content: Buffer, secrets: readonly string[]): Buffer {
+  let output = content;
+  for (const secret of secrets) {
+    if (typeof secret !== 'string' || secret.length === 0) continue;
+    const values = sensitiveTextVariants(secret);
+    for (const value of values) {
+      output = replaceAllBytes(output, Buffer.from(value, 'utf8'), Buffer.from('***redacted***', 'utf8'));
+      output = replaceAllBytes(output, Buffer.from(value, 'utf16le'), Buffer.from('***redacted***', 'utf16le'));
+    }
+    const base64 = Buffer.from(secret, 'utf8').toString('base64');
+    const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+    for (const value of [secret, base64, base64.replace(/=+$/g, ''), base64url, base64url.replace(/=+$/g, '')]) {
+      output = replacePercentEquivalentBytes(output, value, false);
+      output = replacePercentEquivalentBytes(output, value, true);
+    }
+  }
+  return output;
+}
+
+function replacePercentEquivalentBytes(content: Buffer, value: string, utf16le: boolean): Buffer {
+  const encoded = encodeURIComponent(value);
+  let pattern = '';
+  let cursor = 0;
+  const unit = (source: string) => source.split('').map((ch) => escapeRegex(ch) + (utf16le ? '\\x00' : '')).join('');
+  for (const match of encoded.matchAll(/%([0-9A-F]{2})/g)) {
+    const index = match.index ?? 0;
+    pattern += unit(encoded.slice(cursor, index));
+    const hex = match[1];
+    const digit = (ch: string) => /[a-f]/i.test(ch) ? `[${ch.toLowerCase()}${ch.toUpperCase()}]` : ch;
+    const percentToken = unit('%') + digit(hex[0]) + (utf16le ? '\\x00' : '') + digit(hex[1]) + (utf16le ? '\\x00' : '');
+    pattern += hex === '20' ? `(?:${percentToken}|${unit('+')})` : percentToken;
+    cursor = index + match[0].length;
+  }
+  pattern += unit(encoded.slice(cursor));
+  if (!pattern || pattern === unit(encoded)) return content;
+  const raw = content.toString('latin1');
+  const replacement = Buffer.from('***redacted***', utf16le ? 'utf16le' : 'utf8').toString('latin1');
+  return Buffer.from(raw.replace(new RegExp(pattern, 'g'), replacement), 'latin1');
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function sensitiveTextVariants(secret: string): string[] {
+  const base64 = Buffer.from(secret, 'utf8').toString('base64');
+  const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+  const baseEncodings = [base64, base64.replace(/=+$/g, ''), base64url, base64url.replace(/=+$/g, '')];
+  const encodeVariants = (value: string): string[] => {
+    const percent = encodeURIComponent(value);
+    return [percent, percent.toLowerCase(), percent.toUpperCase(), percent.replace(/%20/gi, '+')];
+  };
+  return Array.from(new Set([secret, ...baseEncodings, ...encodeVariants(secret), ...baseEncodings.flatMap(encodeVariants)]));
+}
+
+function maxSensitiveVariantBytes(secrets: readonly string[]): number {
+  let max = 0;
+  for (const secret of secrets) {
+    if (typeof secret !== 'string' || secret.length === 0) continue;
+    for (const value of sensitiveTextVariants(secret)) {
+      max = Math.max(max, Buffer.byteLength(value, 'utf8'), Buffer.byteLength(value, 'utf16le'));
+    }
+  }
+  return max;
 }

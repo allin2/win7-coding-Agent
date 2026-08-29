@@ -8,9 +8,10 @@
  */
 
 import { ChildProcess, spawn } from 'child_process';
+import { StringDecoder } from 'string_decoder';
 import { killProcessTree } from './process-cleanup';
 import { HelperTransport, HelperTransportResult, ManagedHelperInvocation } from './native-transport';
-import { NativeHelperRequest } from './native-protocol';
+import { decodeNativeHelperBase64, hasCompleteHelperCleanupProof, NativeHelperRequest } from './native-protocol';
 
 export interface BackgroundProcessHandle {
   handleId: string;
@@ -25,6 +26,8 @@ export interface BackgroundProcessHandle {
   droppedLogLines: { stdout: number; stderr: number };
   /** 重启后恢复的探测事实：PID 存活但可能已被其他进程复用。 */
   pidReusePossible?: boolean;
+  /** Helper 已结束但 Job Object 清理尚未证实时，仍须向产品暴露 Stop 重试入口。 */
+  cleanupRequired?: boolean;
 }
 
 export interface PollResult {
@@ -43,10 +46,22 @@ export interface ProbeFact {
   command: string;
   cwd: string;
   startTime: string;
+  cleanupRequired?: boolean;
 }
 
 /** 每流日志行数上限；超出后丢弃最旧行并计数。 */
 const MAX_LOG_LINES = 2000;
+
+function backgroundSensitiveVariants(secret: string): string[] {
+  if (typeof secret !== 'string' || secret.length === 0) return [];
+  const base64 = Buffer.from(secret, 'utf8').toString('base64');
+  const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+  const base = [secret, base64, base64.replace(/=+$/g, ''), base64url, base64url.replace(/=+$/g, '')];
+  return Array.from(new Set(base.flatMap((value) => {
+    const percent = encodeURIComponent(value);
+    return [value, percent, percent.toLowerCase(), percent.toUpperCase(), percent.replace(/%20/gi, '+')];
+  })));
+}
 
 export class BackgroundProcessManager {
   private static readonly MAX_PROCESSES = 3;
@@ -59,9 +74,35 @@ export class BackgroundProcessManager {
     recoveredFact: boolean;
     helperInvocation?: ManagedHelperInvocation;
     helperCleanupConfirmed?: boolean;
+    pendingLogText: { stdout: string; stderr: string };
+    logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
   }>();
 
-  constructor(private readonly helperTransport?: HelperTransport) {}
+  constructor(
+    private readonly helperTransport?: HelperTransport,
+    private readonly redactText: (text: string) => string = (text) => text,
+    private readonly getSensitiveValues: () => readonly string[] = () => [],
+    private readonly onStateChange: (handle: BackgroundProcessHandle) => void = () => {},
+  ) {}
+
+  private notifyStateChange(handle: BackgroundProcessHandle): Error | undefined {
+    try {
+      this.onStateChange({ ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } });
+      return undefined;
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  private containAfterStatePersistenceFailure(handle: BackgroundProcessHandle, error: Error): void {
+    handle.cleanupRequired = true;
+    this.appendRedactedText(handle, 'stderr', `managed process state persistence failed: ${error.message}`);
+    if (handle.status === 'running' || handle.status === 'starting') {
+      void this.stop(handle.handleId).catch((stopError) => {
+        this.appendRedactedText(handle, 'stderr', `managed process cleanup after persistence failure was not confirmed: ${String(stopError)}`);
+      });
+    }
+  }
 
   /**
    * 启动托管后台进程。异步方法会等到首个事件循环 tick，使同步 spawn 错误
@@ -115,30 +156,53 @@ export class BackgroundProcessManager {
       lastPolledStdoutIdx: 0,
       lastPolledStderrIdx: 0,
       recoveredFact: false,
+      pendingLogText: { stdout: '', stderr: '' },
+      logDecoders: { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') },
     };
     this.processes.set(handleId, entry);
 
     child.stdout?.on('data', (chunk: Buffer) => {
-      this.appendLog(handle.logs.stdout, 'stdout', handle, chunk);
+      this.appendLog(entry, 'stdout', chunk);
     });
     child.stderr?.on('data', (chunk: Buffer) => {
-      this.appendLog(handle.logs.stderr, 'stderr', handle, chunk);
+      this.appendLog(entry, 'stderr', chunk);
     });
     child.on('error', (_err) => {
       handle.status = 'failed';
+      const persistenceError = this.notifyStateChange(handle);
+      if (persistenceError) this.containAfterStatePersistenceFailure(handle, persistenceError);
     });
     child.on('close', (code) => {
+      this.flushPendingLog(entry, 'stdout');
+      this.flushPendingLog(entry, 'stderr');
       // 只把真正退出的进程标记为 exited；stopped/failed 不被覆盖。
       if (handle.status === 'running' || handle.status === 'starting') {
         handle.status = 'exited';
       }
       handle.exitCode = code;
+      const persistenceError = this.notifyStateChange(handle);
+      if (persistenceError) this.containAfterStatePersistenceFailure(handle, persistenceError);
     });
 
     // 等一个 macrotask 让 spawn error 事件有机会触发。
     await new Promise<void>((resolve) => setTimeout(resolve, 25));
     if (handle.status === 'starting' && child.pid !== undefined) {
       handle.status = 'running';
+      const persistenceError = this.notifyStateChange(handle);
+      if (persistenceError) {
+        handle.cleanupRequired = true;
+        let cleanupConfirmed = false;
+        try {
+          const stopped = await this.stop(handleId);
+          cleanupConfirmed = stopped.status === 'stopped' || stopped.status === 'exited';
+          if (cleanupConfirmed) handle.cleanupRequired = false;
+        } catch (_stopError) { /* reported on the structured start error */ }
+        throw Object.assign(new Error(`A9_BACKGROUND_STATE_PERSIST_FAILED: ${persistenceError.message}`), {
+          code: 'A9_BACKGROUND_STATE_PERSIST_FAILED',
+          backgroundProcessSpawned: true,
+          cleanupConfirmed,
+        });
+      }
     }
     return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
   }
@@ -163,6 +227,7 @@ export class BackgroundProcessManager {
       exitCode: null,
       logs: { stdout: [], stderr: [] },
       droppedLogLines: { stdout: 0, stderr: 0 },
+      cleanupRequired: true,
     };
     const entry = {
       handle,
@@ -172,6 +237,8 @@ export class BackgroundProcessManager {
       recoveredFact: false,
       helperInvocation: invocation,
       helperCleanupConfirmed: false,
+      pendingLogText: { stdout: '', stderr: '' },
+      logDecoders: { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') },
     };
     this.processes.set(handleId, entry);
     invocation.completion.then((result) => this.finishHelperInvocation(entry, result));
@@ -182,38 +249,117 @@ export class BackgroundProcessManager {
         code: 'A9_BACKGROUND_HELPER_START_FAILED',
       });
     }
+    const persistenceError = this.notifyStateChange(handle);
+    if (persistenceError) {
+      handle.cleanupRequired = true;
+      let cleanupConfirmed = false;
+      try {
+        const stopped = await this.stop(handleId);
+        cleanupConfirmed = stopped.status === 'stopped' || stopped.status === 'exited';
+        if (cleanupConfirmed) handle.cleanupRequired = false;
+      } catch (_stopError) { /* reported on the structured start error */ }
+      throw Object.assign(new Error(`A9_BACKGROUND_STATE_PERSIST_FAILED: ${persistenceError.message}`), {
+        code: 'A9_BACKGROUND_STATE_PERSIST_FAILED',
+        backgroundProcessSpawned: true,
+        cleanupConfirmed,
+      });
+    }
     return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
   }
 
   private finishHelperInvocation(
-    entry: { handle: BackgroundProcessHandle; helperCleanupConfirmed?: boolean },
+    entry: {
+      handle: BackgroundProcessHandle;
+      helperCleanupConfirmed?: boolean;
+      pendingLogText: { stdout: string; stderr: string };
+      logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
+    },
     result: HelperTransportResult,
   ): void {
     const handle = entry.handle;
     if (result.kind !== 'response' || result.response.type !== 'execution_result') {
       entry.helperCleanupConfirmed = result.kind !== 'response' && result.cleanupConfirmed;
+      handle.cleanupRequired = !entry.helperCleanupConfirmed;
       handle.status = 'failed';
       const detail = result.kind !== 'response'
         ? result.detail
         : result.response.type === 'error' ? result.response.message : 'unexpected helper response';
-      this.appendLog(handle.logs.stderr, 'stderr', handle, Buffer.from(
+      this.appendLog(entry, 'stderr', Buffer.from(
         detail,
         'utf8',
       ));
+      this.flushPendingLog(entry, 'stderr');
+      this.notifyStateChange(handle);
       return;
     }
     const response = result.response;
-    entry.helperCleanupConfirmed = response.containmentVerified && response.inputDetached;
-    this.appendLog(handle.logs.stdout, 'stdout', handle, Buffer.from(response.stdoutBase64, 'base64'));
-    this.appendLog(handle.logs.stderr, 'stderr', handle, Buffer.from(response.stderrBase64, 'base64'));
+    entry.helperCleanupConfirmed = hasCompleteHelperCleanupProof(response);
+    handle.cleanupRequired = !entry.helperCleanupConfirmed;
+    try {
+      this.appendLog(entry, 'stdout', decodeNativeHelperBase64(response.stdoutBase64, response.stdoutSize, 'stdoutBase64'));
+      this.appendLog(entry, 'stderr', decodeNativeHelperBase64(response.stderrBase64, response.stderrSize, 'stderrBase64'));
+    } catch (error) {
+      entry.helperCleanupConfirmed = false;
+      handle.cleanupRequired = true;
+      handle.status = 'failed';
+      this.appendLog(entry, 'stderr', Buffer.from(String(error), 'utf8'));
+      this.flushPendingLog(entry, 'stderr');
+      this.notifyStateChange(handle);
+      return;
+    }
+    this.flushPendingLog(entry, 'stdout');
+    this.flushPendingLog(entry, 'stderr');
     handle.exitCode = response.exitCode;
     handle.status = entry.helperCleanupConfirmed
-      ? response.canceled ? 'stopped' : 'exited'
+      ? response.canceled ? 'stopped' : response.timedOut || response.idleTimedOut ? 'failed' : 'exited'
       : 'failed';
+    this.notifyStateChange(handle);
   }
 
-  private appendLog(target: string[], stream: 'stdout' | 'stderr', handle: BackgroundProcessHandle, chunk: Buffer): void {
-    const text = chunk.toString('utf8');
+  private appendLog(
+    entry: {
+      handle: BackgroundProcessHandle;
+      pendingLogText: { stdout: string; stderr: string };
+      logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
+    },
+    stream: 'stdout' | 'stderr',
+    chunk: Buffer,
+  ): void {
+    const variants = this.getSensitiveValues().flatMap(backgroundSensitiveVariants);
+    const maxVariantLength = variants.reduce((max, value) => Math.max(max, value.length), 0);
+    const combined = entry.pendingLogText[stream] + entry.logDecoders[stream].write(chunk);
+    let safeLength = maxVariantLength > 1 ? Math.max(0, combined.length - maxVariantLength + 1) : combined.length;
+    if (safeLength > 0 && variants.length > 0) {
+      const prefix = combined.slice(0, safeLength);
+      let overlap = 0;
+      for (const variant of variants) {
+        for (let size = Math.min(variant.length - 1, prefix.length); size > overlap; size -= 1) {
+          if (prefix.endsWith(variant.slice(0, size))) { overlap = size; break; }
+        }
+      }
+      safeLength -= overlap;
+    }
+    entry.pendingLogText[stream] = combined.slice(safeLength);
+    this.appendRedactedText(entry.handle, stream, combined.slice(0, safeLength));
+  }
+
+  private flushPendingLog(
+    entry: {
+      handle: BackgroundProcessHandle;
+      pendingLogText: { stdout: string; stderr: string };
+      logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
+    },
+    stream: 'stdout' | 'stderr',
+  ): void {
+    const text = entry.pendingLogText[stream] + entry.logDecoders[stream].end();
+    entry.pendingLogText[stream] = '';
+    this.appendRedactedText(entry.handle, stream, text);
+  }
+
+  private appendRedactedText(handle: BackgroundProcessHandle, stream: 'stdout' | 'stderr', raw: string): void {
+    if (!raw) return;
+    const target = handle.logs[stream];
+    const text = this.redactText(raw);
     for (const line of text.split('\n')) {
       target.push(line);
       if (target.length > MAX_LOG_LINES) {
@@ -268,18 +414,25 @@ export class BackgroundProcessManager {
     }
 
     const { handle, child } = entry;
-    if (handle.status === 'running' || handle.status === 'starting') {
-      if (entry.helperInvocation) {
+    if (entry.recoveredFact && handle.cleanupRequired === true) {
+      throw Object.assign(new Error(
+        `后台进程 ${handleId} 是重启前遗留的未确认 D-013 清理事实；应用不会把 helper PID 消失误判为进程树已清理。请完成独立残留检查。`,
+      ), { code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED' });
+    }
+    if (entry.helperInvocation && entry.helperCleanupConfirmed !== true) {
+      if (handle.status === 'running' || handle.status === 'starting') {
         entry.helperInvocation.cancel();
         await entry.helperInvocation.completion;
-        const terminalStatus = handle.status as BackgroundProcessHandle['status'];
-        if (!entry.helperCleanupConfirmed || (terminalStatus !== 'stopped' && terminalStatus !== 'exited')) {
-          throw Object.assign(new Error(`后台进程 ${handleId} 的 D-013 Job Object 清理无法确认。`), {
-            code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED',
-          });
-        }
-        return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
       }
+      const terminalStatus = handle.status as BackgroundProcessHandle['status'];
+      if (!entry.helperCleanupConfirmed || (terminalStatus !== 'stopped' && terminalStatus !== 'exited')) {
+        throw Object.assign(new Error(`后台进程 ${handleId} 的 D-013 Job Object 清理无法确认。`), {
+          code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED',
+        });
+      }
+      return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
+    }
+    if (handle.status === 'running' || handle.status === 'starting') {
       if (entry.recoveredFact) {
         if (!handle.pid || !BackgroundProcessManager.probeProcessAlive(handle.pid)) {
           handle.status = 'exited';
@@ -326,6 +479,7 @@ export class BackgroundProcessManager {
       logs: { stdout: [], stderr: [] },
       droppedLogLines: { stdout: 0, stderr: 0 },
       pidReusePossible: alive,
+      ...(fact.cleanupRequired === true ? { cleanupRequired: true } : {}),
     };
     this.processes.set(handleId, {
       handle,
@@ -333,6 +487,8 @@ export class BackgroundProcessManager {
       lastPolledStdoutIdx: 0,
       lastPolledStderrIdx: 0,
       recoveredFact: true,
+      pendingLogText: { stdout: '', stderr: '' },
+      logDecoders: { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') },
     });
     return { ...handle };
   }
@@ -360,7 +516,17 @@ export class BackgroundProcessManager {
   }
 
   getActiveCount(): number {
-    return Array.from(this.processes.values()).filter((e) => e.handle.status === 'running' || e.handle.status === 'starting').length;
+    return Array.from(this.processes.values()).filter((e) => this.requiresCleanupAttention(e)).length;
+  }
+
+  private requiresCleanupAttention(entry: {
+    handle: BackgroundProcessHandle;
+    helperInvocation?: ManagedHelperInvocation;
+    helperCleanupConfirmed?: boolean;
+  }): boolean {
+    return entry.handle.status === 'running' || entry.handle.status === 'starting'
+      || entry.handle.cleanupRequired === true
+      || Boolean(entry.helperInvocation && entry.helperCleanupConfirmed !== true);
   }
 
   /**
@@ -374,10 +540,12 @@ export class BackgroundProcessManager {
     if (options.stopManaged) {
       for (const [id, entry] of this.processes.entries()) {
         const status = entry.handle.status;
-        if ((status === 'running' || status === 'starting') && entry.recoveredFact) {
+        if (entry.handle.cleanupRequired === true && entry.recoveredFact) {
+          leftToSystem.push(`${id} (recovered helper cleanup remains unconfirmed)`);
+        } else if ((status === 'running' || status === 'starting') && entry.recoveredFact) {
           // 重启恢复的 PID 可能已复用；应用退出不能代替用户确认去杀未知进程。
           leftToSystem.push(`${id} (recovered PID fact requires explicit stop confirmation)`);
-        } else if ((status === 'running' || status === 'starting') && entry.helperInvocation) {
+        } else if (entry.helperInvocation && entry.helperCleanupConfirmed !== true) {
           try {
             await this.stop(id);
             stopped.push(id);
@@ -403,7 +571,7 @@ export class BackgroundProcessManager {
       }
     }
     for (const [id, entry] of this.processes.entries()) {
-      const active = entry.handle.status === 'running' || entry.handle.status === 'starting';
+      const active = this.requiresCleanupAttention(entry);
       // stopManaged=false 是用户明确选择“留给系统”，因此可以忘记句柄；
       // stopManaged=true 时只有已终止项可移除，残留事实必须继续可见。
       if (!options.stopManaged || !active) this.processes.delete(id);

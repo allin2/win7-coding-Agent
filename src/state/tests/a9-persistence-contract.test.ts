@@ -111,6 +111,29 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(fs.existsSync(`${env.dbPath}-shm`)).toBe(false);
   });
 
+  it('fails closed when A9 business tables exist without schema metadata', () => {
+    const raw = new Database(env.dbPath);
+    raw.exec(`
+      CREATE TABLE a9_turns (
+        turn_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','cancelled','interrupted')),
+        outcome_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_turns VALUES ('legacy-turn', 'task', 'session', 'blocked', '{}',
+        '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+    `);
+    raw.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    const check = new Database(env.dbPath, { readonly: true });
+    expect(check.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a9_meta'").get()).toBeUndefined();
+    check.close();
+  });
+
   it.each([1, 2])('backs up and atomically migrates a v%s database so failed turns are truthful and existing rows survive', (legacyVersion) => {
     const v2 = new Database(env.dbPath);
     v2.exec(`
@@ -247,7 +270,7 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
       INSERT INTO a9_turns VALUES ('turn-preserved', 'task', 'session', 'blocked', '{}',
         '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
       CREATE TABLE a9_sessions (
-        session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, title TEXT,
+        broken_session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, title TEXT,
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}'
       );
     `);
@@ -262,6 +285,36 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(turnSql).not.toContain("'failed'");
     expect(check.prepare("SELECT status FROM a9_turns WHERE turn_id='turn-preserved'").get()).toEqual({ status: 'blocked' });
     expect(check.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a9_turns_pre_v3'").get()).toBeUndefined();
+    check.close();
+  });
+
+  it('also rolls back migration when final schema creation fails after the version steps', () => {
+    const legacy = new Database(env.dbPath);
+    legacy.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, 2, '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+      CREATE TABLE a9_turns (
+        turn_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','cancelled','interrupted')),
+        outcome_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_turns VALUES ('turn-preserved', 'task', 'session', 'blocked', '{}',
+        '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+      CREATE TABLE a9_events (broken TEXT NOT NULL);
+    `);
+    legacy.close();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('diagnostics');
+
+    const check = new Database(env.dbPath, { readonly: true });
+    expect(check.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get()).toEqual({ schema_version: 2 });
+    const turnSql = (check.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='a9_turns'").get() as any).sql;
+    expect(turnSql).not.toContain("'failed'");
+    expect(check.prepare("SELECT status FROM a9_turns WHERE turn_id='turn-preserved'").get()).toEqual({ status: 'blocked' });
     check.close();
   });
 
@@ -281,9 +334,21 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     // 构造一个带 A8 表的旧库。
     const a8db = new Database(env.dbPath);
     a8db.exec(`
-      CREATE TABLE a8_workspaces (workspace_path TEXT PRIMARY KEY, created_at TEXT NOT NULL);
-      CREATE TABLE a8_sessions (session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL);
-      INSERT INTO a8_workspaces VALUES ('C:/proj/legacy', '2026-01-01T00:00:00.000Z');
+      CREATE TABLE a8_workspaces (
+        workspace_id TEXT PRIMARY KEY,
+        schema_version INTEGER NOT NULL CHECK(schema_version = 1),
+        canonical_path TEXT NOT NULL,
+        comparison_key TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_opened_at TEXT,
+        archived_at TEXT
+      );
+      CREATE TABLE a8_sessions (session_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL);
+      INSERT INTO a8_workspaces VALUES (
+        'workspace-legacy', 1, 'C:/proj/legacy', 'c:/proj/legacy', 'legacy',
+        '2026-01-01T00:00:00.000Z', NULL, NULL
+      );
     `);
     a8db.close();
 
@@ -302,10 +367,22 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     fs.mkdirSync(path.dirname(a8Path), { recursive: true });
     const a8 = new Database(a8Path);
     a8.exec(`
-      CREATE TABLE a8_workspaces (workspace_path TEXT PRIMARY KEY, created_at TEXT NOT NULL);
-      CREATE TABLE a8_sessions (session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, provider_secret TEXT);
-      INSERT INTO a8_workspaces VALUES ('C:/physical/a8', '2026-01-01T00:00:00.000Z');
-      INSERT INTO a8_sessions VALUES ('legacy-secret-session', 'C:/physical/a8', 'DO_NOT_IMPORT');
+      CREATE TABLE a8_workspaces (
+        workspace_id TEXT PRIMARY KEY,
+        schema_version INTEGER NOT NULL CHECK(schema_version = 1),
+        canonical_path TEXT NOT NULL,
+        comparison_key TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_opened_at TEXT,
+        archived_at TEXT
+      );
+      CREATE TABLE a8_sessions (session_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, provider_secret TEXT);
+      INSERT INTO a8_workspaces VALUES (
+        'workspace-physical', 1, 'C:/physical/a8', 'c:/physical/a8', 'physical',
+        '2026-01-01T00:00:00.000Z', NULL, NULL
+      );
+      INSERT INTO a8_sessions VALUES ('legacy-secret-session', 'workspace-physical', 'DO_NOT_IMPORT');
     `);
     a8.close();
     const before = sha256(a8Path);
@@ -329,6 +406,172 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(outcome.importedA8Workspaces).toBe(1);
     expect(outcome.manager.getWorkspaceMode('C:/physical/a8')).toBe('review');
     expect(outcome.manager.db.prepare("SELECT session_id FROM a9_sessions WHERE session_id='legacy-secret-session'").get()).toBeUndefined();
+  });
+
+  it('fails closed when an A8-looking physical database does not match the formal workspace schema', () => {
+    const a8Path = path.join(env.dataRoot, 'state', 'agent-events-v2.db');
+    fs.mkdirSync(path.dirname(a8Path), { recursive: true });
+    const malformed = new Database(a8Path);
+    malformed.exec('CREATE TABLE a8_workspaces (workspace_path TEXT PRIMARY KEY)');
+    malformed.close();
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath,
+      a8DatabasePath: a8Path,
+      openDatabase: openReal,
+      dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toMatch(/A8 workspace schema mismatch/);
+    expect(fs.existsSync(env.dbPath)).toBe(false);
+  });
+
+  it('rejects an A8 table that has the right names but loses PK, CHECK or UNIQUE identity constraints', () => {
+    const a8Path = path.join(env.dataRoot, 'state', 'agent-events-v2.db');
+    fs.mkdirSync(path.dirname(a8Path), { recursive: true });
+    const malformed = new Database(a8Path);
+    malformed.exec(`
+      CREATE TABLE a8_workspaces (
+        workspace_id TEXT,
+        schema_version INTEGER NOT NULL,
+        canonical_path TEXT NOT NULL,
+        comparison_key TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_opened_at TEXT,
+        archived_at TEXT
+      );
+      INSERT INTO a8_workspaces VALUES
+        ('one', 1, 'C:/Foo', 'c:/foo', 'one', '2026-01-01T00:00:00.000Z', NULL, NULL),
+        ('two', 1, 'c:/foo', 'c:/foo', 'two', '2026-01-01T00:00:00.000Z', NULL, NULL);
+    `);
+    malformed.close();
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath,
+      a8DatabasePath: a8Path,
+      openDatabase: openReal,
+      dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toMatch(/A8 workspace schema mismatch/);
+    expect(fs.existsSync(env.dbPath)).toBe(false);
+  });
+
+  it('fails closed on a partial physical v4 schema before any write', () => {
+    const created = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(created.status).toBe('ready');
+    if (created.status !== 'ready') return;
+    created.manager.db.close();
+    const raw = new Database(env.dbPath);
+    raw.pragma('journal_mode = DELETE');
+    raw.exec(`
+      DROP TABLE a9_sessions;
+      CREATE TABLE a9_sessions (workspace_path TEXT, state TEXT, last_activated_at TEXT);
+    `);
+    raw.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toMatch(/a9_sessions.*missing columns/);
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+  });
+
+  it('fails closed when a physical v4 approval table has columns but loses its identity and decision constraints', () => {
+    const created = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(created.status).toBe('ready');
+    if (created.status !== 'ready') return;
+    created.manager.db.close();
+    const raw = new Database(env.dbPath);
+    raw.pragma('journal_mode = DELETE');
+    raw.exec(`
+      DROP TABLE a9_approvals;
+      CREATE TABLE a9_approvals (
+        approval_id TEXT,
+        session_id TEXT NOT NULL,
+        turn_id TEXT,
+        tool_name TEXT NOT NULL,
+        binding_json TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        decided_at TEXT,
+        created_at TEXT NOT NULL
+      );
+    `);
+    raw.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toMatch(/a9_approvals.*primary key/);
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+  });
+
+  it('fails closed when an explicit A8 database path points to the wrong database', () => {
+    const a8Path = path.join(env.dataRoot, 'not-a8.db');
+    const wrong = new Database(a8Path);
+    wrong.exec('CREATE TABLE unrelated (id INTEGER PRIMARY KEY)');
+    wrong.close();
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath,
+      a8DatabasePath: a8Path,
+      openDatabase: openReal,
+      dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(fs.existsSync(env.dbPath)).toBe(false);
+  });
+
+  it('fails closed when an explicit A8 database path does not exist', () => {
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath,
+      a8DatabasePath: path.join(env.dataRoot, 'missing-a8.db'),
+      openDatabase: openReal,
+      dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toMatch(/does not exist/);
+    expect(fs.existsSync(env.dbPath)).toBe(false);
+  });
+
+  it.each([
+    ['unsupported schema version', 99, 'C:/valid/path', 'c:/valid/path'],
+    ['wrong comparison key', 1, 'C:/valid/path', 'wrong-key'],
+    ['relative canonical path', 1, 'relative/path', 'relative/path'],
+  ])('rejects an A8 workspace row with %s and rolls back embedded A9 initialization', (_label, schemaVersion, canonicalPath, comparisonKey) => {
+    const a8 = new Database(env.dbPath);
+    a8.pragma('journal_mode = DELETE');
+    a8.exec(`
+      CREATE TABLE a8_workspaces (
+        workspace_id TEXT PRIMARY KEY,
+        schema_version INTEGER NOT NULL,
+        canonical_path TEXT NOT NULL,
+        comparison_key TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_opened_at TEXT,
+        archived_at TEXT
+      );
+    `);
+    a8.prepare(`INSERT INTO a8_workspaces VALUES ('bad-row', ?, ?, ?, 'bad', '2026-01-01T00:00:00.000Z', NULL, NULL)`)
+      .run(schemaVersion, canonicalPath, comparisonKey);
+    a8.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    const check = new Database(env.dbPath, { readonly: true });
+    expect(check.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a9_meta'").get()).toBeUndefined();
+    check.close();
   });
 
   it('marks active tasks/turns/runs interrupted on restart without replay', () => {
@@ -628,5 +871,23 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(facts).toHaveLength(1);
     expect(facts[0].pid).toBe(4321);
     expect(facts[0].pidReusePossible).toBe(true);
+
+    manager.recordManagedProcess({
+      handleId: 'bg-cleanup-required',
+      workspacePath: '/ws',
+      pid: 9876,
+      command: 'managed helper command',
+      cwd: '/ws',
+      startedAt: new Date().toISOString(),
+      lastProbeStatus: 'failed',
+      cleanupRequired: true,
+    });
+    expect(manager.listManagedProcesses('/ws')).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        handleId: 'bg-cleanup-required',
+        lastProbeStatus: 'cleanup_required',
+        cleanupRequired: true,
+      }),
+    ]));
   });
 });

@@ -100,6 +100,15 @@ describe('A9-05: git command classification', () => {
     expect(classifyGitCommand('npm test')).toBeNull();
   });
 
+  it.each([
+    'cmd.exe /v:on /d /s /c "set G=git&!G! p^ush origin main"',
+    'powershell.exe -NoProfile -Command "$g=\'git\'; & $g p`ush origin main"',
+    'powershell.exe -NoProfile -Command "$env:G=\'git\'; & $env:G push origin main"',
+    'powershell.exe -NoProfile -Command "${env:G}=\'git\'; & ${env:G} push origin main"',
+  ])('fails closed on escaped or environment-variable git push: %s', (command) => {
+    expect(classifyGitCommand(command)?.category).toBe('always_confirm');
+  });
+
   it('invalidates approvals when parameters change', () => {
     const first = classifyGitCommand('git push origin main');
     expect(gitApprovalStillValid(first!.binding.commandSha256, 'git push origin main')).toBe(true);
@@ -182,17 +191,42 @@ describe('A9-05: git command classification', () => {
     }
   });
 
+  it('fails closed for parenthesized PowerShell dynamic executable and subcommand', () => {
+    expect(classifyGitCommand(`$g=('gi'+'t'); $p=('pu'+'sh'); & ($g) ($p) origin main`)?.category)
+      .toBe('always_confirm');
+  });
+
+  it('fails closed when a shell wrapper receives an entirely dynamic payload', () => {
+    expect(classifyGitCommand(`$x=('gi'+'t '+'pu'+'sh origin main'); & cmd /c $x`)?.category)
+      .toBe('always_confirm');
+    expect(classifyGitCommand(`$x=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('Z2l0IHB1c2ggb3JpZ2luIG1haW4=')); & cmd /c $x`)?.category)
+      .toBe('always_confirm');
+  });
+
   it('fails closed for Win7 shell escaping and dynamic Git executable lookup', () => {
     for (const command of [
       'cmd.exe /d /s /c "g^it push origin main"',
       'powershell.exe -NoProfile -Command "g`it push origin main"',
       'cmd.exe /d /s /c "set G=git && %G% push origin main"',
+      'cmd.exe /v:on /d /s /c "set G=git&& !G! push origin HEAD:refs/heads/pwn"',
       'powershell.exe -NoProfile -Command "$g=\'git\'; & $g push origin main"',
+      'powershell.exe -NoProfile -Command "& (\'g\'+\'it\') push origin main"',
+      'powershell.exe -NoProfile -Command "iex \'git push origin main\'"',
+      'powershell.exe -NoProfile -Command "Invoke-Expression (\'git \' + \'push origin main\')"',
+      'powershell.exe -NoProfile -Command "Write-Output $(git push origin main)"',
+      'powershell.exe -NoProfile -Command "Invoke-Expression (\'g\'+\'it push origin main\')"',
+      'powershell.exe -NoProfile -Command "$g=\'git\'; & ${g} push origin main"',
+      'cmd.exe /v:on /d /s /c "set G=git&!G:~0,3! push origin main"',
+      'powershell.exe -Command "$g=\'git\'; $p=\'push\'; & $g $p origin main"',
+      'cmd.exe /v:on /c "set G=git&set P=push&!G! !P! origin main"',
+      'powershell.exe -Command "Invoke-Expression (\'git p\'+\'ush origin main\')"',
+      'powershell.exe -NoProfile -Command "$g=(\'gi\'+\'t\'); $p=(\'pu\'+\'sh\'); & $g $p origin main"',
     ]) {
       const decision = classifyGitCommand(command);
       expect(`${command} => ${decision?.category}`).toBe(`${command} => always_confirm`);
       expect(decision?.binding.commandSha256).toMatch(/^[a-f0-9]{64}$/);
     }
+    expect(classifyGitCommand('echo "!G! push origin main"')).toBeNull();
   });
 
   it('binds push targets after options that consume a separate value', () => {

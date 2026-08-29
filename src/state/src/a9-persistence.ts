@@ -82,12 +82,25 @@ export class A9PersistenceManager {
     let externalA8Db: SqliteDatabase | undefined;
     if (options.a8DatabasePath
       && path.resolve(options.a8DatabasePath) !== path.resolve(options.databasePath)
+      && !fs.existsSync(options.a8DatabasePath)) {
+      return {
+        status: 'diagnostics',
+        error: 'Explicit A8 database does not exist',
+        hint: '显式 A8 物理库路径不存在；为避免静默漏迁移，产品进入受限诊断模式。',
+      };
+    }
+    if (options.a8DatabasePath
+      && path.resolve(options.a8DatabasePath) !== path.resolve(options.databasePath)
       && fs.existsSync(options.a8DatabasePath)) {
       try {
         externalA8Db = options.openDatabase(options.a8DatabasePath, { readonly: true });
         if (!a8TablesPresentStrict(externalA8Db)) {
           externalA8Db.close();
-          externalA8Db = undefined;
+          return {
+            status: 'diagnostics',
+            error: 'Explicit A8 database does not contain the required a8_workspaces table',
+            hint: '显式 A8 物理库身份不匹配；为避免静默漏迁移，产品进入受限诊断模式。',
+          };
         }
       } catch (err) {
         try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
@@ -105,6 +118,15 @@ export class A9PersistenceManager {
       try {
         probeDb = options.openDatabase(options.databasePath, { readonly: true });
         const probedVersion = readSchemaVersion(probeDb);
+        if (probedVersion === A9_SCHEMA_VERSION) assertA9CurrentSchema(probeDb);
+        if (probedVersion === undefined && a9BusinessTablesPresent(probeDb)) {
+          try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
+          return {
+            status: 'diagnostics',
+            error: 'A9 schema metadata is missing while A9 business tables already exist',
+            hint: '数据库缺少有效 a9_meta，拒绝把未知/损坏结构标记为当前版本；原始文件保持未修改。',
+          };
+        }
         if (probedVersion !== undefined && probedVersion > A9_SCHEMA_VERSION) {
           try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
           return {
@@ -141,6 +163,10 @@ export class A9PersistenceManager {
     let existingVersion: number | undefined;
     try {
       existingVersion = readSchemaVersion(db);
+      if (existingVersion === A9_SCHEMA_VERSION) assertA9CurrentSchema(db);
+      if (existingVersion === undefined && a9BusinessTablesPresent(db)) {
+        throw new Error('A9 schema metadata is missing while A9 business tables already exist');
+      }
     } catch (err) {
       try { db.close(); } catch (_closeError) { /* best effort */ }
       try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
@@ -184,17 +210,16 @@ export class A9PersistenceManager {
       }
     }
 
-    // 只有未来 schema 已拒绝、旧 schema 已完成一致性备份后，才允许切换 WAL。
-    try {
-      db.exec('PRAGMA journal_mode = WAL');
-    } catch (_err) {
-      // 诊断环境下 WAL 可能失败；后续 schema 操作仍会以结构化 diagnostics 失败。
-    }
-
     const manager = new A9PersistenceManager(db, options.databasePath, options.retentionDays ?? A9_DEFAULT_RETENTION_DAYS);
+    let importedA8Workspaces = 0;
     try {
-      manager.migrateSchema(existingVersion);
-      manager.createSchema();
+      const initializeSchema = db.transaction(() => {
+        manager.migrateSchema(existingVersion);
+        manager.createSchema();
+        assertA9CurrentSchema(db);
+        if (hasA8Data) importedA8Workspaces = manager.importA8Whitelist(externalA8Db ?? db);
+      });
+      initializeSchema();
     } catch (err) {
       try { db.close(); } catch (_closeError) { /* best effort */ }
       try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
@@ -205,18 +230,14 @@ export class A9PersistenceManager {
       };
     }
 
-    let importedA8Workspaces = 0;
+    // 只有 schema 创建/迁移和 A8 白名单导入整体成功后才切换 WAL；失败路径
+    // 不应仅因 journal mode 预写而改变原库身份。
     try {
-      if (hasA8Data) importedA8Workspaces = manager.importA8Whitelist(externalA8Db ?? db);
-    } catch (err) {
-      try { db.close(); } catch (_closeError) { /* best effort */ }
-      try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
-      return {
-        status: 'diagnostics',
-        error: err instanceof Error ? err.message : String(err),
-        hint: 'A8 白名单导入失败；事务已回滚，产品进入受限诊断模式。',
-      };
+      db.exec('PRAGMA journal_mode = WAL');
+    } catch (_err) {
+      // WAL 不可用时不伪造成功；后续 SQLite 操作会返回实际错误。
     }
+
     try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
 
     manager.markInterruptionsOnRestart();
@@ -355,15 +376,14 @@ export class A9PersistenceManager {
   /** A9 v3 增加 failed Turn；v4 引入对话目录、活动对话和草稿密文。 */
   private migrateSchema(existingVersion: number | undefined): void {
     if (existingVersion === undefined || existingVersion >= A9_SCHEMA_VERSION) return;
-    const migrateAll = this.db.transaction(() => {
-      let version = existingVersion;
-      if (version < 3 && tablePresent(this.db, 'a9_turns')) {
-        const turnIndexSql = (this.db.prepare(
-          "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
-        ).all() as any[])
-          .map((row) => row.sql)
-          .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
-        this.db.exec(`
+    let version = existingVersion;
+    if (version < 3 && tablePresent(this.db, 'a9_turns')) {
+      const turnIndexSql = (this.db.prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
+      ).all() as any[])
+        .map((row) => row.sql)
+        .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
+      this.db.exec(`
           ALTER TABLE a9_turns RENAME TO a9_turns_pre_v3;
           CREATE TABLE a9_turns (
             turn_id TEXT PRIMARY KEY,
@@ -378,27 +398,21 @@ export class A9PersistenceManager {
           SELECT turn_id, task_id, session_id, status, outcome_json, created_at, updated_at
           FROM a9_turns_pre_v3;
           DROP TABLE a9_turns_pre_v3;
-        `);
-        for (const indexSql of turnIndexSql) this.db.exec(indexSql);
-        this.db.prepare('UPDATE a9_meta SET schema_version = 3, updated_at = ? WHERE id = 1')
-          .run(new Date().toISOString());
-        version = 3;
-      }
-      if (version >= 4) return;
+      `);
+      for (const indexSql of turnIndexSql) this.db.exec(indexSql);
+      this.db.prepare('UPDATE a9_meta SET schema_version = 3, updated_at = ? WHERE id = 1')
+        .run(new Date().toISOString());
+      version = 3;
+    }
+    if (version >= 4) return;
 
-      const now = new Date().toISOString();
-      if (tablePresent(this.db, 'a9_sessions')) {
-        this.db.exec(`
-          ALTER TABLE a9_sessions ADD COLUMN title TEXT NOT NULL DEFAULT '新对话';
-          ALTER TABLE a9_sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'legacy' CHECK (title_source IN ('auto','manual','legacy'));
-          ALTER TABLE a9_sessions ADD COLUMN state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived'));
-          ALTER TABLE a9_sessions ADD COLUMN last_activated_at TEXT;
-          ALTER TABLE a9_sessions ADD COLUMN draft_ciphertext TEXT;
-        `);
-        this.db.prepare("UPDATE a9_sessions SET title = '历史对话', title_source = 'legacy', last_activated_at = COALESCE(updated_at, created_at, ?)")
-          .run(now);
-      } else {
-        this.db.exec(`
+    const now = new Date().toISOString();
+    if (tablePresent(this.db, 'a9_sessions')) {
+      const sessionColumns = new Set((this.db.prepare('PRAGMA table_info(a9_sessions)').all() as any[])
+        .map((row) => row.name));
+      const metadataExpression = sessionColumns.has('metadata_json') ? "COALESCE(metadata_json, '{}')" : "'{}'";
+      this.db.exec(`
+          ALTER TABLE a9_sessions RENAME TO a9_sessions_pre_v4;
           CREATE TABLE a9_sessions (
             session_id TEXT PRIMARY KEY,
             workspace_path TEXT NOT NULL,
@@ -411,9 +425,30 @@ export class A9PersistenceManager {
             draft_ciphertext TEXT,
             metadata_json TEXT NOT NULL DEFAULT '{}'
           );
-        `);
-      }
+          INSERT INTO a9_sessions
+            (session_id, workspace_path, title, title_source, state, created_at, updated_at, last_activated_at, draft_ciphertext, metadata_json)
+          SELECT session_id, workspace_path, '历史对话', 'legacy', 'active', created_at, updated_at,
+            COALESCE(updated_at, created_at, '${now}'), NULL, ${metadataExpression}
+          FROM a9_sessions_pre_v4;
+          DROP TABLE a9_sessions_pre_v4;
+      `);
+    } else {
       this.db.exec(`
+          CREATE TABLE a9_sessions (
+            session_id TEXT PRIMARY KEY,
+            workspace_path TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '新对话',
+            title_source TEXT NOT NULL DEFAULT 'auto' CHECK (title_source IN ('auto','manual','legacy')),
+            state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_activated_at TEXT NOT NULL,
+            draft_ciphertext TEXT,
+            metadata_json TEXT NOT NULL DEFAULT '{}'
+          );
+      `);
+    }
+    this.db.exec(`
         DROP INDEX IF EXISTS idx_a9_sessions_workspace;
         CREATE INDEX idx_a9_sessions_workspace ON a9_sessions (workspace_path, state, last_activated_at);
         CREATE TABLE IF NOT EXISTS a9_workspace_conversation_state (
@@ -421,9 +456,9 @@ export class A9PersistenceManager {
           active_session_id TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
-      if (tablePresent(this.db, 'a9_approvals')) {
-        this.db.exec(`
+    `);
+    if (tablePresent(this.db, 'a9_approvals')) {
+      this.db.exec(`
           ALTER TABLE a9_approvals RENAME TO a9_approvals_pre_v4;
           CREATE TABLE a9_approvals (
             approval_id TEXT PRIMARY KEY,
@@ -439,11 +474,9 @@ export class A9PersistenceManager {
           SELECT approval_id, session_id, turn_id, tool_name, binding_json, decision, decided_at, created_at
           FROM a9_approvals_pre_v4;
           DROP TABLE a9_approvals_pre_v4;
-        `);
-      }
-      this.db.prepare('UPDATE a9_meta SET schema_version = 4, updated_at = ? WHERE id = 1').run(now);
-    });
-    migrateAll();
+      `);
+    }
+    this.db.prepare('UPDATE a9_meta SET schema_version = 4, updated_at = ? WHERE id = 1').run(now);
   }
 
   /**
@@ -451,16 +484,30 @@ export class A9PersistenceManager {
    * 提案一律不迁移（A9-ST03）。
    */
   private importA8Whitelist(db: SqliteDatabase): number {
-    const workspaces = db.prepare('SELECT workspace_path FROM a8_workspaces').all() as any[];
+    assertA8WorkspaceSchema(db);
+    const workspaces = db.prepare('SELECT schema_version, canonical_path, comparison_key FROM a8_workspaces').all() as any[];
     let imported = 0;
     const importAll = this.db.transaction(() => {
       const now = new Date().toISOString();
+      const seenComparisonKeys = new Set<string>();
       const insert = this.db.prepare(
         'INSERT OR IGNORE INTO a9_workspaces (workspace_path, display_name, permission_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       );
       for (const row of workspaces) {
+        const canonicalPath = row.canonical_path;
+        if (Number(row.schema_version) !== 1
+          || typeof canonicalPath !== 'string' || canonicalPath.length === 0
+          || (!path.isAbsolute(canonicalPath) && !path.win32.isAbsolute(canonicalPath))
+          || row.comparison_key !== canonicalPath.toLocaleLowerCase('en-US').replace(/\\/g, '/')) {
+          throw new Error('A8 workspace row invariants are invalid');
+        }
+        const windowsIdentity = row.comparison_key.toLocaleLowerCase('en-US').replace(/\\/g, '/');
+        if (seenComparisonKeys.has(windowsIdentity)) {
+          throw new Error('A8 workspace rows contain a duplicate Windows comparison identity');
+        }
+        seenComparisonKeys.add(windowsIdentity);
         // A8 工作区未选择过 A9 模式：不设默认 Full Access，交由首次选择流程。
-        insert.run(row.workspace_path, displayNameFor(row.workspace_path), 'review', now, now);
+        insert.run(canonicalPath, displayNameFor(canonicalPath), 'review', now, now);
         imported += 1;
       }
     });
@@ -692,6 +739,18 @@ export class A9PersistenceManager {
     return typeof row.draft_ciphertext === 'string' ? row.draft_ciphertext : null;
   }
 
+  getConversationMetadata(sessionId: string): Record<string, unknown> {
+    const row = this.db.prepare('SELECT metadata_json FROM a9_sessions WHERE session_id = ?').get(sessionId) as any;
+    if (!row) throw a9PersistenceError('A9_CONVERSATION_NOT_FOUND', '未找到对话。');
+    return safeParse(typeof row.metadata_json === 'string' ? row.metadata_json : '{}');
+  }
+
+  mergeConversationMetadata(sessionId: string, patch: Record<string, unknown>): void {
+    const metadata = { ...this.getConversationMetadata(sessionId), ...patch };
+    this.db.prepare('UPDATE a9_sessions SET metadata_json = ?, updated_at = ? WHERE session_id = ?')
+      .run(JSON.stringify(metadata), new Date().toISOString(), sessionId);
+  }
+
   private requireConversation(sessionId: string): A9ConversationRecord {
     const row = this.db.prepare(`
       SELECT s.*,
@@ -891,6 +950,7 @@ export class A9PersistenceManager {
     finalMessage: string;
     createdAt: string;
     updatedAt: string;
+    providerContextGeneration?: number;
   }> {
     const cappedLimit = Number.isFinite(limit)
       ? Math.max(1, Math.min(Math.floor(limit as number), 1000))
@@ -941,6 +1001,9 @@ export class A9PersistenceManager {
         finalMessage: typeof payload.finalMessage === 'string' ? payload.finalMessage : '',
         createdAt: existing?.createdAt || row.created_at,
         updatedAt: row.created_at,
+        ...(Number.isSafeInteger(payload.providerContextGeneration)
+          ? { providerContextGeneration: payload.providerContextGeneration }
+          : {}),
       });
     }
     const sorted = Array.from(facts.values())
@@ -980,6 +1043,7 @@ export class A9PersistenceManager {
     startedAt: string;
     lastProbeStatus?: string;
     pidReusePossible?: boolean;
+    cleanupRequired?: boolean;
   }): void {
     this.db.prepare(`
       INSERT OR REPLACE INTO a9_managed_processes
@@ -992,14 +1056,14 @@ export class A9PersistenceManager {
       fact.command,
       fact.cwd,
       fact.startedAt,
-      fact.lastProbeStatus ?? null,
+      fact.cleanupRequired === true ? 'cleanup_required' : fact.lastProbeStatus ?? null,
       fact.pidReusePossible ? 1 : 0,
     );
   }
 
   listManagedProcesses(workspacePath: string): Array<{
     handleId: string; pid: number | null; command: string; cwd: string;
-    startedAt: string; lastProbeStatus: string | null; pidReusePossible: boolean;
+    startedAt: string; lastProbeStatus: string | null; pidReusePossible: boolean; cleanupRequired: boolean;
   }> {
     return (this.db.prepare('SELECT * FROM a9_managed_processes WHERE workspace_path = ?').all(workspacePath) as any[]).map((r) => ({
       handleId: r.handle_id,
@@ -1009,6 +1073,7 @@ export class A9PersistenceManager {
       startedAt: r.started_at,
       lastProbeStatus: r.last_probe_status,
       pidReusePossible: r.pid_reuse_possible === 1,
+      cleanupRequired: r.last_probe_status === 'cleanup_required',
     }));
   }
 
@@ -1089,9 +1154,187 @@ function a8TablesPresent(db: SqliteDatabase): boolean {
   }
 }
 
+function a9BusinessTablesPresent(db: SqliteDatabase): boolean {
+  const row = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'a9_%' AND name <> 'a9_meta' LIMIT 1",
+  ).get();
+  return Boolean(row);
+}
+
+function assertA9CurrentSchema(db: SqliteDatabase): void {
+  const required: Record<string, string[]> = {
+    a9_meta: ['id', 'schema_version', 'created_at', 'updated_at'],
+    a9_workspaces: ['workspace_path', 'display_name', 'permission_mode', 'created_at', 'updated_at'],
+    a9_sessions: ['session_id', 'workspace_path', 'title', 'title_source', 'state', 'created_at', 'updated_at', 'last_activated_at', 'draft_ciphertext', 'metadata_json'],
+    a9_workspace_conversation_state: ['workspace_path', 'active_session_id', 'updated_at'],
+    a9_tasks: ['task_id', 'session_id', 'status', 'created_at', 'updated_at'],
+    a9_turns: ['turn_id', 'task_id', 'session_id', 'status', 'outcome_json', 'created_at', 'updated_at'],
+    a9_runs: ['run_id', 'turn_id', 'session_id', 'status', 'created_at', 'updated_at'],
+    a9_checkpoints: ['turn_id', 'session_id', 'created_at', 'payload_json'],
+    a9_approvals: ['approval_id', 'session_id', 'turn_id', 'tool_name', 'binding_json', 'decision', 'decided_at', 'created_at'],
+    a9_managed_processes: ['handle_id', 'workspace_path', 'pid', 'command', 'cwd', 'started_at', 'last_probe_status', 'pid_reuse_possible'],
+    a9_events: ['id', 'session_id', 'turn_id', 'kind', 'event_type', 'payload_json', 'created_at'],
+    a9_workspace_locks: ['workspace_path', 'owner_id', 'acquired_at', 'heartbeat_at'],
+  };
+  for (const [table, columns] of Object.entries(required)) {
+    if (!tablePresent(db, table)) throw new Error(`A9 schema v4 is missing table ${table}`);
+    const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+    const present = new Set(tableInfo.map((row) => row.name)
+      .filter((name): name is string => typeof name === 'string'));
+    const missing = columns.filter((column) => !present.has(column));
+    if (missing.length > 0) throw new Error(`A9 schema v4 table ${table} is missing columns: ${missing.join(', ')}`);
+  }
+
+  const primaryKeys: Record<string, string> = {
+    a9_meta: 'id',
+    a9_workspaces: 'workspace_path',
+    a9_sessions: 'session_id',
+    a9_workspace_conversation_state: 'workspace_path',
+    a9_tasks: 'task_id',
+    a9_turns: 'turn_id',
+    a9_runs: 'run_id',
+    a9_checkpoints: 'turn_id',
+    a9_approvals: 'approval_id',
+    a9_managed_processes: 'handle_id',
+    a9_events: 'id',
+    a9_workspace_locks: 'workspace_path',
+  };
+  for (const [table, column] of Object.entries(primaryKeys)) {
+    const info = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+    if (!info.some((row) => row.name === column && Number(row.pk) > 0)) {
+      throw new Error(`A9 schema v4 table ${table} is missing primary key on ${column}`);
+    }
+    if (db.prepare(`SELECT 1 AS invalid FROM ${table} WHERE ${column} IS NULL LIMIT 1`).get()) {
+      throw new Error(`A9 schema v4 table ${table} contains a null primary identity`);
+    }
+  }
+
+  const integerColumns = new Set(['a9_meta.id', 'a9_meta.schema_version', 'a9_managed_processes.pid',
+    'a9_managed_processes.pid_reuse_possible', 'a9_events.id']);
+  const nullableColumns = new Set(['a9_sessions.draft_ciphertext', 'a9_approvals.turn_id', 'a9_approvals.decided_at',
+    'a9_managed_processes.pid', 'a9_managed_processes.last_probe_status', 'a9_events.turn_id']);
+  for (const [table, columns] of Object.entries(required)) {
+    const info = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+    for (const column of columns) {
+      const row = info.find((item) => item.name === column);
+      const identity = `${table}.${column}`;
+      const expectedType = integerColumns.has(identity) ? 'INTEGER' : 'TEXT';
+      if (String(row?.type ?? '').toUpperCase() !== expectedType) {
+        throw new Error(`A9 schema v4 column ${identity} has the wrong type`);
+      }
+      if (!nullableColumns.has(identity) && primaryKeys[table] !== column && Number(row?.notnull) !== 1) {
+        throw new Error(`A9 schema v4 column ${identity} must be NOT NULL`);
+      }
+    }
+  }
+
+  const defaults: Record<string, string> = {
+    'a9_sessions.title': "'新对话'",
+    'a9_sessions.title_source': "'auto'",
+    'a9_sessions.state': "'active'",
+    'a9_sessions.metadata_json': "'{}'",
+    'a9_turns.outcome_json': "'{}'",
+    'a9_managed_processes.pid_reuse_possible': '0',
+  };
+  for (const [identity, expected] of Object.entries(defaults)) {
+    const [table, column] = identity.split('.');
+    const row = (db.prepare(`PRAGMA table_info(${table})`).all() as any[]).find((item) => item.name === column);
+    if (String(row?.dflt_value ?? '') !== expected) {
+      throw new Error(`A9 schema v4 column ${identity} has the wrong default`);
+    }
+  }
+
+  const requiredChecks: Record<string, string[]> = {
+    a9_meta: ['check(id=1)'],
+    a9_workspaces: ["check(permission_modein('full_access','review','read_only'))"],
+    a9_sessions: ["check(title_sourcein('auto','manual','legacy'))", "check(statein('active','archived'))"],
+    a9_tasks: ["check(statusin('active','completed','failed','cancelled','interrupted'))"],
+    a9_turns: ["check(statusin('active','completed','completed_with_warnings','blocked','failed','cancelled','interrupted'))"],
+    a9_runs: ["check(statusin('active','completed','failed','cancelled','interrupted'))"],
+    a9_approvals: ["check(decisionin('pending','approved','denied','interrupted'))"],
+    a9_events: ["check(kindin('model','tool'))"],
+  };
+  for (const [table, fragments] of Object.entries(requiredChecks)) {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as any;
+    const normalized = String(row?.sql ?? '').toLowerCase().replace(/[\s\"`\[\]]+/g, '');
+    for (const fragment of fragments) {
+      if (!normalized.includes(fragment)) throw new Error(`A9 schema v4 table ${table} is missing required CHECK constraint`);
+    }
+  }
+
+  const indexes: Record<string, { table: string; columns: string[] }> = {
+    idx_a9_sessions_workspace: { table: 'a9_sessions', columns: ['workspace_path', 'state', 'last_activated_at'] },
+    idx_a9_checkpoints_session: { table: 'a9_checkpoints', columns: ['session_id', 'created_at'] },
+    idx_a9_events_session: { table: 'a9_events', columns: ['session_id', 'id'] },
+  };
+  for (const [index, contract] of Object.entries(indexes)) {
+    const indexRow = (db.prepare(`PRAGMA index_list(${contract.table})`).all() as any[])
+      .find((row) => row.name === index);
+    if (!indexRow || Number(indexRow.unique) !== 0 || Number(indexRow.partial) !== 0) {
+      throw new Error(`A9 schema v4 is missing compatible index ${index}`);
+    }
+    const columns = (db.prepare(`PRAGMA index_info(${index})`).all() as any[])
+      .sort((left, right) => Number(left.seqno) - Number(right.seqno)).map((row) => row.name);
+    if (columns.length !== contract.columns.length || columns.some((column, i) => column !== contract.columns[i])) {
+      throw new Error(`A9 schema v4 index ${index} has the wrong columns`);
+    }
+  }
+  const eventSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='a9_events'").get() as any;
+  if (!/\bid\s+integer\s+primary\s+key\s+autoincrement\b/i.test(String(eventSql?.sql ?? ''))) {
+    throw new Error('A9 schema v4 a9_events.id must be AUTOINCREMENT');
+  }
+}
+
 function a8TablesPresentStrict(db: SqliteDatabase): boolean {
   const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a8_workspaces'").get();
-  return Boolean(row);
+  if (!row) return false;
+  assertA8WorkspaceSchema(db);
+  return true;
+}
+
+function assertA8WorkspaceSchema(db: SqliteDatabase): void {
+  const info = db.prepare('PRAGMA table_info(a8_workspaces)').all() as any[];
+  const columns = info.map((row) => row.name)
+    .filter((name): name is string => typeof name === 'string');
+  const required = [
+    'workspace_id', 'schema_version', 'canonical_path', 'comparison_key',
+    'display_name', 'created_at', 'last_opened_at', 'archived_at',
+  ];
+  const missing = required.filter((name) => !columns.includes(name));
+  if (missing.length > 0) {
+    throw new Error(`A8 workspace schema mismatch; missing columns: ${missing.join(', ')}`);
+  }
+  const expected: Record<string, { type: 'TEXT' | 'INTEGER'; notnull: boolean; primary?: boolean }> = {
+    workspace_id: { type: 'TEXT', notnull: false, primary: true },
+    schema_version: { type: 'INTEGER', notnull: true },
+    canonical_path: { type: 'TEXT', notnull: true },
+    comparison_key: { type: 'TEXT', notnull: true },
+    display_name: { type: 'TEXT', notnull: true },
+    created_at: { type: 'TEXT', notnull: true },
+    last_opened_at: { type: 'TEXT', notnull: false },
+    archived_at: { type: 'TEXT', notnull: false },
+  };
+  for (const [name, contract] of Object.entries(expected)) {
+    const row = info.find((item) => item.name === name);
+    if (String(row?.type ?? '').toUpperCase() !== contract.type
+      || Boolean(Number(row?.notnull)) !== contract.notnull
+      || Boolean(Number(row?.pk)) !== Boolean(contract.primary)) {
+      throw new Error(`A8 workspace schema mismatch; invalid column contract: ${name}`);
+    }
+  }
+  const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='a8_workspaces'").get() as any;
+  const normalizedSql = String(tableSql?.sql ?? '').toLowerCase().replace(/[\s"`\[\]]+/g, '');
+  if (!normalizedSql.includes('check(schema_version=1)')) {
+    throw new Error('A8 workspace schema mismatch; schema_version CHECK is missing');
+  }
+  const uniqueComparisonKey = (db.prepare('PRAGMA index_list(a8_workspaces)').all() as any[]).some((index) => {
+    if (Number(index.unique) !== 1 || Number(index.partial) !== 0) return false;
+    const names = (db.prepare(`PRAGMA index_info(${String(index.name)})`).all() as any[])
+      .sort((left, right) => Number(left.seqno) - Number(right.seqno))
+      .map((row) => row.name);
+    return names.length === 1 && names[0] === 'comparison_key';
+  });
+  if (!uniqueComparisonKey) throw new Error('A8 workspace schema mismatch; comparison_key UNIQUE is missing');
 }
 
 function tablePresent(db: SqliteDatabase, tableName: string): boolean {

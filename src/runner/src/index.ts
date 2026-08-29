@@ -42,6 +42,8 @@ export {
   NativeHelperExecutionResult,
   NativeHelperErrorResult,
   parseNativeHelperResponse,
+  hasCompleteHelperCleanupProof,
+  decodeNativeHelperBase64,
 } from './native-protocol';
 export { HelperTransport, HelperTransportResult, StdioHelperTransport } from './native-transport';
 export { NativeRunner, NativeRunnerOptions, RunnerEvent, RunnerEventKind } from './native-runner';

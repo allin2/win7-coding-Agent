@@ -52,7 +52,8 @@ describe('A9 v3 package runtime', () => {
   it('production main injects Electron safeStorage into the A9 runtime', () => {
     const main = fs.readFileSync(path.join(__dirname, '..', '..', 'product', 'main.js'), 'utf8');
     expect(main).toMatch(/createA9AgentRuntime\(\{[\s\S]*?safeStorage,[\s\S]*?electronSqliteRoot/);
-    expect(main).toContain("a8DatabasePath: path.join(app.getPath('userData'), 'state', 'agent-events-v2.db')");
+    expect(main).toContain("fs.existsSync(path.join(app.getPath('userData'), 'state', 'agent-events-v2.db'))");
+    expect(main).toContain("? { a8DatabasePath: path.join(app.getPath('userData'), 'state', 'agent-events-v2.db') }");
   });
 
   it('is inert for source launches without a package descriptor', () => {

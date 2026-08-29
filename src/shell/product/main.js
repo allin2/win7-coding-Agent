@@ -805,7 +805,9 @@ function createMainWindow() {
       try {
         const result = await a9RuntimeInstance.shutdown();
         if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
-          throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+          const leave = await confirmA9LeaveToSystem(result.leftToSystem);
+          if (!leave) throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+          await a9RuntimeInstance.shutdown({ stopManaged: false });
         }
         a9ShutdownComplete = true;
         window.close();
@@ -928,7 +930,9 @@ async function getOrCreateA9Runtime() {
   a9RuntimeInstance = createA9AgentRuntime({
     workspaceRoot: desiredWorkspace,
     dataRoot: a9DataRoot,
-    a8DatabasePath: path.join(app.getPath('userData'), 'state', 'agent-events-v2.db'),
+    ...(fs.existsSync(path.join(app.getPath('userData'), 'state', 'agent-events-v2.db'))
+      ? { a8DatabasePath: path.join(app.getPath('userData'), 'state', 'agent-events-v2.db') }
+      : {}),
     ownerId: `main-${process.pid}`,
     // Windows package path: Electron safeStorage is the DPAPI boundary. Without
     // this host injection Provider secrets silently degrade to process memory.
@@ -951,6 +955,19 @@ ipcMain.handle('product:a9-request', createA9ProductRequestHandler({
 let a9ShutdownComplete = false;
 let a9ShutdownInFlight = null;
 let a9WindowCloseInFlight = null;
+async function confirmA9LeaveToSystem(leftToSystem) {
+  const choice = await dialog.showMessageBox({
+    type: 'warning',
+    title: '托管进程清理无法确认',
+    message: '仍有托管进程或清理事实无法确认。可以继续运行并检查残留，或明确将进程留给系统后退出。',
+    detail: String(leftToSystem || []).slice(0, 20).join('\n'),
+    buttons: ['继续运行并重试', '将进程留给系统并退出'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  });
+  return choice.response === 1;
+}
 function beginA9ShutdownBeforeQuit(event) {
   if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
   event.preventDefault();
@@ -959,7 +976,9 @@ function beginA9ShutdownBeforeQuit(event) {
     try {
       const result = await a9RuntimeInstance.shutdown();
       if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
-        throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+        const leave = await confirmA9LeaveToSystem(result.leftToSystem);
+        if (!leave) throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+        await a9RuntimeInstance.shutdown({ stopManaged: false });
       }
       a9ShutdownComplete = true;
       app.quit();

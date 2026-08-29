@@ -270,7 +270,7 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
   const effectiveCommand = command.replace(/\^(?=.)/g, '').replace(/`(?=.)/g, '');
   const decisions = collectGitDecisions(effectiveCommand, command, 0);
   if (decisions.length === 0) {
-    return containsExecutableGitRisk(effectiveCommand) || containsDynamicGitPushRisk(command)
+    return containsExecutableGitRisk(effectiveCommand) || containsDynamicGitPushRisk(effectiveCommand)
       ? conservativeGitDecision(command)
       : null;
   }
@@ -296,14 +296,61 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
   };
 }
 
-function containsDynamicGitPushRisk(command: string): boolean {
-  if (!/\bpush\b/i.test(command)) return false;
+function containsDynamicGitPushRisk(command: string, depth = 0): boolean {
+  if (depth > 4 || command.length > 256 * 1024) return false;
+  const cmdDynamicPair = /\bset\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*git\b/i.exec(command);
+  const cmdPushPair = /\bset\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*push\b/i.exec(command);
+  if (cmdDynamicPair && cmdPushPair
+    && new RegExp(`!${cmdDynamicPair[1]}!\\s+!${cmdPushPair[1]}!`, 'i').test(command)) return true;
+  const psGitPair = /\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*['"]git['"]/i.exec(command);
+  const psPushPair = /\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*['"]push['"]/i.exec(command);
+  if (psGitPair && psPushPair
+    && new RegExp(`&\\s*\\$${psGitPair[1]}\\s+\\$${psPushPair[1]}\\b`, 'i').test(command)) return true;
   // CMD and PowerShell can select an executable after static parsing through
-  // variable expansion or the call operator. We cannot safely bind a remote
-  // from these forms, so an executable-looking push fails closed.
-  return /%[A-Za-z_][A-Za-z0-9_]*%\s+push\b/i.test(command)
-    || /(?:^|[;&|]\s*|\bcall\s+)&?\s*\$[A-Za-z_][A-Za-z0-9_]*\s+push\b/i.test(command)
-    || /(?:^|[;&|]\s*|\bcall\s+)["'(]*\s*(?:%[A-Za-z_][A-Za-z0-9_]*%|\$[A-Za-z_][A-Za-z0-9_]*)\s+push\b/i.test(command);
+  // variable expansion, delayed expansion or a computed call expression. Walk
+  // supported shell wrappers so prose sinks remain data rather than approvals.
+  for (const segment of splitShellSegments(command)) {
+    const tokens = tokenizeCommand(exposeControlPunctuation(segment));
+    const start = executableIndex(tokens);
+    const executable = shellKeyword(tokens[start]);
+    // PowerShell evaluates subexpressions before passing their result to an
+    // otherwise prose-only sink such as Write-Output.
+    if (/\$\([^)]*\bgit(?:\.exe)?\b[^)]*\bpush\b/i.test(segment)) return true;
+    if (GIT_PROSE_COMMANDS.has(executable) || executable.startsWith('#')) continue;
+    const payload = unwrapShellPayload(tokens, start);
+    if (payload !== undefined && payload.trim() !== segment.trim()) {
+      // `cmd /c $x`, `powershell -Command %PAYLOAD%`, etc. defer the entire
+      // executable/subcommand string until runtime. Static analysis cannot
+      // prove that such a payload is not a decoded/concatenated git push.
+      if (/^\s*(?:\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})|%[A-Za-z_][A-Za-z0-9_]*%|![A-Za-z_][A-Za-z0-9_]*!)\s*$/i.test(payload)) return true;
+      if (containsDynamicGitPushRisk(payload, depth + 1)) return true;
+    }
+    const conditionalPayload = unwrapConditionalPayload(tokens, start);
+    if (conditionalPayload !== undefined && conditionalPayload.trim() !== segment.trim()
+      && containsDynamicGitPushRisk(conditionalPayload, depth + 1)) return true;
+    if ((executable === 'iex' || executable === 'invoke-expression')
+      // A dynamically selected executable plus a dynamically selected first
+      // argument cannot be proven not to be `git push` without executing the
+      // shell. Treat the whole command as an unclassified external write.
+      || /(?:^|\s)&\s*\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})\s+\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})\b/i.test(segment)
+      || /(?:^|\s)&\s*(?:\([^\r\n;|&]+\)|(?:get-variable|gv)\b[^\r\n;|&]*)\s+(?:\([^\r\n;|&]+\)|\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})|(?:get-variable|gv)\b)/i.test(segment)
+      || /![A-Za-z_][A-Za-z0-9_]*!\s+![A-Za-z_][A-Za-z0-9_]*!/i.test(segment)
+      // Dynamic subcommands are as security-sensitive as dynamic executable
+      // lookup. Fail closed whenever the same executable segment computes
+      // both `git` and `push`, even when neither is a literal invocation.
+      || (/\b(?:git|git\.exe)\b/i.test(segment)
+        && /(?:\$[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|![A-Za-z_][A-Za-z0-9_]*!|['"]p['"]\s*\+\s*['"]ush['"])/i.test(segment))
+      || (/\bset\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*git\b/i.test(segment)
+        && /\bset\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*push\b/i.test(segment))
+      || /%[A-Za-z_][A-Za-z0-9_]*(?::[^%]+)?%\s+push\b/i.test(segment)
+      || /![A-Za-z_][A-Za-z0-9_]*(?::[^!]+)?!\s+push\b/i.test(segment)
+      || /(?:^|\bcall\s+)&?\s*\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\}|env:[A-Za-z_][A-Za-z0-9_]*|\{env:[A-Za-z_][A-Za-z0-9_]*\})\s+push\b/i.test(segment)
+      || /(?:^|\bcall\s+)["'(]*\s*(?:%[A-Za-z_][A-Za-z0-9_]*(?::[^%]+)?%|![A-Za-z_][A-Za-z0-9_]*(?::[^!]+)?!|\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\}|env:[A-Za-z_][A-Za-z0-9_]*|\{env:[A-Za-z_][A-Za-z0-9_]*\}))\s+push\b/i.test(segment)
+      || /(?:^|\s)&\s*\([^)]*\)\s+push\b/i.test(segment)
+      || /^\s*\([^)]*\)\s+\([^)]*\)(?:\s|$)/i.test(segment)
+      || /^\s*\([^)]*\)\s+push\b/i.test(segment)) return true;
+  }
+  return false;
 }
 
 function collectGitDecisions(command: string, originalCommand: string, depth: number): GitCommandDecision[] {

@@ -124,12 +124,12 @@ function createA9ProductRequestHandler(options) {
         case A9_ACTIONS.CHECKPOINT_LIST:
           return { ok: true, checkpoints: runtime.getSnapshot().checkpoints };
         case A9_ACTIONS.CHECKPOINT_UNDO_TURN: {
-          exactObject(payload, ['turnId'], 'A9_PAYLOAD_INVALID');
-          return runtime.undoTurn(payload.turnId);
+          exactObject(payload, ['turnId', 'confirmationId'], 'A9_PAYLOAD_INVALID');
+          return runtime.undoTurn(payload.turnId, payload.confirmationId);
         }
         case A9_ACTIONS.CHECKPOINT_UNDO_FILE: {
-          exactObject(payload, ['turnId', 'path'], 'A9_PAYLOAD_INVALID');
-          return runtime.undoFile(payload.turnId, payload.path);
+          exactObject(payload, ['turnId', 'path', 'confirmationId'], 'A9_PAYLOAD_INVALID');
+          return runtime.undoFile(payload.turnId, payload.path, payload.confirmationId);
         }
         case A9_ACTIONS.DIFF_GET: {
           exactObject(payload, ['turnId'], 'A9_PAYLOAD_INVALID');

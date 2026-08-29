@@ -115,7 +115,7 @@ export class StdioHelperTransport implements HelperTransport {
         }
         const lines = stdout.toString('utf8').trim().split(/\r?\n/).filter(Boolean);
         if (code !== 0 || lines.length !== 1) {
-          finish({ kind: 'helper_crashed', detail: `Helper exited ${code}: ${stderr.toString('utf8')}`, cleanupConfirmed: code === 0 });
+          finish({ kind: 'helper_crashed', detail: `Helper exited ${code}: ${stderr.toString('utf8')}`, cleanupConfirmed: false });
           return;
         }
         try {
@@ -126,7 +126,7 @@ export class StdioHelperTransport implements HelperTransport {
           }
           finish({ kind: 'response', response });
         } catch (error) {
-          finish({ kind: 'helper_crashed', detail: String(error), cleanupConfirmed: true });
+          finish({ kind: 'helper_crashed', detail: String(error), cleanupConfirmed: false });
         }
       });
       signal?.addEventListener('abort', onAbort, { once: true });

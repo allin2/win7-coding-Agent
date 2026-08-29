@@ -67,7 +67,9 @@ function startDelayedFixture(): Promise<{ baseUrl: string; close: () => Promise<
 }
 
 /** 常规行为 fixture：read→final。 */
-function startQuickFixture(): Promise<{ baseUrl: string; close: () => Promise<void>; requests: any[] }> {
+function startQuickFixture(firstTool: { name: string; arguments: string } = {
+  name: 'read', arguments: '{"path":"note.txt"}',
+}): Promise<{ baseUrl: string; close: () => Promise<void>; requests: any[] }> {
   const requests: any[] = [];
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
@@ -82,7 +84,7 @@ function startQuickFixture(): Promise<{ baseUrl: string; close: () => Promise<vo
         } else {
           const toolMsgs = (parsed.messages ?? []).filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo');
           if (toolMsgs.length === 0) {
-            sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'r1', function: { name: 'read', arguments: '{"path":"note.txt"}' } }] }, finish_reason: 'tool_calls' }] });
+            sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'r1', function: firstTool }] }, finish_reason: 'tool_calls' }] });
           } else {
             sse(res, { choices: [{ delta: { content: 'done' }, finish_reason: 'stop' }] });
           }
@@ -98,8 +100,8 @@ function startQuickFixture(): Promise<{ baseUrl: string; close: () => Promise<vo
 }
 
 /** A9SH-03 fixture：启动真实托管后台进程后结束 Turn。 */
-function startBackgroundFixture(): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  const command = `${JSON.stringify(process.execPath)} -e "setInterval(() => {}, 1000)"`;
+function startBackgroundFixture(commandOverride?: string): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  const command = commandOverride || `${JSON.stringify(process.execPath)} -e "setInterval(() => {}, 1000)"`;
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let body = '';
@@ -224,6 +226,16 @@ function makeEnv() {
   fs.mkdirSync(dataRoot, { recursive: true });
   fs.writeFileSync(path.join(workspaceRoot, 'note.txt'), 'n\n');
   return { root, workspaceRoot, dataRoot };
+}
+
+function listDataFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...listDataFiles(full));
+    else files.push(full);
+  }
+  return files;
 }
 
 function makeRuntime(env: ReturnType<typeof makeEnv>) {
@@ -754,35 +766,164 @@ describe('F5: pending approval keeps active state and resume continues the same 
     try {
       first = makeRuntime(env);
       first.setMode('full_access');
+      const secret = 'a9/conversation secret';
       await first.configureProvider({
         baseUrl: fixture.baseUrl,
         model: 'fixture',
-        apiKey: 'a9-conversation-secret',
+        apiKey: secret,
         skipProbe: true,
       });
-      const encodedSecret = Buffer.from('a9-conversation-secret', 'utf8').toString('base64');
-      const turn = await first.submitTurn(`do not persist a9-conversation-secret or ${encodedSecret} in plaintext`);
+      const encodedSecret = Buffer.from(secret, 'utf8').toString('base64');
+      const unpadded = encodedSecret.replace(/=+$/g, '');
+      const base64url = unpadded.replace(/\+/g, '-').replace(/\//g, '_');
+      const formEncoded = encodeURIComponent(secret).toLowerCase().replace(/%20/g, '+');
+      const mixedPercentBase64 = encodeURIComponent(encodedSecret).replace(/%([a-f0-9]{2})/gi, (_m, hex, offset) =>
+        offset % 2 === 0 ? `%${hex.toUpperCase()}` : `%${hex.toLowerCase()}`);
+      const mixedPercentSecret = '%61%39%2fconversation+se%63ret';
+      const variants = [secret, encodedSecret, unpadded, base64url, formEncoded, mixedPercentBase64, mixedPercentSecret];
+      const turn = await first.submitTurn(`do not persist ${variants.join(', ')}`);
       expect(turn.ok).toBe(true);
       const liveSnapshot = JSON.stringify(first.getSnapshot());
       expect(liveSnapshot).toContain('***redacted***');
-      expect(liveSnapshot).not.toContain('a9-conversation-secret');
-      expect(liveSnapshot).not.toContain(encodedSecret);
+      for (const variant of variants) expect(liveSnapshot).not.toContain(variant);
       await first.stop();
       await first.shutdown();
 
       for (const file of fs.readdirSync(env.dataRoot).map((name) => path.join(env.dataRoot, name))) {
         if (!fs.statSync(file).isFile()) continue;
-        expect(fs.readFileSync(file).includes(Buffer.from('a9-conversation-secret', 'utf8'))).toBe(false);
-        expect(fs.readFileSync(file).includes(Buffer.from(encodedSecret, 'utf8'))).toBe(false);
+        for (const variant of variants) {
+          expect(fs.readFileSync(file).includes(Buffer.from(variant, 'utf8'))).toBe(false);
+        }
       }
 
       reopened = makeRuntime(env);
       const serialized = JSON.stringify(reopened.getSnapshot().conversation);
       expect(serialized).toContain('***redacted***');
-      expect(serialized).not.toContain('a9-conversation-secret');
+      expect(serialized).not.toContain(secret);
     } finally {
       if (reopened) await reopened.shutdown();
       else if (first) await first.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('redacts known secrets from manual conversation titles before SQLite and snapshot projection', async () => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    const secret = 'TITLE-SECRET-42';
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
+      const activeId = runtime.getSnapshot().activeConversationId;
+      runtime.renameConversation(activeId, `manual-${secret}`);
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).toContain('***redacted***');
+      expect(snapshot).not.toContain(secret);
+      expect(fs.readFileSync(path.join(env.dataRoot, 'a9-state.db')).includes(Buffer.from(secret, 'utf8'))).toBe(false);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects Provider reconfiguration while a Turn is active', async () => {
+    const env = makeEnv();
+    const fixture = await startDelayedFixture();
+    const runtime = makeRuntime(env);
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'old-provider', skipProbe: true });
+      runtime.setMode('full_access');
+      fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'hello');
+      const runningTurn = runtime.submitTurn('hold this turn');
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline && runtime.getSnapshot().agentStatus !== 'running') {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const activeSnapshot = runtime.getSnapshot();
+      expect(activeSnapshot.agentStatus).toBe('running');
+
+      await expect(runtime.configureProvider({
+        baseUrl: `${fixture.baseUrl}/new-provider`, model: 'new-provider', skipProbe: true,
+      })).rejects.toMatchObject({ code: 'A9_PROVIDER_RECONFIGURE_BUSY' });
+      fixture.release();
+      expect((await runningTurn).ok).toBe(true);
+      expect(runtime.getSnapshot().provider.model).toBe('old-provider');
+    } finally {
+      fixture.release();
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('recursively redacts secret-bearing external change paths before checkpoint and event persistence', async () => {
+    const env = makeEnv();
+    const secret = 'EXTERNAL-PATH-SECRET-42';
+    const script = `require('fs').writeFileSync(${JSON.stringify(path.join(env.workspaceRoot, `${secret}.txt`))}, 'x')`;
+    const fixture = await startBackgroundFixture(`${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`);
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
+      const turn = await runtime.submitTurn('create the requested test file');
+      expect(turn.ok).toBe(false);
+      expect(turn.error.message).toContain('A9_CHECKPOINT_COLLECTION_FAILED');
+      expect(JSON.stringify(turn)).not.toContain(secret);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const raw = fs.readFileSync(path.join(env.dataRoot, 'a9-state.db'));
+      expect(raw.includes(Buffer.from(secret, 'utf8'))).toBe(false);
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).not.toContain(secret);
+    } finally {
+      if (runtime.getSnapshot().controls.canStop) await runtime.stop();
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('blocks UTF-16LE known secrets before copying a Shell baseline into recovery', async () => {
+    const env = makeEnv();
+    const secret = 'UTF16-CHECKPOINT-SECRET-42';
+    const encodedSecret = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(secret, 'utf16le')]);
+    fs.writeFileSync(path.join(env.workspaceRoot, 'utf16-secret.txt'), encodedSecret);
+    const fixture = await startBackgroundFixture();
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
+      const result = await runtime.submitTurn('start background');
+      expect(result.ok).toBe(false);
+      expect(result.error.message).toContain('CHECKPOINT_SECRET_BLOCKED');
+      const recoveryRoot = path.join(env.workspaceRoot, '.agent_recovery');
+      for (const file of fs.existsSync(recoveryRoot) ? listDataFiles(recoveryRoot) : []) {
+        expect(fs.readFileSync(file).includes(Buffer.from(secret, 'utf16le'))).toBe(false);
+      }
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('revalidates both standalone and initialized Loop checkpoint caches for a newly known secret', async () => {
+    const env = makeEnv();
+    const futureSecret = 'FUTURE-LOOP-RECOVERY-SECRET-42';
+    const fixture = await startQuickFixture({
+      name: 'write', arguments: JSON.stringify({ path: 'future-secret.txt', content: futureSecret }),
+    });
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      expect((await runtime.submitTurn('write test value')).ok).toBe(true);
+      await expect(runtime.configureProvider({
+        baseUrl: fixture.baseUrl, model: 'fixture', apiKey: futureSecret, skipProbe: true,
+      })).rejects.toThrow(/A9_CHECKPOINT_SECRET_BLOCKED/);
+    } finally {
+      await runtime.shutdown();
       await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
     }
@@ -803,6 +944,30 @@ describe('F5: pending approval keeps active state and resume continues the same 
       expect(result.leftToSystem).toEqual([]);
       expect(result.stopped).toContain(running.handleId);
       expect(() => process.kill(running.pid, 0)).toThrow();
+    } finally {
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('redacts known secrets from managed process command persistence and snapshots', async () => {
+    const env = makeEnv();
+    const secret = 'MANAGED-COMMAND-SECRET-42';
+    const command = `${JSON.stringify(process.execPath)} -e "setInterval(() => {}, 1000)" ${secret}`;
+    const fixture = await startBackgroundFixture(command);
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
+      expect((await runtime.submitTurn('start background')).ok).toBe(true);
+      const snapshot = JSON.stringify(runtime.getSnapshot().managedProcesses);
+      expect(snapshot).toContain('***redacted***');
+      expect(snapshot).not.toContain(secret);
+      for (const file of listDataFiles(env.dataRoot)) {
+        if (!fs.statSync(file).isFile()) continue;
+        expect(fs.readFileSync(file).includes(Buffer.from(secret, 'utf8'))).toBe(false);
+      }
+      await runtime.shutdown();
     } finally {
       await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
@@ -830,8 +995,8 @@ describe('F5: pending approval keeps active state and resume continues the same 
 
       const { A9WorkspaceService } = require('../../../workspace/dist');
       const workspace = new A9WorkspaceService(env.workspaceRoot);
-      await workspace.read('note.txt');
-      await workspace.write('note.txt', 'changed before crash\n', { turnId: 'turn-crash-manifest-full-id' });
+      await workspace.freezeTurnBaseline('turn-crash-manifest-full-id');
+      fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'changed before crash\n', 'utf8');
 
       reopened = makeRuntime(env);
       const snapshot = reopened.getSnapshot();
@@ -842,11 +1007,59 @@ describe('F5: pending approval keeps active state and resume continues the same 
         expect.objectContaining({ kind: 'turn', id: 'turn-crash-manifest-full-id' }),
       ]));
       expect(fs.readFileSync(path.join(env.workspaceRoot, 'note.txt'), 'utf8')).toBe('changed before crash\n');
-      expect(reopened.undoTurn('turn-crash-manifest-full-id').ok).toBe(true);
+      const firstUndo = await reopened.undoTurn('turn-crash-manifest-full-id');
+      expect(firstUndo.ok).toBe(true);
+      expect(firstUndo.needsConfirmation).toBe(true);
+      expect(firstUndo.externalChanges.changes).toContainEqual(expect.objectContaining({
+        path: 'note.txt', kind: 'modified', recoverable: true,
+      }));
+      expect(fs.readFileSync(path.join(env.workspaceRoot, 'note.txt'), 'utf8')).toBe('changed before crash\n');
+      const unconfirmedRetry = await reopened.undoTurn('turn-crash-manifest-full-id');
+      expect(unconfirmedRetry.needsConfirmation).toBe(true);
+      expect(unconfirmedRetry.confirmationId).toBe(firstUndo.confirmationId);
+      expect(fs.readFileSync(path.join(env.workspaceRoot, 'note.txt'), 'utf8')).toBe('changed before crash\n');
+      const confirmedUndo = await reopened.undoTurn('turn-crash-manifest-full-id', firstUndo.confirmationId);
+      expect(confirmedUndo.ok).toBe(true);
+      expect(confirmedUndo.needsConfirmation).toBeUndefined();
       expect(fs.readFileSync(path.join(env.workspaceRoot, 'note.txt'), 'utf8')).toBe('n\n');
     } finally {
       if (reopened) await reopened.shutdown();
       else if (first) await first.shutdown();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('quarantines an older unbound v4 checkpoint without blocking new work', async () => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const manifestDir = path.join(env.workspaceRoot, '.agent_recovery', 'checkpoints');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const now = new Date().toISOString();
+    fs.writeFileSync(path.join(manifestDir, 'legacy-v4.json'), `${JSON.stringify({
+      schemaVersion: 4,
+      turnId: 'legacy-v4',
+      createdAt: now,
+      updatedAt: now,
+      changes: {},
+      unrecoverable: {},
+    })}\n`, 'utf8');
+    const runtime = makeRuntime(env);
+    try {
+      const initial = runtime.getSnapshot();
+      expect(initial.checkpointRecoveryDiagnostics.code).toBe('A9_CHECKPOINT_TURNS_QUARANTINED');
+      expect(initial.checkpointRecoveryDiagnostics.rejectedTurns).toEqual([
+        expect.objectContaining({ turnId: 'legacy-v4' }),
+      ]);
+
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn('read note.txt');
+      expect(result.ok).toBe(true);
+      expect(result.result.outcome).toBe('completed');
+      expect(fs.existsSync(path.join(manifestDir, 'legacy-v4.json'))).toBe(true);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);
@@ -894,6 +1107,39 @@ describe('F5: pending approval keeps active state and resume continues the same 
       if (runtime && runtime.getSnapshot().controls.canStop) await runtime.stop();
       if (runtime) await runtime.shutdown();
       if (child.pid && (() => { try { process.kill(child.pid, 0); return true; } catch (_err) { return false; } })()) child.kill('SIGKILL');
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('keeps persisted helper cleanup uncertainty visible and blocks clean exit after restart', async () => {
+    const env = makeEnv();
+    let runtime: any;
+    try {
+      const seed = makeRuntime(env);
+      await seed.shutdown();
+      const db = new Database(path.join(env.dataRoot, 'a9-state.db'));
+      db.prepare(`
+        INSERT INTO a9_managed_processes
+          (handle_id, workspace_path, pid, command, cwd, started_at, last_probe_status, pid_reuse_possible)
+        VALUES (?, ?, ?, ?, ?, ?, 'cleanup_required', 0)
+      `).run('bg-helper-uncertain', env.workspaceRoot, process.pid, 'redacted helper command', env.workspaceRoot, new Date().toISOString());
+      db.close();
+
+      runtime = makeRuntime(env);
+      expect(runtime.getSnapshot().managedProcesses).toEqual(expect.arrayContaining([
+        expect.objectContaining({ handleId: 'bg-helper-uncertain', cleanupRequired: true }),
+      ]));
+      expect(runtime.getSnapshot().controls).toEqual({ canStop: true, stopKind: 'managed_process' });
+
+      const guarded = await runtime.stop();
+      expect(guarded.ok).toBe(false);
+      expect(guarded.errors[0].code).toBe('A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED');
+
+      const unresolved = await runtime.shutdown();
+      expect(unresolved.leftToSystem[0]).toContain('recovered helper cleanup remains unconfirmed');
+      expect(runtime.getSnapshot().lock.held).toBe(true);
+    } finally {
+      if (runtime) await runtime.shutdown();
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);

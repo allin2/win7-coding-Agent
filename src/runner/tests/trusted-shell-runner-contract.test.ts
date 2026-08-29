@@ -181,6 +181,78 @@ describe('A9-02 regression: honest termination and logs', () => {
     expect(result.rawStdoutBytes).toBeGreaterThan(512);
   });
 
+  it('redacts a configured secret split across output chunks from preview and raw logs', async () => {
+    const secret = 'SPLIT-SECRET-42';
+    const runner = new TrustedShellRunner({
+      logDir,
+      redactText: (text) => text.split(secret).join('***redacted***'),
+      getSensitiveValues: () => [secret],
+    });
+    const script = "process.stdout.write('SPLIT-'); setTimeout(() => process.stdout.write('SECRET-42'), 30)";
+    const result = await runner.execute({ command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}` });
+
+    expect(result.stdout).toContain('***redacted***');
+    expect(result.stdout).not.toContain(secret);
+    const raw = fs.readFileSync(result.logPaths!.stdout, 'utf8');
+    expect(raw).toContain('***redacted***');
+    expect(raw).not.toContain(secret);
+  });
+
+  it('redacts URL-encoded Base64 and does not persist a secret prefix at the raw-log cap', async () => {
+    const secret = '~~~';
+    const encodedBase64 = encodeURIComponent(Buffer.from(secret, 'utf8').toString('base64'));
+    const boundarySecret = 'SECRET-AT-CAP';
+    const runner = new TrustedShellRunner({
+      logDir,
+      maxLogBytes: 8,
+      redactText: (text) => text.split(encodedBase64).join('***redacted***').split(boundarySecret).join('***redacted***'),
+      getSensitiveValues: () => [secret, boundarySecret],
+    });
+    const script = `process.stdout.write(${JSON.stringify(`AAAA${boundarySecret} ${encodedBase64}`)})`;
+    const result = await runner.execute({ command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}` });
+    const raw = fs.readFileSync(result.logPaths!.stdout, 'utf8');
+
+    expect(result.stdout).not.toContain(encodedBase64);
+    expect(raw).not.toContain(encodedBase64);
+    expect(raw).not.toContain('SECR');
+  });
+
+  it('redacts mixed-case percent escapes of Base64 from raw logs', async () => {
+    const secret = '~~~~~~';
+    const mixed = 'fn5%2Bfn5%2b';
+    const runner = new TrustedShellRunner({
+      logDir,
+      redactText: (text) => text.split(mixed).join('***redacted***'),
+      getSensitiveValues: () => [secret],
+    });
+    const script = `process.stdout.write(${JSON.stringify(mixed)})`;
+    const result = await runner.execute({ command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}` });
+    const raw = fs.readFileSync(result.logPaths!.stdout, 'utf8');
+
+    expect(result.stdout).not.toContain(mixed);
+    expect(raw).toContain('***redacted***');
+    expect(raw).not.toContain(mixed);
+  });
+
+  it('does not send D-013 an explicit 0ms idle timeout', async () => {
+    const invoke = jest.fn(async (request: any): Promise<HelperTransportResult> => ({
+      kind: 'response',
+      response: {
+        schema_version: 1, type: 'execution_result', requestId: request.requestId, status: 'completed',
+        exitCode: 0, executionTimeMs: 10, timedOut: false, idleTimedOut: false, canceled: false,
+        outputTruncated: false, containmentVerified: true, inputDetached: true,
+        hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
+        tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, userRestrictedSid: true, worldRestrictedSid: true, administratorsRestrictedSid: false, restrictedSidCount: 2, integritySid: 'S-1-16-4096', integrityRid: 4096 },
+        stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [],
+      },
+    }));
+    const runner = new TrustedShellRunner({ helperTransport: { invoke } as HelperTransport, platform: 'win32' });
+
+    await runner.execute({ command: 'echo quiet', shellKind: 'cmd', shellPath: 'cmd.exe' });
+
+    expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 3_600_000, idleTimeoutMs: 3_600_000 }), undefined);
+  });
+
   it('does not impose a default fixed hard timeout when timeoutMs is absent', async () => {
     const runner = new TrustedShellRunner({ logDir });
     // 一个 700ms 的命令：如果存在固定短超时（如 60s 不影响，但历史 bug 是固定 60s；

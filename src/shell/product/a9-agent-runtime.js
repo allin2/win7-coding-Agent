@@ -164,13 +164,40 @@ function createA9AgentRuntime(options) {
   let activeController = null;
   let agentStatus = activeConversation.activity === 'interrupted' ? 'interrupted' : 'idle';
   // F4：模型切换时保存的会话历史；新 loop 惰性创建后恢复并一次性清除。
-  let restoredContext = buildPersistedTextContext(persistence.listConversationFacts(a9SessionId));
+  function restoreProviderContext(sessionId) {
+    const metadata = persistence.getConversationMetadata(sessionId);
+    const generation = Number.isSafeInteger(metadata.providerContextGeneration)
+      ? metadata.providerContextGeneration
+      : metadata.providerContextBoundaryAt ? 1 : 0;
+    return buildPersistedTextContext(persistence.listConversationFacts(sessionId), generation);
+  }
+  function alignConversationProviderBoundary(sessionId) {
+    if (!providerConfig) return;
+    const metadata = persistence.getConversationMetadata(sessionId);
+    if (metadata.providerContextBaseUrl === providerConfig.baseUrl) return;
+    const previousGeneration = Number.isSafeInteger(metadata.providerContextGeneration)
+      ? metadata.providerContextGeneration
+      : metadata.providerContextBoundaryAt ? 1 : 0;
+    // Legacy rows have no Base URL binding. Preserve an empty conversation,
+    // but never send pre-existing facts to a Provider whose exact endpoint
+    // cannot be proved to match the one that produced them.
+    const hasFacts = persistence.listConversationFacts(sessionId).length > 0;
+    persistence.mergeConversationMetadata(sessionId, {
+      providerContextGeneration: previousGeneration + (hasFacts ? 1 : 0),
+      providerContextBaseUrl: providerConfig.baseUrl,
+    });
+  }
+  let providerContextGeneration = Number.isSafeInteger(persistence.getConversationMetadata(a9SessionId).providerContextGeneration)
+    ? persistence.getConversationMetadata(a9SessionId).providerContextGeneration
+    : persistence.getConversationMetadata(a9SessionId).providerContextBoundaryAt ? 1 : 0;
+  let restoredContext = restoreProviderContext(a9SessionId);
   let pendingConversationHistory = restoredContext.messages;
   // F5：当前 Turn 的 task/turn/run 生命周期句柄。
   let activeLifecycle = null;
   let shutdownPromise = null;
   let managedStopPromise = null;
   let checkpointRecoveryDiagnostics = null;
+  let checkpointRecoveryFatal = false;
 
   // ----- 按对话草稿（D-020：DPAPI Current User；失败时仅内存） -----
   const memoryDrafts = new Map();
@@ -268,6 +295,12 @@ function createA9AgentRuntime(options) {
   let providerProbe = null;        // { classification, checkedAt, latencyMs, error? }
   let providerDiagnostics = null;  // fail-closed 诊断（不删除证据）
   let provider = null;
+  let providerConfigurationInFlight = false;
+  const knownSecrets = new Set();  // 仅内存；保留本进程见过的旧值用于切换后继续脱敏。
+
+  function rememberSecret(value) {
+    if (typeof value === 'string' && value.length > 0) knownSecrets.add(value);
+  }
 
   function hasSecretMaterial(secrets) {
     return Boolean(secrets) && (
@@ -278,18 +311,46 @@ function createA9AgentRuntime(options) {
 
   function redactSecrets(text) {
     let out = String(text);
-    const secrets = [memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
-      ...(memorySecrets && memorySecrets.headerValues ? Object.values(memorySecrets.headerValues) : [])];
+    const secrets = Array.from(new Set([memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
+      ...(memorySecrets && memorySecrets.headerValues ? Object.values(memorySecrets.headerValues) : []),
+      ...knownSecrets]));
     for (const secret of secrets) {
       if (typeof secret !== 'string' || secret.length === 0) continue;
-      const variants = [secret, Buffer.from(secret, 'utf8').toString('base64'), encodeURIComponent(secret)];
+      const base64 = Buffer.from(secret, 'utf8').toString('base64');
+      const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+      const percent = encodeURIComponent(secret);
+      const baseEncodings = [base64, base64.replace(/=+$/g, ''), base64url, base64url.replace(/=+$/g, '')];
+      const encodedBaseVariants = baseEncodings.flatMap((value) => {
+        const encoded = encodeURIComponent(value);
+        return [encoded, encoded.toLowerCase(), encoded.toUpperCase(), encoded.replace(/%20/gi, '+')];
+      });
+      const variants = [secret, ...baseEncodings,
+        base64url.replace(/=+$/g, ''), percent, percent.toLowerCase(), percent.toUpperCase(),
+        percent.replace(/%20/gi, '+'), percent.toLowerCase().replace(/%20/g, '+'),
+        percent.toUpperCase().replace(/%20/g, '+'), ...encodedBaseVariants];
       for (const variant of variants) {
         if (variant && variant !== '***redacted***') out = out.split(variant).join('***redacted***');
+      }
+      // Percent-escape hex digits are case-insensitive and form encoding may
+      // spell spaces as '+'. Match those equivalent encodings without making
+      // the unescaped secret itself case-insensitive.
+      for (const source of [secret, ...baseEncodings]) {
+        try { out = out.replace(percentEquivalentRegex(source), '***redacted***'); } catch (_err) { /* exact variants already applied */ }
       }
     }
     out = out.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@');
     out = out.replace(/(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+/gi, '$1***redacted***');
     return out;
+  }
+
+  function containsSensitiveCheckpointData(value) {
+    if (!Buffer.isBuffer(value)) {
+      const text = String(value);
+      return redactSecrets(text) !== text;
+    }
+    const decoded = [value.toString('utf8'), value.toString('utf16le')];
+    try { decoded.push(new TextDecoder('gbk', { fatal: true }).decode(value)); } catch (_err) { /* binary/unsupported */ }
+    return decoded.some((text) => redactSecrets(text) !== text);
   }
 
   const SENSITIVE_FIELD = /(?:authorization|api[-_]?key|password|secret|access[-_]?token|refresh[-_]?token)/i;
@@ -424,6 +485,11 @@ function createA9AgentRuntime(options) {
     const loaded = loadPersistedSecrets();
     memoryApiKey = loaded.apiKey;
     memorySecrets = loaded.secrets;
+    rememberSecret(memoryApiKey);
+    if (memorySecrets) {
+      rememberSecret(memorySecrets.proxyPassword);
+      Object.values(memorySecrets.headerValues || {}).forEach(rememberSecret);
+    }
     const restoredSecret = Boolean(memoryApiKey) || hasSecretMaterial(memorySecrets);
     apiKeySource = restoredSecret ? 'dpapi' : 'none';
     if (providerConfig.keyRemembered && !restoredSecret && !providerDiagnostics) {
@@ -431,24 +497,52 @@ function createA9AgentRuntime(options) {
     }
     rebuildProvider();
   })();
+  if (providerConfig) {
+    alignConversationProviderBoundary(a9SessionId);
+    const metadata = persistence.getConversationMetadata(a9SessionId);
+    providerContextGeneration = Number.isSafeInteger(metadata.providerContextGeneration)
+      ? metadata.providerContextGeneration
+      : metadata.providerContextBoundaryAt ? 1 : 0;
+    restoredContext = restoreProviderContext(a9SessionId);
+    pendingConversationHistory = restoredContext.messages;
+  }
 
   // ----- Agent Loop 状态 -----
   const timeline = [];
   const MAX_TIMELINE = 500;
 
   // 独立于 loop 的工作区服务：撤销/Diff/Git 是状态操作，不需要 Provider。
-  const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
+  const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot, {
+    containsSensitiveData: containsSensitiveCheckpointData,
+  });
   try {
     const checkpointManager = standaloneWorkspaceService.getCheckpointManager();
     const persistedTurnIds = checkpointManager.listPersistedTurns();
-    // Validate manifest schema and embedded Turn identity before projecting a
-    // filename into SQLite. Corruption is fail-closed and never overwritten.
-    for (const turnId of persistedTurnIds) checkpointManager.loadCheckpoint(turnId);
+    const validTurnIds = [];
+    const rejectedTurns = [];
+    // Invalid or pre-binding v4 manifests remain immutable evidence and their
+    // undo stays disabled, but one legacy Turn must not globally brick new work.
+    for (const turnId of persistedTurnIds) {
+      try {
+        checkpointManager.loadCheckpoint(turnId);
+        validTurnIds.push(turnId);
+      } catch (error) {
+        rejectedTurns.push({ turnId, detail: redactSecrets(error && error.message ? error.message : String(error)) });
+      }
+    }
     persistence.reconcileInterruptedWorkspaceCheckpoints(
       canonicalWorkspace,
-      persistedTurnIds,
+      validTurnIds,
     );
+    if (rejectedTurns.length > 0) {
+      checkpointRecoveryDiagnostics = {
+        code: 'A9_CHECKPOINT_TURNS_QUARANTINED',
+        detail: `${rejectedTurns.length} 个旧/损坏 checkpoint 已禁止自动 undo；新任务仍可继续`,
+        rejectedTurns,
+      };
+    }
   } catch (err) {
+    checkpointRecoveryFatal = true;
     checkpointRecoveryDiagnostics = {
       code: 'A9_CHECKPOINT_RECONCILIATION_FAILED',
       detail: redactSecrets(err && err.message ? err.message : String(err)),
@@ -465,6 +559,9 @@ function createA9AgentRuntime(options) {
       helperTransport: new modules.runner.StdioHelperTransport(config.runnerHelperPath),
     } : {}),
     ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
+    redactText: redactSecrets,
+    getSensitiveValues: () => Array.from(knownSecrets),
+    onBackgroundStateChange: (handle) => recordManagedHandle(handle),
   });
 
   function recordManagedHandle(handle) {
@@ -472,29 +569,37 @@ function createA9AgentRuntime(options) {
       handleId: handle.handleId,
       workspacePath: workspaceRoot,
       ...(handle.pid ? { pid: handle.pid } : {}),
-      command: handle.command,
-      cwd: handle.cwd,
+      command: redactSecrets(handle.command),
+      cwd: redactSecrets(handle.cwd),
       startedAt: handle.startTime,
       lastProbeStatus: handle.status,
       pidReusePossible: handle.pidReusePossible === true,
+      cleanupRequired: handle.cleanupRequired === true,
     });
   }
 
   function syncManagedProcessFacts() {
     const handles = loopTrustedRunner.getBackgroundManager().list();
     handles.forEach(recordManagedHandle);
-    return persistence.listManagedProcesses(workspaceRoot);
+    const byId = new Map(handles.map((handle) => [handle.handleId, handle]));
+    return persistence.listManagedProcesses(workspaceRoot).map((fact) => ({
+      ...fact,
+      ...((fact.cleanupRequired === true || byId.get(fact.handleId)?.cleanupRequired === true)
+        ? { cleanupRequired: true }
+        : {}),
+    }));
   }
 
   // 崩溃恢复只采纳 PID 事实，不重放命令；PID 复用风险保留给显式 Stop 决策。
   for (const fact of persistence.listManagedProcesses(workspaceRoot)) {
-    if ((fact.lastProbeStatus === 'running' || fact.lastProbeStatus === 'starting') && fact.pid) {
+    if ((fact.lastProbeStatus === 'running' || fact.lastProbeStatus === 'starting' || fact.cleanupRequired === true) && fact.pid) {
       try {
         recordManagedHandle(loopTrustedRunner.getBackgroundManager().adoptRecoveredFact(fact.handleId, {
           pid: fact.pid,
           command: fact.command,
           cwd: fact.cwd,
           startTime: fact.startedAt,
+          cleanupRequired: fact.cleanupRequired === true,
         }));
       } catch (_err) { /* 重复句柄保持现有管理器事实 */ }
     }
@@ -524,7 +629,12 @@ function createA9AgentRuntime(options) {
     approvalDecisionInFlightId = null;
     activeLifecycle = null;
     timeline.splice(0, timeline.length);
-    restoredContext = buildPersistedTextContext(persistence.listConversationFacts(a9SessionId));
+    alignConversationProviderBoundary(a9SessionId);
+    const metadata = persistence.getConversationMetadata(a9SessionId);
+    providerContextGeneration = Number.isSafeInteger(metadata.providerContextGeneration)
+      ? metadata.providerContextGeneration
+      : metadata.providerContextBoundaryAt ? 1 : 0;
+    restoredContext = restoreProviderContext(a9SessionId);
     pendingConversationHistory = restoredContext.messages;
     agentStatus = record.activity === 'interrupted' ? 'interrupted' : 'idle';
     return { ok: true, conversationId: a9SessionId };
@@ -543,7 +653,7 @@ function createA9AgentRuntime(options) {
   }
 
   function renameConversation(sessionId, title) {
-    const record = persistence.renameConversation(String(sessionId), String(title), canonicalWorkspace);
+    const record = persistence.renameConversation(String(sessionId), redactSecrets(String(title)), canonicalWorkspace);
     if (record.sessionId === a9SessionId) activeConversation = record;
     return { ok: true, conversation: record };
   }
@@ -570,8 +680,8 @@ function createA9AgentRuntime(options) {
       err.code = 'A9_WORKSPACE_LOCKED';
       throw err;
     }
-    if (checkpointRecoveryDiagnostics) {
-      const err = new Error('A9_CHECKPOINT_RECONCILIATION_FAILED: 崩溃恢复的工作区清单无法与 SQLite 对账，已停止后续自动执行');
+    if (checkpointRecoveryFatal) {
+      const err = new Error('A9_CHECKPOINT_RECONCILIATION_FAILED: 崩溃恢复事实无法与 SQLite 对账，已停止后续自动执行');
       err.code = 'A9_CHECKPOINT_RECONCILIATION_FAILED';
       throw err;
     }
@@ -598,7 +708,9 @@ function createA9AgentRuntime(options) {
       }
     }
     if (!loop) {
-      const workspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot);
+      const workspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot, {
+        containsSensitiveData: containsSensitiveCheckpointData,
+      });
       const runnerAdapter = modules.runner.createTrustedShellLoopAdapter(loopTrustedRunner);
       const shellSelection = modules.runner.selectShell({});
       loop = new modules.core.A9AgentLoop({
@@ -673,7 +785,22 @@ function createA9AgentRuntime(options) {
    * tool_calling / chat_only / unavailable；模型切换保留会话上下文。
    */
   async function configureProvider(input) {
+    if (providerConfigurationInFlight) {
+      const error = new Error('A9_PROVIDER_RECONFIGURE_BUSY: Provider 配置正在验证，不能并发覆盖');
+      error.code = 'A9_PROVIDER_RECONFIGURE_BUSY';
+      throw error;
+    }
+    providerConfigurationInFlight = true;
+    try {
+    // Keep the mutex observable even for skipProbe/no-DPAPI paths that would
+    // otherwise complete synchronously inside an async function.
+    await Promise.resolve();
     const values = input || {};
+    if (activeController || currentPendingApproval) {
+      const error = new Error('A9_PROVIDER_RECONFIGURE_BUSY: 当前 Turn 或审批尚未结束，不能切换 Provider');
+      error.code = 'A9_PROVIDER_RECONFIGURE_BUSY';
+      throw error;
+    }
     const validatedBaseUrl = validateProviderBaseUrl(values.baseUrl);
     if (values.allowInsecureTLS === true) {
       const error = new Error('A9_PROVIDER_INSECURE_TLS_FORBIDDEN: TLS certificate verification cannot be disabled');
@@ -694,15 +821,58 @@ function createA9AgentRuntime(options) {
     const proxyInput = values.proxy && typeof values.proxy === 'object' ? values.proxy : null;
     const remember = values.rememberApiKey === true;
 
-    // F4：模型切换前保存完整标准化 conversation history；rebuildProvider 会
-    // 置空 loop，因此用 pending 缓存，在新 loop 创建后恢复并一次性清除。
-    pendingConversationHistory = loop ? loop.getConversationHistory() : null;
-
-    const previousOrigin = providerConfig ? new URL(providerConfig.baseUrl).origin : null;
-    const nextOrigin = new URL(validatedBaseUrl).origin;
+    const previousBaseUrl = providerConfig ? providerConfig.baseUrl : null;
     const suppliedApiKey = typeof values.apiKey === 'string' && values.apiKey.length > 0 ? values.apiKey : null;
-    const originChanged = Boolean(previousOrigin && previousOrigin !== nextOrigin);
-    if (originChanged && !suppliedApiKey) {
+    // Register newly supplied secrets before checking the fields documented as
+    // non-secret. Reject the config instead of persisting a redacted-but-invalid
+    // endpoint or model identity.
+    rememberSecret(suppliedApiKey);
+    rememberSecret(proxyInput && proxyInput.password ? String(proxyInput.password) : null);
+    Object.values(headerValues).forEach(rememberSecret);
+    // A value can become known only after recovery artifacts already exist.
+    // Re-read every manifest/artifact with the expanded secret set before
+    // accepting the configuration; never keep an old plaintext snapshot live.
+    if (suppliedApiKey || (proxyInput && proxyInput.password) || Object.keys(headerValues).length > 0) {
+      let recoverySecretError = null;
+      const managers = new Set([standaloneWorkspaceService, loopWorkspaceService].filter(Boolean)
+        .map((service) => service.getCheckpointManager()));
+      for (const manager of managers) {
+        try { manager.revalidatePersistedTurns(); } catch (error) { recoverySecretError = recoverySecretError || error; }
+      }
+      if (recoverySecretError) throw recoverySecretError;
+    }
+    const nonSecretFields = [validatedBaseUrl, String(values.model), ...customHeaderNames,
+      proxyInput && proxyInput.host, proxyInput && proxyInput.protocol, proxyInput && proxyInput.username,
+      values.caBundle].filter((value) => value !== null && value !== undefined).map(String);
+    if (nonSecretFields.some((value) => redactSecrets(value) !== value)) {
+      const error = new Error('A9_PROVIDER_CONFIG_CONTAINS_SECRET: Base URL/model/Header 名称/代理/CA 字段不得包含已知秘密');
+      error.code = 'A9_PROVIDER_CONFIG_CONTAINS_SECRET';
+      throw error;
+    }
+    const baseUrlChanged = previousBaseUrl !== validatedBaseUrl;
+    // 同一精确 Base URL 的模型切换保留经过脱敏的上下文；endpoint 路径、
+    // origin 或端口任一改变，都必须清空旧上下文和旧凭据绑定。
+    const previousHistory = loop ? loop.getConversationHistory() : pendingConversationHistory;
+    pendingConversationHistory = baseUrlChanged
+      ? null
+      : Array.isArray(previousHistory) ? redactForProjection(previousHistory) : null;
+    if (baseUrlChanged) {
+      // 为本工作区所有（含归档）对话持久化 endpoint 边界；之后切换或
+      // 恢复任一对话都不得把旧 Base URL 的上下文发送到新目标。
+      for (const conversation of persistence.listConversations(canonicalWorkspace)) {
+        const metadata = persistence.getConversationMetadata(conversation.sessionId);
+        const generation = Number.isSafeInteger(metadata.providerContextGeneration)
+          ? metadata.providerContextGeneration
+          : metadata.providerContextBoundaryAt ? 1 : 0;
+        persistence.mergeConversationMetadata(conversation.sessionId, {
+          providerContextGeneration: generation + 1,
+          providerContextBaseUrl: validatedBaseUrl,
+        });
+      }
+      providerContextGeneration = persistence.getConversationMetadata(a9SessionId).providerContextGeneration;
+      restoredContext = restoreProviderContext(a9SessionId);
+    }
+    if (previousBaseUrl && baseUrlChanged && !suppliedApiKey) {
       memoryApiKey = null;
       try { if (apiKeyVault) apiKeyVault.clearApiKey(); } catch (_err) { /* best effort */ }
       try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
@@ -727,6 +897,9 @@ function createA9AgentRuntime(options) {
       headerValues,
       ...(proxyInput && proxyInput.password ? { proxyPassword: String(proxyInput.password) } : {}),
     };
+    rememberSecret(memoryApiKey);
+    rememberSecret(memorySecrets.proxyPassword);
+    Object.values(memorySecrets.headerValues || {}).forEach(rememberSecret);
 
     // API Key / 秘密仅经 DPAPI 保存；失败保留诊断并降级仅内存（不写明文）。
     // F4：secretsVault（Header 值/代理密码）的保存不依赖 API Key 是否存在。
@@ -805,6 +978,9 @@ function createA9AgentRuntime(options) {
       probe: providerProbe,
       keyRemembered: providerConfig.keyRemembered === true,
     };
+    } finally {
+      providerConfigurationInFlight = false;
+    }
   }
 
   /** F4：验证 DPAPI 秘密已持久化且当前可读取（不返回明文）。 */
@@ -844,7 +1020,7 @@ function createA9AgentRuntime(options) {
     if (!provider) throw new Error('A9_PROVIDER_UNCONFIGURED');
     const probe = await provider.probeCapability();
     providerProbe = await classifyProviderWithProbe();
-    return probe;
+    return redactForProjection(probe);
   }
 
   function statusesForOutcome(outcome) {
@@ -857,6 +1033,7 @@ function createA9AgentRuntime(options) {
   }
 
   function checkpointPayloadFor(result, pendingApproval, requestPrompt) {
+    const safeExternalChanges = redactForProjection(Array.isArray(result.externalChanges) ? result.externalChanges : []);
     return {
       schemaVersion: 1,
       ...(requestPrompt ? { requestPrompt } : {}),
@@ -864,7 +1041,8 @@ function createA9AgentRuntime(options) {
       verification: result.verification || 'not_applicable',
       finalMessage: redactSecrets(result.finalMessage || ''),
       toolCallsExecuted: Number.isFinite(result.toolCallsExecuted) ? result.toolCallsExecuted : 0,
-      externalChanges: Array.isArray(result.externalChanges) ? result.externalChanges : [],
+      externalChanges: safeExternalChanges,
+      providerContextGeneration,
       ...(pendingApproval ? {
         pendingApproval: {
           approvalId: pendingApproval.approvalId,
@@ -895,9 +1073,11 @@ function createA9AgentRuntime(options) {
       payload: checkpointPayloadFor(result, pendingApproval, lifecycle.requestPrompt),
     });
     if (result.externalChanges && result.externalChanges.length > 0) {
-      persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', { changes: result.externalChanges });
+      persistence.recordToolEvent(a9SessionId, result.turnId, 'external.changes', {
+        changes: redactForProjection(result.externalChanges),
+      });
     }
-    restoredContext = buildPersistedTextContext(persistence.listConversationFacts(a9SessionId));
+    restoredContext = restoreProviderContext(a9SessionId);
     agentStatus = result.outcome;
     activeLifecycle = result.outcome === 'needs_approval' ? lifecycle : null;
   }
@@ -947,21 +1127,27 @@ function createA9AgentRuntime(options) {
   }
 
   function presentTurnResult(result) {
-    if (!result || result.outcome !== 'needs_approval') return result;
+    if (!result) return result;
+    const projected = redactForProjection(result);
+    if (result.outcome !== 'needs_approval') return projected;
     const approval = result.pendingApproval || currentPendingApproval;
-    return { ...result, pendingApproval: approvalIdentity(approval) };
+    return { ...projected, pendingApproval: approvalIdentity(approval) };
+  }
+
+  function presentError(error) {
+    return redactForProjection(serializeError(error));
   }
 
   async function submitTurn(prompt) {
     if (activeController) {
       const err = new Error('A9_TURN_ALREADY_ACTIVE: 当前已有运行中的任务');
       err.code = 'A9_TURN_ALREADY_ACTIVE';
-      return { ok: false, error: serializeError(err) };
+      return { ok: false, error: presentError(err) };
     }
     if (currentPendingApproval) {
       const err = new Error('A9_APPROVAL_REQUIRED: 请先处理当前挂起审批');
       err.code = 'A9_APPROVAL_REQUIRED';
-      return { ok: false, error: serializeError(err) };
+      return { ok: false, error: presentError(err) };
     }
     let createdTaskId = null;
     let ownedController = null;
@@ -1006,7 +1192,7 @@ function createA9AgentRuntime(options) {
         failureLifecycle = { ...failureLifecycle, turnId: failureTurnId, runId: `run-${failureTurnId}` };
       }
       persistUnexpectedFailure(error, failureLifecycle);
-      return { ok: false, error: serializeError(error) };
+      return { ok: false, error: presentError(error) };
     } finally {
       if (activeController === ownedController) activeController = null;
     }
@@ -1082,7 +1268,7 @@ function createA9AgentRuntime(options) {
       return { ok: true, result: presentTurnResult(result) };
     } catch (error) {
       if (resumeProducedResult) persistUnexpectedFailure(error, activeLifecycle);
-      return { ok: false, error: serializeError(error) };
+      return { ok: false, error: presentError(error) };
     } finally {
       if (ownedController && approvalDecisionInFlightId === (input && input.approvalId)) approvalDecisionInFlightId = null;
       if (activeController === ownedController) activeController = null;
@@ -1096,7 +1282,7 @@ function createA9AgentRuntime(options) {
       return { ok: true };
     }
     const manager = loopTrustedRunner.getBackgroundManager();
-    const active = manager.list().filter((item) => item.status === 'running' || item.status === 'starting');
+    const active = manager.list().filter((item) => item.status === 'running' || item.status === 'starting' || item.cleanupRequired === true);
     if (active.length === 0) return { ok: false, error: { code: 'NO_ACTIVE_TURN_OR_MANAGED_PROCESS' } };
     if (managedStopPromise) return managedStopPromise;
     const attempt = (async () => {
@@ -1147,7 +1333,7 @@ function createA9AgentRuntime(options) {
   function getSnapshot() {
     const shellSelection = modules.runner.selectShell({});
     const managedProcesses = syncManagedProcessFacts();
-    const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting');
+    const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting' || item.cleanupRequired === true);
     const blockReason = conversationBlockReason();
     return {
       schemaVersion: A9_PROTOCOL_VERSION,
@@ -1224,14 +1410,52 @@ function createA9AgentRuntime(options) {
     }
   }
 
-  function undoTurn(turnId) {
+  async function undoTurn(turnId, confirmationId) {
     assertCheckpointForCurrentConversation(turnId);
-    return { ok: true, outcome: workspaceServiceForState().getCheckpointManager().undoTurn(String(turnId)) };
+    const service = workspaceServiceForState();
+    const reconciliation = await service.reconcilePendingExternalBaseline(String(turnId));
+    if (reconciliation && confirmationId === reconciliation.confirmationId
+      && service.getCheckpointManager().confirmExternalUndo(String(turnId), String(confirmationId))) {
+      return { ok: true, outcome: service.getCheckpointManager().undoTurn(String(turnId)) };
+    }
+    if (reconciliation) {
+      return {
+        ok: true,
+        needsConfirmation: true,
+        confirmationId: reconciliation.confirmationId,
+        outcome: {
+          restored: [],
+          errors: ['已捕获崩溃后的当前状态并生成 Diff；请检查后再次执行撤销'],
+          drifted: [],
+        },
+        ...(reconciliation.report ? { externalChanges: reconciliation.report } : {}),
+      };
+    }
+    return { ok: true, outcome: service.getCheckpointManager().undoTurn(String(turnId)) };
   }
 
-  function undoFile(turnId, relPath) {
+  async function undoFile(turnId, relPath, confirmationId) {
     assertCheckpointForCurrentConversation(turnId);
-    return { ok: true, outcome: workspaceServiceForState().getCheckpointManager().undoFile(String(turnId), String(relPath)) };
+    const service = workspaceServiceForState();
+    const reconciliation = await service.reconcilePendingExternalBaseline(String(turnId));
+    if (reconciliation && confirmationId === reconciliation.confirmationId
+      && service.getCheckpointManager().confirmExternalUndo(String(turnId), String(confirmationId))) {
+      return { ok: true, outcome: service.getCheckpointManager().undoFile(String(turnId), String(relPath)) };
+    }
+    if (reconciliation) {
+      return {
+        ok: true,
+        needsConfirmation: true,
+        confirmationId: reconciliation.confirmationId,
+        outcome: {
+          restored: [],
+          errors: ['已捕获崩溃后的当前状态并生成 Diff；请检查后再次执行单文件撤销'],
+          drifted: [],
+        },
+        ...(reconciliation.report ? { externalChanges: reconciliation.report } : {}),
+      };
+    }
+    return { ok: true, outcome: service.getCheckpointManager().undoFile(String(turnId), String(relPath)) };
   }
 
   function getDiff(turnId) {
@@ -1249,8 +1473,9 @@ function createA9AgentRuntime(options) {
     return { ok: true, projection };
   }
 
-  function shutdown() {
-    if (shutdownPromise) return shutdownPromise;
+  function shutdown(options = {}) {
+    if (shutdownPromise && options.stopManaged !== false) return shutdownPromise;
+    if (options.stopManaged === false) shutdownPromise = null;
     const manager = loopTrustedRunner.getBackgroundManager();
     const releaseWorkspaceLock = () => {
       if (!workspaceLockReleased) {
@@ -1276,7 +1501,8 @@ function createA9AgentRuntime(options) {
       }
       if (managedStopPromise) await managedStopPromise;
       const before = manager.list();
-      const result = await manager.dispose({ stopManaged: true });
+      const stopManaged = options.stopManaged !== false;
+      const result = await manager.dispose({ stopManaged });
       for (const handle of before) {
         recordManagedHandle({
           ...handle,
@@ -1287,7 +1513,7 @@ function createA9AgentRuntime(options) {
         result.leftToSystem.push('active turn cleanup did not settle before the 10 second shutdown deadline');
       }
       const cleanupConfirmed = !activeController && manager.getActiveCount() === 0 && result.leftToSystem.length === 0;
-      if (cleanupConfirmed) releaseWorkspaceLock();
+      if (cleanupConfirmed || !stopManaged) releaseWorkspaceLock();
       return result;
     })();
     shutdownPromise = attempt;
@@ -1333,8 +1559,10 @@ function createConversationId() {
 /**
  * 重启/切换时只恢复完整用户+助手文本轮；工具、审批和副作用不进入模型上下文。
  */
-function buildPersistedTextContext(facts) {
+function buildPersistedTextContext(facts, providerContextGeneration = 0) {
   const complete = (Array.isArray(facts) ? facts : []).filter((fact) =>
+    (Number.isSafeInteger(fact.providerContextGeneration) ? fact.providerContextGeneration : 0) === providerContextGeneration
+    &&
     typeof fact.requestPrompt === 'string' && fact.requestPrompt.length > 0
     && typeof fact.finalMessage === 'string' && fact.finalMessage.length > 0);
   const selected = [];
@@ -1363,6 +1591,24 @@ function buildPersistedTextContext(facts) {
       ...(omittedRounds > 0 ? { note: `更早的 ${omittedRounds} 个完整轮次仅在本地可见，未恢复给 Provider。` } : {}),
     },
   };
+}
+
+function percentEquivalentRegex(value) {
+  const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const percentBytes = (text) => Array.from(Buffer.from(text, 'utf8'))
+    .map((byte) => `%${byte.toString(16).padStart(2, '0')}`)
+    .join('');
+  // Each Unicode code point may appear literally or as its complete UTF-8
+  // percent sequence. This covers legal mixed forms such as `%61b%2F...`
+  // without making unescaped secret characters case-insensitive.
+  const pattern = Array.from(value).map((character) => {
+    const encoded = percentBytes(character);
+    const encodedPattern = encoded.replace(/[a-f]/g, (digit) => `[${digit}${digit.toUpperCase()}]`);
+    const alternatives = [escape(character), encodedPattern];
+    if (character === ' ') alternatives.push('\\+');
+    return `(?:${alternatives.join('|')})`;
+  }).join('');
+  return new RegExp(pattern, 'g');
 }
 
 function preflightElectronSqlite(root) {

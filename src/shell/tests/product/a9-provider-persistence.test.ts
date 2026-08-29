@@ -276,6 +276,95 @@ describe('R4: provider config persistence and DPAPI integration', () => {
     }
   }, 20_000);
 
+  it('binds API keys and conversation context to the exact Base URL, not only its origin', async () => {
+    const requests: any[] = [];
+    const fixture = await startRecordingModel(requests, { secondModelTextOnly: true });
+    try {
+      const runtime = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
+      runtime.setMode('full_access');
+      const firstBase = `${fixture.baseUrl}/tenant-a/v1`;
+      const secondBase = `${fixture.baseUrl}/tenant-b/v1`;
+      await runtime.configureProvider({
+        baseUrl: firstBase, model: 'm-a', apiKey: 'sk-base-url-bound', rememberApiKey: true, skipProbe: true,
+      });
+      expect((await runtime.submitTurn('TENANT-A-CONTEXT')).ok).toBe(true);
+      const requestCount = requests.length;
+
+      await runtime.configureProvider({ baseUrl: secondBase, model: 'm-b', rememberApiKey: true, skipProbe: true });
+      expect(runtime.getSnapshot().provider.apiKey).toEqual(expect.objectContaining({ remembered: false, source: 'none' }));
+      expect((await runtime.submitTurn('TENANT-B-CONTEXT')).ok).toBe(true);
+      const secondWire = JSON.stringify(requests.slice(requestCount));
+      expect(secondWire).toContain('TENANT-B-CONTEXT');
+      expect(secondWire).not.toContain('TENANT-A-CONTEXT');
+      await runtime.shutdown();
+    } finally {
+      await fixture.close();
+    }
+  }, 30_000);
+
+  it('rejects known secret material in fields documented as non-secret', async () => {
+    const fixture = await startFixtureModel();
+    try {
+      const secret = 'sk-non-secret-field-42';
+      const runtime = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'm', apiKey: secret, rememberApiKey: true });
+
+      await expect(runtime.configureProvider({
+        baseUrl: `${fixture.baseUrl}/${secret}`,
+        model: 'm',
+        apiKey: secret,
+        skipProbe: true,
+      })).rejects.toMatchObject({ code: 'A9_PROVIDER_CONFIG_CONTAINS_SECRET' });
+      await expect(runtime.configureProvider({
+        baseUrl: fixture.baseUrl,
+        model: `model-${secret}`,
+        apiKey: secret,
+        skipProbe: true,
+      })).rejects.toMatchObject({ code: 'A9_PROVIDER_CONFIG_CONTAINS_SECRET' });
+
+      expect(runtime.getSnapshot().provider.baseUrl).toBe(fixture.baseUrl);
+      expect(listAllFiles(env.dataRoot).some((file) => fs.readFileSync(file).includes(secret))).toBe(false);
+      await runtime.shutdown();
+    } finally {
+      await fixture.close();
+    }
+  }, 20_000);
+
+  it('does not send prior Provider conversation context to a different origin', async () => {
+    const firstRequests: any[] = [];
+    const secondRequests: any[] = [];
+    const firstOrigin = await startRecordingModel(firstRequests);
+    const secondOrigin = await startRecordingModel(secondRequests, { secondModelTextOnly: true });
+    try {
+      const runtime = makeRuntime();
+      runtime.setMode('full_access');
+      fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'hello\n');
+      await runtime.configureProvider({ baseUrl: firstOrigin.baseUrl, model: 'm-a', apiKey: 'OLD-SECRET-42', skipProbe: true });
+      expect((await runtime.submitTurn('ORIGIN-A-MARKER OLD-SECRET-42')).ok).toBe(true);
+
+      await runtime.configureProvider({ baseUrl: secondOrigin.baseUrl, model: 'm-b', apiKey: 'NEW-SECRET-42', skipProbe: true });
+      expect((await runtime.submitTurn('ORIGIN-B-MARKER')).ok).toBe(true);
+
+      const wire = JSON.stringify(secondRequests.filter((request) => !(request?.tools?.[0]?.function?.name === 'probe_test_echo')));
+      expect(wire).toContain('ORIGIN-B-MARKER');
+      expect(wire).not.toContain('ORIGIN-A-MARKER');
+      expect(wire).not.toContain('OLD-SECRET-42');
+      await runtime.shutdown();
+
+      const beforeRestartRequests = secondRequests.length;
+      const reopened = makeRuntime();
+      expect((await reopened.submitTurn('ORIGIN-B-AFTER-RESTART')).ok).toBe(true);
+      const restartWire = JSON.stringify(secondRequests.slice(beforeRestartRequests));
+      expect(restartWire).toContain('ORIGIN-B-AFTER-RESTART');
+      expect(restartWire).not.toContain('ORIGIN-A-MARKER');
+      expect(restartWire).not.toContain('OLD-SECRET-42');
+      await reopened.shutdown();
+    } finally {
+      await firstOrigin.close();
+      await secondOrigin.close();
+    }
+  }, 30_000);
+
   it('saves and restores the API key through the injected (fake) DPAPI vault', async () => {
     const fixture = await startFixtureModel();
     try {
@@ -475,6 +564,43 @@ describe('R4: provider config persistence and DPAPI integration', () => {
       await fixture.close();
     }
   }, 30_000);
+
+  it('rejects concurrent Provider configuration instead of mixing endpoint and probe facts', async () => {
+    const fixture = await startFixtureModel();
+    const runtime = makeRuntime();
+    try {
+      const first = runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'first', skipProbe: true });
+      await expect(runtime.configureProvider({ baseUrl: `${fixture.baseUrl}/second`, model: 'second', skipProbe: true }))
+        .rejects.toMatchObject({ code: 'A9_PROVIDER_RECONFIGURE_BUSY' });
+      await first;
+      expect(runtime.getSnapshot().provider.model).toBe('first');
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+    }
+  });
+
+  it('redacts custom authentication Header values from manual probe IPC results', async () => {
+    const secret = 'CUSTOM-HEADER-PROBE-SECRET-42';
+    const server = http.createServer((req, res) => {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `upstream echoed ${String(req.headers['x-secret'])}` }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const baseUrl = `http://127.0.0.1:${(server.address() as any).port}`;
+    const runtime = makeRuntime();
+    try {
+      await runtime.configureProvider({
+        baseUrl, model: 'probe-redaction', customHeaders: { 'X-Secret': secret }, skipProbe: true,
+      });
+      const result = await runtime.probeProvider();
+      expect(JSON.stringify(result)).not.toContain(secret);
+      expect(JSON.stringify(result)).toContain('***redacted***');
+    } finally {
+      await runtime.shutdown();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 
   it('encrypts drafts per conversation, restores them after restart, and never stores plaintext', async () => {
     const secretDraft = '未发送草稿-DPAPI-ONLY-42';

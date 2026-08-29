@@ -31,6 +31,7 @@
     draftHydratedConversationId: null,
     draftTimer: null,
     draftSaving: false,
+    undoConfirmations: Object.create(null),
   };
 
   function el(id) { return document.getElementById(id); }
@@ -823,9 +824,13 @@
   }
 
   async function undoTurn(turnId) {
-    const response = await a9.undoTurn(turnId);
+    const response = await a9.undoTurn(turnId, state.undoConfirmations[turnId]);
+    if (response && response.needsConfirmation === true) state.undoConfirmations[turnId] = response.confirmationId;
+    else delete state.undoConfirmations[turnId];
     text('a9-undo-state', response && response.ok === true
-      ? `restored=${(response.outcome.restored || []).length} · errors=${(response.outcome.errors || []).length}`
+      ? (response.needsConfirmation === true
+        ? response.outcome.errors[0]
+        : `restored=${(response.outcome.restored || []).length} · errors=${(response.outcome.errors || []).length}`)
       : errorMessage(response, '撤销失败。'));
     await refreshSnapshot();
   }

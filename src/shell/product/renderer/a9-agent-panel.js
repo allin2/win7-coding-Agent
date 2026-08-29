@@ -20,6 +20,7 @@
   });
   let lastSnapshot = null;
   let approvalDecisionInFlight = null;
+  const undoConfirmations = Object.create(null);
 
   function clearApprovalError() {
     const node = el('a9-approval-error');
@@ -399,9 +400,13 @@
   }
 
   async function undoTurn(turnId) {
-    const response = await a9.undoTurn(turnId);
+    const response = await a9.undoTurn(turnId, undoConfirmations[turnId]);
+    if (response && response.needsConfirmation === true) undoConfirmations[turnId] = response.confirmationId;
+    else delete undoConfirmations[turnId];
     text('a9-undo-state', response && response.ok === true
-      ? `restored=${(response.outcome.restored || []).length} errors=${(response.outcome.errors || []).length}`
+      ? (response.needsConfirmation === true
+        ? response.outcome.errors[0]
+        : `restored=${(response.outcome.restored || []).length} errors=${(response.outcome.errors || []).length}`)
       : '撤销失败');
     await refreshSnapshot();
     return response;

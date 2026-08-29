@@ -119,6 +119,7 @@ export interface TurnContentBaseline {
   turnId: string;
   frozenAt: string;
   files: Record<string, { sha256: string; blobPath: string; size: number }>;
+  directories: Record<string, { snapshotPath: string; treeHash: string }>;
   /** F2：基线未覆盖的既有文件事实（size/mtime 供 rename 启发式；不保存内容）。 */
   skipped: Array<{ path: string; reason: 'too_large' | 'backup_failed' | 'outside'; size?: number; mtimeMs?: number }>;
 }
@@ -133,8 +134,28 @@ export class A9WorkspaceService {
   private readonly ignoreFilter: IgnoreFilter;
   private readonly checkpointManager: CheckpointManager;
   private readonly baselines = new Map<string, BaselineFact>();
+  private readonly containsSensitiveData: (value: string | Buffer) => boolean;
 
-  constructor(workspaceRoot: string) {
+  private hashFile(filePath: string): string {
+    const digest = crypto.createHash('sha256');
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    try {
+      let bytesRead = 0;
+      do {
+        bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null);
+        if (bytesRead > 0) digest.update(buffer.subarray(0, bytesRead));
+      } while (bytesRead > 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+    return digest.digest('hex');
+  }
+
+  constructor(
+    workspaceRoot: string,
+    options: { containsSensitiveData?: (value: string | Buffer) => boolean } = {},
+  ) {
     // 规范化工作区根本身（macOS /var → /private/var、junction 等），
     // 否则 realpathSync 的文件会得到跨前缀的 ../../ 相对路径。
     let canonicalRoot = workspaceRoot;
@@ -144,8 +165,9 @@ export class A9WorkspaceService {
       canonicalRoot = path.resolve(workspaceRoot);
     }
     this.workspaceRoot = canonicalRoot;
+    this.containsSensitiveData = options.containsSensitiveData ?? (() => false);
     this.ignoreFilter = createWorkspaceIgnoreFilter(canonicalRoot);
-    this.checkpointManager = new CheckpointManager(canonicalRoot);
+    this.checkpointManager = new CheckpointManager(canonicalRoot, undefined, this.containsSensitiveData);
   }
 
   getCheckpointManager(): CheckpointManager {
@@ -828,7 +850,8 @@ export class A9WorkspaceService {
    * 总量有界；超限或读取失败显式记入 skipped（后续变化将标记不可恢复）。
    */
   async freezeTurnBaseline(turnId: string, options: { signal?: AbortSignal } = {}): Promise<TurnContentBaseline> {
-    const files: TurnContentBaseline['files'] = {};
+    const files: TurnContentBaseline['files'] = Object.create(null);
+    const directories: TurnContentBaseline['directories'] = Object.create(null);
     const skipped: TurnContentBaseline['skipped'] = [];
     let totalBytes = 0;
     let fileCount = 0;
@@ -842,6 +865,9 @@ export class A9WorkspaceService {
       try {
         dirents = fs.readdirSync(dir, { withFileTypes: true });
       } catch (_e) {
+        if (dir === this.workspaceRoot) throw new Error('无法读取工作区根目录，拒绝建立不完整的轮前基线');
+        const skippedPath = path.relative(this.workspaceRoot, dir).replace(/\\/g, '/');
+        skipped.push({ path: skippedPath, reason: 'backup_failed' });
         continue;
       }
       for (const dirent of dirents) {
@@ -849,7 +875,11 @@ export class A9WorkspaceService {
         const rel = path.relative(this.workspaceRoot, fullPath).replace(/\\/g, '/');
         if (rel.startsWith('.agent_recovery')) continue;
         if (this.ignoreFilter.isIgnored(rel, dirent.isDirectory())) continue;
+        if (this.containsSensitiveData(rel)) {
+          throw new Error('A9_CHECKPOINT_SECRET_BLOCKED: workspace path contains known secret material');
+        }
         if (dirent.isDirectory()) {
+          directories[rel] = this.checkpointManager.saveEmptyDirectoryBaseline(turnId, rel);
           const real = this.safeRealPath(fullPath);
           if (real && !visited.has(real)) {
             visited.add(real);
@@ -873,19 +903,30 @@ export class A9WorkspaceService {
           }
           try {
             const content = this.readBaselineFile(fullPath);
-            const blobPath = this.checkpointManager.saveToRecovery(rel, content);
+            if (this.containsSensitiveData(content)) {
+              throw new Error('A9_CHECKPOINT_SECRET_BLOCKED: workspace file contains known secret material');
+            }
+            const blobPath = this.checkpointManager.saveToRecovery(turnId, rel, content);
             const sha256 = crypto.createHash('sha256').update(content).digest('hex');
             files[rel] = { sha256, blobPath, size: stat.size };
             totalBytes += stat.size;
             fileCount += 1;
-          } catch (_e) {
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('A9_CHECKPOINT_SECRET_BLOCKED')) throw error;
             skipped.push({ path: rel, reason: 'backup_failed', size: stat.size, mtimeMs: stat.mtimeMs });
           }
         }
       }
     }
 
-    return { turnId, frozenAt: new Date().toISOString(), files, skipped };
+    const baseline = { turnId, frozenAt: new Date().toISOString(), files, directories, skipped };
+    this.checkpointManager.persistExternalBaseline(turnId, {
+      frozenAt: baseline.frozenAt,
+      files: baseline.files,
+      directories: baseline.directories,
+      skipped: baseline.skipped,
+    });
+    return baseline;
   }
 
   /**
@@ -896,10 +937,11 @@ export class A9WorkspaceService {
   async collectExternalChanges(
     turnId: string,
     baseline: TurnContentBaseline,
-    options: { signal?: AbortSignal } = {},
+    options: { signal?: AbortSignal; requireUndoConfirmation?: boolean } = {},
   ): Promise<ExternalChangeReport> {
     const report: ExternalChangeReport = { changes: [], unrecoverable: [] };
     const current = new Map<string, { sha256: string; size: number; mtimeMs: number }>();
+    const currentDirectories = new Set<string>();
     const stack: string[] = [this.workspaceRoot];
     const visited = new Set<string>([this.safeRealPath(this.workspaceRoot)].filter((v): v is string => v !== undefined));
     while (stack.length > 0) {
@@ -916,7 +958,11 @@ export class A9WorkspaceService {
         const rel = path.relative(this.workspaceRoot, fullPath).replace(/\\/g, '/');
         if (rel.startsWith('.agent_recovery')) continue;
         if (this.ignoreFilter.isIgnored(rel, dirent.isDirectory())) continue;
+        if (this.containsSensitiveData(rel)) {
+          throw new Error('A9_CHECKPOINT_SECRET_BLOCKED: changed workspace path contains known secret material');
+        }
         if (dirent.isDirectory()) {
+          currentDirectories.add(rel);
           const real = this.safeRealPath(fullPath);
           if (real && !visited.has(real)) {
             visited.add(real);
@@ -930,12 +976,7 @@ export class A9WorkspaceService {
             continue;
           }
           try {
-            if (stat.size <= MAX_BASELINE_FILE_BYTES) {
-              const hash = crypto.createHash('sha256').update(fs.readFileSync(fullPath)).digest('hex');
-              current.set(rel, { sha256: hash, size: stat.size, mtimeMs: stat.mtimeMs });
-            } else {
-              current.set(rel, { sha256: `too-large:${stat.size}`, size: stat.size, mtimeMs: stat.mtimeMs });
-            }
+            current.set(rel, { sha256: this.hashFile(fullPath), size: stat.size, mtimeMs: stat.mtimeMs });
           } catch (_e) {
             // 内容当前不可读时仍保留 stat 事实，避免把仍存在的文件误判为删除。
             current.set(rel, { sha256: `unreadable:${stat.size}:${stat.mtimeMs}`, size: stat.size, mtimeMs: stat.mtimeMs });
@@ -947,10 +988,13 @@ export class A9WorkspaceService {
     // F2：skipped = 冻结时已存在但基线未覆盖的文件（携带事实，不含内容）。
     const skippedFacts = new Map(baseline.skipped.map((item) => [item.path, item]));
     const createdHashes = new Map<string, string>();
+    const isContentHash = (value: string): boolean => /^[a-f0-9]{64}$/.test(value);
 
     // 新建与修改。
     for (const [rel, fact] of current) {
-      const before = baseline.files[rel];
+      const before = Object.prototype.hasOwnProperty.call(baseline.files, rel)
+        ? baseline.files[rel]
+        : undefined;
       const skippedFact = skippedFacts.get(rel);
       if (!before && skippedFact) {
         // skipped 不含内容，只能比较冻结时保存的 stat 事实。事实完整且未变化时
@@ -959,7 +1003,7 @@ export class A9WorkspaceService {
           && skippedFact.size === fact.size && skippedFact.mtimeMs === fact.mtimeMs;
         if (metadataUnchanged) continue;
         this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
-          newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
+          newHash: isContentHash(fact.sha256) ? fact.sha256 : undefined,
           unrecoverable: true,
         });
         this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: `轮前基线未覆盖（${skippedFact.reason}），无法恢复原内容` });
@@ -968,18 +1012,32 @@ export class A9WorkspaceService {
         continue;
       }
       if (!before) {
-        createdHashes.set(fact.sha256, rel);
-        this.checkpointManager.recordExternalFact(turnId, rel, 'created', { newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256 });
-        report.changes.push({ path: rel, kind: 'created', recoverable: true, restoredVia: 'delete-new' });
+        if (isContentHash(fact.sha256)) {
+          createdHashes.set(fact.sha256, rel);
+          this.checkpointManager.recordExternalFact(turnId, rel, 'created', { newHash: fact.sha256 });
+          report.changes.push({ path: rel, kind: 'created', recoverable: true, restoredVia: 'delete-new' });
+        } else {
+          this.checkpointManager.recordExternalFact(turnId, rel, 'created', { unrecoverable: true });
+          this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'created', reason: '轮后文件不可读，无法绑定删除目标身份' });
+          report.unrecoverable.push({ path: rel, kind: 'created', reason: 'backup_failed' });
+          report.changes.push({ path: rel, kind: 'created', recoverable: false });
+        }
         continue;
       }
       if (before.sha256 !== fact.sha256) {
         this.checkpointManager.recordExternalFact(turnId, rel, 'modified', {
           originalBlobPath: before.blobPath,
           originalHash: before.sha256,
-          newHash: fact.sha256.startsWith('too-large:') ? undefined : fact.sha256,
+          newHash: isContentHash(fact.sha256) ? fact.sha256 : undefined,
+          ...(!isContentHash(fact.sha256) ? { unrecoverable: true } : {}),
         });
-        report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
+        if (isContentHash(fact.sha256)) {
+          report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
+        } else {
+          this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: '轮后文件不可读，无法绑定撤销目标身份' });
+          report.unrecoverable.push({ path: rel, kind: 'modified', reason: 'backup_failed' });
+          report.changes.push({ path: rel, kind: 'modified', recoverable: false });
+        }
       }
     }
 
@@ -1018,7 +1076,58 @@ export class A9WorkspaceService {
       }
     }
 
+    const emptyTreeHash = this.checkpointManager.emptyDirectoryTreeHash();
+    const baselineDirectories = baseline.directories ?? {};
+    // 目录事实最后写入；undo 会先移除轮内新建的深层对象，再恢复目录骨架和文件。
+    for (const [rel, before] of Object.entries(baselineDirectories)) {
+      if (currentDirectories.has(rel)) continue;
+      if (current.has(rel)) {
+        this.checkpointManager.recordExternalDirectoryFact(turnId, rel, 'replaced_by_file', {
+          originalSnapshotPath: before.snapshotPath,
+          originalTreeHash: before.treeHash,
+        });
+        report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
+      } else {
+        this.checkpointManager.recordExternalDirectoryFact(turnId, rel, 'deleted', {
+          originalSnapshotPath: before.snapshotPath,
+          originalTreeHash: before.treeHash,
+        });
+        report.changes.push({ path: rel, kind: 'deleted', recoverable: true, restoredVia: 'restore-original' });
+      }
+    }
+    for (const rel of currentDirectories) {
+      if (Object.prototype.hasOwnProperty.call(baselineDirectories, rel)) continue;
+      this.checkpointManager.recordExternalDirectoryFact(turnId, rel, 'created', { emptyTreeHash });
+      report.changes.push({ path: rel, kind: baseline.files[rel] ? 'modified' : 'created', recoverable: true, restoredVia: 'delete-new' });
+    }
+
+    this.checkpointManager.markExternalBaselineCollected(turnId, options.requireUndoConfirmation === true);
     return report;
+  }
+
+  /**
+   * J5：首次显式 Undo 只把崩溃后的当前工作区与已持久化轮前基线对账，
+   * 生成可检查 Diff 并把 pending 转成 complete；调用方须再次显式 Undo
+   * 才能实际改写文件。这样不会静默覆盖崩溃后的人工作业。
+   */
+  async reconcilePendingExternalBaseline(turnId: string): Promise<{
+    report?: ExternalChangeReport;
+    confirmationId: string;
+  } | undefined> {
+    const awaiting = this.checkpointManager.getExternalUndoConfirmation(turnId);
+    if (awaiting) return { confirmationId: awaiting };
+    const persisted = this.checkpointManager.getPendingExternalBaseline(turnId);
+    if (!persisted) return undefined;
+    const report = await this.collectExternalChanges(turnId, {
+      turnId,
+      frozenAt: persisted.frozenAt,
+      files: persisted.files,
+      directories: persisted.directories,
+      skipped: persisted.skipped,
+    }, { requireUndoConfirmation: true });
+    const confirmationId = this.checkpointManager.getExternalUndoConfirmation(turnId);
+    if (!confirmationId) throw new Error('A9_CHECKPOINT_CONFIRMATION_NOT_PERSISTED');
+    return { report, confirmationId };
   }
 
   private safeRealPath(target: string): string | undefined {

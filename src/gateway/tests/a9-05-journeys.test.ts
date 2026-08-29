@@ -601,7 +601,7 @@ describe('J5 (FIXTURE MODEL): product runtime undo and restart recovery with rea
       expect(snapshot.timeline).toEqual([]);
 
       // 撤销恢复真实文件内容（已完成轮的 checkpoint）。
-      const undo = runtime2.undoTurn(turn.result.turnId);
+      const undo = await runtime2.undoTurn(turn.result.turnId);
       expect(undo.ok).toBe(true);
       expect(undo.outcome.errors).toEqual([]);
       expect(fs.readFileSync(path.join(workspaceRoot, 'state.ts'), 'utf8')).toBe('const value = 1;\n');

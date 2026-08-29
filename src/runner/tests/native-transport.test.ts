@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
 import { spawn } from 'child_process';
-import { NativeHelperExecutionResult, NativeHelperRequest, StdioHelperTransport } from '../src';
+import { hasCompleteHelperCleanupProof, NativeHelperExecutionResult, NativeHelperRequest, parseNativeHelperResponse, StdioHelperTransport } from '../src';
 
 jest.mock('child_process', () => ({ spawn: jest.fn() }));
 
@@ -41,11 +41,21 @@ function cancelledResponse(): NativeHelperExecutionResult {
     executionTimeMs: 20, timedOut: false, idleTimedOut: false, canceled: true, outputTruncated: false,
     containmentVerified: true, inputDetached: true,
     hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
-    tokenAudit: { verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, integrityRid: 4096 },
+    tokenAudit: {
+      source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary',
+      restrictedSidSetVerified: true, userRestrictedSid: true, worldRestrictedSid: true,
+      administratorsRestrictedSid: false, restrictedSidCount: 2, integritySid: 'S-1-16-4096', integrityRid: 4096,
+    },
     stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '',
-    aclChanges: [{ applied: true, verified: true, rolledBack: true, error: '' }],
+    aclChanges: [{ path: 'C:\\acceptance\\work', mechanism: 'deny_ace', applied: true, verified: true, rolledBack: true, error: '' }],
   };
 }
+
+test('rejects helper exit codes outside the Windows DWORD domain', () => {
+  expect(() => parseNativeHelperResponse(JSON.stringify({
+    ...cancelledResponse(), exitCode: Number.MAX_SAFE_INTEGER + 1,
+  }), 'cancel-1')).toThrow(/execution response fields are invalid/);
+});
 
 test('cooperative cancellation waits for helper acknowledgement and never kills a clean helper', async () => {
   const child = new FakeChild();
@@ -74,4 +84,47 @@ test('cancellation without a helper acknowledgement remains cleanup_failed evide
   child.stdout.write(`${JSON.stringify({ ...cancelledResponse(), canceled: false })}\n`);
   child.emit('close', 0);
   await expect(pending).resolves.toMatchObject({ kind: 'cancelled', cleanupConfirmed: false });
+});
+
+test.each([
+  ['malformed response', '{not-json}\n'],
+  ['multiple responses', `${JSON.stringify(cancelledResponse())}\n${JSON.stringify(cancelledResponse())}\n`],
+])('helper exit zero with %s never proves cleanup', async (_label, output) => {
+  const child = new FakeChild();
+  (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const pending = new StdioHelperTransport('helper.exe').invoke(request());
+  child.stdout.write(output);
+  child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', cleanupConfirmed: false });
+});
+
+test('truthy string containment fields are rejected instead of proving cleanup', async () => {
+  const child = new FakeChild();
+  (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const pending = new StdioHelperTransport('helper.exe').invoke(request());
+  child.stdout.write(`${JSON.stringify({
+    ...cancelledResponse(),
+    containmentVerified: 'false',
+    inputDetached: 'false',
+  })}\n`);
+  child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', cleanupConfirmed: false });
+});
+
+test('a structurally valid but semantically contradictory token/job audit never proves cleanup', () => {
+  const contradictory = {
+    ...cancelledResponse(),
+    hostJob: { detected: false, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
+    tokenAudit: {
+      ...cancelledResponse().tokenAudit,
+      userRestrictedSid: false,
+      worldRestrictedSid: false,
+      administratorsRestrictedSid: true,
+      restrictedSidCount: 0,
+      integritySid: 'S-1-16-8192',
+    },
+  };
+  const parsed = parseNativeHelperResponse(JSON.stringify(contradictory), 'cancel-1');
+  expect(parsed.type).toBe('execution_result');
+  if (parsed.type === 'execution_result') expect(hasCompleteHelperCleanupProof(parsed)).toBe(false);
 });

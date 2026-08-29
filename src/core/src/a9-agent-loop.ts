@@ -266,9 +266,10 @@ export interface A9ApprovalDecision {
   bindingDigest: string;
 }
 
-/** 计算 approvalId：turn + call + digest 的短哈希（同一挂起可重算验证）。 */
+/** 每次签发都加入随机 nonce；同一 Turn 重用 callId/args 也必须得到新的一次性身份。 */
 function computeApprovalId(turnId: string, callId: string, bindingDigest: string): string {
-  return `apr-${crypto.createHash('sha256').update(`${turnId}\n${callId}\n${bindingDigest}`).digest('hex').slice(0, 24)}`;
+  const issuanceNonce = crypto.randomBytes(16).toString('hex');
+  return `apr-${crypto.createHash('sha256').update(`${turnId}\n${callId}\n${bindingDigest}\n${issuanceNonce}`).digest('hex').slice(0, 24)}`;
 }
 
 /** canonical JSON（键排序），供 bindingDigest 稳定计算。 */
@@ -800,8 +801,11 @@ export class A9AgentLoop {
           this.frozenBaseline = await this.config.externalChangePort.freezeTurnBaseline(turnId, { signal });
           this.baselineFrozen = true;
         } catch (err) {
-          this.eventHandlerErrors.push(`freezeTurnBaseline failed: ${err instanceof Error ? err.message : String(err)}`);
-          this.baselineFrozen = true; // 失败也标记已尝试；后续变化将无法恢复并如实暴露
+          const detail = `freezeTurnBaseline failed: ${err instanceof Error ? err.message : String(err)}`;
+          this.eventHandlerErrors.push(detail);
+          // No side effect may run without a durable Turn-entry baseline.
+          // Failing closed here is the only way to keep crash recovery honest.
+          throw new Error(`A9_CHECKPOINT_BASELINE_FAILED: ${detail}`);
         }
       }
 
@@ -910,7 +914,10 @@ export class A9AgentLoop {
   }
 
   private isPotentialSideEffectTool(name: string): boolean {
-    return name === 'shell' || this.isStagedWriteTool(name);
+    // Workspace write tools create their own pre/post mutation checkpoints.
+    // Only opaque Shell execution needs the bounded whole-workspace baseline.
+    // This also preserves Review mode's zero-write staging contract.
+    return name === 'shell';
   }
 
   private async collectExternal(turnId: string, signal: AbortSignal | undefined): Promise<void> {
@@ -932,8 +939,12 @@ export class A9AgentLoop {
         });
       }
     } catch (err) {
-      // 收集失败不得吞掉，也不得丢失工具结果。
-      this.eventHandlerErrors.push(`collectExternalChanges failed: ${err instanceof Error ? err.message : String(err)}`);
+      const detail = `collectExternalChanges failed: ${err instanceof Error ? err.message : String(err)}`;
+      this.eventHandlerErrors.push(detail);
+      // Once Shell has run, an uncollectable post-state invalidates the
+      // checkpoint chain. Stop the Turn before any later model tool can add
+      // more side effects under a permanently pending baseline.
+      throw new Error(`A9_CHECKPOINT_COLLECTION_FAILED: ${detail}`);
     }
   }
 
@@ -1030,8 +1041,6 @@ export class A9AgentLoop {
       executed = !residueRisk;
     } catch (err: any) {
       toolResultStr = `Tool execution error: ${err.message}`;
-      // R3：失败/取消的 Shell 也必须收集已发生的文件变化。
-      if (isShellTool) await this.collectExternal(turnId, signal);
     }
     if (isShellTool) {
       // 成功、超时、取消、residueRisk 后都要收集变化（同一 checkpoint 链路）。

@@ -210,6 +210,13 @@ describe('R2: immutable approval objects', () => {
     expect(a.bindingDigest).not.toBe(b.bindingDigest);
   });
 
+  it('issues a fresh one-shot identity when a provider repeats the same call in one turn', () => {
+    const a = buildA9ApprovalRequest('turn-same', 'call-same', 'shell', { command: 'git push origin main' }, 'r');
+    const b = buildA9ApprovalRequest('turn-same', 'call-same', 'shell', { command: 'git push origin main' }, 'r');
+    expect(a.bindingDigest).toBe(b.bindingDigest);
+    expect(a.approvalId).not.toBe(b.approvalId);
+  });
+
   it('persists the pending approval before returning NEEDS_APPROVAL', async () => {
     const persisted: A9ApprovalRequest[] = [];
     const loop = new A9AgentLoop({
@@ -275,6 +282,33 @@ describe('R2: immutable approval objects', () => {
     expect(Object.keys(persisted[0].args).length).toBeGreaterThan(0);
   });
 
+  it('rejects a consumed card when the provider repeats the same call id and args in one turn', async () => {
+    const workspace = makeWorkspace();
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/ws',
+      provider: modelReturning([{ id: 'same-call', name: 'delete', arguments: JSON.stringify({ path: 'same.txt', permanent: true }) }], false),
+      workspaceService: workspace,
+      runner: { execute: jest.fn() } as A9RunnerPort,
+      permissionMode: PermissionMode.FULL_ACCESS,
+    });
+    const first = await loop.runTurn('delete it');
+    const oldCard = first.pendingApproval!;
+    const repeated = await loop.resumeAfterApproval({
+      approvalId: oldCard.approvalId,
+      decision: 'denied',
+      bindingDigest: oldCard.bindingDigest,
+    });
+    expect(repeated.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+    expect(repeated.pendingApproval!.approvalId).not.toBe(oldCard.approvalId);
+
+    await expect(loop.resumeAfterApproval({
+      approvalId: oldCard.approvalId,
+      decision: 'approved',
+      bindingDigest: oldCard.bindingDigest,
+    })).rejects.toThrow(/approvalId 不匹配|APPROVAL_INVALID/);
+    expect(workspace.delete).not.toHaveBeenCalled();
+  });
+
   it('uses the resumed AbortSignal for the approved Shell call', async () => {
     let observedSignal: AbortSignal | undefined;
     const runner: A9RunnerPort = {
@@ -304,5 +338,43 @@ describe('R2: immutable approval objects', () => {
     expect(observedSignal).toBe(controller.signal);
     controller.abort();
     await resumed;
+  });
+});
+
+describe('R3: durable Shell baseline gate', () => {
+  it('does not execute Shell when the Turn-entry baseline cannot be persisted', async () => {
+    const runner = { execute: jest.fn() } as unknown as A9RunnerPort;
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/ws',
+      provider: modelReturning([{ id: 's1', name: 'shell', arguments: JSON.stringify({ command: 'echo safe' }) }]),
+      workspaceService: makeWorkspace(),
+      runner,
+      permissionMode: PermissionMode.FULL_ACCESS,
+      externalChangePort: {
+        freezeTurnBaseline: jest.fn().mockRejectedValue(new Error('manifest write failed')),
+        collectExternalChanges: jest.fn(),
+      },
+    });
+
+    await expect(loop.runTurn('run it')).rejects.toThrow(/A9_CHECKPOINT_BASELINE_FAILED/);
+    expect(runner.execute).not.toHaveBeenCalled();
+  });
+
+  it('stops the Turn when the Shell post-state cannot be collected', async () => {
+    const runner = { execute: jest.fn().mockResolvedValue({ status: 'completed', stdout: 'ok', stderr: '' }) } as unknown as A9RunnerPort;
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/ws',
+      provider: modelReturning([{ id: 's1', name: 'shell', arguments: JSON.stringify({ command: 'echo safe' }) }]),
+      workspaceService: makeWorkspace(),
+      runner,
+      permissionMode: PermissionMode.FULL_ACCESS,
+      externalChangePort: {
+        freezeTurnBaseline: jest.fn().mockResolvedValue({}),
+        collectExternalChanges: jest.fn().mockRejectedValue(new Error('post-state unavailable')),
+      },
+    });
+
+    await expect(loop.runTurn('run it')).rejects.toThrow(/A9_CHECKPOINT_COLLECTION_FAILED/);
+    expect(runner.execute).toHaveBeenCalledTimes(1);
   });
 });
