@@ -16,19 +16,21 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；A9-08 授权范围闭环，A9-09 D-013 v25 `IMPLEMENTATION_AUTHORIZED / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；A9-09A D-013 v25 开发机 Gate PASS，`A9_09B_READY_FOR_LOCKED_WIN10_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
-## A9 Trusted Agent Runtime（2026-08-29）
+## A9 Trusted Agent Runtime（2026-08-30）
 
-- ADR-0101 已授权
-  [`A9-09 D-013 TrustedShell Current-User Profile`](tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md)：保留
-  v24 Low-Risk Profile 与历史工件，新增 v25/协议 v2/当前用户 Full Access Profile，补齐环境覆盖、真实无
-  deadline 和后台 ready acknowledgement。当前仅完成合同与实现授权，v25 尚未构建，WIN7-20 尚未签发或
-  实机执行，因此综合状态继续为 `FIX_BEFORE_ALPHA`，PR #3 仍不得合并。
+- ADR-0101 / [`A9-09 D-013 TrustedShell Current-User Profile`](tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md)
+  已完成 A9-09A 开发机 Gate：v25/协议 v2/当前用户 Profile、系统与用户显式 Shell 身份绑定、非秘密环境
+  覆盖、真实无 deadline、后台 ready/cancel、产品设置、双构建输入锁记录器和 WIN7-20 增量套件已在提交
+  `7d10032` 收口。原生 logic PASS、发布测试 6/6、7 模块 1490 tests 及 docs/diff 检查通过。锁定构建套件
+  SHA-256 为 `037213c…e09`，当前 Gate 为 `A9_09B_READY_FOR_LOCKED_WIN10_BUILD`；尚未完成 D-017 Win10
+  双干净构建、正式 v25 input lock、WIN7-20 候选和 Win7 实机复验，因此综合状态继续为
+  `FIX_BEFORE_ALPHA`，PR #3 仍不得合并。
 - ADR-0100 已根据合并前独立代码审查开启
   [`A9-08 后置审查修复`](tasks/A9_08_POST_REVIEW_HARDENING.md)，状态
   `APPROVED_FOR_IMPLEMENTATION / FIX_BEFORE_ALPHA`。已动态确认的审批绕过和秘密持久化，以及独审确认的
@@ -46,7 +48,7 @@
   且缺少 envOverlay、真实无 deadline 与 managed ready acknowledgement；该修复需要新 ADR/任务授权
   `native/helper/**`。安全、进程、checkpoint/状态三路最终独立复核均为 P0/P1/P2=0，授权范围内闭环 PASS；
   A9-08 阶段记录以 `A9_08E_BLOCKED_D013_CONTRACT` 结束并移交 ADR-0101/A9-09；当前执行状态为
-  `A9_09_IMPLEMENTATION_AUTHORIZED / FIX_BEFORE_ALPHA`，尚未构建 WIN7-20。
+  `A9_09B_READY_FOR_LOCKED_WIN10_BUILD / FIX_BEFORE_ALPHA`，尚未构建 WIN7-20。
 - 产品负责人已确认
   [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
   和 ADR-0089/ADR-0096；实现任务为 [`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，状态

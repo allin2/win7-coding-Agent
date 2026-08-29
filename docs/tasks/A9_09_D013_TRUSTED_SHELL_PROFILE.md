@@ -7,9 +7,9 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09_IMPLEMENTATION_AUTHORIZED
+Current Stage Status: A9_09A_DEVELOPER_PASS
 Target Candidate: WIN7-20
-Phase-Gate: A9_09_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_09B_READY_FOR_LOCKED_WIN10_BUILD
 Win7-Validation: WIN7_20_NOT_PERFORMED
 Decision: ADR-0101
 ```
@@ -118,3 +118,25 @@ timeoutMs?/idleTimeoutMs?
 
 只有 A9-09A～C 全部通过，才可签发 `A9_09_WIN7_20_GO_FOR_ALPHA` 并解除 PR #3 合并门禁。开发机或
 Win10 结果不能替代 Win7 SP1 x64 实机结论。
+
+## 6. A9-09A 实现记录（2026-08-30）
+
+- D-013 v25 原生实现提交为 `fdeca79`，环境继承秘密过滤修复为 `72e4d90`；正式产品、Runner、设置 UI、
+  发布锁与验收套件收口提交为 `7d10032`。协议 v1/v24 保持兼容和只读，v2 绑定
+  `a9-trusted-shell-current-user-v1`。
+- 产品设置只允许 Renderer 提交 Shell 种类、版本和非秘密环境覆盖；显式 executable 必须由主进程原生
+  文件选择器取得。按工作区保存 canonical path、文件身份与版本；snapshot 只显示环境键名，不显示值。
+- 自动 Shell 绑定规范系统 PowerShell/CMD；helper 在启动前重新验证 canonical path、SHA-256、argv、cwd、
+  当前用户令牌和 Job 归属。`deadlineMode=none` 不设总/空闲超时；ready、取消、双 Stop 与清理证明均绑定
+  requestId。
+- 开发机结果：原生 `logic_tests` PASS；发布/锁记录器 6/6 PASS；7 个 TypeScript/JavaScript 模块共
+  1490 tests PASS；`npm run docs:check` 与 `git diff --check` PASS。此结果不等于 Win10 或 Win7 PASS。
+- 锁定 Win10 构建套件为候选外
+  `/Users/qlyf/Developer/win7-coding-Agent/.acceptance/build-kits/A9-09/WIN7_D013_V25_HELPER_BUILDKIT_20260830-r4.zip`，SHA-256
+  `037213c8637544dccc58b07632e097b718c265f93015af93279ac052f0282e09`；内置原生源码提交
+  `72e4d905175baa3eae7b5eb6c1f49f47f9731046`，input-lock SHA-256
+  `99aecc91c8e1ff9b797cfe33e7bdc7f7ef5f656fde224e2d0997e9d838a63fb8`，package manifest SHA-256
+  `35150cf85f20e73448b14b1adb60a8bb36e9a2ca8ac13d7ef1cf8d7e7829aff9`。
+- 当前 Gate 为 `A9_09B_READY_FOR_LOCKED_WIN10_BUILD`。尚未执行 D-017 双干净构建，尚未生成正式
+  `a9-09-input-lock.json` 或 WIN7-20 候选，也未执行 Win7 实机复验；综合状态继续为
+  `FIX_BEFORE_ALPHA`。
