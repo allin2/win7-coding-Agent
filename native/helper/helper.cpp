@@ -157,6 +157,27 @@ std::wstring LowerAscii(const std::wstring& value) {
     return out;
 }
 
+bool IsSensitiveEnvironmentName(const std::wstring& name) {
+    std::wstring upper = name;
+    for (wchar_t& ch : upper) {
+        if (ch >= L'a' && ch <= L'z') ch = static_cast<wchar_t>(ch - L'a' + L'A');
+    }
+    static const wchar_t* kExact[] = {
+        L"NODE_OPTIONS", L"ELECTRON_RUN_AS_NODE", L"ELECTRON_EXTRA_LAUNCH_ARGS",
+        L"NODE_TLS_REJECT_UNAUTHORIZED", L"GIT_SSL_NO_VERIFY", L"PYTHONHTTPSVERIFY",
+        L"SSL_CERT_FILE", L"SSL_CERT_DIR", L"REQUESTS_CA_BUNDLE", L"CURL_CA_BUNDLE",
+        L"OPENAI_API_KEY", L"DEEPSEEK_API_KEY", L"ANTHROPIC_API_KEY",
+    };
+    for (const wchar_t* blocked : kExact) {
+        if (upper == blocked) return true;
+    }
+    return upper.find(L"API_KEY") != std::wstring::npos ||
+           upper.find(L"AUTHORIZATION") != std::wstring::npos ||
+           upper.find(L"PASSWORD") != std::wstring::npos ||
+           upper.find(L"SECRET") != std::wstring::npos ||
+           upper.find(L"TOKEN") != std::wstring::npos;
+}
+
 bool ComputeFileSha256(const std::wstring& path, std::wstring* digest,
                        std::wstring* error) {
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ,
@@ -206,7 +227,6 @@ bool BuildEnvironmentBlock(
     const std::vector<std::pair<std::wstring, std::wstring>>& overlay,
     std::vector<wchar_t>* block, std::wstring* error) {
     block->clear();
-    if (overlay.empty()) return true;
     std::vector<std::pair<std::wstring, std::wstring>> entries;
     LPWCH inherited = GetEnvironmentStringsW();
     if (!inherited) {
@@ -217,7 +237,10 @@ bool BuildEnvironmentBlock(
         const std::wstring item(cursor);
         const size_t equals = item.find(L'=', item[0] == L'=' ? 1 : 0);
         if (equals != std::wstring::npos) {
-            entries.push_back(std::make_pair(item.substr(0, equals), item.substr(equals + 1)));
+            const std::wstring name = item.substr(0, equals);
+            if (!IsSensitiveEnvironmentName(name)) {
+                entries.push_back(std::make_pair(name, item.substr(equals + 1)));
+            }
         }
     }
     FreeEnvironmentStringsW(inherited);
