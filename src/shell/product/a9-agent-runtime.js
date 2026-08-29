@@ -112,6 +112,8 @@ function createA9AgentRuntime(options) {
 
   // ----- 工作区模式（R1：键绑定 canonical 路径的 SHA-256，fail-closed） -----
   const canonicalWorkspace = modules.core.canonicalizeWorkspacePath(workspaceRoot);
+  const shellWorkspaceKey = crypto.createHash('sha256').update(canonicalWorkspace, 'utf8').digest('hex');
+  const shellConfigPath = path.join(dataRoot, 'a9-shell-config.v1.json');
   // v3 及更早版本按工作区派生 Session；v4 将它确定性迁移为“历史对话”。
   const legacyA9SessionId = `a9-${crypto.createHash('sha256').update(canonicalWorkspace, 'utf8').digest('hex').slice(0, 16)}`;
   let activeConversation = persistence.ensureActiveConversation(
@@ -548,6 +550,192 @@ function createA9AgentRuntime(options) {
       detail: redactSecrets(err && err.message ? err.message : String(err)),
     };
   }
+
+  // ----- 用户显式 Shell / 工作区环境覆盖（ADR-0101） -----
+  // 该入口只由版本化 Renderer 设置动作触发；模型工具参数不能提供 path/kind/env。
+  // 环境值只存在于专用非秘密配置文件和执行请求内，不进入 snapshot/event/SQLite。
+  let shellConfigDiagnostics = null;
+  let shellConfigurationInFlight = false;
+
+  function normalizeShellOptions(input, allowAutomatic) {
+    const values = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const kind = typeof values.kind === 'string' ? values.kind.trim().toLowerCase() : '';
+    const envOverlay = modules.runner.validateTrustedShellEnvironmentOverlay(
+      values.envOverlay && typeof values.envOverlay === 'object' && !Array.isArray(values.envOverlay)
+        ? values.envOverlay
+        : {},
+    );
+    if (allowAutomatic && (kind === '' || kind === 'automatic')) {
+      if ((values.path && String(values.path).trim()) || (values.version && String(values.version).trim())) {
+        throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: automatic 模式不能携带显式路径或版本'), {
+          code: 'A9_SHELL_CONFIG_INVALID',
+        });
+      }
+      return Object.keys(envOverlay).length > 0 ? { envOverlay } : {};
+    }
+    if (!['powershell', 'cmd', 'bash'].includes(kind)) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: kind 必须是 powershell、cmd 或 bash'), {
+        code: 'A9_SHELL_CONFIG_INVALID',
+      });
+    }
+    const requestedPath = typeof values.path === 'string' ? values.path.trim() : '';
+    const isAbsolute = process.platform === 'win32'
+      ? path.win32.isAbsolute(requestedPath)
+      : path.isAbsolute(requestedPath);
+    if (!requestedPath || !isAbsolute) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: 显式 Shell 必须使用绝对路径'), {
+        code: 'A9_SHELL_CONFIG_INVALID',
+      });
+    }
+    let canonicalPath;
+    let stat;
+    try {
+      canonicalPath = fs.realpathSync.native(requestedPath);
+      stat = fs.statSync(canonicalPath);
+    } catch (_error) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: 显式 Shell 路径不存在或无法读取'), {
+        code: 'A9_SHELL_CONFIG_INVALID',
+      });
+    }
+    if (!stat.isFile()) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: 显式 Shell 不是普通文件'), {
+        code: 'A9_SHELL_CONFIG_INVALID',
+      });
+    }
+    const configuredVersion = typeof values.version === 'string' ? values.version.trim() : '';
+    if (configuredVersion.length > 128) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: version 过长'), { code: 'A9_SHELL_CONFIG_INVALID' });
+    }
+    return {
+      kind,
+      path: canonicalPath,
+      version: configuredVersion || `file-${stat.size}-${Math.trunc(stat.mtimeMs)}`,
+      envOverlay,
+    };
+  }
+
+  function readShellConfigDocument() {
+    if (!fs.existsSync(shellConfigPath)) return { schemaVersion: 1, workspaces: {} };
+    const doc = JSON.parse(fs.readFileSync(shellConfigPath, 'utf8'));
+    if (!doc || doc.schemaVersion !== 1 || !doc.workspaces || typeof doc.workspaces !== 'object'
+      || Array.isArray(doc.workspaces)) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_SCHEMA_MISMATCH'), { code: 'A9_SHELL_CONFIG_SCHEMA_MISMATCH' });
+    }
+    return doc;
+  }
+
+  function readPersistedShellOptions() {
+    try {
+      const entry = readShellConfigDocument().workspaces[shellWorkspaceKey];
+      if (!entry) return {};
+      if (entry.workspace !== canonicalWorkspace) {
+        throw Object.assign(new Error('A9_SHELL_CONFIG_WORKSPACE_MISMATCH'), { code: 'A9_SHELL_CONFIG_WORKSPACE_MISMATCH' });
+      }
+      return normalizeShellOptions(entry, true);
+    } catch (error) {
+      shellConfigDiagnostics = {
+        code: error && error.code ? error.code : 'A9_SHELL_CONFIG_UNPARSABLE',
+        detail: '已保存的 Shell 设置无效；在用户重新保存设置前禁止 Shell 执行。',
+      };
+      return null;
+    }
+  }
+
+  function writePersistedShellOptions(next) {
+    let doc;
+    try {
+      doc = readShellConfigDocument();
+    } catch (_error) {
+      // Only an explicit user Apply reaches this path. A malformed settings
+      // document cannot be merged safely, so replace it atomically with the
+      // newly selected current-workspace setting rather than staying bricked.
+      doc = { schemaVersion: 1, workspaces: {} };
+    }
+    if (Object.keys(next).length === 0) delete doc.workspaces[shellWorkspaceKey];
+    else doc.workspaces[shellWorkspaceKey] = { workspace: canonicalWorkspace, ...next };
+    const temporary = `${shellConfigPath}.tmp-${process.pid}-${Date.now()}`;
+    fs.mkdirSync(path.dirname(shellConfigPath), { recursive: true });
+    fs.writeFileSync(temporary, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+    fs.renameSync(temporary, shellConfigPath);
+  }
+
+  let shellOptions = config.shellOptions
+    ? normalizeShellOptions(config.shellOptions, true)
+    : readPersistedShellOptions();
+
+  function shellSnapshot() {
+    if (shellConfigDiagnostics || shellOptions === null) {
+      return { source: 'invalid_saved_setting', available: false, diagnostics: shellConfigDiagnostics };
+    }
+    if (shellOptions && shellOptions.path) {
+      return {
+        source: 'workspace_explicit',
+        available: true,
+        kind: shellOptions.kind,
+        path: shellOptions.path,
+        version: shellOptions.version,
+        envKeys: Object.keys(shellOptions.envOverlay || {}).sort(),
+      };
+    }
+    const selected = modules.runner.selectShell({});
+    return {
+      source: 'automatic',
+      available: true,
+      ...selected,
+      envKeys: Object.keys((shellOptions && shellOptions.envOverlay) || {}).sort(),
+    };
+  }
+
+  async function configureShell(input) {
+    if (shellConfigurationInFlight) {
+      throw Object.assign(new Error('A9_SHELL_RECONFIGURE_BUSY: Shell 设置正在等待用户选择'), {
+        code: 'A9_SHELL_RECONFIGURE_BUSY',
+      });
+    }
+    if (activeController || currentPendingApproval || loopTrustedRunner.getBackgroundManager().getActiveCount() > 0) {
+      throw Object.assign(new Error('A9_SHELL_RECONFIGURE_BUSY: 当前 Turn、审批或托管进程结束后才能切换 Shell'), {
+        code: 'A9_SHELL_RECONFIGURE_BUSY',
+      });
+    }
+    shellConfigurationInFlight = true;
+    try {
+      const values = input && typeof input === 'object' ? {
+        ...input,
+        envOverlay: modules.runner.validateTrustedShellEnvironmentOverlay(
+          input.envOverlay && typeof input.envOverlay === 'object' && !Array.isArray(input.envOverlay)
+            ? input.envOverlay
+            : {},
+        ),
+      } : { envOverlay: {} };
+      const requestedKind = typeof values.kind === 'string' ? values.kind.trim().toLowerCase() : '';
+      let nextInput = values;
+      if (requestedKind && requestedKind !== 'automatic') {
+        if (typeof config.selectShellExecutable !== 'function') {
+          throw Object.assign(new Error('A9_SHELL_PICKER_UNAVAILABLE: 主进程没有提供用户文件选择器'), {
+            code: 'A9_SHELL_PICKER_UNAVAILABLE',
+          });
+        }
+        const selectedPath = await config.selectShellExecutable(requestedKind);
+        if (!selectedPath) return { ok: false, cancelled: true };
+        if (activeController || currentPendingApproval || loopTrustedRunner.getBackgroundManager().getActiveCount() > 0) {
+          throw Object.assign(new Error('A9_SHELL_RECONFIGURE_BUSY: 用户选择期间任务状态发生变化，请稍后重试'), {
+            code: 'A9_SHELL_RECONFIGURE_BUSY',
+          });
+        }
+        nextInput = { ...values, path: selectedPath };
+      }
+      const next = normalizeShellOptions(nextInput, true);
+      writePersistedShellOptions(next);
+      shellOptions = next;
+      shellConfigDiagnostics = null;
+      pendingConversationHistory = loop ? loop.getConversationHistory() : pendingConversationHistory;
+      loop = null;
+      return { ok: true, shell: shellSnapshot() };
+    } finally {
+      shellConfigurationInFlight = false;
+    }
+  }
+
   // 后台进程生命周期独立于 Provider/Loop 重建；模型切换不得遗失句柄。
   if (config.requireRunnerHelper === true && !config.runnerHelperPath) {
     throw Object.assign(new Error('A9_RUNNER_HELPER_REQUIRED: packaged A9 runtime requires the manifest-bound D-013 helper'), {
@@ -561,6 +749,7 @@ function createA9AgentRuntime(options) {
     ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
     redactText: redactSecrets,
     getSensitiveValues: () => Array.from(knownSecrets),
+    getConfiguredShellVersion: () => shellOptions && shellOptions.path ? shellOptions.version : undefined,
     onBackgroundStateChange: (handle) => recordManagedHandle(handle),
   });
 
@@ -685,6 +874,11 @@ function createA9AgentRuntime(options) {
       err.code = 'A9_CHECKPOINT_RECONCILIATION_FAILED';
       throw err;
     }
+    if (shellConfigDiagnostics || shellOptions === null) {
+      const err = new Error('A9_SHELL_CONFIG_INVALID: 已保存的 Shell 设置无效，请在设置中重新选择');
+      err.code = 'A9_SHELL_CONFIG_INVALID';
+      throw err;
+    }
     if (permissionMode === undefined) {
       const err = new Error('A9_MODE_SELECTION_REQUIRED: 首次打开工作区必须显式选择 Full Access / Review / Read Only');
       err.code = 'A9_MODE_SELECTION_REQUIRED';
@@ -712,7 +906,12 @@ function createA9AgentRuntime(options) {
         containsSensitiveData: containsSensitiveCheckpointData,
       });
       const runnerAdapter = modules.runner.createTrustedShellLoopAdapter(loopTrustedRunner);
-      const shellSelection = modules.runner.selectShell({});
+      const configuredShell = shellOptions || {};
+      const shellSelection = modules.runner.selectShell({
+        ...(configuredShell.path || configuredShell.kind
+          ? { workspacePreferred: configuredShell.path || configuredShell.kind }
+          : {}),
+      });
       loop = new modules.core.A9AgentLoop({
         workspaceRoot,
         provider,
@@ -721,8 +920,12 @@ function createA9AgentRuntime(options) {
         permissionMode,
         externalChangePort: workspaceService,
         shellOptions: {
-          kind: shellSelection.kind,
-          ...(shellSelection.version ? { version: shellSelection.version } : {}),
+          kind: configuredShell.kind || shellSelection.kind,
+          ...(configuredShell.path ? { path: configuredShell.path } : {}),
+          ...(configuredShell.version || shellSelection.version
+            ? { version: configuredShell.version || shellSelection.version }
+            : {}),
+          ...(configuredShell.envOverlay ? { envOverlay: configuredShell.envOverlay } : {}),
         },
         onEvent: (event) => {
           const safeEvent = { ...event, data: redactForProjection(event.data) };
@@ -1331,7 +1534,7 @@ function createA9AgentRuntime(options) {
   }
 
   function getSnapshot() {
-    const shellSelection = modules.runner.selectShell({});
+    const shellSelection = shellSnapshot();
     const managedProcesses = syncManagedProcessFacts();
     const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting' || item.cleanupRequired === true);
     const blockReason = conversationBlockReason();
@@ -1344,7 +1547,7 @@ function createA9AgentRuntime(options) {
       modeRecommended: 'full_access',
       ...(modeDiagnostics ? { modeDiagnostics } : {}),
       ...(checkpointRecoveryDiagnostics ? { checkpointRecoveryDiagnostics } : {}),
-      shell: { kind: shellSelection.kind, version: shellSelection.version, evidence: shellSelection.evidence, reason: shellSelection.reason },
+      shell: shellSelection,
       provider: providerConfig
         ? {
           configured: true,
@@ -1532,6 +1735,7 @@ function createA9AgentRuntime(options) {
     status: 'ready',
     configureProvider,
     probeProvider,
+    configureShell,
     submitTurn,
     resumeApproval,
     stop,
@@ -1636,6 +1840,7 @@ function createSqliteUnavailableRuntime(reason) {
     diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: reason },
     configureProvider() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     probeProvider() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
+    configureShell() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     async submitTurn() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE', message: 'Electron-ABI better-sqlite3 预检失败，A9 持久化不可用。' } }; },
     async resumeApproval() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
     stop() { return { ok: false }; },
@@ -1663,6 +1868,7 @@ function createDiagnosticsRuntime(outcome) {
     diagnostics: outcome,
     configureProvider() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     probeProvider() { throw new Error('A9_DIAGNOSTICS_MODE'); },
+    configureShell() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     async submitTurn() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE', message: '数据库受限诊断模式，禁止执行任务。' } }; },
     async resumeApproval() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE' } }; },
     stop() { return { ok: false }; },

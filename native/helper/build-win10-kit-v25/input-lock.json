@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "profile": "WIN10-VS2019-V142-SDK19041-D013-V25-CURRENT-USER-X64",
+  "source_commit": "72e4d905175baa3eae7b5eb6c1f49f47f9731046",
+  "source_commit_timestamp": "2026-08-29T23:29:04+08:00",
+  "generated_at": "2026-08-29T23:29:04+08:00",
+  "sources": [
+    {
+      "path": "src/helper.cpp",
+      "size": 89354,
+      "sha256": "8dc1d3f08d3c4e16acfb527e9997adecb2ff8023e7703ab0c5829db8c88e32c8"
+    },
+    {
+      "path": "src/helper.h",
+      "size": 16429,
+      "sha256": "ad87523effd025a2dbc475eae0c5fce904367b5506b4de38360de09619511b7e"
+    },
+    {
+      "path": "src/logic_tests.cpp",
+      "size": 25955,
+      "sha256": "c5d9e84499d79bd851fd0b3cfea415073adbbb19f806891d89a4d430ee1f8606"
+    },
+    {
+      "path": "src/json_parser.cpp",
+      "size": 12913,
+      "sha256": "bfbd048d605e3cdabb9bb139a1cb38244ca2c74f7aa47415bcbe8607968d5ae8"
+    },
+    {
+      "path": "src/json_parser.h",
+      "size": 2653,
+      "sha256": "559eaa6d53f001a4bdcf436c031ea554bebfd9ef7811b21b977261a10536ef65"
+    },
+    {
+      "path": "src/argv_builder.cpp",
+      "size": 1774,
+      "sha256": "80a0e14cb6104f51288dea9cf1fc22e1a78e569b8ba20041c6dd8b159168c930"
+    },
+    {
+      "path": "src/argv_builder.h",
+      "size": 1091,
+      "sha256": "8e3952658304e34049abac271e27fd01d61f298b12160f284fd029f292727992"
+    },
+    {
+      "path": "src/whitelist.cpp",
+      "size": 8788,
+      "sha256": "b4102bb576965e61b7f2aeeced4e7df40c842d9ff0e255aa78c357a66550aa05"
+    },
+    {
+      "path": "src/whitelist.h",
+      "size": 4093,
+      "sha256": "a2b6bcb9adf264115189828c132488562aa1a6e85bb80ae8fcfc84a47cf4aabf"
+    },
+    {
+      "path": "src/protocol.cpp",
+      "size": 31305,
+      "sha256": "90e49cdbf66989ccba91fb1492be7748df5c7632f37aef1aa0e663602d9d2643"
+    },
+    {
+      "path": "src/CMakeLists.txt",
+      "size": 3265,
+      "sha256": "9330a980fe54a92574ce99e2e8402bf494b37da7dba0493990e06d4e8e7de8c2"
+    },
+    {
+      "path": "build.ps1",
+      "size": 49027,
+      "sha256": "51aba6799b1e151d44c4a1939ed2dc3775619dbad9e5b2ea3c563e9d4f0064b0"
+    },
+    {
+      "path": "build-profile.json",
+      "size": 3066,
+      "sha256": "55e8bde3b2253b0b648587202e9e00c86b2931b213ada7180c8be2a7398be166"
+    },
+    {
+      "path": "helper.exe.manifest",
+      "size": 1119,
+      "sha256": "d5bcc8b0074e4c3ada637b1faac5fc212a90664d840add1e7667dee09a6e4d5e"
+    },
+    {
+      "path": "SOURCE_COMMIT.txt",
+      "size": 41,
+      "sha256": "16649b2aa14426da650698739ebaa43985a484324531b8b48df6bd6bc7b32c71"
+    },
+    {
+      "path": "SOURCE_COMMIT_TIMESTAMP.txt",
+      "size": 26,
+      "sha256": "7d22d24ebbfbd64961fb7129f82fe98ffad1a20f9818f170593b90a7cf1da689"
+    }
+  ]
+}

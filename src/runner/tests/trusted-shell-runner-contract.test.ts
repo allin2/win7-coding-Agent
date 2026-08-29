@@ -252,12 +252,14 @@ describe('A9-02 regression: honest termination and logs', () => {
       helperTransport: { invoke } as HelperTransport,
       platform: 'win32',
       resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'a'.repeat(64), version: '6.1.7601' }),
+      getConfiguredShellVersion: () => 'user-configured-6.1',
     });
 
     await runner.execute({ command: 'echo quiet', shellKind: 'cmd', shellPath: 'cmd.exe' });
 
     const sent = invoke.mock.calls[0][0] as any;
     expect(sent).toEqual(expect.objectContaining({ schemaVersion: 2, deadlineMode: 'none', managed: false }));
+    expect(sent.shellVersion).toBe('user-configured-6.1');
     expect(sent).not.toHaveProperty('timeoutMs');
     expect(sent).not.toHaveProperty('idleTimeoutMs');
   });
@@ -277,9 +279,14 @@ describe('A9-02 regression: honest termination and logs', () => {
       command: 'echo blocked', shellKind: 'cmd', shellPath: 'cmd.exe',
       envOverlay: { NODE_TLS_REJECT_UNAUTHORIZED: '0' },
     });
+    const prototypeKey = await runner.execute({
+      command: 'echo blocked', shellKind: 'cmd', shellPath: 'cmd.exe',
+      envOverlay: JSON.parse('{"__proto__":"blocked"}'),
+    });
     expect(secret.status).toBe('failed');
     expect(secret.stderr).not.toContain('must-never-cross');
     expect(tls.status).toBe('failed');
+    expect(prototypeKey.status).toBe('failed');
     expect(invoke).not.toHaveBeenCalled();
   });
 

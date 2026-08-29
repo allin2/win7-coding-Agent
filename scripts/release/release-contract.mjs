@@ -333,12 +333,18 @@ function validateLock(lock) {
 
 export function createRunnerManifest(lock) {
   const runner = lock.runtime_profiles.runner;
+  const helperInput = lock.inputs.runner_return_zip;
   return {
     schema_version: 1,
     release: `${lock.release_id}-${lock.version}`,
     helper: {
       path: 'spike02_helper.exe',
-      sha256: lock.inputs.runner_return_zip.required_entry_sha256,
+      sha256: helperInput.required_entry_sha256,
+      ...(helperInput.profile ? { profile: helperInput.profile } : {}),
+      ...(Number.isInteger(helperInput.protocol_version)
+        ? { protocol_version: helperInput.protocol_version }
+        : {}),
+      ...(helperInput.runtime_profile ? { runtime_profile: helperInput.runtime_profile } : {}),
     },
     profiles: [{
       id: runner.id,

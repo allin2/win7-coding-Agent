@@ -80,6 +80,7 @@ export {
   TrustedShellRunner,
   buildTrustedShellInvocation,
   decodeShellBytes,
+  validateTrustedShellEnvironmentOverlay,
 } from './trusted-shell-runner';
 
 export {

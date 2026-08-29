@@ -459,7 +459,24 @@
     text('workspace-label', workspace ? pathName(workspace) : '未连接工作区');
     text('a9-workspace-value', workspace || '-');
     text('a9-mode-value', modeLabel(snapshot.mode));
-    text('a9-shell-value', snapshot.shell ? `${snapshot.shell.kind}${snapshot.shell.version ? ` ${snapshot.shell.version}` : ''}` : '-');
+    const shell = snapshot.shell || {};
+    text('a9-shell-value', shell.available === false
+      ? '设置无效（已阻止执行）'
+      : `${shell.kind || '-'}${shell.version ? ` ${shell.version}` : ''}`);
+    text('a9-shell-settings-state', shell.source === 'workspace_explicit'
+      ? `当前：${shell.kind} · ${shell.path} · 环境键 ${Array.isArray(shell.envKeys) && shell.envKeys.length > 0 ? shell.envKeys.join(', ') : '无'}`
+      : shell.source === 'invalid_saved_setting'
+        ? '已保存设置无效；Shell 执行保持关闭。'
+        : '当前：自动选择 PowerShell 5.1 / CMD。');
+    if (shell.source === 'workspace_explicit') {
+      el('a9-shell-kind').value = shell.kind;
+      el('a9-shell-path').value = shell.path || '';
+      el('a9-shell-version').value = shell.version || '';
+    } else if (shell.source === 'automatic') {
+      el('a9-shell-kind').value = 'automatic';
+      el('a9-shell-path').value = '';
+      el('a9-shell-version').value = '';
+    }
     const provider = snapshot.provider || {};
     text('a9-provider-value', provider.configured ? `${provider.model} @ ${provider.baseUrl}` : '未配置');
     text('a9-provider-chip', provider.configured ? (provider.probe && provider.probe.classification ? provider.probe.classification : provider.model) : 'Provider 未配置');
@@ -911,6 +928,43 @@
     }
   }
 
+  function shellValues() {
+    const kind = el('a9-shell-kind').value;
+    const version = el('a9-shell-version').value.trim();
+    const envOverlay = {};
+    for (const rawLine of el('a9-shell-env').value.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const separator = line.indexOf('=');
+      if (separator <= 0) throw new Error('环境覆盖必须使用 NAME=value，每行一项。');
+      const name = line.slice(0, separator).trim();
+      if (Object.prototype.hasOwnProperty.call(envOverlay, name)) throw new Error(`环境变量重复：${name}`);
+      envOverlay[name] = line.slice(separator + 1);
+    }
+    return { kind, version, envOverlay };
+  }
+
+  async function applyShell() {
+    setFieldError('a9-shell-settings-error', '');
+    const button = el('a9-shell-apply');
+    button.disabled = true;
+    try {
+      const values = shellValues();
+      const response = await a9.configureShell(values);
+      if (!response || response.ok !== true) {
+        setFieldError('a9-shell-settings-error', errorMessage(response, 'Shell 设置失败。'));
+        return;
+      }
+      // 环境值不通过 snapshot/回执重新展示；再次修改时需输入完整覆盖。
+      el('a9-shell-env').value = '';
+      await refreshSnapshot();
+    } catch (error) {
+      setFieldError('a9-shell-settings-error', errorMessage(error, 'Shell 设置失败。'));
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function selectTab(name, focus) {
     if (!TAB_IDS.includes(name)) return;
     TAB_IDS.forEach((tabName) => {
@@ -1071,6 +1125,9 @@
     document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => closeDrawer(button.dataset.close)));
     el('a9-provider-apply').addEventListener('click', () => { void applyProvider(); });
     el('a9-provider-probe').addEventListener('click', () => { void probeProvider(); });
+    el('a9-shell-path').readOnly = true;
+    el('a9-shell-path').placeholder = '应用后由系统文件选择器确定';
+    el('a9-shell-apply').addEventListener('click', () => { void applyShell(); });
     el('a9-approval-approve').addEventListener('click', () => { void decideApproval('approved'); });
     el('a9-approval-deny').addEventListener('click', () => { void decideApproval('denied'); });
     el('a9-git-refresh').addEventListener('click', () => { void refreshGit(); });

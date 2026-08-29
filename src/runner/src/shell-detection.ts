@@ -102,7 +102,9 @@ export function detectSystemShells(options: ShellDetectionOptions = {}): Detecte
           : `PowerShell ${ps.version} is below the 5.1 baseline; Best Effort only (explicit force required)`,
     });
 
-    const cmdPath = process.env.ComSpec || 'cmd.exe';
+    // A9 automatic selection is bound to the canonical system host. Do not
+    // trust a caller-controlled ComSpec override for the automatic profile.
+    const cmdPath = path.win32.join(systemRoot, 'System32', 'cmd.exe');
     let cmdAvailable = false;
     try {
       const probe = spawnSync(cmdPath, ['/d', '/c', 'ver'], {

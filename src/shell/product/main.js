@@ -937,6 +937,14 @@ async function getOrCreateA9Runtime() {
     // Windows package path: Electron safeStorage is the DPAPI boundary. Without
     // this host injection Provider secrets silently degrade to process memory.
     safeStorage,
+    selectShellExecutable: async (kind) => {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: `选择 ${kind} Shell 可执行文件`,
+        properties: ['openFile'],
+        filters: [{ name: 'Windows executable', extensions: ['exe'] }, { name: 'All files', extensions: ['*'] }],
+      });
+      return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+    },
     ...(a9PackageRuntime ? {
       runnerHelperPath: a9PackageRuntime.runnerHelper,
       requireRunnerHelper: true,

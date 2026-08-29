@@ -95,6 +95,8 @@ export interface TrustedShellRunnerOptions {
   onBackgroundStateChange?: (handle: BackgroundProcessHandle) => void;
   /** 测试可注入；生产绑定 canonical path + 当前文件 SHA-256。 */
   resolveShellIdentity?: (shellPath: string) => { canonicalPath: string; sha256: string; version?: string };
+  /** 用户显式 Shell 的设置版本；仅由产品设置存储提供，不接受模型参数。 */
+  getConfiguredShellVersion?: (shellPath: string) => string | undefined;
 }
 
 /** 单流原始日志默认上限（1 MiB）。 */
@@ -150,7 +152,9 @@ export class TrustedShellRunner {
       argv: args,
       shellKind: shellMeta.kind,
       shellPath: identity.canonicalPath,
-      shellVersion: identity.version ?? shellMeta.version ?? 'unknown',
+      shellVersion: request.shellPath
+        ? this.options.getConfiguredShellVersion?.(identity.canonicalPath) ?? identity.version ?? 'unknown'
+        : shellMeta.version ?? identity.version ?? 'unknown',
       shellIdentity: identity.sha256.toLowerCase(),
       shellSource: request.shellPath ? 'workspace_explicit' : 'automatic',
       command: request.command,
@@ -673,7 +677,7 @@ export function validateTrustedShellEnvironmentOverlay(
     'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE',
     'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY',
   ]);
-  const output: Record<string, string> = {};
+  const output: Record<string, string> = Object.create(null);
   let totalCharacters = 0;
   const keys = Object.keys(overlay);
   if (keys.length > 64) throw new Error('A9_ENV_OVERLAY_REJECTED: too many entries');
@@ -681,6 +685,7 @@ export function validateTrustedShellEnvironmentOverlay(
     const value = overlay[key];
     const upper = key.toUpperCase();
     if (!key || key.length > 128 || key.includes('=') || key.includes('\0')
+      || ['__PROTO__', 'PROTOTYPE', 'CONSTRUCTOR'].includes(upper)
       || typeof value !== 'string' || value.length > 8192 || value.includes('\0')
       || exact.has(upper) || /(API_KEY|AUTHORIZATION|PASSWORD|SECRET|TOKEN)/.test(upper)) {
       throw new Error('A9_ENV_OVERLAY_REJECTED: secret or process-control entry');

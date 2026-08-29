@@ -117,6 +117,60 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
     })).toThrow('A9_RUNNER_HELPER_REQUIRED');
   });
 
+  it('persists a user-explicit shell per workspace without echoing environment values', async () => {
+    const runtime = createA9AgentRuntime({
+      workspaceRoot: env.workspaceRoot,
+      dataRoot: env.dataRoot,
+      openDatabase: openReal,
+      selectShellExecutable: async () => process.execPath,
+    });
+    const configured = await runtime.configureShell({
+      kind: 'bash',
+      version: 'fixture-v1',
+      envOverlay: { PROJECT_MODE: 'alpha-value-not-for-snapshot' },
+    });
+    expect(configured.ok).toBe(true);
+    expect(configured.shell).toMatchObject({ source: 'workspace_explicit', kind: 'bash', envKeys: ['PROJECT_MODE'] });
+    expect(JSON.stringify(configured)).not.toContain('alpha-value-not-for-snapshot');
+    await runtime.shutdown();
+
+    const reopened = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
+    const snapshot = reopened.getSnapshot();
+    expect(snapshot.shell).toMatchObject({ source: 'workspace_explicit', kind: 'bash', envKeys: ['PROJECT_MODE'] });
+    expect(JSON.stringify(snapshot)).not.toContain('alpha-value-not-for-snapshot');
+    await reopened.shutdown();
+  });
+
+  it('rejects secret-shaped or process-control environment settings before persistence', async () => {
+    const runtime = createA9AgentRuntime({
+      workspaceRoot: env.workspaceRoot,
+      dataRoot: env.dataRoot,
+      openDatabase: openReal,
+      selectShellExecutable: async () => process.execPath,
+    });
+    await expect(runtime.configureShell({
+      kind: 'bash', version: '', envOverlay: { API_TOKEN: 'do-not-store' },
+    })).rejects.toThrow(/A9_ENV_OVERLAY_REJECTED/);
+    expect(fs.existsSync(path.join(env.dataRoot, 'a9-shell-config.v1.json'))).toBe(false);
+    runtime.shutdown();
+  });
+
+  it('serializes native Shell picker requests so settings cannot race', async () => {
+    let finishPicker: (value: string | null) => void = () => {};
+    const runtime = createA9AgentRuntime({
+      workspaceRoot: env.workspaceRoot,
+      dataRoot: env.dataRoot,
+      openDatabase: openReal,
+      selectShellExecutable: () => new Promise((resolve) => { finishPicker = resolve; }),
+    });
+    const first = runtime.configureShell({ kind: 'bash', version: '', envOverlay: {} });
+    await expect(runtime.configureShell({ kind: 'cmd', version: '', envOverlay: {} }))
+      .rejects.toThrow(/A9_SHELL_RECONFIGURE_BUSY/);
+    finishPicker(null);
+    await expect(first).resolves.toEqual({ ok: false, cancelled: true });
+    runtime.shutdown();
+  });
+
   it('accepts an arbitrary base URL and manual model id, then runs a full fixture round', async () => {
     const fixture = await startFixtureModel([
       { tool: { id: 'r1', name: 'read', args: { path: 'calc.ts' } } },
@@ -209,6 +263,25 @@ describe('A9-06: a9 product IPC schema validation', () => {
     });
     expect(response).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
     expect(configureProvider).not.toHaveBeenCalled();
+  });
+
+  it('allows only the exact user shell settings payload', async () => {
+    const configureShell = jest.fn(() => ({ ok: true }));
+    const shellHandler = createA9ProductRequestHandler({
+      getA9Runtime: () => ({ configureShell }),
+      isValidRendererSender: validSender,
+    });
+    const payload = { kind: 'automatic', version: '', envOverlay: {} };
+    expect(await shellHandler({}, {
+      schemaVersion: A9_IPC_SCHEMA_VERSION, action: 'a9.shell.configure', payload,
+    })).toEqual({ ok: true });
+    expect(configureShell).toHaveBeenCalledWith(payload);
+    const rejected = await shellHandler({}, {
+      schemaVersion: A9_IPC_SCHEMA_VERSION,
+      action: 'a9.shell.configure',
+      payload: { ...payload, path: 'cmd.exe' },
+    });
+    expect(rejected).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
   });
 
   it('rejects non-whitelisted senders (renderer capability boundary)', async () => {

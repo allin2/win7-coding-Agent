@@ -13,6 +13,7 @@ const A9_ACTIONS = Object.freeze({
   MODE_SET: 'a9.mode.set',
   PROVIDER_CONFIGURE: 'a9.provider.configure',
   PROVIDER_PROBE: 'a9.provider.probe',
+  SHELL_CONFIGURE: 'a9.shell.configure',
   TURN_SUBMIT: 'a9.turn.submit',
   TURN_RESUME_APPROVAL: 'a9.turn.resumeApproval',
   TURN_STOP: 'a9.turn.stop',
@@ -30,9 +31,9 @@ const A9_ACTIONS = Object.freeze({
 });
 
 /**
- * v3（ADR-0098）：增加对话/草稿白名单，审批回复绑定对话+任务+Turn。
+ * v4（ADR-0101）：在 v3 对话/审批绑定基础上增加用户显式 Shell 设置。
  */
-const A9_IPC_SCHEMA_VERSION = 3;
+const A9_IPC_SCHEMA_VERSION = 4;
 
 function exactObject(value, keys, code) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -90,6 +91,12 @@ function createA9ProductRequestHandler(options) {
         }
         case A9_ACTIONS.PROVIDER_PROBE:
           return { ok: true, probe: await runtime.probeProvider() };
+        case A9_ACTIONS.SHELL_CONFIGURE: {
+          // The Renderer cannot name an executable. For an explicit kind the
+          // main process opens a native file picker and supplies the path.
+          exactObject(payload, ['kind', 'version', 'envOverlay'], 'A9_PAYLOAD_INVALID');
+          return runtime.configureShell(payload);
+        }
         case A9_ACTIONS.TURN_SUBMIT: {
           exactObject(payload, ['prompt'], 'A9_PAYLOAD_INVALID');
           return runtime.submitTurn(payload.prompt);

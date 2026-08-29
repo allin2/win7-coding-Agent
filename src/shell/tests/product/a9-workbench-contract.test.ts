@@ -75,6 +75,8 @@ describe('A9 unified desktop workbench contract', () => {
     expect(main).toContain('窗口与工作区锁保持可用');
     expect(main).toContain('runnerHelperPath: a9PackageRuntime.runnerHelper');
     expect(main).toContain('requireRunnerHelper: true');
+    expect(main).toContain('selectShellExecutable: async (kind) =>');
+    expect(main).toContain("properties: ['openFile']");
   });
 
   it('binds approvals to conversation/task/turn and disables both actions while processing', () => {
@@ -126,6 +128,18 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain("el('a9-provider-key').value = '';");
     expect(script).toContain("el('a9-provider-header-value').value = '';");
     expect(script).toContain("setFieldError('a9-provider-diagnostics'");
+  });
+
+  it('exposes user-explicit Shell settings without echoing saved environment values', () => {
+    ['a9-shell-kind', 'a9-shell-path', 'a9-shell-version', 'a9-shell-env', 'a9-shell-apply'].forEach((id) => {
+      expect(html).toContain(`id="${id}"`);
+    });
+    expect(html).toContain('每行 NAME=value');
+    expect(html).toContain('已保存的值不会回显');
+    expect(script).toContain('await a9.configureShell(values)');
+    expect(script).toContain("el('a9-shell-env').value = '';");
+    expect(script).toContain("el('a9-shell-path').readOnly = true;");
+    expect(script).toContain('shell.envKeys.join');
   });
 
   it('preserves the local CSP and Renderer isolation boundary', () => {

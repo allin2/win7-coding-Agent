@@ -30,7 +30,7 @@ function a8Request(action, sessionId, payload) {
 
 function a9Request(action, payload) {
   return ipcRenderer.invoke('product:a9-request', {
-    schemaVersion: 3, // ADR-0098：对话隔离、草稿与完整审批身份绑定
+    schemaVersion: 4, // ADR-0101：增加用户显式 Shell / 非秘密环境覆盖设置
     action,
     payload: payload || {},
   });
@@ -54,6 +54,7 @@ const productApi = Object.freeze({
     setMode: (mode) => a9Request('a9.mode.set', { mode }),
     configureProvider: (values) => a9Request('a9.provider.configure', values),
     probeProvider: () => a9Request('a9.provider.probe', {}),
+    configureShell: (values) => a9Request('a9.shell.configure', values),
     submitTurn: (prompt) => a9Request('a9.turn.submit', { prompt }),
     resumeApproval: (approvalId, decision, bindingDigest, conversationId, taskId, turnId) => a9Request('a9.turn.resumeApproval', {
       approvalId, decision, bindingDigest, conversationId, taskId, turnId,

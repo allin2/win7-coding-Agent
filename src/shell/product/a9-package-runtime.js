@@ -59,6 +59,8 @@ function loadA9PackageRuntime(options) {
     storageRoot,
     storageBinding,
     runnerHelper,
+    runnerHelperProfile: descriptor.runner_helper_profile,
+    runnerHelperProtocol: descriptor.runner_helper_protocol,
     portable,
     userDataPath,
   });
@@ -70,11 +72,15 @@ function validateDescriptor(descriptor, manifest) {
       descriptor.storage_module_root !== '../native/storage' ||
       descriptor.storage_native_binding !== '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node' ||
       descriptor.runner_helper !== '../native/runner/spike02_helper.exe' ||
+      descriptor.runner_helper_profile !== 'D-013-v25-a9-trusted-shell-current-user' ||
+      descriptor.runner_helper_protocol !== 2 ||
       descriptor.data_root !== '%LOCALAPPDATA%\\Win7CodingAgent\\a9' || descriptor.portable_flag !== '--portable') {
     throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
   }
   if (!manifest || manifest.schema_version !== 1 || manifest.status !== 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS' ||
       manifest.version !== '0.3.0-alpha.1' || !manifest.required_native || !Array.isArray(manifest.files) ||
+      manifest.required_native.runner_helper_profile !== descriptor.runner_helper_profile ||
+      manifest.required_native.runner_helper_protocol !== descriptor.runner_helper_protocol ||
       manifest.gates?.win10 !== 'NOT_PERFORMED' || manifest.gates?.win7 !== 'NOT_PERFORMED') {
     throw new Error('A9_PACKAGE_RELEASE_MANIFEST_INVALID');
   }

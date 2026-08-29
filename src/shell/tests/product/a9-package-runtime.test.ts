@@ -29,6 +29,8 @@ function fixture(): { productRoot: string; releaseRoot: string; cleanup: () => v
     storage_module_root: '../native/storage',
     storage_native_binding: '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
     runner_helper: '../native/runner/spike02_helper.exe',
+    runner_helper_profile: 'D-013-v25-a9-trusted-shell-current-user',
+    runner_helper_protocol: 2,
     data_root: '%LOCALAPPDATA%\\Win7CodingAgent\\a9',
     portable_flag: '--portable',
   }, null, 2)}\n`);
@@ -39,6 +41,8 @@ function fixture(): { productRoot: string; releaseRoot: string; cleanup: () => v
     status: 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS',
     required_native: {
       runner_helper: digest('runner-fixture'),
+      runner_helper_profile: 'D-013-v25-a9-trusted-shell-current-user',
+      runner_helper_protocol: 2,
       better_sqlite3_node: digest('sqlite-fixture'),
       electron_abi: 110,
     },
@@ -75,6 +79,8 @@ describe('A9 v3 package runtime', () => {
     });
     expect(runtime.storageRoot).toContain(path.join('resources', 'native', 'storage'));
     expect(runtime.portable).toBe(false);
+    expect(runtime.runnerHelperProfile).toBe('D-013-v25-a9-trusted-shell-current-user');
+    expect(runtime.runnerHelperProtocol).toBe(2);
     expect(selected).toBe('C:\\Users\\Tester\\AppData\\Local\\Win7CodingAgent');
     env.cleanup();
   });

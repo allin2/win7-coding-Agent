@@ -34,6 +34,17 @@ describe('A9 preload capability boundary', () => {
     ]) expect(api[method]).toBeUndefined();
   });
 
+  it('routes Shell settings only through the A9 v4 settings action', async () => {
+    const { api, invoke } = loadPreload(['electron', 'main.js']);
+    const payload = { kind: 'automatic', version: '', envOverlay: { PROJECT_MODE: 'alpha' } };
+    await api.a9.configureShell(payload);
+    expect(invoke).toHaveBeenCalledWith('product:a9-request', {
+      schemaVersion: 4,
+      action: 'a9.shell.configure',
+      payload,
+    });
+  });
+
   it('exposes legacy Review methods only for the explicit historical smoke entry', async () => {
     const { api, invoke } = loadPreload(['electron', 'main.js', '--a8-review-smoke-report=report.json']);
     expect(api.applyReview).toBeDefined();
