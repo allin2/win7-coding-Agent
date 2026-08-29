@@ -53,6 +53,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
+#include <wincrypt.h>
 #include <sddl.h>
 #endif
 
@@ -88,7 +89,7 @@ bool StdinJsonLineAvailable(std::string* error) {
     return false;
 }
 
-bool PollCancellationControl(const std::wstring& requestId, bool* canceled,
+bool PollCancellationControl(const std::wstring& requestId, int schemaVersion, bool* canceled,
                              std::string* error) {
     *canceled = false;
     const bool available = StdinJsonLineAvailable(error);
@@ -100,7 +101,7 @@ bool PollCancellationControl(const std::wstring& requestId, bool* canceled,
         return false;
     }
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (!ParseCancelControl(line, requestId, error)) return false;
+    if (!ParseCancelControl(line, requestId, schemaVersion, error)) return false;
     *canceled = true;
     return true;
 }
@@ -146,6 +147,109 @@ std::string WideToUtf8(const std::wstring& wide) {
     }
     return out;
 #endif
+}
+
+std::wstring LowerAscii(const std::wstring& value) {
+    std::wstring out = value;
+    for (wchar_t& ch : out) {
+        if (ch >= L'A' && ch <= L'Z') ch = static_cast<wchar_t>(ch - L'A' + L'a');
+    }
+    return out;
+}
+
+bool ComputeFileSha256(const std::wstring& path, std::wstring* digest,
+                       std::wstring* error) {
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        if (error) *error = L"shell identity file open failed: " + WinErrorText(GetLastError());
+        return false;
+    }
+    HCRYPTPROV provider = 0;
+    HCRYPTHASH hash = 0;
+    bool ok = CryptAcquireContextW(&provider, nullptr, nullptr, PROV_RSA_AES,
+                                   CRYPT_VERIFYCONTEXT) &&
+              CryptCreateHash(provider, CALG_SHA_256, 0, 0, &hash);
+    unsigned char buffer[64 * 1024];
+    while (ok) {
+        DWORD read = 0;
+        if (!ReadFile(file, buffer, sizeof(buffer), &read, nullptr)) {
+            ok = false;
+            break;
+        }
+        if (read == 0) break;
+        ok = CryptHashData(hash, buffer, read, 0) == TRUE;
+    }
+    BYTE bytes[32] = {};
+    DWORD bytesSize = sizeof(bytes);
+    if (ok) ok = CryptGetHashParam(hash, HP_HASHVAL, bytes, &bytesSize, 0) == TRUE &&
+                 bytesSize == sizeof(bytes);
+    if (ok) {
+        static const wchar_t kHex[] = L"0123456789abcdef";
+        digest->clear();
+        digest->reserve(64);
+        for (BYTE byte : bytes) {
+            digest->push_back(kHex[byte >> 4]);
+            digest->push_back(kHex[byte & 0x0F]);
+        }
+    } else if (error) {
+        *error = L"shell SHA-256 calculation failed: " + WinErrorText(GetLastError());
+    }
+    if (hash) CryptDestroyHash(hash);
+    if (provider) CryptReleaseContext(provider, 0);
+    CloseHandle(file);
+    return ok;
+}
+
+bool BuildEnvironmentBlock(
+    const std::vector<std::pair<std::wstring, std::wstring>>& overlay,
+    std::vector<wchar_t>* block, std::wstring* error) {
+    block->clear();
+    if (overlay.empty()) return true;
+    std::vector<std::pair<std::wstring, std::wstring>> entries;
+    LPWCH inherited = GetEnvironmentStringsW();
+    if (!inherited) {
+        if (error) *error = L"GetEnvironmentStringsW failed: " + WinErrorText(GetLastError());
+        return false;
+    }
+    for (const wchar_t* cursor = inherited; *cursor; cursor += std::wcslen(cursor) + 1) {
+        const std::wstring item(cursor);
+        const size_t equals = item.find(L'=', item[0] == L'=' ? 1 : 0);
+        if (equals != std::wstring::npos) {
+            entries.push_back(std::make_pair(item.substr(0, equals), item.substr(equals + 1)));
+        }
+    }
+    FreeEnvironmentStringsW(inherited);
+    for (const auto& update : overlay) {
+        bool replaced = false;
+        for (auto& entry : entries) {
+            if (LowerAscii(entry.first) == LowerAscii(update.first)) {
+                entry = update;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) entries.push_back(update);
+    }
+    std::sort(entries.begin(), entries.end(), [](const auto& left, const auto& right) {
+        return LowerAscii(left.first) < LowerAscii(right.first);
+    });
+    size_t total = 1;
+    for (const auto& entry : entries) total += entry.first.size() + entry.second.size() + 2;
+    if (total > 32767) {
+        if (error) *error = L"combined environment exceeds the Windows limit";
+        return false;
+    }
+    block->reserve(total);
+    for (const auto& entry : entries) {
+        block->insert(block->end(), entry.first.begin(), entry.first.end());
+        block->push_back(L'=');
+        block->insert(block->end(), entry.second.begin(), entry.second.end());
+        block->push_back(L'\0');
+    }
+    block->push_back(L'\0');
+    return true;
 }
 
 // Look up the user SID of a token (used for the deny ACE trustee).
@@ -881,6 +985,97 @@ bool AuditRestrictedChildToken(HANDLE childProcess,
     return audit->verified;
 }
 
+bool AuditCurrentUserChildToken(HANDLE childProcess,
+                                RestrictedTokenAudit* audit,
+                                std::wstring* error) {
+    if (!childProcess || !audit) {
+        if (error) *error = L"current-user child token audit input is invalid";
+        return false;
+    }
+    *audit = {};
+    HANDLE childToken = nullptr;
+    HANDLE sourceToken = nullptr;
+    if (!OpenProcessToken(childProcess, TOKEN_QUERY, &childToken) ||
+        !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &sourceToken)) {
+        if (error) *error = L"OpenProcessToken(current-user audit) failed: " +
+                            WinErrorText(GetLastError());
+        if (childToken) CloseHandle(childToken);
+        if (sourceToken) CloseHandle(sourceToken);
+        return false;
+    }
+    TOKEN_TYPE tokenType = TokenImpersonation;
+    DWORD returned = 0;
+    audit->isPrimary = GetTokenInformation(childToken, TokenType, &tokenType,
+                                            sizeof(tokenType), &returned) &&
+                       tokenType == TokenPrimary;
+    audit->isRestricted = IsTokenRestricted(childToken) ? true : false;
+
+    auto readTokenUser = [](HANDLE token, std::vector<unsigned char>* buffer) {
+        DWORD size = 0;
+        SetLastError(ERROR_SUCCESS);
+        GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+        if (size < sizeof(TOKEN_USER) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+            return false;
+        }
+        buffer->resize(size);
+        return GetTokenInformation(token, TokenUser, buffer->data(), size, &size) == TRUE;
+    };
+    std::vector<unsigned char> childUser;
+    std::vector<unsigned char> sourceUser;
+    if (!readTokenUser(childToken, &childUser) || !readTokenUser(sourceToken, &sourceUser)) {
+        if (error) *error = L"GetTokenInformation(TokenUser) failed";
+        CloseHandle(childToken);
+        CloseHandle(sourceToken);
+        return false;
+    }
+    audit->sameUser = EqualSid(
+        reinterpret_cast<TOKEN_USER*>(childUser.data())->User.Sid,
+        reinterpret_cast<TOKEN_USER*>(sourceUser.data())->User.Sid) == TRUE;
+
+    DWORD integritySize = 0;
+    SetLastError(ERROR_SUCCESS);
+    GetTokenInformation(childToken, TokenIntegrityLevel, nullptr, 0, &integritySize);
+    if (integritySize < sizeof(TOKEN_MANDATORY_LABEL) ||
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        if (error) *error = L"GetTokenInformation(TokenIntegrityLevel size) failed";
+        CloseHandle(childToken);
+        CloseHandle(sourceToken);
+        return false;
+    }
+    std::vector<unsigned char> integrity(integritySize);
+    if (!GetTokenInformation(childToken, TokenIntegrityLevel, integrity.data(),
+                             integritySize, &integritySize)) {
+        if (error) *error = L"GetTokenInformation(TokenIntegrityLevel) failed";
+        CloseHandle(childToken);
+        CloseHandle(sourceToken);
+        return false;
+    }
+    PSID sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(integrity.data())->Label.Sid;
+    if (!sid || !IsValidSid(sid) || *GetSidSubAuthorityCount(sid) == 0) {
+        if (error) *error = L"child integrity SID is invalid";
+        CloseHandle(childToken);
+        CloseHandle(sourceToken);
+        return false;
+    }
+    const UCHAR count = *GetSidSubAuthorityCount(sid);
+    audit->integrityRid = *GetSidSubAuthority(sid, static_cast<DWORD>(count - 1));
+    audit->lowIntegrity = audit->integrityRid <= SECURITY_MANDATORY_LOW_RID;
+    LPWSTR sidText = nullptr;
+    if (ConvertSidToStringSidW(sid, &sidText) && sidText) {
+        audit->integritySid = sidText;
+        LocalFree(sidText);
+    }
+    CloseHandle(childToken);
+    CloseHandle(sourceToken);
+    audit->verified = audit->isPrimary && !audit->isRestricted &&
+                      audit->sameUser && !audit->lowIntegrity &&
+                      !audit->integritySid.empty();
+    if (!audit->verified && error) {
+        *error = L"child token does not match current-user Primary/non-restricted/non-Low contract";
+    }
+    return audit->verified;
+}
+
 bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error) {
     PSID lowSid = nullptr;
     if (!ConvertStringSidToSidW(L"S-1-16-4096", &lowSid)) {
@@ -1020,6 +1215,10 @@ bool RestoreLowIntegrityLabel(const std::wstring& directory,
 }
 
 int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) {
+    result->schemaVersion = config.schemaVersion;
+    result->profileId = config.profileId;
+    result->workDirAclModified = false;
+    const bool currentUserProfile = config.schemaVersion == 2;
     // C02: Win7 cannot nest Jobs. Permit an inherited host Job only when its
     // documented flags allow the child to break away before we assign it to
     // the helper-owned containment Job.
@@ -1046,10 +1245,18 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
 
     RestrictedSidExpectation restrictedSidExpectation;
     std::wstring restrictedTokenError;
-    HANDLE hRestricted = CreateRestrictedProcessToken(&restrictedSidExpectation,
-                                                       &restrictedTokenError);
+    HANDLE hRestricted = nullptr;
+    if (currentUserProfile) {
+        OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hRestricted);
+        if (!hRestricted) restrictedTokenError = L"OpenProcessToken(current user) failed";
+    } else {
+        hRestricted = CreateRestrictedProcessToken(&restrictedSidExpectation,
+                                                   &restrictedTokenError);
+    }
     if (!hRestricted) {
-        result->errorMessage = "restricted token creation failed";
+        result->errorMessage = currentUserProfile
+            ? "current-user Primary token creation failed"
+            : "restricted token creation failed";
         if (!restrictedTokenError.empty()) {
             result->errorMessage += ": " + WideToUtf8(restrictedTokenError);
         }
@@ -1064,7 +1271,9 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     if (!GetTokenInformation(hRestricted, TokenType, &restrictedType,
                              sizeof(restrictedType), &restrictedTypeSize) ||
         restrictedType != TokenPrimary) {
-        result->errorMessage = "restricted token is not a primary token";
+        result->errorMessage = currentUserProfile
+            ? "current-user token is not a primary token"
+            : "restricted token is not a primary token";
         CloseHandle(hRestricted);
         CloseHandle(hJob);
         return HELPER_ERR_TOKEN_CREATE;
@@ -1084,6 +1293,12 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     std::vector<std::wstring> allowedDirs;
     std::vector<std::wstring> protectedDirs;
     std::wstring aclError;
+    if (currentUserProfile &&
+        (!config.allowedDirectories.empty() || !config.protectedDirectories.empty() ||
+         config.aclPolicy.valid)) {
+        result->errorMessage = "current-user profile forbids ACL mutation fields";
+        return failAclPolicy();
+    }
     if (!config.allowedDirectories.empty() || !config.protectedDirectories.empty()) {
         if (!config.aclPolicy.valid) return failAclPolicy();
         ProcessConfig canonical = config;
@@ -1262,6 +1477,20 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     // lpCommandLine must be writable (non-const).
     std::wstring mutableCommandLine = commandLine;
     const wchar_t* cwd = config.workingDirectory.empty() ? nullptr : config.workingDirectory.c_str();
+    std::vector<wchar_t> environmentBlock;
+    std::wstring environmentError;
+    if (currentUserProfile &&
+        !BuildEnvironmentBlock(config.envOverlay, &environmentBlock, &environmentError)) {
+        CloseHandle(hNullIn);
+        CloseHandle(hOutRead); CloseHandle(hOutWrite);
+        CloseHandle(hErrRead); CloseHandle(hErrWrite);
+        const int failure = failAfterRollback(HELPER_ERR_ENVIRONMENT);
+        result->errorMessage = "environment overlay could not be prepared";
+        if (userSid) LocalFree(userSid);
+        CloseHandle(hRestricted);
+        CloseHandle(hJob);
+        return failure;
+    }
 
     // Microsoft documents CreateProcessAsUserW as the launch path for a
     // restricted primary token. bInheritHandles must stay TRUE because the
@@ -1272,10 +1501,14 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     if (hostPlan.mode == HostJobLaunchMode::ExplicitBreakaway) {
         creationFlags |= CREATE_BREAKAWAY_FROM_JOB;
     }
-    BOOL created = CreateProcessAsUserW(
-        hRestricted, config.executable.c_str(), &mutableCommandLine[0],
-        nullptr, nullptr, TRUE,
-        creationFlags, nullptr, cwd, &si, &pi);
+    BOOL created = currentUserProfile
+        ? CreateProcessW(
+            config.executable.c_str(), &mutableCommandLine[0], nullptr, nullptr,
+            TRUE, creationFlags,
+            environmentBlock.empty() ? nullptr : environmentBlock.data(), cwd, &si, &pi)
+        : CreateProcessAsUserW(
+            hRestricted, config.executable.c_str(), &mutableCommandLine[0],
+            nullptr, nullptr, TRUE, creationFlags, nullptr, cwd, &si, &pi);
 
     if (!created) {
         const DWORD lastError = GetLastError();
@@ -1284,7 +1517,9 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         CloseHandle(hErrRead); CloseHandle(hErrWrite);
         const int failure = failAfterRollback(HELPER_ERR_PROCESS_CREATE);
         if (failure != HELPER_ERR_ACL_ROLLBACK) {
-            result->errorMessage = "CreateProcessAsUserW failed: Win32 error " +
+            result->errorMessage = std::string(currentUserProfile
+                                   ? "CreateProcessW failed: Win32 error "
+                                   : "CreateProcessAsUserW failed: Win32 error ") +
                                    std::to_string(static_cast<unsigned long>(lastError));
         }
         if (userSid) LocalFree(userSid);
@@ -1352,9 +1587,11 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     // is retained only as supplemental evidence by the harness. A failed or
     // non-Low audit kills the child and fails closed before any user code runs.
     std::wstring tokenAuditError;
-    if (!AuditRestrictedChildToken(pi.hProcess, restrictedSidExpectation,
-                                   &result->tokenAudit,
-                                   &tokenAuditError)) {
+    const bool tokenAuditOk = currentUserProfile
+        ? AuditCurrentUserChildToken(pi.hProcess, &result->tokenAudit, &tokenAuditError)
+        : AuditRestrictedChildToken(pi.hProcess, restrictedSidExpectation,
+                                    &result->tokenAudit, &tokenAuditError);
+    if (!tokenAuditOk) {
         TerminateProcess(pi.hProcess, 1);
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
@@ -1363,7 +1600,9 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         CloseHandle(hErrRead); CloseHandle(hErrWrite);
         const int failure = failAfterRollback(HELPER_ERR_TOKEN_CREATE);
         if (failure != HELPER_ERR_ACL_ROLLBACK) {
-            result->errorMessage = "restricted child token audit failed";
+            result->errorMessage = currentUserProfile
+                ? "current-user child token audit failed"
+                : "restricted child token audit failed";
             if (!tokenAuditError.empty()) {
                 result->errorMessage += ": " + WideToUtf8(tokenAuditError);
             }
@@ -1374,6 +1613,17 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         return failure;
     }
 
+    result->childPid = pi.dwProcessId;
+    result->inputDetached = true;
+    result->stdoutCaptureReady = true;
+    result->stderrCaptureReady = true;
+    if (currentUserProfile) {
+        const std::string started = RenderStartedJson(WideToUtf8(config.requestId), *result);
+        std::fwrite(started.data(), 1, started.size(), stdout);
+        std::fputc('\n', stdout);
+        std::fflush(stdout);
+    }
+
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
 
@@ -1382,8 +1632,12 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     CloseHandle(hErrWrite);
 
     // ─── Monitor with timeout + bounded output (C07) ──────────────────────
-    const long long cap = config.maxOutputSize > 0 ? config.maxOutputSize
-                                                   : kMaxOutputSizeDefault;
+    const long long stdoutCap = currentUserProfile
+        ? config.maxStdoutBytes
+        : (config.maxOutputSize > 0 ? config.maxOutputSize : kMaxOutputSizeDefault);
+    const long long stderrCap = currentUserProfile
+        ? config.maxStderrBytes
+        : (config.maxOutputSize > 0 ? config.maxOutputSize : kMaxOutputSizeDefault);
     const DWORD timeoutMs = static_cast<DWORD>(std::min<long long>(
         config.timeoutMs > 0 ? config.timeoutMs : kDefaultTimeoutMs, 0x7FFFFFFF));
     const DWORD idleTimeoutMs = static_cast<DWORD>(std::min<long long>(
@@ -1396,22 +1650,22 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     while (!done) {
         const ULONGLONG elapsed = GetTickCount64() - startTime;
         DWORD slice = 50;
-        if (elapsed >= static_cast<ULONGLONG>(timeoutMs)) {
+        if (config.deadlineEnabled && elapsed >= static_cast<ULONGLONG>(timeoutMs)) {
             slice = 1;  // final slice: timeout pending
-        } else {
+        } else if (config.deadlineEnabled) {
             const ULONGLONG remaining = static_cast<ULONGLONG>(timeoutMs) - elapsed;
             slice = static_cast<DWORD>(std::min<ULONGLONG>(remaining, 50));
         }
         const DWORD waitResult = WaitForSingleObject(pi.hProcess, slice);
         bool outputActivity = false;
-        DrainAvailable(hOutRead, &result->stdoutBytes, cap, &result->outputTruncated,
+        DrainAvailable(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated,
                        &outputActivity);
-        DrainAvailable(hErrRead, &result->stderrBytes, cap, &result->outputTruncated,
+        DrainAvailable(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated,
                        &outputActivity);
         if (outputActivity) lastActivity = GetTickCount64();
         bool cancellationRequested = false;
         std::string cancellationError;
-        if (!PollCancellationControl(config.requestId, &cancellationRequested,
+        if (!PollCancellationControl(config.requestId, config.schemaVersion, &cancellationRequested,
                                      &cancellationError)) {
             cancelProtocolFailed = true;
             result->errorMessage = cancellationError;
@@ -1424,10 +1678,12 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         if (waitResult == WAIT_OBJECT_0) {
             done = true;
         } else if (waitResult == WAIT_TIMEOUT) {
-            if (GetTickCount64() - startTime >= static_cast<ULONGLONG>(timeoutMs)) {
+            if (config.deadlineEnabled &&
+                GetTickCount64() - startTime >= static_cast<ULONGLONG>(timeoutMs)) {
                 result->timedOut = true;
                 done = true;
-            } else if (GetTickCount64() - lastActivity >=
+            } else if (config.idleDeadlineEnabled &&
+                       GetTickCount64() - lastActivity >=
                        static_cast<ULONGLONG>(idleTimeoutMs)) {
                 result->idleTimedOut = true;
                 done = true;
@@ -1449,11 +1705,21 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     }
     // Ensure the tree is gone before draining (writers dead -> EOF).
     WaitForSingleObject(pi.hProcess, 10000);
-    DrainUntilEof(hOutRead, &result->stdoutBytes, cap, &result->outputTruncated);
-    DrainUntilEof(hErrRead, &result->stderrBytes, cap, &result->outputTruncated);
+    DrainUntilEof(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated);
+    DrainUntilEof(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated);
 
     GetExitCodeProcess(pi.hProcess, &result->exitCode);
-    result->inputDetached = true;
+    const ULONGLONG cleanupDeadline = GetTickCount64() + 10000;
+    do {
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting = {};
+        if (QueryInformationJobObject(hJob, JobObjectBasicAccountingInformation,
+                                      &accounting, sizeof(accounting), nullptr) &&
+            accounting.ActiveProcesses == 0) {
+            result->cleanupConfirmed = true;
+            break;
+        }
+        Sleep(25);
+    } while (GetTickCount64() < cleanupDeadline);
 
     // ─── Cleanup: restore ACLs + labels (C04/A4-3 rollback), close last ───
     bool rollbackSucceeded = true;
@@ -1557,8 +1823,10 @@ int RunHelperLoop() {
         ProcessConfig config;
         std::string error;
         if (!ParseJsonConfig(line, &config, &error)) {
+            int errorSchemaVersion = line.find("\"schemaVersion\":2") != std::string::npos ? 2 : 1;
             const std::string out = RenderErrorJson(requestId, "JSON_PARSE_FAILED",
-                                                    "invalid request: " + error);
+                                                    "invalid request: " + error,
+                                                    errorSchemaVersion);
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
@@ -1581,25 +1849,55 @@ int RunHelperLoop() {
         if (!ResolveExecutablePath(config.executable, &canonical, &pathError)) {
             const std::string out = RenderErrorJson(
                 requestId, "EXECUTABLE_PATH_REJECTED",
-                "executable path rejected: " + WideToUtf8(pathError));
+                "executable path rejected: " + WideToUtf8(pathError), config.schemaVersion);
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
             return HELPER_OK;
         }
         config.executable = canonical;
-
-        const WhitelistDecision decision =
-            CheckWhitelist(config.executable, config.argv, whitelist);
-        if (decision != WhitelistDecision::Allow) {
-            const std::string out = RenderErrorJson(requestId, "ARGV_REJECTED",
-                                                    decision == WhitelistDecision::RejectArgv
-                                                        ? "cmd.exe argv must be /d /s /c (no /k)"
-                                                        : "executable is not in the allow-list");
-            std::fwrite(out.data(), 1, out.size(), stdout);
-            std::fputc('\n', stdout);
-            std::fflush(stdout);
-            return HELPER_OK;
+        if (config.schemaVersion == 2) {
+            std::wstring canonicalShell;
+            std::wstring canonicalCwd;
+            std::wstring identity;
+            const bool pathBound = ResolveExecutablePath(config.shellPath, &canonicalShell,
+                                                         &pathError) &&
+                                   PathsEqualIgnoreCase(canonicalShell, config.executable);
+            const bool cwdBound = ResolveDirPath(config.workingDirectory, &canonicalCwd,
+                                                 &pathError);
+            const bool identityBound = pathBound &&
+                ComputeFileSha256(config.executable, &identity, &pathError) &&
+                LowerAscii(identity) == LowerAscii(config.shellIdentity);
+            const TrustedShellDecision decision = CheckTrustedShellHost(
+                config.executable, config.argv, config.command, config.shellKind,
+                config.shellSource, identityBound, whitelist);
+            if (!cwdBound || decision != TrustedShellDecision::Allow) {
+                const char* code = !cwdBound ? "WORKING_DIRECTORY_REJECTED" :
+                    decision == TrustedShellDecision::RejectBinding
+                        ? "SHELL_IDENTITY_REJECTED" : "SHELL_HOST_REJECTED";
+                const std::string out = RenderErrorJson(
+                    requestId, code, "trusted shell path, identity, argv, or cwd binding failed",
+                    config.schemaVersion);
+                std::fwrite(out.data(), 1, out.size(), stdout);
+                std::fputc('\n', stdout);
+                std::fflush(stdout);
+                return HELPER_OK;
+            }
+            config.shellPath = canonicalShell;
+            config.workingDirectory = canonicalCwd;
+        } else {
+            const WhitelistDecision decision =
+                CheckWhitelist(config.executable, config.argv, whitelist);
+            if (decision != WhitelistDecision::Allow) {
+                const std::string out = RenderErrorJson(requestId, "ARGV_REJECTED",
+                                                        decision == WhitelistDecision::RejectArgv
+                                                            ? "cmd.exe argv must be /d /s /c (no /k)"
+                                                            : "executable is not in the allow-list");
+                std::fwrite(out.data(), 1, out.size(), stdout);
+                std::fputc('\n', stdout);
+                std::fflush(stdout);
+                return HELPER_OK;
+            }
         }
 
         ProcessResult result;
@@ -1614,7 +1912,9 @@ int RunHelperLoop() {
             else if (errorCode == HELPER_ERR_ACL_ROLLBACK) code = "ACL_ROLLBACK_FAILED";
             else if (errorCode == HELPER_ERR_CANCEL_PROTOCOL) code = "CANCEL_PROTOCOL_INVALID";
             else if (errorCode == HELPER_ERR_PROCESS_CREATE) code = "PROCESS_CREATE_FAILED";
-            const std::string out = RenderErrorJson(requestId, code, result.errorMessage);
+            else if (errorCode == HELPER_ERR_ENVIRONMENT) code = "ENVIRONMENT_REJECTED";
+            const std::string out = RenderErrorJson(requestId, code, result.errorMessage,
+                                                    config.schemaVersion);
             std::fwrite(out.data(), 1, out.size(), stdout);
             std::fputc('\n', stdout);
             std::fflush(stdout);
@@ -1656,7 +1956,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("win7-agent-helper 1.2.0-d013-v24 win7-x64\n");
+            std::printf("win7-agent-helper 1.3.0-d013-v25 win7-x64 profiles=v1-low-risk,v2-current-user\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {

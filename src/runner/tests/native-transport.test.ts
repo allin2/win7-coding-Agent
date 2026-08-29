@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
 import { spawn } from 'child_process';
-import { hasCompleteHelperCleanupProof, NativeHelperExecutionResult, NativeHelperRequest, parseNativeHelperResponse, StdioHelperTransport } from '../src';
+import { hasCompleteHelperCleanupProof, NativeHelperExecutionResult, NativeHelperRequest, NativeHelperRequestV2, parseNativeHelperResponse, StdioHelperTransport } from '../src';
 
 jest.mock('child_process', () => ({ spawn: jest.fn() }));
 
@@ -16,16 +16,71 @@ class FakeChild extends EventEmitter {
 test('managed invocation exposes the helper PID and uses the same bound cancel protocol', async () => {
   const child = new FakeChild();
   (spawn as unknown as jest.Mock).mockReturnValue(child);
-  const managed = new StdioHelperTransport('helper.exe').startManaged(request());
+  const managed = new StdioHelperTransport('helper.exe').startManaged(requestV2());
   expect(managed.pid).toBe(4321);
+  child.stdout.write(`${JSON.stringify(startedV2())}\n`);
+  await expect(managed.ready).resolves.toMatchObject({ childPid: 5331 });
   managed.cancel();
   await new Promise((resolve) => setImmediate(resolve));
-  child.stdout.write(`${JSON.stringify(cancelledResponse())}\n`);
+  child.stdout.write(`${JSON.stringify(cancelledResponseV2())}\n`);
   child.emit('close', 0);
   await expect(managed.completion).resolves.toMatchObject({
     kind: 'response', response: { requestId: 'cancel-1', canceled: true, containmentVerified: true },
   });
 });
+
+test('deadlineMode=none keeps only the startup boundary and has no runtime watchdog', async () => {
+  const child = new FakeChild();
+  (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const request = { ...requestV2(), requestId: 'no-deadline', managed: false } as NativeHelperRequestV2;
+  const started = { ...startedV2(), requestId: 'no-deadline' };
+  const completed = { ...cancelledResponseV2(), requestId: 'no-deadline', canceled: false, exitCode: 0 };
+  const pending = new StdioHelperTransport('helper.exe', undefined, 10).invoke(request);
+  child.stdout.write(`${JSON.stringify(started)}\n`);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(child.kill).not.toHaveBeenCalled();
+  child.stdout.write(`${JSON.stringify(completed)}\n`);
+  child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'response', response: { requestId: 'no-deadline' } });
+});
+
+function requestV2(): NativeHelperRequestV2 {
+  return {
+    schemaVersion: 2, requestId: 'cancel-1', profileId: 'a9-trusted-shell-current-user-v1',
+    executable: 'C:\\Windows\\System32\\cmd.exe', argv: ['/d', '/s', '/c', 'ping -t 127.0.0.1'],
+    shellKind: 'cmd', shellPath: 'C:\\Windows\\System32\\cmd.exe', shellVersion: '6.1.7601',
+    shellIdentity: 'a'.repeat(64), shellSource: 'automatic', command: 'ping -t 127.0.0.1',
+    cwd: 'C:\\acceptance\\work', envOverlay: {}, maxStdoutBytes: 1024, maxStderrBytes: 1024,
+    managed: true, deadlineMode: 'none',
+  };
+}
+
+function startedV2(): any {
+  return {
+    schemaVersion: 2, type: 'execution_started', requestId: 'cancel-1',
+    profileId: 'a9-trusted-shell-current-user-v1', helperPid: 4321, childPid: 5331,
+    ready: { childJobAssignmentVerified: true, inputDetached: true, stdoutCaptureReady: true, stderrCaptureReady: true },
+    tokenAudit: currentUserTokenProof(),
+  };
+}
+
+function currentUserTokenProof(): any {
+  return { source: 'suspended_child_process_token', verified: true, tokenMode: 'current_user',
+    restrictedToken: false, tokenType: 'primary', sameUser: true, lowIntegrity: false,
+    integritySid: 'S-1-16-8192', integrityRid: 8192 };
+}
+
+function cancelledResponseV2(): any {
+  return {
+    schemaVersion: 2, type: 'execution_result', requestId: 'cancel-1',
+    profileId: 'a9-trusted-shell-current-user-v1', status: 'completed', exitCode: 1,
+    executionTimeMs: 20, timedOut: false, idleTimedOut: false, canceled: true,
+    outputTruncated: false, containmentVerified: true, inputDetached: true,
+    cleanupConfirmed: true, workDirAclModified: false,
+    hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
+    tokenAudit: currentUserTokenProof(), stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '',
+  };
+}
 
 function request(): NativeHelperRequest {
   return {

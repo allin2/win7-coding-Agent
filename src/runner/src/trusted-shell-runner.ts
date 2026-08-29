@@ -23,7 +23,11 @@ import { selectShell, ShellKind } from './shell-detection';
 import { BackgroundProcessHandle, BackgroundProcessManager } from './background-process-manager';
 import { killProcessTree } from './process-cleanup';
 import { HelperTransport } from './native-transport';
-import { decodeNativeHelperBase64, hasCompleteHelperCleanupProof } from './native-protocol';
+import {
+  decodeNativeHelperBase64,
+  hasCompleteHelperCleanupProof,
+  NativeHelperRequestV2,
+} from './native-protocol';
 
 export interface TrustedShellRequest {
   id?: string;
@@ -89,6 +93,8 @@ export interface TrustedShellRunnerOptions {
   getSensitiveValues?: () => readonly string[];
   /** Product persistence hook for asynchronous background terminal states. */
   onBackgroundStateChange?: (handle: BackgroundProcessHandle) => void;
+  /** 测试可注入；生产绑定 canonical path + 当前文件 SHA-256。 */
+  resolveShellIdentity?: (shellPath: string) => { canonicalPath: string; sha256: string; version?: string };
 }
 
 /** 单流原始日志默认上限（1 MiB）。 */
@@ -114,6 +120,47 @@ export class TrustedShellRunner {
 
   private redact(text: string): string {
     return this.options.redactText ? this.options.redactText(text) : text;
+  }
+
+  private createV2HelperRequest(
+    requestId: string,
+    request: TrustedShellRequest,
+    exe: string,
+    args: string[],
+    cwd: string,
+    shellMeta: TrustedShellResult['shell'],
+    maxOutputBytes: number,
+    managed: boolean,
+  ): NativeHelperRequestV2 {
+    if (shellMeta.kind === 'sh') {
+      throw new Error('D-013 v25 requires cmd, Windows PowerShell, or an explicitly configured bash host');
+    }
+    const envOverlay = validateTrustedShellEnvironmentOverlay(request.envOverlay ?? {});
+    const identity = this.options.resolveShellIdentity
+      ? this.options.resolveShellIdentity(exe)
+      : resolveShellFileIdentity(exe);
+    const deadline = request.timeoutMs !== undefined && request.timeoutMs > 0
+      ? { deadlineMode: 'fixed' as const, timeoutMs: request.timeoutMs }
+      : { deadlineMode: 'none' as const };
+    return {
+      schemaVersion: 2,
+      requestId,
+      profileId: 'a9-trusted-shell-current-user-v1',
+      executable: identity.canonicalPath,
+      argv: args,
+      shellKind: shellMeta.kind,
+      shellPath: identity.canonicalPath,
+      shellVersion: identity.version ?? shellMeta.version ?? 'unknown',
+      shellIdentity: identity.sha256.toLowerCase(),
+      shellSource: request.shellPath ? 'workspace_explicit' : 'automatic',
+      command: request.command,
+      cwd,
+      envOverlay,
+      maxStdoutBytes: Math.max(maxOutputBytes, 1024),
+      maxStderrBytes: Math.max(maxOutputBytes, 1024),
+      managed,
+      ...deadline,
+    };
   }
 
   getBackgroundManager(): BackgroundProcessManager {
@@ -355,22 +402,18 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
     maxOutputLines: number,
   ): Promise<TrustedShellResult> {
-    const helperTimeoutMs = request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000;
-    const helperRequest = {
-      schema_version: 1 as const,
-      requestId,
-      executable: exe,
-      argv: args,
-      workingDirectory: cwd,
-      timeoutMs: helperTimeoutMs,
-      // D-013 v24 interprets explicit zero as 1ms. Equal to the total deadline
-      // disables any shorter idle kill while preserving its schema contract.
-      idleTimeoutMs: helperTimeoutMs,
-      maxOutputSize: Math.max(maxOutputBytes, 1024),
-      allowNetwork: false as const,
-      allowedDirectories: [],
-      protectedDirectories: [],
-    };
+    let helperRequest: NativeHelperRequestV2;
+    try {
+      helperRequest = this.createV2HelperRequest(
+        requestId, request, exe, args, cwd, shellMeta, maxOutputBytes, false,
+      );
+    } catch (error) {
+      return {
+        ...mapHelperFailure(String(error), 'protocol_error', true),
+        durationMs: Date.now() - startTime,
+        shell: shellMeta,
+      };
+    }
     const transport = await this.options.helperTransport!.invoke(helperRequest, request.signal);
     if (transport.kind !== 'response' || transport.response.type === 'error') {
       const detail = transport.kind !== 'response'
@@ -386,6 +429,13 @@ export class TrustedShellRunner {
       };
     }
     const response = transport.response;
+    if (!('schemaVersion' in response) || response.schemaVersion !== 2) {
+      return {
+        ...mapHelperFailure('TrustedShell received a non-v2 helper result', 'protocol_error', false),
+        durationMs: Date.now() - startTime,
+        shell: shellMeta,
+      };
+    }
     let stdoutBuf: Buffer;
     let stderrBuf: Buffer;
     try {
@@ -444,21 +494,10 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
   ): Promise<TrustedShellResult> {
     try {
-      const helperTimeoutMs = request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000;
       const helperRequest = this.options.helperTransport && this.platform === 'win32'
-        ? {
-          schema_version: 1 as const,
-          requestId,
-          executable: exe,
-          argv: args,
-          workingDirectory: cwd,
-          timeoutMs: helperTimeoutMs,
-          idleTimeoutMs: helperTimeoutMs,
-          maxOutputSize: Math.max(maxOutputBytes, 1024),
-          allowNetwork: false as const,
-          allowedDirectories: [],
-          protectedDirectories: [],
-        }
+        ? this.createV2HelperRequest(
+          requestId, request, exe, args, cwd, shellMeta, maxOutputBytes, true,
+        )
         : undefined;
       const handle = await this.backgroundManager.start(
         requestId, request.command, exe, args, cwd, request.envOverlay, helperRequest,
@@ -603,6 +642,54 @@ export function buildTrustedShellInvocation(
 
   // POSIX sh / bash：仅开发机替代，不是 Win7 证据。
   return { exe: shellExe, args: ['-c', command], verbatim: false };
+}
+
+/** Bind the exact configured shell file. The digest is request metadata, not a model-controlled executable grant. */
+export function resolveShellFileIdentity(shellPath: string): {
+  canonicalPath: string;
+  sha256: string;
+  version?: string;
+} {
+  const canonicalPath = fs.realpathSync.native(shellPath);
+  const stat = fs.statSync(canonicalPath);
+  if (!stat.isFile()) throw new Error('Configured shell identity is not a regular file');
+  return {
+    canonicalPath,
+    sha256: crypto.createHash('sha256').update(fs.readFileSync(canonicalPath)).digest('hex'),
+    version: `file-${stat.size}-${Math.trunc(stat.mtimeMs)}`,
+  };
+}
+
+/**
+ * Only non-secret workspace variables may cross the helper boundary. Values
+ * are deliberately never included in errors or audit text.
+ */
+export function validateTrustedShellEnvironmentOverlay(
+  overlay: Record<string, string>,
+): Record<string, string> {
+  const exact = new Set([
+    'NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE', 'ELECTRON_EXTRA_LAUNCH_ARGS',
+    'NODE_TLS_REJECT_UNAUTHORIZED', 'GIT_SSL_NO_VERIFY', 'PYTHONHTTPSVERIFY',
+    'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE',
+    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY',
+  ]);
+  const output: Record<string, string> = {};
+  let totalCharacters = 0;
+  const keys = Object.keys(overlay);
+  if (keys.length > 64) throw new Error('A9_ENV_OVERLAY_REJECTED: too many entries');
+  for (const key of keys) {
+    const value = overlay[key];
+    const upper = key.toUpperCase();
+    if (!key || key.length > 128 || key.includes('=') || key.includes('\0')
+      || typeof value !== 'string' || value.length > 8192 || value.includes('\0')
+      || exact.has(upper) || /(API_KEY|AUTHORIZATION|PASSWORD|SECRET|TOKEN)/.test(upper)) {
+      throw new Error('A9_ENV_OVERLAY_REJECTED: secret or process-control entry');
+    }
+    totalCharacters += key.length + value.length + 2;
+    if (totalCharacters > 32767) throw new Error('A9_ENV_OVERLAY_REJECTED: size limit exceeded');
+    output[key] = value;
+  }
+  return output;
 }
 
 /**

@@ -234,23 +234,53 @@ describe('A9-02 regression: honest termination and logs', () => {
     expect(raw).not.toContain(mixed);
   });
 
-  it('does not send D-013 an explicit 0ms idle timeout', async () => {
+  it('uses protocol v2 deadlineMode=none without inventing timeout fields', async () => {
     const invoke = jest.fn(async (request: any): Promise<HelperTransportResult> => ({
       kind: 'response',
       response: {
-        schema_version: 1, type: 'execution_result', requestId: request.requestId, status: 'completed',
+        schemaVersion: 2, type: 'execution_result', requestId: request.requestId,
+        profileId: 'a9-trusted-shell-current-user-v1', status: 'completed',
         exitCode: 0, executionTimeMs: 10, timedOut: false, idleTimedOut: false, canceled: false,
         outputTruncated: false, containmentVerified: true, inputDetached: true,
+        cleanupConfirmed: true, workDirAclModified: false,
         hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
-        tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, userRestrictedSid: true, worldRestrictedSid: true, administratorsRestrictedSid: false, restrictedSidCount: 2, integritySid: 'S-1-16-4096', integrityRid: 4096 },
-        stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [],
+        tokenAudit: { source: 'suspended_child_process_token', verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true, lowIntegrity: false, integritySid: 'S-1-16-8192', integrityRid: 8192 },
+        stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '',
       },
     }));
-    const runner = new TrustedShellRunner({ helperTransport: { invoke } as HelperTransport, platform: 'win32' });
+    const runner = new TrustedShellRunner({
+      helperTransport: { invoke } as HelperTransport,
+      platform: 'win32',
+      resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'a'.repeat(64), version: '6.1.7601' }),
+    });
 
     await runner.execute({ command: 'echo quiet', shellKind: 'cmd', shellPath: 'cmd.exe' });
 
-    expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 3_600_000, idleTimeoutMs: 3_600_000 }), undefined);
+    const sent = invoke.mock.calls[0][0] as any;
+    expect(sent).toEqual(expect.objectContaining({ schemaVersion: 2, deadlineMode: 'none', managed: false }));
+    expect(sent).not.toHaveProperty('timeoutMs');
+    expect(sent).not.toHaveProperty('idleTimeoutMs');
+  });
+
+  it('rejects Provider secrets and process/TLS controls before helper invocation', async () => {
+    const invoke = jest.fn();
+    const runner = new TrustedShellRunner({
+      helperTransport: { invoke } as HelperTransport,
+      platform: 'win32',
+      resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'b'.repeat(64) }),
+    });
+    const secret = await runner.execute({
+      command: 'echo blocked', shellKind: 'cmd', shellPath: 'cmd.exe',
+      envOverlay: { OPENAI_API_KEY: 'must-never-cross' },
+    });
+    const tls = await runner.execute({
+      command: 'echo blocked', shellKind: 'cmd', shellPath: 'cmd.exe',
+      envOverlay: { NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+    });
+    expect(secret.status).toBe('failed');
+    expect(secret.stderr).not.toContain('must-never-cross');
+    expect(tls.status).toBe('failed');
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('does not impose a default fixed hard timeout when timeoutMs is absent', async () => {

@@ -175,8 +175,39 @@ static void TestParseJsonConfig() {
     CHECK(!ParseJsonConfig("{\"schema_version\":1,\"requestId\":\"bad-policy\",\"executable\":\"C:\\\\Windows\\\\System32\\\\cmd.exe\",\"argv\":[],\"aclPolicy\":\"nope\"}",
                            &config, &error));
 
-    CHECK(!ParseJsonConfig("{\"schema_version\":2,\"requestId\":\"bad-version\",\"executable\":\"cmd.exe\",\"argv\":[]}",
-                           &config, &error));
+    const std::string validV2 =
+        "{\"schemaVersion\":2,\"requestId\":\"v2-none\","
+        "\"profileId\":\"a9-trusted-shell-current-user-v1\","
+        "\"executable\":\"C:\\\\Windows\\\\System32\\\\cmd.exe\","
+        "\"argv\":[\"/d\",\"/s\",\"/c\",\"echo ok\"],\"shellKind\":\"cmd\","
+        "\"shellPath\":\"C:\\\\Windows\\\\System32\\\\cmd.exe\","
+        "\"shellVersion\":\"6.1.7601\","
+        "\"shellIdentity\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\","
+        "\"shellSource\":\"automatic\",\"command\":\"echo ok\","
+        "\"cwd\":\"C:\\\\工作 区\",\"envOverlay\":{\"A9_MODE\":\"alpha\"},"
+        "\"maxStdoutBytes\":4096,\"maxStderrBytes\":2048,"
+        "\"managed\":false,\"deadlineMode\":\"none\"}";
+    ProcessConfig v2;
+    CHECK(ParseJsonConfig(validV2, &v2, &error));
+    CHECK(v2.schemaVersion == 2);
+    CHECK(v2.profileId == L"a9-trusted-shell-current-user-v1");
+    CHECK(v2.deadlineEnabled == false && v2.idleDeadlineEnabled == false);
+    CHECK(v2.envOverlay.size() == 1 && v2.envOverlay[0].first == L"A9_MODE");
+    CHECK(v2.maxStdoutBytes == 4096 && v2.maxStderrBytes == 2048);
+
+    // v2 is exact and fail-closed: downgrade spelling, unknown fields,
+    // duplicate fields, deadline coercion and secret/control env are rejected.
+    CHECK(!ParseJsonConfig("{\"schema_version\":2,\"requestId\":\"downgrade\"}", &config, &error));
+    CHECK(!ParseJsonConfig(validV2.substr(0, validV2.size() - 1) + ",\"unknown\":true}", &config, &error));
+    CHECK(!ParseJsonConfig(validV2.substr(0, validV2.size() - 1) + ",\"requestId\":\"duplicate\"}", &config, &error));
+    std::string badDeadline = validV2;
+    badDeadline.insert(badDeadline.size() - 1, ",\"timeoutMs\":5000");
+    CHECK(!ParseJsonConfig(badDeadline, &config, &error));
+    std::string secretEnv = validV2;
+    const size_t envPos = secretEnv.find("\"A9_MODE\":\"alpha\"");
+    secretEnv.replace(envPos, std::strlen("\"A9_MODE\":\"alpha\""),
+                      "\"OPENAI_API_KEY\":\"must-not-echo\"");
+    CHECK(!ParseJsonConfig(secretEnv, &config, &error));
 
     // Schema violations.
     CHECK(!ParseJsonConfig("{\"argv\":[]}", &config, &error));
@@ -189,11 +220,15 @@ static void TestParseJsonConfig() {
 static void TestCancelControl() {
     std::string error;
     CHECK(ParseCancelControl(
-        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"r1\"}", L"r1", &error));
+        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"r1\"}", L"r1", 1, &error));
+    CHECK(ParseCancelControl(
+        "{\"schemaVersion\":2,\"type\":\"cancel\",\"requestId\":\"r2\"}", L"r2", 2, &error));
     CHECK(!ParseCancelControl(
-        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"stale\"}", L"r1", &error));
+        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"stale\"}", L"r1", 1, &error));
     CHECK(!ParseCancelControl(
-        "{\"schema_version\":1,\"type\":\"execute\",\"requestId\":\"r1\"}", L"r1", &error));
+        "{\"schema_version\":1,\"type\":\"execute\",\"requestId\":\"r1\"}", L"r1", 1, &error));
+    CHECK(!ParseCancelControl(
+        "{\"schema_version\":1,\"type\":\"cancel\",\"requestId\":\"r2\"}", L"r2", 2, &error));
 }
 
 static void TestArgvBuilder() {
@@ -272,6 +307,19 @@ static void TestWhitelist() {
           WhitelistDecision::RejectArgv);
     CHECK(CheckWhitelist(L"C:\\Windows\\System32\\cmd.exe", {L"/D", L"/S", L"/C", L"dir"}, config) ==
           WhitelistDecision::Allow);
+
+    CHECK(CheckTrustedShellHost(
+        L"C:\\Windows\\System32\\cmd.exe", {L"/d", L"/s", L"/c", L"echo ok"},
+        L"echo ok", L"cmd", L"automatic", true, config) == TrustedShellDecision::Allow);
+    CHECK(CheckTrustedShellHost(
+        L"C:\\Windows\\System32\\cmd.exe", {L"/d", L"/s", L"/c", L"echo changed"},
+        L"echo ok", L"cmd", L"automatic", true, config) == TrustedShellDecision::RejectArgv);
+    CHECK(CheckTrustedShellHost(
+        L"C:\\Tools\\bash.exe", {L"-c", L"echo ok"}, L"echo ok", L"bash",
+        L"workspace_explicit", true, config) == TrustedShellDecision::Allow);
+    CHECK(CheckTrustedShellHost(
+        L"C:\\Tools\\bash.exe", {L"-c", L"echo ok"}, L"echo ok", L"bash",
+        L"workspace_explicit", false, config) == TrustedShellDecision::RejectBinding);
 }
 
 static void TestPathShape() {
@@ -409,6 +457,38 @@ static void TestRenderResult() {
     const std::string err = RenderErrorJson("c02", "HOST_ALREADY_IN_JOB", "host in job");
     CHECK(err.find("\"error\":\"HOST_ALREADY_IN_JOB\"") != std::string::npos);
     CHECK(err.find("\"type\":\"error\"") != std::string::npos);
+
+    ProcessResult currentUser;
+    currentUser.schemaVersion = 2;
+    currentUser.profileId = L"a9-trusted-shell-current-user-v1";
+    currentUser.childPid = 42;
+    currentUser.containmentVerified = true;
+    currentUser.childJobAssignmentVerified = true;
+    currentUser.inputDetached = true;
+    currentUser.stdoutCaptureReady = true;
+    currentUser.stderrCaptureReady = true;
+    currentUser.cleanupConfirmed = true;
+    currentUser.workDirAclModified = false;
+    currentUser.tokenAudit.verified = true;
+    currentUser.tokenAudit.isPrimary = true;
+    currentUser.tokenAudit.isRestricted = false;
+    currentUser.tokenAudit.sameUser = true;
+    currentUser.tokenAudit.lowIntegrity = false;
+    currentUser.tokenAudit.integritySid = L"S-1-16-8192";
+    currentUser.tokenAudit.integrityRid = 8192;
+    const std::string started = RenderStartedJson("v2", currentUser);
+    CHECK(started.find("\"schemaVersion\":2") != std::string::npos);
+    CHECK(started.find("\"type\":\"execution_started\"") != std::string::npos);
+    CHECK(started.find("\"childPid\":42") != std::string::npos);
+    CHECK(started.find("\"restrictedToken\":false") != std::string::npos);
+    CHECK(started.find("\"lowIntegrity\":false") != std::string::npos);
+    const std::string currentResult = RenderResultJson("v2", currentUser);
+    CHECK(currentResult.find("\"schemaVersion\":2") != std::string::npos);
+    CHECK(currentResult.find("\"cleanupConfirmed\":true") != std::string::npos);
+    CHECK(currentResult.find("\"workDirAclModified\":false") != std::string::npos);
+    CHECK(currentResult.find("aclChanges") == std::string::npos);
+    const std::string v2Error = RenderErrorJson("v2", "FAILED", "safe", 2);
+    CHECK(v2Error.find("\"schemaVersion\":2") != std::string::npos);
 }
 
 int main() {

@@ -38,8 +38,12 @@ export {
 } from './profiles';
 export {
   NativeHelperRequest,
+  NativeHelperRequestV1,
+  NativeHelperRequestV2,
   NativeHelperResponse,
   NativeHelperExecutionResult,
+  NativeHelperExecutionResultV2,
+  NativeHelperStartedResultV2,
   NativeHelperErrorResult,
   parseNativeHelperResponse,
   hasCompleteHelperCleanupProof,

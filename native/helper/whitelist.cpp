@@ -156,4 +156,62 @@ WhitelistDecision CheckWhitelist(const std::wstring& executable,
     return WhitelistDecision::Allow;
 }
 
+TrustedShellDecision CheckTrustedShellHost(
+    const std::wstring& executable,
+    const std::vector<std::wstring>& argv,
+    const std::wstring& command,
+    const std::wstring& shellKind,
+    const std::wstring& shellSource,
+    bool identityVerified,
+    const WhitelistConfig& config) {
+    if (!identityVerified || ClassifyPathShape(executable) != PathShape::Absolute) {
+        return TrustedShellDecision::RejectBinding;
+    }
+    if (shellSource == L"automatic") {
+        if (config.system32Directory.empty()) return TrustedShellDecision::RejectExecutable;
+        if (shellKind == L"cmd") {
+            const std::wstring expected = config.system32Directory + L"\\cmd.exe";
+            if (!PathsEqualIgnoreCase(executable, expected)) {
+                return TrustedShellDecision::RejectExecutable;
+            }
+        } else if (shellKind == L"powershell") {
+            const std::wstring expected = config.system32Directory +
+                L"\\WindowsPowerShell\\v1.0\\powershell.exe";
+            if (!PathsEqualIgnoreCase(executable, expected)) {
+                return TrustedShellDecision::RejectExecutable;
+            }
+        } else {
+            return TrustedShellDecision::RejectExecutable;
+        }
+    } else if (shellSource != L"workspace_explicit") {
+        return TrustedShellDecision::RejectBinding;
+    }
+
+    if (shellKind == L"cmd") {
+        if (argv.size() != 4 || ToLower(argv[0]) != L"/d" ||
+            ToLower(argv[1]) != L"/s" || ToLower(argv[2]) != L"/c" ||
+            argv[3] != command) {
+            return TrustedShellDecision::RejectArgv;
+        }
+    } else if (shellKind == L"powershell") {
+        static const wchar_t* kPrefix[] = {
+            L"-nologo", L"-noprofile", L"-noninteractive",
+            L"-executionpolicy", L"bypass", L"-encodedcommand",
+        };
+        if (argv.size() != 7) return TrustedShellDecision::RejectArgv;
+        for (size_t i = 0; i < 6; ++i) {
+            if (ToLower(argv[i]) != kPrefix[i]) return TrustedShellDecision::RejectArgv;
+        }
+        if (argv[6].empty()) return TrustedShellDecision::RejectArgv;
+    } else if (shellKind == L"bash") {
+        if (shellSource != L"workspace_explicit" || argv.size() != 2 ||
+            argv[0] != L"-c" || argv[1] != command) {
+            return TrustedShellDecision::RejectArgv;
+        }
+    } else {
+        return TrustedShellDecision::RejectExecutable;
+    }
+    return TrustedShellDecision::Allow;
+}
+
 }  // namespace spike02

@@ -69,6 +69,13 @@ export class NativeRunner implements IRunner {
       this.emit('runner.finished', requestId, { status: failed.status, error: transport.response.error });
       return failed;
     }
+    if ('schemaVersion' in transport.response) {
+      return this.transportFailure(requestId, {
+        kind: 'helper_crashed',
+        detail: 'Low-risk NativeRunner received an unexpected protocol v2 response',
+        cleanupConfirmed: false,
+      }, request);
+    }
     return this.executionResult(requestId, transport.response, request, profile.outputEncoding || 'auto');
   }
 

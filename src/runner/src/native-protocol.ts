@@ -1,4 +1,4 @@
-export interface NativeHelperRequest {
+export interface NativeHelperRequestV1 {
   schema_version: 1;
   requestId: string;
   executable: string;
@@ -11,6 +11,49 @@ export interface NativeHelperRequest {
   allowedDirectories: string[];
   protectedDirectories: string[];
   aclPolicy?: { acceptanceRoot: string; perRunRoot: string };
+}
+
+export interface NativeHelperRequestV2 {
+  schemaVersion: 2;
+  requestId: string;
+  profileId: 'a9-trusted-shell-current-user-v1';
+  executable: string;
+  argv: string[];
+  shellKind: 'cmd' | 'powershell' | 'bash';
+  shellPath: string;
+  shellVersion: string;
+  shellIdentity: string;
+  shellSource: 'automatic' | 'workspace_explicit';
+  command: string;
+  cwd: string;
+  envOverlay: Record<string, string>;
+  maxStdoutBytes: number;
+  maxStderrBytes: number;
+  managed: boolean;
+  deadlineMode: 'none' | 'fixed';
+  timeoutMs?: number;
+  idleTimeoutMs?: number;
+}
+
+export type NativeHelperRequest = NativeHelperRequestV1 | NativeHelperRequestV2;
+
+interface HostJobProof {
+  detected: boolean;
+  breakaway: 'none' | 'explicit' | 'silent';
+  limitFlags: number;
+  childJobAssignmentVerified: boolean;
+}
+
+interface CurrentUserTokenProof {
+  source: 'suspended_child_process_token';
+  verified: boolean;
+  tokenMode: 'current_user';
+  restrictedToken: false;
+  tokenType: 'primary';
+  sameUser: boolean;
+  lowIntegrity: false;
+  integritySid: string;
+  integrityRid: number;
 }
 
 export interface NativeHelperExecutionResult {
@@ -26,12 +69,7 @@ export interface NativeHelperExecutionResult {
   outputTruncated: boolean;
   containmentVerified: boolean;
   inputDetached: boolean;
-  hostJob: {
-    detected: boolean;
-    breakaway: 'none' | 'explicit' | 'silent';
-    limitFlags: number;
-    childJobAssignmentVerified: boolean;
-  };
+  hostJob: HostJobProof;
   tokenAudit: {
     source: 'suspended_child_process_token';
     verified: boolean;
@@ -52,6 +90,46 @@ export interface NativeHelperExecutionResult {
   aclChanges: Array<{ path: string; mechanism: 'low_integrity_label' | 'deny_ace'; applied: boolean; verified: boolean; rolledBack: boolean; error: string }>;
 }
 
+export interface NativeHelperStartedResultV2 {
+  schemaVersion: 2;
+  type: 'execution_started';
+  requestId: string;
+  profileId: 'a9-trusted-shell-current-user-v1';
+  helperPid: number;
+  childPid: number;
+  ready: {
+    childJobAssignmentVerified: boolean;
+    inputDetached: boolean;
+    stdoutCaptureReady: boolean;
+    stderrCaptureReady: boolean;
+  };
+  tokenAudit: CurrentUserTokenProof;
+}
+
+export interface NativeHelperExecutionResultV2 {
+  schemaVersion: 2;
+  type: 'execution_result';
+  requestId: string;
+  profileId: 'a9-trusted-shell-current-user-v1';
+  status: 'completed';
+  exitCode: number;
+  executionTimeMs: number;
+  timedOut: boolean;
+  idleTimedOut: boolean;
+  canceled: boolean;
+  outputTruncated: boolean;
+  containmentVerified: boolean;
+  inputDetached: boolean;
+  cleanupConfirmed: boolean;
+  workDirAclModified: false;
+  hostJob: HostJobProof;
+  tokenAudit: CurrentUserTokenProof;
+  stdoutSize: number;
+  stderrSize: number;
+  stdoutBase64: string;
+  stderrBase64: string;
+}
+
 export interface NativeHelperErrorResult {
   schema_version: 1;
   type: 'error';
@@ -60,12 +138,39 @@ export interface NativeHelperErrorResult {
   message: string;
 }
 
-export type NativeHelperResponse = NativeHelperExecutionResult | NativeHelperErrorResult;
+export interface NativeHelperErrorResultV2 {
+  schemaVersion: 2;
+  type: 'error';
+  requestId: string;
+  error: string;
+  message: string;
+}
 
-/** One cleanup-proof predicate shared by every helper consumer. */
-export function hasCompleteHelperCleanupProof(result: NativeHelperExecutionResult): boolean {
+export type NativeHelperResponse = NativeHelperExecutionResult | NativeHelperErrorResult
+  | NativeHelperExecutionResultV2 | NativeHelperErrorResultV2;
+export type NativeHelperMessage = NativeHelperResponse | NativeHelperStartedResultV2;
+
+/** One profile-aware cleanup-proof predicate shared by every helper consumer. */
+export function hasCompleteHelperCleanupProof(
+  result: NativeHelperExecutionResult | NativeHelperExecutionResultV2,
+): boolean {
   const hostJobOk = result.hostJob.childJobAssignmentVerified === true
     && (!result.hostJob.detected || result.hostJob.breakaway === 'explicit' || result.hostJob.breakaway === 'silent');
+  const hostJobSemanticsOk = result.hostJob.detected
+    ? result.hostJob.breakaway === 'explicit' || result.hostJob.breakaway === 'silent'
+    : result.hostJob.breakaway === 'none';
+  if ('schemaVersion' in result) {
+    const tokenOk = result.profileId === 'a9-trusted-shell-current-user-v1'
+      && result.tokenAudit.verified === true
+      && result.tokenAudit.tokenMode === 'current_user'
+      && result.tokenAudit.restrictedToken === false
+      && result.tokenAudit.tokenType === 'primary'
+      && result.tokenAudit.sameUser === true
+      && result.tokenAudit.lowIntegrity === false;
+    return result.containmentVerified === true && result.inputDetached === true
+      && result.cleanupConfirmed === true && result.workDirAclModified === false
+      && hostJobOk && hostJobSemanticsOk && tokenOk;
+  }
   const tokenOk = result.tokenAudit.verified === true
     && result.tokenAudit.isRestricted === true
     && result.tokenAudit.tokenType === 'primary'
@@ -77,9 +182,6 @@ export function hasCompleteHelperCleanupProof(result: NativeHelperExecutionResul
     && result.tokenAudit.integritySid === 'S-1-16-4096'
     && result.tokenAudit.integrityRid === 4096;
   const aclOk = result.aclChanges.every((change) => !change.applied || (change.verified && change.rolledBack));
-  const hostJobSemanticsOk = result.hostJob.detected
-    ? result.hostJob.breakaway === 'explicit' || result.hostJob.breakaway === 'silent'
-    : result.hostJob.breakaway === 'none';
   return result.containmentVerified === true && result.inputDetached === true
     && hostJobOk && hostJobSemanticsOk && tokenOk && aclOk;
 }
@@ -96,63 +198,128 @@ export function decodeNativeHelperBase64(value: string, expectedSize: number, la
   return decoded;
 }
 
-export function parseNativeHelperResponse(line: string, expectedRequestId: string): NativeHelperResponse {
+export function parseNativeHelperResponse(
+  line: string,
+  expectedRequestId: string,
+  expectedSchemaVersion: 1 | 2 = 1,
+): NativeHelperMessage {
   let value: unknown;
   try { value = JSON.parse(line); } catch (_error) { throw new Error('Helper response is not valid JSON'); }
-  if (!value || typeof value !== 'object') throw new Error('Helper response is not an object');
-  const response = value as Partial<NativeHelperResponse>;
-  if (response.schema_version !== 1 || response.requestId !== expectedRequestId ||
-      (response.type !== 'execution_result' && response.type !== 'error')) {
+  if (!isRecord(value)) throw new Error('Helper response is not an object');
+  return expectedSchemaVersion === 2
+    ? parseV2(value, expectedRequestId)
+    : parseV1(value, expectedRequestId);
+}
+
+function parseV2(value: Record<string, unknown>, expectedRequestId: string): NativeHelperMessage {
+  if (value.schemaVersion !== 2 || value.requestId !== expectedRequestId
+    || !['execution_started', 'execution_result', 'error'].includes(String(value.type))) {
+    throw new Error('Helper v2 envelope or request binding is invalid');
+  }
+  if (value.type === 'error') {
+    if (!hasExactKeys(value, ['schemaVersion', 'type', 'requestId', 'error', 'message'])
+      || typeof value.error !== 'string' || typeof value.message !== 'string') {
+      throw new Error('Helper v2 error fields are invalid');
+    }
+    return value as unknown as NativeHelperErrorResultV2;
+  }
+  if (value.type === 'execution_started') {
+    if (!hasExactKeys(value, ['schemaVersion', 'type', 'requestId', 'profileId', 'helperPid', 'childPid', 'ready', 'tokenAudit'])
+      || value.profileId !== 'a9-trusted-shell-current-user-v1'
+      || !isPositiveInteger(value.helperPid) || !isPositiveInteger(value.childPid)
+      || !isRecord(value.ready)
+      || !hasExactKeys(value.ready, ['childJobAssignmentVerified', 'inputDetached', 'stdoutCaptureReady', 'stderrCaptureReady'])
+      || Object.values(value.ready).some((item) => item !== true)
+      || !isCurrentUserTokenProof(value.tokenAudit)) {
+      throw new Error('Helper v2 readiness proof is invalid');
+    }
+    return value as unknown as NativeHelperStartedResultV2;
+  }
+  const exact = ['schemaVersion', 'type', 'requestId', 'profileId', 'status', 'exitCode', 'executionTimeMs',
+    'timedOut', 'idleTimedOut', 'canceled', 'outputTruncated', 'containmentVerified', 'inputDetached',
+    'cleanupConfirmed', 'workDirAclModified', 'hostJob', 'tokenAudit', 'stdoutSize', 'stderrSize',
+    'stdoutBase64', 'stderrBase64'];
+  if (!hasExactKeys(value, exact) || value.profileId !== 'a9-trusted-shell-current-user-v1'
+    || value.status !== 'completed' || !isUInt32(value.exitCode)
+    || !isNonNegativeInteger(value.executionTimeMs) || !isNonNegativeInteger(value.stdoutSize)
+    || !isNonNegativeInteger(value.stderrSize)
+    || ['timedOut', 'idleTimedOut', 'canceled', 'outputTruncated', 'containmentVerified',
+      'inputDetached', 'cleanupConfirmed'].some((key) => typeof value[key] !== 'boolean')
+    || value.workDirAclModified !== false || !isHostJobProof(value.hostJob)
+    || !isCurrentUserTokenProof(value.tokenAudit)
+    || typeof value.stdoutBase64 !== 'string' || typeof value.stderrBase64 !== 'string') {
+    throw new Error('Helper v2 execution response fields are invalid');
+  }
+  decodeNativeHelperBase64(value.stdoutBase64, value.stdoutSize as number, 'stdoutBase64');
+  decodeNativeHelperBase64(value.stderrBase64, value.stderrSize as number, 'stderrBase64');
+  return value as unknown as NativeHelperExecutionResultV2;
+}
+
+function parseV1(value: Record<string, unknown>, expectedRequestId: string): NativeHelperResponse {
+  if (value.schema_version !== 1 || value.requestId !== expectedRequestId
+    || (value.type !== 'execution_result' && value.type !== 'error')) {
     throw new Error('Helper response envelope or request binding is invalid');
   }
-  if (response.type === 'error') {
-    if (!hasExactKeys(response as unknown as Record<string, unknown>, ['schema_version', 'type', 'requestId', 'error', 'message'])
-      || typeof response.error !== 'string' || typeof response.message !== 'string') {
+  if (value.type === 'error') {
+    if (!hasExactKeys(value, ['schema_version', 'type', 'requestId', 'error', 'message'])
+      || typeof value.error !== 'string' || typeof value.message !== 'string') {
       throw new Error('Helper error response fields are invalid');
     }
-    return response as NativeHelperErrorResult;
+    return value as unknown as NativeHelperErrorResult;
   }
-  const result = response as Partial<NativeHelperExecutionResult>;
-  const exactTopLevel = ['schema_version', 'type', 'requestId', 'status', 'exitCode', 'executionTimeMs',
+  const exact = ['schema_version', 'type', 'requestId', 'status', 'exitCode', 'executionTimeMs',
     'timedOut', 'idleTimedOut', 'canceled', 'outputTruncated', 'containmentVerified', 'inputDetached',
     'hostJob', 'tokenAudit', 'stdoutSize', 'stderrSize', 'stdoutBase64', 'stderrBase64', 'aclChanges'];
-  if (!hasExactKeys(response as unknown as Record<string, unknown>, exactTopLevel)
-    || result.status !== 'completed'
-    || typeof result.timedOut !== 'boolean' || typeof result.idleTimedOut !== 'boolean' || typeof result.canceled !== 'boolean'
-    || typeof result.outputTruncated !== 'boolean' || typeof result.containmentVerified !== 'boolean'
-    || typeof result.inputDetached !== 'boolean'
-    || !Number.isSafeInteger(result.exitCode) || Number(result.exitCode) < 0 || Number(result.exitCode) > 0xFFFFFFFF
-    || !isNonNegativeInteger(result.executionTimeMs) || !isNonNegativeInteger(result.stdoutSize) || !isNonNegativeInteger(result.stderrSize)
-    || typeof result.stdoutBase64 !== 'string' || typeof result.stderrBase64 !== 'string'
-    || !isRecord(result.hostJob) || !hasExactKeys(result.hostJob, ['detected', 'breakaway', 'limitFlags', 'childJobAssignmentVerified'])
-    || typeof result.hostJob.detected !== 'boolean'
-    || !['none', 'explicit', 'silent'].includes(String(result.hostJob.breakaway))
-    || !isNonNegativeInteger(result.hostJob.limitFlags)
-    || typeof result.hostJob.childJobAssignmentVerified !== 'boolean'
-    || !isRecord(result.tokenAudit)
-    || !hasExactKeys(result.tokenAudit, ['source', 'verified', 'isRestricted', 'tokenType', 'restrictedSidSetVerified',
+  if (!hasExactKeys(value, exact) || value.status !== 'completed' || !isUInt32(value.exitCode)
+    || !isNonNegativeInteger(value.executionTimeMs) || !isNonNegativeInteger(value.stdoutSize)
+    || !isNonNegativeInteger(value.stderrSize)
+    || ['timedOut', 'idleTimedOut', 'canceled', 'outputTruncated', 'containmentVerified', 'inputDetached']
+      .some((key) => typeof value[key] !== 'boolean')
+    || !isHostJobProof(value.hostJob) || !isRecord(value.tokenAudit)
+    || !hasExactKeys(value.tokenAudit, ['source', 'verified', 'isRestricted', 'tokenType', 'restrictedSidSetVerified',
       'userRestrictedSid', 'worldRestrictedSid', 'administratorsRestrictedSid', 'restrictedSidCount', 'integritySid', 'integrityRid'])
-    || result.tokenAudit.source !== 'suspended_child_process_token'
-    || typeof result.tokenAudit.verified !== 'boolean'
-    || typeof result.tokenAudit.isRestricted !== 'boolean' || typeof result.tokenAudit.tokenType !== 'string'
-    || typeof result.tokenAudit.restrictedSidSetVerified !== 'boolean'
-    || typeof result.tokenAudit.userRestrictedSid !== 'boolean' || typeof result.tokenAudit.worldRestrictedSid !== 'boolean'
-    || typeof result.tokenAudit.administratorsRestrictedSid !== 'boolean'
-    || !isNonNegativeInteger(result.tokenAudit.restrictedSidCount)
-    || typeof result.tokenAudit.integritySid !== 'string' || !/^S-1-16-[0-9]+$/.test(result.tokenAudit.integritySid)
-    || !isNonNegativeInteger(result.tokenAudit.integrityRid)
-    || !Array.isArray(result.aclChanges)
-    || result.aclChanges.some((change) => !isRecord(change)
+    || value.tokenAudit.source !== 'suspended_child_process_token'
+    || ['verified', 'isRestricted', 'restrictedSidSetVerified', 'userRestrictedSid', 'worldRestrictedSid',
+      'administratorsRestrictedSid'].some((key) => typeof (value.tokenAudit as Record<string, unknown>)[key] !== 'boolean')
+    || typeof value.tokenAudit.tokenType !== 'string' || !isNonNegativeInteger(value.tokenAudit.restrictedSidCount)
+    || typeof value.tokenAudit.integritySid !== 'string' || !/^S-1-16-[0-9]+$/.test(value.tokenAudit.integritySid)
+    || !isNonNegativeInteger(value.tokenAudit.integrityRid) || !Array.isArray(value.aclChanges)
+    || value.aclChanges.some((change) => !isRecord(change)
       || !hasExactKeys(change, ['path', 'mechanism', 'applied', 'verified', 'rolledBack', 'error'])
       || typeof change.path !== 'string' || change.path.length === 0
       || !['low_integrity_label', 'deny_ace'].includes(String(change.mechanism))
       || typeof change.applied !== 'boolean' || typeof change.verified !== 'boolean'
-      || typeof change.rolledBack !== 'boolean' || typeof change.error !== 'string')) {
+      || typeof change.rolledBack !== 'boolean' || typeof change.error !== 'string')
+    || typeof value.stdoutBase64 !== 'string' || typeof value.stderrBase64 !== 'string') {
     throw new Error('Helper execution response fields are invalid');
   }
-  decodeNativeHelperBase64(result.stdoutBase64!, result.stdoutSize!, 'stdoutBase64');
-  decodeNativeHelperBase64(result.stderrBase64!, result.stderrSize!, 'stderrBase64');
-  return response as NativeHelperResponse;
+  decodeNativeHelperBase64(value.stdoutBase64, value.stdoutSize as number, 'stdoutBase64');
+  decodeNativeHelperBase64(value.stderrBase64, value.stderrSize as number, 'stderrBase64');
+  return value as unknown as NativeHelperExecutionResult;
+}
+
+function isCurrentUserTokenProof(value: unknown): value is CurrentUserTokenProof {
+  return isRecord(value)
+    && hasExactKeys(value, ['source', 'verified', 'tokenMode', 'restrictedToken', 'tokenType', 'sameUser', 'lowIntegrity', 'integritySid', 'integrityRid'])
+    && value.source === 'suspended_child_process_token' && value.verified === true
+    && value.tokenMode === 'current_user' && value.restrictedToken === false
+    && value.tokenType === 'primary' && value.sameUser === true && value.lowIntegrity === false
+    && typeof value.integritySid === 'string' && /^S-1-16-[0-9]+$/.test(value.integritySid)
+    && isNonNegativeInteger(value.integrityRid) && value.integrityRid > 4096;
+}
+
+function isHostJobProof(value: unknown): value is HostJobProof {
+  return isRecord(value) && hasExactKeys(value, ['detected', 'breakaway', 'limitFlags', 'childJobAssignmentVerified'])
+    && typeof value.detected === 'boolean' && ['none', 'explicit', 'silent'].includes(String(value.breakaway))
+    && isNonNegativeInteger(value.limitFlags) && typeof value.childJobAssignmentVerified === 'boolean';
+}
+
+function isUInt32(value: unknown): value is number {
+  return isNonNegativeInteger(value) && value <= 0xFFFFFFFF;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return isNonNegativeInteger(value) && value > 0;
 }
 
 function isNonNegativeInteger(value: unknown): value is number {

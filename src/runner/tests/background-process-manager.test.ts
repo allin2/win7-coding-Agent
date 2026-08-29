@@ -1,5 +1,14 @@
 import { BackgroundProcessManager, NativeHelperExecutionResult, NativeHelperRequest } from '../src';
 
+function helperReady(childPid: number, requestId: string): any {
+  return {
+    schemaVersion: 2, type: 'execution_started', requestId,
+    profileId: 'a9-trusted-shell-current-user-v1', helperPid: childPid + 1000, childPid,
+    ready: { childJobAssignmentVerified: true, inputDetached: true, stdoutCaptureReady: true, stderrCaptureReady: true },
+    tokenAudit: { source: 'suspended_child_process_token', verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true, lowIntegrity: false, integritySid: 'S-1-16-8192', integrityRid: 8192 },
+  };
+}
+
 describe('A9-02: BackgroundProcessManager', () => {
   let manager: BackgroundProcessManager;
 
@@ -66,6 +75,7 @@ describe('A9-02: BackgroundProcessManager', () => {
       invoke: jest.fn(),
       startManaged: jest.fn(() => ({
         pid: 7331,
+        ready: Promise.resolve(helperReady(7331, 'bg-helper')),
         completion,
         cancel: () => {
           cancelCount += 1;
@@ -252,6 +262,7 @@ describe('A9-02: BackgroundProcessManager', () => {
       invoke: jest.fn(),
       startManaged: jest.fn(() => ({
         pid: 7332,
+        ready: Promise.resolve(helperReady(7332, 'bg-unconfirmed')),
         completion,
         cancel: () => finish({ kind: 'cancelled', detail: 'cleanup unconfirmed', cleanupConfirmed: false }),
       })),
@@ -279,7 +290,7 @@ describe('A9-02: BackgroundProcessManager', () => {
     const states: any[] = [];
     const helperTransport = {
       invoke: jest.fn(),
-      startManaged: jest.fn(() => ({ pid: 7441, completion, cancel: jest.fn() })),
+      startManaged: jest.fn(() => ({ pid: 8441, ready: Promise.resolve(helperReady(7441, 'bg-natural')), completion, cancel: jest.fn() })),
     };
     manager = new BackgroundProcessManager(helperTransport as any, undefined, undefined, (handle) => states.push(handle));
     const request: NativeHelperRequest = {
@@ -314,7 +325,7 @@ describe('A9-02: BackgroundProcessManager', () => {
     const states: any[] = [];
     const helperTransport = {
       invoke: jest.fn(),
-      startManaged: jest.fn(() => ({ pid: 7442, completion, cancel: jest.fn() })),
+      startManaged: jest.fn(() => ({ pid: 8442, ready: Promise.resolve(helperReady(7442, 'bg-contradictory')), completion, cancel: jest.fn() })),
     };
     manager = new BackgroundProcessManager(helperTransport as any, undefined, undefined, (handle) => states.push(handle));
     const request: NativeHelperRequest = {

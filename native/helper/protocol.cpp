@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
 
 namespace spike02 {
 namespace {
@@ -138,10 +139,103 @@ bool ExtractStringArray(const JsonValue& value, std::vector<std::wstring>* out,
     return true;
 }
 
+bool ObjectHasOnlyUniqueKeys(const JsonValue& value,
+                             const std::vector<std::wstring>& allowed,
+                             std::string* error) {
+    if (value.type != JsonValue::Type::Object) {
+        *error = "expected an object";
+        return false;
+    }
+    std::vector<std::wstring> seen;
+    for (const auto& member : value.object) {
+        if (std::find(allowed.begin(), allowed.end(), member.first) == allowed.end()) {
+            *error = "unknown field in protocol v2 request";
+            return false;
+        }
+        if (std::find(seen.begin(), seen.end(), member.first) != seen.end()) {
+            *error = "duplicate field in protocol v2 request";
+            return false;
+        }
+        seen.push_back(member.first);
+    }
+    return true;
+}
+
+std::wstring UpperAscii(const std::wstring& value) {
+    std::wstring out = value;
+    for (wchar_t& ch : out) {
+        if (ch >= L'a' && ch <= L'z') ch = static_cast<wchar_t>(ch - L'a' + L'A');
+    }
+    return out;
+}
+
+bool IsForbiddenEnvironmentName(const std::wstring& name) {
+    const std::wstring upper = UpperAscii(name);
+    static const wchar_t* kExact[] = {
+        L"NODE_OPTIONS", L"ELECTRON_RUN_AS_NODE", L"ELECTRON_EXTRA_LAUNCH_ARGS",
+        L"NODE_TLS_REJECT_UNAUTHORIZED", L"GIT_SSL_NO_VERIFY", L"PYTHONHTTPSVERIFY",
+        L"SSL_CERT_FILE", L"SSL_CERT_DIR", L"REQUESTS_CA_BUNDLE", L"CURL_CA_BUNDLE",
+        L"OPENAI_API_KEY", L"DEEPSEEK_API_KEY", L"ANTHROPIC_API_KEY",
+    };
+    for (const wchar_t* blocked : kExact) {
+        if (upper == blocked) return true;
+    }
+    return upper.find(L"API_KEY") != std::wstring::npos ||
+           upper.find(L"AUTHORIZATION") != std::wstring::npos ||
+           upper.find(L"PASSWORD") != std::wstring::npos ||
+           upper.find(L"SECRET") != std::wstring::npos ||
+           upper.find(L"TOKEN") != std::wstring::npos;
+}
+
+bool ExtractEnvironmentOverlay(const JsonValue& value,
+                               std::vector<std::pair<std::wstring, std::wstring>>* out,
+                               std::string* error) {
+    if (value.type != JsonValue::Type::Object || value.object.size() > 64) {
+        *error = "invalid 'envOverlay'";
+        return false;
+    }
+    size_t totalCharacters = 0;
+    std::vector<std::wstring> seen;
+    for (const auto& member : value.object) {
+        std::wstring text;
+        const std::wstring upper = UpperAscii(member.first);
+        if (member.first.empty() || member.first.size() > 128 ||
+            member.first.find(L'=') != std::wstring::npos ||
+            member.first.find(L'\0') != std::wstring::npos ||
+            IsForbiddenEnvironmentName(member.first) ||
+            std::find(seen.begin(), seen.end(), upper) != seen.end() ||
+            !JsonAsString(member.second, &text) || text.size() > 8192 ||
+            text.find(L'\0') != std::wstring::npos) {
+            *error = "invalid or forbidden environment overlay entry";
+            return false;
+        }
+        totalCharacters += member.first.size() + text.size() + 2;
+        if (totalCharacters > 32767) {
+            *error = "environment overlay exceeds the v2 bound";
+            return false;
+        }
+        seen.push_back(upper);
+        out->push_back(std::make_pair(member.first, text));
+    }
+    return true;
+}
+
+bool ExtractRequiredString(const JsonValue& root, const wchar_t* key,
+                           std::wstring* out, size_t maxLength,
+                           std::string* error) {
+    const JsonValue* value = JsonObjectGet(root, key);
+    if (!value || !JsonAsString(*value, out) || out->empty() || out->size() > maxLength) {
+        *error = "missing or invalid protocol v2 string field";
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
 bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
                      std::string* error) {
+    *config = ProcessConfig();
     JsonValue root;
     if (!JsonParse(jsonUtf8, &root, error)) return false;
     if (root.type != JsonValue::Type::Object) {
@@ -149,10 +243,137 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
         return false;
     }
 
-    const JsonValue* schemaVersion = JsonObjectGet(root, L"schema_version");
-    if (!schemaVersion || JsonAsInt(*schemaVersion, -1) != 1) {
+    const JsonValue* legacySchemaVersion = JsonObjectGet(root, L"schema_version");
+    const JsonValue* currentSchemaVersion = JsonObjectGet(root, L"schemaVersion");
+    if (legacySchemaVersion && currentSchemaVersion) {
+        *error = "ambiguous schema version field";
+        return false;
+    }
+    const JsonValue* schemaVersion = legacySchemaVersion
+        ? legacySchemaVersion : currentSchemaVersion;
+    const long long schema = schemaVersion ? JsonAsInt(*schemaVersion, -1) : -1;
+    if (schema != 1 && schema != 2) {
         *error = "unsupported or missing 'schema_version'";
         return false;
+    }
+    if ((schema == 1 && !legacySchemaVersion) ||
+        (schema == 2 && !currentSchemaVersion)) {
+        *error = "schema version field does not match the protocol version";
+        return false;
+    }
+    config->schemaVersion = static_cast<int>(schema);
+
+    if (schema == 2) {
+        const std::vector<std::wstring> allowedKeys = {
+            L"schemaVersion", L"requestId", L"profileId", L"executable", L"argv",
+            L"shellKind", L"shellPath", L"shellVersion", L"shellIdentity", L"shellSource",
+            L"command", L"cwd", L"envOverlay", L"maxStdoutBytes", L"maxStderrBytes", L"managed",
+            L"deadlineMode", L"timeoutMs", L"idleTimeoutMs",
+        };
+        if (!ObjectHasOnlyUniqueKeys(root, allowedKeys, error)) return false;
+
+        if (!ExtractRequiredString(root, L"requestId", &config->requestId, 128, error) ||
+            !ExtractRequiredString(root, L"profileId", &config->profileId, 128, error) ||
+            config->profileId != L"a9-trusted-shell-current-user-v1" ||
+            !ExtractRequiredString(root, L"executable", &config->executable, 32767, error) ||
+            !ExtractRequiredString(root, L"shellKind", &config->shellKind, 32, error) ||
+            !ExtractRequiredString(root, L"shellPath", &config->shellPath, 32767, error) ||
+            !ExtractRequiredString(root, L"shellVersion", &config->shellVersion, 256, error) ||
+            !ExtractRequiredString(root, L"shellIdentity", &config->shellIdentity, 64, error) ||
+            !ExtractRequiredString(root, L"shellSource", &config->shellSource, 32, error) ||
+            !ExtractRequiredString(root, L"command", &config->command, 32767, error) ||
+            !ExtractRequiredString(root, L"cwd", &config->workingDirectory, 32767, error)) {
+            if (error->empty()) *error = "invalid protocol v2 request";
+            return false;
+        }
+        if ((config->shellKind != L"cmd" && config->shellKind != L"powershell" &&
+             config->shellKind != L"bash") ||
+            (config->shellSource != L"automatic" && config->shellSource != L"workspace_explicit")) {
+            *error = "unsupported shellKind or shellSource";
+            return false;
+        }
+        if (config->shellIdentity.size() != 64 ||
+            config->shellIdentity.find_first_not_of(L"0123456789abcdefABCDEF") != std::wstring::npos) {
+            *error = "invalid shell identity";
+            return false;
+        }
+        const JsonValue* argv = JsonObjectGet(root, L"argv");
+        if (!argv || !ExtractStringArray(*argv, &config->argv, error) ||
+            config->argv.empty() || config->argv.size() > 128) {
+            *error = "missing or invalid 'argv'";
+            return false;
+        }
+        const JsonValue* overlay = JsonObjectGet(root, L"envOverlay");
+        if (!overlay || !ExtractEnvironmentOverlay(*overlay, &config->envOverlay, error)) return false;
+        const JsonValue* managed = JsonObjectGet(root, L"managed");
+        if (!managed || managed->type != JsonValue::Type::Bool) {
+            *error = "missing or invalid 'managed'";
+            return false;
+        }
+        config->managed = managed->boolean;
+
+        const JsonValue* deadlineMode = JsonObjectGet(root, L"deadlineMode");
+        std::wstring mode;
+        if (!deadlineMode || !JsonAsString(*deadlineMode, &mode) ||
+            (mode != L"none" && mode != L"fixed")) {
+            *error = "missing or invalid 'deadlineMode'";
+            return false;
+        }
+        const JsonValue* timeout = JsonObjectGet(root, L"timeoutMs");
+        const JsonValue* idleTimeout = JsonObjectGet(root, L"idleTimeoutMs");
+        if (mode == L"none") {
+            if (timeout || idleTimeout) {
+                *error = "deadlineMode 'none' cannot include timeout fields";
+                return false;
+            }
+            config->deadlineEnabled = false;
+            config->idleDeadlineEnabled = false;
+        } else {
+            if (!timeout || timeout->type != JsonValue::Type::Number) {
+                *error = "deadlineMode 'fixed' requires timeoutMs";
+                return false;
+            }
+            const long long total = JsonAsInt(*timeout, -1);
+            if (total < 1 || total > 3600000) {
+                *error = "timeoutMs is outside the v2 bound";
+                return false;
+            }
+            config->timeoutMs = total;
+            config->deadlineEnabled = true;
+            if (idleTimeout) {
+                if (idleTimeout->type != JsonValue::Type::Number) {
+                    *error = "invalid idleTimeoutMs";
+                    return false;
+                }
+                const long long idle = JsonAsInt(*idleTimeout, -1);
+                if (idle < 1 || idle > total) {
+                    *error = "idleTimeoutMs is outside the v2 bound";
+                    return false;
+                }
+                config->idleTimeoutMs = idle;
+                config->idleDeadlineEnabled = true;
+            } else {
+                config->idleDeadlineEnabled = false;
+            }
+        }
+        const JsonValue* stdoutCap = JsonObjectGet(root, L"maxStdoutBytes");
+        const JsonValue* stderrCap = JsonObjectGet(root, L"maxStderrBytes");
+        if (!stdoutCap || stdoutCap->type != JsonValue::Type::Number ||
+            !stderrCap || stderrCap->type != JsonValue::Type::Number) {
+            *error = "missing or invalid output bounds";
+            return false;
+        }
+        const long long stdoutCapValue = JsonAsInt(*stdoutCap, -1);
+        const long long stderrCapValue = JsonAsInt(*stderrCap, -1);
+        if (stdoutCapValue < 1024 || stdoutCapValue > kMaxOutputSizeAbsolute ||
+            stderrCapValue < 1024 || stderrCapValue > kMaxOutputSizeAbsolute) {
+            *error = "output bound is outside the v2 limit";
+            return false;
+        }
+        config->maxStdoutBytes = stdoutCapValue;
+        config->maxStderrBytes = stderrCapValue;
+        config->maxOutputSize = std::max(stdoutCapValue, stderrCapValue);
+        return true;
     }
 
     const JsonValue* requestId = JsonObjectGet(root, L"requestId");
@@ -238,18 +459,20 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
 
 bool ParseCancelControl(const std::string& jsonUtf8,
                         const std::wstring& expectedRequestId,
+                        int expectedSchemaVersion,
                         std::string* error) {
     JsonValue root;
     if (!JsonParse(jsonUtf8, &root, error) || root.type != JsonValue::Type::Object) {
         *error = "cancel control must be a JSON object";
         return false;
     }
-    const JsonValue* schemaVersion = JsonObjectGet(root, L"schema_version");
+    const JsonValue* schemaVersion = JsonObjectGet(
+        root, expectedSchemaVersion == 2 ? L"schemaVersion" : L"schema_version");
     const JsonValue* type = JsonObjectGet(root, L"type");
     const JsonValue* requestId = JsonObjectGet(root, L"requestId");
     std::wstring controlType;
     std::wstring controlRequestId;
-    if (!schemaVersion || JsonAsInt(*schemaVersion, -1) != 1 ||
+    if (!schemaVersion || JsonAsInt(*schemaVersion, -1) != expectedSchemaVersion ||
         !type || !JsonAsString(*type, &controlType) || controlType != L"cancel" ||
         !requestId || !JsonAsString(*requestId, &controlRequestId) ||
         controlRequestId != expectedRequestId) {
@@ -285,6 +508,46 @@ bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error) {
 }
 
 std::string RenderResultJson(const std::string& requestId, const ProcessResult& result) {
+    if (result.schemaVersion == 2) {
+        std::string out;
+        out.reserve(640 + result.stdoutBytes.size() / 3 * 4 + result.stderrBytes.size() / 3 * 4);
+        out += "{\"schemaVersion\":2,\"type\":\"execution_result\",\"requestId\":\"";
+        out += JsonEscape(Utf8ToUtf16(requestId));
+        out += "\",\"profileId\":\"";
+        out += JsonEscape(result.profileId);
+        out += "\",\"status\":\"completed\",\"exitCode\":";
+        out += std::to_string(static_cast<unsigned long>(result.exitCode));
+        out += ",\"executionTimeMs\":" + std::to_string(result.executionTimeMs);
+        out += ",\"timedOut\":"; out += result.timedOut ? "true" : "false";
+        out += ",\"idleTimedOut\":"; out += result.idleTimedOut ? "true" : "false";
+        out += ",\"canceled\":"; out += result.canceled ? "true" : "false";
+        out += ",\"outputTruncated\":"; out += result.outputTruncated ? "true" : "false";
+        out += ",\"containmentVerified\":"; out += result.containmentVerified ? "true" : "false";
+        out += ",\"inputDetached\":"; out += result.inputDetached ? "true" : "false";
+        out += ",\"cleanupConfirmed\":"; out += result.cleanupConfirmed ? "true" : "false";
+        out += ",\"workDirAclModified\":"; out += result.workDirAclModified ? "true" : "false";
+        out += ",\"hostJob\":{\"detected\":"; out += result.hostJobDetected ? "true" : "false";
+        out += ",\"breakaway\":\"" + result.hostJobBreakaway + "\",\"limitFlags\":";
+        out += std::to_string(static_cast<unsigned long>(result.hostJobLimitFlags));
+        out += ",\"childJobAssignmentVerified\":";
+        out += result.childJobAssignmentVerified ? "true" : "false";
+        out += "},\"tokenAudit\":{\"source\":\"suspended_child_process_token\",\"verified\":";
+        out += result.tokenAudit.verified ? "true" : "false";
+        out += ",\"tokenMode\":\"current_user\",\"restrictedToken\":";
+        out += result.tokenAudit.isRestricted ? "true" : "false";
+        out += ",\"tokenType\":\"";
+        out += result.tokenAudit.isPrimary ? "primary" : "not_primary";
+        out += "\",\"sameUser\":"; out += result.tokenAudit.sameUser ? "true" : "false";
+        out += ",\"lowIntegrity\":"; out += result.tokenAudit.lowIntegrity ? "true" : "false";
+        out += ",\"integritySid\":\"" + JsonEscape(result.tokenAudit.integritySid) + "\",\"integrityRid\":";
+        out += std::to_string(static_cast<unsigned long>(result.tokenAudit.integrityRid));
+        out += "},\"stdoutSize\":" + std::to_string(static_cast<long long>(result.stdoutBytes.size()));
+        out += ",\"stderrSize\":" + std::to_string(static_cast<long long>(result.stderrBytes.size()));
+        out += ",\"stdoutBase64\":\"" + Base64Encode(result.stdoutBytes.data(), result.stdoutBytes.size());
+        out += "\",\"stderrBase64\":\"" + Base64Encode(result.stderrBytes.data(), result.stderrBytes.size());
+        out += "\"}";
+        return out;
+    }
     std::string out;
     out.reserve(512 + result.stdoutBytes.size() / 3 * 4 + result.stderrBytes.size() / 3 * 4);
     out += "{\"schema_version\":1,\"type\":\"execution_result\",\"requestId\":\"";
@@ -365,9 +628,41 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
     return out;
 }
 
+std::string RenderStartedJson(const std::string& requestId, const ProcessResult& result) {
+    std::string out = "{\"schemaVersion\":2,\"type\":\"execution_started\",\"requestId\":\"";
+    out += JsonEscape(Utf8ToUtf16(requestId));
+    out += "\",\"profileId\":\"" + JsonEscape(result.profileId);
+    out += "\",\"helperPid\":";
+#ifdef _WIN32
+    out += std::to_string(static_cast<unsigned long>(GetCurrentProcessId()));
+#else
+    out += "0";
+#endif
+    out += ",\"childPid\":" + std::to_string(static_cast<unsigned long>(result.childPid));
+    out += ",\"ready\":{\"childJobAssignmentVerified\":";
+    out += result.childJobAssignmentVerified ? "true" : "false";
+    out += ",\"inputDetached\":"; out += result.inputDetached ? "true" : "false";
+    out += ",\"stdoutCaptureReady\":"; out += result.stdoutCaptureReady ? "true" : "false";
+    out += ",\"stderrCaptureReady\":"; out += result.stderrCaptureReady ? "true" : "false";
+    out += "},\"tokenAudit\":{\"source\":\"suspended_child_process_token\",\"verified\":";
+    out += result.tokenAudit.verified ? "true" : "false";
+    out += ",\"tokenMode\":\"current_user\",\"restrictedToken\":";
+    out += result.tokenAudit.isRestricted ? "true" : "false";
+    out += ",\"tokenType\":\"";
+    out += result.tokenAudit.isPrimary ? "primary" : "not_primary";
+    out += "\",\"sameUser\":"; out += result.tokenAudit.sameUser ? "true" : "false";
+    out += ",\"lowIntegrity\":"; out += result.tokenAudit.lowIntegrity ? "true" : "false";
+    out += ",\"integritySid\":\"" + JsonEscape(result.tokenAudit.integritySid) + "\",\"integrityRid\":";
+    out += std::to_string(static_cast<unsigned long>(result.tokenAudit.integrityRid));
+    out += "}}";
+    return out;
+}
+
 std::string RenderErrorJson(const std::string& requestId, const char* code,
-                            const std::string& message) {
-    std::string out = "{\"schema_version\":1,\"type\":\"error\",\"requestId\":\"";
+                            const std::string& message, int schemaVersion) {
+    std::string out = std::string("{\"") + (schemaVersion == 2 ? "schemaVersion" : "schema_version") +
+                      "\":" + std::to_string(schemaVersion) +
+                      ",\"type\":\"error\",\"requestId\":\"";
     out += JsonEscape(Utf8ToUtf16(requestId));
     out += "\",\"error\":\"";
     out += code;

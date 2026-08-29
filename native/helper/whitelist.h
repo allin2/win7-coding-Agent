@@ -26,6 +26,13 @@ enum class WhitelistDecision {
     RejectArgv,         // argv violates cmd.exe /d /s /c contract or /k
 };
 
+enum class TrustedShellDecision {
+    Allow,
+    RejectExecutable,
+    RejectArgv,
+    RejectBinding,
+};
+
 // Shape of an executable path, used as the first fail-closed gate before any
 // allow-list evaluation. Only Absolute is acceptable.
 enum class PathShape {
@@ -71,6 +78,20 @@ struct WhitelistConfig {
 WhitelistDecision CheckWhitelist(const std::wstring& executable,
                                  const std::vector<std::wstring>& argv,
                                  const WhitelistConfig& config);
+
+// D-013 v25 host policy. Automatic selection is limited to the canonical
+// Windows cmd.exe and Windows PowerShell 5.1 locations. A workspace-explicit
+// shell may be elsewhere, but only after the caller independently verified
+// the configured file SHA-256 identity. This function never treats the
+// current-user profile as filesystem or network isolation.
+TrustedShellDecision CheckTrustedShellHost(
+    const std::wstring& executable,
+    const std::vector<std::wstring>& argv,
+    const std::wstring& command,
+    const std::wstring& shellKind,
+    const std::wstring& shellSource,
+    bool identityVerified,
+    const WhitelistConfig& config);
 
 }  // namespace spike02
 

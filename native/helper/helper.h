@@ -42,6 +42,7 @@ using SIZE_T = size_t;
 #endif
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "json_parser.h"
@@ -124,6 +125,8 @@ inline HostJobLaunchMode DecideHostJobLaunchMode(bool inJobProbeSucceeded,
 #define HELPER_ERR_ACL_POLICY 11
 #define HELPER_ERR_ACL_ROLLBACK 12
 #define HELPER_ERR_CANCEL_PROTOCOL 13
+#define HELPER_ERR_SHELL_IDENTITY 14
+#define HELPER_ERR_ENVIRONMENT 15
 
 // ─── Structures ──────────────────────────────────────────────────────────────
 
@@ -138,6 +141,7 @@ struct AclPolicy {
 
 // Decoded request configuration (strings owned by the struct).
 struct ProcessConfig {
+    int schemaVersion = 1;
     std::wstring requestId;
     std::wstring executable;
     std::vector<std::wstring> argv;
@@ -145,10 +149,26 @@ struct ProcessConfig {
     long long timeoutMs = kDefaultTimeoutMs;
     long long idleTimeoutMs = kDefaultIdleTimeoutMs;
     long long maxOutputSize = kMaxOutputSizeDefault;
+    long long maxStdoutBytes = kMaxOutputSizeDefault;
+    long long maxStderrBytes = kMaxOutputSizeDefault;
     bool allowNetwork = false;  // recorded only; never claimed as isolation
     std::vector<std::wstring> allowedDirectories;    // workspace (low label)
     std::vector<std::wstring> protectedDirectories;  // deny ACE + rollback (C04)
     AclPolicy aclPolicy;                              // ACL-change authorization
+
+    // D-013 v25 / protocol v2. This is a trusted-shell execution profile for
+    // the current ordinary Windows user; it is explicitly not a sandbox.
+    std::wstring profileId;
+    std::wstring shellKind;
+    std::wstring shellPath;
+    std::wstring shellVersion;
+    std::wstring shellIdentity;
+    std::wstring shellSource;
+    std::wstring command;
+    std::vector<std::pair<std::wstring, std::wstring>> envOverlay;
+    bool managed = false;
+    bool deadlineEnabled = true;
+    bool idleDeadlineEnabled = true;
 };
 
 // Per-directory ACL change record returned to the caller (C04 audit).
@@ -175,6 +195,8 @@ struct RestrictedTokenAudit {
     DWORD restrictedSidCount = 0;
     std::wstring integritySid;
     DWORD integrityRid = 0;
+    bool sameUser = false;
+    bool lowIntegrity = false;
 };
 
 // Canonical SID-set expectation derived from the source primary token before
@@ -187,6 +209,8 @@ struct RestrictedSidExpectation {
 
 // Execution result (stdout/stderr as bytes + base64 rendering at output time).
 struct ProcessResult {
+    int schemaVersion = 1;
+    std::wstring profileId;
     DWORD exitCode = 0;
     long long executionTimeMs = 0;
     bool timedOut = false;
@@ -199,6 +223,11 @@ struct ProcessResult {
     std::string hostJobBreakaway = "none";
     DWORD hostJobLimitFlags = 0;
     bool childJobAssignmentVerified = false;
+    bool cleanupConfirmed = false;
+    bool workDirAclModified = false;
+    bool stdoutCaptureReady = false;
+    bool stderrCaptureReady = false;
+    DWORD childPid = 0;
     std::vector<unsigned char> stdoutBytes;
     std::vector<unsigned char> stderrBytes;
     RestrictedTokenAudit tokenAudit;
@@ -273,6 +302,12 @@ bool AuditRestrictedChildToken(HANDLE childProcess,
                                RestrictedTokenAudit* audit,
                                std::wstring* error);
 
+// Verify the suspended v25 child is running as the same user with a Primary,
+// non-restricted token and without a Low Integrity downgrade.
+bool AuditCurrentUserChildToken(HANDLE childProcess,
+                                RestrictedTokenAudit* audit,
+                                std::wstring* error);
+
 // Apply the Low-Integrity mandatory label to `directory` so a low-integrity
 // child can write inside it. Returns false on failure (fail-closed).
 bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error);
@@ -308,6 +343,7 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
 // another helper process.
 bool ParseCancelControl(const std::string& jsonUtf8,
                         const std::wstring& expectedRequestId,
+                        int expectedSchemaVersion,
                         std::string* error);
 
 // Validate that every ACL target in `config` stays inside perRunRoot and that
@@ -320,9 +356,14 @@ bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error);
 // base64 for stdout/stderr).
 std::string RenderResultJson(const std::string& requestId, const ProcessResult& result);
 
+// Render the v2 readiness boundary. This is emitted only after the child is
+// assigned to the helper Job, stdin is detached, captures are ready and the
+// current-user token audit has passed.
+std::string RenderStartedJson(const std::string& requestId, const ProcessResult& result);
+
 // Render an error response line.
 std::string RenderErrorJson(const std::string& requestId, const char* code,
-                            const std::string& message);
+                            const std::string& message, int schemaVersion = 1);
 
 }  // namespace spike02
 

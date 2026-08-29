@@ -10,6 +10,7 @@
 
 import { spawnSync } from 'child_process';
 import * as os from 'os';
+import * as path from 'path';
 
 export type ShellKind = 'powershell' | 'cmd' | 'sh' | 'bash';
 
@@ -83,11 +84,13 @@ export function detectSystemShells(options: ShellDetectionOptions = {}): Detecte
   const shells: DetectedShell[] = [];
 
   if (isWindows) {
-    const ps = probePowershell('powershell.exe');
+    const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+    const powershellPath = path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const ps = probePowershell(powershellPath);
     const psMeetsBaseline = ps.available && ps.version !== undefined && versionAtLeast(ps.version, POWERSHELL_MIN_VERSION);
     shells.push({
       kind: 'powershell',
-      path: 'powershell.exe',
+      path: powershellPath,
       version: ps.version,
       available: ps.available,
       isDefault: false,

@@ -221,9 +221,9 @@ export class BackgroundProcessManager {
       handleId,
       command,
       cwd,
-      pid: invocation.pid,
+      pid: undefined,
       startTime: new Date().toISOString(),
-      status: invocation.pid === undefined ? 'failed' : 'starting',
+      status: 'starting',
       exitCode: null,
       logs: { stdout: [], stderr: [] },
       droppedLogLines: { stdout: 0, stderr: 0 },
@@ -242,11 +242,15 @@ export class BackgroundProcessManager {
     };
     this.processes.set(handleId, entry);
     invocation.completion.then((result) => this.finishHelperInvocation(entry, result));
-    await new Promise<void>((resolve) => setTimeout(resolve, 25));
-    if (handle.status === 'starting') handle.status = 'running';
-    if (handle.status === 'failed') {
+    try {
+      const started = await invocation.ready;
+      if (handle.status === 'failed') throw new Error(handle.logs.stderr.join('\n') || 'helper failed after readiness');
+      handle.pid = started.childPid;
+      handle.status = 'running';
+    } catch (error) {
       throw Object.assign(new Error(handle.logs.stderr.join('\n') || 'D-013 helper failed to start managed process'), {
         code: 'A9_BACKGROUND_HELPER_START_FAILED',
+        cause: error,
       });
     }
     const persistenceError = this.notifyStateChange(handle);
