@@ -168,6 +168,7 @@ function createA9AgentRuntime(options) {
   // F5：当前 Turn 的 task/turn/run 生命周期句柄。
   let activeLifecycle = null;
   let shutdownPromise = null;
+  let managedStopPromise = null;
   let checkpointRecoveryDiagnostics = null;
 
   // ----- 按对话草稿（D-020：DPAPI Current User；失败时仅内存） -----
@@ -453,7 +454,17 @@ function createA9AgentRuntime(options) {
     };
   }
   // 后台进程生命周期独立于 Provider/Loop 重建；模型切换不得遗失句柄。
-  const loopTrustedRunner = new modules.runner.TrustedShellRunner();
+  if (config.requireRunnerHelper === true && !config.runnerHelperPath) {
+    throw Object.assign(new Error('A9_RUNNER_HELPER_REQUIRED: packaged A9 runtime requires the manifest-bound D-013 helper'), {
+      code: 'A9_RUNNER_HELPER_REQUIRED',
+    });
+  }
+  const loopTrustedRunner = new modules.runner.TrustedShellRunner({
+    ...(config.runnerHelperPath ? {
+      helperTransport: new modules.runner.StdioHelperTransport(config.runnerHelperPath),
+    } : {}),
+    ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
+  });
 
   function recordManagedHandle(handle) {
     persistence.recordManagedProcess({
@@ -1086,7 +1097,8 @@ function createA9AgentRuntime(options) {
     const manager = loopTrustedRunner.getBackgroundManager();
     const active = manager.list().filter((item) => item.status === 'running' || item.status === 'starting');
     if (active.length === 0) return { ok: false, error: { code: 'NO_ACTIVE_TURN_OR_MANAGED_PROCESS' } };
-    return (async () => {
+    if (managedStopPromise) return managedStopPromise;
+    const attempt = (async () => {
       const stopped = [];
       const errors = [];
       for (const handle of active) {
@@ -1108,6 +1120,11 @@ function createA9AgentRuntime(options) {
       }
       return { ok: true, stopped };
     })();
+    managedStopPromise = attempt;
+    attempt.finally(() => {
+      if (managedStopPromise === attempt) managedStopPromise = null;
+    });
+    return attempt;
   }
 
   function setMode(mode) {
@@ -1256,6 +1273,7 @@ function createA9AgentRuntime(options) {
           await new Promise((resolve) => setTimeout(resolve, 25));
         }
       }
+      if (managedStopPromise) await managedStopPromise;
       const before = manager.list();
       const result = await manager.dispose({ stopManaged: true });
       for (const handle of before) {

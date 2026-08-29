@@ -71,6 +71,10 @@ describe('A9 unified desktop workbench contract', () => {
     expect(main).toContain('await a9RuntimeInstance.shutdown()');
     expect(main).toContain('A9_SHUTDOWN_RESIDUE');
     expect(main).toContain("dialog.showErrorBox('无法确认安全退出'");
+    expect(main).toContain("window.on('close', (event) => {");
+    expect(main).toContain('窗口与工作区锁保持可用');
+    expect(main).toContain('runnerHelperPath: a9PackageRuntime.runnerHelper');
+    expect(main).toContain('requireRunnerHelper: true');
   });
 
   it('binds approvals to conversation/task/turn and disables both actions while processing', () => {

@@ -665,7 +665,10 @@ describe('F5: pending approval keeps active state and resume continues the same 
       expect(running[0].pid).toBeGreaterThan(0);
       expect(runtime.getSnapshot().controls).toEqual({ canStop: true, stopKind: 'managed_process' });
 
-      const stopped = await runtime.stop();
+      const firstStop = runtime.stop();
+      const secondStop = runtime.stop();
+      expect(secondStop).toBe(firstStop);
+      const stopped = await firstStop;
       expect(stopped.ok).toBe(true);
       expect(stopped.stopped).toContain(running[0].handleId);
       const terminal = runtime.getSnapshot().managedProcesses.find((item: any) => item.handleId === running[0].handleId);

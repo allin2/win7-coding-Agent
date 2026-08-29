@@ -9,6 +9,8 @@
 
 import { ChildProcess, spawn } from 'child_process';
 import { killProcessTree } from './process-cleanup';
+import { HelperTransport, HelperTransportResult, ManagedHelperInvocation } from './native-transport';
+import { NativeHelperRequest } from './native-protocol';
 
 export interface BackgroundProcessHandle {
   handleId: string;
@@ -55,7 +57,11 @@ export class BackgroundProcessManager {
     lastPolledStderrIdx: number;
     /** 重启恢复的探测事实没有子进程句柄。 */
     recoveredFact: boolean;
+    helperInvocation?: ManagedHelperInvocation;
+    helperCleanupConfirmed?: boolean;
   }>();
+
+  constructor(private readonly helperTransport?: HelperTransport) {}
 
   /**
    * 启动托管后台进程。异步方法会等到首个事件循环 tick，使同步 spawn 错误
@@ -68,6 +74,7 @@ export class BackgroundProcessManager {
     shellArgs: string[],
     cwd: string,
     env?: Record<string, string>,
+    helperRequest?: NativeHelperRequest,
   ): Promise<BackgroundProcessHandle> {
     if (this.getActiveCount() >= BackgroundProcessManager.MAX_PROCESSES) {
       throw new Error(`已达到托管后台进程上限 (${BackgroundProcessManager.MAX_PROCESSES})，请先停止已有后台进程。`);
@@ -75,6 +82,7 @@ export class BackgroundProcessManager {
     if (this.processes.has(handleId)) {
       throw new Error(`后台进程句柄已存在: ${handleId}`);
     }
+    if (helperRequest) return this.startViaHelper(handleId, command, cwd, helperRequest);
 
     let child: ChildProcess;
     try {
@@ -135,6 +143,75 @@ export class BackgroundProcessManager {
     return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
   }
 
+  private async startViaHelper(
+    handleId: string,
+    command: string,
+    cwd: string,
+    request: NativeHelperRequest,
+  ): Promise<BackgroundProcessHandle> {
+    if (!this.helperTransport?.startManaged) {
+      throw Object.assign(new Error('D-013 helper does not support managed execution'), { code: 'A9_BACKGROUND_HELPER_UNAVAILABLE' });
+    }
+    const invocation = this.helperTransport.startManaged(request);
+    const handle: BackgroundProcessHandle = {
+      handleId,
+      command,
+      cwd,
+      pid: invocation.pid,
+      startTime: new Date().toISOString(),
+      status: invocation.pid === undefined ? 'failed' : 'starting',
+      exitCode: null,
+      logs: { stdout: [], stderr: [] },
+      droppedLogLines: { stdout: 0, stderr: 0 },
+    };
+    const entry = {
+      handle,
+      child: undefined,
+      lastPolledStdoutIdx: 0,
+      lastPolledStderrIdx: 0,
+      recoveredFact: false,
+      helperInvocation: invocation,
+      helperCleanupConfirmed: false,
+    };
+    this.processes.set(handleId, entry);
+    invocation.completion.then((result) => this.finishHelperInvocation(entry, result));
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    if (handle.status === 'starting') handle.status = 'running';
+    if (handle.status === 'failed') {
+      throw Object.assign(new Error(handle.logs.stderr.join('\n') || 'D-013 helper failed to start managed process'), {
+        code: 'A9_BACKGROUND_HELPER_START_FAILED',
+      });
+    }
+    return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
+  }
+
+  private finishHelperInvocation(
+    entry: { handle: BackgroundProcessHandle; helperCleanupConfirmed?: boolean },
+    result: HelperTransportResult,
+  ): void {
+    const handle = entry.handle;
+    if (result.kind !== 'response' || result.response.type !== 'execution_result') {
+      entry.helperCleanupConfirmed = result.kind !== 'response' && result.cleanupConfirmed;
+      handle.status = 'failed';
+      const detail = result.kind !== 'response'
+        ? result.detail
+        : result.response.type === 'error' ? result.response.message : 'unexpected helper response';
+      this.appendLog(handle.logs.stderr, 'stderr', handle, Buffer.from(
+        detail,
+        'utf8',
+      ));
+      return;
+    }
+    const response = result.response;
+    entry.helperCleanupConfirmed = response.containmentVerified && response.inputDetached;
+    this.appendLog(handle.logs.stdout, 'stdout', handle, Buffer.from(response.stdoutBase64, 'base64'));
+    this.appendLog(handle.logs.stderr, 'stderr', handle, Buffer.from(response.stderrBase64, 'base64'));
+    handle.exitCode = response.exitCode;
+    handle.status = entry.helperCleanupConfirmed
+      ? response.canceled ? 'stopped' : 'exited'
+      : 'failed';
+  }
+
   private appendLog(target: string[], stream: 'stdout' | 'stderr', handle: BackgroundProcessHandle, chunk: Buffer): void {
     const text = chunk.toString('utf8');
     for (const line of text.split('\n')) {
@@ -192,6 +269,17 @@ export class BackgroundProcessManager {
 
     const { handle, child } = entry;
     if (handle.status === 'running' || handle.status === 'starting') {
+      if (entry.helperInvocation) {
+        entry.helperInvocation.cancel();
+        await entry.helperInvocation.completion;
+        const terminalStatus = handle.status as BackgroundProcessHandle['status'];
+        if (!entry.helperCleanupConfirmed || (terminalStatus !== 'stopped' && terminalStatus !== 'exited')) {
+          throw Object.assign(new Error(`后台进程 ${handleId} 的 D-013 Job Object 清理无法确认。`), {
+            code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED',
+          });
+        }
+        return { ...handle, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
+      }
       if (entry.recoveredFact) {
         if (!handle.pid || !BackgroundProcessManager.probeProcessAlive(handle.pid)) {
           handle.status = 'exited';
@@ -289,6 +377,13 @@ export class BackgroundProcessManager {
         if ((status === 'running' || status === 'starting') && entry.recoveredFact) {
           // 重启恢复的 PID 可能已复用；应用退出不能代替用户确认去杀未知进程。
           leftToSystem.push(`${id} (recovered PID fact requires explicit stop confirmation)`);
+        } else if ((status === 'running' || status === 'starting') && entry.helperInvocation) {
+          try {
+            await this.stop(id);
+            stopped.push(id);
+          } catch (error: any) {
+            leftToSystem.push(`${id} (helper cleanup unconfirmed: ${error?.message || error})`);
+          }
         } else if ((status === 'running' || status === 'starting') && entry.child?.pid) {
           const kill = await killProcessTree(entry.child.pid);
           if (kill.success) {

@@ -12,12 +12,23 @@ import {
   TrustedShellRunner,
   buildTrustedShellInvocation,
   decodeShellBytes,
+  parseWindowsProcessTable,
   selectShell,
   ShellKind,
 } from '../src';
 import type { HelperTransport, HelperTransportResult } from '../src';
 
 describe('A9-02 regression: shell invocation contracts', () => {
+  it('captures the complete recursive Windows descendant set before taskkill verification', () => {
+    const table = [
+      'Node,ParentProcessId,ProcessId',
+      'WIN7,100,200',
+      'WIN7,200,300',
+      'WIN7,100,201',
+      'WIN7,999,400',
+    ].join('\r\n');
+    expect(parseWindowsProcessTable(table, 100).sort((a, b) => a - b)).toEqual([200, 201, 300]);
+  });
   it('builds PowerShell UTF-16LE EncodedCommand with normalized $LASTEXITCODE', () => {
     const invocation = buildTrustedShellInvocation('powershell', 'powershell.exe', 'Write-Output hi');
     expect(invocation.args.slice(0, 6)).toEqual(['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand']);

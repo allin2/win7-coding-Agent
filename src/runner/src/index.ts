@@ -103,5 +103,6 @@ export {
 
 export {
   killProcessTree,
+  parseWindowsProcessTable,
   KillResult,
 } from './process-cleanup';

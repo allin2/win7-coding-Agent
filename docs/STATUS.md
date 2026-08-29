@@ -31,7 +31,8 @@
   按 ADR-0097 执行扩大后的增量复验并重新裁决。
 - A9-08A 已关闭当前已知的 Shell 转义/动态调用审批绕过和正常 A9 Renderer 的遗留 A8 Review mutation
   IPC 旁路；A9-08B 已关闭事件/审批持久化秘密泄漏、跨 Provider origin 旧 Key 复用、TLS 校验关闭和缺失
-  CA 静默忽略。两批定向回归与静态检查通过。当前进入 A9-08C 进程生命周期修复，尚未构建 WIN7-20。
+  CA 静默忽略；A9-08C 已将正式前台/后台 Shell 接入 D-013 helper，收紧整树回收真实性、双 Stop 和
+  窗口销毁前退出裁决。三批定向回归与静态检查通过。当前进入 A9-08D checkpoint/状态迁移修复，尚未构建 WIN7-20。
 - 产品负责人已确认
   [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
   和 ADR-0089/ADR-0096；实现任务为 [`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，状态

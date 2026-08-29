@@ -797,6 +797,26 @@ function createMainWindow() {
   window.once('ready-to-show', () => {
     if (!smokeReportPath) window.show();
   });
+  window.on('close', (event) => {
+    if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
+    event.preventDefault();
+    if (a9WindowCloseInFlight) return;
+    a9WindowCloseInFlight = (async () => {
+      try {
+        const result = await a9RuntimeInstance.shutdown();
+        if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
+          throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+        }
+        a9ShutdownComplete = true;
+        window.close();
+      } catch (error) {
+        runtimeState.errors.push('a9-window-close:' + String(error && error.message ? error.message : error));
+        dialog.showErrorBox('无法确认安全退出', '仍有 A9 任务或托管进程的清理结果无法确认。窗口与工作区锁保持可用，请在诊断中检查残留后重试。');
+      } finally {
+        a9WindowCloseInFlight = null;
+      }
+    })();
+  });
   window.on('closed', () => {
     mainWindow = null;
   });
@@ -912,6 +932,10 @@ async function getOrCreateA9Runtime() {
     // Windows package path: Electron safeStorage is the DPAPI boundary. Without
     // this host injection Provider secrets silently degrade to process memory.
     safeStorage,
+    ...(a9PackageRuntime ? {
+      runnerHelperPath: a9PackageRuntime.runnerHelper,
+      requireRunnerHelper: true,
+    } : {}),
     ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE
       ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE }
       : a9PackageRuntime ? { electronSqliteRoot: a9PackageRuntime.storageRoot } : {}),
@@ -925,6 +949,7 @@ ipcMain.handle('product:a9-request', createA9ProductRequestHandler({
 }));
 let a9ShutdownComplete = false;
 let a9ShutdownInFlight = null;
+let a9WindowCloseInFlight = null;
 function beginA9ShutdownBeforeQuit(event) {
   if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
   event.preventDefault();

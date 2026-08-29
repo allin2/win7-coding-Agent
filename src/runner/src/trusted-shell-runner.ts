@@ -80,19 +80,26 @@ export interface TrustedShellRunnerOptions {
   logDir?: string;
   /** 单流原始日志字节上限。 */
   maxLogBytes?: number;
+  /** 仅供确定性合同测试覆盖；生产始终使用 process.platform。 */
+  platform?: NodeJS.Platform;
 }
 
 /** 单流原始日志默认上限（1 MiB）。 */
 const DEFAULT_MAX_LOG_BYTES = 1024 * 1024;
 
 export class TrustedShellRunner {
-  private readonly backgroundManager = new BackgroundProcessManager();
+  private readonly backgroundManager: BackgroundProcessManager;
   private readonly logDir: string;
   private readonly maxLogBytes: number;
+  private readonly platform: NodeJS.Platform;
 
   constructor(private readonly options: TrustedShellRunnerOptions = {}) {
     this.logDir = options.logDir ?? path.join(os.tmpdir(), 'win7-agent-shell-logs');
     this.maxLogBytes = options.maxLogBytes ?? DEFAULT_MAX_LOG_BYTES;
+    this.platform = options.platform ?? process.platform;
+    this.backgroundManager = new BackgroundProcessManager(
+      options.helperTransport && this.platform === 'win32' ? options.helperTransport : undefined,
+    );
   }
 
   getBackgroundManager(): BackgroundProcessManager {
@@ -123,11 +130,11 @@ export class TrustedShellRunner {
 
     // 托管后台进程：启动失败绝不返回成功。
     if (request.background) {
-      return this.startBackground(requestId, request, exe, args, cwd, shellMeta, startTime);
+      return this.startBackground(requestId, request, exe, args, cwd, shellMeta, startTime, maxOutputBytes);
     }
 
     // D-013 helper 路径（Windows + 显式提供 helper 时）：Job Object 内执行。
-    if (this.options.helperTransport && process.platform === 'win32') {
+    if (this.options.helperTransport && this.platform === 'win32') {
       return this.executeViaHelper(requestId, request, exe, args, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
     }
 
@@ -407,9 +414,27 @@ export class TrustedShellRunner {
     cwd: string,
     shellMeta: TrustedShellResult['shell'],
     startTime: number,
+    maxOutputBytes: number,
   ): Promise<TrustedShellResult> {
     try {
-      const handle = await this.backgroundManager.start(requestId, request.command, exe, args, cwd, request.envOverlay);
+      const helperRequest = this.options.helperTransport && this.platform === 'win32'
+        ? {
+          schema_version: 1 as const,
+          requestId,
+          executable: exe,
+          argv: args,
+          workingDirectory: cwd,
+          timeoutMs: request.timeoutMs && request.timeoutMs > 0 ? request.timeoutMs : 60 * 60 * 1000,
+          idleTimeoutMs: 0,
+          maxOutputSize: Math.max(maxOutputBytes, 1024),
+          allowNetwork: false as const,
+          allowedDirectories: [],
+          protectedDirectories: [],
+        }
+        : undefined;
+      const handle = await this.backgroundManager.start(
+        requestId, request.command, exe, args, cwd, request.envOverlay, helperRequest,
+      );
       if (handle.status === 'failed' || handle.pid === undefined) {
         return {
           schemaVersion: '2.0',
@@ -440,7 +465,14 @@ export class TrustedShellRunner {
         shell: shellMeta,
         encoding: 'utf-8',
         backgroundHandle: handle.handleId,
-        termination: { requested: false, processTreeReaped: false, containment: 'none', detail: 'background process intentionally left running; stop via handle' },
+        termination: {
+          requested: false,
+          processTreeReaped: false,
+          containment: helperRequest ? 'job_object' : 'none',
+          detail: helperRequest
+            ? 'background process is held by the manifest-bound D-013 helper; stop requires bound cancel acknowledgement'
+            : 'background process intentionally left running; stop via handle',
+        },
       };
     } catch (err: any) {
       return {

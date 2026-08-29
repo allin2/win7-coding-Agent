@@ -108,6 +108,15 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
     expect((result as any).error.code).toBe('A9_PROVIDER_UNCONFIGURED');
   });
 
+  it('fails closed when packaged composition requires D-013 without a manifest-bound helper path', () => {
+    expect(() => createA9AgentRuntime({
+      workspaceRoot: env.workspaceRoot,
+      dataRoot: env.dataRoot,
+      openDatabase: openReal,
+      requireRunnerHelper: true,
+    })).toThrow('A9_RUNNER_HELPER_REQUIRED');
+  });
+
   it('accepts an arbitrary base URL and manual model id, then runs a full fixture round', async () => {
     const fixture = await startFixtureModel([
       { tool: { id: 'r1', name: 'read', args: { path: 'calc.ts' } } },

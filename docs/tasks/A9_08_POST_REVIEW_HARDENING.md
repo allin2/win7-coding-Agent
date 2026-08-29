@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: WIN7-19 / 781b20e3da277570f85c28286d7ea5bbbdd5fa28
 Current Stage: A9-08
-Current Stage Status: A9_08B_SECRET_PROVIDER_TLS_PASS
+Current Stage Status: A9_08C_PROCESS_LIFECYCLE_PASS
 Target Candidate: WIN7-20
 Win7 Validation: NOT_PERFORMED_FOR_WIN7_20
 Decision: ADR-0100
@@ -47,8 +47,8 @@ Accepted ADR 和 WIN7-19 证据。
 | A9R-03 | 已知秘密不得进入事件、审批、SQLite、WAL、日志、checkpoint 或快照 | implemented | 在统一事件/审批持久化与展示边界递归脱敏 | 全 dataRoot 与 snapshot 扫描 PASS | 普通用户秘密扫描 |
 | A9R-04 | Provider 凭据绑定目标；Base URL 改变不得复用旧 Key | implemented | origin 改变时清除内存/DPAPI Key，空 Key 不继承 | 双 Provider 捕获测试 PASS | Provider 切换负向 |
 | A9R-05 | TLS 验证不得关闭；CA 缺失必须 fail-closed | implemented | 主进程拒绝 insecure 配置，Provider 拒绝缺失 CA | TLS/IPC 合同测试 PASS | TLS/CA 负向 |
-| A9R-06 | 正式 A9 Shell 使用已锁定 D-013 helper；清理结果不得虚报 | partial | 接入 helper transport；无法证明整树清理时报告 residue | 正式 composition 与进程树测试 | 双 Stop、崩溃、退出零残留 |
-| A9R-07 | 无法清理时保留可操作窗口和锁，用户可重试/选择退出 | divergent | 关闭前完成退出决策；阻断时不销毁唯一窗口 | Electron 生命周期测试 | recovered PID/退出锁 |
+| A9R-06 | 正式 A9 Shell 使用已锁定 D-013 helper；清理结果不得虚报 | implemented | 接入 helper transport；无法证明整树清理时报告 residue | 正式 composition 与进程树测试 PASS | 双 Stop、崩溃、退出零残留 |
+| A9R-07 | 无法清理时保留可操作窗口和锁，用户可重试/选择退出 | implemented | 关闭前完成退出决策；阻断时不销毁唯一窗口 | Electron 生命周期测试 PASS | recovered PID/退出锁 |
 | A9R-08 | checkpoint undo 不得恢复错对象或删除 Turn 后数据 | divergent | 目录树哈希、无碰撞快照身份、漂移拒绝、undo 持久化 | 目录/重启/篡改测试 | checkpoint/undo 增量矩阵 |
 | A9R-09 | 对话操作必须受当前工作区约束 | divergent | restore/rename 验证 canonical workspace | 跨工作区负向测试 | 对话隔离抽样 |
 | A9R-10 | v2→v4 迁移整体原子，真实 A8 物理库只读白名单导入 | divergent | 单一恢复边界或失败自动还原；显式 A8 source path | 故障注入与物理布局迁移测试 | v3→v4/回滚/fail-closed |
@@ -83,6 +83,19 @@ Accepted ADR 和 WIN7-19 证据。
   证书验证，缺失 CA 路径在发起网络请求前 fail-closed。
 - Gateway 合同 14/14、Shell Provider/生命周期/IPC/Workbench 合同 53/53 通过；相关 TypeScript 构建、
   JavaScript 语法和 diff 检查通过。此结果不替代 WIN7-20 的普通用户秘密、Provider 切换与 TLS/CA 负向复验。
+
+### 4.3 A9-08C 进程生命周期检查点（2026-08-29）
+
+- 正式包从已校验的 `a9PackageRuntime.runnerHelper` 构造 `StdioHelperTransport`；缺少 helper 时 packaged
+  composition fail-closed。前台 Shell 与托管后台 Shell 均复用 D-013 v24 的 Job Object 和绑定
+  requestId cancel 回执，后台 Stop 只有在 containment/input-detached 得到证明后才报告成功。
+- 非 helper Windows 回退在 `taskkill /T` 前通过 Win7 自带 WMIC 捕获递归后代 PID，并在结束后逐一核验；
+  无法枚举或仍有任一 PID 存活时报告 residue，不再只凭根 PID 消失声称整树已回收。
+- 托管后台进程的重复 Stop 共享同一 in-flight 操作；shutdown 等待该操作，不并发重复终止。
+- Electron 在唯一窗口 `close` 阶段先执行 runtime shutdown；残留未确认时阻止窗口销毁并保留工作区锁与
+  可操作 UI，正常清理后才允许窗口关闭/应用退出。
+- Runner 定向合同 32/32、Shell 生命周期/产品/窗口/包合同 43/43、Runner TypeScript 与 Shell
+  JavaScript/diff 检查通过。Win7 上 helper 前后台、双 Stop、崩溃恢复、recovered PID 和退出零残留仍为必验。
 
 ## 5. 完成条件
 

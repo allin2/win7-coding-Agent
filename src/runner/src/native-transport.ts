@@ -7,6 +7,13 @@ export type HelperTransportResult =
 
 export interface HelperTransport {
   invoke(request: NativeHelperRequest, signal?: AbortSignal): Promise<HelperTransportResult>;
+  startManaged?(request: NativeHelperRequest): ManagedHelperInvocation;
+}
+
+export interface ManagedHelperInvocation {
+  pid?: number;
+  completion: Promise<HelperTransportResult>;
+  cancel(): void;
 }
 
 /** One request per helper process. No shell and no inherited stdio. */
@@ -17,6 +24,21 @@ export class StdioHelperTransport implements HelperTransport {
   ) {}
 
   invoke(request: NativeHelperRequest, signal?: AbortSignal): Promise<HelperTransportResult> {
+    return this.invokeInternal(request, signal);
+  }
+
+  startManaged(request: NativeHelperRequest): ManagedHelperInvocation {
+    const controller = new AbortController();
+    let pid: number | undefined;
+    const completion = this.invokeInternal(request, controller.signal, (spawnedPid) => { pid = spawnedPid; });
+    return { pid, completion, cancel: () => controller.abort() };
+  }
+
+  private invokeInternal(
+    request: NativeHelperRequest,
+    signal?: AbortSignal,
+    onSpawn?: (pid: number | undefined) => void,
+  ): Promise<HelperTransportResult> {
     return new Promise((resolve) => {
       let settled = false;
       let forcedExit: 'watchdog_timeout' | null = null;
@@ -65,6 +87,7 @@ export class StdioHelperTransport implements HelperTransport {
           windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
+        onSpawn?.(child.pid);
       } catch (error) {
         finish({ kind: 'spawn_failed', detail: String(error), cleanupConfirmed: true });
         return;

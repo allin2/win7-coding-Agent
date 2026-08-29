@@ -6,11 +6,26 @@ import { NativeHelperExecutionResult, NativeHelperRequest, StdioHelperTransport 
 jest.mock('child_process', () => ({ spawn: jest.fn() }));
 
 class FakeChild extends EventEmitter {
+  pid = 4321;
   stdin = new PassThrough();
   stdout = new PassThrough();
   stderr = new PassThrough();
   kill = jest.fn(() => true);
 }
+
+test('managed invocation exposes the helper PID and uses the same bound cancel protocol', async () => {
+  const child = new FakeChild();
+  (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const managed = new StdioHelperTransport('helper.exe').startManaged(request());
+  expect(managed.pid).toBe(4321);
+  managed.cancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  child.stdout.write(`${JSON.stringify(cancelledResponse())}\n`);
+  child.emit('close', 0);
+  await expect(managed.completion).resolves.toMatchObject({
+    kind: 'response', response: { requestId: 'cancel-1', canceled: true, containmentVerified: true },
+  });
+});
 
 function request(): NativeHelperRequest {
   return {

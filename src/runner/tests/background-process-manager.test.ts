@@ -1,4 +1,4 @@
-import { BackgroundProcessManager } from '../src';
+import { BackgroundProcessManager, NativeHelperExecutionResult, NativeHelperRequest } from '../src';
 
 describe('A9-02: BackgroundProcessManager', () => {
   let manager: BackgroundProcessManager;
@@ -38,6 +38,42 @@ describe('A9-02: BackgroundProcessManager', () => {
     // 停止后台进程：只有清理可证明才标记 stopped。
     const stopped = await manager.stop('bg-test-1');
     expect(stopped.status).toBe('stopped');
+  });
+
+  it('holds Windows background work in the D-013 helper until bound cancellation is confirmed', async () => {
+    let finish!: (value: any) => void;
+    let cancelCount = 0;
+    const completion = new Promise<any>((resolve) => { finish = resolve; });
+    const helperTransport = {
+      invoke: jest.fn(),
+      startManaged: jest.fn(() => ({
+        pid: 7331,
+        completion,
+        cancel: () => {
+          cancelCount += 1;
+          const response: NativeHelperExecutionResult = {
+            schema_version: 1, type: 'execution_result', requestId: 'bg-helper', status: 'completed',
+            exitCode: 1, executionTimeMs: 20, timedOut: false, canceled: true, outputTruncated: false,
+            containmentVerified: true, inputDetached: true,
+            hostJob: { detected: true, breakaway: 'silent', limitFlags: 0x3000, childJobAssignmentVerified: true },
+            tokenAudit: { verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, integrityRid: 4096 },
+            stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '', aclChanges: [],
+          };
+          finish({ kind: 'response', response });
+        },
+      })),
+    };
+    manager = new BackgroundProcessManager(helperTransport as any);
+    const helperRequest: NativeHelperRequest = {
+      schema_version: 1, requestId: 'bg-helper', executable: 'cmd.exe', argv: ['/c', 'ping -t 127.0.0.1'],
+      workingDirectory: 'C:\\acceptance', timeoutMs: 60_000, idleTimeoutMs: 0,
+      maxOutputSize: 1024, allowNetwork: false, allowedDirectories: [], protectedDirectories: [],
+    };
+    const handle = await manager.start('bg-helper', 'ping', 'cmd.exe', [], 'C:\\acceptance', undefined, helperRequest);
+    expect(handle).toMatchObject({ pid: 7331, status: 'running' });
+    const stopped = await manager.stop('bg-helper');
+    expect(stopped.status).toBe('stopped');
+    expect(cancelCount).toBe(1);
   });
 
   it('enforces maximum 3 concurrent background processes', async () => {

@@ -25,6 +25,41 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
+export function parseWindowsProcessTable(output: string, rootPid: number): number[] {
+  const children = new Map<number, number[]>();
+  for (const line of String(output).split(/\r?\n/)) {
+    const numbers = line.match(/\d+/g);
+    if (!numbers || numbers.length < 2) continue;
+    const parentPid = Number(numbers[numbers.length - 2]);
+    const processId = Number(numbers[numbers.length - 1]);
+    if (!Number.isInteger(parentPid) || !Number.isInteger(processId)) continue;
+    const values = children.get(parentPid) || [];
+    values.push(processId);
+    children.set(parentPid, values);
+  }
+  const descendants: number[] = [];
+  const pending = [...(children.get(rootPid) || [])];
+  const seen = new Set<number>();
+  while (pending.length > 0) {
+    const pid = pending.shift()!;
+    if (seen.has(pid)) continue;
+    seen.add(pid);
+    descendants.push(pid);
+    pending.push(...(children.get(pid) || []));
+  }
+  return descendants;
+}
+
+function enumerateWindowsDescendants(pid: number): Promise<number[] | null> {
+  return new Promise((resolve) => {
+    childProcess.execFile(
+      'wmic', ['process', 'get', 'ParentProcessId,ProcessId', '/format:csv'],
+      { windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+      (error, stdout) => resolve(error ? null : parseWindowsProcessTable(String(stdout), pid)),
+    );
+  });
+}
+
 /**
  * 终止指定 PID 及其整棵子进程树。返回值反映可证明的清理结果：
  * - success=true + method=already_gone：进程已不存在；
@@ -38,13 +73,20 @@ export async function killProcessTree(pid: number): Promise<KillResult> {
     if (!isPidAlive(pid)) {
       return { success: true, method: 'already_gone' };
     }
+    const descendants = await enumerateWindowsDescendants(pid);
     return new Promise<KillResult>((resolve) => {
       childProcess.execFile('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true }, (err, _stdout, stderr) => {
         if (!err) {
           // taskkill 成功后再验证 PID 确已消失，防止命令成功但树仍有残留。
           setTimeout(() => {
-            if (!isPidAlive(pid)) resolve({ success: true, method: 'taskkill_tree' });
-            else resolve({ success: false, error: `taskkill reported success but PID ${pid} is still alive`, method: 'taskkill_tree' });
+            const survivors = [pid, ...(descendants || [])].filter(isPidAlive);
+            if (survivors.length > 0) {
+              resolve({ success: false, error: `taskkill reported success but PID(s) ${survivors.join(',')} are still alive`, method: 'taskkill_tree' });
+            } else if (descendants === null) {
+              resolve({ success: false, error: 'taskkill completed but descendant enumeration was unavailable; whole-tree cleanup is unproven', method: 'taskkill_tree' });
+            } else {
+              resolve({ success: true, method: 'taskkill_tree' });
+            }
           }, 120);
           return;
         }
