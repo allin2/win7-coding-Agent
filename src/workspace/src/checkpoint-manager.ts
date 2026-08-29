@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { buildContentDiffPreview } from './diff';
 
-export const CHECKPOINT_SCHEMA_VERSION = 3;
+export const CHECKPOINT_SCHEMA_VERSION = 4;
 
 export interface FileChangeRecord {
   filePath: string;
@@ -32,8 +32,14 @@ export interface FileChangeRecord {
    */
   currentStateBlobPath?: string;
   currentStateSnapshotPath?: string;
+  /** 目录快照/轮后目录状态的确定性树哈希。 */
+  originalTreeHash?: string;
+  currentStateTreeHash?: string;
+  newTreeHash?: string;
   newHash?: string;
   newBlobPath?: string;
+  /** undo 成功后持久化，重启或重复点击不会再次作用于文件系统。 */
+  undoAppliedAt?: string;
   timestamp: string;
 }
 
@@ -156,7 +162,7 @@ export class CheckpointManager {
 
   private validateCheckpoint(parsed: unknown, requestedTurnId: string): TurnCheckpoint {
     if (!this.isPlainRecord(parsed)) throw new Error('checkpoint manifest must be an object');
-    if (parsed.schemaVersion !== CHECKPOINT_SCHEMA_VERSION && parsed.schemaVersion !== 2) {
+    if (![2, 3, CHECKPOINT_SCHEMA_VERSION].includes(Number(parsed.schemaVersion))) {
       throw new Error(`checkpoint manifest schema mismatch for ${requestedTurnId}`);
     }
     if (parsed.turnId !== requestedTurnId) throw new Error(`checkpoint manifest turn mismatch for ${requestedTurnId}`);
@@ -180,18 +186,33 @@ export class CheckpointManager {
       if (raw.unrecoverable !== undefined && typeof raw.unrecoverable !== 'boolean') {
         throw new Error(`checkpoint change ${key} has invalid unrecoverable flag`);
       }
-      for (const hashField of ['originalHash', 'newHash']) {
+      for (const hashField of ['originalHash', 'newHash', 'originalTreeHash', 'currentStateTreeHash', 'newTreeHash']) {
         const value = raw[hashField];
         if (value !== undefined && (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value))) {
           throw new Error(`checkpoint change ${key}.${hashField} is invalid`);
         }
+      }
+      if (raw.undoAppliedAt !== undefined && (typeof raw.undoAppliedAt !== 'string' || !Number.isFinite(Date.parse(raw.undoAppliedAt)))) {
+        throw new Error(`checkpoint change ${key}.undoAppliedAt is invalid`);
+      }
+      if (raw.isDirectory === true && (raw.originalBlobPath !== undefined || raw.currentStateBlobPath !== undefined
+        || raw.newBlobPath !== undefined || raw.originalHash !== undefined || raw.newHash !== undefined)) {
+        throw new Error(`checkpoint change ${key} mixes directory and file artifacts`);
+      }
+      if (raw.isDirectory === false && (raw.originalSnapshotPath !== undefined || raw.currentStateSnapshotPath !== undefined
+        || raw.originalTreeHash !== undefined || raw.currentStateTreeHash !== undefined || raw.newTreeHash !== undefined)) {
+        throw new Error(`checkpoint change ${key} mixes file and directory artifacts`);
       }
       if (raw.originalBlobPath !== undefined) this.validateBlob(raw.originalBlobPath, raw.originalHash, `checkpoint change ${key}.originalBlobPath`);
       if (raw.newBlobPath !== undefined) this.validateBlob(raw.newBlobPath, raw.newHash, `checkpoint change ${key}.newBlobPath`);
       if (raw.currentStateBlobPath !== undefined) this.validateBlob(raw.currentStateBlobPath, undefined, `checkpoint change ${key}.currentStateBlobPath`);
       for (const snapshotField of ['originalSnapshotPath', 'currentStateSnapshotPath']) {
         if (raw[snapshotField] !== undefined) {
-          this.assertRecoveryArtifact(raw[snapshotField], this.snapshotsRoot, `checkpoint change ${key}.${snapshotField}`, 'directory');
+          const snapshotPath = this.assertRecoveryArtifact(raw[snapshotField], this.snapshotsRoot, `checkpoint change ${key}.${snapshotField}`, 'directory');
+          const expectedTreeHash = snapshotField === 'originalSnapshotPath' ? raw.originalTreeHash : raw.currentStateTreeHash;
+          if (expectedTreeHash !== undefined && this.hashDirectoryTree(snapshotPath) !== expectedTreeHash) {
+            throw new Error(`checkpoint change ${key}.${snapshotField} tree SHA-256 mismatch`);
+          }
         }
       }
     }
@@ -280,6 +301,31 @@ export class CheckpointManager {
     return crypto.createHash('sha256').update(content).digest('hex');
   }
 
+  /** 不跟随 symlink/junction 的确定性目录树哈希。 */
+  private hashDirectoryTree(root: string): string {
+    const digest = crypto.createHash('sha256');
+    const visit = (absolute: string, relative: string): void => {
+      const stat = fs.lstatSync(absolute);
+      const normalized = relative.replace(/\\/g, '/');
+      if (stat.isSymbolicLink()) {
+        digest.update(`L\0${normalized}\0${fs.readlinkSync(absolute)}\0`);
+        return;
+      }
+      if (stat.isDirectory()) {
+        digest.update(`D\0${normalized}\0`);
+        for (const name of fs.readdirSync(absolute).sort()) visit(path.join(absolute, name), path.join(relative, name));
+        return;
+      }
+      if (stat.isFile()) {
+        digest.update(`F\0${normalized}\0${stat.size}\0${this.hashBytes(fs.readFileSync(absolute))}\0`);
+        return;
+      }
+      digest.update(`O\0${normalized}\0${stat.mode}\0${stat.size}\0`);
+    };
+    visit(root, '.');
+    return digest.digest('hex');
+  }
+
   private storeBlob(content: Buffer): string {
     const hash = this.hashBytes(content);
     const blobPath = path.join(this.blobsRoot, hash.slice(0, 2), hash);
@@ -293,11 +339,20 @@ export class CheckpointManager {
   }
 
   /** 递归快照目录到恢复区（用于目录删除/覆盖的恢复）。 */
-  private snapshotDirectory(absDir: string, turnId: string, relPath: string): string {
-    const target = path.join(this.snapshotsRoot, turnId.replace(/[^a-zA-Z0-9._-]+/g, '_'), relPath.replace(/[\\/]/g, '__'));
+  private snapshotDirectory(absDir: string, turnId: string, relPath: string): { path: string; treeHash: string } {
+    const identity = this.hashBytes(Buffer.from(relPath, 'utf8'));
+    const target = path.join(this.snapshotsRoot, turnId.replace(/[^a-zA-Z0-9._-]+/g, '_'), identity);
     fs.mkdirSync(path.dirname(target), { recursive: true });
+    if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
     fs.cpSync(absDir, target, { recursive: true });
-    return target;
+    const sourceTreeHash = this.hashDirectoryTree(absDir);
+    if (this.hashDirectoryTree(target) !== sourceTreeHash) throw new Error(`目录快照完整性校验失败: ${relPath}`);
+    return { path: target, treeHash: sourceTreeHash };
+  }
+
+  private isExternalTarget(targetPath: string): boolean {
+    const resolved = path.resolve(this.workspaceRoot, targetPath);
+    return resolved === path.resolve(this.workspaceRoot) || !this.isWithin(this.workspaceRoot, resolved);
   }
 
   /**
@@ -307,6 +362,15 @@ export class CheckpointManager {
    */
   recordPreMutation(turnId: string, targetPath: string): FileChangeRecord {
     const checkpoint = this.startTurn(turnId);
+    if (this.isExternalTarget(targetPath)) {
+      checkpoint.unrecoverable[targetPath] = {
+        path: targetPath,
+        kind: 'outside',
+        reason: '目标位于工作区外；为避免重启后从可篡改清单对外部路径执行恢复，仅记录事实，不提供自动 undo。',
+      };
+      this.persist(checkpoint);
+      return { filePath: targetPath, action: 'modify', isDirectory: false, unrecoverable: true, timestamp: new Date().toISOString() };
+    }
     const existing = checkpoint.changes[targetPath];
 
     const absPath = path.resolve(this.workspaceRoot, targetPath);
@@ -316,7 +380,9 @@ export class CheckpointManager {
     if (existing) {
       if (pathExists && pathIsDirectory) {
         if (!existing.originalSnapshotPath && !existing.currentStateSnapshotPath) {
-          existing.currentStateSnapshotPath = this.snapshotDirectory(absPath, turnId, targetPath);
+          const snapshot = this.snapshotDirectory(absPath, turnId, targetPath);
+          existing.currentStateSnapshotPath = snapshot.path;
+          existing.currentStateTreeHash = snapshot.treeHash;
         }
         existing.isDirectory = true;
       } else if (pathExists) {
@@ -332,12 +398,13 @@ export class CheckpointManager {
     let record: FileChangeRecord;
     if (pathExists) {
       if (pathIsDirectory) {
-        const snapshotPath = this.snapshotDirectory(absPath, turnId, targetPath);
+        const snapshot = this.snapshotDirectory(absPath, turnId, targetPath);
         record = {
           filePath: targetPath,
           action: 'modify',
           isDirectory: true,
-          originalSnapshotPath: snapshotPath,
+          originalSnapshotPath: snapshot.path,
+          originalTreeHash: snapshot.treeHash,
           timestamp: new Date().toISOString(),
         };
       } else {
@@ -370,6 +437,16 @@ export class CheckpointManager {
    */
   recordPostMutation(turnId: string, targetPath: string, action: 'create' | 'modify' | 'delete'): void {
     const checkpoint = this.startTurn(turnId);
+    if (this.isExternalTarget(targetPath)) {
+      const existing = checkpoint.unrecoverable[targetPath];
+      checkpoint.unrecoverable[targetPath] = {
+        path: targetPath,
+        kind: 'outside',
+        reason: existing?.reason ?? '工作区外变化不提供自动 undo。',
+      };
+      this.persist(checkpoint);
+      return;
+    }
     const absPath = path.resolve(this.workspaceRoot, targetPath);
     const existing = checkpoint.changes[targetPath] ?? {
       filePath: targetPath,
@@ -382,10 +459,18 @@ export class CheckpointManager {
       existing.action = 'delete';
       existing.newHash = undefined;
       existing.newBlobPath = undefined;
+      existing.newTreeHash = undefined;
     } else if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
       const content = fs.readFileSync(absPath);
       existing.newHash = this.hashBytes(content);
       existing.newBlobPath = this.storeBlob(content);
+      existing.newTreeHash = undefined;
+      existing.isDirectory = false;
+    } else if (fs.existsSync(absPath) && fs.statSync(absPath).isDirectory()) {
+      existing.newHash = undefined;
+      existing.newBlobPath = undefined;
+      existing.newTreeHash = this.hashDirectoryTree(absPath);
+      existing.isDirectory = true;
     } else {
       existing.newHash = undefined;
       existing.newBlobPath = undefined;
@@ -431,10 +516,14 @@ export class CheckpointManager {
     const record = checkpoint.changes[relPath];
     const absPath = path.resolve(this.workspaceRoot, relPath);
     try {
+      if (record.undoAppliedAt) {
+        outcome.restored.push(`${relPath} (此前已撤销，未重复执行)`);
+        return;
+      }
       if (record.action === 'create') {
         // 新建的文件/目录撤销为删除；漂移（外部改写）时不盲删。
         if (fs.existsSync(absPath)) {
-          const drift = this.describeDrift(absPath, record.newHash);
+          const drift = this.describeDrift(absPath, record.newHash, record.newTreeHash, record.isDirectory);
           if (drift) {
             outcome.drifted.push(`${relPath} (${drift})`);
             return;
@@ -446,11 +535,12 @@ export class CheckpointManager {
           }
         }
         outcome.restored.push(`${relPath} (已移除新建文件)`);
-        delete checkpoint.changes[relPath];
+        this.markUndoApplied(checkpoint, record);
         return;
       }
 
       if (record.action === 'delete') {
+        const errorsBefore = outcome.errors.length;
         // 删除撤销为恢复内容：优先轮初原始内容，其次轮内当前状态快照；
         // 都不存在说明是“轮内新建后删除”，净效果为不存在，无需恢复。
         if (fs.existsSync(absPath)) {
@@ -462,6 +552,11 @@ export class CheckpointManager {
         if (record.isDirectory && restoreSnapshot) {
           if (!fs.existsSync(restoreSnapshot)) {
             outcome.errors.push(`撤销删除 ${relPath} 失败: 目录快照缺失 (${restoreSnapshot})`);
+            return;
+          }
+          const expectedSnapshotHash = record.originalSnapshotPath ? record.originalTreeHash : record.currentStateTreeHash;
+          if (!expectedSnapshotHash || this.hashDirectoryTree(restoreSnapshot) !== expectedSnapshotHash) {
+            outcome.errors.push(`撤销删除 ${relPath} 失败: 目录快照缺少或不匹配树哈希`);
             return;
           }
           fs.mkdirSync(path.dirname(absPath), { recursive: true });
@@ -484,7 +579,7 @@ export class CheckpointManager {
         } else {
           outcome.errors.push(`撤销删除 ${relPath} 失败: 恢复内容记录类型不匹配`);
         }
-        delete checkpoint.changes[relPath];
+        if (outcome.errors.length === errorsBefore) this.markUndoApplied(checkpoint, record);
         return;
       }
 
@@ -496,13 +591,17 @@ export class CheckpointManager {
 
       // modify：恢复原始内容；当前状态与 post-mutation 哈希不一致时视为漂移。
       if (fs.existsSync(absPath)) {
-        const drift = this.describeDrift(absPath, record.newHash);
+        const drift = this.describeDrift(absPath, record.newHash, record.newTreeHash, record.isDirectory);
         if (drift) {
           outcome.drifted.push(`${relPath} (${drift})`);
           return;
         }
       }
       if (record.isDirectory && record.originalSnapshotPath) {
+        if (!record.originalTreeHash || this.hashDirectoryTree(record.originalSnapshotPath) !== record.originalTreeHash) {
+          outcome.errors.push(`撤销修改 ${relPath} 失败: 目录快照缺少或不匹配树哈希`);
+          return;
+        }
         fs.rmSync(absPath, { recursive: true, force: true });
         fs.cpSync(record.originalSnapshotPath, absPath, { recursive: true });
         outcome.restored.push(`${relPath} (已恢复原始目录)`);
@@ -519,16 +618,31 @@ export class CheckpointManager {
         if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
         outcome.restored.push(`${relPath} (已移除新建文件)`);
       }
-      delete checkpoint.changes[relPath];
+      this.markUndoApplied(checkpoint, record);
     } catch (err: any) {
       outcome.errors.push(`撤销 ${relPath} 失败: ${err.message}`);
     }
+  }
+
+  private markUndoApplied(checkpoint: TurnCheckpoint, record: FileChangeRecord): void {
+    record.undoAppliedAt = new Date().toISOString();
     this.persist(checkpoint);
   }
 
-  private describeDrift(absPath: string, expectedHash: string | undefined): string | undefined {
+  private describeDrift(
+    absPath: string,
+    expectedHash: string | undefined,
+    expectedTreeHash: string | undefined,
+    expectedDirectory: boolean,
+  ): string | undefined {
     if (!fs.existsSync(absPath)) {
-      return expectedHash ? '文件在变更后消失' : undefined;
+      return expectedHash || expectedTreeHash ? '路径在变更后消失' : undefined;
+    }
+    const stat = fs.lstatSync(absPath);
+    if (stat.isDirectory() !== expectedDirectory) return '路径类型在变更后被外部替换';
+    if (stat.isDirectory()) {
+      if (!expectedTreeHash) return '目录缺少轮后树哈希，拒绝自动覆盖';
+      return this.hashDirectoryTree(absPath) === expectedTreeHash ? undefined : '目录在变更后被外部修改';
     }
     if (!expectedHash) return undefined;
     const current = this.hashBytes(fs.readFileSync(absPath));

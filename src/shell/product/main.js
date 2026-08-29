@@ -928,6 +928,7 @@ async function getOrCreateA9Runtime() {
   a9RuntimeInstance = createA9AgentRuntime({
     workspaceRoot: desiredWorkspace,
     dataRoot: a9DataRoot,
+    a8DatabasePath: path.join(app.getPath('userData'), 'state', 'agent-events-v2.db'),
     ownerId: `main-${process.pid}`,
     // Windows package path: Electron safeStorage is the DPAPI boundary. Without
     // this host injection Provider secrets silently degrade to process memory.

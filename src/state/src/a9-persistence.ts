@@ -45,6 +45,8 @@ export interface A9ConversationRecord {
 
 export interface A9OpenOptions {
   databasePath: string;
+  /** A8 的真实物理库；只读打开，绝不 attach 或写回。 */
+  a8DatabasePath?: string;
   /** 打开函数由宿主注入（生产为 Electron ABI 的 better-sqlite3，测试为真实 adapter）。 */
   openDatabase: (databasePath: string, options?: { readonly?: boolean }) => SqliteDatabase;
   dataRoot: string;
@@ -77,6 +79,25 @@ export class A9PersistenceManager {
    * 打开/迁移 A9 数据库。任何失败都返回结构化结果，不覆盖旧库。
    */
   static open(options: A9OpenOptions): A9OpenOutcome {
+    let externalA8Db: SqliteDatabase | undefined;
+    if (options.a8DatabasePath
+      && path.resolve(options.a8DatabasePath) !== path.resolve(options.databasePath)
+      && fs.existsSync(options.a8DatabasePath)) {
+      try {
+        externalA8Db = options.openDatabase(options.a8DatabasePath, { readonly: true });
+        if (!a8TablesPresentStrict(externalA8Db)) {
+          externalA8Db.close();
+          externalA8Db = undefined;
+        }
+      } catch (err) {
+        try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
+        return {
+          status: 'diagnostics',
+          error: err instanceof Error ? err.message : String(err),
+          hint: 'A8 物理数据库无法只读探测；为避免静默漏迁移，产品进入受限诊断模式。',
+        };
+      }
+    }
     // 现有数据库必须先用只读连接探测。尤其是未来 schema，不能在拒绝前切换
     // journal_mode、创建 WAL/SHM sidecar，或触发任何其他写入。
     if (fs.existsSync(options.databasePath)) {
@@ -85,6 +106,7 @@ export class A9PersistenceManager {
         probeDb = options.openDatabase(options.databasePath, { readonly: true });
         const probedVersion = readSchemaVersion(probeDb);
         if (probedVersion !== undefined && probedVersion > A9_SCHEMA_VERSION) {
+          try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
           return {
             status: 'schema_refused',
             reason: `数据库 schema 版本 ${probedVersion} 高于本应用支持的 ${A9_SCHEMA_VERSION}；拒绝覆盖，请使用更新版本的应用打开。`,
@@ -92,6 +114,7 @@ export class A9PersistenceManager {
           };
         }
       } catch (err) {
+        try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
         return {
           status: 'diagnostics',
           error: err instanceof Error ? err.message : String(err),
@@ -106,6 +129,7 @@ export class A9PersistenceManager {
     try {
       db = options.openDatabase(options.databasePath);
     } catch (err) {
+      try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
       return {
         status: 'diagnostics',
         error: err instanceof Error ? err.message : String(err),
@@ -119,6 +143,7 @@ export class A9PersistenceManager {
       existingVersion = readSchemaVersion(db);
     } catch (err) {
       try { db.close(); } catch (_closeError) { /* best effort */ }
+      try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
       return {
         status: 'diagnostics',
         error: err instanceof Error ? err.message : String(err),
@@ -128,6 +153,7 @@ export class A9PersistenceManager {
 
     if (existingVersion !== undefined && existingVersion > A9_SCHEMA_VERSION) {
       try { db.close(); } catch (_closeError) { /* best effort */ }
+      try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
       return {
         status: 'schema_refused',
         reason: `数据库 schema 版本 ${existingVersion} 高于本应用支持的 ${A9_SCHEMA_VERSION}；拒绝覆盖，请使用更新版本的应用打开。`,
@@ -138,9 +164,9 @@ export class A9PersistenceManager {
     // 迁移前备份（只针对旧 A9 schema 或 A8 导入；当前 schema 重开无需重复备份）。
     let backupPath: string | undefined;
     let backupSha256: string | undefined;
-    const hasA8Data = a8TablesPresent(db);
-    const hasExistingData = existingVersion !== undefined || hasA8Data;
-    const requiresMigrationBackup = hasA8Data
+    const embeddedA8Data = a8TablesPresent(db);
+    const hasA8Data = embeddedA8Data || Boolean(externalA8Db);
+    const requiresMigrationBackup = embeddedA8Data
       || (existingVersion !== undefined && existingVersion < A9_SCHEMA_VERSION);
     if (requiresMigrationBackup && fs.existsSync(options.databasePath)) {
       try {
@@ -149,6 +175,7 @@ export class A9PersistenceManager {
         backupSha256 = backup.sha256;
       } catch (err) {
         try { db.close(); } catch (_closeError) { /* best effort */ }
+        try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
         return {
           status: 'diagnostics',
           error: err instanceof Error ? err.message : String(err),
@@ -170,6 +197,7 @@ export class A9PersistenceManager {
       manager.createSchema();
     } catch (err) {
       try { db.close(); } catch (_closeError) { /* best effort */ }
+      try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
       return {
         status: 'diagnostics',
         error: err instanceof Error ? err.message : String(err),
@@ -178,9 +206,18 @@ export class A9PersistenceManager {
     }
 
     let importedA8Workspaces = 0;
-    if (hasExistingData) {
-      importedA8Workspaces = manager.importA8Whitelist(db);
+    try {
+      if (hasA8Data) importedA8Workspaces = manager.importA8Whitelist(externalA8Db ?? db);
+    } catch (err) {
+      try { db.close(); } catch (_closeError) { /* best effort */ }
+      try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
+      return {
+        status: 'diagnostics',
+        error: err instanceof Error ? err.message : String(err),
+        hint: 'A8 白名单导入失败；事务已回滚，产品进入受限诊断模式。',
+      };
     }
+    try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
 
     manager.markInterruptionsOnRestart();
     return {
@@ -317,15 +354,15 @@ export class A9PersistenceManager {
 
   /** A9 v3 增加 failed Turn；v4 引入对话目录、活动对话和草稿密文。 */
   private migrateSchema(existingVersion: number | undefined): void {
-    if (existingVersion === undefined) return;
-    let version = existingVersion;
-    if (version < 3 && tablePresent(this.db, 'a9_turns')) {
-      const turnIndexSql = (this.db.prepare(
-        "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
-      ).all() as any[])
-        .map((row) => row.sql)
-        .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
-      const migrateV3 = this.db.transaction(() => {
+    if (existingVersion === undefined || existingVersion >= A9_SCHEMA_VERSION) return;
+    const migrateAll = this.db.transaction(() => {
+      let version = existingVersion;
+      if (version < 3 && tablePresent(this.db, 'a9_turns')) {
+        const turnIndexSql = (this.db.prepare(
+          "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_turns' AND sql IS NOT NULL",
+        ).all() as any[])
+          .map((row) => row.sql)
+          .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
         this.db.exec(`
           ALTER TABLE a9_turns RENAME TO a9_turns_pre_v3;
           CREATE TABLE a9_turns (
@@ -345,13 +382,10 @@ export class A9PersistenceManager {
         for (const indexSql of turnIndexSql) this.db.exec(indexSql);
         this.db.prepare('UPDATE a9_meta SET schema_version = 3, updated_at = ? WHERE id = 1')
           .run(new Date().toISOString());
-      });
-      migrateV3();
-      version = 3;
-    }
-    if (version >= 4) return;
+        version = 3;
+      }
+      if (version >= 4) return;
 
-    const migrateV4 = this.db.transaction(() => {
       const now = new Date().toISOString();
       if (tablePresent(this.db, 'a9_sessions')) {
         this.db.exec(`
@@ -409,7 +443,7 @@ export class A9PersistenceManager {
       }
       this.db.prepare('UPDATE a9_meta SET schema_version = 4, updated_at = ? WHERE id = 1').run(now);
     });
-    migrateV4();
+    migrateAll();
   }
 
   /**
@@ -417,11 +451,11 @@ export class A9PersistenceManager {
    * 提案一律不迁移（A9-ST03）。
    */
   private importA8Whitelist(db: SqliteDatabase): number {
+    const workspaces = db.prepare('SELECT workspace_path FROM a8_workspaces').all() as any[];
     let imported = 0;
-    try {
-      const workspaces = db.prepare('SELECT workspace_path FROM a8_workspaces').all() as any[];
+    const importAll = this.db.transaction(() => {
       const now = new Date().toISOString();
-      const insert = db.prepare(
+      const insert = this.db.prepare(
         'INSERT OR IGNORE INTO a9_workspaces (workspace_path, display_name, permission_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       );
       for (const row of workspaces) {
@@ -429,9 +463,8 @@ export class A9PersistenceManager {
         insert.run(row.workspace_path, displayNameFor(row.workspace_path), 'review', now, now);
         imported += 1;
       }
-    } catch (_err) {
-      // A8 表缺失/不可读 → 0 导入，不阻塞 A9。
-    }
+    });
+    importAll();
     return imported;
   }
 
@@ -542,13 +575,16 @@ export class A9PersistenceManager {
     return this.requireConversation(sessionId);
   }
 
-  renameConversation(sessionId: string, title: string): A9ConversationRecord {
+  renameConversation(sessionId: string, title: string, workspacePath: string): A9ConversationRecord {
     if (typeof title !== 'string' || /[\u0000-\u001f\u007f-\u009f]/.test(title)) {
       throw a9PersistenceError('A9_CONVERSATION_TITLE_INVALID', '对话名称不能为空或包含控制字符。');
     }
     const normalized = normalizeConversationTitle(title, 80);
     if (!normalized) throw a9PersistenceError('A9_CONVERSATION_TITLE_INVALID', '对话名称不能为空或包含控制字符。');
-    this.requireConversation(sessionId);
+    const conversation = this.requireConversation(sessionId);
+    if (!sameWorkspacePath(conversation.workspacePath, workspacePath)) {
+      throw a9PersistenceError('A9_CONVERSATION_WORKSPACE_MISMATCH', '对话不属于当前工作区。');
+    }
     this.db.prepare(`
       UPDATE a9_sessions SET title = ?, title_source = 'manual', updated_at = ? WHERE session_id = ?
     `).run(normalized, new Date().toISOString(), sessionId);
@@ -598,8 +634,11 @@ export class A9PersistenceManager {
     return archive();
   }
 
-  restoreConversation(sessionId: string): A9ConversationRecord {
+  restoreConversation(sessionId: string, workspacePath: string): A9ConversationRecord {
     const row = this.requireConversation(sessionId);
+    if (!sameWorkspacePath(row.workspacePath, workspacePath)) {
+      throw a9PersistenceError('A9_CONVERSATION_WORKSPACE_MISMATCH', '对话不属于当前工作区。');
+    }
     const activeCount = (this.db.prepare(`
       SELECT COUNT(*) AS n FROM a9_sessions WHERE workspace_path = ? AND state = 'active'
     `).get(row.workspacePath) as any)?.n ?? 0;
@@ -1050,6 +1089,11 @@ function a8TablesPresent(db: SqliteDatabase): boolean {
   }
 }
 
+function a8TablesPresentStrict(db: SqliteDatabase): boolean {
+  const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a8_workspaces'").get();
+  return Boolean(row);
+}
+
 function tablePresent(db: SqliteDatabase, tableName: string): boolean {
   try {
     const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(tableName);
@@ -1105,6 +1149,15 @@ function backupDatabase(db: SqliteDatabase, dataRoot: string): { path: string; s
 function displayNameFor(workspacePath: string): string {
   const base = workspacePath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? workspacePath;
   return base.length > 0 ? base : workspacePath;
+}
+
+function sameWorkspacePath(left: string, right: string): boolean {
+  const looksWindows = path.win32.isAbsolute(left) || path.win32.isAbsolute(right);
+  if (looksWindows) {
+    return path.win32.normalize(left).replace(/[\\/]+$/, '').toLowerCase()
+      === path.win32.normalize(right).replace(/[\\/]+$/, '').toLowerCase();
+  }
+  return path.resolve(left) === path.resolve(right);
 }
 
 function conversationFromRow(row: any): A9ConversationRecord {

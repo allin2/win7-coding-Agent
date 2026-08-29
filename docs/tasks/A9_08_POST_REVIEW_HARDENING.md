@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: WIN7-19 / 781b20e3da277570f85c28286d7ea5bbbdd5fa28
 Current Stage: A9-08
-Current Stage Status: A9_08C_PROCESS_LIFECYCLE_PASS
+Current Stage Status: A9_08D_CHECKPOINT_STATE_PASS
 Target Candidate: WIN7-20
 Win7 Validation: NOT_PERFORMED_FOR_WIN7_20
 Decision: ADR-0100
@@ -49,9 +49,9 @@ Accepted ADR 和 WIN7-19 证据。
 | A9R-05 | TLS 验证不得关闭；CA 缺失必须 fail-closed | implemented | 主进程拒绝 insecure 配置，Provider 拒绝缺失 CA | TLS/IPC 合同测试 PASS | TLS/CA 负向 |
 | A9R-06 | 正式 A9 Shell 使用已锁定 D-013 helper；清理结果不得虚报 | implemented | 接入 helper transport；无法证明整树清理时报告 residue | 正式 composition 与进程树测试 PASS | 双 Stop、崩溃、退出零残留 |
 | A9R-07 | 无法清理时保留可操作窗口和锁，用户可重试/选择退出 | implemented | 关闭前完成退出决策；阻断时不销毁唯一窗口 | Electron 生命周期测试 PASS | recovered PID/退出锁 |
-| A9R-08 | checkpoint undo 不得恢复错对象或删除 Turn 后数据 | divergent | 目录树哈希、无碰撞快照身份、漂移拒绝、undo 持久化 | 目录/重启/篡改测试 | checkpoint/undo 增量矩阵 |
-| A9R-09 | 对话操作必须受当前工作区约束 | divergent | restore/rename 验证 canonical workspace | 跨工作区负向测试 | 对话隔离抽样 |
-| A9R-10 | v2→v4 迁移整体原子，真实 A8 物理库只读白名单导入 | divergent | 单一恢复边界或失败自动还原；显式 A8 source path | 故障注入与物理布局迁移测试 | v3→v4/回滚/fail-closed |
+| A9R-08 | checkpoint undo 不得恢复错对象或删除 Turn 后数据 | implemented | 目录树哈希、无碰撞快照身份、漂移拒绝、undo 持久化 | 目录/重启/篡改测试 PASS | checkpoint/undo 增量矩阵 |
+| A9R-09 | 对话操作必须受当前工作区约束 | implemented | restore/rename 验证 canonical workspace | 跨工作区负向测试 PASS | 对话隔离抽样 |
+| A9R-10 | v2→v4 迁移整体原子，真实 A8 物理库只读白名单导入 | implemented | 单一恢复边界或失败自动还原；显式 A8 source path | 故障注入与物理布局迁移测试 PASS | v3→v4/回滚/fail-closed |
 
 ## 4. 批次和 Gate
 
@@ -96,6 +96,20 @@ Accepted ADR 和 WIN7-19 证据。
   可操作 UI，正常清理后才允许窗口关闭/应用退出。
 - Runner 定向合同 32/32、Shell 生命周期/产品/窗口/包合同 43/43、Runner TypeScript 与 Shell
   JavaScript/diff 检查通过。Win7 上 helper 前后台、双 Stop、崩溃恢复、recovered PID 和退出零残留仍为必验。
+
+### 4.4 A9-08D checkpoint 与状态迁移检查点（2026-08-29）
+
+- Checkpoint 清单升级为 v4：目录快照使用相对路径 SHA-256 身份，保存并校验确定性目录树哈希；创建目录
+  出现 Turn 后数据、目录漂移或快照篡改时拒绝自动覆盖/删除。undo 成功身份持久化，重启或重复点击不会
+  再次作用于文件系统。工作区外变化只保存显式 `outside/unrecoverable` 事实，不从可篡改清单自动恢复外部路径。
+- 对话重命名与恢复在持久化层同时验证当前 canonical workspace；仅知道其他工作区的 conversationId
+  不足以修改或激活该对话。
+- v2→v3→v4 使用单一 SQLite transaction，后段故障会连同前段 DDL 和 schema marker 一起回滚；正式
+  Runtime 显式传入 `userData/state/agent-events-v2.db`，以只读连接从真实 A8 物理库只导入工作区白名单，
+  不导入会话、任务、审批、Provider 或秘密，也不写回 A8。
+- Workspace 全包 17 suites / 142 tests、State 全包 20 suites / 269 tests 通过；Shell 受影响产品入口
+  22 tests 通过，Shell 全包在补齐构建前置后累计 290 tests 通过。相关 TypeScript、JavaScript syntax、
+  diff 检查通过。此结果不替代 WIN7-20 的 checkpoint/undo、跨对话隔离与迁移回滚实机复验。
 
 ## 5. 完成条件
 

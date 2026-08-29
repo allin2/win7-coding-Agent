@@ -231,6 +231,40 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     check.close();
   });
 
+  it('rolls back the entire v2-to-v4 chain when the v4 step fails after v3 succeeded', () => {
+    const legacy = new Database(env.dbPath);
+    legacy.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, 2, '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+      CREATE TABLE a9_turns (
+        turn_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, session_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active','completed','completed_with_warnings','blocked','cancelled','interrupted')),
+        outcome_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_turns VALUES ('turn-preserved', 'task', 'session', 'blocked', '{}',
+        '2026-08-22T00:00:00.000Z', '2026-08-22T00:00:00.000Z');
+      CREATE TABLE a9_sessions (
+        session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, title TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+    `);
+    legacy.close();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('diagnostics');
+
+    const check = new Database(env.dbPath, { readonly: true });
+    expect(check.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get()).toEqual({ schema_version: 2 });
+    const turnSql = (check.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='a9_turns'").get() as any).sql;
+    expect(turnSql).not.toContain("'failed'");
+    expect(check.prepare("SELECT status FROM a9_turns WHERE turn_id='turn-preserved'").get()).toEqual({ status: 'blocked' });
+    expect(check.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a9_turns_pre_v3'").get()).toBeUndefined();
+    check.close();
+  });
+
   it('enters restricted diagnostics for corrupted databases without overwriting', () => {
     fs.writeFileSync(env.dbPath, 'this is definitely not a sqlite database', 'utf8');
     const before = fs.readFileSync(env.dbPath, 'utf8');
@@ -261,6 +295,40 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(fs.existsSync(outcome.backupPath!)).toBe(true);
     // 白名单导入：模式为 review（保守），不默认 Full Access。
     expect(outcome.manager.getWorkspaceMode('C:/proj/legacy')).toBe('review');
+  });
+
+  it('imports the real physical A8 database read-only without copying sessions or credentials', () => {
+    const a8Path = path.join(env.dataRoot, 'state', 'agent-events-v2.db');
+    fs.mkdirSync(path.dirname(a8Path), { recursive: true });
+    const a8 = new Database(a8Path);
+    a8.exec(`
+      CREATE TABLE a8_workspaces (workspace_path TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE a8_sessions (session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, provider_secret TEXT);
+      INSERT INTO a8_workspaces VALUES ('C:/physical/a8', '2026-01-01T00:00:00.000Z');
+      INSERT INTO a8_sessions VALUES ('legacy-secret-session', 'C:/physical/a8', 'DO_NOT_IMPORT');
+    `);
+    a8.close();
+    const before = sha256(a8Path);
+    const opens: Array<{ databasePath: string; readonly: boolean }> = [];
+    const trackedOpen = (databasePath: string, options?: { readonly?: boolean }): SqliteDatabase => {
+      opens.push({ databasePath, readonly: options?.readonly === true });
+      return openReal(databasePath, options);
+    };
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath,
+      a8DatabasePath: a8Path,
+      openDatabase: trackedOpen,
+      dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    expect(opens).toContainEqual({ databasePath: a8Path, readonly: true });
+    expect(sha256(a8Path)).toBe(before);
+    expect(outcome.importedA8Workspaces).toBe(1);
+    expect(outcome.manager.getWorkspaceMode('C:/physical/a8')).toBe('review');
+    expect(outcome.manager.db.prepare("SELECT session_id FROM a9_sessions WHERE session_id='legacy-secret-session'").get()).toBeUndefined();
   });
 
   it('marks active tasks/turns/runs interrupted on restart without replay', () => {
@@ -397,8 +465,8 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
 
     manager.maybeSetAutomaticTitle('a9c-first', '  第一行\n\t第二行  ');
     expect(manager.listConversations('C:/workspace')[0].title).toBe('第一行 第二行');
-    expect(() => manager.renameConversation('a9c-first', 'bad\u0007title')).toThrow('A9_CONVERSATION_TITLE_INVALID');
-    expect(manager.renameConversation('a9c-first', '手工标题').titleSource).toBe('manual');
+    expect(() => manager.renameConversation('a9c-first', 'bad\u0007title', 'C:/workspace')).toThrow('A9_CONVERSATION_TITLE_INVALID');
+    expect(manager.renameConversation('a9c-first', '手工标题', 'C:/workspace').titleSource).toBe('manual');
 
     manager.setConversationDraftCiphertext('a9c-first', 'BASE64_CIPHERTEXT_ONLY');
     expect(manager.getConversationDraftCiphertext('a9c-first')).toBe('BASE64_CIPHERTEXT_ONLY');
@@ -410,8 +478,26 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(fallback?.sessionId).toBe('a9c-first');
     expect(manager.getActiveConversationId('C:/workspace')).toBe('a9c-first');
     expect(manager.getConversationDraftCiphertext('a9c-second')).toBeNull();
-    expect(manager.restoreConversation('a9c-second').state).toBe('active');
+    expect(manager.restoreConversation('a9c-second', 'C:/workspace').state).toBe('active');
     expect(manager.getActiveConversationId('C:/workspace')).toBe('a9c-second');
+  });
+
+  it('rejects rename and restore when the conversation belongs to another workspace', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    manager.createConversation('foreign-conversation', 'C:/workspace-a');
+    manager.archiveConversation('foreign-conversation');
+
+    expect(() => manager.renameConversation('foreign-conversation', 'crossed', 'C:/workspace-b'))
+      .toThrow(expect.objectContaining({ code: 'A9_CONVERSATION_WORKSPACE_MISMATCH' }));
+    expect(() => manager.restoreConversation('foreign-conversation', 'C:/workspace-b'))
+      .toThrow(expect.objectContaining({ code: 'A9_CONVERSATION_WORKSPACE_MISMATCH' }));
+    expect(manager.listConversations('C:/workspace-a')[0]).toEqual(expect.objectContaining({
+      title: '新对话',
+      state: 'archived',
+    }));
   });
 
   it('archives the last conversation and creates its replacement atomically', () => {

@@ -101,6 +101,7 @@ function createA9AgentRuntime(options) {
 
   const persistenceOutcome = modules.state.A9PersistenceManager.open({
     databasePath: path.join(dataRoot, 'a9-state.db'),
+    ...(config.a8DatabasePath ? { a8DatabasePath: config.a8DatabasePath } : {}),
     openDatabase: resolvedOpenDatabase,
     dataRoot,
   });
@@ -542,7 +543,7 @@ function createA9AgentRuntime(options) {
   }
 
   function renameConversation(sessionId, title) {
-    const record = persistence.renameConversation(String(sessionId), String(title));
+    const record = persistence.renameConversation(String(sessionId), String(title), canonicalWorkspace);
     if (record.sessionId === a9SessionId) activeConversation = record;
     return { ok: true, conversation: record };
   }
@@ -560,7 +561,7 @@ function createA9AgentRuntime(options) {
 
   function restoreConversation(sessionId) {
     assertConversationSwitchAllowed();
-    return loadConversation(persistence.restoreConversation(String(sessionId)));
+    return loadConversation(persistence.restoreConversation(String(sessionId), canonicalWorkspace));
   }
 
   function ensureRuntime() {
