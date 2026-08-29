@@ -16,17 +16,19 @@
 
 规则缺失、任务书未授权或文档冲突时，停止相关实现并报告；不得自行扩大范围。
 
-## 2. 当前阶段：A9-08 后置独立审查修复
+## 2. 当前阶段：A9-09 D-013 TrustedShell Current-User Profile
 
-- 当前任务：`docs/tasks/A9_08_POST_REVIEW_HARDENING.md`，状态 `APPROVED_FOR_IMPLEMENTATION`。
+- 当前任务：`docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`；
+  A9-08 授权范围内修复、全量验证和三路独立复核已经 PASS，但其最终阶段签发被 D-013 合同阻断。
 - 交付分支：`codex/a9-trusted-agent-runtime`；版本：`0.3.0-alpha.1`；目标候选：WIN7-20。
   WIN7-19 仍是不可变历史验收里程碑，但后置独立审查发现未覆盖 P1，当前综合状态为
-  `FIX_BEFORE_ALPHA`，PR #3 在 A9-08 完成前不得合并。
+  `FIX_BEFORE_ALPHA`，PR #3 在 A9-09 与 WIN7-20 Gate 完成前不得合并。
 - ADR-0096 将 Alpha 1 支持范围收敛为 Full Access 与 Read Only；完整 Review 工作流延期至
   `0.3.0-alpha.2`。WIN7-10 中仍可见但无后端的 Review 是已知限制，只能 fail-closed，不能算 Alpha 1
   支持能力或 Review PASS，也不得静默提升为 Full Access。
-- 当前状态：按 ADR-0100 分四批修复审批/IPC、秘密/Provider/TLS、进程生命周期和 checkpoint/迁移；
-  完成全量验证、第二轮独审和 WIN7-20 增量实机复验后，才能恢复 `GO_FOR_ALPHA`。最新事实见
+- 当前状态：ADR-0101 已授权独立的 D-013 v25 / 协议 v2 /
+  `a9-trusted-shell-current-user-v1`，保留 v24 Low-Risk Profile 和全部历史证据。完成锁定构建、产品装配、
+  独立复核和 WIN7-20 增量实机复验后，才能恢复 `GO_FOR_ALPHA`。最新事实见
   `docs/STATUS.md` 与 `docs/tasks/README.md`。
 - A9 在可信工作区提供 Full Access、TrustedShell 和真实 Git；这不是安全沙箱。A9 对 C08/C09/C20 的局部替代仅以 ADR-0089 和 A9 任务书为准，不外推至历史任务或其他分支。
 - A9 仍必须经过 Schema IPC、Core/Policy、目标绑定批准与审计，并保留取消、输出上限、进程树清理、凭据脱敏、TLS 默认验证、checkpoint、Renderer 隔离和 Win7 实机硬门槛。
@@ -34,8 +36,9 @@
 ## 3. 开始任务前必须读取
 
 1. 所有任务先读本文件。
-2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9-08 工作同时读
-   `docs/tasks/A9_08_POST_REVIEW_HARDENING.md` 与 `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
+2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9-09 工作同时读
+   `docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`、`docs/tasks/A9_08_POST_REVIEW_HARDENING.md` 与
+   `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
 3. 按任务需要读取架构、安全、评估、PRD、ADR 或状态文档；不要无条件加载全部历史资料。
 4. 处理历史阶段时，按 `docs/tasks/README.md` 定位其任务书和分支合同；A9 授权不适用。
 
@@ -80,7 +83,7 @@
 | 主题 | 权威来源 |
 |---|---|
 | Win7、C01–C20、Runtime Profile、依赖登记 | `docs/WIN7_CONSTRAINTS.md` |
-| A9 范围、允许路径、验收与非目标 | `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md` |
+| A9 当前实现授权、范围与验收 | `docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`、`docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md` |
 | A9 产品需求与 Full Access 裁决 | `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`、ADR-0089 |
 | 当前状态与任务索引 | `docs/STATUS.md`、`docs/tasks/README.md` |
 | 架构、安全与评估 | `docs/ARCHITECTURE.md`、`docs/SECURITY.md`、`docs/EVALUATION.md` |

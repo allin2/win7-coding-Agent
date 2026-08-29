@@ -1401,3 +1401,51 @@
 - 后果：风险通过不可变基线、小提交和增量实机复验控制，不靠把已知 P1 提前合并进 `main`。修复可能扩大
   WIN7-20 的复验范围，特别是审批、秘密、Provider/TLS、进程、checkpoint 和迁移；开发机通过不能替代
   Win7。Alpha 2 Review 继续不在本任务范围。
+
+## ADR-0101 A9 TrustedShell 使用 D-013 Current-User Full Access Profile 与协议 v2
+
+- 状态：Accepted（2026-08-29，项目负责人批准按独立 Profile 解除 A9-08 的 D-013 合同阻断）
+- 背景：A9-08 已关闭授权范围内的审批、秘密、Provider/TLS、进程真实性、checkpoint 和迁移缺陷，开发机
+  1482 项验证与三路独立复核均通过；但锁定的 `D-013-v24-low-risk-noninteractive` 只允许 System32
+  低风险白名单，强制 Restricted Token、Low Integrity 和固定总超时，协议也没有 A9 要求的
+  `envOverlay`、真实无 deadline 与托管后台 ready acknowledgement。直接让 A9 使用 v24 会出现“产品宣称
+  Full Access、底层仍按低权限 Runner 执行”的合同冲突；移除 Job、取消或清理证明又会违反 ADR-0089 和
+  仓库进程安全红线。A9-08 没有修改 `native/helper/**`、原生协议或 release input lock 的授权，不能以
+  JavaScript 回退或伪造 helper 回执绕过阻断。
+- 决策：（1）D-013 v24、协议 v1、既有哈希和 A7/A8/WIN7-19 历史证据保持不可变，继续只解释为
+  `low-risk-noninteractive` Profile；新增 D-013 v25、协议 v2 和
+  `a9-trusted-shell-current-user-v1` Profile，专用于 A9 TrustedShell。新 Profile 使用当前 Windows 普通
+  用户 Primary Token，不创建 Restricted Token、不降为 Low Integrity、不修改工作目录 DACL/Integrity
+  Label；继续建立独立 Job Object、关闭 child stdin、有界捕获双流并管理整棵进程树。回执必须如实声明
+  `tokenMode=current_user`、`restrictedToken=false`、`lowIntegrity=false`、`workDirAclModified=false`，
+  不得复用 v24 的减权证明字段冒充成功。（2）自动 Shell 只接受规范化的 Windows PowerShell 或
+  `%SystemRoot%\\System32\\cmd.exe`；工作区显式 Shell（包括可选 Git Bash）必须由用户设置产生，绑定
+  canonical executable path、文件身份/哈希和版本，模型或 Renderer 不能在单次工具参数中注册任意宿主。
+  helper 只验证已绑定 Shell 宿主，不把完整命令内容伪装成可执行文件白名单；Shell 内命令、项目脚本、Git
+  hooks/helpers 和网络副作用继续按 ADR-0089 的当前用户 Full Access 风险解释，并经过 Schema IPC、Policy、
+  目标绑定审批、审计和 checkpoint。（3）协议 v2 请求至少包含 `requestId`、`profileId`、Shell 身份、
+  `command`、canonical `cwd`、`envOverlay`、双流上限、`managed`、`deadlineMode=none|fixed` 和可选
+  `timeoutMs/idleTimeoutMs`。默认继承当前用户环境并叠加受验证的工作区设置；Provider/API Key 不注入
+  Shell，环境值不得进入回执、事件、日志、SQLite、checkpoint 或诊断包，且必须拒绝弱化 TLS、Electron/
+  Node 边界的控制变量。（4）`deadlineMode=none` 表示不存在人为总/空闲 deadline，不能映射为一小时或
+  其他固定上限；输出预算、软时长提示、用户 Stop、应用退出裁决和 Job 回收仍为硬门槛。显式 deadline
+  使用单调时钟，并与取消、最终结果和清理证明区分。（5）托管后台启动采用同一 stdio 控制通道的多消息
+  协议：helper 只有在 child 已创建、stdin 已断开、双流捕获已就绪且 child Job 归属已复核后，才返回严格
+  绑定 `requestId` 的 `execution_started`；产品收到并持久化该消息前不得显示“已启动”。25ms 固定等待或
+  仅凭 PID 存在均不是 ready 证明；最终 `execution_result`、合作取消和重复 Stop 继续绑定同一身份。
+  （6）v25 保留 ADR-0069 的 Win7 Electron Job/breakaway 检查和 ADR-0071 的合作取消；无法确认 Job 分配、
+  双流状态、整树退出或最终回执时一律 `cleanup_required`，窗口与工作区锁按 ADR-0100 保持可操作，禁止
+  虚报零残留。当前用户 Full Access 不宣称文件系统、网络或权限隔离，不自动提权，也不授权修改系统 PATH、
+  服务、注册表、防火墙、TLS/SSH 校验或安装 WMF。（7）新增
+  `A9_09_D013_TRUSTED_SHELL_PROFILE`，授权 `native/helper/**`、Runner/Shell 适配、D-017 锁定构建、A9
+  input lock、打包与验证套件的最小修改；不新增运行时依赖，不实现交互终端、Alpha 2 Review 或无关重构。
+  D-013 v25 必须由锁定的 VS2019/v142/SDK 10.0.19041 Profile 形成源码到 PE x64/CRT/API/哈希闭包，旧 v24
+  工件和候选不得原地覆盖。（8）Win10 双构建一致与静态/协议 smoke 通过后才能签发 WIN7-20；Win7 SP1 x64
+  普通用户必须验证 PowerShell 5.1/CMD/显式 Shell、中文空格/junction/近 MAX_PATH、环境覆盖、前后台、
+  无 deadline、双 Stop、崩溃恢复、recovered PID、退出锁、零残留和秘密扫描。按 ADR-0097 仅继承未受
+  影响的 WIN7-19 证据；WIN7-20 重新取得 `GO_FOR_ALPHA` 前 PR #3 仍不得合并。
+- 后果：A9 可以在不虚构 Win7 沙箱的前提下真正使用当前普通用户权限运行 Shell，同时保留 Job、取消、
+  输出、审批、checkpoint 和诚实残留报告。代价是增加一个原生 Profile、协议版本、构建工件和实机矩阵；
+  v24 与 v25 必须分别锁定和解释。本 ADR 仅针对 A9 Current-User Profile，局部取代 ADR-0067“任意 Shell
+  始终拒绝”和 ADR-0068“仅低风险固定程序 Profile”的限制；ADR-0067/0068/0069/0071/0072 对历史
+  Low-Risk Profile、A7/A8 与既有候选继续有效，不追溯改写其证据。
