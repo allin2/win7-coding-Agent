@@ -14,7 +14,8 @@
 - Windows 10 x64；PowerShell 5.1 或更高。
 - Visual Studio 2019 16.11 Build Tools，MSVC v142 14.29 x64。
 - Windows SDK `10.0.19041.0`，含 x64 `mt.exe`。
-- 链接固定 `/Brepro /INCREMENTAL:NO`，两次 helper 字节必须一致。
+- 编译固定 `/Brepro /experimental:deterministic`，并把每次不同的 kit 根映射为
+  `C:\a9-v25-kit`；链接固定 `/Brepro /INCREMENTAL:NO`，两次 helper 字节必须一致。
 - 从 “x64 Native Tools Command Prompt for VS 2019” 运行；正常构建 `network_required=false`。
 - 不需要 CMake、Python、Node，也不安装或下载任何组件。
 - 每次解压到新的短英文目录；两次构建不能复用 `work/`、`output/` 或 `evidence/`。

@@ -562,13 +562,14 @@ try {
     Ensure-Directory $ResultRoot
     $srcDir = Join-Path $KitRoot "src"
     $common = $profile.build_flags.compile | ForEach-Object { [string]$_ }
+    $pathMap = "/pathmap:$KitRoot=C:\a9-v25-kit"
     $logicObjDir = Join-Path $WorkRoot "logic-obj"
     Ensure-Directory $logicObjDir
     $logicSources = @('logic_tests.cpp', 'json_parser.cpp', 'argv_builder.cpp', 'whitelist.cpp', 'protocol.cpp')
     $logicObjects = @()
     foreach ($source in $logicSources) {
         $obj = Join-Path $logicObjDir ($source -replace '\.cpp$', '.obj')
-        & $cl @common "/I$srcDir" "/Fo$obj" "/c" (Join-Path $srcDir $source)
+        & $cl @common $pathMap "/I$srcDir" "/Fo$obj" "/c" (Join-Path $srcDir $source)
         if ($LASTEXITCODE -ne 0) {
             $logicStatus = "FAIL"
             throw "cl.exe failed for logic test source $source (exit $LASTEXITCODE)."
@@ -605,7 +606,7 @@ try {
     $objects = @()
     foreach ($source in $sources) {
         $obj = Join-Path $objDir ($source -replace '\.cpp$', '.obj')
-        & $cl @common "/I$srcDir" "/Fo$obj" "/c" (Join-Path $srcDir $source)
+        & $cl @common $pathMap "/I$srcDir" "/Fo$obj" "/c" (Join-Path $srcDir $source)
         if ($LASTEXITCODE -ne 0) { throw "cl.exe failed for $source (exit $LASTEXITCODE)." }
         $objects += $obj
     }

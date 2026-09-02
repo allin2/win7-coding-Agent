@@ -160,6 +160,14 @@ if (cancelPollIndex < 0 || rollbackIndex < 0 || cancelPollIndex > rollbackIndex 
   throw new Error('helper.cpp must cooperatively cancel the Job and complete ACL rollback before acknowledgement');
 }
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
+const buildProfile = fs.readFileSync(path.join(HERE, 'build-profile.json'), 'utf8');
+if (!/"\/Brepro"/.test(buildProfile) ||
+    !/"\/experimental:deterministic"/.test(buildProfile) ||
+    !/"path_map"\s*:\s*"<kit-root>=C:\\\\a9-v25-kit"/.test(buildProfile) ||
+    !/\$pathMap\s*=\s*"\/pathmap:\$KitRoot=C:\\a9-v25-kit"/.test(buildScript) ||
+    (buildScript.match(/& \$cl @common \$pathMap/g) || []).length !== 2) {
+  throw new Error('build profile must normalize compile paths for byte-identical independent builds');
+}
 const inheritedNamesBlock = buildScript.match(/\$blockedInheritedNames\s*=\s*@\(([^)]*)\)/);
 const inheritedNames = new Set(Array.from((inheritedNamesBlock && inheritedNamesBlock[1] || '')
   .matchAll(/['"]([A-Z][A-Z0-9_]*)['"]/g), (match) => match[1]));
