@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09B_R6_APPROVED_FOR_WIN10_BUILD
+Current Stage Status: A9_09B_R7_APPROVED_FOR_WIN10_BUILD
 Target Candidate: WIN7-20
 Phase-Gate: A9_09B_READY_FOR_WIN10_DOUBLE_BUILD
 Win7-Validation: WIN7_20_NOT_PERFORMED
@@ -268,4 +268,12 @@ VS2019 环境后的 r5 在 MSVC/Windows headers 下暴露 `std::max` 与 Win32 `
 `(std::max)(...)` 最小修复提交为 `7f43dec19612bafba1bb94e5ecb261cd87508f80`。r5 随即标记撤销，不复用
 失败目录；新 r6 ZIP SHA-256 为 `4d7985d4668eb902f4863efcb3fa43e29fa105371275ce2d234f540e6438922c`，
 input lock 为 `104b4aca3b4cf59286ff161659a48e0c95511dc8a5df8bab06848343e825c8c5`，package manifest 为
-`da90075f88bef297ab234afd7f7404d2f96e8e05c53a0c9954802ed0a578b5c8`。当前只允许 r6 进入新的双构建目录。
+`da90075f88bef297ab234afd7f7404d2f96e8e05c53a0c9954802ed0a578b5c8`。当时只允许 r6 进入新的双构建目录。
+
+r6 在无 Host Job 的 WMI 启动路径完成编译、链接、PE/API/CRT 与 v1 执行，但外层检测到受保护目录回滚后
+DACL 多出 `SE_DACL_AUTO_INHERITED` 控制位。Win10 独立 API 探针复现：`SetNamedSecurityInfoW` 会加入
+该位，而用捕获的原始描述符调用 `SetFileSecurityW` 可恢复原 SDDL。修复提交
+`9fa02c3b6503e71aae8f0c889d5dbc61e30a8776` 改为恢复原描述符并同时核对 DACL 控制位；r6 已撤销。
+新 r7 ZIP SHA-256 为 `f5bf50a5e127978a59b7ffd35a40d74423efee8a23dbd16147d2fb660b8cdafb`，input lock 为
+`71c7a797cbcc9bbda93ccb2b9f948446f32f8349dae4539c77299bd259c87081`，package manifest 为
+`320ea758da5d49b2e4a21c83528ce643c11a85ac059c383a2210a4af4cc38f98`；当前只允许 r7 进入后续新目录。

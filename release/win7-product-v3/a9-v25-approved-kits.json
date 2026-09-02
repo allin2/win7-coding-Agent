@@ -26,6 +26,15 @@
       "source_commit": "7f43dec19612bafba1bb94e5ecb261cd87508f80",
       "input_lock_sha256": "104b4aca3b4cf59286ff161659a48e0c95511dc8a5df8bab06848343e825c8c5",
       "package_manifest_sha256": "da90075f88bef297ab234afd7f7404d2f96e8e05c53a0c9954802ed0a578b5c8",
+      "status": "REVOKED_AFTER_WIN10_DACL_CONTROL_ROLLBACK_FAILURE"
+    },
+    {
+      "revision": "20260902-r7",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r7.zip",
+      "sha256": "f5bf50a5e127978a59b7ffd35a40d74423efee8a23dbd16147d2fb660b8cdafb",
+      "source_commit": "9fa02c3b6503e71aae8f0c889d5dbc61e30a8776",
+      "input_lock_sha256": "71c7a797cbcc9bbda93ccb2b9f948446f32f8349dae4539c77299bd259c87081",
+      "package_manifest_sha256": "320ea758da5d49b2e4a21c83528ce643c11a85ac059c383a2210a4af4cc38f98",
       "status": "APPROVED_FOR_RETURN_RECORDING"
     }
   ]
