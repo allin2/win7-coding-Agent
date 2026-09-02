@@ -62,6 +62,15 @@
       "source_commit": "0e134d54cb4d26fb761355272b151aa785643056",
       "input_lock_sha256": "3e9d49848860a5aaa024f91c60b9c005aa94acb34ef536304749c6135936ec65",
       "package_manifest_sha256": "7abaa864353d2ea3052a9e7cc6d991a1ad7bb51d1b62a82ecc492f523683c28a",
+      "status": "REVOKED_AFTER_HELPER_LAMBDA_PATH_NONDETERMINISM"
+    },
+    {
+      "revision": "20260903-r11",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r11.zip",
+      "sha256": "7aeceef0201023757abd4c968b16ef09d70bcc678b3ee826575d33a73cc8378b",
+      "source_commit": "bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a",
+      "input_lock_sha256": "a29d6ebeb26b0aac3bd8ced9fd3e9ab5580bade3896088d3c1619b768b8a76e9",
+      "package_manifest_sha256": "ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb",
       "status": "APPROVED_FOR_RETURN_RECORDING"
     }
   ]

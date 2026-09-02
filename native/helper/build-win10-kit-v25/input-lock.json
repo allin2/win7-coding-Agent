@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-V25-CURRENT-USER-X64",
-  "source_commit": "0e134d54cb4d26fb761355272b151aa785643056",
-  "source_commit_timestamp": "2026-09-03T00:14:43+08:00",
-  "generated_at": "2026-09-03T00:14:43+08:00",
+  "source_commit": "bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a",
+  "source_commit_timestamp": "2026-09-03T00:25:49+08:00",
+  "generated_at": "2026-09-03T00:25:49+08:00",
   "sources": [
     {
       "path": "src/helper.cpp",
@@ -62,13 +62,13 @@
     },
     {
       "path": "build.ps1",
-      "size": 57828,
-      "sha256": "b7b36245ae035df9327bfde3787c5a9c73aad27dee25296a0ee044ac7412e856"
+      "size": 58218,
+      "sha256": "6522de399a85c605c25a5f8e9706456b023933ed7425a3cc2fe51a0486049c0d"
     },
     {
       "path": "build-profile.json",
-      "size": 3733,
-      "sha256": "657c2bb542c8f197169d191d0f59e349c2d1495309c998ab9eca757f7a3287ba"
+      "size": 3826,
+      "sha256": "94806c322491e3bf1a50a5418c8fbce8b3e5238685476d242df22694532edde2"
     },
     {
       "path": "helper.exe.manifest",
@@ -78,12 +78,12 @@
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "3850963a9c46cff145c6d4bf74f57f92fefeabc4f88d55fce7451c559455ea47"
+      "sha256": "ea34ef46316d97cfba3bb3fa2ce99720efe1d61589f3aa8532732fcdd4de2c62"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
       "size": 26,
-      "sha256": "ae5b3a41c4ab00354338188e3799be4e930fdbd87de96e156306d1f66069fbcc"
+      "sha256": "c9731cfb719292ca825b4516222eb289d675520dfc42743dcc5ae98e02350c40"
     }
   ]
 }

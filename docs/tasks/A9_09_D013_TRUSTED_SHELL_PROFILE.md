@@ -301,4 +301,13 @@ r9 随后在 Win10 上以两个无 Host Job 的全新 WMI 进程完成全部构�
 `0e134d54cb4d26fb761355272b151aa785643056` 固化该配置和 fail-closed 契约，r9 已撤销。新 r10 ZIP
 SHA-256 为 `9a267b4a8b43ebd5b83b0fd67111b10b38f04b9e2f0825e8df711ce263d46583`，input lock 为
 `3e9d49848860a5aaa024f91c60b9c005aa94acb34ef536304749c6135936ec65`，package manifest 为
-`7abaa864353d2ea3052a9e7cc6d991a1ad7bb51d1b62a82ecc492f523683c28a`；当前只允许 r10 进入两个新目录。
+`7abaa864353d2ea3052a9e7cc6d991a1ad7bb51d1b62a82ecc492f523683c28a`；当时只允许 r10 进入两个新目录。
+
+r10 两个全新 WMI 构建再次全部通过，但仅 `helper.obj` 与最终 EXE 不同。COFF 符号比较显示 MSVC lambda
+内部名称仍受传给编译器的绝对源码参数影响；Win10 直接探针从各自 kit 根运行，并改用相同的相对
+source/include/object 参数后，两个 helper 对象 SHA-256 均为
+`bf466ce793aacbebe0709abb6bfbc7d893343fb2e1f838ae0071c136bce12f14`。修复提交
+`bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a` 固化相对参数和对应 fail-closed 契约，r10 已撤销。新 r11 ZIP
+SHA-256 为 `7aeceef0201023757abd4c968b16ef09d70bcc678b3ee826575d33a73cc8378b`，input lock 为
+`a29d6ebeb26b0aac3bd8ced9fd3e9ab5580bade3896088d3c1619b768b8a76e9`，package manifest 为
+`ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb`；当前只允许 r11 进入两个新目录。
