@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r5/r6 Win10 依次暴露并修复 MSVC 宏冲突与 DACL 控制位回滚，r7 构建套件已批准，`A9_09B_READY_FOR_WIN10_DOUBLE_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r5～r7 Win10 依次暴露并修复 MSVC 宏冲突、DACL 控制位回滚与 CMD smoke 条件链，r8 构建套件已批准，`A9_09B_READY_FOR_WIN10_DOUBLE_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -24,6 +24,11 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-02，r7 通过精确 ACL 回滚后暴露 CMD `if defined ... & echo` 条件链吞掉最终 marker；Win10
+  直接对照已复现并确认 `if ... else if ... else echo` 语法。修复提交为
+  `e3e778bdf62e22777e58e9eb7370de38c3ab3926`，PowerShell 5.1 前置自测现真实验证 marker；r7 已撤销。
+  新 r8 ZIP、input lock、package manifest SHA-256 分别为 `64772425…5e35`、`0e2e2f73…22f8`、
+  `005abf83…39e7`，等待全新双构建。
 - 2026-09-02，r6 在无 Host Job 路径完成原生构建后发现 DACL 回滚会新增 `SE_DACL_AUTO_INHERITED`；
   Win10 API 探针证明用捕获的原始安全描述符调用 `SetFileSecurityW` 可精确恢复。修复提交为
   `9fa02c3b6503e71aae8f0c889d5dbc61e30a8776`，r6 已撤销；新 r7 ZIP、input lock、package manifest

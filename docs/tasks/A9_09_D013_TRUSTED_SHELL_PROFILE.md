@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09B_R7_APPROVED_FOR_WIN10_BUILD
+Current Stage Status: A9_09B_R8_APPROVED_FOR_WIN10_BUILD
 Target Candidate: WIN7-20
 Phase-Gate: A9_09B_READY_FOR_WIN10_DOUBLE_BUILD
 Win7-Validation: WIN7_20_NOT_PERFORMED
@@ -276,4 +276,12 @@ DACL 多出 `SE_DACL_AUTO_INHERITED` 控制位。Win10 独立 API 探针复现�
 `9fa02c3b6503e71aae8f0c889d5dbc61e30a8776` 改为恢复原描述符并同时核对 DACL 控制位；r6 已撤销。
 新 r7 ZIP SHA-256 为 `f5bf50a5e127978a59b7ffd35a40d74423efee8a23dbd16147d2fb660b8cdafb`，input lock 为
 `71c7a797cbcc9bbda93ccb2b9f948446f32f8349dae4539c77299bd259c87081`，package manifest 为
-`320ea758da5d49b2e4a21c83528ce643c11a85ac059c383a2210a4af4cc38f98`；当前只允许 r7 进入后续新目录。
+`320ea758da5d49b2e4a21c83528ce643c11a85ac059c383a2210a4af4cc38f98`；当时只允许 r7 进入后续新目录。
+
+r7 随后通过精确 ACL 回滚，但 v2 smoke 的 CMD 单行语法把 `& echo` 继续并入未命中的 `if defined` 条件，
+导致 child 正常退出而 marker 为空。Win10 直接对照确认应使用完整 `if ... else if ... else echo` 链。
+修复提交 `e3e778bdf62e22777e58e9eb7370de38c3ab3926` 让正式 smoke 与 PowerShell 5.1 前置自测共享同一命令，
+并在编译前真实启动系统 CMD 检查 marker；r7 已撤销。新 r8 ZIP SHA-256 为
+`64772425a0de8d21252f7d1b22179f074e59ac502184ed1faade9b8988885e35`，input lock 为
+`0e2e2f735c54d7d16d2ddac70aeb0ead489220fa95d2b8a17bc3af827b3322f8`，package manifest 为
+`005abf83afb45f70499fd843fa97069837c296a743a93b79defb281b405539e7`；当前只允许 r8 进入后续新目录。
