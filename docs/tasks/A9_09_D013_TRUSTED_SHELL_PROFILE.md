@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09B_R8_APPROVED_FOR_WIN10_BUILD
+Current Stage Status: A9_09B_R9_APPROVED_FOR_WIN10_BUILD
 Target Candidate: WIN7-20
 Phase-Gate: A9_09B_READY_FOR_WIN10_DOUBLE_BUILD
 Win7-Validation: WIN7_20_NOT_PERFORMED
@@ -284,4 +284,11 @@ r7 随后通过精确 ACL 回滚，但 v2 smoke 的 CMD 单行语法把 `& echo`
 并在编译前真实启动系统 CMD 检查 marker；r7 已撤销。新 r8 ZIP SHA-256 为
 `64772425a0de8d21252f7d1b22179f074e59ac502184ed1faade9b8988885e35`，input lock 为
 `0e2e2f735c54d7d16d2ddac70aeb0ead489220fa95d2b8a17bc3af827b3322f8`，package manifest 为
-`005abf83afb45f70499fd843fa97069837c296a743a93b79defb281b405539e7`；当前只允许 r8 进入后续新目录。
+`005abf83afb45f70499fd843fa97069837c296a743a93b79defb281b405539e7`；当时只允许 r8 进入后续新目录。
+
+r8 继续通过 CMD marker，但禁止 overlay 响应按既有协议返回顶层 `error: JSON_PARSE_FAILED`，新增构建脚本和
+返回记录器却读取不存在的 `code` 字段，PowerShell StrictMode 因此 fail-closed。原生协议注释与逻辑测试均
+确认 `error` 是既有字段。提交 `bc26e5835b479be7fff1a23150d07f7868baacfe` 同步修正两个消费者和夹具，
+r8 已撤销。新 r9 ZIP SHA-256 为 `e2ceab173ba06eb9efdfb23191705dbdb519f29ec618d962588dafe2be034708`，
+input lock 为 `6ca670195517d27e56d9dffc4097c038b3685c0c3cc64126502b5450e8858a48`，package manifest 为
+`37da1fe1bfd0c4d297c1939731f81bdee49aa7e00bf491a04022a8c3b26de203`；当前只允许 r9 进入后续新目录。

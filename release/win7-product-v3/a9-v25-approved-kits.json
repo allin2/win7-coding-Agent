@@ -44,6 +44,15 @@
       "source_commit": "e3e778bdf62e22777e58e9eb7370de38c3ab3926",
       "input_lock_sha256": "0e2e2f735c54d7d16d2ddac70aeb0ead489220fa95d2b8a17bc3af827b3322f8",
       "package_manifest_sha256": "005abf83afb45f70499fd843fa97069837c296a743a93b79defb281b405539e7",
+      "status": "REVOKED_AFTER_WIN10_REJECTION_FIELD_MISMATCH"
+    },
+    {
+      "revision": "20260903-r9",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r9.zip",
+      "sha256": "e2ceab173ba06eb9efdfb23191705dbdb519f29ec618d962588dafe2be034708",
+      "source_commit": "bc26e5835b479be7fff1a23150d07f7868baacfe",
+      "input_lock_sha256": "6ca670195517d27e56d9dffc4097c038b3685c0c3cc64126502b5450e8858a48",
+      "package_manifest_sha256": "37da1fe1bfd0c4d297c1939731f81bdee49aa7e00bf491a04022a8c3b26de203",
       "status": "APPROVED_FOR_RETURN_RECORDING"
     }
   ]
