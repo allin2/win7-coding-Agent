@@ -11,9 +11,11 @@ import * as path from 'path';
 import {
   TrustedShellRunner,
   buildTrustedShellInvocation,
+  createTrustedShellEnvironment,
   decodeShellBytes,
   parseWindowsProcessTable,
   selectShell,
+  resolveShellFileIdentity,
   ShellKind,
 } from '../src';
 import type { HelperTransport, HelperTransportResult } from '../src';
@@ -71,6 +73,58 @@ describe('A9-02 regression: shell invocation contracts', () => {
     } else {
       expect(['powershell', 'cmd']).toContain(selection.kind);
       expect(selection.evidence).toBe('win7_contract');
+    }
+  });
+
+  it('fails closed when canonical Windows PowerShell and CMD probes fail, ignoring ComSpec', () => {
+    const originalPlatform = process.platform;
+    const originalSystemRoot = process.env.SystemRoot;
+    const originalComSpec = process.env.ComSpec;
+    const spawnSpy = jest.spyOn(require('child_process'), 'spawnSync').mockReturnValue({ status: 1, stdout: '' });
+    try {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      process.env.SystemRoot = 'C:\\Windows';
+      process.env.ComSpec = 'C:\\attacker\\cmd.exe';
+      const selection = selectShell({});
+      expect(selection.available).toBe(false);
+      expect(selection.evidence).toBe('unavailable');
+      expect(selection.path).toBe('C:\\Windows\\System32\\cmd.exe');
+      expect(selection.path).not.toBe(process.env.ComSpec);
+    } finally {
+      spawnSpy.mockRestore();
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+      if (originalSystemRoot === undefined) delete process.env.SystemRoot;
+      else process.env.SystemRoot = originalSystemRoot;
+      if (originalComSpec === undefined) delete process.env.ComSpec;
+      else process.env.ComSpec = originalComSpec;
+    }
+  });
+
+  it('filters known values and NODE controls before Shell version probes', () => {
+    const originalPlatform = process.platform;
+    const originalValue = process.env.A9_BUILD_MODE;
+    const originalNode = process.env.NODE_DEBUG;
+    const secret = 'probe-environment-secret';
+    const spawnSpy = jest.spyOn(require('child_process'), 'spawnSync').mockReturnValue({ status: 0, stdout: '5.1' });
+    try {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      process.env.A9_BUILD_MODE = secret;
+      process.env.NODE_DEBUG = 'http';
+      selectShell({ sensitiveValues: [secret] });
+      expect(spawnSpy).toHaveBeenCalledTimes(2);
+      for (const call of spawnSpy.mock.calls) {
+        const environment = (call[2] as any).env;
+        expect(environment).toBeDefined();
+        expect(environment).not.toHaveProperty('A9_BUILD_MODE');
+        expect(environment).not.toHaveProperty('NODE_DEBUG');
+      }
+    } finally {
+      spawnSpy.mockRestore();
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+      if (originalValue === undefined) delete process.env.A9_BUILD_MODE;
+      else process.env.A9_BUILD_MODE = originalValue;
+      if (originalNode === undefined) delete process.env.NODE_DEBUG;
+      else process.env.NODE_DEBUG = originalNode;
     }
   });
 
@@ -251,17 +305,40 @@ describe('A9-02 regression: honest termination and logs', () => {
     const runner = new TrustedShellRunner({
       helperTransport: { invoke } as HelperTransport,
       platform: 'win32',
-      resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'a'.repeat(64), version: '6.1.7601' }),
-      getConfiguredShellVersion: () => 'user-configured-6.1',
+      resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'a'.repeat(64), fileId: '1:1', version: '6.1.7601' }),
+      getConfiguredShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'a'.repeat(64), fileId: '1:1', version: '6.1.7601' }),
     });
 
-    await runner.execute({ command: 'echo quiet', shellKind: 'cmd', shellPath: 'cmd.exe' });
+    const result = await runner.execute({ command: 'echo quiet', shellKind: 'cmd', shellPath: 'cmd.exe' });
 
     const sent = invoke.mock.calls[0][0] as any;
     expect(sent).toEqual(expect.objectContaining({ schemaVersion: 2, deadlineMode: 'none', managed: false }));
-    expect(sent.shellVersion).toBe('user-configured-6.1');
+    expect(sent.shellVersion).toBe('6.1.7601');
+    expect(result.shell.path).toBe(sent.shellPath);
+    expect(result.shell.version).toBe(sent.shellVersion);
+    expect(result.shell.evidence).toBe('verified_file_identity');
     expect(sent).not.toHaveProperty('timeoutMs');
     expect(sent).not.toHaveProperty('idleTimeoutMs');
+  });
+
+  it('never labels an explicit Bash result with the automatically detected PowerShell version', async () => {
+    const selection = jest.spyOn(require('../src/shell-detection'), 'selectShell').mockReturnValue({
+      kind: 'powershell', path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      version: '5.1.7601', evidence: 'win7_contract', reason: 'Windows PowerShell 5.1 baseline', available: true,
+    });
+    const identity = { canonicalPath: 'C:\\Git\\bin\\bash.exe', sha256: 'a'.repeat(64), fileId: '1:8', version: 'file-1234-5678' };
+    const invoke = jest.fn(async (_request: any): Promise<HelperTransportResult> => ({ kind: 'spawn_failed', cleanupConfirmed: true, detail: 'fixture' }));
+    try {
+      const runner = new TrustedShellRunner({
+        helperTransport: { invoke } as HelperTransport, platform: 'win32',
+        resolveShellIdentity: () => identity, getConfiguredShellIdentity: () => identity,
+      });
+      const result = await runner.execute({ command: 'echo quiet', shellKind: 'bash', shellPath: identity.canonicalPath });
+      const sent = invoke.mock.calls[0][0] as any;
+      expect(sent.shellVersion).toBe(identity.version);
+      expect(result.shell).toEqual({ kind: 'bash', path: identity.canonicalPath, version: identity.version,
+        evidence: 'verified_file_identity', reason: 'workspace explicit Shell selection; persisted file identity verified' });
+    } finally { selection.mockRestore(); }
   });
 
   it('rejects Provider secrets and process/TLS controls before helper invocation', async () => {
@@ -269,7 +346,8 @@ describe('A9-02 regression: honest termination and logs', () => {
     const runner = new TrustedShellRunner({
       helperTransport: { invoke } as HelperTransport,
       platform: 'win32',
-      resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'b'.repeat(64) }),
+      resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'b'.repeat(64), fileId: '1:2' }),
+      getConfiguredShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'b'.repeat(64), fileId: '1:2' }),
     });
     const secret = await runner.execute({
       command: 'echo blocked', shellKind: 'cmd', shellPath: 'cmd.exe',
@@ -288,6 +366,139 @@ describe('A9-02 regression: honest termination and logs', () => {
     expect(tls.status).toBe('failed');
     expect(prototypeKey.status).toBe('failed');
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('filters secret and Node/Electron/TLS controls from overlays and inherited environment without echoing values', () => {
+    const inherited = {
+      PROJECT_MODE: 'alpha',
+      AZURE_OPENAI_KEY: 'azure-value-never-echo',
+      SERVICE_APIKEY: 'service-value-never-echo',
+      CUSTOM_PROVIDER_KEY: 'provider-value-never-echo',
+      NODE_EXTRA_CA_CERTS: 'ca-path-never-echo',
+      ELECTRON_LOG_FILE: 'electron-log-never-echo',
+      NODE_V8_COVERAGE: 'coverage-path-never-echo',
+      NODE_DEBUG: 'http',
+      NODE_DEBUG_NATIVE: 'net',
+      NODE_PRESERVE_SYMLINKS: '1',
+      NODE_ICU_DATA: 'icu-path-never-echo',
+      NODE_NO_WARNINGS: '1',
+      node_future_control: 'future-control',
+      SSLKEYLOGFILE: 'tls-log-never-echo',
+      NPM_CONFIG_STRICT_SSL: 'false-never-echo',
+      AWS_ACCESS_KEY_ID: 'access-never-echo',
+    };
+    const filtered = createTrustedShellEnvironment(inherited, { BUILD_MODE: 'release' });
+    expect(filtered).toEqual(expect.objectContaining({ PROJECT_MODE: 'alpha', BUILD_MODE: 'release' }));
+    for (const key of ['AZURE_OPENAI_KEY', 'SERVICE_APIKEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'ELECTRON_LOG_FILE', 'NODE_V8_COVERAGE', 'SSLKEYLOGFILE', 'NPM_CONFIG_STRICT_SSL', 'AWS_ACCESS_KEY_ID']) {
+      expect(filtered).not.toHaveProperty(key);
+    }
+    for (const [key, value] of Object.entries(inherited).slice(1)) {
+      expect(filtered).not.toHaveProperty(key);
+      expect(() => createTrustedShellEnvironment({}, { [key]: value })).toThrow('A9_ENV_OVERLAY_REJECTED');
+      try { createTrustedShellEnvironment({}, { [key]: value }); } catch (error) {
+        expect(String(error)).not.toContain(value);
+      }
+    }
+  });
+
+  it('passes a value-filtered environment from Runner to both helper entry points', async () => {
+    const secret = 'runner-helper-environment-sentinel';
+    const original = process.env.A9_BUILD_MODE;
+    const identity = { canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'a'.repeat(64), fileId: '1:1' };
+    const invoke = jest.fn(async (_request: any, _signal?: AbortSignal, _environment?: NodeJS.ProcessEnv): Promise<HelperTransportResult> =>
+      ({ kind: 'spawn_failed', detail: 'fixture', cleanupConfirmed: true }));
+    const startManaged = jest.fn((_request: any, _environment?: NodeJS.ProcessEnv): never => { throw new Error('fixture start rejected'); });
+    try {
+      process.env.A9_BUILD_MODE = Buffer.from(secret).toString('base64');
+      const runner = new TrustedShellRunner({ helperTransport: { invoke, startManaged }, platform: 'win32',
+        getSensitiveValues: () => [secret], resolveShellIdentity: () => identity, getConfiguredShellIdentity: () => identity });
+      for (const background of [false, true]) {
+        await runner.execute({ command: 'echo quiet', shellKind: 'cmd', shellPath: identity.canonicalPath, background });
+      }
+      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(startManaged).toHaveBeenCalledTimes(1);
+      expect(invoke.mock.calls[0][2]).not.toHaveProperty('A9_BUILD_MODE');
+      expect(startManaged.mock.calls[0][1]).not.toHaveProperty('A9_BUILD_MODE');
+      expect(invoke.mock.calls[0][2]).toBeDefined();
+      expect(startManaged.mock.calls[0][1]).toBeDefined();
+    } finally {
+      if (original === undefined) delete process.env.A9_BUILD_MODE;
+      else process.env.A9_BUILD_MODE = original;
+    }
+  });
+
+  it('keeps inherited known values out of real developer-host foreground and background children', async () => {
+    const original = process.env.A9_BUILD_MODE;
+    const secret = 'real-child-environment-sentinel';
+    const runner = new TrustedShellRunner({ logDir, getSensitiveValues: () => [secret] });
+    const script = "console.log(process.env.A9_BUILD_MODE === undefined ? 'ENV_CLEAN' : 'ENV_LEAK')";
+    try {
+      process.env.A9_BUILD_MODE = secret;
+      for (const background of [false, true]) {
+        const result = await runner.execute({ command: JSON.stringify(process.execPath) + ' -e ' + JSON.stringify(script), background });
+        if (background) {
+          expect(result.status).toBe('background_started');
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const handle = runner.getBackgroundManager().poll(result.backgroundHandle!);
+          expect(handle.stdoutDelta).toContain('ENV_CLEAN');
+          expect(handle.stdoutDelta).not.toContain('ENV_LEAK');
+        } else {
+          expect(result.exitCode).toBe(0);
+          expect(result.stdout).toContain('ENV_CLEAN');
+        }
+      }
+    } finally {
+      if (original === undefined) delete process.env.A9_BUILD_MODE;
+      else process.env.A9_BUILD_MODE = original;
+      await Promise.all(runner.getBackgroundManager().list().map((handle) => runner.getBackgroundManager().stop(handle.handleId)));
+    }
+  });
+
+  it('rejects known values and encoded credentials under ordinary environment names', async () => {
+    const secret = 'sentinel+/ secret-凭据?';
+    const base64 = Buffer.from(secret).toString('base64');
+    const url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+    const variants = [secret, base64, base64.replace(/=+$/g, ''), url, url.replace(/=+$/g, ''),
+      encodeURIComponent(secret), encodeURIComponent(base64),
+      encodeURIComponent(secret).replace(/%[A-F0-9]{2}/g, (token, offset) => offset % 2 ? token.toLowerCase() : token),
+      encodeURIComponent(secret).replace(/%20/g, '+'),
+      Array.from(Buffer.from(secret)).map((byte) => '%' + byte.toString(16).padStart(2, '0')).join(''),
+      Array.from(Buffer.from(secret)).map((byte) => '%' + byte.toString(16).padStart(2, '0')).join('') + '%FF'];
+    const invoke = jest.fn();
+    const runner = new TrustedShellRunner({ platform: 'win32', helperTransport: { invoke },
+      getSensitiveValues: () => [secret] });
+    for (const variant of variants) {
+      const value = 'prefix=' + variant + ';suffix';
+      expect(createTrustedShellEnvironment({ BUILD_MODE: value, SAFE: 'release' }, {}, [secret])).toEqual({ SAFE: 'release' });
+      expect(() => createTrustedShellEnvironment({}, { BUILD_MODE: value }, [secret])).toThrow('A9_ENV_OVERLAY_REJECTED');
+      for (const background of [false, true]) {
+        const result = await runner.execute({ command: 'echo blocked', background, envOverlay: { BUILD_MODE: value } });
+        expect(result.status).toBe('failed');
+        expect(JSON.stringify(result)).not.toContain(variant);
+      }
+    }
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('rejects a replaced user-selected Shell before invoking the helper', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-shell-identity-'));
+    const selected = path.join(root, 'selected-shell.exe');
+    const replacement = path.join(root, 'replacement-shell.exe');
+    fs.writeFileSync(selected, 'selected-v1', 'utf8');
+    const bound = resolveShellFileIdentity(selected);
+    fs.writeFileSync(replacement, 'selected-v2', 'utf8');
+    fs.renameSync(replacement, selected);
+    const invoke = jest.fn();
+    const runner = new TrustedShellRunner({
+      helperTransport: { invoke } as HelperTransport,
+      platform: 'win32',
+      getConfiguredShellIdentity: () => bound,
+    });
+    const result = await runner.execute({ command: 'echo blocked', shellKind: 'cmd', shellPath: selected });
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('A9_SHELL_IDENTITY_CHANGED');
+    expect(invoke).not.toHaveBeenCalled();
+    fs.rmSync(root, { recursive: true, force: true });
   });
 
   it('does not impose a default fixed hard timeout when timeoutMs is absent', async () => {
@@ -347,5 +558,97 @@ describe('A9-02 regression: background start honesty', () => {
     expect(result.exitCode).toBeNull();
     expect(result.backgroundHandle).toBeUndefined();
     expect(result.error).toBeDefined();
+  });
+
+  it('cancels and awaits the same helper invocation when ready is malformed, preserving cleanup risk', async () => {
+    let finish!: (value: HelperTransportResult) => void;
+    const completion = new Promise<HelperTransportResult>((resolve) => { finish = resolve; });
+    const cancel = jest.fn(() => finish({
+      kind: 'cancelled',
+      detail: 'helper started but readiness was malformed',
+      cleanupConfirmed: false,
+    }));
+    const helperTransport = {
+      invoke: jest.fn(),
+      startManaged: jest.fn(() => ({
+        pid: 9441,
+        ready: Promise.reject(new Error('execution_started malformed')),
+        completion,
+        cancel,
+      })),
+    };
+    const identity = {
+      canonicalPath: 'C:\\Windows\\System32\\cmd.exe',
+      sha256: 'c'.repeat(64),
+      fileId: '1:3',
+      version: '6.1.7601',
+    };
+    const runner = new TrustedShellRunner({
+      helperTransport: helperTransport as HelperTransport,
+      platform: 'win32',
+      resolveShellIdentity: () => identity,
+      getConfiguredShellIdentity: () => identity,
+    });
+
+    const result = await runner.execute({
+      command: 'ping -t 127.0.0.1', shellKind: 'cmd', shellPath: identity.canonicalPath, background: true,
+    });
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      status: 'failed', residueRisk: true,
+      spawnFacts: {
+        helperSpawned: true, backgroundProcess: 'unknown', cleanupConfirmed: false, cleanupRequired: true,
+      },
+      termination: { requested: true, processTreeReaped: false, containment: 'job_object' },
+    });
+    expect(runner.getBackgroundManager().list()).toEqual([
+      expect.objectContaining({ status: 'failed', cleanupRequired: true }),
+    ]);
+  });
+
+  it('does not retain a false cleanup handle when readiness fails before child spawn', async () => {
+    const cancel = jest.fn();
+    const helperTransport = {
+      invoke: jest.fn(),
+      startManaged: jest.fn(() => ({
+        pid: 9442,
+        ready: Promise.reject(new Error('helper spawn failed before execution_started')),
+        completion: Promise.resolve({
+          kind: 'spawn_failed', detail: 'CreateProcessW failed before child creation', cleanupConfirmed: true,
+        } as HelperTransportResult),
+        cancel,
+      })),
+    };
+    const identity = {
+      canonicalPath: 'C:\\Windows\\System32\\cmd.exe',
+      sha256: 'd'.repeat(64),
+      fileId: '1:4',
+      version: '6.1.7601',
+    };
+    const runner = new TrustedShellRunner({
+      helperTransport: helperTransport as HelperTransport,
+      platform: 'win32',
+      resolveShellIdentity: () => identity,
+      getConfiguredShellIdentity: () => identity,
+    });
+
+    const result = await runner.execute({
+      command: 'echo never-started', shellKind: 'cmd', shellPath: identity.canonicalPath, background: true,
+    });
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      status: 'failed',
+      spawnFacts: {
+        helperSpawned: true, backgroundProcess: 'not_spawned', cleanupConfirmed: true, cleanupRequired: false,
+      },
+      termination: { requested: true, processTreeReaped: true, containment: 'job_object' },
+    });
+    expect(result).not.toHaveProperty('residueRisk');
+    expect(runner.getBackgroundManager().getActiveCount()).toBe(0);
+    expect(runner.getBackgroundManager().list()).toEqual([
+      expect.objectContaining({ status: 'failed', cleanupRequired: false }),
+    ]);
   });
 });

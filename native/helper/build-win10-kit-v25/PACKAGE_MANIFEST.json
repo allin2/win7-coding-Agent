@@ -4,7 +4,7 @@
   "source_commit": "72e4d905175baa3eae7b5eb6c1f49f47f9731046",
   "source_commit_timestamp": "2026-08-29T23:29:04+08:00",
   "revision": "2026-08-29",
-  "status": "READY_FOR_WIN10_BUILD",
+  "status": "REVOKED_PENDING_NEW_COMMITTED_BUILD_KIT",
   "generated_at": "2026-08-29T23:29:04+08:00",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",

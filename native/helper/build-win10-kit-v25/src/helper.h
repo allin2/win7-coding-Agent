@@ -338,6 +338,11 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result);
 bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
                      std::string* error);
 
+// One deny rule is shared by protocol-v2 overlay parsing and inherited
+// current-user environment filtering. Values are never accepted by or
+// included in this predicate.
+bool IsForbiddenEnvironmentName(const std::wstring& name);
+
 // Parse the only control message accepted after the single execution request.
 // The request ID must match so a stale or cross-request cancel cannot affect
 // another helper process.

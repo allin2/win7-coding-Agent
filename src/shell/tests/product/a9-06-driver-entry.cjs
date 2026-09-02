@@ -43,7 +43,7 @@ async function waitFor(condition, timeoutMs, label) {
 async function main() {
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
-  if (mode === 'workspace_select') {
+  if (mode === 'workspace_select' || mode === 'first') {
     // Start with no active workspace, then drive the real workspace.select IPC.
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
@@ -66,6 +66,16 @@ async function main() {
     await runWorkspaceSelectionProcess(win, exec, { workspaceRoot });
     report.status = report.cases.every((c) => c.passed) ? 'PASS' : 'FAIL';
     return;
+  }
+
+  if (mode === 'first') {
+    await exec('document.getElementById("workspace-select").click(); true');
+    const explorer = await waitFor(() => exec(`(() => {
+      const file = Array.from(document.querySelectorAll('#workspace-tree button'))
+        .find((item) => item.title === 'calc.ts');
+      return file ? { path: file.title, workspace: document.getElementById('a9-workspace-value').textContent } : null;
+    })()`), 20_000, 'formal workspace selection and Explorer session');
+    record('A9F1-FORMAL-EXPLORER-SESSION', explorer.path === 'calc.ts' && explorer.workspace.includes(path.basename(workspaceRoot)), JSON.stringify(explorer));
   }
 
   // 工作区经正式 selectWorkspace 链路绑定（main.js 同进程已完成）；A9 面板出现。
@@ -173,11 +183,54 @@ async function runFirstProcess(win, exec, env) {
   const probe = await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'provider probe');
   record('A9F1-PROVIDER-CONFIG-PROBE', probe === 'tool_calling', `probe=${probe}`);
 
+  // A9 Viewer：自动识别对单 GBK 字符保持 ambiguous，用户显式选择后
+  // 通过 v5 A9 IPC 正确显示中文，不再走 legacy UTF-8 读取。
+  const gbkButtonReady = await waitFor(() => exec(`(() => {
+    const button = Array.from(document.querySelectorAll('#workspace-tree button')).find((item) => item.title === '短GBK.txt');
+    return button ? true : null;
+  })()`), 15_000, 'GBK viewer fixture');
+  if (gbkButtonReady) {
+    await exec(`(() => {
+      const button = Array.from(document.querySelectorAll('#workspace-tree button')).find((item) => item.title === '短GBK.txt');
+      button.click();
+      return true;
+    })()`);
+    await waitFor(() => exec('document.getElementById("error-banner").textContent.includes("无法自动识别为文本")'), 15_000, 'ambiguous viewer warning');
+    await exec(`(() => {
+      const encoding = document.getElementById('viewer-encoding');
+      encoding.value = 'gbk';
+      encoding.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    const viewer = await waitFor(() => exec(`(() => {
+      const text = document.getElementById('code-viewer').textContent;
+      return text.includes('中') ? { text, encoding: document.getElementById('viewer-encoding').value } : null;
+    })()`), 15_000, 'explicit GBK viewer');
+    record('A9F1-VIEWER-EXPLICIT-GBK', viewer.encoding === 'gbk' && viewer.text.includes('中'), JSON.stringify(viewer));
+
+    await exec(`(() => {
+      const button = Array.from(document.querySelectorAll('#workspace-tree button')).find((item) => item.title === 'calc.ts');
+      button.click();
+      return true;
+    })()`);
+    const resetViewer = await waitFor(() => exec(`(() => {
+      const text = document.getElementById('code-viewer').textContent;
+      const encoding = document.getElementById('viewer-encoding').value;
+      return text.includes('export function add') ? { text, encoding } : null;
+    })()`), 15_000, 'per-file automatic encoding reset');
+    record('A9F1-VIEWER-ENCODING-PER-FILE', resetViewer.encoding === '' && resetViewer.text.includes('export function add'), JSON.stringify(resetViewer));
+  }
+
   // 真实工具旅程：read → edit → shell（真实测试命令）→ verified。
   await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "fix the bug and verify"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('completed') && t.includes('verified') ? t : null)), 90_000, 'turn outcome');
   const fileFixed = fs.readFileSync(path.join(env.workspaceRoot, 'calc.ts'), 'utf8').includes('a + b');
   record('A9F1-TOOL-JOURNEY', Boolean(outcome) && fileFixed, `outcome=${outcome}`);
+  const shellUi = await exec(`(() => ({
+    timeline: document.getElementById('a9-timeline').textContent,
+    output: document.getElementById('a9-shell-output').textContent,
+  }))()`);
+  record('A9F1-SHELL-EVENT-DTO-UI', shellUi.timeline.includes('shell') && shellUi.timeline.includes('exit=0') && shellUi.output.includes('verified'), JSON.stringify(shellUi));
 
   // Diff 可见（真实 checkpoint 按钮）。
   await waitFor(() => exec('document.getElementById("a9-checkpoint-list").querySelector("button") !== null'), 15_000, 'checkpoint buttons');

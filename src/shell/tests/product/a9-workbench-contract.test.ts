@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vm from 'vm';
 
 describe('A9 unified desktop workbench contract', () => {
   const productRoot = path.join(__dirname, '../../product');
@@ -77,6 +78,9 @@ describe('A9 unified desktop workbench contract', () => {
     expect(main).toContain('requireRunnerHelper: true');
     expect(main).toContain('selectShellExecutable: async (kind) =>');
     expect(main).toContain("properties: ['openFile']");
+    expect(main).toContain('Array.isArray(leftToSystem)');
+    expect(main).toContain("residueLines.join('\\n')");
+    expect(main).not.toContain('String(leftToSystem || []).slice(0, 20).join');
   });
 
   it('binds approvals to conversation/task/turn and disables both actions while processing', () => {
@@ -85,6 +89,8 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain('card.dataset.turnId = pending.turnId');
     expect(script).toContain('a9.resumeApproval(approvalId, decision, bindingDigest, conversationId, taskId, turnId)');
     expect(script).toContain("button.textContent = busy ? '处理中…' : label");
+    expect(script).toContain("setTaskState('运行中', 'running', '审批已提交");
+    expect(script).toContain('const finishPolling = beginSnapshotPolling();');
   });
 
   it('drives the production workbench contract in the formal Electron smoke', () => {
@@ -93,6 +99,10 @@ describe('A9 unified desktop workbench contract', () => {
     expect(smokeDriver).toContain("getElementById('run-task')");
     expect(smokeDriver).toContain("getElementById(\"cancel-task\")");
     expect(smokeDriver).toContain('A9F0-MAIN-COMPOSER-A9-BOUNDARY');
+    expect(smokeDriver).toContain('A9F1-VIEWER-EXPLICIT-GBK');
+    expect(smokeDriver).toContain('A9F1-FORMAL-EXPLORER-SESSION');
+    expect(smokeDriver).toContain('A9F1-VIEWER-ENCODING-PER-FILE');
+    expect(smokeDriver).toContain('A9F1-SHELL-EVENT-DTO-UI');
     expect(smokeDriver).not.toContain('getElementById("a9-prompt")');
     expect(smokeDriver).not.toContain('getElementById("a9-submit")');
     expect(smokeDriver).not.toContain('getElementById("a9-stop")');
@@ -117,6 +127,28 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain("const TAB_IDS = ['files', 'changes', 'activity', 'environment'];");
   });
 
+  it('uses the A9 bounded reader with visible encoding recovery for the code Viewer', () => {
+    expect(html).toContain('id="viewer-encoding"');
+    expect(html).toContain('value="gbk"');
+    expect(html).toContain('value="utf-16le"');
+    expect(script).toContain('await a9.readWorkspaceFile(filePath');
+    expect(script).not.toContain('api.readWorkspaceFile(state.explorerSessionId');
+    expect(script).toContain('无法自动识别为文本');
+    expect(script).toContain("el('viewer-encoding').addEventListener('change'");
+    expect(script).toContain('const sameFile = Boolean(state.viewer && state.viewer.path === filePath);');
+    expect(script).toContain("? (sameFile ? el('viewer-encoding').value : '')");
+    expect(css).toContain('grid-template-columns: 104px minmax(0, 1fr) 64px 52px');
+  });
+
+  it('renders versioned Shell events and refreshes activity while a Turn is running', () => {
+    expect(script).toContain('data.shell && data.shell.schemaVersion === 1');
+    expect(script).toContain('shell && shell.stdout');
+    expect(script).toContain('root.setInterval(() => {');
+    expect(script).toContain('snapshotRefreshInFlight = Promise.resolve(refreshSnapshot())');
+    expect(script).toContain('if (snapshotRefreshInFlight) await snapshotRefreshInFlight;');
+    expect(script).toContain('root.clearInterval(pollId);');
+  });
+
   it('keeps Provider secrets in one progressive Settings surface with mandatory TLS verification', () => {
     expect((html.match(/id="a9-provider-key"/g) || [])).toHaveLength(1);
     expect((html.match(/id="a9-provider-apply"/g) || [])).toHaveLength(1);
@@ -128,6 +160,9 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain("el('a9-provider-key').value = '';");
     expect(script).toContain("el('a9-provider-header-value').value = '';");
     expect(script).toContain("setFieldError('a9-provider-diagnostics'");
+    expect(script).toContain('provider.customHeaderNames || []');
+    expect(script).toContain("el('a9-provider-ca').value = provider.caBundle || '';");
+    expect(script).toContain('headerName !== existingHeaderName');
   });
 
   it('exposes user-explicit Shell settings without echoing saved environment values', () => {
@@ -139,6 +174,9 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain('await a9.configureShell(values)');
     expect(script).toContain("el('a9-shell-env').value = '';");
     expect(script).toContain("el('a9-shell-path').readOnly = true;");
+    expect(script).toContain('shellVersion.disabled = true;');
+    expect(script).toContain("shellVersionLabel.textContent = '测量版本（不可编辑）';");
+    expect(script).not.toContain("const version = el('a9-shell-version').value.trim();");
     expect(script).toContain('shell.envKeys.join');
   });
 
@@ -148,6 +186,78 @@ describe('A9 unified desktop workbench contract', () => {
     expect(html).toContain("frame-src 'none'");
     expect(script).not.toMatch(/require\(|child_process|\bfetch\(|WebSocket\(|XMLHttpRequest/);
     expect(script).toContain('const api = root.win7Agent;');
+  });
+
+  it('shows bounded A9 initialization diagnostics instead of misreporting a mode-selection problem', () => {
+    expect(script).toContain('function runtimeDiagnostic(snapshot)');
+    expect(script).toContain("setFieldError('a9-runtime-error', runtimeError)");
+    expect(script).toContain('Runtime 初始化受限：${runtimeDiagnostic(snapshot)}');
+    expect(script).toContain("rows.push(['A9 Runtime diagnostic'");
+  });
+
+  it('does not submit Enter while a Chinese IME composition is active, including legacy keyCode 229', () => {
+    const listeners: Record<string, Array<(event?: any) => any>> = {};
+    const nodes = new Map<string, any>();
+    class FakeNode {
+      value = '';
+      hidden = false;
+      disabled = false;
+      readOnly = false;
+      dataset: Record<string, string> = {};
+      style: Record<string, string> = {};
+      className = '';
+      classList = { add() {}, remove() {}, contains() { return false; } };
+      addEventListener(type: string, handler: (event: any) => any) {
+        (listeners[`${(this as any).id}:${type}`] ||= []).push(handler);
+      }
+      setAttribute() {}
+      removeAttribute() {}
+      appendChild() {}
+      querySelectorAll() { return []; }
+      querySelector() { return null; }
+      focus() {}
+      getClientRects() { return [{}]; }
+    }
+    const idPattern = /id="([^"]+)"/g;
+    let idMatch: RegExpExecArray | null;
+    while ((idMatch = idPattern.exec(html)) !== null) {
+      const id = idMatch[1];
+      const node: any = new FakeNode();
+      node.id = id;
+      nodes.set(id, node);
+    }
+    const documentStub: any = {
+      getElementById: (id: string) => nodes.get(id),
+      addEventListener: (type: string, handler: (event?: any) => any) => { (listeners[`document:${type}`] ||= []).push(handler); },
+      querySelectorAll: () => [],
+      querySelector: () => null,
+      createElement: () => new FakeNode(),
+      createTextNode: () => new FakeNode(),
+      body: new FakeNode(),
+    };
+    const windowStub: any = {
+      win7Agent: {
+        a9: { snapshot: () => new Promise(() => {}) },
+        signalReady: jest.fn(),
+      },
+      addEventListener: jest.fn(),
+      setInterval,
+      clearInterval,
+      setTimeout,
+      clearTimeout,
+    };
+    vm.runInNewContext(script, { window: windowStub, document: documentStub, console, Promise, Set, Map, Object, Array, String, Number, Date });
+    listeners['document:DOMContentLoaded'][0]();
+    const keydown = listeners['task-prompt:keydown'][0];
+    const composingPrevented = jest.fn();
+    keydown({ key: 'Enter', shiftKey: false, isComposing: true, keyCode: 13, preventDefault: composingPrevented });
+    expect(composingPrevented).not.toHaveBeenCalled();
+    const legacyPrevented = jest.fn();
+    keydown({ key: 'Enter', shiftKey: false, isComposing: false, keyCode: 229, preventDefault: legacyPrevented });
+    expect(legacyPrevented).not.toHaveBeenCalled();
+    const ordinaryPrevented = jest.fn();
+    keydown({ key: 'Enter', shiftKey: false, isComposing: false, keyCode: 13, preventDefault: ordinaryPrevented });
+    expect(ordinaryPrevented).toHaveBeenCalledTimes(1);
   });
 
   it('defines semantic dark tokens, stable targets, responsive drawers and reduced motion', () => {

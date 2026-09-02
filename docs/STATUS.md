@@ -16,19 +16,41 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；A9-09A D-013 v25 开发机 Gate PASS，`A9_09B_READY_FOR_LOCKED_WIN10_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；A9-12 十项本地修复已通过开发机验证，`A9_12_DEVELOPER_VERIFIED_PENDING_WIN7 / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
-## A9 Trusted Agent Runtime（2026-08-30）
+## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-02，项目负责人确认 Bitvise trace logging 已关闭，并决定将独立复核发现的两个 Provider P2
+  延期：代理端口 `0` 静默清除及显式清空 API Key 后旧持久化凭据可能在重启时恢复。本轮获准提交并
+  推送现有 A9-09～A9-12 修复、继续 v25 Win10 双构建和 WIN7-20 候选验证；两项 P2 不标记为关闭，
+  最终报告必须保留风险，相关开发机证据不构成 Windows DPAPI 或完整发布 PASS。
+- ADR-0109 / [A9-12 D-013 v25 后置恢复与用户流加固](tasks/A9_12_POST_REVIEW_RECOVERY_AND_UI_HARDENING.md)
+  已关闭 Viewer 编码状态、正式 Explorer smoke、Undo IPC、IME、Provider 高级配置、审批恢复 Stop、退出
+  残留提示、Shell 探测缓存、崩溃锁恢复和初始化诊断十项缺口。定向 State 37/37、Shell 97/97、七模块
+  1563 tests、发布 17 PASS/1 Windows skip、原生逻辑和真实开发机 Electron 22 四进程 smoke 均通过；
+  当前状态 `A9_12_DEVELOPER_VERIFIED_PENDING_WIN7`。Win10/Win7 未执行，不解除 `FIX_BEFORE_ALPHA`。
+- ADR-0108 / [A9-11 D-013 v25 后置安全与可用性修复](tasks/A9_11_POST_V25_USABILITY_SECURITY_HARDENING.md)
+  已关闭独审复现的 Git 回调/投影秘密、活动模式迁移、拆分流秘密、SSE 中文、Shell DTO/活动刷新、显式
+  编码 edit 和 Viewer legacy UTF-8 八项源码缺口。七模块 1554 tests、发布 15 PASS/1 Windows skip、
+  原生逻辑 PASS；后续 A9-12 合并工作树已关闭 Runtime 初始化阻塞并通过真实开发机 Electron smoke，
+  状态更新为 `A9_11_DEVELOPER_VERIFIED_PENDING_WIN7`。Win10/Win7 未执行，不解除 `FIX_BEFORE_ALPHA`。
+- ADR-0107 / [A9-10 中文编码与大文件读取](tasks/A9_10_TEXT_READ_HARDENING.md) 已获负责人独立授权并完成
+  本地源码修复：显式 GBK/UTF-16LE、binary 元数据、64 KiB 异步分块、128 KiB 有界预览和完整基线哈希。
+  Workspace/Core/真实产品组合共 535 tests PASS，状态 `A9_10_DEVELOPER_VERIFIED_PENDING_WIN7`；
+  未提交、未打正式包、Win7 未执行，不解除 A9-09 或 `FIX_BEFORE_ALPHA` 门禁。
 - ADR-0101 / [`A9-09 D-013 TrustedShell Current-User Profile`](tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md)
-  已完成 A9-09A 开发机 Gate：v25/协议 v2/当前用户 Profile、系统与用户显式 Shell 身份绑定、非秘密环境
-  覆盖、真实无 deadline、后台 ready/cancel、产品设置、双构建输入锁记录器和 WIN7-20 增量套件已在提交
-  `7d10032` 收口。原生 logic PASS、发布测试 6/6、7 模块 1490 tests 及 docs/diff 检查通过。锁定构建套件
-  SHA-256 为 `037213c…e09`，当前 Gate 为 `A9_09B_READY_FOR_LOCKED_WIN10_BUILD`；尚未完成 D-017 Win10
+  的初始 A9-09A 开发机 Gate 随后被 v25 独立复审撤销；旧 r4 SHA-256 `037213c…e09` 不包含当前未提交
+  整改，已禁止正式使用。上一轮本地整改完成 1498 项全量测试；ADR-0103 的工作树自批准问题已获复审
+  关闭，但完整闭包只证明内部自洽，随后复审发现发布信任 P1=1。已按 ADR-0104 补充候选外批准记录与
+  独立哈希 pin、正式 lock/批准根/双构建绑定和原生 PE 检查，本地发布回归 18/18、全量 1498 tests PASS；
+  随后五参数文档 P2 也获独审关闭。但最新复审新增两项 P1：普通变量名可携带已知秘密，以及 NODE_DEBUG
+  等控制项漏拦。ADR-0105 环境整改已获最新独审关闭；该轮新增生成器精确数组匹配及 OrderedDictionary.Clone
+  两项构建脚本 P1，现按 ADR-0106 修复并补真实生成器入口回归，等待再次独审和 Windows PowerShell 5.1
+  自测。当前 Gate 为 `A9_09A_BUILD_REVIEW_FIXES_PENDING_INDEPENDENT_REVIEW`，尚未完成修复提交、新 revision 预登记、D-017 Win10
   双干净构建、正式 v25 input lock、WIN7-20 候选和 Win7 实机复验，因此综合状态继续为
   `FIX_BEFORE_ALPHA`，PR #3 仍不得合并。
 - ADR-0100 已根据合并前独立代码审查开启
@@ -48,7 +70,7 @@
   且缺少 envOverlay、真实无 deadline 与 managed ready acknowledgement；该修复需要新 ADR/任务授权
   `native/helper/**`。安全、进程、checkpoint/状态三路最终独立复核均为 P0/P1/P2=0，授权范围内闭环 PASS；
   A9-08 阶段记录以 `A9_08E_BLOCKED_D013_CONTRACT` 结束并移交 ADR-0101/A9-09；当前执行状态为
-  `A9_09B_READY_FOR_LOCKED_WIN10_BUILD / FIX_BEFORE_ALPHA`，尚未构建 WIN7-20。
+  `A9_09A_BUILD_REVIEW_FIXES_PENDING_INDEPENDENT_REVIEW / FIX_BEFORE_ALPHA`，尚未构建 WIN7-20。
 - 产品负责人已确认
   [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
   和 ADR-0089/ADR-0096；实现任务为 [`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，状态

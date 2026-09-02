@@ -208,6 +208,21 @@ static void TestParseJsonConfig() {
     secretEnv.replace(envPos, std::strlen("\"A9_MODE\":\"alpha\""),
                       "\"OPENAI_API_KEY\":\"must-not-echo\"");
     CHECK(!ParseJsonConfig(secretEnv, &config, &error));
+    for (const wchar_t* forbidden : {
+             L"AZURE_OPENAI_KEY", L"SERVICE_APIKEY", L"AWS_ACCESS_KEY_ID",
+             L"CLIENT_CREDENTIAL", L"PRIVATEKEY", L"CUSTOM_PROVIDER_KEY", L"NODE_EXTRA_CA_CERTS",
+             L"ELECTRON_LOG_FILE", L"NODE_V8_COVERAGE", L"SSLKEYLOGFILE", L"NPM_CONFIG_STRICT_SSL",
+             L"NODE_DEBUG", L"NODE_DEBUG_NATIVE", L"NODE_PRESERVE_SYMLINKS", L"NODE_ICU_DATA",
+             L"NODE_NO_WARNINGS", L"node_future_control"}) {
+        CHECK(IsForbiddenEnvironmentName(forbidden));
+        std::string rejected = validV2;
+        const std::wstring name(forbidden);
+        rejected.replace(envPos, std::strlen("\"A9_MODE\":\"alpha\""),
+                         "\"" + std::string(name.begin(), name.end()) + "\":\"must-not-echo\"");
+        CHECK(!ParseJsonConfig(rejected, &config, &error));
+        CHECK(error.find("must-not-echo") == std::string::npos);
+    }
+    CHECK(!IsForbiddenEnvironmentName(L"A9_PROJECT_MODE"));
 
     // Schema violations.
     CHECK(!ParseJsonConfig("{\"argv\":[]}", &config, &error));

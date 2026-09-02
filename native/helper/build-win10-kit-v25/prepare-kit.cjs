@@ -16,6 +16,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const HERE = __dirname;
 const HELPER_ROOT = path.resolve(HERE, '..');
@@ -77,6 +78,17 @@ if (!/currentUserProfile[\s\S]*CreateProcessW\s*\(/.test(helperSource)
     || !/BuildEnvironmentBlock/.test(helperSource)
     || !/ComputeFileSha256/.test(helperSource)) {
   throw new Error('helper.cpp must contain the v25 current-user, ready, no-deadline, env and shell-identity gates');
+}
+const shellIdentityOpenIndex = helperSource.indexOf('shellIdentityHandle = CreateFileW(');
+const shellIdentityHashIndex = helperSource.indexOf('ComputeFileSha256Handle(shellIdentityHandle', shellIdentityOpenIndex);
+const currentUserCreateProcessIndex = helperSource.indexOf('CreateProcessW(', shellIdentityHashIndex);
+const shellIdentityCloseIndex = helperSource.indexOf('CloseHandle(shellIdentityHandle)', currentUserCreateProcessIndex);
+if (!/ComputeFileSha256Handle/.test(helperSource)
+    || shellIdentityOpenIndex < 0 || shellIdentityHashIndex < shellIdentityOpenIndex
+    || currentUserCreateProcessIndex < shellIdentityHashIndex || shellIdentityCloseIndex < currentUserCreateProcessIndex
+    || !/FILE_SHARE_READ/.test(helperSource.slice(shellIdentityOpenIndex, shellIdentityHashIndex))
+    || !/v2 is NOT a security sandbox/.test(helperSource)) {
+  throw new Error('helper.cpp must hold the selected Shell identity handle through launch and describe v2 honestly');
 }
 if (!/LABEL_SECURITY_INFORMATION\s*,\s*nullptr\s*,\s*nullptr\s*,\s*nullptr\s*,\s*pLabelAcl\s*\)/.test(helperSource)) {
   throw new Error('helper.cpp must pass the mandatory-label ACL as pSacl, with pDacl null');
@@ -145,12 +157,31 @@ if (cancelPollIndex < 0 || rollbackIndex < 0 || cancelPollIndex > rollbackIndex 
   throw new Error('helper.cpp must cooperatively cancel the Job and complete ACL rollback before acknowledgement');
 }
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
+const inheritedNamesBlock = buildScript.match(/\$blockedInheritedNames\s*=\s*@\(([^)]*)\)/);
+const inheritedNames = new Set(Array.from((inheritedNamesBlock && inheritedNamesBlock[1] || '')
+  .matchAll(/['"]([A-Z][A-Z0-9_]*)['"]/g), (match) => match[1]));
+const requiredInheritedNames = [
+  'AZURE_OPENAI_KEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'SSLKEYLOGFILE',
+  'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'NODE_PRESERVE_SYMLINKS', 'NODE_ICU_DATA', 'NODE_NO_WARNINGS',
+];
+if (requiredInheritedNames.some((name) => !inheritedNames.has(name))) {
+  throw new Error('build.ps1 inherited environment smoke must include every required secret/Node/TLS control');
+}
 if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/Reset-OwnedDirectory\s+\$EvidenceRoot/.test(buildScript) ||
     !/New-ReturnPackage/.test(buildScript) ||
     !/Test-ReturnPackageWriter/.test(buildScript) ||
     !/WIN7_D013_V25_HELPER_DIAGNOSTICS_/.test(buildScript) ||
     !/schema_version\s*=\s*3/.test(buildScript) ||
+    !/run_id\s*=\s*\$BuildRunId/.test(buildScript) ||
+    !/authorized_inputs\s*=\s*\[ordered\]@\{/.test(buildScript) ||
+    !/input_lock_sha256/.test(buildScript) ||
+    !/package_manifest_sha256/.test(buildScript) ||
+    !/validation-binding\.json/.test(buildScript) ||
+    !/helper_sha256\s*=/.test(buildScript) ||
+    !/foreach \(\$relative in \$profile\.delivery\.evidence\)/.test(buildScript) ||
+    !/exit_codes\s*=\s*\[ordered\]@\{/.test(buildScript) ||
+    !/D013_FORBIDDEN_OVERLAY_VALUE/.test(buildScript) ||
     !/RETURN_PACKAGE_MANIFEST\.json/.test(buildScript) ||
     !/function\s+Invoke-Utf8ProcessBytes/.test(buildScript) ||
     !/function\s+Get-ValidatedProcessCapture/.test(buildScript) ||
@@ -181,6 +212,19 @@ fs.mkdirSync(path.join(HERE, 'src'), { recursive: true });
 for (const source of SOURCES) {
   const from = path.join(HELPER_ROOT, source);
   if (!fs.existsSync(from)) throw new Error(`source not found: ${source}`);
+  let committed;
+  try {
+    committed = execFileSync('git', ['show', `${SOURCE_COMMIT}:native/helper/${source}`], {
+      cwd: path.resolve(HELPER_ROOT, '..', '..'), encoding: 'buffer',
+      maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch (_error) {
+    throw new Error(`source commit does not contain native/helper/${source}`);
+  }
+  const live = fs.readFileSync(from);
+  if (!live.equals(committed)) {
+    throw new Error(`live source is not committed at SOURCE_COMMIT: ${source}`);
+  }
   fs.copyFileSync(from, path.join(HERE, 'src', source));
 }
 

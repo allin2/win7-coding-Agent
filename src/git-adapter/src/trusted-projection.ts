@@ -44,10 +44,38 @@ export interface TrustedGitProjection {
 const MAX_DIFF_BYTES = 512 * 1024;
 const READ_ONLY_COMMANDS = new Set(['status', 'rev-parse', 'diff', 'log', 'branch', 'config', 'remote', 'describe']);
 
-function execGit(workDir: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string } | null> {
+function execGit(
+  workDir: string,
+  args: string[],
+  options: { observeConfigOnly?: boolean; disabledFilters?: string[] } = {},
+): Promise<{ code: number; stdout: string; stderr: string } | null> {
   return new Promise((resolve) => {
     try {
-      execFile('git', args, { cwd: workDir, timeout: 15_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
+      // Projection is an observation path, not a request to execute repository
+      // callbacks. `git config` itself only reads configuration and must remain
+      // unmodified so we can report the real effective fsmonitor setting.
+      const filterOverrides = (options.disabledFilters || []).flatMap((name) => [
+        '-c', `filter.${name}.clean=`,
+        '-c', `filter.${name}.smudge=`,
+        '-c', `filter.${name}.process=`,
+        '-c', `filter.${name}.required=false`,
+      ]);
+      const safeArgs = options.observeConfigOnly
+        ? args
+        : ['-c', 'core.fsmonitor=false', ...filterOverrides, ...args];
+      execFile('git', safeArgs, {
+        cwd: workDir,
+        timeout: 15_000,
+        maxBuffer: 4 * 1024 * 1024,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          GIT_OPTIONAL_LOCKS: '0',
+          GIT_PAGER: 'cat',
+          PAGER: 'cat',
+          GIT_TERMINAL_PROMPT: '0',
+        },
+      }, (err, stdout, stderr) => {
         const code = err && typeof (err as any).code === 'number' ? (err as any).code : err ? 1 : 0;
         resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
       });
@@ -85,13 +113,25 @@ export async function projectTrustedGit(workDir: string): Promise<TrustedGitProj
 
   projection.isGit = true;
 
+  const filterConfig = await execGit(
+    workDir,
+    ['config', '--name-only', '--get-regexp', '^filter\\..*\\.(clean|smudge|process|required)$'],
+    { observeConfigOnly: true },
+  );
+  const disabledFilters = filterConfig?.code === 0
+    ? Array.from(new Set(filterConfig.stdout.split(/\r?\n/).map((line) => {
+      const match = /^filter\.(.+)\.(?:clean|smudge|process|required)$/.exec(line.trim());
+      return match ? match[1] : '';
+    }).filter(Boolean)))
+    : [];
+
   const branchResult = await execGit(workDir, ['rev-parse', '--abbrev-ref', 'HEAD']);
   projection.branch = branchResult?.code === 0 ? branchResult.stdout.trim() : undefined;
 
   const headResult = await execGit(workDir, ['rev-parse', 'HEAD']);
   projection.head = headResult?.code === 0 ? headResult.stdout.trim() : undefined;
 
-  const statusResult = await execGit(workDir, ['status', '--porcelain=v1', '-b']);
+  const statusResult = await execGit(workDir, ['status', '--porcelain=v1', '-b'], { disabledFilters });
   if (statusResult && statusResult.code === 0) {
     for (const line of statusResult.stdout.split('\n')) {
       if (!line) continue;
@@ -111,7 +151,9 @@ export async function projectTrustedGit(workDir: string): Promise<TrustedGitProj
     projection.clean = projection.entries.length === 0;
   }
 
-  const diffResult = await execGit(workDir, ['diff', 'HEAD', '--stat', '--patch', `--unified=3`]);
+  const diffResult = await execGit(workDir, [
+    'diff', '--no-ext-diff', '--no-textconv', 'HEAD', '--stat', '--patch', `--unified=3`,
+  ], { disabledFilters });
   if (diffResult && diffResult.code === 0) {
     if (diffResult.stdout.length > MAX_DIFF_BYTES) {
       projection.diffPreview = diffResult.stdout.slice(0, MAX_DIFF_BYTES);
@@ -136,7 +178,7 @@ export async function projectTrustedGit(workDir: string): Promise<TrustedGitProj
 export async function detectExternalMechanisms(workDir: string): Promise<TrustedGitExternalMechanism[]> {
   const mechanisms: TrustedGitExternalMechanism[] = [];
 
-  const hooksPath = await execGit(workDir, ['config', '--get', 'core.hooksPath']);
+  const hooksPath = await execGit(workDir, ['config', '--get', 'core.hooksPath'], { observeConfigOnly: true });
   if (hooksPath?.code === 0 && hooksPath.stdout.trim()) {
     mechanisms.push({ kind: 'hooks_path_override', detail: `core.hooksPath=${hooksPath.stdout.trim()}` });
   } else {
@@ -163,22 +205,22 @@ export async function detectExternalMechanisms(workDir: string): Promise<Trusted
     } catch (_err) { /* unreadable */ }
   }
 
-  const credentialHelper = await execGit(workDir, ['config', '--get', 'credential.helper']);
+  const credentialHelper = await execGit(workDir, ['config', '--get', 'credential.helper'], { observeConfigOnly: true });
   if (credentialHelper?.code === 0 && credentialHelper.stdout.trim()) {
     mechanisms.push({ kind: 'credential_helper', detail: `credential.helper=${credentialHelper.stdout.trim()}` });
   }
 
-  const pager = await execGit(workDir, ['config', '--get', 'core.pager']);
+  const pager = await execGit(workDir, ['config', '--get', 'core.pager'], { observeConfigOnly: true });
   if (pager?.code === 0 && pager.stdout.trim() && pager.stdout.trim() !== 'cat') {
     mechanisms.push({ kind: 'pager', detail: `core.pager=${pager.stdout.trim()}` });
   }
 
-  const fsmonitor = await execGit(workDir, ['config', '--get', 'core.fsmonitor']);
+  const fsmonitor = await execGit(workDir, ['config', '--get', 'core.fsmonitor'], { observeConfigOnly: true });
   if (fsmonitor?.code === 0 && fsmonitor.stdout.trim() && fsmonitor.stdout.trim() !== 'false') {
     mechanisms.push({ kind: 'fsmonitor', detail: `core.fsmonitor=${fsmonitor.stdout.trim()}` });
   }
 
-  const sshCommand = await execGit(workDir, ['config', '--get', 'core.sshCommand']);
+  const sshCommand = await execGit(workDir, ['config', '--get', 'core.sshCommand'], { observeConfigOnly: true });
   if (sshCommand?.code === 0 && sshCommand.stdout.trim()) {
     mechanisms.push({ kind: 'ssh_command', detail: `core.sshCommand=${sshCommand.stdout.trim()}` });
   }

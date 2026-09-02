@@ -6,6 +6,8 @@
  * [DONE]；畸形完整事件返回结构化错误而不是静默忽略。
  */
 
+import { StringDecoder } from 'string_decoder';
+
 export interface SseStreamEvent {
   content: string | null;
   toolCallDeltas?: Array<{
@@ -25,18 +27,37 @@ export type SseParseOutcome =
 
 export class SseParser {
   private buffer = '';
+  private decoder = new StringDecoder('utf8');
+  private decoderHasInput = false;
   private sawDone = false;
   /** 畸形完整事件（结构化上报，不静默吞掉）。 */
   readonly malformedEvents: string[] = [];
 
   /** 喂入一个网络 chunk；返回 0..n 个完整解析结果。 */
   feed(chunk: Buffer | string): SseParseOutcome[] {
-    this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    if (typeof chunk === 'string') {
+      // String input is already decoded (primarily tests/adapters). Close any
+      // preceding byte stream explicitly before switching representations.
+      if (this.decoderHasInput) {
+        this.buffer += this.decoder.end();
+        this.decoder = new StringDecoder('utf8');
+        this.decoderHasInput = false;
+      }
+      this.buffer += chunk;
+    } else {
+      this.decoderHasInput = true;
+      this.buffer += this.decoder.write(chunk);
+    }
     return this.drain(false);
   }
 
   /** 流结束时调用：处理末尾无换行的残余 buffer。 */
   finish(): SseParseOutcome[] {
+    if (this.decoderHasInput) {
+      this.buffer += this.decoder.end();
+      this.decoder = new StringDecoder('utf8');
+      this.decoderHasInput = false;
+    }
     return this.drain(true);
   }
 

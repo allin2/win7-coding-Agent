@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kits": [
+    {
+      "revision": "20260830-r4",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260830-r4.zip",
+      "sha256": "037213c8637544dccc58b07632e097b718c265f93015af93279ac052f0282e09",
+      "source_commit": "72e4d905175baa3eae7b5eb6c1f49f47f9731046",
+      "input_lock_sha256": "99aecc91c8e1ff9b797cfe33e7bdc7f7ef5f656fde224e2d0997e9d838a63fb8",
+      "package_manifest_sha256": "35150cf85f20e73448b14b1adb60a8bb36e9a2ca8ac13d7ef1cf8d7e7829aff9",
+      "status": "REVOKED_AFTER_A9_09_V25_INDEPENDENT_REVIEW"
+    }
+  ]
+}

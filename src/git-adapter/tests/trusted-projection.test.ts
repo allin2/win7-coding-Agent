@@ -74,6 +74,34 @@ describe('A9-05: trusted git projection on real temp repositories', () => {
     expect(projection.externalMechanisms.some((m) => m.kind === 'hooks_path_override' && m.detail.includes('custom-hooks'))).toBe(true);
   });
 
+  it('does not execute fsmonitor or textconv callbacks while projecting status and diff', async () => {
+    const callback = path.join(repo, 'projection-callback.js');
+    const fsmonitorMarker = path.join(repo, 'fsmonitor-called.txt');
+    const textconvMarker = path.join(repo, 'textconv-called.txt');
+    const filterMarker = path.join(repo, 'filter-called.txt');
+    fs.writeFileSync(callback, [
+      "const fs = require('fs');",
+      "const kind = process.argv[2];",
+      `fs.appendFileSync(kind === 'fsmonitor' ? ${JSON.stringify(fsmonitorMarker)} : kind === 'filter' ? ${JSON.stringify(filterMarker)} : ${JSON.stringify(textconvMarker)}, 'called\\n');`,
+      "if (kind === 'textconv' && process.argv[3]) process.stdout.write(fs.readFileSync(process.argv[3]));",
+    ].join('\n'));
+    fs.writeFileSync(path.join(repo, '.gitattributes'), 'README.md diff=a9-projection filter=a9-filter\n');
+    git(repo, 'config', 'core.fsmonitor', `node "${callback}" fsmonitor`);
+    git(repo, 'config', 'diff.a9-projection.textconv', `node "${callback}" textconv`);
+    git(repo, 'config', 'filter.a9-filter.clean', `node "${callback}" filter`);
+    fs.writeFileSync(path.join(repo, 'README.md'), '# callback must not run\n');
+
+    const projection = await projectTrustedGit(repo);
+
+    expect(projection.isGit).toBe(true);
+    expect(projection.entries.some((entry) => entry.path === 'README.md')).toBe(true);
+    expect(projection.externalMechanisms.some((item) => item.kind === 'fsmonitor')).toBe(true);
+    expect(projection.externalMechanisms.some((item) => item.kind === 'textconv')).toBe(true);
+    expect(fs.existsSync(fsmonitorMarker)).toBe(false);
+    expect(fs.existsSync(textconvMarker)).toBe(false);
+    expect(fs.existsSync(filterMarker)).toBe(false);
+  });
+
   it('degrades explicitly for non-git workspaces without throwing', async () => {
     const plain = makeTempDir('a9-non-git-');
     try {

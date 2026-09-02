@@ -157,34 +157,12 @@ std::wstring LowerAscii(const std::wstring& value) {
     return out;
 }
 
-bool IsSensitiveEnvironmentName(const std::wstring& name) {
-    std::wstring upper = name;
-    for (wchar_t& ch : upper) {
-        if (ch >= L'a' && ch <= L'z') ch = static_cast<wchar_t>(ch - L'a' + L'A');
-    }
-    static const wchar_t* kExact[] = {
-        L"NODE_OPTIONS", L"ELECTRON_RUN_AS_NODE", L"ELECTRON_EXTRA_LAUNCH_ARGS",
-        L"NODE_TLS_REJECT_UNAUTHORIZED", L"GIT_SSL_NO_VERIFY", L"PYTHONHTTPSVERIFY",
-        L"SSL_CERT_FILE", L"SSL_CERT_DIR", L"REQUESTS_CA_BUNDLE", L"CURL_CA_BUNDLE",
-        L"OPENAI_API_KEY", L"DEEPSEEK_API_KEY", L"ANTHROPIC_API_KEY",
-    };
-    for (const wchar_t* blocked : kExact) {
-        if (upper == blocked) return true;
-    }
-    return upper.find(L"API_KEY") != std::wstring::npos ||
-           upper.find(L"AUTHORIZATION") != std::wstring::npos ||
-           upper.find(L"PASSWORD") != std::wstring::npos ||
-           upper.find(L"SECRET") != std::wstring::npos ||
-           upper.find(L"TOKEN") != std::wstring::npos;
-}
-
-bool ComputeFileSha256(const std::wstring& path, std::wstring* digest,
-                       std::wstring* error) {
-    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ,
-                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) {
-        if (error) *error = L"shell identity file open failed: " + WinErrorText(GetLastError());
+bool ComputeFileSha256Handle(HANDLE file, std::wstring* digest,
+                             std::wstring* error) {
+    LARGE_INTEGER start = {};
+    if (file == INVALID_HANDLE_VALUE ||
+        !SetFilePointerEx(file, start, nullptr, FILE_BEGIN)) {
+        if (error) *error = L"shell identity file seek failed: " + WinErrorText(GetLastError());
         return false;
     }
     HCRYPTPROV provider = 0;
@@ -219,6 +197,22 @@ bool ComputeFileSha256(const std::wstring& path, std::wstring* digest,
     }
     if (hash) CryptDestroyHash(hash);
     if (provider) CryptReleaseContext(provider, 0);
+    return ok;
+}
+
+bool ComputeFileSha256(const std::wstring& path, std::wstring* digest,
+                       std::wstring* error) {
+    // Refuse write/delete sharing while hashing. LaunchRestrictedProcess keeps
+    // an equivalent handle open through CreateProcessW to close the remaining
+    // path-replacement TOCTOU window.
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                              nullptr, OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        if (error) *error = L"shell identity file open failed: " + WinErrorText(GetLastError());
+        return false;
+    }
+    const bool ok = ComputeFileSha256Handle(file, digest, error);
     CloseHandle(file);
     return ok;
 }
@@ -238,7 +232,7 @@ bool BuildEnvironmentBlock(
         const size_t equals = item.find(L'=', item[0] == L'=' ? 1 : 0);
         if (equals != std::wstring::npos) {
             const std::wstring name = item.substr(0, equals);
-            if (!IsSensitiveEnvironmentName(name)) {
+            if (!IsForbiddenEnvironmentName(name)) {
                 entries.push_back(std::make_pair(name, item.substr(equals + 1)));
             }
         }
@@ -1515,6 +1509,29 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         return failure;
     }
 
+    HANDLE shellIdentityHandle = INVALID_HANDLE_VALUE;
+    if (currentUserProfile) {
+        shellIdentityHandle = CreateFileW(
+            config.executable.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+        std::wstring launchIdentity;
+        std::wstring launchIdentityError;
+        if (shellIdentityHandle == INVALID_HANDLE_VALUE ||
+            !ComputeFileSha256Handle(shellIdentityHandle, &launchIdentity, &launchIdentityError) ||
+            LowerAscii(launchIdentity) != LowerAscii(config.shellIdentity)) {
+            if (shellIdentityHandle != INVALID_HANDLE_VALUE) CloseHandle(shellIdentityHandle);
+            CloseHandle(hNullIn);
+            CloseHandle(hOutRead); CloseHandle(hOutWrite);
+            CloseHandle(hErrRead); CloseHandle(hErrWrite);
+            const int failure = failAfterRollback(HELPER_ERR_SHELL_IDENTITY);
+            result->errorMessage = "configured shell identity changed before process creation";
+            if (userSid) LocalFree(userSid);
+            CloseHandle(hRestricted);
+            CloseHandle(hJob);
+            return failure;
+        }
+    }
+
     // Microsoft documents CreateProcessAsUserW as the launch path for a
     // restricted primary token. bInheritHandles must stay TRUE because the
     // child's stdio handles are the explicitly inheritable pipe/NUL handles
@@ -1532,6 +1549,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         : CreateProcessAsUserW(
             hRestricted, config.executable.c_str(), &mutableCommandLine[0],
             nullptr, nullptr, TRUE, creationFlags, nullptr, cwd, &si, &pi);
+    if (shellIdentityHandle != INVALID_HANDLE_VALUE) CloseHandle(shellIdentityHandle);
 
     if (!created) {
         const DWORD lastError = GetLastError();
@@ -1936,6 +1954,7 @@ int RunHelperLoop() {
             else if (errorCode == HELPER_ERR_CANCEL_PROTOCOL) code = "CANCEL_PROTOCOL_INVALID";
             else if (errorCode == HELPER_ERR_PROCESS_CREATE) code = "PROCESS_CREATE_FAILED";
             else if (errorCode == HELPER_ERR_ENVIRONMENT) code = "ENVIRONMENT_REJECTED";
+            else if (errorCode == HELPER_ERR_SHELL_IDENTITY) code = "SHELL_IDENTITY_REJECTED";
             const std::string out = RenderErrorJson(requestId, code, result.errorMessage,
                                                     config.schemaVersion);
             std::fwrite(out.data(), 1, out.size(), stdout);
@@ -1984,14 +2003,14 @@ int wmain(int argc, wchar_t* argv[]) {
         }
         if (flag == L"--help" || flag == L"-h") {
             std::printf(
-                "spike02-helper: read one JSON execution request from stdin, run it in a\n"
-                "restricted environment (Job Object + Restricted Token + Low Integrity +\n"
-                "ACL), accept only a matching cancel control, and write one JSON response.\n"
-                "Request keys: schema_version, requestId, executable, argv, workingDirectory,\n"
-                "timeoutMs, idleTimeoutMs, maxOutputSize,\n"
-                "allowNetwork, allowedDirectories, protectedDirectories, aclPolicy.\n"
-                "executable must be a canonical absolute System32 path; ACL changes require\n"
-                "aclPolicy (acceptanceRoot + perRunRoot) and stay inside perRunRoot.\n");
+                "spike02-helper: JSON-over-stdio D-013 process host with two separate profiles.\n"
+                "v1 / D-013-v24-low-risk-noninteractive: Restricted Token + Low Integrity +\n"
+                "Job Object + authorized ACL changes; canonical low-risk System32 argv only.\n"
+                "v2 / D-013-v25-a9-trusted-shell-current-user: current-user Primary Token +\n"
+                "Job Object, detached stdin, bounded output, ready/cancel/result messages,\n"
+                "shell identity binding, filtered environment overlay and optional deadline.\n"
+                "v2 is NOT a security sandbox and provides no file, network or privilege\n"
+                "isolation beyond the permissions of the current Windows user.\n");
             return 0;
         }
     }

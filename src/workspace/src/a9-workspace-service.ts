@@ -21,6 +21,7 @@ import {
   decodeBuffer,
   encodeText,
   reencodePreservingOriginal,
+  bomPrefixFor,
   EncodingWriteError,
   WritableEncoding,
 } from './encoding';
@@ -54,6 +55,7 @@ export interface A9ReadResult {
   outsideWorkspace: boolean;
   /** 当前内容哈希，供后续 write/edit 绑定基线。 */
   contentSha256: string;
+  truncationReasons?: Array<'line_limit' | 'byte_limit'>;
 }
 
 export interface A9SearchResult {
@@ -102,10 +104,14 @@ interface BaselineFact {
   sha256: string;
   mtimeMs: number;
   size: number;
+  encoding?: WritableEncoding;
+  bom?: boolean;
 }
 
-/** 单文件整读上限：超过则要求分段读取，避免内存失控。 */
-const MAX_WHOLE_READ_BYTES = 8 * 1024 * 1024;
+/** 读取内存与模型预览分别有界；文件大小不再阻断行范围读取。 */
+const READ_CHUNK_BYTES = 64 * 1024;
+const MAX_READ_PREVIEW_BYTES = 128 * 1024;
+const READ_TRUNCATION_NOTICE = '\n[preview truncated: byte limit]';
 /** 搜索时单文件解码上限：更大的文件按能力缺失跳过并计数。 */
 const MAX_SEARCH_FILE_BYTES = 1024 * 1024;
 /** 搜索最多扫描的文件数，防止同步全库扫描。 */
@@ -214,9 +220,13 @@ export class A9WorkspaceService {
     };
   }
 
-  private recordBaseline(relPath: string, absPath: string): void {
+  private recordBaseline(
+    relPath: string,
+    absPath: string,
+    binding?: { encoding: WritableEncoding; bom: boolean },
+  ): void {
     if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
-      this.baselines.set(relPath, this.fileHash(absPath));
+      this.baselines.set(relPath, { ...this.fileHash(absPath), ...(binding || {}) });
     } else {
       this.baselines.delete(relPath);
     }
@@ -226,9 +236,9 @@ export class A9WorkspaceService {
    * 写入前的基线校验：已存在的文件必须有新鲜读取基线；基线与磁盘不一致时
    * 拒绝覆盖（BASELINE_DRIFT），从未读取时要求先读（READ_REQUIRED）。
    */
-  private ensureWritableBaseline(absPath: string, relPath: string): void {
-    if (!fs.existsSync(absPath)) return;
-    if (!fs.statSync(absPath).isFile()) return;
+  private ensureWritableBaseline(absPath: string, relPath: string): BaselineFact | undefined {
+    if (!fs.existsSync(absPath)) return undefined;
+    if (!fs.statSync(absPath).isFile()) return undefined;
     const current = this.fileHash(absPath);
     const baseline = this.baselines.get(relPath);
     if (!baseline) {
@@ -243,6 +253,7 @@ export class A9WorkspaceService {
         `文件 ${relPath} 在上次读取后被外部修改（hash 或大小变化）。拒绝覆盖；请重新读取后再写入。`,
       );
     }
+    return baseline;
   }
 
   // -------------------------------------------------------------------------
@@ -342,77 +353,180 @@ export class A9WorkspaceService {
 
   async read(
     targetPath: string,
-    options: { startLine?: number; maxLines?: number; encoding?: string } = {},
+    options: { startLine?: number; maxLines?: number; encoding?: string; signal?: AbortSignal } = {},
   ): Promise<A9ReadResult> {
-    const { absPath, relPath, isOutside } = this.resolvePath(targetPath);
-    if (!fs.existsSync(absPath)) {
-      throw new Error(`文件不存在: ${targetPath}`);
+    const startLine = options.startLine ?? 1;
+    const maxLines = options.maxLines ?? 200;
+    if (!Number.isSafeInteger(startLine) || startLine < 1 ||
+        !Number.isSafeInteger(maxLines) || maxLines < 1 || maxLines > 2000) {
+      throw new TypeError('read requires a positive integer startLine and maxLines in 1..2000');
     }
-    const stat = fs.statSync(absPath);
-    if (!stat.isFile()) {
-      throw new Error(`路径不是文件: ${targetPath}`);
+    if (options.encoding !== undefined && !['utf-8', 'gbk', 'utf-16le', 'binary'].includes(options.encoding)) {
+      throw new TypeError('read encoding must be utf-8, gbk, utf-16le or binary');
     }
-    if (stat.size > MAX_WHOLE_READ_BYTES) {
-      throw new WorkspaceError(
-        'FILE_TOO_LARGE',
-        `文件 ${relPath} 为 ${stat.size} 字节，超过整读上限 ${MAX_WHOLE_READ_BYTES} 字节。请使用 startLine/maxLines 分段读取，或使用二进制工具。`,
-      );
-    }
-
-    const raw = fs.readFileSync(absPath);
-    const sha256 = crypto.createHash('sha256').update(raw).digest('hex');
-    // 读取即建立写入基线。
-    this.baselines.set(relPath, { sha256, mtimeMs: stat.mtimeMs, size: stat.size });
-    const detection = detectEncoding(raw);
-
-    if (detection.encoding === 'ambiguous' && options.encoding !== 'binary') {
-      return {
-        path: relPath,
-        isText: false,
-        encoding: 'binary',
-        startLine: 1,
-        linesRead: 0,
-        totalLines: 0,
-        content: `[Binary or ambiguous file: size ${raw.length} bytes; use encoding:'binary' for metadata]`,
-        truncated: false,
-        outsideWorkspace: isOutside,
-        contentSha256: sha256,
-      };
-    }
-
-    const enc = (options.encoding && options.encoding !== 'binary'
-      ? options.encoding
-      : (detection.encoding !== 'ambiguous' ? detection.encoding : 'utf-8')) as WritableEncoding;
-    const text = decodeBuffer(raw, enc) ?? (() => {
-      throw new WorkspaceError('ENCODING_AMBIGUOUS', `文件 ${relPath} 无法按 ${enc} 严格解码；请确认编码后重读。`);
-    })();
-
-    const lines = text.split(/\r?\n/);
-    const totalLines = lines.length;
-    const startLine = Math.max(1, options.startLine || 1);
-    const maxLines = Math.max(1, options.maxLines || 200);
-
-    const sliceStart = startLine - 1;
-    const sliceEnd = Math.min(totalLines, sliceStart + maxLines);
-    const selectedLines = lines.slice(sliceStart, sliceEnd);
-    const truncated = sliceEnd < totalLines;
-
-    const formattedContent = selectedLines
-      .map((line, idx) => `${sliceStart + idx + 1}: ${line}`)
-      .join('\n');
-
-    return {
-      path: relPath,
-      isText: true,
-      encoding: enc,
-      startLine,
-      linesRead: selectedLines.length,
-      totalLines,
-      content: formattedContent,
-      truncated,
-      outsideWorkspace: isOutside,
-      contentSha256: sha256,
+    const checkCanceled = () => {
+      if (options.signal?.aborted) throw new Error('文件读取已取消');
     };
+    checkCanceled();
+    const { absPath, relPath, isOutside } = this.resolvePath(targetPath);
+    this.baselines.delete(relPath);
+    const pathBefore = await fs.promises.stat(absPath);
+    if (!pathBefore.isFile()) throw new Error(`路径不是文件: ${targetPath}`);
+    checkCanceled();
+    const handle = await fs.promises.open(absPath, 'r');
+    let result: A9ReadResult;
+    let baseline: BaselineFact;
+    try {
+      const before = await handle.stat();
+      if (!before.isFile()) throw new Error(`路径不是文件: ${targetPath}`);
+      if (before.dev !== pathBefore.dev || before.ino !== pathBefore.ino || before.size !== pathBefore.size ||
+          before.mtimeMs !== pathBefore.mtimeMs || before.ctimeMs !== pathBefore.ctimeMs) {
+        throw new WorkspaceError('BASELINE_DRIFT', '文件在打开期间变化，请重读。');
+      }
+      if (!Number.isSafeInteger(before.size)) throw new Error('文件大小超出安全读取范围');
+      const buffer = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+      let headerSize = 0;
+      while (headerSize < Math.min(3, before.size)) {
+        checkCanceled();
+        const { bytesRead } = await handle.read(buffer, headerSize, Math.min(3, before.size) - headerSize, headerSize);
+        if (!bytesRead) throw new WorkspaceError('BASELINE_DRIFT', '文件在读取期间被截断，请重读。');
+        headerSize += bytesRead;
+      }
+      const header = buffer.subarray(0, headerSize);
+      const automatic = options.encoding === undefined;
+      // Probe entire streams, not a prefix: a long ASCII header may precede GBK.
+      const encodings: Array<WritableEncoding | 'binary'> = options.encoding
+        ? [options.encoding as WritableEncoding | 'binary']
+        : header.subarray(0, 2).equals(Buffer.from([0xff, 0xfe])) ? ['utf-16le']
+        : header.subarray(0, 2).equals(Buffer.from([0xfe, 0xff])) ? ['binary']
+        : header.equals(Buffer.from([0xef, 0xbb, 0xbf])) ? ['utf-8'] : ['utf-8', 'gbk'];
+      let finalResult: A9ReadResult | undefined;
+      for (const encoding of encodings) {
+        checkCanceled();
+        let decoder: InstanceType<typeof TextDecoder> | undefined;
+        if (encoding !== 'binary') {
+          try { decoder = new TextDecoder(encoding, { fatal: true }); }
+          catch { /* Unsupported decoder follows the explicit/automatic failure contract below. */ }
+        }
+        let valid = decoder !== undefined;
+        let gbkPending = false;
+        let gbkPairs = 0;
+        let gbkValid = true;
+        let line = 1;
+        let linesRead = 0;
+        let lineStarted = false;
+        let pendingCR = '';
+        let remaining = MAX_READ_PREVIEW_BYTES - Buffer.byteLength(READ_TRUNCATION_NOTICE, 'utf8');
+        let byteLimited = false;
+        const preview: string[] = [];
+        const append = (text: string) => {
+          if (byteLimited) return;
+          const bytes = Buffer.from(text, 'utf8');
+          let end = Math.min(bytes.length, remaining);
+          if (end < bytes.length) {
+            while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1;
+            byteLimited = true;
+          }
+          preview.push(bytes.subarray(0, end).toString('utf8'));
+          remaining -= end;
+        };
+        const consume = (text: string, final = false) => {
+          text = pendingCR + text;
+          pendingCR = !final && text.endsWith('\r') ? '\r' : '';
+          if (pendingCR) text = text.slice(0, -1);
+          // Each split is bounded by a decoded chunk, even for a gigabyte line.
+          const parts = text.replace(/\r\n/g, '\n').split('\n');
+          for (let index = 0; index < parts.length; index += 1) {
+            if (line >= startLine && line - startLine < maxLines && !byteLimited) {
+              if (!lineStarted) {
+                const prefix = `${linesRead ? '\n' : ''}${line}: `;
+                if (Buffer.byteLength(prefix, 'utf8') > remaining) byteLimited = true;
+                else { append(prefix); linesRead += 1; lineStarted = true; }
+              }
+              append(parts[index]);
+            }
+            if (index < parts.length - 1) { line += 1; lineStarted = false; }
+          }
+        };
+        const digest = crypto.createHash('sha256');
+        let position = 0;
+        while (position < before.size) {
+          checkCanceled();
+          const { bytesRead } = await handle.read(buffer, 0, Math.min(buffer.length, before.size - position), position);
+          if (!bytesRead) throw new WorkspaceError('BASELINE_DRIFT', '文件在读取期间被截断，请重读。');
+          position += bytesRead;
+          const chunk = buffer.subarray(0, bytesRead);
+          digest.update(chunk);
+          if (automatic && encoding !== 'utf-16le' && chunk.includes(0)) valid = false;
+          if (automatic && encoding === 'gbk') {
+            for (const byte of chunk) {
+              if (gbkPending) {
+                if (byte < 0x40 || byte > 0xfe || byte === 0x7f) gbkValid = false;
+                gbkPending = false; gbkPairs += 1;
+              } else if (byte > 0x7f) {
+                if (byte < 0x81 || byte > 0xfe) gbkValid = false;
+                gbkPending = true;
+              }
+            }
+          }
+          if (valid && decoder) {
+            try { consume(decoder.decode(chunk, { stream: true })); }
+            catch { valid = false; }
+          }
+        }
+        if (valid && decoder) {
+          try { consume(decoder.decode(), true); }
+          catch { valid = false; }
+        }
+        if (automatic && encoding === 'gbk' && (!gbkValid || gbkPending || gbkPairs < 2)) valid = false;
+        checkCanceled();
+        const after = await handle.stat();
+        const current = await fs.promises.stat(absPath);
+        if (![after, current].every((stat) => stat.dev === before.dev && stat.ino === before.ino &&
+            stat.size === before.size && stat.mtimeMs === before.mtimeMs && stat.ctimeMs === before.ctimeMs)) {
+          throw new WorkspaceError('BASELINE_DRIFT', '文件身份或内容在读取期间变化，请重读。');
+        }
+        const sha256 = digest.digest('hex');
+        finalResult = {
+          path: relPath, isText: false, encoding: 'binary', startLine: 1, linesRead: 0, totalLines: 0,
+          content: `[Binary or ambiguous file: size ${before.size} bytes; specify a known text encoding to read]`,
+          truncated: false, outsideWorkspace: isOutside, contentSha256: sha256,
+        };
+        if (valid) {
+          const reasons: Array<'line_limit' | 'byte_limit'> = [];
+          if (line - startLine >= maxLines) reasons.push('line_limit');
+          if (byteLimited) reasons.push('byte_limit');
+          finalResult = {
+            ...finalResult, isText: true, encoding, startLine, linesRead, totalLines: line,
+            content: preview.join('') + (byteLimited ? READ_TRUNCATION_NOTICE : ''),
+            truncated: reasons.length > 0, truncationReasons: reasons,
+          };
+          break;
+        }
+        if (!automatic && encoding !== 'binary') {
+          throw new WorkspaceError('ENCODING_AMBIGUOUS', `文件 ${relPath} 无法按 ${encoding} 严格解码；请确认编码后重读。`);
+        }
+      }
+      checkCanceled();
+      // Only complete, stable scans can become a write baseline, never a preview hash.
+      result = finalResult!;
+      const hasUtf8Bom = header.length >= 3 && header.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]));
+      const hasUtf16LeBom = header.length >= 2 && header.subarray(0, 2).equals(Buffer.from([0xff, 0xfe]));
+      baseline = {
+        sha256: result.contentSha256,
+        mtimeMs: before.mtimeMs,
+        size: before.size,
+        ...(result.isText ? {
+          encoding: result.encoding as WritableEncoding,
+          bom: result.encoding === 'utf-8' ? hasUtf8Bom : result.encoding === 'utf-16le' ? hasUtf16LeBom : false,
+        } : {}),
+      };
+    } finally {
+      await handle.close();
+    }
+    checkCanceled();
+    this.baselines.set(relPath, baseline);
+    return result;
   }
 
   // -------------------------------------------------------------------------
@@ -579,18 +693,19 @@ export class A9WorkspaceService {
       // 未显式指定编码时保持原文件编码与 BOM。
       const raw = fs.readFileSync(absPath);
       const detection = detectEncoding(raw);
-      if (detection.encoding === 'ambiguous') {
+      const baseline = this.baselines.get(relPath);
+      const boundEncoding = baseline && baseline.encoding;
+      if (!boundEncoding && detection.encoding === 'ambiguous') {
         throw new WorkspaceError(
           'ENCODING_AMBIGUOUS',
           `文件 ${relPath} 的现有编码无法可靠识别；请显式指定 encoding 或先以 binary 查看。`,
         );
       }
-      const body = encodeText(content, detection.encoding as WritableEncoding);
-      const bom = detection.bom
-        ? (detection.encoding === 'utf-8' ? Buffer.from([0xef, 0xbb, 0xbf]) : Buffer.from([0xff, 0xfe]))
-        : Buffer.alloc(0);
+      const encoding = boundEncoding || detection.encoding as WritableEncoding;
+      const body = encodeText(content, encoding);
+      const bom = bomPrefixFor(encoding, boundEncoding ? baseline!.bom === true : detection.bom);
       buffer = bom.length > 0 ? Buffer.concat([bom, body]) : body;
-      encodingUsed = detection.encoding;
+      encodingUsed = encoding;
     } else {
       // 新文件默认 UTF-8 无 BOM。
       buffer = encodeText(content, 'utf-8');
@@ -601,7 +716,10 @@ export class A9WorkspaceService {
     atomicWrite(absPath, buffer);
 
     this.checkpointManager.recordPostMutation(turnId, relPath, isNew ? 'create' : 'modify');
-    this.recordBaseline(relPath, absPath);
+    const writtenBom = encodingUsed === 'utf-8'
+      ? buffer.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))
+      : encodingUsed === 'utf-16le' && buffer.subarray(0, 2).equals(Buffer.from([0xff, 0xfe]));
+    this.recordBaseline(relPath, absPath, { encoding: encodingUsed as WritableEncoding, bom: writtenBom });
 
     return {
       path: relPath,
@@ -629,18 +747,19 @@ export class A9WorkspaceService {
       throw new Error(`待编辑文件不存在: ${targetPath}`);
     }
     // 编辑必须基于新鲜读取基线；外部变化后拒绝覆盖。
-    this.ensureWritableBaseline(absPath, relPath);
+    const baseline = this.ensureWritableBaseline(absPath, relPath)!;
 
     this.checkpointManager.recordPreMutation(turnId, relPath);
 
     const raw = fs.readFileSync(absPath);
     const detection = detectEncoding(raw);
-    if (detection.encoding === 'ambiguous') {
+    const encoding = baseline.encoding || (detection.encoding === 'ambiguous' ? undefined : detection.encoding as WritableEncoding);
+    if (!encoding) {
       throw new WorkspaceError('ENCODING_AMBIGUOUS', `文件 ${relPath} 编码无法可靠识别，拒绝文本编辑以避免损坏原始字节。`);
     }
-    const originalText = decodeBuffer(raw, detection.encoding as WritableEncoding);
+    const originalText = decodeBuffer(raw, encoding);
     if (originalText === undefined) {
-      throw new WorkspaceError('ENCODING_AMBIGUOUS', `文件 ${relPath} 按 ${detection.encoding} 解码失败，拒绝编辑。`);
+      throw new WorkspaceError('ENCODING_AMBIGUOUS', `文件 ${relPath} 按 ${encoding} 解码失败，拒绝编辑。`);
     }
 
     const firstIndex = originalText.indexOf(oldText);
@@ -658,7 +777,10 @@ export class A9WorkspaceService {
     // 保持原编码、BOM、EOL 与末尾换行。
     let preserved: { buffer: Buffer; encoding: WritableEncoding; eol: string };
     try {
-      const result = reencodePreservingOriginal(raw, originalText, replacedText);
+      const result = reencodePreservingOriginal(raw, originalText, replacedText, {
+        encoding,
+        bom: baseline.encoding ? baseline.bom === true : detection.bom,
+      });
       preserved = { buffer: result.buffer, encoding: result.encoding, eol: result.eol };
     } catch (err) {
       if (err instanceof EncodingWriteError) {
@@ -671,7 +793,7 @@ export class A9WorkspaceService {
     atomicWrite(absPath, preserved.buffer);
 
     this.checkpointManager.recordPostMutation(turnId, relPath, 'modify');
-    this.recordBaseline(relPath, absPath);
+    this.recordBaseline(relPath, absPath, { encoding: preserved.encoding, bom: preserved.buffer.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])) || preserved.buffer.subarray(0, 2).equals(Buffer.from([0xff, 0xfe])) });
 
     return {
       path: relPath,

@@ -47,6 +47,15 @@
       ? String(error.message || error.detail || error.reason)
       : fallback;
   }
+  function runtimeDiagnostic(snapshot) {
+    const diagnostic = snapshot && snapshot.diagnostics ? snapshot.diagnostics : {};
+    const code = String(diagnostic.code || (snapshot && snapshot.status) || 'A9_RUNTIME_RESTRICTED').slice(0, 100);
+    const rawDetail = String(diagnostic.detail || diagnostic.hint || diagnostic.error || '').slice(0, 500);
+    const detail = rawDetail
+      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@')
+      .replace(/((?:authorization|api[-_]?key|password|secret|access[-_]?token)\s*[:=]\s*)(?:bearer\s+)?[^\s,;&]+/gi, '$1***redacted***');
+    return detail ? `${code}: ${detail}` : code;
+  }
   function setFieldError(id, message) {
     const node = el(id);
     if (!node) return;
@@ -101,7 +110,8 @@
 
   function syncComposer() {
     const snapshot = state.snapshot;
-    const blockedMode = !snapshot || snapshot.status !== 'ready' || !SUPPORTED_MODES.has(snapshot.mode);
+    const runtimeUnavailable = Boolean(snapshot && snapshot.status !== 'ready');
+    const blockedMode = !snapshot || runtimeUnavailable || !SUPPORTED_MODES.has(snapshot.mode);
     const blockedApproval = Boolean(snapshot && (snapshot.pendingApproval || snapshot.agentStatus === 'needs_approval'));
     const prompt = el('task-prompt');
     const send = el('run-task');
@@ -122,7 +132,9 @@
     const stopLabel = stopKind === 'turn' ? '停止任务' : stopKind === 'managed_process' ? '停止后台进程' : '停止';
     text('cancel-task-label', stopLabel);
     text('rail-stop-label', stopLabel);
-    if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
+    if (runtimeUnavailable) text('session-status', `Runtime 初始化受限：${runtimeDiagnostic(snapshot)}。请打开诊断查看原始运行时事实。`);
+    else if (!snapshot) text('session-status', '选择一个本地工作区后再开始任务。');
+    else if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
     else if (blockedApproval) text('session-status', '先处理当前绑定审批；同一工作区一次只执行一个 A9 任务。');
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
     else if (!snapshot.provider.probe || snapshot.provider.probe.classification !== 'tool_calling') text('session-status', 'Provider 尚未通过原生 tool_calls 探测；任务发送保持禁用。');
@@ -280,15 +292,17 @@
     let rawOutput = '';
     (snapshot.timeline || []).slice(-60).forEach((event) => {
       const data = event.data || {};
+      const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
       const item = document.createElement('li');
       const bits = [event.type || 'event'];
       if (data.toolName) bits.push(data.toolName);
-      if (data.exitCode !== undefined) bits.push(`exit=${data.exitCode}`);
+      if (shell && shell.exitCode !== undefined) bits.push(`exit=${shell.exitCode}`);
       if (data.summary) bits.push(String(data.summary).slice(0, 100));
       item.textContent = bits.join(' · ');
       timeline.appendChild(item);
       [data.path, data.relativePath, data.targetPath].filter(Boolean).forEach((value) => filePaths.add(String(value)));
-      [data.stdout, data.stderr, data.output].filter((value) => typeof value === 'string').forEach((value) => { rawOutput += value; });
+      [shell && shell.stdout, shell && shell.stderr].filter((value) => typeof value === 'string').forEach((value) => { rawOutput += value; });
+      if (shell && shell.truncated) rawOutput += '\n[输出预览已截断；完整字节见日志路径]\n';
     });
     text('file-count', filePaths.size);
     const fileList = el('file-activity');
@@ -490,11 +504,20 @@
       baseUrl: provider.baseUrl || '',
       model: provider.model || '',
       remembered: Boolean(provider.apiKey && provider.apiKey.remembered),
+      caBundle: provider.caBundle || '',
+      customHeaderNames: provider.customHeaderNames || [],
+      customHeaderValuesAvailable: provider.customHeaderValuesAvailable === true,
+      proxy: provider.proxy || null,
     });
     if (state.providerHydratedSignature !== providerHydratedSignature) {
       el('a9-provider-url').value = provider.baseUrl || '';
       el('a9-provider-model').value = provider.model || '';
       el('a9-provider-remember').checked = Boolean(provider.apiKey && provider.apiKey.remembered);
+      el('a9-provider-ca').value = provider.caBundle || '';
+      el('a9-provider-header-name').value = (provider.customHeaderNames || [])[0] || '';
+      el('a9-provider-header-value').value = '';
+      el('a9-provider-proxy-host').value = provider.proxy && provider.proxy.host ? provider.proxy.host : '';
+      el('a9-provider-proxy-port').value = provider.proxy && provider.proxy.port ? String(provider.proxy.port) : '';
       state.providerHydratedSignature = providerHydratedSignature;
     }
     text('a9-lock-value', snapshot.lock ? (snapshot.lock.held ? '本窗口持有写锁' : `由 ${snapshot.lock.holder || '其他窗口'} 持有`) : '-');
@@ -503,6 +526,9 @@
     runtimeStatus.className = `connection ${ready ? 'ready' : 'failed'}`;
     runtimeStatus.innerHTML = '<i aria-hidden="true"></i>';
     runtimeStatus.appendChild(document.createTextNode(ready ? 'Runtime 就绪' : 'Runtime 受限'));
+    const runtimeError = ready ? '' : runtimeDiagnostic(snapshot);
+    setFieldError('a9-runtime-error', runtimeError);
+    if (!ready) showGlobalError(`Runtime 初始化受限：${runtimeError}`, '打开诊断', () => openDrawer('diagnostics-drawer'));
     const modeButton = el('a9-mode-open');
     modeButton.hidden = !ready || !workspace;
     modeButton.disabled = !ready || !workspace;
@@ -703,14 +729,27 @@
     el('workspace-tree-empty').hidden = tree.children.length > 0;
   }
 
-  async function openWorkspaceFile(filePath, startLine) {
-    if (!state.explorerSessionId) return;
-    const response = await api.readWorkspaceFile(state.explorerSessionId, filePath, startLine || 1, 500, 'utf-8');
-    if (!response || response.ok === false || !response.result) return;
+  async function openWorkspaceFile(filePath, startLine, encoding) {
+    if (!state.explorerSessionId || !filePath) return;
+    const sameFile = Boolean(state.viewer && state.viewer.path === filePath);
+    const selectedEncoding = encoding === undefined
+      ? (sameFile ? el('viewer-encoding').value : '')
+      : encoding;
+    el('viewer-encoding').value = selectedEncoding || '';
+    const response = await a9.readWorkspaceFile(filePath, startLine || 1, 500, selectedEncoding || undefined);
+    if (!response || response.ok === false || !response.result) {
+      showGlobalError(errorMessage(response, '文件读取失败。'), '重试', () => { void openWorkspaceFile(filePath, startLine, selectedEncoding); });
+      return;
+    }
     state.viewer = response.result;
     text('viewer-file', response.result.path);
     text('viewer-range', `${response.result.startLine || 1}–${response.result.endLine || response.result.lines.length}`);
     el('viewer-panel').hidden = false;
+    if (!response.result.isText) {
+      showGlobalError('无法自动识别为文本。请选择已知编码后重试；不会以乱码替代字符展示。');
+    } else {
+      clearGlobalError();
+    }
     renderViewer();
     openInspector('files');
   }
@@ -748,6 +787,7 @@
     state.running = true;
     setTaskState('运行中', 'running', 'Agent 正在读取事实并执行工具。');
     syncComposer();
+    const finishPolling = beginSnapshotPolling();
     let response;
     try {
       response = await a9.submitTurn(prompt);
@@ -765,6 +805,7 @@
       const message = errorMessage(error, '任务执行失败。');
       appendTaskCard('failed', 'Task failed', 'UNEXPECTED', message, [{ label: '重试状态读取', action: () => { void refreshSnapshot(); } }]);
     } finally {
+      await finishPolling();
       state.running = false;
       await refreshSnapshot();
       syncComposer();
@@ -796,6 +837,19 @@
     });
   }
 
+  function beginSnapshotPolling() {
+    let snapshotRefreshInFlight = null;
+    const pollId = root.setInterval(() => {
+      if (snapshotRefreshInFlight) return;
+      snapshotRefreshInFlight = Promise.resolve(refreshSnapshot())
+        .finally(() => { snapshotRefreshInFlight = null; });
+    }, 500);
+    return async () => {
+      root.clearInterval(pollId);
+      if (snapshotRefreshInFlight) await snapshotRefreshInFlight;
+    };
+  }
+
   async function decideApproval(decision) {
     if (state.approvalDecision) return state.approvalDecision;
     const card = el('a9-approval-card');
@@ -808,6 +862,10 @@
     setFieldError('a9-approval-error', '');
     setApprovalBusy(true);
     state.approvalDecision = (async () => {
+      state.running = true;
+      setTaskState('运行中', 'running', '审批已提交，Agent 正在继续执行；可随时停止。');
+      syncComposer();
+      const finishPolling = beginSnapshotPolling();
       let response;
       try {
         response = await a9.resumeApproval(approvalId, decision, bindingDigest, conversationId, taskId, turnId);
@@ -819,12 +877,15 @@
         const result = response.result || {};
         appendTaskCard(result.outcome === 'completed' ? 'completed' : 'failed', decision === 'approved' ? 'Approval applied' : 'Approval denied', result.verification || 'not_applicable', result.finalMessage || (decision === 'approved' ? '已批准并继续执行。' : '已拒绝，未执行该操作。'));
         text('a9-turn-outcome', `${result.outcome || '-'} · ${result.verification || 'not_applicable'}`);
-        await refreshSnapshot();
         return response;
       } catch (error) {
         setFieldError('a9-approval-error', errorMessage(error, '审批回复失败，请重试。'));
         return null;
       } finally {
+        await finishPolling();
+        state.running = false;
+        await refreshSnapshot();
+        syncComposer();
         state.approvalDecision = null;
         setApprovalBusy(false);
       }
@@ -865,19 +926,36 @@
   }
 
   function providerValues() {
+    const provider = state.snapshot && state.snapshot.provider ? state.snapshot.provider : {};
     const values = {
       baseUrl: el('a9-provider-url').value.trim(),
       model: el('a9-provider-model').value.trim(),
-      apiKey: el('a9-provider-key').value || undefined,
       rememberApiKey: el('a9-provider-remember').checked,
-      caBundle: el('a9-provider-ca').value.trim() || undefined,
     };
+    const apiKey = el('a9-provider-key').value;
+    if (apiKey) values.apiKey = apiKey;
+    const caBundle = el('a9-provider-ca').value.trim();
+    if (caBundle !== String(provider.caBundle || '')) values.caBundle = caBundle || null;
     const headerName = el('a9-provider-header-name').value.trim();
     const headerValue = el('a9-provider-header-value').value;
-    if (headerName && headerValue) values.customHeaders = { [headerName]: headerValue };
+    const existingHeaderNames = Array.isArray(provider.customHeaderNames) ? provider.customHeaderNames : [];
+    if (headerName && headerValue) {
+      values.customHeaders = existingHeaderNames.includes(headerName)
+        ? Object.fromEntries(existingHeaderNames.map((name) => [name, name === headerName ? headerValue : null]))
+        : { [headerName]: headerValue };
+    } else if (!headerName && existingHeaderNames.length > 0) {
+      values.customHeaders = {};
+    }
     const proxyHost = el('a9-provider-proxy-host').value.trim();
     const proxyPort = Number(el('a9-provider-proxy-port').value || 0);
-    if (proxyHost && proxyPort > 0) values.proxy = { host: proxyHost, port: proxyPort };
+    const existingProxy = provider.proxy || null;
+    if (proxyHost && proxyPort > 0) {
+      if (!existingProxy || proxyHost !== existingProxy.host || proxyPort !== Number(existingProxy.port)) {
+        values.proxy = { host: proxyHost, port: proxyPort };
+      }
+    } else if (existingProxy) {
+      values.proxy = null;
+    }
     return values;
   }
 
@@ -890,8 +968,18 @@
     }
     const headerName = el('a9-provider-header-name').value.trim();
     const headerValue = el('a9-provider-header-value').value;
-    if ((headerName && !headerValue) || (!headerName && headerValue)) {
-      setFieldError('a9-provider-error', '自定义 Header 名和值必须同时填写。');
+    const existingHeaderName = state.snapshot && state.snapshot.provider &&
+      Array.isArray(state.snapshot.provider.customHeaderNames)
+      ? state.snapshot.provider.customHeaderNames[0] || ''
+      : '';
+    if ((!headerName && headerValue) || (headerName && !headerValue && headerName !== existingHeaderName)) {
+      setFieldError('a9-provider-error', '新的自定义 Header 名和值必须同时填写；已保存的同名值可留空以保留。');
+      return;
+    }
+    const proxyHost = el('a9-provider-proxy-host').value.trim();
+    const proxyPortText = el('a9-provider-proxy-port').value;
+    if ((proxyHost && !proxyPortText) || (!proxyHost && proxyPortText)) {
+      setFieldError('a9-provider-error', '代理主机与端口必须同时填写，或同时清空。');
       return;
     }
     const button = el('a9-provider-apply');
@@ -930,7 +1018,6 @@
 
   function shellValues() {
     const kind = el('a9-shell-kind').value;
-    const version = el('a9-shell-version').value.trim();
     const envOverlay = {};
     for (const rawLine of el('a9-shell-env').value.split(/\r?\n/)) {
       const line = rawLine.trim();
@@ -941,7 +1028,7 @@
       if (Object.prototype.hasOwnProperty.call(envOverlay, name)) throw new Error(`环境变量重复：${name}`);
       envOverlay[name] = line.slice(separator + 1);
     }
-    return { kind, version, envOverlay };
+    return { kind, envOverlay };
   }
 
   async function applyShell() {
@@ -1057,6 +1144,10 @@
       ['Chrome', response.runtime && response.runtime.chrome], ['Architecture', response.runtime && response.runtime.arch],
       ['Platform', response.runtime && response.runtime.platform],
     ];
+    if (state.snapshot) {
+      rows.push(['A9 Runtime status', state.snapshot.status || '-']);
+      rows.push(['A9 Runtime diagnostic', state.snapshot.status === 'ready' ? 'ready' : runtimeDiagnostic(state.snapshot)]);
+    }
     rows.forEach(([label, value]) => {
       const dt = document.createElement('dt');
       const dd = document.createElement('dd');
@@ -1099,7 +1190,10 @@
     el('task-prompt').addEventListener('input', () => { resizeComposer(); scheduleDraftSave(); });
     el('task-prompt').addEventListener('blur', () => { void saveDraftNow(); });
     el('task-prompt').addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
+      if (event.key === 'Enter' && !event.shiftKey && event.isComposing !== true && event.keyCode !== 229) {
+        event.preventDefault();
+        void submitPrompt();
+      }
     });
     el('run-task').addEventListener('click', () => { void submitPrompt(); });
     el('cancel-task').addEventListener('click', () => { void stopTurn(); });
@@ -1127,6 +1221,11 @@
     el('a9-provider-probe').addEventListener('click', () => { void probeProvider(); });
     el('a9-shell-path').readOnly = true;
     el('a9-shell-path').placeholder = '应用后由系统文件选择器确定';
+    const shellVersion = el('a9-shell-version');
+    shellVersion.disabled = true;
+    shellVersion.placeholder = '选择后由文件身份自动测量';
+    const shellVersionLabel = document.querySelector('label[for="a9-shell-version"]');
+    if (shellVersionLabel) shellVersionLabel.textContent = '测量版本（不可编辑）';
     el('a9-shell-apply').addEventListener('click', () => { void applyShell(); });
     el('a9-approval-approve').addEventListener('click', () => { void decideApproval('approved'); });
     el('a9-approval-deny').addEventListener('click', () => { void decideApproval('denied'); });
@@ -1134,6 +1233,7 @@
     el('a9-output-copy').addEventListener('click', copyOutput);
     el('workspace-up').addEventListener('click', () => { const parts = state.explorerPath.split(/[\\/]+/).filter(Boolean); parts.pop(); void refreshWorkspace(parts.join('/')); });
     el('viewer-search').addEventListener('input', renderViewer);
+    el('viewer-encoding').addEventListener('change', () => { void openWorkspaceFile(state.viewer && state.viewer.path, 1, el('viewer-encoding').value); });
     el('viewer-jump-go').addEventListener('click', () => { const line = Number(el('viewer-jump').value || 1); void openWorkspaceFile(state.viewer && state.viewer.path, line); });
     TAB_IDS.forEach((name, index) => {
       const tab = el(`inspector-tab-${name}`);

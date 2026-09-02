@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
 import { spawn } from 'child_process';
+import { createTrustedShellEnvironment } from '../src/trusted-shell-environment';
 import { hasCompleteHelperCleanupProof, NativeHelperExecutionResult, NativeHelperRequest, NativeHelperRequestV2, parseNativeHelperResponse, StdioHelperTransport } from '../src';
 
 jest.mock('child_process', () => ({ spawn: jest.fn() }));
@@ -12,6 +13,26 @@ class FakeChild extends EventEmitter {
   stderr = new PassThrough();
   kill = jest.fn(() => true);
 }
+
+test.each([false, true])('v2 helper receives only the sanitized environment (managed=%s)', async (managed) => {
+  const child = new FakeChild();
+  (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const secret = 'sentinel-helper-private-value';
+  const environment = createTrustedShellEnvironment({
+    BUILD_MODE: secret, NORMAL: 'release', NODE_DEBUG: 'http', SYSTEMROOT: 'C:\\Windows',
+  }, {}, [secret]);
+  const transport = new StdioHelperTransport('helper.exe');
+  const invocation = managed ? transport.startManaged(requestV2(), environment) : undefined;
+  const completion = invocation ? invocation.completion : transport.invoke({ ...requestV2(), managed }, undefined, environment);
+  expect((spawn as unknown as jest.Mock).mock.calls.slice(-1)[0][2].env).toEqual({
+    NORMAL: 'release', SYSTEMROOT: 'C:\\Windows',
+  });
+  child.stdout.write(JSON.stringify(startedV2()) + '\n');
+  if (invocation) await invocation.ready;
+  child.stdout.write(JSON.stringify(cancelledResponseV2()) + '\n');
+  child.emit('close', 0);
+  await completion;
+});
 
 test('managed invocation exposes the helper PID and uses the same bound cancel protocol', async () => {
   const child = new FakeChild();
@@ -119,6 +140,7 @@ test('cooperative cancellation waits for helper acknowledgement and never kills 
   child.stdin.on('data', (chunk: Buffer) => written.push(Buffer.from(chunk)));
   const controller = new AbortController();
   const pending = new StdioHelperTransport('helper.exe').invoke(request(), controller.signal);
+  expect((spawn as unknown as jest.Mock).mock.calls.slice(-1)[0][2]).not.toHaveProperty('env');
   controller.abort();
   await new Promise((resolve) => setImmediate(resolve));
   child.stdout.write(`${JSON.stringify(cancelledResponse())}\n`);

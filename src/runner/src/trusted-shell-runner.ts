@@ -23,6 +23,7 @@ import { selectShell, ShellKind } from './shell-detection';
 import { BackgroundProcessHandle, BackgroundProcessManager } from './background-process-manager';
 import { killProcessTree } from './process-cleanup';
 import { HelperTransport } from './native-transport';
+import { createTrustedShellEnvironment, validateTrustedShellEnvironmentOverlay } from './trusted-shell-environment';
 import {
   decodeNativeHelperBase64,
   hasCompleteHelperCleanupProof,
@@ -74,6 +75,13 @@ export interface TrustedShellResult {
   /** 无法证明进程树清理完成时为 true：调用方必须停止后续自动执行并提示残留。 */
   residueRisk?: boolean;
   backgroundHandle?: string;
+  /** Ready/start failures expose conservative process facts; unknown is never treated as not-spawned. */
+  spawnFacts?: {
+    helperSpawned: boolean;
+    backgroundProcess: 'spawned' | 'not_spawned' | 'unknown';
+    cleanupConfirmed: boolean;
+    cleanupRequired: boolean;
+  };
   termination: TrustedShellTermination;
   error?: string;
 }
@@ -94,13 +102,20 @@ export interface TrustedShellRunnerOptions {
   /** Product persistence hook for asynchronous background terminal states. */
   onBackgroundStateChange?: (handle: BackgroundProcessHandle) => void;
   /** 测试可注入；生产绑定 canonical path + 当前文件 SHA-256。 */
-  resolveShellIdentity?: (shellPath: string) => { canonicalPath: string; sha256: string; version?: string };
-  /** 用户显式 Shell 的设置版本；仅由产品设置存储提供，不接受模型参数。 */
-  getConfiguredShellVersion?: (shellPath: string) => string | undefined;
+  resolveShellIdentity?: (shellPath: string) => ShellFileIdentity;
+  /** 用户选择时持久化的不可变 Shell 文件绑定；执行时必须与当前文件完全一致。 */
+  getConfiguredShellIdentity?: (shellPath: string) => ShellFileIdentity | undefined;
 }
 
 /** 单流原始日志默认上限（1 MiB）。 */
 const DEFAULT_MAX_LOG_BYTES = 1024 * 1024;
+
+export interface ShellFileIdentity {
+  canonicalPath: string;
+  sha256: string;
+  fileId: string;
+  version?: string;
+}
 
 export class TrustedShellRunner {
   private readonly backgroundManager: BackgroundProcessManager;
@@ -124,6 +139,23 @@ export class TrustedShellRunner {
     return this.options.redactText ? this.options.redactText(text) : text;
   }
 
+  private resolveAndValidateShellIdentity(exe: string, explicit: boolean, shellMeta: TrustedShellResult['shell']): ShellFileIdentity {
+    const identity = this.options.resolveShellIdentity
+      ? this.options.resolveShellIdentity(exe)
+      : resolveShellFileIdentity(exe);
+    if (explicit) {
+      const configured = this.options.getConfiguredShellIdentity?.(identity.canonicalPath);
+      if (!configured || !sameShellFileIdentity(configured, identity)) {
+        throw new Error('A9_SHELL_IDENTITY_CHANGED: configured Shell file changed; user must select it again');
+      }
+    }
+    shellMeta.path = identity.canonicalPath;
+    shellMeta.version = identity.version ?? 'unknown';
+    shellMeta.evidence = 'verified_file_identity';
+    if (explicit) shellMeta.reason = 'workspace explicit Shell selection; persisted file identity verified';
+    return identity;
+  }
+
   private createV2HelperRequest(
     requestId: string,
     request: TrustedShellRequest,
@@ -137,10 +169,8 @@ export class TrustedShellRunner {
     if (shellMeta.kind === 'sh') {
       throw new Error('D-013 v25 requires cmd, Windows PowerShell, or an explicitly configured bash host');
     }
-    const envOverlay = validateTrustedShellEnvironmentOverlay(request.envOverlay ?? {});
-    const identity = this.options.resolveShellIdentity
-      ? this.options.resolveShellIdentity(exe)
-      : resolveShellFileIdentity(exe);
+    const envOverlay = validateTrustedShellEnvironmentOverlay(request.envOverlay ?? {}, this.options.getSensitiveValues?.());
+    const identity = this.resolveAndValidateShellIdentity(exe, Boolean(request.shellPath), shellMeta);
     const deadline = request.timeoutMs !== undefined && request.timeoutMs > 0
       ? { deadlineMode: 'fixed' as const, timeoutMs: request.timeoutMs }
       : { deadlineMode: 'none' as const };
@@ -152,9 +182,9 @@ export class TrustedShellRunner {
       argv: args,
       shellKind: shellMeta.kind,
       shellPath: identity.canonicalPath,
-      shellVersion: request.shellPath
-        ? this.options.getConfiguredShellVersion?.(identity.canonicalPath) ?? identity.version ?? 'unknown'
-        : shellMeta.version ?? identity.version ?? 'unknown',
+      // shellVersion is evidence, not a user label. Always derive it from the
+      // same measured file identity that supplies shellIdentity.
+      shellVersion: identity.version ?? 'unknown',
       shellIdentity: identity.sha256.toLowerCase(),
       shellSource: request.shellPath ? 'workspace_explicit' : 'automatic',
       command: request.command,
@@ -174,36 +204,83 @@ export class TrustedShellRunner {
   async execute(request: TrustedShellRequest): Promise<TrustedShellResult> {
     const startTime = Date.now();
     const requestId = request.id ?? `sh-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    let validatedRequest: TrustedShellRequest;
+    try {
+      validatedRequest = {
+        ...request,
+        envOverlay: validateTrustedShellEnvironmentOverlay(request.envOverlay ?? {}, this.options.getSensitiveValues?.()),
+      };
+    } catch (error) {
+      const unavailableShell = {
+        kind: request.shellKind ?? 'cmd' as ShellKind,
+        path: request.shellPath ?? '',
+        evidence: 'environment_rejected',
+        reason: 'environment overlay rejected before shell selection',
+      };
+      return {
+        ...mapHelperFailure(String(error), 'protocol_error', true),
+        durationMs: Date.now() - startTime,
+        shell: unavailableShell,
+      };
+    }
 
     const selection = selectShell({
-      workspacePreferred: request.shellPath || request.shellKind,
+      workspacePreferred: validatedRequest.shellPath || validatedRequest.shellKind,
+      sensitiveValues: this.options.getSensitiveValues?.(),
     });
-    const shellKind: ShellKind = request.shellKind ?? selection.kind;
-    const shellExe = request.shellPath ?? selection.path;
+    if (!validatedRequest.shellPath && !selection.available) {
+      const unavailableShell = {
+        kind: selection.kind,
+        path: selection.path,
+        evidence: selection.evidence,
+        reason: selection.reason,
+      };
+      return {
+        ...mapHelperFailure('A9_SHELL_UNAVAILABLE: no canonical system PowerShell or CMD passed probing', 'capability_unavailable', true),
+        durationMs: Date.now() - startTime,
+        shell: unavailableShell,
+      };
+    }
+    const shellKind: ShellKind = validatedRequest.shellKind ?? selection.kind;
+    const shellExe = validatedRequest.shellPath ?? selection.path;
     const shellMeta = {
       kind: shellKind,
       path: shellExe,
-      version: selection.version,
-      evidence: selection.evidence,
-      reason: selection.reason,
+      version: validatedRequest.shellPath ? undefined : selection.version,
+      evidence: validatedRequest.shellPath ? 'explicit_identity_pending' : selection.evidence,
+      reason: validatedRequest.shellPath ? 'workspace explicit Shell selection; identity not yet verified' : selection.reason,
     };
-    const cwd = request.cwd || process.cwd();
-    const maxOutputBytes = request.maxOutputBytes ?? 65_536;
-    const maxOutputLines = request.maxOutputLines ?? 500;
+    const cwd = validatedRequest.cwd || process.cwd();
+    const maxOutputBytes = validatedRequest.maxOutputBytes ?? 65_536;
+    const maxOutputLines = validatedRequest.maxOutputLines ?? 500;
 
-    const { exe, args, verbatim } = buildTrustedShellInvocation(shellKind, shellExe, request.command);
+    const { exe, args, verbatim } = buildTrustedShellInvocation(shellKind, shellExe, validatedRequest.command);
+    if (validatedRequest.shellPath) {
+      try {
+        // Enforce the persisted selection binding even on development/direct
+        // paths. The Windows helper repeats the digest check while holding a
+        // no-write/no-delete-sharing handle through CreateProcessW.
+        this.resolveAndValidateShellIdentity(exe, true, shellMeta);
+      } catch (error) {
+        return {
+          ...mapHelperFailure(String(error), 'protocol_error', true),
+          durationMs: Date.now() - startTime,
+          shell: shellMeta,
+        };
+      }
+    }
 
     // 托管后台进程：启动失败绝不返回成功。
-    if (request.background) {
-      return this.startBackground(requestId, request, exe, args, cwd, shellMeta, startTime, maxOutputBytes);
+    if (validatedRequest.background) {
+      return this.startBackground(requestId, validatedRequest, exe, args, cwd, shellMeta, startTime, maxOutputBytes);
     }
 
     // D-013 helper 路径（Windows + 显式提供 helper 时）：Job Object 内执行。
     if (this.options.helperTransport && this.platform === 'win32') {
-      return this.executeViaHelper(requestId, request, exe, args, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
+      return this.executeViaHelper(requestId, validatedRequest, exe, args, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
     }
 
-    return this.executeDirect(requestId, request, exe, args, verbatim, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
+    return this.executeDirect(requestId, validatedRequest, exe, args, verbatim, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
   }
 
   // -------------------------------------------------------------------------
@@ -240,7 +317,7 @@ export class TrustedShellRunner {
       try {
         child = spawn(exe, args, {
           cwd,
-          env: { ...process.env, ...(request.envOverlay || {}) },
+          env: createTrustedShellEnvironment(process.env, request.envOverlay ?? {}, this.options.getSensitiveValues?.()),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
           // POSIX 必须让 Shell 成为独立进程组组长，kill(-pid) 才能覆盖其后代。
@@ -418,7 +495,8 @@ export class TrustedShellRunner {
         shell: shellMeta,
       };
     }
-    const transport = await this.options.helperTransport!.invoke(helperRequest, request.signal);
+    const transport = await this.options.helperTransport!.invoke(helperRequest, request.signal,
+      createTrustedShellEnvironment(process.env, {}, this.options.getSensitiveValues?.()));
     if (transport.kind !== 'response' || transport.response.type === 'error') {
       const detail = transport.kind !== 'response'
         ? transport.detail
@@ -504,7 +582,8 @@ export class TrustedShellRunner {
         )
         : undefined;
       const handle = await this.backgroundManager.start(
-        requestId, request.command, exe, args, cwd, request.envOverlay, helperRequest,
+        requestId, request.command, exe, args, cwd,
+        createTrustedShellEnvironment(process.env, request.envOverlay ?? {}, this.options.getSensitiveValues?.()), helperRequest,
       );
       if (handle.status === 'failed' || handle.pid === undefined) {
         return {
@@ -546,8 +625,18 @@ export class TrustedShellRunner {
         },
       };
     } catch (err: any) {
-      const spawned = err?.backgroundProcessSpawned === true;
-      const cleanupConfirmed = spawned && err?.cleanupConfirmed === true;
+      const helperSpawned = err?.helperSpawned === true;
+      const backgroundProcess = err?.backgroundProcessSpawned === true
+        ? 'spawned' as const
+        : err?.backgroundProcessSpawned === false
+          ? 'not_spawned' as const
+          : helperSpawned
+            ? 'unknown' as const
+            : 'not_spawned' as const;
+      const cancellationRequired = helperSpawned || backgroundProcess !== 'not_spawned';
+      const cleanupConfirmed = cancellationRequired && err?.cleanupConfirmed === true;
+      const cleanupRequired = cancellationRequired && !cleanupConfirmed;
+      const readinessFailed = err?.code === 'A9_BACKGROUND_HELPER_START_FAILED';
       return {
         schemaVersion: '2.0',
         status: 'failed',
@@ -560,17 +649,24 @@ export class TrustedShellRunner {
         durationMs: Date.now() - startTime,
         shell: shellMeta,
         encoding: 'utf-8',
+        spawnFacts: { helperSpawned, backgroundProcess, cleanupConfirmed, cleanupRequired },
         termination: {
-          requested: spawned,
-          processTreeReaped: spawned ? cleanupConfirmed : true,
-          containment: spawned && this.platform === 'win32' ? 'job_object' : 'none',
-          detail: spawned
+          requested: cancellationRequired,
+          processTreeReaped: cancellationRequired ? cleanupConfirmed : true,
+          containment: helperSpawned && this.platform === 'win32' ? 'job_object' : 'none',
+          detail: readinessFailed
+            ? cleanupConfirmed
+              ? 'helper readiness failed after launch became possible; cancellation completion proved cleanup'
+              : 'helper readiness failed after launch became possible; child spawn is unknown and cleanup remains unconfirmed'
+            : backgroundProcess === 'spawned'
             ? cleanupConfirmed
               ? 'process started but state persistence failed; controlled cleanup was confirmed'
               : 'process started but state persistence failed; cleanup remains unconfirmed'
-            : 'start rejected before spawn; nothing left running',
+            : helperSpawned
+              ? 'helper started but child spawn/readiness could not be excluded; cleanup remains unconfirmed'
+              : 'start rejected before spawn; nothing left running',
         },
-        ...((spawned && !cleanupConfirmed) ? { residueRisk: true } : {}),
+        ...(cleanupRequired ? { residueRisk: true } : {}),
         error: String(err?.message || err),
       };
     }
@@ -652,50 +748,31 @@ export function buildTrustedShellInvocation(
 export function resolveShellFileIdentity(shellPath: string): {
   canonicalPath: string;
   sha256: string;
+  fileId: string;
   version?: string;
 } {
   const canonicalPath = fs.realpathSync.native(shellPath);
-  const stat = fs.statSync(canonicalPath);
+  const stat = fs.statSync(canonicalPath, { bigint: true });
   if (!stat.isFile()) throw new Error('Configured shell identity is not a regular file');
   return {
     canonicalPath,
     sha256: crypto.createHash('sha256').update(fs.readFileSync(canonicalPath)).digest('hex'),
-    version: `file-${stat.size}-${Math.trunc(stat.mtimeMs)}`,
+    fileId: `${stat.dev.toString(10)}:${stat.ino.toString(10)}`,
+    version: `file-${stat.size.toString(10)}-${stat.mtimeNs.toString(10)}`,
   };
 }
 
-/**
- * Only non-secret workspace variables may cross the helper boundary. Values
- * are deliberately never included in errors or audit text.
- */
-export function validateTrustedShellEnvironmentOverlay(
-  overlay: Record<string, string>,
-): Record<string, string> {
-  const exact = new Set([
-    'NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE', 'ELECTRON_EXTRA_LAUNCH_ARGS',
-    'NODE_TLS_REJECT_UNAUTHORIZED', 'GIT_SSL_NO_VERIFY', 'PYTHONHTTPSVERIFY',
-    'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE',
-    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY',
-  ]);
-  const output: Record<string, string> = Object.create(null);
-  let totalCharacters = 0;
-  const keys = Object.keys(overlay);
-  if (keys.length > 64) throw new Error('A9_ENV_OVERLAY_REJECTED: too many entries');
-  for (const key of keys) {
-    const value = overlay[key];
-    const upper = key.toUpperCase();
-    if (!key || key.length > 128 || key.includes('=') || key.includes('\0')
-      || ['__PROTO__', 'PROTOTYPE', 'CONSTRUCTOR'].includes(upper)
-      || typeof value !== 'string' || value.length > 8192 || value.includes('\0')
-      || exact.has(upper) || /(API_KEY|AUTHORIZATION|PASSWORD|SECRET|TOKEN)/.test(upper)) {
-      throw new Error('A9_ENV_OVERLAY_REJECTED: secret or process-control entry');
-    }
-    totalCharacters += key.length + value.length + 2;
-    if (totalCharacters > 32767) throw new Error('A9_ENV_OVERLAY_REJECTED: size limit exceeded');
-    output[key] = value;
-  }
-  return output;
+export function sameShellFileIdentity(expected: ShellFileIdentity, actual: ShellFileIdentity): boolean {
+  const canonicalEqual = process.platform === 'win32'
+    ? expected.canonicalPath.toLowerCase() === actual.canonicalPath.toLowerCase()
+    : expected.canonicalPath === actual.canonicalPath;
+  return canonicalEqual
+    && expected.sha256.toLowerCase() === actual.sha256.toLowerCase()
+    && expected.fileId === actual.fileId
+    && expected.version === actual.version;
 }
+
+export { createTrustedShellEnvironment, validateTrustedShellEnvironmentOverlay, isForbiddenTrustedShellEnvironmentName } from './trusted-shell-environment';
 
 /**
  * D-013 helper 传输失败 → TrustedShellResult 的纯映射：清理未确认时必须

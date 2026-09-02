@@ -1113,27 +1113,56 @@ export class A9PersistenceManager {
   // 单写锁（同一工作区）
   // ---------------------------------------------------------------------
 
-  acquireWorkspaceLock(workspacePath: string, ownerId: string): { acquired: boolean; holder?: string; acquiredAt?: string } {
-    const now = new Date();
+  acquireWorkspaceLock(
+    workspacePath: string,
+    ownerId: string,
+    options: { holderIsAlive?: (holderId: string) => boolean | undefined; now?: Date } = {},
+  ): { acquired: boolean; holder?: string; acquiredAt?: string } {
+    const now = options.now ?? new Date();
     const nowIso = now.toISOString();
-    const row = this.db.prepare('SELECT owner_id, heartbeat_at FROM a9_workspace_locks WHERE workspace_path = ?').get(workspacePath) as any;
-    if (row) {
-      if (row.owner_id === ownerId) {
-        this.db.prepare('UPDATE a9_workspace_locks SET heartbeat_at = ? WHERE workspace_path = ?').run(nowIso, workspacePath);
-        return { acquired: true, holder: ownerId, acquiredAt: row.heartbeat_at };
+    const acquire = this.db.transaction(() => {
+      const row = this.db.prepare('SELECT owner_id, heartbeat_at FROM a9_workspace_locks WHERE workspace_path = ?').get(workspacePath) as any;
+      if (!row) {
+        this.db.prepare(`
+          INSERT INTO a9_workspace_locks (workspace_path, owner_id, acquired_at, heartbeat_at)
+          VALUES (?, ?, ?, ?)
+        `).run(workspacePath, ownerId, nowIso, nowIso);
+        return { acquired: true, holder: ownerId, acquiredAt: nowIso };
       }
-      // 过期接管（心跳超过 15 分钟视为持有者已死）。
+      if (row.owner_id === ownerId) {
+        this.db.prepare('UPDATE a9_workspace_locks SET heartbeat_at = ? WHERE workspace_path = ? AND owner_id = ?')
+          .run(nowIso, workspacePath, ownerId);
+        return { acquired: true, holder: ownerId, acquiredAt: row.heartbeat_at as string };
+      }
+
       const heartbeat = new Date(row.heartbeat_at as string);
       const heartbeatAge = now.getTime() - heartbeat.getTime();
-      if (heartbeatAge < 15 * 60 * 1000) {
-        return { acquired: false, holder: row.owner_id, acquiredAt: row.heartbeat_at };
+      const expired = !Number.isFinite(heartbeat.getTime()) || heartbeatAge >= 15 * 60 * 1000;
+      // Immediate takeover is allowed only when the caller can positively prove
+      // the exact recorded owner is dead. Unknown/permission-denied results are
+      // represented by undefined and remain fail-closed until normal expiry.
+      const holderAlive = typeof options.holderIsAlive === 'function'
+        ? options.holderIsAlive(String(row.owner_id))
+        : undefined;
+      if (!expired && holderAlive !== false) {
+        return { acquired: false, holder: row.owner_id as string, acquiredAt: row.heartbeat_at as string };
       }
-    }
-    this.db.prepare(`
-      INSERT OR REPLACE INTO a9_workspace_locks (workspace_path, owner_id, acquired_at, heartbeat_at)
-      VALUES (?, ?, ?, ?)
-    `).run(workspacePath, ownerId, nowIso, nowIso);
-    return { acquired: true, holder: ownerId, acquiredAt: nowIso };
+
+      const replaced = this.db.prepare(`
+        UPDATE a9_workspace_locks
+        SET owner_id = ?, acquired_at = ?, heartbeat_at = ?
+        WHERE workspace_path = ? AND owner_id = ? AND heartbeat_at = ?
+      `).run(ownerId, nowIso, nowIso, workspacePath, row.owner_id, row.heartbeat_at);
+      if (Number(replaced.changes ?? 0) === 1) {
+        return { acquired: true, holder: ownerId, acquiredAt: nowIso };
+      }
+      const current = this.db.prepare('SELECT owner_id, heartbeat_at FROM a9_workspace_locks WHERE workspace_path = ?').get(workspacePath) as any;
+      return {
+        acquired: false,
+        ...(current ? { holder: current.owner_id as string, acquiredAt: current.heartbeat_at as string } : {}),
+      };
+    });
+    return acquire();
   }
 
   releaseWorkspaceLock(workspacePath: string, ownerId: string): void {

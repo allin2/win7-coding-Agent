@@ -1449,3 +1449,151 @@
   v24 与 v25 必须分别锁定和解释。本 ADR 仅针对 A9 Current-User Profile，局部取代 ADR-0067“任意 Shell
   始终拒绝”和 ADR-0068“仅低风险固定程序 Profile”的限制；ADR-0067/0068/0069/0071/0072 对历史
   Low-Risk Profile、A7/A8 与既有候选继续有效，不追溯改写其证据。
+
+## ADR-0102 A9-09 独立复审后的候选与原始返回证据绑定
+
+- 状态：Accepted（2026-08-30，项目负责人要求修复 D-013 v25 独立审查问题；仅收紧 ADR-0101 已授权门禁）
+- 背景：自报 PASS、独立文件哈希和版本标签不足以证明候选闭包或实际执行宿主；独立审查发现开发候选
+  可被 WIN7-20 verifier 接受、返回包可缺少 PE/原始 smoke 证据、显式 Shell 结果可沿用自动探测版本。
+- 决策：（1）显式 Shell 选择配置以 schemaVersion 2 保存 canonical path、稳定文件身份、SHA-256 和
+  测量版本；旧配置无完整绑定时必须重新选择。协议 v2 和执行结果使用同一已验证身份，不接受 Renderer
+  版本标签。（2）WIN7-20 报告使用独立 schema 2；W17 继承项绑定不可变 WIN7-19 disposition/ledger/report
+  哈希与 case pointer，W20 直接项绑定本候选与 Win7 普通用户机器证据。入口必须拒绝 dirty/ineligible
+  候选，并验证原始确定性 ZIP、内外 manifest、验收 kit、native 哈希与解压物理全树一致。
+  （3）v25 返回记录以仓库预批准 kit ZIP/hash 为信任根，拒绝重复返回 ZIP/hash 或 run ID；新增 schema 1
+  `validation-binding.json`，将批准 Profile 所列全部原始证据和退出码绑定到 run ID、source commit、
+  Profile 与最终 helper SHA-256。记录器独立解析 PE32+/AMD64/Win7 console、导入表、静态 CRT 和嵌入
+  asInvoker/Win7 manifest，交叉检查原始 PE 分析、v1/v2 smoke、ready/cancel、逻辑测试和捕获自测。
+  缺件、解析不支持或任何矛盾一律拒绝；不自动修补返回证据。
+- 后果：新合同只用于后续 v25/WIN7-20，不改写协议 v1/v24、WIN7-19 或旧 r4 ZIP。r4 保持撤销，修复提交
+  前不得生成虚构 source commit 或可批准的新套件；没有批准项时记录器保持阻断。开发机可验证结构与
+  fail-closed 行为，不能签发 Win10/Win7 PASS。文件绑定不是对恶意构建机或人工报告的远程证明，仍须
+  独立双构建、真实 Win7 实机证据及最终复审。本决策不新增运行时依赖、不扩大实现路径或系统操作权限。
+
+## ADR-0103 A9-09 正式产品闭包与批准清单必须独立于候选自报
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：ADR-0102 已绑定候选 ZIP/manifest/物理树与 Win10 原始返回证据，但“树等于 manifest”仍允许
+  候选把自身裁剪成五个文件并同步改写 manifest；仓库批准清单也尚未证明来自已提交 HEAD，存在同一工作
+  树本地加入批准条目的自批准路径。这两点不能构成独立发布信任根。
+- 决策：（1）WIN7-20 候选入口内置 0.3.0-alpha.1 的不可省略产品闭包，覆盖 Electron 入口和许可证、
+  `a9-09-input-lock.json`、Shell Product/Preload/Renderer、Core/Gateway/Git/Runner/State/Workspace 完整运行时
+  JavaScript、离线依赖、Runner manifest、helper/SQLite、SBOM、验证脚本与 verifier。入口解析 input lock、
+  runtime、Runner manifest、SBOM 和 kit，绑定 source commit、三份输入、D-013 v25 Profile/协议、native
+  哈希、Electron ABI 与 Gate；候选自报 manifest 不能删除或替换该集合。（2）生产记录器只从固定仓库路径
+  读取批准清单；清单必须存在于当前 `HEAD`，工作树字节与 `git show HEAD:<path>` 完全一致，且该路径无
+  staged/unstaged/untracked 状态。新 input lock 记录批准清单的 HEAD commit、路径和 SHA-256。
+  （3）测试清单仅允许 `testOnly=true` 的编程接口，正式 CLI 不暴露注入参数；测试身份明确写为 TEST_ONLY。
+- 后果：当前未跟踪的批准清单会安全阻断正式记录，直到用户授权提交完整整改；提交后仍必须另行生成新
+  revision、登记精确哈希并独立批准。固定闭包随产品版本维护，新增/移除运行时文件必须显式更新合同与测试。
+  本决策不改写 v24、WIN7-19、旧 r4 或历史正式锁，也不把开发机结构校验解释为 Win10/Win7 PASS。
+
+## ADR-0104 WIN7-20 候选外批准 pin 与正式输入来源绑定
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：ADR-0103 的固定文件集合和包内交叉一致性仅证明内部自洽，不能证明发布来源。把自造 input lock
+  移到候选外也不能自动成为权威输入，真实 native 配合伪造 JavaScript 同样不能被视为正式产品。
+- 决策：（1）WIN7-20 integrity/report 入口必须接收候选外只读使用的正式 `a9-09-input-lock.json`、批准
+  清单和 schema 1 `WIN7_20_RELEASE_AUTHORITY` 记录，并要求显式传入独立批准渠道发布的记录 SHA-256。
+  不提供默认 pin，不从候选/sidecar/传入文件本身推导批准，不自动创建批准记录。记录状态为
+  `APPROVED_FOR_WIN7_20_VALIDATION`，绑定 formal input lock SHA-256、批准清单 commit/SHA-256、产品
+  ZIP/manifest SHA-256 及产品 source commit。批准是在锁定双构建、正式输入审查和产品独立复核后发生的
+  外部信任动作；它不是 Win7/Alpha PASS。（2）包内 lock 与候选外正式 lock 必须逐字节一致；lock 的
+  approval_registry 必须匹配外部批准，build_kit 必须匹配清单中的精确批准项，两个 reproducible_builds
+  必须具有不同 ZIP/hash、合法且不同 run ID、不同 evidence binding SHA-256；拒绝 TEST_ONLY 身份。
+  原始 Win10 evidence binding 内容仍由记录器在写正式 lock 前验证，不在 Win7 重放构建。（3）三个原生
+  入口必须绑定正式输入的 entry hash，并检查 PE/COFF、PE32+、AMD64、executable/DLL 类型和 section
+  原始字节边界；不把 PE 结构替代 PE/API/CRT/协议 smoke 或实际加载证据。完整 ZIP/manifest 外部 pin
+  同时绑定全部 JavaScript、依赖、kit 与验证脚本。（4）candidate identity 与 integrity/report 保存批准
+  记录、正式 lock 和批准清单的哈希身份；CMD 增加必需参数，缺失或不匹配即 fail-closed。产品源码提交
+  与 helper 构建源码提交分别绑定产品批准与 build kit，不能把后续批准清单/lock 提交伪装为 helper 来源。
+- 后果：增加候选外只读批准记录和独立 hash 交接步骤。现场没有 Git/系统 Node 前置；应先在可信开发机
+  用仓库 verifier 完成预飞行，再运行包内 Electron 检查。信任根仍是独立批准与可信校验器，不防御被攻陷
+  的批准渠道、宿主或伪造全部输入的操作者。测试 pin 仅在临时夹具生成，不签发正式证据；旧 v24、WIN7-19
+  和已撤销 r4 不变，不新增依赖或系统 API，不授权提交、批准新候选或远程操作。
+
+## ADR-0105 A9 Shell 已知秘密值过滤与旧环境配置失效
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：仅按变量名过滤会让已知 Provider/API/Header/代理秘密借普通名字进入 child 和明文配置；
+  精确 Node 名称表还遗漏 NODE_DEBUG 等控制项。最新复审为 P0=0/P1=2/P2=0，撤销上一轮 A9-09A
+  通过结论；不得进入锁定 Win10 双构建。
+- 决策：（1）复用进程内 knownSecrets（含本进程已轮换旧值），继承环境删除命中项，overlay 在选择、
+  保存和执行前拒绝命中项；匹配原文、嵌入值、Base64/Base64URL（含无 padding）、percent/form 编码与
+  混合大小写 percent hex。错误和证据不回显键值。（2）Shell 探测、前台、后台及 v2 native helper
+  启动均使用净化环境，不再重新合并原始 process.env。helper 不接收秘密清单；只继承已净化快照并执行
+  原生名称过滤。v1 传输与历史工件不变。（3）JS/C++ 同步拒绝全部 NODE_*、ELECTRON_*，继续保留
+  既有秘密/TLS 控制规则。（4）Shell 设置文档升级 schemaVersion 3，沿用专用文件名；schema 2 读取时
+  原位迁移且复验全部工作区。任一旧 overlay 命中，移除该工作区整个 overlay 并持久化
+  environmentRejected=true；不保留含秘密的明文备份。启动和 Provider 凭据新增/变化时复验；当前工作区
+  被拒绝后必须显式重新保存设置才能执行，不能静默改用空环境。正常非秘密设置及 Shell 身份保留。
+- 后果：被拒绝的覆盖需要用户重新输入；原子替换失败时保持 fail-closed，不签发“已清除”结论。
+  这是已知秘密保护，不是未知密钥识别或磁盘安全擦除；历史外部副本、备份、已经运行的进程不能被追溯
+  清除。不新增依赖、网络调用或系统 API，不把开发机或结构测试冒充 Windows PASS；仍须再次独审、
+  新提交套件及 WIN7-20 环境/重启/轮换直接证据。
+
+## ADR-0106 A9-09 构建生成器入口与 Windows PowerShell 请求自测
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：ADR-0105 环境修复获独审关闭，但生成器仍精确匹配旧四项数组，扩展后的九项 smoke 无法封装；
+  正式 smoke 对 OrderedDictionary 调用 Hashtable.Clone，导致真实 Windows PowerShell 路径失败。
+- 决策：（1）生成器对 smoke 名称按必需集合校验，允许顺序变化和增项，缺项失败；隔离 TEST_ONLY Git
+  夹具执行真实 prepare-kit 入口，核对提交源码、input lock 和 manifest 哈希，禁止触碰工作树正式锁。
+  （2）有序请求逐项复制并替换 overlay；新增构建脚本专用 `-TestSmokeRequestOnly`，仅在 Windows
+  PowerShell 5.1 Desktop 执行同一复制函数并校验源请求未变。该分支在构建、文件写入及外部进程前退出，
+  不产生可交付返回包。非 Windows 自动测试显式跳过，不能以静态检查代替目标宿主执行。
+- 后果：不改变 helper 协议、产品运行时或交付依赖；自测开关只验证请求构造，不是 Win10/Win7 Gate。
+  当前仍须再次独审、授权提交、新 revision 及双构建；不改写 v24、WIN7-19 或已撤销 r4 的锁和工件。
+
+## ADR-0107 A9 文件显式编码与有界流式读取
+
+- 状态：Accepted（2026-08-30，项目负责人确认在独立读取修复范围内直接实施）
+- 背景：A9 read 在显式解码前先拒绝自动识别不明的文件；binary 请求反而进入文本分支；8 MiB 限制
+  在行范围处理前生效。当前 A9-09 不授权 Workspace/Core，故新增 A9-10 独立任务与 AGENTS 入口。
+- 决策：显式编码优先、binary 仅元数据；用 64 KiB 异步分块扫描替代同步整文件加载，完整哈希/行数
+  与最多 2000 行/128 KiB UTF-8 预览分离。严格流式解码保持跨块字符；可选 truncationReasons 说明
+  line_limit/byte_limit，不改变既有结果字段含义。不向模型暴露取消信号，内部复用 Agent Loop 信号。
+  完整读取并确认句柄/路径身份与 stat 稳定后才发布基线；错误/取消不留下新基线，不改变后续写入裁决。
+- 后果：内存有界但完整统计/哈希仍为 O(文件大小)，自动 GBK 可能需要重扫。无 BOM UTF-16LE 不保证
+  自动识别，须显式指定；超长单行只提供带截断标记的预览。无新增依赖/系统 API，沿用 Electron 22 /
+  Node 16 fs 与 ICU。只授权任务白名单和当前基线 detached 工作区，不授权提交/推送或修改历史工件；
+  Win7 实机与 A9-09 Gate 保持未完成。
+
+## ADR-0108 D-013 v25 后置独审缺口按独立 A9-11 合同修复
+
+- 状态：Accepted（2026-08-30，项目负责人要求核对后直接修复独立审查确认的问题）
+- 背景：A9-10 已修复 Agent 读取链，但同一 D-013 v25 独审任务仍复现八项跨模块缺口：只读 Git 投影可
+  执行 textconv/fsmonitor，活动 Full Access Loop 可在 UI 已切为 Read Only 后继续写，Git 投影和拆分的
+  `model_chunk` 可泄漏已知秘密，SSE Buffer 分块可损坏中文，Core/Renderer 的 Shell 事件 DTO 不一致且
+  长任务期间不刷新，显式读取编码未绑定 edit，A9 Viewer 固定调用 legacy UTF-8 读取。A9-09 与 A9-10
+  各自白名单均不足以完整修复，不能借既有授权越界。
+- 决策：（1）新增 A9-11 及精确路径白名单；Git 投影禁用所有会执行仓库配置的观察回调，并在产品边界
+  递归脱敏。（2）活动 Turn/审批/cleanup-required 进程期间拒绝模式切换；模型 chunk 先跨事件聚合脱敏，
+  再进入 timeline 和 SQLite。（3）SSE 采用 Node 16 可用的有状态 UTF-8 解码；Core 发布 schema 1 Shell
+  结果投影，Renderer 活动期轮询并按 DTO 展示。（4）显式 read 的 encoding/BOM 进入稳定写基线，edit
+  严格复用；A9 IPC 升级为 v5 并提供自身有界 read，Viewer 提供自动/显式编码选择，不再依赖 legacy A8
+  read。（5）全部改动只形成开发机修复证据，不改 v1/v2 native 协议、D-013 v24/v25 锁、WIN7-19 或
+  候选身份，不签发 Win10/Win7 PASS。
+- 后果：只读投影不再完全复现用户 Git callback 的显示效果，但真实 Git Shell 行为不变；连续模型文本可能
+  在工具/Turn 边界批量出现，以换取秘密不会跨事件泄漏。A9 IPC v5 要求同包 main/preload/Renderer 一致，
+  旧 schema fail-closed。显式错误编码仍拒绝写入；Win7/Electron 真实体验须纳入 WIN7-20 直接复验。
+
+## ADR-0109 D-013 v25 后置恢复、配置与用户流按独立 A9-12 合同修复
+
+- 状态：Accepted（2026-08-31，项目负责人要求继续核对并直接修复独立审查确认的问题）
+- 背景：A9-11 完成八项源码修复后，独审继续定位十项不在原白名单内的缺口：Viewer 手工编码跨文件
+  泄漏、Electron smoke 没有正式 Explorer 会话、首次 Undo 被严格对象校验拒绝、IME 组合输入提前发送、
+  Provider 二次保存丢失高级配置或秘密、审批恢复长任务没有 Stop、残留退出提示自身抛错、snapshot 同步
+  重复探测 Shell、崩溃持有者锁固定阻塞，以及 Runtime 初始化失败诊断在 Renderer 不可见。
+- 决策：（1）新增 A9-12 并限于 Shell Product/测试与 State 工作区锁；Viewer 每次新文件回到 auto，Smoke
+  通过真实 picker IPC 建会话，Undo 保持严格 schema 但 confirmationId 可选，IME 兼容 composition 与
+  keyCode 229。（2）Provider snapshot 只公开非秘密高级元数据；字段省略表示保留、显式空值表示清除，
+  endpoint 变化始终丢弃旧 API/Header/代理秘密；Renderer 不回填秘密。（3）审批恢复进入同一 running/
+  Stop/轮询生命周期；退出残留文本有界且不吞 cleanup 风险；自动 Shell 探测按 Runtime 缓存并在设置变化
+  后失效。（4）持久层只在 owner 精确为 `main-<pid>` 且 PID 检查明确 `ESRCH` 时事务接管；未知、权限错误、
+  PID 复用或其他不确定状态保持 fail-closed。同一 Runtime 未持锁时后续入口会重试。（5）初始化失败把
+  已脱敏、有界的 code/detail 明确显示到 Renderer 与诊断抽屉，不把未 ready 误报为“请选择模式”。
+- 后果：Provider UI 可以安全修改非秘密字段并显式清除旧设置，但 endpoint 变化后用户必须重新输入秘密；
+  PID 复用可能保守延迟锁接管，不能把 PID 检查描述为身份认证。开发机测试与 Electron smoke 均不替代
+  Win10/Win7 实机证据。本决策不改 native 协议、v24/v25 正式锁、WIN7-19 工件或候选身份，不授权提交、
+  推送、正式构建或解除 `FIX_BEFORE_ALPHA`。

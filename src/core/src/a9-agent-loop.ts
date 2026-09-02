@@ -82,7 +82,7 @@ export interface A9ModelPort {
 
 export interface A9WorkspacePort {
   list(path?: string, options?: { recursive?: boolean; maxEntries?: number }): Promise<any>;
-  read(path: string, options?: { startLine?: number; maxLines?: number; encoding?: string }): Promise<any>;
+  read(path: string, options?: { startLine?: number; maxLines?: number; encoding?: string; signal?: AbortSignal }): Promise<any>;
   search(pattern: string, options?: { path?: string; isRegex?: boolean; maxMatches?: number }): Promise<any>;
   write(path: string, content: string, options?: { encoding?: string; turnId?: string }): Promise<any>;
   edit(path: string, oldText: string, newText: string, options?: { turnId?: string }): Promise<any>;
@@ -114,11 +114,13 @@ export interface A9RunnerExecutionOptions {
 }
 
 export interface A9RunnerExecutionResult {
+  status?: 'exited' | 'timeout' | 'cancelled' | 'failed' | 'background_started';
   exitCode: number | null;
   stdout: string;
   stderr: string;
   durationMs: number;
   timedOut: boolean;
+  truncated?: boolean;
   cancelled?: boolean;
   rawStdoutBytes?: number;
   rawStderrBytes?: number;
@@ -1047,6 +1049,44 @@ export class A9AgentLoop {
       await this.collectExternal(turnId, signal);
     }
 
+    let shellEvent: Record<string, unknown> | undefined;
+    if (isShellTool) {
+      const previewLimit = 32 * 1024;
+      try {
+        const parsed = JSON.parse(toolResultStr);
+        const stdout = typeof parsed.stdout === 'string' ? parsed.stdout : '';
+        const stderr = typeof parsed.stderr === 'string' ? parsed.stderr : '';
+        shellEvent = {
+          schemaVersion: 1,
+          status: typeof parsed.status === 'string' ? parsed.status : 'unknown',
+          exitCode: typeof parsed.exitCode === 'number' || parsed.exitCode === null ? parsed.exitCode : null,
+          stdout: stdout.slice(0, previewLimit),
+          stderr: stderr.slice(0, previewLimit),
+          durationMs: typeof parsed.durationMs === 'number' ? parsed.durationMs : 0,
+          timedOut: parsed.timedOut === true,
+          truncated: parsed.truncated === true || stdout.length > previewLimit || stderr.length > previewLimit,
+          ...(typeof parsed.rawStdoutBytes === 'number' ? { rawStdoutBytes: parsed.rawStdoutBytes } : {}),
+          ...(typeof parsed.rawStderrBytes === 'number' ? { rawStderrBytes: parsed.rawStderrBytes } : {}),
+          ...(parsed.backgroundHandle ? { backgroundHandle: String(parsed.backgroundHandle) } : {}),
+          ...(logPaths ? { logPaths } : {}),
+          ...(residueRisk ? { residueRisk: true } : {}),
+        };
+      } catch (_parseErr) {
+        shellEvent = {
+          schemaVersion: 1,
+          status: 'protocol_error',
+          exitCode: null,
+          stdout: '',
+          stderr: toolResultStr.slice(0, previewLimit),
+          durationMs: 0,
+          timedOut: false,
+          truncated: toolResultStr.length > previewLimit,
+          ...(logPaths ? { logPaths } : {}),
+          ...(residueRisk ? { residueRisk: true } : {}),
+        };
+      }
+    }
+
     if (toolResultStr.length > this.maxToolResultChars) {
       toolResultStr = `${toolResultStr.slice(0, this.maxToolResultChars)}\n[Tool output truncated at ${this.maxToolResultChars} characters; full output preserved in tool logs]`;
     }
@@ -1085,7 +1125,13 @@ export class A9AgentLoop {
       type: 'tool_end',
       turnId,
       timestamp: new Date().toISOString(),
-      data: { toolName: tc.name, result: toolResultStr.slice(0, 1000), ...(residueRisk ? { residueRisk: true } : {}) },
+      data: {
+        schemaVersion: 1,
+        toolName: tc.name,
+        result: toolResultStr.slice(0, 1000),
+        ...(shellEvent ? { shell: shellEvent } : {}),
+        ...(residueRisk ? { residueRisk: true } : {}),
+      },
     });
 
     this.conversationHistory.push({
@@ -1108,7 +1154,7 @@ export class A9AgentLoop {
       case 'list':
         return { payload: await ws.list(args.path ?? '', { recursive: args.recursive, maxEntries: args.maxEntries }) };
       case 'read':
-        return { payload: await ws.read(args.path, { startLine: args.startLine, maxLines: args.maxLines, encoding: args.encoding }) };
+        return { payload: await ws.read(args.path, { startLine: args.startLine, maxLines: args.maxLines, encoding: args.encoding, signal }) };
       case 'search':
         return { payload: await ws.search(args.pattern, { path: args.path, isRegex: args.isRegex, maxMatches: args.maxMatches }) };
       case 'write':
@@ -1134,11 +1180,13 @@ export class A9AgentLoop {
           ...(signal ? { signal } : {}),
         });
         const payload = {
+          ...(shellResult.status ? { status: shellResult.status } : {}),
           exitCode: shellResult.exitCode,
           stdout: shellResult.stdout,
           stderr: shellResult.stderr,
           durationMs: shellResult.durationMs,
           timedOut: shellResult.timedOut,
+          ...(shellResult.truncated !== undefined ? { truncated: shellResult.truncated } : {}),
           ...(shellResult.rawStdoutBytes !== undefined ? { rawStdoutBytes: shellResult.rawStdoutBytes } : {}),
           ...(shellResult.rawStderrBytes !== undefined ? { rawStderrBytes: shellResult.rawStderrBytes } : {}),
           ...(shellResult.logPaths ? { logPaths: shellResult.logPaths } : {}),

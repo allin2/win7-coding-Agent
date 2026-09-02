@@ -404,7 +404,10 @@ describe('F5: pending approval keeps active state and resume continues the same 
 
       const resumedPromise = runtime.resumeApproval(approvalDecision(approval, 'approved'));
       await fixture.resumed;
-      expect(runtime.getSnapshot().pendingApproval).toBeUndefined();
+      const duringResume = runtime.getSnapshot();
+      expect(duringResume.pendingApproval).toBeUndefined();
+      expect(duringResume.agentStatus).toBe('running');
+      expect(duringResume.controls).toMatchObject({ canStop: true, stopKind: 'turn' });
 
       const duplicate = await runtime.resumeApproval(approvalDecision(approval, 'approved'));
       expect(duplicate.ok).toBe(false);
@@ -850,6 +853,32 @@ describe('F5: pending approval keeps active state and resume continues the same 
       fixture.release();
       expect((await runningTurn).ok).toBe(true);
       expect(runtime.getSnapshot().provider.model).toBe('old-provider');
+    } finally {
+      fixture.release();
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('does not publish Read Only while a Full Access Turn is still active', async () => {
+    const env = makeEnv();
+    const fixture = await startDelayedFixture();
+    const runtime = makeRuntime(env);
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      runtime.setMode('full_access');
+      fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'hello');
+      const runningTurn = runtime.submitTurn('hold this turn');
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline && runtime.getSnapshot().agentStatus !== 'running') {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(() => runtime.setMode('read_only')).toThrow('A9_MODE_CHANGE_BLOCKED_ACTIVE_TURN');
+      expect(runtime.getSnapshot().mode).toBe('full_access');
+      fixture.release();
+      expect((await runningTurn).ok).toBe(true);
+      expect(runtime.setMode('read_only')).toMatchObject({ ok: true, mode: 'read_only' });
     } finally {
       fixture.release();
       await runtime.shutdown();

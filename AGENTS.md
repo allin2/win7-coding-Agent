@@ -18,6 +18,12 @@
 
 ## 2. 当前阶段：A9-09 D-013 TrustedShell Current-User Profile
 
+- 用户于 2026-08-30 另行授权 [A9-10 中文编码与大文件读取修复](docs/tasks/A9_10_TEXT_READ_HARDENING.md)
+  （ADR-0107）。仅按其独立白名单修复读取链；不扩大 A9-09 的 D-013 授权或解除其 Gate。
+- 用户于 2026-08-30 另行授权 [A9-11 D-013 v25 后置安全与可用性修复](docs/tasks/A9_11_POST_V25_USABILITY_SECURITY_HARDENING.md)
+  （ADR-0108）。仅关闭该独审已复现的八项缺口；不修改历史工件或解除 A9-09/WIN7-20 Gate。
+- 用户于 2026-08-31 另行授权 [A9-12 D-013 v25 后置恢复与用户流加固](docs/tasks/A9_12_POST_REVIEW_RECOVERY_AND_UI_HARDENING.md)
+  （ADR-0109）。仅关闭本轮独审定位的十项恢复/用户流缺口；不修改历史工件或解除 A9-09/WIN7-20 Gate。
 - 当前任务：`docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`，状态 `APPROVED_FOR_IMPLEMENTATION`；
   A9-08 授权范围内修复、全量验证和三路独立复核已经 PASS，但其最终阶段签发被 D-013 合同阻断。
 - 交付分支：`codex/a9-trusted-agent-runtime`；版本：`0.3.0-alpha.1`；目标候选：WIN7-20。
@@ -40,6 +46,7 @@
    `docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`、`docs/tasks/A9_08_POST_REVIEW_HARDENING.md` 与
    `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
 3. 按任务需要读取架构、安全、评估、PRD、ADR 或状态文档；不要无条件加载全部历史资料。
+   A9-10/A9-11/A9-12 修复另须完整读取各自任务书。
 4. 处理历史阶段时，按 `docs/tasks/README.md` 定位其任务书和分支合同；A9 授权不适用。
 
 已读取且未变化的大文件不重复读取。摘要不能替代当前任务所必需的原始约束。

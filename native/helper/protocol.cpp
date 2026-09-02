@@ -169,22 +169,39 @@ std::wstring UpperAscii(const std::wstring& value) {
     return out;
 }
 
-bool IsForbiddenEnvironmentName(const std::wstring& name) {
+bool IsForbiddenEnvironmentNameImpl(const std::wstring& name) {
     const std::wstring upper = UpperAscii(name);
     static const wchar_t* kExact[] = {
-        L"NODE_OPTIONS", L"ELECTRON_RUN_AS_NODE", L"ELECTRON_EXTRA_LAUNCH_ARGS",
-        L"NODE_TLS_REJECT_UNAUTHORIZED", L"GIT_SSL_NO_VERIFY", L"PYTHONHTTPSVERIFY",
-        L"SSL_CERT_FILE", L"SSL_CERT_DIR", L"REQUESTS_CA_BUNDLE", L"CURL_CA_BUNDLE",
-        L"OPENAI_API_KEY", L"DEEPSEEK_API_KEY", L"ANTHROPIC_API_KEY",
+        L"NODE_OPTIONS", L"NODE_EXTRA_CA_CERTS", L"NODE_PATH", L"NODE_REDIRECT_WARNINGS", L"NODE_V8_COVERAGE",
+        L"ELECTRON_RUN_AS_NODE", L"ELECTRON_EXTRA_LAUNCH_ARGS", L"ELECTRON_NO_ASAR",
+        L"ELECTRON_ENABLE_LOGGING", L"ELECTRON_DISABLE_SECURITY_WARNINGS",
+        L"ELECTRON_OVERRIDE_DIST_PATH", L"NODE_TLS_REJECT_UNAUTHORIZED",
+        L"SSLKEYLOGFILE", L"OPENSSL_CONF", L"OPENSSL_MODULES",
+        L"GIT_SSL_NO_VERIFY", L"GIT_SSL_CAINFO", L"GIT_SSL_CAPATH", L"PYTHONHTTPSVERIFY",
+        L"SSL_CERT_FILE", L"SSL_CERT_DIR", L"REQUESTS_CA_BUNDLE", L"CURL_CA_BUNDLE", L"AWS_CA_BUNDLE",
+        L"NPM_CONFIG_STRICT_SSL", L"YARN_STRICT_SSL", L"PIP_CERT", L"PIP_TRUSTED_HOST",
     };
     for (const wchar_t* blocked : kExact) {
         if (upper == blocked) return true;
     }
-    return upper.find(L"API_KEY") != std::wstring::npos ||
+    return upper.find(L"ELECTRON_") == 0 || upper.find(L"NODE_") == 0 ||
+           upper.find(L"API_KEY") != std::wstring::npos ||
+           upper.find(L"APIKEY") != std::wstring::npos ||
+           upper.find(L"ACCESS_KEY") != std::wstring::npos ||
+           upper.find(L"ACCESSKEY") != std::wstring::npos ||
+           upper.find(L"PRIVATE_KEY") != std::wstring::npos ||
+           upper.find(L"PRIVATEKEY") != std::wstring::npos ||
+           upper.find(L"CREDENTIAL") != std::wstring::npos ||
            upper.find(L"AUTHORIZATION") != std::wstring::npos ||
            upper.find(L"PASSWORD") != std::wstring::npos ||
            upper.find(L"SECRET") != std::wstring::npos ||
-           upper.find(L"TOKEN") != std::wstring::npos;
+           upper.find(L"TOKEN") != std::wstring::npos ||
+           ((upper.find(L"PROVIDER") != std::wstring::npos ||
+             upper.find(L"OPENAI") != std::wstring::npos ||
+             upper.find(L"ANTHROPIC") != std::wstring::npos ||
+             upper.find(L"DEEPSEEK") != std::wstring::npos ||
+             upper.find(L"AZURE") != std::wstring::npos) &&
+            upper.find(L"KEY") != std::wstring::npos);
 }
 
 bool ExtractEnvironmentOverlay(const JsonValue& value,
@@ -202,7 +219,7 @@ bool ExtractEnvironmentOverlay(const JsonValue& value,
         if (member.first.empty() || member.first.size() > 128 ||
             member.first.find(L'=') != std::wstring::npos ||
             member.first.find(L'\0') != std::wstring::npos ||
-            IsForbiddenEnvironmentName(member.first) ||
+            IsForbiddenEnvironmentNameImpl(member.first) ||
             std::find(seen.begin(), seen.end(), upper) != seen.end() ||
             !JsonAsString(member.second, &text) || text.size() > 8192 ||
             text.find(L'\0') != std::wstring::npos) {
@@ -232,6 +249,10 @@ bool ExtractRequiredString(const JsonValue& root, const wchar_t* key,
 }
 
 }  // namespace
+
+bool IsForbiddenEnvironmentName(const std::wstring& name) {
+    return IsForbiddenEnvironmentNameImpl(name);
+}
 
 bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
                      std::string* error) {

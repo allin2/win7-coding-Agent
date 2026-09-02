@@ -7,6 +7,15 @@ import {
 } from '../src';
 
 describe('A9-01: A9 Tool Spec Catalog', () => {
+  it('describes read auto-detection without forcing UTF-8 and bounded integer ranges', () => {
+    const read = a9ToolSpecs(PermissionMode.FULL_ACCESS).find((spec) => spec.name === 'read')!;
+    const properties = read.inputSchema.properties as any;
+    expect(properties.encoding.default).toBeUndefined();
+    expect(properties.encoding.description).toContain('省略则自动探测');
+    expect(properties.startLine.description).toContain('正整数');
+    expect(properties.maxLines.description).toContain('正整数');
+    expect(properties.maxLines.maximum).toBe(2000);
+  });
   it('declares all 10 standard A9 tools for Full Access mode', () => {
     const specs = a9ToolSpecs(PermissionMode.FULL_ACCESS);
     const names = specs.map((s) => s.name);

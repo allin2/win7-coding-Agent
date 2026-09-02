@@ -30,7 +30,7 @@ function a8Request(action, sessionId, payload) {
 
 function a9Request(action, payload) {
   return ipcRenderer.invoke('product:a9-request', {
-    schemaVersion: 4, // ADR-0101：增加用户显式 Shell / 非秘密环境覆盖设置
+    schemaVersion: 5, // ADR-0108：增加 A9 自身的有界文件读取
     action,
     payload: payload || {},
   });
@@ -71,6 +71,12 @@ const productApi = Object.freeze({
     undoFile: (turnId, path, confirmationId) => a9Request('a9.checkpoint.undoFile', { turnId, path, ...(confirmationId ? { confirmationId } : {}) }),
     getDiff: (turnId) => a9Request('a9.diff.get', { turnId }),
     gitStatus: () => a9Request('a9.git.status', {}),
+    readWorkspaceFile: (path, startLine, maxLines, encoding) => a9Request('a9.workspace.read', {
+      path,
+      startLine,
+      maxLines,
+      ...(encoding ? { encoding } : {}),
+    }),
   }),
   getSettings: () => request('settings.get', 'desktop', {}),
   setSettings: (values) => request('settings.set', 'desktop', { values }),

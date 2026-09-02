@@ -7,9 +7,9 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09A_DEVELOPER_PASS
+Current Stage Status: A9_09A_REVIEW_FIXES_UNCOMMITTED
 Target Candidate: WIN7-20
-Phase-Gate: A9_09B_READY_FOR_LOCKED_WIN10_BUILD
+Phase-Gate: A9_09A_BUILD_REVIEW_FIXES_PENDING_INDEPENDENT_REVIEW
 Win7-Validation: WIN7_20_NOT_PERFORMED
 Decision: ADR-0101
 ```
@@ -119,24 +119,132 @@ timeoutMs?/idleTimeoutMs?
 只有 A9-09A～C 全部通过，才可签发 `A9_09_WIN7_20_GO_FOR_ALPHA` 并解除 PR #3 合并门禁。开发机或
 Win10 结果不能替代 Win7 SP1 x64 实机结论。
 
-## 6. A9-09A 实现记录（2026-08-30）
+## 6. A9-09A 初始实现与独立复审整改记录（2026-08-30）
 
 - D-013 v25 原生实现提交为 `fdeca79`，环境继承秘密过滤修复为 `72e4d90`；正式产品、Runner、设置 UI、
   发布锁与验收套件收口提交为 `7d10032`。协议 v1/v24 保持兼容和只读，v2 绑定
   `a9-trusted-shell-current-user-v1`。
-- 产品设置只允许 Renderer 提交 Shell 种类、版本和非秘密环境覆盖；显式 executable 必须由主进程原生
+- 产品设置只允许 Renderer 提交 Shell 种类和非秘密环境覆盖；Shell 版本由主进程测量的文件身份派生，
+  不接受用户标签。显式 executable 必须由主进程原生
   文件选择器取得。按工作区保存 canonical path、文件身份与版本；snapshot 只显示环境键名，不显示值。
 - 自动 Shell 绑定规范系统 PowerShell/CMD；helper 在启动前重新验证 canonical path、SHA-256、argv、cwd、
   当前用户令牌和 Job 归属。`deadlineMode=none` 不设总/空闲超时；ready、取消、双 Stop 与清理证明均绑定
   requestId。
 - 开发机结果：原生 `logic_tests` PASS；发布/锁记录器 6/6 PASS；7 个 TypeScript/JavaScript 模块共
   1490 tests PASS；`npm run docs:check` 与 `git diff --check` PASS。此结果不等于 Win10 或 Win7 PASS。
-- 锁定 Win10 构建套件为候选外
+- 旧 r4 Win10 构建套件位于候选外
   `/Users/qlyf/Developer/win7-coding-Agent/.acceptance/build-kits/A9-09/WIN7_D013_V25_HELPER_BUILDKIT_20260830-r4.zip`，SHA-256
   `037213c8637544dccc58b07632e097b718c265f93015af93279ac052f0282e09`；内置原生源码提交
   `72e4d905175baa3eae7b5eb6c1f49f47f9731046`，input-lock SHA-256
   `99aecc91c8e1ff9b797cfe33e7bdc7f7ef5f656fde224e2d0997e9d838a63fb8`，package manifest SHA-256
-  `35150cf85f20e73448b14b1adb60a8bb36e9a2ca8ac13d7ef1cf8d7e7829aff9`。
-- 当前 Gate 为 `A9_09B_READY_FOR_LOCKED_WIN10_BUILD`。尚未执行 D-017 双干净构建，尚未生成正式
+  `35150cf85f20e73448b14b1adb60a8bb36e9a2ca8ac13d7ef1cf8d7e7829aff9`。A9-09 v25 独立复审后该套件已
+  撤销，不包含当前修复，不得再用于正式返回记录。
+- 当前 Gate 为 `A9_09B_BLOCKED_PENDING_NEW_COMMITTED_BUILD_KIT`。当前修复尚未提交，因此不得伪造新的
+  `SOURCE_COMMIT`、input lock、manifest 或批准 ZIP。提交后必须生成新 revision，在
+  `release/win7-product-v3/a9-v25-approved-kits.json` 预登记 ZIP/lock/manifest 哈希并重新独立复核。
+  尚未执行 D-017 双干净构建，尚未生成正式
   `a9-09-input-lock.json` 或 WIN7-20 候选，也未执行 Win7 实机复验；综合状态继续为
   `FIX_BEFORE_ALPHA`。
+- 本轮未提交整改将 Shell 版本改为文件测量事实，修复 `spawn_failed + cleanupConfirmed` 假残留；WIN7-20
+  verifier 严格绑定 Win7 SP1 build 7601 普通用户/非提升/v25 Profile、机器与候选前后身份，并只接受 kit
+  锁定的 WIN7-19 disposition/ledger/report 哈希与 JSON pointer；v25 返回记录器改以仓库批准清单中的完整
+  build-kit ZIP/hash 为外部信任根。开发机定向 Runner 44/44、Shell 32/32、发布 8/8、原生 logic 1/1，
+  全量 7 模块 1497 tests、`docs:check` 与 `git diff --check` PASS；不等于 Win10/Win7 PASS，也不替代新的
+  独立复审。
+
+## 7. 最新独立复审整改追踪（2026-08-30，未提交）
+
+本轮针对审查的 P1=2 / P2=1，按 ADR-0102 收紧既有入口，不改历史候选和系统权限。
+
+| ID | 发现与最小修复 | 回归证据 |
+|---|---|---|
+| A9R3-1 / P1 | WIN7-20 拒绝 dirty/ineligible manifest；复验确定性 ZIP、内外 manifest、kit、native 哈希与物理全树 | `a9-package.test.mjs` 覆盖开发标志、伪 ZIP、替换 manifest/kit、改写全树 |
+| A9R3-2 / P1 | 批准 Profile 声明全部必要原始证据；schema 1 validation binding 绑定 run/helper/source/退出码；独立解析 PE/API/CRT/manifest 与 v1/v2 smoke | 同文件覆盖文本 helper、缺件、错误 run/hash、失败退出码、虚假清理、捕获字节及 PE 架构/API/CRT |
+| A9R3-3 / P2 | 协议和执行结果共同使用已验证文件身份；显式 Shell 不沿用自动 PowerShell 版本/原因 | `trusted-shell-runner-contract.test.ts` 覆盖显式 Bash 与自动 PowerShell 元数据隔离 |
+
+开发机 `npm run verify`：7 模块共 1498 tests PASS；原生 `logic_tests` 1/1 PASS；发布/ZIP/报告
+验证器 13/13 PASS；`docs:check`（102 文件/22 任务）与 `git diff --check` PASS。
+这些证据仅证明本地逻辑/结构及 fail-closed，不证明 Windows 执行。新证据格式尚未在锁定 Win10 工具链
+运行，Win7 仍为 `NOT_PERFORMED`；旧 r4 ZIP/hash 不变且保持撤销。修复未提交，正式 v25 lock/new kit 与
+WIN7-20 候选仍不存在，必须先获提交授权、生成新 revision、批准套件、双构建和最终独立复审。
+
+## 8. 最新产品闭包与批准根整改追踪（2026-08-30，未提交）
+
+最新独立审查确认 §7 的原 P1=2/P2=1 已实质关闭，但新增 P1=2。本轮按 ADR-0103 处理：
+
+| ID | 发现 | 状态与验收 |
+|---|---|---|
+| A9R4-1 / P1 | “全树等于自报 manifest”可接受五文件裁剪候选 | 部分修复：固定闭包和内部交叉绑定已完成，但最新复审确认仍缺候选外信任根；由 §9 继续处理，不签发关闭 |
+| A9R4-2 / P1 | 工作树批准清单可被本地修改/自批准 | 已修复：生产路径要求固定清单是 clean HEAD 精确字节并记录 commit/hash；未跟踪、staged、unstaged 均拒绝，测试注入仅限显式 testOnly |
+
+当前 `a9-v25-approved-kits.json` 尚未提交，所以生产记录按设计保持阻断；不能用当前测试通过代替提交后的
+独立批准。旧 r4 仍只有撤销项。后续仍须提交授权、新 revision、批准记录、Win10 双构建、正式 input lock、
+完整产品候选、WIN7-20 实机验收和最终 P0/P1=0 复审。
+
+开发机回归：A8/A9 发布、ZIP、报告 verifier 18/18 PASS；7 模块 1498 tests PASS；原生
+`logic_tests` 1/1 PASS；`docs:check` 为 102 文件/22 任务，`git diff --check` PASS。以上不等于
+Win10 或 Win7 PASS。
+
+## 9. 候选外信任根整改（2026-08-30，未提交）
+
+最新独立复审为 P0=0/P1=1/P2=0：固定文件集合和内部哈希不能证明正式发布来源；纯文本原生文件曾被
+正向 fixture 接受。按 ADR-0104 增加候选外 `WIN7_20_RELEASE_AUTHORITY` schema 1 及必须由独立批准渠道
+提供的 SHA-256 pin。该记录绑定正式 input lock 精确字节、批准清单 commit/hash，以及整个产品 ZIP、
+manifest 和产品 source commit；不能由候选、sidecar 或本地临时文件反推批准。
+
+- 正式 lock 必须绑定已批准 build kit、两个不同返回 ZIP/run ID/evidence binding；TEST_ONLY commit 拒绝。
+- Electron/helper 必须是 PE32+/AMD64 executable，SQLite `.node` 必须是 PE32+/AMD64 DLL，检查 section
+  边界并绑定正式 entry hash。PE 结构通过不等于真实 Windows 执行。
+- 产品 source commit 绑定外部批准候选；helper source commit 单独绑定批准 kit。二者可以因随后提交
+  批准清单/正式 lock 而不同，不能伪造为同一提交。
+- 正向 fixture 通过临时干净 Git 快照和正式产品构建器生成；没有“假 clean”生产参数。反例包括纯文本
+  三种原生入口、x86、截断 section、错误 DLL、外置锁伪造/缺失 pin、双构建复用，以及 JS 同步伪造 ZIP。
+
+本地整改验证：A8/A9 发布、ZIP、报告回归 18/18 PASS；补充真实 CLI init/integrity 的定向用例 PASS，
+Node 开发宿主仅 closure PASS、总结果仍 FAIL（不可冒充 Electron ABI/Windows）。`npm run verify` 为
+7 模块 1498 tests PASS；原生 logic 1/1、`docs:check`（102 文件/22 任务）及 `git diff --check` PASS。
+v24 两份 input lock 与 HEAD 相同；WIN7-19 ZIP `824a10cd…72b0`、manifest `b483e9b0…2c26`、
+candidate identity 与 780 文件身份不变，旧 r4 SHA `037213c…e09` 不变。当前仍无正式 v25 lock、批准的
+WIN7-20 候选或 Windows PASS。最新独立复审为 P0=0/P1=0/P2=1，确认上述发布信任 P1 已关闭；唯一
+P2 是 `A9_09_WINDOWS_VALIDATION.md` 首步仍使用旧的一参数命令签名，现已按实际五参数 fail-closed
+合同修正。当轮 A9-09A 代码/安全层 P0/P1 Gate 已满足；后续 §10 新增环境 P1 撤销该通过结论，综合状态仍为
+`FIX_BEFORE_ALPHA`。
+
+## 10. 已知秘密值与 Node 环境整改（2026-08-30，未提交）
+
+最新独立审查（任务轮次 `01a05280-699c-7d50-b5d0-0040616d6299`）为 P0=0/P1=2/P2=0。
+按 ADR-0105 实施最小修复；下述环境整改随后获 §11 独审关闭，Win10 双构建仍因新增构建脚本问题为 NO_GO。
+
+| ID | 发现与修复 | 验证边界 |
+|---|---|---|
+| A9R6-1 / P1 | 普通变量名携带已知秘密：继承/overlay 同时过滤值与编码变体，净化探测/前后台/helper 环境；schema 3 启动/凭据变化复验全部旧工作区，清除被拒 overlay 并留下跨重启标记 | Runner/transport 与真实 Shell Runtime/SQLite/模拟 DPAPI 回归；不等于 Win7 DPAPI 实测 |
+| A9R6-2 / P1 | NODE_DEBUG 等漏拦：JS/C++ 同步拒绝 NODE_*，原生 overlay/继承共享规则；扩展 Win10 smoke 与 WIN7-20 ENV-IDENTITY 直接项 | 开发机原生逻辑与入口测试；Win10 smoke 尚未执行 |
+
+无新依赖或系统 API；v1/v24、WIN7-19 和已撤销 r4 保持不可变。当前不生成正式 input lock、kit ZIP、
+manifest 新身份或 WIN7-20 候选，不能用本地修复自签独审关闭。
+
+本轮开发机验证：`npm run verify` 七模块 1508 tests PASS（含 Runner 134、Shell 315）；发布/ZIP/report
+18/18 PASS；原生 `logic_tests` 1/1 PASS；`docs:check` 102 文件/22 任务及 `git diff --check` PASS。
+回归涵盖编码变体、普通变量名、前后台/helper/探测环境、模拟 DPAPI 重启、全部旧工作区复验、Provider
+轮换、写入失败时不虚报清除、v1 传输环境不变。Win10/Win7 为 NOT_PERFORMED，不包含真实 Windows
+PE 执行或 DPAPI PASS。两份 v24 锁和旧 v25 锁与 HEAD 相同；WIN7-19 ZIP `824a10cd…72b0`、
+manifest `b483e9b0…2c26`、candidate identity `ab5a1159…d3c` 及旧 r4 ZIP `037213c…e09` 均复核不变。
+
+## 11. 构建脚本入口整改（2026-08-30，未提交）
+
+独立审查轮次 `01a052a9-f458-7033-a961-49cbd15a7cc2` 确认 §10 两项环境 P1 已关闭，但新增两项
+构建脚本 P1（P0=0/P1=2/P2=0）。按 ADR-0106 修复，不据本地自测签发独审或 Windows Gate。
+
+| ID | 发现与修复 | 验证边界 |
+|---|---|---|
+| A9R7-1 / P1 | prepare-kit 对四变量数组的精确匹配拒绝新增 Node smoke；改为解析集合并校验九个必需名称，允许换序/扩展 | 在隔离 TEST_ONLY Git 仓库执行真实生成器，验证 source/input/manifest 哈希闭包；逐个缺项与未提交 helper 均拒绝，不改写锁 |
+| A9R7-2 / P1 | `[ordered]@{}` 没有 Hashtable.Clone；同一复制函数逐项保留顺序/字段，并替换 requestId/overlay | `build.ps1 -TestSmokeRequestOnly` 在任何构建或写盘前验证一个独立有序字典及源对象未变；真实 Windows PowerShell 5.1 执行在非 Windows 明确跳过 |
+
+真实生成器入口回归为 4 PASS / 1 SKIP（Windows PowerShell 5.1 NOT_PERFORMED）。原 §10 的原生、Runner、
+Shell 代码本轮未改动；保留其 1508 项开发机验证记录，不把未重跑或 Windows 跳过项计为本轮 PASS。
+本轮 A8/A9 产品打包、发布锁、ZIP、报告 verifier 与上述生成器共 22 PASS / 1 SKIP / 0 FAIL；
+`docs:check`（102 文件/22 任务）、JS 语法及 `git diff --check` PASS。两份 v24 锁、旧 v25 锁和
+WIN7-19 结构化记录/收口报告与 HEAD 相同；WIN7-19 ZIP、manifest、candidate identity 和旧 r4 ZIP
+SHA-256 分别仍为 `824a10cd…72b0`、`b483e9b0…2c26`、`ab5a1159…d3c`、`037213c…e09`。
+当前套件仍为已撤销 r4，不更新正式锁、manifest 身份或 source commit，不生成新 ZIP；待新独审与授权
+提交后，才能新 revision 预登记并进入锁定 Win10 双构建。WIN7-19 和 v24 历史边界不变。

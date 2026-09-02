@@ -67,6 +67,14 @@ function validateProviderBaseUrl(value) {
   return trimmed;
 }
 
+function boundedDiagnosticText(value) {
+  return String(value == null ? '' : value)
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@')
+    .replace(/((?:authorization|api[-_]?key|password|secret|access[-_]?token|refresh[-_]?token)\s*[:=]\s*)(?:bearer\s+)?[^\s,;&]+/gi, '$1***redacted***')
+    .replace(/([?&](?:api[-_]?key|password|secret|access[-_]?token|refresh[-_]?token)=)[^&#\s]*/gi, '$1***redacted***')
+    .slice(0, 600);
+}
+
 function createA9AgentRuntime(options) {
   const config = options || {};
   const modules = config.modules || loadModules();
@@ -153,9 +161,38 @@ function createA9AgentRuntime(options) {
   }
 
   // ----- 工作区单写锁（多窗口） -----
-  const lock = persistence.acquireWorkspaceLock(canonicalWorkspace, ownerId);
-  const lockHeld = lock.acquired === true;
+  function workspaceLockHolderIsAlive(holder) {
+    const match = /^main-([1-9][0-9]*)$/.exec(String(holder || ''));
+    if (!match) return undefined;
+    const pid = Number(match[1]);
+    if (!Number.isSafeInteger(pid)) return undefined;
+    try {
+      if (typeof config.processLivenessProbe === 'function') {
+        const result = config.processLivenessProbe(pid);
+        return result === true ? true : result === false ? false : undefined;
+      }
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      // ESRCH is the only positive proof that the process no longer exists.
+      // EPERM and every other uncertainty remain fail-closed until expiry.
+      return error && error.code === 'ESRCH' ? false : undefined;
+    }
+  }
+  let lock = persistence.acquireWorkspaceLock(canonicalWorkspace, ownerId, {
+    holderIsAlive: workspaceLockHolderIsAlive,
+  });
+  let lockHeld = lock.acquired === true;
   let workspaceLockReleased = false;
+
+  function retryWorkspaceLock() {
+    if (lockHeld || workspaceLockReleased) return lockHeld;
+    lock = persistence.acquireWorkspaceLock(canonicalWorkspace, ownerId, {
+      holderIsAlive: workspaceLockHolderIsAlive,
+    });
+    lockHeld = lock.acquired === true;
+    return lockHeld;
+  }
 
   // ----- R2：pending 审批（SQLite 记录来自原始 pending 对象） -----
   let currentPendingApproval = null;
@@ -396,6 +433,34 @@ function createA9AgentRuntime(options) {
         throw error;
       }
       doc.baseUrl = validateProviderBaseUrl(doc.baseUrl);
+      if (typeof doc.model !== 'string' || doc.model.trim().length === 0 ||
+          !Array.isArray(doc.customHeaderNames || []) ||
+          (doc.customHeaderNames || []).some((name) => typeof name !== 'string' || !name.trim() || /[\r\n]/.test(name)) ||
+          (doc.caBundle !== undefined && typeof doc.caBundle !== 'string')) {
+        throw Object.assign(new Error('A9_PROVIDER_CONFIG_INVALID: 已保存的 Provider 非秘密字段无效'), {
+          code: 'A9_PROVIDER_CONFIG_INVALID',
+        });
+      }
+      if (doc.proxy !== undefined) {
+        const proxy = doc.proxy;
+        if (!proxy || typeof proxy !== 'object' || Array.isArray(proxy) ||
+            typeof proxy.host !== 'string' || !proxy.host.trim() ||
+            !Number.isSafeInteger(Number(proxy.port)) || Number(proxy.port) < 1 || Number(proxy.port) > 65535 ||
+            (proxy.protocol !== undefined && typeof proxy.protocol !== 'string') ||
+            (proxy.username !== undefined && typeof proxy.username !== 'string')) {
+          throw Object.assign(new Error('A9_PROVIDER_CONFIG_INVALID: 已保存的 proxy 非秘密字段无效'), {
+            code: 'A9_PROVIDER_CONFIG_INVALID',
+          });
+        }
+        // Never carry unknown persisted keys (for example a plaintext password)
+        // into Provider state or the Renderer snapshot.
+        doc.proxy = {
+          host: proxy.host.trim(),
+          port: Number(proxy.port),
+          ...(proxy.protocol ? { protocol: proxy.protocol } : {}),
+          ...(proxy.username !== undefined ? { username: proxy.username } : {}),
+        };
+      }
       return doc;
     } catch (err) {
       providerDiagnostics = {
@@ -512,6 +577,9 @@ function createA9AgentRuntime(options) {
   // ----- Agent Loop 状态 -----
   const timeline = [];
   const MAX_TIMELINE = 500;
+  // Model text is held in memory for the whole Turn and redacted as one value.
+  // Per-event redaction cannot see a known secret split across adjacent chunks.
+  const pendingModelChunks = new Map();
 
   // 独立于 loop 的工作区服务：撤销/Diff/Git 是状态操作，不需要 Provider。
   const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot, {
@@ -564,10 +632,11 @@ function createA9AgentRuntime(options) {
       values.envOverlay && typeof values.envOverlay === 'object' && !Array.isArray(values.envOverlay)
         ? values.envOverlay
         : {},
+      Array.from(knownSecrets),
     );
     if (allowAutomatic && (kind === '' || kind === 'automatic')) {
       if ((values.path && String(values.path).trim()) || (values.version && String(values.version).trim())) {
-        throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: automatic 模式不能携带显式路径或版本'), {
+        throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: Shell 版本只能由文件测量，不能由用户设置'), {
           code: 'A9_SHELL_CONFIG_INVALID',
         });
       }
@@ -588,39 +657,65 @@ function createA9AgentRuntime(options) {
       });
     }
     let canonicalPath;
-    let stat;
+    let currentIdentity;
     try {
       canonicalPath = fs.realpathSync.native(requestedPath);
-      stat = fs.statSync(canonicalPath);
+      currentIdentity = modules.runner.resolveShellFileIdentity(canonicalPath);
     } catch (_error) {
       throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: 显式 Shell 路径不存在或无法读取'), {
         code: 'A9_SHELL_CONFIG_INVALID',
       });
     }
-    if (!stat.isFile()) {
-      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: 显式 Shell 不是普通文件'), {
+    if (values.identity !== undefined) {
+      const identity = values.identity;
+      if (!identity || typeof identity !== 'object' || Array.isArray(identity)
+        || typeof identity.canonicalPath !== 'string' || typeof identity.sha256 !== 'string'
+        || typeof identity.fileId !== 'string' || typeof identity.version !== 'string'
+        || !/^[a-f0-9]{64}$/i.test(identity.sha256)
+        || !modules.runner.sameShellFileIdentity(identity, currentIdentity)) {
+        throw Object.assign(new Error('A9_SHELL_IDENTITY_CHANGED: 已保存的 Shell 文件身份发生变化；必须由用户重新选择'), {
+          code: 'A9_SHELL_IDENTITY_CHANGED',
+        });
+      }
+    }
+    if (values.version !== undefined && String(values.version).trim() !== ''
+      && (!values.identity || String(values.version).trim() !== currentIdentity.version)) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: Shell 版本只能由文件测量，不能由用户设置'), {
         code: 'A9_SHELL_CONFIG_INVALID',
       });
-    }
-    const configuredVersion = typeof values.version === 'string' ? values.version.trim() : '';
-    if (configuredVersion.length > 128) {
-      throw Object.assign(new Error('A9_SHELL_CONFIG_INVALID: version 过长'), { code: 'A9_SHELL_CONFIG_INVALID' });
     }
     return {
       kind,
       path: canonicalPath,
-      version: configuredVersion || `file-${stat.size}-${Math.trunc(stat.mtimeMs)}`,
+      version: currentIdentity.version,
+      identity: currentIdentity,
       envOverlay,
     };
   }
 
   function readShellConfigDocument() {
-    if (!fs.existsSync(shellConfigPath)) return { schemaVersion: 1, workspaces: {} };
+    if (!fs.existsSync(shellConfigPath)) return { schemaVersion: 3, workspaces: {} };
     const doc = JSON.parse(fs.readFileSync(shellConfigPath, 'utf8'));
-    if (!doc || doc.schemaVersion !== 1 || !doc.workspaces || typeof doc.workspaces !== 'object'
+    if (!doc || ![2, 3].includes(doc.schemaVersion) || !doc.workspaces || typeof doc.workspaces !== 'object'
       || Array.isArray(doc.workspaces)) {
       throw Object.assign(new Error('A9_SHELL_CONFIG_SCHEMA_MISMATCH'), { code: 'A9_SHELL_CONFIG_SCHEMA_MISMATCH' });
     }
+    let changed = doc.schemaVersion !== 3;
+    doc.schemaVersion = 3;
+    // Recheck every workspace before preserving any old bytes in a new file.
+    // Drop the whole invalid overlay and persist a fail-closed marker, so a
+    // later Provider rotation/restart cannot silently revive it.
+    for (const entry of Object.values(doc.workspaces)) {
+      if (!entry || typeof entry !== 'object') continue;
+      try {
+        modules.runner.validateTrustedShellEnvironmentOverlay(entry.envOverlay || {}, Array.from(knownSecrets));
+      } catch (_error) {
+        delete entry.envOverlay;
+        entry.environmentRejected = true;
+        changed = true;
+      }
+    }
+    if (changed) writeShellConfigDocument(doc);
     return doc;
   }
 
@@ -628,6 +723,9 @@ function createA9AgentRuntime(options) {
     try {
       const entry = readShellConfigDocument().workspaces[shellWorkspaceKey];
       if (!entry) return {};
+      if (entry.environmentRejected === true) {
+        throw Object.assign(new Error('A9_ENV_OVERLAY_REJECTED'), { code: 'A9_ENV_OVERLAY_REJECTED' });
+      }
       if (entry.workspace !== canonicalWorkspace) {
         throw Object.assign(new Error('A9_SHELL_CONFIG_WORKSPACE_MISMATCH'), { code: 'A9_SHELL_CONFIG_WORKSPACE_MISMATCH' });
       }
@@ -645,23 +743,64 @@ function createA9AgentRuntime(options) {
     let doc;
     try {
       doc = readShellConfigDocument();
-    } catch (_error) {
+    } catch (error) {
       // Only an explicit user Apply reaches this path. A malformed settings
       // document cannot be merged safely, so replace it atomically with the
       // newly selected current-workspace setting rather than staying bricked.
-      doc = { schemaVersion: 1, workspaces: {} };
+      if (error && error.code === 'A9_SHELL_CONFIG_WRITE_FAILED') throw error;
+      doc = { schemaVersion: 3, workspaces: {} };
     }
     if (Object.keys(next).length === 0) delete doc.workspaces[shellWorkspaceKey];
     else doc.workspaces[shellWorkspaceKey] = { workspace: canonicalWorkspace, ...next };
+    writeShellConfigDocument(doc);
+  }
+
+  function writeShellConfigDocument(doc) {
     const temporary = `${shellConfigPath}.tmp-${process.pid}-${Date.now()}`;
-    fs.mkdirSync(path.dirname(shellConfigPath), { recursive: true });
-    fs.writeFileSync(temporary, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
-    fs.renameSync(temporary, shellConfigPath);
+    try {
+      fs.mkdirSync(path.dirname(shellConfigPath), { recursive: true });
+      fs.writeFileSync(temporary, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+      fs.renameSync(temporary, shellConfigPath);
+    } catch (_error) {
+      throw Object.assign(new Error('A9_SHELL_CONFIG_WRITE_FAILED: 未确认旧设置已安全替换；Shell 仍须重新设置'), {
+        code: 'A9_SHELL_CONFIG_WRITE_FAILED',
+      });
+    }
   }
 
   let shellOptions = config.shellOptions
     ? normalizeShellOptions(config.shellOptions, true)
     : readPersistedShellOptions();
+  let automaticShellSelection = null;
+
+  function selectAutomaticShell() {
+    if (!automaticShellSelection) {
+      automaticShellSelection = modules.runner.selectShell({ sensitiveValues: Array.from(knownSecrets) });
+    }
+    return automaticShellSelection;
+  }
+
+  function revalidateShellEnvironments() {
+    try {
+      const entry = readShellConfigDocument().workspaces[shellWorkspaceKey];
+      if (entry && entry.environmentRejected === true) throw new Error('A9_ENV_OVERLAY_REJECTED');
+      modules.runner.validateTrustedShellEnvironmentOverlay(
+        (shellOptions && shellOptions.envOverlay) || {}, Array.from(knownSecrets),
+      );
+    } catch (error) {
+      shellOptions = null;
+      const writeFailed = error && error.code === 'A9_SHELL_CONFIG_WRITE_FAILED';
+      shellConfigDiagnostics = {
+        code: writeFailed ? 'A9_SHELL_CONFIG_WRITE_FAILED' : 'A9_ENV_OVERLAY_REJECTED',
+        detail: writeFailed
+          ? '未确认磁盘旧设置已清除；请修复写入权限并重新保存，Shell 执行保持禁止。'
+          : 'Shell 环境设置未通过秘密/控制项复验；必须由用户重新保存设置。',
+      };
+      // Do not accept a credential change while persisted settings cannot be
+      // safely revalidated. No variable name/value is included in the error.
+      throw Object.assign(new Error(shellConfigDiagnostics.code), { code: shellConfigDiagnostics.code });
+    }
+  }
 
   function shellSnapshot() {
     if (shellConfigDiagnostics || shellOptions === null) {
@@ -677,7 +816,7 @@ function createA9AgentRuntime(options) {
         envKeys: Object.keys(shellOptions.envOverlay || {}).sort(),
       };
     }
-    const selected = modules.runner.selectShell({});
+    const selected = selectAutomaticShell();
     return {
       source: 'automatic',
       available: true,
@@ -705,6 +844,7 @@ function createA9AgentRuntime(options) {
           input.envOverlay && typeof input.envOverlay === 'object' && !Array.isArray(input.envOverlay)
             ? input.envOverlay
             : {},
+          Array.from(knownSecrets),
         ),
       } : { envOverlay: {} };
       const requestedKind = typeof values.kind === 'string' ? values.kind.trim().toLowerCase() : '';
@@ -727,6 +867,7 @@ function createA9AgentRuntime(options) {
       const next = normalizeShellOptions(nextInput, true);
       writePersistedShellOptions(next);
       shellOptions = next;
+      automaticShellSelection = null;
       shellConfigDiagnostics = null;
       pendingConversationHistory = loop ? loop.getConversationHistory() : pendingConversationHistory;
       loop = null;
@@ -749,7 +890,7 @@ function createA9AgentRuntime(options) {
     ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
     redactText: redactSecrets,
     getSensitiveValues: () => Array.from(knownSecrets),
-    getConfiguredShellVersion: () => shellOptions && shellOptions.path ? shellOptions.version : undefined,
+    getConfiguredShellIdentity: () => shellOptions && shellOptions.path ? shellOptions.identity : undefined,
     onBackgroundStateChange: (handle) => recordManagedHandle(handle),
   });
 
@@ -864,7 +1005,7 @@ function createA9AgentRuntime(options) {
   }
 
   function ensureRuntime() {
-    if (!lockHeld) {
+    if (!retryWorkspaceLock()) {
       const err = new Error(`A9_WORKSPACE_LOCKED: 工作区写锁由 ${lock.holder} 持有`);
       err.code = 'A9_WORKSPACE_LOCKED';
       throw err;
@@ -907,11 +1048,14 @@ function createA9AgentRuntime(options) {
       });
       const runnerAdapter = modules.runner.createTrustedShellLoopAdapter(loopTrustedRunner);
       const configuredShell = shellOptions || {};
-      const shellSelection = modules.runner.selectShell({
-        ...(configuredShell.path || configuredShell.kind
-          ? { workspacePreferred: configuredShell.path || configuredShell.kind }
-          : {}),
-      });
+      const shellSelection = configuredShell.path
+        ? { kind: configuredShell.kind, path: configuredShell.path, version: configuredShell.version, available: true }
+        : selectAutomaticShell();
+      if (shellSelection.available !== true) {
+        const err = new Error('A9_SHELL_UNAVAILABLE: 规范系统 PowerShell/CMD 探测失败，自动 Shell 保持关闭');
+        err.code = 'A9_SHELL_UNAVAILABLE';
+        throw err;
+      }
       loop = new modules.core.A9AgentLoop({
         workspaceRoot,
         provider,
@@ -928,6 +1072,16 @@ function createA9AgentRuntime(options) {
           ...(configuredShell.envOverlay ? { envOverlay: configuredShell.envOverlay } : {}),
         },
         onEvent: (event) => {
+          if (event.type === 'model_chunk') {
+            const previous = pendingModelChunks.get(event.turnId) || { content: '', timestamp: event.timestamp };
+            previous.content += event.data && typeof event.data.content === 'string' ? event.data.content : '';
+            previous.timestamp = event.timestamp;
+            pendingModelChunks.set(event.turnId, previous);
+            return;
+          }
+          if (event.type === 'turn_completed' || event.type === 'turn_failed') {
+            flushModelChunks(event.turnId);
+          }
           const safeEvent = { ...event, data: redactForProjection(event.data) };
           pushTimeline(safeEvent);
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
@@ -982,6 +1136,23 @@ function createA9AgentRuntime(options) {
     if (timeline.length > MAX_TIMELINE) timeline.splice(0, timeline.length - MAX_TIMELINE);
   }
 
+  function flushModelChunks(turnId) {
+    const pending = pendingModelChunks.get(turnId);
+    if (!pending) return;
+    pendingModelChunks.delete(turnId);
+    const safeEvent = {
+      type: 'model_chunk',
+      turnId,
+      timestamp: pending.timestamp,
+      data: { content: redactSecrets(pending.content) },
+    };
+    pushTimeline(safeEvent);
+    persistence.recordToolEvent(a9SessionId, turnId, safeEvent.type, {
+      type: safeEvent.type,
+      data: safeEvent.data,
+    });
+  }
+
   /**
    * 配置 Provider：非秘密配置原子持久化；API Key 仅经 DPAPI 保存（不可用则
    * 仅内存并如实报告）；保存时执行最小真实 Tool Calling probe 并分类
@@ -1016,26 +1187,151 @@ function createA9AgentRuntime(options) {
     // 新配置尝试从干净诊断状态开始；本次 DPAPI/probe 失败会重新写入真实原因。
     providerDiagnostics = null;
 
-    const customHeaders = values.customHeaders && typeof values.customHeaders === 'object' ? values.customHeaders : {};
-    const customHeaderNames = Object.keys(customHeaders);
-    const headerValues = {};
-    for (const name of customHeaderNames) headerValues[name] = String(customHeaders[name] ?? '');
-
-    const proxyInput = values.proxy && typeof values.proxy === 'object' ? values.proxy : null;
-    const remember = values.rememberApiKey === true;
-
     const previousBaseUrl = providerConfig ? providerConfig.baseUrl : null;
-    const suppliedApiKey = typeof values.apiKey === 'string' && values.apiKey.length > 0 ? values.apiKey : null;
+    const baseUrlChanged = previousBaseUrl !== validatedBaseUrl;
+    const hasInput = (key) => Object.prototype.hasOwnProperty.call(values, key);
+    if (hasInput('rememberApiKey') && typeof values.rememberApiKey !== 'boolean') {
+      const error = new Error('A9_PROVIDER_CONFIG_INVALID: rememberApiKey 必须是 boolean');
+      error.code = 'A9_PROVIDER_CONFIG_INVALID';
+      throw error;
+    }
+    const remember = hasInput('rememberApiKey')
+      ? values.rememberApiKey === true
+      : Boolean(providerConfig && providerConfig.keyRemembered === true);
+
+    let nextApiKey = baseUrlChanged ? null : memoryApiKey;
+    if (hasInput('apiKey')) {
+      if (values.apiKey === null || values.apiKey === '') nextApiKey = null;
+      else if (typeof values.apiKey === 'string') nextApiKey = values.apiKey;
+      else {
+        const error = new Error('A9_PROVIDER_CONFIG_INVALID: apiKey 必须是 string、null 或省略');
+        error.code = 'A9_PROVIDER_CONFIG_INVALID';
+        throw error;
+      }
+    }
+
+    const previousHeaderNames = providerConfig && Array.isArray(providerConfig.customHeaderNames)
+      ? providerConfig.customHeaderNames
+      : [];
+    const previousHeaderValues = memorySecrets && memorySecrets.headerValues
+      ? memorySecrets.headerValues
+      : {};
+    let customHeaderNames = [];
+    const headerValues = {};
+    if (!hasInput('customHeaders')) {
+      if (!baseUrlChanged) {
+        customHeaderNames = previousHeaderNames.slice();
+        for (const name of customHeaderNames) {
+          if (typeof previousHeaderValues[name] !== 'string' || previousHeaderValues[name].length === 0) {
+            const error = new Error('A9_PROVIDER_SECRET_REQUIRED: 已保存 Header 值不可用；请重新输入或显式清除 Header');
+            error.code = 'A9_PROVIDER_SECRET_REQUIRED';
+            throw error;
+          }
+          headerValues[name] = previousHeaderValues[name];
+        }
+      }
+    } else {
+      if (!values.customHeaders || typeof values.customHeaders !== 'object' || Array.isArray(values.customHeaders)) {
+        const error = new Error('A9_PROVIDER_CONFIG_INVALID: customHeaders 必须是对象；空对象表示清除');
+        error.code = 'A9_PROVIDER_CONFIG_INVALID';
+        throw error;
+      }
+      customHeaderNames = Object.keys(values.customHeaders);
+      for (const name of customHeaderNames) {
+        if (!name.trim() || /[\r\n]/.test(name)) {
+          const error = new Error('A9_PROVIDER_CONFIG_INVALID: Header 名称不能为空或包含换行');
+          error.code = 'A9_PROVIDER_CONFIG_INVALID';
+          throw error;
+        }
+        const supplied = values.customHeaders[name];
+        if (supplied === null) {
+          if (baseUrlChanged || !previousHeaderNames.includes(name)
+            || typeof previousHeaderValues[name] !== 'string' || previousHeaderValues[name].length === 0) {
+            const error = new Error('A9_PROVIDER_SECRET_REQUIRED: Header 值未提供或已不可用；名称变化后必须重新输入');
+            error.code = 'A9_PROVIDER_SECRET_REQUIRED';
+            throw error;
+          }
+          headerValues[name] = previousHeaderValues[name];
+        } else if (typeof supplied === 'string' && supplied.length > 0) {
+          headerValues[name] = supplied;
+        } else {
+          const error = new Error('A9_PROVIDER_CONFIG_INVALID: Header 值必须是非空 string；null 仅可保留同 endpoint 的既有值');
+          error.code = 'A9_PROVIDER_CONFIG_INVALID';
+          throw error;
+        }
+      }
+    }
+
+    let caBundle = providerConfig && providerConfig.caBundle ? providerConfig.caBundle : undefined;
+    if (hasInput('caBundle')) {
+      if (values.caBundle === null || values.caBundle === '') caBundle = undefined;
+      else if (typeof values.caBundle === 'string') caBundle = values.caBundle;
+      else {
+        const error = new Error('A9_PROVIDER_CONFIG_INVALID: caBundle 必须是 string、null 或省略');
+        error.code = 'A9_PROVIDER_CONFIG_INVALID';
+        throw error;
+      }
+    }
+
+    const previousProxy = providerConfig && providerConfig.proxy ? providerConfig.proxy : null;
+    const previousProxyPassword = memorySecrets && typeof memorySecrets.proxyPassword === 'string'
+      ? memorySecrets.proxyPassword
+      : null;
+    let proxyConfig = previousProxy ? { ...previousProxy } : null;
+    let proxyPassword = baseUrlChanged ? null : previousProxyPassword;
+    if (hasInput('proxy')) {
+      if (values.proxy === null) {
+        proxyConfig = null;
+        proxyPassword = null;
+      } else if (!values.proxy || typeof values.proxy !== 'object' || Array.isArray(values.proxy)) {
+        const error = new Error('A9_PROVIDER_CONFIG_INVALID: proxy 必须是对象、null 或省略');
+        error.code = 'A9_PROVIDER_CONFIG_INVALID';
+        throw error;
+      } else {
+        const proxyInput = values.proxy;
+        const host = typeof proxyInput.host === 'string' ? proxyInput.host.trim() : '';
+        const port = Number(proxyInput.port);
+        if (!host || !Number.isSafeInteger(port) || port < 1 || port > 65535) {
+          const error = new Error('A9_PROVIDER_CONFIG_INVALID: proxy host/port 无效');
+          error.code = 'A9_PROVIDER_CONFIG_INVALID';
+          throw error;
+        }
+        proxyConfig = {
+          host,
+          port,
+          ...(proxyInput.protocol ? { protocol: String(proxyInput.protocol) } : {}),
+          ...(proxyInput.username !== undefined ? { username: String(proxyInput.username) } : {}),
+        };
+        const sameProxy = !baseUrlChanged && previousProxy
+          && previousProxy.host === proxyConfig.host
+          && Number(previousProxy.port) === proxyConfig.port
+          && String(previousProxy.protocol || '') === String(proxyConfig.protocol || '')
+          && String(previousProxy.username || '') === String(proxyConfig.username || '');
+        if (Object.prototype.hasOwnProperty.call(proxyInput, 'password')) {
+          if (proxyInput.password === null || proxyInput.password === '') proxyPassword = null;
+          else if (typeof proxyInput.password === 'string') proxyPassword = proxyInput.password;
+          else {
+            const error = new Error('A9_PROVIDER_CONFIG_INVALID: proxy password 必须是 string、null 或省略');
+            error.code = 'A9_PROVIDER_CONFIG_INVALID';
+            throw error;
+          }
+        } else {
+          proxyPassword = sameProxy ? previousProxyPassword : null;
+        }
+      }
+    }
+
     // Register newly supplied secrets before checking the fields documented as
     // non-secret. Reject the config instead of persisting a redacted-but-invalid
     // endpoint or model identity.
-    rememberSecret(suppliedApiKey);
-    rememberSecret(proxyInput && proxyInput.password ? String(proxyInput.password) : null);
+    rememberSecret(nextApiKey);
+    rememberSecret(proxyPassword);
     Object.values(headerValues).forEach(rememberSecret);
+    revalidateShellEnvironments();
     // A value can become known only after recovery artifacts already exist.
     // Re-read every manifest/artifact with the expanded secret set before
     // accepting the configuration; never keep an old plaintext snapshot live.
-    if (suppliedApiKey || (proxyInput && proxyInput.password) || Object.keys(headerValues).length > 0) {
+    if (nextApiKey || proxyPassword || Object.keys(headerValues).length > 0) {
       let recoverySecretError = null;
       const managers = new Set([standaloneWorkspaceService, loopWorkspaceService].filter(Boolean)
         .map((service) => service.getCheckpointManager()));
@@ -1045,14 +1341,13 @@ function createA9AgentRuntime(options) {
       if (recoverySecretError) throw recoverySecretError;
     }
     const nonSecretFields = [validatedBaseUrl, String(values.model), ...customHeaderNames,
-      proxyInput && proxyInput.host, proxyInput && proxyInput.protocol, proxyInput && proxyInput.username,
-      values.caBundle].filter((value) => value !== null && value !== undefined).map(String);
+      proxyConfig && proxyConfig.host, proxyConfig && proxyConfig.protocol, proxyConfig && proxyConfig.username,
+      caBundle].filter((value) => value !== null && value !== undefined).map(String);
     if (nonSecretFields.some((value) => redactSecrets(value) !== value)) {
       const error = new Error('A9_PROVIDER_CONFIG_CONTAINS_SECRET: Base URL/model/Header 名称/代理/CA 字段不得包含已知秘密');
       error.code = 'A9_PROVIDER_CONFIG_CONTAINS_SECRET';
       throw error;
     }
-    const baseUrlChanged = previousBaseUrl !== validatedBaseUrl;
     // 同一精确 Base URL 的模型切换保留经过脱敏的上下文；endpoint 路径、
     // origin 或端口任一改变，都必须清空旧上下文和旧凭据绑定。
     const previousHistory = loop ? loop.getConversationHistory() : pendingConversationHistory;
@@ -1075,8 +1370,7 @@ function createA9AgentRuntime(options) {
       providerContextGeneration = persistence.getConversationMetadata(a9SessionId).providerContextGeneration;
       restoredContext = restoreProviderContext(a9SessionId);
     }
-    if (previousBaseUrl && baseUrlChanged && !suppliedApiKey) {
-      memoryApiKey = null;
+    if (previousBaseUrl && baseUrlChanged) {
       try { if (apiKeyVault) apiKeyVault.clearApiKey(); } catch (_err) { /* best effort */ }
       try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
     }
@@ -1085,20 +1379,13 @@ function createA9AgentRuntime(options) {
       baseUrl: validatedBaseUrl,
       model: values.model.trim(),
       customHeaderNames,
-      ...(values.caBundle ? { caBundle: String(values.caBundle) } : {}),
-      ...(proxyInput ? {
-        proxy: {
-          host: String(proxyInput.host),
-          port: Number(proxyInput.port),
-          ...(proxyInput.protocol ? { protocol: proxyInput.protocol } : {}),
-          ...(proxyInput.username !== undefined ? { username: String(proxyInput.username) } : {}),
-        },
-      } : {}),
+      ...(caBundle ? { caBundle } : {}),
+      ...(proxyConfig ? { proxy: proxyConfig } : {}),
     };
-    memoryApiKey = suppliedApiKey || memoryApiKey;
+    memoryApiKey = nextApiKey;
     memorySecrets = {
       headerValues,
-      ...(proxyInput && proxyInput.password ? { proxyPassword: String(proxyInput.password) } : {}),
+      ...(proxyPassword ? { proxyPassword } : {}),
     };
     rememberSecret(memoryApiKey);
     rememberSecret(memorySecrets.proxyPassword);
@@ -1437,6 +1724,7 @@ function createA9AgentRuntime(options) {
       ownedController = new AbortController();
       activeController = ownedController;
       approvalDecisionInFlightId = input.approvalId;
+      agentStatus = 'running';
       // R2.7：SQLite 记录来自原始 pending 审批，而不是恢复执行后的结果。
       const result = await activeLoop.resumeAfterApproval({
         approvalId: input.approvalId,
@@ -1471,6 +1759,7 @@ function createA9AgentRuntime(options) {
       return { ok: true, result: presentTurnResult(result) };
     } catch (error) {
       if (resumeProducedResult) persistUnexpectedFailure(error, activeLifecycle);
+      else if (ownedController) agentStatus = currentPendingApproval ? 'needs_approval' : 'failed';
       return { ok: false, error: presentError(error) };
     } finally {
       if (ownedController && approvalDecisionInFlightId === (input && input.approvalId)) approvalDecisionInFlightId = null;
@@ -1524,6 +1813,18 @@ function createA9AgentRuntime(options) {
       err.code = 'A9_MODE_INVALID';
       throw err;
     }
+    if (permissionMode === mode) return { ok: true, mode, unchanged: true };
+    if (activeController || activeLifecycle || currentPendingApproval || approvalDecisionInFlightId) {
+      const err = new Error('A9_MODE_CHANGE_BLOCKED_ACTIVE_TURN: 当前 Turn 或审批尚未结束，不能切换权限模式');
+      err.code = 'A9_MODE_CHANGE_BLOCKED_ACTIVE_TURN';
+      throw err;
+    }
+    const managed = loopTrustedRunner.getBackgroundManager().list();
+    if (managed.some((item) => item.status === 'running' || item.status === 'starting' || item.cleanupRequired === true)) {
+      const err = new Error('A9_MODE_CHANGE_BLOCKED_MANAGED_PROCESS: 仍有活动或清理未确认的后台进程，不能切换权限模式');
+      err.code = 'A9_MODE_CHANGE_BLOCKED_MANAGED_PROCESS';
+      throw err;
+    }
     permissionMode = mode;
     modeStore.save(workspaceRoot, mode);
     persistence.setWorkspaceMode(canonicalWorkspace, mode);
@@ -1534,6 +1835,7 @@ function createA9AgentRuntime(options) {
   }
 
   function getSnapshot() {
+    retryWorkspaceLock();
     const shellSelection = shellSnapshot();
     const managedProcesses = syncManagedProcessFacts();
     const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting' || item.cleanupRequired === true);
@@ -1553,11 +1855,22 @@ function createA9AgentRuntime(options) {
           configured: true,
           baseUrl: providerConfig.baseUrl,
           model: providerConfig.model,
+          customHeaderNames: (providerConfig.customHeaderNames || []).slice(),
+          customHeaderValuesAvailable: (providerConfig.customHeaderNames || []).every((name) =>
+            Boolean(memorySecrets && memorySecrets.headerValues && memorySecrets.headerValues[name])),
+          ...(providerConfig.caBundle ? { caBundle: providerConfig.caBundle } : {}),
+          ...(providerConfig.proxy ? {
+            proxy: {
+              ...providerConfig.proxy,
+              passwordAvailable: Boolean(memorySecrets && memorySecrets.proxyPassword),
+            },
+          } : {}),
           probe: providerProbe,
           apiKey: {
             // F4：remembered 仅在 DPAPI 持久化成功且当前可读取时为 true；memory 表示未记住。
             remembered: providerConfig.keyRemembered === true,
             source: apiKeySource,
+            available: Boolean(memoryApiKey),
             ...(apiKeySource === 'memory' ? { note: '未记住：仅保存在进程内存（DPAPI 不可用或未启用）' } : {}),
             vaultAvailable: Boolean(apiKeyVault),
           },
@@ -1673,7 +1986,43 @@ function createA9AgentRuntime(options) {
 
   async function gitStatus() {
     const projection = await modules.gitAdapter.projectTrustedGit(workspaceRoot);
-    return { ok: true, projection };
+    return { ok: true, projection: redactForProjection(projection) };
+  }
+
+  async function readWorkspaceFile(input) {
+    const requestedPath = String(input && input.path || '');
+    if (!requestedPath || path.isAbsolute(requestedPath) || requestedPath.split(/[\\/]+/).includes('..')) {
+      const err = new Error('A9_WORKSPACE_READ_PATH_INVALID: Viewer 只能读取当前工作区内的相对路径');
+      err.code = 'A9_WORKSPACE_READ_PATH_INVALID';
+      throw err;
+    }
+    const result = await standaloneWorkspaceService.read(requestedPath, {
+      startLine: input.startLine,
+      maxLines: input.maxLines,
+      ...(input.encoding ? { encoding: input.encoding } : {}),
+    });
+    if (result.outsideWorkspace) {
+      const err = new Error('A9_WORKSPACE_READ_OUTSIDE: 路径经解析后位于工作区外，Viewer 拒绝读取');
+      err.code = 'A9_WORKSPACE_READ_OUTSIDE';
+      throw err;
+    }
+    const lines = [];
+    if (result.isText) {
+      const parts = String(result.content || '').split('\n');
+      for (let index = 0; index < result.linesRead && index < parts.length; index += 1) {
+        const line = result.startLine + index;
+        const prefix = `${line}: `;
+        lines.push({ line, text: parts[index].startsWith(prefix) ? parts[index].slice(prefix.length) : parts[index] });
+      }
+    }
+    return {
+      ok: true,
+      result: {
+        ...result,
+        lines,
+        endLine: lines.length > 0 ? lines[lines.length - 1].line : result.startLine,
+      },
+    };
   }
 
   function shutdown(options = {}) {
@@ -1752,6 +2101,7 @@ function createA9AgentRuntime(options) {
     undoFile,
     getDiff,
     gitStatus,
+    readWorkspaceFile,
     shutdown,
   };
 }
@@ -1834,10 +2184,11 @@ function preflightElectronSqlite(root) {
 }
 
 function createSqliteUnavailableRuntime(reason) {
+  const safeReason = boundedDiagnosticText(reason);
   return {
     protocolVersion: 1,
     status: 'electron_sqlite_unavailable',
-    diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: reason },
+    diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: safeReason },
     configureProvider() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     probeProvider() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     configureShell() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
@@ -1852,7 +2203,7 @@ function createSqliteUnavailableRuntime(reason) {
     restoreConversation() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
-    getSnapshot() { return { schemaVersion: 1, status: 'electron_sqlite_unavailable', diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: reason } }; },
+    getSnapshot() { return { schemaVersion: 1, status: 'electron_sqlite_unavailable', diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: safeReason } }; },
     undoTurn() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     undoFile() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     getDiff() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
@@ -1862,10 +2213,17 @@ function createSqliteUnavailableRuntime(reason) {
 }
 
 function createDiagnosticsRuntime(outcome) {
+  const diagnosticStatus = outcome && outcome.status === 'schema_refused' ? 'schema_refused' : 'diagnostics';
+  const safeDiagnostics = {
+    code: diagnosticStatus === 'schema_refused' ? 'A9_SCHEMA_REFUSED' : 'A9_PERSISTENCE_DIAGNOSTICS',
+    detail: boundedDiagnosticText(outcome && (outcome.error || outcome.reason || 'A9 persistence unavailable')),
+    ...(outcome && outcome.hint ? { hint: boundedDiagnosticText(outcome.hint) } : {}),
+    ...(outcome && Number.isSafeInteger(outcome.foundVersion) ? { foundVersion: outcome.foundVersion } : {}),
+  };
   return {
     protocolVersion: A9_PROTOCOL_VERSION,
-    status: outcome.status === 'diagnostics' ? 'diagnostics' : 'schema_refused',
-    diagnostics: outcome,
+    status: diagnosticStatus,
+    diagnostics: safeDiagnostics,
     configureProvider() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     probeProvider() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     configureShell() { throw new Error('A9_DIAGNOSTICS_MODE'); },
@@ -1880,7 +2238,7 @@ function createDiagnosticsRuntime(outcome) {
     restoreConversation() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('A9_DIAGNOSTICS_MODE'); },
-    getSnapshot() { return { schemaVersion: A9_PROTOCOL_VERSION, status: 'diagnostics', diagnostics: outcome }; },
+    getSnapshot() { return { schemaVersion: A9_PROTOCOL_VERSION, status: diagnosticStatus, diagnostics: safeDiagnostics }; },
     undoTurn() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     undoFile() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     getDiff() { throw new Error('A9_DIAGNOSTICS_MODE'); },

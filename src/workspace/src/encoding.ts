@@ -233,18 +233,22 @@ export function reencodePreservingOriginal(
   originalRaw: Buffer,
   originalDecoded: string,
   editedText: string,
+  binding?: { encoding: WritableEncoding; bom: boolean },
 ): PreserveEncodingResult {
   const detection = detectEncoding(originalRaw);
-  const encoding: WritableEncoding = detection.encoding === 'ambiguous' ? 'utf-8' : (detection.encoding as WritableEncoding);
+  const encoding: WritableEncoding = binding
+    ? binding.encoding
+    : detection.encoding === 'ambiguous' ? 'utf-8' : (detection.encoding as WritableEncoding);
   const eol = detectEolStyle(originalDecoded);
   const normalized = eol === 'none' ? editedText : normalizeEol(editedText, eol);
   const withNewlinePolicy = applyTrailingNewlinePolicy(originalDecoded, normalized);
   const body = encodeText(withNewlinePolicy, encoding);
-  const bom = bomPrefixFor(encoding, detection.bom);
+  const hadBom = binding ? binding.bom : detection.bom;
+  const bom = bomPrefixFor(encoding, hadBom);
   return {
     buffer: bom.length > 0 ? Buffer.concat([bom, body]) : body,
     encoding,
-    hadBom: detection.bom,
+    hadBom,
     eol,
   };
 }

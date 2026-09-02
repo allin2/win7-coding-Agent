@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "track": "A9-09-D013-v25-current-user",
-  "status": "READY_FOR_WIN10_BUILD",
+  "status": "REVOKED_PENDING_NEW_COMMITTED_BUILD_KIT",
   "build_revision": "v25-a9-trusted-shell-current-user",
   "source_commit": "72e4d905175baa3eae7b5eb6c1f49f47f9731046",
   "profile_id": "D-013-v25-a9-trusted-shell-current-user",
@@ -13,6 +13,8 @@
   "candidate_eligible": false,
   "historical_v24_unchanged": true,
   "blocked_on": [
+    "commit the independent-review fixes and bind a new source revision",
+    "generate and independently approve a new build-kit ZIP/hash; r4 is revoked",
     "D-017 locked Win10 double clean build and byte-for-byte comparison",
     "PE/API/CRT and protocol v1/v2 smoke evidence",
     "new A9 release input lock with the returned v25 helper SHA-256",

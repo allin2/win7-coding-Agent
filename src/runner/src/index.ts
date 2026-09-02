@@ -77,9 +77,13 @@ export {
   TrustedShellResult,
   TrustedShellTermination,
   TrustedShellRunnerOptions,
+  ShellFileIdentity,
   TrustedShellRunner,
   buildTrustedShellInvocation,
+  createTrustedShellEnvironment,
   decodeShellBytes,
+  resolveShellFileIdentity,
+  sameShellFileIdentity,
   validateTrustedShellEnvironmentOverlay,
 } from './trusted-shell-runner';
 

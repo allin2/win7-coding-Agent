@@ -28,19 +28,21 @@ const A9_ACTIONS = Object.freeze({
   CHECKPOINT_UNDO_FILE: 'a9.checkpoint.undoFile',
   DIFF_GET: 'a9.diff.get',
   GIT_STATUS: 'a9.git.status',
+  WORKSPACE_READ: 'a9.workspace.read',
 });
 
 /**
- * v4（ADR-0101）：在 v3 对话/审批绑定基础上增加用户显式 Shell 设置。
+ * v5（ADR-0108）：在 v4 Shell 设置基础上增加 A9 自身的有界文件读取。
  */
-const A9_IPC_SCHEMA_VERSION = 4;
+const A9_IPC_SCHEMA_VERSION = 5;
 
-function exactObject(value, keys, code) {
+function exactObject(value, keys, code, optionalKeys = []) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw Object.assign(new Error(`${code}: request must be an object`), { code });
   }
+  const allowed = keys.concat(optionalKeys);
   for (const key of Object.keys(value)) {
-    if (!keys.includes(key)) throw Object.assign(new Error(`${code}: unknown field '${key}'`), { code });
+    if (!allowed.includes(key)) throw Object.assign(new Error(`${code}: unknown field '${key}'`), { code });
   }
   for (const key of keys) {
     if (!(key in value)) throw Object.assign(new Error(`${code}: missing field '${key}'`), { code });
@@ -94,7 +96,7 @@ function createA9ProductRequestHandler(options) {
         case A9_ACTIONS.SHELL_CONFIGURE: {
           // The Renderer cannot name an executable. For an explicit kind the
           // main process opens a native file picker and supplies the path.
-          exactObject(payload, ['kind', 'version', 'envOverlay'], 'A9_PAYLOAD_INVALID');
+          exactObject(payload, ['kind', 'envOverlay'], 'A9_PAYLOAD_INVALID');
           return runtime.configureShell(payload);
         }
         case A9_ACTIONS.TURN_SUBMIT: {
@@ -131,11 +133,20 @@ function createA9ProductRequestHandler(options) {
         case A9_ACTIONS.CHECKPOINT_LIST:
           return { ok: true, checkpoints: runtime.getSnapshot().checkpoints };
         case A9_ACTIONS.CHECKPOINT_UNDO_TURN: {
-          exactObject(payload, ['turnId', 'confirmationId'], 'A9_PAYLOAD_INVALID');
+          exactObject(payload, ['turnId'], 'A9_PAYLOAD_INVALID', ['confirmationId']);
+          if (typeof payload.turnId !== 'string' || payload.turnId.length === 0 ||
+              (payload.confirmationId !== undefined && (typeof payload.confirmationId !== 'string' || payload.confirmationId.length === 0))) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: turnId is required and confirmationId must be a non-empty string when supplied'), { code: 'A9_PAYLOAD_INVALID' });
+          }
           return runtime.undoTurn(payload.turnId, payload.confirmationId);
         }
         case A9_ACTIONS.CHECKPOINT_UNDO_FILE: {
-          exactObject(payload, ['turnId', 'path', 'confirmationId'], 'A9_PAYLOAD_INVALID');
+          exactObject(payload, ['turnId', 'path'], 'A9_PAYLOAD_INVALID', ['confirmationId']);
+          if (typeof payload.turnId !== 'string' || payload.turnId.length === 0 ||
+              typeof payload.path !== 'string' || payload.path.length === 0 ||
+              (payload.confirmationId !== undefined && (typeof payload.confirmationId !== 'string' || payload.confirmationId.length === 0))) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: turnId/path are required and confirmationId must be a non-empty string when supplied'), { code: 'A9_PAYLOAD_INVALID' });
+          }
           return runtime.undoFile(payload.turnId, payload.path, payload.confirmationId);
         }
         case A9_ACTIONS.DIFF_GET: {
@@ -144,6 +155,20 @@ function createA9ProductRequestHandler(options) {
         }
         case A9_ACTIONS.GIT_STATUS:
           return runtime.gitStatus();
+        case A9_ACTIONS.WORKSPACE_READ: {
+          const allowed = ['path', 'startLine', 'maxLines', 'encoding'];
+          for (const key of Object.keys(payload)) {
+            if (!allowed.includes(key)) throw Object.assign(new Error(`A9_PAYLOAD_INVALID: unknown '${key}'`), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (typeof payload.path !== 'string' || !Number.isSafeInteger(payload.startLine) || payload.startLine < 1 ||
+              !Number.isSafeInteger(payload.maxLines) || payload.maxLines < 1 || payload.maxLines > 2000) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: path/startLine/maxLines are required'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.encoding !== undefined && !['utf-8', 'gbk', 'utf-16le'].includes(payload.encoding)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: unsupported encoding'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return runtime.readWorkspaceFile(payload);
+        }
         default:
           throw Object.assign(new Error('A9_ACTION_UNAVAILABLE'), { code: 'A9_ACTION_UNAVAILABLE' });
       }

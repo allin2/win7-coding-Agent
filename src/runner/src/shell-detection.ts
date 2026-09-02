@@ -11,6 +11,7 @@
 import { spawnSync } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
+import { createTrustedShellEnvironment } from './trusted-shell-environment';
 
 export type ShellKind = 'powershell' | 'cmd' | 'sh' | 'bash';
 
@@ -20,8 +21,8 @@ export interface DetectedShell {
   version?: string;
   isDefault: boolean;
   available: boolean;
-  /** win7_contract：该 Shell 满足 A9-SH01 正式合同；dev_host_only：开发机替代。 */
-  evidence: 'win7_contract' | 'dev_host_only';
+  /** win7_contract：满足正式合同；dev_host_only：开发机替代；unavailable：探测失败。 */
+  evidence: 'win7_contract' | 'dev_host_only' | 'unavailable';
   notes?: string;
 }
 
@@ -29,7 +30,8 @@ export interface ShellSelection {
   kind: ShellKind;
   path: string;
   version?: string;
-  evidence: 'win7_contract' | 'dev_host_only';
+  available: boolean;
+  evidence: 'win7_contract' | 'dev_host_only' | 'unavailable';
   /** 记录实际选择原因，进入审计与模型上下文。 */
   reason: string;
   notes?: string;
@@ -41,6 +43,8 @@ export interface ShellDetectionOptions {
   /** 用户显式强制 PowerShell（PS 2～4 Best Effort 也允许）。 */
   forcePowershell?: boolean;
   systemPath?: string;
+  /** Probe children must obey the same secret boundary as execution children. */
+  sensitiveValues?: readonly string[];
 }
 
 /** PowerShell 正式基线：Windows PowerShell 5.1（WMF 5.1）。 */
@@ -60,12 +64,13 @@ function versionAtLeast(text: string, baseline: string): boolean {
   return actual.minor >= base.minor;
 }
 
-function probePowershell(exe: string): { available: boolean; version?: string } {
+function probePowershell(exe: string, environment: NodeJS.ProcessEnv): { available: boolean; version?: string } {
   try {
     const probe = spawnSync(exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()'], {
       encoding: 'utf8',
       timeout: 8000,
       windowsHide: true,
+      env: environment,
     });
     if (probe.status === 0 && probe.stdout) {
       return { available: true, version: probe.stdout.trim() };
@@ -82,11 +87,12 @@ function probePowershell(exe: string): { available: boolean; version?: string } 
 export function detectSystemShells(options: ShellDetectionOptions = {}): DetectedShell[] {
   const isWindows = process.platform === 'win32';
   const shells: DetectedShell[] = [];
+  const environment = createTrustedShellEnvironment(process.env, {}, options.sensitiveValues);
 
   if (isWindows) {
     const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
     const powershellPath = path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-    const ps = probePowershell(powershellPath);
+    const ps = probePowershell(powershellPath, environment);
     const psMeetsBaseline = ps.available && ps.version !== undefined && versionAtLeast(ps.version, POWERSHELL_MIN_VERSION);
     shells.push({
       kind: 'powershell',
@@ -111,6 +117,7 @@ export function detectSystemShells(options: ShellDetectionOptions = {}): Detecte
         encoding: 'utf8',
         timeout: 5000,
         windowsHide: true,
+        env: environment,
       });
       cmdAvailable = probe.status === 0;
     } catch (_err) {
@@ -126,7 +133,7 @@ export function detectSystemShells(options: ShellDetectionOptions = {}): Detecte
     });
   } else {
     // 非 Windows：仅作为开发机替代，不得冒充 Win7 证据。
-    const pwsh = probePowershell('pwsh');
+    const pwsh = probePowershell('pwsh', environment);
     if (pwsh.available) {
       shells.push({
         kind: 'powershell',
@@ -171,6 +178,7 @@ export function selectShell(options: ShellDetectionOptions = {}): ShellSelection
         kind: matched.kind,
         path: matched.path,
         version: matched.version,
+        available: true,
         evidence: matched.evidence,
         reason: `workspace explicit shell preference: ${options.workspacePreferred}`,
         notes: matched.notes,
@@ -188,6 +196,7 @@ export function selectShell(options: ShellDetectionOptions = {}): ShellSelection
         kind: 'powershell',
         path: ps.path,
         version: ps.version,
+        available: true,
         evidence: 'win7_contract',
         reason: 'user forced PowerShell (Best Effort for versions below 5.1)',
         notes: ps.notes,
@@ -200,6 +209,7 @@ export function selectShell(options: ShellDetectionOptions = {}): ShellSelection
         kind: 'powershell',
         path: ps.path,
         version: ps.version,
+        available: true,
         evidence: 'win7_contract',
         reason: `Windows PowerShell ${ps.version} >= 5.1 baseline`,
         notes: ps.notes,
@@ -211,6 +221,7 @@ export function selectShell(options: ShellDetectionOptions = {}): ShellSelection
       return {
         kind: 'cmd',
         path: cmd.path,
+        available: true,
         evidence: 'win7_contract',
         reason: !ps?.available
           ? 'PowerShell not found; degraded to cmd.exe'
@@ -227,17 +238,22 @@ export function selectShell(options: ShellDetectionOptions = {}): ShellSelection
       kind: devDefault.kind,
       path: devDefault.path,
       version: devDefault.version,
+      available: true,
       evidence: 'dev_host_only',
       reason: 'non-Windows development host substitute',
       notes: devDefault.notes,
     };
   }
 
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
   return {
     kind: process.platform === 'win32' ? 'cmd' : 'sh',
-    path: process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : '/bin/sh',
-    evidence: process.platform === 'win32' ? 'win7_contract' : 'dev_host_only',
-    reason: 'no shell responded to probes; using platform default without evidence',
+    path: process.platform === 'win32'
+      ? path.win32.join(systemRoot, 'System32', 'cmd.exe')
+      : '/bin/sh',
+    available: false,
+    evidence: 'unavailable',
+    reason: 'no canonical system shell responded to probes; automatic shell is unavailable',
   };
 }
 
@@ -250,7 +266,7 @@ export function getActiveShell(options: ShellDetectionOptions = {}): DetectedShe
     kind: selection.kind,
     path: selection.path,
     version: selection.version,
-    available: true,
+    available: selection.available,
     isDefault: true,
     evidence: selection.evidence,
     notes: [selection.reason, selection.notes].filter(Boolean).join('; '),

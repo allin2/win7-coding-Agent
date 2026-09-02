@@ -1,4 +1,5 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { createTrustedShellEnvironment } from './trusted-shell-environment';
 import {
   NativeHelperMessage,
   NativeHelperRequest,
@@ -12,8 +13,8 @@ export type HelperTransportResult =
   | { kind: 'spawn_failed' | 'helper_crashed' | 'cancelled' | 'watchdog_timeout'; detail: string; cleanupConfirmed: boolean };
 
 export interface HelperTransport {
-  invoke(request: NativeHelperRequest, signal?: AbortSignal): Promise<HelperTransportResult>;
-  startManaged?(request: NativeHelperRequest): ManagedHelperInvocation;
+  invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv): Promise<HelperTransportResult>;
+  startManaged?(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv): ManagedHelperInvocation;
 }
 
 export interface ManagedHelperInvocation {
@@ -38,11 +39,11 @@ export class StdioHelperTransport implements HelperTransport {
     private readonly startupTimeoutMs = 15_000,
   ) {}
 
-  invoke(request: NativeHelperRequest, signal?: AbortSignal): Promise<HelperTransportResult> {
-    return this.invokeInternal(request, signal);
+  invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv): Promise<HelperTransportResult> {
+    return this.invokeInternal(request, signal, {}, environment);
   }
 
-  startManaged(request: NativeHelperRequest): ManagedHelperInvocation {
+  startManaged(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv): ManagedHelperInvocation {
     if (!('schemaVersion' in request) || request.schemaVersion !== 2 || request.managed !== true) {
       throw new Error('Managed helper execution requires a protocol v2 managed request');
     }
@@ -58,7 +59,7 @@ export class StdioHelperTransport implements HelperTransport {
       onSpawn: (spawnedPid) => { pid = spawnedPid; },
       onStarted: resolveReady,
       onReadyFailure: rejectReady,
-    });
+    }, environment);
     return { pid, ready, completion, cancel: () => controller.abort() };
   }
 
@@ -66,6 +67,7 @@ export class StdioHelperTransport implements HelperTransport {
     request: NativeHelperRequest,
     signal?: AbortSignal,
     hooks: InvocationHooks = {},
+    environment?: NodeJS.ProcessEnv,
   ): Promise<HelperTransportResult> {
     const protocolVersion: 1 | 2 = 'schemaVersion' in request ? 2 : 1;
     return new Promise((resolve) => {
@@ -166,6 +168,9 @@ export class StdioHelperTransport implements HelperTransport {
           shell: false,
           windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'],
+          // v1 keeps its historical contract. v2 uses the caller's filtered
+          // snapshot without merging the original process environment back in.
+          ...(protocolVersion === 2 ? { env: createTrustedShellEnvironment(environment ?? process.env, {}) } : {}),
         });
         hooks.onSpawn?.(child.pid);
       } catch (error) {

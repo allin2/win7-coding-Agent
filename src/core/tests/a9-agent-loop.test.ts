@@ -8,6 +8,31 @@ import {
 } from '../src';
 
 describe('A9-05: A9AgentLoop and Coding Workflow', () => {
+  it('passes explicit read encoding and the original cancellation signal without defaulting auto-detection', async () => {
+    const controller = new AbortController();
+    let round = 0;
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn().mockImplementation(async () => {
+        round += 1;
+        if (round <= 2) return {
+          id: `r${round}`, content: '', finishReason: 'tool_calls',
+          toolCalls: [{ id: `c${round}`, name: 'read', arguments: JSON.stringify({
+            path: '中文.txt', ...(round === 1 ? { encoding: 'gbk' } : {}), start_line: 2, max_lines: 1,
+          }) }],
+        };
+        return { id: 'done', content: 'Read complete', finishReason: 'stop' };
+      }),
+    };
+    const loop = new A9AgentLoop({ workspaceRoot: '/test/workspace', provider,
+      workspaceService: mockWorkspace, runner: mockRunner, permissionMode: PermissionMode.READ_ONLY });
+    await loop.runTurn('read', { signal: controller.signal });
+    expect(mockWorkspace.read).toHaveBeenNthCalledWith(1, '中文.txt', {
+      startLine: 2, maxLines: 1, encoding: 'gbk', signal: controller.signal,
+    });
+    expect(mockWorkspace.read).toHaveBeenNthCalledWith(2, '中文.txt', {
+      startLine: 2, maxLines: 1, encoding: undefined, signal: controller.signal,
+    });
+  });
   let mockWorkspace: A9WorkspacePort;
   let mockRunner: A9RunnerPort;
 
@@ -84,6 +109,42 @@ describe('A9-05: A9AgentLoop and Coding Workflow', () => {
     expect(mockWorkspace.read).toHaveBeenCalledWith('calc.ts', expect.anything());
     expect(mockWorkspace.edit).toHaveBeenCalledWith('calc.ts', 'return a - b;', 'return a + b;', expect.anything());
     expect(mockRunner.execute).toHaveBeenCalledWith('npm test', expect.anything());
+  });
+
+  it('emits a versioned bounded Shell result DTO for Renderer and audit consumers', async () => {
+    const events: any[] = [];
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn()
+        .mockResolvedValueOnce({
+          id: 'shell-1', content: '', finishReason: 'tool_calls',
+          toolCalls: [{ id: 'shell-call', name: 'shell', arguments: '{"command":"npm test"}' }],
+        })
+        .mockResolvedValueOnce({ id: 'done', content: 'done', finishReason: 'stop' }),
+    };
+    mockRunner.execute = jest.fn().mockResolvedValue({
+      status: 'exited', exitCode: 7, stdout: '中文 stdout', stderr: '失败 stderr',
+      durationMs: 42, timedOut: false, truncated: true,
+      rawStdoutBytes: 99, rawStderrBytes: 88,
+      logPaths: { stdout: 'stdout.log', stderr: 'stderr.log' },
+    });
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/test/workspace', provider, workspaceService: mockWorkspace,
+      runner: mockRunner, permissionMode: PermissionMode.FULL_ACCESS,
+      onEvent: (event) => events.push(event),
+    });
+
+    await loop.runTurn('run tests');
+
+    const toolEnd = events.find((event) => event.type === 'tool_end' && event.data.toolName === 'shell');
+    expect(toolEnd.data).toMatchObject({
+      schemaVersion: 1,
+      shell: {
+        schemaVersion: 1, status: 'exited', exitCode: 7,
+        stdout: '中文 stdout', stderr: '失败 stderr', durationMs: 42,
+        timedOut: false, truncated: true, rawStdoutBytes: 99, rawStderrBytes: 88,
+        logPaths: { stdout: 'stdout.log', stderr: 'stderr.log' },
+      },
+    });
   });
 
   it('detects 3-turn no-progress loop and halts with STUCK outcome', async () => {

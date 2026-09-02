@@ -20,14 +20,21 @@ function sse(res: http.ServerResponse, obj: unknown): void {
 }
 
 /** 行为化 fixture：probe 应答 probe_test_echo；任务轮按 tool 回执推进。 */
-function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: boolean } = {}): Promise<{ baseUrl: string; authorizations: Array<string | undefined>; close: () => Promise<void> }> {
+function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: boolean } = {}): Promise<{
+  baseUrl: string;
+  authorizations: Array<string | undefined>;
+  requestHeaders: http.IncomingHttpHeaders[];
+  close: () => Promise<void>;
+}> {
   const authorizations: Array<string | undefined> = [];
+  const requestHeaders: http.IncomingHttpHeaders[] = [];
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let body = '';
       req.on('data', (d: Buffer) => { body += d.toString('utf8'); });
       req.on('end', () => {
         authorizations.push(typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined);
+        requestHeaders.push({ ...req.headers });
         let parsed: any = null;
         try { parsed = JSON.parse(body); } catch (_e) { /* keep */ }
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -57,6 +64,7 @@ function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: bo
       resolve({
         baseUrl: `http://127.0.0.1:${(server.address() as any).port}`,
         authorizations,
+        requestHeaders,
         close: () => new Promise<void>((done) => server.close(() => done())),
       });
     });
@@ -165,6 +173,86 @@ describe('R4: provider config persistence and DPAPI integration', () => {
     }
   }, 20_000);
 
+  it('preserves omitted advanced settings on the same endpoint without exposing secrets and drops old secrets on endpoint change', async () => {
+    const fixture = await startFixtureModel();
+    const apiSecret = 'sk-provider-partial-update-42';
+    const headerSecret = 'header-provider-partial-update-42';
+    const proxySecret = 'proxy-provider-partial-update-42';
+    try {
+      const caBundle = path.join(env.root, '企业 CA', 'root.pem');
+      fs.mkdirSync(path.dirname(caBundle), { recursive: true });
+      fs.writeFileSync(caBundle, 'test-only-ca-bundle', 'utf8');
+      const runtime = makeRuntime({ safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' });
+      await runtime.configureProvider({
+        baseUrl: fixture.baseUrl,
+        model: 'model-a',
+        apiKey: apiSecret,
+        customHeaders: { 'X-Auth-Token': headerSecret },
+        caBundle,
+        proxy: { host: 'proxy.internal', port: 8080, username: 'alice', password: proxySecret },
+        rememberApiKey: true,
+        skipProbe: true,
+      });
+
+      const firstSnapshot = runtime.getSnapshot();
+      expect(firstSnapshot.provider).toMatchObject({
+        caBundle,
+        customHeaderNames: ['X-Auth-Token'],
+        customHeaderValuesAvailable: true,
+        proxy: { host: 'proxy.internal', port: 8080, username: 'alice', passwordAvailable: true },
+        apiKey: { available: true },
+      });
+      expect(JSON.stringify(firstSnapshot)).not.toContain(apiSecret);
+      expect(JSON.stringify(firstSnapshot)).not.toContain(headerSecret);
+      expect(JSON.stringify(firstSnapshot)).not.toContain(proxySecret);
+
+      // Renderer 的二次保存不回显秘密；省略高级字段必须保留同 endpoint 配置。
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'model-b', rememberApiKey: true, skipProbe: true });
+      expect(runtime.getSnapshot().provider).toMatchObject({
+        model: 'model-b',
+        caBundle,
+        customHeaderNames: ['X-Auth-Token'],
+        customHeaderValuesAvailable: true,
+        proxy: { host: 'proxy.internal', port: 8080, username: 'alice', passwordAvailable: true },
+        apiKey: { available: true, source: 'dpapi' },
+      });
+      await expect(runtime.configureProvider({
+        baseUrl: fixture.baseUrl,
+        model: 'model-b',
+        customHeaders: { 'X-New-Auth': null },
+        skipProbe: true,
+      })).rejects.toMatchObject({ code: 'A9_PROVIDER_SECRET_REQUIRED' });
+
+      await runtime.configureProvider({
+        baseUrl: fixture.baseUrl, model: 'model-b', proxy: null, rememberApiKey: true, skipProbe: true,
+      });
+      await runtime.probeProvider();
+      expect(fixture.requestHeaders[fixture.requestHeaders.length - 1]).toMatchObject({
+        authorization: `Bearer ${apiSecret}`,
+        'x-auth-token': headerSecret,
+      });
+      await runtime.configureProvider({
+        baseUrl: fixture.baseUrl,
+        model: 'model-b',
+        proxy: { host: 'proxy.internal', port: 8080, username: 'alice', password: proxySecret },
+        rememberApiKey: true,
+        skipProbe: true,
+      });
+
+      await runtime.configureProvider({ baseUrl: `${fixture.baseUrl}/tenant-b`, model: 'model-c', rememberApiKey: true, skipProbe: true });
+      const changed = runtime.getSnapshot().provider;
+      expect(changed.customHeaderNames).toEqual([]);
+      expect(changed.apiKey).toMatchObject({ available: false, source: 'none', remembered: false });
+      expect(changed.proxy).toMatchObject({ host: 'proxy.internal', port: 8080, passwordAvailable: false });
+      expect(JSON.stringify(changed)).not.toContain(apiSecret);
+      expect(JSON.stringify(changed)).not.toContain(headerSecret);
+      expect(JSON.stringify(changed)).not.toContain(proxySecret);
+      await runtime.shutdown();
+    } finally {
+      await fixture.close();
+    }
+  }, 20_000);
+
   it('never writes the API key in plaintext to dataRoot files, events, or snapshots', async () => {
     const fixture = await startFixtureModel();
     try {
@@ -229,6 +317,25 @@ describe('R4: provider config persistence and DPAPI integration', () => {
     expect(snapshot.provider.diagnostics.code).toBe('A9_PROVIDER_BASE_URL_CREDENTIALS_FORBIDDEN');
     expect(fs.readFileSync(path.join(env.dataRoot, 'a9-provider-config.v1.json'), 'utf8'))
       .toContain('legacy-secret-in-url');
+    runtime.shutdown();
+  });
+
+  it('never projects unknown persisted proxy keys or plaintext password fields into the snapshot', () => {
+    const secret = 'legacy-plaintext-proxy-secret-42';
+    fs.writeFileSync(path.join(env.dataRoot, 'a9-provider-config.v1.json'), JSON.stringify({
+      schemaVersion: 1,
+      baseUrl: 'https://example.test/v1',
+      model: 'm',
+      customHeaderNames: [],
+      proxy: { host: 'proxy.example.test', port: 8080, username: 'alice', password: secret, unknown: secret },
+      keyRemembered: false,
+    }), 'utf8');
+    const runtime = makeRuntime();
+    const snapshot = runtime.getSnapshot();
+    expect(snapshot.provider.proxy).toEqual({
+      host: 'proxy.example.test', port: 8080, username: 'alice', passwordAvailable: false,
+    });
+    expect(JSON.stringify(snapshot)).not.toContain(secret);
     runtime.shutdown();
   });
 

@@ -24,11 +24,13 @@ export interface LoopRunnerOptions {
 
 /** 与 @win7-agent/core 的 A9RunnerExecutionResult 结构兼容。 */
 export interface LoopRunnerResult {
+  status?: 'exited' | 'timeout' | 'cancelled' | 'failed' | 'background_started';
   exitCode: number | null;
   stdout: string;
   stderr: string;
   durationMs: number;
   timedOut: boolean;
+  truncated?: boolean;
   cancelled?: boolean;
   rawStdoutBytes?: number;
   rawStderrBytes?: number;
@@ -50,11 +52,13 @@ function toShellKind(value: string | undefined): ShellKind | undefined {
 
 function toLoopResult(result: TrustedShellResult): LoopRunnerResult {
   return {
+    status: result.status,
     exitCode: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr,
     durationMs: result.durationMs,
     timedOut: result.status === 'timeout',
+    truncated: result.truncated,
     cancelled: result.status === 'cancelled',
     rawStdoutBytes: result.rawStdoutBytes,
     rawStderrBytes: result.rawStderrBytes,

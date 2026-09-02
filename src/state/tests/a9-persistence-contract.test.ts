@@ -818,6 +818,46 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(lock3.acquired).toBe(true);
   });
 
+  it('atomically takes over a fresh main-process lock only when its exact owner is proven dead', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    expect(manager.acquireWorkspaceLock('/ws', 'main-41001').acquired).toBe(true);
+
+    const unknown = manager.acquireWorkspaceLock('/ws', 'main-41002', {
+      holderIsAlive: () => undefined,
+    });
+    expect(unknown).toMatchObject({ acquired: false, holder: 'main-41001' });
+
+    const taken = manager.acquireWorkspaceLock('/ws', 'main-41002', {
+      holderIsAlive: (holder) => holder === 'main-41001' ? false : undefined,
+    });
+    expect(taken).toMatchObject({ acquired: true, holder: 'main-41002' });
+  });
+
+  it('never uses a liveness result for unknown owner formats and still permits normal expiry takeover', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    expect(manager.acquireWorkspaceLock('/ws', 'window-legacy').acquired).toBe(true);
+    const probe = jest.fn((_holder: string) => false);
+    const blocked = manager.acquireWorkspaceLock('/ws', 'main-42002', {
+      // Runtime does not call this callback for unknown owner formats; the
+      // persistence layer treats only an explicit false as proof.
+      holderIsAlive: (holder) => holder.startsWith('main-') ? probe(holder) : undefined,
+    });
+    expect(blocked).toMatchObject({ acquired: false, holder: 'window-legacy' });
+    expect(probe).not.toHaveBeenCalled();
+
+    const expired = manager.acquireWorkspaceLock('/ws', 'main-42002', {
+      holderIsAlive: () => undefined,
+      now: new Date(Date.now() + 16 * 60 * 1000),
+    });
+    expect(expired).toMatchObject({ acquired: true, holder: 'main-42002' });
+  });
+
   it('never defaults a corrupted permission mode to full access', () => {
     const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
     expect(outcome.status).toBe('ready');

@@ -250,8 +250,8 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .workspace-tree button[data-add-context] { color: var(--accent); font: 10px var(--font-mono); }
 .file-list li { border-bottom: 1px solid var(--line-soft); }
 .file-list button { width: 100%; font: 11px var(--font-mono); overflow-wrap: anywhere; }
-.viewer-tools { display: grid; grid-template-columns: 1fr 64px 52px; gap: 6px; margin: 10px 0; }
-.viewer-tools input, .settings-panel input, .settings-panel select, .drawer input, .drawer select, .drawer textarea { width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line-strong); background: var(--bg-input); color: var(--text-primary); }
+.viewer-tools { display: grid; grid-template-columns: 104px minmax(0, 1fr) 64px 52px; gap: 6px; margin: 10px 0; }
+.viewer-tools input, .viewer-tools select, .settings-panel input, .settings-panel select, .drawer input, .drawer select, .drawer textarea { width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line-strong); background: var(--bg-input); color: var(--text-primary); }
 .code-viewer { height: 320px; overflow: auto; border: 1px solid var(--line-soft); background: #070b0c; font: 11px/1.55 var(--font-mono); }
 .code-line { display: grid; grid-template-columns: 42px 1fr; min-width: max-content; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text-secondary); text-align: left; }
 .code-line:hover, .code-line.selected { background: #152422; }

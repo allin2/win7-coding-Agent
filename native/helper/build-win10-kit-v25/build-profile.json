@@ -3,9 +3,9 @@
   "profile": "WIN10-VS2019-V142-SDK19041-D013-V25-CURRENT-USER-X64",
   "build_host": {
     "os": "Windows 10 x64",
-    "visual_studio_product_version": "[16.0,17.0)",
+    "visual_studio_product_version": "[16.11,16.12)",
     "platform_toolset": "v142",
-    "msvc_version_family": "14.2",
+    "msvc_version_family": "14.29",
     "windows_sdk_version": "10.0.19041.0",
     "compiler": "cl.exe (x64, direct invocation; CMake not required)",
     "archive_tool": "Windows 10 tar.exe (bsdtar)"
@@ -71,8 +71,15 @@
       "evidence/capture-selftest.json", "evidence/capture-selftest-stdout.bin",
       "evidence/capture-selftest-stderr.bin",
       "evidence/smoke-stdout.txt", "evidence/smoke-stderr.txt",
+      "evidence/pe-helper-headers.txt", "evidence/pe-helper-dependents.txt", "evidence/pe-helper-imports.txt",
+      "evidence/version-stdout.txt", "evidence/version-stderr.txt",
+      "evidence/cancel-smoke-stdout.txt", "evidence/cancel-smoke-stderr.txt",
+      "evidence/v25-smoke-stdout.txt", "evidence/v25-smoke-stderr.txt",
+      "evidence/v25-cancel-smoke-stdout.txt", "evidence/v25-cancel-smoke-stderr.txt",
+      "evidence/v25-env-overlay-reject-stdout.txt", "evidence/v25-env-overlay-reject-stderr.txt",
+      "evidence/validation-binding.json",
       "evidence/build-transcript.txt"
     ],
-    "status_marker": "STATUS.json -> READY_FOR_WIN10_BUILD until an eligible PASS/ARTIFACTS return package is reviewed"
+    "status_marker": "STATUS.json records the current gate; only READY_FOR_WIN10_BUILD plus a product preapproved ZIP/hash may be used"
   }
 }

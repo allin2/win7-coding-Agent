@@ -14,6 +14,7 @@ import {
   OpenAICompatibleProvider,
   FinishReason,
   TLSVersion,
+  SseParser,
 } from '../src';
 
 interface CapturedRequest {
@@ -51,6 +52,26 @@ function startFixture(handler: (req: http.IncomingMessage, res: http.ServerRespo
     });
   });
 }
+
+describe('A9-11: SSE UTF-8 byte boundaries', () => {
+  it('preserves Chinese content and tool arguments when every byte is a separate Buffer chunk', () => {
+    const parser = new SseParser();
+    const wire = Buffer.from([
+      `data: ${JSON.stringify({ choices: [{ delta: { content: '中文输出' }, finish_reason: null }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_cn', function: { name: 'read', arguments: '{"path":"中文 文件.txt"}' } }] }, finish_reason: 'tool_calls' }] })}\n\n`,
+      'data: [DONE]\n\n',
+    ].join(''), 'utf8');
+    const outcomes = [] as ReturnType<SseParser['feed']>;
+    for (const byte of wire) outcomes.push(...parser.feed(Buffer.from([byte])));
+    outcomes.push(...parser.finish());
+
+    const events = outcomes.filter((item) => item.kind === 'event').map((item: any) => item.event);
+    expect(events[0].content).toBe('中文输出');
+    expect(events[1].toolCallDeltas[0].argumentsDelta).toBe('{"path":"中文 文件.txt"}');
+    expect(outcomes.some((item) => item.kind === 'done')).toBe(true);
+    expect(parser.malformedEvents).toEqual([]);
+  });
+});
 
 describe('A9-04: multi-turn tool protocol', () => {
   it('sends assistant tool_calls, tool_call_id and tool name on the second request (no 400)', async () => {

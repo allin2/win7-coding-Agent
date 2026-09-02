@@ -114,7 +114,7 @@ export class BackgroundProcessManager {
     shellExe: string,
     shellArgs: string[],
     cwd: string,
-    env?: Record<string, string>,
+    environment?: NodeJS.ProcessEnv,
     helperRequest?: NativeHelperRequest,
   ): Promise<BackgroundProcessHandle> {
     if (this.getActiveCount() >= BackgroundProcessManager.MAX_PROCESSES) {
@@ -123,13 +123,13 @@ export class BackgroundProcessManager {
     if (this.processes.has(handleId)) {
       throw new Error(`后台进程句柄已存在: ${handleId}`);
     }
-    if (helperRequest) return this.startViaHelper(handleId, command, cwd, helperRequest);
+    if (helperRequest) return this.startViaHelper(handleId, command, cwd, helperRequest, environment);
 
     let child: ChildProcess;
     try {
       child = spawn(shellExe, shellArgs, {
         cwd,
-        env: { ...process.env, ...(env || {}) },
+        env: environment ?? process.env,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
         windowsHide: true,
@@ -212,11 +212,12 @@ export class BackgroundProcessManager {
     command: string,
     cwd: string,
     request: NativeHelperRequest,
+    environment?: NodeJS.ProcessEnv,
   ): Promise<BackgroundProcessHandle> {
     if (!this.helperTransport?.startManaged) {
       throw Object.assign(new Error('D-013 helper does not support managed execution'), { code: 'A9_BACKGROUND_HELPER_UNAVAILABLE' });
     }
-    const invocation = this.helperTransport.startManaged(request);
+    const invocation = this.helperTransport.startManaged(request, environment);
     const handle: BackgroundProcessHandle = {
       handleId,
       command,
@@ -248,9 +249,43 @@ export class BackgroundProcessManager {
       handle.pid = started.childPid;
       handle.status = 'running';
     } catch (error) {
-      throw Object.assign(new Error(handle.logs.stderr.join('\n') || 'D-013 helper failed to start managed process'), {
+      // The helper process may already have created and Job-bound the child
+      // even when execution_started is missing or malformed. Cancel this same
+      // invocation and wait for its real terminal result before reporting the
+      // start failure; the retained map entry remains actionable when cleanup
+      // cannot be proven.
+      invocation.cancel();
+      let completion: HelperTransportResult;
+      try {
+        completion = await invocation.completion;
+      } catch (completionError) {
+        completion = {
+          kind: 'helper_crashed',
+          detail: String(completionError),
+          cleanupConfirmed: false,
+        };
+      }
+      const cleanupConfirmed = completion.kind === 'response'
+        ? completion.response.type === 'execution_result'
+          && hasCompleteHelperCleanupProof(completion.response)
+        : completion.cleanupConfirmed === true;
+      entry.helperCleanupConfirmed = cleanupConfirmed;
+      handle.cleanupRequired = !cleanupConfirmed;
+      handle.status = 'failed';
+      const detail = handle.logs.stderr.join('\n') || 'D-013 helper failed to prove managed execution readiness';
+      const persistenceError = this.notifyStateChange(handle);
+      if (persistenceError) this.appendRedactedText(handle, 'stderr', `managed process state persistence failed: ${persistenceError.message}`);
+      throw Object.assign(new Error(detail), {
         code: 'A9_BACKGROUND_HELPER_START_FAILED',
         cause: error,
+        // A spawn_failed terminal result proves that no child was created.
+        // Other readiness failures remain conservative because the helper may
+        // have created and Job-bound the child before its ready message failed.
+        backgroundProcessSpawned: completion.kind === 'spawn_failed' ? false : 'unknown',
+        helperSpawned: invocation.pid !== undefined,
+        cleanupConfirmed,
+        cleanupRequired: !cleanupConfirmed,
+        residueRisk: !cleanupConfirmed,
       });
     }
     const persistenceError = this.notifyStateChange(handle);

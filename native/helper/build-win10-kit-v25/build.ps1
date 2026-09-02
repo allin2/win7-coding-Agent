@@ -1,16 +1,60 @@
 [CmdletBinding()]
-param([switch]$SkipSmoke)
+param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly)
 
 # D-013 containment helper — offline Win10 build kit.
 #
 # Builds spike02_helper.exe on a locked Windows 10 x64 host:
-#   VS2019 [16.0,17.0) / v142 / MSVC 14.2x / Windows SDK 10.0.19041.0
+#   VS2019 16.11 / v142 / MSVC 14.29 / Windows SDK 10.0.19041.0
 # Static CRT (/MT), Win7 target (_WIN32_WINNT=0x0601), embedded manifest,
 # PE/API/CRT gate, Win10 smoke, evidence-bound return package + SHA-256.
 #
-# Usage: .\build.ps1 [-SkipSmoke]
+# Usage: .\build.ps1 [-SkipSmoke] [-TestSmokeRequestOnly]
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
+
+function New-V25RejectedEnvironmentRequest([System.Collections.IDictionary]$Request) {
+    # [ordered]@{} is an OrderedDictionary, not a Hashtable with Clone().
+    # Copy top-level entries; replace (never mutate) the nested overlay.
+    $copy = [ordered]@{}
+    foreach ($key in $Request.Keys) {
+        $copy[$key] = $Request[$key]
+    }
+    $copy['requestId'] = 'd013-v25-env-overlay-reject'
+    $copy['envOverlay'] = [ordered]@{ NODE_DEBUG = 'D013_FORBIDDEN_OVERLAY_VALUE' }
+    return $copy
+}
+
+if ($TestSmokeRequestOnly) {
+    # Standalone regression: no compiler, helper process, filesystem writes or
+    # PASS return package. Run with Windows PowerShell 5.1, not pwsh.
+    if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1 -or
+        $PSVersionTable.PSEdition -ne 'Desktop') {
+        throw 'V25 smoke request self-test requires Windows PowerShell 5.1 Desktop.'
+    }
+    $original = [ordered]@{
+        schemaVersion = 2; requestId = 'fixture-original'
+        argv = @('/d', '/s', '/c', 'echo fixture')
+        envOverlay = [ordered]@{ A9_D013_SMOKE = 'D013_V25_CURRENT_USER' }
+    }
+    $before = $original | ConvertTo-Json -Depth 12 -Compress
+    $items = @(New-V25RejectedEnvironmentRequest $original)
+    if ($items.Count -ne 1 -or
+        $items[0] -isnot [System.Collections.Specialized.OrderedDictionary]) {
+        throw 'V25 smoke request copy must return exactly one ordered dictionary.'
+    }
+    $copied = $items[0]
+    if ([object]::ReferenceEquals($copied, $original) -or
+        ($original | ConvertTo-Json -Depth 12 -Compress) -cne $before -or
+        ($copied.Keys -join ',') -cne ($original.Keys -join ',') -or
+        $copied.schemaVersion -ne 2 -or ($copied.argv -join ',') -cne ($original.argv -join ',') -or
+        $copied.requestId -cne 'd013-v25-env-overlay-reject' -or
+        $copied.envOverlay.Count -ne 1 -or
+        $copied.envOverlay['NODE_DEBUG'] -cne 'D013_FORBIDDEN_OVERLAY_VALUE') {
+        throw 'V25 smoke request copy changed the source or lost request fields.'
+    }
+    Write-Output 'D013_V25_SMOKE_REQUEST_SELFTEST_PASS WindowsPowerShell=5.1'
+    return
+}
 
 $KitRoot = $PSScriptRoot
 $WorkRoot = Join-Path $KitRoot "work"
@@ -133,6 +177,7 @@ function Get-ArtifactEntries([string]$Root) {
 }
 
 function New-ReturnPackage(
+    [string]$BuildRunId,
     [string]$Status,
     [string]$CurrentStage,
     [string]$FailureCode,
@@ -157,6 +202,7 @@ function New-ReturnPackage(
     $artifactEntries = @(Get-ArtifactEntries $PackageOutputRoot)
     $buildResult = [ordered]@{
         schema_version = 3
+        run_id = $BuildRunId
         status = $Status
         stage = $CurrentStage
         failure_code = $FailureCode
@@ -183,6 +229,33 @@ function New-ReturnPackage(
     }
     Write-Json $buildResult (Join-Path $PackageEvidenceRoot "build-result.json")
 
+    if ($Status -eq "PASS") {
+        # The versioned binding ties every required raw result to this clean
+        # run and the final, manifest-embedded helper bytes (not just PASS labels).
+        $boundEvidence = @()
+        foreach ($relative in $profile.delivery.evidence) {
+            if ($relative -eq 'evidence/validation-binding.json') { continue }
+            $evidenceFile = Join-Path $PackageEvidenceRoot ($relative.Substring('evidence/'.Length))
+            if (-not (Test-Path -LiteralPath $evidenceFile -PathType Leaf)) { throw "Required return evidence is missing: $relative" }
+            $boundEvidence += [ordered]@{
+                path = $relative; size = (Get-Item -LiteralPath $evidenceFile).Length
+                sha256 = (Get-FileHash -LiteralPath $evidenceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+        }
+        Write-Json ([ordered]@{
+            schema_version = 1; status = "PASS"; run_id = $BuildRunId
+            source_commit = $SourceCommit; profile = $ProfileId
+            helper_sha256 = (Get-FileHash -LiteralPath (Join-Path $PackageOutputRoot 'helper.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+            files = $boundEvidence
+            exit_codes = [ordered]@{
+                logic = [int]$logicExit; capture = [int]$captureProbe.exit_code
+                version = [int]$versionCapture.exit_code; v1_smoke = [int]$smokeCapture.exit_code
+                v1_cancel = [int]$cancelCapture.exit_code; v2_smoke = [int]$v2Capture.exit_code
+                v2_cancel = [int]$v2CancelCapture.exit_code; v2_overlay_reject = [int]$v2RejectedCapture.exit_code
+            }
+        }) (Join-Path $PackageEvidenceRoot 'validation-binding.json')
+    }
+
     $staging = Join-Path $WorkRoot ("result-staging-" + [Guid]::NewGuid().ToString("N"))
     Reset-OwnedDirectory $staging
     if ((Get-ChildItem -LiteralPath $PackageOutputRoot -Force | Measure-Object).Count -gt 0) {
@@ -206,8 +279,14 @@ function New-ReturnPackage(
     }
     Write-Json ([ordered]@{
         schema_version = 1
+        run_id = $BuildRunId
+        source_commit = $SourceCommit
         status = $Status
         candidate_eligible = $CandidateEligible
+        authorized_inputs = [ordered]@{
+            input_lock_sha256 = (Get-FileHash -LiteralPath (Join-Path $KitRoot "input-lock.json") -Algorithm SHA256).Hash.ToLowerInvariant()
+            package_manifest_sha256 = (Get-FileHash -LiteralPath (Join-Path $KitRoot "PACKAGE_MANIFEST.json") -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
         files = $returnFiles
     }) (Join-Path $staging "RETURN_PACKAGE_MANIFEST.json")
 
@@ -236,7 +315,8 @@ function Test-ReturnPackageWriter {
     [System.IO.File]::WriteAllText(
         (Join-Path $selfEvidence "synthetic-failure.txt"),
         "TOKEN_CREATE_FAILED`r`n", [System.Text.Encoding]::ASCII)
-    $created = New-ReturnPackage -Status "FAIL" -CurrentStage "SELFTEST" `
+    $selfRunId = [Guid]::NewGuid().ToString("D")
+    $created = New-ReturnPackage -BuildRunId $selfRunId -Status "FAIL" -CurrentStage "SELFTEST" `
         -FailureCode "TOKEN_CREATE_FAILED" -FailureMessage "synthetic failure" `
         -HelperError "TOKEN_CREATE_FAILED" -ProfileId "SELFTEST" -SourceCommit "SELFTEST" -SdkVersion "SELFTEST" `
         -SmokeStatus "FAIL" -PeStatus "NOT_PERFORMED" -LogicStatus "NOT_PERFORMED" `
@@ -254,7 +334,8 @@ function Test-ReturnPackageWriter {
     $extract = Join-Path $selfTestRoot "extract"
     Expand-Archive -LiteralPath ([string]$created.path) -DestinationPath $extract -Force
     $selfResultJson = Get-Content -LiteralPath (Join-Path $extract "evidence\build-result.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($selfResultJson.schema_version -ne 3 -or $selfResultJson.status -ne "FAIL" -or
+    if ($selfResultJson.schema_version -ne 3 -or $selfResultJson.run_id -ne $selfRunId -or
+        $selfResultJson.status -ne "FAIL" -or
         $selfResultJson.stage -ne "SELFTEST" -or
         $selfResultJson.failure_code -ne "TOKEN_CREATE_FAILED" -or
         $selfResultJson.candidate_eligible -ne $false -or
@@ -267,7 +348,11 @@ function Test-ReturnPackageWriter {
         throw "return-package self-test internal manifest missing"
     }
     $returnManifest = Get-Content -LiteralPath $returnManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($returnManifest.schema_version -ne 1 -or $returnManifest.status -ne "FAIL" -or
+    if ($returnManifest.schema_version -ne 1 -or $returnManifest.run_id -ne $selfRunId -or
+        $returnManifest.source_commit -ne "SELFTEST" -or
+        -not $returnManifest.authorized_inputs.input_lock_sha256 -or
+        -not $returnManifest.authorized_inputs.package_manifest_sha256 -or
+        $returnManifest.status -ne "FAIL" -or
         $returnManifest.candidate_eligible -ne $false -or (@($returnManifest.files).Count -eq 0)) {
         throw "return-package self-test internal manifest contract mismatch"
     }
@@ -307,6 +392,7 @@ $candidateEligible = $false
 $returnPackage = $null
 $transcriptStarted = $false
 $packagingSucceeded = $false
+$buildRunId = [Guid]::NewGuid().ToString("D")
 
 try {
     # Work, output, evidence and result are build-owned state. Initialization
@@ -405,20 +491,20 @@ try {
     if (-not (Test-Path -LiteralPath $vswhere)) { throw "vswhere.exe not found." }
     # VS2019 reports its built-in v142 C++ tools as VC.Tools.x86.x64. The
     # alternate VC.v142 ID is retained for installations that register it, but
-    # the 16.x Visual Studio and 14.2 toolset gates below remain mandatory.
+    # the 16.11 Visual Studio and 14.29 toolset gates below remain mandatory.
     $vsArgs = @(
-        '-latest', '-version', '[16.0,17.0)', '-products', '*', '-requires',
+        '-latest', '-version', '[16.11,16.12)', '-products', '*', '-requires',
         'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
         'Microsoft.VisualStudio.Component.VC.v142.x86.x64',
         '-requiresAny'
     )
     $vsPath = (& $vswhere @vsArgs -property installationPath | Select-Object -First 1)
     $vsVersion = (& $vswhere @vsArgs -property installationVersion | Select-Object -First 1)
-    if (-not $vsPath -or -not ([string]$vsVersion).StartsWith('16.')) { throw "Visual Studio 2019 with v142 x64 was not detected." }
+    if (-not $vsPath -or -not ([string]$vsVersion).StartsWith('16.11.')) { throw "Visual Studio 2019 16.11 with v142 x64 was not detected." }
 
     $msvcRoot = Join-Path $vsPath "VC\Tools\MSVC"
-    $msvcDirectory = Get-ChildItem -LiteralPath $msvcRoot -Directory | Where-Object { $_.Name -like '14.2*' } | Sort-Object Name -Descending | Select-Object -First 1
-    if (-not $msvcDirectory) { throw "An MSVC 14.2x (v142) compiler directory was not detected." }
+    $msvcDirectory = Get-ChildItem -LiteralPath $msvcRoot -Directory | Where-Object { $_.Name -like '14.29.*' } | Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $msvcDirectory) { throw "An MSVC 14.29 (v142) compiler directory was not detected." }
     $cl = Join-Path $msvcDirectory.FullName "bin\Hostx64\x64\cl.exe"
     $dumpbin = Join-Path $msvcDirectory.FullName "bin\Hostx64\x64\dumpbin.exe"
     if (-not (Test-Path -LiteralPath $cl) -or -not (Test-Path -LiteralPath $dumpbin)) { throw "cl.exe/dumpbin.exe x64 were not detected." }
@@ -753,13 +839,13 @@ try {
                 requestId = "d013-v25-smoke"
                 profileId = "a9-trusted-shell-current-user-v1"
                 executable = $cmdExe
-                argv = @('/d', '/s', '/c', 'echo %A9_D013_SMOKE%')
+                argv = @('/d', '/s', '/c', 'if defined AZURE_OPENAI_KEY exit /b 41 & if defined CUSTOM_PROVIDER_KEY exit /b 42 & if defined NODE_EXTRA_CA_CERTS exit /b 43 & if defined SSLKEYLOGFILE exit /b 44 & if defined NODE_DEBUG exit /b 45 & if defined NODE_DEBUG_NATIVE exit /b 46 & if defined NODE_PRESERVE_SYMLINKS exit /b 47 & if defined NODE_ICU_DATA exit /b 48 & if defined NODE_NO_WARNINGS exit /b 49 & echo %A9_D013_SMOKE%')
                 shellKind = "cmd"
                 shellPath = $cmdExe
                 shellVersion = $cmdVersion
                 shellIdentity = $cmdIdentity
                 shellSource = "automatic"
-                command = 'echo %A9_D013_SMOKE%'
+                command = 'if defined AZURE_OPENAI_KEY exit /b 41 & if defined CUSTOM_PROVIDER_KEY exit /b 42 & if defined NODE_EXTRA_CA_CERTS exit /b 43 & if defined SSLKEYLOGFILE exit /b 44 & if defined NODE_DEBUG exit /b 45 & if defined NODE_DEBUG_NATIVE exit /b 46 & if defined NODE_PRESERVE_SYMLINKS exit /b 47 & if defined NODE_ICU_DATA exit /b 48 & if defined NODE_NO_WARNINGS exit /b 49 & echo %A9_D013_SMOKE%'
                 cwd = $v2Work
                 envOverlay = [ordered]@{ A9_D013_SMOKE = "D013_V25_CURRENT_USER" }
                 maxStdoutBytes = 4096
@@ -769,9 +855,22 @@ try {
             }
             $v2Stdout = Join-Path $EvidenceRoot "v25-smoke-stdout.txt"
             $v2Stderr = Join-Path $EvidenceRoot "v25-smoke-stderr.txt"
-            $v2CaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
-                -StandardInputText ($v2RequestPayload | ConvertTo-Json -Compress) `
-                -StdoutPath $v2Stdout -StderrPath $v2Stderr)
+            $blockedInheritedNames = @('AZURE_OPENAI_KEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'SSLKEYLOGFILE',
+                'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'NODE_PRESERVE_SYMLINKS', 'NODE_ICU_DATA', 'NODE_NO_WARNINGS')
+            $savedInheritedValues = @{}
+            foreach ($blockedName in $blockedInheritedNames) {
+                $savedInheritedValues[$blockedName] = [Environment]::GetEnvironmentVariable($blockedName, 'Process')
+                [Environment]::SetEnvironmentVariable($blockedName, 'D013_FORBIDDEN_INHERITED_VALUE', 'Process')
+            }
+            try {
+                $v2CaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+                    -StandardInputText ($v2RequestPayload | ConvertTo-Json -Compress) `
+                    -StdoutPath $v2Stdout -StderrPath $v2Stderr)
+            } finally {
+                foreach ($blockedName in $blockedInheritedNames) {
+                    [Environment]::SetEnvironmentVariable($blockedName, $savedInheritedValues[$blockedName], 'Process')
+                }
+            }
             $v2Capture = Get-ValidatedProcessCapture -Items $v2CaptureItems -Context "helper v25 current-user smoke"
             if ([int]$v2Capture.exit_code -ne 0) { throw "helper v25 current-user smoke process failed." }
             $v2Lines = @(([string]$v2Capture.stdout_text -split '\r?\n') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -804,6 +903,22 @@ try {
             }
             if ((Get-Acl -LiteralPath $v2Work).Sddl -ne $v2WorkAclBefore) {
                 throw "helper v25 current-user profile modified the working-directory ACL."
+            }
+
+            $v2RejectedOverlay = New-V25RejectedEnvironmentRequest $v2RequestPayload
+            $v2RejectedStdout = Join-Path $EvidenceRoot 'v25-env-overlay-reject-stdout.txt'
+            $v2RejectedStderr = Join-Path $EvidenceRoot 'v25-env-overlay-reject-stderr.txt'
+            $v2RejectedItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments '' `
+                -StandardInputText ($v2RejectedOverlay | ConvertTo-Json -Compress) `
+                -StdoutPath $v2RejectedStdout -StderrPath $v2RejectedStderr)
+            $v2RejectedCapture = Get-ValidatedProcessCapture -Items $v2RejectedItems -Context 'helper v25 environment overlay rejection'
+            $v2RejectedText = ([string]$v2RejectedCapture.stdout_text) -replace '[\r\n]+$', ''
+            $v2RejectedResult = $v2RejectedText | ConvertFrom-Json
+            if ([int]$v2RejectedCapture.exit_code -ne 0 -or
+                $v2RejectedResult.type -ne 'error' -or
+                $v2RejectedResult.code -ne 'JSON_PARSE_FAILED' -or
+                $v2RejectedText -match 'D013_FORBIDDEN_OVERLAY_VALUE') {
+                throw "helper v25 forbidden environment overlay was not rejected without value disclosure."
             }
 
             $v2CancelRequest = [ordered]@{
@@ -871,7 +986,7 @@ try {
 }
 
 try {
-    $returnPackage = New-ReturnPackage -Status $buildStatus -CurrentStage $currentStage `
+    $returnPackage = New-ReturnPackage -BuildRunId $buildRunId -Status $buildStatus -CurrentStage $currentStage `
         -FailureCode $failureCode -FailureMessage $failureMessage -HelperError $helperError `
         -ProfileId $profileId -SourceCommit $sourceCommit -SdkVersion $sdkVersion -SmokeStatus $smokeStatus `
         -PeStatus $peStatus -LogicStatus $logicStatus -CaptureStatus $captureStatus `

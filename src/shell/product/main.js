@@ -964,11 +964,14 @@ let a9ShutdownComplete = false;
 let a9ShutdownInFlight = null;
 let a9WindowCloseInFlight = null;
 async function confirmA9LeaveToSystem(leftToSystem) {
+  const residueLines = Array.isArray(leftToSystem)
+    ? leftToSystem.slice(0, 20).map((item) => String(item).slice(0, 500))
+    : [String(leftToSystem == null ? '' : leftToSystem).slice(0, 2000)];
   const choice = await dialog.showMessageBox({
     type: 'warning',
     title: '托管进程清理无法确认',
     message: '仍有托管进程或清理事实无法确认。可以继续运行并检查残留，或明确将进程留给系统后退出。',
-    detail: String(leftToSystem || []).slice(0, 20).join('\n'),
+    detail: residueLines.join('\n'),
     buttons: ['继续运行并重试', '将进程留给系统并退出'],
     defaultId: 0,
     cancelId: 0,
