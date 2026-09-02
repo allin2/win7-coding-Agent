@@ -196,6 +196,9 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/WriteAllBytes\s*\(\s*\$StdoutPath\s*,\s*\$stdoutBytes\s*\)/.test(buildScript) ||
     !/UTF8Encoding\s*\(\s*\$false\s*,\s*\$true\s*\)/.test(buildScript) ||
     !/PROCESS_CAPTURE_SELFTEST/.test(buildScript) ||
+    !/function\s+New-V25SmokeCommand/.test(buildScript) ||
+    !/else if defined NODE_NO_WARNINGS \(exit \/b 49\) else echo %A9_D013_SMOKE%/.test(buildScript) ||
+    !/V25 cmd smoke syntax did not reach the final marker/.test(buildScript) ||
     !/expectedCaptureMarker\s*=\s*"D013_"\s*\+\s*\[char\]0x4E2D\s*\+\s*\[char\]0x6587/.test(buildScript) ||
     !/output_object_count\s*=\s*\$captureProbeItems\.Count/.test(buildScript) ||
     !/process_capture_selftest\s*=\s*\$CaptureStatus/.test(buildScript) ||

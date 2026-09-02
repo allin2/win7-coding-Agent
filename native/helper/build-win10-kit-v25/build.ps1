@@ -24,6 +24,10 @@ function New-V25RejectedEnvironmentRequest([System.Collections.IDictionary]$Requ
     return $copy
 }
 
+function New-V25SmokeCommand() {
+    return 'if defined AZURE_OPENAI_KEY (exit /b 41) else if defined CUSTOM_PROVIDER_KEY (exit /b 42) else if defined NODE_EXTRA_CA_CERTS (exit /b 43) else if defined SSLKEYLOGFILE (exit /b 44) else if defined NODE_DEBUG (exit /b 45) else if defined NODE_DEBUG_NATIVE (exit /b 46) else if defined NODE_PRESERVE_SYMLINKS (exit /b 47) else if defined NODE_ICU_DATA (exit /b 48) else if defined NODE_NO_WARNINGS (exit /b 49) else echo %A9_D013_SMOKE%'
+}
+
 if ($TestSmokeRequestOnly) {
     # Standalone regression: no compiler, helper process, filesystem writes or
     # PASS return package. Run with Windows PowerShell 5.1, not pwsh.
@@ -51,6 +55,28 @@ if ($TestSmokeRequestOnly) {
         $copied.envOverlay.Count -ne 1 -or
         $copied.envOverlay['NODE_DEBUG'] -cne 'D013_FORBIDDEN_OVERLAY_VALUE') {
         throw 'V25 smoke request copy changed the source or lost request fields.'
+    }
+    $selfTestBlockedNames = @('AZURE_OPENAI_KEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'SSLKEYLOGFILE',
+        'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'NODE_PRESERVE_SYMLINKS', 'NODE_ICU_DATA', 'NODE_NO_WARNINGS')
+    $selfTestSavedValues = @{}
+    foreach ($blockedName in $selfTestBlockedNames) {
+        $selfTestSavedValues[$blockedName] = [Environment]::GetEnvironmentVariable($blockedName, 'Process')
+        [Environment]::SetEnvironmentVariable($blockedName, $null, 'Process')
+    }
+    $savedMarker = [Environment]::GetEnvironmentVariable('A9_D013_SMOKE', 'Process')
+    try {
+        [Environment]::SetEnvironmentVariable('A9_D013_SMOKE', 'D013_V25_CURRENT_USER', 'Process')
+        $smokeCommand = New-V25SmokeCommand
+        $smokeOutput = @(& (Join-Path $env:SystemRoot 'System32\cmd.exe') /d /s /c $smokeCommand)
+        $smokeExit = $LASTEXITCODE
+    } finally {
+        [Environment]::SetEnvironmentVariable('A9_D013_SMOKE', $savedMarker, 'Process')
+        foreach ($blockedName in $selfTestBlockedNames) {
+            [Environment]::SetEnvironmentVariable($blockedName, $selfTestSavedValues[$blockedName], 'Process')
+        }
+    }
+    if ($smokeExit -ne 0 -or ($smokeOutput -join "`n") -notmatch 'D013_V25_CURRENT_USER') {
+        throw 'V25 cmd smoke syntax did not reach the final marker.'
     }
     Write-Output 'D013_V25_SMOKE_REQUEST_SELFTEST_PASS WindowsPowerShell=5.1'
     return
@@ -834,18 +860,19 @@ try {
             $cmdIdentity = (Get-FileHash -LiteralPath $cmdExe -Algorithm SHA256).Hash.ToLowerInvariant()
             $cmdVersion = [string](Get-Item -LiteralPath $cmdExe).VersionInfo.FileVersion
             if ([string]::IsNullOrWhiteSpace($cmdVersion)) { $cmdVersion = "windows-system-cmd" }
+            $v2SmokeCommand = New-V25SmokeCommand
             $v2RequestPayload = [ordered]@{
                 schemaVersion = 2
                 requestId = "d013-v25-smoke"
                 profileId = "a9-trusted-shell-current-user-v1"
                 executable = $cmdExe
-                argv = @('/d', '/s', '/c', 'if defined AZURE_OPENAI_KEY exit /b 41 & if defined CUSTOM_PROVIDER_KEY exit /b 42 & if defined NODE_EXTRA_CA_CERTS exit /b 43 & if defined SSLKEYLOGFILE exit /b 44 & if defined NODE_DEBUG exit /b 45 & if defined NODE_DEBUG_NATIVE exit /b 46 & if defined NODE_PRESERVE_SYMLINKS exit /b 47 & if defined NODE_ICU_DATA exit /b 48 & if defined NODE_NO_WARNINGS exit /b 49 & echo %A9_D013_SMOKE%')
+                argv = @('/d', '/s', '/c', $v2SmokeCommand)
                 shellKind = "cmd"
                 shellPath = $cmdExe
                 shellVersion = $cmdVersion
                 shellIdentity = $cmdIdentity
                 shellSource = "automatic"
-                command = 'if defined AZURE_OPENAI_KEY exit /b 41 & if defined CUSTOM_PROVIDER_KEY exit /b 42 & if defined NODE_EXTRA_CA_CERTS exit /b 43 & if defined SSLKEYLOGFILE exit /b 44 & if defined NODE_DEBUG exit /b 45 & if defined NODE_DEBUG_NATIVE exit /b 46 & if defined NODE_PRESERVE_SYMLINKS exit /b 47 & if defined NODE_ICU_DATA exit /b 48 & if defined NODE_NO_WARNINGS exit /b 49 & echo %A9_D013_SMOKE%'
+                command = $v2SmokeCommand
                 cwd = $v2Work
                 envOverlay = [ordered]@{ A9_D013_SMOKE = "D013_V25_CURRENT_USER" }
                 maxStdoutBytes = 4096

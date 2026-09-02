@@ -21,7 +21,7 @@
 
 ## 两次干净构建
 
-使用新批准套件前，先在 Windows PowerShell 5.1 运行纯请求构造自测（不需要编译器）：
+使用新批准套件前，先在 Windows PowerShell 5.1 运行请求复制与 CMD smoke 语法自测（不需要编译器）：
 
 ```cmd
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -TestSmokeRequestOnly
@@ -29,7 +29,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -TestSmokeRe
 
 预期输出 `D013_V25_SMOKE_REQUEST_SELFTEST_PASS WindowsPowerShell=5.1`，退出码为 0。
 此入口与正式 overlay 拒绝 smoke 使用同一有序字典复制函数，检查副本/原始请求独立且原始请求未变。
-它不启动 helper、不写构建工件，也不生成返回包；不能替代完整 Win10 smoke、双构建或 Win7 验收。
+它只额外启动系统 `cmd.exe` 验证无禁止变量时能到达最终 marker；不启动 helper、不写构建工件，也不生成
+返回包，不能替代完整 Win10 smoke、双构建或 Win7 验收。
 非 Windows 开发机只运行生成器夹具回归，Windows PowerShell 5.1 用例必须记为 NOT_PERFORMED。
 
 将同一个、SHA-256 已核对的构建套件分别解压到两个新目录，例如：
