@@ -211,7 +211,7 @@ export function verifyV25ReturnEvidence(read, helperBytes, buildResult, profile)
     if (!canceled) check(result.exitCode === 0 && Buffer.from(result.stdoutBase64, 'base64').toString('utf8').includes('D013_V25_CURRENT_USER'), 'SMOKE_OUTPUT_INVALID');
   }
   const rejection = json('v25-env-overlay-reject-stdout.txt');
-  check(rejection.type === 'error' && rejection.code === 'JSON_PARSE_FAILED'
+  check(rejection.type === 'error' && rejection.error === 'JSON_PARSE_FAILED'
     && !text('v25-env-overlay-reject-stdout.txt').includes('D013_FORBIDDEN_OVERLAY_VALUE'), 'SMOKE_OVERLAY_REJECTION_INVALID');
   return { helperSha256: binding.helper_sha256, bindingSha256: hash(read('evidence/validation-binding.json')) };
 }

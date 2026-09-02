@@ -943,7 +943,7 @@ try {
             $v2RejectedResult = $v2RejectedText | ConvertFrom-Json
             if ([int]$v2RejectedCapture.exit_code -ne 0 -or
                 $v2RejectedResult.type -ne 'error' -or
-                $v2RejectedResult.code -ne 'JSON_PARSE_FAILED' -or
+                $v2RejectedResult.error -ne 'JSON_PARSE_FAILED' -or
                 $v2RejectedText -match 'D013_FORBIDDEN_OVERLAY_VALUE') {
                 throw "helper v25 forbidden environment overlay was not rejected without value disclosure."
             }

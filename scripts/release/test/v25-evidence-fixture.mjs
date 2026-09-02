@@ -96,7 +96,7 @@ export function syntheticV25Evidence() {
     'return-package-selftest.json': { schema_version: 1, status: 'PASS', scenario: 'synthetic TOKEN_CREATE_FAILED', expected_candidate_eligible: false },
     'smoke-stdout.txt': v1('d013-smoke', false),
     'cancel-smoke-stdout.txt': v1('d013-cancel-smoke', true),
-    'v25-env-overlay-reject-stdout.txt': { type: 'error', code: 'JSON_PARSE_FAILED' },
+    'v25-env-overlay-reject-stdout.txt': { type: 'error', error: 'JSON_PARSE_FAILED' },
   })) files[name] = JSON.stringify(value);
   return files;
 }

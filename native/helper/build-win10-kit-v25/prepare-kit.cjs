@@ -185,6 +185,7 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/foreach \(\$relative in \$profile\.delivery\.evidence\)/.test(buildScript) ||
     !/exit_codes\s*=\s*\[ordered\]@\{/.test(buildScript) ||
     !/D013_FORBIDDEN_OVERLAY_VALUE/.test(buildScript) ||
+    !/v2RejectedResult\.error\s*-ne\s*'JSON_PARSE_FAILED'/.test(buildScript) ||
     !/RETURN_PACKAGE_MANIFEST\.json/.test(buildScript) ||
     !/function\s+Invoke-Utf8ProcessBytes/.test(buildScript) ||
     !/function\s+Get-ValidatedProcessCapture/.test(buildScript) ||
