@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r5～r8 Win10 依次暴露并修复构建闭包缺陷，r9 构建套件已批准，`A9_09B_READY_FOR_WIN10_DOUBLE_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r5～r9 Win10 依次暴露并修复构建闭包/确定性缺陷，r10 构建套件已批准，`A9_09B_READY_FOR_WIN10_DOUBLE_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -24,6 +24,12 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-03，r9 两个无 Host Job 的全新 WMI 构建均为 `PASS`，但 helper SHA-256 分别为
+  `7778c8f2…d6bd` 与 `b9141b85…88de`，不满足字节一致门槛。逐层比较定位到 MSVC `.obj` 中的不同绝对
+  构建路径；Win10 探针确认 `/Brepro /experimental:deterministic`、把各自 kit 根映射到固定
+  `C:\a9-v25-kit` 且保持相同相对对象路径后可得到相同对象。修复提交为
+  `0e134d54cb4d26fb761355272b151aa785643056`，r9 已撤销。新 r10 ZIP、input lock、package manifest
+  SHA-256 分别为 `9a267b4a…6583`、`3e9d4984…ec65`、`7abaa864…c28a`，等待两个全新目录复验。
 - 2026-09-03，r8 的禁止 overlay smoke 按既有协议返回 `error: JSON_PARSE_FAILED`，但新脚本/记录器误读
   `code` 字段并由 StrictMode 拒绝。消费者与夹具修复提交为 `bc26e5835b479be7fff1a23150d07f7868baacfe`，
   r8 已撤销。新 r9 ZIP、input lock、package manifest SHA-256 分别为 `e2ceab17…4708`、

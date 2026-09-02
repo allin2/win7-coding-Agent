@@ -291,4 +291,14 @@ r8 继续通过 CMD marker，但禁止 overlay 响应按既有协议返回顶层
 确认 `error` 是既有字段。提交 `bc26e5835b479be7fff1a23150d07f7868baacfe` 同步修正两个消费者和夹具，
 r8 已撤销。新 r9 ZIP SHA-256 为 `e2ceab173ba06eb9efdfb23191705dbdb519f29ec618d962588dafe2be034708`，
 input lock 为 `6ca670195517d27e56d9dffc4097c038b3685c0c3cc64126502b5450e8858a48`，package manifest 为
-`37da1fe1bfd0c4d297c1939731f81bdee49aa7e00bf491a04022a8c3b26de203`；当前只允许 r9 进入后续新目录。
+`37da1fe1bfd0c4d297c1939731f81bdee49aa7e00bf491a04022a8c3b26de203`；当时只允许 r9 进入后续新目录。
+
+r9 随后在 Win10 上以两个无 Host Job 的全新 WMI 进程完成全部构建和 smoke，两个 run ID 与返回包均独立，
+但 helper SHA-256 分别为 `7778c8f27331c69b7a1295e3ebb807c190546b731de17974c7d057c0a09fd6bd` 与
+`b9141b85dc271c2aef2e5c2a904d7f91548e903a6eeac7c0f439bf48434e88de`。逐层诊断证明差异来自 MSVC
+对象中的构建绝对路径；编译加入 `/Brepro /experimental:deterministic`，把各次 kit 根映射到固定
+`C:\a9-v25-kit`，且保持相同相对对象路径后，Win10 探针对象哈希一致。修复提交
+`0e134d54cb4d26fb761355272b151aa785643056` 固化该配置和 fail-closed 契约，r9 已撤销。新 r10 ZIP
+SHA-256 为 `9a267b4a8b43ebd5b83b0fd67111b10b38f04b9e2f0825e8df711ce263d46583`，input lock 为
+`3e9d49848860a5aaa024f91c60b9c005aa94acb34ef536304749c6135936ec65`，package manifest 为
+`7abaa864353d2ea3052a9e7cc6d991a1ad7bb51d1b62a82ecc492f523683c28a`；当前只允许 r10 进入两个新目录。
