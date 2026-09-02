@@ -17,6 +17,15 @@
       "source_commit": "c718152f0c413d2c21407eec042dc50197b6e51f",
       "input_lock_sha256": "5dd85ae7209691cc6575d320d769385852d327d4bde51db0ab49cd7d319f586b",
       "package_manifest_sha256": "2cc6b9b53eb1b5a8ae96596547705a66e08abb0af8928a1be2cff7d6bd6231b5",
+      "status": "REVOKED_AFTER_WIN10_MSVC_MAX_MACRO_FAILURE"
+    },
+    {
+      "revision": "20260902-r6",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r6.zip",
+      "sha256": "4d7985d4668eb902f4863efcb3fa43e29fa105371275ce2d234f540e6438922c",
+      "source_commit": "7f43dec19612bafba1bb94e5ecb261cd87508f80",
+      "input_lock_sha256": "104b4aca3b4cf59286ff161659a48e0c95511dc8a5df8bab06848343e825c8c5",
+      "package_manifest_sha256": "da90075f88bef297ab234afd7f7404d2f96e8e05c53a0c9954802ed0a578b5c8",
       "status": "APPROVED_FOR_RETURN_RECORDING"
     }
   ]

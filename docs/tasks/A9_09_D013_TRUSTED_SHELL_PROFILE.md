@@ -7,7 +7,7 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09B_R5_APPROVED_FOR_WIN10_BUILD
+Current Stage Status: A9_09B_R6_APPROVED_FOR_WIN10_BUILD
 Target Candidate: WIN7-20
 Phase-Gate: A9_09B_READY_FOR_WIN10_DOUBLE_BUILD
 Win7-Validation: WIN7_20_NOT_PERFORMED
@@ -262,3 +262,10 @@ r5 标记为 `APPROVED_FOR_RETURN_RECORDING`。
 当前 Gate 前移至 `A9_09B_READY_FOR_WIN10_DOUBLE_BUILD`。这只批准在锁定 Win10 环境执行 D-017 两次
 全新目录构建；Win10 返回包、正式 v25 产品输入锁、WIN7-20 候选和 Win7 实机结果仍不存在，均保持
 `NOT_PERFORMED`，综合状态仍为 `FIX_BEFORE_ALPHA`。两项 Provider P2 经负责人决定延期，不在本轮冒充修复。
+
+首次 Win10 执行保留了两份 FAIL 诊断：初次 SSH CMD 未加载 VS 开发环境，`cassert` 不可见；加载锁定
+VS2019 环境后的 r5 在 MSVC/Windows headers 下暴露 `std::max` 与 Win32 `max` 宏冲突。后者已以
+`(std::max)(...)` 最小修复提交为 `7f43dec19612bafba1bb94e5ecb261cd87508f80`。r5 随即标记撤销，不复用
+失败目录；新 r6 ZIP SHA-256 为 `4d7985d4668eb902f4863efcb3fa43e29fa105371275ce2d234f540e6438922c`，
+input lock 为 `104b4aca3b4cf59286ff161659a48e0c95511dc8a5df8bab06848343e825c8c5`，package manifest 为
+`da90075f88bef297ab234afd7f7404d2f96e8e05c53a0c9954802ed0a578b5c8`。当前只允许 r6 进入新的双构建目录。

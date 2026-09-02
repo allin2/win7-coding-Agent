@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "package": "WIN10_D013_V25_HELPER_BUILD_KIT",
-  "source_commit": "c718152f0c413d2c21407eec042dc50197b6e51f",
-  "source_commit_timestamp": "2026-09-02T23:23:45+08:00",
+  "source_commit": "7f43dec19612bafba1bb94e5ecb261cd87508f80",
+  "source_commit_timestamp": "2026-09-02T23:33:56+08:00",
   "revision": "2026-09-02",
   "status": "READY_FOR_WIN10_BUILD",
-  "generated_at": "2026-09-02T23:23:45+08:00",
+  "generated_at": "2026-09-02T23:33:56+08:00",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
   "excluded": [
@@ -18,23 +18,23 @@
   "files": [
     {
       "path": "README_BUILD.md",
-      "size": 6660,
-      "sha256": "4c00b3f10d1e99c67b6dd39613f4b08e97366bac0c6d3be5566c3c55112dc4e1"
+      "size": 6663,
+      "sha256": "4d82a2d0b0941e6197e0525a17a42a1cfe8f2e74023ac96b288c52e319d35466"
     },
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "11be915afdc8dd63f25e1b5c7b2845fda7c8a0c6becb752d49527f3cfd9da59b"
+      "sha256": "fb92f84a62867acfcdb129b5a4d0dfaa168212eb3e7a8f90923cea582f8c0281"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
       "size": 26,
-      "sha256": "e53618507ff92d1ca68f5972950dd8cf17004b91e000d99b943836912d255afd"
+      "sha256": "91d26b18fe42ea7ecf5c9feb55b30c84cc7b290620fef8940dc5fc2b8a5ad526"
     },
     {
       "path": "STATUS.json",
       "size": 801,
-      "sha256": "8a4e33e8e6952988e80a2fb8d7757909c6c98442f6d9998d535719bd7f580796"
+      "sha256": "963d8ca280bc3980842f99531f956304ed093a636bc16241e579f16356aeecf4"
     },
     {
       "path": "build-profile.json",
@@ -103,8 +103,8 @@
     },
     {
       "path": "src/protocol.cpp",
-      "size": 32597,
-      "sha256": "877f0e91e1feef46c83199bc72965e6eda9feff377ea31667b7a48ad699b0353"
+      "size": 32599,
+      "sha256": "f7a60a40652b96bf8c654ceb8c1334dd5df9a5a2211191fdfe19f287df7d8b79"
     },
     {
       "path": "src/whitelist.cpp",
@@ -119,7 +119,7 @@
     {
       "path": "input-lock.json",
       "size": 2703,
-      "sha256": "5dd85ae7209691cc6575d320d769385852d327d4bde51db0ab49cd7d319f586b"
+      "sha256": "104b4aca3b4cf59286ff161659a48e0c95511dc8a5df8bab06848343e825c8c5"
     }
   ]
 }

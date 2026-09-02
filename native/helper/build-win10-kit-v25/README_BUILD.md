@@ -1,8 +1,8 @@
 # D-013 v25 A9 Current-User Helper：锁定 Win10 构建
 
-> 当前 r5 套件绑定已提交源码 `c718152f0c413d2c21407eec042dc50197b6e51f`，状态为
+> 当前 r6 套件绑定已提交源码 `7f43dec19612bafba1bb94e5ecb261cd87508f80`，状态为
 > `READY_FOR_WIN10_BUILD`。其 ZIP、input lock 与 package manifest 精确哈希必须命中产品批准清单；
-> 已撤销的 r4 套件继续保留历史记录，不得用于正式返回记录。
+> 已撤销的 r4/r5 套件继续保留历史记录，不得用于正式返回记录。
 
 本套件在 Windows 10 x64 上离线构建 D-013 v25。v25 新增协议 v2 与
 `a9-trusted-shell-current-user-v1`：child 使用当前用户 Primary Token，不创建 Restricted Token、

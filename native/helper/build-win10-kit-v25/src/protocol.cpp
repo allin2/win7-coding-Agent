@@ -393,7 +393,7 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
         }
         config->maxStdoutBytes = stdoutCapValue;
         config->maxStderrBytes = stderrCapValue;
-        config->maxOutputSize = std::max(stdoutCapValue, stderrCapValue);
+        config->maxOutputSize = (std::max)(stdoutCapValue, stderrCapValue);
         return true;
     }
 
