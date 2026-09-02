@@ -138,8 +138,11 @@ if (!/CurrentLabelAclMatches/.test(helperSource) ||
     !/LabelAclsEqual/.test(helperSource) ||
     !/info\.AceCount\s*==\s*0/.test(helperSource) ||
     !/CurrentDaclMatches/.test(helperSource) ||
+    !/SetFileSecurityW\s*\(/.test(helperSource) ||
+    !/GetSecurityDescriptorControl/.test(helperSource) ||
+    !/SE_DACL_AUTO_INHERITED/.test(helperSource) ||
     !/return\s+HELPER_ERR_ACL_ROLLBACK\s*;/.test(helperSource)) {
-  throw new Error('helper.cpp must verify DACL restoration, Win7 LABEL null/zero-ACE equivalence, and fail closed on rollback failure');
+  throw new Error('helper.cpp must exactly restore DACL/control state, preserve Win7 LABEL null/zero-ACE equivalence, and fail closed on rollback failure');
 }
 if (!/QueryInformationJobObject\s*\(\s*nullptr\s*,\s*JobObjectExtendedLimitInformation/.test(helperSource) ||
     !/CREATE_BREAKAWAY_FROM_JOB/.test(helperSource) ||

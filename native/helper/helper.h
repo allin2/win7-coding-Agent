@@ -318,8 +318,9 @@ bool ApplyLowIntegrityLabel(const std::wstring& directory, std::wstring* error);
 bool ApplyDenyAce(const std::wstring& directory, PSID userSid,
                   SecurityDescriptorSnapshot* restore, std::wstring* error);
 
-// Restore a previously captured DACL (rollback). The snapshot remains owned by
-// the caller and must be released after this call. Returns false on failure.
+// Restore a previously captured DACL (rollback), including its inheritance
+// control bits. The snapshot remains owned by the caller and must be released
+// after this call. Returns false on failure.
 bool RestoreDirectoryDacl(const std::wstring& directory,
                           const SecurityDescriptorSnapshot& restore,
                           std::wstring* error);

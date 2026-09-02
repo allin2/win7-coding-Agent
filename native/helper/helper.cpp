@@ -339,7 +339,8 @@ std::wstring DescribeAclShape(PACL acl) {
     return std::to_wstring(info.AceCount) + L" ACE(s)";
 }
 
-bool CurrentDaclMatches(const std::wstring& directory, PACL expected,
+bool CurrentDaclMatches(const std::wstring& directory,
+                        const SecurityDescriptorSnapshot& expected,
                         std::wstring* error) {
     PSECURITY_DESCRIPTOR descriptor = nullptr;
     PACL current = nullptr;
@@ -351,8 +352,23 @@ bool CurrentDaclMatches(const std::wstring& directory, PACL expected,
         if (descriptor) LocalFree(descriptor);
         return false;
     }
-    const bool equal = AclsEqual(current, expected);
-    if (!equal && error) *error = L"restored DACL does not match the captured DACL";
+    SECURITY_DESCRIPTOR_CONTROL currentControl = 0;
+    SECURITY_DESCRIPTOR_CONTROL expectedControl = 0;
+    DWORD currentRevision = 0;
+    DWORD expectedRevision = 0;
+    const SECURITY_DESCRIPTOR_CONTROL controlMask =
+        SE_DACL_AUTO_INHERIT_REQ | SE_DACL_AUTO_INHERITED |
+        SE_DACL_PROTECTED | SE_DACL_DEFAULTED | SE_DACL_PRESENT;
+    const bool controlsRead =
+        GetSecurityDescriptorControl(descriptor, &currentControl, &currentRevision) &&
+        GetSecurityDescriptorControl(expected.descriptor, &expectedControl, &expectedRevision);
+    const bool equal = controlsRead && AclsEqual(current, expected.acl) &&
+                       (currentControl & controlMask) == (expectedControl & controlMask);
+    if (!equal && error) {
+        *error = controlsRead
+            ? L"restored DACL or its inheritance control does not match the captured descriptor"
+            : L"GetSecurityDescriptorControl(DACL verify) failed: " + WinErrorText(GetLastError());
+    }
     LocalFree(descriptor);
     return equal;
 }
@@ -1183,14 +1199,16 @@ bool ApplyDenyAce(const std::wstring& directory, PSID userSid,
 bool RestoreDirectoryDacl(const std::wstring& directory,
                           const SecurityDescriptorSnapshot& restore,
                           std::wstring* error) {
-    const DWORD result = SetNamedSecurityInfoW(
-        const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-        DACL_SECURITY_INFORMATION, nullptr, nullptr, restore.acl, nullptr);
-    if (result != ERROR_SUCCESS) {
-        if (error) *error = L"SetNamedSecurityInfoW(restore) failed: " + WinErrorText(result);
+    // SetNamedSecurityInfoW re-applies inheritance and can add the
+    // SE_DACL_AUTO_INHERITED control bit even when the captured descriptor did
+    // not contain it. Restore the captured descriptor so both ACE bytes and
+    // inheritance-control state return to their exact pre-run values.
+    if (!SetFileSecurityW(directory.c_str(), DACL_SECURITY_INFORMATION,
+                          restore.descriptor)) {
+        if (error) *error = L"SetFileSecurityW(DACL restore) failed: " + WinErrorText(GetLastError());
         return false;
     }
-    return CurrentDaclMatches(directory, restore.acl, error);
+    return CurrentDaclMatches(directory, restore, error);
 }
 
 bool CaptureLowIntegrityLabel(const std::wstring& directory,
