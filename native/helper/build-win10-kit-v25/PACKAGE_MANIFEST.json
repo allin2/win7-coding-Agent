@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "package": "WIN10_D013_V25_HELPER_BUILD_KIT",
-  "source_commit": "72e4d905175baa3eae7b5eb6c1f49f47f9731046",
-  "source_commit_timestamp": "2026-08-29T23:29:04+08:00",
-  "revision": "2026-08-29",
-  "status": "REVOKED_PENDING_NEW_COMMITTED_BUILD_KIT",
-  "generated_at": "2026-08-29T23:29:04+08:00",
+  "source_commit": "c718152f0c413d2c21407eec042dc50197b6e51f",
+  "source_commit_timestamp": "2026-09-02T23:23:45+08:00",
+  "revision": "2026-09-02",
+  "status": "READY_FOR_WIN10_BUILD",
+  "generated_at": "2026-09-02T23:23:45+08:00",
   "delivery_type": "offline Win10 build-input kit; not a Win7 runtime package",
   "expected_host": "Windows 10 x64 + VS2019/v142 + SDK 10.0.19041.0",
   "excluded": [
@@ -18,33 +18,33 @@
   "files": [
     {
       "path": "README_BUILD.md",
-      "size": 3455,
-      "sha256": "6e0a19bfc800df67ece4911a1624545311943eae0d9358da0a2f5b00a5c801b8"
+      "size": 6660,
+      "sha256": "4c00b3f10d1e99c67b6dd39613f4b08e97366bac0c6d3be5566c3c55112dc4e1"
     },
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "16649b2aa14426da650698739ebaa43985a484324531b8b48df6bd6bc7b32c71"
+      "sha256": "11be915afdc8dd63f25e1b5c7b2845fda7c8a0c6becb752d49527f3cfd9da59b"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
       "size": 26,
-      "sha256": "7d22d24ebbfbd64961fb7129f82fe98ffad1a20f9818f170593b90a7cf1da689"
+      "sha256": "e53618507ff92d1ca68f5972950dd8cf17004b91e000d99b943836912d255afd"
     },
     {
       "path": "STATUS.json",
-      "size": 823,
-      "sha256": "1f003492f43d4e64c7cdf2af61ecbaf4acd776b65d00dc1d547a36c7d07ec77d"
+      "size": 801,
+      "sha256": "8a4e33e8e6952988e80a2fb8d7757909c6c98442f6d9998d535719bd7f580796"
     },
     {
       "path": "build-profile.json",
-      "size": 3066,
-      "sha256": "55e8bde3b2253b0b648587202e9e00c86b2931b213ada7180c8be2a7398be166"
+      "size": 3640,
+      "sha256": "cb237ea92db8d59909493281e97b509a68698b967cafe1e6d23c7844c978c5d2"
     },
     {
       "path": "build.ps1",
-      "size": 49027,
-      "sha256": "51aba6799b1e151d44c4a1939ed2dc3775619dbad9e5b2ea3c563e9d4f0064b0"
+      "size": 56656,
+      "sha256": "85914947c158e924a2eca128099e16c537b5a64ec72ca9842358ea2d8097abfd"
     },
     {
       "path": "helper.exe.manifest",
@@ -58,8 +58,8 @@
     },
     {
       "path": "prepare-kit.cjs",
-      "size": 12931,
-      "sha256": "4fe95454871728a9e7778352567f0fb1fff954e4351c754aa12516907dcb6753"
+      "size": 15670,
+      "sha256": "d1cc0a7f0b03fe6069b01e578fb2dc80ee148abfb8c6a3f378668e5acc3fafec"
     },
     {
       "path": "src/CMakeLists.txt",
@@ -78,13 +78,13 @@
     },
     {
       "path": "src/helper.cpp",
-      "size": 89354,
-      "sha256": "8dc1d3f08d3c4e16acfb527e9997adecb2ff8023e7703ab0c5829db8c88e32c8"
+      "size": 90443,
+      "sha256": "a9b159964b687d073744e7a11b8671ba9353540d8b89da95eac5042b42064b0e"
     },
     {
       "path": "src/helper.h",
-      "size": 16429,
-      "sha256": "ad87523effd025a2dbc475eae0c5fce904367b5506b4de38360de09619511b7e"
+      "size": 16663,
+      "sha256": "bfd8fe9119e49d105ea7a4bce7033808a37b316f57f578784dd09878f24d80e9"
     },
     {
       "path": "src/json_parser.cpp",
@@ -98,13 +98,13 @@
     },
     {
       "path": "src/logic_tests.cpp",
-      "size": 25955,
-      "sha256": "c5d9e84499d79bd851fd0b3cfea415073adbbb19f806891d89a4d430ee1f8606"
+      "size": 26919,
+      "sha256": "8e69be2f543d06ff6090ec84192fd85038d0777c3fbefafdfbfd553670056e11"
     },
     {
       "path": "src/protocol.cpp",
-      "size": 31305,
-      "sha256": "90e49cdbf66989ccba91fb1492be7748df5c7632f37aef1aa0e663602d9d2643"
+      "size": 32597,
+      "sha256": "877f0e91e1feef46c83199bc72965e6eda9feff377ea31667b7a48ad699b0353"
     },
     {
       "path": "src/whitelist.cpp",
@@ -119,7 +119,7 @@
     {
       "path": "input-lock.json",
       "size": 2703,
-      "sha256": "99aecc91c8e1ff9b797cfe33e7bdc7f7ef5f656fde224e2d0997e9d838a63fb8"
+      "sha256": "5dd85ae7209691cc6575d320d769385852d327d4bde51db0ab49cd7d319f586b"
     }
   ]
 }

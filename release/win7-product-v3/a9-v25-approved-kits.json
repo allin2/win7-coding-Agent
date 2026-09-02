@@ -9,6 +9,15 @@
       "input_lock_sha256": "99aecc91c8e1ff9b797cfe33e7bdc7f7ef5f656fde224e2d0997e9d838a63fb8",
       "package_manifest_sha256": "35150cf85f20e73448b14b1adb60a8bb36e9a2ca8ac13d7ef1cf8d7e7829aff9",
       "status": "REVOKED_AFTER_A9_09_V25_INDEPENDENT_REVIEW"
+    },
+    {
+      "revision": "20260902-r5",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r5.zip",
+      "sha256": "341fb9f9d66c64e4e5b0b31eddf6899b94462e39d14ba536b2f881c31abab2c9",
+      "source_commit": "c718152f0c413d2c21407eec042dc50197b6e51f",
+      "input_lock_sha256": "5dd85ae7209691cc6575d320d769385852d327d4bde51db0ab49cd7d319f586b",
+      "package_manifest_sha256": "2cc6b9b53eb1b5a8ae96596547705a66e08abb0af8928a1be2cff7d6bd6231b5",
+      "status": "APPROVED_FOR_RETURN_RECORDING"
     }
   ]
 }

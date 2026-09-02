@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；A9-12 十项本地修复已通过开发机验证，`A9_12_DEVELOPER_VERIFIED_PENDING_WIN7 / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；A9-09～A9-12 修复已提交，r5 构建套件已批准，`A9_09B_READY_FOR_WIN10_DOUBLE_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -24,6 +24,11 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-02，A9-09～A9-12 修复提交为 `c718152f0c413d2c21407eec042dc50197b6e51f`；新 r5 Win10
+  离线构建套件 SHA-256 为 `341fb9f9…b2c9`，input lock 为 `5dd85ae7…586b`，package manifest 为
+  `2cc6b9b5…31b5`，已加入批准清单，旧 r4 撤销项保持不变。当前 Gate 为
+  `A9_09B_READY_FOR_WIN10_DOUBLE_BUILD`；Win10 双构建、正式 v25 产品输入锁、WIN7-20 候选及实机复验
+  尚未完成，不解除 `FIX_BEFORE_ALPHA`。
 - 2026-09-02，项目负责人确认 Bitvise trace logging 已关闭，并决定将独立复核发现的两个 Provider P2
   延期：代理端口 `0` 静默清除及显式清空 API Key 后旧持久化凭据可能在重启时恢复。本轮获准提交并
   推送现有 A9-09～A9-12 修复、继续 v25 Win10 双构建和 WIN7-20 候选验证；两项 P2 不标记为关闭，
@@ -49,9 +54,9 @@
   独立哈希 pin、正式 lock/批准根/双构建绑定和原生 PE 检查，本地发布回归 18/18、全量 1498 tests PASS；
   随后五参数文档 P2 也获独审关闭。但最新复审新增两项 P1：普通变量名可携带已知秘密，以及 NODE_DEBUG
   等控制项漏拦。ADR-0105 环境整改已获最新独审关闭；该轮新增生成器精确数组匹配及 OrderedDictionary.Clone
-  两项构建脚本 P1，现按 ADR-0106 修复并补真实生成器入口回归，等待再次独审和 Windows PowerShell 5.1
-  自测。当前 Gate 为 `A9_09A_BUILD_REVIEW_FIXES_PENDING_INDEPENDENT_REVIEW`，尚未完成修复提交、新 revision 预登记、D-017 Win10
-  双干净构建、正式 v25 input lock、WIN7-20 候选和 Win7 实机复验，因此综合状态继续为
+  两项构建脚本 P1，现按 ADR-0106 修复并补真实生成器入口回归。修复已提交并生成、批准 r5；当前 Gate 为
+  `A9_09B_READY_FOR_WIN10_DOUBLE_BUILD`，尚未完成 D-017 Win10 双干净构建、正式 v25 input lock、
+  WIN7-20 候选和 Win7 实机复验，因此综合状态继续为
   `FIX_BEFORE_ALPHA`，PR #3 仍不得合并。
 - ADR-0100 已根据合并前独立代码审查开启
   [`A9-08 后置审查修复`](tasks/A9_08_POST_REVIEW_HARDENING.md)，状态

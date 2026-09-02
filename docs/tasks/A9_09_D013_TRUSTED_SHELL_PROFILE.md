@@ -7,9 +7,9 @@ Target Branch: codex/a9-trusted-agent-runtime
 Target Version: 0.3.0-alpha.1
 Source Baseline: A9-08 / e80b8c8b10b349f6ea790b1e93ae47e656e6c60c
 Current Stage: A9-09
-Current Stage Status: A9_09A_REVIEW_FIXES_UNCOMMITTED
+Current Stage Status: A9_09B_R5_APPROVED_FOR_WIN10_BUILD
 Target Candidate: WIN7-20
-Phase-Gate: A9_09A_BUILD_REVIEW_FIXES_PENDING_INDEPENDENT_REVIEW
+Phase-Gate: A9_09B_READY_FOR_WIN10_DOUBLE_BUILD
 Win7-Validation: WIN7_20_NOT_PERFORMED
 Decision: ADR-0101
 ```
@@ -248,3 +248,17 @@ WIN7-19 结构化记录/收口报告与 HEAD 相同；WIN7-19 ZIP、manifest、c
 SHA-256 分别仍为 `824a10cd…72b0`、`b483e9b0…2c26`、`ab5a1159…d3c`、`037213c…e09`。
 当前套件仍为已撤销 r4，不更新正式锁、manifest 身份或 source commit，不生成新 ZIP；待新独审与授权
 提交后，才能新 revision 预登记并进入锁定 Win10 双构建。WIN7-19 和 v24 历史边界不变。
+
+## 12. r5 已提交构建输入（2026-09-02）
+
+项目负责人已授权提交、推送和 Win10 构建。A9-09～A9-12 修复已提交为
+`c718152f0c413d2c21407eec042dc50197b6e51f`；新 r5 离线构建套件为
+`WIN7_D013_V25_HELPER_BUILDKIT_20260902-r5.zip`，SHA-256
+`341fb9f9d66c64e4e5b0b31eddf6899b94462e39d14ba536b2f881c31abab2c9`，input lock SHA-256
+`5dd85ae7209691cc6575d320d769385852d327d4bde51db0ab49cd7d319f586b`，package manifest SHA-256
+`2cc6b9b53eb1b5a8ae96596547705a66e08abb0af8928a1be2cff7d6bd6231b5`。批准清单保留 r4 撤销项，并将
+r5 标记为 `APPROVED_FOR_RETURN_RECORDING`。
+
+当前 Gate 前移至 `A9_09B_READY_FOR_WIN10_DOUBLE_BUILD`。这只批准在锁定 Win10 环境执行 D-017 两次
+全新目录构建；Win10 返回包、正式 v25 产品输入锁、WIN7-20 候选和 Win7 实机结果仍不存在，均保持
+`NOT_PERFORMED`，综合状态仍为 `FIX_BEFORE_ALPHA`。两项 Provider P2 经负责人决定延期，不在本轮冒充修复。
