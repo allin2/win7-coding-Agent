@@ -76,8 +76,9 @@
 > A9-08 授权范围内修复、1482 项开发机验证和三路独立复核已通过；ADR-0101/A9-09 保留 v24 历史
 > Profile，并已在提交 `7d10032` 完成 v25/协议 v2/Current-User Profile、产品装配、锁定双构建记录器和
 > WIN7-20 增量套件。A9-09A 原生逻辑、发布测试、7 模块 1490 tests 及 docs/diff 检查通过；当前为
-> 旧 r4 套件继续保持撤销；修复已提交并生成、批准 r5，当前为 `A9_09B_READY_FOR_WIN10_DOUBLE_BUILD`。
-> D-017 双构建、正式 v25 input lock 与 WIN7-20 实机复验未完成前，
+> 旧 r4～r10 套件继续保持撤销；r11 两次全新 Win10 构建全部 PASS 且 helper 字节一致，正式 v25
+> input lock 已生成，当前为 `A9_09B_WIN10_DOUBLE_BUILD_PASS_INPUT_LOCKED`。
+> 产品装配与 WIN7-20 实机复验未完成前，
 > 状态仍为 `FIX_BEFORE_ALPHA`。
 
 MVP-20260802-14 已由项目负责人按 ADR-0055 以 `OWNER_ACCEPTED_FOR_MVP` 收口，并完成真实 Electron 产品入口的启动、Renderer 诊断和正常退出实测；延期项不改变各正式任务状态，也不解除 Phase 1/2、SPIKE_02/04 或 E7 的正式 Gate。

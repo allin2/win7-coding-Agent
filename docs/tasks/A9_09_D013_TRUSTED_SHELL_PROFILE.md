@@ -310,4 +310,15 @@ source/include/object 参数后，两个 helper 对象 SHA-256 均为
 `bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a` 固化相对参数和对应 fail-closed 契约，r10 已撤销。新 r11 ZIP
 SHA-256 为 `7aeceef0201023757abd4c968b16ef09d70bcc678b3ee826575d33a73cc8378b`，input lock 为
 `a29d6ebeb26b0aac3bd8ced9fd3e9ab5580bade3896088d3c1619b768b8a76e9`，package manifest 为
-`ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb`；当前只允许 r11 进入两个新目录。
+`ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb`；当时只允许 r11 进入两个新目录。
+
+r11 随后在两个全新目录以无 Host Job 的 WMI 进程顺序构建。run ID
+`054a5213-58e8-4433-ae86-ce012ee0b721` 与 `157caea1-56b6-4ef8-97b4-062f1657931c` 均完成 logic、
+capture、v1/v2 smoke、PE/API/CRT 并为 `PASS`；两个 helper.exe 均为 331776 字节，SHA-256 同为
+`43bd9dfda386951802df920512e602887161b94d4977e2f0a8031266423004ce`。返回 ZIP SHA-256 分别为
+`5a5c433a6783de6ab6ac2634fc9d61a99fd45338f20ab083c1632aa5a3716864` 与
+`42c4511fec6e2a9d5f566f8ec7f1f9754f01c7cbb409367531d17d7242b0e681`。正式记录器独立核验后创建
+`release/win7-product-v3/a9-09-input-lock.json`，其 SHA-256 为
+`5401261370a2e0460a0d8db76d1957c82b649b5cf6c5c362d9c56e82d5a8dfc3`。A9-09B 状态前移为
+`A9_09B_WIN10_DOUBLE_BUILD_PASS_INPUT_LOCKED`；该结果只关闭 Win10 构建门槛，产品候选装配、WIN7-20
+实机验收和 Alpha 裁决仍为 `NOT_PERFORMED`，两项负责人延期的 Provider P2 仍不标记关闭。

@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r5～r10 Win10 依次暴露并修复构建闭包/确定性缺陷，r11 构建套件已批准，`A9_09B_READY_FOR_WIN10_DOUBLE_BUILD / FIX_BEFORE_ALPHA`；目标 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r11 Win10 锁定双构建字节一致并已生成正式输入锁，`A9_09B_WIN10_DOUBLE_BUILD_PASS_INPUT_LOCKED / FIX_BEFORE_ALPHA`；下一门槛为产品候选与 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -24,6 +24,12 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-03，r11 在两个全新目录经无 Host Job 的 WMI 进程顺序构建，run ID 为
+  `054a5213-58e8-4433-ae86-ce012ee0b721`、`157caea1-56b6-4ef8-97b4-062f1657931c`；两次 logic、
+  capture、v1/v2 smoke、PE/API/CRT 均 `PASS`，helper.exe 均为 331776 字节且 SHA-256 同为
+  `43bd9dfd…04ce`。两个返回 ZIP SHA-256 为 `5a5c433a…6864`、`42c4511f…e681`，正式记录器复核通过并
+  创建 `a9-09-input-lock.json`（SHA-256 `54012613…dfc3`）。Win10 构建门槛完成；产品装配与 WIN7-20
+  仍为 `NOT_PERFORMED`，两项负责人延期的 Provider P2 仍不标记关闭。
 - 2026-09-03，r10 两个全新 WMI 构建再次全部 `PASS`，非 `helper.obj` 对象已一致，但 helper 对象及最终
   EXE 仍不同。COFF 符号比较定位到 MSVC lambda 内部名称仍受传入编译器的绝对源码参数影响；Win10 直接
   探针确认从各自 kit 根运行且使用相同相对 source/include/object 参数后，两个 `helper.obj` 均为
