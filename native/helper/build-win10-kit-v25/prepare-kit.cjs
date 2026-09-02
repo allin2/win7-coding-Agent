@@ -164,8 +164,9 @@ const buildProfile = fs.readFileSync(path.join(HERE, 'build-profile.json'), 'utf
 if (!/"\/Brepro"/.test(buildProfile) ||
     !/"\/experimental:deterministic"/.test(buildProfile) ||
     !/"path_map"\s*:\s*"<kit-root>=C:\\\\a9-v25-kit"/.test(buildProfile) ||
+    !/"compile_working_directory"\s*:\s*"<kit-root>; source\/include\/object arguments are relative"/.test(buildProfile) ||
     !/\$pathMap\s*=\s*"\/pathmap:\$KitRoot=C:\\a9-v25-kit"/.test(buildScript) ||
-    (buildScript.match(/& \$cl @common \$pathMap/g) || []).length !== 2) {
+    (buildScript.match(/& \$cl @common \$pathMap "\/I\.\\src" "\/Fo\$relativeObj" "\/c" \(Join-Path "\.\\src" \$source\)/g) || []).length !== 2) {
   throw new Error('build profile must normalize compile paths for byte-identical independent builds');
 }
 const inheritedNamesBlock = buildScript.match(/\$blockedInheritedNames\s*=\s*@\(([^)]*)\)/);

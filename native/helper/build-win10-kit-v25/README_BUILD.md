@@ -15,7 +15,8 @@
 - Visual Studio 2019 16.11 Build Tools，MSVC v142 14.29 x64。
 - Windows SDK `10.0.19041.0`，含 x64 `mt.exe`。
 - 编译固定 `/Brepro /experimental:deterministic`，并把每次不同的 kit 根映射为
-  `C:\a9-v25-kit`；链接固定 `/Brepro /INCREMENTAL:NO`，两次 helper 字节必须一致。
+  `C:\a9-v25-kit`；编译器固定从 kit 根运行，并只接收相对 source/include/object 路径，避免 MSVC
+  lambda 内部名称受原始绝对源码参数影响；链接固定 `/Brepro /INCREMENTAL:NO`，两次 helper 字节必须一致。
 - 从 “x64 Native Tools Command Prompt for VS 2019” 运行；正常构建 `network_required=false`。
 - 不需要 CMake、Python、Node，也不安装或下载任何组件。
 - 每次解压到新的短英文目录；两次构建不能复用 `work/`、`output/` 或 `evidence/`。

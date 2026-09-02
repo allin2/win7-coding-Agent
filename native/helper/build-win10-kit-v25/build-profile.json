@@ -25,6 +25,7 @@
       "/D_CRT_SECURE_NO_WARNINGS"
     ],
     "path_map": "<kit-root>=C:\\a9-v25-kit",
+    "compile_working_directory": "<kit-root>; source/include/object arguments are relative",
     "link": ["/SUBSYSTEM:CONSOLE", "/Brepro", "/INCREMENTAL:NO", "advapi32.lib", "user32.lib"],
     "manifest": "helper.exe.manifest embedded via mt.exe (asInvoker + Win7 supportedOS)"
   },

@@ -569,7 +569,13 @@ try {
     $logicObjects = @()
     foreach ($source in $logicSources) {
         $obj = Join-Path $logicObjDir ($source -replace '\.cpp$', '.obj')
-        & $cl @common $pathMap "/I$srcDir" "/Fo$obj" "/c" (Join-Path $srcDir $source)
+        $relativeObj = Join-Path ".\work\logic-obj" ($source -replace '\.cpp$', '.obj')
+        Push-Location $KitRoot
+        try {
+            & $cl @common $pathMap "/I.\src" "/Fo$relativeObj" "/c" (Join-Path ".\src" $source)
+        } finally {
+            Pop-Location
+        }
         if ($LASTEXITCODE -ne 0) {
             $logicStatus = "FAIL"
             throw "cl.exe failed for logic test source $source (exit $LASTEXITCODE)."
@@ -606,7 +612,13 @@ try {
     $objects = @()
     foreach ($source in $sources) {
         $obj = Join-Path $objDir ($source -replace '\.cpp$', '.obj')
-        & $cl @common $pathMap "/I$srcDir" "/Fo$obj" "/c" (Join-Path $srcDir $source)
+        $relativeObj = Join-Path ".\work\obj" ($source -replace '\.cpp$', '.obj')
+        Push-Location $KitRoot
+        try {
+            & $cl @common $pathMap "/I.\src" "/Fo$relativeObj" "/c" (Join-Path ".\src" $source)
+        } finally {
+            Pop-Location
+        }
         if ($LASTEXITCODE -ne 0) { throw "cl.exe failed for $source (exit $LASTEXITCODE)." }
         $objects += $obj
     }
