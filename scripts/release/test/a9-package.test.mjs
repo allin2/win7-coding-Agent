@@ -317,6 +317,7 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   const runtimeProfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'a9-runtime.json'), 'utf8'));
   assert.equal(runtimeProfile.state_schema, 4);
   const validationKit = JSON.parse(fs.readFileSync(path.join(second.stage, 'A9_14_VALIDATION_KIT.json'), 'utf8'));
+  const formalLock = JSON.parse(fs.readFileSync(inputs.lockPath, 'utf8'));
   assert.equal(validationKit.win7_revalidation_policy.decision, 'ADR-0097');
   assert.deepEqual(validationKit.win7_revalidation_policy.mandatory_impacted, [
     'WIN7_19_SCHEMA_V4_PROFILE',
@@ -335,6 +336,8 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
     'MANAGED_PROCESS_STOP',
   ]);
   assert.equal(validationKit.win7_revalidation_policy.review, 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION');
+  assert.equal(validationKit.required_runner_helper_sha256,
+    formalLock.inputs.runner_return_zip.required_entry_sha256);
   assert.equal(validationKit.incremental_win7_cases.length, 13);
   const schemaCase = validationKit.incremental_win7_cases.find((item) => item.case_id === 'W22-WIN7-19-SCHEMA-V4-COMPAT');
   assert.ok(schemaCase);
@@ -925,6 +928,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
   }));
   const kit = {
     schema_version: 2,
+    required_runner_helper_sha256: 'b'.repeat(64),
     inherited_evidence: {
       decision: 'ADR-0097', allowed_case_prefix: 'W17-', candidate: inheritedCandidate,
       evidence_sources: sourceDocuments, case_bindings: caseBindings,
@@ -977,14 +981,14 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
   const markerNames = ['w22-ps-current-user-r3.txt', 'w22-cmd-current-user-r3.txt', 'w22-explicit-shell-r3.txt'];
   const markerValues = ['W22_PS_CURRENT_USER', 'W22_CMD_CURRENT_USER', 'W22_EXPLICIT_SHELL'];
   const markerEvidence = markerNames.map((name, index) => {
-    fs.writeFileSync(path.join(evidenceRoot, name), `${markerValues[index]}\r\n`, 'utf8');
+    fs.writeFileSync(path.join(evidenceRoot, name), markerValues[index], 'utf8');
     return { path: name, sha256: sha256File(path.join(evidenceRoot, name)) };
   });
   const tokenAudit = {
     verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true,
     lowIntegrity: false,
   };
-  const transcript = (requestId, shellKind, command, stdout, canceled = false) => {
+  const transcript = (requestId, shellKind, command, stdout, canceled = false, envOverlay = {}) => {
     const shellPath = shellKind === 'cmd' ? 'C:\\Windows\\System32\\cmd.exe'
       : 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
     const wrapped = `$ProgressPreference='SilentlyContinue'\r\n${command}\r\nexit 0`;
@@ -993,51 +997,125 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
     const stdoutBase64 = Buffer.from(stdout).toString('base64');
     return {
       request: { schemaVersion: 2, requestId, profileId: 'a9-trusted-shell-current-user-v1', executable: shellPath,
-        argv, shellKind, shellPath, shellIdentity: 'a'.repeat(64), command, cwd: 'C:\\A9验收\\工作区\\中文 空格项目',
+        argv, shellKind, shellPath, shellIdentity: 'a'.repeat(64), shellVersion: 'file-123-456',
+        shellSource: 'workspace_explicit', command, cwd: 'C:\\A9验收\\工作区\\中文 空格项目', envOverlay,
         managed: true, deadlineMode: 'none' },
       ready: { schemaVersion: 2, type: 'execution_started', requestId, profileId: 'a9-trusted-shell-current-user-v1',
         helperPid: 101, childPid: 102, ready: { childJobAssignmentVerified: true, inputDetached: true,
           stdoutCaptureReady: true, stderrCaptureReady: true }, tokenAudit },
       result: { schemaVersion: 2, type: 'execution_result', requestId, profileId: 'a9-trusted-shell-current-user-v1',
         status: 'completed', containmentVerified: true, inputDetached: true, cleanupConfirmed: true,
-        workDirAclModified: false, hostJob: { childJobAssignmentVerified: true }, tokenAudit, canceled,
+        workDirAclModified: false, hostJob: { childJobAssignmentVerified: true }, tokenAudit, canceled, exitCode: canceled ? 1 : 0,
         timedOut: false, idleTimedOut: false, stdoutBase64, stdoutSize: Buffer.byteLength(stdout),
         stderrBase64: '', stderrSize: 0 },
     };
   };
-  const ps = transcript('w22-current-ps', 'powershell', "Write-Output 'w22-ps-current-user'; Write-Output 'PS_WRITE_OK'", 'PS_WRITE_OK\r\n');
-  const cmd = transcript('w22-current-cmd', 'cmd', '> "%A9_W22_WORKSPACE%\\w22-cmd-current-user-r3.txt" echo W22_CMD_CURRENT_USER & echo CMD_WRITE_OK', 'CMD_WRITE_OK\r\n');
-  const explicit = transcript('w22-current-explicit', 'cmd', '> "C:\\A9验收\\工作区\\中文 空格项目\\w22-explicit-shell-r3.txt" echo W22_EXPLICIT_SHELL', '');
-  const filtered = transcript('w22-env-filtered', 'cmd', 'echo FILTERED_OK', 'FILTERED_OK\r\n');
-  const visible = transcript('w22-env-visible', 'cmd', 'echo VISIBLE_OK', 'VISIBLE_OK\r\n');
+  const ps = transcript('w22-current-ps', 'powershell',
+    "[IO.File]::WriteAllText((Join-Path $env:A9_W22_WORKSPACE 'w22-ps-current-user-r3.txt'),'W22_PS_CURRENT_USER',(New-Object Text.UTF8Encoding($false))); Write-Output 'PS_WRITE_OK'", 'PS_WRITE_OK\r\n');
+  const cmd = transcript('w22-current-cmd', 'cmd', '> "%A9_W22_WORKSPACE%\\w22-cmd-current-user-r3.txt" <nul set /p "=W22_CMD_CURRENT_USER" & echo CMD_WRITE_OK', 'CMD_WRITE_OK\r\n');
+  const explicit = transcript('w22-current-explicit', 'cmd', '> "C:\\A9验收\\工作区\\中文 空格项目\\w22-explicit-shell-r3.txt" <nul set /p "=W22_EXPLICIT_SHELL"', '');
+  const filteredCommand = 'if defined W22_INHERITED_RAW exit /b 41 & if defined W22_INHERITED_BASE64 exit /b 42 & if defined W22_INHERITED_BASE64URL exit /b 43 & if defined W22_INHERITED_PERCENT exit /b 44 & echo FILTERED_OK';
+  const filtered = transcript('w22-env-filtered', 'cmd', filteredCommand, 'FILTERED_OK\r\n');
+  const visible = transcript('w22-env-visible', 'cmd', 'if "%A9_W22_VISIBLE%"=="ordinary-overlay" (echo VISIBLE_OK) else (exit /b 51)',
+    'VISIBLE_OK\r\n', false, { A9_W22_VISIBLE: 'ordinary-overlay' });
   const noDeadline = transcript('w22-no-deadline-stop', 'powershell', 'Start-Sleep -Seconds 30', '', true);
   const background = transcript('w22-background-ready', 'cmd', 'ping.exe -t 127.0.0.1', '', true);
   const d013Document = {
     schema_version: 1, evidence_kind: 'WIN7_22_D013_V25_CURRENT_CANDIDATE_CASES', candidate: identity,
     probe_id: probeId, environment: { token_kind: 'ordinary-user', elevation: 'not-elevated', integrity_level: 'medium',
-      shell_profile: 'D-013-v25-a9-trusted-shell-current-user', helper_sha256: 'b'.repeat(64) },
+      shell_profile: 'D-013-v25-a9-trusted-shell-current-user', helper_sha256: kit.required_runner_helper_sha256,
+      shells: {
+        powershell: { canonical_path: ps.request.shellPath, sha256: ps.request.shellIdentity, version: ps.request.shellVersion },
+        cmd: { canonical_path: cmd.request.shellPath, sha256: cmd.request.shellIdentity, version: cmd.request.shellVersion },
+      } },
     cases: {
       'W22-D013-V25-CURRENT-USER': { status: 'PASS', powershell: ps, cmd, explicit_shell: explicit,
         acl_unchanged: true, acl_sddl_sha256_before: 'c'.repeat(64), acl_sddl_sha256_after: 'c'.repeat(64),
-        created_files: markerEvidence },
+        created_files: markerEvidence, raw_protocol: {}, events: [] },
       'W22-D013-V25-ENV-IDENTITY': { status: 'PASS', filtered_child: filtered, visible_child: visible,
         rejected_entries: ['API_TOKEN', 'NODE_OPTIONS', 'ELECTRON_ENABLE_LOGGING', 'NODE_TLS_REJECT_UNAUTHORIZED',
           'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT']
-          .map((name) => ({ name, code: 'A9_ENV_OVERLAY_REJECTED' })),
+          .map((name, index) => ({ name, code: 'A9_ENV_OVERLAY_REJECTED',
+            ...(index >= 4 ? { value_sha256: [
+              'A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f',
+              Buffer.from('A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f').toString('base64'),
+              Buffer.from('A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
+              encodeURIComponent('A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f'),
+            ].map((value) => digest(value))[index - 4] } : {}) })),
         ordinary_overlay_visible: true, inherited_secret_variants_absent: true,
         provider_rotation_rejection: 'A9_ENV_OVERLAY_REJECTED', persisted_rejection_survived_restart: true,
         explicit_reapply_required_and_succeeded: true,
-        explicit_shell_identity_mismatch: { status: 'failed', error_code: 'A9_SHELL_IDENTITY_CHANGED', child_executed: false } },
+        explicit_shell_identity_mismatch: { status: 'failed', error_code: 'A9_SHELL_IDENTITY_CHANGED', child_executed: false },
+        raw_protocol: {}, events: [] },
       'W22-D013-V25-NO-DEADLINE-STOP': { status: 'PASS', transcript: noDeadline,
-        observed_active_before_stop_ms: 4000, repeated_stop_idempotent: true, execution_count: 1 },
+        observed_active_before_stop_ms: 4000, repeated_stop_idempotent: true, execution_count: 1,
+        raw_protocol: [], events: [] },
       'W22-D013-V25-BACKGROUND-READY': { status: 'PASS', transcript: background, persisted_pid: 102,
         persisted_pid_is_child_not_helper: true, first_stop_status: 'stopped', second_stop_status: 'exited',
         uncertain_cleanup: { initial_cleanup_required: true, stop_error_code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED', process_survived_blind_stop: true },
-        recovered_pid: { first_stop_error_code: 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED', process_survived_blind_stop: true,
+        recovered_pid: { pid: 303, first_stop_error_code: 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED', process_survived_blind_stop: true,
           external_stop_then_second_stop_status: 'exited' }, post_case_active_count: 0,
-        state_transitions: [{ status: 'running' }] },
+        state_transitions: [{ status: 'running' }], raw_protocol: [], events: [] },
     }, secret_scan: { synthetic_plaintext_persisted_in_this_evidence: false },
   };
+  const currentProof = d013Document.cases['W22-D013-V25-CURRENT-USER'];
+  let seq = 1;
+  for (const [name, transcriptValue, marker] of [
+    ['ps', ps, markerEvidence[0]], ['cmd', cmd, markerEvidence[1]], ['explicit', explicit, markerEvidence[2]],
+  ]) {
+    const rawName = `raw-${name}.json`;
+    writeJson(path.join(evidenceRoot, rawName), transcriptValue);
+    currentProof.raw_protocol[name] = [{ path: rawName, sha256: sha256File(path.join(evidenceRoot, rawName)) }];
+    currentProof.events.push({ seq: seq++, monotonic_ms: seq * 10, event: `${name}_raw_response_persisted`,
+      request_id: transcriptValue.request.requestId, artifact_sha256: currentProof.raw_protocol[name][0].sha256 });
+    currentProof.events.push({ seq: seq++, monotonic_ms: seq * 10, event: `${name}_marker_asserted`,
+      request_id: transcriptValue.request.requestId, artifact_sha256: marker.sha256 });
+  }
+  const configAfterRotation = { workspaces: { other: { environmentRejected: true }, safe: { envOverlay: { MODE: 'release' } } } };
+  const configAfterRestart = JSON.parse(JSON.stringify(configAfterRotation));
+  writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
+  writeJson(path.join(evidenceRoot, 'config-after-restart.json'), configAfterRestart);
+  const envProof = d013Document.cases['W22-D013-V25-ENV-IDENTITY'];
+  for (const [name, transcriptValue] of [['filtered', filtered], ['visible', visible]]) {
+    const rawName = `raw-env-${name}.json`;
+    writeJson(path.join(evidenceRoot, rawName), transcriptValue);
+    envProof.raw_protocol[name] = [{ path: rawName, sha256: sha256File(path.join(evidenceRoot, rawName)) }];
+  }
+  envProof.config_after_rotation = [{ path: 'config-after-rotation.json', sha256: sha256File(path.join(evidenceRoot, 'config-after-rotation.json')) }];
+  envProof.config_after_restart = [{ path: 'config-after-restart.json', sha256: sha256File(path.join(evidenceRoot, 'config-after-restart.json')) }];
+  envProof.events = ['rejections_recorded', 'filtered_child_completed', 'visible_child_completed', 'provider_rotation_rejected',
+    'config_scrubbed', 'runtime_reopened_blocked', 'explicit_reapply_completed', 'identity_mismatch_rejected_before_child']
+    .map((event, index) => ({ seq: index + 1, monotonic_ms: index * 10, event,
+      ...(event === 'rejections_recorded' ? { rejection_count: 8 } : {}),
+      ...(event === 'filtered_child_completed' ? { request_id: filtered.request.requestId,
+        artifact_sha256: envProof.raw_protocol.filtered[0].sha256 } : {}),
+      ...(event === 'visible_child_completed' ? { request_id: visible.request.requestId,
+        artifact_sha256: envProof.raw_protocol.visible[0].sha256 } : {}) }));
+  const noDeadlineProof = d013Document.cases['W22-D013-V25-NO-DEADLINE-STOP'];
+  writeJson(path.join(evidenceRoot, 'raw-no-deadline.json'), noDeadline);
+  noDeadlineProof.raw_protocol = [{ path: 'raw-no-deadline.json', sha256: sha256File(path.join(evidenceRoot, 'raw-no-deadline.json')) }];
+  noDeadlineProof.events = ['execution_started', 'active_observed', 'stop_requested', 'raw_result_persisted', 'repeat_stop_observed']
+    .map((event, index) => ({ seq: index + 1, monotonic_ms: index === 0 ? 0 : 4000 + index, event,
+      request_id: noDeadline.request.requestId,
+      ...(event === 'raw_result_persisted' ? { result_sha256: digest(JSON.stringify(canonicalValue(noDeadline.result))),
+        artifact_sha256: noDeadlineProof.raw_protocol[0].sha256 } : {}) }));
+  const backgroundProof = d013Document.cases['W22-D013-V25-BACKGROUND-READY'];
+  writeJson(path.join(evidenceRoot, 'raw-background.json'), background);
+  backgroundProof.raw_protocol = [{ path: 'raw-background.json', sha256: sha256File(path.join(evidenceRoot, 'raw-background.json')) }];
+  backgroundProof.events = ['execution_started', 'running_persisted_after_ready', 'first_stop_requested', 'raw_result_persisted', 'first_stop_completed',
+    'second_stop_requested', 'second_stop_completed', 'recovered_pid_adopted', 'exit_lock_observed', 'blind_stop_refused',
+    'external_stop_observed', 'second_stop_after_external', 'zero_residue_observed'].map((event, index) => ({
+    seq: index + 1, monotonic_ms: index * 10, event,
+    ...(index < 7 ? { request_id: background.request.requestId } : {}),
+    ...(event === 'running_persisted_after_ready' ? { pid: background.ready.childPid,
+      ready_sha256: digest(JSON.stringify(canonicalValue(background.ready))) } : {}),
+    ...(event === 'raw_result_persisted' ? { artifact_sha256: backgroundProof.raw_protocol[0].sha256,
+      result_sha256: digest(JSON.stringify(canonicalValue(background.result))) } : {}),
+    ...(index >= 7 && index <= 11 ? { pid: 303 } : {}),
+    ...(event === 'exit_lock_observed' ? { exit_blocked: true } : {}),
+    ...(event === 'blind_stop_refused' ? { error_code: 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED' } : {}),
+    ...(event === 'zero_residue_observed' ? { managed_processes: 0, helper_processes: 0 } : {}),
+  }));
   const d013Path = path.join(evidenceRoot, 'w22-d013.json');
   const publishD013 = (targetReport) => {
     writeJson(d013Path, d013Document);
@@ -1055,7 +1133,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
       inherited_from: kit.schema_v4_inheritance.from_candidate, evidence,
     } : {
       case_id: validationCase.case_id, status: 'PASS', executions: [{
-        candidate: identity, environment, machine_binding: machineBinding,
+        candidate: identity, environment, machine_binding: machineBinding, d013_helper_sha256: kit.required_runner_helper_sha256,
         assertions: [{ assertion_id: validationCase.assertions[0].assertion_id, passed: true, detail: 'current WIN7-22 execution', evidence }],
       }],
     }),
@@ -1073,6 +1151,62 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
   delete proofOnly.results[9].executions[0].d013_evidence;
   assert.throws(() => win22Report.verifyReport(proofOnly, kit, identity, fs.realpathSync(evidenceRoot), fs),
     /A9_W22_D013_W22-D013-V25-CURRENT-USER_SINGLE_JSON_EVIDENCE_REQUIRED/);
+  const wrongHelper = JSON.parse(JSON.stringify(report));
+  for (const item of wrongHelper.results.slice(9)) item.executions[0].d013_helper_sha256 = '0'.repeat(64);
+  assert.throws(() => win22Report.verifyReport(wrongHelper, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_HELPER_BINDING_INVALID/);
+  const rewriteRaw = (name, transcriptValue) => {
+    const rawName = `raw-${name}.json`;
+    writeJson(path.join(evidenceRoot, rawName), transcriptValue);
+    currentProof.raw_protocol[name][0].sha256 = sha256File(path.join(evidenceRoot, rawName));
+    currentProof.events.find((item) => item.event === `${name}_raw_response_persisted`).artifact_sha256
+      = currentProof.raw_protocol[name][0].sha256;
+  };
+  delete explicit.request.shellSource;
+  rewriteRaw('explicit', explicit);
+  const missingExplicitSource = JSON.parse(JSON.stringify(report));
+  publishD013(missingExplicitSource);
+  assert.throws(() => win22Report.verifyReport(missingExplicitSource, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_CURRENT_EXPLICIT_REQUEST_INVALID/);
+  explicit.request.shellSource = 'workspace_explicit';
+  rewriteRaw('explicit', explicit);
+  cmd.result.exitCode = 9;
+  rewriteRaw('cmd', cmd);
+  const nonzeroCmd = JSON.parse(JSON.stringify(report));
+  publishD013(nonzeroCmd);
+  assert.throws(() => win22Report.verifyReport(nonzeroCmd, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_CURRENT_USER_SEMANTICS_INVALID/);
+  cmd.result.exitCode = 0;
+  rewriteRaw('cmd', cmd);
+  fs.appendFileSync(path.join(evidenceRoot, markerNames[1]), '\r\n');
+  markerEvidence[1].sha256 = sha256File(path.join(evidenceRoot, markerNames[1]));
+  currentProof.events.find((item) => item.event === 'cmd_marker_asserted').artifact_sha256 = markerEvidence[1].sha256;
+  const paddedMarker = JSON.parse(JSON.stringify(report));
+  publishD013(paddedMarker);
+  assert.throws(() => win22Report.verifyReport(paddedMarker, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_MARKER_BYTES_INVALID/);
+  fs.writeFileSync(path.join(evidenceRoot, markerNames[1]), markerValues[1], 'utf8');
+  markerEvidence[1].sha256 = sha256File(path.join(evidenceRoot, markerNames[1]));
+  currentProof.events.find((item) => item.event === 'cmd_marker_asserted').artifact_sha256 = markerEvidence[1].sha256;
+  const stopEvent = noDeadlineProof.events.find((item) => item.event === 'stop_requested');
+  const originalStopTime = stopEvent.monotonic_ms;
+  stopEvent.monotonic_ms = 1;
+  const forgedTimeline = JSON.parse(JSON.stringify(report));
+  publishD013(forgedTimeline);
+  assert.throws(() => win22Report.verifyReport(forgedTimeline, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_NO_DEADLINE_EVENT_SEQUENCE_INVALID/);
+  stopEvent.monotonic_ms = originalStopTime;
+  const configOriginal = JSON.parse(JSON.stringify(configAfterRotation));
+  configAfterRotation.workspaces.other.leak = 'A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f';
+  writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
+  envProof.config_after_rotation[0].sha256 = sha256File(path.join(evidenceRoot, 'config-after-rotation.json'));
+  const leakedConfig = JSON.parse(JSON.stringify(report));
+  publishD013(leakedConfig);
+  assert.throws(() => win22Report.verifyReport(leakedConfig, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_ENV_SECRET_PERSISTED/);
+  Object.assign(configAfterRotation, configOriginal);
+  writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
+  envProof.config_after_rotation[0].sha256 = sha256File(path.join(evidenceRoot, 'config-after-rotation.json'));
   const originalCmdArgv = d013Document.cases['W22-D013-V25-CURRENT-USER'].cmd.request.argv;
   d013Document.cases['W22-D013-V25-CURRENT-USER'].cmd.request.argv = ['/d', '/s', '/c', 'echo forged'];
   const forgedCmd = JSON.parse(JSON.stringify(report));

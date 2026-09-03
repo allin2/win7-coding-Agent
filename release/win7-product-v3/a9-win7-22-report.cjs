@@ -214,16 +214,19 @@ function decodeCanonicalBase64(value, size, label) {
   return decoded;
 }
 
-function validateV2Transcript(transcript, shellKind, label) {
+function validateV2Transcript(transcript, shellKind, label, expectedShellSource) {
   assert(plain(transcript) && plain(transcript.request) && plain(transcript.ready) && plain(transcript.result),
     `A9_W22_${label}_TRANSCRIPT_REQUIRED`);
   const { request, ready, result } = transcript;
   assert(request.schemaVersion === 2 && typeof request.requestId === 'string' && request.requestId.length > 0
     && request.profileId === 'a9-trusted-shell-current-user-v1' && request.shellKind === shellKind
     && request.managed === true && request.deadlineMode === 'none'
+    && request.executable === request.shellPath
     && typeof request.command === 'string' && request.command.length > 0
     && typeof request.cwd === 'string' && /[\u3400-\u9fff]/.test(request.cwd) && /\s/.test(request.cwd)
     && typeof request.shellIdentity === 'string' && /^[a-f0-9]{64}$/.test(request.shellIdentity)
+    && typeof request.shellVersion === 'string' && request.shellVersion.length > 0
+    && (!expectedShellSource || request.shellSource === expectedShellSource)
     && Array.isArray(request.argv), `A9_W22_${label}_REQUEST_INVALID`);
   if (shellKind === 'cmd') {
     assert(/\\cmd\.exe$/i.test(request.shellPath) && /\\cmd\.exe$/i.test(request.executable)
@@ -251,6 +254,7 @@ function validateV2Transcript(transcript, shellKind, label) {
   assert(result.schemaVersion === 2 && result.type === 'execution_result'
     && result.requestId === request.requestId && result.profileId === request.profileId
     && result.status === 'completed' && result.containmentVerified === true
+    && Number.isSafeInteger(result.exitCode) && result.exitCode >= 0 && result.exitCode <= 0xFFFFFFFF
     && result.inputDetached === true && result.cleanupConfirmed === true
     && result.workDirAclModified === false && plain(result.hostJob)
     && result.hostJob.childJobAssignmentVerified === true && plain(result.tokenAudit)
@@ -265,15 +269,41 @@ function validateV2Transcript(transcript, shellKind, label) {
   };
 }
 
+function loadBoundJson(entry, expected, evidenceRoot, fileSystem, label) {
+  const document = loadJsonEvidence(entry, evidenceRoot, fileSystem, label);
+  assert(canonicalJson(document) === canonicalJson(expected), `A9_W22_${label}_CONTENT_MISMATCH`);
+  return document;
+}
+
+function validateEventSequence(events, names, label) {
+  assert(Array.isArray(events) && events.length === names.length, `A9_W22_${label}_EVENTS_REQUIRED`);
+  let previousSeq = -1;
+  let previousTime = -1;
+  const selected = [];
+  for (let index = 0; index < names.length; index += 1) {
+    const name = names[index];
+    const event = events[index];
+    assert(plain(event) && event.event === name
+      && Number.isSafeInteger(event.seq) && event.seq > previousSeq
+      && Number.isSafeInteger(event.monotonic_ms) && event.monotonic_ms >= previousTime,
+    `A9_W22_${label}_EVENT_SEQUENCE_INVALID:${name}`);
+    previousSeq = event.seq;
+    previousTime = event.monotonic_ms;
+    selected.push(event);
+  }
+  return selected;
+}
+
 function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fileSystem) {
   const document = loadJsonEvidence(execution.d013_evidence, evidenceRoot, fileSystem, `D013_${caseId}`);
+  rejectSecretMaterial(document);
   assert(document.schema_version === 1 && document.evidence_kind === 'WIN7_22_D013_V25_CURRENT_CANDIDATE_CASES'
     && canonicalJson(document.candidate) === canonicalJson(identity)
     && document.probe_id === execution.machine_binding.probe_id
     && plain(document.environment) && document.environment.token_kind === 'ordinary-user'
     && document.environment.elevation === 'not-elevated' && document.environment.integrity_level === 'medium'
     && document.environment.shell_profile === 'D-013-v25-a9-trusted-shell-current-user'
-    && /^[a-f0-9]{64}$/.test(String(document.environment.helper_sha256 || ''))
+    && document.environment.helper_sha256 === execution.d013_helper_sha256
     && plain(document.cases) && plain(document.cases[caseId]) && document.cases[caseId].status === 'PASS'
     && document.secret_scan?.synthetic_plaintext_persisted_in_this_evidence === false,
   `A9_W22_D013_DOCUMENT_INVALID:${caseId}`);
@@ -281,15 +311,48 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
   if (caseId === 'W22-D013-V25-CURRENT-USER') {
     const ps = validateV2Transcript(proof.powershell, 'powershell', 'D013_CURRENT_PS');
     const cmd = validateV2Transcript(proof.cmd, 'cmd', 'D013_CURRENT_CMD');
-    const explicit = validateV2Transcript(proof.explicit_shell, 'cmd', 'D013_CURRENT_EXPLICIT');
-    assert(ps.request.command.includes('w22-ps-current-user') && ps.stdout.includes('PS_WRITE_OK')
+    const explicit = validateV2Transcript(proof.explicit_shell, 'cmd', 'D013_CURRENT_EXPLICIT', 'workspace_explicit');
+    assert(plain(document.environment.shells)
+      && canonicalJson(document.environment.shells.powershell) === canonicalJson({
+        canonical_path: ps.request.shellPath, sha256: ps.request.shellIdentity, version: ps.request.shellVersion,
+      })
+      && canonicalJson(document.environment.shells.cmd) === canonicalJson({
+        canonical_path: cmd.request.shellPath, sha256: cmd.request.shellIdentity, version: cmd.request.shellVersion,
+      })
+      && explicit.request.shellPath === cmd.request.shellPath
+      && explicit.request.shellIdentity === cmd.request.shellIdentity
+      && explicit.request.shellVersion === cmd.request.shellVersion
+      && ps.request.command.includes('WriteAllText') && ps.request.command.includes('UTF8Encoding($false)')
+      && ps.request.command.includes('w22-ps-current-user') && ps.stdout.includes('PS_WRITE_OK')
       && cmd.request.command.includes('%A9_W22_WORKSPACE%\\w22-cmd-current-user')
-      && cmd.request.command.includes('W22_CMD_CURRENT_USER') && cmd.stdout.includes('CMD_WRITE_OK')
-      && explicit.request.command.includes('W22_EXPLICIT_SHELL')
+      && cmd.request.command.includes('<nul set /p "=W22_CMD_CURRENT_USER"') && cmd.stdout.includes('CMD_WRITE_OK')
+      && explicit.request.command.includes('<nul set /p "=W22_EXPLICIT_SHELL"')
+      && ps.result.exitCode === 0 && cmd.result.exitCode === 0 && explicit.result.exitCode === 0
       && proof.acl_unchanged === true && proof.acl_sddl_sha256_before === proof.acl_sddl_sha256_after
       && Array.isArray(proof.created_files) && proof.created_files.length === 3,
     'A9_W22_D013_CURRENT_USER_SEMANTICS_INVALID');
     validateEvidenceEntries(proof.created_files, evidenceRoot, fileSystem, 'D013_CURRENT_USER_MARKERS');
+    assert(plain(proof.raw_protocol), 'A9_W22_D013_RAW_PROTOCOL_REQUIRED');
+    const transcriptEntries = [
+      ['ps', ps.request.requestId, proof.powershell],
+      ['cmd', cmd.request.requestId, proof.cmd],
+      ['explicit', explicit.request.requestId, proof.explicit_shell],
+    ];
+    for (const [name, requestId, transcript] of transcriptEntries) {
+      loadBoundJson(proof.raw_protocol[name], transcript, evidenceRoot, fileSystem, `D013_RAW_${name.toUpperCase()}`);
+      const rawEvent = proof.events.find((item) => item?.event === `${name}_raw_response_persisted`);
+      assert(rawEvent?.request_id === requestId && rawEvent?.artifact_sha256 === proof.raw_protocol[name][0].sha256,
+        `A9_W22_D013_RAW_EVENT_INVALID:${name}`);
+      const markerEvent = proof.events.find((item) => item?.event === `${name}_marker_asserted`);
+      assert(markerEvent?.request_id === requestId
+        && markerEvent?.artifact_sha256 === proof.created_files[transcriptEntries.findIndex((entry) => entry[0] === name)].sha256,
+      `A9_W22_D013_MARKER_EVENT_INVALID:${name}`);
+    }
+    validateEventSequence(proof.events, [
+      'ps_raw_response_persisted', 'ps_marker_asserted',
+      'cmd_raw_response_persisted', 'cmd_marker_asserted',
+      'explicit_raw_response_persisted', 'explicit_marker_asserted',
+    ], 'D013_CURRENT_USER');
     const markers = new Map(proof.created_files.map((item) => [path.basename(item.path), item]));
     for (const [name, expected] of [
       ['w22-ps-current-user-r3.txt', 'W22_PS_CURRENT_USER'],
@@ -298,16 +361,42 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
     ]) {
       assert(markers.has(name), `A9_W22_D013_MARKER_MISSING:${name}`);
       const absolute = fileSystem.realpathSync(path.resolve(evidenceRoot, markers.get(name).path));
-      assert(fileSystem.readFileSync(absolute, 'utf8').trim() === expected, `A9_W22_D013_MARKER_BYTES_INVALID:${name}`);
+      assert(fileSystem.readFileSync(absolute).equals(Buffer.from(expected, 'utf8')),
+        `A9_W22_D013_MARKER_BYTES_INVALID:${name}`);
     }
   } else if (caseId === 'W22-D013-V25-ENV-IDENTITY') {
     const filtered = validateV2Transcript(proof.filtered_child, 'cmd', 'D013_ENV_FILTERED');
     const visible = validateV2Transcript(proof.visible_child, 'cmd', 'D013_ENV_VISIBLE');
+    loadBoundJson(proof.raw_protocol?.filtered, proof.filtered_child, evidenceRoot, fileSystem, 'D013_ENV_FILTERED_RAW');
+    loadBoundJson(proof.raw_protocol?.visible, proof.visible_child, evidenceRoot, fileSystem, 'D013_ENV_VISIBLE_RAW');
     const expectedRejected = ['API_TOKEN', 'NODE_OPTIONS', 'ELECTRON_ENABLE_LOGGING', 'NODE_TLS_REJECT_UNAUTHORIZED',
       'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT'];
-    assert(filtered.stdout.includes('FILTERED_OK') && visible.stdout.includes('VISIBLE_OK')
+    const synthetic = 'A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f';
+    const variants = [synthetic, Buffer.from(synthetic).toString('base64'),
+      Buffer.from(synthetic).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
+      encodeURIComponent(synthetic)];
+    const expectedValueHashes = variants.map((value) => sha256(Buffer.from(value)));
+    const afterRotation = loadJsonEvidence(proof.config_after_rotation, evidenceRoot, fileSystem, 'D013_ENV_CONFIG_AFTER_ROTATION');
+    const afterRestart = loadJsonEvidence(proof.config_after_restart, evidenceRoot, fileSystem, 'D013_ENV_CONFIG_AFTER_RESTART');
+    const configText = `${canonicalJson(afterRotation)}\n${canonicalJson(afterRestart)}`;
+    assert(variants.every((value) => !configText.includes(value))
+      && afterRotation.workspaces?.other?.environmentRejected === true
+      && afterRotation.workspaces?.safe?.envOverlay?.MODE === 'release'
+      && afterRestart.workspaces?.other?.environmentRejected === true
+      && afterRestart.workspaces?.safe?.envOverlay?.MODE === 'release',
+    'A9_W22_D013_ENV_SECRET_PERSISTED');
+    assert(filtered.request.command.includes('if defined W22_INHERITED_RAW')
+      && filtered.request.command.includes('if defined W22_INHERITED_BASE64')
+      && filtered.request.command.includes('if defined W22_INHERITED_BASE64URL')
+      && filtered.request.command.includes('if defined W22_INHERITED_PERCENT')
+      && plain(filtered.request.envOverlay) && Object.keys(filtered.request.envOverlay).length === 0
+      && visible.request.command.includes('A9_W22_VISIBLE')
+      && visible.request.envOverlay?.A9_W22_VISIBLE === 'ordinary-overlay'
+      && filtered.stdout.includes('FILTERED_OK') && visible.stdout.includes('VISIBLE_OK')
+      && filtered.result.exitCode === 0 && visible.result.exitCode === 0
       && Array.isArray(proof.rejected_entries) && canonicalJson(proof.rejected_entries.map((item) => item.name)) === canonicalJson(expectedRejected)
       && proof.rejected_entries.every((item) => item.code === 'A9_ENV_OVERLAY_REJECTED')
+      && canonicalJson(proof.rejected_entries.slice(4).map((item) => item.value_sha256)) === canonicalJson(expectedValueHashes)
       && proof.ordinary_overlay_visible === true && proof.inherited_secret_variants_absent === true
       && proof.provider_rotation_rejection === 'A9_ENV_OVERLAY_REJECTED'
       && proof.persisted_rejection_survived_restart === true && proof.explicit_reapply_required_and_succeeded === true
@@ -315,14 +404,39 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
       && proof.explicit_shell_identity_mismatch?.error_code === 'A9_SHELL_IDENTITY_CHANGED'
       && proof.explicit_shell_identity_mismatch?.child_executed === false,
     'A9_W22_D013_ENV_IDENTITY_SEMANTICS_INVALID');
+    const envEvents = validateEventSequence(proof.events, [
+      'rejections_recorded', 'filtered_child_completed', 'visible_child_completed', 'provider_rotation_rejected',
+      'config_scrubbed', 'runtime_reopened_blocked', 'explicit_reapply_completed', 'identity_mismatch_rejected_before_child',
+    ], 'D013_ENV_IDENTITY');
+    assert(envEvents[1].request_id === filtered.request.requestId && envEvents[2].request_id === visible.request.requestId
+      && envEvents[0].rejection_count === expectedRejected.length
+      && envEvents[1].artifact_sha256 === proof.raw_protocol.filtered[0].sha256
+      && envEvents[2].artifact_sha256 === proof.raw_protocol.visible[0].sha256,
+    'A9_W22_D013_ENV_EVENT_BINDING_INVALID');
   } else if (caseId === 'W22-D013-V25-NO-DEADLINE-STOP') {
     const stopped = validateV2Transcript(proof.transcript, 'powershell', 'D013_NO_DEADLINE');
+    loadBoundJson(proof.raw_protocol, proof.transcript, evidenceRoot, fileSystem, 'D013_NO_DEADLINE_RAW');
+    const noDeadlineEvents = validateEventSequence(proof.events,
+      ['execution_started', 'active_observed', 'stop_requested', 'raw_result_persisted', 'repeat_stop_observed'],
+      'D013_NO_DEADLINE');
     assert(stopped.request.deadlineMode === 'none' && stopped.result.canceled === true
       && stopped.result.timedOut === false && stopped.result.idleTimedOut === false
       && proof.observed_active_before_stop_ms >= 3900 && proof.repeated_stop_idempotent === true
-      && proof.execution_count === 1, 'A9_W22_D013_NO_DEADLINE_SEMANTICS_INVALID');
+      && proof.execution_count === 1
+      && noDeadlineEvents.every((event) => event.request_id === stopped.request.requestId)
+      && noDeadlineEvents[1].monotonic_ms - noDeadlineEvents[0].monotonic_ms >= 3900
+      && noDeadlineEvents[2].monotonic_ms >= noDeadlineEvents[1].monotonic_ms
+      && noDeadlineEvents[3].result_sha256 === sha256(Buffer.from(canonicalJson(stopped.result)))
+      && noDeadlineEvents[3].artifact_sha256 === proof.raw_protocol[0].sha256,
+    'A9_W22_D013_NO_DEADLINE_SEMANTICS_INVALID');
   } else if (caseId === 'W22-D013-V25-BACKGROUND-READY') {
     const background = validateV2Transcript(proof.transcript, 'cmd', 'D013_BACKGROUND');
+    loadBoundJson(proof.raw_protocol, proof.transcript, evidenceRoot, fileSystem, 'D013_BACKGROUND_RAW');
+    const backgroundEvents = validateEventSequence(proof.events, [
+      'execution_started', 'running_persisted_after_ready', 'first_stop_requested', 'raw_result_persisted', 'first_stop_completed',
+      'second_stop_requested', 'second_stop_completed', 'recovered_pid_adopted', 'exit_lock_observed',
+      'blind_stop_refused', 'external_stop_observed', 'second_stop_after_external', 'zero_residue_observed',
+    ], 'D013_BACKGROUND');
     assert(background.request.command === 'ping.exe -t 127.0.0.1'
       && proof.persisted_pid === background.ready.childPid && proof.persisted_pid_is_child_not_helper === true
       && ['stopped', 'exited'].includes(proof.first_stop_status)
@@ -334,7 +448,16 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
       && proof.recovered_pid?.process_survived_blind_stop === true
       && proof.recovered_pid?.external_stop_then_second_stop_status === 'exited'
       && proof.post_case_active_count === 0 && Array.isArray(proof.state_transitions)
-      && proof.state_transitions.some((item) => item.status === 'running'),
+      && proof.state_transitions.some((item) => item.status === 'running')
+      && backgroundEvents.slice(0, 7).every((event) => event.request_id === background.request.requestId)
+      && backgroundEvents[1].pid === background.ready.childPid
+      && backgroundEvents[1].ready_sha256 === sha256(Buffer.from(canonicalJson(background.ready)))
+      && backgroundEvents[3].artifact_sha256 === proof.raw_protocol[0].sha256
+      && backgroundEvents[3].result_sha256 === sha256(Buffer.from(canonicalJson(background.result)))
+      && backgroundEvents[7].pid === proof.recovered_pid.pid
+      && backgroundEvents.slice(7, 12).every((event) => event.pid === proof.recovered_pid.pid)
+      && backgroundEvents[8].exit_blocked === true && backgroundEvents[9].error_code === 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED'
+      && backgroundEvents[12].managed_processes === 0 && backgroundEvents[12].helper_processes === 0,
     'A9_W22_D013_BACKGROUND_SEMANTICS_INVALID');
   } else throw new Error(`A9_W22_D013_CASE_UNEXPECTED:${caseId}`);
 }
@@ -530,7 +653,8 @@ function validateSchemaCompatibilityEvidence(execution, identity, evidenceRoot, 
 function verifyReport(report, kit, identity, evidenceRoot, fileSystem) {
   rejectSecretMaterial(report);
   assert(plain(kit) && kit.schema_version === 2 && Array.isArray(kit.incremental_win7_cases)
-    && kit.incremental_win7_cases.length === 13, 'A9_W22_KIT_INVALID');
+    && kit.incremental_win7_cases.length === 13
+    && /^[a-f0-9]{64}$/.test(String(kit.required_runner_helper_sha256 || '')), 'A9_W22_KIT_INVALID');
   assert(plain(report) && report.schema_version === 2 && report.report_kind === 'WIN7_22_INCREMENTAL_ACCEPTANCE', 'A9_W22_REPORT_SCHEMA_INVALID');
   assert(canonicalJson(report.candidate) === canonicalJson(identity), 'A9_W22_CANDIDATE_BINDING_MISMATCH');
   assert(canonicalJson(report.inherited_evidence_policy) === canonicalJson(kit.inherited_evidence), 'A9_W22_INHERITANCE_POLICY_MISMATCH');
@@ -572,6 +696,8 @@ function verifyReport(report, kit, identity, evidenceRoot, fileSystem) {
       for (const execution of result.executions) {
         validateExecution(execution, identity, new Set(required), evidenceRoot, fileSystem);
         if (result.case_id.startsWith('W22-D013-')) {
+          assert(execution.d013_helper_sha256 === kit.required_runner_helper_sha256,
+            `A9_W22_D013_HELPER_BINDING_INVALID:${result.case_id}`);
           validateD013CaseEvidence(execution, result.case_id, identity, evidenceRoot, fileSystem);
         }
         for (const assertion of execution.assertions) required.delete(assertion.assertion_id);

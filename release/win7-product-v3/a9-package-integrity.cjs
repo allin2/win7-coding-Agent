@@ -346,6 +346,7 @@ function verifyAcceptanceProductClosure(candidateRoot, manifest, kitPath, files,
     || kit.schema_v4_inheritance?.source_commit !== 'd28c1b9510d6d528f07e8a76a7527b4fc25c35ba'
     || kit.schema_v4_inheritance?.from_candidate?.candidate_id !== 'WIN7-21'
     || kit.schema_v4_inheritance?.from_candidate?.result !== 'FIX_BEFORE_ALPHA'
+    || kit.required_runner_helper_sha256 !== runner.required_entry_sha256
     || kit.schema_v4_inheritance?.source_artifact_hashes?.['src/state/src/a9-persistence.ts'] !== '7c939264107a730f4eb835ff3a3f199a1c45c7066a1f9bef7a552cce39d5ac09'
     || kit.schema_v4_inheritance?.source_artifact_hashes?.['src/state/src/schema.ts'] !== 'a2bd34b3477f2a261da4240feb08cdb9b9c1162175f5b1e2ef2f83da7b0fc90a'
     || !Array.isArray(kit.schema_v4_inheritance?.evidence)

@@ -334,6 +334,7 @@ function createValidationKit(root, sourceCommit, lock) {
     candidate_id: lock.release_id,
     candidate_version: lock.version,
     source_commit: sourceCommit,
+    required_runner_helper_sha256: lock.inputs.runner_return_zip.required_entry_sha256,
     source_artifact_hashes: Object.fromEntries(sourceFiles.map((item) => [item, sha256File(path.join(root, item))])),
     external_release_authority: {
       schema_version: 1,
