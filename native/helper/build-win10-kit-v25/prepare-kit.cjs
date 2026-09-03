@@ -227,6 +227,7 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/v25-smoke-request\.json/.test(buildScript) ||
     !/v25-smoke-response\.jsonl/.test(buildScript) ||
     !/v25-smoke-marker\.bin/.test(buildScript) ||
+    !/v2MarkerDirectoryName\s*=\s*\[string\]\[char\]0x4E2D\s*\+\s*\[char\]0x6587\s*\+\s*' '\s*\+\s*\[char\]0x7A7A\s*\+\s*\[char\]0x683C/.test(buildScript) ||
     !/cmd verbatim smoke did not create the quoted Chinese-space marker/.test(buildScript) ||
     !/V25 cmd smoke syntax did not reach the final marker/.test(buildScript) ||
     !/expectedCaptureMarker\s*=\s*"D013_"\s*\+\s*\[char\]0x4E2D\s*\+\s*\[char\]0x6587/.test(buildScript) ||

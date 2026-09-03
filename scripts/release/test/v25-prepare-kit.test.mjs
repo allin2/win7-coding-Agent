@@ -119,6 +119,14 @@ test('production smoke and isolated PowerShell self-test call the same ordered-d
   assert.ok(script.indexOf('if ($TestSmokeRequestOnly)') < script.indexOf('$KitRoot ='));
 });
 
+test('production smoke constructs the Chinese-space marker without a non-ASCII script literal', () => {
+  const script = fs.readFileSync(path.join(kitRoot, 'build.ps1'), 'utf8');
+  assert.doesNotMatch(script, /Join-Path \$v2Work ["']中文 空格["']/);
+  assert.match(script,
+    /\$v2MarkerDirectoryName\s*=\s*\[string\]\[char\]0x4E2D\s*\+\s*\[char\]0x6587\s*\+\s*' '\s*\+\s*\[char\]0x7A7A\s*\+\s*\[char\]0x683C/);
+  assert.match(script, /\$v2MarkerDirectory\s*=\s*Join-Path \$v2Work \$v2MarkerDirectoryName/);
+});
+
 test('Windows PowerShell 5.1 executes smoke request copy without building or writing artifacts', {
   skip: process.platform !== 'win32' ? 'Windows PowerShell 5.1 unavailable; NOT_PERFORMED on this host' : false,
 }, () => {

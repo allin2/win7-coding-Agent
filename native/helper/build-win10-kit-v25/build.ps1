@@ -876,7 +876,11 @@ try {
             # non-secret environment overlay and honour a real no-deadline mode.
             $v2Work = Join-Path $smokeRoot "v25-current-user"
             Ensure-Directory $v2Work
-            $v2MarkerDirectory = Join-Path $v2Work "中文 空格"
+            # Windows PowerShell 5.1 treats UTF-8-without-BOM scripts as the
+            # active ANSI code page. Construct the non-ASCII path from Unicode
+            # code points so the request evidence is stable on CP936 hosts.
+            $v2MarkerDirectoryName = [string][char]0x4E2D + [char]0x6587 + ' ' + [char]0x7A7A + [char]0x683C
+            $v2MarkerDirectory = Join-Path $v2Work $v2MarkerDirectoryName
             Ensure-Directory $v2MarkerDirectory
             $v2Marker = Join-Path $v2MarkerDirectory "cmd-current-user.txt"
             $v2WorkAclBefore = (Get-Acl -LiteralPath $v2Work).Sddl
