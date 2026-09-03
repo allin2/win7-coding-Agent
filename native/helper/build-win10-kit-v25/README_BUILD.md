@@ -1,6 +1,6 @@
 # D-013 v25 A9 Current-User Helper：锁定 Win10 构建
 
-> 当前 r14 套件绑定已提交源码 `3e458ca50b82e6b6cc90301a2a62d1fd88b04e6c`，状态为
+> 当前 r15 套件绑定已提交源码 `1eb02c254ffd8a4081c984da21f176671c6ce026`，状态为
 > `READY_FOR_WIN10_BUILD`。其 ZIP、input lock 与 package manifest 精确哈希必须命中产品批准清单；
 > 已撤销的 r4～r10 套件继续保留历史记录，不得用于正式返回记录。
 

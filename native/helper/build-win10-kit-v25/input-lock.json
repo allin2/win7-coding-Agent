@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-V25-CURRENT-USER-X64",
-  "source_commit": "3e458ca50b82e6b6cc90301a2a62d1fd88b04e6c",
-  "source_commit_timestamp": "2026-09-03T16:07:54+08:00",
-  "generated_at": "2026-09-03T16:07:54+08:00",
+  "source_commit": "1eb02c254ffd8a4081c984da21f176671c6ce026",
+  "source_commit_timestamp": "2026-09-03T16:30:27+08:00",
+  "generated_at": "2026-09-03T16:30:27+08:00",
   "sources": [
     {
       "path": "src/helper.cpp",
@@ -62,8 +62,8 @@
     },
     {
       "path": "build.ps1",
-      "size": 60589,
-      "sha256": "d2272f9a5e76d6cd5332cc4fdd1356e560859cf2986387966b73110fa436de71"
+      "size": 60937,
+      "sha256": "d04f7d7427829f763d9ff498c4ef8afe530683d950673359f5c0a71c129b0499"
     },
     {
       "path": "build-profile.json",
@@ -78,12 +78,12 @@
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "fd6902bad58c27d68535a5c59d3c91668fd90b23b3dd88fbdac1138c0dc409ae"
+      "sha256": "c83a6e27496a2315fcff8a691de1817e85da6555fd4554719877c23352f509a4"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
       "size": 26,
-      "sha256": "90b85be97678e50394987464f64ed868f9ddf0c76b1fafdb5fe9ee73cae93da1"
+      "sha256": "087e309892b9879391747d55cff4a9b89bd113e690e97220ac6f2724f8c5afb9"
     }
   ]
 }

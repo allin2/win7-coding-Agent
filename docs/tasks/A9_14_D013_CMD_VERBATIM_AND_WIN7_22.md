@@ -74,3 +74,14 @@ A9-13 schema v4 精确迁移/回滚、WIN7-19 历史未受影响能力可在源�
 `INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH`；G4 稳定宿主项可标记 `LIGHTWEIGHT_REVALIDATION`。
 这两种状态都不是 `WIN7_22_CURRENT_CANDIDATE_PASS`。任一受 helper、打包、候选身份或现场状态影响的门禁
 不得略过。任何 Gate 失败即停止后续签发。
+
+## 5. G0 执行记录
+
+- r14 在 Win10 两个全新目录完成构建且 helper 字节一致，但正式记录器在写入新锁前以
+  `A9_V25_CMD_VERBATIM_SMOKE_PROOF_INVALID` 拒绝两份返回。请求证据中的目录名为 CP936 误解码后的
+  `涓枃 绌烘牸`，不是合同要求的 `中文 空格`；因此 r14 已撤销，返回包只保留为失败证据，不得改判。
+- 根因是 Windows PowerShell 5.1 在无 BOM 脚本上按活动 ANSI 代码页解释中文字面量。提交
+  `1eb02c254ffd8a4081c984da21f176671c6ce026` 改为用 Unicode 码位构造目录名，不改变 UTF-8 无 BOM
+  源码约束，并增加静态生成器回归。r15 的 ZIP、input lock、package manifest SHA-256 分别为
+  `2b4192cc…61a1c`、`494e8939…dd4b`、`2692fff9…03b`；独立审查在撤销 r14 的条件下批准 r15 进入新一轮
+  Win10 双构建。此批准不是 Win10 或 Win7 PASS。

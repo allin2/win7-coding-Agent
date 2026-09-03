@@ -24,6 +24,13 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-03，WIN7-22 G0 的 r14 虽在 Win10 双构建中得到字节一致 helper，正式记录器仍因请求证据中的
+  中文空格目录被 Windows PowerShell 5.1 按 CP936 误读为 `涓枃 绌烘牸` 而拒绝，未生成输入锁；r14
+  已撤销且不改判。编码兼容修复提交为 `1eb02c254ffd8a4081c984da21f176671c6ce026`，改用 Unicode 码位构造
+  路径；r15 ZIP、input lock、package manifest SHA-256 分别为 `2b4192cc…61a1c`、`494e8939…dd4b`、
+  `2692fff9…03b`。独立审查在撤销 r14 的条件下批准 r15 进入新的 Win10 双构建；当前仍无 WIN7-22
+  正式 input lock、候选或实机 PASS。
+
 - 2026-09-03，WIN7-21 在 Win7 普通用户 D-013 CMD 当前候选用例失败：native helper 对已绑定的
   `/d /s /c` command payload 再次套用 CRT argv 引号，导致内部双引号被反斜杠转义，目标文件未创建；
   同一 payload 经管理通道直启成功。独立复核结论 `P0=0 / P1=1 / P2=1`，G6 硬停止、G7 未执行，
