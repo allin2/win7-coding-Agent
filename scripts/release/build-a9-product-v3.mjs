@@ -298,6 +298,8 @@ function createValidationKit(root, sourceCommit, lock) {
     'src/core/src/a9-agent-loop.ts',
     'src/state/src/a9-persistence.ts',
     'src/workspace/src/checkpoint-manager.ts',
+    'native/helper/argv_builder.cpp',
+    'native/helper/argv_builder.h',
     'docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md',
     'release/win7-product-v3/a9-14-win7-22-input-lock.json',
     'scripts/release/build-a9-product-v3.mjs',

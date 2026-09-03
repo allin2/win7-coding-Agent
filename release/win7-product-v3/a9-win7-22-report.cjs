@@ -204,6 +204,141 @@ function validateSchemaV4Inheritance(result, kit, evidenceRoot, fileSystem) {
   validateEvidenceEntries(result.evidence, evidenceRoot, fileSystem, 'SCHEMA_V4_INHERITED');
 }
 
+function decodeCanonicalBase64(value, size, label) {
+  assert(typeof value === 'string'
+    && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value),
+  `A9_W22_${label}_BASE64_INVALID`);
+  const decoded = Buffer.from(value, 'base64');
+  assert(Number.isSafeInteger(size) && size >= 0 && decoded.length === size
+    && decoded.toString('base64') === value, `A9_W22_${label}_SIZE_INVALID`);
+  return decoded;
+}
+
+function validateV2Transcript(transcript, shellKind, label) {
+  assert(plain(transcript) && plain(transcript.request) && plain(transcript.ready) && plain(transcript.result),
+    `A9_W22_${label}_TRANSCRIPT_REQUIRED`);
+  const { request, ready, result } = transcript;
+  assert(request.schemaVersion === 2 && typeof request.requestId === 'string' && request.requestId.length > 0
+    && request.profileId === 'a9-trusted-shell-current-user-v1' && request.shellKind === shellKind
+    && request.managed === true && request.deadlineMode === 'none'
+    && typeof request.command === 'string' && request.command.length > 0
+    && typeof request.cwd === 'string' && /[\u3400-\u9fff]/.test(request.cwd) && /\s/.test(request.cwd)
+    && typeof request.shellIdentity === 'string' && /^[a-f0-9]{64}$/.test(request.shellIdentity)
+    && Array.isArray(request.argv), `A9_W22_${label}_REQUEST_INVALID`);
+  if (shellKind === 'cmd') {
+    assert(/\\cmd\.exe$/i.test(request.shellPath) && /\\cmd\.exe$/i.test(request.executable)
+      && canonicalJson(request.argv) === canonicalJson(['/d', '/s', '/c', request.command]),
+    `A9_W22_${label}_CMD_ARGV_INVALID`);
+  } else {
+    assert(/\\powershell\.exe$/i.test(request.shellPath) && /\\powershell\.exe$/i.test(request.executable)
+      && canonicalJson(request.argv.slice(0, 6)) === canonicalJson([
+        '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand',
+      ]) && typeof request.argv[6] === 'string', `A9_W22_${label}_POWERSHELL_ARGV_INVALID`);
+    const encoded = decodeCanonicalBase64(request.argv[6], Buffer.from(request.argv[6], 'base64').length,
+      `${label}_POWERSHELL_COMMAND`).toString('utf16le');
+    assert(encoded.includes(request.command), `A9_W22_${label}_POWERSHELL_COMMAND_MISMATCH`);
+  }
+  assert(ready.schemaVersion === 2 && ready.type === 'execution_started'
+    && ready.requestId === request.requestId && ready.profileId === request.profileId
+    && Number.isSafeInteger(ready.helperPid) && ready.helperPid > 0
+    && Number.isSafeInteger(ready.childPid) && ready.childPid > 0 && ready.childPid !== ready.helperPid
+    && plain(ready.ready) && Object.keys(ready.ready).length === 4
+    && Object.values(ready.ready).every((value) => value === true)
+    && plain(ready.tokenAudit) && ready.tokenAudit.verified === true
+    && ready.tokenAudit.tokenMode === 'current_user' && ready.tokenAudit.restrictedToken === false
+    && ready.tokenAudit.tokenType === 'primary' && ready.tokenAudit.sameUser === true
+    && ready.tokenAudit.lowIntegrity === false, `A9_W22_${label}_READY_INVALID`);
+  assert(result.schemaVersion === 2 && result.type === 'execution_result'
+    && result.requestId === request.requestId && result.profileId === request.profileId
+    && result.status === 'completed' && result.containmentVerified === true
+    && result.inputDetached === true && result.cleanupConfirmed === true
+    && result.workDirAclModified === false && plain(result.hostJob)
+    && result.hostJob.childJobAssignmentVerified === true && plain(result.tokenAudit)
+    && result.tokenAudit.verified === true && result.tokenAudit.tokenMode === 'current_user'
+    && result.tokenAudit.restrictedToken === false && result.tokenAudit.tokenType === 'primary'
+    && result.tokenAudit.sameUser === true && result.tokenAudit.lowIntegrity === false,
+  `A9_W22_${label}_RESULT_INVALID`);
+  return {
+    request, ready, result,
+    stdout: decodeCanonicalBase64(result.stdoutBase64, result.stdoutSize, `${label}_STDOUT`).toString('utf8'),
+    stderr: decodeCanonicalBase64(result.stderrBase64, result.stderrSize, `${label}_STDERR`).toString('utf8'),
+  };
+}
+
+function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fileSystem) {
+  const document = loadJsonEvidence(execution.d013_evidence, evidenceRoot, fileSystem, `D013_${caseId}`);
+  assert(document.schema_version === 1 && document.evidence_kind === 'WIN7_22_D013_V25_CURRENT_CANDIDATE_CASES'
+    && canonicalJson(document.candidate) === canonicalJson(identity)
+    && document.probe_id === execution.machine_binding.probe_id
+    && plain(document.environment) && document.environment.token_kind === 'ordinary-user'
+    && document.environment.elevation === 'not-elevated' && document.environment.integrity_level === 'medium'
+    && document.environment.shell_profile === 'D-013-v25-a9-trusted-shell-current-user'
+    && /^[a-f0-9]{64}$/.test(String(document.environment.helper_sha256 || ''))
+    && plain(document.cases) && plain(document.cases[caseId]) && document.cases[caseId].status === 'PASS'
+    && document.secret_scan?.synthetic_plaintext_persisted_in_this_evidence === false,
+  `A9_W22_D013_DOCUMENT_INVALID:${caseId}`);
+  const proof = document.cases[caseId];
+  if (caseId === 'W22-D013-V25-CURRENT-USER') {
+    const ps = validateV2Transcript(proof.powershell, 'powershell', 'D013_CURRENT_PS');
+    const cmd = validateV2Transcript(proof.cmd, 'cmd', 'D013_CURRENT_CMD');
+    const explicit = validateV2Transcript(proof.explicit_shell, 'cmd', 'D013_CURRENT_EXPLICIT');
+    assert(ps.request.command.includes('w22-ps-current-user') && ps.stdout.includes('PS_WRITE_OK')
+      && cmd.request.command.includes('%A9_W22_WORKSPACE%\\w22-cmd-current-user')
+      && cmd.request.command.includes('W22_CMD_CURRENT_USER') && cmd.stdout.includes('CMD_WRITE_OK')
+      && explicit.request.command.includes('W22_EXPLICIT_SHELL')
+      && proof.acl_unchanged === true && proof.acl_sddl_sha256_before === proof.acl_sddl_sha256_after
+      && Array.isArray(proof.created_files) && proof.created_files.length === 3,
+    'A9_W22_D013_CURRENT_USER_SEMANTICS_INVALID');
+    validateEvidenceEntries(proof.created_files, evidenceRoot, fileSystem, 'D013_CURRENT_USER_MARKERS');
+    const markers = new Map(proof.created_files.map((item) => [path.basename(item.path), item]));
+    for (const [name, expected] of [
+      ['w22-ps-current-user-r3.txt', 'W22_PS_CURRENT_USER'],
+      ['w22-cmd-current-user-r3.txt', 'W22_CMD_CURRENT_USER'],
+      ['w22-explicit-shell-r3.txt', 'W22_EXPLICIT_SHELL'],
+    ]) {
+      assert(markers.has(name), `A9_W22_D013_MARKER_MISSING:${name}`);
+      const absolute = fileSystem.realpathSync(path.resolve(evidenceRoot, markers.get(name).path));
+      assert(fileSystem.readFileSync(absolute, 'utf8').trim() === expected, `A9_W22_D013_MARKER_BYTES_INVALID:${name}`);
+    }
+  } else if (caseId === 'W22-D013-V25-ENV-IDENTITY') {
+    const filtered = validateV2Transcript(proof.filtered_child, 'cmd', 'D013_ENV_FILTERED');
+    const visible = validateV2Transcript(proof.visible_child, 'cmd', 'D013_ENV_VISIBLE');
+    const expectedRejected = ['API_TOKEN', 'NODE_OPTIONS', 'ELECTRON_ENABLE_LOGGING', 'NODE_TLS_REJECT_UNAUTHORIZED',
+      'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT'];
+    assert(filtered.stdout.includes('FILTERED_OK') && visible.stdout.includes('VISIBLE_OK')
+      && Array.isArray(proof.rejected_entries) && canonicalJson(proof.rejected_entries.map((item) => item.name)) === canonicalJson(expectedRejected)
+      && proof.rejected_entries.every((item) => item.code === 'A9_ENV_OVERLAY_REJECTED')
+      && proof.ordinary_overlay_visible === true && proof.inherited_secret_variants_absent === true
+      && proof.provider_rotation_rejection === 'A9_ENV_OVERLAY_REJECTED'
+      && proof.persisted_rejection_survived_restart === true && proof.explicit_reapply_required_and_succeeded === true
+      && proof.explicit_shell_identity_mismatch?.status === 'failed'
+      && proof.explicit_shell_identity_mismatch?.error_code === 'A9_SHELL_IDENTITY_CHANGED'
+      && proof.explicit_shell_identity_mismatch?.child_executed === false,
+    'A9_W22_D013_ENV_IDENTITY_SEMANTICS_INVALID');
+  } else if (caseId === 'W22-D013-V25-NO-DEADLINE-STOP') {
+    const stopped = validateV2Transcript(proof.transcript, 'powershell', 'D013_NO_DEADLINE');
+    assert(stopped.request.deadlineMode === 'none' && stopped.result.canceled === true
+      && stopped.result.timedOut === false && stopped.result.idleTimedOut === false
+      && proof.observed_active_before_stop_ms >= 3900 && proof.repeated_stop_idempotent === true
+      && proof.execution_count === 1, 'A9_W22_D013_NO_DEADLINE_SEMANTICS_INVALID');
+  } else if (caseId === 'W22-D013-V25-BACKGROUND-READY') {
+    const background = validateV2Transcript(proof.transcript, 'cmd', 'D013_BACKGROUND');
+    assert(background.request.command === 'ping.exe -t 127.0.0.1'
+      && proof.persisted_pid === background.ready.childPid && proof.persisted_pid_is_child_not_helper === true
+      && ['stopped', 'exited'].includes(proof.first_stop_status)
+      && ['stopped', 'exited'].includes(proof.second_stop_status)
+      && proof.uncertain_cleanup?.initial_cleanup_required === true
+      && proof.uncertain_cleanup?.stop_error_code === 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED'
+      && proof.uncertain_cleanup?.process_survived_blind_stop === true
+      && proof.recovered_pid?.first_stop_error_code === 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED'
+      && proof.recovered_pid?.process_survived_blind_stop === true
+      && proof.recovered_pid?.external_stop_then_second_stop_status === 'exited'
+      && proof.post_case_active_count === 0 && Array.isArray(proof.state_transitions)
+      && proof.state_transitions.some((item) => item.status === 'running'),
+    'A9_W22_D013_BACKGROUND_SEMANTICS_INVALID');
+  } else throw new Error(`A9_W22_D013_CASE_UNEXPECTED:${caseId}`);
+}
+
 function validateExecution(execution, identity, expectedAssertions, evidenceRoot, fileSystem) {
   assert(canonicalJson(execution.candidate) === canonicalJson(identity), 'A9_W22_EXECUTION_CANDIDATE_BINDING_MISMATCH');
   assert(plain(execution.environment), 'A9_W22_ENVIRONMENT_REQUIRED');
@@ -416,7 +551,7 @@ function verifyReport(report, kit, identity, evidenceRoot, fileSystem) {
     const allowed = inheritedCase
       ? ['PASS', 'INHERITED_EVIDENCE', 'FAIL', 'NOT_PERFORMED', 'EVIDENCE_PENDING']
       : schemaInheritedCase
-        ? ['PASS', 'INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH', 'FAIL', 'NOT_PERFORMED', 'EVIDENCE_PENDING']
+        ? ['INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH', 'FAIL', 'NOT_PERFORMED', 'EVIDENCE_PENDING']
         : ['PASS', 'FAIL', 'NOT_PERFORMED', 'EVIDENCE_PENDING'];
     assert(allowed.includes(result.status), `A9_W22_CASE_STATUS_INVALID:${result.case_id}`);
     if (result.status === 'INHERITED_EVIDENCE') {
@@ -436,8 +571,8 @@ function verifyReport(report, kit, identity, evidenceRoot, fileSystem) {
       const required = new Set(expectedCases.get(result.case_id).assertions.map((item) => item.assertion_id));
       for (const execution of result.executions) {
         validateExecution(execution, identity, new Set(required), evidenceRoot, fileSystem);
-        if (result.case_id === 'W22-WIN7-19-SCHEMA-V4-COMPAT') {
-          validateSchemaCompatibilityEvidence(execution, identity, evidenceRoot, fileSystem);
+        if (result.case_id.startsWith('W22-D013-')) {
+          validateD013CaseEvidence(execution, result.case_id, identity, evidenceRoot, fileSystem);
         }
         for (const assertion of execution.assertions) required.delete(assertion.assertion_id);
       }

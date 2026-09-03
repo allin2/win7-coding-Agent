@@ -499,7 +499,7 @@ function main(argv = process.argv.slice(2)) {
 
   const report = {
     schema_version: 1,
-    record_id: `A9-07-PACKAGE-INTEGRITY-${Date.now()}`,
+    record_id: `A9-14-PACKAGE-INTEGRITY-${Date.now()}`,
     recorded_at: new Date().toISOString(),
     status: cases.every((item) => item.status === 'PASS') ? 'PASS' : 'FAIL',
     candidate_id: manifest && manifest.release_id,

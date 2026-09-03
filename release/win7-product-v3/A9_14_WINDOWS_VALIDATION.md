@@ -26,7 +26,7 @@ schema 2 设置迁移到 schema 3；普通非秘密覆盖及显式 Shell 文件�
 
 严禁关闭 TLS/SSH 主机密钥验证，严禁修改系统 PATH、服务、注册表、防火墙或安装未知组件。
 完成后用 `RUN_WIN7_22_REPORT_VERIFY.cmd` 校验报告、候选身份与全部外置证据哈希。只有
-A9-14 独审、产品双构建和本轮实机项目全部通过，才能签发新的 `A9_13_WIN7_22_GO_FOR_ALPHA`。
+A9-14 独审、产品双构建和本轮实机项目全部通过，才能签发新的 `A9_14_WIN7_22_GO_FOR_ALPHA`。
 
 报告入口按 ADR-0102 拒绝 `source_dirty != false` 或 `external_acceptance_eligible != true` 的 manifest。
 它会重新校验解压候选的物理全树，并逐项解析原始确定性 ZIP，要求内置 manifest、全部 payload、v25
@@ -85,7 +85,7 @@ RUN_WIN7_22_REPORT_VERIFY.cmd <原始ZIP> <报告JSON> <外部证据根> <外部
 ```
 
 report init、verify 和 integrity 共用同一必需批准根；candidate identity 增加
-`release_authority_sha256`、`formal_input_lock_sha256`、`approval_registry_commit/sha256`，所有 W21 execution、
+`release_authority_sha256`、`formal_input_lock_sha256`、`approval_registry_commit/sha256`，所有 W22 execution、
 candidate-start/postflight 必须带上它们。lock 校验 approval_registry、精确 build kit 及两份不同的
 ZIP/run ID/evidence binding；缺失、TEST_ONLY、复用或不一致一律拒绝。原始 Win10 evidence binding 文件
 已由正式记录器验证，其哈希受正式 lock 和外部 pin 保护，Win7 不重放构建。
