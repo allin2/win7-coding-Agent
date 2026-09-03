@@ -334,6 +334,12 @@ export function recordA9V25HelperInput(options) {
     || base.inputs?.runner_return_zip?.profile !== 'D-013-v24-low-risk-noninteractive') {
     throw new Error('A9_V25_HISTORICAL_V24_LOCK_INVALID');
   }
+  const releaseProvenance = options.releaseTask ? {
+    task: options.releaseTask,
+    superseded_candidate: options.supersededCandidate,
+    superseded_candidate_result: 'FIX_BEFORE_ALPHA',
+    rule: options.releaseRule,
+  } : base.provenance;
   const historicalV24 = JSON.parse(JSON.stringify(base.inputs.runner_return_zip));
   const next = {
     ...base,
@@ -368,6 +374,7 @@ export function recordA9V25HelperInput(options) {
       win7: win7Gate,
       alpha: 'NOT_PERFORMED',
     },
+    ...(releaseProvenance ? { provenance: releaseProvenance } : {}),
   };
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
@@ -389,6 +396,8 @@ if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
       baseLock: args['base-lock'], output: args.output,
       kitZip: args['kit-zip'],
       lockId: args['lock-id'], win7Gate: args['win7-gate'], provenance: args.provenance,
+      releaseTask: args['release-task'], supersededCandidate: args['superseded-candidate'],
+      releaseRule: args['release-rule'],
     }), null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`A9_V25_LOCK_FAILED:${error instanceof Error ? error.message : String(error)}\n`);

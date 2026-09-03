@@ -31,7 +31,7 @@
   `2692fff9…03b`。独立审查在撤销 r14 的条件下批准 r15 进入新的 Win10 双构建。r15 随后在两个全新
   目录完成构建，run ID 为 `8cb9089e…bf6`、`7bf6be7c…593`，返回 ZIP 为 `7485cf22…d6d0`、
   `5d37a5f…e237`，字节一致 helper 为 `c8615e65…fa31`；正式记录器已生成 WIN7-22 新 input lock
-  `2b5d3d4d…8366`。G0 helper 输入冻结完成，产品双构建与 Win7 实机 PASS 仍未执行。
+  `a9750078…f7e1`。G0 helper 输入冻结完成，产品双构建与 Win7 实机 PASS 仍未执行。
 
 - 2026-09-03，WIN7-21 在 Win7 普通用户 D-013 CMD 当前候选用例失败：native helper 对已绑定的
   `/d /s /c` command payload 再次套用 CRT argv 引号，导致内部双引号被反斜杠转义，目标文件未创建；

@@ -52,7 +52,7 @@
         "package_manifest_sha256": "2692fff98d1f2b9da3a40506801839d1d822a6e07608def5ad67dc43850ec03b"
       },
       "approval_registry": {
-        "commit": "fd65e97a8f6de704f699e94b1b4eae68537b8be9",
+        "commit": "e1b6f4bf30ad2ae7576aa958317e0aea6f4338d3",
         "sha256": "d9cfea73c2f89c01a33a2bbef1d65c27eb995cd3681c71a939183348744917b7",
         "path": "release/win7-product-v3/a9-v25-approved-kits.json"
       },
@@ -113,5 +113,11 @@
     "win7": "NOT_PERFORMED_WIN7_22",
     "alpha": "NOT_PERFORMED"
   },
-  "generated_at": "2026-09-03T08:49:31.184Z"
+  "generated_at": "2026-09-03T08:53:13.603Z",
+  "provenance": {
+    "task": "A9-14",
+    "superseded_candidate": "WIN7-21",
+    "superseded_candidate_result": "FIX_BEFORE_ALPHA",
+    "rule": "This lock starts a new WIN7-22 gate sequence and must not be used to rejudge WIN7-21."
+  }
 }

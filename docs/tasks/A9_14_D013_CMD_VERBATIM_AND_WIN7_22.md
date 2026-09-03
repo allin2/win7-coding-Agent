@@ -89,5 +89,5 @@ A9-13 schema v4 精确迁移/回滚、WIN7-19 历史未受影响能力可在源�
   `8cb9089e-4e5f-4b2a-afa8-5ad628608bf6`、`7bf6be7c-2bb5-41b6-8fdb-fc01f760a593`；两份返回 ZIP
   SHA-256 为 `7485cf22…d6d0`、`5d37a5f…e237`，helper SHA-256 均为 `c8615e65…fa31`。正式记录器
   复核了原始响应、中文空格 marker 路径及字节、PE/API/CRT 和双构建绑定，生成新锁
-  `a9-14-win7-22-input-lock.json`（SHA-256 `2b5d3d4d…8366`）。G0 helper 双构建与输入冻结完成；产品
+  `a9-14-win7-22-input-lock.json`（SHA-256 `a9750078…f7e1`）。G0 helper 双构建与输入冻结完成；产品
   双构建、WIN7-22 候选和 Win7 实机门禁尚未执行。

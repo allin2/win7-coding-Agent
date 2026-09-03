@@ -29,7 +29,7 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
-  if (!options.lockPath) throw new Error('A9_WIN7_21_FORMAL_INPUT_LOCK_REQUIRED');
+  if (!options.lockPath) throw new Error('A9_WIN7_22_FORMAL_INPUT_LOCK_REQUIRED');
   const lockPath = path.resolve(options.lockPath);
   const lock = loadJson(lockPath);
   validateA9Lock(lock);
@@ -132,19 +132,19 @@ export function buildA9ProductCandidate(options) {
     writeJson(path.join(stage, 'SBOM.cdx.json'), buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies));
     fs.writeFileSync(path.join(stage, 'THIRD_PARTY_LICENSES.md'), licenseInventory(lock), 'utf8');
     fs.writeFileSync(path.join(stage, 'INSTALLATION.md'), installationGuide(lock), 'utf8');
-    fs.copyFileSync(lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
+    fs.copyFileSync(lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'A9_07_WINDOWS_VALIDATION.md'), path.join(stage, 'A9_07_WINDOWS_VALIDATION.md'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_A9_07_INTEGRITY.cmd'), path.join(stage, 'RUN_A9_07_INTEGRITY.cmd'));
-    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_A9_09_INTEGRITY.cmd'), path.join(stage, 'RUN_A9_09_INTEGRITY.cmd'));
-    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'A9_09_WINDOWS_VALIDATION.md'), path.join(stage, 'A9_09_WINDOWS_VALIDATION.md'));
-    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_WIN7_21_REPORT_VERIFY.cmd'), path.join(stage, 'RUN_WIN7_21_REPORT_VERIFY.cmd'));
+    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_A9_14_INTEGRITY.cmd'), path.join(stage, 'RUN_A9_14_INTEGRITY.cmd'));
+    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'A9_14_WINDOWS_VALIDATION.md'), path.join(stage, 'A9_14_WINDOWS_VALIDATION.md'));
+    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_WIN7_22_REPORT_VERIFY.cmd'), path.join(stage, 'RUN_WIN7_22_REPORT_VERIFY.cmd'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_WIN7_17_REPORT_VERIFY.cmd'), path.join(stage, 'RUN_WIN7_17_REPORT_VERIFY.cmd'));
     const validationRoot = path.join(stage, 'validation');
     fs.mkdirSync(validationRoot, { recursive: true });
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-package-integrity.cjs'), path.join(validationRoot, 'a9-package-integrity.cjs'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-win7-17-report.cjs'), path.join(validationRoot, 'a9-win7-17-report.cjs'));
-    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-win7-21-report.cjs'), path.join(validationRoot, 'a9-win7-21-report.cjs'));
-    writeJson(path.join(stage, 'A9_09_VALIDATION_KIT.json'), createValidationKit(root, sourceCommit, lock));
+    fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-win7-22-report.cjs'), path.join(validationRoot, 'a9-win7-22-report.cjs'));
+    writeJson(path.join(stage, 'A9_14_VALIDATION_KIT.json'), createValidationKit(root, sourceCommit, lock));
     copyContractEvidence(root, stage);
     scanSensitivePayload(stage);
 
@@ -208,7 +208,7 @@ export function buildA9ProductCandidate(options) {
     fs.renameSync(temporarySidecarPath, `${zipPath}.sha256`);
     const buildResult = {
       schema_version: 1,
-      status: 'A9_09_DEVELOPER_PACKAGE_INTEGRITY_PASS',
+      status: 'A9_14_DEVELOPER_PACKAGE_INTEGRITY_PASS',
       release_id: lock.release_id,
       version: lock.version,
       source_commit: sourceCommit,
@@ -219,7 +219,7 @@ export function buildA9ProductCandidate(options) {
       manifest_sha256: sha256File(path.join(stage, 'release-manifest.json')),
       gates: manifest.gates,
     };
-    writeJson(path.join(outputRoot, 'A9_09_BUILD_RESULT.json'), buildResult);
+    writeJson(path.join(outputRoot, 'A9_14_BUILD_RESULT.json'), buildResult);
     return { lock, stage, zipPath, zipHash, manifest, buildResult };
   } catch (error) {
     fs.rmSync(workRoot, { recursive: true, force: true });
@@ -260,12 +260,12 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     'resources/native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
     'validation/a9-package-integrity.cjs',
     'validation/a9-win7-17-report.cjs',
-    'validation/a9-win7-21-report.cjs',
+    'validation/a9-win7-22-report.cjs',
     'RUN_WIN7_17_REPORT_VERIFY.cmd',
-    'A9_09_VALIDATION_KIT.json',
-    'A9_09_WINDOWS_VALIDATION.md',
-    'RUN_A9_09_INTEGRITY.cmd',
-    'RUN_WIN7_21_REPORT_VERIFY.cmd',
+    'A9_14_VALIDATION_KIT.json',
+    'A9_14_WINDOWS_VALIDATION.md',
+    'RUN_A9_14_INTEGRITY.cmd',
+    'RUN_WIN7_22_REPORT_VERIFY.cmd',
   ]) if (!byName.has(`${rootPrefix}${relative}`)) throw new Error(`A9_ZIP_CLOSURE_MISSING:${relative}`);
   if (entries.some((entry) => /(?:^|\/)(?:winpty|node-pty|portable-data)(?:\/|$)/i.test(entry.name))) throw new Error('A9_ZIP_FORBIDDEN_PAYLOAD');
   return { manifest, fileCount: manifest.files.length, zipSha256: sha256File(zipPath) };
@@ -298,17 +298,18 @@ function createValidationKit(root, sourceCommit, lock) {
     'src/core/src/a9-agent-loop.ts',
     'src/state/src/a9-persistence.ts',
     'src/workspace/src/checkpoint-manager.ts',
-    'docs/tasks/A9_13_WIN7_19_SCHEMA_V4_COMPATIBILITY.md',
-    'release/win7-product-v3/a9-13-win7-21-input-lock.json',
+    'docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md',
+    'release/win7-product-v3/a9-14-win7-22-input-lock.json',
     'scripts/release/build-a9-product-v3.mjs',
     'release/win7-product-v3/a9-package-integrity.cjs',
-    'release/win7-product-v3/RUN_A9_09_INTEGRITY.cmd',
-    'release/win7-product-v3/RUN_WIN7_21_REPORT_VERIFY.cmd',
+    'release/win7-product-v3/RUN_A9_14_INTEGRITY.cmd',
+    'release/win7-product-v3/A9_14_WINDOWS_VALIDATION.md',
+    'release/win7-product-v3/RUN_WIN7_22_REPORT_VERIFY.cmd',
     'release/win7-product-v3/a9-win7-17-report.cjs',
-    'release/win7-product-v3/a9-win7-21-report.cjs',
+    'release/win7-product-v3/a9-win7-22-report.cjs',
   ];
   const windows = (layer) => ({
-    integrity: `RUN_A9_09_INTEGRITY.cmd`,
+    integrity: `RUN_A9_14_INTEGRITY.cmd`,
     launch: `.\\electron.exe`,
     launch_portable: `.\\electron.exe --portable`,
     evidence_root: `..\\a9-evidence-${layer}`,
@@ -316,23 +317,32 @@ function createValidationKit(root, sourceCommit, lock) {
       ? 'candidate identity + integrity + formal Electron startup + WIN7-19 schema v4 backup/canonicalization/data/rollback evidence + ADR-0101 D-013 v25 impacted cases; only unaffected journeys follow ADR-0097 evidence inheritance'
       : 'native ABI + startup/restart + provider/DPAPI + stop cleanup',
   });
+  const schemaV4SourceHashes = {
+    'src/state/src/a9-persistence.ts': '7c939264107a730f4eb835ff3a3f199a1c45c7066a1f9bef7a552cce39d5ac09',
+    'src/state/src/schema.ts': 'a2bd34b3477f2a261da4240feb08cdb9b9c1162175f5b1e2ef2f83da7b0fc90a',
+  };
+  for (const [relative, expected] of Object.entries(schemaV4SourceHashes)) {
+    if (sha256File(path.join(root, relative)) !== expected) {
+      throw new Error(`A9_WIN7_22_SCHEMA_V4_SOURCE_DRIFT:${relative}`);
+    }
+  }
   return {
     schema_version: 2,
-    kit_id: 'A9-13-WIN7-21-SCHEMA-V4-COMPAT-20260903-01',
+    kit_id: 'A9-14-WIN7-22-D013-CMD-VERBATIM-20260903-01',
     candidate_id: lock.release_id,
     candidate_version: lock.version,
     source_commit: sourceCommit,
     source_artifact_hashes: Object.fromEntries(sourceFiles.map((item) => [item, sha256File(path.join(root, item))])),
     external_release_authority: {
       schema_version: 1,
-      kind: 'WIN7_21_RELEASE_AUTHORITY',
+      kind: 'WIN7_22_RELEASE_AUTHORITY',
       required_arguments: ['formal-input-lock', 'approval-registry', 'release-authority', 'release-authority-sha256'],
       pin_source: 'INDEPENDENT_RELEASE_APPROVAL_NOT_CANDIDATE_OR_SIDECAR',
-      instructions: 'A9_09_WINDOWS_VALIDATION.md',
+      instructions: 'A9_14_WINDOWS_VALIDATION.md',
     },
     commands: {
       source_developer: 'npm run verify && npm run docs:check && git diff --check',
-      package_integrity: 'RUN_A9_09_INTEGRITY.cmd',
+      package_integrity: 'RUN_A9_14_INTEGRITY.cmd',
       win10: windows('win10'),
       win7: windows('win7'),
     },
@@ -407,6 +417,24 @@ function createValidationKit(root, sourceCommit, lock) {
       },
       rule: 'Each W17 case may use INHERITED_EVIDENCE only through its kit-locked JSON pointer into the exact hashed WIN7-19 disposition, ledger, or incremental report under evidence_root.',
     },
+    schema_v4_inheritance: {
+      status: 'INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH',
+      source_commit: 'd28c1b9510d6d528f07e8a76a7527b4fc25c35ba',
+      from_candidate: {
+        candidate_id: 'WIN7-21',
+        result: 'FIX_BEFORE_ALPHA',
+        package_sha256: '069851faab007b88c858fd23a387c4a22fa309de3e0e2400b7c07a00bc733f8d',
+        manifest_sha256: 'dbc68d2cf15f57a3c80915544a11cb19ac60ba75ef002249bbe0bd52a8f13df8',
+        scope: 'schema-v4 migration and rollback only; no WIN7-21 candidate PASS is inherited',
+      },
+      source_artifact_hashes: schemaV4SourceHashes,
+      evidence: [
+        { path: 'WIN7-21-schema/w21-schema-migration-isolated.json', sha256: 'a8f4ac185c7b374145ccb10d1ce7a21a01070137e93ef5cae44b2d3359f782c0' },
+        { path: 'WIN7-21-schema/w21-schema-rollback.json', sha256: '3adfbd30638dbe3016926b9a6f7f2bd23e75d1653b746bd0368e4258ce25d93d' },
+        { path: 'WIN7-21-schema/w21-schema-rollback-injection.json', sha256: '0ca0ede9a41560e244025e0ba5a30e688bfff55b6272f0535073ae95281ba9a6' },
+        { path: 'WIN7-21-schema/w21-schema-rollback-diagnostics.json', sha256: '4d33bff2c0b64df426548c394805e6353b7f3ab9ee902fcd8faf86e59dfc0f2d' },
+      ],
+    },
     incremental_win7_cases: createWin7IncrementalCases(),
     same_candidate_binding: ['release_id', 'package_sha256', 'manifest_sha256'],
     external_validation: { win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', alpha: 'NOT_PERFORMED' },
@@ -464,8 +492,8 @@ function createWin7IncrementalCases() {
       ['exercise Chinese/space, CP936/UTF-8/UTF-16, CRLF/LF, junction and near-MAX_PATH fixtures', 'repeat critical Shell/Stop flow under both tokens', 'record SSH/Bitvise strict-host-key handshake state without disabling verification'],
       ['supported paths preserve bytes/newlines or fail structurally', 'token level is truthful', 'strict host-key verification remains enabled and handshake closure is classified as environment evidence'],
       ['fixture hashes', 'token/elevation evidence', 'SSH/Bitvise verbose log', 'postflight residue scan']),
-    caseOf('W21-WIN7-19-SCHEMA-V4-COMPAT',
-      ['ordinary-user token', 'immutable copy of the exact WIN7-19 schema v4 profile with known session/draft/metadata rows', 'new WIN7-21 candidate identity and integrity PASS'],
+    caseOf('W22-WIN7-19-SCHEMA-V4-COMPAT',
+      ['ordinary-user token', 'immutable copy of the exact WIN7-19 schema v4 profile with known session/draft/metadata rows', 'new WIN7-22 candidate identity and integrity PASS'],
       ['record source database and sidecar hashes plus PRAGMA table/index/quick_check evidence',
         'launch the formal Electron candidate against the copied profile and wait for workbench ready',
         'close cleanly; record migration backup path/hash/quick_check and canonical PRAGMA schema',
@@ -479,12 +507,12 @@ function createWin7IncrementalCases() {
       ['pre/post database and sidecar SHA-256 ledger', 'backup SHA-256 and independent quick_check output',
         'PRAGMA table_info/index_list/index_xinfo/sqlite_master capture', 'session/draft/metadata row export with secrets redacted',
         'Electron startup/ready evidence', 'external BEGIN IMMEDIATE injector log', 'restricted-diagnostics capture and rollback hash evidence']),
-    caseOf('W21-D013-V25-CURRENT-USER',
+    caseOf('W22-D013-V25-CURRENT-USER',
       ['ordinary-user token', 'PowerShell 5.1 and CMD available', 'v25 helper and protocol v2 manifest-bound'],
       ['run equivalent workspace write through PowerShell and CMD', 'run one user-configured explicit Shell', 'inspect helper readiness/result proofs and workdir ACL before/after'],
       ['child is the same ordinary user Primary Token', 'restrictedToken/lowIntegrity/workDirAclModified are false', 'Job/input/output proofs are true', 'workspace write succeeds without elevation'],
       ['redacted protocol transcript', 'token SID/elevation facts', 'workdir SDDL before/after', 'created-file hashes']),
-    caseOf('W21-D013-V25-ENV-IDENTITY',
+    caseOf('W22-D013-V25-ENV-IDENTITY',
       ['non-secret workspace overlay configured', 'known Provider secret retained only in DPAPI/memory'],
       ['read non-secret overlay from CMD and PowerShell', 'attempt secret-shaped and all NODE_*/ELECTRON_*/TLS controls',
         'use synthetic known secrets and Base64/Base64URL/percent variants under ordinary names in inherited environment and overlay',
@@ -495,12 +523,12 @@ function createWin7IncrementalCases() {
         'rejected persisted overlays are cleared across workspaces and remain blocked after restart until user reconfiguration',
         'inherited Provider secrets are absent', 'identity mismatch fails before child execution'],
       ['redacted output', 'zero-hit secret scan', 'file hashes before/after', 'structured rejection codes']),
-    caseOf('W21-D013-V25-NO-DEADLINE-STOP',
+    caseOf('W22-D013-V25-NO-DEADLINE-STOP',
       ['protocol v2 deadlineMode=none', 'one foreground long command'],
       ['run beyond the historical fixed timeout boundary or a compressed acceptance equivalent', 'confirm it remains active', 'press Stop', 'repeat Stop after final result'],
       ['no artificial total/idle timeout fires', 'first Stop reaches the same request and reclaims the Job tree', 'repeat Stop causes no new execution', 'final cleanupConfirmed is true'],
       ['monotonic timestamps', 'request IDs', 'PID/tree snapshots', 'postflight zero-residue scan']),
-    caseOf('W21-D013-V25-BACKGROUND-READY',
+    caseOf('W22-D013-V25-BACKGROUND-READY',
       ['managed v2 command that creates a child process', 'clean and crash-recovery variants'],
       ['start background command', 'verify UI running state appears only after execution_started', 'Stop twice', 'restart with recovered PID fact and exercise exit lock'],
       ['persisted PID is childPid rather than helperPid', 'ready proves Job/stdin/double capture', 'uncertain cleanup stays cleanup_required', 'recovered PID is not identity-blind killed', 'confirmed stop leaves zero residue'],
@@ -536,7 +564,7 @@ function copyContractEvidence(root, stage) {
     'docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md',
     'docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md',
     'docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md',
-    'docs/tasks/A9_13_WIN7_19_SCHEMA_V4_COMPATIBILITY.md',
+    'docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md',
     'docs/status/a9-01-to-a9-06-developer-gates-20260823.json',
   ]) {
     const source = path.join(root, relative);
@@ -589,7 +617,7 @@ function scanSensitivePayload(stage) {
 }
 
 function validateA9Lock(lock) {
-  if (!lock || lock.schema_version !== 1 || lock.lock_id !== 'A9-13-INPUTS-WIN7-21-SCHEMA-V4-COMPAT'
+  if (!lock || lock.schema_version !== 1 || lock.lock_id !== 'A9-14-INPUTS-D013-V25-WIN7-22'
       || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA1' ||
       lock.version !== '0.3.0-alpha.1' || lock.inputs_are_not_a9_pass !== true || !lock.runtime_profiles?.runner) {
     throw new Error('A9_INPUT_LOCK_INVALID');
@@ -600,11 +628,11 @@ function validateA9Lock(lock) {
   if (lock.inputs.storage_return_zip.sqlite !== '3.43.1' || lock.inputs.storage_return_zip.electron_abi !== 110) throw new Error('A9_STORAGE_PROFILE_INVALID');
   if (lock.inputs.runner_return_zip.profile !== 'D-013-v25-a9-trusted-shell-current-user' ||
       lock.inputs.runner_return_zip.protocol_version !== 2) throw new Error('A9_D013_V25_PROFILE_INVALID');
-  if (lock.gates?.win10 !== 'REUSED_APPROVED_D013_V25_INPUT_ONLY_NOT_CANDIDATE_PASS'
-      || lock.gates?.win7 !== 'NOT_PERFORMED_WIN7_21' || lock.gates?.alpha !== 'NOT_PERFORMED'
-      || lock.provenance?.task !== 'A9-13' || lock.provenance?.superseded_candidate !== 'WIN7-20'
+  if (lock.gates?.win10 !== 'PASS_D013_V25_RETURN_REVIEWED'
+      || lock.gates?.win7 !== 'NOT_PERFORMED_WIN7_22' || lock.gates?.alpha !== 'NOT_PERFORMED'
+      || lock.provenance?.task !== 'A9-14' || lock.provenance?.superseded_candidate !== 'WIN7-21'
       || lock.provenance?.superseded_candidate_result !== 'FIX_BEFORE_ALPHA') {
-    throw new Error('A9_WIN7_21_INPUT_LOCK_PROVENANCE_INVALID');
+    throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;
   if (runner.runtime_profile !== 'a9-trusted-shell-current-user-v1'
@@ -631,7 +659,7 @@ function requiredInput(value, label) {
 function sha256Bytes(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function git(root, args) { return execFileSync('git', ['-c', 'core.fsmonitor=false', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
 function licenseInventory(lock) { return `# A9 third-party licenses and support risk\n\n| Component | Version | License | Boundary |\n|---|---:|---|---|\n| Electron | ${lock.inputs.electron_zip.version} | MIT + Chromium notices | Trusted local UI; no untrusted web content |\n| D-013 helper | ${lock.inputs.runner_return_zip.version} | Apache-2.0 | Process containment compatibility input |\n| better-sqlite3 | ${lock.inputs.storage_return_zip.version} | MIT | Electron ABI 110; local data root |\n| SQLite | ${lock.inputs.storage_return_zip.sqlite} | Public Domain | A9 Schema v4, WAL/backup/recovery |\n| ajv/runtime closure | locked package tree | MIT/BSD | Offline IPC schema validation |\n\nElectron 22 and Node 16 are EOL inputs retained for Win7 compatibility. Win7 support is established only by same-candidate real-machine evidence.\n`; }
-function installationGuide(lock) { return `# A9 Alpha 1 installation and rollback\n\n- Target: ${lock.target.os}, ${lock.target.architecture}; self-contained offline ZIP; ordinary user.\n- Extract to a new directory. Do not overwrite A7, A8, WIN7-19 or an earlier A9 directory.\n- Before running candidate executables, use the trusted repository verifier and independently approved release-authority SHA-256 for preflight (A9_09_WINDOWS_VALIDATION.md). Then run RUN_A9_09_INTEGRITY.cmd with the original ZIP, external formal input lock, external approval registry, external release authority and its approved SHA-256. No system Node is required on Win7.\n- Default state is %LOCALAPPDATA%\\Win7CodingAgent\\a9. Use electron.exe --portable only when package-adjacent state is explicitly wanted.\n- The application does not change PATH, services, registry or firewall and does not download a runtime.\n- Keep the old program directory during upgrade. On failure stop the new candidate and relaunch the old directory against the preserved data; retain corruption backups and evidence.\n- API keys must be entered only in Settings and are remembered only through Windows DPAPI. Never put them in validation commands or reports.\n- This package remains NOT_PERFORMED for Win10, Win7 and Alpha until same-candidate external evidence is recorded.\n`; }
+function installationGuide(lock) { return `# A9 Alpha 1 installation and rollback\n\n- Target: ${lock.target.os}, ${lock.target.architecture}; self-contained offline ZIP; ordinary user.\n- Extract to a new directory. Do not overwrite A7, A8, WIN7-19, WIN7-20, WIN7-21 or an earlier A9 directory.\n- Before running candidate executables, use the trusted repository verifier and independently approved release-authority SHA-256 for preflight (A9_14_WINDOWS_VALIDATION.md). Then run RUN_A9_14_INTEGRITY.cmd with the original ZIP, external formal input lock, external approval registry, external release authority and its approved SHA-256. No system Node is required on Win7.\n- Default state is %LOCALAPPDATA%\\Win7CodingAgent\\a9. Use electron.exe --portable only when package-adjacent state is explicitly wanted.\n- The application does not change PATH, services, registry or firewall and does not download a runtime.\n- Keep the old program directory during upgrade. On failure stop the new candidate and relaunch the old directory against the preserved data; retain corruption backups and evidence.\n- API keys must be entered only in Settings and are remembered only through Windows DPAPI. Never put them in validation commands or reports.\n- This package remains NOT_PERFORMED for Win10, Win7 and Alpha until same-candidate external evidence is recorded.\n`; }
 
 if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
   try {
