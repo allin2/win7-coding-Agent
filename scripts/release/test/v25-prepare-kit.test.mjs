@@ -100,6 +100,17 @@ test('prepare-kit still refuses uncommitted helper source instead of forging a n
   assert.deepEqual(fs.readFileSync(path.join(f.kit, 'input-lock.json')), lockBefore);
 });
 
+test('prepare-kit rejects a README that would record returns into the historical helper lock', () => {
+  const f = fixture();
+  const readme = path.join(f.kit, 'README_BUILD.md');
+  fs.writeFileSync(readme, fs.readFileSync(readme, 'utf8')
+    .replace('--output release/win7-product-v3/a9-14-win7-22-input-lock.json',
+      '--output release/win7-product-v3/a9-09-input-lock.json'), 'utf8');
+  const result = runPrepare(f.kit);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /README must bind WIN7-21 base lock to the new WIN7-22 helper input lock/);
+});
+
 test('production smoke and isolated PowerShell self-test call the same ordered-dictionary copy', () => {
   const script = fs.readFileSync(path.join(kitRoot, 'build.ps1'), 'utf8');
   assert.doesNotMatch(script, /\$v2RequestPayload\.Clone\s*\(/);

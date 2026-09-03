@@ -169,6 +169,12 @@ if (cancelPollIndex < 0 || rollbackIndex < 0 || cancelPollIndex > rollbackIndex 
 }
 const buildScript = fs.readFileSync(path.join(HERE, 'build.ps1'), 'utf8');
 const buildProfile = fs.readFileSync(path.join(HERE, 'build-profile.json'), 'utf8');
+const buildReadme = fs.readFileSync(path.join(HERE, 'README_BUILD.md'), 'utf8');
+if (!/--base-lock\s+release\/win7-product-v3\/a9-13-win7-21-input-lock\.json/.test(buildReadme) ||
+    !/--output\s+release\/win7-product-v3\/a9-14-win7-22-input-lock\.json/.test(buildReadme) ||
+    /只创建新的 `release\/win7-product-v3\/a9-09-input-lock\.json`/.test(buildReadme)) {
+  throw new Error('README must bind WIN7-21 base lock to the new WIN7-22 helper input lock');
+}
 if (!/"\/Brepro"/.test(buildProfile) ||
     !/"\/experimental:deterministic"/.test(buildProfile) ||
     !/"path_map"\s*:\s*"<kit-root>=C:\\\\a9-v25-kit"/.test(buildProfile) ||
