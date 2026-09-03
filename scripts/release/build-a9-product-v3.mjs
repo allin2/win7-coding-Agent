@@ -31,7 +31,7 @@ const GENERATED_RUNTIME_DIST = /^src\/(?:core|gateway|git-adapter|runner|shell|s
 export function releaseSourceStatus(porcelain) {
   return String(porcelain || '').split(/\r?\n/).filter(Boolean).filter((line) => {
     const changedPath = line.slice(3).split(' -> ').pop().replace(/^"|"$/g, '');
-    return !GENERATED_RUNTIME_DIST.test(changedPath);
+    return !(line.startsWith(' M ') && GENERATED_RUNTIME_DIST.test(changedPath));
   }).join('\n');
 }
 

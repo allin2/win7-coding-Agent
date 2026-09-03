@@ -275,6 +275,10 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
 test('A9 v3 builder produces byte-identical fixture candidates with the complete runtime closure', () => {
   assert.equal(releaseSourceStatus(' M src/runner/dist/index.js\n M src/state/dist/index.js\n'), '');
   assert.equal(releaseSourceStatus(' M src/runner/dist/index.js\n M src/runner/src/index.ts\n'), ' M src/runner/src/index.ts');
+  assert.equal(releaseSourceStatus('?? src/runner/dist/rogue.js\n'), '?? src/runner/dist/rogue.js');
+  assert.equal(releaseSourceStatus('M  src/runner/dist/index.js\n'), 'M  src/runner/dist/index.js');
+  assert.equal(releaseSourceStatus('R  docs/SECURITY.md -> src/runner/dist/SECURITY.js\n'),
+    'R  docs/SECURITY.md -> src/runner/dist/SECURITY.js');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-package-fixture-'));
   const inputs = fixture(root);
   const options = { repositoryRoot: process.cwd(), ...inputs, outputRoot: path.join(root, 'out'), allowUncommitted: true };
