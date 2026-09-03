@@ -16,13 +16,20 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；WIN7-20 因既有 schema v4 profile 初始化失败永久裁决 `FIX_BEFORE_ALPHA`；A9-13 从源码 `9323cbe` 修复并独审，目标为全新 WIN7-21 且从 G0 重走门禁 |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；A9-14 已授权精确修复 D-013 CMD helper 命令行并以全新 WIN7-22 重走受影响门禁 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
 ## A9 Trusted Agent Runtime（2026-08-31）
+
+- 2026-09-03，WIN7-21 在 Win7 普通用户 D-013 CMD 当前候选用例失败：native helper 对已绑定的
+  `/d /s /c` command payload 再次套用 CRT argv 引号，导致内部双引号被反斜杠转义，目标文件未创建；
+  同一 payload 经管理通道直启成功。独立复核结论 `P0=0 / P1=1 / P2=1`，G6 硬停止、G7 未执行，
+  WIN7-21 永久保持 `FIX_BEFORE_ALPHA`。负责人已授权 ADR-0111/A9-14 在独立干净分支作最小 verbatim
+  修复、独审、重新冻结和双构建，以全新 WIN7-22 重跑受 helper/候选影响的门禁；稳定宿主项仅轻量复核，
+  未受影响历史能力只允许精确哈希继承。当前尚未形成新源码冻结、Win10、Win7 或 Alpha PASS。
 
 - 2026-09-03，WIN7-20 在 Win7 普通用户正式 Electron 启动时因既有 WIN7-19 schema v4 的
   `a9_sessions.last_activated_at` 物理声明可为空而被后置严格校验器拒绝；四项直接用例均未执行，候选

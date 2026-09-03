@@ -1621,3 +1621,25 @@
   或畸形 v4 仍拒绝启动。开发机和 Win10 结果不构成 Win7 PASS；WIN7-21 必须直接证明旧 profile 启动、
   数据保持、迁移原子性、生命周期和受影响产品旅程。本决策不修改 WIN7-19/WIN7-20 工件、原生协议、
   Provider、Runner、权限或历史验收结论。
+
+## ADR-0111 D-013 CMD payload 原样装配与 WIN7-22 门禁继承边界
+
+- 状态：Accepted（2026-09-03，项目负责人授权修复并生成 WIN7-22，从 G0 重走受影响门禁）
+- 背景：WIN7-21 在 Win7 D-013 CMD 当前候选用例中，PowerShell 已成功创建含中文和空格的工作区与环境
+  变量，但 helper 返回后目标文件不存在；同一 `cmd.exe /d /s /c` payload 经管理通道直启成功。协议 v2
+  已把 CMD 的 command 与 `argv[3]` 精确绑定，Runner 直启也使用 Windows verbatim 参数；helper 仍把整个
+  argv 交给 CRT 引号算法，令 payload 内部双引号变成反斜杠加双引号。CMD 不采用 CRT 的反斜杠转义规则，
+  因而命令语义被改变。该问题属于候选源码/原生字节缺陷，不是现场脚本或宿主能力缺失。
+- 决策：（1）仅在协议 v2、`shellKind=cmd` 且 TrustedShell host 校验已确认 executable 身份、固定
+  `/d /s /c`、`argv[3] == command` 后，helper 使用已引用 executable、固定开关和未经 CRT 二次转义的
+  command payload 构造 Windows 命令行。PowerShell、其他批准 shell 与 v1 保持通用 argv 构造；协议、
+  环境过滤、权限、审批、Job、取消和输出合同不变。（2）纯逻辑测试覆盖内部引号、环境变量、中文空格、
+  重定向和 `&`；Win10 双构建 smoke 与 Win7 D-013 当前用例必须真实创建、读取目标 marker，并在文件断言
+  前保存 helper 原始响应。（3）新增 A9-14 白名单和冻结前独审；WIN7-21 工件、证据及失败裁决不可变。
+  WIN7-22 必须重跑 G0～G3、G5～G7，G4 只可对不受候选影响的稳定宿主事实轻量复核。A9-13 schema v4
+  迁移/回滚与历史未受影响能力仅在精确源码、模块、夹具和证据哈希不变时标记
+  `INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH`，不得写成当前候选直接 PASS。
+- 后果：CMD 命令继续由用户/模型的已批准 command 交给 `cmd.exe` 解释，本修复不新增安全隔离，也不允许
+  绕过目标绑定。通用 argv 构造仍不适用于 CMD `/c` payload；未来新增 CMD 启动入口必须复用该显式语义。
+  helper 字节改变，因此旧 Win10 helper lock、WIN7-21 产品 lock/ZIP/authority 都不能用于 WIN7-22。
+  开发机逻辑测试和继承证据不构成 Win10/Win7 PASS；任何受影响 Gate 失败继续 fail-closed。
