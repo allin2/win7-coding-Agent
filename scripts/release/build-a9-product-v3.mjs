@@ -17,7 +17,6 @@ import {
   extractStorageRuntime,
   listPayloadFiles,
   loadJson,
-  requireBuiltDirectory,
   sha256File,
   verifyPackagedJavaScript,
   writeJson,
@@ -26,14 +25,7 @@ import { extractZip, getZipEntry, readZipEntries, readZipEntry, writeDeterminist
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
-const GENERATED_RUNTIME_DIST = /^src\/(?:core|gateway|git-adapter|runner|shell|state|workspace)\/dist(?:\/|$)/;
-
-export function releaseSourceStatus(porcelain) {
-  return String(porcelain || '').split(/\r?\n/).filter(Boolean).filter((line) => {
-    const changedPath = line.slice(3).split(' -> ').pop().replace(/^"|"$/g, '');
-    return !(line.startsWith(' M ') && GENERATED_RUNTIME_DIST.test(changedPath));
-  }).join('\n');
-}
+const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
@@ -47,7 +39,7 @@ export function buildA9ProductCandidate(options) {
   if (sourceCommit !== currentHead) {
     throw new Error('A9_SOURCE_COMMIT_HEAD_MISMATCH');
   }
-  const sourceStatus = releaseSourceStatus(git(root, ['status', '--porcelain', '--untracked-files=all']));
+  const sourceStatus = git(root, ['status', '--porcelain', '--untracked-files=all']).trim();
   if (sourceStatus && !options.allowUncommitted) throw new Error('A9_SOURCE_WORKTREE_NOT_CLEAN');
 
   const electronZip = requiredInput(options.electronZip, 'A9_ELECTRON_ZIP');
@@ -64,27 +56,26 @@ export function buildA9ProductCandidate(options) {
   assertHash('A9_RUNNER_ENTRY', sha256Bytes(helperBytes), lock.inputs.runner_return_zip.required_entry_sha256);
   assertHash('A9_STORAGE_ENTRY', sha256Bytes(storageBytes), lock.inputs.storage_return_zip.required_entry_sha256);
 
-  // Ignored dist directories are build outputs, never trusted inputs. Compile
-  // from the current source tree before creating any candidate work directory.
-  buildRuntimeDistributions(root);
-
   const outputRoot = path.resolve(options.outputRoot || path.join(root, 'release', 'win7-product-v3', 'out'));
   const workRoot = path.join(outputRoot, '.work');
+  const runtimeBuildRoot = path.join(outputRoot, `.runtime-build-${process.pid}`);
   const packageName = `Win7CodingAgent-${lock.version}-win7-x64`;
   const stage = path.join(workRoot, packageName);
   const zipPath = path.join(outputRoot, `${packageName}.zip`);
   const temporaryZipPath = `${zipPath}.tmp-${process.pid}`;
   const temporarySidecarPath = `${zipPath}.sha256.tmp-${process.pid}`;
   fs.rmSync(workRoot, { recursive: true, force: true });
+  fs.rmSync(runtimeBuildRoot, { recursive: true, force: true });
   fs.mkdirSync(stage, { recursive: true });
   try {
+    const runtimeDistributions = buildRuntimeDistributions(root, runtimeBuildRoot);
     extractZip(electronZip, stage);
     const appRoot = path.join(stage, 'resources', 'app');
     const nativeRoot = path.join(stage, 'resources', 'native');
     copyDirectory(path.join(root, 'src', 'shell', 'product'), path.join(appRoot, 'product'));
-    copyRuntimeJavaScript(requireBuiltDirectory(root, 'shell'), path.join(appRoot, 'dist'));
+    copyRuntimeJavaScript(runtimeDistributions.get('shell'), path.join(appRoot, 'dist'));
     for (const moduleName of ['core', 'gateway', 'git-adapter', 'runner', 'state', 'workspace']) {
-      copyRuntimeJavaScript(requireBuiltDirectory(root, moduleName), path.join(appRoot, moduleName, 'dist'));
+      copyRuntimeJavaScript(runtimeDistributions.get(moduleName), path.join(appRoot, moduleName, 'dist'));
     }
     const runtimeDependencies = copyRuntimeDependencies(root, appRoot);
     writeJson(path.join(appRoot, 'package.json'), {
@@ -228,9 +219,11 @@ export function buildA9ProductCandidate(options) {
       gates: manifest.gates,
     };
     writeJson(path.join(outputRoot, 'A9_14_BUILD_RESULT.json'), buildResult);
+    fs.rmSync(runtimeBuildRoot, { recursive: true, force: true });
     return { lock, stage, zipPath, zipHash, manifest, buildResult };
   } catch (error) {
     fs.rmSync(workRoot, { recursive: true, force: true });
+    fs.rmSync(runtimeBuildRoot, { recursive: true, force: true });
     fs.rmSync(temporaryZipPath, { force: true });
     fs.rmSync(temporarySidecarPath, { force: true });
     throw error;
@@ -547,25 +540,43 @@ function createWin7IncrementalCases() {
   ];
 }
 
-function buildRuntimeDistributions(root) {
-  const npmName = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const npmExecutable = path.join(path.dirname(process.execPath), npmName);
-  if (!fs.existsSync(npmExecutable) || !fs.statSync(npmExecutable).isFile()) {
-    throw new Error(`A9_BUILD_TOOL_IDENTITY_UNAVAILABLE:${npmExecutable}`);
+function buildRuntimeDistributions(root, outputRoot) {
+  const distributions = new Map();
+  for (const moduleName of RUNTIME_MODULES) {
+    const moduleRoot = path.join(root, 'src', moduleName);
+    const moduleRequire = createRequire(path.join(moduleRoot, 'package.json'));
+    let compiler;
+    try {
+      compiler = moduleRequire.resolve('typescript/bin/tsc');
+    } catch {
+      throw new Error(`A9_BUILD_TOOL_IDENTITY_UNAVAILABLE:src/${moduleName}/node_modules/typescript/bin/tsc`);
+    }
+    const destination = path.join(outputRoot, moduleName);
+    fs.mkdirSync(destination, { recursive: true });
+    try {
+      execFileSync(process.execPath, [
+        compiler,
+        '--project', path.join(moduleRoot, 'tsconfig.json'),
+        '--outDir', destination,
+        '--declaration', 'false',
+        '--declarationMap', 'false',
+        '--sourceMap', 'false',
+      ], {
+        cwd: moduleRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      const detail = String((error && (error.stderr || error.stdout || error.message)) || error).trim().slice(0, 2000);
+      throw new Error(`A9_RUNTIME_BUILD_FAILED:${moduleName}:${detail}`);
+    }
+    const files = listPayloadFiles(destination);
+    if (!files.length || files.some((item) => path.extname(item).toLowerCase() !== '.js')) {
+      throw new Error(`A9_RUNTIME_BUILD_OUTPUT_INVALID:${moduleName}`);
+    }
+    distributions.set(moduleName, destination);
   }
-  try {
-    execFileSync(npmExecutable, ['run', 'build', '--workspaces', '--if-present'], {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (error) {
-    const detail = String((error && (error.stderr || error.message)) || error).trim().slice(0, 2000);
-    throw new Error(`A9_RUNTIME_BUILD_FAILED:${detail}`);
-  }
-  for (const moduleName of ['shell', 'core', 'gateway', 'git-adapter', 'runner', 'state', 'workspace']) {
-    requireBuiltDirectory(root, moduleName);
-  }
+  return distributions;
 }
 
 function copyContractEvidence(root, stage) {

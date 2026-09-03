@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { buildA9ProductCandidate, releaseSourceStatus } from '../build-a9-product-v3.mjs';
+import { buildA9ProductCandidate } from '../build-a9-product-v3.mjs';
 import { recordA9V25HelperInput, verifyCommittedApprovalRegistry } from '../record-a9-v25-helper-input.mjs';
 import { createFileManifest, sha256File, writeJson } from '../release-contract.mjs';
 import { writeDeterministicZip } from '../zip-utils.mjs';
@@ -273,19 +273,21 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
 }
 
 test('A9 v3 builder produces byte-identical fixture candidates with the complete runtime closure', () => {
-  assert.equal(releaseSourceStatus(' M src/runner/dist/index.js\n M src/state/dist/index.js\n'), '');
-  assert.equal(releaseSourceStatus(' M src/runner/dist/index.js\n M src/runner/src/index.ts\n'), ' M src/runner/src/index.ts');
-  assert.equal(releaseSourceStatus('?? src/runner/dist/rogue.js\n'), '?? src/runner/dist/rogue.js');
-  assert.equal(releaseSourceStatus('M  src/runner/dist/index.js\n'), 'M  src/runner/dist/index.js');
-  assert.equal(releaseSourceStatus('R  docs/SECURITY.md -> src/runner/dist/SECURITY.js\n'),
-    'R  docs/SECURITY.md -> src/runner/dist/SECURITY.js');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-package-fixture-'));
   const inputs = fixture(root);
   const options = { repositoryRoot: process.cwd(), ...inputs, outputRoot: path.join(root, 'out'), allowUncommitted: true };
   const first = buildA9ProductCandidate(options);
   const firstBytes = fs.readFileSync(first.zipPath);
-  const second = buildA9ProductCandidate(options);
+  const ignoredRogue = path.join(process.cwd(), 'src/runner/dist/.a9-release-ignored-rogue.js');
+  fs.writeFileSync(ignoredRogue, 'module.exports = "rogue";\n', 'utf8');
+  let second;
+  try {
+    second = buildA9ProductCandidate(options);
+  } finally {
+    fs.rmSync(ignoredRogue, { force: true });
+  }
   assert.deepEqual(fs.readFileSync(second.zipPath), firstBytes);
+  assert.equal(fs.existsSync(path.join(second.stage, 'resources', 'app', 'runner', 'dist', '.a9-release-ignored-rogue.js')), false);
   const oldLockPath = path.join(root, 'a9-09-input-lock.json');
   const oldLock = JSON.parse(fs.readFileSync(inputs.lockPath, 'utf8'));
   oldLock.lock_id = 'A9-09-INPUTS-D013-V25';
