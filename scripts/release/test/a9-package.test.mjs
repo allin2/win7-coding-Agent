@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { buildA9ProductCandidate } from '../build-a9-product-v3.mjs';
+import { buildA9ProductCandidate, releaseSourceStatus } from '../build-a9-product-v3.mjs';
 import { recordA9V25HelperInput, verifyCommittedApprovalRegistry } from '../record-a9-v25-helper-input.mjs';
 import { createFileManifest, sha256File, writeJson } from '../release-contract.mjs';
 import { writeDeterministicZip } from '../zip-utils.mjs';
@@ -273,6 +273,8 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
 }
 
 test('A9 v3 builder produces byte-identical fixture candidates with the complete runtime closure', () => {
+  assert.equal(releaseSourceStatus(' M src/runner/dist/index.js\n M src/state/dist/index.js\n'), '');
+  assert.equal(releaseSourceStatus(' M src/runner/dist/index.js\n M src/runner/src/index.ts\n'), ' M src/runner/src/index.ts');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-package-fixture-'));
   const inputs = fixture(root);
   const options = { repositoryRoot: process.cwd(), ...inputs, outputRoot: path.join(root, 'out'), allowUncommitted: true };
@@ -988,7 +990,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
     verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true,
     lowIntegrity: false,
   };
-  const transcript = (requestId, shellKind, command, stdout, canceled = false, envOverlay = {}) => {
+  const transcript = (requestId, shellKind, command, stdout, canceled = false, envOverlay = {}, shellSource = 'automatic') => {
     const shellPath = shellKind === 'cmd' ? 'C:\\Windows\\System32\\cmd.exe'
       : 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
     const wrapped = `$ProgressPreference='SilentlyContinue'\r\n${command}\r\nexit 0`;
@@ -998,7 +1000,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
     return {
       request: { schemaVersion: 2, requestId, profileId: 'a9-trusted-shell-current-user-v1', executable: shellPath,
         argv, shellKind, shellPath, shellIdentity: 'a'.repeat(64), shellVersion: 'file-123-456',
-        shellSource: 'workspace_explicit', command, cwd: 'C:\\A9验收\\工作区\\中文 空格项目', envOverlay,
+        shellSource, command, cwd: 'C:\\A9验收\\工作区\\中文 空格项目', envOverlay,
         managed: true, deadlineMode: 'none' },
       ready: { schemaVersion: 2, type: 'execution_started', requestId, profileId: 'a9-trusted-shell-current-user-v1',
         helperPid: 101, childPid: 102, ready: { childJobAssignmentVerified: true, inputDetached: true,
@@ -1013,7 +1015,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
   const ps = transcript('w22-current-ps', 'powershell',
     "[IO.File]::WriteAllText((Join-Path $env:A9_W22_WORKSPACE 'w22-ps-current-user-r3.txt'),'W22_PS_CURRENT_USER',(New-Object Text.UTF8Encoding($false))); Write-Output 'PS_WRITE_OK'", 'PS_WRITE_OK\r\n');
   const cmd = transcript('w22-current-cmd', 'cmd', '> "%A9_W22_WORKSPACE%\\w22-cmd-current-user-r3.txt" <nul set /p "=W22_CMD_CURRENT_USER" & echo CMD_WRITE_OK', 'CMD_WRITE_OK\r\n');
-  const explicit = transcript('w22-current-explicit', 'cmd', '> "C:\\A9验收\\工作区\\中文 空格项目\\w22-explicit-shell-r3.txt" <nul set /p "=W22_EXPLICIT_SHELL"', '');
+  const explicit = transcript('w22-current-explicit', 'cmd', '> "C:\\A9验收\\工作区\\中文 空格项目\\w22-explicit-shell-r3.txt" <nul set /p "=W22_EXPLICIT_SHELL"', '', false, {}, 'workspace_explicit');
   const filteredCommand = 'if defined W22_INHERITED_RAW exit /b 41 & if defined W22_INHERITED_BASE64 exit /b 42 & if defined W22_INHERITED_BASE64URL exit /b 43 & if defined W22_INHERITED_PERCENT exit /b 44 & echo FILTERED_OK';
   const filtered = transcript('w22-env-filtered', 'cmd', filteredCommand, 'FILTERED_OK\r\n');
   const visible = transcript('w22-env-visible', 'cmd', 'if "%A9_W22_VISIBLE%"=="ordinary-overlay" (echo VISIBLE_OK) else (exit /b 51)',
@@ -1034,13 +1036,16 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
         created_files: markerEvidence, raw_protocol: {}, events: [] },
       'W22-D013-V25-ENV-IDENTITY': { status: 'PASS', filtered_child: filtered, visible_child: visible,
         rejected_entries: ['API_TOKEN', 'NODE_OPTIONS', 'ELECTRON_ENABLE_LOGGING', 'NODE_TLS_REJECT_UNAUTHORIZED',
-          'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT']
+          'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT',
+          'BUILD_SECRET_FORM', 'BUILD_SECRET_BASE64_PERCENT']
           .map((name, index) => ({ name, code: 'A9_ENV_OVERLAY_REJECTED',
             ...(index >= 4 ? { value_sha256: [
-              'A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f',
-              Buffer.from('A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f').toString('base64'),
-              Buffer.from('A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
-              encodeURIComponent('A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f'),
+              'A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f',
+              Buffer.from('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').toString('base64'),
+              Buffer.from('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
+              encodeURIComponent('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f'),
+              encodeURIComponent('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').replace(/%20/g, '+'),
+              encodeURIComponent(Buffer.from('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').toString('base64')),
             ].map((value) => digest(value))[index - 4] } : {}) })),
         ordinary_overlay_visible: true, inherited_secret_variants_absent: true,
         provider_rotation_rejection: 'A9_ENV_OVERLAY_REJECTED', persisted_rejection_survived_restart: true,
@@ -1086,7 +1091,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
   envProof.events = ['rejections_recorded', 'filtered_child_completed', 'visible_child_completed', 'provider_rotation_rejected',
     'config_scrubbed', 'runtime_reopened_blocked', 'explicit_reapply_completed', 'identity_mismatch_rejected_before_child']
     .map((event, index) => ({ seq: index + 1, monotonic_ms: index * 10, event,
-      ...(event === 'rejections_recorded' ? { rejection_count: 8 } : {}),
+      ...(event === 'rejections_recorded' ? { rejection_count: 10 } : {}),
       ...(event === 'filtered_child_completed' ? { request_id: filtered.request.requestId,
         artifact_sha256: envProof.raw_protocol.filtered[0].sha256 } : {}),
       ...(event === 'visible_child_completed' ? { request_id: visible.request.requestId,
@@ -1197,7 +1202,7 @@ test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol
     /A9_W22_D013_NO_DEADLINE_EVENT_SEQUENCE_INVALID/);
   stopEvent.monotonic_ms = originalStopTime;
   const configOriginal = JSON.parse(JSON.stringify(configAfterRotation));
-  configAfterRotation.workspaces.other.leak = 'A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f';
+  configAfterRotation.workspaces.other.leak = 'A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f';
   writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
   envProof.config_after_rotation[0].sha256 = sha256File(path.join(evidenceRoot, 'config-after-rotation.json'));
   const leakedConfig = JSON.parse(JSON.stringify(report));

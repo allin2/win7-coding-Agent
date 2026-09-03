@@ -309,8 +309,8 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
   `A9_W22_D013_DOCUMENT_INVALID:${caseId}`);
   const proof = document.cases[caseId];
   if (caseId === 'W22-D013-V25-CURRENT-USER') {
-    const ps = validateV2Transcript(proof.powershell, 'powershell', 'D013_CURRENT_PS');
-    const cmd = validateV2Transcript(proof.cmd, 'cmd', 'D013_CURRENT_CMD');
+    const ps = validateV2Transcript(proof.powershell, 'powershell', 'D013_CURRENT_PS', 'automatic');
+    const cmd = validateV2Transcript(proof.cmd, 'cmd', 'D013_CURRENT_CMD', 'automatic');
     const explicit = validateV2Transcript(proof.explicit_shell, 'cmd', 'D013_CURRENT_EXPLICIT', 'workspace_explicit');
     assert(plain(document.environment.shells)
       && canonicalJson(document.environment.shells.powershell) === canonicalJson({
@@ -365,16 +365,17 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
         `A9_W22_D013_MARKER_BYTES_INVALID:${name}`);
     }
   } else if (caseId === 'W22-D013-V25-ENV-IDENTITY') {
-    const filtered = validateV2Transcript(proof.filtered_child, 'cmd', 'D013_ENV_FILTERED');
-    const visible = validateV2Transcript(proof.visible_child, 'cmd', 'D013_ENV_VISIBLE');
+    const filtered = validateV2Transcript(proof.filtered_child, 'cmd', 'D013_ENV_FILTERED', 'automatic');
+    const visible = validateV2Transcript(proof.visible_child, 'cmd', 'D013_ENV_VISIBLE', 'automatic');
     loadBoundJson(proof.raw_protocol?.filtered, proof.filtered_child, evidenceRoot, fileSystem, 'D013_ENV_FILTERED_RAW');
     loadBoundJson(proof.raw_protocol?.visible, proof.visible_child, evidenceRoot, fileSystem, 'D013_ENV_VISIBLE_RAW');
     const expectedRejected = ['API_TOKEN', 'NODE_OPTIONS', 'ELECTRON_ENABLE_LOGGING', 'NODE_TLS_REJECT_UNAUTHORIZED',
-      'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT'];
-    const synthetic = 'A9_W22_SYNTHETIC_SECRET_7f4d0d7052e84b5f';
-    const variants = [synthetic, Buffer.from(synthetic).toString('base64'),
-      Buffer.from(synthetic).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
-      encodeURIComponent(synthetic)];
+      'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT',
+      'BUILD_SECRET_FORM', 'BUILD_SECRET_BASE64_PERCENT'];
+    const synthetic = 'A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f';
+    const base64 = Buffer.from(synthetic).toString('base64');
+    const variants = [synthetic, base64, base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
+      encodeURIComponent(synthetic), encodeURIComponent(synthetic).replace(/%20/g, '+'), encodeURIComponent(base64)];
     const expectedValueHashes = variants.map((value) => sha256(Buffer.from(value)));
     const afterRotation = loadJsonEvidence(proof.config_after_rotation, evidenceRoot, fileSystem, 'D013_ENV_CONFIG_AFTER_ROTATION');
     const afterRestart = loadJsonEvidence(proof.config_after_restart, evidenceRoot, fileSystem, 'D013_ENV_CONFIG_AFTER_RESTART');
@@ -414,7 +415,7 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
       && envEvents[2].artifact_sha256 === proof.raw_protocol.visible[0].sha256,
     'A9_W22_D013_ENV_EVENT_BINDING_INVALID');
   } else if (caseId === 'W22-D013-V25-NO-DEADLINE-STOP') {
-    const stopped = validateV2Transcript(proof.transcript, 'powershell', 'D013_NO_DEADLINE');
+    const stopped = validateV2Transcript(proof.transcript, 'powershell', 'D013_NO_DEADLINE', 'automatic');
     loadBoundJson(proof.raw_protocol, proof.transcript, evidenceRoot, fileSystem, 'D013_NO_DEADLINE_RAW');
     const noDeadlineEvents = validateEventSequence(proof.events,
       ['execution_started', 'active_observed', 'stop_requested', 'raw_result_persisted', 'repeat_stop_observed'],
@@ -430,7 +431,7 @@ function validateD013CaseEvidence(execution, caseId, identity, evidenceRoot, fil
       && noDeadlineEvents[3].artifact_sha256 === proof.raw_protocol[0].sha256,
     'A9_W22_D013_NO_DEADLINE_SEMANTICS_INVALID');
   } else if (caseId === 'W22-D013-V25-BACKGROUND-READY') {
-    const background = validateV2Transcript(proof.transcript, 'cmd', 'D013_BACKGROUND');
+    const background = validateV2Transcript(proof.transcript, 'cmd', 'D013_BACKGROUND', 'automatic');
     loadBoundJson(proof.raw_protocol, proof.transcript, evidenceRoot, fileSystem, 'D013_BACKGROUND_RAW');
     const backgroundEvents = validateEventSequence(proof.events, [
       'execution_started', 'running_persisted_after_ready', 'first_stop_requested', 'raw_result_persisted', 'first_stop_completed',

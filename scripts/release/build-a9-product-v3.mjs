@@ -26,6 +26,14 @@ import { extractZip, getZipEntry, readZipEntries, readZipEntry, writeDeterminist
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
+const GENERATED_RUNTIME_DIST = /^src\/(?:core|gateway|git-adapter|runner|shell|state|workspace)\/dist(?:\/|$)/;
+
+export function releaseSourceStatus(porcelain) {
+  return String(porcelain || '').split(/\r?\n/).filter(Boolean).filter((line) => {
+    const changedPath = line.slice(3).split(' -> ').pop().replace(/^"|"$/g, '');
+    return !GENERATED_RUNTIME_DIST.test(changedPath);
+  }).join('\n');
+}
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
@@ -39,7 +47,7 @@ export function buildA9ProductCandidate(options) {
   if (sourceCommit !== currentHead) {
     throw new Error('A9_SOURCE_COMMIT_HEAD_MISMATCH');
   }
-  const sourceStatus = git(root, ['status', '--porcelain', '--untracked-files=all']).trim();
+  const sourceStatus = releaseSourceStatus(git(root, ['status', '--porcelain', '--untracked-files=all']));
   if (sourceStatus && !options.allowUncommitted) throw new Error('A9_SOURCE_WORKTREE_NOT_CLEAN');
 
   const electronZip = requiredInput(options.electronZip, 'A9_ELECTRON_ZIP');
