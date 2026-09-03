@@ -82,6 +82,8 @@ export function syntheticV25Evidence() {
     'build-transcript.txt': 'synthetic test transcript, not Windows execution',
     'version-stdout.txt': 'win7-agent-helper 1.3.0-d013-v25 win7-x64 profiles=v1-low-risk,v2-current-user',
     'v25-smoke-stdout.txt': v2('d013-v25-smoke', false),
+    'v25-smoke-response.jsonl': v2('d013-v25-smoke', false),
+    'v25-smoke-marker.bin': 'D013_V25_CURRENT_USER',
     'v25-cancel-smoke-stdout.txt': v2('d013-v25-cancel', true),
   };
   for (const stem of ['version', 'smoke', 'cancel-smoke', 'v25-smoke', 'v25-cancel-smoke', 'v25-env-overlay-reject']) files[`${stem}-stderr.txt`] = '';
@@ -94,6 +96,12 @@ export function syntheticV25Evidence() {
       raw_bytes_persisted_before_decode: true, strict_utf8: true, stdout_size: 11, stderr_size: 0, decoded_marker: 'D013_中文',
     },
     'return-package-selftest.json': { schema_version: 1, status: 'PASS', scenario: 'synthetic TOKEN_CREATE_FAILED', expected_candidate_eligible: false },
+    'v25-smoke-request.json': {
+      schemaVersion: 2, requestId: 'd013-v25-smoke', shellKind: 'cmd',
+      argv: ['/d', '/s', '/c', 'if defined NODE_DEBUG (exit /b 45) else (> "%A9_D013_MARKER_PATH%" <nul set /p "=%A9_D013_SMOKE%" & type "%A9_D013_MARKER_PATH%")'],
+      command: 'if defined NODE_DEBUG (exit /b 45) else (> "%A9_D013_MARKER_PATH%" <nul set /p "=%A9_D013_SMOKE%" & type "%A9_D013_MARKER_PATH%")',
+      envOverlay: { A9_D013_SMOKE: 'D013_V25_CURRENT_USER', A9_D013_MARKER_PATH: 'C:\\work\\中文 空格\\cmd-current-user.txt' },
+    },
     'smoke-stdout.txt': v1('d013-smoke', false),
     'cancel-smoke-stdout.txt': v1('d013-cancel-smoke', true),
     'v25-env-overlay-reject-stdout.txt': { type: 'error', error: 'JSON_PARSE_FAILED' },

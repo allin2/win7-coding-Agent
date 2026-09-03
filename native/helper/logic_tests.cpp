@@ -5,7 +5,7 @@
  *   - JSON parser: full request, Unicode (Chinese), escapes, invalid input,
  *     depth bomb, trailing garbage.
  *   - ParseJsonConfig mapping incl. bounds clamping.
- *   - argv command-line quoting (spaces, quotes, empty args, Chinese paths).
+ *   - argv command-line quoting plus v2 cmd.exe verbatim payload preservation.
  *   - Path-shape classification: absolute vs bare/UNC/device/drive-relative/
  *     trailing-dot paths.
  *   - Allow-list: direct System32 tools only, canonical absolute path required,
@@ -265,6 +265,46 @@ static void TestArgvBuilder() {
     const std::wstring quotedExe = BuildCommandLine(
         L"C:\\Program Files\\My Tool\\run.exe", {L"--input", L"a b"});
     CHECK(quotedExe == L"\"C:\\Program Files\\My Tool\\run.exe\" --input \"a b\"");
+
+    const std::wstring cmdPayload =
+        L"> \"%A9_D013_WORKSPACE%\\中文 空格\\cmd-current-user.txt\" "
+        L"echo D013_CMD_OK & echo SECOND";
+    std::wstring cmdLine;
+    CHECK(BuildCmdVerbatimCommandLine(
+        L"C:\\Windows\\System32\\cmd.exe",
+        {L"/d", L"/s", L"/c", cmdPayload}, cmdPayload, &cmdLine));
+    CHECK(cmdLine ==
+          L"C:\\Windows\\System32\\cmd.exe /d /s /c > "
+          L"\"%A9_D013_WORKSPACE%\\中文 空格\\cmd-current-user.txt\" "
+          L"echo D013_CMD_OK & echo SECOND");
+    CHECK(cmdLine.find(L"\\\"") == std::wstring::npos);
+
+    const std::wstring quotedPayload = L"echo \"quoted value\"";
+    std::wstring cmdLineQuotedExe;
+    CHECK(BuildCmdVerbatimCommandLine(
+        L"C:\\Program Files\\cmd.exe",
+        {L"/D", L"/S", L"/C", quotedPayload}, quotedPayload, &cmdLineQuotedExe));
+    CHECK(cmdLineQuotedExe ==
+          L"\"C:\\Program Files\\cmd.exe\" /d /s /c echo \"quoted value\"");
+
+    std::wstring rejected = L"must be cleared";
+    CHECK(!BuildCmdVerbatimCommandLine(
+        L"C:\\Windows\\System32\\cmd.exe",
+        {L"/d", L"/s", L"/c", L"echo changed"}, L"echo ok", &rejected));
+    CHECK(rejected.empty());
+    CHECK(!BuildCmdVerbatimCommandLine(
+        L"C:\\Windows\\System32\\cmd.exe",
+        {L"/d", L"/s", L"/k", L"echo ok"}, L"echo ok", &rejected));
+    CHECK(!BuildCmdVerbatimCommandLine(
+        L"C:\\Windows\\System32\\cmd.exe",
+        {L"/d", L"/s", L"/c", L""}, L"", &rejected));
+    const std::wstring nulCommand(L"echo approved\0 & echo truncated", 30);
+    CHECK(!BuildCmdVerbatimCommandLine(
+        L"C:\\Windows\\System32\\cmd.exe",
+        {L"/d", L"/s", L"/c", nulCommand}, nulCommand, &rejected));
+    const std::wstring nulExecutable(L"C:\\Windows\0\\System32\\cmd.exe", 28);
+    CHECK(!BuildCmdVerbatimCommandLine(
+        nulExecutable, {L"/d", L"/s", L"/c", L"echo ok"}, L"echo ok", &rejected));
 }
 
 static void TestWhitelist() {

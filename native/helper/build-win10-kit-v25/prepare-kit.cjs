@@ -68,6 +68,7 @@ function walk(dir, base) {
 // (the final argument), never pDacl. Keep package generation fail-closed so the
 // positional PACL parameters cannot silently regress again.
 const helperSource = fs.readFileSync(path.join(HELPER_ROOT, 'helper.cpp'), 'utf8');
+const argvBuilderSource = fs.readFileSync(path.join(HELPER_ROOT, 'argv_builder.cpp'), 'utf8');
 if (!/win7-agent-helper 1\.3\.0-d013-v25 win7-x64 profiles=v1-low-risk,v2-current-user/.test(helperSource)) {
   throw new Error('helper.cpp must expose the locked v25 production version banner');
 }
@@ -78,6 +79,13 @@ if (!/currentUserProfile[\s\S]*CreateProcessW\s*\(/.test(helperSource)
     || !/BuildEnvironmentBlock/.test(helperSource)
     || !/ComputeFileSha256/.test(helperSource)) {
   throw new Error('helper.cpp must contain the v25 current-user, ready, no-deadline, env and shell-identity gates');
+}
+if (!/BuildCmdVerbatimCommandLine\s*\([\s\S]*argv\.size\(\)\s*!=\s*4/.test(argvBuilderSource) ||
+    !/command\.find\(L'\\0'\)\s*!=\s*std::wstring::npos/.test(argvBuilderSource) ||
+    !/argv\[3\]\s*!=\s*command/.test(argvBuilderSource) ||
+    !/QuoteArg\(executable\)\s*\+\s*L" \/d \/s \/c "\s*\+\s*command/.test(argvBuilderSource) ||
+    !/if\s*\(\s*currentUserProfile\s*&&\s*config\.shellKind\s*==\s*L"cmd"\s*\)\s*\{[\s\S]*?BuildCmdVerbatimCommandLine\s*\(\s*config\.executable\s*,\s*config\.argv\s*,\s*config\.command[\s\S]*?\}\s*else\s*\{\s*commandLine\s*=\s*BuildCommandLine\s*\(\s*config\.executable\s*,\s*config\.argv\s*\)/.test(helperSource)) {
+  throw new Error('helper must preserve only an exactly-bound v2 cmd /d /s /c payload verbatim');
 }
 const shellIdentityOpenIndex = helperSource.indexOf('shellIdentityHandle = CreateFileW(');
 const shellIdentityHashIndex = helperSource.indexOf('ComputeFileSha256Handle(shellIdentityHandle', shellIdentityOpenIndex);
@@ -207,7 +215,13 @@ if (!/protectedDirectories\s*=\s*@\(\$smokeProtected\)/.test(buildScript) ||
     !/UTF8Encoding\s*\(\s*\$false\s*,\s*\$true\s*\)/.test(buildScript) ||
     !/PROCESS_CAPTURE_SELFTEST/.test(buildScript) ||
     !/function\s+New-V25SmokeCommand/.test(buildScript) ||
+    !/function\s+New-V25CmdVerbatimSmokeCommand/.test(buildScript) ||
     !/else if defined NODE_NO_WARNINGS \(exit \/b 49\) else echo %A9_D013_SMOKE%/.test(buildScript) ||
+    !/> "%A9_D013_MARKER_PATH%" <nul set \/p "=%A9_D013_SMOKE%"/.test(buildScript) ||
+    !/v25-smoke-request\.json/.test(buildScript) ||
+    !/v25-smoke-response\.jsonl/.test(buildScript) ||
+    !/v25-smoke-marker\.bin/.test(buildScript) ||
+    !/cmd verbatim smoke did not create the quoted Chinese-space marker/.test(buildScript) ||
     !/V25 cmd smoke syntax did not reach the final marker/.test(buildScript) ||
     !/expectedCaptureMarker\s*=\s*"D013_"\s*\+\s*\[char\]0x4E2D\s*\+\s*\[char\]0x6587/.test(buildScript) ||
     !/output_object_count\s*=\s*\$captureProbeItems\.Count/.test(buildScript) ||

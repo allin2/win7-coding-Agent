@@ -568,6 +568,22 @@ test('v25 recorder requires raw evidence, actual PE/API/CRT closure and matching
       fs.writeFileSync(path.join(directory, 'evidence/capture-selftest-stdout.bin'), 'wrong bytes');
       rewriteBinding(directory, () => {});
     }, /CAPTURE_EVIDENCE_NOT_PASS/],
+    ['false-cmd-marker', (directory) => {
+      fs.writeFileSync(path.join(directory, 'evidence/v25-smoke-marker.bin'), 'wrong marker');
+      rewriteBinding(directory, () => {});
+    }, /CMD_VERBATIM_SMOKE_PROOF_INVALID/],
+    ['false-cmd-response', (directory) => {
+      fs.writeFileSync(path.join(directory, 'evidence/v25-smoke-response.jsonl'), 'not the raw response');
+      rewriteBinding(directory, () => {});
+    }, /CMD_VERBATIM_RESPONSE_CAPTURE_MISMATCH/],
+    ['false-cmd-request', (directory) => {
+      const file = path.join(directory, 'evidence/v25-smoke-request.json');
+      const request = JSON.parse(fs.readFileSync(file, 'utf8'));
+      request.command = request.command.replace('> "%A9_D013_MARKER_PATH%"', '> %A9_D013_MARKER_PATH%');
+      request.argv[3] = request.command;
+      writeJson(file, request);
+      rewriteBinding(directory, () => {});
+    }, /CMD_VERBATIM_SMOKE_PROOF_INVALID/],
     ['lying-dumpbin', (directory) => {
       fs.writeFileSync(path.join(directory, 'evidence/pe-helper-imports.txt'), 'not real imports');
       rewriteBinding(directory, () => {});
