@@ -392,6 +392,9 @@ test('A9 v25 input recorder requires a preapproved kit ZIP and two independently
     baseLock: path.join(process.cwd(), 'release', 'win7-product-v3', 'a9-07-input-lock.json'),
     kitZip, testOnlyApprovedKitRegistry: approvedKitRegistry, testOnly: true,
     sourceRepositoryRoot,
+    lockId: 'A9-14-INPUTS-D013-V25-WIN7-22',
+    win7Gate: 'NOT_PERFORMED_WIN7_22',
+    provenance: 'A9-14 test provenance.',
     output,
   });
   const lock = JSON.parse(fs.readFileSync(output, 'utf8'));
@@ -404,6 +407,9 @@ test('A9 v25 input recorder requires a preapproved kit ZIP and two independently
   assert.equal(lock.inputs.runner_return_zip.build_kit.sha256, sha256File(kitZip));
   assert.equal(lock.inputs.runner_return_zip.approval_registry.commit, 'TEST_ONLY');
   assert.equal(lock.inputs.runner_return_zip.approval_registry.sha256, sha256File(approvedKitRegistry));
+  assert.equal(lock.lock_id, 'A9-14-INPUTS-D013-V25-WIN7-22');
+  assert.equal(lock.gates.win7, 'NOT_PERFORMED_WIN7_22');
+  assert.equal(lock.inputs.runner_return_zip.provenance, 'A9-14 test provenance.');
   assert.equal(result.buildKit.source_commit, lock.inputs.runner_return_zip.source_commit);
   assert.throws(() => recordA9V25HelperInput({
     runnerZip, sidecar: `${runnerZip}.sha256`, runnerZip2, sidecar2: `${runnerZip2}.sha256`,

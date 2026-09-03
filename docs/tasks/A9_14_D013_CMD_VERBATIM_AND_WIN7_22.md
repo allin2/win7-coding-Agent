@@ -7,7 +7,7 @@ Target Branch: codex/a9-win7-22-cmd-verbatim
 Source Baseline: d28c1b9510d6d528f07e8a76a7527b4fc25c35ba
 Superseded Candidate: WIN7-21 / FIX_BEFORE_ALPHA / IMMUTABLE
 Target Candidate: WIN7-22
-Phase-Gate: A9_14_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_14_G0_SOURCE_FREEZE_READY
 Win7-Validation: WIN7_22_NOT_PERFORMED
 Decision: ADR-0111
 ```
@@ -85,3 +85,9 @@ A9-13 schema v4 精确迁移/回滚、WIN7-19 历史未受影响能力可在源�
   源码约束，并增加静态生成器回归。r15 的 ZIP、input lock、package manifest SHA-256 分别为
   `2b4192cc…61a1c`、`494e8939…dd4b`、`2692fff9…03b`；独立审查在撤销 r14 的条件下批准 r15 进入新一轮
   Win10 双构建。此批准不是 Win10 或 Win7 PASS。
+- r15 已在 Win10 的两个全新目录独立构建，run ID 为
+  `8cb9089e-4e5f-4b2a-afa8-5ad628608bf6`、`7bf6be7c-2bb5-41b6-8fdb-fc01f760a593`；两份返回 ZIP
+  SHA-256 为 `7485cf22…d6d0`、`5d37a5f…e237`，helper SHA-256 均为 `c8615e65…fa31`。正式记录器
+  复核了原始响应、中文空格 marker 路径及字节、PE/API/CRT 和双构建绑定，生成新锁
+  `a9-14-win7-22-input-lock.json`（SHA-256 `2b5d3d4d…8366`）。G0 helper 双构建与输入冻结完成；产品
+  双构建、WIN7-22 候选和 Win7 实机门禁尚未执行。

@@ -28,8 +28,10 @@
   中文空格目录被 Windows PowerShell 5.1 按 CP936 误读为 `涓枃 绌烘牸` 而拒绝，未生成输入锁；r14
   已撤销且不改判。编码兼容修复提交为 `1eb02c254ffd8a4081c984da21f176671c6ce026`，改用 Unicode 码位构造
   路径；r15 ZIP、input lock、package manifest SHA-256 分别为 `2b4192cc…61a1c`、`494e8939…dd4b`、
-  `2692fff9…03b`。独立审查在撤销 r14 的条件下批准 r15 进入新的 Win10 双构建；当前仍无 WIN7-22
-  正式 input lock、候选或实机 PASS。
+  `2692fff9…03b`。独立审查在撤销 r14 的条件下批准 r15 进入新的 Win10 双构建。r15 随后在两个全新
+  目录完成构建，run ID 为 `8cb9089e…bf6`、`7bf6be7c…593`，返回 ZIP 为 `7485cf22…d6d0`、
+  `5d37a5f…e237`，字节一致 helper 为 `c8615e65…fa31`；正式记录器已生成 WIN7-22 新 input lock
+  `2b5d3d4d…8366`。G0 helper 输入冻结完成，产品双构建与 Win7 实机 PASS 仍未执行。
 
 - 2026-09-03，WIN7-21 在 Win7 普通用户 D-013 CMD 当前候选用例失败：native helper 对已绑定的
   `/d /s /c` command payload 再次套用 CRT argv 引号，导致内部双引号被反斜杠转义，目标文件未创建；
