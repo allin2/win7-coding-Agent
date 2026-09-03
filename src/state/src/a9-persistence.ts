@@ -58,6 +58,8 @@ export type A9OpenOutcome =
   | { status: 'schema_refused'; reason: string; foundVersion?: number }
   | { status: 'diagnostics'; error: string; hint: string };
 
+export type A9SchemaV4Profile = 'canonical' | 'win7_19_legacy';
+
 interface A9EventRow {
   id?: number;
   session_id: string;
@@ -118,7 +120,7 @@ export class A9PersistenceManager {
       try {
         probeDb = options.openDatabase(options.databasePath, { readonly: true });
         const probedVersion = readSchemaVersion(probeDb);
-        if (probedVersion === A9_SCHEMA_VERSION) assertA9CurrentSchema(probeDb);
+        if (probedVersion === A9_SCHEMA_VERSION) classifyA9SchemaV4(probeDb);
         if (probedVersion === undefined && a9BusinessTablesPresent(probeDb)) {
           try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
           return {
@@ -161,9 +163,10 @@ export class A9PersistenceManager {
 
     // 写连接打开后再次检查，避免只读探测与迁移之间数据库被替换。
     let existingVersion: number | undefined;
+    let existingSchemaProfile: A9SchemaV4Profile | undefined;
     try {
       existingVersion = readSchemaVersion(db);
-      if (existingVersion === A9_SCHEMA_VERSION) assertA9CurrentSchema(db);
+      if (existingVersion === A9_SCHEMA_VERSION) existingSchemaProfile = classifyA9SchemaV4(db);
       if (existingVersion === undefined && a9BusinessTablesPresent(db)) {
         throw new Error('A9 schema metadata is missing while A9 business tables already exist');
       }
@@ -190,15 +193,22 @@ export class A9PersistenceManager {
     // 迁移前备份（只针对旧 A9 schema 或 A8 导入；当前 schema 重开无需重复备份）。
     let backupPath: string | undefined;
     let backupSha256: string | undefined;
+    let backupDataVersion: number | undefined;
     const embeddedA8Data = a8TablesPresent(db);
     const hasA8Data = embeddedA8Data || Boolean(externalA8Db);
     const requiresMigrationBackup = embeddedA8Data
-      || (existingVersion !== undefined && existingVersion < A9_SCHEMA_VERSION);
+      || (existingVersion !== undefined && existingVersion < A9_SCHEMA_VERSION)
+      || existingSchemaProfile === 'win7_19_legacy';
     if (requiresMigrationBackup && fs.existsSync(options.databasePath)) {
       try {
-        const backup = backupDatabase(db, options.dataRoot);
+        const dataVersionBefore = readDataVersion(db);
+        const backup = backupDatabase(db, options.dataRoot, options.openDatabase);
         backupPath = backup.path;
         backupSha256 = backup.sha256;
+        backupDataVersion = readDataVersion(db);
+        if (backupDataVersion !== dataVersionBefore) {
+          throw new Error('A9_SCHEMA_CONCURRENT_MODIFICATION: 数据库在迁移备份期间被其他连接修改。');
+        }
       } catch (err) {
         try { db.close(); } catch (_closeError) { /* best effort */ }
         try { externalA8Db?.close(); } catch (_closeError) { /* best effort */ }
@@ -214,7 +224,15 @@ export class A9PersistenceManager {
     let importedA8Workspaces = 0;
     try {
       const initializeSchema = db.transaction(() => {
-        manager.migrateSchema(existingVersion);
+        if (existingSchemaProfile === 'win7_19_legacy') {
+          if (backupDataVersion === undefined || readDataVersion(db) !== backupDataVersion) {
+            throw new Error('A9_SCHEMA_CONCURRENT_MODIFICATION: 数据库在迁移备份后被其他连接修改。');
+          }
+          if (classifyA9SchemaV4(db) !== 'win7_19_legacy') {
+            throw new Error('A9_SCHEMA_CONCURRENT_MODIFICATION: WIN7-19 schema v4 指纹在迁移前发生变化。');
+          }
+        }
+        manager.migrateSchema(existingVersion, existingSchemaProfile);
         manager.createSchema();
         assertA9CurrentSchema(db);
         if (hasA8Data) importedA8Workspaces = manager.importA8Whitelist(externalA8Db ?? db);
@@ -374,7 +392,11 @@ export class A9PersistenceManager {
   }
 
   /** A9 v3 增加 failed Turn；v4 引入对话目录、活动对话和草稿密文。 */
-  private migrateSchema(existingVersion: number | undefined): void {
+  private migrateSchema(existingVersion: number | undefined, existingProfile?: A9SchemaV4Profile): void {
+    if (existingVersion === A9_SCHEMA_VERSION && existingProfile === 'win7_19_legacy') {
+      this.repairWin719SchemaV4();
+      return;
+    }
     if (existingVersion === undefined || existingVersion >= A9_SCHEMA_VERSION) return;
     let version = existingVersion;
     if (version < 3 && tablePresent(this.db, 'a9_turns')) {
@@ -408,8 +430,19 @@ export class A9PersistenceManager {
 
     const now = new Date().toISOString();
     if (tablePresent(this.db, 'a9_sessions')) {
-      const sessionColumns = new Set((this.db.prepare('PRAGMA table_info(a9_sessions)').all() as any[])
-        .map((row) => row.name));
+      const sessionColumnRows = this.db.prepare('PRAGMA table_info(a9_sessions)').all() as any[];
+      const sessionColumnNames = sessionColumnRows.map((row) => row.name);
+      const expectedLegacyColumns = ['session_id', 'workspace_path', 'created_at', 'updated_at', 'metadata_json'];
+      if (sessionColumnNames.length !== expectedLegacyColumns.length
+        || sessionColumnNames.some((name, index) => name !== expectedLegacyColumns[index])) {
+        throw new Error('A9 legacy schema has unexpected a9_sessions columns');
+      }
+      const sessionColumns = new Set(sessionColumnNames);
+      const sessionIndexSql = (this.db.prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'a9_sessions' AND sql IS NOT NULL",
+      ).all() as any[])
+        .map((row) => row.sql)
+        .filter((sql): sql is string => typeof sql === 'string' && sql.length > 0);
       const metadataExpression = sessionColumns.has('metadata_json') ? "COALESCE(metadata_json, '{}')" : "'{}'";
       this.db.exec(`
           ALTER TABLE a9_sessions RENAME TO a9_sessions_pre_v4;
@@ -432,6 +465,7 @@ export class A9PersistenceManager {
           FROM a9_sessions_pre_v4;
           DROP TABLE a9_sessions_pre_v4;
       `);
+      for (const indexSql of sessionIndexSql) this.db.exec(indexSql);
     } else {
       this.db.exec(`
           CREATE TABLE a9_sessions (
@@ -477,6 +511,39 @@ export class A9PersistenceManager {
       `);
     }
     this.db.prepare('UPDATE a9_meta SET schema_version = 4, updated_at = ? WHERE id = 1').run(now);
+  }
+
+  private repairWin719SchemaV4(): void {
+    const now = new Date().toISOString();
+    this.db.exec(`
+      DROP INDEX idx_a9_sessions_workspace;
+      ALTER TABLE a9_sessions RENAME TO a9_sessions_win7_19_v4;
+      CREATE TABLE a9_sessions (
+        session_id TEXT PRIMARY KEY,
+        workspace_path TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '新对话',
+        title_source TEXT NOT NULL DEFAULT 'auto' CHECK (title_source IN ('auto','manual','legacy')),
+        state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_activated_at TEXT NOT NULL,
+        draft_ciphertext TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+    `);
+    this.db.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, title, title_source, state, created_at, updated_at,
+         last_activated_at, draft_ciphertext, metadata_json)
+      SELECT session_id, workspace_path, title, title_source, state, created_at, updated_at,
+        COALESCE(last_activated_at, updated_at, created_at, ?), draft_ciphertext, metadata_json
+      FROM a9_sessions_win7_19_v4
+    `).run(now);
+    this.db.exec(`
+      DROP TABLE a9_sessions_win7_19_v4;
+      CREATE INDEX idx_a9_sessions_workspace
+        ON a9_sessions (workspace_path, state, last_activated_at);
+    `);
   }
 
   /**
@@ -1190,7 +1257,50 @@ function a9BusinessTablesPresent(db: SqliteDatabase): boolean {
   return Boolean(row);
 }
 
-function assertA9CurrentSchema(db: SqliteDatabase): void {
+function classifyA9SchemaV4(db: SqliteDatabase): A9SchemaV4Profile {
+  try {
+    assertA9CurrentSchema(db, 'canonical');
+    return 'canonical';
+  } catch (canonicalError) {
+    try {
+      assertA9CurrentSchema(db, 'win7_19_legacy');
+      return 'win7_19_legacy';
+    } catch (_legacyError) {
+      throw canonicalError;
+    }
+  }
+}
+
+/** Read-only exact profile inspection used by the packaged WIN7-21 evidence verifier. */
+export function inspectA9SchemaV4Profile(db: SqliteDatabase): A9SchemaV4Profile {
+  return classifyA9SchemaV4(db);
+}
+
+function assertA9CurrentSchema(db: SqliteDatabase, profile: A9SchemaV4Profile = 'canonical'): void {
+  const quickCheck = db.prepare('PRAGMA quick_check').all() as any[];
+  if (quickCheck.length !== 1 || Object.values(quickCheck[0] ?? {}).length !== 1
+    || Object.values(quickCheck[0] ?? {})[0] !== 'ok') {
+    throw new Error(`A9 schema v4 ${profile} profile failed SQLite quick_check`);
+  }
+  // Normalize only spelling/formatting noise, then pin every CREATE TABLE
+  // contract. This rejects extra CHECK/COLLATE/FOREIGN KEY/UNIQUE/generated
+  // clauses that PRAGMA table_info cannot fully describe.
+  const expectedTableSignatures: Record<string, string> = {
+    a9_approvals: '75e7f06f504e20b5ed99058e402df27111b949b02ce45ce134362a1fc2af31d8',
+    a9_checkpoints: 'b1749c7a64617a79e10135787ea3bc188860db1226a68cc22615b1fdd732e5ed',
+    a9_events: '2b98925a1c0f4a530d22b413717cd2b0376b0659e8b9e9daebdaf24fce4205fc',
+    a9_managed_processes: 'ba196e756b7f88f7eff4d3f12794f2188b7ebf2f24314d366bb60ace5bdaadcd',
+    a9_meta: 'ffbb428eb68b53f007b53cb9b6472a6890a8d7acfc63c8aa45e74ed5fb77c02b',
+    a9_runs: 'de0969dc3c1521c7e7d9141b95fadf6e39ad004a0f6b1409c4a28ebed5606fce',
+    a9_sessions: profile === 'canonical'
+      ? '100f6f987ef676263c8cff5b4987c97bb44c267228c96669c0b4999006ec9f6c'
+      : '19af696cd314930ef840219a4dd6db66e461ee9cdbc97cdf7325bd29a44a1de7',
+    a9_tasks: '36945b33ae1f4420c2e3dce9ac072c9fe3eff4dfd1cb2a32128fec43faefdbfc',
+    a9_turns: '60893760fe967f9d3df5ae7c1f321201198c0c08981ce7d7ea4bd6e928962b8f',
+    a9_workspace_conversation_state: '9e1678683ce9281ff7b1458a95c018dd529f20d32c22de8da0ef71ce19d65ece',
+    a9_workspace_locks: '2e22a2a25cec2b7d0430eec57802d257645b5aee5389aa0a12e6c71097fa4a5e',
+    a9_workspaces: '5dfe37cf02091737a2ec47132d61128a17a88e3e2ff8d8048c852f1f5d02ace6',
+  };
   const required: Record<string, string[]> = {
     a9_meta: ['id', 'schema_version', 'created_at', 'updated_at'],
     a9_workspaces: ['workspace_path', 'display_name', 'permission_mode', 'created_at', 'updated_at'],
@@ -1242,6 +1352,7 @@ function assertA9CurrentSchema(db: SqliteDatabase): void {
     'a9_managed_processes.pid_reuse_possible', 'a9_events.id']);
   const nullableColumns = new Set(['a9_sessions.draft_ciphertext', 'a9_approvals.turn_id', 'a9_approvals.decided_at',
     'a9_managed_processes.pid', 'a9_managed_processes.last_probe_status', 'a9_events.turn_id']);
+  if (profile === 'win7_19_legacy') nullableColumns.add('a9_sessions.last_activated_at');
   for (const [table, columns] of Object.entries(required)) {
     const info = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
     for (const column of columns) {
@@ -1259,7 +1370,7 @@ function assertA9CurrentSchema(db: SqliteDatabase): void {
 
   const defaults: Record<string, string> = {
     'a9_sessions.title': "'新对话'",
-    'a9_sessions.title_source': "'auto'",
+    'a9_sessions.title_source': profile === 'win7_19_legacy' ? "'legacy'" : "'auto'",
     'a9_sessions.state': "'active'",
     'a9_sessions.metadata_json': "'{}'",
     'a9_turns.outcome_json': "'{}'",
@@ -1270,6 +1381,49 @@ function assertA9CurrentSchema(db: SqliteDatabase): void {
     const row = (db.prepare(`PRAGMA table_info(${table})`).all() as any[]).find((item) => item.name === column);
     if (String(row?.dflt_value ?? '') !== expected) {
       throw new Error(`A9 schema v4 column ${identity} has the wrong default`);
+    }
+  }
+
+  // 两个受支持的 v4 profile 都必须精确匹配整套 A9 表和列合同。
+  // WIN7-19 的 v4 来自对 v3 表执行 ALTER TABLE，追加列顺序也是该
+  // 历史 profile 身份的一部分；不要把其他“近似 v4”带入修复路径。
+  const profileColumns: Record<string, string[]> = profile === 'win7_19_legacy' ? { ...required, a9_sessions: [
+      'session_id', 'workspace_path', 'created_at', 'updated_at', 'metadata_json',
+      'title', 'title_source', 'state', 'last_activated_at', 'draft_ciphertext',
+    ] } : required;
+  const actualTables = (db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'a9_%' ORDER BY name",
+  ).all() as any[]).map((row) => row.name);
+  const expectedTables = Object.keys(profileColumns).sort();
+  if (actualTables.length !== expectedTables.length
+    || actualTables.some((name, index) => name !== expectedTables[index])) {
+    throw new Error(`A9 schema v4 ${profile} profile has unexpected A9 tables`);
+  }
+  for (const [table, signature] of Object.entries(expectedTableSignatures)) {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as any;
+    const normalized = String(row?.sql ?? '').toLowerCase()
+      .replace(/if\s+not\s+exists/g, '').replace(/[\s"`\[\];]+/g, '');
+    const actual = crypto.createHash('sha256').update(normalized).digest('hex');
+    if (actual !== signature) {
+      throw new Error(`A9 schema v4 ${profile} profile has unexpected ${table} table contract`);
+    }
+  }
+  for (const [table, expectedColumns] of Object.entries(profileColumns)) {
+    const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+    const actualColumns = tableInfo.map((row) => row.name);
+    if (actualColumns.length !== expectedColumns.length
+      || actualColumns.some((name, index) => name !== expectedColumns[index])) {
+      throw new Error(`A9 schema v4 ${profile} profile has unexpected ${table} columns`);
+    }
+    for (const row of tableInfo) {
+      const identity = `${table}.${String(row.name)}`;
+      const expectedNotNull = primaryKeys[table] === row.name || nullableColumns.has(identity) ? 0 : 1;
+      const expectedDefault = Object.prototype.hasOwnProperty.call(defaults, identity) ? defaults[identity] : null;
+      if (Number(row.pk) !== (primaryKeys[table] === row.name ? 1 : 0)
+        || Number(row.notnull) !== expectedNotNull
+        || (row.dflt_value ?? null) !== expectedDefault) {
+        throw new Error(`A9 schema v4 ${profile} profile has unexpected ${identity} contract`);
+      }
     }
   }
 
@@ -1307,7 +1461,46 @@ function assertA9CurrentSchema(db: SqliteDatabase): void {
     if (columns.length !== contract.columns.length || columns.some((column, i) => column !== contract.columns[i])) {
       throw new Error(`A9 schema v4 index ${index} has the wrong columns`);
     }
+    const keyColumns = (db.prepare(`PRAGMA index_xinfo(${index})`).all() as any[])
+      .filter((row) => Number(row.key) === 1)
+      .sort((left, right) => Number(left.seqno) - Number(right.seqno));
+    if (keyColumns.length !== contract.columns.length || keyColumns.some((row, i) =>
+      row.name !== contract.columns[i] || String(row.coll).toUpperCase() !== 'BINARY' || Number(row.desc) !== 0)) {
+      throw new Error(`A9 schema v4 index ${index} has an incompatible key contract`);
+    }
   }
+  const explicitIndexes = (db.prepare(`
+    SELECT name, tbl_name FROM sqlite_master
+    WHERE type='index' AND sql IS NOT NULL AND tbl_name LIKE 'a9_%'
+    ORDER BY name
+  `).all() as any[]);
+  const expectedIndexes = Object.keys(indexes).sort();
+  if (profile === 'win7_19_legacy') {
+    const names = explicitIndexes.map((row) => row.name);
+    if (names.length !== expectedIndexes.length
+      || names.some((name, index) => name !== expectedIndexes[index])) {
+      throw new Error(`A9 schema v4 ${profile} profile has unexpected explicit indexes`);
+    }
+  } else {
+    // Historical v1/v2 migrations preserve caller-created read indexes. Keep
+    // only the behavior-neutral subset: non-unique, non-partial, named columns,
+    // BINARY collation and ascending order. Constraints/expressions still fail.
+    for (const index of explicitIndexes.filter((row) => !expectedIndexes.includes(row.name))) {
+      const listed = (db.prepare(`PRAGMA index_list(${index.tbl_name})`).all() as any[])
+        .find((row) => row.name === index.name);
+      const keys = (db.prepare(`PRAGMA index_xinfo(${index.name})`).all() as any[])
+        .filter((row) => Number(row.key) === 1);
+      if (!listed || Number(listed.unique) !== 0 || Number(listed.partial) !== 0 || keys.length === 0
+        || keys.some((row) => typeof row.name !== 'string'
+          || String(row.coll).toUpperCase() !== 'BINARY' || Number(row.desc) !== 0)) {
+        throw new Error(`A9 schema v4 canonical profile has unsafe explicit index ${index.name}`);
+      }
+    }
+  }
+  const triggers = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name LIKE 'a9_%' LIMIT 1",
+  ).get();
+  if (triggers) throw new Error(`A9 schema v4 ${profile} profile has unexpected triggers`);
   const eventSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='a9_events'").get() as any;
   if (!/\bid\s+integer\s+primary\s+key\s+autoincrement\b/i.test(String(eventSql?.sql ?? ''))) {
     throw new Error('A9 schema v4 a9_events.id must be AUTOINCREMENT');
@@ -1387,7 +1580,19 @@ function readSchemaVersion(db: SqliteDatabase): number | undefined {
   return rows[0].schema_version;
 }
 
-function backupDatabase(db: SqliteDatabase, dataRoot: string): { path: string; sha256: string } {
+function readDataVersion(db: SqliteDatabase): number {
+  const value = Number(db.pragma('data_version', { simple: true }));
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error('A9_SCHEMA_DATA_VERSION_INVALID: 无法读取 SQLite data_version。');
+  }
+  return value;
+}
+
+function backupDatabase(
+  db: SqliteDatabase,
+  dataRoot: string,
+  openDatabase: A9OpenOptions['openDatabase'],
+): { path: string; sha256: string } {
   const backupDir = path.join(dataRoot, 'backups');
   fs.mkdirSync(backupDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -1406,6 +1611,15 @@ function backupDatabase(db: SqliteDatabase, dataRoot: string): { path: string; s
     const bytes = fs.readFileSync(backupPath);
     if (bytes.length < 16 || bytes.subarray(0, 16).toString('ascii') !== 'SQLite format 3\u0000') {
       throw new Error('迁移备份可读性检查失败：不是有效 SQLite 文件头。');
+    }
+    let validationDb: SqliteDatabase | undefined;
+    try {
+      validationDb = openDatabase(backupPath, { readonly: true });
+      if (String(validationDb.pragma('quick_check', { simple: true })).toLowerCase() !== 'ok') {
+        throw new Error('迁移备份可读性检查失败：SQLite quick_check 未通过。');
+      }
+    } finally {
+      try { validationDb?.close(); } catch (_closeError) { /* best effort */ }
     }
     return {
       path: backupPath,

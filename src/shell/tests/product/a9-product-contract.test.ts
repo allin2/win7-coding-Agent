@@ -76,6 +76,37 @@ function openReal(databasePath: string, opts?: { readonly?: boolean }): any {
   return new Database(databasePath, opts?.readonly ? { readonly: true } : {});
 }
 
+function convertSessionsToWin719SchemaV4(databasePath: string): void {
+  const db = new Database(databasePath);
+  (db as any).pragma('journal_mode = DELETE');
+  db.exec(`
+    DROP INDEX idx_a9_sessions_workspace;
+    ALTER TABLE a9_sessions RENAME TO a9_sessions_canonical;
+    CREATE TABLE a9_sessions (
+      session_id TEXT PRIMARY KEY,
+      workspace_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      title TEXT NOT NULL DEFAULT '新对话',
+      title_source TEXT NOT NULL DEFAULT 'legacy' CHECK (title_source IN ('auto','manual','legacy')),
+      state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+      last_activated_at TEXT,
+      draft_ciphertext TEXT
+    );
+    INSERT INTO a9_sessions
+      (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+       title_source, state, last_activated_at, draft_ciphertext)
+    SELECT session_id, workspace_path, created_at, updated_at, metadata_json, title,
+      title_source, state, NULL, draft_ciphertext
+    FROM a9_sessions_canonical;
+    DROP TABLE a9_sessions_canonical;
+    CREATE INDEX idx_a9_sessions_workspace
+      ON a9_sessions (workspace_path, state, last_activated_at);
+  `);
+  db.close();
+}
+
 const validSender = () => true;
 
 function loadRuntimeModules(): any {
@@ -143,6 +174,34 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
       expect(r.ok).toBe(false);
       expect(r.error.code).toBe('A9_MODE_SELECTION_REQUIRED');
     });
+  });
+
+  it('starts the product runtime with an existing WIN7-19 schema v4 profile and preserves its conversation', async () => {
+    const modules = loadRuntimeModules();
+    const databasePath = path.join(env.dataRoot, 'a9-state.db');
+    const created = modules.state.A9PersistenceManager.open({ databasePath, dataRoot: env.dataRoot, openDatabase: openReal });
+    expect(created.status).toBe('ready');
+    const canonicalWorkspace = modules.core.canonicalizeWorkspacePath(env.workspaceRoot);
+    const conversationId = 'a9c-win7-19-existing';
+    created.manager.ensureActiveConversation(canonicalWorkspace, 'a9c-unused-legacy', conversationId);
+    created.manager.db.close();
+    convertSessionsToWin719SchemaV4(path.join(env.dataRoot, 'a9-state.db'));
+
+    const reopened = createA9AgentRuntime({
+      workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal, modules,
+    });
+
+    expect(reopened.status).toBe('ready');
+    expect(reopened.getSnapshot().activeConversationId).toBe(conversationId);
+    const db = new Database(path.join(env.dataRoot, 'a9-state.db'), { readonly: true });
+    const columns = db.prepare('PRAGMA table_info(a9_sessions)').all() as any[];
+    expect(columns.find((row) => row.name === 'last_activated_at')?.notnull).toBe(1);
+    expect(columns.find((row) => row.name === 'title_source')?.dflt_value).toBe("'auto'");
+    expect((db.prepare('SELECT last_activated_at FROM a9_sessions WHERE session_id=?').get(conversationId) as any).last_activated_at)
+      .toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    db.close();
+    expect(fs.readdirSync(path.join(env.dataRoot, 'backups'))).toHaveLength(1);
+    await reopened.shutdown();
   });
 
   it('caches automatic Shell probing per runtime and invalidates only after an explicit Shell setting change', async () => {

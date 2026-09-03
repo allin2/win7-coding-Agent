@@ -16,13 +16,19 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r11 Win10 锁定双构建字节一致并已生成正式输入锁，`A9_09B_WIN10_DOUBLE_BUILD_PASS_INPUT_LOCKED / FIX_BEFORE_ALPHA`；下一门槛为产品候选与 WIN7-20 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；WIN7-20 因既有 schema v4 profile 初始化失败永久裁决 `FIX_BEFORE_ALPHA`；A9-13 从源码 `9323cbe` 修复并独审，目标为全新 WIN7-21 且从 G0 重走门禁 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
 ## A9 Trusted Agent Runtime（2026-08-31）
+
+- 2026-09-03，WIN7-20 在 Win7 普通用户正式 Electron 启动时因既有 WIN7-19 schema v4 的
+  `a9_sessions.last_activated_at` 物理声明可为空而被后置严格校验器拒绝；四项直接用例均未执行，候选
+  永久保持 `FIX_BEFORE_ALPHA`。负责人已授权 ADR-0110/A9-13 在独立分支从该候选源码 `9323cbe` 作
+  精确兼容性修复、独立审查、重新冻结和产品双构建，并以全新 WIN7-21 从 G0 重走全部门禁。冻结前
+  独立审查已以 `P0=0 / P1=0 / P2=0` 批准进入 G0；尚未形成 Win10、Win7 或 Alpha PASS。
 
 - 2026-09-03，r11 在两个全新目录经无 Host Job 的 WMI 进程顺序构建，run ID 为
   `054a5213-58e8-4433-ae86-ce012ee0b721`、`157caea1-56b6-4ef8-97b4-062f1657931c`；两次 logic、

@@ -16,10 +16,14 @@ import { syntheticV25Pe, syntheticV25Evidence } from './v25-evidence-fixture.mjs
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const HASH = '0'.repeat(64);
 const require = createRequire(import.meta.url);
+const Database = require('better-sqlite3');
+const canonicalValue = (value) => Array.isArray(value) ? value.map(canonicalValue)
+  : value && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])])) : value;
 const integrity = require('../../../release/win7-product-v3/a9-package-integrity.cjs');
 const { ACCEPTANCE_REQUIRED_FILES } = integrity;
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
-const win20Report = require('../../../release/win7-product-v3/a9-win7-20-report.cjs');
+const win21Report = require('../../../release/win7-product-v3/a9-win7-21-report.cjs');
 
 function createV25AuthorizedKit(root) {
   const kitRoot = path.join(root, 'authorized-kit');
@@ -165,10 +169,11 @@ function cleanSourceFixture(root) {
     cwd: process.cwd(), encoding: 'utf8',
   }).trim().split('\n');
   for (const relative of names) {
-    if (relative.includes('/dist/') || !fs.statSync(path.join(process.cwd(), relative)).isFile()) continue;
+    const source = path.join(process.cwd(), relative);
+    if (relative.includes('/dist/') || !fs.existsSync(source) || !fs.statSync(source).isFile()) continue;
     const destination = path.join(snapshot, relative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.copyFileSync(path.join(process.cwd(), relative), destination);
+    fs.copyFileSync(source, destination);
   }
   fs.appendFileSync(path.join(snapshot, '.gitignore'), '\n**/dist/\n**/node_modules\n', 'utf8');
   for (const module of ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace']) {
@@ -227,7 +232,7 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
   const firstReturnSha256 = sha256File(runnerZip);
   const lock = {
     schema_version: 1,
-    lock_id: 'A9-09-INPUTS-D013-V25',
+    lock_id: 'A9-13-INPUTS-WIN7-21-SCHEMA-V4-COMPAT',
     release_id: 'WIN7-CODING-AGENT-A9-ALPHA1',
     version: '0.3.0-alpha.1',
     source_date_epoch: 1787443200,
@@ -253,10 +258,17 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
       storage_return_zip: { filename: 'storage.zip', version: '8.7.0', sha256: sha256File(storageZip), required_entry: 'output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node', required_entry_sha256: digest(sqlitePe), sqlite: '3.43.1', electron_abi: 110, profile: 'E22-SQLITE343-LOCAL-SSD' },
       runner_return_zip_v24_historical: JSON.parse(fs.readFileSync(path.join(process.cwd(), 'release/win7-product-v3/a9-07-input-lock.json'), 'utf8')).inputs.runner_return_zip,
     },
-    gates: { win10: 'PASS_D013_V25_RETURN_REVIEWED', win7: 'NOT_PERFORMED_WIN7_20', alpha: 'NOT_PERFORMED' },
+    gates: {
+      win10: 'REUSED_APPROVED_D013_V25_INPUT_ONLY_NOT_CANDIDATE_PASS',
+      win7: 'NOT_PERFORMED_WIN7_21', alpha: 'NOT_PERFORMED',
+    },
+    provenance: {
+      task: 'A9-13', superseded_candidate: 'WIN7-20',
+      superseded_candidate_result: 'FIX_BEFORE_ALPHA',
+    },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  const lockPath = path.join(root, 'a9-09-input-lock.json'); writeJson(lockPath, lock);
+  const lockPath = path.join(root, 'a9-13-win7-21-input-lock.json'); writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
 
@@ -268,6 +280,14 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   const firstBytes = fs.readFileSync(first.zipPath);
   const second = buildA9ProductCandidate(options);
   assert.deepEqual(fs.readFileSync(second.zipPath), firstBytes);
+  const oldLockPath = path.join(root, 'a9-09-input-lock.json');
+  const oldLock = JSON.parse(fs.readFileSync(inputs.lockPath, 'utf8'));
+  oldLock.lock_id = 'A9-09-INPUTS-D013-V25';
+  oldLock.gates.win10 = 'PASS_D013_V25_RETURN_REVIEWED';
+  oldLock.gates.win7 = 'NOT_PERFORMED_WIN7_20';
+  delete oldLock.provenance;
+  writeJson(oldLockPath, oldLock);
+  assert.throws(() => buildA9ProductCandidate({ ...options, lockPath: oldLockPath }), /A9_INPUT_LOCK_INVALID/);
   assert.equal(second.manifest.status, 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS');
   assert.equal(second.manifest.gates.developer_package_integrity, 'PASS');
   assert.equal(second.manifest.gates.win10, 'NOT_PERFORMED');
@@ -287,7 +307,7 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.ok(fs.existsSync(path.join(second.stage, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')));
   assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-package-integrity.cjs')));
   assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-17-report.cjs')));
-  assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-20-report.cjs')));
+  assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-21-report.cjs')));
   assert.ok(fs.existsSync(path.join(second.stage, 'RUN_WIN7_17_REPORT_VERIFY.cmd')));
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
@@ -299,6 +319,12 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   const validationKit = JSON.parse(fs.readFileSync(path.join(second.stage, 'A9_09_VALIDATION_KIT.json'), 'utf8'));
   assert.equal(validationKit.win7_revalidation_policy.decision, 'ADR-0097');
   assert.deepEqual(validationKit.win7_revalidation_policy.mandatory_impacted, [
+    'WIN7_19_SCHEMA_V4_PROFILE',
+    'MIGRATION_BACKUP',
+    'ATOMIC_CANONICALIZATION',
+    'DATA_PRESERVATION',
+    'ROLLBACK_DIAGNOSTICS',
+    'ELECTRON_STARTUP',
     'D013_V25_PROFILE',
     'D013_PROTOCOL_V2',
     'CURRENT_USER_TOKEN',
@@ -309,9 +335,13 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
     'MANAGED_PROCESS_STOP',
   ]);
   assert.equal(validationKit.win7_revalidation_policy.review, 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION');
-  assert.equal(validationKit.incremental_win7_cases.length, 12);
+  assert.equal(validationKit.incremental_win7_cases.length, 13);
+  const schemaCase = validationKit.incremental_win7_cases.find((item) => item.case_id === 'W21-WIN7-19-SCHEMA-V4-COMPAT');
+  assert.ok(schemaCase);
+  assert.equal(schemaCase.assertions.length, 5);
+  assert.match(schemaCase.evidence.join('\n'), /backup SHA-256.*quick_check/i);
   for (const validationCase of validationKit.incremental_win7_cases) {
-    assert.match(validationCase.case_id, /^W(?:17|20)-/);
+    assert.match(validationCase.case_id, /^W(?:17|21)-/);
     assert.ok(validationCase.preconditions.length > 0);
     assert.ok(validationCase.steps.length > 0);
     assert.ok(validationCase.expected.length > 0);
@@ -325,8 +355,8 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "ELECTRON_RUN_AS_NODE=1"/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "NODE_OPTIONS="/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /--package-zip=%~f1/);
-  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_09_INTEGRITY.cmd'), 'utf8'), /a9-win7-20-evidence/);
-  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_WIN7_20_REPORT_VERIFY.cmd'), 'utf8'), /A9_09_VALIDATION_KIT\.json/);
+  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_09_INTEGRITY.cmd'), 'utf8'), /a9-win7-21-evidence/);
+  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_WIN7_21_REPORT_VERIFY.cmd'), 'utf8'), /A9_09_VALIDATION_KIT\.json/);
   const runnerManifest = JSON.parse(fs.readFileSync(path.join(second.stage, 'resources', 'native', 'runner', 'runner-manifest.json'), 'utf8'));
   assert.equal(runnerManifest.helper.profile, 'D-013-v25-a9-trusted-shell-current-user');
   assert.equal(runnerManifest.helper.protocol_version, 2);
@@ -562,7 +592,7 @@ test('v25 recorder requires raw evidence, actual PE/API/CRT closure and matching
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('WIN7-20 acceptance requires the formal input lock and complete product closure', () => {
+test('WIN7-21 acceptance requires the formal input lock and complete product closure', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win20-candidate-'));
   const sourceRepositoryRoot = cleanSourceFixture(root);
   const inputs = fixture(root, sourceRepositoryRoot);
@@ -578,7 +608,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   const electronBytes = fs.readFileSync(electronPath);
   const releaseAuthorityPath = path.join(root, 'release-authority.json');
   const releaseAuthority = {
-    schema_version: 1, kind: 'WIN7_20_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_20_VALIDATION',
+    schema_version: 1, kind: 'WIN7_21_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_21_VALIDATION',
     formal_input_lock_sha256: sha256File(inputs.lockPath),
     approval_registry: { commit: manifest.source_commit, sha256: sha256File(inputs.approvalRegistryPath) },
     candidate: { source_commit: manifest.source_commit, package_sha256: sha256File(zip), manifest_sha256: sha256File(manifestPath) },
@@ -609,7 +639,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     writeDeterministicZip(path.dirname(stage), zip, 1787443200);
   };
   const validZip = fs.readFileSync(zip);
-  const identity = win20Report.identityFrom(options, fs);
+  const identity = win21Report.identityFrom(options, fs);
   assert.equal(identity.package_sha256, digest(validZip));
   assert.equal(identity.manifest_sha256, sha256File(manifestPath));
   assert.equal(identity.formal_input_lock_sha256, sha256File(inputs.lockPath));
@@ -618,7 +648,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   assert.equal(identity.release_authority_sha256, options['release-authority-sha256']);
   const cliOptions = Object.entries(options).flatMap(([key, value]) => [`--${key}`, value]);
   const initialized = JSON.parse(execFileSync(process.execPath, [
-    path.join(process.cwd(), 'release/win7-product-v3/a9-win7-20-report.cjs'), 'init', ...cliOptions,
+    path.join(process.cwd(), 'release/win7-product-v3/a9-win7-21-report.cjs'), 'init', ...cliOptions,
   ], { encoding: 'utf8' }));
   assert.deepEqual(initialized.candidate, identity);
   assert.equal(initialized.status, 'NOT_PERFORMED');
@@ -634,39 +664,39 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   assert.equal(cliReport.status, 'FAIL');
   assert.equal(cliReport.cases.find((item) => item.id === 'A9PKG-INTEGRITY-A9-09-CLOSURE').status, 'PASS');
   assert.equal(cliReport.release_authority.release_authority_sha256, options['release-authority-sha256']);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'release-authority-sha256': undefined }, fs), /EXTERNAL_AUTHORITY_REQUIRED/);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'formal-input-lock': undefined }, fs), /FORMAL_INPUT_LOCK_REQUIRED/);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'formal-input-lock': path.join(stage, 'a9-09-input-lock.json') }, fs), /EXTERNAL_AUTHORITY_INSIDE_CANDIDATE/);
+  assert.throws(() => win21Report.identityFrom({ ...options, 'release-authority-sha256': undefined }, fs), /EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.throws(() => win21Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
+  assert.throws(() => win21Report.identityFrom({ ...options, 'formal-input-lock': undefined }, fs), /FORMAL_INPUT_LOCK_REQUIRED/);
+  assert.throws(() => win21Report.identityFrom({ ...options, 'formal-input-lock': path.join(stage, 'a9-13-win7-21-input-lock.json') }, fs), /EXTERNAL_AUTHORITY_INSIDE_CANDIDATE/);
   for (const flags of [{ source_dirty: true }, { external_acceptance_eligible: false }, { source_dirty: undefined }]) {
     writeJson(manifestPath, { ...manifest, ...flags });
-    assert.throws(() => win20Report.identityFrom(options, fs), /CANDIDATE_NOT_ACCEPTANCE_ELIGIBLE/);
+    assert.throws(() => win21Report.identityFrom(options, fs), /CANDIDATE_NOT_ACCEPTANCE_ELIGIBLE/);
   }
   publish();
   fs.writeFileSync(zip, 'not a ZIP');
-  assert.throws(() => win20Report.identityFrom(options, fs), /CANDIDATE_ZIP_INVALID/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /CANDIDATE_ZIP_INVALID/);
   fs.writeFileSync(zip, validZip);
   writeJson(manifestPath, { ...manifest, source_commit: 'b'.repeat(40) });
-  assert.throws(() => win20Report.identityFrom(options, fs), /INPUT_LOCK_CONTRACT_INVALID/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /INPUT_LOCK_CONTRACT_INVALID/);
   publish();
   fs.appendFileSync(electronPath, 'tampered');
-  assert.throws(() => win20Report.identityFrom(options, fs), /mismatch:electron.exe/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /mismatch:electron.exe/);
   fs.writeFileSync(electronPath, electronBytes);
   const fakeKit = path.join(root, 'fake-kit.json'); writeJson(fakeKit, { arbitrary: true });
-  assert.throws(() => win20Report.identityFrom({ ...options, kit: fakeKit }, fs), /CANDIDATE_CLOSURE_MISMATCH/);
+  assert.throws(() => win21Report.identityFrom({ ...options, kit: fakeKit }, fs), /CANDIDATE_CLOSURE_MISMATCH/);
 
   const fakeLock = JSON.parse(formalLockBytes.toString('utf8'));
   fakeLock.inputs.electron_zip.required_entry_sha256 = digest('synthetic electron');
   fs.writeFileSync(inputs.lockPath, `${JSON.stringify(fakeLock, null, 2)}\n`);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
   fs.writeFileSync(electronPath, 'synthetic electron');
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
   pinTestAuthority();
-  assert.throws(() => win20Report.identityFrom(options, fs), /NATIVE_NOT_PE:electron\.exe/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /NATIVE_NOT_PE:electron\.exe/);
   fs.writeFileSync(inputs.lockPath, formalLockBytes);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
   fs.writeFileSync(electronPath, electronBytes);
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   pinTestAuthority();
@@ -684,14 +714,14 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     const invalidLock = JSON.parse(formalLockBytes.toString('utf8'));
     mutate(invalidLock.inputs.runner_return_zip);
     writeJson(inputs.lockPath, invalidLock);
-    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
     manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
     publish();
     pinTestAuthority();
-    assert.throws(() => win20Report.identityFrom(options, fs), expected);
+    assert.throws(() => win21Report.identityFrom(options, fs), expected);
   }
   fs.writeFileSync(inputs.lockPath, formalLockBytes);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   pinTestAuthority();
 
@@ -709,18 +739,18 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     const invalidLock = JSON.parse(formalLockBytes.toString('utf8'));
     invalidLock.inputs[inputKey].required_entry_sha256 = digest(bytes);
     writeJson(inputs.lockPath, invalidLock);
-    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
     const originalNativeHash = nativeKey && manifest.required_native[nativeKey];
     if (nativeKey) manifest.required_native[nativeKey] = digest(bytes);
     manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
     publish();
     pinTestAuthority();
-    assert.throws(() => win20Report.identityFrom(options, fs), expected);
+    assert.throws(() => win21Report.identityFrom(options, fs), expected);
     fs.writeFileSync(absolute, original);
     if (nativeKey) manifest.required_native[nativeKey] = originalNativeHash;
   }
   fs.writeFileSync(inputs.lockPath, formalLockBytes);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-13-win7-21-input-lock.json'));
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   pinTestAuthority();
 
@@ -729,9 +759,9 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   registry.kits[0].status = 'REVOKED_FOR_TEST';
   fs.writeFileSync(inputs.approvalRegistryPath, `${JSON.stringify(registry, null, 2)}\n`);
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
   pinTestAuthority();
-  assert.throws(() => win20Report.identityFrom(options, fs), /EXTERNAL_AUTHORITY_CONTRACT_INVALID/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /EXTERNAL_AUTHORITY_CONTRACT_INVALID/);
   fs.writeFileSync(inputs.approvalRegistryPath, originalRegistry);
   pinTestAuthority();
   publish();
@@ -740,7 +770,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   const mainBytes = fs.readFileSync(mainPath);
   fs.appendFileSync(mainPath, '\n// tampered runtime with self-consistent ZIP/manifest\n');
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /APPROVED_CANDIDATE_HASH_MISMATCH/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /APPROVED_CANDIDATE_HASH_MISMATCH/);
   fs.writeFileSync(mainPath, mainBytes);
 
   for (const relative of ACCEPTANCE_REQUIRED_FILES) {
@@ -748,13 +778,13 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     const original = fs.readFileSync(absolute);
     fs.rmSync(absolute);
     publish();
-    assert.throws(() => win20Report.identityFrom(options, fs), /A9_W20_(?:CANDIDATE_CLOSURE_MISSING|CANDIDATE_CLOSURE_MISMATCH|KIT_NOT_FILE)/, relative);
+    assert.throws(() => win21Report.identityFrom(options, fs), /A9_W21_(?:CANDIDATE_CLOSURE_MISSING|CANDIDATE_CLOSURE_MISMATCH|KIT_NOT_FILE)/, relative);
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
     fs.writeFileSync(absolute, original);
   }
   fs.rmSync(path.join(stage, 'resources/app/node_modules/ajv/package.json'));
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /RUNTIME_DEPENDENCY_CLOSURE_MISSING:ajv/);
+  assert.throws(() => win21Report.identityFrom(options, fs), /RUNTIME_DEPENDENCY_CLOSURE_MISSING:ajv/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -792,7 +822,7 @@ test('WIN7-17 report verifier requires candidate binding, every assertion, and h
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W20 evidence', () => {
+test('WIN7-21 report verifier binds inheritance to WIN7-19 and requires direct W21 evidence', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win20-report-'));
   const evidenceRoot = path.join(root, 'evidence');
   fs.mkdirSync(evidenceRoot);
@@ -866,8 +896,9 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
       decision: 'ADR-0097', allowed_case_prefix: 'W17-', candidate: inheritedCandidate,
       evidence_sources: sourceDocuments, case_bindings: caseBindings,
     },
-    incremental_win7_cases: Array.from({ length: 12 }, (_value, index) => {
-      const caseId = index < 8 ? `W17-CASE-${index + 1}` : `W20-CASE-${index - 7}`;
+    incremental_win7_cases: Array.from({ length: 13 }, (_value, index) => {
+      const caseId = index < 8 ? `W17-CASE-${index + 1}`
+        : index === 8 ? 'W21-WIN7-19-SCHEMA-V4-COMPAT' : `W21-CASE-${index - 8}`;
       return { case_id: caseId, assertions: [{ assertion_id: `${caseId}-A1`, expected: 'verified' }] };
     }),
   };
@@ -879,6 +910,50 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
   const jsonEvidence = (filename, document) => {
     const file = path.join(evidenceRoot, filename);
     writeJson(file, document);
+    return [{ path: filename, sha256: sha256File(file) }];
+  };
+  const databaseEvidence = (filename, legacy) => {
+    const file = path.join(evidenceRoot, filename);
+    const { A9PersistenceManager } = require('../../../src/state/dist/a9-persistence.js');
+    const opened = A9PersistenceManager.open({
+      databasePath: file,
+      dataRoot: evidenceRoot,
+      openDatabase: (databasePath, options) => new Database(databasePath, options?.readonly ? { readonly: true } : {}),
+    });
+    assert.equal(opened.status, 'ready');
+    opened.manager.db.close();
+    const database = new Database(file);
+    database.pragma('journal_mode = DELETE');
+    if (legacy) database.exec(`
+      DROP INDEX idx_a9_sessions_workspace;
+      ALTER TABLE a9_sessions RENAME TO a9_sessions_canonical;
+      CREATE TABLE a9_sessions (
+        session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}',
+        title TEXT NOT NULL DEFAULT '新对话',
+        title_source TEXT NOT NULL DEFAULT 'legacy' CHECK (title_source IN ('auto','manual','legacy')),
+        state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+        last_activated_at TEXT, draft_ciphertext TEXT
+      );
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+         title_source, state, last_activated_at, draft_ciphertext)
+      SELECT session_id, workspace_path, created_at, updated_at, metadata_json, title,
+        title_source, state, last_activated_at, draft_ciphertext
+      FROM a9_sessions_canonical;
+      DROP TABLE a9_sessions_canonical;
+      CREATE INDEX idx_a9_sessions_workspace
+        ON a9_sessions (workspace_path, state, last_activated_at);
+    `);
+    database.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, title, title_source, state, created_at, updated_at,
+         last_activated_at, draft_ciphertext, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('known-session', 'C:\\工作区 空格', '保留标题', 'manual', 'active',
+      '2026-09-03T00:00:00.000Z', '2026-09-03T00:01:00.000Z',
+      '2026-09-03T00:02:00.000Z', 'ciphertext', '{"kept":true}');
+    database.close();
     return [{ path: filename, sha256: sha256File(file) }];
   };
   const machineBinding = {
@@ -905,8 +980,71 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
       }),
     },
   };
+  const preimageDatabase = databaseEvidence('w21-schema-preimage.db', true);
+  fs.copyFileSync(path.join(evidenceRoot, preimageDatabase[0].path), path.join(evidenceRoot, 'w21-schema-migration-backup.db'));
+  const migrationBackupDatabase = [{ path: 'w21-schema-migration-backup.db', sha256: sha256File(path.join(evidenceRoot, 'w21-schema-migration-backup.db')) }];
+  const migrationPostDatabase = databaseEvidence('w21-schema-migration-post.db', false);
+  for (const filename of ['w21-schema-rollback-pre.db', 'w21-schema-rollback-after.db', 'w21-schema-rollback-backup.db']) {
+    fs.copyFileSync(path.join(evidenceRoot, preimageDatabase[0].path), path.join(evidenceRoot, filename));
+  }
+  const rollbackPreDatabase = [{ path: 'w21-schema-rollback-pre.db', sha256: sha256File(path.join(evidenceRoot, 'w21-schema-rollback-pre.db')) }];
+  const rollbackAfterDatabase = [{ path: 'w21-schema-rollback-after.db', sha256: sha256File(path.join(evidenceRoot, 'w21-schema-rollback-after.db')) }];
+  const rollbackBackupDatabase = [{ path: 'w21-schema-rollback-backup.db', sha256: sha256File(path.join(evidenceRoot, 'w21-schema-rollback-backup.db')) }];
+  const legacySessionSignature = '19af696cd314930ef840219a4dd6db66e461ee9cdbc97cdf7325bd29a44a1de7';
+  const canonicalSessionSignature = '100f6f987ef676263c8cff5b4987c97bb44c267228c96669c0b4999006ec9f6c';
+  const factsDatabase = new Database(path.join(evidenceRoot, preimageDatabase[0].path), { readonly: true });
+  const factsRows = factsDatabase.prepare(`
+    SELECT session_id, workspace_path, title, title_source, state, created_at, updated_at,
+      COALESCE(last_activated_at, updated_at, created_at) AS last_activated_at,
+      draft_ciphertext, metadata_json FROM a9_sessions ORDER BY session_id
+  `).all();
+  factsDatabase.close();
+  const factsSha256 = digest(JSON.stringify(canonicalValue(factsRows)));
+  const schemaCompatibility = {
+    preimage_database: preimageDatabase,
+    migration_backup_database: migrationBackupDatabase,
+    migration_post_database: migrationPostDatabase,
+    rollback_pre_database: rollbackPreDatabase,
+    rollback_after_database: rollbackAfterDatabase,
+    rollback_backup_database: rollbackBackupDatabase,
+    preimage: jsonEvidence('w21-schema-preimage.json', {
+      schema_version: 1, evidence_kind: 'WIN7_19_SCHEMA_V4_PREIMAGE', candidate: identity,
+      schema_profile: 'WIN7_19_LEGACY_V4', quick_check: 'ok', db_sha256: preimageDatabase[0].sha256,
+      session_table_signature_sha256: legacySessionSignature, facts_sha256: factsSha256,
+    }),
+    migration: jsonEvidence('w21-schema-migration.json', {
+      schema_version: 1, evidence_kind: 'WIN7_21_SCHEMA_V4_MIGRATION', candidate: identity,
+      source_db_sha256: preimageDatabase[0].sha256, backup_sha256: migrationBackupDatabase[0].sha256,
+      backup_quick_check: 'ok', backup_session_table_signature_sha256: legacySessionSignature,
+      canonical_session_table_signature_sha256: canonicalSessionSignature, pre_facts_sha256: factsSha256,
+      backup_facts_sha256: factsSha256, post_facts_sha256: factsSha256,
+      electron_startup: 'READY', diagnostics_absent: true,
+    }),
+    rollback: jsonEvidence('w21-schema-rollback.json', {
+      schema_version: 1, evidence_kind: 'WIN7_21_SCHEMA_V4_ROLLBACK', candidate: identity,
+      fault_injection: 'SQLITE_BEGIN_IMMEDIATE_EXTERNAL_CONNECTION', pre_db_sha256: rollbackPreDatabase[0].sha256,
+      after_db_sha256: rollbackAfterDatabase[0].sha256, backup_sha256: rollbackBackupDatabase[0].sha256,
+      backup_quick_check: 'ok', pre_session_table_signature_sha256: legacySessionSignature,
+      backup_session_table_signature_sha256: legacySessionSignature,
+      after_session_table_signature_sha256: legacySessionSignature,
+      pre_facts_sha256: factsSha256, backup_facts_sha256: factsSha256, after_facts_sha256: factsSha256,
+      diagnostics_code: 'A9_PERSISTENCE_DIAGNOSTICS',
+      electron_startup: 'RESTRICTED_DIAGNOSTICS',
+    }),
+    rollback_injection: jsonEvidence('w21-schema-rollback-injection.json', {
+      schema_version: 1, evidence_kind: 'WIN7_21_SCHEMA_V4_WRITE_LOCK_INJECTION', candidate: identity,
+      mechanism: 'SQLITE_BEGIN_IMMEDIATE_EXTERNAL_CONNECTION',
+      runtime: '.\\electron.exe (ELECTRON_RUN_AS_NODE=1)',
+      lock_acquired_before_candidate_start: true, lock_released_after_diagnostics: true,
+    }),
+    rollback_diagnostics: jsonEvidence('w21-schema-rollback-diagnostics.json', {
+      schema_version: 1, evidence_kind: 'WIN7_21_SCHEMA_V4_RESTRICTED_DIAGNOSTICS', candidate: identity,
+      status: 'RESTRICTED_DIAGNOSTICS', error_code: 'A9_PERSISTENCE_DIAGNOSTICS',
+      sqlite_error: 'database is locked',
+    }),
+  };
   const report = {
-    schema_version: 2, report_kind: 'WIN7_20_INCREMENTAL_ACCEPTANCE', candidate: identity,
+    schema_version: 2, report_kind: 'WIN7_21_INCREMENTAL_ACCEPTANCE', candidate: identity,
     inherited_evidence_policy: kit.inherited_evidence, status: 'PASS',
     results: kit.incremental_win7_cases.map((validationCase, index) => index < 8 ? {
       case_id: validationCase.case_id, status: 'INHERITED_EVIDENCE', inherited_from: inheritedCandidate,
@@ -914,14 +1052,43 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
     } : {
       case_id: validationCase.case_id, status: 'PASS', executions: [{
         candidate: identity, environment, machine_binding: machineBinding,
-        assertions: [{ assertion_id: validationCase.assertions[0].assertion_id, passed: true, detail: 'current WIN7-20 execution', evidence }],
+        ...(validationCase.case_id === 'W21-WIN7-19-SCHEMA-V4-COMPAT' ? { schema_compatibility: schemaCompatibility } : {}),
+        assertions: [{ assertion_id: validationCase.assertions[0].assertion_id, passed: true, detail: 'current WIN7-21 execution', evidence }],
       }],
     }),
   };
-  const verified = win20Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs);
+  const verified = win21Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs);
   assert.equal(verified.status, 'PASS');
   assert.equal(verified.inherited_cases, 8);
-  assert.equal(verified.direct_current_candidate_cases, 4);
+  assert.equal(verified.direct_current_candidate_cases, 5);
+  const missingSchemaEvidence = JSON.parse(JSON.stringify(report));
+  delete missingSchemaEvidence.results[8].executions[0].schema_compatibility;
+  assert.throws(() => win21Report.verifyReport(missingSchemaEvidence, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_SCHEMA_COMPAT_EVIDENCE_REQUIRED/);
+  const wrongBackupFacts = JSON.parse(JSON.stringify(report));
+  const migrationProofPath = path.join(evidenceRoot, wrongBackupFacts.results[8].executions[0].schema_compatibility.migration[0].path);
+  const wrongMigrationProof = JSON.parse(fs.readFileSync(migrationProofPath, 'utf8'));
+  wrongMigrationProof.backup_facts_sha256 = '0'.repeat(64);
+  writeJson(migrationProofPath, wrongMigrationProof);
+  wrongBackupFacts.results[8].executions[0].schema_compatibility.migration[0].sha256 = sha256File(migrationProofPath);
+  assert.throws(() => win21Report.verifyReport(wrongBackupFacts, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_SCHEMA_COMPAT_MIGRATION_INVALID/);
+  writeJson(migrationProofPath, { ...wrongMigrationProof, backup_facts_sha256: factsSha256 });
+  report.results[8].executions[0].schema_compatibility.migration[0].sha256 = sha256File(migrationProofPath);
+  const wrongSchemaSignature = JSON.parse(JSON.stringify(report));
+  const preimageProofPath = path.join(evidenceRoot, wrongSchemaSignature.results[8].executions[0].schema_compatibility.preimage[0].path);
+  const wrongPreimageProof = JSON.parse(fs.readFileSync(preimageProofPath, 'utf8'));
+  wrongPreimageProof.session_table_signature_sha256 = '0'.repeat(64);
+  writeJson(preimageProofPath, wrongPreimageProof);
+  wrongSchemaSignature.results[8].executions[0].schema_compatibility.preimage[0].sha256 = sha256File(preimageProofPath);
+  assert.throws(() => win21Report.verifyReport(wrongSchemaSignature, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_SCHEMA_COMPAT_PREIMAGE_INVALID/);
+  writeJson(preimageProofPath, { ...wrongPreimageProof, session_table_signature_sha256: legacySessionSignature });
+  report.results[8].executions[0].schema_compatibility.preimage[0].sha256 = sha256File(preimageProofPath);
+  const nonSqlite = path.join(evidenceRoot, 'not-a-database.db');
+  fs.writeFileSync(nonSqlite, 'not sqlite');
+  const invalidDatabase = JSON.parse(JSON.stringify(report));
+  invalidDatabase.results[8].executions[0].schema_compatibility.preimage_database = [{
+    path: 'not-a-database.db', sha256: sha256File(nonSqlite),
+  }];
+  assert.throws(() => win21Report.verifyReport(invalidDatabase, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_SCHEMA_COMPAT_PREIMAGE_DATABASE_SQLITE_INVALID/);
   const invalid = JSON.parse(JSON.stringify(report));
   invalid.results[8] = {
     case_id: invalid.results[8].case_id,
@@ -929,20 +1096,20 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
     inherited_from: inheritedCandidate,
     evidence_refs: [],
   };
-  assert.throws(() => win20Report.verifyReport(invalid, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_CASE_STATUS_INVALID/);
+  assert.throws(() => win21Report.verifyReport(invalid, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_CASE_STATUS_INVALID/);
   const staleCandidate = JSON.parse(JSON.stringify(report));
   staleCandidate.results[8].executions[0].candidate.package_sha256 = '0'.repeat(64);
-  assert.throws(() => win20Report.verifyReport(staleCandidate, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_EXECUTION_CANDIDATE_BINDING_MISMATCH/);
+  assert.throws(() => win21Report.verifyReport(staleCandidate, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_EXECUTION_CANDIDATE_BINDING_MISMATCH/);
   const wrongEnvironment = JSON.parse(JSON.stringify(report));
   wrongEnvironment.results[8].executions[0].environment.windows_version = 'macOS 15';
   wrongEnvironment.results[8].executions[0].environment.token_kind = 'administrator';
   wrongEnvironment.results[8].executions[0].environment.elevation = 'elevated';
-  assert.throws(() => win20Report.verifyReport(wrongEnvironment, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_WINDOWS_VERSION_NOT_WIN7_SP1_7601/);
+  assert.throws(() => win21Report.verifyReport(wrongEnvironment, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_WINDOWS_VERSION_NOT_WIN7_SP1_7601/);
   const arbitraryInheritance = JSON.parse(JSON.stringify(report));
   arbitraryInheritance.results[0].evidence_refs = [{ source_id: 'ledger', json_pointer: '/candidate_id' }];
-  assert.throws(() => win20Report.verifyReport(arbitraryInheritance, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_INHERITED_CASE_REFS_MISMATCH/);
+  assert.throws(() => win21Report.verifyReport(arbitraryInheritance, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_INHERITED_CASE_REFS_MISMATCH/);
   fs.writeFileSync(path.join(inheritedRoot, 'WIN7-19-INHERITED-EVIDENCE.json'), '{"tampered":true}\n', 'utf8');
-  assert.throws(() => win20Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_INHERITED_SOURCE_HASH_MISMATCH/);
+  assert.throws(() => win21Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W21_INHERITED_SOURCE_HASH_MISMATCH/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
