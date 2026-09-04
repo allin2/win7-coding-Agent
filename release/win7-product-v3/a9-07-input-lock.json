@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "lock_id": "A9-07-INPUTS-20260823-01",
+  "release_id": "WIN7-CODING-AGENT-A9-ALPHA1",
+  "version": "0.3.0-alpha.1",
+  "source_date_epoch": 1787443200,
+  "target": {
+    "os": "Windows 7 SP1 build 7601",
+    "architecture": "x64",
+    "delivery": "SELF_CONTAINED_OFFLINE_WIN7_X64"
+  },
+  "inputs_are_not_a9_pass": true,
+  "runtime_profiles": {
+    "runner": {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "executable_sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "output_encoding": "cp936",
+      "working_directory_token": "${RC_RUNNER_WORK_ROOT}",
+      "argv_exact": [[], ["/all"]]
+    }
+  },
+  "inputs": {
+    "electron_zip": {
+      "filename": "electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+      "required_entry": "electron.exe",
+      "required_entry_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+    },
+    "runner_return_zip": {
+      "filename": "Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+      "version": "D-013-v24-from-locked-A8-candidate",
+      "sha256": "99f50445f9eb63eb01e60acd3c65377aaae0ac33de39e23866c4e639db7b5257",
+      "required_entry": "Win7CodingAgent-0.2.0-alpha.1-win7-x64/resources/native/runner/spike02_helper.exe",
+      "required_entry_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "profile": "D-013-v24-low-risk-noninteractive",
+      "provenance": "The helper is extracted from the hash-locked clean A8 candidate; no A8 product PASS is inherited."
+    },
+    "storage_return_zip": {
+      "filename": "WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "version": "8.7.0",
+      "sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "required_entry": "output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "required_entry_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "sqlite": "3.43.1",
+      "electron_abi": 110,
+      "profile": "E22-SQLITE343-LOCAL-SSD"
+    }
+  },
+  "forbidden_payload_patterns": [
+    "node_modules/.cache/",
+    ".git/",
+    ".env",
+    "id_rsa",
+    "private.pem",
+    "winpty",
+    "node-pty",
+    "portable-data/",
+    "a9-provider-config",
+    "a9-state.db",
+    "-wal",
+    "-shm"
+  ],
+  "gates": {
+    "developer_package_integrity": "NOT_PERFORMED",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "win7": "NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE",
+    "alpha": "NOT_PERFORMED"
+  }
+}

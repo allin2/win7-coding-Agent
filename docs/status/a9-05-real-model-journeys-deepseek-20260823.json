@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-05-REAL-MODEL-JOURNEYS-DEEPSEEK-20260823-01",
+  "recorded_at": "2026-08-23",
+  "provider": {
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "credential": "USER_SUPPLIED_EPHEMERAL_NOT_RECORDED"
+  },
+  "result": "PASS",
+  "real_model_j1_to_j3": "PASS",
+  "cases": [
+    {
+      "id": "RPS-01-CAPABILITY-PROBE",
+      "status": "PASS",
+      "evidence": "SSE streaming and native tool calling succeeded; measured latency 999 ms"
+    },
+    {
+      "id": "RPS-J1-READS-INSTRUCTIONS",
+      "status": "PASS",
+      "evidence": "completed with 5 tool calls; AGENTS.md, project configuration and relevant source content were present in real tool results"
+    },
+    {
+      "id": "RPS-J1-CITES-EVIDENCE",
+      "status": "PASS",
+      "evidence": "final answer cited AGENTS.md, package.json and src/index.js"
+    },
+    {
+      "id": "RPS-J2-FIX-AND-VERIFY",
+      "status": "PASS",
+      "evidence": "completed / verified; 5 tool calls across 4 model steps; calc.js fixed and node test.js passed"
+    },
+    {
+      "id": "RPS-J3-CROSS-FILE-FEATURE",
+      "status": "PASS",
+      "evidence": "completed; scoped changes were slug.js, stringUtils.js and testSlug.js"
+    },
+    {
+      "id": "RPS-J3-REAL-SCRIPT-VERIFY",
+      "status": "PASS",
+      "evidence": "verified; 7 tool calls across 5 model steps; real run-checks.js emitted A9_J3_REAL_CHECK_PASS"
+    },
+    {
+      "id": "RPS-04-CANCEL",
+      "status": "PASS",
+      "evidence": "in-flight Provider turn reached cancelled"
+    }
+  ],
+  "source_report": {
+    "location": "ephemeral /private/tmp/a9-real-provider-deepseek-v4-flash.json",
+    "sha256": "7e960ac667ea2b272ef7dcb67a2c10ab116f7647e60b7b04edbc2dfde2e4f067",
+    "secret_scan": "NO_SK_PREFIX"
+  },
+  "boundary": "J4/J5 use behavioral fixture model with real Git/approval and real SQLite/process behavior; Windows journeys remain A9-07"
+}

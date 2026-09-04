@@ -333,12 +333,18 @@ function validateLock(lock) {
 
 export function createRunnerManifest(lock) {
   const runner = lock.runtime_profiles.runner;
+  const helperInput = lock.inputs.runner_return_zip;
   return {
     schema_version: 1,
     release: `${lock.release_id}-${lock.version}`,
     helper: {
       path: 'spike02_helper.exe',
-      sha256: lock.inputs.runner_return_zip.required_entry_sha256,
+      sha256: helperInput.required_entry_sha256,
+      ...(helperInput.profile ? { profile: helperInput.profile } : {}),
+      ...(Number.isInteger(helperInput.protocol_version)
+        ? { protocol_version: helperInput.protocol_version }
+        : {}),
+      ...(helperInput.runtime_profile ? { runtime_profile: helperInput.runtime_profile } : {}),
     },
     profiles: [{
       id: runner.id,
@@ -463,7 +469,11 @@ export function buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip
     },
     components: [
       component('framework', 'Electron', lock.inputs.electron_zip.version, 'MIT', sha256File(electronZip), 'EOL; trusted local UI only'),
-      component('application', 'D-013 native helper', 'v24', 'Apache-2.0', lock.inputs.runner_return_zip.required_entry_sha256, 'Low-risk noninteractive profiles only'),
+      component('application', 'D-013 native helper', lock.inputs.runner_return_zip.version, 'Apache-2.0',
+        lock.inputs.runner_return_zip.required_entry_sha256,
+        lock.inputs.runner_return_zip.profile === 'D-013-v25-a9-trusted-shell-current-user'
+          ? 'A9 current-user profile; process containment is not a security sandbox'
+          : 'Low-risk noninteractive profiles only'),
       component('library', 'better-sqlite3', lock.inputs.storage_return_zip.version, 'MIT', lock.inputs.storage_return_zip.required_entry_sha256, `Electron ABI ${lock.inputs.storage_return_zip.electron_abi}`),
       component('library', 'SQLite', lock.inputs.storage_return_zip.sqlite, 'LicenseRef-Public-Domain', lock.inputs.storage_return_zip.required_entry_sha256, 'Embedded by better-sqlite3; FTS5/WAL'),
       ...runtimeDependencies.map((item) => component('library', item.name, item.version, item.license, item.package_json_sha256, 'Packaged JavaScript runtime dependency')),
@@ -495,7 +505,9 @@ export function licenseInventory(lock) {
     `This inventory is bound to ${lock.release_id} ${lock.version}. Full Electron Chromium notices are shipped as \`LICENSES.chromium.html\`.\n\n` +
     `| Component | Version | License | Delivery and risk |\n|---|---:|---|---|\n` +
     `| Electron | ${lock.inputs.electron_zip.version} | MIT plus Chromium third-party notices | EOL; trusted packaged UI only; no untrusted web content |\n` +
-    `| D-013 native helper | v24 | Apache-2.0 | Project-maintained; low-risk noninteractive profiles only |\n` +
+    `| D-013 native helper | ${lock.inputs.runner_return_zip.version} | Apache-2.0 | ${lock.inputs.runner_return_zip.profile === 'D-013-v25-a9-trusted-shell-current-user'
+      ? 'Project-maintained current-user profile; process containment is not a security sandbox'
+      : 'Project-maintained; low-risk noninteractive profiles only'} |\n` +
     `| better-sqlite3 | ${lock.inputs.storage_return_zip.version} | MIT | Locked Electron ABI ${lock.inputs.storage_return_zip.electron_abi}; local SSD only |\n` +
     `| SQLite | ${lock.inputs.storage_return_zip.sqlite} | Public Domain | Embedded, FTS5/WAL enabled; project owns backports |\n` +
     `| bindings | 1.5.0 | MIT | Runtime loader copied from the verified D-014 closure |\n` +

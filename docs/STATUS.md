@@ -16,10 +16,151 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
+| A9 Trusted Agent Runtime | WIN7-19 历史验收里程碑保留；r11 Win10 锁定双构建字节一致并已生成正式输入锁，`A9_09B_WIN10_DOUBLE_BUILD_PASS_INPUT_LOCKED / FIX_BEFORE_ALPHA`；下一门槛为产品候选与 WIN7-20 |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
+
+## A9 Trusted Agent Runtime（2026-08-31）
+
+- 2026-09-03，r11 在两个全新目录经无 Host Job 的 WMI 进程顺序构建，run ID 为
+  `054a5213-58e8-4433-ae86-ce012ee0b721`、`157caea1-56b6-4ef8-97b4-062f1657931c`；两次 logic、
+  capture、v1/v2 smoke、PE/API/CRT 均 `PASS`，helper.exe 均为 331776 字节且 SHA-256 同为
+  `43bd9dfd…04ce`。两个返回 ZIP SHA-256 为 `5a5c433a…6864`、`42c4511f…e681`，正式记录器复核通过并
+  创建 `a9-09-input-lock.json`（SHA-256 `54012613…dfc3`）。Win10 构建门槛完成；产品装配与 WIN7-20
+  仍为 `NOT_PERFORMED`，两项负责人延期的 Provider P2 仍不标记关闭。
+- 2026-09-03，r10 两个全新 WMI 构建再次全部 `PASS`，非 `helper.obj` 对象已一致，但 helper 对象及最终
+  EXE 仍不同。COFF 符号比较定位到 MSVC lambda 内部名称仍受传入编译器的绝对源码参数影响；Win10 直接
+  探针确认从各自 kit 根运行且使用相同相对 source/include/object 参数后，两个 `helper.obj` 均为
+  `bf466ce7…2f14`。修复提交为 `bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a`，r10 已撤销。新 r11 ZIP、
+  input lock、package manifest SHA-256 分别为 `7aeceef0…378b`、`a29d6ebe…76e9`、
+  `ed706a02…65eb`，等待两个全新目录复验。
+- 2026-09-03，r9 两个无 Host Job 的全新 WMI 构建均为 `PASS`，但 helper SHA-256 分别为
+  `7778c8f2…d6bd` 与 `b9141b85…88de`，不满足字节一致门槛。逐层比较定位到 MSVC `.obj` 中的不同绝对
+  构建路径；Win10 探针确认 `/Brepro /experimental:deterministic`、把各自 kit 根映射到固定
+  `C:\a9-v25-kit` 且保持相同相对对象路径后可得到相同对象。修复提交为
+  `0e134d54cb4d26fb761355272b151aa785643056`，r9 已撤销。新 r10 ZIP、input lock、package manifest
+  SHA-256 分别为 `9a267b4a…6583`、`3e9d4984…ec65`、`7abaa864…c28a`；当时等待两个全新目录复验。
+- 2026-09-03，r8 的禁止 overlay smoke 按既有协议返回 `error: JSON_PARSE_FAILED`，但新脚本/记录器误读
+  `code` 字段并由 StrictMode 拒绝。消费者与夹具修复提交为 `bc26e5835b479be7fff1a23150d07f7868baacfe`，
+  r8 已撤销。新 r9 ZIP、input lock、package manifest SHA-256 分别为 `e2ceab17…4708`、
+  `6ca67019…8a48`、`37da1fe1…e203`，等待全新双构建。
+- 2026-09-02，r7 通过精确 ACL 回滚后暴露 CMD `if defined ... & echo` 条件链吞掉最终 marker；Win10
+  直接对照已复现并确认 `if ... else if ... else echo` 语法。修复提交为
+  `e3e778bdf62e22777e58e9eb7370de38c3ab3926`，PowerShell 5.1 前置自测现真实验证 marker；r7 已撤销。
+  新 r8 ZIP、input lock、package manifest SHA-256 分别为 `64772425…5e35`、`0e2e2f73…22f8`、
+  `005abf83…39e7`，等待全新双构建。
+- 2026-09-02，r6 在无 Host Job 路径完成原生构建后发现 DACL 回滚会新增 `SE_DACL_AUTO_INHERITED`；
+  Win10 API 探针证明用捕获的原始安全描述符调用 `SetFileSecurityW` 可精确恢复。修复提交为
+  `9fa02c3b6503e71aae8f0c889d5dbc61e30a8776`，r6 已撤销；新 r7 ZIP、input lock、package manifest
+  SHA-256 分别为 `f5bf50a5…dafb`、`71c7a797…7081`、`320ea758…8f98`，等待全新双构建。
+- 2026-09-02，r5 在锁定 Win10/MSVC 环境暴露 Win32 `max` 宏与 `std::max(...)` 冲突；最小修复已提交为
+  `7f43dec19612bafba1bb94e5ecb261cd87508f80`。r5 已撤销，FAIL 诊断保留；新 r6 ZIP、input lock、package
+  manifest SHA-256 分别为 `4d7985d4…922c`、`104b4aca…c8c5`、`da90075f…b5c8`，当前仅 r6 获准进入
+  新的 Win10 双构建目录。该修复尚不等于 Win10 或 Win7 PASS。
+- 2026-09-02，A9-09～A9-12 修复提交为 `c718152f0c413d2c21407eec042dc50197b6e51f`；新 r5 Win10
+  离线构建套件曾获准用于首次构建，后因上项 MSVC 失败撤销；旧 r4 撤销项也保持不变。
+- 2026-09-02，项目负责人确认 Bitvise trace logging 已关闭，并决定将独立复核发现的两个 Provider P2
+  延期：代理端口 `0` 静默清除及显式清空 API Key 后旧持久化凭据可能在重启时恢复。本轮获准提交并
+  推送现有 A9-09～A9-12 修复、继续 v25 Win10 双构建和 WIN7-20 候选验证；两项 P2 不标记为关闭，
+  最终报告必须保留风险，相关开发机证据不构成 Windows DPAPI 或完整发布 PASS。
+- ADR-0109 / [A9-12 D-013 v25 后置恢复与用户流加固](tasks/A9_12_POST_REVIEW_RECOVERY_AND_UI_HARDENING.md)
+  已关闭 Viewer 编码状态、正式 Explorer smoke、Undo IPC、IME、Provider 高级配置、审批恢复 Stop、退出
+  残留提示、Shell 探测缓存、崩溃锁恢复和初始化诊断十项缺口。定向 State 37/37、Shell 97/97、七模块
+  1563 tests、发布 17 PASS/1 Windows skip、原生逻辑和真实开发机 Electron 22 四进程 smoke 均通过；
+  当前状态 `A9_12_DEVELOPER_VERIFIED_PENDING_WIN7`。Win10/Win7 未执行，不解除 `FIX_BEFORE_ALPHA`。
+- ADR-0108 / [A9-11 D-013 v25 后置安全与可用性修复](tasks/A9_11_POST_V25_USABILITY_SECURITY_HARDENING.md)
+  已关闭独审复现的 Git 回调/投影秘密、活动模式迁移、拆分流秘密、SSE 中文、Shell DTO/活动刷新、显式
+  编码 edit 和 Viewer legacy UTF-8 八项源码缺口。七模块 1554 tests、发布 15 PASS/1 Windows skip、
+  原生逻辑 PASS；后续 A9-12 合并工作树已关闭 Runtime 初始化阻塞并通过真实开发机 Electron smoke，
+  状态更新为 `A9_11_DEVELOPER_VERIFIED_PENDING_WIN7`。Win10/Win7 未执行，不解除 `FIX_BEFORE_ALPHA`。
+- ADR-0107 / [A9-10 中文编码与大文件读取](tasks/A9_10_TEXT_READ_HARDENING.md) 已获负责人独立授权并完成
+  本地源码修复：显式 GBK/UTF-16LE、binary 元数据、64 KiB 异步分块、128 KiB 有界预览和完整基线哈希。
+  Workspace/Core/真实产品组合共 535 tests PASS，状态 `A9_10_DEVELOPER_VERIFIED_PENDING_WIN7`；
+  未提交、未打正式包、Win7 未执行，不解除 A9-09 或 `FIX_BEFORE_ALPHA` 门禁。
+- ADR-0101 / [`A9-09 D-013 TrustedShell Current-User Profile`](tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md)
+  的初始 A9-09A 开发机 Gate 随后被 v25 独立复审撤销；旧 r4 SHA-256 `037213c…e09` 不包含当前未提交
+  整改，已禁止正式使用。上一轮本地整改完成 1498 项全量测试；ADR-0103 的工作树自批准问题已获复审
+  关闭，但完整闭包只证明内部自洽，随后复审发现发布信任 P1=1。已按 ADR-0104 补充候选外批准记录与
+  独立哈希 pin、正式 lock/批准根/双构建绑定和原生 PE 检查，本地发布回归 18/18、全量 1498 tests PASS；
+  随后五参数文档 P2 也获独审关闭。但最新复审新增两项 P1：普通变量名可携带已知秘密，以及 NODE_DEBUG
+  等控制项漏拦。ADR-0105 环境整改已获最新独审关闭；该轮新增生成器精确数组匹配及 OrderedDictionary.Clone
+  两项构建脚本 P1，现按 ADR-0106 修复并补真实生成器入口回归。修复已提交并生成、批准 r5；当前 Gate 为
+  `A9_09B_READY_FOR_WIN10_DOUBLE_BUILD`，尚未完成 D-017 Win10 双干净构建、正式 v25 input lock、
+  WIN7-20 候选和 Win7 实机复验，因此综合状态继续为
+  `FIX_BEFORE_ALPHA`，PR #3 仍不得合并。
+- ADR-0100 已根据合并前独立代码审查开启
+  [`A9-08 后置审查修复`](tasks/A9_08_POST_REVIEW_HARDENING.md)，状态
+  `APPROVED_FOR_IMPLEMENTATION / FIX_BEFORE_ALPHA`。已动态确认的审批绕过和秘密持久化，以及独审确认的
+  Provider、遗留 IPC、进程、checkpoint 和迁移 P1 必须修复；PR #3 暂不合并。修复完成后构建 WIN7-20，
+  按 ADR-0097 执行扩大后的增量复验并重新裁决。
+- A9-08A 已关闭当前已知的 Shell 转义/动态调用审批绕过和正常 A9 Renderer 的遗留 A8 Review mutation
+  IPC 旁路；A9-08B 已关闭事件/审批持久化秘密泄漏、跨 Provider origin 旧 Key 复用、TLS 校验关闭和缺失
+  CA 静默忽略；A9-08C 已将正式前台/后台 Shell 接入 D-013 helper，收紧整树回收真实性、双 Stop 和
+  窗口销毁前退出裁决。第四批进一步完成 checkpoint v4 目录树哈希/无碰撞快照/undo 单次持久化、跨工作区
+  对话操作拒绝、v2→v4（含最终 schema/index 创建）整体原子迁移与真实 A8 物理库只读白名单导入；
+  轮初文件/目录快照不可覆盖、restore swap/旧 checkpoint fail-closed、物理 v4 schema 完整校验、Provider
+  generation 隔离、递归秘密脱敏、崩溃后两阶段 checkpoint 对账和清理不确定事实跨重启闭环。最终开发机
+  7 模块共 1482 tests、docs/diff
+  检查通过。独立审查同时确认锁定的 D-013 v24 Low Integrity/低风险白名单协议不能承载 A9 Full Access，
+  且缺少 envOverlay、真实无 deadline 与 managed ready acknowledgement；该修复需要新 ADR/任务授权
+  `native/helper/**`。安全、进程、checkpoint/状态三路最终独立复核均为 P0/P1/P2=0，授权范围内闭环 PASS；
+  A9-08 阶段记录以 `A9_08E_BLOCKED_D013_CONTRACT` 结束并移交 ADR-0101/A9-09；当前执行状态为
+  `A9_09A_BUILD_REVIEW_FIXES_PENDING_INDEPENDENT_REVIEW / FIX_BEFORE_ALPHA`，尚未构建 WIN7-20。
+- 产品负责人已确认
+  [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
+  和 ADR-0089/ADR-0096；实现任务为 [`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)，状态
+  `COMPLETE / A9_ALPHA1_PASS`，交付分支 `codex/a9-trusted-agent-runtime`，版本 `0.3.0-alpha.1`。
+- 最终候选 WIN7-19 绑定源码提交 `781b20e3da277570f85c28286d7ea5bbbdd5fa28`；ZIP SHA-256
+  `824a10cd…72b0`，manifest SHA-256 `b483e9b0…2c26`，780 文件、state schema v4、干净源码双构建
+  字节一致。Win7 SP1 x64 上的候选身份、5/5 完整性、正式 Electron 生命周期、审批缺陷复验和后飞行
+  均通过，ADR-0099 按当时范围裁决为 `GO_FOR_ALPHA`。后置独审的新证据不改写这些现场事实，但使当前
+  综合交付状态转为 `FIX_BEFORE_ALPHA`。机器记录与收口报告见
+  [`a9-alpha1-win7-19-acceptance-20260828.json`](status/a9-alpha1-win7-19-acceptance-20260828.json) 和
+  [`a9_alpha1_win7_19_closeout_2026-08-28.md`](reports/2026-08/a9_alpha1_win7_19_closeout_2026-08-28.md)。
+- WIN7-19 直接重验四个新 Turn 的独立审批身份、拒绝/旧卡/重复点击/变更目标零额外执行；批准卡只消费
+  一次。其余七组未受本次 Git 命令分类修复影响的能力按 ADR-0097 继承 WIN7-17/18 证据。旧报告校验器
+  不支持 `INHERITED_EVIDENCE`，因此候选报告保持 `EVIDENCE_PENDING`，不把继承项伪写为当前候选现场 PASS。
+- WIN7-10 在 Gate 4 证明 Full Access 与 Read Only 通过，但 Review 因正式 Runtime 未配置 staging 后端而
+  fail-closed；该失败按旧三模式合同永久保留，不追溯改判。ADR-0096 将 Alpha 1 收敛为 Full Access 与
+  Read Only，并把完整 Review 移入 `0.3.0-alpha.2`。该范围调整不改变 WIN7-10 产品字节，因此不要求新候选
+  或重跑已完成的同候选项目；验收从现场实际检查点 J4 继续。仍可选择但只会 fail-closed 的 Review 作为
+  Alpha 1 已知限制记录，不计入 Alpha 1 PASS。机器可读范围记录见
+  [`a9-alpha1-review-deferral-20260825.json`](status/a9-alpha1-review-deferral-20260825.json)。
+- A9 从最新干净 A8 代码基线启动，复用对话/会话/Goal、Agent Runtime、上下文压缩、SQLite、DPAPI、
+  Electron Renderer 隔离与确定性打包；A8 Review 代码只作为历史输入保留，不构成 Alpha 1 产品能力。
+  A8 候选和证据保持历史原样，不继承为 A9 产品 PASS。
+- A9 取代 A8 默认不可用的关键产品策略：可信工作区推荐 Full Access，允许通用 PowerShell/CMD Shell、
+  直接多文件写入、工作区外显式路径、真实 Git 配置和用户网络；外部写、破坏性 Git、永久删除和系统级
+  操作继续目标绑定确认。该模式不是 Win7 强沙箱。
+- A9-00 文档与差距 Gate 已取得 `A9_00_DESIGN_AND_GAP_PASS`。A9-01～A9-06 对应实现、fixture
+  行为测试和开发机 Electron 22 产品入口 smoke 保持 PASS；Review 的 Alpha 1 处置是范围延期和已知限制，
+  不把缺失 staging 的失败改写为功能 PASS。F2/F4/F5/F6 修复检查点见
+  [`a9-trusted-agent-runtime-latest.json`](status/a9-trusted-agent-runtime-latest.json)。这表示代码与开发机证据
+  可供独立复核，不等于六个正式串行 Gate 已全部签发。
+- A9-04 已使用 `https://api.deepseek.com` / `deepseek-v4-flash` 完成真实 SSE、tool calling、五次工具执行、
+  真实修复/测试与取消，Gate 为 `A9_04_REAL_PROVIDER_PASS`。首次运行发现工具 Schema 缺少顶层
+  `type: object`，统一 wire 修复后 Gateway 241 项与真实闭环均通过；凭据未写入证据。记录见
+  [`a9-04-real-provider-deepseek-20260823.json`](status/a9-04-real-provider-deepseek-20260823.json)。
+- A9-05 已完成：真实模型 J1 实际读取指令/配置/源码并引用路径，J2 完成真实修复和测试，J3 完成范围
+  受控的跨文件功能和真实项目脚本；行为化 J4/J5 使用真实 Git/审批和 SQLite/子进程副作用。记录见
+  [`a9-05-real-model-journeys-deepseek-20260823.json`](status/a9-05-real-model-journeys-deepseek-20260823.json)。
+- A9-06 经 1307 项回归（含 A9-07 新增 5 项包运行时/DPAPI 宿主注入合同）和真实 Electron 22 三进程
+  38/38 验证，Gate 为
+  `A9_06_DESKTOP_STATE_AND_LIFECYCLE_PASS`。A9-01～A9-06 汇总见
+  [`a9-01-to-a9-06-developer-gates-20260823.json`](status/a9-01-to-a9-06-developer-gates-20260823.json)。
+  A9-07 历史上，Win7 `WIN7-02` 对候选 `5bee0069…d5b3` 的 Gate 3 首次 Full Tree 校验在
+  `resources/default_app.asar` 失败，旧失败证据保持不变。根因是 Electron ASAR hook 改变了校验器的
+  `fs` 读取语义；提交 `dce391c` 改为 `original-fs` 物理字节并清除 `NODE_OPTIONS`，新增回归后仓库
+  1310 项与包测试 4/4 通过。新候选双构建一致，ZIP SHA-256 为 `37c3e51c…60080`、manifest SHA-256
+  为 `63801337…1b626`，`source_dirty=false`。它已在 Win7 独立 `WIN7-03` 证据目录通过 ZIP、manifest、
+  Full Tree、native/ABI 和无系统 Node 五项 Gate 3。该历史候选随后被 WIN7-10～19 迭代取代；记录见
+  [`a9-07-win7-gate3-integrity-repair-20260824.json`](status/a9-07-win7-gate3-integrity-repair-20260824.json)。
+  权威差距与交付计划见
+  [`A9 Trusted Agent 差距与交付计划`](reports/2026-08/a9_trusted_agent_gap_and_delivery_plan_2026-08-22.html)。
+- Office 专用能力不进入 A9 Alpha 1；首要交付是代码阅读、编辑、文件管理、Shell、测试、Git、Diff、
+  撤销和重启恢复的五条真实 Coding Agent 旅程。
 
 ## A8 Agent-first 产品体验（2026-08-20）
 

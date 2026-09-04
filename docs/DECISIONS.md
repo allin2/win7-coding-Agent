@@ -1120,3 +1120,480 @@
 - 后果：候选完整性验证仍复算 manifest 全树，但不会把合法物理 ASAR 当成缺失文件；产品运行时的 ASAR
   行为、Policy、Broker、IPC 与审批边界均不改变。旧候选的 Win10 A8-03 保持 FAIL，后续项保持 NOT_RUN；
   只有包含本裁决并从远端可达干净源码提交重建的新候选才可重新进入外部验收。
+
+## ADR-0089 A9 采用可信环境 Full Access 与通用 Shell，现实可用性优先
+
+- 状态：Accepted（2026-08-22，项目负责人完成 GrillMe Q1～Q179 并确认全部产品决策）
+- 背景：A8 已建立对话、会话、上下文、Review、SQLite 恢复、DPAPI 和确定性打包基线，但其产品合同继续
+  禁止 Full Access、任意 Shell、直接工作区写入、真实 Git 工作流和开放 OpenAI-compatible Provider。
+  这些限制来自“Win7 无现代强沙箱，所以本地能力必须默认拒绝”的安全优先模型。项目负责人明确目标不是
+  在 Win7 上虚构强安全边界，而是在用户自行选择可信工作区、账号和网络环境的前提下，快速交付可以阅读、
+  编写、管理文件、运行项目命令、测试和 Git 的现实 Coding Agent。继续在 A8 上叠加例外会同时违反
+  A8 任务书、C09/C20 和 Review-first 数据合同，且会让大多数正常开发任务保持不可用。
+- 决策：（1）建立 A9 Trusted Agent Runtime，版本 `0.3.0-alpha.1`，分支
+  `codex/a9-trusted-agent-runtime`，需求合同为
+  `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`，实现授权为
+  `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`；A8 冻结为历史 Review-first 产品线，不继续投入旧产品形态的
+  功能开发，也不继承其未完成的 Win10/Win7/RC 结论。（2）权限模式改为 Full Access、Review、Read Only；
+  可信工作区推荐 Full Access，使用当前 Windows 用户权限，允许直接文件写入、工作区外显式路径、项目依赖、
+  真实 Git 配置和本地网络能力；不自动提权。外部写、破坏性 Git、永久/批量删除和系统级操作继续要求绑定
+  可见目标的一次性确认，但该策略是防误操作行为边界，不宣称 Shell 级强隔离。（3）为 A9 局部取代 C09：
+  模型可调用 `shell` 提交完整 PowerShell/CMD 命令字符串、管道、重定向和项目脚本；所有执行仍必须经过
+  TrustedShellRunner、IPC Schema、审计、输出上限、取消和进程生命周期管理，Renderer/业务 UI 不能直接
+  `child_process`。（4）Shell 自动选择工作区覆盖 → PowerShell 5.1 → CMD；WMF 5.1 推荐但不是硬前置，
+  PowerShell 2～4 Best Effort，Git Bash 仅用户可选。普通 Shell 调用关闭 stdin 且每次独立进程；支持有界
+  托管后台开发进程。（5）为 A9 局部取代 C08 的固定硬超时要求：普通命令可以没有任意短硬 deadline，但必须
+  有软时长提示、可取消、输出上限、进程树终止和残留状态；任务或用户仍可设置 deadline。（6）为 A9 局部
+  取代 C20/ADR-0032：结构化 Git Adapter 继续服务状态、Diff 和历史展示，Trusted Full Access 允许 Shell
+  使用真实 Git、hooks、filters、helpers 和用户凭据环境；push/force push/远端删除始终确认。（7）Provider
+  首版统一为任意 Base URL 的 OpenAI-compatible Chat Completions + SSE + 原生 tool calls；正式 UI 默认真实
+  Provider，Replay 只留测试；API Key 继续 DPAPI/内存保存。（8）Full Access 直接写工作区并建立每轮 checkpoint、
+  Diff 与撤销；Review 继续复用 A8 staging，Read Only 继续拒绝写入。Shell/外部程序造成的文件变化也进入轮前/
+  轮后审计。（9）Electron Renderer 隔离、窄 IPC、凭据脱敏、TLS 默认验证、原子写入、SQLite 版本化、取消、
+  输出控制、进程清理和 Win7 实机证据继续保留；不得把“可用性优先”写成“无审计、无恢复或无边界”。
+  （10）Office 专用能力、内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场和自动更新不进入
+  A9 Alpha 1；首先完成五条真实 Coding Agent 旅程。
+- 后果：A9 可以覆盖真实开发项目依赖的 Shell、Git 和直接编辑能力，不再因 Win7 缺乏现代沙箱而把产品锁成
+  只读/Review 控制台。代价是 Full Access 与 Shell 拥有当前用户的真实副作用，Git hooks、项目脚本、网络和
+  仓库内容不再被强隔离；产品必须在首次启用时如实告知，并依赖用户选择可信环境、checkpoint/撤销、审计和
+  外部操作确认降低误操作风险。Phase 1/2、A7、A8 与其历史候选继续按旧合同解释，本 ADR 不追溯改写其证据。
+
+## ADR-0090 A9 工作区权限模式存储键绑定 canonical 路径哈希
+
+- 状态：Accepted（2026-08-22，A9 R1 修复轮）
+- 背景：v1 模式设置以 `path.basename(workspaceRoot)` 作为文件键，两个绝对路径不同、末级目录同名的工作区
+  （如 `/one/project` 与 `/two/project`）会共用 `workspace-modes/project.v1.json`，第二个工作区首次打开即静默
+  继承第一个工作区的 `full_access`，违反 A9-M01“首次打开必须显式选择”与 fail-closed 原则。
+- 决策：（1）v2 存储键为 canonical absolute workspace path 的 SHA-256（`ws-<hex>.json`），canonical 合同为：
+  统一分隔符（win32 反斜杠/其他正斜杠）、绝对化、去末尾分隔符（保留根）、win32 盘符小写且整路径大小写不敏感
+  （含 UNC），POSIX 大小写敏感。（2）文档 v2 含 canonical `workspaceRoot`、`permissionMode`、`selectedAt` 与
+  有界 `auditTrail`；加载时验证文档工作区与当前工作区一致，不一致返回 `workspace_mismatch` 的
+  `needs_selection`，绝不读取其模式值。（3）v1 basename 文档仅在内部 `workspaceRoot` 与当前工作区精确匹配时
+  迁移到 v2 键；不匹配、损坏、未知 schema 一律 `needs_selection`，不默认 Full Access。（4）SQLite 侧的
+  `a9_workspaces` 同步改用 canonical 路径作主键。（5）模式切换写入 JSON `auditTrail` 与 SQLite 事件双审计。
+- 后果：同名目录工作区彻底隔离；Windows 长路径/非法字符不再影响文件名；旧数据只能通过精确匹配迁移，
+  其余进入显式选择流程。POSIX 开发机上大小写不同的路径是不同工作区（与平台语义一致）。
+
+## ADR-0091 A9 审批使用不可变绑定对象并在 IPC v2 携带摘要
+
+- 状态：Accepted（2026-08-22，A9 R2 修复轮）
+- 背景：NEEDS_APPROVAL 只向产品层暴露 boolean 恢复接口，SQLite `a9_approvals` 在恢复执行后才补记
+  `tool_name="unknown"`、`binding_json={}`；无法证明审批与实际执行目标一致，也无法表达“参数变化后旧审批失效”。
+- 决策：（1）Core 在 NEEDS_APPROVAL 时构造不可变 `A9ApprovalRequest`：`approvalId`（turn+call+digest 短哈希）、
+  `turnId`、`callId`、`toolName`、canonical args、人类可读 `summary`、`bindingDigest`
+  （sha256(callId+toolName+canonicalArgs+summary)，别名规范化与默认值填充后计算）、shell 为 git 操作时的
+  remote/branch/force/deleteTarget/commandSha256 绑定。（2）`onApprovalPending` 钩子在等待用户前把 pending
+  审批持久化；SQLite 记录一律来自该原始 pending 对象。（3）恢复接口改为
+  `{ approvalId, decision, bindingDigest }`（IPC `a9.turn.resumeApproval`，schema v2）；Core 在消费前用与挂起时
+  相同的规范化管道重算摘要并比对，同时校验 `approvalId`；通过后先清空挂起再执行（一次性消费，重复/伪造/
+  跨 Turn 一律结构化拒绝）。（4）turnId 增加进程内序号保证跨 Turn 唯一。
+- 后果：审批记录可审计到确切目标；目标、参数或摘要变化即失效；Renderer 旧 boolean 协议不再可用（IPC 未发布，
+  无兼容负担）。拒绝路径保持零副作用并已记录真实目标。
+
+## ADR-0092 Shell 与外部工具的工作区变化进入同一 Checkpoint 与诚实验证语义
+
+- 状态：Accepted（2026-08-22，A9 R3 修复轮）
+- 背景：Shell 执行（如 `printf changed > via-shell.txt`）真实修改工作区后，getDiff(turnId) 为空、
+  undoTurn 报未找到 Checkpoint、Turn 被标 completed/not_applicable；同时任何 shell 成功（含 `echo`）
+  都可能把未验证的修改标成 verified。
+- 决策：（1）A9AgentLoop 通过 A9ExternalChangePort（由 A9WorkspaceService 实现）在本轮第一个潜在副作用
+  工具前冻结有界内容基线（遵循 ignore；文件数 2000/单文件 2 MiB/总量 40 MiB 上限），并在每次 shell 执行后
+  （成功、失败、取消或 residueRisk）扫描轮前/轮后变化：created → undo 删除；modified/deleted（有基线 blob）→
+  恢复原内容；同哈希 delete+create 对识别为 rename；超限、备份失败、无基线的目标显式写入
+  `unrecoverable` 清单，不静默遗漏。（2）外部变化与工具写入共用同一 checkpoint 记录（schema v3 增加
+  `unrecoverable`，v2 可读兼容），Diff、undo、SQLite 事实与 UI 使用同一份记录；外部变化同时使既有验证
+  失效并计为副作用。（3）收集不携带用户取消信号——取消后仍必须如实记录已发生的变化。（4）诚实验证语义：
+  `isNonVerifyingCommand` 将纯输出/查看类命令（echo/printf/ls/cat/type 等，且不含 node/python/npm/jest/
+  git 等运行器）排除在验证证据之外；只有验证候选命令成功（exitCode 0）且发生在最后一次源码修改之后才
+  标记 verified；验证后再次修改（工具或外部）即回到 unverified。
+- 后果：Shell/Git/项目脚本造成的文件变化全部可审计、可恢复（或显式标记不可恢复）；`echo tests passed`
+  不再能把代码修改标成已验证。基线冻结有界，大仓库按上限截断并显式标记。
+
+## ADR-0093 A9 Provider 非秘密配置版本化持久化与 DPAPI 秘密分离
+
+- 状态：Accepted（2026-08-22，A9 R4 修复轮）
+- 背景：A9 Provider 配置与 API Key 只存于进程内存，重启后 provider.configured=false；
+  产品路径未接既有 DPAPI credential-vault；切换模型直接丢弃 loop 会话。
+- 决策：（1）非秘密配置（baseUrl、模型 ID、自定义 Header 名、CA 路径、代理主机/端口/协议/用户名、
+  allowInsecureTLS、keyRemembered、probe 结论）持久化为 `a9-provider-config.v1.json`
+  （schemaVersion=1，临时文件+原子替换；损坏/未知 schema fail-closed 进入诊断，不覆盖）。
+  （2）秘密一律不进该文件：API Key 经 `a9-vault-apikey`、Header 值与代理密码合并经
+  `a9-vault-secrets`，两者都是既有 createDpapiCredentialVault 实例（Electron safeStorage /
+  Windows DPAPI Current User）；DPAPI 不可用时降级仅内存并在快照如实显示未记住。
+  （3）vault 支持 platform 注入仅供开发/测试以 fake safeStorage 验证 DPAPI 成功/失败/损坏/账户
+  不匹配合同，不得据此宣称真实 Windows DPAPI PASS；密文损坏 fail-closed 保留诊断证据不删除。
+  （4）保存配置时用短超时专用 Provider 实例执行最小真实 Tool Calling probe，分类
+  tool_calling/chat_only/unavailable 并持久化与审计；unavailable/chat_only 拒绝 Agent Turn，
+  无可靠 tool_calls 只标聊天能力，不自动回退 Replay。（5）模型切换时保留 loop 会话历史并
+  restoreConversationHistory 重建，不丢已完成工具结果；API Key/Authorization/代理密码经
+  redactSecrets 不进入事件、日志、快照或错误文本。
+- 后果：Provider 配置跨重启恢复且密钥永不明文落盘；探针结论与密钥记忆状态可审计；
+  本机（非 Windows）证据为注入式 fake DPAPI 合同验证。
+
+## ADR-0094 A9 SQLite Schema v3 保存真实 failed Turn 并统一提交/审批恢复终态
+
+- 状态：Accepted（2026-08-23，A9 F5/F6 缺陷修复轮）
+- 背景：A9 Schema v2 的 `a9_turns.status` CHECK 不允许 `failed`，Provider 或运行时失败只能被错误映射为
+  `blocked`，或在写终态时触发约束错误并留下 active 行。`submitTurn` 与 `resumeApproval` 还使用不同的状态
+  收尾路径：首次审批后的第二次审批可能被清空，checkpoint 未覆盖每次恢复结果，旧审批错误退化为通用
+  Desktop 错误。正常关闭后的重启证据若只检查 interruptions 是数组，也会把伪中断漏过。
+- 决策：（1）`A9_SCHEMA_VERSION` 升为 3，Turn 状态增加真实 `failed`。打开 v1/v2 数据库时先在 dataRoot
+  写迁移前备份，再在单个 SQLite transaction 内重建 `a9_turns` CHECK、复制全部行并恢复该表已有显式索引；
+  任一步失败全部回滚并进入 diagnostics，未知未来版本继续拒绝覆盖。（2）`submitTurn` 与
+  `resumeApproval` 共用唯一结果持久化汇点，同步 task/turn/run、agentStatus、当前审批和 checkpoint；
+  `needs_approval` 保持同一组实体 active 并保存返回的最新审批，只有非审批终态才清空。连续审批、批准和
+  拒绝始终复用同一 task/turn/run。（3）每次 submit/resume 结果覆盖 checkpoint，payload
+  `schemaVersion=1`，保存 outcome、verification、工具计数、外部变化和最小 pending 审批事实；旧 payload
+  仍可读取但不得自动重放。（4）Provider 初始化、请求或审批恢复期间的 Provider 失败落真实 `failed`
+  task/turn/run；用户取消保持 `cancelled`。输入校验或已消费/未知审批返回精确结构化错误且不得终止当前合法
+  pending 状态。（5）开发机 Electron 重启证据必须断言 `interruptions.length === 0`；真实 crash 的
+  active→interrupted 仍由独立子进程用例证明，任何恢复都只恢复事实、不重放模型或工具。
+- 后果：失败、取消、挂起审批和重启中断在 SQLite、快照及 checkpoint 中具有一致且可查询的语义；迁移前
+  旧库有可恢复备份，迁移失败不会半改表。代价是旧 v1/v2 数据库首次打开需要一次事务迁移并生成备份；
+  Schema v3 应用仍不能打开未知未来版本。该裁决不改变 Provider IPC 字段形状，也不授权 A9-07、真实
+  Provider、PowerShell/CMD 或 Win10/Win7 验收。
+
+## ADR-0095 根 AGENTS.md 收敛为当前执行入口并按需加载详细规范
+
+- 状态：Accepted（2026-08-24，项目负责人明确要求降低常驻上下文与不必要 Auto Review 成本）
+- 背景：根 `AGENTS.md` 同时复制当前状态、C01–C20 详细解释、验证方法和 A8、Phase、Prototype、
+  Spike 等历史叙述，修改前为 14,441 字节、103 行。其内容与 `docs/WIN7_CONSTRAINTS.md`、当前
+  任务书、`docs/STATUS.md`、`docs/tasks/README.md` 和既有 ADR 重复；每个任务常驻加载会增加
+  上下文，宽泛的读取、验证和审批表述还可能带来不必要的工具调用与 Auto Review。ADR-0044 已采用
+  分层规则与按需上下文，ADR-0052 已明确规则、决策、任务合同和状态文档的职责。
+- 决策：（1）根 `AGENTS.md` 只保留文档优先级、当前 A9 入口、开始任务的读取条件、C14、Win7 与
+  安全硬约束、最小修改/验证规则及成本控制；详细定义继续由既有权威文档承载。（2）A8、A7、
+  Phase 1–7、Prototype 和 Spike 的状态、背景与合同不删除、不改写，改为通过
+  `docs/STATUS.md`、`docs/tasks/README.md` 及对应任务书按需读取。（3）C01–C20 的完整解释和
+  验证矩阵继续以 `docs/WIN7_CONSTRAINTS.md` 为准；根入口明确保留 C14、允许路径检查、C15/C16
+  依赖登记、Win7 SP1 x64 硬门槛，以及 A9 对 C08/C09/C20 的有限替代。（4）workspace 内已授权的
+  普通读取、编辑和非破坏性局部检查无需重复请示；默认不执行无关的 GUI、浏览器、截图、渲染或全量
+  测试，并限制输出和重复读取。只有越过沙箱、网络、外部应用/系统、破坏性操作或任务范围时才申请
+  目标绑定批准；拒绝后不得用变体命令反复重试。（5）本裁决不修改 ADR-0089、A9 任务书、Accepted
+  ADR、安全模型、权限边界、Win7 兼容要求或 C14 实现授权语义，也不以降本为由启用 Full Access、
+  合并不相关操作或弱化审计。
+- 后果：所有任务获得更短的高密度执行入口，预计减少重复上下文、无关工具输出和不必要的
+  Auto Review；需要详细兼容性、阶段状态或历史合同的任务必须读取对应权威文档。按需加载改变的是
+  信息装载时机，不是授权或安全语义；外部 GUI、网络、沙箱外写入、破坏性操作及长会话仍可能产生
+  较高审批与上下文成本。
+
+## ADR-0096 A9 Alpha 1 收敛为 Full Access 与 Read Only，Review 延期至 Alpha 2
+
+- 状态：Accepted（2026-08-25，项目负责人基于 WIN7-10 Gate 4 正式失败明确裁决）
+- 背景：A9 Alpha 1 候选 `WIN7-10-GLOBAL-MODE-CLEAN`（源码提交
+  `f6cc12984f59745cd0edcd16f387080d603ba553`，ZIP SHA-256
+  `afbc68f7ab0a6b23975fc5ee5d07b35f0cbc26580e6775f5f22b9b54bc034399`，manifest SHA-256
+  `fa6ba75906d170d12ee695e0ec0a4a3bb51172e18c3eaa780e6e1a9ff7600adb`）在 Win7 Gate 4 证明
+  Full Access 与 Read Only 行为符合预期，但 Review 写入因正式 Desktop Runtime 未注入
+  `reviewStaging` 后端而按设计 fail-closed；正式工作区零写入，也没有 staging、文件级决定、审批或 Apply
+  状态。失败证据为
+  `C:\A9验收\证据\WIN7-10\gate4-review-staging-failure-20260825-01.txt`，SHA-256
+  `F5CEA1D1B08797AFA846E7A63032CAD0000660DFF0FA3786310BABE38A99F571`。完整修复需要同时补齐动态
+  staging、A9 状态、IPC、UI、checkpoint 和重启恢复，已超出当前 Alpha 1 的时间预算。
+- 决策：（1）`0.3.0-alpha.1` 的受支持权限模式收敛为 Full Access 与 Read Only；完整 Review staging、逐文件
+  接受/拒绝、审批绑定、Apply、漂移检测和重启恢复移入 `0.3.0-alpha.2`，开始实现前必须另立状态为
+  `APPROVED_FOR_IMPLEMENTATION` 的任务书。（2）WIN7-10 继续按当时有效的三模式合同保持 Gate 4 FAIL，
+  不追溯改判、不覆盖证据，也不把 Review 记为 Alpha 1 PASS。（3）本次只修改验收范围和文档，不修改
+  WIN7-10 产品字节；因此无需仅为延期 Review 重打包。候选身份未变化且现场条件连续时，已经完成的同候选
+  证据继续有效，验收从实际检查点 J4 继续。（4）WIN7-10 中仍可选择的 Review 必须作为 Alpha 1 已知限制
+  明示；进入该模式时 Core 缺少 staging 的 fail-closed 拒绝和零写入行为继续作为纵深保护，绝不能通过直写、
+  空 mock、自动接受或降级为 Full Access 绕过。要继续写入旅程，操作者必须显式切回 Full Access。（5）现场
+  报告 J1～J3 已执行并推进到 J4，但 `C:\A9验收\证据\WIN7-10` 尚无对应外置归档；最终裁决前必须从应用
+  审计、任务记录、文件/Git/Test/Diff 事实中补齐证据索引。缺证据时只能标记 `EVIDENCE_PENDING`，不得推断
+  PASS，也不要求无意义重跑。（6）仅当候选文件、源码实现、用户数据迁移逻辑或关键环境事实变化时，才需要
+  新候选或重跑受影响 Gate。（7）Alpha 2 Review 仍须复用或等价实现 A8 的私有 staging、基线哈希、文件级决定、
+  目标绑定审批、原子 Apply、恢复与秘密阻断，并通过 A9 专用 IPC/SQLite/UI 和 Win7 同候选验收。
+- 后果：Alpha 1 可以集中验证现实可用的直接开发闭环和安全只读分析，预计减少约 8～14 人日的当前阶段
+  工作；代价是 Alpha 1 不提供 Review 工作流，产品和发布说明必须如实标注。ADR-0089 中“三模式”和
+  “Review 继续复用 A8 staging”对 Alpha 1 的要求由本 ADR 局部取代，对 A8 历史产品线和 Alpha 2 目标
+  不作删除或弱化。范围缩减不豁免任何其余 Alpha 1 硬门槛，也不自动签发 `A9_ALPHA1_PASS`。
+
+## ADR-0097 A9 Win7 后续候选采用影响范围增量复验
+
+- 状态：Accepted（2026-08-27，项目负责人明确要求已验证内容不再默认重复、改为可选回归）
+- 背景：WIN7-10～WIN7-15 的正式验收已经对权限、Provider/DPAPI、J1～J5、Shell/编码、路径和部分生命周期
+  积累了可追溯实机证据。为修复局部缺陷而生成新候选时，从零机械重跑全部旅程会显著增加现场时间，也不能
+  提高未受影响能力的判定质量；但旧候选事实不能被改写成新候选的“现场执行 PASS”，包身份、变更影响和
+  历史失败仍必须明确绑定。
+- 决策：（1）每个新候选仍必须执行不可变身份、ZIP/manifest/全树完整性、启动绑定、候选前后哈希和后飞行
+  残留检查；这些项目不能继承。（2）历史失败、BLOCKED、证据不足项，以及本次实现、状态 Schema、依赖、
+  Runtime Profile、权限/审批、进程、安全或恢复路径直接影响的项目必须重验。（3）其余已有充分原始证据且
+  环境前置未发生实质变化的项目，默认记为 `INHERITED_EVIDENCE / OPTIONAL_REGRESSION`，保留原候选 ID、
+  哈希和证据路径，不冒充当前候选现场 PASS；操作者可按时间和风险选择抽样。（4）每个候选必须保存变更影响
+  矩阵，列出源码范围、需求 ID、必验项、继承项和理由；影响无法可靠收敛时扩大复验，不得以“可选”为由跳过
+  安全或数据风险。（5）最终 Alpha 1 裁决允许由“当前候选必验项 PASS + 可追溯继承证据 + 无未处置硬失败”
+  组成，不再要求所有历史旅程在每个修复候选上重复执行。（6）任何环境工具、Windows 用户、权限、Provider
+  能力、数据迁移或候选交付边界变化都会使相关继承失效。（7）ADR-0096 的 Review 延期保持不变；Review 仍
+  只能记 `DEFERRED_TO_ALPHA2 / KNOWN_LIMITATION`，不得继承或推断为 PASS。
+- 后果：后续 Win7 轮次集中验证变更影响和历史缺陷，既有 J/C/G/U 证据可按矩阵复用；代价是最终报告必须
+  区分 `CURRENT_CANDIDATE_PASS`、`INHERITED_EVIDENCE` 与 `OPTIONAL_REGRESSION_NOT_RUN`，不能再用单一
+  “同候选全量重跑”概括证据。该裁决不降低完整性、恢复、残留、秘密保护或 fail-closed 门槛。
+
+## ADR-0098 A9 Alpha 1 同工作区多对话、恢复上下文与 DPAPI 草稿
+
+- 状态：Accepted（2026-08-27，项目负责人完成 GrillMe Q1～Q40 并确认实施）
+- 背景：WIN7-14 暴露三个相互关联的产品缺口：Checkpoint 身份在窄面板被截断；重启只恢复工作区和权限，
+  不恢复可见对话；托管后台进程在 Turn 结束后缺少可达 Stop。WIN7-16 已修复这三个局部问题，但 A9 Runtime
+  仍以工作区路径哈希作为唯一 Session ID，恢复历史上线后用户无法在同一工作区主动新建、切换或归档对话，
+  所有任务会无限累积在单一上下文中。底层 A8 Session 目录不能直接冒充 A9 模型上下文、审批和 checkpoint
+  的隔离身份。
+- 决策：（1）工作区继续作为文件、权限和单写锁边界；每个工作区最多 16 个未归档 A9 对话，对话成为模型
+  文本上下文、任务、Turn、Run、审批、checkpoint 和草稿的隔离身份。Alpha 1 只支持单窗口、单活动对话、
+  单执行任务，不引入后台多对话并发。（2）支持新建、切换、重命名、归档和恢复，不支持永久删除。运行任务、
+  待审批或托管后台进程存在时禁止切换对话和工作区。归档当前对话时切到最近的未归档对话；若不存在则创建
+  空对话。恢复归档对话后激活它。（3）重启恢复上次工作区、上次活动对话和完整本地可见历史；只把最近
+  20 个完整用户/助手文本轮次且最多 32,000 字符重建为 Provider 上下文。工具调用、审批、Shell/Git 命令
+  和副作用不恢复为可执行上下文，不自动重放；被排除的旧历史保留可见并明确提示。（4）现有工作区派生
+  Session 确定性迁移为“历史对话”；缺失的旧请求、草稿或上下文不反推、不编造。schema 迁移前必须创建
+  事务一致备份和 SHA-256，失败回滚并进入 diagnostics，不覆盖唯一 live 数据。（5）草稿按对话保存；生产
+  Windows 使用 Electron `safeStorage`/DPAPI Current User 加密，SQLite 只存 Base64 密文。DPAPI 不可用或
+  解密失败时仅内存并明确提示，草稿不进入事件、日志、checkpoint、审批或模型，除非用户主动发送。
+  （6）Checkpoint 显示、复制、Diff 和撤销绑定完整 Turn ID；审批卡绑定当前对话/任务/Turn/Approval/目标，
+  点击后显示处理中，旧卡和重启前卡不可执行。（7）主 Composer 与左侧 CURRENT TASK 同时提供权威 Stop；
+  只有任务终态、后台句柄终态、进程树归零、审批消失且 `canStop=false` 才显示清理完成。正常退出等待清理，
+  无法确认时保留错误，不能冒充零残留。（8）Review 继续按 ADR-0096 延期；Win7 后续按 ADR-0097 只重验
+  候选身份/完整性/启动/后飞行和本 ADR 直接影响项，未受影响的充分证据标为继承而非当前候选现场 PASS。
+- 后果：A9 Alpha 1 获得可理解、可恢复且不会跨上下文串审批的多对话工作台；代价是 A9 schema 升级、一次
+  迁移备份、更多 IPC/Renderer 状态以及 WIN7-17 的数据、审批、Stop、DPI 和秘密保护增量实机验证。任何
+  数据丢失、上下文串用、陈旧审批可执行、Stop 后残留或退出清理失败均为本轮硬失败。
+
+## ADR-0099 A9 Alpha 1 以 WIN7-19 增量证据收口并进入内部交付
+
+- 状态：Accepted（2026-08-28，项目负责人确认 WIN7-19 可作为 Alpha 1 交付并要求阶段 PR）
+- 背景：WIN7-18 暴露复合 CMD 中绝对 `git.exe push` 未被高影响分类器识别、审批身份可复用的 P0。
+  修复提交 `781b20e3da277570f85c28286d7ea5bbbdd5fa28` 仅改变 Git 命令分词/分类和对应回归测试，并签发
+  WIN7-19。候选 ZIP SHA-256 为 `824a10cd213534aca87c348d8304b053d27a5bd896831daf528ed13b1c1c72b0`，
+  manifest SHA-256 为 `b483e9b0bcab19cf96114bda39e5d8a9ef8a48842c9aaabbaabfa7e87af12c26`，
+  `source_dirty=false`、780 文件、state schema v4、双构建字节一致。
+- 决策：（1）按 ADR-0097，WIN7-19 重新执行候选身份、包完整性、正式启动/退出/重启、直接受影响的审批
+  分类/身份/单次消费/变更目标零执行以及后飞行检查；其余七组未受影响能力采用 WIN7-17/18 可追溯继承
+  证据，不冒充 WIN7-19 现场重跑。（2）四个新 Turn 分别生成不同审批身份；三个拒绝 Turn 均为
+  `approval_required=1 / tool_start=0`，快速重复点击已批准卡仅产生一次 `tool_start`，变更目标重新出卡且
+  拒绝后零执行。已批准 push 只到达 Git 一次，并被 Git `safe.directory` 所有权保护阻止；bare remote
+  保持空，不能把它写成成功推送证据，但足以关闭审批绕过 P0。（3）正式 Electron 生命周期、包完整性
+  5/5、报告八个 case 结构校验、零受管进程残留、候选哈希不变和秘密扫描零命中通过；无 P0/P1，裁决为
+  `A9_ALPHA1_PASS / GO_FOR_ALPHA`。（4）报告校验器 schema 不支持 `INHERITED_EVIDENCE`，所以七个继承
+  case 仍显示 `EVIDENCE_PENDING`；此为证据表达限制，不追溯改成当前候选 PASS。（5）A9 实现任务收口，
+  根 `AGENTS.md` 改为已交付基线；Alpha 2 Review 必须另立任务书，Win10 同候选 smoke 在 RC 前补齐。
+- 后果：`0.3.0-alpha.1` 可供内部 Alpha 使用，支持 Full Access 与 Read Only，不支持完整 Review。接受的
+  P2 包括 1366×768 对话列表拥挤、普通用户 PATH 无 Git、复用管理员所有仓库触发 `safe.directory`、
+  Bitvise Session 0 的可见 DPAPI/GPU 降级。该裁决不授权关闭 TLS/SSH 校验、修改系统 PATH/注册表/服务，
+  也不是公开发布或 RC PASS。
+
+## ADR-0100 WIN7-19 后置独立审查触发 A9-08 修复 Gate，历史候选保持不可变
+
+- 状态：Accepted（2026-08-28，项目负责人要求保留 WIN7-19 阶段基线并按独立审查结论执行修复）
+- 背景：WIN7-19 在 ADR-0097 当时定义的增量范围内完成现场验收并由 ADR-0099 裁决
+  `GO_FOR_ALPHA`。在合并 PR 前新增的独立代码审查覆盖审批、状态迁移、进程停止、checkpoint 和秘密
+  保护，并动态复现：（1）CMD caret、PowerShell backtick/动态调用可使 `git push` 未进入始终确认；
+  （2）含已配置秘密的 prompt 可进入 `turn_started`、SQLite WAL 与 Renderer timeline。审查还确认
+  Provider 跨目标 Key 复用、A8 mutation IPC 可达、D-013 未接入正式 A9、checkpoint/迁移等 P1。
+  这些是 WIN7-19 原验收未覆盖的存量缺陷，不是候选身份错位，也不得通过改写历史证据消除。
+- 决策：（1）WIN7-19 源码提交、ZIP、manifest、candidate identity、外置证据和 ADR-0099 当时的现场
+  结论保持不可变，作为可回退里程碑；PR #3 在新 Gate 完成前不合并。（2）新增
+  `A9_08_POST_REVIEW_HARDENING`，状态 `APPROVED_FOR_IMPLEMENTATION`，继续使用
+  `codex/a9-trusted-agent-runtime` 和 `0.3.0-alpha.1`，只修复独审确认的问题。（3）当前综合交付状态为
+  `FIX_BEFORE_ALPHA`；这补充而非追溯伪造 WIN7-19 的已执行范围。（4）修复按审批/IPC、秘密/Provider/TLS、
+  进程生命周期、checkpoint/状态迁移四批提交；每批补行为回归并可独立回退。（5）仓库最高安全红线优先：
+  A9 不再接受关闭 TLS 验证；PRD 中允许显式 insecure TLS 的低优先级条款由本 ADR 对 Alpha 1 取代。
+  （6）全部修复经全量验证和第二轮独立审查后构建 WIN7-20；按 ADR-0097 重验候选必验项及所有直接
+  受影响项，未受影响的 WIN7-19 证据只标为继承。（7）WIN7-20 重新取得 `GO_FOR_ALPHA` 后才允许合并。
+- 后果：风险通过不可变基线、小提交和增量实机复验控制，不靠把已知 P1 提前合并进 `main`。修复可能扩大
+  WIN7-20 的复验范围，特别是审批、秘密、Provider/TLS、进程、checkpoint 和迁移；开发机通过不能替代
+  Win7。Alpha 2 Review 继续不在本任务范围。
+
+## ADR-0101 A9 TrustedShell 使用 D-013 Current-User Full Access Profile 与协议 v2
+
+- 状态：Accepted（2026-08-29，项目负责人批准按独立 Profile 解除 A9-08 的 D-013 合同阻断）
+- 背景：A9-08 已关闭授权范围内的审批、秘密、Provider/TLS、进程真实性、checkpoint 和迁移缺陷，开发机
+  1482 项验证与三路独立复核均通过；但锁定的 `D-013-v24-low-risk-noninteractive` 只允许 System32
+  低风险白名单，强制 Restricted Token、Low Integrity 和固定总超时，协议也没有 A9 要求的
+  `envOverlay`、真实无 deadline 与托管后台 ready acknowledgement。直接让 A9 使用 v24 会出现“产品宣称
+  Full Access、底层仍按低权限 Runner 执行”的合同冲突；移除 Job、取消或清理证明又会违反 ADR-0089 和
+  仓库进程安全红线。A9-08 没有修改 `native/helper/**`、原生协议或 release input lock 的授权，不能以
+  JavaScript 回退或伪造 helper 回执绕过阻断。
+- 决策：（1）D-013 v24、协议 v1、既有哈希和 A7/A8/WIN7-19 历史证据保持不可变，继续只解释为
+  `low-risk-noninteractive` Profile；新增 D-013 v25、协议 v2 和
+  `a9-trusted-shell-current-user-v1` Profile，专用于 A9 TrustedShell。新 Profile 使用当前 Windows 普通
+  用户 Primary Token，不创建 Restricted Token、不降为 Low Integrity、不修改工作目录 DACL/Integrity
+  Label；继续建立独立 Job Object、关闭 child stdin、有界捕获双流并管理整棵进程树。回执必须如实声明
+  `tokenMode=current_user`、`restrictedToken=false`、`lowIntegrity=false`、`workDirAclModified=false`，
+  不得复用 v24 的减权证明字段冒充成功。（2）自动 Shell 只接受规范化的 Windows PowerShell 或
+  `%SystemRoot%\\System32\\cmd.exe`；工作区显式 Shell（包括可选 Git Bash）必须由用户设置产生，绑定
+  canonical executable path、文件身份/哈希和版本，模型或 Renderer 不能在单次工具参数中注册任意宿主。
+  helper 只验证已绑定 Shell 宿主，不把完整命令内容伪装成可执行文件白名单；Shell 内命令、项目脚本、Git
+  hooks/helpers 和网络副作用继续按 ADR-0089 的当前用户 Full Access 风险解释，并经过 Schema IPC、Policy、
+  目标绑定审批、审计和 checkpoint。（3）协议 v2 请求至少包含 `requestId`、`profileId`、Shell 身份、
+  `command`、canonical `cwd`、`envOverlay`、双流上限、`managed`、`deadlineMode=none|fixed` 和可选
+  `timeoutMs/idleTimeoutMs`。默认继承当前用户环境并叠加受验证的工作区设置；Provider/API Key 不注入
+  Shell，环境值不得进入回执、事件、日志、SQLite、checkpoint 或诊断包，且必须拒绝弱化 TLS、Electron/
+  Node 边界的控制变量。（4）`deadlineMode=none` 表示不存在人为总/空闲 deadline，不能映射为一小时或
+  其他固定上限；输出预算、软时长提示、用户 Stop、应用退出裁决和 Job 回收仍为硬门槛。显式 deadline
+  使用单调时钟，并与取消、最终结果和清理证明区分。（5）托管后台启动采用同一 stdio 控制通道的多消息
+  协议：helper 只有在 child 已创建、stdin 已断开、双流捕获已就绪且 child Job 归属已复核后，才返回严格
+  绑定 `requestId` 的 `execution_started`；产品收到并持久化该消息前不得显示“已启动”。25ms 固定等待或
+  仅凭 PID 存在均不是 ready 证明；最终 `execution_result`、合作取消和重复 Stop 继续绑定同一身份。
+  （6）v25 保留 ADR-0069 的 Win7 Electron Job/breakaway 检查和 ADR-0071 的合作取消；无法确认 Job 分配、
+  双流状态、整树退出或最终回执时一律 `cleanup_required`，窗口与工作区锁按 ADR-0100 保持可操作，禁止
+  虚报零残留。当前用户 Full Access 不宣称文件系统、网络或权限隔离，不自动提权，也不授权修改系统 PATH、
+  服务、注册表、防火墙、TLS/SSH 校验或安装 WMF。（7）新增
+  `A9_09_D013_TRUSTED_SHELL_PROFILE`，授权 `native/helper/**`、Runner/Shell 适配、D-017 锁定构建、A9
+  input lock、打包与验证套件的最小修改；不新增运行时依赖，不实现交互终端、Alpha 2 Review 或无关重构。
+  D-013 v25 必须由锁定的 VS2019/v142/SDK 10.0.19041 Profile 形成源码到 PE x64/CRT/API/哈希闭包，旧 v24
+  工件和候选不得原地覆盖。（8）Win10 双构建一致与静态/协议 smoke 通过后才能签发 WIN7-20；Win7 SP1 x64
+  普通用户必须验证 PowerShell 5.1/CMD/显式 Shell、中文空格/junction/近 MAX_PATH、环境覆盖、前后台、
+  无 deadline、双 Stop、崩溃恢复、recovered PID、退出锁、零残留和秘密扫描。按 ADR-0097 仅继承未受
+  影响的 WIN7-19 证据；WIN7-20 重新取得 `GO_FOR_ALPHA` 前 PR #3 仍不得合并。
+- 后果：A9 可以在不虚构 Win7 沙箱的前提下真正使用当前普通用户权限运行 Shell，同时保留 Job、取消、
+  输出、审批、checkpoint 和诚实残留报告。代价是增加一个原生 Profile、协议版本、构建工件和实机矩阵；
+  v24 与 v25 必须分别锁定和解释。本 ADR 仅针对 A9 Current-User Profile，局部取代 ADR-0067“任意 Shell
+  始终拒绝”和 ADR-0068“仅低风险固定程序 Profile”的限制；ADR-0067/0068/0069/0071/0072 对历史
+  Low-Risk Profile、A7/A8 与既有候选继续有效，不追溯改写其证据。
+
+## ADR-0102 A9-09 独立复审后的候选与原始返回证据绑定
+
+- 状态：Accepted（2026-08-30，项目负责人要求修复 D-013 v25 独立审查问题；仅收紧 ADR-0101 已授权门禁）
+- 背景：自报 PASS、独立文件哈希和版本标签不足以证明候选闭包或实际执行宿主；独立审查发现开发候选
+  可被 WIN7-20 verifier 接受、返回包可缺少 PE/原始 smoke 证据、显式 Shell 结果可沿用自动探测版本。
+- 决策：（1）显式 Shell 选择配置以 schemaVersion 2 保存 canonical path、稳定文件身份、SHA-256 和
+  测量版本；旧配置无完整绑定时必须重新选择。协议 v2 和执行结果使用同一已验证身份，不接受 Renderer
+  版本标签。（2）WIN7-20 报告使用独立 schema 2；W17 继承项绑定不可变 WIN7-19 disposition/ledger/report
+  哈希与 case pointer，W20 直接项绑定本候选与 Win7 普通用户机器证据。入口必须拒绝 dirty/ineligible
+  候选，并验证原始确定性 ZIP、内外 manifest、验收 kit、native 哈希与解压物理全树一致。
+  （3）v25 返回记录以仓库预批准 kit ZIP/hash 为信任根，拒绝重复返回 ZIP/hash 或 run ID；新增 schema 1
+  `validation-binding.json`，将批准 Profile 所列全部原始证据和退出码绑定到 run ID、source commit、
+  Profile 与最终 helper SHA-256。记录器独立解析 PE32+/AMD64/Win7 console、导入表、静态 CRT 和嵌入
+  asInvoker/Win7 manifest，交叉检查原始 PE 分析、v1/v2 smoke、ready/cancel、逻辑测试和捕获自测。
+  缺件、解析不支持或任何矛盾一律拒绝；不自动修补返回证据。
+- 后果：新合同只用于后续 v25/WIN7-20，不改写协议 v1/v24、WIN7-19 或旧 r4 ZIP。r4 保持撤销，修复提交
+  前不得生成虚构 source commit 或可批准的新套件；没有批准项时记录器保持阻断。开发机可验证结构与
+  fail-closed 行为，不能签发 Win10/Win7 PASS。文件绑定不是对恶意构建机或人工报告的远程证明，仍须
+  独立双构建、真实 Win7 实机证据及最终复审。本决策不新增运行时依赖、不扩大实现路径或系统操作权限。
+
+## ADR-0103 A9-09 正式产品闭包与批准清单必须独立于候选自报
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：ADR-0102 已绑定候选 ZIP/manifest/物理树与 Win10 原始返回证据，但“树等于 manifest”仍允许
+  候选把自身裁剪成五个文件并同步改写 manifest；仓库批准清单也尚未证明来自已提交 HEAD，存在同一工作
+  树本地加入批准条目的自批准路径。这两点不能构成独立发布信任根。
+- 决策：（1）WIN7-20 候选入口内置 0.3.0-alpha.1 的不可省略产品闭包，覆盖 Electron 入口和许可证、
+  `a9-09-input-lock.json`、Shell Product/Preload/Renderer、Core/Gateway/Git/Runner/State/Workspace 完整运行时
+  JavaScript、离线依赖、Runner manifest、helper/SQLite、SBOM、验证脚本与 verifier。入口解析 input lock、
+  runtime、Runner manifest、SBOM 和 kit，绑定 source commit、三份输入、D-013 v25 Profile/协议、native
+  哈希、Electron ABI 与 Gate；候选自报 manifest 不能删除或替换该集合。（2）生产记录器只从固定仓库路径
+  读取批准清单；清单必须存在于当前 `HEAD`，工作树字节与 `git show HEAD:<path>` 完全一致，且该路径无
+  staged/unstaged/untracked 状态。新 input lock 记录批准清单的 HEAD commit、路径和 SHA-256。
+  （3）测试清单仅允许 `testOnly=true` 的编程接口，正式 CLI 不暴露注入参数；测试身份明确写为 TEST_ONLY。
+- 后果：当前未跟踪的批准清单会安全阻断正式记录，直到用户授权提交完整整改；提交后仍必须另行生成新
+  revision、登记精确哈希并独立批准。固定闭包随产品版本维护，新增/移除运行时文件必须显式更新合同与测试。
+  本决策不改写 v24、WIN7-19、旧 r4 或历史正式锁，也不把开发机结构校验解释为 Win10/Win7 PASS。
+
+## ADR-0104 WIN7-20 候选外批准 pin 与正式输入来源绑定
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：ADR-0103 的固定文件集合和包内交叉一致性仅证明内部自洽，不能证明发布来源。把自造 input lock
+  移到候选外也不能自动成为权威输入，真实 native 配合伪造 JavaScript 同样不能被视为正式产品。
+- 决策：（1）WIN7-20 integrity/report 入口必须接收候选外只读使用的正式 `a9-09-input-lock.json`、批准
+  清单和 schema 1 `WIN7_20_RELEASE_AUTHORITY` 记录，并要求显式传入独立批准渠道发布的记录 SHA-256。
+  不提供默认 pin，不从候选/sidecar/传入文件本身推导批准，不自动创建批准记录。记录状态为
+  `APPROVED_FOR_WIN7_20_VALIDATION`，绑定 formal input lock SHA-256、批准清单 commit/SHA-256、产品
+  ZIP/manifest SHA-256 及产品 source commit。批准是在锁定双构建、正式输入审查和产品独立复核后发生的
+  外部信任动作；它不是 Win7/Alpha PASS。（2）包内 lock 与候选外正式 lock 必须逐字节一致；lock 的
+  approval_registry 必须匹配外部批准，build_kit 必须匹配清单中的精确批准项，两个 reproducible_builds
+  必须具有不同 ZIP/hash、合法且不同 run ID、不同 evidence binding SHA-256；拒绝 TEST_ONLY 身份。
+  原始 Win10 evidence binding 内容仍由记录器在写正式 lock 前验证，不在 Win7 重放构建。（3）三个原生
+  入口必须绑定正式输入的 entry hash，并检查 PE/COFF、PE32+、AMD64、executable/DLL 类型和 section
+  原始字节边界；不把 PE 结构替代 PE/API/CRT/协议 smoke 或实际加载证据。完整 ZIP/manifest 外部 pin
+  同时绑定全部 JavaScript、依赖、kit 与验证脚本。（4）candidate identity 与 integrity/report 保存批准
+  记录、正式 lock 和批准清单的哈希身份；CMD 增加必需参数，缺失或不匹配即 fail-closed。产品源码提交
+  与 helper 构建源码提交分别绑定产品批准与 build kit，不能把后续批准清单/lock 提交伪装为 helper 来源。
+- 后果：增加候选外只读批准记录和独立 hash 交接步骤。现场没有 Git/系统 Node 前置；应先在可信开发机
+  用仓库 verifier 完成预飞行，再运行包内 Electron 检查。信任根仍是独立批准与可信校验器，不防御被攻陷
+  的批准渠道、宿主或伪造全部输入的操作者。测试 pin 仅在临时夹具生成，不签发正式证据；旧 v24、WIN7-19
+  和已撤销 r4 不变，不新增依赖或系统 API，不授权提交、批准新候选或远程操作。
+
+## ADR-0105 A9 Shell 已知秘密值过滤与旧环境配置失效
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：仅按变量名过滤会让已知 Provider/API/Header/代理秘密借普通名字进入 child 和明文配置；
+  精确 Node 名称表还遗漏 NODE_DEBUG 等控制项。最新复审为 P0=0/P1=2/P2=0，撤销上一轮 A9-09A
+  通过结论；不得进入锁定 Win10 双构建。
+- 决策：（1）复用进程内 knownSecrets（含本进程已轮换旧值），继承环境删除命中项，overlay 在选择、
+  保存和执行前拒绝命中项；匹配原文、嵌入值、Base64/Base64URL（含无 padding）、percent/form 编码与
+  混合大小写 percent hex。错误和证据不回显键值。（2）Shell 探测、前台、后台及 v2 native helper
+  启动均使用净化环境，不再重新合并原始 process.env。helper 不接收秘密清单；只继承已净化快照并执行
+  原生名称过滤。v1 传输与历史工件不变。（3）JS/C++ 同步拒绝全部 NODE_*、ELECTRON_*，继续保留
+  既有秘密/TLS 控制规则。（4）Shell 设置文档升级 schemaVersion 3，沿用专用文件名；schema 2 读取时
+  原位迁移且复验全部工作区。任一旧 overlay 命中，移除该工作区整个 overlay 并持久化
+  environmentRejected=true；不保留含秘密的明文备份。启动和 Provider 凭据新增/变化时复验；当前工作区
+  被拒绝后必须显式重新保存设置才能执行，不能静默改用空环境。正常非秘密设置及 Shell 身份保留。
+- 后果：被拒绝的覆盖需要用户重新输入；原子替换失败时保持 fail-closed，不签发“已清除”结论。
+  这是已知秘密保护，不是未知密钥识别或磁盘安全擦除；历史外部副本、备份、已经运行的进程不能被追溯
+  清除。不新增依赖、网络调用或系统 API，不把开发机或结构测试冒充 Windows PASS；仍须再次独审、
+  新提交套件及 WIN7-20 环境/重启/轮换直接证据。
+
+## ADR-0106 A9-09 构建生成器入口与 Windows PowerShell 请求自测
+
+- 状态：Accepted（2026-08-30，项目负责人要求检查并修复最新 D-013 v25 独立审查问题）
+- 背景：ADR-0105 环境修复获独审关闭，但生成器仍精确匹配旧四项数组，扩展后的九项 smoke 无法封装；
+  正式 smoke 对 OrderedDictionary 调用 Hashtable.Clone，导致真实 Windows PowerShell 路径失败。
+- 决策：（1）生成器对 smoke 名称按必需集合校验，允许顺序变化和增项，缺项失败；隔离 TEST_ONLY Git
+  夹具执行真实 prepare-kit 入口，核对提交源码、input lock 和 manifest 哈希，禁止触碰工作树正式锁。
+  （2）有序请求逐项复制并替换 overlay；新增构建脚本专用 `-TestSmokeRequestOnly`，仅在 Windows
+  PowerShell 5.1 Desktop 执行同一复制函数并校验源请求未变。该分支在构建、文件写入及外部进程前退出，
+  不产生可交付返回包。非 Windows 自动测试显式跳过，不能以静态检查代替目标宿主执行。
+- 后果：不改变 helper 协议、产品运行时或交付依赖；自测开关只验证请求构造，不是 Win10/Win7 Gate。
+  当前仍须再次独审、授权提交、新 revision 及双构建；不改写 v24、WIN7-19 或已撤销 r4 的锁和工件。
+
+## ADR-0107 A9 文件显式编码与有界流式读取
+
+- 状态：Accepted（2026-08-30，项目负责人确认在独立读取修复范围内直接实施）
+- 背景：A9 read 在显式解码前先拒绝自动识别不明的文件；binary 请求反而进入文本分支；8 MiB 限制
+  在行范围处理前生效。当前 A9-09 不授权 Workspace/Core，故新增 A9-10 独立任务与 AGENTS 入口。
+- 决策：显式编码优先、binary 仅元数据；用 64 KiB 异步分块扫描替代同步整文件加载，完整哈希/行数
+  与最多 2000 行/128 KiB UTF-8 预览分离。严格流式解码保持跨块字符；可选 truncationReasons 说明
+  line_limit/byte_limit，不改变既有结果字段含义。不向模型暴露取消信号，内部复用 Agent Loop 信号。
+  完整读取并确认句柄/路径身份与 stat 稳定后才发布基线；错误/取消不留下新基线，不改变后续写入裁决。
+- 后果：内存有界但完整统计/哈希仍为 O(文件大小)，自动 GBK 可能需要重扫。无 BOM UTF-16LE 不保证
+  自动识别，须显式指定；超长单行只提供带截断标记的预览。无新增依赖/系统 API，沿用 Electron 22 /
+  Node 16 fs 与 ICU。只授权任务白名单和当前基线 detached 工作区，不授权提交/推送或修改历史工件；
+  Win7 实机与 A9-09 Gate 保持未完成。
+
+## ADR-0108 D-013 v25 后置独审缺口按独立 A9-11 合同修复
+
+- 状态：Accepted（2026-08-30，项目负责人要求核对后直接修复独立审查确认的问题）
+- 背景：A9-10 已修复 Agent 读取链，但同一 D-013 v25 独审任务仍复现八项跨模块缺口：只读 Git 投影可
+  执行 textconv/fsmonitor，活动 Full Access Loop 可在 UI 已切为 Read Only 后继续写，Git 投影和拆分的
+  `model_chunk` 可泄漏已知秘密，SSE Buffer 分块可损坏中文，Core/Renderer 的 Shell 事件 DTO 不一致且
+  长任务期间不刷新，显式读取编码未绑定 edit，A9 Viewer 固定调用 legacy UTF-8 读取。A9-09 与 A9-10
+  各自白名单均不足以完整修复，不能借既有授权越界。
+- 决策：（1）新增 A9-11 及精确路径白名单；Git 投影禁用所有会执行仓库配置的观察回调，并在产品边界
+  递归脱敏。（2）活动 Turn/审批/cleanup-required 进程期间拒绝模式切换；模型 chunk 先跨事件聚合脱敏，
+  再进入 timeline 和 SQLite。（3）SSE 采用 Node 16 可用的有状态 UTF-8 解码；Core 发布 schema 1 Shell
+  结果投影，Renderer 活动期轮询并按 DTO 展示。（4）显式 read 的 encoding/BOM 进入稳定写基线，edit
+  严格复用；A9 IPC 升级为 v5 并提供自身有界 read，Viewer 提供自动/显式编码选择，不再依赖 legacy A8
+  read。（5）全部改动只形成开发机修复证据，不改 v1/v2 native 协议、D-013 v24/v25 锁、WIN7-19 或
+  候选身份，不签发 Win10/Win7 PASS。
+- 后果：只读投影不再完全复现用户 Git callback 的显示效果，但真实 Git Shell 行为不变；连续模型文本可能
+  在工具/Turn 边界批量出现，以换取秘密不会跨事件泄漏。A9 IPC v5 要求同包 main/preload/Renderer 一致，
+  旧 schema fail-closed。显式错误编码仍拒绝写入；Win7/Electron 真实体验须纳入 WIN7-20 直接复验。
+
+## ADR-0109 D-013 v25 后置恢复、配置与用户流按独立 A9-12 合同修复
+
+- 状态：Accepted（2026-08-31，项目负责人要求继续核对并直接修复独立审查确认的问题）
+- 背景：A9-11 完成八项源码修复后，独审继续定位十项不在原白名单内的缺口：Viewer 手工编码跨文件
+  泄漏、Electron smoke 没有正式 Explorer 会话、首次 Undo 被严格对象校验拒绝、IME 组合输入提前发送、
+  Provider 二次保存丢失高级配置或秘密、审批恢复长任务没有 Stop、残留退出提示自身抛错、snapshot 同步
+  重复探测 Shell、崩溃持有者锁固定阻塞，以及 Runtime 初始化失败诊断在 Renderer 不可见。
+- 决策：（1）新增 A9-12 并限于 Shell Product/测试与 State 工作区锁；Viewer 每次新文件回到 auto，Smoke
+  通过真实 picker IPC 建会话，Undo 保持严格 schema 但 confirmationId 可选，IME 兼容 composition 与
+  keyCode 229。（2）Provider snapshot 只公开非秘密高级元数据；字段省略表示保留、显式空值表示清除，
+  endpoint 变化始终丢弃旧 API/Header/代理秘密；Renderer 不回填秘密。（3）审批恢复进入同一 running/
+  Stop/轮询生命周期；退出残留文本有界且不吞 cleanup 风险；自动 Shell 探测按 Runtime 缓存并在设置变化
+  后失效。（4）持久层只在 owner 精确为 `main-<pid>` 且 PID 检查明确 `ESRCH` 时事务接管；未知、权限错误、
+  PID 复用或其他不确定状态保持 fail-closed。同一 Runtime 未持锁时后续入口会重试。（5）初始化失败把
+  已脱敏、有界的 code/detail 明确显示到 Renderer 与诊断抽屉，不把未 ready 误报为“请选择模式”。
+- 后果：Provider UI 可以安全修改非秘密字段并显式清除旧设置，但 endpoint 变化后用户必须重新输入秘密；
+  PID 复用可能保守延迟锁接管，不能把 PID 检查描述为身份认证。开发机测试与 Electron smoke 均不替代
+  Win10/Win7 实机证据。本决策不改 native 协议、v24/v25 正式锁、WIN7-19 工件或候选身份，不授权提交、
+  推送、正式构建或解除 `FIX_BEFORE_ALPHA`。

@@ -61,6 +61,22 @@ describe('Desktop IPC acceptance boundary', () => {
     expect(result.error.code).toBe('SESSION_NOT_FOUND');
   });
 
+  it('dispatches the ordinary Composer agent scenario after schema validation', async () => {
+    const { host, handler } = setup();
+    const payload = {
+      sessionId: 'session-a',
+      prompt: '修复这个缺陷并运行测试',
+      scenario: 'agent',
+      context: { executionMode: 'direct' },
+    };
+    const result = await handler(
+      { trusted: true },
+      message(IPCMessageType.TASK_SUBMIT, 'session-a', payload),
+    );
+    expect(result).toEqual({ ok: true, task: { taskId: 'task-1' } });
+    expect(host.submitTask).toHaveBeenCalledWith(payload);
+  });
+
   it('rejects cross-session cancellation before calling the host', async () => {
     const { host, handler } = setup();
     const result = await handler({ trusted: true }, message(IPCMessageType.TASK_CANCEL, 'session-b', { taskId: 'task-1' }));

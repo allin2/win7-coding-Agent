@@ -809,9 +809,20 @@ function updateSessionUi() {
   updateEmptySession();
 }
 
+async function refreshA9WorkspaceSurface() {
+  const panel = window.win7AgentA9Panel;
+  if (!panel || typeof panel.refreshSnapshot !== 'function') return;
+  await panel.refreshSnapshot();
+  if (typeof panel.refreshGit === 'function') await panel.refreshGit();
+}
+
 async function chooseWorkspace() {
   clearError(); const result = await call(() => window.win7Agent.selectWorkspace()); if (!result || !result.selected) return;
   state.workspacePath = result.selected.workspacePath; setText('workspace-name', result.selected.displayName); setText('workspace-path', state.workspacePath); byId('new-session').disabled = false;
+  // A9 initially starts without a runtime and receives A9_WORKSPACE_REQUIRED.
+  // Refresh immediately after the main process confirms a workspace so the
+  // first-use Full Access / Review / Read Only dialog becomes reachable.
+  await refreshA9WorkspaceSurface();
   const created = await call(() => window.win7Agent.createSession(state.workspacePath));
   if (created && created.session) { state.session = created.session; ensureConversationView(state.session.sessionId); activateConversation(state.session.sessionId); updateSessionUi(); await refreshSessions(); await refreshRecovery(); await refreshSessionProjection(); await refreshWorkspace(''); await refreshDiagnostics(); }
 }

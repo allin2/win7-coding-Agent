@@ -12,6 +12,9 @@ const { createDesktopHost, validateWin7PathShape } = require('../../product/desk
     credentialVault?: Record<string, unknown>;
     ledger?: any;
     gatewayProviderFactory?: (input: any) => any;
+    allowWorkspaceSwitchWithActiveSessions?: boolean;
+    onWorkspaceChanging?: (workspacePath: string) => void | Promise<void>;
+    onWorkspaceSelected?: (workspacePath: string) => void | Promise<void>;
   }): any;
   validateWin7PathShape(candidatePath: string, platform: string): { normalized: string };
 };
@@ -46,6 +49,97 @@ describe('Desktop Alpha 1 composition root', () => {
     }
     throw new Error(`Timed out waiting for ${kind}`);
   }
+
+  it('lets the unified A9 host switch idle workspaces by archiving old explorer sessions', async () => {
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-alpha-second-'));
+    try {
+      host = createDesktopHost({ allowWorkspaceSwitchWithActiveSessions: true });
+      await host.selectWorkspace(root);
+      const oldSession = host.createSession({ label: 'old explorer' });
+      const selected = await host.selectWorkspace(secondRoot);
+      expect(selected.workspacePath).toBe(fs.realpathSync(secondRoot));
+      expect(host.listSessions().find((session: any) => session.sessionId === oldSession.sessionId).status)
+        .toBe('ARCHIVED');
+      expect(host.createSession({ label: 'new explorer' }).workspacePath).toBe(fs.realpathSync(secondRoot));
+    } finally {
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('publishes a workspace switch only after cleanup and old-session archival', async () => {
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-alpha-ordered-second-'));
+    const events: string[] = [];
+    try {
+      host = createDesktopHost({
+        allowWorkspaceSwitchWithActiveSessions: true,
+        onWorkspaceChanging: () => { events.push('cleanup'); },
+        onWorkspaceSelected: () => { events.push('publish'); },
+      });
+      await host.selectWorkspace(root);
+      events.splice(0);
+      const oldSession = host.createSession({ label: 'old explorer' });
+      await host.selectWorkspace(secondRoot);
+      expect(events).toEqual(['cleanup', 'publish']);
+      expect(host.listSessions().find((session: any) => session.sessionId === oldSession.sessionId).status)
+        .toBe('ARCHIVED');
+      expect(host.getActiveWorkspacePath()).toBe(fs.realpathSync(secondRoot));
+    } finally {
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the old workspace selected when final durable publication fails', async () => {
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-alpha-publish-fail-second-'));
+    let publicationCount = 0;
+    try {
+      host = createDesktopHost({
+        allowWorkspaceSwitchWithActiveSessions: true,
+        onWorkspaceSelected: () => {
+          publicationCount += 1;
+          if (publicationCount === 2) throw Object.assign(new Error('write failed'), { code: 'A9_ACTIVE_WORKSPACE_STORE_WRITE_FAILED' });
+        },
+      });
+      await host.selectWorkspace(root);
+      const oldSession = host.createSession({ label: 'old explorer' });
+      await expect(host.selectWorkspace(secondRoot)).rejects.toMatchObject({ code: 'A9_ACTIVE_WORKSPACE_STORE_WRITE_FAILED' });
+      expect(host.getActiveWorkspacePath()).toBe(fs.realpathSync(root));
+      expect(host.listSessions().find((session: any) => session.sessionId === oldSession.sessionId).status)
+        .toBe('ARCHIVED');
+    } finally {
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not archive old sessions when pre-switch runtime cleanup fails', async () => {
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-alpha-cleanup-fail-second-'));
+    try {
+      host = createDesktopHost({
+        allowWorkspaceSwitchWithActiveSessions: true,
+        onWorkspaceChanging: () => { throw Object.assign(new Error('cleanup failed'), { code: 'A9_WORKSPACE_CLEANUP_UNCONFIRMED' }); },
+      });
+      await host.selectWorkspace(root);
+      const oldSession = host.createSession({ label: 'old explorer' });
+      await expect(host.selectWorkspace(secondRoot)).rejects.toMatchObject({ code: 'A9_WORKSPACE_CLEANUP_UNCONFIRMED' });
+      expect(host.getActiveWorkspacePath()).toBe(fs.realpathSync(root));
+      expect(host.listSessions().find((session: any) => session.sessionId === oldSession.sessionId).status)
+        .toBe('ACTIVE');
+    } finally {
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps legacy hosts fail-closed when an active session binds the workspace', async () => {
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'desktop-alpha-legacy-second-'));
+    try {
+      host = createDesktopHost();
+      await host.selectWorkspace(root);
+      host.createSession({});
+      await expect(host.selectWorkspace(secondRoot)).rejects.toMatchObject({ code: 'WORKSPACE_SESSION_BOUND' });
+      expect(host.getActiveWorkspacePath()).toBe(fs.realpathSync(root));
+    } finally {
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
 
   it('runs Replay through Core list/search/read and State-backed product events', async () => {
     const events: any[] = [];

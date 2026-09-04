@@ -120,16 +120,34 @@ describe('PolicyEngine', () => {
   });
 
   describe('FULL_ACCESS 工具', () => {
-    it('始终拒绝（ADR-0030）', () => {
+    it('在 A9 Full Access 下允许已批准的工具执行（ADR-0089）', () => {
       const toolCall: ToolCall = {
         id: 'call-7',
-        toolName: 'terminal.exec',
-        args: { command: 'git', argv: ['status'] },
-        approvalLevel: 'full_access' as ApprovalLevel,
+        toolName: 'shell',
+        args: { command: 'git status' },
+        approvalLevel: ApprovalLevel.FULL_ACCESS,
       };
       const decision = engine.evaluate(toolCall);
-      expect(decision.allowed).toBe(false);
-      expect(decision.reason).toContain('ADR-0030');
+      expect(decision.allowed).toBe(true);
+      expect(decision.ruleId).toBe('POLICY_FULL_ACCESS_ALLOWED');
+    });
+
+    it('asks before a git push hidden inside a compound CMD payload', () => {
+      const decision = engine.evaluate({
+        id: 'call-cmd-push',
+        toolName: 'shell',
+        args: {
+          command: 'cmd.exe /d /v:off /c \'set "GIT_CONFIG_COUNT=1" && C:\\tools\\git.exe push a9-win7-13 main:main\'',
+        },
+        approvalLevel: ApprovalLevel.FULL_ACCESS,
+      });
+      expect(decision).toMatchObject({
+        allowed: false,
+        verdict: PolicyVerdict.ASK,
+        ruleId: 'POLICY_ALWAYS_CONFIRM_REQUIRED',
+      });
+      expect(decision.reason).toContain('remote=a9-win7-13');
+      expect(decision.reason).toContain('branch=main');
     });
   });
 

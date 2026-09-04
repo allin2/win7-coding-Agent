@@ -25,7 +25,7 @@ describe('Renderer Gateway settings payload', () => {
 
     expect(payload).toEqual({
       mode: 'deepseek',
-      gatewayUrl: 'https://api.deepseek.com',
+      gatewayUrl: 'https://ignored.example',
       model: 'deepseek-v4-flash',
       apiKey: 'test-key',
       rememberApiKey: true,
@@ -62,7 +62,7 @@ describe('Renderer Gateway settings payload', () => {
       rememberApiKey: false,
     })).toEqual({
       mode: 'deepseek',
-      gatewayUrl: 'https://api.deepseek.com',
+      gatewayUrl: '',
       model: 'deepseek-v4-flash',
       rememberApiKey: false,
     });

@@ -27,11 +27,13 @@ describe('AgentState enum', () => {
 describe('ApprovalLevel enum', () => {
   it('包含所有预期级别', () => {
     expect(ApprovalLevel.READ_ONLY).toBe('read_only');
+    expect(ApprovalLevel.REVIEW).toBe('review');
     expect(ApprovalLevel.WORKSPACE_WRITE).toBe('workspace_write');
+    expect(ApprovalLevel.FULL_ACCESS).toBe('full_access');
   });
 
-  it('仅暴露 ADR-0030 允许的 2 个本地级别', () => {
+  it('包含 ADR-0089 扩展的级别', () => {
     const values = Object.values(ApprovalLevel);
-    expect(values).toEqual(['read_only', 'workspace_write']);
+    expect(values).toEqual(['read_only', 'review', 'workspace_write', 'full_access']);
   });
 });

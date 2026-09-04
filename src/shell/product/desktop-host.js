@@ -58,6 +58,8 @@ function createDesktopHost(options) {
   const host = {
     selectWorkspace,
     getSelectedWorkspace: () => selectedWorkspace,
+    // A9（F1）：主进程确认的当前活动工作区；未选择时为 null。
+    getActiveWorkspacePath: () => selectedWorkspace,
     createSession,
     listSessions,
     closeSession,
@@ -279,11 +281,34 @@ function createDesktopHost(options) {
   async function selectWorkspace(candidatePath) {
     if (activeTask) throw productError('WORKSPACE_BUSY', '任务运行期间不能切换工作区', '先取消或等待当前任务结束。');
     const normalized = normalizeWorkspacePath(candidatePath);
-    if (Array.from(sessions.values()).some((session) => session.status === 'ACTIVE') && selectedWorkspace && normalized !== selectedWorkspace) {
+    const switchingWorkspace = Boolean(selectedWorkspace && normalized !== selectedWorkspace);
+    const boundSessions = switchingWorkspace
+      ? Array.from(sessions.values()).filter((session) => session.status === 'ACTIVE')
+      : [];
+    if (boundSessions.length > 0 && config.allowWorkspaceSwitchWithActiveSessions !== true) {
       throw productError('WORKSPACE_SESSION_BOUND', '已有会话绑定当前工作区，不能切换到另一个目录', '关闭现有会话后再选择新的工作区。');
     }
+    if (switchingWorkspace && typeof config.onWorkspaceChanging === 'function') {
+      await config.onWorkspaceChanging(normalized);
+    }
+    // The unified A9 workbench keeps one lightweight A8 explorer session for
+    // the selected workspace. After A9 cleanup and durable selection succeed,
+    // archive those idle old-workspace sessions so restart cannot restore two
+    // active workspace bindings. Legacy/A8 hosts retain the old fail-closed
+    // behavior unless this option is explicitly enabled.
+    for (const session of boundSessions) {
+      await closeSession(session.sessionId);
+    }
+    // Prepare all catalog state before publishing the durable active-workspace
+    // pointer. If cleanup/archive/catalog preparation fails, both the in-memory
+    // selection and durable pointer still identify the old workspace. Once the
+    // atomic pointer write succeeds, the remaining assignments cannot fail.
+    const nextWorkspace = sessionCatalog.ensureWorkspace(normalized);
+    if (typeof config.onWorkspaceSelected === 'function') {
+      await config.onWorkspaceSelected(normalized);
+    }
     selectedWorkspace = normalized;
-    selectedWorkspaceId = sessionCatalog.ensureWorkspace(normalized).workspaceId;
+    selectedWorkspaceId = nextWorkspace.workspaceId;
     return {
       schemaVersion: 1,
       workspaceId: selectedWorkspaceId,

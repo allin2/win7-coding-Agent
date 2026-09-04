@@ -6,9 +6,8 @@
     const values = { mode };
     if (mode !== 'gateway' && mode !== 'deepseek') return values;
 
-    values.gatewayUrl = mode === 'deepseek'
-      ? 'https://api.deepseek.com'
-      : String(input.gatewayUrl || '').trim();
+    // A9：任意 Base URL + 手工模型 ID；不再固定 DeepSeek URL 或下拉列表。
+    values.gatewayUrl = String(input.gatewayUrl || '').trim();
     values.model = input.model;
 
     const caBundlePath = String(input.caBundlePath || '').trim();

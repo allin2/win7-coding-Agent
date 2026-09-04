@@ -18,6 +18,10 @@ const {
 } = require('./policy');
 const { createDesktopRequestHandler } = require('./desktop-ipc');
 const { createA8ProductRequestHandler } = require('./a8-product-ipc');
+const { createA9ProductRequestHandler } = require('./a9-product-ipc');
+const { createA9AgentRuntime } = require('./a9-agent-runtime');
+const { loadA9PackageRuntime } = require('./a9-package-runtime');
+const { createActiveWorkspaceStore } = require('./active-workspace-store');
 const { installSessionPolicy, installWindowPolicy } = require('./security-policy');
 const { createDesktopHost } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
@@ -28,16 +32,26 @@ const { IPCDirection, IPCMessageType } = require('../dist/ipc/messages');
 
 const productRoot = __dirname;
 const rendererRoot = path.join(productRoot, 'renderer');
-const rendererEntry = path.join(rendererRoot, 'index.html');
+const legacyRendererEntry = path.join(rendererRoot, 'index.html');
+const legacyRendererRequested = process.argv.some((item) => item.indexOf('--a8-review-smoke-') === 0 || item.indexOf('--a8-boundary-smoke-') === 0);
+const rendererEntry = legacyRendererRequested
+  ? legacyRendererEntry
+  : path.join(rendererRoot, 'workbench.html');
 const preloadPath = path.join(productRoot, 'preload.js');
+// v3 package only: bind the immutable native closure and select the documented
+// LOCALAPPDATA/portable data root before Electron creates its default userData.
+const a9PackageRuntime = loadA9PackageRuntime({ productRoot, app });
 const startedAt = new Date().toISOString();
 const mvpId = readArgument('--mvp-id=') || 'MVP-UNKNOWN';
 const smokeReportPath = readArgument('--smoke-report=');
+const a9SmokeWorkspace = readArgument('--a9-smoke-workspace=');
 const a8ReviewSmokeReportPath = readArgument('--a8-review-smoke-report=');
 const a8ReviewSmokeWorkspace = readArgument('--a8-review-smoke-workspace=');
 const a8ReviewSmokeScreenshotPath = readArgument('--a8-review-smoke-screenshot=');
 const a8BoundarySmokeReportPath = readArgument('--a8-boundary-smoke-report=');
 const a8BoundarySmokeScreenshotPath = readArgument('--a8-boundary-smoke-screenshot=');
+const a9WorkbenchScreenshotPath = readArgument('--a9-workbench-screenshot=');
+const a9WorkbenchZoom = Number(readArgument('--a9-workbench-zoom=') || 1) === 1.25 ? 1.25 : 1;
 const acceptanceEventReportPath = readArgument('--acceptance-event-report=');
 const runnerManifestPath = readArgument('--runner-manifest=');
 const runnerManifestSha256 = readArgument('--runner-manifest-sha256=');
@@ -50,18 +64,21 @@ const runtimeState = {
   deniedPermissions: [],
   errors: [],
   productEvents: 0,
+  activeWorkspaceRestore: { status: 'not_checked' },
 };
 
 let mainWindow = null;
 let smokeTimer = null;
 let desktopHost = null;
 let rcComposition = null;
+let activeWorkspaceStore = null;
 const acceptanceEvents = [];
 let acceptanceReportWritten = false;
 let a8ReviewSmokeSession = null;
 let a8ReviewSmokeFinished = false;
 let a8ReviewSmokeFailureMode = null;
 let a8BoundarySmokeFinished = false;
+let a9WorkbenchScreenshotWritten = false;
 
 function readArgument(prefix) {
   const value = process.argv.find((item) => item.indexOf(prefix) === 0);
@@ -753,6 +770,20 @@ function focusMainWindow() {
   mainWindow.focus();
 }
 
+async function captureA9WorkbenchScreenshot() {
+  if (!a9WorkbenchScreenshotPath || a9WorkbenchScreenshotWritten || !mainWindow || mainWindow.isDestroyed()) return;
+  a9WorkbenchScreenshotWritten = true;
+  mainWindow.setContentSize(1366, 768);
+  mainWindow.webContents.setZoomFactor(a9WorkbenchZoom);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await mainWindow.webContents.executeJavaScript("document.getElementById('workspace-select').focus(); true");
+  const image = await mainWindow.webContents.capturePage();
+  fs.mkdirSync(path.dirname(a9WorkbenchScreenshotPath), { recursive: true });
+  fs.writeFileSync(a9WorkbenchScreenshotPath, image.toPNG());
+  process.stdout.write(`A9_WORKBENCH_SCREENSHOT_WRITTEN:${a9WorkbenchScreenshotPath}\n`);
+  app.exit(0);
+}
+
 function createMainWindow() {
   const window = new BrowserWindow(createWindowOptions(preloadPath));
   window.setMenuBarVisibility(false);
@@ -765,6 +796,28 @@ function createMainWindow() {
   });
   window.once('ready-to-show', () => {
     if (!smokeReportPath) window.show();
+  });
+  window.on('close', (event) => {
+    if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
+    event.preventDefault();
+    if (a9WindowCloseInFlight) return;
+    a9WindowCloseInFlight = (async () => {
+      try {
+        const result = await a9RuntimeInstance.shutdown();
+        if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
+          const leave = await confirmA9LeaveToSystem(result.leftToSystem);
+          if (!leave) throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+          await a9RuntimeInstance.shutdown({ stopManaged: false });
+        }
+        a9ShutdownComplete = true;
+        window.close();
+      } catch (error) {
+        runtimeState.errors.push('a9-window-close:' + String(error && error.message ? error.message : error));
+        dialog.showErrorBox('无法确认安全退出', '仍有 A9 任务或托管进程的清理结果无法确认。窗口与工作区锁保持可用，请在诊断中检查残留后重试。');
+      } finally {
+        a9WindowCloseInFlight = null;
+      }
+    })();
   });
   window.on('closed', () => {
     mainWindow = null;
@@ -827,7 +880,128 @@ ipcMain.handle('desktop:request', handleDesktopRequest);
 ipcMain.handle('product:a8-request', createA8ProductRequestHandler({
   getDesktopHost: () => desktopHost,
   isValidRendererSender: validRendererSender,
+  // A9 still reuses A8's bounded workspace-read DTOs. Deferred Review
+  // mutations are enabled only by the explicit historical smoke entry.
+  allowReviewMutations: legacyRendererRequested,
 }));
+
+// A9 Trusted Agent Runtime（A9-06）：Renderer 只经此窄 IPC 访问。
+let a9RuntimeInstance = null;
+// F1：未选择工作区时的结构化哨兵（不创建 runtime，不落 userData）。
+const A9_WORKSPACE_REQUIRED_SENTINEL = Object.freeze({
+  __a9WorkspaceRequired: true,
+  status: 'workspace_required',
+});
+
+let a9RuntimeWorkspace = null;
+
+function getA9DataRoot() {
+  return process.env.WIN7AGENT_A9_DATAROOT || path.join(app.getPath('userData'), 'a9');
+}
+
+async function getOrCreateA9Runtime() {
+  // WIN7AGENT_A9_DATAROOT / WIN7AGENT_A9_ELECTRON_SQLITE 仅供开发机 smoke 显式覆盖；
+  // WIN7AGENT_A9_WORKSPACE 仅作显式测试覆盖保留，正式链路以主进程确认的活动工作区为准。
+  const a9DataRoot = getA9DataRoot();
+  const activeWorkspace = desktopHost && typeof desktopHost.getActiveWorkspacePath === 'function'
+    ? desktopHost.getActiveWorkspacePath()
+    : null;
+  const desiredWorkspace = process.env.WIN7AGENT_A9_WORKSPACE || activeWorkspace;
+  if (!desiredWorkspace) return A9_WORKSPACE_REQUIRED_SENTINEL;
+
+  if (a9RuntimeInstance && a9RuntimeInstance.status === 'ready' && a9RuntimeWorkspace === desiredWorkspace) {
+    return a9RuntimeInstance;
+  }
+  // 切换工作区：安全关闭旧 runtime（释放锁/后台进程）；模式、锁与 checkpoint 按工作区隔离。
+  if (a9RuntimeInstance && typeof a9RuntimeInstance.shutdown === 'function') {
+    const leave = typeof a9RuntimeInstance.canLeaveWorkspace === 'function'
+      ? a9RuntimeInstance.canLeaveWorkspace()
+      : { allowed: true };
+    if (!leave.allowed) {
+      throw Object.assign(new Error(`A9_WORKSPACE_BUSY: ${leave.reason}`), { code: 'A9_WORKSPACE_BUSY' });
+    }
+    const cleanup = await a9RuntimeInstance.shutdown();
+    if (cleanup && Array.isArray(cleanup.leftToSystem) && cleanup.leftToSystem.length > 0) {
+      throw Object.assign(new Error(`A9_WORKSPACE_CLEANUP_UNCONFIRMED: ${cleanup.leftToSystem.join(';')}`), {
+        code: 'A9_WORKSPACE_CLEANUP_UNCONFIRMED',
+      });
+    }
+  }
+  a9RuntimeInstance = createA9AgentRuntime({
+    workspaceRoot: desiredWorkspace,
+    dataRoot: a9DataRoot,
+    ...(fs.existsSync(path.join(app.getPath('userData'), 'state', 'agent-events-v2.db'))
+      ? { a8DatabasePath: path.join(app.getPath('userData'), 'state', 'agent-events-v2.db') }
+      : {}),
+    ownerId: `main-${process.pid}`,
+    // Windows package path: Electron safeStorage is the DPAPI boundary. Without
+    // this host injection Provider secrets silently degrade to process memory.
+    safeStorage,
+    selectShellExecutable: async (kind) => {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: `选择 ${kind} Shell 可执行文件`,
+        properties: ['openFile'],
+        filters: [{ name: 'Windows executable', extensions: ['exe'] }, { name: 'All files', extensions: ['*'] }],
+      });
+      return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+    },
+    ...(a9PackageRuntime ? {
+      runnerHelperPath: a9PackageRuntime.runnerHelper,
+      requireRunnerHelper: true,
+    } : {}),
+    ...(process.env.WIN7AGENT_A9_ELECTRON_SQLITE
+      ? { electronSqliteRoot: process.env.WIN7AGENT_A9_ELECTRON_SQLITE }
+      : a9PackageRuntime ? { electronSqliteRoot: a9PackageRuntime.storageRoot } : {}),
+  });
+  a9RuntimeWorkspace = desiredWorkspace;
+  return a9RuntimeInstance;
+}
+ipcMain.handle('product:a9-request', createA9ProductRequestHandler({
+  getA9Runtime: getOrCreateA9Runtime,
+  isValidRendererSender: validRendererSender,
+}));
+let a9ShutdownComplete = false;
+let a9ShutdownInFlight = null;
+let a9WindowCloseInFlight = null;
+async function confirmA9LeaveToSystem(leftToSystem) {
+  const residueLines = Array.isArray(leftToSystem)
+    ? leftToSystem.slice(0, 20).map((item) => String(item).slice(0, 500))
+    : [String(leftToSystem == null ? '' : leftToSystem).slice(0, 2000)];
+  const choice = await dialog.showMessageBox({
+    type: 'warning',
+    title: '托管进程清理无法确认',
+    message: '仍有托管进程或清理事实无法确认。可以继续运行并检查残留，或明确将进程留给系统后退出。',
+    detail: residueLines.join('\n'),
+    buttons: ['继续运行并重试', '将进程留给系统并退出'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  });
+  return choice.response === 1;
+}
+function beginA9ShutdownBeforeQuit(event) {
+  if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
+  event.preventDefault();
+  if (a9ShutdownInFlight) return;
+  a9ShutdownInFlight = (async () => {
+    try {
+      const result = await a9RuntimeInstance.shutdown();
+      if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
+        const leave = await confirmA9LeaveToSystem(result.leftToSystem);
+        if (!leave) throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
+        await a9RuntimeInstance.shutdown({ stopManaged: false });
+      }
+      a9ShutdownComplete = true;
+      app.quit();
+    } catch (error) {
+      runtimeState.errors.push('a9-shutdown:' + String(error && error.message ? error.message : error));
+      process.stderr.write('A9_SHUTDOWN_ERROR:' + String(error && error.stack ? error.stack : error) + '\n');
+      a9ShutdownInFlight = null;
+      dialog.showErrorBox('无法确认安全退出', '仍有 A9 任务或托管进程的清理结果无法确认。应用已取消正常退出，请在诊断中检查残留后重试。');
+    }
+  })();
+}
+app.on('before-quit', beginA9ShutdownBeforeQuit);
 
 function buildDiagnostics() {
   const diagnostics = desktopHost ? desktopHost.getDiagnostics() : {};
@@ -840,7 +1014,43 @@ function buildDiagnostics() {
       arch: process.arch,
       platform: process.platform,
     },
+    activeWorkspaceRestore: runtimeState.activeWorkspaceRestore,
   };
+}
+
+async function restoreActiveWorkspace() {
+  if (!activeWorkspaceStore || !desktopHost) return;
+  let record;
+  try {
+    record = activeWorkspaceStore.load();
+  } catch (error) {
+    const code = error && error.code ? String(error.code) : 'A9_ACTIVE_WORKSPACE_RESTORE_FAILED';
+    runtimeState.activeWorkspaceRestore = { status: 'failed', code };
+    runtimeState.errors.push(`active-workspace-restore:${code}`);
+    return;
+  }
+  if (!record) {
+    runtimeState.activeWorkspaceRestore = { status: 'empty' };
+    return;
+  }
+  try {
+    const selected = await desktopHost.selectWorkspace(record.workspacePath);
+    const activeSession = desktopHost.listSessions().find((sessionRecord) =>
+      sessionRecord.status === 'ACTIVE' && sessionRecord.workspacePath === selected.workspacePath);
+    const sessionRecord = activeSession || desktopHost.createSession({
+      workspacePath: selected.workspacePath,
+      label: selected.displayName,
+    });
+    runtimeState.activeWorkspaceRestore = {
+      status: 'restored',
+      workspacePath: selected.workspacePath,
+      sessionId: sessionRecord.sessionId,
+    };
+  } catch (error) {
+    const code = error && error.code ? String(error.code) : 'A9_ACTIVE_WORKSPACE_RESTORE_FAILED';
+    runtimeState.activeWorkspaceRestore = { status: 'failed', code };
+    runtimeState.errors.push(`active-workspace-restore:${code}`);
+  }
 }
 
 ipcMain.handle('product:get-diagnostics', (event) => {
@@ -851,7 +1061,7 @@ ipcMain.handle('product:get-diagnostics', (event) => {
   return {
     schemaVersion: 1,
     product: 'Win7 Coding Agent',
-    version: '0.1.0-mvp',
+    version: a9PackageRuntime ? a9PackageRuntime.version : '0.1.0-mvp',
     runtime: {
       electron: process.versions.electron,
       node: process.versions.node,
@@ -871,7 +1081,12 @@ ipcMain.on('product:renderer-ready', (event, payload) => {
     return;
   }
   runtimeState.rendererReady = true;
-  if (smokeReportPath) {
+  if (a9WorkbenchScreenshotPath) {
+    void captureA9WorkbenchScreenshot().catch((error) => {
+      process.stderr.write(`A9_WORKBENCH_SCREENSHOT_ERROR:${String(error && error.stack ? error.stack : error)}\n`);
+      app.exit(1);
+    });
+  } else if (smokeReportPath) {
     finishSmoke('PASS', 0, 'The real Electron product entry started, loaded the trusted local Renderer, returned diagnostics and exited normally.');
   } else if (a8ReviewSmokeReportPath) {
     void runA8ReviewElectronSmoke().catch(failA8ReviewSmoke);
@@ -915,7 +1130,11 @@ if (!hasSingleInstanceLock) {
         runtimeState.errors.push('runner-manifest:' + String(error && error.message ? error.message : error));
       }
     }
+    if (!legacyRendererRequested) {
+      activeWorkspaceStore = createActiveWorkspaceStore({ dataRoot: getA9DataRoot() });
+    }
     desktopHost = createDesktopHost({
+      allowWorkspaceSwitchWithActiveSessions: !legacyRendererRequested,
       recoveryDirectory: path.join(app.getPath('userData'), 'a2-recovery'),
       reviewDirectory: path.join(app.getPath('userData'), 'a8-reviews'),
       ...(a8ReviewSmokeReportPath ? {
@@ -930,6 +1149,29 @@ if (!hasSingleInstanceLock) {
         userDataPath: app.getPath('userData'),
         platform: process.platform,
       }),
+      ...(activeWorkspaceStore ? {
+        onWorkspaceChanging: async (workspacePath) => {
+          if (a9RuntimeInstance && a9RuntimeWorkspace && workspacePath !== a9RuntimeWorkspace) {
+            const leave = typeof a9RuntimeInstance.canLeaveWorkspace === 'function'
+              ? a9RuntimeInstance.canLeaveWorkspace()
+              : { allowed: true };
+            if (!leave.allowed) {
+              throw Object.assign(new Error(`A9_WORKSPACE_BUSY: ${leave.reason}`), { code: 'A9_WORKSPACE_BUSY' });
+            }
+            const cleanup = await a9RuntimeInstance.shutdown();
+            if (cleanup && Array.isArray(cleanup.leftToSystem) && cleanup.leftToSystem.length > 0) {
+              throw Object.assign(new Error(`A9_WORKSPACE_CLEANUP_UNCONFIRMED: ${cleanup.leftToSystem.join(';')}`), {
+                code: 'A9_WORKSPACE_CLEANUP_UNCONFIRMED',
+              });
+            }
+            a9RuntimeInstance = null;
+            a9RuntimeWorkspace = null;
+          }
+        },
+        onWorkspaceSelected: async (workspacePath) => {
+          activeWorkspaceStore.save(workspacePath);
+        },
+      } : {}),
       ...(productRunner ? { runner: productRunner.runner, runnerAcceptanceAction: productRunner.acceptanceAction } : {}),
       ...(rcComposition ? {
         ledger: rcComposition.ledger,
@@ -953,6 +1195,13 @@ if (!hasSingleInstanceLock) {
       if (!a8ReviewSmokeReportPath || !a8ReviewSmokeWorkspace) throw new Error('A8_REVIEW_SMOKE_CONFIGURATION_INVALID');
       const selected = await desktopHost.selectWorkspace(a8ReviewSmokeWorkspace);
       a8ReviewSmokeSession = desktopHost.createSession({ workspacePath: selected.workspacePath, label: 'A8 Electron Review Smoke' });
+    }
+    // F1/F6：A9 smoke 走正式“活动工作区”绑定链路（main.js 同进程 selectWorkspace →
+    // getActiveWorkspacePath），不用 WIN7AGENT_A9_WORKSPACE 环境变量绕过。
+    if (a9SmokeWorkspace) {
+      await desktopHost.selectWorkspace(a9SmokeWorkspace);
+    } else if (!legacyRendererRequested) {
+      await restoreActiveWorkspace();
     }
     mainWindow = createMainWindow();
     if (smokeReportPath || a8ReviewSmokeReportPath || a8BoundarySmokeReportPath) {

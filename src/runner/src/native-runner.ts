@@ -3,7 +3,7 @@ import { ApprovalLedger, buildRunApprovalRequest } from './approval';
 import { captureBytes } from './output';
 import { ExecutableProfileRegistry, ProfileResolutionError } from './profiles';
 import { HelperTransport, HelperTransportResult } from './native-transport';
-import { NativeHelperExecutionResult, NativeHelperRequest } from './native-protocol';
+import { decodeNativeHelperBase64, hasCompleteHelperCleanupProof, NativeHelperExecutionResult, NativeHelperRequest } from './native-protocol';
 import { IRunner, findProhibitedShellHost, rejected, result, validateRequest } from './runner';
 import { RunRequest, RunResult, RunnerErrorCode } from './types';
 
@@ -69,6 +69,13 @@ export class NativeRunner implements IRunner {
       this.emit('runner.finished', requestId, { status: failed.status, error: transport.response.error });
       return failed;
     }
+    if ('schemaVersion' in transport.response) {
+      return this.transportFailure(requestId, {
+        kind: 'helper_crashed',
+        detail: 'Low-risk NativeRunner received an unexpected protocol v2 response',
+        cleanupConfirmed: false,
+      }, request);
+    }
     return this.executionResult(requestId, transport.response, request, profile.outputEncoding || 'auto');
   }
 
@@ -86,8 +93,8 @@ export class NativeRunner implements IRunner {
     let stdout: Buffer;
     let stderr: Buffer;
     try {
-      stdout = strictBase64(response.stdoutBase64, response.stdoutSize);
-      stderr = strictBase64(response.stderrBase64, response.stderrSize);
+      stdout = decodeNativeHelperBase64(response.stdoutBase64, response.stdoutSize, 'stdoutBase64');
+      stderr = decodeNativeHelperBase64(response.stderrBase64, response.stderrSize, 'stderrBase64');
     } catch (error) {
       const failed = rejected(RunnerErrorCode.HELPER_PROTOCOL_ERROR, String(error), '替换 helper 并核对协议版本与工件哈希。');
       this.emit('runner.finished', requestId, { status: failed.status });
@@ -100,10 +107,7 @@ export class NativeRunner implements IRunner {
     if (capturedOut.truncated) this.emit('runner.truncated', requestId, { stream: 'stdout', omittedBytes: capturedOut.omittedBytes });
     if (capturedErr.truncated) this.emit('runner.truncated', requestId, { stream: 'stderr', omittedBytes: capturedErr.omittedBytes });
 
-    const hostJobOk = response.hostJob?.childJobAssignmentVerified === true &&
-      (!response.hostJob.detected || response.hostJob.breakaway === 'explicit' || response.hostJob.breakaway === 'silent');
-    const containmentOk = response.containmentVerified && response.inputDetached && hostJobOk && response.tokenAudit?.verified &&
-      response.tokenAudit.isRestricted && response.tokenAudit.restrictedSidSetVerified && response.tokenAudit.integrityRid === 4096;
+    const containmentOk = hasCompleteHelperCleanupProof(response);
     const aclOk = response.aclChanges.every((change) => !change.applied || (change.verified && change.rolledBack));
     const status = !containmentOk || !aclOk ? 'cleanup_failed'
       : response.idleTimedOut ? 'idle_timeout' : response.timedOut ? 'timeout' : response.canceled ? 'cancelled' : 'exited';
@@ -116,7 +120,7 @@ export class NativeRunner implements IRunner {
       stdout: capturedOut, stderr: capturedErr, durationMs: response.executionTimeMs,
       termination: {
         requested: response.timedOut || response.canceled || status === 'cleanup_failed',
-        processTreeReaped: containmentOk && aclOk,
+        processTreeReaped: containmentOk,
         containment: containmentOk ? 'job_object' : 'none',
         detail: !containmentOk || !aclOk ? `Helper could not prove containment or ACL rollback;${containmentDetail}` : containmentDetail,
       },
@@ -148,13 +152,4 @@ export class NativeRunner implements IRunner {
   private emit(kind: RunnerEventKind, requestId: string, data: Record<string, unknown>): void {
     this.options.onEvent?.({ kind, requestId, timestamp: new Date().toISOString(), data });
   }
-}
-
-function strictBase64(value: string, expectedSize: number): Buffer {
-  if (typeof value !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
-    throw new Error('Helper returned invalid base64');
-  }
-  const decoded = Buffer.from(value, 'base64');
-  if (decoded.length !== expectedSize) throw new Error('Helper stream size does not match its payload');
-  return decoded;
 }

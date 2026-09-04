@@ -46,7 +46,7 @@ describe('NativeRunner production boundary', () => {
       exitCode: 0, executionTimeMs: 12, timedOut: false, idleTimedOut: false, canceled: false,
       outputTruncated: false, containmentVerified: true, inputDetached: true,
       hostJob: { detected: false, breakaway: 'none', limitFlags: 0, childJobAssignmentVerified: true },
-      tokenAudit: { verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, integrityRid: 4096 },
+      tokenAudit: { source: 'suspended_child_process_token', verified: true, isRestricted: true, tokenType: 'primary', restrictedSidSetVerified: true, userRestrictedSid: true, worldRestrictedSid: true, administratorsRestrictedSid: false, restrictedSidCount: 2, integritySid: 'S-1-16-4096', integrityRid: 4096 },
       stdoutSize: 2, stderrSize: 0, stdoutBase64: Buffer.from('ok').toString('base64'), stderrBase64: '', aclChanges: [],
       ...overrides,
     };
@@ -152,7 +152,7 @@ describe('NativeRunner production boundary', () => {
     }) }) });
     expect((await inheritedWithoutBreakaway.execute(request())).status).toBe('cleanup_failed');
     const rollback = new NativeRunner({ registry: registry(), transport: transport({ kind: 'response', response: response({
-      aclChanges: [{ applied: true, verified: true, rolledBack: false, error: 'rollback failed' }],
+      aclChanges: [{ path: 'C:\\work', mechanism: 'deny_ace', applied: true, verified: true, rolledBack: false, error: 'rollback failed' }],
     }) }) });
     expect((await rollback.execute(request())).status).toBe('cleanup_failed');
   });

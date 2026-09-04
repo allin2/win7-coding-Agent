@@ -18,6 +18,12 @@
 | [INTEGRATION_03](INTEGRATION_03_A4_A6_A5_CLOSEOUT.md) | INTEGRATION_CLOSEOUT | COMPLETE | A7_GATE_PASS_FOR_WIN7_V1_RC | NO_NEW_WIN7_EXECUTION |
 | [RC_01](RC_01_WIN7_RELEASE_CANDIDATE.md) | RELEASE_CANDIDATE | COMPLETE | RC_PASS | PASS |
 | [A8](A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md) | PRODUCT_EXPERIENCE | APPROVED_FOR_IMPLEMENTATION | A8_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE |
+| [A9](A9_TRUSTED_AGENT_RUNTIME.md) | PRODUCT_RUNTIME | COMPLETE | A9_ALPHA1_PASS | WIN7_19_GO_FOR_ALPHA |
+| [A9-08](A9_08_POST_REVIEW_HARDENING.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | FIX_BEFORE_ALPHA | WIN7_20_NOT_PERFORMED |
+| [A9-09](A9_09_D013_TRUSTED_SHELL_PROFILE.md) | NATIVE_RUNTIME_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_09B_READY_FOR_WIN10_DOUBLE_BUILD | WIN7_20_NOT_PERFORMED |
+| [A9-10](A9_10_TEXT_READ_HARDENING.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_10_DEVELOPER_VERIFIED_PENDING_WIN7 | WIN7_20_NOT_PERFORMED |
+| [A9-11](A9_11_POST_V25_USABILITY_SECURITY_HARDENING.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_11_DEVELOPER_VERIFIED_PENDING_WIN7 | WIN7_20_NOT_PERFORMED |
+| [A9-12](A9_12_POST_REVIEW_RECOVERY_AND_UI_HARDENING.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_12_DEVELOPER_VERIFIED_PENDING_WIN7 | WIN7_20_NOT_PERFORMED |
 | [DOCS_01](DOCS_01_DOCUMENTATION_BASELINE.md) | DOCUMENTATION_GOVERNANCE | APPROVED_FOR_IMPLEMENTATION | READY_FOR_REVIEW | N/A |
 | [MVP_01](MVP_01_WIN7_REAL_MACHINE_ACCEPTANCE.md) | MVP_ACCEPTANCE_HARDENING | MVP_ACCEPTED_WITH_DEFERRALS | MVP_ACCEPTED | OWNER_ACCEPTED_FOR_MVP |
 | [PROTOTYPE](PROTOTYPE_FULL_AGENT_SKELETON.md) | ARCHITECTURE_PROTOTYPE | APPROVED_FOR_IMPLEMENTATION | APPROVED_FOR_IMPLEMENTATION | N/A |
@@ -45,6 +51,35 @@
 > [`a8-05-persistence-validation-kit-20260821.json`](../status/a8-05-persistence-validation-kit-20260821.json)。A8-06 打包检查点与外部执行包见
 > [`a8-06-developer-checkpoint-20260821.json`](../status/a8-06-developer-checkpoint-20260821.json) 和
 > [`a8-06-package-validation-kit-20260821.json`](../status/a8-06-package-validation-kit-20260821.json)；这些 Gate 只表示开发机候选和验收准备完成，不代表 A8 三层产品验收通过。
+
+> A9 由 ADR-0089、ADR-0096 和负责人确认的
+> [`Windows 7 Trusted Coding Agent 产品需求合同 V1`](../prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)
+> 授权，从最新干净 A8 代码基线创建 `codex/a9-trusted-agent-runtime`，目标版本 `0.3.0-alpha.1`。
+> A9-09 按 ADR-0102/0103 绑定 Win10 原始返回证据、完整闭包及 clean-HEAD 批准清单；候选外信任根
+> P1 已按 ADR-0104 增加独立批准 pin、正式锁和 PE 结构验证，五参数文档 P2 也获独审关闭；最新复审新增
+> 已知秘密值/NODE_* 漏拦两项 P1，ADR-0105 整改已获独审关闭；该轮新增的生成器/有序字典两项构建
+> 脚本 P1 已按 ADR-0106 本地修复，待再次独审及 Windows PowerShell 5.1 自测。
+> 当前批准清单仍未提交，故生产记录保持 fail-closed，阶段仍为 `FIX_BEFORE_ALPHA`。
+> A9 复用 A8 UI/Core/State/打包资产，但采用可信工作区 Full Access、通用 PowerShell/CMD Shell、直接文件
+> 写入、真实 Git 和开放 OpenAI-compatible Provider。A8 的历史证据保持不变且不构成 A9 PASS。
+> A9-00～A9-06 开发机 Gate 已完成；A9-07 最终候选 WIN7-19 来自干净提交
+> `781b20e3da277570f85c28286d7ea5bbbdd5fa28`，双构建字节一致，并在 Windows 7 SP1 x64 完成候选身份、
+> 5/5 完整性、正式 Electron 生命周期、审批 P0 增量复验和后飞行。四个新 Turn 的审批身份均不同，拒绝
+> 与变更目标零执行，快速重复点击只执行一次；无 P0/P1。其余七组未受影响能力按 ADR-0097 使用可追溯
+> 继承证据，WIN7-10 Review FAIL 仍保留并按 ADR-0096 延期到 Alpha 2。ADR-0099 已签发
+> `A9_ALPHA1_PASS / GO_FOR_ALPHA`；Win10 同候选 smoke 仍须在 RC 前补齐。
+
+> ADR-0100 保留 WIN7-19 与 ADR-0099 的历史现场事实，同时根据合并前独立代码审查开启 A9-08。
+> 当前综合状态为 `FIX_BEFORE_ALPHA`，按审批/IPC、秘密/Provider/TLS、进程和 checkpoint/迁移四批修复；
+> 全量验证、第二轮独审和 WIN7-20 增量实机复验通过前，PR #3 不得合并。
+
+> A9-08 授权范围内修复、1482 项开发机验证和三路独立复核已通过；ADR-0101/A9-09 保留 v24 历史
+> Profile，并已在提交 `7d10032` 完成 v25/协议 v2/Current-User Profile、产品装配、锁定双构建记录器和
+> WIN7-20 增量套件。A9-09A 原生逻辑、发布测试、7 模块 1490 tests 及 docs/diff 检查通过；当前为
+> 旧 r4～r10 套件继续保持撤销；r11 两次全新 Win10 构建全部 PASS 且 helper 字节一致，正式 v25
+> input lock 已生成，当前为 `A9_09B_WIN10_DOUBLE_BUILD_PASS_INPUT_LOCKED`。
+> 产品装配与 WIN7-20 实机复验未完成前，
+> 状态仍为 `FIX_BEFORE_ALPHA`。
 
 MVP-20260802-14 已由项目负责人按 ADR-0055 以 `OWNER_ACCEPTED_FOR_MVP` 收口，并完成真实 Electron 产品入口的启动、Renderer 诊断和正常退出实测；延期项不改变各正式任务状态，也不解除 Phase 1/2、SPIKE_02/04 或 E7 的正式 Gate。
 

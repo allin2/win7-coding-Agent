@@ -56,7 +56,11 @@ export type WorkspaceErrorCode =
   | 'REVIEW_STALE'
   | 'BINARY_WRITE_DENIED'
   | 'VALIDATION_INVALID'
-  | 'RECOVERY_REQUIRED';
+  | 'RECOVERY_REQUIRED'
+  | 'BASELINE_DRIFT'
+  | 'READ_REQUIRED'
+  | 'ENCODING_WRITE_UNSUPPORTED'
+  | 'CHECKPOINT_PERSIST_FAILED';
 
 export class WorkspaceError extends Error {
   readonly code: WorkspaceErrorCode;

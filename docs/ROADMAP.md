@@ -16,6 +16,8 @@
 | SPIKE_01~04（Win7 兼容性验证，见下） | 分项收口：SPIKE_02 低风险非交互 PASS/交互 No-Go；SPIKE_04 本地 SSD PASS；SPIKE_01/03 保持既有证据口径 | 各 Spike 任务书白名单 |
 | 阶段 3–7 | 候选实现已进入 main；A7 收口基线 7 模块 983 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
 | A7 Win7 v1 RC | `RC_PASS`；已完成三层验证、RC-01～RC-10 和 main 整合 | `RC_01_WIN7_RELEASE_CANDIDATE.md` |
+| A8 Agent-first | `A8_DEVELOPER_COMPLETE_VALIDATION_READY`；历史 Review-first 候选，外部三层未完成 | `A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md` |
+| A9 Trusted Agent Runtime | WIN7-10 Gate 4 Review FAIL 已保留；ADR-0096 将 Review 延期 Alpha 2；同一候选从 J4 继续，J1～J3 证据待归档 | `A9_TRUSTED_AGENT_RUNTIME.md` |
 
 对标 Codex 的整体裁决记录于 ADR-0028~0035，并已由 ADR-0036 接受（附 Spike 条件）；
 性能口径统一引用 `docs/PERFORMANCE_BUDGET.md`（ADR-0033）。
@@ -132,6 +134,34 @@
   Win7 x64 RC，并完成 ASAR 外置、manifest、SBOM、许可证、安装、升级、失败回滚和卸载闭包。
 - 当前状态：唯一 RC ZIP `39eecb6a…040c9` 已取得开发机、Win10 和 Win7 三层 PASS；
   签名租约 `lease-A7-RC-20260820-055210` 已释放，协调器评分 `WIN7_PASS`。
+
+## A9 — Trusted Agent Runtime（APPROVED_FOR_IMPLEMENTATION）
+
+- 决策：ADR-0089、ADR-0096；需求：
+  [`WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1`](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)；
+  任务书：[`A9_TRUSTED_AGENT_RUNTIME`](tasks/A9_TRUSTED_AGENT_RUNTIME.md)。
+- 基线与版本：从最新干净 A8 代码基线创建 `codex/a9-trusted-agent-runtime`，目标 `0.3.0-alpha.1`；
+  A8 的 Review-first 产品合同与证据保留为历史，不自动进入 A9 评分。
+- 目标：可信工作区 Full Access、PowerShell 5.1/CMD 通用 Shell、直接文件工具、测试/构建、真实 Git、
+  OpenAI-compatible Provider、checkpoint/撤销、SQLite 重启恢复和轻量桌面 UI。
+- Alpha 1 支持范围：Full Access 与 Read Only。Review staging、逐文件决定、审批 Apply 与恢复延期到
+  `0.3.0-alpha.2`；WIN7-10 中仍可选择但只会 fail-closed 的 Review 作为已知限制，不计入 Alpha 1 PASS。
+- 串行顺序：A9-00 文档/差距 → A9-01 模式/工具 → A9-02 Shell → A9-03 文件/checkpoint →
+  A9-04 Provider → A9-05 Loop/Git → A9-06 UI/State → A9-07 包与 Win7 五旅程。
+- 当前检查点：WIN7-10 的 Full Access 与 Read Only 通过，Review 因正式 Runtime 无 staging 后端在 Gate 4
+  fail-closed；失败证据保持原样且不改判。ADR-0096 只重定验收范围，不改变候选字节；现场报告已完成
+  J1～J3 并推进到 J4，因此从 J4 继续。J1～J3 外置证据尚未归档，最终裁决前必须补齐。
+- 非目标：Office 专用能力、内置 IDE/LSP、交互终端、Browser 自动化、多 Agent、插件市场、自动更新。
+- 完成门槛：同一自包含候选在干净 Win7 SP1 x64 完成五条真实 Coding Agent 旅程；开发机、Win10 或
+  A8/A7 历史 PASS 不能替代。
+
+### A9 Alpha 2 — Review staging（PLANNED / NOT_AUTHORIZED）
+
+- 目标版本：`0.3.0-alpha.2`；实现分支和任务书待单独批准。
+- 范围：A9 专用动态私有 staging、虚拟文件视图、文件级接受/拒绝、哈希绑定审批、原子 Apply、
+  checkpoint/undo、SQLite 投影、重启不重放、漂移和恢复，以及正式 IPC/Renderer/Win7 证据。
+- 进入条件：Alpha 1 证据保持可追溯；新增任务书状态为 `APPROVED_FOR_IMPLEMENTATION`；不得以 A8 smoke、
+  mock staging、直接写工作区或自动接受替代。
 
 ## 后续扩展轨（未来待授权）
 

@@ -38,10 +38,16 @@ export {
 } from './profiles';
 export {
   NativeHelperRequest,
+  NativeHelperRequestV1,
+  NativeHelperRequestV2,
   NativeHelperResponse,
   NativeHelperExecutionResult,
+  NativeHelperExecutionResultV2,
+  NativeHelperStartedResultV2,
   NativeHelperErrorResult,
   parseNativeHelperResponse,
+  hasCompleteHelperCleanupProof,
+  decodeNativeHelperBase64,
 } from './native-protocol';
 export { HelperTransport, HelperTransportResult, StdioHelperTransport } from './native-transport';
 export { NativeRunner, NativeRunnerOptions, RunnerEvent, RunnerEventKind } from './native-runner';
@@ -64,3 +70,50 @@ export {
   MockContainmentProbe,
   MockContainmentConfig,
 } from './containment';
+
+// A9 TrustedShellRunner 与后台进程管理
+export {
+  TrustedShellRequest,
+  TrustedShellResult,
+  TrustedShellTermination,
+  TrustedShellRunnerOptions,
+  ShellFileIdentity,
+  TrustedShellRunner,
+  buildTrustedShellInvocation,
+  createTrustedShellEnvironment,
+  decodeShellBytes,
+  resolveShellFileIdentity,
+  sameShellFileIdentity,
+  validateTrustedShellEnvironmentOverlay,
+} from './trusted-shell-runner';
+
+export {
+  TrustedShellLoopAdapter,
+  TrustedShellLoopAdapterHandle,
+  LoopRunnerOptions,
+  LoopRunnerResult,
+  createTrustedShellLoopAdapter,
+} from './trusted-shell-adapter';
+
+export {
+  ShellKind,
+  DetectedShell,
+  ShellSelection,
+  ShellDetectionOptions,
+  detectSystemShells,
+  selectShell,
+  getActiveShell,
+} from './shell-detection';
+
+export {
+  BackgroundProcessHandle,
+  PollResult,
+  ProbeFact,
+  BackgroundProcessManager,
+} from './background-process-manager';
+
+export {
+  killProcessTree,
+  parseWindowsProcessTable,
+  KillResult,
+} from './process-cleanup';

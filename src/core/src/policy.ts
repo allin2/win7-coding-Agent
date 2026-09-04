@@ -7,6 +7,7 @@
 import { ToolCall, ApprovalLevel, PolicyDecision, PolicyVerdict, CapabilityToken } from './types';
 import { bindCapabilityToToolCall } from './approval-binding';
 import { policyDeniedError } from './errors';
+import { classifyGitCommand } from './git-command-policy';
 
 const PROHIBITED_SHELL_HOSTS = new Set([
   'cmd',
@@ -49,7 +50,7 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
   'git.commit',
   'git.log',
   'git.branch',
-  // 工作区管理
+  // 工作区管理（历史）
   'workspace.create',
   'workspace.list',
   'workspace.delete',
@@ -58,7 +59,56 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
   'workspace.search_text',
   'workspace.review_prepare',
   'workspace.str_replace',
+  // A9 核心工具集（PRD A9-T01）
+  'list',
+  'read',
+  'search',
+  'write',
+  'edit',
+  'copy',
+  'move',
+  'delete',
+  'shell',
+  'update_plan',
 ]);
+
+/**
+ * 检查是否属于 A9-M03 规定的必须一次性确认的操作。
+ * Git 命令使用 tokenize 分类器（git-command-policy），不依赖可绕过的正则。
+ */
+function checkAlwaysConfirmOperation(toolCall: ToolCall): { needsConfirm: boolean; reason?: string } {
+  if (toolCall.toolName === 'delete' && toolCall.args.permanent === true) {
+    return { needsConfirm: true, reason: '永久删除文件/目录操作需要用户显式确认' };
+  }
+  if (toolCall.toolName === 'shell') {
+    const cmd = typeof toolCall.args.command === 'string' ? toolCall.args.command : '';
+    if (cmd.trim().length === 0) return { needsConfirm: false };
+
+    const gitDecision = classifyGitCommand(cmd);
+    if (gitDecision) {
+      if (gitDecision.category === 'always_confirm') {
+        return { needsConfirm: true, reason: `${gitDecision.reason}（${gitDecision.binding.summary}）` };
+      }
+      if (gitDecision.category === 'commit_requires_user_request') {
+        return { needsConfirm: true, reason: `${gitDecision.reason}（${gitDecision.binding.summary}）` };
+      }
+      return { needsConfirm: false };
+    }
+
+    // 非 Git 的外部写/系统级操作。
+    const nonGit = cmd.trim();
+    if (/\b(?:npm|yarn|pnpm|cargo|twine)\s+publish\b/i.test(nonGit)) {
+      return { needsConfirm: true, reason: '发布/上传包操作需要用户显式确认' };
+    }
+    if (/\btwine\s+upload\b/i.test(nonGit)) {
+      return { needsConfirm: true, reason: '发布/上传包操作需要用户显式确认' };
+    }
+    if (/\b(?:reg(?:\.exe)?\s+(?:add|delete|import)|net(?:\.exe)?\s+user|sc(?:\.exe)?\s+(?:config|create|delete)|icacls(?:\.exe)?)\b/i.test(nonGit)) {
+      return { needsConfirm: true, reason: '系统服务/注册表/权限变更操作需要用户显式确认' };
+    }
+  }
+  return { needsConfirm: false };
+}
 
 /**
  * Validate the command-specific structured execution envelope.
@@ -70,6 +120,12 @@ function validateArgs(
   toolName: string,
   args: Record<string, unknown>,
 ): { valid: boolean; reason?: string } {
+  if (toolName === 'shell') {
+    if (typeof args.command !== 'string' || args.command.trim().length === 0) {
+      return { valid: false, reason: 'shell 工具必须提供非空 command 字符串' };
+    }
+    return { valid: true };
+  }
   if (toolName !== 'terminal.exec') return { valid: true };
   if ('shell' in args || 'commandLine' in args || 'script' in args) {
     return {
@@ -94,7 +150,7 @@ function validateArgs(
 }
 
 function sensitivePathReason(toolName: string, args: Record<string, unknown>): string | undefined {
-  if (!toolName.startsWith('fs.') && !toolName.startsWith('workspace.')) return undefined;
+  if (!toolName.startsWith('fs.') && !toolName.startsWith('workspace.') && !['read', 'write', 'edit', 'delete'].includes(toolName)) return undefined;
   const target = args.path;
   if (typeof target !== 'string') return undefined;
   const normalized = target.replace(/\\/g, '/').toLowerCase();
@@ -180,11 +236,11 @@ export class PolicyEngine {
     if (sensitivePath) {
       return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_SENSITIVE_PATH_DENIED', sensitivePath);
     }
-    if (toolCall.toolName === 'terminal.exec' && toolCall.approvalLevel !== ('full_access' as ApprovalLevel)) {
+    if (toolCall.toolName === 'terminal.exec' && toolCall.approvalLevel !== ApprovalLevel.FULL_ACCESS) {
       return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_COMMAND_PROFILE_REQUIRED', '通用 terminal.exec 尚无经批准的命令配置文件；执行请求按 fail-closed 拒绝');
     }
 
-    if (facts.capability === 'workspace_write' && toolCall.approvalLevel !== ApprovalLevel.WORKSPACE_WRITE) {
+    if (facts.capability === 'workspace_write' && toolCall.approvalLevel !== ApprovalLevel.WORKSPACE_WRITE && toolCall.approvalLevel !== ApprovalLevel.REVIEW) {
       return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_CAPABILITY_LEVEL_MISMATCH', 'workspace_write capability requires workspace-write approval');
     }
 
@@ -193,25 +249,40 @@ export class PolicyEngine {
       case ApprovalLevel.READ_ONLY:
         return decision(PolicyVerdict.ALLOW, ApprovalLevel.READ_ONLY, 'POLICY_READ_ONLY_ALLOWED', '只读操作，无需审批');
 
+      case ApprovalLevel.FULL_ACCESS: {
+        const confirm = checkAlwaysConfirmOperation(toolCall);
+        if (confirm.needsConfirm) {
+          return decision(
+            PolicyVerdict.ASK,
+            ApprovalLevel.FULL_ACCESS,
+            'POLICY_ALWAYS_CONFIRM_REQUIRED',
+            confirm.reason || '高影响操作需要用户一次性确认',
+            ['需用户显式批准目标操作'],
+          );
+        }
+        return decision(PolicyVerdict.ALLOW, ApprovalLevel.FULL_ACCESS, 'POLICY_FULL_ACCESS_ALLOWED', 'Full Access 模式：允许执行');
+      }
+
+      case ApprovalLevel.REVIEW:
       case ApprovalLevel.WORKSPACE_WRITE:
         // 需要能力令牌
         if (!facts.token && !facts.tokenValidationReason) {
-          return decision(PolicyVerdict.ASK, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_REQUIRED', '工作区写操作需要能力令牌', ['提供有效的 capability token']);
+          return decision(PolicyVerdict.ASK, toolCall.approvalLevel, 'POLICY_APPROVAL_REQUIRED', '工作区写操作需要能力令牌', ['提供有效的 capability token']);
         }
-        if (facts.tokenValidationReason || !facts.token) return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_INVALID', facts.tokenValidationReason ?? '能力令牌验证失败');
-        if (!facts.sessionId) return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_SESSION_REQUIRED', '写操作缺少会话标识，无法验证审批绑定');
+        if (facts.tokenValidationReason || !facts.token) return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_APPROVAL_INVALID', facts.tokenValidationReason ?? '能力令牌验证失败');
+        if (!facts.sessionId) return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_SESSION_REQUIRED', '写操作缺少会话标识，无法验证审批绑定');
         const token = facts.token;
-        if (!token.capabilities.includes('workspace_write')) {
-          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_CAPABILITY_MISSING', '能力令牌不包含 workspace_write 权限');
+        if (!token.capabilities.includes('workspace_write') && !token.capabilities.includes('workspace.review')) {
+          return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_CAPABILITY_MISSING', '能力令牌不包含 workspace_write 权限');
         }
         if (token.sessionId !== facts.sessionId) {
-          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_SESSION_MISMATCH', '能力令牌不属于当前会话');
+          return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_SESSION_MISMATCH', '能力令牌不属于当前会话');
         }
         let expectedBinding;
         try {
           expectedBinding = bindCapabilityToToolCall(toolCall);
         } catch (error) {
-          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_BINDING_INVALID', error instanceof Error ? error.message : String(error));
+          return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_APPROVAL_BINDING_INVALID', error instanceof Error ? error.message : String(error));
         }
         if (
           !token.binding ||
@@ -221,14 +292,12 @@ export class PolicyEngine {
           token.binding.previewSha256 !== expectedBinding.previewSha256 ||
           token.binding.baselineSha256 !== expectedBinding.baselineSha256
         ) {
-          return decision(PolicyVerdict.DENY, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_BINDING_MISMATCH', '能力令牌与工具请求、预览或工作区基线不匹配');
+          return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_APPROVAL_BINDING_MISMATCH', '能力令牌与工具请求、预览或工作区基线不匹配');
         }
-        return decision(PolicyVerdict.ALLOW, ApprovalLevel.WORKSPACE_WRITE, 'POLICY_APPROVAL_BOUND', '工作区写操作已授权', ['操作限于工作区目录内']);
+        return decision(PolicyVerdict.ALLOW, toolCall.approvalLevel, 'POLICY_APPROVAL_BOUND', '工作区写操作已授权', ['操作限于工作区目录内']);
 
       default:
-        return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_APPROVAL_LEVEL_FORBIDDEN', toolCall.approvalLevel === ('full_access' as ApprovalLevel)
-            ? 'FULL_ACCESS 级别已被 ADR-0030 明令禁止'
-            : `未知的审批级别: ${toolCall.approvalLevel}`);
+        return decision(PolicyVerdict.DENY, toolCall.approvalLevel, 'POLICY_APPROVAL_LEVEL_FORBIDDEN', `未知的审批级别: ${toolCall.approvalLevel}`);
     }
   }
 }

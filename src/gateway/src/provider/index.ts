@@ -589,3 +589,5 @@ function attachRequestAbort(
 
 export { ErrorCode, GatewayError } from '../types';
 export * from './deepseek-openai';
+export * from './openai-compatible';
+export * from './sse-parser';

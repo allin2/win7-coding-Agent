@@ -124,3 +124,17 @@ export type {
   A8RecoveryReport,
   A8ReviewPersistenceStatus,
 } from './a8-persistence';
+
+export {
+  A9_SCHEMA_VERSION,
+  A9_DEFAULT_RETENTION_DAYS,
+  A9_MAX_ACTIVE_CONVERSATIONS,
+  A9PermissionModeValue,
+  A9ConversationStateValue,
+  A9ConversationActivityValue,
+  A9ConversationTitleSource,
+  A9ConversationRecord,
+  A9OpenOptions,
+  A9OpenOutcome,
+  A9PersistenceManager,
+} from './a9-persistence';

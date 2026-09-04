@@ -8,6 +8,9 @@
 export {
   AgentState,
   ApprovalLevel,
+  PermissionMode,
+  normalizePermissionMode,
+  isPermissionMode,
   PolicyVerdict,
   TaskLifecycle,
   ToolCall,
@@ -160,6 +163,40 @@ export {
 } from './review-tools';
 
 export {
+  a9ToolSpecs,
+  registerA9Tools,
+  normalizeToolCallArgs,
+} from './a9-tools';
+
+export {
+  GitCommandCategory,
+  GitCommandDecision,
+  GitCommandApprovalBinding,
+  classifyGitCommand,
+  tokenizeCommand,
+  gitApprovalStillValid,
+} from './git-command-policy';
+
+export {
+  WORKSPACE_MODE_SETTINGS_SCHEMA_VERSION,
+  ModeAuditEntry,
+  WorkspaceModeSettingsV2,
+  WorkspaceModeSettingsState,
+  canonicalizeWorkspacePath,
+  workspaceSettingsFileKey,
+  parseWorkspaceModeSettings,
+  parseLegacyForMigration,
+  WorkspaceModeSettingsStore,
+} from './a9-mode-settings';
+
+export {
+  A9_SYSTEM_PROMPT_VERSION,
+  SystemPromptOptions,
+  SystemPromptContract,
+  buildA9SystemPrompt,
+} from './system-prompt';
+
+export {
   VerificationRequirement,
   TaskAcceptance,
   VerificationEvidence,
@@ -225,3 +262,27 @@ export {
   RuntimeCancelAcknowledgement,
   AgentRuntimeProtocol,
 } from './runtime-protocol';
+
+export {
+  A9LoopEvent,
+  A9LoopMessage,
+  A9ExternalChangePort,
+  A9ExternalChangeReport,
+  isNonVerifyingCommand,
+  A9ModelToolCall,
+  A9ModelPort,
+  A9WorkspacePort,
+  A9ReviewStagingPort,
+  A9RunnerExecutionOptions,
+  A9RunnerExecutionResult,
+  A9RunnerPort,
+  A9AgentLoopConfig,
+  A9TurnResult,
+  A9ApprovalRequest,
+  A9ApprovalDecision,
+  A9VisiblePlan,
+  A9AgentLoop,
+  buildA9ApprovalRequest,
+  computeApprovalBindingDigest,
+  canonicalizeArgsJson,
+} from './a9-agent-loop';

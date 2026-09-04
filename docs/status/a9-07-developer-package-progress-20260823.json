@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-07-DEVELOPER-PACKAGE-PROGRESS-20260823-01",
+  "recorded_at": "2026-08-23",
+  "stage": "A9-07",
+  "status": "IN_PROGRESS_DEVELOPER_PACKAGE_INTEGRITY_PASS",
+  "source_baseline_commit": "958b26078730c28708d418ecf3b653a9e8060d2b",
+  "source_dirty": true,
+  "external_acceptance_eligible": false,
+  "candidate": {
+    "release_id": "WIN7-CODING-AGENT-A9-ALPHA1",
+    "version": "0.3.0-alpha.1",
+    "filename": "Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip",
+    "package_sha256_first_build": "364de65c75e81fba959e24f726bde6a44c25a72644fbdd347a3723a78df23c9d",
+    "package_sha256_second_build": "364de65c75e81fba959e24f726bde6a44c25a72644fbdd347a3723a78df23c9d",
+    "manifest_sha256": "8ca2ba97250dbb8e6bc83e8130c13474c49c345d52859fe2b8c2a71546062d85",
+    "deterministic_double_build": "PASS",
+    "formal_windows_candidate": false
+  },
+  "implemented": [
+    "A9 v3 input lock over Electron 22.3.27, D-013 v24 helper and D-014 better-sqlite3/SQLite inputs",
+    "A9 production main/preload/renderer plus core/gateway/git-adapter/runner/state/workspace JavaScript closure",
+    "package-only runtime binding to external Electron ABI 110 SQLite and D-013 helper",
+    "production Electron safeStorage injection into A9 Runtime for Windows DPAPI credential persistence",
+    "default %LOCALAPPDATA%\\Win7CodingAgent\\a9 state root with explicit --portable alternative",
+    "full-tree release manifest, CycloneDX SBOM, license inventory, installation/rollback guide and SHA-256 sidecar",
+    "packaged electron.exe Node-mode integrity entry with evidence outside the immutable candidate",
+    "formal integrity report binding both the original ZIP SHA-256 and extracted release-manifest SHA-256",
+    "forbidden state/credential path and secret-content scans"
+  ],
+  "developer_validation": {
+    "a9_package_contract_tests": "PASS 3/3",
+    "a9_package_runtime_tests": "PASS 5/5",
+    "repository_module_tests": "PASS 1307/1307",
+    "real_locked_input_builds": "PASS 2/2 BYTE_IDENTICAL",
+    "system_node_required_on_target": false
+  },
+  "gates": {
+    "developer_package_integrity": "PASS",
+    "clean_source_candidate": "NOT_PERFORMED",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "NOT_PERFORMED",
+    "win7": "NOT_PERFORMED",
+    "alpha1": "NOT_PERFORMED"
+  },
+  "remaining": [
+    "commit the current A9 implementation and rebuild from a clean source tree",
+    "run package integrity and product smoke on the same immutable candidate on Win10 or proceed directly to internal Win7 Alpha validation",
+    "run Win7 J1-J5, PowerShell/CMD, encoding/path, optional-tool degradation, process cleanup and SQLite recovery matrices",
+    "sign A9_ALPHA1_PASS only if every Win7 hard gate passes without data corruption or unexplained residue"
+  ],
+  "credential_handling": "NO_REAL_API_KEY_IN_PACKAGE_OR_EVIDENCE"
+}

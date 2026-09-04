@@ -114,7 +114,7 @@ export type Message =
   | { role: 'system'; content: string }
   | { role: 'user'; content: string }
   | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
-  | { role: 'tool'; toolCallId: string; content: string };
+  | { role: 'tool'; toolCallId: string; content: string; name?: string };
 
 export function createModelRequest(
   id: string,

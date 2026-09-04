@@ -38,6 +38,16 @@ export {
 // Encoding detection
 export { detectEncoding } from './encoding';
 export { decodeBuffer } from './encoding';
+export {
+  encodeText,
+  reencodePreservingOriginal,
+  detectEolStyle,
+  normalizeEol,
+  applyTrailingNewlinePolicy,
+  bomPrefixFor,
+  EncodingWriteError,
+} from './encoding';
+export type { WritableEncoding, EolStyle, PreserveEncodingResult } from './encoding';
 
 export {
   canonicalJson,
@@ -108,3 +118,25 @@ export {
   buildApplyApprovalRequest,
   applyPlan,
 } from './apply';
+
+// A9 Full Access Workspace Service, Checkpoint & Ignore Filter
+export {
+  A9WorkspaceService,
+  A9ListResult,
+  A9ReadResult,
+  A9SearchResult,
+  A9WriteResult,
+  A9EditResult,
+  A9DeleteResult,
+} from './a9-workspace-service';
+
+export {
+  createWorkspaceIgnoreFilter,
+  IgnoreFilter,
+} from './a9-ignore';
+
+export {
+  CheckpointManager,
+  TurnCheckpoint,
+  FileChangeRecord,
+} from './checkpoint-manager';

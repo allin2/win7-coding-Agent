@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "kits": [
+    {
+      "revision": "20260830-r4",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260830-r4.zip",
+      "sha256": "037213c8637544dccc58b07632e097b718c265f93015af93279ac052f0282e09",
+      "source_commit": "72e4d905175baa3eae7b5eb6c1f49f47f9731046",
+      "input_lock_sha256": "99aecc91c8e1ff9b797cfe33e7bdc7f7ef5f656fde224e2d0997e9d838a63fb8",
+      "package_manifest_sha256": "35150cf85f20e73448b14b1adb60a8bb36e9a2ca8ac13d7ef1cf8d7e7829aff9",
+      "status": "REVOKED_AFTER_A9_09_V25_INDEPENDENT_REVIEW"
+    },
+    {
+      "revision": "20260902-r5",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r5.zip",
+      "sha256": "341fb9f9d66c64e4e5b0b31eddf6899b94462e39d14ba536b2f881c31abab2c9",
+      "source_commit": "c718152f0c413d2c21407eec042dc50197b6e51f",
+      "input_lock_sha256": "5dd85ae7209691cc6575d320d769385852d327d4bde51db0ab49cd7d319f586b",
+      "package_manifest_sha256": "2cc6b9b53eb1b5a8ae96596547705a66e08abb0af8928a1be2cff7d6bd6231b5",
+      "status": "REVOKED_AFTER_WIN10_MSVC_MAX_MACRO_FAILURE"
+    },
+    {
+      "revision": "20260902-r6",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r6.zip",
+      "sha256": "4d7985d4668eb902f4863efcb3fa43e29fa105371275ce2d234f540e6438922c",
+      "source_commit": "7f43dec19612bafba1bb94e5ecb261cd87508f80",
+      "input_lock_sha256": "104b4aca3b4cf59286ff161659a48e0c95511dc8a5df8bab06848343e825c8c5",
+      "package_manifest_sha256": "da90075f88bef297ab234afd7f7404d2f96e8e05c53a0c9954802ed0a578b5c8",
+      "status": "REVOKED_AFTER_WIN10_DACL_CONTROL_ROLLBACK_FAILURE"
+    },
+    {
+      "revision": "20260902-r7",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r7.zip",
+      "sha256": "f5bf50a5e127978a59b7ffd35a40d74423efee8a23dbd16147d2fb660b8cdafb",
+      "source_commit": "9fa02c3b6503e71aae8f0c889d5dbc61e30a8776",
+      "input_lock_sha256": "71c7a797cbcc9bbda93ccb2b9f948446f32f8349dae4539c77299bd259c87081",
+      "package_manifest_sha256": "320ea758da5d49b2e4a21c83528ce643c11a85ac059c383a2210a4af4cc38f98",
+      "status": "REVOKED_AFTER_WIN10_CMD_IF_CHAIN_SMOKE_FAILURE"
+    },
+    {
+      "revision": "20260902-r8",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260902-r8.zip",
+      "sha256": "64772425a0de8d21252f7d1b22179f074e59ac502184ed1faade9b8988885e35",
+      "source_commit": "e3e778bdf62e22777e58e9eb7370de38c3ab3926",
+      "input_lock_sha256": "0e2e2f735c54d7d16d2ddac70aeb0ead489220fa95d2b8a17bc3af827b3322f8",
+      "package_manifest_sha256": "005abf83afb45f70499fd843fa97069837c296a743a93b79defb281b405539e7",
+      "status": "REVOKED_AFTER_WIN10_REJECTION_FIELD_MISMATCH"
+    },
+    {
+      "revision": "20260903-r9",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r9.zip",
+      "sha256": "e2ceab173ba06eb9efdfb23191705dbdb519f29ec618d962588dafe2be034708",
+      "source_commit": "bc26e5835b479be7fff1a23150d07f7868baacfe",
+      "input_lock_sha256": "6ca670195517d27e56d9dffc4097c038b3685c0c3cc64126502b5450e8858a48",
+      "package_manifest_sha256": "37da1fe1bfd0c4d297c1939731f81bdee49aa7e00bf491a04022a8c3b26de203",
+      "status": "REVOKED_AFTER_DOUBLE_BUILD_BINARY_MISMATCH"
+    },
+    {
+      "revision": "20260903-r10",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r10.zip",
+      "sha256": "9a267b4a8b43ebd5b83b0fd67111b10b38f04b9e2f0825e8df711ce263d46583",
+      "source_commit": "0e134d54cb4d26fb761355272b151aa785643056",
+      "input_lock_sha256": "3e9d49848860a5aaa024f91c60b9c005aa94acb34ef536304749c6135936ec65",
+      "package_manifest_sha256": "7abaa864353d2ea3052a9e7cc6d991a1ad7bb51d1b62a82ecc492f523683c28a",
+      "status": "REVOKED_AFTER_HELPER_LAMBDA_PATH_NONDETERMINISM"
+    },
+    {
+      "revision": "20260903-r11",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r11.zip",
+      "sha256": "7aeceef0201023757abd4c968b16ef09d70bcc678b3ee826575d33a73cc8378b",
+      "source_commit": "bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a",
+      "input_lock_sha256": "a29d6ebeb26b0aac3bd8ced9fd3e9ab5580bade3896088d3c1619b768b8a76e9",
+      "package_manifest_sha256": "ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb",
+      "status": "APPROVED_FOR_RETURN_RECORDING"
+    }
+  ]
+}

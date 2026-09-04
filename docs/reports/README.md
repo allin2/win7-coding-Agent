@@ -8,6 +8,7 @@
 
 | 报告 | 日期 | 类型 |
 |------|------|------|
+| [A9 Alpha 1 WIN7-19 收口报告](2026-08/a9_alpha1_win7_19_closeout_2026-08-28.md) | 08-28 | WIN7-19 候选身份、审批 P0 增量复验、ADR-0097 继承证据、P2/延期项与 `GO_FOR_ALPHA` 裁决 |
 | [a8_06_candidate_provenance_reissue_2026-08-21](2026-08/a8_06_candidate_provenance_reissue_2026-08-21.html) | 08-21 | A8-06 从远端可达源码提交重新签发候选：两次确定性构建、schema v2 smoke、普通证据提交与旧不可达候选取代关系 |
 | [a8_06_independent_review_followup_2026-08-21](2026-08/a8_06_independent_review_followup_2026-08-21.html) | 08-21 | A8-06 后续独立审查五项发现逐条复核：运行阻断已关闭，补齐 validation 相对模块闭包测试与 schema v1 surrogate/schema v2 正式证据分层 |
 | [a8_06_validation_repair_2026-08-21](2026-08/a8_06_validation_repair_2026-08-21.html) | 08-21 | A8-06 独立复核修复：Electron ABI 110 执行、evidence schema v2、完整 manifest/同一候选绑定、dirty candidate fail-closed 与干净候选重建 |

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "track": "A9-09-D013-v25-current-user",
+  "status": "READY_FOR_WIN10_BUILD",
+  "build_revision": "20260903-r11",
+  "source_commit": "bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a",
+  "profile_id": "D-013-v25-a9-trusted-shell-current-user",
+  "protocol_version": 2,
+  "runtime_profile": "a9-trusted-shell-current-user-v1",
+  "win10_build_executed": false,
+  "win10_return_package_reviewed": false,
+  "win7_validation": "WIN7_20_NOT_PERFORMED",
+  "candidate_eligible": false,
+  "historical_v24_unchanged": true,
+  "blocked_on": [
+    "D-017 locked Win10 double clean build and byte-for-byte comparison",
+    "PE/API/CRT and protocol v1/v2 smoke evidence",
+    "new A9 release input lock with the returned v25 helper SHA-256",
+    "WIN7-20 real-machine incremental acceptance"
+  ]
+}

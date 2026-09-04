@@ -77,9 +77,11 @@ html { color-scheme: dark; }
 .header-inspector-toggle, .header-navigation-toggle, .inspector-close, .navigation-close, .inspector-backdrop, .navigation-backdrop { display: none; }
 .inspector-backdrop[hidden] { display: none !important; }
 .navigation-backdrop[hidden] { display: none !important; }
-.session-close-header, .header-inspector-toggle, .header-navigation-toggle, .inspector-close, .navigation-close {
+.session-close-header, .header-inspector-toggle, .header-navigation-toggle, .header-mode-toggle, .inspector-close, .navigation-close {
   border: 1px solid var(--line); background: #222824; color: #b9c1bb; padding: 5px 8px; font-size: 10px;
 }
+.header-mode-toggle { color: var(--green); border-color: #46684f; }
+.header-mode-toggle:disabled { opacity: .45; cursor: not-allowed; }
 .session-close-header { color: #e0aaa5; border-color: #60413e; }
 .session-close-header:disabled { opacity: .4; cursor: not-allowed; }
 .inspector-header-actions { display: flex; align-items: center; gap: 8px; }

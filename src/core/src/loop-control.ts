@@ -1,16 +1,19 @@
 import * as crypto from 'crypto';
 
 /**
- * The six exhaustive outcomes for one user- or system-triggered Turn.
+ * The exhaustive outcomes for one user- or system-triggered Turn.
  * NEEDS_APPROVAL is a serializable suspension point rather than a terminal
- * Thread state.
+ * Thread state. COMPLETED_WITH_WARNINGS 与 BLOCKED 支撑诚实完成三态
+ * （A9-A05）：未验证的完成不冒充已验证完成。
  */
 export enum TurnOutcome {
   COMPLETED = 'completed',
+  COMPLETED_WITH_WARNINGS = 'completed_with_warnings',
   NEEDS_APPROVAL = 'needs_approval',
   BUDGET_EXCEEDED = 'budget_exceeded',
   CANCELLED = 'cancelled',
   STUCK = 'stuck',
+  BLOCKED = 'blocked',
   FAILED = 'failed',
 }
 
@@ -97,6 +100,14 @@ export class LoopDetector {
       this.recent.length === this.threshold &&
       this.recent.every((item) => item === signature)
     );
+  }
+
+  /**
+   * 循环检测按 Turn 重置：连续重复计数不得跨用户 Turn 累积，
+   * 否则上一轮的正常调用会被误判为卡死。
+   */
+  reset(): void {
+    this.recent.length = 0;
   }
 }
 

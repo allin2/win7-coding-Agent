@@ -1,0 +1,287 @@
+/**
+ * F2 回归：基线跳过（超限/读取失败）的既有文件绝不进入 created/delete-new。
+ *
+ * 复现缺陷：baseline.skipped 的既有大文件因无 files 记录被判定为 created，
+ * undo 按 delete-new 删除了用户的原文件。
+ */
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { A9WorkspaceService } from '../../src';
+
+const BIG = 3 * 1024 * 1024; // 超过 2 MiB 单文件基线上限
+
+describe('F2: skipped baseline files are never treated as created', () => {
+  let workspaceRoot: string;
+  let service: A9WorkspaceService;
+
+  beforeEach(() => {
+    workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-f2-'));
+    service = new A9WorkspaceService(workspaceRoot);
+  });
+
+  afterEach(() => {
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  });
+
+  it('an existing oversized file overwritten by shell survives undo (data preserved)', async () => {
+    const big = Buffer.concat([Buffer.from('HEAD|'), Buffer.alloc(BIG, 0x61), Buffer.from('|TAIL')]);
+    fs.writeFileSync(path.join(workspaceRoot, 'big.bin'), big);
+    const baseline = await service.freezeTurnBaseline('t1');
+    expect(baseline.skipped.some((s) => s.path === 'big.bin' && s.reason === 'too_large')).toBe(true);
+
+    fs.writeFileSync(path.join(workspaceRoot, 'big.bin'), 'overwritten-small');
+    const report = await service.collectExternalChanges('t1', baseline);
+    const entry = report.changes.find((c) => c.path === 'big.bin');
+    expect(entry?.kind).toBe('modified');
+    expect(entry?.recoverable).toBe(false);
+
+    const undo = service.getCheckpointManager().undoTurn('t1');
+    // 原文件被保留（绝不能被 delete-new 删除）。
+    expect(fs.existsSync(path.join(workspaceRoot, 'big.bin'))).toBe(true);
+    expect(fs.readFileSync(path.join(workspaceRoot, 'big.bin'), 'utf8')).toBe('overwritten-small');
+    expect(undo.errors.some((e) => e.includes('big.bin') && e.includes('无法恢复'))).toBe(true);
+  });
+
+  it('an unchanged oversized file produces no false external change', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'unchanged-large.bin'), Buffer.alloc(BIG, 0x33));
+    const baseline = await service.freezeTurnBaseline('t-unchanged');
+    expect(baseline.skipped.some((s) => s.path === 'unchanged-large.bin')).toBe(true);
+
+    const report = await service.collectExternalChanges('t-unchanged', baseline);
+    expect(report.changes).toEqual([]);
+    expect(report.unrecoverable).toEqual([]);
+  });
+
+  it('reconciles a crash-time pending baseline before a second explicit undo', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'crash.txt'), 'before', 'utf8');
+    await service.freezeTurnBaseline('t-crash-reconcile');
+    fs.writeFileSync(path.join(workspaceRoot, 'crash.txt'), 'after-crash', 'utf8');
+
+    const reopened = new A9WorkspaceService(workspaceRoot);
+    expect(reopened.getCheckpointManager().undoTurn('t-crash-reconcile').errors[0]).toContain('尚未完成收集');
+
+    const report = await reopened.reconcilePendingExternalBaseline('t-crash-reconcile');
+    expect(report?.report?.changes).toContainEqual(expect.objectContaining({
+      path: 'crash.txt', kind: 'modified', recoverable: true,
+    }));
+    expect(reopened.getCheckpointManager().getPendingExternalBaseline('t-crash-reconcile')).toBeUndefined();
+    expect(fs.readFileSync(path.join(workspaceRoot, 'crash.txt'), 'utf8')).toBe('after-crash');
+
+    expect(reopened.getCheckpointManager().confirmExternalUndo('t-crash-reconcile', report!.confirmationId)).toBe(true);
+    const afterConfirmationCrash = new A9WorkspaceService(workspaceRoot);
+    const rotated = afterConfirmationCrash.getCheckpointManager().getExternalUndoConfirmation('t-crash-reconcile');
+    expect(rotated).toMatch(/^undo-/);
+    expect(rotated).not.toBe(report!.confirmationId);
+    expect(afterConfirmationCrash.getCheckpointManager().undoTurn('t-crash-reconcile').errors[0]).toContain('等待显式确认');
+    expect(fs.readFileSync(path.join(workspaceRoot, 'crash.txt'), 'utf8')).toBe('after-crash');
+    expect(afterConfirmationCrash.getCheckpointManager().confirmExternalUndo('t-crash-reconcile', rotated!)).toBe(true);
+    const undo = afterConfirmationCrash.getCheckpointManager().undoTurn('t-crash-reconcile');
+    expect(undo.errors).toEqual([]);
+    expect(undo.drifted).toEqual([]);
+    expect(fs.readFileSync(path.join(workspaceRoot, 'crash.txt'), 'utf8')).toBe('before');
+  });
+
+  it('reloads a Shell directory baseline with its baseline role intact', async () => {
+    fs.mkdirSync(path.join(workspaceRoot, 'empty-before'));
+    const baseline = await service.freezeTurnBaseline('t-directory-role');
+    fs.rmdirSync(path.join(workspaceRoot, 'empty-before'));
+    await service.collectExternalChanges('t-directory-role', baseline);
+
+    const reopened = new A9WorkspaceService(workspaceRoot);
+    expect(reopened.getCheckpointManager().loadCheckpoint('t-directory-role')).toBeDefined();
+    const undo = reopened.getCheckpointManager().undoTurn('t-directory-role');
+    expect(undo.errors).toEqual([]);
+    expect(fs.statSync(path.join(workspaceRoot, 'empty-before')).isDirectory()).toBe(true);
+  });
+
+  it('never copies known secret plaintext into checkpoint recovery artifacts', async () => {
+    const secret = 'KNOWN-CHECKPOINT-SECRET-42';
+    const sensitive = (value: string | Buffer) => (Buffer.isBuffer(value) ? value.toString('utf8') : value).includes(secret);
+    const protectedService = new A9WorkspaceService(workspaceRoot, { containsSensitiveData: sensitive });
+    fs.writeFileSync(path.join(workspaceRoot, 'safe.txt'), 'before', 'utf8');
+    const baseline = await protectedService.freezeTurnBaseline('t-secret-post-state');
+    fs.writeFileSync(path.join(workspaceRoot, 'safe.txt'), `after ${secret}`, 'utf8');
+
+    const report = await protectedService.collectExternalChanges('t-secret-post-state', baseline);
+    expect(report.changes).toContainEqual(expect.objectContaining({ path: 'safe.txt', kind: 'modified' }));
+    const recoveryRoot = path.join(workspaceRoot, '.agent_recovery');
+    const scan = (dir: string): Buffer[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name);
+      return entry.isDirectory() ? scan(full) : [fs.readFileSync(full)];
+    });
+    expect(scan(recoveryRoot).some((content) => content.includes(Buffer.from(secret, 'utf8')))).toBe(false);
+
+    fs.writeFileSync(path.join(workspaceRoot, 'already-secret.txt'), secret, 'utf8');
+    await expect(protectedService.freezeTurnBaseline('t-secret-entry'))
+      .rejects.toThrow(/A9_CHECKPOINT_SECRET_BLOCKED/);
+    expect(scan(recoveryRoot).some((content) => content.includes(Buffer.from(secret, 'utf8')))).toBe(false);
+  });
+
+  it('a same-size oversized file with a changed mtime is conservatively reported modified', async () => {
+    const target = path.join(workspaceRoot, 'same-size-large.bin');
+    fs.writeFileSync(target, Buffer.alloc(BIG, 0x33));
+    const baseline = await service.freezeTurnBaseline('t-mtime');
+    const before = baseline.skipped.find((s) => s.path === 'same-size-large.bin');
+    expect(before?.mtimeMs).toBeDefined();
+
+    fs.writeFileSync(target, Buffer.alloc(BIG, 0x44));
+    const future = new Date((before!.mtimeMs as number) + 2_000);
+    fs.utimesSync(target, future, future);
+    const report = await service.collectExternalChanges('t-mtime', baseline);
+    expect(report.changes).toContainEqual(expect.objectContaining({
+      path: 'same-size-large.bin', kind: 'modified', recoverable: false,
+    }));
+  });
+
+  it('an existing oversized file deleted by shell is reported unrecoverable (no fake restore)', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'large.dat'), Buffer.alloc(BIG, 0x63));
+    const baseline = await service.freezeTurnBaseline('t2');
+    fs.unlinkSync(path.join(workspaceRoot, 'large.dat'));
+    const report = await service.collectExternalChanges('t2', baseline);
+    const entry = report.changes.find((c) => c.path === 'large.dat');
+    expect(entry?.kind).toBe('deleted');
+    expect(entry?.recoverable).toBe(false);
+
+    const undo = service.getCheckpointManager().undoTurn('t2');
+    expect(fs.existsSync(path.join(workspaceRoot, 'large.dat'))).toBe(false);
+    expect(undo.errors.some((e) => e.includes('large.dat') && e.includes('无法恢复'))).toBe(true);
+  });
+
+  it('a genuinely NEW oversized file is created and undo deletes it', async () => {
+    const baseline = await service.freezeTurnBaseline('t3');
+    fs.writeFileSync(path.join(workspaceRoot, 'new-big.bin'), Buffer.alloc(BIG, 0x6e));
+    const report = await service.collectExternalChanges('t3', baseline);
+    const entry = report.changes.find((c) => c.path === 'new-big.bin');
+    expect(entry?.kind).toBe('created');
+    expect(entry?.recoverable).toBe(true);
+
+    const undo = service.getCheckpointManager().undoTurn('t3');
+    expect(undo.errors.filter((e) => e.includes('new-big.bin'))).toEqual([]);
+    expect(fs.existsSync(path.join(workspaceRoot, 'new-big.bin'))).toBe(false);
+  });
+
+  it('a file skipped by the total-capacity limit is not misjudged as created', async () => {
+    const belowSingleFileLimit = Math.floor(1.9 * 1024 * 1024);
+    for (let i = 0; i < 22; i += 1) {
+      fs.writeFileSync(path.join(workspaceRoot, `total-${String(i).padStart(2, '0')}.bin`), Buffer.alloc(belowSingleFileLimit, i));
+    }
+    const baseline = await service.freezeTurnBaseline('t4');
+    const totalCapacitySkipped = baseline.skipped.find((s) => s.size === belowSingleFileLimit);
+    expect(Object.keys(baseline.files).length).toBeGreaterThan(0);
+    expect(totalCapacitySkipped).toBeDefined();
+
+    const skippedPath = totalCapacitySkipped!.path;
+    fs.appendFileSync(path.join(workspaceRoot, skippedPath), 'x');
+    const report = await service.collectExternalChanges('t4', baseline);
+    const entry = report.changes.find((c) => c.path === skippedPath);
+    expect(entry?.kind).toBe('modified');
+    expect(entry?.recoverable).toBe(false);
+    const undo = service.getCheckpointManager().undoTurn('t4');
+    expect(fs.existsSync(path.join(workspaceRoot, skippedPath))).toBe(true);
+    expect(undo.errors.some((e) => e.includes(skippedPath))).toBe(true);
+  });
+
+  it('a baseline read failure keeps stat facts and does not invent a change when the file is unchanged', async () => {
+    const target = path.join(workspaceRoot, 'temporarily-unreadable.txt');
+    fs.writeFileSync(target, 'stable-content', 'utf8');
+    class ReadFailureWorkspaceService extends A9WorkspaceService {
+      protected readBaselineFile(filePath: string): Buffer {
+        if (path.basename(filePath) === path.basename(target)) throw new Error('forced baseline read failure');
+        return super.readBaselineFile(filePath);
+      }
+    }
+    const readFailureService = new ReadFailureWorkspaceService(workspaceRoot);
+    const baseline = await readFailureService.freezeTurnBaseline('t-read-failure');
+    expect(baseline.skipped.some((s) => s.path === 'temporarily-unreadable.txt' && s.reason === 'backup_failed')).toBe(true);
+
+    const report = await readFailureService.collectExternalChanges('t-read-failure', baseline);
+    expect(report.changes).toEqual([]);
+    expect(report.unrecoverable).toEqual([]);
+  });
+
+  it('rename of a baseline-skipped file is explicitly unrecoverable on both sides', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'skipped-src.bin'), Buffer.alloc(BIG, 0x09));
+    const baseline = await service.freezeTurnBaseline('t5');
+    fs.renameSync(path.join(workspaceRoot, 'skipped-src.bin'), path.join(workspaceRoot, 'skipped-dst.bin'));
+    const report = await service.collectExternalChanges('t5', baseline);
+    const src = report.changes.find((c) => c.path === 'skipped-src.bin');
+    expect(src?.recoverable).toBe(false);
+    expect(report.unrecoverable.some((u) => u.path === 'skipped-src.bin' && u.kind === 'renamed')).toBe(true);
+
+    const undo = service.getCheckpointManager().undoTurn('t5');
+    // 现场保留：新名字不删除（可能就是用户数据），旧名字不伪造恢复。
+    expect(fs.existsSync(path.join(workspaceRoot, 'skipped-dst.bin'))).toBe(true);
+    expect(undo.errors.some((e) => e.includes('skipped-src.bin'))).toBe(true);
+  });
+
+  it('non-zero exit and cancellation still collect with the safe semantics', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'partial-big.bin'), Buffer.alloc(BIG, 0x05));
+    const baseline = await service.freezeTurnBaseline('t6');
+    // 模拟命令失败（非零退出）后仍留下变化。
+    fs.writeFileSync(path.join(workspaceRoot, 'partial-big.bin'), 'partial');
+    fs.writeFileSync(path.join(workspaceRoot, 'made-before-fail.txt'), 'x');
+    const report = await service.collectExternalChanges('t6', baseline);
+    expect(report.changes.find((c) => c.path === 'partial-big.bin')?.recoverable).toBe(false);
+    expect(report.changes.find((c) => c.path === 'made-before-fail.txt')?.kind).toBe('created');
+    const undo = service.getCheckpointManager().undoTurn('t6');
+    expect(fs.existsSync(path.join(workspaceRoot, 'partial-big.bin'))).toBe(true);
+    expect(fs.existsSync(path.join(workspaceRoot, 'made-before-fail.txt'))).toBe(false);
+  });
+
+  it('records and restores an empty directory deleted by Shell', async () => {
+    fs.mkdirSync(path.join(workspaceRoot, 'empty-dir'));
+    const baseline = await service.freezeTurnBaseline('t-empty-dir');
+    fs.rmdirSync(path.join(workspaceRoot, 'empty-dir'));
+    const report = await service.collectExternalChanges('t-empty-dir', baseline);
+    expect(report.changes).toContainEqual(expect.objectContaining({ path: 'empty-dir', kind: 'deleted', recoverable: true }));
+
+    const undo = service.getCheckpointManager().undoTurn('t-empty-dir');
+    expect(undo.errors).toEqual([]);
+    expect(undo.drifted).toEqual([]);
+    expect(fs.statSync(path.join(workspaceRoot, 'empty-dir')).isDirectory()).toBe(true);
+  });
+
+  it.each([
+    ['file-to-directory', 'file', 'directory'],
+    ['directory-to-file', 'directory', 'file'],
+  ] as const)('restores a Shell %s type replacement', async (_label, beforeKind, afterKind) => {
+    const target = path.join(workspaceRoot, 'type-target');
+    if (beforeKind === 'file') fs.writeFileSync(target, 'before-file');
+    else {
+      fs.mkdirSync(target);
+      fs.writeFileSync(path.join(target, 'before.txt'), 'before-directory');
+    }
+    const baseline = await service.freezeTurnBaseline(`t-shell-${beforeKind}-${afterKind}`);
+    fs.rmSync(target, { recursive: true, force: true });
+    if (afterKind === 'file') fs.writeFileSync(target, 'after-file');
+    else {
+      fs.mkdirSync(target);
+      fs.writeFileSync(path.join(target, 'after.txt'), 'after-directory');
+    }
+    await service.collectExternalChanges(`t-shell-${beforeKind}-${afterKind}`, baseline);
+
+    const undo = service.getCheckpointManager().undoTurn(`t-shell-${beforeKind}-${afterKind}`);
+
+    expect(undo.errors).toEqual([]);
+    expect(undo.drifted).toEqual([]);
+    expect(fs.statSync(target).isDirectory()).toBe(beforeKind === 'directory');
+    if (beforeKind === 'file') expect(fs.readFileSync(target, 'utf8')).toBe('before-file');
+    else expect(fs.readFileSync(path.join(target, 'before.txt'), 'utf8')).toBe('before-directory');
+  });
+
+  it('merges a tool write and later Shell write on the same path into the latest post-state', async () => {
+    fs.writeFileSync(path.join(workspaceRoot, 'mixed.txt'), 'A');
+    const baseline = await service.freezeTurnBaseline('t-mixed-tool-shell');
+    await service.read('mixed.txt');
+    await service.write('mixed.txt', 'B', { turnId: 't-mixed-tool-shell' });
+    fs.writeFileSync(path.join(workspaceRoot, 'mixed.txt'), 'C');
+    await service.collectExternalChanges('t-mixed-tool-shell', baseline);
+
+    const undo = service.getCheckpointManager().undoTurn('t-mixed-tool-shell');
+
+    expect(undo.errors).toEqual([]);
+    expect(undo.drifted).toEqual([]);
+    expect(fs.readFileSync(path.join(workspaceRoot, 'mixed.txt'), 'utf8')).toBe('A');
+  });
+});
