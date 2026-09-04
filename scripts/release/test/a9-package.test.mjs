@@ -16,10 +16,14 @@ import { syntheticV25Pe, syntheticV25Evidence } from './v25-evidence-fixture.mjs
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const HASH = '0'.repeat(64);
 const require = createRequire(import.meta.url);
+const Database = require('better-sqlite3');
+const canonicalValue = (value) => Array.isArray(value) ? value.map(canonicalValue)
+  : value && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])])) : value;
 const integrity = require('../../../release/win7-product-v3/a9-package-integrity.cjs');
 const { ACCEPTANCE_REQUIRED_FILES } = integrity;
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
-const win20Report = require('../../../release/win7-product-v3/a9-win7-20-report.cjs');
+const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
 function createV25AuthorizedKit(root) {
   const kitRoot = path.join(root, 'authorized-kit');
@@ -165,10 +169,11 @@ function cleanSourceFixture(root) {
     cwd: process.cwd(), encoding: 'utf8',
   }).trim().split('\n');
   for (const relative of names) {
-    if (relative.includes('/dist/') || !fs.statSync(path.join(process.cwd(), relative)).isFile()) continue;
+    const source = path.join(process.cwd(), relative);
+    if (relative.includes('/dist/') || !fs.existsSync(source) || !fs.statSync(source).isFile()) continue;
     const destination = path.join(snapshot, relative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.copyFileSync(path.join(process.cwd(), relative), destination);
+    fs.copyFileSync(source, destination);
   }
   fs.appendFileSync(path.join(snapshot, '.gitignore'), '\n**/dist/\n**/node_modules\n', 'utf8');
   for (const module of ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace']) {
@@ -227,7 +232,7 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
   const firstReturnSha256 = sha256File(runnerZip);
   const lock = {
     schema_version: 1,
-    lock_id: 'A9-09-INPUTS-D013-V25',
+    lock_id: 'A9-14-INPUTS-D013-V25-WIN7-22',
     release_id: 'WIN7-CODING-AGENT-A9-ALPHA1',
     version: '0.3.0-alpha.1',
     source_date_epoch: 1787443200,
@@ -253,10 +258,17 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
       storage_return_zip: { filename: 'storage.zip', version: '8.7.0', sha256: sha256File(storageZip), required_entry: 'output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node', required_entry_sha256: digest(sqlitePe), sqlite: '3.43.1', electron_abi: 110, profile: 'E22-SQLITE343-LOCAL-SSD' },
       runner_return_zip_v24_historical: JSON.parse(fs.readFileSync(path.join(process.cwd(), 'release/win7-product-v3/a9-07-input-lock.json'), 'utf8')).inputs.runner_return_zip,
     },
-    gates: { win10: 'PASS_D013_V25_RETURN_REVIEWED', win7: 'NOT_PERFORMED_WIN7_20', alpha: 'NOT_PERFORMED' },
+    gates: {
+      win10: 'PASS_D013_V25_RETURN_REVIEWED',
+      win7: 'NOT_PERFORMED_WIN7_22', alpha: 'NOT_PERFORMED',
+    },
+    provenance: {
+      task: 'A9-14', superseded_candidate: 'WIN7-21',
+      superseded_candidate_result: 'FIX_BEFORE_ALPHA',
+    },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  const lockPath = path.join(root, 'a9-09-input-lock.json'); writeJson(lockPath, lock);
+  const lockPath = path.join(root, 'a9-14-win7-22-input-lock.json'); writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
 
@@ -266,8 +278,24 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   const options = { repositoryRoot: process.cwd(), ...inputs, outputRoot: path.join(root, 'out'), allowUncommitted: true };
   const first = buildA9ProductCandidate(options);
   const firstBytes = fs.readFileSync(first.zipPath);
-  const second = buildA9ProductCandidate(options);
+  const ignoredRogue = path.join(process.cwd(), 'src/runner/dist/.a9-release-ignored-rogue.js');
+  fs.writeFileSync(ignoredRogue, 'module.exports = "rogue";\n', 'utf8');
+  let second;
+  try {
+    second = buildA9ProductCandidate(options);
+  } finally {
+    fs.rmSync(ignoredRogue, { force: true });
+  }
   assert.deepEqual(fs.readFileSync(second.zipPath), firstBytes);
+  assert.equal(fs.existsSync(path.join(second.stage, 'resources', 'app', 'runner', 'dist', '.a9-release-ignored-rogue.js')), false);
+  const oldLockPath = path.join(root, 'a9-09-input-lock.json');
+  const oldLock = JSON.parse(fs.readFileSync(inputs.lockPath, 'utf8'));
+  oldLock.lock_id = 'A9-09-INPUTS-D013-V25';
+  oldLock.gates.win10 = 'PASS_D013_V25_RETURN_REVIEWED';
+  oldLock.gates.win7 = 'NOT_PERFORMED_WIN7_20';
+  delete oldLock.provenance;
+  writeJson(oldLockPath, oldLock);
+  assert.throws(() => buildA9ProductCandidate({ ...options, lockPath: oldLockPath }), /A9_INPUT_LOCK_INVALID/);
   assert.equal(second.manifest.status, 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS');
   assert.equal(second.manifest.gates.developer_package_integrity, 'PASS');
   assert.equal(second.manifest.gates.win10, 'NOT_PERFORMED');
@@ -287,7 +315,7 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.ok(fs.existsSync(path.join(second.stage, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')));
   assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-package-integrity.cjs')));
   assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-17-report.cjs')));
-  assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-20-report.cjs')));
+  assert.ok(fs.existsSync(path.join(second.stage, 'validation', 'a9-win7-22-report.cjs')));
   assert.ok(fs.existsSync(path.join(second.stage, 'RUN_WIN7_17_REPORT_VERIFY.cmd')));
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
@@ -296,9 +324,16 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.equal(packageJson.runtime_profile.state_schema, 4);
   const runtimeProfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'a9-runtime.json'), 'utf8'));
   assert.equal(runtimeProfile.state_schema, 4);
-  const validationKit = JSON.parse(fs.readFileSync(path.join(second.stage, 'A9_09_VALIDATION_KIT.json'), 'utf8'));
+  const validationKit = JSON.parse(fs.readFileSync(path.join(second.stage, 'A9_14_VALIDATION_KIT.json'), 'utf8'));
+  const formalLock = JSON.parse(fs.readFileSync(inputs.lockPath, 'utf8'));
   assert.equal(validationKit.win7_revalidation_policy.decision, 'ADR-0097');
   assert.deepEqual(validationKit.win7_revalidation_policy.mandatory_impacted, [
+    'WIN7_19_SCHEMA_V4_PROFILE',
+    'MIGRATION_BACKUP',
+    'ATOMIC_CANONICALIZATION',
+    'DATA_PRESERVATION',
+    'ROLLBACK_DIAGNOSTICS',
+    'ELECTRON_STARTUP',
     'D013_V25_PROFILE',
     'D013_PROTOCOL_V2',
     'CURRENT_USER_TOKEN',
@@ -309,9 +344,15 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
     'MANAGED_PROCESS_STOP',
   ]);
   assert.equal(validationKit.win7_revalidation_policy.review, 'DEFERRED_TO_ALPHA2_KNOWN_LIMITATION');
-  assert.equal(validationKit.incremental_win7_cases.length, 12);
+  assert.equal(validationKit.required_runner_helper_sha256,
+    formalLock.inputs.runner_return_zip.required_entry_sha256);
+  assert.equal(validationKit.incremental_win7_cases.length, 13);
+  const schemaCase = validationKit.incremental_win7_cases.find((item) => item.case_id === 'W22-WIN7-19-SCHEMA-V4-COMPAT');
+  assert.ok(schemaCase);
+  assert.equal(schemaCase.assertions.length, 5);
+  assert.match(schemaCase.evidence.join('\n'), /backup SHA-256.*quick_check/i);
   for (const validationCase of validationKit.incremental_win7_cases) {
-    assert.match(validationCase.case_id, /^W(?:17|20)-/);
+    assert.match(validationCase.case_id, /^W(?:17|22)-/);
     assert.ok(validationCase.preconditions.length > 0);
     assert.ok(validationCase.steps.length > 0);
     assert.ok(validationCase.expected.length > 0);
@@ -321,12 +362,16 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   }
   assert.ok(validationKit.source_artifact_hashes['src/core/src/git-command-policy.ts']);
   assert.ok(validationKit.source_artifact_hashes['src/runner/src/background-process-manager.ts']);
+  assert.equal(validationKit.source_artifact_hashes['native/helper/argv_builder.cpp'],
+    sha256File(path.join(process.cwd(), 'native/helper/argv_builder.cpp')));
+  assert.equal(validationKit.source_artifact_hashes['native/helper/argv_builder.h'],
+    sha256File(path.join(process.cwd(), 'native/helper/argv_builder.h')));
   assert.match(fs.readFileSync(path.join(second.stage, 'THIRD_PARTY_LICENSES.md'), 'utf8'), /A9 Schema v4/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "ELECTRON_RUN_AS_NODE=1"/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /set "NODE_OPTIONS="/);
   assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_07_INTEGRITY.cmd'), 'utf8'), /--package-zip=%~f1/);
-  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_09_INTEGRITY.cmd'), 'utf8'), /a9-win7-20-evidence/);
-  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_WIN7_20_REPORT_VERIFY.cmd'), 'utf8'), /A9_09_VALIDATION_KIT\.json/);
+  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_A9_14_INTEGRITY.cmd'), 'utf8'), /a9-win7-22-evidence/);
+  assert.match(fs.readFileSync(path.join(second.stage, 'RUN_WIN7_22_REPORT_VERIFY.cmd'), 'utf8'), /A9_14_VALIDATION_KIT\.json/);
   const runnerManifest = JSON.parse(fs.readFileSync(path.join(second.stage, 'resources', 'native', 'runner', 'runner-manifest.json'), 'utf8'));
   assert.equal(runnerManifest.helper.profile, 'D-013-v25-a9-trusted-shell-current-user');
   assert.equal(runnerManifest.helper.protocol_version, 2);
@@ -362,6 +407,12 @@ test('A9 v25 input recorder requires a preapproved kit ZIP and two independently
     baseLock: path.join(process.cwd(), 'release', 'win7-product-v3', 'a9-07-input-lock.json'),
     kitZip, testOnlyApprovedKitRegistry: approvedKitRegistry, testOnly: true,
     sourceRepositoryRoot,
+    lockId: 'A9-14-INPUTS-D013-V25-WIN7-22',
+    win7Gate: 'NOT_PERFORMED_WIN7_22',
+    provenance: 'A9-14 test provenance.',
+    releaseTask: 'A9-14',
+    supersededCandidate: 'WIN7-21',
+    releaseRule: 'Test starts a new candidate.',
     output,
   });
   const lock = JSON.parse(fs.readFileSync(output, 'utf8'));
@@ -374,6 +425,13 @@ test('A9 v25 input recorder requires a preapproved kit ZIP and two independently
   assert.equal(lock.inputs.runner_return_zip.build_kit.sha256, sha256File(kitZip));
   assert.equal(lock.inputs.runner_return_zip.approval_registry.commit, 'TEST_ONLY');
   assert.equal(lock.inputs.runner_return_zip.approval_registry.sha256, sha256File(approvedKitRegistry));
+  assert.equal(lock.lock_id, 'A9-14-INPUTS-D013-V25-WIN7-22');
+  assert.equal(lock.gates.win7, 'NOT_PERFORMED_WIN7_22');
+  assert.equal(lock.inputs.runner_return_zip.provenance, 'A9-14 test provenance.');
+  assert.deepEqual(lock.provenance, {
+    task: 'A9-14', superseded_candidate: 'WIN7-21',
+    superseded_candidate_result: 'FIX_BEFORE_ALPHA', rule: 'Test starts a new candidate.',
+  });
   assert.equal(result.buildKit.source_commit, lock.inputs.runner_return_zip.source_commit);
   assert.throws(() => recordA9V25HelperInput({
     runnerZip, sidecar: `${runnerZip}.sha256`, runnerZip2, sidecar2: `${runnerZip2}.sha256`,
@@ -538,6 +596,22 @@ test('v25 recorder requires raw evidence, actual PE/API/CRT closure and matching
       fs.writeFileSync(path.join(directory, 'evidence/capture-selftest-stdout.bin'), 'wrong bytes');
       rewriteBinding(directory, () => {});
     }, /CAPTURE_EVIDENCE_NOT_PASS/],
+    ['false-cmd-marker', (directory) => {
+      fs.writeFileSync(path.join(directory, 'evidence/v25-smoke-marker.bin'), 'wrong marker');
+      rewriteBinding(directory, () => {});
+    }, /CMD_VERBATIM_SMOKE_PROOF_INVALID/],
+    ['false-cmd-response', (directory) => {
+      fs.writeFileSync(path.join(directory, 'evidence/v25-smoke-response.jsonl'), 'not the raw response');
+      rewriteBinding(directory, () => {});
+    }, /CMD_VERBATIM_RESPONSE_CAPTURE_MISMATCH/],
+    ['false-cmd-request', (directory) => {
+      const file = path.join(directory, 'evidence/v25-smoke-request.json');
+      const request = JSON.parse(fs.readFileSync(file, 'utf8'));
+      request.command = request.command.replace('> "%A9_D013_MARKER_PATH%"', '> %A9_D013_MARKER_PATH%');
+      request.argv[3] = request.command;
+      writeJson(file, request);
+      rewriteBinding(directory, () => {});
+    }, /CMD_VERBATIM_SMOKE_PROOF_INVALID/],
     ['lying-dumpbin', (directory) => {
       fs.writeFileSync(path.join(directory, 'evidence/pe-helper-imports.txt'), 'not real imports');
       rewriteBinding(directory, () => {});
@@ -562,7 +636,7 @@ test('v25 recorder requires raw evidence, actual PE/API/CRT closure and matching
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('WIN7-20 acceptance requires the formal input lock and complete product closure', () => {
+test('WIN7-22 acceptance requires the formal input lock and complete product closure', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win20-candidate-'));
   const sourceRepositoryRoot = cleanSourceFixture(root);
   const inputs = fixture(root, sourceRepositoryRoot);
@@ -578,7 +652,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   const electronBytes = fs.readFileSync(electronPath);
   const releaseAuthorityPath = path.join(root, 'release-authority.json');
   const releaseAuthority = {
-    schema_version: 1, kind: 'WIN7_20_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_20_VALIDATION',
+    schema_version: 1, kind: 'WIN7_22_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_22_VALIDATION',
     formal_input_lock_sha256: sha256File(inputs.lockPath),
     approval_registry: { commit: manifest.source_commit, sha256: sha256File(inputs.approvalRegistryPath) },
     candidate: { source_commit: manifest.source_commit, package_sha256: sha256File(zip), manifest_sha256: sha256File(manifestPath) },
@@ -587,7 +661,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   const options = {
     zip,
     'release-manifest': manifestPath,
-    kit: path.join(stage, 'A9_09_VALIDATION_KIT.json'),
+    kit: path.join(stage, 'A9_14_VALIDATION_KIT.json'),
     'formal-input-lock': inputs.lockPath,
     'approval-registry': inputs.approvalRegistryPath,
     'release-authority': releaseAuthorityPath,
@@ -609,7 +683,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     writeDeterministicZip(path.dirname(stage), zip, 1787443200);
   };
   const validZip = fs.readFileSync(zip);
-  const identity = win20Report.identityFrom(options, fs);
+  const identity = win22Report.identityFrom(options, fs);
   assert.equal(identity.package_sha256, digest(validZip));
   assert.equal(identity.manifest_sha256, sha256File(manifestPath));
   assert.equal(identity.formal_input_lock_sha256, sha256File(inputs.lockPath));
@@ -618,7 +692,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   assert.equal(identity.release_authority_sha256, options['release-authority-sha256']);
   const cliOptions = Object.entries(options).flatMap(([key, value]) => [`--${key}`, value]);
   const initialized = JSON.parse(execFileSync(process.execPath, [
-    path.join(process.cwd(), 'release/win7-product-v3/a9-win7-20-report.cjs'), 'init', ...cliOptions,
+    path.join(process.cwd(), 'release/win7-product-v3/a9-win7-22-report.cjs'), 'init', ...cliOptions,
   ], { encoding: 'utf8' }));
   assert.deepEqual(initialized.candidate, identity);
   assert.equal(initialized.status, 'NOT_PERFORMED');
@@ -632,41 +706,41 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   // A development Node host must not impersonate packaged Windows Electron.
   assert.equal(cliIntegrity.status, 1);
   assert.equal(cliReport.status, 'FAIL');
-  assert.equal(cliReport.cases.find((item) => item.id === 'A9PKG-INTEGRITY-A9-09-CLOSURE').status, 'PASS');
+  assert.equal(cliReport.cases.find((item) => item.id === 'A9PKG-INTEGRITY-A9-14-CLOSURE').status, 'PASS');
   assert.equal(cliReport.release_authority.release_authority_sha256, options['release-authority-sha256']);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'release-authority-sha256': undefined }, fs), /EXTERNAL_AUTHORITY_REQUIRED/);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'formal-input-lock': undefined }, fs), /FORMAL_INPUT_LOCK_REQUIRED/);
-  assert.throws(() => win20Report.identityFrom({ ...options, 'formal-input-lock': path.join(stage, 'a9-09-input-lock.json') }, fs), /EXTERNAL_AUTHORITY_INSIDE_CANDIDATE/);
+  assert.throws(() => win22Report.identityFrom({ ...options, 'release-authority-sha256': undefined }, fs), /EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.throws(() => win22Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
+  assert.throws(() => win22Report.identityFrom({ ...options, 'formal-input-lock': undefined }, fs), /FORMAL_INPUT_LOCK_REQUIRED/);
+  assert.throws(() => win22Report.identityFrom({ ...options, 'formal-input-lock': path.join(stage, 'a9-14-win7-22-input-lock.json') }, fs), /EXTERNAL_AUTHORITY_INSIDE_CANDIDATE/);
   for (const flags of [{ source_dirty: true }, { external_acceptance_eligible: false }, { source_dirty: undefined }]) {
     writeJson(manifestPath, { ...manifest, ...flags });
-    assert.throws(() => win20Report.identityFrom(options, fs), /CANDIDATE_NOT_ACCEPTANCE_ELIGIBLE/);
+    assert.throws(() => win22Report.identityFrom(options, fs), /CANDIDATE_NOT_ACCEPTANCE_ELIGIBLE/);
   }
   publish();
   fs.writeFileSync(zip, 'not a ZIP');
-  assert.throws(() => win20Report.identityFrom(options, fs), /CANDIDATE_ZIP_INVALID/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /CANDIDATE_ZIP_INVALID/);
   fs.writeFileSync(zip, validZip);
   writeJson(manifestPath, { ...manifest, source_commit: 'b'.repeat(40) });
-  assert.throws(() => win20Report.identityFrom(options, fs), /INPUT_LOCK_CONTRACT_INVALID/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /INPUT_LOCK_CONTRACT_INVALID/);
   publish();
   fs.appendFileSync(electronPath, 'tampered');
-  assert.throws(() => win20Report.identityFrom(options, fs), /mismatch:electron.exe/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /mismatch:electron.exe/);
   fs.writeFileSync(electronPath, electronBytes);
   const fakeKit = path.join(root, 'fake-kit.json'); writeJson(fakeKit, { arbitrary: true });
-  assert.throws(() => win20Report.identityFrom({ ...options, kit: fakeKit }, fs), /CANDIDATE_CLOSURE_MISMATCH/);
+  assert.throws(() => win22Report.identityFrom({ ...options, kit: fakeKit }, fs), /CANDIDATE_CLOSURE_MISMATCH/);
 
   const fakeLock = JSON.parse(formalLockBytes.toString('utf8'));
   fakeLock.inputs.electron_zip.required_entry_sha256 = digest('synthetic electron');
   fs.writeFileSync(inputs.lockPath, `${JSON.stringify(fakeLock, null, 2)}\n`);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
   fs.writeFileSync(electronPath, 'synthetic electron');
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
   pinTestAuthority();
-  assert.throws(() => win20Report.identityFrom(options, fs), /NATIVE_NOT_PE:electron\.exe/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /NATIVE_NOT_PE:electron\.exe/);
   fs.writeFileSync(inputs.lockPath, formalLockBytes);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
   fs.writeFileSync(electronPath, electronBytes);
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   pinTestAuthority();
@@ -684,14 +758,14 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     const invalidLock = JSON.parse(formalLockBytes.toString('utf8'));
     mutate(invalidLock.inputs.runner_return_zip);
     writeJson(inputs.lockPath, invalidLock);
-    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
     manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
     publish();
     pinTestAuthority();
-    assert.throws(() => win20Report.identityFrom(options, fs), expected);
+    assert.throws(() => win22Report.identityFrom(options, fs), expected);
   }
   fs.writeFileSync(inputs.lockPath, formalLockBytes);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   pinTestAuthority();
 
@@ -709,18 +783,18 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     const invalidLock = JSON.parse(formalLockBytes.toString('utf8'));
     invalidLock.inputs[inputKey].required_entry_sha256 = digest(bytes);
     writeJson(inputs.lockPath, invalidLock);
-    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+    fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
     const originalNativeHash = nativeKey && manifest.required_native[nativeKey];
     if (nativeKey) manifest.required_native[nativeKey] = digest(bytes);
     manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
     publish();
     pinTestAuthority();
-    assert.throws(() => win20Report.identityFrom(options, fs), expected);
+    assert.throws(() => win22Report.identityFrom(options, fs), expected);
     fs.writeFileSync(absolute, original);
     if (nativeKey) manifest.required_native[nativeKey] = originalNativeHash;
   }
   fs.writeFileSync(inputs.lockPath, formalLockBytes);
-  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-09-input-lock.json'));
+  fs.copyFileSync(inputs.lockPath, path.join(stage, 'a9-14-win7-22-input-lock.json'));
   manifest.release_authority.formal_input_lock_sha256 = sha256File(inputs.lockPath);
   pinTestAuthority();
 
@@ -729,9 +803,9 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   registry.kits[0].status = 'REVOKED_FOR_TEST';
   fs.writeFileSync(inputs.approvalRegistryPath, `${JSON.stringify(registry, null, 2)}\n`);
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /RELEASE_AUTHORITY_BINDING_INVALID/);
   pinTestAuthority();
-  assert.throws(() => win20Report.identityFrom(options, fs), /EXTERNAL_AUTHORITY_CONTRACT_INVALID/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /EXTERNAL_AUTHORITY_CONTRACT_INVALID/);
   fs.writeFileSync(inputs.approvalRegistryPath, originalRegistry);
   pinTestAuthority();
   publish();
@@ -740,7 +814,7 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
   const mainBytes = fs.readFileSync(mainPath);
   fs.appendFileSync(mainPath, '\n// tampered runtime with self-consistent ZIP/manifest\n');
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /APPROVED_CANDIDATE_HASH_MISMATCH/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /APPROVED_CANDIDATE_HASH_MISMATCH/);
   fs.writeFileSync(mainPath, mainBytes);
 
   for (const relative of ACCEPTANCE_REQUIRED_FILES) {
@@ -748,13 +822,13 @@ test('WIN7-20 acceptance requires the formal input lock and complete product clo
     const original = fs.readFileSync(absolute);
     fs.rmSync(absolute);
     publish();
-    assert.throws(() => win20Report.identityFrom(options, fs), /A9_W20_(?:CANDIDATE_CLOSURE_MISSING|CANDIDATE_CLOSURE_MISMATCH|KIT_NOT_FILE)/, relative);
+    assert.throws(() => win22Report.identityFrom(options, fs), /A9_W22_(?:CANDIDATE_CLOSURE_MISSING|CANDIDATE_CLOSURE_MISMATCH|KIT_NOT_FILE)/, relative);
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
     fs.writeFileSync(absolute, original);
   }
   fs.rmSync(path.join(stage, 'resources/app/node_modules/ajv/package.json'));
   publish();
-  assert.throws(() => win20Report.identityFrom(options, fs), /RUNTIME_DEPENDENCY_CLOSURE_MISSING:ajv/);
+  assert.throws(() => win22Report.identityFrom(options, fs), /RUNTIME_DEPENDENCY_CLOSURE_MISSING:ajv/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -792,8 +866,8 @@ test('WIN7-17 report verifier requires candidate binding, every assertion, and h
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W20 evidence', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win20-report-'));
+test('WIN7-22 report verifier binds inheritance and parses direct D-013 protocol evidence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win22-report-'));
   const evidenceRoot = path.join(root, 'evidence');
   fs.mkdirSync(evidenceRoot);
   fs.writeFileSync(path.join(evidenceRoot, 'proof.txt'), 'external proof\n', 'utf8');
@@ -862,12 +936,19 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
   }));
   const kit = {
     schema_version: 2,
+    required_runner_helper_sha256: 'b'.repeat(64),
     inherited_evidence: {
       decision: 'ADR-0097', allowed_case_prefix: 'W17-', candidate: inheritedCandidate,
       evidence_sources: sourceDocuments, case_bindings: caseBindings,
     },
-    incremental_win7_cases: Array.from({ length: 12 }, (_value, index) => {
-      const caseId = index < 8 ? `W17-CASE-${index + 1}` : `W20-CASE-${index - 7}`;
+    schema_v4_inheritance: {
+      status: 'INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH', source_commit: 'd'.repeat(40),
+      from_candidate: { candidate_id: 'WIN7-21', result: 'FIX_BEFORE_ALPHA' },
+      source_artifact_hashes: { 'src/state/src/a9-persistence.ts': '1'.repeat(64) }, evidence,
+    },
+    incremental_win7_cases: [...Array.from({ length: 8 }, (_value, index) => `W17-CASE-${index + 1}`),
+      'W22-WIN7-19-SCHEMA-V4-COMPAT', 'W22-D013-V25-CURRENT-USER', 'W22-D013-V25-ENV-IDENTITY',
+      'W22-D013-V25-NO-DEADLINE-STOP', 'W22-D013-V25-BACKGROUND-READY'].map((caseId) => {
       return { case_id: caseId, assertions: [{ assertion_id: `${caseId}-A1`, expected: 'verified' }] };
     }),
   };
@@ -905,23 +986,246 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
       }),
     },
   };
+  const markerNames = ['w22-ps-current-user-r3.txt', 'w22-cmd-current-user-r3.txt', 'w22-explicit-shell-r3.txt'];
+  const markerValues = ['W22_PS_CURRENT_USER', 'W22_CMD_CURRENT_USER', 'W22_EXPLICIT_SHELL'];
+  const markerEvidence = markerNames.map((name, index) => {
+    fs.writeFileSync(path.join(evidenceRoot, name), markerValues[index], 'utf8');
+    return { path: name, sha256: sha256File(path.join(evidenceRoot, name)) };
+  });
+  const tokenAudit = {
+    verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true,
+    lowIntegrity: false,
+  };
+  const transcript = (requestId, shellKind, command, stdout, canceled = false, envOverlay = {}, shellSource = 'automatic') => {
+    const shellPath = shellKind === 'cmd' ? 'C:\\Windows\\System32\\cmd.exe'
+      : 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+    const wrapped = `$ProgressPreference='SilentlyContinue'\r\n${command}\r\nexit 0`;
+    const argv = shellKind === 'cmd' ? ['/d', '/s', '/c', command]
+      : ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(wrapped, 'utf16le').toString('base64')];
+    const stdoutBase64 = Buffer.from(stdout).toString('base64');
+    return {
+      request: { schemaVersion: 2, requestId, profileId: 'a9-trusted-shell-current-user-v1', executable: shellPath,
+        argv, shellKind, shellPath, shellIdentity: 'a'.repeat(64), shellVersion: 'file-123-456',
+        shellSource, command, cwd: 'C:\\A9验收\\工作区\\中文 空格项目', envOverlay,
+        managed: true, deadlineMode: 'none' },
+      ready: { schemaVersion: 2, type: 'execution_started', requestId, profileId: 'a9-trusted-shell-current-user-v1',
+        helperPid: 101, childPid: 102, ready: { childJobAssignmentVerified: true, inputDetached: true,
+          stdoutCaptureReady: true, stderrCaptureReady: true }, tokenAudit },
+      result: { schemaVersion: 2, type: 'execution_result', requestId, profileId: 'a9-trusted-shell-current-user-v1',
+        status: 'completed', containmentVerified: true, inputDetached: true, cleanupConfirmed: true,
+        workDirAclModified: false, hostJob: { childJobAssignmentVerified: true }, tokenAudit, canceled, exitCode: canceled ? 1 : 0,
+        timedOut: false, idleTimedOut: false, stdoutBase64, stdoutSize: Buffer.byteLength(stdout),
+        stderrBase64: '', stderrSize: 0 },
+    };
+  };
+  const ps = transcript('w22-current-ps', 'powershell',
+    "[IO.File]::WriteAllText((Join-Path $env:A9_W22_WORKSPACE 'w22-ps-current-user-r3.txt'),'W22_PS_CURRENT_USER',(New-Object Text.UTF8Encoding($false))); Write-Output 'PS_WRITE_OK'", 'PS_WRITE_OK\r\n');
+  const cmd = transcript('w22-current-cmd', 'cmd', '> "%A9_W22_WORKSPACE%\\w22-cmd-current-user-r3.txt" <nul set /p "=W22_CMD_CURRENT_USER" & echo CMD_WRITE_OK', 'CMD_WRITE_OK\r\n');
+  const explicit = transcript('w22-current-explicit', 'cmd', '> "C:\\A9验收\\工作区\\中文 空格项目\\w22-explicit-shell-r3.txt" <nul set /p "=W22_EXPLICIT_SHELL"', '', false, {}, 'workspace_explicit');
+  const filteredCommand = 'if defined W22_INHERITED_RAW exit /b 41 & if defined W22_INHERITED_BASE64 exit /b 42 & if defined W22_INHERITED_BASE64URL exit /b 43 & if defined W22_INHERITED_PERCENT exit /b 44 & echo FILTERED_OK';
+  const filtered = transcript('w22-env-filtered', 'cmd', filteredCommand, 'FILTERED_OK\r\n');
+  const visible = transcript('w22-env-visible', 'cmd', 'if "%A9_W22_VISIBLE%"=="ordinary-overlay" (echo VISIBLE_OK) else (exit /b 51)',
+    'VISIBLE_OK\r\n', false, { A9_W22_VISIBLE: 'ordinary-overlay' });
+  const noDeadline = transcript('w22-no-deadline-stop', 'powershell', 'Start-Sleep -Seconds 30', '', true);
+  const background = transcript('w22-background-ready', 'cmd', 'ping.exe -t 127.0.0.1', '', true);
+  const d013Document = {
+    schema_version: 1, evidence_kind: 'WIN7_22_D013_V25_CURRENT_CANDIDATE_CASES', candidate: identity,
+    probe_id: probeId, environment: { token_kind: 'ordinary-user', elevation: 'not-elevated', integrity_level: 'medium',
+      shell_profile: 'D-013-v25-a9-trusted-shell-current-user', helper_sha256: kit.required_runner_helper_sha256,
+      shells: {
+        powershell: { canonical_path: ps.request.shellPath, sha256: ps.request.shellIdentity, version: ps.request.shellVersion },
+        cmd: { canonical_path: cmd.request.shellPath, sha256: cmd.request.shellIdentity, version: cmd.request.shellVersion },
+      } },
+    cases: {
+      'W22-D013-V25-CURRENT-USER': { status: 'PASS', powershell: ps, cmd, explicit_shell: explicit,
+        acl_unchanged: true, acl_sddl_sha256_before: 'c'.repeat(64), acl_sddl_sha256_after: 'c'.repeat(64),
+        created_files: markerEvidence, raw_protocol: {}, events: [] },
+      'W22-D013-V25-ENV-IDENTITY': { status: 'PASS', filtered_child: filtered, visible_child: visible,
+        rejected_entries: ['API_TOKEN', 'NODE_OPTIONS', 'ELECTRON_ENABLE_LOGGING', 'NODE_TLS_REJECT_UNAUTHORIZED',
+          'BUILD_SECRET_VALUE', 'BUILD_SECRET_BASE64', 'BUILD_SECRET_BASE64URL', 'BUILD_SECRET_PERCENT',
+          'BUILD_SECRET_FORM', 'BUILD_SECRET_BASE64_PERCENT']
+          .map((name, index) => ({ name, code: 'A9_ENV_OVERLAY_REJECTED',
+            ...(index >= 4 ? { value_sha256: [
+              'A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f',
+              Buffer.from('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').toString('base64'),
+              Buffer.from('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''),
+              encodeURIComponent('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f'),
+              encodeURIComponent('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').replace(/%20/g, '+'),
+              encodeURIComponent(Buffer.from('A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f').toString('base64')),
+            ].map((value) => digest(value))[index - 4] } : {}) })),
+        ordinary_overlay_visible: true, inherited_secret_variants_absent: true,
+        provider_rotation_rejection: 'A9_ENV_OVERLAY_REJECTED', persisted_rejection_survived_restart: true,
+        explicit_reapply_required_and_succeeded: true,
+        explicit_shell_identity_mismatch: { status: 'failed', error_code: 'A9_SHELL_IDENTITY_CHANGED', child_executed: false },
+        raw_protocol: {}, events: [] },
+      'W22-D013-V25-NO-DEADLINE-STOP': { status: 'PASS', transcript: noDeadline,
+        observed_active_before_stop_ms: 4000, repeated_stop_idempotent: true, execution_count: 1,
+        raw_protocol: [], events: [] },
+      'W22-D013-V25-BACKGROUND-READY': { status: 'PASS', transcript: background, persisted_pid: 102,
+        persisted_pid_is_child_not_helper: true, first_stop_status: 'stopped', second_stop_status: 'exited',
+        uncertain_cleanup: { initial_cleanup_required: true, stop_error_code: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED', process_survived_blind_stop: true },
+        recovered_pid: { pid: 303, first_stop_error_code: 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED', process_survived_blind_stop: true,
+          external_stop_then_second_stop_status: 'exited' }, post_case_active_count: 0,
+        state_transitions: [{ status: 'running' }], raw_protocol: [], events: [] },
+    }, secret_scan: { synthetic_plaintext_persisted_in_this_evidence: false },
+  };
+  const currentProof = d013Document.cases['W22-D013-V25-CURRENT-USER'];
+  let seq = 1;
+  for (const [name, transcriptValue, marker] of [
+    ['ps', ps, markerEvidence[0]], ['cmd', cmd, markerEvidence[1]], ['explicit', explicit, markerEvidence[2]],
+  ]) {
+    const rawName = `raw-${name}.json`;
+    writeJson(path.join(evidenceRoot, rawName), transcriptValue);
+    currentProof.raw_protocol[name] = [{ path: rawName, sha256: sha256File(path.join(evidenceRoot, rawName)) }];
+    currentProof.events.push({ seq: seq++, monotonic_ms: seq * 10, event: `${name}_raw_response_persisted`,
+      request_id: transcriptValue.request.requestId, artifact_sha256: currentProof.raw_protocol[name][0].sha256 });
+    currentProof.events.push({ seq: seq++, monotonic_ms: seq * 10, event: `${name}_marker_asserted`,
+      request_id: transcriptValue.request.requestId, artifact_sha256: marker.sha256 });
+  }
+  const configAfterRotation = { workspaces: { other: { environmentRejected: true }, safe: { envOverlay: { MODE: 'release' } } } };
+  const configAfterRestart = JSON.parse(JSON.stringify(configAfterRotation));
+  writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
+  writeJson(path.join(evidenceRoot, 'config-after-restart.json'), configAfterRestart);
+  const envProof = d013Document.cases['W22-D013-V25-ENV-IDENTITY'];
+  for (const [name, transcriptValue] of [['filtered', filtered], ['visible', visible]]) {
+    const rawName = `raw-env-${name}.json`;
+    writeJson(path.join(evidenceRoot, rawName), transcriptValue);
+    envProof.raw_protocol[name] = [{ path: rawName, sha256: sha256File(path.join(evidenceRoot, rawName)) }];
+  }
+  envProof.config_after_rotation = [{ path: 'config-after-rotation.json', sha256: sha256File(path.join(evidenceRoot, 'config-after-rotation.json')) }];
+  envProof.config_after_restart = [{ path: 'config-after-restart.json', sha256: sha256File(path.join(evidenceRoot, 'config-after-restart.json')) }];
+  envProof.events = ['rejections_recorded', 'filtered_child_completed', 'visible_child_completed', 'provider_rotation_rejected',
+    'config_scrubbed', 'runtime_reopened_blocked', 'explicit_reapply_completed', 'identity_mismatch_rejected_before_child']
+    .map((event, index) => ({ seq: index + 1, monotonic_ms: index * 10, event,
+      ...(event === 'rejections_recorded' ? { rejection_count: 10 } : {}),
+      ...(event === 'filtered_child_completed' ? { request_id: filtered.request.requestId,
+        artifact_sha256: envProof.raw_protocol.filtered[0].sha256 } : {}),
+      ...(event === 'visible_child_completed' ? { request_id: visible.request.requestId,
+        artifact_sha256: envProof.raw_protocol.visible[0].sha256 } : {}) }));
+  const noDeadlineProof = d013Document.cases['W22-D013-V25-NO-DEADLINE-STOP'];
+  writeJson(path.join(evidenceRoot, 'raw-no-deadline.json'), noDeadline);
+  noDeadlineProof.raw_protocol = [{ path: 'raw-no-deadline.json', sha256: sha256File(path.join(evidenceRoot, 'raw-no-deadline.json')) }];
+  noDeadlineProof.events = ['execution_started', 'active_observed', 'stop_requested', 'raw_result_persisted', 'repeat_stop_observed']
+    .map((event, index) => ({ seq: index + 1, monotonic_ms: index === 0 ? 0 : 4000 + index, event,
+      request_id: noDeadline.request.requestId,
+      ...(event === 'raw_result_persisted' ? { result_sha256: digest(JSON.stringify(canonicalValue(noDeadline.result))),
+        artifact_sha256: noDeadlineProof.raw_protocol[0].sha256 } : {}) }));
+  const backgroundProof = d013Document.cases['W22-D013-V25-BACKGROUND-READY'];
+  writeJson(path.join(evidenceRoot, 'raw-background.json'), background);
+  backgroundProof.raw_protocol = [{ path: 'raw-background.json', sha256: sha256File(path.join(evidenceRoot, 'raw-background.json')) }];
+  backgroundProof.events = ['execution_started', 'running_persisted_after_ready', 'first_stop_requested', 'raw_result_persisted', 'first_stop_completed',
+    'second_stop_requested', 'second_stop_completed', 'recovered_pid_adopted', 'exit_lock_observed', 'blind_stop_refused',
+    'external_stop_observed', 'second_stop_after_external', 'zero_residue_observed'].map((event, index) => ({
+    seq: index + 1, monotonic_ms: index * 10, event,
+    ...(index < 7 ? { request_id: background.request.requestId } : {}),
+    ...(event === 'running_persisted_after_ready' ? { pid: background.ready.childPid,
+      ready_sha256: digest(JSON.stringify(canonicalValue(background.ready))) } : {}),
+    ...(event === 'raw_result_persisted' ? { artifact_sha256: backgroundProof.raw_protocol[0].sha256,
+      result_sha256: digest(JSON.stringify(canonicalValue(background.result))) } : {}),
+    ...(index >= 7 && index <= 11 ? { pid: 303 } : {}),
+    ...(event === 'exit_lock_observed' ? { exit_blocked: true } : {}),
+    ...(event === 'blind_stop_refused' ? { error_code: 'A9_RECOVERED_PROCESS_IDENTITY_UNCONFIRMED' } : {}),
+    ...(event === 'zero_residue_observed' ? { managed_processes: 0, helper_processes: 0 } : {}),
+  }));
+  const d013Path = path.join(evidenceRoot, 'w22-d013.json');
+  const publishD013 = (targetReport) => {
+    writeJson(d013Path, d013Document);
+    const ref = [{ path: 'w22-d013.json', sha256: sha256File(d013Path) }];
+    for (const item of targetReport.results.slice(9)) item.executions[0].d013_evidence = ref;
+  };
   const report = {
-    schema_version: 2, report_kind: 'WIN7_20_INCREMENTAL_ACCEPTANCE', candidate: identity,
+    schema_version: 2, report_kind: 'WIN7_22_INCREMENTAL_ACCEPTANCE', candidate: identity,
     inherited_evidence_policy: kit.inherited_evidence, status: 'PASS',
     results: kit.incremental_win7_cases.map((validationCase, index) => index < 8 ? {
       case_id: validationCase.case_id, status: 'INHERITED_EVIDENCE', inherited_from: inheritedCandidate,
       evidence_refs: kit.inherited_evidence.case_bindings[validationCase.case_id],
+    } : index === 8 ? {
+      case_id: validationCase.case_id, status: 'INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH',
+      inherited_from: kit.schema_v4_inheritance.from_candidate, evidence,
     } : {
       case_id: validationCase.case_id, status: 'PASS', executions: [{
-        candidate: identity, environment, machine_binding: machineBinding,
-        assertions: [{ assertion_id: validationCase.assertions[0].assertion_id, passed: true, detail: 'current WIN7-20 execution', evidence }],
+        candidate: identity, environment, machine_binding: machineBinding, d013_helper_sha256: kit.required_runner_helper_sha256,
+        assertions: [{ assertion_id: validationCase.assertions[0].assertion_id, passed: true, detail: 'current WIN7-22 execution', evidence }],
       }],
     }),
   };
-  const verified = win20Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs);
+  publishD013(report);
+  const verified = win22Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs);
   assert.equal(verified.status, 'PASS');
-  assert.equal(verified.inherited_cases, 8);
+  assert.equal(verified.inherited_cases, 9);
   assert.equal(verified.direct_current_candidate_cases, 4);
+  const schemaAsCurrentPass = JSON.parse(JSON.stringify(report));
+  schemaAsCurrentPass.results[8] = { case_id: 'W22-WIN7-19-SCHEMA-V4-COMPAT', status: 'PASS', executions: [] };
+  assert.throws(() => win22Report.verifyReport(schemaAsCurrentPass, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_CASE_STATUS_INVALID/);
+  const proofOnly = JSON.parse(JSON.stringify(report));
+  delete proofOnly.results[9].executions[0].d013_evidence;
+  assert.throws(() => win22Report.verifyReport(proofOnly, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_W22-D013-V25-CURRENT-USER_SINGLE_JSON_EVIDENCE_REQUIRED/);
+  const wrongHelper = JSON.parse(JSON.stringify(report));
+  for (const item of wrongHelper.results.slice(9)) item.executions[0].d013_helper_sha256 = '0'.repeat(64);
+  assert.throws(() => win22Report.verifyReport(wrongHelper, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_HELPER_BINDING_INVALID/);
+  const rewriteRaw = (name, transcriptValue) => {
+    const rawName = `raw-${name}.json`;
+    writeJson(path.join(evidenceRoot, rawName), transcriptValue);
+    currentProof.raw_protocol[name][0].sha256 = sha256File(path.join(evidenceRoot, rawName));
+    currentProof.events.find((item) => item.event === `${name}_raw_response_persisted`).artifact_sha256
+      = currentProof.raw_protocol[name][0].sha256;
+  };
+  delete explicit.request.shellSource;
+  rewriteRaw('explicit', explicit);
+  const missingExplicitSource = JSON.parse(JSON.stringify(report));
+  publishD013(missingExplicitSource);
+  assert.throws(() => win22Report.verifyReport(missingExplicitSource, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_CURRENT_EXPLICIT_REQUEST_INVALID/);
+  explicit.request.shellSource = 'workspace_explicit';
+  rewriteRaw('explicit', explicit);
+  cmd.result.exitCode = 9;
+  rewriteRaw('cmd', cmd);
+  const nonzeroCmd = JSON.parse(JSON.stringify(report));
+  publishD013(nonzeroCmd);
+  assert.throws(() => win22Report.verifyReport(nonzeroCmd, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_CURRENT_USER_SEMANTICS_INVALID/);
+  cmd.result.exitCode = 0;
+  rewriteRaw('cmd', cmd);
+  fs.appendFileSync(path.join(evidenceRoot, markerNames[1]), '\r\n');
+  markerEvidence[1].sha256 = sha256File(path.join(evidenceRoot, markerNames[1]));
+  currentProof.events.find((item) => item.event === 'cmd_marker_asserted').artifact_sha256 = markerEvidence[1].sha256;
+  const paddedMarker = JSON.parse(JSON.stringify(report));
+  publishD013(paddedMarker);
+  assert.throws(() => win22Report.verifyReport(paddedMarker, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_MARKER_BYTES_INVALID/);
+  fs.writeFileSync(path.join(evidenceRoot, markerNames[1]), markerValues[1], 'utf8');
+  markerEvidence[1].sha256 = sha256File(path.join(evidenceRoot, markerNames[1]));
+  currentProof.events.find((item) => item.event === 'cmd_marker_asserted').artifact_sha256 = markerEvidence[1].sha256;
+  const stopEvent = noDeadlineProof.events.find((item) => item.event === 'stop_requested');
+  const originalStopTime = stopEvent.monotonic_ms;
+  stopEvent.monotonic_ms = 1;
+  const forgedTimeline = JSON.parse(JSON.stringify(report));
+  publishD013(forgedTimeline);
+  assert.throws(() => win22Report.verifyReport(forgedTimeline, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_NO_DEADLINE_EVENT_SEQUENCE_INVALID/);
+  stopEvent.monotonic_ms = originalStopTime;
+  const configOriginal = JSON.parse(JSON.stringify(configAfterRotation));
+  configAfterRotation.workspaces.other.leak = 'A9 W22+SYNTHETIC/SECRET?VALUE=7f4d0d7052e84b5f';
+  writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
+  envProof.config_after_rotation[0].sha256 = sha256File(path.join(evidenceRoot, 'config-after-rotation.json'));
+  const leakedConfig = JSON.parse(JSON.stringify(report));
+  publishD013(leakedConfig);
+  assert.throws(() => win22Report.verifyReport(leakedConfig, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_ENV_SECRET_PERSISTED/);
+  Object.assign(configAfterRotation, configOriginal);
+  writeJson(path.join(evidenceRoot, 'config-after-rotation.json'), configAfterRotation);
+  envProof.config_after_rotation[0].sha256 = sha256File(path.join(evidenceRoot, 'config-after-rotation.json'));
+  const originalCmdArgv = d013Document.cases['W22-D013-V25-CURRENT-USER'].cmd.request.argv;
+  d013Document.cases['W22-D013-V25-CURRENT-USER'].cmd.request.argv = ['/d', '/s', '/c', 'echo forged'];
+  const forgedCmd = JSON.parse(JSON.stringify(report));
+  publishD013(forgedCmd);
+  assert.throws(() => win22Report.verifyReport(forgedCmd, kit, identity, fs.realpathSync(evidenceRoot), fs),
+    /A9_W22_D013_CURRENT_CMD_CMD_ARGV_INVALID/);
+  d013Document.cases['W22-D013-V25-CURRENT-USER'].cmd.request.argv = originalCmdArgv;
+  publishD013(report);
   const invalid = JSON.parse(JSON.stringify(report));
   invalid.results[8] = {
     case_id: invalid.results[8].case_id,
@@ -929,20 +1233,20 @@ test('WIN7-20 report verifier binds inheritance to WIN7-19 and requires direct W
     inherited_from: inheritedCandidate,
     evidence_refs: [],
   };
-  assert.throws(() => win20Report.verifyReport(invalid, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_CASE_STATUS_INVALID/);
+  assert.throws(() => win22Report.verifyReport(invalid, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W22_CASE_STATUS_INVALID/);
   const staleCandidate = JSON.parse(JSON.stringify(report));
-  staleCandidate.results[8].executions[0].candidate.package_sha256 = '0'.repeat(64);
-  assert.throws(() => win20Report.verifyReport(staleCandidate, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_EXECUTION_CANDIDATE_BINDING_MISMATCH/);
+  staleCandidate.results[9].executions[0].candidate.package_sha256 = '0'.repeat(64);
+  assert.throws(() => win22Report.verifyReport(staleCandidate, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W22_EXECUTION_CANDIDATE_BINDING_MISMATCH/);
   const wrongEnvironment = JSON.parse(JSON.stringify(report));
-  wrongEnvironment.results[8].executions[0].environment.windows_version = 'macOS 15';
-  wrongEnvironment.results[8].executions[0].environment.token_kind = 'administrator';
-  wrongEnvironment.results[8].executions[0].environment.elevation = 'elevated';
-  assert.throws(() => win20Report.verifyReport(wrongEnvironment, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_WINDOWS_VERSION_NOT_WIN7_SP1_7601/);
+  wrongEnvironment.results[9].executions[0].environment.windows_version = 'macOS 15';
+  wrongEnvironment.results[9].executions[0].environment.token_kind = 'administrator';
+  wrongEnvironment.results[9].executions[0].environment.elevation = 'elevated';
+  assert.throws(() => win22Report.verifyReport(wrongEnvironment, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W22_WINDOWS_VERSION_NOT_WIN7_SP1_7601/);
   const arbitraryInheritance = JSON.parse(JSON.stringify(report));
   arbitraryInheritance.results[0].evidence_refs = [{ source_id: 'ledger', json_pointer: '/candidate_id' }];
-  assert.throws(() => win20Report.verifyReport(arbitraryInheritance, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_INHERITED_CASE_REFS_MISMATCH/);
+  assert.throws(() => win22Report.verifyReport(arbitraryInheritance, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W22_INHERITED_CASE_REFS_MISMATCH/);
   fs.writeFileSync(path.join(inheritedRoot, 'WIN7-19-INHERITED-EVIDENCE.json'), '{"tampered":true}\n', 'utf8');
-  assert.throws(() => win20Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W20_INHERITED_SOURCE_HASH_MISMATCH/);
+  assert.throws(() => win22Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W22_INHERITED_SOURCE_HASH_MISMATCH/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

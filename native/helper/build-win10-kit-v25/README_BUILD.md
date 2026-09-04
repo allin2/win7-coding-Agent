@@ -1,6 +1,6 @@
 # D-013 v25 A9 Current-User Helper：锁定 Win10 构建
 
-> 当前 r11 套件绑定已提交源码 `bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a`，状态为
+> 当前 r15 套件绑定已提交源码 `1eb02c254ffd8a4081c984da21f176671c6ce026`，状态为
 > `READY_FOR_WIN10_BUILD`。其 ZIP、input lock 与 package manifest 精确哈希必须命中产品批准清单；
 > 已撤销的 r4～r10 套件继续保留历史记录，不得用于正式返回记录。
 
@@ -60,11 +60,14 @@ Win10/VS2019/v142/SDK 19041、PE x64、静态 CRT、逻辑测试、协议 v1/v2 
 node scripts/release/record-a9-v25-helper-input.mjs \
   --kit-zip <preapproved-build-kit.zip> \
   --runner-zip <first-return.zip> --sidecar <first-return.zip.sha256> \
-  --runner-zip-2 <second-return.zip> --sidecar-2 <second-return.zip.sha256>
+  --runner-zip-2 <second-return.zip> --sidecar-2 <second-return.zip.sha256> \
+  --base-lock release/win7-product-v3/a9-13-win7-21-input-lock.json \
+  --output release/win7-product-v3/a9-14-win7-22-input-lock.json
 ```
 
-记录器只创建新的 `release/win7-product-v3/a9-09-input-lock.json`，拒绝覆盖已有文件，并把 v24 条目原样
-保留为历史输入。输入锁创建后才能构建 WIN7-20；Win10 PASS 不等于 Win7 PASS。
+记录器只创建新的 `release/win7-product-v3/a9-14-win7-22-input-lock.json`，拒绝覆盖已有文件，并以
+`a9-13-win7-21-input-lock.json` 为上一候选基锁，保留未受影响的其他原生输入。新输入锁创建后才能构建
+WIN7-22；Win10 PASS 不等于 Win7 PASS。
 
 按 ADR-0102，返回包必须包含批准 Profile 的全部 `delivery.evidence`，以及 schema 1 的
 `evidence/validation-binding.json`：绑定本次 run ID、source commit、Profile、最终 helper SHA-256、
@@ -81,7 +84,7 @@ node scripts/release/record-a9-v25-helper-input.mjs \
   `deadlineMode=none`、ready 双流证明、取消和 `cleanupConfirmed=true`。
 - Node 拒绝采用 `NODE_*`；继承 smoke 覆盖 NODE_DEBUG、NODE_DEBUG_NATIVE、NODE_PRESERVE_SYMLINKS、
   NODE_ICU_DATA、NODE_NO_WARNINGS，overlay smoke 直接验证 NODE_DEBUG 被拒绝。helper 不接收秘密列表；
-  产品 Runner 必须先按已知秘密值净化 helper 环境，该值级路径由产品/Runner 回归和 WIN7-20 验证。
+  产品 Runner 必须先按已知秘密值净化 helper 环境，该值级路径由产品/Runner 回归和 WIN7-22 验证。
 - host Job 不允许 breakaway、子进程创建受环境策略阻止、任何禁止 API/动态 CRT/manifest/协议错误，均只生成
   PARTIAL/FAIL diagnostics；不得改系统策略、关闭安全校验或把环境阻断写成 PASS。
 - 返回包中的 raw stdout/stderr 先按字节落盘，再严格按 UTF-8 解码；秘密不得写入命令、路径或证据名称。
@@ -96,4 +99,4 @@ SHA-256。测试夹具只能通过显式 `testOnly=true` 注入隔离清单，CL
 
 只有状态为 `READY_FOR_WIN10_BUILD` 且命中产品批准清单的套件可供记录器接受。只有双构建回传被记录、
 A9 候选完成确定性装配，并在同一
-WIN7-20 候选上完成 A9-09 增量实机验收后，才可以重新裁决 Alpha。
+WIN7-22 候选上完成 A9-14 受影响门禁实机验收后，才可以重新裁决 Alpha。

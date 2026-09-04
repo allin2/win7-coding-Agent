@@ -1597,3 +1597,49 @@
   PID 复用可能保守延迟锁接管，不能把 PID 检查描述为身份认证。开发机测试与 Electron smoke 均不替代
   Win10/Win7 实机证据。本决策不改 native 协议、v24/v25 正式锁、WIN7-19 工件或候选身份，不授权提交、
   推送、正式构建或解除 `FIX_BEFORE_ALPHA`。
+
+## ADR-0110 既有 WIN7-19 schema v4 精确兼容与 WIN7-21 全新候选
+
+- 状态：Accepted（2026-09-03，项目负责人要求修复、独立审查并从 G0 重建新候选）
+- 背景：WIN7-20 在 Win7 普通用户启动时发现 WIN7-19 已写入的合法 schema v4 profile 与后置严格
+  物理校验器不兼容：历史 `a9_sessions.last_activated_at` 声明可为空且 `title_source` 默认值为
+  `legacy`，当前规范要求 `NOT NULL` 与默认值 `auto`。校验发生在备份和迁移前，使产品进入诊断模式。
+- 决策：（1）schema marker 保持 v4，不新增业务字段或依赖。当前规范 v4 和历史 profile 都必须精确
+  匹配 CREATE TABLE、必需索引与零触发器合同；历史 profile 不允许额外索引，当前规范 v4 仅兼容
+  旧版本迁移已保留的非唯一、非 partial、命名列、BINARY/ASC 只读索引，拒绝会改变写入语义的索引；
+  只有除上述两项物理声明外，表、列、约束、显式索引和零触发器均完全相同的
+  `WIN7_19_LEGACY_V4` 才能进入自动重建；任何其他旧 profile 偏差继续 fail-closed。（2）精确旧
+  指纹先经只读探测，再在写连接复核；任何写入、journal mode 变化前以 `VACUUM INTO` 创建并校验事务
+  一致备份。单一事务重建 `a9_sessions`，逐字段保留会话、草稿密文和元数据，空活动时间仅按
+  `updated_at`、`created_at`、当前时间补齐，重建索引并执行完整规范 v4 校验；失败整体回滚且备份保留。
+  （3）新增 A9-13 独立白名单和正负向真实 SQLite 回归。实现验证与独立审查分开记录，独审关闭后才能
+  冻结源码。（4）WIN7-20 的失败证据、身份和裁决不可变；新源码从 G0 重新双构建，生成新身份
+  `a9-13-win7-21-input-lock.json`、manifest、ZIP、release authority、Win7 部署目录、直接证据与最终裁决；
+  新锁可引用仍获批准的原生输入哈希，但构建器必须拒绝历史 `a9-09-input-lock.json` 作为 WIN7-21 正式锁，
+  候选编号为 WIN7-21。
+- 后果：符合精确历史指纹的用户数据首次启动会产生可恢复备份并规范化；已规范 v4 不重复备份。任意未知
+  或畸形 v4 仍拒绝启动。开发机和 Win10 结果不构成 Win7 PASS；WIN7-21 必须直接证明旧 profile 启动、
+  数据保持、迁移原子性、生命周期和受影响产品旅程。本决策不修改 WIN7-19/WIN7-20 工件、原生协议、
+  Provider、Runner、权限或历史验收结论。
+
+## ADR-0111 D-013 CMD payload 原样装配与 WIN7-22 门禁继承边界
+
+- 状态：Accepted（2026-09-03，项目负责人授权修复并生成 WIN7-22，从 G0 重走受影响门禁）
+- 背景：WIN7-21 在 Win7 D-013 CMD 当前候选用例中，PowerShell 已成功创建含中文和空格的工作区与环境
+  变量，但 helper 返回后目标文件不存在；同一 `cmd.exe /d /s /c` payload 经管理通道直启成功。协议 v2
+  已把 CMD 的 command 与 `argv[3]` 精确绑定，Runner 直启也使用 Windows verbatim 参数；helper 仍把整个
+  argv 交给 CRT 引号算法，令 payload 内部双引号变成反斜杠加双引号。CMD 不采用 CRT 的反斜杠转义规则，
+  因而命令语义被改变。该问题属于候选源码/原生字节缺陷，不是现场脚本或宿主能力缺失。
+- 决策：（1）仅在协议 v2、`shellKind=cmd` 且 TrustedShell host 校验已确认 executable 身份、固定
+  `/d /s /c`、`argv[3] == command` 后，helper 使用已引用 executable、固定开关和未经 CRT 二次转义的
+  command payload 构造 Windows 命令行。PowerShell、其他批准 shell 与 v1 保持通用 argv 构造；协议、
+  环境过滤、权限、审批、Job、取消和输出合同不变。（2）纯逻辑测试覆盖内部引号、环境变量、中文空格、
+  重定向和 `&`；Win10 双构建 smoke 与 Win7 D-013 当前用例必须真实创建、读取目标 marker，并在文件断言
+  前保存 helper 原始响应。（3）新增 A9-14 白名单和冻结前独审；WIN7-21 工件、证据及失败裁决不可变。
+  WIN7-22 必须重跑 G0～G3、G5～G7，G4 只可对不受候选影响的稳定宿主事实轻量复核。A9-13 schema v4
+  迁移/回滚与历史未受影响能力仅在精确源码、模块、夹具和证据哈希不变时标记
+  `INHERITED_EVIDENCE_UNAFFECTED_EXACT_HASH`，不得写成当前候选直接 PASS。
+- 后果：CMD 命令继续由用户/模型的已批准 command 交给 `cmd.exe` 解释，本修复不新增安全隔离，也不允许
+  绕过目标绑定。通用 argv 构造仍不适用于 CMD `/c` payload；未来新增 CMD 启动入口必须复用该显式语义。
+  helper 字节改变，因此旧 Win10 helper lock、WIN7-21 产品 lock/ZIP/authority 都不能用于 WIN7-22。
+  开发机逻辑测试和继承证据不构成 Win10/Win7 PASS；任何受影响 Gate 失败继续 fail-closed。

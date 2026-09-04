@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "lock_id": "A9-14-INPUTS-D013-V25-WIN7-22",
+  "release_id": "WIN7-CODING-AGENT-A9-ALPHA1",
+  "version": "0.3.0-alpha.1",
+  "source_date_epoch": 1787443200,
+  "target": {
+    "os": "Windows 7 SP1 build 7601",
+    "architecture": "x64",
+    "delivery": "SELF_CONTAINED_OFFLINE_WIN7_X64"
+  },
+  "inputs_are_not_a9_pass": true,
+  "runtime_profiles": {
+    "runner": {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "executable_sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "output_encoding": "cp936",
+      "working_directory_token": "${RC_RUNNER_WORK_ROOT}",
+      "argv_exact": [
+        [],
+        [
+          "/all"
+        ]
+      ]
+    }
+  },
+  "inputs": {
+    "electron_zip": {
+      "filename": "electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+      "required_entry": "electron.exe",
+      "required_entry_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+    },
+    "runner_return_zip": {
+      "filename": "WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip",
+      "version": "D-013-v25-a9-trusted-shell-current-user",
+      "sha256": "7485cf222ef8477141ca9b690a6fde254b8613c31b5ece70ed7d82697499d6d0",
+      "required_entry": "output/helper.exe",
+      "required_entry_sha256": "c8615e6537460fbb3c5a7a06e266996538977b36a83a3828268e26030134fa31",
+      "profile": "D-013-v25-a9-trusted-shell-current-user",
+      "protocol_version": 2,
+      "runtime_profile": "a9-trusted-shell-current-user-v1",
+      "source_commit": "1eb02c254ffd8a4081c984da21f176671c6ce026",
+      "build_kit": {
+        "revision": "20260903-r15",
+        "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r15.zip",
+        "sha256": "2b4192ccaa8036966e7c7122dc88675908967aae4f6333c3ed028b70cdf61a1c",
+        "source_commit": "1eb02c254ffd8a4081c984da21f176671c6ce026",
+        "input_lock_sha256": "494e893995f3fd045f36021f7699834a4ae15f73151261327162cc7cca53dd4b",
+        "package_manifest_sha256": "2692fff98d1f2b9da3a40506801839d1d822a6e07608def5ad67dc43850ec03b"
+      },
+      "approval_registry": {
+        "commit": "e1b6f4bf30ad2ae7576aa958317e0aea6f4338d3",
+        "sha256": "d9cfea73c2f89c01a33a2bbef1d65c27eb995cd3681c71a939183348744917b7",
+        "path": "release/win7-product-v3/a9-v25-approved-kits.json"
+      },
+      "reproducible_builds": [
+        {
+          "filename": "WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip",
+          "sha256": "7485cf222ef8477141ca9b690a6fde254b8613c31b5ece70ed7d82697499d6d0",
+          "run_id": "8cb9089e-4e5f-4b2a-afa8-5ad628608bf6",
+          "evidence_binding_sha256": "6d018b797504132e482292101ae72d6ee53c48626727a217d19e50d330f85b1a"
+        },
+        {
+          "filename": "WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084214.zip",
+          "sha256": "5d37a5f67c28004ae43daf342e476da722bbddb9e0f70a9a8d63cdc3d196e237",
+          "run_id": "7bf6be7c-2bb5-41b6-8fdb-fc01f760a593",
+          "evidence_binding_sha256": "585c2ca1033dd3940ce6b0fd76ab28020279139fac19bfe4e60e2888fbfd1dc2"
+        }
+      ],
+      "provenance": "A9-14 locked two clean Win10 builds with byte-identical CMD-verbatim helper and direct Chinese-space marker proof; WIN7-22 remains separately required."
+    },
+    "storage_return_zip": {
+      "filename": "WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "version": "8.7.0",
+      "sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "required_entry": "output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "required_entry_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "sqlite": "3.43.1",
+      "electron_abi": 110,
+      "profile": "E22-SQLITE343-LOCAL-SSD"
+    },
+    "runner_return_zip_v24_historical": {
+      "filename": "Win7CodingAgent-0.2.0-alpha.1-win7-x64.zip",
+      "version": "D-013-v24-from-locked-A8-candidate",
+      "sha256": "99f50445f9eb63eb01e60acd3c65377aaae0ac33de39e23866c4e639db7b5257",
+      "required_entry": "Win7CodingAgent-0.2.0-alpha.1-win7-x64/resources/native/runner/spike02_helper.exe",
+      "required_entry_sha256": "7f86dac89862b2c61d55fe83ba00bf7cdaa69714d24d0f9d21b62f9040d1c134",
+      "profile": "D-013-v24-low-risk-noninteractive",
+      "provenance": "The helper is extracted from the hash-locked clean A8 candidate; no A8 product PASS is inherited."
+    }
+  },
+  "forbidden_payload_patterns": [
+    "node_modules/.cache/",
+    ".git/",
+    ".env",
+    "id_rsa",
+    "private.pem",
+    "winpty",
+    "node-pty",
+    "portable-data/",
+    "a9-provider-config",
+    "a9-state.db",
+    "-wal",
+    "-shm"
+  ],
+  "gates": {
+    "developer_package_integrity": "NOT_PERFORMED",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "PASS_D013_V25_RETURN_REVIEWED",
+    "win7": "NOT_PERFORMED_WIN7_22",
+    "alpha": "NOT_PERFORMED"
+  },
+  "generated_at": "2026-09-03T08:53:13.603Z",
+  "provenance": {
+    "task": "A9-14",
+    "superseded_candidate": "WIN7-21",
+    "superseded_candidate_result": "FIX_BEFORE_ALPHA",
+    "rule": "This lock starts a new WIN7-22 gate sequence and must not be used to rejudge WIN7-21."
+  }
+}

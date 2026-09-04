@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "lock_id": "A9-13-INPUTS-WIN7-21-SCHEMA-V4-COMPAT",
+  "release_id": "WIN7-CODING-AGENT-A9-ALPHA1",
+  "version": "0.3.0-alpha.1",
+  "source_date_epoch": 1787443200,
+  "target": {
+    "os": "Windows 7 SP1 build 7601",
+    "architecture": "x64",
+    "delivery": "SELF_CONTAINED_OFFLINE_WIN7_X64"
+  },
+  "inputs_are_not_a9_pass": true,
+  "runtime_profiles": {
+    "runner": {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "executable_sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "output_encoding": "cp936",
+      "working_directory_token": "${RC_RUNNER_WORK_ROOT}",
+      "argv_exact": [[], ["/all"]]
+    }
+  },
+  "inputs": {
+    "electron_zip": {
+      "filename": "electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+      "required_entry": "electron.exe",
+      "required_entry_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+    },
+    "runner_return_zip": {
+      "filename": "WIN7_D013_V25_HELPER_ARTIFACTS_20260902-162919.zip",
+      "version": "D-013-v25-a9-trusted-shell-current-user",
+      "sha256": "5a5c433a6783de6ab6ac2634fc9d61a99fd45338f20ab083c1632aa5a3716864",
+      "required_entry": "output/helper.exe",
+      "required_entry_sha256": "43bd9dfda386951802df920512e602887161b94d4977e2f0a8031266423004ce",
+      "profile": "D-013-v25-a9-trusted-shell-current-user",
+      "protocol_version": 2,
+      "runtime_profile": "a9-trusted-shell-current-user-v1",
+      "source_commit": "bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a",
+      "build_kit": {
+        "revision": "20260903-r11",
+        "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r11.zip",
+        "sha256": "7aeceef0201023757abd4c968b16ef09d70bcc678b3ee826575d33a73cc8378b",
+        "source_commit": "bbbffdf73622c02aa4d36e2bc9efeb9218c86c8a",
+        "input_lock_sha256": "a29d6ebeb26b0aac3bd8ced9fd3e9ab5580bade3896088d3c1619b768b8a76e9",
+        "package_manifest_sha256": "ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb"
+      },
+      "approval_registry": {
+        "commit": "90855adcef974eec9f3136aad83d927331246100",
+        "sha256": "843cebb4c04c0a36e530441e8fbcc7d0915b2faefba4a1071dc730d38378392c",
+        "path": "release/win7-product-v3/a9-v25-approved-kits.json"
+      },
+      "reproducible_builds": [
+        {
+          "filename": "WIN7_D013_V25_HELPER_ARTIFACTS_20260902-162919.zip",
+          "sha256": "5a5c433a6783de6ab6ac2634fc9d61a99fd45338f20ab083c1632aa5a3716864",
+          "run_id": "054a5213-58e8-4433-ae86-ce012ee0b721",
+          "evidence_binding_sha256": "1634da96aa909c7d168e846bae87053cf55fee5c0e97f221cbc288c84d26a735"
+        },
+        {
+          "filename": "WIN7_D013_V25_HELPER_ARTIFACTS_20260902-162948.zip",
+          "sha256": "42c4511fec6e2a9d5f566f8ec7f1f9754f01c7cbb409367531d17d7242b0e681",
+          "run_id": "157caea1-56b6-4ef8-97b4-062f1657931c",
+          "evidence_binding_sha256": "11db3e5990f4dc9d72f857978b6324c7d91cf89ffee13adb4ce3372b0a8fe319"
+        }
+      ],
+      "provenance": "A9-13 reuses only the immutable, approved D-013 v25 binary input and its evidence bindings; no WIN7-20 candidate identity, authority, report or result is inherited."
+    },
+    "storage_return_zip": {
+      "filename": "WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "version": "8.7.0",
+      "sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "required_entry": "output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "required_entry_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "sqlite": "3.43.1",
+      "electron_abi": 110,
+      "profile": "E22-SQLITE343-LOCAL-SSD"
+    }
+  },
+  "forbidden_payload_patterns": [
+    "node_modules/.cache/",
+    ".git/",
+    ".env",
+    "id_rsa",
+    "private.pem",
+    "winpty",
+    "node-pty",
+    "portable-data/",
+    "a9-provider-config",
+    "a9-state.db",
+    "-wal",
+    "-shm"
+  ],
+  "gates": {
+    "developer_package_integrity": "NOT_PERFORMED",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "REUSED_APPROVED_D013_V25_INPUT_ONLY_NOT_CANDIDATE_PASS",
+    "win7": "NOT_PERFORMED_WIN7_21",
+    "alpha": "NOT_PERFORMED"
+  },
+  "provenance": {
+    "task": "A9-13",
+    "superseded_candidate": "WIN7-20",
+    "superseded_candidate_result": "FIX_BEFORE_ALPHA",
+    "rule": "This lock starts a new WIN7-21 gate sequence and must not be used to rejudge WIN7-20."
+  },
+  "generated_at": "2026-09-03T04:15:00.000Z"
+}

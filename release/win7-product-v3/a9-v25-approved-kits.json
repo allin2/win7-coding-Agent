@@ -72,6 +72,24 @@
       "input_lock_sha256": "a29d6ebeb26b0aac3bd8ced9fd3e9ab5580bade3896088d3c1619b768b8a76e9",
       "package_manifest_sha256": "ed706a02c67ff15cea3b82e72d0e39728258ccbb35364ce945f265e1691465eb",
       "status": "APPROVED_FOR_RETURN_RECORDING"
+    },
+    {
+      "revision": "20260903-r14",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r14.zip",
+      "sha256": "8724ee07b4eb318fb7546ef9eb2bf3a4527f56bbdac5393dffc350a39410219a",
+      "source_commit": "3e458ca50b82e6b6cc90301a2a62d1fd88b04e6c",
+      "input_lock_sha256": "15677812a552972c9ca86b2fd24550ad6f6a9070b3d11f5afbb4ba2eaf3517f2",
+      "package_manifest_sha256": "527b69a3447bf8a72f64938a269c5784a5f5dc23b1b8ae5262c4d2d5e0160f15",
+      "status": "REVOKED_AFTER_WIN10_UTF8_NO_BOM_MOJIBAKE"
+    },
+    {
+      "revision": "20260903-r15",
+      "filename": "WIN7_D013_V25_HELPER_BUILDKIT_20260903-r15.zip",
+      "sha256": "2b4192ccaa8036966e7c7122dc88675908967aae4f6333c3ed028b70cdf61a1c",
+      "source_commit": "1eb02c254ffd8a4081c984da21f176671c6ce026",
+      "input_lock_sha256": "494e893995f3fd045f36021f7699834a4ae15f73151261327162cc7cca53dd4b",
+      "package_manifest_sha256": "2692fff98d1f2b9da3a40506801839d1d822a6e07608def5ad67dc43850ec03b",
+      "status": "APPROVED_FOR_RETURN_RECORDING"
     }
   ]
 }
