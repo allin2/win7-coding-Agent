@@ -31,6 +31,69 @@ function sha256(filePath: string): string {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+function createWin719SchemaV4Profile(databasePath: string, dataRoot: string): SqliteDatabase {
+  const created = A9PersistenceManager.open({ databasePath, openDatabase: openReal, dataRoot });
+  if (created.status !== 'ready') throw new Error(`failed to create canonical fixture: ${created.status}`);
+  created.manager.db.close();
+
+  const db = new Database(databasePath);
+  db.pragma('journal_mode = DELETE');
+  db.exec(`
+    DROP INDEX idx_a9_sessions_workspace;
+    ALTER TABLE a9_sessions RENAME TO a9_sessions_canonical;
+    CREATE TABLE a9_sessions (
+      session_id TEXT PRIMARY KEY,
+      workspace_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      title TEXT NOT NULL DEFAULT '新对话',
+      title_source TEXT NOT NULL DEFAULT 'legacy' CHECK (title_source IN ('auto','manual','legacy')),
+      state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+      last_activated_at TEXT,
+      draft_ciphertext TEXT
+    );
+    INSERT INTO a9_sessions
+      (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+       title_source, state, last_activated_at, draft_ciphertext)
+    SELECT session_id, workspace_path, created_at, updated_at, metadata_json, title,
+      title_source, state, last_activated_at, draft_ciphertext
+    FROM a9_sessions_canonical;
+    DROP TABLE a9_sessions_canonical;
+    CREATE INDEX idx_a9_sessions_workspace
+      ON a9_sessions (workspace_path, state, last_activated_at);
+  `);
+  return db;
+}
+
+function addUnexpectedSessionCheck(db: SqliteDatabase, legacy: boolean): void {
+  db.exec(`
+    DROP INDEX idx_a9_sessions_workspace;
+    ALTER TABLE a9_sessions RENAME TO a9_sessions_before_check;
+    CREATE TABLE a9_sessions (
+      session_id TEXT PRIMARY KEY,
+      workspace_path TEXT NOT NULL,
+      ${legacy ? '' : `title TEXT NOT NULL DEFAULT '新对话' CHECK (title <> 'FORBIDDEN'),
+      title_source TEXT NOT NULL DEFAULT 'auto' CHECK (title_source IN ('auto','manual','legacy')),
+      state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+      `}created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      ${legacy ? `metadata_json TEXT NOT NULL DEFAULT '{}',
+      title TEXT NOT NULL DEFAULT '新对话' CHECK (title <> 'FORBIDDEN'),
+      title_source TEXT NOT NULL DEFAULT 'legacy' CHECK (title_source IN ('auto','manual','legacy')),
+      state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','archived')),
+      last_activated_at TEXT,
+      draft_ciphertext TEXT` : `last_activated_at TEXT NOT NULL,
+      draft_ciphertext TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}'`}
+    );
+    INSERT INTO a9_sessions SELECT * FROM a9_sessions_before_check;
+    DROP TABLE a9_sessions_before_check;
+    CREATE INDEX idx_a9_sessions_workspace
+      ON a9_sessions (workspace_path, state, last_activated_at);
+  `);
+}
+
 describe('A9-06: A9 persistence with a real SQLite adapter', () => {
   let env: ReturnType<typeof makeDataRoot>;
 
@@ -56,6 +119,364 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
       expect(tables).toContain(expected);
     }
     expect((db.prepare('SELECT schema_version FROM a9_meta WHERE id = 1').get() as any).schema_version).toBe(A9_SCHEMA_VERSION);
+  });
+
+  it('backs up and atomically canonicalizes the exact WIN7-19 schema v4 profile without losing session data', () => {
+    const legacy = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    legacy.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+         title_source, state, last_activated_at, draft_ciphertext)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('session-null-time', 'C:\\工作区 空格', '2026-08-24T01:00:00.000Z',
+      '2026-08-24T02:00:00.000Z', '{"kept":true}', '保留标题', 'manual', 'archived', null, 'ciphertext-base64');
+    legacy.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+         title_source, state, last_activated_at, draft_ciphertext)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('session-existing-time', 'C:\\work', '2026-08-24T03:00:00.000Z',
+      '2026-08-24T04:00:00.000Z', '{}', '历史标题', 'legacy', 'active',
+      '2026-08-24T05:00:00.000Z', null);
+    legacy.close();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    expect(outcome.backupPath).toBeDefined();
+    expect(outcome.backupSha256).toBe(sha256(outcome.backupPath!));
+    const columns = outcome.manager.db.prepare('PRAGMA table_info(a9_sessions)').all() as any[];
+    expect(columns.map((row) => row.name)).toEqual([
+      'session_id', 'workspace_path', 'title', 'title_source', 'state', 'created_at',
+      'updated_at', 'last_activated_at', 'draft_ciphertext', 'metadata_json',
+    ]);
+    expect(columns.find((row) => row.name === 'last_activated_at')?.notnull).toBe(1);
+    expect(columns.find((row) => row.name === 'title_source')?.dflt_value).toBe("'auto'");
+    expect(outcome.manager.db.prepare(`
+      SELECT session_id, workspace_path, title, title_source, state, created_at, updated_at,
+        last_activated_at, draft_ciphertext, metadata_json
+      FROM a9_sessions ORDER BY session_id
+    `).all()).toEqual([
+      {
+        session_id: 'session-existing-time', workspace_path: 'C:\\work', title: '历史标题',
+        title_source: 'legacy', state: 'active', created_at: '2026-08-24T03:00:00.000Z',
+        updated_at: '2026-08-24T04:00:00.000Z', last_activated_at: '2026-08-24T05:00:00.000Z',
+        draft_ciphertext: null, metadata_json: '{}',
+      },
+      {
+        session_id: 'session-null-time', workspace_path: 'C:\\工作区 空格', title: '保留标题',
+        title_source: 'manual', state: 'archived', created_at: '2026-08-24T01:00:00.000Z',
+        updated_at: '2026-08-24T02:00:00.000Z', last_activated_at: '2026-08-24T02:00:00.000Z',
+        draft_ciphertext: 'ciphertext-base64', metadata_json: '{"kept":true}',
+      },
+    ]);
+
+    const backup = new Database(outcome.backupPath!, { readonly: true });
+    const backupColumns = backup.prepare('PRAGMA table_info(a9_sessions)').all() as any[];
+    expect(backupColumns.map((row) => row.name)).toEqual([
+      'session_id', 'workspace_path', 'created_at', 'updated_at', 'metadata_json',
+      'title', 'title_source', 'state', 'last_activated_at', 'draft_ciphertext',
+    ]);
+    expect(backupColumns.find((row) => row.name === 'last_activated_at')?.notnull).toBe(0);
+    expect((backup.prepare("SELECT last_activated_at FROM a9_sessions WHERE session_id='session-null-time'").get() as any).last_activated_at).toBeNull();
+    backup.close();
+    outcome.manager.db.close();
+  });
+
+  it('refuses a near-match v4 profile with an extra session column without changing database bytes', () => {
+    const malformed = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    malformed.exec('ALTER TABLE a9_sessions ADD COLUMN unexpected_profile_field TEXT');
+    malformed.close();
+    const beforeHash = sha256(env.dbPath);
+    const beforeFiles = fs.readdirSync(env.dataRoot).sort();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    expect(fs.readdirSync(env.dataRoot).sort()).toEqual(beforeFiles);
+  });
+
+  it.each([
+    ['unsafe unique index', "CREATE UNIQUE INDEX idx_a9_sessions_title_unknown ON a9_sessions(title)"],
+    ['incompatible required index', `
+      DROP INDEX idx_a9_sessions_workspace;
+      CREATE INDEX idx_a9_sessions_workspace
+        ON a9_sessions(workspace_path COLLATE NOCASE, state, last_activated_at DESC)
+    `],
+    ['trigger', `
+      CREATE TRIGGER a9_sessions_unknown_trigger AFTER INSERT ON a9_sessions
+      BEGIN UPDATE a9_sessions SET title=title WHERE session_id=NEW.session_id; END
+    `],
+  ])('refuses a WIN7-19 v4 profile with an %s object without changing database bytes', (_label, sql) => {
+    const malformed = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    malformed.exec(sql);
+    malformed.close();
+    const beforeHash = sha256(env.dbPath);
+    const beforeFiles = fs.readdirSync(env.dataRoot).sort();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    expect(fs.readdirSync(env.dataRoot).sort()).toEqual(beforeFiles);
+  });
+
+  it('refuses a canonical v4 database with unrecognized A9 tables or columns', () => {
+    const created = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(created.status).toBe('ready');
+    if (created.status !== 'ready') return;
+    created.manager.db.close();
+    const modified = new Database(env.dbPath);
+    modified.exec(`
+      ALTER TABLE a9_sessions ADD COLUMN unrecognized TEXT;
+      CREATE TABLE a9_unknown (payload TEXT);
+    `);
+    modified.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+  });
+
+  it.each([
+    ['unsafe unique index', "CREATE UNIQUE INDEX idx_a9_sessions_title_unknown ON a9_sessions(title)"],
+    ['trigger', `
+      CREATE TRIGGER a9_sessions_unknown_trigger AFTER INSERT ON a9_sessions
+      BEGIN UPDATE a9_sessions SET title='MUTATED' WHERE session_id=NEW.session_id; END
+    `],
+  ])('refuses a canonical v4 database with an %s object without changing database bytes', (_label, sql) => {
+    const created = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(created.status).toBe('ready');
+    if (created.status !== 'ready') return;
+    created.manager.db.close();
+    const modified = new Database(env.dbPath);
+    modified.exec(sql);
+    modified.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+  });
+
+  it.each(['canonical', 'WIN7-19 legacy'])('refuses a %s v4 database with an extra CHECK constraint', (profile) => {
+    const legacy = profile === 'WIN7-19 legacy';
+    const modified = legacy
+      ? createWin719SchemaV4Profile(env.dbPath, env.dataRoot)
+      : (() => {
+        const created = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+        expect(created.status).toBe('ready');
+        if (created.status !== 'ready') throw new Error('canonical fixture unavailable');
+        return created.manager.db;
+      })();
+    addUnexpectedSessionCheck(modified, legacy);
+    modified.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+  });
+
+  it.each(['canonical', 'WIN7-19 legacy'])('refuses a %s v4 database containing CHECK-invalid data', (profile) => {
+    const legacy = profile === 'WIN7-19 legacy';
+    const modified = legacy
+      ? createWin719SchemaV4Profile(env.dbPath, env.dataRoot)
+      : (() => {
+        const created = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+        expect(created.status).toBe('ready');
+        if (created.status !== 'ready') throw new Error('canonical fixture unavailable');
+        return created.manager.db;
+      })();
+    modified.exec('PRAGMA ignore_check_constraints = ON');
+    modified.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, title, title_source, state, created_at, updated_at,
+         last_activated_at, draft_ciphertext, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('invalid-session', 'C:\\invalid', 'invalid', 'INVALID', 'active',
+      '2026-09-03T00:00:00.000Z', '2026-09-03T00:00:00.000Z',
+      legacy ? null : '2026-09-03T00:00:00.000Z', null, '{}');
+    modified.exec('PRAGMA ignore_check_constraints = OFF');
+    modified.close();
+    const beforeHash = sha256(env.dbPath);
+    const beforeFiles = fs.readdirSync(env.dataRoot).sort();
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    expect(fs.readdirSync(env.dataRoot).sort()).toEqual(beforeFiles);
+  });
+
+  it('rolls back a WIN7-19 v4 repair fault and retains the consistent pre-migration backup', () => {
+    const legacy = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    legacy.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+         title_source, state, last_activated_at, draft_ciphertext)
+      VALUES ('kept', 'C:\\work', '2026-08-24T00:00:00.000Z', '2026-08-24T00:00:00.000Z',
+        '{}', 'kept', 'legacy', 'active', NULL, NULL)
+    `).run();
+    legacy.close();
+    const beforeHash = sha256(env.dbPath);
+    const openWithInjectedRepairFailure = (databasePath: string, options?: { readonly?: boolean }): SqliteDatabase => {
+      const db = new Database(databasePath, options?.readonly ? { readonly: true } : {});
+      if (!options?.readonly) {
+        const originalPrepare = db.prepare.bind(db);
+        (db as any).prepare = (sql: string) => {
+          if (sql.includes('FROM a9_sessions_win7_19_v4')) throw new Error('injected WIN7-19 repair failure');
+          return originalPrepare(sql);
+        };
+      }
+      return db as unknown as SqliteDatabase;
+    };
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath, openDatabase: openWithInjectedRepairFailure, dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') {
+      expect(outcome.error).toContain('injected WIN7-19 repair failure');
+      expect(outcome.hint).toContain('已回滚');
+    }
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    const backupFiles = fs.readdirSync(path.join(env.dataRoot, 'backups'));
+    expect(backupFiles).toHaveLength(1);
+    const backupPath = path.join(env.dataRoot, 'backups', backupFiles[0]);
+    const backup = new Database(backupPath, { readonly: true });
+    expect(backup.pragma('quick_check', { simple: true })).toBe('ok');
+    expect((backup.prepare('SELECT schema_version FROM a9_meta WHERE id=1').get() as any).schema_version).toBe(4);
+    expect((backup.prepare("SELECT title, last_activated_at FROM a9_sessions WHERE session_id='kept'").get() as any)).toEqual({
+      title: 'kept', last_activated_at: null,
+    });
+    expect((backup.prepare('PRAGMA table_info(a9_sessions)').all() as any[])
+      .find((row) => row.name === 'title_source')?.dflt_value).toBe("'legacy'");
+    backup.close();
+    const check = new Database(env.dbPath, { readonly: true });
+    expect((check.prepare("SELECT last_activated_at FROM a9_sessions WHERE session_id='kept'").get() as any).last_activated_at).toBeNull();
+    expect(check.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='a9_sessions_win7_19_v4'").get()).toBeUndefined();
+    check.close();
+  });
+
+  it('refuses WIN7-19 v4 repair when another connection changes the database after backup', () => {
+    const legacy = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    legacy.close();
+    const openWithConcurrentChange = (databasePath: string, options?: { readonly?: boolean }): SqliteDatabase => {
+      const db = new Database(databasePath, options?.readonly ? { readonly: true } : {});
+      if (!options?.readonly) {
+        const originalPrepare = db.prepare.bind(db);
+        (db as any).prepare = (sql: string) => {
+          const statement = originalPrepare(sql);
+          if (sql !== 'VACUUM INTO ?') return statement;
+          return {
+            run: (...params: unknown[]) => {
+              const result = statement.run(...params);
+              const concurrent = new Database(databasePath);
+              concurrent.exec("ALTER TABLE a9_sessions ADD COLUMN concurrent_value TEXT NOT NULL DEFAULT 'preserved'");
+              concurrent.close();
+              return result;
+            },
+          };
+        };
+      }
+      return db as unknown as SqliteDatabase;
+    };
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath, openDatabase: openWithConcurrentChange, dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    if (outcome.status === 'diagnostics') expect(outcome.error).toContain('A9_SCHEMA_CONCURRENT_MODIFICATION');
+    const check = new Database(env.dbPath, { readonly: true });
+    const columns = check.prepare('PRAGMA table_info(a9_sessions)').all() as any[];
+    expect(columns.find((row) => row.name === 'concurrent_value')?.dflt_value).toBe("'preserved'");
+    expect(columns.find((row) => row.name === 'last_activated_at')?.notnull).toBe(0);
+    check.close();
+  });
+
+  it('refuses migration and removes a truncated backup that only retains the SQLite magic header', () => {
+    const legacy = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    legacy.close();
+    const beforeHash = sha256(env.dbPath);
+    const openWithTruncatedBackup = (databasePath: string, options?: { readonly?: boolean }): SqliteDatabase => {
+      const db = new Database(databasePath, options?.readonly ? { readonly: true } : {});
+      if (!options?.readonly) {
+        const originalPrepare = db.prepare.bind(db);
+        (db as any).prepare = (sql: string) => {
+          const statement = originalPrepare(sql);
+          if (sql !== 'VACUUM INTO ?') return statement;
+          return {
+            run: (...params: unknown[]) => {
+              const result = statement.run(...params);
+              fs.truncateSync(String(params[0]), 16);
+              return result;
+            },
+          };
+        };
+      }
+      return db as unknown as SqliteDatabase;
+    };
+
+    const outcome = A9PersistenceManager.open({
+      databasePath: env.dbPath, openDatabase: openWithTruncatedBackup, dataRoot: env.dataRoot,
+    });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
+    expect(fs.readdirSync(path.join(env.dataRoot, 'backups'))).toHaveLength(0);
+    const check = new Database(env.dbPath, { readonly: true });
+    expect((check.prepare('PRAGMA table_info(a9_sessions)').all() as any[])
+      .find((row) => row.name === 'last_activated_at')?.notnull).toBe(0);
+    check.close();
+  });
+
+  it('backs up and repairs committed WIN7-19 v4 rows that are still present only in WAL', () => {
+    let writer = createWin719SchemaV4Profile(env.dbPath, env.dataRoot);
+    writer.pragma('journal_mode = WAL');
+    writer.pragma('wal_autocheckpoint = 0');
+    writer.close();
+    writer = new Database(env.dbPath) as unknown as SqliteDatabase;
+    writer.pragma('wal_autocheckpoint = 0');
+    writer.pragma('wal_checkpoint(TRUNCATE)');
+    const reader = new Database(env.dbPath, { readonly: true });
+    reader.exec('BEGIN');
+    expect(reader.prepare('SELECT COUNT(*) AS count FROM a9_sessions').get()).toEqual({ count: 0 });
+    writer.prepare(`
+      INSERT INTO a9_sessions
+        (session_id, workspace_path, created_at, updated_at, metadata_json, title,
+         title_source, state, last_activated_at, draft_ciphertext)
+      VALUES ('wal-session', 'C:\\WAL 工作区', '2026-08-24T00:00:00.000Z',
+        '2026-08-24T00:01:00.000Z', '{"wal":true}', 'WAL 会话', 'manual', 'active', NULL, NULL)
+    `).run();
+    expect(fs.statSync(`${env.dbPath}-wal`).size).toBeGreaterThan(0);
+
+    try {
+      const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+      expect(outcome.status).toBe('ready');
+      if (outcome.status !== 'ready') return;
+      const backup = new Database(outcome.backupPath!, { readonly: true });
+      expect(backup.prepare("SELECT title, last_activated_at FROM a9_sessions WHERE session_id='wal-session'").get()).toEqual({
+        title: 'WAL 会话', last_activated_at: null,
+      });
+      backup.close();
+      expect(outcome.manager.db.prepare("SELECT metadata_json, last_activated_at FROM a9_sessions WHERE session_id='wal-session'").get()).toEqual({
+        metadata_json: '{"wal":true}', last_activated_at: '2026-08-24T00:01:00.000Z',
+      });
+      outcome.manager.db.close();
+    } finally {
+      reader.exec('ROLLBACK');
+      reader.close();
+      writer.close();
+    }
   });
 
   it('refuses an unknown newer schema without changing bytes, journal mode or sidecar files', () => {
@@ -667,6 +1088,7 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}'
       );
       CREATE INDEX idx_a9_sessions_workspace ON a9_sessions (workspace_path);
+      CREATE INDEX idx_a9_sessions_custom_read ON a9_sessions (workspace_path, updated_at);
       INSERT INTO a9_sessions VALUES ('a9-legacy-workspace', 'C:/workspace',
         '2026-08-26T01:00:00.000Z', '2026-08-26T02:00:00.000Z', '{}');
       CREATE TABLE a9_approvals (
@@ -694,6 +1116,33 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     ]);
     expect(outcome.manager.db.prepare("SELECT decision FROM a9_approvals WHERE approval_id = 'ap-stale'").get())
       .toEqual({ decision: 'interrupted' });
+    expect(outcome.manager.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_a9_sessions_custom_read'").get())
+      .toEqual({ name: 'idx_a9_sessions_custom_read' });
+  });
+
+  it('refuses a v3 sessions table with an extra column instead of silently dropping it', () => {
+    const legacy = new Database(env.dbPath);
+    legacy.exec(`
+      CREATE TABLE a9_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1), schema_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO a9_meta VALUES (1, 3, '2026-08-26T00:00:00.000Z', '2026-08-26T00:00:00.000Z');
+      CREATE TABLE a9_sessions (
+        session_id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}',
+        unexpected TEXT
+      );
+      INSERT INTO a9_sessions VALUES ('legacy', 'C:/workspace', '2026-08-26T00:00:00.000Z',
+        '2026-08-26T00:00:00.000Z', '{}', 'must-not-be-lost');
+    `);
+    legacy.close();
+    const beforeHash = sha256(env.dbPath);
+
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+
+    expect(outcome.status).toBe('diagnostics');
+    expect(sha256(env.dbPath)).toBe(beforeHash);
   });
 
   it('manages isolated per-workspace conversations, titles, archive/restore and ciphertext drafts', () => {

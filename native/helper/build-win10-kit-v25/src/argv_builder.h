@@ -1,9 +1,8 @@
 /**
  * helper/argv_builder.h — Command-line construction for the D-013 helper.
  *
- * Builds a Windows command line from a structured argv array with quoting that
- * matches CommandLineToArgvW / CreateProcessW semantics (C09: structured argv,
- * never a model-concatenated shell string; C10: Chinese + space paths).
+ * Builds Windows command lines for direct argv programs and for the explicitly
+ * bound cmd.exe /d /s /c command payload used by the D-013 v2 profile.
  */
 
 #ifndef SPIKE02_ARGV_BUILDER_H
@@ -24,6 +23,16 @@ std::wstring QuoteArg(const std::wstring& arg);
 // semantics: `executable` is the application path, `argv` the argument list).
 std::wstring BuildCommandLine(const std::wstring& executable,
                               const std::vector<std::wstring>& argv);
+
+// Build the cmd.exe v2 launch form while independently checking the exact
+// /d /s /c argv and argv[3] == command binding. cmd.exe does not use CRT
+// backslash escaping for quotes inside its command payload, so the payload is
+// appended verbatim rather than passed through QuoteArg. Returns false for an
+// invalid binding and leaves output empty.
+bool BuildCmdVerbatimCommandLine(const std::wstring& executable,
+                                 const std::vector<std::wstring>& argv,
+                                 const std::wstring& command,
+                                 std::wstring* output);
 
 }  // namespace spike02
 
