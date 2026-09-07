@@ -293,6 +293,10 @@ export function recordA9V25HelperInput(options) {
     repositoryRoot, 'release', 'win7-product-v3', 'a9-v25-approved-kits.json',
   ));
   const sourceRepositoryRoot = path.resolve(options.sourceRepositoryRoot || repositoryRoot);
+  const lockId = options.lockId || 'A9-09-INPUTS-D013-V25';
+  const win7Gate = options.win7Gate || 'NOT_PERFORMED_WIN7_20';
+  const provenance = options.provenance
+    || 'A9-09 locked D-017 double-clean Win10 builds with byte-identical helper; WIN7-20 remains separately required.';
   for (const [label, file] of [
     ['RUNNER_ZIP', runnerZip], ['SIDECAR', sidecar],
     ['RUNNER_ZIP_2', runnerZip2], ['SIDECAR_2', sidecar2],
@@ -330,10 +334,16 @@ export function recordA9V25HelperInput(options) {
     || base.inputs?.runner_return_zip?.profile !== 'D-013-v24-low-risk-noninteractive') {
     throw new Error('A9_V25_HISTORICAL_V24_LOCK_INVALID');
   }
+  const releaseProvenance = options.releaseTask ? {
+    task: options.releaseTask,
+    superseded_candidate: options.supersededCandidate,
+    superseded_candidate_result: 'FIX_BEFORE_ALPHA',
+    rule: options.releaseRule,
+  } : base.provenance;
   const historicalV24 = JSON.parse(JSON.stringify(base.inputs.runner_return_zip));
   const next = {
     ...base,
-    lock_id: 'A9-09-INPUTS-D013-V25',
+    lock_id: lockId,
     generated_at: new Date().toISOString(),
     inputs: {
       ...base.inputs,
@@ -354,16 +364,17 @@ export function recordA9V25HelperInput(options) {
           { filename: path.basename(runnerZip), sha256: archiveSha256, run_id: first.runId, evidence_binding_sha256: first.evidence.bindingSha256 },
           { filename: path.basename(runnerZip2), sha256: second.archiveSha256, run_id: second.runId, evidence_binding_sha256: second.evidence.bindingSha256 },
         ],
-        provenance: 'A9-09 locked D-017 double-clean Win10 builds with byte-identical helper; WIN7-20 remains separately required.',
+        provenance,
       },
     },
     gates: {
       developer_package_integrity: 'NOT_PERFORMED',
       product_assembly: 'NOT_PERFORMED',
       win10: 'PASS_D013_V25_RETURN_REVIEWED',
-      win7: 'NOT_PERFORMED_WIN7_20',
+      win7: win7Gate,
       alpha: 'NOT_PERFORMED',
     },
+    ...(releaseProvenance ? { provenance: releaseProvenance } : {}),
   };
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
@@ -384,6 +395,9 @@ if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
       runnerZip2: args['runner-zip-2'], sidecar2: args['sidecar-2'],
       baseLock: args['base-lock'], output: args.output,
       kitZip: args['kit-zip'],
+      lockId: args['lock-id'], win7Gate: args['win7-gate'], provenance: args.provenance,
+      releaseTask: args['release-task'], supersededCandidate: args['superseded-candidate'],
+      releaseRule: args['release-rule'],
     }), null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`A9_V25_LOCK_FAILED:${error instanceof Error ? error.message : String(error)}\n`);

@@ -10,6 +10,7 @@ export const requiredV25Evidence = [
   'capture-selftest-stdout.bin', 'capture-selftest-stderr.bin', 'build-transcript.txt',
   'version-stdout.txt', 'version-stderr.txt', 'smoke-stdout.txt', 'smoke-stderr.txt',
   'cancel-smoke-stdout.txt', 'cancel-smoke-stderr.txt', 'v25-smoke-stdout.txt', 'v25-smoke-stderr.txt',
+  'v25-smoke-request.json', 'v25-smoke-response.jsonl', 'v25-smoke-marker.bin',
   'v25-cancel-smoke-stdout.txt', 'v25-cancel-smoke-stderr.txt',
   'v25-env-overlay-reject-stdout.txt', 'v25-env-overlay-reject-stderr.txt',
 ].map((name) => `evidence/${name}`);
@@ -210,6 +211,19 @@ export function verifyV25ReturnEvidence(read, helperBytes, buildResult, profile)
       && result.workDirAclModified === false && result.hostJob?.childJobAssignmentVerified === true, 'SMOKE_CLEANUP_PROOF_INVALID');
     if (!canceled) check(result.exitCode === 0 && Buffer.from(result.stdoutBase64, 'base64').toString('utf8').includes('D013_V25_CURRENT_USER'), 'SMOKE_OUTPUT_INVALID');
   }
+  const cmdRequest = json('v25-smoke-request.json');
+  const cmdMarker = read('evidence/v25-smoke-marker.bin');
+  check(cmdRequest.schemaVersion === 2 && cmdRequest.requestId === 'd013-v25-smoke'
+    && cmdRequest.shellKind === 'cmd' && cmdRequest.command === cmdRequest.argv?.[3]
+    && cmdRequest.argv?.length === 4
+    && cmdRequest.argv.slice(0, 3).map((value) => String(value).toLowerCase()).join(' ') === '/d /s /c'
+    && cmdRequest.command.includes('> "%A9_D013_MARKER_PATH%"')
+    && cmdRequest.command.includes('& type "%A9_D013_MARKER_PATH%"')
+    && typeof cmdRequest.envOverlay?.A9_D013_MARKER_PATH === 'string'
+    && /(?:^|[\\/])中文 空格[\\/]cmd-current-user\.txt$/.test(cmdRequest.envOverlay.A9_D013_MARKER_PATH)
+    && cmdMarker.equals(Buffer.from('D013_V25_CURRENT_USER', 'ascii')), 'CMD_VERBATIM_SMOKE_PROOF_INVALID');
+  check(read('evidence/v25-smoke-response.jsonl').equals(read('evidence/v25-smoke-stdout.txt')),
+    'CMD_VERBATIM_RESPONSE_CAPTURE_MISMATCH');
   const rejection = json('v25-env-overlay-reject-stdout.txt');
   check(rejection.type === 'error' && rejection.error === 'JSON_PARSE_FAILED'
     && !text('v25-env-overlay-reject-stdout.txt').includes('D013_FORBIDDEN_OVERLAY_VALUE'), 'SMOKE_OVERLAY_REJECTION_INVALID');

@@ -11,6 +11,21 @@
 
 namespace spike02 {
 
+namespace {
+
+bool AsciiEqualsIgnoreCase(const std::wstring& left, const wchar_t* right) {
+    size_t index = 0;
+    while (index < left.size() && right[index] != L'\0') {
+        wchar_t value = left[index];
+        if (value >= L'A' && value <= L'Z') value = value - L'A' + L'a';
+        if (value != right[index]) return false;
+        ++index;
+    }
+    return index == left.size() && right[index] == L'\0';
+}
+
+}  // namespace
+
 std::wstring QuoteArg(const std::wstring& arg) {
     if (arg.empty()) return L"\"\"";
     bool needsQuote = false;
@@ -56,6 +71,24 @@ std::wstring BuildCommandLine(const std::wstring& executable,
         line += QuoteArg(arg);
     }
     return line;
+}
+
+bool BuildCmdVerbatimCommandLine(const std::wstring& executable,
+                                 const std::vector<std::wstring>& argv,
+                                 const std::wstring& command,
+                                 std::wstring* output) {
+    if (!output) return false;
+    output->clear();
+    if (executable.empty() || command.empty() ||
+        executable.find(L'\0') != std::wstring::npos ||
+        command.find(L'\0') != std::wstring::npos || argv.size() != 4 ||
+        !AsciiEqualsIgnoreCase(argv[0], L"/d") ||
+        !AsciiEqualsIgnoreCase(argv[1], L"/s") ||
+        !AsciiEqualsIgnoreCase(argv[2], L"/c") || argv[3] != command) {
+        return false;
+    }
+    *output = QuoteArg(executable) + L" /d /s /c " + command;
+    return true;
 }
 
 }  // namespace spike02

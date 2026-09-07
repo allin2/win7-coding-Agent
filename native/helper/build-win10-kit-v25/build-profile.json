@@ -47,7 +47,7 @@
     "API-MS-WIN-CRT-*.DLL"
   ],
   "source_contract": {
-    "origin": "native/helper/** at the A9-09 D-013 v25 source commit",
+    "origin": "native/helper/** at the A9-14 D-013 CMD verbatim source commit",
     "snapshot": "src/",
     "locked_by": "input-lock.json",
     "files": [
@@ -78,6 +78,8 @@
       "evidence/version-stdout.txt", "evidence/version-stderr.txt",
       "evidence/cancel-smoke-stdout.txt", "evidence/cancel-smoke-stderr.txt",
       "evidence/v25-smoke-stdout.txt", "evidence/v25-smoke-stderr.txt",
+      "evidence/v25-smoke-request.json", "evidence/v25-smoke-response.jsonl",
+      "evidence/v25-smoke-marker.bin",
       "evidence/v25-cancel-smoke-stdout.txt", "evidence/v25-cancel-smoke-stderr.txt",
       "evidence/v25-env-overlay-reject-stdout.txt", "evidence/v25-env-overlay-reject-stderr.txt",
       "evidence/validation-binding.json",

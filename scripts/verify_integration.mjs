@@ -21,42 +21,49 @@ let failures = 0;
 
 runDesignGuards();
 
-for (const moduleName of modules) {
-  const moduleDir = join(repositoryRoot, 'src', moduleName);
-  const packagePath = join(moduleDir, 'package.json');
-  if (!existsSync(packagePath)) {
-    reportFailure(moduleName, 'package.json 不存在；整合分支可能缺少权威源码');
-    continue;
+// Product tests load sibling dist outputs; finish every build before any test.
+for (const phase of quick ? ['build'] : ['build', 'test']) {
+  if (phase === 'test' && failures > 0) {
+    console.error('[verify] 编译/静态门失败，跳过全部测试。');
+    break;
   }
-  if (!existsSync(join(moduleDir, 'node_modules'))) {
-    reportFailure(
-      moduleName,
-      `依赖未安装；先执行 ${npmExecutable} ci --prefix src/${moduleName}`,
-    );
-    continue;
-  }
-
-  const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
-  const commands = [];
-  if (packageJson.scripts?.lint) commands.push(['run', 'lint']);
-  if (packageJson.scripts?.build) commands.push(['run', 'build']);
-  if (!quick && packageJson.scripts?.test) commands.push(['test', '--', '--runInBand']);
-
-  for (const args of commands) {
-    console.log(`\n[verify] ${moduleName}: npm ${args.join(' ')}`);
-    const result = spawnSync(npmExecutable, args, {
-      cwd: moduleDir,
-      stdio: 'inherit',
-      shell: false,
-      env: { ...process.env, CI: '1' },
-    });
-    if (result.error) {
-      reportFailure(moduleName, result.error.message);
-      break;
+  for (const moduleName of modules) {
+    const moduleDir = join(repositoryRoot, 'src', moduleName);
+    const packagePath = join(moduleDir, 'package.json');
+    if (!existsSync(packagePath)) {
+      reportFailure(moduleName, 'package.json 不存在；整合分支可能缺少权威源码');
+      continue;
     }
-    if (result.status !== 0) {
-      reportFailure(moduleName, `命令退出码 ${String(result.status)}`);
-      break;
+    if (!existsSync(join(moduleDir, 'node_modules'))) {
+      reportFailure(
+        moduleName,
+        `依赖未安装；先执行 ${npmExecutable} ci --prefix src/${moduleName}`,
+      );
+      continue;
+    }
+
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const commands = [];
+    if (phase === 'build' && packageJson.scripts?.lint) commands.push(['run', 'lint']);
+    if (phase === 'build' && packageJson.scripts?.build) commands.push(['run', 'build']);
+    if (phase === 'test' && packageJson.scripts?.test) commands.push(['test', '--', '--runInBand']);
+
+    for (const args of commands) {
+      console.log(`\n[verify] ${moduleName}: npm ${args.join(' ')}`);
+      const result = spawnSync(npmExecutable, args, {
+        cwd: moduleDir,
+        stdio: 'inherit',
+        shell: false,
+        env: { ...process.env, CI: '1' },
+      });
+      if (result.error) {
+        reportFailure(moduleName, result.error.message);
+        break;
+      }
+      if (result.status !== 0) {
+        reportFailure(moduleName, `命令退出码 ${String(result.status)}`);
+        break;
+      }
     }
   }
 }

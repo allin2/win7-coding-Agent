@@ -1254,6 +1254,16 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     result->profileId = config.profileId;
     result->workDirAclModified = false;
     const bool currentUserProfile = config.schemaVersion == 2;
+    std::wstring commandLine;
+    if (currentUserProfile && config.shellKind == L"cmd") {
+        if (!BuildCmdVerbatimCommandLine(
+                config.executable, config.argv, config.command, &commandLine)) {
+            result->errorMessage = "cmd.exe argv and command binding failed before launch";
+            return HELPER_ERR_INVALID_ARGV;
+        }
+    } else {
+        commandLine = BuildCommandLine(config.executable, config.argv);
+    }
     // C02: Win7 cannot nest Jobs. Permit an inherited host Job only when its
     // documented flags allow the child to break away before we assign it to
     // the helper-owned containment Job.
@@ -1506,7 +1516,6 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     si.hStdOutput = hOutWrite;
     si.hStdError = hErrWrite;
 
-    const std::wstring commandLine = BuildCommandLine(config.executable, config.argv);
     PROCESS_INFORMATION pi = {};
 
     // lpCommandLine must be writable (non-const).
@@ -1973,6 +1982,7 @@ int RunHelperLoop() {
             else if (errorCode == HELPER_ERR_PROCESS_CREATE) code = "PROCESS_CREATE_FAILED";
             else if (errorCode == HELPER_ERR_ENVIRONMENT) code = "ENVIRONMENT_REJECTED";
             else if (errorCode == HELPER_ERR_SHELL_IDENTITY) code = "SHELL_IDENTITY_REJECTED";
+            else if (errorCode == HELPER_ERR_INVALID_ARGV) code = "SHELL_HOST_REJECTED";
             const std::string out = RenderErrorJson(requestId, code, result.errorMessage,
                                                     config.schemaVersion);
             std::fwrite(out.data(), 1, out.size(), stdout);

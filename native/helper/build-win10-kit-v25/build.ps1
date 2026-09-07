@@ -28,6 +28,13 @@ function New-V25SmokeCommand() {
     return 'if defined AZURE_OPENAI_KEY (exit /b 41) else if defined CUSTOM_PROVIDER_KEY (exit /b 42) else if defined NODE_EXTRA_CA_CERTS (exit /b 43) else if defined SSLKEYLOGFILE (exit /b 44) else if defined NODE_DEBUG (exit /b 45) else if defined NODE_DEBUG_NATIVE (exit /b 46) else if defined NODE_PRESERVE_SYMLINKS (exit /b 47) else if defined NODE_ICU_DATA (exit /b 48) else if defined NODE_NO_WARNINGS (exit /b 49) else echo %A9_D013_SMOKE%'
 }
 
+function New-V25CmdVerbatimSmokeCommand() {
+    # Quotes around the environment-provided Chinese/space path are the exact
+    # WIN7-21 regression. The helper must preserve them for cmd.exe instead of
+    # applying CRT backslash escaping to this already-bound payload.
+    return 'if defined AZURE_OPENAI_KEY (exit /b 41) else if defined CUSTOM_PROVIDER_KEY (exit /b 42) else if defined NODE_EXTRA_CA_CERTS (exit /b 43) else if defined SSLKEYLOGFILE (exit /b 44) else if defined NODE_DEBUG (exit /b 45) else if defined NODE_DEBUG_NATIVE (exit /b 46) else if defined NODE_PRESERVE_SYMLINKS (exit /b 47) else if defined NODE_ICU_DATA (exit /b 48) else if defined NODE_NO_WARNINGS (exit /b 49) else (> "%A9_D013_MARKER_PATH%" <nul set /p "=%A9_D013_SMOKE%" & type "%A9_D013_MARKER_PATH%")'
+}
+
 if ($TestSmokeRequestOnly) {
     # Standalone regression: no compiler, helper process, filesystem writes or
     # PASS return package. Run with Windows PowerShell 5.1, not pwsh.
@@ -869,11 +876,18 @@ try {
             # non-secret environment overlay and honour a real no-deadline mode.
             $v2Work = Join-Path $smokeRoot "v25-current-user"
             Ensure-Directory $v2Work
+            # Windows PowerShell 5.1 treats UTF-8-without-BOM scripts as the
+            # active ANSI code page. Construct the non-ASCII path from Unicode
+            # code points so the request evidence is stable on CP936 hosts.
+            $v2MarkerDirectoryName = [string][char]0x4E2D + [char]0x6587 + ' ' + [char]0x7A7A + [char]0x683C
+            $v2MarkerDirectory = Join-Path $v2Work $v2MarkerDirectoryName
+            Ensure-Directory $v2MarkerDirectory
+            $v2Marker = Join-Path $v2MarkerDirectory "cmd-current-user.txt"
             $v2WorkAclBefore = (Get-Acl -LiteralPath $v2Work).Sddl
             $cmdIdentity = (Get-FileHash -LiteralPath $cmdExe -Algorithm SHA256).Hash.ToLowerInvariant()
             $cmdVersion = [string](Get-Item -LiteralPath $cmdExe).VersionInfo.FileVersion
             if ([string]::IsNullOrWhiteSpace($cmdVersion)) { $cmdVersion = "windows-system-cmd" }
-            $v2SmokeCommand = New-V25SmokeCommand
+            $v2SmokeCommand = New-V25CmdVerbatimSmokeCommand
             $v2RequestPayload = [ordered]@{
                 schemaVersion = 2
                 requestId = "d013-v25-smoke"
@@ -887,7 +901,10 @@ try {
                 shellSource = "automatic"
                 command = $v2SmokeCommand
                 cwd = $v2Work
-                envOverlay = [ordered]@{ A9_D013_SMOKE = "D013_V25_CURRENT_USER" }
+                envOverlay = [ordered]@{
+                    A9_D013_SMOKE = "D013_V25_CURRENT_USER"
+                    A9_D013_MARKER_PATH = $v2Marker
+                }
                 maxStdoutBytes = 4096
                 maxStderrBytes = 4096
                 managed = $false
@@ -895,6 +912,12 @@ try {
             }
             $v2Stdout = Join-Path $EvidenceRoot "v25-smoke-stdout.txt"
             $v2Stderr = Join-Path $EvidenceRoot "v25-smoke-stderr.txt"
+            $v2RequestEvidence = Join-Path $EvidenceRoot "v25-smoke-request.json"
+            $v2ResponseEvidence = Join-Path $EvidenceRoot "v25-smoke-response.jsonl"
+            $v2MarkerEvidence = Join-Path $EvidenceRoot "v25-smoke-marker.bin"
+            $v2RequestText = $v2RequestPayload | ConvertTo-Json -Compress
+            [System.IO.File]::WriteAllText(
+                $v2RequestEvidence, $v2RequestText, (New-Object System.Text.UTF8Encoding($false)))
             $blockedInheritedNames = @('AZURE_OPENAI_KEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'SSLKEYLOGFILE',
                 'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'NODE_PRESERVE_SYMLINKS', 'NODE_ICU_DATA', 'NODE_NO_WARNINGS')
             $savedInheritedValues = @{}
@@ -904,7 +927,7 @@ try {
             }
             try {
                 $v2CaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
-                    -StandardInputText ($v2RequestPayload | ConvertTo-Json -Compress) `
+                    -StandardInputText $v2RequestText `
                     -StdoutPath $v2Stdout -StderrPath $v2Stderr)
             } finally {
                 foreach ($blockedName in $blockedInheritedNames) {
@@ -913,6 +936,9 @@ try {
             }
             $v2Capture = Get-ValidatedProcessCapture -Items $v2CaptureItems -Context "helper v25 current-user smoke"
             if ([int]$v2Capture.exit_code -ne 0) { throw "helper v25 current-user smoke process failed." }
+            [System.IO.File]::WriteAllText(
+                $v2ResponseEvidence, [string]$v2Capture.stdout_text,
+                (New-Object System.Text.UTF8Encoding($false)))
             $v2Lines = @(([string]$v2Capture.stdout_text -split '\r?\n') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
             if ($v2Lines.Count -ne 2) { throw "helper v25 smoke did not emit exactly readiness + result." }
             $v2Started = $v2Lines[0] | ConvertFrom-Json
@@ -940,6 +966,16 @@ try {
                 $v2Result.tokenAudit.lowIntegrity -ne $false -or
                 $v2Decoded -notmatch 'D013_V25_CURRENT_USER') {
                 throw "helper v25 result proof failed: $($v2Lines[1])"
+            }
+            if (-not (Test-Path -LiteralPath $v2Marker -PathType Leaf)) {
+                throw "helper v25 cmd verbatim smoke did not create the quoted Chinese-space marker."
+            }
+            $v2MarkerBytes = [System.IO.File]::ReadAllBytes($v2Marker)
+            $v2ExpectedMarkerBytes = [System.Text.Encoding]::ASCII.GetBytes("D013_V25_CURRENT_USER")
+            [System.IO.File]::WriteAllBytes($v2MarkerEvidence, $v2MarkerBytes)
+            if ([System.Convert]::ToBase64String($v2MarkerBytes) -cne
+                [System.Convert]::ToBase64String($v2ExpectedMarkerBytes)) {
+                throw "helper v25 cmd verbatim smoke marker bytes did not match."
             }
             if ((Get-Acl -LiteralPath $v2Work).Sddl -ne $v2WorkAclBefore) {
                 throw "helper v25 current-user profile modified the working-directory ACL."

@@ -6,12 +6,11 @@
 模型推理默认位于远程或企业内网服务；Win7 客户端负责可信交互、工作区读取与受控修改、
 命令能力路由、验证、状态记录和审计。
 
-> 当前结论：项目已完成 `MVP-20260802-14` 的 Win7 产品入口实机收口，状态为
-> `OWNER_ACCEPTED_FOR_MVP`；A4/A5/A6 已完成主线收口，A7 发布候选又已取得
-> 开发机、Win10 和 Win7 三层 PASS，唯一签名租约下 RC-01～RC-10 全部通过。
-> A8 Review-first 产品已达到开发机 Validation Ready，但外部三层未完成。2026-08-22 又建立 A9
-> Trusted Agent Runtime：需求、ADR 与任务书已确认，目标 `0.3.0-alpha.1`，当前仅为
-> `APPROVED_FOR_IMPLEMENTATION / NOT_PERFORMED`，不继承 A7/A8 PASS。
+> 当前 A9 交付基线：`0.3.0-alpha.1` 的冻结 WIN7-22 已取得
+> `A9_14_WIN7_22_GO_FOR_ALPHA`，仅用于内部 Alpha。源提交 `1c04644`，ZIP `5cc07f35…c4e8`。
+> 正式验证 13/13 包含 4 个当前候选直接用例和 9 个受治理继承用例；完整 Review 延期 Alpha 2。
+> 该结论不是 RC PASS；Win10 同候选 smoke 仍须在 RC 前补齐。
+> [候选身份、证据与构建基线核对](docs/reports/2026-09/a9_win7_22_closeout_and_build_baseline_2026-09-07.md)
 
 [当前状态](docs/STATUS.md) · [架构](docs/ARCHITECTURE.md) ·
 [路线图](docs/ROADMAP.md) · [任务书索引](docs/tasks/README.md) ·
@@ -36,7 +35,7 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 | Phase 1 Capability Probe | MVP 准备性实测完成；正式 Gate 未开放 | Win7 标准树 18/18 × 3；中文+空格路径 17 PASS + 1 个预期降级 |
 | Phase 2 只读 Agent | 开发机合同已验证；Win7 正式验收待执行 | 保持 Python 3.8.10、只读、Mock/Replay、零网络合同 |
 | Phase 3–7 TypeScript 基线 | 主线整合 | Gateway、Workspace、State、Core/Runner、Git Adapter、Shell 的模块化候选实现已纳入 `main` |
-| 开发机整仓回归 | `PASS` | A7 收口基线：7 个模块、983 项测试；lint/build/静态设计门通过 |
+| 开发机整仓回归 | `PASS` | 2026-09-07 PR #5 与构建基线修复组合：7 模块、1581 项测试；lint/build/静态门通过，依赖复用边界见核对报告 |
 | Win7 Electron 产品入口 | `OWNER_ACCEPTED_FOR_MVP` | Electron 22.3.27 启动、沙箱 Renderer、只读诊断、正常退出和进程清理已有实证 |
 | Desktop Alpha 2 | `MVP PASS` | Win7 A2-W01～W15 证据齐备；拒绝不写入、批准后原子写入、撤销与恢复闭环已实测，正式 Phase Gate 不随 MVP 自动关闭 |
 | SPIKE_03 Git Adapter | MVP 14/14 | 受控 MinGit 派生包通过 G10 矩阵；正式 SBOM、许可证和网络审计闭包待补 |
@@ -44,12 +43,12 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 | SPIKE_04 | `WIN7_PASS` | D-014 在本地 NTFS SSD Profile 完成 S01～S08、F01～F06、P08 与性能 #5～#8；A7 已完成产品装配 |
 | A7 发布候选 | `RC_PASS` | 唯一 RC ZIP `39eecb6a…040c9` 已通过 RC-01～RC-10；交互 winpty、任意 Shell、高风险 Profile 仍不包含 |
 | A8 Agent-first | `A8_DEVELOPER_COMPLETE_VALIDATION_READY` | 对话/会话/Review/SQLite/确定性包开发机 Gate 已闭合；最新候选 Win10/Win7 未执行 |
-| A9 Trusted Agent Runtime | `APPROVED_FOR_IMPLEMENTATION` | 已确认 Full Access、PowerShell/CMD、直接文件工具、真实 Git、开放 Provider 与五条 Win7 Coding 旅程；功能尚未实现 |
+| A9 Trusted Agent Runtime | `A9_14_WIN7_22_GO_FOR_ALPHA` | Full Access、Read Only；冻结 WIN7-22 内部 Alpha，直接与继承证据范围见核对报告；非 RC |
 
 最新的可变状态只在 [`docs/STATUS.md`](docs/STATUS.md) 和
 [`docs/status/latest-validation.json`](docs/status/latest-validation.json) 维护；历史报告不覆盖当前结论。
 
-## 已实现的工程能力
+## 历史工程能力（A7/A8 基线）
 
 - **Agent Core**：Thread/Turn/Step 运行时、四维预算、取消、模型有界重试、卡死检测、
   Verification Gate、审批挂起/恢复、上下文压缩和版本化工具目录。
@@ -65,7 +64,7 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 - **Desktop Shell**：Electron 安全策略、Schema 校验 IPC、只读诊断、Replay 纵向切片，
   以及 Desktop Alpha 2 的受控单文件修改 UI。
 
-### 当前实现与 A9 已授权方向
+### 历史 MVP 与 A9 启动时差距（2026-08-22）
 
 | 能力 | MVP 行为 | 放行条件 |
 |---|---|---|
@@ -77,7 +76,7 @@ Windows 7 是唯一固定客户端平台，但项目不再全局限定 Python-on
 | 多文件/任意编码写入 | 当前只有 A8 staging 与 A2 单文件路径 | A9-03 直接文件工具、每轮 checkpoint、UTF-16/CP936 与 Shell 外部变化 |
 | 安装、升级和回滚发布闭包 | A7 RC 闭包已通过，尚未获得正式发布批准 | 进入生产发布前需完成版本标签、渠道、支持周期和发布治理 |
 
-## 架构概览
+## 历史 A7 架构概览
 
 ```mermaid
 flowchart LR
@@ -111,7 +110,9 @@ Policy、精确审批绑定和审计；Git 还需要隔离配置以阻止 hooks�
 - CPython 3.8.10 x64，仅用于 Phase 1/2 冻结组件的兼容验证；
 - Win7 目标机不假设预装上述工具，正式交付必须使用已登记、锁定并验收的自包含工件。
 
-当前根目录只编排模块命令，不在线解析生产依赖。首次在开发机检出仓库后，分别进入以下目录
+根目录验证先完成全部模块 lint/build，再统一执行测试；任一构建失败则不启动测试。
+State 的独立 lockfile 已发现与依赖声明不同步，以下安装流程仍有待修复项；本轮回归复用了本机依赖，
+不代表干净安装已通过。当前根目录只编排模块命令，不在线解析生产依赖。首次在开发机检出仓库后，分别进入以下目录
 执行 `npm ci`：
 
 ```text
