@@ -5,6 +5,7 @@ const crypto_1 = require("crypto");
 const approval_1 = require("./approval");
 const output_1 = require("./output");
 const profiles_1 = require("./profiles");
+const native_protocol_1 = require("./native-protocol");
 const runner_1 = require("./runner");
 const types_1 = require("./types");
 class NativeRunner {
@@ -59,6 +60,13 @@ class NativeRunner {
             this.emit('runner.finished', requestId, { status: failed.status, error: transport.response.error });
             return failed;
         }
+        if ('schemaVersion' in transport.response) {
+            return this.transportFailure(requestId, {
+                kind: 'helper_crashed',
+                detail: 'Low-risk NativeRunner received an unexpected protocol v2 response',
+                cleanupConfirmed: false,
+            }, request);
+        }
         return this.executionResult(requestId, transport.response, request, profile.outputEncoding || 'auto');
     }
     validateApproval(request) {
@@ -77,8 +85,8 @@ class NativeRunner {
         let stdout;
         let stderr;
         try {
-            stdout = strictBase64(response.stdoutBase64, response.stdoutSize);
-            stderr = strictBase64(response.stderrBase64, response.stderrSize);
+            stdout = (0, native_protocol_1.decodeNativeHelperBase64)(response.stdoutBase64, response.stdoutSize, 'stdoutBase64');
+            stderr = (0, native_protocol_1.decodeNativeHelperBase64)(response.stderrBase64, response.stderrSize, 'stderrBase64');
         }
         catch (error) {
             const failed = (0, runner_1.rejected)(types_1.RunnerErrorCode.HELPER_PROTOCOL_ERROR, String(error), '替换 helper 并核对协议版本与工件哈希。');
@@ -95,10 +103,7 @@ class NativeRunner {
             this.emit('runner.truncated', requestId, { stream: 'stdout', omittedBytes: capturedOut.omittedBytes });
         if (capturedErr.truncated)
             this.emit('runner.truncated', requestId, { stream: 'stderr', omittedBytes: capturedErr.omittedBytes });
-        const hostJobOk = response.hostJob?.childJobAssignmentVerified === true &&
-            (!response.hostJob.detected || response.hostJob.breakaway === 'explicit' || response.hostJob.breakaway === 'silent');
-        const containmentOk = response.containmentVerified && response.inputDetached && hostJobOk && response.tokenAudit?.verified &&
-            response.tokenAudit.isRestricted && response.tokenAudit.restrictedSidSetVerified && response.tokenAudit.integrityRid === 4096;
+        const containmentOk = (0, native_protocol_1.hasCompleteHelperCleanupProof)(response);
         const aclOk = response.aclChanges.every((change) => !change.applied || (change.verified && change.rolledBack));
         const status = !containmentOk || !aclOk ? 'cleanup_failed'
             : response.idleTimedOut ? 'idle_timeout' : response.timedOut ? 'timeout' : response.canceled ? 'cancelled' : 'exited';
@@ -111,7 +116,7 @@ class NativeRunner {
             stdout: capturedOut, stderr: capturedErr, durationMs: response.executionTimeMs,
             termination: {
                 requested: response.timedOut || response.canceled || status === 'cleanup_failed',
-                processTreeReaped: containmentOk && aclOk,
+                processTreeReaped: containmentOk,
                 containment: containmentOk ? 'job_object' : 'none',
                 detail: !containmentOk || !aclOk ? `Helper could not prove containment or ACL rollback;${containmentDetail}` : containmentDetail,
             },
@@ -142,13 +147,4 @@ class NativeRunner {
     }
 }
 exports.NativeRunner = NativeRunner;
-function strictBase64(value, expectedSize) {
-    if (typeof value !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
-        throw new Error('Helper returned invalid base64');
-    }
-    const decoded = Buffer.from(value, 'base64');
-    if (decoded.length !== expectedSize)
-        throw new Error('Helper stream size does not match its payload');
-    return decoded;
-}
 //# sourceMappingURL=native-runner.js.map

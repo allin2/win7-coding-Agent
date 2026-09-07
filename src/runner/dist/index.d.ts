@@ -7,14 +7,14 @@ export { RunResult, RunStatus, CapturedStream, RunnerFailure, RunnerConfig, RunR
 export { OutputCapture, captureText, captureBytes, StreamEncoding } from './output';
 export { IRunner, MockRunner, UnavailableRunner, MockRunnerConfig, findProhibitedShellHost, validateRequest, } from './runner';
 export { ExecutableProfile, ResolvedExecutableProfile, ExecutableProfileRegistry, ProfileResolutionError, } from './profiles';
-export { NativeHelperRequest, NativeHelperResponse, NativeHelperExecutionResult, NativeHelperErrorResult, parseNativeHelperResponse, } from './native-protocol';
+export { NativeHelperRequest, NativeHelperRequestV1, NativeHelperRequestV2, NativeHelperResponse, NativeHelperExecutionResult, NativeHelperExecutionResultV2, NativeHelperStartedResultV2, NativeHelperErrorResult, parseNativeHelperResponse, hasCompleteHelperCleanupProof, decodeNativeHelperBase64, } from './native-protocol';
 export { HelperTransport, HelperTransportResult, StdioHelperTransport } from './native-transport';
 export { NativeRunner, NativeRunnerOptions, RunnerEvent, RunnerEventKind } from './native-runner';
 export { ApprovalResult, ApprovalGrant, ApprovalRecord, ApprovalValidation, ApprovalLedger, buildRunApprovalRequest, fingerprintApprovalRequest, checkApproval, } from './approval';
 export { IContainmentProbe, MockContainmentProbe, MockContainmentConfig, } from './containment';
-export { TrustedShellRequest, TrustedShellResult, TrustedShellTermination, TrustedShellRunnerOptions, TrustedShellRunner, buildTrustedShellInvocation, decodeShellBytes, } from './trusted-shell-runner';
+export { TrustedShellRequest, TrustedShellResult, TrustedShellTermination, TrustedShellRunnerOptions, ShellFileIdentity, TrustedShellRunner, buildTrustedShellInvocation, createTrustedShellEnvironment, decodeShellBytes, resolveShellFileIdentity, sameShellFileIdentity, validateTrustedShellEnvironmentOverlay, } from './trusted-shell-runner';
 export { TrustedShellLoopAdapter, TrustedShellLoopAdapterHandle, LoopRunnerOptions, LoopRunnerResult, createTrustedShellLoopAdapter, } from './trusted-shell-adapter';
 export { ShellKind, DetectedShell, ShellSelection, ShellDetectionOptions, detectSystemShells, selectShell, getActiveShell, } from './shell-detection';
 export { BackgroundProcessHandle, PollResult, ProbeFact, BackgroundProcessManager, } from './background-process-manager';
-export { killProcessTree, KillResult, } from './process-cleanup';
+export { killProcessTree, parseWindowsProcessTable, KillResult, } from './process-cleanup';
 //# sourceMappingURL=index.d.ts.map
