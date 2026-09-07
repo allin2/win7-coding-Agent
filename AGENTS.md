@@ -33,16 +33,16 @@
   （ADR-0108）。仅关闭该独审已复现的八项缺口；不修改历史工件或解除 A9-09/WIN7-20 Gate。
 - 用户于 2026-08-31 另行授权 [A9-12 D-013 v25 后置恢复与用户流加固](docs/tasks/A9_12_POST_REVIEW_RECOVERY_AND_UI_HARDENING.md)
   （ADR-0109）。仅关闭本轮独审定位的十项恢复/用户流缺口；不修改历史工件或解除 A9-09/WIN7-20 Gate。
-- 当前任务：`docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md`，状态 `APPROVED_FOR_IMPLEMENTATION`；
-  A9-14 只修复 CMD helper 与对应构建/验收链，既有 A9-09～A9-13 其他范围不重新开放。
+- 当前任务：`docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md`，状态 `COMPLETE`；
+  WIN7-22 已完成正式收口，既有 A9-09～A9-14 实现范围不重新开放。
 - 交付分支：`codex/a9-win7-22-cmd-verbatim`；版本：`0.3.0-alpha.1`；目标候选：WIN7-22。
-  WIN7-19 是不可变历史验收里程碑，WIN7-20/WIN7-21 是不可变失败候选；当前综合状态仍为
-  `FIX_BEFORE_ALPHA`，PR #3 在 A9-14 与 WIN7-22 受影响门禁完成前不得合并。
+  WIN7-19 是不可变历史验收里程碑，WIN7-20/WIN7-21 是不可变失败候选；冻结 WIN7-22 裁决为
+  `A9_14_WIN7_22_GO_FOR_ALPHA`（内部 Alpha，非 RC）；PR #3 已合并。
 - ADR-0096 将 Alpha 1 支持范围收敛为 Full Access 与 Read Only；完整 Review 工作流延期至
   `0.3.0-alpha.2`。WIN7-10 中仍可见但无后端的 Review 是已知限制，只能 fail-closed，不能算 Alpha 1
   支持能力或 Review PASS，也不得静默提升为 Full Access。
 - 当前状态：ADR-0111 已授权修复 v2 CMD verbatim 装配，保留 v24/v25 和 WIN7-19～WIN7-21 全部历史
-  证据。完成独立复核、新 helper/产品双构建和 WIN7-22 受影响门禁后，才能形成新的 Alpha 裁决。最新事实见
+  证据。2026-09-04 已完成 WIN7-22 收口，2026-09-07 按 ADR-0112 补录仓库状态；最新事实见
   `docs/STATUS.md` 与 `docs/tasks/README.md`。
 - A9 在可信工作区提供 Full Access、TrustedShell 和真实 Git；这不是安全沙箱。A9 对 C08/C09/C20 的局部替代仅以 ADR-0089 和 A9 任务书为准，不外推至历史任务或其他分支。
 - A9 仍必须经过 Schema IPC、Core/Policy、目标绑定批准与审计，并保留取消、输出上限、进程树清理、凭据脱敏、TLS 默认验证、checkpoint、Renderer 隔离和 Win7 实机硬门槛。

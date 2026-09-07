@@ -1,14 +1,14 @@
 # A9-14 — D-013 CMD verbatim 修复与 WIN7-22 新候选
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: NATIVE_RUNTIME_COMPATIBILITY_AND_RELEASE_RECOVERY
 Target Branch: codex/a9-win7-22-cmd-verbatim
 Source Baseline: d28c1b9510d6d528f07e8a76a7527b4fc25c35ba
 Superseded Candidate: WIN7-21 / FIX_BEFORE_ALPHA / IMMUTABLE
 Target Candidate: WIN7-22
-Phase-Gate: A9_14_G0_SOURCE_FREEZE_READY
-Win7-Validation: WIN7_22_NOT_PERFORMED
+Phase-Gate: A9_14_WIN7_22_GO_FOR_ALPHA
+Win7-Validation: WIN7_22_GO_FOR_ALPHA
 Decision: ADR-0111
 ```
 
@@ -91,3 +91,9 @@ A9-13 schema v4 精确迁移/回滚、WIN7-19 历史未受影响能力可在源�
   复核了原始响应、中文空格 marker 路径及字节、PE/API/CRT 和双构建绑定，生成新锁
   `a9-14-win7-22-input-lock.json`（SHA-256 `a9750078…f7e1`）。G0 helper 双构建与输入冻结完成；产品
   双构建、WIN7-22 候选和 Win7 实机门禁尚未执行。
+
+## 6. 最终收口（2026-09-04；2026-09-07 补录）
+
+WIN7-22 已完成受影响门禁，正式验证 13/13（4 当前直接、9 受治理继承），G7 独审无 P0/P1/P2。
+仅对源 `1c04644`、ZIP `5cc07f35…c4e8` 签发内部 Alpha，不是 RC PASS。第 5 节保留 G0 当时记录。
+详见[收口核对报告](../reports/2026-09/a9_win7_22_closeout_and_build_baseline_2026-09-07.md)。

@@ -16,13 +16,18 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；A9-14 已授权精确修复 D-013 CMD helper 命令行并以全新 WIN7-22 重走受影响门禁 |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA（仅冻结候选内部 Alpha，非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
 ## A9 Trusted Agent Runtime（2026-08-31）
+
+- 2026-09-07 补录 2026-09-04 的 WIN7-22 正式收口：源 `1c04644`，ZIP `5cc07f35…c4e8`，
+  正式验证 13/13（4 直接、9 继承），G7 独审 P0/P1/P2=0，裁决 `A9_14_WIN7_22_GO_FOR_ALPHA`。
+  下方记录为历史执行过程，不覆盖此冻结候选最终裁决；Win10 同候选 smoke 仍为 RC 前置。
+  证据与构建基线边界见 [收口核对报告](reports/2026-09/a9_win7_22_closeout_and_build_baseline_2026-09-07.md)。
 
 - 2026-09-03，WIN7-22 G0 的 r14 虽在 Win10 双构建中得到字节一致 helper，正式记录器仍因请求证据中的
   中文空格目录被 Windows PowerShell 5.1 按 CP936 误读为 `涓枃 绌烘牸` 而拒绝，未生成输入锁；r14

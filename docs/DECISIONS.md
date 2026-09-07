@@ -1643,3 +1643,15 @@
   绕过目标绑定。通用 argv 构造仍不适用于 CMD `/c` payload；未来新增 CMD 启动入口必须复用该显式语义。
   helper 字节改变，因此旧 Win10 helper lock、WIN7-21 产品 lock/ZIP/authority 都不能用于 WIN7-22。
   开发机逻辑测试和继承证据不构成 Win10/Win7 PASS；任何受影响 Gate 失败继续 fail-closed。
+
+## ADR-0112 WIN7-22 收口补录与开发构建基线分离
+
+- 状态：Accepted（2026-09-07，负责人授权按已审查顺序修复构建基线、整合 PR #5 并同步状态）
+- 背景：WIN7-22 候选外 2026-09-04 最终裁决已通过，仓库入口仍停在 G0；main 提交的 Runner
+  dist 过期且不完整，整仓按模块 build/test 交错执行，使 Gateway 提前读取尚未构建的运行模块。
+- 决策：补录绑定 `1c04644` 与 ZIP `5cc07f35…c4e8` 的 `A9_14_WIN7_22_GO_FOR_ALPHA`，更新
+  AGENTS、状态页与 A9-14 任务索引；保留历史失败记录、4 直接与 9 继承的边界及 RC 前置。
+  按本次明确授权在独立分支修复验证编排并补交 Runner dist，不改变 Runner 源码或冻结候选。
+- 后果：新的源码提交不是 WIN7-22 候选身份；开发机测试不新增 Win7 PASS。Runner 运行 JS 与
+  冻结 ZIP 比较只差 source-map 尾注，因此本次构建治理不触发候选重打包。验收原件继续存放在候选外，
+  哈希与范围见 [核对报告](reports/2026-09/a9_win7_22_closeout_and_build_baseline_2026-09-07.md)。
