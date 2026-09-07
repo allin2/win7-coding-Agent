@@ -111,19 +111,16 @@ Policy、精确审批绑定和审计；Git 还需要隔离配置以阻止 hooks�
 - Win7 目标机不假设预装上述工具，正式交付必须使用已登记、锁定并验收的自包含工件。
 
 根目录验证先完成全部模块 lint/build，再统一执行测试；任一构建失败则不启动测试。
-State 的独立 lockfile 已发现与依赖声明不同步，以下安装流程仍有待修复项；本轮回归复用了本机依赖，
-不代表干净安装已通过。当前根目录只编排模块命令，不在线解析生产依赖。首次在开发机检出仓库后，分别进入以下目录
-执行 `npm ci`：
+首次检出后，在仓库根目录按 workspace lockfile 统一安装开发依赖：
 
-```text
-src/core
-src/gateway
-src/git-adapter
-src/runner
-src/shell
-src/state
-src/workspace
+```bash
+npm ci
 ```
+
+安装会执行已锁定的 SQLite 原生模块和 Electron 安装脚本，可能需要联网下载对应开发机工件；
+这些开发依赖不用于替换已冻结的 Win7 候选。State/Shell 独立 lockfile 已同步；需要单模块安装时
+显式使用 `npm ci --prefix src/state --workspaces=false`（Shell 替换为 `src/shell`）。
+整仓测试跨模块加载依赖，仍应优先使用根目录统一安装。
 
 随后从仓库根目录运行：
 

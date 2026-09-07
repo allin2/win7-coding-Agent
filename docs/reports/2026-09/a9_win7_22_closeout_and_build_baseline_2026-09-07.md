@@ -46,3 +46,18 @@
 合入 PR #5 后：七模块 lint/build 与 1581 tests PASS；发布闭包回归 11/11 PASS；
 编排回归 PASS；文档检查 108 文件/27 任务 PASS；diff 空白检查 PASS。
 这些是本次开发机证据，不是新的 Win7 实机执行。
+
+## 依赖安装后续收口（2026-09-07）
+
+前文的 State/Shell 安装限制已在后续修复中解决；原记录保留为上一轮验证的实际边界。
+两个独立 lockfile 补齐已声明的 SQLite/Electron 及依赖闭包，所有新增版本/校验值均来自既有根 lockfile，
+已有锁定版本与 integrity 未改变。README 改为优先使用根 workspace 统一安装。
+
+- 全新独立工作树根目录执行 `npm ci --ignore-scripts --no-audit --no-fund` 成功，随后
+  `npm rebuild better-sqlite3 electron` 成功；没有链接或复制旧工作区 node_modules。
+- State/Shell 分别在只含 package.json 与修复后 lockfile 的新目录执行离线 `npm ci --ignore-scripts`
+  成功，再执行对应原生安装脚本成功。两者均实际打开内存 SQLite 并执行查询；Shell 的 Electron
+  可执行文件存在。本步骤未启动 Electron GUI。
+- 新安装环境七模块 lint/build 与 1581 tests PASS；docs:check 108 文件/27 任务 PASS。
+- 本轮开发宿主为 macOS/Node 20；使用缓存与联网下载，不代表完全空下载缓存、其他操作系统或 Win7
+  重新验收。冻结 WIN7-22 未改变，无新增生产依赖或运行时版本。
