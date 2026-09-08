@@ -16,40 +16,26 @@
 
 规则缺失、任务书未授权或文档冲突时，停止相关实现并报告；不得自行扩大范围。
 
-## 2. 当前阶段：A9-14 D-013 CMD verbatim 修复与 WIN7-22
+## 2. 当前阶段与历史入口
 
-- 用户于 2026-09-03 另行授权 [A9-14 D-013 CMD verbatim 修复](docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md)
-  （ADR-0111）。仅允许修复协议 v2 CMD helper 命令行装配、独立审查并生成全新 WIN7-22；WIN7-21
-  保持不可变 `FIX_BEFORE_ALPHA`，不得复用候选改判。稳定宿主项只可轻量复核，未受影响历史能力只可
-  按精确哈希继承，不得冒充当前候选直接 PASS。
-
-- 用户于 2026-09-03 另行授权 [A9-13 WIN7-19 schema v4 兼容性修复](docs/tasks/A9_13_WIN7_19_SCHEMA_V4_COMPATIBILITY.md)
-  （ADR-0110）。仅允许精确兼容既有 WIN7-19 v4 profile、独立审查并从 G0 生成 WIN7-21；WIN7-20
-  保持不可变 `FIX_BEFORE_ALPHA`，不得复用候选改判。
-
-- 用户于 2026-08-30 另行授权 [A9-10 中文编码与大文件读取修复](docs/tasks/A9_10_TEXT_READ_HARDENING.md)
-  （ADR-0107）。仅按其独立白名单修复读取链；不扩大 A9-09 的 D-013 授权或解除其 Gate。
-- 用户于 2026-08-30 另行授权 [A9-11 D-013 v25 后置安全与可用性修复](docs/tasks/A9_11_POST_V25_USABILITY_SECURITY_HARDENING.md)
-  （ADR-0108）。仅关闭该独审已复现的八项缺口；不修改历史工件或解除 A9-09/WIN7-20 Gate。
-- 用户于 2026-08-31 另行授权 [A9-12 D-013 v25 后置恢复与用户流加固](docs/tasks/A9_12_POST_REVIEW_RECOVERY_AND_UI_HARDENING.md)
-  （ADR-0109）。仅关闭本轮独审定位的十项恢复/用户流缺口；不修改历史工件或解除 A9-09/WIN7-20 Gate。
-- 当前任务：`docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md`，状态 `COMPLETE`；
-  WIN7-22 已完成正式收口，既有 A9-09～A9-14 实现范围不重新开放。
-- 交付分支：`codex/a9-win7-22-cmd-verbatim`；版本：`0.3.0-alpha.1`；目标候选：WIN7-22。
-  WIN7-19 是不可变历史验收里程碑，WIN7-20/WIN7-21 是不可变失败候选；冻结 WIN7-22 裁决为
-  `A9_14_WIN7_22_GO_FOR_ALPHA`（内部 Alpha，非 RC）；PR #3 已合并。
-- ADR-0096 将 Alpha 1 支持范围收敛为 Full Access 与 Read Only；完整 Review 工作流延期至
-  `0.3.0-alpha.2`。WIN7-10 中仍可见但无后端的 Review 是已知限制，只能 fail-closed，不能算 Alpha 1
-  支持能力或 Review PASS，也不得静默提升为 Full Access。
-- 当前状态：ADR-0111 已授权修复 v2 CMD verbatim 装配，保留 v24/v25 和 WIN7-19～WIN7-21 全部历史
-  证据。2026-09-04 已完成 WIN7-22 收口，2026-09-07 按 ADR-0112 补录仓库状态；最新事实见
-  `docs/STATUS.md` 与 `docs/tasks/README.md`。
-- A9 在可信工作区提供 Full Access、TrustedShell 和真实 Git；这不是安全沙箱。A9 对 C08/C09/C20 的局部替代仅以 ADR-0089 和 A9 任务书为准，不外推至历史任务或其他分支。
-- A9 仍必须经过 Schema IPC、Core/Policy、目标绑定批准与审计，并保留取消、输出上限、进程树清理、凭据脱敏、TLS 默认验证、checkpoint、Renderer 隔离和 Win7 实机硬门槛。
+- 当前 A9-14 任务 `docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md` 已为 `COMPLETE`；
+  A9-09～A9-14 实现范围不重新开放。最新状态仅以 `docs/STATUS.md` 为入口，任务定位见
+  `docs/tasks/README.md`；历史任务仍须遵守其分支、白名单和验收合同，不得借用历史授权。
+- WIN7-22 冻结裁决为 `A9_14_WIN7_22_GO_FOR_ALPHA`（`0.3.0-alpha.1` 内部 Alpha，非 RC）；
+  交付分支为 `codex/a9-win7-22-cmd-verbatim`，不是要求切换当前工作分支。
+  WIN7-19 保持历史里程碑，WIN7-20/WIN7-21 保持不可变 `FIX_BEFORE_ALPHA`；
+  v24/v25 与全部历史候选和证据均须保留，不得复用失败候选改判。
+- 后续验证按适用任务书与影响范围执行；稳定宿主项只轻量复核，未受影响能力只可按精确哈希
+  继承并标为继承证据，不得冒充当前候选直接 PASS。状态补录依据为 ADR-0112。
+- ADR-0096 将 Alpha 1 限定为 Full Access 与 Read Only；完整 Review 延期至 `0.3.0-alpha.2`。
+  WIN7-10 可见但无后端的 Review 必须 fail-closed，不计入支持能力或 Review PASS，不得提升为 Full Access。
+- A9 的 Full Access、TrustedShell 和真实 Git 运行在可信工作区，不是安全沙箱。
+  对 C08/C09/C20 的局部替代仅以 ADR-0089 和对应任务书为准；Schema IPC、Core/Policy、
+  目标绑定批准与审计、取消、输出上限、进程树清理、凭据脱敏、TLS、checkpoint、Renderer 隔离和 Win7 实机硬门继续有效。
 
 ## 3. 开始任务前必须读取
 
-1. 所有任务先读本文件。
+1. 所有任务先读本文件。纯文档或规则维护只读相关文档及其治理要求，不因此加载完整实现历史。
 2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9-09 工作同时读
    `docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`、`docs/tasks/A9_08_POST_REVIEW_HARDENING.md` 与
    `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
@@ -81,6 +67,8 @@
 
 - 先确认仓库、分支、任务状态和工作区；默认留在当前分支。保护用户已有改动，只修改当前请求需要的文件，不顺带重构、改名、格式化或清理。
 - 先定义可观察的成功条件，再做最小改动和与风险相称的验证。优先目标测试或局部静态检查；不默认运行全量测试。
+- 完成项目必需检查后，仅因新修改、失败或具体未解决风险扩大或重复检查；可逆低影响修改不为镜像实现而新增测试。
+- 在已有授权内持续完成交付与本次变更引起的失败修复；第一版实现不是停止点。真正阻塞只暂停依赖它的动作，硬门失败仍停止全部下游 Gate。
 - 仅在修改 UI、布局、视觉交付物或用户明确要求时做浏览器、截图、渲染或视觉 QA。
 - 阶段完成和兼容性结论必须以任务书要求的证据为准；未执行的 Win7 实机验证必须明确标为未验证。
 
