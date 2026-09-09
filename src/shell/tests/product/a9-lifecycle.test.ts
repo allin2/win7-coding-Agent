@@ -492,6 +492,46 @@ describe('F5: pending approval keeps active state and resume continues the same 
     }
   }, 30_000);
 
+  it('persists approval_resolved timeline events for denied decisions across restart (ADR-0114)', async () => {
+    const env = makeEnv();
+    const fixture = await startApprovalFixture();
+    try {
+      const runtime = makeRuntime(env);
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const turn = await runtime.submitTurn('delete note');
+      expect(turn.result.outcome).toBe('needs_approval');
+      const denied = await runtime.resumeApproval(approvalDecision(turn.result.pendingApproval, 'denied'));
+      expect(denied.ok).toBe(true);
+
+      // timeline：approval_resolved 带 eventId（a9_events 行 id）与决定事实。
+      const snapshot = runtime.getSnapshot();
+      const resolved = snapshot.timeline.find((event: any) => event.type === 'approval_resolved');
+      expect(resolved).toBeDefined();
+      expect(Number.isSafeInteger(resolved.eventId)).toBe(true);
+      expect(resolved.sequence).toBe(resolved.eventId);
+      expect(resolved.data).toMatchObject({
+        approvalId: turn.result.pendingApproval.approvalId,
+        decision: 'denied',
+        toolName: 'delete',
+      });
+
+      // 重启后留痕仍可按会话回看（approval_resolved 已持久化）。
+      const conversationId = snapshot.activeConversationId;
+      runtime.shutdown();
+      const runtime2 = makeRuntime(env);
+      const replayed = runtime2.queryEvents({ conversationId, limit: 50 });
+      expect(replayed.ok).toBe(true);
+      const replayedResolved = replayed.events.find((event: any) => event.payload?.type === 'approval_resolved');
+      expect(replayedResolved).toBeDefined();
+      expect(replayedResolved.payload.data).toMatchObject({ decision: 'denied', toolName: 'delete' });
+      runtime2.shutdown();
+    } finally {
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('preserves a second pending approval, rejects the consumed old approval, and refreshes the same checkpoint', async () => {
     const env = makeEnv();
     fs.writeFileSync(path.join(env.workspaceRoot, 'second.txt'), 'second\n');
@@ -511,6 +551,11 @@ describe('F5: pending approval keeps active state and resume continues the same 
 
       const resumed = await runtime.resumeApproval(approvalDecision(firstApproval, 'approved'));
       expect(resumed.ok).toBe(true);
+      const approvalEvents = runtime.getSnapshot().timeline;
+      const decisionIndex = approvalEvents.findIndex((e: any) => e.type === 'approval_resolved' && e.data.approvalId === firstApproval.approvalId);
+      const executionIndex = approvalEvents.findIndex((e: any) => e.type === 'tool_start');
+      expect(decisionIndex).toBeGreaterThanOrEqual(0);
+      expect(executionIndex).toBeGreaterThan(decisionIndex);
       expect(resumed.result.outcome).toBe('needs_approval');
       const secondApproval = resumed.result.pendingApproval;
       expect(secondApproval.approvalId).not.toBe(firstApproval.approvalId);

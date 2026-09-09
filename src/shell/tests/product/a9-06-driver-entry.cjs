@@ -20,12 +20,30 @@ const { app, BrowserWindow, dialog } = require('electron');
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
 const productMain = process.env.A9_SMOKE_PRODUCT_MAIN || path.join(repositoryRoot, 'src/shell/product/main.js');
+const requireModelNotes = process.env.A9_SMOKE_REQUIRE_MODEL_NOTES === '1';
 
 const report = { status: 'RUNNING', mode: process.env.A9_SMOKE_MODE || 'first', cases: [] };
 function record(id, passed, detail) {
   report.cases.push({ id, passed: passed === true, detail: detail || '' });
 }
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+async function captureVisual(win, scene) {
+  const directory = process.env.A9_SMOKE_VISUAL_DIR;
+  if (!directory) return;
+  fs.mkdirSync(directory, { recursive: true });
+  await win.webContents.executeJavaScript(`(() => {
+    if (document.getElementById('inspector').classList.contains('open')) {
+      document.getElementById('close-inspector').click();
+    }
+    return true;
+  })()`);
+  await sleep(600);
+  const target = path.join(directory, `${scene}.png`);
+  fs.writeFileSync(target, (await win.webContents.capturePage()).toPNG());
+  record(`A9-15-CAPTURE-${scene}`, fs.existsSync(target), JSON.stringify({
+    path: target, contentSize: win.getContentSize(), zoom: win.webContents.getZoomFactor(),
+  }));
+}
 async function waitFor(condition, timeoutMs, label) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -137,7 +155,7 @@ async function runWorkspaceSelectionProcess(win, exec, env) {
   const screenshotPath = process.env.A9_SMOKE_WORKSPACE_SELECT_SCREENSHOT;
   if (screenshotPath) {
     win.setSize(860, 620);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 800));
     fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
     const image = await win.webContents.capturePage();
     fs.writeFileSync(screenshotPath, image.toPNG());
@@ -147,6 +165,7 @@ async function runWorkspaceSelectionProcess(win, exec, env) {
   await exec('document.getElementById("a9-mode-apply").click(); true');
   const mode = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.ok && r.snapshot.mode === "full_access" ? r.snapshot.mode : null)'), 15_000, 'full access selection');
   record('A9F0-FULL-ACCESS-SELECTION-PERSISTED', mode === 'full_access', `mode=${mode}`);
+  await captureVisual(win, 'empty');
 
   // The unified Composer is A9-only. Without a configured Provider it remains
   // safely blocked and must not fall back to the historical A8 desktop request.
@@ -230,7 +249,41 @@ async function runFirstProcess(win, exec, env) {
     timeline: document.getElementById('a9-timeline').textContent,
     output: document.getElementById('a9-shell-output').textContent,
   }))()`);
-  record('A9F1-SHELL-EVENT-DTO-UI', shellUi.timeline.includes('shell') && shellUi.timeline.includes('exit=0') && shellUi.output.includes('verified'), JSON.stringify(shellUi));
+  record('A9F1-SHELL-EVENT-DTO-UI', shellUi.timeline.includes('运行命令') && shellUi.timeline.includes('exit=0') && shellUi.output.includes('smoke-verified'), JSON.stringify(shellUi));
+  const progress = await exec(`(async () => {
+    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
+    const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
+    const events = queried.events || [];
+    const kind = (event) => event.eventType || event.type;
+    const data = (event) => event.payload?.data || event.payload || event.data || {};
+    const ids = events.map((event) => event.eventId);
+    const toolStarts = events.filter((event) => kind(event) === 'tool_start');
+    const toolEnds = events.filter((event) => kind(event) === 'tool_end');
+    const pairs = toolStarts.map((start) => toolEnds.find((end) => data(end).callId === data(start).callId && data(end).step === data(start).step));
+    const stream = document.getElementById('a9-task-stream');
+    const finalText = 'bug fixed and verified.';
+    return {
+      conversationId: snapshot.activeConversationId,
+      eventCount: events.length,
+      modelNotes: events.filter((event) => kind(event) === 'model_note').length,
+      turnCompleted: events.filter((event) => kind(event) === 'turn_completed').length,
+      stableOrder: ids.every((id, index) => Number.isSafeInteger(id) && (index === 0 || id > ids[index - 1])),
+      uniqueIds: new Set(ids).size === ids.length,
+      pairedTools: pairs.length === toolStarts.length && pairs.every(Boolean),
+      callIds: toolStarts.map((event) => data(event).callId),
+      steps: toolStarts.map((event) => data(event).step),
+      noteNodes: stream.querySelectorAll('.note-line').length,
+      activityGroups: stream.querySelectorAll('.activity-group').length,
+      finalOccurrences: stream.textContent.split(finalText).length - 1,
+    };
+  })()`);
+  record('A9-15-PROGRESS-EVENT-ORDER', (!requireModelNotes || progress.modelNotes >= 1) && progress.turnCompleted === 1 &&
+    progress.stableOrder && progress.uniqueIds && progress.pairedTools &&
+    progress.callIds.every(Boolean) && progress.steps.every((step) => Number.isSafeInteger(step)), JSON.stringify(progress));
+  record('A9-15-PROGRESS-RENDERED-ONCE', (!requireModelNotes || progress.noteNodes >= 1) && progress.activityGroups >= 1 && progress.finalOccurrences === 1, JSON.stringify(progress));
+  const crossConversation = await exec(`(window.win7Agent.a9.queryEvents({ conversationId: 'cross-' + ${JSON.stringify(progress.conversationId)}, limit: 1 })).then(r => ({ ok: r.ok, code: r.error && r.error.code }))`);
+  record('A9-15-EVENTS-CROSS-CONVERSATION-REJECTED', crossConversation.ok === false && crossConversation.code === 'A9_EVENTS_CONVERSATION_MISMATCH', JSON.stringify(crossConversation));
+  await captureVisual(win, 'completed');
 
   // Diff 可见（真实 checkpoint 按钮）。
   await waitFor(() => exec('document.getElementById("a9-checkpoint-list").querySelector("button") !== null'), 15_000, 'checkpoint buttons');
@@ -263,6 +316,7 @@ async function runFirstProcess(win, exec, env) {
   const approvalValid = approval && (approval.summary.includes('permanent') || approval.summary.includes('git')) &&
     approval.approvalId.length > 0 && approval.digest && approval.digest.length === 64;
   record('A9F1-APPROVAL-CARD-TRUE-TARGET', approvalValid === true, JSON.stringify(approval));
+  await captureVisual(win, 'approval');
   report.oldApproval = approval ? {
     approvalId: approval.approvalId.replace(/^approval:\s*/, ''),
     bindingDigest: approval.digest,
@@ -276,6 +330,14 @@ async function runFirstProcess(win, exec, env) {
   await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, 'approval card closed');
   const afterDeny = await exec('(() => { const s = document.getElementById("a9-turn-outcome").textContent; return s; })()');
   record('A9F1-APPROVAL-DENY-OUTCOME', afterDeny.includes('blocked') || afterDeny.includes('completed') || afterDeny.includes('needs_approval'), `outcome=${afterDeny}`);
+  const approvalHistory = await exec(`(async () => {
+    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
+    const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
+    const resolved = (queried.events || []).filter((event) => (event.eventType || event.type) === 'approval_resolved');
+    const data = (event) => event.payload?.data || event.payload || event.data || {};
+    return { count: resolved.length, decisions: resolved.map((event) => data(event).decision), eventIds: resolved.map((event) => event.eventId) };
+  })()`);
+  record('A9-15-APPROVAL-RESOLVED-PERSISTED', approvalHistory.count >= 1 && approvalHistory.decisions.includes('denied'), JSON.stringify(approvalHistory));
 
   // checkpoint 事实落库（真实 SQLite；first 进程退出前保留）。
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ mode: r.snapshot.mode, provider: r.snapshot.provider.configured, model: r.snapshot.provider.model, checkpoints: r.snapshot.checkpoints.length }))');
@@ -297,6 +359,19 @@ async function runSecondProcess(win, exec, env) {
   record('A9F2-NO-SPURIOUS-INTERRUPTION', Array.isArray(snapshot.interruptions) && snapshot.interruptions.length === 0, `interruptions=${JSON.stringify(snapshot.interruptions)}`);
   // 不自动重放：时间线为空。
   record('A9F2-NO-REPLAY-TIMELINE', Array.isArray(snapshot.timeline) && snapshot.timeline.length === 0, `timeline=${snapshot.timeline.length}`);
+  const restoredEvents = await exec(`(async () => {
+    const current = (await window.win7Agent.a9.snapshot()).snapshot;
+    const queried = await window.win7Agent.a9.queryEvents({ conversationId: current.activeConversationId, limit: 1000 });
+    const ids = (queried.events || []).map((event) => event.eventId);
+    return {
+      count: ids.length,
+      unique: new Set(ids).size === ids.length,
+      ordered: ids.every((id, index) => index === 0 || id > ids[index - 1]),
+      modelNotes: (queried.events || []).filter((event) => (event.eventType || event.type) === 'model_note').length,
+    };
+  })()`);
+  record('A9-15-HISTORY-RESTART-EVENTS', restoredEvents.count > 0 && restoredEvents.unique && restoredEvents.ordered &&
+    (!requireModelNotes || restoredEvents.modelNotes > 0), JSON.stringify(restoredEvents));
 
   // Exercise the formal preload/Schema IPC path for the complete 16-conversation
   // boundary and identity-scoped draft/archive/restore operations.
@@ -339,6 +414,49 @@ async function runSecondProcess(win, exec, env) {
     conversations.currentDraft === 'draft-conversation-16' && conversations.archivedCount >= 1 &&
     conversations.activeCount === 16 && conversations.restoredActiveId === conversations.currentId, JSON.stringify(conversations));
 
+  const search = await exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const before = (await api.snapshot()).snapshot;
+    const originalId = before.activeConversationId;
+    const target = before.conversations.find((item) => item.sessionId !== originalId && item.state === 'active');
+    if (!target) return { ok: false, reason: 'no-target' };
+    await api.activateConversation(target.sessionId);
+    await api.renameConversation(target.sessionId, 'Archived Search Needle');
+    await api.archiveConversation(target.sessionId);
+    await window.win7AgentA9Workbench.refreshSnapshot();
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const current = (await api.snapshot()).snapshot;
+      const archived = current.conversations.find((item) => item.sessionId === target.sessionId);
+      if (archived?.state === 'archived' && archived.title === 'Archived Search Needle' &&
+          document.getElementById('conversation-archive-list').textContent.includes('Archived Search Needle')) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    const input = document.getElementById('conversation-search');
+    const focused = document.activeElement === input;
+    input.value = 'Archived Search Needle';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (document.getElementById('conversation-directory-note').textContent.includes('1 个匹配')) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const note = document.getElementById('conversation-directory-note').textContent;
+    const archivedText = document.getElementById('conversation-archive-list').textContent;
+    const activeText = document.getElementById('conversation-list').textContent;
+    input.value = 'definitely-no-match';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const empty = document.getElementById('conversation-list').textContent.includes('没有匹配的对话');
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await api.restoreConversation(target.sessionId);
+    await api.activateConversation(originalId);
+    await window.win7AgentA9Workbench.refreshSnapshot();
+    return { ok: true, focused, note, archivedText, activeText, empty };
+  })()`);
+  record('A9-15-CONVERSATION-SEARCH-ACTIVE-ARCHIVED', search.ok && search.focused && search.note.includes('1 个匹配') &&
+    search.archivedText.includes('Archived Search Needle') && !search.activeText.includes('Archived Search Needle') && search.empty, JSON.stringify(search));
+
   // 旧审批不可执行：无挂起审批却恢复 → 结构化拒绝（不新增实体、零副作用）。
   const oldApproval = {
     approvalId: process.env.A9_SMOKE_OLD_APPROVAL_ID,
@@ -377,6 +495,7 @@ async function runStopProcess(win, exec, env) {
 
   const stopVisible = await exec('document.getElementById("cancel-task").hidden === false');
   record('A9F6-STOP-UI-ACTIVE', stopVisible === true, `visible=${stopVisible}`);
+  await captureVisual(win, 'running');
   await exec('document.getElementById("cancel-task").click(); true');
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('cancelled') ? t : null)), 45_000, 'cancelled outcome');
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)');

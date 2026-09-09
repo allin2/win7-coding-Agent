@@ -19,6 +19,7 @@ describe('A9-01: System Prompt V2', () => {
     expect(prompt.content).toContain('Instruction Hierarchy');
     expect(prompt.content).toContain('AGENTS.md');
     expect(prompt.content).toContain('Honest Verification');
+    expect(prompt.content).toContain('User Communication Convention');
   });
 
   it('adjusts instructions based on mode', () => {

@@ -24,6 +24,18 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-09，ADR-0114 / [A9-15 UI 优化与 Agent 过程反馈](tasks/A9_15_UI_PROGRESS_FEEDBACK.md) 在
+  `codex/ui-optimization` 分支（基线 `72dfe22`）完成开发机实现与定向验证：按获批 Demo 暖色浅色主题重构
+  工作台视觉，新增 `model_note`/`approval_resolved` 事件与 `a9.events.query`（IPC schemaVersion 6）
+  过程回看；core 18/18、state 55/55、shell 87/87 合同测试与三包 lint、docs:check 全部通过（证据见
+  任务书 §6）。独立检查后修复状态误判、审批记录顺序、历史分页与失败重试；不修改 native helper、Runner/Policy 安全
+  语义；本轮 macOS Electron smoke 最终 57/57 PASS，另取图并查看四个场景，完整 UI
+  交互矩阵仍待验证。目标机已按项目专用验收身份与锁定主机指纹严格 SSH，
+  只读预检确认 Windows 7 Professional build 7601 x64；管理员 SSH 不构成普通用户 PASS。
+  用户随后授权提交 A9-15 范围改动（不推送）、新增独立 WIN7-23 `release/**` 合同并继续实机验收；当前阶段进入
+  `A9_15_WIN7_23_CANDIDATE_PREPARATION`。候选、候选外 release authority、普通用户执行和真实 Provider
+  多工具任务尚未完成，仍不新增 Win7 PASS。
+
 - 2026-09-07 补录 2026-09-04 的 WIN7-22 正式收口：源 `1c04644`，ZIP `5cc07f35…c4e8`，
   正式验证 13/13（4 直接、9 继承），G7 独审 P0/P1/P2=0，裁决 `A9_14_WIN7_22_GO_FOR_ALPHA`。
   下方记录为历史执行过程，不覆盖此冻结候选最终裁决；Win10 同候选 smoke 仍为 RC 前置。

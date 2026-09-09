@@ -1148,19 +1148,64 @@ export class A9PersistenceManager {
   // 事件与保留策略
   // ---------------------------------------------------------------------
 
-  recordModelEvent(sessionId: string, turnId: string | null, eventType: string, payload: Record<string, unknown>): void {
-    this.insertEvent(sessionId, turnId, 'model', eventType, payload);
+  recordModelEvent(sessionId: string, turnId: string | null, eventType: string, payload: Record<string, unknown>): { eventId: number } {
+    return this.insertEvent(sessionId, turnId, 'model', eventType, payload);
   }
 
-  recordToolEvent(sessionId: string, turnId: string | null, eventType: string, payload: Record<string, unknown>): void {
-    this.insertEvent(sessionId, turnId, 'tool', eventType, payload);
+  recordToolEvent(sessionId: string, turnId: string | null, eventType: string, payload: Record<string, unknown>): { eventId: number } {
+    return this.insertEvent(sessionId, turnId, 'tool', eventType, payload);
   }
 
-  private insertEvent(sessionId: string, turnId: string | null, kind: 'model' | 'tool', eventType: string, payload: Record<string, unknown>): void {
-    this.db.prepare(`
+  private insertEvent(sessionId: string, turnId: string | null, kind: 'model' | 'tool', eventType: string, payload: Record<string, unknown>): { eventId: number } {
+    const info = this.db.prepare(`
       INSERT INTO a9_events (session_id, turn_id, kind, event_type, payload_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(sessionId, turnId, kind, eventType, JSON.stringify(payload), new Date().toISOString());
+    return { eventId: Number(info.lastInsertRowid) };
+  }
+
+  /**
+   * ADR-0114：按会话有界查询事件（id 升序）。eventId 即 a9_events 行 id
+   * （AUTOINCREMENT），跨重启稳定，供 UI 过程回看与游标分页（beforeEventId）。
+   * limit 夹紧 [1,1000]；返回过滤集中最新的 limit 条（升序输出）——无游标时即
+   * 会话尾部窗口，带游标时为紧邻游标之前的上一页。payload_json 解析失败返回 null。
+   */
+  listSessionEvents(
+    sessionId: string,
+    options: { turnId?: string; beforeEventId?: number; limit?: number } = {},
+  ): Array<{
+    eventId: number;
+    turnId: string | null;
+    kind: string;
+    eventType: string;
+    payload: Record<string, unknown> | null;
+    createdAt: string;
+  }> {
+    const limit = Math.max(1, Math.min(Math.floor(options.limit ?? 200), 1000));
+    const clauses = ['session_id = ?'];
+    const params: Array<string | number> = [sessionId];
+    if (options.turnId !== undefined) {
+      clauses.push('turn_id = ?');
+      params.push(options.turnId);
+    }
+    if (options.beforeEventId !== undefined && Number.isFinite(options.beforeEventId)) {
+      clauses.push('id < ?');
+      params.push(Math.floor(options.beforeEventId));
+    }
+    const rows = this.db.prepare(`
+      SELECT id, turn_id, kind, event_type, payload_json, created_at FROM a9_events
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(...params, limit) as any[];
+    return rows.reverse().map((row) => ({
+      eventId: Number(row.id),
+      turnId: row.turn_id ?? null,
+      kind: row.kind,
+      eventType: row.event_type,
+      payload: safeParse(row.payload_json) as Record<string, unknown> | null,
+      createdAt: row.created_at,
+    }));
   }
 
   /**

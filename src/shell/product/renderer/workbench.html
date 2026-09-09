@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#090d0e">
+  <meta name="theme-color" content="#f4f3ef">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Win7 Coding Agent</title>
   <link rel="stylesheet" href="a9-workbench.css">
@@ -26,6 +26,10 @@
       </nav>
       <section class="conversation-directory" aria-labelledby="conversation-directory-title">
         <header><span id="conversation-directory-title" class="eyebrow">CONVERSATIONS</span><button id="conversation-new" type="button" title="新建对话" aria-label="新建对话">+</button></header>
+        <div class="conversation-search">
+          <label class="sr-only" for="conversation-search">搜索对话</label>
+          <input id="conversation-search" type="search" autocomplete="off" placeholder="搜索对话 Ctrl+K（含已归档）…" aria-label="搜索对话标题，包含已归档">
+        </div>
         <ul id="conversation-list" class="conversation-list" aria-label="当前工作区对话"></ul>
         <div class="conversation-current-actions"><button id="conversation-rename" type="button">重命名</button><button id="conversation-archive" type="button">归档</button></div>
         <details id="conversation-archive-section" class="conversation-archive-section"><summary>已归档 <span id="conversation-archive-count">0</span></summary><ul id="conversation-archive-list" class="conversation-list archived" aria-label="已归档对话"></ul></details>
@@ -80,6 +84,12 @@
           <div class="approval-copy"><div class="approval-heading"><span>APPROVAL REQUIRED</span><strong id="a9-approval-tool">-</strong></div><h2 id="a9-approval-heading">需要你的确认</h2><p id="a9-approval-summary"></p><p id="a9-approval-git" class="approval-binding"></p><p id="a9-approval-id" class="approval-id"></p><p id="a9-approval-error" class="field-error" role="alert" hidden></p></div>
           <div class="approval-actions"><button id="a9-approval-deny" type="button" class="danger">拒绝</button><button id="a9-approval-approve" type="button" class="primary">批准此操作</button></div>
         </section>
+        <div id="live-status" class="live-status" role="status" hidden>
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="live-label"></span>
+          <span id="live-elapsed"></span>
+          <button id="jump-latest" type="button" hidden>回到最新 ↓</button>
+        </div>
         <div class="composer">
           <label class="sr-only" for="task-prompt">任务描述</label>
           <textarea id="task-prompt" name="task-prompt" rows="1" maxlength="8000" autocomplete="off" placeholder="描述要完成的任务，或询问当前代码…" aria-describedby="composer-guidance session-status"></textarea>

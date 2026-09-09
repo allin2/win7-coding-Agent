@@ -22,6 +22,8 @@ const canonicalValue = (value) => Array.isArray(value) ? value.map(canonicalValu
     ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])])) : value;
 const integrity = require('../../../release/win7-product-v3/a9-package-integrity.cjs');
 const { ACCEPTANCE_REQUIRED_FILES } = integrity;
+const win23Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w23.cjs');
+const win23Report = require('../../../release/win7-product-v3/a9-win7-23-report.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
@@ -162,18 +164,25 @@ function createV25ReturnFixture(root, kitRoot, runId, suffix, completedAt = '202
 
 // A real clean Git snapshot of the current sources, not a production option
 // that fabricates source_dirty=false. Dependencies are shared read-only.
-function cleanSourceFixture(root) {
+function cleanSourceFixture(root, sourceRef = '') {
   const snapshot = path.join(root, 'source-repository');
   fs.mkdirSync(snapshot, { recursive: true });
-  const names = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
-    cwd: process.cwd(), encoding: 'utf8',
-  }).trim().split('\n');
-  for (const relative of names) {
-    const source = path.join(process.cwd(), relative);
-    if (relative.includes('/dist/') || !fs.existsSync(source) || !fs.statSync(source).isFile()) continue;
-    const destination = path.join(snapshot, relative);
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.copyFileSync(source, destination);
+  if (sourceRef) {
+    const archive = path.join(root, 'source.tar');
+    execFileSync('git', ['archive', '--format=tar', `--output=${archive}`, sourceRef], { cwd: process.cwd() });
+    execFileSync('tar', ['-xf', archive, '-C', snapshot]);
+    fs.rmSync(archive);
+  } else {
+    const names = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+      cwd: process.cwd(), encoding: 'utf8',
+    }).trim().split('\n');
+    for (const relative of names) {
+      const source = path.join(process.cwd(), relative);
+      if (relative.includes('/dist/') || !fs.existsSync(source) || !fs.statSync(source).isFile()) continue;
+      const destination = path.join(snapshot, relative);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(source, destination);
+    }
   }
   fs.appendFileSync(path.join(snapshot, '.gitignore'), '\n**/dist/\n**/node_modules\n', 'utf8');
   for (const module of ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace']) {
@@ -187,7 +196,7 @@ function cleanSourceFixture(root) {
   return snapshot;
 }
 
-function fixture(root, sourceRepositoryRoot = process.cwd()) {
+function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23') {
   const inputs = path.join(root, 'inputs'); fs.mkdirSync(inputs, { recursive: true });
   const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: sourceRepositoryRoot, encoding: 'utf8' }).trim();
   const electronPe = syntheticV25Pe();
@@ -268,17 +277,31 @@ function fixture(root, sourceRepositoryRoot = process.cwd()) {
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  const lockPath = path.join(root, 'a9-14-win7-22-input-lock.json'); writeJson(lockPath, lock);
+  if (candidate === 'win23') {
+    lock.lock_id = 'A9-15-INPUTS-UI-PROGRESS-WIN7-23';
+    lock.source_date_epoch = 1788912000;
+    lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
+    lock.gates.win7 = 'NOT_PERFORMED_WIN7_23';
+    lock.provenance = {
+      task: 'A9-15', previous_candidate: 'WIN7-22',
+      previous_candidate_result: 'A9_14_WIN7_22_GO_FOR_ALPHA',
+      change_scope: 'UI_PROGRESS_FEEDBACK',
+    };
+  }
+  const lockPath = path.join(root, candidate === 'win23'
+    ? 'a9-15-win7-23-input-lock.json' : 'a9-14-win7-22-input-lock.json');
+  writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
 
 test('A9 v3 builder produces byte-identical fixture candidates with the complete runtime closure', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-package-fixture-'));
-  const inputs = fixture(root);
-  const options = { repositoryRoot: process.cwd(), ...inputs, outputRoot: path.join(root, 'out'), allowUncommitted: true };
+  const sourceRepositoryRoot = cleanSourceFixture(root, '1c0464441db049d25a28425ebaf9b2db65b0ff59');
+  const inputs = fixture(root, sourceRepositoryRoot, 'win22');
+  const options = { repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') };
   const first = buildA9ProductCandidate(options);
   const firstBytes = fs.readFileSync(first.zipPath);
-  const ignoredRogue = path.join(process.cwd(), 'src/runner/dist/.a9-release-ignored-rogue.js');
+  const ignoredRogue = path.join(sourceRepositoryRoot, 'src/runner/dist/.a9-release-ignored-rogue.js');
   fs.writeFileSync(ignoredRogue, 'module.exports = "rogue";\n', 'utf8');
   let second;
   try {
@@ -390,6 +413,71 @@ test('A9 v3 formal source identity must equal the current clean HEAD', () => {
     allowUncommitted: true,
     sourceCommit: 'f'.repeat(40),
   }), /A9_SOURCE_COMMIT_HEAD_MISMATCH/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-23 builder and verifier bind a clean A9-15 candidate without reusing WIN7-22 identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win23-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win23');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifestPath = path.join(stage, 'release-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  assert.equal(manifest.source_dirty, false);
+  assert.equal(manifest.external_acceptance_eligible, true);
+  assert.ok(fs.existsSync(path.join(stage, 'A9_15_VALIDATION_KIT.json')));
+  for (const relative of win23Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-23 closure: ${relative}`);
+  }
+  assert.equal(fs.existsSync(path.join(stage, 'A9_14_VALIDATION_KIT.json')), false);
+  const authorityPath = path.join(root, 'release-authority.json');
+  writeJson(authorityPath, {
+    schema_version: 1,
+    kind: 'WIN7_23_RELEASE_AUTHORITY',
+    status: 'APPROVED_FOR_WIN7_23_VALIDATION',
+    formal_input_lock_sha256: sha256File(inputs.lockPath),
+    approval_registry: {
+      commit: manifest.source_commit,
+      sha256: sha256File(inputs.approvalRegistryPath),
+    },
+    candidate: {
+      source_commit: manifest.source_commit,
+      package_sha256: sha256File(built.zipPath),
+      manifest_sha256: sha256File(manifestPath),
+    },
+  });
+  const options = {
+    zip: built.zipPath,
+    'release-manifest': manifestPath,
+    kit: path.join(stage, 'A9_15_VALIDATION_KIT.json'),
+    'formal-input-lock': inputs.lockPath,
+    'approval-registry': inputs.approvalRegistryPath,
+    'release-authority': authorityPath,
+    'release-authority-sha256': sha256File(authorityPath),
+  };
+  const identity = win23Report.identityFrom(options, fs);
+  assert.equal(identity.candidate_label, 'WIN7-23');
+  assert.equal(identity.source_commit, manifest.source_commit);
+  const kit = JSON.parse(fs.readFileSync(options.kit, 'utf8'));
+  const initialized = win23Report.template(kit, identity);
+  assert.equal(initialized.report_kind, 'A9_15_WIN7_23_UI_PROGRESS_ACCEPTANCE');
+  assert.equal(initialized.results.length, 8);
+  assert.ok(initialized.results.some((item) => item.case_id === 'W23-07-REAL-PROVIDER-MULTITOOL'));
+  assert.throws(() => win23Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
+  const cli = spawnSync(process.execPath, [
+    path.join(stage, 'validation', 'a9-package-integrity-w23.cjs'),
+    `--package-zip=${built.zipPath}`, `--formal-input-lock=${inputs.lockPath}`,
+    `--approval-registry=${inputs.approvalRegistryPath}`, `--release-authority=${authorityPath}`,
+    `--release-authority-sha256=${options['release-authority-sha256']}`, `--out=${path.join(root, 'integrity.json')}`,
+  ], { encoding: 'utf8' });
+  const integrityReport = JSON.parse(cli.stdout);
+  assert.equal(cli.status, 1);
+  assert.equal(integrityReport.cases[0].status, 'PASS');
+  assert.equal(integrityReport.cases[1].status, 'FAIL');
+  assert.match(integrityReport.cases[1].detail, /RUNTIME_ABI_INVALID/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -638,8 +726,8 @@ test('v25 recorder requires raw evidence, actual PE/API/CRT closure and matching
 
 test('WIN7-22 acceptance requires the formal input lock and complete product closure', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win20-candidate-'));
-  const sourceRepositoryRoot = cleanSourceFixture(root);
-  const inputs = fixture(root, sourceRepositoryRoot);
+  const sourceRepositoryRoot = cleanSourceFixture(root, '1c0464441db049d25a28425ebaf9b2db65b0ff59');
+  const inputs = fixture(root, sourceRepositoryRoot, 'win22');
   const built = buildA9ProductCandidate({
     repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
   });

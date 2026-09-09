@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Coding Agent · 可信工作台</title>
+<style>
+/* ========== Design Tokens ========== */
+:root{
+  --bg:#f4f3ef;        /* 页面底色（暖纸感） */
+  --panel:#faf9f6;     /* 侧栏 / 面板 */
+  --card:#ffffff;      /* 卡片 */
+  --bd:#e6e3db;        /* 主边框 */
+  --bd-soft:#efede7;   /* 弱分隔线 */
+  --tx:#1f2328;        /* 正文 */
+  --tx-2:#4b5563;      /* 次级正文 */
+  --mu:#6b7280;        /* 辅助文字 */
+  --ac:#0f766e;        /* 主色：当前 / 主按钮 */
+  --ac-bg:#e7f3f0;
+  --ac-bd:#bfe0d8;
+  --amb:#b45309;       /* 待审批 */
+  --amb-bg:#fff6e8;
+  --amb-bd:#f1d7a4;
+  --red:#b42318;       /* 破坏性 / 拒绝 */
+  --red-bg:#fdecec;
+  --red-bd:#f2c4c0;
+  --grn:#15803d;       /* 完成 / 安全 */
+  --grn-bg:#e9f6ee;
+  --grn-bd:#bfe3cc;
+  --r:10px;
+  --shadow:0 1px 2px rgba(17,24,39,.05);
+  --font:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --mono:"JetBrains Mono",Consolas,Menlo,"SF Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none;cursor:pointer}
+button{font:inherit;cursor:pointer}
+.mono{font-family:var(--mono)}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;border:1px solid var(--bd);color:var(--tx-2);background:#fff;white-space:nowrap}
+.pill .dot{width:7px;height:7px;border-radius:50%}
+.pill.amb{color:var(--amb);background:var(--amb-bg);border-color:var(--amb-bd)}
+.pill.grn{color:var(--grn);background:var(--grn-bg);border-color:var(--grn-bd)}
+.pill.red{color:var(--red);background:var(--red-bg);border-color:var(--red-bd)}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.dot.amb{background:#d97706}.dot.grn{background:#22a55b}.dot.mu{background:#c9c6be}.dot.red{background:#dc2626}
+kbd{font:11px var(--mono);border:1px solid var(--bd);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:#fff;color:var(--mu)}
+
+/* ========== 布局骨架 ========== */
+.app{height:100%;display:flex;flex-direction:column;min-width:960px}
+.body{flex:1;display:flex;min-height:0}
+
+/* ========== 顶栏 ========== */
+.topbar{height:52px;flex:none;background:var(--panel);border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;padding:0 14px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14px;padding-right:12px;border-right:1px solid var(--bd);margin-right:2px}
+.brand .logo{width:28px;height:28px;border-radius:8px;background:var(--ac);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;letter-spacing:.02em}
+.brand small{font-weight:500;font-size:11px;color:var(--mu);background:#fff;border:1px solid var(--bd);padding:1px 6px;border-radius:4px}
+.switcher{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--bd);background:#fff;border-radius:8px;font-size:13px;max-width:320px;box-shadow:var(--shadow)}
+.switcher .lbl{font-size:11px;color:var(--mu)}
+.switcher small{color:var(--mu);font-size:12px}
+.switcher .chev{width:12px;height:12px;transform:rotate(90deg);color:var(--mu)}
+.topbar .sp{flex:1}
+.iconbtn{width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--mu);display:grid;place-items:center}
+.iconbtn:hover{background:#fff;border-color:var(--bd);color:var(--tx)}
+.iconbtn.on{background:var(--ac-bg);border-color:var(--ac-bd);color:var(--ac)}
+
+/* ========== 侧栏 ========== */
+.sidebar{width:244px;flex:none;background:var(--panel);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-height:0}
+.nav{padding:12px 10px 6px;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:8px;font-size:13.5px;color:var(--tx-2)}
+.nav a:hover{background:#fff}
+.nav a.on{background:var(--ac-bg);color:var(--ac);font-weight:600}
+.nav a .cnt{margin-left:auto;font-size:11px;color:var(--mu);background:#fff;border:1px solid var(--bd);padding:0 6px;border-radius:4px;line-height:18px}
+.nav a.on .cnt{color:var(--ac);border-color:var(--ac-bd)}
+.search{margin:8px 12px 4px;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--bd);border-radius:8px;background:#fff;color:var(--mu);font-size:12.5px}
+.search kbd{margin-left:auto}
+.list{flex:1;overflow:auto;padding:4px 8px 8px}
+.sec{display:flex;align-items:center;justify-content:space-between;padding:12px 8px 6px;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--mu)}
+.sec .n{font-weight:500}
+.sec .act{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;color:var(--mu)}
+.sec .act:hover{background:#fff;color:var(--tx)}
+.ci{position:relative;display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:8px;margin-bottom:2px;border:1px solid transparent}
+.ci:hover{background:#fff}
+.ci.on{background:#fff;border-color:var(--bd);box-shadow:var(--shadow)}
+.ci .dot{margin-top:7px}
+.ci .t{font-size:13px;color:var(--tx)}
+.ci .m{font-size:11.5px;color:var(--mu);margin-top:2px}
+.ci .ops{position:absolute;right:6px;top:6px;display:none;gap:2px}
+.ci:hover .ops{display:flex}
+.ci .ops a{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;color:var(--mu);background:#fff;border:1px solid var(--bd)}
+.ci .ops .i{width:12px;height:12px}
+.sec.fold{cursor:pointer}
+.sec.fold .chev{width:12px;height:12px;color:var(--mu)}
+.side-foot{border-top:1px solid var(--bd);padding:10px 12px 12px}
+.trust{display:flex;gap:9px;padding:10px 11px;border-radius:8px;background:var(--grn-bg);border:1px solid var(--grn-bd);font-size:12px;line-height:1.5;color:var(--tx-2)}
+.trust .i{color:var(--grn);margin-top:2px}
+.trust b{display:block;color:var(--grn);font-size:12.5px}
+.side-links{display:flex;gap:6px;margin-top:8px}
+.side-links a{flex:1;height:30px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--bd);border-radius:7px;background:#fff;font-size:12.5px;color:var(--tx-2)}
+.side-links a:hover{color:var(--tx)}
+
+/* ========== 主区 ========== */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.conv-head{padding:18px 32px 12px;border-bottom:1px solid var(--bd-soft)}
+.conv-head h1{margin:0;font-size:17px;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.conv-head .meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:var(--mu)}
+.conv-head .meta .sep{color:var(--bd)}
+.stream{flex:1;overflow:auto;padding:22px 32px 10px}
+.stream .inner{max-width:780px;display:flex;flex-direction:column;gap:18px}
+.who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu);margin-bottom:8px}
+.who .av{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:10px;font-weight:700}
+.who .av.u{background:#e5e7eb;color:#374151}
+.who .av.a{background:var(--ac);color:#fff}
+.who b{color:var(--tx);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);line-height:1.6}
+code.cmd{display:block;font-family:var(--mono);font-size:12.5px;line-height:1.55;background:#f3f4f6;border-radius:6px;padding:9px 11px;margin-top:10px;color:#1f2937;word-break:break-all;white-space:pre-wrap}
+.step{display:flex;gap:10px;padding:5px 0;color:var(--tx-2)}
+.step .ic{width:20px;height:20px;border-radius:50%;background:var(--ac-bg);color:var(--ac);display:grid;place-items:center;flex:none;margin-top:1px}
+.step .ic .i{width:11px;height:11px}
+.step .ic.amb{background:var(--amb-bg);color:var(--amb)}
+.step .ic.grn{background:var(--grn-bg);color:var(--grn)}
+.step .ic.red{background:var(--red-bg);color:var(--red)}
+.step .ic.spin{background:var(--ac-bg)}
+.step .ic.spin .i{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.step code{font-family:var(--mono);font-size:12.5px;background:#f3f4f6;padding:1px 5px;border-radius:4px;color:var(--tx)}
+.tool{margin:4px 0 0 30px;display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;background:var(--card);border:1px solid var(--bd);border-radius:8px;font-size:12.5px}
+.tool .i{color:var(--mu)}
+.tool .tag{font-size:10.5px;letter-spacing:.04em;padding:1px 6px;border-radius:4px;background:#f3f4f6;color:var(--mu);font-weight:600}
+.tool .cmdtxt{flex:1;min-width:0;color:var(--tx)}
+.tool .st{font-size:12px;display:flex;align-items:center;gap:6px}
+.tool .st.amb{color:var(--amb)}.tool .st.grn{color:var(--grn)}.tool .st.red{color:var(--red)}
+.out{margin:6px 0 0 30px;font-family:var(--mono);font-size:12px;line-height:1.6;background:#1f2328;color:#d1d5db;border-radius:8px;padding:10px 12px;white-space:pre-wrap}
+.out .ok{color:#6ee7a7}
+
+/* 审批卡 */
+.apv{margin:10px 0 0 30px;border-radius:12px;border:1px solid var(--amb-bd);background:var(--amb-bg);padding:14px 16px;transition:background .25s,border-color .25s}
+.apv .h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:#7a4b06}
+.apv .h .i{color:var(--amb)}
+.apv .rk{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:4px;background:var(--red-bg);color:var(--red)}
+.apv .h .id{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--mu)}
+.apv p{margin:6px 0 0;font-size:13px;color:#5f4a1f}
+.apv .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin-top:10px;padding:10px 12px;background:#fff;border:1px solid #f3e6c8;border-radius:8px;font-size:12.5px}
+.apv .kv .k{color:var(--mu)}
+.apv .kv .v{color:var(--tx)}
+.apv .kv .v.ok{color:var(--grn)}
+.apv .acts{display:flex;align-items:center;gap:8px;margin-top:14px}
+.apv .acts .hint{margin-left:auto;font-size:11.5px;color:var(--mu);display:flex;gap:8px;align-items:center}
+.btn{height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--bd);background:#fff;color:var(--tx);display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:#cfcbc1}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn.pri:hover{background:#0c645d}
+.btn.dan{color:var(--red);border-color:var(--red-bd)}
+.btn.dan:hover{background:var(--red-bg)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--tx-2);font-weight:500}
+.btn.ghost:hover{background:rgba(0,0,0,.04)}
+/* 审批卡 · 结果态 */
+.apv.approved{background:var(--grn-bg);border-color:var(--grn-bd)}
+.apv.approved .h{color:var(--grn)}.apv.approved .h .i{color:var(--grn)}
+.apv.rejected{background:#f3f4f6;border-color:var(--bd)}
+.apv.rejected .h{color:var(--tx-2)}.apv.rejected .h .i{color:var(--mu)}
+.apv.approved .acts,.apv.rejected .acts,.apv.approved p,.apv.rejected p{display:none}
+.apv .result{display:none;margin-top:8px;font-size:13px;color:var(--tx-2)}
+.apv.approved .result,.apv.rejected .result{display:block}
+
+/* Composer */
+.composer{margin:8px 32px 6px;max-width:780px;background:var(--card);border:1px solid var(--bd);border-radius:12px;box-shadow:0 2px 10px rgba(17,24,39,.06)}
+.composer textarea{width:100%;border:0;outline:0;resize:none;background:transparent;padding:12px 14px 4px;font:14px/1.5 var(--font);color:var(--tx);min-height:56px}
+.composer textarea::placeholder{color:var(--mu)}
+.composer .row{display:flex;align-items:center;gap:6px;padding:6px 8px 8px 10px}
+.composer .row .hint{margin-left:auto;font-size:11.5px;color:var(--mu);display:flex;gap:8px;align-items:center;margin-right:6px}
+.composer .send{height:30px;padding:0 12px;border-radius:7px;background:var(--ac);color:#fff;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;border:0}
+.composer .send .i{width:13px;height:13px}
+.foot{font-size:11.5px;color:var(--mu);padding:0 32px 12px;max-width:780px}
+
+/* ========== Inspector（内联可折叠） ========== */
+.inspector{width:320px;flex:none;border-left:1px solid var(--bd);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:hidden;transition:width .22s ease}
+.inspector.closed{width:0;border-left-color:transparent}
+.inspector>*{width:320px;flex:none}
+.tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--bd);height:44px}
+.tabs a{height:44px;display:flex;align-items:center;gap:5px;padding:0 10px;font-size:12.5px;color:var(--mu);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a .cnt{font-size:10.5px;padding:0 5px;border-radius:4px;background:#fff;border:1px solid var(--bd);line-height:16px}
+.tabs a.on{color:var(--ac);border-color:var(--ac);font-weight:600}
+.tabs a.on .cnt{color:var(--ac);border-color:var(--ac-bd)}
+.tabs .cl{margin-left:auto}
+.pane{display:none;flex:1;overflow:auto}
+.pane.on{display:block}
+.blk{padding:12px 14px;border-bottom:1px solid var(--bd-soft)}
+.blk:last-child{border-bottom:0}
+.blk h4{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--mu);display:flex;justify-content:space-between;align-items:center}
+.blk h4 a{font-weight:500;letter-spacing:0;color:var(--ac);font-size:11.5px}
+.fi{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--tx)}
+.fi:hover{background:#fff}
+.fi.on{background:#fff;box-shadow:inset 2px 0 0 var(--ac)}
+.fi .i{color:var(--mu);width:14px;height:14px}
+.fi .pm{margin-left:auto;font-size:11.5px;font-family:var(--mono)}
+.fi .pm .add{color:var(--grn)}.fi .pm .del{color:var(--red);margin-left:5px}
+.fi .role{margin-left:auto;font-size:11.5px;color:var(--mu)}
+.fi .role.amb{color:var(--amb)}
+.fi.sub{padding-left:24px}
+.empty{padding:14px 8px;font-size:12.5px;color:var(--mu);line-height:1.55;text-align:center;border:1px dashed var(--bd);border-radius:8px;background:#fff}
+.env{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:12.5px}
+.env .k{color:var(--mu)}
+.env .v{color:var(--tx)}
+.env .v.grn{color:var(--grn)}
+.act-item{display:flex;gap:10px;padding:7px 8px;font-size:12.5px;color:var(--tx-2);border-left:2px solid var(--bd);margin-left:6px}
+.act-item.cur{border-left-color:var(--amb)}
+.act-item .t{font-family:var(--mono);font-size:11px;color:var(--mu);width:56px;flex:none;padding-top:2px}
+.act-item code{font-family:var(--mono);font-size:12px;background:#fff;border:1px solid var(--bd);border-radius:4px;padding:0 5px;color:var(--tx)}
+.diff{font-family:var(--mono);font-size:12px;line-height:1.7;background:#fff;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.diff .hd{padding:6px 10px;background:#f3f4f6;color:var(--mu);border-bottom:1px solid var(--bd-soft);font-size:11.5px}
+.diff .ln{padding:0 10px;white-space:pre}
+.diff .ln.a{background:#ecfdf3;color:#166534}
+.diff .ln.c{color:var(--mu)}
+</style>
+</head>
+<body>
+
+<!-- 图标库 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+ <symbol id="i-task" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/></symbol>
+ <symbol id="i-rev" viewBox="0 0 24 24"><path d="M4 5h16v14H4z M8 12l3 3 5-6"/></symbol>
+ <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z M14 3v4h4"/></symbol>
+ <symbol id="i-fold" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></symbol>
+ <symbol id="i-set" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></symbol>
+ <symbol id="i-diag" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+ <symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-12 2-12 5"/></symbol>
+ <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2z M12 10v5M12 18v.5"/></symbol>
+ <symbol id="i-term" viewBox="0 0 24 24"><path d="M4 5h16v14H4z M7 9l3 3-3 3M12 15h5"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+ <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+ <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4"/></symbol>
+ <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12h14M13 6l6 6-6 6"/></symbol>
+ <symbol id="i-side" viewBox="0 0 24 24"><path d="M3 5h18v14H3z M15 5v14"/></symbol>
+ <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z M13 7l4 4"/></symbol>
+ <symbol id="i-arch" viewBox="0 0 24 24"><path d="M3 5h18v4H3z M5 9v10h14V9 M10 13h4"/></symbol>
+ <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h11v12H8z M5 16V4h11"/></symbol>
+ <symbol id="i-clip" viewBox="0 0 24 24"><path d="M20 12l-8 8a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></symbol>
+ <symbol id="i-load" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+ <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+</svg>
+
+<div class="app">
+
+ <!-- ================= 顶栏 ================= -->
+ <header class="topbar">
+  <div class="brand"><span class="logo">W7</span>Coding Agent <small>Alpha 2</small></div>
+
+  <a class="switcher" title="切换工作区">
+   <svg class="i" style="color:var(--mu)"><use href="#i-fold"/></svg>
+   <span class="ell">中文 空格</span>
+   <small class="mono ell">C:\A9-WIN7-18\workspace</small>
+   <svg class="i chev"><use href="#i-chev"/></svg>
+  </a>
+
+  <span class="sp"></span>
+
+  <!-- 单一状态源 -->
+  <span class="pill amb" id="statusPill"><span class="dot amb"></span>等待审批 · 1</span>
+  <span class="pill"><span class="dot grn"></span>Runtime 就绪</span>
+  <span class="pill" title="使用当前 Windows 用户权限，非安全沙箱"><svg class="i" style="width:12px;height:12px;color:var(--grn)"><use href="#i-shield"/></svg>Full Access</span>
+
+  <button class="iconbtn on" id="inspToggle" title="检查器 (⌘I)"><svg class="i"><use href="#i-side"/></svg></button>
+ </header>
+
+ <div class="body">
+
+  <!-- ================= 侧栏 ================= -->
+  <aside class="sidebar">
+   <nav class="nav">
+    <a class="on"><svg class="i"><use href="#i-chat"/></svg>对话</a>
+    <a><svg class="i"><use href="#i-task"/></svg>任务 <span class="cnt">1 进行中</span></a>
+    <a><svg class="i"><use href="#i-rev"/></svg>Review</a>
+   </nav>
+
+   <div class="search"><svg class="i" style="width:14px;height:14px"><use href="#i-search"/></svg>搜索对话<kbd>⌘K</kbd></div>
+
+   <div class="list">
+    <div class="sec"><span>待你处理 <span class="n">· 1</span></span></div>
+    <a class="ci on" id="convCur">
+     <span class="dot amb" id="convDot"></span>
+     <div style="min-width:0">
+      <div class="t ell">请必须使用 Shell 原样执行以下命令…</div>
+      <div class="m" id="convMeta">等待审批 · 12:23</div>
+     </div>
+     <span class="ops"><a title="重命名"><svg class="i"><use href="#i-edit"/></svg></a><a title="归档"><svg class="i"><use href="#i-arch"/></svg></a></span>
+    </a>
+
+    <div class="sec"><span>最近</span><a class="act" title="新建对话"><svg class="i" style="width:14px;height:14px"><use href="#i-plus"/></svg></a></div>
+    <a class="ci"><span class="dot grn"></span><div style="min-width:0"><div class="t ell">W18-C11</div><div class="m">已完成 · 12:23</div></div><span class="ops"><a><svg class="i"><use href="#i-edit"/></svg></a><a><svg class="i"><use href="#i-arch"/></svg></a></span></a>
+    <a class="ci"><span class="dot grn"></span><div style="min-width:0"><div class="t ell">W18-C10</div><div class="m">已完成 · 11:37</div></div><span class="ops"><a><svg class="i"><use href="#i-edit"/></svg></a><a><svg class="i"><use href="#i-arch"/></svg></a></span></a>
+    <a class="ci"><span class="dot grn"></span><div style="min-width:0"><div class="t ell">W18-C09</div><div class="m">已完成 · 11:02</div></div><span class="ops"><a><svg class="i"><use href="#i-edit"/></svg></a><a><svg class="i"><use href="#i-arch"/></svg></a></span></a>
+    <a class="ci"><span class="dot grn"></span><div style="min-width:0"><div class="t ell">W18-C08 修复 alpha.txt 编码问题</div><div class="m">已完成 · 10:48</div></div><span class="ops"><a><svg class="i"><use href="#i-edit"/></svg></a><a><svg class="i"><use href="#i-arch"/></svg></a></span></a>
+    <a class="ci"><span class="dot grn"></span><div style="min-width:0"><div class="t ell">W18-C07 初始化仓库</div><div class="m">已完成 · 昨天</div></div><span class="ops"><a><svg class="i"><use href="#i-edit"/></svg></a><a><svg class="i"><use href="#i-arch"/></svg></a></span></a>
+
+    <div class="sec fold"><span>已归档 <span class="n">· 1</span></span><svg class="i chev"><use href="#i-chev"/></svg></div>
+   </div>
+
+   <div class="side-foot">
+    <div class="trust">
+     <svg class="i"><use href="#i-shield"/></svg>
+     <div><b>可信工作区 · Full Access</b>使用当前 Windows 用户权限执行，非安全沙箱。</div>
+    </div>
+    <div class="side-links">
+     <a><svg class="i" style="width:14px;height:14px"><use href="#i-set"/></svg>设置</a>
+     <a><svg class="i" style="width:14px;height:14px"><use href="#i-diag"/></svg>诊断</a>
+    </div>
+   </div>
+  </aside>
+
+  <!-- ================= 主区 ================= -->
+  <main class="main">
+   <div class="conv-head">
+    <h1>请必须使用 Shell 原样执行以下命令，不要改写，也不要执行其他命令</h1>
+    <div class="meta">
+     <span>W18-C12</span><span class="sep">|</span>
+     <span>2026/8/28 12:23</span><span class="sep">|</span>
+     <span class="mono">turn-1787891023680-1</span>
+     <a title="复制轮次 ID" style="display:inline-flex;color:var(--mu)"><svg class="i" style="width:13px;height:13px"><use href="#i-copy"/></svg></a>
+    </div>
+   </div>
+
+   <section class="stream">
+    <div class="inner" id="stream">
+
+     <!-- 用户消息 -->
+     <div>
+      <div class="who"><span class="av u">你</span><b>你</b><span>12:23:43</span></div>
+      <div class="card">
+       请必须使用 Shell 原样执行以下命令，不要改写，也不要执行其他命令：
+       <code class="cmd">cmd.exe /d /s /c "if exist alpha.txt (C:\acceptance\mvp_mingit\cmd\git.exe push origin HEAD:refs/heads/w18-cmd-if)"</code>
+      </div>
+     </div>
+
+     <!-- Agent 回合 -->
+     <div>
+      <div class="who"><span class="av a">A</span><b>Agent</b><span>12:23:44</span></div>
+
+      <div class="step"><span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span>已理解：仅当 <code>alpha.txt</code> 存在时，把当前 HEAD 推送到远端分支 <code>w18-cmd-if</code>；不会改写命令，也不会执行其他命令。</span></div>
+      <div class="step"><span class="ic"><svg class="i"><use href="#i-check"/></svg></span><span>已检查：<code>alpha.txt</code> 存在于工作区根目录，因此条件成立，命令将实际触发 <code>git push</code>。</span></div>
+
+      <div class="tool" id="toolRow">
+       <svg class="i"><use href="#i-term"/></svg>
+       <span class="tag">SHELL</span>
+       <span class="cmdtxt mono ell">git push origin HEAD:refs/heads/w18-cmd-if</span>
+       <span class="st amb" id="toolSt"><span class="dot amb"></span>等待审批</span>
+      </div>
+
+      <!-- 内联审批卡 -->
+      <div class="apv" id="apv">
+       <div class="h">
+        <svg class="i"><use href="#i-warn"/></svg>
+        <span id="apvTitle">需要你的确认</span>
+        <span class="rk">高影响</span>
+        <span class="id mono">apr-87b6475b…8b26</span>
+       </div>
+       <p>该操作会修改远端仓库 <b>origin</b>。批准后立即执行；推送本身无法撤销。</p>
+       <div class="kv mono">
+        <span class="k">命令</span><span class="v">git push remote=origin branch=w18-cmd-if</span>
+        <span class="k">force</span><span class="v ok">false</span>
+        <span class="k">delete</span><span class="v ok">—</span>
+        <span class="k">工作目录</span><span class="v">C:\A9-WIN7-18\workspace</span>
+       </div>
+       <div class="result" id="apvResult"></div>
+       <div class="acts">
+        <button class="btn pri" id="btnApprove"><svg class="i" style="width:14px;height:14px"><use href="#i-check"/></svg>批准并执行</button>
+        <button class="btn dan" id="btnReject">拒绝</button>
+        <button class="btn ghost">查看原始命令</button>
+        <span class="hint"><kbd>⏎</kbd>批准<kbd>Esc</kbd>拒绝</span>
+       </div>
+      </div>
+     </div>
+
+    </div>
+   </section>
+
+   <div class="composer">
+    <textarea rows="2" placeholder="补充说明，或询问当前代码…（审批期间可以继续对话，但不会执行新命令）"></textarea>
+    <div class="row">
+     <button class="iconbtn" title="附加文件" style="width:28px;height:28px"><svg class="i" style="width:14px;height:14px"><use href="#i-clip"/></svg></button>
+     <span class="hint"><kbd>Enter</kbd>发送<kbd>Shift+Enter</kbd>换行</span>
+     <button class="send">发送 <svg class="i"><use href="#i-send"/></svg></button>
+    </div>
+   </div>
+   <div class="foot">同一工作区一次只运行一个任务 · 凭据已由 Windows DPAPI 加密</div>
+  </main>
+
+  <!-- ================= Inspector ================= -->
+  <aside class="inspector" id="inspector">
+   <div class="tabs">
+    <a class="on" data-tab="files">文件</a>
+    <a data-tab="changes">变更 <span class="cnt">1</span></a>
+    <a data-tab="activity">活动</a>
+    <a data-tab="env">环境</a>
+    <a class="cl iconbtn" id="inspClose" title="收起"><svg class="i" style="width:14px;height:14px"><use href="#i-x"/></svg></a>
+   </div>
+
+   <div class="pane on" data-pane="files">
+    <div class="blk">
+     <h4>本轮涉及 <a>全部展开</a></h4>
+     <div class="fi on"><svg class="i"><use href="#i-file"/></svg><span class="mono">alpha.txt</span><span class="role">读取</span></div>
+     <div class="fi"><svg class="i"><use href="#i-git"/></svg><span class="mono">origin / w18-cmd-if</span><span class="role amb">将推送</span></div>
+    </div>
+    <div class="blk">
+     <h4>工作区 <a>上一级</a></h4>
+     <div class="fi"><svg class="i"><use href="#i-fold"/></svg><span class="mono">.agent_recovery</span></div>
+     <div class="fi"><svg class="i"><use href="#i-fold"/></svg><span class="mono">.git</span></div>
+     <div class="fi"><svg class="i"><use href="#i-file"/></svg><span class="mono">alpha.txt</span><span class="pm"><span class="add">+3</span><span class="del">−0</span></span></div>
+    </div>
+   </div>
+
+   <div class="pane" data-pane="changes">
+    <div class="blk">
+     <h4>未提交变更 · 1 文件</h4>
+     <div class="fi on"><svg class="i"><use href="#i-file"/></svg><span class="mono">alpha.txt</span><span class="pm"><span class="add">+3</span><span class="del">−0</span></span></div>
+    </div>
+    <div class="blk">
+     <div class="diff">
+      <div class="hd">alpha.txt · @@ -0,0 +1,3 @@</div>
+      <div class="ln a">+ alpha</div>
+      <div class="ln a">+ w18-cmd-if</div>
+      <div class="ln a">+ ok</div>
+     </div>
+    </div>
+   </div>
+
+   <div class="pane" data-pane="activity">
+    <div class="blk">
+     <h4>本轮时间线</h4>
+     <div class="act-item"><span class="t">12:23:43</span><span>收到用户请求</span></div>
+     <div class="act-item"><span class="t">12:23:44</span><span><code>fs.stat</code> alpha.txt → 存在（21 B）</span></div>
+     <div class="act-item"><span class="t">12:23:44</span><span>识别到 <code>git push</code>，标记为高影响</span></div>
+     <div class="act-item cur" id="actCur"><span class="t">12:23:44</span><span>等待你的审批</span></div>
+    </div>
+   </div>
+
+   <div class="pane" data-pane="env">
+    <div class="blk">
+     <h4>运行环境</h4>
+     <div class="env">
+      <span class="k">分支</span><span class="v mono">w18-cmd-if</span>
+      <span class="k">远端</span><span class="v mono">origin</span>
+      <span class="k">Git</span><span class="v mono">mvp_mingit 2.44</span>
+      <span class="k">Shell</span><span class="v mono">cmd.exe</span>
+      <span class="k">权限</span><span class="v grn">Full Access · 非沙箱</span>
+      <span class="k">凭据</span><span class="v">Windows DPAPI</span>
+      <span class="k">Runtime</span><span class="v grn">就绪</span>
+     </div>
+    </div>
+    <div class="blk">
+     <div class="empty">高风险工具（git push / 删除 / 覆盖）默认需要人工审批，可在「设置 → 安全」调整。</div>
+    </div>
+   </div>
+  </aside>
+
+ </div>
+</div>
+
+<script>
+/* ---------- Inspector 折叠 ---------- */
+const insp = document.getElementById('inspector');
+const inspBtn = document.getElementById('inspToggle');
+function toggleInsp(force){
+  const closed = force===undefined ? !insp.classList.contains('closed') : !force;
+  insp.classList.toggle('closed', closed);
+  inspBtn.classList.toggle('on', !closed);
+}
+inspBtn.onclick = () => toggleInsp();
+document.getElementById('inspClose').onclick = () => toggleInsp(false);
+document.addEventListener('keydown', e => {
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='i'){ e.preventDefault(); toggleInsp(); }
+});
+
+/* ---------- Inspector Tab ---------- */
+document.querySelectorAll('.tabs a[data-tab]').forEach(a => a.onclick = () => {
+  document.querySelectorAll('.tabs a[data-tab]').forEach(x => x.classList.toggle('on', x===a));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane===a.dataset.tab));
+});
+
+/* ---------- 审批流转（演示） ---------- */
+const apv = document.getElementById('apv'), apvTitle = document.getElementById('apvTitle'),
+      apvResult = document.getElementById('apvResult'), toolSt = document.getElementById('toolSt'),
+      pill = document.getElementById('statusPill'), convDot = document.getElementById('convDot'),
+      convMeta = document.getElementById('convMeta'), stream = document.getElementById('stream');
+let decided = false;
+
+function setStatus(cls, text){
+  pill.className = 'pill ' + cls;
+  pill.innerHTML = `<span class="dot ${cls}"></span>${text}`;
+  convDot.className = 'dot ' + cls;
+  convMeta.textContent = text.replace(/ · \d+$/, '') + ' · 12:24';
+}
+function agentStep(html, ic){
+  const d = document.createElement('div');
+  d.className = 'step';
+  d.innerHTML = `<span class="ic ${ic||''}"><svg class="i"><use href="#${ic==='spin'?'i-load':ic==='red'?'i-x':'i-check'}"/></svg></span><span>${html}</span>`;
+  stream.lastElementChild.appendChild(d);
+  stream.parentElement.scrollTop = stream.parentElement.scrollHeight;
+  return d;
+}
+
+document.getElementById('btnApprove').onclick = () => {
+  if (decided) return; decided = true;
+  apv.classList.add('approved');
+  apvTitle.textContent = '已批准 · 正在执行';
+  apvResult.textContent = '你于 12:24:02 批准了此操作。';
+  toolSt.className = 'st'; toolSt.innerHTML = '<svg class="i spin" style="width:13px;height:13px;animation:spin 1s linear infinite"><use href="#i-load"/></svg>执行中';
+  setStatus('amb', '执行中');
+  const running = agentStep('正在推送到 <code>origin/w18-cmd-if</code>…', 'spin');
+  setTimeout(() => {
+    running.remove();
+    apvTitle.textContent = '已批准 · 执行成功';
+    toolSt.className = 'st grn'; toolSt.innerHTML = '<span class="dot grn"></span>成功 · 1.3s';
+    const out = document.createElement('div');
+    out.className = 'out';
+    out.innerHTML = `To C:\\acceptance\\remote\\repo.git\n * [new branch]      HEAD -&gt; w18-cmd-if\n<span class="ok">✓ exit code 0</span>`;
+    stream.lastElementChild.appendChild(out);
+    agentStep('推送完成：远端已新增分支 <code>w18-cmd-if</code>，未执行其他命令。', 'grn');
+    setStatus('grn', '已完成');
+    document.getElementById('actCur').outerHTML =
+      `<div class="act-item"><span class="t">12:24:02</span><span>用户批准</span></div>
+       <div class="act-item"><span class="t">12:24:03</span><span><code>shell</code> git push → exit 0</span></div>`;
+  }, 1400);
+};
+
+document.getElementById('btnReject').onclick = () => {
+  if (decided) return; decided = true;
+  apv.classList.add('rejected');
+  apvTitle.textContent = '已拒绝';
+  apvResult.textContent = '你于 12:24:02 拒绝了此操作，命令未执行。';
+  toolSt.className = 'st red'; toolSt.innerHTML = '<span class="dot red"></span>已拒绝';
+  agentStep('已取消，未执行任何命令。如需调整命令或权限，可以直接告诉我。', 'red');
+  setStatus('mu', '已取消');
+  document.getElementById('actCur').outerHTML = `<div class="act-item"><span class="t">12:24:02</span><span>用户拒绝，任务结束</span></div>`;
+};
+
+document.addEventListener('keydown', e => {
+  if (decided || e.target.tagName==='TEXTAREA') return;
+  if (e.key==='Enter') document.getElementById('btnApprove').click();
+  if (e.key==='Escape') document.getElementById('btnReject').click();
+});
+</script>
+</body>
+</html>

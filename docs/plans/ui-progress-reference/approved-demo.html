@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Coding Agent · 完整交互 Demo 02</title>
+<style>
+:root{--bg:#f4f3ef;--panel:#faf9f6;--line:#e3e1da;--text:#242923;--muted:#646b62;--accent:#176d60;--soft:#e9f2ed;--amber:#835012;--amberbg:#fff7e7;--red:#a2342d;--font:"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif}
+*{box-sizing:border-box}body{margin:0;color:var(--text);background:var(--bg);font:14px/1.6 var(--font)}button,input,textarea,select{font:inherit}button{cursor:pointer;color:inherit;background:transparent;border:1px solid transparent;border-radius:7px;padding:7px 12px}button:hover:not(:disabled){background:#eeeee7}button:disabled{cursor:not-allowed;opacity:.55}button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button.primary{background:var(--accent);color:white;border-color:var(--accent)}button.primary:hover:not(:disabled){background:#11584d}.secondary{background:white;border-color:var(--line)}.muted,small{color:var(--muted)}small{font-size:12px}.mono,pre,code{font-family:Consolas,Menlo,monospace}.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:5px;font-size:12px;background:var(--soft);color:var(--accent);white-space:nowrap}.waiting{background:var(--amberbg);color:var(--amber)}.danger{color:var(--red)}[hidden]{display:none!important}
+.demo-bar{min-height:40px;padding:6px 18px;background:#e9e9e1;border-bottom:1px solid #d9dbd1;display:flex;gap:12px;align-items:center;font-size:12px}.demo-bar strong{letter-spacing:1px}.demo-bar .spacer{flex:1}.demo-bar select{font-size:12px;background:var(--panel);border:1px solid #c9cec3;border-radius:5px;padding:3px 8px}.demo-bar button{padding:3px 8px;font-size:12px}.app{height:calc(100vh - 41px);min-height:480px;display:flex;flex-direction:column}.top{height:62px;flex-shrink:0;border-bottom:1px solid var(--line);background:var(--panel);display:flex;align-items:center;padding:0 20px;gap:18px}.brand{width:200px;display:flex;gap:10px;align-items:center;font-weight:650;white-space:nowrap}.logo{background:var(--accent);color:white;width:30px;height:30px;display:grid;place-items:center;border-radius:9px;font-size:11px}.workspace{min-width:0;flex:1}.workspace strong{font-size:13px}.workspace small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.top-actions{display:flex;gap:6px;align-items:center}.body{display:flex;flex:1;min-height:0}.sidebar{width:230px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);padding:20px 14px 14px;display:flex;flex-direction:column}.new{width:100%;text-align:left;background:white;border-color:var(--line);font-weight:600}.section-label{font-size:11px;color:var(--muted);margin:25px 10px 9px;letter-spacing:1px}.conversation{display:block;text-align:left;width:100%;padding:12px 10px;margin-bottom:4px}.conversation strong{display:block;font-size:13px;font-weight:550}.conversation small{font-size:11px}.conversation.active{background:var(--soft);color:#195b4d}.side-bottom{margin-top:auto;border-top:1px solid var(--line);padding-top:14px}.side-bottom p{font-size:11px;color:var(--muted);padding:0 8px}.side-bottom button{font-size:12px}.center{flex:1;min-width:0;display:flex;flex-direction:column;background:#fdfcf9}.heading{padding:25px 32px 17px;border-bottom:1px solid #eeece5;display:flex;gap:10px;align-items:center}.heading>div{flex:1;min-width:0}.eyebrow{font-size:11px;letter-spacing:1.3px;color:var(--muted)}h1{font-size:20px;line-height:1.4;letter-spacing:-.4px;margin:5px 0 4px;font-weight:600}.stream{flex:1;overflow:auto;padding:26px 32px;scroll-behavior:smooth}.stream-inner{max-width:820px;margin:auto}.author{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:10px}.avatar{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:#e8e9e2;font-size:11px}.avatar.agent{background:var(--accent);color:white}.user-message{background:#efeee8;border-radius:2px 12px 12px;padding:15px 18px;margin-bottom:26px;line-height:1.8}.agent-message p{margin:8px 0 16px}.tool{border:1px solid var(--line);border-radius:8px;margin:17px 0;background:white}.tool summary{cursor:pointer;padding:11px 14px;font-size:12px}.tool pre{border-top:1px solid var(--line);margin:0;padding:12px 14px;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted)}.approval{border:1px solid #dfc696;border-radius:10px;background:var(--amberbg);padding:19px 20px;margin-top:18px}.approval-top{display:flex;align-items:center;gap:10px;color:var(--amber);font-size:15px;font-weight:600}.approval p{font-size:13px;margin:8px 0 14px;color:#725424}.binding{display:grid;grid-template-columns:74px minmax(0,1fr);gap:8px;background:#fffcf5;border:1px solid #eaddc3;padding:12px;border-radius:7px;font-size:12px}.binding dt{color:var(--muted)}.binding dd{margin:0;overflow-wrap:anywhere}.command{white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0 0;font-size:12px;padding:12px;background:#fffcf5;border:1px solid #eaddc3;border-radius:7px}.approval-actions{display:flex;gap:8px;margin-top:16px;align-items:center}.approval-actions small{margin-left:auto;font-size:11px}.outcome{border-left:3px solid var(--accent);padding:10px 15px;background:var(--soft);margin-top:18px}.outcome h2{font-size:15px;margin:0 0 5px}.outcome p{font-size:13px;margin:0}.outcome.error{background:#f9ece7;border-color:var(--red)}.composer-wrap{padding:14px 32px 13px}.composer{border:1px solid #dcded3;border-radius:10px;background:white;max-width:820px;margin:auto;box-shadow:0 3px 12px #26341a05}.composer textarea{border:0;background:transparent;resize:none;width:100%;min-height:64px;max-height:120px;padding:14px 15px;display:block;color:var(--text)}.composer textarea:disabled{background:#f5f5f0;color:#737869}.composer-row{display:flex;align-items:center;gap:10px;padding:8px 12px}.composer-row small{flex:1;font-size:11px}.composer-footer{max-width:820px;margin:8px auto 0;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:12px}.inspector{width:310px;flex-shrink:0;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}.inspector-head{display:flex;justify-content:space-between;align-items:center;padding:15px 18px 8px;font-size:13px;font-weight:600}.tabs{display:flex;padding:0 12px;border-bottom:1px solid var(--line)}.tabs button{flex:1;border-radius:0;font-size:12px;padding:9px 5px;border-bottom:2px solid transparent}.tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}.panel{padding:20px 18px;overflow:auto;flex:1}.panel h3{font-size:12px;margin:0 0 13px;font-weight:600}.file{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:10px 9px;border-radius:6px;background:white;border:1px solid var(--line);margin:7px 0}.diff{font-size:11px;padding:12px;background:white;border:1px solid var(--line);border-radius:6px;overflow:auto;line-height:1.9}.added{color:#24633e;background:#edf5eb;display:block}.panel hr{border:0;border-top:1px solid var(--line);margin:22px 0}.panel p{font-size:12px}.checkpoint{border:1px solid var(--line);border-radius:7px;padding:12px;background:white}.checkpoint button{font-size:12px;margin-top:8px}.timeline{font-size:12px;padding-left:20px;line-height:2.1}.timeline li{padding-bottom:12px}.env{display:grid;grid-template-columns:65px minmax(0,1fr);gap:12px;font-size:12px}.env dd{margin:0;overflow-wrap:anywhere}.env dt{color:var(--muted)}.welcome{text-align:center;padding:45px 0}.welcome h2{font-size:25px;font-weight:550}.welcome p{max-width:400px;margin:14px auto;color:var(--muted)}.welcome button{margin:6px;font-size:13px}.mobile-nav{display:none}dialog{width:480px;max-width:calc(100vw - 32px);border:1px solid var(--line);border-radius:12px;padding:25px;box-shadow:0 18px 80px #17241526;color:var(--text);background:var(--panel)}dialog::backdrop{background:#222b2450}dialog h2{font-size:19px;margin:0 0 14px}dialog p{font-size:13px}dialog .buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.choice{display:block;background:white;padding:13px;border:1px solid var(--line);border-radius:8px;margin:10px 0;font-size:13px}.choice small{display:block;margin-left:23px}.feedback{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#293c32;color:white;border-radius:8px;padding:10px 18px;z-index:5;font-size:12px;max-width:85vw}.demo-note{color:var(--muted)}
+@media(min-width:1181px){.inspector.folded{display:none}}
+@media(max-width:1180px){.inspector{display:none;position:absolute;right:0;top:103px;bottom:0;z-index:3;box-shadow:-12px 0 40px #22221114;width:330px}.inspector.open{display:flex}.heading,.stream{padding-left:25px;padding-right:25px}.composer-wrap{padding-left:25px;padding-right:25px}.sidebar{width:210px}.brand{width:180px}.top{gap:10px}.top-actions .provider{display:none}}
+@media(max-width:760px){.sidebar{display:none;position:absolute;top:103px;bottom:0;left:0;z-index:4;box-shadow:12px 0 40px #22221114;width:240px}.sidebar.open{display:flex}.mobile-nav{display:block}.brand{width:auto}.brand .brand-name{display:none}.top{padding:0 12px;gap:8px}.top-actions{gap:2px}.top-actions button{font-size:11px;padding:6px}.workspace small{max-width:180px}.demo-note{display:none}.demo-bar{padding:6px 10px;gap:6px}.heading{padding:16px}.heading h1{font-size:18px}.stream{padding:18px 16px}.composer-wrap{padding:10px 16px}.approval{padding:14px}.approval-actions{flex-wrap:wrap}.approval-actions small{width:100%;margin-left:0}.composer-footer span:last-child{display:none}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+html,body{height:100%;overflow:hidden}body{display:flex;flex-direction:column}.demo-bar{flex:none;flex-wrap:wrap;min-height:41px}.app{height:auto;min-height:0;flex:1;position:relative}.body{position:relative}.top{height:auto;min-height:64px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}.workspace{text-align:left;line-height:1.4}.sidebar{width:235px;overflow:hidden}.side-scroll{flex:1;min-height:0;overflow:auto;padding-top:4px}.section-label{margin-top:18px}.searchbox{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:white;margin:12px 0 0}.conversation{position:relative;overflow-wrap:anywhere}.conversation strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.side-bottom{flex-shrink:0}.side-bottom p{margin:4px 8px}.side-controls{display:flex;gap:3px;border-bottom:1px solid var(--line);padding-bottom:8px}.side-controls button{font-size:12px}.archive-head{margin:17px 8px 5px;cursor:pointer;font-size:12px;color:var(--muted)}.archived-row{padding:8px;border-bottom:1px solid var(--line);font-size:12px}.archived-row button{font-size:11px;padding:3px 6px;float:right}.count{font-size:11px;border-radius:4px;background:#ecece3;padding:1px 5px}.heading{padding:17px 26px}.heading small{font-size:11px}.heading h1{font-size:19px}.stream{padding:20px 26px}.composer-wrap{padding:10px 26px}.composer textarea{min-height:50px}.turn{margin-bottom:30px}.turn+.turn{border-top:1px solid var(--line);padding-top:25px}.note{font-size:14px;line-height:1.85;margin:13px 0;overflow-wrap:anywhere}.activity-group{border:1px solid #dedfd4;background:#f7f7f1;border-radius:8px;margin:12px 0}.activity-group>summary{padding:10px 13px;font-size:12px;cursor:pointer;color:#535e51}.tool-item{border-top:1px solid #e4e5da;padding:10px 13px;font-size:12px}.tool-item>div:first-child{display:flex;gap:7px;align-items:baseline}.tool-item small{margin-left:auto;white-space:nowrap;font-size:11px}.tool-item pre{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);margin:5px 0 0}.tool-state{font-weight:600;color:var(--accent)}.tool-state.failure{color:var(--red)}.tool-state.running,.tool-state.stopping{color:var(--amber)}.tool-state.cancelled{color:var(--muted)}.waiting-line{border-left:2px solid #b5bbaa;padding:7px 12px;color:#616b5c;font-size:12px;margin:12px 0}.plan{padding:8px 12px;background:#f2f3eb;border-radius:6px;margin:12px 0;font-size:12px;display:flex;gap:12px;flex-wrap:wrap}.plan span.done{color:var(--accent)}.plan span.doing{color:#76511c;font-weight:600}.approval{margin:14px 0;padding:15px}.approval p{margin-bottom:8px}.approval .binding{margin:10px 0}.approval.record{background:#f7f7ef;border-color:var(--line);padding:12px 15px}.approval.record p{color:var(--muted);font-size:12px}.outcome{margin-top:13px}.outcome.warning{background:var(--amberbg);border-color:var(--amber)}.turn-footer{display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-top:12px;color:var(--muted)}.turn-footer button{font-size:11px;padding:2px 5px}.state-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;margin:0 0 8px;max-width:820px;margin-left:auto;margin-right:auto}.state-line .status-copy{flex:1}.jump-latest{display:block;margin:0 auto 6px;font-size:11px;background:var(--soft);color:var(--accent)}.panel{padding:15px}.file{width:100%;text-align:left;cursor:pointer}.path{font-size:11px;overflow-wrap:anywhere;color:var(--muted)}.viewer-tools{display:flex;flex-wrap:wrap;gap:6px}.viewer-tools input,.viewer-tools select{min-width:0;padding:5px;border:1px solid var(--line);border-radius:4px;font-size:11px;max-width:100%}.viewer-tools input[type=search]{flex:1;width:110px}.viewer-tools input[type=number]{width:65px}.code-lines{background:white;border:1px solid var(--line);overflow:auto;max-height:260px;font:11px/1.8 Consolas,monospace;padding:9px;margin:10px 0}.code-line{white-space:pre;display:block}.line-num{color:#7a8273;display:inline-block;width:25px;user-select:none}.code-line.hit{background:#fff0bf}.empty-note{border:1px dashed var(--line);border-radius:7px;padding:14px;font-size:12px;color:var(--muted);margin:10px 0}.kv{display:grid;grid-template-columns:80px minmax(0,1fr);gap:10px;font-size:12px}.kv dd{margin:0;overflow-wrap:anywhere}.kv dt{color:var(--muted)}dialog{max-height:85vh;overflow:auto;width:530px}dialog label.field{display:block;font-size:12px;margin:12px 0 5px}dialog input:not([type=radio]):not([type=checkbox]),dialog select,dialog textarea{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:white}dialog textarea{min-height:60px;resize:vertical}.dialog-error{color:var(--red);font-size:12px}.field-hint{font-size:11px;color:var(--muted)}.top-actions{flex-wrap:wrap}.top-actions .badge{font-size:11px}.global-note{font-size:11px;padding:4px 16px;background:var(--amberbg);color:var(--amber);flex:none}.backdrop{display:none;position:absolute;inset:0;background:#27332130;border-radius:0;z-index:2}.sidebar,.inspector{top:0;bottom:0}.inspector{width:310px}.inspector-head{padding-top:9px}.no-motion{animation:none}.storage-note{font-size:10px}.topbar-mini{font-size:11px}
+@media(max-width:1180px){.inspector{top:0;bottom:0}.backdrop.show-inspector{display:block}.sidebar{width:210px}.top-actions .provider{display:inline-flex}.brand{width:auto}.brand-name{font-size:12px}.workspace{min-width:160px}.top{gap:8px}.inspector{width:340px;max-width:94vw}}
+@media(max-width:760px){.sidebar{top:0;bottom:0;width:245px}.backdrop.show-nav{display:block}.brand .brand-name{display:none}.workspace{min-width:90px}.top-actions .runtime-chip{display:none}.top-actions .provider{display:none}.stream,.heading{padding-left:15px;padding-right:15px}.composer-wrap{padding-left:15px;padding-right:15px}.demo-bar .demo-note{display:none}.demo-bar button{font-size:11px}.demo-bar label{font-size:11px}.approval-actions small{width:100%}.composer-footer{flex-wrap:wrap}.top-actions{margin-left:auto}.activity-group>summary{overflow-wrap:anywhere}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* Reference-aligned visual refinement: warm surfaces, quiet chrome, teal hierarchy. */
+:root{--bg:#f4f3ef;--panel:#faf9f6;--line:#e6e3db;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--soft:#e7f3f0;--amber:#995d13;--amberbg:#fff6e8;--font:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif}
+body{-webkit-font-smoothing:antialiased}button{font-weight:500}button.secondary{border-color:var(--line);box-shadow:0 1px 2px #17251d04}.demo-bar{min-height:33px;padding:4px 16px;background:#eeede7;color:var(--muted);border-color:var(--line);font-size:11px}.demo-bar strong{font-size:10px;letter-spacing:1px;font-weight:600}.demo-bar select{border-color:var(--line);font-size:11px}.demo-bar button{padding:2px 8px;font-size:11px}.global-note{background:var(--panel);color:var(--muted);font-size:10px;padding:3px 16px;border-bottom:1px solid var(--line)}
+.top{min-height:56px;gap:14px;padding:8px 14px}.brand{padding-right:15px;border-right:1px solid var(--line);gap:9px}.brand-name{font-size:14px;font-weight:650}.logo{width:29px;height:29px;border-radius:8px}.workspace{flex:0 1 420px;display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:white;padding:7px 11px;border-radius:8px;box-shadow:0 1px 2px #11182708}.workspace:before{content:'▱';color:var(--muted);font-size:17px}.workspace strong{font-size:13px;white-space:nowrap;font-weight:500}.workspace small{font-size:11px;min-width:0}.top-actions{margin-left:auto;gap:9px}.top-actions .secondary,.runtime-chip{border-radius:999px;font-size:12px;padding:4px 11px;background:white;border:1px solid var(--line);color:var(--muted)}#inspectToggle{border-radius:8px;color:var(--accent);border-color:#bfe0d8;background:var(--soft);padding:6px 10px}.badge{border-radius:999px;border:1px solid #cce3dc;padding:3px 10px;font-size:11px}.badge.waiting{border-color:#f1d7a4}.sidebar{width:244px;padding:13px 10px 10px}.new{background:var(--soft);border-color:transparent;color:var(--accent);font-weight:600;padding:10px 12px}.searchbox{font-size:12px;padding:8px 10px;margin-top:14px;box-shadow:0 1px 2px #11182703}.section-label{font-size:11px;font-weight:600;letter-spacing:.3px;margin:20px 9px 8px}.conversation{padding:10px 12px;border:1px solid transparent;border-radius:8px}.conversation.active{background:white;border-color:var(--line);box-shadow:0 1px 3px #11182708;color:var(--text)}.conversation strong{font-size:13px;font-weight:500}.conversation strong:before{content:'';display:inline-block;width:6px;height:6px;background:#21a36b;border-radius:50%;margin:0 9px 2px 0}.conversation.active strong:before{background:var(--accent)}.conversation small{display:block;padding-left:15px;margin-top:3px;font-size:11px;color:var(--muted)}.count{background:white;border:1px solid var(--line);color:var(--muted)}.side-controls{gap:7px;padding:9px 2px;border:0}.side-controls button{font-size:11px;color:var(--muted);border:1px solid var(--line);background:white;padding:4px 9px}.side-bottom{padding-top:10px}.side-bottom p{margin:0 0 8px;padding:11px 12px;border:1px solid #bfe3cc;background:#e9f6ee;color:#246547;border-radius:8px;font-size:11px;line-height:1.7}.side-bottom>button{border:1px solid var(--line);background:white;color:var(--muted);padding:5px 10px;margin:2px;font-size:11px}.side-bottom>button:disabled{background:transparent;border-color:transparent;font-size:10px}
+.center{background:var(--bg)}.heading{padding:20px 32px 16px;border-bottom:1px solid #eae7df}.heading .eyebrow{font-size:10px;color:#7c838c;letter-spacing:.5px}.heading h1{font-size:18px;font-weight:600;margin:4px 0 6px}.heading small{font-size:11px}.stream{padding:24px 32px}.stream-inner{max-width:880px}.user-message{background:white;border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 2px #11182708;padding:16px 18px;font-size:14px;line-height:1.8;margin-bottom:22px}.author{gap:8px;margin-bottom:10px;color:var(--muted)}.author strong{color:var(--text);font-size:12px}.avatar{background:#e5e7eb;color:#4b5563;width:21px;height:21px;border-radius:6px}.avatar.agent{color:white}.note{position:relative;padding-left:29px;color:#4b5563;font-size:13px;line-height:1.85;margin:13px 0}.note:before{content:'✓';position:absolute;left:0;top:3px;width:19px;height:19px;display:grid;place-items:center;border-radius:50%;background:var(--soft);color:var(--accent);font-size:10px}.activity-group{margin:12px 0 12px 29px;background:white;border-color:var(--line);border-radius:8px}.activity-group>summary{color:var(--muted);padding:10px 12px;font-size:12px}.tool-item{border-color:#efede7}.tool-state.failed{color:var(--red)}.plan{background:transparent;padding:0 0 5px 29px;gap:14px;color:var(--muted);font-size:11px}.approval{margin:14px 0 14px 29px;border-color:#f1d7a4;border-radius:12px;padding:17px 18px}.approval-top{font-size:14px;color:#7a4b06}.approval .binding,.approval .command{background:white;border-color:#f3e6c8}.approval summary{font-size:11px;color:var(--muted)}.approval.record{background:#faf9f6;border-color:var(--line)}.approval-actions button{font-size:12px}.outcome{margin-left:29px;border-radius:0 8px 8px 0}.outcome h2{font-size:14px}.outcome p{font-size:12px;line-height:1.8}.turn-footer{margin-left:29px;font-size:10px;color:#7d858e}.composer-wrap{padding:10px 32px 12px;background:var(--bg)}.composer{max-width:880px;border-radius:12px;border-color:var(--line);box-shadow:0 2px 12px #11182708}.composer textarea{font-size:14px;min-height:66px;padding:14px 16px}.composer-row{padding:6px 10px 10px}.composer-row .primary{padding:6px 13px;border-radius:7px;font-size:12px}.composer-row small{color:var(--muted)}.state-line,.composer-footer{max-width:880px}.state-line{font-size:11px;color:var(--muted)}.composer-footer{font-size:10px}.welcome{padding:55px 15px 30px}.welcome:before{content:'W7';display:grid;place-items:center;width:44px;height:44px;background:var(--soft);color:var(--accent);border:1px solid #cce3dc;border-radius:13px;margin:0 auto 20px;font-size:13px;font-weight:650}.welcome .eyebrow{font-size:10px;letter-spacing:1px}.welcome h2{font-size:25px;font-weight:550;letter-spacing:-.5px;margin:12px 0}.welcome p{font-size:13px;line-height:1.85;max-width:390px}.welcome button{font-size:12px;border-color:var(--line);padding:8px 12px;box-shadow:0 1px 2px #11182705}
+.inspector{width:310px;background:var(--panel)}.inspector-head{font-size:11px;color:var(--muted);padding:8px 14px 0;font-weight:500}.inspector-head button{padding:0 6px;font-size:20px;color:#8b929b}.tabs{padding:0 10px}.tabs button{padding:10px 4px;font-size:12px;color:var(--muted)}.tabs button[aria-selected=true]{color:var(--accent)}.panel{padding:18px 15px}.panel h3{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.2px;margin-bottom:10px}.file{border-color:transparent;background:transparent;padding:8px;font-size:12px;box-shadow:none;border-radius:6px}.file:hover:not(:disabled){background:white;border-color:var(--line)}.path{font-size:10px}.panel>button[data-up]{font-size:11px;padding:3px 8px;color:var(--accent);background:white}.empty-note{background:white;border:1px dashed var(--line);font-size:11px;line-height:1.8}.checkpoint{padding:12px;border-color:var(--line)}.kv{font-size:11px;line-height:1.8}.timeline{font-size:11px}.panel hr{border-color:#eae7df}
+@media(min-width:1600px){.sidebar{width:260px}.inspector{width:330px}.stream-inner,.composer,.state-line,.composer-footer{max-width:960px}}
+@media(max-width:1180px){.sidebar{width:215px}.workspace{flex:1;max-width:360px}.brand-name{display:none}.top-actions{gap:5px}.top-actions .provider{display:none}.stream,.heading{padding-left:24px;padding-right:24px}.composer-wrap{padding-left:24px;padding-right:24px}.inspector{width:330px}}
+@media(max-width:760px){.workspace{max-width:none;min-width:90px;gap:5px;padding:6px}.workspace small{display:none}.workspace:before{display:none}.top{gap:6px}.brand{padding-right:0;border:0}.sidebar{width:245px}.top-actions .secondary{font-size:10px;padding:4px 7px}.heading,.stream{padding-left:15px;padding-right:15px}.composer-wrap{padding-left:15px;padding-right:15px}.approval,.activity-group,.outcome{margin-left:0}.note{padding-left:26px}.welcome{padding-top:30px}.welcome h2{font-size:22px}.global-note{font-size:9px}.turn-footer{margin-left:0;overflow-wrap:anywhere}}
+.note:before{content:'·';font-size:16px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="demo-bar"><strong>UI DEMO / 02</strong><span class="demo-note">完整流程 · 所有操作均为模拟</span><span class="spacer"></span><label for="scenario">演示场景</label><select id="scenario"><option value="normal">读取 → 修改 → 验证</option><option value="push">外部写入审批</option><option value="wait">长时间等待模型</option><option value="failure">工具失败 → 重试</option><option value="residue">停止但清理未确认</option></select><button id="play" class="secondary">播放流程</button><button id="restart" class="secondary">模拟重启</button></div>
+<div class="global-note" id="storageNote">仅使用示例文本。演示历史与草稿在当前浏览器标签页会话中保存，未加密；不连接模型或真实工作区。</div>
+<div class="app">
+<header class="top"><button class="mobile-nav" id="navToggle" aria-label="展开对话导航" aria-controls="sidebar" aria-expanded="false">☰</button><div class="brand"><span class="logo">W7</span><span class="brand-name">Coding Agent</span></div><button class="workspace" id="workspaceSelect" aria-haspopup="dialog"><strong id="workspaceName"></strong><small id="workspacePath" class="mono"></small></button><div class="top-actions"><span class="badge runtime-chip" id="runtimeChip">● Runtime 就绪 · 模拟</span><button class="provider secondary" id="provider">模型连接</button><button class="secondary" id="mode" aria-haspopup="dialog">Full Access ▾</button><button class="secondary" id="inspectToggle" aria-controls="inspector" aria-expanded="true" title="检查器 Ctrl+I">检查器 ◫</button></div></header>
+<div class="body"><button class="backdrop" id="backdrop" aria-label="收起侧栏"></button>
+<aside class="sidebar" id="sidebar" aria-label="对话导航"><button class="new" id="new">＋ 新建对话</button><label for="search" hidden>搜索对话标题</label><input class="searchbox" id="search" type="search" placeholder="搜索标题，含已归档 · Ctrl+K"><div class="side-scroll" id="directory"></div><div class="side-controls"><button id="rename">重命名</button><button id="archive">归档当前</button></div><div class="side-bottom"><p id="trustText"></p><button id="settings">⚙ 设置</button><button id="diagnostics">诊断 ↗</button><button disabled title="当前 Alpha 1 不支持完整 Review">Review · Alpha 2</button></div></aside>
+<main class="center"><div class="heading"><div><div class="eyebrow">工作区 / 对话</div><h1 id="title"></h1><small id="subtitle"></small></div><span class="badge" id="status"></span></div><section class="stream" id="stream" aria-label="任务过程和结果"><div class="stream-inner" id="messages"></div></section><footer class="composer-wrap"><button id="jumpLatest" class="jump-latest" hidden>有新的活动，回到最新 ↓</button><div class="state-line"><span class="status-copy" id="liveStatus" role="status" aria-live="polite"></span><span id="elapsed" class="muted"></span></div><div class="composer"><label for="prompt" hidden>任务描述，仅输入演示文本</label><textarea id="prompt" rows="2" maxlength="2000" placeholder="描述你想完成的事…"></textarea><div class="composer-row"><small id="inputHint">Enter 发送 · Shift+Enter 换行</small><button class="primary" id="send">发送 ↑</button><button class="secondary danger" id="stop" hidden>■ 停止</button></div></div><div class="composer-footer"><span id="draftStatus"></span><span>本地演示 · 无真实命令</span></div></footer></main>
+<aside class="inspector" id="inspector" aria-label="工作区检查器"><div class="inspector-head">工作区检查器<button id="closeInspector" aria-label="收起检查器">×</button></div><div class="tabs" role="tablist" aria-label="检查器内容"><button id="tab-files" role="tab" data-tab="files" aria-controls="files" aria-selected="true">文件</button><button id="tab-changes" role="tab" data-tab="changes" aria-controls="changes" aria-selected="false" tabindex="-1">变更</button><button id="tab-activity" role="tab" data-tab="activity" aria-controls="activity" aria-selected="false" tabindex="-1">活动</button><button id="tab-env" role="tab" data-tab="env" aria-controls="env" aria-selected="false" tabindex="-1">环境</button></div><section class="panel" id="files" role="tabpanel" aria-labelledby="tab-files"></section><section class="panel" id="changes" role="tabpanel" aria-labelledby="tab-changes" hidden></section><section class="panel" id="activity" role="tabpanel" aria-labelledby="tab-activity" hidden></section><section class="panel" id="env" role="tabpanel" aria-labelledby="tab-env" hidden></section></aside>
+</div></div>
+<dialog id="dialog" aria-labelledby="dialogTitle"><h2 id="dialogTitle"></h2><div id="dialogBody"></div><p id="dialogError" class="dialog-error" role="alert"></p><div class="buttons"><button id="dialogClose" class="secondary">取消</button><button id="dialogAction" class="primary"></button></div></dialog><div class="feedback" id="feedback" role="status" hidden></div>
+
+<script>
+
+/* Pure demo state model. No filesystem, process, network, or provider integration. */
+const DemoModel = (() => {
+  let serial = 0;
+  const id = () => 'demo-' + Date.now().toString(36) + '-' + (++serial);
+  const stamp = () => new Date().toISOString();
+  const workspaces = [
+    {id:'agent',name:'编码助手',path:'C:\\项目\\编码助手',mode:'Full Access',modelReady:true},
+    {id:'docs',name:'内部文档',path:'D:\\团队资料\\内部文档',mode:'Read Only',modelReady:true}
+  ];
+  const labels = {idle:'准备就绪',running:'执行中',waiting:'等待模型',approval:'等待你的批准',stopping:'正在停止',completed:'已完成',failed:'执行失败',cancelled:'已停止',rejected:'已拒绝',interrupted:'已中断',residue:'清理未确认'};
+  function conv(m){return m.conversations.find(c=>c.id===m.active)}
+  function ws(m){return m.workspaces.find(w=>w.id===m.workspace)}
+  function turn(m){const c=conv(m);return c&&c.turns[c.turns.length-1]}
+  function busy(m){return m.conversations.some(c=>c.workspace===m.workspace&&c.turns.some(t=>['running','waiting','approval','stopping'].includes(t.status)))}
+  function unresolved(m){return m.conversations.filter(c=>c.workspace===m.workspace).flatMap(c=>c.turns).find(t=>t.status==='residue')}
+  function addEvent(t,type,label,detail='',status='completed',extra={}){const e={id:id(),type,label,detail,status,time:stamp(),...extra};t.events.push(e);return e}
+  function newConversation(m,title='新对话'){if(busy(m))return null;const c={id:id(),workspace:m.workspace,title,archived:false,draft:'',turns:[]};m.conversations.unshift(c);m.active=c.id;return c}
+  function create(){
+    const m={schema:2,workspaces:workspaces.map(w=>({...w})),workspace:'agent',active:null,conversations:[]};
+    newConversation(m,'检查中文路径与编码');const a=start(m,'检查中文路径与编码','normal');addEvent(a,'note','先检查路径与文件编码。');addEvent(a,'tool','读取 README.md','UTF-8 · 已读取 8 行','completed',{path:'README.md'});finish(a,'completed','检查完成','示例结果：路径包含中文与空格，读取成功。');m.conversations[0].archived=true;
+    newConversation(m,'梳理项目入口');const b=start(m,'梳理项目入口','normal');addEvent(b,'note','先检查目录，再定位应用入口。');addEvent(b,'tool','读取 package.json','已定位入口 src/main.js','completed',{path:'package.json'});finish(b,'completed','已定位主要入口','示例：src/main.js 负责启动。');
+    newConversation(m,'优化工作台的进度反馈');return m;
+  }
+  function start(m,request,kind){
+    if(busy(m)||unresolved(m))return null;
+    const c=conv(m);if(!c||c.archived||!ws(m).modelReady)return null;
+    if(ws(m).mode==='Read Only'&&['push','failure','residue','retry'].includes(kind))return null;
+    const t={id:id(),request,kind,mode:ws(m).mode,created:stamp(),status:'running',events:[],plan:[],checkpoint:null};
+    c.turns.push(t);if(c.title==='新对话')c.title=request.slice(0,32);c.draft='';return t;
+  }
+  function finish(t,status,label,detail){t.status=status;addEvent(t,'result',label,detail,status)}
+  function updateTool(t,label,status,detail){const e=[...t.events].reverse().find(e=>e.type==='tool'&&e.label===label&&e.status==='running');if(e){e.status=status;e.detail=detail;e.ended=stamp()}return e}
+  function archive(m,cid){if(busy(m))return false;const c=m.conversations.find(c=>c.id===cid&&c.workspace===m.workspace);if(!c)return false;c.archived=true;if(m.active===cid){const next=m.conversations.find(x=>x.workspace===m.workspace&&!x.archived);if(next)m.active=next.id;else newConversation(m)}return true}
+  function restore(m,cid){if(busy(m))return false;const c=m.conversations.find(c=>c.id===cid&&c.workspace===m.workspace);if(!c)return false;c.archived=false;m.active=c.id;return true}
+  function select(m,cid){if(busy(m))return false;const c=m.conversations.find(c=>c.id===cid&&c.workspace===m.workspace&&!c.archived);if(!c)return false;m.active=cid;return true}
+  function switchWorkspace(m,wid){if(busy(m)||!m.workspaces.some(w=>w.id===wid))return false;m.workspace=wid;const c=m.conversations.find(c=>c.workspace===wid&&!c.archived);if(c)m.active=c.id;else newConversation(m);return true}
+  function recover(m){
+    for(const c of m.conversations)for(const t of c.turns)if(['running','waiting','approval','stopping'].includes(t.status)){
+      for(const e of t.events){if(e.status==='running')e.status='interrupted';if(e.type==='approval'&&e.status==='pending')e.status='expired'}
+      finish(t,'interrupted','上次任务已中断','保留已有记录；未自动续跑模型、工具或旧审批。');
+    }return m;
+  }
+  function decide(m,approved){const t=turn(m);if(!t||t.status!=='approval'||ws(m).mode!=='Full Access')return false;const e=t.events.find(e=>e.type==='approval'&&e.status==='pending');if(!e)return false;e.status=approved?'approved':'rejected';e.decided=stamp();t.status=approved?'running':'rejected';if(!approved)finish(t,'rejected','已拒绝此操作','命令未执行。可修改要求后重新发送。');return true}
+  return {create,conv,ws,turn,busy,unresolved,addEvent,start,finish,updateTool,newConversation,archive,restore,select,switchWorkspace,recover,decide,labels};
+})();
+
+/* UI controller */
+
+const $=id=>document.getElementById(id), D=DemoModel, storageKey='coding-agent-ui-demo-v2';
+let m=D.create(), storageOK=true, timerIds=[], lastFocus=null, noticeTimer=null, filePath='', folder='', selectedTab='files', readOnlyFocus=null;
+try{const raw=sessionStorage.getItem(storageKey);if(raw){const data=JSON.parse(raw);if(data.schema===2&&Array.isArray(data.conversations)&&Array.isArray(data.workspaces)&&data.conversations.some(c=>c.id===data.active))m=D.recover(data)}}catch(e){storageOK=false}
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clock=v=>new Date(v).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function persist(){try{sessionStorage.setItem(storageKey,JSON.stringify(m));storageOK=true}catch(e){storageOK=false}$('storageNote').textContent=storageOK?'仅使用示例文本。演示历史与草稿在当前浏览器标签页会话中保存，未加密；不连接模型或真实工作区。':'浏览器会话保存不可用；当前仅在内存中演示，刷新会丢失记录。'}
+function notice(s){clearTimeout(noticeTimer);$('feedback').textContent=s;$('feedback').hidden=false;noticeTimer=setTimeout(()=>$('feedback').hidden=true,4000)}
+function stopTimers(){timerIds.forEach(clearTimeout);timerIds=[]}
+function later(t,ms,fn){timerIds.push(setTimeout(()=>{if(D.turn(m)!==t||!['running','waiting'].includes(t.status))return;fn();commit()},ms))}
+function commit(){persist();render()}
+function toolsSummary(es){const active=es.find(e=>e.status==='running');if(active)return '◌ 正在'+active.label+' · '+es.length+' 项活动';const fail=es.filter(e=>e.status==='failed').length;const done=es.filter(e=>e.status==='completed').length;return '⌘ '+done+' 项完成'+(fail?' · '+fail+' 次失败':'')+' · 展开活动'}
+function toolHtml(e){const names={running:'执行中',completed:'成功',failed:'失败',cancelled:'已停止',interrupted:'已中断',residue:'清理未确认'};return '<div class="tool-item"><div><span class="tool-state '+esc(e.status)+'">'+esc(names[e.status]||e.status)+'</span><span>'+esc(e.label)+'</span><small>'+clock(e.time)+'</small></div><pre>'+esc(e.detail||'等待结果')+'</pre></div>'}
+function eventHtml(e){
+  if(e.type==='note')return '<p class="note">'+esc(e.label)+'</p>';
+  if(e.type==='wait')return '<div class="waiting-line">'+esc(e.label)+' <span class="wait-clock" data-since="'+esc(e.time)+'"></span></div>';
+  if(e.type==='approval'){
+    const pending=e.status==='pending',stateText={pending:'需要你的确认',approved:'已批准',rejected:'已拒绝',expired:'审批已失效'};
+    return '<section class="approval '+(pending?'':'record')+'"><div class="approval-top">◇ '+stateText[e.status]+'</div><p>'+(pending?'该操作将更新远端分支；本地撤销不能撤回推送。':'决定时间：'+clock(e.decided||e.time)+' · '+(e.status==='expired'?'任务中断后旧审批不可重用':'记录保留供回看'))+'</p><dl class="binding"><dt>目标</dt><dd>'+esc(e.target)+'</dd><dt>工作目录</dt><dd class="mono">'+esc(e.cwd)+'</dd><dt>强制 / 删除</dt><dd>否 / 否</dd></dl><details '+(pending?'open':'')+'><summary>完整命令与审批标识</summary><pre class="command">'+esc(e.command)+'\n'+esc(e.id)+'</pre></details>'+(pending?'<div class="approval-actions"><button class="primary" data-action="approve">批准此操作</button><button class="secondary" data-action="reject">拒绝</button><small>只批准上方目标与命令</small></div>':'')+'</section>';
+  }
+  if(e.type==='result'){return '<section class="outcome '+(e.status==='failed'?'error':['residue','interrupted'].includes(e.status)?'warning':'')+'"><h2>'+esc(e.label)+'</h2><p>'+esc(e.detail)+'</p>'+(e.status==='failed'?'<button class="secondary" data-action="retry" '+(D.busy(m)||D.unresolved(m)||D.ws(m).mode==='Read Only'?'disabled':'')+'>新建一次重试</button>':'')+'</section>'}
+  return '';
+}
+function renderMessages(){
+  const box=$('stream'),nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80,oldScroll=box.scrollTop;
+  const opens=new Set([...$('messages').querySelectorAll('details[open][data-group]')].map(x=>x.dataset.group));
+  const c=D.conv(m);
+  if(!c.turns.length){$('messages').innerHTML='<div class="welcome"><div class="eyebrow">每一步，都有迹可循</div><h2>今天想完成什么？</h2><p>发起任务后，可以看到进度说明、实际活动、需要你的决定，以及最终结果。</p><button class="secondary" data-action="suggest">演示工作台优化流程</button><button class="secondary" data-action="suggest-read">梳理项目入口</button><p><small>顶部可选择等待、失败、审批等场景。</small></p></div>';return}
+  $('messages').innerHTML=c.turns.map(t=>{
+    let content='';
+    for(let i=0;i<t.events.length;i++){
+      const e=t.events[i];
+      if(e.type==='tool'){
+        const batch=[e];while(i+1<t.events.length&&t.events[i+1].type==='tool')batch.push(t.events[++i]);
+        content+='<details class="activity-group" data-group="'+e.id+'" '+(opens.has(e.id)?'open':'')+'><summary>'+esc(toolsSummary(batch))+'</summary>'+batch.map(toolHtml).join('')+'</details>';
+      }else content+=eventHtml(e);
+    }
+    const plan=t.plan.length?'<div class="plan" aria-label="任务计划">'+t.plan.map(p=>'<span class="'+p.state+'">'+(p.state==='done'?'✓ ':p.state==='doing'?'◌ ':'○ ')+esc(p.name)+'</span>').join('')+'</div>':'';
+    return '<article class="turn"><div class="author"><span class="avatar">你</span><strong>你</strong><small>'+clock(t.created)+'</small></div><div class="user-message">'+esc(t.request)+'</div><div class="author"><span class="avatar agent">A</span><strong>Agent</strong><span class="badge">'+esc(D.labels[t.status])+'</span></div>'+plan+content+'<div class="turn-footer"><span>'+esc(t.id)+'</span><button data-copy="'+esc(t.id)+'">复制轮次 ID</button></div></article>';
+  }).join('');
+  if(nearBottom){box.scrollTop=box.scrollHeight;$('jumpLatest').hidden=true}else{box.scrollTop=oldScroll;$('jumpLatest').hidden=false}
+}
+function row(c){const t=c.turns[c.turns.length-1];return '<button class="conversation '+(c.id===m.active?'active':'')+'" data-conversation="'+c.id+'" '+(D.busy(m)?'disabled':'')+'><strong>'+esc(c.title)+'</strong><small>'+esc(t?D.labels[t.status]:'新对话')+(c.draft?' · 有草稿':'')+'</small></button>'}
+function renderDirectory(){
+  const q=$('search').value.trim().toLocaleLowerCase(),all=m.conversations.filter(c=>c.workspace===m.workspace&&c.title.toLocaleLowerCase().includes(q));
+  const active=all.filter(c=>!c.archived),pending=active.filter(c=>{const t=c.turns[c.turns.length-1];return t&&['approval','failed','residue','interrupted'].includes(t.status)}),recent=active.filter(c=>!pending.includes(c)),archived=all.filter(c=>c.archived);
+  const archiveWasOpen=$('directory').querySelector('details')?.open;
+  $('directory').innerHTML=(q?'<div class="section-label">搜索结果 · '+all.length+'</div>':'')+(pending.length?'<div class="section-label">待你处理 <span class="count">'+pending.length+'</span></div>'+pending.map(row).join(''):'')+'<div class="section-label">最近 <span class="count">'+recent.length+'</span></div>'+recent.map(row).join('')+(all.length?'':'<p class="empty-note">没有匹配的对话标题。</p>')+'<details '+(q||archiveWasOpen?'open':'')+'><summary class="archive-head">已归档 · '+archived.length+'</summary>'+archived.map(c=>'<div class="archived-row"><button data-restore="'+c.id+'" '+(D.busy(m)?'disabled':'')+'>恢复</button>'+esc(c.title)+'</div>').join('')+'</details>';
+}
+function statusText(t){
+  if(!t)return '准备就绪';
+  if(t.status==='approval')return '操作已暂停，请先处理审批';
+  if(t.status==='waiting')return '等待模型响应';
+  if(t.status==='stopping')return '正在停止，等待清理结果';
+  if(t.status==='residue')return '清理未确认；自动执行已停止';
+  if(t.status==='running'){const e=[...t.events].reverse().find(e=>e.type==='tool'&&e.status==='running');return e?'正在'+e.label:'正在准备下一步'}
+  return D.labels[t.status]||t.status;
+}
+function render(){
+  const c=D.conv(m),w=D.ws(m),t=D.turn(m),busy=D.busy(m);
+  $('workspaceName').textContent=w.name+' ▾';$('workspacePath').textContent=w.path;$('workspaceSelect').disabled=busy;
+  $('title').textContent=c.title;$('subtitle').textContent=w.mode+' · '+c.turns.length+' 轮记录 · 模拟数据';
+  $('status').textContent=D.labels[t?.status||'idle'];$('status').className='badge'+(t&&['approval','waiting','residue'].includes(t.status)?' waiting':'');
+  $('mode').textContent=w.mode+' ▾';$('mode').disabled=busy;$('trustText').textContent=w.mode==='Full Access'?'可信工作区 · 当前用户权限，非沙箱':'Read Only · 仅阅读分析，不能运行 Shell';
+  $('new').disabled=busy;$('archive').disabled=busy;$('rename').disabled=false;
+  $('provider').textContent=w.modelReady?'模型连接 · 就绪':'模型未配置';$('provider').disabled=busy;
+  $('prompt').disabled=busy||!w.modelReady||Boolean(D.unresolved(m));
+  if(document.activeElement!==$('prompt'))$('prompt').value=c.draft;
+  $('send').disabled=$('prompt').disabled||!c.draft.trim();$('send').hidden=busy;
+  $('stop').hidden=!t||!['running','waiting','stopping'].includes(t.status);$('stop').disabled=t?.status==='stopping';
+  $('stop').textContent=t?.status==='stopping'?'正在停止…':'■ 停止';
+  $('inputHint').textContent=busy?(t?.status==='approval'?'请先批准或拒绝当前操作':'当前任务进行中'):D.unresolved(m)?'请先在诊断中确认模拟清理状态':!w.modelReady?'请先在设置中配置模型':'Enter 发送 · Shift+Enter 换行';
+  $('liveStatus').textContent=statusText(t);$('draftStatus').textContent=c.draft?(storageOK?'草稿已保存到本标签页会话 · 未加密':'草稿仅在内存中'):'演示历史可回看 · 无真实执行';
+  $('play').disabled=busy||!w.modelReady||Boolean(D.unresolved(m));$('scenario').disabled=busy;
+  for(const o of $('scenario').options)o.disabled=w.mode==='Read Only'&&['push','failure','residue'].includes(o.value);
+  if($('scenario').selectedOptions[0]?.disabled)$('scenario').value='normal';
+  renderDirectory();renderMessages();renderPanel();updateClocks();
+}
+function updateClocks(){
+  const t=D.turn(m);
+  $('elapsed').textContent=t&&['running','waiting','stopping'].includes(t.status)?Math.max(0,Math.floor((Date.now()-Date.parse(t.created))/1000))+' 秒':'';
+  $('messages').querySelectorAll('.wait-clock').forEach(el=>{const article=el.closest('.turn');const isLast=article===$('messages').lastElementChild;if(isLast&&t&&t.status==='waiting'){const seconds=Math.floor((Date.now()-Date.parse(el.dataset.since))/1000);el.textContent=seconds>=10?'· 已等待 '+seconds+' 秒':''}else el.textContent=''});
+}
+function execute(kind,request){
+  const t=D.start(m,request,kind);if(!t){notice('当前状态不允许启动此场景。只读模式不能运行 Shell。');return}
+  stopTimers();
+  t.plan=[{name:'检查',state:'doing'},{name:t.mode==='Read Only'?'分析':'执行',state:'todo'},{name:'汇总',state:'todo'}];
+  D.addEvent(t,'note',kind==='push'?'我会核对推送目标，并在外部写入前等待你的批准。':'我会先读取相关文件，定位入口，再给出下一步结果。');
+  if(kind==='wait'){
+    t.status='waiting';D.addEvent(t,'wait','请求已发出，等待模型响应。');commit();return;
+  }
+  D.addEvent(t,'tool','读取 README.md','正在读取文件…','running',{path:'README.md'});commit();
+  later(t,1400,()=>{D.updateTool(t,'读取 README.md','completed','UTF-8 · 已读取 8 行');D.addEvent(t,'tool','读取 src/main.js','正在读取入口文件…','running',{path:'src/main.js'})});
+  later(t,2900,()=>{
+    D.updateTool(t,'读取 src/main.js','completed','UTF-8 · 已读取 5 行');
+    t.plan[0].state='done';t.plan[1].state='doing';
+    if(kind==='push'){
+      D.addEvent(t,'note','读取阶段已结束。下一步会更新远端分支，需要你确认完整目标和命令。');
+      D.addEvent(t,'approval','推送当前提交','','pending',{target:'origin · C:\\团队仓库\\agent.git → refs/heads/ui-preview',cwd:D.ws(m).path,command:'C:\\Tools\\MinGit\\cmd\\git.exe push origin HEAD:refs/heads/ui-preview'});
+      t.status='approval';return;
+    }
+    if(t.mode==='Read Only'){
+      D.addEvent(t,'note','已找到入口文件。当前为只读模式，我会汇总观察，不修改文件或运行命令。');return;
+    }
+    if(kind==='failure'||kind==='residue'||kind==='retry'){
+      D.addEvent(t,'note','已定位检查入口，现在运行示例检查命令。');
+      D.addEvent(t,'tool','运行检查命令','node scripts/check.js','running');return;
+    }
+    D.addEvent(t,'note','已找到界面入口。接下来更新进度反馈说明，再检查变更。');
+    D.addEvent(t,'tool','更新 README.md','增加进度反馈说明。','running',{path:'README.md'});
+  });
+  if(kind==='push'||kind==='residue')return;
+  later(t,4500,()=>{
+    if(kind==='retry'){
+      D.updateTool(t,'运行检查命令','completed','退出码 0 · 本次模拟检查通过。');
+      t.plan.forEach(p=>p.state='done');
+      D.finish(t,'completed','本次重试检查通过','示例退出码 0。原失败轮次保留，未修改文件。');return;
+    }
+    if(kind==='failure'){
+      D.updateTool(t,'运行检查命令','failed','退出码 1 · 示例依赖缺失，检查未通过。');
+      D.addEvent(t,'note','检查失败：示例依赖缺失。我会停在这里，保留失败记录，等待你决定是否重试。');
+      D.finish(t,'failed','检查未通过','未确认任务完成。重试会创建新一轮，保留本次失败记录。');return;
+    }
+    t.plan[1].state='done';t.plan[2].state='doing';
+    if(t.mode!=='Read Only'){
+      D.updateTool(t,'更新 README.md','completed','已增加 2 行说明。');
+      t.checkpoint={id:'cp-'+t.id,path:'README.md',undone:false};
+      D.addEvent(t,'note','说明已更新，现在检查修改后的内容。');
+      D.addEvent(t,'tool','验证 README.md','正在读取修改结果…','running',{path:'README.md'});
+    }else D.addEvent(t,'note','读取完成，正在整理入口与调用关系。');
+  });
+  later(t,6100,()=>{
+    if(t.mode!=='Read Only')D.updateTool(t,'验证 README.md','completed','示例检查通过：新增说明可见。');
+    t.plan.forEach(p=>p.state='done');
+    D.finish(t,'completed',t.mode==='Read Only'?'分析完成':'变更与检查完成',t.mode==='Read Only'?'示例结果：src/main.js 为入口。没有修改文件或运行 Shell。':'示例结果：README.md 新增 2 行说明，检查完成；可在变更页查看 Diff 和撤销范围。');
+  });
+}
+function approve(yes){
+  if(!D.decide(m,yes))return;
+  const t=D.turn(m);
+  if(yes){D.addEvent(t,'note','你已批准该目标，开始推送。');D.addEvent(t,'tool','执行 Git 推送','等待命令返回…','running');
+    later(t,2200,()=>{D.updateTool(t,'执行 Git 推送','completed','exit code 0\nHEAD → ui-preview\n模拟推送成功');t.plan.forEach(p=>p.state='done');D.finish(t,'completed','推送完成','模拟结果：远端分支已更新。审批决定与执行记录均已保留。')});
+  }commit();if(yes)$('stop').focus();else $('prompt').focus();
+}
+function stop(){
+  const t=D.turn(m);if(!t||!['running','waiting'].includes(t.status))return;
+  stopTimers();t.status='stopping';D.addEvent(t,'note','已收到停止请求，正在等待清理结果。');commit();
+  timerIds.push(setTimeout(()=>{
+    const residue=t.kind==='residue';for(const e of t.events)if(e.type==='tool'&&e.status==='running')e.status=residue?'residue':'cancelled';
+    D.finish(t,residue?'residue':'cancelled',residue?'清理状态未确认':'任务已停止',residue?'示例：无法确认子进程清理。已停止后续自动执行，请到诊断中确认状态。':'本次模拟已停止；已经完成的步骤仍保留。');
+    commit();if(!residue)$('prompt').focus();
+  },1400));
+}
+
+const sampleFiles={
+  'README.md':['# 编码助手','','本地工作区运行示例。','','## 本地运行','先选择可信工作区。','','## 进度反馈','读取、执行与检查状态可回看。'],
+  'package.json':['{','  "name": "coding-agent-demo",','  "main": "src/main.js"','}'],
+  'src/main.js':['// 示例入口，不是产品源码','function startWorkbench() {','  return "ready";','}','startWorkbench();'],
+  'docs/notes.md':['# 设计说明','','进度说明在关键节点出现。','工具活动依据真实事件更新。']
+};
+function renderPanel(){
+  const c=D.conv(m),t=D.turn(m),allEvents=c.turns.flatMap(t=>t.events),w=D.ws(m);
+  const paths=[...new Set(allEvents.filter(e=>e.type==='tool'&&e.path&&e.status==='completed').map(e=>e.path))];
+  const dirs=folder?[]:['src/','docs/'];const directFiles=Object.keys(sampleFiles).filter(p=>folder?p.startsWith(folder):!p.includes('/'));
+  $('files').innerHTML='<h3>工作区 · 示例文件</h3><p class="path">'+esc(w.path+'\\'+folder.replace(/\//g,'\\'))+'</p><button class="secondary" data-up '+(!folder?'disabled':'')+'>上一级</button>'+dirs.map(p=>'<button class="file mono" data-folder="'+p+'">▱ '+esc(p)+'</button>').join('')+directFiles.map(p=>'<button class="file mono" data-file="'+p+'">▤ '+esc(p.slice(folder.length))+'</button>').join('')+(filePath?'<hr><h3>'+esc(filePath)+'</h3><div class="viewer-tools"><select id="encoding" aria-label="文件编码"><option>UTF-8</option><option>GBK / CP936</option><option>UTF-16LE</option></select><input type="search" id="fileSearch" aria-label="文件内容查找" placeholder="在文件中查找"><input type="number" id="lineNumber" min="1" aria-label="跳转行号" placeholder="行号"><button class="secondary" data-jump>跳转</button></div><div class="code-lines" id="codeViewer"></div>':'')+'<hr><h3>本对话已读取或更新 · '+paths.length+'</h3>'+paths.map(p=>'<button class="file mono" data-file="'+esc(p)+'">'+esc(p)+'</button>').join('')+(!paths.length?'<p class="empty-note">尚无完成的文件活动。</p>':'');
+  if(filePath)renderCode();
+  const cps=c.turns.filter(x=>x.checkpoint);const cp=cps[cps.length-1]?.checkpoint;
+  $('tab-changes').textContent='变更'+(cp&&!cp.undone?' · 1':'');
+  $('changes').innerHTML='<h3>Checkpoint 与对应 Diff</h3>'+(cps.length?cps.map(x=>'<div class="checkpoint"><strong>'+esc(x.checkpoint.path)+'</strong><br><small>'+esc(x.checkpoint.id)+'</small><pre class="diff">'+(x.checkpoint.undone?'本轮变更已撤销。':'<span class="added">+ ## 进度反馈</span><span class="added">+ 读取、执行与检查状态可回看。</span>')+'</pre><button class="secondary" data-undo="'+x.id+'" '+(D.busy(m)||w.mode==='Read Only'||x.checkpoint.undone?'disabled':'')+'>'+(x.checkpoint.undone?'已撤销':'查看撤销范围')+'</button></div>').join(''):'<p class="empty-note">当前对话没有文件修改 Checkpoint。</p>')+'<hr><h3>Git 状态 · 模拟</h3><p id="gitSummary">'+(cp&&!cp.undone?'README.md · 已修改':'无示例未提交变更')+'</p><button class="secondary" data-git-refresh>刷新状态</button><p class="muted">本地撤销不能撤回远端推送。</p>';
+  $('activity').innerHTML='<h3>完整活动记录 · '+allEvents.length+'</h3>'+(allEvents.length?'<ol class="timeline">'+allEvents.map(e=>'<li><small>'+clock(e.time)+'</small><br>'+esc(e.label)+(e.type==='tool'?' · '+esc(e.status):'')+'</li>').join('')+'</ol>':'<p class="empty-note">发送任务后会在这里留下记录。</p>')+'<details><summary>原始输出 · 模拟</summary><pre class="diff">'+esc(allEvents.filter(e=>e.type==='tool').map(e=>e.label+'\n'+e.detail).join('\n\n')||'尚无输出')+'</pre><button class="secondary" data-output-copy>复制输出</button></details>';
+  $('env').innerHTML='<h3>运行环境 · 模拟数据</h3><dl class="kv"><dt>工作区</dt><dd>'+esc(w.path)+'</dd><dt>模式</dt><dd>'+esc(w.mode)+'</dd><dt>当前分支</dt><dd>main</dd><dt>推送目标</dt><dd>ui-preview（审批场景）</dd><dt>Git</dt><dd>MinGit 2.46.2 · 示例</dd><dt>Shell</dt><dd>'+esc(w.shell||'自动选择 CMD')+'</dd><dt>Runtime</dt><dd>就绪 · 模拟</dd><dt>模型</dt><dd>'+(w.modelReady?'已配置 · 模拟':'未配置')+'</dd><dt>写锁</dt><dd>'+(D.busy(m)?'任务占用':'空闲')+'</dd><dt>凭据加密</dt><dd>未接入，不存储真实密钥</dd></dl><p class="muted">这些是原型数据，不是当前 Windows 环境探测结果。</p>'+(D.unresolved(m)?'<hr><p class="danger">清理未确认；后续执行已锁定。</p><button class="secondary" data-cleanup>模拟人工确认清理</button>':'');
+}
+function renderCode(query='',line=0){
+  const lines=sampleFiles[filePath]||['示例内容暂不可用。'];
+  $('codeViewer').innerHTML=lines.map((s,i)=>'<span class="code-line '+((query&&s.toLocaleLowerCase().includes(query.toLocaleLowerCase()))||i+1===line?'hit':'')+'" data-line="'+(i+1)+'"><span class="line-num">'+(i+1)+'</span>'+esc(s)+'</span>').join('');
+  if(line)$('codeViewer').querySelector('[data-line="'+line+'"]')?.scrollIntoView({block:'nearest'});
+}
+function setTab(name){selectedTab=name;document.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===name;b.setAttribute('aria-selected',active);b.tabIndex=active?0:-1;$(b.dataset.tab).hidden=!active})}
+function inspector(open){$('inspector').classList.toggle('folded',!open);$('inspector').classList.toggle('open',open);$('inspectToggle').setAttribute('aria-expanded',open);$('backdrop').classList.toggle('show-inspector',open&&innerWidth<=1180)}
+function nav(open){$('sidebar').classList.toggle('open',open);$('navToggle').setAttribute('aria-expanded',open);$('backdrop').classList.toggle('show-nav',open)}
+function modal(title,html,action,fn){
+  lastFocus=document.activeElement;$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;$('dialogError').textContent='';
+  $('dialogAction').hidden=!action;$('dialogAction').textContent=action||'';$('dialogAction').onclick=()=>{if(!fn||fn()!==false)$('dialog').close()};
+  $('dialog').showModal();$('dialogClose').focus();
+}
+$('dialogClose').onclick=()=>$('dialog').close();$('dialog').onclose=()=>{if(lastFocus?.isConnected&&!lastFocus.disabled)lastFocus.focus();else $('inspectToggle').focus()};
+async function copy(s){try{await navigator.clipboard.writeText(s);notice('已复制')}catch(e){modal('复制内容','<label class="field" for="copyContent">浏览器未允许自动复制，请手动选择复制。</label><textarea id="copyContent" readonly>'+esc(s)+'</textarea>');$('copyContent').select()}}
+function settings(){
+  const w=D.ws(m);
+  modal('模型与工作区设置 · 模拟','<p>仅操作演示状态；不发起网络请求、不保存真实密钥。</p><label class="field" for="baseUrl">Base URL</label><input id="baseUrl" value="'+esc(w.url||'https://model.example/v1')+'"><label class="field" for="modelId">模型 ID</label><input id="modelId" value="'+esc(w.model||'demo-model')+'"><label class="field" for="demoKey">API Key</label><input id="demoKey" type="password" disabled placeholder="Demo 不接受真实密钥"><label class="field" for="probeOutcome">模拟连接探测结果</label><select id="probeOutcome"><option value="ok">成功</option><option value="failed">连接失败</option></select><p class="field-hint">真实产品保留 DPAPI 保存与探测结果，不预先声称已加密。</p><details><summary>企业网络与 Shell</summary><label class="field" for="ca">CA bundle 路径（示例）</label><input id="ca" value="'+esc(w.ca||'')+'" placeholder="C:\\证书\\company.pem"><label class="field" for="proxy">代理地址（示例）</label><input id="proxy" value="'+esc(w.proxy||'')+'" placeholder="proxy.example:8080"><label class="field" for="shellChoice">Shell</label><select id="shellChoice"><option>自动选择 CMD</option><option>PowerShell 5.1（示例）</option></select><p class="field-hint">完整自定义 Header、显式 Shell 路径与环境变量编辑留在产品设置设计中，本 Demo 不采集秘密。</p></details>','应用并模拟探测',()=>{
+    const url=$('baseUrl').value.trim(),model=$('modelId').value.trim();
+    if(!/^https:\/\/[^ ]+$/.test(url)||!model){$('dialogError').textContent='请输入示例 HTTPS 地址和模型 ID。';return false}
+    w.url=url;w.model=model;w.ca=$('ca').value;w.proxy=$('proxy').value;w.shell=$('shellChoice').value;
+    w.modelReady=$('probeOutcome').value==='ok';commit();
+    if(!w.modelReady){$('dialogError').textContent='模拟连接失败。任务发送已暂停；可选择成功后再次探测。';return false}
+    notice('模拟连接成功；未发送网络请求。');
+  });
+  $('shellChoice').value=w.shell||'自动选择 CMD';
+}
+$('workspaceSelect').onclick=()=>modal('切换工作区',m.workspaces.map(w=>'<label class="choice"><input type="radio" name="workspace" value="'+w.id+'" '+(w.id===m.workspace?'checked':'')+'> '+esc(w.name)+'<small>'+esc(w.path)+' · '+w.mode+'</small></label>').join(''),'切换',()=>{
+  if(!D.switchWorkspace(m,document.querySelector('[name=workspace]:checked').value))return false;folder='';filePath='';$('search').value='';commit();
+});
+$('mode').onclick=()=>modal('工作区权限','<p>模式按工作区保存，切换后保留已有对话记录。</p>'+['Full Access','Read Only'].map(x=>'<label class="choice"><input type="radio" name="mode" value="'+x+'" '+(D.ws(m).mode===x?'checked':'')+'> '+x+'<small>'+(x==='Full Access'?'当前用户权限，不是安全沙箱。':'仅阅读分析，写入和 Shell 不可用。')+'</small></label>').join(''),'应用到 Demo',()=>{if(D.busy(m))return false;D.ws(m).mode=document.querySelector('[name=mode]:checked').value;commit();notice('演示权限已更新。')});
+$('rename').onclick=()=>modal('重命名对话','<label class="field" for="renameValue">对话标题</label><input id="renameValue" maxlength="80" value="'+esc(D.conv(m).title)+'">','保存',()=>{const name=$('renameValue').value.trim();if(!name){$('dialogError').textContent='标题不能为空。';return false}D.conv(m).title=name;commit()});
+$('archive').onclick=()=>{if(D.archive(m,m.active)){commit();notice('对话已归档，可在侧栏恢复。')}};
+$('new').onclick=()=>{if(D.newConversation(m)){commit();$('prompt').focus()}};
+$('search').oninput=renderDirectory;
+$('directory').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.conversation&&D.select(m,b.dataset.conversation)){commit();nav(false)}if(b.dataset.restore&&D.restore(m,b.dataset.restore)){commit();notice('对话已恢复。')}};
+$('settings').onclick=settings;$('provider').onclick=settings;
+$('diagnostics').onclick=()=>{setTab('env');inspector(true);$('closeInspector').focus()};
+$('inspectToggle').onclick=()=>{const open=getComputedStyle($('inspector')).display==='none';inspector(open);if(open&&innerWidth<=1180){readOnlyFocus=$('inspectToggle');$('closeInspector').focus()}};
+$('closeInspector').onclick=()=>{inspector(false);$('inspectToggle').focus()};
+$('navToggle').onclick=()=>{const open=!$('sidebar').classList.contains('open');nav(open);if(open){readOnlyFocus=$('navToggle');$('search').focus()}};
+$('backdrop').onclick=()=>{inspector(false);nav(false);(readOnlyFocus||$('inspectToggle')).focus()};
+document.querySelectorAll('[data-tab]').forEach((b,i,list)=>{b.onclick=()=>setTab(b.dataset.tab);b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const j=e.key==='Home'?0:e.key==='End'?3:(i+(e.key==='ArrowRight'?1:3))%4;setTab(list[j].dataset.tab);list[j].focus()}});
+$('prompt').oninput=()=>{D.conv(m).draft=$('prompt').value;persist();$('send').disabled=!D.conv(m).draft.trim();$('draftStatus').textContent=storageOK?'草稿已保存到本标签页会话 · 未加密':'草稿仅在内存中'};
+function send(){if($('send').disabled)return;const p=$('prompt').value.trim();if(p)execute($('scenario').value,p)}
+$('send').onclick=send;$('prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send()}};
+$('play').onclick=()=>execute($('scenario').value,{normal:D.ws(m).mode==='Read Only'?'请分析项目入口，不修改文件。':'请优化工作台进度反馈说明，并检查修改结果。',push:'请把当前提交推送到 origin 的 ui-preview 分支，不要强制推送。',wait:'请分析代码结构。',failure:'请运行项目检查。',residue:'请运行长任务，然后演示停止与清理状态。'}[$('scenario').value]);
+$('stop').onclick=stop;
+$('restart').onclick=()=>{stopTimers();D.recover(m);commit();notice('已模拟重启：历史保留，未完成任务记为中断；没有自动续跑。')};
+$('jumpLatest').onclick=()=>{$('stream').scrollTop=$('stream').scrollHeight;$('jumpLatest').hidden=true};
+$('messages').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.copy)copy(b.dataset.copy);
+  if(b.dataset.action==='approve')approve(true);
+  if(b.dataset.action==='reject')approve(false);
+  if(b.dataset.action==='retry')execute('retry','重新运行项目检查；保留上次失败记录。');
+  if(b.dataset.action==='suggest'||b.dataset.action==='suggest-read'){
+    $('prompt').value=b.dataset.action==='suggest-read'?'请梳理项目入口。':'请优化工作台进度反馈说明。';D.conv(m).draft=$('prompt').value;persist();$('send').disabled=false;$('prompt').focus();
+  }
+};
+$('inspector').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.folder){folder=b.dataset.folder;filePath='';renderPanel()}
+  if(b.hasAttribute('data-up')){folder='';filePath='';renderPanel()}
+  if(b.dataset.file){filePath=b.dataset.file;renderPanel()}
+  if(b.hasAttribute('data-jump')){const n=Number($('lineNumber').value);if(!Number.isInteger(n)||n<1||n>(sampleFiles[filePath]||[]).length){notice('行号超出示例文件范围。');return}renderCode('',n)}
+  if(b.hasAttribute('data-git-refresh')){renderPanel();notice('模拟 Git 状态已刷新。')}
+  if(b.hasAttribute('data-output-copy'))copy(D.conv(m).turns.flatMap(t=>t.events).filter(e=>e.type==='tool').map(e=>e.label+'\n'+e.detail).join('\n\n'));
+  if(b.dataset.undo){
+    const t=D.conv(m).turns.find(t=>t.id===b.dataset.undo);if(!t?.checkpoint||D.busy(m)||D.ws(m).mode==='Read Only')return;
+    modal('确认本地撤销范围','<p>'+esc(t.checkpoint.id)+'</p><div class="file">README.md · 撤销本轮增加的 2 行</div><p>不会撤回远端推送。真实执行前应检查文件漂移和冲突。</p>','模拟撤销',()=>{if(D.busy(m))return false;t.checkpoint.undone=true;D.addEvent(t,'note','用户模拟撤销了本轮本地变更。');commit();notice('模拟撤销完成，真实文件未改变。')});
+  }
+  if(b.hasAttribute('data-cleanup'))modal('模拟人工确认清理','<p>仅用于演示“清理未确认”后的恢复路径；真实产品需要依据进程清理证据作出判断。</p>','确认模拟清理',()=>{const t=D.unresolved(m);if(t?.status==='residue')D.finish(t,'cancelled','模拟清理已确认','可重新发起任务；先前清理未确认记录仍保留。');commit()});
+};
+$('files').addEventListener('input',e=>{if(e.target.id==='fileSearch')renderCode(e.target.value)});
+$('files').addEventListener('change',e=>{if(e.target.id==='encoding')notice('编码选择已切换；示例文本不含原始文件字节，未执行真实重解码。')});
+document.addEventListener('keydown',e=>{
+  if($('dialog').open)return;
+  if(e.ctrlKey&&e.key.toLowerCase()==='k'){e.preventDefault();nav(true);$('search').focus()}
+  if(e.ctrlKey&&e.key.toLowerCase()==='i'){e.preventDefault();$('inspectToggle').click()}
+  if(e.key==='Escape'){inspector(false);nav(false);(readOnlyFocus||$('inspectToggle')).focus()}
+  const overlay=innerWidth<=760&&$('sidebar').classList.contains('open')?$('sidebar'):innerWidth<=1180&&$('inspector').classList.contains('open')?$('inspector'):null;
+  if(e.key==='Tab'&&overlay){const nodes=[...overlay.querySelectorAll('button:not(:disabled),input:not(:disabled),select,summary,[tabindex="0"]')].filter(x=>x.getClientRects().length);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
+});
+window.addEventListener('resize',()=>{$('backdrop').classList.toggle('show-inspector',innerWidth<=1180&&$('inspector').classList.contains('open'));$('backdrop').classList.toggle('show-nav',innerWidth<=760&&$('sidebar').classList.contains('open'))});
+window.addEventListener('beforeunload',persist);
+if(innerWidth<=1180)inspector(false);setTab('files');persist();render();setInterval(updateClocks,1000);
+
+</script>
+</body>
+</html>

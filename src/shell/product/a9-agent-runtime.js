@@ -1083,7 +1083,6 @@ function createA9AgentRuntime(options) {
             flushModelChunks(event.turnId);
           }
           const safeEvent = { ...event, data: redactForProjection(event.data) };
-          pushTimeline(safeEvent);
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
           if (event.type === 'turn_started' && activeLifecycle && !activeLifecycle.turnId) {
             const runId = `run-${event.turnId}`;
@@ -1091,10 +1090,13 @@ function createA9AgentRuntime(options) {
             persistence.upsertRun(runId, event.turnId, a9SessionId, 'active');
             activeLifecycle = { ...activeLifecycle, turnId: event.turnId, runId };
           }
-          persistence.recordToolEvent(a9SessionId, event.turnId, event.type, {
+          // ADR-0114：先持久化取回 eventId（a9_events 行 id，跨重启稳定），
+          // 再进入内存 timeline；持久化失败则抛出、该事件不进入 UI 投影（fail-closed）。
+          const { eventId } = persistence.recordToolEvent(a9SessionId, event.turnId, event.type, {
             type: event.type,
             data: safeEvent.data,
           });
+          pushTimeline({ ...safeEvent, eventId, sequence: eventId });
           if (event.type === 'tool_end' && event.data && event.data.toolName === 'shell') {
             syncManagedProcessFacts();
           }
@@ -1132,7 +1134,13 @@ function createA9AgentRuntime(options) {
   let loopWorkspaceService = null;
 
   function pushTimeline(event) {
-    timeline.push({ type: event.type, turnId: event.turnId, timestamp: event.timestamp, data: event.data });
+    timeline.push({
+      type: event.type,
+      turnId: event.turnId,
+      timestamp: event.timestamp,
+      data: event.data,
+      ...(event.eventId !== undefined ? { eventId: event.eventId, sequence: event.eventId } : {}),
+    });
     if (timeline.length > MAX_TIMELINE) timeline.splice(0, timeline.length - MAX_TIMELINE);
   }
 
@@ -1146,11 +1154,36 @@ function createA9AgentRuntime(options) {
       timestamp: pending.timestamp,
       data: { content: redactSecrets(pending.content) },
     };
-    pushTimeline(safeEvent);
-    persistence.recordToolEvent(a9SessionId, turnId, safeEvent.type, {
+    // ADR-0114：同样先持久化后入 timeline。
+    const { eventId } = persistence.recordToolEvent(a9SessionId, turnId, safeEvent.type, {
       type: safeEvent.type,
       data: safeEvent.data,
     });
+    pushTimeline({ ...safeEvent, eventId, sequence: eventId });
+  }
+
+  /**
+   * ADR-0114：审批决定留痕事件。批准/拒绝都以 approval_resolved 进入时间线与
+   * a9_events（先持久化取回 eventId，再入内存 timeline，与其他事件同一 fail-closed 语义）。
+   */
+  function emitApprovalResolved(approval, decision) {
+    const decidedAt = new Date().toISOString();
+    const safeEvent = {
+      type: 'approval_resolved',
+      turnId: approval.turnId,
+      timestamp: decidedAt,
+      data: redactForProjection({
+        approvalId: approval.approvalId,
+        decision,
+        decidedAt,
+        toolName: approval.toolName,
+      }),
+    };
+    const { eventId } = persistence.recordToolEvent(a9SessionId, approval.turnId, safeEvent.type, {
+      type: safeEvent.type,
+      data: safeEvent.data,
+    });
+    pushTimeline({ ...safeEvent, eventId, sequence: eventId });
   }
 
   /**
@@ -1726,12 +1759,6 @@ function createA9AgentRuntime(options) {
       approvalDecisionInFlightId = input.approvalId;
       agentStatus = 'running';
       // R2.7：SQLite 记录来自原始 pending 审批，而不是恢复执行后的结果。
-      const result = await activeLoop.resumeAfterApproval({
-        approvalId: input.approvalId,
-        decision: input.decision,
-        bindingDigest: input.bindingDigest,
-      }, { signal: ownedController.signal });
-      resumeProducedResult = true;
       persistence.recordApproval({
         approvalId: original.approvalId,
         sessionId: a9SessionId,
@@ -1748,6 +1775,14 @@ function createA9AgentRuntime(options) {
         },
         decision: input.decision,
       });
+      // ADR-0114：审批决定落库后补发 approval_resolved 留痕（批准/拒绝均记录）。
+      emitApprovalResolved(original, input.decision);
+      const result = await activeLoop.resumeAfterApproval({
+        approvalId: input.approvalId,
+        decision: input.decision,
+        bindingDigest: input.bindingDigest,
+      }, { signal: ownedController.signal });
+      resumeProducedResult = true;
       const lifecycle = activeLifecycle || null;
       if (lifecycle && lifecycle.turnId) {
         persistTurnResult(lifecycle, result);
@@ -1906,6 +1941,34 @@ function createA9AgentRuntime(options) {
       interruptions: persistence.listInterruptions(a9SessionId),
       managedProcesses,
     };
+  }
+
+  /**
+   * ADR-0114：按当前会话有界查询持久化事件（UI 过程回看）。runtime 绑定
+   * a9SessionId，跨会话请求直接拒绝（IPC 层另做类型校验）；limit 夹紧
+   * [1,1000]；hasMore 表示窗口之下还有更早事件。
+   */
+  function queryEvents(input) {
+    const options = input || {};
+    if (options.conversationId !== a9SessionId) {
+      const err = new Error('A9_EVENTS_CONVERSATION_MISMATCH: 事件查询只允许当前会话');
+      err.code = 'A9_EVENTS_CONVERSATION_MISMATCH';
+      throw err;
+    }
+    const limit = Number.isSafeInteger(options.limit) && options.limit >= 1 && options.limit <= 1000
+      ? Math.floor(options.limit)
+      : 200;
+    const filter = {
+      ...(typeof options.turnId === 'string' && options.turnId.length > 0 ? { turnId: options.turnId } : {}),
+      ...(Number.isSafeInteger(options.beforeEventId) ? { beforeEventId: Math.floor(options.beforeEventId) } : {}),
+      limit,
+    };
+    const events = persistence.listSessionEvents(a9SessionId, filter);
+    let hasMore = false;
+    if (events.length > 0) {
+      hasMore = persistence.listSessionEvents(a9SessionId, { ...filter, beforeEventId: events[0].eventId, limit: 1 }).length > 0;
+    }
+    return { ok: true, conversationId: a9SessionId, events, hasMore };
   }
 
   function workspaceServiceForState() {
@@ -2097,6 +2160,7 @@ function createA9AgentRuntime(options) {
     canLeaveWorkspace,
     setMode,
     getSnapshot,
+    queryEvents,
     undoTurn,
     undoFile,
     getDiff,
@@ -2204,6 +2268,7 @@ function createSqliteUnavailableRuntime(reason) {
     canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     getSnapshot() { return { schemaVersion: 1, status: 'electron_sqlite_unavailable', diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: safeReason } }; },
+    queryEvents() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
     undoTurn() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     undoFile() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     getDiff() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
@@ -2239,6 +2304,7 @@ function createDiagnosticsRuntime(outcome) {
     canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     getSnapshot() { return { schemaVersion: A9_PROTOCOL_VERSION, status: diagnosticStatus, diagnostics: safeDiagnostics }; },
+    queryEvents() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE' } }; },
     undoTurn() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     undoFile() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     getDiff() { throw new Error('A9_DIAGNOSTICS_MODE'); },

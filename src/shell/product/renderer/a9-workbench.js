@@ -5,6 +5,11 @@
  *
  * Renderer capabilities stay limited to the frozen preload API. This file does
  * not access Node, the filesystem, child processes, credentials, or networking.
+ *
+ * ADR-0114：对话流按事件渲染过程（model_note / plan_updated / 工具活动组 /
+ * approval 留痕），事件以 eventId 去重增量并入；历史过程经 a9.events.query
+ * 有界回看。所有不可信文本一律 textContent，单条说明 16 KB、单条工具输出
+ * 8 KB 截断并明示。
  */
 (function startA9Workbench(root) {
   const api = root.win7Agent;
@@ -17,6 +22,21 @@
     needs_selection: '待选择',
   });
   const TAB_IDS = ['files', 'changes', 'activity', 'environment'];
+  const NOTE_LIMIT = 16 * 1024;
+  const TOOL_OUTPUT_LIMIT = 8 * 1024;
+  const TERMINAL_OUTCOMES = new Set([
+    'completed', 'completed_with_warnings', 'blocked', 'failed', 'cancelled', 'interrupted',
+  ]);
+  const OUTCOME_LABELS = Object.freeze({
+    completed: '完成',
+    completed_with_warnings: '完成（有警告）',
+    blocked: '受阻',
+    failed: '失败',
+    cancelled: '已取消',
+    interrupted: '已中断',
+    needs_approval: '等待批准',
+    running: '运行中',
+  });
   const state = {
     snapshot: null,
     explorerSessionId: null,
@@ -27,11 +47,30 @@
     lastFocused: null,
     providerHydratedSignature: null,
     conversationSignature: null,
+    renderedConversationId: null,
     activeConversationId: null,
     draftHydratedConversationId: null,
     draftTimer: null,
     draftSaving: false,
     undoConfirmations: Object.create(null),
+    // ADR-0114：事件数据层与过程渲染状态。
+    turnEvents: new Map(),
+    turnIdToFactTask: new Map(),
+    activeTurnId: null,
+    eventMaxId: 0,
+    eventsTruncated: false,
+    eventsBeforeId: null,
+    eventsError: '',
+    eventsLoading: false,
+    streamDom: new Map(),
+    truncatedNote: null,
+    localRequest: null,
+    searchQuery: '',
+    streamFollow: true,
+    liveTimer: null,
+    turnStartAt: 0,
+    lastEventAt: 0,
+    pendingToolLabel: null,
   };
 
   function el(id) { return document.getElementById(id); }
@@ -46,6 +85,18 @@
     return error && (error.message || error.detail || error.reason)
       ? String(error.message || error.detail || error.reason)
       : fallback;
+  }
+  /** ADR-0114 显示上限：截断必须明示，不静默吞内容。 */
+  function clampText(value, limit) {
+    const content = String(value == null ? '' : value);
+    if (content.length <= limit) return content;
+    return `${content.slice(0, limit)}\n[已截断；完整内容见持久化事件与日志]`;
+  }
+  function formatElapsed(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
   }
   function runtimeDiagnostic(snapshot) {
     const diagnostic = snapshot && snapshot.diagnostics ? snapshot.diagnostics : {};
@@ -155,135 +206,659 @@
     syncComposer();
   }
 
-  function appendTaskCard(kind, title, meta, body, actions) {
-    const stream = el('a9-task-stream');
-    const card = document.createElement('article');
-    card.className = `task-card ${kind || ''}`;
-    const header = document.createElement('div');
-    header.className = 'task-card-header';
-    const heading = document.createElement('strong');
-    const detail = document.createElement('span');
-    heading.textContent = title;
-    detail.textContent = meta || '';
-    detail.title = meta || '';
-    header.appendChild(heading);
-    header.appendChild(detail);
-    const content = document.createElement('div');
-    content.className = 'task-card-body';
-    content.textContent = body || '';
-    card.appendChild(header);
-    card.appendChild(content);
-    if (Array.isArray(actions) && actions.length > 0) {
-      const actionRow = document.createElement('div');
-      actionRow.className = 'task-card-actions';
-      actions.forEach((item) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = item.label;
-        button.addEventListener('click', item.action);
-        actionRow.appendChild(button);
-      });
-      card.appendChild(actionRow);
+  // ------------------------------------------------------------------
+  // ADR-0114 事件数据层：归一化、去重并入、按轮次组织。
+  // ------------------------------------------------------------------
+
+  function normalizeTimelineEvent(raw) {
+    if (!raw || typeof raw.type !== 'string') return null;
+    const eventId = Number(raw.eventId);
+    if (!Number.isSafeInteger(eventId) || eventId <= 0) return null;
+    return {
+      eventId,
+      type: raw.type,
+      turnId: raw.turnId || null,
+      timestamp: raw.timestamp || '',
+      data: raw.data && typeof raw.data === 'object' ? raw.data : {},
+    };
+  }
+
+  function normalizeQueriedEvent(raw) {
+    if (!raw) return null;
+    const eventId = Number(raw.eventId);
+    if (!Number.isSafeInteger(eventId) || eventId <= 0) return null;
+    const payload = raw.payload && typeof raw.payload === 'object' ? raw.payload : null;
+    const type = payload && typeof payload.type === 'string'
+      ? payload.type
+      : (typeof raw.eventType === 'string' ? raw.eventType : '');
+    if (!type) return null;
+    const data = payload && payload.data && typeof payload.data === 'object'
+      ? payload.data
+      : (payload || {});
+    return {
+      eventId,
+      type,
+      turnId: raw.turnId || null,
+      timestamp: raw.createdAt || '',
+      data,
+    };
+  }
+
+  function ingestEvents(events) {
+    let changed = false;
+    for (const event of events) {
+      if (!event) continue;
+      if (event.type === 'turn_started' && event.turnId) {
+        // 多个轮次同窗时以时间线顺序的最后一个 turn_started 为当前轮。
+        state.activeTurnId = event.turnId;
+      }
+      if (!event.turnId) continue;
+      const bucket = state.turnEvents.get(event.turnId);
+      if (bucket) {
+        if (bucket.ids.has(event.eventId)) continue;
+        bucket.ids.add(event.eventId);
+        bucket.events.push(event);
+        bucket.events.sort((a, b) => a.eventId - b.eventId);
+      } else {
+        state.turnEvents.set(event.turnId, { ids: new Set([event.eventId]), events: [event] });
+      }
+      if (event.eventId > state.eventMaxId) state.eventMaxId = event.eventId;
+      if (event.type === 'tool_start') state.pendingToolLabel = toolHeadline(event.data);
+      if (event.type === 'tool_end') state.pendingToolLabel = null;
+      state.lastEventAt = Date.now();
+      changed = true;
     }
-    stream.appendChild(card);
-    el('a9-empty-state').hidden = true;
-    el('conversation').scrollTop = el('conversation').scrollHeight;
+    return changed;
+  }
+
+  function ingestTimelineEvents(timeline) {
+    return ingestEvents((timeline || []).map(normalizeTimelineEvent).filter(Boolean));
+  }
+
+  function eventsForTurn(turnId) {
+    const bucket = turnId ? state.turnEvents.get(turnId) : null;
+    return bucket ? bucket.events : [];
+  }
+
+  function resetConversationEvents() {
+    state.turnEvents = new Map();
+    state.turnIdToFactTask = new Map();
+    state.activeTurnId = null;
+    state.eventMaxId = 0;
+    state.eventsTruncated = false;
+    state.eventsBeforeId = null;
+    state.eventsError = '';
+    state.eventsLoading = false;
+    state.streamDom = new Map();
+    state.pendingToolLabel = null;
+    state.truncatedNote = null;
+    const stream = el('a9-task-stream');
+    stream.textContent = '';
+  }
+
+  /**
+   * 历史过程回看：会话加载/切换/轮次结束后拉取最近 300 条事件；截断以
+   * hasMore 明示。失败不阻塞事实渲染（fail-open 于展示层，不涉及写入）。
+   */
+  async function loadConversationEvents(older = false) {
+    if (!a9 || !state.activeConversationId) return;
+    if (state.eventsLoading) return;
+    const requestedConversationId = state.activeConversationId;
+    state.eventsLoading = true;
+    try {
+      const response = await a9.queryEvents({ conversationId: requestedConversationId, limit: 300,
+        ...(older && state.eventsBeforeId ? { beforeEventId: state.eventsBeforeId } : {}) });
+      if (requestedConversationId !== state.activeConversationId) return;
+      if (!response || response.ok !== true) throw new Error('EVENT_HISTORY_UNAVAILABLE');
+      const normalized = (response.events || []).map(normalizeQueriedEvent).filter(Boolean);
+      ingestEvents(normalized);
+      if (older || state.eventsBeforeId === null) {
+        state.eventsTruncated = response.hasMore === true;
+        if (normalized.length) state.eventsBeforeId = normalized[0].eventId;
+      }
+      state.eventsError = '';
+    } catch (_error) {
+      if (requestedConversationId === state.activeConversationId) {
+        state.eventsError = '过程记录加载失败；已有请求和结果仍保留。';
+      }
+    } finally {
+      if (requestedConversationId === state.activeConversationId) {
+        state.eventsLoading = false;
+        state.conversationSignature = null;
+        if (state.snapshot) renderConversation(state.snapshot);
+      }
+    }
+  }
+
+  /** 事实（taskId）与轮次（turnId）在执行期间可能尚未关联；此处补齐映射。 */
+  function resolveTurnId(fact) {
+    if (fact.turnId) {
+      state.turnIdToFactTask.set(fact.turnId, fact.taskId);
+      return fact.turnId;
+    }
+    for (const entry of state.turnIdToFactTask.entries()) {
+      if (entry[1] === fact.taskId) return entry[0];
+    }
+    if ((fact.outcome === 'running' || fact.outcome === 'needs_approval') && state.activeTurnId) {
+      state.turnIdToFactTask.set(state.activeTurnId, fact.taskId);
+      return state.activeTurnId;
+    }
+    return null;
+  }
+
+  // ------------------------------------------------------------------
+  // 友好文案：工具活动与时间线标签（描述性文本，不虚构动作）。
+  // ------------------------------------------------------------------
+
+  function toolHeadline(data) {
+    const name = data && data.toolName ? String(data.toolName) : 'tool';
+    const args = (data && data.args) || {};
+    switch (name) {
+      case 'read': return `读取 ${args.path || ''}`.trim();
+      case 'list': return `列出 ${args.path || '.'}`;
+      case 'search': return `搜索 ${args.pattern || ''}`.trim();
+      case 'write': return `写入 ${args.path || ''}`.trim();
+      case 'edit': return `编辑 ${args.path || ''}`.trim();
+      case 'copy': return `复制 ${args.source || ''} → ${args.destination || ''}`;
+      case 'move': return `移动 ${args.source || ''} → ${args.destination || ''}`;
+      case 'delete': return `删除 ${args.path || ''}`.trim();
+      case 'shell': return `运行命令 ${String(args.command || '').slice(0, 80)}`;
+      case 'update_plan': return '更新计划';
+      default: return name;
+    }
+  }
+
+  function toolDetailText(data) {
+    const parts = [];
+    if (data.error) parts.push(String(data.error));
+    if (data.result) parts.push(String(data.result));
+    const shell = data.shell;
+    if (shell && typeof shell === 'object') {
+      if (typeof shell.stdout === 'string' && shell.stdout) parts.push(shell.stdout);
+      if (typeof shell.stderr === 'string' && shell.stderr) parts.push(`[stderr]\n${shell.stderr}`);
+      if (shell.exitCode !== undefined) parts.push(`exit=${shell.exitCode}`);
+      if (shell.truncated) parts.push('[输出预览已截断；完整字节见日志路径]');
+    }
+    if (data.externalChanges && Array.isArray(data.externalChanges) && data.externalChanges.length > 0) {
+      parts.push(`外部文件变更 ${data.externalChanges.length} 处`);
+    }
+    return parts.join('\n').trim();
+  }
+
+  function toolEndStatus(data) {
+    const shell = data.shell || {};
+    if (data.residueRisk || shell.residueRisk) return ['failed', '清理未确认'];
+    if (['cancelled', 'canceled', 'interrupted'].includes(shell.status)) return ['stopped', '已停止'];
+    if (data.error || ['failed', 'error', 'timeout', 'timed_out'].includes(shell.status)
+        || (typeof shell.exitCode === 'number' && shell.exitCode !== 0)
+        || /^Tool execution error:|^Error:/i.test(String(data.result || ''))) return ['failed', '失败'];
+    if (data.denied) return ['stopped', '已停止'];
+    if (data.shell && shell.status !== 'completed' && shell.status !== 'success' && shell.exitCode !== 0) return ['interrupted', '结果未确认'];
+    return ['success', '成功'];
+  }
+
+  function timelineEntryLabel(event) {
+    const data = event.data || {};
+    const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
+    switch (event.type) {
+      case 'turn_started': return '任务开始';
+      case 'turn_completed': return `任务完成 · ${data.outcome || '-'}`;
+      case 'turn_failed': return `任务失败 · ${String(data.error || '').slice(0, 120)}`;
+      case 'model_note': return '模型说明';
+      case 'model_chunk': return '模型输出（汇总）';
+      case 'plan_updated': return '更新计划';
+      case 'approval_required': return `请求批准 · ${data.toolName || '-'}`;
+      case 'approval_resolved': return `审批${data.decision === 'approved' ? '已批准' : '已拒绝'} · ${data.toolName || '-'}`;
+      case 'tool_start': return `${toolHeadline(data)} …`;
+      case 'tool_end':
+        if (shell && shell.exitCode !== undefined) return `${toolHeadline(data)} · exit=${shell.exitCode}`;
+        if (data.error) return `${toolHeadline(data)} · 失败`;
+        if (data.denied) return `${toolHeadline(data)} · 已拒绝`;
+        return toolHeadline(data);
+      default: return event.type || 'event';
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 轮次渲染：按事实顺序维护轮次块，事件增量追加（保留展开态与滚动位置）。
+  // ------------------------------------------------------------------
+
+  function ensureTurnBlock(key) {
+    let block = state.streamDom.get(key);
+    if (block) return block;
+    const stream = el('a9-task-stream');
+    const rootArticle = document.createElement('article');
+    rootArticle.className = 'turn-block';
+    rootArticle.dataset.turnKey = key;
+    const request = document.createElement('div');
+    request.className = 'turn-request';
+    const requestHead = document.createElement('div');
+    requestHead.className = 'turn-request-head';
+    const requestLabel = document.createElement('strong');
+    requestLabel.textContent = 'REQUEST';
+    const requestTime = document.createElement('span');
+    requestHead.appendChild(requestLabel);
+    requestHead.appendChild(requestTime);
+    const requestBody = document.createElement('div');
+    requestBody.className = 'turn-request-body';
+    request.appendChild(requestHead);
+    request.appendChild(requestBody);
+    const progress = document.createElement('div');
+    progress.className = 'turn-progress';
+    rootArticle.appendChild(request);
+    rootArticle.appendChild(progress);
+    stream.appendChild(rootArticle);
+    block = {
+      key,
+      root: rootArticle,
+      requestTime,
+      requestBody,
+      progressEl: progress,
+      renderedEvents: 0,
+      renderedIds: [],
+      groupEl: null,
+      groupItemsEl: null,
+      groupCount: 0,
+      pendingItems: new Map(),
+      local: key === '__local__',
+      legacyEl: null,
+      outcomeEl: null,
+      outcomeLabelEl: null,
+      outcomeMetaEl: null,
+      outcomeBodyEl: null,
+      outcomeSig: '',
+    };
+    state.streamDom.set(key, block);
+    return block;
+  }
+
+  function updateGroupSummary(block) {
+    if (block.groupEl && block.groupEl.firstChild) {
+      block.groupEl.firstChild.textContent = `工具活动 · ${block.groupCount} 项`;
+    }
+  }
+
+  function ensureActivityGroup(block) {
+    if (block.groupEl) return block.groupEl;
+    const group = document.createElement('details');
+    group.className = 'activity-group';
+    if (state.running) group.open = true;
+    const summary = document.createElement('summary');
+    summary.textContent = '工具活动';
+    const items = document.createElement('ul');
+    items.className = 'activity-items';
+    group.appendChild(summary);
+    group.appendChild(items);
+    block.progressEl.appendChild(group);
+    block.groupEl = group;
+    block.groupItemsEl = items;
+    block.groupCount = 0;
+    block.pendingItems = new Map();
+    return group;
+  }
+
+  function closeActivityGroup(block) {
+    block.groupEl = null;
+    block.groupItemsEl = null;
+    block.pendingItems = new Map();
+  }
+
+  function addActivityItem(block, data, status, label) {
+    ensureActivityGroup(block);
+    const li = document.createElement('li');
+    li.className = 'activity-item';
+    const head = document.createElement('div');
+    head.className = 'activity-item-head';
+    const tool = document.createElement('span');
+    tool.className = 'activity-tool';
+    tool.textContent = toolHeadline(data);
+    tool.title = data.toolName || '';
+    const tag = document.createElement('span');
+    tag.className = `status-tag ${status}`;
+    tag.textContent = label;
+    head.appendChild(tool);
+    head.appendChild(tag);
+    li.appendChild(head);
+    block.groupItemsEl.appendChild(li);
+    block.groupCount += 1;
+    updateGroupSummary(block);
+    return { li, tag };
+  }
+
+  function attachActivityDetail(item, data) {
+    const detailText = toolDetailText(data);
+    if (!detailText) return;
+    const detail = document.createElement('pre');
+    detail.className = 'activity-detail';
+    detail.textContent = clampText(detailText, TOOL_OUTPUT_LIMIT);
+    item.li.appendChild(detail);
+  }
+
+  function appendEventNode(block, event) {
+    const data = event.data || {};
+    switch (event.type) {
+      case 'model_note': {
+        closeActivityGroup(block);
+        const note = document.createElement('p');
+        note.className = 'note-line';
+        note.textContent = clampText(data.content, NOTE_LIMIT);
+        block.progressEl.appendChild(note);
+        break;
+      }
+      case 'plan_updated': {
+        closeActivityGroup(block);
+        block.progressEl.appendChild(buildPlanCard(data));
+        break;
+      }
+      case 'approval_required': {
+        closeActivityGroup(block);
+        block.progressEl.appendChild(buildApprovalRecord('pending', `需要批准：${data.toolName || 'operation'}`,
+          data.summary || data.reason || ''));
+        break;
+      }
+      case 'approval_resolved': {
+        closeActivityGroup(block);
+        const approved = data.decision === 'approved';
+        block.progressEl.appendChild(buildApprovalRecord(approved ? 'approved' : 'denied',
+          `${approved ? '已批准' : '已拒绝'}：${data.toolName || 'operation'}`,
+          data.decidedAt ? new Date(data.decidedAt).toLocaleString() : ''));
+        break;
+      }
+      case 'tool_start': {
+        ensureActivityGroup(block);
+        if (!block.groupEl.dataset.eventId) block.groupEl.dataset.eventId = String(event.eventId);
+        const item = addActivityItem(block, data, 'running', '执行中');
+        if (data.callId) block.pendingItems.set(String(data.callId), item);
+        else block.pendingItems.set('__last__', item);
+        break;
+      }
+      case 'tool_end': {
+        if (!data.toolName) break; // 仅 externalChanges 的事实不构成工具项
+        const key = data.callId ? String(data.callId) : '__last__';
+        const item = block.pendingItems.get(key) || (data.callId ? block.pendingItems.get('__last__') : null);
+        if (item) {
+          block.pendingItems.delete(key);
+          const [status, label] = toolEndStatus(data);
+          item.tag.className = `status-tag ${status}`;
+          item.tag.textContent = label;
+          attachActivityDetail(item, data);
+        } else {
+          // 无配对 start（历史/恢复数据）时也如实展示终态。
+          const [status, label] = toolEndStatus(data);
+          addActivityItem(block, data, status, label, true);
+          const last = Array.from(block.groupItemsEl.children).pop();
+          if (last) attachActivityDetail({ li: last, tag: null }, data);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  function buildPlanCard(data) {
+    const card = document.createElement('div');
+    card.className = 'plan-card';
+    const title = document.createElement('p');
+    title.className = 'plan-title';
+    title.textContent = 'PLAN';
+    card.appendChild(title);
+    const steps = document.createElement('ol');
+    steps.className = 'plan-steps';
+    (Array.isArray(data && data.plan) ? data.plan : []).forEach((line) => {
+      const step = document.createElement('li');
+      step.className = 'plan-step';
+      step.textContent = String(line || '');
+      steps.appendChild(step);
+    });
+    card.appendChild(steps);
+    if (data && data.explanation) {
+      const explanation = document.createElement('p');
+      explanation.className = 'plan-explanation';
+      explanation.textContent = clampText(data.explanation, 2000);
+      card.appendChild(explanation);
+    }
     return card;
   }
 
-  function openDialog(dialog) {
-    if (!dialog) return;
-    dialog.hidden = false;
-    if (!dialog.open) {
-      if (typeof dialog.showModal === 'function') dialog.showModal();
-      else dialog.setAttribute('open', '');
+  function buildApprovalRecord(kind, headline, detailText) {
+    const record = document.createElement('p');
+    record.className = `approval-record ${kind}`;
+    const body = document.createElement('span');
+    body.className = 'approval-record-body';
+    const strong = document.createElement('strong');
+    strong.textContent = headline;
+    body.appendChild(strong);
+    if (detailText) {
+      const detail = document.createElement('span');
+      detail.className = 'approval-record-detail';
+      detail.textContent = detailText;
+      body.appendChild(detail);
     }
-  }
-  function closeDialog(dialog) {
-    if (!dialog) return;
-    if (dialog.open && typeof dialog.close === 'function') dialog.close();
-    else dialog.removeAttribute('open');
-    dialog.hidden = true;
+    record.appendChild(body);
+    return record;
   }
 
-  function configureModeDialog(snapshot, forceOpen) {
-    const dialog = el('a9-mode-dialog');
-    if (!dialog || !snapshot || snapshot.status !== 'ready') return;
-    const supported = SUPPORTED_MODES.has(snapshot.mode);
-    const needsSelection = snapshot.mode === 'needs_selection' || !supported;
-    const selectedMode = supported ? snapshot.mode : (snapshot.modeRecommended || 'full_access');
-    dialog.querySelectorAll('input[name="a9-mode-choice"]').forEach((radio) => {
-      radio.checked = radio.value === selectedMode;
-    });
-    text('a9-mode-workspace', snapshot.workspaceRoot || '尚未绑定工作区');
-    text('a9-mode-title', needsSelection ? '选择此工作区的权限' : '更改此工作区的权限');
-    text('a9-mode-badge', needsSelection ? '必须选择' : '可随时更改');
-    text('a9-mode-intro', snapshot.mode === 'review'
-      ? '此工作区保存的是 Review。完整 Review 已延期到 Alpha 2；请选择 Alpha 1 支持的模式后才能继续。'
-      : needsSelection
-        ? '每个工作区单独保存权限。Full Access 使用当前 Windows 用户权限，不提供额外沙箱。'
-        : '模式将保存到此工作区；正在执行的任务不会被静默改变。');
-    text('a9-mode-apply', needsSelection ? '使用所选模式' : '保存权限模式');
-    el('a9-mode-cancel').hidden = needsSelection;
-    dialog.dataset.required = needsSelection ? 'true' : 'false';
-    if (forceOpen || needsSelection) {
-      openDialog(dialog);
-      const selected = dialog.querySelector('input[name="a9-mode-choice"]:checked');
-      if (selected && typeof selected.focus === 'function') selected.focus();
-    }
-  }
-
-  async function chooseMode() {
-    const checked = document.querySelector('input[name="a9-mode-choice"]:checked');
-    if (!checked || !SUPPORTED_MODES.has(checked.value)) return;
-    const button = el('a9-mode-apply');
-    button.disabled = true;
-    button.setAttribute('aria-busy', 'true');
-    setFieldError('a9-mode-error', '');
-    try {
-      const response = await a9.setMode(checked.value);
-      if (!response || response.ok !== true) {
-        setFieldError('a9-mode-error', errorMessage(response, '权限模式保存失败。'));
-        return;
+  function updateOutcomeCard(block, fact, events) {
+    let outcome = null;
+    let verification = 'not_applicable';
+    let message = '';
+    for (const event of events) {
+      if (event.type === 'turn_completed') {
+        outcome = event.data.outcome || 'completed';
+        verification = event.data.verification || 'not_applicable';
+        message = event.data.finalMessage || '';
+      } else if (event.type === 'turn_failed') {
+        outcome = 'failed';
+        message = event.data.error ? `模型调用失败：${event.data.error}` : '';
       }
-      closeDialog(el('a9-mode-dialog'));
-      await refreshSnapshot();
-    } catch (error) {
-      setFieldError('a9-mode-error', errorMessage(error, '权限模式保存失败。'));
-    } finally {
-      button.disabled = false;
-      button.removeAttribute('aria-busy');
     }
-  }
-
-  function renderApproval(snapshot) {
-    const card = el('a9-approval-card');
-    const pending = snapshot.pendingApproval;
-    card.hidden = !pending;
-    if (!pending) {
-      delete card.dataset.approvalId;
-      delete card.dataset.bindingDigest;
-      delete card.dataset.conversationId;
-      delete card.dataset.taskId;
-      delete card.dataset.turnId;
-      setFieldError('a9-approval-error', '');
-      setApprovalBusy(false);
+    if (!outcome && fact && TERMINAL_OUTCOMES.has(fact.outcome)) {
+      outcome = fact.outcome;
+      verification = fact.verification || 'not_applicable';
+      message = fact.finalMessage || (fact.outcome === 'interrupted'
+        ? '应用重启后恢复了中断事实；未重放模型、工具或旧审批。'
+        : '');
+    }
+    if (!outcome) {
+      if (block.outcomeEl) {
+        block.outcomeEl.remove();
+        block.outcomeEl = null;
+        block.outcomeSig = '';
+      }
       return;
     }
-    if (card.dataset.approvalId !== pending.approvalId) setFieldError('a9-approval-error', '');
-    card.dataset.approvalId = pending.approvalId;
-    card.dataset.bindingDigest = pending.bindingDigest;
-    card.dataset.conversationId = pending.conversationId;
-    card.dataset.taskId = pending.taskId;
-    card.dataset.turnId = pending.turnId;
-    text('a9-approval-tool', pending.toolName || 'operation');
-    text('a9-approval-summary', pending.summary || '高影响操作需要确认。');
-    text('a9-approval-id', `approval: ${pending.approvalId}`);
-    const git = pending.gitBinding;
-    text('a9-approval-git', git
-      ? `remote=${git.remote || '-'} · branch=${git.branch || '-'} · force=${git.force} · delete=${git.deleteTarget || '-'}`
-      : `target digest: ${String(pending.bindingDigest || '').slice(0, 18)}…`);
+    const signature = JSON.stringify([outcome, verification, message]);
+    if (block.outcomeSig === signature) return;
+    block.outcomeSig = signature;
+    if (!block.outcomeEl) {
+      const card = document.createElement('div');
+      const head = document.createElement('div');
+      head.className = 'outcome-head';
+      const label = document.createElement('strong');
+      const meta = document.createElement('span');
+      head.appendChild(label);
+      head.appendChild(meta);
+      const body = document.createElement('div');
+      body.className = 'outcome-body';
+      card.appendChild(head);
+      card.appendChild(body);
+      block.root.appendChild(card);
+      block.outcomeEl = card;
+      block.outcomeLabelEl = label;
+      block.outcomeMetaEl = meta;
+      block.outcomeBodyEl = body;
+    }
+    const variant = outcome === 'failed' ? 'fail' : outcome === 'completed' ? '' : 'warn';
+    block.outcomeEl.className = `outcome-card ${variant}`.trim();
+    block.outcomeLabelEl.textContent = OUTCOME_LABELS[outcome] || outcome;
+    block.outcomeMetaEl.textContent = `${verification}${fact && fact.updatedAt ? ` · ${new Date(fact.updatedAt).toLocaleTimeString()}` : ''}`;
+    block.outcomeBodyEl.textContent = clampText(message || '任务已返回结果。', NOTE_LIMIT);
+    text('a9-turn-outcome', `${outcome} · ${verification}`);
   }
+
+  function updateTurnBlock(block, fact, events) {
+    let expanded = null;
+    // Earlier pages can prepend events. Rebuild only the affected process block.
+    if (block.renderedIds.some((id, index) => !events[index] || events[index].eventId !== id)) {
+      expanded = new Set(Array.from(block.progressEl.querySelectorAll('details[open]')).map(node => node.dataset.eventId));
+      block.progressEl.textContent = '';
+      block.renderedEvents = 0;
+      block.renderedIds = [];
+      block.pendingItems = new Map();
+      block.groupEl = null;
+      block.groupItemsEl = null;
+      block.groupCount = 0;
+      block.legacyEl = null;
+    }
+    if (fact) {
+      if (fact.requestPrompt) block.requestBody.textContent = clampText(fact.requestPrompt, NOTE_LIMIT);
+      if (fact.createdAt) block.requestTime.textContent = new Date(fact.createdAt).toLocaleString();
+    }
+    for (; block.renderedEvents < events.length; block.renderedEvents += 1) {
+      appendEventNode(block, events[block.renderedEvents]);
+      block.renderedIds.push(events[block.renderedEvents].eventId);
+    }
+    if (expanded) block.progressEl.querySelectorAll('details').forEach(node => {
+      if (expanded.has(node.dataset.eventId)) node.open = true;
+    });
+    if (events.length && block.legacyEl) { block.legacyEl.remove(); block.legacyEl = null; }
+    const terminal = (fact && TERMINAL_OUTCOMES.has(fact.outcome))
+      || events.some((event) => event.type === 'turn_completed' || event.type === 'turn_failed');
+    if (terminal) {
+      block.pendingItems.forEach((item) => {
+        item.tag.className = 'status-tag interrupted';
+        item.tag.textContent = '已中断';
+      });
+      block.pendingItems = new Map();
+      closeActivityGroup(block);
+    }
+    if (!block.local && !block.legacyEl && events.length === 0 && fact && TERMINAL_OUTCOMES.has(fact.outcome)) {
+      const note = document.createElement('p');
+      note.className = 'legacy-note';
+      note.textContent = '历史记录未包含过程。';
+      block.progressEl.appendChild(note);
+      block.legacyEl = note;
+    }
+    updateOutcomeCard(block, fact, events);
+  }
+
+  function renderConversation(snapshot) {
+    const facts = snapshot.conversation || [];
+    const signature = JSON.stringify([
+      snapshot.activeConversationId,
+      state.eventMaxId,
+      state.eventsTruncated,
+      state.localRequest ? [state.localRequest.prompt, state.localRequest.at] : 0,
+      facts.map((fact) => [
+        fact.taskId, fact.turnId, fact.outcome, fact.updatedAt,
+        String(fact.requestPrompt || '').length, String(fact.finalMessage || '').length,
+      ]),
+    ]);
+    if (state.conversationSignature === signature) return;
+    state.conversationSignature = signature;
+    if (state.renderedConversationId !== snapshot.activeConversationId) {
+      state.renderedConversationId = snapshot.activeConversationId;
+      resetConversationEvents();
+    }
+    const stream = el('a9-task-stream');
+    if (state.localRequest) {
+      const latest = facts.length > 0 ? facts[facts.length - 1] : null;
+      if (latest && latest.requestPrompt === state.localRequest.prompt) state.localRequest = null;
+    }
+    facts.forEach((fact) => {
+      const block = ensureTurnBlock(fact.taskId || `fact:${facts.indexOf(fact)}`);
+      const turnId = resolveTurnId(fact);
+      updateTurnBlock(block, fact, turnId ? eventsForTurn(turnId) : []);
+    });
+    if (state.localRequest) {
+      const block = ensureTurnBlock('__local__');
+      block.requestBody.textContent = clampText(state.localRequest.prompt, NOTE_LIMIT);
+      block.requestTime.textContent = new Date(state.localRequest.at).toLocaleTimeString();
+      const events = state.activeTurnId ? eventsForTurn(state.activeTurnId) : [];
+      updateTurnBlock(block, null, events);
+    } else if (state.streamDom.has('__local__')) {
+      state.streamDom.get('__local__').root.remove();
+      state.streamDom.delete('__local__');
+    }
+    if (state.eventsTruncated || state.eventsError) {
+      if (!state.truncatedNote || !state.truncatedNote.parentNode) {
+        const note = document.createElement('p');
+        note.className = 'legacy-note';
+        stream.insertBefore(note, stream.firstChild);
+        state.truncatedNote = note;
+      }
+      state.truncatedNote.textContent = state.eventsError || '还有更早的过程记录。';
+      const load = document.createElement('button');
+      load.type = 'button';
+      load.textContent = state.eventsError ? '重试加载' : '加载更早记录';
+      load.disabled = state.eventsLoading;
+      load.addEventListener('click', () => { void loadConversationEvents(Boolean(state.eventsBeforeId)); });
+      state.truncatedNote.appendChild(load);
+    } else if (state.truncatedNote) {
+      state.truncatedNote.remove();
+      state.truncatedNote = null;
+    }
+    el('a9-empty-state').hidden = facts.length > 0 || Boolean(state.localRequest);
+    if (state.streamFollow) scrollToLatest();
+  }
+
+  // ------------------------------------------------------------------
+  // 等待反馈：本地 1s 计时；距最近事件 >10s 时显示等待对象与真实时长。
+  // ------------------------------------------------------------------
+
+  function startLiveTracking() {
+    state.turnStartAt = Date.now();
+    state.lastEventAt = Date.now();
+    if (!state.liveTimer) state.liveTimer = root.setInterval(tickLiveStatus, 1000);
+    tickLiveStatus();
+  }
+
+  function stopLiveTracking() {
+    if (state.liveTimer) {
+      root.clearInterval(state.liveTimer);
+      state.liveTimer = null;
+    }
+    const node = el('live-status');
+    if (node) {
+      node.hidden = true;
+      node.classList.remove('active');
+    }
+    state.pendingToolLabel = null;
+  }
+
+  function tickLiveStatus() {
+    const node = el('live-status');
+    if (!node) return;
+    if (!state.running) {
+      node.hidden = true;
+      node.classList.remove('active');
+      return;
+    }
+    const now = Date.now();
+    const idleMs = now - (state.lastEventAt || now);
+    if (idleMs >= 10000) {
+      node.classList.add('active');
+      text('live-label', state.pendingToolLabel ? `正在执行工具：${state.pendingToolLabel}` : '等待模型响应…');
+      text('live-elapsed', `已等待 ${formatElapsed(idleMs)}`);
+    } else {
+      node.classList.remove('active');
+      text('live-label', '任务执行中');
+      text('live-elapsed', `已运行 ${formatElapsed(now - (state.turnStartAt || now))}`);
+    }
+    node.hidden = false;
+    const jump = el('jump-latest');
+    if (jump) jump.hidden = state.streamFollow;
+  }
+
+  function scrollToLatest() {
+    const conversation = el('conversation');
+    if (conversation) conversation.scrollTop = conversation.scrollHeight;
+  }
+
+  // ------------------------------------------------------------------
+  // Inspector 与目录渲染。
+  // ------------------------------------------------------------------
 
   function renderTimeline(snapshot) {
     const timeline = el('a9-timeline');
@@ -294,11 +869,8 @@
       const data = event.data || {};
       const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
       const item = document.createElement('li');
-      const bits = [event.type || 'event'];
-      if (data.toolName) bits.push(data.toolName);
-      if (shell && shell.exitCode !== undefined) bits.push(`exit=${shell.exitCode}`);
-      if (data.summary) bits.push(String(data.summary).slice(0, 100));
-      item.textContent = bits.join(' · ');
+      const stamp = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '';
+      item.textContent = stamp ? `${stamp} · ${timelineEntryLabel(event)}` : timelineEntryLabel(event);
       timeline.appendChild(item);
       [data.path, data.relativePath, data.targetPath].filter(Boolean).forEach((value) => filePaths.add(String(value)));
       [shell && shell.stdout, shell && shell.stderr].filter((value) => typeof value === 'string').forEach((value) => { rawOutput += value; });
@@ -362,36 +934,6 @@
     });
   }
 
-  function renderConversation(snapshot) {
-    const facts = snapshot.conversation || [];
-    const signature = JSON.stringify([snapshot.activeConversationId, facts.map((fact) => [
-      fact.taskId, fact.turnId, fact.outcome, fact.updatedAt,
-      String(fact.requestPrompt || '').length, String(fact.finalMessage || '').length,
-    ])]);
-    if (state.conversationSignature === signature) return;
-    state.conversationSignature = signature;
-    const stream = el('a9-task-stream');
-    stream.textContent = '';
-    el('a9-empty-state').hidden = facts.length > 0;
-    facts.forEach((fact) => {
-      const timestamp = fact.createdAt ? new Date(fact.createdAt).toLocaleString() : '';
-      if (fact.requestPrompt) appendTaskCard('request', 'Request', timestamp, fact.requestPrompt);
-      const kind = fact.outcome === 'completed'
-        ? 'completed'
-        : fact.outcome === 'running' || fact.outcome === 'needs_approval'
-          ? 'running'
-          : fact.outcome === 'interrupted' || fact.outcome === 'cancelled'
-            ? 'interrupted'
-            : 'failed';
-      const title = fact.requestPrompt ? fact.outcome : '历史任务';
-      const identity = fact.turnId || fact.taskId || timestamp;
-      const body = fact.finalMessage || (fact.outcome === 'interrupted'
-        ? '应用重启后恢复了中断事实；未重放模型、工具或旧审批。'
-        : '已恢复本地任务事实；此历史记录没有可显示的结果文本。');
-      appendTaskCard(kind, title, identity, body);
-    });
-  }
-
   function conversationStatusLabel(activity) {
     if (activity === 'running') return '运行中';
     if (activity === 'waiting_approval') return '待审批';
@@ -408,8 +950,12 @@
     button.setAttribute('aria-current', String(conversation.sessionId === snapshot.activeConversationId));
     button.title = conversation.title;
     const title = document.createElement('strong');
+    const dot = document.createElement('span');
+    dot.className = `conversation-dot ${conversation.activity || ''}`;
+    dot.setAttribute('aria-hidden', 'true');
+    title.appendChild(dot);
+    title.appendChild(document.createTextNode(conversation.title || '新对话'));
     const meta = document.createElement('small');
-    title.textContent = conversation.title || '新对话';
     const updated = conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString() : '';
     meta.textContent = `${conversationStatusLabel(conversation.activity)}${updated ? ` · ${updated}` : ''}`;
     button.appendChild(title);
@@ -430,8 +976,13 @@
 
   function renderConversationDirectory(snapshot) {
     const conversations = snapshot.conversations || [];
-    const active = conversations.filter((item) => item.state === 'active');
-    const archived = conversations.filter((item) => item.state === 'archived');
+    const query = state.searchQuery;
+    const visible = query
+      ? conversations.filter((item) => String(item.title || '').toLocaleLowerCase().includes(query))
+      : conversations;
+    const active = visible.filter((item) => item.state === 'active');
+    const archived = visible.filter((item) => item.state === 'archived');
+    const allActive = conversations.filter((item) => item.state === 'active');
     const controls = snapshot.conversationControls || { canSwitch: false, maxActive: 16 };
     const activeList = el('conversation-list');
     const archivedList = el('conversation-archive-list');
@@ -439,14 +990,22 @@
     archivedList.textContent = '';
     active.forEach((item) => appendConversationRow(activeList, item, snapshot, false));
     archived.forEach((item) => appendConversationRow(archivedList, item, snapshot, true));
+    if (query && visible.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'conversation-empty-note';
+      empty.textContent = '没有匹配的对话。';
+      activeList.appendChild(empty);
+    }
     text('conversation-archive-count', archived.length);
     el('conversation-archive-section').hidden = archived.length === 0;
-    el('conversation-new').disabled = !controls.canSwitch || active.length >= controls.maxActive;
+    el('conversation-new').disabled = !controls.canSwitch || allActive.length >= controls.maxActive;
     el('conversation-rename').disabled = !snapshot.activeConversationId;
     el('conversation-archive').disabled = !controls.canSwitch || !snapshot.activeConversationId;
-    text('conversation-directory-note', controls.canSwitch
-      ? `${active.length}/${controls.maxActive} 个未归档对话`
-      : `已锁定：${controls.reason || '当前任务尚未结束'}`);
+    text('conversation-directory-note', query
+      ? `找到 ${visible.length} 个匹配的对话（含已归档）`
+      : controls.canSwitch
+        ? `${allActive.length}/${controls.maxActive} 个未归档对话`
+        : `已锁定：${controls.reason || '当前任务尚未结束'}`);
     const current = conversations.find((item) => item.sessionId === snapshot.activeConversationId);
     if (current) text('workbench-title', current.title || '和工作区一起完成任务');
   }
@@ -528,7 +1087,7 @@
     runtimeStatus.appendChild(document.createTextNode(ready ? 'Runtime 就绪' : 'Runtime 受限'));
     const runtimeError = ready ? '' : runtimeDiagnostic(snapshot);
     setFieldError('a9-runtime-error', runtimeError);
-    if (!ready) showGlobalError(`Runtime 初始化受限：${runtimeError}`, '打开诊断', () => openDrawer('diagnostics-drawer'));
+    if (!ready) showGlobalError(`Runtime 初始化受限：${runtimeDiagnostic(snapshot)}`, '打开诊断', () => openDrawer('diagnostics-drawer'));
     const modeButton = el('a9-mode-open');
     modeButton.hidden = !ready || !workspace;
     modeButton.disabled = !ready || !workspace;
@@ -537,6 +1096,7 @@
     renderTimeline(snapshot);
     renderCheckpoints(snapshot);
     renderConversationDirectory(snapshot);
+    ingestTimelineEvents(snapshot.timeline);
     renderConversation(snapshot);
     hydrateDraft(snapshot);
     const context = snapshot.contextWindow || {};
@@ -617,7 +1177,9 @@
       }
       state.conversationSignature = null;
       state.draftHydratedConversationId = null;
+      state.localRequest = null;
       await refreshSnapshot();
+      await loadConversationEvents();
       closeNavigation();
       return response;
     } catch (error) {
@@ -776,38 +1338,50 @@
     });
   }
 
+  /**
+   * ADR-0114：轮次提交复用事件流——本地先建请求卡，过程经 timeline 增量
+   * 入流，终态由 turn_completed/事实渲染；不再双写结果卡。
+   */
   async function submitPrompt() {
     const prompt = el('task-prompt').value.trim();
     if (!prompt || !canSubmit()) return null;
     clearGlobalError();
     setFieldError('a9-turn-error', '');
-    appendTaskCard('request', 'Request', new Date().toLocaleTimeString(), prompt);
+    state.localRequest = { prompt, at: Date.now() };
+    state.activeTurnId = null;
     el('task-prompt').value = '';
     resizeComposer();
     state.running = true;
+    state.streamFollow = true;
+    state.conversationSignature = null;
+    if (state.snapshot) renderConversation(state.snapshot);
     setTaskState('运行中', 'running', 'Agent 正在读取事实并执行工具。');
     syncComposer();
+    startLiveTracking();
     const finishPolling = beginSnapshotPolling();
     let response;
     try {
       response = await a9.submitTurn(prompt);
-      if (response && response.ok === true) {
-        const result = response.result || {};
-        const kind = result.outcome === 'completed' ? 'completed' : result.outcome === 'needs_approval' ? 'running' : result.outcome === 'cancelled' ? 'interrupted' : 'failed';
-        appendTaskCard(kind, result.outcome || 'Result', result.verification || 'not_applicable', result.finalMessage || '任务已返回结果。');
-        text('a9-turn-outcome', `${result.outcome || '-'} · ${result.verification || 'not_applicable'}`);
-      } else {
+      if (response && response.ok !== true) {
         const message = errorMessage(response, '任务执行失败。');
-        appendTaskCard('failed', 'Task failed', response && response.error && response.error.code || 'ERROR', message, [{ label: '打开设置', action: () => openDrawer('settings-drawer') }]);
+        state.localRequest = null;
+        state.conversationSignature = null;
         setFieldError('a9-turn-error', message);
+        showGlobalError(message, '打开设置', () => openDrawer('settings-drawer'));
       }
     } catch (error) {
       const message = errorMessage(error, '任务执行失败。');
-      appendTaskCard('failed', 'Task failed', 'UNEXPECTED', message, [{ label: '重试状态读取', action: () => { void refreshSnapshot(); } }]);
+      state.localRequest = null;
+      state.conversationSignature = null;
+      setFieldError('a9-turn-error', message);
+      showGlobalError(message, '重试状态读取', () => { void refreshSnapshot(); });
     } finally {
       await finishPolling();
       state.running = false;
+      state.localRequest = null;
+      stopLiveTracking();
       await refreshSnapshot();
+      await loadConversationEvents();
       syncComposer();
     }
     return response;
@@ -850,6 +1424,100 @@
     };
   }
 
+  function openDialog(dialog) {
+    if (!dialog) return;
+    dialog.hidden = false;
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+  }
+  function closeDialog(dialog) {
+    if (!dialog) return;
+    if (dialog.open && typeof dialog.close === 'function') dialog.close();
+    else dialog.removeAttribute('open');
+    dialog.hidden = true;
+  }
+
+  function configureModeDialog(snapshot, forceOpen) {
+    const dialog = el('a9-mode-dialog');
+    if (!dialog || !snapshot || snapshot.status !== 'ready') return;
+    const supported = SUPPORTED_MODES.has(snapshot.mode);
+    const needsSelection = snapshot.mode === 'needs_selection' || !supported;
+    const selectedMode = supported ? snapshot.mode : (snapshot.modeRecommended || 'full_access');
+    dialog.querySelectorAll('input[name="a9-mode-choice"]').forEach((radio) => {
+      radio.checked = radio.value === selectedMode;
+    });
+    text('a9-mode-workspace', snapshot.workspaceRoot || '尚未绑定工作区');
+    text('a9-mode-title', needsSelection ? '选择此工作区的权限' : '更改此工作区的权限');
+    text('a9-mode-badge', needsSelection ? '必须选择' : '可随时更改');
+    text('a9-mode-intro', snapshot.mode === 'review'
+      ? '此工作区保存的是 Review。完整 Review 已延期到 Alpha 2；请选择 Alpha 1 支持的模式后才能继续。'
+      : needsSelection
+        ? '每个工作区单独保存权限。Full Access 使用当前 Windows 用户权限，不提供额外沙箱。'
+        : '模式将保存到此工作区；正在执行的任务不会被静默改变。');
+    text('a9-mode-apply', needsSelection ? '使用所选模式' : '保存权限模式');
+    el('a9-mode-cancel').hidden = needsSelection;
+    dialog.dataset.required = needsSelection ? 'true' : 'false';
+    if (forceOpen || needsSelection) {
+      openDialog(dialog);
+      const selected = dialog.querySelector('input[name="a9-mode-choice"]:checked');
+      if (selected && typeof selected.focus === 'function') selected.focus();
+    }
+  }
+
+  async function chooseMode() {
+    const checked = document.querySelector('input[name="a9-mode-choice"]:checked');
+    if (!checked || !SUPPORTED_MODES.has(checked.value)) return;
+    const button = el('a9-mode-apply');
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    setFieldError('a9-mode-error', '');
+    try {
+      const response = await a9.setMode(checked.value);
+      if (!response || response.ok !== true) {
+        setFieldError('a9-mode-error', errorMessage(response, '权限模式保存失败。'));
+        return;
+      }
+      closeDialog(el('a9-mode-dialog'));
+      await refreshSnapshot();
+    } catch (error) {
+      setFieldError('a9-mode-error', errorMessage(error, '权限模式保存失败。'));
+    } finally {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
+  }
+
+  function renderApproval(snapshot) {
+    const card = el('a9-approval-card');
+    const pending = snapshot.pendingApproval;
+    card.hidden = !pending;
+    if (!pending) {
+      delete card.dataset.approvalId;
+      delete card.dataset.bindingDigest;
+      delete card.dataset.conversationId;
+      delete card.dataset.taskId;
+      delete card.dataset.turnId;
+      setFieldError('a9-approval-error', '');
+      setApprovalBusy(false);
+      return;
+    }
+    if (card.dataset.approvalId !== pending.approvalId) setFieldError('a9-approval-error', '');
+    card.dataset.approvalId = pending.approvalId;
+    card.dataset.bindingDigest = pending.bindingDigest;
+    card.dataset.conversationId = pending.conversationId;
+    card.dataset.taskId = pending.taskId;
+    card.dataset.turnId = pending.turnId;
+    text('a9-approval-tool', pending.toolName || 'operation');
+    text('a9-approval-summary', pending.summary || '高影响操作需要确认。');
+    text('a9-approval-id', `approval: ${pending.approvalId}`);
+    const git = pending.gitBinding;
+    text('a9-approval-git', git
+      ? `remote=${git.remote || '-'} · branch=${git.branch || '-'} · force=${git.force} · delete=${git.deleteTarget || '-'}`
+      : `target digest: ${String(pending.bindingDigest || '').slice(0, 18)}…`);
+  }
+
   async function decideApproval(decision) {
     if (state.approvalDecision) return state.approvalDecision;
     const card = el('a9-approval-card');
@@ -863,8 +1531,10 @@
     setApprovalBusy(true);
     state.approvalDecision = (async () => {
       state.running = true;
+      state.streamFollow = true;
       setTaskState('运行中', 'running', '审批已提交，Agent 正在继续执行；可随时停止。');
       syncComposer();
+      startLiveTracking();
       const finishPolling = beginSnapshotPolling();
       let response;
       try {
@@ -874,9 +1544,6 @@
           return response;
         }
         card.hidden = true;
-        const result = response.result || {};
-        appendTaskCard(result.outcome === 'completed' ? 'completed' : 'failed', decision === 'approved' ? 'Approval applied' : 'Approval denied', result.verification || 'not_applicable', result.finalMessage || (decision === 'approved' ? '已批准并继续执行。' : '已拒绝，未执行该操作。'));
-        text('a9-turn-outcome', `${result.outcome || '-'} · ${result.verification || 'not_applicable'}`);
         return response;
       } catch (error) {
         setFieldError('a9-approval-error', errorMessage(error, '审批回复失败，请重试。'));
@@ -884,7 +1551,9 @@
       } finally {
         await finishPolling();
         state.running = false;
+        stopLiveTracking();
         await refreshSnapshot();
+        await loadConversationEvents();
         syncComposer();
         state.approvalDecision = null;
         setApprovalBusy(false);
@@ -1083,6 +1752,11 @@
     if (state.lastFocused && typeof state.lastFocused.focus === 'function') state.lastFocused.focus();
     state.lastFocused = null;
   }
+  function toggleInspector() {
+    if (!inspectorIsDrawer()) return;
+    if (el('inspector').classList.contains('open')) closeInspector();
+    else openInspector();
+  }
   function openNavigation() {
     if (!navigationIsDrawer()) return;
     state.lastFocused = document.activeElement;
@@ -1203,12 +1877,30 @@
     el('conversation-archive').addEventListener('click', () => { void archiveCurrentConversation(); });
     el('conversation-rename-cancel').addEventListener('click', () => closeDialog(el('conversation-rename-dialog')));
     el('conversation-rename-apply').addEventListener('click', () => { void applyConversationRename(); });
+    // ADR-0114：目录搜索（含已归档，按标题过滤）。
+    el('conversation-search').addEventListener('input', (event) => {
+      state.searchQuery = String(event.target.value || '').trim().toLocaleLowerCase();
+      if (state.snapshot) renderConversationDirectory(state.snapshot);
+    });
     document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => {
       el('task-prompt').value = button.dataset.prompt;
       resizeComposer();
       scheduleDraftSave();
       el('task-prompt').focus();
     }));
+    // ADR-0114：流内滚动与“回到最新”。
+    el('conversation').addEventListener('scroll', () => {
+      const node = el('conversation');
+      state.streamFollow = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+      const jump = el('jump-latest');
+      if (jump && state.running) jump.hidden = state.streamFollow;
+    });
+    el('jump-latest').addEventListener('click', () => {
+      state.streamFollow = true;
+      scrollToLatest();
+      const jump = el('jump-latest');
+      if (jump) jump.hidden = true;
+    });
     el('a9-mode-open').addEventListener('click', () => { if (state.snapshot) configureModeDialog(state.snapshot, true); });
     el('a9-mode-apply').addEventListener('click', () => { void chooseMode(); });
     el('a9-mode-cancel').addEventListener('click', () => closeDialog(el('a9-mode-dialog')));
@@ -1253,6 +1945,20 @@
     el('navigation-backdrop').addEventListener('click', closeNavigation);
     el('refresh-diagnostics').addEventListener('click', () => { void refreshDiagnostics(); });
     document.addEventListener('keydown', (event) => {
+      // ADR-0114：Ctrl+K 聚焦目录搜索；Ctrl+I 切换检查器（抽屉模式）。
+      const key = String(event.key || '').toLowerCase();
+      if (event.ctrlKey && !event.altKey && !event.shiftKey && key === 'k') {
+        event.preventDefault();
+        const search = el('conversation-search');
+        search.focus();
+        if (typeof search.select === 'function') search.select();
+        return;
+      }
+      if (event.ctrlKey && !event.altKey && !event.shiftKey && key === 'i') {
+        event.preventDefault();
+        toggleInspector();
+        return;
+      }
       if (event.key === 'Tab') {
         const drawer = Array.from(document.querySelectorAll('.drawer:not([hidden])')).pop();
         if (drawer) { trapFocus(drawer, event); return; }
@@ -1275,6 +1981,7 @@
     }
     bind();
     await refreshSnapshot();
+    await loadConversationEvents();
     await refreshGit();
     await refreshDiagnostics();
     if (!state.snapshot) el('workspace-select').focus();

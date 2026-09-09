@@ -1053,6 +1053,47 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(manager.countEvents()).toBe(1);
   });
 
+  it('returns durable eventIds from record methods and pages session events with an ascending cursor (ADR-0114)', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    manager.saveSession('s-events', '/ws');
+    manager.saveSession('s-other', '/ws');
+
+    const first = manager.recordModelEvent('s-events', 'turn-1', 'model_note', { content: '先读文件', step: 1 });
+    expect(typeof first.eventId).toBe('number');
+    expect(first.eventId).toBeGreaterThan(0);
+    const second = manager.recordToolEvent('s-events', 'turn-1', 'tool_start', { toolName: 'read', callId: 'c1', step: 1 });
+    manager.recordModelEvent('s-events', 'turn-2', 'model_note', { content: 'step two', step: 2 });
+    manager.recordToolEvent('s-other', 'turn-9', 'tool_start', { toolName: 'read' });
+
+    // 升序、仅当前会话；eventId 为 a9_events 行 id。
+    const all = manager.listSessionEvents('s-events');
+    expect(all.map((e) => e.eventType)).toEqual(['model_note', 'tool_start', 'model_note']);
+    expect(all.map((e) => e.eventId)).toEqual([...all.map((e) => e.eventId)].sort((a, b) => a - b));
+    expect(all[0].payload).toEqual({ content: '先读文件', step: 1 });
+    expect(all[0].turnId).toBe('turn-1');
+    expect(all[1].turnId).toBe('turn-1');
+    expect(all[2].turnId).toBe('turn-2');
+
+    // turnId 过滤。
+    expect(manager.listSessionEvents('s-events', { turnId: 'turn-2' }).map((e) => e.eventType)).toEqual(['model_note']);
+
+    // limit 夹紧：[1,1000]。
+    expect(manager.listSessionEvents('s-events', { limit: 0 })).toHaveLength(1);
+    expect(manager.listSessionEvents('s-events', { limit: 2 })).toHaveLength(2);
+    expect(manager.listSessionEvents('s-events', { limit: 100000 })).toHaveLength(3);
+
+    // beforeEventId 游标：返回紧邻游标之前的最新窗口（升序输出）。
+    const beforeFirst = manager.listSessionEvents('s-events', { beforeEventId: second.eventId });
+    expect(beforeFirst.map((e) => e.eventId)).toEqual([first.eventId]);
+    expect(manager.listSessionEvents('s-events', { beforeEventId: first.eventId })).toEqual([]);
+
+    // 其他会话不可见（IPC 层负责拒绝跨会话请求）。
+    expect(manager.listSessionEvents('s-other').map((e) => e.turnId)).toEqual(['turn-9']);
+  });
+
   it('reconciles only same-workspace interrupted Turns from durable checkpoint manifests', () => {
     const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
     expect(outcome.status).toBe('ready');

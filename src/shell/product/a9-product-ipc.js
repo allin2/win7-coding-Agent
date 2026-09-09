@@ -29,12 +29,14 @@ const A9_ACTIONS = Object.freeze({
   DIFF_GET: 'a9.diff.get',
   GIT_STATUS: 'a9.git.status',
   WORKSPACE_READ: 'a9.workspace.read',
+  EVENTS_QUERY: 'a9.events.query',
 });
 
 /**
- * v5（ADR-0108）：在 v4 Shell 设置基础上增加 A9 自身的有界文件读取。
+ * v6（ADR-0114）：在 v5 有界文件读取基础上增加按会话有界查询持久化事件
+ * （a9.events.query，UI 过程回看；跨会话请求由 runtime 拒绝）。
  */
-const A9_IPC_SCHEMA_VERSION = 5;
+const A9_IPC_SCHEMA_VERSION = 6;
 
 function exactObject(value, keys, code, optionalKeys = []) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -168,6 +170,25 @@ function createA9ProductRequestHandler(options) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: unsupported encoding'), { code: 'A9_PAYLOAD_INVALID' });
           }
           return runtime.readWorkspaceFile(payload);
+        }
+        case A9_ACTIONS.EVENTS_QUERY: {
+          // ADR-0114：有界事件查询。conversationId 必填（runtime 绑定当前会话并
+          // 拒绝跨会话）；turnId/beforeEventId/limit 可选且严格类型化。
+          exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID', ['turnId', 'beforeEventId', 'limit']);
+          if (typeof payload.conversationId !== 'string' || payload.conversationId.length === 0) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: conversationId must be a non-empty string'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.turnId !== undefined && (typeof payload.turnId !== 'string' || payload.turnId.length === 0)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: turnId must be a non-empty string when supplied'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.beforeEventId !== undefined && !Number.isSafeInteger(payload.beforeEventId)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: beforeEventId must be a safe integer when supplied'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.limit !== undefined &&
+              (!Number.isSafeInteger(payload.limit) || payload.limit < 1 || payload.limit > 1000)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: limit must be an integer between 1 and 1000 when supplied'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return runtime.queryEvents(payload);
         }
         default:
           throw Object.assign(new Error('A9_ACTION_UNAVAILABLE'), { code: 'A9_ACTION_UNAVAILABLE' });

@@ -260,15 +260,98 @@ describe('A9 unified desktop workbench contract', () => {
     expect(ordinaryPrevented).toHaveBeenCalledTimes(1);
   });
 
-  it('defines semantic dark tokens, stable targets, responsive drawers and reduced motion', () => {
+  it('defines semantic light tokens, stable targets, responsive drawers and reduced motion', () => {
+    expect(css).toContain('color-scheme: light');
+    expect(css).toContain('--bg: #f4f3ef');
     expect(css).toContain('--bg-canvas:');
     expect(css).toContain('--text-primary:');
-    expect(css).toContain('--accent:');
+    expect(css).toContain('--accent: #0f766e');
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('@media (max-width: 1199px)');
     expect(css).toContain('@media (max-width: 799px)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(css).toContain('grid-template-columns: 232px minmax(500px, 1fr) 360px');
     expect(script).toContain('function trapFocus(container, event)');
+  });
+
+  it('renders ADR-0114 turn process events with bounded text and renderer-safe DOM', () => {
+    // 新 HTML 结构：目录搜索（含已归档）、运行状态行与“回到最新”。
+    ['conversation-search', 'live-status', 'live-elapsed', 'jump-latest'].forEach((id) => {
+      expect(html).toContain(`id="${id}"`);
+    });
+    expect(html).toContain('role="status"');
+    expect(html).toContain('搜索对话标题，包含已归档');
+    // 事件数据层：eventId 去重增量并入 + 有界历史回看（截断以 hasMore 明示）。
+    expect(script).toContain('function normalizeTimelineEvent(raw)');
+    expect(script).toContain('function ingestEvents(events)');
+    expect(script).toContain('state.turnEvents');
+    expect(script).toContain('beforeEventId: state.eventsBeforeId');
+    expect(script).toContain('state.eventsTruncated = response.hasMore === true');
+    expect(script).toContain('加载更早记录');
+    // 轮次过程渲染：说明行 / 计划条 / 工具活动组（callId 配对）/ 审批留痕。
+    ["case 'model_note':", "case 'plan_updated':", "case 'approval_required':",
+      "case 'approval_resolved':", "case 'tool_start':", "case 'tool_end':"].forEach((fragment) => {
+      expect(script).toContain(fragment);
+    });
+    expect(script).toContain('function toolHeadline(data)');
+    expect(script).toContain("const key = data.callId ? String(data.callId) : '__last__';");
+    expect(script).toContain('历史记录未包含过程。');
+    // 搜索与键盘：Ctrl+K 聚焦搜索、Ctrl+I 切换检查器；空结果如实提示。
+    expect(script).toContain("el('conversation-search').addEventListener('input'");
+    expect(script).toContain('state.searchQuery');
+    expect(script).toContain('没有匹配的对话。');
+    expect(script).toContain("key === 'k'");
+    expect(script).toContain("key === 'i'");
+    // 等待反馈：本地计时 + >10s 空闲检测；无百分比、无虚构动作。
+    expect(script).toContain('function startLiveTracking()');
+    expect(script).toContain('function tickLiveStatus()');
+    expect(script).toContain('idleMs >= 10000');
+    expect(script).toContain('等待模型响应…');
+    // 显示上限（ADR-0114）：单条说明 16 KB、单条工具输出 8 KB，截断必须明示。
+    expect(script).toContain('const NOTE_LIMIT = 16 * 1024');
+    expect(script).toContain('const TOOL_OUTPUT_LIMIT = 8 * 1024');
+    expect(script).toContain('已截断；完整内容见持久化事件与日志');
+    // 渲染安全：唯一 innerHTML 为静态状态图标，不可信文本一律 textContent。
+    expect((script.match(/innerHTML/g) || [])).toHaveLength(1);
+    expect(script).toContain("runtimeStatus.innerHTML = '<i aria-hidden=\"true\"></i>'");
+    expect(script).toContain('clampText(data.content, NOTE_LIMIT)');
+  });
+
+  it('classifies actual tool failure, cancellation and uncertain cleanup without claiming success', () => {
+    const source = script.slice(script.indexOf('  function toolEndStatus('), script.indexOf('  function timelineEntryLabel('));
+    const context: any = {};
+    vm.runInNewContext(source + ';this.classify = toolEndStatus;', context);
+    expect(context.classify({ shell: { exitCode: 1 } })[0]).toBe('failed');
+    expect(context.classify({ result: 'Tool execution error: file not found' })[0]).toBe('failed');
+    expect(context.classify({ residueRisk: true })[1]).toBe('清理未确认');
+    expect(context.classify({ shell: { status: 'cancelled' } })[0]).toBe('stopped');
+    expect(context.classify({ shell: { exitCode: null, status: 'unknown' } })[0]).toBe('interrupted');
+    expect(context.classify({ shell: { exitCode: 0, status: 'completed' } })[0]).toBe('success');
+  });
+
+  it('pages older history and exposes recoverable query errors without losing loaded events', async () => {
+    const source = script.slice(script.indexOf('  async function loadConversationEvents('), script.indexOf('  /** 事实'));
+    const queryEvents = jest.fn()
+      .mockResolvedValueOnce({ ok: true, events: [{ eventId: 301 }], hasMore: true })
+      .mockRejectedValueOnce(new Error('private failure detail'))
+      .mockResolvedValueOnce({ ok: true, events: [{ eventId: 1 }], hasMore: false });
+    const state: any = { activeConversationId: 'c', eventsBeforeId: null, snapshot: {}, eventsLoading: false };
+    const ingested: any[] = [];
+    const render = jest.fn();
+    const context: any = { a9: { queryEvents }, state, normalizeQueriedEvent: (x: any) => x,
+      ingestEvents: (xs: any[]) => ingested.push(...xs), renderConversation: render };
+    vm.runInNewContext(source + ';this.load = loadConversationEvents;', context);
+    await context.load();
+    expect(state.eventsBeforeId).toBe(301);
+    await context.load(true);
+    expect(state.eventsError).toContain('加载失败');
+    expect(state.eventsError).not.toContain('private');
+    expect(ingested).toHaveLength(1);
+    await context.load(true);
+    expect(queryEvents.mock.calls[2][0].beforeEventId).toBe(301);
+    expect(ingested.map(x => x.eventId)).toEqual([301, 1]);
+    expect(state.eventsError).toBe('');
+    expect(state.eventsTruncated).toBe(false);
+    expect(render).toHaveBeenCalledTimes(3);
   });
 });

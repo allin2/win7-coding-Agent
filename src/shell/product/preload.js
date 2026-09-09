@@ -30,7 +30,7 @@ function a8Request(action, sessionId, payload) {
 
 function a9Request(action, payload) {
   return ipcRenderer.invoke('product:a9-request', {
-    schemaVersion: 5, // ADR-0108：增加 A9 自身的有界文件读取
+    schemaVersion: 6, // ADR-0114：增加按会话有界事件查询（过程回看）
     action,
     payload: payload || {},
   });
@@ -77,6 +77,7 @@ const productApi = Object.freeze({
       maxLines,
       ...(encoding ? { encoding } : {}),
     }),
+    queryEvents: (values) => a9Request('a9.events.query', values || {}),
   }),
   getSettings: () => request('settings.get', 'desktop', {}),
   setSettings: (values) => request('settings.set', 'desktop', { values }),

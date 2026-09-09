@@ -42,6 +42,10 @@ function startFixtureModel(script: Array<{ tool?: { id: string; name: string; ar
         const step = script[Math.min(round, script.length - 1)];
         round += 1;
         if (step.tool) {
+          // ADR-0114：content 与 toolCalls 并存（真实模型在发起工具调用前先说明）。
+          if (step.content) {
+            sse(res, { choices: [{ delta: { content: step.content } }] });
+          }
           sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: step.tool.id, function: { name: step.tool.name, arguments: JSON.stringify(step.tool.args) } }] }, finish_reason: 'tool_calls' }] });
         } else if (step.contentChunks) {
           step.contentChunks.forEach((content, index) => {
@@ -566,6 +570,56 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
     }
   }, 30_000);
 
+  it('projects ADR-0114 process events with durable eventIds and conversation-bounded queries', async () => {
+    const fixture = await startFixtureModel([
+      { tool: { id: 'r1', name: 'read', args: { path: 'note.txt' } }, content: 'I will read the note first.' },
+      { content: 'done' },
+    ]);
+    try {
+      fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'n\n');
+      const runtime = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const turn = await runtime.submitTurn('go');
+      expect(turn.ok).toBe(true);
+      expect(turn.result.outcome).toBe('completed');
+
+      // timeline：model_note 带 eventId/sequence（即 a9_events 行 id）。
+      const snapshot = runtime.getSnapshot();
+      const noteEvent = snapshot.timeline.find((event: any) => event.type === 'model_note');
+      expect(noteEvent).toBeDefined();
+      expect(Number.isSafeInteger(noteEvent.eventId)).toBe(true);
+      expect(noteEvent.sequence).toBe(noteEvent.eventId);
+      expect(noteEvent.data).toMatchObject({ content: 'I will read the note first.', step: 1 });
+      const toolStart = snapshot.timeline.find((event: any) => event.type === 'tool_start');
+      expect(toolStart.data.callId).toBe('r1');
+
+      // queryEvents：当前会话、id 升序、包含 model_note 与 callId；跨会话拒绝。
+      const conversationId = snapshot.activeConversationId;
+      const queried = runtime.queryEvents({ conversationId, limit: 50 });
+      expect(queried.ok).toBe(true);
+      expect(queried.conversationId).toBe(conversationId);
+      const ids = queried.events.map((event: any) => event.eventId);
+      expect([...ids].sort((a, b) => a - b)).toEqual(ids);
+      const queriedNote = queried.events.find((event: any) => event.payload?.type === 'model_note');
+      expect(queriedNote).toBeDefined();
+      const queriedToolStart = queried.events.find((event: any) => event.payload?.type === 'tool_start');
+      expect(queriedToolStart.payload.data.callId).toBe('r1');
+      expect(() => runtime.queryEvents({ conversationId: 'a9-other-session', limit: 50 }))
+        .toThrow(/A9_EVENTS_CONVERSATION_MISMATCH/);
+
+      // 重启后事件仍可按同一会话回看（eventId 跨重启稳定，顺序不变）。
+      runtime.shutdown();
+      const runtime2 = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
+      const replayed = runtime2.queryEvents({ conversationId, limit: 50 });
+      expect(replayed.ok).toBe(true);
+      expect(replayed.events.map((event: any) => event.eventId)).toEqual(ids);
+      runtime2.shutdown();
+    } finally {
+      await fixture.close();
+    }
+  }, 30_000);
+
   it('exposes honest git status including non-git degradation', async () => {
     const runtime = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
     const git = await runtime.gitStatus();
@@ -724,5 +778,37 @@ describe('A9-06: a9 product IPC schema validation', () => {
     ]);
     const extra = await request('a9.draft.save', { text: 'x', leak: true });
     expect(extra.error.code).toBe('A9_PAYLOAD_INVALID');
+  });
+
+  it('validates and forwards only conversation-bounded A9 event queries (ADR-0114)', async () => {
+    expect(A9_IPC_SCHEMA_VERSION).toBe(6);
+    const queryEvents = jest.fn(() => ({ ok: true, conversationId: 'a9c-1', events: [], hasMore: false }));
+    const eventsHandler = createA9ProductRequestHandler({
+      getA9Runtime: () => ({ queryEvents }),
+      isValidRendererSender: validSender,
+    });
+    const request = (payload: object) => eventsHandler({}, {
+      schemaVersion: A9_IPC_SCHEMA_VERSION, action: 'a9.events.query', payload,
+    });
+    const valid = { conversationId: 'a9c-1', limit: 300 };
+    expect(await request(valid)).toMatchObject({ ok: true });
+    expect(queryEvents).toHaveBeenCalledWith(valid);
+    // turnId / beforeEventId / limit 可选，且类型严格。
+    expect((await request({ conversationId: 'a9c-1', turnId: 'turn-1', beforeEventId: 42 })).ok).toBe(true);
+    expect((await request({ conversationId: 'a9c-1' })).ok).toBe(true);
+    for (const payload of [
+      { turnId: 'turn-1' },
+      { conversationId: '' },
+      { conversationId: 'a9c-1', limit: 0 },
+      { conversationId: 'a9c-1', limit: 1001 },
+      { conversationId: 'a9c-1', limit: 1.5 },
+      { conversationId: 'a9c-1', beforeEventId: 'x' },
+      { conversationId: 'a9c-1', turnId: '' },
+      { conversationId: 'a9c-1', extra: true },
+    ]) {
+      const rejected = await request(payload);
+      expect(rejected).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
+    }
+    expect(queryEvents).toHaveBeenCalledTimes(3);
   });
 });

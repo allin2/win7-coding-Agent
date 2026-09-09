@@ -4,6 +4,25 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-15 / WIN7-23 UI 过程反馈候选
+
+WIN7-23 是 A9-15 的独立候选身份，不覆盖或改判 WIN7-22。它复用未变化的 Electron、D-013 v25 与
+SQLite 正式输入精确哈希，使用新锁 `a9-15-win7-23-input-lock.json`：
+
+```text
+node scripts/release/build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-15-win7-23-input-lock.json ^
+  --electron-zip spikes\04-storage-index\build-win10\kit\inputs\electron-v22.3.27-win32-x64.zip ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip A6\WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip ^
+  --output <候选外新目录>
+```
+
+正式包必须从两个干净、已提交源码工作树独立构建并逐字节一致。候选哈希确定后，按
+`A9_15_WINDOWS_VALIDATION.md` 获取候选外 `WIN7_23_RELEASE_AUTHORITY` 与独立 SHA-256 pin，再进入
+Win7 普通用户验证。自动 fixture smoke 不满足真实 Provider 用例；完整结果仅可签发
+`A9_15_WIN7_UI_INTEGRATION_PASS`，不是新的 Alpha 或 RC PASS。
+
 从仓库根目录构建：
 
 ```text

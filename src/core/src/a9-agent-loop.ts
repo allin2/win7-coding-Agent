@@ -31,6 +31,7 @@ export interface A9LoopEvent {
   type:
     | 'turn_started'
     | 'model_thinking'
+    | 'model_note'
     | 'model_chunk'
     | 'tool_start'
     | 'tool_end'
@@ -514,7 +515,7 @@ export class A9AgentLoop {
         type: 'tool_end',
         turnId,
         timestamp: new Date().toISOString(),
-        data: { toolName: suspended.pending.name, denied: true, sideEffects: 0 },
+        data: { toolName: suspended.pending.name, callId: suspended.pending.id, step: suspended.stepCount, denied: true, sideEffects: 0 },
       });
       return this.runLoop(turnId, options.signal ?? suspended.signal, suspended.stepCount, suspended.toolCallsExecuted, suspended.queue);
     }
@@ -523,7 +524,7 @@ export class A9AgentLoop {
     // execution. Use that signal for the approved call itself, not only for the
     // following model loop, otherwise Stop cannot reach a long-running command.
     const resumeSignal = options.signal ?? suspended.signal;
-    const result = await this.executeValidatedToolCall(turnId, suspended.pending, resumeSignal);
+    const result = await this.executeValidatedToolCall(turnId, suspended.pending, resumeSignal, suspended.stepCount);
     if (result.residueRisk) {
       return this.residueStop(turnId, suspended.stepCount, suspended.toolCallsExecuted, result.logPaths);
     }
@@ -688,6 +689,17 @@ export class A9AgentLoop {
         toolCalls: toolCalls.map((tc) => ({ ...tc })),
       });
 
+      // ADR-0114：本轮响应含 content 且发起 toolCalls → 步骤完整语义段作为中间说明
+      // （非逐 chunk）；最终答案仍只在 turn_completed.finalMessage 呈现一次。
+      if (response.content) {
+        this.emitEvent({
+          type: 'model_note',
+          turnId,
+          timestamp: new Date().toISOString(),
+          data: { content: response.content, step: stepCount },
+        });
+      }
+
       const queueResult = await this.drainToolCallQueue(turnId, signal, toolCalls, stepCount, toolCallsExecuted);
       if (queueResult.kind === 'suspended') return queueResult.result;
       if (queueResult.kind === 'final') return queueResult.result;
@@ -822,7 +834,7 @@ export class A9AgentLoop {
           });
           continue;
         }
-        const staged = await this.executeStagedWrite(turnId, tc, validatedCall.args);
+        const staged = await this.executeStagedWrite(turnId, tc, validatedCall.args, stepCount);
         this.conversationHistory.push({
           role: 'tool',
           toolCallId: tc.id,
@@ -890,7 +902,7 @@ export class A9AgentLoop {
         };
       }
 
-      const execResult = await this.executeValidatedToolCall(turnId, { ...tc }, signal);
+      const execResult = await this.executeValidatedToolCall(turnId, { ...tc }, signal, stepCount);
       if (execResult.executed) executed++;
       if (execResult.residueRisk) {
         return { kind: 'final', result: this.residueStop(turnId, stepCount, executed, execResult.logPaths) };
@@ -954,13 +966,14 @@ export class A9AgentLoop {
     turnId: string,
     tc: A9ModelToolCall,
     args: Record<string, any>,
+    step: number,
   ): Promise<string> {
     const staging = this.config.reviewStaging!;
     this.emitEvent({
       type: 'tool_start',
       turnId,
       timestamp: new Date().toISOString(),
-      data: { toolName: tc.name, args, staged: true },
+      data: { toolName: tc.name, callId: tc.id, step, args, staged: true },
     });
     let staged: unknown;
     try {
@@ -989,7 +1002,7 @@ export class A9AgentLoop {
         type: 'tool_end',
         turnId,
         timestamp: new Date().toISOString(),
-        data: { toolName: tc.name, staged: true, error: err.message },
+        data: { toolName: tc.name, callId: tc.id, step, staged: true, error: err.message },
       });
       return message;
     }
@@ -998,7 +1011,7 @@ export class A9AgentLoop {
       type: 'tool_end',
       turnId,
       timestamp: new Date().toISOString(),
-      data: { toolName: tc.name, staged: true, result: message.slice(0, 1000) },
+      data: { toolName: tc.name, callId: tc.id, step, staged: true, result: message.slice(0, 1000) },
     });
     return message;
   }
@@ -1007,6 +1020,7 @@ export class A9AgentLoop {
     turnId: string,
     tc: A9ModelToolCall,
     signal: AbortSignal | undefined,
+    step: number,
   ): Promise<{ executed: boolean; result: string; residueRisk?: boolean; logPaths?: { stdout: string; stderr: string } }> {
     let parsedArgs: Record<string, unknown> = {};
     try {
@@ -1027,7 +1041,7 @@ export class A9AgentLoop {
       type: 'tool_start',
       turnId,
       timestamp: new Date().toISOString(),
-      data: { toolName: tc.name, args },
+      data: { toolName: tc.name, callId: tc.id, step, args },
     });
 
     let toolResultStr = '';
@@ -1128,6 +1142,8 @@ export class A9AgentLoop {
       data: {
         schemaVersion: 1,
         toolName: tc.name,
+        callId: tc.id,
+        step,
         result: toolResultStr.slice(0, 1000),
         ...(shellEvent ? { shell: shellEvent } : {}),
         ...(residueRisk ? { residueRisk: true } : {}),

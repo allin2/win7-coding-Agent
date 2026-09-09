@@ -147,6 +147,47 @@ describe('A9-05: A9AgentLoop and Coding Workflow', () => {
     });
   });
 
+  it('emits model_note only when a tool-call step also carries content, and tags tool events with callId/step (ADR-0114)', async () => {
+    const events: any[] = [];
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn()
+        .mockResolvedValueOnce({
+          id: 'note-1', content: 'I will read the file first to locate the bug.', finishReason: 'tool_calls',
+          toolCalls: [{ id: 'note-tc-1', name: 'read', arguments: '{"path":"calc.ts"}' }],
+        })
+        .mockResolvedValueOnce({
+          id: 'silent-1', content: '', finishReason: 'tool_calls',
+          toolCalls: [{ id: 'note-tc-2', name: 'read', arguments: '{"path":"calc.ts","start_line":2}' }],
+        })
+        .mockResolvedValueOnce({ id: 'done', content: 'Bug fixed and verified.', finishReason: 'stop' }),
+    };
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/test/workspace', provider, workspaceService: mockWorkspace,
+      runner: mockRunner, permissionMode: PermissionMode.FULL_ACCESS,
+      onEvent: (event) => events.push(event),
+    });
+
+    await loop.runTurn('fix the bug');
+
+    // 步骤 1：content + toolCalls → model_note（完整语义段，非逐 chunk）。
+    const notes = events.filter((event) => event.type === 'model_note');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].data).toEqual({ content: 'I will read the file first to locate the bug.', step: 1 });
+    expect(notes[0].turnId).toBe(events[0].turnId);
+
+    // 纯最终答案（toolCalls 为空）与 content 为空的步骤都不发 model_note。
+
+    // tool_start/tool_end 均携带稳定 callId 与 step。
+    const toolStarts = events.filter((event) => event.type === 'tool_start');
+    const toolEnds = events.filter((event) => event.type === 'tool_end');
+    expect(toolStarts).toHaveLength(2);
+    expect(toolEnds).toHaveLength(2);
+    expect(toolStarts.map((e) => e.data.callId)).toEqual(['note-tc-1', 'note-tc-2']);
+    expect(toolEnds.map((e) => e.data.callId)).toEqual(['note-tc-1', 'note-tc-2']);
+    expect(toolStarts.map((e) => e.data.step)).toEqual([1, 2]);
+    expect(toolEnds.map((e) => e.data.step)).toEqual([1, 2]);
+  });
+
   it('detects 3-turn no-progress loop and halts with STUCK outcome', async () => {
     const mockModel: A9ModelPort = {
       sendStreamRequest: jest.fn().mockResolvedValue({

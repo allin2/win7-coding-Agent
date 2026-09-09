@@ -34,24 +34,34 @@ describe('A9 preload capability boundary', () => {
     ]) expect(api[method]).toBeUndefined();
   });
 
-  it('routes Shell settings only through the A9 v5 settings action', async () => {
+  it('routes Shell settings only through the A9 v6 settings action', async () => {
     const { api, invoke } = loadPreload(['electron', 'main.js']);
     const payload = { kind: 'automatic', envOverlay: { PROJECT_MODE: 'alpha' } };
     await api.a9.configureShell(payload);
     expect(invoke).toHaveBeenCalledWith('product:a9-request', {
-      schemaVersion: 5,
+      schemaVersion: 6,
       action: 'a9.shell.configure',
       payload,
     });
   });
 
-  it('exposes bounded Viewer reads only through the A9 v5 workspace action', async () => {
+  it('exposes bounded Viewer reads only through the A9 v6 workspace action', async () => {
     const { api, invoke } = loadPreload(['electron', 'main.js']);
     await api.a9.readWorkspaceFile('中文.txt', 2, 500, 'gbk');
     expect(invoke).toHaveBeenCalledWith('product:a9-request', {
-      schemaVersion: 5,
+      schemaVersion: 6,
       action: 'a9.workspace.read',
       payload: { path: '中文.txt', startLine: 2, maxLines: 500, encoding: 'gbk' },
+    });
+  });
+
+  it('exposes the ADR-0114 event query only through the A9 v6 events action', async () => {
+    const { api, invoke } = loadPreload(['electron', 'main.js']);
+    await api.a9.queryEvents({ conversationId: 'conv-1', limit: 50 });
+    expect(invoke).toHaveBeenCalledWith('product:a9-request', {
+      schemaVersion: 6,
+      action: 'a9.events.query',
+      payload: { conversationId: 'conv-1', limit: 50 },
     });
   });
 
@@ -60,7 +70,7 @@ describe('A9 preload capability boundary', () => {
     await api.a9.undoTurn('turn-first');
     const request: any = (invoke.mock.calls as any)[0][1];
     expect(request).toEqual({
-      schemaVersion: 5,
+      schemaVersion: 6,
       action: 'a9.checkpoint.undoTurn',
       payload: { turnId: 'turn-first' },
     });

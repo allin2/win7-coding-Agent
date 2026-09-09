@@ -1669,3 +1669,48 @@
   全局及共享 skill 变更在仓库外单独维护与备份，受实际文件写入权限约束；本 ADR 不声明其安装已完成。
 - 验证：仓库运行 docs:check 与 diff/编码检查；规则通过小文档、局部 bug、UI 小修、Win7 验收四类隔离场景观察。
   文件精简量、场景观察、当前会话加载和新会话实际生效分别记录，不以字符减少推断费用或行为改善。
+
+## ADR-0114 UI 过程反馈事件与投影扩展
+
+- 状态：Accepted（2026-09-08，负责人授权依据 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` 在 `codex/ui-optimization` 分支实施 UI 优化）
+- 背景：Alpha 1 工作台对话流只呈现请求与最终结果，模型中间说明、工具活动、审批留痕与等待事实
+  均不可见；Inspector 时间线按技术事件名显示；重启或轮询后过程不可回看。实现方案（用户已认可的
+  修正版 Demo 为视觉基线）要求补上真实、及时、可回看的 Agent 过程反馈并重构工作台视觉。
+- 决策：（1）core loop 新增事件类型 `model_note`：当本轮响应含 content 且发起 toolCalls 时，在执行
+  工具队列前 emit，data=`{content, step}`，为步骤完整语义段（非逐 chunk），承载中间自然语言说明；
+  最终答案仍只在 `turn_completed.finalMessage` 呈现一次。（2）`tool_start`/`tool_end` data 增加
+  `callId`（provider 工具调用 ID，稳定配对身份）与 `step`。（3）事件身份以 `a9_events` 行 id
+  （AUTOINCREMENT）为 `eventId`/`sequence`，跨重启稳定；运行时先持久化后入内存 timeline，持久化
+  失败则该事件不进入 UI 投影（fail-closed）。（4）运行时在审批决定落库后补发 `approval_resolved`
+  时间线事件（批准/拒绝均留痕，data 含 approvalId/decision/decidedAt/toolName）。（5）新增 IPC 动作
+  `a9.events.query`，信封 schemaVersion 5→6，payload `{conversationId, turnId?, beforeEventId?,
+  limit?}`，limit 默认 200、上限 1000，按 id 升序返回并带 `hasMore`；跨会话请求拒绝。（6）SQLite
+  表结构不变（a9_events 版化 schema v4 校验沿用），新事件经版本化 payload 扩展。（7）脱敏边界不变
+  （整步骤内容统一脱敏，沿用跨 chunk 累积语义）；Renderer 显示上限：单条说明 16 KB、单条工具输出
+  8 KB，截断明示。（8）渲染安全：说明/路径/命令/输出一律 textContent，禁止 innerHTML 注入不可信
+  文本。
+- 边界：不修改 native helper、Runner/Policy 安全语义、Git 适配器与冻结 `release/**`；不新增依赖、
+  运行时或权限模式；CSP 与 Renderer 单文件结构不变，不引入远程字体/新框架。
+- 后果：旧记录无事件时 UI 明示"历史记录未包含过程"，不虚构回填。开发机测试不构成 Win7 PASS；
+  真实 Provider 多工具任务、Win10 双构建、Win7 实机与打包发布均为 NOT_PERFORMED。验收以
+  [A9-15 任务书](tasks/A9_15_UI_PROGRESS_FEEDBACK.md) 为准。
+
+## ADR-0115 A9-15 WIN7-23 新候选与直接实机验收边界
+
+- 状态：Accepted（2026-09-09，负责人授权提交 A9-15 范围改动、不推送，建立新候选合同并继续 Win7 实机验收）
+- 背景：A9-15 已通过开发机定向测试与 Electron smoke，但未提交源码不能形成
+  `external_acceptance_eligible=true` 的正式候选；WIN7-22 绑定旧源码与既有裁决，不得重绑或改判。
+  A9-15 改动覆盖 Core 事件、State 查询、Shell IPC/Runtime 与 Renderer，因此需要当前候选直接证据，
+  不能把开发机或管理员 SSH 预检写成 Win7 PASS。
+- 决策：（1）候选编号 WIN7-23，沿用产品版本 `0.3.0-alpha.1`，但使用新的源码提交、input lock、验证 kit、
+  ZIP/manifest 哈希、部署目录、release authority 和证据根。（2）Electron 22.3.27、D-013 v25 helper、
+  better-sqlite3 8.7.0/ABI 110 均按 WIN7-22 已批准输入的精确哈希复用；native 源码、字节、协议与 Profile
+  未变化，不重跑 native 双构建，也不继承其产品/Win7 结论为 WIN7-23 直接 PASS。（3）两个干净源码
+  工作树独立装配完整产品并要求 ZIP 字节一致；候选哈希确定后必须由候选外独立批准记录和 SHA-256 pin
+  放行，不能从候选或 sidecar 自签。（4）Win7 以普通用户、非提升令牌运行正式 Electron main/preload/
+  schema IPC/renderer，八项当前候选用例覆盖身份/完整性/启动、过程事件、历史分页、审批与失败顺序、
+  等待/Stop/清理、搜索/焦点/视觉、真实 Provider 多工具任务及后飞行。fixture smoke 不能满足真实 Provider。
+- 后果：完成只能签发 `A9_15_WIN7_UI_INTEGRATION_PASS`，不重签或扩大
+  `A9_14_WIN7_22_GO_FOR_ALPHA`，也不是 RC PASS。历史 WIN7-19～22 候选、失败与证据全部不可变。
+  管理 SSH 仅用于严格主机密钥校验下的盘点、传输、哈希与证据回收；普通用户 GUI 证据仍需当前桌面会话。
+  不推送，不纳入 `.trae/**`、连接资料、秘密、状态数据库或临时数据。
