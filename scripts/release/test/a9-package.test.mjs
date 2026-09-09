@@ -24,6 +24,8 @@ const integrity = require('../../../release/win7-product-v3/a9-package-integrity
 const { ACCEPTANCE_REQUIRED_FILES } = integrity;
 const win23Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w23.cjs');
 const win23Report = require('../../../release/win7-product-v3/a9-win7-23-report.cjs');
+const win24Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w24.cjs');
+const win24Report = require('../../../release/win7-product-v3/a9-win7-24-report.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
@@ -207,6 +209,8 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
   fs.writeFileSync(path.join(electronRoot, 'electron.exe'), electronPe);
   fs.writeFileSync(path.join(electronRoot, 'LICENSE'), 'Electron MIT');
   fs.writeFileSync(path.join(electronRoot, 'LICENSES.chromium.html'), 'Chromium notices');
+  fs.mkdirSync(path.join(electronRoot, 'resources'));
+  fs.writeFileSync(path.join(electronRoot, 'resources', 'default_app.asar'), 'fixture default Electron app');
 
   const runnerEntry = 'output/helper.exe';
   const runnerRoot = path.join(root, 'runner');
@@ -277,19 +281,27 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (candidate === 'win23') {
-    lock.lock_id = 'A9-15-INPUTS-UI-PROGRESS-WIN7-23';
+  if (candidate === 'win23' || candidate === 'win24') {
+    const number = candidate === 'win24' ? '24' : '23';
+    lock.lock_id = `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
     lock.source_date_epoch = 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
-    lock.gates.win7 = 'NOT_PERFORMED_WIN7_23';
-    lock.provenance = {
-      task: 'A9-15', previous_candidate: 'WIN7-22',
-      previous_candidate_result: 'A9_14_WIN7_22_GO_FOR_ALPHA',
-      change_scope: 'UI_PROGRESS_FEEDBACK',
-    };
+    lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
+    lock.provenance = candidate === 'win24'
+      ? {
+        task: 'A9-15', previous_candidate: 'WIN7-23',
+        previous_candidate_result: 'FIX_BEFORE_WIN7_24_VALIDATION',
+        change_scope: 'VALIDATION_DRIVER_LAUNCH_AND_WIN7_TYPOGRAPHY_CLARITY',
+      }
+      : {
+        task: 'A9-15', previous_candidate: 'WIN7-22',
+        previous_candidate_result: 'A9_14_WIN7_22_GO_FOR_ALPHA',
+        change_scope: 'UI_PROGRESS_FEEDBACK',
+      };
   }
-  const lockPath = path.join(root, candidate === 'win23'
-    ? 'a9-15-win7-23-input-lock.json' : 'a9-14-win7-22-input-lock.json');
+  const lockPath = path.join(root, candidate === 'win24'
+    ? 'a9-15-win7-24-input-lock.json'
+    : candidate === 'win23' ? 'a9-15-win7-23-input-lock.json' : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
@@ -478,6 +490,69 @@ test('WIN7-23 builder and verifier bind a clean A9-15 candidate without reusing 
   assert.equal(integrityReport.cases[0].status, 'PASS');
   assert.equal(integrityReport.cases[1].status, 'FAIL');
   assert.match(integrityReport.cases[1].detail, /RUNTIME_ABI_INVALID/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-24 packages the external driver runtime contract without modifying WIN7-23 identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win24-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win24');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifestPath = path.join(stage, 'release-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  assert.equal(manifest.source_dirty, false);
+  assert.equal(manifest.external_acceptance_eligible, true);
+  for (const relative of win24Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-24 closure: ${relative}`);
+  }
+  assert.equal(fs.existsSync(path.join(stage, 'a9-15-win7-23-input-lock.json')), false);
+  assert.equal(fs.existsSync(path.join(stage, 'RUN_WIN7_23_REPORT_VERIFY.cmd')), false);
+  const smoke = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-24-smoke.cjs'), 'utf8');
+  const driver = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-24-driver.cjs'), 'utf8');
+  assert.match(smoke, /process\.noAsar = true/);
+  assert.match(smoke, /prepareDriverRuntime/);
+  assert.match(smoke, /resources', 'default_app\.asar'/);
+  assert.doesNotMatch(smoke, /copyTree\([^\n]*resources[^\n]*app/);
+  assert.match(smoke, /phaseReportsValid/);
+  assert.match(smoke, /fixtureRequests\.journey > 0 && fixtureRequests\.stop > 0/);
+  assert.match(driver, /mode === 'workspace_select' \|\| mode === 'first' \|\| mode === 'stop'/);
+
+  const authorityPath = path.join(root, 'release-authority.json');
+  writeJson(authorityPath, {
+    schema_version: 1,
+    kind: 'WIN7_24_RELEASE_AUTHORITY',
+    status: 'APPROVED_FOR_WIN7_24_VALIDATION',
+    formal_input_lock_sha256: sha256File(inputs.lockPath),
+    approval_registry: {
+      commit: manifest.source_commit,
+      sha256: sha256File(inputs.approvalRegistryPath),
+    },
+    candidate: {
+      source_commit: manifest.source_commit,
+      package_sha256: sha256File(built.zipPath),
+      manifest_sha256: sha256File(manifestPath),
+    },
+  });
+  const options = {
+    zip: built.zipPath,
+    'release-manifest': manifestPath,
+    kit: path.join(stage, 'A9_15_VALIDATION_KIT.json'),
+    'formal-input-lock': inputs.lockPath,
+    'approval-registry': inputs.approvalRegistryPath,
+    'release-authority': authorityPath,
+    'release-authority-sha256': sha256File(authorityPath),
+  };
+  const identity = win24Report.identityFrom(options, fs);
+  const kit = JSON.parse(fs.readFileSync(options.kit, 'utf8'));
+  const initialized = win24Report.template(kit, identity);
+  assert.equal(identity.candidate_label, 'WIN7-24');
+  assert.equal(kit.scope.decision, 'ADR-0116');
+  assert.equal(initialized.report_kind, 'A9_15_WIN7_24_UI_PROGRESS_ACCEPTANCE');
+  assert.ok(initialized.results.some((item) => item.case_id === 'W24-07-REAL-PROVIDER-MULTITOOL'));
+  assert.throws(() => win24Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

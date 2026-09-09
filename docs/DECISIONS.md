@@ -1714,3 +1714,25 @@
   `A9_14_WIN7_22_GO_FOR_ALPHA`，也不是 RC PASS。历史 WIN7-19～22 候选、失败与证据全部不可变。
   管理 SSH 仅用于严格主机密钥校验下的盘点、传输、哈希与证据回收；普通用户 GUI 证据仍需当前桌面会话。
   不推送，不纳入 `.trae/**`、连接资料、秘密、状态数据库或临时数据。
+
+## ADR-0116 WIN7-23 验证启动失效、Win7 字体清晰度修复与 WIN7-24 新候选
+
+- 状态：Accepted（2026-09-09，负责人要求修复验证启动方式、优化截图所示字体清晰度，提交后建立
+  WIN7-24；明确禁止修改或重判 WIN7-23）
+- 背景：WIN7-23 已通过双干净构建、候选/包完整性和普通用户令牌门，但自动 smoke 的外层 Electron
+  Node 模式脚本再次执行打包 `electron.exe <driver.cjs>` 时，子进程固定加载 `resources/app`，没有执行
+  driver 或生成 phase 报告；目标机截图还显示 Segoe UI 优先回退、9～11px 辅助文字和偏浅 muted 色令
+  中文在 Win7 上偏细发虚。上述事实使 WIN7-23 后续验收 fail closed，不能用可见窗口或退出码补判。
+- 决策：（1）WIN7-23 全部身份、工件、部署和证据冻结。WIN7-24 使用新源码提交、lock、kit、ZIP/
+  manifest、候选外 authority、部署目录和证据根。（2）smoke 外层仍由候选 Electron Node 模式执行，
+  但在候选外 run root 建立只含锁定 Electron 运行文件、`default_app.asar` 和验证 app/driver 的临时运行
+  副本；副本不复制正式 `resources/app`，driver 通过显式环境变量加载候选内正式 main，继续覆盖真实
+  preload/IPC/renderer。（3）汇总器要求 first/second/stop 三份报告存在、mode 精确、每项断言 PASS，
+  journey/stop fixture 都收到请求；stop 新数据根先绑定正式工作区。（4）CSS 只调整离线 Win7 字体栈、
+  整数基础字号、最小辅助字号和 muted 对比度，不引入字体、依赖、权限、网络或 CSP 变化。（5）复用
+  WIN7-22 已批准的 Electron 22.3.27、D-013 v25 与 SQLite/ABI 110 精确输入；双干净构建后仍需独立
+  authority hash pin 才能运行正式 WIN7-24 门禁。
+- 后果：验证副本和其数据属于候选外临时证据运行目录，不是交付产品入口，也不能替代 package integrity；
+  产品源码仍以候选内正式 main/preload/IPC/renderer 为被测入口。WIN7-24 自动 fixture smoke 不能满足真实
+  Provider 用例，开发机或管理员结果不能替代普通用户非提升证据。完成结论仍最多为
+  `A9_15_WIN7_UI_INTEGRATION_PASS`，不是新的 Alpha/RC PASS；不推送。

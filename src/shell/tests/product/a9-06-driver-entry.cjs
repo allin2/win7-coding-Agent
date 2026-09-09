@@ -61,7 +61,7 @@ async function waitFor(condition, timeoutMs, label) {
 async function main() {
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
-  if (mode === 'workspace_select' || mode === 'first') {
+  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop') {
     // Start with no active workspace, then drive the real workspace.select IPC.
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
@@ -86,7 +86,7 @@ async function main() {
     return;
   }
 
-  if (mode === 'first') {
+  if (mode === 'first' || mode === 'stop') {
     await exec('document.getElementById("workspace-select").click(); true');
     const explorer = await waitFor(() => exec(`(() => {
       const file = Array.from(document.querySelectorAll('#workspace-tree button'))

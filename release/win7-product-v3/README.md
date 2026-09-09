@@ -4,7 +4,27 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
-## A9-15 / WIN7-23 UI 过程反馈候选
+## A9-15 / WIN7-24 验证启动与字体清晰度候选
+
+WIN7-23 已因打包 Electron 子进程没有执行 driver、三份 phase 报告未生成而冻结为
+`FIX_BEFORE_WIN7_24_VALIDATION`；其合同、候选和证据不得修改或重判。ADR-0116 的 WIN7-24 使用新锁
+`a9-15-win7-24-input-lock.json`，修复候选外 Electron driver runtime、stop 工作区前置和反假阳性断言，
+同时只在现有 CSS 内优化 Win7 本地字体栈、整数基础字号和辅助文字对比度：
+
+```text
+node scripts/release/build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-15-win7-24-input-lock.json ^
+  --electron-zip spikes\04-storage-index\build-win10\kit\inputs\electron-v22.3.27-win32-x64.zip ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip A6\WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip ^
+  --output <候选外新目录>
+```
+
+正式包仍须双干净构建逐字节一致，并在哈希确定后取得候选外 `WIN7_24_RELEASE_AUTHORITY` 与独立 pin。
+验证步骤见 `A9_15_WIN7_24_VALIDATION.md`。自动 fixture smoke 的临时 Electron 副本位于候选外证据 run
+root，被测产品入口仍是候选内正式 main/preload/IPC/renderer；它不能替代真实 Provider 或普通用户证据。
+
+## A9-15 / WIN7-23 历史候选
 
 WIN7-23 是 A9-15 的独立候选身份，不覆盖或改判 WIN7-22。它复用未变化的 Electron、D-013 v25 与
 SQLite 正式输入精确哈希，使用新锁 `a9-15-win7-23-input-lock.json`：
@@ -18,7 +38,7 @@ node scripts/release/build-a9-product-v3.mjs ^
   --output <候选外新目录>
 ```
 
-正式包必须从两个干净、已提交源码工作树独立构建并逐字节一致。候选哈希确定后，按
+该段仅保留历史重建说明。正式包必须从两个干净、已提交源码工作树独立构建并逐字节一致。候选哈希确定后，按
 `A9_15_WINDOWS_VALIDATION.md` 获取候选外 `WIN7_23_RELEASE_AUTHORITY` 与独立 SHA-256 pin，再进入
 Win7 普通用户验证。自动 fixture smoke 不满足真实 Provider 用例；完整结果仅可签发
 `A9_15_WIN7_UI_INTEGRATION_PASS`，不是新的 Alpha 或 RC PASS。

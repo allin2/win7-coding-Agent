@@ -36,6 +36,14 @@
   `A9_15_WIN7_23_CANDIDATE_PREPARATION`。候选、候选外 release authority、普通用户执行和真实 Provider
   多工具任务尚未完成，仍不新增 Win7 PASS。
 
+- 2026-09-09，WIN7-23 在双干净构建、候选/包完整性及普通用户非提升令牌门通过后，自动产品 smoke
+  发现验证启动器实际加载候选 `resources/app` 而非 driver，三个 phase 报告未生成；该候选与失败证据已
+  冻结，保持 `FIX_BEFORE_WIN7_24_VALIDATION`，不得修改或重判。负责人随后授权 ADR-0116：修复为候选外
+  独立 Electron 验证副本，补齐 stop 工作区前置与反假阳性断言，并按目标机截图优化 Win7 本地字体栈、
+  整数基础字号和辅助文字对比度；提交后建立全新 WIN7-24，不推送。当前仍处
+  `A9_15_WIN7_24_CANDIDATE_PREPARATION`；WIN7-24 哈希、独立 authority、普通用户实机与真实 Provider
+  结果尚未形成，均不得写成 PASS。
+
 - 2026-09-07 补录 2026-09-04 的 WIN7-22 正式收口：源 `1c04644`，ZIP `5cc07f35…c4e8`，
   正式验证 13/13（4 直接、9 继承），G7 独审 P0/P1/P2=0，裁决 `A9_14_WIN7_22_GO_FOR_ALPHA`。
   下方记录为历史执行过程，不覆盖此冻结候选最终裁决；Win10 同候选 smoke 仍为 RC 前置。

@@ -103,6 +103,7 @@ describe('A9 unified desktop workbench contract', () => {
     expect(smokeDriver).toContain('A9F1-FORMAL-EXPLORER-SESSION');
     expect(smokeDriver).toContain('A9F1-VIEWER-ENCODING-PER-FILE');
     expect(smokeDriver).toContain('A9F1-SHELL-EVENT-DTO-UI');
+    expect(smokeDriver).toContain("mode === 'workspace_select' || mode === 'first' || mode === 'stop'");
     expect(smokeDriver).not.toContain('getElementById("a9-prompt")');
     expect(smokeDriver).not.toContain('getElementById("a9-submit")');
     expect(smokeDriver).not.toContain('getElementById("a9-stop")');
@@ -266,6 +267,10 @@ describe('A9 unified desktop workbench contract', () => {
     expect(css).toContain('--bg-canvas:');
     expect(css).toContain('--text-primary:');
     expect(css).toContain('--accent: #0f766e');
+    expect(css).toContain('--muted: #59616b');
+    expect(css).toContain('--font-ui: "Microsoft YaHei", "Microsoft YaHei UI", "Segoe UI", sans-serif');
+    expect(css).toContain('font: 15px/1.55 var(--font-ui)');
+    expect(css).not.toMatch(/font(?:-size)?:[^;]*(?:9|10)px/);
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('@media (max-width: 1199px)');
     expect(css).toContain('@media (max-width: 799px)');

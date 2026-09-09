@@ -5,10 +5,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: PRODUCT_EXPERIENCE_HARDENING
 Target Branch: codex/ui-optimization
 Source Baseline: 72dfe229447d93750815525e713a1a80f02534f3
-Phase-Gate: A9_15_WIN7_23_CANDIDATE_PREPARATION
+Phase-Gate: A9_15_WIN7_24_CANDIDATE_PREPARATION
 Win7-Validation: WIN7_NOT_PERFORMED
-Target Candidate: WIN7-23
-Decision: ADR-0114 / ADR-0115
+Target Candidate: WIN7-24
+Decision: ADR-0114 / ADR-0115 / ADR-0116
 ```
 
 ## 1. 授权与目标
@@ -53,6 +53,10 @@ UI-01～UI-13 逐项以 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` §3 矩�
   `A9_15_WINDOWS_VALIDATION.md`、`RUN_A9_15_INTEGRITY.cmd`、`RUN_WIN7_23_REPORT_VERIFY.cmd`、
   `a9-package-integrity-w23.cjs`、`a9-win7-23-report.cjs`、`a9-win7-23-smoke.cjs`：仅限新候选合同；
   既有 WIN7-19～22 文件不可修改。
+- `release/win7-product-v3/a9-15-win7-24-input-lock.json`、`A9_15_WIN7_24_VALIDATION.md`、
+  `RUN_A9_15_W24_INTEGRITY.cmd`、`RUN_WIN7_24_REPORT_VERIFY.cmd`、`a9-package-integrity-w24.cjs`、
+  `a9-win7-24-report.cjs`、`a9-win7-24-smoke.cjs`：仅限 WIN7-24 新候选合同；WIN7-23 合同、候选和
+  证据均冻结不可修改。构建器只可新增 WIN7-24 profile/driver 闭包，并保持 WIN7-22/23 历史测试通过。
 
 ## 4. 非目标与边界
 
@@ -60,8 +64,9 @@ UI-01～UI-13 逐项以 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` §3 矩�
   WIN7-23 新合同外不修改 `release/**`。不新增依赖、运行时或权限模式；不启用 Full Access 之外的新能力；
   不实现完整 Review、附件、交互终端、正文全文搜索。
 - SQLite 表结构不变（沿用 a9_events 版本化 schema v4 校验）；新事件经版本化 payload 扩展。
-- 用户在 2026-09-09 批注中授权提交本次 A9-15 范围改动、补充新候选/验收合同并构建干净候选；仍不推送，
-  不重跑历史候选、不覆盖历史失败证据。候选哈希形成后的独立 release-authority pin 仍须另行绑定。
+- 用户在 2026-09-09 批注中授权提交本次 A9-15 范围改动、补充新候选/验收合同并构建干净候选；随后在
+  WIN7-23 自动 smoke 失败后明确授权修复验证启动方式、优化 Win7 字体清晰度并建立 WIN7-24。仍不推送，
+  不重跑或改判历史候选、不覆盖历史失败证据。候选哈希形成后的独立 release-authority pin 仍须另行绑定。
 - 真实 Provider 多工具任务、Win10 双构建、Win7 实机、打包发布均为 NOT_PERFORMED；开发机证据不构成
   Win7 PASS。
 
@@ -152,3 +157,30 @@ Provider 多工具任务、Win10 双构建、Win7 实机、打包发布、提交
   多工具任务不能由 fixture 替代；普通用户、非提升 GUI/令牌证据不能由管理员 SSH 代替。
 - 本次授权不包含推送，也不允许把 `.trae/**`、本机连接资料、秘密、状态数据库、临时 smoke 数据或
   历史候选/证据纳入提交或候选。
+
+## 10. WIN7-23 冻结失败（2026-09-09）
+
+- 源码提交 `e39e136fbf62e67516aeaf7838099bbc4587cdbb` 的 WIN7-23 已完成两次干净、逐字节一致构建；候选身份、
+  包完整性及普通用户非提升令牌完整性均通过。
+- 普通用户自动产品 smoke 失败：外层 `electron.exe` 在 `ELECTRON_RUN_AS_NODE=1` 下运行验证脚本，但其
+  子进程再次启动已打包 `electron.exe <driver.cjs>` 时，打包入口忽略外部脚本参数并加载
+  `resources/app`。因此没有生成三个 driver phase 报告，不能把窗口可见或进程退出推断为 smoke PASS。
+- WIN7-23 保持冻结失败；其 ZIP、manifest、lock、authority、部署目录与证据均不得修改、替换或重判。
+  真实 Provider 用例及正式 A9-15 Win7 总结论仍 `NOT_PERFORMED`。
+
+## 11. WIN7-24 修复与新候选授权（2026-09-09）
+
+用户明确要求“建议修复验证启动方式，提交后建立全新的 WIN7-24 候选；不能修改或重判 WIN7-23。继续修复
+并生成 WIN7-24”，并要求结合目标机截图优化字体显示清晰度。据此由 ADR-0116 开启最小修复：
+
+- 自动 smoke 在候选外运行目录创建临时 Electron 验证副本，仅复制锁定候选的 Electron 根运行文件、
+  `locales`、`swiftshader` 和 `resources/default_app.asar`；副本不含 `resources/app`。验证 app/driver 也
+  位于候选外，driver 再通过 `A9_SMOKE_PRODUCT_MAIN` 加载候选内正式 `resources/app/product/main.js`。
+- smoke 必须证明三个 phase 报告实际生成、mode 对应、fixture 至少收到一次 journey 与 stop 请求，且
+  每个 phase 全部断言 PASS；只看退出码或窗口出现不能判 PASS。`stop` 独立数据根先经正式工作区选择链
+  绑定工作区，再配置模式/Provider 并执行取消与进程树清理。
+- 字体修复仅调整现有 CSS：Win7 本地微软雅黑 UI/微软雅黑优先，正文使用整数 15px，辅助/代码信息提高
+  到可读字号并加深 muted 对比度；不下载字体、不改变 CSP、布局、功能或权限边界。
+- WIN7-24 使用新的 lock、kit、ZIP/manifest、authority、部署目录与证据根；仍复用 WIN7-22 已批准的
+  Electron/D-013 v25/SQLite 精确输入。提交与双干净构建在当前授权内，不推送；候选哈希形成后仍须独立
+  authority pin，之后才可进入新的普通用户实机验证。
