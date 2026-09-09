@@ -26,6 +26,8 @@ const win23Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win23Report = require('../../../release/win7-product-v3/a9-win7-23-report.cjs');
 const win24Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w24.cjs');
 const win24Report = require('../../../release/win7-product-v3/a9-win7-24-report.cjs');
+const win25Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w25.cjs');
+const win25Report = require('../../../release/win7-product-v3/a9-win7-25-report.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
@@ -281,13 +283,19 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (candidate === 'win23' || candidate === 'win24') {
-    const number = candidate === 'win24' ? '24' : '23';
+  if (candidate === 'win23' || candidate === 'win24' || candidate === 'win25') {
+    const number = candidate.slice(-2);
     lock.lock_id = `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
     lock.source_date_epoch = 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win24'
+    lock.provenance = candidate === 'win25'
+      ? {
+        task: 'A9-15', previous_candidate: 'WIN7-24',
+        previous_candidate_result: 'FIX_BEFORE_WIN7_25_VALIDATION',
+        change_scope: 'RENDERER_RESTART_TIMELINE_AND_LATEST_OUTCOME',
+      }
+      : candidate === 'win24'
       ? {
         task: 'A9-15', previous_candidate: 'WIN7-23',
         previous_candidate_result: 'FIX_BEFORE_WIN7_24_VALIDATION',
@@ -299,8 +307,9 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  const lockPath = path.join(root, candidate === 'win24'
-    ? 'a9-15-win7-24-input-lock.json'
+  const lockPath = path.join(root, candidate === 'win25'
+    ? 'a9-15-win7-25-input-lock.json'
+    : candidate === 'win24' ? 'a9-15-win7-24-input-lock.json'
     : candidate === 'win23' ? 'a9-15-win7-23-input-lock.json' : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
@@ -553,6 +562,65 @@ test('WIN7-24 packages the external driver runtime contract without modifying WI
   assert.equal(initialized.report_kind, 'A9_15_WIN7_24_UI_PROGRESS_ACCEPTANCE');
   assert.ok(initialized.results.some((item) => item.case_id === 'W24-07-REAL-PROVIDER-MULTITOOL'));
   assert.throws(() => win24Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-25 binds the restart projection repair without modifying WIN7-24 identity', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win25-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win25');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifestPath = path.join(stage, 'release-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  assert.equal(manifest.source_dirty, false);
+  assert.equal(manifest.external_acceptance_eligible, true);
+  for (const relative of win25Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-25 closure: ${relative}`);
+  }
+  assert.equal(fs.existsSync(path.join(stage, 'a9-15-win7-24-input-lock.json')), false);
+  assert.equal(fs.existsSync(path.join(stage, 'RUN_WIN7_24_REPORT_VERIFY.cmd')), false);
+  const packagedRenderer = fs.readFileSync(path.join(stage, 'resources', 'app', 'product', 'renderer', 'a9-workbench.js'), 'utf8');
+  assert.match(packagedRenderer, /inspectorEvents: new Map\(\)/);
+  assert.match(packagedRenderer, /eventsForInspector\(\)\.slice\(-60\)/);
+  assert.match(packagedRenderer, /text\('a9-turn-outcome', latestProjection/);
+
+  const authorityPath = path.join(root, 'release-authority.json');
+  writeJson(authorityPath, {
+    schema_version: 1,
+    kind: 'WIN7_25_RELEASE_AUTHORITY',
+    status: 'APPROVED_FOR_WIN7_25_VALIDATION',
+    formal_input_lock_sha256: sha256File(inputs.lockPath),
+    approval_registry: {
+      commit: manifest.source_commit,
+      sha256: sha256File(inputs.approvalRegistryPath),
+    },
+    candidate: {
+      source_commit: manifest.source_commit,
+      package_sha256: sha256File(built.zipPath),
+      manifest_sha256: sha256File(manifestPath),
+    },
+  });
+  const options = {
+    zip: built.zipPath,
+    'release-manifest': manifestPath,
+    kit: path.join(stage, 'A9_15_VALIDATION_KIT.json'),
+    'formal-input-lock': inputs.lockPath,
+    'approval-registry': inputs.approvalRegistryPath,
+    'release-authority': authorityPath,
+    'release-authority-sha256': sha256File(authorityPath),
+  };
+  const identity = win25Report.identityFrom(options, fs);
+  const kit = JSON.parse(fs.readFileSync(options.kit, 'utf8'));
+  const initialized = win25Report.template(kit, identity);
+  assert.equal(identity.candidate_label, 'WIN7-25');
+  assert.equal(kit.scope.decision, 'ADR-0118');
+  assert.equal(initialized.report_kind, 'A9_15_WIN7_25_UI_PROGRESS_ACCEPTANCE');
+  assert.ok(initialized.results.some((item) => item.case_id === 'W25-03-HISTORY-RESTART-PAGINATION'));
+  assert.ok(initialized.results.some((item) => item.case_id === 'W25-04-APPROVAL-FAILURE-ORDER'));
+  assert.throws(() => win25Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

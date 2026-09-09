@@ -24,6 +24,14 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-09，WIN7-24 普通用户真实 Provider 多工具任务完成并正常退出后，重启虽恢复中央对话且未重放，
+  Inspector 活动却为空，全局结果错误停留在较早的 `failed · not_applicable`。只读 SQLite 元数据核对确认
+  133 条事件完整存在，最新 task/turn/checkpoint/terminal event 均为 `completed · verified`，故裁定为
+  Renderer 投影缺陷而非数据丢失。WIN7-24 永久保持 `FIX_BEFORE_WIN7_25_VALIDATION`，不得修改或重判。
+  负责人已授权 ADR-0118：修复 Inspector 持久事件投影和全局最新轮次结果，补回归、本地提交不推送，
+  建立全新 WIN7-25 并完成双干净构建、独立 authority 与受影响普通用户 Win7 复验。当前阶段为
+  `A9_15_WIN7_25_REPAIR_AUTHORIZED`，尚未形成 WIN7-25 候选或新 PASS。
+
 - 2026-09-09，ADR-0114 / [A9-15 UI 优化与 Agent 过程反馈](tasks/A9_15_UI_PROGRESS_FEEDBACK.md) 在
   `codex/ui-optimization` 分支（基线 `72dfe22`）完成开发机实现与定向验证：按获批 Demo 暖色浅色主题重构
   工作台视觉，新增 `model_note`/`approval_resolved` 事件与 `a9.events.query`（IPC schemaVersion 6）

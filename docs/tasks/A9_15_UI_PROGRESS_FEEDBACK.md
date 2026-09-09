@@ -5,10 +5,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: PRODUCT_EXPERIENCE_HARDENING
 Target Branch: codex/ui-optimization
 Source Baseline: 72dfe229447d93750815525e713a1a80f02534f3
-Phase-Gate: A9_15_WIN7_24_CANDIDATE_PREPARATION
-Win7-Validation: WIN7_NOT_PERFORMED
-Target Candidate: WIN7-24
-Decision: ADR-0114 / ADR-0115 / ADR-0116
+Phase-Gate: A9_15_WIN7_25_REPAIR_AUTHORIZED
+Win7-Validation: WIN7_24_FIX_BEFORE_WIN7_25
+Target Candidate: WIN7-25
+Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118
 ```
 
 ## 1. 授权与目标
@@ -57,6 +57,10 @@ UI-01～UI-13 逐项以 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` §3 矩�
   `RUN_A9_15_W24_INTEGRITY.cmd`、`RUN_WIN7_24_REPORT_VERIFY.cmd`、`a9-package-integrity-w24.cjs`、
   `a9-win7-24-report.cjs`、`a9-win7-24-smoke.cjs`：仅限 WIN7-24 新候选合同；WIN7-23 合同、候选和
   证据均冻结不可修改。构建器只可新增 WIN7-24 profile/driver 闭包，并保持 WIN7-22/23 历史测试通过。
+- `release/win7-product-v3/a9-15-win7-25-input-lock.json`、`A9_15_WIN7_25_VALIDATION.md`、
+  `RUN_A9_15_W25_INTEGRITY.cmd`、`RUN_WIN7_25_REPORT_VERIFY.cmd`、`a9-package-integrity-w25.cjs`、
+  `a9-win7-25-report.cjs`、`a9-win7-25-smoke.cjs`：仅限 ADR-0118 的新候选合同；WIN7-23/24 合同、候选和
+  证据均冻结不可修改。构建器只可新增 WIN7-25 profile/driver 闭包，并保持 WIN7-22/23/24 历史测试通过。
 
 ## 4. 非目标与边界
 
@@ -184,3 +188,19 @@ Provider 多工具任务、Win10 双构建、Win7 实机、打包发布、提交
 - WIN7-24 使用新的 lock、kit、ZIP/manifest、authority、部署目录与证据根；仍复用 WIN7-22 已批准的
   Electron/D-013 v25/SQLite 精确输入。提交与双干净构建在当前授权内，不推送；候选哈希形成后仍须独立
   authority pin，之后才可进入新的普通用户实机验证。
+
+## 12. WIN7-24 重启投影失败与 WIN7-25 授权（2026-09-09）
+
+- 普通用户真实 Provider 多工具轮次完成并正常退出后，重启未重放请求且中央请求/结果仍可见，但 Inspector
+  活动为空、agent 状态为 idle，单一全局结果错误停留在更早轮次的 `failed · not_applicable`，没有反映
+  最新持久化事实 `completed · verified`。只读 SQLite 元数据核对确认 133 条事件仍在，最新 task、turn、
+  checkpoint 和 terminal event 四处一致；这是 Renderer 投影缺陷，不是状态库丢失或工具重放。
+- 根因一：会话加载清空运行时内存 timeline；历史 `queryEvents` 只并入中央轮次的 `turnEvents`，Inspector
+  仍只渲染 `snapshot.timeline`。根因二：每个历史轮次块按自己的增量签名更新同一个全局结果字段，较早
+  失败轮次因事件消息变化重新写入后，后续签名未变的成功轮次提前返回，导致全局字段陈旧。
+- 负责人确认“完全按此方案继续”，授权在 A9-15 既有 Renderer/测试白名单内修复两处投影、补回归，新增
+  WIN7-25 lock/kit/verifier/report/smoke 合同，本地提交但不推送，并执行两个干净工作树的确定性构建、
+  候选外独立 authority 绑定和受影响普通用户 Win7 复验。
+- WIN7-24 永久保持 `FIX_BEFORE_WIN7_25_VALIDATION`；其 ZIP、manifest、lock、authority、部署与证据不得
+  修改或重判。WIN7-25 复用未变化的 WIN7-22 Electron/D-013 v25/SQLite 精确输入，但使用新的源码提交、
+  ZIP/manifest、lock、authority、部署目录和证据根。开发机或管理诊断不构成普通用户实机 PASS。

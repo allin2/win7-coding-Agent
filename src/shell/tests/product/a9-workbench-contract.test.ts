@@ -289,6 +289,8 @@ describe('A9 unified desktop workbench contract', () => {
     // 事件数据层：eventId 去重增量并入 + 有界历史回看（截断以 hasMore 明示）。
     expect(script).toContain('function normalizeTimelineEvent(raw)');
     expect(script).toContain('function ingestEvents(events)');
+    expect(script).toContain('state.inspectorEvents');
+    expect(script).toContain('eventsForInspector().slice(-60)');
     expect(script).toContain('state.turnEvents');
     expect(script).toContain('beforeEventId: state.eventsBeforeId');
     expect(script).toContain('state.eventsTruncated = response.hasMore === true');
@@ -334,6 +336,40 @@ describe('A9 unified desktop workbench contract', () => {
     expect(context.classify({ shell: { exitCode: 0, status: 'completed' } })[0]).toBe('success');
   });
 
+  it('keeps queried session events available to the Inspector across restart', () => {
+    const source = script.slice(script.indexOf('  function ingestEvents('), script.indexOf('  function ingestTimelineEvents('));
+    const state: any = {
+      inspectorEvents: new Map(), turnEvents: new Map(), eventMaxId: 0,
+      activeTurnId: null, pendingToolLabel: null, lastEventAt: 0,
+    };
+    const context: any = { state, toolHeadline: jest.fn() };
+    vm.runInNewContext(source + ';this.ingest = ingestEvents;', context);
+    context.ingest([
+      { eventId: 1, type: 'provider.configure', turnId: null, data: {} },
+      { eventId: 2, type: 'turn_completed', turnId: 'turn-1', data: { outcome: 'completed' } },
+    ]);
+    expect(Array.from(state.inspectorEvents.keys())).toEqual([1, 2]);
+    expect(state.turnEvents.get('turn-1').events).toHaveLength(1);
+    expect(state.eventMaxId).toBe(2);
+  });
+
+  it('projects the global outcome from the latest turn instead of an older rerendered failure', () => {
+    const source = script.slice(script.indexOf('  function projectOutcome('), script.indexOf('  function updateOutcomeCard('));
+    const context: any = { TERMINAL_OUTCOMES: new Set(['completed', 'failed']) };
+    vm.runInNewContext(source + ';this.project = projectOutcome;', context);
+    const olderFailure = context.project(
+      { outcome: 'failed', verification: 'not_applicable', finalMessage: '' },
+      [{ type: 'turn_failed', data: { error: 'expected failure' } }],
+    );
+    const latestSuccess = context.project(
+      { outcome: 'completed', verification: 'verified', finalMessage: 'done' },
+      [{ type: 'turn_completed', data: { outcome: 'completed', verification: 'verified', finalMessage: 'done' } }],
+    );
+    expect(olderFailure).toEqual(expect.objectContaining({ outcome: 'failed', verification: 'not_applicable' }));
+    expect(latestSuccess).toEqual({ outcome: 'completed', verification: 'verified', message: 'done' });
+    expect(script.indexOf("text('a9-turn-outcome', latestProjection")).toBeGreaterThan(script.indexOf('facts.forEach((fact) =>'));
+  });
+
   it('pages older history and exposes recoverable query errors without losing loaded events', async () => {
     const source = script.slice(script.indexOf('  async function loadConversationEvents('), script.indexOf('  /** 事实'));
     const queryEvents = jest.fn()
@@ -343,8 +379,9 @@ describe('A9 unified desktop workbench contract', () => {
     const state: any = { activeConversationId: 'c', eventsBeforeId: null, snapshot: {}, eventsLoading: false };
     const ingested: any[] = [];
     const render = jest.fn();
+    const renderTimeline = jest.fn();
     const context: any = { a9: { queryEvents }, state, normalizeQueriedEvent: (x: any) => x,
-      ingestEvents: (xs: any[]) => ingested.push(...xs), renderConversation: render };
+      ingestEvents: (xs: any[]) => ingested.push(...xs), renderConversation: render, renderTimeline };
     vm.runInNewContext(source + ';this.load = loadConversationEvents;', context);
     await context.load();
     expect(state.eventsBeforeId).toBe(301);
@@ -358,5 +395,6 @@ describe('A9 unified desktop workbench contract', () => {
     expect(state.eventsError).toBe('');
     expect(state.eventsTruncated).toBe(false);
     expect(render).toHaveBeenCalledTimes(3);
+    expect(renderTimeline).toHaveBeenCalledTimes(3);
   });
 });

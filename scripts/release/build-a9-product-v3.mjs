@@ -51,7 +51,17 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-24-smoke.cjs'],
     evidenceDirectory: 'a9-win7-24-evidence',
   },
+  'A9-15-INPUTS-UI-PROGRESS-WIN7-25': {
+    task: 'A9-15', candidate: 'WIN7-25', lockFile: 'a9-15-win7-25-input-lock.json',
+    kitFile: 'A9_15_VALIDATION_KIT.json', validationDoc: 'A9_15_WIN7_25_VALIDATION.md',
+    integrityCommand: 'RUN_A9_15_W25_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_25_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w25.cjs', reportScript: 'a9-win7-25-report.cjs',
+    extraValidationScripts: ['a9-win7-25-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-25-evidence',
+  },
 };
+
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25']);
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
@@ -173,7 +183,7 @@ export function buildA9ProductCandidate(options) {
     for (const script of profile.extraValidationScripts || []) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', script), path.join(validationRoot, script));
     }
-    if (profile.candidate === 'WIN7-23' || profile.candidate === 'WIN7-24') {
+    if (A915_CANDIDATES.has(profile.candidate)) {
       const driverName = `a9-${profile.candidate.toLowerCase()}-driver.cjs`;
       fs.copyFileSync(path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs'), path.join(validationRoot, driverName));
     }
@@ -301,7 +311,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     `validation/${profile.integrityScript}`, `validation/${profile.reportScript}`,
     profile.kitFile, profile.validationDoc, profile.integrityCommand, profile.reportCommand,
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
-    ...(['WIN7-23', 'WIN7-24'].includes(profile.candidate)
+    ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
@@ -313,7 +323,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
 }
 
 function createValidationKit(root, sourceCommit, lock, profile) {
-  if (profile.candidate === 'WIN7-23' || profile.candidate === 'WIN7-24') {
+  if (A915_CANDIDATES.has(profile.candidate)) {
     return createA915ValidationKit(root, sourceCommit, lock, profile);
   }
   return createWin22ValidationKit(root, sourceCommit, lock);
@@ -590,8 +600,10 @@ function createWin7IncrementalCases() {
 
 function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
-  const decision = profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = profile.candidate === 'WIN7-24' ? 'WIN7-23' : 'WIN7-22';
+  const decision = profile.candidate === 'WIN7-25' ? 'ADR-0118'
+    : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
+  const historicalCandidate = profile.candidate === 'WIN7-25' ? 'WIN7-24'
+    : profile.candidate === 'WIN7-24' ? 'WIN7-23' : 'WIN7-22';
   const sourceFiles = [
     'docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md',
     'docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md',
@@ -605,7 +617,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     'src/shell/product/renderer/a9-workbench.css',
     'src/shell/product/renderer/a9-workbench.js',
     'src/shell/product/renderer/workbench.html',
-    ...(profile.candidate === 'WIN7-24' ? ['src/shell/tests/product/a9-06-driver-entry.cjs'] : []),
+    ...(['WIN7-24', 'WIN7-25'].includes(profile.candidate) ? ['src/shell/tests/product/a9-06-driver-entry.cjs'] : []),
     'scripts/release/build-a9-product-v3.mjs',
     `release/win7-product-v3/${profile.lockFile}`,
     `release/win7-product-v3/${profile.integrityScript}`,
@@ -650,7 +662,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     commands: {
       source_developer: 'npm run verify && npm run docs:check && git diff --check',
       package_integrity: profile.integrityCommand,
-      direct_smoke: profile.candidate === 'WIN7-24'
+      direct_smoke: ['WIN7-24', 'WIN7-25'].includes(profile.candidate)
         ? `.\\electron.exe .\\validation\\${profile.extraValidationScripts[0]} --evidence-root=<candidate-external-evidence-root>`
         : '.\\electron.exe .\\validation\\a9-win7-23-smoke.cjs --mode=<automatic|interactive>',
       report_verify: profile.reportCommand,
@@ -746,7 +758,7 @@ function copyContractEvidence(root, stage, profile) {
     'docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md',
     'docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md',
     'docs/status/a9-01-to-a9-06-developer-gates-20260823.json',
-    profile.candidate === 'WIN7-23' || profile.candidate === 'WIN7-24'
+    A915_CANDIDATES.has(profile.candidate)
       ? 'docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md'
       : 'docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md',
   ];
@@ -830,7 +842,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-15' && lock.provenance?.previous_candidate === 'WIN7-23'
     && lock.provenance?.previous_candidate_result === 'FIX_BEFORE_WIN7_24_VALIDATION'
     && lock.provenance?.change_scope === 'VALIDATION_DRIVER_LAUNCH_AND_WIN7_TYPOGRAPHY_CLARITY';
-  if (lock.gates?.alpha !== 'NOT_PERFORMED' || (!win22Provenance && !win23Provenance && !win24Provenance)) {
+  const win25Provenance = profile.candidate === 'WIN7-25'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_25'
+    && lock.provenance?.task === 'A9-15' && lock.provenance?.previous_candidate === 'WIN7-24'
+    && lock.provenance?.previous_candidate_result === 'FIX_BEFORE_WIN7_25_VALIDATION'
+    && lock.provenance?.change_scope === 'RENDERER_RESTART_TIMELINE_AND_LATEST_OUTCOME';
+  if (lock.gates?.alpha !== 'NOT_PERFORMED'
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;

@@ -4,6 +4,25 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-15 / WIN7-25 重启历史投影修复候选
+
+WIN7-24 已在普通用户正常退出后的重启检查中确认 Renderer 投影失败，冻结为
+`FIX_BEFORE_WIN7_25_VALIDATION`；其合同、候选和证据不得修改或重判。ADR-0118 的 WIN7-25 使用新锁
+`a9-15-win7-25-input-lock.json`，修复 Inspector 对持久化事件的恢复以及全局结果绑定最新轮次，并保持
+IPC、SQLite schema、Runner/Policy 与权限边界不变。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-15-win7-25-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+必须从提交后的两个独立干净工作树各构建一次并比较 ZIP 字节；候选哈希形成后再创建候选外独立
+release authority。自动 fixture smoke 不能替代普通用户真实 Provider 与重启历史复验。
+
 ## A9-15 / WIN7-24 验证启动与字体清晰度候选
 
 WIN7-23 已因打包 Electron 子进程没有执行 driver、三份 phase 报告未生成而冻结为

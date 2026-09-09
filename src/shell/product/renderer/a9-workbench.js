@@ -54,6 +54,7 @@
     draftSaving: false,
     undoConfirmations: Object.create(null),
     // ADR-0114：事件数据层与过程渲染状态。
+    inspectorEvents: new Map(),
     turnEvents: new Map(),
     turnIdToFactTask: new Map(),
     activeTurnId: null,
@@ -248,6 +249,11 @@
     let changed = false;
     for (const event of events) {
       if (!event) continue;
+      if (!state.inspectorEvents.has(event.eventId)) {
+        state.inspectorEvents.set(event.eventId, event);
+        changed = true;
+      }
+      if (event.eventId > state.eventMaxId) state.eventMaxId = event.eventId;
       if (event.type === 'turn_started' && event.turnId) {
         // 多个轮次同窗时以时间线顺序的最后一个 turn_started 为当前轮。
         state.activeTurnId = event.turnId;
@@ -262,7 +268,6 @@
       } else {
         state.turnEvents.set(event.turnId, { ids: new Set([event.eventId]), events: [event] });
       }
-      if (event.eventId > state.eventMaxId) state.eventMaxId = event.eventId;
       if (event.type === 'tool_start') state.pendingToolLabel = toolHeadline(event.data);
       if (event.type === 'tool_end') state.pendingToolLabel = null;
       state.lastEventAt = Date.now();
@@ -280,7 +285,12 @@
     return bucket ? bucket.events : [];
   }
 
+  function eventsForInspector() {
+    return Array.from(state.inspectorEvents.values()).sort((a, b) => a.eventId - b.eventId);
+  }
+
   function resetConversationEvents() {
+    state.inspectorEvents = new Map();
     state.turnEvents = new Map();
     state.turnIdToFactTask = new Map();
     state.activeTurnId = null;
@@ -325,7 +335,10 @@
       if (requestedConversationId === state.activeConversationId) {
         state.eventsLoading = false;
         state.conversationSignature = null;
-        if (state.snapshot) renderConversation(state.snapshot);
+        if (state.snapshot) {
+          renderTimeline();
+          renderConversation(state.snapshot);
+        }
       }
     }
   }
@@ -639,7 +652,7 @@
     return record;
   }
 
-  function updateOutcomeCard(block, fact, events) {
+  function projectOutcome(fact, events) {
     let outcome = null;
     let verification = 'not_applicable';
     let message = '';
@@ -660,7 +673,12 @@
         ? '应用重启后恢复了中断事实；未重放模型、工具或旧审批。'
         : '');
     }
-    if (!outcome) {
+    return outcome ? { outcome, verification, message } : null;
+  }
+
+  function updateOutcomeCard(block, fact, events) {
+    const projection = projectOutcome(fact, events);
+    if (!projection) {
       if (block.outcomeEl) {
         block.outcomeEl.remove();
         block.outcomeEl = null;
@@ -668,6 +686,7 @@
       }
       return;
     }
+    const { outcome, verification, message } = projection;
     const signature = JSON.stringify([outcome, verification, message]);
     if (block.outcomeSig === signature) return;
     block.outcomeSig = signature;
@@ -694,7 +713,6 @@
     block.outcomeLabelEl.textContent = OUTCOME_LABELS[outcome] || outcome;
     block.outcomeMetaEl.textContent = `${verification}${fact && fact.updatedAt ? ` · ${new Date(fact.updatedAt).toLocaleTimeString()}` : ''}`;
     block.outcomeBodyEl.textContent = clampText(message || '任务已返回结果。', NOTE_LIMIT);
-    text('a9-turn-outcome', `${outcome} · ${verification}`);
   }
 
   function updateTurnBlock(block, fact, events) {
@@ -766,10 +784,13 @@
       const latest = facts.length > 0 ? facts[facts.length - 1] : null;
       if (latest && latest.requestPrompt === state.localRequest.prompt) state.localRequest = null;
     }
+    let latestProjection = null;
     facts.forEach((fact) => {
       const block = ensureTurnBlock(fact.taskId || `fact:${facts.indexOf(fact)}`);
       const turnId = resolveTurnId(fact);
-      updateTurnBlock(block, fact, turnId ? eventsForTurn(turnId) : []);
+      const events = turnId ? eventsForTurn(turnId) : [];
+      updateTurnBlock(block, fact, events);
+      latestProjection = projectOutcome(fact, events);
     });
     if (state.localRequest) {
       const block = ensureTurnBlock('__local__');
@@ -777,10 +798,14 @@
       block.requestTime.textContent = new Date(state.localRequest.at).toLocaleTimeString();
       const events = state.activeTurnId ? eventsForTurn(state.activeTurnId) : [];
       updateTurnBlock(block, null, events);
+      latestProjection = projectOutcome(null, events) || latestProjection;
     } else if (state.streamDom.has('__local__')) {
       state.streamDom.get('__local__').root.remove();
       state.streamDom.delete('__local__');
     }
+    text('a9-turn-outcome', latestProjection
+      ? `${latestProjection.outcome} · ${latestProjection.verification}`
+      : '');
     if (state.eventsTruncated || state.eventsError) {
       if (!state.truncatedNote || !state.truncatedNote.parentNode) {
         const note = document.createElement('p');
@@ -860,12 +885,12 @@
   // Inspector 与目录渲染。
   // ------------------------------------------------------------------
 
-  function renderTimeline(snapshot) {
+  function renderTimeline() {
     const timeline = el('a9-timeline');
     timeline.textContent = '';
     const filePaths = new Set();
     let rawOutput = '';
-    (snapshot.timeline || []).slice(-60).forEach((event) => {
+    eventsForInspector().slice(-60).forEach((event) => {
       const data = event.data || {};
       const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
       const item = document.createElement('li');
@@ -1022,6 +1047,10 @@
   function renderSnapshot(snapshot) {
     state.snapshot = snapshot;
     state.activeConversationId = snapshot.activeConversationId || null;
+    if (state.renderedConversationId !== state.activeConversationId) {
+      state.renderedConversationId = state.activeConversationId;
+      resetConversationEvents();
+    }
     const surface = el('a9-surface');
     surface.hidden = false;
     surface.dataset.a9Status = snapshot.status || 'unknown';
@@ -1093,10 +1122,10 @@
     modeButton.disabled = !ready || !workspace;
     modeButton.textContent = `权限：${modeLabel(snapshot.mode)}`;
     renderApproval(snapshot);
-    renderTimeline(snapshot);
+    ingestTimelineEvents(snapshot.timeline);
+    renderTimeline();
     renderCheckpoints(snapshot);
     renderConversationDirectory(snapshot);
-    ingestTimelineEvents(snapshot.timeline);
     renderConversation(snapshot);
     hydrateDraft(snapshot);
     const context = snapshot.contextWindow || {};

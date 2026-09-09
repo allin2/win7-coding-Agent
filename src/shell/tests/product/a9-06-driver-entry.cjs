@@ -372,6 +372,21 @@ async function runSecondProcess(win, exec, env) {
   })()`);
   record('A9-15-HISTORY-RESTART-EVENTS', restoredEvents.count > 0 && restoredEvents.unique && restoredEvents.ordered &&
     (!requireModelNotes || restoredEvents.modelNotes > 0), JSON.stringify(restoredEvents));
+  const restoredProjection = await waitFor(() => exec(`(async () => {
+    const current = (await window.win7Agent.a9.snapshot()).snapshot;
+    const facts = current.conversation || [];
+    const latest = facts.length ? facts[facts.length - 1] : null;
+    const displayed = document.getElementById('a9-turn-outcome').textContent;
+    const timelineItems = document.querySelectorAll('#a9-timeline li').length;
+    const expected = latest && ['completed', 'completed_with_warnings', 'blocked', 'failed', 'cancelled', 'interrupted'].includes(latest.outcome)
+      ? latest.outcome + ' · ' + (latest.verification || 'not_applicable')
+      : '';
+    return timelineItems > 0 && displayed === expected
+      ? { timelineItems, displayed, expected, latestTurnId: latest && latest.turnId }
+      : null;
+  })()`), 20_000, 'persisted Inspector timeline and latest outcome projection');
+  record('A9-15-HISTORY-RESTART-RENDERED', restoredProjection.timelineItems > 0 &&
+    restoredProjection.displayed === restoredProjection.expected, JSON.stringify(restoredProjection));
 
   // Exercise the formal preload/Schema IPC path for the complete 16-conversation
   // boundary and identity-scoped draft/archive/restore operations.

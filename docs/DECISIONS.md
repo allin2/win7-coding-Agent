@@ -1736,3 +1736,24 @@
   产品源码仍以候选内正式 main/preload/IPC/renderer 为被测入口。WIN7-24 自动 fixture smoke 不能满足真实
   Provider 用例，开发机或管理员结果不能替代普通用户非提升证据。完成结论仍最多为
   `A9_15_WIN7_UI_INTEGRATION_PASS`，不是新的 Alpha/RC PASS；不推送。
+
+## ADR-0118 WIN7-24 重启历史投影修复与 WIN7-25 新候选
+
+- 状态：Accepted（2026-09-09，负责人确认按完整修复、回归、本地提交、双干净构建和 Win7 复验方案继续）
+- 背景：WIN7-24 普通用户真实 Provider 多工具任务已完成并以正常退出码关闭。重启后中央对话恢复且未观察
+  到模型或工具重放，但 Inspector 活动为空并显示 idle，单一全局结果错误停留在较早的
+  `failed · not_applicable`，而最新轮次应为 `completed · verified`。管理通道只读打开目标状态库并设置
+  `query_only` 后确认 133 条事件仍在，最新 task、turn、checkpoint 与 terminal event 均一致完成并验证；
+  因而是显示投影缺陷，不是持久化损坏、数据丢失或重放。
+- 决策：（1）Renderer 为当前会话维护按 eventId 去重的 Inspector 事件投影；实时 snapshot 与持久化
+  `queryEvents` 共用该投影，切换会话先清空再并入，Inspector 只显示当前会话最近有界事件。（2）轮次结果卡
+  继续按各轮次事实/事件投影；单一全局结果不再由每个卡片的增量更新副作用写入，而在完整事实序列渲染后
+  明确取最新轮次结果。（3）增加回归覆盖无 turnId 的会话事件、重启查询事件进入 Inspector，以及旧失败
+  轮次重新渲染时不能覆盖最新成功结果；IPC、SQLite schema、Runtime、权限、Runner/Policy 和秘密边界均
+  不变。（4）WIN7-24 永久冻结为 `FIX_BEFORE_WIN7_25_VALIDATION`。WIN7-25 使用新源码提交、lock、kit、
+  ZIP/manifest、候选外 authority、部署目录和证据根；双干净工作树构建必须字节一致，受影响用例必须由
+  普通用户非提升正式产品入口重验。
+- 后果：WIN7-25 可按精确哈希继承未变化的 WIN7-22 Electron 22.3.27、D-013 v25 和 SQLite/ABI 110
+  输入，但不能继承 WIN7-24 的失败用例为 PASS，也不能修改或重判 WIN7-23/24。开发机测试、构建一致性和
+  管理只读诊断均不构成 Win7 PASS；最终结论最多仍为 `A9_15_WIN7_UI_INTEGRATION_PASS`，不是 Alpha/RC
+  重签。本决策不授权 Alpha 2 的 Review、Shell 实时输出或布局需求实现，也不授权推送。
