@@ -4,6 +4,27 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-15 / WIN7-28 验收缺口修复候选
+
+WIN7-27 的复核确认四项修复有实质改进，但仍存在四项 P2 级验收逻辑缺口（F1 DOM 结果与最新 turn 身份未参与
+判定、F2 逐行文本仍是关键词检查、F3 审批恢复顺序未要求恢复工具活动、F4 未真实执行旧事件补载）。ADR-0121
+的 WIN7-28 使用新锁 `a9-15-win7-28-input-lock.json`：投影附件成为唯一事实来源并由报告器强制校验 DOM 结果
+与最新持久化 turn 身份，逐行内容由查询事实独立推导后核对，审批恢复必须出现真实恢复工具活动，旧失败必须
+经真实 `beforeEventId` 分页加载。历史 W23～W27 profile 的 `release/**` 合同保持原字节。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-15-win7-28-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+必须从提交后的两个独立干净工作树构建并逐字节比较；候选哈希形成后仍需候选外独立
+`WIN7_28_RELEASE_AUTHORITY` 与 SHA-256 pin。开发机 fixture 不能替代真实 Provider 或普通用户 Win7 证据。
+WIN7-25/26/27 的源码提交、out-a/out-b、ZIP、manifest、kit、lock、authority、构建树与复核证据保持原字节。
+
 ## A9-15 / WIN7-27 投影证据与集成断言修复候选
 
 WIN7-26 的复核确认产品投影修复与构建一致性成立，但报告器未解析投影附件内容、Electron Inspector 断言

@@ -5,10 +5,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: PRODUCT_EXPERIENCE_HARDENING
 Target Branch: codex/ui-optimization
 Source Baseline: 72dfe229447d93750815525e713a1a80f02534f3
-Phase-Gate: A9_15_WIN7_27_PROJECTION_EVIDENCE_REPAIR_AUTHORIZED
-Win7-Validation: WIN7_27_NOT_PERFORMED
-Target Candidate: WIN7-27
-Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119 / ADR-0120
+Phase-Gate: A9_15_WIN7_28_ACCEPTANCE_GAP_REPAIR_AUTHORIZED
+Win7-Validation: WIN7_28_NOT_PERFORMED
+Target Candidate: WIN7-28
+Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119 / ADR-0120 / ADR-0121
 ```
 
 ## 1. 授权与目标
@@ -281,3 +281,62 @@ Provider 多工具任务、Win10 双构建、Win7 实机、打包发布、提交
   最新持久化轮次一致，最新终态行绑定较新成功 turn ID。
 
 未执行普通用户非提升 Win7 当前候选验证前保持 `WIN7_27_NOT_PERFORMED`；本任务不重签 WIN7-22 或 Alpha/RC。
+
+## 15. WIN7-27 复核四项验收缺口修复与 WIN7-28 授权（2026-09-10）
+
+- 修复基线为 `32c5f6b0443a1f82eb4c24179378bca7ec954d69`（`codex/ui-optimization`），继续在当前工作区实施，
+  保留既有未提交修改（Alpha 2 的 ADR-0117/A9-16 草稿、`docs/REMOTE_WINDOWS_CONNECTIONS.md`、`.trae/**`、
+  `docs/plans/WIN7_25_VALIDATION_GAP_REPAIR_PLAN.md`、`docs/plans/WIN7_27_ACCEPTANCE_GAPS_REPAIR_PLAN.md`），
+  这些内容不混入本次提交。
+- 只读复核结论：`32c5f6b` 有实质改进，但仍有四项 P2 级验收逻辑缺口；复核报告见
+  `/tmp/a9-w27-review-upl8xm/REVIEW.md`，原反例脚本见同目录 `review-probes.cjs`。修复方案见
+  `docs/plans/WIN7_27_ACCEPTANCE_GAPS_REPAIR_PLAN.md`（该方案本身不因此成为批准记录）。ADR-0121 记录
+  本次修复范围与 WIN7-28 新候选授权。
+
+### 15.1 四项缺口修复范围（逐项对应复核 F1～F4）
+
+| ID | 范围 | 可观察成功条件 |
+|---|---|---|
+| F1 | 让 DOM 实际结果与最新持久化 turn 身份真正参与报告判定 | 报告器解析并强制校验 DOM 附件的 `displayed_outcome`、`latest_persisted_turn_id` 与阶段标识；以附件为唯一事实来源与查询最新终态、snapshot 独立采集的 turn 身份交叉比较，报告平行字段只能由附件推导；结果不符、turn 不符、字段缺失、类型错误、阶段/会话错绑、旧新轮次同 turn ID（重算哈希后）一律拒绝 |
+| F2 | 把"非空/关键词"升级为独立推导的逐行内容核对 | 查询导出携带重建显示文本所需的最小脱敏事实；期望行表示由查询事实独立推导，实际行只从 DOM 观察；`LAST_60_BY_EVENT_ID_ASC` 的行数、event ID、turn ID、类型、内容与顺序逐行比较并去重，切回/补载复用同一判定；保留 ID 与标签但替换关键内容、交换两行文字、替换时间或另一轮次内容，均使正向判定所用同一函数失败 |
+| F3 | 真实覆盖审批恢复顺序与四项旧集成要求 | 受控审批场景必须实际出现恢复后的 `tool_start`，且与 `approval_resolved` 绑定同一 conversation/task/turn/工具目标、决定 event ID 更早；拒绝场景记录目标前后存在性与字节哈希；非零退出、工具错误、取消、清理未确认分项覆盖且不得标记 verified success；历史查询失败后可见重试并去重（隔离实例内记录注入点与证据等级）；无安全接缝的子项记 `NOT_PERFORMED`，不以其他场景代替 |
+| F4 | 证明旧事件真的在后续分页中被加载 | 构造旧失败终态位于首次查询范围之外的受控会话；重启后 `hasMore=true` 且旧失败不在首批；点击真实"加载更早记录"，记录正式查询的 `beforeEventId`、响应页与旧事件身份；证明旧失败经分页进入已加载历史，最近有界投影与较新成功结果不变；查询附件保存真实 `limit`/`beforeEventId`/`hasMore`/返回范围 |
+
+### 15.2 允许路径（在 §3 与 §14.2 基础上追加）
+
+- `src/shell/tests/product/a9-06-driver-entry.cjs`、`run-a9-06-electron-smoke.mjs`：观察值导出、逐行/
+  结果判定、真实审批/失败/重试/分页场景与共享投影契约接入。
+- `scripts/release/test/a9-package.test.mjs`：F1～F4 正负向回归、基线与协议兼容检查。
+- `scripts/release/build-a9-product-v3.mjs`：仅新增 WIN7-28 profile 与对应用例，保留历史候选要求。
+- `release/win7-product-v3/` 下 WIN7-28 的 lock、integrity、report、smoke、共享投影契约模块、
+  CMD 包装与验收说明；不得改写 W25/W26/W27 的冻结 release 文件。
+- 必要的 A9-15 任务补充、`docs/STATUS.md`、`docs/tasks/README.md`、`release/win7-product-v3/README.md`
+  与新增 ADR；不改写 Accepted ADR 正文。
+
+### 15.3 边界与不做的事
+
+- 不重写已验证有效的 Renderer 投影算法；不修改 native helper、Runner/Policy、IPC 契约、SQLite schema、
+  权限模式或秘密边界；不开放 Alpha 2。
+- WIN7-25/26/27 的源码身份、ZIP、manifest、kit、lock、authority、构建树与历史证据全部冻结，不得覆盖
+  或改判；历史 W23/W24/W25 profile 的 `release/**` 合同保持原字节。
+- 不新增运行时依赖；查询导出只含重建显示文本所需的最小脱敏事实，不无差别导出完整 payload 或秘密。
+- 故障注入只在隔离测试实例内、以记录清楚的测试替身进行，不修改冻结源码、不暴露产品高权限测试接口、
+  不降低真实清理保证、不把模拟宣称为真实 OS 故障。
+- 本地提交不推送；候选哈希形成后仍须候选外独立 `WIN7_28_RELEASE_AUTHORITY` 与 SHA-256 pin；
+  开发机 fixture 不构成真实 Provider 或普通用户非提升 Win7 PASS。
+
+### 15.4 WIN7-28 用例
+
+- `W28-03-INSPECTOR-PERSISTED-RESTART`：重启后 Inspector 逐行等于当前会话查询的最近有界范围；行内容
+  经独立推导逐行核对；切换会话无残留且切回复原；`projection_evidence` 绑定查询与 DOM 附件及哈希，
+  DOM 附件的 `displayed_outcome` 与 `latest_persisted_turn_id` 必须与查询最新终态一致。
+- `W28-04-APPROVAL-FAILURE-ORDER`：真实批准场景必须出现恢复后的 `tool_start` 且晚于决定；拒绝场景目标
+  字节哈希不变；非零退出/工具错误/取消/清理未确认分项不得标记 verified success；历史查询失败后可见
+  重试且无重复事件。
+- `W28-09-LATEST-OUTCOME-PROJECTION`：真实旧 `failed · not_applicable` 轮次落在首次查询范围之外，重启
+  后 `hasMore=true`；经真实分页加载后，较新 `completed · verified` 结果与最新持久化轮次保持一致，旧新
+  turn ID 相同即拒绝。
+- `W28-10-OLDER-EVENT-PAGINATION`（新增）：独立记录分页请求与响应事实（`beforeEventId`、返回范围、
+  旧事件身份），证明旧失败经分页加入已加载历史；无分页动作时该项记 `NOT_PERFORMED`。
+
+未执行普通用户非提升 Win7 当前候选验证前保持 `WIN7_28_NOT_PERFORMED`；本任务不重签 WIN7-22/27 或 Alpha/RC。
