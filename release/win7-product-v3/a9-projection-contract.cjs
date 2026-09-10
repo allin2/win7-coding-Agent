@@ -100,15 +100,51 @@ function expectedRowLabel(event) {
   }
 }
 
-// DOM 行文本形如 `HH:MM:SS · <label>`；时间前缀与语言环境相关，比较时剥离但要求其存在。
-const TIMESTAMP_PREFIX = /^\s*(?:(?:上午|下午|AM|PM)\s*)?\d{1,2}:\d{2}:\d{2}(?:\s*(?:上午|下午|AM|PM))?\s*·\s*/i;
+// DOM 行文本形如 `HH:MM:SS · <label>`；时间前缀与语言环境相关，比较时剥离但要求其存在且一致。
+const TIMESTAMP_PREFIX = /^\s*(?:(上午|下午|AM|PM)\s*)?(\d{1,2}):(\d{2}):(\d{2})(?:\s*(上午|下午|AM|PM))?\s*·\s*/i;
 function hasTimestampPrefix(text) { return TIMESTAMP_PREFIX.test(String(text || '')); }
 function rowLabelOf(text) { return String(text || '').replace(TIMESTAMP_PREFIX, '').trim(); }
 
+/** 解析显示时间（24h 与 12h 均支持）为本机当日秒数；失败返回 null。 */
+function parseStampSeconds(text) {
+  const match = String(text || '').match(TIMESTAMP_PREFIX);
+  if (!match) return null;
+  const meridian = String(match[1] || match[5] || '').toUpperCase();
+  let hour = Number(match[2]);
+  const minute = Number(match[3]);
+  const second = Number(match[4]);
+  if (meridian) {
+    const isPm = meridian === 'PM' || meridian === '下午';
+    if (hour === 12) hour = isPm ? 12 : 0;
+    else if (isPm) hour += 12;
+  }
+  if (!Number.isSafeInteger(hour) || hour > 23 || minute > 59 || second > 59) return null;
+  return hour * 3600 + minute * 60 + second;
+}
+function utcSecondsOfDay(timestampMs) { return Math.floor(timestampMs / 1000) % 86400; }
+
+/**
+ * 时间一致性：由首行推导本机时区/截断偏移，其余各行必须与该偏移一致。
+ * 查询侧必须提供 timestamp_ms；任一行时间被替换、缺失或与持久化时间不符即不通过。
+ * 这样既能发现"错误时间"，又不依赖验证机与产品机的时区/语言环境相同。
+ */
+function timestampsConsistent(rows, expected) {
+  if (!Array.isArray(rows) || !Array.isArray(expected) || !rows.length) return false;
+  const samples = [];
+  for (let index = 0; index < expected.length; index += 1) {
+    const local = parseStampSeconds(rows[index] && rows[index].text);
+    const timestampMs = expected[index] && expected[index].timestamp_ms;
+    if (local === null || !Number.isSafeInteger(timestampMs)) return false;
+    samples.push({ local, utc: utcSecondsOfDay(timestampMs) });
+  }
+  const offset = samples[0].local - samples[0].utc;
+  return samples.every((sample) => ((((sample.utc + offset) % 86400) + 86400) % 86400) === sample.local);
+}
+
 /**
  * 唯一行判定函数：正向断言与全部负向变异共用。
- * 逐行要求 event ID、turn ID、event type、显示文本（剥离时间前缀后与独立推导的期望标签相等）
- * 与查询导出的有界显示范围完全一致，且无重复。
+ * 逐行要求 event ID、turn ID、event type、显示文本（标签与查询事实推导值相等）与查询导出的有界显示范围
+ * 完全一致，时间与持久化时间自洽且无重复。event_type 或文本缺失一律不通过。
  */
 function rowsMatchQuery(rows, events) {
   if (!Array.isArray(rows) || !Array.isArray(events)) return false;
@@ -120,14 +156,14 @@ function rowsMatchQuery(rows, events) {
     const event = expected[index];
     if (!row || row.event_id !== eventIdOf(event)) return false;
     if ((row.turn_id || null) !== (turnIdOf(event) || null)) return false;
-    if (row.event_type !== undefined && row.event_type !== null && row.event_type !== event.type) return false;
+    if (row.event_type !== event.type) return false;
     if (typeof row.text !== 'string' || !row.text.trim()) return false;
     if (!hasTimestampPrefix(row.text)) return false;
     if (rowLabelOf(row.text) !== expectedRowLabel(event)) return false;
     if (seen.has(row.event_id)) return false;
     seen.add(row.event_id);
   }
-  return true;
+  return timestampsConsistent(rows, expected) && true;
 }
 
 function crossSessionResidue(rows, allowedEventIds) {
@@ -160,6 +196,13 @@ function rowMutationSamples(rows, events) {
   // 内容变异：把另一轮次的标签整体挪到本行（保留 ID）。
   const otherTurnLabel = base.map((row) => (row.event_type === 'turn_completed'
     ? { ...row, text: row.text.replace(/^(\s*\d{1,2}:\d{2}:\d{2}\s*·\s*).*$/s, '$1任务失败 · 其他轮次') } : row));
+  // 时间变异：保留标签与身份，只把时间前缀换成固定的错误时间。
+  const wrongTime = base.map((row, index) => ({
+    ...row,
+    text: String(row.text).replace(TIMESTAMP_PREFIX, `${String(3 + index % 7).padStart(2, '0')}:07:07 · `),
+  }));
+  // 身份变异：丢掉 event_type。
+  const missingEventType = base.map((row) => ({ ...row, event_type: null }));
   return {
     missing,
     reordered,
@@ -169,6 +212,8 @@ function rowMutationSamples(rows, events) {
     swappedText,
     wrongDetail,
     otherTurnLabel,
+    wrongTime,
+    missingEventType,
   };
 }
 
@@ -192,5 +237,6 @@ module.exports = {
   eventIdOf, turnIdOf, isEventId,
   terminalFacts, expectedDisplayed, latestTerminalEvent,
   toolHeadline, expectedRowLabel, hasTimestampPrefix, rowLabelOf,
+  parseStampSeconds, utcSecondsOfDay, timestampsConsistent, TIMESTAMP_PREFIX,
   rowsMatchQuery, crossSessionResidue, rowMutationSamples, allMutationsRejected,
 };

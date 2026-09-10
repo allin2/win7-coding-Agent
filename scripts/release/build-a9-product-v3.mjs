@@ -75,10 +75,18 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-27-smoke.cjs'],
     evidenceDirectory: 'a9-win7-27-evidence',
   },
+  'A9-15-INPUTS-UI-PROGRESS-WIN7-28': {
+    task: 'A9-15', candidate: 'WIN7-28', lockFile: 'a9-15-win7-28-input-lock.json',
+    kitFile: 'A9_15_VALIDATION_KIT.json', validationDoc: 'A9_15_WIN7_28_VALIDATION.md',
+    integrityCommand: 'RUN_A9_15_W28_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_28_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w28.cjs', reportScript: 'a9-win7-28-report.cjs',
+    extraValidationScripts: ['a9-win7-28-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-28-evidence',
+  },
 };
 
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28']);
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
@@ -203,6 +211,11 @@ export function buildA9ProductCandidate(options) {
     if (A915_CANDIDATES.has(profile.candidate)) {
       const driverName = `a9-${profile.candidate.toLowerCase()}-driver.cjs`;
       fs.copyFileSync(path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs'), path.join(validationRoot, driverName));
+    }
+    // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
+    if (profile.candidate === 'WIN7-28') {
+      fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
+        path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
     if (profile.candidate === 'WIN7-22') {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-win7-17-report.cjs'), path.join(validationRoot, 'a9-win7-17-report.cjs'));
@@ -330,6 +343,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
+    ...(profile.candidate === 'WIN7-28' ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -619,14 +633,18 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
   // ADR-0120：WIN7-27 保留 W26 的投影用例，同时恢复 W24/W25 的审批与失败顺序用例，
   // 并把最新轮次投影作为独立用例追加；历史 profile 的用例集合保持原样。
-  const usesProjectionCase = ['WIN7-26', 'WIN7-27'].includes(profile.candidate);
-  const restoresApprovalCase = profile.candidate === 'WIN7-27';
-  const kitDate = ['WIN7-26', 'WIN7-27'].includes(profile.candidate) ? '20260910' : '20260909';
-  const decision = profile.candidate === 'WIN7-27' ? 'ADR-0120'
+  const usesProjectionCase = ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate);
+  const restoresApprovalCase = ['WIN7-27', 'WIN7-28'].includes(profile.candidate);
+  // ADR-0121：WIN7-28 额外要求独立的分页用例。
+  const addsPagingCase = profile.candidate === 'WIN7-28';
+  const kitDate = ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) ? '20260910' : '20260909';
+  const decision = profile.candidate === 'WIN7-28' ? 'ADR-0121'
+    : profile.candidate === 'WIN7-27' ? 'ADR-0120'
     : profile.candidate === 'WIN7-26' ? 'ADR-0119'
     : profile.candidate === 'WIN7-25' ? 'ADR-0118'
     : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = profile.candidate === 'WIN7-27' ? 'WIN7-26'
+  const historicalCandidate = profile.candidate === 'WIN7-28' ? 'WIN7-27'
+    : profile.candidate === 'WIN7-27' ? 'WIN7-26'
     : profile.candidate === 'WIN7-26' ? 'WIN7-25'
     : profile.candidate === 'WIN7-25' ? 'WIN7-24'
     : profile.candidate === 'WIN7-24' ? 'WIN7-23' : 'WIN7-22';
@@ -759,6 +777,18 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
             'restart DOM export (A9_PROJECTION_DOM_EXPORT)',
             'older-event-load DOM export',
             'derived projection evidence package']),
+      ] : []),
+      ...(addsPagingCase ? [
+        caseOf('W23-10-OLDER-EVENT-PAGINATION',
+          'Prove the older persisted failure is genuinely loaded through a real beforeEventId page request.',
+          ['the first page returns hasMore=true and does not contain the older failure terminal',
+            'the product load-more control issues a real query whose cursor is the oldest loaded event id',
+            'that page returns the older failure event and its identity is bound in the query attachment',
+            'after paging the bounded Inspector projection and the newer completed verified result stay correct',
+            'no pagination cursor, no new events in the page or a failed page means this case cannot pass'],
+          ['machine-readable query export with real per-page facts (limit, beforeEventId, hasMore, returned range)',
+            'older-load DOM export (A9_PROJECTION_DOM_EXPORT)',
+            'pagination probe facts with injection-free product button click']),
       ] : []),
     ],
   };
@@ -913,8 +943,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-15' && lock.provenance?.previous_candidate === 'WIN7-26'
     && lock.provenance?.previous_candidate_result === 'PROJECTION_EVIDENCE_AND_INTEGRATION_ASSERTION_REPAIR_REQUIRED'
     && lock.provenance?.change_scope === 'MACHINE_READABLE_PROJECTION_EVIDENCE_AND_DRIVER_PROTOCOL_ISOLATION';
+  const win28Provenance = profile.candidate === 'WIN7-28'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_28'
+    && lock.provenance?.task === 'A9-15' && lock.provenance?.previous_candidate === 'WIN7-27'
+    && lock.provenance?.previous_candidate_result === 'ACCEPTANCE_GAP_REPAIR_REQUIRED'
+    && lock.provenance?.change_scope === 'DOM_OUTCOME_TURN_IDENTITY_ROW_CONTENT_PAGINATION_AND_APPROVAL_EXECUTION';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;

@@ -32,6 +32,9 @@ const win26Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win26Report = require('../../../release/win7-product-v3/a9-win7-26-report.cjs');
 const win27Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w27.cjs');
 const win27Report = require('../../../release/win7-product-v3/a9-win7-27-report.cjs');
+const win28Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w28.cjs');
+const win28Report = require('../../../release/win7-product-v3/a9-win7-28-report.cjs');
+const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
@@ -287,13 +290,19 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (['win23', 'win24', 'win25', 'win26', 'win27'].includes(candidate)) {
+  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28'].includes(candidate)) {
     const number = candidate.slice(-2);
     lock.lock_id = `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
     lock.source_date_epoch = 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win27'
+    lock.provenance = candidate === 'win28'
+      ? {
+        task: 'A9-15', previous_candidate: 'WIN7-27',
+        previous_candidate_result: 'ACCEPTANCE_GAP_REPAIR_REQUIRED',
+        change_scope: 'DOM_OUTCOME_TURN_IDENTITY_ROW_CONTENT_PAGINATION_AND_APPROVAL_EXECUTION',
+      }
+      : candidate === 'win27'
       ? {
         task: 'A9-15', previous_candidate: 'WIN7-26',
         previous_candidate_result: 'PROJECTION_EVIDENCE_AND_INTEGRATION_ASSERTION_REPAIR_REQUIRED',
@@ -323,7 +332,7 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  const lockPath = path.join(root, ['win23', 'win24', 'win25', 'win26', 'win27'].includes(candidate)
+  const lockPath = path.join(root, ['win23', 'win24', 'win25', 'win26', 'win27', 'win28'].includes(candidate)
     ? `a9-15-win7-${candidate.slice(-2)}-input-lock.json`
     : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
@@ -916,6 +925,258 @@ test('WIN7-27 report verifier parses machine-readable projection attachments and
     execution.evidence.push(camelReference);
   }
   assert.throws(() => win27Report.verifyReport(camel, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_DOM_ROW_INVALID/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, and real pagination', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win28-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win28');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifestPath = path.join(stage, 'release-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  for (const relative of win28Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-28 closure: ${relative}`);
+  }
+  const authorityPath = path.join(root, 'release-authority.json');
+  writeJson(authorityPath, {
+    schema_version: 1, kind: 'WIN7_28_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_28_VALIDATION',
+    formal_input_lock_sha256: sha256File(inputs.lockPath),
+    approval_registry: { commit: manifest.source_commit, sha256: sha256File(inputs.approvalRegistryPath) },
+    candidate: {
+      source_commit: manifest.source_commit, package_sha256: sha256File(built.zipPath),
+      manifest_sha256: sha256File(manifestPath),
+    },
+  });
+  const options = {
+    zip: built.zipPath, 'release-manifest': manifestPath,
+    kit: path.join(stage, 'A9_15_VALIDATION_KIT.json'), 'formal-input-lock': inputs.lockPath,
+    'approval-registry': inputs.approvalRegistryPath, 'release-authority': authorityPath,
+    'release-authority-sha256': sha256File(authorityPath),
+  };
+  const identity = win28Report.identityFrom(options, fs);
+  const kit = JSON.parse(fs.readFileSync(options.kit, 'utf8'));
+  assert.equal(kit.scope.decision, 'ADR-0121');
+  assert.equal(kit.required_cases.length, 10);
+  for (const caseId of ['W28-03-INSPECTOR-PERSISTED-RESTART', 'W28-04-APPROVAL-FAILURE-ORDER',
+    'W28-09-LATEST-OUTCOME-PROJECTION', 'W28-10-OLDER-EVENT-PAGINATION']) {
+    assert.ok(kit.required_cases.some((item) => item.case_id === caseId), `WIN7-28 kit case: ${caseId}`);
+  }
+  // 打包闭包必须包含共享投影契约模块（driver 与报告器在候选内共用同一实现）。
+  assert.ok(fs.existsSync(path.join(stage, 'validation', 'a9-projection-contract.cjs')), 'contract module packaged');
+  assert.ok(fs.existsSync(path.join(stage, 'validation', 'a9-win7-28-driver.cjs')), 'w28 driver packaged');
+
+  // 与真实产品形态一致的 9 事件会话：id 3 为旧失败，id 9 为较新 verified 成功；
+  // 首批查询（limit 6）只覆盖 id 4..9，旧失败必须经 beforeEventId 分页才被加载。
+  const baseTs = Date.parse('2026-09-10T10:00:00.000Z');
+  const blank = { outcome: null, error_head: null, tool_name: null, decision: null, denied: false, has_error: false, shell_has_exit_code: false, shell_exit_code: null, call_id: null, step: null, args: {} };
+  const event = (id, turnId, type, extra = {}) => ({
+    event_id: id, turn_id: turnId, type, outcome: null, verification: null,
+    timestamp_ms: baseTs + id * 1000,
+    display: { ...blank, ...(extra.display || {}) },
+    ...(extra.outcome ? { outcome: extra.outcome } : {}),
+    ...(extra.verification ? { verification: extra.verification } : {}),
+  });
+  const queryEvents = [
+    event(1, null, 'session_started'),
+    event(2, 'turn-old', 'turn_started'),
+    event(3, 'turn-old', 'turn_failed', { display: { error_head: 'fixture failure' } }),
+    event(4, 'turn-new', 'turn_started'),
+    event(5, 'turn-new', 'tool_start', { display: { tool_name: 'read', args: { path: 'calc.ts' } } }),
+    event(6, 'turn-new', 'tool_end', { display: { tool_name: 'read' } }),
+    event(7, 'turn-new', 'tool_start', { display: { tool_name: 'search', args: { pattern: 'calc' } } }),
+    event(8, 'turn-new', 'tool_end', { display: { tool_name: 'search' } }),
+    event(9, 'turn-new', 'turn_completed', { display: { outcome: 'completed' }, outcome: 'completed', verification: 'verified' }),
+  ];
+  const stampOf = (timestampMs) => new Date(timestampMs).toISOString().slice(11, 19);
+  const rowFor = (queryEvent) => ({
+    event_id: queryEvent.event_id, turn_id: queryEvent.turn_id, event_type: queryEvent.type,
+    text: `${stampOf(queryEvent.timestamp_ms)} · ${projectionContract.expectedRowLabel(queryEvent)}`,
+  });
+  const domRows = queryEvents.map(rowFor);
+  const pages = [
+    { limit: 6, before_event_id: null, has_more: true, returned_count: 6, returned_first_event_id: 4, returned_last_event_id: 9, ok: true },
+    { limit: 6, before_event_id: 4, has_more: false, returned_count: 3, returned_first_event_id: 1, returned_last_event_id: 3, ok: true },
+  ];
+  const paging = {
+    ok: true, firstPageLimit: 6, firstPageCount: 6, firstPageHasMore: true, firstPageOldestId: 4,
+    beforeEventId: 4, controlConsumed: true, pageCount: 3, pageHasMore: false,
+    pageFirstId: 1, pageLastId: 3, pageEventIds: [1, 3], pageHasOlderFailure: true,
+    pageOlderFailureId: 3, firstPageExcludesOlderFailure: true,
+  };
+
+  const evidenceRoot = path.join(root, 'evidence');
+  fs.mkdirSync(evidenceRoot);
+  const cloneJson = (value) => JSON.parse(JSON.stringify(value));
+  const writeEvidence = (name, value) => {
+    const target = path.join(evidenceRoot, name);
+    writeJson(target, value);
+    return { path: name, sha256: sha256File(target) };
+  };
+  const domExport = (stage_, rows, extra = {}) => ({
+    schema_version: 2, kind: 'A9_PROJECTION_DOM_EXPORT', stage: stage_,
+    conversation_id: extra.conversationId === undefined ? 'conversation-current' : extra.conversationId,
+    display_range: { rule: 'LAST_60_BY_EVENT_ID_ASC', max_rows: 60, rows_total: rows.length },
+    rows, displayed_outcome: extra.displayedOutcome === undefined ? 'completed · verified' : extra.displayedOutcome,
+    latest_persisted_turn_id: extra.latestTurnId === undefined ? 'turn-new' : extra.latestTurnId,
+  });
+  const writeFixture = (mutate) => {
+    // 每次写入都深拷贝共享夹具，避免某个负向用例的就地变异（pop/reverse/字段改写）污染后续用例。
+    const data = {
+      'projection-query-export.json': {
+        schema_version: 2, kind: 'A9_PROJECTION_QUERY_EXPORT', conversation_id: 'conversation-current',
+        query: { limit: 1000, before_event_id: null, has_more: false },
+        pages: cloneJson(pages), events: cloneJson(queryEvents),
+      },
+      'projection-dom-export.json': domExport('restart', cloneJson(domRows)),
+      'projection-dom-other-conversation.json': domExport('other_conversation', [
+        { event_id: 100, turn_id: null, event_type: 'session_started', text: '00:00:01 · session_started' },
+      ], { displayedOutcome: '', latestTurnId: null, conversationId: 'conversation-other' }),
+      'projection-dom-resume.json': domExport('resume', cloneJson(domRows)),
+      'projection-dom-after-older-load.json': domExport('older_load', cloneJson(domRows), { older_load_mode: 'CLICKED_LOAD_MORE' }),
+    };
+    if (mutate) mutate(data);
+    const references = {};
+    for (const [name, value] of Object.entries(data)) {
+      if (name === 'projection-evidence.json') continue;
+      references[name] = writeEvidence(name, value);
+    }
+    return references;
+  };
+  const buildReport = (references, mutate) => {
+    const projectionByCase = {
+      'W28-03-INSPECTOR-PERSISTED-RESTART': {
+        query_export: references['projection-query-export.json'], dom_export: references['projection-dom-export.json'],
+        session_switch: {
+          other_conversation_export: references['projection-dom-other-conversation.json'],
+          resume_export: references['projection-dom-resume.json'],
+        },
+      },
+      'W28-09-LATEST-OUTCOME-PROJECTION': {
+        query_export: references['projection-query-export.json'], dom_export: references['projection-dom-export.json'],
+        dom_export_after_older_load: references['projection-dom-after-older-load.json'],
+        older_load_mode: 'CLICKED_LOAD_MORE',
+        older_failure: { event_id: 3, turn_id: 'turn-old' },
+        newer_success: { event_id: 9, turn_id: 'turn-new' },
+        restart_displayed_outcome: 'completed · verified', older_event_load_displayed_outcome: 'completed · verified',
+      },
+      'W28-10-OLDER-EVENT-PAGINATION': {
+        query_export: references['projection-query-export.json'],
+        dom_export_after_older_load: references['projection-dom-after-older-load.json'],
+        older_failure: { event_id: 3, turn_id: 'turn-old' }, paging,
+      },
+    };
+    const report = {
+      ...win28Report.template(kit, identity), status: 'PASS',
+      results: kit.required_cases.map((validationCase) => {
+        const execution = {
+          candidate: identity, run_id: `run-${validationCase.case_id}`,
+          environment: {
+            os: 'Windows 7 SP1 build 7601', architecture: 'x64', user: 'ordinary-user',
+            elevation: 'not-elevated', electron: '22.3.27', electron_abi: 110,
+          },
+          assertions: validationCase.assertions.map((assertion) => ({ assertion_id: assertion.assertion_id, status: 'PASS' })),
+          evidence: [references['projection-query-export.json'], references['projection-dom-export.json'],
+            references['projection-dom-other-conversation.json'], references['projection-dom-resume.json'],
+            references['projection-dom-after-older-load.json']],
+        };
+        const projection = projectionByCase[validationCase.case_id];
+        // 深拷贝：报告级负向变异不得污染共享夹具，也不得影响其它用例。
+        if (projection) execution.projection_evidence = cloneJson(projection);
+        if (validationCase.case_id === 'W28-07-REAL-PROVIDER-MULTITOOL') {
+          execution.provider_kind = 'REAL_NON_FIXTURE';
+          execution.provider_probe = 'tool_calling';
+        }
+        return { case_id: validationCase.case_id, status: 'PASS', executions: [execution] };
+      }),
+    };
+    if (mutate) mutate(report);
+    return report;
+  };
+  const verify = (report) => win28Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs);
+
+  const baseline = buildReport(writeFixture());
+  try {
+    assert.equal(verify(baseline).status, 'PASS');
+  } catch (error) {
+    const q = JSON.parse(fs.readFileSync(path.join(evidenceRoot, 'projection-query-export.json'), 'utf8'));
+    const dom = JSON.parse(fs.readFileSync(path.join(evidenceRoot, 'projection-dom-export.json'), 'utf8'));
+    console.error('BASELINE_DIAG', JSON.stringify({
+      error: String(error && error.message), events: q.events.length, rows: dom.rows.length,
+      rowIds: dom.rows.map((r) => r.event_id), eventIds: q.events.map((e) => e.event_id),
+      row0: dom.rows[0], event0: q.events[0], event8: q.events[8],
+      parsed0: projectionContract.expectedRowLabel(q.events[0]),
+      parsed8: projectionContract.expectedRowLabel(q.events[8]),
+      ts: q.events.map((e) => e.timestamp_ms),
+    }));
+    throw error;
+  }
+
+  // F1 负向：DOM 实际结果/turn 身份/必填字段/阶段 与查询或槽位不符，重算哈希后仍须拒绝。
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    for (const name of ['projection-dom-export.json', 'projection-dom-resume.json', 'projection-dom-after-older-load.json']) {
+      d[name].displayed_outcome = 'failed · not_applicable';
+    }
+  }))), /A9_W28_PROJECTION_DOM_OUTCOME_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    for (const name of ['projection-dom-export.json', 'projection-dom-resume.json', 'projection-dom-after-older-load.json']) {
+      d[name].latest_persisted_turn_id = 'turn-old';
+    }
+  }))), /A9_W28_PROJECTION_DOM_LATEST_TURN_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { delete d['projection-dom-export.json'].displayed_outcome; }))),
+    /A9_W28_PROJECTION_DOM_OUTCOME_MISSING/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-export.json'].displayed_outcome = 42; }))),
+    /A9_W28_PROJECTION_DOM_OUTCOME_MISSING/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-resume.json'].stage = 'older_load'; }))),
+    /A9_W28_PROJECTION_DOM_STAGE_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-export.json'].conversation_id = 'foreign'; }))),
+    /A9_W28_PROJECTION_CONVERSATION_MISMATCH/);
+  // F2 负向：保留 ID/turn/类型/标签，只替换内容、时间或丢弃 event_type，必须被同一行判定拒绝。
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].rows = d['projection-dom-export.json'].rows.map((row) => ({
+      ...row, text: row.text.replace(/^(\s*\d{1,2}:\d{2}:\d{2}\s*·\s*).*$/s, '$1不相关内容'),
+    }));
+  }))), /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].rows = d['projection-dom-export.json'].rows.map((row, index) => ({
+      ...row, text: row.text.replace(/^\s*\d{1,2}:\d{2}:\d{2}/, `0${index % 9}:07:07`),
+    }));
+  }))), /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].rows = d['projection-dom-export.json'].rows.map((row) => ({ ...row, event_type: null }));
+  }))), /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-export.json'].rows.pop(); }))),
+    /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-export.json'].rows.reverse(); }))),
+    /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  // F4 负向：缺页事实、硬编码 has_more=false、无游标、旧失败归属不符。
+  assert.throws(() => verify(buildReport(writeFixture((d) => { delete d['projection-query-export.json'].pages; }))),
+    /A9_W28_PROJECTION_QUERY_PAGES_REQUIRED/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-query-export.json'].pages[0].has_more = false; }))),
+    /A9_W28_PROJECTION_PAGES_FIRST_HAS_MORE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    for (const page of d['projection-query-export.json'].pages) page.before_event_id = null;
+  }))), /A9_W28_PROJECTION_PAGES_CURSOR_NOT_RECORDED/);
+  assert.throws(() => verify(buildReport(writeFixture(), (report) => {
+    report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
+      .executions[0].projection_evidence.paging.beforeEventId = null;
+  })), /A9_W28_PROJECTION_PAGING_CURSOR_MISSING/);
+  assert.throws(() => verify(buildReport(writeFixture(), (report) => {
+    report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
+      .executions[0].projection_evidence.paging.pageOlderFailureId = 7;
+  })), /A9_W28_PROJECTION_PAGING_OLDER_BINDING_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture(), (report) => {
+    report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
+      .executions[0].projection_evidence.paging.controlConsumed = false;
+  })), /A9_W28_PROJECTION_PAGING_CONTROL_NOT_CONSUMED/);
+  // 旧失败与新成功共用 turn ID 必须拒绝。
+  assert.throws(() => verify(buildReport(writeFixture(), (report) => {
+    report.results.find((item) => item.case_id === 'W28-09-LATEST-OUTCOME-PROJECTION')
+      .executions[0].projection_evidence.newer_success.turn_id = 'turn-old';
+  })), /A9_W28_PROJECTION_TURN_IDENTITY_COLLISION/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

@@ -178,6 +178,7 @@ function createFixture(phaseName, stepFn) {
 //   read → final（全新会话，无第一进程历史重放；由请求内容断言证明）。
 const firstFixture = createFixture('first', (() => {
   let turn = 1;
+  const BULK_STEPS = 26;
   return ({ requests }) => {
     const parsed = requests[requests.length - 1];
     const messages = parsed.messages ?? [];
@@ -187,10 +188,44 @@ const firstFixture = createFixture('first', (() => {
       if (content.includes('cleanup')) turn = 2;
       else if (content.includes('verify again')) turn = 3;
       else if (content.includes('produce latest verified')) turn = 4;
+      else if (content.includes('run failing shell command')) turn = 5;
+      else if (content.includes('trigger tool error')) turn = 6;
+      else if (content.includes('approve the high impact operation')) turn = 7;
+      else if (content.includes('generate bulk history events')) turn = 8;
       else turn = 1;
     }
     const lastUserIndex = messages.map((message) => message.role).lastIndexOf('user');
     const tools = messages.slice(lastUserIndex + 1).filter((m) => m.role === 'tool').map((m) => m.name);
+    const toolCount = tools.length;
+    // F3：非零退出失败（真实 shell exit != 0），随后收尾。
+    if (turn === 5) {
+      if (!tools.includes('shell')) {
+        return { id: 'f5', tool: { name: 'shell', args: { command: String.raw`node -e "process.exit(3)"` } } };
+      }
+      return { id: 'final5', content: 'failing shell command observed.' };
+    }
+    // F3：工具错误（读取不存在路径），随后收尾。
+    if (turn === 6) {
+      if (!tools.includes('read')) {
+        return { id: 'f6', tool: { name: 'read', args: { path: 'missing-fixture-target.ts' } } };
+      }
+      return { id: 'final6', content: 'tool error observed.' };
+    }
+    // F3：批准路径——真实批准后工具必须执行，产生恢复后的 tool_start。
+    if (turn === 7) {
+      if (!tools.includes('delete')) {
+        return { id: 'a7', tool: { name: 'delete', args: { path: 'approve-target.tmp', permanent: true } } };
+      }
+      return { id: 'final7', content: 'approved operation executed and verified.' };
+    }
+    // F4：批量过程事件。每次调用使用**互不相同**的只读参数，避免 agent loop 对重复相同调用去重，
+    // 从而在真实产品链路里产生足量事件（不是持久化夹具）。
+    if (turn === 8) {
+      if (toolCount < BULK_STEPS) {
+        return { id: `b8-${toolCount}`, tool: { name: 'search', args: { pattern: `probe-${toolCount}-${Date.now() % 100000}` } } };
+      }
+      return { id: 'final8', content: 'bulk history generated and verified.' };
+    }
     if (turn === 3) {
       if (!tools.includes('read')) {
         return { id: 'r3', tool: { name: 'read', args: { path: 'calc.ts' } } };
@@ -331,6 +366,8 @@ const stallUrl = `http://127.0.0.1:${stall.server.address().port}`;
 // 工作区经正式 selectWorkspace 链路绑定；不用命令行或
 // WIN7AGENT_A9_WORKSPACE 环境变量绕过（F1/F6 硬门槛）。
 fs.writeFileSync(path.join(workspaceRoot, 'scratch.tmp'), 'will-be-deleted\n', 'utf8');
+// F3：批准路径的专用目标（测试侧已清点的临时目标），批准后真实执行删除。
+fs.writeFileSync(path.join(workspaceRoot, 'approve-target.tmp'), 'approved-delete-target\n', 'utf8');
 
 const baseEnv = {
   A9_SMOKE_WORKSPACE: workspaceRoot,
@@ -448,41 +485,48 @@ const journeyResponses = firstFixture.getResponses();
 const failureServed = journeyResponses.some((item) => item.prompt.includes('expected provider failure') && item.status === 503);
 const journeyServed = journeyResponses.some((item) => item.prompt.includes('fix the bug') && item.status === 200);
 const latestSuccessServed = journeyResponses.some((item) => item.prompt.includes('produce latest verified') && item.status === 200);
-record('A9-W27-DEV-FIXTURE-PROTOCOL-COMPATIBLE', failureServed && journeyServed && latestSuccessServed,
+record('A9-W28-DEV-FIXTURE-PROTOCOL-COMPATIBLE', failureServed && journeyServed && latestSuccessServed,
   `failure503=${failureServed}; journey200=${journeyServed}; latest200=${latestSuccessServed}`);
 const projectionFiles = fs.readdirSync(projectionRoot).sort();
 for (const name of projectionFiles) {
   fs.copyFileSync(path.join(projectionRoot, name), path.join(projectionEvidenceRoot, name));
 }
-record('A9-W27-DEV-PROJECTION-EVIDENCE-PUBLISHED',
+record('A9-W28-DEV-PROJECTION-EVIDENCE-PUBLISHED',
   projectionFiles.includes('projection-evidence.json')
   && projectionFiles.filter((name) => name.startsWith('projection-')).length === 6,
   JSON.stringify(projectionFiles));
-// ADR-0120 R1：投影附件必须能被正式报告器解析。driver 导出字段与报告器约定一旦漂移，
+// ADR-0121 R1/R2：投影附件必须能被正式报告器解析。driver 导出字段、行内容或时间语义一旦漂移，
 // 必须在开发机 smoke 就失败，而不是等 Win7 签发时才暴露。
 let projectionParseable = false;
 let projectionParseDetail = '';
-try {
-  const reportModule = hostRequire(path.join(repositoryRoot, 'release/win7-product-v3/a9-win7-27-report.cjs'));
+const w28ReportPath = path.join(repositoryRoot, 'release/win7-product-v3/a9-win7-28-report.cjs');
+if (!fs.existsSync(w28ReportPath)) {
+  projectionParseDetail = `REPORT_MODULE_ABSENT:${w28ReportPath}`;
+} else try {
+  const reportModule = hostRequire(w28ReportPath);
   const readProjection = (name) => JSON.parse(fs.readFileSync(path.join(projectionEvidenceRoot, name), 'utf8'));
-  const query = reportModule.parseQueryExport(readProjection('projection-query-export.json'), 'W27-03-INSPECTOR-PERSISTED-RESTART');
-  reportModule.parseDomExport(readProjection('projection-dom-export.json'), query, 'W27-03-INSPECTOR-PERSISTED-RESTART', 'restart');
+  const query = reportModule.parseQueryExport(readProjection('projection-query-export.json'), 'W28-03-INSPECTOR-PERSISTED-RESTART');
+  reportModule.parseDomExport(readProjection('projection-dom-export.json'), query, 'W28-03-INSPECTOR-PERSISTED-RESTART', 'restart');
   const evidencePackage = readProjection('projection-evidence.json');
-  const outcome = evidencePackage.results['W27-09-LATEST-OUTCOME-PROJECTION'].projection_evidence;
+  const outcome = evidencePackage.results['W28-09-LATEST-OUTCOME-PROJECTION'].projection_evidence;
+  const paging = evidencePackage.results['W28-10-OLDER-EVENT-PAGINATION'].projection_evidence.paging || {};
   const olderEvent = query.events.find((event) => event.event_id === outcome.older_failure.event_id);
   const newerEvent = query.events.find((event) => event.event_id === outcome.newer_success.event_id);
-  const latestTurn = reportModule.latestTerminal(query, 'W27-09-LATEST-OUTCOME-PROJECTION');
+  const latestTurn = reportModule.latestTerminal(query, 'W28-09-LATEST-OUTCOME-PROJECTION');
   const olderFacts = reportModule.terminalFacts(olderEvent);
   const newerFacts = reportModule.terminalFacts(newerEvent);
   projectionParseable = Boolean(olderEvent && newerEvent && olderEvent.turn_id !== newerEvent.turn_id
     && olderEvent.type === 'turn_failed' && olderFacts && olderFacts.outcome === 'failed' && olderFacts.verification === 'not_applicable'
     && newerEvent.type === 'turn_completed' && newerFacts && newerFacts.outcome === 'completed' && newerFacts.verification === 'verified'
-    && latestTurn.event_id === newerEvent.event_id);
-  projectionParseDetail = `queryEvents=${query.events.length}; older=${outcome.older_failure.event_id}; newer=${outcome.newer_success.event_id}; latest=${latestTurn.event_id}`;
+    && latestTurn.event_id === newerEvent.event_id
+    && paging.ok === true && paging.firstPageHasMore === true && paging.pageHasOlderFailure === true
+    && paging.firstPageExcludesOlderFailure === true
+    && query.pages.some((page) => page.before_event_id !== null));
+  projectionParseDetail = `queryEvents=${query.events.length}; pages=${query.pages.length}; older=${outcome.older_failure.event_id}; newer=${outcome.newer_success.event_id}; firstPageHasMore=${paging.firstPageHasMore}; pageHasOlderFailure=${paging.pageHasOlderFailure}`;
 } catch (error) {
   projectionParseDetail = String(error && error.message ? error.message : error);
 }
-record('A9-W27-PROJECTION-ARTIFACTS-REPORT-PARSEABLE', projectionParseable, projectionParseDetail);
+record('A9-W28-PROJECTION-ARTIFACTS-REPORT-PARSEABLE', projectionParseable, projectionParseDetail);
 
 // 旧审批不可执行：第二进程驱动已断言 resumeApproval 结构化拒绝。
 // （A9F2-OLD-APPROVAL-REJECTED 由驱动报告。）

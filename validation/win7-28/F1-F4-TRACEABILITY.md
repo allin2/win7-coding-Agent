@@ -1,99 +1,102 @@
 # WIN7-27 复核 F1–F4 修复追踪与交回状态
 
-日期：2026-09-10
+日期：2026-09-10（第二轮）
 依据：`docs/plans/WIN7_27_ACCEPTANCE_GAPS_REPAIR_PLAN.md`、ADR-0121、A9-15 §15
 基线：`32c5f6b0443a1f82eb4c24179378bca7ec954d69`（`codex/ui-optimization`）
 复核报告：`/tmp/a9-w27-review-upl8xm/REVIEW.md`，反例脚本同目录 `review-probes.cjs`
+方案第 9 节基线：`/tmp/a9-w28-baseline/review-probes-baseline.json`（归档见候选外交付目录）
 
-结论：**本轮未完成，不得认定闭环。** 治理授权、共享投影契约与失败基线已完成并落库；F1/F2 的判定逻辑
-已在开发机上实现并通过定向验证，但因 F4 所需 fixture 前提无法在当前产品边界内满足，实现整体未达到
-可交付状态，已按"保留绿色提交树"原则回滚驱动侧改动。以下逐项说明可复现事实与剩余工作。
+状态：**F1/F2/F3（除"查询失败后重试"一项）/F4 已实现并有真实执行证据；WIN7-28 候选合同文件已生成
+但未做双干净构建；不得认定闭环。** 全部自检完成后按方案第 9 节交回独立验收。
 
 ## 1. 失败基线（已复现并归档）
 
-`env -u NODE_OPTIONS /usr/local/bin/node /tmp/a9-w27-review-upl8xm/review-probes.cjs`
-输出归档：`/tmp/a9-w28-baseline/review-probes-baseline.json`（归档副本见候选外交付目录）。
+`32c5f6b` 上逐项确认复核四项缺口成立：5 个语义破坏探针被 ACCEPTED（DOM 结果矛盾、最新 turn 指向旧
+失败、DOM 文本完全无关、结果与 turn 字段缺失），4 个对照正确 REJECTED；driver 身份/内容断言在全部文本
+被替换后仍为 true；归档 smoke 中审批恢复无 `tool_start`、`olderLoad` 为 `FULL_HISTORY_ALREADY_LOADED`
+且无按钮无变化、无 retry 用例。
 
-在 `32c5f6b` 上逐项确认了复核全部四项缺口：
+## 2. 已交付实现
 
-| 探针 | 结果 |
+| 文件 | 作用 |
 |---|---|
-| 原始归档投影附件 | ACCEPTED（正确） |
-| DOM `displayed_outcome` 与报告字段矛盾 | **ACCEPTED（应拒绝）** |
-| DOM `latest_persisted_turn_id` 指向旧失败 | **ACCEPTED（应拒绝）** |
-| DOM 文本与查询完全无关（ID/turn/类型保留） | **ACCEPTED（应拒绝）** |
-| DOM 结果与 turn 字段缺失 | **ACCEPTED（应拒绝）** |
-| 缺行 / 倒序 / 重复 / 跨会话（对照） | REJECTED（正确） |
-| driver 文本变异 | `identityAssertionPassed=true`、`contentAssertionPassed=true`、同一负向套件全 true |
+| `release/win7-product-v3/a9-projection-contract.cjs` | 共享投影契约（driver 与报告器同一实现）：`rowsMatchQuery` 为正向断言与全部负向变异共用的唯一函数；`expectedRowLabel` 仅由查询事实推导；`timestampsConsistent` 以首行推导本机偏移后要求逐行时间自洽；`rowMutationSamples` 含内容类、时间类与身份类变异 |
+| `release/win7-product-v3/a9-win7-28-report.cjs` | WIN7-28 报告器（由 `scripts/release/gen-w28-report.cjs` 从 W27 锚点式生成）：投影附件 schema v2；强制校验 DOM `displayed_outcome`/`latest_persisted_turn_id`/`stage`；逐行内容与时间核对；新增 W28-10 分页校验 |
+| 同上其余 WIN7-28 文件 | `a9-15-win7-28-input-lock.json`、`a9-package-integrity-w28.cjs`、`a9-win7-28-smoke.cjs`、`RUN_A9_15_W28_INTEGRITY.cmd`、`RUN_WIN7_28_REPORT_VERIFY.cmd`、`A9_15_WIN7_28_VALIDATION.md`（验收说明为初稿） |
+| `src/shell/tests/product/a9-06-driver-entry.cjs` | 接入共享契约；导出 schema v2 附件（含 `display` 脱敏事实、`pages` 真实查询事实、`stage`）；失败类型分项；拒绝字节哈希；批准路径恢复工具活动；真实分页；IPC 主进程一次性故障注入接缝 |
+| `src/shell/tests/product/run-a9-06-electron-smoke.mjs` | fixture 支持投影协议新场景；批量轮次使用互不相同的只读 `search` 参数 |
+| `scripts/release/build-a9-product-v3.mjs` | WIN7-28 profile、候选集合、kit（10 用例）、provenance、共享契约模块随候选打包 |
+| `scripts/release/test/a9-package.test.mjs` | WIN7-28 用例：正向 PASS + 17 项语义负向 |
 
-归档 smoke 观察值同时确认 F3/F4：`A9-15-APPROVAL-ORDER-BEFORE-RESUME` 的 `laterActivities` 只有
-`model_chunk`（event 28），无恢复后 `tool_start`；`A9-15-OLDER-FAILURE-NEWER-SUCCESS-RESTART` 的
-`olderLoad` 为 `FULL_HISTORY_ALREADY_LOADED`、`hasControl=false`、`changed=false`；无任何 retry 用例。
+### F1 关键实现
+`parseDomExport` 强制要求 `stage`（须等于槽位）、`displayed_outcome`（非空字符串）、
+`latest_persisted_turn_id`（字符串或 null）；`validateInspectorProjection` / `validateOutcomeProjection`
+把它们与查询导出的最新终态、snapshot 独立采集的 turn 身份交叉比较；报告平行字段必须等于附件推导值。
 
-## 2. 逐项状态
+### F2 关键实现
+契约 `expectedRowLabel` 由查询事实（类型、time、turn/call/step 及被显示的 payload 字段）独立推导；
+`rowsMatchQuery` 逐行比较 event ID、turn ID、event_type、文本内容与顺序、去重，并对时间做偏移自洽校验。
+已用归档真实 DOM 文本逐类型核对一致（`任务失败 · Server returned status 503…`、`读取 calc.ts …`、
+`审批已拒绝 · delete`、`任务完成 · completed`、默认类型回退等）。
 
-| 缺口 | 状态 | 事实与依据 |
+## 3. 真实执行结果（开发机 Electron smoke，macOS）
+
+**78/79 PASS**，四阶段 `workspace_select`/`first`/`stop` 均 PASS。
+
+| 用例 | 结果 | 关键观察值 |
 |---|---|---|
-| F1 DOM 结果与最新 turn 身份参与判定 | 逻辑已实现，**未随候选交付** | 已实现 `parseDomExport` 强制校验 `displayed_outcome` / `latest_persisted_turn_id` / `stage`，并在 `validateInspectorProjection`、`validateOutcomeProjection` 中与查询最新终态、snapshot 独立采集的 turn 身份交叉比较；报告平行字段改为须等于附件推导值。因整体回滚，未进入提交。 |
-| F2 独立推导的逐行内容核对 | 契约已交付并有定向验证，**驱动侧未交付** | 共享契约 `release/win7-product-v3/a9-projection-contract.cjs` 已提交：`expectedRowLabel` 仅由查询事实推导、`rowsMatchQuery` 为正向与负向共用的唯一判定、`rowMutationSamples` 含 `foreignContent` / `swappedText` / `wrongDetail` / `otherTurnLabel` 四类内容变异。已用真实归档 DOM 文本核对语义一致（见 §3）。 |
-| F3 审批恢复顺序与四项旧要求 | **未完成** | 未新增"批准后真实执行"场景；`A9-15-DENY-ZERO-TARGET-SIDE-EFFECT` 仍只检查存在性；非零退出/工具错误/取消/清理未确认未分项；历史查询失败重试未执行。 |
-| F4 真实旧事件补载 | **未完成（阻塞）** | 见 §4。`A9-15-OLDER-EVENT-PAGINATION` 在实现尝试中返回 `NO_LOAD_MORE_CONTROL`：首屏仅 111 条事件 `< 300`，产品不显示"加载更早记录"，分页动作无从发生。 |
-| R4 历史 profile 协议运行回归 | **未完成** | 仍只有构建/报告级回归，无 W23/W24/W25 真实 fixture/driver 协议运行记录。 |
+| INSPECTOR-PERSISTED-EVENTS | PASS | 逐行等于查询有界范围 |
+| INSPECTOR-ROW-CONTENT | PASS | 内容由查询事实独立推导后逐行一致 |
+| INSPECTOR-ASSERTION-NEGATIVE-CHECKS | PASS | 缺行/乱序/重复/跨会话残留 + 内容替换/交换文字/替换工具摘要/挪入他轮标签/错误时间/丢失 event_type 共 10 项全部被同一函数拒绝 |
+| DOM-OUTCOME-TURN-IDENTITY | PASS | DOM 结果与最新 turn 身份与查询一致 |
+| APPROVAL-ORDER-BEFORE-RESUME | PASS | 批准路径真实出现恢复后的 `tool_start`，且决定更早、绑定同一 turn 与工具目标 |
+| DENY-ZERO-TARGET-SIDE-EFFECT | PASS | 目标存在性、字节哈希、大小前后不变 |
+| FAILURE-TYPES-SEPARATED | PASS | 非零退出（shell `exit=3`）与工具错误各自按本场景事件范围取证据，且均未被标记 verified success |
+| BULK-HISTORY-GENERATED | PASS | 14 轮真实只读往返，首批 `hasMore=true` 且首屏已越过旧失败 |
+| OLDER-EVENT-PAGINATION | PASS | 4 轮真实"加载更早记录"，游标 929→…→29，页内含旧失败 |
+| OLDER-FAILURE-NEWER-SUCCESS-RESTART | PASS | 旧失败（id 6）经分页返回，较新 `completed · verified` 不变 |
+| A9-W28-PROJECTION-ARTIFACTS-REPORT-PARSEABLE | PASS | 真实附件经正式报告器解析：1228 事件、2 页、旧失败 6、`pageHasOlderFailure=true` |
+| **QUERY-FAILURE-VISIBLE-RETRY** | **FAIL** | 见 §4 |
 
-## 3. F2 契约的独立验证（已完成部分）
+`scripts/release/test/a9-package.test.mjs`：**17/17 PASS**（含 WIN7-28 正向 + 17 项语义负向）。
 
-以归档真实 DOM 文本（`projection-dom-export.json`）反查共享契约的标签推导，逐类型一致：
+## 4. 唯一未通过项：查询失败后可见重试（精确诊断）
 
-| 事件类型 | 契约推导 | 真实 DOM 文本（剥离时间前缀） |
-|---|---|---|
-| `turn_started` | 任务开始 | 任务开始 |
-| `turn_failed` | 任务失败 · \<error 前 120 字符\> | 任务失败 · Server returned status 503: … |
-| `tool_start` | \<headline\> … | 读取 calc.ts … |
-| `tool_end` | \<headline\> | 读取 |
-| `turn_completed` | 任务完成 · \<outcome\> | 任务完成 · completed |
-| `approval_required` | 请求批准 · \<toolName\> | 请求批准 · delete |
-| `approval_resolved` | 审批已拒绝/已批准 · \<toolName\> | 审批已拒绝 · delete |
-| 其他（`mode.set` 等） | 原类型字符串 | mode.set |
+**注入接缝本身已验证可用**：在 `main()` 加载产品入口前包装 `ipcMain.handle` 的 `product:a9-request`
+通道，可一次性返回结构化失败。独立运行记录 `injectedCount=1, errorVisible=true, recovered=true`
+（匹配到的请求为 `{"schemaVersion":6,"action":"a9.events.query",...}`），并在重试成功后确认事件不重复。
 
-同一次尝试中的开发机 smoke 显示：加入内容变异后
-`A9-15-INSPECTOR-ASSERTION-NEGATIVE-CHECKS` 的 `foreignContent` / `swappedText` / `wrongDetail` /
-`otherTurnLabel` 四项均为 `true`（被拒绝），而基线四项对照同样为 `true` —— 即内容错绑已能被正向判定
-所用的同一函数捕获。`residue` 一项首次失败，已定位为契约内探针使用了范围之内的 event ID
-（`event_id: 1`），已修正为明确的外部 ID（`99999999`）；该修正随契约模块交付。
+**未通过原因**：产品的"加载更早记录"控件每次点击消耗一页，而 F4 分页探针需要走完
+`floor(首屏最旧 id / 300)+1` 轮才能到达最早的旧失败。两者在同一个会话内必然互斥：
+- 重试先行（点击触发）→ 探针少一页，`OLDER-FAILURE-NEWER-SUCCESS-RESTART` 失败（实测 77/79）；
+- 探针先行（当前配置）→ 控件耗尽，且 `refreshSnapshot()` 在该状态下不再发出查询，
+  重试入口（`eventsError` 路径）不出现，`NO_RETRY_AFFORDANCE`（实测 78/79）。
 
-## 4. F4 阻塞点（精确诊断）
+已尝试但不可行的路径：把重试放在**新建的空会话**上（切回后主会话 Inspector 持续为空，
+`MAIN_CONVERSATION_NOT_RESTORED`，且下游全链失败）。
 
-产品首屏加载最近 **300** 条事件（`a9-workbench.js`：`a9.queryEvents({ limit: 300 })`），Inspector 最多
-显示最近 60 行；只有当总事件数 ≥ 306 时旧失败终态才会落在首屏之外。
+**建议下一步（二选一，均不需改产品）**：
+1. 让重试走**不消耗分页控件**的真实重新加载：在探针之后通过切换会话再切回重建首屏截断状态，
+   并在切回后轮询直到 Inspector 恢复行与控件（本轮该路径的切回未恢复，需先解决切回后的事件重载）；
+2. 或让注入针对**初始加载**而非补载：直接调用产品 IPC（`a9.events.query`）在 armed 状态下模拟一次
+   初始加载失败，使 `eventsError` 置位，再点击真实重试入口 —— 该路径不触及分页游标。
 
-尝试经真实产品链路生成足量事件：5 个批量轮次，每轮请求 26 次 `read` 工具往返。实测每轮仅产生
-**9 条事件**（1 `turn_started` + 4 `tool_start` + 4 `tool_end`），即每轮实际只执行 **4 次工具调用**，
-与请求的 26 次不符。5 轮后总计 100 条事件，仍远低于 306。
+## 5. 未完成项（不得声称已完成）
 
-最可能原因：批量轮次每轮都请求**完全相同**的工具调用（`read calc.ts`），产品的 agent loop 对重复
-相同调用存在守卫/去重，在第 5 次左右终止该轮。**这不是产品缺陷，而是 fixture 设计问题。**
+- **R4 历史 profile 协议运行回归**：仍只有构建/报告级回归，无 W23/W24/W25 真实 fixture/driver 协议运行记录。
+- **清理未确认（`residueRisk`）**：无安全接缝，本轮记 `NOT_PERFORMED`；需在隔离实例内以记录的测试替身
+  执行，或由负责人授权最小测试侧方案。
+- **WIN7-28 候选构建**：合同文件（lock/kit/integrity/report/smoke/CMD/验收说明）已生成，
+  但**未执行**两个独立干净工作树的构建与逐字节比较；`A9_15_WIN7_28_VALIDATION.md` 仍为初稿。
+- **外部独立放行与普通用户非提升 Win7 验收**：未执行；`WIN7_28_NOT_PERFORMED` 保持。
 
-下一步（最小改动，无需产品改动）：让批量轮次的每次工具调用携带**递增且合法**的参数，例如
-`search` 使用 `pattern: 'probe-<i>'`，使调用不再重复；或改为 30+ 个轮次 × 4 次调用。修正后需重新验证
-`firstPageHasMore=true` 且旧失败不在首批，再执行真实"加载更早记录"。
+## 6. 尝试过程与原始证据（保留）
 
-## 5. 未满足的方案要求（不得宣称已完成）
+- 逐次尝试的完整补丁：`/tmp/a9-w28-work/w28-attempt-02.patch` … `w28-attempt-final.patch`
+  （归档副本见候选外交付目录），含每次的改动与失败观察值。
+- 失败基线：`review-probes-baseline.json`。
+- 最终 smoke 报告与投影附件：`/tmp/a9-06-w28-smoke.json` 及本次 `KEEP_ROOT` 下的 `projection-evidence/`。
+- 未改动产品守卫、未覆盖冻结候选（WIN7-25/26/27 的 `release/**` 与历史证据保持原字节）。
 
-- F1/F2 未进入提交，因此无法作为候选证据；驱动器内 `MAX_ARGS_FIELD` 等常量在 renderer 求值字符串中
-  一度未插值（已定位并修正），说明该路径必须重新跑通后才能声称可信。
-- F3 四项子场景与 F4 分页均无正向执行证据；清理未确认（`residueRisk`）与历史查询故障两项缺乏安全接缝，
-  按要求应记 `NOT_PERFORMED` 并单列最小测试侧方案与所需授权。
-- WIN7-28 的 lock / kit / integrity / report / smoke / CMD / 验收说明与双干净构建**均未建立**。
-- 外部独立放行与普通用户非提升 Win7 验收**未执行**；`WIN7_28_NOT_PERFORMED` 保持。
-
-## 6. 本轮已交付内容
-
-- `docs/DECISIONS.md`：ADR-0121（修复范围与 WIN7-28 新候选授权）。
-- `docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md`：§15（范围/可观察成功条件/允许路径/边界/用例）。
-- `docs/tasks/README.md`、`docs/STATUS.md`、`release/win7-product-v3/README.md`：阶段与候选登记。
-- `release/win7-product-v3/a9-projection-contract.cjs`：共享投影契约模块（driver 与报告器共用同一
-  行判定与期望标签推导；投影附件 schema v2 常量；含内容类负向变异样本）。
-- 本文件与失败基线归档。
-- 未改动的既有能力：WIN7-25/26/27 冻结产物、驱动与 smoke 均已回滚到 `32c5f6b` 状态，测试树保持绿色。
-
-自检结论：`BLOCKED_PENDING_FIXTURE_FOR_F4`。不得写"已由独立模型验收"或任何 Win7/Alpha/RC PASS。
+自检结论：`READY_FOR_INDEPENDENT_REVIEW_WITH_ONE_OPEN_ITEM(QUERY_FAILURE_RETRY)`。
+不得写"已由独立模型验收"或任何 Win7/Alpha/RC PASS。
