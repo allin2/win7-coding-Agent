@@ -1779,3 +1779,39 @@
 - 后果：开发机真实 Electron fixture 可证明正式 main/preload/IPC/Renderer 的受影响链路，但不能满足真实
   Provider 或普通用户非提升 Win7 证据。候选哈希形成后仍须独立 authority pin；未完成当前候选实机门前
   保持 `WIN7_26_NOT_PERFORMED`。本决策不开放 ADR-0117/A9-16 的 Alpha 2 范围，也不授权推送或修改历史候选。
+
+## ADR-0120 WIN7-26 投影验证四项 P2 修复与 WIN7-27 可执行投影合同
+
+- 状态：Accepted（2026-09-10，负责人要求以 `2e5a534` 为修复基线补齐四项 P2、逐项复核后按既有授权
+  本地提交不推送，并建立 WIN7-27 合同、双干净构建、外部放行与普通用户非提升 Win7 验收）
+- 背景：WIN7-26 的只读复核确认产品投影修复与构建一致性成立，但发现四项 P2。（R1）报告器只核对投影
+  附件的存在、位置与哈希，`projection_evidence` 是手填平行字段；提供哈希正确但内容非 JSON、属于另一
+  会话、事件为空或结果不符的 DOM 附件仍能通过，同一 turn ID 同时充当旧失败与新成功也被接受。
+  （R2）Electron driver 的新断言只检查 Inspector 行数大于零并包含"任务失败"/"任务完成"，未逐行绑定
+  event ID、未验证内容与顺序等于查询、未证明切换会话无残留，替换观察值后仍通过。（R3）WIN7-26 kit 用
+  `LATEST-OUTCOME-PROJECTION` 替换了 `APPROVAL-FAILURE-ORDER`，实际 kit 不再要求审批先于恢复的
+  tool_start、拒绝零目标副作用、失败/取消/清理未确认不得标记成功、历史查询失败后的可见重试且无重复。
+  （R4）共享 driver 无条件发送 `record expected provider failure` 并等待 `failed · not_applicable`，
+  构建器仍把同一 driver 复制进 W23/W24/W25/W26 profile，而只有新候选 fixture 为该提示返回 503；
+  历史 profile 的构建因而只是"闭包存在"，不是协议兼容。
+- 决策：（1）机器可读投影导出成为唯一事实来源。正式 driver 必须导出 `A9_PROJECTION_QUERY_EXPORT`
+  与 `A9_PROJECTION_DOM_EXPORT`（schema_version 1）JSON 附件；报告器必须实际解析附件字节并与报告字段
+  交叉核对，覆盖会话身份、event/turn ID、查询顺序、去重、显示范围规则与终端结果。附件格式错误、会话
+  矛盾、缺行、乱序、重复、额外行、结果不符，或旧失败与新成功的 turn ID 相同，均拒绝签发。
+  （2）Electron driver 按 Inspector 有界显示范围（`LAST_60_BY_EVENT_ID_ASC`）逐行核对 event ID、turn ID、
+  文本与顺序；增加切换会话后无上一会话残留并切回后逐行复原的检查；对缺行、乱序、重复、跨会话残留做
+  观察值层面的负向敏感性检查，负向检查必须失败，正向必须通过。（3）保留审批决定先于恢复 tool_start、
+  拒绝零目标副作用、失败/取消/清理未确认不得标记成功、历史查询失败后可见重试且无重复四项原有签发
+  要求，并在其基础上追加投影用例；新增用例必须由同一 kit 的 assertion 数量与 verifier 约束共同强制，
+  不得以替换编号的方式移除既有要求。（4）新 driver 协议（故障轮次、较新成功轮次与投影导出）只在显式
+  启用该协议的 WIN7-27 与开发机 fixture 生效；历史 W23/W24/W25 profile 在未启用时走兼容路径，
+  构建器不得无条件把新协议强加给历史 profile，并须有 fixture/协议级回归证明，不以文件闭包存在代替
+  协议兼容。（5）WIN7-26 的源码提交、out-a/out-b、ZIP、manifest、kit、lock、authority、构建树和复核
+  证据全部冻结，本决策不修改或重判 WIN7-25/26。WIN7-27 使用新源码提交、lock、kit、ZIP/manifest、
+  候选外独立 authority、部署目录与证据根，并复用未变化的 Electron 22.3.27、D-013 v25 与 SQLite/ABI 110
+  精确输入哈希。修改和新增限定在 A9-15 §14 列出的路径内，本地提交不推送。
+- 后果：四项 P2 的关闭需要开发机正负向测试、历史 profile 回归、真实 Electron smoke 与静态检查共同
+  支撑，并由独立复核逐项确认；任何一项未复核前不得声称 WIN7-26 已具备完整可执行验收闭环。候选哈希
+  形成后仍须候选外独立 authority pin；在普通用户非提升 Win7 完成当前候选验证前保持
+  `WIN7_27_NOT_PERFORMED`，结论最多为 `A9_15_WIN7_UI_INTEGRATION_PASS`，不重签 Alpha/RC，也不开放
+  ADR-0117/A9-16 的 Alpha 2 范围。

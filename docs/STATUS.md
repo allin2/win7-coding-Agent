@@ -24,6 +24,13 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-10，WIN7-26 只读复核确认产品投影修复与两个干净工作树的构建一致性成立（788 文件一致、ZIP 逐字节
+  一致、W25 冻结工件未变），但发现四项 P2：投影附件只核对存在与哈希而不解析内容、Electron Inspector
+  断言可接受缺行/乱序/重复、新增投影用例时移除了原审批与失败顺序签发断言、共享 driver 新协议破坏
+  W24/W25 profile 兼容性。ADR-0120 / A9-15 §14 已授权以 `2e5a534` 为基线修复四项并在新候选 WIN7-27
+  上重建合同；WIN7-25/26 候选、证据与复核材料全部冻结。当前阶段为
+  `A9_15_WIN7_27_PROJECTION_EVIDENCE_REPAIR_AUTHORIZED`，WIN7-27 普通用户实机仍 `NOT_PERFORMED`。
+
 - 2026-09-10，WIN7-25 只读复核确认 Renderer 两处修复有效，但发现回归未执行原连续渲染触发顺序，且
   kit/report 未把 Inspector 持久事件恢复与旧失败不得覆盖新成功设为签发条件。ADR-0119 / A9-15 §13
   已授权直接修复：真实 Renderer 回归必须能拒绝故障注入，Electron 重启链绑定旧失败/新成功 turn/event ID、

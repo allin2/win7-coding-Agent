@@ -30,6 +30,8 @@ const win25Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win25Report = require('../../../release/win7-product-v3/a9-win7-25-report.cjs');
 const win26Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w26.cjs');
 const win26Report = require('../../../release/win7-product-v3/a9-win7-26-report.cjs');
+const win27Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w27.cjs');
+const win27Report = require('../../../release/win7-product-v3/a9-win7-27-report.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
@@ -285,13 +287,19 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (candidate === 'win23' || candidate === 'win24' || candidate === 'win25' || candidate === 'win26') {
+  if (['win23', 'win24', 'win25', 'win26', 'win27'].includes(candidate)) {
     const number = candidate.slice(-2);
     lock.lock_id = `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
     lock.source_date_epoch = 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win26'
+    lock.provenance = candidate === 'win27'
+      ? {
+        task: 'A9-15', previous_candidate: 'WIN7-26',
+        previous_candidate_result: 'PROJECTION_EVIDENCE_AND_INTEGRATION_ASSERTION_REPAIR_REQUIRED',
+        change_scope: 'MACHINE_READABLE_PROJECTION_EVIDENCE_AND_DRIVER_PROTOCOL_ISOLATION',
+      }
+      : candidate === 'win26'
       ? {
         task: 'A9-15', previous_candidate: 'WIN7-25',
         previous_candidate_result: 'VALIDATION_CONTRACT_GAP_REPAIR_REQUIRED',
@@ -315,11 +323,9 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  const lockPath = path.join(root, candidate === 'win26'
-    ? 'a9-15-win7-26-input-lock.json'
-    : candidate === 'win25' ? 'a9-15-win7-25-input-lock.json'
-    : candidate === 'win24' ? 'a9-15-win7-24-input-lock.json'
-    : candidate === 'win23' ? 'a9-15-win7-23-input-lock.json' : 'a9-14-win7-22-input-lock.json');
+  const lockPath = path.join(root, ['win23', 'win24', 'win25', 'win26', 'win27'].includes(candidate)
+    ? `a9-15-win7-${candidate.slice(-2)}-input-lock.json`
+    : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
@@ -719,6 +725,197 @@ test('WIN7-26 kit and report verifier require executable Inspector and latest-ou
   const missingProjection = JSON.parse(JSON.stringify(report));
   delete missingProjection.results.find((item) => item.case_id === 'W26-04-LATEST-OUTCOME-PROJECTION').executions[0].projection_evidence;
   assert.throws(() => win26Report.verifyReport(missingProjection, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W26_PROJECTION_EVIDENCE_REQUIRED/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-27 report verifier parses machine-readable projection attachments and rejects contradictions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win27-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win27');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifestPath = path.join(stage, 'release-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  for (const relative of win27Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-27 closure: ${relative}`);
+  }
+  const authorityPath = path.join(root, 'release-authority.json');
+  writeJson(authorityPath, {
+    schema_version: 1, kind: 'WIN7_27_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_27_VALIDATION',
+    formal_input_lock_sha256: sha256File(inputs.lockPath),
+    approval_registry: { commit: manifest.source_commit, sha256: sha256File(inputs.approvalRegistryPath) },
+    candidate: {
+      source_commit: manifest.source_commit, package_sha256: sha256File(built.zipPath),
+      manifest_sha256: sha256File(manifestPath),
+    },
+  });
+  const options = {
+    zip: built.zipPath, 'release-manifest': manifestPath,
+    kit: path.join(stage, 'A9_15_VALIDATION_KIT.json'), 'formal-input-lock': inputs.lockPath,
+    'approval-registry': inputs.approvalRegistryPath, 'release-authority': authorityPath,
+    'release-authority-sha256': sha256File(authorityPath),
+  };
+  const identity = win27Report.identityFrom(options, fs);
+  const kit = JSON.parse(fs.readFileSync(options.kit, 'utf8'));
+  assert.equal(kit.scope.decision, 'ADR-0120');
+  assert.equal(kit.required_cases.length, 9);
+  assert.ok(kit.required_cases.some((item) => item.case_id === 'W27-03-INSPECTOR-PERSISTED-RESTART'));
+  assert.ok(kit.required_cases.some((item) => item.case_id === 'W27-04-APPROVAL-FAILURE-ORDER'));
+  assert.ok(kit.required_cases.some((item) => item.case_id === 'W27-09-LATEST-OUTCOME-PROJECTION'));
+
+  // 机器可读投影附件：查询导出 + DOM 导出（重启 / 另一会话 / 切回 / 旧事件补载）。
+  const evidenceRoot = path.join(root, 'evidence');
+  fs.mkdirSync(evidenceRoot);
+  const queryEvents = [
+    { event_id: 1, turn_id: null, type: 'session_started', outcome: null, verification: null },
+    { event_id: 2, turn_id: 'turn-old', type: 'turn_started', outcome: null, verification: null },
+    { event_id: 3, turn_id: 'turn-old', type: 'tool_start', outcome: null, verification: null },
+    { event_id: 4, turn_id: 'turn-old', type: 'tool_end', outcome: null, verification: null },
+    { event_id: 5, turn_id: 'turn-old', type: 'turn_failed', outcome: 'failed', verification: 'not_applicable' },
+    { event_id: 6, turn_id: 'turn-new', type: 'turn_started', outcome: null, verification: null },
+    { event_id: 7, turn_id: 'turn-new', type: 'tool_start', outcome: null, verification: null },
+    { event_id: 8, turn_id: 'turn-new', type: 'tool_end', outcome: null, verification: null },
+    { event_id: 9, turn_id: 'turn-new', type: 'turn_completed', outcome: 'completed', verification: 'verified' },
+  ];
+  const domRows = queryEvents.map((event) => ({
+    event_id: event.event_id, turn_id: event.turn_id, event_type: event.type, text: `row ${event.event_id} ${event.type}`,
+  }));
+  const writeEvidence = (name, value) => {
+    const target = path.join(evidenceRoot, name);
+    writeJson(target, value);
+    return { path: name, sha256: sha256File(target) };
+  };
+  const domExport = (conversationId, rows) => ({
+    schema_version: 1, kind: 'A9_PROJECTION_DOM_EXPORT', conversation_id: conversationId,
+    display_range: { rule: 'LAST_60_BY_EVENT_ID_ASC', max_rows: 60, rows_total: rows.length }, rows,
+  });
+  const queryReference = writeEvidence('projection-query-export.json', {
+    schema_version: 1, kind: 'A9_PROJECTION_QUERY_EXPORT', conversation_id: 'conversation-current', events: queryEvents,
+  });
+  const domReference = writeEvidence('projection-dom-export.json', domExport('conversation-current', domRows));
+  const otherReference = writeEvidence('projection-dom-other-conversation.json', domExport('conversation-other', [
+    { event_id: 100, turn_id: null, event_type: 'session_started', text: 'other conversation row' },
+  ]));
+  const resumeReference = writeEvidence('projection-dom-resume.json', domExport('conversation-current', domRows));
+  const olderLoadReference = writeEvidence('projection-dom-after-older-load.json', domExport('conversation-current', domRows));
+  const sharedEvidence = writeEvidence('session-notes.json', { schema_version: 1, note: 'win7-27 fixture evidence' });
+
+  const projectionByCase = {
+    'W27-03-INSPECTOR-PERSISTED-RESTART': {
+      query_export: queryReference, dom_export: domReference,
+      session_switch: { other_conversation_export: otherReference, resume_export: resumeReference },
+    },
+    'W27-09-LATEST-OUTCOME-PROJECTION': {
+      query_export: queryReference, dom_export: domReference, dom_export_after_older_load: olderLoadReference,
+      older_load_mode: 'FULL_HISTORY_ALREADY_LOADED',
+      older_failure: { event_id: 5, turn_id: 'turn-old' },
+      newer_success: { event_id: 9, turn_id: 'turn-new' },
+      restart_displayed_outcome: 'completed · verified',
+      older_event_load_displayed_outcome: 'completed · verified',
+    },
+  };
+  const report = {
+    ...win27Report.template(kit, identity), status: 'PASS',
+    results: kit.required_cases.map((validationCase) => {
+      const execution = {
+        candidate: identity, run_id: `run-${validationCase.case_id}`,
+        environment: {
+          os: 'Windows 7 SP1 build 7601', architecture: 'x64', user: 'ordinary-user',
+          elevation: 'not-elevated', electron: '22.3.27', electron_abi: 110,
+        },
+        assertions: validationCase.assertions.map((assertion) => ({ assertion_id: assertion.assertion_id, status: 'PASS' })),
+        evidence: [sharedEvidence],
+      };
+      const projection = projectionByCase[validationCase.case_id];
+      if (projection) {
+        execution.projection_evidence = projection;
+        execution.evidence = [sharedEvidence, queryReference, domReference];
+        if (validationCase.case_id === 'W27-03-INSPECTOR-PERSISTED-RESTART') execution.evidence.push(otherReference, resumeReference);
+        else execution.evidence.push(olderLoadReference);
+      }
+      if (validationCase.case_id === 'W27-07-REAL-PROVIDER-MULTITOOL') {
+        execution.provider_kind = 'REAL_NON_FIXTURE';
+        execution.provider_probe = 'tool_calling';
+      }
+      return { case_id: validationCase.case_id, status: 'PASS', executions: [execution] };
+    }),
+  };
+  assert.equal(win27Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs).status, 'PASS');
+
+  // 正向 2（真实产品形态）：产品只在 `turn_completed` 上持久化 outcome/verification，
+  // `turn_failed` 事件不带这两个字段；verifier 必须仍能从事件类型推导 failed · not_applicable。
+  const productShapeQuery = writeEvidence('projection-query-export-product-shape.json', {
+    schema_version: 1, kind: 'A9_PROJECTION_QUERY_EXPORT', conversation_id: 'conversation-current',
+    events: queryEvents.map((event) => (event.type === 'turn_failed'
+      ? { ...event, outcome: null, verification: null } : event)),
+  });
+  const productShape = JSON.parse(JSON.stringify(report));
+  {
+    const execution = productShape.results.find((item) => item.case_id === 'W27-09-LATEST-OUTCOME-PROJECTION').executions[0];
+    execution.projection_evidence.query_export = productShapeQuery;
+    execution.evidence.push(productShapeQuery);
+  }
+  assert.equal(win27Report.verifyReport(productShape, kit, identity, fs.realpathSync(evidenceRoot), fs).status, 'PASS');
+
+  // 负向 1：缺断言。
+  const missingAssertion = JSON.parse(JSON.stringify(report));
+  missingAssertion.results.find((item) => item.case_id === 'W27-03-INSPECTOR-PERSISTED-RESTART').executions[0].assertions.pop();
+  assert.throws(() => win27Report.verifyReport(missingAssertion, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_ASSERTIONS_MISSING/);
+  // 负向 2：断言状态非 PASS。
+  const failedAssertion = JSON.parse(JSON.stringify(report));
+  failedAssertion.results.find((item) => item.case_id === 'W27-09-LATEST-OUTCOME-PROJECTION').executions[0].assertions[0].status = 'FAIL';
+  assert.throws(() => win27Report.verifyReport(failedAssertion, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_ASSERTION_INVALID/);
+  // 负向 3：缺投影证据。
+  const missingProjection = JSON.parse(JSON.stringify(report));
+  delete missingProjection.results.find((item) => item.case_id === 'W27-09-LATEST-OUTCOME-PROJECTION').executions[0].projection_evidence;
+  assert.throws(() => win27Report.verifyReport(missingProjection, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_EVIDENCE_REQUIRED/);
+  // 负向 4（R1 核心）：旧失败与较新成功复用同一 turn ID。
+  const collision = JSON.parse(JSON.stringify(report));
+  collision.results.find((item) => item.case_id === 'W27-09-LATEST-OUTCOME-PROJECTION').executions[0].projection_evidence.newer_success.turn_id = 'turn-old';
+  assert.throws(() => win27Report.verifyReport(collision, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_TURN_IDENTITY_COLLISION/);
+  // 负向 5（R2 核心）：DOM 行乱序。
+  const reorderedRows = domRows.slice();
+  const swap = reorderedRows[0]; reorderedRows[0] = reorderedRows[1]; reorderedRows[1] = swap;
+  const reorderedReference = writeEvidence('projection-dom-reordered.json', domExport('conversation-current', reorderedRows));
+  const reordered = JSON.parse(JSON.stringify(report));
+  {
+    const execution = reordered.results.find((item) => item.case_id === 'W27-03-INSPECTOR-PERSISTED-RESTART').executions[0];
+    execution.projection_evidence.dom_export = reorderedReference;
+    execution.evidence.push(reorderedReference);
+  }
+  assert.throws(() => win27Report.verifyReport(reordered, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_DOM_ORDER_MISMATCH/);
+  // 负向 6（R2 核心）：另一会话残留本会话事件。
+  const residueReference = writeEvidence('projection-dom-residue.json', domExport('conversation-other', [
+    { event_id: 3, turn_id: 'turn-old', event_type: 'tool_start', text: 'foreign row' },
+  ]));
+  const residue = JSON.parse(JSON.stringify(report));
+  {
+    const execution = residue.results.find((item) => item.case_id === 'W27-03-INSPECTOR-PERSISTED-RESTART').executions[0];
+    execution.projection_evidence.session_switch.other_conversation_export = residueReference;
+    execution.evidence.push(residueReference);
+  }
+  assert.throws(() => win27Report.verifyReport(residue, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_CROSS_SESSION_RESIDUE/);
+  // 负向 7（R1 核心）：投影附件未绑定到该用例 evidence 列表。
+  const unbound = JSON.parse(JSON.stringify(report));
+  {
+    const execution = unbound.results.find((item) => item.case_id === 'W27-09-LATEST-OUTCOME-PROJECTION').executions[0];
+    execution.evidence = execution.evidence.filter((item) => item.path !== 'projection-query-export.json');
+  }
+  assert.throws(() => win27Report.verifyReport(unbound, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_ARTIFACT_UNBOUND/);
+  // 负向 8（R1 契约）：DOM 导出行必须是报告器约定的 snake_case 字段；camelCase 行必须被拒绝，
+  // 这正是真实 driver 忘记做内部 camelCase→导出 snake_case 转换时会被捕获的位置。
+  const camelReference = writeEvidence('projection-dom-camelcase.json', domExport('conversation-current', [
+    { eventId: 1, turnId: null, eventType: 'session_started', text: 'row 1 session_started' },
+  ]));
+  const camel = JSON.parse(JSON.stringify(report));
+  {
+    const execution = camel.results.find((item) => item.case_id === 'W27-03-INSPECTOR-PERSISTED-RESTART').executions[0];
+    execution.projection_evidence.dom_export = camelReference;
+    execution.evidence.push(camelReference);
+  }
+  assert.throws(() => win27Report.verifyReport(camel, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_DOM_ROW_INVALID/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

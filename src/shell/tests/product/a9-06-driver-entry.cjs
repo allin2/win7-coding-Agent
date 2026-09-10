@@ -12,17 +12,112 @@
  * 检查审批卡真实目标与绑定、拒绝后交由宿主检查真实文件，checkpoint 后退出；second 打开
  * 相同 dataRoot，验证模式/Provider/checkpoint/中断恢复、fixture 请求计数
  * 证明无模型重放、旧审批不可执行；stop 经真实 UI 启动并取消 Shell 子进程。
+ *
+ * ADR-0120：driver 协议由 A9_SMOKE_DRIVER_PROTOCOL 显式选择。
+ * - `projection`：启用投影协议——额外形成旧 failed/not_applicable 与较新
+ *   completed/verified 轮次，逐行核对 Inspector 有界显示范围，并导出机器可读投影证据。
+ * - 缺省（legacy）：只执行历史 profile 原本支持的旅程，不发送投影专用提示词，
+ *   以保证 W23/W24/W25 profile 的 fixture 协议保持兼容。
  */
 
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const { app, BrowserWindow, dialog } = require('electron');
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
 const productMain = process.env.A9_SMOKE_PRODUCT_MAIN || path.join(repositoryRoot, 'src/shell/product/main.js');
 const requireModelNotes = process.env.A9_SMOKE_REQUIRE_MODEL_NOTES === '1';
+const driverProtocol = process.env.A9_SMOKE_DRIVER_PROTOCOL === 'projection' ? 'projection' : 'legacy';
+const projectionEnabled = driverProtocol === 'projection';
+const projectionDirectory = process.env.A9_SMOKE_PROJECTION_DIR || '';
+const PROJECTION_FAILURE_PROMPT = 'record expected provider failure';
+const PROJECTION_LATEST_SUCCESS_PROMPT = 'produce latest verified turn';
+const INSPECTOR_DISPLAY_RULE = 'LAST_60_BY_EVENT_ID_ASC';
+const INSPECTOR_DISPLAY_ROWS = 60;
+const INSPECTOR_DISPLAY_LABEL = '60';
+const QUERY_EXPORT_KIND = 'A9_PROJECTION_QUERY_EXPORT';
+const DOM_EXPORT_KIND = 'A9_PROJECTION_DOM_EXPORT';
 
-const report = { status: 'RUNNING', mode: process.env.A9_SMOKE_MODE || 'first', cases: [] };
+// 查询导出用 snake_case（event_id/turn_id），DOM 观察值用 camelCase（eventId/turnId），
+// 断言统一经这两个访问器读取，避免两侧命名差异造成假阴性。
+function eventIdOf(event) { return event ? (event.eventId !== undefined ? event.eventId : event.event_id) : undefined; }
+function turnIdOf(event) { return event ? (event.turnId !== undefined ? event.turnId : event.turn_id) : null; }
+
+/**
+ * 纯观察值断言：正负向敏感性检查共用同一实现，避免负向检查复刻另一套判定。
+ * 逐行要求 event ID、turn ID 与查询导出的有界显示范围完全一致（内容、顺序、去重）。
+ */
+function inspectorRowsMatchQuery(rows, events) {
+  if (!Array.isArray(rows) || !Array.isArray(events)) return false;
+  const expected = events.slice(-INSPECTOR_DISPLAY_ROWS);
+  if (rows.length !== expected.length) return false;
+  const seen = new Set();
+  for (let index = 0; index < expected.length; index += 1) {
+    const row = rows[index];
+    const event = expected[index];
+    if (!row || row.eventId !== eventIdOf(event)) return false;
+    if ((row.turnId || null) !== (turnIdOf(event) || null)) return false;
+    if (typeof row.text !== 'string' || !row.text.trim()) return false;
+    if (seen.has(row.eventId)) return false;
+    seen.add(row.eventId);
+  }
+  return true;
+}
+function terminalRowOutcomeMatches(rows, terminalEventId, terminalTurnId) {
+  if (!Array.isArray(rows)) return false;
+  const terminals = rows.filter((row) => row && row.eventType && row.eventType.startsWith('turn_'));
+  if (!terminals.length) return false;
+  const newest = terminals.reduce((a, b) => (b.eventId > a.eventId ? b : a));
+  return newest.eventId === terminalEventId && (newest.turnId || null) === (terminalTurnId || null);
+}
+function hasCrossSessionResidue(rows, allowedEventIds) {
+  if (!Array.isArray(rows)) return true;
+  const allowed = new Set(allowedEventIds || []);
+  return rows.some((row) => !row || !allowed.has(row.eventId));
+}
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+/**
+ * 负向敏感性检查：对真实观察值的副本做缺行、乱序、重复与跨会话残留变异，
+ * 每一种变异都必须被同一断言拒绝；不改动产品与冻结源码。
+ */
+function negativeSensitivity(rows, events) {
+  const baseline = inspectorRowsMatchQuery(rows, events);
+  const missing = Array.isArray(rows) && rows.length ? rows.slice(0, -1) : [];
+  const reordered = Array.isArray(rows) ? rows.slice() : [];
+  if (reordered.length > 1) { const swap = reordered[0]; reordered[0] = reordered[1]; reordered[1] = swap; }
+  const duplicated = Array.isArray(rows) && rows.length ? [rows[0], ...rows] : [];
+  const residue = Array.isArray(rows) && rows.length
+    ? [...rows, { eventId: -1, turnId: null, eventType: 'turn_failed', text: 'foreign conversation row' }]
+    : [];
+  return {
+    baseline,
+    missingRowRejected: !inspectorRowsMatchQuery(missing, events),
+    reorderRejected: reordered.length > 1 ? !inspectorRowsMatchQuery(reordered, events) : false,
+    duplicateRejected: !inspectorRowsMatchQuery(duplicated, events),
+    residueRejected: hasCrossSessionResidue(residue, events.map(eventIdOf)),
+  };
+}
+function writeProjectionExport(name, payload) {
+  if (!projectionDirectory) return null;
+  fs.mkdirSync(projectionDirectory, { recursive: true });
+  const target = path.join(projectionDirectory, name);
+  fs.writeFileSync(target, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  return target;
+}
+
+const report = {
+  status: 'RUNNING',
+  mode: process.env.A9_SMOKE_MODE || 'first',
+  driver_protocol: driverProtocol,
+  cases: [],
+};
 function record(id, passed, detail) {
   report.cases.push({ id, passed: passed === true, detail: detail || '' });
 }
@@ -202,12 +297,18 @@ async function runFirstProcess(win, exec, env) {
   const probe = await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'provider probe');
   record('A9F1-PROVIDER-CONFIG-PROBE', probe === 'tool_calling', `probe=${probe}`);
 
-  // 真实 Provider HTTP 失败，形成早于后续成功轮次的 failed/not_applicable 持久化事实。
-  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "record expected provider failure"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
-  const failedDisplayed = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t === 'failed · not_applicable' ? t : null)), 90_000, 'expected failed outcome');
-  const failedFact = await exec('(window.win7Agent.a9.snapshot()).then(r => { const facts = r.snapshot.conversation || []; return facts[facts.length - 1]; })');
-  record('A9F1-OLDER-PROVIDER-FAILURE', failedFact.outcome === 'failed' && failedFact.verification === 'not_applicable' &&
-    failedDisplayed === 'failed · not_applicable', JSON.stringify({ failedFact, failedDisplayed }));
+  // 投影协议专用：真实 Provider HTTP 失败，形成早于后续成功轮次的 failed/not_applicable
+  // 持久化事实。legacy 协议不发送该提示词，历史 profile fixture 因此保持兼容。
+  if (projectionEnabled) {
+    await exec(`(() => { const prompt = document.getElementById("task-prompt"); prompt.value = ${JSON.stringify(PROJECTION_FAILURE_PROMPT)}; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()`);
+    const failedDisplayed = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t === 'failed · not_applicable' ? t : null)), 90_000, 'expected failed outcome');
+    const failedFact = await exec('(window.win7Agent.a9.snapshot()).then(r => { const facts = r.snapshot.conversation || []; return facts[facts.length - 1]; })');
+    record('A9F1-OLDER-PROVIDER-FAILURE', failedFact.outcome === 'failed' && failedFact.verification === 'not_applicable' &&
+      failedDisplayed === 'failed · not_applicable', JSON.stringify({ failedFact, failedDisplayed }));
+    // R3：真实失败必须如实呈现，不得被标记为成功。
+    record('A9-15-FAILURE-NOT-LABELLED-SUCCESS', failedFact.outcome === 'failed' && !String(failedDisplayed).includes('completed'),
+      JSON.stringify({ outcome: failedFact.outcome, verification: failedFact.verification, displayed: failedDisplayed }));
+  }
 
   // A9 Viewer：自动识别对单 GBK 字符保持 ambiguous，用户显式选择后
   // 通过 v5 A9 IPC 正确显示中文，不再走 legacy UTF-8 读取。
@@ -332,7 +433,7 @@ async function runFirstProcess(win, exec, env) {
     turnId: approval.turnId,
   } : null;
 
-  // Renderer 只证明拒绝完成；目标文件事实由宿主进程在 Electron 退出后直接检查。
+  // Renderer 只证明拒绝完成；目标文件事实同时由本进程与宿主进程在 Electron 退出后直接检查。
   await exec('document.getElementById("a9-approval-deny").click(); true');
   await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, 'approval card closed');
   const afterDeny = await exec('(() => { const s = document.getElementById("a9-turn-outcome").textContent; return s; })()');
@@ -340,46 +441,352 @@ async function runFirstProcess(win, exec, env) {
   const approvalHistory = await exec(`(async () => {
     const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
     const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
-    const resolved = (queried.events || []).filter((event) => (event.eventType || event.type) === 'approval_resolved');
-    const data = (event) => event.payload?.data || event.payload || event.data || {};
-    return { count: resolved.length, decisions: resolved.map((event) => data(event).decision), eventIds: resolved.map((event) => event.eventId) };
-  })()`);
-  record('A9-15-APPROVAL-RESOLVED-PERSISTED', approvalHistory.count >= 1 && approvalHistory.decisions.includes('denied'), JSON.stringify(approvalHistory));
-
-  // 首进程退出前再形成真实 mutation + verification 成功轮次，使重启链路的持久化顺序为
-  // 旧 failed/not_applicable → 新 completed/verified，而不是审批拒绝作为最新事实。
-  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "produce latest verified turn"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
-  const latestDisplayed = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t === 'completed · verified' ? t : null)), 90_000, 'latest verified outcome');
-  const latestTurn = await exec('(window.win7Agent.a9.snapshot()).then(r => { const facts = r.snapshot.conversation || []; return facts[facts.length - 1]; })');
-  const projectionSeed = await exec(`(async () => {
-    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
-    const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
     const events = queried.events || [];
     const kind = (event) => event.eventType || event.type;
     const data = (event) => event.payload?.data || event.payload || event.data || {};
-    const failures = events.filter((event) => kind(event) === 'turn_failed');
-    const completions = events.filter((event) => kind(event) === 'turn_completed' && data(event).outcome === 'completed' && data(event).verification === 'verified');
-    const olderFailure = failures[0];
-    const newerSuccess = completions[completions.length - 1];
+    const resolved = events.filter((event) => kind(event) === 'approval_resolved');
+    const required = events.filter((event) => kind(event) === 'approval_required');
+    const deniedIds = resolved.filter((event) => data(event).decision === 'denied').map((event) => event.eventId);
+    const requiredIds = required.map((event) => event.eventId);
+    const laterActivities = events
+      .filter((event) => ['tool_start', 'model_note', 'model_chunk'].includes(kind(event))
+        && requiredIds.length > 0 && event.eventId > requiredIds[0])
+      .map((event) => ({ eventId: event.eventId, type: kind(event), turnId: event.turnId || null }));
     return {
-      conversationId: snapshot.activeConversationId,
-      oldFailureTurnId: olderFailure && olderFailure.turnId,
-      oldFailureEventId: olderFailure && olderFailure.eventId,
-      latestSuccessTurnId: newerSuccess && newerSuccess.turnId,
-      latestSuccessEventId: newerSuccess && newerSuccess.eventId,
-      displayed: document.getElementById('a9-turn-outcome').textContent,
+      count: resolved.length,
+      decisions: resolved.map((event) => data(event).decision),
+      resolvedIds: resolved.map((event) => event.eventId),
+      requiredIds,
+      deniedIds,
+      laterActivities,
     };
   })()`);
-  report.projectionSeed = projectionSeed;
-  record('A9F1-OLDER-FAILURE-NEWER-SUCCESS-PERSISTED', latestTurn.outcome === 'completed' &&
-    latestTurn.verification === 'verified' && latestDisplayed === 'completed · verified' &&
-    Number.isSafeInteger(projectionSeed.oldFailureEventId) && Number.isSafeInteger(projectionSeed.latestSuccessEventId) &&
-    projectionSeed.oldFailureEventId < projectionSeed.latestSuccessEventId &&
-    projectionSeed.latestSuccessTurnId === latestTurn.turnId, JSON.stringify({ latestTurn, projectionSeed }));
+  record('A9-15-APPROVAL-RESOLVED-PERSISTED', approvalHistory.count >= 1 && approvalHistory.decisions.includes('denied'), JSON.stringify(approvalHistory));
+  // R3：审批决定必须先于恢复后的模型/工具活动，且拒绝只被消费一次。
+  const approvalDecisionId = approvalHistory.deniedIds.length ? Math.max(...approvalHistory.deniedIds) : 0;
+  record('A9-15-APPROVAL-ORDER-BEFORE-RESUME',
+    approvalHistory.requiredIds.length >= 1 && approvalHistory.deniedIds.length === 1 &&
+    approvalHistory.requiredIds.every((id) => id < approvalDecisionId) &&
+    approvalHistory.laterActivities.every((item) => item.eventId > approvalDecisionId),
+  JSON.stringify({ requiredIds: approvalHistory.requiredIds, approvalDecisionId, laterActivities: approvalHistory.laterActivities }));
+  // R3：拒绝必须零目标副作用——高影响删除目标在接受拒绝后仍然存在。
+  const denyTargetPath = path.join(env.workspaceRoot, 'scratch.tmp');
+  record('A9-15-DENY-ZERO-TARGET-SIDE-EFFECT', fs.existsSync(denyTargetPath), `exists=${fs.existsSync(denyTargetPath)} path=${denyTargetPath}`);
+
+  // 首进程退出前再形成真实 mutation + verification 成功轮次，使重启链路的持久化顺序为
+  // 旧 failed/not_applicable → 新 completed/verified，而不是审批拒绝作为最新事实。
+  // legacy 协议跳过该段，历史 profile 的 fixture 不为该提示词提供服务。
+  if (projectionEnabled) {
+    await exec(`(() => { const prompt = document.getElementById("task-prompt"); prompt.value = ${JSON.stringify(PROJECTION_LATEST_SUCCESS_PROMPT)}; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()`);
+    const latestDisplayed = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t === 'completed · verified' ? t : null)), 90_000, 'latest verified outcome');
+    const latestTurn = await exec('(window.win7Agent.a9.snapshot()).then(r => { const facts = r.snapshot.conversation || []; return facts[facts.length - 1]; })');
+    const projectionSeed = await exec(`(async () => {
+      const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
+      const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
+      const events = queried.events || [];
+      const kind = (event) => event.eventType || event.type;
+      const data = (event) => event.payload?.data || event.payload || event.data || {};
+      const failures = events.filter((event) => kind(event) === 'turn_failed');
+      const completions = events.filter((event) => kind(event) === 'turn_completed' && data(event).outcome === 'completed' && data(event).verification === 'verified');
+      const olderFailure = failures[0];
+      const newerSuccess = completions[completions.length - 1];
+      return {
+        conversationId: snapshot.activeConversationId,
+        oldFailureTurnId: olderFailure && olderFailure.turnId,
+        oldFailureEventId: olderFailure && olderFailure.eventId,
+        latestSuccessTurnId: newerSuccess && newerSuccess.turnId,
+        latestSuccessEventId: newerSuccess && newerSuccess.eventId,
+        displayed: document.getElementById('a9-turn-outcome').textContent,
+      };
+    })()`);
+    report.projectionSeed = projectionSeed;
+    record('A9F1-OLDER-FAILURE-NEWER-SUCCESS-PERSISTED', latestTurn.outcome === 'completed' &&
+      latestTurn.verification === 'verified' && latestDisplayed === 'completed · verified' &&
+      Number.isSafeInteger(projectionSeed.oldFailureEventId) && Number.isSafeInteger(projectionSeed.latestSuccessEventId) &&
+      projectionSeed.oldFailureEventId < projectionSeed.latestSuccessEventId &&
+      projectionSeed.latestSuccessTurnId === latestTurn.turnId, JSON.stringify({ latestTurn, projectionSeed }));
+  } else {
+    record('A9F1-LEGACY-PROTOCOL-SKIPS-PROJECTION-SEED',
+      !process.env.A9_SMOKE_PROJECTION_SEED || process.env.A9_SMOKE_PROJECTION_SEED === '{}',
+      `protocol=${driverProtocol}`);
+  }
 
   // checkpoint 事实落库（真实 SQLite；first 进程退出前保留）。
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ mode: r.snapshot.mode, provider: r.snapshot.provider.configured, model: r.snapshot.provider.model, checkpoints: r.snapshot.checkpoints.length }))');
   record('A9F1-SNAPSHOT-FACTS', snapshot.mode === 'full_access' && snapshot.provider === true && snapshot.model === 'smoke-manual-model' && snapshot.checkpoints >= 1, JSON.stringify(snapshot));
+}
+
+async function captureInspectorDom(exec) {
+  return exec(`(async () => {
+    const current = (await window.win7Agent.a9.snapshot()).snapshot;
+    const facts = current.conversation || [];
+    const latest = facts.length ? facts[facts.length - 1] : null;
+    const timeline = document.getElementById('a9-timeline');
+    const rows = Array.from(timeline.querySelectorAll('li')).map((item) => ({
+      eventId: Number(item.dataset.eventId),
+      turnId: item.dataset.turnId || null,
+      eventType: item.dataset.eventType || null,
+      text: item.textContent,
+    }));
+    return {
+      conversationId: current.activeConversationId,
+      latestTurnId: latest ? latest.turnId : null,
+      latestOutcome: latest ? latest.outcome : null,
+      rows,
+      displayed: document.getElementById('a9-turn-outcome').textContent,
+      displayRule: timeline.dataset.displayRule || '',
+      displayRows: timeline.dataset.displayRows || '',
+    };
+  })()`);
+}
+
+const CONTENT_KEYWORDS = {
+  turn_started: '任务开始', turn_completed: '任务完成', turn_failed: '任务失败', model_note: '模型说明',
+};
+
+/**
+ * ADR-0120 投影验收（仅在 A9_SMOKE_DRIVER_PROTOCOL=projection 时执行）。
+ * 1) 按 Inspector 有界显示范围逐行核对内容、顺序、去重与身份；
+ * 2) 对观察值副本做缺行、乱序、重复、跨会话残留负向检查，全部必须被拒绝；
+ * 3) 切换会话不得残留上一会话内容，切回后逐行复原；
+ * 4) 旧事件补载后全局结果仍绑定最新持久化轮次；
+ * 5) 导出机器可读投影证据（查询导出、DOM 导出与候选外可粘贴的投影证据包）。
+ */
+async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedProjection) {
+  const queryEvents = restoredEvents.events || [];
+  const queryEventIds = restoredEvents.eventIds || [];
+  const expectedRowCount = Math.min(INSPECTOR_DISPLAY_ROWS, queryEvents.length);
+  const lastQueryEventId = queryEventIds.length ? queryEventIds[queryEventIds.length - 1] : 0;
+  const observed = await waitFor(async () => {
+    const captured = await captureInspectorDom(exec);
+    return captured && captured.rows.length > 0 ? captured : null;
+  }, 20_000, 'persisted Inspector timeline rows');
+
+  const rowMatch = inspectorRowsMatchQuery(observed.rows, queryEvents);
+  record('A9-15-INSPECTOR-PERSISTED-EVENTS', rowMatch
+    && observed.displayRule === INSPECTOR_DISPLAY_RULE
+    && observed.displayRows === String(expectedRowCount)
+    && queryEvents.some((event) => event.turn_id === null)
+    && queryEvents.some((event) => event.type === 'tool_start')
+    && queryEvents.some((event) => event.type === 'tool_end'),
+  JSON.stringify({
+    displayRule: observed.displayRule, displayRows: observed.displayRows,
+    expectedRowCount, domRows: observed.rows.length, queryEvents: queryEvents.length,
+    sessionEvents: queryEvents.filter((event) => event.turn_id === null).length,
+  }));
+
+  const contentMismatch = observed.rows.find((row) => {
+    const keyword = CONTENT_KEYWORDS[row.eventType];
+    return keyword ? !String(row.text).includes(keyword) : false;
+  });
+  record('A9-15-INSPECTOR-ROW-CONTENT', !contentMismatch, JSON.stringify({
+    checked: observed.rows.length, firstMismatch: contentMismatch || null,
+  }));
+
+  const negative = negativeSensitivity(observed.rows, queryEvents);
+  record('A9-15-INSPECTOR-ASSERTION-NEGATIVE-CHECKS', negative.baseline === true
+    && negative.missingRowRejected === true && negative.reorderRejected === true
+    && negative.duplicateRejected === true && negative.residueRejected === true,
+  JSON.stringify(negative));
+
+  const sessionSwitch = await exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const readRows = () => Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => ({
+      eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
+      eventType: item.dataset.eventType || null, text: item.textContent,
+    }));
+    const activeId = async () => { const snap = await api.snapshot(); return snap.ok ? snap.snapshot.activeConversationId : null; };
+    const clickOtherRow = () => {
+      const rows = Array.from(document.querySelectorAll('#conversation-list button'));
+      const target = rows.find((button) => !button.disabled && button.getAttribute('aria-current') !== 'true');
+      if (!target) return false;
+      target.click();
+      return true;
+    };
+    const originalId = ${JSON.stringify(restoredEvents.conversationId)};
+    const created = await api.createConversation();
+    if (!created.ok) return { ok: false, code: created.error && created.error.code };
+    await window.win7AgentA9Workbench.refreshSnapshot();
+    let switches = 0;
+    if ((await activeId()) === originalId) {
+      if (!clickOtherRow()) return { ok: false, code: 'A9_W27_NO_OTHER_CONVERSATION_ROW' };
+      switches += 1;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    const otherConversationId = await activeId();
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const otherRows = readRows();
+    const otherDisplayed = document.getElementById('a9-turn-outcome').textContent;
+    if (!clickOtherRow()) return { ok: false, code: 'A9_W27_NO_RETURN_CONVERSATION_ROW' };
+    switches += 1;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const rows = readRows();
+      if ((await activeId()) === originalId && rows.length === ${expectedRowCount}
+          && rows.length > 0 && rows[rows.length - 1].eventId === ${lastQueryEventId}) break;
+    }
+    const resumeRows = readRows();
+    return {
+      ok: true, originalId, otherConversationId, otherRows, otherDisplayed, resumeRows, switches,
+      resumeDisplayed: document.getElementById('a9-turn-outcome').textContent,
+    };
+  })()`);
+  const rowIds = (rows) => (Array.isArray(rows) ? rows.map((row) => row.eventId) : []);
+  const resumeMatch = Array.isArray(sessionSwitch.resumeRows)
+    && sessionSwitch.resumeRows.length === observed.rows.length
+    && canonical(rowIds(sessionSwitch.resumeRows)) === canonical(rowIds(observed.rows));
+  const otherDifference = sessionSwitch.otherConversationId && sessionSwitch.otherConversationId !== sessionSwitch.originalId;
+  const noResidue = Array.isArray(sessionSwitch.otherRows)
+    && !sessionSwitch.otherRows.some((row) => queryEventIds.includes(row.eventId));
+  record('A9-15-INSPECTOR-SESSION-SWITCH-NO-RESIDUE',
+    sessionSwitch.ok === true && otherDifference && noResidue && resumeMatch
+    && sessionSwitch.resumeDisplayed === observed.displayed,
+  JSON.stringify({
+    ok: sessionSwitch.ok, code: sessionSwitch.code || '', switches: sessionSwitch.switches,
+    otherConversationId: sessionSwitch.otherConversationId, otherRows: rowIds(sessionSwitch.otherRows),
+    resumeRows: rowIds(sessionSwitch.resumeRows), otherDifference, noResidue, resumeMatch,
+    resumeDisplayed: sessionSwitch.resumeDisplayed, displayed: observed.displayed,
+  }));
+
+  // 旧事件补载：若产品仍提供「加载更早记录/重试加载」，点击并重新导出；否则确认完整历史已载入。
+  const olderLoad = await exec(`(async () => {
+    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const button = note ? note.querySelector('button') : null;
+    const before = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => Number(item.dataset.eventId));
+    if (button && !button.disabled) button.click();
+    let after = before.slice();
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      after = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => Number(item.dataset.eventId));
+      if (JSON.stringify(after) !== JSON.stringify(before)) break;
+    }
+    const rows = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => ({
+      eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
+      eventType: item.dataset.eventType || null, text: item.textContent,
+    }));
+    return {
+      hasControl: Boolean(button), controlLabel: button ? button.textContent : '',
+      mode: button ? 'CLICKED_LOAD_MORE' : 'FULL_HISTORY_ALREADY_LOADED',
+      before, after, rows, displayed: document.getElementById('a9-turn-outcome').textContent,
+    };
+  })()`);
+
+  const terminalTypes = ['turn_completed', 'turn_failed', 'turn_cancelled', 'turn_interrupted', 'turn_blocked'];
+  const terminals = queryEvents.filter((event) => terminalTypes.includes(event.type));
+  const olderFailureEvent = queryEvents.find((event) => event.type === 'turn_failed') || null;
+  const newerSuccessEvent = terminals.filter((event) => event.type === 'turn_completed'
+    && event.outcome === 'completed' && event.verification === 'verified').pop() || null;
+  const latestTerminalEvent = terminals.length
+    ? terminals.reduce((a, b) => (b.event_id > a.event_id ? b : a)) : null;
+  const expectedOutcome = latestTerminalEvent
+    ? `${latestTerminalEvent.outcome} · ${latestTerminalEvent.verification}` : '';
+  const restartOutcomeOk = expectedOutcome === 'completed · verified' && observed.displayed === expectedOutcome;
+  const olderLoadOutcomeOk = olderLoad.displayed === expectedOutcome;
+  const olderRowPresent = olderFailureEvent
+    ? olderLoad.rows.some((row) => row.eventId === olderFailureEvent.event_id) : false;
+  const restartTerminalOk = latestTerminalEvent && newerSuccessEvent
+    && latestTerminalEvent.event_id === newerSuccessEvent.event_id
+    && terminalRowOutcomeMatches(observed.rows, newerSuccessEvent.event_id, newerSuccessEvent.turn_id);
+  record('A9-15-OLDER-FAILURE-NEWER-SUCCESS-RESTART',
+    Boolean(olderFailureEvent) && Boolean(newerSuccessEvent) && olderFailureEvent.event_id < newerSuccessEvent.event_id
+    && olderFailureEvent.turn_id !== newerSuccessEvent.turn_id
+    && olderFailureEvent.turn_id === expectedProjection.oldFailureTurnId
+    && newerSuccessEvent.turn_id === expectedProjection.latestSuccessTurnId
+    && restartOutcomeOk && olderLoadOutcomeOk && olderRowPresent && Boolean(restartTerminalOk)
+    && (olderLoad.mode === 'FULL_HISTORY_ALREADY_LOADED'
+      || canonical(olderLoad.before) !== canonical(olderLoad.after)
+      || olderLoad.rows.length === expectedRowCount),
+  JSON.stringify({
+    olderFailure: olderFailureEvent, newerSuccess: newerSuccessEvent, latestTerminal: latestTerminalEvent,
+    displayed: observed.displayed, expectedOutcome, olderLoad: {
+      mode: olderLoad.mode, hasControl: olderLoad.hasControl, controlLabel: olderLoad.controlLabel,
+      displayed: olderLoad.displayed, rows: rowIds(olderLoad.rows), changed: canonical(olderLoad.before) !== canonical(olderLoad.after),
+    },
+    olderRowPresent, restartTerminalOk,
+  }));
+
+  const artifacts = [];
+  // 机器可读 DOM 导出行使用报告器约定的 snake_case 字段；内部观察值仍是 camelCase。
+  // 两者命名必须在此显式转换，否则真实候选的投影附件无法被报告器解析（ADR-0120 R1）。
+  const exportRows = (rows) => (Array.isArray(rows) ? rows.map((row) => ({
+    event_id: row.eventId,
+    turn_id: row.turnId === undefined ? null : row.turnId,
+    event_type: row.eventType === undefined ? null : row.eventType,
+    text: row.text,
+  })) : []);
+  const writeArtifact = (name, payload) => {
+    const filePath = writeProjectionExport(name, payload);
+    if (!filePath) return null;
+    const reference = { path: name, sha256: crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') };
+    artifacts.push(reference);
+    return reference;
+  };
+  const queryReference = writeArtifact('projection-query-export.json', {
+    schema_version: 1, kind: QUERY_EXPORT_KIND, conversation_id: restoredEvents.conversationId,
+    query: { limit: 1000, before_event_id: null, has_more: false },
+    events: queryEvents,
+  });
+  const domReference = writeArtifact('projection-dom-export.json', {
+    schema_version: 1, kind: DOM_EXPORT_KIND, conversation_id: restoredEvents.conversationId,
+    display_range: { rule: INSPECTOR_DISPLAY_RULE, max_rows: INSPECTOR_DISPLAY_ROWS, rows_total: observed.rows.length },
+    rows: exportRows(observed.rows), displayed_outcome: observed.displayed,
+    latest_persisted_turn_id: observed.latestTurnId || null, checked_at: new Date().toISOString(),
+  });
+  const otherReference = writeArtifact('projection-dom-other-conversation.json', {
+    schema_version: 1, kind: DOM_EXPORT_KIND, conversation_id: sessionSwitch.otherConversationId || '',
+    display_range: { rule: INSPECTOR_DISPLAY_RULE, max_rows: INSPECTOR_DISPLAY_ROWS, rows_total: (sessionSwitch.otherRows || []).length },
+    rows: exportRows(sessionSwitch.otherRows), displayed_outcome: sessionSwitch.otherDisplayed || '',
+    latest_persisted_turn_id: null, checked_at: new Date().toISOString(),
+  });
+  const resumeReference = writeArtifact('projection-dom-resume.json', {
+    schema_version: 1, kind: DOM_EXPORT_KIND, conversation_id: restoredEvents.conversationId,
+    display_range: { rule: INSPECTOR_DISPLAY_RULE, max_rows: INSPECTOR_DISPLAY_ROWS, rows_total: (sessionSwitch.resumeRows || []).length },
+    rows: exportRows(sessionSwitch.resumeRows), displayed_outcome: sessionSwitch.resumeDisplayed || '',
+    latest_persisted_turn_id: observed.latestTurnId || null, checked_at: new Date().toISOString(),
+  });
+  const olderLoadReference = writeArtifact('projection-dom-after-older-load.json', {
+    schema_version: 1, kind: DOM_EXPORT_KIND, conversation_id: restoredEvents.conversationId,
+    display_range: { rule: INSPECTOR_DISPLAY_RULE, max_rows: INSPECTOR_DISPLAY_ROWS, rows_total: olderLoad.rows.length },
+    rows: exportRows(olderLoad.rows), displayed_outcome: olderLoad.displayed,
+    latest_persisted_turn_id: observed.latestTurnId || null,
+    older_load_mode: olderLoad.mode, checked_at: new Date().toISOString(),
+  });
+  const evidencePackage = {
+    schema_version: 1,
+    kind: 'A9_W27_PROJECTION_EVIDENCE_PACKAGE',
+    conversation_id: restoredEvents.conversationId,
+    instructions: '把 projection-*.json 复制到候选外 evidence-root 根目录，并按原样粘贴下列两个 projection_evidence 块；artifacts 即该两个用例 evidence 列表中必须包含的路径与 SHA-256。',
+    artifacts,
+    results: {
+      'W27-03-INSPECTOR-PERSISTED-RESTART': {
+        projection_evidence: {
+          query_export: queryReference, dom_export: domReference,
+          session_switch: { other_conversation_export: otherReference, resume_export: resumeReference },
+        },
+      },
+      'W27-09-LATEST-OUTCOME-PROJECTION': {
+        projection_evidence: {
+          query_export: queryReference, dom_export: domReference,
+          dom_export_after_older_load: olderLoadReference, older_load_mode: olderLoad.mode,
+          older_failure: olderFailureEvent
+            ? { event_id: olderFailureEvent.event_id, turn_id: olderFailureEvent.turn_id } : null,
+          newer_success: newerSuccessEvent
+            ? { event_id: newerSuccessEvent.event_id, turn_id: newerSuccessEvent.turn_id } : null,
+          restart_displayed_outcome: observed.displayed,
+          older_event_load_displayed_outcome: olderLoad.displayed,
+        },
+      },
+    },
+  };
+  const packagePath = writeProjectionExport('projection-evidence.json', evidencePackage);
+  report.projectionExports = {
+    directory: projectionDirectory,
+    packagePath: packagePath || '',
+    files: artifacts.map((item) => item.path),
+  };
+  record('A9-15-PROJECTION-EXPORTS-WRITTEN',
+    Boolean(packagePath) && artifacts.length === 5 && artifacts.every((item) => /^[a-f0-9]{64}$/.test(item.sha256)),
+  JSON.stringify(report.projectionExports));
 }
 
 async function runSecondProcess(win, exec, env) {
@@ -402,60 +809,47 @@ async function runSecondProcess(win, exec, env) {
   const restoredEvents = await exec(`(async () => {
     const current = (await window.win7Agent.a9.snapshot()).snapshot;
     const queried = await window.win7Agent.a9.queryEvents({ conversationId: current.activeConversationId, limit: 1000 });
-    const ids = (queried.events || []).map((event) => event.eventId);
+    const events = queried.events || [];
+    const ids = events.map((event) => event.eventId);
+    const data = (event) => event.payload?.data || event.payload || event.data || {};
     return {
+      conversationId: current.activeConversationId,
       count: ids.length,
       eventIds: ids,
       unique: new Set(ids).size === ids.length,
       ordered: ids.every((id, index) => index === 0 || id > ids[index - 1]),
-      modelNotes: (queried.events || []).filter((event) => (event.eventType || event.type) === 'model_note').length,
-      sessionEventIds: (queried.events || []).filter((event) => !event.turnId).map((event) => event.eventId),
-      turnRows: (queried.events || []).filter((event) => event.turnId).map((event) => ({
+      modelNotes: events.filter((event) => (event.eventType || event.type) === 'model_note').length,
+      sessionEventIds: events.filter((event) => !event.turnId).map((event) => event.eventId),
+      turnRows: events.filter((event) => event.turnId).map((event) => ({
         eventId: event.eventId, turnId: event.turnId, type: event.eventType || event.type,
       })),
+      events: events.map((event) => {
+        const payloadData = data(event);
+        return {
+          event_id: event.eventId,
+          turn_id: event.turnId || null,
+          type: event.eventType || event.type,
+          outcome: payloadData.outcome === undefined ? null : payloadData.outcome,
+          verification: payloadData.verification === undefined ? null : payloadData.verification,
+        };
+      }),
     };
   })()`);
   record('A9-15-HISTORY-RESTART-EVENTS', restoredEvents.count > 0 && restoredEvents.unique && restoredEvents.ordered &&
-    (!requireModelNotes || restoredEvents.modelNotes > 0), JSON.stringify(restoredEvents));
-  const restoredProjection = await waitFor(() => exec(`(async () => {
-    const current = (await window.win7Agent.a9.snapshot()).snapshot;
-    const facts = current.conversation || [];
-    const latest = facts.length ? facts[facts.length - 1] : null;
-    const displayed = document.getElementById('a9-turn-outcome').textContent;
-    const inspectorItems = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => item.textContent);
-    const timelineItems = inspectorItems.length;
-    const expected = latest && ['completed', 'completed_with_warnings', 'blocked', 'failed', 'cancelled', 'interrupted'].includes(latest.outcome)
-      ? latest.outcome + ' · ' + (latest.verification || 'not_applicable')
-      : '';
-    return timelineItems > 0 && displayed === expected
-      ? { timelineItems, inspectorItems, displayed, expected, latestTurnId: latest && latest.turnId }
-      : null;
-  })()`), 20_000, 'persisted Inspector timeline and latest outcome projection');
-  record('A9-15-HISTORY-RESTART-RENDERED', restoredProjection.timelineItems > 0 &&
-    restoredProjection.displayed === restoredProjection.expected, JSON.stringify(restoredProjection));
-  const oldFailureRow = restoredEvents.turnRows.find((item) => item.eventId === expectedProjection.oldFailureEventId);
-  const latestSuccessRow = restoredEvents.turnRows.find((item) => item.eventId === expectedProjection.latestSuccessEventId);
-  const inspectorText = restoredProjection.inspectorItems.join('\n');
-  const projectionEvidence = {
-    conversationId: expectedProjection.conversationId,
-    queriedEventIds: restoredEvents.eventIds,
-    sessionEventIds: restoredEvents.sessionEventIds,
-    oldFailure: oldFailureRow || null,
-    latestSuccess: latestSuccessRow || null,
-    latestFactTurnId: restoredProjection.latestTurnId,
-    displayed: restoredProjection.displayed,
-    inspectorItems: restoredProjection.inspectorItems,
-  };
-  report.restartProjectionEvidence = projectionEvidence;
-  record('A9-15-INSPECTOR-PERSISTED-EVENTS', restoredEvents.ordered && restoredEvents.unique &&
-    restoredEvents.sessionEventIds.length > 0 && restoredProjection.timelineItems > 0 &&
-    inspectorText.includes('任务失败') && inspectorText.includes('任务完成'), JSON.stringify(projectionEvidence));
-  record('A9-15-OLDER-FAILURE-NEWER-SUCCESS-RESTART', Boolean(oldFailureRow) && Boolean(latestSuccessRow) &&
-    oldFailureRow.turnId === expectedProjection.oldFailureTurnId &&
-    latestSuccessRow.turnId === expectedProjection.latestSuccessTurnId &&
-    oldFailureRow.eventId < latestSuccessRow.eventId &&
-    restoredProjection.latestTurnId === expectedProjection.latestSuccessTurnId &&
-    restoredProjection.displayed === 'completed · verified', JSON.stringify(projectionEvidence));
+    (!requireModelNotes || restoredEvents.modelNotes > 0), JSON.stringify({ ...restoredEvents, events: undefined }));
+  if (!projectionEnabled) {
+    // legacy 协议：保留历史断言；不导出投影证据，也不要求新协议 fixture。
+    const legacyProjection = await waitFor(() => exec(`(() => {
+      const current = document.getElementById('a9-turn-outcome').textContent;
+      const rows = document.querySelectorAll('#a9-timeline li').length;
+      return rows > 0 && current ? { rows, current } : null;
+    })()`), 20_000, 'legacy Inspector timeline');
+    record('A9-15-HISTORY-RESTART-RENDERED', legacyProjection.rows > 0, JSON.stringify(legacyProjection));
+    record('A9-15-LEGACY-PROTOCOL-NO-PROJECTION-EXPORT',
+      !report.projectionExports || Object.keys(report.projectionExports).length === 0, `protocol=${driverProtocol}`);
+  } else {
+    await runProjectionAcceptance(win, exec, env, restoredEvents, expectedProjection);
+  }
 
   // Exercise the formal preload/Schema IPC path for the complete 16-conversation
   // boundary and identity-scoped draft/archive/restore operations.

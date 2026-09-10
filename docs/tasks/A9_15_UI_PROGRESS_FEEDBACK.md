@@ -5,10 +5,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: PRODUCT_EXPERIENCE_HARDENING
 Target Branch: codex/ui-optimization
 Source Baseline: 72dfe229447d93750815525e713a1a80f02534f3
-Phase-Gate: A9_15_WIN7_26_VALIDATION_GAP_REPAIR_AUTHORIZED
-Win7-Validation: WIN7_26_NOT_PERFORMED
-Target Candidate: WIN7-26
-Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119
+Phase-Gate: A9_15_WIN7_27_PROJECTION_EVIDENCE_REPAIR_AUTHORIZED
+Win7-Validation: WIN7_27_NOT_PERFORMED
+Target Candidate: WIN7-27
+Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119 / ADR-0120
 ```
 
 ## 1. 授权与目标
@@ -66,6 +66,11 @@ UI-01～UI-13 逐项以 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` §3 矩�
   `RUN_A9_15_W26_INTEGRITY.cmd`、`RUN_WIN7_26_REPORT_VERIFY.cmd`、`a9-package-integrity-w26.cjs`、
   `a9-win7-26-report.cjs`、`a9-win7-26-smoke.cjs`：仅限 ADR-0119 的验证缺口修复候选；WIN7-23/24/25
   合同、候选与证据均冻结不可修改。构建器只可新增 WIN7-26 profile/driver 闭包，并保持历史 profile 测试通过。
+- `release/win7-product-v3/a9-15-win7-27-input-lock.json`、`A9_15_WIN7_27_VALIDATION.md`、
+  `RUN_A9_15_W27_INTEGRITY.cmd`、`RUN_WIN7_27_REPORT_VERIFY.cmd`、`a9-package-integrity-w27.cjs`、
+  `a9-win7-27-report.cjs`、`a9-win7-27-smoke.cjs`：仅限 ADR-0120 的四项 P2 修复候选；WIN7-23/24/25/26
+  合同、候选与证据均冻结不可修改。构建器只可新增 WIN7-27 profile/driver 闭包与新 driver 协议开关，
+  并保持 WIN7-22/23/24/25/26 历史 profile 测试与协议兼容性通过。
 
 ## 4. 非目标与边界
 
@@ -225,3 +230,54 @@ Provider 多工具任务、Win10 双构建、Win7 实机、打包发布、提交
 - WIN7-25 全部 out-a/out-b、ZIP、manifest、kit、lock、构建树及候选外证据保持原字节。WIN7-26 使用新源码
   提交、lock、kit、ZIP/manifest、authority、部署目录和证据根；未完成普通用户非提升 Win7 当前候选验证前，
   `WIN7_26_NOT_PERFORMED`，开发机 fixture 不构成真实 Provider 或 Win7 PASS。
+
+## 14. WIN7-26 四项 P2 修复与 WIN7-27 授权（2026-09-10）
+
+- 修复基线为 `2e5a534d88fcf46c700c6406786c469d4d4427dd`（`codex/ui-optimization`），继续在当前工作区实施，
+  保留既有未提交修改（Alpha 2 的 ADR-0117/A9-16 草稿、`docs/REMOTE_WINDOWS_CONNECTIONS.md`、`.trae/**`、
+  `docs/plans/WIN7_25_VALIDATION_GAP_REPAIR_PLAN.md`），这些内容不混入本次提交。
+- 只读复核结论：WIN7-26 的产品投影修复与双构建一致性成立，但四项 P2 未关闭，复核报告见
+  `/tmp/a9-w26-audit-p1aF0M/REVIEW.md`（R1 报告器未解析投影附件语义、R2 Electron Inspector 断言可接受
+  缺行/乱序/重复、R3 新增投影用例时移除了原审批与失败顺序签发断言、R4 共享 driver 新协议破坏
+  W24/W25 profile 兼容性）。ADR-0120 记录四项修复范围与 WIN7-27 新候选授权。
+
+### 14.1 四项修复范围（逐项对应复核 R1～R4）
+
+| ID | 范围 | 可观察成功条件 |
+|---|---|---|
+| R1 | 统一机器可读投影证据格式，让报告器实际解析附件 | 正式 driver 导出 `A9_PROJECTION_QUERY_EXPORT` 与 `A9_PROJECTION_DOM_EXPORT`（schema_version 1）JSON 附件；报告器解析附件字节，交叉核对会话、event/turn ID、查询顺序与 DOM 结果，并拒绝内容矛盾（非 JSON、另一会话、空事件、结果不符）与旧新轮次 turn ID 相同 |
+| R2 | 加强 Electron driver 的 Inspector 判定 | 按 `LAST_60_BY_EVENT_ID_ASC` 有界显示范围逐行核对 event ID、turn ID、文本与顺序；覆盖去重、切换会话无残留并切回复原、旧事件补载后结果不变；加入缺行、乱序、重复、残留负向检查且负向必须失败 |
+| R3 | 保留原审批、拒绝零副作用、失败状态与查询重试断言，再追加投影验收 | `W27-04-APPROVAL-FAILURE-ORDER` 四项原有要求回到实际 kit 并由 driver 实际断言；投影用例独立新增；verifier 的用例数量与 assertion 集合共同强制，缺失任一即拒绝签发 |
+| R4 | 新 driver 流程限定到支持它的新候选与开发机 fixture | 故障轮次、较新成功轮次与投影导出只在显式启用新协议的 WIN7-27 与开发机 fixture 生效；历史 W23/W24/W25 profile 走兼容路径；补 fixture/协议级回归，不以闭包存在判兼容 |
+
+### 14.2 允许路径（在 §3 基础上追加）
+
+- `src/shell/product/renderer/a9-workbench.js`：仅为 Inspector 时间线行增加稳定的 `data-event-id`/
+  `data-turn-id` 身份属性，不改变布局、文案、排序、去重或有界显示规则。
+- `src/shell/tests/product/a9-06-driver-entry.cjs`、`run-a9-06-electron-smoke.mjs`：driver 协议开关、
+  逐行 Inspector 断言、负向敏感性检查与投影导出。
+- `scripts/release/build-a9-product-v3.mjs`、`scripts/release/test/a9-package.test.mjs`：WIN7-27 profile、
+  kit 用例恢复与新增、报告器联动与历史 profile 协议回归。
+
+### 14.3 边界与不做的事
+
+- 不重写已验证有效的 Renderer 投影修复（`projectOutcome`/`renderTimeline` 既有语义保持不变）；
+  不修改 native helper、Runner/Policy、IPC 契约、SQLite schema、权限模式或秘密边界。
+- WIN7-25/26 的源码提交、out-a/out-b、ZIP、manifest、kit、lock、authority、构建树与复核证据全部冻结，
+  不得覆盖、改名或重判；历史 W23/W24/W25 profile 的 `release/**` 合同保持原字节。
+- 不新增依赖、运行时或高权限产品接口；负向检查在测试侧观察值副本上进行，不做故障注入到冻结源码。
+- 本地提交不推送；候选哈希形成后仍须候选外独立 `WIN7_27_RELEASE_AUTHORITY` 与 SHA-256 pin；
+  开发机 fixture 不构成真实 Provider 或普通用户非提升 Win7 PASS。
+
+### 14.4 WIN7-27 新增与恢复用例
+
+- `W27-03-INSPECTOR-PERSISTED-RESTART`：重启后 Inspector 逐行等于当前会话查询的最近有界范围；包含无
+  `turnId` 的会话事件与工具/终态事件；切换会话无残留且切回复原；`projection_evidence` 必须绑定查询导出
+  与 DOM 导出附件及其哈希。
+- `W27-04-APPROVAL-FAILURE-ORDER`（恢复）：`approval_resolved` 先于恢复的 `tool_start`；拒绝无目标副作用；
+  非零退出/工具错误/取消/清理未确认不得标记成功；历史查询失败后可见重试且无重复事件。
+- `W27-09-LATEST-OUTCOME-PROJECTION`（新增）：真实旧 `failed · not_applicable` 轮次早于较新
+  `completed · verified` 轮次；两者 turn ID 必须不同（相同即拒绝）；重启后与旧事件补载后，DOM 全局结果与
+  最新持久化轮次一致，最新终态行绑定较新成功 turn ID。
+
+未执行普通用户非提升 Win7 当前候选验证前保持 `WIN7_27_NOT_PERFORMED`；本任务不重签 WIN7-22 或 Alpha/RC。

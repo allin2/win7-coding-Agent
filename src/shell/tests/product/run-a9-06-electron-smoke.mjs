@@ -120,6 +120,7 @@ async function waitForPidExit(pid, timeoutMs = 15_000) {
 function createFixture(phaseName, stepFn) {
   let round = 0;
   const requests = [];
+  const responses = [];
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (d) => { body += d; });
@@ -131,7 +132,9 @@ function createFixture(phaseName, stepFn) {
       const toolNames = (parsed.messages ?? []).filter((m) => m.role === 'tool' && m.name !== 'probe_test_echo').map((m) => m.name);
       const messages = parsed.messages ?? [];
       const lastUser = messages.slice().reverse().find((message) => message.role === 'user');
-      if (String(lastUser?.content || '').includes('expected provider failure')) {
+      const prompt = String(lastUser?.content || '');
+      responses.push({ prompt, status: prompt.includes('expected provider failure') ? 503 : 200 });
+      if (prompt.includes('expected provider failure')) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { message: 'expected fixture provider failure' } }));
         return;
@@ -159,6 +162,7 @@ function createFixture(phaseName, stepFn) {
     server,
     getRound: () => round,
     getRequests: () => requests,
+    getResponses: () => responses,
     listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', resolve)),
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
@@ -303,6 +307,10 @@ const stopWorkspaceRoot = path.join(root, 'stop-ws');
 const stopDataRoot = path.join(root, 'stop-data');
 const stopPidMarker = path.join(root, 'stop-child.pid');
 const stallChildPath = path.join(root, 'stall-child.cjs');
+const projectionRoot = path.join(root, 'projection');
+const projectionEvidenceRoot = path.join(root, 'projection-evidence');
+fs.mkdirSync(projectionRoot, { recursive: true });
+fs.mkdirSync(projectionEvidenceRoot, { recursive: true });
 fs.mkdirSync(stopWorkspaceRoot, { recursive: true });
 fs.mkdirSync(stopDataRoot, { recursive: true });
 fs.mkdirSync(workspaceSelectRoot, { recursive: true });
@@ -332,6 +340,9 @@ const baseEnv = {
   WIN7AGENT_A9_ELECTRON_SQLITE: electronSqliteRoot,
   ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
   A9_SMOKE_PRODUCT_MAIN: productMain,
+  // ADR-0120：开发机 fixture 显式启用投影协议；历史 profile 不设置该变量。
+  A9_SMOKE_DRIVER_PROTOCOL: 'projection',
+  A9_SMOKE_PROJECTION_DIR: projectionRoot,
 };
 
 // 真实首次启动顺序：Renderer 先收到 A9_WORKSPACE_REQUIRED，用户随后通过
@@ -432,6 +443,47 @@ const fresh = Boolean(firstNew) && Array.isArray(firstNew.messages) &&
 record('A9F2-NO-REPLAY-FRESH-CONVERSATION', fresh,
   `firstNew=${fresh ? 'fresh' : JSON.stringify(firstNew && firstNew.messages ? firstNew.messages.map((m) => `${m.role}${m.role === 'assistant' && m.tool_calls ? '/tc' : ''}${m.role === 'user' ? ':' + String(m.content || '').slice(0, 40) : ''}`) : firstNew)}`);
 
+// ADR-0120：投影协议一致性与机器可读投影证据（开发机 fixture 显式启用该协议）。
+const journeyResponses = firstFixture.getResponses();
+const failureServed = journeyResponses.some((item) => item.prompt.includes('expected provider failure') && item.status === 503);
+const journeyServed = journeyResponses.some((item) => item.prompt.includes('fix the bug') && item.status === 200);
+const latestSuccessServed = journeyResponses.some((item) => item.prompt.includes('produce latest verified') && item.status === 200);
+record('A9-W27-DEV-FIXTURE-PROTOCOL-COMPATIBLE', failureServed && journeyServed && latestSuccessServed,
+  `failure503=${failureServed}; journey200=${journeyServed}; latest200=${latestSuccessServed}`);
+const projectionFiles = fs.readdirSync(projectionRoot).sort();
+for (const name of projectionFiles) {
+  fs.copyFileSync(path.join(projectionRoot, name), path.join(projectionEvidenceRoot, name));
+}
+record('A9-W27-DEV-PROJECTION-EVIDENCE-PUBLISHED',
+  projectionFiles.includes('projection-evidence.json')
+  && projectionFiles.filter((name) => name.startsWith('projection-')).length === 6,
+  JSON.stringify(projectionFiles));
+// ADR-0120 R1：投影附件必须能被正式报告器解析。driver 导出字段与报告器约定一旦漂移，
+// 必须在开发机 smoke 就失败，而不是等 Win7 签发时才暴露。
+let projectionParseable = false;
+let projectionParseDetail = '';
+try {
+  const reportModule = hostRequire(path.join(repositoryRoot, 'release/win7-product-v3/a9-win7-27-report.cjs'));
+  const readProjection = (name) => JSON.parse(fs.readFileSync(path.join(projectionEvidenceRoot, name), 'utf8'));
+  const query = reportModule.parseQueryExport(readProjection('projection-query-export.json'), 'W27-03-INSPECTOR-PERSISTED-RESTART');
+  reportModule.parseDomExport(readProjection('projection-dom-export.json'), query, 'W27-03-INSPECTOR-PERSISTED-RESTART', 'restart');
+  const evidencePackage = readProjection('projection-evidence.json');
+  const outcome = evidencePackage.results['W27-09-LATEST-OUTCOME-PROJECTION'].projection_evidence;
+  const olderEvent = query.events.find((event) => event.event_id === outcome.older_failure.event_id);
+  const newerEvent = query.events.find((event) => event.event_id === outcome.newer_success.event_id);
+  const latestTurn = reportModule.latestTerminal(query, 'W27-09-LATEST-OUTCOME-PROJECTION');
+  const olderFacts = reportModule.terminalFacts(olderEvent);
+  const newerFacts = reportModule.terminalFacts(newerEvent);
+  projectionParseable = Boolean(olderEvent && newerEvent && olderEvent.turn_id !== newerEvent.turn_id
+    && olderEvent.type === 'turn_failed' && olderFacts && olderFacts.outcome === 'failed' && olderFacts.verification === 'not_applicable'
+    && newerEvent.type === 'turn_completed' && newerFacts && newerFacts.outcome === 'completed' && newerFacts.verification === 'verified'
+    && latestTurn.event_id === newerEvent.event_id);
+  projectionParseDetail = `queryEvents=${query.events.length}; older=${outcome.older_failure.event_id}; newer=${outcome.newer_success.event_id}; latest=${latestTurn.event_id}`;
+} catch (error) {
+  projectionParseDetail = String(error && error.message ? error.message : error);
+}
+record('A9-W27-PROJECTION-ARTIFACTS-REPORT-PARSEABLE', projectionParseable, projectionParseDetail);
+
 // 旧审批不可执行：第二进程驱动已断言 resumeApproval 结构化拒绝。
 // （A9F2-OLD-APPROVAL-REJECTED 由驱动报告。）
 
@@ -488,6 +540,9 @@ const report = {
   fixture: {
     firstRounds: firstFixture.getRound(),
   },
+  driver_protocol: baseEnv.A9_SMOKE_DRIVER_PROTOCOL,
+  projection_evidence_root: projectionEvidenceRoot,
+  projection_files: projectionFiles,
   cases,
   external_validation: { win10: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE', win7: 'NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE' },
   notes: [
@@ -495,6 +550,8 @@ const report = {
     'Two independent Electron 22.3.27 processes use the same dataRoot; the first binds via formal selectWorkspace and the second restores that active workspace without a command-line or environment override.',
     'The restored provider points at the first fixture; the second process fresh-conversation requests prove no model replay (no assistant tool_calls / tool history in the first request, new user prompt present).',
     'Electron-ABI SQLite preflight is fail-closed; the product UI stop path cancels a real long-running Shell child, reaps its PID, and leaves zero active task/turn/run rows.',
+    'ADR-0120: the projection protocol is enabled explicitly for this developer fixture only; historical W23/W24/W25 profiles keep the legacy driver path and their fixtures do not answer the projection prompts.',
+    'ADR-0120: Inspector rows are compared per row against the query export (identity, order, content, dedup) and the row assertion is proven sensitive by in-memory missing/reordered/duplicate/residue mutations.',
     'This is a real Electron developer-machine smoke; it is NOT Win7 evidence.',
   ],
 };

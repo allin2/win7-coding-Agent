@@ -885,17 +885,25 @@
   // Inspector 与目录渲染。
   // ------------------------------------------------------------------
 
+  // ADR-0120：Inspector 有界显示范围保持既有规则不变（当前会话按 eventId 升序的最后 60 行，
+  // 规则名 LAST_60_BY_EVENT_ID_ASC）。仅为每行增加稳定身份属性，供正式验收按范围逐行核对。
   function renderTimeline() {
     const timeline = el('a9-timeline');
     timeline.textContent = '';
     const filePaths = new Set();
     let rawOutput = '';
-    eventsForInspector().slice(-60).forEach((event) => {
+    const visible = eventsForInspector().slice(-60);
+    timeline.dataset.displayRule = 'LAST_60_BY_EVENT_ID_ASC';
+    timeline.dataset.displayRows = String(visible.length);
+    visible.forEach((event) => {
       const data = event.data || {};
       const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
       const item = document.createElement('li');
       const stamp = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '';
       item.textContent = stamp ? `${stamp} · ${timelineEntryLabel(event)}` : timelineEntryLabel(event);
+      item.dataset.eventId = String(event.eventId);
+      item.dataset.eventType = event.type;
+      if (event.turnId) item.dataset.turnId = String(event.turnId);
       timeline.appendChild(item);
       [data.path, data.relativePath, data.targetPath].filter(Boolean).forEach((value) => filePaths.add(String(value)));
       [shell && shell.stdout, shell && shell.stderr].filter((value) => typeof value === 'string').forEach((value) => { rawOutput += value; });
