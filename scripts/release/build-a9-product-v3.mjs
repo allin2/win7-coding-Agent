@@ -59,9 +59,17 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-25-smoke.cjs'],
     evidenceDirectory: 'a9-win7-25-evidence',
   },
+  'A9-15-INPUTS-UI-PROGRESS-WIN7-26': {
+    task: 'A9-15', candidate: 'WIN7-26', lockFile: 'a9-15-win7-26-input-lock.json',
+    kitFile: 'A9_15_VALIDATION_KIT.json', validationDoc: 'A9_15_WIN7_26_VALIDATION.md',
+    integrityCommand: 'RUN_A9_15_W26_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_26_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w26.cjs', reportScript: 'a9-win7-26-report.cjs',
+    extraValidationScripts: ['a9-win7-26-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-26-evidence',
+  },
 };
 
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26']);
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
@@ -600,9 +608,12 @@ function createWin7IncrementalCases() {
 
 function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
-  const decision = profile.candidate === 'WIN7-25' ? 'ADR-0118'
+  const kitDate = profile.candidate === 'WIN7-26' ? '20260910' : '20260909';
+  const decision = profile.candidate === 'WIN7-26' ? 'ADR-0119'
+    : profile.candidate === 'WIN7-25' ? 'ADR-0118'
     : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = profile.candidate === 'WIN7-25' ? 'WIN7-24'
+  const historicalCandidate = profile.candidate === 'WIN7-26' ? 'WIN7-25'
+    : profile.candidate === 'WIN7-25' ? 'WIN7-24'
     : profile.candidate === 'WIN7-24' ? 'WIN7-23' : 'WIN7-22';
   const sourceFiles = [
     'docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md',
@@ -617,7 +628,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     'src/shell/product/renderer/a9-workbench.css',
     'src/shell/product/renderer/a9-workbench.js',
     'src/shell/product/renderer/workbench.html',
-    ...(['WIN7-24', 'WIN7-25'].includes(profile.candidate) ? ['src/shell/tests/product/a9-06-driver-entry.cjs'] : []),
+    ...(['WIN7-24', 'WIN7-25', 'WIN7-26'].includes(profile.candidate) ? ['src/shell/tests/product/a9-06-driver-entry.cjs'] : []),
     'scripts/release/build-a9-product-v3.mjs',
     `release/win7-product-v3/${profile.lockFile}`,
     `release/win7-product-v3/${profile.integrityScript}`,
@@ -645,7 +656,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   };
   return {
     schema_version: 1,
-    kit_id: `A9-15-${profile.candidate}-UI-PROGRESS-20260909-01`,
+    kit_id: `A9-15-${profile.candidate}-UI-PROGRESS-${kitDate}-01`,
     candidate_id: lock.release_id,
     candidate_label: profile.candidate,
     candidate_version: lock.version,
@@ -662,7 +673,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     commands: {
       source_developer: 'npm run verify && npm run docs:check && git diff --check',
       package_integrity: profile.integrityCommand,
-      direct_smoke: ['WIN7-24', 'WIN7-25'].includes(profile.candidate)
+      direct_smoke: ['WIN7-24', 'WIN7-25', 'WIN7-26'].includes(profile.candidate)
         ? `.\\electron.exe .\\validation\\${profile.extraValidationScripts[0]} --evidence-root=<candidate-external-evidence-root>`
         : '.\\electron.exe .\\validation\\a9-win7-23-smoke.cjs --mode=<automatic|interactive>',
       report_verify: profile.reportCommand,
@@ -683,14 +694,26 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
         'Exercise model_note, tool activity grouping, stable IDs and one final result through the formal product UI.',
         ['multi-tool turn shows model note before the associated tool', 'tool_start/tool_end share callId and step', 'eventId/sequence remain stable without duplicate rendering', 'final answer appears exactly once after process cards'],
         ['redacted event export', 'fixture request/response transcript', 'completed UI screenshot']),
-      caseOf('W23-03-HISTORY-RESTART-PAGINATION',
-        'Prove process history persists, reloads in order and can page without crossing conversations.',
-        ['restart restores prior process events without replaying the model request', 'load-more uses beforeEventId and adds older events once', 'cross-conversation query is rejected', 'legacy turn without events visibly states that process history is unavailable'],
-        ['SQLite event query export', 'restart transcript', 'pagination/cross-session UI captures']),
-      caseOf('W23-04-APPROVAL-FAILURE-ORDER',
-        'Prove approval decisions and failures are truthfully ordered and rendered.',
-        ['approval_resolved is persisted before resumed tool_start', 'denial performs no target side effect', 'non-zero/tool error/cancelled/unknown cleanup are never labelled successful', 'retry after history-query failure is visible and succeeds without duplicate events'],
-        ['approval and event export', 'target hash before/after', 'failure and retry screenshots']),
+      caseOf(profile.candidate === 'WIN7-26' ? 'W23-03-INSPECTOR-PERSISTED-RESTART' : 'W23-03-HISTORY-RESTART-PAGINATION',
+        profile.candidate === 'WIN7-26'
+          ? 'Prove the Inspector restores only the current session persisted events with query-identical order and content.'
+          : 'Prove process history persists, reloads in order and can page without crossing conversations.',
+        profile.candidate === 'WIN7-26'
+          ? ['restart Inspector event IDs, content and order equal the current-session query export', 'session-level events without turnId and turn tool/terminal events are visible', 'event IDs are unique and no prior conversation content survives a session switch', 'load-more uses beforeEventId once and cross-conversation query is rejected']
+          : ['restart restores prior process events without replaying the model request', 'load-more uses beforeEventId and adds older events once', 'cross-conversation query is rejected', 'legacy turn without events visibly states that process history is unavailable'],
+        profile.candidate === 'WIN7-26'
+          ? ['redacted query export with event/turn IDs', 'Inspector DOM text export or screenshot', 'restart and session-switch transcript']
+          : ['SQLite event query export', 'restart transcript', 'pagination/cross-session UI captures']),
+      caseOf(profile.candidate === 'WIN7-26' ? 'W23-04-LATEST-OUTCOME-PROJECTION' : 'W23-04-APPROVAL-FAILURE-ORDER',
+        profile.candidate === 'WIN7-26'
+          ? 'Prove an older persisted failure cannot overwrite a newer verified success after restart or older-event loading.'
+          : 'Prove approval decisions and failures are truthfully ordered and rendered.',
+        profile.candidate === 'WIN7-26'
+          ? ['a real older failed/not_applicable turn precedes a newer completed/verified turn', 'restart query binds both terminal event IDs to their turn IDs', 'latest persisted turn ID equals the displayed completed/verified result', 'loading older failure details leaves the global result completed/verified']
+          : ['approval_resolved is persisted before resumed tool_start', 'denial performs no target side effect', 'non-zero/tool error/cancelled/unknown cleanup are never labelled successful', 'retry after history-query failure is visible and succeeds without duplicate events'],
+        profile.candidate === 'WIN7-26'
+          ? ['redacted terminal event/turn ID export', 'restart DOM outcome export or screenshot', 'older-event load transcript']
+          : ['approval and event export', 'target hash before/after', 'failure and retry screenshots']),
       caseOf('W23-05-WAIT-STOP-CLEANUP',
         'Prove long waits and cancellation use observed timing and cleanup facts.',
         ['after more than 10 seconds the UI names the actual wait object and observed duration', 'no fabricated percentage or unobserved work claim appears', 'Stop binds the active turn and reaches its process tree', 'cleanupConfirmed and the postflight process list agree'],
@@ -848,8 +871,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-15' && lock.provenance?.previous_candidate === 'WIN7-24'
     && lock.provenance?.previous_candidate_result === 'FIX_BEFORE_WIN7_25_VALIDATION'
     && lock.provenance?.change_scope === 'RENDERER_RESTART_TIMELINE_AND_LATEST_OUTCOME';
+  const win26Provenance = profile.candidate === 'WIN7-26'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_26'
+    && lock.provenance?.task === 'A9-15' && lock.provenance?.previous_candidate === 'WIN7-25'
+    && lock.provenance?.previous_candidate_result === 'VALIDATION_CONTRACT_GAP_REPAIR_REQUIRED'
+    && lock.provenance?.change_scope === 'RESTART_PROJECTION_REGRESSION_AND_EXECUTABLE_ACCEPTANCE_ASSERTIONS';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;

@@ -4,6 +4,25 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-15 / WIN7-26 投影验证缺口修复候选
+
+WIN7-25 的产品修复保持冻结；其复核发现 Renderer 回归未执行原连续渲染触发顺序，验收 kit/report 也未把
+Inspector 当前会话持久事件恢复与旧失败不得覆盖新成功设为签发硬条件。ADR-0119 的 WIN7-26 使用新锁
+`a9-15-win7-26-input-lock.json`，加入真实 Renderer 故障敏感性回归、Electron 旧失败→较新成功重启链路，
+以及要求 turn/event ID、查询顺序和 DOM 导出哈希的两个稳定报告用例。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-15-win7-26-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+必须从提交后的两个独立干净工作树构建并逐字节比较；候选哈希形成后仍需候选外独立
+`WIN7_26_RELEASE_AUTHORITY` 与 SHA-256 pin。开发机 fixture 不能替代真实 Provider 或普通用户 Win7 证据。
+
 ## A9-15 / WIN7-25 重启历史投影修复候选
 
 WIN7-24 已在普通用户正常退出后的重启检查中确认 Renderer 投影失败，冻结为

@@ -5,10 +5,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: PRODUCT_EXPERIENCE_HARDENING
 Target Branch: codex/ui-optimization
 Source Baseline: 72dfe229447d93750815525e713a1a80f02534f3
-Phase-Gate: A9_15_WIN7_25_REPAIR_AUTHORIZED
-Win7-Validation: WIN7_24_FIX_BEFORE_WIN7_25
-Target Candidate: WIN7-25
-Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118
+Phase-Gate: A9_15_WIN7_26_VALIDATION_GAP_REPAIR_AUTHORIZED
+Win7-Validation: WIN7_26_NOT_PERFORMED
+Target Candidate: WIN7-26
+Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119
 ```
 
 ## 1. 授权与目标
@@ -43,7 +43,8 @@ UI-01～UI-13 逐项以 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` §3 矩�
 - `src/state/src/a9-persistence.ts`、`src/state/tests/a9-persistence-contract.test.ts`
 - `src/shell/product/a9-agent-runtime.js`、`src/shell/product/a9-product-ipc.js`、`src/shell/product/preload.js`
 - `src/shell/product/renderer/workbench.html`、`src/shell/product/renderer/a9-workbench.css`、`src/shell/product/renderer/a9-workbench.js`
-- `src/shell/tests/product/a9-product-contract.test.ts`、`a9-workbench-contract.test.ts`、`a9-lifecycle.test.ts`、`a9-preload-capability.test.ts`、`a9-06-driver-entry.cjs`
+- `src/shell/tests/product/a9-product-contract.test.ts`、`a9-workbench-contract.test.ts`、`a9-lifecycle.test.ts`、
+  `a9-preload-capability.test.ts`、`a9-06-driver-entry.cjs`、`run-a9-06-electron-smoke.mjs`
 - `docs/tasks/`、`docs/DECISIONS.md`、`docs/STATUS.md`、`docs/tasks/README.md`
 - `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md`、`docs/plans/ui-progress-reference/**`：本任务已引用的
   实现方案与视觉基线。
@@ -61,6 +62,10 @@ UI-01～UI-13 逐项以 `docs/plans/UI_PROGRESS_IMPLEMENTATION_PLAN.md` §3 矩�
   `RUN_A9_15_W25_INTEGRITY.cmd`、`RUN_WIN7_25_REPORT_VERIFY.cmd`、`a9-package-integrity-w25.cjs`、
   `a9-win7-25-report.cjs`、`a9-win7-25-smoke.cjs`：仅限 ADR-0118 的新候选合同；WIN7-23/24 合同、候选和
   证据均冻结不可修改。构建器只可新增 WIN7-25 profile/driver 闭包，并保持 WIN7-22/23/24 历史测试通过。
+- `release/win7-product-v3/a9-15-win7-26-input-lock.json`、`A9_15_WIN7_26_VALIDATION.md`、
+  `RUN_A9_15_W26_INTEGRITY.cmd`、`RUN_WIN7_26_REPORT_VERIFY.cmd`、`a9-package-integrity-w26.cjs`、
+  `a9-win7-26-report.cjs`、`a9-win7-26-smoke.cjs`：仅限 ADR-0119 的验证缺口修复候选；WIN7-23/24/25
+  合同、候选与证据均冻结不可修改。构建器只可新增 WIN7-26 profile/driver 闭包，并保持历史 profile 测试通过。
 
 ## 4. 非目标与边界
 
@@ -204,3 +209,19 @@ Provider 多工具任务、Win10 双构建、Win7 实机、打包发布、提交
 - WIN7-24 永久保持 `FIX_BEFORE_WIN7_25_VALIDATION`；其 ZIP、manifest、lock、authority、部署与证据不得
   修改或重判。WIN7-25 复用未变化的 WIN7-22 Electron/D-013 v25/SQLite 精确输入，但使用新的源码提交、
   ZIP/manifest、lock、authority、部署目录和证据根。开发机或管理诊断不构成普通用户实机 PASS。
+
+## 13. WIN7-25 验证缺口与 WIN7-26 授权（2026-09-10）
+
+- WIN7-25 两处 Renderer 修复的同输入行为对照有效，但源码回归未执行真实连续渲染，Electron 重启链路也
+  未构造旧失败→较新成功；把旧全局副作用放回内存副本时原测试仍通过。WIN7-25 kit 还未明确要求
+  Inspector 持久事件恢复及旧失败不得覆盖新成功，报告器无法以这两项签发门拒绝缺失证据。
+- 负责人要求按完整方案直接修复并延续本地提交、双干净构建与实机流程。回归必须调用真实 Renderer 函数，
+  通过内存故障注入证明能拒绝原故障；正式 Electron driver 必须绑定同一会话的旧失败/新成功 turn/event ID、
+  Inspector DOM 与重启显示。产品 Renderer 无新证据时不得重写。
+- WIN7-26 新增稳定用例 `W26-03-INSPECTOR-PERSISTED-RESTART` 与
+  `W26-04-LATEST-OUTCOME-PROJECTION`。报告器要求 `projection_evidence` 绑定查询 event ID、turn ID、DOM
+  导出文件哈希与最新持久化结果；新增断言缺失、失败或投影证据缺失均拒绝 PASS。历史 W23/W24/W25
+  profile 与冻结工件保持不变。
+- WIN7-25 全部 out-a/out-b、ZIP、manifest、kit、lock、构建树及候选外证据保持原字节。WIN7-26 使用新源码
+  提交、lock、kit、ZIP/manifest、authority、部署目录和证据根；未完成普通用户非提升 Win7 当前候选验证前，
+  `WIN7_26_NOT_PERFORMED`，开发机 fixture 不构成真实 Provider 或 Win7 PASS。

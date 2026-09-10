@@ -28,6 +28,8 @@ const win24Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win24Report = require('../../../release/win7-product-v3/a9-win7-24-report.cjs');
 const win25Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w25.cjs');
 const win25Report = require('../../../release/win7-product-v3/a9-win7-25-report.cjs');
+const win26Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w26.cjs');
+const win26Report = require('../../../release/win7-product-v3/a9-win7-26-report.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
 
@@ -283,13 +285,19 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (candidate === 'win23' || candidate === 'win24' || candidate === 'win25') {
+  if (candidate === 'win23' || candidate === 'win24' || candidate === 'win25' || candidate === 'win26') {
     const number = candidate.slice(-2);
     lock.lock_id = `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
     lock.source_date_epoch = 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win25'
+    lock.provenance = candidate === 'win26'
+      ? {
+        task: 'A9-15', previous_candidate: 'WIN7-25',
+        previous_candidate_result: 'VALIDATION_CONTRACT_GAP_REPAIR_REQUIRED',
+        change_scope: 'RESTART_PROJECTION_REGRESSION_AND_EXECUTABLE_ACCEPTANCE_ASSERTIONS',
+      }
+      : candidate === 'win25'
       ? {
         task: 'A9-15', previous_candidate: 'WIN7-24',
         previous_candidate_result: 'FIX_BEFORE_WIN7_25_VALIDATION',
@@ -307,8 +315,9 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  const lockPath = path.join(root, candidate === 'win25'
-    ? 'a9-15-win7-25-input-lock.json'
+  const lockPath = path.join(root, candidate === 'win26'
+    ? 'a9-15-win7-26-input-lock.json'
+    : candidate === 'win25' ? 'a9-15-win7-25-input-lock.json'
     : candidate === 'win24' ? 'a9-15-win7-24-input-lock.json'
     : candidate === 'win23' ? 'a9-15-win7-23-input-lock.json' : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
@@ -621,6 +630,95 @@ test('WIN7-25 binds the restart projection repair without modifying WIN7-24 iden
   assert.ok(initialized.results.some((item) => item.case_id === 'W25-03-HISTORY-RESTART-PAGINATION'));
   assert.ok(initialized.results.some((item) => item.case_id === 'W25-04-APPROVAL-FAILURE-ORDER'));
   assert.throws(() => win25Report.identityFrom({ ...options, 'release-authority-sha256': 'f'.repeat(64) }, fs), /AUTHORITY_PIN_MISMATCH/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-26 kit and report verifier require executable Inspector and latest-outcome projection evidence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win26-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win26');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifestPath = path.join(stage, 'release-manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  for (const relative of win26Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-26 closure: ${relative}`);
+  }
+  const authorityPath = path.join(root, 'release-authority.json');
+  writeJson(authorityPath, {
+    schema_version: 1, kind: 'WIN7_26_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_26_VALIDATION',
+    formal_input_lock_sha256: sha256File(inputs.lockPath),
+    approval_registry: { commit: manifest.source_commit, sha256: sha256File(inputs.approvalRegistryPath) },
+    candidate: {
+      source_commit: manifest.source_commit, package_sha256: sha256File(built.zipPath),
+      manifest_sha256: sha256File(manifestPath),
+    },
+  });
+  const options = {
+    zip: built.zipPath, 'release-manifest': manifestPath,
+    kit: path.join(stage, 'A9_15_VALIDATION_KIT.json'), 'formal-input-lock': inputs.lockPath,
+    'approval-registry': inputs.approvalRegistryPath, 'release-authority': authorityPath,
+    'release-authority-sha256': sha256File(authorityPath),
+  };
+  const identity = win26Report.identityFrom(options, fs);
+  const kit = JSON.parse(fs.readFileSync(options.kit, 'utf8'));
+  assert.equal(kit.scope.decision, 'ADR-0119');
+  assert.ok(kit.required_cases.some((item) => item.case_id === 'W26-03-INSPECTOR-PERSISTED-RESTART'));
+  assert.ok(kit.required_cases.some((item) => item.case_id === 'W26-04-LATEST-OUTCOME-PROJECTION'));
+
+  const evidenceRoot = path.join(root, 'evidence');
+  fs.mkdirSync(evidenceRoot);
+  const domPath = path.join(evidenceRoot, 'projection-dom.json');
+  writeJson(domPath, { queried_event_ids: [1, 2, 3, 4], inspector_event_ids: [1, 2, 3, 4], outcome: 'completed · verified' });
+  const domEvidence = { path: 'projection-dom.json', sha256: sha256File(domPath) };
+  const report = {
+    ...win26Report.template(kit, identity), status: 'PASS',
+    results: kit.required_cases.map((validationCase) => {
+      const execution = {
+        candidate: identity, run_id: `run-${validationCase.case_id}`,
+        environment: {
+          os: 'Windows 7 SP1 build 7601', architecture: 'x64', user: 'ordinary-user',
+          elevation: 'not-elevated', electron: '22.3.27', electron_abi: 110,
+        },
+        assertions: validationCase.assertions.map((assertion) => ({ assertion_id: assertion.assertion_id, status: 'PASS' })),
+        evidence: [domEvidence],
+      };
+      if (validationCase.case_id === 'W26-03-INSPECTOR-PERSISTED-RESTART') {
+        execution.projection_evidence = {
+          conversation_id: 'conversation-current', queried_event_ids: [1, 2, 3, 4],
+          inspector_event_ids: [1, 2, 3, 4], session_event_ids: [1], unique: true,
+          cross_session_residue: false, dom_export: domEvidence,
+        };
+      }
+      if (validationCase.case_id === 'W26-04-LATEST-OUTCOME-PROJECTION') {
+        execution.projection_evidence = {
+          conversation_id: 'conversation-current',
+          older_failure: { event_id: 2, turn_id: 'turn-old', outcome: 'failed', verification: 'not_applicable' },
+          newer_success: { event_id: 4, turn_id: 'turn-new', outcome: 'completed', verification: 'verified' },
+          latest_persisted_turn_id: 'turn-new', restart_displayed_outcome: 'completed · verified',
+          older_event_load_displayed_outcome: 'completed · verified', dom_export: domEvidence,
+        };
+      }
+      if (validationCase.case_id === 'W26-07-REAL-PROVIDER-MULTITOOL') {
+        execution.provider_kind = 'REAL_NON_FIXTURE';
+        execution.provider_probe = 'tool_calling';
+      }
+      return { case_id: validationCase.case_id, status: 'PASS', executions: [execution] };
+    }),
+  };
+  assert.equal(win26Report.verifyReport(report, kit, identity, fs.realpathSync(evidenceRoot), fs).status, 'PASS');
+
+  const missingAssertion = JSON.parse(JSON.stringify(report));
+  missingAssertion.results.find((item) => item.case_id === 'W26-03-INSPECTOR-PERSISTED-RESTART').executions[0].assertions.pop();
+  assert.throws(() => win26Report.verifyReport(missingAssertion, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W26_ASSERTIONS_MISSING/);
+  const failedAssertion = JSON.parse(JSON.stringify(report));
+  failedAssertion.results.find((item) => item.case_id === 'W26-04-LATEST-OUTCOME-PROJECTION').executions[0].assertions[0].status = 'FAIL';
+  assert.throws(() => win26Report.verifyReport(failedAssertion, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W26_ASSERTION_INVALID/);
+  const missingProjection = JSON.parse(JSON.stringify(report));
+  delete missingProjection.results.find((item) => item.case_id === 'W26-04-LATEST-OUTCOME-PROJECTION').executions[0].projection_evidence;
+  assert.throws(() => win26Report.verifyReport(missingProjection, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W26_PROJECTION_EVIDENCE_REQUIRED/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

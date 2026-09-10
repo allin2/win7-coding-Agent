@@ -202,6 +202,13 @@ async function runFirstProcess(win, exec, env) {
   const probe = await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'provider probe');
   record('A9F1-PROVIDER-CONFIG-PROBE', probe === 'tool_calling', `probe=${probe}`);
 
+  // 真实 Provider HTTP 失败，形成早于后续成功轮次的 failed/not_applicable 持久化事实。
+  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "record expected provider failure"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const failedDisplayed = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t === 'failed · not_applicable' ? t : null)), 90_000, 'expected failed outcome');
+  const failedFact = await exec('(window.win7Agent.a9.snapshot()).then(r => { const facts = r.snapshot.conversation || []; return facts[facts.length - 1]; })');
+  record('A9F1-OLDER-PROVIDER-FAILURE', failedFact.outcome === 'failed' && failedFact.verification === 'not_applicable' &&
+    failedDisplayed === 'failed · not_applicable', JSON.stringify({ failedFact, failedDisplayed }));
+
   // A9 Viewer：自动识别对单 GBK 字符保持 ambiguous，用户显式选择后
   // 通过 v5 A9 IPC 正确显示中文，不再走 legacy UTF-8 读取。
   const gbkButtonReady = await waitFor(() => exec(`(() => {
@@ -339,12 +346,45 @@ async function runFirstProcess(win, exec, env) {
   })()`);
   record('A9-15-APPROVAL-RESOLVED-PERSISTED', approvalHistory.count >= 1 && approvalHistory.decisions.includes('denied'), JSON.stringify(approvalHistory));
 
+  // 首进程退出前再形成真实 mutation + verification 成功轮次，使重启链路的持久化顺序为
+  // 旧 failed/not_applicable → 新 completed/verified，而不是审批拒绝作为最新事实。
+  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "produce latest verified turn"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const latestDisplayed = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t === 'completed · verified' ? t : null)), 90_000, 'latest verified outcome');
+  const latestTurn = await exec('(window.win7Agent.a9.snapshot()).then(r => { const facts = r.snapshot.conversation || []; return facts[facts.length - 1]; })');
+  const projectionSeed = await exec(`(async () => {
+    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
+    const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
+    const events = queried.events || [];
+    const kind = (event) => event.eventType || event.type;
+    const data = (event) => event.payload?.data || event.payload || event.data || {};
+    const failures = events.filter((event) => kind(event) === 'turn_failed');
+    const completions = events.filter((event) => kind(event) === 'turn_completed' && data(event).outcome === 'completed' && data(event).verification === 'verified');
+    const olderFailure = failures[0];
+    const newerSuccess = completions[completions.length - 1];
+    return {
+      conversationId: snapshot.activeConversationId,
+      oldFailureTurnId: olderFailure && olderFailure.turnId,
+      oldFailureEventId: olderFailure && olderFailure.eventId,
+      latestSuccessTurnId: newerSuccess && newerSuccess.turnId,
+      latestSuccessEventId: newerSuccess && newerSuccess.eventId,
+      displayed: document.getElementById('a9-turn-outcome').textContent,
+    };
+  })()`);
+  report.projectionSeed = projectionSeed;
+  record('A9F1-OLDER-FAILURE-NEWER-SUCCESS-PERSISTED', latestTurn.outcome === 'completed' &&
+    latestTurn.verification === 'verified' && latestDisplayed === 'completed · verified' &&
+    Number.isSafeInteger(projectionSeed.oldFailureEventId) && Number.isSafeInteger(projectionSeed.latestSuccessEventId) &&
+    projectionSeed.oldFailureEventId < projectionSeed.latestSuccessEventId &&
+    projectionSeed.latestSuccessTurnId === latestTurn.turnId, JSON.stringify({ latestTurn, projectionSeed }));
+
   // checkpoint 事实落库（真实 SQLite；first 进程退出前保留）。
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ mode: r.snapshot.mode, provider: r.snapshot.provider.configured, model: r.snapshot.provider.model, checkpoints: r.snapshot.checkpoints.length }))');
   record('A9F1-SNAPSHOT-FACTS', snapshot.mode === 'full_access' && snapshot.provider === true && snapshot.model === 'smoke-manual-model' && snapshot.checkpoints >= 1, JSON.stringify(snapshot));
 }
 
 async function runSecondProcess(win, exec, env) {
+  const expectedProjection = process.env.A9_SMOKE_PROJECTION_SEED
+    ? JSON.parse(process.env.A9_SMOKE_PROJECTION_SEED) : {};
   // 重启恢复：不再通过命令行预绑定工作区；产品必须从同一 dataRoot
   // 恢复活动工作区，再恢复模式、Provider 配置与 checkpoint。
   const snapshot = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)'), 15_000, 'snapshot');
@@ -365,9 +405,14 @@ async function runSecondProcess(win, exec, env) {
     const ids = (queried.events || []).map((event) => event.eventId);
     return {
       count: ids.length,
+      eventIds: ids,
       unique: new Set(ids).size === ids.length,
       ordered: ids.every((id, index) => index === 0 || id > ids[index - 1]),
       modelNotes: (queried.events || []).filter((event) => (event.eventType || event.type) === 'model_note').length,
+      sessionEventIds: (queried.events || []).filter((event) => !event.turnId).map((event) => event.eventId),
+      turnRows: (queried.events || []).filter((event) => event.turnId).map((event) => ({
+        eventId: event.eventId, turnId: event.turnId, type: event.eventType || event.type,
+      })),
     };
   })()`);
   record('A9-15-HISTORY-RESTART-EVENTS', restoredEvents.count > 0 && restoredEvents.unique && restoredEvents.ordered &&
@@ -377,16 +422,40 @@ async function runSecondProcess(win, exec, env) {
     const facts = current.conversation || [];
     const latest = facts.length ? facts[facts.length - 1] : null;
     const displayed = document.getElementById('a9-turn-outcome').textContent;
-    const timelineItems = document.querySelectorAll('#a9-timeline li').length;
+    const inspectorItems = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => item.textContent);
+    const timelineItems = inspectorItems.length;
     const expected = latest && ['completed', 'completed_with_warnings', 'blocked', 'failed', 'cancelled', 'interrupted'].includes(latest.outcome)
       ? latest.outcome + ' · ' + (latest.verification || 'not_applicable')
       : '';
     return timelineItems > 0 && displayed === expected
-      ? { timelineItems, displayed, expected, latestTurnId: latest && latest.turnId }
+      ? { timelineItems, inspectorItems, displayed, expected, latestTurnId: latest && latest.turnId }
       : null;
   })()`), 20_000, 'persisted Inspector timeline and latest outcome projection');
   record('A9-15-HISTORY-RESTART-RENDERED', restoredProjection.timelineItems > 0 &&
     restoredProjection.displayed === restoredProjection.expected, JSON.stringify(restoredProjection));
+  const oldFailureRow = restoredEvents.turnRows.find((item) => item.eventId === expectedProjection.oldFailureEventId);
+  const latestSuccessRow = restoredEvents.turnRows.find((item) => item.eventId === expectedProjection.latestSuccessEventId);
+  const inspectorText = restoredProjection.inspectorItems.join('\n');
+  const projectionEvidence = {
+    conversationId: expectedProjection.conversationId,
+    queriedEventIds: restoredEvents.eventIds,
+    sessionEventIds: restoredEvents.sessionEventIds,
+    oldFailure: oldFailureRow || null,
+    latestSuccess: latestSuccessRow || null,
+    latestFactTurnId: restoredProjection.latestTurnId,
+    displayed: restoredProjection.displayed,
+    inspectorItems: restoredProjection.inspectorItems,
+  };
+  report.restartProjectionEvidence = projectionEvidence;
+  record('A9-15-INSPECTOR-PERSISTED-EVENTS', restoredEvents.ordered && restoredEvents.unique &&
+    restoredEvents.sessionEventIds.length > 0 && restoredProjection.timelineItems > 0 &&
+    inspectorText.includes('任务失败') && inspectorText.includes('任务完成'), JSON.stringify(projectionEvidence));
+  record('A9-15-OLDER-FAILURE-NEWER-SUCCESS-RESTART', Boolean(oldFailureRow) && Boolean(latestSuccessRow) &&
+    oldFailureRow.turnId === expectedProjection.oldFailureTurnId &&
+    latestSuccessRow.turnId === expectedProjection.latestSuccessTurnId &&
+    oldFailureRow.eventId < latestSuccessRow.eventId &&
+    restoredProjection.latestTurnId === expectedProjection.latestSuccessTurnId &&
+    restoredProjection.displayed === 'completed · verified', JSON.stringify(projectionEvidence));
 
   // Exercise the formal preload/Schema IPC path for the complete 16-conversation
   // boundary and identity-scoped draft/archive/restore operations.

@@ -2,6 +2,74 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vm from 'vm';
 
+function createRendererDomHarness() {
+  class FakeNode {
+    children: FakeNode[] = [];
+    parentNode: FakeNode | null = null;
+    dataset: Record<string, string> = {};
+    className = '';
+    hidden = false;
+    disabled = false;
+    open = false;
+    type = '';
+    title = '';
+    scrollTop = 0;
+    scrollHeight = 0;
+    private ownText = '';
+
+    constructor(readonly tagName = 'div') {}
+
+    get textContent() { return this.ownText + this.children.map((child) => child.textContent).join(''); }
+    set textContent(value: string) {
+      this.ownText = String(value == null ? '' : value);
+      this.children.forEach((child) => { child.parentNode = null; });
+      this.children = [];
+    }
+    get firstChild() { return this.children[0] || null; }
+    appendChild(child: FakeNode) { child.parentNode = this; this.children.push(child); return child; }
+    insertBefore(child: FakeNode, before: FakeNode | null) {
+      child.parentNode = this;
+      const index = before ? this.children.indexOf(before) : -1;
+      if (index >= 0) this.children.splice(index, 0, child); else this.children.push(child);
+      return child;
+    }
+    remove() {
+      if (!this.parentNode) return;
+      this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+      this.parentNode = null;
+    }
+    addEventListener() {}
+    querySelectorAll(selector: string) {
+      const matches: FakeNode[] = [];
+      const visit = (node: FakeNode) => {
+        node.children.forEach((child) => {
+          if (selector === 'details' && child.tagName === 'details') matches.push(child);
+          if (selector === 'details[open]' && child.tagName === 'details' && child.open) matches.push(child);
+          visit(child);
+        });
+      };
+      visit(this);
+      return matches;
+    }
+  }
+  const nodes = new Map<string, FakeNode>();
+  const node = (id: string, tagName = 'div') => {
+    const value = new FakeNode(tagName);
+    nodes.set(id, value);
+    return value;
+  };
+  ['a9-task-stream', 'a9-turn-outcome', 'a9-empty-state', 'a9-timeline', 'file-count',
+    'file-activity', 'file-empty', 'a9-shell-output'].forEach((id) => node(id, id === 'a9-timeline' || id === 'file-activity' ? 'ul' : 'div'));
+  return {
+    FakeNode,
+    nodes,
+    document: {
+      getElementById: (id: string) => nodes.get(id) || null,
+      createElement: (tagName: string) => new FakeNode(tagName),
+    },
+  };
+}
+
 describe('A9 unified desktop workbench contract', () => {
   const productRoot = path.join(__dirname, '../../product');
   const html = fs.readFileSync(path.join(productRoot, 'renderer/workbench.html'), 'utf8');
@@ -336,38 +404,122 @@ describe('A9 unified desktop workbench contract', () => {
     expect(context.classify({ shell: { exitCode: 0, status: 'completed' } })[0]).toBe('success');
   });
 
-  it('keeps queried session events available to the Inspector across restart', () => {
-    const source = script.slice(script.indexOf('  function ingestEvents('), script.indexOf('  function ingestTimelineEvents('));
-    const state: any = {
-      inspectorEvents: new Map(), turnEvents: new Map(), eventMaxId: 0,
-      activeTurnId: null, pendingToolLabel: null, lastEventAt: 0,
+  it('loads persisted session events into the Inspector in order without duplicates or cross-session residue', async () => {
+    const { document, nodes } = createRendererDomHarness();
+    const eventsByConversation: Record<string, any[]> = {
+      'conversation-a': [
+        { eventId: 15, eventType: 'turn_completed', turnId: 'turn-a', payload: { data: { outcome: 'completed' } } },
+        { eventId: 11, eventType: 'provider.configure', turnId: null, payload: {} },
+        { eventId: 13, eventType: 'tool_start', turnId: 'turn-a', payload: { data: { toolName: 'shell', args: { command: 'echo ok' } } } },
+        { eventId: 12, eventType: 'turn_started', turnId: 'turn-a', payload: {} },
+        { eventId: 13, eventType: 'tool_start', turnId: 'turn-a', payload: { data: { toolName: 'shell', args: { command: 'echo ok' } } } },
+        { eventId: 14, eventType: 'tool_end', turnId: 'turn-a', payload: { data: { toolName: 'shell', shell: { schemaVersion: 1, exitCode: 0, stdout: 'session-a-output' } } } },
+      ],
+      'conversation-b': [
+        { eventId: 21, eventType: 'turn_started', turnId: 'turn-b', payload: {} },
+        { eventId: 22, eventType: 'model_note', turnId: 'turn-b', payload: { data: { content: 'session-b-only' } } },
+      ],
     };
-    const context: any = { state, toolHeadline: jest.fn() };
-    vm.runInNewContext(source + ';this.ingest = ingestEvents;', context);
-    context.ingest([
-      { eventId: 1, type: 'provider.configure', turnId: null, data: {} },
-      { eventId: 2, type: 'turn_completed', turnId: 'turn-1', data: { outcome: 'completed' } },
+    const state: any = {
+      activeConversationId: 'conversation-a', inspectorEvents: new Map(), turnEvents: new Map(),
+      turnIdToFactTask: new Map(), eventMaxId: 0, activeTurnId: null, pendingToolLabel: null,
+      lastEventAt: 0, eventsBeforeId: null, snapshot: {}, eventsLoading: false,
+      eventsTruncated: false, eventsError: '', streamDom: new Map(), truncatedNote: null,
+    };
+    const queryEvents = jest.fn(async ({ conversationId }: any) => ({
+      ok: true, events: eventsByConversation[conversationId], hasMore: false,
+    }));
+    const normalizeAndLoad = script.slice(script.indexOf('  function normalizeTimelineEvent('), script.indexOf('  /** 事实'));
+    const labels = script.slice(script.indexOf('  function toolHeadline('), script.indexOf('  // ------------------------------------------------------------------\n  // 轮次渲染'));
+    const timeline = script.slice(script.indexOf('  function renderTimeline('), script.indexOf('  function renderCheckpoints('));
+    const context: any = {
+      state, document, a9: { queryEvents }, Date,
+      el: (id: string) => nodes.get(id),
+      text: (id: string, value: any) => { const target = nodes.get(id); if (target) target.textContent = String(value == null ? '' : value); },
+      renderConversation: jest.fn(), openWorkspaceFile: jest.fn(),
+    };
+    vm.runInNewContext(`${labels}\n${normalizeAndLoad}\n${timeline};this.load = loadConversationEvents;this.reset = resetConversationEvents;`, context);
+
+    await context.load();
+    const firstTimeline = nodes.get('a9-timeline')!;
+    expect(Array.from(state.inspectorEvents.keys()).sort((a: any, b: any) => a - b)).toEqual([11, 12, 13, 14, 15]);
+    expect(firstTimeline.children).toHaveLength(5);
+    expect(firstTimeline.children.map((item: any) => item.textContent)).toEqual([
+      'provider.configure', '任务开始', '运行命令 echo ok …', '运行命令  · exit=0', '任务完成 · completed',
     ]);
-    expect(Array.from(state.inspectorEvents.keys())).toEqual([1, 2]);
-    expect(state.turnEvents.get('turn-1').events).toHaveLength(1);
-    expect(state.eventMaxId).toBe(2);
+    expect(nodes.get('a9-shell-output')!.textContent).toContain('session-a-output');
+
+    state.activeConversationId = 'conversation-b';
+    context.reset();
+    await context.load();
+    expect(Array.from(state.inspectorEvents.keys())).toEqual([21, 22]);
+    expect(nodes.get('a9-timeline')!.textContent).toContain('模型说明');
+    expect(nodes.get('a9-timeline')!.textContent).not.toContain('session-a-output');
+    expect(queryEvents.mock.calls.map((call) => call[0].conversationId)).toEqual(['conversation-a', 'conversation-b']);
   });
 
-  it('projects the global outcome from the latest turn instead of an older rerendered failure', () => {
-    const source = script.slice(script.indexOf('  function projectOutcome('), script.indexOf('  function updateOutcomeCard('));
-    const context: any = { TERMINAL_OUTCOMES: new Set(['completed', 'failed']) };
-    vm.runInNewContext(source + ';this.project = projectOutcome;', context);
-    const olderFailure = context.project(
-      { outcome: 'failed', verification: 'not_applicable', finalMessage: '' },
-      [{ type: 'turn_failed', data: { error: 'expected failure' } }],
-    );
-    const latestSuccess = context.project(
-      { outcome: 'completed', verification: 'verified', finalMessage: 'done' },
-      [{ type: 'turn_completed', data: { outcome: 'completed', verification: 'verified', finalMessage: 'done' } }],
-    );
-    expect(olderFailure).toEqual(expect.objectContaining({ outcome: 'failed', verification: 'not_applicable' }));
-    expect(latestSuccess).toEqual({ outcome: 'completed', verification: 'verified', message: 'done' });
-    expect(script.indexOf("text('a9-turn-outcome', latestProjection")).toBeGreaterThan(script.indexOf('facts.forEach((fact) =>'));
+  it('keeps the latest verified outcome through a real incremental rerender and rejects the old side effect', () => {
+    const rendererFunctions = [
+      script.slice(script.indexOf('  function resolveTurnId('), script.indexOf('  // ------------------------------------------------------------------\n  // 友好文案')),
+      script.slice(script.indexOf('  function toolHeadline('), script.indexOf('  function timelineEntryLabel(')),
+      script.slice(script.indexOf('  function ensureTurnBlock('), script.indexOf('  function startLiveTracking(')),
+    ].join('\n');
+
+    const runScenario = (source: string) => {
+      const { document, nodes } = createRendererDomHarness();
+      const state: any = {
+        eventMaxId: 0, eventsTruncated: false, eventsError: '', eventsLoading: false,
+        localRequest: null, conversationSignature: null, renderedConversationId: 'conversation-a',
+        streamDom: new Map(), turnEvents: new Map(), turnIdToFactTask: new Map(),
+        activeTurnId: null, truncatedNote: null, streamFollow: false,
+      };
+      const context: any = {
+        state, document, Date, Map, Set, Array, String, JSON,
+        NOTE_LIMIT: 16 * 1024, TOOL_OUTPUT_LIMIT: 8 * 1024,
+        TERMINAL_OUTCOMES: new Set(['completed', 'failed']),
+        OUTCOME_LABELS: { completed: '完成', failed: '失败' },
+        clampText: (value: any, limit: number) => String(value == null ? '' : value).slice(0, limit),
+        el: (id: string) => nodes.get(id),
+        text: (id: string, value: any) => { const target = nodes.get(id); if (target) target.textContent = String(value == null ? '' : value); },
+        eventsForTurn: (turnId: string) => state.turnEvents.get(turnId)?.events || [],
+        resetConversationEvents: jest.fn(), loadConversationEvents: jest.fn(), scrollToLatest: jest.fn(),
+      };
+      vm.runInNewContext(`${source};this.render = renderConversation;`, context);
+      const snapshot = {
+        activeConversationId: 'conversation-a',
+        conversation: [
+          { taskId: 'task-old', turnId: 'turn-old', outcome: 'failed', verification: 'not_applicable', finalMessage: 'old fact' },
+          { taskId: 'task-new', turnId: 'turn-new', outcome: 'completed', verification: 'verified', finalMessage: 'latest success' },
+        ],
+      };
+      context.render(snapshot);
+      const latestSignatureBefore = state.streamDom.get('task-new').outcomeSig;
+      state.turnEvents.set('turn-old', { ids: new Set([101]), events: [
+        { eventId: 101, type: 'turn_failed', turnId: 'turn-old', data: { error: 'older persisted failure detail' } },
+      ] });
+      state.eventMaxId = 101;
+      context.render(snapshot);
+      return {
+        displayed: nodes.get('a9-turn-outcome')!.textContent,
+        latestSignatureBefore,
+        latestSignatureAfter: state.streamDom.get('task-new').outcomeSig,
+      };
+    };
+
+    const fixed = runScenario(rendererFunctions);
+    expect(fixed).toEqual(expect.objectContaining({
+      displayed: 'completed · verified',
+      latestSignatureAfter: fixed.latestSignatureBefore,
+    }));
+
+    const oldSideEffect = "    block.outcomeBodyEl.textContent = clampText(message || '任务已返回结果。', NOTE_LIMIT);";
+    const globalProjection = "    text('a9-turn-outcome', latestProjection\n      ? `${latestProjection.outcome} · ${latestProjection.verification}`\n      : '');";
+    expect(rendererFunctions).toContain(oldSideEffect);
+    expect(rendererFunctions).toContain(globalProjection);
+    const faultRestored = rendererFunctions
+      .replace(oldSideEffect, `${oldSideEffect}\n    text('a9-turn-outcome', \`${'${outcome}'} · ${'${verification}'}\`);`)
+      .replace(globalProjection, '    void latestProjection;');
+    expect(runScenario(faultRestored).displayed).toBe('failed · not_applicable');
   });
 
   it('pages older history and exposes recoverable query errors without losing loaded events', async () => {

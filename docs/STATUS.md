@@ -24,6 +24,12 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-10，WIN7-25 只读复核确认 Renderer 两处修复有效，但发现回归未执行原连续渲染触发顺序，且
+  kit/report 未把 Inspector 持久事件恢复与旧失败不得覆盖新成功设为签发条件。ADR-0119 / A9-15 §13
+  已授权直接修复：真实 Renderer 回归必须能拒绝故障注入，Electron 重启链绑定旧失败/新成功 turn/event ID、
+  查询事件与 DOM，WIN7-26 报告器拒绝新增断言或结构化投影证据缺失/失败。WIN7-25 候选和证据全部冻结；
+  当前阶段为 `A9_15_WIN7_26_VALIDATION_GAP_REPAIR_AUTHORIZED`，WIN7-26 普通用户实机仍 `NOT_PERFORMED`。
+
 - 2026-09-09，WIN7-24 普通用户真实 Provider 多工具任务完成并正常退出后，重启虽恢复中央对话且未重放，
   Inspector 活动却为空，全局结果错误停留在较早的 `failed · not_applicable`。只读 SQLite 元数据核对确认
   133 条事件完整存在，最新 task/turn/checkpoint/terminal event 均为 `completed · verified`，故裁定为

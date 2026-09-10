@@ -1757,3 +1757,25 @@
   输入，但不能继承 WIN7-24 的失败用例为 PASS，也不能修改或重判 WIN7-23/24。开发机测试、构建一致性和
   管理只读诊断均不构成 Win7 PASS；最终结论最多仍为 `A9_15_WIN7_UI_INTEGRATION_PASS`，不是 Alpha/RC
   重签。本决策不授权 Alpha 2 的 Review、Shell 实时输出或布局需求实现，也不授权推送。
+
+## ADR-0119 WIN7-25 验证缺口修复与 WIN7-26 可执行投影合同
+
+- 状态：Accepted（2026-09-10，负责人要求按已形成方案直接修复，并延续本地提交、双干净构建与实机流程）
+- 背景：WIN7-25 的 Renderer 修复经同输入行为对照有效，但对应 Jest 只分别验证结果 helper 与源码位置，
+  没有执行旧失败事件补载触发的连续渲染；恢复旧卡片写全局结果的副作用后测试仍通过。正式 Electron 重启
+  场景最后未在退出前形成旧失败→较新成功。WIN7-25 kit 的用例仅从 W24 替换编号，没有把 Inspector 当前
+  会话持久事件恢复和旧失败不得覆盖较新成功设为明确签发条件。
+- 决策：（1）不重写已验证有效的 Renderer 产品实现；Renderer 契约测试以最小 DOM 替身执行真实
+  `renderConversation`/结果卡连续调用，先显示旧失败与较新成功事实，再补载旧失败详情，断言最新卡签名和
+  全局 `completed · verified` 不变；测试内恢复旧副作用时必须观察到失败。（2）正式 Electron fixture 通过
+  Provider HTTP 失败形成旧 `failed · not_applicable`，再经真实 edit+Shell 验证形成较新
+  `completed · verified`；第二进程绑定 query event ID、turn ID、Inspector DOM 导出和最新持久化事实，
+  同时保留审批拒绝、无重放、旧审批拒绝和 Stop 清理断言。（3）WIN7-26 kit 新增稳定用例
+  `W26-03-INSPECTOR-PERSISTED-RESTART` 与 `W26-04-LATEST-OUTCOME-PROJECTION`；报告器要求结构化
+  `projection_evidence` 及其候选外 DOM 文件哈希。新增 assertion 缺失、状态非 PASS、投影证据缺失或身份/
+  顺序/DOM 不一致均拒绝签发。（4）WIN7-25 的源码提交、out-a/out-b、ZIP、manifest、kit、lock、authority、
+  构建树和复核证据全部冻结。WIN7-26 使用新源码提交、lock、kit、ZIP/manifest、独立 authority、部署目录
+  和证据根；W23/W24/W25 profile 与合同保持原样。
+- 后果：开发机真实 Electron fixture 可证明正式 main/preload/IPC/Renderer 的受影响链路，但不能满足真实
+  Provider 或普通用户非提升 Win7 证据。候选哈希形成后仍须独立 authority pin；未完成当前候选实机门前
+  保持 `WIN7_26_NOT_PERFORMED`。本决策不开放 ADR-0117/A9-16 的 Alpha 2 范围，也不授权推送或修改历史候选。

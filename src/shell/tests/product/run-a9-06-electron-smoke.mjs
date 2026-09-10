@@ -129,6 +129,13 @@ function createFixture(phaseName, stepFn) {
       requests.push(parsed);
       round += 1;
       const toolNames = (parsed.messages ?? []).filter((m) => m.role === 'tool' && m.name !== 'probe_test_echo').map((m) => m.name);
+      const messages = parsed.messages ?? [];
+      const lastUser = messages.slice().reverse().find((message) => message.role === 'user');
+      if (String(lastUser?.content || '').includes('expected provider failure')) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'expected fixture provider failure' } }));
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
       // 能力探测请求必须回 probe_test_echo（真实 Provider 保存时执行的最小 Tool Calling probe）。
@@ -158,9 +165,11 @@ function createFixture(phaseName, stepFn) {
 }
 
 // 第一进程行为（按 Turn 分段，避免审批把工具旅程 Turn 挂起）：
+// Turn 0 "record expected provider failure"：fixture 返回 HTTP 503，形成真实 failed/not_applicable 轮次。
 // Turn 1 "fix the bug and verify"：read → edit → shell(真实 node 断言) → final（completed/verified）。
 // Turn 2 "cleanup permanently and push"：delete(permanent) 触发审批（full_access 下 ALWAYS_CONFIRM）；
 //   拒绝后 loop 追加 denial tool 消息并再请求模型 → final。
+// Turn 4 "produce latest verified turn"：再次 edit → shell，确保首进程正常退出前的最新轮次为 completed/verified。
 // 第二进程使用同一 Restored Provider（baseUrl 指向本 fixture）提交新 Turn "verify again"：
 //   read → final（全新会话，无第一进程历史重放；由请求内容断言证明）。
 const firstFixture = createFixture('first', (() => {
@@ -173,9 +182,11 @@ const firstFixture = createFixture('first', (() => {
       const content = String(last.content || '');
       if (content.includes('cleanup')) turn = 2;
       else if (content.includes('verify again')) turn = 3;
+      else if (content.includes('produce latest verified')) turn = 4;
       else turn = 1;
     }
-    const tools = messages.filter((m) => m.role === 'tool').map((m) => m.name);
+    const lastUserIndex = messages.map((message) => message.role).lastIndexOf('user');
+    const tools = messages.slice(lastUserIndex + 1).filter((m) => m.role === 'tool').map((m) => m.name);
     if (turn === 3) {
       if (!tools.includes('read')) {
         return { id: 'r3', tool: { name: 'read', args: { path: 'calc.ts' } } };
@@ -193,6 +204,15 @@ const firstFixture = createFixture('first', (() => {
         return { id: 's1', tool: { name: 'shell', args: { command: String.raw`node -e "if (1 + 2 !== 3) process.exit(1); console.log('smoke-verified')"` } } };
       }
       return { id: 'final', content: 'bug fixed and verified.' };
+    }
+    if (turn === 4) {
+      if (!tools.includes('edit')) {
+        return { id: 'e4', tool: { name: 'edit', args: { path: 'calc.ts', oldText: 'return a + b;', newText: 'return a + b; // verified after older failure' } } };
+      }
+      if (!tools.includes('shell')) {
+        return { id: 's4', tool: { name: 'shell', args: { command: String.raw`node -e "if (1 + 2 !== 3) process.exit(1); console.log('projection-verified')"` } } };
+      }
+      return { id: 'final4', content: 'latest projection verified.' };
     }
     // Turn 2：触发审批的写操作（delete permanent），拒绝后模型收到 denial tool 消息。
     if (!tools.includes('delete')) {
@@ -379,6 +399,7 @@ try {
     A9_SMOKE_OLD_APPROVAL_CONVERSATION: firstReport.oldApproval && firstReport.oldApproval.conversationId ? firstReport.oldApproval.conversationId : '',
     A9_SMOKE_OLD_APPROVAL_TASK: firstReport.oldApproval && firstReport.oldApproval.taskId ? firstReport.oldApproval.taskId : '',
     A9_SMOKE_OLD_APPROVAL_TURN: firstReport.oldApproval && firstReport.oldApproval.turnId ? firstReport.oldApproval.turnId : '',
+    A9_SMOKE_PROJECTION_SEED: JSON.stringify(firstReport.projectionSeed || {}),
   }, [driverEntry]);
 } catch (err) {
   secondExit = 1;
