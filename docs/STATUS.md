@@ -16,13 +16,22 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA（仅冻结候选内部 Alpha，非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
 ## A9 Trusted Agent Runtime（2026-08-31）
+
+- 2026-09-11，A9-15 WIN7-28 在 Windows 7 SP1 build 7601 x64 普通用户 Medium/non-elevated 桌面令牌下
+  完成 10/10 当前候选直接用例；自动产品 smoke 75/75 assertions、真实 Provider `tool_calling` 多工具轮次、
+  前置/后置完整性、零残留进程、本机返回证据 verifier 与目标机 verifier 全部 PASS。冻结源码为
+  `d71807fa0d0f011d9c35104e7cd6dab62058ffa5`，ZIP SHA-256 为 `f1b6730…08351`，正式报告 SHA-256 为
+  `cc9b422…b267`。据此签发 `A9_15_WIN7_UI_INTEGRATION_PASS`，A9-15 更新为 COMPLETE；该裁决只关闭
+  WIN7-28 UI 集成合同，不重签 `A9_14_WIN7_22_GO_FOR_ALPHA`，也不构成新的 Alpha 或 RC PASS。脱敏证据见
+  [收口报告](reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md) 与
+  [结构化状态](status/a9-15-win7-28-ui-integration-20260911.json)；原始证据、截图、SQLite 和候选二进制保存在候选外。
 
 - 2026-09-10，WIN7-28 验收工具在真实 Electron 开发机 smoke 下复核（`55d9d5f` 工作树，未提交）：
   首次真实运行 **FAIL 79/84**，暴露上一轮标记为"✅"的分页/会话残留/重试区域四个缺陷——

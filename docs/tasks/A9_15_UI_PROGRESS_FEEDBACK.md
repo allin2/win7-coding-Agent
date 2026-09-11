@@ -1,14 +1,14 @@
 # A9-15 — UI 优化与 Agent 过程反馈
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: PRODUCT_EXPERIENCE_HARDENING
 Target Branch: codex/ui-optimization
 Source Baseline: 72dfe229447d93750815525e713a1a80f02534f3
-Phase-Gate: A9_15_WIN7_28_ACCEPTANCE_GAP_REPAIR_AUTHORIZED
-Win7-Validation: WIN7_28_NOT_PERFORMED
+Phase-Gate: A9_15_WIN7_UI_INTEGRATION_PASS
+Win7-Validation: WIN7_28_PASS
 Target Candidate: WIN7-28
-Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119 / ADR-0120 / ADR-0121
+Decision: ADR-0114 / ADR-0115 / ADR-0116 / ADR-0118 / ADR-0119 / ADR-0120 / ADR-0121 / ADR-0122
 ```
 
 ## 1. 授权与目标
@@ -340,3 +340,25 @@ Provider 多工具任务、Win10 双构建、Win7 实机、打包发布、提交
   旧事件身份），证明旧失败经分页加入已加载历史；无分页动作时该项记 `NOT_PERFORMED`。
 
 未执行普通用户非提升 Win7 当前候选验证前保持 `WIN7_28_NOT_PERFORMED`；本任务不重签 WIN7-22/27 或 Alpha/RC。
+
+## 16. WIN7-28 普通用户实机收口（2026-09-11）
+
+- 冻结身份：源码 `d71807fa0d0f011d9c35104e7cd6dab62058ffa5`；ZIP
+  `f1b6730bfa4cbc9d0d2955c2659d97b7a65c161efdc78cc4a7381bbad0a08351`；manifest
+  `fe6589b49e820fb9cecf33f57ebba6d89109af4de2df9191232226aca83dbef2`；formal input lock
+  `7c222010841438a61df0f4f7fc2762a7058e3c5b3bea5102ed612ec51cb5d082`；候选外 release authority
+  `7b6c240b54a9dead83e3fd4c6c7f73493f72eb715010caedf75fd33a5abac1e7`。
+- Windows 7 SP1 build 7601 x64 上由普通用户 `dccs-chaizl-pc\agent`、Medium Mandatory Level、非提升
+  桌面令牌直接执行 10/10 当前候选用例；自动产品 smoke 75/75 assertions PASS，包含独立 retry、重启
+  Inspector、审批/失败顺序、Stop 清理、搜索/焦点、真实分页与最新结果投影。
+- 真实 Provider 以 `REAL_NON_FIXTURE` / `tool_calling` 完成正式 UI 多工具轮次，实际执行
+  list/read/edit/Shell/read 并由退出 0 的 Shell 检查验证写入结果；前后文件哈希均纳入原始证据。
+- 前置、后置完整性均 PASS，候选相关残留进程为 0；42 个文本/JSON 证据文件的凭据值扫描零命中，选定
+  running/completed 截图另经人工检查未见凭据材料。
+- 打包内正式 verifier 对报告、证据哈希、必需断言与三组投影附件全部校验通过：报告 SHA-256
+  `cc9b422d228b04e5d798c5b385a1b7e5a1414a28aa4587e2b1299c08085eb267`，本机返回证据与目标机证据根均 PASS。
+  据此本任务状态更新为 `COMPLETE / A9_15_WIN7_UI_INTEGRATION_PASS / WIN7_28_PASS`。
+- 该裁决严格限于 A9-15 UI 集成合同，不重签 `A9_14_WIN7_22_GO_FOR_ALPHA`，不构成新的 Alpha 或 RC PASS。
+  管理 SSH 只用于传输、回收、哈希与最终证据处理，不替代普通用户产品证据；原始报告、截图、SQLite、
+  候选二进制和凭据材料继续保存在候选外，不纳入 Git。仓库收口报告见
+  [`a9_win7_28_ui_integration_closeout_2026-09-11.md`](../reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md)。

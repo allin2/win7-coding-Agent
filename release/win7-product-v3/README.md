@@ -6,6 +6,14 @@ WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
 ## A9-15 / WIN7-28 验收缺口修复候选
 
+WIN7-28 已于 2026-09-11 在 Windows 7 SP1 x64 普通用户 Medium/non-elevated 桌面令牌下完成 10/10
+当前候选直接用例，自动产品 smoke 75/75 assertions 与真实 Provider `tool_calling` 多工具轮次均 PASS；
+前置/后置完整性、零残留进程、本机返回证据 verifier 与目标机 verifier 均 PASS。冻结源码为
+`d71807fa0d0f011d9c35104e7cd6dab62058ffa5`，ZIP SHA-256 为
+`f1b6730bfa4cbc9d0d2955c2659d97b7a65c161efdc78cc4a7381bbad0a08351`。最终裁决仅为
+`A9_15_WIN7_UI_INTEGRATION_PASS`，不重签 Alpha/RC；脱敏收口见
+[`docs/reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md`](../../docs/reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md)。
+
 WIN7-27 的复核确认四项修复有实质改进，但仍存在四项 P2 级验收逻辑缺口（F1 DOM 结果与最新 turn 身份未参与
 判定、F2 逐行文本仍是关键词检查、F3 审批恢复顺序未要求恢复工具活动、F4 未真实执行旧事件补载）。ADR-0121
 的 WIN7-28 使用新锁 `a9-15-win7-28-input-lock.json`：投影附件成为唯一事实来源并由报告器强制校验 DOM 结果

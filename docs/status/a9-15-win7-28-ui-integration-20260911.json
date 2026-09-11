@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "record_id": "A9-15-WIN7-28-UI-INTEGRATION-20260911",
+  "recorded_at": "2026-09-11",
+  "task": "docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md",
+  "decision": "A9_15_WIN7_UI_INTEGRATION_PASS",
+  "status": "PASS",
+  "scope": "A9-15 WIN7-28 UI integration only; not a new Alpha or RC PASS",
+  "candidate": {
+    "id": "WIN7-28",
+    "version": "0.3.0-alpha.1",
+    "source_commit": "d71807fa0d0f011d9c35104e7cd6dab62058ffa5",
+    "package_sha256": "f1b6730bfa4cbc9d0d2955c2659d97b7a65c161efdc78cc4a7381bbad0a08351",
+    "manifest_sha256": "fe6589b49e820fb9cecf33f57ebba6d89109af4de2df9191232226aca83dbef2",
+    "formal_input_lock_sha256": "7c222010841438a61df0f4f7fc2762a7058e3c5b3bea5102ed612ec51cb5d082",
+    "release_authority_sha256": "7b6c240b54a9dead83e3fd4c6c7f73493f72eb715010caedf75fd33a5abac1e7",
+    "approval_registry_commit": "e1b6f4bf30ad2ae7576aa958317e0aea6f4338d3",
+    "approval_registry_sha256": "d9cfea73c2f89c01a33a2bbef1d65c27eb995cd3681c71a939183348744917b7"
+  },
+  "environment": {
+    "os": "Windows 7 Professional SP1 build 7601",
+    "architecture": "x64",
+    "product_identity": "dccs-chaizl-pc\\agent",
+    "integrity_level": "Medium Mandatory Level (S-1-16-8192)",
+    "elevation": "not-elevated",
+    "electron": "22.3.27",
+    "electron_abi": 110
+  },
+  "direct_current_candidate": {
+    "case_count": 10,
+    "case_status": "PASS_10_OF_10",
+    "automatic_product_smoke": "PASS_75_OF_75_ASSERTIONS",
+    "real_provider": "PASS_REAL_NON_FIXTURE_TOOL_CALLING",
+    "preflight_integrity": "PASS",
+    "postflight_integrity": "PASS",
+    "postflight_candidate_process_count": 0,
+    "credential_value_scan": "PASS_ZERO_MATCHES_IN_42_TEXT_OR_JSON_FILES",
+    "selected_screenshot_review": "PASS_NO_CREDENTIAL_MATERIAL_OBSERVED"
+  },
+  "formal_verifier": {
+    "report_status": "PASS",
+    "disposition": "A9_15_WIN7_UI_INTEGRATION_PASS",
+    "verified_cases": 10,
+    "direct_current_candidate_cases": 10,
+    "report_filename": "WIN7_28_ACCEPTANCE_REPORT.json",
+    "report_sha256": "cc9b422d228b04e5d798c5b385a1b7e5a1414a28aa4587e2b1299c08085eb267",
+    "local_returned_evidence": "PASS",
+    "target_machine_evidence_root": "PASS"
+  },
+  "evidence_boundary": {
+    "raw_evidence_location": "candidate-external acceptance archive",
+    "git_excludes": [
+      "raw acceptance report and evidence attachments",
+      "screenshots",
+      "SQLite databases and snapshots",
+      "candidate binaries",
+      "credentials and DPAPI material"
+    ],
+    "administrative_ssh": "TRANSFER_HASH_RETRIEVAL_AND_FINAL_PROCESSING_ONLY_NOT_PRODUCT_EVIDENCE",
+    "historical_candidate_reissue": false,
+    "alpha_or_rc_reissue": false
+  },
+  "report": "docs/reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md"
+}
