@@ -74,6 +74,12 @@
   建立全新 WIN7-25 并完成双干净构建、独立 authority 与受影响普通用户 Win7 复验。当前阶段为
   `A9_15_WIN7_25_REPAIR_AUTHORIZED`，尚未形成 WIN7-25 候选或新 PASS。
 
+- 2026-09-09，负责人将真实 Shell 运行中增量输出、完整 Review、扩大左侧对话区、桌面宽屏左右栏独立
+  开关及主区四态自适应纳入 `0.3.0-alpha.2`。ADR-0117 / [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md)
+  已形成需求基线，状态为 `PLANNED_NOT_AUTHORIZED`：不构成实现、候选或验收授权。Review 审批卡只属于
+  Review staging/Apply；Full Access 普通写入无 Review 卡，但既有高影响操作目标绑定确认仍保留并须在
+  UI 中明确区分。当前 WIN7-24 与 Alpha 1 验收事实不因此修改或升级。
+
 - 2026-09-09，ADR-0114 / [A9-15 UI 优化与 Agent 过程反馈](tasks/A9_15_UI_PROGRESS_FEEDBACK.md) 在
   `codex/ui-optimization` 分支（基线 `72dfe22`）完成开发机实现与定向验证：按获批 Demo 暖色浅色主题重构
   工作台视觉，新增 `model_note`/`approval_resolved` 事件与 `a9.events.query`（IPC schemaVersion 6）

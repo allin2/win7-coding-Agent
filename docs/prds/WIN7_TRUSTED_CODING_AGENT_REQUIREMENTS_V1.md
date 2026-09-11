@@ -9,6 +9,7 @@ Target-Branch: codex/a9-trusted-agent-runtime
 Decision: ADR-0089
 Scope-Amendment: ADR-0096
 Amended-At: 2026-08-25
+Alpha2-Requirements-Amendment: ADR-0117
 Source-Baseline: A8 latest clean code baseline at 6c32692121f66a0431d226003389eaa22200e152
 ```
 
@@ -65,6 +66,18 @@ Full Access；完整 Review 工作流只在 Alpha 2 评分。
 审批绑定 Review revision、工作区基线、预览与 accepted-set 哈希后才允许原子 Apply。重启只恢复事实，
 不自动应用、不复用旧审批。该能力在独立任务书获批并完成开发机与 Win7 同候选验收前为
 `OUT_OF_SCOPE_ALPHA1 / NOT_IMPLEMENTED_ALPHA2`。
+
+Alpha 2 的 Review 审批卡仅用于准备区文件决定与 Apply；Full Access 的普通写入不进入 Review staging，
+也不显示 Review 审批卡。A9-M03 对删除、外部写入、push、提权等高影响操作的一次性目标绑定确认仍保留，
+并应在 UI 和审计中与 Review 审批明确区分。取消该安全确认不是 ADR-0117 的授权范围。
+
+### A9-M05 Alpha 2 Shell 运行中输出
+
+Alpha 2 将 Shell stdout/stderr 从“工具结束后一次性呈现”升级为真实运行中增量反馈。事件必须在进程仍
+运行时从 helper/Runner 贯通 Core、持久化/IPC 与 Renderer，保留来源和顺序，处理跨块编码与脱敏，并继续
+遵守输出上限、取消和进程树清理。仅将最终输出在前端分片或动画展示不算实时输出。
+
+本项不开放交互式终端或 stdin，也不要求模型 token 级流式；精确合同见 A9-16 任务书。
 
 ### A9-M02 Full Access 权限
 
@@ -316,6 +329,15 @@ Alpha 1 不引入向量数据库或 Embedding。数万文件工作区必须可�
 
 首次只要求工作区、权限模式和 Provider；随后运行能力探测。高级代理、CA、预算和 Shell 覆盖不阻塞开始。
 默认简体中文，字符串集中管理并提供基础英文；至少验证 1366×768、100%/125% DPI 和中文字体环境。
+
+### A9-UI04 Alpha 2 自适应工作台
+
+- 左侧对话目录优先获得剩余纵向空间并独立滚动；1366×768、100% DPI 默认态至少完整显示 4 条普通
+  对话行，不得再被固定辅助区块压缩到只见 1～2 条。
+- 桌面宽屏下左侧导航与右侧 Inspector 均可独立关闭和打开；窄屏继续使用抽屉语义。
+- 主区覆盖左右均开、仅左开、仅右开、左右均关四种布局，释放的宽度必须立即归还主对话区，不留空列、
+  不横向溢出，也不丢失滚动、展开、草稿、运行状态或决定入口。
+- 开关具备键盘、焦点与 `aria-expanded` 状态，并在 1366×768、100%/125% DPI 和较矮窗口验证。
 
 ## 11. 交付与 Runtime Profile
 

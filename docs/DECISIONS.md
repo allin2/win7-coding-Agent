@@ -1737,6 +1737,28 @@
   Provider 用例，开发机或管理员结果不能替代普通用户非提升证据。完成结论仍最多为
   `A9_15_WIN7_UI_INTEGRATION_PASS`，不是新的 Alpha/RC PASS；不推送。
 
+## ADR-0117 Alpha 2 Review、运行中输出与自适应工作台需求基线
+
+- 状态：Accepted（2026-09-09，负责人明确将 Shell 中间输出、完整 Review 和左右栏自适应改进移入 Alpha 2；
+  本裁决只接受需求方向，不授权实现）
+- 背景：WIN7-24 真实 Provider 检查已显示任务运行状态、等待时长与工具活动，但 Shell stdout/stderr 仍在
+  工具结束后批量进入 UI，不是运行中增量输出。当前左栏的工作区卡、导航、任务与信任提示挤压对话目录，
+  常见目标机视口只能看到 1～2 条；右侧 Inspector 在桌面宽屏固定占列，左右栏关闭后也没有完整的主区
+  四态重排合同。Review 已由 ADR-0096 延期到 `0.3.0-alpha.2`。
+- 决策：（1）以 [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md) 冻结 Alpha 2 需求，任务状态
+  `PLANNED_NOT_AUTHORIZED`；实现前须另行批准分支、基线、允许路径与验证合同。（2）完整 Review 包含私有
+  staging、逐文件接受/拒绝、revision/基线/预览/accepted-set 哈希绑定、原子 Apply、漂移拒绝和无重放恢复；
+  Review 后端缺失继续零写入 fail-closed。（3）Review 审批卡只属于 Review；Full Access 普通写入不进入
+  Review，也不显示 Review 卡。ADR-0089 的删除、外部写入、push、提权等高影响操作一次性目标绑定确认继续
+  保留，并以不同名称和审计类型呈现；移除该安全边界需另行明确授权和 ADR。（4）Shell stdout/stderr 必须
+  在进程仍运行时由 helper/Runner 贯通 Core、持久化/IPC 和 Renderer；跨块编码、顺序、背压、有界输出、
+  脱敏、取消和清理均为合同的一部分，前端切片最终输出不得冒充实时。（5）左侧对话目录优先获得剩余高度；
+  1366×768、100% DPI 默认态至少完整显示 4 条普通对话。桌面左右栏均可独立开关，主区覆盖四种组合并
+  使用释放空间；窄屏抽屉、键盘/焦点、滚动/草稿/活动状态与 100%/125% DPI 纳入验收。
+- 后果：Alpha 2 需要跨 native helper 协议、Runner、Core、State、IPC/Renderer、Review staging 和恢复链的
+  新实施任务与独立审查，并在新候选上完成开发机、Win10 与普通用户非提升 Win7 验收。本 ADR 不修改
+  Alpha 1 产品字节，不重开 A9-15，不改判或重签 WIN7-19～24，也不产生任何新 PASS。
+
 ## ADR-0118 WIN7-24 重启历史投影修复与 WIN7-25 新候选
 
 - 状态：Accepted（2026-09-09，负责人确认按完整修复、回归、本地提交、双干净构建和 Win7 复验方案继续）
