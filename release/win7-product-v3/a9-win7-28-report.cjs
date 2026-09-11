@@ -222,6 +222,7 @@ function expectedRange(query) {
 
 /**
  * DOM 导出必须与查询导出的有界显示范围逐行相等：身份、顺序、去重、内容与时间一致（共享契约同一函数），
+ * 时间由受测运行时独立记录的 time_baseline 核对（W28-H03：不从待验 DOM 首行自校准，统一错时被拒绝），
  * 并且必须保留实际显示结果、最新持久化 turn 身份（F1）与自身阶段标识。
  */
 function parseDomExport(exported, query, caseId, stage) {
@@ -235,16 +236,21 @@ function parseDomExport(exported, query, caseId, stage) {
   assert(exported.latest_persisted_turn_id === null
     || (typeof exported.latest_persisted_turn_id === 'string' && exported.latest_persisted_turn_id.length > 0),
   `A9_W28_PROJECTION_DOM_LATEST_TURN_INVALID:${caseId}:${stage}`);
+  // W28-H03：schema v3 起 DOM 导出必须携带可推导的独立时间基准；缺失/无效一律拒绝。
+  assert(plain(exported.time_baseline) && contract.deriveTimeBaseline(exported.time_baseline) !== null,
+    `A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID:${caseId}:${stage}`);
   assert(plain(exported.display_range) && exported.display_range.rule === INSPECTOR_DISPLAY_RULE
     && exported.display_range.max_rows === INSPECTOR_DISPLAY_ROWS, `A9_W28_PROJECTION_DISPLAY_RULE_INVALID:${caseId}:${stage}`);
   assert(Array.isArray(exported.rows), `A9_W28_PROJECTION_DOM_ROWS_REQUIRED:${caseId}:${stage}`);
   // 正向判定与全部负向变异共用同一函数：身份、顺序、去重、内容或时间不符一律拒绝。
-  assert(contract.rowsMatchQuery(exported.rows, query.events), `A9_W28_PROJECTION_DOM_ROWS_MISMATCH:${caseId}:${stage}`);
+  assert(contract.rowsMatchQuery(exported.rows, query.events, exported.time_baseline),
+    `A9_W28_PROJECTION_DOM_ROWS_MISMATCH:${caseId}:${stage}`);
   assert(exported.display_range.rows_total === expectedRange(query).length, `A9_W28_PROJECTION_DISPLAY_TOTAL_INVALID:${caseId}:${stage}`);
   return {
     rows: exported.rows, conversationId: exported.conversation_id,
     displayedOutcome: exported.displayed_outcome,
     latestPersistedTurnId: exported.latest_persisted_turn_id, stage: exported.stage,
+    timeBaseline: exported.time_baseline,
   };
 }
 
@@ -300,8 +306,9 @@ function validateInspectorProjection(proof, evidence, evidenceRoot, fileSystem, 
     && other.stage === 'other_conversation', `A9_W28_PROJECTION_DOM_KIND_INVALID:${caseId}:other`);
   assert(typeof other.conversation_id === 'string' && other.conversation_id.length > 0
     && other.conversation_id !== query.conversationId, `A9_W28_PROJECTION_SESSION_SWITCH_SAME_CONVERSATION:${caseId}`);
-  const foreignIds = new Set(query.ids);
-  assert(Array.isArray(other.rows) && !other.rows.some((row) => plain(row) && foreignIds.has(row.event_id)),
+  // W28-H05：其他会话 DOM 必须是非空、身份有效且与原会话事件 ID 无交集（共享契约同一判定，
+  // 方向为"无交集"；空会话不能单独证明隔离）。
+  assert(!contract.sessionResidueViolation(other.rows, query.ids),
     `A9_W28_PROJECTION_CROSS_SESSION_RESIDUE:${caseId}`);
   const resumed = parseDomExport(readArtifact(proof.session_switch.resume_export, evidence, evidenceRoot, fileSystem, caseId, 'resume_export'), query, caseId, 'resume');
   assert(canonical(resumed.rows.map((row) => row.event_id)) === canonical(dom.rows.map((row) => row.event_id)),
@@ -365,24 +372,74 @@ function validateOutcomeProjection(proof, evidence, evidenceRoot, fileSystem, ca
   return { query, terminal, olderEvent, newerEvent };
 }
 
-/** F4：必须证明旧失败经真实 beforeEventId 分页加载，且首批确实不包含它。 */
+/**
+ * F4：必须证明旧失败经真实 beforeEventId 分页加载，且首批确实不包含它。
+ *
+ * W28-H04：本函数不再信任 `paging.ok` 摘要布尔值，而是把 driver 观察边界记录的真实分页
+ * 链式事实（first_screen + pages[] + older_failure + 便利字段）交给共享契约
+ * `validatePagingChain` 逐项自检；`window_limit` 必须绑定产品固定窗口（PRODUCT_FIRST_QUERY_LIMIT），
+ * 观察边界必须是 IPC 主进程 handle 观察点。摘要字段只能向导出的逐页事实推导，不可独立填 PASS。
+ */
 function validatePagingProjection(proof, evidence, evidenceRoot, fileSystem, caseId) {
   const query = parseQueryExport(readArtifact(proof.query_export, evidence, evidenceRoot, fileSystem, caseId, 'query_export'), caseId);
   parseDomExport(readArtifact(proof.dom_export_after_older_load, evidence, evidenceRoot, fileSystem, caseId, 'dom_export_after_older_load'), query, caseId, 'older_load');
   const paging = proof.paging;
   assert(plain(paging), `A9_W28_PROJECTION_PAGING_REQUIRED:${caseId}`);
-  assert(paging.ok === true, `A9_W28_PROJECTION_PAGING_NOT_EXECUTED:${caseId}`);
-  assert(paging.firstPageHasMore === true, `A9_W28_PROJECTION_PAGING_NO_TRUNCATION:${caseId}`);
-  assert(isEventId(paging.beforeEventId), `A9_W28_PROJECTION_PAGING_CURSOR_MISSING:${caseId}`);
-  assert(paging.controlConsumed === true, `A9_W28_PROJECTION_PAGING_CONTROL_NOT_CONSUMED:${caseId}`);
-  assert(Number.isSafeInteger(paging.pageCount) && paging.pageCount > 0
-    && isEventId(paging.pageLastId) && paging.pageLastId < paging.beforeEventId,
-  `A9_W28_PROJECTION_PAGING_CURSOR_NOT_ADVANCED:${caseId}`);
-  assert(paging.pageHasOlderFailure === true, `A9_W28_PROJECTION_PAGING_OLDER_FAILURE_MISSING:${caseId}`);
-  assert(paging.firstPageExcludesOlderFailure === true, `A9_W28_PROJECTION_PAGING_OLDER_IN_FIRST_PAGE:${caseId}`);
+  // 产品 UI 分页窗口必须等于产品固定窗口（真实 driver 观察其首屏 limit 即此值）。
+  assert(paging.window_limit === contract.PRODUCT_FIRST_QUERY_LIMIT,
+    `A9_W28_PROJECTION_PAGING_WINDOW_UNBOUND:${caseId}`);
+  // 观察边界必须证明证据来自 IPC 主进程 handle 观察点，而非 driver 独立参考查询或摘要。
+  assert(paging.observation_boundary === 'IPC_MAIN_HANDLE_OBSERVER',
+    `A9_W28_PROJECTION_PAGING_BOUNDARY_INVALID:${caseId}`);
+  assert(typeof paging.conversation_id === 'string' && paging.conversation_id === query.conversationId,
+    `A9_W28_PROJECTION_PAGING_CONVERSATION_MISMATCH:${caseId}`);
   const older = proof.older_failure;
-  assert(plain(older) && isEventId(older.event_id) && older.event_id === paging.pageOlderFailureId,
-    `A9_W28_PROJECTION_PAGING_OLDER_BINDING_MISMATCH:${caseId}`);
+  assert(plain(older) && isEventId(older.event_id) && typeof older.turn_id === 'string' && older.turn_id,
+    `A9_W28_PROJECTION_OLDER_FAILURE_INVALID:${caseId}`);
+  // 报告级旧失败身份必须与链内实际返回的旧失败一致。
+  assert(paging.older_failure && paging.older_failure.event_id === older.event_id
+    && (paging.older_failure.turn_id || null) === (older.turn_id || null)
+    && paging.older_failure.type === 'turn_failed',
+  `A9_W28_PROJECTION_PAGING_OLDER_BINDING_MISMATCH:${caseId}`);
+  // RF03: 报告级旧失败身份必须与独立 query.events 中的同一事件交叉比对（拒绝自造 turn_id）
+  const queryOlder = query.events.find((event) => event.event_id === older.event_id);
+  assert(queryOlder && queryOlder.turn_id === older.turn_id && queryOlder.type === 'turn_failed',
+    `A9_W28_PROJECTION_PAGING_OLDER_QUERY_MISMATCH:${caseId}`);
+  // 用同一共享契约独立重算分页链，不信任 paging.ok 摘要。
+  const verdict = contract.validatePagingChain(paging);
+  assert(verdict.ok === true,
+    `A9_W28_PROJECTION_PAGING_CHAIN_INVALID:${caseId}:${(verdict.violations || []).join(',')}`);
+  // RF03: 分页返回的所有终态必须与独立 query.events 的事件身份（turn_id / type）一致，
+  // 且首屏及各页成员集合必须与独立 query.events 严格一致（防止自造或缺漏成员）。
+  if (paging.first_screen && Array.isArray(paging.first_screen.event_ids)) {
+    const expectedFirstIds = query.events.slice(-paging.window_limit).map((e) => e.event_id);
+    assert(canonical(paging.first_screen.event_ids) === canonical(expectedFirstIds),
+      `A9_W28_PROJECTION_PAGING_FIRST_SCREEN_MEMBERS_MISMATCH:${caseId}`);
+  }
+  if (Array.isArray(paging.pages)) {
+    for (const page of paging.pages) {
+      if (page && page.request && page.response && Array.isArray(page.response.event_ids)) {
+        const before = page.request.before_event_id;
+        const limit = page.request.limit;
+        const matchingEvents = query.events.filter((e) => e.event_id < before).slice(-limit);
+        const expectedIds = matchingEvents.map((e) => e.event_id);
+        assert(canonical(page.response.event_ids) === canonical(expectedIds),
+          `A9_W28_PROJECTION_PAGING_MEMBERS_MISMATCH:${caseId}`);
+        assert(page.response.count === expectedIds.length,
+          `A9_W28_PROJECTION_PAGING_COUNT_MISMATCH:${caseId}`);
+        const hasMoreExpected = query.events.some((e) => e.event_id < (expectedIds[0] || 0));
+        assert(Boolean(page.response.has_more) === hasMoreExpected,
+          `A9_W28_PROJECTION_PAGING_HAS_MORE_MISMATCH:${caseId}`);
+      }
+      for (const terminal of (page.response && page.response.terminal_events) || []) {
+        const matchingQuery = query.events.find((e) => e.event_id === terminal.event_id);
+        if (matchingQuery) {
+          assert((matchingQuery.turn_id || null) === (terminal.turn_id || null) && matchingQuery.type === terminal.type,
+            `A9_W28_PROJECTION_PAGING_TERMINAL_QUERY_MISMATCH:${caseId}`);
+        }
+      }
+    }
+  }
   // 查询附件必须记录真实游标与 hasMore，而不是硬编码 has_more=false。
   assert(query.pages.some((page) => page.before_event_id !== null), `A9_W28_PROJECTION_PAGES_CURSOR_NOT_RECORDED:${caseId}`);
   assert(query.pages.some((page) => page.before_event_id === null && page.has_more === true),

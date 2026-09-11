@@ -379,6 +379,9 @@ const baseEnv = {
   A9_SMOKE_PRODUCT_MAIN: productMain,
   // ADR-0120：开发机 fixture 显式启用投影协议；历史 profile 不设置该变量。
   A9_SMOKE_DRIVER_PROTOCOL: 'projection',
+  // W28-H01：契约解析的显式合同——开发机 runner 显式传入仓库内共享契约路径，
+  // driver 不再回退搜索源码仓库相对路径。
+  A9_SMOKE_PROJECTION_CONTRACT: path.join(repositoryRoot, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
   A9_SMOKE_PROJECTION_DIR: projectionRoot,
 };
 
@@ -504,6 +507,8 @@ if (!fs.existsSync(w28ReportPath)) {
   projectionParseDetail = `REPORT_MODULE_ABSENT:${w28ReportPath}`;
 } else try {
   const reportModule = hostRequire(w28ReportPath);
+  const w28ContractPath = path.join(repositoryRoot, 'release/win7-product-v3/a9-projection-contract.cjs');
+  const projectionContract = hostRequire(w28ContractPath);
   const readProjection = (name) => JSON.parse(fs.readFileSync(path.join(projectionEvidenceRoot, name), 'utf8'));
   const query = reportModule.parseQueryExport(readProjection('projection-query-export.json'), 'W28-03-INSPECTOR-PERSISTED-RESTART');
   reportModule.parseDomExport(readProjection('projection-dom-export.json'), query, 'W28-03-INSPECTOR-PERSISTED-RESTART', 'restart');
@@ -515,18 +520,98 @@ if (!fs.existsSync(w28ReportPath)) {
   const latestTurn = reportModule.latestTerminal(query, 'W28-09-LATEST-OUTCOME-PROJECTION');
   const olderFacts = reportModule.terminalFacts(olderEvent);
   const newerFacts = reportModule.terminalFacts(newerEvent);
-  projectionParseable = Boolean(olderEvent && newerEvent && olderEvent.turn_id !== newerEvent.turn_id
+  // W28-H04g：分页证据改用共享契约 validatePagingChain 独立重算（产品窗口/观察边界绑定 + 逐页
+  // 游标连续/推进/去重/旧失败绑定），不再只信任 paging.ok 等摘要布尔值。
+  const pagingVerdict = projectionContract.validatePagingChain(paging);
+  projectionParseable = Boolean(pagingVerdict.ok === true
+    && paging.window_limit === projectionContract.PRODUCT_FIRST_QUERY_LIMIT
+    && paging.observation_boundary === 'IPC_MAIN_HANDLE_OBSERVER'
+    && olderEvent && newerEvent && olderEvent.turn_id !== newerEvent.turn_id
     && olderEvent.type === 'turn_failed' && olderFacts && olderFacts.outcome === 'failed' && olderFacts.verification === 'not_applicable'
     && newerEvent.type === 'turn_completed' && newerFacts && newerFacts.outcome === 'completed' && newerFacts.verification === 'verified'
     && latestTurn.event_id === newerEvent.event_id
-    && paging.ok === true && paging.firstPageHasMore === true && paging.pageHasOlderFailure === true
-    && paging.firstPageExcludesOlderFailure === true
     && query.pages.some((page) => page.before_event_id !== null));
-  projectionParseDetail = `queryEvents=${query.events.length}; pages=${query.pages.length}; older=${outcome.older_failure.event_id}; newer=${outcome.newer_success.event_id}; firstPageHasMore=${paging.firstPageHasMore}; pageHasOlderFailure=${paging.pageHasOlderFailure}`;
+  projectionParseDetail = `queryEvents=${query.events.length}; pages=${query.pages.length}; older=${outcome.older_failure.event_id}; newer=${outcome.newer_success.event_id}; window=${paging.window_limit}; pagingChain=${pagingVerdict.ok === true ? 'PASS' : (pagingVerdict.violations || []).join(',')}`;
 } catch (error) {
   projectionParseDetail = String(error && error.message ? error.message : error);
 }
 record('A9-W28-PROJECTION-ARTIFACTS-REPORT-PARSEABLE', projectionParseable, projectionParseDetail);
+
+// ---------------------------------------------------------------------------
+// W28-H06 查询失败后的可见重试（独立进程）：复用第二进程同一 dataRoot 与工作区，
+// 在前一进程完全关闭后，由宿主注入一次性绑定目标会话的查询失败替身并实际点击“重试加载”。
+// ---------------------------------------------------------------------------
+const retryOut = path.join(root, 'retry-report.json');
+const retryTargetConversation = secondReport.retryTarget && secondReport.retryTarget.conversationId
+  ? secondReport.retryTarget.conversationId : '';
+let retryExit = 1;
+if (!retryTargetConversation) {
+  record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-LAUNCH', false, 'RETRY_TARGET_CONVERSATION_MISSING');
+} else {
+  try {
+    retryExit = await runElectronProcess({
+      ...baseEnv,
+      A9_SMOKE_MODE: 'retry',
+      A9_SMOKE_FIXTURE_URL: firstUrl,
+      A9_SMOKE_RETRY_CONVERSATION: retryTargetConversation,
+      A9_SMOKE_OUT: retryOut,
+    }, [driverEntry]);
+  } catch (err) {
+    retryExit = 1;
+    record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-LAUNCH', false, String(err.message || err));
+  }
+}
+record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-EXIT', retryExit === 0, `exit=${retryExit}; target=${retryTargetConversation}`);
+let retryReport = { status: 'NO_REPORT' };
+if (fs.existsSync(retryOut)) {
+  try { retryReport = JSON.parse(fs.readFileSync(retryOut, 'utf8')); } catch (_e) { /* keep */ }
+}
+const retryModeOk = retryReport.mode === 'retry';
+const retryTargetBound = Boolean(retryTargetConversation
+  && retryModeOk
+  && retryReport.retryTarget?.conversationId === retryTargetConversation
+  && Array.isArray(retryReport.cases)
+  && retryReport.cases.some((c) => c.id === 'A9-15-QUERY-FAILURE-VISIBLE-RETRY' && c.passed === true));
+record('A9-W28-RETRY-TARGET-BOUND', retryTargetBound,
+  `secondTarget=${retryTargetConversation}; retryTarget=${retryReport.retryTarget?.conversationId || ''}; mode=${retryReport.mode || ''}`);
+
+const retryCaseCounts = new Map();
+for (const c of retryReport.cases || []) {
+  if (c && typeof c.id === 'string') {
+    retryCaseCounts.set(c.id, (retryCaseCounts.get(c.id) || 0) + 1);
+  }
+}
+const duplicateRetryCaseIds = Array.from(retryCaseCounts.entries())
+  .filter(([, count]) => count > 1)
+  .map(([id]) => id);
+const retryNoDuplicates = Array.isArray(retryReport.cases)
+  && duplicateRetryCaseIds.length === 0
+  && retryReport.cases.length === retryCaseCounts.size;
+
+const retryCasesAllPassed = Array.isArray(retryReport.cases)
+  && retryReport.cases.length > 0
+  && retryReport.cases.every((c) => c && c.passed === true);
+
+const retryReportValid = retryReport.status === 'PASS'
+  && retryModeOk
+  && retryTargetBound
+  && retryNoDuplicates
+  && retryCasesAllPassed;
+
+record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-REPORT', retryReportValid,
+  JSON.stringify({
+    status: retryReport.status,
+    mode: retryReport.mode,
+    targetBound: retryTargetBound,
+    noDuplicates: retryNoDuplicates,
+    cases: retryReport.cases?.length || 0,
+    duplicates: duplicateRetryCaseIds,
+  }));
+
+for (const c of retryReport.cases || []) {
+  const isDuplicate = (retryCaseCounts.get(c?.id) || 0) > 1;
+  record(c.id, !isDuplicate && c.passed === true, isDuplicate ? `DUPLICATE_ASSERTION:${c.id}` : (c.detail || ''));
+}
 
 // 旧审批不可执行：第二进程驱动已断言 resumeApproval 结构化拒绝。
 // （A9F2-OLD-APPROVAL-REJECTED 由驱动报告。）
@@ -579,6 +664,7 @@ const report = {
     { phase: 'workspace_select', exit: workspaceSelectExit, report: workspaceSelectReport.status },
     { phase: 'first', exit: firstExit, report: firstReport.status },
     { phase: 'second', exit: secondExit, report: secondReport.status },
+    { phase: 'retry', exit: retryExit, report: retryReport.status },
     { phase: 'stop', exit: stopExit, report: stopReport.status },
   ],
   fixture: {

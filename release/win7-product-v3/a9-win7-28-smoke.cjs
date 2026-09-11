@@ -5,6 +5,7 @@
 process.noAsar = true;
 
 const childProcess = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -31,6 +32,14 @@ function copyTree(source, destination) {
   }
 }
 
+function sha256File(filePath) { return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'); }
+
+// W28-H02：批准/拒绝目标的逐项清点事实（存在性、字节哈希、大小）。
+function targetInventory(target) {
+  const exists = fs.existsSync(target);
+  return { exists, sha256: exists ? sha256File(target) : null, size: exists ? fs.statSync(target).size : null };
+}
+
 function prepareDriverRuntime(candidateRoot, runRoot, sourceDriver) {
   const runtimeRoot = path.join(runRoot, 'driver-electron');
   fs.mkdirSync(runtimeRoot, { recursive: true });
@@ -46,10 +55,19 @@ function prepareDriverRuntime(candidateRoot, runRoot, sourceDriver) {
   const appRoot = path.join(runRoot, 'driver-app');
   fs.mkdirSync(appRoot, { recursive: true });
   fs.copyFileSync(sourceDriver, path.join(appRoot, 'main.cjs'));
+  // W28-H01：外置 driver 依赖闭包——共享投影契约必须随 driver 一起搬移到候选外运行目录，
+  // 并在复制后做 SHA-256 核对；契约缺失或哈希不符即 fail-closed，不回退 legacy 跳过投影验收。
+  const sourceContract = path.join(__dirname, 'a9-projection-contract.cjs');
+  if (!fs.existsSync(sourceContract)) throw new Error(`A9_W28_DRIVER_CONTRACT_SOURCE_MISSING:${sourceContract}`);
+  const contractTarget = path.join(appRoot, 'a9-projection-contract.cjs');
+  fs.copyFileSync(sourceContract, contractTarget);
+  const contractSha256 = sha256File(sourceContract);
+  if (sha256File(contractTarget) !== contractSha256) throw new Error('A9_W28_DRIVER_CONTRACT_HASH_MISMATCH');
   fs.writeFileSync(path.join(appRoot, 'package.json'), `${JSON.stringify({
     name: 'a9-win7-28-driver', version: '1.0.0', main: 'main.cjs', private: true,
   }, null, 2)}\n`, 'utf8');
-  return { electronPath: path.join(runtimeRoot, 'electron.exe'), driverPath: appRoot };
+  return { electronPath: path.join(runtimeRoot, 'electron.exe'), driverPath: appRoot,
+    contractPath: contractTarget, contractSha256 };
 }
 
 function createFixture(step) {
@@ -101,6 +119,7 @@ function createFixture(step) {
 
 function createJourneyFixture() {
   let turn = 1;
+  const BULK_STEPS = 26;
   return createFixture((parsed) => {
     const messages = parsed.messages || [];
     const lastUser = [...messages].reverse().find((item) => item.role === 'user');
@@ -108,8 +127,36 @@ function createJourneyFixture() {
     if (prompt.includes('cleanup')) turn = 2;
     else if (prompt.includes('verify again')) turn = 3;
     else if (prompt.includes('produce latest verified')) turn = 4;
+    else if (prompt.includes('run failing shell command')) turn = 5;
+    else if (prompt.includes('trigger tool error')) turn = 6;
+    else if (prompt.includes('approve the high impact operation')) turn = 7;
+    else if (prompt.includes('generate bulk history events')) turn = 8;
+    else turn = 1;
     const lastUserIndex = messages.map((item) => item.role).lastIndexOf('user');
     const tools = messages.slice(lastUserIndex + 1).filter((item) => item.role === 'tool').map((item) => item.name);
+    // F3（W28-H02）：经受批准 Runner 执行 Windows 兼容的确定性非零退出命令（PowerShell/CMD
+    // 均为 exit 3；不依赖 node/git 等开发机工具存在），记录实际 exit code 的是产品 tool_end。
+    if (turn === 5) {
+      if (!tools.includes('shell')) return { id: 'w28-f5', note: '执行预期失败的非零退出命令。', tool: { name: 'shell', args: { command: 'exit 3' } } };
+      return { content: 'failing shell command observed.' };
+    }
+    // F3（W28-H02）：可重复工具错误——读取测试专用缺失目标，独立于 Provider 503 与非零退出。
+    if (turn === 6) {
+      if (!tools.includes('read')) return { id: 'w28-f6', note: '读取缺失的测试专用目标，产生可重复工具错误。', tool: { name: 'read', args: { path: 'missing-fixture-target.ts' } } };
+      return { content: 'tool error observed.' };
+    }
+    // F3（W28-H02）：批准路径——针对预先创建并清点的 approve-target.tmp 产生精确审批；
+    // 批准后工具真实执行（恢复的 tool 活动），与拒绝目标 scratch.tmp 分开。
+    if (turn === 7) {
+      if (!tools.includes('delete')) return { id: 'w28-a7', note: '高影响删除等待精确审批。', tool: { name: 'delete', args: { path: 'approve-target.tmp', permanent: true } } };
+      return { content: 'approved operation executed and verified.' };
+    }
+    // F4（W28-H02）：批量历史——每次调用使用互不相同的只读参数，避免 agent loop 对重复
+    // 相同调用去重，从而在真实产品链路产生足量事件，把旧失败推到首屏 300 条之外。
+    if (turn === 8) {
+      if (tools.length < BULK_STEPS) return { id: `w28-b8-${tools.length}`, note: '批量只读探查。', tool: { name: 'search', args: { pattern: `probe-${tools.length}-${Date.now() % 100000}` } } };
+      return { content: 'bulk history generated and verified.' };
+    }
     if (turn === 3) {
       if (!tools.includes('read')) return { id: 'w28-r3', note: '正在重新读取文件，确认重启后的会话可以继续。', tool: { name: 'read', args: { path: 'calc.ts' } } };
       return { content: 'second process turn completed.' };
@@ -180,11 +227,18 @@ async function main() {
   const stopData = path.join(runRoot, 'stop-data');
   const stopMarker = path.join(runRoot, 'stop-child.pid');
   for (const directory of [workspaceRoot, stopWorkspace, stopData, visualRoot]) fs.mkdirSync(directory, { recursive: true });
-  const { electronPath, driverPath } = prepareDriverRuntime(candidateRoot, runRoot, sourceDriver);
+  const { electronPath, driverPath, contractPath, contractSha256 } = prepareDriverRuntime(candidateRoot, runRoot, sourceDriver);
   fs.writeFileSync(path.join(workspaceRoot, 'calc.ts'), 'export function add(a, b) {\n  return a - b;\n}\n', 'utf8');
   fs.writeFileSync(path.join(workspaceRoot, 'scratch.tmp'), 'must survive denied deletion\n', 'utf8');
+  // W28-H02：批准路径的专用目标，与拒绝目标分开创建；批准后由产品真实执行删除，
+  // 宿主在第一进程退出后逐项清点（拒绝目标零副作用、批准目标真实消失）。
+  fs.writeFileSync(path.join(workspaceRoot, 'approve-target.tmp'), 'approved-delete-target\n', 'utf8');
   fs.writeFileSync(path.join(workspaceRoot, '短GBK.txt'), Buffer.from([0xd6, 0xd0]));
   fs.writeFileSync(path.join(stopWorkspace, 'calc.ts'), 'export const ready = true;\n', 'utf8');
+  const denyTargetPath = path.join(workspaceRoot, 'scratch.tmp');
+  const approveTargetPath = path.join(workspaceRoot, 'approve-target.tmp');
+  const denyTargetBefore = targetInventory(denyTargetPath);
+  const approveTargetBefore = targetInventory(approveTargetPath);
 
   const journey = createJourneyFixture();
   const stop = createStopFixture(stopMarker);
@@ -204,18 +258,36 @@ async function main() {
     A9_SMOKE_REQUIRE_MODEL_NOTES: '1',
     // ADR-0121：只有本候选与开发机 fixture 启用投影协议；历史 profile 不设置该变量。
     A9_SMOKE_DRIVER_PROTOCOL: 'projection',
+    // W28-H01：契约解析的显式合同——外置 driver-app 运行目录内已按哈希核对复制契约。
+    A9_SMOKE_PROJECTION_CONTRACT: contractPath,
     A9_SMOKE_PROJECTION_DIR: projectionRoot,
     ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
   };
   // 本候选在 phase 报告之外追加的合成断言（历史 profile 的 smoke 没有该机制）。
   const smokeCases = [];
   const record = (id, passed, detail) => { smokeCases.push({ id, passed: passed === true, detail: detail || '' }); };
+  // W28-H01：外置 driver 依赖闭包证据——契约已复制到候选外 driver-app/ 且哈希与候选源一致，
+  // driver 同级解析可用；缺契约时 driver 模块初始化 fail-closed（由纯布局回归与真实进程退出码共同覆盖）。
+  record('A9-W28-DRIVER-CONTRACT-CLOSURE',
+    fs.existsSync(contractPath) && sha256File(contractPath) === contractSha256,
+  `contract=${contractPath}; sha256=${contractSha256}`);
   const phases = [];
   const firstOut = path.join(runRoot, 'first.json');
   phases.push({ phase: 'first', ...(await runElectron(electronPath, driverPath, {
     ...baseEnv, A9_SMOKE_MODE: 'first', A9_SMOKE_FIXTURE_URL: journeyUrl, A9_SMOKE_OUT: firstOut,
   })) });
   const first = readJson(firstOut);
+  // W28-H02：宿主进程在第一进程退出后直接核对目标文件事实——拒绝目标必须零副作用
+  // （存在性/字节哈希/大小均不变），批准目标必须经真实批准删除后消失。
+  const denyTargetAfter = targetInventory(denyTargetPath);
+  const approveTargetAfter = targetInventory(approveTargetPath);
+  record('A9-W28-DENY-TARGET-SURVIVES-DENIAL',
+    denyTargetBefore.exists === true && denyTargetAfter.exists === true
+      && denyTargetAfter.sha256 === denyTargetBefore.sha256 && denyTargetAfter.size === denyTargetBefore.size,
+    JSON.stringify({ before: denyTargetBefore, after: denyTargetAfter }));
+  record('A9-W28-APPROVE-TARGET-EXECUTED-AFTER-APPROVAL',
+    approveTargetBefore.exists === true && approveTargetAfter.exists === false,
+    JSON.stringify({ before: approveTargetBefore, after: approveTargetAfter }));
   const approval = first.oldApproval || {};
   const secondOut = path.join(runRoot, 'second.json');
   phases.push({ phase: 'second', ...(await runElectron(electronPath, driverPath, {
@@ -227,6 +299,17 @@ async function main() {
     A9_SMOKE_OLD_APPROVAL_TURN: approval.turnId || '',
     A9_SMOKE_PROJECTION_SEED: JSON.stringify(first.projectionSeed || {}),
   })) });
+  const second = readJson(secondOut);
+  const retryTargetConversation = second.retryTarget && second.retryTarget.conversationId
+    ? second.retryTarget.conversationId : '';
+  const retryOut = path.join(runRoot, 'retry.json');
+  phases.push({ phase: 'retry', ...(await runElectron(electronPath, driverPath, {
+    ...baseEnv,
+    A9_SMOKE_MODE: 'retry',
+    A9_SMOKE_FIXTURE_URL: journeyUrl,
+    A9_SMOKE_RETRY_CONVERSATION: retryTargetConversation,
+    A9_SMOKE_OUT: retryOut,
+  })) });
   const stopOut = path.join(runRoot, 'stop.json');
   phases.push({ phase: 'stop', ...(await runElectron(electronPath, driverPath, {
     ...baseEnv,
@@ -236,16 +319,24 @@ async function main() {
   })) });
   await journey.close();
   await stop.close();
-  const reports = { first, second: readJson(secondOut), stop: readJson(stopOut) };
-  const allCases = Object.values(reports).flatMap((item) => item.cases || []);
-  const phaseReportsValid = [
-    ['first', firstOut], ['second', secondOut], ['stop', stopOut],
-  ].every(([mode, filePath]) => fs.existsSync(filePath)
+  const reports = { first, second, retry: readJson(retryOut), stop: readJson(stopOut) };
+  const phaseEntries = [
+    ['first', firstOut], ['second', secondOut], ['retry', retryOut], ['stop', stopOut],
+  ];
+  const phaseReportsValid = phaseEntries.every(([mode, filePath]) => fs.existsSync(filePath)
     && reports[mode]?.mode === mode
     && reports[mode]?.status === 'PASS'
     && Array.isArray(reports[mode]?.cases)
     && reports[mode].cases.length > 0
     && reports[mode].cases.every((item) => item.passed === true));
+  const retryReport = reports.retry || {};
+  const retryTargetBound = Boolean(retryTargetConversation
+    && retryReport.retryTarget?.conversationId === retryTargetConversation
+    && Array.isArray(retryReport.cases)
+    && retryReport.cases.some((c) => c.id === 'A9-15-QUERY-FAILURE-VISIBLE-RETRY' && c.passed === true));
+  record('A9-W28-RETRY-TARGET-BOUND', retryTargetBound,
+    `secondTarget=${retryTargetConversation}; retryTarget=${retryReport.retryTarget?.conversationId || ''}`);
+  const allCases = Object.values(reports).flatMap((item) => item.cases || []);
   const fixtureRequests = {
     journey: journey.requests.length,
     stop: stop.requests.length,
@@ -296,13 +387,39 @@ async function main() {
     projectionParseDetail = String(error && error.message ? error.message : error);
   }
   record('A9-W28-PROJECTION-ARTIFACTS-REPORT-PARSEABLE', projectionParseable, projectionParseDetail);
+  // RF01: 显式要求关键断言集合存在且通过（fail-closed 对缺阶段/缺必需用例）
+  const requiredSmokeAssertionIds = [
+    'A9-15-QUERY-FAILURE-VISIBLE-RETRY',
+    'A9-15-INSPECTOR-PERSISTED-EVENTS',
+    'A9-15-DOM-OUTCOME-TURN-IDENTITY',
+    'A9-15-OLDER-EVENT-PAGINATION',
+    'A9-15-OLDER-FAILURE-NEWER-SUCCESS-RESTART',
+    'A9-W28-DRIVER-PROTOCOL-DECLARED',
+    'A9-W28-FIXTURE-SUPPORTS-PROJECTION-PROTOCOL',
+    'A9-W28-PROJECTION-EVIDENCE-PUBLISHED',
+    'A9-W28-PROJECTION-ARTIFACTS-REPORT-PARSEABLE',
+    'A9-W28-RETRY-TARGET-BOUND',
+  ];
+  const missingRequiredAssertions = (() => {
+    const combined = allCases.concat(smokeCases);
+    const counts = new Map();
+    for (const item of combined) {
+      if (item && item.passed === true) {
+        counts.set(item.id, (counts.get(item.id) || 0) + 1);
+      }
+    }
+    return requiredSmokeAssertionIds.filter((id) => counts.get(id) !== 1);
+  })();
+  record('A9-W28-REQUIRED-ASSERTIONS-PRESENT', missingRequiredAssertions.length === 0,
+    missingRequiredAssertions.length === 0 ? 'ALL_PRESENT' : `MISSING:${missingRequiredAssertions.join(',')}`);
   const cases = [...allCases, ...smokeCases];
   const report = {
     schema_version: 1,
     evidence_kind: 'A9_15_WIN7_28_AUTOMATIC_PRODUCT_SMOKE',
     recorded_at: new Date().toISOString(),
     driver_protocol: baseEnv.A9_SMOKE_DRIVER_PROTOCOL,
-    status: phases.every((item) => item.code === 0) && phaseReportsValid
+    status: phases.length === 4 && phases.every((item) => item.code === 0) && phaseReportsValid
+      && retryTargetBound && missingRequiredAssertions.length === 0
       && fixtureRequests.journey > 0 && fixtureRequests.stop > 0
       && failureServed && journeyServed && latestSuccessServed
       && cases.every((item) => item.passed === true) ? 'PASS' : 'FAIL',
@@ -319,7 +436,7 @@ async function main() {
     projection_report_parse: { parseable: projectionParseable, detail: projectionParseDetail },
     phases: phases.map((item) => ({ phase: item.phase, exit_code: item.code, stderr_tail: item.stderr.slice(-2000) })),
     cases,
-    evidence_files: [firstOut, secondOut, stopOut,
+    evidence_files: [firstOut, secondOut, retryOut, stopOut,
       ...fs.readdirSync(visualRoot).map((name) => path.join(visualRoot, name)),
       ...projectionFiles.map((name) => path.join(evidenceRoot, name))],
     real_provider: 'NOT_PERFORMED_BY_AUTOMATIC_FIXTURE_SMOKE',

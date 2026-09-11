@@ -36,25 +36,47 @@ const PROJECTION_LATEST_SUCCESS_PROMPT = 'produce latest verified turn';
 const PROJECTION_BULK_PROMPT = 'generate bulk history events';
 const PROJECTION_APPROVE_PROMPT = 'approve the high impact operation';
 
-// ADR-0121：投影行判定与期望标签推导来自共享契约模块，driver 与正式报告器共用同一实现，
-// 避免两套规则漂移。开发机上契约位于 release/win7-product-v3/；候选内由构建器复制到 validation/
-// 与 driver 同级。
-function loadProjectionContract() {
-  const candidates = [
-    path.join(__dirname, 'a9-projection-contract.cjs'),
-    path.join(repositoryRoot, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
-  ];
-  for (const candidate of candidates) if (fs.existsSync(candidate)) return require(candidate);
-  throw new Error('A9_PROJECTION_CONTRACT_UNAVAILABLE');
+// ADR-0121 / W28-H01：共享契约的显式解析合同（不回退搜索任意本机路径，不依赖源码仓库存在）：
+//   1) A9_SMOKE_PROJECTION_CONTRACT：外置 smoke / 开发机 runner 显式传入的契约绝对路径；
+//   2) driver 同级 a9-projection-contract.cjs：候选 validation/ 与外置 driver-app/ 布局。
+// projection 协议必须有契约：缺失即 fail-closed（模块初始化抛错、进程非零退出、smoke 失败），
+// 不回退 legacy 跳过投影验收。legacy 协议不解析契约：历史 profile 在无契约目录仍可完整运行。
+const PROJECTION_CONTRACT_FILENAME = 'a9-projection-contract.cjs';
+// 查询导出事实的边界。legacy 无契约也要运行，因此在 driver 内声明；
+// projection 契约加载后必须与契约一致，否则 fail-closed（防止两套边界漂移）。
+const EXPORT_BOUNDS = Object.freeze({ MAX_ERROR_HEAD: 120, MAX_COMMAND: 80, MAX_ARGS_FIELD: 400 });
+function resolveProjectionContractPath() {
+  const explicit = String(process.env.A9_SMOKE_PROJECTION_CONTRACT || '');
+  if (explicit) {
+    if (!path.isAbsolute(explicit)) throw new Error(`A9_PROJECTION_CONTRACT_PATH_NOT_ABSOLUTE:${explicit}`);
+    if (!fs.existsSync(explicit)) throw new Error(`A9_PROJECTION_CONTRACT_UNAVAILABLE:${explicit}`);
+    return explicit;
+  }
+  const sibling = path.join(__dirname, PROJECTION_CONTRACT_FILENAME);
+  if (fs.existsSync(sibling)) return sibling;
+  throw new Error(`A9_PROJECTION_CONTRACT_UNAVAILABLE:${sibling}`);
 }
-const projectionContract = loadProjectionContract();
+let projectionContract = null;
+function requireProjectionContract() {
+  if (projectionContract) return projectionContract;
+  const contractPath = resolveProjectionContractPath();
+  const loaded = require(contractPath);
+  for (const [key, value] of Object.entries(EXPORT_BOUNDS)) {
+    if (loaded[key] !== value) throw new Error(`A9_PROJECTION_CONTRACT_BOUNDS_MISMATCH:${key}:${loaded[key]}`);
+  }
+  projectionContract = loaded;
+  return projectionContract;
+}
+const projectionContractApi = projectionEnabled ? requireProjectionContract() : {};
 const {
   INSPECTOR_DISPLAY_RULE, INSPECTOR_DISPLAY_ROWS, QUERY_EXPORT_KIND, DOM_EXPORT_KIND,
   QUERY_EXPORT_SCHEMA_VERSION, DOM_EXPORT_SCHEMA_VERSION, PRODUCT_FIRST_QUERY_LIMIT,
-  expectedRowLabel, rowLabelOf, hasTimestampPrefix, rowsMatchQuery, crossSessionResidue,
+  TIME_BASELINE_PROBE_VERSION, TIME_BASELINE_PROBE_UTC_MS, deriveTimeBaseline,
+  expectedRowLabel, rowLabelOf, hasTimestampPrefix, rowsMatchQuery,
+  sessionResidueViolation, validatePagingChain,
   allMutationsRejected, terminalFacts, expectedDisplayed, latestTerminalEvent, eventIdOf, turnIdOf,
-  isEventId, MAX_ERROR_HEAD, MAX_COMMAND, MAX_ARGS_FIELD,
-} = projectionContract;
+  isEventId,
+} = projectionContractApi;
 const INSPECTOR_DISPLAY_LABEL = String(INSPECTOR_DISPLAY_ROWS);
 
 /** 把 DOM 观察行转换为投影附件行（snake_case）；行判定统一由共享契约执行。 */
@@ -82,11 +104,25 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 /**
- * 负向敏感性：缺行、乱序、重复、跨会话残留，以及内容类（替换全部标签内容、交换两行文字、替换工具摘要/
- * 路径、挪入另一轮次标签）与时间/身份类（错误时间、丢失 event_type）变异；全部与正向断言共用同一函数。
+ * 负向敏感性：缺行、乱序、重复、跨会话残留，内容类（替换全部标签内容、交换两行文字、替换工具摘要/
+ * 路径、挪入另一轮次标签）与时间/身份类（错误时间、统一错时、单行错时、时间缺失/无效、丢失
+ * event_type）变异；全部与正向断言共用同一函数与同一时间基准。
  */
-function negativeSensitivity(rows, events) {
-  return allMutationsRejected(exportRows(rows), events);
+function negativeSensitivity(rows, events, baseline) {
+  return allMutationsRejected(exportRows(rows), events, baseline);
+}
+
+/**
+ * W28-H03：在受测 Renderer 内用与产品相同的 `Date#toLocaleTimeString()`（内建，非产品函数）渲染
+ * 契约固定 UTC 探针，形成独立时间基准。期望时间由基准偏移 + 持久化 timestamp_ms 推导，
+ * 不从待验 DOM 首行自校准；每阶段各自采集并随该阶段 DOM 导出绑定。
+ */
+function collectTimeBaseline(exec) {
+  return exec(`(() => ({
+    probe_version: ${JSON.stringify(TIME_BASELINE_PROBE_VERSION)},
+    time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    probes: ${JSON.stringify(TIME_BASELINE_PROBE_UTC_MS)}.map((utcMs) => ({ utc_ms: utcMs, rendered: new Date(utcMs).toLocaleTimeString() })),
+  }))()`);
 }
 function writeProjectionExport(name, payload) {
   if (!projectionDirectory) return null;
@@ -102,9 +138,67 @@ const report = {
   driver_protocol: driverProtocol,
   cases: [],
 };
-// F3：一次性事件查询故障注入状态（由 main() 在加载产品入口前安装的 IPC 包装使用）。
+// F3/W28-H06：一次性事件查询故障注入状态（由 main() 在加载产品入口前安装的 IPC 包装使用）。
+// retry 进程以 A9_SMOKE_RETRY_CONVERSATION 绑定目标会话：只有 conversationId 匹配的
+// a9.events.query 才被注入一次结构化失败，其他会话/其他动作的查询不受影响。
 let injectQueryFailureOnce = false;
+let injectQueryFailureConversation = null;
 let injectedQueryFailure = null;
+
+// W28-H04：主进程 IPC 观察边界记录的真实 a9.events.query 请求/响应（有界缓冲）。
+// 只记录身份/计数/范围/hasMore/终态身份等脱敏事实，不落任何事件内容或秘密；
+// 不修改、不拦截产品行为。观察条目按 seq 单调递增，供分页探针按因果顺序逐轮绑定。
+const queryObservations = [];
+let queryObservationSeq = 0;
+let queryObservationsDropped = 0;
+const QUERY_OBSERVATION_MAX = 128;
+const QUERY_OBSERVATION_EVENT_IDS_MAX = 320;
+const QUERY_OBSERVATION_TERMINAL_TYPES = ['turn_completed', 'turn_failed', 'turn_cancelled', 'turn_interrupted', 'turn_blocked'];
+function pushQueryObservation(entry) {
+  queryObservationSeq += 1;
+  queryObservations.push({ ...entry, seq: queryObservationSeq });
+  if (queryObservations.length > QUERY_OBSERVATION_MAX) {
+    queryObservations.shift();
+    queryObservationsDropped += 1;
+  }
+}
+/**
+ * W28-H04：把一次真实 a9.events.query 调用归纳为脱敏观察事实。成员 ID 集合仅对
+ * 产品窗口（limit ≤ 320）记录，driver 独立参考查询（limit=1000）只记计数/范围摘要，
+ * 两条查询链在证据中显式区分，不混写为同一来源。
+ */
+function summarizeQueryObservation(request, result, injected) {
+  const payload = (request && request.payload) || {};
+  const events = result && result.ok === true && Array.isArray(result.events) ? result.events : [];
+  const ids = [];
+  const terminalEvents = [];
+  for (const item of events) {
+    if (!item || !Number.isSafeInteger(item.eventId)) continue;
+    ids.push(item.eventId);
+    const type = item.eventType || item.type;
+    if (QUERY_OBSERVATION_TERMINAL_TYPES.includes(type) && terminalEvents.length < 128) {
+      terminalEvents.push({ event_id: item.eventId, turn_id: item.turnId || null, type });
+    }
+  }
+  return {
+    at: new Date().toISOString(),
+    action: 'a9.events.query',
+    conversation_id: typeof payload.conversationId === 'string' ? payload.conversationId : null,
+    limit: Number.isSafeInteger(payload.limit) ? payload.limit : null,
+    before_event_id: Number.isSafeInteger(payload.beforeEventId) ? payload.beforeEventId : null,
+    ok: result ? result.ok === true : false,
+    has_more: result ? result.hasMore === true : null,
+    count: ids.length,
+    first_event_id: ids.length ? ids[0] : null,
+    last_event_id: ids.length ? ids[ids.length - 1] : null,
+    event_ids: Number.isSafeInteger(payload.limit) && payload.limit <= QUERY_OBSERVATION_EVENT_IDS_MAX
+      ? ids.slice(0, QUERY_OBSERVATION_EVENT_IDS_MAX) : null,
+    terminal_events: terminalEvents,
+    error: result && result.ok !== true && result.error && result.error.code
+      ? String(result.error.code).slice(0, 64) : null,
+    injected: injected === true,
+  };
+}
 
 /** 渲染器内：按真实分页把所有事件完整采集并按 eventId 升序合并（超过单次上限时不得只取一页）。 */
 const COLLECT_ALL_EVENTS = `(async () => {
@@ -176,8 +270,15 @@ async function main() {
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
   }
-  // F3 故障注入接缝：在加载正式产品入口之前包装 ipcMain.handle，使事件查询通道可被**一次性**注入
-  // 结构化失败。注入只发生在测试进程内、只影响一次调用，不修改产品源码、守卫或清理保证。
+  // F3 故障注入接缝 + W28-H04 观察边界：在加载正式产品入口之前包装 ipcMain.handle。
+  // 注入只发生在测试进程内、只影响一次绑定目标会话的 a9.events.query 调用，不修改产品
+  // 源码、守卫或清理保证；观察边界只记录真实 a9.events.query 请求/响应的脱敏摘要
+  // （不修改、不拦截、不落内容）。retry 进程在产品入口加载前布防一次性替身，
+  // 对 Renderer 初次历史加载触发真实失败（W28-H06 优先方案：独立进程注入）。
+  if (mode === 'retry') {
+    injectQueryFailureOnce = true;
+    injectQueryFailureConversation = process.env.A9_SMOKE_RETRY_CONVERSATION || null;
+  }
   {
     const { ipcMain } = require('electron');
     const originalHandle = ipcMain.handle.bind(ipcMain);
@@ -187,15 +288,24 @@ async function main() {
       }
       return originalHandle(channel, async (...args) => {
         const request = args[1];
-        const serialized = (() => { try { return JSON.stringify(request || {}); } catch (_e) { return ''; } })();
-        if (injectQueryFailureOnce && serialized.includes('events')) {
+        const isEventsQuery = Boolean(request) && typeof request === 'object'
+          && request.action === 'a9.events.query';
+        if (isEventsQuery && injectQueryFailureOnce
+          && (!injectQueryFailureConversation
+            || (request.payload && request.payload.conversationId === injectQueryFailureConversation))) {
           injectQueryFailureOnce = false;
           injectedQueryFailure = {
-            channel: String(channel), matchedRequest: serialized.slice(0, 200), at: new Date().toISOString(),
+            channel: String(channel), matchedRequest: JSON.stringify(request).slice(0, 200), at: new Date().toISOString(),
+            boundConversation: injectQueryFailureConversation,
           };
+          pushQueryObservation(summarizeQueryObservation(request,
+            { ok: false, error: { code: 'A9_INJECTED_QUERY_FAILURE' } }, true));
           return { ok: false, error: { code: 'A9_INJECTED_QUERY_FAILURE' } };
         }
-        return listener(...args);
+        if (!isEventsQuery) return listener(...args);
+        const result = await listener(...args);
+        pushQueryObservation(summarizeQueryObservation(request, result, false));
+        return result;
       });
     };
   }
@@ -245,6 +355,8 @@ async function main() {
     await runFirstProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'second') {
     await runSecondProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'retry') {
+    await runRetryProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'stop') {
     await runStopProcess(win, exec, {
       workspaceRoot,
@@ -797,38 +909,45 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
   const queryEventIds = restoredEvents.eventIds || [];
   const expectedRowCount = Math.min(INSPECTOR_DISPLAY_ROWS, queryEvents.length);
   const lastQueryEventId = queryEventIds.length ? queryEventIds[queryEventIds.length - 1] : 0;
-  const observed = await waitFor(async () => {
-    const captured = await captureInspectorDom(exec);
-    return captured && captured.rows.length > 0 ? captured : null;
-  }, 20_000, 'persisted Inspector timeline rows');
+  const observed = restoredEvents.restartObserved || null;
+  // W28-H03：restart 阶段的独立时间基准（受测 Renderer 内建格式化固定 UTC 探针）。
+  const restartBaseline = restoredEvents.restartBaseline !== undefined
+    ? restoredEvents.restartBaseline
+    : null;
+  const restartBaselineDerived = restartBaseline ? deriveTimeBaseline(restartBaseline) : null;
+  record('A9-15-TIME-BASELINE-DERIVED', restartBaselineDerived !== null, JSON.stringify({
+    baseline: restartBaseline, derived: restartBaselineDerived,
+  }));
 
-  const exportedRows = exportRows(observed.rows);
-  const rowMatch = rowsMatchQuery(exportedRows, queryEvents);
+  const exportedRows = exportRows(observed ? observed.rows : []);
+  const rowMatch = Boolean(observed) && rowsMatchQuery(exportedRows, queryEvents, restartBaseline);
   const labelMismatch = exportedRows.find((row, index) => {
     const event = queryEvents.slice(-INSPECTOR_DISPLAY_ROWS)[index];
     return !event || rowLabelOf(row.text) !== expectedRowLabel(event);
   });
   record('A9-15-INSPECTOR-PERSISTED-EVENTS', rowMatch
+    && Boolean(observed)
     && observed.displayRule === INSPECTOR_DISPLAY_RULE
     && observed.displayRows === String(expectedRowCount)
     && queryEvents.some((event) => event.turn_id === null)
     && queryEvents.some((event) => event.type === 'tool_start')
     && queryEvents.some((event) => event.type === 'tool_end'),
   JSON.stringify({
-    displayRule: observed.displayRule, displayRows: observed.displayRows,
-    expectedRowCount, domRows: observed.rows.length, queryEvents: queryEvents.length,
+    displayRule: observed ? observed.displayRule : null, displayRows: observed ? observed.displayRows : null,
+    expectedRowCount, domRows: observed ? observed.rows.length : 0, queryEvents: queryEvents.length,
     sessionEvents: queryEvents.filter((event) => event.turn_id === null).length,
     timestampsPresent: exportedRows.filter((row) => hasTimestampPrefix(row.text)).length,
   }));
 
-  record('A9-15-INSPECTOR-ROW-CONTENT', rowMatch === true && !labelMismatch, JSON.stringify({
+  record('A9-15-INSPECTOR-ROW-CONTENT', rowMatch === true && !labelMismatch && Boolean(observed), JSON.stringify({
     checked: exportedRows.length, firstMismatch: labelMismatch || null,
     sampleLabels: exportedRows.slice(0, 3).map((row) => rowLabelOf(row.text)),
   }));
 
-  const negative = negativeSensitivity(observed.rows, queryEvents);
+  const negative = observed ? negativeSensitivity(observed.rows, queryEvents, restartBaseline) : { baseline: false, rejected: {} };
   const requiredMutations = ['missing', 'reordered', 'duplicated', 'residue', 'foreignContent',
-    'swappedText', 'wrongDetail', 'otherTurnLabel', 'wrongTime', 'missingEventType'];
+    'swappedText', 'wrongDetail', 'otherTurnLabel', 'wrongTime', 'uniformShiftPlus1s',
+    'uniformShiftPlus1h', 'singleRowPlus1s', 'missingTime', 'invalidTime', 'missingEventType'];
   record('A9-15-INSPECTOR-ASSERTION-NEGATIVE-CHECKS', negative.baseline === true
     && requiredMutations.every((name) => negative.rejected[name] === true),
   JSON.stringify(negative));
@@ -839,6 +958,12 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
       eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
       eventType: item.dataset.eventType || null, text: item.textContent,
     }));
+    // W28-H03：会话切换各阶段在受测 Renderer 内采集独立时间基准（固定 UTC 探针）。
+    const readBaseline = () => ({
+      probe_version: ${JSON.stringify(TIME_BASELINE_PROBE_VERSION)},
+      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+      probes: ${JSON.stringify(TIME_BASELINE_PROBE_UTC_MS)}.map((utcMs) => ({ utc_ms: utcMs, rendered: new Date(utcMs).toLocaleTimeString() })),
+    });
     const activeId = async () => { const snap = await api.snapshot(); return snap.ok ? snap.snapshot.activeConversationId : null; };
     const clickOtherRow = () => {
       const rows = Array.from(document.querySelectorAll('#conversation-list button'));
@@ -859,8 +984,29 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
     }
     const otherConversationId = await activeId();
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    const otherRows = readRows();
+    // W28-H05：切换后的会话必须是"它自己的非空会话"。空行集只能作为边界样本，
+    // 不能单独证明隔离成立（sessionResidueViolation 对空行集返回违规）。
+    // 必要时在该会话内发起一次真实只读轮次（正式 UI + 恢复的 fixture Provider），
+    // 等待其事件渲染后再读取该会话自己的行身份集合。
+    let otherRows = readRows();
+    if (otherRows.length === 0) {
+      const prompt = document.getElementById('task-prompt');
+      prompt.value = 'verify again';
+      prompt.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('run-task').click();
+      for (let attempt = 0; attempt < 600; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (readRows().length > 0) break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      otherRows = readRows();
+    }
     const otherDisplayed = document.getElementById('a9-turn-outcome').textContent;
+    const otherSnap = (await api.snapshot()).snapshot;
+    const otherFacts = otherSnap && otherSnap.conversation ? otherSnap.conversation : [];
+    const otherLatest = otherFacts.length ? otherFacts[otherFacts.length - 1] : null;
+    const otherLatestTurnId = otherLatest ? otherLatest.turnId : null;
+    const otherTimeBaseline = readBaseline();
     if (!clickOtherRow()) return { ok: false, code: 'A9_W27_NO_RETURN_CONVERSATION_ROW' };
     switches += 1;
     for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -870,61 +1016,77 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
           && rows.length > 0 && rows[rows.length - 1].eventId === ${lastQueryEventId}) break;
     }
     const resumeRows = readRows();
+    const resumeSnap = (await api.snapshot()).snapshot;
+    const resumeFacts = resumeSnap && resumeSnap.conversation ? resumeSnap.conversation : [];
+    const resumeLatest = resumeFacts.length ? resumeFacts[resumeFacts.length - 1] : null;
+    const resumeLatestTurnId = resumeLatest ? resumeLatest.turnId : null;
     return {
       ok: true, originalId, otherConversationId, otherRows, otherDisplayed, resumeRows, switches,
+      otherLatestTurnId, resumeLatestTurnId,
       resumeDisplayed: document.getElementById('a9-turn-outcome').textContent,
+      otherTimeBaseline, resumeTimeBaseline: readBaseline(),
     };
   })()`);
   const rowIds = (rows) => (Array.isArray(rows) ? rows.map((row) => row.eventId) : []);
   const resumeMatch = Array.isArray(sessionSwitch.resumeRows)
-    && sessionSwitch.resumeRows.length === observed.rows.length
-    && canonical(rowIds(sessionSwitch.resumeRows)) === canonical(rowIds(observed.rows));
+    && sessionSwitch.resumeRows.length === (observed ? observed.rows.length : 0)
+    && canonical(rowIds(sessionSwitch.resumeRows)) === canonical(rowIds(observed ? observed.rows : []));
   const otherDifference = sessionSwitch.otherConversationId && sessionSwitch.otherConversationId !== sessionSwitch.originalId;
+  // W28-H05：残留方向修正——其他会话 DOM 必须携带自己的非空身份集合，且与原会话事件 ID
+  // 无交集（sessionResidueViolation 语义）。旧实现的"行不属于原会话即违规"会把其他会话
+  // 自己的新行误判为残留、却放过原会话残留行；空会话也不再单独证明隔离。
+  const otherExportedRows = exportRows(sessionSwitch.otherRows);
   const noResidue = Array.isArray(sessionSwitch.otherRows)
-    && !crossSessionResidue(exportRows(sessionSwitch.otherRows), queryEventIds);
+    && !sessionResidueViolation(otherExportedRows, queryEventIds);
+  // W28-H05 负向敏感性：对其他会话观察值副本注入原会话行、混合残留行与缺失身份行，
+  // 同一判定函数必须全部识别为违规（证明方向正确且非空集通过不是偶然）。
+  const residueInjectedOriginal = otherExportedRows.length
+    ? [...otherExportedRows.slice(0, 1), exportedRows[0]] : [exportedRows[0]];
+  const residueMixed = otherExportedRows.length
+    ? [...otherExportedRows, exportedRows[exportedRows.length - 1]] : [exportedRows[0]];
+  const residueMissingIdentity = [...otherExportedRows,
+    { event_id: null, turn_id: null, event_type: 'session_started', text: '00:00:01 · 外来行' }];
+  const residueSensitivity = {
+    originalRow: sessionResidueViolation(residueInjectedOriginal, queryEventIds),
+    mixedRows: sessionResidueViolation(residueMixed, queryEventIds),
+    missingIdentity: sessionResidueViolation(residueMissingIdentity, queryEventIds),
+  };
   record('A9-15-INSPECTOR-SESSION-SWITCH-NO-RESIDUE',
     sessionSwitch.ok === true && otherDifference && noResidue && resumeMatch
-    && sessionSwitch.resumeDisplayed === observed.displayed,
+      && sessionSwitch.resumeDisplayed === (observed ? observed.displayed : null)
+      && Object.values(residueSensitivity).every((value) => value === true),
   JSON.stringify({
     ok: sessionSwitch.ok, code: sessionSwitch.code || '', switches: sessionSwitch.switches,
     otherConversationId: sessionSwitch.otherConversationId, otherRows: rowIds(sessionSwitch.otherRows),
-    resumeRows: rowIds(sessionSwitch.resumeRows), otherDifference, noResidue, resumeMatch,
-    resumeDisplayed: sessionSwitch.resumeDisplayed, displayed: observed.displayed,
+    otherRowCount: otherExportedRows.length, resumeRows: rowIds(sessionSwitch.resumeRows),
+    otherDifference, noResidue, resumeMatch, residueSensitivity,
+    resumeDisplayed: sessionSwitch.resumeDisplayed, displayed: observed ? observed.displayed : null,
   }));
 
   // 旧事件补载后的观察：真实分页请求已由 F4 probe（A9-15-PAGING-PROBE-FACTS）经产品按钮发起，
-  // 此处只重新采集分页完成后的可见有界投影与全局结果，不再点击或替代加载动作。
-  const olderLoad = await exec(`(async () => {
-    const rows = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => ({
-      eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
-      eventType: item.dataset.eventType || null, text: item.textContent,
-    }));
-    const note = document.querySelector('#a9-task-stream .legacy-note');
-    return {
-      hasControl: Boolean(note && note.querySelector('button')),
-      controlLabel: note && note.querySelector('button') ? note.querySelector('button').textContent : '',
-      rows, displayed: document.getElementById('a9-turn-outcome').textContent,
-    };
-  })()`);
+  // 此处直接消费分页完成且未切换会话前的即时快照（restoredEvents.olderLoadObserved），
+  // 杜绝重新采样掩盖即时失败事实。
+  const olderLoad = restoredEvents.olderLoadObserved || null;
 
   const latestTerminal = latestTerminalEvent(queryEvents);
   const olderFailureEvent = queryEvents.find((event) => event.type === 'turn_failed') || null;
   const newerSuccessEvent = queryEvents.filter((event) => event.type === 'turn_completed'
     && event.outcome === 'completed' && event.verification === 'verified').pop() || null;
   const expectedOutcome = expectedDisplayed(latestTerminal);
-  const restartOutcomeOk = expectedOutcome === 'completed · verified' && observed.displayed === expectedOutcome;
-  const olderLoadOutcomeOk = olderLoad.displayed === expectedOutcome;
+  const restartOutcomeOk = expectedOutcome === 'completed · verified' && Boolean(observed) && observed.displayed === expectedOutcome;
+  const olderLoadOutcomeOk = Boolean(olderLoad) && olderLoad.displayed === expectedOutcome;
   const olderLoadMode = restoredEvents.paging && restoredEvents.paging.controlConsumed
     ? 'CLICKED_LOAD_MORE' : 'FULL_HISTORY_ALREADY_LOADED';
   const latestTurnId = latestTerminal ? latestTerminal.turn_id : null;
   const restartTerminalOk = Boolean(latestTerminal) && Boolean(newerSuccessEvent)
     && latestTerminal.event_id === newerSuccessEvent.event_id
+    && Boolean(observed)
     && terminalRowOutcomeMatches(observed.rows, newerSuccessEvent.event_id, newerSuccessEvent.turn_id);
   // F1：DOM 附件必须保留实际显示结果与最新持久化 turn 身份，且与查询最新终态、snapshot 事实一致。
-  const domOutcomeIdentityOk = observed.displayed === expectedOutcome
+  const domOutcomeIdentityOk = Boolean(observed) && observed.displayed === expectedOutcome
     && (observed.latestTurnId || null) === (latestTurnId || null);
   record('A9-15-DOM-OUTCOME-TURN-IDENTITY', domOutcomeIdentityOk && restartOutcomeOk, JSON.stringify({
-    displayed: observed.displayed, expectedOutcome, domLatestTurnId: observed.latestTurnId || null,
+    displayed: observed ? observed.displayed : null, expectedOutcome, domLatestTurnId: observed ? (observed.latestTurnId || null) : null,
     queryLatestTurnId: latestTurnId || null,
   }));
   // F4：旧失败只能经 beforeEventId 分页到达，且分页确实把它并入已加载历史。
@@ -942,7 +1104,7 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
     && paging.firstPageExcludesOlderFailure === true && paging.pageHasOlderFailure === true,
   JSON.stringify({
     olderFailure: olderFailureEvent, newerSuccess: newerSuccessEvent, latestTerminal,
-    displayed: observed.displayed, expectedOutcome, olderRowPresent, restartTerminalOk,
+    displayed: observed ? observed.displayed : null, expectedOutcome, olderRowPresent, restartTerminalOk,
     paging: { ok: paging.ok, firstPageLimit: paging.firstPageLimit, firstPageCount: paging.firstPageCount,
       firstPageHasMore: paging.firstPageHasMore, firstPageOldestId: paging.firstPageOldestId,
       beforeEventId: paging.beforeEventId, pageCount: paging.pageCount, pageHasMore: paging.pageHasMore,
@@ -965,24 +1127,26 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
     pages: restoredEvents.pages || [],
     events: queryEvents,
   });
-  const domExport = (stage, conversationId, rows, displayedOutcome, latestPersistedTurnId, extra) => ({
+  // W28-H03：每个 DOM 导出绑定该阶段在受测 Renderer 内采集的独立时间基准（schema v3 必填）。
+  const domExport = (stage, conversationId, rows, displayedOutcome, latestPersistedTurnId, timeBaseline, extra) => ({
     schema_version: DOM_EXPORT_SCHEMA_VERSION, kind: DOM_EXPORT_KIND, stage,
     conversation_id: conversationId,
     display_range: { rule: INSPECTOR_DISPLAY_RULE, max_rows: INSPECTOR_DISPLAY_ROWS, rows_total: (rows || []).length },
     rows: exportRows(rows), displayed_outcome: displayedOutcome,
-    latest_persisted_turn_id: latestPersistedTurnId, checked_at: new Date().toISOString(), ...(extra || {}),
+    latest_persisted_turn_id: latestPersistedTurnId,
+    time_baseline: timeBaseline, checked_at: new Date().toISOString(), ...(extra || {}),
   });
   const domReference = writeArtifact('projection-dom-export.json', domExport(
-    'restart', restoredEvents.conversationId, observed.rows, observed.displayed, observed.latestTurnId || null));
+    'restart', restoredEvents.conversationId, observed ? observed.rows : [], observed ? observed.displayed : null, observed ? (observed.latestTurnId || null) : null, restartBaseline));
   const otherReference = writeArtifact('projection-dom-other-conversation.json', domExport(
     'other_conversation', sessionSwitch.otherConversationId || '', sessionSwitch.otherRows,
-    sessionSwitch.otherDisplayed || '', null));
+    sessionSwitch.otherDisplayed || '', sessionSwitch.otherLatestTurnId || null, sessionSwitch.otherTimeBaseline || null));
   const resumeReference = writeArtifact('projection-dom-resume.json', domExport(
     'resume', restoredEvents.conversationId, sessionSwitch.resumeRows, sessionSwitch.resumeDisplayed || '',
-    observed.latestTurnId || null));
+    sessionSwitch.resumeLatestTurnId || (observed ? observed.latestTurnId : null) || null, sessionSwitch.resumeTimeBaseline || null));
   const olderLoadReference = writeArtifact('projection-dom-after-older-load.json', domExport(
-    'older_load', restoredEvents.conversationId, olderLoad.rows, olderLoad.displayed,
-    observed.latestTurnId || null, { older_load_mode: olderLoadMode }));
+    'older_load', restoredEvents.conversationId, olderLoad ? olderLoad.rows : [], olderLoad ? olderLoad.displayed : null,
+    olderLoad ? (olderLoad.latestTurnId || (observed ? observed.latestTurnId : null) || null) : null, olderLoad ? (olderLoad.timeBaseline || null) : null, { older_load_mode: olderLoadMode }));
   const evidencePackage = {
     schema_version: 1,
     kind: 'A9_W28_PROJECTION_EVIDENCE_PACKAGE',
@@ -1004,8 +1168,8 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
             ? { event_id: olderFailureEvent.event_id, turn_id: olderFailureEvent.turn_id } : null,
           newer_success: newerSuccessEvent
             ? { event_id: newerSuccessEvent.event_id, turn_id: newerSuccessEvent.turn_id } : null,
-          restart_displayed_outcome: observed.displayed,
-          older_event_load_displayed_outcome: olderLoad.displayed,
+          restart_displayed_outcome: observed ? observed.displayed : null,
+          older_event_load_displayed_outcome: olderLoad ? olderLoad.displayed : null,
         },
       },
       'W28-10-OLDER-EVENT-PAGINATION': {
@@ -1027,6 +1191,322 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
   record('A9-15-PROJECTION-EXPORTS-WRITTEN',
     Boolean(packagePath) && artifacts.length === 5 && artifacts.every((item) => /^[a-f0-9]{64}$/.test(item.sha256)),
   JSON.stringify(report.projectionExports));
+}
+
+/**
+ * W28-H04：真实分页证据闭环探针。
+ *
+ * 与旧实现的差异：driver 不再用独立游标调用 api.queryEvents() 冒充分页证据——
+ * Renderer 只负责真实点击产品"加载更早记录"入口与读取 DOM 状态；每次点击触发的真实
+ * a9.events.query 请求/响应由 main() 安装的 IPC 观察边界记录，node 侧按 seq 因果顺序
+ * 逐轮绑定（请求 limit/beforeEventId、响应成员/范围/hasMore/终态身份）。首屏事实同样
+ * 取自产品重启后自动发出的真实首屏查询观察，而非 driver 自行重放查询。
+ *
+ * 采集时序（交接书 §7.5）：本探针由 runSecondProcess 在"重启即时状态采集之后、补载即时
+ * 状态/会话切换/其他重载之前"调用；补载后旧失败轮次内容必须在本探针内观察为"分页前
+ * 不存在、分页后出现"，证明旧失败确实进入了产品已加载历史（仅数据库存在不算）。
+ */
+async function runPagingProbe(exec, conversationId, restoredEvents) {
+  const windowLimit = PRODUCT_FIRST_QUERY_LIMIT;
+  const productQuery = (observation) => Boolean(observation) && observation.limit === windowLimit
+    && observation.conversation_id === conversationId;
+  const latestObservation = (predicate) => {
+    for (let index = queryObservations.length - 1; index >= 0; index -= 1) {
+      if (predicate(queryObservations[index])) return queryObservations[index];
+    }
+    return null;
+  };
+  const facts = {
+    conversation_id: conversationId,
+    window_limit: windowLimit,
+    observation_boundary: 'IPC_MAIN_HANDLE_OBSERVER',
+    classification: {
+      product_ui: `limit===${windowLimit}（产品首屏/分页固定窗口；本进程 driver 永不以该 limit 发起参考查询）`,
+      driver_reference: 'limit===1000（driver 独立参考查询，仅记计数/范围摘要，不记成员集合）',
+    },
+    ok: false,
+  };
+  // 首屏：产品重启恢复后自动发出的真实首屏查询（无 beforeEventId、成功、产品窗口）。
+  const firstScreen = latestObservation((item) => productQuery(item)
+    && item.before_event_id === null && item.ok === true && !item.injected);
+  if (!firstScreen) {
+    return { ...facts, reason: 'NO_PRODUCT_FIRST_SCREEN_OBSERVATION',
+      observations_tail: queryObservations.slice(-6).map((item) => ({ ...item, event_ids: undefined, terminal_events: undefined })) };
+  }
+  facts.first_screen = {
+    limit: firstScreen.limit, count: firstScreen.count, has_more: firstScreen.has_more === true,
+    first_event_id: firstScreen.first_event_id, last_event_id: firstScreen.last_event_id,
+    event_ids: firstScreen.event_ids, terminal_events: firstScreen.terminal_events || [],
+    ok: firstScreen.ok === true,
+  };
+  // 旧失败身份（独立参考查询事实）与 DOM 可观察绑定目标（该轮次首个 tool_start 事件）。
+  const referenceEvents = restoredEvents.events || [];
+  const olderFailureEvent = referenceEvents.find((item) => item.type === 'turn_failed') || null;
+  const olderFailureToolStart = olderFailureEvent
+    ? referenceEvents.find((item) => item.type === 'tool_start'
+      && item.turn_id === olderFailureEvent.turn_id) || null
+    : null;
+  const readControl = `(() => {
+    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const button = note ? note.querySelector('button') : null;
+    return {
+      hasControl: Boolean(button), disabled: button ? button.disabled : null,
+      label: button ? button.textContent : '',
+      visibleCount: document.querySelectorAll('#a9-timeline li').length,
+    };
+  })()`;
+  // 旧失败轮次内容可观察性：活动组按事件 ID 绑定（不依赖块 key），辅以轮次块过程节点计数。
+  const readOlderObservable = (turnId, toolStartEventId) => `(async () => {
+    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
+    const facts = snapshot.conversation || [];
+    const fact = facts.find((item) => item.turnId === ${JSON.stringify(turnId)}) || null;
+    let block = null;
+    if (fact && fact.taskId) {
+      block = Array.from(document.querySelectorAll('#a9-task-stream article.turn-block'))
+        .find((node) => node.dataset.turnKey === fact.taskId) || null;
+    }
+    const progressChildren = block ? block.querySelectorAll('.turn-progress > *').length : 0;
+    const group = ${Number.isSafeInteger(toolStartEventId)
+    ? `Array.from(document.querySelectorAll('#a9-task-stream details.activity-group'))
+        .find((node) => Number(node.dataset.eventId) === ${toolStartEventId}) || null`
+    : 'null'};
+    // W28-H04：产品只在"终态轮次的过程事件尚未加载"时于该轮次块渲染
+    // 「历史记录未包含过程。」（a9-workbench.js updateTurnBlock：events.length === 0 且终态）。
+    // 该 note 消失即等价于该轮次事件已进入已加载历史——语义信号；
+    // .turn-progress > * 计数会把 note 本身与结局卡一并计入，不能作为"是否已加载"的判据。
+    const legacyNote = block ? block.querySelector('.legacy-note') : null;
+    const activityItems = block ? block.querySelectorAll('.activity-items li').length : 0;
+    return {
+      factFound: Boolean(fact), taskId: fact ? fact.taskId : null,
+      blockFound: Boolean(block), progressChildren, activityItems,
+      hasLegacyNote: block ? Boolean(legacyNote) : null,
+      groupEventId: group ? Number(group.dataset.eventId) : null,
+    };
+  })()`;
+  const beforeControl = await exec(readControl);
+  facts.before = { ...beforeControl };
+  if (!beforeControl.hasControl || beforeControl.disabled) {
+    facts.reason = 'NO_LOAD_MORE_CONTROL';
+    facts.stop_reason = 'NO_LOAD_MORE_CONTROL';
+    facts.older_failure = olderFailureEvent
+      ? { event_id: olderFailureEvent.event_id, turn_id: olderFailureEvent.turn_id, type: olderFailureEvent.type }
+      : null;
+    facts.older_failure_loaded_observable = false;
+    facts.older_failure_block_populated_before_paging = false;
+    const verdict = validatePagingChain(facts);
+    facts.validation = verdict;
+    return facts;
+  }
+  const beforeOlder = olderFailureEvent
+    ? await exec(readOlderObservable(olderFailureEvent.turn_id, olderFailureToolStart ? olderFailureToolStart.event_id : null))
+    : null;
+  // W28-H04："分页前已填充"= 该轮次内容在补载前就已渲染（legacy note 不存在），
+  // 不是"进程里有子节点"（结局卡与 legacy note 本身都会产生子节点）。
+  facts.older_failure_block_populated_before_paging = Boolean(beforeOlder)
+    && beforeOlder.blockFound === true && beforeOlder.hasLegacyNote === false;
+  facts.before.olderObservable = beforeOlder;
+  // 真实点击循环：每轮点击产品入口，等待该轮真实分页请求+响应进入观察日志（主进程侧
+  // 完成记录即响应已返回），不依赖"最近 60 行变化"或"按钮消失"作为页成功信号。
+  const pages = [];
+  let stopReason = 'ROUND_LIMIT';
+  let olderFailureFound = null;
+  for (let round = 0; round < 12; round += 1) {
+    const control = await exec(readControl);
+    if (!control.hasControl || control.disabled) { stopReason = 'CONTROL_GONE_OR_DISABLED'; break; }
+    const seqBefore = queryObservationSeq;
+    await exec(`(() => {
+      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const button = note ? note.querySelector('button') : null;
+      if (button) button.click();
+      return Boolean(button);
+    })()`);
+    const observed = await waitFor(() => {
+      for (let index = queryObservations.length - 1; index >= 0; index -= 1) {
+        const item = queryObservations[index];
+        if (item.seq > seqBefore && productQuery(item) && item.before_event_id !== null) return item;
+      }
+      return null;
+    }, 15_000, `paging round ${round} request`).catch(() => null);
+    if (!observed) {
+      pages.push({ round, conversation_id: conversationId, click_observed: true, request_observed: false,
+        request: null, response: null });
+      stopReason = 'NO_REQUEST_AFTER_CLICK';
+      break;
+    }
+    pages.push({
+      round, conversation_id: observed.conversation_id,
+      request: { limit: observed.limit, before_event_id: observed.before_event_id },
+      response: {
+        ok: observed.ok === true, count: observed.count, has_more: observed.has_more === true,
+        first_event_id: observed.first_event_id, last_event_id: observed.last_event_id,
+        event_ids: observed.event_ids, terminal_events: observed.terminal_events || [],
+      },
+      click_observed: true, request_observed: true,
+    });
+    const found = (observed.terminal_events || []).find((item) => item.type === 'turn_failed') || null;
+    if (found) { olderFailureFound = found; stopReason = 'OLDER_FAILURE_REACHED'; break; }
+    if (observed.ok !== true) { stopReason = 'PAGE_RESPONSE_FAILED'; break; }
+    if (!observed.count) { stopReason = 'EMPTY_PAGE'; break; }
+    if (observed.has_more !== true) { stopReason = 'NO_MORE_HISTORY'; break; }
+    // 等待产品消化该页（按钮恢复可用或控件消失），避免下一轮点击落在加载锁上。
+    await waitFor(() => exec(`(() => {
+      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const button = note ? note.querySelector('button') : null;
+      return !button || !button.disabled ? true : null;
+    })()`), 10_000, 'paging control settle').catch(() => null);
+  }
+  // 补载后 DOM 可观察：旧失败轮次的过程内容必须因补载出现（此前为空）。
+  const afterControl = await exec(readControl);
+  facts.after = { ...afterControl };
+  let olderLoaded = false;
+  if (olderFailureEvent) {
+    const toolStartId = olderFailureToolStart ? olderFailureToolStart.event_id : null;
+    // W28-H04：补载可观察的判据是该轮次块不再显示 `历史记录未包含过程。`
+    //（即其事件已进入产品已加载历史）。旧判据要求存在工具活动组或进度子节点，
+    // 但 Provider 失败轮次没有工具调用，补载后反而为空，导致恒为"未加载"。
+    const afterOlder = await waitFor(() => exec(readOlderObservable(olderFailureEvent.turn_id, toolStartId))
+      .then((state) => (state && state.blockFound === true && state.hasLegacyNote === false ? state : null)),
+    10_000, 'older failure turn content populated').catch(() => null);
+    facts.after.olderObservable = afterOlder;
+    olderLoaded = Boolean(afterOlder) && afterOlder.hasLegacyNote === false;
+  }
+  const lastPage = pages.length ? pages[pages.length - 1] : null;
+  const successSum = pages.reduce((sum, page) => (page.response && page.response.ok === true
+    && Number.isSafeInteger(page.response.count) ? sum + page.response.count : sum), 0);
+  facts.pages = pages;
+  facts.older_failure = olderFailureFound
+    ? { event_id: olderFailureFound.event_id, turn_id: olderFailureFound.turn_id, type: olderFailureFound.type }
+    : null;
+  facts.older_failure_loaded_observable = olderLoaded;
+  facts.stop_reason = stopReason;
+  facts.controlConsumed = pages.some((page) => page.click_observed === true && page.request_observed !== false);
+  facts.pageCount = successSum;
+  facts.pageHasMore = Boolean(lastPage && lastPage.response && lastPage.response.has_more === true);
+  facts.pageLastId = lastPage && lastPage.response ? lastPage.response.last_event_id : null;
+  facts.pageHasOlderFailure = Boolean(olderFailureFound);
+  facts.pageOlderFailureId = olderFailureFound ? olderFailureFound.event_id : null;
+  facts.firstPageExcludesOlderFailure = olderFailureFound
+    ? !(facts.first_screen.event_ids || []).includes(olderFailureFound.event_id) : false;
+  facts.beforeEventId = facts.first_screen.first_event_id;
+  facts.firstPageLimit = facts.first_screen.limit;
+  facts.firstPageCount = facts.first_screen.count;
+  facts.firstPageHasMore = facts.first_screen.has_more === true;
+  facts.firstPageOldestId = facts.first_screen.first_event_id;
+  facts.observations_dropped = queryObservationsDropped;
+  const verdict = validatePagingChain(facts);
+  facts.validation = verdict;
+  facts.ok = verdict.ok === true;
+  return facts;
+}
+
+/**
+ * W28-H04 负向敏感性：对真实分页证据副本施加交接书 §7 的反例变异，同一 validatePagingChain
+ * 必须全部拒绝（证明"摘要通过"不可能绕过逐页事实核对）。变异只作用于深拷贝副本。
+ */
+function pagingNegativeSensitivity(pagingFacts) {
+  const applied = {};
+  const mutations = {
+    emptyPages: (copy) => { copy.pages = []; return true; },
+    zeroCountPage: (copy) => {
+      if (!copy.pages.length) return false;
+      copy.pages[0].response.count = 0;
+      copy.pages[0].response.event_ids = [];
+      copy.pages[0].response.first_event_id = null;
+      copy.pages[0].response.last_event_id = null;
+      return true;
+    },
+    failedPageResponse: (copy) => {
+      if (!copy.pages.length) return false;
+      copy.pages[copy.pages.length - 1].response.ok = false;
+      return true;
+    },
+    repeatedCursor: (copy) => {
+      if (copy.pages.length < 2) return false;
+      copy.pages[1].request.before_event_id = copy.pages[0].request.before_event_id;
+      return true;
+    },
+    crossConversationPage: (copy) => {
+      if (!copy.pages.length) return false;
+      copy.pages[0].conversation_id = 'foreign-conversation';
+      return true;
+    },
+    olderFailureNotInPages: (copy) => {
+      copy.pages = copy.pages.map((page) => ({ ...page, response: { ...page.response, terminal_events: [] } }));
+      return true;
+    },
+    olderFailureInFirstScreen: (copy) => {
+      if (!copy.older_failure || !Array.isArray(copy.first_screen.event_ids)) return false;
+      copy.first_screen.event_ids = [...copy.first_screen.event_ids];
+      copy.first_screen.event_ids[0] = copy.older_failure.event_id;
+      copy.first_screen.first_event_id = copy.older_failure.event_id;
+      return true;
+    },
+    olderFailureNotLoaded: (copy) => { copy.older_failure_loaded_observable = false; return true; },
+    olderFailurePreloaded: (copy) => { copy.older_failure_block_populated_before_paging = true; return true; },
+    summaryCountContradiction: (copy) => { copy.pageCount = copy.pageCount + 1; return true; },
+    summaryBooleanContradiction: (copy) => { copy.controlConsumed = !copy.controlConsumed; return true; },
+    duplicateMergedEvent: (copy) => {
+      if (copy.pages.length < 2) return false;
+      const donor = copy.pages[0].response;
+      copy.pages[1].response = {
+        ...copy.pages[1].response, event_ids: [...donor.event_ids],
+        count: donor.count, first_event_id: donor.first_event_id, last_event_id: donor.last_event_id,
+      };
+      return true;
+    },
+    pageNotProgressing: (copy) => {
+      if (copy.pages.length < 2) return false;
+      const shifted = copy.pages[1].response.event_ids.map((id) => id + 100000);
+      copy.pages[1].response = {
+        ...copy.pages[1].response, event_ids: shifted,
+        first_event_id: shifted[0], last_event_id: shifted[shifted.length - 1],
+      };
+      return true;
+    },
+    clickWithoutRequest: (copy) => {
+      copy.pages.push({ round: 99, conversation_id: copy.conversation_id,
+        click_observed: true, request_observed: false, request: null, response: null });
+      return true;
+    },
+    olderRemovedFromMembers: (copy) => {
+      if (!copy.older_failure || !copy.pages.length) return false;
+      const oldId = copy.older_failure.event_id;
+      for (const page of copy.pages) {
+        if (!page.response || !Array.isArray(page.response.event_ids)) continue;
+        page.response.event_ids = page.response.event_ids.filter((id) => id !== oldId);
+        page.response.count = page.response.event_ids.length;
+      }
+      copy.pageCount = copy.pages.reduce((sum, p) => sum + (p.response?.count || 0), 0);
+      return true;
+    },
+    continueAfterHasMoreFalse: (copy) => {
+      if (!copy.pages.length) return false;
+      copy.pages[0].response.has_more = false;
+      if (copy.pages.length === 1) {
+        copy.pages.push(JSON.parse(JSON.stringify(copy.pages[0])));
+      }
+      return true;
+    },
+    domObservationContradictsSummary: (copy) => {
+      copy.after = copy.after || {};
+      copy.after.olderObservable = { blockFound: false, hasLegacyNote: true };
+      copy.older_failure_loaded_observable = true;
+      return true;
+    },
+    omitRequestObserved: (copy) => {
+      if (!copy.pages.length) return false;
+      for (const page of copy.pages) delete page.request_observed;
+      return true;
+    },
+  };
+  for (const [name, mutate] of Object.entries(mutations)) {
+    const copy = JSON.parse(JSON.stringify(pagingFacts));
+    let mutated = false;
+    try { mutated = mutate(copy) === true; } catch (_error) { mutated = false; }
+    if (!mutated) continue;
+    applied[name] = validatePagingChain(copy).ok !== true;
+  }
+  return applied;
 }
 
 async function runSecondProcess(win, exec, env) {
@@ -1104,7 +1584,7 @@ async function runSecondProcess(win, exec, env) {
           display: {
             outcome: typeof payloadData.outcome === 'string' ? payloadData.outcome : null,
             error_head: payloadData.error === undefined || payloadData.error === null
-              ? null : String(payloadData.error).slice(0, ${MAX_ERROR_HEAD}),
+              ? null : String(payloadData.error).slice(0, ${EXPORT_BOUNDS.MAX_ERROR_HEAD}),
             tool_name: payloadData.toolName === undefined ? null : String(payloadData.toolName),
             decision: payloadData.decision === undefined ? null : String(payloadData.decision),
             denied: payloadData.denied === true,
@@ -1114,9 +1594,9 @@ async function runSecondProcess(win, exec, env) {
             call_id: payloadData.callId === undefined ? null : String(payloadData.callId),
             step: Number.isSafeInteger(payloadData.step) ? payloadData.step : null,
             args: {
-              path: bounded(args.path, ${MAX_ARGS_FIELD}), pattern: bounded(args.pattern, ${MAX_ARGS_FIELD}),
-              source: bounded(args.source, ${MAX_ARGS_FIELD}), destination: bounded(args.destination, ${MAX_ARGS_FIELD}),
-              command: bounded(args.command, ${MAX_COMMAND}),
+              path: bounded(args.path, ${EXPORT_BOUNDS.MAX_ARGS_FIELD}), pattern: bounded(args.pattern, ${EXPORT_BOUNDS.MAX_ARGS_FIELD}),
+              source: bounded(args.source, ${EXPORT_BOUNDS.MAX_ARGS_FIELD}), destination: bounded(args.destination, ${EXPORT_BOUNDS.MAX_ARGS_FIELD}),
+              command: bounded(args.command, ${EXPORT_BOUNDS.MAX_COMMAND}),
             },
           },
         };
@@ -1128,149 +1608,61 @@ async function runSecondProcess(win, exec, env) {
 
 
 
-  // F4：旧失败必须位于首次查询范围之外，并经真实 beforeEventId 分页加载。
+  // W28-H04：真实分页证据闭环（交接书 §7）。重启即时 DOM 状态与独立时间基准必须在分页前采集
+  // （§7.5 首次重启状态在分页前采集）；分页探针只做真实点击，请求/响应由 main() 安装的 IPC
+  // 观察边界按 seq 因果逐轮绑定，首屏事实取自产品重启后自动发出的真实首屏查询观察；
+  // driver 不再用独立游标调用 api.queryEvents() 冒充分页证据。
   let pagingFacts = { ok: false, reason: 'NOT_PROJECTION' };
+  let pagingSensitivity = null;
   if (projectionEnabled) {
-    pagingFacts = await exec(`(async () => {
-      const api = window.win7Agent.a9;
-      const current = (await api.snapshot()).snapshot;
-      const conversationId = current.activeConversationId;
-      const first = await api.queryEvents({ conversationId, limit: ${PRODUCT_FIRST_QUERY_LIMIT} });
-      if (!first || first.ok !== true) return { ok: false, reason: 'FIRST_QUERY_FAILED' };
-      const firstEvents = first.events || [];
-      const firstPageOldestId = firstEvents.length ? firstEvents[0].eventId : null;
+    // restart 阶段即时状态：Inspector 行与时间基准在任何分页/重载之前采集。
+    restoredEvents.restartObserved = await waitFor(async () => {
+      const captured = await captureInspectorDom(exec);
+      return captured && captured.rows.length > 0 ? captured : null;
+    }, 20_000, 'persisted Inspector timeline rows');
+    restoredEvents.restartBaseline = await collectTimeBaseline(exec);
+    pagingFacts = await runPagingProbe(exec, restoredEvents.conversationId, restoredEvents);
+    if (pagingFacts.ok === true) {
+      // W28-H04d 负向敏感性：对真实分页证据副本施加交接书 §7 反例变异，同一
+      // validatePagingChain 必须全部拒绝（证明摘要布尔值不可能绕过逐页事实核对）。
+      pagingSensitivity = pagingNegativeSensitivity(pagingFacts);
+    }
+    // older_load 阶段即时状态：补载后立即采集，在会话切换与任何其他重载之前（§7.5）。
+    restoredEvents.olderLoadObserved = await exec(`(async () => {
+      const snap = (await window.win7Agent.a9.snapshot()).snapshot;
+      const facts = snap && snap.conversation ? snap.conversation : [];
+      const latest = facts.length ? facts[facts.length - 1] : null;
+      const latestTurnId = latest ? latest.turnId : null;
+      const rows = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => ({
+        eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
+        eventType: item.dataset.eventType || null, text: item.textContent,
+      }));
       const note = document.querySelector('#a9-task-stream .legacy-note');
-      const button = note ? note.querySelector('button') : null;
-      const beforeLabel = button ? button.textContent : '';
-      const beforeVisible = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => Number(item.dataset.eventId));
-      if (!button || button.disabled) {
-        return { ok: false, reason: 'NO_LOAD_MORE_CONTROL', firstPageLimit: ${PRODUCT_FIRST_QUERY_LIMIT},
-          firstPageCount: firstEvents.length, firstPageHasMore: first.hasMore === true, firstPageOldestId };
-      }
-      // 真实点击产品"加载更早记录"入口，按产品自身的 beforeEventId 游标逐页加载，直到无法继续或
-      // 找到旧失败终态。旧失败可能位于首屏之后很远的页，单页加载不足以证明补载。
-      const pages = [];
-      let olderFailure = null;
-      let controlConsumed = false;
-      let cursor = firstPageOldestId;
-      let afterVisible = beforeVisible;
-      let afterLabel = beforeLabel;
-      for (let round = 0; round < 12; round += 1) {
-        const roundNote = document.querySelector('#a9-task-stream .legacy-note');
-        const roundButton = roundNote ? roundNote.querySelector('button') : null;
-        if (!roundButton || roundButton.disabled) { afterLabel = roundButton ? roundButton.textContent : ''; break; }
-        const label = roundButton.textContent;
-        const visibleBefore = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => Number(item.dataset.eventId));
-        roundButton.click();
-        let changed = false;
-        for (let attempt = 0; attempt < 200; attempt += 1) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          afterVisible = Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => Number(item.dataset.eventId));
-          const nowNote = document.querySelector('#a9-task-stream .legacy-note');
-          const nowLabel = nowNote && nowNote.querySelector('button') ? nowNote.querySelector('button').textContent : '';
-          afterLabel = nowLabel;
-          changed = !nowNote || nowLabel !== label || JSON.stringify(afterVisible) !== JSON.stringify(visibleBefore);
-          if (changed) break;
-        }
-        controlConsumed = controlConsumed || changed;
-        // 用该轮真实游标经官方 IPC 取回同一页，记录响应范围与页内旧失败身份。
-        const page = cursor === null ? null
-          : await api.queryEvents({ conversationId, limit: ${PRODUCT_FIRST_QUERY_LIMIT}, beforeEventId: cursor });
-        const batch = (page && page.ok === true && page.events) ? page.events : [];
-        const ids = batch.map((event) => event.eventId);
-        const found = batch.find((event) => (event.eventType || event.type) === 'turn_failed') || null;
-        pages.push({
-          round, before_event_id: cursor, count: ids.length,
-          first_id: ids.length ? ids[0] : null, last_id: ids.length ? ids[ids.length - 1] : null,
-          has_more: page && page.hasMore === true, ok: page && page.ok === true, has_older_failure: Boolean(found),
-        });
-        if (found && !olderFailure) olderFailure = found;
-        if (!(page && page.ok === true) || !ids.length) break;
-        cursor = ids[0];
-        if (olderFailure) break;
-      }
-      const allPageIds = pages.flatMap((item) => (item.first_id === null ? [] : [item.first_id, item.last_id]));
-      const lastPage = pages.length ? pages[pages.length - 1] : null;
+      const timeBaseline = {
+        probe_version: ${JSON.stringify(TIME_BASELINE_PROBE_VERSION)},
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        probes: ${JSON.stringify(TIME_BASELINE_PROBE_UTC_MS)}.map((utcMs) => ({ utc_ms: utcMs, rendered: new Date(utcMs).toLocaleTimeString() })),
+      };
       return {
-        ok: true, conversationId, firstPageLimit: ${PRODUCT_FIRST_QUERY_LIMIT}, firstPageCount: firstEvents.length,
-        firstPageHasMore: first.hasMore === true, firstPageOldestId, beforeEventId: firstPageOldestId,
-        beforeLabel, afterLabel, controlConsumed, hadTruncatedNote: true, pageRounds: pages.length,
-        beforeVisibleCount: beforeVisible.length, afterVisibleCount: afterVisible.length,
-        pages,
-        pageCount: pages.reduce((sum, item) => sum + (item.count || 0), 0),
-        pageHasMore: lastPage ? lastPage.has_more === true : false,
-        pageFirstId: lastPage ? lastPage.first_id : null,
-        pageLastId: lastPage ? lastPage.last_id : null,
-        pageEventIds: allPageIds.filter((id) => Number.isSafeInteger(id)).slice(0, 400),
-        pageHasOlderFailure: Boolean(olderFailure),
-        pageOlderFailureId: olderFailure ? olderFailure.eventId : null,
-        firstPageExcludesOlderFailure: olderFailure
-          ? !firstEvents.some((event) => event.eventId === olderFailure.eventId) : false,
+        conversationId: snap.activeConversationId,
+        latestTurnId,
+        hasControl: Boolean(note && note.querySelector('button')),
+        controlLabel: note && note.querySelector('button') ? note.querySelector('button').textContent : '',
+        rows, displayed: document.getElementById('a9-turn-outcome').textContent, timeBaseline,
       };
     })()`);
   }
-  record('A9-15-PAGING-PROBE-FACTS', projectionEnabled ? pagingFacts.ok === true : true, JSON.stringify(pagingFacts));
-
-
-  // F3：历史查询失败后可见重试。通过 main() 在加载产品入口前安装的 ipcMain.handle 包装，对事件查询
-  // 通道注入**一次**结构化失败（注入点：IPC 主进程边界；证据等级：测试替身，非真实 OS/DB 故障），
-  // 随后通过产品真实"重试加载"入口恢复，并核对重试后事件不重复；不修改冻结源码、守卫或清理保证。
-  let retryFacts = { ok: false, reason: 'NOT_PROJECTION' };
-  if (projectionEnabled) {
-    const beforeRetry = await exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
-      const button = note ? note.querySelector('button') : null;
-      return { hasNote: Boolean(note), label: button ? button.textContent : '', disabled: button ? button.disabled : null };
-    })()`);
-    injectQueryFailureOnce = true;
-    injectedQueryFailure = null;
-    // 控制器已被 F4 分页探针用尽；此处走 eventsError 路径——真实重新加载失败时同样渲染重试入口。
-    const errorState = await exec(`(async () => {
-      const labelOf = () => {
-        const note = document.querySelector('#a9-task-stream .legacy-note');
-        const button = note ? note.querySelector('button') : null;
-        return button ? button.textContent : '';
-      };
-      for (let attempt = 0; attempt < 40; attempt += 1) {
-        await window.win7AgentA9Workbench.refreshSnapshot();
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        if (labelOf() === '重试加载') return { ok: true, attempts: attempt + 1 };
-      }
-      return { ok: false, reason: 'NO_RETRY_AFFORDANCE', label: labelOf() };
-    })()`);
-    const errorVisible = errorState.ok === true;
-    injectQueryFailureOnce = false;
-    const clickedRetry = await exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
-      const button = note ? note.querySelector('button') : null;
-      if (button) button.click();
-      return Boolean(button);
-    })()`);
-    const recoveredState = await waitFor(() => exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
-      const button = note ? note.querySelector('button') : null;
-      const label = button ? button.textContent : '';
-      return label !== '重试加载' ? { label, noteGone: !note } : null;
-    })()`), 60_000, 'retry recovers').catch(() => null);
-    // 回到原会话：轮询直到 Inspector 重新出现行且截断控件回到"加载更早记录"，供 F4 分页探针使用。
-    const afterRetry = await exec(COLLECT_ALL_EVENTS);
-    const afterIds = afterRetry.ids || [];
-    retryFacts = {
-      ok: true, beforeRetry, errorState, errorVisible, clickedRetry,
-      recovered: Boolean(recoveredState), afterLabel: recoveredState ? recoveredState.label : '',
-      injectedFailure: injectedQueryFailure, injectedCount: injectedQueryFailure ? 1 : 0,
-      countAfterRetry: afterIds.length, uniqueAfterRetry: new Set(afterIds).size === afterIds.length,
-      injectionPoint: 'IPC_MAIN_HANDLE_SINGLE_SHOT_WRAPPER',
-      evidenceLevel: 'TEST_DOUBLE_NOT_REAL_OS_FAILURE',
-    };
-  }
-  record('A9-15-QUERY-FAILURE-VISIBLE-RETRY',
-    projectionEnabled && retryFacts.ok === true && retryFacts.injectedCount === 1
-    && retryFacts.errorVisible === true && retryFacts.recovered === true && retryFacts.uniqueAfterRetry === true,
-  JSON.stringify(retryFacts));
-  restoredEvents.retry = retryFacts;
-
+  record('A9-15-PAGING-PROBE-FACTS', projectionEnabled
+    ? pagingFacts.ok === true && pagingSensitivity !== null
+      && Object.values(pagingSensitivity).every((value) => value === true)
+    : true,
+  JSON.stringify({ ...pagingFacts, negativeSensitivity: pagingSensitivity }));
   restoredEvents.paging = pagingFacts;
+  restoredEvents.pagingSensitivity = pagingSensitivity;
+  // W28-H06：查询失败重试移交独立 retry 进程（前一进程完全关闭后复用同一 dataRoot；
+  // 本进程内反复 refreshSnapshot() 不会触发 a9.events.query，基线证据 injectedCount=0）。
+  // 把目标会话写入报告，供宿主以 A9_SMOKE_RETRY_CONVERSATION 传给 retry 进程。
+  report.retryTarget = { conversationId: restoredEvents.conversationId };
   // 查询附件保存的是真实分页事实（limit / beforeEventId / hasMore / 返回范围），不硬编码。
   restoredEvents.pages = Array.isArray(restoredEvents.pages) ? restoredEvents.pages : [];
   if (!projectionEnabled) {
@@ -1385,6 +1777,117 @@ async function runSecondProcess(win, exec, env) {
   // 新 Turn 仍可执行（恢复的 Provider 已配置）；恢复请求由宿主按内容断言为全新会话。
   const outcome = await exec('(window.win7Agent.a9.submitTurn("verify again")).then(r => ({ ok: r.ok, outcome: r.result && r.result.outcome, code: r.error && r.error.code }))');
   record('A9F2-SECOND-TURN-WORKS', outcome.ok === true && outcome.outcome === 'completed', `outcome=${JSON.stringify(outcome)}`);
+}
+
+/**
+ * W28-H06：查询失败后的可见重试（独立进程，交接书 §9 H06 优先方案）。
+ *
+ * 在前一进程完全关闭后复用同一 dataRoot；main() 已在加载产品入口前安装一次性、绑定目标
+ * conversation（A9_SMOKE_RETRY_CONVERSATION）的查询失败替身（注入点：IPC 主进程边界；
+ * 证据等级：测试替身，非真实 OS/DB 故障，标注 TEST_DOUBLE_NOT_REAL_OS_FAILURE）。
+ * 产品重启后 Renderer initialize() 的初次历史加载真实失败 → eventsError 渲染"重试加载"
+ * 入口 → 本进程实际点击该入口 → 第二次查询必须成功。核对：错误消失、事件无缺失/重复、
+ * 最新结果正确（DOM 行 = 独立对照查询的最后 60 行；全局结果 = 最新持久化终态）。
+ * 负向口径（零命中、重试仍失败、未点击、重复事件、恢复内容错绑）均编码为下方断言条件，
+ * 任一发生即 FAIL，不以"缺少控件就跳过"或断言降级修复。
+ */
+async function runRetryProcess(win, exec, env) {
+  void env;
+  const targetConversationId = process.env.A9_SMOKE_RETRY_CONVERSATION || '';
+  // 等待产品重启完成：快照恢复后初次历史加载被替身注入失败，"重试加载"入口出现。
+  const errorState = await waitFor(() => exec(`(() => {
+    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const button = note ? note.querySelector('button') : null;
+    if (!button || button.textContent !== '重试加载') return null;
+    return {
+      hasNote: Boolean(note), label: button.textContent, disabled: button.disabled,
+      timelineRows: document.querySelectorAll('#a9-timeline li').length,
+      noteText: note.textContent,
+    };
+  })()`), 30_000, 'retry affordance after injected initial load failure').catch(() => null);
+  const errorVisible = Boolean(errorState) && errorState.label === '重试加载';
+  // 注入事实：恰好命中一次、绑定目标会话；注入观察与后续成功查询按 seq 保持因果顺序。
+  const injectedObservations = queryObservations.filter((item) => item.injected === true).map((item) => ({
+    seq: item.seq, conversation_id: item.conversation_id, limit: item.limit,
+    before_event_id: item.before_event_id, ok: item.ok, error: item.error, injected: true,
+  }));
+  const injection = injectedQueryFailure ? {
+    ...injectedQueryFailure,
+    hitCount: injectedObservations.length,
+    observations: injectedObservations,
+  } : null;
+  const injectedCount = injection ? injection.hitCount : 0;
+  const injectedBoundToTarget = Boolean(injection) && injectedCount === 1
+    && (!targetConversationId
+      || injectedObservations[0].conversation_id === targetConversationId);
+  // 实际点击产品"重试加载"入口（真实用户路径，不直接调用产品内部函数）。
+  const clickedRetry = errorVisible ? await exec(`(() => {
+    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const button = note ? note.querySelector('button') : null;
+    if (button) button.click();
+    return Boolean(button);
+  })()`) === true : false;
+  // 恢复：错误入口消失，Inspector 重新出现行（初次失败时历史为空，行数 > 0 证明真实补载）。
+  const recoveredState = await waitFor(() => exec(`(() => {
+    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const button = note ? note.querySelector('button') : null;
+    const label = button ? button.textContent : '';
+    const rows = document.querySelectorAll('#a9-timeline li').length;
+    if (label === '重试加载' || rows === 0) return null;
+    return { label, noteGone: !note, rows };
+  })()`), 60_000, 'retry recovery').catch(() => null);
+  const recovered = Boolean(recoveredState) && recoveredState.rows > 0 && recoveredState.label !== '重试加载';
+  // 对照查询：恢复后按真实分页取回全量事件（独立于 UI 首屏窗口），核对无重复。
+  const afterRetry = recovered ? await exec(COLLECT_ALL_EVENTS) : null;
+  const afterIds = (afterRetry && afterRetry.ids) || [];
+  // W28-H06：集合去重计数必须用 Set#size（Set 没有 length；旧写法恒为 undefined !== 长度，
+  // 使该断言永远为 false，retry 用例不可能通过）。
+  const uniqueAfterRetry = afterIds.length > 0 && new Set(afterIds).size === afterIds.length;
+  // DOM 有界显示范围必须等于对照查询的最后 60 行（无缺失、无重复、无错绑）。
+  const domState = recovered ? await exec(`(() => ({
+    ids: Array.from(document.querySelectorAll('#a9-timeline li')).map((item) => Number(item.dataset.eventId)),
+    displayed: document.getElementById('a9-turn-outcome').textContent,
+  }))()`) : null;
+  const domIds = (domState && domState.ids) || [];
+  const domUnique = domIds.length > 0 && new Set(domIds).size === domIds.length;
+  const rowsMatchReference = domIds.length > 0
+    && JSON.stringify(domIds) === JSON.stringify(afterIds.slice(-INSPECTOR_DISPLAY_ROWS));
+  // 最新结果正确：全局结果必须等于对照查询里最新终态事件的期望显示（独立于 Renderer 投影）。
+  const latestOutcomeOk = (function computeLatest() {
+    if (!afterRetry || !Array.isArray(afterRetry.events) || !afterRetry.events.length) return false;
+    const terminals = afterRetry.events
+      .filter((item) => ['turn_completed', 'turn_failed', 'turn_cancelled', 'turn_interrupted', 'turn_blocked']
+        .includes(item.eventType || item.type));
+    if (!terminals.length) return false;
+    const newest = terminals.reduce((a, b) => (b.eventId > a.eventId ? b : a));
+    const type = newest.eventType || newest.type;
+    const data = (newest.payload && newest.payload.data) || newest.payload || {};
+    const facts = type === 'turn_failed'
+      ? { outcome: 'failed', verification: 'not_applicable' }
+      : { outcome: String(data.outcome || ''), verification: String(data.verification || '') };
+    return domState && domState.displayed === `${facts.outcome} · ${facts.verification}`;
+  }());
+  // 请求/响应顺序：注入失败必须先于恢复后的成功查询（seq 因果）。
+  const successfulObservations = queryObservations
+    .filter((item) => item.injected !== true && item.ok === true)
+    .map((item) => ({ seq: item.seq, conversation_id: item.conversation_id, limit: item.limit,
+      before_event_id: item.before_event_id, count: item.count }));
+  const orderOk = injectedObservations.length === 1 && successfulObservations.length >= 1
+    && successfulObservations.every((item) => item.seq > injectedObservations[0].seq);
+  const retryFacts = {
+    ok: injectedBoundToTarget && errorVisible && clickedRetry && recovered
+      && uniqueAfterRetry && domUnique && rowsMatchReference && latestOutcomeOk && orderOk,
+    targetConversationId, injectedCount, injectedBoundToTarget,
+    injection, errorState, errorVisible, clickedRetry, recoveredState, recovered,
+    countAfterRetry: afterIds.length, uniqueAfterRetry,
+    domRowCount: domIds.length, domUnique, rowsMatchReference,
+    displayed: domState ? domState.displayed : null, latestOutcomeOk,
+    successfulObservationsTail: successfulObservations.slice(-4),
+    injectionPoint: 'IPC_MAIN_HANDLE_SINGLE_SHOT_WRAPPER',
+    evidenceLevel: 'TEST_DOUBLE_NOT_REAL_OS_FAILURE',
+  };
+  record('A9-15-QUERY-FAILURE-VISIBLE-RETRY', retryFacts.ok === true, JSON.stringify(retryFacts));
+  report.retryTarget = { conversationId: targetConversationId };
 }
 
 async function runStopProcess(win, exec, env) {

@@ -24,6 +24,19 @@
 
 ## A9 Trusted Agent Runtime（2026-08-31）
 
+- 2026-09-10，WIN7-28 验收工具在真实 Electron 开发机 smoke 下复核（`55d9d5f` 工作树，未提交）：
+  首次真实运行 **FAIL 79/84**，暴露上一轮标记为"✅"的分页/会话残留/重试区域四个缺陷——
+  retry 去重断言用了 `Set#length` 而恒假；分页"补载前已填充"把产品自身的「历史记录未包含过程。」
+  提示当成已填充（假阳性），"补载后可观察"又要求 503 失败轮次存在工具活动组（假阴性）；
+  会话残留正向样本是空会话而 `sessionResidueViolation` 明确拒绝空行集。修复后同一命令
+  **PASS 84/84**，package 回归 **20/20**。另建立候选外 H07 harness：外置 driver 目录**不含**
+  投影契约、缺省 legacy、配上逐条未改动的 W25 历史提示路由，真实运行 PASS（投影提示命中 0 条），
+  证明共享 driver 的候选打包改动未破坏历史 profile；W23/W24/W25 原生 smoke 脚本因
+  `win32` + Electron-as-node + ABI 110 平台门禁记 `NOT_PERFORMED_PLATFORM_GATED`；
+  cleanup 未确认因无安全接缝保留 `NOT_PERFORMED`。交回材料见
+  `validation/win7-28/W28_H09_HANDOVER.md`。WIN7-28 候选双干净构建、候选外 authority 与
+  普通用户非提升 Win7 验收仍 `NOT_PERFORMED`，不得据此判定 F1～F4 全部完成。
+
 - 2026-09-10，WIN7-27（`32c5f6b`）只读复核确认四项修复有实质改进，但仍存在四项 P2 级验收逻辑缺口：
   DOM 附件的实际结果与最新 turn 身份被解析后丢弃、逐行文本仍是非空/关键词检查、审批恢复顺序断言不要求
   出现恢复后的 `tool_start`、旧事件补载未真实执行即可通过。ADR-0121 / A9-15 §15 已授权按

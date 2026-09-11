@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import vm from 'node:vm';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { buildA9ProductCandidate } from '../build-a9-product-v3.mjs';
@@ -971,7 +972,8 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
 
   // 与真实产品形态一致的 9 事件会话：id 3 为旧失败，id 9 为较新 verified 成功；
   // 首批查询（limit 6）只覆盖 id 4..9，旧失败必须经 beforeEventId 分页才被加载。
-  const baseTs = Date.parse('2026-09-10T10:00:00.000Z');
+  // 基准时刻取 16:00:00Z：+8h 偏移后正好跨过 UTC 午夜（00:00:01 次日），覆盖跨日回绕（W28-H03）。
+  const baseTs = Date.parse('2026-09-10T16:00:00.000Z');
   const blank = { outcome: null, error_head: null, tool_name: null, decision: null, denied: false, has_error: false, shell_has_exit_code: false, shell_exit_code: null, call_id: null, step: null, args: {} };
   const event = (id, turnId, type, extra = {}) => ({
     event_id: id, turn_id: turnId, type, outcome: null, verification: null,
@@ -980,32 +982,98 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
     ...(extra.outcome ? { outcome: extra.outcome } : {}),
     ...(extra.verification ? { verification: extra.verification } : {}),
   });
+  const FIRST_LIMIT = 300;
+  const firstScreenEventIds = Array.from({ length: FIRST_LIMIT }, (_, index) => 301 + index);
+  const pageEventIds = Array.from({ length: FIRST_LIMIT }, (_, index) => 1 + index);
   const queryEvents = [
     event(1, null, 'session_started'),
     event(2, 'turn-old', 'turn_started'),
     event(3, 'turn-old', 'turn_failed', { display: { error_head: 'fixture failure' } }),
-    event(4, 'turn-new', 'turn_started'),
-    event(5, 'turn-new', 'tool_start', { display: { tool_name: 'read', args: { path: 'calc.ts' } } }),
-    event(6, 'turn-new', 'tool_end', { display: { tool_name: 'read' } }),
-    event(7, 'turn-new', 'tool_start', { display: { tool_name: 'search', args: { pattern: 'calc' } } }),
-    event(8, 'turn-new', 'tool_end', { display: { tool_name: 'search' } }),
-    event(9, 'turn-new', 'turn_completed', { display: { outcome: 'completed' }, outcome: 'completed', verification: 'verified' }),
+    ...Array.from({ length: 297 }, (_, i) => event(4 + i, 'turn-middle-' + (4 + i), 'tool_start', { display: { tool_name: 'read', args: { path: 'calc.ts' } } })),
+    ...Array.from({ length: 298 }, (_, i) => event(301 + i, 'turn-second-' + (301 + i), 'tool_end', { display: { tool_name: 'read' } })),
+    event(599, 'turn-new', 'turn_started'),
+    event(600, 'turn-new', 'turn_completed', { display: { outcome: 'completed' }, outcome: 'completed', verification: 'verified' }),
   ];
-  const stampOf = (timestampMs) => new Date(timestampMs).toISOString().slice(11, 19);
-  const rowFor = (queryEvent) => ({
-    event_id: queryEvent.event_id, turn_id: queryEvent.turn_id, event_type: queryEvent.type,
-    text: `${stampOf(queryEvent.timestamp_ms)} · ${projectionContract.expectedRowLabel(queryEvent)}`,
+  // W28-H03：行时间与独立时间基准用同一偏移/制式渲染（clockOf 为测试侧的本地渲染器，
+  // 期望值本身由共享契约从 timestamp_ms + 基准偏移独立推导）。
+  const clockOf = (totalSeconds, mode = 'none') => {
+    const seconds = ((Math.floor(totalSeconds) % 86400) + 86400) % 86400;
+    const hour = Math.floor(seconds / 3600);
+    const minute = Math.floor((seconds % 3600) / 60);
+    const second = seconds % 60;
+    const two = (value) => String(value).padStart(2, '0');
+    if (mode === 'none') return `${two(hour)}:${two(minute)}:${two(second)}`;
+    const isPm = hour >= 12;
+    let hour12 = hour % 12;
+    if (hour12 === 0) hour12 = 12;
+    return mode === 'latin' ? `${hour12}:${two(minute)}:${two(second)} ${isPm ? 'PM' : 'AM'}`
+      : `${isPm ? '下午' : '上午'}${hour12}:${two(minute)}:${two(second)}`;
+  };
+  const utcSecondsOfDay = (timestampMs) => Math.floor(timestampMs / 1000) % 86400;
+  const stampOf = (timestampMs, offsetSeconds = 0, mode = 'none') =>
+    clockOf(utcSecondsOfDay(timestampMs) + offsetSeconds, mode);
+  const tzFor = (offset) => {
+    if (offset === 0) return 'UTC';
+    if (offset === 8 * 3600) return 'Asia/Shanghai';
+    if (offset === -5 * 3600) return 'America/Bogota';
+    if (offset === 3600) return 'Africa/Lagos';
+    return 'UTC';
+  };
+  const baselineFor = (offsetSeconds, mode = 'none', tz = tzFor(offsetSeconds)) => ({
+    probe_version: projectionContract.TIME_BASELINE_PROBE_VERSION,
+    time_zone: tz,
+    probes: projectionContract.TIME_BASELINE_PROBE_UTC_MS.map((utcMs) => ({
+      utc_ms: utcMs, rendered: clockOf(utcSecondsOfDay(utcMs) + offsetSeconds, mode),
+    })),
   });
-  const domRows = queryEvents.map(rowFor);
+  const rowFor = (queryEvent, render = { offsetSeconds: 0, mode: 'none' }) => ({
+    event_id: queryEvent.event_id, turn_id: queryEvent.turn_id, event_type: queryEvent.type,
+    text: `${stampOf(queryEvent.timestamp_ms, render.offsetSeconds, render.mode)} · ${projectionContract.expectedRowLabel(queryEvent)}`,
+  });
+  const defaultRows = () => queryEvents.slice(-projectionContract.INSPECTOR_DISPLAY_ROWS).map((event) => rowFor(event));
   const pages = [
-    { limit: 6, before_event_id: null, has_more: true, returned_count: 6, returned_first_event_id: 4, returned_last_event_id: 9, ok: true },
-    { limit: 6, before_event_id: 4, has_more: false, returned_count: 3, returned_first_event_id: 1, returned_last_event_id: 3, ok: true },
+    { limit: 300, before_event_id: null, has_more: true, returned_count: 300, returned_first_event_id: 301, returned_last_event_id: 600, ok: true },
+    { limit: 300, before_event_id: 301, has_more: false, returned_count: 300, returned_first_event_id: 1, returned_last_event_id: 300, ok: true },
   ];
+  // W28-H04：分页证据改为链式事实形态（first_screen + pages[] + older_failure + 便利字段），
+  // 由共享契约 validatePagingChain 独立校验，产品窗口绑定 PRODUCT_FIRST_QUERY_LIMIT(=300)。
+  // 旧失败 event 3 不在首屏（301..600），只能经真实分页响应页（1..300）返回；便利字段必须与
+  // 逐页事实一致，摘要布尔值不能独立填 PASS。
+  const chainOlderFailure = { event_id: 3, turn_id: 'turn-old', type: 'turn_failed' };
   const paging = {
-    ok: true, firstPageLimit: 6, firstPageCount: 6, firstPageHasMore: true, firstPageOldestId: 4,
-    beforeEventId: 4, controlConsumed: true, pageCount: 3, pageHasMore: false,
-    pageFirstId: 1, pageLastId: 3, pageEventIds: [1, 3], pageHasOlderFailure: true,
-    pageOlderFailureId: 3, firstPageExcludesOlderFailure: true,
+    ok: true,
+    conversation_id: 'conversation-current',
+    window_limit: FIRST_LIMIT,
+    observation_boundary: 'IPC_MAIN_HANDLE_OBSERVER',
+    classification: {
+      product_ui: `limit===${FIRST_LIMIT}（产品首屏/分页固定窗口）`,
+      driver_reference: 'limit===1000（driver 独立参考查询）',
+    },
+    before: { olderObservable: { blockFound: false, hasLegacyNote: true } },
+    after: { olderObservable: { blockFound: true, hasLegacyNote: false } },
+    first_screen: {
+      ok: true, limit: FIRST_LIMIT, count: FIRST_LIMIT, has_more: true,
+      first_event_id: firstScreenEventIds[0], last_event_id: firstScreenEventIds[FIRST_LIMIT - 1],
+      event_ids: firstScreenEventIds,
+      terminal_events: [{ event_id: firstScreenEventIds[FIRST_LIMIT - 1], turn_id: 'turn-new', type: 'turn_completed' }],
+    },
+    pages: [{
+      round: 0, conversation_id: 'conversation-current', click_observed: true, request_observed: true,
+      request: { limit: FIRST_LIMIT, before_event_id: firstScreenEventIds[0] },
+      response: {
+        ok: true, count: FIRST_LIMIT, has_more: false,
+        first_event_id: pageEventIds[0], last_event_id: pageEventIds[FIRST_LIMIT - 1],
+        event_ids: pageEventIds, terminal_events: [chainOlderFailure],
+      },
+    }],
+    older_failure: chainOlderFailure,
+    older_failure_loaded_observable: true,
+    older_failure_block_populated_before_paging: false,
+    controlConsumed: true, pageCount: FIRST_LIMIT, pageHasMore: false,
+    pageLastId: pageEventIds[FIRST_LIMIT - 1], pageHasOlderFailure: true,
+    pageOlderFailureId: chainOlderFailure.event_id, firstPageExcludesOlderFailure: true,
+    beforeEventId: firstScreenEventIds[0], firstPageLimit: FIRST_LIMIT, firstPageCount: FIRST_LIMIT,
+    firstPageHasMore: true, firstPageOldestId: firstScreenEventIds[0],
   };
 
   const evidenceRoot = path.join(root, 'evidence');
@@ -1017,26 +1085,31 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
     return { path: name, sha256: sha256File(target) };
   };
   const domExport = (stage_, rows, extra = {}) => ({
-    schema_version: 2, kind: 'A9_PROJECTION_DOM_EXPORT', stage: stage_,
+    schema_version: 3, kind: 'A9_PROJECTION_DOM_EXPORT', stage: stage_,
     conversation_id: extra.conversationId === undefined ? 'conversation-current' : extra.conversationId,
     display_range: { rule: 'LAST_60_BY_EVENT_ID_ASC', max_rows: 60, rows_total: rows.length },
     rows, displayed_outcome: extra.displayedOutcome === undefined ? 'completed · verified' : extra.displayedOutcome,
     latest_persisted_turn_id: extra.latestTurnId === undefined ? 'turn-new' : extra.latestTurnId,
+    // W28-H03：schema v3 必填的独立时间基准（默认与行渲染同偏移/同制式）。
+    time_baseline: extra.timeBaseline === undefined ? baselineFor(0) : extra.timeBaseline,
   });
-  const writeFixture = (mutate) => {
+  const writeFixture = (mutate, render = { offsetSeconds: 0, mode: 'none' }) => {
     // 每次写入都深拷贝共享夹具，避免某个负向用例的就地变异（pop/reverse/字段改写）污染后续用例。
+    const domRows = queryEvents.slice(-projectionContract.INSPECTOR_DISPLAY_ROWS).map((event) => rowFor(event, render));
+    const baseline = baselineFor(render.offsetSeconds, render.mode);
     const data = {
       'projection-query-export.json': {
         schema_version: 2, kind: 'A9_PROJECTION_QUERY_EXPORT', conversation_id: 'conversation-current',
         query: { limit: 1000, before_event_id: null, has_more: false },
         pages: cloneJson(pages), events: cloneJson(queryEvents),
       },
-      'projection-dom-export.json': domExport('restart', cloneJson(domRows)),
+      'projection-dom-export.json': domExport('restart', cloneJson(domRows), { timeBaseline: baseline }),
       'projection-dom-other-conversation.json': domExport('other_conversation', [
-        { event_id: 100, turn_id: null, event_type: 'session_started', text: '00:00:01 · session_started' },
+        { event_id: 700, turn_id: null, event_type: 'session_started', text: '00:00:01 · session_started' },
       ], { displayedOutcome: '', latestTurnId: null, conversationId: 'conversation-other' }),
-      'projection-dom-resume.json': domExport('resume', cloneJson(domRows)),
-      'projection-dom-after-older-load.json': domExport('older_load', cloneJson(domRows), { older_load_mode: 'CLICKED_LOAD_MORE' }),
+      'projection-dom-resume.json': domExport('resume', cloneJson(domRows), { timeBaseline: baseline }),
+      'projection-dom-after-older-load.json': domExport('older_load', cloneJson(domRows),
+        { older_load_mode: 'CLICKED_LOAD_MORE', timeBaseline: baseline }),
     };
     if (mutate) mutate(data);
     const references = {};
@@ -1060,7 +1133,7 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
         dom_export_after_older_load: references['projection-dom-after-older-load.json'],
         older_load_mode: 'CLICKED_LOAD_MORE',
         older_failure: { event_id: 3, turn_id: 'turn-old' },
-        newer_success: { event_id: 9, turn_id: 'turn-new' },
+        newer_success: { event_id: 600, turn_id: 'turn-new' },
         restart_displayed_outcome: 'completed · verified', older_event_load_displayed_outcome: 'completed · verified',
       },
       'W28-10-OLDER-EVENT-PAGINATION': {
@@ -1152,6 +1225,101 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
     /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
   assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-export.json'].rows.reverse(); }))),
     /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  // W28-H03 正向（契约层）：独立基准可推导任意时区偏移与 12/24 小时制；行时间由
+  // timestamp_ms + 基准偏移独立核对，正确时区转换（含跨日回绕）必须通过。
+  assert.equal(projectionContract.deriveTimeBaseline(baselineFor(0)).offsetSeconds, 0);
+  assert.equal(projectionContract.deriveTimeBaseline(baselineFor(0)).meridiemMode, 'none');
+  const plus8 = projectionContract.deriveTimeBaseline(baselineFor(8 * 3600, 'latin'));
+  assert.equal(plus8.offsetSeconds, 8 * 3600);
+  assert.equal(plus8.meridiemMode, 'latin');
+  assert.equal(projectionContract.rowsMatchQuery(defaultRows(), queryEvents, baselineFor(0)), true);
+  // 基线反例（复核 F2）：全部行时间统一 +1 秒曾被首行自校准吸收为时区偏移；现在期望时间
+  // 由独立基准推导，同一 rowsMatchQuery 必须拒绝统一错时与基准/行偏移不符。
+  assert.equal(projectionContract.rowsMatchQuery(
+    projectionContract.rowMutationSamples(defaultRows(), queryEvents).uniformShiftPlus1s,
+    queryEvents, baselineFor(0)), false);
+  assert.equal(projectionContract.rowsMatchQuery(defaultRows(), queryEvents, baselineFor(3600)), false);
+  // W28-H03 正向（报告器层）：+8h 跨日回绕（16:00Z → 次日 00:00 本地）与 -5h 12 小时制均须整单通过。
+  assert.equal(verify(buildReport(writeFixture(null, { offsetSeconds: 8 * 3600, mode: 'none' }))).status, 'PASS');
+  assert.equal(verify(buildReport(writeFixture(null, { offsetSeconds: -5 * 3600, mode: 'latin' }))).status, 'PASS');
+  // W28-H03 负向（报告器层）：整列统一 +1 秒/+1 小时、单行 +1 秒、仅一个阶段错时，
+  // 保留 ID/turn/类型/标签并重算附件哈希后仍必须被同一行判定拒绝。
+  const mutatedRows = (data, name, mutation) => {
+    data[name].rows = projectionContract.rowMutationSamples(data[name].rows, queryEvents)[mutation];
+  };
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    for (const name of ['projection-dom-export.json', 'projection-dom-resume.json', 'projection-dom-after-older-load.json']) {
+      mutatedRows(d, name, 'uniformShiftPlus1s');
+    }
+  }))), /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    for (const name of ['projection-dom-export.json', 'projection-dom-resume.json', 'projection-dom-after-older-load.json']) {
+      mutatedRows(d, name, 'uniformShiftPlus1h');
+    }
+  }))), /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { mutatedRows(d, 'projection-dom-export.json', 'singleRowPlus1s'); }))),
+    /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { mutatedRows(d, 'projection-dom-after-older-load.json', 'uniformShiftPlus1s'); }))),
+    /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { mutatedRows(d, 'projection-dom-export.json', 'missingTime'); }))),
+    /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { mutatedRows(d, 'projection-dom-export.json', 'invalidTime'); }))),
+    /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  // W28-H03 负向：行制式（12h）与独立基准制式（24h）不一致必须拒绝。
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    for (const name of ['projection-dom-export.json', 'projection-dom-resume.json', 'projection-dom-after-older-load.json']) {
+      d[name].rows = queryEvents.map((event) => rowFor(event, { offsetSeconds: 0, mode: 'latin' }));
+    }
+  }))), /A9_W28_PROJECTION_DOM_ROWS_MISMATCH/);
+  // W28-H03 负向：独立时间基准缺失或不可推导（版本不符、探针输入被改、探针彼此不一致、
+  // 不可解析、探针缺失）一律 fail-closed，不回退为首行自校准。
+  assert.throws(() => verify(buildReport(writeFixture((d) => { delete d['projection-dom-export.json'].time_baseline; }))),
+    /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => { d['projection-dom-export.json'].time_baseline = null; }))),
+    /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].time_baseline.probe_version = 99;
+  }))), /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].time_baseline.probes[1].utc_ms += 1000;
+  }))), /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].time_baseline.probes[2].rendered = '99:99:99';
+  }))), /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-export.json'].time_baseline.probes.pop();
+  }))), /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    // 探针彼此不一致：单个探针被平移 1 小时，任何首行自校准都无法发现，独立基准必须拒绝。
+    d['projection-dom-export.json'].time_baseline.probes[3].rendered = clockOf(
+      utcSecondsOfDay(projectionContract.TIME_BASELINE_PROBE_UTC_MS[3]) + 3600);
+  }))), /A9_W28_PROJECTION_DOM_TIME_BASELINE_INVALID/);
+  // W28-H05 正向（契约层）：残留方向为"与原会话无交集"——其他会话自己的新行合法，
+  // 原会话行、混合行、缺失身份行与空行集都是违规。
+  const originalIds = queryEvents.map((event) => event.event_id);
+  assert.equal(projectionContract.sessionResidueViolation([
+    { event_id: 700, turn_id: null, event_type: 'session_started', text: '00:00:01 · session_started' },
+  ], originalIds), false);
+  assert.equal(projectionContract.sessionResidueViolation([
+    { event_id: 700, turn_id: null, event_type: 'session_started', text: '00:00:01 · session_started' },
+    { event_id: 600, turn_id: 'turn-new', event_type: 'turn_completed', text: '16:00:09 · 任务完成 · completed' },
+  ], originalIds), true);
+  assert.equal(projectionContract.sessionResidueViolation([], originalIds), true);
+  assert.equal(projectionContract.sessionResidueViolation([
+    { event_id: null, turn_id: null, event_type: 'session_started', text: '00:00:01 · x' },
+  ], originalIds), true);
+  // W28-H05 负向（报告器层）：其他会话导出混入原会话行、空行集或身份缺失行必须拒绝。
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-other-conversation.json'].rows.push(
+      { event_id: 600, turn_id: 'turn-new', event_type: 'turn_completed', text: '16:00:09 · 任务完成 · completed' });
+  }))), /A9_W28_PROJECTION_CROSS_SESSION_RESIDUE/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-other-conversation.json'].rows = [];
+  }))), /A9_W28_PROJECTION_CROSS_SESSION_RESIDUE/);
+  assert.throws(() => verify(buildReport(writeFixture((d) => {
+    d['projection-dom-other-conversation.json'].rows.push(
+      { event_id: null, turn_id: null, event_type: 'session_started', text: '00:00:01 · 外来行' });
+  }))), /A9_W28_PROJECTION_CROSS_SESSION_RESIDUE/);
   // F4 负向：缺页事实、硬编码 has_more=false、无游标、旧失败归属不符。
   assert.throws(() => verify(buildReport(writeFixture((d) => { delete d['projection-query-export.json'].pages; }))),
     /A9_W28_PROJECTION_QUERY_PAGES_REQUIRED/);
@@ -1163,15 +1331,27 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
   assert.throws(() => verify(buildReport(writeFixture(), (report) => {
     report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
       .executions[0].projection_evidence.paging.beforeEventId = null;
-  })), /A9_W28_PROJECTION_PAGING_CURSOR_MISSING/);
+  })), /A9_W28_PROJECTION_PAGING_CHAIN_INVALID/);
   assert.throws(() => verify(buildReport(writeFixture(), (report) => {
     report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
       .executions[0].projection_evidence.paging.pageOlderFailureId = 7;
-  })), /A9_W28_PROJECTION_PAGING_OLDER_BINDING_MISMATCH/);
+  })), /A9_W28_PROJECTION_PAGING_CHAIN_INVALID/);
   assert.throws(() => verify(buildReport(writeFixture(), (report) => {
     report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
       .executions[0].projection_evidence.paging.controlConsumed = false;
-  })), /A9_W28_PROJECTION_PAGING_CONTROL_NOT_CONSUMED/);
+  })), /A9_W28_PROJECTION_PAGING_CHAIN_INVALID/);
+  // 交接书 §7 反例：仅保留 PASS 摘要而清空逐页事实（pages=[]）必须被链式校验拒绝。
+  assert.throws(() => verify(buildReport(writeFixture(), (report) => {
+    const pagingRef = report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
+      .executions[0].projection_evidence.paging;
+    pagingRef.pages = [];
+    pagingRef.filter0Ids = undefined;
+  })), /A9_W28_PROJECTION_PAGING_CHAIN_INVALID/);
+  // 报告级旧失败身份与链内实际返回的旧失败不一致必须拒绝（OLDER_BINDING_MISMATCH）。
+  assert.throws(() => verify(buildReport(writeFixture(), (report) => {
+    report.results.find((item) => item.case_id === 'W28-10-OLDER-EVENT-PAGINATION')
+      .executions[0].projection_evidence.older_failure = { event_id: 7, turn_id: 'turn-other' };
+  })), /A9_W28_PROJECTION_PAGING_OLDER_BINDING_MISMATCH/);
   // 旧失败与新成功共用 turn ID 必须拒绝。
   assert.throws(() => verify(buildReport(writeFixture(), (report) => {
     report.results.find((item) => item.case_id === 'W28-09-LATEST-OUTCOME-PROJECTION')
@@ -1179,6 +1359,439 @@ test('WIN7-28 verifier binds DOM outcome/turn identity, row content and time, an
   })), /A9_W28_PROJECTION_TURN_IDENTITY_COLLISION/);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test('WIN7-28 pagination chain validator rejects the handover §7 counter-examples and accepts a consistent chain', () => {
+  const chain = () => {
+    const firstScreenEventIds = [4, 5, 6, 7, 8, 9];
+    return {
+      conversation_id: 'test-conv', window_limit: 6,
+      observation_boundary: 'IPC_MAIN_HANDLE_OBSERVER',
+      classification: { product_ui: 'limit===6', driver_reference: 'limit===1000' },
+      first_screen: {
+        ok: true, limit: 6, count: 6, has_more: true,
+        first_event_id: 4, last_event_id: 9, event_ids: firstScreenEventIds,
+        terminal_events: [{ event_id: 9, turn_id: 'turn-new', type: 'turn_completed' }],
+      },
+      pages: [{
+        round: 0, conversation_id: 'test-conv', click_observed: true, request_observed: true,
+        request: { limit: 6, before_event_id: 4 },
+        response: {
+          ok: true, count: 3, has_more: false, first_event_id: 1, last_event_id: 3,
+          event_ids: [1, 2, 3],
+          terminal_events: [{ event_id: 3, turn_id: 'turn-old', type: 'turn_failed' }],
+        },
+      }],
+      older_failure: { event_id: 3, turn_id: 'turn-old', type: 'turn_failed' },
+      before: { olderObservable: { blockFound: false, hasLegacyNote: true } },
+      after: { olderObservable: { blockFound: true, hasLegacyNote: false } },
+      older_failure_loaded_observable: true, older_failure_block_populated_before_paging: false,
+      controlConsumed: true, pageCount: 3, pageHasMore: false, pageLastId: 3,
+      pageHasOlderFailure: true, pageOlderFailureId: 3, firstPageExcludesOlderFailure: true,
+      beforeEventId: 4, firstPageLimit: 6, firstPageCount: 6, firstPageHasMore: true, firstPageOldestId: 4,
+    };
+  };
+  const verdict = (mutate) => {
+    const facts = chain();
+    if (mutate) mutate(facts);
+    return projectionContract.validatePagingChain(facts);
+  };
+  // 正向：完整一致链通过。
+  assert.equal(verdict().ok, true, 'consistent paging chain must pass');
+
+  // 负向（交接书 §7）：以下变异都必须被同一 validatePagingChain 拒绝。
+  const rejectionCases = {
+    pagesEmpty: (f) => { f.pages = []; },
+    zeroCountPage: (f) => { f.pages[0].response.count = 0; f.pages[0].response.event_ids = []; },
+    failedPageOk: (f) => { f.pages[0].response.ok = false; },
+    cursorRepeat: (f) => { // 第二页复用首页游标：上一页最旧事件=1，第二页游标应为 1 而非 4。
+      const secondPage = JSON.parse(JSON.stringify(f.pages[0]));
+      secondPage.round = 1;
+      secondPage.request = { limit: 6, before_event_id: 4 };
+      f.pages.push(secondPage);
+    },
+    cursorDiscontinuous: (f) => { f.pages[0].request.before_event_id = 6; },
+    noOlderFailure: (f) => { f.pages[0].response.terminal_events = [{ event_id: 9, turn_id: 'turn-new', type: 'turn_completed' }]; f.pageHasOlderFailure = false; f.pageOlderFailureId = null; },
+    olderInFirstScreen: (f) => { f.first_screen.event_ids = [3, 4, 5, 6, 7, 8]; f.first_screen.first_event_id = 3; f.beforeEventId = 3; f.firstPageOldestId = 3; },
+    duplicateId: (f) => { const ids = f.pages[0].response.event_ids; ids.push(ids[ids.length - 1]); f.pages[0].response.count = ids.length; f.pages[0].response.last_event_id = ids[ids.length - 1]; },
+    notProgressing: (f) => { f.pages[0].response.event_ids = [2, 3, 6]; f.pages[0].response.count = 3; f.pages[0].response.last_event_id = 6; f.pageLastId = 6; },
+    crossConversation: (f) => { f.pages[0].conversation_id = 'other-conv'; },
+    convenienceLies: (f) => { f.pageCount = 999; },
+    windowUnbound: (f) => { f.window_limit = 6; f.first_screen.limit = 6; f.pages[0].request.limit = 6; f.window_limit = 1; },
+    oldFailureRemovedFromActualMembers: (f) => {
+      f.pages[0].response.event_ids = f.pages[0].response.event_ids.filter((id) => id !== 3);
+      f.pages[0].response.count = f.pages[0].response.event_ids.length;
+      f.pageCount = f.pages[0].response.count;
+    },
+    continueAfterHasMoreFalse: (f) => {
+      f.pages[0].response.has_more = false;
+      const secondPage = JSON.parse(JSON.stringify(f.pages[0]));
+      secondPage.round = 1;
+      secondPage.request = { limit: 6, before_event_id: 1 };
+      f.pages.push(secondPage);
+    },
+    domObservationContradictsLoadedSummary: (f) => {
+      f.after = { olderObservable: { blockFound: false, hasLegacyNote: true } };
+      f.older_failure_loaded_observable = true;
+    },
+    omitActualRequestObservation: (f) => {
+      delete f.pages[0].request_observed;
+    },
+    missingDomObservations: (f) => {
+      delete f.before;
+      delete f.after;
+    },
+    missingFirstCount: (f) => {
+      delete f.first_screen.count;
+    },
+  };
+  for (const [name, mutate] of Object.entries(rejectionCases)) {
+    const result = verdict(mutate);
+    assert.equal(result.ok, false, `pagination negative case must be rejected: ${name} violations=${result.violations.join(',')}`);
+  }
+});
+
+test('WIN7-28 external driver dependency closure relocates the contract and fails closed per protocol', () => {
+  const w28SmokeSource = fs.readFileSync(require.resolve('../../../release/win7-product-v3/a9-win7-28-smoke.cjs'), 'utf8');
+  const driverSource = fs.readFileSync(require.resolve('../../../src/shell/tests/product/a9-06-driver-entry.cjs'), 'utf8');
+  const devRunnerSource = fs.readFileSync(require.resolve('../../../src/shell/tests/product/run-a9-06-electron-smoke.mjs'), 'utf8');
+  const contractBytes = fs.readFileSync(require.resolve('../../../release/win7-product-v3/a9-projection-contract.cjs'));
+  const extract = (source, startMarker, endMarker) => source.slice(source.indexOf(startMarker), source.indexOf(endMarker));
+
+  // 纯布局回归（W28-H01 基线反例）：外置运行目录必须随 driver 搬移共享契约并做复制后哈希核对。
+  // 只在内存虚拟文件系统中复现 prepareDriverRuntime 的搬移/校验合同，不启动 Electron，
+  // 也不把开发机路径模拟冒充为 Win7 运行记录。
+  const virtualLayout = (options = {}) => {
+    const files = new Map();
+    const candidateRoot = '/virtual/w28-candidate';
+    const runRoot = '/virtual/w28-evidence/automatic-1';
+    files.set(path.join(candidateRoot, 'electron.exe'), Buffer.from('fake-electron'));
+    files.set(path.join(candidateRoot, 'resources', 'default_app.asar'), Buffer.from('fake-asar'));
+    const sourceDriver = path.join(candidateRoot, 'validation', 'a9-win7-28-driver.cjs');
+    files.set(sourceDriver, Buffer.from(driverSource, 'utf8'));
+    const sourceContract = path.join(candidateRoot, 'validation', 'a9-projection-contract.cjs');
+    if (!options.missingSourceContract) files.set(sourceContract, contractBytes);
+    return {
+      files, candidateRoot, runRoot, sourceDriver, sourceContract,
+      virtualFs: {
+        mkdirSync() {},
+        readdirSync: () => [{ name: 'electron.exe', isFile: () => true }],
+        existsSync: (file) => files.has(file),
+        copyFileSync: (from, to) => {
+          if (!files.has(from)) throw new Error(`A9_TEST_ENOENT:${from}`);
+          const bytes = Buffer.from(files.get(from));
+          files.set(to, options.corruptContractCopy && String(to).endsWith('a9-projection-contract.cjs')
+            ? Buffer.concat([bytes, Buffer.from('corrupted')]) : bytes);
+        },
+        readFileSync: (file) => {
+          if (!files.has(file)) throw new Error(`A9_TEST_ENOENT:${file}`);
+          return files.get(file);
+        },
+        writeFileSync: (file, bytes) => files.set(file, Buffer.from(bytes)),
+      },
+    };
+  };
+  const prepareScript = `${extract(w28SmokeSource, 'function copyTree(', '\nfunction sha256File(')}\n${
+    extract(w28SmokeSource, 'function sha256File(', '\nfunction createFixture(')}\nprepareDriverRuntime(candidateRoot, runRoot, sourceDriver)`;
+  const runPrepare = (options) => {
+    const layout = virtualLayout(options);
+    const prepared = vm.runInNewContext(prepareScript, {
+      fs: layout.virtualFs, path, crypto, __dirname: path.join(layout.candidateRoot, 'validation'),
+      candidateRoot: layout.candidateRoot, runRoot: layout.runRoot, sourceDriver: layout.sourceDriver,
+    });
+    return { layout, prepared };
+  };
+
+  const { layout, prepared } = runPrepare({});
+  const contractTarget = path.join(layout.runRoot, 'driver-app', 'a9-projection-contract.cjs');
+  assert.ok(layout.files.has(contractTarget), 'shared contract relocated beside the external driver');
+  assert.equal(digest(layout.files.get(contractTarget)), digest(contractBytes), 'relocated contract bytes match the candidate source');
+  assert.equal(prepared.contractPath, contractTarget);
+  assert.equal(prepared.contractSha256, digest(contractBytes), 'contract hash pinned after copy');
+  assert.ok(layout.files.has(path.join(layout.runRoot, 'driver-app', 'main.cjs')), 'driver relocated to the external app root');
+  // 负向：复制后哈希不符必须 fail-closed。
+  assert.throws(() => runPrepare({ corruptContractCopy: true }), /A9_W28_DRIVER_CONTRACT_HASH_MISMATCH/);
+  // 负向：候选 validation/ 缺契约源必须 fail-closed，不得静默跳过投影验收。
+  assert.throws(() => runPrepare({ missingSourceContract: true }), /A9_W28_DRIVER_CONTRACT_SOURCE_MISSING/);
+
+  // 纯模块加载回归（W28-H01 基线反例）：projection 缺契约 fail-closed；legacy 不依赖契约文件。
+  // 覆盖候选 validation/（driver 与契约同级）与候选外 driver-app/ 两层布局的同级解析。
+  const loadPrefix = driverSource.slice(
+    driverSource.indexOf("const fs = require('fs');"),
+    driverSource.indexOf('\n/** 把 DOM 观察行转换'),
+  );
+  const loadDriverPrefix = ({ protocol, contractSibling = false, explicitContract = '', contractModule = projectionContract }) => {
+    const driverDir = '/virtual/w28-evidence/automatic-1/driver-app';
+    const sibling = path.join(driverDir, 'a9-projection-contract.cjs');
+    return vm.runInNewContext(loadPrefix, {
+      __dirname: driverDir,
+      process: { env: {
+        ...(protocol ? { A9_SMOKE_DRIVER_PROTOCOL: protocol } : {}),
+        ...(explicitContract ? { A9_SMOKE_PROJECTION_CONTRACT: explicitContract } : {}),
+      } },
+      require: (name) => {
+        if (name === 'fs') return { existsSync: (file) => (contractSibling && file === sibling) || file === explicitContract };
+        if (name === 'electron') return {};
+        if (name === 'path') return path;
+        if (name === 'crypto') return crypto;
+        if (name === sibling || name === explicitContract) return contractModule;
+        throw new Error(`A9_TEST_UNEXPECTED_REQUIRE:${name}`);
+      },
+    });
+  };
+  loadDriverPrefix({ protocol: 'projection', contractSibling: true });
+  loadDriverPrefix({ protocol: 'projection', explicitContract: '/virtual/shared/a9-projection-contract.cjs' });
+  loadDriverPrefix({ protocol: undefined });
+  assert.throws(() => loadDriverPrefix({ protocol: 'projection' }), /A9_PROJECTION_CONTRACT_UNAVAILABLE/);
+  assert.throws(() => loadDriverPrefix({ protocol: 'projection', explicitContract: 'relative/contract.cjs' }), /A9_PROJECTION_CONTRACT_PATH_NOT_ABSOLUTE/);
+  assert.throws(() => loadDriverPrefix({
+    protocol: 'projection', contractSibling: true,
+    contractModule: { ...projectionContract, MAX_ERROR_HEAD: 999 },
+  }), /A9_PROJECTION_CONTRACT_BOUNDS_MISMATCH/);
+
+  // 解析合同一致性：外置 smoke 与开发机 runner 显式传入契约路径；driver 不再回退搜索源码仓库。
+  assert.match(w28SmokeSource, /A9_SMOKE_PROJECTION_CONTRACT: contractPath/);
+  assert.match(w28SmokeSource, /A9-W28-DRIVER-CONTRACT-CLOSURE/);
+  assert.match(devRunnerSource, /A9_SMOKE_PROJECTION_CONTRACT: path\.join\(repositoryRoot, 'release', 'win7-product-v3', 'a9-projection-contract\.cjs'\)/);
+  assert.doesNotMatch(driverSource, /repositoryRoot, 'release', 'win7-product-v3', 'a9-projection-contract\.cjs'/);
+});
+
+test('WIN7-28 formal fixture drives all projection scenes and refuses unknown-prompt fallback', () => {
+  const w28SmokeSource = fs.readFileSync(require.resolve('../../../release/win7-product-v3/a9-win7-28-smoke.cjs'), 'utf8');
+  const driverSource = fs.readFileSync(require.resolve('../../../src/shell/tests/product/a9-06-driver-entry.cjs'), 'utf8');
+  const devRunnerSource = fs.readFileSync(require.resolve('../../../src/shell/tests/product/run-a9-06-electron-smoke.mjs'), 'utf8');
+  const extract = (source, startMarker, endMarker) => source.slice(source.indexOf(startMarker), source.indexOf(endMarker));
+
+  // 纯路由回归（W28-H02 基线反例）：捕获正式 fixture 传给 createFixture 的 step 函数，
+  // 在纯函数层复现各场景的提示路由，不启动 Electron，也不把路由模拟冒充 Win7 运行记录。
+  let capturedStep = null;
+  const journeyScript = `${extract(w28SmokeSource, 'function createJourneyFixture(', '\nfunction createStopFixture(')}\ncreateJourneyFixture();`;
+  vm.runInNewContext(journeyScript, { createFixture: (step) => { capturedStep = step; return {}; } });
+  assert.equal(typeof capturedStep, 'function', 'journey step function captured for pure routing replay');
+  const ask = (prompt, toolNames = []) => capturedStep({
+    messages: [{ role: 'user', content: prompt }, ...toolNames.map((name) => ({ role: 'tool', name }))],
+  });
+
+  // 正向（F3）：非零退出——Windows 兼容的确定性非零退出命令，不依赖 node/git 等开发机工具。
+  const failingShell = ask('run failing shell command');
+  assert.equal(failingShell.tool.name, 'shell');
+  assert.equal(failingShell.tool.args.command, 'exit 3');
+  assert.doesNotMatch(failingShell.tool.args.command, /node|git/i);
+  assert.equal(ask('run failing shell command', ['shell']).tool, undefined, 'non-zero-exit turn ends after the failing call');
+
+  // 正向（F3）：可重复工具错误——测试专用缺失目标，独立于 Provider 503 与非零退出。
+  const toolError = ask('trigger tool error');
+  assert.equal(toolError.tool.name, 'read');
+  assert.equal(toolError.tool.args.path, 'missing-fixture-target.ts');
+  assert.equal(ask('trigger tool error', ['read']).tool, undefined, 'tool-error turn ends after the failing read');
+
+  // 正向（F3）：批准路径——预先创建的 approve-target.tmp 精确审批目标；恢复工具活动由 driver 断言。
+  const approve = ask('approve the high impact operation');
+  assert.equal(approve.tool.name, 'delete');
+  assert.equal(approve.tool.args.path, 'approve-target.tmp');
+  assert.equal(approve.tool.args.permanent, true);
+  assert.equal(ask('approve the high impact operation', ['delete']).tool, undefined, 'approve turn ends after the approved delete');
+
+  // 正向（F4）：批量历史——互不相同的只读参数持续产出，直到 BULK_STEPS 后收尾。
+  const BULK_STEPS = 26;
+  const bulkPatterns = [];
+  for (let count = 0; count < BULK_STEPS; count += 1) {
+    const step = ask(`generate bulk history events ${count}`, Array.from({ length: count }, () => 'search'));
+    assert.ok(step.tool, `bulk step ${count} must issue a read-only tool call`);
+    assert.equal(step.tool.name, 'search');
+    bulkPatterns.push(String(step.tool.args.pattern));
+  }
+  assert.equal(ask(`generate bulk history events ${BULK_STEPS}`, Array.from({ length: BULK_STEPS }, () => 'search')).tool, undefined,
+    'bulk turn ends after enough distinct probes');
+  assert.equal(new Set(bulkPatterns).size, BULK_STEPS, 'bulk probe patterns must be pairwise distinct');
+  assert.ok(bulkPatterns.every((pattern) => /^probe-\d+-\d+$/.test(pattern)), 'bulk probes keep their distinguishable shape');
+
+  // 负向：未知提示不得误路由到任何新增场景——必须回落为旅程 turn 1 的 read calc.ts。
+  const unknown = ask('an entirely unknown prompt for the journey');
+  assert.equal(unknown.tool.name, 'read');
+  assert.equal(unknown.tool.args.path, 'calc.ts');
+
+  // 负向（回归）：既有旅程提示仍按原路由服务，不被新增场景抢占。
+  assert.equal(ask('cleanup permanently and push').tool.args.path, 'scratch.tmp');
+  assert.equal(ask('verify again').tool.name, 'read');
+  assert.equal(ask('produce latest verified').tool.name, 'edit');
+
+  // 协议一致性：driver 与开发机 fixture 实际使用的提示串都能被正式 fixture 路由（绑定两侧协议）。
+  for (const prompt of ['run failing shell command', 'trigger tool error', 'approve the high impact operation', 'generate bulk history events']) {
+    assert.ok(driverSource.includes(`'${prompt}'`), `driver sends prompt: ${prompt}`);
+    assert.ok(devRunnerSource.includes(`'${prompt}'`), `dev fixture routes prompt: ${prompt}`);
+  }
+
+  // 正式工作区输入闭环：批准/拒绝目标分开创建，并由宿主在第一进程退出后逐项清点。
+  assert.match(w28SmokeSource, /writeFileSync\(path\.join\(workspaceRoot, 'scratch\.tmp'\)/);
+  assert.match(w28SmokeSource, /writeFileSync\(path\.join\(workspaceRoot, 'approve-target\.tmp'\)/);
+  assert.match(w28SmokeSource, /A9-W28-DENY-TARGET-SURVIVES-DENIAL/);
+  assert.match(w28SmokeSource, /A9-W28-APPROVE-TARGET-EXECUTED-AFTER-APPROVAL/);
+});
+
+test('WIN7-28 RF01-RF04 repair: retry orchestration, immediate snapshot binding, and DST time baseline', () => {
+  const w28SmokeSource = fs.readFileSync(require.resolve('../../../release/win7-product-v3/a9-win7-28-smoke.cjs'), 'utf8');
+  const driverSource = fs.readFileSync(require.resolve('../../../src/shell/tests/product/a9-06-driver-entry.cjs'), 'utf8');
+  const devRunnerSource = fs.readFileSync(require.resolve('../../../src/shell/tests/product/run-a9-06-electron-smoke.mjs'), 'utf8');
+
+  // RF01: Formal smoke retry process orchestration & assertion fail-closed contract
+  assert.match(w28SmokeSource, /A9_SMOKE_MODE: 'retry'/);
+  assert.match(w28SmokeSource, /phases\.push\(\{\s*phase: 'retry'/);
+  assert.match(w28SmokeSource, /second\.retryTarget && second\.retryTarget\.conversationId/);
+  assert.match(w28SmokeSource, /A9_SMOKE_RETRY_CONVERSATION: retryTargetConversation/);
+  assert.match(w28SmokeSource, /'A9-W28-RETRY-TARGET-BOUND'/);
+  assert.match(w28SmokeSource, /'A9-W28-REQUIRED-ASSERTIONS-PRESENT'/);
+  assert.match(w28SmokeSource, /reports\.retry/);
+  assert.match(devRunnerSource, /A9-15-QUERY-FAILURE-VISIBLE-RETRY-REPORT/);
+  assert.match(devRunnerSource, /'A9-W28-RETRY-TARGET-BOUND'/);
+  assert.match(devRunnerSource, /retryReport\.mode === 'retry'/);
+  assert.match(devRunnerSource, /retryReport\.retryTarget\?\.conversationId === retryTargetConversation/);
+  assert.match(devRunnerSource, /phase: 'retry'/);
+
+  // Dev runner retry 逻辑验证：错会话、错模式、重复断言必须 fail-closed
+  const evaluateDevRetry = ({ mode = 'retry', targetConv = 'conv-123', reportTarget = 'conv-123', status = 'PASS', cases = [{ id: 'A9-15-QUERY-FAILURE-VISIBLE-RETRY', passed: true }] }) => {
+    const recorded = [];
+    const record = (id, passed, detail) => recorded.push({ id, passed: passed === true, detail: detail || '' });
+    const retryReport = { status, mode, retryTarget: { conversationId: reportTarget }, cases };
+    const retryTargetConversation = targetConv;
+
+    const retryModeOk = retryReport.mode === 'retry';
+    const retryTargetBound = Boolean(retryTargetConversation
+      && retryModeOk
+      && retryReport.retryTarget?.conversationId === retryTargetConversation
+      && Array.isArray(retryReport.cases)
+      && retryReport.cases.some((c) => c.id === 'A9-15-QUERY-FAILURE-VISIBLE-RETRY' && c.passed === true));
+    record('A9-W28-RETRY-TARGET-BOUND', retryTargetBound, '');
+
+    const retryCaseCounts = new Map();
+    for (const c of retryReport.cases || []) {
+      if (c && typeof c.id === 'string') {
+        retryCaseCounts.set(c.id, (retryCaseCounts.get(c.id) || 0) + 1);
+      }
+    }
+    const duplicateRetryCaseIds = Array.from(retryCaseCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([id]) => id);
+    const retryNoDuplicates = Array.isArray(retryReport.cases)
+      && duplicateRetryCaseIds.length === 0
+      && retryReport.cases.length === retryCaseCounts.size;
+
+    const retryCasesAllPassed = Array.isArray(retryReport.cases)
+      && retryReport.cases.length > 0
+      && retryReport.cases.every((c) => c && c.passed === true);
+
+    const retryReportValid = retryReport.status === 'PASS'
+      && retryModeOk
+      && retryTargetBound
+      && retryNoDuplicates
+      && retryCasesAllPassed;
+
+    record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-REPORT', retryReportValid, '');
+    for (const c of retryReport.cases || []) {
+      const isDuplicate = (retryCaseCounts.get(c?.id) || 0) > 1;
+      record(c.id, !isDuplicate && c.passed === true, isDuplicate ? `DUPLICATE_ASSERTION:${c.id}` : (c.detail || ''));
+    }
+    return {
+      allPassed: recorded.every((r) => r.passed),
+      retryTargetBound,
+      retryReportValid,
+      recorded,
+    };
+  };
+
+  // 正确用例：PASS
+  assert.equal(evaluateDevRetry({}).allPassed, true);
+  // 错会话：FAIL
+  assert.equal(evaluateDevRetry({ reportTarget: 'wrong-conv' }).allPassed, false);
+  assert.equal(evaluateDevRetry({ reportTarget: 'wrong-conv' }).retryTargetBound, false);
+  // 错模式：FAIL
+  assert.equal(evaluateDevRetry({ mode: 'second' }).allPassed, false);
+  assert.equal(evaluateDevRetry({ mode: 'second' }).retryReportValid, false);
+  // 重复断言：FAIL
+  const duplicateCases = [
+    { id: 'A9-15-QUERY-FAILURE-VISIBLE-RETRY', passed: true },
+    { id: 'A9-15-QUERY-FAILURE-VISIBLE-RETRY', passed: true },
+  ];
+  assert.equal(evaluateDevRetry({ cases: duplicateCases }).allPassed, false);
+  assert.equal(evaluateDevRetry({ cases: duplicateCases }).retryReportValid, false);
+
+  // RF01 fail-closed 逻辑验证：缺任一必需断言或未全通过时必须记为失败
+  const extract = (source, startMarker, endMarker) => source.slice(source.indexOf(startMarker), source.indexOf(endMarker));
+  const idsScript = `${extract(w28SmokeSource, 'const requiredSmokeAssertionIds =', '\n  const missingRequiredAssertions =')};\nrequiredSmokeAssertionIds;`;
+  const requiredSmokeAssertionIds = vm.runInNewContext(idsScript);
+  assert.equal(requiredSmokeAssertionIds.length, 10);
+  assert.ok(requiredSmokeAssertionIds.includes('A9-15-QUERY-FAILURE-VISIBLE-RETRY'));
+  assert.ok(requiredSmokeAssertionIds.includes('A9-W28-RETRY-TARGET-BOUND'));
+
+  const checkMissing = (items) => requiredSmokeAssertionIds.filter((id) => !items.some((item) => item.id === id && item.passed === true));
+  const fullPassed = requiredSmokeAssertionIds.map((id) => ({ id, passed: true }));
+  assert.equal(checkMissing(fullPassed).length, 0);
+  assert.equal(checkMissing([]).length, 10);
+  assert.equal(checkMissing(fullPassed.filter((item) => item.id !== 'A9-15-QUERY-FAILURE-VISIBLE-RETRY')).join(','), 'A9-15-QUERY-FAILURE-VISIBLE-RETRY');
+  assert.equal(checkMissing(fullPassed.map((item) => item.id === 'A9-15-QUERY-FAILURE-VISIBLE-RETRY' ? { id: item.id, passed: false } : item)).join(','), 'A9-15-QUERY-FAILURE-VISIBLE-RETRY');
+
+  // RF02: Driver entry immediate snapshot binding & anti-masking
+  assert.match(driverSource, /restoredEvents\.restartObserved/);
+  assert.match(driverSource, /restoredEvents\.olderLoadObserved/);
+  assert.match(driverSource, /sessionSwitch\.otherLatestTurnId/);
+  assert.match(driverSource, /sessionSwitch\.resumeLatestTurnId/);
+  assert.match(driverSource, /latest_persisted_turn_id: latestPersistedTurnId/);
+
+  // RF04: Date-aware time baseline with daylight saving time (DST)
+  // Summer date (September) EDT is UTC-4 (-14400s)
+  const sepUtcMs = Date.parse('2026-09-10T10:15:20.000Z');
+  const nySepOffset = projectionContract.getTzOffsetSeconds(sepUtcMs, 'America/New_York');
+  assert.equal(nySepOffset, -4 * 3600, 'September NY UTC offset must be -4h (EDT)');
+
+  // Winter date (January) EST is UTC-5 (-18000s)
+  const janUtcMs = Date.parse('2026-01-10T10:15:20.000Z');
+  const nyJanOffset = projectionContract.getTzOffsetSeconds(janUtcMs, 'America/New_York');
+  assert.equal(nyJanOffset, -5 * 3600, 'January NY UTC offset must be -5h (EST)');
+
+  // Shanghai is fixed UTC+8 (+28800s) across both seasons
+  const shSepOffset = projectionContract.getTzOffsetSeconds(sepUtcMs, 'Asia/Shanghai');
+  const shJanOffset = projectionContract.getTzOffsetSeconds(janUtcMs, 'Asia/Shanghai');
+  assert.equal(shSepOffset, 8 * 3600, 'September Shanghai UTC offset must be +8h');
+  assert.equal(shJanOffset, 8 * 3600, 'January Shanghai UTC offset must be +8h');
+
+  // Baseline derive and time consistency checks:
+  const nyBaseline = {
+    probe_version: 2,
+    time_zone: 'America/New_York',
+    probes: projectionContract.TIME_BASELINE_PROBE_UTC_MS.map((utcMs) => {
+      const off = projectionContract.getTzOffsetSeconds(utcMs, 'America/New_York');
+      const sec = ((Math.floor(utcMs / 1000 + off) % 86400) + 86400) % 86400;
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      const two = (v) => String(v).padStart(2, '0');
+      const isPm = h >= 12;
+      let h12 = h % 12;
+      if (h12 === 0) h12 = 12;
+      return { utc_ms: utcMs, rendered: `${h12}:${two(m)}:${two(s)} ${isPm ? 'PM' : 'AM'}` };
+    }),
+  };
+  const derived = projectionContract.deriveTimeBaseline(nyBaseline);
+  assert.equal(derived.timeZone, 'America/New_York');
+  assert.equal(derived.meridiemMode, 'latin');
+
+  // Correct summer row: 10:15:20 UTC -> 6:15:20 AM EDT
+  const sepEvent = { event_id: 1, timestamp_ms: sepUtcMs };
+  assert.equal(projectionContract.timestampsConsistent(['6:15:20 AM · session_started'], [sepEvent], nyBaseline), true,
+    'September event rendered as 6:15:20 AM EDT must pass (raw string)');
+  assert.equal(projectionContract.timestampsConsistent([{ text: '6:15:20 AM · session_started' }], [sepEvent], nyBaseline), true,
+    'September event rendered as 6:15:20 AM EDT must pass (row object)');
+  // 1-hour wrong EST row: 10:15:20 UTC -> 5:15:20 AM EST must be rejected
+  assert.equal(projectionContract.timestampsConsistent(['5:15:20 AM · session_started'], [sepEvent], nyBaseline), false,
+    'September event rendered as 5:15:20 AM EST must be rejected');
+
+  // Invalid time_zone fails closed (returns null)
+  assert.equal(projectionContract.deriveTimeBaseline({
+    probe_version: 2,
+    time_zone: 'Invalid/Non_Existent_Timezone',
+    probes: nyBaseline.probes,
+  }), null);
+});
+
 
 test('A9 v25 input recorder requires a preapproved kit ZIP and two independently identified returns', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-v25-lock-'));
