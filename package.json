@@ -16,8 +16,11 @@
     "node": ">=16.17.1"
   },
   "scripts": {
-    "docs:check": "node scripts/check_docs.mjs",
+    "build": "node scripts/verify_integration.mjs --quick",
+    "test": "node scripts/verify_integration.mjs",
     "verify": "node scripts/verify_integration.mjs",
-    "verify:quick": "node scripts/verify_integration.mjs --quick"
+    "verify:quick": "node scripts/verify_integration.mjs --quick",
+    "package:win7": "node scripts/release/build-a9-product-v3.mjs",
+    "docs:check": "node scripts/check_docs.mjs"
   }
 }

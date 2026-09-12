@@ -25,6 +25,9 @@ Thumbs.db
 
 # IDE / agent workspace state (not part of the delivery baseline)
 .qoder/
+.claude/
+.trae/
+.workbuddy/
 
 # Product-managed workspace recovery state (never source or package input)
 .agent_recovery/
