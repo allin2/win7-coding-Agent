@@ -52,9 +52,9 @@ flowchart LR
 3. **硬件**：建议本地 NTFS SSD 分区（保障 SQLite WAL 并发事务性能）
 
 #### 启动步骤
-1. 获取预打包的便携版 ZIP 压缩包（如 `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`）。
-2. 解压至无特殊字符路径（如 `D:\Tools\Win7CodingAgent`）。
-3. 运行主程序 `electron.exe`。
+1. 前往 **[GitHub Releases 页面](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.1)** 下载便携版压缩包 `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`。
+2. 解压至本地无特殊字符路径（如 `D:\Tools\Win7CodingAgent`）。
+3. 双击运行主程序 `electron.exe`。
 4. 首次启动在设置中配置远程/内网 LLM 端点（Base URL、API Key、模型名称）。
 
 ---
