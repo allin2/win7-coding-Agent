@@ -263,6 +263,81 @@ Win7 实机必须覆盖当前唯一的未验证项：
 断言全部成立。判定为**阈值/环境时序问题，不是行为回归**；冻结前建议由负责人决定是放宽该用例超时
 还是维持现状，不应静默改测试。
 
+## 9. 授权缺口（2026-09-14 复核，构建前必须解决）
+
+§2 的两项裁决已由负责人给出：**候选粒度＝分开（对应 A2）**，**A9-17 不需要产品候选**。
+据此本轮候选收敛为单一 `WIN7-29`（A9-16 UI 子集）。但复核发现**第三项此前未识别的阻塞**：
+
+### 9.1 缺口：A9-16 任务书未授权发布管线路径
+
+`docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md` §7 的允许路径白名单**仅含**：
+
+```
+src/shell/product/renderer/workbench.html
+src/shell/product/renderer/a9-workbench.css
+src/shell/product/renderer/a9-workbench.js
+src/shell/tests/product/a9-workbench-contract.test.ts
+docs/**（若干具体文件）
+```
+
+对 `release/win7-product-v3/**` 与 `scripts/release/**` 的检索结果为**零命中**。而 §3 已确认
+新增候选必然要改这两处（profile 条目、`A915_CANDIDATES`、`createA915ValidationKit` 的
+ADR/历史链/用例分支、provenance 块、`a9-package.test.mjs`，以及一整套 release 工件）。
+
+**因此当前状态下无法合法产出 `WIN7-29` 候选**：不是输入缺失，也不是工具链问题，而是授权范围不足。
+
+### 9.2 为什么不能自行扩写白名单
+
+AGENTS.md §4 明文禁止「通过修改白名单、临时豁免或借用其他阶段授权绕过检查」。§7 本身的标题即为
+「实施授权（2026-09-14，**负责人指令**）」，说明白名单扩展必须由负责人发出指令，再由任务书**记录**。
+自授权后再据以实施，正是该条禁止的行为。故本提案只提出**待批准的补充条文草案**，不自行落地。
+
+### 9.3 先例：A9-15 §15.2 正是这样扩展的
+
+`docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md` §15.2「允许路径（在 §3 与 §14.2 基础上追加）」逐条列出
+`scripts/release/build-a9-product-v3.mjs`（"仅新增 WIN7-28 profile 与对应用例，保留历史候选要求"）、
+`scripts/release/test/a9-package.test.mjs`、`release/win7-product-v3/` 下 WIN7-28 的 lock/integrity/
+report/smoke/CMD/说明，以及必要的任务补充、`docs/STATUS.md`、`docs/tasks/README.md`、新增 ADR。
+本候选的补充条文按其结构撰写即可。
+
+### 9.4 待批准条文草案（拟作为 A9-16 新增 §8）
+
+```markdown
+## 8. WIN7-29 候选合同与实机验收授权（2026-09-14，负责人指令）
+
+负责人在 §7 实现授权基础上追加授权：为 §4 U01–U07 的 UI 子集冻结新候选 `WIN7-29`，
+使其可进入 Win7 实机验收。本轮仍不开放 Review（R01–R05）与 Shell 运行中输出（S01–S06）。
+
+- **候选范围**：仅 A9-16 §4 U01–U07 的 renderer 改动（`workbench.html`、`a9-workbench.css`、
+  `a9-workbench.js`）。A9-17（启动内存）经 2026-09-14 裁决不并入本候选，也不单独建立候选；
+  其 Win7 采样沿用自身授权与既有执行包。
+- **候选 ID / 决策记录**：`WIN7-29`；新增 ADR-0125，不改写任何 Accepted ADR 正文。
+- **允许路径（在 §7 基础上追加，C14）**：
+  - `scripts/release/build-a9-product-v3.mjs`：仅新增 `A9-16-INPUTS-…-WIN7-29` profile 与对应
+    候选分支、验收用例、provenance，保持 WIN7-22～28 历史 profile 与测试通过。
+  - `scripts/release/test/a9-package.test.mjs`：WIN7-29 正负向回归与历史 profile 兼容检查。
+  - `release/win7-product-v3/` 下 WIN7-29 的 input lock、validation kit、integrity/report/smoke
+    脚本、CMD 包装与 `A9_16_WIN7_29_VALIDATION.md`，以及 `README.md` 的候选说明；
+    不得改写 W23～W28 的冻结 release 文件。
+  - `docs/DECISIONS.md`（仅新增 ADR-0125）、`docs/STATUS.md`、`docs/tasks/README.md`、
+    `docs/plans/WIN7_29_CANDIDATE_CONTRACT_PROPOSAL.md`。
+- **边界**：不修改 native helper、Runner/Policy、IPC 契约、SQLite schema、权限模式或秘密边界；
+  不新增运行时依赖；不启用 Review；Alpha 权限模式维持 Full Access / Read Only。
+- **构建与证据**：候选须来自两个独立干净工作树的逐字节一致构建；`--allow-uncommitted`
+  不得用于正式候选；候选哈希形成后由候选外独立 `WIN7_29_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。
+  未执行前保持 `WIN7_29_NOT_PERFORMED`。
+- **本地提交**：允许将本轮改动冻结为本地提交；不推送、不打标签。
+```
+
+### 9.5 批准后的落地顺序
+
+1. 任务书记录 §9.4 条文（授权来源为负责人指令）。
+2. 写 `release/win7-product-v3/a9-16-win7-29-input-lock.json`（按 §4 草案）。
+3. 改 `scripts/release/build-a9-product-v3.mjs` 的 6 个候选分支点 + 1 个 provenance 块。
+4. 派生 W29 的 integrity / report / smoke 脚本与 CMD 包装、validation doc。
+5. 新增 ADR-0125；更新 `docs/STATUS.md`、`docs/tasks/README.md`、release `README.md`。
+6. 本地提交后，从两个独立干净工作树各构建一次并逐字节比较。
+
 **方法学警示（务必沿用）**：本仓库的原生绑定
 `node_modules/better-sqlite3/build/Release/better_sqlite3.node` 编译目标是
 **NODE_MODULE_VERSION 115（Node 20）**，而托管运行时为 Node 22（ABI 127）。用 Node 22 跑测试会因

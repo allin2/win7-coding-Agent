@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 候选合同已冻结，实机验收待执行（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -25,6 +25,19 @@
 ## A9 Trusted Agent Runtime（2026-08-31）
 
 - 2026-09-14，负责人指令启动 [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md) UI 子集（任务书 §7：状态 `APPROVED_FOR_IMPLEMENTATION`，分支 `codex/a9-alpha2`，基线 `7d06789` + 在制 A9-17，决策 ADR-0117 / ADR-0124）：实现 U01–U07 左侧对话区三段式与单行密度、桌面四态状态类切换（双侧独立开关、aria 同步、DOM 保活）、信任注记折叠与"进行中/更早"分组；**Review（R01–R05）与 Shell 运行中输出（S01–S06）按指令暂缓**，Review 入口维持 disabled fail-closed。设计输入为 [ZCode 参照建议](plans/A9_16_UI_ZCODE_REFERENCE_SUGGESTIONS.md) 与已实测的 [静态演示](plans/a9-16-ui-demo/index.html)。本轮复核补齐两处缺口：**U02 行容量不达标**（左栏固定 chrome 474.8→379.9px，列表 147.2→238.0px，完整可见行 2→5，凭静态高度预算模型并已固化进契约测试；行高仍 36px，未靠缩小行高达标）与 **U06 跨断点回归**（原 resize 监听在任何窗口缩放时折叠左右栏，改为只做状态机收敛 + aria 重推；并修 ≤799px 残留 `.rail-closed` 导致的 0 宽网格列）。随后在开发机真实 Electron 22.3.27（Chromium 108）用真实渲染层 + 桩快照做**几何量测**，另暴露并修复第三处缺口：**U02 预算模型漏算归档折叠摘要**，最坏形态（2 组头 + 归档区）实测仅 190px / 3 条完整行，二次回收后为 196px / 4 条完整行，并把归档项补进预算模型。量测确认桌面四态与 1200/800 两个断点全程 `scrollWidth`/`scrollHeight` 无溢出、`aria-expanded` 与视觉一致、Ctrl+I 关闭后焦点交还头部开关；**125% 用 Chromium 缩放代理仅 1 条完整行，是 Win7 实机 1366×768 × 125% DPI 的首要复核项**（不等于真实 DPI）。门禁：shell 37 套件 357 项全绿（含 5 项 A9-16 契约用例，另经负向对照确认修复为真实护栏）、`tsc --noEmit` + 产品 JS `node --check`、`git diff --check` 干净；`check_docs.mjs` 仅剩既有 `outputs/**` 沙箱快照噪声。几何证据见 [layout-evidence.json](reports/2026-09/a9-16-ui-evidence/layout-evidence.json)；**像素级视觉签字与真实 125% DPI、Win7 实机回归仍 `NOT_PERFORMED`**；未签发 Alpha 2 PASS；未提交/推送。详见[实现报告](reports/2026-09/a9_16_ui_implementation_2026-09-14.md)。
+
+- 2026-09-14，A9-16 UI 子集冻结新候选 **WIN7-29**（决策 ADR-0125，任务书 §8）。候选范围限于 §4
+  U01–U07 的 renderer 改动；Review（R01–R05）与 Shell 运行中输出（S01–S06）**不在候选内**，Review 入口
+  维持 disabled + fail-closed。发布管线新增 `A9-16-INPUTS-RESPONSIVE-UI-WIN7-29` profile
+  （`scripts/release/build-a9-product-v3.mjs`）与一整套 W29 release 工件：输入锁、validation kit
+  （**15 项用例**：继承 W28 的 `W29-01`～`W29-10`，新增 `W29-11`～`W29-15` 覆盖左栏三段式与行容量、
+  桌面四态 DOM 保活、跨断点收敛回归、键盘/焦点契约，以及**真实 1366×768 × 125% DPI** 布局）、
+  完整性/报告/smoke 脚本与 CMD 包装、[验收说明](../release/win7-product-v3/A9_16_WIN7_29_VALIDATION.md)。
+  三件锁定输入按精确哈希复核在位：Electron 22.3.27 `ad723ed7…86e6`、D-013 v25 `7485cf22…99d6d0`
+  （本轮从私有归档恢复并逐级校验）、SQLite/ABI 110 `2cb0cd32…2794`。**A9-17 经负责人裁决不并入本候选、
+  也不单独建立产品候选**，其 Win7 采样沿用自身授权；版本与能力集保持 Alpha 1（`0.3.0-alpha.1`，
+  ADR-0096），不得据 WIN7-29 宣称 Alpha 2 PASS。**双干净构建、候选外 `WIN7_29_RELEASE_AUTHORITY`
+  与普通用户非提升 Win7 实机验收均 `NOT_PERFORMED`。**
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 

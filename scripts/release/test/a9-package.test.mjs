@@ -35,6 +35,9 @@ const win27Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win27Report = require('../../../release/win7-product-v3/a9-win7-27-report.cjs');
 const win28Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w28.cjs');
 const win28Report = require('../../../release/win7-product-v3/a9-win7-28-report.cjs');
+// ADR-0125：A9-16 UI 子集候选（WIN7-29）的完整性入口与报告器。
+const win29Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w29.cjs');
+const win29Report = require('../../../release/win7-product-v3/a9-win7-29-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -291,13 +294,21 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28'].includes(candidate)) {
+  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29'].includes(candidate)) {
     const number = candidate.slice(-2);
-    lock.lock_id = `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
-    lock.source_date_epoch = 1788912000;
+    lock.lock_id = candidate === 'win29'
+      ? 'A9-16-INPUTS-RESPONSIVE-UI-WIN7-29'
+      : `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
+    lock.source_date_epoch = candidate === 'win29' ? 1789344000 : 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win28'
+    lock.provenance = candidate === 'win29'
+      ? {
+        task: 'A9-16', previous_candidate: 'WIN7-28',
+        previous_candidate_result: 'A9_15_WIN7_UI_INTEGRATION_PASS',
+        change_scope: 'RESPONSIVE_LEFT_CONVERSATION_PANE_DESKTOP_FOUR_STATE_AND_BREAKPOINT_REGRESSION',
+      }
+      : candidate === 'win28'
       ? {
         task: 'A9-15', previous_candidate: 'WIN7-27',
         previous_candidate_result: 'ACCEPTANCE_GAP_REPAIR_REQUIRED',
@@ -333,9 +344,11 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  const lockPath = path.join(root, ['win23', 'win24', 'win25', 'win26', 'win27', 'win28'].includes(candidate)
-    ? `a9-15-win7-${candidate.slice(-2)}-input-lock.json`
-    : 'a9-14-win7-22-input-lock.json');
+  const lockPath = path.join(root, candidate === 'win29'
+    ? 'a9-16-win7-29-input-lock.json'
+    : ['win23', 'win24', 'win25', 'win26', 'win27', 'win28'].includes(candidate)
+      ? `a9-15-win7-${candidate.slice(-2)}-input-lock.json`
+      : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
@@ -926,6 +939,78 @@ test('WIN7-27 report verifier parses machine-readable projection attachments and
     execution.evidence.push(camelReference);
   }
   assert.throws(() => win27Report.verifyReport(camel, kit, identity, fs.realpathSync(evidenceRoot), fs), /A9_W27_PROJECTION_DOM_ROW_INVALID/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-29 A9-16 UI subset candidate binds the responsive-UI contract and enforces 15 cases', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win29-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win29');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'release-manifest.json'), 'utf8'));
+
+  // 包完整性闭包必须包含 W29 自己的全部工件。
+  for (const relative of win29Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-29 closure: ${relative}`);
+  }
+
+  const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_16_VALIDATION_KIT.json'), 'utf8'));
+  assert.equal(kit.kit_id, 'A9-16-WIN7-29-RESPONSIVE-UI-20260914-01');
+  assert.equal(kit.candidate_label, 'WIN7-29');
+  assert.equal(kit.candidate_version, '0.3.0-alpha.1');
+  assert.equal(kit.scope.decision, 'ADR-0125');
+  assert.equal(kit.scope.result_on_complete, 'A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS');
+  // 本候选不得重签 WIN7-28 的 UI 集成裁决或 Alpha/RC。
+  assert.ok(kit.scope.does_not_reissue.includes('A9_15_WIN7_UI_INTEGRATION_PASS'), 'must not reissue WIN7-28 verdict');
+  assert.ok(kit.scope.does_not_reissue.includes('RC_PASS'), 'must not reissue RC');
+  assert.equal(kit.external_release_authority.kind, 'WIN7_29_RELEASE_AUTHORITY');
+  assert.equal(kit.required_cases.length, 15);
+
+  // 关键不变式：报告器内置的 kit 身份与用例数必须与构建器实际产出的 kit 完全一致。
+  // 任一侧漂移都会使 Win7 现场报告在 verifier 处 fail-closed，必须在此拦下。
+  assert.equal(win29Report.KIT_ID, kit.kit_id, 'report KIT_ID must equal the built kit id');
+  assert.equal(win29Report.REQUIRED_CASE_COUNT, kit.required_cases.length, 'report case count must equal the built kit');
+  // 完整性脚本把 kit 身份与用例数写成模块内字面量，按源码核对以避免两侧漂移。
+  const win29IntegritySource = fs.readFileSync(
+    require.resolve('../../../release/win7-product-v3/a9-package-integrity-w29.cjs'), 'utf8');
+  assert.match(win29IntegritySource, new RegExp(`kit\\.kit_id !== '${kit.kit_id}'`), 'integrity KIT_ID must match the built kit');
+  assert.match(win29IntegritySource, new RegExp(`kit\\.required_cases\\.length !== ${kit.required_cases.length}`),
+    'integrity case count must match the built kit');
+
+  // 继承 WIN7-28 的 10 项 + A9-16 UI 子集的 5 项必须全部存在。
+  for (const caseId of ['W29-01-IDENTITY-INTEGRITY-STARTUP', 'W29-02-PROGRESS-TIMELINE',
+    'W29-03-INSPECTOR-PERSISTED-RESTART', 'W29-04-APPROVAL-FAILURE-ORDER',
+    'W29-05-WAIT-STOP-CLEANUP', 'W29-06-SEARCH-FOCUS-VISUAL',
+    'W29-07-REAL-PROVIDER-MULTITOOL', 'W29-08-POSTFLIGHT-IMMUTABILITY',
+    'W29-09-LATEST-OUTCOME-PROJECTION', 'W29-10-OLDER-EVENT-PAGINATION',
+    'W29-11-LEFT-PANE-DENSITY-AND-CAPACITY', 'W29-12-DESKTOP-FOUR-STATE-DOM-KEEPALIVE',
+    'W29-13-BREAKPOINT-CONVERGENCE-REGRESSION', 'W29-14-KEYBOARD-AND-FOCUS-CONTRACT',
+    'W29-15-REAL-125-PERCENT-DPI-LAYOUT']) {
+    assert.ok(kit.required_cases.some((item) => item.case_id === caseId), `WIN7-29 kit case: ${caseId}`);
+  }
+
+  // U02 容量下限与真实 DPI 必须写进用例断言，不能只靠文档声明。
+  const densityCase = kit.required_cases.find((item) => item.case_id === 'W29-11-LEFT-PANE-DENSITY-AND-CAPACITY');
+  assert.ok(densityCase.assertions.some((a) => /at least four conversation rows/.test(a.description)), 'capacity floor required');
+  assert.ok(densityCase.assertions.some((a) => /row height stays at 36px/.test(a.description)), 'no row-height shrink');
+  const dpiCase = kit.required_cases.find((item) => item.case_id === 'W29-15-REAL-125-PERCENT-DPI-LAYOUT');
+  assert.ok(dpiCase.assertions.some((a) => /not a Chromium zoom proxy/.test(a.description)), 'real DPI required, not a zoom proxy');
+
+  // 权威任务书与投影契约模块必须随包携带（WIN7-29 继承投影合同）。
+  assert.ok(fs.existsSync(path.join(stage, 'evidence', 'contracts', 'A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md')),
+    'A9-16 task book bound as contract evidence');
+  assert.ok(fs.existsSync(path.join(stage, 'validation', 'a9-projection-contract.cjs')), 'projection contract packaged');
+  assert.ok(fs.existsSync(path.join(stage, 'validation', 'a9-win7-29-driver.cjs')), 'w29 driver packaged');
+
+  // 能力集与版本保持 Alpha 1：本候选不构成 Alpha 2 或 RC。
+  assert.equal(manifest.release_id, 'WIN7-CODING-AGENT-A9-ALPHA1');
+  assert.equal(manifest.version, '0.3.0-alpha.1');
+  assert.equal(manifest.gates.win7, 'NOT_PERFORMED');
+  assert.equal(manifest.gates.alpha, 'NOT_PERFORMED');
+
   fs.rmSync(root, { recursive: true, force: true });
 });
 

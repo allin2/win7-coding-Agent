@@ -126,3 +126,31 @@ checkpoint/Diff/Undo 和恢复；布局主要影响 `src/shell/product/renderer/
      使本轮新增的桌面折叠分支退化为"任何一次窗口缩放都折叠左右栏"，与 U05 冲突；现改为只做
      状态机收敛（清理失效的抽屉/桌面机制）与 `aria-expanded` 重推。另修 ≤799px 抽屉断点下残留
      `.rail-closed` 会把主对话区放进 0 宽网格列的冲突。
+
+## 8. WIN7-29 候选合同与实机验收授权（2026-09-14，负责人指令）
+
+负责人在 §7 实现授权基础上追加授权：为 §4 U01–U07 的 UI 子集冻结新候选 `WIN7-29`，使其可进入
+Win7 实机验收。本轮仍不开放 Review（R01–R05）与 Shell 运行中输出（S01–S06）。
+
+- **候选范围**：仅 A9-16 §4 U01–U07 的 renderer 改动（`workbench.html`、`a9-workbench.css`、
+  `a9-workbench.js`）。A9-17（启动内存）经 2026-09-14 裁决不并入本候选，也不单独建立产品候选；
+  其 Win7 采样沿用自身授权与既有执行包。
+- **候选 ID 与决策记录**：`WIN7-29`；新增 ADR-0125，不改写任何 Accepted ADR 正文。
+- **版本约束**：`scripts/release/build-a9-product-v3.mjs` 的 `validateA9Lock()` 硬校验
+  `release_id === 'WIN7-CODING-AGENT-A9-ALPHA1'` 与 `version === '0.3.0-alpha.1'`。本候选保持该组合
+  不变——Review 未启用，产品能力集仍为 Alpha 1（ADR-0096），不得据此改判或宣称 Alpha 2。
+- **允许路径（在 §7 基础上追加，C14）**：
+  - `scripts/release/build-a9-product-v3.mjs`：仅新增 `A9-16-INPUTS-…-WIN7-29` profile 与对应候选
+    分支、验收用例、provenance 判定，保持 WIN7-22～28 历史 profile 与既有测试通过。
+  - `scripts/release/test/a9-package.test.mjs`：WIN7-29 正负向回归与历史 profile 兼容检查。
+  - `release/win7-product-v3/` 下 WIN7-29 的 input lock、validation kit、integrity/report/smoke
+    脚本、CMD 包装与 `A9_16_WIN7_29_VALIDATION.md`，以及 `README.md` 的候选说明；
+    不得改写 W23～W28 的冻结 release 文件。
+  - `docs/DECISIONS.md`（仅新增 ADR-0125）、`docs/STATUS.md`、`docs/tasks/README.md`、
+    `docs/plans/WIN7_29_CANDIDATE_CONTRACT_PROPOSAL.md`。
+- **边界**：不修改 native helper、Runner/Policy、IPC 契约、SQLite schema、权限模式或秘密边界；
+  不新增运行时依赖；不启用 Review；Alpha 权限模式维持 Full Access / Read Only。
+- **构建与证据**：候选须来自两个独立干净工作树的逐字节一致构建；`--allow-uncommitted` 不得用于
+  正式候选；候选哈希形成后由候选外独立 `WIN7_29_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。
+  未执行前保持 `WIN7_29_NOT_PERFORMED`。
+- **本地提交**：允许将本轮改动冻结为本地提交；不推送、不打标签。

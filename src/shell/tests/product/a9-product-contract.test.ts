@@ -155,7 +155,9 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
       if (runtime) await runtime.shutdown();
       await fixture.close();
     }
-  });
+    // ADR-0125：本用例要真实写入并读取 750,000 行（约 7.5 MB）的中文文件，实测耗时 5～9 秒，
+    // 超过 jest 默认 5000 ms。此处仅显式放宽超时；断言强度、产品行为与其余门禁均不变。
+  }, 120_000);
   let env: ReturnType<typeof makeEnv>;
 
   beforeEach(() => {

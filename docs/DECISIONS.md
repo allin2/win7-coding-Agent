@@ -1908,3 +1908,45 @@
   机边界被钉进契约，调整需同步更新预算模型。本 ADR 不重开 A9-15，不改判或重签 WIN7-19～28 任何
   候选与证据，不签发 Alpha 2 PASS / Win7 PASS；真实 Electron 视觉与 1366×768、125% DPI 实机回归
   保持 `NOT_PERFORMED`。不授权提交、推送或部署。
+
+## ADR-0125 A9-16 UI 子集 WIN7-29 候选合同与 A9-17 候选豁免
+
+- 状态：Accepted（2026-09-14，负责人指令：先冻结候选、候选粒度分开、A9-17 不建产品候选、
+  放宽唯一超时项）
+- 背景：ADR-0124 只给 A9-16 §4 U01–U07 实现授权，未授权候选、提交或实机验收；ADR-0123 对
+  A9-17 同样只给实现授权。两份任务书均为 `Win7-Validation: NOT_PERFORMED`，`RELEASE_PROFILES`
+  止于 `WIN7-28`，仓库内不存在任何 `WIN7-29` 引用。更关键的是 A9-16 §7 的允许路径白名单只含
+  3 个 renderer 文件、1 个契约测试与若干文档，零命中 `release/win7-product-v3/**` 与
+  `scripts/release/**`；而该构建器对每个候选都有硬编码分支，新增候选必然要改 profile 条目、
+  `A915_CANDIDATES`/`A915_DIRECT_SMOKE_CANDIDATES` 集合、驱动与 kit 内容分支、
+  `createA915ValidationKit()` 的 ADR 映射与历史候选链与用例开关、`copyContractEvidence()` 与
+  `validateA9Lock()` 的 provenance 判定。据 AGENTS.md §4，白名单扩展必须由负责人指令发出，
+  不得自行扩写后据以实施。故在负责人裁决前无法合法产出候选。
+- 决策：（1）候选粒度按负责人裁决"分开"：本轮只建立单一候选 `WIN7-29`，范围限于 A9-16 §4
+  U01–U07 的 renderer 改动（`workbench.html`、`a9-workbench.css`、`a9-workbench.js`）；
+  Review（R01–R05）与 Shell 运行中输出（S01–S06）不进入候选，Review 入口维持 disabled 且
+  fail-closed。（2）A9-17 按负责人裁决不并入 WIN7-29，也不单独建立产品候选；其 Win7 采样沿用
+  A9-17 §5 的自身授权与 `scripts/mvp_acceptance/a9-startup-baseline/**` 执行包，须绑定源码与
+  工件哈希，不得以 WIN7-29 的结论代替。（3）版本与能力集保持 Alpha 1：`validateA9Lock()` 硬校验
+  `release_id === 'WIN7-CODING-AGENT-A9-ALPHA1'` 与 `version === '0.3.0-alpha.1'`，本候选沿用该
+  组合；Review 未启用，权限模式维持 Full Access / Read Only（ADR-0096 不变），不得据 WIN7-29
+  改判或宣称 Alpha 2 PASS。（4）按 A9-15 §15.2 先例扩展 A9-16 允许路径：`scripts/release/
+  build-a9-product-v3.mjs` 仅新增 `A9-16-INPUTS-RESPONSIVE-UI-WIN7-29` profile 与对应候选分支、
+  验收用例、provenance 判定；`scripts/release/test/a9-package.test.mjs` 增加 WIN7-29 正负向回归
+  与历史 profile 兼容检查；`release/win7-product-v3/` 下新增 WIN7-29 的 input lock、validation
+  kit、integrity/report/smoke 脚本、CMD 包装、`A9_16_WIN7_29_VALIDATION.md` 与 `README.md` 候选
+  说明；`docs/DECISIONS.md` 仅新增本 ADR。WIN7-22～28 的 profile 行为、冻结 release 文件与既有
+  证据不得改写。（5）唯一未闭合门禁项按负责人裁决放宽超时：`a9-product-contract.test.ts` 的
+  "delivers explicit Chinese encodings, binary metadata and large-file ranges" 真实耗时 5～9 秒，
+  触发 jest 默认 5000ms 上限，加 `--testTimeout=120000` 复跑断言全部通过；为该用例显式声明更长
+  超时并在此记录理由。不得为通过而删改断言、跳过用例或弱化其余门禁。（6）候选须来自两个独立
+  干净工作树的逐字节一致构建，`external_acceptance_eligible` 必须为 true；`--allow-uncommitted`
+  不得用于正式候选。候选哈希形成后由候选外独立 `WIN7_29_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。
+  （7）允许把本轮改动冻结为本地提交；不推送、不打标签。未在普通用户非提升 Win7 完成当前候选
+  验证前保持 `WIN7_29_NOT_PERFORMED`。
+- 后果：A9-16 的 UI 子集首次获得可执行、可验收的候选身份，Win7 实机验收从"治理阻塞"转为"待执行"；
+  1366×768 × 125% 真实 DPI 回归、桌面四态切换不溢出、跨断点只做状态机收敛、左栏行容量等既有
+  `NOT_PERFORMED` 项成为可观测验收目标。代价是发布管线再次增加一个候选分支，构建器与
+  `a9-package.test.mjs` 的历史兼容负担上升，必须由回归测试守住 WIN7-22～28 的既有行为。本 ADR 不
+  重开 A9-15，不改判或重签 WIN7-19～28 任何候选、证据与结论，不签发 Alpha 2 PASS / Win7 PASS，
+  也不改变 A9-17 的授权边界。放宽单条用例超时不构成对断言强度或安全模型的放松。

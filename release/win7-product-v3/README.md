@@ -4,6 +4,34 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-29 响应式工作台 UI 子集候选
+
+WIN7-29 是 A9-16 §4 U01–U07（左侧对话区与左右栏自适应）的新候选，决策记录 ADR-0125（任务书 §8）。
+范围仅限 `renderer/workbench.html`、`renderer/a9-workbench.css`、`renderer/a9-workbench.js` 的改动；
+Review（R01–R05）与 Shell 运行中输出（S01–S06）**不在候选内**，Review 入口维持 disabled + fail-closed。
+版本与能力集保持 Alpha 1（`0.3.0-alpha.1`，ADR-0096），本候选不构成 Alpha 2 或 RC PASS。
+A9-17（启动内存）经负责人裁决不并入本候选，也不单独建立产品候选。
+
+validation kit 含 **15 项**用例：继承 WIN7-28 的 `W29-01`～`W29-10`（含投影 `W29-09` 与分页 `W29-10`），
+新增 `W29-11`～`W29-15` 覆盖左栏三段式与行容量、桌面四态 DOM 保活、跨断点收敛回归、键盘/焦点契约，
+以及**真实 1366×768 × 125% DPI** 布局——后者是 `docs/STATUS.md` 中唯一被明确标注"不等于真实 DPI"
+的遗留项，开发机 Chromium 缩放代理只测得 1 条完整行，不得据以宣称达标。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-29-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+必须从提交后的两个独立干净工作树构建并逐字节比较；候选哈希形成后仍需候选外独立
+`WIN7_29_RELEASE_AUTHORITY` 与 SHA-256 pin。三件锁定输入与 WIN7-28 完全一致（Electron 22.3.27、
+D-013 v25、SQLite 3.43.1 / ABI 110），按精确哈希继承。现场步骤见
+[`A9_16_WIN7_29_VALIDATION.md`](A9_16_WIN7_29_VALIDATION.md)。**双干净构建与普通用户非提升 Win7
+实机验收均 `NOT_PERFORMED`**；WIN7-22～28 的冻结 release 文件保持原字节。
+
 ## A9-15 / WIN7-28 验收缺口修复候选
 
 WIN7-28 已于 2026-09-11 在 Windows 7 SP1 x64 普通用户 Medium/non-elevated 桌面令牌下完成 10/10
