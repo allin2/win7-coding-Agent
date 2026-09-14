@@ -6,7 +6,7 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_31_REPAIR_AND_REISSUE_AUTHORIZED
+Phase-Gate: A9_16_WIN7_31_CANDIDATE_FROZEN_AWAITING_RELEASE_AUTHORITY
 Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_NOT_PERFORMED
 Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127
 ```
@@ -217,3 +217,9 @@ Win7 实机验收。本轮仍不开放 Review（R01–R05）与 Shell 运行中�
   标签。未知的新 ZIP 哈希形成后仍须取得候选外独立 `WIN7_31_RELEASE_AUTHORITY` 与 SHA-256 pin，
   本次“修复与换发”批准不预先等同于对未知哈希签发 authority。实机执行前保持
   `WIN7_31_NOT_PERFORMED`。
+- **换发结果**：源码冻结提交 `ac4ed5048a6a2d4ed2f223c61ed06108a4a07d4b`；两个独立干净工作树
+  构建 ZIP 逐字节一致，`source_dirty=false`、`external_acceptance_eligible=true`。ZIP SHA-256
+  `79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a`（101,353,790 B），manifest
+  SHA-256 `a215217b6279a85b4c8213f561bafda07a6c529f630a6e4060c63b084cb9dbe6`，788 文件完整树复验
+  通过。测试夹具 authority 仅用于证明候选校验链路可接受正确绑定，明确不构成正式批准。正式
+  `WIN7_31_RELEASE_AUTHORITY` 尚未签发，实机验收尚未开始。

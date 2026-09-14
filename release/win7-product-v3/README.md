@@ -21,7 +21,10 @@ node scripts\release\build-a9-product-v3.mjs ^
   --output <new-empty-output-directory>
 ```
 
-正式候选必须来自两个独立干净工作树且 ZIP 逐字节一致；未知 ZIP 哈希形成后仍需候选外独立
+正式候选已由源码提交 `ac4ed5048a6a2d4ed2f223c61ed06108a4a07d4b` 在两个独立干净工作树构建，
+ZIP 逐字节一致：101,353,790 B，SHA-256
+`79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a`；manifest SHA-256
+`a215217b6279a85b4c8213f561bafda07a6c529f630a6e4060c63b084cb9dbe6`。仍需候选外独立
 `WIN7_31_RELEASE_AUTHORITY` 与 SHA-256 pin。现场步骤见
 [`A9_16_WIN7_31_VALIDATION.md`](A9_16_WIN7_31_VALIDATION.md)。在 authority 与普通用户非提升 Win7
 实机验证完成前，WIN7-31 保持 `NOT_PERFORMED`。WIN7-30 ZIP SHA-256

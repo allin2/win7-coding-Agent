@@ -76,8 +76,15 @@
   （1）构建时把共享 driver 的 `W28-03` / `W28-09` / `W28-10` 与 evidence package kind 精确派生为
   W31；（2）Ctrl+K 在聚焦并全选搜索框前先展开导航。构建残留守卫改在 driver 与 kit 生成后执行，
   并拒绝 03/09/10 投影对象键出现非 W31 前缀；正向与注入旧键的负向回归均为候选前置。15 项用例、
-  Alpha 1 版本和能力集保持不变。允许本地提交及双独立干净构建，不推送、不打标签；新 ZIP 哈希未知，
-  尚未签发 `WIN7_31_RELEASE_AUTHORITY`，Win7 验收为 `WIN7_31_NOT_PERFORMED`。
+  Alpha 1 版本和能力集保持不变。同日以源码提交 `ac4ed5048a6a2d4ed2f223c61ed06108a4a07d4b`
+  完成双独立干净工作树构建，ZIP 逐字节一致、`source_dirty=false`、
+  `external_acceptance_eligible=true`：`Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`
+  （101,353,790 B）SHA-256 `79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a`，
+  manifest SHA-256 `a215217b6279a85b4c8213f561bafda07a6c529f630a6e4060c63b084cb9dbe6`；788 文件
+  完整树复验通过，包内 driver 只含 W31 的 03/09/10 投影键。候选已归档到
+  `.acceptance/candidates/WIN7-31/`，两个临时 Git worktree 已解除注册并移除，独立 out-a/out-b 构建结果
+  保留。测试夹具 authority 仅证明校验链路可接受正确绑定，**不构成正式批准**；尚未签发
+  `WIN7_31_RELEASE_AUTHORITY`，Win7 验收为 `WIN7_31_NOT_PERFORMED`。未推送、未打标签。
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 
