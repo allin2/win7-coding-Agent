@@ -220,7 +220,7 @@ function createA9AgentRuntime(options) {
     // Legacy rows have no Base URL binding. Preserve an empty conversation,
     // but never send pre-existing facts to a Provider whose exact endpoint
     // cannot be proved to match the one that produced them.
-    const hasFacts = persistence.listConversationFacts(sessionId).length > 0;
+    const hasFacts = persistence.hasConversationFacts(sessionId);
     persistence.mergeConversationMetadata(sessionId, {
       providerContextGeneration: previousGeneration + (hasFacts ? 1 : 0),
       providerContextBaseUrl: providerConfig.baseUrl,
@@ -229,8 +229,15 @@ function createA9AgentRuntime(options) {
   let providerContextGeneration = Number.isSafeInteger(persistence.getConversationMetadata(a9SessionId).providerContextGeneration)
     ? persistence.getConversationMetadata(a9SessionId).providerContextGeneration
     : persistence.getConversationMetadata(a9SessionId).providerContextBoundaryAt ? 1 : 0;
-  let restoredContext = restoreProviderContext(a9SessionId);
-  let pendingConversationHistory = restoredContext.messages;
+  let restoredContext = { messages: [], stats: { deferred: true, note: '历史上下文将在首次任务前恢复。' } };
+  let pendingConversationHistory = null;
+  let providerContextRestorePending = true;
+  function ensureProviderContextRestored() {
+    if (!providerContextRestorePending) return;
+    restoredContext = restoreProviderContext(a9SessionId);
+    pendingConversationHistory = restoredContext.messages;
+    providerContextRestorePending = false;
+  }
   // F5：当前 Turn 的 task/turn/run 生命周期句柄。
   let activeLifecycle = null;
   let shutdownPromise = null;
@@ -570,8 +577,6 @@ function createA9AgentRuntime(options) {
     providerContextGeneration = Number.isSafeInteger(metadata.providerContextGeneration)
       ? metadata.providerContextGeneration
       : metadata.providerContextBoundaryAt ? 1 : 0;
-    restoredContext = restoreProviderContext(a9SessionId);
-    pendingConversationHistory = restoredContext.messages;
   }
 
   // ----- Agent Loop 状态 -----
@@ -964,8 +969,9 @@ function createA9AgentRuntime(options) {
     providerContextGeneration = Number.isSafeInteger(metadata.providerContextGeneration)
       ? metadata.providerContextGeneration
       : metadata.providerContextBoundaryAt ? 1 : 0;
-    restoredContext = restoreProviderContext(a9SessionId);
-    pendingConversationHistory = restoredContext.messages;
+    providerContextRestorePending = true;
+    pendingConversationHistory = null;
+    restoredContext = { messages: [], stats: { deferred: true, note: '历史上下文将在首次任务前恢复。' } };
     agentStatus = record.activity === 'interrupted' ? 'interrupted' : 'idle';
     return { ok: true, conversationId: a9SessionId };
   }
@@ -1056,6 +1062,7 @@ function createA9AgentRuntime(options) {
         err.code = 'A9_SHELL_UNAVAILABLE';
         throw err;
       }
+      ensureProviderContextRestored();
       loop = new modules.core.A9AgentLoop({
         workspaceRoot,
         provider,
@@ -1383,6 +1390,7 @@ function createA9AgentRuntime(options) {
     }
     // 同一精确 Base URL 的模型切换保留经过脱敏的上下文；endpoint 路径、
     // origin 或端口任一改变，都必须清空旧上下文和旧凭据绑定。
+    if (!baseUrlChanged) ensureProviderContextRestored();
     const previousHistory = loop ? loop.getConversationHistory() : pendingConversationHistory;
     pendingConversationHistory = baseUrlChanged
       ? null
@@ -1869,7 +1877,9 @@ function createA9AgentRuntime(options) {
     return { ok: true, mode };
   }
 
-  function getSnapshot() {
+  function getSnapshot(options = {}) {
+    if (!options.conversationPage) ensureProviderContextRestored();
+    const conversationPage = options.conversationPage ? persistence.listConversationFactPage(a9SessionId) : null;
     retryWorkspaceLock();
     const shellSelection = shellSnapshot();
     const managedProcesses = syncManagedProcessFacts();
@@ -1937,7 +1947,8 @@ function createA9AgentRuntime(options) {
       ...(currentPendingApproval && !activeController ? { pendingApproval: approvalIdentity(currentPendingApproval) } : {}),
       timeline: timeline.slice(-100),
       checkpoints: persistence.listCheckpoints(a9SessionId),
-      conversation: persistence.listConversationFacts(a9SessionId),
+      conversation: conversationPage ? conversationPage.facts : persistence.listConversationFacts(a9SessionId),
+      ...(conversationPage ? { conversationPage: { hasMore: conversationPage.hasMore, nextBefore: conversationPage.nextBefore } } : {}),
       interruptions: persistence.listInterruptions(a9SessionId),
       managedProcesses,
     };
@@ -1969,6 +1980,14 @@ function createA9AgentRuntime(options) {
       hasMore = persistence.listSessionEvents(a9SessionId, { ...filter, beforeEventId: events[0].eventId, limit: 1 }).length > 0;
     }
     return { ok: true, conversationId: a9SessionId, events, hasMore };
+  }
+
+  function queryConversation(input) {
+    if (input.conversationId !== a9SessionId) {
+      throw Object.assign(new Error('A9_CONVERSATION_MISMATCH'), { code: 'A9_CONVERSATION_MISMATCH' });
+    }
+    return { ok: true, conversationId: a9SessionId,
+      ...persistence.listConversationFactPage(a9SessionId, { limit: input.limit, before: input.before }) };
   }
 
   function workspaceServiceForState() {
@@ -2161,6 +2180,7 @@ function createA9AgentRuntime(options) {
     setMode,
     getSnapshot,
     queryEvents,
+    queryConversation,
     undoTurn,
     undoFile,
     getDiff,

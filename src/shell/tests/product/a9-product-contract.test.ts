@@ -780,8 +780,32 @@ describe('A9-06: a9 product IPC schema validation', () => {
     expect(extra.error.code).toBe('A9_PAYLOAD_INVALID');
   });
 
+  it('keeps v6 snapshots compatible and validates v7 bounded conversation pages', async () => {
+    const getSnapshot = jest.fn(() => ({ status: 'ready' }));
+    const queryConversation = jest.fn(() => ({ ok: true, facts: [] }));
+    const handle = createA9ProductRequestHandler({
+      getA9Runtime: () => ({ getSnapshot, queryConversation }), isValidRendererSender: validSender,
+    });
+    const request = (schemaVersion: number, action: string, payload: any) => handle({}, { schemaVersion, action, payload });
+    await request(6, 'a9.snapshot.get', {});
+    expect(getSnapshot).toHaveBeenLastCalledWith({});
+    await request(7, 'a9.snapshot.get', { conversationPage: true });
+    expect(getSnapshot).toHaveBeenLastCalledWith({ conversationPage: true });
+    expect((await request(6, 'a9.snapshot.get', { conversationPage: true })).ok).toBe(false);
+    const page = { conversationId: 'c1', limit: 20, before: { createdAt: '2026-09-12', taskId: 't1' } };
+    expect((await request(7, 'a9.conversation.query', page)).ok).toBe(true);
+    expect(queryConversation).toHaveBeenCalledWith(page);
+    for (const payload of [{ ...page, limit: 101 }, { ...page, limit: 0 },
+      { ...page, before: { ...page.before, extra: true } }, { ...page, conversationId: '' },
+      { ...page, before: null }, { ...page, arbitrary: true }]) {
+      expect((await request(7, 'a9.conversation.query', payload)).ok).toBe(false);
+    }
+    expect((await request(6, 'a9.conversation.query', page)).ok).toBe(false);
+    expect(queryConversation).toHaveBeenCalledTimes(1);
+  });
+
   it('validates and forwards only conversation-bounded A9 event queries (ADR-0114)', async () => {
-    expect(A9_IPC_SCHEMA_VERSION).toBe(6);
+    expect(A9_IPC_SCHEMA_VERSION).toBe(7);
     const queryEvents = jest.fn(() => ({ ok: true, conversationId: 'a9c-1', events: [], hasMore: false }));
     const eventsHandler = createA9ProductRequestHandler({
       getA9Runtime: () => ({ queryEvents }),

@@ -570,6 +570,40 @@ describe('R4: provider config persistence and DPAPI integration', () => {
     runtime.shutdown();
   }, 20_000);
 
+  it.each(['restart', 'same-origin-model', 'different-origin'])('restores lazily after a compact snapshot: %s', async (scenario) => {
+    const firstRequests: any[] = [];
+    const secondRequests: any[] = [];
+    const first = await startRecordingModel(firstRequests, { secondModelTextOnly: true });
+    const second = await startRecordingModel(secondRequests, { secondModelTextOnly: true });
+    let runtime: any;
+    try {
+      runtime = makeRuntime();
+      runtime.setMode('full_access');
+      fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'hello\n');
+      await runtime.configureProvider({ baseUrl: first.baseUrl, model: 'm-a', skipProbe: true });
+      expect((await runtime.submitTurn('LAZY-PRIOR-MARKER')).ok).toBe(true);
+      await runtime.shutdown();
+      runtime = makeRuntime();
+      const compact = runtime.getSnapshot({ conversationPage: true });
+      expect(compact.conversationPage).toBeDefined();
+      const before = firstRequests.length;
+      if (scenario !== 'restart') await runtime.configureProvider({
+        baseUrl: scenario === 'different-origin' ? second.baseUrl : first.baseUrl, model: 'm-b', skipProbe: true,
+      });
+      expect((await runtime.submitTurn('MARKER-SECOND LAZY-NEXT')).ok).toBe(true);
+      const request = (scenario === 'different-origin' ? secondRequests : firstRequests.slice(before))
+        .find(r => r?.tools?.[0]?.function?.name !== 'probe_test_echo');
+      expect(request).toBeDefined();
+      const wire = JSON.stringify(request.messages);
+      expect(wire).toContain('LAZY-NEXT');
+      if (scenario === 'different-origin') expect(wire).not.toContain('LAZY-PRIOR-MARKER');
+      else expect(wire).toContain('LAZY-PRIOR-MARKER');
+    } finally {
+      if (runtime) await runtime.shutdown();
+      await first.close(); await second.close();
+    }
+  }, 30_000);
+
   it('model switch: the new model FIRST request already carries user marker, assistant tool_calls and tool result', async () => {
     const seenRequests: any[] = [];
     // 行为化记录 fixture：第一段按工具回执推进；第二段（新模型）首个请求直接文本。

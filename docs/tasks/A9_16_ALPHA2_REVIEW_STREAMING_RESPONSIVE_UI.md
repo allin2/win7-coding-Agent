@@ -1,14 +1,14 @@
 # A9-16 — Alpha 2 Review、运行中输出与自适应工作台
 
 ```text
-Status: PLANNED_NOT_AUTHORIZED
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: ALPHA2_PRODUCT_REQUIREMENTS
-Target Branch: NOT_SELECTED
-Source Baseline: NOT_SELECTED
+Target Branch: codex/a9-alpha2
+Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_REQUIREMENTS_BASELINE
+Phase-Gate: A9_16_UI_IMPLEMENTATION
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0117
+Decision: ADR-0117 / ADR-0124
 ```
 
 ## 1. 需求来源与授权边界
@@ -84,3 +84,45 @@ checkpoint/Diff/Undo 和恢复；布局主要影响 `src/shell/product/renderer/
 - 不重开 A9-15/WIN7-24，不修改或重判 WIN7-19～24 任何候选与证据。
 - 不实现交互式终端、终端输入、并行 Agent、多窗口或 Office Lite。
 - 文档检查通过只证明需求文档结构一致，不构成 Alpha 2 功能、开发机、Win10 或 Win7 PASS。
+
+## 7. 实施授权（2026-09-14，负责人指令）
+
+负责人于 2026-09-14 指示：**实现上述 UI 需求与响应式 UI，暂时放弃 Review。** 据此冻结本轮授权：
+
+- **范围**：仅 §4 U01–U07（左侧对话区三段式与行密度、双侧开关、桌面四态自适应、状态保持、
+  抽屉/桌面状态机分离、布局与键盘回归）。设计输入为
+  `docs/plans/A9_16_UI_ZCODE_REFERENCE_SUGGESTIONS.md` 及其已验证的静态演示
+  `docs/plans/a9-16-ui-demo/index.html`（四态与运行输出形态已按 1366×768 实测）。
+- **明确不做（本轮）**：R01–R05 完整 Review（负责人指示暂缓；权限模式维持 Alpha 1 的
+  Full Access / Read Only，Review 入口继续 disabled + fail-closed 文案）；S01–S06 Shell
+  运行中输出（涉及 Runner/Core/IPC 链路，另行授权）；侧栏状态跨重启持久化（维持会话内）。
+- **设计决定**：桌面/抽屉断点沿用既有 1200px（Inspector）与 800px（导航），1366×768 位于
+  桌面态；桌面四态由 `.workbench` 的 `rail-closed`/`inspector-closed` 状态类驱动，仅类切换
+  不重建 DOM（U05）；侧栏/检查器内容以固定最小宽度内层包裹，折叠时 `visibility:hidden`
+  保留滚动位置；对话行为单行"标题 + 状态·时间"密度；信任注记默认折叠。
+  与建议文档的偏差：断点 1280→沿用 1200/800；"进行中/更早"分组按 `activity` 字段实现为
+  组头展示，不做跨重启记忆与时间分组裁剪。
+- **允许路径白名单**（严格限定，C14）：
+  - `src/shell/product/renderer/workbench.html`
+  - `src/shell/product/renderer/a9-workbench.css`
+  - `src/shell/product/renderer/a9-workbench.js`
+  - `src/shell/tests/product/a9-workbench-contract.test.ts`
+  - `docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md`、`docs/tasks/README.md`、
+    `docs/STATUS.md`、`docs/reports/2026-09/**`、`docs/plans/A9_16_UI_ZCODE_REFERENCE_SUGGESTIONS.md`、
+    `docs/plans/a9-16-ui-demo/**`
+- **验证矩阵**：`npm --prefix src/shell test -- --runInBand a9-workbench-contract`（含新增
+  U01–U07 契约用例）+ shell 包 lint/build + `git diff --check`；真实 Electron 视觉与
+  1366×768/125% DPI 实机回归 NOT_PERFORMED，不得宣称 Win7 PASS / Alpha 2 PASS。
+- **源码基线说明**：基线 `7d06789` 上已有同分支在制且未提交的 A9-17（启动内存）改动，本任务在其
+  之上继续；因此本轮 diff 同时包含两个任务的改动，只有 `renderer/workbench.html`、
+  `renderer/a9-workbench.css`、`renderer/a9-workbench.js` 与
+  `tests/product/a9-workbench-contract.test.ts` 中的 A9-16 部分属于本任务。
+- **实现中补齐的两处缺口**（记录供复核；不改变上面冻结的范围与设计决定）：
+  1. **U02 行容量不足**：只改行密度不能满足"至少 4 条"。按左栏固定 chrome 静态核算，原列表高度
+     仅约 147px（约 2 条）；已压缩 brand / workspace-card / product-nav / rail-task / 目录头 /
+     搜索框 / 当前动作 / 目录注记 / 组头，并把 rail-task 说明压到单行，使列表高度约 248px
+     （预计 5 条）。该结论由契约测试中的静态高度预算模型锁定；真实布局仍为 `NOT_PERFORMED`。
+  2. **U06 跨断点回归**：原 `resize` 监听在桌面断点调用 `closeInspector()`/`closeNavigation()`，
+     使本轮新增的桌面折叠分支退化为"任何一次窗口缩放都折叠左右栏"，与 U05 冲突；现改为只做
+     状态机收敛（清理失效的抽屉/桌面机制）与 `aria-expanded` 重推。另修 ≤799px 抽屉断点下残留
+     `.rail-closed` 会把主对话区放进 0 宽网格列的冲突。

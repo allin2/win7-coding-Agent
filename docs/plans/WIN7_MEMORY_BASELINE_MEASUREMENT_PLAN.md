@@ -1,9 +1,9 @@
 # Win7 内存基线测量方案（A9 产品分进程归因）
 
-日期：2026-09-10
-文档状态：READY_FOR_ASSIGNMENT（只读测量方案；**不是**实现授权，**不是**验收任务书）
-来源基线分支：`codex/ui-optimization`
-保存分支：`codex/a9-win7-memory-baseline`
+日期：2026-09-12
+文档状态：IMPLEMENTED（测量工具已实现；**不是**验收任务书）
+来源基线分支：`codex/a9-alpha2`
+保存分支：`codex/a9-alpha2`
 适用目标：Win7 SP1 x64（build 7601）普通用户非提升账户
 配套脚本：`scripts/mvp_acceptance/a9_win7_memory_baseline.ps1`
 
@@ -29,7 +29,7 @@
 | 预算 | 口径 | 对应进程类别（脚本 category） | 取值方式 |
 |---|---|---|---|
 | #2 | Desktop Shell 常驻内存 | `shell.main` + `shell.gpu` + `shell.renderer` 合计 | 空闲会话 10 分钟窗口的**均值**与峰值 |
-| #3 | Agent Core 常驻内存 | `core.utility` | 同上，含 SQLite 页缓存 |
+| #3 | Agent Core 常驻内存 | `shell.utility`（Electron utility；Core 在主进程内） | 同上，含 SQLite 页缓存 |
 | #4 | Runner/终端宿主每实例 | `runner.helper` / `runner.shell-child` / `runner.tool` | 长输出命令期间**峰值**，按单实例口径拆分 |
 | #10 | 应用总内存（全部进程合计） | 全部 A9 进程（排除 `env.*`） | 最重负载场景**峰值** / `TotalVisibleMemorySize` |
 | 附加 | 退出残留 | 全部 A9 进程 | 产品退出后 5 分钟内必须恒为 0 |
@@ -58,7 +58,6 @@
 | S3 | 长输出命令 | 前台 Shell 输出 ≥5000 行（或 2 秒 tick ≥30 次） | 峰值覆盖全程 | #4 #2 | 待执行 |
 | S4 | 大事件量会话 | 多轮工具调用，累计事件 ≥1000（分 1000/3000 两档） | 至终态 +2 min | #2 #10 | 待执行 |
 | S5 | 翻页加载更早记录 | 反复点击"加载更早记录"至控件耗尽或 5 页 | 5 min | #2 | 待执行 |
-| S6 | 并发 2 任务 | 同工作区并发 2 个长任务 | 至终态 | #9 #10 | 待执行 |
 | S7 | 退出后残留 | 正常关闭窗口后继续采样 | 5 min | 附加 | 待执行 |
 | S8 | 重启恢复后 | 重启产品，恢复对话并渲染历史 | 至恢复完成 +2 min | #2 #3 | 待执行 |
 
@@ -67,7 +66,7 @@ S4 构造提示（来自既有经验）：批量轮次必须使用**互不相同
 
 ## 5. 采样方法
 
-- **采样间隔**：默认 5 秒；S3 这类短时峰值场景可降到 2 秒。
+- **采样间隔**：默认 5 秒；S3 这类短时峰值场景可降到 2 秒。记录 `interval_ms`（两次快照间隔）和独立的 `probe_duration_ms`（WMI 探针耗时），不把探针耗时谎报为采样周期。
 - **采样接口**：`Get-WmiObject Win32_Process`（非提升用户可用）+ `Win32_OperatingSystem`。
   不使用 `Get-Counter`，因为本地性能计数器在普通用户下常因权限不可用。
 - **进程归因**：先定位无 `--type=` 参数的 `electron.exe` 主进程作为根，再按 `ParentProcessId` 构造
@@ -78,7 +77,7 @@ S4 构造提示（来自既有经验）：批量轮次必须使用**互不相同
 | `shell.main` | 根 `electron.exe` |
 | `shell.gpu` | 命令行含 `--type=gpu-process` |
 | `shell.renderer` | 命令行含 `--type=renderer` |
-| `core.utility` | 命令行含 `--type=utility`（Core utilityProcess） |
+| `shell.utility` | 命令行含 `--type=utility`（Electron utility；Core 运行在 main 中） |
 | `shell.other` | 含其他 `--type=` |
 | `runner.helper` | 名称含 `helper` |
 | `runner.shell-child` | `cmd.exe` / `powershell.exe` |
@@ -97,22 +96,31 @@ S4 构造提示（来自既有经验）：批量轮次必须使用**互不相同
 # 每个场景单独一次采样；ASCII 场景编号，OutDir 可含中文
 powershell -ExecutionPolicy Bypass -File .\a9_win7_memory_baseline.ps1 `
   -Scenario S1 -Label cold-idle -OutDir "C:\<验收证据根>\memory-baseline\A9-MEM-BASELINE-20260911-01" `
-  -IntervalSeconds 5 -DurationSeconds 600
+  -IntervalSeconds 5 -DurationSeconds 600 `
+  -TargetExecutablePath "C:\Program Files\A9\electron.exe" -TargetPid 1234
 ```
+
+目标必须绑定到产品可执行路径，并在指定 PID 存在时绑定其 WMI CreationDate；PID 被复用时不会继续归因。
+若现场无法取得路径，可只给 PID，但应将路径记为 `UNSET` 并在报告中标注归因限制。建议建立三组同条件对照：
+同版本 Electron 最小窗口、产品空历史、产品真实历史；冷启动和热启动各至少三次。每组记录首屏、可交互、
+首次发送、峰值和稳态，不能把启动快照开销或采样间隔当作产品时长。
 
 输出文件（均为 ASCII 内容，UTF-8/ASCII 无 BOM）：
 
 | 文件 | 内容 |
 |---|---|
-| `samples.csv` | 逐样本逐进程：`run_id, scenario, label, ts, elapsed_s, pid, ppid, category, name, ws_bytes, private_bytes, peak_ws_bytes, handles, threads, cpu_s` |
-| `system.csv` | 逐样本系统内存：`run_id, ts, elapsed_s, total_kb, free_kb, commit_total_kb, commit_free_kb` |
-| `summary.csv` | 按类别与 A9 合计聚合：`run_id, scenario, metric, category, n, min, median, max` |
+| `samples.csv` | 逐样本逐进程：含 `elapsed_ms`、`interval_ms`、`probe_duration_ms`、PID+CreationDate 身份键；工作集和峰值为 bytes，WMI KB 字段已换算为 bytes，未知为 `UNKNOWN` |
+| `system.csv` | 逐样本系统内存：含 `interval_ms`、`probe_duration_ms`、`total_bytes`、`free_bytes`、`commit_*_bytes`（WMI KB 已换算为 bytes），未知为 `UNKNOWN` |
+| `summary.csv` | 按类别与 A9 合计聚合：`run_id, scenario, metric, category, n, unknown_samples, min, median, mean, max` |
 | `meta.txt` | 机器、OS、PowerShell 版本、参数、脚本 SHA-256、候选身份占位 |
 
 脚本只读、不启停产品、不修改系统配置；用 `-Scenario` 区分场景，同一 `-OutDir` 下可累积多个场景，
 最后统一汇总。
 
-脚本自身哈希（编辑后必须重新登记）：`0f729f6bd8f8824024a18e9b2fb0c2f21a18918fb8e2c1ed2202eabbdc1df2e8`
+开发机可执行夹具检查：`powershell -ExecutionPolicy Bypass -File .\test-a9-memory-baseline.ps1`；
+Node 源码契约检查：`node .\a9-memory-baseline-tests.mjs`。本机没有 Win7 WMI，不能用这些检查代替目标机采样。
+
+脚本自身哈希（编辑后必须重新登记）：`61082726a2d6686ac020022e0174c6ea6eb0b746883e282d61b84718bd93dd95`
 （`scripts/mvp_acceptance/a9_win7_memory_baseline.ps1`，ASCII-only、UTF-8 无 BOM、LF）。
 脚本刻意只用 ASCII 字符：Windows PowerShell 5.1 / 2.0 会把无 BOM 的 UTF-8 当 ANSI 读，含中文的字面量会乱码；
 因此 `-Scenario` 被限制为 `A-Za-z0-9_.-`，CSV 表头也用英文，中文口径说明只保留在本文件中。
@@ -126,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File .\a9_win7_memory_baseline.ps1 `
 
 ## 8. 判读规则
 
-1. 先看**归因**再看总数：分别报 `shell.*` 合计、`core.utility`、`runner.*` 峰值，再报 A9 合计占物理内存比例。
+1. 先看**归因**再看总数：分别报 `shell.*` 合计、`shell.utility`、`runner.*` 峰值，再报 A9 合计占物理内存比例。
 2. 每个数字必须绑定预算编号（#2/#3/#4/#10），不得给出无口径的"内存占用"。
 3. 区分"运行中高"与"退出后仍高"：S7 不为 0 时，结论应指向残留进程/进程树回收，而非产品堆。
 4. 区分稳态与峰值：#2/#3 用稳态均值，#4/#10 用峰值，不得混用。
@@ -139,8 +147,8 @@ powershell -ExecutionPolicy Bypass -File .\a9_win7_memory_baseline.ps1 `
 - 采样本身依赖 WMI，会拉起/复用 `WmiPrvSE.exe`，带来一个小的常量内存开销；它既不计入 A9 合计，
   也会轻微影响系统可用内存读数，因此系统侧数字只能作横向对比，不作绝对值承诺。
 - 脚本按进程祖先链归因；若产品进程被 Job Object 回收后重建，或存在跨用户/服务态进程，归因可能不完整。
-- 采样为轮询快照，2～5 秒间隔可能错过极短峰值；S3 需单独收紧间隔。
-- 单机、单次采样，不具备统计显著性；重复 3 次取中位数应作为后续要求。
+- 采样为轮询快照，2～5 秒间隔可能错过极短峰值；S3 需单独收紧间隔。脚本自身 WMI 查询开销会占用间隔，必须以 `interval_ms` 和 `probe_duration_ms` 判读。
+- 单机、单次采样，不具备统计显著性；冷/热启动各重复 3 次取中位数。并发 2 任务不适用于启动专项，已从本轮对照中移除。
 - 若产品进程被 Job Object 回收后重建，或存在跨用户/服务态进程，祖先链归因可能不完整。
 - Electron 22 / Node 16 / Chromium 108 均已 EOL，行为差异不得外推。
 
@@ -153,3 +161,5 @@ powershell -ExecutionPolicy Bypass -File .\a9_win7_memory_baseline.ps1 `
    登记版本、来源、哈希、风险并新增 ADR，且必须实机复测。
 4. A9-16 的 Shell 运行中输出会显著放大事件量，实施设计必须显式定义 chunk→event 的合并/节流粒度，
    否则本方案的 S3/S4 基线会在 Alpha 2 直接失效。
+
+A9-17 补充：摘要的 n 仅计字段完整的样本，unknown_samples 单列缺失样本；平均值为有效快照的算术平均，不是时间加权平均。进程与系统行使用同一轮 WMI 查询耗时。只有已冻结根身份且已观察到的后代均退出时才记录零；从未绑定目标或身份缺失记 UNKNOWN。父子关系从未被观察到的孤儿无法可靠归因，不能据无已跟踪进程断言系统不存在残留。

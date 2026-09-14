@@ -1880,3 +1880,31 @@
 - 背景：WIN7-28 独立复核及后续交接确认四项深度缺口：（RF01）正式产品 smoke 流程未把查询失败可见重试作为独立 `retry` 阶段编排，且对关键断言（包含重试目标绑定、投影协议和报告可解析性）未执行全集 fail-closed；（RF02）Electron driver 在多轮次和阶段切换中未能把各阶段的即时观察快照（`restartObserved`、`olderLoadObserved`、`sessionSwitch`）直接穿透绑定至投影导出与断言，存在被后续重新取样掩盖的风险；（RF03）分页链式事实（`validatePagingChain`）及报告器交叉核验对五类极端语义反例（旧失败从实际成员移除、自造不存在于查询导出的 turn ID、`has_more=false` 后继续请求、DOM 观察与已加载摘要矛盾、忽略实际请求观察）缺乏深度约束；（RF04）独立时间基准探针使用固定偏移在跨夏令时（DST，如纽约 EDT/EST）场景下存在 1 小时偏差风险，缺乏显式 `time_zone` 驱动的日期感知时区转换。
 - 决策：（1）RF01 烟测独立阶段与断言强制全闭环：`a9-win7-28-smoke.cjs` 在 `second` 与 `stop` 之间新增独立的 `retry` 阶段执行，严格消费第二进程上报的 `second.retryTarget.conversationId` 并记录 `A9-W28-RETRY-TARGET-BOUND`；要求 10 项关键断言全量存在且 PASS（`A9-W28-REQUIRED-ASSERTIONS-PRESENT`），任一断言缺失或失败则整体判定 FAIL。（2）RF02 阶段即时观察快照穿透与防掩盖：`a9-06-driver-entry.cjs` 将 `restartObserved`、`olderLoadObserved` 的即时 DOM 观察结果直接供 `runProjectionAcceptance` 断言消费；DOM 导出 schema 升级为 3，各阶段严格绑定阶段独立的 `latest_persisted_turn_id`；即时观察快照损坏立即引发断言失败，后续重新采样不得掩盖。（3）RF03 分页链事实与报告器深度交叉约束：`a9-projection-contract.cjs` 中的 `validatePagingChain` 强制验证：请求必须实际被观察到（`request_observed === true`）、布尔值 `has_more=false` 后不得存在后续页、各页终态事件必须严格包含在 `event_ids` 成员中、旧失败必须包含在第一页或响应页的 `event_ids` 中、DOM 事实与加载摘要必须一致；`a9-win7-28-report.cjs` 强制将报告级旧失败及分页终态与独立 `query.events` 的 turn ID 及事件类型严格交叉校验，拒绝自造 turn ID。（4）RF04 显式时区与夏令时（DST）日期感知基准：时间基准引入 `probe_version: 2` 与显式 `time_zone` 字段；`deriveTimeBaseline` 与 `timestampsConsistent` 基于 `Intl.DateTimeFormat` 独立推导具体事件时间戳所在日期的真实 UTC 偏移，精确区分纽约夏令时（EDT UTC-4）与冬令时（EST UTC-5），并保留对固定偏移（如 Asia/Shanghai UTC+8）及旧版 probe_version 1 的兼容回退；时区非法或与探针冲突时 fail-closed。（5）治理与版本冻结：本 ADR 承载于 A9-15 授权范围内；不改动 Accepted ADR-0121，不影响未提交的 Alpha 2 ADR-0117 草案；所有修改限定于 A9-15 允许路径内，本地修改不推送；开发机验证通过不等于 Win7 实机通过，实机验收前保持 `WIN7_28_NOT_PERFORMED`。
 - 后果：解决了即时快照掩盖、分页反例穿透、夏令时漂移及 smoke 重试断言缺失四大风险，使投影验收链具备真正的语义抗篡改能力；代价是 DOM 导出格式与契约校验更为严格，任何不匹配即刻 fail-closed。开发机测试通过不构成 Win7 PASS；未完成当前候选实机门前保持 `WIN7_28_NOT_PERFORMED`。
+
+## ADR-0123 A9 启动测量与有限历史投影
+
+- 状态：Accepted（2026-09-12，负责人在启动优化评估后明确要求实施）
+- 决策：按 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 修正测量口径，先显示可信本地窗口、以共享初始化屏障保护 IPC；首屏非必要数据按需加载，新增有限历史投影与分页，模型上下文不受 UI 分页影响。兼容旧调用默认合同，新增分页字段/动作明确版本；不改变数据库物理格式、安全模型或原生依赖。
+- 后果：窗口显示不等于执行就绪，初始化失败保持拒绝执行并可诊断；恢复、退出和旧历史必须回归。采样单位、归因修正后的数据不得与旧错误口径直接比较；没有 Win7 同候选测量不承诺内存降幅。本授权不开放 A9-16 其他功能，不授权提交、推送或部署。
+
+## ADR-0124 A9-16 UI 子集实施授权与 Review 延期
+
+- 状态：Accepted（2026-09-14，负责人指令：实现左侧对话区与响应式 UI，完整 Review 暂缓）
+- 背景：ADR-0117 只冻结 Alpha 2 需求方向，并把 [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md)
+  保持在 `PLANNED_NOT_AUTHORIZED`，要求实现前另行批准分支、基线、允许路径与验证合同。负责人于
+  2026-09-14 要求先落地 U01–U07 的左侧对话区与响应式四态，把完整 Review（R01–R05）与 Shell
+  运行中输出（S01–S06）留在后续授权。
+- 决策：（1）以 A9-16 §7 冻结本轮授权：分支 `codex/a9-alpha2`、基线 `7d06789`、允许路径限于
+  `renderer/workbench.html`、`renderer/a9-workbench.css`、`renderer/a9-workbench.js`、
+  `tests/product/a9-workbench-contract.test.ts` 及任务/状态/报告/设计文档。（2）桌面与抽屉断点
+  沿用既有 1200px / 800px；桌面四态由 `.workbench` 的 `rail-closed`/`inspector-closed` 状态类驱动，
+  只切类不重建 DOM（U05）；抽屉态（`.open` + backdrop）与桌面折叠态是两个互不复用的状态机，
+  跨断点缩放只允许做收敛清理与 `aria-expanded` 重推，不得在桌面断点上折叠侧栏。（3）左侧对话
+  目录按 `activity` 展示「进行中 / 更早」组头，行密度为单行「标题 + 状态·时间」；信任注记默认折叠。
+  （4）侧栏状态维持会话内，不做跨重启持久化。（5）R01–R05 与 S01–S06 本轮明确不实现：权限模式
+  维持 Alpha 1 的 Full Access / Read Only，Review 入口继续 disabled 且 fail-closed（ADR-0096 不变）。
+- 后果：U01–U07 可在产品渲染层落地，并由契约测试与左栏静态高度预算模型约束（U02 的"至少 4 条"
+  以固定 chrome 合计锁定，任何撑大左栏或组头的改动会直接失败）。代价是左栏密度、断点行为与状态
+  机边界被钉进契约，调整需同步更新预算模型。本 ADR 不重开 A9-15，不改判或重签 WIN7-19～28 任何
+  候选与证据，不签发 Alpha 2 PASS / Win7 PASS；真实 Electron 视觉与 1366×768、125% DPI 实机回归
+  保持 `NOT_PERFORMED`。不授权提交、推送或部署。

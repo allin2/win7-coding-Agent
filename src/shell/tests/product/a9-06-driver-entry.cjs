@@ -1207,6 +1207,23 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
  * 不存在、分页后出现"，证明旧失败确实进入了产品已加载历史（仅数据库存在不算）。
  */
 async function runPagingProbe(exec, conversationId, restoredEvents) {
+  // A9-17: explicitly expand fact pages through their UI before testing event pages.
+  // Older products have no separate fact control and retain their original path.
+  await exec(`(async () => {
+    for (let page = 0; page < 100; page++) {
+      const button = document.querySelector('.conversation-history-note button');
+      if (!button) return;
+      const count = document.querySelectorAll('article.turn-block').length;
+      button.click();
+      let loaded = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        if (document.querySelectorAll('article.turn-block').length > count) { loaded = true; break; }
+      }
+      if (!loaded) throw new Error('FACT_PAGING_TIMEOUT');
+    }
+    throw new Error('FACT_PAGING_LIMIT');
+  })()`);
   const windowLimit = PRODUCT_FIRST_QUERY_LIMIT;
   const productQuery = (observation) => Boolean(observation) && observation.limit === windowLimit
     && observation.conversation_id === conversationId;
@@ -1247,7 +1264,7 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
       && item.turn_id === olderFailureEvent.turn_id) || null
     : null;
   const readControl = `(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     return {
       hasControl: Boolean(button), disabled: button ? button.disabled : null,
@@ -1259,8 +1276,10 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
   const readOlderObservable = (turnId, toolStartEventId) => `(async () => {
     const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
     const facts = snapshot.conversation || [];
-    const fact = facts.find((item) => item.turnId === ${JSON.stringify(turnId)}) || null;
-    let block = null;
+    let fact = facts.find((item) => item.turnId === ${JSON.stringify(turnId)}) || null;
+    let block = Array.from(document.querySelectorAll('#a9-task-stream article.turn-block'))
+      .find(node => node.dataset.turnId === ${JSON.stringify(turnId)}) || null;
+    if (!fact && block) fact = { taskId: block.dataset.turnKey };
     if (fact && fact.taskId) {
       block = Array.from(document.querySelectorAll('#a9-task-stream article.turn-block'))
         .find((node) => node.dataset.turnKey === fact.taskId) || null;
@@ -1315,7 +1334,7 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
     if (!control.hasControl || control.disabled) { stopReason = 'CONTROL_GONE_OR_DISABLED'; break; }
     const seqBefore = queryObservationSeq;
     await exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
       const button = note ? note.querySelector('button') : null;
       if (button) button.click();
       return Boolean(button);
@@ -1350,7 +1369,7 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
     if (observed.has_more !== true) { stopReason = 'NO_MORE_HISTORY'; break; }
     // 等待产品消化该页（按钮恢复可用或控件消失），避免下一轮点击落在加载锁上。
     await waitFor(() => exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
       const button = note ? note.querySelector('button') : null;
       return !button || !button.disabled ? true : null;
     })()`), 10_000, 'paging control settle').catch(() => null);
@@ -1637,7 +1656,7 @@ async function runSecondProcess(win, exec, env) {
         eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
         eventType: item.dataset.eventType || null, text: item.textContent,
       }));
-      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
       const timeBaseline = {
         probe_version: ${JSON.stringify(TIME_BASELINE_PROBE_VERSION)},
         time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
@@ -1796,7 +1815,7 @@ async function runRetryProcess(win, exec, env) {
   const targetConversationId = process.env.A9_SMOKE_RETRY_CONVERSATION || '';
   // 等待产品重启完成：快照恢复后初次历史加载被替身注入失败，"重试加载"入口出现。
   const errorState = await waitFor(() => exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     if (!button || button.textContent !== '重试加载') return null;
     return {
@@ -1822,14 +1841,14 @@ async function runRetryProcess(win, exec, env) {
       || injectedObservations[0].conversation_id === targetConversationId);
   // 实际点击产品"重试加载"入口（真实用户路径，不直接调用产品内部函数）。
   const clickedRetry = errorVisible ? await exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     if (button) button.click();
     return Boolean(button);
   })()`) === true : false;
   // 恢复：错误入口消失，Inspector 重新出现行（初次失败时历史为空，行数 > 0 证明真实补载）。
   const recoveredState = await waitFor(() => exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     const label = button ? button.textContent : '';
     const rows = document.querySelectorAll('#a9-timeline li').length;

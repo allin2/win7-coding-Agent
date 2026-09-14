@@ -71,6 +71,42 @@ let mainWindow = null;
 let smokeTimer = null;
 let desktopHost = null;
 let rcComposition = null;
+let startupInitializationPromise = null;
+let startupInitializationComplete = false;
+let startupClosing = false;
+let startupPaintResolve = null;
+let startupPaintReject = null;
+let startupPaintSettled = false;
+const startupPaintPromise = new Promise((resolve, reject) => {
+  startupPaintResolve = (value) => {
+    if (startupPaintSettled) return;
+    startupPaintSettled = true;
+    resolve(value);
+  };
+  startupPaintReject = (error) => {
+    if (startupPaintSettled) return;
+    startupPaintSettled = true;
+    reject(error);
+  };
+});
+
+function awaitStartupInitialization() {
+  if (startupClosing) return Promise.reject(Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' }));
+  if (!startupInitializationPromise) return Promise.reject(Object.assign(new Error('STARTUP_NOT_READY'), { code: 'STARTUP_NOT_READY' }));
+  return startupInitializationPromise;
+}
+
+function withStartupBarrier(handler, isValidSender = validRendererSender) {
+  return (event, ...args) => {
+    // Reject untrusted senders before waiting on startup, so they cannot pin
+    // an IPC request behind a long initialization or observe its error.
+    if (!isValidSender(event)) return handler(event, ...args);
+    return awaitStartupInitialization().then(() => {
+      if (startupClosing) throw Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' });
+      return handler(event, ...args);
+    });
+  };
+}
 let activeWorkspaceStore = null;
 const acceptanceEvents = [];
 let acceptanceReportWritten = false;
@@ -796,8 +832,21 @@ function createMainWindow() {
   });
   window.once('ready-to-show', () => {
     if (!smokeReportPath) window.show();
+    // Let Chromium paint the trusted local shell before starting heavyweight
+    // host/state initialization.  setImmediate is intentional: wrapping the
+    // same work in a Promise without yielding would still block the first paint.
+    setImmediate(() => startupPaintResolve({ window }));
   });
   window.on('close', (event) => {
+    if (!startupClosing && startupInitializationPromise && !startupInitializationComplete) {
+      // A close before the first paint must cancel the deferred startup. No
+      // host exists yet, so destruction is safe and avoids creating one late.
+      event.preventDefault();
+      startupClosing = true;
+      startupPaintReject(Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' }));
+      window.destroy();
+      return;
+    }
     if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
     event.preventDefault();
     if (a9WindowCloseInFlight) return;
@@ -823,6 +872,7 @@ function createMainWindow() {
     mainWindow = null;
   });
   window.loadFile(rendererEntry).catch((error) => {
+    startupPaintReject(error);
     runtimeState.errors.push('load-file:' + error.message);
     if (smokeReportPath) finishSmoke('FAIL', 1, 'Trusted local Renderer failed to load.');
     else if (a8ReviewSmokeReportPath) failA8ReviewSmoke(error);
@@ -876,14 +926,14 @@ const handleDesktopRequest = createDesktopRequestHandler({
   },
 });
 
-ipcMain.handle('desktop:request', handleDesktopRequest);
-ipcMain.handle('product:a8-request', createA8ProductRequestHandler({
+ipcMain.handle('desktop:request', withStartupBarrier(handleDesktopRequest));
+ipcMain.handle('product:a8-request', withStartupBarrier(createA8ProductRequestHandler({
   getDesktopHost: () => desktopHost,
   isValidRendererSender: validRendererSender,
   // A9 still reuses A8's bounded workspace-read DTOs. Deferred Review
   // mutations are enabled only by the explicit historical smoke entry.
   allowReviewMutations: legacyRendererRequested,
-}));
+})));
 
 // A9 Trusted Agent Runtime（A9-06）：Renderer 只经此窄 IPC 访问。
 let a9RuntimeInstance = null;
@@ -956,10 +1006,10 @@ async function getOrCreateA9Runtime() {
   a9RuntimeWorkspace = desiredWorkspace;
   return a9RuntimeInstance;
 }
-ipcMain.handle('product:a9-request', createA9ProductRequestHandler({
+ipcMain.handle('product:a9-request', withStartupBarrier(createA9ProductRequestHandler({
   getA9Runtime: getOrCreateA9Runtime,
   isValidRendererSender: validRendererSender,
-}));
+})));
 let a9ShutdownComplete = false;
 let a9ShutdownInFlight = null;
 let a9WindowCloseInFlight = null;
@@ -1053,7 +1103,7 @@ async function restoreActiveWorkspace() {
   }
 }
 
-ipcMain.handle('product:get-diagnostics', (event) => {
+ipcMain.handle('product:get-diagnostics', withStartupBarrier((event) => {
   if (!mainWindow || event.sender !== mainWindow.webContents || !isTrustedLocalUrl(event.senderFrame.url, rendererRoot)) {
     throw new Error('RENDERER_CAPABILITY_DENIED');
   }
@@ -1071,7 +1121,7 @@ ipcMain.handle('product:get-diagnostics', (event) => {
     },
     ...buildDiagnostics(),
   };
-});
+}));
 
 ipcMain.on('product:renderer-ready', (event, payload) => {
   const validSender = mainWindow && event.sender === mainWindow.webContents && isTrustedLocalUrl(event.senderFrame.url, rendererRoot);
@@ -1082,16 +1132,18 @@ ipcMain.on('product:renderer-ready', (event, payload) => {
   }
   runtimeState.rendererReady = true;
   if (a9WorkbenchScreenshotPath) {
-    void captureA9WorkbenchScreenshot().catch((error) => {
+    void awaitStartupInitialization().then(() => captureA9WorkbenchScreenshot()).catch((error) => {
       process.stderr.write(`A9_WORKBENCH_SCREENSHOT_ERROR:${String(error && error.stack ? error.stack : error)}\n`);
       app.exit(1);
     });
   } else if (smokeReportPath) {
-    finishSmoke('PASS', 0, 'The real Electron product entry started, loaded the trusted local Renderer, returned diagnostics and exited normally.');
+    void awaitStartupInitialization().then(() => {
+      finishSmoke('PASS', 0, 'The real Electron product entry started, loaded the trusted local Renderer, returned diagnostics and exited normally.');
+    }).catch((error) => finishSmoke('FAIL', 1, String(error && error.message ? error.message : error)));
   } else if (a8ReviewSmokeReportPath) {
-    void runA8ReviewElectronSmoke().catch(failA8ReviewSmoke);
+    void awaitStartupInitialization().then(() => runA8ReviewElectronSmoke()).catch(failA8ReviewSmoke);
   } else if (a8BoundarySmokeReportPath) {
-    void runA8BoundaryElectronSmoke().catch(failA8BoundarySmoke);
+    void awaitStartupInitialization().then(() => runA8BoundaryElectronSmoke()).catch(failA8BoundarySmoke);
   }
 });
 
@@ -1106,6 +1158,11 @@ if (!hasSingleInstanceLock) {
       onRequestBlocked: (url) => runtimeState.blockedRequests.push(url),
       onPermissionDenied: (permission) => runtimeState.deniedPermissions.push(permission),
     });
+    // Create and display the trusted local shell first. Heavy state/runner/
+    // workspace work is behind one promise shared by every product IPC.
+    mainWindow = createMainWindow();
+    startupInitializationPromise = startupPaintPromise.then(async () => {
+    if (startupClosing) throw Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' });
     let productRunner = null;
     const rcRuntimePath = path.join(__dirname, '..', 'rc-runtime.json');
     if (fs.existsSync(rcRuntimePath)) {
@@ -1191,6 +1248,7 @@ if (!hasSingleInstanceLock) {
         sendProductEvent(IPCMessageType.TASK_EVENT, task.sessionId, event);
       },
     });
+    if (startupClosing) throw Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' });
     if (a8ReviewSmokeReportPath || a8ReviewSmokeWorkspace) {
       if (!a8ReviewSmokeReportPath || !a8ReviewSmokeWorkspace) throw new Error('A8_REVIEW_SMOKE_CONFIGURATION_INVALID');
       const selected = await desktopHost.selectWorkspace(a8ReviewSmokeWorkspace);
@@ -1203,7 +1261,7 @@ if (!hasSingleInstanceLock) {
     } else if (!legacyRendererRequested) {
       await restoreActiveWorkspace();
     }
-    mainWindow = createMainWindow();
+    if (startupClosing) throw Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' });
     if (smokeReportPath || a8ReviewSmokeReportPath || a8BoundarySmokeReportPath) {
       smokeTimer = setTimeout(() => {
         runtimeState.errors.push('smoke-timeout');
@@ -1212,6 +1270,10 @@ if (!hasSingleInstanceLock) {
         else failA8BoundarySmoke(new Error('The A8-04 boundary Electron smoke exceeded its timeout.'));
       }, smokeTimeoutMs);
     }
+    startupInitializationComplete = true;
+    return { desktopHost, rcComposition };
+    });
+    await startupInitializationPromise;
   }).catch((error) => {
     runtimeState.errors.push('startup:' + String(error && error.stack ? error.stack : error));
     if (smokeReportPath) finishSmoke('FAIL', 1, 'The Electron product entry failed during startup.');
@@ -1222,6 +1284,8 @@ if (!hasSingleInstanceLock) {
 
   app.on('window-all-closed', () => app.quit());
   app.on('will-quit', () => {
+    startupClosing = true;
+    startupPaintReject(Object.assign(new Error('APP_SHUTTING_DOWN'), { code: 'APP_SHUTTING_DOWN' }));
     try {
       writeAcceptanceEventReport();
     } catch (error) {

@@ -39,6 +39,12 @@
   });
   const state = {
     snapshot: null,
+    conversationFacts: new Map(),
+    conversationPage: null,
+    historyLoading: false,
+    historyError: '',
+    historyNote: null,
+    historyExpanded: false,
     explorerSessionId: null,
     explorerPath: '',
     viewer: null,
@@ -290,6 +296,13 @@
   }
 
   function resetConversationEvents() {
+    state.historyGeneration = (state.historyGeneration || 0) + 1;
+    state.conversationFacts = new Map();
+    state.conversationPage = null;
+    state.historyLoading = false;
+    state.historyError = '';
+    state.historyNote = null;
+    state.historyExpanded = false;
     state.inspectorEvents = new Map();
     state.turnEvents = new Map();
     state.turnIdToFactTask = new Map();
@@ -788,6 +801,7 @@
     facts.forEach((fact) => {
       const block = ensureTurnBlock(fact.taskId || `fact:${facts.indexOf(fact)}`);
       const turnId = resolveTurnId(fact);
+      block.root.dataset.turnId = turnId || '';
       const events = turnId ? eventsForTurn(turnId) : [];
       updateTurnBlock(block, fact, events);
       latestProjection = projectOutcome(fact, events);
@@ -974,6 +988,20 @@
     return '空闲';
   }
 
+  function appendConversationGroup(list, label, items, snapshot) {
+    if (!items.length) return;
+    const head = document.createElement('li');
+    head.className = 'conversation-group-head';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const count = document.createElement('span');
+    count.textContent = String(items.length);
+    head.appendChild(name);
+    head.appendChild(count);
+    list.appendChild(head);
+    items.forEach((item) => appendConversationRow(list, item, snapshot, false));
+  }
+
   function appendConversationRow(list, conversation, snapshot, archived) {
     const item = document.createElement('li');
     const button = document.createElement('button');
@@ -1021,7 +1049,10 @@
     const archivedList = el('conversation-archive-list');
     activeList.textContent = '';
     archivedList.textContent = '';
-    active.forEach((item) => appendConversationRow(activeList, item, snapshot, false));
+    const live = active.filter((item) => item.activity && item.activity !== 'idle');
+    const older = active.filter((item) => !(item.activity && item.activity !== 'idle'));
+    appendConversationGroup(activeList, '进行中', live, snapshot);
+    appendConversationGroup(activeList, '更早', older, snapshot);
     archived.forEach((item) => appendConversationRow(archivedList, item, snapshot, true));
     if (query && visible.length === 0) {
       const empty = document.createElement('li');
@@ -1052,13 +1083,86 @@
     resizeComposer();
   }
 
+  function sortedConversationFacts() {
+    return Array.from(state.conversationFacts.values()).sort((a, b) =>
+      a.createdAt === b.createdAt ? (a.taskId < b.taskId ? -1 : a.taskId > b.taskId ? 1 : 0)
+        : a.createdAt < b.createdAt ? -1 : 1);
+  }
+
+  function renderHistoryControl() {
+    const stream = el('a9-task-stream');
+    if (!stream) return;
+    if (state.historyNote) state.historyNote.remove();
+    state.historyNote = null;
+    if (!state.historyError && !(state.conversationPage && state.conversationPage.hasMore)) return;
+    const note = document.createElement('p');
+    note.className = 'legacy-note';
+    note.className += ' conversation-history-note';
+    note.textContent = state.historyError || '首屏仅加载最近的对话；更早内容仍完整保存在本机。';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = state.historyLoading ? '正在加载…' : state.historyError ? '重试加载对话' : '加载更早对话';
+    button.disabled = state.historyLoading;
+    button.addEventListener('click', () => { void loadOlderConversation(); });
+    note.appendChild(button);
+    stream.insertBefore(note, stream.firstChild);
+    state.historyNote = note;
+  }
+
+  async function loadOlderConversation() {
+    if (state.historyLoading || !state.conversationPage || !state.conversationPage.nextBefore) return;
+    const conversationId = state.activeConversationId;
+    const before = state.conversationPage.nextBefore;
+    const generation = state.historyGeneration;
+    const isCurrent = () => state.activeConversationId === conversationId && state.historyGeneration === generation;
+    const scroller = el('conversation');
+    const anchorHeight = scroller.scrollHeight;
+    const anchorTop = scroller.scrollTop;
+    state.historyLoading = true;
+    renderHistoryControl();
+    try {
+      const response = await a9.queryConversation({ conversationId, before, limit: 20 });
+      if (!isCurrent()) return;
+      if (!response || !response.ok || response.conversationId !== conversationId) throw new Error('对话加载失败，请重试。');
+      for (const fact of response.facts) state.conversationFacts.set(fact.taskId, fact);
+      state.conversationPage = { hasMore: response.hasMore, nextBefore: response.nextBefore };
+      state.historyExpanded = true;
+      state.historyError = '';
+      state.snapshot = { ...state.snapshot, conversation: sortedConversationFacts() };
+      state.conversationSignature = null;
+      const follow = state.streamFollow;
+      state.streamFollow = false;
+      renderConversation(state.snapshot);
+      // Moving existing nodes preserves details/focus state while inserting older facts in order.
+      const stream = el('a9-task-stream');
+      for (const fact of state.snapshot.conversation) {
+        const block = state.streamDom.get(fact.taskId);
+        if (block) stream.appendChild(block.root);
+      }
+      state.streamFollow = follow;
+      scroller.scrollTop = anchorTop + scroller.scrollHeight - anchorHeight;
+    } catch (error) {
+      if (isCurrent()) state.historyError = '对话加载失败，请重试。';
+    } finally {
+      if (isCurrent()) {
+        state.historyLoading = false;
+        renderHistoryControl();
+      }
+    }
+  }
+
   function renderSnapshot(snapshot) {
-    state.snapshot = snapshot;
     state.activeConversationId = snapshot.activeConversationId || null;
     if (state.renderedConversationId !== state.activeConversationId) {
       state.renderedConversationId = state.activeConversationId;
       resetConversationEvents();
     }
+    if (snapshot.conversationPage) {
+      for (const fact of snapshot.conversation || []) state.conversationFacts.set(fact.taskId, fact);
+      if (!state.historyExpanded) state.conversationPage = snapshot.conversationPage;
+      snapshot = { ...snapshot, conversation: sortedConversationFacts() };
+    }
+    state.snapshot = snapshot;
     const surface = el('a9-surface');
     surface.hidden = false;
     surface.dataset.a9Status = snapshot.status || 'unknown';
@@ -1135,6 +1239,7 @@
     renderCheckpoints(snapshot);
     renderConversationDirectory(snapshot);
     renderConversation(snapshot);
+    renderHistoryControl();
     hydrateDraft(snapshot);
     const context = snapshot.contextWindow || {};
     const contextNote = el('context-window-note');
@@ -1172,7 +1277,6 @@
       }
       clearGlobalError();
       renderSnapshot(response.snapshot);
-      await ensureExplorerSession(response.snapshot.workspaceRoot);
       return response.snapshot;
     } catch (error) {
       showGlobalError(errorMessage(error, '无法读取 A9 Runtime 状态。'), '重试初始化', () => { void refreshSnapshot(); });
@@ -1769,13 +1873,32 @@
       panel.hidden = !active;
     });
     if (focus) el(`inspector-tab-${name}`).focus();
+    if (name === 'environment') void refreshGit();
+    if (name === 'files' && state.snapshot) void ensureExplorerSession(state.snapshot.workspaceRoot).catch((error) => showGlobalError(errorMessage(error, '文件列表加载失败。')));
   }
 
   function inspectorIsDrawer() { return root.innerWidth < 1200; }
   function navigationIsDrawer() { return root.innerWidth < 800; }
+  function workbenchRoot() { return document.querySelector('.workbench'); }
+  function setWorkbenchPaneClass(name, on) {
+    const wb = workbenchRoot();
+    if (!wb || !wb.classList || typeof wb.classList.toggle !== 'function') return;
+    wb.classList.toggle(name, on);
+  }
+  function paneContainsFocus(pane) {
+    return Boolean(pane && pane.contains && document.activeElement && pane.contains(document.activeElement));
+  }
   function openInspector(tabName) {
     if (tabName) selectTab(tabName, false);
-    if (!inspectorIsDrawer()) return;
+    if (!inspectorIsDrawer()) {
+      // A9-16 U03/U04/U05：桌面四态只切换状态类，不重建 DOM，保留滚动与焦点上下文。
+      setWorkbenchPaneClass('inspector-closed', false);
+      el('inspector').classList.remove('open');
+      el('inspector-backdrop').hidden = true;
+      el('open-inspector').setAttribute('aria-expanded', 'true');
+      return;
+    }
+    setWorkbenchPaneClass('inspector-closed', false);
     state.lastFocused = document.activeElement;
     el('inspector').classList.add('open');
     el('inspector-backdrop').hidden = false;
@@ -1783,6 +1906,12 @@
     el('close-inspector').focus();
   }
   function closeInspector() {
+    if (!inspectorIsDrawer()) {
+      setWorkbenchPaneClass('inspector-closed', true);
+      el('open-inspector').setAttribute('aria-expanded', 'false');
+      if (paneContainsFocus(el('inspector'))) el('open-inspector').focus();
+      return;
+    }
     el('inspector').classList.remove('open');
     el('inspector-backdrop').hidden = true;
     el('open-inspector').setAttribute('aria-expanded', 'false');
@@ -1790,12 +1919,34 @@
     state.lastFocused = null;
   }
   function toggleInspector() {
-    if (!inspectorIsDrawer()) return;
-    if (el('inspector').classList.contains('open')) closeInspector();
-    else openInspector();
+    if (inspectorIsDrawer()) {
+      if (el('inspector').classList.contains('open')) closeInspector();
+      else openInspector();
+      return;
+    }
+    const wb = workbenchRoot();
+    if (wb && wb.classList && wb.classList.contains('inspector-closed')) openInspector();
+    else closeInspector();
+  }
+  function toggleNavigation() {
+    if (navigationIsDrawer()) {
+      if (el('navigation-rail').classList.contains('open')) closeNavigation();
+      else openNavigation();
+      return;
+    }
+    const wb = workbenchRoot();
+    if (wb && wb.classList && wb.classList.contains('rail-closed')) openNavigation();
+    else closeNavigation();
   }
   function openNavigation() {
-    if (!navigationIsDrawer()) return;
+    if (!navigationIsDrawer()) {
+      setWorkbenchPaneClass('rail-closed', false);
+      el('navigation-rail').classList.remove('open');
+      el('navigation-backdrop').hidden = true;
+      el('open-navigation').setAttribute('aria-expanded', 'true');
+      return;
+    }
+    setWorkbenchPaneClass('rail-closed', false);
     state.lastFocused = document.activeElement;
     el('navigation-rail').classList.add('open');
     el('navigation-backdrop').hidden = false;
@@ -1803,9 +1954,47 @@
     el('close-navigation').focus();
   }
   function closeNavigation() {
+    if (!navigationIsDrawer()) {
+      setWorkbenchPaneClass('rail-closed', true);
+      el('open-navigation').setAttribute('aria-expanded', 'false');
+      if (paneContainsFocus(el('navigation-rail'))) el('open-navigation').focus();
+      return;
+    }
     el('navigation-rail').classList.remove('open');
     el('navigation-backdrop').hidden = true;
     el('open-navigation').setAttribute('aria-expanded', 'false');
+    if (state.lastFocused && typeof state.lastFocused.focus === 'function') state.lastFocused.focus();
+    state.lastFocused = null;
+  }
+  /**
+   * A9-16 U06：抽屉态（`.open` + backdrop）与桌面折叠态（`.rail-closed` /
+   * `.inspector-closed`）是两个互不复用的状态机。本函数是两者唯一的收敛点：
+   * 跨断点缩放时只清理失效的一方并重新推导 `aria-expanded`，**不**在桌面断点上
+   * 主动折叠侧栏——那会覆盖用户显式打开的侧栏并破坏 U05 的状态保持。
+   */
+  function syncPaneState() {
+    const wb = workbenchRoot();
+    const rail = el('navigation-rail');
+    const inspector = el('inspector');
+    if (!wb || !wb.classList || typeof wb.classList.contains !== 'function' || !rail || !inspector) return;
+    const inspectorDrawer = inspectorIsDrawer();
+    const navigationDrawer = navigationIsDrawer();
+    if (inspectorDrawer) {
+      if (!inspector.classList.contains('open')) el('inspector-backdrop').hidden = true;
+    } else {
+      inspector.classList.remove('open');
+      el('inspector-backdrop').hidden = true;
+    }
+    if (navigationDrawer) {
+      if (!rail.classList.contains('open')) el('navigation-backdrop').hidden = true;
+    } else {
+      rail.classList.remove('open');
+      el('navigation-backdrop').hidden = true;
+    }
+    el('open-inspector').setAttribute('aria-expanded',
+      String(inspectorDrawer ? inspector.classList.contains('open') : !wb.classList.contains('inspector-closed')));
+    el('open-navigation').setAttribute('aria-expanded',
+      String(navigationDrawer ? rail.classList.contains('open') : !wb.classList.contains('rail-closed')));
   }
 
   function openDrawer(id) {
@@ -1974,15 +2163,16 @@
         selectTab(TAB_IDS[(index + offset + TAB_IDS.length) % TAB_IDS.length], true);
       });
     });
-    el('open-inspector').addEventListener('click', () => openInspector());
+    el('open-inspector').addEventListener('click', () => toggleInspector());
     el('close-inspector').addEventListener('click', closeInspector);
     el('inspector-backdrop').addEventListener('click', closeInspector);
-    el('open-navigation').addEventListener('click', openNavigation);
+    el('open-navigation').addEventListener('click', toggleNavigation);
     el('close-navigation').addEventListener('click', closeNavigation);
     el('navigation-backdrop').addEventListener('click', closeNavigation);
+    syncPaneState();
     el('refresh-diagnostics').addEventListener('click', () => { void refreshDiagnostics(); });
     document.addEventListener('keydown', (event) => {
-      // ADR-0114：Ctrl+K 聚焦目录搜索；Ctrl+I 切换检查器（抽屉模式）。
+      // ADR-0114：Ctrl+K 聚焦目录搜索；Ctrl+I 切换检查器（A9-16 桌面四态/抽屉）。
       const key = String(event.key || '').toLowerCase();
       if (event.ctrlKey && !event.altKey && !event.shiftKey && key === 'k') {
         event.preventDefault();
@@ -2008,7 +2198,10 @@
       if (el('inspector').classList.contains('open')) { event.preventDefault(); closeInspector(); return; }
       if (el('navigation-rail').classList.contains('open')) { event.preventDefault(); closeNavigation(); }
     });
-    root.addEventListener('resize', () => { if (!inspectorIsDrawer()) closeInspector(); if (!navigationIsDrawer()) closeNavigation(); });
+    // A9-16 U06：跨断点只做收敛（清理失效的抽屉/桌面机制 + 重推 aria），
+    // 不再在桌面断点调用 closeInspector/closeNavigation——那会在任何一次
+    // 窗口缩放时把用户打开的左右栏一起折叠。
+    root.addEventListener('resize', syncPaneState);
   }
 
   async function initialize() {
@@ -2018,9 +2211,9 @@
     }
     bind();
     await refreshSnapshot();
-    await loadConversationEvents();
-    await refreshGit();
-    await refreshDiagnostics();
+    // History details yield to the first interactive paint. Git/diagnostics load on demand.
+    root.setTimeout(() => { void loadConversationEvents(); }, 0);
+    text('a9-git-status', '打开环境页或点击刷新以读取 Git 状态。');
     if (!state.snapshot) el('workspace-select').focus();
     api.signalReady();
   }
