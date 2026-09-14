@@ -639,7 +639,8 @@ describe('A9 unified desktop workbench contract', () => {
         this.nodeListeners.set(type, list);
       }
       fire(type: string) { (this.nodeListeners.get(type) || []).forEach((h) => h()); }
-      focus() { this.attrs.set('data-focused', 'true'); }
+      focus() { this.attrs.set('data-focused', 'true'); documentStub.activeElement = this; }
+      select() { this.attrs.set('data-selected', 'true'); }
       contains(node: PaneNode | null) {
         let cur: PaneNode | null = node;
         while (cur) { if (cur === this) return true; cur = cur.parentNode; }
@@ -796,6 +797,27 @@ describe('A9 unified desktop workbench contract', () => {
     expect(h.nodes.get('navigation-rail')!.classList.contains('open')).toBe(true);
     h.nodes.get('close-navigation')!.fire('click');
     expect(h.nodes.get('navigation-rail')!.classList.contains('open')).toBe(false);
+  });
+
+  it('opens a collapsed navigation pane before Ctrl+K focuses and selects search (U03/U14)', () => {
+    const h = createPaneHarness();
+    h.run(script);
+    h.ready();
+    const navBtn = h.nodes.get('open-navigation')!;
+    const search = h.nodes.get('conversation-search')!;
+    navBtn.fire('click');
+    expect(h.workbench.classList.contains('rail-closed')).toBe(true);
+
+    const preventDefault = jest.fn();
+    (h.listeners['document:keydown'] || []).forEach((handler) => handler({
+      key: 'k', ctrlKey: true, altKey: false, shiftKey: false, preventDefault,
+    }));
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(h.workbench.classList.contains('rail-closed')).toBe(false);
+    expect(h.document.activeElement).toBe(search);
+    expect(search.getAttribute('data-selected')).toBe('true');
+    expect(navBtn.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('re-syncs drawer and desktop pane state across breakpoints without collapsing open sidebars (U06)', () => {

@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_30_CANDIDATE_AUTHORIZED
-Win7-Validation: WIN7_30_NOT_PERFORMED
-Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126
+Phase-Gate: A9_16_WIN7_31_REPAIR_AND_REISSUE_AUTHORIZED
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_NOT_PERFORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127
 ```
 
 ## 1. 需求来源与授权边界
@@ -190,3 +190,30 @@ Win7 实机验收。本轮仍不开放 Review（R01–R05）与 Shell 运行中�
   正式候选；候选哈希形成后由候选外独立 `WIN7_30_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。
   未执行前保持 `WIN7_30_NOT_PERFORMED`。
 - **本地提交**：允许将本轮改动冻结为本地提交；不推送、不打标签。
+
+## 10. WIN7-31 修复与换发授权（2026-09-14，负责人指令）
+
+负责人在 WIN7-30 实机验收完成但失败后明确批准“修复与换发新候选”。本授权只处理 G2 已证实的两个
+失败点，WIN7-30 及其候选外失败证据继续冻结，不得覆盖、补丁改包或复用哈希改判。
+
+- **失败事实**：WIN7-30（ZIP SHA-256
+  `1ec123e4f73dbb6607007e34460350164a06a6dd9035f4c031ff4782fc74af90`）在 `10.211.42.40`
+  普通用户 Medium/non-elevated run `add716dd-c45e-4a18-ab5f-0ba1fc19d6c3` 通过 G1；G2 自动 smoke
+  中四个 Electron 阶段均退出 0、fixture 325 次请求，但候选 driver 发布 W28 投影证据键而 smoke
+  按 W30 键读取，且折叠左栏下 Ctrl+K 搜索过滤成功但焦点断言失败。硬门失败后真实 Provider保持
+  `NOT_PERFORMED`；原 ZIP 复核哈希不变，结束后 Electron 进程为零。
+- **候选 ID 与决策**：换发 `WIN7-31`，新增 ADR-0127；WIN7-30 保持 `G2_FAILED`，不得重签。
+- **修复范围**：候选构建时将共享 driver 的 03/09/10 投影 case key 与 evidence package kind 精确派生
+  为 W31；产品 Ctrl+K 在聚焦/全选搜索框前先展开导航。15 项用例、Alpha 1 版本和能力集保持不变。
+- **允许路径（C14）**：在 §7/§9 基础上允许修改
+  `src/shell/product/renderer/a9-workbench.js`、`src/shell/tests/product/a9-workbench-contract.test.ts`、
+  `scripts/release/build-a9-product-v3.mjs`、`scripts/release/test/a9-package.test.mjs`；允许在
+  `release/win7-product-v3/` 新增 W31 lock、integrity/report/smoke、CMD、validation 文档并更新
+  `README.md`；允许更新本任务书、`docs/tasks/README.md`、`docs/STATUS.md`，并只向
+  `docs/DECISIONS.md` 新增 ADR-0127。不得修改 W23～W30 的冻结候选脚本或工件。
+- **防回归**：残留守卫必须在 driver 与 kit 生成后运行，并拒绝 03/09/10 投影对象键指向任何非 W31
+  前缀；测试须证明正向 driver/报告器/smoke 键一致，以及注入旧键时构建 fail-closed。
+- **构建与批准边界**：允许冻结本地提交并从两个独立干净工作树构建逐字节一致候选；不推送、不打
+  标签。未知的新 ZIP 哈希形成后仍须取得候选外独立 `WIN7_31_RELEASE_AUTHORITY` 与 SHA-256 pin，
+  本次“修复与换发”批准不预先等同于对未知哈希签发 authority。实机执行前保持
+  `WIN7_31_NOT_PERFORMED`。

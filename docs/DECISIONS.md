@@ -1997,3 +1997,33 @@
   守卫，`a9-package.test.mjs` 的历史兼容负担继续上升。本 ADR 不改写 ADR-0125 正文，不重开 A9-15，
   不改判或重签 WIN7-19～29 任何候选、证据与结论，不签发 Alpha 2 PASS / Win7 PASS，也不改变 A9-17
   的授权边界。`WIN7-29` 的失败记录不得被删除或改写。
+
+## ADR-0127 WIN7-30 实机 G2 失败与 WIN7-31 修复候选换发
+
+- 状态：Accepted（2026-09-14，负责人指令：批准修复与换发新候选）
+- 背景：WIN7-30（source `640571ea11a402b4b827cf31175d849ec729d970`，ZIP SHA-256
+  `1ec123e4f73dbb6607007e34460350164a06a6dd9035f4c031ff4782fc74af90`）在 `10.211.42.40`
+  以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated 令牌执行 run
+  `add716dd-c45e-4a18-ab5f-0ba1fc19d6c3`。G1 包完整性通过；G2 自动 smoke 的四个 Electron 阶段均
+  退出 0、fixture 共 325 次请求，但 75 项中两项直接失败并引起必需断言汇总失败：（1）候选内
+  `a9-win7-30-driver.cjs` 与共享 `a9-06-driver-entry.cjs` 逐字节相同，仍发布 `W28-03`、`W28-09`、
+  `W28-10` 和 `A9_W28_PROJECTION_EVIDENCE_PACKAGE`，而 W30 smoke 按 `W30-09` 读取，触发
+  `Cannot read properties of undefined (reading 'projection_evidence')`；（2）对话搜索过滤与已归档结果
+  正常，但桌面左栏处于 `.rail-closed` 时 Ctrl+K 对不可见 input 调用 `focus()`，观察值 `focused=false`。
+  硬门失败后真实 Provider 未执行；原 ZIP 复核哈希不变，结束后无残留 Electron 进程。
+- 决策：（1）WIN7-30 固定为 `G2_FAILED`，其包、authority、run 与候选外证据原样保留，不得补丁改包、
+  重签、删除或复用哈希改判。（2）换发 `WIN7-31`；修复范围仅为：构建时从共享 driver 精确替换上述
+  三个投影 case key 与 evidence package kind 为 W31，且每个源字面量必须恰好出现一次；Ctrl+K 在
+  `focus()` / `select()` 前先调用既有 `openNavigation()`，使桌面折叠态与窄屏抽屉态均先恢复可见。
+  （3）原残留守卫移到 candidate driver 与 validation kit 生成后执行；WIN7-31 起扫描 validation 脚本
+  与 driver 中引号内的 03/09/10 投影对象键，任何非 W31 前缀均以 `A9_CANDIDATE_STALE_TOKEN` 拒绝。
+  测试须包含正向键对齐与注入 W28 键的负向构建失败，并覆盖折叠左栏下 Ctrl+K 的展开、焦点与全选。
+  （4）允许路径按 A9-16 §10；W23～W30 的冻结 release 脚本和候选字节不得改写。不改 native helper、
+  Runner/Policy、IPC、SQLite schema、权限模式或秘密边界，不新增依赖，不开放 Review 或 Shell 运行中
+  输出；15 项用例、`WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1` 保持不变。（5）允许本地提交及
+  两个独立干净工作树的逐字节一致构建，不推送、不打标签；未知 ZIP 哈希形成后仍须候选外独立
+  `WIN7_31_RELEASE_AUTHORITY` 与 SHA-256 pin，本指令不预先批准未知哈希。
+- 后果：WIN7-31 在不扩大能力范围的前提下同时修复候选证据命名断链和隐藏控件焦点问题，并把此前因
+  扫描时序过早而漏掉 driver 的缺陷变为构建硬失败。开发机测试、双干净构建或包完整性均不能代替
+  当前候选的普通用户非提升 Win7 证据；authority 签发和实机验收前保持 `WIN7_31_NOT_PERFORMED`。
+  本 ADR 不改写 ADR-0125/0126，不改判 WIN7-19～30，不签发 Alpha 2 PASS、Win7 PASS 或 RC PASS。

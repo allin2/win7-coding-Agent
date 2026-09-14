@@ -2176,6 +2176,9 @@
       const key = String(event.key || '').toLowerCase();
       if (event.ctrlKey && !event.altKey && !event.shiftKey && key === 'k') {
         event.preventDefault();
+        // 搜索框位于左侧导航内；桌面折叠态和窄屏抽屉态都必须先让容器可见，
+        // 否则浏览器会接受 focus() 调用却仍把焦点留在原控件。
+        openNavigation();
         const search = el('conversation-search');
         search.focus();
         if (typeof search.select === 'function') search.select();

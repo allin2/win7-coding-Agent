@@ -4,7 +4,35 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-31 实机 G2 修复候选
+
+WIN7-31 依据 ADR-0127 与任务书 §10 换发自 WIN7-30。WIN7-30 已在 `10.211.42.40` 通过 G1，但 G2
+自动 smoke 失败：包内 driver 仍发布 W28 投影证据键，而 smoke 按 W30 键读取；左栏折叠时 Ctrl+K
+搜索过滤成功但没有取得真实焦点。WIN7-31 仅修复这两点：构建时把共享 driver 的 03/09/10 投影键
+及 evidence package kind 精确派生为 W31；Ctrl+K 先展开导航，再聚焦并全选搜索框。15 项用例、
+Alpha 1 版本与能力集不变，Review 和 Shell 运行中输出仍不开放。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-31-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+正式候选必须来自两个独立干净工作树且 ZIP 逐字节一致；未知 ZIP 哈希形成后仍需候选外独立
+`WIN7_31_RELEASE_AUTHORITY` 与 SHA-256 pin。现场步骤见
+[`A9_16_WIN7_31_VALIDATION.md`](A9_16_WIN7_31_VALIDATION.md)。在 authority 与普通用户非提升 Win7
+实机验证完成前，WIN7-31 保持 `NOT_PERFORMED`。WIN7-30 ZIP SHA-256
+`1ec123e4f73dbb6607007e34460350164a06a6dd9035f4c031ff4782fc74af90` 与 run
+`add716dd-c45e-4a18-ab5f-0ba1fc19d6c3` 的失败证据保持冻结。
+
 ## A9-16 / WIN7-30 响应式工作台 UI 子集修正候选
+
+**当前结论：G2_FAILED，不再用于验收。** G1 已通过；G2 自动 smoke 因投影证据键残留 W28 与折叠
+左栏下 Ctrl+K 焦点失败而停止，真实 Provider 为 `NOT_PERFORMED`。本节以下内容保留为当时的候选合同；
+修复候选为 WIN7-31，见上节。不得为 WIN7-30 重签 authority 或复用其哈希改判。
 
 WIN7-30 是 A9-16 §4 U01–U07（左侧对话区与左右栏自适应）的**修正候选**，决策记录 ADR-0126（任务书 §9）。
 它换发自 `WIN7-29`：后者包内的 `validation/a9-package-integrity-w29.cjs` 有 5 处字面量未从 W28 重基线，
