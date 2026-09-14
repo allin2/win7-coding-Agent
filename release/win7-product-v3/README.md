@@ -54,6 +54,25 @@ D-013 v25、SQLite 3.43.1 / ABI 110），按精确哈希继承。现场步骤见
 包完整性仅为开发机结论：`product_assembly`、`win10`、`win7`、`alpha` 全部 `NOT_PERFORMED`。
 `WIN7-29` 的裁决为 **构建缺陷（不可验收）**，其哈希不得被任何 authority 引用。
 
+### WIN7-30 冻结候选身份（2026-09-14）
+
+从提交后的两个独立干净工作树各构建一次，逐字节一致（`cmp` 通过）：
+
+| 项 | 值 |
+|---|---|
+| 源码提交 | `640571ea11a402b4b827cf31175d849ec729d970` |
+| `source_dirty` | `false` |
+| `external_acceptance_eligible` | `true` |
+| ZIP | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`（101,352,637 B） |
+| ZIP SHA-256 | `1ec123e4f73dbb6607007e34460350164a06a6dd9035f4c031ff4782fc74af90` |
+| manifest SHA-256 | `4c41af7501c51433ff240a14d6ebd28246716fa3884a8c12fac08a2f4d75daae` |
+| 构建状态 | `A9_16_DEVELOPER_PACKAGE_INTEGRITY_PASS`（非 Win10/Win7/Alpha PASS） |
+
+候选外预检 12 项全 PASS，含 `verifyFullTree()`（788 文件）、64 项闭包、无禁止载荷，以及
+**`verifyAcceptanceCandidate()` 接受符合文档契约的 authority 与候选自带 input lock**——
+即 `WIN7-29` 失败的那一项。该 authority 为测试夹具，**不构成批准**。
+**候选外 `WIN7_30_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收仍待执行。**
+
 ## A9-15 / WIN7-28 验收缺口修复候选
 
 WIN7-28 已于 2026-09-11 在 Windows 7 SP1 x64 普通用户 Medium/non-elevated 桌面令牌下完成 10/10

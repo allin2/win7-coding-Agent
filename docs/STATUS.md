@@ -57,7 +57,16 @@
   `assertNoStaleCandidateTokens()`，按 lock 与 kit 逐项比对（覆盖 `WIN7_28_`、`APPROVED_FOR_WIN7_28_`
   等下划线形式，即本轮绕过连字符守卫的形式），命中即 `A9_CANDIDATE_STALE_TOKEN` 失败。守卫经负向对照
   验证：临时解除豁免后精确命中 WIN7-29 的全部 7 处残留，恢复后无误报；发布回归 **23/23 全绿**。
-  **双干净构建、候选外 `WIN7_30_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收均 `NOT_PERFORMED`。**
+  同日完成**双独立干净工作树构建并逐字节一致**（`cmp` 通过）：源码提交
+  `640571ea11a402b4b827cf31175d849ec729d970`，`source_dirty=false`、`external_acceptance_eligible=true`，
+  ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`（101,352,637 B）SHA-256
+  `1ec123e4f73dbb6607007e34460350164a06a6dd9035f4c031ff4782fc74af90`，manifest SHA-256
+  `4c41af7501c51433ff240a14d6ebd28246716fa3884a8c12fac08a2f4d75daae`。候选外预检 12 项全 PASS
+  （`verifyFullTree()` 788 文件、64 项闭包、无禁止载荷、kit 身份一致），含
+  **`verifyAcceptanceCandidate()` 接受符合文档契约的 authority 与候选自带 input lock**——即 WIN7-29
+  失败的那一项（该 authority 为测试夹具，不构成批准）。该结论仅为开发机包完整性
+  （`A9_16_DEVELOPER_PACKAGE_INTEGRITY_PASS`），`product_assembly` / `win10` / `win7` / `alpha` 全部
+  `NOT_PERFORMED`。**候选外 `WIN7_30_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收仍待执行。**
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 
