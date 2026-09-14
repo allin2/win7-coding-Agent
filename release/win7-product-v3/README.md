@@ -4,22 +4,25 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
-## A9-16 / WIN7-29 响应式工作台 UI 子集候选
+## A9-16 / WIN7-30 响应式工作台 UI 子集修正候选
 
-WIN7-29 是 A9-16 §4 U01–U07（左侧对话区与左右栏自适应）的新候选，决策记录 ADR-0125（任务书 §8）。
+WIN7-30 是 A9-16 §4 U01–U07（左侧对话区与左右栏自适应）的**修正候选**，决策记录 ADR-0126（任务书 §9）。
+它换发自 `WIN7-29`：后者包内的 `validation/a9-package-integrity-w29.cjs` 有 5 处字面量未从 W28 重基线，
+导致**候选自带的校验器拒绝候选自身携带的 input lock**（实测 `A9_W29_INPUT_LOCK_CONTRACT_INVALID`），
+Win7 实机验收无法通过第一条命令。按既有修复先例换发新标签，`WIN7-29` 保留为失败构建，不得复用其哈希改判。
 范围仅限 `renderer/workbench.html`、`renderer/a9-workbench.css`、`renderer/a9-workbench.js` 的改动；
 Review（R01–R05）与 Shell 运行中输出（S01–S06）**不在候选内**，Review 入口维持 disabled + fail-closed。
 版本与能力集保持 Alpha 1（`0.3.0-alpha.1`，ADR-0096），本候选不构成 Alpha 2 或 RC PASS。
 A9-17（启动内存）经负责人裁决不并入本候选，也不单独建立产品候选。
 
-validation kit 含 **15 项**用例：继承 WIN7-28 的 `W29-01`～`W29-10`（含投影 `W29-09` 与分页 `W29-10`），
-新增 `W29-11`～`W29-15` 覆盖左栏三段式与行容量、桌面四态 DOM 保活、跨断点收敛回归、键盘/焦点契约，
+validation kit 含 **15 项**用例：继承 WIN7-28 的 `W30-01`～`W30-10`（含投影 `W30-09` 与分页 `W30-10`），
+新增 `W30-11`～`W30-15` 覆盖左栏三段式与行容量、桌面四态 DOM 保活、跨断点收敛回归、键盘/焦点契约，
 以及**真实 1366×768 × 125% DPI** 布局——后者是 `docs/STATUS.md` 中唯一被明确标注"不等于真实 DPI"
 的遗留项，开发机 Chromium 缩放代理只测得 1 条完整行，不得据以宣称达标。
 
 ```bat
 node scripts\release\build-a9-product-v3.mjs ^
-  --formal-input-lock release\win7-product-v3\a9-16-win7-29-input-lock.json ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-30-input-lock.json ^
   --electron-zip <electron-v22.3.27-win32-x64.zip> ^
   --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
   --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
@@ -27,14 +30,16 @@ node scripts\release\build-a9-product-v3.mjs ^
 ```
 
 必须从提交后的两个独立干净工作树构建并逐字节比较；候选哈希形成后仍需候选外独立
-`WIN7_29_RELEASE_AUTHORITY` 与 SHA-256 pin。三件锁定输入与 WIN7-28 完全一致（Electron 22.3.27、
+`WIN7_30_RELEASE_AUTHORITY` 与 SHA-256 pin。三件锁定输入与 WIN7-28 完全一致（Electron 22.3.27、
 D-013 v25、SQLite 3.43.1 / ABI 110），按精确哈希继承。现场步骤见
-[`A9_16_WIN7_29_VALIDATION.md`](A9_16_WIN7_29_VALIDATION.md)。**双干净构建与普通用户非提升 Win7
-实机验收均 `NOT_PERFORMED`**；WIN7-22～28 的冻结 release 文件保持原字节。
+[`A9_16_WIN7_30_VALIDATION.md`](A9_16_WIN7_30_VALIDATION.md)。**双干净构建与普通用户非提升 Win7
+实机验收均 `NOT_PERFORMED`**；WIN7-22～29 的冻结 release 文件保持原字节。
 
-### WIN7-29 冻结候选身份（2026-09-14）
+### WIN7-29 失败构建记录（2026-09-14）
 
-从提交后的两个独立干净工作树各构建一次，逐字节一致：
+以下冻结身份**不再用于验收**：该构建的包内校验器无法验证自身 input lock（ADR-0126）。记录保留仅为证据留档，不得删除、改写或复用其哈希改判。
+
+该构建当时的冻结身份（仅留档，不得引用）：
 
 | 项 | 值 |
 |---|---|
@@ -47,7 +52,7 @@ D-013 v25、SQLite 3.43.1 / ABI 110），按精确哈希继承。现场步骤见
 | 构建状态 | `A9_16_DEVELOPER_PACKAGE_INTEGRITY_PASS`（非 Win10/Win7/Alpha PASS） |
 
 包完整性仅为开发机结论：`product_assembly`、`win10`、`win7`、`alpha` 全部 `NOT_PERFORMED`。
-**候选外 `WIN7_29_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收仍待执行，本文件不构成批准。**
+`WIN7-29` 的裁决为 **构建缺陷（不可验收）**，其哈希不得被任何 authority 引用。
 
 ## A9-15 / WIN7-28 验收缺口修复候选
 

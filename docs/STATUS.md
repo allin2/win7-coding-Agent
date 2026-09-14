@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 候选合同已冻结，实机验收待执行（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 因派生脚本未重基线判为构建缺陷，已换发 WIN7-30，实机验收待执行（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -36,16 +36,28 @@
   三件锁定输入按精确哈希复核在位：Electron 22.3.27 `ad723ed7…86e6`、D-013 v25 `7485cf22…99d6d0`
   （本轮从私有归档恢复并逐级校验）、SQLite/ABI 110 `2cb0cd32…2794`。**A9-17 经负责人裁决不并入本候选、
   也不单独建立产品候选**，其 Win7 采样沿用自身授权；版本与能力集保持 Alpha 1（`0.3.0-alpha.1`，
-  ADR-0096），不得据 WIN7-29 宣称 Alpha 2 PASS。**双干净构建、候选外 `WIN7_29_RELEASE_AUTHORITY`
-  与普通用户非提升 Win7 实机验收均 `NOT_PERFORMED`。**
-  同日完成**双独立干净工作树构建并逐字节一致**：源码提交
+  ADR-0096），不得据该候选宣称 Alpha 2 PASS。同日完成**双独立干净工作树构建并逐字节一致**：源码提交
   `4bdf87b40449a1a7c5488425d45604767ce8e24a`，`source_dirty=false`、
   `external_acceptance_eligible=true`，ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`
   （101,350,978 B）SHA-256 `a69d92c434631d13019c3cfb760db907555ecc84b853f56bdd6d3dab2e0d820e`，
   manifest SHA-256 `46f11c0ddb2d2d4b2566a035914d41ae4751a7ecd2f404c4b65831e6643d5d01`。
-  该结论仅为开发机包完整性（`A9_16_DEVELOPER_PACKAGE_INTEGRITY_PASS`），
-  `product_assembly` / `win10` / `win7` / `alpha` 全部 `NOT_PERFORMED`；候选外
-  `WIN7_29_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收仍待执行。
+  随后在候选外预检发现该构建**不可验收**：包内 `validation/a9-package-integrity-w29.cjs` 有 5 处字面量
+  未从 W28 重基线（`gates.win7`、`provenance.task`、`provenance.previous_candidate`、
+  `provenance.previous_candidate_result`、`provenance.change_scope`，以及 `approved.kind` /
+  `approved.status`），以符合文档契约的候选外 authority 实测被拒 `A9_W29_INPUT_LOCK_CONTRACT_INVALID`
+  ——**候选自带的校验器拒绝候选自身携带的 input lock**，Win7 实机验收无法通过第一条命令；该文件被
+  `release-manifest.json` 哈希绑定并随 ZIP 发布，包外补丁不可行。**故 WIN7-29 判定为构建缺陷并保留为
+  失败构建**，其哈希不得被任何 authority 引用，不得删除、改写或复用改判。
+
+- 2026-09-14，按既有修复先例换发 **WIN7-30**（决策 ADR-0126，任务书 §9）作为 A9-16 UI 子集的修正候选：
+  候选范围、15 项用例集、版本与能力集（Alpha 1）与 WIN7-29 一致，修正范围严格限于上述字面量，使其与
+  `a9-16-win7-30-input-lock.json` 逐项一致。同时补两处**残留守卫**：
+  `scripts/release/test/a9-package.test.mjs` 新增"派生脚本的 gates/provenance/authority/kit 字面量必须与
+  input lock 逐项一致"的回归断言；`scripts/release/build-a9-product-v3.mjs` 新增构建期
+  `assertNoStaleCandidateTokens()`，按 lock 与 kit 逐项比对（覆盖 `WIN7_28_`、`APPROVED_FOR_WIN7_28_`
+  等下划线形式，即本轮绕过连字符守卫的形式），命中即 `A9_CANDIDATE_STALE_TOKEN` 失败。守卫经负向对照
+  验证：临时解除豁免后精确命中 WIN7-29 的全部 7 处残留，恢复后无误报；发布回归 **23/23 全绿**。
+  **双干净构建、候选外 `WIN7_30_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收均 `NOT_PERFORMED`。**
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 

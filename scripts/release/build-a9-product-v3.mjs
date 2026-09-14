@@ -93,12 +93,82 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-29-smoke.cjs'],
     evidenceDirectory: 'a9-win7-29-evidence',
   },
+  // ADR-0126：WIN7-29 因派生脚本未从 W28 重基线被判构建缺陷，换发 WIN7-30。
+  // 候选管线形状、用例集与契约证据与 WIN7-29 相同，仅候选身份与 provenance 变更；
+  // WIN7-29 的冻结身份保留为失败构建证据，不得复用。
+  'A9-16-INPUTS-RESPONSIVE-UI-WIN7-30': {
+    task: 'A9-16', candidate: 'WIN7-30', lockFile: 'a9-16-win7-30-input-lock.json',
+    kitFile: 'A9_16_VALIDATION_KIT.json', validationDoc: 'A9_16_WIN7_30_VALIDATION.md',
+    integrityCommand: 'RUN_A9_16_W30_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_30_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w30.cjs', reportScript: 'a9-win7-30-report.cjs',
+    extraValidationScripts: ['a9-win7-30-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-30-evidence',
+  },
 };
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30']);
+
+// ADR-0126：派生脚本残留守卫。
+//
+// 候选的 validation 脚本由上一候选派生，只应重基线"候选作用域"字面量。WIN7-29 的缺陷正是
+// 一处未重基线的下划线形式字面量（`NOT_PERFORMED_WIN7_28`、`WIN7_28_RELEASE_AUTHORITY`）
+// 逃过了当时只覆盖连字符形式（`W28-`、`W28PKG-`）的守卫，使候选自带的校验器拒绝候选自身
+// 携带的 input lock。这里改为"与 lock / kit 逐项比对"，而不是比对字面量形状，因此任何形式的
+// 残留都会命中。守卫按候选实际实现的检查项自适应：脚本中出现哪一项，就比对哪一项。
+//
+// WIN7-29 已被判定为构建缺陷并冻结留档，其包内脚本刻意保留原样作为失败证据，故显式豁免。
+// 豁免仅表示"不再改动该历史工件"，不代表其可用；WIN7-29 不得用于任何验收。
+const STALE_TOKEN_EXEMPT_CANDIDATES = new Set(['WIN7-29']);
+
+function assertNoStaleCandidateTokens(root, stage, profile) {
+  if (STALE_TOKEN_EXEMPT_CANDIDATES.has(profile.candidate)) return;
+
+  const lockPath = path.join(root, 'release', 'win7-product-v3', profile.lockFile);
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  const kitPath = path.join(stage, profile.kitFile);
+  const kit = fs.existsSync(kitPath) ? JSON.parse(fs.readFileSync(kitPath, 'utf8')) : null;
+
+  // 候选作用域字面量 -> 该候选的权威取值。任一不一致即判为未重基线残留。
+  const expectations = [
+    ['lock.lock_id', lock.lock_id],
+    ['lock.gates?.win7', lock.gates && lock.gates.win7],
+    ['lock.provenance?.task', lock.provenance && lock.provenance.task],
+    ['lock.provenance?.previous_candidate', lock.provenance && lock.provenance.previous_candidate],
+    ['lock.provenance?.previous_candidate_result', lock.provenance && lock.provenance.previous_candidate_result],
+    ['lock.provenance?.change_scope', lock.provenance && lock.provenance.change_scope],
+    ['approved.kind', `${profile.candidate.replace('-', '_')}_RELEASE_AUTHORITY`],
+    ['approved.status', `APPROVED_FOR_${profile.candidate.replace('-', '_')}_VALIDATION`],
+  ];
+  if (kit) expectations.push(['kit.kit_id', kit.kit_id]);
+
+  const files = [profile.integrityScript, profile.reportScript, ...(profile.extraValidationScripts || [])];
+  const hits = [];
+  for (const file of files) {
+    const filePath = path.join(stage, 'validation', file);
+    if (!fs.existsSync(filePath)) continue;
+    const source = fs.readFileSync(filePath, 'utf8');
+    for (const [expression, expected] of expectations) {
+      if (!expected) continue;
+      // 只在该脚本确实实现了这一项检查时比对，避免对更早谱系误报。
+      const escaped = expression.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`${escaped} !== '([^']*)'`, 'g');
+      for (const match of source.matchAll(pattern)) {
+        if (match[1] !== expected) hits.push(`${file}: ${expression} = ${match[1]} (expected ${expected})`);
+      }
+    }
+    // 派生脚本不得引用其它候选的 validation kit。按 A9_NN 家族比对，避免文件名后缀干扰。
+    const kitFamily = (profile.kitFile.match(/A9_(\d\d)_/) || [])[1];
+    for (const match of source.matchAll(/A9_(\d\d)_VALIDATION_KIT/g)) {
+      if (kitFamily && match[1] !== kitFamily) hits.push(`${file}: ${match[0]} (expected ${profile.kitFile})`);
+    }
+  }
+  if (hits.length) {
+    throw new Error(`A9_CANDIDATE_STALE_TOKEN:${profile.candidate}:${hits.join(' | ')}`);
+  }
+}
 
 export function buildA9ProductCandidate(options) {
   const root = path.resolve(options.repositoryRoot || repositoryRoot);
@@ -220,13 +290,14 @@ export function buildA9ProductCandidate(options) {
     for (const script of profile.extraValidationScripts || []) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', script), path.join(validationRoot, script));
     }
+    assertNoStaleCandidateTokens(root, stage, profile);
     if (A915_CANDIDATES.has(profile.candidate)) {
       const driverName = `a9-${profile.candidate.toLowerCase()}-driver.cjs`;
       fs.copyFileSync(path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs'), path.join(validationRoot, driverName));
     }
     // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
     // ADR-0125：WIN7-29 继承同一投影合同，因此同样需要随包携带该模块。
-    if (profile.candidate === 'WIN7-28' || profile.candidate === 'WIN7-29') {
+    if (['WIN7-28', 'WIN7-29', 'WIN7-30'].includes(profile.candidate)) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
         path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
@@ -356,7 +427,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
-    ...(profile.candidate === 'WIN7-28' || profile.candidate === 'WIN7-29' ? ['validation/a9-projection-contract.cjs'] : []),
+    ...(['WIN7-28', 'WIN7-29', 'WIN7-30'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -646,7 +717,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
   // ADR-0125：WIN7-29 为 A9-16 UI 子集候选，继承 W28 的完整用例集（含投影与分页），
   // 并追加 U01–U07 的响应式工作台用例；历史 profile 的用例集合保持原样。
-  const responsiveUiCandidate = profile.candidate === 'WIN7-29';
+  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30'].includes(profile.candidate);
   // ADR-0120：WIN7-27 保留 W26 的投影用例，同时恢复 W24/W25 的审批与失败顺序用例，
   // 并把最新轮次投影作为独立用例追加；历史 profile 的用例集合保持原样。
   const usesProjectionCase = ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
@@ -655,13 +726,15 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const addsPagingCase = profile.candidate === 'WIN7-28' || responsiveUiCandidate;
   const kitDate = responsiveUiCandidate ? '20260914'
     : ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) ? '20260910' : '20260909';
-  const decision = responsiveUiCandidate ? 'ADR-0125'
+  const decision = profile.candidate === 'WIN7-30' ? 'ADR-0126'
+    : responsiveUiCandidate ? 'ADR-0125'
     : profile.candidate === 'WIN7-28' ? 'ADR-0121'
     : profile.candidate === 'WIN7-27' ? 'ADR-0120'
     : profile.candidate === 'WIN7-26' ? 'ADR-0119'
     : profile.candidate === 'WIN7-25' ? 'ADR-0118'
     : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = responsiveUiCandidate ? 'WIN7-28'
+  const historicalCandidate = profile.candidate === 'WIN7-30' ? 'WIN7-29'
+    : responsiveUiCandidate ? 'WIN7-28'
     : profile.candidate === 'WIN7-28' ? 'WIN7-27'
     : profile.candidate === 'WIN7-27' ? 'WIN7-26'
     : profile.candidate === 'WIN7-26' ? 'WIN7-25'
@@ -908,7 +981,7 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125：WIN7-29 的权威任务书是 A9-16，不再是 A9-15。
-  const taskBook = profile.candidate === 'WIN7-29'
+  const taskBook = ['WIN7-29', 'WIN7-30'].includes(profile.candidate)
     ? 'docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md'
     : A915_CANDIDATES.has(profile.candidate)
       ? 'docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md'
@@ -1030,8 +1103,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-28'
     && lock.provenance?.previous_candidate_result === 'A9_15_WIN7_UI_INTEGRATION_PASS'
     && lock.provenance?.change_scope === 'RESPONSIVE_LEFT_CONVERSATION_PANE_DESKTOP_FOUR_STATE_AND_BREAKPOINT_REGRESSION';
+  const win30Provenance = profile.candidate === 'WIN7-30'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_30'
+    && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-29'
+    && lock.provenance?.previous_candidate_result === 'DERIVATION_UNREBASED_LOCK_CONTRACT_DEFECT'
+    && lock.provenance?.change_scope === 'RESPONSIVE_LEFT_CONVERSATION_PANE_DESKTOP_FOUR_STATE_AND_BREAKPOINT_REGRESSION';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;

@@ -1950,3 +1950,50 @@
   `a9-package.test.mjs` 的历史兼容负担上升，必须由回归测试守住 WIN7-22～28 的既有行为。本 ADR 不
   重开 A9-15，不改判或重签 WIN7-19～28 任何候选、证据与结论，不签发 Alpha 2 PASS / Win7 PASS，
   也不改变 A9-17 的授权边界。放宽单条用例超时不构成对断言强度或安全模型的放松。
+
+## ADR-0126 WIN7-29 构建缺陷判定与 WIN7-30 修正候选换发
+
+- 状态：Accepted（2026-09-14，负责人指令：换发新标签、保留 WIN7-29 为失败构建、补残留守卫）
+- 背景：ADR-0125 冻结 `WIN7-29` 后，候选外预检阶段发现 `release/win7-product-v3/
+  a9-package-integrity-w29.cjs` 有 5 处字面量未从 W28 重基线：`gates.win7` 仍为
+  `NOT_PERFORMED_WIN7_28`（候选 input lock 实为 `NOT_PERFORMED_WIN7_29`）、`provenance.task`
+  仍为 `A9-15`（实为 `A9-16`）、`provenance.previous_candidate` 仍为 `WIN7-27`（实为 `WIN7-28`）、
+  `provenance.previous_candidate_result` 仍为 `ACCEPTANCE_GAP_REPAIR_REQUIRED`（实为
+  `A9_15_WIN7_UI_INTEGRATION_PASS`）、`provenance.change_scope` 仍为
+  `DOM_OUTCOME_TURN_IDENTITY_ROW_CONTENT_PAGINATION_AND_APPROVAL_EXECUTION`（实为
+  `RESPONSIVE_LEFT_CONVERSATION_PANE_DESKTOP_FOUR_STATE_AND_BREAKPOINT_REGRESSION`），另有
+  `approved.kind`/`approved.status` 仍为 `WIN7_28_RELEASE_AUTHORITY` /
+  `APPROVED_FOR_WIN7_28_VALIDATION`，与 `A9_16_WIN7_29_VALIDATION.md` 与 `README.md` 所载的
+  `WIN7_29_RELEASE_AUTHORITY` / `APPROVED_FOR_WIN7_29_VALIDATION` 契约相互矛盾。以符合文档契约的
+  候选外 authority、真实 input lock 与真实 registry 调用包内 `verifyAcceptanceCandidate()`，实测
+  以 `A9_W29_INPUT_LOCK_CONTRACT_INVALID` 被拒，即候选自带的校验器拒绝候选自身携带的 input lock，
+  Win7 实机验收无法通过第一条命令；且不存在可用的标签组合（provenance 校验先于 authority 校验
+  失败）。该文件被 `release-manifest.json` 哈希绑定并随 ZIP 发布，包外补丁不可行。根因是 W29 派生
+  时的残留守卫只覆盖连字符形式（`W28-`、`W28PKG-`），未覆盖下划线形式 `WIN7_28_`；而
+  `a9-package.test.mjs` 的 WIN7-29 用例只核对 `KIT_ID` 与用例数，未核对 provenance/authority
+  字面量，故缺陷未被回归捕获。构建期 `developer_package_integrity: PASS` 只走 `verifyFullTree()`
+  与闭包检查，不调用 `verifyLock()`，因此该缺陷只在实机验收路径上暴露。
+- 决策：（1）按既有修复先例换发新标签：`WIN7-29` 判定为**构建缺陷**并保留为失败构建，其冻结身份
+  （commit `4bdf87b`、ZIP `a69d92c4…`、manifest `46f11c0d…`）与证据原样留档；不得复用 `WIN7-29`
+  标签或哈希改判，也不得据此声称任何 Win7 结论。（2）修正候选为 `WIN7-30`，修正范围严格限于上述
+  5 处字面量使其与 input lock 逐项一致，不得借修复扩大候选范围、变更用例集或弱化任何断言。
+  （3）补残留守卫，两处：`scripts/release/test/a9-package.test.mjs` 新增"派生脚本的
+  gates/provenance/authority 字面量必须与对应 input lock 逐项一致"的断言；
+  `scripts/release/build-a9-product-v3.mjs` 在派生后增加残留扫描，覆盖下划线形式
+  （`WIN7_28_`、`APPROVED_FOR_WIN7_28_`）等连字符守卫覆盖不到的形式，命中即构建失败。
+  （4）候选范围、版本与能力集与 §8 一致：仍限于 A9-16 §4 U01–U07 的 renderer 改动，版本组合仍为
+  `WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1`，Review 与 Shell 运行中输出不开放，Alpha 权限
+  模式维持 Full Access / Read Only（ADR-0096 不变）。（5）允许路径按 A9-16 §9 扩展：
+  `scripts/release/build-a9-product-v3.mjs`、`scripts/release/test/a9-package.test.mjs`、
+  `release/win7-product-v3/` 下 WIN7-30 的 input lock、kit、integrity/report/smoke 脚本、CMD 包装与
+  `A9_16_WIN7_30_VALIDATION.md`、`README.md` 候选说明与失败构建记录，以及 `docs/DECISIONS.md`
+  （仅新增本 ADR）、`docs/STATUS.md`、`docs/tasks/README.md`。WIN7-22～29 的 profile 行为与冻结
+  release 文件不得改写。（6）候选须来自两个独立干净工作树的逐字节一致构建，
+  `external_acceptance_eligible` 必须为 true，`--allow-uncommitted` 不得用于正式候选；哈希形成后由
+  候选外独立 `WIN7_30_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。（7）允许把本轮改动冻结为本地提交；
+  不推送、不打标签。未在普通用户非提升 Win7 完成 WIN7-30 验证前保持 `WIN7_30_NOT_PERFORMED`。
+- 后果：候选校验链路恢复自洽，Win7 实机验收重新具备可执行前提，且"派生脚本未重基线"这一类缺陷由
+  回归测试与构建期扫描双重拦截，不再依赖人工逐字核对。代价是发布管线再增一个候选分支与一层派生
+  守卫，`a9-package.test.mjs` 的历史兼容负担继续上升。本 ADR 不改写 ADR-0125 正文，不重开 A9-15，
+  不改判或重签 WIN7-19～29 任何候选、证据与结论，不签发 Alpha 2 PASS / Win7 PASS，也不改变 A9-17
+  的授权边界。`WIN7-29` 的失败记录不得被删除或改写。

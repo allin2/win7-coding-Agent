@@ -154,3 +154,39 @@ Win7 实机验收。本轮仍不开放 Review（R01–R05）与 Shell 运行中�
   正式候选；候选哈希形成后由候选外独立 `WIN7_29_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。
   未执行前保持 `WIN7_29_NOT_PERFORMED`。
 - **本地提交**：允许将本轮改动冻结为本地提交；不推送、不打标签。
+
+## 9. WIN7-30 候选合同与实机验收授权（2026-09-14，负责人指令）
+
+负责人在 §8 基础上追加授权：`WIN7-29` 冻结候选在候选外预检阶段被判定为**构建缺陷**，其包内
+自带校验器拒绝候选自身携带的 input lock，Win7 实机验收无法通过第一条命令；负责人裁决按既有
+修复先例换发新标签，`WIN7-29` 保留为失败构建，不重新判定其结果。
+
+- **缺陷事实（已实测证明）**：`release/win7-product-v3/a9-package-integrity-w29.cjs` 有 5 处字面量
+  未从 W28 重基线——`gates.win7`（`NOT_PERFORMED_WIN7_28`）、`provenance.task`（`A9-15`）、
+  `provenance.previous_candidate`（`WIN7-27`）、`provenance.previous_candidate_result`
+  （`ACCEPTANCE_GAP_REPAIR_REQUIRED`）、`provenance.change_scope`
+  （`DOM_OUTCOME_…APPROVAL_EXECUTION`），以及 `approved.kind`/`approved.status`
+  （`WIN7_28_RELEASE_AUTHORITY` / `APPROVED_FOR_WIN7_28_VALIDATION`）。该文件被
+  `release-manifest.json` 哈希绑定并随 ZIP 发布，因此无法以包外补丁修正。
+- **候选 ID 与决策记录**：`WIN7-30`；新增 ADR-0126。ADR-0125 不可改写，其正文保持原样；
+  `WIN7-29` 的冻结身份（commit `4bdf87b`、ZIP `a69d92c4…`、manifest `46f11c0d…`）作为失败构建
+  证据留档，不得复用其哈希改判。
+- **候选范围**：与 §8 一致，仅 A9-16 §4 U01–U07 的 renderer 改动；版本组合仍为
+  `WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1`，Review 与 Shell 运行中输出不开放。
+- **允许路径（在 §8 基础上追加，C14）**：
+  - `scripts/release/build-a9-product-v3.mjs`：新增 `A9-16-INPUTS-…-WIN7-30` profile 与对应候选
+    分支、验收用例、provenance 判定，以及派生脚本的**重基线残留守卫**；保持 WIN7-22～29 历史
+    profile 与既有测试通过。
+  - `scripts/release/test/a9-package.test.mjs`：WIN7-30 正负向回归，并新增"派生脚本字面量必须与
+    input lock 逐项一致"的守卫断言（本轮漏检即因缺少该校验）。
+  - `release/win7-product-v3/` 下 WIN7-30 的 input lock、validation kit、integrity/report/smoke
+    脚本、CMD 包装与 `A9_16_WIN7_30_VALIDATION.md`，以及 `README.md` 的候选说明与失败构建记录；
+    不得改写 W23～W29 的冻结 release 文件。
+  - `docs/DECISIONS.md`（仅新增 ADR-0126）、`docs/STATUS.md`、`docs/tasks/README.md`、
+    `docs/plans/WIN7_29_CANDIDATE_CONTRACT_PROPOSAL.md`。
+- **边界**：不修改 native helper、Runner/Policy、IPC 契约、SQLite schema、权限模式或秘密边界；
+  不新增运行时依赖；不启用 Review；Alpha 权限模式维持 Full Access / Read Only。
+- **构建与证据**：候选须来自两个独立干净工作树的逐字节一致构建；`--allow-uncommitted` 不得用于
+  正式候选；候选哈希形成后由候选外独立 `WIN7_30_RELEASE_AUTHORITY` 与 SHA-256 pin 收口。
+  未执行前保持 `WIN7_30_NOT_PERFORMED`。
+- **本地提交**：允许将本轮改动冻结为本地提交；不推送、不打标签。
