@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_UI_IMPLEMENTATION
-Win7-Validation: NOT_PERFORMED
-Decision: ADR-0117 / ADR-0124
+Phase-Gate: A9_16_WIN7_30_CANDIDATE_AUTHORIZED
+Win7-Validation: WIN7_30_NOT_PERFORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126
 ```
 
 ## 1. 需求来源与授权边界
