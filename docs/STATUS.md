@@ -38,6 +38,14 @@
   也不单独建立产品候选**，其 Win7 采样沿用自身授权；版本与能力集保持 Alpha 1（`0.3.0-alpha.1`，
   ADR-0096），不得据 WIN7-29 宣称 Alpha 2 PASS。**双干净构建、候选外 `WIN7_29_RELEASE_AUTHORITY`
   与普通用户非提升 Win7 实机验收均 `NOT_PERFORMED`。**
+  同日完成**双独立干净工作树构建并逐字节一致**：源码提交
+  `4bdf87b40449a1a7c5488425d45604767ce8e24a`，`source_dirty=false`、
+  `external_acceptance_eligible=true`，ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`
+  （101,350,978 B）SHA-256 `a69d92c434631d13019c3cfb760db907555ecc84b853f56bdd6d3dab2e0d820e`，
+  manifest SHA-256 `46f11c0ddb2d2d4b2566a035914d41ae4751a7ecd2f404c4b65831e6643d5d01`。
+  该结论仅为开发机包完整性（`A9_16_DEVELOPER_PACKAGE_INTEGRITY_PASS`），
+  `product_assembly` / `win10` / `win7` / `alpha` 全部 `NOT_PERFORMED`；候选外
+  `WIN7_29_RELEASE_AUTHORITY` 与普通用户非提升 Win7 实机验收仍待执行。
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 
