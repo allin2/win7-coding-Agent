@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_33_CANDIDATE_FROZEN_PENDING_RELEASE_AUTHORITY
-Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_NOT_PERFORMED
-Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129
+Phase-Gate: A9_16_WIN7_34_CANDIDATE_PENDING_DUAL_BUILD
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_NOT_PERFORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129 / ADR-0130
 ```
 
 ## 1. 需求来源与授权边界
@@ -330,3 +330,41 @@ authority 收口后于 `10.134.115.40` 继续普通用户实机验收。未知 Z
   临时工作树已注销并移除。使用明确标注 `TEST ONLY. NOT RELEASE AUTHORITY` 的候选外 fixture 对正式
   verifier 做开发机预检已 PASS，但它不构成 authority。当前硬停在精确哈希 authority 门，Win7 仍为
   `NOT_PERFORMED`；未推送、未打标签。
+
+## 14. WIN7-33 G2 失败、渲染策略就绪守卫与 WIN7-34 换发授权（2026-09-15，负责人指令）
+
+负责人在 WIN7-33 实机 G2 失败收口后明确指示“对问题进行修复”“现在就推进换发”。该指令授权修复
+WIN7-33 在物理 Win7 上暴露的、候选自身驱动加载顺序与渲染策略调用时机冲突的缺陷，并换发新候选
+`WIN7-34`；不改写 WIN7-33 及更早任何候选、报告与证据。
+
+- **直接证据**：WIN7-33 在 `10.134.115.40` 以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated
+  令牌执行 run `15f2c247-d5e1-4c82-8d9f-c34759cf9a4f`，G0/G1 PASS，G2 四个驱动阶段全部抛
+  `Error: app.disableHardwareAcceleration() can only be called before app is ready`，抛点在
+  `resources/app/product/main.js:21`，触发点是驱动在 `app.whenReady()` 之内才 `require` 产品入口；
+  fixture 请求为 0，未产出投影附件，G3 与 15 项用例按 fail-closed 记 `NOT_PERFORMED`，正式 verifier
+  `status=FAIL`。非 Windows 平台跳过该调用，故该缺陷只能在物理 Win7 暴露。
+- **最小实现**：把该调用改为按就绪状态守卫——
+  `if (process.platform === 'win32' && !app.isReady()) app.disableHardwareAcceleration();`。
+  打包入口仍在 `app.ready` 前加载本模块，Windows 软件渲染策略与 WIN7-33 完全等价；此后加载本模块的
+  harness 不再能把一次非法迟到调用变成产品启动失败。不得改 renderer、Runner/Policy、IPC、SQLite
+  schema、权限、秘密、网络或依赖；WIN7-32/33 的 renderer 容量修复与短高度左栏布局原样继承。
+- **允许路径（C14）**：`src/shell/product/main.js`、`src/shell/tests/product/a9-startup-window.test.ts`；
+  允许修改本节所需的 WIN7-34 release profile、`scripts/release/build-a9-product-v3.mjs`、
+  `scripts/release/test/a9-package.test.mjs`、新文件，以及 `release/win7-product-v3/README.md`、
+  `docs/STATUS.md`、`docs/tasks/README.md`；只向 `docs/DECISIONS.md` 新增 ADR-0130。
+  WIN7-22～WIN7-33 的冻结 release 文件与候选字节不得修改。
+- **验证与候选**：先执行主进程启动顺序测试（须覆盖“ready 之后加载不得做出非法迟到渲染调用”与
+  “ready 前加载必须照旧生效”两条）、shell/package 定向回归和开发机包预检；正式候选仍须本地提交、
+  两个独立干净工作树逐字节一致构建、`source_dirty=false`、`external_acceptance_eligible=true`。
+  允许本地提交，不推送、不打标签。
+- **派生工件**：WIN7-34 的候选作用域脚本（integrity / report / smoke / driver / 两个 RUN 包装与
+  input lock）由冻结的 WIN7-33 工件按仓库既有约定重基线候选令牌生成；构建期 `A9_CANDIDATE_STALE_TOKEN`
+  守卫必须通过，且候选包测试须逐项确认 lock 身份、provenance、kit 与错误码均为 WIN7-34 作用域。
+- **authority 与实机硬门**：未知 ZIP 哈希不由本指令预先批准。WIN7-34 哈希形成后仍须负责人按精确
+  ZIP SHA-256 批准候选外 `WIN7_34_RELEASE_AUTHORITY` 及独立 pin，才可在 `10.134.115.40` 执行
+  G1→G2→G3→报告。实机顺序不变：G2 自动产品 smoke 必须先在候选内通过，之后才可进入 G3 首绘硬门；
+  G3 须先证明无参数正常启动与正常重启均直接可见，再继续真实 Provider、Stop、四态和真实 125% DPI
+  最坏形态容量；诊断参数或 DevTools 触发后的画面不得计 PASS。
+- **边界**：本授权不构成 Alpha 2 或 RC PASS，不改判 WIN7-19～WIN7-33 任何结论，也不解除
+  A9-16 §1–§6 对 Review 与 Shell 运行中输出的范围限制。WIN7-33 保持
+  `G2_FAILED / FIX_BEFORE_REISSUE`，其候选、run、正式报告与全部原始证据原样留档。

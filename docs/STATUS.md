@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败并换发 WIN7-34（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -126,6 +126,30 @@
   Stop、桌面四态、键盘与最坏形态容量复验按硬门保持 `NOT_PERFORMED`。应用随后正常关闭，postflight
   包完整性 PASS、Electron 残留 0、候选外高置信秘密扫描 0 命中；候选自带报告器接受完整 15 项集合的
   正式失败报告并返回 `status=FAIL`。候选、authority、run 与全部候选外证据保持不可变；未推送、未打标签。
+
+- 2026-09-15，WIN7-33 在 `10.134.115.40` 的物理 Win7 以普通用户 `dccs-chaizl-pc\agent`、
+  Medium/non-elevated 令牌（Session 11，真实 1366×768 / 120 DPI，非 Chromium 缩放代理）执行 run
+  `15f2c247-d5e1-4c82-8d9f-c34759cf9a4f`：G0 宿主预检与 G1 包完整性 PASS，**G2 自动产品 smoke 硬失败**
+  ——四个驱动阶段（first / second / retry / stop）全部抛
+  `Error: app.disableHardwareAcceleration() can only be called before app is ready`，抛点在
+  `resources/app/product/main.js:21`，触发点是候选自家驱动在 `app.whenReady().then(main)` 之内才
+  `require` 产品入口。两个本机回环 fixture 请求计数为 0、批准目标未删除、未产出任何投影附件；G3 与
+  15 项用例按 fail-closed 记 `NOT_PERFORMED`，正式失败报告与候选自带 verifier 均 `status=FAIL`
+  （`verified_cases=15`、`direct_current_candidate_cases=0`）。该缺陷仅 Windows 触发，因此开发机双构建
+  逐字节一致与候选外 verifier 预检都无法发现。postflight 完整性复检 PASS、Electron/helper 残留 0、
+  候选外高置信秘密扫描 0 命中、13 个一次性计划任务已删除。据此 WIN7-33 固定为
+  `G2_FAILED / FIX_BEFORE_REISSUE`，候选、报告、run 与全部候选外证据保持不可变。
+
+- 2026-09-15，负责人指示“对问题进行修复”“现在就推进换发”，授权换发 **WIN7-34**（ADR-0130、任务书 §14）。
+  最小修复为把渲染策略调用改为按就绪状态守卫
+  （`if (process.platform === 'win32' && !app.isReady()) app.disableHardwareAcceleration();`）：打包入口
+  在 ready 前加载主进程，行为与 WIN7-33 完全等价；此后加载本模块的验收 harness 不再能把一次非法迟到
+  调用变成产品启动失败。新增两条主进程启动顺序回归用例与一条候选包断言（ready 之后加载不得做出非法
+  迟到渲染调用；ready 前加载必须照旧生效）。WIN7-34 的 integrity / report / smoke / driver / 两个 RUN
+  包装与 input lock 由冻结的 WIN7-33 工件按仓库既有约定重基线候选令牌生成，构建期
+  `A9_CANDIDATE_STALE_TOKEN` 守卫已实际拦下一次遗漏的 `change_scope` 未重基线。当前阶段为
+  `A9_16_WIN7_34_CANDIDATE_PENDING_DUAL_BUILD`，WIN7-34 普通用户实机仍 `NOT_PERFORMED`；未推送、
+  未打标签。
 
 - 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以

@@ -2081,3 +2081,37 @@
   会牺牲 GPU 加速，但产品只加载可信本地 UI，且 Win7 Profile 不保证 GPU；此取舍比保留已实测白屏的
   硬件路径更符合可用性合同。双构建和开发机验证不能替代 WIN7-33 的普通用户实机证据；authority 前
   保持 `WIN7_33_NOT_PERFORMED`。本 ADR 不改判 WIN7-19～32，也不签发 Alpha 2、Win7 或 RC PASS。
+
+## ADR-0130 WIN7-33 实机 G2 失败与渲染策略就绪守卫换发 WIN7-34
+
+- 状态：Accepted（2026-09-15，负责人指令：“对问题进行修复”“现在就推进换发”）
+- 背景：WIN7-33（source `d6c6a3e5d908ff3ffe72d14d1c64bb7ba968e718`，ZIP SHA-256
+  `ab885f43c5285ebe81351ca5841f33399cb58b750b16cb8367fd2c760b08984c`）在 `10.134.115.40` 的物理
+  Win7 上以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated 令牌（Session 11，真实
+  1366×768 / 120 DPI）执行 run `15f2c247-d5e1-4c82-8d9f-c34759cf9a4f`。G0 宿主预检与 G1 包完整性
+  均 PASS，但 **G2 自动产品 smoke 硬失败**：四个驱动阶段全部抛
+  `Error: app.disableHardwareAcceleration() can only be called before app is ready`，抛点在候选内
+  `resources/app/product/main.js:21`，触发点是候选自家驱动在 `app.whenReady().then(main)` 之内才
+  `require` 产品入口。两个本机回环 fixture 的请求计数均为 0，批准目标未删除，无任何投影附件产出；
+  按 fail-closed，G3 与 15 项用例全部 `NOT_PERFORMED`，正式 verifier `status=FAIL`。
+- 根因：ADR-0129 的修复为恢复 Win7 首绘而在 `main.js` **模块顶层无条件**调用
+  `app.disableHardwareAcceleration()`，而该调用只在 `app.ready` 之前合法。打包入口在 ready 前加载
+  `main.js`，生产路径正确；验收驱动却在 ready 之后加载同一模块，于是该调用必然违法并抛错。非
+  Windows 平台跳过该调用，因此开发机双构建逐字节一致与候选外 verifier 预检都无法发现——与
+  WIN7-32 的白屏同属“只能在物理 Win7 暴露”的一类。
+- 决策：（1）WIN7-33 保持 `G2_FAILED / FIX_BEFORE_REISSUE`，候选、run、报告与全部原始证据不可变。
+  （2）把该调用改为**按就绪状态守卫**：`if (process.platform === 'win32' && !app.isReady())
+  app.disableHardwareAcceleration();`。打包入口行为与 WIN7-33 完全一致（ready 前加载必生效）；
+  此后加载本模块的 harness 不再能把一次非法迟到调用变成产品启动失败。非 Windows 策略不变，不修改
+  renderer、Runner/Policy、IPC、SQLite、权限、秘密、网络或依赖。（3）新增两条启动顺序回归用例：
+  ready 之后加载不得做出非法迟到渲染调用；只要 ready 前加载，Windows 策略必须照旧生效。候选包测试
+  必须确认正式 `resources/app/product/main.js` 携带同一守卫形态且调用点早于 `app.whenReady()`。
+  （4）换发 WIN7-34，沿用 15 项用例、Alpha 1 版本与能力集，并继承 WIN7-32 的 renderer 容量修复与
+  短高度左栏布局；（5）允许修改 A9-16 §14 白名单中的主进程、测试、WIN7-34 release 与治理文件；
+  允许本地提交和双独立干净构建，不推送、不打标签。（6）未知 ZIP 哈希不预批；哈希形成后仍须候选外
+  `WIN7_34_RELEASE_AUTHORITY` 与独立 SHA-256 pin。
+- 后果：把“合法的初始化调用”与“harness 的加载时机”解耦，使候选自身的强制性 G2 门不再因验收机制
+  而假失败；生产路径的渲染策略与 ADR-0129 完全等价，因此本 ADR 不重新裁决 Win7 首绘问题，WIN7-34 仍
+  必须由普通用户在物理 Win7 上先通过 G2 再证明 G3 首绘。双构建与开发机验证不能替代实机证据；
+  authority 前保持 `WIN7_34_NOT_PERFORMED`。本 ADR 不改判 WIN7-19～33，也不签发 Alpha 2、Win7 或
+  RC PASS。

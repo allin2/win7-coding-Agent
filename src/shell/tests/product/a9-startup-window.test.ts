@@ -3,13 +3,15 @@ import * as path from 'path';
 import * as vm from 'vm';
 import { EventEmitter } from 'events';
 
-function loadMainHarness(options: { failHost?: boolean; deferPaint?: boolean; restore?: Promise<void>; platform?: NodeJS.Platform } = {}) {
+function loadMainHarness(options: { failHost?: boolean; deferPaint?: boolean; restore?: Promise<void>; platform?: NodeJS.Platform; appAlreadyReady?: boolean } = {}) {
   const productMain = path.join(__dirname, '..', '..', 'product', 'main.js');
   const source = fs.readFileSync(productMain, 'utf8');
   const calls: string[] = [];
   const ipc: Record<string, any> = {};
   const app = new EventEmitter() as any;
   app.disableHardwareAcceleration = () => calls.push('app.disableHardwareAcceleration');
+  // Readiness is not recorded as a call: it is a gate, not a policy action.
+  app.isReady = () => Boolean(options.appAlreadyReady);
   app.requestSingleInstanceLock = () => true;
   app.whenReady = () => { calls.push('app.whenReady'); return Promise.resolve(); };
   app.getPath = () => '/tmp/a9-startup-test';
@@ -58,6 +60,26 @@ describe('A9-17 real main entry startup ordering', () => {
   test('keeps hardware acceleration policy unchanged outside Windows', () => {
     const h = loadMainHarness({ platform: 'darwin' });
     expect(h.calls).not.toContain('app.disableHardwareAcceleration');
+  });
+
+  // WIN7-33 regression: Electron rejects disableHardwareAcceleration() once the
+  // app is ready.  The packaged entry loads this module before readiness, but
+  // the candidate acceptance driver requires this module from inside
+  // app.whenReady(), so the unguarded call aborted every driver phase on the
+  // target machine and the mandatory product-chain gate could not run at all.
+  test('loads after readiness without an illegal late rendering call', () => {
+    const h = loadMainHarness({ platform: 'win32', appAlreadyReady: true });
+    expect(h.calls).not.toContain('app.disableHardwareAcceleration');
+    expect(h.calls).toContain('app.whenReady');
+  });
+
+  // The guard must be readiness-based, never a blanket Windows exemption: as
+  // long as the entry loads before readiness the Windows policy still applies.
+  test('still applies the Windows rendering policy on every pre-ready load', () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const h = loadMainHarness({ platform: 'win32' });
+      expect(h.calls).toContain('app.disableHardwareAcceleration');
+    }
   });
 
   test('defers host creation until ready-to-show and gates valid IPC', async () => {

@@ -4,6 +4,39 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-34 渲染策略就绪守卫修复候选
+
+WIN7-34 依据 ADR-0130 与任务书 §14 换发自 WIN7-33。WIN7-33 在 `10.134.115.40` 的普通用户
+`dccs-chaizl-pc\agent`、Medium/non-elevated 令牌下通过了 G0 与 G1，但 **G2 自动产品 smoke 硬失败**：
+四个驱动阶段全部抛 `app.disableHardwareAcceleration() can only be called before app is ready`
+（抛点在 `resources/app/product/main.js:21`，触发点是驱动在 `app.whenReady()` 之内才 `require`
+产品入口），fixture 请求为 0，未产出任何投影附件；正式 verifier 记 `status=FAIL`。非 Windows 平台
+跳过该调用，因此该缺陷只能在物理 Win7 上暴露。
+
+WIN7-34 因此把该调用改为按就绪状态守卫：
+
+```js
+if (process.platform === 'win32' && !app.isReady()) app.disableHardwareAcceleration();
+```
+
+打包入口仍在 `app.ready` 前加载 `main.js`，Windows 软件渲染策略与 WIN7-33 完全一致；此后加载本模块
+的验收 harness 不再能把一次非法迟到调用变成产品启动失败。WIN7-33 的 renderer 容量修复、短高度左栏
+布局、15 项用例、Alpha 1 版本和能力集全部继承。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-34-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+正式候选须由源码提交从两个独立干净工作树构建，ZIP 逐字节一致后方可回填身份；仍须候选外独立
+`WIN7_34_RELEASE_AUTHORITY` 与 SHA-256 pin。现场步骤见
+[`A9_16_WIN7_34_VALIDATION.md`](A9_16_WIN7_34_VALIDATION.md)。authority 前保持
+`WIN7_34_NOT_PERFORMED`。WIN7-33 及其失败报告与证据保持冻结。
+
 ## A9-16 / WIN7-33 Win7 GPU 合成首绘修复候选
 
 WIN7-33 依据 ADR-0129 与任务书 §13 换发自 WIN7-32。WIN7-32 在物理 Win7 普通用户下通过 G1 与
@@ -24,10 +57,13 @@ node scripts\release\build-a9-product-v3.mjs ^
 正式候选已由源码提交 `d6c6a3e5d908ff3ffe72d14d1c64bb7ba968e718` 从两个独立干净工作树构建，
 ZIP 逐字节一致：101,358,703 B，SHA-256
 `ab885f43c5285ebe81351ca5841f33399cb58b750b16cb8367fd2c760b08984c`；manifest SHA-256
-`6d9986f43135171517be34c61d85b17e9f79eae04f70be3c7c5bd6443930bd9e`。仍须候选外独立
-`WIN7_33_RELEASE_AUTHORITY` 与 SHA-256 pin；现场步骤见
-[`A9_16_WIN7_33_VALIDATION.md`](A9_16_WIN7_33_VALIDATION.md)。authority 前保持
-`WIN7_33_NOT_PERFORMED`。WIN7-32 及其失败证据保持冻结。
+`6d9986f43135171517be34c61d85b17e9f79eae04f70be3c7c5bd6443930bd9e`。
+
+**实机结果（2026-09-15，run `15f2c247-d5e1-4c82-8d9f-c34759cf9a4f`）**：G0/G1 PASS、**G2 FAIL**，
+G3 与 15 项用例按 fail-closed 记 `NOT_PERFORMED`，正式 verifier `status=FAIL`
+（`disposition=FIX_BEFORE_REISSUE`）。候选不可签发，由 WIN7-34 换发；WIN7-33 的冻结身份、报告与全部
+原始证据保持原样，不得改写或复用哈希改判。现场步骤见
+[`A9_16_WIN7_33_VALIDATION.md`](A9_16_WIN7_33_VALIDATION.md)。
 
 ## A9-16 / WIN7-32 真实 125% DPI 容量修复候选
 

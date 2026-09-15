@@ -17,8 +17,14 @@ const {
 // Windows 7's legacy GPU compositor: the DOM is loaded, but the product window
 // remains blank until DevTools recreates the surface.  Win7 is the product's
 // target platform and does not guarantee usable GPU acceleration, so select
-// software rendering before Chromium starts.  This must run before app.ready.
-if (process.platform === 'win32') app.disableHardwareAcceleration();
+// software rendering before Chromium starts.
+//
+// Electron only accepts this call before the app is ready, so the call is
+// guarded on readiness.  The packaged entry loads this module before readiness
+// and therefore always selects software rendering on Windows; a harness that
+// loads this module from a later phase cannot change the rendering policy any
+// more, and an illegal late call must not be turned into a product failure.
+if (process.platform === 'win32' && !app.isReady()) app.disableHardwareAcceleration();
 const {
   createWindowOptions,
   isTrustedLocalUrl,
