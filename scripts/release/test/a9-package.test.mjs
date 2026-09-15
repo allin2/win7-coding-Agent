@@ -44,6 +44,8 @@ const win31Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win31Report = require('../../../release/win7-product-v3/a9-win7-31-report.cjs');
 const win32Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w32.cjs');
 const win32Report = require('../../../release/win7-product-v3/a9-win7-32-report.cjs');
+const win33Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w33.cjs');
+const win33Report = require('../../../release/win7-product-v3/a9-win7-33-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -300,17 +302,24 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32'].includes(candidate)) {
+  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33'].includes(candidate)) {
     const number = candidate.slice(-2);
-    // A9-16 谱系（WIN7-29 ～ WIN7-32）使用 A9-16 的 lock 身份与冻结日期。
-    lock.lock_id = ['win29', 'win30', 'win31', 'win32'].includes(candidate)
+    // A9-16 谱系（WIN7-29 ～ WIN7-33）使用 A9-16 的 lock 身份与冻结日期。
+    lock.lock_id = ['win29', 'win30', 'win31', 'win32', 'win33'].includes(candidate)
       ? `A9-16-INPUTS-RESPONSIVE-UI-WIN7-${number}`
       : `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
-    lock.source_date_epoch = candidate === 'win32' ? 1789430400
+    lock.source_date_epoch = ['win32', 'win33'].includes(candidate) ? 1789430400
       : ['win29', 'win30', 'win31'].includes(candidate) ? 1789344000 : 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win32'
+    lock.provenance = candidate === 'win33'
+      ? {
+        // ADR-0129：WIN7-33 换发自 Win7 GPU 合成首绘失败的 WIN7-32。
+        task: 'A9-16', previous_candidate: 'WIN7-32',
+        previous_candidate_result: 'G3_WIN7_GPU_COMPOSITOR_FIRST_PAINT_FAILED',
+        change_scope: 'WIN7_ELECTRON_GPU_COMPOSITOR_SOFTWARE_RENDERING_REPAIR',
+      }
+      : candidate === 'win32'
       ? {
         // ADR-0128：WIN7-32 换发自真实 125% DPI 左栏容量硬门失败的 WIN7-31。
         task: 'A9-16', previous_candidate: 'WIN7-31',
@@ -1270,6 +1279,66 @@ test('WIN7-32 build rejects a stale quoted projection case key after derived dri
   assert.throws(() => buildA9ProductCandidate({
     repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
   }), /A9_CANDIDATE_STALE_TOKEN:WIN7-32:.*W31-09-LATEST-OUTCOME-PROJECTION/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-33 reissues W32 with Win7 software-rendering startup repair and candidate-scoped keys', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win33-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win33');
+  const built = buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  });
+  const stage = built.stage;
+  const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'release-manifest.json'), 'utf8'));
+  const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_16_VALIDATION_KIT.json'), 'utf8'));
+
+  for (const relative of win33Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-33 closure: ${relative}`);
+  }
+  assert.equal(kit.kit_id, 'A9-16-WIN7-33-RESPONSIVE-UI-20260915-01');
+  assert.equal(kit.candidate_label, 'WIN7-33');
+  assert.equal(kit.scope.decision, 'ADR-0129');
+  assert.equal(kit.scope.historical_candidate, 'WIN7-32 remains immutable and is not reclassified');
+  assert.equal(kit.external_release_authority.kind, 'WIN7_33_RELEASE_AUTHORITY');
+  assert.equal(kit.required_cases.length, 15);
+  assert.equal(win33Report.KIT_ID, kit.kit_id);
+  assert.equal(win33Report.REQUIRED_CASE_COUNT, kit.required_cases.length);
+
+  const driver = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-33-driver.cjs'), 'utf8');
+  for (const suffix of ['03-INSPECTOR-PERSISTED-RESTART', '09-LATEST-OUTCOME-PROJECTION',
+    '10-OLDER-EVENT-PAGINATION']) {
+    assert.ok(driver.includes(`W33-${suffix}`), `W33 driver key required: ${suffix}`);
+    assert.ok(!driver.includes(`W32-${suffix}`), `stale W32 driver key prohibited: ${suffix}`);
+  }
+  assert.ok(driver.includes('A9_W33_PROJECTION_EVIDENCE_PACKAGE'));
+  assert.ok(!driver.includes('A9_W32_PROJECTION_EVIDENCE_PACKAGE'));
+
+  const packagedMain = fs.readFileSync(path.join(stage, 'resources', 'app', 'product', 'main.js'), 'utf8');
+  assert.ok(packagedMain.includes("if (process.platform === 'win32') app.disableHardwareAcceleration();"),
+    'the packaged Windows entry must select software rendering before app readiness');
+  assert.ok(packagedMain.indexOf('app.disableHardwareAcceleration()') < packagedMain.indexOf('app.whenReady()'),
+    'software rendering must be selected before Chromium app readiness');
+
+  assert.equal(manifest.release_id, 'WIN7-CODING-AGENT-A9-ALPHA1');
+  assert.equal(manifest.version, '0.3.0-alpha.1');
+  assert.equal(manifest.gates.win7, 'NOT_PERFORMED');
+  assert.equal(manifest.gates.alpha, 'NOT_PERFORMED');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-33 build rejects a stale quoted projection case key after derived driver creation', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win33-stale-projection-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  fs.appendFileSync(path.join(sourceRepositoryRoot, 'release', 'win7-product-v3', 'a9-package-integrity-w33.cjs'),
+    "\nconst staleProjectionCaseForTest = 'W32-09-LATEST-OUTCOME-PROJECTION';\n", 'utf8');
+  execFileSync('git', ['add', 'release/win7-product-v3/a9-package-integrity-w33.cjs'], { cwd: sourceRepositoryRoot });
+  execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'inject stale projection key'], { cwd: sourceRepositoryRoot });
+  const inputs = fixture(root, sourceRepositoryRoot, 'win33');
+  assert.throws(() => buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  }), /A9_CANDIDATE_STALE_TOKEN:WIN7-33:.*W32-09-LATEST-OUTCOME-PROJECTION/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

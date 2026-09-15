@@ -12,6 +12,13 @@ const {
   safeStorage,
   session,
 } = require('electron');
+
+// Electron 22 can leave an otherwise healthy renderer surface uncommitted on
+// Windows 7's legacy GPU compositor: the DOM is loaded, but the product window
+// remains blank until DevTools recreates the surface.  Win7 is the product's
+// target platform and does not guarantee usable GPU acceleration, so select
+// software rendering before Chromium starts.  This must run before app.ready.
+if (process.platform === 'win32') app.disableHardwareAcceleration();
 const {
   createWindowOptions,
   isTrustedLocalUrl,

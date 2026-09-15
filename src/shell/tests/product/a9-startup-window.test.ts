@@ -3,14 +3,15 @@ import * as path from 'path';
 import * as vm from 'vm';
 import { EventEmitter } from 'events';
 
-function loadMainHarness(options: { failHost?: boolean; deferPaint?: boolean; restore?: Promise<void> } = {}) {
+function loadMainHarness(options: { failHost?: boolean; deferPaint?: boolean; restore?: Promise<void>; platform?: NodeJS.Platform } = {}) {
   const productMain = path.join(__dirname, '..', '..', 'product', 'main.js');
   const source = fs.readFileSync(productMain, 'utf8');
   const calls: string[] = [];
   const ipc: Record<string, any> = {};
   const app = new EventEmitter() as any;
+  app.disableHardwareAcceleration = () => calls.push('app.disableHardwareAcceleration');
   app.requestSingleInstanceLock = () => true;
-  app.whenReady = () => Promise.resolve();
+  app.whenReady = () => { calls.push('app.whenReady'); return Promise.resolve(); };
   app.getPath = () => '/tmp/a9-startup-test';
   app.quit = () => { calls.push('app.quit'); app.emit('will-quit'); };
   app.exit = () => calls.push('app.exit');
@@ -41,12 +42,24 @@ function loadMainHarness(options: { failHost?: boolean; deferPaint?: boolean; re
     throw new Error(`unexpected local require ${request}`);
   };
   const fsMock = { ...fs, existsSync: () => false };
-  const context: any = { require: (request: string) => request === 'electron' ? electron : request.startsWith('.') ? local(path.resolve(path.dirname(productMain), request)) : request === 'fs' ? fsMock : require(request), __dirname: path.dirname(productMain), __filename: productMain, process, console, Buffer, setImmediate, clearTimeout, setTimeout, Promise, Date, Object, String, Number, Array, JSON, Error };
+  const processMock = Object.create(process);
+  Object.defineProperty(processMock, 'platform', { value: options.platform || process.platform });
+  const context: any = { require: (request: string) => request === 'electron' ? electron : request.startsWith('.') ? local(path.resolve(path.dirname(productMain), request)) : request === 'fs' ? fsMock : require(request), __dirname: path.dirname(productMain), __filename: productMain, process: processMock, console, Buffer, setImmediate, clearTimeout, setTimeout, Promise, Date, Object, String, Number, Array, JSON, Error };
   vm.runInNewContext(source, context, { filename: productMain });
   return { app, window, ipc, calls };
 }
 
 describe('A9-17 real main entry startup ordering', () => {
+  test('disables hardware acceleration on Windows before app readiness', () => {
+    const h = loadMainHarness({ platform: 'win32' });
+    expect(h.calls.slice(0, 2)).toEqual(['app.disableHardwareAcceleration', 'app.whenReady']);
+  });
+
+  test('keeps hardware acceleration policy unchanged outside Windows', () => {
+    const h = loadMainHarness({ platform: 'darwin' });
+    expect(h.calls).not.toContain('app.disableHardwareAcceleration');
+  });
+
   test('defers host creation until ready-to-show and gates valid IPC', async () => {
     const h = loadMainHarness();
     await Promise.resolve();

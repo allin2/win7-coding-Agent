@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 失败，WIN7-32 已冻结、等待候选外 authority（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -112,6 +112,27 @@
   `.acceptance/candidates/WIN7-32/`，双构建输出保存在 `.acceptance/builds/WIN7-32/916fe824-reissue/`，
   两个临时 Git worktree 已解除注册；临时父目录删除被 Auto Review 拒绝，未绕过。当前停在正式
   `WIN7_32_RELEASE_AUTHORITY` 门前，仍为 `WIN7_32_NOT_PERFORMED`；未推送、未打标签。
+
+- 2026-09-15，负责人按精确 ZIP SHA-256 `639063b70a1f7fb5dd422870708cb8cb457c405df8752668a5e43f8220a92ea2`
+  批准 WIN7-32 候选外 authority；正式 authority SHA-256
+  `4f06c80cb3c33aa9916273b26f753b5906ea8ce11e910125e5e758f6b9aa2dbe`。在 `10.134.115.40` 的物理
+  Win7 主机 `DCCS-CHAIZL-PC` 以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated 令牌执行 run
+  `6e5c315d-cf59-4a5c-bb9f-1f58a2df366c`：G1 包完整性 PASS；G2 自动 smoke 75/75 PASS；显示事实为
+  1366×768、120 DPI（125%）。G3 正式窗口首次启动持续白屏，四个 Electron 进程（含 renderer）均存活
+  且 responding、Windows Application 日志无同期崩溃；普通 WM_CLOSE 后 Electron 清零，但同一普通用户
+  正常重启仍持续白屏。仅在打开 DevTools 触发窗口失效重绘后，已经加载的 workbench DOM 才立即可见，
+  关闭 DevTools 后界面继续显示；该诊断性重绘不能满足正常启动合同。因此 WIN7-32 固定为
+  **`G3_FAILED / FIX_BEFORE_REISSUE`**，不签发 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；真实 Provider、
+  Stop、桌面四态、键盘与最坏形态容量复验按硬门保持 `NOT_PERFORMED`。应用随后正常关闭，postflight
+  包完整性 PASS、Electron 残留 0、候选外高置信秘密扫描 0 命中；候选自带报告器接受完整 15 项集合的
+  正式失败报告并返回 `status=FAIL`。候选、authority、run 与全部候选外证据保持不可变；未推送、未打标签。
+
+- 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
+  Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以
+  `--disable-gpu` 启动则无需 DevTools 即正常首绘。因此源码修复严格限定为 Windows 主进程在
+  `app.ready` 前调用 `app.disableHardwareAcceleration()`，非 Windows 不变；WIN7-32 renderer 容量修复、
+  15 项用例与 Alpha 1 能力集全部继承。当前处于源码与候选构建验证，WIN7-33 为 `NOT_PERFORMED`；
+  精确 ZIP 哈希形成后仍须候选外 authority，不得以本条预批未知哈希。
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 

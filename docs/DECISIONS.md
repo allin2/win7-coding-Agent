@@ -2057,3 +2057,27 @@
   页面溢出。双构建、包完整性和开发机 Electron 均不能代替该实机证据；authority 前保持
   `WIN7_32_NOT_PERFORMED`。本 ADR 不改写 ADR-0125～0127，不改判 WIN7-19～31，不签发 Alpha 2、Win7
   或 RC PASS。
+
+## ADR-0129 WIN7-32 实机 GPU 合成首绘失败与 WIN7-33 换发
+
+- 状态：Accepted（2026-09-15，负责人指令：“修复并走验证”）
+- 背景：WIN7-32（source `916fe8240e73d6efa956eacf485652075639dbcb`，ZIP SHA-256
+  `639063b70a1f7fb5dd422870708cb8cb457c405df8752668a5e43f8220a92ea2`）在 `10.134.115.40` 的物理
+  Win7 上以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated 令牌执行 run
+  `6e5c315d-cf59-4a5c-bb9f-1f58a2df366c`。G1 PASS、G2 75/75 PASS，但 G3 正常启动和一次普通重启均
+  持续白屏；主/GPU/网络/renderer 进程存活且 responding，无同期 Application 崩溃。打开 DevTools
+  重建合成表面后已加载 DOM 立即显示；最小化/恢复与一像素 resize 无效。同一冻结候选仅加
+  `--disable-gpu` 后直接正常首绘，故原因收敛为 Electron 22 在该 Win7 环境的 GPU 合成路径。
+- 决策：（1）WIN7-32 保持 `G3_FAILED / FIX_BEFORE_REISSUE`，候选、authority、run 和证据不可变。
+  （2）换发 WIN7-33，仅在 Windows 主进程 `app.ready` 前调用 `app.disableHardwareAcceleration()`；
+  非 Windows 不变，不修改 renderer、Runner/Policy、IPC、SQLite、权限、秘密、网络或依赖。
+  （3）新增启动顺序测试，要求 Windows 调用发生在 `app.whenReady()` 前，非 Windows 不调用；候选包测试
+  必须确认正式 `resources/app/product/main.js` 携带同一策略。（4）沿用 15 项用例、Alpha 1 版本与能力集，
+  先证明无参数启动与正常重启直接可见，再继续真实 Provider、Stop、四态和真实 125% DPI 容量。
+  （5）允许修改 A9-16 §13 白名单中的主进程、测试、WIN7-33 release 与治理文件；允许本地提交和双独立
+  干净构建，不推送、不打标签。（6）未知 ZIP 哈希不预批；哈希形成后仍须候选外
+  `WIN7_33_RELEASE_AUTHORITY` 与独立 SHA-256 pin。
+- 后果：修复以物理 Win7 A/B 判别证据为依据，不把 DevTools 或命令行诊断参数冒充产品入口。软件渲染
+  会牺牲 GPU 加速，但产品只加载可信本地 UI，且 Win7 Profile 不保证 GPU；此取舍比保留已实测白屏的
+  硬件路径更符合可用性合同。双构建和开发机验证不能替代 WIN7-33 的普通用户实机证据；authority 前
+  保持 `WIN7_33_NOT_PERFORMED`。本 ADR 不改判 WIN7-19～32，也不签发 Alpha 2、Win7 或 RC PASS。

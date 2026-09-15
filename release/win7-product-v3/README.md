@@ -4,6 +4,28 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-33 Win7 GPU 合成首绘修复候选
+
+WIN7-33 依据 ADR-0129 与任务书 §13 换发自 WIN7-32。WIN7-32 在物理 Win7 普通用户下通过 G1 与
+G2 75/75，但无参数正式启动和一次正常重启均持续白屏；renderer 存活，只有 DevTools 重建合成表面后
+已加载 DOM 才显示。同一冻结候选使用 `--disable-gpu` 后直接正常首绘，因此 WIN7-33 仅在 Windows 的
+`app.ready` 前禁用 Electron 硬件加速。WIN7-32 的 renderer 容量修复、15 项用例、Alpha 1 版本和能力集
+全部继承。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-33-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+正式候选必须来自两个独立干净工作树且 ZIP 逐字节一致。哈希形成后仍须候选外独立
+`WIN7_33_RELEASE_AUTHORITY` 与 SHA-256 pin；现场步骤见
+[`A9_16_WIN7_33_VALIDATION.md`](A9_16_WIN7_33_VALIDATION.md)。authority 前保持
+`WIN7_33_NOT_PERFORMED`。WIN7-32 及其失败证据保持冻结。
+
 ## A9-16 / WIN7-32 真实 125% DPI 容量修复候选
 
 WIN7-32 依据 ADR-0128 与任务书 §12 换发自 WIN7-31。WIN7-31 在 `10.134.115.40` 的普通用户

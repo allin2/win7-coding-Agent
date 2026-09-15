@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_32_CANDIDATE_FROZEN_AWAITING_AUTHORITY
-Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_NOT_PERFORMED
-Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128
+Phase-Gate: A9_16_WIN7_33_SOURCE_REPAIR_VERIFICATION_IN_PROGRESS
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_NOT_PERFORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129
 ```
 
 ## 1. 需求来源与授权边界
@@ -287,3 +287,35 @@ authority 收口后于 `10.134.115.40` 继续普通用户实机验收。未知 Z
   SHA-256 `03647a0e0966e27787aa28ea17f577307955e0e28d7de3d31bd7fc62f8b442f6`，788 文件完整树与 15 项 kit
   闭包复验通过。测试专用 authority 只证明绑定校验链可接受正确输入，不构成正式批准；当前停在
   `WIN7_32_RELEASE_AUTHORITY` 门前，Win7 仍为 `NOT_PERFORMED`。
+- **正式 authority 与实机结果**：负责人随后按上述精确 ZIP 哈希批准候选外 authority（SHA-256
+  `4f06c80cb3c33aa9916273b26f753b5906ea8ce11e910125e5e758f6b9aa2dbe`）。物理 Win7 run
+  `6e5c315d-cf59-4a5c-bb9f-1f58a2df366c` 在普通用户 `dccs-chaizl-pc\agent`、1366×768、120 DPI
+  （125%）下完成 G1 PASS、G2 自动 smoke 75/75 PASS；G3 正式窗口首次启动和一次普通关闭后的正常重启
+  均持续白屏。主/GPU/网络/renderer 进程存活且 responding，无同期 Application 崩溃事件；打开 DevTools
+  触发重绘后已加载 DOM 才可见，故不是候选未启动，也不能把诊断重绘后的界面算作正常启动 PASS。
+  硬门失败后真实 Provider、Stop、四态、键盘和最坏形态容量均保持 `NOT_PERFORMED`。正常退出后 Electron
+  残留 0、postflight 完整性 PASS；候选自带报告器校验正式失败报告为 `FAIL`。WIN7-32 冻结为
+  `G3_FAILED / FIX_BEFORE_REISSUE`，不签发 A9-16 UI 集成 PASS，不得重签、补丁改包或复用哈希改判。
+
+## 13. WIN7-33 GPU 合成首绘修复与换发授权（2026-09-15，负责人指令）
+
+负责人在 WIN7-32 正式失败收口后明确指示“修复并走验证”。该指令授权修复已经由物理 Win7 直接诊断
+收敛的 Electron 22 GPU 合成首绘故障，并换发新候选 `WIN7-33`；不改写 WIN7-32 候选或证据。
+
+- **直接诊断**：WIN7-32 正常启动和一次普通重启均持续白屏；renderer 存活且 responding。最小化/恢复
+  和一像素 resize 均不能恢复；打开 DevTools 重建合成表面后已加载 DOM 立即显示。同一冻结候选仅增加
+  `--disable-gpu` 重新启动后无需任何诊断操作即可正常首绘，故修复点绑定 Win7 GPU 合成路径。
+- **最小实现**：仅在 Windows 的 Electron 主进程、`app.ready` 前调用
+  `app.disableHardwareAcceleration()`；非 Windows 开发环境保持原策略。不得改 Runner/Policy、IPC、
+  SQLite schema、权限、秘密、网络或依赖，WIN7-32 的 renderer 容量修复原样继承。
+- **允许路径（C14）**：追加 `src/shell/product/main.js` 与
+  `src/shell/tests/product/a9-startup-window.test.ts`；允许修改本任务书 §13 所需的 WIN7-33 release profile、
+  测试与新文件，以及 `release/win7-product-v3/README.md`、`docs/STATUS.md`、`docs/tasks/README.md`；只向
+  `docs/DECISIONS.md` 新增 ADR-0129。WIN7-22～WIN7-32 的冻结 release 文件与候选字节不得修改。
+- **验证与候选**：先执行主进程启动顺序测试、shell/package 定向回归和开发机包预检；正式候选仍须
+  本地提交、两个独立干净工作树逐字节一致构建、`source_dirty=false`、
+  `external_acceptance_eligible=true`。允许本地提交，不推送、不打标签。
+- **authority 与实机硬门**：未知 ZIP 哈希不由本指令预先批准。WIN7-33 哈希形成后仍须负责人按精确
+  ZIP SHA-256 批准候选外 `WIN7_33_RELEASE_AUTHORITY` 及独立 pin，才可在 `10.134.115.40` 执行
+  G1→G2→G3→报告。G3 首先证明无参数正常启动与正常重启均直接可见，再继续真实 Provider、Stop、四态
+  和真实 125% DPI 最坏形态容量；诊断参数或 DevTools 触发后的画面不得计 PASS。

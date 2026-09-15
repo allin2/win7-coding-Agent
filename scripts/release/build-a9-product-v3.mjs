@@ -124,12 +124,22 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-32-smoke.cjs'],
     evidenceDirectory: 'a9-win7-32-evidence',
   },
+  // ADR-0129：WIN7-32 实机 G3 在 Electron 22 的 Win7 GPU 合成路径上持续白屏；
+  // 同一冻结候选以 --disable-gpu 正常首绘，故在 app.ready 前禁用 Windows 硬件加速后换发 WIN7-33。
+  'A9-16-INPUTS-RESPONSIVE-UI-WIN7-33': {
+    task: 'A9-16', candidate: 'WIN7-33', lockFile: 'a9-16-win7-33-input-lock.json',
+    kitFile: 'A9_16_VALIDATION_KIT.json', validationDoc: 'A9_16_WIN7_33_VALIDATION.md',
+    integrityCommand: 'RUN_A9_16_W33_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_33_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w33.cjs', reportScript: 'a9-win7-33-report.cjs',
+    extraValidationScripts: ['a9-win7-33-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-33-evidence',
+  },
 };
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33']);
 
 // ADR-0126：派生脚本残留守卫。
 //
@@ -188,7 +198,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     // WIN7-31 起，投影证据 case key 也属于候选身份。只检查引号内的真实对象键，
     // 避免历史说明文字误报；03/09/10 任一仍指向旧 Wxx 都必须在构建期失败。
-    if (['WIN7-31', 'WIN7-32'].includes(profile.candidate)) {
+    if (['WIN7-31', 'WIN7-32', 'WIN7-33'].includes(profile.candidate)) {
       const expectedPrefix = profile.candidate.replace('WIN7-', 'W');
       for (const match of source.matchAll(/['"](W\d+)-(03-INSPECTOR-PERSISTED-RESTART|09-LATEST-OUTCOME-PROJECTION|10-OLDER-EVENT-PAGINATION)['"]/g)) {
         if (match[1] !== expectedPrefix) hits.push(`${file}: ${match[0]} (expected ${expectedPrefix}-${match[2]})`);
@@ -203,7 +213,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
 function writeCandidateDriver(root, validationRoot, profile) {
   const sourcePath = path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
   const targetPath = path.join(validationRoot, `a9-${profile.candidate.toLowerCase()}-driver.cjs`);
-  if (!['WIN7-31', 'WIN7-32'].includes(profile.candidate)) {
+  if (!['WIN7-31', 'WIN7-32', 'WIN7-33'].includes(profile.candidate)) {
     fs.copyFileSync(sourcePath, targetPath);
     return;
   }
@@ -348,7 +358,7 @@ export function buildA9ProductCandidate(options) {
     }
     // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
     // ADR-0125：WIN7-29 继承同一投影合同，因此同样需要随包携带该模块。
-    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32'].includes(profile.candidate)) {
+    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33'].includes(profile.candidate)) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
         path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
@@ -480,7 +490,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
-    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
+    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -770,17 +780,18 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
   // ADR-0125：WIN7-29 为 A9-16 UI 子集候选，继承 W28 的完整用例集（含投影与分页），
   // 并追加 U01–U07 的响应式工作台用例；历史 profile 的用例集合保持原样。
-  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32'].includes(profile.candidate);
+  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33'].includes(profile.candidate);
   // ADR-0120：WIN7-27 保留 W26 的投影用例，同时恢复 W24/W25 的审批与失败顺序用例，
   // 并把最新轮次投影作为独立用例追加；历史 profile 的用例集合保持原样。
   const usesProjectionCase = ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
   const restoresApprovalCase = ['WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
   // ADR-0121：WIN7-28 额外要求独立的分页用例。
   const addsPagingCase = profile.candidate === 'WIN7-28' || responsiveUiCandidate;
-  const kitDate = profile.candidate === 'WIN7-32' ? '20260915'
+  const kitDate = ['WIN7-32', 'WIN7-33'].includes(profile.candidate) ? '20260915'
     : responsiveUiCandidate ? '20260914'
     : ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) ? '20260910' : '20260909';
-  const decision = profile.candidate === 'WIN7-32' ? 'ADR-0128'
+  const decision = profile.candidate === 'WIN7-33' ? 'ADR-0129'
+    : profile.candidate === 'WIN7-32' ? 'ADR-0128'
     : profile.candidate === 'WIN7-31' ? 'ADR-0127'
     : profile.candidate === 'WIN7-30' ? 'ADR-0126'
     : responsiveUiCandidate ? 'ADR-0125'
@@ -789,7 +800,8 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     : profile.candidate === 'WIN7-26' ? 'ADR-0119'
     : profile.candidate === 'WIN7-25' ? 'ADR-0118'
     : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = profile.candidate === 'WIN7-32' ? 'WIN7-31'
+  const historicalCandidate = profile.candidate === 'WIN7-33' ? 'WIN7-32'
+    : profile.candidate === 'WIN7-32' ? 'WIN7-31'
     : profile.candidate === 'WIN7-31' ? 'WIN7-30'
     : profile.candidate === 'WIN7-30' ? 'WIN7-29'
     : responsiveUiCandidate ? 'WIN7-28'
@@ -809,6 +821,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     'src/shell/product/a9-agent-runtime.js',
     'src/shell/product/a9-product-ipc.js',
     'src/shell/product/preload.js',
+    ...(profile.candidate === 'WIN7-33' ? ['src/shell/product/main.js'] : []),
     'src/shell/product/renderer/a9-workbench.css',
     'src/shell/product/renderer/a9-workbench.js',
     'src/shell/product/renderer/workbench.html',
@@ -1039,7 +1052,7 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125：WIN7-29 的权威任务书是 A9-16，不再是 A9-15。
-  const taskBook = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32'].includes(profile.candidate)
+  const taskBook = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33'].includes(profile.candidate)
     ? 'docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md'
     : A915_CANDIDATES.has(profile.candidate)
       ? 'docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md'
@@ -1179,8 +1192,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-31'
     && lock.provenance?.previous_candidate_result === 'G3_REAL_125_PERCENT_DPI_LEFT_PANE_CAPACITY_FAILED'
     && lock.provenance?.change_scope === 'REAL_125_PERCENT_DPI_LEFT_PANE_CAPACITY_REPAIR';
+  const win33Provenance = profile.candidate === 'WIN7-33'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_33'
+    && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-32'
+    && lock.provenance?.previous_candidate_result === 'G3_WIN7_GPU_COMPOSITOR_FIRST_PAINT_FAILED'
+    && lock.provenance?.change_scope === 'WIN7_ELECTRON_GPU_COMPOSITOR_SOFTWARE_RENDERING_REPAIR';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;
