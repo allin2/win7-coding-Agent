@@ -32,10 +32,16 @@ node scripts\release\build-a9-product-v3.mjs ^
   --output <new-empty-output-directory>
 ```
 
-正式候选须由源码提交从两个独立干净工作树构建，ZIP 逐字节一致后方可回填身份；仍须候选外独立
-`WIN7_34_RELEASE_AUTHORITY` 与 SHA-256 pin。现场步骤见
-[`A9_16_WIN7_34_VALIDATION.md`](A9_16_WIN7_34_VALIDATION.md)。authority 前保持
-`WIN7_34_NOT_PERFORMED`。WIN7-33 及其失败报告与证据保持冻结。
+正式候选已由源码提交 `2f6d3fd2ee8817922cf771300e3f348e541dfaf6` 从两个独立干净工作树构建，
+ZIP 逐字节一致：101,361,365 B，SHA-256
+`d0b8528fccef905dce2d420d1b231251fac017d29f1505dbc10a6f20d9a93ead`；manifest SHA-256
+`3801430d0716ebfa3dafb65e3f123bf6d5bbdd19fc030f0e4c0dbf63a441761a`；validation kit SHA-256
+`628ef158c3bf7b9797ecffab98d732144379aae7f33b3faae67f4fcc12b80644`
+（`A9-16-WIN7-34-RESPONSIVE-UI-20260915-01`，15 项用例）。两份结果均为 `source_dirty=false`、
+`external_acceptance_eligible=true`。候选已冻结到 `.acceptance/candidates/WIN7-34/`，双构建输出位于
+`.acceptance/builds/WIN7-34/2f6d3fd-reissue/`。仍须候选外独立 `WIN7_34_RELEASE_AUTHORITY` 与
+SHA-256 pin；现场步骤见 [`A9_16_WIN7_34_VALIDATION.md`](A9_16_WIN7_34_VALIDATION.md)。authority 前
+保持 `WIN7_34_NOT_PERFORMED`。WIN7-33 及其失败报告与证据保持冻结。
 
 ## A9-16 / WIN7-33 Win7 GPU 合成首绘修复候选
 

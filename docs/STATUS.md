@@ -147,9 +147,14 @@
   调用变成产品启动失败。新增两条主进程启动顺序回归用例与一条候选包断言（ready 之后加载不得做出非法
   迟到渲染调用；ready 前加载必须照旧生效）。WIN7-34 的 integrity / report / smoke / driver / 两个 RUN
   包装与 input lock 由冻结的 WIN7-33 工件按仓库既有约定重基线候选令牌生成，构建期
-  `A9_CANDIDATE_STALE_TOKEN` 守卫已实际拦下一次遗漏的 `change_scope` 未重基线。当前阶段为
-  `A9_16_WIN7_34_CANDIDATE_PENDING_DUAL_BUILD`，WIN7-34 普通用户实机仍 `NOT_PERFORMED`；未推送、
-  未打标签。
+  `A9_CANDIDATE_STALE_TOKEN` 守卫已实际拦下一次遗漏的 `change_scope` 未重基线。两个独立干净工作树已在提交 `2f6d3fd2ee8817922cf771300e3f348e541dfaf6` 上构建，ZIP 逐字节一致：
+  101,361,365 B，SHA-256 `d0b8528fccef905dce2d420d1b231251fac017d29f1505dbc10a6f20d9a93ead`；manifest
+  SHA-256 `3801430d0716ebfa3dafb65e3f123bf6d5bbdd19fc030f0e4c0dbf63a441761a`；validation kit SHA-256
+  `628ef158c3bf7b9797ecffab98d732144379aae7f33b3faae67f4fcc12b80644`，两份结果均
+  `source_dirty=false`、`external_acceptance_eligible=true`。候选已冻结到
+  `.acceptance/candidates/WIN7-34/`，双构建输出位于 `.acceptance/builds/WIN7-34/2f6d3fd-reissue/`。
+  当前硬停在该精确 ZIP 哈希的候选外 `WIN7_34_RELEASE_AUTHORITY` 与独立 pin，WIN7-34 普通用户实机仍
+  `NOT_PERFORMED`；未推送、未打标签。
 
 - 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以
