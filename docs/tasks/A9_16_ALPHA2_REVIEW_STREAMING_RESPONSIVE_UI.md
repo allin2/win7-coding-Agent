@@ -6,7 +6,7 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_33_SOURCE_REPAIR_VERIFICATION_IN_PROGRESS
+Phase-Gate: A9_16_WIN7_33_CANDIDATE_FROZEN_PENDING_RELEASE_AUTHORITY
 Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_NOT_PERFORMED
 Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129
 ```
@@ -319,3 +319,14 @@ authority 收口后于 `10.134.115.40` 继续普通用户实机验收。未知 Z
   ZIP SHA-256 批准候选外 `WIN7_33_RELEASE_AUTHORITY` 及独立 pin，才可在 `10.134.115.40` 执行
   G1→G2→G3→报告。G3 首先证明无参数正常启动与正常重启均直接可见，再继续真实 Provider、Stop、四态
   和真实 125% DPI 最坏形态容量；诊断参数或 DevTools 触发后的画面不得计 PASS。
+- **源码与候选冻结结果**：修复提交为 `d6c6a3e5d908ff3ffe72d14d1c64bb7ba968e718`。主进程启动顺序
+  7/7、workbench 合同合并定向回归 38/38、package 全集 29/29、Shell lint/build 与仓库
+  `verify:quick` 均 PASS；`docs:check` 只保留本任务前已存在的 A9-17 临时路径及历史 input-snapshot
+  断链，未命中本次文件。两个独立干净 detached 工作树生成逐字节一致的 101,358,703 B ZIP，SHA-256
+  `ab885f43c5285ebe81351ca5841f33399cb58b750b16cb8367fd2c760b08984c`；manifest SHA-256
+  `6d9986f43135171517be34c61d85b17e9f79eae04f70be3c7c5bd6443930bd9e`，两份结果均为
+  `source_dirty=false`、`external_acceptance_eligible=true`。冻结候选保存在
+  `.acceptance/candidates/WIN7-33/`，双构建保存在 `.acceptance/builds/WIN7-33/d6c6a3e-reissue/`；
+  临时工作树已注销并移除。使用明确标注 `TEST ONLY. NOT RELEASE AUTHORITY` 的候选外 fixture 对正式
+  verifier 做开发机预检已 PASS，但它不构成 authority。当前硬停在精确哈希 authority 门，Win7 仍为
+  `NOT_PERFORMED`；未推送、未打标签。

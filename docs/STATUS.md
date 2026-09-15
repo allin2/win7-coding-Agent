@@ -131,8 +131,15 @@
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以
   `--disable-gpu` 启动则无需 DevTools 即正常首绘。因此源码修复严格限定为 Windows 主进程在
   `app.ready` 前调用 `app.disableHardwareAcceleration()`，非 Windows 不变；WIN7-32 renderer 容量修复、
-  15 项用例与 Alpha 1 能力集全部继承。当前处于源码与候选构建验证，WIN7-33 为 `NOT_PERFORMED`；
-  精确 ZIP 哈希形成后仍须候选外 authority，不得以本条预批未知哈希。
+  15 项用例与 Alpha 1 能力集全部继承。修复源码已提交为
+  `d6c6a3e5d908ff3ffe72d14d1c64bb7ba968e718`；定向启动/工作台测试、package 全集、Shell lint/build、
+  仓库快速集成门和开发机包预检均 PASS。两个独立干净工作树生成逐字节一致的 101,358,703 B ZIP，
+  SHA-256 `ab885f43c5285ebe81351ca5841f33399cb58b750b16cb8367fd2c760b08984c`，manifest SHA-256
+  `6d9986f43135171517be34c61d85b17e9f79eae04f70be3c7c5bd6443930bd9e`；均记录
+  `source_dirty=false`、`external_acceptance_eligible=true`。候选已冻结到 `.acceptance/candidates/WIN7-33/`，
+  双构建输出位于 `.acceptance/builds/WIN7-33/d6c6a3e-reissue/`，临时工作树已移除。当前硬停在该精确
+  ZIP 哈希的候选外 `WIN7_33_RELEASE_AUTHORITY` 与独立 pin，WIN7-33 仍为 `NOT_PERFORMED`；未推送、
+  未打标签。
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 
