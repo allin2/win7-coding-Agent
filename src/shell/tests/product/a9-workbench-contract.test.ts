@@ -761,6 +761,81 @@ describe('A9 unified desktop workbench contract', () => {
     expect(rows).toBeGreaterThanOrEqual(4);
   });
 
+  it('keeps four 36px rows visible in the real 125% DPI worst-form height budget (U02/U07)', () => {
+    // WIN7-31 在 1366x768、120 DPI 的最大化普通用户桌面上只有约 540 CSS px 内容高。
+    // 最坏形态还会同时出现 Stop、两个组头、归档摘要与目录状态；这些固定项都必须计入。
+    const compactStart = css.indexOf('@media (max-height: 650px)');
+    const compactEnd = css.indexOf('@media (prefers-reduced-motion: reduce)');
+    expect(compactStart).toBeGreaterThanOrEqual(0);
+    expect(compactEnd).toBeGreaterThan(compactStart);
+    const compactCss = css.slice(compactStart, compactEnd);
+    const rule = (selector: string): string => {
+      const pattern = selector.split(/\s+/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+      const match = compactCss.match(new RegExp(`${pattern}\\s*\\{([^}]*)\\}`));
+      expect(match).not.toBeNull();
+      return match![1];
+    };
+    const px = (selector: string, property: string): number => {
+      const match = rule(selector).match(new RegExp(`(?:^|;)\\s*${property}:\\s*(-?[\\d.]+)px`));
+      expect(match).not.toBeNull();
+      return Number.parseFloat(match![1]);
+    };
+    const box = (selector: string, property: string): number[] => {
+      const match = rule(selector).match(new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`));
+      expect(match).not.toBeNull();
+      const values = Array.from(match![1].matchAll(/(-?[\d.]+)px/g)).map((item) => Number.parseFloat(item[1]));
+      if (values.length === 1) return [values[0], values[0], values[0], values[0]];
+      if (values.length === 2) return [values[0], values[1], values[0], values[1]];
+      if (values.length === 3) return [values[0], values[1], values[2], values[1]];
+      return values;
+    };
+    const LINE = (fontSize: number, lineHeight: number) => fontSize * lineHeight;
+    const baseBox = (selector: string, property: string): number[] => {
+      const pattern = selector.split(/\s+/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+      const match = css.slice(0, compactStart).match(new RegExp(`${pattern}\\s*\\{([^}]*)\\}`));
+      expect(match).not.toBeNull();
+      const declaration = match![1].match(new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`));
+      expect(declaration).not.toBeNull();
+      const values = Array.from(declaration![1].matchAll(/(-?[\d.]+)px/g)).map((item) => Number.parseFloat(item[1]));
+      if (values.length === 1) return [values[0], values[0], values[0], values[0]];
+      if (values.length === 2) return [values[0], values[1], values[0], values[1]];
+      if (values.length === 3) return [values[0], values[1], values[2], values[1]];
+      return values;
+    };
+
+    expect(rule('.product-nav')).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)');
+    expect(rule('.nav-item i')).toContain('display: none');
+    // 行高合同不可借紧凑模式缩小。
+    expect(compactCss).not.toMatch(/\.conversation-list button\s*\{[^}]*min-height:/);
+
+    const chrome = 2 * box('.rail-inner', 'padding')[0]
+      + Math.max(px('.brand-mark', 'height'), px('.navigation-close', 'height'), px('.brand', 'min-height'))
+      + px('.workspace-card', 'min-height')
+      // 两个产品入口在紧凑高度下横排，因此只占一行。
+      + px('.nav-item', 'min-height')
+      // 运行中状态与 Stop 横排；边框在 border-box 高度外只计 rail-task 自身的上下边框。
+      + 2 * box('.rail-task', 'padding')[0] + 2
+      + Math.max(LINE(12, 1.55), px('.rail-stop', 'min-height'))
+      + px('.trust-note summary', 'min-height') + 2 + px('.trust-note', 'margin-bottom')
+      + px('.utility', 'min-height');
+    const directory = 540 - chrome - px('.conversation-directory', 'margin-bottom');
+    const overhead = 2
+      + px('.conversation-directory > header', 'min-height')
+      + box('.conversation-search', 'padding')[0] + box('.conversation-search', 'padding')[2]
+      + px('.conversation-search input', 'min-height')
+      + px('.conversation-current-actions button', 'min-height') + 1
+      + px('.conversation-archive-section summary', 'min-height') + 1
+      + LINE(11, 1.2) + 1
+      + 2 * baseBox('.conversation-list', 'padding')[0];
+    const list = directory - overhead;
+    const rowStep = 36 + 2 * baseBox('.conversation-list li', 'margin')[0];
+    const headStep = 20 + 2 * baseBox('.conversation-list li', 'margin')[0];
+    const rows = Math.floor((list - 2 * headStep) / rowStep);
+
+    expect(list).toBeGreaterThan(0);
+    expect(rows).toBeGreaterThanOrEqual(4);
+  });
+
   it('drives desktop four-state panes through state classes without rebuilding conversation DOM (U03-U05)', () => {
     const h = createPaneHarness();
     h.run(script);

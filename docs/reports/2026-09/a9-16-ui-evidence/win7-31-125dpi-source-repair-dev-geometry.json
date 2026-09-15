@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "A9_16_WIN7_31_125_PERCENT_SOURCE_REPAIR_DEV_GEOMETRY",
+  "recorded_at": "2026-09-15T02:04:54Z",
+  "status": "DEV_GEOMETRY_PASS_NOT_WIN7",
+  "source": {
+    "branch": "codex/a9-alpha2",
+    "head_before_repair_commit": "c3f55e34024a593f15fc7b9bd9bb79cc6ded4763",
+    "source_dirty": true,
+    "renderer_css_sha256": "32b0feb38ca6784f6c5092b4b972ab0772253f8a17ea88501524ccb80e9fe01f",
+    "contract_test_sha256": "141fbb944b2b3ca0526ac63f4cf9dccf5f2fbc29f7b9cbee6219148df7597008"
+  },
+  "runtime": {
+    "host": "macOS development machine",
+    "electron": "22.3.27",
+    "chromium": "108",
+    "method": "Chrome DevTools Protocol device metrics override plus live DOM geometry",
+    "win7_direct_execution": false
+  },
+  "target_geometry_model": {
+    "physical_desktop_px": {
+      "width": 1366,
+      "height": 768
+    },
+    "target_dpi": 120,
+    "target_scale_percent": 125,
+    "css_viewport_px": {
+      "width": 1093,
+      "height": 540
+    },
+    "note": "The CSS viewport models the maximized Win7 product content area observed in WIN7-31. Host devicePixelRatio is not target evidence."
+  },
+  "fixture": {
+    "running_conversations": 1,
+    "older_conversations": 8,
+    "archived_conversations": 1,
+    "group_headers": 2,
+    "archive_summary_visible": true,
+    "rail_stop_visible": true
+  },
+  "observed": {
+    "compact_height_media_matched": true,
+    "conversation_directory_height_css_px": 334,
+    "conversation_list_height_css_px": 197,
+    "conversation_row_height_css_px": 36,
+    "conversation_group_header_height_css_px": 20,
+    "fully_visible_conversation_rows": 4,
+    "rail_task_height_css_px": 38,
+    "rail_stop_height_css_px": 32,
+    "document_horizontal_overflow_css_px": 0,
+    "document_vertical_overflow_css_px": 0
+  },
+  "acceptance_boundary": {
+    "w31_11_a03_source_repair_model": "PASS",
+    "w31_15_a02_source_repair_model": "PASS",
+    "win7_31_result": "G3_FAILED_IMMUTABLE",
+    "next_candidate_win7_validation": "NOT_PERFORMED"
+  }
+}

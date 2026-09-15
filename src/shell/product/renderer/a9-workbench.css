@@ -458,6 +458,41 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 }
 
 @media (max-height: 650px) {
+  /* A9-16 U02/U07：真实 1366x768、125% DPI 的最大化内容区只有约 540 CSS px。
+     对话行仍保持 36px；通过压缩固定 chrome，并让两个产品入口横排，为最坏形态
+     （运行中 Stop + 两个组头 + 归档摘要）保留四条完整对话行。 */
+  .rail-inner { padding: 2px 8px; }
+  .brand { min-height: 28px; padding: 0 2px; }
+  .brand-mark { width: 28px; height: 28px; }
+  .brand small { display: none; }
+  .navigation-close { width: 28px; height: 28px; }
+  .workspace-card { min-height: 40px; padding: 4px 38px 4px 10px; }
+  .workspace-card::before { top: 8px; bottom: 8px; }
+  .workspace-card > span:first-child { display: none; }
+  .workspace-card strong { line-height: 1.2; }
+  .workspace-card small { margin-top: 0; font-size: 11px; line-height: 1.2; }
+  .workspace-card .workspace-action { right: 10px; top: 10px; }
+  .product-nav { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; margin: 0; }
+  .nav-item { grid-template-columns: 18px minmax(0, 1fr); gap: 5px; min-height: 32px; padding: 0 6px; }
+  .nav-item i { display: none; }
+  .conversation-directory { margin-bottom: 2px; }
+  .conversation-directory > header { min-height: 28px; }
+  .conversation-directory > header button { width: 26px; min-height: 26px; }
+  .conversation-search { padding: 2px 6px 1px; }
+  .conversation-search input { min-height: 26px; padding: 2px 7px; }
+  .conversation-current-actions button { min-height: 26px; }
+  .conversation-archive-section summary { min-height: 26px; padding: 2px 7px; }
+  .conversation-directory-note { padding: 0 6px; line-height: 1.2; }
+  .rail-task { display: grid; grid-template-columns: minmax(0, 1fr) 92px; align-items: center; gap: 6px; padding: 2px 4px; }
+  .rail-task > .eyebrow, .rail-task p { display: none; }
+  .rail-task-state { min-width: 0; margin-top: 0; }
+  .rail-task-state strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  .rail-stop { min-height: 32px; margin-top: 0; }
+  .trust-note { margin-bottom: 2px; }
+  .trust-note summary { min-height: 28px; padding: 0 8px; }
+  .trust-note svg { width: 16px; height: 16px; }
+  .rail-bottom { gap: 4px; }
+  .utility { min-height: 30px; }
   .conversation-header, .inspector-header { min-height: 64px; }
   .welcome { margin-top: 3vh; }
   .welcome-glyph { width: 48px; height: 48px; margin-bottom: 10px; }

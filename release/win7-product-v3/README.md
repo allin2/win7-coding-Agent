@@ -4,6 +4,29 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-32 真实 125% DPI 容量修复候选
+
+WIN7-32 依据 ADR-0128 与任务书 §12 换发自 WIN7-31。WIN7-31 在 `10.134.115.40` 的普通用户
+Medium/non-elevated 实机 run `cdc35c14-abee-4f8e-bd4a-5759559ba0c8` 中通过 G1 与 G2 75/75，
+但 G3 在真实 1366×768、120 DPI（125%）、Stop 可见的最坏形态下只显示 1 条完整对话行，低于 4 行
+硬门，固定为 `G3_FAILED`。WIN7-32 只在短内容高度下压缩左栏固定 chrome，保留 36px 行与所有必需
+入口；15 项用例、Alpha 1 版本和能力集不变。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-32-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+正式候选必须来自两个独立干净工作树的逐字节一致构建。ZIP 哈希形成后仍须候选外独立
+`WIN7_32_RELEASE_AUTHORITY` 与 SHA-256 pin；现场步骤见
+[`A9_16_WIN7_32_VALIDATION.md`](A9_16_WIN7_32_VALIDATION.md)。authority 签发前保持
+`WIN7_32_NOT_PERFORMED`。WIN7-31 ZIP SHA-256
+`79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a` 与其失败证据保持冻结。
+
 ## A9-16 / WIN7-31 实机 G2 修复候选
 
 WIN7-31 依据 ADR-0127 与任务书 §10 换发自 WIN7-30。WIN7-30 已在 `10.211.42.40` 通过 G1，但 G2

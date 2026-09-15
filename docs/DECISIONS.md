@@ -2027,3 +2027,33 @@
   扫描时序过早而漏掉 driver 的缺陷变为构建硬失败。开发机测试、双干净构建或包完整性均不能代替
   当前候选的普通用户非提升 Win7 证据；authority 签发和实机验收前保持 `WIN7_31_NOT_PERFORMED`。
   本 ADR 不改写 ADR-0125/0126，不改判 WIN7-19～30，不签发 Alpha 2 PASS、Win7 PASS 或 RC PASS。
+
+## ADR-0128 WIN7-31 实机 G3 真实 125% DPI 容量失败与 WIN7-32 换发
+
+- 状态：Accepted（2026-09-15，负责人指令：“下面开始实际验收”）
+- 背景：WIN7-31（source `ac4ed5048a6a2d4ed2f223c61ed06108a4a07d4b`，ZIP SHA-256
+  `79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a`）在 `10.134.115.40`
+  以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated 令牌执行 run
+  `cdc35c14-abee-4f8e-bd4a-5759559ba0c8`。G1 包完整性 PASS，G2 自动 smoke 75/75 PASS；G3 在真实
+  1366×768、120 DPI（125%）、1 running + 8 older + 1 archived 且 Stop 可见的最坏形态下，只观察到
+  1 条完整 36px 对话行，低于 `W31-11-A03` / `W31-15-A02` 要求的 4 行硬门。候选正常关闭后
+  Electron/helper 零残留，postflight 完整性与秘密零命中通过，但不得据此签发 UI 集成 PASS。根因是
+  源码契约只预算 768 CSS px 默认态，没有覆盖 125% DPI 下约 540 CSS px 内容高，也漏算运行中 Stop；
+  产品 CSS 与 validation kit 的真实 DPI 硬门不同步。
+- 决策：（1）WIN7-31 固定为 `G3_FAILED`，其 ZIP、manifest、authority、run 与候选外证据原样保留，
+  不得补丁改包、重签、删除或复用哈希改判。（2）换发 `WIN7-32`；修复范围只是在
+  `max-height: 650px` 下压缩左栏固定 chrome：任务/Review 与任务状态/Stop 分别横排，目录固定控制和
+  装饰收紧；对话行仍为 36px，Stop、两个产品入口、可信工作区、设置和诊断继续可达。开发机同引擎在
+  1093×540 CSS px 最坏形态量测为列表 197px、4 条完整行、页面横纵溢出均为 0，并以 540 CSS px 静态
+  高度预算守卫锁定；这不是物理 Win7 PASS。（3）候选范围、15 项用例、版本与能力集不变：仍为
+  `WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1`，Review disabled + fail-closed，Shell 运行中输出不
+  开放；不改 native helper、Runner/Policy、IPC、SQLite schema、权限或秘密边界，不新增依赖。
+  （4）允许路径按 A9-16 §12；W23～W31 的冻结 release 脚本和候选字节不得改写。（5）允许本地提交及
+  两个独立干净工作树逐字节一致构建，不推送、不打标签；`source_dirty=false` 与
+  `external_acceptance_eligible=true` 为硬门。（6）未知 ZIP 哈希不由本指令预先批准；哈希形成后仍须
+  候选外独立 `WIN7_32_RELEASE_AUTHORITY` 与 SHA-256 pin，方可在 `10.134.115.40` 开始普通用户复验。
+- 后果：WIN7-31 的真实 DPI 失败被转化为候选级可回归修复，WIN7-32 可在身份冻结后重新进入 G1→G2→
+  G3→报告链路；W32-11/W32-15 必须在同样真实 125% DPI 最坏形态下直接证明至少 4 条完整行与四态无
+  页面溢出。双构建、包完整性和开发机 Electron 均不能代替该实机证据；authority 前保持
+  `WIN7_32_NOT_PERFORMED`。本 ADR 不改写 ADR-0125～0127，不改判 WIN7-19～31，不签发 Alpha 2、Win7
+  或 RC PASS。

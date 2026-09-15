@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_31_CANDIDATE_FROZEN_AWAITING_RELEASE_AUTHORITY
-Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_NOT_PERFORMED
-Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127
+Phase-Gate: A9_16_WIN7_32_CANDIDATE_BUILD_AUTHORIZED
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_NOT_PERFORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128
 ```
 
 ## 1. 需求来源与授权边界
@@ -223,3 +223,61 @@ Win7 实机验收。本轮仍不开放 Review（R01–R05）与 Shell 运行中�
   SHA-256 `a215217b6279a85b4c8213f561bafda07a6c529f630a6e4060c63b084cb9dbe6`，788 文件完整树复验
   通过。测试夹具 authority 仅用于证明候选校验链路可接受正确绑定，明确不构成正式批准。正式
   `WIN7_31_RELEASE_AUTHORITY` 尚未签发，实机验收尚未开始。
+
+## 11. WIN7-31 G3 失败与源码修复（2026-09-15，负责人指令）
+
+负责人在 WIN7-31 实机 G3 失败后明确指示“帮我进行修复”。该指令授权修复已证实的 125% DPI 左栏
+容量缺口；没有预先指定下一候选标签，也不等同于冻结提交、双构建、签发未知哈希 authority 或重新实机验收。
+
+- **冻结失败事实**：WIN7-31 ZIP SHA-256
+  `79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a`、manifest SHA-256
+  `a215217b6279a85b4c8213f561bafda07a6c529f630a6e4060c63b084cb9dbe6`，候选外 authority SHA-256
+  `5732a4628cb5a889037dbcab265292a3fc390f475835ab4d87ccd6b77e30b3e5`。`10.134.115.40`
+  普通用户 Medium/non-elevated run `cdc35c14-abee-4f8e-bd4a-5759559ba0c8` 中 G1 PASS、G2
+  75/75 PASS；G3 在真实 1366×768、120 DPI（125%）最坏形态下仅 1 条完整对话行，低于 W31-11-A03 /
+  W31-15-A02 的 4 行硬门，故固定为 `WIN7_31_G3_FAILED`。正常关闭、零 Electron/helper 残留、
+  postflight 完整性与证据秘密零命中均通过，但不能据此签发 A9-16 UI 集成 PASS。
+- **根因**：既有契约测试只预算 768 CSS px 的 100% DPI 默认态，没有计入真实 125% DPI 最大化窗口约
+  540 CSS px 的内容高，也没有把运行中 Stop 纳入最坏固定 chrome；开发机 125% 缩放代理曾观察到 1 行，
+  但旧 U02 文案允许减少，未形成失败守卫。W31 validation kit 后来要求真实 125% 同样达到 4 行，产品
+  CSS 与源码回归未同步，导致候选必然在该硬门失败。
+- **最小修复**：只修改 §7 已授权的 `a9-workbench.css` 与 `a9-workbench-contract.test.ts`。在
+  `max-height: 650px` 下压缩品牌与工作区装饰，把“任务 / Review”两个产品入口横排，把当前任务状态与
+  Stop 横排，并压缩目录内部固定控制；Review 入口仍可见且 disabled，可信工作区、设置、诊断、Stop
+  均保持可达。对话行继续为 36px，未靠缩小行高达标。
+- **开发机验证**：A9 workbench 定向契约 31/31 PASS；新增守卫按 540 CSS px、运行中 Stop、两个组头、
+  归档摘要与目录状态计算，要求至少 4 条 36px 行。Electron 22 / Chromium 108 以 1093×540 CSS px
+  注入同一最坏形态量测：列表 197px、完整行 4、行高 36px、横纵页面溢出均为 0。shell lint、build 与
+  `git diff --check` 通过。机器可读记录见
+  [`win7-31-125dpi-source-repair-dev-geometry.json`](../reports/2026-09/a9-16-ui-evidence/win7-31-125dpi-source-repair-dev-geometry.json)。
+  该 Electron 量测是开发机同引擎证据，不是新的 Win7 实机 PASS。
+- **后续边界**：WIN7-31 及其全部候选外证据保持不可变。下一候选仍须另立身份、提交、双独立干净
+  工作树构建、逐字节一致核验、候选外 SHA-256 authority 和 `10.134.115.40` 普通用户实机复验；在此
+  之前保持 `NEXT_CANDIDATE_NOT_AUTHORIZED / WIN7_NOT_PERFORMED`。
+
+## 12. WIN7-32 候选构建与实机复验授权（2026-09-15，负责人指令）
+
+负责人在 §11 源码修复完成后指示“下面开始实际验收”。该指令授权把已验证的 125% DPI 左栏容量修复
+冻结为新候选 `WIN7-32`，完成本地提交、两个独立干净工作树的逐字节一致构建，并在候选身份和候选外
+authority 收口后于 `10.134.115.40` 继续普通用户实机验收。未知 ZIP 哈希不能由本指令预先批准。
+
+- **候选与历史边界**：新增 ADR-0128；WIN7-31 保持 `G3_FAILED`，其 ZIP、manifest、authority、run 与
+  全部候选外证据不可变，不得补丁改包、重签或复用哈希改判。WIN7-32 仍为
+  `WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1`，不构成 Alpha 2 或 RC。
+- **修复范围**：只承接 §11 的 `max-height: 650px` 左栏固定 chrome 压缩与对应最坏形态容量守卫；
+  36px 对话行、Stop、任务/Review 两入口、可信工作区、设置和诊断保持可达。Review 继续 disabled +
+  fail-closed，Shell 运行中输出不开放；不修改 native helper、Runner/Policy、IPC、SQLite schema、权限或
+  秘密边界，不新增依赖。
+- **允许路径（C14）**：在 §7/§10 基础上允许修改 `scripts/release/build-a9-product-v3.mjs`、
+  `scripts/release/test/a9-package.test.mjs`；允许在 `release/win7-product-v3/` 新增 W32 input lock、
+  integrity/report/smoke、CMD 与 `A9_16_WIN7_32_VALIDATION.md` 并更新 `README.md`；允许更新本任务书、
+  `docs/tasks/README.md`、`docs/STATUS.md`，并只向 `docs/DECISIONS.md` 新增 ADR-0128。不得修改 W23～W31
+  的冻结候选脚本或工件。
+- **构建门**：允许本地提交；不推送、不打标签。正式候选必须由两个独立干净工作树构建且 ZIP 逐字节
+  一致，`source_dirty=false`、`external_acceptance_eligible=true`；`--allow-uncommitted` 不得使用。
+- **批准与执行门**：ZIP 与 manifest 哈希形成后，须另行取得绑定精确 ZIP、manifest、源码提交、正式
+  lock 与 registry 的候选外 `WIN7_32_RELEASE_AUTHORITY` 及其独立 SHA-256 pin，方可在目标机执行。
+  在该批准前保持 `WIN7_32_NOT_PERFORMED`，不得用本节这句未绑定哈希的授权替代 authority。
+- **复验范围**：沿用 15 项用例与 G1→G2→G3→报告顺序，重点直接复验 W32-11/W32-15：真实
+  1366×768、120 DPI（125%）、1 running + 8 older + 1 archived、Stop 可见时至少 4 条完整 36px 行，
+  并检查桌面四态无页面溢出。任何硬门失败即停止下游，未执行项标 `NOT_PERFORMED`。

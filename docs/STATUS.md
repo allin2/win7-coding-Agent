@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败，WIN7-31 修复换发已授权（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 失败，WIN7-32 候选构建已获授权、实机尚未执行（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -85,6 +85,25 @@
   `.acceptance/candidates/WIN7-31/`，两个临时 Git worktree 已解除注册并移除，独立 out-a/out-b 构建结果
   保留。测试夹具 authority 仅证明校验链路可接受正确绑定，**不构成正式批准**；尚未签发
   `WIN7_31_RELEASE_AUTHORITY`，Win7 验收为 `WIN7_31_NOT_PERFORMED`。未推送、未打标签。
+
+- 2026-09-15，WIN7-31 已取得候选外 authority 并在新确认地址 `10.134.115.40` 的同一物理 Win7 主机
+  `DCCS-CHAIZL-PC` 开始普通用户 Medium/non-elevated 实机验收。run
+  `cdc35c14-abee-4f8e-bd4a-5759559ba0c8` 中 G1 PASS、G2 自动 smoke 75/75 PASS；真实 Provider
+  multi-tool 与 wait/cancel 直接观察通过。G3 在真实 1366×768、120 DPI（125%）的最坏形态（1 running、
+  8 older、1 archived，且 Stop 可见）只完整显示 1 条 36px 对话行，低于 W31-11-A03 / W31-15-A02
+  的 4 行硬门，故 **WIN7-31 固定为 `G3_FAILED`**，不签发 A9-16 UI 集成 PASS。候选正常关闭后
+  Electron/helper 均为零，postflight 完整性 PASS，证据秘密扫描零命中。负责人随后批准修复；当前源码
+  在 `max-height: 650px` 下压缩固定 chrome，但保持 Review disabled 入口、可信提示、设置/诊断与 Stop
+  可达，36px 行高不变。新增 540 CSS px 最坏形态契约守卫，定向测试 31/31 PASS；开发机 Electron 22
+  同引擎量测为列表 197px、完整 4 行、页面零溢出，shell lint/build 与 diff check 通过。该结果仅为
+  `SOURCE_REPAIR_VERIFIED`；随后已按下条获得 WIN7-32 冻结与双构建授权，authority 与 Win7 重验仍须
+  按候选精确哈希收口。
+
+- 2026-09-15，负责人指示“下面开始实际验收”，据此授权换发 **WIN7-32**（ADR-0128、任务书 §12）。
+  候选只承接 WIN7-31 G3 已证实的真实 125% DPI 左栏容量修复，36px 对话行、15 项用例、Alpha 1
+  版本与能力集不变；Review 与 Shell 运行中输出仍不开放。允许本地提交和双独立干净工作树一致构建，
+  但未知 ZIP 哈希不视为已批准；哈希形成后仍须候选外 `WIN7_32_RELEASE_AUTHORITY` 与独立 SHA-256 pin，
+  方可在 `10.134.115.40` 开始普通用户复验。当前为 `WIN7_32_NOT_PERFORMED`，未推送、未打标签。
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 
