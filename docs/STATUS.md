@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 失败，WIN7-32 候选构建已获授权、实机尚未执行（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 失败，WIN7-32 已冻结、等待候选外 authority（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -103,7 +103,15 @@
   候选只承接 WIN7-31 G3 已证实的真实 125% DPI 左栏容量修复，36px 对话行、15 项用例、Alpha 1
   版本与能力集不变；Review 与 Shell 运行中输出仍不开放。允许本地提交和双独立干净工作树一致构建，
   但未知 ZIP 哈希不视为已批准；哈希形成后仍须候选外 `WIN7_32_RELEASE_AUTHORITY` 与独立 SHA-256 pin，
-  方可在 `10.134.115.40` 开始普通用户复验。当前为 `WIN7_32_NOT_PERFORMED`，未推送、未打标签。
+  方可在 `10.134.115.40` 开始普通用户复验。现已由源码提交
+  `916fe8240e73d6efa956eacf485652075639dbcb` 完成双独立干净工作树构建，ZIP 逐字节一致、
+  `source_dirty=false`、`external_acceptance_eligible=true`：ZIP 101,356,737 B，SHA-256
+  `639063b70a1f7fb5dd422870708cb8cb457c405df8752668a5e43f8220a92ea2`；manifest SHA-256
+  `03647a0e0966e27787aa28ea17f577307955e0e28d7de3d31bd7fc62f8b442f6`。788 文件完整树、15 项 kit
+  闭包与测试专用 authority 全链预检通过；测试 authority 不构成批准。候选已归档到
+  `.acceptance/candidates/WIN7-32/`，双构建输出保存在 `.acceptance/builds/WIN7-32/916fe824-reissue/`，
+  两个临时 Git worktree 已解除注册；临时父目录删除被 Auto Review 拒绝，未绕过。当前停在正式
+  `WIN7_32_RELEASE_AUTHORITY` 门前，仍为 `WIN7_32_NOT_PERFORMED`；未推送、未打标签。
 
 - 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 

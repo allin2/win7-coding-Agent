@@ -6,7 +6,7 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_32_CANDIDATE_BUILD_AUTHORIZED
+Phase-Gate: A9_16_WIN7_32_CANDIDATE_FROZEN_AWAITING_AUTHORITY
 Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_NOT_PERFORMED
 Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128
 ```
@@ -281,3 +281,9 @@ authority 收口后于 `10.134.115.40` 继续普通用户实机验收。未知 Z
 - **复验范围**：沿用 15 项用例与 G1→G2→G3→报告顺序，重点直接复验 W32-11/W32-15：真实
   1366×768、120 DPI（125%）、1 running + 8 older + 1 archived、Stop 可见时至少 4 条完整 36px 行，
   并检查桌面四态无页面溢出。任何硬门失败即停止下游，未执行项标 `NOT_PERFORMED`。
+- **冻结结果**：源码提交 `916fe8240e73d6efa956eacf485652075639dbcb`；两个独立干净工作树构建
+  `source_dirty=false`、`external_acceptance_eligible=true`，ZIP 逐字节一致。ZIP SHA-256
+  `639063b70a1f7fb5dd422870708cb8cb457c405df8752668a5e43f8220a92ea2`（101,356,737 B），manifest
+  SHA-256 `03647a0e0966e27787aa28ea17f577307955e0e28d7de3d31bd7fc62f8b442f6`，788 文件完整树与 15 项 kit
+  闭包复验通过。测试专用 authority 只证明绑定校验链可接受正确输入，不构成正式批准；当前停在
+  `WIN7_32_RELEASE_AUTHORITY` 门前，Win7 仍为 `NOT_PERFORMED`。
