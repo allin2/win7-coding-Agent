@@ -262,7 +262,15 @@ async function waitFor(condition, timeoutMs, label) {
   throw new Error(`TIMEOUT waiting for ${label} (last: ${report.lastError || 'none'})`);
 }
 
-async function main() {
+const LATE_LOAD_ERROR_CODE = 'A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD';
+
+function installDriverPreReadySeamsAndLoadProduct() {
+  if (typeof app.isReady === 'function' && app.isReady()) {
+    const error = new Error(`${LATE_LOAD_ERROR_CODE}: formal product entry must be loaded before Electron app is ready`);
+    error.code = LATE_LOAD_ERROR_CODE;
+    throw error;
+  }
+
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
   if (mode === 'workspace_select' || mode === 'first' || mode === 'stop') {
@@ -309,9 +317,17 @@ async function main() {
       });
     };
   }
-  // 正式产品入口（真实 main.js：注册全部产品 IPC 并打开真实窗口）。
+  // 正式产品入口（真实 main.js：在 ready 前执行 Windows 软件渲染配置，注册全部产品 IPC 与 ready 窗口监听）。
   require(productMain);
+}
 
+async function main() {
+  if (process.env.A9_SMOKE_FORCE_STAGE_ERROR === '1') {
+    throw new Error('A9_FORCED_STAGE_ERROR_FOR_TEST');
+  }
+
+  const mode = process.env.A9_SMOKE_MODE || 'first';
+  const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
   const dataRoot = process.env.A9_SMOKE_DATAROOT;
   const fixtureUrl = process.env.A9_SMOKE_FIXTURE_URL;
 
@@ -1938,17 +1954,92 @@ async function runStopProcess(win, exec, env) {
   record('A9F6-STOP-TURN-CANCELLED', Boolean(outcome) && snapshot.agentStatus === 'cancelled', `outcome=${outcome}; agentStatus=${snapshot.agentStatus}`);
 }
 
-app.whenReady().then(main).then(() => {
-  fs.mkdirSync(path.dirname(process.env.A9_SMOKE_OUT), { recursive: true });
-  fs.writeFileSync(process.env.A9_SMOKE_OUT, `${JSON.stringify(report, null, 2)}\n`);
-  // 走真实 before-quit → async a9RuntimeInstance.shutdown() → app.quit()
-  // → will-quit 路径。app.exit/手工 emit 会绕过产品的异步清理门并遗留工作区锁。
-  process.exitCode = report.status === 'PASS' ? 0 : 1;
+let driverTargetExitCode = 1;
+
+function writeDriverReport() {
+  const outPath = process.env.A9_SMOKE_OUT;
+  if (!outPath) return;
+  try {
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  } catch (_e) { /* best effort */ }
+}
+
+let driverExitFallbackTimer = null;
+
+function requestDriverQuit() {
+  process.exitCode = driverTargetExitCode;
+  if (driverTargetExitCode !== 0) {
+    driverExitFallbackTimer = setTimeout(() => {
+      if (typeof app.exit === 'function') app.exit(driverTargetExitCode);
+      else process.exit(driverTargetExitCode);
+    }, 30000);
+    if (typeof driverExitFallbackTimer?.unref === 'function') driverExitFallbackTimer.unref();
+  }
   app.quit();
-}).catch((error) => {
-  report.status = 'ERROR';
-  report.error = String(error && error.stack ? error.stack : error);
-  try { fs.writeFileSync(process.env.A9_SMOKE_OUT, `${JSON.stringify(report, null, 2)}\n`); } catch (_e) { /* best effort */ }
-  process.exitCode = 1;
-  app.quit();
+}
+
+// Electron may otherwise normalize app.quit() to exit code 0. Prevent the
+// final automatic exit, let every will-quit listener (including product
+// disposal) run in the current emission, then deliver the recorded non-zero
+// code on the next turn of the event loop.
+app.on('will-quit', (event) => {
+  if (driverTargetExitCode === 0) return;
+  process.exitCode = driverTargetExitCode;
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+  if (driverExitFallbackTimer) clearTimeout(driverExitFallbackTimer);
+  setImmediate(() => {
+    if (typeof app.exit === 'function') app.exit(driverTargetExitCode);
+    else process.exit(driverTargetExitCode);
+  });
 });
+
+function failDriver(error) {
+  const code = error && error.code ? error.code : 'A9_DRIVER_STAGE_ERROR';
+  const message = String(error && error.stack ? error.stack : error);
+  report.status = 'ERROR';
+  report.error = `${code}: ${message}`;
+  report.lastError = `${code}: ${message}`;
+  if (!report.cases.some((item) => item && item.id === code)) record(code, false, message);
+  driverTargetExitCode = 1;
+  writeDriverReport();
+  requestDriverQuit();
+}
+
+function startProductDriver() {
+  try {
+    installDriverPreReadySeamsAndLoadProduct();
+  } catch (error) {
+    failDriver(error);
+    return;
+  }
+
+  app.whenReady().then(main).then(() => {
+    const allPassed = Array.isArray(report.cases) && report.cases.length > 0 && report.cases.every((c) => c.passed === true);
+    report.status = allPassed ? 'PASS' : 'FAIL';
+    driverTargetExitCode = report.status === 'PASS' ? 0 : 1;
+    writeDriverReport();
+    // 走真实 before-quit → async a9RuntimeInstance.shutdown() → app.quit()
+    // → will-quit 路径。非零码只在 will-quit 的同步处理器全部运行后交付。
+    requestDriverQuit();
+  }).catch(failDriver);
+}
+
+// 候选内真实 Electron 反例接缝：特意等待 ready 后再尝试首次加载，
+// 必须由上方稳定错误码拒绝。正常候选路径始终在 ready 前调用。
+if (process.env.A9_SMOKE_FORCE_LATE_PRODUCT_LOAD === '1') {
+  app.whenReady().then(startProductDriver).catch(failDriver);
+} else {
+  startProductDriver();
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    installDriverPreReadySeamsAndLoadProduct,
+    main,
+    report,
+    writeDriverReport,
+    failDriver,
+    LATE_LOAD_ERROR_CODE,
+  };
+}

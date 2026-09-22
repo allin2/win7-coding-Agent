@@ -145,12 +145,23 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-34-smoke.cjs'],
     evidenceDirectory: 'a9-win7-34-evidence',
   },
+  // ADR-0132：WIN7-35 实机生命周期与退出码修复——Driver 在 app.whenReady() 之前安装接缝并首次
+  // require(productMain)，迟到加载以 A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD fail-closed，受控
+  // 阶段 ERROR 返回非零退出码并保证 before-quit 与 shutdown 清理。
+  'A9-16-INPUTS-RESPONSIVE-UI-WIN7-35': {
+    task: 'A9-16', candidate: 'WIN7-35', lockFile: 'a9-16-win7-35-input-lock.json',
+    kitFile: 'A9_16_VALIDATION_KIT.json', validationDoc: 'A9_16_WIN7_35_VALIDATION.md',
+    integrityCommand: 'RUN_A9_16_W35_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_35_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w35.cjs', reportScript: 'a9-win7-35-report.cjs',
+    extraValidationScripts: ['a9-win7-35-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-35-evidence',
+  },
 };
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35']);
 
 // ADR-0126：派生脚本残留守卫。
 //
@@ -209,7 +220,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     // WIN7-31 起，投影证据 case key 也属于候选身份。只检查引号内的真实对象键，
     // 避免历史说明文字误报；03/09/10 任一仍指向旧 Wxx 都必须在构建期失败。
-    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate)) {
+    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)) {
       const expectedPrefix = profile.candidate.replace('WIN7-', 'W');
       for (const match of source.matchAll(/['"](W\d+)-(03-INSPECTOR-PERSISTED-RESTART|09-LATEST-OUTCOME-PROJECTION|10-OLDER-EVENT-PAGINATION)['"]/g)) {
         if (match[1] !== expectedPrefix) hits.push(`${file}: ${match[0]} (expected ${expectedPrefix}-${match[2]})`);
@@ -224,7 +235,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
 function writeCandidateDriver(root, validationRoot, profile) {
   const sourcePath = path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
   const targetPath = path.join(validationRoot, `a9-${profile.candidate.toLowerCase()}-driver.cjs`);
-  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate)) {
+  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)) {
     fs.copyFileSync(sourcePath, targetPath);
     return;
   }
@@ -369,7 +380,7 @@ export function buildA9ProductCandidate(options) {
     }
     // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
     // ADR-0125：WIN7-29 继承同一投影合同，因此同样需要随包携带该模块。
-    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate)) {
+    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
         path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
@@ -501,7 +512,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
-    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
+    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -791,17 +802,20 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
   // ADR-0125：WIN7-29 为 A9-16 UI 子集候选，继承 W28 的完整用例集（含投影与分页），
   // 并追加 U01–U07 的响应式工作台用例；历史 profile 的用例集合保持原样。
-  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate);
+  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate);
+  const reachableNarrowFloorCandidate = profile.candidate === 'WIN7-35';
   // ADR-0120：WIN7-27 保留 W26 的投影用例，同时恢复 W24/W25 的审批与失败顺序用例，
   // 并把最新轮次投影作为独立用例追加；历史 profile 的用例集合保持原样。
   const usesProjectionCase = ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
   const restoresApprovalCase = ['WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
   // ADR-0121：WIN7-28 额外要求独立的分页用例。
   const addsPagingCase = profile.candidate === 'WIN7-28' || responsiveUiCandidate;
-  const kitDate = ['WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate) ? '20260915'
+  const kitDate = profile.candidate === 'WIN7-35' ? '20260922'
+    : ['WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate) ? '20260915'
     : responsiveUiCandidate ? '20260914'
     : ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) ? '20260910' : '20260909';
-  const decision = profile.candidate === 'WIN7-34' ? 'ADR-0130'
+  const decision = profile.candidate === 'WIN7-35' ? 'ADR-0132'
+    : profile.candidate === 'WIN7-34' ? 'ADR-0130'
     : profile.candidate === 'WIN7-33' ? 'ADR-0129'
     : profile.candidate === 'WIN7-32' ? 'ADR-0128'
     : profile.candidate === 'WIN7-31' ? 'ADR-0127'
@@ -812,7 +826,8 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     : profile.candidate === 'WIN7-26' ? 'ADR-0119'
     : profile.candidate === 'WIN7-25' ? 'ADR-0118'
     : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = profile.candidate === 'WIN7-34' ? 'WIN7-33'
+  const historicalCandidate = profile.candidate === 'WIN7-35' ? 'WIN7-34'
+    : profile.candidate === 'WIN7-34' ? 'WIN7-33'
     : profile.candidate === 'WIN7-33' ? 'WIN7-32'
     : profile.candidate === 'WIN7-32' ? 'WIN7-31'
     : profile.candidate === 'WIN7-31' ? 'WIN7-30'
@@ -834,7 +849,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     'src/shell/product/a9-agent-runtime.js',
     'src/shell/product/a9-product-ipc.js',
     'src/shell/product/preload.js',
-    ...(['WIN7-33', 'WIN7-34'].includes(profile.candidate) ? ['src/shell/product/main.js'] : []),
+    ...(['WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate) ? ['src/shell/product/main.js'] : []),
     'src/shell/product/renderer/a9-workbench.css',
     'src/shell/product/renderer/a9-workbench.js',
     'src/shell/product/renderer/workbench.html',
@@ -997,9 +1012,13 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
           'Prove breakpoint crossing only converges the state machine and never folds a desktop rail.',
           ['crossing 1200px and 800px in both directions never sets rail-closed or inspector-closed at a desktop breakpoint',
             'the drawer state (.open plus backdrop) and the desktop collapsed state are never reused across breakpoints',
-            'below 799px no residual rail-closed state produces a zero-width grid column for the conversation area',
+            reachableNarrowFloorCandidate
+              ? 'at the reachable minimum 847 CSS px, rail-closed keeps the conversation column non-zero and produces no horizontal overflow; matchMedia(max-width: 799px) remains false and the <=799px drawer branch is PRODUCT_UNREACHABLE / NOT_VERIFIED'
+              : 'below 799px no residual rail-closed state produces a zero-width grid column for the conversation area',
             'only state-machine convergence and an aria-expanded re-push occur on resize; no DOM rebuild is performed'],
-          ['resize transcript across both breakpoints', 'grid column width facts at 799px and below',
+          ['resize transcript across both breakpoints', reachableNarrowFloorCandidate
+            ? 'requested and actual viewport, grid and conversation column widths, overflow and matchMedia facts at the reachable 847 CSS px floor'
+            : 'grid column width facts at 799px and below',
             'state class log per resize step']),
         caseOf('W23-14-KEYBOARD-AND-FOCUS-CONTRACT',
           'Prove the keyboard and focus contract of the responsive workbench.',
@@ -1065,7 +1084,7 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125：WIN7-29 的权威任务书是 A9-16，不再是 A9-15。
-  const taskBook = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate)
+  const taskBook = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)
     ? 'docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md'
     : A915_CANDIDATES.has(profile.candidate)
       ? 'docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md'
@@ -1217,8 +1236,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-33'
     && lock.provenance?.previous_candidate_result === 'G2_ABORTED_BY_RENDERING_POLICY_CALL_AFTER_APP_READY'
     && lock.provenance?.change_scope === 'WINDOWS_RENDERING_POLICY_APP_READY_GUARD_REPAIR';
+  const win35Provenance = profile.candidate === 'WIN7-35'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_35'
+    && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-34'
+    && lock.provenance?.previous_candidate_result === 'A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS_WITH_DRIVER_LIFECYCLE_GAP'
+    && lock.provenance?.change_scope === 'DRIVER_PRE_READY_PRODUCT_ENTRY_AND_EXIT_CODE_REPAIR';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;

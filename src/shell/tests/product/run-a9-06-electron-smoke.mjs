@@ -305,6 +305,14 @@ async function runElectronProcess(extraEnv, args = []) {
   });
 }
 
+function phaseContractValid(exitCode, report, expectedMode) {
+  return Boolean(exitCode === 0
+    && report && report.mode === expectedMode && report.status === 'PASS'
+    && Array.isArray(report.cases) && report.cases.length > 0
+    && report.cases.every((item) => item && item.passed === true)
+    && !report.error);
+}
+
 const driverEntry = path.join(scriptRoot, 'a9-06-driver-entry.cjs');
 const electronSqliteRoot = argument('electron-sqlite', '/tmp/a9-electron-native');
 if (!fs.existsSync(path.join(electronSqliteRoot, 'node_modules', 'better-sqlite3'))) {
@@ -400,7 +408,9 @@ let workspaceSelectReport = { status: 'NO_REPORT' };
 if (fs.existsSync(workspaceSelectOut)) {
   try { workspaceSelectReport = JSON.parse(fs.readFileSync(workspaceSelectOut, 'utf8')); } catch (_e) { /* keep */ }
 }
-record('A9F0-WORKSPACE-SELECT-EXIT', workspaceSelectExit === 0, `exit=${workspaceSelectExit}`);
+record('A9F0-WORKSPACE-SELECT-EXIT',
+  phaseContractValid(workspaceSelectExit, workspaceSelectReport, 'workspace_select'),
+  `exit=${workspaceSelectExit}; status=${workspaceSelectReport.status}`);
 for (const c of workspaceSelectReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
@@ -425,7 +435,8 @@ let firstReport = { status: 'NO_REPORT' };
 if (fs.existsSync(firstOut)) {
   try { firstReport = JSON.parse(fs.readFileSync(firstOut, 'utf8')); } catch (_e) { /* keep */ }
 }
-record('A9F1-EXIT-CODE', firstExit === 0, `exit=${firstExit}`);
+record('A9F1-EXIT-CODE', phaseContractValid(firstExit, firstReport, 'first'),
+  `exit=${firstExit}; status=${firstReport.status}`);
 for (const c of firstReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
@@ -460,7 +471,8 @@ let secondReport = { status: 'NO_REPORT' };
 if (fs.existsSync(secondOut)) {
   try { secondReport = JSON.parse(fs.readFileSync(secondOut, 'utf8')); } catch (_e) { /* keep */ }
 }
-record('A9F2-EXIT-CODE', secondExit === 0, `exit=${secondExit}`);
+record('A9F2-EXIT-CODE', phaseContractValid(secondExit, secondReport, 'second'),
+  `exit=${secondExit}; status=${secondReport.status}`);
 for (const c of secondReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }
@@ -561,11 +573,12 @@ if (!retryTargetConversation) {
     record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-LAUNCH', false, String(err.message || err));
   }
 }
-record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-EXIT', retryExit === 0, `exit=${retryExit}; target=${retryTargetConversation}`);
 let retryReport = { status: 'NO_REPORT' };
 if (fs.existsSync(retryOut)) {
   try { retryReport = JSON.parse(fs.readFileSync(retryOut, 'utf8')); } catch (_e) { /* keep */ }
 }
+record('A9-15-QUERY-FAILURE-VISIBLE-RETRY-EXIT', phaseContractValid(retryExit, retryReport, 'retry'),
+  `exit=${retryExit}; status=${retryReport.status}; target=${retryTargetConversation}`);
 const retryModeOk = retryReport.mode === 'retry';
 const retryTargetBound = Boolean(retryTargetConversation
   && retryModeOk
@@ -592,7 +605,7 @@ const retryCasesAllPassed = Array.isArray(retryReport.cases)
   && retryReport.cases.length > 0
   && retryReport.cases.every((c) => c && c.passed === true);
 
-const retryReportValid = retryReport.status === 'PASS'
+const retryReportValid = phaseContractValid(retryExit, retryReport, 'retry')
   && retryModeOk
   && retryTargetBound
   && retryNoDuplicates
@@ -634,7 +647,8 @@ let stopReport = { status: 'NO_REPORT' };
 if (fs.existsSync(stopOut)) {
   try { stopReport = JSON.parse(fs.readFileSync(stopOut, 'utf8')); } catch (_e) { /* keep */ }
 }
-record('A9F6-STOP-EXIT', stopExit === 0, `exit=${stopExit}`);
+record('A9F6-STOP-EXIT', phaseContractValid(stopExit, stopReport, 'stop'),
+  `exit=${stopExit}; status=${stopReport.status}`);
 for (const c of stopReport.cases || []) {
   record(c.id, c.passed === true, c.detail || '');
 }

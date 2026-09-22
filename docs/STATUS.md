@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，WIN7-35 Driver 生命周期修复已获实现授权（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，WIN7-35 Driver 生命周期修复已完成开发机独立验收、待形成候选（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -165,10 +165,14 @@
   分支继续登记为 `PRODUCT_UNREACHABLE / NOT_VERIFIED`；不据此签发 Alpha 2 或 RC PASS（ADR-0131）。
 
 - 2026-09-22，负责人批准 **WIN7-35** Driver 生命周期与退出码修复规划（ADR-0132、任务书
-  §16）：实施限定为 Driver ready 前安装故障注入/观察接缝并首次加载产品入口、迟到
-  加载稳定拒绝、阶段 JSON 与真实进程退出码一致，以及父 smoke 双重 fail-closed。产品
-  `main.js`、renderer、Runner/Policy、IPC、SQLite、权限、网络和依赖不在授权内。当前仅实现
-  授权：WIN7-35 源码、候选、authority 和 Win7 运行证据均 `NOT_PERFORMED`。
+  §16）。实施后经主代理独立复核，补齐了候选内真实 `electron.exe` 迟到加载/受控 ERROR
+  两个反例、非零退出与 ERROR 报告双绑定、WMI 零路径相关进程残留、四阶段完整合同，
+  并将 W35-13 按 ADR-0131 收窄为可达最窄 847 CSS px；`<=799px` 仍为
+  `PRODUCT_UNREACHABLE / NOT_VERIFIED`。定向 Shell 47/47、package 33/33、Shell lint/build、
+  `verify:quick` 与 `git diff --check` 通过；`docs:check` 仍因既有 A9-17 `/tmp` 链接及历史
+  `outputs/**/input-snapshot` 缺件失败，本次未改写该历史证据。产品 `main.js`、renderer、
+  Runner/Policy、IPC、SQLite、权限、网络和依赖均未改动。WIN7-35 候选、authority 和
+  物理 Win7 G1→G2→G3 证据仍 `NOT_PERFORMED`，不签发 Alpha 2 或 RC PASS。
 
 - 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以

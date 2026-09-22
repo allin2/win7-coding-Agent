@@ -4,6 +4,29 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-35 Driver ready 前加载与退出码修复候选
+
+WIN7-35 依据 ADR-0132 与任务书 §16 换发自 WIN7-34。WIN7-34 验收后发现其 Driver 在 `app.whenReady()`
+之内才安装接缝并首次 `require` 产品入口，延后了模块顶层生命周期副作用；且在受控驱动初始化或
+阶段注入异常时，报告记为 ERROR 但子进程退出码可能为 0，与父级 smoke 校验产生矛盾。
+
+WIN7-35 修复 Driver 生命周期与退出码交付：
+- 接缝安装与首次 `require(productMain)` 移至 Electron `app.whenReady()` 之前；
+- 增加迟到加载守卫：若在 `app.isReady() === true` 后尝试加载产品入口，抛出稳定错误码 `A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD` 并 fail-closed；
+- 受控阶段 ERROR / FAIL 保证非零退出码（码 1），报告完整落盘，且通过 `app.quit()` 先触发 `before-quit` 与 `a9RuntimeInstance.shutdown()`；同一轮的 `will-quit` 清理处理器运行后再交付目标码；
+- 候选内 smoke 用真实 `electron.exe` 执行迟到加载和受控 ERROR 两个反例，强校验子进程退出码、报告状态、`cases`/`error` 与 WMI 零进程残留。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-35-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+现场步骤见 [`A9_16_WIN7_35_VALIDATION.md`](A9_16_WIN7_35_VALIDATION.md)。WIN7-34 及其报告与证据保持冻结。
+
 ## A9-16 / WIN7-34 渲染策略就绪守卫修复候选
 
 WIN7-34 依据 ADR-0130 与任务书 §14 换发自 WIN7-33。WIN7-33 在 `10.134.115.40` 的普通用户
