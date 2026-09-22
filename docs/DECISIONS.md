@@ -2115,3 +2115,64 @@
   必须由普通用户在物理 Win7 上先通过 G2 再证明 G3 首绘。双构建与开发机验证不能替代实机证据；
   authority 前保持 `WIN7_34_NOT_PERFORMED`。本 ADR 不改判 WIN7-19～33，也不签发 Alpha 2、Win7 或
   RC PASS。
+
+## ADR-0131 W34-13-A03 收窄到可达最窄视口，≤799px 抽屉分支登记为产品内不可达
+
+- 状态：Accepted（2026-09-16，负责人选择「规格收窄」）
+- 背景：WIN7-34 实机量测表明 A9-16 的 `W34-13-A03`（「799px 以下不能残留零宽 rail 状态」）在真实产品内
+  **不可达**：`src/shell/product/policy.js:19` 的 `minWidth: 860`（DIP）把渲染视口下限顶在 **847 CSS px**
+  （实测：请求内容宽 700 → 实际 847，`innerWidth = 847`，`zoomFactor = 1`，`devicePixelRatio = 1.25`）。
+  判决代码是活的而非孤立 CSS：`a9-workbench.js:1881`
+  `navigationIsDrawer() { return root.innerWidth < 800; }` 与 `a9-workbench.css:436`
+  `@media (max-width: 799px)`（约 20 条规则的窄屏压缩层：rail/inspector 改 fixed 抽屉、navigation-backdrop、
+  header 压到 68px、composer 收窄、`send/stop min-width: 82px`、suggestions 单列、approval-actions 换行、
+  composer-guidance 隐藏）。`innerWidth < 800` 恒假 ⇒ 该分支永不命中，子项既不能 PASS（无观察对象）
+  也不能 FAIL（无失败证据），WIN7-34 冻结报告据此记 `NOT_PERFORMED`，总状态停在 `EVIDENCE_PENDING`。
+- 决策：
+  （1）该子项收窄为**可达最窄视口上的断言**：在 847 CSS px 下端折叠 rail 不得产生零宽对话列，也不得横向
+  溢出；≤799 的移动抽屉分支**保留，但登记为「产品内不可达 / 未验证」**。
+  （2）证据由候选外 `floor-app` harness 产生（只用产品自身入口与自身面板开关，不使用 DevTools、远程调试、
+  zoom 代理或外部强推窗口）：请求 700×700 → 实际 847×700；四态量测中 `rail-closed` 时网格为
+  `0px 847.2px`、rail 宽 0 且 `visibility: hidden`、`.conversation-pane` 宽 **847.2 px（非 0）**、
+  `scrollWidth == clientWidth == 847`、`matchMedia('(max-width: 799px)') === false`、rail 计算位置 `static`；
+  四项断言全部 PASS。
+  （3）报告以**修订版**重签：新 evidence root，逐条复用原冻结证据的路径与 SHA-256；原报告与全部原始证据
+  保持不可变并标注为被修订。不修改任何产品源码。
+  （4）若将来下调 `minWidth`、放宽窗口下限或需要窄屏/并排支持，必须换发候选并按新 ADR 重新实测该分支；
+  不得据本 ADR 主张 ≤799 抽屉态已验证。
+- 后果：WIN7-34 的 15 项用例首次全部 PASS，并以文件级登记消除了「死代码被当作已交付能力」的歧义。
+  本 ADR 不改变 WIN7-19～33 的任何结论，也不签发 Alpha 2 或 RC PASS。
+
+## ADR-0132 WIN7-34 验收链路偏差与 WIN7-35 Driver 生命周期、退出码修复授权
+
+- 状态：Accepted（2026-09-22，负责人批准修复规划、委派实施并由主代理最终验收）
+- 背景：WIN7-34（源码 `2f6d3fd2ee8817922cf771300e3f348e541dfaf6`，ZIP SHA-256
+  `d0b8528fccef905dce2d420d1b231251fac017d29f1505dbc10a6f20d9a93ead`）已在物理 Win7 上完成修订后
+  15/15 直接当前候选证据，裁决为 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`。但 WIN7-34 的
+  实现是在产品入口用 `app.isReady()` 守卫跳过非法的迟到渲染策略调用；候选验收 Driver
+  仍在 `app.whenReady().then(main)` 之后才加载产品入口，与正式打包入口的 ready 前加载顺序
+  不同。WIN7-33 失败还暴露了另一套合同漏洞：阶段 JSON 已为 `ERROR` 且 `cases=[]`，
+  Electron 子进程却可能返回退出码 0。因此 WIN7-34 的实机 PASS 不被改判，但不能代替对
+  Driver 生命周期与操作系统退出码的修复。
+- 决策：
+  （1）WIN7-34、其 authority、原始/修订报告和全部候选外证据继续冻结；新修复只能以
+  `WIN7-35` 新身份交付，不得覆盖、重签或回填 WIN7-34。
+  （2）WIN7-35 Driver 必须在 Electron ready 前先安装候选外 `dialog` / `ipcMain.handle`
+  故障注入与观察接缝，然后首次加载正式 `product/main.js`；`app.whenReady()` 之后只执行
+  窗口和 first/second/retry/stop 旅程。若 Driver 首次加载产品入口时 `app.isReady()`
+  已为 true，必须用稳定错误码 `A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD` fail-closed。
+  （3）`src/shell/product/main.js` 现有 `app.isReady()` 守卫作为产品级防御保留；本授权不允许
+  移除或修改该产品入口，也不改 renderer、Runner/Policy、IPC schema、SQLite、权限、网络或依赖。
+  （4）阶段退出合同以可观察结果为准：报告必须先完整落盘；`PASS` 必须返回 0；
+  `FAIL` / `ERROR` / 报告缺失或不可解析必须返回非 0。产品运行时已启动时不得绕过
+  `before-quit` 与 `a9RuntimeInstance.shutdown()`；具体退出实现须由可执行反例证明，本 ADR
+  不预先绑定未验证的 `will-quit` / `app.exit()` 方案。父 smoke 必须同时核验真实退出码、
+  JSON `status`、`cases` 与 `error`，两者矛盾时 fail-closed。
+  （5）实施必须提供两个原始反例：ready 后首次加载被明确拒绝；受控阶段 `ERROR`
+  的 JSON 可读、子进程实际退出码非 0，且 Electron/helper/Shell 子孙无残留。单纯字符串顺序
+  断言、macOS 模拟或开发机 PASS 不构成 Win7 运行证据。
+- 后果：A9-16 进入 `A9_16_WIN7_35_IMPLEMENTATION_AUTHORIZED`。实施 Agent 必须先交付未提交补丁和
+  开发机证据供主代理独立验收；通过后方可形成一个本地实施提交并执行两个独立干净工作树
+  构建。未知 ZIP 哈希不被本 ADR 预先批准；候选形成后仍须负责人按精确 SHA-256 签发
+  候选外 `WIN7_35_RELEASE_AUTHORITY`，才能在 `10.134.115.40` 执行 G1→G2→G3→报告。不推送、
+  不打标签，也不因本修复签发 Alpha 2 或 RC PASS。

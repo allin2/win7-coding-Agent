@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_34_CANDIDATE_FROZEN_PENDING_RELEASE_AUTHORITY
-Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_NOT_PERFORMED
-Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129 / ADR-0130
+Phase-Gate: A9_16_WIN7_35_IMPLEMENTATION_AUTHORIZED
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_UI_SUBSET_INTEGRATION_PASS / WIN7_35_NOT_FORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129 / ADR-0130 / ADR-0131 / ADR-0132
 ```
 
 ## 1. 需求来源与授权边界
@@ -368,3 +368,65 @@ WIN7-33 在物理 Win7 上暴露的、候选自身驱动加载顺序与渲染策
 - **边界**：本授权不构成 Alpha 2 或 RC PASS，不改判 WIN7-19～WIN7-33 任何结论，也不解除
   A9-16 §1–§6 对 Review 与 Shell 运行中输出的范围限制。WIN7-33 保持
   `G2_FAILED / FIX_BEFORE_REISSUE`，其候选、run、正式报告与全部原始证据原样留档。
+
+## 15. W34-13-A03 收窄到可达最窄视口（2026-09-16，负责人选择「规格收窄」）
+
+- **事实**：`src/shell/product/policy.js:19` `minWidth: 860`（DIP）把视口下限顶在 847 CSS px
+  （本次实测：请求内容宽 700 → 实际 847）；`src/shell/product/renderer/a9-workbench.js:1881`
+  `navigationIsDrawer()` 判定 `innerWidth < 800`；`a9-workbench.css:436` `@media (max-width: 799px)`
+  整块窄屏压缩层因此**永不生效**。详见 ADR-0131。
+- **修订**：W34-13-A03 的判定改为「在可达最窄视口（847 CSS px）折叠 rail 不得出现零宽对话列、
+  不得横向溢出」；≤799 分支保留并登记为**产品内不可达 / 未验证**，仅在换发候选并重新实测后方可
+  主张该分支可用。
+- **证据**：候选外 `floor-app` harness（`C:\A9-W34\revision-20260916\floor-result.json` 与 5 张截图）。
+  四态实测：`rail-closed` ⇒ 网格 `0px 847.2px`、`.conversation-pane` 847.2 px（非 0）、rail 宽 0 且
+  `visibility: hidden`、`scrollWidth == clientWidth == 847`、`matchMedia('(max-width: 799px)') === false`、
+  rail 计算位置 `static`；四项断言 PASS。
+- **报告**：修订版 `a9-win7-34-report-r2.json`（新 evidence root，逐条复用原冻结证据路径与哈希，
+  W34-13 转为 PASS）；原 `a9-win7-34-report.json` 与全部原始证据保持不可变，标注为被修订。
+- **状态回填**：修订版候选报告经候选自带 verifier 核验为 `status=PASS`、
+  `verified_cases=15`、`direct_current_candidate_cases=15`，裁决为
+  `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`。该结论只绑定 WIN7-34 与 ADR-0131 收窄后的 UI 子集，
+  不签发 Alpha 2 或 RC PASS。
+
+## 16. WIN7-35 Driver ready 前加载与阶段退出码修复授权（2026-09-22，负责人指令）
+
+负责人批准将 WIN7-34 验收后发现的 Driver 生命周期偏差和阶段退出码歧义修复为新候选
+`WIN7-35`，由其他 Agent 实施、主代理独立验收。详见 ADR-0132。WIN7-34 的 ZIP、manifest、
+input lock、authority、原始/修订报告与全部证据保持不可变。
+
+- **实现范围**：Driver 必须在 Electron ready 前完成候选外 `dialog` / `ipcMain.handle`
+  故障注入和观察接缝安装，随后首次 `require(productMain)`；`app.whenReady()` 后仅驱动
+  正式产品窗口和 first/second/retry/stop 旅程。迟到加载必须以
+  `A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD` fail-closed。
+- **退出合同**：报告先完整落盘；`PASS` 返回 0；`FAIL` / `ERROR` / 报告缺失或不可解析
+  返回非 0。父 smoke 同时检查退出码、JSON `status`、`cases` 和 `error`；矛盾、缺失或损坏
+  一律 fail-closed。已启动产品时必须保留 `before-quit` 与 `a9RuntimeInstance.shutdown()`，不得用
+  硬杀或未验证的捷径换取非零码。
+- **C14 允许路径**：
+  `src/shell/tests/product/a9-06-driver-entry.cjs`、
+  `src/shell/tests/product/a9-driver-lifecycle.test.ts`（新增）、
+  `src/shell/tests/product/a9-workbench-contract.test.ts`、
+  `src/shell/tests/product/a9-startup-window.test.ts`、
+  `src/shell/tests/product/run-a9-06-electron-smoke.mjs`、
+  `scripts/release/build-a9-product-v3.mjs`、
+  `scripts/release/test/a9-package.test.mjs`；
+  允许在 `release/win7-product-v3/` 新增
+  `a9-16-win7-35-input-lock.json`、`a9-package-integrity-w35.cjs`、`a9-win7-35-report.cjs`、
+  `a9-win7-35-smoke.cjs`、`A9_16_WIN7_35_VALIDATION.md`、`RUN_A9_16_W35_INTEGRITY.cmd`、
+  `RUN_WIN7_35_REPORT_VERIFY.cmd`，并修改 `release/win7-product-v3/README.md`、`docs/STATUS.md`、
+  `docs/tasks/README.md`、本任务书，以及只向 `docs/DECISIONS.md` 新增 ADR-0132。
+  `src/shell/product/main.js`、renderer、Runner/Policy、IPC schema、SQLite、依赖、权限和网络不在本授权内。
+- **反例与回归**：必须有可执行反例证明（a）ready 后首次加载被稳定错误码拒绝；
+  （b）受控阶段 `ERROR` 的报告可读、子进程实际退出码非 0，父 smoke 失败且无残留。
+  还须覆盖正常四阶段、retry 故障注入、投影附件、产品清理、Shell 定向 Jest、package tests、
+  Shell lint/build、`verify:quick` 与 `docs:check`。字符串顺序断言不能替代可执行生命周期反例。
+- **交付顺序**：实施 Agent 先交付未提交补丁、原始命令/退出码和未执行项；主代理独立验收通过后，
+  允许形成一个本地实施提交，不推送、不打标签。之后才能用两个独立干净工作树构建并冻结
+  WIN7-35。候选外 `WIN7_35_RELEASE_AUTHORITY` 必须由负责人按新 ZIP 精确 SHA-256 单独签发。
+- **实机硬门**：在 `10.134.115.40` 按普通用户桌面身份执行 G1→G2→G3→报告。G2 必须先证明
+  四个正常阶段、迟到加载反例、受控 `ERROR` 非零退出和无残留；任一失败则 G3 及下游
+  保持 `NOT_PERFORMED`。通过 G2 后再验证无参数首启/重启首绘、真实 Provider、Stop、桌面四态与
+  125% DPI 可达最窄布局。
+- **边界**：WIN7-34 保持 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，`<=799px` 抽屉分支保持
+  `PRODUCT_UNREACHABLE / NOT_VERIFIED`。本授权不签发 WIN7-35、Alpha 2 或 RC PASS。
