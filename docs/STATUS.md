@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，WIN7-35 Driver 生命周期修复已完成开发机独立验收、待形成候选（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；WIN7-35 已冻结，实机 G1/G2 及首绘通过、G3 UI 容量硬门 FAIL；WIN7-36 已获实施授权、候选未形成（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -173,6 +173,17 @@
   `outputs/**/input-snapshot` 缺件失败，本次未改写该历史证据。产品 `main.js`、renderer、
   Runner/Policy、IPC、SQLite、权限、网络和依赖均未改动。WIN7-35 候选、authority 和
   物理 Win7 G1→G2→G3 证据仍 `NOT_PERFORMED`，不签发 Alpha 2 或 RC PASS。
+
+- 2026-09-23，后续 WIN7-35 实机运行 `9ffae420-fd2c-4c5f-93ef-c56584fe1ca4` 已更新上述历史时间点状态：
+  精确 ZIP SHA-256 为 `0d1474fddbd05c28e2109f2b7d70eb78d7e4ac786cadf2418175c7504b73749c`，
+  `10.110.237.40` 上 G1、消除旧实例干扰后的 G2、正式入口首启/重启首绘均通过；真实
+  1366×768 / 125% DPI 的 1079×540 CSS px 视口下，最坏形态列表仅 178px / 3 条完整 36px 行，
+  W35-11/W35-15 的 G3 UI 硬门 **FAIL**。1080×584 最小窗口钳大样本不构成通过证据；
+  W35-12/W35-13 DOM 身份为待隔离风险，真实 Provider 等下游 `NOT_PERFORMED`。
+  WIN7-35 保持冻结 FAIL，候选外运行证据见 `.acceptance/runs/WIN7-35/9ffae420-fd2c-4c5f-93ef-c56584fe1ca4/`。
+  现有未提交修复在开发机 1079×540 探针中得到 207px / 4 行，但不构成 Win7 PASS；
+  [WIN7-36 换发合同](plans/A9_16_WIN7_36_REISSUE_PROPOSAL.md) 后由负责人明确批准编号、C14
+  路径及 `10.110.237.40` 目标（ADR-0133、任务书 §17）；目前未提交、未换发、未签候选外 authority。
 
 - 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以

@@ -761,14 +761,38 @@ describe('A9 unified desktop workbench contract', () => {
     expect(rows).toBeGreaterThanOrEqual(4);
   });
 
+  it('binds directory-note layout selectors to the real HTML node (static-green/real-red guard)', () => {
+    // WIN7-35 根因：预算模型读的是 `.conversation-directory-note`，但 workbench.html
+    // 上该节点只有 `class="quiet"`。选择器未命中时 UA 默认 p 外边距（1em×2）会多吃约 28px，
+    // 静态预算仍绿、真实 1079×540 几何只剩 3 行。这里把「选择器必须命中真实节点」钉死。
+    const noteTag = html.match(/<p id="conversation-directory-note"([^>]*)>/);
+    expect(noteTag).not.toBeNull();
+    const classAttr = noteTag![1].match(/class="([^"]*)"/);
+    expect(classAttr).not.toBeNull();
+    const classes = classAttr![1].split(/\s+/);
+    expect(classes).toContain('conversation-directory-note');
+    // 紧凑层必须同时用 class 与 id 覆盖，避免再次漏绑。
+    const compactStart = css.indexOf('@media (max-height: 650px)');
+    const compactCss = css.slice(compactStart);
+    expect(compactCss).toMatch(/#conversation-directory-note\s*\{[^}]*margin:\s*0/);
+    expect(compactCss).toMatch(/#conversation-directory-note\s*\{[^}]*white-space:\s*nowrap/);
+    // 列表禁止横向滚动条：Win7 经典滚动条会吃掉 clientHeight，制造「模型 4 行、实机 3 行」。
+    expect(css).toMatch(/\.conversation-list\s*\{[^}]*overflow-x:\s*hidden/);
+  });
+
   it('keeps four 36px rows visible in the real 125% DPI worst-form height budget (U02/U07)', () => {
-    // WIN7-31 在 1366x768、120 DPI 的最大化普通用户桌面上只有约 540 CSS px 内容高。
-    // 最坏形态还会同时出现 Stop、两个组头、归档摘要与目录状态；这些固定项都必须计入。
+    // WIN7-35 实机：1366x768、120 DPI、可用内容视口 1079x540 CSS px（不是被最小窗口
+    // 钳大的 1080x584）。最坏形态同时出现 Stop、两个组头、归档摘要与目录状态。
+    // 本模型必须按「已绑定到真实节点」的声明值计高；未绑定选择器不得再假装生效。
     const compactStart = css.indexOf('@media (max-height: 650px)');
     const compactEnd = css.indexOf('@media (prefers-reduced-motion: reduce)');
     expect(compactStart).toBeGreaterThanOrEqual(0);
     expect(compactEnd).toBeGreaterThan(compactStart);
     const compactCss = css.slice(compactStart, compactEnd);
+    const noteTag = html.match(/<p id="conversation-directory-note"([^>]*)>/);
+    expect(noteTag).not.toBeNull();
+    expect(noteTag![1]).toMatch(/class="[^"]*\bconversation-directory-note\b/);
+
     const rule = (selector: string): string => {
       const pattern = selector.split(/\s+/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
       const match = compactCss.match(new RegExp(`${pattern}\\s*\\{([^}]*)\\}`));
@@ -807,6 +831,44 @@ describe('A9 unified desktop workbench contract', () => {
     expect(rule('.nav-item i')).toContain('display: none');
     // 行高合同不可借紧凑模式缩小。
     expect(compactCss).not.toMatch(/\.conversation-list button\s*\{[^}]*min-height:/);
+    // 注记必须单行，否则 Win7 字体度量换行会再次吃掉列表高度。
+    expect(rule('#conversation-directory-note')).toContain('white-space: nowrap');
+    expect(rule('#conversation-directory-note')).toContain('margin: 0');
+
+    // 真实视口/DPR/行数由白名单内可重放探针读取；本静态模型不得用常量比较假装已验证。
+    // 失败式回归门是 verify-geometry-probe.mjs（不符非零退出），Jest 只锁定探针合同存在。
+    const probeDir = path.join(__dirname, '../../../../docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair');
+    const probeJs = fs.readFileSync(path.join(probeDir, 'probe/probe.js'), 'utf8');
+    const probeHtml = fs.readFileSync(path.join(probeDir, 'probe/index.html'), 'utf8');
+    const verifyGate = fs.readFileSync(path.join(probeDir, 'verify-geometry-probe.mjs'), 'utf8');
+    // 根目录不得再承载探针入口（保持 C14 白名单外零实现文件）。
+    expect(fs.existsSync(path.join(__dirname, '../../../../index.html'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../../probe.js'))).toBe(false);
+    expect(probeHtml).toContain('id="conversation-list"');
+    expect(probeHtml).toContain('id="conversation-directory-note"');
+    expect(probeHtml).not.toContain('probe-banner');
+    expect(probeHtml).not.toContain('AI生成');
+    expect(probeJs).toContain('CLAMPED_HEIGHT = 584');
+    expect(probeJs).toContain('TARGET = { width: 1079, height: 540 }');
+    expect(probeJs).toContain('devicePixelRatio');
+    expect(probeJs).toContain('INVALID_VIEWPORT_CLAMPED_584');
+    expect(probeJs).toContain('INVALID_VIEWPORT_UNEXPECTED');
+    expect(probeJs).toMatch(/innerHeight !== TARGET\.height|vh !== TARGET\.height/);
+    expect(probeJs).toContain('fully_visible_rows');
+    expect(probeJs).toContain('fully_in_viewport');
+    expect(probeJs).toContain('stop_in_viewport');
+    expect(probeJs).toContain('workbench_origin_ok');
+    expect(probeJs).toContain('applySelectorMissSimulation');
+    expect(probeJs).toContain('vh === CLAMPED_HEIGHT');
+    expect(verifyGate).toContain('requireWorkbenchOrigin');
+    // 失败式门：解析三组实测结果，不符必须非零退出。
+    expect(verifyGate).toContain('A9_GEOMETRY_VERIFY_FAIL');
+    expect(verifyGate).toContain('process.exit(1)');
+    expect(verifyGate).toContain('INVALID_VIEWPORT_CLAMPED_584');
+    expect(verifyGate).toContain('simulate=selector-miss');
+    expect(verifyGate).toContain('stop_in_viewport');
+    // 静态预算仍按物理可用 540 计算；584 是探针的无效视口，不是第二目标。
+    const PHYSICAL_CONTENT_HEIGHT = 540;
 
     const chrome = 2 * box('.rail-inner', 'padding')[0]
       + Math.max(px('.brand-mark', 'height'), px('.navigation-close', 'height'), px('.brand', 'min-height'))
@@ -818,21 +880,35 @@ describe('A9 unified desktop workbench contract', () => {
       + Math.max(LINE(12, 1.55), px('.rail-stop', 'min-height'))
       + px('.trust-note summary', 'min-height') + 2 + px('.trust-note', 'margin-bottom')
       + px('.utility', 'min-height');
-    const directory = 540 - chrome - px('.conversation-directory', 'margin-bottom');
+    const directory = PHYSICAL_CONTENT_HEIGHT - chrome - px('.conversation-directory', 'margin-bottom');
+    const noteDecl = rule('#conversation-directory-note');
+    // 已绑定 + nowrap + margin:0 时，注记只占一行；若缺 nowrap，按 2 行计入以使模型变红。
+    const noteLines = /white-space:\s*nowrap/.test(noteDecl) ? 1 : 2;
+    const noteFont = (noteDecl.match(/font-size:\s*([\d.]+)px/) || [])[1];
+    const noteLh = (noteDecl.match(/line-height:\s*([\d.]+)/) || [])[1];
+    expect(noteFont).toBeTruthy();
+    expect(noteLh).toBeTruthy();
+    const noteHeight = noteLines * LINE(Number(noteFont), Number(noteLh)) + 1;
     const overhead = 2
       + px('.conversation-directory > header', 'min-height')
       + box('.conversation-search', 'padding')[0] + box('.conversation-search', 'padding')[2]
       + px('.conversation-search input', 'min-height')
       + px('.conversation-current-actions button', 'min-height') + 1
       + px('.conversation-archive-section summary', 'min-height') + 1
-      + LINE(11, 1.2) + 1
+      + noteHeight
       + 2 * baseBox('.conversation-list', 'padding')[0];
-    const list = directory - overhead;
-    const rowStep = 36 + 2 * baseBox('.conversation-list li', 'margin')[0];
-    const headStep = 20 + 2 * baseBox('.conversation-list li', 'margin')[0];
-    const rows = Math.floor((list - 2 * headStep) / rowStep);
-
-    expect(list).toBeGreaterThan(0);
+    const listClientHeight = directory - (overhead - 2 * baseBox('.conversation-list', 'padding')[0]);
+    const listContent = directory - overhead;
+    // 与 measure3 探针同口径：按钮边框盒必须完整落在 list 的 border-box 内。
+    // 相邻 li 外边距折叠为 1px，组头 20px、行 36px；最坏序列是 H1 R1 H2 R2 R3 R4。
+    const listPad = baseBox('.conversation-list', 'padding')[0];
+    const rowStep = 36 + 1;
+    const headStep = 20 + 1;
+    const fourthButtonBottom = listPad + 2 * headStep + 4 * rowStep;
+    expect(listContent).toBeGreaterThan(0);
+    expect(listClientHeight).toBeGreaterThanOrEqual(fourthButtonBottom);
+    // 同时用整除模型给出可读行数，便于失败时对照。
+    const rows = Math.floor((listContent - 2 * headStep) / rowStep);
     expect(rows).toBeGreaterThanOrEqual(4);
   });
 

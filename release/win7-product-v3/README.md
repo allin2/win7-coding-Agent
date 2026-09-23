@@ -4,6 +4,28 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-16 / WIN7-36 真实 125% DPI 短高度容量修复候选
+
+WIN7-35（ZIP SHA-256 `0d1474fddbd05c28e2109f2b7d70eb78d7e4ac786cadf2418175c7504b73749c`）
+在 `10.110.237.40` 的真实 1366×768 / 125% DPI 下通过 G1、G2 与正式首绘，但实际 1079×540
+CSS px 可用视口中，最坏形态列表只有 178px / 3 条完整 36px 行，G3 UI 硬门 FAIL。
+WIN7-36 依据 ADR-0133 与任务书 §17 修复目录注记选择器未命中导致的高度侵占，保留原有
+Driver ready 前加载、迟到加载反例、受控 ERROR 非零退出和零残留门。开发机探针在 1079×540
+得到 207px / 4 行；584px 最小窗口钳大样本判无效。这尚不是 Win7 新候选 PASS。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-16-win7-36-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+现场步骤见 [`A9_16_WIN7_36_VALIDATION.md`](A9_16_WIN7_36_VALIDATION.md)。未知 ZIP 哈希须另行取得
+候选外 `WIN7_36_RELEASE_AUTHORITY` 与独立 SHA-256 pin，才可在 Win7 进行 G1→G2→G3。
+WIN7-35 及更早候选与证据保持冻结，不重签、不补丁改包。
+
 ## A9-16 / WIN7-35 Driver ready 前加载与退出码修复候选
 
 WIN7-35 依据 ADR-0132 与任务书 §16 换发自 WIN7-34。WIN7-34 验收后发现其 Driver 在 `app.whenReady()`

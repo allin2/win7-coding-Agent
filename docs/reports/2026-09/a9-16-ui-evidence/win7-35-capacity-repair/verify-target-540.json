@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "kind": "A9_16_REAL_GEOMETRY_PROBE_RESULT",
+  "status": "PASS_DEV_GEOMETRY_NOT_WIN7",
+  "capacity_pass": true,
+  "reasons": [
+    "Dev-machine real layout at 1079x540 shows 4 fully visible 36px rows in the worst form; Stop and archive summary border-boxes are fully inside the actual viewport. This is not Win7 evidence."
+  ],
+  "measurement": {
+    "schema_version": 1,
+    "kind": "A9_16_REAL_GEOMETRY_PROBE",
+    "recorded_at": "2026-09-23T06:40:23.314Z",
+    "viewport": {
+      "innerWidth": 1079,
+      "innerHeight": 540,
+      "outerWidth": 1079,
+      "outerHeight": 627,
+      "devicePixelRatio": 1,
+      "screen_width": 800,
+      "screen_height": 600,
+      "screen_avail_width": 800,
+      "screen_avail_height": 600,
+      "doc_client_width": 1079,
+      "doc_client_height": 540,
+      "doc_scroll_width": 1079,
+      "doc_scroll_height": 540
+    },
+    "target": {
+      "width": 1079,
+      "height": 540,
+      "clamped_height": 584,
+      "min_visible_rows": 4,
+      "row_height": 36
+    },
+    "fixture": {
+      "conversation_rows": 9,
+      "group_header_count": 2,
+      "archive_summary": {
+        "intersects": true,
+        "fully_in_viewport": true,
+        "box": {
+          "x": 11,
+          "y": 394,
+          "width": 210,
+          "height": 27,
+          "right": 221,
+          "bottom": 421
+        }
+      },
+      "stop_control": {
+        "intersects": true,
+        "fully_in_viewport": true,
+        "box": {
+          "x": 126,
+          "y": 441,
+          "width": 92,
+          "height": 32,
+          "right": 218,
+          "bottom": 473
+        }
+      },
+      "archive_summary_in_viewport": true,
+      "stop_in_viewport": true
+    },
+    "geometry": {
+      "list_client_height": 207,
+      "list_scroll_height": 384,
+      "list_client_width": 210,
+      "list_scroll_width": 210,
+      "list_box": {
+        "x": 11,
+        "y": 160,
+        "width": 210,
+        "height": 207,
+        "right": 221,
+        "bottom": 367
+      },
+      "workbench_box": {
+        "x": 0,
+        "y": 0,
+        "width": 1079,
+        "height": 540,
+        "right": 1079,
+        "bottom": 540
+      },
+      "workbench_origin_ok": true,
+      "directory_box": {
+        "x": 10,
+        "y": 102,
+        "width": 212,
+        "height": 334,
+        "right": 222,
+        "bottom": 436
+      },
+      "note_box": {
+        "x": 11,
+        "y": 421,
+        "width": 210,
+        "height": 14,
+        "right": 221,
+        "bottom": 435
+      },
+      "note_style": {
+        "font_size": "11px",
+        "line_height": "13.2px",
+        "margin_top": "0px",
+        "margin_bottom": "0px",
+        "white_space": "nowrap",
+        "overflow": "hidden"
+      },
+      "group_headers": [
+        {
+          "text": "进行中1",
+          "height": 20
+        },
+        {
+          "text": "更早8",
+          "height": 20
+        }
+      ],
+      "row_heights": [
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+        36
+      ],
+      "fully_visible_rows": 4,
+      "horizontal_overflow_px": 0,
+      "vertical_overflow_px": 0
+    },
+    "simulate": null
+  }
+}

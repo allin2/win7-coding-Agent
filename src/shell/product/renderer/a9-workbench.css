@@ -136,9 +136,9 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .conversation-search input { width: 100%; min-height: 28px; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--raised); color: var(--text); font-size: 12px; }
 .conversation-search input::placeholder { color: var(--muted); }
 .conversation-search input:focus { border-color: var(--accent); }
-.conversation-list { flex: 1 1 auto; min-height: 44px; margin: 0; padding: 4px; overflow: auto; list-style: none; }
+.conversation-list { flex: 1 1 auto; min-height: 44px; margin: 0; padding: 4px; overflow-x: hidden; overflow-y: auto; list-style: none; }
 .conversation-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin: 1px 0; }
-.conversation-list button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: baseline; min-width: 0; min-height: 36px; padding: 4px 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-secondary); text-align: left; }
+.conversation-list button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 6px; align-items: baseline; min-width: 0; min-height: 36px; padding: 4px 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-secondary); text-align: left; overflow: hidden; }
 .conversation-list button:hover:not(:disabled) { border-color: var(--line); background: var(--raised); }
 .conversation-list button[aria-current="true"] { border-color: var(--accent); background: var(--soft); color: var(--accent-strong); }
 .conversation-list strong, .conversation-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -160,6 +160,7 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .conversation-archive-section[open] { max-height: 150px; overflow: auto; }
 .conversation-archive-section[hidden] { display: none; }
 .conversation-directory-note { flex: 0 0 auto; margin: 0; padding: 1px 8px; border-top: 1px solid var(--line); font-size: 11px; }
+#conversation-directory-note { flex: 0 0 auto; margin: 0; padding: 1px 8px; border-top: 1px solid var(--line); font-size: 11px; }
 .conversation-empty-note { margin: 6px 2px; color: var(--muted); font-size: 12px; }
 
 .rail-task { margin: 0 2px; padding: 4px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -482,7 +483,10 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
   .conversation-search input { min-height: 26px; padding: 2px 7px; }
   .conversation-current-actions button { min-height: 26px; }
   .conversation-archive-section summary { min-height: 26px; padding: 2px 7px; }
-  .conversation-directory-note { padding: 0 6px; line-height: 1.2; }
+  /* 注记必须单行；`.quiet` 在源码顺序上会覆盖 11px，这里在紧凑层重新钉住。
+     若选择器未命中真实节点（历史上 class 漏挂），UA 默认 p 外边距会多吃约 28px。 */
+  .conversation-directory-note { flex: 0 0 auto; margin: 0; padding: 0 6px; border-top: 1px solid var(--line); font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #conversation-directory-note { flex: 0 0 auto; margin: 0; padding: 0 6px; border-top: 1px solid var(--line); font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rail-task { display: grid; grid-template-columns: minmax(0, 1fr) 92px; align-items: center; gap: 6px; padding: 2px 4px; }
   .rail-task > .eyebrow, .rail-task p { display: none; }
   .rail-task-state { min-width: 0; margin-top: 0; }

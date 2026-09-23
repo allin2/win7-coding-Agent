@@ -6,9 +6,9 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_35_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_UI_SUBSET_INTEGRATION_PASS / WIN7_35_NOT_FORMED
-Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129 / ADR-0130 / ADR-0131 / ADR-0132
+Phase-Gate: A9_16_WIN7_36_IMPLEMENTATION_AUTHORIZED
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_UI_SUBSET_INTEGRATION_PASS / WIN7_35_G3_UI_FAILED / WIN7_36_NOT_FORMED
+Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129 / ADR-0130 / ADR-0131 / ADR-0132 / ADR-0133
 ```
 
 ## 1. 需求来源与授权边界
@@ -430,3 +430,43 @@ input lock、authority、原始/修订报告与全部证据保持不可变。
   125% DPI 可达最窄布局。
 - **边界**：WIN7-34 保持 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，`<=799px` 抽屉分支保持
   `PRODUCT_UNREACHABLE / NOT_VERIFIED`。本授权不签发 WIN7-35、Alpha 2 或 RC PASS。
+
+## 17. WIN7-35 实机短高度容量失败与 WIN7-36 换发授权（2026-09-23，负责人指令）
+
+负责人已明确批准 [WIN7-36 换发合同](../plans/A9_16_WIN7_36_REISSUE_PROPOSAL.md) 的编号、
+C14 允许路径及 `10.110.237.40` 验收目标。决策为 ADR-0133。此批准不包含尚未知哈希的
+`WIN7_36_RELEASE_AUTHORITY`，也不改判 WIN7-35。
+
+- **冻结失败事实**：WIN7-35 ZIP SHA-256
+  `0d1474fddbd05c28e2109f2b7d70eb78d7e4ac786cadf2418175c7504b73749c`，物理 Win7 run
+  `9ffae420-fd2c-4c5f-93ef-c56584fe1ca4`；G1 PASS、旧实例退出后的 G2 PASS、正式入口首绘 PASS，
+  但真实 1366×768 / 125% DPI（AppliedDPI=120）可用视口 1079×540 CSS px 下，最坏形态列表仅
+  178px、36px 普通行仅 3 条完整可见，W35-11/W35-15 G3 UI 硬门 FAIL。1080×584 属最小窗口
+  钳大后的无效对照，不得将其 5 行计 PASS。W35-12/W35-13 DOM 身份仍为待隔离风险，真实 Provider
+  与失败硬门后的下游 `NOT_PERFORMED`。
+- **范围与身份**：新候选 `WIN7-36` 只承接短高度目录注记选择器绑定、单行/零外边距和必要的列表
+  横溢出控制；保留 36px 行高、Stop/归档可见、桌面四态、WIN7-35 Driver 生命周期/退出码及全部
+  15 项 UI 子集验收合同。版本仍为 `WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1`；Review 和 Shell
+  运行中输出不开放。WIN7-35 及更早候选、manifest、authority、报告与证据保持不可变。
+- **C14 允许路径**：产品源码仅 `src/shell/product/renderer/workbench.html`、
+  `src/shell/product/renderer/a9-workbench.css`、`src/shell/tests/product/a9-workbench-contract.test.ts`；
+  候选代码仅 `scripts/release/build-a9-product-v3.mjs`、`scripts/release/test/a9-package.test.mjs`，
+  `release/win7-product-v3/` 下新增 WIN7-36 专属 input lock、integrity/report/smoke、两份 CMD、
+  `A9_16_WIN7_36_VALIDATION.md`，以及更新该目录 `README.md`。相关文档限本任务书、
+  `docs/tasks/README.md`、`docs/STATUS.md`、`docs/plans/A9_16_WIN7_36_REISSUE_PROPOSAL.md`、
+  `docs/reports/2026-09/**`；`docs/DECISIONS.md` 只新增 ADR-0133。不得改写历史候选发布脚本。
+- **开发机与打包门**：定向工作台契约、Shell lint/build、实际渲染几何门及其 584px 钳大/选择器
+  失效反例、package 正负向回归、`verify:quick`、`git diff --check`。新 profile、lock、Kit ID、
+  W36-01～15 键、`WIN7_36_RELEASE_AUTHORITY`、候选作用域错误码全部重基线，派生残留守卫拒绝旧
+  W35 键。只暂存本任务相关明确路径形成一个本地提交，不推送、不打标签；两个独立干净工作树
+  双构建 ZIP 逐字节一致、manifest `source_dirty=false` 且 `external_acceptance_eligible=true`，
+  然后冻结到新的 WIN7-36 候选路径。
+- **授权与实机门**：候选 ZIP、manifest、源码提交和 input lock 精确哈希确定后，仍须负责人单独
+  批准候选外 `WIN7_36_RELEASE_AUTHORITY` 与独立 SHA-256 pin；此前 G1/G2/G3 均
+  `NOT_PERFORMED`。获批后在 `10.110.237.40` 普通用户非提升桌面身份按 G1→G2→G3→报告，
+  G2 包含四阶段、迟到加载、受控 ERROR 非零退出和零残留；G3 必须按真实 1079×540 视口
+  验证至少 4 条完整 36px 行与 Stop/归档可见，再完成真实 Provider、四态、重启/焦点、可达最窄
+  847px 和 15/15 当前候选用例。W36-12/W36-13 DOM 身份先在无轮询时隔离切栏，再在运行中记录
+  刷新时点，分开裁决。任一硬门失败停止下游，保留失败证据并把未执行项记 `NOT_PERFORMED`。
+- **结论上限**：最多签发 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；不得借此签发 Alpha 2、Review、
+  Shell streaming 或 RC PASS；`<=799px` 抽屉分支仍 `PRODUCT_UNREACHABLE / NOT_VERIFIED`。

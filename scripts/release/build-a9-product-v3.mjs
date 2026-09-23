@@ -156,12 +156,21 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-35-smoke.cjs'],
     evidenceDirectory: 'a9-win7-35-evidence',
   },
+  // ADR-0133：WIN7-35 真实 1079x540/125% DPI 下仅 3 行，换发短高度目录注记修复。
+  'A9-16-INPUTS-RESPONSIVE-UI-WIN7-36': {
+    task: 'A9-16', candidate: 'WIN7-36', lockFile: 'a9-16-win7-36-input-lock.json',
+    kitFile: 'A9_16_VALIDATION_KIT.json', validationDoc: 'A9_16_WIN7_36_VALIDATION.md',
+    integrityCommand: 'RUN_A9_16_W36_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_36_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w36.cjs', reportScript: 'a9-win7-36-report.cjs',
+    extraValidationScripts: ['a9-win7-36-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-36-evidence',
+  },
 };
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36']);
 
 // ADR-0126：派生脚本残留守卫。
 //
@@ -220,10 +229,16 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     // WIN7-31 起，投影证据 case key 也属于候选身份。只检查引号内的真实对象键，
     // 避免历史说明文字误报；03/09/10 任一仍指向旧 Wxx 都必须在构建期失败。
-    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)) {
+    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate)) {
       const expectedPrefix = profile.candidate.replace('WIN7-', 'W');
       for (const match of source.matchAll(/['"](W\d+)-(03-INSPECTOR-PERSISTED-RESTART|09-LATEST-OUTCOME-PROJECTION|10-OLDER-EVENT-PAGINATION)['"]/g)) {
         if (match[1] !== expectedPrefix) hits.push(`${file}: ${match[0]} (expected ${expectedPrefix}-${match[2]})`);
+      }
+    }
+    if (profile.candidate === 'WIN7-36') {
+      // 继承 W35 生命周期实现，但所有当前候选作用域错误码与 authority 必须重基线。
+      for (const match of source.matchAll(/A9_W35_[A-Z0-9_]+|WIN7_35_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_35_VALIDATION|['"]W35-\d{2}-[A-Z0-9-]+['"]/g)) {
+        hits.push(`${file}: inherited WIN7-35 active token ${match[0]}`);
       }
     }
   }
@@ -235,7 +250,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
 function writeCandidateDriver(root, validationRoot, profile) {
   const sourcePath = path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
   const targetPath = path.join(validationRoot, `a9-${profile.candidate.toLowerCase()}-driver.cjs`);
-  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)) {
+  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate)) {
     fs.copyFileSync(sourcePath, targetPath);
     return;
   }
@@ -247,6 +262,9 @@ function writeCandidateDriver(root, validationRoot, profile) {
     ['W28-10-OLDER-EVENT-PAGINATION', `${candidatePrefix}-10-OLDER-EVENT-PAGINATION`],
     ['A9_W28_PROJECTION_EVIDENCE_PACKAGE', `A9_${candidatePrefix}_PROJECTION_EVIDENCE_PACKAGE`],
   ];
+  if (profile.candidate === 'WIN7-36') {
+    replacements.push(['A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD', 'A9_W36_DRIVER_PRODUCT_ENTRY_LATE_LOAD']);
+  }
   for (const [before, after] of replacements) {
     const occurrences = source.split(before).length - 1;
     if (occurrences !== 1) throw new Error(`A9_${candidatePrefix}_DRIVER_REBASE_SOURCE_INVALID:${before}:${occurrences}`);
@@ -380,7 +398,7 @@ export function buildA9ProductCandidate(options) {
     }
     // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
     // ADR-0125：WIN7-29 继承同一投影合同，因此同样需要随包携带该模块。
-    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)) {
+    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate)) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
         path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
@@ -512,7 +530,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
-    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
+    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -802,19 +820,22 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
   const casePrefix = profile.candidate.replace('WIN7-', 'W');
   // ADR-0125：WIN7-29 为 A9-16 UI 子集候选，继承 W28 的完整用例集（含投影与分页），
   // 并追加 U01–U07 的响应式工作台用例；历史 profile 的用例集合保持原样。
-  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate);
-  const reachableNarrowFloorCandidate = profile.candidate === 'WIN7-35';
+  const responsiveUiCandidate = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate);
+  const reachableNarrowFloorCandidate = ['WIN7-35', 'WIN7-36'].includes(profile.candidate);
+  const realShortHeightGateCandidate = profile.candidate === 'WIN7-36';
   // ADR-0120：WIN7-27 保留 W26 的投影用例，同时恢复 W24/W25 的审批与失败顺序用例，
   // 并把最新轮次投影作为独立用例追加；历史 profile 的用例集合保持原样。
   const usesProjectionCase = ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
   const restoresApprovalCase = ['WIN7-27', 'WIN7-28'].includes(profile.candidate) || responsiveUiCandidate;
   // ADR-0121：WIN7-28 额外要求独立的分页用例。
   const addsPagingCase = profile.candidate === 'WIN7-28' || responsiveUiCandidate;
-  const kitDate = profile.candidate === 'WIN7-35' ? '20260922'
+  const kitDate = profile.candidate === 'WIN7-36' ? '20260923'
+    : profile.candidate === 'WIN7-35' ? '20260922'
     : ['WIN7-32', 'WIN7-33', 'WIN7-34'].includes(profile.candidate) ? '20260915'
     : responsiveUiCandidate ? '20260914'
     : ['WIN7-26', 'WIN7-27', 'WIN7-28'].includes(profile.candidate) ? '20260910' : '20260909';
-  const decision = profile.candidate === 'WIN7-35' ? 'ADR-0132'
+  const decision = profile.candidate === 'WIN7-36' ? 'ADR-0133'
+    : profile.candidate === 'WIN7-35' ? 'ADR-0132'
     : profile.candidate === 'WIN7-34' ? 'ADR-0130'
     : profile.candidate === 'WIN7-33' ? 'ADR-0129'
     : profile.candidate === 'WIN7-32' ? 'ADR-0128'
@@ -826,7 +847,8 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     : profile.candidate === 'WIN7-26' ? 'ADR-0119'
     : profile.candidate === 'WIN7-25' ? 'ADR-0118'
     : profile.candidate === 'WIN7-24' ? 'ADR-0116' : 'ADR-0115';
-  const historicalCandidate = profile.candidate === 'WIN7-35' ? 'WIN7-34'
+  const historicalCandidate = profile.candidate === 'WIN7-36' ? 'WIN7-35'
+    : profile.candidate === 'WIN7-35' ? 'WIN7-34'
     : profile.candidate === 'WIN7-34' ? 'WIN7-33'
     : profile.candidate === 'WIN7-33' ? 'WIN7-32'
     : profile.candidate === 'WIN7-32' ? 'WIN7-31'
@@ -849,7 +871,7 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
     'src/shell/product/a9-agent-runtime.js',
     'src/shell/product/a9-product-ipc.js',
     'src/shell/product/preload.js',
-    ...(['WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate) ? ['src/shell/product/main.js'] : []),
+    ...(['WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate) ? ['src/shell/product/main.js'] : []),
     'src/shell/product/renderer/a9-workbench.css',
     'src/shell/product/renderer/a9-workbench.js',
     'src/shell/product/renderer/workbench.html',
@@ -995,7 +1017,9 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
             'every conversation row is a single line of title plus status and time; no row wraps to a second line',
             'in the worst form (two group headers plus the archive section) at least four conversation rows are fully visible without scrolling',
             'row height stays at 36px; capacity is met by compacting fixed chrome, not by shrinking the row height',
-            'the 进行中 / 更早 group headers follow the persisted activity field and the trust note is collapsed by default'],
+            'the 进行中 / 更早 group headers follow the persisted activity field and the trust note is collapsed by default',
+            ...(realShortHeightGateCandidate ? ['the actual physical usable viewport is 1079x540 CSS px; a minimum-window-clamped 584px sample is invalid even if five rows appear',
+              'Stop and archive summary border boxes are fully inside the actual viewport and the list has no horizontal overflow'] : [])],
           ['ordinary-user layout capture of the worst-form conversation list',
             'measured fully visible row count and row height facts',
             'left rail section bounding boxes']),
@@ -1005,7 +1029,8 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
             'switching any of the four states produces no scrollWidth or scrollHeight overflow at the target viewport',
             'aria-expanded on both header toggles agrees with the visible state after every switch',
             'the conversation list DOM is not rebuilt across state switches: node identity is preserved',
-            'a collapsed rail keeps its scroll position and is hidden with visibility rather than display:none'],
+            'a collapsed rail keeps its scroll position and is hidden with visibility rather than display:none',
+            ...(realShortHeightGateCandidate ? ['node identity is compared first in a stable directory without running-task polling; running-task refresh timing is recorded separately from sidebar toggles'] : [])],
           ['four-state capture set', 'overflow measurements per state',
             'aria-expanded facts per state', 'DOM node identity before/after comparison']),
         caseOf('W23-13-BREAKPOINT-CONVERGENCE-REGRESSION',
@@ -1033,7 +1058,8 @@ function createA915ValidationKit(root, sourceCommit, lock, profile) {
           ['the measured viewport is the real 1366x768 desktop at 125% DPI, not a Chromium zoom proxy, and the DPI source is recorded',
             'the fully visible conversation row count in the worst form meets the capacity floor',
             'no overflow appears at real 125% DPI in any of the four desktop states',
-            'the DPI and viewport facts are captured inside the ordinary-user non-elevated desktop session'],
+            'the DPI and viewport facts are captured inside the ordinary-user non-elevated desktop session',
+            ...(realShortHeightGateCandidate ? ['the observed usable content viewport is 1079x540 CSS px with DPI source AppliedDPI=120; a 584px clamped viewport cannot satisfy the capacity assertion'] : [])],
           ['DPI and viewport facts from the Win7 session',
             'worst-form layout capture at 125% DPI', 'overflow measurements at 125% DPI']),
       ] : []),
@@ -1084,7 +1110,7 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125：WIN7-29 的权威任务书是 A9-16，不再是 A9-15。
-  const taskBook = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35'].includes(profile.candidate)
+  const taskBook = ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate)
     ? 'docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md'
     : A915_CANDIDATES.has(profile.candidate)
       ? 'docs/tasks/A9_15_UI_PROGRESS_FEEDBACK.md'
@@ -1242,8 +1268,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-34'
     && lock.provenance?.previous_candidate_result === 'A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS_WITH_DRIVER_LIFECYCLE_GAP'
     && lock.provenance?.change_scope === 'DRIVER_PRE_READY_PRODUCT_ENTRY_AND_EXIT_CODE_REPAIR';
+  const win36Provenance = profile.candidate === 'WIN7-36'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_36'
+    && lock.provenance?.task === 'A9-16' && lock.provenance?.previous_candidate === 'WIN7-35'
+    && lock.provenance?.previous_candidate_result === 'G3_REAL_125_PERCENT_DPI_LEFT_PANE_CAPACITY_FAILED'
+    && lock.provenance?.change_scope === 'REAL_125_PERCENT_DPI_DIRECTORY_NOTE_SELECTOR_BINDING_REPAIR';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance && !win36Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;
