@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；WIN7-35 已冻结，实机 G1/G2 及首绘通过、G3 UI 容量硬门 FAIL；WIN7-36 已获实施授权、候选未形成（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；WIN7-35 已冻结，实机 G1/G2 及首绘通过、G3 UI 容量硬门 FAIL；WIN7-36 已冻结待候选外 authority，实机 `NOT_PERFORMED`（均非 RC） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -183,7 +183,18 @@
   WIN7-35 保持冻结 FAIL，候选外运行证据见 `.acceptance/runs/WIN7-35/9ffae420-fd2c-4c5f-93ef-c56584fe1ca4/`。
   现有未提交修复在开发机 1079×540 探针中得到 207px / 4 行，但不构成 Win7 PASS；
   [WIN7-36 换发合同](plans/A9_16_WIN7_36_REISSUE_PROPOSAL.md) 后由负责人明确批准编号、C14
-  路径及 `10.110.237.40` 目标（ADR-0133、任务书 §17）；目前未提交、未换发、未签候选外 authority。
+  路径及 `10.110.237.40` 目标（ADR-0133、任务书 §17）；当时尚未提交、换发或签候选外 authority。
+- 2026-09-23，WIN7-36 修复在本地干净提交 `f0e80ecfabaaf8414d2778e4481f7e8d68e54f40` 冻结。
+  工作台契约 32/32、package 测试 35/35、Shell lint/build、实际渲染几何门与反例、`verify:quick`
+  均 PASS；`docs:check` 在干净工作树仅剩 9 处既有 A9-17 临时路径断链，未命中 W36 文件。
+  两个独立干净工作树构建的 ZIP 逐字节一致，SHA-256
+  `8f730c5ae9ab86d83ecbfe3033a00e32a935dd5217d3ab30e4c75710adbe2a3a`；manifest SHA-256
+  `1a9fa1584cd4f99295df6c44ad5ced47cc44c5dfd2d810c09841fe0557de00e2`；正式 input lock SHA-256
+  `d99c0dcf16d44cbceed41e6e6b4a6622877c856aaa40cfc6fc664d689cde676a`。manifest 为
+  `source_dirty=false`、`external_acceptance_eligible=true`；冻结件在 `.acceptance/candidates/WIN7-36/`，
+  双构建在 `.acceptance/builds/WIN7-36/f0e80ec-reissue/`，开发机仓库 ZIP verifier 预检 PASS。
+  尚未签发候选外 `WIN7_36_RELEASE_AUTHORITY` 与独立 pin，Win7 G1/G2/G3 均 `NOT_PERFORMED`，
+  不签发 Alpha 2、Review、Shell streaming 或 RC PASS。
 
 - 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以

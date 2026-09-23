@@ -470,3 +470,14 @@ C14 允许路径及 `10.110.237.40` 验收目标。决策为 ADR-0133。此批�
   刷新时点，分开裁决。任一硬门失败停止下游，保留失败证据并把未执行项记 `NOT_PERFORMED`。
 - **结论上限**：最多签发 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；不得借此签发 Alpha 2、Review、
   Shell streaming 或 RC PASS；`<=799px` 抽屉分支仍 `PRODUCT_UNREACHABLE / NOT_VERIFIED`。
+- **WIN7-36 源码与候选冻结结果**：修复提交为 `f0e80ecfabaaf8414d2778e4481f7e8d68e54f40`。
+  工作台契约 32/32、package 全集 35/35、Shell lint/build、实际渲染几何门及受控负例、
+  `verify:quick` 均 PASS；干净工作树的 `docs:check` 仅剩 9 处既有 A9-17 临时路径断链。
+  两个独立干净工作树得到逐字节一致的 ZIP，SHA-256
+  `8f730c5ae9ab86d83ecbfe3033a00e32a935dd5217d3ab30e4c75710adbe2a3a`；manifest SHA-256
+  `1a9fa1584cd4f99295df6c44ad5ced47cc44c5dfd2d810c09841fe0557de00e2`；input lock SHA-256
+  `d99c0dcf16d44cbceed41e6e6b4a6622877c856aaa40cfc6fc664d689cde676a`。清单确认
+  `source_dirty=false`、`external_acceptance_eligible=true`，候选冻结于 `.acceptance/candidates/WIN7-36/`，
+  双构建保留于 `.acceptance/builds/WIN7-36/f0e80ec-reissue/`。仓库 ZIP verifier 开发机预检 PASS，
+  不等于候选外 authority 或实机验收。目前未签发 authority 与独立 pin，G1/G2/G3 均 `NOT_PERFORMED`；
+  未推送、未打标签。
