@@ -52,6 +52,8 @@ const win35Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win35Report = require('../../../release/win7-product-v3/a9-win7-35-report.cjs');
 const win36Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w36.cjs');
 const win36Report = require('../../../release/win7-product-v3/a9-win7-36-report.cjs');
+const win37Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w37.cjs');
+const win37Report = require('../../../release/win7-product-v3/a9-win7-37-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -308,19 +310,28 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36'].includes(candidate)) {
+  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36', 'win37'].includes(candidate)) {
     const number = candidate.slice(-2);
     // A9-16 谱系（WIN7-29 ～ WIN7-36）使用 A9-16 的 lock 身份与冻结日期。
-    lock.lock_id = ['win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36'].includes(candidate)
+    lock.lock_id = candidate === 'win37' ? 'A9-19-INPUTS-LIVE-PROGRESS-WIN7-37'
+      : ['win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36'].includes(candidate)
       ? `A9-16-INPUTS-RESPONSIVE-UI-WIN7-${number}`
       : `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
-    lock.source_date_epoch = candidate === 'win36' ? 1790121600
+    lock.source_date_epoch = candidate === 'win37' ? 1790294400
+      : candidate === 'win36' ? 1790121600
       : candidate === 'win35' ? 1790035200
       : ['win32', 'win33', 'win34'].includes(candidate) ? 1789430400
       : ['win29', 'win30', 'win31'].includes(candidate) ? 1789344000 : 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win36'
+    lock.provenance = candidate === 'win37'
+      ? {
+        // ADR-0136：WIN7-37 在不可变的 WIN7-36 之上承接 A9-19。
+        task: 'A9-19', previous_candidate: 'WIN7-36',
+        previous_candidate_result: 'A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS_WITH_REACHABLE_RESPONSIVE_EQUIVALENCE',
+        change_scope: 'A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT',
+      }
+      : candidate === 'win36'
       ? {
         // ADR-0133：WIN7-36 换发自真实 125% DPI 短高度容量失败的 WIN7-35。
         task: 'A9-16', previous_candidate: 'WIN7-35',
@@ -1596,6 +1607,77 @@ test('WIN7-36 build rejects stale W35 candidate-scoped errors after driver deriv
   assert.throws(() => buildA9ProductCandidate({
     repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
   }), /A9_CANDIDATE_STALE_TOKEN:WIN7-36:.*A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-37 carries A9-19 on the immutable WIN7-36 with a 21-case current-candidate closure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win37-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win37');
+  const built = buildA9ProductCandidate({ repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') });
+  const stage = built.stage;
+  const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'release-manifest.json'), 'utf8'));
+  const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_19_VALIDATION_KIT.json'), 'utf8'));
+  for (const relative of win37Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-37 closure: ${relative}`);
+  }
+  assert.equal(kit.kit_id, 'A9-19-WIN7-37-LIVE-PROGRESS-20260925-01');
+  assert.equal(kit.candidate_label, 'WIN7-37');
+  assert.equal(kit.scope.decision, 'ADR-0136');
+  assert.equal(kit.scope.result_on_complete, 'A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS');
+  assert.ok(kit.scope.does_not_reissue.includes('A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS'));
+  assert.equal(kit.scope.historical_candidate, 'WIN7-36 remains immutable and is not reclassified');
+  assert.equal(kit.external_release_authority.kind, 'WIN7_37_RELEASE_AUTHORITY');
+  assert.equal(kit.required_cases.length, 21);
+  assert.ok(kit.required_cases.every((item) => /^W37-\d{2}-/.test(item.case_id)));
+  for (const caseId of ['W37-16-LIVE-PROCESS', 'W37-17-LIVE-MODEL-PREVIEW', 'W37-18-ROW-TITLES',
+    'W37-19-CONVERSATION-HEIGHT', 'W37-20-RAIL-PRESERVED', 'W37-21-HEADER-AND-LABELS']) {
+    const item = kit.required_cases.find((entry) => entry.case_id === caseId);
+    assert.ok(item && item.assertions.length >= 3, `W37 case required: ${caseId}`);
+  }
+  assert.ok(Object.keys(kit.source_artifact_hashes).includes('docs/tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md'));
+  assert.ok(Object.keys(kit.source_artifact_hashes).includes('src/workspace/src/a9-workspace-service.ts'));
+  assert.equal(win37Report.KIT_ID, kit.kit_id);
+  assert.equal(win37Report.REQUIRED_CASE_COUNT, 21);
+
+  const driver = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-37-driver.cjs'), 'utf8');
+  for (const suffix of ['03-INSPECTOR-PERSISTED-RESTART', '09-LATEST-OUTCOME-PROJECTION', '10-OLDER-EVENT-PAGINATION']) {
+    assert.ok(driver.includes(`W37-${suffix}`), `W37 driver key required: ${suffix}`);
+    assert.ok(!driver.includes(`W36-${suffix}`), `stale W36 driver key prohibited: ${suffix}`);
+  }
+  assert.ok(driver.includes('A9_W37_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
+  assert.ok(!driver.includes('A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD') && !driver.includes('A9_W36_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
+  assert.ok(driver.includes('async function runLiveProcess(win, exec, env)'));
+  const smoke = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-37-smoke.cjs'), 'utf8');
+  for (const token of ['A9_SMOKE_FORCE_LATE_PRODUCT_LOAD', 'A9_SMOKE_FORCE_STAGE_ERROR', "A9_SMOKE_MODE: 'live'",
+    'A9-W37-LATE-LOAD-REJECTED', 'A9-W37-CONTROLLED-ERROR-NONZERO', 'A9-W37-NEGATIVE-PROBES-NO-RESIDUE',
+    'A9-W37-LIVE-TOOL-CARD-BEFORE-COMPLETION', 'A9-W37-LIVE-PREVIEW-BEFORE-COMPLETION', 'A9-W37-LIVE-SECRET-NOT-EXPOSED',
+    'A9-W37-RAIL-PRESERVED-AFTER-WORKSPACE-AND-CONVERSATION', 'A9-W37-HEADER-AND-LABELS', 'phases.length === 5']) {
+    assert.ok(smoke.includes(token), `W37 smoke token required: ${token}`);
+  }
+  const renderer = fs.readFileSync(path.join(stage, 'resources', 'app', 'product', 'renderer', 'a9-workbench.js'), 'utf8');
+  assert.ok(renderer.includes('function dismissNavigationDrawer()'));
+  assert.ok(renderer.includes('function renderLivePreview(block, terminal)'));
+  const runtime = fs.readFileSync(path.join(stage, 'resources', 'app', 'product', 'a9-agent-runtime.js'), 'utf8');
+  assert.ok(runtime.includes('liveModelPreview: computeLiveModelPreview()'));
+  assert.equal(manifest.source_dirty, false);
+  assert.equal(manifest.external_acceptance_eligible, true);
+  assert.equal(manifest.gates.win7, 'NOT_PERFORMED');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('WIN7-37 build rejects stale W36 candidate-scoped tokens after driver derivation', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win37-stale-token-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  fs.appendFileSync(path.join(sourceRepositoryRoot, 'release', 'win7-product-v3', 'a9-package-integrity-w37.cjs'),
+    "\nconst staleCodeForTest = 'A9_W36_KIT_CONTRACT_INVALID';\n", 'utf8');
+  execFileSync('git', ['add', 'release/win7-product-v3/a9-package-integrity-w37.cjs'], { cwd: sourceRepositoryRoot });
+  execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'inject stale W36 code'], { cwd: sourceRepositoryRoot });
+  const inputs = fixture(root, sourceRepositoryRoot, 'win37');
+  assert.throws(() => buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  }), /A9_CANDIDATE_STALE_TOKEN:WIN7-37:.*A9_W36_KIT_CONTRACT_INVALID/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

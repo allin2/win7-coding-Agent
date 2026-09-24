@@ -273,7 +273,7 @@ function installDriverPreReadySeamsAndLoadProduct() {
 
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
-  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop') {
+  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop' || mode === 'live') {
     // Start with no active workspace, then drive the real workspace.select IPC.
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
@@ -345,7 +345,7 @@ async function main() {
     return;
   }
 
-  if (mode === 'first' || mode === 'stop') {
+  if (mode === 'first' || mode === 'stop' || mode === 'live') {
     await exec('document.getElementById("workspace-select").click(); true');
     const explorer = await waitFor(() => exec(`(() => {
       const file = Array.from(document.querySelectorAll('#workspace-tree button'))
@@ -373,6 +373,8 @@ async function main() {
     await runSecondProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'retry') {
     await runRetryProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'live') {
+    await runLiveProcess(win, exec, { fixtureUrl, testKey: process.env.A9_SMOKE_LIVE_TEST_KEY || '' });
   } else if (mode === 'stop') {
     await runStopProcess(win, exec, {
       workspaceRoot,
@@ -1952,6 +1954,126 @@ async function runStopProcess(win, exec, env) {
   const outcome = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent').then((t) => (t.includes('cancelled') ? t : null)), 45_000, 'cancelled outcome');
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)');
   record('A9F6-STOP-TURN-CANCELLED', Boolean(outcome) && snapshot.agentStatus === 'cancelled', `outcome=${outcome}; agentStatus=${snapshot.agentStatus}`);
+}
+
+/**
+ * A9-19 / W37 实时性旅程（ADR-0136）：延迟流式 fixture 下，运行中的过程与模型输出预览必须在轮次完成前
+ * 出现在正式产品 DOM；逐项记录“落盘 → DOM 可见”间隔；拆分到多个 chunk 的测试密钥及其前缀不得出现。
+ * 同时核对头部/文案（W37-21）与工作区选择、新建对话后桌面左栏保持（W37-20）。只新增本模式，
+ * 既有旅程与历史用例语义不变。
+ */
+async function runLiveProcess(win, exec, env) {
+  if (!env.testKey || env.testKey.length < 16) throw new Error('A9_W37_LIVE_TEST_KEY_REQUIRED');
+  await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
+  await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.mode)').then((m) => (m === 'full_access' ? m : null)), 15_000, 'live mode set');
+  await exec(`(() => {
+    document.getElementById('a9-provider-url').value = ${JSON.stringify(env.fixtureUrl)};
+    document.getElementById('a9-provider-model').value = 'live-progress-model';
+    document.getElementById('a9-provider-key').value = ${JSON.stringify(env.testKey)};
+    document.getElementById('a9-provider-remember').checked = false;
+    document.getElementById('a9-provider-apply').click();
+    return true;
+  })()`);
+  const probe = await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'live provider probe');
+  record('A9-W37-LIVE-PROVIDER-PROBE', probe === 'tool_calling', `probe=${probe}`);
+  await exec('(() => { const b = document.querySelector(".drawer:not([hidden]) [data-close]"); if (b) b.click(); return true; })()');
+
+  const before = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.activeConversationId || "")');
+  await exec('(() => { const b = document.getElementById("conversation-new"); if (b && !b.disabled) b.click(); return true; })()');
+  const conversationId = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.activeConversationId || "")')
+    .then((id) => (id && id !== before ? id : null)), 15_000, 'live conversation');
+  await sleep(400);
+  const chrome = await exec(`(() => {
+    const workbench = document.querySelector('.workbench');
+    const shown = (node) => Boolean(node) && !node.hidden && getComputedStyle(node).display !== 'none';
+    const text = document.body.innerText;
+    return {
+      innerWidth: window.innerWidth,
+      railClosed: workbench.classList.contains('rail-closed'),
+      railAria: document.getElementById('open-navigation').getAttribute('aria-expanded'),
+      headerVisible: Array.from(document.querySelectorAll('.header-status > *')).filter(shown).map((node) => node.id),
+      forbiddenLabels: ['REQUEST', 'CONVERSATIONS', 'INSPECTOR', 'AGENT /', 'CURRENT TASK', 'tool_calling'].filter((label) => text.includes(label)),
+      railStopShown: shown(document.getElementById('rail-stop')),
+      reviewNavShown: shown(document.querySelector('.nav-item.roadmap')),
+    };
+  })()`);
+  record('A9-W37-RAIL-PRESERVED-AFTER-WORKSPACE-AND-CONVERSATION',
+    chrome.innerWidth >= 800 && chrome.railClosed === false && chrome.railAria === 'true', JSON.stringify(chrome));
+  record('A9-W37-HEADER-AND-LABELS',
+    JSON.stringify(chrome.headerVisible) === JSON.stringify(['a9-mode-open', 'task-state', 'open-inspector'])
+      && chrome.forbiddenLabels.length === 0 && chrome.railStopShown === false && chrome.reviewNavShown === false,
+    JSON.stringify(chrome));
+
+  await exec('(() => { const prompt = document.getElementById("task-prompt"); prompt.value = "live progress probe"; prompt.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const started = Date.now();
+  const timeline = [];
+  const firstPersisted = {};
+  const firstDom = {};
+  let previewBeforeCompletion = false;
+  let secretExposed = false;
+  let runningSeen = false;
+  let completedAt = null;
+  const keyPrefix = env.testKey.slice(0, 10);
+  while (Date.now() - started < 90_000) {
+    const t = Date.now() - started;
+    const sample = await exec(`(async () => {
+      const r = await window.win7Agent.a9.queryEvents({ conversationId: ${JSON.stringify(conversationId)}, limit: 200 });
+      const events = r && Array.isArray(r.events) ? r.events : [];
+      const kind = (e) => e.eventType || (e.payload && e.payload.type) || e.type;
+      const persisted = {};
+      for (const e of events) persisted[kind(e)] = (persisted[kind(e)] || 0) + 1;
+      const stream = document.getElementById('a9-task-stream');
+      const q = (selector) => stream ? stream.querySelectorAll(selector) : [];
+      const preview = stream && stream.querySelector('.live-preview-body');
+      const snap = (await window.win7Agent.a9.snapshot()).snapshot || {};
+      const texts = [stream ? stream.textContent : '', snap.liveModelPreview && snap.liveModelPreview.text || '',
+        document.getElementById('live-label').textContent];
+      return {
+        persisted,
+        dom: { notes: q('.note-line').length, toolItems: q('.activity-item').length, running: q('.status-tag.running').length,
+          elapsed: q('.activity-elapsed').length, shellNote: q('.activity-pending-note').length,
+          previewChars: preview ? preview.textContent.length : 0,
+          outcome: document.getElementById('a9-turn-outcome').textContent },
+        snapshotPreview: Boolean(snap.liveModelPreview),
+        exposesKey: texts.some((value) => value.includes(${JSON.stringify(env.testKey)})),
+        exposesPrefix: texts.some((value) => value.includes(${JSON.stringify(keyPrefix)})),
+      };
+    })()`);
+    timeline.push({ t, persisted: sample.persisted, dom: sample.dom, snapshotPreview: sample.snapshotPreview });
+    for (const [type, count] of Object.entries(sample.persisted)) if (count > 0 && firstPersisted[type] === undefined) firstPersisted[type] = t;
+    const markers = { note: sample.dom.notes > 0, tool: sample.dom.toolItems > 0, running: sample.dom.running > 0,
+      preview: sample.dom.previewChars > 0, completed: sample.dom.outcome.startsWith('completed') };
+    for (const [name, seen] of Object.entries(markers)) if (seen && firstDom[name] === undefined) firstDom[name] = t;
+    if (sample.dom.running > 0 && sample.dom.elapsed > 0) runningSeen = true;
+    if (sample.dom.previewChars > 0 && !sample.persisted.turn_completed) previewBeforeCompletion = true;
+    if (sample.exposesKey || sample.exposesPrefix) secretExposed = true;
+    if (sample.persisted.turn_completed && markers.completed) { completedAt = t; break; }
+    await sleep(150);
+  }
+  await sleep(700);
+  const settled = await exec(`(async () => {
+    const snap = (await window.win7Agent.a9.snapshot()).snapshot || {};
+    const stream = document.getElementById('a9-task-stream');
+    const text = stream ? stream.textContent : '';
+    return { snapshotPreview: Boolean(snap.liveModelPreview), previewNodes: stream ? stream.querySelectorAll('.live-preview').length : 0,
+      exposesKey: text.includes(${JSON.stringify(env.testKey)}), exposesPrefix: text.includes(${JSON.stringify(keyPrefix)}) };
+  })()`);
+  if (settled.exposesKey || settled.exposesPrefix) secretExposed = true;
+  const latency = {
+    note: firstDom.note === undefined || firstPersisted.model_note === undefined ? null : firstDom.note - firstPersisted.model_note,
+    tool: firstDom.tool === undefined || firstPersisted.tool_start === undefined ? null : firstDom.tool - firstPersisted.tool_start,
+    completed: firstDom.completed === undefined || firstPersisted.turn_completed === undefined ? null : firstDom.completed - firstPersisted.turn_completed,
+  };
+  const before_completion = (name) => firstDom[name] !== undefined && firstPersisted.turn_completed !== undefined
+    && firstDom[name] < firstPersisted.turn_completed;
+  report.liveProgress = { firstPersisted, firstDom, latency, completedAt, samples: timeline.length, timeline: timeline.slice(0, 400) };
+  record('A9-W37-LIVE-TOOL-CARD-BEFORE-COMPLETION', before_completion('running') && runningSeen === true, JSON.stringify({ firstDom, firstPersisted, runningSeen }));
+  record('A9-W37-LIVE-NOTE-BEFORE-COMPLETION', before_completion('note'), JSON.stringify({ firstDom, firstPersisted }));
+  record('A9-W37-LIVE-PREVIEW-BEFORE-COMPLETION', previewBeforeCompletion === true, JSON.stringify({ firstDom, firstPersisted }));
+  record('A9-W37-LIVE-PREVIEW-CLEARED-AFTER-COMPLETION', completedAt !== null && settled.snapshotPreview === false && settled.previewNodes === 0, JSON.stringify(settled));
+  record('A9-W37-LIVE-LATENCY-WITHIN-1500MS', Object.values(latency).every((value) => value !== null && value >= 0 && value <= 1500), JSON.stringify(latency));
+  record('A9-W37-LIVE-SECRET-NOT-EXPOSED', secretExposed === false && completedAt !== null, `samples=${timeline.length}; exposed=${secretExposed}`);
+  await captureVisual(win, 'live-completed');
 }
 
 let driverTargetExitCode = 1;
