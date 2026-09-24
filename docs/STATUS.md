@@ -16,7 +16,7 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；WIN7-35 已冻结，实机 G1/G2 及首绘通过、G3 UI 容量硬门 FAIL；WIN7-36 已冻结待候选外 authority，实机 `NOT_PERFORMED`（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 UI 子集集成 PASS；WIN7-35 保持实机 G3 容量 FAIL；WIN7-36 在已批准的可达响应式状态等效裁决下取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，≤799px 分支仍不可达/未验证（均非 RC、非完整 Alpha 2） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
@@ -195,6 +195,34 @@
   双构建在 `.acceptance/builds/WIN7-36/f0e80ec-reissue/`，开发机仓库 ZIP verifier 预检 PASS。
   尚未签发候选外 `WIN7_36_RELEASE_AUTHORITY` 与独立 pin，Win7 G1/G2/G3 均 `NOT_PERFORMED`，
   不签发 Alpha 2、Review、Shell streaming 或 RC PASS。
+- 2026-09-23，负责人随后按 WIN7-36 精确哈希单独批准候选外 `WIN7_36_RELEASE_AUTHORITY`、独立 pin
+  及在 `10.110.237.40` 执行 G1→G2→G3；本地签发 authority SHA-256
+  `9c9b61a27287782a7ed8bea677d7dd85d8fe39de8c491b13e3f600ef0d001991`，候选自带 verifier 的
+  开发机纯字节与绑定接口通过。目标 TCP 22 可连接，但三次严格 SSH 连接均在服务器 banner 交换前超时，
+  未到主机密钥核验或认证，也未发生远程写入。此 run 的 G1/G2/G3 仍 `NOT_PERFORMED`，当前为
+  `BLOCKED_SSH_SERVER_HANDSHAKE / INSUFFICIENT_EVIDENCE`，不是候选产品 FAIL。候选外详情见
+  `.acceptance/runs/WIN7-36/485927dc-d043-47e3-b12c-85df380b6e85/RUN_STATUS.md`。
+- 2026-09-23，负责人将 WIN7-36 目标 IP 更正为 `10.233.193.40`；新地址完成 SSH 握手，
+  ECDSA 主机密钥与原 Win7 已固定主机键一致，但现有公钥登录被拒。新候选外 authority/pin
+  按更正地址独立保存在 run `9d9b5cab-96ec-47e2-b7b3-8102a9ab6909`，SHA-256
+  `7d335d76184dc6676680d5b1117a5babbb200b09fbdf6f32985ab37c5cea1708`，开发机纯字节与
+  绑定预检 PASS；原地址 run 与 authority 不改写。当前为 `BLOCKED_SSH_AUTHENTICATION`，
+  无远程写入或执行，Win7 G1/G2/G3 继续 `NOT_PERFORMED`。见
+  `.acceptance/runs/WIN7-36/9d9b5cab-96ec-47e2-b7b3-8102a9ab6909/RUN_STATUS.md`。
+
+- 2026-09-24，上述 SSH 登录阻塞在用户重新登录后解除；同一 WIN7-36 冻结 ZIP 和新 IP authority
+  于 `10.233.193.40` 的 Win7 SP1 x64 非提权普通用户会话完成 G1→G2→G3 和 15 项 UI 子集验证。
+  物理 1366×768 / 125% DPI 的实际内容视口为 1079×540 CSS px，最坏形态完整可见 4 行。
+  负责人明确按**可达响应式状态等效**裁决 W36-06/12/13/15：目标视口使用两列加 Inspector
+  抽屉、导航栏开关 × 抽屉开关四态；不宣称在该视口看到了三列或四个桌面 class 组合。
+  请求 700px 被钳至 847px，≤799px 分支及真正跨越 800px 仍为
+  `PRODUCT_UNREACHABLE / NOT_VERIFIED`。冻结候选自带报告器在普通用户会话中核验
+  `report-stage-v5.json`（SHA-256 `f7463691076491312c80fc83032417eb520bfede22c8be1c0edb4967a9e559e1`）
+  为 `status=PASS`、`verified_cases=15`、`direct_current_candidate_cases=15`，签发
+  `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；计数表示同候选证据绑定，不表示不可达几何已直接实测。
+  报告器输出 SHA-256 `05d9d00818e0b094ec18803721aa8bf228e0e929277f775a54867827447c0c4f`。
+  详见[WIN7-36 实机验收收口](reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)。
+  候选 ZIP、kit、旧报告不变；完整 Alpha 2、Review、Shell streaming、RC 未获此结论。
 
 - 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
   Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以

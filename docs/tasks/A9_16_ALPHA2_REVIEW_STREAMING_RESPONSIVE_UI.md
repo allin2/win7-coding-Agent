@@ -6,8 +6,8 @@ Task Type: ALPHA2_PRODUCT_REQUIREMENTS
 Target Branch: codex/a9-alpha2
 Source Baseline: 7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_16_WIN7_36_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_UI_SUBSET_INTEGRATION_PASS / WIN7_35_G3_UI_FAILED / WIN7_36_NOT_FORMED
+Phase-Gate: A9_16_WIN7_36_UI_SUBSET_INTEGRATION_PASS_EQUIVALENCE
+Win7-Validation: WIN7_30_G2_FAILED / WIN7_31_G3_FAILED / WIN7_32_G3_FAILED / WIN7_33_G2_FAILED / WIN7_34_UI_SUBSET_INTEGRATION_PASS / WIN7_35_G3_UI_FAILED / WIN7_36_UI_SUBSET_INTEGRATION_PASS_WITH_REACHABLE_RESPONSIVE_EQUIVALENCE
 Decision: ADR-0117 / ADR-0124 / ADR-0125 / ADR-0126 / ADR-0127 / ADR-0128 / ADR-0129 / ADR-0130 / ADR-0131 / ADR-0132 / ADR-0133
 ```
 
@@ -481,3 +481,25 @@ C14 允许路径及 `10.110.237.40` 验收目标。决策为 ADR-0133。此批�
   双构建保留于 `.acceptance/builds/WIN7-36/f0e80ec-reissue/`。仓库 ZIP verifier 开发机预检 PASS，
   不等于候选外 authority 或实机验收。目前未签发 authority 与独立 pin，G1/G2/G3 均 `NOT_PERFORMED`；
   未推送、未打标签。
+
+## 18. WIN7-36 实机收口（2026-09-24，候选外证据与负责人等效裁决）
+
+§17 的最后一段记录的是候选冻结**当时**的状态；之后负责人按精确 ZIP 哈希单独批准候选外
+`WIN7_36_RELEASE_AUTHORITY`，并将 Win7 目标 IP 更正为 `10.233.193.40`。重新登录后，
+run `9d9b5cab-96ec-47e2-b7b3-8102a9ab6909` 在 Win7 SP1 x64 普通用户非提权会话完成 G1→G2→G3、
+真实 Provider 与 15 项 UI 子集验收；ZIP SHA-256 仍为
+`8f730c5ae9ab86d83ecbfe3033a00e32a935dd5217d3ab30e4c75710adbe2a3a`，authority SHA-256 为
+`7d335d76184dc6676680d5b1117a5babbb200b09fbdf6f32985ab37c5cea1708`。
+
+真实 1366×768 / 125% DPI 的内容视口为 1079×540 CSS px。负责人允许 W36-06/12/13/15
+按**可达响应式状态等效**裁决：物理视口的两列 + Inspector 抽屉可完成主 Agent 操作；
+导航栏开/关 × 抽屉开/关四个可达状态无页面溢出、保留列表 DOM 身份和滚动位置。1240×700 的
+四桌面 class 样本虽在 Win7 runtime 测得，却超过物理可用桌面，不被表述为目标视口实测。
+700px 请求实际钳为 847px；≤799px 分支与真正 800px 双向跨越继续标为
+`PRODUCT_UNREACHABLE / NOT_VERIFIED`。冻结 kit 和候选字节均未修改。
+
+候选自带报告器在上述 Win7 普通用户会话中核验候选外 `report-stage-v5.json` 为
+`status=PASS`、`verified_cases=15`、`direct_current_candidate_cases=15`，结论为
+`A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；此计数只表示同候选证据绑定，不代表不可达分支已直接实测。
+精确哈希、证据边界和逐项例外见[验收收口报告](../reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)。
+结论仅限 A9-16 UI 子集，不签发完整 Alpha 2、Review、Shell streaming 或 RC PASS。
