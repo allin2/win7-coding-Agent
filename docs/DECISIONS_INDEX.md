@@ -138,3 +138,5 @@
 | ADR-0132 | WIN7-34 验收链路偏差与 WIN7-35 Driver 生命周期、退出码修复授权 | Accepted |
 | ADR-0133 | WIN7-35 真实 125% DPI 容量失败与 WIN7-36 换发 | Accepted |
 | ADR-0134 | AGENTS.md 与 CLAUDE.md 不再写死“当前任务”，改为引用 STATUS.md 与任务索引 | Accepted |
+
+| ADR-0135 | 运行中模型输出以内存预览实时呈现，累积脱敏并保留尾部 | Accepted |

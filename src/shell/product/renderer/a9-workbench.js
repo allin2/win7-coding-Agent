@@ -78,6 +78,10 @@
     turnStartAt: 0,
     lastEventAt: 0,
     pendingToolLabel: null,
+    // A9-19：运行中工具项的开始时刻（P05 已运行时长）与内存预览（P02，ADR-0135）。
+    pendingToolAt: 0,
+    runningItems: new Set(),
+    liveModelPreview: null,
   };
 
   function el(id) { return document.getElementById(id); }
@@ -183,7 +187,8 @@
     prompt.disabled = blockedMode || blockedApproval || state.running;
     send.hidden = state.running;
     stop.hidden = !canStop;
-    railStop.hidden = !canStop;
+    // A9-19 L04：运行中只保留 Composer 的停止按钮；左栏只显示状态（元素保留以兼容既有身份）。
+    railStop.hidden = true;
     send.disabled = !canSubmit();
     stop.disabled = !canStop;
     railStop.disabled = !canStop;
@@ -204,6 +209,11 @@
         : '托管后台进程仍在运行；可继续工作，或点击“停止后台进程”回收进程树。');
     }
     else text('session-status', '当前工作区已就绪。高影响操作会在执行前显示精确目标并请求批准。');
+    // A9-19 L03：阻断原因始终可见；例行说明在较矮窗口中收起（文本保留在 DOM 中）。
+    const routine = Boolean(snapshot) && !runtimeUnavailable && !blockedMode && !blockedApproval
+      && Boolean(snapshot.provider && snapshot.provider.configured && snapshot.provider.probe
+        && snapshot.provider.probe.classification === 'tool_calling') && !hasManaged;
+    el('session-status').dataset.tone = routine ? 'info' : 'block';
   }
 
   function resizeComposer() {
@@ -274,8 +284,11 @@
       } else {
         state.turnEvents.set(event.turnId, { ids: new Set([event.eventId]), events: [event] });
       }
-      if (event.type === 'tool_start') state.pendingToolLabel = toolHeadline(event.data);
-      if (event.type === 'tool_end') state.pendingToolLabel = null;
+      if (event.type === 'tool_start') {
+        state.pendingToolLabel = toolHeadline(event.data);
+        state.pendingToolAt = Date.parse(event.timestamp || '') || Date.now();
+      }
+      if (event.type === 'tool_end') { state.pendingToolLabel = null; state.pendingToolAt = 0; }
       state.lastEventAt = Date.now();
       changed = true;
     }
@@ -365,7 +378,10 @@
     for (const entry of state.turnIdToFactTask.entries()) {
       if (entry[1] === fact.taskId) return entry[0];
     }
-    if ((fact.outcome === 'running' || fact.outcome === 'needs_approval') && state.activeTurnId) {
+    // A9-19 F1：运行中任务在持久化中为 'active'（不止 running/needs_approval）；任一非终态事实
+    // 都绑定当前活动轮次，否则运行中的过程事件要等轮次结束取得 turnId 才出现。
+    if (!TERMINAL_OUTCOMES.has(fact.outcome) && state.activeTurnId
+      && !state.turnIdToFactTask.has(state.activeTurnId)) {
       state.turnIdToFactTask.set(state.activeTurnId, fact.taskId);
       return state.activeTurnId;
     }
@@ -461,7 +477,7 @@
     const requestHead = document.createElement('div');
     requestHead.className = 'turn-request-head';
     const requestLabel = document.createElement('strong');
-    requestLabel.textContent = 'REQUEST';
+    requestLabel.textContent = '你';
     const requestTime = document.createElement('span');
     requestHead.appendChild(requestLabel);
     requestHead.appendChild(requestTime);
@@ -508,7 +524,7 @@
     if (block.groupEl) return block.groupEl;
     const group = document.createElement('details');
     group.className = 'activity-group';
-    if (state.running) group.open = true;
+    if (state.running) { group.open = true; group.dataset.autoOpened = 'true'; }
     const summary = document.createElement('summary');
     summary.textContent = '工具活动';
     const items = document.createElement('ul');
@@ -548,7 +564,39 @@
     block.groupItemsEl.appendChild(li);
     block.groupCount += 1;
     updateGroupSummary(block);
-    return { li, tag };
+    return { li, tag, elapsedEl: null, startedAt: 0 };
+  }
+
+  /** A9-19 P05：运行中的工具项显示已运行时长；Shell 如实说明输出在结束后显示（未实现增量输出）。 */
+  function markItemRunning(item, data, startedAt) {
+    item.startedAt = startedAt || Date.now();
+    const elapsed = document.createElement('span');
+    elapsed.className = 'activity-elapsed';
+    item.li.firstChild.insertBefore(elapsed, item.tag);
+    item.elapsedEl = elapsed;
+    if (data && data.toolName === 'shell') {
+      const note = document.createElement('p');
+      note.className = 'activity-pending-note';
+      note.textContent = '命令运行中；输出将在命令结束后显示。';
+      item.li.appendChild(note);
+      item.pendingNoteEl = note;
+    }
+    state.runningItems.add(item);
+    tickRunningItems();
+  }
+
+  function settleItem(item) {
+    state.runningItems.delete(item);
+    if (item.elapsedEl && item.startedAt) item.elapsedEl.textContent = formatElapsed(Date.now() - item.startedAt);
+    if (item.pendingNoteEl) { item.pendingNoteEl.remove(); item.pendingNoteEl = null; }
+  }
+
+  function tickRunningItems() {
+    const now = Date.now();
+    state.runningItems.forEach((item) => {
+      if (!item.li.parentNode) { state.runningItems.delete(item); return; }
+      if (item.elapsedEl) item.elapsedEl.textContent = `已运行 ${formatElapsed(now - item.startedAt)}`;
+    });
   }
 
   function attachActivityDetail(item, data) {
@@ -594,6 +642,7 @@
         ensureActivityGroup(block);
         if (!block.groupEl.dataset.eventId) block.groupEl.dataset.eventId = String(event.eventId);
         const item = addActivityItem(block, data, 'running', '执行中');
+        markItemRunning(item, data, Date.parse(event.timestamp || '') || Date.now());
         if (data.callId) block.pendingItems.set(String(data.callId), item);
         else block.pendingItems.set('__last__', item);
         break;
@@ -604,6 +653,7 @@
         const item = block.pendingItems.get(key) || (data.callId ? block.pendingItems.get('__last__') : null);
         if (item) {
           block.pendingItems.delete(key);
+          settleItem(item);
           const [status, label] = toolEndStatus(data);
           item.tag.className = `status-tag ${status}`;
           item.tag.textContent = label;
@@ -627,7 +677,7 @@
     card.className = 'plan-card';
     const title = document.createElement('p');
     title.className = 'plan-title';
-    title.textContent = 'PLAN';
+    title.textContent = '计划';
     card.appendChild(title);
     const steps = document.createElement('ol');
     steps.className = 'plan-steps';
@@ -724,7 +774,10 @@
     const variant = outcome === 'failed' ? 'fail' : outcome === 'completed' ? '' : 'warn';
     block.outcomeEl.className = `outcome-card ${variant}`.trim();
     block.outcomeLabelEl.textContent = OUTCOME_LABELS[outcome] || outcome;
-    block.outcomeMetaEl.textContent = `${verification}${fact && fact.updatedAt ? ` · ${new Date(fact.updatedAt).toLocaleTimeString()}` : ''}`;
+    // A9-19 L02：验证状态以中文呈现；not_applicable 不显示。
+    const verificationText = verification === 'verified' ? '已验证' : verification === 'unverified' ? '未验证' : '';
+    const timeText = fact && fact.updatedAt ? new Date(fact.updatedAt).toLocaleTimeString() : '';
+    block.outcomeMetaEl.textContent = [verificationText, timeText].filter(Boolean).join(' · ');
     block.outcomeBodyEl.textContent = clampText(message || '任务已返回结果。', NOTE_LIMIT);
   }
 
@@ -758,12 +811,18 @@
       || events.some((event) => event.type === 'turn_completed' || event.type === 'turn_failed');
     if (terminal) {
       block.pendingItems.forEach((item) => {
+        settleItem(item);
         item.tag.className = 'status-tag interrupted';
         item.tag.textContent = '已中断';
       });
       block.pendingItems = new Map();
       closeActivityGroup(block);
+      // A9-19 P05：轮次结束后把运行中自动展开的工具活动折叠为摘要行（用户手动展开的不动）。
+      block.progressEl.querySelectorAll('details').forEach((node) => {
+        if (node.dataset.autoOpened === 'true') { node.open = false; delete node.dataset.autoOpened; }
+      });
     }
+    renderLivePreview(block, terminal);
     if (!block.local && !block.legacyEl && events.length === 0 && fact && TERMINAL_OUTCOMES.has(fact.outcome)) {
       const note = document.createElement('p');
       note.className = 'legacy-note';
@@ -774,6 +833,38 @@
     updateOutcomeCard(block, fact, events);
   }
 
+  /**
+   * A9-19 P02（ADR-0135）：模型流式输出的内存预览。只来自快照 liveModelPreview（运行时已累积脱敏并
+   * 保留尾部），不入事件、不落盘；轮次终态或预览消失即移除，由持久化的最终文本接替。
+   */
+  function renderLivePreview(block, terminal) {
+    const preview = state.liveModelPreview;
+    const turnId = block.local ? state.activeTurnId : block.root.dataset.turnId;
+    const show = !terminal && preview && preview.text && turnId && preview.turnId === turnId;
+    if (!show) {
+      if (block.previewEl) { block.previewEl.remove(); block.previewEl = null; block.previewBodyEl = null; }
+      return;
+    }
+    if (!block.previewEl) {
+      const node = document.createElement('div');
+      node.className = 'live-preview';
+      node.setAttribute('aria-live', 'off');
+      const label = document.createElement('span');
+      label.className = 'live-preview-label';
+      label.textContent = '模型正在输出';
+      const body = document.createElement('p');
+      body.className = 'live-preview-body';
+      node.appendChild(label);
+      node.appendChild(body);
+      block.previewEl = node;
+      block.previewBodyEl = body;
+    }
+    block.previewBodyEl.textContent = clampText(preview.text, NOTE_LIMIT);
+    // 预览始终位于本轮过程的最后；新事件节点追加后把它移回末尾。
+    block.previewEl.remove();
+    block.progressEl.appendChild(block.previewEl);
+  }
+
   function renderConversation(snapshot) {
     const facts = snapshot.conversation || [];
     const signature = JSON.stringify([
@@ -781,6 +872,7 @@
       state.eventMaxId,
       state.eventsTruncated,
       state.localRequest ? [state.localRequest.prompt, state.localRequest.at] : 0,
+      state.liveModelPreview ? [state.liveModelPreview.turnId, String(state.liveModelPreview.text || '').length, state.liveModelPreview.updatedAt] : 0,
       facts.map((fact) => [
         fact.taskId, fact.turnId, fact.outcome, fact.updatedAt,
         String(fact.requestPrompt || '').length, String(fact.finalMessage || '').length,
@@ -864,6 +956,8 @@
       node.classList.remove('active');
     }
     state.pendingToolLabel = null;
+    state.pendingToolAt = 0;
+    state.liveModelPreview = null;
   }
 
   function tickLiveStatus() {
@@ -876,15 +970,19 @@
     }
     const now = Date.now();
     const idleMs = now - (state.lastEventAt || now);
-    if (idleMs >= 10000) {
-      node.classList.add('active');
-      text('live-label', state.pendingToolLabel ? `正在执行工具：${state.pendingToolLabel}` : '等待模型响应…');
-      text('live-elapsed', `已等待 ${formatElapsed(idleMs)}`);
+    // A9-19 P04：从 0 秒起就说明在等什么；空闲 ≥10s 只追加强调样式。
+    node.classList.toggle('active', idleMs >= 10000);
+    if (state.pendingToolLabel) {
+      text('live-label', `正在执行工具：${state.pendingToolLabel}`);
+      text('live-elapsed', `已运行 ${formatElapsed(now - (state.pendingToolAt || state.lastEventAt || now))}`);
+    } else if (state.liveModelPreview) {
+      text('live-label', '模型正在输出…');
+      text('live-elapsed', `本轮已运行 ${formatElapsed(now - (state.turnStartAt || now))}`);
     } else {
-      node.classList.remove('active');
-      text('live-label', '任务执行中');
-      text('live-elapsed', `已运行 ${formatElapsed(now - (state.turnStartAt || now))}`);
+      text('live-label', '等待模型响应…');
+      text('live-elapsed', `已等待 ${formatElapsed(idleMs)}`);
     }
+    tickRunningItems();
     node.hidden = false;
     const jump = el('jump-latest');
     if (jump) jump.hidden = state.streamFollow;
@@ -988,6 +1086,19 @@
     return '空闲';
   }
 
+  /** A9-19 L01：行内时间用短格式（刚刚 / HH:mm / M月D日），给标题让出宽度；完整时间放在无障碍名称里。 */
+  function shortConversationTime(value) {
+    const date = new Date(value);
+    if (!value || Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    if (diff >= 0 && diff < 60 * 1000) return '刚刚';
+    const pad = (n) => String(n).padStart(2, '0');
+    if (date.toDateString() === now.toDateString()) return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}月${date.getDate()}日`;
+    return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
   function appendConversationGroup(list, label, items, snapshot) {
     if (!items.length) return;
     const head = document.createElement('li');
@@ -1018,7 +1129,11 @@
     title.appendChild(document.createTextNode(conversation.title || '新对话'));
     const meta = document.createElement('small');
     const updated = conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString() : '';
-    meta.textContent = `${conversationStatusLabel(conversation.activity)}${updated ? ` · ${updated}` : ''}`;
+    const status = conversationStatusLabel(conversation.activity);
+    // 状态由圆点表达；可见时间为短格式，状态与完整时间进入无障碍名称和悬停提示。
+    meta.textContent = shortConversationTime(conversation.updatedAt);
+    button.setAttribute('aria-label', `${conversation.title || '新对话'}，${status}${updated ? `，更新于 ${updated}` : ''}`);
+    button.title = `${conversation.title || '新对话'}\n${status}${updated ? ` · ${updated}` : ''}`;
     button.appendChild(title);
     button.appendChild(meta);
     if (!archived) button.addEventListener('click', () => { void switchConversation(conversation.sessionId); });
@@ -1193,7 +1308,11 @@
     }
     const provider = snapshot.provider || {};
     text('a9-provider-value', provider.configured ? `${provider.model} @ ${provider.baseUrl}` : '未配置');
-    text('a9-provider-chip', provider.configured ? (provider.probe && provider.probe.classification ? provider.probe.classification : provider.model) : 'Provider 未配置');
+    // A9-19 L02：Provider 分类属于诊断信息；探测通过时头部不再显示，异常时显示可操作的中文提示。
+    const providerHealthy = provider.configured && provider.probe && provider.probe.classification === 'tool_calling';
+    el('a9-provider-open').hidden = Boolean(providerHealthy);
+    text('a9-provider-chip', !provider.configured ? '模型未配置'
+      : provider.probe && provider.probe.classification ? `模型不可用：${provider.probe.classification}` : '模型未探测');
     text('a9-provider-key-state', provider.configured ? `key: ${provider.apiKey && provider.apiKey.remembered ? '已由 DPAPI 记住' : '仅当前进程'} (${provider.apiKey && provider.apiKey.source || 'none'})` : 'key: 未配置');
     text('a9-provider-probe-state', provider.probe ? provider.probe.classification : '未探测');
     setFieldError('a9-provider-diagnostics', provider.diagnostics
@@ -1225,7 +1344,8 @@
     const runtimeStatus = el('runtime-status');
     runtimeStatus.className = `connection ${ready ? 'ready' : 'failed'}`;
     runtimeStatus.innerHTML = '<i aria-hidden="true"></i>';
-    runtimeStatus.appendChild(document.createTextNode(ready ? 'Runtime 就绪' : 'Runtime 受限'));
+    runtimeStatus.appendChild(document.createTextNode(ready ? '运行时就绪' : '运行时受限'));
+    runtimeStatus.hidden = ready; // A9-19 L02：就绪时不占头部，受限时保留并配合错误条。
     const runtimeError = ready ? '' : runtimeDiagnostic(snapshot);
     setFieldError('a9-runtime-error', runtimeError);
     if (!ready) showGlobalError(`Runtime 初始化受限：${runtimeDiagnostic(snapshot)}`, '打开诊断', () => openDrawer('diagnostics-drawer'));
@@ -1234,6 +1354,10 @@
     modeButton.disabled = !ready || !workspace;
     modeButton.textContent = `权限：${modeLabel(snapshot.mode)}`;
     renderApproval(snapshot);
+    state.running = ['running', 'cancelling'].includes(snapshot.agentStatus);
+    const preview = snapshot.liveModelPreview;
+    state.liveModelPreview = preview && preview.turnId && typeof preview.text === 'string' ? preview : null;
+    if (state.liveModelPreview) state.lastEventAt = Date.now();
     ingestTimelineEvents(snapshot.timeline);
     renderTimeline();
     renderCheckpoints(snapshot);
@@ -1326,6 +1450,18 @@
     } catch (error) {
       showGlobalError(errorMessage(error, '对话操作失败。'), '刷新状态', () => { void refreshSnapshot(); });
       return null;
+    }
+  }
+
+  /** A9-19 L05：重命名/归档收进“更多”菜单，释放左栏常驻行；键盘可达，aria 与可见状态同步。 */
+  function setConversationMenu(open) {
+    const menu = el('conversation-current-actions');
+    const toggle = el('conversation-more');
+    menu.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      const first = menu.querySelector('button:not(:disabled)');
+      if (first) first.focus();
     }
   }
 
@@ -2099,8 +2235,19 @@
     el('cancel-task').addEventListener('click', () => { void stopTurn(); });
     el('rail-stop').addEventListener('click', () => { void stopTurn(); });
     el('conversation-new').addEventListener('click', () => { void createConversation(); });
-    el('conversation-rename').addEventListener('click', openRenameConversation);
-    el('conversation-archive').addEventListener('click', () => { void archiveCurrentConversation(); });
+    el('conversation-rename').addEventListener('click', () => { setConversationMenu(false); openRenameConversation(); });
+    el('conversation-archive').addEventListener('click', () => { setConversationMenu(false); void archiveCurrentConversation(); });
+    el('conversation-more').addEventListener('click', () => {
+      setConversationMenu(el('conversation-more').getAttribute('aria-expanded') !== 'true');
+    });
+    el('conversation-current-actions').addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { setConversationMenu(false); el('conversation-more').focus(); }
+    });
+    document.addEventListener('click', (event) => {
+      const menu = el('conversation-current-actions');
+      const toggle = el('conversation-more');
+      if (!menu.hidden && !menu.contains(event.target) && !toggle.contains(event.target)) setConversationMenu(false);
+    });
     el('conversation-rename-cancel').addEventListener('click', () => closeDialog(el('conversation-rename-dialog')));
     el('conversation-rename-apply').addEventListener('click', () => { void applyConversationRename(); });
     // ADR-0114：目录搜索（含已归档，按标题过滤）。

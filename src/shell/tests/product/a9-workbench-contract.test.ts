@@ -39,6 +39,8 @@ function createRendererDomHarness() {
       this.parentNode = null;
     }
     addEventListener() {}
+    attributes: Record<string, string> = {};
+    setAttribute(name: string, value: string) { this.attributes[name] = String(value); }
     querySelectorAll(selector: string) {
       const matches: FakeNode[] = [];
       const visit = (node: FakeNode) => {
@@ -520,6 +522,77 @@ describe('A9 unified desktop workbench contract', () => {
       .replace(oldSideEffect, `${oldSideEffect}\n    text('a9-turn-outcome', \`${'${outcome}'} · ${'${verification}'}\`);`)
       .replace(globalProjection, '    void latestProjection;');
     expect(runScenario(faultRestored).displayed).toBe('failed · not_applicable');
+  });
+
+  it('A9-19 F1/P02/P05: renders a running turn (persisted as active) live with its tool card, elapsed time and preview', () => {
+    const rendererFunctions = [
+      script.slice(script.indexOf('  function resolveTurnId('), script.indexOf('  // ------------------------------------------------------------------\n  // 友好文案')),
+      script.slice(script.indexOf('  function toolHeadline('), script.indexOf('  function timelineEntryLabel(')),
+      script.slice(script.indexOf('  function ensureTurnBlock('), script.indexOf('  function startLiveTracking(')),
+    ].join('\n');
+    const runScenario = (source: string, outcome: string, preview: any) => {
+      const { document, nodes } = createRendererDomHarness();
+      const turnEvents = new Map([['turn-live', { ids: new Set([1, 2]), events: [
+        { eventId: 1, type: 'turn_started', turnId: 'turn-live', timestamp: new Date().toISOString(), data: {} },
+        { eventId: 2, type: 'tool_start', turnId: 'turn-live', timestamp: new Date(Date.now() - 3000).toISOString(),
+          data: { toolName: 'shell', callId: 'c1', args: { command: 'ping -n 30 127.0.0.1' } } },
+      ] }]]);
+      const state: any = {
+        eventMaxId: 2, eventsTruncated: false, eventsError: '', eventsLoading: false, localRequest: null,
+        conversationSignature: null, renderedConversationId: 'c', streamDom: new Map(), turnEvents,
+        turnIdToFactTask: new Map(), activeTurnId: 'turn-live', truncatedNote: null, streamFollow: false,
+        running: true, runningItems: new Set(), liveModelPreview: preview,
+      };
+      const context: any = {
+        state, document, Date, Map, Set, Array, String, JSON, Number,
+        NOTE_LIMIT: 16 * 1024, TOOL_OUTPUT_LIMIT: 8 * 1024,
+        TERMINAL_OUTCOMES: new Set(['completed', 'completed_with_warnings', 'blocked', 'failed', 'cancelled', 'interrupted']),
+        OUTCOME_LABELS: {},
+        clampText: (value: any, limit: number) => String(value == null ? '' : value).slice(0, limit),
+        formatElapsed: (ms: number) => `${Math.floor(ms / 1000)}秒`,
+        el: (id: string) => nodes.get(id),
+        text: (id: string, value: any) => { const target = nodes.get(id); if (target) target.textContent = String(value == null ? '' : value); },
+        eventsForTurn: (turnId: string) => turnEvents.get(turnId)?.events || [],
+        resetConversationEvents: jest.fn(), loadConversationEvents: jest.fn(), scrollToLatest: jest.fn(),
+      };
+      vm.runInNewContext(`${source};this.render = renderConversation;`, context);
+      context.render({ activeConversationId: 'c', conversation: [{ taskId: 'task-1', turnId: null, outcome, requestPrompt: 'run the long shell task' }] });
+      const block = state.streamDom.get('task-1');
+      return { rendered: block.renderedEvents, stream: nodes.get('a9-task-stream')!.textContent };
+    };
+
+    for (const outcome of ['active', 'running', 'needs_approval']) {
+      const live = runScenario(rendererFunctions, outcome, { turnId: 'turn-live', text: '正在分析日志输出…', updatedAt: 'x' });
+      expect(live.rendered).toBe(2);
+      expect(live.stream).toContain('运行命令 ping -n 30 127.0.0.1');
+      expect(live.stream).toContain('执行中');
+      expect(live.stream).toMatch(/已运行 \d+秒/);
+      expect(live.stream).toContain('命令运行中；输出将在命令结束后显示。');
+      expect(live.stream).toContain('模型正在输出');
+      expect(live.stream).toContain('正在分析日志输出…');
+    }
+    // 预览只属于其轮次：其他轮次的预览不得出现在本轮。
+    expect(runScenario(rendererFunctions, 'active', { turnId: 'turn-other', text: '别的轮次', updatedAt: 'x' }).stream).not.toContain('别的轮次');
+    // 负向对照：恢复 A9-16 的非终态判定后，active 轮次在运行中拿不到任何过程事件。
+    const oldBinding = rendererFunctions.replace(
+      "!TERMINAL_OUTCOMES.has(fact.outcome) && state.activeTurnId\n      && !state.turnIdToFactTask.has(state.activeTurnId)",
+      "(fact.outcome === 'running' || fact.outcome === 'needs_approval') && state.activeTurnId",
+    );
+    expect(oldBinding).not.toBe(rendererFunctions);
+    expect(runScenario(oldBinding, 'active', null).rendered).toBe(0);
+  });
+
+  it('A9-19 L01: conversation rows keep the title and show only a short time', () => {
+    const source = script.slice(script.indexOf('  function conversationStatusLabel('), script.indexOf('  function appendConversationGroup('));
+    const context: any = { Date, String, Number };
+    vm.runInNewContext(`${source};this.short = shortConversationTime;`, context);
+    const now = new Date();
+    expect(context.short(new Date(now.getTime() - 10 * 1000).toISOString())).toBe('刚刚');
+    expect(context.short(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 5).toISOString())).toMatch(/^(00:05|刚刚)$/);
+    expect(context.short(new Date(now.getFullYear() - 1, 2, 9, 10, 0).toISOString())).toBe(`${now.getFullYear() - 1}/3/9`);
+    expect(context.short('')).toBe('');
+    expect(script).toContain('meta.textContent = shortConversationTime(conversation.updatedAt);');
+    expect(css).toContain('.conversation-list button { grid-template-columns: minmax(0, 1fr) auto; }');
   });
 
   it('retries bounded fact pages without losing facts and discards results after switching conversations', async () => {

@@ -1050,3 +1050,12 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   “docs: 2026-09-24 documentation governance (STATUS split, ADR-0134, DOCS_02-04)” 将本节文档治理提交
   `17761ab`～`2aeb672`（11 个）合并入 `main`，合并提交 `ea24c0d5c94d9748812db86184bc648fe9e7a8c6`。不涉及产品代码、
   候选、authority 或 Win7 证据。
+
+## A9-19 运行过程实时可见与布局二期（2026-09-24）
+
+- 2026-09-24，负责人反馈运行中的工具调用与中间状态要到最终结果才出现，并要求优化布局；核查定位主因为渲染端
+  运行中轮次（持久化为 `active`）绑定缺陷，另有模型 chunk 压到轮次结束、同步全树哈希独占主进程、等待提示需空闲 10 s。
+  负责人批准 [A9-19](tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md) 与 ADR-0135 并授权修订需求。
+- 同日开发机实现完成（`A9_19_DEVELOPER_VERIFIED`）：运行中过程与模型输出预览实时可见，对话行显示标题，界面中文化，
+  1079×540 下运行中对话区 60.5%（旧 43.7%）。扫描独占 550 ms → 27 ms，残留 checkpoint 往返校验约 0.4 s。Shell 375、
+  workspace 211、`verify:quick` 通过；证据为无头 Chrome，未运行 Electron 22、Win10 或 Win7。

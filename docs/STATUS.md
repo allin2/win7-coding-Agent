@@ -33,6 +33,7 @@
 | A9-15 UI 进度反馈 | WIN7-28 UI 集成 PASS | [A9-15](tasks/A9_15_UI_PROGRESS_FEEDBACK.md)、[收口报告](reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md) | — |
 | A9-16 Alpha 2 UI 子集（U01–U07） | WIN7-36 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`（可达响应式状态等效裁决）；WIN7-29～33、35 保持各自失败结论 | [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md)、[WIN7-36 收口](reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)、ADR-0131/0133 | Review（R01–R05）与 Shell 运行中输出（S01–S06）暂缓；≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED` |
 | A9-17 启动与内存优化 | `A9_17_IMPLEMENTATION_AUTHORIZED`，开发机实现与 A/B 完成 | [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) | Win7/Win10 实机采样 `NOT_PERFORMED`；未并入任何产品候选 |
+| A9-19 运行过程实时可见与布局二期 | `A9_19_DEVELOPER_VERIFIED`：运行中轮次过程与模型输出预览实时可见，对话行标题、中文文案与对话区高度修正（开发机） | [A9-19](tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md)、ADR-0135、[开发机证据](reports/2026-09/a9-19-evidence/README.md) | 真实 Electron、Win10、Win7 未执行；需冻结新候选（建议 WIN7-37）；P03 残留 checkpoint 往返校验约 0.4 s |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Review、Shell streaming 与新的 RC 均未获任何 PASS 结论。
@@ -42,7 +43,7 @@
 1. **Alpha 2 剩余范围**：Review（R01–R05）与 Shell 运行中输出（S01–S06）须按 A9-16 任务书重新授权实现，并以新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推。
 3. **A8-06 外部验收**：Win10/Win7 三层验证仍 `NOT_PERFORMED`。
-4. **A9-16 证据治理**：已由 [DOCS_03](tasks/DOCS_03_A9_16_PROBE_GATE_EVIDENCE_ISOLATION.md) 处置，几何探针闸门不再改写归档证据；无剩余阻断。
+4. **A9-19 实机验收**：开发机已验证（见上表）；需另行批准 WIN7-37 候选换发与 Win7 实机验收。Shell 真正增量输出（helper v3）与 checkpoint 往返校验分片需各自另立任务。
 
 ## MVP 已接受的延期项
 

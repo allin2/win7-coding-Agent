@@ -1,0 +1,488 @@
+{
+  "kind": "A9_19_DEV_RENDERER_PROBE_NEGATIVE_CONTROL",
+  "recorded_at": "2026-09-24T13:54:16.318Z",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "sources": {
+    "src/shell/product/renderer/a9-workbench.css": "c6fdf59a53e3c792d3a0f902062541c39d7385b35aca2b2c98b01fbf22ab8301",
+    "src/shell/product/renderer/a9-workbench.js": "2e7d5eedae6d9eeaa6c906bd9975aea5de17879f0761442f312219401f0aae5b",
+    "src/shell/product/renderer/workbench.html": "6f6c3c4b2d52525da5edd1701b72ad4e775a528f4e82d5a072469863fd49128f"
+  },
+  "status": "FAIL",
+  "failures": [
+    "1079x540: P06 latency toolCard=8000",
+    "1079x540: P06 latency toolElapsed=null",
+    "1079x540: P06 latency shellNote=null",
+    "1079x540: P06 latency previewOne=null",
+    "1079x540: P06 latency note=8000",
+    "1079x540: P06 latency toolDone=4000",
+    "1079x540: P06 latency previewTwo=null",
+    "1079x540: P06 preview lead null",
+    "1079x540: P06 tool card lead 0",
+    "1079x540/before: L01 title chars [-1,-1,-1,-1,-1,-1]",
+    "1079x540/before: L04/L05 visibility",
+    "1079x540/before: L02 labels CONVERSATIONS,AGENT /,tool_calling",
+    "1079x540/before: L03 share 0.516",
+    "1079x540/during: L01 title chars [-1,-1,-1,-1,-1,-1]",
+    "1079x540/during: L04/L05 visibility",
+    "1079x540/during: L02 labels REQUEST,CONVERSATIONS,AGENT /,tool_calling",
+    "1079x540/during: L03 share 0.437",
+    "1079x540/after: L01 title chars [-1,-1,-1,-1,-1,-1]",
+    "1079x540/after: L04/L05 visibility",
+    "1079x540/after: L02 labels REQUEST,CONVERSATIONS,AGENT /,tool_calling",
+    "1079x540/after: L03 share 0.516",
+    "1366x768: P06 latency toolCard=8000",
+    "1366x768: P06 latency toolElapsed=null",
+    "1366x768: P06 latency shellNote=null",
+    "1366x768: P06 latency previewOne=null",
+    "1366x768: P06 latency note=8000",
+    "1366x768: P06 latency toolDone=4000",
+    "1366x768: P06 latency previewTwo=null",
+    "1366x768: P06 preview lead null",
+    "1366x768: P06 tool card lead 0",
+    "1366x768/before: L01 title chars [-2,-2,-2,-2,-2,-2]",
+    "1366x768/before: L04/L05 visibility",
+    "1366x768/before: L02 labels CONVERSATIONS,INSPECTOR,AGENT /,CURRENT TASK,tool_calling",
+    "1366x768/during: L01/U02 rows 3",
+    "1366x768/during: L01 title chars [-2,-2,-2,-2,-2,-2]",
+    "1366x768/during: L04/L05 visibility",
+    "1366x768/during: L02 labels REQUEST,CONVERSATIONS,INSPECTOR,AGENT /,CURRENT TASK,tool_calling",
+    "1366x768/after: L01 title chars [-2,-2,-2,-2,-2,-2]",
+    "1366x768/after: L04/L05 visibility",
+    "1366x768/after: L02 labels REQUEST,CONVERSATIONS,INSPECTOR,AGENT /,CURRENT TASK,tool_calling"
+  ],
+  "runs": {
+    "1079x540": {
+      "kind": "A9_19_DEV_RENDERER_HARNESS",
+      "harness": "headless Chrome + real workbench.html/css/js + stub preload bridge",
+      "win7Validation": "NOT_PERFORMED",
+      "electron": "NOT_USED",
+      "seenAtMs": {
+        "toolCard": 12000,
+        "note": 12000,
+        "toolDone": 12000,
+        "final": 12000
+      },
+      "dueAtMs": {
+        "toolCard": 4000,
+        "toolElapsed": 4000,
+        "shellNote": 4000,
+        "previewOne": 900,
+        "note": 4000,
+        "toolDone": 8000,
+        "previewTwo": 8600,
+        "final": 12000
+      },
+      "latencyMs": {
+        "toolCard": 8000,
+        "toolElapsed": null,
+        "shellNote": null,
+        "previewOne": null,
+        "note": 8000,
+        "toolDone": 4000,
+        "previewTwo": null,
+        "final": 0
+      },
+      "leadBeforeCompletionMs": {
+        "previewOne": null,
+        "toolCard": 0
+      },
+      "geometryBeforeTurn": {
+        "viewport": {
+          "innerWidth": 1079,
+          "innerHeight": 540,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 278,
+        "conversationShare": 0.516,
+        "fullyVisibleRows": 5,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 21:54:14"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 14:54:14"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 07:54:14"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 00:54:14"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/23 17:54:14"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/23 10:54:14"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "a9-provider-open",
+          "runtime-status",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": true,
+        "renameInlineVisible": true,
+        "englishLabels": [
+          "CONVERSATIONS",
+          "AGENT /",
+          "tool_calling"
+        ]
+      },
+      "geometryDuringTurn": {
+        "viewport": {
+          "innerWidth": 1079,
+          "innerHeight": 540,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 236,
+        "conversationShare": 0.437,
+        "fullyVisibleRows": 4,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 3,
+            "approxVisibleCjkChars": -1,
+            "meta": "运行中 · 2026/9/24 21:54:21"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 14:54:21"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 07:54:21"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 00:54:21"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/23 17:54:21"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/23 10:54:21"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "a9-provider-open",
+          "runtime-status",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": true,
+        "reviewNavVisible": true,
+        "renameInlineVisible": true,
+        "englishLabels": [
+          "REQUEST",
+          "CONVERSATIONS",
+          "AGENT /",
+          "tool_calling"
+        ]
+      },
+      "geometryAfterTurn": {
+        "viewport": {
+          "innerWidth": 1079,
+          "innerHeight": 540,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 278,
+        "conversationShare": 0.516,
+        "fullyVisibleRows": 5,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 21:54:27"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 14:54:27"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 07:54:27"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/24 00:54:27"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/23 17:54:27"
+          },
+          {
+            "titleVisibleWidth": 14,
+            "approxVisibleCjkChars": -1,
+            "meta": "空闲 · 2026/9/23 10:54:27"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "a9-provider-open",
+          "runtime-status",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": true,
+        "renameInlineVisible": true,
+        "englishLabels": [
+          "REQUEST",
+          "CONVERSATIONS",
+          "AGENT /",
+          "tool_calling"
+        ]
+      }
+    },
+    "1366x768": {
+      "kind": "A9_19_DEV_RENDERER_HARNESS",
+      "harness": "headless Chrome + real workbench.html/css/js + stub preload bridge",
+      "win7Validation": "NOT_PERFORMED",
+      "electron": "NOT_USED",
+      "seenAtMs": {
+        "toolCard": 12000,
+        "note": 12000,
+        "toolDone": 12000,
+        "final": 12000
+      },
+      "dueAtMs": {
+        "toolCard": 4000,
+        "toolElapsed": 4000,
+        "shellNote": 4000,
+        "previewOne": 900,
+        "note": 4000,
+        "toolDone": 8000,
+        "previewTwo": 8600,
+        "final": 12000
+      },
+      "latencyMs": {
+        "toolCard": 8000,
+        "toolElapsed": null,
+        "shellNote": null,
+        "previewOne": null,
+        "note": 8000,
+        "toolDone": 4000,
+        "previewTwo": null,
+        "final": 0
+      },
+      "leadBeforeCompletionMs": {
+        "previewOne": null,
+        "toolCard": 0
+      },
+      "geometryBeforeTurn": {
+        "viewport": {
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 502,
+        "conversationShare": 0.654,
+        "fullyVisibleRows": 5,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 21:54:15"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 14:54:15"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 07:54:15"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 00:54:15"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/23 17:54:15"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/23 10:54:15"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "a9-provider-open",
+          "runtime-status",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": true,
+        "renameInlineVisible": true,
+        "englishLabels": [
+          "CONVERSATIONS",
+          "INSPECTOR",
+          "AGENT /",
+          "CURRENT TASK",
+          "tool_calling"
+        ]
+      },
+      "geometryDuringTurn": {
+        "viewport": {
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 460,
+        "conversationShare": 0.599,
+        "fullyVisibleRows": 3,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 0,
+            "approxVisibleCjkChars": -2,
+            "meta": "运行中 · 2026/9/24 21:54:22"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 14:54:22"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 07:54:22"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 00:54:22"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/23 17:54:22"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/23 10:54:22"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "a9-provider-open",
+          "runtime-status",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": true,
+        "reviewNavVisible": true,
+        "renameInlineVisible": true,
+        "englishLabels": [
+          "REQUEST",
+          "CONVERSATIONS",
+          "INSPECTOR",
+          "AGENT /",
+          "CURRENT TASK",
+          "tool_calling"
+        ]
+      },
+      "geometryAfterTurn": {
+        "viewport": {
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 502,
+        "conversationShare": 0.654,
+        "fullyVisibleRows": 5,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 21:54:28"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 14:54:28"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 07:54:28"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/24 00:54:28"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/23 17:54:28"
+          },
+          {
+            "titleVisibleWidth": 2,
+            "approxVisibleCjkChars": -2,
+            "meta": "空闲 · 2026/9/23 10:54:28"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "a9-provider-open",
+          "runtime-status",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": true,
+        "renameInlineVisible": true,
+        "englishLabels": [
+          "REQUEST",
+          "CONVERSATIONS",
+          "INSPECTOR",
+          "AGENT /",
+          "CURRENT TASK",
+          "tool_calling"
+        ]
+      }
+    }
+  },
+  "win7Validation": "NOT_PERFORMED",
+  "electron": "NOT_USED",
+  "note": "Same harness against the pre-A9-19 renderer (git show HEAD export); expected to FAIL."
+}

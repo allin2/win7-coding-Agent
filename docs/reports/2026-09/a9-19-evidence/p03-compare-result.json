@@ -1,0 +1,12 @@
+{
+  "kind": "A9_19_P03_OLD_VS_NEW_BASELINE_SCAN",
+  "recorded_at": "2026-09-24",
+  "host": "macOS development machine, Node v20.17.0, warm file cache",
+  "fixture": "6000 files x 4 KiB under 60x7 directories; checkpoint persistence stubbed for the scan-only gap",
+  "old": { "source": "src/workspace/dist compiled from HEAD 6adaaf0 (before A9-19)", "scanGapMs": 550, "collectGapMs": 175 },
+  "new": { "source": "A9-19 src/workspace/src compiled to a temp dir", "scanGapMs": 27, "collectGapMs": 43 },
+  "baselineIdentical": true,
+  "changeReportIdentical": true,
+  "residual": "freezeTurnBaseline still ends with one synchronous CheckpointManager.loadCheckpoint round-trip validation (~0.4 s for 2000 recovery blobs on this host); checkpoint-manager.ts is outside the A9-19 whitelist",
+  "win7Validation": "NOT_PERFORMED"
+}
