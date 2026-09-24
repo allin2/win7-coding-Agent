@@ -1027,6 +1027,11 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 ## 文档治理（2026-09-24）
 
+- 2026-09-24 09:55（+08:00），[PR #8](https://github.com/allin2/win7-coding-Agent/pull/8)
+  “A9-16 WIN7-36 UI subset: candidate and physical acceptance” 将 `codex/a9-alpha2` 合并入 `main`，合并提交
+  `8fd9d5d707005918e5ad5f0fae4fc100bb481131`，内容与 `f348761` 一致。相对原 main `72dfe22` 带入 34 个非合并提交：
+  A9-15（WIN7-23～28）、A9-16 UI 子集（WIN7-29～36）及 A9-17 启动/内存实现（`3437bc1`）。合并不改变任何候选、
+  authority 或实机证据；A7 仍为唯一 RC，完整 Alpha 2 未获 PASS。本节以下文档治理提交均在合并之后，尚未并入 main。
 - 2026-09-24，文档整理 P0/P1 完成：修复 A9-17 临时路径断链、补齐报告索引（`17761ab`）；`STATUS.md`
   拆为当前快照与本流水、新增 ADR 与方案索引（`adad4d3`）；ADR-0134 接受，`AGENTS.md`/`CLAUDE.md`
   不再写死当前任务（`f634044`）。
