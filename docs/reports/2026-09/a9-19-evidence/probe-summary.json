@@ -1,10 +1,10 @@
 {
   "kind": "A9_19_DEV_RENDERER_PROBE_SUMMARY",
-  "recorded_at": "2026-09-24T13:54:33.167Z",
+  "recorded_at": "2026-09-24T16:03:42.192Z",
   "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "sources": {
     "src/shell/product/renderer/a9-workbench.css": "f55f6db2835871f8b2d8ee9c4aa06faad34c33870d0f5c37c1308de3d26855c2",
-    "src/shell/product/renderer/a9-workbench.js": "5177e883855b2d70ebff09372a7ce965cf5da62b0b8137ffffdbc340895658e8",
+    "src/shell/product/renderer/a9-workbench.js": "6a1e64a7836d033ffccd93a3629685bcf108518a2a24163aaee1e8bda71c100b",
     "src/shell/product/renderer/workbench.html": "c6bfd3fb1b0ec897a23e948fbb996e6e7d7a0da7c2f2c9d5a58c2b778bb8dc62"
   },
   "status": "PASS_DEV_RENDERER_NOT_WIN7",
@@ -66,19 +66,19 @@
             "meta": "刚刚"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "14:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "07:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "00:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
             "titleVisibleWidth": 133,
@@ -118,19 +118,19 @@
             "meta": "刚刚"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "14:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "07:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "00:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
             "titleVisibleWidth": 133,
@@ -170,19 +170,19 @@
             "meta": "刚刚"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "14:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "07:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 142,
-            "approxVisibleCjkChars": 10,
-            "meta": "00:54"
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
           },
           {
             "titleVisibleWidth": 133,
@@ -263,19 +263,19 @@
             "meta": "刚刚"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "14:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "07:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "00:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
             "titleVisibleWidth": 121,
@@ -315,19 +315,19 @@
             "meta": "刚刚"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "14:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "07:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "00:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
             "titleVisibleWidth": 121,
@@ -367,19 +367,19 @@
             "meta": "刚刚"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "14:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "07:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
-            "titleVisibleWidth": 130,
-            "approxVisibleCjkChars": 9,
-            "meta": "00:54"
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
           },
           {
             "titleVisibleWidth": 121,

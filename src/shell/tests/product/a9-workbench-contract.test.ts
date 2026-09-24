@@ -582,6 +582,32 @@ describe('A9 unified desktop workbench contract', () => {
     expect(runScenario(oldBinding, 'active', null).rendered).toBe(0);
   });
 
+  it('A9-19: switching or creating a conversation and choosing a workspace keep the desktop rail open (U05)', () => {
+    const start = script.indexOf('  function dismissNavigationDrawer() {');
+    const source = script.slice(start, script.indexOf('\n  }\n', start) + 4);
+    const run = (width: number, drawerOpen: boolean) => {
+      const closeNavigation = jest.fn();
+      const rail = { classList: { contains: (name: string) => name === 'open' && drawerOpen } };
+      const context: any = { closeNavigation, el: () => rail, navigationIsDrawer: () => width < 800 };
+      vm.runInNewContext(`${source};this.dismiss = dismissNavigationDrawer;`, context);
+      context.dismiss();
+      return closeNavigation.mock.calls.length;
+    };
+    expect(run(1079, false)).toBe(0); // 桌面宽度：保持左栏状态
+    expect(run(1366, false)).toBe(0);
+    expect(run(760, true)).toBe(1); // 窄屏抽屉打开时照常收起
+    expect(run(760, false)).toBe(0);
+    // 两处操作后的调用都改为只收抽屉；负向对照：旧写法在桌面宽度下无条件折叠。
+    expect((script.match(/\n      dismissNavigationDrawer\(\);/g) || [])).toHaveLength(2);
+    const oldCall = source.replace("if (navigationIsDrawer() && el('navigation-rail').classList.contains('open')) closeNavigation();", 'closeNavigation();');
+    expect(oldCall).not.toBe(source);
+    const closeNavigation = jest.fn();
+    const oldContext: any = { closeNavigation, el: () => null, navigationIsDrawer: () => false };
+    vm.runInNewContext(`${oldCall};this.dismiss = dismissNavigationDrawer;`, oldContext);
+    oldContext.dismiss();
+    expect(closeNavigation).toHaveBeenCalledTimes(1);
+  });
+
   it('A9-19 L01: conversation rows keep the title and show only a short time', () => {
     const source = script.slice(script.indexOf('  function conversationStatusLabel('), script.indexOf('  function appendConversationGroup('));
     const context: any = { Date, String, Number };

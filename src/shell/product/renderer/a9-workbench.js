@@ -1445,7 +1445,7 @@
       state.localRequest = null;
       await refreshSnapshot();
       await loadConversationEvents();
-      closeNavigation();
+      dismissNavigationDrawer();
       return response;
     } catch (error) {
       showGlobalError(errorMessage(error, '对话操作失败。'), '刷新状态', () => { void refreshSnapshot(); });
@@ -1536,7 +1536,7 @@
       state.explorerSessionId = session ? session.sessionId : null;
       await refreshSnapshot();
       await refreshWorkspace('');
-      closeNavigation();
+      dismissNavigationDrawer();
     } catch (error) {
       showGlobalError(errorMessage(error, '工作区选择失败。'), '重新选择', () => { void chooseWorkspace(); });
     }
@@ -2015,6 +2015,13 @@
 
   function inspectorIsDrawer() { return root.innerWidth < 1200; }
   function navigationIsDrawer() { return root.innerWidth < 800; }
+  /**
+   * A9-19（Win7 探索性运行发现）：对话切换/新建与工作区选择后只收起窄屏抽屉；桌面宽度下保持用户当前的
+   * 左栏开合状态，不再因这些操作把桌面左栏折叠（A9-16 U05）。
+   */
+  function dismissNavigationDrawer() {
+    if (navigationIsDrawer() && el('navigation-rail').classList.contains('open')) closeNavigation();
+  }
   function workbenchRoot() { return document.querySelector('.workbench'); }
   function setWorkbenchPaneClass(name, on) {
     const wb = workbenchRoot();
