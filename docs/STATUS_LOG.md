@@ -1067,3 +1067,6 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-25，负责人批准 WIN7-37 换发合同（ADR-0136）；管线提交 `dd6cb1a`，双独立干净构建 ZIP 逐字节一致
   （SHA-256 `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf`，manifest `bad63b4ce9f881d42bfd4426ccd5bdae58916ea7c284b5c1bbc8cc17e08ea27c`），`source_dirty=false`、`external_acceptance_eligible=true`，冻结于 `.acceptance/candidates/WIN7-37/`。
   开发机预检通过；待负责人签发候选外 `WIN7_37_RELEASE_AUTHORITY`，Win7 G1/G2/G3 均 `NOT_PERFORMED`。
+
+- 2026-09-25，负责人按精确哈希批准 WIN7-37 并指定目标 `192.168.1.3`；候选外 authority SHA-256 `0d8d4f9456f42da4692fea7d27c03edcd4f91df3ba6985b623233e095a9d0616`（run-id `85476889-099d-46b6-b8a4-666e8e0b5d77`），
+  冻结候选自带校验器接受。交接书转为 `READY_FOR_EXECUTION`，Win7 G1/G2/G3 仍 `NOT_PERFORMED`。

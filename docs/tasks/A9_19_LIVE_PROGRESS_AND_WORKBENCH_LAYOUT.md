@@ -6,7 +6,7 @@ Task Type: PRODUCT_EXPERIENCE
 Target Branch: codex/a9-alpha2
 Source Baseline: 6adaaf0
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_19_WIN7_37_FROZEN_AWAITING_AUTHORITY
+Phase-Gate: A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0135
 ```
@@ -226,3 +226,10 @@ Decision: ADR-0135
 - 冻结于本机 `.acceptance/candidates/WIN7-37/`（含 `IDENTITY.sha256`），双构建输出在 `.acceptance/builds/WIN7-37/dd6cb1a-reissue/`，临时工作树已移除。
 - 当前停在候选外 `WIN7_37_RELEASE_AUTHORITY` 门：负责人按上表精确哈希与实际 Win7 地址签发 authority 与独立 SHA-256 pin 之前，
   Win7 G1/G2/G3 均 `NOT_PERFORMED`。
+
+## 15. WIN7-37 候选外授权（2026-09-25，负责人批准）
+
+负责人按 §14 的精确哈希批准 WIN7-37，目标主机 `192.168.1.3`。候选外 `release-authority.json` 绑定源码 `dd6cb1a`、ZIP、manifest、
+input lock、批准清单、目标主机与 run-id `85476889-099d-46b6-b8a4-666e8e0b5d77`，SHA-256 `0d8d4f9456f42da4692fea7d27c03edcd4f91df3ba6985b623233e095a9d0616`，独立 pin 与锁文件同存于本机
+`.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/authority/`。冻结候选自带 `verifyAcceptanceCandidate` 已接受该真实 authority。
+交接书改为 `READY_FOR_EXECUTION`；Win7 G1/G2/G3 仍 `NOT_PERFORMED`，由外部执行方按交接书执行，审核方复核原始证据后给建议，负责人裁决。

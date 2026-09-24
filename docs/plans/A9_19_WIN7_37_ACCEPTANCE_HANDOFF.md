@@ -1,7 +1,7 @@
 # A9-19 / WIN7-37 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: DRAFT_PENDING_CANDIDATE（候选冻结与授权完成后，由审核方填写 §3 并改为 READY_FOR_EXECUTION）
+Status: READY_FOR_EXECUTION（2026-09-25：候选已冻结，负责人已按精确哈希批准并绑定目标 192.168.1.3）
 Scope: A9-19 运行过程实时可见与工作台布局二期（b4c138b + 9d82ed1）
 Executor: 外部执行模型（负责人指定，例如 Gemini 3.8 Flash）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）
@@ -41,9 +41,12 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
 | ZIP 文件名 / SHA-256 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf`（101,369,111 B；本机冻结于 `.acceptance/candidates/WIN7-37/`） |
 | manifest SHA-256 | `bad63b4ce9f881d42bfd4426ccd5bdae58916ea7c284b5c1bbc8cc17e08ea27c` |
 | input lock SHA-256 | `a64a8b6833d6d7f6b1db603416a7e7e27ddad354f5a54a00c6b3be115aa04cbe` |
-| authority SHA-256 | 【待负责人签发后由审核方填写】 |
+| authority SHA-256 | `0d8d4f9456f42da4692fea7d27c03edcd4f91df3ba6985b623233e095a9d0616`（`release-authority.json`；独立 pin 为同目录 `release-authority.json.sha256`） |
+| run-id（已绑定在 authority 中，不得另起） | `85476889-099d-46b6-b8a4-666e8e0b5d77` |
+| authority 与锁文件位置（本机） | `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/authority/`（`release-authority.json`、`.sha256`、`a9-19-win7-37-input-lock.json`、`a9-v25-approved-kits.json`） |
+| 目标主机（已绑定在 authority 中） | `192.168.1.3`；地址变化时停止并请负责人重签 authority |
 | 完整性命令 / 报告命令 / smoke 脚本 | `RUN_A9_19_W37_INTEGRITY.cmd` / `RUN_WIN7_37_REPORT_VERIFY.cmd` / `validation\a9-win7-37-smoke.cjs`（用法见候选内 `A9_19_WIN7_37_VALIDATION.md`） |
-| Win7 运行根目录 | `C:\A9-W37\<run-id>`（run-id 由执行方生成：8 位十六进制） |
+| Win7 运行根目录 | `C:\A9-W37\85476889`（取 run-id 前 8 位） |
 
 ## 4. 环境与连接
 
@@ -71,7 +74,7 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
 每一步完成后把结果追加到本机运行目录的 `RUN_LOG.md`（时间、命令、退出码、关键输出），不得事后补写。
 
 1. **G0 连接与会话**：只读执行 `cmd /c ver` 与 `query user`；记录主机键核对结果、`agent` 会话状态、`tasklist` 中无 `electron.exe`。
-2. **G0 上传与哈希**：在 Win7 创建 `C:\A9-W37\<run-id>\{package,evidence,scripts,authority}`；上传候选 ZIP 与 authority；
+2. **G0 上传与哈希**：在 Win7 创建 `C:\A9-W37\85476889\{package,evidence,scripts,authority}`；上传候选 ZIP 与 authority；
    在 Win7 上用 `certutil -hashfile <zip> SHA256` 复算，必须与 §3 完全一致，再展开到 `package\`。
 3. **G1 完整性**：以 `agent` 运行 §3 的完整性命令；退出码必须为 0，输出文件原样取回。
 4. **G2 自动 smoke**：以 `agent` 运行 smoke；要求退出码 0 且报告 `status=PASS`；报告中的迟到加载、受控 ERROR 两个反例、
@@ -82,7 +85,7 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
    **任何密钥不得出现在命令、脚本、截图或报告中**。
 7. **后飞行**：产品全部关闭；`tasklist` 无 `electron.exe`、helper 或测试 Shell 残留；再次复算候选 ZIP 与展开目录关键文件哈希，必须不变；
    删除本次注册的计划任务。
-8. **取回**：把 `C:\A9-W37\<run-id>\evidence\` 全部取回到本机 `.acceptance/runs/WIN7-37/<run-id>/evidence/`，并生成
+8. **取回**：把 `C:\A9-W37\85476889\evidence\` 全部取回到本机 `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/evidence/`，并生成
    `SHA256SUMS.txt`（每个文件一行）。
 
 ## 6. 用例（以冻结 Kit `A9-19-WIN7-37-LIVE-PROGRESS-20260925-01` 为准）
@@ -112,7 +115,7 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
 
 交回给审核方的必须是**原始证据**，不是摘要：
 
-1. `.acceptance/runs/WIN7-37/<run-id>/` 完整目录（`evidence/`、`scripts/`、`RUN_LOG.md`、`SHA256SUMS.txt`）。
+1. `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/` 完整目录（`evidence/`、`scripts/`、`RUN_LOG.md`、`SHA256SUMS.txt`）。
 2. `EXECUTOR_REPORT.json`，字段固定：`run_id`、`target_ip`、`host_key_ok`、`agent_session`、`zip_sha256_win7`、
    `authority_sha256`、`steps[]`（每步：`name`、`started_at`、`exit_code`、`status` ∈ {`DONE`,`FAILED`,`NOT_PERFORMED`}、`evidence_files[]`）、
    `cases[]`（每项：`id`、`observed`（原样事实，不写判断）、`evidence_files[]`）、`stop_reason`（未停止为 `null`）、
