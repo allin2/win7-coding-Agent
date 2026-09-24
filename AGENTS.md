@@ -18,9 +18,9 @@
 
 ## 2. 当前阶段与历史入口
 
-- 当前 A9-14 任务 `docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md` 已为 `COMPLETE`；
-  A9-09～A9-14 实现范围不重新开放。最新状态仅以 `docs/STATUS.md` 为入口，任务定位见
-  `docs/tasks/README.md`；历史任务仍须遵守其分支、白名单和验收合同，不得借用历史授权。
+- 当前工作项、候选结论与阻断项只以 `docs/STATUS.md` 为入口；任务定位与实现授权状态以
+  `docs/tasks/README.md` 为准，本文件不写死“当前任务”（ADR-0134）。A9-09～A9-14 实现范围
+  不重新开放；历史任务仍须遵守其分支、白名单和验收合同，不得借用历史授权。
 - WIN7-22 冻结裁决为 `A9_14_WIN7_22_GO_FOR_ALPHA`（`0.3.0-alpha.1` 内部 Alpha，非 RC）；
   交付分支为 `codex/a9-win7-22-cmd-verbatim`，不是要求切换当前工作分支。
   WIN7-19 保持历史里程碑，WIN7-20/WIN7-21 保持不可变 `FIX_BEFORE_ALPHA`；
@@ -86,7 +86,7 @@
 | 主题 | 权威来源 |
 |---|---|
 | Win7、C01–C20、Runtime Profile、依赖登记 | `docs/WIN7_CONSTRAINTS.md` |
-| A9 当前实现授权、范围与验收 | `docs/tasks/A9_14_D013_CMD_VERBATIM_AND_WIN7_22.md`、`docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`；A9-13/09 历史合同见对应任务书 |
+| 当前实现授权、范围与验收 | `docs/tasks/README.md` 中状态为 `APPROVED_FOR_IMPLEMENTATION` 的任务书（当前工作项见 `docs/STATUS.md`）；A9 总合同 `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`；A9-09～A9-14 历史合同见对应任务书 |
 | A9 产品需求与 Full Access 裁决 | `docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md`、ADR-0089 |
 | 当前状态与任务索引 | `docs/STATUS.md`、`docs/tasks/README.md` |
 | 架构、安全与评估 | `docs/ARCHITECTURE.md`、`docs/SECURITY.md`、`docs/EVALUATION.md` |

@@ -137,3 +137,4 @@
 | ADR-0131 | W34-13-A03 收窄到可达最窄视口，≤799px 抽屉分支登记为产品内不可达 | Accepted |
 | ADR-0132 | WIN7-34 验收链路偏差与 WIN7-35 Driver 生命周期、退出码修复授权 | Accepted |
 | ADR-0133 | WIN7-35 真实 125% DPI 容量失败与 WIN7-36 换发 | Accepted |
+| ADR-0134 | AGENTS.md 与 CLAUDE.md 不再写死“当前任务”，改为引用 STATUS.md 与任务索引 | Accepted |
