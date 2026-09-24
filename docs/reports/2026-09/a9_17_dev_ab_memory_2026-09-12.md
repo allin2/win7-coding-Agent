@@ -204,11 +204,13 @@ Node 22。
 
 ## 9. 可复查证据
 
+> 2026-09-24 文档整理注：以下开发机临时路径已被系统清理、未入库，现仅作记录；不可再复查原始文件，结论仅以本文记录为准。
+
 - 端点 A/B：`/tmp/a9-17-ab/evidence-full/`（12 次启动，35 秒窗口）
 - 规模扫描：`/tmp/a9-17-ab/evidence-sweep/`（12 次启动，100 / 5000 轮）
 - 稳态确认：`/tmp/a9-17-ab/evidence-settle/`（4 次启动，5000 轮，60 秒窗口）、
   `/tmp/a9-17-ab/evidence-settle2/`（8 次启动，0 / 1000 轮，60 秒窗口）
 - 每个目录含 `meta.json`、`summary.json`、`analysis.json`；每次启动含 `seed.json`、
   `electron.json`（逐样本进程与内存）、`electron.log`
-- 夹具：[measure-ab.py](/tmp/a9-17-ab/measure-ab.py)、[analyze-ab.py](/tmp/a9-17-ab/analyze-ab.py)、
-  [driver-ab.cjs](/tmp/a9-17-ab/driver-ab.cjs)
+- 夹具：measure-ab.py（`/tmp/a9-17-ab/measure-ab.py`）、analyze-ab.py（`/tmp/a9-17-ab/analyze-ab.py`）、
+  driver-ab.cjs（`/tmp/a9-17-ab/driver-ab.cjs`）

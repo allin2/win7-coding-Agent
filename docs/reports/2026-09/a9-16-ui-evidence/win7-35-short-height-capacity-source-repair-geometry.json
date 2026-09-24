@@ -1,0 +1,374 @@
+{
+  "schema_version": 1,
+  "kind": "A9_16_WIN7_35_LEFT_PANE_CAPACITY_SOURCE_REPAIR_GEOMETRY",
+  "recorded_at": "2026-09-23T00:00:00Z",
+  "status": "DEV_GEOMETRY_PASS_NOT_WIN7",
+  "purpose": "Explain the WIN7-35 physical failure (3 rows at 1079x540) and record same-condition before/after geometry after the A9-16 whitelist fix. Not a Win7 PASS and not a new candidate.",
+  "baseline": {
+    "branch": "codex/a9-alpha2",
+    "head_before_repair": "3ba50d48605464f6fb115f826310912b791a3246",
+    "source_dirty": true,
+    "win7_35_zip_sha256": "0d1474fddbd05c28e2109f2b7d70eb78d7e4ac786cadf2418175c7504b73749c",
+    "physical_run": ".acceptance/runs/WIN7-35/9ffae420-fd2c-4c5f-93ef-c56584fe1ca4"
+  },
+  "target_geometry": {
+    "physical_display_px": {
+      "width": 1366,
+      "height": 768
+    },
+    "windows_dpi": 120,
+    "scale_percent": 125,
+    "usable_content_css_px": {
+      "width": 1079,
+      "height": 540
+    },
+    "invalid_clamped_content_css_px": {
+      "width": 1080,
+      "height": 584
+    },
+    "clamp_note": "policy.js minHeight 620 DIP clamps non-maximized content height to 584 CSS px. The physical maximized usable content height is 540. Capacity PASS must be judged at 540 only."
+  },
+  "fixture": {
+    "running_conversations": 1,
+    "older_conversations": 8,
+    "archived_conversations": 1,
+    "group_headers": [
+      "进行中",
+      "更早"
+    ],
+    "archive_summary_visible": true,
+    "rail_stop_visible": true,
+    "row_height_px": 36
+  },
+  "root_cause": {
+    "id": "DIRECTORY_NOTE_SELECTOR_NOT_BOUND",
+    "detail": "workbench.html used <p id=\"conversation-directory-note\" class=\"quiet\">. Layout CSS targeted .conversation-directory-note (class). The class was never on the node, so UA default p margins (1em x 2 on 12px text ≈ 24px) plus 1.55 body line-height occupied ~44px of directory chrome. The static budget model read the unused CSS rule and assumed a single 11px/1.2 line (~14px). Model stayed green while real list clientHeight collapsed to 178px (3 rows).",
+    "secondary_amplifiers": [
+      "Windows classic horizontal scrollbar on .conversation-list can further reduce clientHeight when the meta column overflows",
+      "Microsoft YaHei metrics can wrap a non-nowrap note to multiple lines"
+    ]
+  },
+  "height_budget_ledger_physical_540": {
+    "unit": "css_px",
+    "source": "measure3/result.json initial + chrome headless reproduction at 1079x540",
+    "items": [
+      {
+        "name": "rail-inner padding top+bottom",
+        "before": 4,
+        "after": 4
+      },
+      {
+        "name": "brand",
+        "before": 28,
+        "after": 28
+      },
+      {
+        "name": "workspace-card",
+        "before": 40,
+        "after": 40
+      },
+      {
+        "name": "product-nav (horizontal 2 entries)",
+        "before": 32,
+        "after": 32
+      },
+      {
+        "name": "conversation-directory (flex grow)",
+        "before": 334,
+        "after": 334
+      },
+      {
+        "name": "  directory borders",
+        "before": 2,
+        "after": 2
+      },
+      {
+        "name": "  directory header",
+        "before": 28,
+        "after": 28
+      },
+      {
+        "name": "  search block",
+        "before": 29,
+        "after": 29
+      },
+      {
+        "name": "  conversation-list clientHeight",
+        "before": 178,
+        "after": 207
+      },
+      {
+        "name": "  current-actions (重命名/归档)",
+        "before": 27,
+        "after": 27
+      },
+      {
+        "name": "  archive summary",
+        "before": 27,
+        "after": 27
+      },
+      {
+        "name": "  directory-note footprint",
+        "before": 44,
+        "after": 14,
+        "note": "before = 12px p margin-top + 19px content + 13px margin-bottom; after = 1px border + 13.2px single line, margin 0"
+      },
+      {
+        "name": "directory margin-bottom",
+        "before": 2,
+        "after": 2
+      },
+      {
+        "name": "rail-task (state + Stop horizontal)",
+        "before": 38,
+        "after": 38
+      },
+      {
+        "name": "trust-note collapsed",
+        "before": 30,
+        "after": 30
+      },
+      {
+        "name": "rail-bottom (设置/诊断)",
+        "before": 30,
+        "after": 30
+      },
+      {
+        "name": "rail-inner padding remainder",
+        "before": 2,
+        "after": 2
+      }
+    ],
+    "sum_check_before": 540,
+    "sum_check_after": 540,
+    "visible_rows_before": 3,
+    "visible_rows_after": 4
+  },
+  "same_condition_geometry": {
+    "host": "macOS development machine + Google Chrome headless (Chromium layout)",
+    "viewport_css_px": [
+      1079,
+      540
+    ],
+    "compact_height_media_matched": true,
+    "win7_direct_execution": false,
+    "before": {
+      "label": "class unbound (WIN7-35 failure mode)",
+      "innerWidth": 1079,
+      "innerHeight": 540,
+      "devicePixelRatio": null,
+      "listClientHeight": 178,
+      "listScrollHeight": 384,
+      "listClientWidth": 193,
+      "listScrollWidth": 193,
+      "rowHeightPx": 36,
+      "groupHeaderHeights": [
+        20,
+        20
+      ],
+      "fullyVisibleRows": 3,
+      "directoryHeight": 334,
+      "noteContentHeight": 19,
+      "noteComputed": {
+        "fontSize": "12px",
+        "lineHeight": "18.6px",
+        "whiteSpace": "normal"
+      },
+      "noteMarginGaps": {
+        "archive_to_note": 12,
+        "note_to_directory_bottom": 13
+      },
+      "horizontalOverflowPx": 0
+    },
+    "after": {
+      "label": "note selector bound + nowrap + overflow-x hidden",
+      "innerWidth": 1079,
+      "innerHeight": 540,
+      "devicePixelRatio": null,
+      "listClientHeight": 207,
+      "listScrollHeight": 384,
+      "listClientWidth": 193,
+      "listScrollWidth": 193,
+      "rowHeightPx": 36,
+      "groupHeaderHeights": [
+        20,
+        20
+      ],
+      "fullyVisibleRows": 4,
+      "directoryHeight": 334,
+      "noteContentHeight": 14,
+      "noteComputed": {
+        "fontSize": "11px",
+        "lineHeight": "13.2px",
+        "whiteSpace": "nowrap",
+        "overflow": "hidden"
+      },
+      "noteMarginGaps": {
+        "archive_to_note": 0,
+        "note_to_directory_bottom": 1
+      },
+      "horizontalOverflowPx": 0
+    },
+    "delta": {
+      "listClientHeight": 29,
+      "fullyVisibleRows": 1,
+      "viewport_not_clamped": true
+    }
+  },
+  "win7_physical_reference": {
+    "source": "measure3/result.json measurements.initial",
+    "innerWidth": 1079,
+    "innerHeight": 540,
+    "devicePixelRatio": 1.25,
+    "screenWidth": 1093,
+    "screenHeight": 615,
+    "screenAvailWidth": 1093,
+    "screenAvailHeight": 576,
+    "listClientHeight": 178,
+    "listScrollHeight": 384,
+    "rowHeightPx": 36,
+    "fullyVisibleRows": 3,
+    "directoryHeight": 334,
+    "archiveBoxHeight": 27,
+    "match_to_dev_before": "list 178 / rows 3 / directory 334 — exact match of the failure mode"
+  },
+  "constraints_preserved": {
+    "row_height_36px": true,
+    "rows_single_line": true,
+    "group_headers_visible": true,
+    "archive_summary_visible": true,
+    "stop_visible": true,
+    "bottom_entries_visible": [
+      "可信工作区",
+      "设置",
+      "诊断"
+    ],
+    "list_independently_scrollable": true,
+    "window_not_forced_beyond_physical_screen": true,
+    "dpi_or_zoom_not_modified": true
+  },
+  "secondary_observation_dom_identity": {
+    "win7_assertions": [
+      "W35-12-A04",
+      "W35-13-A04"
+    ],
+    "symptom": "conversation list node identity changed across checks while a held task was active; beforeCount=afterCount=11",
+    "isolation": {
+      "pane_toggle_path": "a9-workbench.js only toggles .rail-closed/.inspector-closed classList; contract test already asserts the list node object identity is unchanged across toggles",
+      "list_refresh_path": "renderConversationDirectory() sets conversation-list textContent = '' and rebuilds on every snapshot poll",
+      "hypothesis": "timer/snapshot refresh during the held running task rebuilt the list between identity captures; not proven to be pane-toggle DOM rebuild",
+      "fix_applied": false,
+      "disposition": "RESIDUAL_RISK_PENDING_ISOLATED_REPRO"
+    }
+  },
+  "tests": {
+    "source_contract": {
+      "command": "npm --prefix src/shell test -- --runInBand a9-workbench-contract",
+      "result": "32/32 PASS",
+      "new_cases": [
+        "binds directory-note layout selectors to the real HTML node (static-green/real-red guard)",
+        "rewritten keeps four 36px rows visible in the real 125% DPI worst-form height budget (U02/U07)"
+      ],
+      "negative_controls": [
+        "stripping class=\"conversation-directory-note\" fails 2 cases",
+        "stripping nowrap on #conversation-directory-note compact rule fails the 125% budget case"
+      ]
+    },
+    "shell_lint": {
+      "command": "npm --prefix src/shell run lint",
+      "result": "PASS (tsc --noEmit + product node --check)"
+    },
+    "shell_build": {
+      "command": "npm --prefix src/shell run build",
+      "result": "PASS (tsc)"
+    },
+    "git_diff_check": {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    "win7_physical": "NOT_PERFORMED",
+    "real_geometry_probe": {
+      "command": "node docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-geometry-probe.mjs",
+      "result": "A9_GEOMETRY_VERIFY_PASS exit 0",
+      "target_540": {
+        "inner": [
+          1079,
+          540
+        ],
+        "dpr": 1,
+        "list_client_height": 207,
+        "fully_visible_rows": 4,
+        "status": "PASS_DEV_GEOMETRY_NOT_WIN7",
+        "stop_in_viewport": true,
+        "archive_summary_in_viewport": true
+      },
+      "clamped_584": {
+        "inner": [
+          1079,
+          584
+        ],
+        "dpr": 1,
+        "fully_visible_rows": 5,
+        "status": "INVALID_VIEWPORT_CLAMPED_584",
+        "capacity_pass": false
+      },
+      "selector_miss": {
+        "inner": [
+          1079,
+          540
+        ],
+        "dpr": 1,
+        "list_client_height": 178,
+        "fully_visible_rows": 3,
+        "status": "FAIL_CAPACITY",
+        "matches_win7_35": true
+      }
+    }
+  },
+  "replayable_real_geometry_probe": {
+    "entry": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/probe/index.html",
+    "script": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/probe/probe.js",
+    "chrome": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/probe/probe.css",
+    "fail_closed_gate": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-geometry-probe.mjs",
+    "replay_doc": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/REPLAY.md",
+    "root_entry_removed": true,
+    "diagnostic_overlay": false,
+    "stop_visibility": "border-box fully inside actual viewport (intersects + fully_in_viewport)",
+    "asserts_actual_viewport": true,
+    "records": [
+      "innerWidth",
+      "innerHeight",
+      "devicePixelRatio",
+      "screen_width",
+      "screen_height",
+      "screen_avail_width",
+      "screen_avail_height",
+      "list_client_height",
+      "group_headers",
+      "row_heights",
+      "fully_visible_rows",
+      "note_box",
+      "note_style",
+      "stop_in_viewport",
+      "archive_summary_in_viewport"
+    ],
+    "statuses": {
+      "target_1079x540": "PASS_DEV_GEOMETRY_NOT_WIN7",
+      "clamped_1079x584": "INVALID_VIEWPORT_CLAMPED_584",
+      "layout_negative_selector_miss": "FAIL_CAPACITY"
+    },
+    "gate": {
+      "command": "node docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-geometry-probe.mjs",
+      "pass_exit": 0,
+      "fail_exit": 1,
+      "negative_control": "expected rows 4->5 => A9_GEOMETRY_VERIFY_FAIL exit 1; restored => PASS exit 0"
+    },
+    "evidence": {
+      "summary": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-geometry-probe-summary.json",
+      "target_540": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-target-540.json",
+      "clamped_584": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-clamped-584.json",
+      "selector_miss": "docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-selector-miss.json"
+    },
+    "note": "Static 540!=584 constant comparison remains removed. Viewport validity is decided only by the probe/gate reading actual innerHeight. Chrome exit code is not the gate signal."
+  }
+}

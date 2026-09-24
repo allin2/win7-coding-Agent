@@ -2,17 +2,14 @@
 
 本文件约束 Claude（及类似 LLM Coding Agent）在本仓库中的行为。
 
-## 开工前必读（强制顺序）
+## 开工前必读
 
-在执行任何任务之前，必须依次读取：
+1. `AGENTS.md` — 最高项目约束，单一事实来源；其 §3 规定按任务类型读取的范围。
+2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 与当前任务书。当前任务书经
+   `docs/STATUS.md`（当前工作项）与 `docs/tasks/README.md`（授权状态）定位，本文件不写死
+   具体任务（ADR-0134）。
 
-1. `AGENTS.md` — 最高项目约束，单一事实来源。
-2. `docs/WIN7_CONSTRAINTS.md` — Win7 兼容性 Profile、平台红线与依赖评审登记。
-3. 当前分支对应的任务文档 — 现有正式任务是
-   `docs/tasks/PHASE_01_CAPABILITY_PROBE.md`（阶段 1）与
-   `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md`（阶段 2，ADR-0025）。
-
-未完成上述阅读，不得产出任何代码或文档修改。
+未完成 `AGENTS.md` §3 要求的阅读，不得产出任何代码或文档修改。
 
 ## 行为规则
 
@@ -32,20 +29,16 @@
    仅当当前任务文档状态为 `APPROVED_FOR_IMPLEMENTATION` 时，才可在其允许路径清单内
    创建/修改实现文件，禁止触碰清单外的实现文件。
 
-## 当前阶段速查
+## 长期有效约束速查
 
-- 阶段：0（工程基线）+ 1（Capability Probe）+ 2（正式只读代码分析 Agent）
-- **Phase 1/2**：Python 活跃阶段实现代码，待 Win7 实机验收（CPython 3.8.10 冻结合同）
-- **Phase 3-7**：已获授权（`APPROVED_FOR_IMPLEMENTATION`，ADR-0036），候选 TypeScript 实现位于整合工作区；当前提交、验证记录与阻断项统一见 [`docs/STATUS.md`](docs/STATUS.md)，SPIKE 与 Win7 实机验收未执行
-- **SPIKE 01-04**：已获授权（`APPROVED_FOR_IMPLEMENTATION`），待 Win7 实机验证
-- **独立原型线**：`prototype/full-agent-skeleton` 分支（ADR-0023，`APPROVED_FOR_IMPLEMENTATION`）
-- 架构基线：ADR-0027 已废止项目级 Python-only、stdlib-only、禁止 Node/Electron、
-  CLI-only 与强制完全离线限制；唯一固定客户端平台是 Win7 SP1 x64。该决策不扩张任何
-  既有任务白名单。
-- 阶段 2 定义：正式只读代码分析 Agent（**不是**旧 ROADMAP 的"通用子进程 Runner"；通用 Runner 已延后，ADR-0025）；实现只能在 `phase/02-readonly-agent` 分支、仅任务书 §8 白名单内进行
-- 允许产出：Markdown 文档；`PHASE_01_CAPABILITY_PROBE.md` §0.2 允许路径内的实现与测试文件；`PHASE_02_READONLY_CODE_ANALYSIS.md` §8 允许路径内的实现与测试文件（仅限阶段 2 实现分支）
-- 当前任务禁止产出：允许路径之外的任何实现文件、Phase 1/2 未登记依赖或联网安装脚本；
-  禁止整体合并/cherry-pick 原型分支。未来组件可以在新的获批任务书中选择经登记的
-  第三方依赖、企业内网安装或受控更新。
-- 阶段 1 完成标准：见 `docs/tasks/PHASE_01_CAPABILITY_PROBE.md` §8 验收标准（Win7 实机验收是完成硬门槛，但不是开始编码的前置）
-- 阶段 2 完成标准：见 `docs/tasks/PHASE_02_READONLY_CODE_ANALYSIS.md` §7/§10/§13（Win7 实机验收前 Phase-Gate 至多到 `READY_FOR_WIN7_VALIDATION`）
+当前阶段、任务状态、候选结论与阻断项一律以 [`docs/STATUS.md`](docs/STATUS.md) 为准，
+任务授权状态见 [`docs/tasks/README.md`](docs/tasks/README.md)；本节只列不随阶段变化的约束。
+
+- 架构基线：ADR-0027 已废止项目级 Python-only、stdlib-only、禁止 Node/Electron、CLI-only 与
+  强制完全离线限制；唯一固定客户端平台是 Win7 SP1 x64。该决策不扩张任何既有任务白名单。
+- Phase 1/2 为 Python 历史冻结合同（CPython 3.8.10），相关代码继续逐条对照 Python 3.8.10 禁用清单；
+  阶段 2 是正式只读代码分析 Agent，不是通用子进程 Runner（ADR-0025）。
+- 独立原型线 `prototype/full-agent-skeleton`（ADR-0023）禁止整体合并或 cherry-pick。
+- 任何实现只能在状态为 `APPROVED_FOR_IMPLEMENTATION` 的任务书允许路径内进行（AGENTS.md C14）；
+  未登记依赖、联网安装脚本与白名单外实现文件一律禁止。
+- Win7 实机验收是完成硬门槛，但不是开始编码的前置；开发机结果不等于 Win7 通过。

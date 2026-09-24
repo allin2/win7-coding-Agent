@@ -2202,3 +2202,31 @@
   后，负责人仍须按源码、input lock、manifest 与 ZIP 精确哈希单独签发候选外
   `WIN7_36_RELEASE_AUTHORITY` 和独立 pin，方可在 `10.110.237.40` 普通用户非提升桌面身份
   执行 G1→G2→G3→报告。未知哈希未预先获批；本 ADR 不签 Alpha 2 或 RC PASS。
+
+## ADR-0134 AGENTS.md 与 CLAUDE.md 不再写死“当前任务”，改为引用 STATUS.md 与任务索引
+
+- 状态：Accepted（2026-09-24，负责人批准）
+- 背景：2026-09-24 文档整理发现三处入口文档与实际进度矛盾：（1）`AGENTS.md` §2 仍称
+  “当前 A9-14 任务……已为 `COMPLETE`”，§8 把 A9-14 任务书列为“A9 当前实现授权、范围与验收”的
+  权威来源，而实际在制任务为 A9-16（`APPROVED_FOR_IMPLEMENTATION`，WIN7-36 UI 子集 PASS 后
+  Review/Shell streaming 暂缓）与 A9-17；（2）`CLAUDE.md`“开工前必读”仍称现有正式任务是
+  Phase 1/2 两份任务书，并要求任何代码或文档修改前都读取它们，与 `AGENTS.md` §3“纯文档或规则
+  维护只读相关文档”冲突；（3）`CLAUDE.md`“当前阶段速查”停在 2026-08-02，缺 A7～A9。
+  根因是入口文档按阶段手工写死“当前任务”，每次换阶段都需同步，且 `AGENTS.md` 的修改又须 ADR，
+  实际未随进度更新。`docs/STATUS.md` 已于同日拆分为当前快照（逐条时间线移至
+  `docs/STATUS_LOG.md`），`docs/tasks/README.md` 已维护每个任务书的授权状态。
+- 决策：（1）`AGENTS.md` §2 删除“当前 A9-14 任务”的写死表述，改为：当前工作项、候选结论与阻断项
+  只以 `docs/STATUS.md` 为入口，任务定位与实现授权状态以 `docs/tasks/README.md` 为准；
+  “A9-09～A9-14 实现范围不重新开放”、WIN7-22 冻结裁决、ADR-0096、Full Access 非沙箱等既有
+  约束原样保留。（2）`AGENTS.md` §8 “A9 当前实现授权、范围与验收”行改为指向
+  `docs/tasks/README.md` 中状态为 `APPROVED_FOR_IMPLEMENTATION` 的任务书，并保留
+  `A9_TRUSTED_AGENT_RUNTIME.md` 总合同与 A9-09～A9-14 历史合同入口。（3）`CLAUDE.md`
+  “开工前必读”改为服从 `AGENTS.md` §3 的按需读取规则，当前任务书经 `STATUS.md` 与任务索引定位；
+  “当前阶段速查”删除易过时的阶段状态，只保留长期有效约束（ADR-0027 架构基线、Phase 1/2
+  CPython 3.8.10 冻结合同、禁止整体合并/cherry-pick 原型分支），当前状态一律引用 `STATUS.md`。
+  （4）C14 实现授权机制、任务书白名单、Win7 实机硬门、文档优先级顺序及其余 AGENTS.md 条款不变；
+  本 ADR 不授予任何实现授权，不改变任何任务书状态或候选结论。
+- 后果：入口文档不再随阶段推进失效，“当前”事实只在 `STATUS.md` 与 `tasks/README.md` 两处维护；
+  代价是读者必须多跳一次链接才能知道当前任务，且 `STATUS.md` 当前工作项一览与任务索引须在
+  每次状态变化时同步更新（`STATUS.md` 状态使用规则已写明）。本 ADR 被接受前，`AGENTS.md` 与
+  `CLAUDE.md` 的对应修改不得提交。

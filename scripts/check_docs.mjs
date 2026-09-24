@@ -8,16 +8,58 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
 
-function walk(directory) {
-  const entries = fs.readdirSync(directory, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    if (entry.name === ".git" || entry.name === "node_modules") continue;
-    const filename = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...walk(filename));
-    else files.push(filename);
+// DOCS_02: enumerate tracked files plus untracked files that are not ignored, so
+// git-ignored local outputs (outputs/**, .acceptance/**) are never checked as docs.
+function repositoryFiles() {
+  let listing;
+  try {
+    listing = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    failures.push({ kind: "enumeration", file: ".", reason: `git ls-files failed: ${error.message}` });
+    return [];
   }
-  return files;
+  const files = new Set();
+  for (const name of listing.split("\0")) {
+    if (!name) continue;
+    recordRepositoryPath(name);
+    const filename = path.join(root, name);
+    // --cached still lists files deleted from the working tree.
+    if (fs.existsSync(filename)) files.add(filename);
+  }
+  return [...files];
+}
+
+// DOCS_04: repository membership for link targets, built from the same enumeration.
+// Keys are "/"-separated paths relative to the repository root.
+const repositoryPaths = new Set();
+const repositoryDirectories = new Set();
+const repositoryPathsByLowerCase = new Map();
+
+function recordRepositoryPath(name) {
+  repositoryPaths.add(name);
+  repositoryPathsByLowerCase.set(name.toLowerCase(), name);
+  let directory = path.posix.dirname(name);
+  while (directory !== "." && !repositoryDirectories.has(directory)) {
+    repositoryDirectories.add(directory);
+    repositoryPathsByLowerCase.set(directory.toLowerCase(), directory);
+    directory = path.posix.dirname(directory);
+  }
+}
+
+function repositoryMembershipFailure(resolved) {
+  const rel = path.relative(root, resolved);
+  if (rel === "") return null;
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return "target is outside the repository";
+  const key = rel.split(path.sep).join("/");
+  if (repositoryPaths.has(key) || repositoryDirectories.has(key)) return null;
+  const actual = repositoryPathsByLowerCase.get(key.toLowerCase());
+  if (actual) return `target case differs from repository path ${actual}`;
+  return "target is not part of the repository";
 }
 
 function relative(filename) {
@@ -49,11 +91,14 @@ function checkLinks(filename, source) {
     const resolved = path.resolve(path.dirname(filename), decoded);
     if (!fs.existsSync(resolved)) {
       failures.push({ kind: "link", file: relative(filename), target, reason: "target does not exist" });
+      continue;
     }
+    const membership = repositoryMembershipFailure(resolved);
+    if (membership) failures.push({ kind: "link", file: relative(filename), target, reason: membership });
   }
 }
 
-const docFiles = walk(root).filter((filename) => {
+const docFiles = repositoryFiles().filter((filename) => {
   const rel = relative(filename);
   return (
     /^(?:docs\/).*\.(?:md|html)$/i.test(rel) ||

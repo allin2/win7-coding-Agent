@@ -32,9 +32,11 @@
 
 ## 可复查证据
 
-- [原始数据及方法目录](/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od)
-- [逐轮结果 summary.json](/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od/summary.json)
-- [聚合及交叉核对 analysis.json](/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od/analysis.json)
-- [复现采样脚本](/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od/measure.py)
+> 2026-09-24 文档整理注：以下开发机临时路径已被系统清理、未入库，现仅作记录；不可再复查原始文件，结论仅以本文记录为准。
+
+- 原始数据及方法目录（`/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od`）
+- 逐轮结果 summary.json（`/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od/summary.json`）
+- 聚合及交叉核对 analysis.json（`/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od/analysis.json`）
+- 复现采样脚本（`/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-memory-dev-9zsyd0od/measure.py`）
 
 证据目录保留每轮 ps RSS、Electron 指标、启动标记、测试输入规模及日志；meta.json 绑定本次源码/构建文件 SHA-256。未提交、推送、部署或修改用户真实会话。

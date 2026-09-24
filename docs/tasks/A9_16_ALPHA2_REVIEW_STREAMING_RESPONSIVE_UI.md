@@ -503,3 +503,17 @@ run `9d9b5cab-96ec-47e2-b7b3-8102a9ab6909` 在 Win7 SP1 x64 普通用户非提�
 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；此计数只表示同候选证据绑定，不代表不可达分支已直接实测。
 精确哈希、证据边界和逐项例外见[验收收口报告](../reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)。
 结论仅限 A9-16 UI 子集，不签发完整 Alpha 2、Review、Shell streaming 或 RC PASS。
+
+## 19. 证据治理待办（2026-09-24，DOCS_02 开放问题 3 登记）
+
+- 事实：`docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-geometry-probe.mjs`
+  重跑时会重写已跟踪的 `verify-target-540.json`、`verify-clamped-584.json`、`verify-selector-miss.json`
+  与 `verify-geometry-probe-summary.json`（脚本第 85、262 行），并在同目录生成未跟踪的
+  `*.dom.html`、`*.chrome.log`。
+- 风险：按 `REPLAY.md` 复现即会改写已归档的开发机几何证据，与“报告是不可变时间点证据”
+  （`docs/reports/README.md`）冲突。
+- 处置：待负责人裁决（例如闸门输出改写到候选外目录、仅比对不落盘）；本节只登记，不授权修改该脚本。
+  在裁决前复现时应先复制到临时目录执行。
+- 处置结果（2026-09-24）：已由 [DOCS_03](DOCS_03_A9_16_PROBE_GATE_EVIDENCE_ISOLATION.md) 完成。闸门默认输出移至
+  系统临时目录，拒绝写入仓库内未忽略路径，并记录被测源码身份与归档漂移；本目录已归档证据经实测未被改写。
+  后续若合法修改左栏 CSS 导致期望值变化，由该任务在自身白名单内更新闸门期望并另行归档，不回写 WIN7-36 证据。
