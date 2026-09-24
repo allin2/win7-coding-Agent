@@ -1,15 +1,15 @@
 # DOCS_02 — 文档检查器跳过 Git 忽略路径
 
 ```text
-Status: PROPOSED_FOR_APPROVAL
+Status: COMPLETE
 Task Type: DOCUMENTATION_GOVERNANCE
 Target Branch: codex/a9-alpha2
-Phase-Gate: NOT_STARTED
+Phase-Gate: COMPLETE
 Win7-Validation: N/A
 ```
 
-> 本任务书是草案。负责人把 `Status` 改为 `APPROVED_FOR_IMPLEMENTATION` 之前，不得修改
-> §4 允许路径中的任何实现文件（AGENTS.md C14）。`DOCS_01` 虽列有 `scripts/check_docs.mjs`，
+> 2026-09-24 负责人批准实现，开放问题按起草建议裁决（见 §8）；§3.2 可选项未勾选，
+> 本任务不修改 `.gitignore`。实现仅限 §4 允许路径（AGENTS.md C14）。`DOCS_01` 虽列有 `scripts/check_docs.mjs`，
 > 但其目标分支为 `codex/integrated-robustness`，不授权本分支，不得借用。
 
 ## 1. 问题与证据
@@ -102,12 +102,27 @@ Win7-Validation: N/A
   并在 `STATUS.md`“当前阻断与待办”中删除“文档检查”一项，时间线条目追加到 `STATUS_LOG.md`。
 - 是否推送由负责人另行决定。
 
-## 8. 开放问题（批准时请一并裁决）
+## 8. 开放问题与裁决（2026-09-24）
 
 1. **断链判定是否要求目标已跟踪**：现有实现用 `fs.existsSync` 判定，指向被忽略但本地存在的文件
-   （如 `.acceptance/**`）的链接本地通过、干净克隆失败。建议另立任务评估，本任务不改。
+   （如 `.acceptance/**`）的链接本地通过、干净克隆失败。**裁决：另立任务评估，本任务不改。**
 2. **目标分支**：草案定为 `codex/a9-alpha2`，与本轮文档整理同分支；如需与 A9 解耦，可改为从 `main`
-   新建 `codex/docs-02-check-ignored-paths`。
+   新建 `codex/docs-02-check-ignored-paths`。**裁决：在 `codex/a9-alpha2` 实施。**
 3. **重放闸门覆盖已跟踪证据**：`verify-geometry-probe.mjs` 重跑会重写已跟踪的 `verify-*.json` 与
    `verify-geometry-probe-summary.json`（脚本第 85、262 行）。
-   这属于 A9-16 证据治理问题，不在本任务范围，建议在 A9-16 任务书中登记。
+   这属于 A9-16 证据治理问题，不在本任务范围。**裁决：在 A9-16 任务书中登记（文档修改，不属本任务实现）。**
+
+## 9. 实施结果（2026-09-24）
+
+- `scripts/check_docs.mjs`：`walk()` 全树遍历改为 `git ls-files -z --cached --others --exclude-standard`
+  枚举并过滤已删除路径；枚举失败记录 `enumeration` 失败并非零退出。其余检查未改。
+- `scripts/test_check_docs.mjs`：在系统临时目录的一次性 Git 仓库中执行真实检查器，7/7 PASS
+  （干净基线、忽略目录断链不报、未跟踪未忽略文档受检、已跟踪断链报错、中文/空格路径与
+  百分号编码链接、已删除跟踪文件跳过、非 Git 目录报 `enumeration`）。
+- 负向对照：临时换回旧实现运行同一测试，“忽略目录断链不报”用例失败，旧实现报出
+  `outputs/snapshot/README.md` 与 `outputs/snapshot/docs/README.md` 两条断链；恢复新实现后逐字节
+  一致（`cmp`）并 7/7 PASS。对照代码未保留。
+- 验收 §6：`npm run docs:check` 为 `ok=true`、退出码 0；`checked_files` 由旧实现枚举的 143 降为 137，
+  与 `git ls-files --cached --others --exclude-standard` 过滤后的 137 一致；在已跟踪的
+  `docs/README.md` 注入断链时精确报出该文件与目标、退出码 1，撤销后恢复通过；`git diff --check` 通过。
+- §3.2 未勾选，`.gitignore` 未改；开放问题 3 已登记到 A9-16 任务书 §19。

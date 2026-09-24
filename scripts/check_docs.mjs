@@ -8,16 +8,29 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
 
-function walk(directory) {
-  const entries = fs.readdirSync(directory, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    if (entry.name === ".git" || entry.name === "node_modules") continue;
-    const filename = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...walk(filename));
-    else files.push(filename);
+// DOCS_02: enumerate tracked files plus untracked files that are not ignored, so
+// git-ignored local outputs (outputs/**, .acceptance/**) are never checked as docs.
+function repositoryFiles() {
+  let listing;
+  try {
+    listing = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    failures.push({ kind: "enumeration", file: ".", reason: `git ls-files failed: ${error.message}` });
+    return [];
   }
-  return files;
+  const files = new Set();
+  for (const name of listing.split("\0")) {
+    if (!name) continue;
+    const filename = path.join(root, name);
+    // --cached still lists files deleted from the working tree.
+    if (fs.existsSync(filename)) files.add(filename);
+  }
+  return [...files];
 }
 
 function relative(filename) {
@@ -53,7 +66,7 @@ function checkLinks(filename, source) {
   }
 }
 
-const docFiles = walk(root).filter((filename) => {
+const docFiles = repositoryFiles().filter((filename) => {
   const rel = relative(filename);
   return (
     /^(?:docs\/).*\.(?:md|html)$/i.test(rel) ||

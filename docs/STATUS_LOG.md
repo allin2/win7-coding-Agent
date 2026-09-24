@@ -1024,3 +1024,13 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 新候选的 schema v2 开发机 smoke 10/10 PASS，执行前后 ZIP/manifest 未改变；机器可读重新签发见
   [`a8-06-asar-candidate-reissue-20260821.json`](status/a8-06-asar-candidate-reissue-20260821.json)。新候选
   Win10/Win7/RC 仍为 NOT_PERFORMED，下一步须全新解压并从 A8-03 重新执行。
+
+## 文档治理（2026-09-24）
+
+- 2026-09-24，文档整理 P0/P1 完成：修复 A9-17 临时路径断链、补齐报告索引（`17761ab`）；`STATUS.md`
+  拆为当前快照与本流水、新增 ADR 与方案索引（`adad4d3`）；ADR-0134 接受，`AGENTS.md`/`CLAUDE.md`
+  不再写死当前任务（`f634044`）。
+- 2026-09-24，[DOCS_02](tasks/DOCS_02_DOC_CHECK_IGNORED_PATHS.md) 经负责人批准并完成：`docs:check`
+  改按 `git ls-files` 枚举，跳过被忽略路径，`outputs/**` 73 处噪声失败消除，当前 `ok=true`
+  （137 个文档）；新增 `scripts/test_check_docs.mjs` 7/7 PASS，负向对照确认旧实现失败。开发机工具，
+  不进入 Win7 候选，`Win7-Validation: N/A`。
