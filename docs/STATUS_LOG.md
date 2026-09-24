@@ -1031,7 +1031,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   “A9-16 WIN7-36 UI subset: candidate and physical acceptance” 将 `codex/a9-alpha2` 合并入 `main`，合并提交
   `8fd9d5d707005918e5ad5f0fae4fc100bb481131`，内容与 `f348761` 一致。相对原 main `72dfe22` 带入 34 个非合并提交：
   A9-15（WIN7-23～28）、A9-16 UI 子集（WIN7-29～36）及 A9-17 启动/内存实现（`3437bc1`）。合并不改变任何候选、
-  authority 或实机证据；A7 仍为唯一 RC，完整 Alpha 2 未获 PASS。本节以下文档治理提交均在合并之后，尚未并入 main。
+  authority 或实机证据；A7 仍为唯一 RC，完整 Alpha 2 未获 PASS。本节以下文档治理提交均在合并之后。
 - 2026-09-24，文档整理 P0/P1 完成：修复 A9-17 临时路径断链、补齐报告索引（`17761ab`）；`STATUS.md`
   拆为当前快照与本流水、新增 ADR 与方案索引（`adad4d3`）；ADR-0134 接受，`AGENTS.md`/`CLAUDE.md`
   不再写死当前任务（`f634044`）。
@@ -1046,3 +1046,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-24，[DOCS_04](tasks/DOCS_04_DOC_LINK_TARGETS_TRACKED.md) 经负责人批准并完成：`docs:check` 要求本地链接
   目标属于仓库（已跟踪或未跟踪未忽略），并拒绝仓库外目标与大小写不一致的链接；现有 503 个本地链接零命中，
   测试 12/12 PASS，负向对照确认旧实现放行三类链接，耗时无变化。开发机工具，`Win7-Validation: N/A`。
+- 2026-09-24 16:50（+08:00），[PR #9](https://github.com/allin2/win7-coding-Agent/pull/9)
+  “docs: 2026-09-24 documentation governance (STATUS split, ADR-0134, DOCS_02-04)” 将本节文档治理提交
+  `17761ab`～`2aeb672`（11 个）合并入 `main`，合并提交 `ea24c0d5c94d9748812db86184bc648fe9e7a8c6`。不涉及产品代码、
+  候选、authority 或 Win7 证据。
