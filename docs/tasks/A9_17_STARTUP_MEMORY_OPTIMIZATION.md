@@ -72,10 +72,11 @@ Win7：同版本 Electron 最小窗口、产品空历史、产品真实历史三
 - Shell：99 项定向测试通过，含首帧前关闭、恢复期间关闭、IPC 等待/拒绝、分页重试与 Provider 惰性恢复。
 - state/shell build、lint 与 docs:check 通过；git diff --check 通过。
 - 开发机 Electron 22.3.27（macOS arm64，SQLite ABI 110）：完整五进程回归 86/86 PASS，报告位于
-  [/tmp/a9-17-full-electron-smoke-recheck.json](/tmp/a9-17-full-electron-smoke-recheck.json)，SHA-256：
+  `/tmp/a9-17-full-electron-smoke-recheck.json`，SHA-256：
   `81473e5b3bd45e814d7fb01dd4c37130cbb717a9912e899afa3b04b7658f2fa9`。
 - 独立真实 UI 历史测试：初始 20 条，点击两次展开至 45 条，刷新后仍 45 条且无重复；截图已人工检查。
-  证据：[/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-history-N4XClP/result.json](/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-history-N4XClP/result.json)。
+  证据：`/private/var/folders/3z/wj46qg4j2pn2fwgtccdj093m0000gn/T/a9-17-history-N4XClP/result.json`。
+- 2026-09-24 文档整理注：上两条 `/tmp`、`/private/var/folders` 临时证据已被系统清理且未入库；仅 SHA-256 与本文记录可追溯。
 - 测量脚本仅通过 Node 源码契约检查及静态审查；macOS 没有 PowerShell，新增 PS 行为夹具和 WMI 采样未执行。
   脚本 SHA-256：`61082726a2d6686ac020022e0174c6ea6eb0b746883e282d61b84718bd93dd95`。不可将源码检查当作 PowerShell 运行成功。
 - Win7/Win10 执行包已按允许路径 `scripts/mvp_acceptance/a9-startup-baseline/**` 就绪，用于后续实机执行；

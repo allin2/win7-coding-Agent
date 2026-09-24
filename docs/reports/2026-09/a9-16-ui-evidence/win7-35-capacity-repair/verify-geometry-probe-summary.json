@@ -1,0 +1,84 @@
+{
+  "kind": "A9_16_GEOMETRY_PROBE_VERIFY",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "repoRoot": "/Users/qlyf/Developer/win7-coding-Agent",
+  "recorded_at": "2026-09-23T06:40:21.599Z",
+  "cases": {
+    "target-540": {
+      "ok": true,
+      "failures": [],
+      "chromeExit": 0,
+      "jsonPath": "/Users/qlyf/Developer/win7-coding-Agent/docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-target-540.json",
+      "status": "PASS_DEV_GEOMETRY_NOT_WIN7",
+      "capacity_pass": true,
+      "viewport": {
+        "innerWidth": 1079,
+        "innerHeight": 540,
+        "outerWidth": 1079,
+        "outerHeight": 627,
+        "devicePixelRatio": 1,
+        "screen_width": 800,
+        "screen_height": 600,
+        "screen_avail_width": 800,
+        "screen_avail_height": 600,
+        "doc_client_width": 1079,
+        "doc_client_height": 540,
+        "doc_scroll_width": 1079,
+        "doc_scroll_height": 540
+      },
+      "list_client_height": 207,
+      "fully_visible_rows": 4
+    },
+    "clamped-584": {
+      "ok": true,
+      "failures": [],
+      "chromeExit": 0,
+      "jsonPath": "/Users/qlyf/Developer/win7-coding-Agent/docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-clamped-584.json",
+      "status": "INVALID_VIEWPORT_CLAMPED_584",
+      "capacity_pass": false,
+      "viewport": {
+        "innerWidth": 1079,
+        "innerHeight": 584,
+        "outerWidth": 1079,
+        "outerHeight": 671,
+        "devicePixelRatio": 1,
+        "screen_width": 800,
+        "screen_height": 600,
+        "screen_avail_width": 800,
+        "screen_avail_height": 600,
+        "doc_client_width": 1079,
+        "doc_client_height": 584,
+        "doc_scroll_width": 1079,
+        "doc_scroll_height": 584
+      },
+      "list_client_height": 251,
+      "fully_visible_rows": 5
+    },
+    "selector-miss": {
+      "ok": true,
+      "failures": [],
+      "chromeExit": 0,
+      "jsonPath": "/Users/qlyf/Developer/win7-coding-Agent/docs/reports/2026-09/a9-16-ui-evidence/win7-35-capacity-repair/verify-selector-miss.json",
+      "status": "FAIL_CAPACITY",
+      "capacity_pass": false,
+      "viewport": {
+        "innerWidth": 1079,
+        "innerHeight": 540,
+        "outerWidth": 1079,
+        "outerHeight": 627,
+        "devicePixelRatio": 1,
+        "screen_width": 800,
+        "screen_height": 600,
+        "screen_avail_width": 800,
+        "screen_avail_height": 600,
+        "doc_client_width": 1079,
+        "doc_client_height": 540,
+        "doc_scroll_width": 1079,
+        "doc_scroll_height": 540
+      },
+      "list_client_height": 178,
+      "fully_visible_rows": 3
+    }
+  },
+  "ok": true
+}

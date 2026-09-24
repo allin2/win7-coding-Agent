@@ -8,6 +8,8 @@
 
 | 报告 | 日期 | 类型 |
 |------|------|------|
+| [A9-16 WIN7-36 实机 UI 子集验收收口](2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md) | 09-24 | 同一冻结 WIN7-36 候选在 Win7 SP1 x64 普通用户非提权会话 G1→G2→G3 与 15 项 UI 子集核验，按负责人批准的可达响应式状态等效裁决签发 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED`，不构成完整 Alpha 2 或 RC PASS |
+| [WIN7-35 短高容量源码修复几何证据](2026-09/a9-16-ui-evidence/win7-35-short-height-capacity-source-repair-geometry.json) | 09-23 | WIN7-35 实机 3 行失败根因（`conversation-directory-note` 选择器未绑定）与 1079×540 同条件前后几何（列表 178→207px，3→4 行）；复现闸门见 [REPLAY.md](2026-09/a9-16-ui-evidence/win7-35-capacity-repair/REPLAY.md)；开发机 Chromium 几何，不是 Win7 证据 |
 | [A9-16 UI 子集实现报告（U01–U07 / 响应式四态）](2026-09/a9_16_ui_implementation_2026-09-14.md) | 09-14 | 任务书 §7 授权的 UI 子集：左栏三段式与单行密度、桌面四态状态类切换、aria 同步与 DOM 保活、进行中/更早分组；含 U02 左栏高度预算（固定 chrome 474.8→379.9px，列表 147.2→238.0px）与 U06 跨断点回归修复；shell 37 套件 357 项全绿；开发机真实 Electron 几何量测确认四态/断点无溢出、最坏形态 4 条完整行；像素级视觉与 Win7/125% DPI 实机回归 NOT_PERFORMED，不构成 Alpha 2 PASS |
 | [A9-16 开发机布局几何证据](2026-09/a9-16-ui-evidence/layout-evidence.json) | 09-14 | Electron 22.3.27 / Chromium 108 加载真实渲染层 + 桩快照的 `getBoundingClientRect`/计算样式量测：桌面四态 + 1200/800 断点 + 125% 缩放代理的网格列、溢出、列表高度、完整行数与 aria；附 7 张 PNG；非像素级视觉签字，不代表 Win7 |
 | [A9-17 优化前后开发机内存与启动 A/B 对比](2026-09/a9_17_dev_ab_memory_2026-09-12.md) | 09-12 | 临时分析：`git archive HEAD` 导出优化前工作树，端点 A/B + 0/100/1,000/5,000 轮规模扫描 + 稳态确认；窗口创建 −4.7～−5.3 s、1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB；非 `ps` 口径、非产品配置，不代表 Win7 |
@@ -20,6 +22,8 @@
 | 报告 | 日期 | 类型 |
 |------|------|------|
 | [A9 Alpha 1 WIN7-19 收口报告](2026-08/a9_alpha1_win7_19_closeout_2026-08-28.md) | 08-28 | WIN7-19 候选身份、审批 P0 增量复验、ADR-0097 继承证据、P2/延期项与 `GO_FOR_ALPHA` 裁决 |
+| [A9 Alpha 1 多对话与恢复增量交付追踪](2026-08/a9_alpha1_multiconversation_traceability_2026-08-27.md) | 08-27 | ADR-0098 多对话/恢复 A9CV 需求追踪表；写作时状态 `IMPLEMENTED_DEVELOPER_VERIFIED / WIN7_17_PENDING`，当前状态以 STATUS 为准 |
+| [A9 统一桌面工作台状态线框](2026-08/a9_unified_desktop_workbench_wireframes_2026-08-26.md) | 08-26 | 统一桌面工作台 PRD 的状态线框：层级、状态归属与操作位置；非像素级视觉规范 |
 | [a8_06_candidate_provenance_reissue_2026-08-21](2026-08/a8_06_candidate_provenance_reissue_2026-08-21.html) | 08-21 | A8-06 从远端可达源码提交重新签发候选：两次确定性构建、schema v2 smoke、普通证据提交与旧不可达候选取代关系 |
 | [a8_06_independent_review_followup_2026-08-21](2026-08/a8_06_independent_review_followup_2026-08-21.html) | 08-21 | A8-06 后续独立审查五项发现逐条复核：运行阻断已关闭，补齐 validation 相对模块闭包测试与 schema v1 surrogate/schema v2 正式证据分层 |
 | [a8_06_validation_repair_2026-08-21](2026-08/a8_06_validation_repair_2026-08-21.html) | 08-21 | A8-06 独立复核修复：Electron ABI 110 执行、evidence schema v2、完整 manifest/同一候选绑定、dirty candidate fail-closed 与干净候选重建 |
