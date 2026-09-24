@@ -17,7 +17,7 @@
 | 阶段 3–7 | 候选实现已进入 main；A7 收口基线 7 模块 983 项开发机回归通过，正式 Phase/E5/E6/E7 仍未整体关闭 | 各阶段任务书 + `INTEGRATION_01/02/03` |
 | A7 Win7 v1 RC | `RC_PASS`；已完成三层验证、RC-01～RC-10 和 main 整合 | `RC_01_WIN7_RELEASE_CANDIDATE.md` |
 | A8 Agent-first | `A8_DEVELOPER_COMPLETE_VALIDATION_READY`；历史 Review-first 候选，外部三层未完成 | `A8_AGENT_FIRST_PRODUCT_EXPERIENCE.md` |
-| A9 Trusted Agent Runtime | WIN7-10 Gate 4 Review FAIL 已保留；ADR-0096 将 Review 延期 Alpha 2；同一候选从 J4 继续，J1～J3 证据待归档 | `A9_TRUSTED_AGENT_RUNTIME.md` |
+| A9 Trusted Agent Runtime | Alpha 1：WIN7-22 `GO_FOR_ALPHA`（ADR-0096 将 Review 延期 Alpha 2）；A9-15 WIN7-28 UI 集成 PASS；A9-16 WIN7-36 UI 子集 PASS（等效裁决），Review/Shell streaming 暂缓；A9-17 待实机采样。逐项见 [STATUS.md](STATUS.md) | `A9_TRUSTED_AGENT_RUNTIME.md`、`A9_14`～`A9_17` 任务书 |
 
 对标 Codex 的整体裁决记录于 ADR-0028~0035，并已由 ADR-0036 接受（附 Spike 条件）；
 性能口径统一引用 `docs/PERFORMANCE_BUDGET.md`（ADR-0033）。

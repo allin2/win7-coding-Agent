@@ -6,7 +6,7 @@
 
 1. [../AGENTS.md](../AGENTS.md)：最高项目约束与实现授权规则。
 2. [WIN7_CONSTRAINTS.md](WIN7_CONSTRAINTS.md)：Win7 平台红线、Runtime Profile 与依赖登记。
-3. [STATUS.md](STATUS.md)：当前 Git 基线、验证状态与阻断项。
+3. [STATUS.md](STATUS.md)：当前 Git 基线、工作项结论与阻断项；逐条历史见 [STATUS_LOG.md](STATUS_LOG.md)。
 4. [PROJECT_CHARTER.md](PROJECT_CHARTER.md)、[ARCHITECTURE.md](ARCHITECTURE.md)、[ROADMAP.md](ROADMAP.md)：目标、架构和阶段顺序。
 5. [tasks/README.md](tasks/README.md)：任务书索引与任务生命周期。
 6. [reports/README.md](reports/README.md)：带日期的审计和验证证据。
@@ -16,11 +16,13 @@
 | 内容 | 唯一维护位置 |
 |---|---|
 | 平台约束 | `AGENTS.md`、`WIN7_CONSTRAINTS.md` |
-| 架构决策 | `DECISIONS.md` |
+| 架构决策 | `DECISIONS.md`（索引：`DECISIONS_INDEX.md`） |
 | 当前状态 | `STATUS.md`、`status/latest-validation.json` |
+| 状态时间线（历史流水） | `STATUS_LOG.md` |
 | 实现授权与验收合同 | `tasks/*.md` |
 | 当前风险 | `ROBUSTNESS_AUDIT.md` |
 | 待裁决事项 | `PENDING_CONFIRMATIONS.md` |
+| 方案与交接（非授权） | `plans/`（索引：`plans/README.md`） |
 | 历史证据 | `reports/YYYY-MM/` |
 | 历史 PRD | `prds/archive/` |
 
