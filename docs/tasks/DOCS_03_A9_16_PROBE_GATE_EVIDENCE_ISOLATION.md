@@ -1,15 +1,15 @@
 # DOCS_03 — A9-16 几何探针闸门与归档证据隔离
 
 ```text
-Status: PROPOSED_FOR_APPROVAL
+Status: COMPLETE
 Task Type: EVIDENCE_GOVERNANCE
 Target Branch: codex/a9-alpha2
-Phase-Gate: NOT_STARTED
+Phase-Gate: COMPLETE
 Win7-Validation: N/A
 ```
 
-> 本任务书是草案，承接 [A9-16 任务书](A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md) §19 登记的待办。
-> 负责人批准前，不得修改 §4 允许路径中的实现文件（AGENTS.md C14）。A9-16 §7 的白名单虽含
+> 承接 [A9-16 任务书](A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md) §19 登记的待办。2026-09-24
+> 负责人批准实现，开放问题按起草建议裁决（见 §8）；实现仅限 §4 允许路径（AGENTS.md C14）。A9-16 §7 的白名单虽含
 > `docs/reports/2026-09/**`，但那是 U01–U07 UI 子集的授权，本任务不借用。
 
 ## 1. 问题与证据
@@ -113,12 +113,29 @@ Win7-Validation: N/A
   将 `STATUS.md`“当前阻断与待办”第 4 项标为已处置，并在 `STATUS_LOG.md` 追加时间线条目。
 - 是否推送由负责人另行决定。
 
-## 8. 开放问题（批准时请一并裁决）
+## 8. 开放问题与裁决（2026-09-24）
 
 1. **是否自动对齐归档源码**：可以让闸门在 `matches_archived_source=false` 时自动创建 `f0e80ec`
    临时 worktree 并在其中测量。建议不做：闸门的主要用途是当前 CSS 的回归门，自动切换源码会混淆这两个用途。
-   严格复现改用 `REPLAY.md` 中的手工步骤。
+   严格复现改用 `REPLAY.md` 中的手工步骤。**裁决：不自动对齐。**
 2. **归档漂移是否判失败**：建议只报告不判失败。硬门已由用例中写死的期望值承担；归档结果来自
-   特定开发机，换机器后字体与 Chrome 版本差异可能带来合理偏差，把漂移判为失败会重复设门且容易误报。
+   特定开发机，换机器后字体与 Chrome 版本差异可能带来合理偏差，把漂移判为失败会重复设门且容易误报。**裁决：只报告，不判失败。**
 3. **期望值随 CSS 变更的归属**：之后若有获批任务合法修改左栏 CSS，导致 207px / 4 行等期望值变化，
-   建议由该任务在自己的白名单内更新闸门期望，并另行归档新证据，不回写 WIN7-36 证据。本任务只登记这条规则，不修改期望值。
+   建议由该任务在自己的白名单内更新闸门期望，并另行归档新证据，不回写 WIN7-36 证据。本任务只登记这条规则，不修改期望值。**裁决：按此规则执行。**
+
+## 9. 实施结果（2026-09-24）
+
+- 闸门：默认输出改为 `os.tmpdir()` 下新建的 `a9-geometry-probe-*` 目录；显式输出目录位于仓库内且未被
+  Git 忽略时，在查找 Chrome 之前以 `A9_GEOMETRY_VERIFY_OUT_REFUSED`、退出码 2 拒绝；`git check-ignore`
+  无法判定时同样拒绝。summary 新增 `out_dir`、`source_identity`、`archive_drift`。用例、期望值、判定
+  逻辑与契约锁定字符串均未改动。
+- 验收 §6-1/2：开发机 Chrome 下默认运行闸门 `A9_GEOMETRY_VERIFY_PASS`、退出码 0，输出位于系统临时目录；
+  `matches_archived_source=true`（4 个文件均与 `f0e80ec` 一致）、`dirty=false`、`archive_drift` 为空。
+  运行前后 `win7-35-capacity-repair/` 下全部已跟踪文件 SHA-256 与 `git status --porcelain` 均不变。
+- 验收 §6-3：`scripts/test_a9_geometry_probe_gate.mjs` 4/4 PASS（归档目录拒绝且哈希不变、仓库内未忽略
+  目录拒绝且不创建、被忽略路径放行、默认输出不落仓库）。负向对照：在仅含 `HEAD` 版本相关路径的一次性
+  Git 仓库中运行同一自测，旧闸门对归档目录返回退出码 0 而非 2，并实际改写了 4 个已跟踪的
+  `verify-*.json`/summary；真实仓库未受影响，对照仓库已删除。
+- 验收 §6-4：`npm --prefix src/shell test -- --runInBand a9-workbench-contract` 32/32 PASS。
+- `REPLAY.md` 末尾追加 2026-09-24 更新一节（原文逐字保留为前缀）；其中 `f0e80ec` 临时 worktree
+  复现步骤已实际执行：PASS、`matches_archived_source=true`、无漂移，worktree 已移除。

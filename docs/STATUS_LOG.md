@@ -1034,3 +1034,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   改按 `git ls-files` 枚举，跳过被忽略路径，`outputs/**` 73 处噪声失败消除，当前 `ok=true`
   （137 个文档）；新增 `scripts/test_check_docs.mjs` 7/7 PASS，负向对照确认旧实现失败。开发机工具，
   不进入 Win7 候选，`Win7-Validation: N/A`。
+- 2026-09-24，[DOCS_03](tasks/DOCS_03_A9_16_PROBE_GATE_EVIDENCE_ISOLATION.md) 经负责人批准并完成：A9-16 几何探针闸门
+  默认输出移至系统临时目录，拒绝写入仓库内未忽略路径，summary 记录被测源码身份（当前与 `f0e80ec` 一致）
+  与归档漂移（仅报告）；开发机实跑 PASS 且归档证据哈希不变，自测 4/4 PASS，负向对照确认旧闸门会改写
+  归档证据，工作台契约 32/32 PASS。开发机工具，`Win7-Validation: N/A`。

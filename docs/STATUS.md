@@ -42,7 +42,7 @@
 1. **Alpha 2 剩余范围**：Review（R01–R05）与 Shell 运行中输出（S01–S06）须按 A9-16 任务书重新授权实现，并以新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推。
 3. **A8-06 外部验收**：Win10/Win7 三层验证仍 `NOT_PERFORMED`。
-4. **A9-16 证据治理**：几何探针闸门重跑会覆盖已跟踪的 `verify-*.json` 证据，已登记于 A9-16 任务书 §19，待处置。
+4. **A9-16 证据治理**：已由 [DOCS_03](tasks/DOCS_03_A9_16_PROBE_GATE_EVIDENCE_ISOLATION.md) 处置，几何探针闸门不再改写归档证据；无剩余阻断。
 
 ## MVP 已接受的延期项
 
