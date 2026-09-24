@@ -139,4 +139,4 @@
 | ADR-0133 | WIN7-35 真实 125% DPI 容量失败与 WIN7-36 换发 | Accepted |
 | ADR-0134 | AGENTS.md 与 CLAUDE.md 不再写死“当前任务”，改为引用 STATUS.md 与任务索引 | Accepted |
 
-| ADR-0135 | 运行中模型输出以内存预览实时呈现，累积脱敏并保留尾部 | Accepted |
+| ADR-0135 | 运行中模型输出以内存预览实时呈现，累积脱敏并保留尾部 | Accepted || ADR-0136 | A9-19 以 WIN7-37 新候选进入 Win7 实机验收，实机执行可交由外部执行模型 | Accepted |

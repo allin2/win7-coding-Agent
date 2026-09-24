@@ -191,3 +191,16 @@ Decision: ADR-0135
   桌面宽度保持用户当前的左栏状态；其余 3 处 `closeNavigation()`（断点收敛、手动开关、Esc 关闭抽屉）不变。契约用例覆盖桌面/抽屉
   四种情形并含负向对照（旧写法在桌面宽度下折叠）；Shell 全量 376/376、开发机渲染探针与 DOCS_03 闸门通过。Win7 复核待下一次上机
   （2026-09-25 复跑时 `192.168.1.3` 不可达，TCP 22 与 ping 均超时，未发生远程写入）。发现 2 影响小，暂不处理。
+
+## 13. WIN7-37 换发授权（2026-09-25，负责人批准）
+
+负责人批准 [WIN7-37 换发合同](../plans/A9_19_WIN7_37_REISSUE_PROPOSAL.md)，决策 ADR-0136。本节扩展本任务的 C14 允许路径，仅用于换发：
+
+- 发布管线：`scripts/release/build-a9-product-v3.mjs`、`scripts/release/test/a9-package.test.mjs`；`release/win7-product-v3/` 新增
+  `a9-19-win7-37-input-lock.json`、`a9-package-integrity-w37.cjs`、`a9-win7-37-report.cjs`、`a9-win7-37-smoke.cjs`、
+  `RUN_A9_19_W37_INTEGRITY.cmd`、`RUN_WIN7_37_REPORT_VERIFY.cmd`、`A9_19_WIN7_37_VALIDATION.md`，并更新该目录 `README.md`。
+- G2 实时性断言：`src/shell/tests/product/a9-06-driver-entry.cjs`（仅新增 W37 实时性旅程）。
+- 文档：合同与交接书、本任务书、任务索引、`docs/STATUS.md`、`docs/STATUS_LOG.md`、ADR-0136、`docs/DECISIONS_INDEX.md`、`docs/reports/2026-09/**`。
+- 不新增产品改动；不得修改 WIN7-36 及更早的发布文件。版本 `0.3.0-alpha.1`；结论上限 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`。
+- 执行门：管线与开发机门 → 单一本地提交（不推送、不打标签）→ 双独立干净工作树构建逐字节一致 → 冻结 → 负责人按精确哈希签发候选外
+  `WIN7_37_RELEASE_AUTHORITY` → 按交接书实机执行 → 审核方基于原始证据给建议 → 负责人裁决。
