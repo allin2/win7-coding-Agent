@@ -1,6 +1,6 @@
 import assert from 'assert/strict';
 import { spawnSync, execFileSync } from 'child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir, devNull } from 'os';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -137,7 +137,64 @@ try {
     assert.deepEqual(linkFailures(report), []);
   }
 
-  console.log('check_docs tests: 7/7 PASS');
+  // DOCS_04: link targets must be part of the repository.
+  function reasons(report) {
+    return (report.failures ?? []).filter(({ kind }) => kind === 'link').map(({ file, target, reason }) => `${file} -> ${target}: ${reason}`);
+  }
+
+  // Existing but git-ignored targets fail.
+  {
+    const root = fixture();
+    write(root, 'outputs/data.md', '# Local only\n');
+    write(root, 'docs/ignored-link.md', '[data](../outputs/data.md)\n');
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.deepEqual(reasons(report), ['docs/ignored-link.md -> ../outputs/data.md: target is not part of the repository']);
+  }
+
+  // Existing targets outside the repository fail.
+  {
+    const root = fixture();
+    const outside = mkdtempSync(join(temporaryRoot, 'check-docs-outside-'));
+    created.push(outside);
+    write(outside, 'note.md', '# Outside\n');
+    const target = join(outside, 'note.md');
+    write(root, 'docs/outside-link.md', `[note](${target})\n`);
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.deepEqual(reasons(report), [`docs/outside-link.md -> ${target}: target is outside the repository`]);
+  }
+
+  // Case mismatches fail on both case-insensitive and case-sensitive file systems.
+  {
+    const root = fixture();
+    write(root, 'docs/case-link.md', '[decisions](decisions.md)\n');
+    const caseInsensitive = existsSync(join(root, 'docs', 'decisions.md'));
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.deepEqual(reasons(report), [caseInsensitive
+      ? 'docs/case-link.md -> decisions.md: target case differs from repository path docs/DECISIONS.md'
+      : 'docs/case-link.md -> decisions.md: target does not exist']);
+  }
+
+  // Untracked, non-ignored targets are part of the repository.
+  {
+    const root = fixture();
+    write(root, 'docs/new-target.md', '# New\n');
+    write(root, 'docs/new-link.md', '[new](new-target.md)\n');
+    const { status, report } = check(root);
+    assert.equal(status, 0, JSON.stringify(report));
+  }
+
+  // Directories containing repository files, and the repository root, are valid targets.
+  {
+    const root = fixture();
+    write(root, 'docs/dir-link.md', '[tasks](tasks/)\n[status](status)\n[root](../)\n');
+    const { status, report } = check(root);
+    assert.equal(status, 0, JSON.stringify(report));
+  }
+
+  console.log('check_docs tests: 12/12 PASS');
 } finally {
   for (const root of created) rmSync(root, { recursive: true, force: true });
 }

@@ -26,11 +26,40 @@ function repositoryFiles() {
   const files = new Set();
   for (const name of listing.split("\0")) {
     if (!name) continue;
+    recordRepositoryPath(name);
     const filename = path.join(root, name);
     // --cached still lists files deleted from the working tree.
     if (fs.existsSync(filename)) files.add(filename);
   }
   return [...files];
+}
+
+// DOCS_04: repository membership for link targets, built from the same enumeration.
+// Keys are "/"-separated paths relative to the repository root.
+const repositoryPaths = new Set();
+const repositoryDirectories = new Set();
+const repositoryPathsByLowerCase = new Map();
+
+function recordRepositoryPath(name) {
+  repositoryPaths.add(name);
+  repositoryPathsByLowerCase.set(name.toLowerCase(), name);
+  let directory = path.posix.dirname(name);
+  while (directory !== "." && !repositoryDirectories.has(directory)) {
+    repositoryDirectories.add(directory);
+    repositoryPathsByLowerCase.set(directory.toLowerCase(), directory);
+    directory = path.posix.dirname(directory);
+  }
+}
+
+function repositoryMembershipFailure(resolved) {
+  const rel = path.relative(root, resolved);
+  if (rel === "") return null;
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return "target is outside the repository";
+  const key = rel.split(path.sep).join("/");
+  if (repositoryPaths.has(key) || repositoryDirectories.has(key)) return null;
+  const actual = repositoryPathsByLowerCase.get(key.toLowerCase());
+  if (actual) return `target case differs from repository path ${actual}`;
+  return "target is not part of the repository";
 }
 
 function relative(filename) {
@@ -62,7 +91,10 @@ function checkLinks(filename, source) {
     const resolved = path.resolve(path.dirname(filename), decoded);
     if (!fs.existsSync(resolved)) {
       failures.push({ kind: "link", file: relative(filename), target, reason: "target does not exist" });
+      continue;
     }
+    const membership = repositoryMembershipFailure(resolved);
+    if (membership) failures.push({ kind: "link", file: relative(filename), target, reason: membership });
   }
 }
 

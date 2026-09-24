@@ -1,15 +1,15 @@
 # DOCS_04 — 文档链接目标必须属于仓库
 
 ```text
-Status: PROPOSED_FOR_APPROVAL
+Status: COMPLETE
 Task Type: DOCUMENTATION_GOVERNANCE
 Target Branch: codex/a9-alpha2
-Phase-Gate: NOT_STARTED
+Phase-Gate: COMPLETE
 Win7-Validation: N/A
 ```
 
-> 本任务书是草案，承接 [DOCS_02](DOCS_02_DOC_CHECK_IGNORED_PATHS.md) §8 开放问题 1（裁决为另立任务）。
-> 负责人批准前，不得修改 §4 允许路径中的实现文件（AGENTS.md C14）。
+> 承接 [DOCS_02](DOCS_02_DOC_CHECK_IGNORED_PATHS.md) §8 开放问题 1（裁决为另立任务）。2026-09-24 负责人
+> 批准实现，开放问题按起草建议裁决（见 §8）；实现仅限 §4 允许路径（AGENTS.md C14）。
 
 ## 1. 问题与证据
 
@@ -96,12 +96,24 @@ Win7-Validation: N/A
 - 回填本任务书 `Status`/`Phase-Gate` 为 `COMPLETE`，同步任务索引，在 `STATUS_LOG.md` 追加时间线条目。
 - 是否推送由负责人另行决定。
 
-## 8. 开放问题（批准时请一并裁决）
+## 8. 开放问题与裁决（2026-09-24）
 
 1. **未跟踪、未忽略的目标算不算合法**：建议算合法，与 DOCS_02 的文档枚举口径一致；否则同一次改动里
    新增的文档与其链接的新文件，必须先 `git add` 才能通过检查。代价是忘记 `git add` 的目标不会被发现。
-   如需更严，可另加 `--tracked-only` 开关供 CI 使用，不作为默认。
+   如需更严，可另加 `--tracked-only` 开关供 CI 使用，不作为默认。**裁决：未跟踪、未忽略的目标合法；本任务不加开关。**
 2. **大小写不一致的失败原因**：建议在不区分大小写的文件系统上报专门原因，并给出仓库中的实际路径，
-   方便直接修正；不建议统一改报“不存在”。
+   方便直接修正；不建议统一改报“不存在”。**裁决：报专门原因并给出实际路径。**
 3. **仓库外目标是否允许白名单**：建议不设白名单。需要引用本机或外部路径时，写成代码格式（反引号），
-   不写成链接，与 `17761ab` 的处理方式一致。
+   不写成链接，与 `17761ab` 的处理方式一致。**裁决：不设白名单。**
+
+## 9. 实施结果（2026-09-24）
+
+- `scripts/check_docs.mjs`：在 DOCS_02 同一次 `git ls-files` 枚举中构建仓库路径、目录与小写索引；本地链接在
+  “目标不存在”之后依次判定仓库外、大小写不一致（附实际路径）、不属于仓库。无逐链接 `git` 调用。
+- 验收 §6-1：`npm run docs:check` 为 `ok=true`，`checked_files=139`，与 DOCS_02 口径一致（本任务书新增后的数量）。
+- 验收 §6-2：`scripts/test_check_docs.mjs` 12/12 PASS（DOCS_02 的 7 个加 5 个新用例）。负向对照：换回旧实现后，
+  新增的第一个用例（被忽略目标）返回退出码 0 而非 1；另在一次性仓库中同时放入仓库外、被忽略、大小写
+  不一致三条链接，旧实现 `ok=true`、退出码 0，新实现分别报出三种原因。恢复后逐字节一致，对照仓库已删除。
+- 验收 §6-3：在 `docs/README.md` 临时加入指向 `.acceptance/evidence/WIN7-35-capacity-repair-dev-raw/MOVED.md`
+  的链接，报 `target is not part of the repository`、退出码 1；撤销后恢复通过。
+- 验收 §6-4：三次运行耗时，改动前 0.12–0.18 s，改动后 0.13 s，无明显增加。
