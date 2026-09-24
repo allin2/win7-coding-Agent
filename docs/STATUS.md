@@ -33,7 +33,7 @@
 | A9-15 UI 进度反馈 | WIN7-28 UI 集成 PASS | [A9-15](tasks/A9_15_UI_PROGRESS_FEEDBACK.md)、[收口报告](reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md) | — |
 | A9-16 Alpha 2 UI 子集（U01–U07） | WIN7-36 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`（可达响应式状态等效裁决）；WIN7-29～33、35 保持各自失败结论 | [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md)、[WIN7-36 收口](reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)、ADR-0131/0133 | Review（R01–R05）与 Shell 运行中输出（S01–S06）暂缓；≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED` |
 | A9-17 启动与内存优化 | `A9_17_IMPLEMENTATION_AUTHORIZED`，开发机实现与 A/B 完成 | [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) | Win7/Win10 实机采样 `NOT_PERFORMED`；未并入任何产品候选 |
-| A9-19 运行过程实时可见与布局二期 | `A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7`：开发机验证完成；Win7 探索性运行（非验收）确认运行过程实时可见；WIN7-37 候选已冻结（源码 `dd6cb1a`，ZIP `4d700632…f167cf`） | [A9-19](tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md)、ADR-0135/0136、[WIN7-37 交接书](plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) | authority 已签发（`0d8d4f94…`，目标 192.168.1.3）；待外部执行方按交接书执行 Win7 G1/G2/G3；P03 残留约 0.4 s |
+| A9-19 运行过程实时可见与布局二期 | `A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7`：开发机验证完成；Win7 探索性运行（非验收）确认运行过程实时可见；WIN7-37 候选已冻结（源码 `dd6cb1a`，ZIP `4d700632…f167cf`） | [A9-19](tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md)、ADR-0135/0136、[WIN7-37 交接书](plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) | Win7 G1/G2/G3 与补跑（附录 A/B）已执行并审核，21/21 有直接证据；负责人沿用等效口径；正式报告开发机预检 PASS，待 Win7 报告校验（附录 C）后签发；P03 残留约 0.4 s |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Review、Shell streaming 与新的 RC 均未获任何 PASS 结论。
@@ -43,7 +43,7 @@
 1. **Alpha 2 剩余范围**：Review（R01–R05）与 Shell 运行中输出（S01–S06）须按 A9-16 任务书重新授权实现，并以新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推。
 3. **A8-06 外部验收**：Win10/Win7 三层验证仍 `NOT_PERFORMED`。
-4. **A9-19 实机验收**：WIN7-37 已冻结并授权（目标 192.168.1.3），交接书 `READY_FOR_EXECUTION`；待外部执行方在 Win7 执行 G1→G2→G3，审核方复核。Shell 真正增量输出（helper v3）与 checkpoint 往返校验分片需各自另立任务。
+4. **A9-19 实机验收**：WIN7-37 的 G1/G2/G3 及附录 A/B 补跑已完成并审核；正式报告已组装并在开发机预检 PASS；待外部执行方按交接书附录 C 在 Win7 上执行报告校验，审核方复核后签发。Shell 真正增量输出（helper v3）与 checkpoint 往返校验分片需各自另立任务。
 
 ## MVP 已接受的延期项
 

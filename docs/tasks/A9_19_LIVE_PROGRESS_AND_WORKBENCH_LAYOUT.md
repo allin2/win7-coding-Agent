@@ -233,3 +233,37 @@ Decision: ADR-0135
 input lock、批准清单、目标主机与 run-id `85476889-099d-46b6-b8a4-666e8e0b5d77`，SHA-256 `0d8d4f9456f42da4692fea7d27c03edcd4f91df3ba6985b623233e095a9d0616`，独立 pin 与锁文件同存于本机
 `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/authority/`。冻结候选自带 `verifyAcceptanceCandidate` 已接受该真实 authority。
 交接书改为 `READY_FOR_EXECUTION`；Win7 G1/G2/G3 仍 `NOT_PERFORMED`，由外部执行方按交接书执行，审核方复核原始证据后给建议，负责人裁决。
+
+## 16. WIN7-37 实机执行审核（2026-09-25，审核方建议，待负责人裁决）
+
+外部执行方在 `192.168.1.3` 完成 run `85476889-099d-46b6-b8a4-666e8e0b5d77`。审核方独立复核：authority、冻结候选与 210 项证据哈希一致；
+全程 `agent` Medium 非提升；秘密扫描零命中；G1、后飞行完整性 PASS；G2 自动 smoke 95/95（含 `live` 阶段 7 项）PASS。
+用例判定：W37-01～04、07～10、16、17、19（审核方以原始截图像素补证，运行中 0.606）、20、21 为 PASS；W37-05（>10 s 等待条款）、06、11、12、13、14、15、18
+证据不足（未执行或执行方探针选择器无效），执行方报告另有引用不存在断言等准确性问题。审核建议：**暂不签发**
+`A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`（INSUFFICIENT_EVIDENCE，非产品失败），在同一候选与 authority 下补跑 G3 UI 用例。
+完整报告：本机 `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/REVIEW_REPORT.md`。
+
+负责人接受审核建议（2026-09-25）。补跑按[交接书 §10 附录 A](../plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) 执行：同一候选、authority 与 run-id，
+使用审核方以 WIN7-36 已验证探针重基线并钉住哈希的 7 步补跑包（清单 SHA-256 `36bf3890…fe82`）；执行方不得自写探针。
+Phase-Gate 仍为 `A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7`。
+
+补跑审核（2026-09-25，审核方建议）：补跑包与 70 项证据哈希一致；S1–S7 均以 `agent` Medium 非提升运行、各一次。W37-05、06、12、13、14、18 可判 PASS，
+其中 06 A03、12、13 需负责人沿用 WIN7-36 的可达响应式等效口径。W37-11 A03 与 W37-15 A02 证据不足：测量探针在持久化任务行写入前采样，
+最坏形态只出现“更早”一个组头。这是审核方探针的时序缺陷，不是产品失败：同一候选真实轮次 6.9 s 帧已正确显示“进行中”。
+建议只补跑一步 S1b（Stop 可见后先等两个组头出现再量测）。执行方报告 JSON 非法、W37-13 下限数值被改写，已记录。
+完整报告：本机 `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/supplement/REVIEW_SUPPLEMENT_REPORT.md`。
+
+负责人接受补跑审核建议（2026-09-25）：按[交接书 §11 附录 B](../plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) 只补跑 S1b。
+量测前先等待持久化的“进行中”组头；补跑包清单 SHA-256 为 `b05c1e64…d801`。Phase-Gate 不变。
+
+S1b 审核（2026-09-25，审核方建议）：补跑包与 21 项证据哈希一致，`agent` Medium 非提升，只执行一次。等待 630 ms 后组头为“进行中1 / 更早8”，
+两个组头加归档的形态下完整可见 5 行，W37-11 与 W37-15 的全部断言为 true。W37-01～W37-21 已全部取得同一候选的直接证据；
+待负责人确认 W37-06 A03、W37-12、W37-13、W37-15 沿用可达响应式等效口径后，才能进入正式报告组装与 Win7 报告校验。
+报告：本机 `.acceptance/runs/WIN7-37/85476889-099d-46b6-b8a4-666e8e0b5d77/supplement-b/REVIEW_SUPPLEMENT_B_REPORT.md`。
+
+负责人沿用 WIN7-36 可达响应式等效口径（2026-09-25）。审核方用候选内报告器 `init` 生成模板，组装正式报告：21 项全部 PASS，
+W37-06 A03、12、13、15 附候选外等效裁决 `review/w37-06-12-13-15-responsive-equivalence-adjudication.md`；
+W37-19 附审核方像素量测脚本与结果（两张运行中截图的对话流占比均为 0.606）；秘密扫描覆盖 185 个证据文件，零命中。
+开发机预检：冻结候选自带的校验器返回 `PASS / A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS / 21`，篡改反例被拒绝。
+这不是 Win7 校验：签发前须按[交接书 §12 附录 C](../plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) 在 Win7 上以 `agent` 复核。
+Phase-Gate 仍为 `A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7`。
