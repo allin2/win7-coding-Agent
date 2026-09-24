@@ -28,6 +28,7 @@ Thumbs.db
 .claude/
 .trae/
 .workbuddy/
+.workbuddy-ai/
 
 # Product-managed workspace recovery state (never source or package input)
 .agent_recovery/

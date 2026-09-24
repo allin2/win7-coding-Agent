@@ -1,0 +1,19 @@
+/* Probe host chrome only. Must not paint over the product rail (no fixed overlays). */
+* { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #f4f3ef;
+}
+body.probe-mode {
+  height: 100%;
+}
+#probe-stage,
+body.probe-mode > .workbench {
+  height: 100%;
+  max-height: none;
+}
+#probe-result {
+  display: none !important;
+}

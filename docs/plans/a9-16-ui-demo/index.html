@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A9-16 UI 优化演示（非产品构建）</title>
+<!--
+  A9-16 设计演示 · 静态自包含，无后端、无依赖。
+  对应 docs/plans/A9_16_UI_ZCODE_REFERENCE_SUGGESTIONS.md 与 A9_16 任务书 U01-U07 / S01-S06 / R01-R05。
+  本文件不属于产品实现，不进入 src/shell 构建与 C14 白名单。
+-->
+<style>
+  :root {
+    --rail-w: 232px; --inspector-w: 360px;
+    --panel: #faf9f7; --raised: #f1efe9; --line: #ddd8cf; --line-strong: #c9c2b4;
+    --text: #2d2a26; --text-2: #5c564d; --muted: #8a8378;
+    --accent: #3a6ea5; --accent-soft: #e7eef7; --accent-strong: #2c5684;
+    --amber: #b07818; --amber-bg: #fdf6e7; --amber-line: #e3cd9e;
+    --green: #2e7d4f; --green-bg: #ecf6ef; --green-line: #bcdcc8;
+    --blue-bg: #eef3fa; --blue-line: #c4d4e8;
+    --err: #a33a3a;
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #fff; color: var(--text); }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .demo-banner { padding: 6px 14px; background: #333; color: #f5f2ea; font-size: 12px; display: flex; gap: 12px; align-items: center; }
+  .demo-banner .vp { margin-left: auto; font-variant-numeric: tabular-nums; color: #cfc9bd; }
+
+  .workspace { display: grid; grid-template-columns: var(--rail-w) minmax(480px, 1fr) var(--inspector-w); height: calc(100vh - 30px); }
+  .workspace.rail-closed { grid-template-columns: 0 minmax(480px, 1fr) var(--inspector-w); }
+  .workspace.inspector-closed { grid-template-columns: var(--rail-w) minmax(480px, 1fr) 0; }
+  .workspace.rail-closed.inspector-closed { grid-template-columns: 0 minmax(480px, 1fr) 0; }
+
+  .rail, .inspector { min-width: 0; min-height: 0; overflow: hidden; background: var(--panel); }
+  .rail-closed .rail, .inspector-closed .inspector { border: none; }
+  .rail-inner { width: var(--rail-w); height: 100%; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+  .inspector-inner { width: var(--inspector-w); height: 100%; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+  .rail-closed .rail-inner, .inspector-closed .inspector-inner { visibility: hidden; }
+
+  /* ---------- 左栏：全局区 / 列表 / 折叠辅助区（A-1/A-2/A-3） ---------- */
+  .rail-global { flex: 0 0 auto; padding: 10px 10px 6px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+  .btn-primary { min-height: 34px; border: 1px solid var(--accent-strong); border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; }
+  .filter-input { min-height: 30px; padding: 4px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; font: inherit; color: var(--text); }
+  .rail-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 8px 10px; }
+  .group-head { display: flex; align-items: center; gap: 6px; width: 100%; margin: 8px 0 2px; padding: 3px 4px; border: 0; background: transparent; color: var(--muted); font-size: 11px; letter-spacing: .06em; }
+  .group-head .n { margin-left: auto; }
+  .conv-list { list-style: none; margin: 0; padding: 0; }
+  .conv-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: baseline; margin: 1px 0; }
+  .conv-row > button { min-width: 0; min-height: 34px; padding: 4px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text-2); text-align: left; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: baseline; width: 100%; }
+  .conv-row > button:hover { border-color: var(--line); background: var(--raised); }
+  .conv-row > button[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
+  .conv-row .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+  .conv-row .ts { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .load-more { width: 100%; margin-top: 6px; min-height: 30px; border: 1px dashed var(--line-strong); border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; }
+  .rail-aux { flex: 0 0 auto; border-top: 1px solid var(--line); font-size: 12px; }
+  .rail-aux details { border-bottom: 1px solid var(--line); }
+  .rail-aux summary { padding: 7px 10px; cursor: pointer; color: var(--text-2); }
+  .rail-aux .trust { margin: 0; padding: 8px 10px; color: var(--amber); background: var(--amber-bg); }
+
+  /* ---------- 主区 ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; }
+  .titlebar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 10px; border-bottom: 1px solid var(--line); }
+  .pill { display: inline-flex; align-items: center; gap: 5px; max-width: 260px; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--text-2); font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .pill b { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+  .titlebar .spacer { flex: 1; }
+  .state-chip { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+  .icon-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; font-size: 12px; color: var(--text-2); }
+  .icon-toggle[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+
+  .stream { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 22px; }
+  .msg-user { margin: 6px 0 14px auto; width: fit-content; max-width: 78%; padding: 8px 13px; border-radius: 12px 12px 3px 12px; background: var(--accent-soft); border: 1px solid var(--blue-line); }
+  .turn { margin: 0 0 14px; }
+  .block { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+  .block > summary { display: flex; align-items: center; gap: 7px; padding: 7px 11px; cursor: pointer; color: var(--text-2); font-size: 13px; list-style: none; }
+  .block > summary::-webkit-details-marker { display: none; }
+  .block > summary .badge { font-size: 11px; color: var(--muted); }
+  .tool-card { border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+  .tool-head { display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 13px; }
+  .tool-head code { background: var(--raised); padding: 1px 7px; border-radius: 5px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
+  .status-badge { margin-left: auto; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); }
+  .status-badge.running { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+  .status-badge.exited { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+  .tool-demo-bar { display: flex; gap: 8px; align-items: center; padding: 6px 11px; border-bottom: 1px solid var(--line); background: #fff; font-size: 12px; color: var(--muted); }
+  .tool-demo-bar button { min-height: 26px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; font-size: 12px; }
+  .tool-out { margin: 0; padding: 9px 12px; max-height: 180px; overflow: auto; font: 12px/1.55 Consolas, "Courier New", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tool-out .err-line { color: var(--err); }
+  .tool-out .sys-line { color: var(--muted); }
+  .out-note { padding: 0 12px 8px; margin: 0; font-size: 11px; color: var(--muted); }
+
+  /* ---------- 双卡语义：Review 卡 vs 高影响确认卡（D-2 / R02 / R04） ---------- */
+  .card { margin: 0 0 10px; border-radius: 10px; padding: 11px 13px; border: 1px solid; }
+  .card h4 { margin: 0 0 3px; font-size: 13.5px; display: flex; align-items: center; gap: 7px; }
+  .card p.sub { margin: 0 0 9px; font-size: 12px; color: var(--muted); }
+  .review-card { border-color: var(--blue-line); background: var(--blue-bg); }
+  .review-card h4 { color: var(--accent-strong); }
+  .review-files { margin: 0 0 9px; padding: 0; list-style: none; border: 1px solid var(--blue-line); border-radius: 8px; background: #fff; }
+  .review-files li { display: grid; grid-template-columns: minmax(0,1fr) auto auto auto; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font: 12px Consolas, monospace; }
+  .review-files li:last-child { border-bottom: none; }
+  .review-files .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .review-files .st { font-size: 11px; color: var(--muted); min-width: 44px; text-align: right; }
+  .review-files button, .card-actions button { min-height: 26px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; font-size: 12px; }
+  .review-files button.accept { border-color: var(--green); color: var(--green); }
+  .review-files button.reject { border-color: var(--err); color: var(--err); }
+  .review-files button.selected { background: var(--raised); }
+  .card-actions { display: flex; gap: 8px; align-items: center; }
+  .card-actions .hint { font-size: 11px; color: var(--muted); }
+  .card-actions button.apply { border-color: var(--accent-strong); background: var(--accent); color: #fff; font-weight: 600; }
+  .card-actions button:disabled { opacity: .45; cursor: not-allowed; }
+  .impact-card { border-color: var(--amber-line); border-left: 3px solid var(--amber); background: var(--amber-bg); }
+  .impact-card h4 { color: var(--amber); }
+  .impact-card code.cmd { display: block; margin: 6px 0 9px; padding: 6px 9px; background: #fff; border: 1px solid var(--amber-line); border-radius: 6px; font: 12px Consolas, monospace; overflow-wrap: anywhere; }
+
+  /* ---------- Composer（D-1 三态模式 pill） ---------- */
+  .composer { flex: 0 0 auto; border-top: 1px solid var(--line); padding: 10px 16px 12px; display: grid; gap: 8px; background: #fff; }
+  .composer .row { display: flex; gap: 8px; align-items: center; }
+  .mode-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: #fff; font-size: 12.5px; font-weight: 600; }
+  .mode-pill[data-mode="full"] { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+  .mode-pill[data-mode="readonly"] { border-color: var(--line-strong); color: var(--text-2); }
+  .mode-pill[data-mode="review"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+  .composer textarea { flex: 1; min-height: 40px; max-height: 120px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 9px; font: inherit; resize: vertical; }
+  .composer .send { min-width: 66px; min-height: 40px; border: 1px solid var(--accent-strong); border-radius: 9px; background: var(--accent); color: #fff; font-weight: 600; }
+
+  /* ---------- 右侧 Inspector（B-1 可开关） ---------- */
+  .inspector-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .inspector-head h2 { margin: 0; font-size: 14px; }
+  .inspector-head .close { margin-left: auto; min-height: 28px; min-width: 28px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; }
+  .insp-tabs { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
+  .insp-tabs button { min-height: 36px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12.5px; }
+  .insp-tabs button[aria-selected="true"] { background: #fff; color: var(--accent-strong); box-shadow: inset 0 -2px 0 var(--accent); }
+  .insp-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px; font-size: 13px; }
+  .insp-body h3 { margin: 4px 0 8px; font-size: 13px; }
+  .mini-diff { margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font: 11.5px/1.6 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .mini-diff .add { color: var(--green); background: var(--green-bg); }
+  .mini-diff .del { color: var(--err); background: #fbeeee; }
+  .kv { display: grid; grid-template-columns: 84px 1fr; gap: 4px 10px; margin: 0; color: var(--text-2); font-size: 12.5px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+
+  .foot-note { padding: 5px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; background: var(--panel); }
+  @media (max-width: 1100px) { .workspace, .workspace.rail-closed, .workspace.inspector-closed, .workspace.rail-closed.inspector-closed { grid-template-columns: var(--rail-w) minmax(0,1fr) 0; } .inspector-inner { display: none; } }
+</style>
+</head>
+<body>
+<div class="demo-banner">
+  <b>A9-16 UI 优化演示</b><span>静态设计稿 · 非产品构建 · 不连接后端</span>
+  <span class="vp" id="vp-readout"></span>
+</div>
+
+<div class="workspace" id="workspace">
+  <!-- ======== 左栏（A-1 三段式） ======== -->
+  <aside class="rail" id="rail" aria-label="工作区导航">
+    <div class="rail-inner">
+      <div class="rail-global">
+        <button class="btn-primary" type="button">＋ 新建对话</button>
+        <input class="filter-input" id="conv-filter" type="search" placeholder="过滤当前列表…" aria-label="过滤对话列表">
+      </div>
+      <nav class="rail-list" aria-label="对话列表">
+        <button class="group-head" type="button" aria-expanded="true" aria-controls="grp-active"><span>进行中</span><span class="n">3</span></button>
+        <ul class="conv-list" id="grp-active">
+          <li class="conv-row"><button type="button" aria-current="true"><span class="t">基于a9_18交接文档审核修复情况</span><span class="ts">刚刚</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">alpha2 UI 优化参照 ZCode 整理建议</span><span class="ts">5分</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">A9-17 启动内存优化测量复核</span><span class="ts">26分</span></button></li>
+        </ul>
+        <button class="group-head" type="button" aria-expanded="true" aria-controls="grp-older"><span>更早</span><span class="n" id="older-count">6</span></button>
+        <ul class="conv-list" id="grp-older">
+          <li class="conv-row"><button type="button"><span class="t">调研PI与本项目结合点</span><span class="ts">3小时</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">A9-18修复轮文档对照审查</span><span class="ts">昨天</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">WIN7-28 UI 集成验收准备</span><span class="ts">昨天</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">调研DeepSeek Harness项目</span><span class="ts">3天</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">D013 命令逐字传递回归排查</span><span class="ts">5天</span></button></li>
+          <li class="conv-row"><button type="button"><span class="t">SQLite quick_check 评估更正</span><span class="ts">8天</span></button></li>
+        </ul>
+        <button class="load-more" id="load-more" type="button">加载更早对话</button>
+      </nav>
+      <div class="rail-aux">
+        <details><summary>已归档（12）</summary><ul class="conv-list" style="padding:0 8px 8px"><li class="conv-row"><button type="button"><span class="t">历史候选 v24 归档核对</span><span class="ts">21天</span></button></li></ul></details>
+        <details><summary>工作区信任与边界</summary><p class="trust">当前工作区已可信。Full Access 不是安全沙箱；高影响操作仍需逐次确认。</p></details>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ======== 主区 ======== -->
+  <section class="main" aria-label="主对话区">
+    <header class="titlebar">
+      <button class="icon-toggle" id="toggle-rail" type="button" aria-controls="rail" aria-expanded="true" title="开关左侧导航">☰ 左栏</button>
+      <span class="pill">📁 <b>win7-coding-Agent</b></span>
+      <span class="pill">⑂ <b>codex/a9-alpha2</b></span>
+      <span class="spacer"></span>
+      <span class="state-chip" id="state-chip">四态：双开</span>
+      <button class="icon-toggle" id="toggle-inspector" type="button" aria-controls="inspector" aria-expanded="true" title="开关右侧检查器">◫ 检查器</button>
+    </header>
+
+    <div class="stream" id="stream">
+      <div class="msg-user">把左侧对话列表改成 ZCode 那种可分组、能占满剩余高度的样式，右侧检查器桌面端也要能关掉。</div>
+      <div class="turn">
+        <details class="block"><summary>🧠 思考 <span class="badge">· 持续了几秒</span></summary>
+          <p class="out-note" style="padding:0 12px 10px">确认 C14 边界：A9-16 未授权实现，本演示为静态设计稿；布局改动映射 U01–U04，状态保持映射 U05。</p>
+        </details>
+
+        <div class="tool-card" id="tool-card">
+          <div class="tool-head">🖥 终端 <code>npm test -- --runInBand a9-agent-loop</code>
+            <span class="status-badge" id="tool-status">待运行</span></div>
+          <div class="tool-demo-bar">
+            <button id="btn-run" type="button">▶ 演示运行中输出（S01/S02：每 2 秒一个 tick）</button>
+            <span>stdout 与 stderr 分源保序；跨 chunk 中文按 UTF-8 边界拼接</span>
+          </div>
+          <pre class="tool-out" id="tool-out" aria-live="polite">尚无输出。</pre>
+          <p class="out-note" id="tool-note">上限 4 KiB/块、总量有界；截断时如实标注 droppedAtLeastBytes。</p>
+        </div>
+
+        <div class="card review-card">
+          <h4>🔵 Review 审批卡（R02/R03）— 准备区改动 Apply</h4>
+          <p class="sub">Review 写操作只进入私有准备区；Apply 绑定 revision 与 accepted-set 哈希。它与"高影响操作确认"是两种卡。</p>
+          <ul class="review-files" id="review-files">
+            <li><span class="path">src/state/src/a9-persistence.ts</span><span class="st" data-st>未决定</span><button class="accept" type="button">接受</button><button class="reject" type="button">拒绝</button></li>
+            <li><span class="path">src/shell/product/renderer/a9-workbench.js</span><span class="st" data-st>未决定</span><button class="accept" type="button">接受</button><button class="reject" type="button">拒绝</button></li>
+            <li><span class="path">docs/tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md</span><span class="st" data-st>未决定</span><button class="accept" type="button">接受</button><button class="reject" type="button">拒绝</button></li>
+          </ul>
+          <div class="card-actions">
+            <button class="apply" id="review-apply" type="button" disabled>Apply（0/3）</button>
+            <button type="button" id="review-reject-all">全部拒绝</button>
+            <span class="hint">基线漂移时原子拒绝、零部分写入（R02）。</span>
+          </div>
+        </div>
+
+        <div class="card impact-card">
+          <h4>⚠ 高影响操作确认（R04）— 与 Review 卡可区分</h4>
+          <p class="sub">Full Access 模式下对危险操作的一次性目标绑定确认，不冒充 Review 审批。</p>
+          <code class="cmd">git push origin codex/a9-alpha2</code>
+          <div class="card-actions">
+            <button class="apply" style="border-color:var(--amber);background:var(--amber)" type="button">确认执行</button>
+            <button type="button">取消</button>
+            <span class="hint">绑定精确目标；仅此一次有效（R05：不重放、不跨模式串用）。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="row">
+        <button class="mode-pill" id="mode-pill" data-mode="full" type="button" title="点击切换权限模式">🛡 完全访问</button>
+        <span class="hint" style="font-size:11px;color:var(--muted)">R01：三模式并存；Review 后端未就绪时 fail-closed，不静默降级</span>
+      </div>
+      <div class="row">
+        <textarea id="composer-input" placeholder="输入任务…（演示）" aria-label="任务输入"></textarea>
+        <button class="send" type="button">发送</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== 右侧检查器（桌面可关，B-1） ======== -->
+  <aside class="inspector" id="inspector" aria-label="检查器">
+    <div class="inspector-inner">
+      <div class="inspector-head"><h2>检查器</h2>
+        <button class="close" id="close-inspector" type="button" aria-label="关闭检查器" title="关闭检查器">✕</button></div>
+      <div class="insp-tabs" role="tablist" aria-label="检查器内容">
+        <button role="tab" id="tab-files" aria-selected="true" aria-controls="panel-files" type="button">文件</button>
+        <button role="tab" id="tab-changes" aria-selected="false" aria-controls="panel-changes" tabindex="-1" type="button">变更</button>
+        <button role="tab" id="tab-activity" aria-selected="false" aria-controls="panel-activity" tabindex="-1" type="button">活动</button>
+        <button role="tab" id="tab-env" aria-selected="false" aria-controls="panel-env" tabindex="-1" type="button">环境</button>
+      </div>
+      <div class="insp-body">
+        <div id="panel-files" role="tabpanel" aria-labelledby="tab-files">
+          <h3>工作区文件</h3>
+          <dl class="kv"><dt>根目录</dt><dd>win7-coding-Agent</dd><dt>未跟踪</dt><dd>7 个文件</dd><dt>已修改</dt><dd>18 个文件</dd></dl>
+        </div>
+        <div id="panel-changes" role="tabpanel" aria-labelledby="tab-changes" hidden>
+          <h3>Review 决定面板（D-6）</h3>
+          <pre class="mini-diff"><span class="del">- grid-template-columns: 232px minmax(500px,1fr) 360px;</span>
+<span class="add">+ grid-template-columns: var(--rail-w) minmax(480px,1fr) var(--inspector-w);</span>
+<span class="add">+ .workspace.rail-closed { grid-template-columns: 0 minmax(480px,1fr) var(--inspector-w); }</span></pre>
+          <p style="font-size:12px;color:var(--muted);margin:0">逐文件接受/拒绝入口内嵌"变更"页；Inspector 关闭时主区审批卡仍可达（U05）。</p>
+        </div>
+        <div id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+          <h3>工具时间线</h3>
+          <dl class="kv"><dt>当前</dt><dd>idle</dd><dt>最近工具</dt><dd>shell（演示）</dd><dt>输出预算</dt><dd>2 MiB / Turn</dd></dl>
+        </div>
+        <div id="panel-env" role="tabpanel" aria-labelledby="tab-env" hidden>
+          <h3>运行环境</h3>
+          <dl class="kv"><dt>模式</dt><dd>完全访问</dd><dt>Shell</dt><dd>TrustedShell</dd><dt>Renderer FS</dt><dd>无能力</dd><dt>Terminal</dt><dd>不可用</dd></dl>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+<div class="foot-note">A9-16 设计演示 · 对照 docs/plans/A9_16_UI_ZCODE_REFERENCE_SUGGESTIONS.md · 请将窗口调至 1366×768 验证：左栏 ≥4 条对话行、四态重排无横向滚动、开关不丢滚动位置。非产品代码。</div>
+
+<script>
+(function () {
+  'use strict';
+  var ws = document.getElementById('workspace');
+  var rail = document.getElementById('rail');
+  var inspector = document.getElementById('inspector');
+  var tRail = document.getElementById('toggle-rail');
+  var tInsp = document.getElementById('toggle-inspector');
+  var chip = document.getElementById('state-chip');
+
+  function names() {
+    var l = !ws.classList.contains('rail-closed');
+    var r = !ws.classList.contains('inspector-closed');
+    return (l ? '左开' : '左关') + ' / ' + (r ? '右开' : '右关') +
+      (l && r ? '（双开）' : l ? '（仅左）' : r ? '（仅右）' : '（双关）');
+  }
+  function sync() {
+    tRail.setAttribute('aria-expanded', String(!ws.classList.contains('rail-closed')));
+    tInsp.setAttribute('aria-expanded', String(!ws.classList.contains('inspector-closed')));
+    chip.textContent = '四态：' + names();
+  }
+  tRail.addEventListener('click', function () { ws.classList.toggle('rail-closed'); sync(); });
+  tInsp.addEventListener('click', function () { ws.classList.toggle('inspector-closed'); sync(); });
+  document.getElementById('close-inspector').addEventListener('click', function () {
+    ws.classList.add('inspector-closed'); sync();
+  });
+  sync();
+
+  /* 检查器标签页 */
+  var tabs = [['tab-files', 'panel-files'], ['tab-changes', 'panel-changes'], ['tab-activity', 'panel-activity'], ['tab-env', 'panel-env']];
+  tabs.forEach(function (p) {
+    document.getElementById(p[0]).addEventListener('click', function () {
+      tabs.forEach(function (q) {
+        var on = q[0] === p[0];
+        var tb = document.getElementById(q[0]); var pn = document.getElementById(q[1]);
+        tb.setAttribute('aria-selected', String(on)); tb.tabIndex = on ? 0 : -1; pn.hidden = !on;
+      });
+    });
+  });
+
+  /* 列表过滤（前端演示）与加载更早（分页演示） */
+  var filter = document.getElementById('conv-filter');
+  filter.addEventListener('input', function () {
+    var q = filter.value.trim().toLowerCase();
+    document.querySelectorAll('.conv-row').forEach(function (li) {
+      li.style.display = !q || li.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+    });
+  });
+  var olderSeed = 0;
+  document.getElementById('load-more').addEventListener('click', function () {
+    var ul = document.getElementById('grp-older');
+    for (var i = 1; i <= 4; i++) {
+      olderSeed++;
+      var li = document.createElement('li'); li.className = 'conv-row';
+      var b = document.createElement('button'); b.type = 'button';
+      var t = document.createElement('span'); t.className = 't'; t.textContent = '更早的对话条目 #' + olderSeed + '（分页游标演示）';
+      var ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = (10 + olderSeed) + '天';
+      b.appendChild(t); b.appendChild(ts); li.appendChild(b); ul.appendChild(li);
+    }
+    document.getElementById('older-count').textContent = String(6 + olderSeed);
+  });
+  document.querySelectorAll('.group-head').forEach(function (g) {
+    g.addEventListener('click', function () {
+      var open = g.getAttribute('aria-expanded') === 'true';
+      g.setAttribute('aria-expanded', String(!open));
+      document.getElementById(g.getAttribute('aria-controls')).style.display = open ? 'none' : '';
+    });
+  });
+
+  /* S01/S02 运行中输出演示：每 2 秒一个带序号 tick，stdout/stderr 分源，结束态真实退出码 */
+  var out = document.getElementById('tool-out');
+  var status = document.getElementById('tool-status');
+  var note = document.getElementById('tool-note');
+  var runBtn = document.getElementById('btn-run');
+  var timer = null, n = 0;
+  function line(cls, text) {
+    if (out.textContent === '尚无输出。') out.textContent = '';
+    var s = document.createElement('span');
+    if (cls) s.className = cls;
+    s.textContent = text + '\n';
+    out.appendChild(s); out.scrollTop = out.scrollHeight;
+  }
+  runBtn.addEventListener('click', function () {
+    if (timer) return;
+    out.textContent = ''; n = 0;
+    status.textContent = '运行中'; status.className = 'status-badge running';
+    note.textContent = 'tool_start 已发出；输出随进程增量到达（非退出后一次性补齐）。';
+    var card = document.getElementById('tool-card');
+    if (card.open === false) card.open = true;
+    timer = setInterval(function () {
+      n++;
+      line('', '[tick ' + n + '] 步骤 ' + n + '/8 完成 ✓ 中文与emoji✓ CRLF 边界正常');
+      if (n === 3) line('err-line', '[stderr] deprecation: 旧配置键 deprecated_key（stderr 单独保序）');
+      if (n >= 8) {
+        clearInterval(timer); timer = null;
+        line('sys-line', '[exit] 进程退出，exitCode=0');
+        status.textContent = '已退出 (0)'; status.className = 'status-badge exited';
+        note.textContent = 'tool_end 已发出；整卡可折叠为摘要行“' + (n + 1) + ' 行输出”（S06 恢复按事件身份，不重复）。',
+        runBtn.textContent = '▶ 重播';
+      }
+    }, 2000);
+  });
+
+  /* Review 逐文件决定（R02/R03） */
+  var files = document.getElementById('review-files');
+  var applyBtn = document.getElementById('review-apply');
+  function refreshApply() {
+    var acc = files.querySelectorAll('button.accept.selected').length;
+    applyBtn.textContent = 'Apply（' + acc + '/3）';
+    applyBtn.disabled = acc === 0;
+  }
+  files.addEventListener('click', function (e) {
+    var b = e.target; if (b.tagName !== 'BUTTON') return;
+    var li = b.closest('li'); var st = li.querySelector('[data-st]');
+    var isAcc = b.classList.contains('accept');
+    li.querySelectorAll('button').forEach(function (x) { x.classList.remove('selected'); });
+    b.classList.add('selected');
+    st.textContent = isAcc ? '✓ 接受' : '✕ 拒绝';
+    st.style.color = isAcc ? 'var(--green)' : 'var(--err)';
+    refreshApply();
+  });
+  document.getElementById('review-reject-all').addEventListener('click', function () {
+    files.querySelectorAll('li').forEach(function (li) {
+      li.querySelectorAll('button').forEach(function (x) { x.classList.remove('selected'); });
+      var st = li.querySelector('[data-st]'); st.textContent = '✕ 拒绝'; st.style.color = 'var(--err)';
+    });
+    refreshApply();
+  });
+
+  /* D-1 三态模式 pill */
+  var pill = document.getElementById('mode-pill');
+  var modes = [['full', '🛡 完全访问'], ['readonly', '👁 只读'], ['review', '🔵 Review']];
+  var mi = 0;
+  pill.addEventListener('click', function () {
+    mi = (mi + 1) % modes.length;
+    pill.dataset.mode = modes[mi][0];
+    pill.textContent = modes[mi][1];
+  });
+
+  /* 视口读数（对照 1366×768 验收） */
+  function vp() { document.getElementById('vp-readout').textContent = window.innerWidth + ' × ' + window.innerHeight + '（目标 1366×768）'; }
+  window.addEventListener('resize', vp); vp();
+})();
+</script>
+</body>
+</html>

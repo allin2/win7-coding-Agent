@@ -1078,6 +1078,83 @@ export class A9PersistenceManager {
     return cappedLimit ? sorted.slice(-cappedLimit) : sorted;
   }
 
+  /** A9-17: UI-only keyset paging. Only selected payloads cross into JS;
+   * SQL still scans/sorts session metadata, so database work is not constant.
+   * full model-history restoration continues to use listConversationFacts. */
+  listConversationFactPage(sessionId: string, options: {
+    limit?: number; before?: { createdAt: string; taskId: string };
+  } = {}): { facts: ReturnType<A9PersistenceManager['listConversationFacts']>;
+    hasMore: boolean; nextBefore: { createdAt: string; taskId: string } | null } {
+    const limit = options.limit ?? 20;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 ||
+        (options.before && (typeof options.before.createdAt !== 'string' ||
+          typeof options.before.taskId !== 'string' || !options.before.taskId))) {
+      throw new Error('A9_CONVERSATION_PAGE_INVALID');
+    }
+    const before = options.before;
+    const rows = this.db.prepare(`
+      WITH requests AS (
+        SELECT id, created_at,
+          json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.taskId') AS task_id
+        FROM a9_events WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request'
+          AND json_type(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.requestPrompt') = 'text'
+      ), latest_requests AS (
+        SELECT task_id, MAX(id) AS request_id FROM requests
+        WHERE typeof(task_id) = 'text' AND task_id <> '' GROUP BY task_id
+      ), checkpoints AS (
+        SELECT c.turn_id, c.created_at, COALESCE(t.task_id, 'legacy:' || c.turn_id) AS task_id,
+          ROW_NUMBER() OVER (PARTITION BY COALESCE(t.task_id, 'legacy:' || c.turn_id)
+            ORDER BY c.created_at DESC, c.turn_id DESC) AS ordinal
+        FROM a9_checkpoints c LEFT JOIN a9_turns t ON t.turn_id = c.turn_id WHERE c.session_id = ?
+      ), keys AS (
+        SELECT task_id FROM latest_requests UNION SELECT task_id FROM checkpoints
+      ), candidates AS (
+        SELECT k.task_id, r.request_id, c.turn_id, COALESCE(e.created_at, c.created_at) AS created_at
+        FROM keys k LEFT JOIN latest_requests r ON r.task_id = k.task_id
+        LEFT JOIN a9_events e ON e.id = r.request_id
+        LEFT JOIN checkpoints c ON c.task_id = k.task_id AND c.ordinal = 1
+      ), page AS (
+        SELECT * FROM candidates
+        ${before ? 'WHERE created_at < ? OR (created_at = ? AND task_id < ?)' : ''}
+        ORDER BY created_at DESC, task_id DESC LIMIT ?
+      )
+      SELECT p.*, e.payload_json AS request_payload, c.payload_json AS checkpoint_payload,
+        c.created_at AS checkpoint_at, t.status AS task_status, t.updated_at AS task_updated,
+        tr.status AS turn_status
+      FROM page p LEFT JOIN a9_events e ON e.id = p.request_id
+      LEFT JOIN a9_checkpoints c ON c.turn_id = p.turn_id AND c.session_id = ?
+      LEFT JOIN a9_tasks t ON t.task_id = p.task_id AND t.session_id = ?
+      LEFT JOIN a9_turns tr ON tr.turn_id = p.turn_id
+      ORDER BY p.created_at DESC, p.task_id DESC
+    `).all(sessionId, sessionId, ...(before ? [before.createdAt, before.createdAt, before.taskId] : []),
+      limit + 1, sessionId, sessionId) as any[];
+    const hasMore = rows.length > limit;
+    const selected = rows.slice(0, limit);
+    const last = selected[selected.length - 1];
+    const facts = selected.reverse().map((row) => {
+      const request = safeParse(row.request_payload || '{}') as any;
+      const checkpoint = safeParse(row.checkpoint_payload || '{}') as any;
+      return {
+        taskId: row.task_id, turnId: row.turn_id || null,
+        requestPrompt: (typeof request.requestPrompt === 'string' && request.requestPrompt)
+          || (typeof checkpoint.requestPrompt === 'string' ? checkpoint.requestPrompt : ''),
+        outcome: row.turn_id ? checkpoint.outcome || row.turn_status || 'completed' : row.task_status || 'running',
+        verification: row.turn_id ? checkpoint.verification || 'not_applicable' : 'not_applicable',
+        finalMessage: typeof checkpoint.finalMessage === 'string' ? checkpoint.finalMessage : '',
+        createdAt: row.created_at, updatedAt: row.checkpoint_at || row.task_updated || row.created_at,
+        ...(Number.isSafeInteger(checkpoint.providerContextGeneration)
+          ? { providerContextGeneration: checkpoint.providerContextGeneration } : {}),
+      };
+    });
+    return { facts, hasMore, nextBefore: hasMore && last ? { createdAt: last.created_at, taskId: last.task_id } : null };
+  }
+
+  hasConversationFacts(sessionId: string): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM a9_events WHERE session_id = ? AND kind = 'model'
+      AND event_type = 'conversation.request' LIMIT 1`).get(sessionId) ||
+      this.db.prepare('SELECT 1 FROM a9_checkpoints WHERE session_id = ? LIMIT 1').get(sessionId));
+  }
+
   recordApproval(approval: {
     approvalId: string;
     sessionId: string;

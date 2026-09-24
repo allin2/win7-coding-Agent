@@ -30,13 +30,15 @@ const A9_ACTIONS = Object.freeze({
   GIT_STATUS: 'a9.git.status',
   WORKSPACE_READ: 'a9.workspace.read',
   EVENTS_QUERY: 'a9.events.query',
+  CONVERSATION_QUERY: 'a9.conversation.query',
 });
 
 /**
+ * v7 (ADR-0123): compact snapshots and history pages; existing v6 requests remain supported.
  * v6（ADR-0114）：在 v5 有界文件读取基础上增加按会话有界查询持久化事件
  * （a9.events.query，UI 过程回看；跨会话请求由 runtime 拒绝）。
  */
-const A9_IPC_SCHEMA_VERSION = 6;
+const A9_IPC_SCHEMA_VERSION = 7; // ADR-0123: compact snapshot and UI history paging
 
 function exactObject(value, keys, code, optionalKeys = []) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -59,7 +61,7 @@ function createA9ProductRequestHandler(options) {
     }
     try {
       exactObject(request, ['schemaVersion', 'action', 'payload'], 'A9_REQUEST_SCHEMA_INVALID');
-      if (request.schemaVersion !== A9_IPC_SCHEMA_VERSION) {
+      if (![6, A9_IPC_SCHEMA_VERSION].includes(request.schemaVersion)) {
         throw Object.assign(new Error(`A9_SCHEMA_VERSION_UNSUPPORTED:${request.schemaVersion}`), { code: 'A9_SCHEMA_VERSION_UNSUPPORTED' });
       }
       if (!Object.values(A9_ACTIONS).includes(request.action)) {
@@ -81,7 +83,25 @@ function createA9ProductRequestHandler(options) {
       const payload = request.payload || {};
       switch (request.action) {
         case A9_ACTIONS.SNAPSHOT_GET:
-          return { ok: true, snapshot: runtime.getSnapshot() };
+          exactObject(payload, [], 'A9_PAYLOAD_INVALID', ['conversationPage']);
+          if (payload.conversationPage !== undefined && (request.schemaVersion < 7 || typeof payload.conversationPage !== 'boolean')) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: conversationPage requires v7 boolean'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return { ok: true, snapshot: runtime.getSnapshot(payload) };
+        case A9_ACTIONS.CONVERSATION_QUERY:
+          exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID', ['before', 'limit']);
+          if (request.schemaVersion < 7 || typeof payload.conversationId !== 'string' || !payload.conversationId ||
+              (payload.limit !== undefined && (!Number.isSafeInteger(payload.limit) || payload.limit < 1 || payload.limit > 100))) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid conversation page'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.before !== undefined) {
+            exactObject(payload.before, ['createdAt', 'taskId'], 'A9_PAYLOAD_INVALID');
+            if (typeof payload.before.createdAt !== 'string' || payload.before.createdAt.length > 64 ||
+                typeof payload.before.taskId !== 'string' || !payload.before.taskId || payload.before.taskId.length > 256) {
+              throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid cursor'), { code: 'A9_PAYLOAD_INVALID' });
+            }
+          }
+          return runtime.queryConversation(payload);
         case A9_ACTIONS.MODE_SET: {
           exactObject(payload, ['mode'], 'A9_PAYLOAD_INVALID');
           return runtime.setMode(payload.mode);

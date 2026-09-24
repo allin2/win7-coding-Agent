@@ -1017,6 +1017,63 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(second.manager.countEvents()).toBe(2);
   });
 
+  it('pages UI facts with bounded SQL rows, stable ties and no loss while full model history stays available', () => {
+    const opened = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    if (opened.status !== 'ready') throw new Error('fixture unavailable');
+    const manager = opened.manager;
+    manager.saveSession('paged', '/ws');
+    manager.saveSession('other', '/other');
+    for (let i = 0; i < 65; i += 1) {
+      const id = `task-${String(i).padStart(3, '0')}`;
+      manager.upsertTask(id, 'paged', 'completed');
+      manager.upsertTurn(`turn-${i}`, id, 'paged', 'completed');
+      manager.recordModelEvent('paged', null, 'conversation.request', { taskId: id, requestPrompt: `request ${i}` });
+      manager.saveCheckpoint({ turnId: `turn-${i}`, sessionId: 'paged', payload: {
+        requestPrompt: `request ${i}`, finalMessage: `answer ${i}`, outcome: i === 0 ? 'failed' : 'completed',
+        verification: 'verified', providerContextGeneration: 3,
+      } });
+    }
+    manager.db.prepare('UPDATE a9_events SET created_at = ? WHERE session_id = ?').run('2026-09-12T00:00:00.000Z', 'paged');
+    const first = manager.listConversationFactPage('paged');
+    expect(first.facts).toHaveLength(20);
+    expect(first.hasMore).toBe(true);
+    expect(first.facts[19]).toMatchObject({ taskId: 'task-064', outcome: 'completed', providerContextGeneration: 3 });
+    const seen = [...first.facts];
+    let cursor = first.nextBefore;
+    while (cursor) {
+      const page = manager.listConversationFactPage('paged', { before: cursor });
+      expect(page.facts.length).toBeLessThanOrEqual(20);
+      seen.push(...page.facts);
+      cursor = page.nextBefore;
+    }
+    expect(seen).toHaveLength(65);
+    expect(new Set(seen.map((fact) => fact.taskId)).size).toBe(65);
+    expect(manager.listConversationFacts('paged')).toHaveLength(65);
+    expect(manager.listConversationFactPage('other').facts).toEqual([]);
+    expect(manager.hasConversationFacts('other')).toBe(false);
+    expect(manager.hasConversationFacts('paged')).toBe(true);
+    expect(() => manager.listConversationFactPage('paged', { limit: 0 })).toThrow();
+    manager.db.close();
+  });
+
+  it('matches legacy facts for malformed requests, checkpoint-only tasks and repeated requests', () => {
+    const opened = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    if (opened.status !== 'ready') throw new Error('fixture unavailable');
+    const manager = opened.manager;
+    manager.saveSession('s', '/ws');
+    manager.upsertTask('t', 's', 'completed');
+    manager.recordModelEvent('s', null, 'conversation.request', { taskId: 't', requestPrompt: 'first' });
+    manager.recordModelEvent('s', null, 'conversation.request', { taskId: 't', requestPrompt: 'last valid' });
+    manager.recordModelEvent('s', null, 'conversation.request', { taskId: 't', requestPrompt: 17 });
+    manager.recordModelEvent('s', null, 'conversation.request', { taskId: 'invalid-only', requestPrompt: null });
+    manager.upsertTask('cp', 's', 'completed');
+    manager.upsertTurn('cp-turn', 'cp', 's', 'completed');
+    manager.saveCheckpoint({ turnId: 'cp-turn', sessionId: 's', payload: { requestPrompt: 'checkpoint only', finalMessage: 'answer' } });
+    const ordered = (facts: any[]) => facts.sort((a, b) => a.taskId.localeCompare(b.taskId));
+    expect(ordered(manager.listConversationFactPage('s').facts)).toEqual(ordered(manager.listConversationFacts('s')));
+    manager.db.close();
+  });
+
   it('projects persisted conversation facts without replaying requests or tools', () => {
     const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
     expect(outcome.status).toBe('ready');

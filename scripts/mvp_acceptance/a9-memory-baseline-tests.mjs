@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const p = new URL('./a9_win7_memory_baseline.ps1', import.meta.url);
+const source = fs.readFileSync(p, 'utf8');
+assert.match(source, /function Kb-ToBytes/);
+assert.match(source, /PageFileUsage/);
+assert.match(source, /\* \[uint64\]1024/);
+assert.match(source, /CreationDate/);
+assert.match(source, /shell\.utility/);
+assert.doesNotMatch(source, /core\.utility/);
+assert.match(source, /elapsed_ms/);
+assert.match(source, /probe_duration_ms/);
+assert.match(source, /interval_ms/);
+console.log('a9 memory baseline source contract checks passed');

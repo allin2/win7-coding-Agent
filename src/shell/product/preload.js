@@ -30,7 +30,7 @@ function a8Request(action, sessionId, payload) {
 
 function a9Request(action, payload) {
   return ipcRenderer.invoke('product:a9-request', {
-    schemaVersion: 6, // ADR-0114：增加按会话有界事件查询（过程回看）
+    schemaVersion: 7, // ADR-0123：首屏快照与对话分页
     action,
     payload: payload || {},
   });
@@ -50,7 +50,8 @@ const legacyA8ReviewApi = legacyA8ReviewEnabled ? Object.freeze({
 const productApi = Object.freeze({
   getDiagnostics: () => ipcRenderer.invoke('product:get-diagnostics'),
   a9: Object.freeze({
-    snapshot: () => a9Request('a9.snapshot.get', {}),
+    snapshot: () => a9Request('a9.snapshot.get', { conversationPage: true }),
+    queryConversation: (values) => a9Request('a9.conversation.query', values || {}),
     setMode: (mode) => a9Request('a9.mode.set', { mode }),
     configureProvider: (values) => a9Request('a9.provider.configure', values),
     probeProvider: () => a9Request('a9.provider.probe', {}),

@@ -1,0 +1,254 @@
+{
+  "kind": "A9-16_UI_DEV_MACHINE_LAYOUT_EVIDENCE",
+  "date": "2026-09-14",
+  "harness": "electron 22.3.27 (Chromium 108) dev machine, real workbench.html/css/js with stubbed preload fixture",
+  "fixture": "2 running + 6 idle + 1 archived conversations",
+  "win7Validation": "NOT_PERFORMED",
+  "realMachine125dpi": "NOT_PERFORMED",
+  "note": "125% entry is a Chromium zoom proxy (setZoomFactor 1.25), not a real Windows DPI change.",
+  "states": {
+    "desktop-1366x768-100dpi-rail-open-inspector-open": {
+      "workbenchClasses": "workbench",
+      "gridTemplateColumns": "232px 774px 360px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 232,
+      "inspectorWidth": 360,
+      "inspectorPosition": "static",
+      "listClientHeight": 210,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关检查器"
+      }
+    },
+    "desktop-1366x768-100dpi-rail-open-inspector-closed": {
+      "workbenchClasses": "workbench inspector-closed",
+      "gridTemplateColumns": "232px 1134px 0px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 232,
+      "inspectorWidth": 0,
+      "inspectorPosition": "static",
+      "listClientHeight": 210,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关检查器"
+      }
+    },
+    "desktop-1366x768-100dpi-both-closed": {
+      "workbenchClasses": "workbench inspector-closed rail-closed",
+      "gridTemplateColumns": "0px 1366px 0px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 0,
+      "inspectorWidth": 0,
+      "inspectorPosition": "static",
+      "listClientHeight": 210,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关检查器"
+      }
+    },
+    "desktop-1366x768-100dpi-rail-closed-inspector-open": {
+      "workbenchClasses": "workbench rail-closed",
+      "gridTemplateColumns": "0px 1006px 360px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 0,
+      "inspectorWidth": 360,
+      "inspectorPosition": "static",
+      "listClientHeight": 210,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关检查器"
+      }
+    },
+    "desktop-1366x768-125dpi-zoom-proxy": {
+      "workbenchClasses": "workbench",
+      "gridTemplateColumns": "220px 872.8px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 220,
+      "inspectorWidth": 430,
+      "inspectorPosition": "fixed",
+      "listClientHeight": 61,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 1,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关检查器"
+      }
+    },
+    "narrow-1100-inspector-drawer-closed": {
+      "workbenchClasses": "workbench",
+      "gridTemplateColumns": "220px 880px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 220,
+      "inspectorWidth": 430,
+      "inspectorPosition": "fixed",
+      "listClientHeight": 210,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关检查器"
+      }
+    },
+    "narrow-1100-inspector-drawer-open": {
+      "workbenchClasses": "workbench",
+      "gridTemplateColumns": "220px 880px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 220,
+      "inspectorWidth": 430,
+      "inspectorPosition": "fixed",
+      "listClientHeight": 210,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关检查器"
+      }
+    },
+    "narrow-760-navigation-drawer-closed": {
+      "workbenchClasses": "workbench",
+      "gridTemplateColumns": "760px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 290,
+      "inspectorWidth": 430,
+      "inspectorPosition": "fixed",
+      "listClientHeight": 215,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "false",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关检查器"
+      }
+    },
+    "narrow-760-navigation-drawer-open": {
+      "workbenchClasses": "workbench",
+      "gridTemplateColumns": "760px",
+      "horizontalOverflow": 0,
+      "verticalOverflow": 0,
+      "railWidth": 290,
+      "inspectorWidth": 430,
+      "inspectorPosition": "fixed",
+      "listClientHeight": 215,
+      "listScrollHeight": 347,
+      "listScrollable": true,
+      "groupHeads": [
+        "进行中2",
+        "更早6"
+      ],
+      "fullConversationRows": 4,
+      "navToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关左侧导航"
+      },
+      "inspectorToggle": {
+        "display": "grid",
+        "expanded": "true",
+        "label": "开关检查器"
+      }
+    }
+  }
+}

@@ -262,7 +262,15 @@ async function waitFor(condition, timeoutMs, label) {
   throw new Error(`TIMEOUT waiting for ${label} (last: ${report.lastError || 'none'})`);
 }
 
-async function main() {
+const LATE_LOAD_ERROR_CODE = 'A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD';
+
+function installDriverPreReadySeamsAndLoadProduct() {
+  if (typeof app.isReady === 'function' && app.isReady()) {
+    const error = new Error(`${LATE_LOAD_ERROR_CODE}: formal product entry must be loaded before Electron app is ready`);
+    error.code = LATE_LOAD_ERROR_CODE;
+    throw error;
+  }
+
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
   if (mode === 'workspace_select' || mode === 'first' || mode === 'stop') {
@@ -309,9 +317,17 @@ async function main() {
       });
     };
   }
-  // 正式产品入口（真实 main.js：注册全部产品 IPC 并打开真实窗口）。
+  // 正式产品入口（真实 main.js：在 ready 前执行 Windows 软件渲染配置，注册全部产品 IPC 与 ready 窗口监听）。
   require(productMain);
+}
 
+async function main() {
+  if (process.env.A9_SMOKE_FORCE_STAGE_ERROR === '1') {
+    throw new Error('A9_FORCED_STAGE_ERROR_FOR_TEST');
+  }
+
+  const mode = process.env.A9_SMOKE_MODE || 'first';
+  const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
   const dataRoot = process.env.A9_SMOKE_DATAROOT;
   const fixtureUrl = process.env.A9_SMOKE_FIXTURE_URL;
 
@@ -1207,6 +1223,23 @@ async function runProjectionAcceptance(win, exec, env, restoredEvents, expectedP
  * 不存在、分页后出现"，证明旧失败确实进入了产品已加载历史（仅数据库存在不算）。
  */
 async function runPagingProbe(exec, conversationId, restoredEvents) {
+  // A9-17: explicitly expand fact pages through their UI before testing event pages.
+  // Older products have no separate fact control and retain their original path.
+  await exec(`(async () => {
+    for (let page = 0; page < 100; page++) {
+      const button = document.querySelector('.conversation-history-note button');
+      if (!button) return;
+      const count = document.querySelectorAll('article.turn-block').length;
+      button.click();
+      let loaded = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        if (document.querySelectorAll('article.turn-block').length > count) { loaded = true; break; }
+      }
+      if (!loaded) throw new Error('FACT_PAGING_TIMEOUT');
+    }
+    throw new Error('FACT_PAGING_LIMIT');
+  })()`);
   const windowLimit = PRODUCT_FIRST_QUERY_LIMIT;
   const productQuery = (observation) => Boolean(observation) && observation.limit === windowLimit
     && observation.conversation_id === conversationId;
@@ -1247,7 +1280,7 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
       && item.turn_id === olderFailureEvent.turn_id) || null
     : null;
   const readControl = `(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     return {
       hasControl: Boolean(button), disabled: button ? button.disabled : null,
@@ -1259,8 +1292,10 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
   const readOlderObservable = (turnId, toolStartEventId) => `(async () => {
     const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
     const facts = snapshot.conversation || [];
-    const fact = facts.find((item) => item.turnId === ${JSON.stringify(turnId)}) || null;
-    let block = null;
+    let fact = facts.find((item) => item.turnId === ${JSON.stringify(turnId)}) || null;
+    let block = Array.from(document.querySelectorAll('#a9-task-stream article.turn-block'))
+      .find(node => node.dataset.turnId === ${JSON.stringify(turnId)}) || null;
+    if (!fact && block) fact = { taskId: block.dataset.turnKey };
     if (fact && fact.taskId) {
       block = Array.from(document.querySelectorAll('#a9-task-stream article.turn-block'))
         .find((node) => node.dataset.turnKey === fact.taskId) || null;
@@ -1315,7 +1350,7 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
     if (!control.hasControl || control.disabled) { stopReason = 'CONTROL_GONE_OR_DISABLED'; break; }
     const seqBefore = queryObservationSeq;
     await exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
       const button = note ? note.querySelector('button') : null;
       if (button) button.click();
       return Boolean(button);
@@ -1350,7 +1385,7 @@ async function runPagingProbe(exec, conversationId, restoredEvents) {
     if (observed.has_more !== true) { stopReason = 'NO_MORE_HISTORY'; break; }
     // 等待产品消化该页（按钮恢复可用或控件消失），避免下一轮点击落在加载锁上。
     await waitFor(() => exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
       const button = note ? note.querySelector('button') : null;
       return !button || !button.disabled ? true : null;
     })()`), 10_000, 'paging control settle').catch(() => null);
@@ -1637,7 +1672,7 @@ async function runSecondProcess(win, exec, env) {
         eventId: Number(item.dataset.eventId), turnId: item.dataset.turnId || null,
         eventType: item.dataset.eventType || null, text: item.textContent,
       }));
-      const note = document.querySelector('#a9-task-stream .legacy-note');
+      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
       const timeBaseline = {
         probe_version: ${JSON.stringify(TIME_BASELINE_PROBE_VERSION)},
         time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
@@ -1796,7 +1831,7 @@ async function runRetryProcess(win, exec, env) {
   const targetConversationId = process.env.A9_SMOKE_RETRY_CONVERSATION || '';
   // 等待产品重启完成：快照恢复后初次历史加载被替身注入失败，"重试加载"入口出现。
   const errorState = await waitFor(() => exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     if (!button || button.textContent !== '重试加载') return null;
     return {
@@ -1822,14 +1857,14 @@ async function runRetryProcess(win, exec, env) {
       || injectedObservations[0].conversation_id === targetConversationId);
   // 实际点击产品"重试加载"入口（真实用户路径，不直接调用产品内部函数）。
   const clickedRetry = errorVisible ? await exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     if (button) button.click();
     return Boolean(button);
   })()`) === true : false;
   // 恢复：错误入口消失，Inspector 重新出现行（初次失败时历史为空，行数 > 0 证明真实补载）。
   const recoveredState = await waitFor(() => exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note');
+    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     const label = button ? button.textContent : '';
     const rows = document.querySelectorAll('#a9-timeline li').length;
@@ -1919,17 +1954,92 @@ async function runStopProcess(win, exec, env) {
   record('A9F6-STOP-TURN-CANCELLED', Boolean(outcome) && snapshot.agentStatus === 'cancelled', `outcome=${outcome}; agentStatus=${snapshot.agentStatus}`);
 }
 
-app.whenReady().then(main).then(() => {
-  fs.mkdirSync(path.dirname(process.env.A9_SMOKE_OUT), { recursive: true });
-  fs.writeFileSync(process.env.A9_SMOKE_OUT, `${JSON.stringify(report, null, 2)}\n`);
-  // 走真实 before-quit → async a9RuntimeInstance.shutdown() → app.quit()
-  // → will-quit 路径。app.exit/手工 emit 会绕过产品的异步清理门并遗留工作区锁。
-  process.exitCode = report.status === 'PASS' ? 0 : 1;
+let driverTargetExitCode = 1;
+
+function writeDriverReport() {
+  const outPath = process.env.A9_SMOKE_OUT;
+  if (!outPath) return;
+  try {
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  } catch (_e) { /* best effort */ }
+}
+
+let driverExitFallbackTimer = null;
+
+function requestDriverQuit() {
+  process.exitCode = driverTargetExitCode;
+  if (driverTargetExitCode !== 0) {
+    driverExitFallbackTimer = setTimeout(() => {
+      if (typeof app.exit === 'function') app.exit(driverTargetExitCode);
+      else process.exit(driverTargetExitCode);
+    }, 30000);
+    if (typeof driverExitFallbackTimer?.unref === 'function') driverExitFallbackTimer.unref();
+  }
   app.quit();
-}).catch((error) => {
-  report.status = 'ERROR';
-  report.error = String(error && error.stack ? error.stack : error);
-  try { fs.writeFileSync(process.env.A9_SMOKE_OUT, `${JSON.stringify(report, null, 2)}\n`); } catch (_e) { /* best effort */ }
-  process.exitCode = 1;
-  app.quit();
+}
+
+// Electron may otherwise normalize app.quit() to exit code 0. Prevent the
+// final automatic exit, let every will-quit listener (including product
+// disposal) run in the current emission, then deliver the recorded non-zero
+// code on the next turn of the event loop.
+app.on('will-quit', (event) => {
+  if (driverTargetExitCode === 0) return;
+  process.exitCode = driverTargetExitCode;
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+  if (driverExitFallbackTimer) clearTimeout(driverExitFallbackTimer);
+  setImmediate(() => {
+    if (typeof app.exit === 'function') app.exit(driverTargetExitCode);
+    else process.exit(driverTargetExitCode);
+  });
 });
+
+function failDriver(error) {
+  const code = error && error.code ? error.code : 'A9_DRIVER_STAGE_ERROR';
+  const message = String(error && error.stack ? error.stack : error);
+  report.status = 'ERROR';
+  report.error = `${code}: ${message}`;
+  report.lastError = `${code}: ${message}`;
+  if (!report.cases.some((item) => item && item.id === code)) record(code, false, message);
+  driverTargetExitCode = 1;
+  writeDriverReport();
+  requestDriverQuit();
+}
+
+function startProductDriver() {
+  try {
+    installDriverPreReadySeamsAndLoadProduct();
+  } catch (error) {
+    failDriver(error);
+    return;
+  }
+
+  app.whenReady().then(main).then(() => {
+    const allPassed = Array.isArray(report.cases) && report.cases.length > 0 && report.cases.every((c) => c.passed === true);
+    report.status = allPassed ? 'PASS' : 'FAIL';
+    driverTargetExitCode = report.status === 'PASS' ? 0 : 1;
+    writeDriverReport();
+    // 走真实 before-quit → async a9RuntimeInstance.shutdown() → app.quit()
+    // → will-quit 路径。非零码只在 will-quit 的同步处理器全部运行后交付。
+    requestDriverQuit();
+  }).catch(failDriver);
+}
+
+// 候选内真实 Electron 反例接缝：特意等待 ready 后再尝试首次加载，
+// 必须由上方稳定错误码拒绝。正常候选路径始终在 ready 前调用。
+if (process.env.A9_SMOKE_FORCE_LATE_PRODUCT_LOAD === '1') {
+  app.whenReady().then(startProductDriver).catch(failDriver);
+} else {
+  startProductDriver();
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    installDriverPreReadySeamsAndLoadProduct,
+    main,
+    report,
+    writeDriverReport,
+    failDriver,
+    LATE_LOAD_ERROR_CODE,
+  };
+}

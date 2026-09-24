@@ -12,6 +12,7 @@
   <a class="skip-link" href="#task-prompt">跳到任务输入</a>
   <main class="workbench" aria-label="A9 Trusted Agent 工作台">
     <aside id="navigation-rail" class="rail" aria-label="工作区导航">
+     <div class="rail-inner">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">W7</span>
         <div><strong>Coding Agent</strong><small>TRUSTED WORKBENCH</small></div>
@@ -33,7 +34,7 @@
         <ul id="conversation-list" class="conversation-list" aria-label="当前工作区对话"></ul>
         <div class="conversation-current-actions"><button id="conversation-rename" type="button">重命名</button><button id="conversation-archive" type="button">归档</button></div>
         <details id="conversation-archive-section" class="conversation-archive-section"><summary>已归档 <span id="conversation-archive-count">0</span></summary><ul id="conversation-archive-list" class="conversation-list archived" aria-label="已归档对话"></ul></details>
-        <p id="conversation-directory-note" class="quiet"></p>
+        <p id="conversation-directory-note" class="quiet conversation-directory-note"></p>
       </section>
       <section class="rail-task" aria-labelledby="rail-task-title">
         <span id="rail-task-title" class="eyebrow">CURRENT TASK</span>
@@ -42,18 +43,22 @@
         <button id="rail-stop" class="rail-stop" type="button" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span id="rail-stop-label">停止</span></button>
       </section>
       <div class="rail-spacer"></div>
-      <div class="trust-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6zM9 12l2 2 4-5"/></svg><p><strong>可信工作区</strong><span>Full Access 使用当前 Windows 用户权限，不是安全沙箱。</span></p></div>
+      <details id="trust-note" class="trust-note">
+        <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6zM9 12l2 2 4-5"/></svg><strong>可信工作区</strong></summary>
+        <p>Full Access 使用当前 Windows 用户权限，不是安全沙箱。高影响操作会先请求明确批准。</p>
+      </details>
       <div class="rail-bottom">
         <button id="open-settings" class="utility" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zM4 12l-2-1 2-4 2 1 2-1V4h8v3l2 1 2-1 2 4-2 1v2l2 1-2 4-2-1-2 1v2H8v-2l-2-1-2 1-2-4 2-1z"/></svg>设置</button>
         <button id="open-diagnostics" class="utility" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l4-5 3 2 5-8 4 3M4 4v16h16"/></svg>诊断</button>
       </div>
+     </div>
     </aside>
     <button id="navigation-backdrop" class="navigation-backdrop" type="button" aria-label="关闭导航" hidden></button>
 
     <section class="conversation-pane" aria-labelledby="workbench-title">
       <header class="conversation-header">
         <div class="header-title">
-          <button id="open-navigation" class="icon-button header-navigation-toggle" type="button" aria-controls="navigation-rail" aria-expanded="false" aria-label="打开导航" title="导航"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <button id="open-navigation" class="icon-button header-navigation-toggle" type="button" aria-controls="navigation-rail" aria-expanded="true" aria-label="开关左侧导航" title="导航"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
           <div><span class="breadcrumb">AGENT / <b id="workspace-label">未连接工作区</b></span><h1 id="workbench-title">和工作区一起完成任务</h1></div>
         </div>
         <div class="header-status">
@@ -61,7 +66,7 @@
           <button id="a9-provider-open" class="status-control provider" type="button" aria-controls="settings-drawer" aria-haspopup="dialog"><i aria-hidden="true"></i><span id="a9-provider-chip">Provider 未配置</span></button>
           <span id="runtime-status" class="connection pending"><i aria-hidden="true"></i>检查中</span>
           <span id="task-state" class="task-pill idle">空闲</span>
-          <button id="open-inspector" class="icon-button header-inspector-toggle" type="button" aria-controls="inspector" aria-expanded="false" aria-label="打开检查器" title="检查器"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM14 5v14"/></svg></button>
+          <button id="open-inspector" class="icon-button header-inspector-toggle" type="button" aria-controls="inspector" aria-expanded="true" aria-label="开关检查器" title="检查器"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM14 5v14"/></svg></button>
         </div>
       </header>
       <div id="error-banner" class="global-error" role="alert" hidden></div>
@@ -100,6 +105,7 @@
     </section>
 
     <aside id="inspector" class="inspector" aria-label="检查器">
+     <div class="inspector-inner">
       <header class="inspector-header"><div><span class="eyebrow">INSPECTOR</span><h2>工作区事实</h2></div><button id="close-inspector" class="icon-button inspector-close" type="button" aria-label="关闭检查器"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
       <div id="a9-surface" data-a9-surface="a9" hidden>
         <div class="inspector-tabs" role="tablist" aria-label="检查器内容"><button id="inspector-tab-files" type="button" role="tab" aria-selected="true" aria-controls="inspector-panel-files" tabindex="0">文件</button><button id="inspector-tab-changes" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-changes" tabindex="-1">变更</button><button id="inspector-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-activity" tabindex="-1">活动</button><button id="inspector-tab-environment" type="button" role="tab" aria-selected="false" aria-controls="inspector-panel-environment" tabindex="-1">环境</button></div>
@@ -112,6 +118,7 @@
         <div id="inspector-panel-activity" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-activity" hidden><section><div class="section-title"><h3>工具时间线</h3><span id="a9-agent-value">idle</span></div><ol id="a9-timeline" class="a9-timeline"></ol><p id="a9-turn-outcome" class="quiet"></p><p id="a9-turn-error" class="field-error" role="alert" hidden></p></section><section><details><summary>原始输出</summary><div class="output-tools"><span>STDOUT / STDERR</span><button id="a9-output-copy" type="button">复制</button></div><pre id="a9-shell-output" class="a9-output">尚无工具输出。</pre><p id="a9-output-note" class="quiet"></p></details></section></div>
         <div id="inspector-panel-environment" class="inspector-panel" role="tabpanel" aria-labelledby="inspector-tab-environment" hidden><section><div class="section-title"><h3>运行环境</h3><span>可信事实</span></div><dl class="a9-status"><div><dt>工作区</dt><dd id="a9-workspace-value">-</dd></div><div><dt>模式</dt><dd id="a9-mode-value">-</dd></div><div><dt>Shell</dt><dd id="a9-shell-value">-</dd></div><div><dt>Provider</dt><dd id="a9-provider-value">-</dd></div><div><dt>写锁</dt><dd id="a9-lock-value">-</dd></div></dl><p id="a9-runtime-error" class="field-error" role="alert" hidden></p></section><section><div class="section-title"><h3>能力边界</h3></div><dl class="boundary"><div><dt>Renderer FS</dt><dd>无能力</dd></div><div><dt>Workspace</dt><dd>校验 IPC</dd></div><div><dt>Writes</dt><dd>模式 + 精确批准</dd></div><div><dt>Terminal</dt><dd>不可用</dd></div></dl></section></div>
       </div>
+     </div>
     </aside>
     <button id="inspector-backdrop" class="inspector-backdrop" type="button" aria-label="关闭检查器" hidden></button>
   </main>

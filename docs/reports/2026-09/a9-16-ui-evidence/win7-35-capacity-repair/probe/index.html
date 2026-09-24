@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A9-16 real geometry probe (1079×540)</title>
+  <!-- Product layout CSS. Probe chrome must not alter rail metrics or cover the rail. -->
+  <link rel="stylesheet" href="../../../../../../src/shell/product/renderer/a9-workbench.css">
+  <link rel="stylesheet" href="probe.css">
+</head>
+<body class="probe-mode">
+<!-- Worst form rail DOM mirrors workbench.html. Measurement starts at viewport origin (0,0);
+       no diagnostic overlay is painted over the product chrome. -->
+  <main class="workbench" aria-label="A9 geometry probe stage">
+    <aside id="navigation-rail" class="rail" aria-label="工作区导航">
+      <div class="rail-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">W7</span>
+          <div><strong>Coding Agent</strong><small>TRUSTED WORKBENCH</small></div>
+          <button id="close-navigation" class="icon-button navigation-close" type="button" aria-label="关闭导航"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <button id="workspace-select" class="workspace-card" type="button">
+          <span>WORKSPACE</span><strong id="workspace-name">measure-workspace</strong><small id="workspace-path">C:\A9-W35\9ffae420\measure…</small><span class="workspace-action">切换</span>
+        </button>
+        <nav class="product-nav" aria-label="产品区域">
+          <button class="nav-item active" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h7"/></svg><span>任务</span><i>当前</i></button>
+          <button class="nav-item roadmap" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>Review</span><i>Alpha 2</i></button>
+        </nav>
+        <section class="conversation-directory" aria-labelledby="probe-directory-title">
+          <header><span id="probe-directory-title" class="eyebrow">CONVERSATIONS</span><button id="conversation-new" type="button" aria-label="新建对话">+</button></header>
+          <div class="conversation-search">
+            <label class="sr-only" for="conversation-search">搜索对话</label>
+            <input id="conversation-search" type="search" autocomplete="off" placeholder="搜索对话 Ctrl+K（含已归档）…" aria-label="搜索对话标题，包含已归档">
+          </div>
+          <ul id="conversation-list" class="conversation-list" aria-label="当前工作区对话"></ul>
+          <div class="conversation-current-actions"><button id="conversation-rename" type="button">重命名</button><button id="conversation-archive" type="button">归档</button></div>
+          <details id="conversation-archive-section" class="conversation-archive-section"><summary>已归档 <span id="conversation-archive-count">1</span></summary><ul id="conversation-archive-list" class="conversation-list archived" aria-label="已归档对话"></ul></details>
+          <p id="conversation-directory-note" class="quiet conversation-directory-note">已锁定：当前任务正在执行</p>
+        </section>
+        <section class="rail-task" aria-labelledby="probe-rail-task-title">
+          <span id="probe-rail-task-title" class="eyebrow">CURRENT TASK</span>
+          <div class="rail-task-state"><i aria-hidden="true"></i><strong id="rail-task-value">运行中</strong></div>
+          <p id="rail-task-detail">Hold this UI geometry task until cancelled</p>
+          <button id="rail-stop" class="rail-stop" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg><span id="rail-stop-label">停止任务</span></button>
+        </section>
+        <details id="trust-note" class="trust-note">
+          <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6zM9 12l2 2 4-5"/></svg><strong>可信工作区</strong></summary>
+          <p>Full Access 使用当前 Windows 用户权限，不是安全沙箱。</p>
+        </details>
+        <div class="rail-bottom">
+          <button id="open-settings" class="utility" type="button">设置</button>
+          <button id="open-diagnostics" class="utility" type="button">诊断</button>
+        </div>
+      </div>
+    </aside>
+    <section class="conversation-pane" aria-label="主对话区占位">
+      <header class="conversation-header">
+        <div class="header-title">
+          <button id="open-navigation" class="icon-button header-navigation-toggle" type="button" aria-controls="navigation-rail" aria-expanded="true" aria-label="开关左侧导航"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <div><span class="breadcrumb">AGENT / <b id="workspace-label">measure-workspace</b></span><h1 id="workbench-title">Hold this UI geometry task until c…</h1></div>
+        </div>
+        <div class="header-status">
+          <button id="open-inspector" class="icon-button header-inspector-toggle" type="button" aria-controls="inspector" aria-expanded="false" aria-label="开关检查器"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM14 5v14"/></svg></button>
+        </div>
+      </header>
+      <div id="conversation" class="conversation" aria-label="任务执行记录占位"></div>
+      <footer class="composer-wrap"><div class="composer"></div></footer>
+    </section>
+    <aside id="inspector" class="inspector" aria-label="检查器">
+      <div class="inspector-inner"></div>
+    </aside>
+  </main>
+  <!-- Machine-readable result only. display:none keeps it out of layout and hit-testing. -->
+  <pre id="probe-result" hidden></pre>
+  <script src="probe.js"></script>
+  <script>
+    (function seedWorstForm() {
+      var list = document.getElementById('conversation-list');
+      function head(label, n) {
+        var li = document.createElement('li');
+        li.className = 'conversation-group-head';
+        var name = document.createElement('span');
+        name.textContent = label;
+        var count = document.createElement('span');
+        count.textContent = String(n);
+        li.appendChild(name);
+        li.appendChild(count);
+        list.appendChild(li);
+      }
+      function row(title, meta, running) {
+        var li = document.createElement('li');
+        var button = document.createElement('button');
+        button.type = 'button';
+        if (running) button.setAttribute('aria-current', 'true');
+        var strong = document.createElement('strong');
+        var dot = document.createElement('span');
+        dot.className = 'conversation-dot ' + (running ? 'running' : '');
+        dot.setAttribute('aria-hidden', 'true');
+        strong.appendChild(dot);
+        strong.appendChild(document.createTextNode(title));
+        var small = document.createElement('small');
+        small.textContent = meta;
+        button.appendChild(strong);
+        button.appendChild(small);
+        li.appendChild(button);
+        list.appendChild(li);
+      }
+      head('进行中', 1);
+      row('运行中', '运行中 · 2026/9/23 09:45:42', true);
+      head('更早', 8);
+      for (var i = 0; i < 8; i += 1) {
+        row('空闲', '空闲 · 2026/9/23 09:45:3' + i, false);
+      }
+    })();
+    if (window.a9GeometryProbeRun) {
+      window.a9GeometryProbeRun();
+    }
+  </script>
+</body>
+</html>

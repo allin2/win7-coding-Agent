@@ -16,13 +16,229 @@
 | 唯一 RC 工件 | 源码提交 `963eabe`；ZIP SHA-256 `39eecb6a…040c9`；A7 状态提交 `6ca1a5a` |
 | A8 产品体验授权 | 需求合同 v1 已由负责人确认；`0.2.0-alpha.1` / `codex/a8-agent-first-product`；外部三层验证均 `NOT_PERFORMED_EXTERNAL_ENV_UNAVAILABLE` |
 | A8 当前阶段 | `A8-06 / A8_DEVELOPER_COMPLETE_VALIDATION_READY`；文本附件/Goal 应用内对话框候选已从远端可达干净源码双构建并通过开发机 smoke，等待同一候选的 Win10/Win7 验收 |
-| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 均永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS（均非 RC） |
+| A9 Trusted Agent Runtime | WIN7-19 历史里程碑保留；WIN7-20/WIN7-21 永久为 `FIX_BEFORE_ALPHA`；WIN7-22 已取得 A9_14_WIN7_22_GO_FOR_ALPHA；A9-15 WIN7-28 已取得 UI 集成 PASS；A9-16 WIN7-29 为构建缺陷、WIN7-30 为实机 G2 失败、WIN7-31 为实机 G3 容量失败、WIN7-32 为实机 G3 首绘失败、WIN7-33 为实机 G2 驱动加载顺序失败；WIN7-34 已取得 UI 子集集成 PASS；WIN7-35 保持实机 G3 容量 FAIL；WIN7-36 在已批准的可达响应式状态等效裁决下取得 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，≤799px 分支仍不可达/未验证（均非 RC、非完整 Alpha 2） |
 
 `latest-validation.json` 是证据采集时的不可变快照，其 `head_commit` 必须是当前主线的
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
 ## A9 Trusted Agent Runtime（2026-08-31）
+
+- 2026-09-14，负责人指令启动 [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md) UI 子集（任务书 §7：状态 `APPROVED_FOR_IMPLEMENTATION`，分支 `codex/a9-alpha2`，基线 `7d06789` + 在制 A9-17，决策 ADR-0117 / ADR-0124）：实现 U01–U07 左侧对话区三段式与单行密度、桌面四态状态类切换（双侧独立开关、aria 同步、DOM 保活）、信任注记折叠与"进行中/更早"分组；**Review（R01–R05）与 Shell 运行中输出（S01–S06）按指令暂缓**，Review 入口维持 disabled fail-closed。设计输入为 [ZCode 参照建议](plans/A9_16_UI_ZCODE_REFERENCE_SUGGESTIONS.md) 与已实测的 [静态演示](plans/a9-16-ui-demo/index.html)。本轮复核补齐两处缺口：**U02 行容量不达标**（左栏固定 chrome 474.8→379.9px，列表 147.2→238.0px，完整可见行 2→5，凭静态高度预算模型并已固化进契约测试；行高仍 36px，未靠缩小行高达标）与 **U06 跨断点回归**（原 resize 监听在任何窗口缩放时折叠左右栏，改为只做状态机收敛 + aria 重推；并修 ≤799px 残留 `.rail-closed` 导致的 0 宽网格列）。随后在开发机真实 Electron 22.3.27（Chromium 108）用真实渲染层 + 桩快照做**几何量测**，另暴露并修复第三处缺口：**U02 预算模型漏算归档折叠摘要**，最坏形态（2 组头 + 归档区）实测仅 190px / 3 条完整行，二次回收后为 196px / 4 条完整行，并把归档项补进预算模型。量测确认桌面四态与 1200/800 两个断点全程 `scrollWidth`/`scrollHeight` 无溢出、`aria-expanded` 与视觉一致、Ctrl+I 关闭后焦点交还头部开关；**125% 用 Chromium 缩放代理仅 1 条完整行，是 Win7 实机 1366×768 × 125% DPI 的首要复核项**（不等于真实 DPI）。门禁：shell 37 套件 357 项全绿（含 5 项 A9-16 契约用例，另经负向对照确认修复为真实护栏）、`tsc --noEmit` + 产品 JS `node --check`、`git diff --check` 干净；`check_docs.mjs` 仅剩既有 `outputs/**` 沙箱快照噪声。几何证据见 [layout-evidence.json](reports/2026-09/a9-16-ui-evidence/layout-evidence.json)；**像素级视觉签字与真实 125% DPI、Win7 实机回归仍 `NOT_PERFORMED`**；未签发 Alpha 2 PASS；未提交/推送。详见[实现报告](reports/2026-09/a9_16_ui_implementation_2026-09-14.md)。
+
+- 2026-09-14，A9-16 UI 子集冻结新候选 **WIN7-29**（决策 ADR-0125，任务书 §8）。候选范围限于 §4
+  U01–U07 的 renderer 改动；Review（R01–R05）与 Shell 运行中输出（S01–S06）**不在候选内**，Review 入口
+  维持 disabled + fail-closed。发布管线新增 `A9-16-INPUTS-RESPONSIVE-UI-WIN7-29` profile
+  （`scripts/release/build-a9-product-v3.mjs`）与一整套 W29 release 工件：输入锁、validation kit
+  （**15 项用例**：继承 W28 的 `W29-01`～`W29-10`，新增 `W29-11`～`W29-15` 覆盖左栏三段式与行容量、
+  桌面四态 DOM 保活、跨断点收敛回归、键盘/焦点契约，以及**真实 1366×768 × 125% DPI** 布局）、
+  完整性/报告/smoke 脚本与 CMD 包装、[验收说明](../release/win7-product-v3/A9_16_WIN7_29_VALIDATION.md)。
+  三件锁定输入按精确哈希复核在位：Electron 22.3.27 `ad723ed7…86e6`、D-013 v25 `7485cf22…99d6d0`
+  （本轮从私有归档恢复并逐级校验）、SQLite/ABI 110 `2cb0cd32…2794`。**A9-17 经负责人裁决不并入本候选、
+  也不单独建立产品候选**，其 Win7 采样沿用自身授权；版本与能力集保持 Alpha 1（`0.3.0-alpha.1`，
+  ADR-0096），不得据该候选宣称 Alpha 2 PASS。同日完成**双独立干净工作树构建并逐字节一致**：源码提交
+  `4bdf87b40449a1a7c5488425d45604767ce8e24a`，`source_dirty=false`、
+  `external_acceptance_eligible=true`，ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`
+  （101,350,978 B）SHA-256 `a69d92c434631d13019c3cfb760db907555ecc84b853f56bdd6d3dab2e0d820e`，
+  manifest SHA-256 `46f11c0ddb2d2d4b2566a035914d41ae4751a7ecd2f404c4b65831e6643d5d01`。
+  随后在候选外预检发现该构建**不可验收**：包内 `validation/a9-package-integrity-w29.cjs` 有 5 处字面量
+  未从 W28 重基线（`gates.win7`、`provenance.task`、`provenance.previous_candidate`、
+  `provenance.previous_candidate_result`、`provenance.change_scope`，以及 `approved.kind` /
+  `approved.status`），以符合文档契约的候选外 authority 实测被拒 `A9_W29_INPUT_LOCK_CONTRACT_INVALID`
+  ——**候选自带的校验器拒绝候选自身携带的 input lock**，Win7 实机验收无法通过第一条命令；该文件被
+  `release-manifest.json` 哈希绑定并随 ZIP 发布，包外补丁不可行。**故 WIN7-29 判定为构建缺陷并保留为
+  失败构建**，其哈希不得被任何 authority 引用，不得删除、改写或复用改判。
+
+- 2026-09-14，按既有修复先例换发 **WIN7-30**（决策 ADR-0126，任务书 §9）作为 A9-16 UI 子集的修正候选：
+  候选范围、15 项用例集、版本与能力集（Alpha 1）与 WIN7-29 一致，修正范围严格限于上述字面量，使其与
+  `a9-16-win7-30-input-lock.json` 逐项一致。同时补两处**残留守卫**：
+  `scripts/release/test/a9-package.test.mjs` 新增"派生脚本的 gates/provenance/authority/kit 字面量必须与
+  input lock 逐项一致"的回归断言；`scripts/release/build-a9-product-v3.mjs` 新增构建期
+  `assertNoStaleCandidateTokens()`，按 lock 与 kit 逐项比对（覆盖 `WIN7_28_`、`APPROVED_FOR_WIN7_28_`
+  等下划线形式，即本轮绕过连字符守卫的形式），命中即 `A9_CANDIDATE_STALE_TOKEN` 失败。守卫经负向对照
+  验证：临时解除豁免后精确命中 WIN7-29 的全部 7 处残留，恢复后无误报；发布回归 **23/23 全绿**。
+  同日完成**双独立干净工作树构建并逐字节一致**（`cmp` 通过）：源码提交
+  `640571ea11a402b4b827cf31175d849ec729d970`，`source_dirty=false`、`external_acceptance_eligible=true`，
+  ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`（101,352,637 B）SHA-256
+  `1ec123e4f73dbb6607007e34460350164a06a6dd9035f4c031ff4782fc74af90`，manifest SHA-256
+  `4c41af7501c51433ff240a14d6ebd28246716fa3884a8c12fac08a2f4d75daae`。候选外预检 12 项全 PASS
+  （`verifyFullTree()` 788 文件、64 项闭包、无禁止载荷、kit 身份一致），含
+  **`verifyAcceptanceCandidate()` 接受符合文档契约的 authority 与候选自带 input lock**——即 WIN7-29
+  失败的那一项（该 authority 为测试夹具，不构成批准）。该结论仅为开发机包完整性
+  （`A9_16_DEVELOPER_PACKAGE_INTEGRITY_PASS`），`product_assembly` / `win10` / `win7` / `alpha` 当时全部
+  `NOT_PERFORMED`。随后签发候选外 authority 并在 `10.211.42.40` 以普通用户 Medium/non-elevated
+  执行 run `add716dd-c45e-4a18-ab5f-0ba1fc19d6c3`：G1 通过，G2 自动 smoke 失败。四个 Electron 阶段
+  均退出 0、fixture 325 次请求，但 driver 发布 W28 投影键而 W30 smoke 按 W30 键读取，且折叠左栏下
+  Ctrl+K 搜索过滤成功但 `focused=false`；真实 Provider 因硬门失败为 `NOT_PERFORMED`，原 ZIP 复核
+  哈希不变，结束后无 Electron 残留。**WIN7-30 固定为 `G2_FAILED`，不得重签或复用哈希改判。**
+
+- 2026-09-14，负责人批准修复并换发 **WIN7-31**（ADR-0127，任务书 §10）。修复严格限于两项：
+  （1）构建时把共享 driver 的 `W28-03` / `W28-09` / `W28-10` 与 evidence package kind 精确派生为
+  W31；（2）Ctrl+K 在聚焦并全选搜索框前先展开导航。构建残留守卫改在 driver 与 kit 生成后执行，
+  并拒绝 03/09/10 投影对象键出现非 W31 前缀；正向与注入旧键的负向回归均为候选前置。15 项用例、
+  Alpha 1 版本和能力集保持不变。同日以源码提交 `ac4ed5048a6a2d4ed2f223c61ed06108a4a07d4b`
+  完成双独立干净工作树构建，ZIP 逐字节一致、`source_dirty=false`、
+  `external_acceptance_eligible=true`：`Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`
+  （101,353,790 B）SHA-256 `79aec61da2046727ae89d94ccb4c9341ca5fb07aff17a72291479d1372ffa16a`，
+  manifest SHA-256 `a215217b6279a85b4c8213f561bafda07a6c529f630a6e4060c63b084cb9dbe6`；788 文件
+  完整树复验通过，包内 driver 只含 W31 的 03/09/10 投影键。候选已归档到
+  `.acceptance/candidates/WIN7-31/`，两个临时 Git worktree 已解除注册并移除，独立 out-a/out-b 构建结果
+  保留。测试夹具 authority 仅证明校验链路可接受正确绑定，**不构成正式批准**；尚未签发
+  `WIN7_31_RELEASE_AUTHORITY`，Win7 验收为 `WIN7_31_NOT_PERFORMED`。未推送、未打标签。
+
+- 2026-09-15，WIN7-31 已取得候选外 authority 并在新确认地址 `10.134.115.40` 的同一物理 Win7 主机
+  `DCCS-CHAIZL-PC` 开始普通用户 Medium/non-elevated 实机验收。run
+  `cdc35c14-abee-4f8e-bd4a-5759559ba0c8` 中 G1 PASS、G2 自动 smoke 75/75 PASS；真实 Provider
+  multi-tool 与 wait/cancel 直接观察通过。G3 在真实 1366×768、120 DPI（125%）的最坏形态（1 running、
+  8 older、1 archived，且 Stop 可见）只完整显示 1 条 36px 对话行，低于 W31-11-A03 / W31-15-A02
+  的 4 行硬门，故 **WIN7-31 固定为 `G3_FAILED`**，不签发 A9-16 UI 集成 PASS。候选正常关闭后
+  Electron/helper 均为零，postflight 完整性 PASS，证据秘密扫描零命中。负责人随后批准修复；当前源码
+  在 `max-height: 650px` 下压缩固定 chrome，但保持 Review disabled 入口、可信提示、设置/诊断与 Stop
+  可达，36px 行高不变。新增 540 CSS px 最坏形态契约守卫，定向测试 31/31 PASS；开发机 Electron 22
+  同引擎量测为列表 197px、完整 4 行、页面零溢出，shell lint/build 与 diff check 通过。该结果仅为
+  `SOURCE_REPAIR_VERIFIED`；随后已按下条获得 WIN7-32 冻结与双构建授权，authority 与 Win7 重验仍须
+  按候选精确哈希收口。
+
+- 2026-09-15，负责人指示“下面开始实际验收”，据此授权换发 **WIN7-32**（ADR-0128、任务书 §12）。
+  候选只承接 WIN7-31 G3 已证实的真实 125% DPI 左栏容量修复，36px 对话行、15 项用例、Alpha 1
+  版本与能力集不变；Review 与 Shell 运行中输出仍不开放。允许本地提交和双独立干净工作树一致构建，
+  但未知 ZIP 哈希不视为已批准；哈希形成后仍须候选外 `WIN7_32_RELEASE_AUTHORITY` 与独立 SHA-256 pin，
+  方可在 `10.134.115.40` 开始普通用户复验。现已由源码提交
+  `916fe8240e73d6efa956eacf485652075639dbcb` 完成双独立干净工作树构建，ZIP 逐字节一致、
+  `source_dirty=false`、`external_acceptance_eligible=true`：ZIP 101,356,737 B，SHA-256
+  `639063b70a1f7fb5dd422870708cb8cb457c405df8752668a5e43f8220a92ea2`；manifest SHA-256
+  `03647a0e0966e27787aa28ea17f577307955e0e28d7de3d31bd7fc62f8b442f6`。788 文件完整树、15 项 kit
+  闭包与测试专用 authority 全链预检通过；测试 authority 不构成批准。候选已归档到
+  `.acceptance/candidates/WIN7-32/`，双构建输出保存在 `.acceptance/builds/WIN7-32/916fe824-reissue/`，
+  两个临时 Git worktree 已解除注册；临时父目录删除被 Auto Review 拒绝，未绕过。当前停在正式
+  `WIN7_32_RELEASE_AUTHORITY` 门前，仍为 `WIN7_32_NOT_PERFORMED`；未推送、未打标签。
+
+- 2026-09-15，负责人按精确 ZIP SHA-256 `639063b70a1f7fb5dd422870708cb8cb457c405df8752668a5e43f8220a92ea2`
+  批准 WIN7-32 候选外 authority；正式 authority SHA-256
+  `4f06c80cb3c33aa9916273b26f753b5906ea8ce11e910125e5e758f6b9aa2dbe`。在 `10.134.115.40` 的物理
+  Win7 主机 `DCCS-CHAIZL-PC` 以普通用户 `dccs-chaizl-pc\agent`、Medium/non-elevated 令牌执行 run
+  `6e5c315d-cf59-4a5c-bb9f-1f58a2df366c`：G1 包完整性 PASS；G2 自动 smoke 75/75 PASS；显示事实为
+  1366×768、120 DPI（125%）。G3 正式窗口首次启动持续白屏，四个 Electron 进程（含 renderer）均存活
+  且 responding、Windows Application 日志无同期崩溃；普通 WM_CLOSE 后 Electron 清零，但同一普通用户
+  正常重启仍持续白屏。仅在打开 DevTools 触发窗口失效重绘后，已经加载的 workbench DOM 才立即可见，
+  关闭 DevTools 后界面继续显示；该诊断性重绘不能满足正常启动合同。因此 WIN7-32 固定为
+  **`G3_FAILED / FIX_BEFORE_REISSUE`**，不签发 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；真实 Provider、
+  Stop、桌面四态、键盘与最坏形态容量复验按硬门保持 `NOT_PERFORMED`。应用随后正常关闭，postflight
+  包完整性 PASS、Electron 残留 0、候选外高置信秘密扫描 0 命中；候选自带报告器接受完整 15 项集合的
+  正式失败报告并返回 `status=FAIL`。候选、authority、run 与全部候选外证据保持不可变；未推送、未打标签。
+
+- 2026-09-15，WIN7-33 在 `10.134.115.40` 的物理 Win7 以普通用户 `dccs-chaizl-pc\agent`、
+  Medium/non-elevated 令牌（Session 11，真实 1366×768 / 120 DPI，非 Chromium 缩放代理）执行 run
+  `15f2c247-d5e1-4c82-8d9f-c34759cf9a4f`：G0 宿主预检与 G1 包完整性 PASS，**G2 自动产品 smoke 硬失败**
+  ——四个驱动阶段（first / second / retry / stop）全部抛
+  `Error: app.disableHardwareAcceleration() can only be called before app is ready`，抛点在
+  `resources/app/product/main.js:21`，触发点是候选自家驱动在 `app.whenReady().then(main)` 之内才
+  `require` 产品入口。两个本机回环 fixture 请求计数为 0、批准目标未删除、未产出任何投影附件；G3 与
+  15 项用例按 fail-closed 记 `NOT_PERFORMED`，正式失败报告与候选自带 verifier 均 `status=FAIL`
+  （`verified_cases=15`、`direct_current_candidate_cases=0`）。该缺陷仅 Windows 触发，因此开发机双构建
+  逐字节一致与候选外 verifier 预检都无法发现。postflight 完整性复检 PASS、Electron/helper 残留 0、
+  候选外高置信秘密扫描 0 命中、13 个一次性计划任务已删除。据此 WIN7-33 固定为
+  `G2_FAILED / FIX_BEFORE_REISSUE`，候选、报告、run 与全部候选外证据保持不可变。
+
+- 2026-09-15，负责人指示“对问题进行修复”“现在就推进换发”，授权换发 **WIN7-34**（ADR-0130、任务书 §14）。
+  最小修复为把渲染策略调用改为按就绪状态守卫
+  （`if (process.platform === 'win32' && !app.isReady()) app.disableHardwareAcceleration();`）：打包入口
+  在 ready 前加载主进程，行为与 WIN7-33 完全等价；此后加载本模块的验收 harness 不再能把一次非法迟到
+  调用变成产品启动失败。新增两条主进程启动顺序回归用例与一条候选包断言（ready 之后加载不得做出非法
+  迟到渲染调用；ready 前加载必须照旧生效）。WIN7-34 的 integrity / report / smoke / driver / 两个 RUN
+  包装与 input lock 由冻结的 WIN7-33 工件按仓库既有约定重基线候选令牌生成，构建期
+  `A9_CANDIDATE_STALE_TOKEN` 守卫已实际拦下一次遗漏的 `change_scope` 未重基线。两个独立干净工作树已在提交 `2f6d3fd2ee8817922cf771300e3f348e541dfaf6` 上构建，ZIP 逐字节一致：
+  101,361,365 B，SHA-256 `d0b8528fccef905dce2d420d1b231251fac017d29f1505dbc10a6f20d9a93ead`；manifest
+  SHA-256 `3801430d0716ebfa3dafb65e3f123bf6d5bbdd19fc030f0e4c0dbf63a441761a`；validation kit SHA-256
+  `628ef158c3bf7b9797ecffab98d732144379aae7f33b3faae67f4fcc12b80644`，两份结果均
+  `source_dirty=false`、`external_acceptance_eligible=true`。候选已冻结到
+  `.acceptance/candidates/WIN7-34/`，双构建输出位于 `.acceptance/builds/WIN7-34/2f6d3fd-reissue/`。
+  当前硬停在该精确 ZIP 哈希的候选外 `WIN7_34_RELEASE_AUTHORITY` 与独立 pin，WIN7-34 普通用户实机仍
+  `NOT_PERFORMED`；未推送、未打标签。
+
+- 2026-09-16，WIN7-34 在 `10.134.115.40` 的物理 Win7 以普通用户完成 run
+  `1910b132-1043-46f9-9b32-70b0a9ed4892`。原报告因 W34-13-A03 要求的 `<=799px` 抽屉态被产品
+  `minWidth: 860` 阻断而为 `EVIDENCE_PENDING`；负责人选择「规格收窄」后，候选外 floor harness
+  在可达最窄 847 CSS px 上证明折叠 rail 时对话列非零且无横向溢出。修订报告保留原报告与
+  证据不变，候选自带 verifier 返回 `status=PASS`、`verified_cases=15`、
+  `direct_current_candidate_cases=15`，裁决为 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`。`<=799px`
+  分支继续登记为 `PRODUCT_UNREACHABLE / NOT_VERIFIED`；不据此签发 Alpha 2 或 RC PASS（ADR-0131）。
+
+- 2026-09-22，负责人批准 **WIN7-35** Driver 生命周期与退出码修复规划（ADR-0132、任务书
+  §16）。实施后经主代理独立复核，补齐了候选内真实 `electron.exe` 迟到加载/受控 ERROR
+  两个反例、非零退出与 ERROR 报告双绑定、WMI 零路径相关进程残留、四阶段完整合同，
+  并将 W35-13 按 ADR-0131 收窄为可达最窄 847 CSS px；`<=799px` 仍为
+  `PRODUCT_UNREACHABLE / NOT_VERIFIED`。定向 Shell 47/47、package 33/33、Shell lint/build、
+  `verify:quick` 与 `git diff --check` 通过；`docs:check` 仍因既有 A9-17 `/tmp` 链接及历史
+  `outputs/**/input-snapshot` 缺件失败，本次未改写该历史证据。产品 `main.js`、renderer、
+  Runner/Policy、IPC、SQLite、权限、网络和依赖均未改动。WIN7-35 候选、authority 和
+  物理 Win7 G1→G2→G3 证据仍 `NOT_PERFORMED`，不签发 Alpha 2 或 RC PASS。
+
+- 2026-09-23，后续 WIN7-35 实机运行 `9ffae420-fd2c-4c5f-93ef-c56584fe1ca4` 已更新上述历史时间点状态：
+  精确 ZIP SHA-256 为 `0d1474fddbd05c28e2109f2b7d70eb78d7e4ac786cadf2418175c7504b73749c`，
+  `10.110.237.40` 上 G1、消除旧实例干扰后的 G2、正式入口首启/重启首绘均通过；真实
+  1366×768 / 125% DPI 的 1079×540 CSS px 视口下，最坏形态列表仅 178px / 3 条完整 36px 行，
+  W35-11/W35-15 的 G3 UI 硬门 **FAIL**。1080×584 最小窗口钳大样本不构成通过证据；
+  W35-12/W35-13 DOM 身份为待隔离风险，真实 Provider 等下游 `NOT_PERFORMED`。
+  WIN7-35 保持冻结 FAIL，候选外运行证据见 `.acceptance/runs/WIN7-35/9ffae420-fd2c-4c5f-93ef-c56584fe1ca4/`。
+  现有未提交修复在开发机 1079×540 探针中得到 207px / 4 行，但不构成 Win7 PASS；
+  [WIN7-36 换发合同](plans/A9_16_WIN7_36_REISSUE_PROPOSAL.md) 后由负责人明确批准编号、C14
+  路径及 `10.110.237.40` 目标（ADR-0133、任务书 §17）；当时尚未提交、换发或签候选外 authority。
+- 2026-09-23，WIN7-36 修复在本地干净提交 `f0e80ecfabaaf8414d2778e4481f7e8d68e54f40` 冻结。
+  工作台契约 32/32、package 测试 35/35、Shell lint/build、实际渲染几何门与反例、`verify:quick`
+  均 PASS；`docs:check` 在干净工作树仅剩 9 处既有 A9-17 临时路径断链，未命中 W36 文件。
+  两个独立干净工作树构建的 ZIP 逐字节一致，SHA-256
+  `8f730c5ae9ab86d83ecbfe3033a00e32a935dd5217d3ab30e4c75710adbe2a3a`；manifest SHA-256
+  `1a9fa1584cd4f99295df6c44ad5ced47cc44c5dfd2d810c09841fe0557de00e2`；正式 input lock SHA-256
+  `d99c0dcf16d44cbceed41e6e6b4a6622877c856aaa40cfc6fc664d689cde676a`。manifest 为
+  `source_dirty=false`、`external_acceptance_eligible=true`；冻结件在 `.acceptance/candidates/WIN7-36/`，
+  双构建在 `.acceptance/builds/WIN7-36/f0e80ec-reissue/`，开发机仓库 ZIP verifier 预检 PASS。
+  尚未签发候选外 `WIN7_36_RELEASE_AUTHORITY` 与独立 pin，Win7 G1/G2/G3 均 `NOT_PERFORMED`，
+  不签发 Alpha 2、Review、Shell streaming 或 RC PASS。
+- 2026-09-23，负责人随后按 WIN7-36 精确哈希单独批准候选外 `WIN7_36_RELEASE_AUTHORITY`、独立 pin
+  及在 `10.110.237.40` 执行 G1→G2→G3；本地签发 authority SHA-256
+  `9c9b61a27287782a7ed8bea677d7dd85d8fe39de8c491b13e3f600ef0d001991`，候选自带 verifier 的
+  开发机纯字节与绑定接口通过。目标 TCP 22 可连接，但三次严格 SSH 连接均在服务器 banner 交换前超时，
+  未到主机密钥核验或认证，也未发生远程写入。此 run 的 G1/G2/G3 仍 `NOT_PERFORMED`，当前为
+  `BLOCKED_SSH_SERVER_HANDSHAKE / INSUFFICIENT_EVIDENCE`，不是候选产品 FAIL。候选外详情见
+  `.acceptance/runs/WIN7-36/485927dc-d043-47e3-b12c-85df380b6e85/RUN_STATUS.md`。
+- 2026-09-23，负责人将 WIN7-36 目标 IP 更正为 `10.233.193.40`；新地址完成 SSH 握手，
+  ECDSA 主机密钥与原 Win7 已固定主机键一致，但现有公钥登录被拒。新候选外 authority/pin
+  按更正地址独立保存在 run `9d9b5cab-96ec-47e2-b7b3-8102a9ab6909`，SHA-256
+  `7d335d76184dc6676680d5b1117a5babbb200b09fbdf6f32985ab37c5cea1708`，开发机纯字节与
+  绑定预检 PASS；原地址 run 与 authority 不改写。当前为 `BLOCKED_SSH_AUTHENTICATION`，
+  无远程写入或执行，Win7 G1/G2/G3 继续 `NOT_PERFORMED`。见
+  `.acceptance/runs/WIN7-36/9d9b5cab-96ec-47e2-b7b3-8102a9ab6909/RUN_STATUS.md`。
+
+- 2026-09-24，上述 SSH 登录阻塞在用户重新登录后解除；同一 WIN7-36 冻结 ZIP 和新 IP authority
+  于 `10.233.193.40` 的 Win7 SP1 x64 非提权普通用户会话完成 G1→G2→G3 和 15 项 UI 子集验证。
+  物理 1366×768 / 125% DPI 的实际内容视口为 1079×540 CSS px，最坏形态完整可见 4 行。
+  负责人明确按**可达响应式状态等效**裁决 W36-06/12/13/15：目标视口使用两列加 Inspector
+  抽屉、导航栏开关 × 抽屉开关四态；不宣称在该视口看到了三列或四个桌面 class 组合。
+  请求 700px 被钳至 847px，≤799px 分支及真正跨越 800px 仍为
+  `PRODUCT_UNREACHABLE / NOT_VERIFIED`。冻结候选自带报告器在普通用户会话中核验
+  `report-stage-v5.json`（SHA-256 `f7463691076491312c80fc83032417eb520bfede22c8be1c0edb4967a9e559e1`）
+  为 `status=PASS`、`verified_cases=15`、`direct_current_candidate_cases=15`，签发
+  `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；计数表示同候选证据绑定，不表示不可达几何已直接实测。
+  报告器输出 SHA-256 `05d9d00818e0b094ec18803721aa8bf228e0e929277f775a54867827447c0c4f`。
+  详见[WIN7-36 实机验收收口](reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)。
+  候选 ZIP、kit、旧报告不变；完整 Alpha 2、Review、Shell streaming、RC 未获此结论。
+
+- 2026-09-15，负责人指示“修复并走验证”，授权换发 **WIN7-33**（ADR-0129、任务书 §13）。补充物理
+  Win7 判别实验确认：WIN7-32 最小化/恢复及一像素 resize 后仍无 renderer 内容；同一冻结候选仅以
+  `--disable-gpu` 启动则无需 DevTools 即正常首绘。因此源码修复严格限定为 Windows 主进程在
+  `app.ready` 前调用 `app.disableHardwareAcceleration()`，非 Windows 不变；WIN7-32 renderer 容量修复、
+  15 项用例与 Alpha 1 能力集全部继承。修复源码已提交为
+  `d6c6a3e5d908ff3ffe72d14d1c64bb7ba968e718`；定向启动/工作台测试、package 全集、Shell lint/build、
+  仓库快速集成门和开发机包预检均 PASS。两个独立干净工作树生成逐字节一致的 101,358,703 B ZIP，
+  SHA-256 `ab885f43c5285ebe81351ca5841f33399cb58b750b16cb8367fd2c760b08984c`，manifest SHA-256
+  `6d9986f43135171517be34c61d85b17e9f79eae04f70be3c7c5bd6443930bd9e`；均记录
+  `source_dirty=false`、`external_acceptance_eligible=true`。候选已冻结到 `.acceptance/candidates/WIN7-33/`，
+  双构建输出位于 `.acceptance/builds/WIN7-33/d6c6a3e-reissue/`，临时工作树已移除。当前硬停在该精确
+  ZIP 哈希的候选外 `WIN7_33_RELEASE_AUTHORITY` 与独立 pin，WIN7-33 仍为 `NOT_PERFORMED`；未推送、
+  未打标签。
+
+- 2026-09-12，负责人授权 [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) 启动测量修正与三个启动热点优化，分支 `codex/a9-alpha2`，基线 `7d06789`。本地实现完成，状态/Shell 定向测试及开发机 Electron 86 项回归通过。当前保留 `A9_17_IMPLEMENTATION_AUTHORIZED`；未提交/部署，不改历史候选。补充开发机优化前后 A/B（`git archive HEAD` 导出优化前侧，端点对比 + 0/100/1,000/5,000 轮规模扫描 + 稳态确认，Electron `getAppMetrics` 口径、需 `--no-sandbox`）：窗口创建约 −4.7～−5.3 s；稳态空闲 1,000 轮 −138.2 MiB、5,000 轮 −584.4 MiB，空历史无变化；优化后仍随历史增长 46.5 MiB（Main +33.9），首屏就绪仅超大历史下可判改善。非产品配置，PowerShell/WMI 行为与 Win7 性能收益仍 `NOT_PERFORMED`。
 
 - 2026-09-11，A9-15 WIN7-28 在 Windows 7 SP1 build 7601 x64 普通用户 Medium/non-elevated 桌面令牌下
   完成 10/10 当前候选直接用例；自动产品 smoke 75/75 assertions、真实 Provider `tool_calling` 多工具轮次、
