@@ -1063,3 +1063,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-24 22:30，A9-19 Win7 **探索性运行（非验收）**：`192.168.1.3` 上以 `agent` 普通用户、WIN7-36 冻结包叠加 A9-19 的
   5 个文件跑一轮真实 Provider 任务。运行中工具卡、已运行时长与模型输出预览均在落盘后 ≤1.1 s 出现在界面；新发现切换对话/工作区会收起
   桌面左栏（A9-19 前已存在）。不签发任何 PASS，详见 A9-19 任务书 §12。
+
+- 2026-09-25，负责人批准 WIN7-37 换发合同（ADR-0136）；管线提交 `dd6cb1a`，双独立干净构建 ZIP 逐字节一致
+  （SHA-256 `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf`，manifest `bad63b4ce9f881d42bfd4426ccd5bdae58916ea7c284b5c1bbc8cc17e08ea27c`），`source_dirty=false`、`external_acceptance_eligible=true`，冻结于 `.acceptance/candidates/WIN7-37/`。
+  开发机预检通过；待负责人签发候选外 `WIN7_37_RELEASE_AUTHORITY`，Win7 G1/G2/G3 均 `NOT_PERFORMED`。

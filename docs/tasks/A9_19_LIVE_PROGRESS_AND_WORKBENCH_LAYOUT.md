@@ -6,7 +6,7 @@ Task Type: PRODUCT_EXPERIENCE
 Target Branch: codex/a9-alpha2
 Source Baseline: 6adaaf0
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_19_DEVELOPER_VERIFIED
+Phase-Gate: A9_19_WIN7_37_FROZEN_AWAITING_AUTHORITY
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0135
 ```
@@ -204,3 +204,25 @@ Decision: ADR-0135
 - 不新增产品改动；不得修改 WIN7-36 及更早的发布文件。版本 `0.3.0-alpha.1`；结论上限 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`。
 - 执行门：管线与开发机门 → 单一本地提交（不推送、不打标签）→ 双独立干净工作树构建逐字节一致 → 冻结 → 负责人按精确哈希签发候选外
   `WIN7_37_RELEASE_AUTHORITY` → 按交接书实机执行 → 审核方基于原始证据给建议 → 负责人裁决。
+
+## 14. WIN7-37 管线与候选冻结（2026-09-25）
+
+- 管线提交 `dd6cb1a9aeebb366478e155267996ea03653667b`（单一本地提交，未推送、未打标签），只含 §13 允许路径：新增 profile `A9-19-INPUTS-LIVE-PROGRESS-WIN7-37`、
+  input lock、21 项 Kit、完整性/报告/smoke、两个 CMD 与验证说明；共享驱动只新增 `live` 旅程。开发机门：package 37/37（含 W37 闭包与
+  注入 W36 残留的反例）、Shell 376/376、workspace 211/211、`verify:quick`、`docs:check`、`git diff --check`、开发机渲染探针与 DOCS_03 闸门。
+  G2 `live` 阶段需要 Electron 22，只能在 Win7 G2 实际执行。
+- 双独立干净工作树（依赖以 APFS 克隆逐字节复制）从同一提交构建，ZIP 逐字节一致（`cmp`），101,369,111 B：
+
+| 项 | SHA-256 |
+|---|---|
+| 候选 ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` | `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf` |
+| `release-manifest.json` | `bad63b4ce9f881d42bfd4426ccd5bdae58916ea7c284b5c1bbc8cc17e08ea27c` |
+| input lock `a9-19-win7-37-input-lock.json` | `a64a8b6833d6d7f6b1db603416a7e7e27ddad354f5a54a00c6b3be115aa04cbe` |
+| approval registry `a9-v25-approved-kits.json`（commit `e1b6f4bf30ad2ae7576aa958317e0aea6f4338d3`） | `d9cfea73c2f89c01a33a2bbef1d65c27eb995cd3681c71a939183348744917b7` |
+
+- manifest `source_dirty=false`、`external_acceptance_eligible=true`，788 个文件；Kit `A9-19-WIN7-37-LIVE-PROGRESS-20260925-01`（21 项）。
+  开发机预检以候选自带 `verifyAcceptanceCandidate` 对完整文件树与测试夹具 authority 接受正确绑定，并拒绝错误 ZIP 哈希
+  （`A9_W37_RELEASE_AUTHORITY_BINDING_INVALID`）与错误 pin（`A9_W37_AUTHORITY_PIN_MISMATCH`）；测试夹具不构成批准。
+- 冻结于本机 `.acceptance/candidates/WIN7-37/`（含 `IDENTITY.sha256`），双构建输出在 `.acceptance/builds/WIN7-37/dd6cb1a-reissue/`，临时工作树已移除。
+- 当前停在候选外 `WIN7_37_RELEASE_AUTHORITY` 门：负责人按上表精确哈希与实际 Win7 地址签发 authority 与独立 SHA-256 pin 之前，
+  Win7 G1/G2/G3 均 `NOT_PERFORMED`。

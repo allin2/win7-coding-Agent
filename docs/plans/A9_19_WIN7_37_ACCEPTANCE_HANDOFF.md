@@ -37,11 +37,12 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
 | 项 | 值 |
 |---|---|
 | 候选 ID | WIN7-37 |
-| 源码提交 | 【待审核方填写】 |
-| ZIP 文件名 / SHA-256 | 【待审核方填写】 |
-| manifest SHA-256 | 【待审核方填写】 |
-| authority SHA-256 | 【待审核方填写】 |
-| 完整性命令 / 报告命令 / smoke 脚本 | 【待审核方填写】 |
+| 源码提交 | `dd6cb1a9aeebb366478e155267996ea03653667b` |
+| ZIP 文件名 / SHA-256 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf`（101,369,111 B；本机冻结于 `.acceptance/candidates/WIN7-37/`） |
+| manifest SHA-256 | `bad63b4ce9f881d42bfd4426ccd5bdae58916ea7c284b5c1bbc8cc17e08ea27c` |
+| input lock SHA-256 | `a64a8b6833d6d7f6b1db603416a7e7e27ddad354f5a54a00c6b3be115aa04cbe` |
+| authority SHA-256 | 【待负责人签发后由审核方填写】 |
+| 完整性命令 / 报告命令 / smoke 脚本 | `RUN_A9_19_W37_INTEGRITY.cmd` / `RUN_WIN7_37_REPORT_VERIFY.cmd` / `validation\a9-win7-37-smoke.cjs`（用法见候选内 `A9_19_WIN7_37_VALIDATION.md`） |
 | Win7 运行根目录 | `C:\A9-W37\<run-id>`（run-id 由执行方生成：8 位十六进制） |
 
 ## 4. 环境与连接
@@ -74,7 +75,8 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
    在 Win7 上用 `certutil -hashfile <zip> SHA256` 复算，必须与 §3 完全一致，再展开到 `package\`。
 3. **G1 完整性**：以 `agent` 运行 §3 的完整性命令；退出码必须为 0，输出文件原样取回。
 4. **G2 自动 smoke**：以 `agent` 运行 smoke；要求退出码 0 且报告 `status=PASS`；报告中的迟到加载、受控 ERROR 两个反例、
-   非零退出码与零残留记录必须齐全。
+   非零退出码与零残留记录必须齐全；第五阶段 `live` 的 `A9-W37-LIVE-*`、`A9-W37-RAIL-PRESERVED-*`、`A9-W37-HEADER-AND-LABELS`
+   断言必须全部存在，报告中的 `live_progress` 原样取回。
 5. **G3 正式入口首绘**：以 `agent` 无参数启动产品，按 0 / 250 / 500 / 1000 / 10000 ms 截屏；正常关闭后重启再截一轮。
 6. **G3 用例**：按 §6 的用例表执行，每个用例单独的计划任务与证据子目录；真实 Provider 只能使用 `agent` 已保存的配置，
    **任何密钥不得出现在命令、脚本、截图或报告中**。
@@ -83,14 +85,14 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
 8. **取回**：把 `C:\A9-W37\<run-id>\evidence\` 全部取回到本机 `.acceptance/runs/WIN7-37/<run-id>/evidence/`，并生成
    `SHA256SUMS.txt`（每个文件一行）。
 
-## 6. 用例（审核方冻结 Kit 后以 Kit 为准）
+## 6. 用例（以冻结 Kit `A9-19-WIN7-37-LIVE-PROGRESS-20260925-01` 为准）
 
 继承 WIN7-36 的 15 项（`W36-01` … `W36-15` 改为 `W37-01` … `W37-15`，语义不变），新增：
 
 | ID | 可观察条件 | 证据 |
 |---|---|---|
 | W37-16-LIVE-PROCESS | 真实 Provider 轮次中，每个 `tool_start`/`model_note` 在落盘后 ≤1.5 s 出现在对话流；运行中工具卡显示“已运行 N 秒 · 执行中”；Shell 显示“输出将在命令结束后显示” | 每秒一次的“落盘事件计数 vs DOM”时间线 JSON + 每 2 秒截图 |
-| W37-17-LIVE-PREVIEW | 模型生成最终回答期间，至少一次采样中对话流出现“模型正在输出”预览且字符数 > 0，早于 `turn_completed` | 同上 |
+| W37-17-LIVE-MODEL-PREVIEW | 模型生成最终回答期间，至少一次采样中对话流出现“模型正在输出”预览且字符数 > 0，早于 `turn_completed` | 同上 |
 | W37-18-ROW-TITLES | 1366×768、125% DPI 下对话行可见标题（前 6 行每行 ≥6 个中文字符宽度），时间为短格式 | DOM 量测 JSON + 截图 |
 | W37-19-CONVERSATION-HEIGHT | 实际可用视口 1079×540 下，运行中对话流高度 ≥ 视口 55% | DOM 量测 JSON |
 | W37-20-RAIL-PRESERVED | 桌面宽度下新建/切换对话与切换工作区后，左栏保持打开（`.workbench` 无 `rail-closed`，截图可见左栏） | 操作前后 DOM 与截图 |
