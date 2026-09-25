@@ -1031,7 +1031,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   “A9-16 WIN7-36 UI subset: candidate and physical acceptance” 将 `codex/a9-alpha2` 合并入 `main`，合并提交
   `8fd9d5d707005918e5ad5f0fae4fc100bb481131`，内容与 `f348761` 一致。相对原 main `72dfe22` 带入 34 个非合并提交：
   A9-15（WIN7-23～28）、A9-16 UI 子集（WIN7-29～36）及 A9-17 启动/内存实现（`3437bc1`）。合并不改变任何候选、
-  authority 或实机证据；A7 仍为唯一 RC，完整 Alpha 2 未获 PASS。本节以下文档治理提交均在合并之后，尚未并入 main。
+  authority 或实机证据；A7 仍为唯一 RC，完整 Alpha 2 未获 PASS。本节以下文档治理提交均在合并之后。
 - 2026-09-24，文档整理 P0/P1 完成：修复 A9-17 临时路径断链、补齐报告索引（`17761ab`）；`STATUS.md`
   拆为当前快照与本流水、新增 ADR 与方案索引（`adad4d3`）；ADR-0134 接受，`AGENTS.md`/`CLAUDE.md`
   不再写死当前任务（`f634044`）。
@@ -1046,3 +1046,40 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-24，[DOCS_04](tasks/DOCS_04_DOC_LINK_TARGETS_TRACKED.md) 经负责人批准并完成：`docs:check` 要求本地链接
   目标属于仓库（已跟踪或未跟踪未忽略），并拒绝仓库外目标与大小写不一致的链接；现有 503 个本地链接零命中，
   测试 12/12 PASS，负向对照确认旧实现放行三类链接，耗时无变化。开发机工具，`Win7-Validation: N/A`。
+- 2026-09-24 16:50（+08:00），[PR #9](https://github.com/allin2/win7-coding-Agent/pull/9)
+  “docs: 2026-09-24 documentation governance (STATUS split, ADR-0134, DOCS_02-04)” 将本节文档治理提交
+  `17761ab`～`2aeb672`（11 个）合并入 `main`，合并提交 `ea24c0d5c94d9748812db86184bc648fe9e7a8c6`。不涉及产品代码、
+  候选、authority 或 Win7 证据。
+
+## A9-19 运行过程实时可见与布局二期（2026-09-24）
+
+- 2026-09-24，负责人反馈运行中的工具调用与中间状态要到最终结果才出现，并要求优化布局；核查定位主因为渲染端
+  运行中轮次（持久化为 `active`）绑定缺陷，另有模型 chunk 压到轮次结束、同步全树哈希独占主进程、等待提示需空闲 10 s。
+  负责人批准 [A9-19](tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md) 与 ADR-0135 并授权修订需求。
+- 同日开发机实现完成（`A9_19_DEVELOPER_VERIFIED`）：运行中过程与模型输出预览实时可见，对话行显示标题，界面中文化，
+  1079×540 下运行中对话区 60.5%（旧 43.7%）。扫描独占 550 ms → 27 ms，残留 checkpoint 往返校验约 0.4 s。Shell 375、
+  workspace 211、`verify:quick` 通过；证据为无头 Chrome，未运行 Electron 22、Win10 或 Win7。
+
+- 2026-09-24 22:30，A9-19 Win7 **探索性运行（非验收）**：`192.168.1.3` 上以 `agent` 普通用户、WIN7-36 冻结包叠加 A9-19 的
+  5 个文件跑一轮真实 Provider 任务。运行中工具卡、已运行时长与模型输出预览均在落盘后 ≤1.1 s 出现在界面；新发现切换对话/工作区会收起
+  桌面左栏（A9-19 前已存在）。不签发任何 PASS，详见 A9-19 任务书 §12。
+
+- 2026-09-25，负责人批准 WIN7-37 换发合同（ADR-0136）；管线提交 `dd6cb1a`，双独立干净构建 ZIP 逐字节一致
+  （SHA-256 `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf`，manifest `bad63b4ce9f881d42bfd4426ccd5bdae58916ea7c284b5c1bbc8cc17e08ea27c`），`source_dirty=false`、`external_acceptance_eligible=true`，冻结于 `.acceptance/candidates/WIN7-37/`。
+  开发机预检通过；待负责人签发候选外 `WIN7_37_RELEASE_AUTHORITY`，Win7 G1/G2/G3 均 `NOT_PERFORMED`。
+
+- 2026-09-25，负责人按精确哈希批准 WIN7-37 并指定目标 `192.168.1.3`；候选外 authority SHA-256 `0d8d4f9456f42da4692fea7d27c03edcd4f91df3ba6985b623233e095a9d0616`（run-id `85476889-099d-46b6-b8a4-666e8e0b5d77`），
+  冻结候选自带校验器接受。交接书转为 `READY_FOR_EXECUTION`，Win7 G1/G2/G3 仍 `NOT_PERFORMED`。
+
+- 2026-09-25，WIN7-37 外部执行完成（run `85476889-…`）。审核方复核：身份、权限、完整性、G2 95/95 与 A9-19 实时性/左栏/文案用例通过；
+  W37-05/06/11～15/18 证据不足。审核建议暂不签发，补跑 G3 UI 用例；待负责人裁决。
+
+- 2026-09-25，负责人接受建议，按交接书附录 A 补跑 G3（S1–S7，审核方钉住哈希的探针）。审核：W37-05、06、12、13、14、18 证据充分；
+  W37-11 A03 与 W37-15 A02 因测量探针在持久化任务行写入前采样而缺证（审核方探针缺陷，非产品失败）。随后按附录 B 补跑 S1b：
+  最坏形态“进行中1 / 更早8 / 归档1”下完整可见 5 行，断言全部为 true。
+- 2026-09-25，负责人沿用 WIN7-36 可达响应式等效口径。正式报告组装完成（21/21 PASS，附等效裁决）；开发机预检，冻结候选自带校验器返回 PASS。
+  待按附录 C 在 Win7 上以 `agent` 执行报告校验后再签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`。
+
+- 2026-09-25，执行方按附录 C 在 Win7 上以 `agent` 完成正式报告校验：`REPORT_VERIFY_EXIT=0`，`PASS / A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS / 21`，
+  审核方独立复核通过。负责人确认签发 WIN7-37 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`（可达响应式状态等效口径；≤799px 不可达/未验证），
+  A9-19 Phase-Gate 改为 `A9_19_WIN7_37_LIVE_PROGRESS_AND_LAYOUT_PASS_EQUIVALENCE`；不构成 Alpha 2 或 RC PASS。

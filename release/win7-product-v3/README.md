@@ -4,6 +4,26 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-19 / WIN7-37 运行过程实时可见与工作台布局二期候选
+
+WIN7-36（ZIP SHA-256 `8f730c5ae9ab86d83ecbfe3033a00e32a935dd5217d3ab30e4c75710adbe2a3a`）在批准的可达响应式状态等效裁决下取得
+`A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`，保持冻结。WIN7-37 依据 ADR-0136 与 A9-19 任务书 §13 在其上承接 A9-19：运行中轮次的过程与
+模型输出实时可见、基线扫描让出事件循环、工作台布局二期与切换后保持桌面左栏；版本与能力集不变。自动 smoke 新增第五阶段 `live`，
+以延迟流式 fixture 断言运行过程在完成前出现、逐项延迟 ≤1.5 s 且拆分测试密钥零泄露。开发机结果尚不是 Win7 新候选 PASS。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-19-win7-37-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+现场步骤见 [`A9_19_WIN7_37_VALIDATION.md`](A9_19_WIN7_37_VALIDATION.md)，外部执行交接见
+[`A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md`](../../docs/plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md)。未知 ZIP 哈希须另行取得候选外
+`WIN7_37_RELEASE_AUTHORITY` 与独立 SHA-256 pin，才可在 Win7 进行 G1→G2→G3。WIN7-36 及更早候选与证据保持冻结，不重签、不补丁改包。
+
 ## A9-16 / WIN7-36 真实 125% DPI 短高度容量修复候选
 
 WIN7-35（ZIP SHA-256 `0d1474fddbd05c28e2109f2b7d70eb78d7e4ac786cadf2418175c7504b73749c`）

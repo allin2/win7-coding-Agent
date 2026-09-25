@@ -118,6 +118,13 @@ const MAX_SEARCH_FILE_BYTES = 1024 * 1024;
 const MAX_SEARCH_FILES = 20_000;
 /** 轮前内容基线上限：文件数、单文件字节、总字节（超出部分显式标记不可恢复）。 */
 const MAX_BASELINE_FILES = 2000;
+// A9-19 P03：全树基线/变化收集在 Electron 主进程执行；每累计约 25ms 同步工作即让出一次事件循环，
+// 使快照轮询与取消在扫描期间仍可响应。遍历顺序、忽略规则、上限与哈希完全不变。
+const BASELINE_YIELD_SLICE_MS = 25;
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 const MAX_BASELINE_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_BASELINE_TOTAL_BYTES = 40 * 1024 * 1024;
 
@@ -980,6 +987,7 @@ export class A9WorkspaceService {
 
     const stack: string[] = [this.workspaceRoot];
     const visited = new Set<string>([this.safeRealPath(this.workspaceRoot)].filter((v): v is string => v !== undefined));
+    let sliceStart = Date.now();
     while (stack.length > 0) {
       if (options.signal?.aborted) throw new Error('基线冻结已被取消');
       const dir = stack.pop()!;
@@ -993,6 +1001,11 @@ export class A9WorkspaceService {
         continue;
       }
       for (const dirent of dirents) {
+        if (Date.now() - sliceStart >= BASELINE_YIELD_SLICE_MS) {
+          await yieldToEventLoop();
+          if (options.signal?.aborted) throw new Error('基线冻结已被取消');
+          sliceStart = Date.now();
+        }
         const fullPath = path.join(dir, dirent.name);
         const rel = path.relative(this.workspaceRoot, fullPath).replace(/\\/g, '/');
         if (rel.startsWith('.agent_recovery')) continue;
@@ -1066,6 +1079,7 @@ export class A9WorkspaceService {
     const currentDirectories = new Set<string>();
     const stack: string[] = [this.workspaceRoot];
     const visited = new Set<string>([this.safeRealPath(this.workspaceRoot)].filter((v): v is string => v !== undefined));
+    let sliceStart = Date.now();
     while (stack.length > 0) {
       if (options.signal?.aborted) throw new Error('外部变化收集已被取消');
       const dir = stack.pop()!;
@@ -1076,6 +1090,11 @@ export class A9WorkspaceService {
         continue;
       }
       for (const dirent of dirents) {
+        if (Date.now() - sliceStart >= BASELINE_YIELD_SLICE_MS) {
+          await yieldToEventLoop();
+          if (options.signal?.aborted) throw new Error('外部变化收集已被取消');
+          sliceStart = Date.now();
+        }
         const fullPath = path.join(dir, dirent.name);
         const rel = path.relative(this.workspaceRoot, fullPath).replace(/\\/g, '/');
         if (rel.startsWith('.agent_recovery')) continue;

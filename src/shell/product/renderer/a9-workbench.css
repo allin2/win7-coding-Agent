@@ -144,6 +144,9 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .conversation-list strong, .conversation-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-list strong { font-size: 12px; font-weight: 600; }
 .conversation-list small { color: var(--muted); font: 11px var(--font-mono); white-space: nowrap; }
+/* A9-19 L01：标题列优先；时间列只容纳短格式（刚刚 / HH:mm / M月D日），不再挤占标题。 */
+.conversation-list button { grid-template-columns: minmax(0, 1fr) auto; }
+.conversation-list button small { max-width: 5.5em; text-align: right; }
 /* A9-16 U02/A-3：组头是 <li>，必须显式覆盖 .conversation-list li 的网格安全区与行高。 */
 .conversation-list .conversation-group-head { display: flex; align-items: baseline; justify-content: space-between; min-height: 20px; padding: 2px 7px 1px; color: var(--muted); font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; }
 .conversation-list .conversation-restore { align-self: center; min-height: 34px; padding: 0 7px; border-color: var(--line-strong); border-radius: 6px; font-size: 11px; }
@@ -155,6 +158,11 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .conversation-current-actions button { min-height: 30px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; }
 .conversation-current-actions button:hover:not(:disabled) { color: var(--text); background: var(--raised); }
 .conversation-current-actions button:last-child { border-right: 0; }
+/* A9-19 L05：重命名/归档收进“更多”菜单（仅作用于产品节点 #conversation-current-actions）。 */
+.conversation-directory { position: relative; }
+.conversation-directory > header #conversation-more { margin-left: auto; margin-right: 6px; font-size: 14px; letter-spacing: .05em; }
+#conversation-current-actions { position: absolute; top: 32px; right: 8px; z-index: 6; grid-template-columns: 1fr; min-width: 150px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raised); box-shadow: 0 6px 18px rgba(31, 35, 40, .14); }
+#conversation-current-actions button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 6px; text-align: left; }
 .conversation-archive-section { flex: 0 0 auto; border-top: 1px solid var(--line); }
 .conversation-archive-section summary { min-height: 30px; padding: 4px 9px; color: var(--muted); font-size: 12px; cursor: pointer; }
 .conversation-archive-section[open] { max-height: 150px; overflow: auto; }
@@ -309,6 +317,7 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .stop { border-color: var(--red); background: var(--raised); color: var(--red); }
 .stop:hover:not(:disabled) { background: var(--redbg); }
 .status-line { margin: 7px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+.status-line[data-tone="block"] { color: var(--text-secondary); }
 .draft-status { min-height: 16px; margin: 2px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
 
 .primary, .secondary, .danger { min-height: 40px; padding: 0 13px; border-radius: 8px; }
@@ -458,6 +467,13 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
   .send, .stop { min-width: 82px; }
 }
 
+/* A9-19 P02/P05：运行中过程。 */
+.activity-elapsed { margin-left: auto; color: var(--muted); font: 11px var(--font-mono); white-space: nowrap; }
+.activity-pending-note { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.live-preview { margin: 4px 0 6px; padding: 8px 12px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--soft); }
+.live-preview-label { display: block; margin-bottom: 2px; color: var(--accent-strong); font-size: 11px; font-weight: 600; }
+.live-preview-body { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 @media (max-height: 650px) {
   /* A9-16 U02/U07：真实 1366x768、125% DPI 的最大化内容区只有约 540 CSS px。
      对话行仍保持 36px；通过压缩固定 chrome，并让两个产品入口横排，为最坏形态
@@ -497,11 +513,18 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
   .trust-note svg { width: 16px; height: 16px; }
   .rail-bottom { gap: 4px; }
   .utility { min-height: 30px; }
-  .conversation-header, .inspector-header { min-height: 64px; }
   .welcome { margin-top: 3vh; }
   .welcome-glyph { width: 48px; height: 48px; margin-bottom: 10px; }
   .welcome h2 { font-size: 23px; }
   .suggestions { margin-top: 18px; }
+  /* A9-19 L03：较矮窗口把高度让给对话流：例行说明与草稿提示收起（阻断原因仍显示），Composer 压缩。 */
+  .status-line[data-tone="info"], .draft-status { display: none; }
+  .status-line { margin-top: 4px; }
+  .composer-wrap { padding-top: 6px; padding-bottom: 8px; }
+  .live-status { margin-bottom: 5px; padding: 4px 12px; }
+  .composer textarea { min-height: 40px; padding: 9px 14px 4px; }
+  .composer-bar { min-height: 38px; padding: 3px 6px 4px 12px; }
+  .conversation-header, .inspector-header { min-height: 56px; }
   #a9-mode-dialog form { gap: 10px; padding: 16px; }
   .a9-mode-option { min-height: 62px; padding: 9px 11px; }
 }

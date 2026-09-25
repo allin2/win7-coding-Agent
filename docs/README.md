@@ -24,6 +24,7 @@
 | 待裁决事项 | `PENDING_CONFIRMATIONS.md` |
 | 方案与交接（非授权） | `plans/`（索引：`plans/README.md`） |
 | 历史证据 | `reports/YYYY-MM/` |
+| 本机外证据归档与取回 | `acceptance/EVIDENCE_ARCHIVE_RETRIEVAL.md` |
 | 历史 PRD | `prds/archive/` |
 
 历史报告是时间点快照，不覆盖当前状态；当前状态必须绑定明确的 Git commit 和执行环境。

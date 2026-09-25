@@ -355,11 +355,15 @@ function createA9AgentRuntime(options) {
     );
   }
 
-  function redactSecrets(text) {
-    let out = String(text);
-    const secrets = Array.from(new Set([memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
+  function knownSecretValues() {
+    return Array.from(new Set([memoryApiKey, memorySecrets && memorySecrets.proxyPassword,
       ...(memorySecrets && memorySecrets.headerValues ? Object.values(memorySecrets.headerValues) : []),
       ...knownSecrets]));
+  }
+
+  function redactSecrets(text) {
+    let out = String(text);
+    const secrets = knownSecretValues();
     for (const secret of secrets) {
       if (typeof secret !== 'string' || secret.length === 0) continue;
       const base64 = Buffer.from(secret, 'utf8').toString('base64');
@@ -585,6 +589,41 @@ function createA9AgentRuntime(options) {
   // Model text is held in memory for the whole Turn and redacted as one value.
   // Per-event redaction cannot see a known secret split across adjacent chunks.
   const pendingModelChunks = new Map();
+  // A9-19 P02 / ADR-0135：运行中模型输出的内存预览。只记录当前步在累积缓冲中的起点；
+  // 预览文本在读取快照时按需脱敏并保留尾部，不进入事件、SQLite 或日志。
+  let liveModelPreview = null; // { turnId, base }
+  const LIVE_PREVIEW_MIN_HOLD_BACK = 64;
+  const LIVE_PREVIEW_MAX_CHARS = 8 * 1024;
+
+  /** 保留长度覆盖所有已知秘密及其编码变体，避免跨 chunk 的秘密前缀先于完整匹配出现。 */
+  function livePreviewHoldBack() {
+    let longest = LIVE_PREVIEW_MIN_HOLD_BACK;
+    for (const secret of knownSecretValues()) {
+      if (typeof secret !== 'string' || secret.length === 0) continue;
+      const base64 = Buffer.from(secret, 'utf8').toString('base64');
+      longest = Math.max(longest, secret.length, base64.length,
+        encodeURIComponent(secret).length, encodeURIComponent(base64).length);
+    }
+    return longest;
+  }
+
+  function markLivePreviewBoundary(turnId) {
+    const pending = pendingModelChunks.get(turnId);
+    liveModelPreview = { turnId, base: pending ? pending.content.length : 0 };
+  }
+
+  function computeLiveModelPreview() {
+    if (!liveModelPreview || !activeController) return null;
+    const pending = pendingModelChunks.get(liveModelPreview.turnId);
+    if (!pending) return null;
+    const raw = pending.content.slice(liveModelPreview.base);
+    if (!raw) return null;
+    const redacted = redactSecrets(raw);
+    const holdBack = livePreviewHoldBack();
+    let visible = redacted.length > holdBack ? redacted.slice(0, redacted.length - holdBack) : '';
+    if (visible.length > LIVE_PREVIEW_MAX_CHARS) visible = `…${visible.slice(-LIVE_PREVIEW_MAX_CHARS)}`;
+    return { turnId: liveModelPreview.turnId, text: visible, updatedAt: pending.timestamp };
+  }
 
   // 独立于 loop 的工作区服务：撤销/Diff/Git 是状态操作，不需要 Provider。
   const standaloneWorkspaceService = new modules.workspace.A9WorkspaceService(workspaceRoot, {
@@ -963,6 +1002,7 @@ function createA9AgentRuntime(options) {
     currentPendingApproval = null;
     approvalDecisionInFlightId = null;
     activeLifecycle = null;
+    liveModelPreview = null;
     timeline.splice(0, timeline.length);
     alignConversationProviderBoundary(a9SessionId);
     const metadata = persistence.getConversationMetadata(a9SessionId);
@@ -1080,6 +1120,7 @@ function createA9AgentRuntime(options) {
         },
         onEvent: (event) => {
           if (event.type === 'model_chunk') {
+            if (!liveModelPreview || liveModelPreview.turnId !== event.turnId) markLivePreviewBoundary(event.turnId);
             const previous = pendingModelChunks.get(event.turnId) || { content: '', timestamp: event.timestamp };
             previous.content += event.data && typeof event.data.content === 'string' ? event.data.content : '';
             previous.timestamp = event.timestamp;
@@ -1087,7 +1128,11 @@ function createA9AgentRuntime(options) {
             return;
           }
           if (event.type === 'turn_completed' || event.type === 'turn_failed') {
+            liveModelPreview = null;
             flushModelChunks(event.turnId);
+          } else {
+            // 任一非 chunk 事件都是步边界：已输出的文本由 model_note/最终结果承接，预览从此重新开始。
+            markLivePreviewBoundary(event.turnId);
           }
           const safeEvent = { ...event, data: redactForProjection(event.data) };
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
@@ -1946,6 +1991,7 @@ function createA9AgentRuntime(options) {
       // 可在控制器释放前再次提交，形成 A9_TURN_ALREADY_ACTIVE 竞态。
       ...(currentPendingApproval && !activeController ? { pendingApproval: approvalIdentity(currentPendingApproval) } : {}),
       timeline: timeline.slice(-100),
+      liveModelPreview: computeLiveModelPreview(),
       checkpoints: persistence.listCheckpoints(a9SessionId),
       conversation: conversationPage ? conversationPage.facts : persistence.listConversationFacts(a9SessionId),
       ...(conversationPage ? { conversationPage: { hasMore: conversationPage.hasMore, nextBefore: conversationPage.nextBefore } } : {}),

@@ -1,0 +1,410 @@
+{
+  "kind": "A9_19_DEV_RENDERER_PROBE_SUMMARY",
+  "recorded_at": "2026-09-24T16:03:42.192Z",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "sources": {
+    "src/shell/product/renderer/a9-workbench.css": "f55f6db2835871f8b2d8ee9c4aa06faad34c33870d0f5c37c1308de3d26855c2",
+    "src/shell/product/renderer/a9-workbench.js": "6a1e64a7836d033ffccd93a3629685bcf108518a2a24163aaee1e8bda71c100b",
+    "src/shell/product/renderer/workbench.html": "c6bfd3fb1b0ec897a23e948fbb996e6e7d7a0da7c2f2c9d5a58c2b778bb8dc62"
+  },
+  "status": "PASS_DEV_RENDERER_NOT_WIN7",
+  "failures": [],
+  "runs": {
+    "1079x540": {
+      "kind": "A9_19_DEV_RENDERER_HARNESS",
+      "harness": "headless Chrome + real workbench.html/css/js + stub preload bridge",
+      "win7Validation": "NOT_PERFORMED",
+      "electron": "NOT_USED",
+      "seenAtMs": {
+        "waitingLabelAtStart": 0,
+        "previewOne": 1500,
+        "toolCard": 4000,
+        "toolElapsed": 4000,
+        "shellNote": 4000,
+        "note": 4000,
+        "toolDone": 8000,
+        "previewTwo": 9000,
+        "final": 12000
+      },
+      "dueAtMs": {
+        "toolCard": 4000,
+        "toolElapsed": 4000,
+        "shellNote": 4000,
+        "previewOne": 900,
+        "note": 4000,
+        "toolDone": 8000,
+        "previewTwo": 8600,
+        "final": 12000
+      },
+      "latencyMs": {
+        "toolCard": 0,
+        "toolElapsed": 0,
+        "shellNote": 0,
+        "previewOne": 600,
+        "note": 0,
+        "toolDone": 0,
+        "previewTwo": 400,
+        "final": 0
+      },
+      "leadBeforeCompletionMs": {
+        "previewOne": 10500,
+        "toolCard": 8000
+      },
+      "geometryBeforeTurn": {
+        "viewport": {
+          "innerWidth": 1079,
+          "innerHeight": 540,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 360,
+        "conversationShare": 0.667,
+        "fullyVisibleRows": 6,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 153,
+            "approxVisibleCjkChars": 11,
+            "meta": "刚刚"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月23日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月23日"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": false,
+        "renameInlineVisible": false,
+        "englishLabels": []
+      },
+      "geometryDuringTurn": {
+        "viewport": {
+          "innerWidth": 1079,
+          "innerHeight": 540,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 327,
+        "conversationShare": 0.605,
+        "fullyVisibleRows": 5,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 153,
+            "approxVisibleCjkChars": 11,
+            "meta": "刚刚"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月23日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月23日"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": false,
+        "renameInlineVisible": false,
+        "englishLabels": []
+      },
+      "geometryAfterTurn": {
+        "viewport": {
+          "innerWidth": 1079,
+          "innerHeight": 540,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 360,
+        "conversationShare": 0.667,
+        "fullyVisibleRows": 6,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 153,
+            "approxVisibleCjkChars": 11,
+            "meta": "刚刚"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月23日"
+          },
+          {
+            "titleVisibleWidth": 133,
+            "approxVisibleCjkChars": 9,
+            "meta": "9月23日"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": false,
+        "renameInlineVisible": false,
+        "englishLabels": []
+      }
+    },
+    "1366x768": {
+      "kind": "A9_19_DEV_RENDERER_HARNESS",
+      "harness": "headless Chrome + real workbench.html/css/js + stub preload bridge",
+      "win7Validation": "NOT_PERFORMED",
+      "electron": "NOT_USED",
+      "seenAtMs": {
+        "waitingLabelAtStart": 0,
+        "previewOne": 1500,
+        "toolCard": 4000,
+        "toolElapsed": 4000,
+        "shellNote": 4000,
+        "note": 4000,
+        "toolDone": 8000,
+        "previewTwo": 9000,
+        "final": 12000
+      },
+      "dueAtMs": {
+        "toolCard": 4000,
+        "toolElapsed": 4000,
+        "shellNote": 4000,
+        "previewOne": 900,
+        "note": 4000,
+        "toolDone": 8000,
+        "previewTwo": 8600,
+        "final": 12000
+      },
+      "latencyMs": {
+        "toolCard": 0,
+        "toolElapsed": 0,
+        "shellNote": 0,
+        "previewOne": 600,
+        "note": 0,
+        "toolDone": 0,
+        "previewTwo": 400,
+        "final": 0
+      },
+      "leadBeforeCompletionMs": {
+        "previewOne": 10500,
+        "toolCard": 8000
+      },
+      "geometryBeforeTurn": {
+        "viewport": {
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 502,
+        "conversationShare": 0.654,
+        "fullyVisibleRows": 7,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 141,
+            "approxVisibleCjkChars": 10,
+            "meta": "刚刚"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月23日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月23日"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": false,
+        "renameInlineVisible": false,
+        "englishLabels": []
+      },
+      "geometryDuringTurn": {
+        "viewport": {
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 460,
+        "conversationShare": 0.599,
+        "fullyVisibleRows": 7,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 141,
+            "approxVisibleCjkChars": 10,
+            "meta": "刚刚"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月23日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月23日"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": false,
+        "renameInlineVisible": false,
+        "englishLabels": []
+      },
+      "geometryAfterTurn": {
+        "viewport": {
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1
+        },
+        "conversationHeight": 502,
+        "conversationShare": 0.654,
+        "fullyVisibleRows": 7,
+        "rowTitles": [
+          {
+            "titleVisibleWidth": 141,
+            "approxVisibleCjkChars": 10,
+            "meta": "刚刚"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月24日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月23日"
+          },
+          {
+            "titleVisibleWidth": 121,
+            "approxVisibleCjkChars": 8,
+            "meta": "9月23日"
+          }
+        ],
+        "headerVisible": [
+          "a9-mode-open",
+          "task-state",
+          "open-inspector"
+        ],
+        "horizontalOverflowPx": 0,
+        "railStopVisible": false,
+        "reviewNavVisible": false,
+        "renameInlineVisible": false,
+        "englishLabels": []
+      }
+    }
+  },
+  "win7Validation": "NOT_PERFORMED",
+  "electron": "NOT_USED"
+}
