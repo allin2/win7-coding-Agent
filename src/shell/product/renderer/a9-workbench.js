@@ -114,9 +114,7 @@
     const code = String(diagnostic.code || (snapshot && snapshot.status) || 'A9_RUNTIME_RESTRICTED').slice(0, 100);
     const rawDetail = String(diagnostic.detail || diagnostic.hint || diagnostic.error || '').slice(0, 500);
     const detail = rawDetail
-      // A9-21 M1b：与 a9-agent-runtime.js 的 redactUrlUserinfo 保持一致
-      // （沙箱脚本不能 require 运行时模块，保留字面量）。协议名限 32 字符，输出不变。
-      .replace(/([a-z][a-z0-9+.-]{0,31}:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@')
+      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@')
       .replace(/((?:authorization|api[-_]?key|password|secret|access[-_]?token)\s*[:=]\s*)(?:bearer\s+)?[^\s,;&]+/gi, '$1***redacted***');
     return detail ? `${code}: ${detail}` : code;
   }
