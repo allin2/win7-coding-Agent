@@ -39,7 +39,35 @@ import {
   TLSConfig,
   validateTLSConfig,
 } from '../security';
-import { SseParser, ToolCallAccumulator } from './sse-parser';
+import {
+  SseParser,
+  ToolCallAccumulator,
+  MAX_TOOL_CALL_ARG_BYTES,
+  MAX_TOOL_CALL_NAME_BYTES,
+  MAX_TOOL_CALL_SLOTS,
+} from './sse-parser';
+import type { TruncationInfo } from '../types';
+
+/** A9-21 M2 G-1：单响应内容上限（UTF-8 字节）。 */
+const MAX_RESPONSE_CONTENT_BYTES = 1024 * 1024;
+
+/**
+ * 按 UTF-8 字符边界截断到不超过 limitBytes 的最长前缀。
+ * 不切开多字节序列，不产生 U+FFFD。
+ */
+export function truncateUtf8ToByteLimit(text: string, limitBytes: number): { text: string; bytes: number } {
+  if (limitBytes <= 0) return { text: '', bytes: 0 };
+  const buf = Buffer.from(text, 'utf8');
+  if (buf.length <= limitBytes) return { text, bytes: buf.length };
+  let end = limitBytes;
+  while (end > 0) {
+    const byte = buf[end];
+    // UTF-8 连续字节为 0b10xxxxxx；落在字符中间则回退。
+    if ((byte & 0xc0) !== 0x80) break;
+    end -= 1;
+  }
+  return { text: buf.slice(0, end).toString('utf8'), bytes: end };
+}
 
 export interface OpenAICompatibleFunctionTool {
   name: string;
@@ -348,7 +376,14 @@ export class OpenAICompatibleProvider {
 
     return new Promise<ModelResponse>((resolve, reject) => {
       let accumulatedContent = '';
-      const toolAccumulator = new ToolCallAccumulator();
+      /** G-1：增量字节计数（不得每 chunk 重算整段）。 */
+      let contentBytes = 0;
+      let droppedAtLeastBytes = 0;
+      const toolAccumulator = new ToolCallAccumulator(
+        MAX_TOOL_CALL_ARG_BYTES,
+        MAX_TOOL_CALL_NAME_BYTES,
+        MAX_TOOL_CALL_SLOTS,
+      );
       const parser = new SseParser();
       let finishReason: FinishReason = FinishReason.STOP;
       let promptTokens = 0;
@@ -356,6 +391,9 @@ export class OpenAICompatibleProvider {
       let totalTokens = 0;
       let chunkIndex = 0;
       let settled = false;
+      /** G-2/G-3：截断粘性；一旦截断不再接收内容，finishReason 固定 LENGTH。 */
+      let responseTruncated = false;
+      let truncation: TruncationInfo | undefined;
       let noDataTimer: NodeJS.Timeout | undefined;
       let totalTimer: NodeJS.Timeout | undefined;
 
@@ -372,6 +410,33 @@ export class OpenAICompatibleProvider {
         } catch (_err) { /* already closed */ }
         if (error) reject(error);
         else resolve(response!);
+      };
+
+      /** G-3：截断后立即结算；结算幂等，先于连接销毁落定。 */
+      const settleTruncated = (reason: 'response_content_limit' | 'tool_call_limit') => {
+        if (settled || responseTruncated) return;
+        responseTruncated = true;
+        finishReason = FinishReason.LENGTH;
+        truncation = {
+          reason,
+          retainedBytes: contentBytes,
+          // R-4：两种 reason 的 limitBytes 均为内容 1 MiB 字节口径；槽位用 limitSlots。
+          limitBytes: MAX_RESPONSE_CONTENT_BYTES,
+          droppedAtLeastBytes: reason === 'response_content_limit'
+            ? droppedAtLeastBytes
+            : droppedAtLeastBytes + toolAccumulator.overflowDroppedBytes,
+          ...(reason === 'tool_call_limit' ? { limitSlots: MAX_TOOL_CALL_SLOTS } : {}),
+        };
+        // 被截断的响应不携带任何 toolCalls（G-4）。
+        settle(undefined, {
+          id: request.id,
+          requestId: request.id,
+          content: accumulatedContent || '',
+          finishReason: FinishReason.LENGTH,
+          truncated: true,
+          truncation,
+          usage: { promptTokens, completionTokens, totalTokens: totalTokens || (promptTokens + completionTokens) },
+        });
       };
 
       const onAbort = () => {
@@ -402,6 +467,64 @@ export class OpenAICompatibleProvider {
         ));
       }, Math.max(1, totalDeadline - Date.now()));
 
+      /** 处理一个 SSE 事件；命中上限时截断结算。 */
+      const handleEvent = (event: import('./sse-parser').SseStreamEvent): void => {
+        if (settled || responseTruncated) return;
+
+        // R-5：恢复基线行为——content !== null（含空字符串）即触发 onChunk；空串计 0 字节。
+        if (event.content !== null) {
+          if (event.content) {
+            const incomingBytes = Buffer.byteLength(event.content, 'utf8');
+            if (contentBytes + incomingBytes > MAX_RESPONSE_CONTENT_BYTES) {
+              const remaining = Math.max(0, MAX_RESPONSE_CONTENT_BYTES - contentBytes);
+              const cut = truncateUtf8ToByteLimit(event.content, remaining);
+              if (cut.text) {
+                accumulatedContent += cut.text;
+                contentBytes += cut.bytes;
+                onChunk({ content: cut.text, index: chunkIndex++ });
+              }
+              droppedAtLeastBytes += incomingBytes - cut.bytes;
+              settleTruncated('response_content_limit');
+              return;
+            }
+            accumulatedContent += event.content;
+            contentBytes += incomingBytes;
+            onChunk({ content: event.content, index: chunkIndex++ });
+          } else {
+            onChunk({ content: '', index: chunkIndex++ });
+          }
+        } else if ((event.toolCallDeltas?.length ?? 0) > 0) {
+          // tool_calls 增量同样证明流式通道工作（content 为空字符串）。
+          onChunk({ content: '', index: chunkIndex++ });
+        }
+
+        for (const delta of event.toolCallDeltas ?? []) {
+          toolAccumulator.apply(delta);
+        }
+        if (toolAccumulator.slotsOverflowed) {
+          settleTruncated('tool_call_limit');
+          return;
+        }
+
+        // G-2：截断粘性——命中后不再改 finishReason；此处尚未截断才更新。
+        if (event.finishReason) {
+          if (event.finishReason === 'tool_calls' || event.finishReason === 'function_call') {
+            finishReason = FinishReason.TOOL_CALLS;
+          } else if (event.finishReason === 'length') {
+            finishReason = FinishReason.LENGTH;
+          } else if (event.finishReason === 'content_filter') {
+            finishReason = FinishReason.CONTENT_FILTER;
+          } else {
+            finishReason = FinishReason.STOP;
+          }
+        }
+        if (event.usage) {
+          promptTokens = event.usage.promptTokens ?? promptTokens;
+          completionTokens = event.usage.completionTokens ?? completionTokens;
+          totalTokens = event.usage.totalTokens ?? totalTokens;
+        }
+      };
+
       const handleResponse = (res: http.IncomingMessage) => {
         const statusCode = res.statusCode || 0;
         if (statusCode >= 400) {
@@ -419,70 +542,56 @@ export class OpenAICompatibleProvider {
         }
 
         res.on('data', (chunkBuffer: Buffer) => {
+          if (settled) return;
           armNoDataTimer();
-          for (const outcome of parser.feed(chunkBuffer)) {
+          let outcomes: ReturnType<SseParser['feed']>;
+          try {
+            outcomes = parser.feed(chunkBuffer);
+          } catch (err: any) {
+            // G-5：行缓冲超限 → 结构化失败。
+            settle(err instanceof GatewayError
+              ? err
+              : new GatewayError(ErrorCode.INVALID_FRAME, this.redact(err.message)));
+            return;
+          }
+          for (const outcome of outcomes) {
+            if (settled || responseTruncated) return;
             if (outcome.kind === 'ignore' || outcome.kind === 'done') continue;
-            const event = outcome.event;
-            if (event.content) {
-              accumulatedContent += event.content;
-            }
-            if (event.content !== null) {
-              onChunk({ content: event.content, index: chunkIndex++ });
-            } else if ((event.toolCallDeltas?.length ?? 0) > 0) {
-              // tool_calls 增量同样证明流式通道工作（content 为空字符串）。
-              onChunk({ content: '', index: chunkIndex++ });
-            }
-            for (const delta of event.toolCallDeltas ?? []) {
-              toolAccumulator.apply(delta);
-            }
-            if (event.finishReason) {
-              if (event.finishReason === 'tool_calls' || event.finishReason === 'function_call') {
-                finishReason = FinishReason.TOOL_CALLS;
-              } else if (event.finishReason === 'length') {
-                finishReason = FinishReason.LENGTH;
-              } else if (event.finishReason === 'content_filter') {
-                finishReason = FinishReason.CONTENT_FILTER;
-              } else {
-                finishReason = FinishReason.STOP;
-              }
-            }
-            if (event.usage) {
-              promptTokens = event.usage.promptTokens ?? promptTokens;
-              completionTokens = event.usage.completionTokens ?? completionTokens;
-              totalTokens = event.usage.totalTokens ?? totalTokens;
-            }
+            handleEvent(outcome.event);
           }
         });
 
         res.on('end', () => {
+          if (settled) return;
           // 末尾无换行的残余 buffer 也要解析。
-          for (const outcome of parser.finish()) {
-            if (outcome.kind === 'ignore' || outcome.kind === 'done') continue;
-            const event = outcome.event;
-            if (event.content) {
-              accumulatedContent += event.content;
-              onChunk({ content: event.content, index: chunkIndex++ });
+          try {
+            for (const outcome of parser.finish()) {
+              if (settled || responseTruncated) return;
+              if (outcome.kind === 'ignore' || outcome.kind === 'done') continue;
+              handleEvent(outcome.event);
             }
-            for (const delta of event.toolCallDeltas ?? []) {
-              toolAccumulator.apply(delta);
-            }
-            if (event.usage) {
-              promptTokens = event.usage.promptTokens ?? promptTokens;
-              completionTokens = event.usage.completionTokens ?? completionTokens;
-              totalTokens = event.usage.totalTokens ?? totalTokens;
-            }
+          } catch (err: any) {
+            settle(err instanceof GatewayError
+              ? err
+              : new GatewayError(ErrorCode.INVALID_FRAME, this.redact(err.message)));
+            return;
           }
 
-          if (parser.malformedEvents.length > 0) {
+          // G-3：截断后已经 settleTruncated；此处只处理未截断路径。
+          if (settled || responseTruncated) return;
+
+          if (parser.malformedEventCount > 0) {
             // 畸形完整事件结构化上报，不静默忽略。
             settle(new GatewayError(
               ErrorCode.STREAM_INTERRUPTED,
-              `Malformed SSE events received (${parser.malformedEvents.length}): ${parser.malformedEvents[0].slice(0, 120)}`,
+              `Malformed SSE events received (${parser.malformedEventCount}): ${(parser.malformedEvents[0] || '').slice(0, 120)}`,
             ));
             return;
           }
 
           const toolCalls: ToolCall[] = toolAccumulator.toArray();
+          // G-4：参数/函数名超限的调用已在 ToolCall.truncated 标记；槽位溢出走 settleTruncated。
+          // 响应级截断（settleTruncated）不携带 toolCalls；单项截断调用保留在数组中供 Core 拒绝执行。
           if (toolCalls.length > 0) {
             finishReason = FinishReason.TOOL_CALLS;
           }
@@ -502,6 +611,8 @@ export class OpenAICompatibleProvider {
         });
 
         res.on('error', (err) => {
+          // G-3：截断后连接销毁不得把结果覆盖成 STREAM_INTERRUPTED。
+          if (settled) return;
           settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, this.redact(err.message)));
         });
       };

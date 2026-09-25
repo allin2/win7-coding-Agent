@@ -72,6 +72,8 @@ export interface ToolCall {
   id: string;
   name: string;
   arguments: string; // JSON-encoded arguments
+  /** A9-21 M2：单个调用参数/函数名超限时为 true；截断的调用不得执行。 */
+  truncated?: boolean;
 }
 
 export interface ToolRequest {
@@ -97,12 +99,26 @@ export interface ModelRequest {
   stream?: boolean;
 }
 
+/** A9-21 M2：响应级截断说明。droppedAtLeastBytes 是下界，不是精确总量。 */
+export interface TruncationInfo {
+  reason: 'response_content_limit' | 'tool_call_limit';
+  retainedBytes: number;
+  /** 内容字节口径上限（两种 reason 下均为单响应 1 MiB）。 */
+  limitBytes: number;
+  droppedAtLeastBytes: number;
+  /** tool_call_limit 时的槽位上限（可选）。 */
+  limitSlots?: number;
+}
+
 export interface ModelResponse {
   id: string;
   requestId: string;
   content: string;
   finishReason: FinishReason;
   toolCalls?: ToolCall[];
+  /** A9-21 M2：内容或工具槽位超限导致响应被截断。 */
+  truncated?: boolean;
+  truncation?: TruncationInfo;
   usage?: {
     promptTokens: number;
     completionTokens: number;
@@ -130,7 +146,12 @@ export function createModelResponse(
   requestId: string,
   content: string,
   finishReason: FinishReason = FinishReason.STOP,
-  extra: { toolCalls?: ToolCall[]; usage?: ModelResponse['usage'] } = {},
+  extra: {
+    toolCalls?: ToolCall[];
+    usage?: ModelResponse['usage'];
+    truncated?: boolean;
+    truncation?: TruncationInfo;
+  } = {},
 ): ModelResponse {
   return { id, requestId, content, finishReason, ...extra };
 }
