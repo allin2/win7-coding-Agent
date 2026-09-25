@@ -102,9 +102,12 @@ export interface ModelRequest {
 /** A9-21 M2：响应级截断说明。droppedAtLeastBytes 是下界，不是精确总量。 */
 export interface TruncationInfo {
   reason: 'response_content_limit' | 'tool_call_limit';
+  /** 内容字节口径上限（两种 reason 下均为单响应 1 MiB）。 */
   retainedBytes: number;
   limitBytes: number;
   droppedAtLeastBytes: number;
+  /** tool_call_limit 时的槽位上限（可选）。 */
+  limitSlots?: number;
 }
 
 export interface ModelResponse {

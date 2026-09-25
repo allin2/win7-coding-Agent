@@ -31,8 +31,8 @@ export type SseParseOutcome =
   | { kind: 'done' }
   | { kind: 'ignore' };
 
-/** G-5：尚未遇到换行的待处理数据上限（UTF-8 字节近似按 JS 字符数计，SSE 行以文本为主）。 */
-export const MAX_PENDING_LINE_CHARS = 2 * 1024 * 1024;
+/** G-5：尚未遇到换行的待处理数据上限（UTF-8 字节）。 */
+export const MAX_PENDING_LINE_BYTES = 2 * 1024 * 1024;
 /** G-6：畸形事件样本保留上限；总数另计。 */
 export const MAX_MALFORMED_SAMPLES = 20;
 /** G-4：单次调用参数 / 函数名 / 槽位上限。 */
@@ -41,28 +41,37 @@ export const MAX_TOOL_CALL_NAME_BYTES = 4 * 1024;
 export const MAX_TOOL_CALL_SLOTS = 64;
 
 export class SseParser {
-  private buffer = '';
-  /** 新数据起点：换行查找只扫描 [scanFrom, buffer.length)。 */
-  private scanFrom = 0;
+  /**
+   * 未完成行的分段（A9-21 M2 R-1）：只在新到达文本上 indexOf('\\n')，
+   * 找到时才 join 分段成行；避免 buffer += 大串后反复下标扫描。
+   * 行切分语义与基线 split(/\\r?\\n/) 一致：\\n 与 \\r\\n 结束一行，单独 \\r 留在行内。
+   */
+  private lineSegs: string[] = [];
+  /** 当前未完成行的 UTF-8 字节累计（每段只计一次）。 */
+  private pendingBytes = 0;
   private decoder = new StringDecoder('utf8');
   private decoderHasInput = false;
   private sawDone = false;
   /** G-6：样本（≤20）+ 总数。 */
   readonly malformedEvents: string[] = [];
   malformedEventCount = 0;
+  /** drain 收集 pushText 期间产生的完整行（feed/finish 统一出口）。 */
+  private pendingOutcomes: SseParseOutcome[] = [];
 
   /** 喂入一个网络 chunk；返回 0..n 个完整解析结果。 */
   feed(chunk: Buffer | string): SseParseOutcome[] {
     if (typeof chunk === 'string') {
+      // String input is already decoded (primarily tests/adapters). Close any
+      // preceding byte stream explicitly before switching representations.
       if (this.decoderHasInput) {
-        this.buffer += this.decoder.end();
+        this.pushText(this.decoder.end());
         this.decoder = new StringDecoder('utf8');
         this.decoderHasInput = false;
       }
-      this.buffer += chunk;
+      this.pushText(chunk);
     } else {
       this.decoderHasInput = true;
-      this.buffer += this.decoder.write(chunk);
+      this.pushText(this.decoder.write(chunk));
     }
     return this.drain(false);
   }
@@ -70,7 +79,7 @@ export class SseParser {
   /** 流结束时调用：处理末尾无换行的残余 buffer。 */
   finish(): SseParseOutcome[] {
     if (this.decoderHasInput) {
-      this.buffer += this.decoder.end();
+      this.pushText(this.decoder.end());
       this.decoder = new StringDecoder('utf8');
       this.decoderHasInput = false;
     }
@@ -88,64 +97,50 @@ export class SseParser {
     }
   }
 
-  private drain(final: boolean): SseParseOutcome[] {
-    const outcomes: SseParseOutcome[] = [];
+  /** 只扫描新到达的文本查找换行；无换行则把段挂到未完成行上。 */
+  private pushText(text: string): void {
+    if (!text) return;
+    let start = 0;
     for (;;) {
-      // G-5：换行查找只扫新数据，不对整个缓冲区反复 split。
-      let nl = -1;
-      let nlWidth = 1;
-      for (let i = this.scanFrom; i < this.buffer.length; i++) {
-        const ch = this.buffer.charCodeAt(i);
-        if (ch === 10 /* \n */) {
-          nl = i;
-          nlWidth = 1;
-          break;
-        }
-        if (ch === 13 /* \r */) {
-          if (i + 1 < this.buffer.length) {
-            if (this.buffer.charCodeAt(i + 1) === 10) {
-              nl = i;
-              nlWidth = 2;
-              break;
-            }
-            nl = i;
-            nlWidth = 1;
-            break;
-          }
-          if (final) {
-            nl = i;
-            nlWidth = 1;
-            break;
-          }
-          // \r 在末尾，可能与下一 chunk 的 \n 组成 CRLF：停在这里，scanFrom 留在 \r。
-          this.scanFrom = i;
-          break;
-        }
-      }
+      const nl = text.indexOf('\n', start);
       if (nl < 0) {
+        const rest = text.slice(start);
+        if (rest) {
+          this.lineSegs.push(rest);
+          this.pendingBytes += Buffer.byteLength(rest, 'utf8');
+        }
         break;
       }
-      const line = this.buffer.slice(0, nl);
-      this.buffer = this.buffer.slice(nl + nlWidth);
-      this.scanFrom = 0;
+      this.lineSegs.push(text.slice(start, nl));
+      let line = this.lineSegs.join('');
+      this.lineSegs = [];
+      this.pendingBytes = 0;
+      // \r\n 行结束时去掉紧邻的 \r；单独的 \r 保留在行内（与 split(/\r?\n/) 一致）。
+      if (line.endsWith('\r')) line = line.slice(0, -1);
       const outcome = this.parseLine(line);
-      if (outcome) outcomes.push(outcome);
+      if (outcome) this.pendingOutcomes.push(outcome);
+      start = nl + 1;
     }
-
-    if (final && this.buffer) {
-      const outcome = this.parseLine(this.buffer);
-      if (outcome) outcomes.push(outcome);
-      this.buffer = '';
-      this.scanFrom = 0;
-    }
-
-    // G-5：待处理（尚无换行）超限 → 结构化失败，不无限增长。
-    const pending = this.buffer.length;
-    if (pending > MAX_PENDING_LINE_CHARS) {
+    if (this.pendingBytes > MAX_PENDING_LINE_BYTES) {
       throw new GatewayError(
         ErrorCode.INVALID_FRAME,
-        `SSE pending line exceeds ${MAX_PENDING_LINE_CHARS} chars without a newline; stream rejected`,
+        `SSE pending line exceeds ${MAX_PENDING_LINE_BYTES} bytes without a newline; stream rejected`,
       );
+    }
+  }
+
+  private drain(final: boolean): SseParseOutcome[] {
+    const outcomes = this.pendingOutcomes;
+    this.pendingOutcomes = [];
+    if (final) {
+      // 最后一段可能是不完整行；只有 final 时才把它当作完整行处理。
+      if (this.lineSegs.length > 0) {
+        const line = this.lineSegs.join('');
+        this.lineSegs = [];
+        this.pendingBytes = 0;
+        const outcome = this.parseLine(line);
+        if (outcome) outcomes.push(outcome);
+      }
     }
     return outcomes;
   }
@@ -158,6 +153,7 @@ export class SseParser {
       return { kind: 'done' };
     }
     if (!line.startsWith('data:')) {
+      // SSE 规范外的字段（event:/id:/retry:）不参与数据流。
       return { kind: 'ignore' };
     }
     const jsonText = line.startsWith('data: ') ? line.slice(6) : line.slice(5);
@@ -175,6 +171,7 @@ export class SseParser {
     }
     const choice = (parsed as any).choices?.[0];
     if (choice === null || choice === undefined) {
+      // 无 choices 的合法事件（如仅 usage）也允许。
       const usage = (parsed as any).usage;
       if (usage) {
         return {

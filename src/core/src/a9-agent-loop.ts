@@ -86,6 +86,7 @@ export interface A9ModelPort {
       retainedBytes: number;
       limitBytes: number;
       droppedAtLeastBytes: number;
+      limitSlots?: number;
     };
     usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   }>;
@@ -399,6 +400,8 @@ const DEFAULT_MAX_TOOL_RESULT_CHARS = 16 * 1024;
 const MAX_TURN_OUTPUT_BYTES = 2 * 1024 * 1024;
 /** C-2：截断说明（渲染端显示 data.content）。 */
 const TRUNCATION_NOTE_CONTENT = '模型输出超过 1 MiB 已被截断，本轮未执行其中的工具调用。';
+/** R-4：槽位溢出专用文案。 */
+const TOOL_SLOTS_NOTE_CONTENT = '模型单次响应的工具调用超过 64 个，响应已被截断，本轮未执行其中的工具调用。';
 const TOOL_CALL_TRUNCATION_NOTE = '工具调用参数被截断，无法执行该调用。请使用更小的参数重试。';
 
 export class A9AgentLoop {
@@ -635,6 +638,7 @@ export class A9AgentLoop {
           retainedBytes: number;
           limitBytes: number;
           droppedAtLeastBytes: number;
+          limitSlots?: number;
         };
       };
 
@@ -723,31 +727,35 @@ export class A9AgentLoop {
       if (response.truncated) {
         this.outputTruncated = true;
         const t = response.truncation;
+        // R-4：note 文案按截断原因区分。
+        const noteContent = t?.reason === 'tool_call_limit'
+          ? TOOL_SLOTS_NOTE_CONTENT
+          : TRUNCATION_NOTE_CONTENT;
+        // R-2：只向历史追加一条 assistant 消息；不得追加 tool 或第二条 assistant。
+        const retained = response.content || '';
+        const historyContent = retained
+          ? `${retained}\n[${noteContent}]`
+          : noteContent;
         this.conversationHistory.push({
           role: 'assistant',
-          content: response.content || '',
+          content: historyContent,
         });
         this.emitEvent({
           type: 'model_note',
           turnId,
           timestamp: new Date().toISOString(),
           data: {
-            content: TRUNCATION_NOTE_CONTENT,
+            content: noteContent,
             truncated: true,
             reason: t?.reason,
             limitBytes: t?.limitBytes,
             retainedBytes: t?.retainedBytes,
             droppedAtLeastBytes: t?.droppedAtLeastBytes,
+            ...(t?.limitSlots !== undefined ? { limitSlots: t.limitSlots } : {}),
             step: stepCount,
           },
         });
-        this.conversationHistory.push({
-          role: 'tool',
-          toolCallId: 'truncation-notice',
-          content: TRUNCATION_NOTE_CONTENT,
-        });
-        const finalContent = TRUNCATION_NOTE_CONTENT;
-        this.conversationHistory.push({ role: 'assistant', content: finalContent });
+        const finalContent = noteContent;
         return this.finalize(turnId, {
           turnId,
           outcome: TurnOutcome.COMPLETED_WITH_WARNINGS,
@@ -803,10 +811,13 @@ export class A9AgentLoop {
       }
 
       // 保留 assistant tool_calls 协议事实，供下一轮模型请求组装。
+      // R-3：截断调用保留 id/name，参数置为 '{}'，避免不完整 JSON 跨轮重发。
       this.conversationHistory.push({
         role: 'assistant',
         content: response.content || '',
-        toolCalls: toolCalls.map((tc) => ({ ...tc })),
+        toolCalls: toolCalls.map((tc) => (tc.truncated
+          ? { id: tc.id, name: tc.name, arguments: '{}' }
+          : { ...tc })),
       });
 
       // ADR-0114：本轮响应含 content 且发起 toolCalls → 步骤完整语义段作为中间说明

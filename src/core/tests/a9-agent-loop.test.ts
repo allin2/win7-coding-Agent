@@ -553,3 +553,46 @@ describe('A9-21 M2 C-1..C-5: turn output budget and truncation', () => {
     expect(result.outcome).toBe(TurnOutcome.COMPLETED);
   });
 });
+
+describe('A9-21 M2 §9.3.5: C-4 downgrade with single truncated call then final text', () => {
+  it('truncated tool call then final answer → COMPLETED_WITH_WARNINGS + outputTruncated', async () => {
+    const workspace = {
+      list: jest.fn().mockResolvedValue({ totalEntries: 0, entries: [] }),
+      read: jest.fn().mockResolvedValue({ content: 'ok' }),
+      search: jest.fn().mockResolvedValue({ totalMatches: 0, matches: [] }),
+      write: jest.fn().mockResolvedValue({ bytesWritten: 1, created: true }),
+      edit: jest.fn().mockResolvedValue({ replaced: true }),
+      copy: jest.fn().mockResolvedValue({ copied: true }),
+      move: jest.fn().mockResolvedValue({ moved: true }),
+      delete: jest.fn().mockResolvedValue({ deleted: true }),
+    };
+    const runner = {
+      execute: jest.fn().mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', durationMs: 1, timedOut: false }),
+    };
+    let call = 0;
+    const provider: any = {
+      sendStreamRequest: jest.fn().mockImplementation(async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            id: 'r1', content: '', finishReason: 'tool_calls',
+            toolCalls: [
+              { id: 'good', name: 'write', arguments: '{"path":"a","content":"ok"}', truncated: false },
+              { id: 'cut', name: 'write', arguments: 'PARTIAL', truncated: true },
+            ],
+          };
+        }
+        return { id: 'r2', content: 'all done', finishReason: 'stop' };
+      }),
+    };
+    const loop = new A9AgentLoop({
+      workspaceRoot: '/test/ws', provider, workspaceService: workspace as any, runner: runner as any,
+      permissionMode: PermissionMode.FULL_ACCESS,
+    });
+    const result = await loop.runTurn('go');
+    expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
+    expect(result.outputTruncated).toBe(true);
+    // 只执行了 good
+    expect(workspace.write).toHaveBeenCalledTimes(1);
+  });
+});

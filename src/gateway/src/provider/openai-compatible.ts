@@ -420,10 +420,12 @@ export class OpenAICompatibleProvider {
         truncation = {
           reason,
           retainedBytes: contentBytes,
-          limitBytes: reason === 'response_content_limit' ? MAX_RESPONSE_CONTENT_BYTES : MAX_TOOL_CALL_SLOTS,
+          // R-4：两种 reason 的 limitBytes 均为内容 1 MiB 字节口径；槽位用 limitSlots。
+          limitBytes: MAX_RESPONSE_CONTENT_BYTES,
           droppedAtLeastBytes: reason === 'response_content_limit'
             ? droppedAtLeastBytes
             : droppedAtLeastBytes + toolAccumulator.overflowDroppedBytes,
+          ...(reason === 'tool_call_limit' ? { limitSlots: MAX_TOOL_CALL_SLOTS } : {}),
         };
         // 被截断的响应不携带任何 toolCalls（G-4）。
         settle(undefined, {
@@ -469,24 +471,30 @@ export class OpenAICompatibleProvider {
       const handleEvent = (event: import('./sse-parser').SseStreamEvent): void => {
         if (settled || responseTruncated) return;
 
-        if (event.content) {
-          const incomingBytes = Buffer.byteLength(event.content, 'utf8');
-          if (contentBytes + incomingBytes > MAX_RESPONSE_CONTENT_BYTES) {
-            const remaining = Math.max(0, MAX_RESPONSE_CONTENT_BYTES - contentBytes);
-            const cut = truncateUtf8ToByteLimit(event.content, remaining);
-            if (cut.text) {
-              accumulatedContent += cut.text;
-              contentBytes += cut.bytes;
-              onChunk({ content: cut.text, index: chunkIndex++ });
+        // R-5：恢复基线行为——content !== null（含空字符串）即触发 onChunk；空串计 0 字节。
+        if (event.content !== null) {
+          if (event.content) {
+            const incomingBytes = Buffer.byteLength(event.content, 'utf8');
+            if (contentBytes + incomingBytes > MAX_RESPONSE_CONTENT_BYTES) {
+              const remaining = Math.max(0, MAX_RESPONSE_CONTENT_BYTES - contentBytes);
+              const cut = truncateUtf8ToByteLimit(event.content, remaining);
+              if (cut.text) {
+                accumulatedContent += cut.text;
+                contentBytes += cut.bytes;
+                onChunk({ content: cut.text, index: chunkIndex++ });
+              }
+              droppedAtLeastBytes += incomingBytes - cut.bytes;
+              settleTruncated('response_content_limit');
+              return;
             }
-            droppedAtLeastBytes += incomingBytes - cut.bytes;
-            settleTruncated('response_content_limit');
-            return;
+            accumulatedContent += event.content;
+            contentBytes += incomingBytes;
+            onChunk({ content: event.content, index: chunkIndex++ });
+          } else {
+            onChunk({ content: '', index: chunkIndex++ });
           }
-          accumulatedContent += event.content;
-          contentBytes += incomingBytes;
-          onChunk({ content: event.content, index: chunkIndex++ });
         } else if ((event.toolCallDeltas?.length ?? 0) > 0) {
+          // tool_calls 增量同样证明流式通道工作（content 为空字符串）。
           onChunk({ content: '', index: chunkIndex++ });
         }
 
@@ -494,7 +502,6 @@ export class OpenAICompatibleProvider {
           toolAccumulator.apply(delta);
         }
         if (toolAccumulator.slotsOverflowed) {
-          droppedAtLeastBytes += 0;
           settleTruncated('tool_call_limit');
           return;
         }
@@ -556,6 +563,7 @@ export class OpenAICompatibleProvider {
 
         res.on('end', () => {
           if (settled) return;
+          // 末尾无换行的残余 buffer 也要解析。
           try {
             for (const outcome of parser.finish()) {
               if (settled || responseTruncated) return;
@@ -573,6 +581,7 @@ export class OpenAICompatibleProvider {
           if (settled || responseTruncated) return;
 
           if (parser.malformedEventCount > 0) {
+            // 畸形完整事件结构化上报，不静默忽略。
             settle(new GatewayError(
               ErrorCode.STREAM_INTERRUPTED,
               `Malformed SSE events received (${parser.malformedEventCount}): ${(parser.malformedEvents[0] || '').slice(0, 120)}`,
