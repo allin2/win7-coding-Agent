@@ -17,7 +17,11 @@ A9-18 工作树（`/Users/qlyf/Developer/win7-coding-agent-memory-optimization`�
 
 ## 2. 基线、分支与允许路径
 
-- 基线：`codex/a9-alpha2` @ `25c89d3`，或其后只含文档改动的提交（如本交接书所在的 `683f063`）；报告中写明实际基线。在新分支 `codex/a9-21-m2` 上工作（可用 git worktree），完成后本地提交，**不推送、不合并**。
+- 基线：`codex/a9-alpha2` @ `7ba5ec1`（已含 M1b 合并；2026-09-25 修订，原为 `25c89d3` 或其后只含文档改动的提交），
+  或其后只含文档改动的提交；报告中写明实际基线。M1b 只改运行时脱敏函数，与本任务文件不重叠。在新分支 `codex/a9-21-m2` 上工作
+  （可用 git worktree），完成后本地提交，**不推送、不合并**。
+- 工作树可用符号链接复用主工作区的 `node_modules`，但**各包 `dist` 必须在本工作树内独立构建**，不得链接主工作区的 `dist`：
+  本任务要 `tsc` 构建 gateway/core，共享 `dist` 会把未验收代码写进主工作区。
 - 允许修改的文件，仅限：
   - `src/gateway/src/provider/openai-compatible.ts`
   - `src/gateway/src/provider/sse-parser.ts`
@@ -91,6 +95,8 @@ Core：
 13. A9-20 的现有用例（验证记账、Git 确认）全部继续通过。
 
 负向对照：把新测试放在 `25c89d3` 的代码上运行，记录失败清单（可为缺失的新导出补等价旧行为的桩）。
+如用进程级超时终止卡住的用例，必须终止整个进程组（不能只杀 `npx` 包装进程），并在报告前确认没有遗留 jest/node 进程：
+遗留进程占满 CPU 会使其他时序敏感用例（如 `a9-lifecycle.test.ts` 的后台写文件用例）失败。
 
 ## 6. 验证命令（Node 20.17）
 
