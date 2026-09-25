@@ -67,9 +67,16 @@ function validateProviderBaseUrl(value) {
   return trimmed;
 }
 
+// A9-21 M1b：协议名长度限 32（1+{0,31}），消除 [a-z0-9+.-]* 的二次回退。
+// 输出与旧正则逐字节相同（无锚点，超长协议名从词中间匹配，$1 原样写回）。
+// 与渲染端 a9-workbench.js 的字面量保持一致（沙箱脚本不能 require 本模块）。
+function redactUrlUserinfo(text) {
+  return String(text == null ? '' : text)
+    .replace(/([a-z][a-z0-9+.-]{0,31}:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@');
+}
+
 function boundedDiagnosticText(value) {
-  return String(value == null ? '' : value)
-    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@')
+  return redactUrlUserinfo(value)
     .replace(/((?:authorization|api[-_]?key|password|secret|access[-_]?token|refresh[-_]?token)\s*[:=]\s*)(?:bearer\s+)?[^\s,;&]+/gi, '$1***redacted***')
     .replace(/([?&](?:api[-_]?key|password|secret|access[-_]?token|refresh[-_]?token)=)[^&#\s]*/gi, '$1***redacted***')
     .slice(0, 600);
@@ -388,7 +395,7 @@ function createA9AgentRuntime(options) {
         try { out = out.replace(percentEquivalentRegex(source), '***redacted***'); } catch (_err) { /* exact variants already applied */ }
       }
     }
-    out = out.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***redacted***@');
+    out = redactUrlUserinfo(out);
     out = out.replace(/(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+/gi, '$1***redacted***');
     return out;
   }
@@ -2398,4 +2405,4 @@ function createDiagnosticsRuntime(outcome) {
   };
 }
 
-module.exports = { createA9AgentRuntime, A9_PROTOCOL_VERSION };
+module.exports = { createA9AgentRuntime, A9_PROTOCOL_VERSION, redactUrlUserinfo };
