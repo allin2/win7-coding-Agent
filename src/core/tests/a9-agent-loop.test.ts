@@ -577,7 +577,9 @@ describe('A9-21 M2 §9.3.5: C-4 downgrade with single truncated call then final 
           return {
             id: 'r1', content: '', finishReason: 'tool_calls',
             toolCalls: [
-              { id: 'good', name: 'write', arguments: '{"path":"a","content":"ok"}', truncated: false },
+              // 只读调用：不产生文件副作用，A9-20 的“修改后未验证”规则在本轮不适用，
+              // 因此 COMPLETED_WITH_WARNINGS 只能由 C-4 降级得出。
+              { id: 'good', name: 'read', arguments: '{"path":"a.txt"}', truncated: false },
               { id: 'cut', name: 'write', arguments: 'PARTIAL', truncated: true },
             ],
           };
@@ -592,7 +594,193 @@ describe('A9-21 M2 §9.3.5: C-4 downgrade with single truncated call then final 
     const result = await loop.runTurn('go');
     expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
     expect(result.outputTruncated).toBe(true);
-    // 只执行了 good
-    expect(workspace.write).toHaveBeenCalledTimes(1);
+    // 只读调用成功执行，截断调用未执行；没有任何文件副作用
+    // （verification 为 not_applicable 即 A9-20 的 mutation 规则未参与判定）。
+    expect(result.verification).toBe('not_applicable');
+    expect(workspace.read).toHaveBeenCalledTimes(1);
+    expect(workspace.write).not.toHaveBeenCalled();
+  });
+});
+
+describe('A9-21 M2 §9.3.4: history protocol of the messages Core sends to the model', () => {
+  // 交接书 §10.2 C2：原在 gateway 测试中经 core/dist 构造历史，改为在本包直接校验
+  // Core 送往模型的消息（Core 历史与 buildOpenAIMessages 输出一一对应，校验等价）。
+  const MIB = 1024 * 1024;
+
+  let mockWorkspace: A9WorkspacePort;
+  let mockRunner: A9RunnerPort;
+
+  beforeEach(() => {
+    mockWorkspace = {
+      list: jest.fn().mockResolvedValue({ totalEntries: 0, entries: [] }),
+      read: jest.fn().mockResolvedValue({ content: 'ok' }),
+      search: jest.fn().mockResolvedValue({ totalMatches: 0, matches: [] }),
+      write: jest.fn().mockResolvedValue({ bytesWritten: 1, created: true }),
+      edit: jest.fn().mockResolvedValue({ replaced: true }),
+      copy: jest.fn().mockResolvedValue({ copied: true }),
+      move: jest.fn().mockResolvedValue({ moved: true }),
+      delete: jest.fn().mockResolvedValue({ deleted: true }),
+    };
+    mockRunner = {
+      execute: jest.fn().mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', durationMs: 1, timedOut: false }),
+    };
+  });
+
+  function makeLoop(provider: A9ModelPort) {
+    return new A9AgentLoop({
+      workspaceRoot: '/test/ws',
+      provider,
+      workspaceService: mockWorkspace,
+      runner: mockRunner,
+      permissionMode: PermissionMode.FULL_ACCESS,
+    });
+  }
+
+  /** 在请求时刻快照送往模型的消息（conversationHistory 是按引用传入的，会继续增长）。 */
+  function snapshotMessages(messages: any[]): any[] {
+    return messages.map((m) => ({
+      ...m,
+      ...(Array.isArray(m.toolCalls) ? { toolCalls: m.toolCalls.map((tc: any) => ({ ...tc })) } : {}),
+    }));
+  }
+
+  /**
+   * 每条 role: 'tool' 消息的 toolCallId 都必须出现在紧邻的前一条带 toolCalls 的
+   * assistant 消息中；否则严格的 OpenAI 兼容服务会拒绝后续请求。
+   */
+  function assertToolMessagesPaired(messages: any[], label: string): void {
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role !== 'tool') continue;
+      let paired = false;
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = messages[j];
+        if (prev.role === 'assistant' && Array.isArray(prev.toolCalls)) {
+          paired = prev.toolCalls.some((tc: any) => tc.id === msg.toolCallId);
+          break; // 只看紧邻的前一条带 toolCalls 的 assistant 消息
+        }
+      }
+      if (!paired) {
+        throw new Error(
+          `${label}: 孤立的 tool 消息 toolCallId=${msg.toolCallId}（索引 ${i}）：${JSON.stringify(msg)}`,
+        );
+      }
+    }
+  }
+
+  /** 记录每次请求时的消息快照，响应由 script 按第几次调用给出。 */
+  function recordingProvider(script: (call: number) => any) {
+    const sent: any[][] = [];
+    let call = 0;
+    const provider: any = {
+      sendStreamRequest: jest.fn().mockImplementation(async (req: any) => {
+        sent.push(snapshotMessages(req.messages));
+        call += 1;
+        return script(call);
+      }),
+    };
+    return { provider, sent };
+  }
+
+  it('after content truncation: the next request has no isolated tool message', async () => {
+    const { provider, sent } = recordingProvider((call) => (call === 1
+      ? {
+        id: 'r1',
+        content: 'partial kept',
+        finishReason: 'length',
+        truncated: true,
+        truncation: {
+          reason: 'response_content_limit',
+          retainedBytes: 100,
+          limitBytes: MIB,
+          droppedAtLeastBytes: 10,
+        },
+        toolCalls: [{ id: 'c1', name: 'write', arguments: '{"path":"a"}' }],
+      }
+      : { id: `r${call}`, content: 'done', finishReason: 'stop' }));
+    const loop = makeLoop(provider);
+    const first = await loop.runTurn('go');
+    // C-2：截断响应不执行任何工具，本轮立即结束（只发出一次请求）。
+    expect(first.outputTruncated).toBe(true);
+    expect(mockWorkspace.write).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+
+    // 下一轮请求携带的就是截断之后的历史。
+    await loop.runTurn('continue');
+    expect(sent).toHaveLength(2);
+    const nextTurnMessages = sent[1];
+    assertToolMessagesPaired(nextTurnMessages, 'after content truncation');
+    // R-2：截断后只追加一条 assistant，不存在 truncation-notice 之类的孤立 tool 消息。
+    expect(nextTurnMessages.filter((m: any) => m.role === 'tool')).toHaveLength(0);
+    expect(nextTurnMessages.filter((m: any) => m.role === 'assistant')).toHaveLength(1);
+  });
+
+  it('after slot overflow: the next request has no isolated tool message', async () => {
+    const { provider, sent } = recordingProvider((call) => (call === 1
+      ? {
+        id: 'r1',
+        content: 'slot',
+        finishReason: 'length',
+        truncated: true,
+        truncation: {
+          reason: 'tool_call_limit',
+          retainedBytes: 0,
+          limitBytes: MIB,
+          droppedAtLeastBytes: 0,
+          limitSlots: 64,
+        },
+      }
+      : { id: `r${call}`, content: 'done', finishReason: 'stop' }));
+    const loop = makeLoop(provider);
+    const first = await loop.runTurn('go');
+    expect(first.outputTruncated).toBe(true);
+    expect(mockWorkspace.write).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+
+    await loop.runTurn('continue');
+    expect(sent).toHaveLength(2);
+    const nextTurnMessages = sent[1];
+    assertToolMessagesPaired(nextTurnMessages, 'after slot overflow');
+    expect(nextTurnMessages.filter((m: any) => m.role === 'tool')).toHaveLength(0);
+    expect(nextTurnMessages.filter((m: any) => m.role === 'assistant')).toHaveLength(1);
+  });
+
+  it('after single truncated tool call: the next request pairs every tool result and carries arguments "{}"', async () => {
+    const { provider, sent } = recordingProvider((call) => (call === 1
+      ? {
+        id: 'r1',
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [
+          { id: 'ok1', name: 'write', arguments: '{"path":"a","content":"x"}' },
+          { id: 'bad1', name: 'write', arguments: 'x'.repeat(600 * 1024), truncated: true },
+        ],
+      }
+      : { id: `r${call}`, content: 'done', finishReason: 'stop' }));
+    const loop = makeLoop(provider);
+    await loop.runTurn('go');
+    // 单项截断不影响本轮继续：截断项有对应说明，非截断项照常执行。
+    expect(sent).toHaveLength(2);
+    const nextMessages = sent[1];
+    assertToolMessagesPaired(nextMessages, 'after single truncated tool call');
+    expect(
+      nextMessages.filter((m: any) => m.role === 'tool').map((m: any) => m.toolCallId).sort(),
+    ).toEqual(['bad1', 'ok1']);
+
+    // R-3：截断调用保留 id/name，参数置为 '{}'，避免不完整 JSON 跨轮重发。
+    const assistantWithCalls = nextMessages.find(
+      (m: any) => m.role === 'assistant' && Array.isArray(m.toolCalls),
+    );
+    expect(assistantWithCalls).toBeDefined();
+    const badInRequest = assistantWithCalls.toolCalls.find((tc: any) => tc.id === 'bad1');
+    expect(badInRequest.arguments).toBe('{}');
+    expect(badInRequest.name).toBe('write');
+    // 非截断调用的参数保留。
+    const okInRequest = assistantWithCalls.toolCalls.find((tc: any) => tc.id === 'ok1');
+    expect(okInRequest.arguments).toContain('"path":"a"');
+
+    // C-3：截断调用未执行，只有 ok1 落盘。
+    expect(mockWorkspace.write).toHaveBeenCalledTimes(1);
+    expect(mockWorkspace.write).toHaveBeenCalledWith('a', 'x', expect.anything());
   });
 });

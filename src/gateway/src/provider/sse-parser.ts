@@ -214,7 +214,8 @@ function mapUsage(usage: any): NonNullable<SseStreamEvent['usage']> {
 
 /**
  * 把多事件 tool_calls 增量聚合为完整调用列表（保持协议关联：id/name/args
- * 按 index 累积）。A9-21 M2 G-4：参数/函数名/槽位均有上限。
+ * 按 index 累积，顺序执行也不丢失与 assistant 消息的对应）。
+ * A9-21 M2 G-4：参数/函数名/槽位均有上限。
  */
 export class ToolCallAccumulator {
   private readonly slots = new Map<
