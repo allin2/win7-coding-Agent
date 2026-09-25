@@ -17,7 +17,7 @@ A9-18 工作树（`/Users/qlyf/Developer/win7-coding-agent-memory-optimization`�
 
 ## 2. 基线、分支与允许路径
 
-- 基线：`codex/a9-alpha2` @ `25c89d3`。在新分支 `codex/a9-21-m2` 上工作（可用 git worktree），完成后本地提交，**不推送、不合并**。
+- 基线：`codex/a9-alpha2` @ `25c89d3`，或其后只含文档改动的提交（如本交接书所在的 `683f063`）；报告中写明实际基线。在新分支 `codex/a9-21-m2` 上工作（可用 git worktree），完成后本地提交，**不推送、不合并**。
 - 允许修改的文件，仅限：
   - `src/gateway/src/provider/openai-compatible.ts`
   - `src/gateway/src/provider/sse-parser.ts`
