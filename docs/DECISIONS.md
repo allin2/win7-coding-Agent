@@ -2301,3 +2301,16 @@
   `shell.utility` 保留为通用分类，正常应为空。阈值（Go ≤ 180MB / No-Go > 280MB）与“未实测”状态不变。ADR-0028 正文不改；
   将来若把 Core 移入 utilityProcess，须另立 ADR 恢复原口径。
 - 后果：A9-17 的 Win7 采样（K17-1）可以得到有意义的 #2/#3 数据；与旧口径的历史数字不可直接比较。
+
+## ADR-0140 A9-20 实施中对 Git 确认分类器与验证记账的两处收紧
+
+- 状态：Accepted（2026-09-25，在 A9-20 负责人授权的“按推荐优化需求”范围内做出）
+- 背景：按 ADR-0137 实施时发现三点。（1）动态 push 检测只在整条命令没有任何 Git 决定时运行，
+  `git status && powershell -c "$g='git'; & $g push …"` 因此被判为 `autonomous`。（2）6 层及以上嵌套 `powershell -e` 在深度上限处
+  仍是 Base64，按 ADR-0137 决策（1）“已见 Git 相关 token 才保守”会放行。（3）ADR-0137 决策（4）只处理 Shell 宿主，
+  而 `git` 本身在验证运行器名单中，`git push` 与被解包后的 `bash -lc "git push"` 都会被记为验证证据。
+- 决策：（1）对每个没有静态 Git 决定的分段单独做动态 push 检测，已静态分类的 Git 命令不重复判定。
+  （2）到达深度或体积上限时，剩余文本含 Git 词或仍含未解开的 Shell 宿主（cmd/powershell/pwsh/bash/sh/dash/zsh）即保守确认。
+  （3）含 Git 外部写（`always_confirm`）的命令不计为验证证据。
+- 后果：关闭上述三类旁路。超过深度上限的纯文本 Shell 嵌套也会要求确认；直接执行的 `git push` 不再使一轮变为 verified。
+  ADR-0137 其余决策不变。

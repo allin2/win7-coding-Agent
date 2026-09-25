@@ -143,3 +143,4 @@
 | ADR-0137 | Git 外部写确认分类器：壳载荷不可精确解析时 fail-closed | Accepted |
 | ADR-0138 | A9-18 成果按评估择优移植，不引入 schema 迁移，移植后删除工作树 | Accepted |
 | ADR-0139 | 性能预算 #3 改按 Main 进程计量 | Accepted |
+| ADR-0140 | A9-20 实施中对 Git 确认分类器与验证记账的两处收紧 | Accepted |

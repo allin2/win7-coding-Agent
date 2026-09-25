@@ -6,9 +6,9 @@ Task Type: SECURITY_HARDENING
 Target Branch: codex/a9-alpha2
 Source Baseline: c8691e3
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_20_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_20_DEVELOPER_VERIFIED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0137
+Decision: ADR-0137, ADR-0140
 ```
 
 > 2026-09-25 起草；同日负责人按建议批准实现，ADR-0137 同时接受，§11 开放问题按建议裁决，并授权按推荐优化需求
@@ -150,3 +150,28 @@ A9-18 工作树中的 F-1/F-2（部分形态修复与 32 项分类器用例）�
 3. **明确主次**：G04 兜底是安全保证，G01～G03 负责确认对话框的绑定精度；§8.1 验收同步拆分，不再要求兜底形态给出具体 remote/branch。
 4. **G06 降为纵深防御**：Win7 命令行上限使超长命令预计不可启动；保留该规则（成本低、覆盖开发机壳），
    并删去“规则 ID”要求，因为 `checkAlwaysConfirmOperation` 现有返回结构只有原因文本，不应为此扩接口。
+5. **实施中补漏（2026-09-25）**：
+   - `git status && powershell -c "$g='git'; & $g push …"` 被判为 `autonomous`：动态 push 检测只在“整条命令没有任何 Git 决定”时运行。
+     改为对每个没有静态决定的分段单独检测，已静态分类的 Git 命令（如 `git add %FILE%`）不受影响。
+   - 变异检验发现 6 层及以上嵌套 `powershell -e` 包裹的 `git push` 返回 `null`：到达深度上限时剩余文本仍是 Base64，
+     没有 `git` 字样。G05 因此收紧：到达上限时，剩余文本含 Git 词**或仍含未解开的 Shell 宿主**都保守确认。
+     代价是超过深度上限的纯文本嵌套（如 6 层 `cmd /c … echo hello`）也会要求确认，实际使用中几乎不会出现。
+6. **G07 补充**：分类器修好后，`bash -lc "git push …"` 的载荷就是 `git push`，而 `git` 在运行器名单里，仍会被记为验证证据；
+   直接执行的 `git push` 也一样。补充规则：含 Git 外部写（`always_confirm`）的命令不计为验证证据。
+7. 以上两处收紧见 ADR-0140（不改 ADR-0137 正文）。
+
+## 13. 实施结果（2026-09-25，开发机，Node 20.17.0）
+
+- 改动：`git-command-policy.ts`（三态载荷解析 `payload`/`opaque`/`none`，CMD/PowerShell/POSIX 各自解包，
+  Shell 宿主分段的开关与引号相连拆分，逐分段动态检测，统一上限 `MAX_ANALYZABLE_GIT_COMMAND_BYTES`，
+  导出 `expandShellHostPayloads`）、`policy.ts`（G06）、`a9-agent-loop.ts`（G07）、`index.ts`（常量再导出），
+  测试增加在 `git-command-policy.test.ts`、`policy.test.ts`、`a9-agent-loop.test.ts`。均在 §7 允许路径内。
+- 验证：core `tsc --noEmit`、build 通过，全量 jest 28 套 / 362 项通过；shell 全量 39 套 / 376 项通过（使用新 core 构建）；
+  `npm run verify:quick` 通过；`docs:check`、`git diff --check` 通过。
+- 负向对照：三个测试文件在 `c8691e3` 实现上 37 项失败、66 项通过（旧实现缺少的两个新导出以等价旧行为的桩补上），
+  失败项正是 §2 各类形态、G06、G07 与 §12.5 补漏用例；“不误拦”用例在新旧实现上都通过。
+- 变异检验（7 项，全部被测试捕获）：去掉开关与引号拆分 2 项失败；去掉不可提取载荷兜底 1 项；去掉上限处的保守判定 1 项；
+  去掉 G07 外部写排除 3 项；去掉逐分段动态检测 2 项；CMD 只认独立 `/c` 4 项；上限处只看 Git 词 2 项。
+  变异检验中发现的冗余状态（`gaveUpOnGit`）已删除。
+- 未执行：Win7 实机（`Win7-Validation: NOT_PERFORMED`）；§2 各形态在真实 CMD/PowerShell 5.1 下的可达性仍待验证；
+  未做真实 Electron 回归（改动只在 Core 策略层，已由 shell 全量测试覆盖到产品调用链）。
