@@ -7,7 +7,7 @@
 import { ToolCall, ApprovalLevel, PolicyDecision, PolicyVerdict, CapabilityToken } from './types';
 import { bindCapabilityToToolCall } from './approval-binding';
 import { policyDeniedError } from './errors';
-import { classifyGitCommand } from './git-command-policy';
+import { classifyGitCommand, MAX_ANALYZABLE_GIT_COMMAND_BYTES } from './git-command-policy';
 
 const PROHIBITED_SHELL_HOSTS = new Set([
   'cmd',
@@ -83,6 +83,13 @@ function checkAlwaysConfirmOperation(toolCall: ToolCall): { needsConfirm: boolea
   if (toolCall.toolName === 'shell') {
     const cmd = typeof toolCall.args.command === 'string' ? toolCall.args.command : '';
     if (cmd.trim().length === 0) return { needsConfirm: false };
+    // 超出静态分析上限的命令无法证明不含外部写，一律确认（ADR-0137 G06，纵深防御）。
+    if (Buffer.byteLength(cmd, 'utf8') > MAX_ANALYZABLE_GIT_COMMAND_BYTES) {
+      return {
+        needsConfirm: true,
+        reason: `Shell 命令超过 ${MAX_ANALYZABLE_GIT_COMMAND_BYTES / 1024} KiB，无法完整分析，需要用户显式确认`,
+      };
+    }
 
     const gitDecision = classifyGitCommand(cmd);
     if (gitDecision) {

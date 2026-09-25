@@ -196,6 +196,50 @@ function shellBasename(token: string): string {
   return token.replace(/^@/, '').replace(/\\/g, '/').split('/').pop()!.toLowerCase();
 }
 
+/** Commands longer than this are not parsed; see ADR-0137 for the fail-closed rule. */
+export const MAX_ANALYZABLE_GIT_COMMAND_BYTES = 256 * 1024;
+const MAX_ANALYSIS_DEPTH = 4;
+
+function exceedsAnalysisLimit(command: string, depth: number): boolean {
+  return depth > MAX_ANALYSIS_DEPTH || Buffer.byteLength(command, 'utf8') > MAX_ANALYZABLE_GIT_COMMAND_BYTES;
+}
+
+/**
+ * Once analysis gives up (too deep / too large), “no Git found” is not proven.
+ * A Git-looking word fails closed, and so does another shell-host layer that was
+ * not looked into (e.g. nested `powershell -e` hides Git inside Base64). Plain
+ * text without either stays quiet.
+ */
+function hasUnanalyzedGitRisk(text: string): boolean {
+  return /\bgit(?:\.exe)?\b/i.test(text) || /\b(?:cmd|powershell|pwsh|bash|sh|dash|zsh)(?:\.exe)?\b/i.test(text);
+}
+
+type ShellFamily = 'cmd' | 'powershell' | 'posix';
+
+function shellFamily(token: string | undefined): ShellFamily | undefined {
+  const name = shellBasename(token || '').replace(/\.exe$/, '');
+  if (name === 'cmd') return 'cmd';
+  if (name === 'powershell' || name === 'pwsh') return 'powershell';
+  if (name === 'bash' || name === 'sh' || name === 'dash' || name === 'zsh') return 'posix';
+  return undefined;
+}
+
+/**
+ * Shell hosts accept a switch glued to its quoted payload (`cmd /c"git push"`,
+ * `powershell -c"…"`, `bash -lc'…'`). The tokenizer would merge both into one
+ * token, so for shell-host segments a space is inserted before such quotes.
+ */
+function tokenizeSegment(segment: string): string[] {
+  const exposed = exposeControlPunctuation(segment);
+  const tokens = tokenizeCommand(exposed);
+  if (!shellFamily(tokens[executableIndex(tokens)])) return tokens;
+  return tokenizeCommand(exposed.replace(/(^|\s)([-/][A-Za-z][A-Za-z0-9:/]*)(?=["'])/g, '$1$2 '));
+}
+
+function containsGitWord(tokens: string[]): boolean {
+  return tokens.some((token) => token.split(/\s+/).some(isGitExecutable));
+}
+
 /** Split executable command segments while preserving text inside shell quotes. */
 function splitShellSegments(command: string): string[] {
   const segments: string[] = [];
@@ -225,26 +269,94 @@ function splitShellSegments(command: string): string[] {
   return segments;
 }
 
-function unwrapShellPayload(tokens: string[], start: number): string | undefined {
-  const shell = shellBasename(tokens[start] || '');
-  if (shell === 'cmd' || shell === 'cmd.exe') {
-    const commandIndex = tokens.findIndex((token, index) => index > start && token.toLowerCase() === '/c');
-    return commandIndex >= 0 ? tokens.slice(commandIndex + 1).join(' ') : undefined;
+/**
+ * `payload`: the shell host runs this text; `opaque`: it is a shell host but the
+ * executed text cannot be extracted (script file, unknown syntax); `none`: not a
+ * shell host.
+ */
+type ShellPayload = { kind: 'payload'; text: string } | { kind: 'opaque' } | { kind: 'none' };
+
+function unwrapShellPayload(tokens: string[], start: number): ShellPayload {
+  switch (shellFamily(tokens[start])) {
+    case 'cmd': return unwrapCmdPayload(tokens, start);
+    case 'powershell': return unwrapPowerShellPayload(tokens, start);
+    case 'posix': return unwrapPosixPayload(tokens, start);
+    default: return { kind: 'none' };
   }
-  if (shell === 'powershell' || shell === 'powershell.exe' || shell === 'pwsh' || shell === 'pwsh.exe') {
-    const encodedIndex = tokens.findIndex((token, index) => index > start && /^-(?:encodedcommand|enc)$/i.test(token));
-    if (encodedIndex >= 0 && tokens[encodedIndex + 1]) {
-      try {
-        const decoded = Buffer.from(tokens[encodedIndex + 1], 'base64').toString('utf16le');
-        return decoded.length <= 256 * 1024 ? decoded : undefined;
-      } catch (_error) {
-        return undefined;
+}
+
+/** CMD runs everything after `/c`, `/k` or `/r`, including glued (`/cgit`) and clustered (`/s/c`) forms. */
+function unwrapCmdPayload(tokens: string[], start: number): ShellPayload {
+  for (let index = start + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    let position = 0;
+    while (token[position] === '/') {
+      const letter = (token[position + 1] || '').toLowerCase();
+      if (letter === 'c' || letter === 'k' || letter === 'r') {
+        return { kind: 'payload', text: [token.slice(position + 2), ...tokens.slice(index + 1)].filter(Boolean).join(' ') };
       }
+      const next = token.indexOf('/', position + 1);
+      if (next < 0) break;
+      position = next;
     }
-    const commandIndex = tokens.findIndex((token, index) => index > start && /^-(?:command|c)$/i.test(token));
-    return commandIndex >= 0 ? tokens.slice(commandIndex + 1).join(' ') : undefined;
   }
-  return undefined;
+  return { kind: 'opaque' };
+}
+
+/** PowerShell parameters that consume the following argument. */
+const POWERSHELL_VALUE_PARAMETERS = [
+  'executionpolicy', 'ep', 'windowstyle', 'configurationname', 'inputformat', 'outputformat',
+  'psconsolefile', 'version', 'settingsfile', 'workingdirectory', 'custompipename',
+];
+
+/**
+ * Any prefix of `-Command` / `-EncodedCommand` (with `-` or `/`, plus the `-ec` alias) selects the
+ * payload, independent of the PowerShell version's own ambiguity rules; without
+ * such a switch the first positional argument starts the command.
+ */
+function unwrapPowerShellPayload(tokens: string[], start: number): ShellPayload {
+  for (let index = start + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!/^[-/]/.test(token) || token.length < 2) {
+      return { kind: 'payload', text: tokens.slice(index).join(' ') };
+    }
+    const separator = token.indexOf(':');
+    const name = (separator < 0 ? token.slice(1) : token.slice(1, separator)).toLowerCase();
+    const inlineValue = separator < 0 ? undefined : token.slice(separator + 1);
+    if (!name) continue;
+    if ('command'.startsWith(name)) {
+      return { kind: 'payload', text: [inlineValue, ...tokens.slice(index + 1)].filter(Boolean).join(' ') };
+    }
+    if ('encodedcommand'.startsWith(name) || name === 'ec') {
+      const value = inlineValue || tokens[index + 1] || '';
+      if (/^[A-Za-z0-9+/]+={0,2}$/.test(value) && value.length % 4 === 0) {
+        return { kind: 'payload', text: Buffer.from(value, 'base64').toString('utf16le') };
+      }
+      return { kind: 'payload', text: tokens.slice(index + 1).join(' ') };
+    }
+    if ('file'.startsWith(name)) return { kind: 'opaque' };
+    if (inlineValue === undefined && POWERSHELL_VALUE_PARAMETERS.some((parameter) => parameter.startsWith(name))) index += 1;
+  }
+  return { kind: 'opaque' };
+}
+
+/** POSIX shells run the argument after any short-option cluster containing `c` (`-c`, `-lc`, `-ec`). */
+function unwrapPosixPayload(tokens: string[], start: number): ShellPayload {
+  for (let index = start + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (/^[-+][oO]$/.test(token) || token === '--rcfile' || token === '--init-file') {
+      index += 1;
+      continue;
+    }
+    if (token.startsWith('--') && token !== '--') continue;
+    if (/^-[A-Za-z]+$/.test(token)) {
+      if (token.includes('c')) return { kind: 'payload', text: tokens.slice(index + 1).join(' ') };
+      continue;
+    }
+    if (/^\+[A-Za-z]+$/.test(token)) continue;
+    return { kind: 'opaque' };
+  }
+  return { kind: 'opaque' };
 }
 
 const READ_ONLY_SUBCOMMANDS = new Set([
@@ -297,7 +409,7 @@ export function classifyGitCommand(command: string): GitCommandDecision | null {
 }
 
 function containsDynamicGitPushRisk(command: string, depth = 0): boolean {
-  if (depth > 4 || command.length > 256 * 1024) return false;
+  if (exceedsAnalysisLimit(command, depth)) return hasUnanalyzedGitRisk(command);
   const cmdDynamicPair = /\bset\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*git\b/i.exec(command);
   const cmdPushPair = /\bset\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*push\b/i.exec(command);
   if (cmdDynamicPair && cmdPushPair
@@ -310,14 +422,15 @@ function containsDynamicGitPushRisk(command: string, depth = 0): boolean {
   // variable expansion, delayed expansion or a computed call expression. Walk
   // supported shell wrappers so prose sinks remain data rather than approvals.
   for (const segment of splitShellSegments(command)) {
-    const tokens = tokenizeCommand(exposeControlPunctuation(segment));
+    const tokens = tokenizeSegment(segment);
     const start = executableIndex(tokens);
     const executable = shellKeyword(tokens[start]);
     // PowerShell evaluates subexpressions before passing their result to an
     // otherwise prose-only sink such as Write-Output.
     if (/\$\([^)]*\bgit(?:\.exe)?\b[^)]*\bpush\b/i.test(segment)) return true;
     if (GIT_PROSE_COMMANDS.has(executable) || executable.startsWith('#')) continue;
-    const payload = unwrapShellPayload(tokens, start);
+    const unwrapped = unwrapShellPayload(tokens, start);
+    const payload = unwrapped.kind === 'payload' ? unwrapped.text : undefined;
     if (payload !== undefined && payload.trim() !== segment.trim()) {
       // `cmd /c $x`, `powershell -Command %PAYLOAD%`, etc. defer the entire
       // executable/subcommand string until runtime. Static analysis cannot
@@ -354,40 +467,102 @@ function containsDynamicGitPushRisk(command: string, depth = 0): boolean {
 }
 
 function collectGitDecisions(command: string, originalCommand: string, depth: number): GitCommandDecision[] {
-  if (depth > 4 || command.length > 256 * 1024) return [];
+  // Parts beyond the limits yield no decision here; the per-segment check below
+  // and the empty-result fallback both fail closed on them (ADR-0137 G05).
+  if (exceedsAnalysisLimit(command, depth)) return [];
   const decisions: GitCommandDecision[] = [];
   for (const segment of splitShellSegments(command)) {
-    const tokens = tokenizeCommand(exposeControlPunctuation(segment));
-    const start = executableIndex(tokens);
-    if (start >= tokens.length) continue;
-    const embeddedGitIndex = gitTokenIndex(tokens, start);
-    if (embeddedGitIndex >= 0) {
-      decisions.push(classifyGitTokens(normalizeEmbeddedGitTokens(tokens.slice(embeddedGitIndex)), originalCommand));
-      continue;
-    }
-    const payload = unwrapShellPayload(tokens, start);
-    if (payload !== undefined && payload.trim() !== segment.trim()) {
-      decisions.push(...collectGitDecisions(payload, originalCommand, depth + 1));
-      continue;
-    }
-    const conditionalPayload = unwrapConditionalPayload(tokens, start);
-    if (conditionalPayload !== undefined && conditionalPayload.trim() !== segment.trim()) {
-      decisions.push(...collectGitDecisions(conditionalPayload, originalCommand, depth + 1));
+    const before = decisions.length;
+    collectSegmentDecisions(segment, originalCommand, depth, decisions);
+    // A segment without a static decision may still run a dynamically built push
+    // or hide Git beyond the analysis limits; checked per segment so a classified
+    // sibling (`git status && …`) cannot mask it, without re-flagging statically
+    // classified Git commands.
+    if (decisions.length === before && containsDynamicGitPushRisk(segment, depth)) {
+      decisions.push(conservativeGitDecision(originalCommand));
     }
   }
   return decisions;
 }
 
-function containsExecutableGitRisk(command: string): boolean {
-  // This fallback is used for parser depth/size limits and unfamiliar control
-  // syntax. Known prose sinks remain exempt; all other executable-looking Git
-  // tokens fail closed instead of becoming indistinguishable from “no Git”.
+function collectSegmentDecisions(
+  segment: string,
+  originalCommand: string,
+  depth: number,
+  decisions: GitCommandDecision[],
+): void {
+  const tokens = tokenizeSegment(segment);
+  const start = executableIndex(tokens);
+  if (start >= tokens.length) return;
+  const embeddedGitIndex = gitTokenIndex(tokens, start);
+  if (embeddedGitIndex >= 0) {
+    decisions.push(classifyGitTokens(normalizeEmbeddedGitTokens(tokens.slice(embeddedGitIndex)), originalCommand));
+    return;
+  }
+  const unwrapped = unwrapShellPayload(tokens, start);
+  if (unwrapped.kind === 'payload') {
+    if (unwrapped.text.trim() !== segment.trim()) {
+      decisions.push(...collectGitDecisions(unwrapped.text, originalCommand, depth + 1));
+    }
+    return;
+  }
+  if (unwrapped.kind === 'opaque') {
+    // A shell host whose executed text cannot be extracted: any Git word in
+    // its arguments fails closed (ADR-0137 G04).
+    if (containsGitWord(tokens.slice(start + 1))) decisions.push(conservativeGitDecision(originalCommand));
+    return;
+  }
+  const conditionalPayload = unwrapConditionalPayload(tokens, start);
+  if (conditionalPayload !== undefined && conditionalPayload.trim() !== segment.trim()) {
+    decisions.push(...collectGitDecisions(conditionalPayload, originalCommand, depth + 1));
+  }
+}
+
+function containsExecutableGitRisk(command: string, depth = 0): boolean {
+  // This fallback is used for unfamiliar control syntax. Known prose sinks
+  // remain exempt; all other executable-looking Git tokens, including those
+  // inside shell-host payloads, fail closed instead of meaning “no Git”.
+  if (exceedsAnalysisLimit(command, depth)) return hasUnanalyzedGitRisk(command);
   for (const segment of splitShellSegments(command)) {
-    const tokens = tokenizeCommand(exposeControlPunctuation(segment));
+    const tokens = tokenizeSegment(segment);
     const start = executableIndex(tokens);
-    if (start < tokens.length && gitTokenIndex(tokens, start) >= 0) return true;
+    if (start >= tokens.length) continue;
+    if (gitTokenIndex(tokens, start) >= 0) return true;
+    const unwrapped = unwrapShellPayload(tokens, start);
+    if (unwrapped.kind === 'payload' && unwrapped.text.trim() !== segment.trim()
+      && containsExecutableGitRisk(unwrapped.text, depth + 1)) return true;
+    if (unwrapped.kind === 'opaque' && containsGitWord(tokens.slice(start + 1))) return true;
+    const conditionalPayload = unwrapConditionalPayload(tokens, start);
+    if (conditionalPayload !== undefined && conditionalPayload.trim() !== segment.trim()
+      && containsExecutableGitRisk(conditionalPayload, depth + 1)) return true;
   }
   return false;
+}
+
+/**
+ * Replace every shell-host segment (`cmd /c …`, `powershell -c …`, `bash -c …`)
+ * with the text it runs, so callers can judge what actually executes. Returns
+ * `undefined` when a shell host's payload cannot be extracted; commands without
+ * a shell host are returned unchanged.
+ */
+export function expandShellHostPayloads(command: string, depth = 0): string | undefined {
+  if (exceedsAnalysisLimit(command, depth)) return undefined;
+  const parts: string[] = [];
+  let expanded = false;
+  for (const segment of splitShellSegments(command)) {
+    const tokens = tokenizeSegment(segment);
+    const unwrapped = unwrapShellPayload(tokens, executableIndex(tokens));
+    if (unwrapped.kind === 'none') {
+      parts.push(segment);
+      continue;
+    }
+    if (unwrapped.kind === 'opaque' || !unwrapped.text.trim()) return undefined;
+    const inner = expandShellHostPayloads(unwrapped.text, depth + 1);
+    if (inner === undefined) return undefined;
+    parts.push(inner);
+    expanded = true;
+  }
+  return expanded ? parts.join(' && ') : command;
 }
 
 function classifyGitTokens(tokens: string[], originalCommand: string): GitCommandDecision {

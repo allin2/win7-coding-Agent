@@ -6,6 +6,7 @@
 import { PolicyEngine } from '../src/policy';
 import { ToolCall, ApprovalLevel, PolicyVerdict } from '../src/types';
 import { bindCapabilityToToolCall } from '../src/approval-binding';
+import { MAX_ANALYZABLE_GIT_COMMAND_BYTES } from '../src/git-command-policy';
 
 function writeCall(id: string = 'call-write'): ToolCall {
   return {
@@ -148,6 +149,20 @@ describe('PolicyEngine', () => {
       });
       expect(decision.reason).toContain('remote=a9-win7-13');
       expect(decision.reason).toContain('branch=main');
+    });
+
+    it('asks before any shell command beyond the analysis limit, even without Git (A9-20 G06)', () => {
+      const shell = (command: string) => engine.evaluate({
+        id: 'call-oversized', toolName: 'shell', args: { command }, approvalLevel: ApprovalLevel.FULL_ACCESS,
+      });
+      const atLimit = `npm test -- ${'x'.repeat(MAX_ANALYZABLE_GIT_COMMAND_BYTES - 'npm test -- '.length)}`;
+      expect(Buffer.byteLength(atLimit, 'utf8')).toBe(MAX_ANALYZABLE_GIT_COMMAND_BYTES);
+      expect(shell(atLimit).ruleId).toBe('POLICY_FULL_ACCESS_ALLOWED');
+      const oversized = shell(`${atLimit}x`);
+      expect(oversized).toMatchObject({ verdict: PolicyVerdict.ASK, ruleId: 'POLICY_ALWAYS_CONFIRM_REQUIRED' });
+      expect(oversized.reason).toContain('256 KiB');
+      // The limit is in UTF-8 bytes: fewer characters of CJK text already exceed it.
+      expect(shell(`npm test -- ${'中'.repeat(90 * 1024)}`).verdict).toBe(PolicyVerdict.ASK);
     });
   });
 

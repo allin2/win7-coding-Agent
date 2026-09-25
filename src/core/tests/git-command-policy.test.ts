@@ -10,8 +10,10 @@
 import {
   classifyGitCommand,
   gitApprovalStillValid,
+  MAX_ANALYZABLE_GIT_COMMAND_BYTES,
   tokenizeCommand,
 } from '../src';
+import { expandShellHostPayloads } from '../src/git-command-policy';
 
 describe('A9-05: git command tokenizer', () => {
   it('tokenizes quoted arguments with spaces and CJK paths', () => {
@@ -249,5 +251,116 @@ describe('A9-05: git command classification', () => {
       'Write-Host "git push origin main"',
       '# git push origin main',
     ]) expect(classifyGitCommand(command)).toBeNull();
+  });
+});
+
+describe('A9-20: shell-host payload forms (ADR-0137)', () => {
+  const encoded = Buffer.from('git push origin main', 'utf16le').toString('base64');
+  const nestEncoded = (levels: number) => {
+    let command = 'git push origin main';
+    for (let level = 0; level < levels; level += 1) {
+      command = `powershell -e ${Buffer.from(command, 'utf16le').toString('base64')}`;
+    }
+    return command;
+  };
+
+  // §2 classes 2-10 and 12: precisely unwrapped, so the approval binds the real target.
+  it.each([
+    'cmd /c"git push origin main"',
+    'cmd /C"git push origin main"',
+    'cmd.exe /d /s /c"C:\\g\\git.exe push origin main"',
+    'cmd /s/c "git push origin main"',
+    'cmd /d/s/c "git push origin main"',
+    'cmd /cgit push origin main',
+    'cmd /R "git push origin main"',
+    'powershell -c "git push origin main"',
+    'powershell -co "git push origin main"',
+    'powershell -Com "git push origin main"',
+    'powershell /Command "git push origin main"',
+    'powershell -Command:"git push origin main"',
+    'powershell -NoProfile -c"git push origin main"',
+    'powershell -ExecutionPolicy Bypass -NoProfile -Command "git push origin main"',
+    `powershell -e ${encoded}`,
+    `powershell -ec ${encoded}`,
+    `powershell.exe -EncodedCommand ${encoded}`,
+    'powershell "git push origin main"',
+    'powershell -NoProfile "git push origin main"',
+    'bash -c "git push origin main"',
+    'bash -c"git push origin main"',
+    'bash -lc "git push origin main"',
+    "bash.exe -lc 'git push origin main'",
+    'sh -ec "git push origin main"',
+    'zsh -o pipefail -c "git push origin main"',
+  ])('requires a target-bound confirmation: %s', (command) => {
+    const decision = classifyGitCommand(command);
+    expect(decision?.category).toBe('always_confirm');
+    expect(decision?.binding.summary).toBe('git push remote=origin branch=main');
+  });
+
+  it.each([
+    'powershell -File deploy.ps1 "git push origin main"',
+    'bash deploy.sh "git push origin main"',
+  ])('fails closed when a shell host payload cannot be extracted: %s', (command) => {
+    const decision = classifyGitCommand(command);
+    expect(decision?.category).toBe('always_confirm');
+    expect(decision?.binding.summary).toContain('unclassified');
+  });
+
+  it.each([
+    'git status && bash deploy.sh "git push origin main"',
+    `git status && ${nestEncoded(7)}`,
+  ])('does not let a classified sibling hide an opaque or too-deep Git part: %s', (command) => {
+    expect(classifyGitCommand(command)?.category).toBe('always_confirm');
+  });
+
+  it('does not let a classified sibling hide a dynamic push', () => {
+    expect(classifyGitCommand('git status && powershell -c "$g=\'git\'; & $g push origin main"')?.category)
+      .toBe('always_confirm');
+    // Statically classified Git with ordinary variables keeps its precise category.
+    expect(classifyGitCommand('git add %FILE%')?.category).toBe('autonomous');
+    expect(classifyGitCommand('git commit -m "update $HOME"')?.category).toBe('commit_requires_user_request');
+  });
+
+  it.each([
+    'npm test',
+    'echo git push origin main',
+    'cmd /c echo git push origin main',
+    'powershell -c "Write-Output \'git push origin main\'"',
+    'bash -lc "echo git push origin main"',
+    'powershell -File deploy.ps1',
+    'bash deploy.sh',
+    'cmd /c cmd /c cmd /c cmd /c echo hello',
+  ])('does not flag commands without Git execution: %s', (command) => {
+    expect(classifyGitCommand(command)).toBeNull();
+  });
+
+  it('fails closed beyond the nesting depth when Git or an unopened shell layer remains', () => {
+    for (let levels = 1; levels <= 8; levels += 1) {
+      expect(classifyGitCommand(nestEncoded(levels))?.category).toBe('always_confirm');
+    }
+    // Trade-off: prose nested beyond the depth limit also asks, since the last
+    // shell layer was not looked into.
+    expect(classifyGitCommand(`${'cmd /c '.repeat(6)}echo hello`)?.category).toBe('always_confirm');
+    expect(classifyGitCommand(`${'cmd /c '.repeat(4)}echo hello`)).toBeNull();
+  });
+
+  it('classifies up to the size limit and fails closed one byte beyond it', () => {
+    const prefix = 'cmd.exe /d /s /c "C:\\g\\git.exe push origin main & rem ';
+    const exact = `${prefix}${'x'.repeat(MAX_ANALYZABLE_GIT_COMMAND_BYTES - prefix.length - 1)}"`;
+    expect(Buffer.byteLength(exact, 'utf8')).toBe(MAX_ANALYZABLE_GIT_COMMAND_BYTES);
+    expect(classifyGitCommand(exact)?.binding.summary).toBe('git push remote=origin branch=main');
+    const over = `${exact.slice(0, -1)}x"`;
+    expect(classifyGitCommand(over)?.category).toBe('always_confirm');
+    expect(classifyGitCommand(over)?.binding.summary).toContain('unclassified');
+    // Oversized pure non-Git text stays unflagged here; the policy layer asks instead (G06).
+    expect(classifyGitCommand(`npm test -- ${'x'.repeat(MAX_ANALYZABLE_GIT_COMMAND_BYTES)}`)).toBeNull();
+  });
+
+  it('expands shell-host payloads for verification bookkeeping', () => {
+    expect(expandShellHostPayloads('npm test')).toBe('npm test');
+    expect(expandShellHostPayloads('cmd /c npm test')).toBe('npm test');
+    expect(expandShellHostPayloads('cmd /c "cmd /c echo done"')).toBe('echo done');
+    expect(expandShellHostPayloads('bash -lc "npm test" && echo ok')).toBe('npm test && echo ok');
+    expect(expandShellHostPayloads('powershell -File build.ps1')).toBeUndefined();
   });
 });

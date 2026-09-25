@@ -289,6 +289,67 @@ describe('A9-05: A9AgentLoop and Coding Workflow', () => {
     expect(mockRunner.execute).toHaveBeenCalledTimes(2);
   });
 
+  describe('A9-20 G07: verification evidence after a mutation', () => {
+    async function runEditThenShell(command: string) {
+      let round = 0;
+      const provider: A9ModelPort = {
+        sendStreamRequest: jest.fn().mockImplementation(async () => {
+          round += 1;
+          if (round === 1) return { id: 'r1', content: '', finishReason: 'tool_calls', toolCalls: [{
+            id: 'edit', name: 'edit', arguments: JSON.stringify({ path: 'calc.ts', old_text: 'a - b', new_text: 'a + b' }),
+          }] };
+          if (round === 2) return { id: 'r2', content: '', finishReason: 'tool_calls', toolCalls: [{
+            id: 'sh', name: 'shell', arguments: JSON.stringify({ command }),
+          }] };
+          return { id: 'done', content: 'done', finishReason: 'stop' };
+        }),
+      };
+      const loop = new A9AgentLoop({ workspaceRoot: '/test/workspace', provider,
+        workspaceService: mockWorkspace, runner: mockRunner, permissionMode: PermissionMode.FULL_ACCESS });
+      let result = await loop.runTurn('fix and check');
+      if (result.outcome === TurnOutcome.NEEDS_APPROVAL) {
+        result = await loop.resumeAfterApproval({
+          approvalId: result.pendingApproval!.approvalId,
+          decision: 'approved',
+          bindingDigest: result.pendingApproval!.bindingDigest,
+        });
+      }
+      expect(mockRunner.execute).toHaveBeenCalledTimes(1);
+      return result;
+    }
+
+    it.each(['npm test', 'cmd /c npm test', 'cmd.exe /d /s /c "npm test"', 'bash -lc "npm test"'])(
+      'counts a real check as verification: %s',
+      async (command) => {
+        expect((await runEditThenShell(command)).verification).toBe('verified');
+      },
+    );
+
+    it.each([
+      'cmd /c echo done',
+      'powershell -File build.ps1',
+      'git push origin main',
+      'cmd /c"git push origin main"',
+      'bash -lc "git push origin main"',
+    ])('does not count shell-host prose, opaque payloads or Git external writes: %s', async (command) => {
+      expect((await runEditThenShell(command)).verification).toBe('unverified');
+    });
+
+    it('asks for confirmation before a glued CMD git push runs', async () => {
+      const provider: A9ModelPort = {
+        sendStreamRequest: jest.fn().mockResolvedValue({ id: 'p', content: '', finishReason: 'tool_calls', toolCalls: [{
+          id: 'push', name: 'shell', arguments: JSON.stringify({ command: 'cmd /c"git push origin main"' }),
+        }] }),
+      };
+      const loop = new A9AgentLoop({ workspaceRoot: '/test/workspace', provider,
+        workspaceService: mockWorkspace, runner: mockRunner, permissionMode: PermissionMode.FULL_ACCESS });
+      const result = await loop.runTurn('push');
+      expect(result.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+      expect(result.pendingApproval?.summary).toContain('remote=origin branch=main');
+      expect(mockRunner.execute).not.toHaveBeenCalled();
+    });
+  });
+
   it('handles user cancellation via AbortSignal', async () => {
     const controller = new AbortController();
     controller.abort();

@@ -25,7 +25,7 @@ import { buildA9SystemPrompt } from './system-prompt';
 import { LoopDetector, TurnOutcome } from './loop-control';
 import * as crypto from 'crypto';
 import { AgentError, AgentErrorCode } from './errors';
-import { classifyGitCommand, GitCommandApprovalBinding } from './git-command-policy';
+import { classifyGitCommand, expandShellHostPayloads, GitCommandApprovalBinding } from './git-command-policy';
 
 export interface A9LoopEvent {
   type:
@@ -1120,14 +1120,17 @@ export class A9AgentLoop {
           this.turnStats.verifiedAfterMutation = false;
         }
         // 只有“非纯输出”的命令成功执行且此前存在文件副作用 → 才算验证证据；
-        // echo/ls/cat 等纯输出命令成功不产生 verified。
+        // echo/ls/cat 等纯输出命令成功不产生 verified。Shell 宿主按其实际执行的
+        // 载荷判断，载荷无法提取即不计；Git 外部写（如 push）不是验证（ADR-0137 G07）。
         const command = typeof args.command === 'string' ? args.command : '';
+        const executedText = expandShellHostPayloads(command);
         try {
           const parsed = JSON.parse(toolResultStr);
           if (
             typeof parsed.exitCode === 'number' && parsed.exitCode === 0 &&
             this.turnStats.mutations && !gitDecision?.mutatesWorktree &&
-            !isNonVerifyingCommand(command)
+            gitDecision?.category !== 'always_confirm' &&
+            executedText !== undefined && !isNonVerifyingCommand(executedText)
           ) {
             this.turnStats.verifiedAfterMutation = true;
           }

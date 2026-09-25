@@ -175,6 +175,7 @@ export {
   classifyGitCommand,
   tokenizeCommand,
   gitApprovalStillValid,
+  MAX_ANALYZABLE_GIT_COMMAND_BYTES,
 } from './git-command-policy';
 
 export {
