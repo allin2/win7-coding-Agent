@@ -1106,3 +1106,6 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 - 2026-09-25，A9-21 M1 完成：启动只恢复本工作区中断且缺 checkpoint 的 Turn，历史清单改为使用时校验。开发机 100 Turn 历史启动 8.0～8.3 s → 35～51 ms。
   另发现 `redactSecrets` URL 凭据正则在长字母数字串上为二次复杂度（范围外，待裁决）。
+
+- 2026-09-25，负责人决定 A9-21 M1b（脱敏正则线性化）与 M2（模型输出上限）交由外部 Agent 实施，本会话验收；交接书见
+  `docs/plans/A9_21_M1B_REDACTION_REGEX_HANDOFF.md`、`docs/plans/A9_21_M2_OUTPUT_LIMITS_HANDOFF.md`。

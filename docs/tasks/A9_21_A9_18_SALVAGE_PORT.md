@@ -28,9 +28,13 @@ Decision: ADR-0138, ADR-0139
 - **M1 启动定向恢复（P0-1）**：启动时只对 SQLite 中本工作区 `interrupted` 且缺 checkpoint 记录的 Turn 读取 manifest，
   不再枚举和加载全部历史；`loadCheckpoint` 返回 `undefined` 记为缺失，不计入有效集（R06）；历史 Turn 在 diff/undo 使用前
   照常经 `loadCheckpoint` 完整校验。密钥轮换触发的 `revalidatePersistedTurns` 保持全量校验，但校验结果不写入缓存。
+- **M1b 脱敏正则线性化（2026-09-25 负责人指示增补）**：URL 凭据正则的协议名改为 `{0,31}` 次，消除二次复杂度，脱敏输出不变。
+  实施细节与验收项见 [M1b 交接书](../plans/A9_21_M1B_REDACTION_REGEX_HANDOFF.md)。
 - **M2 模型输出上限（P0-4）**：Gateway 单响应 1 MiB、单工具参数 512 KiB，Core 单 Turn 累计 2 MiB（逐响应累加）；
   超限即停止接收并标记截断，截断状态不被后续 `finish_reason` 覆盖；截断或未收全的工具调用一律不执行；
-  截断以运行事件告知用户；按 UTF-8 字符边界截断；跨 chunk 脱敏不退化。
+  截断以运行事件告知用户；按 UTF-8 字符边界截断；跨 chunk 脱敏不退化。2026-09-25 细化（见
+  [M2 交接书](../plans/A9_21_M2_OUTPUT_LIMITS_HANDOFF.md) §3）：字节计数必须增量进行；SSE 待处理行缓冲上限 2 MiB 并结构化失败；
+  畸形事件样本上限 20 条；截断说明写入 `model_note.data.content`；出现截断的轮次结果为 `COMPLETED_WITH_WARNINGS`。
 - **M3 checkpoint 列表分页（P0-3）**：快照只带最近 50 条及总数；`a9.checkpoint.list` 走独立分页查询，游标为
   `before: { createdAt, turnId }`；界面可加载更早记录；会话与工作区绑定检查不变。
 - **M4 渲染端集合上限（P2-1）**：`inspectorEvents`、`turnEvents`、`blockedRequests` 设条数与字节上限，淘汰最旧并释放引用，
@@ -50,6 +54,7 @@ Electron 22.3.27/Node 16 目标不变。输出上限数值在 Win7 企业模型�
 
 - M0：`docs/PERFORMANCE_BUDGET.md`、`docs/plans/WIN7_MEMORY_BASELINE_MEASUREMENT_PLAN.md`、`scripts/mvp_acceptance/a9_win7_memory_baseline.ps1`（仅头部注释）
 - M1：`src/shell/product/a9-agent-runtime.js`、`src/state/src/a9-persistence.ts`、`src/workspace/src/checkpoint-manager.ts`
+- M1b：`src/shell/product/a9-agent-runtime.js`、`src/shell/product/renderer/a9-workbench.js`（仅该正则）
 - M2：`src/gateway/src/provider/openai-compatible.ts`、`src/gateway/src/provider/sse-parser.ts`、`src/gateway/src/types/index.ts`、`src/core/src/a9-agent-loop.ts`（仅输出预算）
 - M3：`src/state/src/a9-persistence.ts`、`src/shell/product/a9-agent-runtime.js`、`src/shell/product/a9-product-ipc.js`、`src/shell/product/preload.js`、`src/shell/product/renderer/a9-workbench.js`、`src/shell/product/renderer/workbench.html`
 - M4：`src/shell/product/renderer/a9-workbench.js`
@@ -115,4 +120,10 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 64 K 字符约 2 s，256 K 约 30 s（开发机）。它出现在 `a9-agent-runtime.js:72`、`:391` 与渲染端 `a9-workbench.js:117`，
 经 `containsSensitiveCheckpointData` 作用于每个 checkpoint 快照、工具输出和事件。常见源码与 Base64 被标点打断，只需几毫秒；
 长的十六进制或纯字母串（数据文件、单行生成物）会让基线冻结、启动或脱敏卡住。修法是给协议名加长度上限（如 `{0,31}`），
-但它改动的是脱敏行为，不属于 M1 的启动恢复范围，需另行授权。
+但它改动的是脱敏行为，不属于 M1 的启动恢复范围，需另行授权。→ 已由负责人增补为 M1b。
+
+### M1b、M2 执行方式（2026-09-25）
+
+负责人决定 M1b、M2 交由外部执行 Agent 按交接书实施，本会话负责验收。执行方分别在 `codex/a9-21-m1b`、`codex/a9-21-m2`
+（基线 `25c89d3`）上本地提交，只交代码、测试与事实报告；验收通过后由验收方并入 `codex/a9-alpha2` 并更新本任务书与状态文档。
+两项改动文件不重叠，可以并行。
