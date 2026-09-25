@@ -48,6 +48,8 @@ export interface A9ModelToolCall {
   id: string;
   name: string;
   arguments: string;
+  /** A9-21 M2 C-3/C-5：Gateway 标记该调用参数/函数名超限；不得执行。 */
+  truncated?: boolean;
 }
 
 /** 会话历史消息。assistant 消息携带 toolCalls，tool 消息携带 toolCallId 与工具名，
@@ -77,6 +79,14 @@ export interface A9ModelPort {
     content: string;
     finishReason: string;
     toolCalls?: A9ModelToolCall[];
+    /** A9-21 M2 C-2/C-5：响应级截断标记与说明。 */
+    truncated?: boolean;
+    truncation?: {
+      reason: 'response_content_limit' | 'tool_call_limit';
+      retainedBytes: number;
+      limitBytes: number;
+      droppedAtLeastBytes: number;
+    };
     usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   }>;
 }
@@ -361,6 +371,8 @@ export interface A9TurnResult {
   eventHandlerErrors?: string[];
   /** R3：本轮 Shell/Git/脚本造成的工作区变化（与 checkpoint/Diff 同源）。 */
   externalChanges?: Array<{ path: string; kind: string; recoverable: boolean }>;
+  /** A9-21 M2 C-4：本轮是否出现过模型输出截断。 */
+  outputTruncated?: boolean;
 }
 
 export interface A9VisiblePlan {
@@ -383,6 +395,11 @@ interface SuspendedTurn {
 
 /** 进入模型历史的工具结果默认上限（约 16 KiB）。 */
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 16 * 1024;
+/** A9-21 M2 C-1：单 Turn 模型输出预算（UTF-8 字节，逐响应累加）。 */
+const MAX_TURN_OUTPUT_BYTES = 2 * 1024 * 1024;
+/** C-2：截断说明（渲染端显示 data.content）。 */
+const TRUNCATION_NOTE_CONTENT = '模型输出超过 1 MiB 已被截断，本轮未执行其中的工具调用。';
+const TOOL_CALL_TRUNCATION_NOTE = '工具调用参数被截断，无法执行该调用。请使用更小的参数重试。';
 
 export class A9AgentLoop {
   private readonly policyEngine: PolicyEngine;
@@ -397,6 +414,10 @@ export class A9AgentLoop {
   private eventHandlerErrors: string[] = [];
   private turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
   private turnSequence = 0;
+  /** A9-21 M2 C-1：单 Turn 已用输出字节（审批挂起期间不清零）。 */
+  private turnOutputBytes = 0;
+  /** C-4：本轮是否出现过截断。 */
+  private outputTruncated = false;
   private frozenBaseline: unknown;
   private baselineFrozen = false;
   private externalChanges: Array<{ path: string; kind: string; recoverable: boolean }> = [];
@@ -439,6 +460,9 @@ export class A9AgentLoop {
     this.loopDetector.reset();
     this.eventHandlerErrors = [];
     this.turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
+    // C-1：预算只在新 Turn 开始时清零。
+    this.turnOutputBytes = 0;
+    this.outputTruncated = false;
     this.frozenBaseline = undefined;
     this.baselineFrozen = false;
     this.externalChanges = [];
@@ -605,8 +629,16 @@ export class A9AgentLoop {
         content: string;
         finishReason: string;
         toolCalls?: A9ModelToolCall[];
+        truncated?: boolean;
+        truncation?: {
+          reason: 'response_content_limit' | 'tool_call_limit';
+          retainedBytes: number;
+          limitBytes: number;
+          droppedAtLeastBytes: number;
+        };
       };
 
+      let chunkBytesThisResponse = 0;
       try {
         response = await this.config.provider.sendStreamRequest(
           {
@@ -616,6 +648,11 @@ export class A9AgentLoop {
             toolChoice: 'auto',
           },
           (chunk) => {
+            // C-1：经 onChunk 到达的内容字节（增量，每字节只计一次）。
+            if (chunk.content) {
+              chunkBytesThisResponse += Buffer.byteLength(chunk.content, 'utf8');
+              this.turnOutputBytes += Buffer.byteLength(chunk.content, 'utf8');
+            }
             this.emitEvent({
               type: 'model_chunk',
               turnId,
@@ -652,6 +689,79 @@ export class A9AgentLoop {
         });
       }
 
+      // C-1：未以 chunk 到达的内容字节 + 全部工具参数字节（每字节只计一次）。
+      {
+        const responseContentBytes = Buffer.byteLength(response.content || '', 'utf8');
+        const unchunked = Math.max(0, responseContentBytes - chunkBytesThisResponse);
+        this.turnOutputBytes += unchunked;
+        for (const tc of response.toolCalls || []) {
+          this.turnOutputBytes += Buffer.byteLength(tc.arguments || '', 'utf8')
+            + Buffer.byteLength(tc.name || '', 'utf8');
+        }
+        if (this.turnOutputBytes > MAX_TURN_OUTPUT_BYTES) {
+          this.emitEvent({
+            type: 'turn_failed',
+            turnId,
+            timestamp: new Date().toISOString(),
+            data: {
+              error: `Turn output budget exceeded (${MAX_TURN_OUTPUT_BYTES} bytes)`,
+              turnOutputBytes: this.turnOutputBytes,
+            },
+          });
+          return this.finalize(turnId, {
+            turnId,
+            outcome: TurnOutcome.BUDGET_EXCEEDED,
+            finalMessage: `Turn reached output budget limit (${MAX_TURN_OUTPUT_BYTES} bytes)`,
+            totalSteps: stepCount,
+            toolCallsExecuted,
+            ...(this.outputTruncated ? { outputTruncated: true } : {}),
+          });
+        }
+      }
+
+      // C-2：截断响应不执行任何工具；发出带中文 content 的 model_note。
+      if (response.truncated) {
+        this.outputTruncated = true;
+        const t = response.truncation;
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: response.content || '',
+        });
+        this.emitEvent({
+          type: 'model_note',
+          turnId,
+          timestamp: new Date().toISOString(),
+          data: {
+            content: TRUNCATION_NOTE_CONTENT,
+            truncated: true,
+            reason: t?.reason,
+            limitBytes: t?.limitBytes,
+            retainedBytes: t?.retainedBytes,
+            droppedAtLeastBytes: t?.droppedAtLeastBytes,
+            step: stepCount,
+          },
+        });
+        this.conversationHistory.push({
+          role: 'tool',
+          toolCallId: 'truncation-notice',
+          content: TRUNCATION_NOTE_CONTENT,
+        });
+        const finalContent = TRUNCATION_NOTE_CONTENT;
+        this.conversationHistory.push({ role: 'assistant', content: finalContent });
+        return this.finalize(turnId, {
+          turnId,
+          outcome: TurnOutcome.COMPLETED_WITH_WARNINGS,
+          finalMessage: finalContent,
+          totalSteps: stepCount,
+          toolCallsExecuted,
+          outputTruncated: true,
+        }, 'turn_completed', {
+          finalMessage: finalContent,
+          outcome: TurnOutcome.COMPLETED_WITH_WARNINGS,
+          outputTruncated: true,
+        });
+      }
+
       const toolCalls = response.toolCalls || [];
 
       // 模型未调用工具：给出最终结论。按诚实完成规则分类：
@@ -669,6 +779,10 @@ export class A9AgentLoop {
         } else if (stats.mutations && !stats.verifiedAfterMutation) {
           outcome = TurnOutcome.COMPLETED_WITH_WARNINGS;
         }
+        // C-4：出现过截断则不得是 COMPLETED。
+        if (this.outputTruncated && outcome === TurnOutcome.COMPLETED) {
+          outcome = TurnOutcome.COMPLETED_WITH_WARNINGS;
+        }
         const verification: A9VerificationStatus = stats.mutations
           ? (stats.verifiedAfterMutation ? 'verified' : 'unverified')
           : 'not_applicable';
@@ -679,7 +793,13 @@ export class A9AgentLoop {
           totalSteps: stepCount,
           toolCallsExecuted,
           verification,
-        }, 'turn_completed', { finalMessage: response.content, outcome, verification });
+          ...(this.outputTruncated ? { outputTruncated: true } : {}),
+        }, 'turn_completed', {
+          finalMessage: response.content,
+          outcome,
+          verification,
+          ...(this.outputTruncated ? { outputTruncated: true } : {}),
+        });
       }
 
       // 保留 assistant tool_calls 协议事实，供下一轮模型请求组装。
@@ -713,6 +833,7 @@ export class A9AgentLoop {
       finalMessage: `Turn reached max step limit (${maxSteps})`,
       totalSteps: stepCount,
       toolCallsExecuted,
+      ...(this.outputTruncated ? { outputTruncated: true } : {}),
     });
   }
 
@@ -730,6 +851,17 @@ export class A9AgentLoop {
     let executed = toolCallsExecuted;
     for (let index = 0; index < queue.length; index++) {
       const tc = queue[index];
+      // C-3：截断的工具调用不执行，向对话历史追加说明。
+      if (tc.truncated) {
+        this.outputTruncated = true;
+        this.conversationHistory.push({
+          role: 'tool',
+          toolCallId: tc.id,
+          toolName: tc.name,
+          content: TOOL_CALL_TRUNCATION_NOTE,
+        });
+        continue;
+      }
       if (signal?.aborted) {
         return {
           kind: 'final',

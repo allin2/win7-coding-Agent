@@ -369,3 +369,187 @@ describe('A9-05: A9AgentLoop and Coding Workflow', () => {
     expect(result.outcome).toBe(TurnOutcome.CANCELLED);
   });
 });
+
+describe('A9-21 M2 C-1..C-5: turn output budget and truncation', () => {
+  let mockWorkspace: A9WorkspacePort;
+  let mockRunner: A9RunnerPort;
+
+  beforeEach(() => {
+    mockWorkspace = {
+      list: jest.fn().mockResolvedValue({ totalEntries: 0, entries: [] }),
+      read: jest.fn().mockResolvedValue({ content: 'ok' }),
+      search: jest.fn().mockResolvedValue({ totalMatches: 0, matches: [] }),
+      write: jest.fn().mockResolvedValue({ bytesWritten: 1, created: true }),
+      edit: jest.fn().mockResolvedValue({ replaced: true }),
+      copy: jest.fn().mockResolvedValue({ copied: true }),
+      move: jest.fn().mockResolvedValue({ moved: true }),
+      delete: jest.fn().mockResolvedValue({ deleted: true }),
+    };
+    mockRunner = {
+      execute: jest.fn().mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', durationMs: 1, timedOut: false }),
+    };
+  });
+
+  function makeLoop(provider: A9ModelPort, onEvent?: (e: any) => void) {
+    return new A9AgentLoop({
+      workspaceRoot: '/test/workspace',
+      provider,
+      workspaceService: mockWorkspace,
+      runner: mockRunner,
+      permissionMode: PermissionMode.FULL_ACCESS,
+      ...(onEvent ? { onEvent } : {}),
+    });
+  }
+
+  it('9. accumulates tool-argument bytes across responses and ends BUDGET_EXCEEDED without executing the over-budget response tools', async () => {
+    const bigArgs = JSON.stringify({ path: 'a', content: 'x'.repeat(1.2 * 1024 * 1024) });
+    const bigArgs2 = JSON.stringify({ path: 'b', content: 'y'.repeat(1.2 * 1024 * 1024) });
+    let call = 0;
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn().mockImplementation(async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            id: 'r1', content: '', finishReason: 'tool_calls',
+            toolCalls: [{ id: 't1', name: 'write', arguments: bigArgs }],
+          };
+        }
+        return {
+          id: 'r2', content: '', finishReason: 'tool_calls',
+          toolCalls: [{ id: 't2', name: 'write', arguments: bigArgs2 }],
+        };
+      }),
+    };
+    const events: any[] = [];
+    const loop = makeLoop(provider, (e) => events.push(e));
+    const result = await loop.runTurn('write big');
+    // 两次 1.2 MiB 参数累加 > 2 MiB → BUDGET_EXCEEDED
+    expect(result.outcome).toBe(TurnOutcome.BUDGET_EXCEEDED);
+    expect(events.some((e) => e.type === 'turn_failed')).toBe(true);
+    // 超限响应的工具未执行（只允许第一次 write）
+    expect(mockWorkspace.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('10. budget is not reset across approval suspend/resume; resume continues toward the cap', async () => {
+    const bigWrite = JSON.stringify({ path: 'a', content: 'x'.repeat(1.5 * 1024 * 1024) });
+    const afterWrite = JSON.stringify({ path: 'b', content: 'y'.repeat(1.0 * 1024 * 1024) });
+    let call = 0;
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn().mockImplementation(async () => {
+        call += 1;
+        if (call === 1) {
+          // 同一响应：先 write（入账 1.5 MiB）再 git push（触发审批挂起）
+          return {
+            id: 'r1', content: '', finishReason: 'tool_calls',
+            toolCalls: [
+              { id: 'w1', name: 'write', arguments: bigWrite },
+              { id: 'push', name: 'shell', arguments: '{"command":"git push origin main"}' },
+            ],
+          };
+        }
+        // 恢复后下一响应：再 1.0 MiB → 累计 2.5 MiB 超限
+        return {
+          id: 'r2', content: '', finishReason: 'tool_calls',
+          toolCalls: [{ id: 'w2', name: 'write', arguments: afterWrite }],
+        };
+      }),
+    };
+    const loop = makeLoop(provider);
+    const suspended = await loop.runTurn('write then push');
+    expect(suspended.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+    const approval = suspended.pendingApproval!;
+    const resumed = await loop.resumeAfterApproval({
+      approvalId: approval.approvalId,
+      bindingDigest: approval.bindingDigest,
+      decision: 'approved',
+    });
+    // 若预算在恢复时被错误清零，r2 的 1.0 MiB 不会触发上限。
+    expect(resumed.outcome).toBe(TurnOutcome.BUDGET_EXCEEDED);
+    expect(mockWorkspace.write).toHaveBeenCalledTimes(1); // w1 执行，w2 因超限未执行
+  });
+
+  it('11. truncated response: tools not executed, model_note has Chinese content, COMPLETED_WITH_WARNINGS + outputTruncated', async () => {
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn().mockResolvedValue({
+        id: 'r1',
+        content: 'partial',
+        finishReason: 'length',
+        truncated: true,
+        truncation: {
+          reason: 'response_content_limit',
+          retainedBytes: 1024 * 1024,
+          limitBytes: 1024 * 1024,
+          droppedAtLeastBytes: 100,
+        },
+        toolCalls: [{ id: 'c1', name: 'write', arguments: '{"path":"a","content":"b"}' }],
+      }),
+    };
+    const events: any[] = [];
+    const loop = makeLoop(provider, (e) => events.push(e));
+    const result = await loop.runTurn('go');
+    expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
+    expect(result.outputTruncated).toBe(true);
+    expect(mockWorkspace.write).not.toHaveBeenCalled();
+    const notes = events.filter((e) => e.type === 'model_note');
+    expect(notes.length).toBeGreaterThan(0);
+    const note = notes.find((e) => typeof e.data?.content === 'string' && e.data.content.includes('截断'));
+    expect(note).toBeDefined();
+    expect(note.data.content.length).toBeGreaterThan(0);
+    expect(note.data.truncated).toBe(true);
+  });
+
+  it('12. single truncated tool call is not executed and history records the explanation', async () => {
+    let call = 0;
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn().mockImplementation(async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            id: 'r1', content: '', finishReason: 'tool_calls',
+            toolCalls: [
+              { id: 'good', name: 'write', arguments: '{"path":"a","content":"ok"}', truncated: false },
+              { id: 'bad', name: 'write', arguments: '{"path":"b","content":"no"}', truncated: true },
+            ],
+          };
+        }
+        return { id: 'r2', content: 'done', finishReason: 'stop' };
+      }),
+    };
+    const loop = makeLoop(provider);
+    const result = await loop.runTurn('go');
+    expect(mockWorkspace.write).toHaveBeenCalledTimes(1);
+    expect(mockWorkspace.write).toHaveBeenCalledWith('a', 'ok', expect.anything());
+    const history = loop.getConversationHistory();
+    const note = history.find((m) => m.role === 'tool' && m.toolCallId === 'bad');
+    expect(note).toBeDefined();
+    expect(note!.content).toContain('截断');
+    expect(result.outputTruncated).toBe(true);
+    expect(result.outcome).toBe(TurnOutcome.COMPLETED_WITH_WARNINGS);
+  });
+
+  it('13. A9-20 verification evidence cases still pass (edit then npm test → verified)', async () => {
+    let call = 0;
+    const provider: A9ModelPort = {
+      sendStreamRequest: jest.fn().mockImplementation(async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            id: 'r1', content: '', finishReason: 'tool_calls',
+            toolCalls: [{ id: 'e', name: 'edit', arguments: JSON.stringify({ path: 'calc.ts', old_text: 'a', new_text: 'b' }) }],
+          };
+        }
+        if (call === 2) {
+          return {
+            id: 'r2', content: '', finishReason: 'tool_calls',
+            toolCalls: [{ id: 's', name: 'shell', arguments: JSON.stringify({ command: 'npm test' }) }],
+          };
+        }
+        return { id: 'r3', content: 'ok', finishReason: 'stop' };
+      }),
+    };
+    const loop = makeLoop(provider);
+    const result = await loop.runTurn('fix');
+    expect(result.verification).toBe('verified');
+    expect(result.outcome).toBe(TurnOutcome.COMPLETED);
+  });
+});
