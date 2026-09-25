@@ -2261,3 +2261,19 @@
 - 后果：A9-19 获得独立、可追溯的实机结论路径；实时性由自动断言兜底，不依赖单次真实 Provider 的时序。代价是一轮完整换发
   （管线、双构建、授权、实机）；外部执行模型引入执行偏差风险，由“只交原始证据、禁止裁决、审核方复算哈希并逐项核对”控制。
   本 ADR 被接受前不得修改 §3 列出的发布管线文件。
+
+## ADR-0137 Git 外部写确认分类器：壳载荷不可精确解析时 fail-closed
+
+- 状态：Accepted（2026-09-25，负责人按建议批准，A9-20 §11 开放问题同时裁决）
+- 背景：Full Access 下 `git push` 等外部写入的目标绑定确认依赖 `classifyGitCommand`，其返回 `null` 即放行。
+  2026-09-25 在 `c8691e3` 上复现：CMD 开关与引号相连（`cmd /c"git push …"`）、开关簇（`/s/c`）、`/R`、
+  PowerShell 参数前缀（`-co`/`-e`/`-ec`）、相连形态与位置参数形态（`powershell "git push …"`）、POSIX 壳（`bash -c`/`-lc`）和引号包裹的超 256 KiB 载荷均被判为“无 Git”。
+  分类器自 `e80b8c8` 未变，WIN7-22、WIN7-37 等候选同源。A9-18 工作树曾部分修复但未提交、基线已分叉。
+  根因是解包只认精确拼写、兜底不解包、“超出分析能力”与“无 Git”同值。
+- 决策：按 [A9-20](tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md) 执行。（1）分析结果改为三态：无 Git / Git 决定 / 超出分析能力；
+  超出能力且已见 Git 相关 token 时按保守决定要求确认。（2）已知壳宿主（CMD、PowerShell/pwsh、bash/sh/dash/zsh）的载荷按开关前缀、
+  开关簇、相连形态与 PowerShell 位置参数解包（PowerShell 以 `command`/`encodedcommand` 任意前缀识别，不复刻版本歧义规则）；无法精确提取时对去引号整段扫描可执行 Git token，命中即确认，已知散文汇聚点豁免不变。
+  （3）超过单一常量 `MAX_ANALYZABLE_GIT_COMMAND_BYTES`（256 KiB）的 Shell 命令在 `policy.ts` 层一律要求确认，不依赖 loop 层守卫；Win7 命令行上限使其预计不可启动，此条为纵深防御。
+  （4）壳宿主命令只有在载荷解包成功、无 Git 决定且非纯输出时才可计为验证证据。（5）不改 IPC、审批摘要格式、Runner 与 Renderer。
+- 后果：部分此前静默执行的 Shell 命令会出现确认；深嵌套纯散文不因深度耗尽而误报。分类器仍是常见 Git 外部写入的确认闸而非安全边界，
+  ADR-0089 的可信工作区定位不变。本 ADR 不改判 WIN7-22、WIN7-37 或任何已签结论，也不授权候选换发；Win7 上的修复结论须来自另行批准的新候选。

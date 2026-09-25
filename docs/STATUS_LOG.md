@@ -1083,3 +1083,8 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-25，执行方按附录 C 在 Win7 上以 `agent` 完成正式报告校验：`REPORT_VERIFY_EXIT=0`，`PASS / A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS / 21`，
   审核方独立复核通过。负责人确认签发 WIN7-37 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`（可达响应式状态等效口径；≤799px 不可达/未验证），
   A9-19 Phase-Gate 改为 `A9_19_WIN7_37_LIVE_PROGRESS_AND_LAYOUT_PASS_EQUIVALENCE`；不构成 Alpha 2 或 RC PASS。
+
+- 2026-09-25，A9-17/A9-18 状态核查发现：Git 外部写确认分类器在 `c8691e3` 上对 `cmd /c"git push …"`、PowerShell 参数前缀与位置参数、
+  `bash -c`/`-lc` 等形态返回“无 Git”，Full Access 下不触发目标绑定确认；分类器自 `e80b8c8` 未变，WIN7-22、WIN7-37 等候选同源（分类器层复现，
+  Win7 端到端可达性待验证）。A9-18 工作树曾部分修复但未提交。负责人同日按建议批准 [A9-20](tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md)
+  与 ADR-0137，并授权按推荐优化需求；已签结论不改判，仅登记已知缺陷。
