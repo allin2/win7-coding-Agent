@@ -2280,7 +2280,7 @@
 
 ## ADR-0138 A9-18 成果按评估择优移植，不引入 schema 迁移，移植后删除工作树
 
-- 状态：Proposed（2026-09-25 起草，待负责人批准；批准前不构成实现授权）
+- 状态：Accepted（2026-09-25，负责人按建议批准）
 - 背景：A9-18 只存在于未提交工作树，基线 `7d06789`，两轮独立审查 `FAIL_FIX_REQUIRED` 后自报返修完成但未复审；工作树内各包测试全绿。
   主线实测（[承接台账 §7.1](plans/A9_17_A9_18_CARRYOVER_LEDGER.md)）表明，启动时全量加载并整读全部历史 checkpoint 快照，
   耗时随历史线性增长（100 Turn 约 4 s）。主线还存在模型输出无上限、渲染端事件集合无界、快照每次带出全部 checkpoint 列表等问题。
@@ -2294,7 +2294,7 @@
 
 ## ADR-0139 性能预算 #3 改按 Main 进程计量
 
-- 状态：Proposed（2026-09-25 起草，待负责人批准）
+- 状态：Accepted（2026-09-25，负责人按建议批准）
 - 背景：`PERFORMANCE_BUDGET.md` #3 按 ADR-0028 定义为“独立 utilityProcess 中的 Agent Core”，但 A9 实际把 Agent Core 与状态层运行在
   Electron Main 进程内，没有独立 utility 进程。A9-17 测量计划把 #3 映射到 `shell.utility`，按此采样会得到空值；#2 又把 Main 计入 Shell。
 - 决策：#3 改为“Main 进程常驻内存（含 Agent Core 与 A9 状态层）”，采样类别 `shell.main`；#2 改为 `shell.gpu`+`shell.renderer`；

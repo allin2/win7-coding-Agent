@@ -1,17 +1,18 @@
 # A9-21 — A9-18 有效成果移植与工作树清理
 
 ```text
-Status: PLANNED_NOT_AUTHORIZED
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RUNTIME_MEMORY_AND_STARTUP_HARDENING
 Target Branch: codex/a9-alpha2
 Source Baseline: A9-20 完成后的 codex/a9-alpha2
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_21_PENDING_OWNER_APPROVAL
+Phase-Gate: A9_21_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0138, ADR-0139
 ```
 
-> 2026-09-25 起草，待负责人批准。批准前不构成实现授权（AGENTS.md C14）。取舍依据见
+> 2026-09-25 起草；同日负责人按建议批准，ADR-0138/0139 同时接受，§7 开放问题按建议裁决（A9-20 先行）。
+> 实现仅限 §4 允许路径（AGENTS.md C14），在 A9-20 完成后开工。取舍依据见
 > [承接台账 §7](../plans/A9_17_A9_18_CARRYOVER_LEDGER.md)。
 
 ## 1. 目标
@@ -45,7 +46,7 @@ Decision: ADR-0138, ADR-0139
 不改 SQLite schema（保持 v4），不新增依赖、Runtime Profile、IPC 通道或 Chromium 开关；分页字段为新增可选字段，旧调用默认行为不变。
 Electron 22.3.27/Node 16 目标不变。输出上限数值在 Win7 企业模型服务下是否过紧为**待验证**。
 
-## 4. 允许路径（批准后生效，C14）
+## 4. 允许路径（C14）
 
 - M0：`docs/PERFORMANCE_BUDGET.md`、`docs/plans/WIN7_MEMORY_BASELINE_MEASUREMENT_PLAN.md`、`scripts/mvp_acceptance/a9_win7_memory_baseline.ps1`（仅头部注释）
 - M1：`src/shell/product/a9-agent-runtime.js`、`src/state/src/a9-persistence.ts`、`src/workspace/src/checkpoint-manager.ts`
@@ -72,7 +73,7 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 只到开发机验证（`Phase-Gate` 至多 `A9_21_DEVELOPER_VERIFIED`）。Win7 结论随后续候选换发另行批准；M0 完成后即可按 A9-17
 执行包进行 K17-1 采样，两者互不阻塞。
 
-## 7. 开放问题（附建议）
+## 7. 开放问题与裁决（2026-09-25，均按建议）
 
 1. **顺序**：建议 A9-20 先行，A9-21 在其之后开工（两者都改 `a9-agent-loop.ts`）。
 2. **输出上限数值**：建议沿用 A9-18 的 1 MiB / 512 KiB / 2 MiB，暂不做成配置项。
