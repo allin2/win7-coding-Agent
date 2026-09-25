@@ -141,3 +141,5 @@
 | ADR-0135 | 运行中模型输出以内存预览实时呈现，累积脱敏并保留尾部 | Accepted |
 | ADR-0136 | A9-19 以 WIN7-37 新候选进入 Win7 实机验收，实机执行可交由外部执行模型 | Accepted |
 | ADR-0137 | Git 外部写确认分类器：壳载荷不可精确解析时 fail-closed | Accepted |
+| ADR-0138 | A9-18 成果按评估择优移植，不引入 schema 迁移，移植后删除工作树 | Proposed |
+| ADR-0139 | 性能预算 #3 改按 Main 进程计量 | Proposed |
