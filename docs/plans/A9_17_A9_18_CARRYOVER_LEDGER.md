@@ -31,7 +31,7 @@ A9-18 工作树内容（2026-09-25 盘点）：31 个已修改文件、32 个未
 
 | ID | 需求 | 工作树实现情况（自报，未经再审） | 主线现状 |
 |---|---|---|---|
-| P0-1 | Checkpoint 懒对账：启动只对 SQLite 中断态、缺 checkpoint 投影的 Turn 定向读 manifest；缺失/损坏/跨工作区/未知分别记录；缓存限 50 条 + 16 MiB，只淘汰已持久化对象，不恢复已撤销授权，秘密集合扩大即失效 | 已实现；R06、R07 关闭 | **未实现**；启动仍全量枚举并加载 manifest（R06 见 §4） |
+| P0-1 | （主线已由 A9-21 M1 承接）Checkpoint 懒对账：启动只对 SQLite 中断态、缺 checkpoint 投影的 Turn 定向读 manifest；缺失/损坏/跨工作区/未知分别记录；缓存限 50 条 + 16 MiB，只淘汰已持久化对象，不恢复已撤销授权，秘密集合扩大即失效 | 已实现；R06、R07 关闭 | **未实现**；启动仍全量枚举并加载 manifest（R06 见 §4） |
 | P0-2 | 历史查询与模型上下文恢复有界化：schema v5 `a9_conversation_facts` 投影表与索引、消除全会话物化、迁移前 VACUUM INTO 备份与回滚、旧程序拒绝新版本、流式 SHA-256 备份、投影缺失不得伪装成空历史、模型恢复 newest-first 预算游标（保持 20 轮 / 32,000 字符规则） | 已实现，schema 已到 v6（投影就绪表）；R01～R03、R13 关闭 | 主线 schema v4；只有 A9-17 的 UI 分页 |
 | P0-3 | Checkpoint 列表与快照瘦身：SQL 层最近 50 条 + 总数 + 稳定游标；`a9.checkpoint.list` 走轻量 IPC；快照同样限 50 条；保留会话/工作区绑定 | 已实现；R09、R12 关闭 | **未实现**；`listCheckpoints` 无上限，快照全量带出 |
 | P0-4 | 模型输出端到端上限：单响应 1 MiB、单工具参数 512 KiB、单 Turn 2 MiB；流式超限停止积累并带 `truncated` 元数据；截断的工具参数绝不执行；各终态清理；跨 chunk 与截断点脱敏 | 已实现；R04、R05 关闭 | **未实现**；主线无输出上限 |
@@ -49,7 +49,7 @@ R01–R13 与 D-3～D-7 在工作树内自报已关闭，**轮 8 之后没有独
 
 | ID | 缺陷 | 主线状态 | 承接 |
 |---|---|---|---|
-| R06 | 启动恢复中 `loadCheckpoint` 遇到缺失 manifest 返回 `undefined` 而不抛异常，`a9-agent-runtime.js:640-642` 仍把该 Turn 计入 `validTurnIds`。主线上候选 Turn 来自 `listPersistedTurns()` 对现存 manifest 文件的枚举（`checkpoint-manager.ts:722-727`），故只有“枚举后、读取前文件被删除”的竞态可达；主要问题是启动全量枚举并加载全部 manifest（P0-1） | 存在于 `a884fff`，可达性低（代码核查，未运行复现；早于 A9-17） | 随 P0-1 修复：`undefined` 按缺失记录，不计入有效集 |
+| R06 | 启动恢复中 `loadCheckpoint` 遇到缺失 manifest 返回 `undefined` 而不抛异常，`a9-agent-runtime.js:640-642` 仍把该 Turn 计入 `validTurnIds`。主线上候选 Turn 来自 `listPersistedTurns()` 对现存 manifest 文件的枚举（`checkpoint-manager.ts:722-727`），故只有“枚举后、读取前文件被删除”的竞态可达；主要问题是启动全量枚举并加载全部 manifest（P0-1） | 存在于 `a884fff`，可达性低（代码核查，未运行复现；早于 A9-17） | **已关闭**（2026-09-25）：[A9-21](../tasks/A9_21_A9_18_SALVAGE_PORT.md) M1，缺失记为 `missing`，启动不再全量加载 |
 | D-1/D-2、R8-1～R8-4、ADR-0130 | Git 外部写确认分类器绕过、验证记账旁路、超长命令 fail-open | 存在 | [A9-20](../tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md)、ADR-0137 |
 | R05 类 | 模型输出无上限（主线没有截断，因此也没有静默截断问题；风险是内存无界） | 存在 | 随 P0-4 |
 

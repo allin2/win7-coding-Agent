@@ -90,3 +90,29 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
   `a9-memory-baseline-tests.mjs` 通过。脚本 SHA-256 由 `61082726…dd95`（A9-17 §5 记录值）变为
   `198bdac3fe857be8d75210d4a3dd97fae042154745adaaf5a4e69a344bf0d0b6`，K17-1 采样须绑定新值。
 - 未改：`ARCHITECTURE.md`、SPIKE_01/02、PHASE_03/06 中按 ADR-0028 描述的 utilityProcess 设计，属历史设计陈述，不是预算口径，也不在本任务允许路径内。
+
+### M1 启动定向恢复（2026-09-25，完成）
+
+- 状态层新增 `findInterruptedWorkspaceTurnsNeedingCheckpoint`：只列出本工作区 `interrupted` 且没有 checkpoint 行的 Turn，
+  按 `(created_at, turn_id)` 排序；只用 v4 既有表。
+- 运行时启动只对上述 Turn 读取 manifest：校验失败记 `quarantined`，清单不存在记 `missing`（诊断 ≤300 字符），都不进入对账；
+  SQLite 不认识的磁盘清单不再扫描，保持原状，undo 以 `A9_CHECKPOINT_NOT_FOUND` 拒绝。其余历史在 diff/undo 调用
+  `loadCheckpoint` 时照常完整校验。
+- `CheckpointManager`：拆出不写缓存的 `readValidatedCheckpoint`；`revalidatePersistedTurns`（密钥轮换）仍逐个校验全部清单，
+  但结果不写入缓存。
+- 测试：状态层 1 项（候选范围、跨工作区、已对账后移出）；workspace 新文件 `a9-21-revalidate-cache.test.ts` 2 项；
+  lifecycle 新增定向恢复用例（有效/损坏/缺失/他工作区），并把原“启动隔离旧 v4 清单”用例改为新行为。
+- 负向对照（新测试放在 `c759790` 代码上）：workspace 缓存用例失败，lifecycle 两项失败，状态层因方法不存在编译失败；
+  “复核仍拦截已知秘密”用例新旧都通过（行为保持）。
+- 全量：state 303、workspace 213、shell 39 套 377 项通过，各包 `tsc --noEmit` 通过。
+- 启动对比（开发机 M4，Node 20.17，真实 `createA9AgentRuntime`，300 个 16 KiB 类代码文件的工作区、100 个历史 Turn、
+  恢复目录 480 MiB，各 3 次）：旧代码 8,051～8,272 ms、堆增量 17.3 MiB；新代码 35～51 ms、堆增量 4.4 MiB。
+  旧值约为台账 §7.1 的两倍，是因为运行时路径还对每个快照做敏感内容扫描。未在 Win7 上测。
+
+### M1 期间发现的范围外缺陷（待负责人裁决，未修改）
+
+`redactSecrets` 中检测 URL 内嵌凭据的正则 `([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@` 在连续的字母、数字或 `+.-` 上是二次复杂度：
+64 K 字符约 2 s，256 K 约 30 s（开发机）。它出现在 `a9-agent-runtime.js:72`、`:391` 与渲染端 `a9-workbench.js:117`，
+经 `containsSensitiveCheckpointData` 作用于每个 checkpoint 快照、工具输出和事件。常见源码与 Base64 被标点打断，只需几毫秒；
+长的十六进制或纯字母串（数据文件、单行生成物）会让基线冻结、启动或脱敏卡住。修法是给协议名加长度上限（如 `{0,31}`），
+但它改动的是脱敏行为，不属于 M1 的启动恢复范围，需另行授权。
