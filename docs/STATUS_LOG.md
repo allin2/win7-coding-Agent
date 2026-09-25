@@ -1079,3 +1079,7 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   最坏形态“进行中1 / 更早8 / 归档1”下完整可见 5 行，断言全部为 true。
 - 2026-09-25，负责人沿用 WIN7-36 可达响应式等效口径。正式报告组装完成（21/21 PASS，附等效裁决）；开发机预检，冻结候选自带校验器返回 PASS。
   待按附录 C 在 Win7 上以 `agent` 执行报告校验后再签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`。
+
+- 2026-09-25，执行方按附录 C 在 Win7 上以 `agent` 完成正式报告校验：`REPORT_VERIFY_EXIT=0`，`PASS / A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS / 21`，
+  审核方独立复核通过。负责人确认签发 WIN7-37 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`（可达响应式状态等效口径；≤799px 不可达/未验证），
+  A9-19 Phase-Gate 改为 `A9_19_WIN7_37_LIVE_PROGRESS_AND_LAYOUT_PASS_EQUIVALENCE`；不构成 Alpha 2 或 RC PASS。

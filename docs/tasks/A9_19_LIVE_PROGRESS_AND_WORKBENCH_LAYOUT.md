@@ -6,8 +6,8 @@ Task Type: PRODUCT_EXPERIENCE
 Target Branch: codex/a9-alpha2
 Source Baseline: 6adaaf0
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7
-Win7-Validation: NOT_PERFORMED
+Phase-Gate: A9_19_WIN7_37_LIVE_PROGRESS_AND_LAYOUT_PASS_EQUIVALENCE
+Win7-Validation: WIN7_37_LIVE_PROGRESS_AND_LAYOUT_PASS_WITH_REACHABLE_RESPONSIVE_EQUIVALENCE
 Decision: ADR-0135
 ```
 
@@ -267,3 +267,18 @@ W37-19 附审核方像素量测脚本与结果（两张运行中截图的对话�
 开发机预检：冻结候选自带的校验器返回 `PASS / A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS / 21`，篡改反例被拒绝。
 这不是 Win7 校验：签发前须按[交接书 §12 附录 C](../plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) 在 Win7 上以 `agent` 复核。
 Phase-Gate 仍为 `A9_19_WIN7_37_AUTHORIZED_READY_FOR_WIN7`。
+
+## 17. WIN7-37 签发（2026-09-25，负责人确认）
+
+执行方按交接书附录 C，在 Win7 上以 `agent`（Medium，非提升）运行候选内报告校验：`REPORT_VERIFY_EXIT=0`，stderr 为空；
+输出为 `status=PASS`、`disposition=A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`、`verified_cases=21`，候选身份与模板逐字段相等。
+审核方独立复核：Win7 上传哈希 84/84 一致，各轮证据清单完好，后飞行零残留。
+
+负责人确认签发 **`A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`**（WIN7-37，ZIP `4d700632…f167cf`）：
+
+- W37-06 A03、12、13、15 按可达响应式状态等效口径通过；
+- `<=799px` 分支保持 `PRODUCT_UNREACHABLE / NOT_VERIFIED`；
+- 不构成完整 Alpha 2、Review、Shell streaming、RC 或产品发布 PASS。
+
+Phase-Gate 改为 `A9_19_WIN7_37_LIVE_PROGRESS_AND_LAYOUT_PASS_EQUIVALENCE`。
+收口报告：[WIN7-37 实机验收收口](../reports/2026-09/a9_19_win7_37_live_progress_acceptance_2026-09-25.md)。

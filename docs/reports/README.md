@@ -8,6 +8,7 @@
 
 | 报告 | 日期 | 类型 |
 |------|------|------|
+| [A9-19 WIN7-37 运行过程实时可见与布局二期实机验收收口](2026-09/a9_19_win7_37_live_progress_acceptance_2026-09-25.md) | 09-25 | 同一冻结 WIN7-37 候选在 Win7 SP1 x64 普通用户非提权会话完成首轮 G1→G2→G3 与附录 A/B/C 补跑及报告校验，21/21，按可达响应式状态等效口径签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`；不构成 Alpha 2 或 RC PASS |
 | [A9-16 WIN7-36 实机 UI 子集验收收口](2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md) | 09-24 | 同一冻结 WIN7-36 候选在 Win7 SP1 x64 普通用户非提权会话 G1→G2→G3 与 15 项 UI 子集核验，按负责人批准的可达响应式状态等效裁决签发 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`；≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED`，不构成完整 Alpha 2 或 RC PASS |
 | [WIN7-35 短高容量源码修复几何证据](2026-09/a9-16-ui-evidence/win7-35-short-height-capacity-source-repair-geometry.json) | 09-23 | WIN7-35 实机 3 行失败根因（`conversation-directory-note` 选择器未绑定）与 1079×540 同条件前后几何（列表 178→207px，3→4 行）；复现闸门见 [REPLAY.md](2026-09/a9-16-ui-evidence/win7-35-capacity-repair/REPLAY.md)；开发机 Chromium 几何，不是 Win7 证据 |
 | [A9-16 UI 子集实现报告（U01–U07 / 响应式四态）](2026-09/a9_16_ui_implementation_2026-09-14.md) | 09-14 | 任务书 §7 授权的 UI 子集：左栏三段式与单行密度、桌面四态状态类切换、aria 同步与 DOM 保活、进行中/更早分组；含 U02 左栏高度预算（固定 chrome 474.8→379.9px，列表 147.2→238.0px）与 U06 跨断点回归修复；shell 37 套件 357 项全绿；开发机真实 Electron 几何量测确认四态/断点无溢出、最坏形态 4 条完整行；像素级视觉与 Win7/125% DPI 实机回归 NOT_PERFORMED，不构成 Alpha 2 PASS |

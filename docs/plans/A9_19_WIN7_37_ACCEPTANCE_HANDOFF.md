@@ -1,7 +1,7 @@
 # A9-19 / WIN7-37 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: REPORT_VERIFY_READY_FOR_EXECUTION（2026-09-25：首轮、附录 A/B 均已执行并审核；负责人沿用 WIN7-36 等效口径；按 §12 附录 C 在 Win7 执行正式报告校验）
+Status: CLOSED（2026-09-25：附录 C 的 Win7 报告校验通过，负责人签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`；见任务书 §17）
 Scope: A9-19 运行过程实时可见与工作台布局二期（b4c138b + 9d82ed1）
 Executor: 外部执行模型（负责人指定，例如 Gemini 3.8 Flash）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）
