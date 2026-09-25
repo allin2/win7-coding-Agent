@@ -25,7 +25,7 @@ A9-18 工作树内容（2026-09-25 盘点）：31 个已修改文件、32 个未
 | K17-2 | PowerShell 采样脚本与行为夹具从未真正执行（macOS 无 PowerShell） | 只做过静态检查 | 随 K17-1 在 Windows 上先跑夹具 |
 | K17-3 | 两份开发机证据（`/tmp`、`/private/var/folders`）已被系统清理 | 只剩 SHA-256 | 不可恢复；Win7 采样须入库保存原始数据 |
 | K17-4 | 数据库侧内存仍随历史增长：0→5,000 轮时 Main 进程 +33.9 MiB，SQL 仍扫描排序整个会话的元数据 | 未解决 | A9-18 P0-2 的目标，见 §3 |
-| K17-5 | **预算定义矛盾**：`PERFORMANCE_BUDGET.md` #3 按 ADR-0028 定义为“独立 utilityProcess 中的 Agent Core”，实际 Core 运行在 main；A9-17 测量计划把 #3 映射到 `shell.utility`，按现口径会测到空进程 | 主线未处理；A9-18 X03 仅在工作树里改了预算与计划 | 需新 ADR 重订 #3 口径，须在 K17-1 采样**之前**完成 |
+| K17-5 | **预算定义矛盾**：`PERFORMANCE_BUDGET.md` #3 按 ADR-0028 定义为“独立 utilityProcess 中的 Agent Core”，实际 Core 运行在 main；A9-17 测量计划把 #3 映射到 `shell.utility`，按现口径会测到空进程 | **已关闭**（2026-09-25）：预算与测量计划已按 ADR-0139 改为 `shell.main` | [A9-21](../tasks/A9_21_A9_18_SALVAGE_PORT.md) M0；采样脚本新 SHA-256 `198bdac3…0b6` |
 
 ## 3. A9-18 需求（原任务书 §2 摘要）
 

@@ -20,7 +20,7 @@
 |---|------|------|----------|----------|----------------|------|
 | 1 | 应用冷启动（双击到会话可输入） | ≤ 8s | 秒表/日志时间戳，冷启动（重启后首次），取 3 次中位数 | SPIKE_01 | Go ≤ 8s；No-Go > 12s（8~12s 记有条件达标并列改进项） | 未实测 |
 | 2 | Desktop Shell 常驻内存（Renderer + GPU 进程合计） | ≤ 300MB | 任务管理器/`tasklist` 采样，空闲会话 10 分钟均值 | SPIKE_01 | Go ≤ 300MB；No-Go > 450MB | 未实测 |
-| 3 | Agent Core 常驻内存（独立 utilityProcess） | ≤ 180MB | 同上，含 SQLite 缓存 | SPIKE_01 | Go ≤ 180MB；No-Go > 280MB | 未实测 |
+| 3 | Main 进程常驻内存（含 Agent Core 与 A9 状态层） | ≤ 180MB | 同上，按 `shell.main` 采样，含 SQLite 页缓存 | SPIKE_01 | Go ≤ 180MB；No-Go > 280MB | 未实测（ADR-0139：A9 的 Agent Core 运行在 Main 进程内，没有独立 utilityProcess） |
 | 4 | Runner/终端宿主内存（每实例） | ≤ 60MB | 运行长输出命令期间峰值 | SPIKE_02 | Go ≤ 60MB；No-Go > 100MB | 未实测 |
 | 5 | 代码索引吞吐（FTS 首次全量） | ≥ 120 文件/s；规模上限 3 万文件 | 标准样本仓库（混合中英文源码）计时；本地 NTFS SSD | SPIKE_04 | Go ≥ 120 文件/s；No-Go < 60 文件/s | 达标：3k 1312.34、10k 1213.89、30k 1089.52 文件/s（[A6 WIN7_PASS](status/a6-storage-latest.json)） |
 | 6 | 事件批量写入（EventStore，WAL + 批量事务） | ≥ 300 events/s 持续 | 合成事件流压测 60s，本地 NTFS SSD | SPIKE_04 | Go ≥ 300；No-Go < 150 | 达标：60s、61650.86 events/s（[A6 WIN7_PASS](status/a6-storage-latest.json)） |

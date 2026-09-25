@@ -5,7 +5,8 @@
 
   Goal: attribute resident memory to the A9 process tree on Windows 7 SP1 x64 so a
   comparable baseline exists for PERFORMANCE_BUDGET items #2 (Shell resident),
-  #3 (Core utilityProcess), #4 (Runner/helper per instance) and #10 (app total).
+  #3 (Main process incl. Agent Core; ADR-0139), #4 (Runner/helper per instance)
+  and #10 (app total).
 
   Invariants:
     - Read-only. Never starts, stops, injects into or modifies the product.

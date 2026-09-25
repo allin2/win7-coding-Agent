@@ -78,3 +78,15 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 1. **顺序**：建议 A9-20 先行，A9-21 在其之后开工（两者都改 `a9-agent-loop.ts`）。
 2. **输出上限数值**：建议沿用 A9-18 的 1 MiB / 512 KiB / 2 MiB，暂不做成配置项。
 3. **删除时机**：建议 M1～M4 提交且验证通过后立即执行 M5；如需更早删除，须先把参考代码另存为补丁文件。
+
+## 8. 实施记录
+
+### M0 预算 #3 口径（2026-09-25，完成）
+
+- `PERFORMANCE_BUDGET.md` #3 改为“Main 进程常驻内存（含 Agent Core 与 A9 状态层）”，按 `shell.main` 采样；阈值与“未实测”不变。
+- 测量计划：#2 映射改为 `shell.gpu`+`shell.renderer`，#3 改为 `shell.main`；`shell.utility` 说明为正常应为空；汇报口径同步。
+  原稿借用 A9-18 工作树的 X03 修订，ADR 引用改为主线的 ADR-0139；A9-18 同一处新增的实验矩阵一节不移植（ADR-0138）。
+- `a9_win7_memory_baseline.ps1` 只改头部注释，仍为纯 ASCII、LF；采样逻辑与进程分类未变。源码契约检查
+  `a9-memory-baseline-tests.mjs` 通过。脚本 SHA-256 由 `61082726…dd95`（A9-17 §5 记录值）变为
+  `198bdac3fe857be8d75210d4a3dd97fae042154745adaaf5a4e69a344bf0d0b6`，K17-1 采样须绑定新值。
+- 未改：`ARCHITECTURE.md`、SPIKE_01/02、PHASE_03/06 中按 ADR-0028 描述的 utilityProcess 设计，属历史设计陈述，不是预算口径，也不在本任务允许路径内。

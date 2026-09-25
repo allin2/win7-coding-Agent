@@ -10,7 +10,7 @@
 ## 1. 目的与边界
 
 用户报告"Win 内存占用还是很高"。当前 `docs/PERFORMANCE_BUDGET.md` 的四条内存预算——#2（Desktop Shell
-常驻 ≤300MB）、#3（Agent Core 常驻 ≤180MB）、#4（Runner 每实例 ≤60MB）、#10（应用总内存 ≤55% 物理内存）
+常驻 ≤300MB）、#3（Main 进程常驻 ≤180MB，含 Agent Core）、#4（Runner 每实例 ≤60MB）、#10（应用总内存 ≤55% 物理内存）
 ——状态**全部是 `未实测`**，且 ADR-0033 仍为 `Proposed`。因此"高"目前**没有正式对照基准**，直接进入优化
 无法证明改善。
 
@@ -28,8 +28,8 @@
 
 | 预算 | 口径 | 对应进程类别（脚本 category） | 取值方式 |
 |---|---|---|---|
-| #2 | Desktop Shell 常驻内存 | `shell.main` + `shell.gpu` + `shell.renderer` 合计 | 空闲会话 10 分钟窗口的**均值**与峰值 |
-| #3 | Agent Core 常驻内存 | `shell.utility`（Electron utility；Core 在主进程内） | 同上，含 SQLite 页缓存 |
+| #2 | Desktop Shell 常驻内存 | `shell.gpu` + `shell.renderer` 合计（Main 归 #3，ADR-0139） | 空闲会话 10 分钟窗口的**均值**与峰值 |
+| #3 | Main 进程常驻内存（含 Agent Core 与 A9 状态层） | `shell.main`（Core 运行在 Main 进程内，ADR-0139） | 同上，含 SQLite 页缓存 |
 | #4 | Runner/终端宿主每实例 | `runner.helper` / `runner.shell-child` / `runner.tool` | 长输出命令期间**峰值**，按单实例口径拆分 |
 | #10 | 应用总内存（全部进程合计） | 全部 A9 进程（排除 `env.*`） | 最重负载场景**峰值** / `TotalVisibleMemorySize` |
 | 附加 | 退出残留 | 全部 A9 进程 | 产品退出后 5 分钟内必须恒为 0 |
@@ -77,7 +77,7 @@ S4 构造提示（来自既有经验）：批量轮次必须使用**互不相同
 | `shell.main` | 根 `electron.exe` |
 | `shell.gpu` | 命令行含 `--type=gpu-process` |
 | `shell.renderer` | 命令行含 `--type=renderer` |
-| `shell.utility` | 命令行含 `--type=utility`（Electron utility；Core 运行在 main 中） |
+| `shell.utility` | 命令行含 `--type=utility`（通用 Electron utility 分类；A9 没有承载 Core 的 utility 进程，正常应为空，非空须说明来源） |
 | `shell.other` | 含其他 `--type=` |
 | `runner.helper` | 名称含 `helper` |
 | `runner.shell-child` | `cmd.exe` / `powershell.exe` |
@@ -134,7 +134,7 @@ Node 源码契约检查：`node .\a9-memory-baseline-tests.mjs`。本机没有 W
 
 ## 8. 判读规则
 
-1. 先看**归因**再看总数：分别报 `shell.*` 合计、`shell.utility`、`runner.*` 峰值，再报 A9 合计占物理内存比例。
+1. 先看**归因**再看总数：分别报 `shell.gpu`+`shell.renderer`（#2）、`shell.main`（#3）、`runner.*` 峰值，`shell.utility` 非空时单列说明，再报 A9 合计占物理内存比例。
 2. 每个数字必须绑定预算编号（#2/#3/#4/#10），不得给出无口径的"内存占用"。
 3. 区分"运行中高"与"退出后仍高"：S7 不为 0 时，结论应指向残留进程/进程树回收，而非产品堆。
 4. 区分稳态与峰值：#2/#3 用稳态均值，#4/#10 用峰值，不得混用。
