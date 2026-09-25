@@ -674,12 +674,17 @@ export class CheckpointManager {
   loadCheckpoint(turnId: string): TurnCheckpoint | undefined {
     const memory = this.checkpoints.get(turnId);
     if (memory) return memory;
+    const parsed = this.readValidatedCheckpoint(turnId);
+    if (parsed) this.checkpoints.set(turnId, parsed);
+    return parsed;
+  }
+
+  /** 从磁盘读取并完整校验清单，不写入缓存；清单不存在返回 undefined。 */
+  private readValidatedCheckpoint(turnId: string): TurnCheckpoint | undefined {
     const manifestPath = this.manifestPath(turnId);
     if (!fs.existsSync(manifestPath)) return undefined;
     try {
-      const parsed = this.validateCheckpoint(JSON.parse(fs.readFileSync(manifestPath, 'utf8')), turnId);
-      this.checkpoints.set(turnId, parsed);
-      return parsed;
+      return this.validateCheckpoint(JSON.parse(fs.readFileSync(manifestPath, 'utf8')), turnId);
     } catch (err) {
       throw new Error(`无法读取 Checkpoint 清单 ${manifestPath}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -727,13 +732,16 @@ export class CheckpointManager {
       .map((name) => name.slice(0, -5));
   }
 
-  /** 重新按当前已知秘密集合验证所有持久化 Turn；用于 Provider 密钥轮换后 fail-closed。 */
+  /**
+   * 重新按当前已知秘密集合验证所有持久化 Turn；用于 Provider 密钥轮换后 fail-closed。
+   * 校验结果不写入缓存，避免一次全量复核让全部历史清单常驻内存；之后按需重新加载。
+   */
   revalidatePersistedTurns(): void {
     const turnIds = this.listPersistedTurns();
     this.checkpoints.clear();
     for (const turnId of turnIds) {
       try {
-        this.loadCheckpoint(turnId);
+        this.readValidatedCheckpoint(turnId);
       } catch (error) {
         if (error instanceof Error && error.message.includes('A9_CHECKPOINT_SECRET_BLOCKED')) throw error;
         // Existing malformed/legacy Turns remain individually quarantined;

@@ -967,6 +967,25 @@ export class A9PersistenceManager {
    * SQLite projection; completed/foreign/unknown Turns are ignored. The
    * workspace manifest remains the source of file-level undo facts.
    */
+  /**
+   * Turns of this workspace that a restart marked interrupted before their final
+   * checkpoint row was written. Startup recovery reads only these manifests
+   * instead of loading the whole checkpoint history (A9-21 M1).
+   */
+  findInterruptedWorkspaceTurnsNeedingCheckpoint(workspacePath: string): string[] {
+    const rows = this.db.prepare(`
+      SELECT t.turn_id
+      FROM a9_turns t
+      JOIN a9_sessions s ON s.session_id = t.session_id
+      LEFT JOIN a9_checkpoints c ON c.turn_id = t.turn_id
+      WHERE t.status = 'interrupted'
+        AND s.workspace_path = ?
+        AND c.turn_id IS NULL
+      ORDER BY t.created_at ASC, t.turn_id ASC
+    `).all(workspacePath) as Array<{ turn_id: string }>;
+    return rows.map((row) => row.turn_id);
+  }
+
   reconcileInterruptedWorkspaceCheckpoints(workspacePath: string, turnIds: string[]): string[] {
     const candidates = Array.from(new Set(turnIds.filter((turnId) => typeof turnId === 'string' && turnId.length > 0)));
     const recovered: string[] = [];

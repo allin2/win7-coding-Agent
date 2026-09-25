@@ -1103,7 +1103,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
     }
   }, 30_000);
 
-  it('quarantines an older unbound v4 checkpoint without blocking new work', async () => {
+  it('leaves an older unbound v4 checkpoint unknown to SQLite untouched without blocking new work', async () => {
     const env = makeEnv();
     const fixture = await startQuickFixture();
     const manifestDir = path.join(env.workspaceRoot, '.agent_recovery', 'checkpoints');
@@ -1120,10 +1120,12 @@ describe('F5: pending approval keeps active state and resume continues the same 
     const runtime = makeRuntime(env);
     try {
       const initial = runtime.getSnapshot();
-      expect(initial.checkpointRecoveryDiagnostics.code).toBe('A9_CHECKPOINT_TURNS_QUARANTINED');
-      expect(initial.checkpointRecoveryDiagnostics.rejectedTurns).toEqual([
-        expect.objectContaining({ turnId: 'legacy-v4' }),
-      ]);
+      // A9-21 M1: startup only reads manifests of interrupted Turns SQLite knows.
+      // The legacy file is neither scanned nor quarantined and stays as evidence;
+      // with no SQLite checkpoint its undo remains unavailable.
+      expect(initial.checkpointRecoveryDiagnostics ?? null).toBeNull();
+      expect(initial.checkpoints).toEqual([]);
+      await expect(runtime.undoTurn('legacy-v4')).rejects.toMatchObject({ code: 'A9_CHECKPOINT_NOT_FOUND' });
 
       runtime.setMode('full_access');
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
@@ -1134,6 +1136,60 @@ describe('F5: pending approval keeps active state and resume continues the same 
     } finally {
       await runtime.shutdown();
       await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('recovers only targeted interrupted Turns and reports missing or corrupt manifests without forging recovery', async () => {
+    const env = makeEnv();
+    let reopened: any;
+    try {
+      const first = makeRuntime(env);
+      const sessionId = first.getSnapshot().activeConversationId;
+      await first.shutdown();
+
+      const { A9WorkspaceService } = require('../../../workspace/dist');
+      const workspace = new A9WorkspaceService(env.workspaceRoot);
+      await workspace.freezeTurnBaseline('turn-m1-valid');
+      await workspace.freezeTurnBaseline('turn-m1-foreign');
+      const manifestDir = path.join(env.workspaceRoot, '.agent_recovery', 'checkpoints');
+      fs.writeFileSync(path.join(manifestDir, 'turn-m1-corrupt.json'), '{not-json', 'utf8');
+      const db = new Database(path.join(env.dataRoot, 'a9-state.db'));
+      const now = new Date().toISOString();
+      db.prepare('INSERT INTO a9_sessions (session_id, workspace_path, created_at, updated_at, last_activated_at) VALUES (?, ?, ?, ?, ?)')
+        .run('session-m1-foreign', path.join(env.root, 'other-workspace'), now, now, now);
+      const insertTurn = (turnId: string, session: string) => {
+        db.prepare('INSERT INTO a9_tasks (task_id, session_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+          .run(`task-${turnId}`, session, 'active', now, now);
+        db.prepare('INSERT INTO a9_turns (turn_id, task_id, session_id, status, outcome_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(turnId, `task-${turnId}`, session, 'active', '{}', now, now);
+      };
+      for (const turnId of ['turn-m1-valid', 'turn-m1-corrupt', 'turn-m1-missing']) insertTurn(turnId, sessionId);
+      insertTurn('turn-m1-foreign', 'session-m1-foreign');
+      db.close();
+
+      reopened = makeRuntime(env);
+      const snapshot = reopened.getSnapshot();
+      expect(snapshot.checkpoints).toEqual(expect.arrayContaining([
+        expect.objectContaining({ turnId: 'turn-m1-valid' }),
+      ]));
+      expect(snapshot.checkpointRecoveryDiagnostics.code).toBe('A9_CHECKPOINT_TURNS_QUARANTINED');
+      const rejected = snapshot.checkpointRecoveryDiagnostics.rejectedTurns;
+      expect(rejected.map((entry: any) => [entry.turnId, entry.status]).sort()).toEqual([
+        ['turn-m1-corrupt', 'quarantined'],
+        ['turn-m1-missing', 'missing'],
+      ]);
+      for (const entry of rejected) expect(entry.detail.length).toBeLessThanOrEqual(300);
+
+      const check = new Database(path.join(env.dataRoot, 'a9-state.db'), { readonly: true });
+      const recovered = check.prepare('SELECT payload_json FROM a9_checkpoints WHERE turn_id = ?').get('turn-m1-valid') as any;
+      expect(JSON.parse(recovered.payload_json).recoveredFromWorkspaceManifest).toBe(true);
+      // Missing, corrupt and other-workspace Turns never get a forged recovery row.
+      expect((check.prepare('SELECT COUNT(*) AS n FROM a9_checkpoints WHERE turn_id IN (?, ?, ?)')
+        .get('turn-m1-corrupt', 'turn-m1-missing', 'turn-m1-foreign') as any).n).toBe(0);
+      check.close();
+    } finally {
+      if (reopened) await reopened.shutdown();
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);

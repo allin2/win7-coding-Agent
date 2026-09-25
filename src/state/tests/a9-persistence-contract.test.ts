@@ -1173,6 +1173,31 @@ describe('A9-06: A9 persistence with a real SQLite adapter', () => {
     expect(manager.getCheckpoint('turn-foreign')).toBeNull();
   });
 
+  it('lists only same-workspace interrupted Turns still missing a checkpoint for targeted startup recovery', () => {
+    const outcome = A9PersistenceManager.open({ databasePath: env.dbPath, openDatabase: openReal, dataRoot: env.dataRoot });
+    expect(outcome.status).toBe('ready');
+    if (outcome.status !== 'ready') return;
+    const manager = outcome.manager;
+    manager.saveSession('s-local', '/ws');
+    manager.saveSession('s-foreign', '/other');
+    manager.upsertTask('task-local', 's-local', 'active');
+    for (const turnId of ['turn-b', 'turn-a', 'turn-done']) manager.upsertTurn(turnId, 'task-local', 's-local', 'active');
+    manager.upsertTurn('turn-done', 'task-local', 's-local', 'completed');
+    manager.upsertTask('task-foreign', 's-foreign', 'active');
+    manager.upsertTurn('turn-foreign', 'task-foreign', 's-foreign', 'active');
+    expect(manager.findInterruptedWorkspaceTurnsNeedingCheckpoint('/ws')).toEqual([]);
+
+    manager.markInterruptionsOnRestart();
+    const candidates = manager.findInterruptedWorkspaceTurnsNeedingCheckpoint('/ws');
+    // Same created_at is possible within one millisecond; turn_id breaks the tie.
+    expect(candidates.sort()).toEqual(['turn-a', 'turn-b']);
+    expect(manager.findInterruptedWorkspaceTurnsNeedingCheckpoint('/other')).toEqual(['turn-foreign']);
+
+    // Once reconciled a Turn has its checkpoint row and is no longer a candidate.
+    expect(manager.reconcileInterruptedWorkspaceCheckpoints('/ws', ['turn-a'])).toEqual(['turn-a']);
+    expect(manager.findInterruptedWorkspaceTurnsNeedingCheckpoint('/ws')).toEqual(['turn-b']);
+  });
+
   it('migrates v3 sessions and invalidates restart-era pending approvals without losing history', () => {
     const legacy = new Database(env.dbPath);
     legacy.exec(`

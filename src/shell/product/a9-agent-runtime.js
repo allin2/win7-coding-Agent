@@ -631,18 +631,37 @@ function createA9AgentRuntime(options) {
   });
   try {
     const checkpointManager = standaloneWorkspaceService.getCheckpointManager();
-    const persistedTurnIds = checkpointManager.listPersistedTurns();
+    // Only Turns this workspace left interrupted without a final checkpoint row
+    // need their manifest now (A9-21 M1). Other history is validated when diff or
+    // undo loads it, so startup cost no longer grows with the whole history, and
+    // manifests SQLite does not know about stay untouched with undo unavailable.
+    const candidateTurnIds = persistence.findInterruptedWorkspaceTurnsNeedingCheckpoint(canonicalWorkspace);
     const validTurnIds = [];
     const rejectedTurns = [];
     // Invalid or pre-binding v4 manifests remain immutable evidence and their
     // undo stays disabled, but one legacy Turn must not globally brick new work.
-    for (const turnId of persistedTurnIds) {
+    for (const turnId of candidateTurnIds) {
+      let loaded;
       try {
-        checkpointManager.loadCheckpoint(turnId);
-        validTurnIds.push(turnId);
+        loaded = checkpointManager.loadCheckpoint(turnId);
       } catch (error) {
-        rejectedTurns.push({ turnId, detail: redactSecrets(error && error.message ? error.message : String(error)) });
+        rejectedTurns.push({
+          turnId,
+          status: 'quarantined',
+          detail: redactSecrets(error && error.message ? error.message : String(error)).slice(0, 300),
+        });
+        continue;
       }
+      if (!loaded) {
+        // A missing manifest must not be reported as recovered from the workspace.
+        rejectedTurns.push({
+          turnId,
+          status: 'missing',
+          detail: 'A9_CHECKPOINT_MANIFEST_MISSING: 中断 Turn 缺少持久化清单，自动 undo 不可用',
+        });
+        continue;
+      }
+      validTurnIds.push(turnId);
     }
     persistence.reconcileInterruptedWorkspaceCheckpoints(
       canonicalWorkspace,
@@ -651,7 +670,7 @@ function createA9AgentRuntime(options) {
     if (rejectedTurns.length > 0) {
       checkpointRecoveryDiagnostics = {
         code: 'A9_CHECKPOINT_TURNS_QUARANTINED',
-        detail: `${rejectedTurns.length} 个旧/损坏 checkpoint 已禁止自动 undo；新任务仍可继续`,
+        detail: `${rejectedTurns.length} 个缺失/损坏 checkpoint 已禁止自动 undo；新任务仍可继续`,
         rejectedTurns,
       };
     }
