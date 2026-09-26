@@ -72,7 +72,8 @@
     // ADR-0114：事件数据层与过程渲染状态。
     inspectorEvents: new Map(),
     eventBytes: 0,
-    releasedEventIds: new Set(),
+    releasedEventCount: 0,
+    lowestLoadedEventId: null,
     evictedThroughId: 0,
     turnEvents: new Map(),
     turnIdToFactTask: new Map(),
@@ -281,7 +282,7 @@
   function discardEvent(event) {
     state.inspectorEvents.delete(event.eventId);
     state.eventBytes -= event.estimatedBytes;
-    if (!state.releasedEventIds.has(event.eventId)) state.releasedEventIds.add(event.eventId);
+    state.releasedEventCount += 1;
     state.evictedThroughId = Math.max(state.evictedThroughId, event.eventId);
     if (event.turnId) {
       const bucket = state.turnEvents.get(event.turnId);
@@ -312,11 +313,13 @@
   function enforceEventCaps() {
     const countTarget = Math.floor(EVENT_GLOBAL_LIMIT * EVENT_TRIM_RATIO);
     const byteTarget = Math.floor(EVENT_BYTE_LIMIT * EVENT_TRIM_RATIO);
+    let discarded = false;
     if (state.inspectorEvents.size > EVENT_GLOBAL_LIMIT || state.eventBytes > EVENT_BYTE_LIMIT) {
       const oldest = eventsForInspector();
       for (const event of oldest) {
         if (state.inspectorEvents.size <= countTarget && state.eventBytes <= byteTarget) break;
         discardEvent(event);
+        discarded = true;
       }
     }
     state.turnEvents.forEach((bucket) => {
@@ -325,8 +328,14 @@
       for (const event of bucket.events.slice()) {
         if (bucket.events.length <= target) break;
         discardEvent(event);
+        discarded = true;
       }
     });
+    if (discarded) {
+      const oldestRetained = eventsForInspector()[0];
+      state.eventsBeforeId = oldestRetained ? oldestRetained.eventId : null;
+      state.eventsTruncated = true;
+    }
   }
 
   function ingestEvents(events, explicitOlder = false) {
@@ -343,8 +352,13 @@
       event.estimatedBytes = bytes;
       state.inspectorEvents.set(event.eventId, event);
       state.eventBytes += bytes;
-      if (state.releasedEventIds.delete(event.eventId) && bucket) {
-        bucket.released = Math.max(0, (bucket.released || 0) - 1);
+      if (explicitOlder && state.lowestLoadedEventId !== null
+        && event.eventId >= state.lowestLoadedEventId) {
+        state.releasedEventCount = Math.max(0, state.releasedEventCount - 1);
+        if (bucket) bucket.released = Math.max(0, (bucket.released || 0) - 1);
+      }
+      if (state.lowestLoadedEventId === null || event.eventId < state.lowestLoadedEventId) {
+        state.lowestLoadedEventId = event.eventId;
       }
       changed = true;
       if (event.eventId > state.eventMaxId) state.eventMaxId = event.eventId;
@@ -397,7 +411,8 @@
     state.historyExpanded = false;
     state.inspectorEvents = new Map();
     state.eventBytes = 0;
-    state.releasedEventIds = new Set();
+    state.releasedEventCount = 0;
+    state.lowestLoadedEventId = null;
     state.evictedThroughId = 0;
     state.turnEvents = new Map();
     state.turnIdToFactTask = new Map();
@@ -434,8 +449,9 @@
       const normalized = (response.events || []).map(normalizeQueriedEvent).filter(Boolean);
       ingestEvents(normalized, older);
       if (older || state.eventsBeforeId === null) {
-        state.eventsTruncated = response.hasMore === true;
-        if (normalized.length) state.eventsBeforeId = normalized[0].eventId;
+        state.eventsTruncated = response.hasMore === true || state.releasedEventCount > 0;
+        const oldestRetained = eventsForInspector()[0];
+        if (oldestRetained) state.eventsBeforeId = oldestRetained.eventId;
       }
       state.eventsError = '';
     } catch (_error) {
@@ -973,7 +989,7 @@
       snapshot.activeConversationId,
       state.eventMaxId,
       state.eventsTruncated,
-      state.releasedEventIds.size,
+      state.releasedEventCount,
       state.inspectorEvents.size >= EVENT_GLOBAL_LIMIT,
       state.localRequest ? [state.localRequest.prompt, state.localRequest.at] : 0,
       state.liveModelPreview ? [state.liveModelPreview.turnId, String(state.liveModelPreview.text || '').length, state.liveModelPreview.updatedAt] : 0,
@@ -1020,17 +1036,17 @@
       ? `${latestProjection.outcome} · ${latestProjection.verification}`
       : '');
     const atEventCap = state.inspectorEvents.size >= EVENT_GLOBAL_LIMIT;
-    if (state.releasedEventIds.size || state.eventsTruncated || state.eventsError || atEventCap) {
+    if (state.releasedEventCount || state.eventsTruncated || state.eventsError || atEventCap) {
       if (!state.truncatedNote || !state.truncatedNote.parentNode) {
         const note = document.createElement('p');
         note.className = 'legacy-note';
         stream.insertBefore(note, stream.firstChild);
         state.truncatedNote = note;
       }
-      const releasedNote = state.releasedEventIds.size
-        ? `为控制内存，界面已释放最早的 ${state.releasedEventIds.size} 条过程记录（本地记录完整保存）。` : '';
+      const releasedNote = state.releasedEventCount
+        ? `为控制内存，界面已释放最早的 ${state.releasedEventCount} 条过程记录（本地记录完整保存）。` : '';
       const historyNote = state.eventsError || (state.eventsTruncated && !atEventCap ? '还有更早的过程记录。' : '');
-      const capNote = atEventCap ? ' 已达界面上限 2000 条，更早记录不再加载。' : '';
+      const capNote = atEventCap ? ` 已达界面上限 ${EVENT_GLOBAL_LIMIT} 条，更早记录不再加载。` : '';
       state.truncatedNote.textContent = `${releasedNote}${historyNote ? `${releasedNote ? ' ' : ''}${historyNote}` : ''}${capNote}`;
       if (!atEventCap && (state.eventsTruncated || state.eventsError)) {
         const load = document.createElement('button');

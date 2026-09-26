@@ -363,7 +363,7 @@ describe('A9 unified desktop workbench contract', () => {
     expect(script).toContain('eventsForInspector().slice(-60)');
     expect(script).toContain('state.turnEvents');
     expect(script).toContain('beforeEventId: state.eventsBeforeId');
-    expect(script).toContain('state.eventsTruncated = response.hasMore === true');
+    expect(script).toContain('state.eventsTruncated = response.hasMore === true || state.releasedEventCount > 0');
     expect(script).toContain('加载更早记录');
     // 轮次过程渲染：说明行 / 计划条 / 工具活动组（callId 配对）/ 审批留痕。
     ["case 'model_note':", "case 'plan_updated':", "case 'approval_required':",
@@ -424,7 +424,7 @@ describe('A9 unified desktop workbench contract', () => {
     };
     const state: any = {
       activeConversationId: 'conversation-a', inspectorEvents: new Map(), eventBytes: 0,
-      releasedEventIds: new Set(), evictedThroughId: 0, turnEvents: new Map(),
+      releasedEventCount: 0, lowestLoadedEventId: null, evictedThroughId: 0, turnEvents: new Map(),
       turnIdToFactTask: new Map(), eventMaxId: 0, activeTurnId: null, pendingToolLabel: null,
       lastEventAt: 0, eventsBeforeId: null, snapshot: {}, eventsLoading: false,
       eventsTruncated: false, eventsError: '', streamDom: new Map(), truncatedNote: null,
@@ -476,7 +476,7 @@ describe('A9 unified desktop workbench contract', () => {
         eventMaxId: 0, eventsTruncated: false, eventsError: '', eventsLoading: false,
         localRequest: null, conversationSignature: null, renderedConversationId: 'conversation-a',
         streamDom: new Map(), turnEvents: new Map(), turnIdToFactTask: new Map(),
-        inspectorEvents: new Map(), releasedEventIds: new Set(),
+        inspectorEvents: new Map(), releasedEventCount: 0,
         activeTurnId: null, truncatedNote: null, streamFollow: false,
       };
       const context: any = {
@@ -544,7 +544,7 @@ describe('A9 unified desktop workbench contract', () => {
       const state: any = {
         eventMaxId: 2, eventsTruncated: false, eventsError: '', eventsLoading: false, localRequest: null,
         conversationSignature: null, renderedConversationId: 'c', streamDom: new Map(), turnEvents,
-        inspectorEvents: new Map(), releasedEventIds: new Set(),
+        inspectorEvents: new Map(), releasedEventCount: 0,
         turnIdToFactTask: new Map(), activeTurnId: 'turn-live', truncatedNote: null, streamFollow: false,
         running: true, runningItems: new Set(), liveModelPreview: preview,
       };
@@ -685,6 +685,7 @@ describe('A9 unified desktop workbench contract', () => {
     const renderTimeline = jest.fn();
     const context: any = { a9: { queryEvents }, state, normalizeQueriedEvent: (x: any) => x,
       ingestEvents: (xs: any[]) => ingested.push(...xs), renderConversation: render, renderTimeline,
+      eventsForInspector: () => ingested.slice().sort((a, b) => a.eventId - b.eventId),
       EVENT_GLOBAL_LIMIT: 2000 };
     vm.runInNewContext(source + ';this.load = loadConversationEvents;', context);
     await context.load();

@@ -80,8 +80,12 @@ function rendererHarness(limits: { global?: number; bytes?: number; turn?: numbe
   if (limits.global) source = source.replace('const EVENT_GLOBAL_LIMIT = 2000;', `const EVENT_GLOBAL_LIMIT = ${limits.global};`);
   if (limits.bytes) source = source.replace('const EVENT_BYTE_LIMIT = 4 * 1024 * 1024;', `const EVENT_BYTE_LIMIT = ${limits.bytes};`);
   if (limits.turn) source = source.replace('const EVENT_TURN_LIMIT = 500;', `const EVENT_TURN_LIMIT = ${limits.turn};`);
+  // A pagination scenario needs spare slots after both caps have trimmed. Only
+  // the vm copy is mutable; production defaults remain const and unchanged.
+  source = source.replace('const EVENT_GLOBAL_LIMIT =', 'let EVENT_GLOBAL_LIMIT =')
+    .replace('const EVENT_TURN_LIMIT =', 'let EVENT_TURN_LIMIT =');
   source = source.replace('  root.win7AgentA9Workbench = Object.freeze({',
-    '  root.__m4 = { state, ingestEvents, ingestTimelineEvents, renderConversation, renderTimeline, loadConversationEvents, resetConversationEvents };\n  root.win7AgentA9Workbench = Object.freeze({');
+    '  root.__m4 = { state, ingestEvents, ingestTimelineEvents, renderConversation, renderTimeline, loadConversationEvents, resetConversationEvents, setLimits: (global, turn) => { EVENT_GLOBAL_LIMIT = global; EVENT_TURN_LIMIT = turn; } };\n  root.win7AgentA9Workbench = Object.freeze({');
   const window: any = { win7Agent: { a9: { queryEvents } } };
   vm.runInNewContext(source, { window, document, setTimeout, Date });
   const api = window.__m4;
@@ -116,7 +120,7 @@ describe('A9-21 M4 renderer event bounds', () => {
     expect(nodes.get('a9-task-stream')!.textContent).toContain('payload[21]');
     expect(api.state.streamDom.get('task-a').progressEl.children).toHaveLength(19);
     expect(api.state.streamDom.get('task-a').renderedIds).toEqual(events(4, 21).map((item) => item.eventId));
-    expect(api.state.releasedEventIds.size).toBe(3);
+    expect(api.state.releasedEventCount).toBe(3);
   });
 
   it('trims one turn to 90 percent and renders its released and remaining counts', () => {
@@ -155,11 +159,11 @@ describe('A9-21 M4 renderer event bounds', () => {
     api.ingestEvents(events(1, 11));
     render();
     const retained = Array.from(api.state.inspectorEvents.keys());
-    const released = api.state.releasedEventIds.size;
+    const released = api.state.releasedEventCount;
     for (let index = 0; index < 5; index += 1) api.ingestTimelineEvents(events(1, 11));
     render();
     expect(Array.from(api.state.inspectorEvents.keys())).toEqual(retained);
-    expect(api.state.releasedEventIds.size).toBe(released);
+    expect(api.state.releasedEventCount).toBe(released);
     expect(nodes.get('a9-task-stream')!.textContent).toContain(`界面已释放最早的 ${released} 条`);
   });
 
@@ -177,11 +181,11 @@ describe('A9-21 M4 renderer event bounds', () => {
     expect(api.state.inspectorEvents.has(11)).toBe(true);
     expect(api.state.inspectorEvents.has(1)).toBe(true);
     expect(api.state.inspectorEvents.has(2)).toBe(false);
-    expect(api.state.releasedEventIds.size).toBe(1);
+    expect(api.state.releasedEventCount).toBe(1);
     await api.loadConversationEvents(true);
     expect(query).toHaveBeenCalledTimes(1);
     render();
-    expect(nodes.get('a9-task-stream')!.textContent).toContain('已达界面上限 2000 条，更早记录不再加载。');
+    expect(nodes.get('a9-task-stream')!.textContent).toContain('已达界面上限 10 条，更早记录不再加载。');
     expect(nodes.get('a9-task-stream')!.textContent).not.toContain('加载更早记录');
   });
 
@@ -195,11 +199,106 @@ describe('A9-21 M4 renderer event bounds', () => {
     render();
     expect(api.state.inspectorEvents.size).toBe(0);
     expect(api.state.eventBytes).toBe(0);
-    expect(api.state.releasedEventIds.size).toBe(0);
+    expect(api.state.releasedEventCount).toBe(0);
+    expect(api.state.lowestLoadedEventId).toBeNull();
     expect(api.state.evictedThroughId).toBe(0);
     expect(nodes.get('a9-task-stream')!.textContent).not.toContain('界面已释放');
     api.ingestEvents(events(1, 1));
     expect(api.state.inspectorEvents.has(1)).toBe(true);
+  });
+
+  it('B1 pages directly below the retained minimum through released records before unseen history', async () => {
+    const stored = events(1, 24).map((event) => ({
+      ...event, turnId: event.eventId <= 7 ? 'turn-a' : null,
+    }));
+    const query = jest.fn(async ({ beforeEventId, limit }: { beforeEventId: number; limit: number }) => {
+      const preceding = stored.filter((event) => event.eventId < beforeEventId);
+      const page = preceding.slice(-limit);
+      return { ok: true, hasMore: preceding.length > page.length, events: page.map((event) => ({
+        eventId: event.eventId, eventType: event.type, turnId: event.turnId, payload: { data: event.data },
+      })) };
+    });
+    const { api } = rendererHarness({ global: 20, turn: 5 }, query);
+    api.ingestEvents(stored.slice(1, 7)); // 2–7: the turn cap releases 2–3.
+    api.ingestEvents(stored.slice(7)); // 8–24: the global cap additionally releases 4–6.
+    expect(api.state.eventsBeforeId).toBe(7);
+    expect(api.state.eventsTruncated).toBe(true);
+    expect(api.state.releasedEventCount).toBe(5);
+    expect(api.state.turnEvents.get('turn-a').released).toBe(5);
+    await api.loadConversationEvents(true);
+    expect(query.mock.calls[0][0]).toEqual({ conversationId: 'conversation-a', limit: 2, beforeEventId: 7 });
+    expect((Array.from(api.state.inspectorEvents.keys()) as number[]).sort((a, b) => a - b))
+      .toEqual(events(5, 24).map((event) => event.eventId));
+    expect(api.state.eventsBeforeId).toBe(5);
+    expect(api.state.releasedEventCount).toBe(3);
+    expect(api.state.turnEvents.get('turn-a').released).toBe(3);
+
+    // Test-only capacity expansion makes room to distinguish restored records
+    // from the first record that this conversation had never received.
+    api.setLimits(23, 10);
+    await api.loadConversationEvents(true);
+    expect(query.mock.calls[1][0]).toEqual({ conversationId: 'conversation-a', limit: 3, beforeEventId: 5 });
+    expect(api.state.releasedEventCount).toBe(0);
+    expect(api.state.turnEvents.get('turn-a').released).toBe(0);
+    expect(api.state.eventsBeforeId).toBe(2);
+    api.setLimits(24, 10);
+    await api.loadConversationEvents(true);
+    expect(query.mock.calls[2][0]).toEqual({ conversationId: 'conversation-a', limit: 1, beforeEventId: 2 });
+    expect(api.state.inspectorEvents.has(1)).toBe(true);
+    expect(api.state.lowestLoadedEventId).toBe(1);
+    expect(api.state.releasedEventCount).toBe(0);
+  });
+
+  it('C2 ignores repeated polling without evictions or rebuilding retained DOM nodes', () => {
+    const { api, render } = rendererHarness({ global: 10, turn: 100 });
+    api.ingestEvents(events(1, 11));
+    render();
+    const block = api.state.streamDom.get('task-a');
+    const retainedNode = block.progressEl.children.find((child: FakeNode) => child.textContent === 'payload[3]');
+    expect(retainedNode).toBeDefined();
+    const retainedIds = Array.from(api.state.inspectorEvents.keys());
+    const releasedCount = api.state.releasedEventCount;
+    const originalDelete = api.state.inspectorEvents.delete.bind(api.state.inspectorEvents);
+    let evictions = 0;
+    api.state.inspectorEvents.delete = (id: number) => { evictions += 1; return originalDelete(id); };
+    for (let index = 0; index < 5; index += 1) api.ingestTimelineEvents(events(1, 11));
+    api.renderConversation(api.state.snapshot);
+    expect(Array.from(api.state.inspectorEvents.keys())).toEqual(retainedIds);
+    expect(api.state.releasedEventCount).toBe(releasedCount);
+    expect(evictions).toBe(0);
+    expect(block.progressEl.children.find((child: FakeNode) => child.textContent === 'payload[3]')).toBe(retainedNode);
+  });
+
+  it('R-2 counts known but unretained events through restore and re-eviction without an ID set', async () => {
+    const stored = events(1, 13);
+    const query = jest.fn(async ({ beforeEventId, limit }: { beforeEventId: number; limit: number }) => ({
+      ok: true, hasMore: beforeEventId - 1 > limit,
+      events: stored.filter((event) => event.eventId < beforeEventId).slice(-limit).map((event) => ({
+        eventId: event.eventId, eventType: event.type, turnId: event.turnId, payload: { data: event.data },
+      })),
+    }));
+    const { api } = rendererHarness({ global: 10, turn: 100 }, query);
+    const known = new Set<number>(events(1, 11).map((event) => event.eventId));
+    const expectCount = () => expect(api.state.releasedEventCount).toBe(known.size - api.state.inspectorEvents.size);
+    api.ingestEvents(events(1, 11));
+    expectCount();
+    await api.loadConversationEvents(true);
+    expectCount();
+    expect(api.state.releasedEventCount).toBe(1);
+    api.ingestEvents(events(12, 12)); known.add(12);
+    expectCount();
+    await api.loadConversationEvents(true);
+    expectCount();
+    api.ingestEvents(events(13, 13)); known.add(13);
+    expectCount();
+    expect(rendererSource).not.toContain('releasedEventIds');
+  });
+
+  it('R-4 shows the injected global limit in the capacity notice', () => {
+    const { api, nodes, render } = rendererHarness({ global: 7 });
+    api.ingestEvents(events(1, 7));
+    render();
+    expect(nodes.get('a9-task-stream')!.textContent).toContain('已达界面上限 7 条，更早记录不再加载。');
   });
 });
 
