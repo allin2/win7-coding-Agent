@@ -313,3 +313,13 @@ SQLite 后，全部属于套件问题，未发现产品缺陷：
 3. 更新 `A9_23_WIN7_39_VALIDATION.md` 的派生差异与判定口径。
 4. 报告：新提交哈希；相对 `330eae7` 的改动文件清单；R3-1～R3-8 的修改位置与测试名；各项测试摘要；偏离与未完成项。
 5. 返工通过开发机门后，按同一份预演交接书再做一次 Win7 预演（新的日期目录），确认 X1～X7 在实机消除后再进入冻结。
+
+## 10. 第三轮验收结论（2026-09-26，`28c5508`，通过）
+
+- 相对 `330eae7` 改动 5 个文件，均在 §2 允许路径内：smoke、驱动、`build-a9-product-v3.mjs`（仅 WIN7-39 的 9 个 `A9-W37-` → `A9-W39-` 断言 ID 重基线，沿用“每个替换源恰好 1 次”）、包测试、验证说明。
+- R3-1～R3-8 逐项核对：拒绝判定同时要求无 `tool_start`、`tool_end` 均 `denied`/无副作用、`a9_approvals` 为 `denied` 且会话一致（相关字段已在产品代码中核实：
+  `approval_required` 事件带 `callId`/`approvalId`，`a9_approvals` 有 `decision`/`turn_id`/`session_id`，待批准项有 `conversationId`）；兜底形态按 `gitBinding` 无 remote/branch、带 64 位 `commandSha256` 判定；
+  终态等待改为事件游标 + 本次 `turn_started` 的 `turnId`；M1b/M3 先读后写；M4 每个种子 Turn 有独立任务与 `conversation.request`，淘汰轮 20 步约 80 条事件；
+  必需断言汇总区分 `MISSING`/`PRESENT_NOT_PASSED`；Git 按参数 → MinGit 固定路径 → `where git` 解析并先 `--version` 验证，不改 PATH。
+- 验收方复跑：`a9-package.test.mjs` 53/53（249 s，新增测试 48～51 覆盖 R3-4～R3-8）；shell 全量 43 套 447 项；`verify:quick`、`docs:check`、`git diff --check` 通过；无遗留进程。
+- 下一步：按预演交接书附录 A 做第二次 Win7 预演。

@@ -92,3 +92,16 @@ smoke 退出码非 0 或断言失败**不是**停止条件：这正是预演要�
 
 审核方基于原始证据复核：套件问题 → 回到套件分支修复并重过开发机门，必要时再预演；套件无问题 → 套件分支并入 `codex/a9-alpha2`，
 按 A9-23 §6 第 2、4 步写正式实机交接书并双构建冻结，再到门 A 由负责人签发 authority。
+
+## 附录 A：第二次预演（2026-09-26，套件第三轮返工后）
+
+第一次预演（`20260926-1935`）的结论见[套件修复交接书 §9](A9_23_W39_KIT_REPAIR_HANDOFF.md)。第三轮返工（`28c5508`）已通过开发机门（§10）。第二次预演按本交接书 §0～§8 执行，以下差异优先：
+
+1. 套件源码改为 `codex/a9-23-w39-kit` @ `28c550855fafeb41b44ef420280a012a11fde876`；构建前确认工作树干净且 HEAD 为该提交。
+2. 新建预演目录 `.acceptance/rehearsals/A9-23-W39/<新的 YYYYMMDD-HHMM>/` 与 Win7 运行根 `C:\A9-W39\预演 目录\<新的 YYYYMMDD-HHMM>\`；第一次预演的本机目录与 Win7 运行根只读保留，不得覆盖。
+3. **计划任务 XML 编码（第一次预演的 K7）**：运行根含中文时，任务 XML 以 CP936（GBK）写出并按该编码注册；注册后用 `schtasks /query /tn <名称> /xml`
+   取回原样保存，核对其中的命令路径与参数没有乱码，再运行。不满足即停止。
+4. Git：smoke 会自动按参数 → `C:\acceptance\mvp_mingit\cmd\git.exe` → `where git` 解析，只用于准备测试仓库，不需要也不得改动任何 PATH；无需传 `--git-exe`。
+   报告中记录 `w39-07-09-git-forms.json` 的 `git_executable`、`git_source`、`git_version`、`ref_unchanged`。
+5. §5 五项待验证事实中，第 2～4 项已在第一次预演取得，只需确认是否与第一次一致；重点是第 1 项（8 个 `w39_*` 阶段在返工后的实跑结果）与第 5 项（M3 60 轮耗时）。
+6. `REHEARSAL_REPORT.json` 增加字段 `previous_rehearsal: "20260926-1935"`，并在 `suspected_kit_issues[]` 中逐条说明第一次预演的 X1～X7 在本次是否仍出现。
