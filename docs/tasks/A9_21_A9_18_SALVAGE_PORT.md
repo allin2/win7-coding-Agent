@@ -260,3 +260,21 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 
 - WIN7-38 实机 G2 因候选内验证套件缺陷失败，产品未运行，§5 第 6 项未取得覆盖（ADR-0142）。改由
   [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 换发的 WIN7-39 覆盖；`Phase-Gate` 不变。
+
+### 收口验证：§5 第 5 项 gateway 偶发失败（2026-09-26）
+
+- 独立工作树 `/Users/qlyf/Developer/win7-coding-agent-gwflake`，分支 `codex/a9-21-gateway-flake`，基线 `8efd6ad`；
+  macOS arm64、Node 20.17.0、Jest 29.7.0。只链接主工作区 `node_modules`，在本工作树构建 gateway/core/state/workspace/runner/git-adapter 的 `dist`。
+- 从 `src/gateway` 逐次执行 `npx --no-install jest --json --outputFile=<临时目录>/run-NNN.json`，默认 Jest worker 配置。
+  空载 100 次（北京时间 15:20:37～15:40:45），人为负载 100 次（同时运行 3 个 `node -e 'for(;;){}'` 进程），
+  每次均为 263/263 通过、失败用例名为空。负载分三段：15:41:04～16:03:29（54 次）、16:07:15～16:10:08（5 次）、
+  16:27:05～16:38:48（41 次），均为 2026-09-26 北京时间。前两段与 WIN7-39 的 `a9-package.test.mjs` 部分重叠，发现后主动停下；
+  最后一段开始前等待该管线退出，运行时未观察到其打包或编译进程。两次被中断的 Jest 不计入 200 次。
+- 初始预检在只构建 `state/dist` 时，J5 的 `recovers mode/provider/checkpoint/interruption after a real subprocess crash, without replay`
+  因 `MODULE_NOT_FOUND:core/dist` 连续失败 6 次；补建本工作树所需 `dist` 后从 1/100 重新计数。该预检是构建前置缺失，
+  不能作为 A9-18 偶发失败的复现。有效运行未复现原问题，因此未改产品或测试代码，负向对照不适用。
+- 逐次原始 JSON、通过数、失败用例名、命令脚本、负载 PID/起止时间与进程清理记录在
+  `/tmp/a9-21-gateway-flake-evidence-20260926.tar.gz`（SHA-256 `7af335e5e63d85d97e3721949955a5cb91dd39432516fcbf3e89c08cf30ba2b0`）；
+  `/tmp` 可能被系统清理。收尾复核 `pgrep -fl '[j]est'` 为空，9 个负载 PID 均已退出。
+- **结论：未复现、原因未定位。** 仅为开发机验证；不等于已排除偶发失败或 Win7 实机通过。是否接受该结论关闭第 5 项，
+  以及第 6 项的 WIN7-39 实机结论，均待负责人裁决；`Phase-Gate` 和 `Win7-Validation` 不变。
