@@ -44,7 +44,7 @@ Decision: ADR-0142
 - 实机驱动：`src/shell/tests/product/a9-06-driver-entry.cjs`，只新增 `w39*` 旅程及其辅助函数；`w38` 与更早旅程不变。
   测试夹具与驱动单测只在 `src/shell/tests/product/**` 新增。
 - 文档：本任务书、`docs/tasks/README.md`、`docs/STATUS.md`、`docs/STATUS_LOG.md`、
-  `docs/plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md`（新建）、`docs/DECISIONS.md`（仅 ADR-0142 及本任务需要的新 ADR）、
+  `docs/plans/A9_23_W39_KIT_REPAIR_HANDOFF.md`、`docs/plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md`（新建）、预演交接书、`docs/DECISIONS.md`（仅 ADR-0142 及本任务需要的新 ADR）、
   `docs/DECISIONS_INDEX.md`、`docs/reports/2026-09/**`、A9-20 与 A9-21 任务书的状态记录段。
 
 ## 4. 用例（W39）
@@ -58,7 +58,7 @@ Decision: ADR-0142
 | W39-02 | 整个运行根放在含中文和空格的路径下（如 `C:\A9-W39\验收 目录\<run-id前8位>`），G1/G2 全部在该路径运行 |
 | W39-03 | 首次启动 60 s 内出现工作台并完成工作区选择；驱动截图与启动 JSON 落盘 |
 | W39-04～06 | 沿用 W37 `first/second/stop` 旅程与判定，结果与 W37 一致；审批拒绝目标不变、批准目标被删除、Stop 后子进程 PID 消失、重启后会话恢复 |
-| W39-07～09 | 覆盖 A9-20 §2 第 2～7、12 类的 Windows 形态（cmd 相连/带路径/开关簇/`/R`，PowerShell 前缀/相连/位置参数）；每条须：审批卡出现且 Git 目标绑定字段指向 remote/branch（G04 兜底形态为整条命令摘要）；拒绝后本地裸仓库远端 ref 哈希不变、无对应进程执行。第 9、10 类（bash/sh）在 Win7 无 POSIX 壳时标 `NOT_PERFORMED` 并记录原因 |
+| W39-07～09 | 覆盖 A9-20 §2 第 2～8、11、12 类的 Windows 形态（cmd 相连/带路径/开关簇/`/R`，PowerShell 前缀/相连/EncodedCommand/位置参数，超长 CMD 载荷）；每条须：审批卡出现且 Git 目标绑定字段指向 remote/branch（G04 兜底形态为整条命令摘要）；拒绝后本地裸仓库远端 ref 哈希不变、无对应进程执行。第 9、10 类（bash/sh）在 Win7 无 POSIX 壳时标 `NOT_PERFORMED` 并记录原因 |
 | W39-10 | 用候选自带的产品持久化层（真实 v4 schema）预置 ≥100 个历史 Turn，含 1 个 `interrupted` 且缺 checkpoint 的 Turn；分别以约 5 个与 ≥100 个 Turn 启动并记录耗时；中断 Turn 的恢复结果（`missing`/`quarantined`）由产品运行后读取 |
 | W39-11 | 工作区含 1 MiB 单行十六进制文件时执行一次会冻结基线并生成 checkpoint 的真实 Turn，记录耗时；夹具让 `https://u:p@host` 进入模型输出与工具输出；产品运行后扫描持久化事件与诊断，明文凭据零命中且可见脱敏标记 |
 | W39-12 | 夹具返回 >1 MiB 且含工具调用的响应：持久化 Turn 结果为 `COMPLETED_WITH_WARNINGS`，`model_note` 含截断说明，工具未执行（目标文件不变、无工具事件），紧接的下一轮正常完成 |
@@ -85,7 +85,7 @@ Decision: ADR-0142
 
 ## 6. 执行步骤与门
 
-1. **套件修复（新会话）**：在 §3 路径内按 §5 实现；`node --test scripts/release/test/a9-package.test.mjs`、受影响包测试、
+1. **套件修复（新会话，按 [套件修复交接书](../plans/A9_23_W39_KIT_REPAIR_HANDOFF.md)）**：在 §3 路径内按 §5 实现；`node --test scripts/release/test/a9-package.test.mjs`、受影响包测试、
    `verify:quick`、`docs:check`、`git diff --check` 通过后本地提交。
 2. **交接书**：写 `docs/plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md`，结构仿 A9-22 交接书，并补 WIN7-38 暴露的取证缺口：
    G0 与 Win7 端哈希复算、计划任务删除的原始输出存为证据文件；`SHA256SUMS.txt` 覆盖 `scripts/`、`authority/`、`RUN_LOG.md` 与报告；
@@ -118,3 +118,4 @@ Decision: ADR-0142
 
 - 2026-09-26：负责人裁决 WIN7-38 为 `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`，按审查报告方案 (a) 建立本任务（ADR-0142）。
 - 2026-09-26：负责人同意 §7 Q1 的 Win7 套件预演。
+- 2026-09-26：编写套件修复交接书；W39-07～09 形态范围补入 A9-20 §2 第 8、11 类（Windows 可达）。

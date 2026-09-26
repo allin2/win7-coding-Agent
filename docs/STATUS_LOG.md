@@ -1163,3 +1163,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   负责人裁决 WIN7-38 为 `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0142），A9-22 关闭；新建 A9-23 修复套件后换发 WIN7-39。
   审查报告见 `docs/reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md`。
 - 2026-09-26，负责人同意 A9-23 §7 Q1：WIN7-39 冻结前以非正式构建在 Win7 预演 G2 smoke，仅用于修正套件，标 `REHEARSAL_NOT_ELIGIBLE`，不计入任何结论。
+- 2026-09-26，A9-23 套件修复交接书完成（`docs/plans/A9_23_W39_KIT_REPAIR_HANDOFF.md`），分支 `codex/a9-23-w39-kit`，由新会话或外部执行方实施，本会话验收。
