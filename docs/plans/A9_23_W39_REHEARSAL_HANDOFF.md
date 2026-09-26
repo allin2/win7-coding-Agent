@@ -99,9 +99,28 @@ smoke 退出码非 0 或断言失败**不是**停止条件：这正是预演要�
 
 1. 套件源码改为 `codex/a9-23-w39-kit` @ `28c550855fafeb41b44ef420280a012a11fde876`；构建前确认工作树干净且 HEAD 为该提交。
 2. 新建预演目录 `.acceptance/rehearsals/A9-23-W39/<新的 YYYYMMDD-HHMM>/` 与 Win7 运行根 `C:\A9-W39\预演 目录\<新的 YYYYMMDD-HHMM>\`；第一次预演的本机目录与 Win7 运行根只读保留，不得覆盖。
-3. **计划任务 XML 编码（第一次预演的 K7）**：运行根含中文时，任务 XML 以 CP936（GBK）写出并按该编码注册；注册后用 `schtasks /query /tn <名称> /xml`
-   取回原样保存，核对其中的命令路径与参数没有乱码，再运行。不满足即停止。
+3. **计划任务 XML 编码与回读门（第一次预演的 K7；2026-09-26 修订，见附录 B）**：运行根含中文时，任务 XML 以 CP936（GBK）写出并按该编码注册，
+   保存 `schtasks /create` 原始输出。回读按附录 B 的分层门执行；任一字段不一致或出现乱码即停止。
 4. Git：smoke 会自动按参数 → `C:\acceptance\mvp_mingit\cmd\git.exe` → `where git` 解析，只用于准备测试仓库，不需要也不得改动任何 PATH；无需传 `--git-exe`。
    报告中记录 `w39-07-09-git-forms.json` 的 `git_executable`、`git_source`、`git_version`、`ref_unchanged`。
 5. §5 五项待验证事实中，第 2～4 项已在第一次预演取得，只需确认是否与第一次一致；重点是第 1 项（8 个 `w39_*` 阶段在返工后的实跑结果）与第 5 项（M3 60 轮耗时）。
 6. `REHEARSAL_REPORT.json` 增加字段 `previous_rehearsal: "20260926-1935"`，并在 `suspected_kit_issues[]` 中逐条说明第一次预演的 X1～X7 在本次是否仍出现。
+
+## 附录 B：计划任务回读门裁决（2026-09-26）
+
+第二次预演 `20260926-2303` 在附录 A.3 停止：CP936 XML 注册返回 0，Task Scheduler COM 可见任务、中文运行根、`agent` SID、`InteractiveToken`、
+`LeastPrivilege`，但 `schtasks /query /tn …`（含与不含 `/xml`）均返回“无法加载列资源”，未运行任何 `agent` 任务。执行方按条款停止并请求裁决，处理正确。
+`20260926-2303` 保留为“止于前置门”的记录，不改写其报告与哈希清单。
+
+该错误通常由会话控制台代码页与系统界面语言不一致引起（SSH 会话的代码页常不是系统默认的 936），不能据此认定任务定义有误。裁决采用分层门：
+
+1. **首选**：在同一个 `cmd` 进程中先执行 `chcp` 记录当前代码页，再 `chcp 936`，然后执行 `schtasks /query /tn <名称> /xml`；三者原始输出都保存。
+   成功时按附录 A.3 核对取回的 XML。`chcp` 只影响该会话，不改系统设置。
+2. **后备（首选仍失败时）**：采用执行方提出的 COM 替代门：
+   - 保存 `schtasks /query` 的错误原文；
+   - 通过 Task Scheduler COM 导出完整的已注册 XML，解析后逐字段精确核对：任务名、完整 `.cmd` 路径与参数、工作目录、`agent` SID、
+     `LogonType=InteractiveToken`、`RunLevel=LeastPrivilege`；保存源 XML、导出 XML 与核对结果；
+   - 任一字段不一致或乱码即停止。
+3. **自检（两种门都须执行）**：启动 smoke 前先运行一个无害自检任务，取得实际 `agent` 身份、`S-1-16-8192` Medium 令牌与中文参数原样传递的证据；
+   运行期间如需查询任务状态，使用第 1 步可用的方式或 COM，并把输出写入证据文件，不依赖已报错的查询方式。
+4. 重跑使用新的日期目录与新的任务名；报告中注明回读门走的是首选还是后备，以及 `chcp` 前后的代码页。

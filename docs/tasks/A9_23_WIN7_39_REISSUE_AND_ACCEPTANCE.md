@@ -129,3 +129,5 @@ Decision: ADR-0142
   Win7 的 MinGit 只在管理员 PATH 中，负责人选择由 smoke 使用完整路径（不改验收机）。第三轮返工要求见[套件修复交接书 §9](../plans/A9_23_W39_KIT_REPAIR_HANDOFF.md)；
   返工通过后再预演一次。执行方报告的 K7（计划任务 XML 须 CP936）写入正式实机交接书。
 - 2026-09-26：套件第三轮返工（`28c5508`）验收通过，包测试 53/53、shell 447 项；按[预演交接书附录 A](../plans/A9_23_W39_REHEARSAL_HANDOFF.md)做第二次 Win7 预演。
+- 2026-09-26：第二次预演 `20260926-2303` 止于计划任务回读门（`schtasks /query` 返回“无法加载列资源”，未运行 agent 任务）；验收方裁决分层门：
+  先 `chcp 936` 再 `schtasks /query /xml`，仍失败则用 Task Scheduler COM 导出逐字段核对，且启动 smoke 前必须有自检任务证据（[预演交接书附录 B](../plans/A9_23_W39_REHEARSAL_HANDOFF.md)）。
