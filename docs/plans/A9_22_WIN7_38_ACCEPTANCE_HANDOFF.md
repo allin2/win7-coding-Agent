@@ -37,16 +37,16 @@ Owner: 项目负责人（批准换发合同、签发候选外授权、最终裁�
 | 项 | 值 |
 |---|---|
 | 候选 ID | WIN7-38 |
-| 源码提交 | 待步骤 3 冻结后填入 |
-| ZIP 文件名 / SHA-256 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / 待填入（本机冻结于 `.acceptance/candidates/WIN7-38/`） |
-| manifest SHA-256 | 待填入 |
-| input lock SHA-256 | 待填入 |
-| authority SHA-256 | 待步骤 4 签发后填入（`release-authority.json`；独立 pin 为同目录 `release-authority.json.sha256`） |
-| run-id（已绑定在 authority 中，不得另起） | 待步骤 4 签发后填入 |
-| authority 与锁文件位置（本机） | `.acceptance/runs/A9-22-W38/<run-id>/authority/` |
+| 源码提交 | `874f541f61442f0fce803e8a30bbbaed07743525` |
+| ZIP 文件名 / SHA-256 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / `105531bf3cdd632f382ae466a1ae23e36b220f1cc519a8ca74b4fc8c3d1e0b22`（101,379,887 B；本机冻结于 `.acceptance/candidates/WIN7-38/`） |
+| manifest SHA-256 | `2a3d802a87a5fe89426a88e66fa97a2fad1b09449f033d5279828cc7cf1072d4` |
+| input lock SHA-256 | `60b65e5c5c93777c2366c49e4d9edfc728939577cc46425a24c7703c8c2d2fa6` |
+| authority SHA-256 | `55bf80740449ac74b3efdcadf5b3102ad4bfb01783b0f134578f042b474e584f`（草稿待负责人签发；`release-authority.json`；独立 pin 为同目录 `release-authority.json.sha256`） |
+| run-id（已绑定在 authority 中，不得另起） | `31504dc1-8371-4381-a2ea-67ab2b9ce411` |
+| authority 与锁文件位置（本机） | `.acceptance/runs/A9-22-W38/31504dc1-8371-4381-a2ea-67ab2b9ce411/authority/` |
 | 目标主机（已绑定在 authority 中） | `192.168.1.3`；地址变化时停止并请负责人重签 authority |
 | 完整性命令 / 报告命令 / smoke 脚本 | `RUN_A9_22_W38_INTEGRITY.cmd` / `RUN_WIN7_38_REPORT_VERIFY.cmd` / `validation\a9-win7-38-smoke.cjs`（用法见候选内 `A9_22_WIN7_38_VALIDATION.md`） |
-| Win7 运行根目录 | `C:\A9-W38\<run-id前8位>` |
+| Win7 运行根目录 | `C:\A9-W38\31504dc1` |
 
 ## 4. 环境与连接
 

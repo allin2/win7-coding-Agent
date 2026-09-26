@@ -6,7 +6,7 @@ Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2（本任务书所在提交；A9-20、A9-21 M0～M4 均已并入）
 Candidate: WIN7-38
-Phase-Gate: A9_22_REISSUE_AUTHORIZED
+Phase-Gate: A9_22_WIN7_38_FROZEN_AWAITING_AUTHORITY
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0141
 ```
@@ -101,8 +101,29 @@ Decision: ADR-0141
 
 ## 7. 候选身份（冻结后填写）
 
-待填写。
+- 管线提交 `874f541f61442f0fce803e8a30bbbaed07743525`（单一本地提交，未推送、未打标签），只含 §3 允许路径：新增 profile `A9-22-INPUTS-WIN7-38`、
+  input lock、15 项 Kit、完整性/报告/smoke、两个 CMD 与验证说明；共享驱动只新增 `w38` 旅程。开发机门：`a9-package.test.mjs`（含 W38 闭包与
+  注入 W37 残留的反例）、`verify:quick`、`docs:check`、`git diff --check` 全部通过。
+- 双独立干净工作树（依赖以 APFS 克隆逐字节复制）从同一提交构建，ZIP 逐字节一致（`cmp`），101,379,887 B：
+
+| 项 | SHA-256 |
+|---|---|
+| 候选 ZIP `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` | `105531bf3cdd632f382ae466a1ae23e36b220f1cc519a8ca74b4fc8c3d1e0b22` |
+| `release-manifest.json` | `2a3d802a87a5fe89426a88e66fa97a2fad1b09449f033d5279828cc7cf1072d4` |
+| input lock `a9-22-win7-38-input-lock.json` | `60b65e5c5c93777c2366c49e4d9edfc728939577cc46425a24c7703c8c2d2fa6` |
+| approval registry `a9-v25-approved-kits.json`（commit `e1b6f4bf30ad2ae7576aa958317e0aea6f4338d3`） | `d9cfea73c2f89c01a33a2bbef1d65c27eb995cd3681c71a939183348744917b7` |
+
+- manifest `source_dirty=false`、`external_acceptance_eligible=true`，790 个文件；Kit `A9-22-WIN7-38-20260926-01`（15 项）。
+  开发机预检以候选自带 `verifyAcceptanceCandidate` 对完整文件树与测试夹具 authority 接受正确绑定，并拒绝错误 ZIP 哈希
+  （`A9_W38_RELEASE_AUTHORITY_BINDING_INVALID`）与错误 pin（`A9_W38_AUTHORITY_PIN_MISMATCH`）；测试夹具不构成批准。
+- 冻结于本机 `.acceptance/candidates/WIN7-38/`（含 `IDENTITY.sha256`），双构建输出在 `.acceptance/builds/WIN7-38/874f541-reissue/`，临时工作树已移除。
+- 当前停在候选外 `WIN7_38_RELEASE_AUTHORITY` 门：负责人按上表精确哈希与实际 Win7 地址签发 authority 与独立 SHA-256 pin 之前，
+  Win7 G1/G2/G3 均 `NOT_PERFORMED`。
 
 ## 8. 执行记录
 
-待填写。
+- 2026-09-26：按第 0 步核对 A6 SQLite 返回包哈希，所有三项原生与环境输入（Electron zip、D-013 v25 helper、A6 SQLite zip）就绪。
+- 2026-09-26：细化 15 项 W38 用例，编写实机交接书 `docs/plans/A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md`。
+- 2026-09-26：在 C14 允许路径内新增 W38 发布管线、驱动旅程与测试；测试通过并提交为 `874f541`。
+- 2026-09-26：从提交 `874f541` 在两个独立干净工作树中完成双构建，ZIP 逐字节一致，冻结候选于 `.acceptance/candidates/WIN7-38/`。
+- 2026-09-26：准备 `WIN7_38_RELEASE_AUTHORITY` 草稿与独立 SHA-256 pin 于 `.acceptance/runs/A9-22-W38/31504dc1-8371-4381-a2ea-67ab2b9ce411/authority/`，等待负责人签发。
