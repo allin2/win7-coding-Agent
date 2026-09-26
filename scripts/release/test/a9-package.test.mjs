@@ -56,6 +56,9 @@ const win37Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win37Report = require('../../../release/win7-product-v3/a9-win7-37-report.cjs');
 const win38Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w38.cjs');
 const win38Report = require('../../../release/win7-product-v3/a9-win7-38-report.cjs');
+// ADR-0142：A9-23 验证套件修复候选（WIN7-39）。
+const win39Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w39.cjs');
+const win39Report = require('../../../release/win7-product-v3/a9-win7-39-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -312,15 +315,17 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36', 'win37', 'win38'].includes(candidate)) {
+  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36', 'win37', 'win38', 'win39'].includes(candidate)) {
     const number = candidate.slice(-2);
     // A9-16 谱系（WIN7-29 ～ WIN7-36）使用 A9-16 的 lock 身份与冻结日期。
-    lock.lock_id = candidate === 'win38' ? 'A9-22-INPUTS-WIN7-38'
+    lock.lock_id = candidate === 'win39' ? 'A9-23-INPUTS-WIN7-39'
+      : candidate === 'win38' ? 'A9-22-INPUTS-WIN7-38'
       : candidate === 'win37' ? 'A9-19-INPUTS-LIVE-PROGRESS-WIN7-37'
       : ['win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36'].includes(candidate)
       ? `A9-16-INPUTS-RESPONSIVE-UI-WIN7-${number}`
       : `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
-    lock.source_date_epoch = candidate === 'win38' ? 1790380800
+    lock.source_date_epoch = candidate === 'win39' ? 1790467200
+      : candidate === 'win38' ? 1790380800
       : candidate === 'win37' ? 1790294400
       : candidate === 'win36' ? 1790121600
       : candidate === 'win35' ? 1790035200
@@ -328,7 +333,14 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
       : ['win29', 'win30', 'win31'].includes(candidate) ? 1789344000 : 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win38'
+    lock.provenance = candidate === 'win39'
+      ? {
+        // ADR-0142：WIN7-39 换发自验证套件缺陷导致 Win7 G2 失败的 WIN7-38。
+        task: 'A9-23', previous_candidate: 'WIN7-38',
+        previous_candidate_result: 'A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS',
+        change_scope: 'A9_23_VALIDATION_KIT_REPAIR',
+      }
+      : candidate === 'win38'
       ? {
         task: 'A9-22', previous_candidate: 'WIN7-37',
         previous_candidate_result: 'A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS',
@@ -3537,5 +3549,235 @@ test('A9 v3 builder removes a partial work tree when sensitive payload scanning 
   assert.equal(fs.readFileSync(productFile, 'utf8'), original);
   assert.throws(() => buildA9ProductCandidate({ repositoryRoot: process.cwd(), ...inputs, outputRoot, allowUncommitted: true }), /A9_SENSITIVE_PAYLOAD_PROHIBITED:leaked\.txt/);
   assert.equal(fs.existsSync(path.join(outputRoot, '.work')), false);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+// ==========================================================================
+// A9-23 / WIN7-39 开发机门（交接书 §4，ADR-0142）。
+// ==========================================================================
+
+const W39_SMOKE_PATH = path.join(process.cwd(), 'release', 'win7-product-v3', 'a9-win7-39-smoke.cjs');
+const W39_DRIVER_PATH = path.join(process.cwd(), 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
+
+/** W39 smoke 合同检查：W37 机制保留 + W39 追加要求。返回问题清单（空 = 通过）。 */
+function evaluateW39SmokeContract(smokeSource) {
+  const problems = [];
+  if (!smokeSource.includes('A9_SMOKE_PRODUCT_MAIN: productMain')) problems.push('W39 smoke must set A9_SMOKE_PRODUCT_MAIN');
+  if (!smokeSource.includes("A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1'")) problems.push('W39 smoke must set A9_SMOKE_REQUIRE_PRODUCT_MAIN=1');
+  if (!/pid === process\.pid/.test(smokeSource)) problems.push('W39 residue snapshot must exclude the smoke process self-pid');
+  if (/record\(\s*'A9-W39-[^']+'\s*,\s*true\b/.test(smokeSource)) problems.push('W39 assertions must not be recorded as literal true');
+  if (!smokeSource.includes("process.versions.electron !== '22.3.27'")
+    || !smokeSource.includes("process.platform !== 'win32'")
+    || !smokeSource.includes("process.env.ELECTRON_RUN_AS_NODE !== '1'")) problems.push('W39 smoke must keep the W37 runtime self-check');
+  for (const phase of ['first', 'second', 'retry', 'stop', 'live']) {
+    if (!smokeSource.includes(`A9_SMOKE_MODE: '${phase}'`)) problems.push(`W39 smoke must keep the W37 phase ${phase}`);
+  }
+  if (!smokeSource.includes('relatedProcessSnapshot')) problems.push('W39 smoke must keep structured residue snapshots');
+  for (const assertion of ['A9-W39-CHINESE-SPACE-PATHS', 'A9-W39-STARTUP-WITHIN-60S', 'A9-W39-M1-TARGETED-RECOVERY',
+    'A9-W39-M1B-URL-REDACTED', 'A9-W39-M2-TRUNCATED-WITH-WARNINGS', 'A9-W39-M3-COUNT-MATCHES-DB',
+    'A9-W39-M4-CAP-NOTICE', 'A9-W39-FINAL-NO-RESIDUE', 'w39-case-index.json']) {
+    if (!smokeSource.includes(assertion)) problems.push(`W39 smoke must carry ${assertion}`);
+  }
+  return problems;
+}
+
+test('WIN7-39 carries the repaired validation kit on the immutable WIN7-38 with a 15-case current-candidate closure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win39-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win39');
+  const built = buildA9ProductCandidate({ repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') });
+  const stage = built.stage;
+  const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_23_VALIDATION_KIT.json'), 'utf8'));
+  for (const relative of win39Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-39 closure: ${relative}`);
+  }
+  // §4 第 1 项：smoke 的 A9_SMOKE_PRODUCT_MAIN 拼出的相对路径在 W39 构建闭包中存在。
+  assert.ok(fs.existsSync(path.join(stage, 'resources', 'app', 'product', 'main.js')), 'candidate product entry must exist');
+  const smokeSource = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-39-smoke.cjs'), 'utf8');
+  assert.ok(smokeSource.includes("'resources', 'app', 'product', 'main.js'"), 'smoke must resolve the candidate product entry path');
+  assert.equal(kit.kit_id, 'A9-23-WIN7-39-20260926-01');
+  assert.equal(kit.candidate_label, 'WIN7-39');
+  assert.equal(kit.scope.decision, 'ADR-0142');
+  assert.equal(kit.scope.result_on_complete, 'A9_23_WIN7_39_A9_20_A9_21_PASS');
+  assert.equal(kit.scope.historical_candidate, 'WIN7-38 remains immutable as A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS and is not reclassified');
+  assert.equal(kit.external_release_authority.kind, 'WIN7_39_RELEASE_AUTHORITY');
+  assert.equal(kit.required_cases.length, 15);
+  assert.ok(kit.required_cases.every((item) => /^W39-\d{2}-/.test(item.case_id)));
+  for (const caseId of ['W39-01-CANDIDATE-INTEGRITY', 'W39-07-A9-20-GIT-FORMS-CMD', 'W39-08-A9-20-GIT-FORMS-POWERSHELL',
+    'W39-09-A9-20-GIT-FORMS-POSIX-AND-BULK', 'W39-10-M1-STARTUP-TARGETED-RECOVERY', 'W39-11-M1B-HEX-FREEZE-AND-URL-REDACTION',
+    'W39-12-M2-OUTPUT-LIMITS', 'W39-13-M3-CHECKPOINT-PAGINATION', 'W39-14-M4-COLLECTION-BOUNDS', 'W39-15-SECRET-SCAN-AND-POSTFLIGHT']) {
+    const item = kit.required_cases.find((entry) => entry.case_id === caseId);
+    assert.ok(item && item.assertions.length >= 2, `W39 case required: ${caseId}`);
+  }
+  assert.ok(Object.keys(kit.source_artifact_hashes).includes('docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'));
+  assert.equal(win39Report.KIT_ID, kit.kit_id);
+  assert.equal(win39Report.REQUIRED_CASE_COUNT, 15);
+  const driver = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-39-driver.cjs'), 'utf8');
+  for (const suffix of ['03-INSPECTOR-PERSISTED-RESTART', '09-LATEST-OUTCOME-PROJECTION', '10-OLDER-EVENT-PAGINATION']) {
+    assert.ok(driver.includes(`W39-${suffix}`), `W39 driver key required: ${suffix}`);
+    assert.ok(!driver.includes(`W38-${suffix}`) && !driver.includes(`W37-${suffix}`), `stale driver key prohibited: ${suffix}`);
+  }
+  assert.ok(driver.includes('A9_W39_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
+  assert.ok(!driver.includes('A9_W37_DRIVER_PRODUCT_ENTRY_LATE_LOAD') && !driver.includes('A9_W38_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
+  assert.ok(driver.includes('async function runW39StartupProcess(') && driver.includes('async function runW39M4Process('));
+  assert.ok(driver.includes('A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED') && driver.includes('productMainLoaded'));
+  for (const token of ['A9_23_WIN7_39_AUTOMATIC_PRODUCT_SMOKE', "runW39Phase('w39_startup'", "runW39Phase('w39_git'",
+    "runW39Phase('w39_m1_small'", "runW39Phase('w39_m1_large'", "runW39Phase('w39_m1b'",
+    "runW39Phase('w39_m2'", "runW39Phase('w39_m3'", "runW39Phase('w39_m4'"]) {
+    assert.ok(smokeSource.includes(token), `W39 smoke token required: ${token}`);
+  }
+  // §4 第 1/2/3 项对构建闭包内的 smoke 生效。
+  assert.deepEqual(evaluateW39SmokeContract(smokeSource), []);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(stage, 'release-manifest.json'), 'utf8')).source_dirty, false);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 smoke contract keeps W37 mechanisms and rejects injected regressions (handoff items 2/3/4/5)', () => {
+  const smokeSource = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  // 正例：真实 W39 smoke 必须全过。
+  assert.deepEqual(evaluateW39SmokeContract(smokeSource), []);
+  // 注入反例 1（W38 缺陷形态）：去掉产品入口变量。
+  const withoutEntry = smokeSource
+    .replace("    A9_SMOKE_PRODUCT_MAIN: productMain,\n", '')
+    .replace("    A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1',\n", '');
+  assert.ok(evaluateW39SmokeContract(withoutEntry).some((item) => item.includes('A9_SMOKE_PRODUCT_MAIN')));
+  assert.ok(evaluateW39SmokeContract(withoutEntry).some((item) => item.includes('REQUIRE_PRODUCT_MAIN')));
+  // 注入反例 2：恒真断言（W38 缺陷写法）。
+  const literalTrue = smokeSource.replace(
+    "  record('A9-W39-FINAL-NO-RESIDUE', finalResidue.no_residue === true,",
+    "  record('A9-W39-FAKE-LITERAL-TRUE', true);\n  record('A9-W39-FINAL-NO-RESIDUE', finalResidue.no_residue === true,");
+  assert.ok(evaluateW39SmokeContract(literalTrue).some((item) => item.includes('literal true')));
+  // 注入反例 3：去掉残留快照的自身 PID 排除。
+  const withoutPidExclusion = smokeSource.replace('pid === process.pid', 'pid === -1');
+  assert.ok(evaluateW39SmokeContract(withoutPidExclusion).some((item) => item.includes('self-pid')));
+  // 注入反例 4：删除一个 W37 必需阶段（改掉 stop 的 A9_SMOKE_MODE，阶段即不再以 stop 运行）。
+  const withoutStopPhase = smokeSource.replace("A9_SMOKE_MODE: 'stop',", "A9_SMOKE_MODE: 'stop-disabled',");
+  assert.ok(evaluateW39SmokeContract(withoutStopPhase).some((item) => item.includes("phase stop")));
+  // 注入反例 5：删除运行时自检。
+  const withoutSelfCheck = smokeSource.replace("process.versions.electron !== '22.3.27'", "process.versions.electron !== '9.9.9'");
+  assert.ok(evaluateW39SmokeContract(withoutSelfCheck).some((item) => item.includes('runtime self-check')));
+});
+
+test('W39 driver resolves the candidate product entry exactly per the gated contract (handoff item 6)', () => {
+  const driverSource = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const match = driverSource.match(/\/\/ A9_W39_PRODUCT_ENTRY_RESOLVE_BEGIN([\s\S]*?)\/\/ A9_W39_PRODUCT_ENTRY_RESOLVE_END/);
+  assert.ok(match, 'driver must expose the marked resolveDriverProductEntry helper');
+  const pathStub = {
+    join: (...parts) => parts.join('/'),
+    resolve: (value) => value,
+    isAbsolute: (value) => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value),
+  };
+  const resolveDriverProductEntry = vm.runInNewContext(
+    `(function () { ${match[1]}\nreturn resolveDriverProductEntry; })()`, { path: pathStub });
+  // 临时目录模拟 <candidateRoot>\validation 与 <runRoot>\driver-app 的候选布局。
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-entry-'));
+  const candidateRoot = path.join(root, 'candidate 39 候选');
+  fs.mkdirSync(path.join(candidateRoot, 'validation'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'run', 'driver-app'), { recursive: true });
+  const candidateEntry = path.join(candidateRoot, 'resources', 'app', 'product', 'main.js');
+  // 设置 A9_SMOKE_PRODUCT_MAIN：解析到候选内路径。
+  const explicit = resolveDriverProductEntry({ A9_SMOKE_PRODUCT_MAIN: candidateEntry }, root);
+  assert.equal(explicit.productMain, candidateEntry);
+  assert.equal(explicit.fallbackUsed, false);
+  // REQUIRE=1 且缺入口变量：稳定错误码失败，不回落。
+  assert.throws(() => resolveDriverProductEntry({ A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1' }, root),
+    (error) => error.code === 'A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED');
+  // 两个变量都不设：与现状（仓库布局回落）相同。
+  const fallback = resolveDriverProductEntry({}, root);
+  assert.equal(fallback.productMain, pathStub.join(root, 'src/shell/product/main.js'));
+  assert.equal(fallback.fallbackUsed, true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 M1/M4 seed builders use the public persistence API and recover exactly the seeded turn (handoff item 7)', () => {
+  const stateDist = path.join(process.cwd(), 'src', 'state', 'dist', 'a9-persistence.js');
+  const coreDist = path.join(process.cwd(), 'src', 'core', 'dist', 'index.js');
+  assert.ok(fs.existsSync(stateDist), 'src/state/dist must be built in this worktree (tsc)');
+  assert.ok(fs.existsSync(coreDist), 'src/core/dist must be built in this worktree (tsc)');
+  const { A9PersistenceManager } = require(stateDist);
+  const { canonicalizeWorkspacePath } = require(coreDist);
+  const openDatabase = (databasePath, options) => new Database(databasePath, options && options.readonly ? { readonly: true } : {});
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-seed-'));
+  const workspaceRoot = path.join(root, 'w39 seed workspace 中文');
+  const dataRoot = path.join(root, 'w39 seed data 中文');
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(dataRoot, { recursive: true });
+  const databasePath = path.join(dataRoot, 'a9-state.db');
+  const canonical = canonicalizeWorkspacePath(workspaceRoot);
+  // —— M1 种子：5 个 completed + 恰好 1 个 interrupted（无 checkpoint 行、无清单）。 ——
+  {
+    const outcome = A9PersistenceManager.open({ databasePath, openDatabase, dataRoot });
+    assert.equal(outcome.status, 'ready');
+    const manager = outcome.manager;
+    manager.saveSession('w39-m1-test-session', canonical, { title: 'w39 m1 seed test' });
+    manager.activateConversation(canonical, 'w39-m1-test-session');
+    manager.upsertTask('w39-m1-test-task', 'w39-m1-test-session', 'active');
+    for (let index = 1; index <= 5; index += 1) {
+      manager.upsertTurn(`w39-m1-completed-${String(index).padStart(3, '0')}`, 'w39-m1-test-task', 'w39-m1-test-session', 'completed',
+        { outcome: 'completed', verification: 'not_applicable' });
+      manager.recordModelEvent('w39-m1-test-session', `w39-m1-completed-${String(index).padStart(3, '0')}`, 'model_note',
+        { content: `seed turn ${index}`, step: index });
+    }
+    manager.upsertTurn('w39-m1-interrupted-001', 'w39-m1-test-task', 'w39-m1-test-session', 'interrupted',
+      { outcome: 'needs_approval', verification: 'not_applicable' });
+    manager.db.close();
+  }
+  {
+    const reopened = A9PersistenceManager.open({ databasePath, openDatabase, dataRoot });
+    assert.equal(reopened.status, 'ready');
+    const recovered = reopened.manager.findInterruptedWorkspaceTurnsNeedingCheckpoint(canonical);
+    assert.deepEqual(recovered, ['w39-m1-interrupted-001']);
+    reopened.manager.db.close();
+  }
+  // —— M4 种子：≥2500 条事件经公开方法写入。 ——
+  {
+    const outcome = A9PersistenceManager.open({ databasePath, openDatabase, dataRoot });
+    assert.equal(outcome.status, 'ready');
+    const manager = outcome.manager;
+    manager.upsertTask('w39-m4-test-task', 'w39-m1-test-session', 'active');
+    manager.upsertTurn('w39-m4-test-turn-001', 'w39-m4-test-task', 'w39-m1-test-session', 'completed',
+      { outcome: 'completed', verification: 'not_applicable' });
+    for (let index = 1; index <= 2500; index += 1) {
+      if (index % 2 === 1) {
+        manager.recordModelEvent('w39-m1-test-session', 'w39-m4-test-turn-001', 'model_note',
+          { content: `m4 seed note ${index}`, step: index });
+      } else {
+        manager.recordToolEvent('w39-m1-test-session', 'w39-m4-test-turn-001', 'tool_end',
+          { toolName: 'search', callId: `w39-m4-${index}`, step: index, result: `m4 seed result ${index}` });
+      }
+    }
+    assert.ok(manager.countEvents() >= 2500, 'M4 seed must write at least 2500 events');
+    manager.db.close();
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 build rejects injected stale W37 candidate-scoped tokens (handoff item 8a)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win39-stale-w37-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  fs.appendFileSync(path.join(sourceRepositoryRoot, 'release', 'win7-product-v3', 'a9-package-integrity-w39.cjs'),
+    "\nconst staleW37CodeForTest = 'A9_W37_KIT_CONTRACT_INVALID';\n", 'utf8');
+  execFileSync('git', ['add', 'release/win7-product-v3/a9-package-integrity-w39.cjs'], { cwd: sourceRepositoryRoot });
+  execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'inject stale W37 code'], { cwd: sourceRepositoryRoot });
+  const inputs = fixture(root, sourceRepositoryRoot, 'win39');
+  assert.throws(() => buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  }), /A9_CANDIDATE_STALE_TOKEN:WIN7-39:.*A9_W37_KIT_CONTRACT_INVALID/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 build rejects injected stale W38 candidate-scoped tokens (handoff item 8b)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win39-stale-w38-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  fs.appendFileSync(path.join(sourceRepositoryRoot, 'release', 'win7-product-v3', 'a9-win7-39-smoke.cjs'),
+    "\n// const staleW38ProbeForTest = 'A9_W38_LIVE_TEST_KEY_REQUIRED';\n", 'utf8');
+  execFileSync('git', ['add', 'release/win7-product-v3/a9-win7-39-smoke.cjs'], { cwd: sourceRepositoryRoot });
+  execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'inject stale W38 code'], { cwd: sourceRepositoryRoot });
+  const inputs = fixture(root, sourceRepositoryRoot, 'win39');
+  assert.throws(() => buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  }), /A9_CANDIDATE_STALE_TOKEN:WIN7-39:.*A9_W38_LIVE_TEST_KEY_REQUIRED/);
   fs.rmSync(root, { recursive: true, force: true });
 });
