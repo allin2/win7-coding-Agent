@@ -957,8 +957,44 @@ export class A9PersistenceManager {
   }
 
   listCheckpoints(sessionId: string): Array<{ turnId: string; createdAt: string }> {
-    return (this.db.prepare('SELECT turn_id, created_at FROM a9_checkpoints WHERE session_id = ? ORDER BY created_at').all(sessionId) as any[])
+    return (this.db.prepare('SELECT turn_id, created_at FROM a9_checkpoints WHERE session_id = ? ORDER BY created_at ASC, turn_id ASC').all(sessionId) as any[])
       .map((r) => ({ turnId: r.turn_id, createdAt: r.created_at }));
+  }
+
+  listRecentCheckpoints(sessionId: string, limit: number): { checkpoints: Array<{ turnId: string; createdAt: string }>; total: number } {
+    const total = (this.db.prepare('SELECT COUNT(*) AS total FROM a9_checkpoints WHERE session_id = ?').get(sessionId) as { total: number }).total;
+    const rows = this.db.prepare(`
+      SELECT turn_id, created_at FROM a9_checkpoints WHERE session_id = ?
+      ORDER BY created_at DESC, turn_id DESC LIMIT ?
+    `).all(sessionId, limit) as Array<{ turn_id: string; created_at: string }>;
+    return { checkpoints: rows.reverse().map((row) => ({ turnId: row.turn_id, createdAt: row.created_at })), total };
+  }
+
+  listCheckpointPage(sessionId: string, options: { before?: { createdAt: string; turnId: string }; limit: number }): {
+    checkpoints: Array<{ turnId: string; createdAt: string }>;
+    total: number;
+    hasMore: boolean;
+    nextBefore: { createdAt: string; turnId: string } | null;
+  } {
+    const total = (this.db.prepare('SELECT COUNT(*) AS total FROM a9_checkpoints WHERE session_id = ?').get(sessionId) as { total: number }).total;
+    const beforeClause = options.before
+      ? 'AND (created_at < ? OR (created_at = ? AND turn_id < ?))' : '';
+    const args: Array<string | number> = [sessionId];
+    if (options.before) args.push(options.before.createdAt, options.before.createdAt, options.before.turnId);
+    args.push(options.limit + 1);
+    const rows = this.db.prepare(`
+      SELECT turn_id, created_at FROM a9_checkpoints WHERE session_id = ? ${beforeClause}
+      ORDER BY created_at DESC, turn_id DESC LIMIT ?
+    `).all(...args) as Array<{ turn_id: string; created_at: string }>;
+    const hasMore = rows.length > options.limit;
+    if (hasMore) rows.pop();
+    const oldest = rows[rows.length - 1];
+    return {
+      checkpoints: rows.reverse().map((row) => ({ turnId: row.turn_id, createdAt: row.created_at })),
+      total,
+      hasMore,
+      nextBefore: hasMore && oldest ? { createdAt: oldest.created_at, turnId: oldest.turn_id } : null,
+    };
   }
 
   /**
@@ -1055,7 +1091,7 @@ export class A9PersistenceManager {
       FROM a9_checkpoints c
       LEFT JOIN a9_turns t ON t.turn_id = c.turn_id
       WHERE c.session_id = ?
-      ORDER BY c.created_at DESC${cappedLimit ? ' LIMIT ?' : ''}
+      ORDER BY c.created_at DESC, c.turn_id DESC${cappedLimit ? ' LIMIT ?' : ''}
     `).all(...(cappedLimit ? [sessionId, cappedLimit] : [sessionId])) as any[];
 
     const facts = new Map<string, any>();
