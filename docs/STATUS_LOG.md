@@ -1149,3 +1149,5 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   A9-21 M0～M5 全部完成；任务级待办为 gateway 偶发失败定位、真实 Electron 完整任务回归与 Win7 实机。
 
 - 2026-09-26，清理 A9-21 M1b～M4 的外部执行工作树与已并回的本地分支；主工作区只剩 `codex/a9-alpha2`。
+
+- 2026-09-26，A9-21 收口验证（gateway 偶发失败、真实 Electron 回归）交接给新会话，交接书见 `docs/plans/A9_21_CLOSEOUT_VALIDATION_HANDOFF.md`。

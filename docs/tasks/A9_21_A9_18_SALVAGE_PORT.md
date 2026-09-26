@@ -243,3 +243,9 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 - 删除 M1b～M4 的工作树 `win7-coding-agent-m1b`、`-m2`、`-m3`、`-m4` 与本地分支 `codex/a9-21-m1b`（`d67979a`）、`codex/a9-21-m2`（`3bc8815`）、
   `codex/a9-21-m3`（`ab5e792`）、`codex/a9-21-m4`（`d38aeaf`）。四个分支均已并入 `codex/a9-alpha2`，工作树无未提交改动；
   其中指向主工作区的 `node_modules`/`dist` 符号链接先单独解除，只删除了各自的构建产物，主工作区依赖与构建产物未受影响。
+
+### 收口验证交接（2026-09-26）
+
+- §5 第 5 项（gateway 偶发失败）与第 6 项（真实 Electron 回归）交由新会话执行，交接书见
+  [A9-21 收口验证交接书](../plans/A9_21_CLOSEOUT_VALIDATION_HANDOFF.md)。本机 Electron 包已缺失，需负责人同意下载
+  `electron-v22.3.27-darwin-arm64.zip` 并按仓库内 SHASUMS 核对；Electron ABI SQLite 可用缓存头文件离线编译。
