@@ -1127,3 +1127,6 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 - 2026-09-26，A9-21 M3/M4 开工前裁决：`blockedRequests` 位于 `main.js`，M4 允许路径增补该文件（仅相关代码）；界面方案经演示确认。
   M3（checkpoint 列表分页）交外部 Agent 实施，交接书见 `docs/plans/A9_21_M3_CHECKPOINT_PAGINATION_HANDOFF.md`。
+
+- 2026-09-26，A9-21 M3 第一轮有条件通过（`106e650`）：分页契约与界面符合；同一时刻记录的稳定排序缺测试，补齐复查后并回。
+  另发现快照耗时随 checkpoint 总数增长源于既有 `listConversationFacts`，不属 M3。
