@@ -23,7 +23,7 @@
 | D-5 | `baseEnv` 增加 `A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1'` | §3.3 S-2：驱动门控，缺失入口变量即 `A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED`，不回落仓库布局 |
 | D-6 | `runElectron` 增加可选 `timeoutMs` 参数（默认 240000 不变）；w39_git/w39_m3/w39_m4 用 900000，其余 w39 阶段用 600000 | W37 阶段超时不变；w39 长旅程（19 个 git 形态、60 轮 M3、2500 事件 M4）超出 240 s |
 | D-7 | 追加 8 个阶段：`w39_startup`、`w39_git`、`w39_m1_small`、`w39_m1_large`、`w39_m1b`、`w39_m2`、`w39_m3`、`w39_m4`，每阶段结束后再做一次残留检查（内部断言 `W39-PHASE-RESIDUE-*`） | S-1/S-3 |
-| D-8 | Git 形态远端准备：运行根下建本地裸仓库 `git 裸仓库 origin` 与带 `origin` 的工作区仓库；按 `--git-exe`、`C:\acceptance\mvp_mingit\cmd\git.exe`、`where git` 的顺序选择完整可执行文件路径并探测版本；均不可用时远端判定记 `NOT_PERFORMED_NO_GIT`。Git 目录不加入产品或驱动进程的 PATH；证据记录实际路径、来源、版本、ref 对照与准备错误 | §9.2 R3-8；预演确认 MinGit 存在但 agent 用户 PATH 不含它 |
+| D-8 | Git 形态远端准备：运行根下建本地裸仓库 `git 裸仓库 origin` 与带 `origin` 的工作区仓库；先创建工作区仓库目录，再写 README、执行 `git init`。按 `--git-exe`、`C:\acceptance\mvp_mingit\cmd\git.exe`、`where git` 的顺序选择完整可执行文件路径并探测版本；均不可用时远端判定记 `NOT_PERFORMED_NO_GIT`。Git 目录不加入产品或驱动进程的 PATH；证据记录实际路径、来源、版本、ref 对照与准备错误 | §9.2 R3-8、§11.2 R4-2；预演确认 MinGit 存在但 agent 用户 PATH 不含它，工作库目录缺失导致 README 写入 ENOENT |
 | D-9 | M1/M4 种子函数：require 候选内 `resources/app/state/dist/a9-persistence.js` 的 `A9PersistenceManager.open`、`resources/app/core/dist/index.js` 的 `canonicalizeWorkspacePath` 与候选 `resources/native/storage/node_modules/better-sqlite3`；仅用公开方法（`saveSession`/`activateConversation`/`upsertTask`/`upsertTurn`/`recordModelEvent`/`recordToolEvent`），不手写建表或 INSERT。M4 每个种子任务还写入 `conversation.request`（`schemaVersion:1`、`taskId`、`requestPrompt`）以生成产品对话事实 | §3.6/§3.10 与 §9.2 R3-6 |
 | D-10 | M1b 口令扫描：随机口令只在 fixture 闭包与阶段环境变量中使用；扫描 `a9-state.db` 的 `payload_json`（候选 better-sqlite3 只读）、数据根全部 ≤8 MiB 文本文件与该阶段驱动报告；证据只记命中数，不记口令 | §3.7：口令零命中 + 至少一处产品脱敏形式；口令不得写入证据 |
 | D-11 | 断言聚合：`A9-W39-M1-TARGETED-RECOVERY` 与 `A9-W39-M1-STARTUP-TIMING-RECORDED` 由 smoke 聚合两阶段驱动报告后各记录一次；driver 内记录阶段作用域 ID（`W39-M1-RECOVERY-SMALL/LARGE`、`W39-M1-TIMING-SMALL/LARGE`） | 保持 W37 的"必需断言恰好出现 1 次"计数语义（同 ID 跨两阶段记录会破坏计数） |
@@ -34,6 +34,7 @@
 | D-16 | M4 种子改为 10 个 Turn、每轮 250 条种子事件；淘汰轮夹具改为最多 20 步并要求本轮产品事件不少于 50 条 | §7.2 W5 与 §9.2 R3-6；保持 2,500 条种子事件、每轮低于 450，并避开产品每轮 30 步上限 |
 | D-17 | M1b 夹具先 `read small.txt` 再 `edit`；M3 每轮先 `read counter.ts` 再 `edit` | §9.2 R3-4/R3-5；符合产品先读后写规则 |
 | D-18 | 必需断言汇总将未出现与出现但未通过分别写为 `MISSING`、`PRESENT_NOT_PASSED` | §9.2 R3-7；预演报告曾把两种情况都写成 MISSING |
+| D-19 | M4 fixture 增加一轮 `load m4 history` 只读 search 热身；驱动等该轮完成、对话流顶部可点击的“加载更早记录”出现后再分页。热身轮 ID 与产品查询所得事件数写入驱动报告和 `w39-14-collection-bounds.json`，注明计入已接收总数、排除于淘汰轮 E；集合提示只选择对话流的直接子节点 | §11.2 R4-4；保留产品选择工作区后只刷新快照、轮次结束才加载过程记录的行为，不调用内部加载器 |
 
 W37 全部既有机制逐项保留（改名后）：五个阶段（`first`/`second`/`retry`/`stop`/`live`）、运行时自检（Win32、Electron 22.3.27、ABI 110、`ELECTRON_RUN_AS_NODE=1`）、证据目录不得位于候选内、中文空格工作区、`relatedProcessSnapshot`（排除 smoke 自身 PID）与"必需断言恰好出现 1 次"计数、两个候选内真实 Electron 反例、投影协议 fixture 核对与 `PROJECTION-ARTIFACTS-REPORT-PARSEABLE`（依赖 W39 报告脚本新增的投影解析导出，该段自 W37 报告脚本移植、错误码重基线为 `A9_W39_*`）。
 
@@ -70,11 +71,13 @@ W37 全部既有机制逐项保留（改名后）：五个阶段（`first`/`seco
 ## 5. 断言来源与判定口径（R4）
 
 - 全部判定只读阶段结束后的产品产物：驱动报告（含 `productMainLoaded`）、产品写入的 SQLite（`a9-state.db`：M3 checkpoint 计数与全集、M1b `payload_json` 扫描）、工作区文件（M2 目标哈希）、诊断快照（M1 `checkpointRecoveryDiagnostics`）、DOM（M3 计数文案 `#a9-checkpoint-count`、checkpoint 列表、M4 顶部说明、审批卡）。脚本自身步骤成功（建目录、写种子、启动 fixture）一律不作为通过条件；必需断言不得以字面量 `true` 记录（开发机门 §4 第 3 项以正则拦截）。
-- A9-20 形态通过条件 = 审批卡出现，且 IPC 快照 `pendingApproval` 与卡片身份一致；`origin-main` 形态必须有 `gitBinding.remote='origin'`、`gitBinding.branch='main'`，`summary` 兜底形态必须有 `gitBinding`、无 `remote` 与 `branch` 属性，且 `gitBinding.commandSha256` 与 `bindingDigest` 都为 64 位十六进制。报告逐项注明绑定路径。审批卡 DOM 文本只记录，不参与绑定判定。拒绝后以 `approval_required` 的 `callId` 为边界，要求同一调用无后续 `tool_start`；同一调用若有 `tool_end`，每项均须 `denied=true`、`sideEffects=0`；产品库 `a9_approvals` 中该审批必须为拒绝。三项同时成立才记未执行。有 Git 时裸仓库 `refs/heads/main` 前后相同（直接读文件）。
+- A9-20 形态通过条件 = 审批卡出现，卡片 ID 文本恰为 `approval: <pendingApproval.approvalId>`，卡片 `bindingDigest` 与快照待批准项一致；`origin-main` 形态必须有 `gitBinding.remote='origin'`、`gitBinding.branch='main'`，`summary` 兜底形态必须有 `gitBinding`、无 `remote` 与 `branch` 属性，且 `gitBinding.commandSha256` 与 `bindingDigest` 都为 64 位十六进制。报告逐项注明绑定路径。审批卡 DOM 文本不参与 Git 绑定判定。审批边界事件与产品库 `a9_approvals` 均以快照 `pendingApproval.approvalId` 查询，不把带前缀的 DOM 文本当 ID。拒绝后以 `approval_required` 的 `callId` 为边界，要求同一调用无后续 `tool_start`；同一调用若有 `tool_end`，每项均须 `denied=true`、`sideEffects=0`；产品库中该审批必须为拒绝且会话一致。三项同时成立才记未执行。有 Git 时裸仓库 `refs/heads/main` 前后相同（直接读文件）。
 - 所有 `w39_*` 阶段的本轮终态由产品事件决定：提交前取事件游标，提交后找游标之后的新 `turn_started` 及其 `turnId`，再等待该 `turnId` 的 `turn_completed` 或 `turn_failed`；不使用分页快照的对话事实条数推断结束。M1b/M3 的 read/edit 顺序由夹具驱动；M3 60 轮按各轮独立的事件终态推进。
 - M2 先等待本轮终态，再查询该 `turnId` 的 `turn_completed`、截断说明与工具事件；截断和未执行两条断言均要求非空终态 `turnId`。
 - M3 点击最旧 checkpoint 后等待 `#a9-diff` 与点击前文本不同，并要求结果含 `counter.ts`，排除占位文本与“此 checkpoint 没有文件变更。”。
+- M1b 冻结耗时仍为提交到本轮事件终态，要求 `<10000 ms`；结局接受 `completed` 或 `completed_with_warnings`。使用产品库 `a9_checkpoints WHERE turn_id = ?` 核对本轮终态的 `turnId`，报告保留该行的 `turn_id`、`session_id`、`created_at`，不以快照 checkpoint 总数替代本轮行存在。
 - M4 淘汰轮要求本轮 `turn_completed` 且本轮产品事件数 E ≥ 50。释放数判定方法：从产品提示读取 N；从产品事件查询按淘汰轮终态 `turnId` 计得 E。要求 `200 < N ≤ 200 + E`。淘汰后提示不含“已达界面上限”时必须出现可点击的“加载更早记录”按钮；含该文案时不得出现该按钮。报告写入 N、E、区间上下界、提示原文、按钮存在/文案/禁用状态及计算方法。轮询分批到达时不使用一次性精确释放数公式（交接书 §7.4 裁决）。开发机门经真实运行时打开种子库，核对 10 条对话事实与 2,500 条种子事件的连续分页。
+- M4 分页前必须先完成只读热身轮，并等对话流顶部按钮可点击；热身事件参与产品加载与计数，不从集合中剔除，不进入 E。开发机 VM 加载真实 `a9-workbench.js`，保留其默认集合上限与加载时序：选择工作区后查询次数为 0，热身仍在运行时为 0，终态后查询最近 300 条且包含热身事件，顶部按钮出现。产品侧“选择工作区不加载历史过程”观察保留，不在本套件改动范围内。
 - `A9-W39-REQUIRED-ASSERTIONS-PRESENT` 的失败 detail 分列 `MISSING`（缺少 ID）和 `PRESENT_NOT_PASSED`（ID 存在但 `passed !== true`）；开发机门逐项检查打包驱动或 smoke 的 `record(` 调用覆盖必需清单。
 - M1b 脱敏标记：产品 `redactSecrets`/`redactUrlUserinfo` 将 `scheme://user:pass@host` 替换为 `***redacted***@host`；本套件核对脱敏形式 `***redacted***@example.invalid/x` 至少出现一处，口令本身零命中。
 - M1 启动定向恢复口径：`checkpointRecoveryDiagnostics.rejectedTurns` 恰好含种子中断 Turn 且 `status='missing'`；其余 Turn 经会话事实查询可见（按种子 completed Turn 数核对）。是否"不随历史线性增长"由审核方依据两阶段耗时判断，驱动不下结论。

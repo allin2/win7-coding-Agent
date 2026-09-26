@@ -2329,6 +2329,12 @@ async function runW39StartupProcess(win, exec, env) {
 }
 
 // A9_W39_ASSERTION_HELPERS_BEGIN
+function w39SameApproval(pending, card) {
+  return Boolean(pending && pending.approvalId && pending.turnId && card
+    && card.approvalId === `approval: ${pending.approvalId}`
+    && pending.bindingDigest === card.digest);
+}
+
 function w39GitBindingMatches(form, pending) {
   if (!pending || !pending.approvalId || !/^[0-9a-f]{64}$/i.test(String(pending.bindingDigest || ''))) return false;
   if (form.binding === 'origin-main') {
@@ -2358,6 +2364,12 @@ function w39GitDenialResult(events, approvalId, pendingTurnId, approvalRow) {
     boundaryEventId: boundary ? boundary.eventId : null, callId,
     toolStartCount: starts.length, toolEndCount: ends.length, toolEndsDenied: endsDenied,
     approvalDecision: approvalRow ? approvalRow.decision : null, approvalDenied };
+}
+
+function w39M1bFreezeCheck(terminal, freezeMs, checkpointRow) {
+  return Boolean(terminal && terminal.turnId
+    && (terminal.outcome === 'completed' || terminal.outcome === 'completed_with_warnings')
+    && freezeMs < 10000 && checkpointRow && checkpointRow.turn_id === terminal.turnId);
 }
 
 function w39M2TurnChecks(turnFacts, terminal, beforeHash, afterHash) {
@@ -2422,8 +2434,7 @@ async function runW39GitProcess(win, exec, env) {
     })()`), 90_000, `git form ${form.id} approval card`);
     const pending = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.pendingApproval || null)');
     const bindingOk = w39GitBindingMatches(form, pending);
-    const sameApproval = Boolean(pending && pending.approvalId === card.approvalId
-      && pending.bindingDigest === card.digest && pending.turnId);
+    const sameApproval = w39SameApproval(pending, card);
     await exec('document.getElementById("a9-approval-deny").click(); true');
     await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, `git form ${form.id} denial`);
     const events = await w39ReadEvents(exec);
@@ -2431,9 +2442,9 @@ async function runW39GitProcess(win, exec, env) {
     let approvalRow;
     try {
       approvalRow = db.prepare('SELECT approval_id, session_id, turn_id, decision FROM a9_approvals WHERE approval_id = ?')
-        .get(card.approvalId) || null;
+        .get(pending.approvalId) || null;
     } finally { db.close(); }
-    const noExecution = w39GitDenialResult(events, card.approvalId, pending.turnId, approvalRow);
+    const noExecution = w39GitDenialResult(events, pending.approvalId, pending.turnId, approvalRow);
     noExecution.sessionMatched = Boolean(approvalRow && approvalRow.session_id === pending.conversationId);
     record(`A9-W39-GIT-FORM-${String(form.index).padStart(2, '0')}`,
       Boolean(card) && sameApproval && bindingOk && noExecution.ok && noExecution.sessionMatched,
@@ -2498,12 +2509,17 @@ async function runW39M1bProcess(win, exec, env) {
   await w39SubmitPrompt(exec, 'edit the small file');
   const terminal = await w39WaitTerminal(exec, beforeEventId, 'w39 m1b edit turn');
   const freezeMs = Date.now() - submittedAt;
-  const checkpointState = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ checkpoints: (r.snapshot.checkpoints || []).length }))');
+  const db = w39OpenProductDatabase(env.dataRoot);
+  let checkpointRow;
+  try {
+    checkpointRow = db.prepare('SELECT turn_id, session_id, created_at FROM a9_checkpoints WHERE turn_id = ?')
+      .get(terminal.turnId) || null;
+  } finally { db.close(); }
   report.w39M1b = {
-    freeze_ms: freezeMs, threshold_ms: 10000, terminal, checkpoints: checkpointState.checkpoints,
+    freeze_ms: freezeMs, threshold_ms: 10000, terminal, checkpoint: checkpointRow,
   };
-  record('A9-W39-M1B-FREEZE-DURATION', Boolean(terminal) && terminal.outcome === 'completed'
-    && freezeMs < 10000 && checkpointState.checkpoints >= 1, JSON.stringify(report.w39M1b));
+  record('A9-W39-M1B-FREEZE-DURATION', w39M1bFreezeCheck(terminal, freezeMs, checkpointRow),
+    JSON.stringify(report.w39M1b));
   const beforeUrlTurn = await w39EventCursor(exec);
   await w39SubmitPrompt(exec, 'echo the service url');
   const urlTerminal = await w39WaitTerminal(exec, beforeUrlTurn, 'w39 m1b url turn');
@@ -2643,6 +2659,21 @@ async function runW39M3Process(win, exec, env) {
  */
 async function runW39M4Process(win, exec, env) {
   await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-m4-model');
+  // chooseWorkspace only refreshes facts; a legal read-only turn triggers the
+  // product's own terminal history load. Do not call internal renderer loaders.
+  const beforeWarmupEventId = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'load m4 history');
+  const warmupTerminal = await w39WaitTerminal(exec, beforeWarmupEventId, 'w39 m4 warmup turn');
+  const warmupEvents = await w39ReadEvents(exec, warmupTerminal.turnId);
+  const warmupEventCount = warmupEvents.filter((event) => event.turnId === warmupTerminal.turnId).length;
+  report.w39M4 = { warmup: { terminal: warmupTerminal, event_count: warmupEventCount,
+    counted_in_received_total: true, excluded_from_eviction_E: true } };
+  if (warmupTerminal.outcome !== 'completed') throw new Error('A9_W39_M4_WARMUP_NOT_COMPLETED');
+  await waitFor(() => exec(`(() => {
+    const note = document.getElementById('a9-task-stream').firstChild;
+    const button = note && note.classList.contains('legacy-note') ? note.querySelector('button') : null;
+    return button && button.textContent === '加载更早记录' && !button.disabled ? true : null;
+  })()`), 15_000, 'w39 m4 warmup older-record button');
   const sampleRendererMemory = () => {
     const metrics = app.getAppMetrics();
     const rendererPid = typeof win.webContents.getOSProcessId === 'function'
@@ -2655,7 +2686,7 @@ async function runW39M4Process(win, exec, env) {
   let sampleMidPagination = null;
   for (let round = 0; round < 40; round += 1) {
     const clicked = await exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
+      const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
       const button = note ? note.querySelector('button') : null;
       if (!button || button.textContent !== '加载更早记录' || button.disabled) return false;
       button.click();
@@ -2663,14 +2694,14 @@ async function runW39M4Process(win, exec, env) {
     })()`);
     if (!clicked) break;
     await waitFor(() => exec(`(() => {
-      const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
+      const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
       const button = note ? note.querySelector('button') : null;
       return button && button.textContent === '加载更早记录' && button.disabled ? null : true;
     })()`), 15_000, 'w39 m4 load settle');
     if (round === 2) sampleMidPagination = sampleRendererMemory();
   }
   const capNoteState = await exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
+    const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
     return { text: note ? note.textContent : '' };
   })()`);
   record('A9-W39-M4-CAP-NOTICE', capNoteState.text.includes('已达界面上限 2000 条'),
@@ -2688,7 +2719,7 @@ async function runW39M4Process(win, exec, env) {
   record('W39-M4-EVICTION-EVENTS', terminal.outcome === 'completed' && turnEventCount >= 50,
     JSON.stringify({ turnId: terminal.turnId, outcome: terminal.outcome, event_count: turnEventCount, minimum: 50 }));
   const postState = await waitFor(() => exec(`(() => {
-    const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
+    const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
     return { text: note ? note.textContent : '',
       olderButton: { present: Boolean(button), text: button ? button.textContent : '', disabled: button ? button.disabled : null } };
@@ -2701,13 +2732,16 @@ async function runW39M4Process(win, exec, env) {
     JSON.stringify({
       released_in_notice: released,
       eviction_turn_event_count: turnEventCount,
+      warmup_turn_id: warmupTerminal.turnId,
+      warmup_event_count: warmupEventCount,
+      warmup_counted_in_received_total: true,
       lower_exclusive: releaseCheck.lower,
       upper_inclusive: releaseCheck.upper,
       notice_text: postState.text,
       at_event_cap: releaseCheck.atCap,
       older_button_after_eviction: postState.olderButton,
       button_rule_met: releaseCheck.buttonOk,
-      computation: 'N from product notice; E from product queryEvents filtered by terminal turnId; require 200 < N <= 200 + E; if notice says cap, older-record button absent, otherwise present and enabled',
+      computation: 'N from product notice; E from product queryEvents filtered only by eviction terminal turnId; warmup events are included in received total but excluded from E; require 200 < N <= 200 + E; if notice says cap, older-record button absent, otherwise present and enabled',
     }));
   const sampleAfterEviction = sampleRendererMemory();
   record('A9-W39-M4-RENDERER-MEMORY-SAMPLED',

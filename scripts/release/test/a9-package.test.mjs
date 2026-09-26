@@ -4088,3 +4088,149 @@ test('W39 build rejects injected stale W38 candidate-scoped tokens (handoff item
   }), /A9_CANDIDATE_STALE_TOKEN:WIN7-39:.*A9_W38_LIVE_TEST_KEY_REQUIRED/);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test('W39 R4-1 prefixed approval card uses snapshot ID for denial events and approval row; rejects rehearsal copy', async () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const helpers = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/)[1];
+  const journey = (copy) => copy.slice(copy.indexOf('async function runW39GitProcess('), copy.indexOf('\n/**\n * W39-10：'));
+  const approvalId = 'apr-53855dfe52cf255304118b9f';
+  const turnId = 'turn-1790437040752-1';
+  const pending = { approvalId, turnId, conversationId: 'conversation-test', bindingDigest: 'a'.repeat(64),
+    gitBinding: { remote: 'origin', branch: 'main' } };
+  const card = { approvalId: `approval: ${approvalId}`, digest: pending.bindingDigest, git: 'remote=origin', summary: 'git push' };
+  const events = [
+    { eventId: 7, turnId, eventType: 'approval_required', payload: { type: 'approval_required', data: { approvalId, callId: 'w39-git-1' } } },
+    { eventId: 9, turnId, eventType: 'tool_end', payload: { type: 'tool_end', data: { callId: 'w39-git-1', denied: true, sideEffects: 0 } } },
+  ];
+  const row = { approval_id: approvalId, turn_id: turnId, session_id: pending.conversationId, decision: 'denied' };
+  const run = async (copy) => {
+    const records = []; const queried = [];
+    const context = {
+      fs: { readFileSync: () => JSON.stringify([{ index: 1, id: 'cat1-control', command: 'cmd /c "git push origin main"', binding: 'origin-main' }]) },
+      process: { env: { A9_SMOKE_W39_GIT_FORMS_FILE: '/temporary/forms.json' } },
+      w39ConfigureProvider: async () => {}, w39EventCursor: async () => 0, w39SubmitPrompt: async () => {},
+      waitFor: async (fn) => fn(), w39ReadEvents: async () => events, w39WaitTerminal: async () => ({ turnId }),
+      w39OpenProductDatabase: () => ({ prepare: (sql) => {
+        assert.match(sql, /FROM a9_approvals WHERE approval_id = \?/);
+        return { get: (id) => { queried.push(id); return id === approvalId ? row : null; } };
+      }, close() {} }),
+      captureVisual: async () => {}, record: (id, passed, detail) => records.push({ id, passed, detail: JSON.parse(detail) }),
+    };
+    const api = vm.runInNewContext(`(function () { ${helpers}\n${journey(copy)} return { runW39GitProcess, w39SameApproval }; })()`, context);
+    assert.equal(api.w39SameApproval(pending, card), true);
+    assert.equal(api.w39SameApproval(pending, { ...card, digest: 'wrong' }), false);
+    assert.equal(api.w39SameApproval(pending, { ...card, approvalId }), false);
+    const exec = async (code) => code.includes('snapshot.pendingApproval') ? pending
+      : code.includes("const card = document.getElementById('a9-approval-card')") ? card : true;
+    await api.runW39GitProcess({}, exec, { dataRoot: '/temporary/data' });
+    return { record: records[0], queried };
+  };
+  const actual = await run(source);
+  assert.deepEqual(actual.queried, [approvalId]);
+  assert.equal(actual.record.passed, true);
+  assert.equal(actual.record.detail.noExecution.boundaryEventId, 7);
+  assert.equal(actual.record.detail.noExecution.approvalDecision, 'denied');
+  const rehearsalCopy = w39TemporarySourceCopy(source
+    .replace('.get(pending.approvalId)', '.get(card.approvalId)')
+    .replace('w39GitDenialResult(events, pending.approvalId, pending.turnId, approvalRow)',
+      'w39GitDenialResult(events, card.approvalId, pending.turnId, approvalRow)'));
+  const injected = await run(rehearsalCopy);
+  assert.deepEqual(injected.queried, [card.approvalId]);
+  assert.equal(injected.record.passed, false);
+  assert.equal(injected.record.detail.noExecution.boundaryEventId, null);
+  assert.equal(injected.record.detail.noExecution.approvalDecision, null);
+});
+
+test('W39 R4-2 Git setup creates workspace before README and init; rejects rehearsal copy', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const section = (copy) => copy.match(/\/\/ A9_W39_GIT_SETUP_BEGIN([\s\S]*?)\/\/ A9_W39_GIT_SETUP_END/)[1];
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'w39-git-setup-'));
+  try {
+    const run = (copy, suffix) => {
+      const gitWorkRepo = path.join(root, suffix, '中文 工作库');
+      const bareRoot = path.join(root, suffix, '中文 裸库');
+      const calls = [];
+      vm.runInNewContext(section(copy), { path, fs: {
+        mkdirSync: (...args) => { calls.push('mkdir'); return fs.mkdirSync(...args); },
+        writeFileSync: (...args) => { calls.push('README'); return fs.writeFileSync(...args); },
+      }, bareRoot, gitWorkRepo, gitSelection: { executable: '/fixed/git' }, childProcess: {
+        spawnSync: (executable, args, options) => {
+          assert.equal(executable, '/fixed/git');
+          if (options.cwd === gitWorkRepo) {
+            assert.equal(fs.statSync(gitWorkRepo).isDirectory(), true);
+            assert.equal(fs.existsSync(path.join(gitWorkRepo, 'README.md')), true);
+            calls.push(args[0]);
+          }
+          return { status: 0 };
+        },
+      } });
+      return calls;
+    };
+    assert.deepEqual(run(source, 'normal').slice(0, 3), ['mkdir', 'README', 'init']);
+    const rehearsalCopy = w39TemporarySourceCopy(source.replace('fs.mkdirSync(gitWorkRepo, { recursive: true });', ''));
+    assert.throws(() => run(rehearsalCopy, 'injected'), /ENOENT/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('W39 R4-3 M1b accepts warned completion with its own persisted checkpoint; rejects rehearsal copy', async () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const helpers = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/)[1];
+  const section = (copy) => copy.slice(copy.indexOf('async function runW39M1bProcess('), copy.indexOf('\n/**\n * W39-12：'));
+  const terminal = { turnId: 'm1b-turn', outcome: 'completed_with_warnings', verification: 'unverified' };
+  const checkpointRow = { turn_id: terminal.turnId, session_id: 'session', created_at: '2026-09-26T15:37:47Z' };
+  const run = async (copy, row) => {
+    let now = 0; const records = []; const queried = []; const report = {};
+    const context = { report, process: { env: { A9_SMOKE_W39_M1B_URL_PASSWORD: 'test-only-fixture' } },
+      Date: { now: () => now++ === 0 ? 0 : 369 }, w39ConfigureProvider: async () => {},
+      w39EventCursor: async () => 0, w39SubmitPrompt: async () => {}, w39WaitTerminal: async () => terminal,
+      w39OpenProductDatabase: () => ({ prepare: (sql) => {
+        assert.match(sql, /FROM a9_checkpoints WHERE turn_id = \?/);
+        return { get: (turnId) => { queried.push(turnId); return row; } };
+      }, close() {} }), record: (id, passed) => records.push({ id, passed }) };
+    const api = vm.runInNewContext(`(function () { ${helpers}\n${section(copy)} return { runW39M1bProcess, w39M1bFreezeCheck }; })()`, context);
+    await api.runW39M1bProcess({}, async () => ({ checkpoints: 1 }), { dataRoot: '/temporary/data' });
+    return { check: api.w39M1bFreezeCheck, record: records[0], queried, report };
+  };
+  const actual = await run(source, checkpointRow);
+  assert.equal(actual.record.passed, true);
+  assert.deepEqual(actual.queried, [terminal.turnId]);
+  assert.equal(actual.report.w39M1b.freeze_ms, 369);
+  assert.equal(actual.check({ ...terminal, outcome: 'completed' }, 369, checkpointRow), true);
+  assert.equal(actual.check(terminal, 10000, checkpointRow), false);
+  assert.equal(actual.check({ ...terminal, outcome: 'blocked' }, 369, checkpointRow), false);
+  assert.equal((await run(source, null)).record.passed, false);
+  assert.equal((await run(source, { ...checkpointRow, turn_id: 'old-turn' })).record.passed, false);
+  const oldCheckpoint = "  const checkpointState = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ checkpoints: (r.snapshot.checkpoints || []).length }))');";
+  const rehearsalCopy = w39TemporarySourceCopy(source
+    .replace(/  const db = w39OpenProductDatabase\(env.dataRoot\);\n  let checkpointRow;[\s\S]*?\} finally \{ db.close\(\); \}/, oldCheckpoint)
+    .replace('terminal, checkpoint: checkpointRow', 'terminal, checkpoints: checkpointState.checkpoints')
+    .replace("record('A9-W39-M1B-FREEZE-DURATION', w39M1bFreezeCheck(terminal, freezeMs, checkpointRow)",
+      "record('A9-W39-M1B-FREEZE-DURATION', Boolean(terminal) && terminal.outcome === 'completed' && freezeMs < 10000 && checkpointState.checkpoints >= 1"));
+  assert.equal((await run(rehearsalCopy, checkpointRow)).record.passed, false,
+    '369 ms, warned completion and own checkpoint is rejected by the rehearsal predicate');
+  assert.equal(section(rehearsalCopy).includes('FROM a9_checkpoints WHERE turn_id = ?'), false,
+    'restored snapshot total cannot establish that this turn has a checkpoint');
+});
+
+test('W39 R4-4 source gate requires readonly warmup and top button wait before paging; rejects rehearsal copy', () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const problems = (copy) => {
+    const stage = copy.slice(copy.indexOf('async function runW39M4Process('), copy.indexOf('\nfunction writeDriverReport('));
+    const paging = stage.indexOf('for (let round = 0; round < 40; round += 1)');
+    const submit = stage.indexOf("w39SubmitPrompt(exec, 'load m4 history')");
+    const terminal = stage.indexOf("w39WaitTerminal(exec, beforeWarmupEventId, 'w39 m4 warmup turn')");
+    const button = stage.indexOf("'w39 m4 warmup older-record button'");
+    return [!(submit >= 0 && submit < terminal && terminal < button && button < paging),
+      !stage.slice(terminal, paging).includes("document.getElementById('a9-task-stream').firstChild"),
+      !stage.includes('events.filter((event) => event.turnId === ${JSON.stringify(terminal.turnId)}).length'),
+      !stage.includes('warmup_counted_in_received_total: true'),
+    ].filter(Boolean);
+  };
+  assert.deepEqual(problems(driver), []);
+  const rehearsalCopy = w39TemporarySourceCopy(driver.replace(/  \/\/ chooseWorkspace only refreshes facts;[\s\S]*?(?=  const sampleRendererMemory =)/, ''));
+  assert.ok(problems(rehearsalCopy).length > 0, 'no warmup/button wait reproduces the pre-pagination gate violation');
+  const fixture = smoke.slice(smoke.indexOf("if (prompt === 'load m4 history')"), smoke.indexOf("if (prompt === 'generate many events'"));
+  assert.ok(fixture.includes("tool: { name: 'search'"));
+  assert.ok(!/name: '(?:edit|write|shell)'/.test(fixture));
+});

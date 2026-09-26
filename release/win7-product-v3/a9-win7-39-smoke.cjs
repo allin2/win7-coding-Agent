@@ -688,11 +688,13 @@ async function main() {
   let gitSetupError = '';
   if (gitAvailable) {
     try {
+      // A9_W39_GIT_SETUP_BEGIN
       const gitRun = (args, cwd) => {
         const result = childProcess.spawnSync(gitSelection.executable, args, { cwd, windowsHide: true, timeout: 30000 });
         if (result.status !== 0) throw new Error(`git ${args.join(' ')} -> exit ${result.status}: ${String(result.stderr || '').slice(0, 200)}`);
       };
       gitRun(['init', '--bare', bareRoot]);
+      fs.mkdirSync(gitWorkRepo, { recursive: true });
       fs.writeFileSync(path.join(gitWorkRepo, 'README.md'), 'w39 git forms workspace\n', 'utf8');
       gitRun(['init'], gitWorkRepo);
       gitRun(['config', 'user.email', 'w39-smoke@example.invalid'], gitWorkRepo);
@@ -701,6 +703,7 @@ async function main() {
       gitRun(['commit', '-m', 'w39 seed'], gitWorkRepo);
       gitRun(['remote', 'add', 'origin', bareRoot], gitWorkRepo);
       gitRun(['push', 'origin', 'HEAD:refs/heads/main'], gitWorkRepo);
+      // A9_W39_GIT_SETUP_END
       gitMainRefBefore = fs.existsSync(gitMainRefFile) ? fs.readFileSync(gitMainRefFile, 'utf8') : null;
     } catch (error) {
       gitSetupError = String(error && error.message ? error.message : error).slice(0, 300);
@@ -967,6 +970,13 @@ async function main() {
     const lastUserIndex = messages.map((item) => item.role).lastIndexOf('user');
     const prompt = String((messages[lastUserIndex] || {}).content || '');
     const tools = messages.slice(lastUserIndex + 1).filter((item) => item.role === 'tool').map((item) => item.name);
+    if (prompt === 'load m4 history') {
+      if (tools.length === 0) {
+        return { id: 'w39-m4-warmup', note: '只读热身以触发历史过程加载。',
+          tool: { name: 'search', args: { pattern: 'w39-m4-warmup' } } };
+      }
+      return { content: 'm4 history warmup done.' };
+    }
     if (prompt === 'generate many events' && tools.length < M4_BULK_STEPS) {
       return { id: `w39-m4-${tools.length}`, note: '批量只读探查产生事件。', tool: { name: 'search', args: { pattern: `w39-m4-${tools.length}-${Date.now() % 100000}` } } };
     }
@@ -1073,6 +1083,7 @@ async function main() {
   copyVisual('w39-m3', 'w39-13-checkpoint-paging.png');
   fs.writeFileSync(path.join(evidenceRoot, 'w39-14-collection-bounds.json'), `${JSON.stringify({
     seed: m4Seed,
+    warmup: m4Report.w39M4 ? m4Report.w39M4.warmup : null,
     cases: w39Excerpt(m4Report, ['A9-W39-M4-CAP-NOTICE', 'A9-W39-M4-RELEASED-COUNT-ACCURATE', 'A9-W39-M4-RENDERER-MEMORY-SAMPLED']),
   }, null, 2)}\n`, 'utf8');
 
