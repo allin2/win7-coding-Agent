@@ -242,11 +242,20 @@ function createLiveFixture(testKey) {
   };
 }
 
+// A9_W39_ENV_LIMIT_BEGIN
+function w39AssertEnvironmentLengths(env) {
+  for (const [name, value] of Object.entries(env)) {
+    if (String(value).length > 32767) throw new Error(`A9_W39_ENV_VALUE_TOO_LONG:${name}`);
+  }
+}
+// A9_W39_ENV_LIMIT_END
+
 function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
   return new Promise((resolve) => {
     const childEnv = { ...process.env, ...env };
     delete childEnv.ELECTRON_RUN_AS_NODE;
     delete childEnv.NODE_OPTIONS;
+    w39AssertEnvironmentLengths(childEnv);
     const child = childProcess.spawn(electronPath, [driverPath], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
@@ -623,6 +632,8 @@ async function main() {
     { index: 18, id: 'cat12-positional', command: 'powershell "git push origin main"', binding: 'origin-main' },
     { index: 19, id: 'cat12-positional-noprofile', command: 'powershell -NoProfile "git push origin main"', binding: 'origin-main' },
   ];
+  const gitFormsFile = path.join(runRoot, 'w39-git-forms.json');
+  fs.writeFileSync(gitFormsFile, `${JSON.stringify(W39_GIT_FORMS, null, 2)}\n`, 'utf8');
   // 远端：本地裸仓库 + 带 origin 的工作区仓库；Win7 无 git 时远端判定记 NOT_PERFORMED。
   const w39GitDetect = childProcess.spawnSync('git', ['--version'], { windowsHide: true, timeout: 15000 });
   const gitAvailable = !w39GitDetect.error && w39GitDetect.status === 0;
@@ -664,7 +675,7 @@ async function main() {
   });
   await gitFixture.listen();
   const gitReport = await runW39Phase('w39_git', gitWorkspace, gitData, {
-    A9_SMOKE_W39_GIT_FORMS: JSON.stringify(W39_GIT_FORMS),
+    A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile,
   }, `http://127.0.0.1:${gitFixture.server.address().port}`, 900000);
   await gitFixture.close();
   const gitMainRefAfter = fs.existsSync(gitMainRefFile) ? fs.readFileSync(gitMainRefFile, 'utf8') : null;
@@ -874,15 +885,19 @@ async function main() {
     manager.saveSession('w39-m4-seed-session', canonical, { title: 'w39 m4 集合上限' });
     manager.activateConversation(canonical, 'w39-m4-seed-session');
     manager.upsertTask('w39-m4-seed-task', 'w39-m4-seed-session', 'active');
-    manager.upsertTurn('w39-m4-seed-turn-001', 'w39-m4-seed-task', 'w39-m4-seed-session', 'completed',
-      { outcome: 'completed', verification: 'not_applicable' });
     let written = 0;
     for (let index = 1; index <= 2500; index += 1) {
+      const turnNumber = Math.floor((index - 1) / 250) + 1;
+      const turnId = `w39-m4-seed-turn-${String(turnNumber).padStart(3, '0')}`;
+      if ((index - 1) % 250 === 0) {
+        manager.upsertTurn(turnId, 'w39-m4-seed-task', 'w39-m4-seed-session', 'completed',
+          { outcome: 'completed', verification: 'not_applicable' });
+      }
       if (index % 2 === 1) {
-        manager.recordModelEvent('w39-m4-seed-session', 'w39-m4-seed-turn-001', 'model_note',
+        manager.recordModelEvent('w39-m4-seed-session', turnId, 'model_note',
           { content: `m4 seed note ${index}`, step: index });
       } else {
-        manager.recordToolEvent('w39-m4-seed-session', 'w39-m4-seed-turn-001', 'tool_end',
+        manager.recordToolEvent('w39-m4-seed-session', turnId, 'tool_end',
           { toolName: 'search', callId: `w39-m4-${index}`, step: index, result: `m4 seed result ${index}` });
       }
       written += 1;

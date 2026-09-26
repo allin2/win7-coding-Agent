@@ -3735,21 +3735,101 @@ test('W39 M1/M4 seed builders use the public persistence API and recover exactly
     assert.equal(outcome.status, 'ready');
     const manager = outcome.manager;
     manager.upsertTask('w39-m4-test-task', 'w39-m1-test-session', 'active');
-    manager.upsertTurn('w39-m4-test-turn-001', 'w39-m4-test-task', 'w39-m1-test-session', 'completed',
-      { outcome: 'completed', verification: 'not_applicable' });
     for (let index = 1; index <= 2500; index += 1) {
+      const turnId = `w39-m4-test-turn-${String(Math.floor((index - 1) / 250) + 1).padStart(3, '0')}`;
+      if ((index - 1) % 250 === 0) manager.upsertTurn(turnId, 'w39-m4-test-task', 'w39-m1-test-session', 'completed',
+        { outcome: 'completed', verification: 'not_applicable' });
       if (index % 2 === 1) {
-        manager.recordModelEvent('w39-m1-test-session', 'w39-m4-test-turn-001', 'model_note',
+        manager.recordModelEvent('w39-m1-test-session', turnId, 'model_note',
           { content: `m4 seed note ${index}`, step: index });
       } else {
-        manager.recordToolEvent('w39-m1-test-session', 'w39-m4-test-turn-001', 'tool_end',
+        manager.recordToolEvent('w39-m1-test-session', turnId, 'tool_end',
           { toolName: 'search', callId: `w39-m4-${index}`, step: index, result: `m4 seed result ${index}` });
       }
     }
     assert.ok(manager.countEvents() >= 2500, 'M4 seed must write at least 2500 events');
+    const perTurn = manager.db.prepare("SELECT turn_id, COUNT(*) AS n FROM a9_events WHERE turn_id LIKE 'w39-m4-test-turn-%' GROUP BY turn_id").all();
+    assert.ok(perTurn.length > 1 && perTurn.every((row) => row.n <= 450), 'each M4 seed turn must hold at most 450 events');
+    const smokeSource = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+    assert.match(smokeSource, /Math\.floor\(\(index - 1\) \/ 250\) \+ 1/);
+    assert.match(smokeSource, /\(index - 1\) % 250 === 0/);
     manager.db.close();
   }
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 repair helpers reject old Git, M2, M3 and M4 assertion counterexamples (W1/W3/W4/W6)', () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const match = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/);
+  assert.ok(match, 'W39 assertion helpers must be present in the candidate driver');
+  const helpers = vm.runInNewContext(`(function () { ${match[1]}
+    return { w39GitBindingMatches, w39M2TurnChecks, w39DiffIsReal, w39ReleasedCountCheck }; })()`);
+  const oldGitCardText = 'git push origin main';
+  assert.equal(oldGitCardText.includes('origin') && oldGitCardText.includes('main'), true);
+  assert.equal(helpers.w39GitBindingMatches({ binding: 'origin-main' },
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), false, 'W1: card text cannot replace gitBinding');
+  assert.equal(helpers.w39GitBindingMatches({ binding: 'summary' },
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), true);
+  assert.equal(helpers.w39GitBindingMatches({ binding: 'summary' },
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64), gitBinding: {} }), false);
+
+  const missingTurn = { turnId: null, outcome: null, outputTruncated: false, truncationNotes: [], toolEventCount: 0 };
+  assert.equal(missingTurn.toolEventCount === 0 && 'same' === 'same', true);
+  assert.equal(helpers.w39M2TurnChecks(missingTurn, null, 'same', 'same').noTool, false,
+    'W3: zero events without a terminal turn cannot pass');
+  assert.equal(helpers.w39M2TurnChecks(missingTurn, null, 'same', 'same').warnings, false);
+
+  const placeholder = '选择 checkpoint 查看 Diff。';
+  assert.equal(placeholder.trim().length > 0, true);
+  assert.equal(helpers.w39DiffIsReal('', placeholder), false, 'W4: old nonempty rule accepts placeholder');
+  assert.equal(helpers.w39DiffIsReal(placeholder, '此 checkpoint 没有文件变更。'), false);
+  assert.equal(helpers.w39DiffIsReal(placeholder, 'diff --git a/counter.ts b/counter.ts'), true);
+
+  assert.equal(2000 + 80 - 0.9 * 2000, 280);
+  assert.equal(230 === 280, false, 'W6: old exact formula fails on split polling batches');
+  const olderEnabled = { present: true, text: '加载更早记录', disabled: false };
+  const olderDisabled = { present: true, text: '加载更早记录', disabled: true };
+  const olderAbsent = { present: false, text: '', disabled: null };
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条过程记录', olderEnabled).ok, true);
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条过程记录', olderDisabled).ok, false,
+    'W6: below cap requires clickable older-record button');
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条过程记录', olderAbsent).ok, false);
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条。已达界面上限 2000 条', olderAbsent).ok, true);
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条。已达界面上限 2000 条', olderEnabled).ok, false);
+});
+
+test('W39 repair source gates reject six restored pre-repair forms in temporary copies (W1-W6)', () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const sourceProblems = (s, d) => {
+    const problems = [];
+    if (!d.includes('w39GitBindingMatches(form, pending)') || d.includes('bindingText.includes(')) problems.push('W1');
+    if (!s.includes('A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile') || !d.includes("fs.readFileSync(process.env.A9_SMOKE_W39_GIT_FORMS_FILE")
+      || !s.includes('w39AssertEnvironmentLengths(childEnv)')) problems.push('W2');
+    if (!d.includes("w39WaitTerminal(exec, beforeFacts, 'w39 m2 truncated turn')")
+      || !d.includes('w39M2TurnChecks(turnFacts, terminalTurn')) problems.push('W3');
+    if (!d.includes('t !== diffBefore') || !d.includes('w39DiffIsReal(diffBefore, diffText)')) problems.push('W4');
+    if (!s.includes('Math.floor((index - 1) / 250) + 1') || !s.includes('(index - 1) % 250 === 0')) problems.push('W5');
+    if (!d.includes('w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton)')
+      || !d.includes('older_button_after_eviction')) problems.push('W6');
+    return problems;
+  };
+  assert.deepEqual(sourceProblems(smoke, driver), []);
+  const copies = [
+    [smoke, driver.replace('w39GitBindingMatches(form, pending)', "bindingText.includes('origin')")],
+    [smoke.replace('A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile', 'A9_SMOKE_W39_GIT_FORMS: JSON.stringify(W39_GIT_FORMS)'), driver],
+    [smoke, driver.replace("w39WaitTerminal(exec, beforeFacts, 'w39 m2 truncated turn')", 'null')],
+    [smoke, driver.replace('w39DiffIsReal(diffBefore, diffText)', 'Boolean(diffText)')],
+    [smoke.replace('Math.floor((index - 1) / 250) + 1', '1'), driver],
+    [smoke, driver.replace('w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton)', 'released === 200 + turnEventCount')],
+  ];
+  copies.forEach(([s, d], index) => assert.ok(sourceProblems(s, d).includes(`W${index + 1}`),
+    `restored W${index + 1} form must fail its source gate`));
+  const envMatch = smoke.match(/\/\/ A9_W39_ENV_LIMIT_BEGIN([\s\S]*?)\/\/ A9_W39_ENV_LIMIT_END/);
+  assert.ok(envMatch);
+  const checkEnv = vm.runInNewContext(`(function () { ${envMatch[1]} return w39AssertEnvironmentLengths; })()`);
+  assert.doesNotThrow(() => checkEnv({ SHORT: 'a'.repeat(32767) }));
+  assert.throws(() => checkEnv({ TOO_LONG: 'a'.repeat(32768) }), /A9_W39_ENV_VALUE_TOO_LONG:TOO_LONG/);
 });
 
 test('W39 build rejects injected stale W37 candidate-scoped tokens (handoff item 8a)', () => {

@@ -30,6 +30,8 @@
 | D-12 | `phases` 5 → 13；状态判定增加 `w39Phases.length === 8`；必需断言清单追加 33 项 W39 ID；`evidence_files` 追加 w39 阶段报告与证据摘录 | 追加阶段的合同化 |
 | D-13 | 追加证据摘录文件（§4 文件名固定）与 `w39-case-index.json`（S-5）；`A9-W39-FINAL-NO-RESIDUE` 及 `w39-15-residue.json` | 交接书 §3.3 S-3/S-5 与 §3.4 |
 | D-14 | W39-01 不在 smoke 内执行：case index 记 `VERIFIED_BY_RUN_A9_23_W39_INTEGRITY_CMD_NOT_SMOKE` | W39-01 是包完整性用例，由 `RUN_A9_23_W39_INTEGRITY.cmd` 承载 |
+| D-15 | `runElectron` 在启动每个阶段前检查传入环境变量的每个值不超过 32,767 字符；Git 形态清单写入运行根 `w39-git-forms.json`，环境变量只传其路径 | §7.2 W2，避免第 11 类超长载荷超过 Windows 环境变量上限；`w39-git` 驱动读取并校验 JSON 清单 |
+| D-16 | M4 种子改为 10 个 Turn、每轮 250 条事件 | §7.2 W5，保持总数 2,500 且每轮低于 450，使产品的更早记录分页可达到 2,000 条上限 |
 
 W37 全部既有机制逐项保留（改名后）：五个阶段（`first`/`second`/`retry`/`stop`/`live`）、运行时自检（Win32、Electron 22.3.27、ABI 110、`ELECTRON_RUN_AS_NODE=1`）、证据目录不得位于候选内、中文空格工作区、`relatedProcessSnapshot`（排除 smoke 自身 PID）与"必需断言恰好出现 1 次"计数、两个候选内真实 Electron 反例、投影协议 fixture 核对与 `PROJECTION-ARTIFACTS-REPORT-PARSEABLE`（依赖 W39 报告脚本新增的投影解析导出，该段自 W37 报告脚本移植、错误码重基线为 `A9_W39_*`）。
 
@@ -64,8 +66,10 @@ W37 全部既有机制逐项保留（改名后）：五个阶段（`first`/`seco
 ## 5. 断言来源与判定口径（R4）
 
 - 全部判定只读阶段结束后的产品产物：驱动报告（含 `productMainLoaded`）、产品写入的 SQLite（`a9-state.db`：M3 checkpoint 计数与全集、M1b `payload_json` 扫描）、工作区文件（M2 目标哈希）、诊断快照（M1 `checkpointRecoveryDiagnostics`）、DOM（M3 计数文案 `#a9-checkpoint-count`、checkpoint 列表、M4 顶部说明、审批卡）。脚本自身步骤成功（建目录、写种子、启动 fixture）一律不作为通过条件；必需断言不得以字面量 `true` 记录（开发机门 §4 第 3 项以正则拦截）。
-- A9-20 形态通过条件 = 审批卡出现且携带 Git 外部写绑定（可解析形态含 `origin` 与 `main`，第 11 类走 G04 整条命令摘要，报告逐项注明路径）+ 拒绝后该工具调用无执行事件（`a9_events` 核对）+ 有 git 时裸仓库 `refs/heads/main` 前后相同（直接读文件）。只出现 Shell 审批卡不算通过。
-- M4 释放数独立计算方法：已接收 = 达上限时恰好接收的 2000 条（`EVENT_GLOBAL_LIMIT`，渲染端常量）+ 淘汰轮新增事件数（按该轮 turnId 从产品事件核对）；持有 = `floor(2000 × EVENT_TRIM_RATIO=0.9) = 1800`；期望释放数 = 已接收 − 持有。
+- A9-20 形态通过条件 = 审批卡出现，且 IPC 快照 `pendingApproval` 与卡片身份一致；`origin-main` 形态必须有 `gitBinding.remote='origin'`、`gitBinding.branch='main'`，`summary` 兜底形态必须无 `gitBinding`、有 64 位十六进制 `bindingDigest`。报告逐项注明绑定路径。审批卡 DOM 文本只记录，不参与绑定判定。拒绝后该工具调用无执行事件（`a9_events` 核对）；有 git 时裸仓库 `refs/heads/main` 前后相同（直接读文件）。
+- M2 先等待本轮终态，再查询该 `turnId` 的 `turn_completed`、截断说明与工具事件；截断和未执行两条断言均要求非空终态 `turnId`。
+- M3 点击最旧 checkpoint 后等待 `#a9-diff` 与点击前文本不同，并要求结果含 `counter.ts`，排除占位文本与“此 checkpoint 没有文件变更。”。
+- M4 释放数判定方法：从产品提示读取 N；从产品事件查询按淘汰轮终态 `turnId` 计得 E。要求 `200 < N ≤ 200 + E`。淘汰后提示不含“已达界面上限”时必须出现可点击的“加载更早记录”按钮；含该文案时不得出现该按钮。报告写入 N、E、区间上下界、提示原文、按钮存在/文案/禁用状态及计算方法。轮询分批到达时不使用一次性精确释放数公式（交接书 §7.4 裁决）。
 - M1b 脱敏标记：产品 `redactSecrets`/`redactUrlUserinfo` 将 `scheme://user:pass@host` 替换为 `***redacted***@host`；本套件核对脱敏形式 `***redacted***@example.invalid/x` 至少出现一处，口令本身零命中。
 - M1 启动定向恢复口径：`checkpointRecoveryDiagnostics.rejectedTurns` 恰好含种子中断 Turn 且 `status='missing'`；其余 Turn 经会话事实查询可见（按种子 completed Turn 数核对）。是否"不随历史线性增长"由审核方依据两阶段耗时判断，驱动不下结论。
 

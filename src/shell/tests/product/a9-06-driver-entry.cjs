@@ -2304,6 +2304,45 @@ async function runW39StartupProcess(win, exec, env) {
   await captureVisual(win, 'w39-startup');
 }
 
+// A9_W39_ASSERTION_HELPERS_BEGIN
+function w39GitBindingMatches(form, pending) {
+  if (!pending || !pending.approvalId || !/^[0-9a-f]{64}$/i.test(String(pending.bindingDigest || ''))) return false;
+  if (form.binding === 'origin-main') {
+    return Boolean(pending.gitBinding && pending.gitBinding.remote === 'origin' && pending.gitBinding.branch === 'main');
+  }
+  return form.binding === 'summary' && !pending.gitBinding;
+}
+
+function w39M2TurnChecks(turnFacts, terminal, beforeHash, afterHash) {
+  const sameTurn = Boolean(terminal && terminal.turnId && turnFacts.turnId === terminal.turnId);
+  return {
+    warnings: sameTurn && terminal.outcome === 'completed_with_warnings'
+      && turnFacts.outcome === 'completed_with_warnings' && turnFacts.outputTruncated === true
+      && turnFacts.truncationNotes.some((note) => note.turnId === terminal.turnId
+        && note.content.includes('模型输出超过 1 MiB 已被截断')),
+    noTool: sameTurn && turnFacts.toolEventCount === 0 && beforeHash !== null && afterHash === beforeHash,
+  };
+}
+
+function w39DiffIsReal(beforeText, afterText) {
+  const diff = String(afterText || '').trim();
+  return diff.length > 0 && diff !== String(beforeText || '').trim()
+    && diff.includes('counter.ts') && !diff.includes('选择 checkpoint 查看 Diff。')
+    && !diff.includes('此 checkpoint 没有文件变更。');
+}
+
+function w39ReleasedCountCheck(released, eventCount, noticeText, olderButton) {
+  const lower = 200;
+  const upper = 200 + eventCount;
+  const atCap = String(noticeText).includes('已达界面上限');
+  const buttonMatches = olderButton && olderButton.text === '加载更早记录';
+  const buttonOk = atCap ? !buttonMatches : buttonMatches && olderButton.disabled === false;
+  return { lower, upper, ok: Number.isInteger(released) && Number.isInteger(eventCount)
+    && eventCount > 0 && released > lower && released <= upper && buttonOk,
+  atCap, buttonOk };
+}
+// A9_W39_ASSERTION_HELPERS_END
+
 /**
  * W39-07～09：A9-20 Git 确认形态。每个具体写法一项断言；通过条件：
  * (1) 审批卡出现且携带 Git 外部写绑定（可精确解析形态含 origin 与 main，
@@ -2313,7 +2352,7 @@ async function runW39StartupProcess(win, exec, env) {
 async function runW39GitProcess(win, exec, env) {
   void env;
   let forms;
-  try { forms = JSON.parse(process.env.A9_SMOKE_W39_GIT_FORMS || '[]'); } catch (_error) { forms = null; }
+  try { forms = JSON.parse(fs.readFileSync(process.env.A9_SMOKE_W39_GIT_FORMS_FILE || '', 'utf8')); } catch (_error) { forms = null; }
   if (!Array.isArray(forms) || forms.length === 0) throw new Error('A9_W39_GIT_FORMS_REQUIRED');
   await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-git-model');
   for (const form of forms) {
@@ -2335,10 +2374,10 @@ async function runW39GitProcess(win, exec, env) {
         conversationId: card.dataset.conversationId, taskId: card.dataset.taskId, turnId: card.dataset.turnId,
       };
     })()`), 90_000, `git form ${form.id} approval card`);
-    const bindingText = `${card.git || ''}\n${card.summary || ''}`;
-    const bindingOk = form.binding === 'origin-main'
-      ? bindingText.includes('origin') && bindingText.includes('main')
-      : bindingText.trim().length > 0;
+    const pending = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.pendingApproval || null)');
+    const bindingOk = w39GitBindingMatches(form, pending);
+    const sameApproval = Boolean(pending && pending.approvalId === card.approvalId
+      && pending.bindingDigest === card.digest && pending.turnId);
     await exec('document.getElementById("a9-approval-deny").click(); true');
     await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, `git form ${form.id} denial`);
     const noExecution = await exec(`(async () => {
@@ -2353,10 +2392,11 @@ async function runW39GitProcess(win, exec, env) {
       return { boundary, executedCount: executed.length };
     })()`);
     record(`A9-W39-GIT-FORM-${String(form.index).padStart(2, '0')}`,
-      Boolean(card) && card.approvalId.length > 0 && Boolean(card.digest) && card.digest.length === 64
-      && bindingOk && noExecution.executedCount === 0,
+      Boolean(card) && sameApproval && bindingOk && noExecution.executedCount === 0,
       JSON.stringify({
-        form: form.id, binding: form.binding,
+        form: form.id, binding: form.binding, binding_path: form.binding === 'origin-main' ? 'gitBinding' : 'command-digest',
+        pending_approval: pending ? { approvalId: pending.approvalId, turnId: pending.turnId,
+          bindingDigest: pending.bindingDigest, gitBinding: pending.gitBinding || null } : null,
         approvalGit: String(card.git || '').slice(0, 200),
         approvalSummary: String(card.summary || '').slice(0, 300),
         noExecution,
@@ -2436,7 +2476,10 @@ async function runW39M2Process(win, exec, env) {
   const digest = (target) => (fs.existsSync(target)
     ? crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex') : null);
   const beforeHash = digest(targetPath);
+  const beforeFacts = await w39FactsCount(exec);
   await w39SubmitPrompt(exec, 'trigger oversized model response');
+  const terminalTurn = await w39WaitTerminal(exec, beforeFacts, 'w39 m2 truncated turn');
+  if (!terminalTurn || !terminalTurn.turnId) throw new Error('A9_W39_M2_TURN_NO_TERMINAL');
   const turnFacts = await exec(`(async () => {
     const api = window.win7Agent.a9;
     const snap = (await api.snapshot()).snapshot;
@@ -2444,10 +2487,9 @@ async function runW39M2Process(win, exec, env) {
     const events = (queried.ok === true && queried.events) ? queried.events : [];
     const kind = (event) => event.eventType || event.type;
     const data = (event) => event.payload?.data || event.payload || event.data || {};
-    const terminals = events.filter((event) => kind(event) === 'turn_completed');
-    const terminal = terminals[terminals.length - 1] || null;
-    const turnId = terminal ? terminal.turnId : null;
-    const notes = events.filter((event) => kind(event) === 'model_note' && data(event).truncated === true);
+    const turnId = ${JSON.stringify(terminalTurn.turnId)};
+    const terminal = events.find((event) => kind(event) === 'turn_completed' && event.turnId === turnId) || null;
+    const notes = events.filter((event) => event.turnId === turnId && kind(event) === 'model_note' && data(event).truncated === true);
     const turnToolEvents = turnId
       ? events.filter((event) => event.turnId === turnId && (kind(event) === 'tool_start' || kind(event) === 'tool_end'))
       : [];
@@ -2463,13 +2505,12 @@ async function runW39M2Process(win, exec, env) {
     };
   })()`);
   const afterHash = digest(targetPath);
+  const m2Checks = w39M2TurnChecks(turnFacts, terminalTurn, beforeHash, afterHash);
   record('A9-W39-M2-TRUNCATED-WITH-WARNINGS',
-    turnFacts.outcome === 'completed_with_warnings' && turnFacts.outputTruncated === true
-    && turnFacts.truncationNotes.some((note) => note.content.includes('模型输出超过 1 MiB 已被截断')),
-    JSON.stringify(turnFacts));
+    m2Checks.warnings, JSON.stringify({ terminalTurn, turnFacts }));
   record('A9-W39-M2-TOOL-NOT-EXECUTED',
-    turnFacts.toolEventCount === 0 && beforeHash !== null && afterHash === beforeHash,
-    JSON.stringify({ beforeHash, afterHash, toolEventCount: turnFacts.toolEventCount }));
+    m2Checks.noTool,
+    JSON.stringify({ terminalTurn, beforeHash, afterHash, toolEventCount: turnFacts.toolEventCount }));
   const beforeNext = await w39FactsCount(exec);
   await w39SubmitPrompt(exec, 'm2 second turn');
   const next = await w39WaitTerminal(exec, beforeNext, 'w39 m2 second turn');
@@ -2532,6 +2573,7 @@ async function runW39M3Process(win, exec, env) {
     && canonical(domIds) === canonical(dbTurnIdsAsc.slice().reverse());
   record('A9-W39-M3-OLDER-PAGES-CONTINUOUS', coversDb,
     JSON.stringify({ dom_count: domIds.length, db_total: dbTotal, unique }));
+  const diffBefore = await exec('document.getElementById("a9-diff").textContent');
   const oldestTurnId = await exec(`(() => {
     const rows = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'));
     const oldest = rows[rows.length - 1];
@@ -2543,15 +2585,16 @@ async function runW39M3Process(win, exec, env) {
     return oldest.querySelector('.checkpoint-id').textContent;
   })()`);
   const diffText = await waitFor(() => exec('document.getElementById("a9-diff").textContent')
-    .then((t) => (t && t.trim().length > 0 ? t : null)), 15_000, 'w39 m3 oldest diff');
-  record('A9-W39-M3-OLDER-DIFF', Boolean(oldestTurnId) && Boolean(diffText),
-    JSON.stringify({ oldest_turn_id: oldestTurnId, diff_head: String(diffText || '').slice(0, 200) }));
+    .then((t) => (t !== diffBefore && w39DiffIsReal(diffBefore, t) ? t : null)), 15_000, 'w39 m3 oldest diff');
+  record('A9-W39-M3-OLDER-DIFF', Boolean(oldestTurnId) && w39DiffIsReal(diffBefore, diffText),
+    JSON.stringify({ oldest_turn_id: oldestTurnId, diff_before: String(diffBefore || '').slice(0, 100),
+      diff_head: String(diffText || '').slice(0, 200) }));
   await captureVisual(win, 'w39-m3');
 }
 
 /**
  * W39-14：M4 集合上限。种子 ≥2500 条由宿主写入；加载更早记录直到按钮消失
- * 达到界面上限；淘汰轮次触发释放；释放数与驱动独立计算一致；Renderer 内存
+ * 达到界面上限；淘汰轮次触发释放；释放数按区间核对；Renderer 内存
  * 在约 1000 条与淘汰后各采样一次。
  */
 async function runW39M4Process(win, exec, env) {
@@ -2598,27 +2641,27 @@ async function runW39M4Process(win, exec, env) {
     const events = (queried.ok === true && queried.events) ? queried.events : [];
     return events.filter((event) => event.turnId === ${JSON.stringify(terminal.turnId)}).length;
   })()`);
-  const postNote = await exec(`(() => {
+  const postState = await waitFor(() => exec(`(() => {
     const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
-    return { text: note ? note.textContent : '' };
-  })()`);
-  const releasedMatch = /已释放最早的 (\d+) 条/.exec(postNote.text);
-  // 独立计算（方法写入报告）：已接收 = 达上限时恰好接收的 2000 条 + 淘汰轮新增事件数
-  // （产品 SQLite/IPC 计数）；持有 = floor(2000 × EVENT_TRIM_RATIO=0.9) = 1800。
-  const EVENT_GLOBAL_LIMIT = 2000;
-  const EVENT_TRIM_RATIO = 0.9;
-  const receivedDistinct = EVENT_GLOBAL_LIMIT + turnEventCount;
-  const heldAfterEviction = Math.floor(EVENT_GLOBAL_LIMIT * EVENT_TRIM_RATIO);
-  const expectedReleased = receivedDistinct - heldAfterEviction;
+    const button = note ? note.querySelector('button') : null;
+    return { text: note ? note.textContent : '',
+      olderButton: { present: Boolean(button), text: button ? button.textContent : '', disabled: button ? button.disabled : null } };
+  })()`).then((state) => /已释放最早的 (\d+) 条/.test(state.text) ? state : null), 15_000, 'w39 m4 released note');
+  const releasedMatch = /已释放最早的 (\d+) 条/.exec(postState.text);
+  const released = releasedMatch ? Number(releasedMatch[1]) : null;
+  const releaseCheck = w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton);
   record('A9-W39-M4-RELEASED-COUNT-ACCURATE',
-    Boolean(releasedMatch) && Number(releasedMatch[1]) === expectedReleased,
+    releaseCheck.ok,
     JSON.stringify({
-      released_in_notice: releasedMatch ? Number(releasedMatch[1]) : null,
-      expected_released: expectedReleased,
-      received_distinct: receivedDistinct,
-      held_after_eviction: heldAfterEviction,
-      turn_event_count: turnEventCount,
-      computation: 'received(2000 cap + eviction turn events from product events) - held(floor(2000*0.9)=1800)',
+      released_in_notice: released,
+      eviction_turn_event_count: turnEventCount,
+      lower_exclusive: releaseCheck.lower,
+      upper_inclusive: releaseCheck.upper,
+      notice_text: postState.text,
+      at_event_cap: releaseCheck.atCap,
+      older_button_after_eviction: postState.olderButton,
+      button_rule_met: releaseCheck.buttonOk,
+      computation: 'N from product notice; E from product queryEvents filtered by terminal turnId; require 200 < N <= 200 + E; if notice says cap, older-record button absent, otherwise present and enabled',
     }));
   const sampleAfterEviction = sampleRendererMemory();
   record('A9-W39-M4-RENDERER-MEMORY-SAMPLED',
