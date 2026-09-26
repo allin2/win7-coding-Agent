@@ -27,7 +27,7 @@
 | D-9 | M1/M4 种子函数：require 候选内 `resources/app/state/dist/a9-persistence.js` 的 `A9PersistenceManager.open`、`resources/app/core/dist/index.js` 的 `canonicalizeWorkspacePath` 与候选 `resources/native/storage/node_modules/better-sqlite3`；仅用公开方法（`saveSession`/`activateConversation`/`upsertTask`/`upsertTurn`/`recordModelEvent`/`recordToolEvent`），不手写建表或 INSERT。M4 每个种子任务还写入 `conversation.request`（`schemaVersion:1`、`taskId`、`requestPrompt`）以生成产品对话事实 | §3.6/§3.10 与 §9.2 R3-6 |
 | D-10 | M1b 口令扫描：随机口令只在 fixture 闭包与阶段环境变量中使用；扫描 `a9-state.db` 的 `payload_json`（候选 better-sqlite3 只读）、数据根全部 ≤8 MiB 文本文件与该阶段驱动报告；证据只记命中数，不记口令 | §3.7：口令零命中 + 至少一处产品脱敏形式；口令不得写入证据 |
 | D-11 | 断言聚合：`A9-W39-M1-TARGETED-RECOVERY` 与 `A9-W39-M1-STARTUP-TIMING-RECORDED` 由 smoke 聚合两阶段驱动报告后各记录一次；driver 内记录阶段作用域 ID（`W39-M1-RECOVERY-SMALL/LARGE`、`W39-M1-TIMING-SMALL/LARGE`） | 保持 W37 的"必需断言恰好出现 1 次"计数语义（同 ID 跨两阶段记录会破坏计数） |
-| D-12 | `phases` 5 → 13；状态判定增加 `w39Phases.length === 8`；必需断言清单追加 33 项 W39 ID；`evidence_files` 追加 w39 阶段报告与证据摘录 | 追加阶段的合同化 |
+| D-12 | `phases` 与 `w39Phases` 合计 13 个阶段；状态判定增加 `w39Phases.length === 8`，阶段报告汇总用两组进程记录共同查找；必需断言清单追加 33 项 W39 ID；`evidence_files` 追加 w39 阶段报告与证据摘录 | 追加阶段的合同化；R5-1 修复 K12 |
 | D-13 | 追加证据摘录文件（§4 文件名固定）与 `w39-case-index.json`（S-5）；`A9-W39-FINAL-NO-RESIDUE` 及 `w39-15-residue.json` | 交接书 §3.3 S-3/S-5 与 §3.4 |
 | D-14 | W39-01 不在 smoke 内执行：case index 记 `VERIFIED_BY_RUN_A9_23_W39_INTEGRITY_CMD_NOT_SMOKE` | W39-01 是包完整性用例，由 `RUN_A9_23_W39_INTEGRITY.cmd` 承载 |
 | D-15 | `runElectron` 在启动每个阶段前检查传入环境变量的每个值不超过 32,767 字符；Git 形态清单写入运行根 `w39-git-forms.json`，环境变量只传其路径 | §7.2 W2，避免第 11 类超长载荷超过 Windows 环境变量上限；`w39-git` 驱动读取并校验 JSON 清单 |
@@ -35,6 +35,7 @@
 | D-17 | M1b 夹具先 `read small.txt` 再 `edit`；M3 每轮先 `read counter.ts` 再 `edit` | §9.2 R3-4/R3-5；符合产品先读后写规则 |
 | D-18 | 必需断言汇总将未出现与出现但未通过分别写为 `MISSING`、`PRESENT_NOT_PASSED` | §9.2 R3-7；预演报告曾把两种情况都写成 MISSING |
 | D-19 | M4 fixture 增加一轮 `load m4 history` 只读 search 热身；驱动等该轮完成、对话流顶部可点击的“加载更早记录”出现后再分页。热身轮 ID 与产品查询所得事件数写入驱动报告和 `w39-14-collection-bounds.json`，注明计入已接收总数、排除于淘汰轮 E；集合提示只选择对话流的直接子节点 | §11.2 R4-4；保留产品选择工作区后只刷新快照、轮次结束才加载过程记录的行为，不调用内部加载器 |
+| D-20 | 阶段报告汇总抽出 `validatePhaseReports` 并导出供开发机重放；直接运行脚本时仍执行 `main`。判定从 `phases.concat(w39Phases)` 查找 13 个进程记录，其他阶段条件不变 | 主线 `cc496ad` 交接书 §13.2 R5-1，修复 K12 |
 
 W37 全部既有机制逐项保留（改名后）：五个阶段（`first`/`second`/`retry`/`stop`/`live`）、运行时自检（Win32、Electron 22.3.27、ABI 110、`ELECTRON_RUN_AS_NODE=1`）、证据目录不得位于候选内、中文空格工作区、`relatedProcessSnapshot`（排除 smoke 自身 PID）与"必需断言恰好出现 1 次"计数、两个候选内真实 Electron 反例、投影协议 fixture 核对与 `PROJECTION-ARTIFACTS-REPORT-PARSEABLE`（依赖 W39 报告脚本新增的投影解析导出，该段自 W37 报告脚本移植、错误码重基线为 `A9_W39_*`）。
 
@@ -78,6 +79,7 @@ W37 全部既有机制逐项保留（改名后）：五个阶段（`first`/`seco
 - M1b 冻结耗时仍为提交到本轮事件终态，要求 `<10000 ms`；结局接受 `completed` 或 `completed_with_warnings`。使用产品库 `a9_checkpoints WHERE turn_id = ?` 核对本轮终态的 `turnId`，报告保留该行的 `turn_id`、`session_id`、`created_at`，不以快照 checkpoint 总数替代本轮行存在。
 - M4 淘汰轮要求本轮 `turn_completed` 且本轮产品事件数 E ≥ 50。释放数判定方法：从产品提示读取 N；从产品事件查询按淘汰轮终态 `turnId` 计得 E。要求 `200 < N ≤ 200 + E`。淘汰后提示不含“已达界面上限”时必须出现可点击的“加载更早记录”按钮；含该文案时不得出现该按钮。报告写入 N、E、区间上下界、提示原文、按钮存在/文案/禁用状态及计算方法。轮询分批到达时不使用一次性精确释放数公式（交接书 §7.4 裁决）。开发机门经真实运行时打开种子库，核对 10 条对话事实与 2,500 条种子事件的连续分页。
 - M4 分页前必须先完成只读热身轮，并等对话流顶部按钮可点击；热身事件参与产品加载与计数，不从集合中剔除，不进入 E。开发机 VM 加载真实 `a9-workbench.js`，保留其默认集合上限与加载时序：选择工作区后查询次数为 0，热身仍在运行时为 0，终态后查询最近 300 条且包含热身事件，顶部按钮出现。产品侧“选择工作区不加载历史过程”观察保留，不在本套件改动范围内。
+- 阶段报告汇总覆盖 13 个阶段：5 个继承阶段与 8 个 `w39_*` 阶段的进程记录合并查找。每个报告仍须存在，且对应进程退出码为 0、未超时，报告 `mode` 匹配、`status=PASS`、有至少一条 `cases` 且全部通过、无 `error`。开发机用第三次预演只读提取的最小字段夹具重放此判定；该重放不改变原预演的 `FAIL` 状态或结论。
 - `A9-W39-REQUIRED-ASSERTIONS-PRESENT` 的失败 detail 分列 `MISSING`（缺少 ID）和 `PRESENT_NOT_PASSED`（ID 存在但 `passed !== true`）；开发机门逐项检查打包驱动或 smoke 的 `record(` 调用覆盖必需清单。
 - M1b 脱敏标记：产品 `redactSecrets`/`redactUrlUserinfo` 将 `scheme://user:pass@host` 替换为 `***redacted***@host`；本套件核对脱敏形式 `***redacted***@example.invalid/x` 至少出现一处，口令本身零命中。
 - M1 启动定向恢复口径：`checkpointRecoveryDiagnostics.rejectedTurns` 恰好含种子中断 Turn 且 `status='missing'`；其余 Turn 经会话事实查询可见（按种子 completed Turn 数核对）。是否"不随历史线性增长"由审核方依据两阶段耗时判断，驱动不下结论。

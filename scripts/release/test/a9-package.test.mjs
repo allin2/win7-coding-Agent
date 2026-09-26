@@ -4234,3 +4234,61 @@ test('W39 R4-4 source gate requires readonly warmup and top button wait before p
   assert.ok(fixture.includes("tool: { name: 'search'"));
   assert.ok(!/name: '(?:edit|write|shell)'/.test(fixture));
 });
+
+const W39_R5_PHASE_FIXTURE = path.join(process.cwd(), 'release', 'win7-product-v3',
+  'a9-w39-rehearsal-20260927-0059-phases.json');
+
+function w39R5ReplayInputs() {
+  const fixture = JSON.parse(fs.readFileSync(W39_R5_PHASE_FIXTURE, 'utf8'));
+  const phases = fixture.phases.map(({ phase, exit_code }) => ({ phase, code: exit_code }));
+  const w39Phases = fixture.w39Phases.map(({ phase, exit_code }) => ({ phase, code: exit_code }));
+  const filesExist = Object.fromEntries(Object.keys(fixture.reports).map((mode) => [mode, true]));
+  return { fixture, phases, w39Phases, filesExist };
+}
+
+test('W39 R5-1 source gate searches inherited and w39 phase records together', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const summary = source.slice(source.indexOf('function validatePhaseReports('), source.indexOf('function expectedErrorContract('));
+  assert.match(summary, /phases\.concat\(w39Phases\)/);
+  assert.doesNotMatch(summary, /\bphases\.find\(/);
+  assert.match(source, /const phaseReportsValid = validatePhaseReports\(phases, w39Phases, reports, reportFilesExist\)/);
+});
+
+test('W39 R5-1 replays all 13 third-rehearsal phase reports from a provenance-pinned fixture', () => {
+  const { fixture, phases, w39Phases, filesExist } = w39R5ReplayInputs();
+  const { validatePhaseReports } = require(W39_SMOKE_PATH);
+  const records = phases.concat(w39Phases);
+  assert.equal(phases.length, 5);
+  assert.equal(w39Phases.length, 8);
+  assert.equal(Object.keys(fixture.reports).length, 13);
+  assert.equal(Object.keys(fixture.sources.reports).length, 13);
+  for (const source of [fixture.sources.automatic_smoke, ...Object.values(fixture.sources.reports)]) {
+    assert.match(source.path, /^evidence\/win7\/evidence\/smoke\//);
+    assert.match(source.sha256, /^[a-f0-9]{64}$/);
+  }
+  assert.equal(validatePhaseReports(phases, w39Phases, fixture.reports, filesExist), true);
+  for (const { phase } of records) {
+    assert.equal(validatePhaseReports(phases, w39Phases, fixture.reports, { [phase]: true }), true, phase);
+  }
+});
+
+test('W39 R5-1 replay rejects inherited-only lookup and a failed or wrong-mode w39 report', () => {
+  const { fixture, phases, w39Phases, filesExist } = w39R5ReplayInputs();
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const functions = source.slice(source.indexOf('function normalPhaseContract('), source.indexOf('function expectedErrorContract('));
+  const injected = functions.replace('allPhases.find((item) => item.phase === mode)',
+    'phases.find((item) => item.phase === mode)');
+  assert.notEqual(injected, functions);
+  const inheritedOnly = vm.runInNewContext(`${injected}\nvalidatePhaseReports`, {});
+  assert.equal(inheritedOnly(phases, w39Phases, fixture.reports, filesExist), false,
+    'the old lookup cannot find the eight w39 process records');
+  const { validatePhaseReports } = require(W39_SMOKE_PATH);
+  const failed = structuredClone(fixture.reports);
+  failed.w39_git.status = 'FAIL';
+  assert.equal(validatePhaseReports(phases, w39Phases, failed, filesExist), false,
+    'a failed w39 report must fail replay');
+  const wrongMode = structuredClone(fixture.reports);
+  wrongMode.w39_git.mode = 'first';
+  assert.equal(validatePhaseReports(phases, w39Phases, wrongMode, filesExist), false,
+    'a wrong-mode w39 report must fail replay');
+});

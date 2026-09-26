@@ -325,6 +325,12 @@ function normalPhaseContract(run, report, expectedMode) {
     && !report.error);
 }
 
+function validatePhaseReports(phases, w39Phases, reports, reportFilesExist) {
+  const allPhases = phases.concat(w39Phases);
+  return Object.entries(reportFilesExist).every(([mode, exists]) => exists
+    && normalPhaseContract(allPhases.find((item) => item.phase === mode), reports[mode], mode));
+}
+
 function expectedErrorContract(run, report, expectedMode, errorToken) {
   return Boolean(run && run.code !== 0 && run.timed_out !== true
     && report && report.mode === expectedMode && report.status === 'ERROR'
@@ -1109,8 +1115,8 @@ async function main() {
     ['first', firstOut], ['second', secondOut], ['retry', retryOut], ['stop', stopOut], ['live', liveOut],
     ...w39Phases.map((item) => [item.phase, path.join(runRoot, `${item.phase}.json`)]),
   ];
-  const phaseReportsValid = phaseEntries.every(([mode, filePath]) => fs.existsSync(filePath)
-    && normalPhaseContract(phases.find((item) => item.phase === mode), reports[mode], mode));
+  const reportFilesExist = Object.fromEntries(phaseEntries.map(([mode, filePath]) => [mode, fs.existsSync(filePath)]));
+  const phaseReportsValid = validatePhaseReports(phases, w39Phases, reports, reportFilesExist);
   const retryReport = reports.retry || {};
   const retryTargetBound = Boolean(retryTargetConversation
     && retryReport.retryTarget?.conversationId === retryTargetConversation
@@ -1311,7 +1317,11 @@ async function main() {
   process.exitCode = report.status === 'PASS' ? 0 : 1;
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error && error.stack ? error.stack : String(error)}\n`);
-  process.exitCode = 1;
-});
+module.exports = { validatePhaseReports };
+
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`${error && error.stack ? error.stack : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}

@@ -1,0 +1,815 @@
+{
+  "sources": {
+    "automatic_smoke": {
+      "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/automatic-smoke.json",
+      "sha256": "0597513417af1f6a29f13d6d30fd351c088d724c97fa457b119dba79901c8a28"
+    },
+    "reports": {
+      "first": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/first.json",
+        "sha256": "45a2f7c269a186888e2b73cea23d67e3e9f38cad6861dace480891e01c32f6d1"
+      },
+      "second": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/second.json",
+        "sha256": "978c51d826d1babdc8171464b22f168a9909fd60d7e7b6771bced657e8ea04d0"
+      },
+      "retry": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/retry.json",
+        "sha256": "6819340de53d182a2e743f9cc4c9e1ec1da49b10f9c7bb4d76113ab8f01fc985"
+      },
+      "stop": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/stop.json",
+        "sha256": "31d2914c7ca7806dfb465ebb4619f99fa648c46869b17e9dd5d2177e4e734e2e"
+      },
+      "live": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/live.json",
+        "sha256": "f8af06d7ab8ed4bab624a3a535f4170ab8af171d3e6eeab7ec809725eb9f4904"
+      },
+      "w39_git": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_git.json",
+        "sha256": "976b44dbbc03f88d0344eb2a01e927ea453816dc0ee9ec5bad160c0cfe092417"
+      },
+      "w39_startup": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_startup.json",
+        "sha256": "9f8dbe67ec2559b81fa387b1fe7f0ab07e06433c1f6138a89c9ddacadcb3ee00"
+      },
+      "w39_m1_small": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_m1_small.json",
+        "sha256": "f5f1e14d68fff4e72b9bbb96dd13de67d72275651d12b5521fc4abb5d8d51253"
+      },
+      "w39_m1_large": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_m1_large.json",
+        "sha256": "ba2482c94d40c7e9f392416bba0f89d19fc89ac5befcf13b32233e61edf449e9"
+      },
+      "w39_m1b": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_m1b.json",
+        "sha256": "97be1fbccd54efad51e325bb546872340020b57f3e561717f8d35256748fbfc6"
+      },
+      "w39_m2": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_m2.json",
+        "sha256": "c899430bd4e3f77a15586e01efbdec3710b09f80dd0e0e35d33981fa15b37d97"
+      },
+      "w39_m3": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_m3.json",
+        "sha256": "c0bee6024b42d4dc515aa6c738e7892716649750d488a7c9205da19fcfffd854"
+      },
+      "w39_m4": {
+        "path": "evidence/win7/evidence/smoke/自动 运行 w39-1790442452788/w39_m4.json",
+        "sha256": "59ba326429e99b1c9fab4fbfafc311181ba9f7f65434d2936443cc070eabb99a"
+      }
+    }
+  },
+  "phases": [
+    {
+      "phase": "first",
+      "exit_code": 0
+    },
+    {
+      "phase": "second",
+      "exit_code": 0
+    },
+    {
+      "phase": "retry",
+      "exit_code": 0
+    },
+    {
+      "phase": "stop",
+      "exit_code": 0
+    },
+    {
+      "phase": "live",
+      "exit_code": 0
+    }
+  ],
+  "w39Phases": [
+    {
+      "phase": "w39_git",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_startup",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_m1_small",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_m1_large",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_m1b",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_m2",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_m3",
+      "exit_code": 0
+    },
+    {
+      "phase": "w39_m4",
+      "exit_code": 0
+    }
+  ],
+  "reports": {
+    "first": {
+      "mode": "first",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9F1-MODE-SELECTION",
+          "passed": true
+        },
+        {
+          "id": "A9F1-PROVIDER-CONFIG-PROBE",
+          "passed": true
+        },
+        {
+          "id": "A9F1-OLDER-PROVIDER-FAILURE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-FAILURE-NOT-LABELLED-SUCCESS",
+          "passed": true
+        },
+        {
+          "id": "A9F1-VIEWER-EXPLICIT-GBK",
+          "passed": true
+        },
+        {
+          "id": "A9F1-VIEWER-ENCODING-PER-FILE",
+          "passed": true
+        },
+        {
+          "id": "A9F1-TOOL-JOURNEY",
+          "passed": true
+        },
+        {
+          "id": "A9F1-SHELL-EVENT-DTO-UI",
+          "passed": true
+        },
+        {
+          "id": "A9-15-PROGRESS-EVENT-ORDER",
+          "passed": true
+        },
+        {
+          "id": "A9-15-PROGRESS-RENDERED-ONCE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-EVENTS-CROSS-CONVERSATION-REJECTED",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-completed",
+          "passed": true
+        },
+        {
+          "id": "A9F1-DIFF",
+          "passed": true
+        },
+        {
+          "id": "A9-15-FAILURE-TYPES-SEPARATED",
+          "passed": true
+        },
+        {
+          "id": "A9F1-APPROVAL-CARD-TRUE-TARGET",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-approval",
+          "passed": true
+        },
+        {
+          "id": "A9F1-APPROVAL-DENY-OUTCOME",
+          "passed": true
+        },
+        {
+          "id": "A9-15-APPROVAL-RESOLVED-PERSISTED",
+          "passed": true
+        },
+        {
+          "id": "A9-15-APPROVAL-DENY-CONSUMED-ONCE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-DENY-ZERO-TARGET-SIDE-EFFECT",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-approval-approved",
+          "passed": true
+        },
+        {
+          "id": "A9-15-APPROVAL-ORDER-BEFORE-RESUME",
+          "passed": true
+        },
+        {
+          "id": "A9-15-BULK-HISTORY-GENERATED",
+          "passed": true
+        },
+        {
+          "id": "A9F1-OLDER-FAILURE-NEWER-SUCCESS-PERSISTED",
+          "passed": true
+        },
+        {
+          "id": "A9F1-SNAPSHOT-FACTS",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "second": {
+      "mode": "second",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9F2-RESTORE-ACTIVE-WORKSPACE",
+          "passed": true
+        },
+        {
+          "id": "A9F2-RESTORE-MODE",
+          "passed": true
+        },
+        {
+          "id": "A9F2-RESTORE-PROVIDER",
+          "passed": true
+        },
+        {
+          "id": "A9F2-RESTORE-CHECKPOINT",
+          "passed": true
+        },
+        {
+          "id": "A9F2-NO-SPURIOUS-INTERRUPTION",
+          "passed": true
+        },
+        {
+          "id": "A9F2-NO-REPLAY-TIMELINE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-HISTORY-RESTART-EVENTS",
+          "passed": true
+        },
+        {
+          "id": "A9-15-PAGING-PROBE-FACTS",
+          "passed": true
+        },
+        {
+          "id": "A9-15-TIME-BASELINE-DERIVED",
+          "passed": true
+        },
+        {
+          "id": "A9-15-INSPECTOR-PERSISTED-EVENTS",
+          "passed": true
+        },
+        {
+          "id": "A9-15-INSPECTOR-ROW-CONTENT",
+          "passed": true
+        },
+        {
+          "id": "A9-15-INSPECTOR-ASSERTION-NEGATIVE-CHECKS",
+          "passed": true
+        },
+        {
+          "id": "A9-15-INSPECTOR-SESSION-SWITCH-NO-RESIDUE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-DOM-OUTCOME-TURN-IDENTITY",
+          "passed": true
+        },
+        {
+          "id": "A9-15-OLDER-EVENT-PAGINATION",
+          "passed": true
+        },
+        {
+          "id": "A9-15-OLDER-FAILURE-NEWER-SUCCESS-RESTART",
+          "passed": true
+        },
+        {
+          "id": "A9-15-PROJECTION-EXPORTS-WRITTEN",
+          "passed": true
+        },
+        {
+          "id": "A9F2-CONVERSATION-16-IPC-ISOLATION",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CONVERSATION-SEARCH-ACTIVE-ARCHIVED",
+          "passed": true
+        },
+        {
+          "id": "A9F2-OLD-APPROVAL-REJECTED",
+          "passed": true
+        },
+        {
+          "id": "A9F2-SECOND-TURN-WORKS",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "retry": {
+      "mode": "retry",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-QUERY-FAILURE-VISIBLE-RETRY",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "stop": {
+      "mode": "stop",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9F6-STOP-SHELL-CHILD-STARTED",
+          "passed": true
+        },
+        {
+          "id": "A9F6-STOP-UI-ACTIVE",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-running",
+          "passed": true
+        },
+        {
+          "id": "A9F6-STOP-TURN-CANCELLED",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "live": {
+      "mode": "live",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-PROVIDER-PROBE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-RAIL-PRESERVED-AFTER-WORKSPACE-AND-CONVERSATION",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-HEADER-AND-LABELS",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-TOOL-CARD-BEFORE-COMPLETION",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-NOTE-BEFORE-COMPLETION",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-PREVIEW-BEFORE-COMPLETION",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-PREVIEW-CLEARED-AFTER-COMPLETION",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-LATENCY-WITHIN-1500MS",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-LIVE-SECRET-NOT-EXPOSED",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-live-completed",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_git": {
+      "mode": "w39_git",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-01",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-02",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-03",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-04",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-05",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-06",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-07",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-08",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-09",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-10",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-11",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-12",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-13",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-14",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-15",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-16",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-17",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-18",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-GIT-FORM-19",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-w39-git",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_startup": {
+      "mode": "w39_startup",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-STARTUP-WITHIN-60S",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-w39-startup",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_m1_small": {
+      "mode": "w39_m1_small",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "W39-M1-RECOVERY-SMALL",
+          "passed": true
+        },
+        {
+          "id": "W39-M1-TIMING-SMALL",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_m1_large": {
+      "mode": "w39_m1_large",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "W39-M1-RECOVERY-LARGE",
+          "passed": true
+        },
+        {
+          "id": "W39-M1-TIMING-LARGE",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_m1b": {
+      "mode": "w39_m1b",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M1B-FREEZE-DURATION",
+          "passed": true
+        },
+        {
+          "id": "W39-M1B-URL-TURN-RAN",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_m2": {
+      "mode": "w39_m2",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M2-TRUNCATED-WITH-WARNINGS",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M2-TOOL-NOT-EXECUTED",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M2-NEXT-TURN-OK",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-w39-m2",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_m3": {
+      "mode": "w39_m3",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M3-COUNT-MATCHES-DB",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M3-OLDER-PAGES-CONTINUOUS",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M3-OLDER-DIFF",
+          "passed": true
+        },
+        {
+          "id": "A9-15-CAPTURE-w39-m3",
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "w39_m4": {
+      "mode": "w39_m4",
+      "status": "PASS",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M4-CAP-NOTICE",
+          "passed": true
+        },
+        {
+          "id": "W39-M4-EVICTION-EVENTS",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M4-RELEASED-COUNT-ACCURATE",
+          "passed": true
+        },
+        {
+          "id": "A9-W39-M4-RENDERER-MEMORY-SAMPLED",
+          "passed": true
+        }
+      ],
+      "error": null
+    }
+  }
+}
