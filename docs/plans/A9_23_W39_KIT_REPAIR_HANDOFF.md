@@ -323,3 +323,50 @@ SQLite 后，全部属于套件问题，未发现产品缺陷：
   必需断言汇总区分 `MISSING`/`PRESENT_NOT_PASSED`；Git 按参数 → MinGit 固定路径 → `where git` 解析并先 `--version` 验证，不改 PATH。
 - 验收方复跑：`a9-package.test.mjs` 53/53（249 s，新增测试 48～51 覆盖 R3-4～R3-8）；shell 全量 43 套 447 项；`verify:quick`、`docs:check`、`git diff --check` 通过；无遗留进程。
 - 下一步：按预演交接书附录 A 做第二次 Win7 预演。
+
+## 11. 第二次 Win7 预演结论与第四轮返工要求（2026-09-27）
+
+### 11.1 预演结论
+
+第二次预演 `.acceptance/rehearsals/A9-23-W39/20260926-2331/`（套件 `28c5508`，`REHEARSAL_NOT_ELIGIBLE`）按预演交接书附录 A、B 完成：
+哈希清单 1,491 个文件复算零差异，前两次预演记录未被改动；四个计划任务均走附录 B 的 COM 后备门，逐字段核对一致；自检任务确认 `agent` 身份、
+Medium 令牌与中文参数原样传递；后飞行零残留，未强杀进程。
+
+W37 继承五阶段、W39-03 启动、W39-10 M1、W39-12 M2 与 **W39-13 M3（60 轮，`journey_ms=9632`，三条断言全部通过）** 在 Win7 实际通过；
+第一次预演的 X2、X3、X4、X5、X7 已消除。180 条断言中 24 条未通过，逐条核对原始证据、产品库副本与源码后，全部归入下列套件问题，未发现产品缺陷：
+
+| 编号 | 问题 | 证据与核实 |
+|---|---|---|
+| K8 | W39 Git 旅程把审批卡 `#a9-approval-id` 的文本当作审批 ID，而产品显示为 `approval: <id>`（`a9-workbench.js:2005`），导致审批边界事件、`a9_approvals` 记录与“同一审批”判定全部查不到；19 个 Git 形态因此全部未通过 | `w39_git.json` 各项 `boundaryEventId=null`、`approvalDecision=null`；产品库中 19 条审批均为 `denied`，无 `tool_start`，`tool_end` 均 `denied`/零副作用 |
+| K9 | 找到 MinGit 后，smoke 在创建工作区仓库目录前就写 README，`ENOENT`，远端 ref 对照未取得（第一次预演无 Git，此段未执行） | `w39-07-09-git-forms.json` 的 `setup_error` |
+| K10 | M1b 冻结断言要求本轮结局为 `completed`；本轮修改文件但未验证，产品按 A9-20 如实完成规则给出 `completed_with_warnings`/`unverified`，属正确行为。§3.7 并未要求 `completed`，冻结 369 ms、checkpoint 存在 | `w39_m1b.json` |
+| K11 | M4 驱动经工作区选择对话框进入会话后，界面未加载任何过程记录：产品只在启动初始化、对话操作、轮次结束、审批回复后调用 `loadConversationEvents`，`chooseWorkspace` 只刷新快照。因此没有“加载更早记录”按钮，分页未进行，达不到 2000 上限，释放提示等待超时 | `w39_m4.json`：`CAP-NOTICE` 读到“历史记录未包含过程。”；淘汰轮 20 步 84 条事件 |
+
+产品侧观察（记录，不在 A9-23 处理）：在会话中通过对话框选择或切换到已有历史的工作区后，历史轮次的过程记录不加载，显示“历史记录未包含过程。”，
+直到切换对话或完成一轮任务。启动时自动恢复工作区的路径会在初始化中加载，不受影响。负责人 2026-09-27 决定先记录，是否另立任务待定。
+套件对 K11 的处理只能通过合法的用户操作触发加载，**不得**以任何方式改变或绕过该产品行为的判定。
+
+五项待验证事实：第 1 项 8 个 `w39_*` 阶段均已运行；第 2 项 smoke 解析到 `C:\acceptance\mvp_mingit\cmd\git.exe`（2.46.2）；第 3、4 项与第一次一致；
+第 5 项 M3 60 轮 `journey_ms=9632`，远低于阶段超时。
+
+### 11.2 返工要求
+
+在 `codex/a9-23-w39-kit` 上、`28c5508` 之后追加提交，不改写已有提交；允许路径同 §2。**不推送、不合并。**
+
+- **R4-1（K8）**：W39 Git 旅程以快照 `pendingApproval.approvalId` 作为审批 ID，查询审批边界事件与 `a9_approvals`；“同一审批”改为核对卡片文本等于
+  `approval: <pendingApproval.approvalId>`，且卡片 `bindingDigest` 与待批准项一致。开发机门新增：判定函数以带前缀的卡片文本和真实形态的事件/审批行作为输入时，
+  能得出正确结论；把审批 ID 改回取卡片文本的写法注入后必须失败。
+- **R4-2（K9）**：先创建工作区仓库目录，再写 README、执行 `git init` 等；开发机门用临时目录（有可用 git 时）或桩覆盖该顺序。
+- **R4-3（K10）**：`A9-W39-M1B-FREEZE-DURATION` 接受结局 `completed` 或 `completed_with_warnings`，并改为从产品库核对**该 `turnId`** 的 `a9_checkpoints` 行存在，
+  不再以快照 checkpoint 总数代替；阈值与耗时记录不变。
+- **R4-4（K11）**：M4 在选择工作区后、分页前，先以 fixture 跑一轮不改文件的热身任务（产品在轮次结束时加载过程记录），再等待对话流顶部出现“加载更早记录”按钮后开始分页。
+  E 仍只统计淘汰轮次的事件；热身轮的事件计入已接收总数，报告中注明。开发机门新增源码检查：M4 分页前存在热身轮与按钮等待；
+  并用 `a9-workbench-contract.test.ts` 同样的 `vm` + 假 DOM 方式加载真实 `a9-workbench.js`，证明“选择工作区后不加载、轮次结束后加载”的时序与套件假设一致。
+
+### 11.3 证明与交付
+
+1. R4-1～R4-4 各给出注入对照（把第二次预演中的失败写法放回临时副本，说明对应检查如何失败）。
+2. `node --test scripts/release/test/a9-package.test.mjs`、shell 受影响测试、`verify:quick`、`docs:check`、`git diff --check`。
+3. 更新 `A9_23_WIN7_39_VALIDATION.md` 的派生差异与判定口径。
+4. 报告：新提交哈希；相对 `28c5508` 的改动文件清单；R4-1～R4-4 的修改位置、测试名与注入对照；各项测试摘要；偏离与未完成项。
+5. 返工通过开发机门后，按预演交接书附录 A、B 做第三次 Win7 预演（新目录、新任务名）。
