@@ -370,3 +370,13 @@ W37 继承五阶段、W39-03 启动、W39-10 M1、W39-12 M2 与 **W39-13 M3（60
 3. 更新 `A9_23_WIN7_39_VALIDATION.md` 的派生差异与判定口径。
 4. 报告：新提交哈希；相对 `28c5508` 的改动文件清单；R4-1～R4-4 的修改位置、测试名与注入对照；各项测试摘要；偏离与未完成项。
 5. 返工通过开发机门后，按预演交接书附录 A、B 做第三次 Win7 预演（新目录、新任务名）。
+
+## 12. 第四轮验收结论（2026-09-27，`8f5e0e4`，通过）
+
+- 相对 `28c5508` 改动 5 个文件，均在 §2 允许路径内：驱动、smoke、包测试、验证说明，新增 `src/shell/tests/product/a9-w39-m4-workspace-loading.test.ts`。
+- R4-1：审批查询改用 `pendingApproval.approvalId`，“同一审批”核对卡片文本 `approval: <id>` 与 `bindingDigest`。R4-2：先建工作区仓库目录再写 README/`git init`。
+  R4-3：M1b 接受 `completed`/`completed_with_warnings`，并从产品库核对该 `turnId` 的 checkpoint 行。R4-4：M4 选择工作区后先跑只读热身轮（`search`，不改文件），
+  等对话流顶部出现可用的“加载更早记录”按钮再分页；提示选择器改为只匹配对话流直接子元素；不调用渲染端内部加载函数。
+  新增 vm 测试加载真实 `a9-workbench.js`，复现“选择工作区后不查询事件、显示‘历史记录未包含过程。’，热身轮结束后加载 300 条并出现按钮”的时序，同时固定了 §11.1 的产品侧观察。
+- 验收方复跑：`a9-package.test.mjs` 57/57（255 s，测试 54～57 覆盖 R4-1～R4-4 并拒绝第二次预演写法）；shell 全量 44 套 448 项；`verify:quick`、`docs:check`、`git diff --check` 通过；无遗留进程。
+- 下一步：按预演交接书附录 C 做第三次 Win7 预演。
