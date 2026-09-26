@@ -237,3 +237,9 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
   删除记录见 [承接台账 §7.3](../plans/A9_17_A9_18_CARRYOVER_LEDGER.md)。其他工作树、分支与 `outputs/` 未触碰。
 - A9-21 §2 的 M0～M5 至此全部完成。`Phase-Gate` 仍为 `A9_21_IMPLEMENTATION_AUTHORIZED`：§5 第 5 项 gateway 偶发失败原因未定位、
   第 6 项真实 Electron 启动与完整任务回归未执行，达成前不改为 `A9_21_DEVELOPER_VERIFIED`；Win7 实机未验证。
+
+### 外部执行工作树清理（2026-09-26）
+
+- 删除 M1b～M4 的工作树 `win7-coding-agent-m1b`、`-m2`、`-m3`、`-m4` 与本地分支 `codex/a9-21-m1b`（`d67979a`）、`codex/a9-21-m2`（`3bc8815`）、
+  `codex/a9-21-m3`（`ab5e792`）、`codex/a9-21-m4`（`d38aeaf`）。四个分支均已并入 `codex/a9-alpha2`，工作树无未提交改动；
+  其中指向主工作区的 `node_modules`/`dist` 符号链接先单独解除，只删除了各自的构建产物，主工作区依赖与构建产物未受影响。
