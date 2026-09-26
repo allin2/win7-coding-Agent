@@ -255,3 +255,8 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 - 负责人授权以当前主线换发 WIN7-38 并在 Win7 实机验收（ADR-0141，入口 [A9-22](A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)）；§5 第 6 项由其实机运行取代，
   不再在开发机下载 Electron。收口验证交接书改为只排查 §5 第 5 项（gateway 偶发失败）。
 - `Phase-Gate` 保持 `A9_21_IMPLEMENTATION_AUTHORIZED`，待第 5 项结论与 WIN7-38 实机结果具备后由负责人决定。
+
+### §5 第 6 项改由 WIN7-39 覆盖（2026-09-26）
+
+- WIN7-38 实机 G2 因候选内验证套件缺陷失败，产品未运行，§5 第 6 项未取得覆盖（ADR-0142）。改由
+  [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 换发的 WIN7-39 覆盖；`Phase-Gate` 不变。

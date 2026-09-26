@@ -175,3 +175,8 @@ A9-18 工作树中的 F-1/F-2（部分形态修复与 32 项分类器用例）�
   变异检验中发现的冗余状态（`gaveUpOnGit`）已删除。
 - 未执行：Win7 实机（`Win7-Validation: NOT_PERFORMED`）；§2 各形态在真实 CMD/PowerShell 5.1 下的可达性仍待验证；
   未做真实 Electron 回归（改动只在 Core 策略层，已由 shell 全量测试覆盖到产品调用链）。
+
+## 14. Win7 换发记录
+
+- 2026-09-26：WIN7-38（A9-22）实机 G2 因候选内验证套件缺陷失败，产品未运行，未取得本任务的 Win7 结论（ADR-0142）。
+  Win7 验证改由 [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 换发的 WIN7-39 承担；`Phase-Gate` 保持 `A9_20_DEVELOPER_VERIFIED`。

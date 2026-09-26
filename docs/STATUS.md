@@ -33,10 +33,11 @@
 | A9-15 UI 进度反馈 | WIN7-28 UI 集成 PASS | [A9-15](tasks/A9_15_UI_PROGRESS_FEEDBACK.md)、[收口报告](reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md) | — |
 | A9-16 Alpha 2 UI 子集（U01–U07） | WIN7-36 `A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS`（可达响应式状态等效裁决）；WIN7-29～33、35 保持各自失败结论 | [A9-16](tasks/A9_16_ALPHA2_REVIEW_STREAMING_RESPONSIVE_UI.md)、[WIN7-36 收口](reports/2026-09/a9_16_win7_36_ui_subset_acceptance_2026-09-24.md)、ADR-0131/0133 | Review（R01–R05）与 Shell 运行中输出（S01–S06）暂缓；≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED` |
 | A9-17 启动与内存优化 | `A9_17_IMPLEMENTATION_AUTHORIZED`，开发机实现与 A/B 完成 | [A9-17](tasks/A9_17_STARTUP_MEMORY_OPTIMIZATION.md) | Win7/Win10 实机采样 `NOT_PERFORMED`；未并入任何产品候选；预算 #3 口径已按 ADR-0139 修订（A9-21 M0），采样可以开始，须绑定脚本 SHA-256 `198bdac3…0b6` |
-| A9-18 运行时端到端内存优化（非主线） | 工作树与分支已于 2026-09-26 删除（最后 HEAD `7d06789`，未提交内容按 ADR-0138 放弃）；有效部分已由 A9-21 在主线重新实现 | [承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md) | 评估完成（台账 §7）：启动定向恢复、输出上限、checkpoint 分页、渲染端集合上限由 [A9-21](tasks/A9_21_A9_18_SALVAGE_PORT.md) 移植（M0～M5 已完成；待 §5 第 5 项 gateway 排查与 WIN7-38 实机，见 A9-22），schema 迁移等不移植；Git 分类器部分由 A9-20 承接 |
+| A9-18 运行时端到端内存优化（非主线） | 工作树与分支已于 2026-09-26 删除（最后 HEAD `7d06789`，未提交内容按 ADR-0138 放弃）；有效部分已由 A9-21 在主线重新实现 | [承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md) | 评估完成（台账 §7）：启动定向恢复、输出上限、checkpoint 分页、渲染端集合上限由 [A9-21](tasks/A9_21_A9_18_SALVAGE_PORT.md) 移植（M0～M5 已完成；待 §5 第 5 项 gateway 排查与 WIN7-39 实机，见 A9-23），schema 迁移等不移植；Git 分类器部分由 A9-20 承接 |
 | A9-19 运行过程实时可见与布局二期 | WIN7-37 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`（可达响应式状态等效口径；源码 `dd6cb1a`，ZIP `4d700632…f167cf`） | [A9-19](tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md)、ADR-0135/0136、[WIN7-37 收口](reports/2026-09/a9_19_win7_37_live_progress_acceptance_2026-09-25.md) | ≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED`；残留：checkpoint 往返约 0.4 s、左栏“进行中”分组滞后 0.6～2.3 s；Shell 增量输出不在本候选 |
-| A9-20 Git 确认分类器绕过 | `A9_20_DEVELOPER_VERIFIED`（开发机修复完成，ADR-0137/0140；已发布候选仍含缺陷）。**已知缺陷**：开发机在 `c8691e3` 复现 `cmd /c"git push …"`、PowerShell 参数前缀、`powershell "git push …"`、`bash -c` 等形态被判为无 Git 而不触发外部写确认；WIN7-22、WIN7-37 等候选同源 | [A9-20](tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md)、ADR-0137 | 需换发候选取得 Win7 结论（建议 WIN7-38，换发合同另行批准）；Win7 可达性待验证；WIN7-22/WIN7-37 已签结论不改判，仅登记已知缺陷；修复后另行换发（建议 WIN7-38） |
-| A9-22 WIN7-38 换发与实机验收 | `A9_22_WIN7_38_FROZEN_AWAITING_AUTHORITY`（2026-09-26 候选已双构建冻结于 `874f541`，待负责人签发 authority；ADR-0141） | [A9-22](tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md) | 候选双构建冻结已完成（ZIP `105531bf…`）→ 停在此处等待负责人签发 authority 与独立 pin → 实机执行 → 审核 → 负责人裁决 |
+| A9-20 Git 确认分类器绕过 | `A9_20_DEVELOPER_VERIFIED`（开发机修复完成，ADR-0137/0140；已发布候选仍含缺陷）。**已知缺陷**：开发机在 `c8691e3` 复现 `cmd /c"git push …"`、PowerShell 参数前缀、`powershell "git push …"`、`bash -c` 等形态被判为无 Git 而不触发外部写确认；WIN7-22、WIN7-37 等候选同源 | [A9-20](tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md)、ADR-0137 | WIN7-38 因验证套件缺陷未取得结论（ADR-0142），改由 WIN7-39（[A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)）取得 Win7 结论；WIN7-22/WIN7-37 已签结论不改判，仅登记已知缺陷 |
+| A9-22 WIN7-38 换发与实机验收 | `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`（2026-09-26 实机 G2 失败：候选内 smoke 未传产品入口，产品未运行；非产品缺陷结论；ADR-0142） | [A9-22](tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)、[审查报告](reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md) | 已关闭；候选与证据保留，不得复用改判 |
+| A9-23 WIN7-39 换发与实机验收 | `A9_23_KIT_REPAIR_AUTHORIZED`（ADR-0142） | [A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) | 修复 W39 验证套件（§5 R1～R8）→ 交接书 → Win7 套件预演（已同意，结果不计入结论）→ 双构建冻结 → 负责人签发 authority → 实机 → 审核 → 裁决 |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Review、Shell streaming 与新的 RC 均未获任何 PASS 结论。
@@ -46,7 +47,7 @@
 1. **Alpha 2 剩余范围**：Review（R01–R05）与 Shell 运行中输出（S01–S06）须按 A9-16 任务书重新授权实现，并以新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推；预算 #3 口径已按 ADR-0139 修订（K17-5 关闭），采样可开始。A9-18 需求与遗留项统一登记在[承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md)，已完成价值评估，有效部分由 A9-21 移植（已批准，ADR-0138/0139），移植后删除工作树。
 3. **A8-06 外部验收**：Win10/Win7 三层验证仍 `NOT_PERFORMED`。
-4. **A9-20 Git 确认分类器绕过**：开发机修复完成（ADR-0137/0140，core 362、shell 376 项通过）；WIN7-22、WIN7-37 等已发布候选仍含该缺陷。2026-09-26 负责人已授权换发 WIN7-38 并实机验收（ADR-0141，[A9-22](tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)），Win7 结论待该轮裁决。
+4. **A9-20 Git 确认分类器绕过**：开发机修复完成（ADR-0137/0140，core 362、shell 376 项通过）；WIN7-22、WIN7-37 等已发布候选仍含该缺陷。WIN7-38（A9-22）因候选内验证套件缺陷未取得结论（ADR-0142）；Win7 结论改由 WIN7-39（[A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)）取得。
 5. **A9-19 后续**：WIN7-37 已签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`。Shell 真正增量输出（helper v3）、checkpoint 往返校验分片、左栏“进行中”分组滞后需各自另立任务。
 
 ## MVP 已接受的延期项

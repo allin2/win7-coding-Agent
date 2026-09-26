@@ -2327,3 +2327,18 @@
   （4）构建输入沿用 WIN7-37 输入锁；缺失的 A6 SQLite 返回包经负责人同意从私有加密归档恢复，按原哈希核对。
 - 后果：实施入口为 [A9-22](tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)。候选冻结后仍须负责人签发候选外 authority，实机结论经审核后由负责人裁决。
   开发机 gateway 偶发失败排查与 WIN7-38 互不阻塞。
+
+## ADR-0142 WIN7-38 记为验证套件缺陷不通过，新建 A9-23 修复套件后换发 WIN7-39
+
+- 状态：Accepted（2026-09-26，负责人按审查报告方案 (a) 裁决）
+- 背景：WIN7-38（A9-22，ADR-0141）在 Win7 实机 G2 失败。审查报告
+  [a9_22_win7_38_acceptance_review_2026-09-26.md](reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md) 确认：
+  候选内 `a9-win7-38-smoke.cjs` 未传 `A9_SMOKE_PRODUCT_MAIN`，产品入口从未加载；W38 的 A9-20/M1～M4 断言多为恒真或不覆盖判定要点；
+  残留检测未排除自身 PID。套件打包在候选内，修复必然改变 ZIP 哈希，不能沿用 WIN7-38 编号与 authority。
+- 决策：（1）WIN7-38 结论为不可变的 `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`，不是产品缺陷结论；候选、authority 与证据保留，
+  不得复用改判。W38-01 候选完整性虽有证据支持，不单独签发。A9-22 关闭。
+  （2）新建 [A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)：从 W37 smoke 机械派生 W39 套件，按任务书 §5 R1～R8 修复，
+  不做产品改动，换发 `WIN7-39`，结论上限 `A9_23_WIN7_39_A9_20_A9_21_PASS`；流程与硬门沿用 ADR-0141/ADR-0136。
+  （3）A9-21 §5 第 6 项与 A9-20 的 Win7 结论改由 WIN7-39 覆盖；ADR-0141 其余内容不变。
+- 后果：A9-20 维持 `A9_20_DEVELOPER_VERIFIED`，已发布候选的已知缺陷登记不变。WIN7-39 冻结前是否在 Win7 做非正式套件预演，
+  由负责人按 A9-23 §7 Q1 另行裁决。

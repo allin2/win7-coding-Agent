@@ -1,7 +1,7 @@
 # A9-22 / WIN7-38 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: READY_FOR_EXECUTION（已完成双独立构建与候选冻结，§3 无空项，待负责人确认签发后由执行方实施实机验收）
+Status: CLOSED（2026-09-26 已执行；G2 因候选内验证套件缺陷失败，WIN7-38 记为 A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS，ADR-0142）
 Scope: A9-22 WIN7-38 换发与实机验收（A9-20 Git 确认分类器绕过修复 + A9-21 运行时加固移植）
 Executor: 外部执行模型（负责人指定，例如 Gemini 3.8 Flash）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）

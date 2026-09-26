@@ -1,14 +1,14 @@
 # A9-22 — WIN7-38 换发与实机验收（A9-20 + A9-21）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2（本任务书所在提交；A9-20、A9-21 M0～M4 均已并入）
 Candidate: WIN7-38
-Phase-Gate: A9_22_WIN7_38_FROZEN_AWAITING_AUTHORITY
-Win7-Validation: NOT_PERFORMED
-Decision: ADR-0141
+Phase-Gate: A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS
+Win7-Validation: WIN7_38_G2_FAILED_VALIDATION_KIT_DEFECT
+Decision: ADR-0141, ADR-0142
 ```
 
 > 2026-09-26 负责人授权以当前主线换发新候选并在 Win7 实机验收（连通性已于同日只读核实：`192.168.1.3` 返回 `6.1.7601`）。
@@ -127,3 +127,11 @@ Decision: ADR-0141
 - 2026-09-26：在 C14 允许路径内新增 W38 发布管线、驱动旅程与测试；测试通过并提交为 `874f541`。
 - 2026-09-26：从提交 `874f541` 在两个独立干净工作树中完成双构建，ZIP 逐字节一致，冻结候选于 `.acceptance/candidates/WIN7-38/`。
 - 2026-09-26：准备 `WIN7_38_RELEASE_AUTHORITY` 草稿与独立 SHA-256 pin 于 `.acceptance/runs/A9-22-W38/31504dc1-8371-4381-a2ea-67ab2b9ce411/authority/`，等待负责人签发。
+- 2026-09-26：候选外 authority（SHA-256 `55bf8074…584f`，run-id `31504dc1-8371-4381-a2ea-67ab2b9ce411`，目标 `192.168.1.3`）
+  记载负责人批准时间 `2026-09-26T05:15:00Z`；签发对话记录待负责人补录。
+- 2026-09-26：外部执行方按交接书实机执行。G0/G1 完成（G1 `status=PASS`，agent Medium）；G2 smoke 退出码 1、`status=FAIL`
+  （`MODULE_NOT_FOUND`，产品入口未加载），5 个 `electron.exe` 残留经人工强制终止；按硬停止条件未执行 G3。候选与仓库未被改动。
+- 2026-09-26：审核方基于原始证据复核，根因为候选内 smoke 未传 `A9_SMOKE_PRODUCT_MAIN`，另有恒真断言与残留检测缺陷；
+  见[审查报告](../reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md)。
+- 2026-09-26：负责人裁决（ADR-0142）：WIN7-38 记为 `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`，不签发任何用例；
+  本任务关闭，修复套件与换发 WIN7-39 由 [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 承接。WIN7-38 发布文件与 W38 驱动旅程保持冻结。
