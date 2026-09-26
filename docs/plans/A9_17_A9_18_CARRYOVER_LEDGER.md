@@ -141,3 +141,11 @@ HEAD `7d06789` 已在 alpha2 历史中；全部改动为未提交内容：31 个
 | A9-18 文档 | 工作树内的 ADR-0124～0130、`STATUS.md` 等状态改动、A9-18 任务书、14 份 A9-18 审查与返修报告、3 份评估报告 | 不进入主线（ADR-0138）；结论已汇总于本台账 §1～§7，审查存档另见 `outputs/a9-18-*`（不在删除范围内） |
 
 删除范围只限上述工作树与分支；不触碰其他工作树、分支或 `outputs/`。删除须由负责人执行（永久删除未提交内容），删除后在此补记时间与最后 HEAD。
+
+#### 删除记录
+
+- 2026-09-26 12:23（+0800）前后，负责人执行：`git worktree remove --force /Users/qlyf/Developer/win7-coding-agent-memory-optimization`，
+  随后 `git branch -d codex/a9-memory-optimization`（输出 `Deleted branch codex/a9-memory-optimization (was 7d06789).`）。
+- 删除时最后 HEAD：`7d067890b1f54ab8bcde6bdbc5ea778d9e79c1ed`（该提交仍在 `codex/a9-alpha2` 历史中）；未提交内容（31 个已修改、36 个未跟踪文件）
+  已按 ADR-0138 放弃，取舍依据为本台账 §6～§7。审查存档 `outputs/a9-18-*` 保留。
+- 删除后核对：`git worktree list` 不再含该工作树，目录不存在，本地无 `codex/a9-memory-optimization` 分支。

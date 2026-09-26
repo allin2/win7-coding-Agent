@@ -230,3 +230,10 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 - 逐文件核对 A9-18 工作树（31 个已修改、36 个未跟踪，全部未提交），结果见 [承接台账 §7.3](../plans/A9_17_A9_18_CARRYOVER_LEDGER.md)：
   应移植项均已由 M0～M4 落地，其余按 §7.2 不移植；未发现未移植的需要项。分支没有自己的提交，HEAD `7d06789` 已在 alpha2 历史中。
 - 删除会永久丢失未提交内容，由负责人执行；完成后补记删除时间与最后 HEAD。
+
+### M5 清理（2026-09-26，完成）
+
+- 负责人执行删除：工作树 `win7-coding-agent-memory-optimization` 与本地分支 `codex/a9-memory-optimization`（最后 HEAD `7d06789`）；
+  删除记录见 [承接台账 §7.3](../plans/A9_17_A9_18_CARRYOVER_LEDGER.md)。其他工作树、分支与 `outputs/` 未触碰。
+- A9-21 §2 的 M0～M5 至此全部完成。`Phase-Gate` 仍为 `A9_21_IMPLEMENTATION_AUTHORIZED`：§5 第 5 项 gateway 偶发失败原因未定位、
+  第 6 项真实 Electron 启动与完整任务回归未执行，达成前不改为 `A9_21_DEVELOPER_VERIFIED`；Win7 实机未验证。
