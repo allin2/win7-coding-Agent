@@ -1133,3 +1133,5 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 - 2026-09-26，A9-21 M3 第二轮验收通过并并回（`ab5e792`，合并 `6dc75d0`）：快照只带最近 50 条 checkpoint 与总数，
   更早记录经 `a9.checkpoint.list` 游标分页。state 305、shell 432 项通过。Win7 未验证。
+
+- 2026-09-26，A9-21 M4（事件集合与被拦截请求上限）交外部 Agent 实施，交接书见 `docs/plans/A9_21_M4_COLLECTION_LIMITS_HANDOFF.md`。
