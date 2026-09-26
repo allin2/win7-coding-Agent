@@ -258,3 +258,58 @@ WIN7-38 在 Win7 实机 G2 失败，审查结论见
   判定函数抽出并有单测（包测试 44），6 种修复前写法在临时副本中被源码门拒绝（包测试 45）。按产品逻辑推演 M4 流程：分页可恰好到 2000 上限，淘汰后按钮重现，与判定一致。
 - 验收方复跑：`a9-package.test.mjs` 47/47（265 s）；shell 全量 43 套 447 项；`verify:quick`、`docs:check`、`git diff --check` 通过；无遗留进程。
 - 下一步：按 [W39 预演交接书](A9_23_W39_REHEARSAL_HANDOFF.md) 在 Win7 预演（非正式构建，`REHEARSAL_NOT_ELIGIBLE`）。套件分支暂不并入 alpha2，待预演复核后决定。
+
+## 9. Win7 预演结论与第三轮返工要求（2026-09-26）
+
+### 9.1 预演结论
+
+预演（`.acceptance/rehearsals/A9-23-W39/20260926-1935/`，套件 `330eae7`，非正式构建 ZIP `e6a48b8b…`，`REHEARSAL_NOT_ELIGIBLE`）按
+[预演交接书](A9_23_W39_REHEARSAL_HANDOFF.md) 完成。验收方复核：`SHA256SUMS.txt` 全量一致；主机键核对通过；`agent` 交互会话、Medium 令牌；
+本机与 Win7 的 ZIP 哈希一致；13 个阶段的 `productMainLoaded` 全部位于 Win7 候选根内，**WIN7-38 的“产品未加载”根因在实机上已消除**。
+W37 继承的五个阶段、W39-03 启动、W39-10 M1（两种规模）、W39-12 M2 在 Win7 实际通过。176 条断言中 24 条未通过，逐条核对原始证据与产品写入的
+SQLite 后，全部属于套件问题，未发现产品缺陷：
+
+| 编号 | 问题 | 证据 |
+|---|---|---|
+| X1 | 产品拒绝后写入 `tool_end`（`data.denied=true`、`sideEffects=0`，`a9-agent-loop.ts:545`），驱动把它计为“已执行”，19 个 Git 形态全部失败 | `w39_git.json` 各项 `noExecution.executedCount=1` |
+| X2 | **验收方错误**：§7.2 W1 要求兜底形态“无 `gitBinding`”。产品的 G04 兜底同样携带 `gitBinding`，只是没有 `remote`/`branch`，并带 `commandSha256` 与“full command digest bound”摘要 | 第 17 项 `pending_approval.gitBinding` |
+| X3 | 派生驱动的 live/rail/header 断言仍发出 `A9-W37-*`，smoke 必需清单要求 `A9-W39-*`，`A9-W39-REQUIRED-ASSERTIONS-PRESENT` 结构上不可能通过；开发机门未核对两边 ID 是否一致 | 打包的 `a9-win7-39-driver.cjs` |
+| X4 | M1b 夹具未先 `read` 就 `edit small.txt`，被产品“先读后写”规则拒绝，本轮 `blocked` | m1b 库事件 8 |
+| X5 | M3 夹具同样未先读就改，21 轮全 `blocked`；另外驱动以快照对话事实条数增长判断轮次结束，而预加载 `snapshot()` 请求分页快照（`conversationPage: true`，每页 20 条），第 21 轮起必然等待超时 | m3 库 21 轮 blocked；`preload.js:53`、`a9-persistence.ts` 分页默认 20 |
+| X6 | M4 ① 淘汰轮要求 55 步，产品每轮上限 30 步，本轮以 `failed` 结束且不在驱动终态列表内，等待超时；② 淘汰前 `A9-W39-M4-CAP-NOTICE` 的提示文本已为空：种子只写了 Turn 与事件，没有 `conversation.request`，产品不生成对话事实，界面未加载这些记录 | m4 库淘汰轮 30 步后 `failed`；`w39_m4.json` |
+| X7 | `A9-W39-REQUIRED-ASSERTIONS-PRESENT` 把“存在但未通过”也记为 `MISSING`（低危） | smoke 总报告 |
+
+五项待验证事实：Win7 的 MinGit 2.46.2 位于 `C:\acceptance\mvp_mingit\cmd\git.exe`，只在管理员 `dccs-chaizl` 的用户 PATH 中，`agent` 的 PATH 没有但有 `RX` 权限
+（2026-09-26 只读核实）；PowerShell 5.1.14409 的 `/Command` 与位置参数形态都会真正执行；`.cmd` 在中文空格路径下传参正常；M3 60 轮耗时未测得。
+执行方另报 K7：中文路径下计划任务 XML 须以 CP936 写出，否则 `schtasks` 静默误码但报成功；属实机流程，写入正式实机交接书，不属于套件。
+
+### 9.2 返工要求
+
+在 `codex/a9-23-w39-kit` 上、`330eae7` 之后追加提交，不改写已有提交；允许路径同 §2。**不推送、不合并。**
+
+- **R3-1（X1）**：拒绝后的“未执行”判定改为：审批边界之后无该调用的 `tool_start`；如有该调用的 `tool_end`，必须是 `data.denied === true` 且 `sideEffects === 0`；
+  并从产品库 `a9_approvals` 读取该 `approvalId` 的记录，决定为拒绝。三者都满足才记未执行。
+- **R3-2（X2，修订 §7.2 W1 对兜底形态的写法）**：`summary` 形态要求 `gitBinding` 存在、没有 `remote` 与 `branch`、`commandSha256` 为 64 位十六进制、
+  `bindingDigest` 为 64 位十六进制；`origin-main` 形态的要求不变。
+- **R3-3（X3）**：`writeCandidateDriver` 对 WIN7-39 把驱动中 W37 旅程发出的断言 ID 前缀 `A9-W37-` 重基线为 `A9-W39-`（每个替换源恰好出现 1 次，
+  与 P-4 同样的方式；源码驱动的历史旅程不改）。开发机门新增：在构建产物中，smoke 必需清单里的每个 ID 都能在打包驱动或 smoke 自身的 `record(` 调用中找到，缺任一即失败。
+- **R3-4（X4）**：M1b 夹具先调用 `read small.txt`，再 `edit`；判定不变。
+- **R3-5（X5）**：M3 夹具每轮先 `read counter.ts` 再 `edit`。所有 `w39_*` 阶段的“等待本轮结束”改为不依赖对话事实条数：提交后经产品事件查询
+  （`queryEvents`）识别本次新出现的 `turn_started` 的 `turnId`，再等待该 `turnId` 的 `turn_completed` 或 `turn_failed`，结局以该事件为准。开发机门新增源码检查：
+  `w39*` 代码中不得以 `snapshot.conversation` 的长度判断轮次结束。
+- **R3-6（X6）**：① 淘汰轮的步数不超过 25，且产生的事件数不少于 50（可在每步产生多条事件）；② M4 种子为每个种子任务额外经产品公开方法
+  `recordModelEvent(sessionId, null, 'conversation.request', { schemaVersion: 1, taskId, requestPrompt })` 写入请求事件（与 `a9-agent-runtime.js:1799` 相同），
+  使产品能生成对话事实；③ 开发机门新增：用开发机的 better-sqlite3 与 `src/state/dist` 生成 M4 种子库，经真实 `createA9AgentRuntime` 打开后，
+  分页快照含种子对话事实，且 `queryEvents` 可连续分页取回全部 2,500 条种子事件。
+- **R3-7（X7）**：必需断言汇总区分 `MISSING`（未出现）与 `PRESENT_NOT_PASSED`（出现但未通过），detail 分别列出。
+- **R3-8（Git，负责人 2026-09-26 选方案 A）**：smoke 准备本地裸仓库与工作区仓库时使用 Git 的完整路径，按顺序取：smoke 参数 `--git-exe=<路径>`、
+  `C:\acceptance\mvp_mingit\cmd\git.exe`（存在时）、`where git`；都没有时记 `NOT_PERFORMED_NO_GIT`。该 Git 只用于准备测试仓库与读取 ref，
+  **不得**把它的目录加入产品或驱动进程的 PATH，不改验收机任何设置。报告中记录实际使用的 Git 路径与版本。
+
+### 9.3 证明与交付
+
+1. R3-1～R3-8 各给出注入对照：把预演中的失败写法放回临时副本，说明对应检查如何失败（开发机门覆盖的给出测试名；只能在 Win7 运行的用判定函数单测说明）。
+2. `node --test scripts/release/test/a9-package.test.mjs`、shell 受影响测试、`verify:quick`、`docs:check`、`git diff --check`。
+3. 更新 `A9_23_WIN7_39_VALIDATION.md` 的派生差异与判定口径。
+4. 报告：新提交哈希；相对 `330eae7` 的改动文件清单；R3-1～R3-8 的修改位置与测试名；各项测试摘要；偏离与未完成项。
+5. 返工通过开发机门后，按同一份预演交接书再做一次 Win7 预演（新的日期目录），确认 X1～X7 在实机消除后再进入冻结。
