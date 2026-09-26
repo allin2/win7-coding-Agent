@@ -380,3 +380,43 @@ W37 继承五阶段、W39-03 启动、W39-10 M1、W39-12 M2 与 **W39-13 M3（60
   新增 vm 测试加载真实 `a9-workbench.js`，复现“选择工作区后不查询事件、显示‘历史记录未包含过程。’，热身轮结束后加载 300 条并出现按钮”的时序，同时固定了 §11.1 的产品侧观察。
 - 验收方复跑：`a9-package.test.mjs` 57/57（255 s，测试 54～57 覆盖 R4-1～R4-4 并拒绝第二次预演写法）；shell 全量 44 套 448 项；`verify:quick`、`docs:check`、`git diff --check` 通过；无遗留进程。
 - 下一步：按预演交接书附录 C 做第三次 Win7 预演。
+
+## 13. 第三次 Win7 预演结论与第五轮返工要求（2026-09-27）
+
+### 13.1 预演结论
+
+第三次预演 `.acceptance/rehearsals/A9-23-W39/20260927-0059/`（套件 `8f5e0e4`，`REHEARSAL_NOT_ELIGIBLE`）按预演交接书附录 A、B、C 完成：
+回传归档 546 项 CRC 与字节一致；四个计划任务均走 COM 后备门并逐字段一致；自检确认 `agent`、Medium 令牌与中文参数；后飞行零残留。
+
+13 个阶段（W37 继承 5 个与 `w39_*` 8 个）全部退出码 0、报告 `PASS`、无 `error`；181 条断言全部为 true；K8～K11 已消除。
+但 smoke 输出 `status=FAIL`、退出码 1，唯一为 false 的汇总字段是 `phase_reports_valid`：
+
+| 编号 | 问题 | 证据与核实 |
+|---|---|---|
+| K12 | `a9-win7-39-smoke.cjs:1112-1113` 用 `phases.find` 查找各阶段的进程记录，而 `phases` 只含 5 个继承阶段，8 个 `w39_*` 阶段的记录在 `w39Phases`，查不到即判无效，`phase_reports_valid` 恒为 false。第一轮 D-12 引入，此前各轮验收均漏检 | 验收方以 `automatic-smoke.json` 的 `phases` 与 13 份阶段报告按 `normalPhaseContract` 同样条件重算，13 个阶段全部满足 |
+
+裁决：K12 为套件判定缺陷，不是产品缺陷。第三次预演结论保持 `REHEARSAL_NOT_ELIGIBLE` 与 smoke `FAIL` 原样，不因 R5-1 改写。
+R5-1 只改汇总逻辑、无 Win7 特有行为；验收方建议以开发机重放第三次预演的真实产出作证明，不再做第四次预演，由负责人决定。
+
+### 13.2 返工要求
+
+在 `codex/a9-23-w39-kit` 上、`8f5e0e4` 之后追加提交，不改写已有提交；允许路径同 §2。**不推送、不合并。**
+
+- **R5-1（K12）**：阶段报告有效性按 `phases.concat(w39Phases)` 查找进程记录。把阶段汇总判定抽成可单独调用的纯函数
+  （输入：继承阶段记录、w39 阶段记录、各阶段报告、报告文件是否存在），smoke 主流程调用该函数，其余判定条件与口径不变。
+- 开发机门新增（写入 `scripts/release/test/a9-package.test.mjs`）：
+  1. 源码检查：smoke 的阶段汇总不再以 `phases.find` 单独查找阶段记录。
+  2. 重放：从第三次预演只读提取夹具 `release/win7-product-v3/a9-w39-rehearsal-20260927-0059-phases.json`（§2 允许的含 `w39` 夹具），
+     内容只保留判定所需字段：`automatic-smoke.json` 中 13 条进程记录的 `phase`、`exit_code`，以及 13 份阶段报告的 `mode`、`status`、
+     `cases[].id`/`cases[].passed`、`error`；夹具内登记每个来源文件的相对路径与 SHA-256，测试不读取 `.acceptance/`。
+     重放时把 `exit_code` 映射为 `code`，调用该纯函数，断言 13 个阶段全部有效。不得修改或回写预演目录中的任何文件。
+  3. 注入对照：把查找改回只在 `phases` 中查找后，重放必须失败；另取一份夹具把任一 `w39_*` 报告的 `status` 改为 `FAIL` 或 `mode` 改错，也必须失败，
+     证明修复没有把判定放宽成恒真。
+
+### 13.3 证明与交付
+
+1. 上述三项测试的测试名与结果；注入对照说明各自如何失败。
+2. `node --test scripts/release/test/a9-package.test.mjs`、shell 受影响测试、`verify:quick`、`docs:check`、`git diff --check`。
+3. 更新 `A9_23_WIN7_39_VALIDATION.md` 的判定口径（阶段汇总覆盖 13 个阶段）。
+4. 报告：新提交哈希；相对 `8f5e0e4` 的改动文件清单；修改位置；各项测试摘要；偏离与未完成项。
+5. 未执行的步骤一律记 `NOT_PERFORMED`；不做 Win7 预演，是否再预演由负责人决定。
