@@ -358,12 +358,12 @@ describe('A9 unified desktop workbench contract', () => {
     expect(html).toContain('搜索对话标题，包含已归档');
     // 事件数据层：eventId 去重增量并入 + 有界历史回看（截断以 hasMore 明示）。
     expect(script).toContain('function normalizeTimelineEvent(raw)');
-    expect(script).toContain('function ingestEvents(events)');
+    expect(script).toContain('function ingestEvents(events, explicitOlder = false)');
     expect(script).toContain('state.inspectorEvents');
     expect(script).toContain('eventsForInspector().slice(-60)');
     expect(script).toContain('state.turnEvents');
     expect(script).toContain('beforeEventId: state.eventsBeforeId');
-    expect(script).toContain('state.eventsTruncated = response.hasMore === true');
+    expect(script).toContain('state.eventsTruncated = response.hasMore === true || state.releasedEventCount > 0');
     expect(script).toContain('加载更早记录');
     // 轮次过程渲染：说明行 / 计划条 / 工具活动组（callId 配对）/ 审批留痕。
     ["case 'model_note':", "case 'plan_updated':", "case 'approval_required':",
@@ -423,7 +423,8 @@ describe('A9 unified desktop workbench contract', () => {
       ],
     };
     const state: any = {
-      activeConversationId: 'conversation-a', inspectorEvents: new Map(), turnEvents: new Map(),
+      activeConversationId: 'conversation-a', inspectorEvents: new Map(), eventBytes: 0,
+      releasedEventCount: 0, lowestLoadedEventId: null, evictedThroughId: 0, turnEvents: new Map(),
       turnIdToFactTask: new Map(), eventMaxId: 0, activeTurnId: null, pendingToolLabel: null,
       lastEventAt: 0, eventsBeforeId: null, snapshot: {}, eventsLoading: false,
       eventsTruncated: false, eventsError: '', streamDom: new Map(), truncatedNote: null,
@@ -436,6 +437,8 @@ describe('A9 unified desktop workbench contract', () => {
     const timeline = script.slice(script.indexOf('  function renderTimeline('), script.indexOf('  function renderCheckpoints('));
     const context: any = {
       state, document, a9: { queryEvents }, Date,
+      EVENT_GLOBAL_LIMIT: 2000, EVENT_BYTE_LIMIT: 4 * 1024 * 1024,
+      EVENT_TURN_LIMIT: 500, EVENT_TRIM_RATIO: 0.9,
       el: (id: string) => nodes.get(id),
       text: (id: string, value: any) => { const target = nodes.get(id); if (target) target.textContent = String(value == null ? '' : value); },
       renderConversation: jest.fn(), openWorkspaceFile: jest.fn(),
@@ -473,11 +476,12 @@ describe('A9 unified desktop workbench contract', () => {
         eventMaxId: 0, eventsTruncated: false, eventsError: '', eventsLoading: false,
         localRequest: null, conversationSignature: null, renderedConversationId: 'conversation-a',
         streamDom: new Map(), turnEvents: new Map(), turnIdToFactTask: new Map(),
+        inspectorEvents: new Map(), releasedEventCount: 0,
         activeTurnId: null, truncatedNote: null, streamFollow: false,
       };
       const context: any = {
         state, document, Date, Map, Set, Array, String, JSON,
-        NOTE_LIMIT: 16 * 1024, TOOL_OUTPUT_LIMIT: 8 * 1024,
+        NOTE_LIMIT: 16 * 1024, TOOL_OUTPUT_LIMIT: 8 * 1024, EVENT_GLOBAL_LIMIT: 2000,
         TERMINAL_OUTCOMES: new Set(['completed', 'failed']),
         OUTCOME_LABELS: { completed: '完成', failed: '失败' },
         clampText: (value: any, limit: number) => String(value == null ? '' : value).slice(0, limit),
@@ -540,12 +544,13 @@ describe('A9 unified desktop workbench contract', () => {
       const state: any = {
         eventMaxId: 2, eventsTruncated: false, eventsError: '', eventsLoading: false, localRequest: null,
         conversationSignature: null, renderedConversationId: 'c', streamDom: new Map(), turnEvents,
+        inspectorEvents: new Map(), releasedEventCount: 0,
         turnIdToFactTask: new Map(), activeTurnId: 'turn-live', truncatedNote: null, streamFollow: false,
         running: true, runningItems: new Set(), liveModelPreview: preview,
       };
       const context: any = {
         state, document, Date, Map, Set, Array, String, JSON, Number,
-        NOTE_LIMIT: 16 * 1024, TOOL_OUTPUT_LIMIT: 8 * 1024,
+        NOTE_LIMIT: 16 * 1024, TOOL_OUTPUT_LIMIT: 8 * 1024, EVENT_GLOBAL_LIMIT: 2000,
         TERMINAL_OUTCOMES: new Set(['completed', 'completed_with_warnings', 'blocked', 'failed', 'cancelled', 'interrupted']),
         OUTCOME_LABELS: {},
         clampText: (value: any, limit: number) => String(value == null ? '' : value).slice(0, limit),
@@ -673,12 +678,15 @@ describe('A9 unified desktop workbench contract', () => {
       .mockResolvedValueOnce({ ok: true, events: [{ eventId: 301 }], hasMore: true })
       .mockRejectedValueOnce(new Error('private failure detail'))
       .mockResolvedValueOnce({ ok: true, events: [{ eventId: 1 }], hasMore: false });
-    const state: any = { activeConversationId: 'c', eventsBeforeId: null, snapshot: {}, eventsLoading: false };
+    const state: any = { activeConversationId: 'c', eventsBeforeId: null, snapshot: {}, eventsLoading: false,
+      inspectorEvents: new Map(), historyGeneration: 0 };
     const ingested: any[] = [];
     const render = jest.fn();
     const renderTimeline = jest.fn();
     const context: any = { a9: { queryEvents }, state, normalizeQueriedEvent: (x: any) => x,
-      ingestEvents: (xs: any[]) => ingested.push(...xs), renderConversation: render, renderTimeline };
+      ingestEvents: (xs: any[]) => ingested.push(...xs), renderConversation: render, renderTimeline,
+      eventsForInspector: () => ingested.slice().sort((a, b) => a.eventId - b.eventId),
+      EVENT_GLOBAL_LIMIT: 2000 };
     vm.runInNewContext(source + ';this.load = loadConversationEvents;', context);
     await context.load();
     expect(state.eventsBeforeId).toBe(301);
