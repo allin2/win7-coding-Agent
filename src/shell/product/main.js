@@ -74,6 +74,9 @@ const runtimeState = {
   rendererReady: false,
   diagnosticsRequested: false,
   blockedRequests: [],
+  blockedRequestBytes: 0,
+  blockedRequestCount: 0,
+  blockedRequestDropped: 0,
   deniedPermissions: [],
   errors: [],
   productEvents: 0,
@@ -217,7 +220,8 @@ function writeSmokeReport(status, exitCode, summary) {
         metrics: {
           renderer_ready: runtimeState.rendererReady,
           diagnostics_requested: runtimeState.diagnosticsRequested,
-          blocked_request_count: runtimeState.blockedRequests.length,
+          blocked_request_count: runtimeState.blockedRequestCount,
+          blocked_request_dropped: runtimeState.blockedRequestDropped,
           denied_permission_count: runtimeState.deniedPermissions.length,
           runtime_error_count: runtimeState.errors.length,
         },
@@ -1160,6 +1164,21 @@ ipcMain.on('product:renderer-ready', (event, payload) => {
   }
 });
 
+// A9-21 M4 blocked-request recorder start.
+function recordBlockedRequest(url) {
+  const boundedUrl = String(url).slice(0, 2048);
+  const bytes = boundedUrl.length * 2;
+  runtimeState.blockedRequests.push(boundedUrl);
+  runtimeState.blockedRequestBytes += bytes;
+  runtimeState.blockedRequestCount += 1;
+  while (runtimeState.blockedRequests.length > 500 || runtimeState.blockedRequestBytes > 1024 * 1024) {
+    const removed = runtimeState.blockedRequests.shift();
+    runtimeState.blockedRequestBytes -= removed.length * 2;
+    runtimeState.blockedRequestDropped += 1;
+  }
+}
+// A9-21 M4 blocked-request recorder end.
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.exit(2);
@@ -1168,7 +1187,7 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     installSessionPolicy(session.defaultSession, {
       rendererRoot,
-      onRequestBlocked: (url) => runtimeState.blockedRequests.push(url),
+      onRequestBlocked: (url) => recordBlockedRequest(url),
       onPermissionDenied: (permission) => runtimeState.deniedPermissions.push(permission),
     });
     // Create and display the trusted local shell first. Heavy state/runner/
