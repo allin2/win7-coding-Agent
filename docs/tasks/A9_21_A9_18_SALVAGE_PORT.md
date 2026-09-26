@@ -37,8 +37,9 @@ Decision: ADR-0138, ADR-0139
   畸形事件样本上限 20 条；截断说明写入 `model_note.data.content`；出现截断的轮次结果为 `COMPLETED_WITH_WARNINGS`。
 - **M3 checkpoint 列表分页（P0-3）**：快照只带最近 50 条及总数；`a9.checkpoint.list` 走独立分页查询，游标为
   `before: { createdAt, turnId }`；界面可加载更早记录；会话与工作区绑定检查不变。
-- **M4 渲染端集合上限（P2-1）**：`inspectorEvents`、`turnEvents`、`blockedRequests` 设条数与字节上限，淘汰最旧并释放引用，
-  界面显示被省略的真实数量；与 A9-19 实时过程改动合并，不回退其行为。
+- **M4 集合上限（P2-1）**：渲染端 `inspectorEvents`、`turnEvents` 与 Main 进程 `blockedRequests` 设条数与字节上限，淘汰最旧并释放引用，
+  界面显示被省略的真实数量；与 A9-19 实时过程改动合并，不回退其行为。（2026-09-26 负责人裁决：`blockedRequests` 位于
+  `main.js` 而非渲染端，M4 允许路径增补该文件，限其 `blockedRequests` 相关代码。）
 - **M5 清理**：移植提交后删除工作树 `win7-coding-agent-memory-optimization` 与本地分支 `codex/a9-memory-optimization`；
   删除前核对 §1 参考文件已无未移植的需要项，并在台账 §7.3 记录删除时间与最后 HEAD。
 
@@ -57,7 +58,7 @@ Electron 22.3.27/Node 16 目标不变。输出上限数值在 Win7 企业模型�
 - M1b：`src/shell/product/a9-agent-runtime.js`、`src/shell/product/renderer/a9-workbench.js`（仅该正则）
 - M2：`src/gateway/src/provider/openai-compatible.ts`、`src/gateway/src/provider/sse-parser.ts`、`src/gateway/src/types/index.ts`、`src/core/src/a9-agent-loop.ts`（仅输出预算）
 - M3：`src/state/src/a9-persistence.ts`、`src/shell/product/a9-agent-runtime.js`、`src/shell/product/a9-product-ipc.js`、`src/shell/product/preload.js`、`src/shell/product/renderer/a9-workbench.js`、`src/shell/product/renderer/workbench.html`
-- M4：`src/shell/product/renderer/a9-workbench.js`
+- M4：`src/shell/product/renderer/a9-workbench.js`；`src/shell/product/main.js`（仅 `blockedRequests` 的声明、写入与计数上报，2026-09-26 增补）
 - 测试：`src/state/tests/**`、`src/workspace/tests/**`、`src/gateway/tests/**`、`src/core/tests/a9-agent-loop.test.ts`、`src/shell/tests/product/**`
 - 文档：本任务书、`docs/DECISIONS.md`（仅 ADR-0138/0139）、`docs/DECISIONS_INDEX.md`、`docs/tasks/README.md`、`docs/STATUS.md`、`docs/STATUS_LOG.md`、承接台账
 
@@ -168,3 +169,13 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 - 以 `--no-ff` 合并入 `codex/a9-alpha2`（`de851be`），合并后复测通过。未在 Win7 实机验证；输出上限数值在企业模型服务下是否过紧仍待验证（§3）；
   A9-18 试验中的 gateway 偶发失败在累计 60 次连续运行中未复现，原因未定位。
 - 旁注（范围外）：gateway 的 `a9-05-journeys.test.ts` 依赖 `state/dist`，§5 的验证顺序不构建 state，全新检出时该套测试会失败。
+
+### M3、M4 开工前裁决（2026-09-26）
+
+- 矛盾：M4 要求限制 `blockedRequests`，但它在 Main 进程 `src/shell/product/main.js`（声明、`onRequestBlocked` 写入、诊断计数），
+  不在原允许路径内。负责人裁决：M4 允许路径增补 `main.js`，只限 `blockedRequests` 相关代码；§2 标题改为“集合上限”。
+- M3 无矛盾：`a9.checkpoint.list` 通道已存在（`a9-product-ipc.js`、`preload.js`），分页为既有通道新增可选参数，不违反 §3。
+- 已知局限（不改）：旧面板 `a9-agent-panel.js` 以 `snapshot.checkpoints.length` 显示总数，M3 后最多显示 50。该面板只在
+  `--a8-review-smoke-*`、`--a8-boundary-smoke-*` 冒烟模式加载，且不在允许路径内。
+- 执行方式：M3、M4 交外部执行 Agent，本会话验收；先以真实 workbench 代码加桩数据做界面 Demo，负责人确认后再出交接书。
+  两者都改 `a9-workbench.js`，M3 先行，M4 以 M3 并回后的主线为基线。
