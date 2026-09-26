@@ -2,7 +2,7 @@
 
 > 执行方：新会话。授权依据：[A9-21](../tasks/A9_21_A9_18_SALVAGE_PORT.md) §5 第 5、6 项与 §6。
 > M0～M5 已全部完成并并回 `codex/a9-alpha2`（见任务书 §8）。**第 2 版（2026-09-26）**：本交接书只做 §5 第 5 项（gateway 偶发失败）；
-> 第 6 项改由 A9-22 / WIN7-38 在 Win7 实机覆盖（ADR-0141）。
+> 第 6 项改由 Win7 实机覆盖：原定 A9-22 / WIN7-38（ADR-0141），WIN7-38 以验证套件缺陷不通过后改由 A9-23 / WIN7-39（ADR-0142）。
 
 ## 1. 当前状态
 
@@ -14,17 +14,19 @@
   - **第 6 项**：真实 Electron 启动与一次完整任务回归，未执行。
 - 已知遗留（不在本交接书处理）：`main.js` 的 `deniedPermissions` 无上限；快照中 `listConversationFacts` 随 checkpoint 总数增长。
 
-## 2. 第 6 项：改由 WIN7-38 实机覆盖
+## 2. 第 6 项：改由 Win7 实机覆盖（现为 WIN7-39）
 
 2026-09-26 负责人决定：§5 第 6 项不在开发机下载 Electron 运行，改由 [A9-22](../tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)
-（WIN7-38 换发与 Win7 实机验收，ADR-0141）覆盖。本交接书只执行下面的第 5 项；不要下载 Electron，也不要运行开发机 Electron 冒烟。
+（WIN7-38 换发与 Win7 实机验收，ADR-0141）覆盖；WIN7-38 结论为 `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS` 后，按 ADR-0142 改由
+[A9-23](../tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)（WIN7-39）覆盖。本交接书只执行下面的第 5 项；不要下载 Electron，也不要运行开发机 Electron 冒烟。
 
 ## 3. 第 5 项：gateway 偶发失败
 
-**与 WIN7-38 并行时的隔离（2026-09-26）**：A9-22 / WIN7-38 在主工作区 `codex/a9-alpha2` 上进行，本项必须在独立工作树与分支中执行，
+**与 WIN7 候选换发并行时的隔离（2026-09-26）**：A9-23 / WIN7-39 的套件修复在工作树 `win7-coding-agent-w39-kit`（分支 `codex/a9-23-w39-kit`）进行，
+文档与并回在主工作区 `codex/a9-alpha2`；本项必须在另一个独立工作树与分支中执行，
 例如 `git worktree add ../win7-coding-agent-gwflake -b codex/a9-21-gateway-flake codex/a9-alpha2`；`node_modules` 可用符号链接复用主工作区，
-各包 `dist` 在本工作树内构建。所有提交只进该分支，**不得合并到 `codex/a9-alpha2`**，由负责人在 WIN7-38 候选冻结后决定是否并回；
-需要修改产品源码时同样只在该分支，且不进入 WIN7-38。人为 CPU 负载组尽量避开 WIN7-38 的管线测试与双构建阶段；如无法确认，
+各包 `dist` 在本工作树内构建。所有提交只进该分支，**不得合并到 `codex/a9-alpha2`**，由负责人在 WIN7-39 候选冻结后决定是否并回；
+需要修改产品源码时同样只在该分支，且不进入 WIN7-39。人为 CPU 负载组尽量避开 WIN7-39 的管线测试与双构建阶段；如无法确认，
 在报告中写明负载时段，便于区分对方的测试失败是否受负载影响。
 
 
@@ -40,7 +42,7 @@
 - 结果写入任务书 §8（新小节“收口验证”）、`docs/STATUS.md`、`docs/STATUS_LOG.md`；证据文件在会话临时目录，文档中记录路径与 SHA-256，
   并注明临时目录可能被系统清理。
 - 本交接书只记录第 5 项结果，不改 `Phase-Gate`。`A9_21_DEVELOPER_VERIFIED` 须待第 5 项结论（复现并修复，或负责人接受“未复现”）
-  与第 6 项（WIN7-38 实机结果）都具备后，由负责人决定；`Win7-Validation` 随 WIN7-38 裁决更新。
+  与第 6 项（WIN7-39 实机结果）都具备后，由负责人决定；`Win7-Validation` 随 WIN7-39 裁决更新。
 - 只在本项独立分支上本地提交，不推送、不合并；提交只包含本次相关路径。文档记录（任务书 §8、STATUS、STATUS_LOG）也写在该分支，并回时再合入。
 
 ## 5. 约束
