@@ -11,6 +11,7 @@ Accepted ADR 正文不得改写。下表“当前处置”为 2026-09-24 整理�
 
 | 文件 | 文档自述状态 | 当前处置 |
 |---|---|---|
+| [A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md](A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md) | `DRAFT_READY_FOR_FREEZE` | A9-22 / WIN7-38 Win7 实机验收交接书（外部执行模型执行，审核方复核，负责人签发与裁决） |
 | [A9_19_WIN7_37_REISSUE_PROPOSAL.md](A9_19_WIN7_37_REISSUE_PROPOSAL.md) | `APPROVED_FOR_IMPLEMENTATION` | A9-19 / WIN7-37 换发合同（ADR-0136），已完成：WIN7-37 于 2026-09-25 签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS` |
 | [A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md](A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) | `CLOSED` | A9-19 Win7 实机验收交接书（外部执行模型执行，审核方复核；含补跑附录 A/B 与报告校验附录 C）；2026-09-25 签发后关闭 |
 | [WIN7_MEMORY_BASELINE_MEASUREMENT_PLAN.md](WIN7_MEMORY_BASELINE_MEASUREMENT_PLAN.md) | `IMPLEMENTED`（测量工具，非验收任务书） | 仍有效：配套脚本 `scripts/mvp_acceptance/a9_win7_memory_baseline.ps1`；Win7 采样未执行 |
