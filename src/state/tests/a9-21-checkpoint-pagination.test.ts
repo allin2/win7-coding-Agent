@@ -51,18 +51,35 @@ describe('A9-21 M3 checkpoint pagination', () => {
     expect(new Set(pages.map((row) => row.turnId)).size).toBe(180);
   });
 
-  it('uses turnId to split equal timestamps and excludes another session from rows and total', () => {
-    for (let i = 0; i < 7; i += 1) insert('one', `t${i}`, '2026-09-26T00:00:00.000Z');
-    insert('other', 'foreign', '2026-09-26T00:00:00.000Z');
-    const expected = manager.listCheckpoints('one');
-    expect(expected.map((row) => row.turnId)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
-    const first = manager.listCheckpointPage('one', { limit: 3 });
-    const second = manager.listCheckpointPage('one', { before: first.nextBefore!, limit: 3 });
-    const third = manager.listCheckpointPage('one', { before: second.nextBefore!, limit: 3 });
-    expect([...third.checkpoints, ...second.checkpoints, ...first.checkpoints]).toEqual(expected);
-    expect([first.total, second.total, third.total]).toEqual([7, 7, 7]);
-    expect(third.hasMore).toBe(false);
-    expect(manager.listRecentCheckpoints('one', 2).checkpoints).toEqual(expected.slice(-2));
+  it('C1 orders equal timestamps by turnId bytes across small pages and excludes another session', () => {
+    const createdAt = '2026-09-26T00:00:00.000Z';
+    // Deliberately insert in the reverse of SQLite BINARY/UTF-8 byte order.
+    const orderedIds = ['T0', 'T2', 'T4', 't1', 't3', 't5', 't7'];
+    for (const turnId of orderedIds.slice().reverse()) insert('one', turnId, createdAt);
+    insert('other', 'foreign', createdAt);
+    const expected = orderedIds.map((turnId) => ({ turnId, createdAt }));
     expect(manager.listCheckpoints('one')).toEqual(expected);
+    expect(manager.listRecentCheckpoints('one', 2)).toEqual({ checkpoints: expected.slice(-2), total: 7 });
+
+    for (const limit of [1, 3]) {
+      const collected: typeof expected = [];
+      let before: { createdAt: string; turnId: string } | undefined;
+      let reachedEnd = false;
+      for (let pageNumber = 0; pageNumber <= orderedIds.length; pageNumber += 1) {
+        const page = manager.listCheckpointPage('one', { before, limit });
+        expect(page.total).toBe(7);
+        collected.unshift(...page.checkpoints);
+        if (!page.hasMore) {
+          expect(page.nextBefore).toBeNull();
+          reachedEnd = true;
+          break;
+        }
+        expect(page.nextBefore).toEqual(page.checkpoints[0]);
+        before = page.nextBefore!;
+      }
+      expect(reachedEnd).toBe(true);
+      expect(collected).toEqual(expected);
+      expect(new Set(collected.map((row) => row.turnId)).size).toBe(7);
+    }
   });
 });
