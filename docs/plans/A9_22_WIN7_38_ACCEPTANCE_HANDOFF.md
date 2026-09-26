@@ -1,7 +1,7 @@
 # A9-22 / WIN7-38 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: DRAFT_READY_FOR_FREEZE（待步骤 3 冻结候选并由审核方填写 §3，待步骤 4 负责人签发 authority）
+Status: READY_FOR_EXECUTION（已完成双独立构建与候选冻结，§3 无空项，待负责人确认签发后由执行方实施实机验收）
 Scope: A9-22 WIN7-38 换发与实机验收（A9-20 Git 确认分类器绕过修复 + A9-21 运行时加固移植）
 Executor: 外部执行模型（负责人指定，例如 Gemini 3.8 Flash）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）
