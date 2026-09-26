@@ -65,6 +65,16 @@ describe('A9 preload capability boundary', () => {
     });
   });
 
+  it('passes the complete checkpoint cursor object unchanged through preload', async () => {
+    const { api, invoke } = loadPreload(['electron', 'main.js']);
+    const before = { createdAt: '2026-09-26T00:00:00.000Z', turnId: 'turn-1' };
+    await api.a9.listCheckpoints({ conversationId: 'conv-1', before, limit: 20 });
+    expect(invoke).toHaveBeenCalledWith('product:a9-request', {
+      schemaVersion: 7, action: 'a9.checkpoint.list',
+      payload: { conversationId: 'conv-1', before, limit: 20 },
+    });
+  });
+
   it('accepts the exact first Undo request emitted by preload while keeping confirmationId strictly optional', async () => {
     const { api, invoke } = loadPreload(['electron', 'main.js']);
     await api.a9.undoTurn('turn-first');

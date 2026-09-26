@@ -153,7 +153,22 @@ function createA9ProductRequestHandler(options) {
           exactObject(payload, ['text'], 'A9_PAYLOAD_INVALID');
           return runtime.saveDraft(payload.text);
         case A9_ACTIONS.CHECKPOINT_LIST:
-          return { ok: true, checkpoints: runtime.getSnapshot().checkpoints };
+          exactObject(request.payload, [], 'A9_PAYLOAD_INVALID', ['conversationId', 'before', 'limit']);
+          if (payload.conversationId !== undefined &&
+              (typeof payload.conversationId !== 'string' || payload.conversationId.length === 0)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid conversationId'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.before !== undefined) {
+            exactObject(payload.before, ['createdAt', 'turnId'], 'A9_PAYLOAD_INVALID');
+            if (typeof payload.before.createdAt !== 'string' || payload.before.createdAt.length === 0 ||
+                typeof payload.before.turnId !== 'string' || payload.before.turnId.length === 0) {
+              throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid checkpoint cursor'), { code: 'A9_PAYLOAD_INVALID' });
+            }
+          }
+          if (payload.limit !== undefined && (!Number.isSafeInteger(payload.limit) || payload.limit < 1 || payload.limit > 100)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid checkpoint limit'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return runtime.listCheckpoints(payload);
         case A9_ACTIONS.CHECKPOINT_UNDO_TURN: {
           exactObject(payload, ['turnId'], 'A9_PAYLOAD_INVALID', ['confirmationId']);
           if (typeof payload.turnId !== 'string' || payload.turnId.length === 0 ||

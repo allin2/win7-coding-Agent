@@ -1990,6 +1990,7 @@ function createA9AgentRuntime(options) {
     const managedProcesses = syncManagedProcessFacts();
     const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting' || item.cleanupRequired === true);
     const blockReason = conversationBlockReason();
+    const checkpointPage = persistence.listRecentCheckpoints(a9SessionId, 50);
     return {
       schemaVersion: A9_PROTOCOL_VERSION,
       status: 'ready',
@@ -2052,12 +2053,28 @@ function createA9AgentRuntime(options) {
       ...(currentPendingApproval && !activeController ? { pendingApproval: approvalIdentity(currentPendingApproval) } : {}),
       timeline: timeline.slice(-100),
       liveModelPreview: computeLiveModelPreview(),
-      checkpoints: persistence.listCheckpoints(a9SessionId),
+      checkpoints: checkpointPage.checkpoints,
+      checkpointsTotal: checkpointPage.total,
       conversation: conversationPage ? conversationPage.facts : persistence.listConversationFacts(a9SessionId),
       ...(conversationPage ? { conversationPage: { hasMore: conversationPage.hasMore, nextBefore: conversationPage.nextBefore } } : {}),
       interruptions: persistence.listInterruptions(a9SessionId),
       managedProcesses,
     };
+  }
+
+  function listCheckpoints(input) {
+    const options = input || {};
+    if (options.conversationId !== undefined && options.conversationId !== a9SessionId) {
+      const err = new Error('A9_CHECKPOINT_CONVERSATION_MISMATCH: checkpoint 查询只允许当前会话');
+      err.code = 'A9_CHECKPOINT_CONVERSATION_MISMATCH';
+      throw err;
+    }
+    if (options.before === undefined && options.limit === undefined) {
+      const checkpoints = persistence.listCheckpoints(a9SessionId);
+      return { ok: true, conversationId: a9SessionId, checkpoints, total: checkpoints.length, hasMore: false, nextBefore: null };
+    }
+    const page = persistence.listCheckpointPage(a9SessionId, { before: options.before, limit: options.limit === undefined ? 20 : options.limit });
+    return { ok: true, conversationId: a9SessionId, ...page };
   }
 
   /**
@@ -2285,6 +2302,7 @@ function createA9AgentRuntime(options) {
     canLeaveWorkspace,
     setMode,
     getSnapshot,
+    listCheckpoints,
     queryEvents,
     queryConversation,
     undoTurn,
@@ -2394,6 +2412,7 @@ function createSqliteUnavailableRuntime(reason) {
     canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     getSnapshot() { return { schemaVersion: 1, status: 'electron_sqlite_unavailable', diagnostics: { code: 'ELECTRON_SQLITE_UNAVAILABLE', detail: safeReason } }; },
+    listCheckpoints() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
     queryEvents() { return { ok: false, error: { code: 'ELECTRON_SQLITE_UNAVAILABLE' } }; },
     undoTurn() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
     undoFile() { throw new Error('ELECTRON_SQLITE_UNAVAILABLE'); },
@@ -2430,6 +2449,7 @@ function createDiagnosticsRuntime(outcome) {
     canLeaveWorkspace() { return { allowed: true, reason: null }; },
     setMode() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     getSnapshot() { return { schemaVersion: A9_PROTOCOL_VERSION, status: diagnosticStatus, diagnostics: safeDiagnostics }; },
+    listCheckpoints() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE' } }; },
     queryEvents() { return { ok: false, error: { code: 'A9_DIAGNOSTICS_MODE' } }; },
     undoTurn() { throw new Error('A9_DIAGNOSTICS_MODE'); },
     undoFile() { throw new Error('A9_DIAGNOSTICS_MODE'); },

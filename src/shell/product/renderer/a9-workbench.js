@@ -55,6 +55,12 @@
     conversationSignature: null,
     renderedConversationId: null,
     activeConversationId: null,
+    checkpointScope: '',
+    checkpointGeneration: 0,
+    checkpointKnown: new Map(),
+    checkpointVisible: 10,
+    checkpointLoading: false,
+    checkpointError: '',
     draftHydratedConversationId: null,
     draftTimer: null,
     draftSaving: false,
@@ -1037,13 +1043,28 @@
     if (rawOutput) text('a9-shell-output', rawOutput.slice(-64 * 1024));
   }
 
+  function checkpointKey(checkpoint) { return `${checkpoint.createdAt}\u0000${checkpoint.turnId}`; }
+  function orderedCheckpoints() {
+    return Array.from(state.checkpointKnown.values()).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt) || b.turnId.localeCompare(a.turnId));
+  }
+
   function renderCheckpoints(snapshot) {
-    const checkpoints = snapshot.checkpoints || [];
-    text('a9-checkpoint-count', checkpoints.length);
+    const previous = orderedCheckpoints();
+    const oldestVisible = previous[state.checkpointVisible - 1];
+    for (const checkpoint of snapshot.checkpoints || []) state.checkpointKnown.set(checkpointKey(checkpoint), checkpoint);
+    const checkpoints = orderedCheckpoints();
+    if (oldestVisible && state.checkpointVisible > 10) {
+      const oldIndex = checkpoints.findIndex((checkpoint) => checkpointKey(checkpoint) === checkpointKey(oldestVisible));
+      if (oldIndex >= 0) state.checkpointVisible = Math.max(state.checkpointVisible, oldIndex + 1);
+    }
+    const total = Number.isSafeInteger(snapshot.checkpointsTotal) ? snapshot.checkpointsTotal : checkpoints.length;
+    const shown = Math.min(state.checkpointVisible, checkpoints.length);
+    text('a9-checkpoint-count', shown < total ? `最近 ${shown} / 共 ${total}` : `共 ${total}`);
     text('a9-interruptions', (snapshot.interruptions || []).map((item) => `${item.kind}:${item.id}`).join(', ') || '无');
     const list = el('a9-checkpoint-list');
     list.textContent = '';
-    checkpoints.slice(-10).reverse().forEach((checkpoint) => {
+    checkpoints.slice(0, shown).forEach((checkpoint) => {
       const item = document.createElement('li');
       item.className = 'checkpoint-row';
       const identity = document.createElement('code');
@@ -1077,6 +1098,58 @@
       item.appendChild(actions);
       list.appendChild(item);
     });
+    if (state.checkpointError) {
+      const error = document.createElement('li');
+      error.textContent = state.checkpointError;
+      list.appendChild(error);
+    }
+    if (shown < total) {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.disabled = state.checkpointLoading;
+      button.textContent = state.checkpointLoading ? '加载中…' : `加载更早的 ${Math.min(20, total - shown)} 条（还有 ${total - shown} 条）`;
+      button.addEventListener('click', () => { void loadOlderCheckpoints(); });
+      item.appendChild(button);
+      list.appendChild(item);
+    }
+  }
+
+  async function loadOlderCheckpoints() {
+    if (state.checkpointLoading || !state.snapshot) return;
+    const snapshot = state.snapshot;
+    const total = Number.isSafeInteger(snapshot.checkpointsTotal) ? snapshot.checkpointsTotal : state.checkpointKnown.size;
+    const target = Math.min(total, state.checkpointVisible + 20);
+    state.checkpointError = '';
+    if (state.checkpointKnown.size >= target) {
+      state.checkpointVisible = target;
+      renderCheckpoints(snapshot);
+      return;
+    }
+    const known = orderedCheckpoints();
+    const oldest = known[known.length - 1];
+    if (!oldest) return;
+    const generation = state.checkpointGeneration;
+    const conversationId = state.activeConversationId;
+    state.checkpointLoading = true;
+    renderCheckpoints(snapshot);
+    try {
+      const response = await a9.listCheckpoints({ conversationId, before: { createdAt: oldest.createdAt, turnId: oldest.turnId }, limit: 20 });
+      if (generation !== state.checkpointGeneration) return;
+      if (!response || response.ok !== true || response.conversationId !== conversationId) {
+        state.checkpointError = errorMessage(response, 'checkpoint 加载失败，请重试。');
+        return;
+      }
+      for (const checkpoint of response.checkpoints || []) state.checkpointKnown.set(checkpointKey(checkpoint), checkpoint);
+      state.checkpointVisible = Math.min(target, state.checkpointKnown.size);
+    } catch (error) {
+      if (generation === state.checkpointGeneration) state.checkpointError = errorMessage(error, 'checkpoint 加载失败，请重试。');
+    } finally {
+      if (generation === state.checkpointGeneration) {
+        state.checkpointLoading = false;
+        renderCheckpoints(state.snapshot);
+      }
+    }
   }
 
   function conversationStatusLabel(activity) {
@@ -1266,7 +1339,20 @@
     }
   }
 
+  function syncCheckpointScope(snapshot) {
+    const checkpointScope = `${snapshot.workspaceRoot || ''}\u0000${snapshot.activeConversationId || ''}`;
+    if (state.checkpointScope !== checkpointScope) {
+      state.checkpointScope = checkpointScope;
+      state.checkpointGeneration += 1;
+      state.checkpointKnown.clear();
+      state.checkpointVisible = 10;
+      state.checkpointLoading = false;
+      state.checkpointError = '';
+    }
+  }
+
   function renderSnapshot(snapshot) {
+    syncCheckpointScope(snapshot);
     state.activeConversationId = snapshot.activeConversationId || null;
     if (state.renderedConversationId !== state.activeConversationId) {
       state.renderedConversationId = state.activeConversationId;
