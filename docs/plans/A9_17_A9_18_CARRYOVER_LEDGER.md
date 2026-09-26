@@ -117,3 +117,27 @@ R01–R13 与 D-3～D-7 在工作树内自报已关闭，**轮 8 之后没有独
 
 有保存价值，但只保存到移植完成为止。移植由 [A9-21](../tasks/A9_21_A9_18_SALVAGE_PORT.md) 承接，完成并提交后删除工作树
 `win7-coding-agent-memory-optimization` 与分支 `codex/a9-memory-optimization`。在此之前不删除，它是移植的唯一参考来源。
+
+#### 删除前核对（2026-09-26，A9-21 M5）
+
+A9-21 M0～M4（含 M1b）已全部并回 `codex/a9-alpha2`（最后合并 `b146595`，验收记录 `d2e47c8`）。工作树
+`/Users/qlyf/Developer/win7-coding-agent-memory-optimization` 的分支 `codex/a9-memory-optimization` 没有自己的提交，
+HEAD `7d06789` 已在 alpha2 历史中；全部改动为未提交内容：31 个已修改文件（+4,157 / −356）与 36 个未跟踪文件，磁盘约 295 MB。
+逐项核对如下，未发现未移植的需要项。
+
+| 内容 | 文件 | 处置 |
+|---|---|---|
+| P0-1 启动定向恢复 | `a9-persistence.ts`、`checkpoint-manager.ts`、`a9-agent-runtime.js` 相应部分 | 已由 M1 移植 |
+| P0-3 checkpoint 分页（含 R12） | `a9-persistence.ts`、`a9-agent-runtime.js`、`a9-product-ipc.js`、`preload.js`、`a9-workbench.js` 相应部分；`a9-checkpoint-pagination.test.ts` | 已由 M3 重新实现，测试另写 |
+| P0-4 模型输出上限 | `openai-compatible.ts`、`sse-parser.ts`、`types/index.ts`、`a9-agent-loop.ts` 及其测试 | 已由 M2 重新实现 |
+| P2-1 集合上限 | `a9-workbench.js`、`main.js`（`blockedRequests`） | 已由 M4 重新实现 |
+| X03 预算 #3 口径 | `PERFORMANCE_BUDGET.md`、测量计划、`a9_win7_memory_baseline.ps1` 头部 | 已由 M0 以 ADR-0139 落地 |
+| URL 凭据正则 | — | 主线 M1b 另行修复（A9-18 未涉及） |
+| P0-1 缓存字节账本与 pin（R07） | `a9-checkpoint-cache-ledger.test.ts` 等 | 按 §7.2 不移植 |
+| P0-2 事实投影表与会话快照窗口（R01～R03、R09、R13） | `a9-persistence.ts` 迁移部分、`a9-projection-integrity.test.ts`、`a9-selection-rule.test.ts`、`a9-conversation-snapshot-contract.test.ts` | 按 §7.2 不移植；快照中 `listConversationFacts` 随总数增长记为遗留 |
+| P2-2 受控重载、P2-3 禁用默认菜单、P2-5 实验矩阵（R10） | `main.js`、`a9-product-ipc.js`、`preload.js`、`workbench.html` 相应部分；`run-startup-baseline.ps1` 的 `-AllowIdenticalSource` 与配置标签 | 按 §7.2 不移植（R10 的 A/B 参数只服务于实验矩阵） |
+| Git 分类器 | `git-command-policy.ts` 及测试；残留变体 `src/core/src/XXZHIuFY`、`XXaKU6eX` | 以 A9-20 为准，丢弃 |
+| A9-17 文件 | 8 个与主线完全相同；3 个文档为旧版本（主线已更新链接）；`a9-startup-window.test.ts` 的 D-4 桩防漂移改动 | 前两类无损失；D-4 为测试加固，主线用例现状通过，不移植 |
+| A9-18 文档 | 工作树内的 ADR-0124～0130、`STATUS.md` 等状态改动、A9-18 任务书、14 份 A9-18 审查与返修报告、3 份评估报告 | 不进入主线（ADR-0138）；结论已汇总于本台账 §1～§7，审查存档另见 `outputs/a9-18-*`（不在删除范围内） |
+
+删除范围只限上述工作树与分支；不触碰其他工作树、分支或 `outputs/`。删除须由负责人执行（永久删除未提交内容），删除后在此补记时间与最后 HEAD。
