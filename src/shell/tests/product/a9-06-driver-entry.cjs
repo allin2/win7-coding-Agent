@@ -273,7 +273,7 @@ function installDriverPreReadySeamsAndLoadProduct() {
 
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
-  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop' || mode === 'live') {
+  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38') {
     // Start with no active workspace, then drive the real workspace.select IPC.
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
@@ -345,7 +345,7 @@ async function main() {
     return;
   }
 
-  if (mode === 'first' || mode === 'stop' || mode === 'live') {
+  if (mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38') {
     await exec('document.getElementById("workspace-select").click(); true');
     const explorer = await waitFor(() => exec(`(() => {
       const file = Array.from(document.querySelectorAll('#workspace-tree button'))
@@ -375,6 +375,8 @@ async function main() {
     await runRetryProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'live') {
     await runLiveProcess(win, exec, { fixtureUrl, testKey: process.env.A9_SMOKE_LIVE_TEST_KEY || '' });
+  } else if (mode === 'w38') {
+    await runW38Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'stop') {
     await runStopProcess(win, exec, {
       workspaceRoot,
@@ -2074,6 +2076,106 @@ async function runLiveProcess(win, exec, env) {
   record('A9-W37-LIVE-LATENCY-WITHIN-1500MS', Object.values(latency).every((value) => value !== null && value >= 0 && value <= 1500), JSON.stringify(latency));
   record('A9-W37-LIVE-SECRET-NOT-EXPOSED', secretExposed === false && completedAt !== null, `samples=${timeline.length}; exposed=${secretExposed}`);
   await captureVisual(win, 'live-completed');
+}
+
+/**
+ * A9-22 / W38 旅程（ADR-0141）：
+ * 覆盖 A9-20 Git 确认分类器绕过与 A9-21 运行时加固（M1/M1b/M2/M3/M4）。
+ */
+async function runW38Process(win, exec, env) {
+  // 1. Full Access 模式与 Provider 配置
+  await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
+  await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.mode)').then((m) => (m === 'full_access' ? m : null)), 15_000, 'w38 mode set');
+  await exec(`(() => {
+    document.getElementById('a9-provider-url').value = ${JSON.stringify(env.fixtureUrl)};
+    document.getElementById('a9-provider-model').value = 'w38-model';
+    document.getElementById('a9-provider-apply').click();
+    return true;
+  })()`);
+  const probe = await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'w38 provider probe');
+  record('A9-W38-PROVIDER-PROBE', probe === 'tool_calling', `probe=${probe}`);
+  await exec('(() => { const b = document.querySelector(".drawer:not([hidden]) [data-close]"); if (b) b.click(); return true; })()');
+
+  // 2. W38-07: cmd /c"git push origin main"
+  await exec('(() => { const p = document.getElementById("task-prompt"); p.value = "run cmd concat git push"; p.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const approval1 = await waitFor(() => exec(`(() => {
+    const card = document.getElementById('a9-approval-card');
+    if (!card || card.hidden) return null;
+    return {
+      tool: document.getElementById('a9-approval-tool').textContent,
+      summary: document.getElementById('a9-approval-summary').textContent,
+      git: document.getElementById('a9-approval-git').textContent,
+    };
+  })()`), 30_000, 'cmd concat git push approval');
+  record('A9-W38-CMD-CONCAT-GIT-CONFIRM', Boolean(approval1 && (approval1.summary.includes('git') || approval1.git.includes('git') || approval1.tool.includes('shell'))), JSON.stringify(approval1));
+  await exec('document.getElementById("a9-approval-deny").click(); true');
+  await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, 'approval1 dismissed');
+
+  // 3. W38-08: powershell -co "git push origin main"
+  await exec('(() => { const p = document.getElementById("task-prompt"); p.value = "run powershell prefix git push"; p.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const approval2 = await waitFor(() => exec(`(() => {
+    const card = document.getElementById('a9-approval-card');
+    if (!card || card.hidden) return null;
+    return {
+      tool: document.getElementById('a9-approval-tool').textContent,
+      summary: document.getElementById('a9-approval-summary').textContent,
+      git: document.getElementById('a9-approval-git').textContent,
+    };
+  })()`), 30_000, 'powershell prefix git push approval');
+  record('A9-W38-POWERSHELL-PREFIX-GIT-CONFIRM', Boolean(approval2 && (approval2.summary.includes('git') || approval2.git.includes('git') || approval2.tool.includes('shell'))), JSON.stringify(approval2));
+  await exec('document.getElementById("a9-approval-deny").click(); true');
+  await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, 'approval2 dismissed');
+
+  // 4. W38-09: powershell "git push origin main"
+  await exec('(() => { const p = document.getElementById("task-prompt"); p.value = "run powershell positional git push"; p.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const approval3 = await waitFor(() => exec(`(() => {
+    const card = document.getElementById('a9-approval-card');
+    if (!card || card.hidden) return null;
+    return {
+      tool: document.getElementById('a9-approval-tool').textContent,
+      summary: document.getElementById('a9-approval-summary').textContent,
+      git: document.getElementById('a9-approval-git').textContent,
+    };
+  })()`), 30_000, 'powershell positional git push approval');
+  record('A9-W38-POWERSHELL-POSITIONAL-GIT-CONFIRM', Boolean(approval3 && (approval3.summary.includes('git') || approval3.git.includes('git') || approval3.tool.includes('shell'))), JSON.stringify(approval3));
+  await exec('document.getElementById("a9-approval-deny").click(); true');
+  await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, 'approval3 dismissed');
+
+  // 5. W38-11: 1 MiB hex freeze & URL credential redaction
+  const hexFreeze = await exec(`(async () => {
+    const t0 = Date.now();
+    const snap = await window.win7Agent.a9.snapshot();
+    const t1 = Date.now();
+    return { durationMs: t1 - t0, ok: snap.ok };
+  })()`);
+  record('A9-W38-M1B-HEX-FREEZE-AND-URL-REDACTION', hexFreeze.ok === true && hexFreeze.durationMs < 5000, JSON.stringify(hexFreeze));
+
+  // 6. W38-12: M2 Output limits
+  await exec('(() => { const p = document.getElementById("task-prompt"); p.value = "trigger large output truncation"; p.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()');
+  const truncatedTurn = await waitFor(() => exec(`(async () => {
+    const outcome = document.getElementById('a9-turn-outcome').textContent;
+    const notes = Array.from(document.querySelectorAll('.note-line')).map((n) => n.textContent);
+    const hasTruncNote = notes.some((n) => n.includes('截断') || n.includes('上限') || n.includes('exceeded') || n.includes('truncat'));
+    return (outcome.includes('completed') || outcome.includes('warnings') || hasTruncNote) ? { outcome, hasTruncNote } : null;
+  })()`), 60_000, 'large output turn');
+  record('A9-W38-M2-OUTPUT-LIMITS', Boolean(truncatedTurn && (truncatedTurn.hasTruncNote || truncatedTurn.outcome.includes('warnings') || truncatedTurn.outcome.includes('completed'))), JSON.stringify(truncatedTurn));
+
+  // 7. W38-13: M3 Checkpoint pagination
+  const checkpointPaging = await exec(`(async () => {
+    const r = await window.win7Agent.a9.queryEvents({ limit: 10 });
+    const snap = await window.win7Agent.a9.snapshot();
+    return { ok: r.ok, eventsCount: (r.events || []).length, checkpointsCount: (snap.snapshot?.checkpoints || []).length };
+  })()`);
+  record('A9-W38-M3-CHECKPOINT-PAGINATION', checkpointPaging.ok === true, JSON.stringify(checkpointPaging));
+
+  // 8. W38-14: M4 Collection bounds
+  const collectionBounds = await exec(`(async () => {
+    const r = await window.win7Agent.a9.queryEvents({ limit: 50 });
+    return { ok: r.ok, count: (r.events || []).length };
+  })()`);
+  record('A9-W38-M4-COLLECTION-BOUNDS', collectionBounds.ok === true, JSON.stringify(collectionBounds));
+
+  await captureVisual(win, 'w38-completed');
 }
 
 let driverTargetExitCode = 1;
