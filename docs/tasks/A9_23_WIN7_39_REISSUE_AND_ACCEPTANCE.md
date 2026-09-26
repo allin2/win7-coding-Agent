@@ -120,7 +120,7 @@ Decision: ADR-0142
 | input lock SHA-256 | `a3decbc5ebeb93f9b241ac47a557991857f8bf4f95e41a8d1513bcc737643b48`（与仓库同名文件逐字节一致） |
 | Kit | `A9-23-WIN7-39-20260926-01`，15 项，`A9_23_VALIDATION_KIT.json` SHA-256 `3c946a0f56b1d8c02dfed90310a10f9ff20b8de9a523c6c73eba6ffcc8e7aad8` |
 | 冻结位置 | 本机 `.acceptance/candidates/WIN7-39/`（只读；`IDENTITY.sha256`、`DOUBLE_BUILD.json`） |
-| authority 草稿 | `.acceptance/runs/A9-23-W39/b0ebcf98-1697-431d-9ca5-22ac26ff2a67/authority/`，run-id `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`，目标 `192.168.1.3`；待负责人签发（门 A） |
+| authority | `.acceptance/runs/A9-23-W39/b0ebcf98-1697-431d-9ca5-22ac26ff2a67/authority/release-authority.json`，SHA-256 `b07588e00c47dce88d9ea95e28fedf0c8db26a28900351f2770251ea336f9a09`（独立 pin 同目录 `.sha256`）；run-id `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`，目标 `192.168.1.3`；负责人签发 `2026-09-26T18:36:58Z` |
 
 ## 9. 执行记录
 
@@ -156,3 +156,5 @@ Decision: ADR-0142
   冻结于 `.acceptance/candidates/WIN7-39/`（§8）。包内 smoke 与输入锁与仓库逐字节一致。候选自带完整性校验在开发机对草稿 authority：身份与全树核对通过
   （790/791，零差异；运行时 ABI 项因开发机 Node ABI 115 按预期失败，Win7 以 Electron ABI 110 运行）；错误 pin 报 `A9_W39_AUTHORITY_PIN_MISMATCH`，
   篡改 ZIP 与错误候选绑定报 `A9_W39_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 15 项模板、错误 pin 被拒。以上为开发机预检，不是 Win7 结果。
+- 2026-09-27：第 5 步门 A：负责人在对话中签发 `WIN7_39_RELEASE_AUTHORITY`（`approved_at` 2026-09-26T18:36:58Z，SHA-256 `b07588e00c47dce88d9ea95e28fedf0c8db26a28900351f2770251ea336f9a09`），绑定源码 `7ec9db7`、ZIP、manifest、输入锁、approval registry、Kit 与 15 项用例、目标 `192.168.1.3`、run-id `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`。
+  候选自带校验对签发版 authority 的身份与全树核对通过，草稿 pin 被拒（开发机预检）。实机交接书改为 `READY_FOR_EXECUTION`。
