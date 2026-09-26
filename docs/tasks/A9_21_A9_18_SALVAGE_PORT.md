@@ -179,3 +179,9 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
   `--a8-review-smoke-*`、`--a8-boundary-smoke-*` 冒烟模式加载，且不在允许路径内。
 - 执行方式：M3、M4 交外部执行 Agent，本会话验收；先以真实 workbench 代码加桩数据做界面 Demo，负责人确认后再出交接书。
   两者都改 `a9-workbench.js`，M3 先行，M4 以 M3 并回后的主线为基线。
+
+### M3 交接（2026-09-26）
+
+- 负责人按演示确认界面方案：快照带最近 50 条与 `checkpointsTotal`；界面首屏 10 条，每次加载更早 20 条，先用快照内记录，
+  用完后以 `before: { createdAt, turnId }` 调用既有 `a9.checkpoint.list`；不带参数的旧调用仍返回全部。
+- 交接书：[M3 交接书](../plans/A9_21_M3_CHECKPOINT_PAGINATION_HANDOFF.md)，分支 `codex/a9-21-m3`，本会话验收。M4 待 M3 并回后另出交接书。

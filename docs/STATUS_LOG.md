@@ -1124,3 +1124,6 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 - 2026-09-26，A9-21 M2 第三轮验收通过并并回（`3bc8815`，合并 `de851be`）：模型输出单响应 1 MiB、单工具参数 512 KiB、单 Turn 2 MiB，
   SSE 长行查找线性，截断后对话历史符合协议。gateway 263、core 371、shell 423 项通过。Win7 未验证。
+
+- 2026-09-26，A9-21 M3/M4 开工前裁决：`blockedRequests` 位于 `main.js`，M4 允许路径增补该文件（仅相关代码）；界面方案经演示确认。
+  M3（checkpoint 列表分页）交外部 Agent 实施，交接书见 `docs/plans/A9_21_M3_CHECKPOINT_PAGINATION_HANDOFF.md`。
