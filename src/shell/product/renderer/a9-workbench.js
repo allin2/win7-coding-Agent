@@ -340,6 +340,8 @@
 
   function ingestEvents(events, explicitOlder = false) {
     let changed = false;
+    const lowestBeforeBatch = state.lowestLoadedEventId;
+    let lowestInBatch = null;
     for (const event of events) {
       if (!event) continue;
       if (state.inspectorEvents.has(event.eventId)) continue;
@@ -352,14 +354,12 @@
       event.estimatedBytes = bytes;
       state.inspectorEvents.set(event.eventId, event);
       state.eventBytes += bytes;
-      if (explicitOlder && state.lowestLoadedEventId !== null
-        && event.eventId >= state.lowestLoadedEventId) {
+      if (explicitOlder && lowestBeforeBatch !== null
+        && event.eventId >= lowestBeforeBatch) {
         state.releasedEventCount = Math.max(0, state.releasedEventCount - 1);
         if (bucket) bucket.released = Math.max(0, (bucket.released || 0) - 1);
       }
-      if (state.lowestLoadedEventId === null || event.eventId < state.lowestLoadedEventId) {
-        state.lowestLoadedEventId = event.eventId;
-      }
+      if (lowestInBatch === null || event.eventId < lowestInBatch) lowestInBatch = event.eventId;
       changed = true;
       if (event.eventId > state.eventMaxId) state.eventMaxId = event.eventId;
       if (event.type === 'turn_started' && event.turnId) {
@@ -383,6 +383,10 @@
       if (event.type === 'tool_end') { state.pendingToolLabel = null; state.pendingToolAt = 0; }
       state.lastEventAt = Date.now();
       changed = true;
+    }
+    if (lowestInBatch !== null) {
+      state.lowestLoadedEventId = lowestBeforeBatch === null
+        ? lowestInBatch : Math.min(lowestBeforeBatch, lowestInBatch);
     }
     if (!explicitOlder) enforceEventCaps();
     return changed;

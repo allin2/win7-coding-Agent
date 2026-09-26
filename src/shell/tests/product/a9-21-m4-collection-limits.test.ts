@@ -294,6 +294,30 @@ describe('A9-21 M4 renderer event bounds', () => {
     expect(rendererSource).not.toContain('releasedEventIds');
   });
 
+  it('D1 counts only previously released records when one older page mixes new and restored events', async () => {
+    const page = events(8, 16).map((event) => ({
+      eventId: event.eventId, eventType: event.type, turnId: event.turnId, payload: { data: event.data },
+    }));
+    const query = jest.fn().mockResolvedValueOnce({ ok: true, events: page, hasMore: true });
+    const { api } = rendererHarness({ global: 20, turn: 5 }, query);
+    api.ingestEvents(events(10, 20, 'turn-a')); // A releases 10–16; retains 17–20.
+    api.ingestEvents(events(30, 36, 'turn-b')); // B releases 30–32; retains 33–36.
+    expect(api.state.lowestLoadedEventId).toBe(10);
+    expect(api.state.eventsBeforeId).toBe(17);
+    expect(api.state.releasedEventCount).toBe(10);
+    api.setLimits(17, 10); // VM-only headroom: A can accept 8–13, but not 14–16.
+    await api.loadConversationEvents(true);
+    expect(query).toHaveBeenCalledWith({ conversationId: 'conversation-a', limit: 9, beforeEventId: 17 });
+    expect(api.state.inspectorEvents.has(8)).toBe(true);
+    expect(api.state.inspectorEvents.has(9)).toBe(true);
+    expect(api.state.inspectorEvents.has(13)).toBe(true);
+    expect(api.state.inspectorEvents.has(14)).toBe(false);
+    expect(api.state.releasedEventCount).toBe(6); // A's 14–16 and B's 30–32 remain released.
+    expect(api.state.turnEvents.get('turn-a').released).toBe(3);
+    expect(api.state.turnEvents.get('turn-b').released).toBe(3);
+    expect(api.state.lowestLoadedEventId).toBe(8);
+  });
+
   it('R-4 shows the injected global limit in the capacity notice', () => {
     const { api, nodes, render } = rendererHarness({ global: 7 });
     api.ingestEvents(events(1, 7));
