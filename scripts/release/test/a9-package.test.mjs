@@ -56,6 +56,9 @@ const win37Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win37Report = require('../../../release/win7-product-v3/a9-win7-37-report.cjs');
 const win38Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w38.cjs');
 const win38Report = require('../../../release/win7-product-v3/a9-win7-38-report.cjs');
+// ADR-0142：A9-23 验证套件修复候选（WIN7-39）。
+const win39Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w39.cjs');
+const win39Report = require('../../../release/win7-product-v3/a9-win7-39-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -312,15 +315,17 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
-  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36', 'win37', 'win38'].includes(candidate)) {
+  if (['win23', 'win24', 'win25', 'win26', 'win27', 'win28', 'win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36', 'win37', 'win38', 'win39'].includes(candidate)) {
     const number = candidate.slice(-2);
     // A9-16 谱系（WIN7-29 ～ WIN7-36）使用 A9-16 的 lock 身份与冻结日期。
-    lock.lock_id = candidate === 'win38' ? 'A9-22-INPUTS-WIN7-38'
+    lock.lock_id = candidate === 'win39' ? 'A9-23-INPUTS-WIN7-39'
+      : candidate === 'win38' ? 'A9-22-INPUTS-WIN7-38'
       : candidate === 'win37' ? 'A9-19-INPUTS-LIVE-PROGRESS-WIN7-37'
       : ['win29', 'win30', 'win31', 'win32', 'win33', 'win34', 'win35', 'win36'].includes(candidate)
       ? `A9-16-INPUTS-RESPONSIVE-UI-WIN7-${number}`
       : `A9-15-INPUTS-UI-PROGRESS-WIN7-${number}`;
-    lock.source_date_epoch = candidate === 'win38' ? 1790380800
+    lock.source_date_epoch = candidate === 'win39' ? 1790467200
+      : candidate === 'win38' ? 1790380800
       : candidate === 'win37' ? 1790294400
       : candidate === 'win36' ? 1790121600
       : candidate === 'win35' ? 1790035200
@@ -328,7 +333,14 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
       : ['win29', 'win30', 'win31'].includes(candidate) ? 1789344000 : 1788912000;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
     lock.gates.win7 = `NOT_PERFORMED_WIN7_${number}`;
-    lock.provenance = candidate === 'win38'
+    lock.provenance = candidate === 'win39'
+      ? {
+        // ADR-0142：WIN7-39 换发自验证套件缺陷导致 Win7 G2 失败的 WIN7-38。
+        task: 'A9-23', previous_candidate: 'WIN7-38',
+        previous_candidate_result: 'A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS',
+        change_scope: 'A9_23_VALIDATION_KIT_REPAIR',
+      }
+      : candidate === 'win38'
       ? {
         task: 'A9-22', previous_candidate: 'WIN7-37',
         previous_candidate_result: 'A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS',
@@ -3538,4 +3550,745 @@ test('A9 v3 builder removes a partial work tree when sensitive payload scanning 
   assert.throws(() => buildA9ProductCandidate({ repositoryRoot: process.cwd(), ...inputs, outputRoot, allowUncommitted: true }), /A9_SENSITIVE_PAYLOAD_PROHIBITED:leaked\.txt/);
   assert.equal(fs.existsSync(path.join(outputRoot, '.work')), false);
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+// ==========================================================================
+// A9-23 / WIN7-39 开发机门（交接书 §4，ADR-0142）。
+// ==========================================================================
+
+const W39_SMOKE_PATH = path.join(process.cwd(), 'release', 'win7-product-v3', 'a9-win7-39-smoke.cjs');
+const W39_DRIVER_PATH = path.join(process.cwd(), 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
+
+function w39TemporarySourceCopy(source) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-injected-'));
+  const file = path.join(root, 'source.cjs');
+  try {
+    fs.writeFileSync(file, source, 'utf8');
+    return fs.readFileSync(file, 'utf8');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+/** W39 smoke 合同检查：W37 机制保留 + W39 追加要求。返回问题清单（空 = 通过）。 */
+function evaluateW39SmokeContract(smokeSource) {
+  const problems = [];
+  if (!smokeSource.includes('A9_SMOKE_PRODUCT_MAIN: productMain')) problems.push('W39 smoke must set A9_SMOKE_PRODUCT_MAIN');
+  if (!smokeSource.includes("A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1'")) problems.push('W39 smoke must set A9_SMOKE_REQUIRE_PRODUCT_MAIN=1');
+  if (!/pid === process\.pid/.test(smokeSource)) problems.push('W39 residue snapshot must exclude the smoke process self-pid');
+  if (/record\(\s*'A9-W39-[^']+'\s*,\s*true\b/.test(smokeSource)) problems.push('W39 assertions must not be recorded as literal true');
+  if (!smokeSource.includes("process.versions.electron !== '22.3.27'")
+    || !smokeSource.includes("process.platform !== 'win32'")
+    || !smokeSource.includes("process.env.ELECTRON_RUN_AS_NODE !== '1'")) problems.push('W39 smoke must keep the W37 runtime self-check');
+  for (const phase of ['first', 'second', 'retry', 'stop', 'live']) {
+    if (!smokeSource.includes(`A9_SMOKE_MODE: '${phase}'`)) problems.push(`W39 smoke must keep the W37 phase ${phase}`);
+  }
+  if (!smokeSource.includes('relatedProcessSnapshot')) problems.push('W39 smoke must keep structured residue snapshots');
+  for (const assertion of ['A9-W39-CHINESE-SPACE-PATHS', 'A9-W39-STARTUP-WITHIN-60S', 'A9-W39-M1-TARGETED-RECOVERY',
+    'A9-W39-M1B-URL-REDACTED', 'A9-W39-M2-TRUNCATED-WITH-WARNINGS', 'A9-W39-M3-COUNT-MATCHES-DB',
+    'A9-W39-M4-CAP-NOTICE', 'A9-W39-FINAL-NO-RESIDUE', 'w39-case-index.json']) {
+    if (!smokeSource.includes(assertion)) problems.push(`W39 smoke must carry ${assertion}`);
+  }
+  return problems;
+}
+
+function w39RequiredRecordProblems(smokeSource, driverSource) {
+  const block = smokeSource.match(/const requiredSmokeAssertionIds = \[([\s\S]*?)\n  \];/);
+  if (!block) return ['required assertion list missing'];
+  const required = [...block[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).filter((id) => id.startsWith('A9-'));
+  required.push(...Array.from({ length: 19 }, (_item, index) => `A9-W39-GIT-FORM-${String(index + 1).padStart(2, '0')}`));
+  const recorded = new Set([...smokeSource.matchAll(/\brecord\(\s*'([^']+)'/g),
+    ...driverSource.matchAll(/\brecord\(\s*'([^']+)'/g)].map((match) => match[1]));
+  if (driverSource.includes('record(`A9-W39-GIT-FORM-${String(form.index).padStart(2, \'0\')}`')) {
+    for (let index = 1; index <= 19; index += 1) recorded.add(`A9-W39-GIT-FORM-${String(index).padStart(2, '0')}`);
+  }
+  return required.filter((id) => !recorded.has(id));
+}
+
+test('WIN7-39 carries the repaired validation kit on the immutable WIN7-38 with a 15-case current-candidate closure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win39-candidate-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  const inputs = fixture(root, sourceRepositoryRoot, 'win39');
+  const built = buildA9ProductCandidate({ repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') });
+  const stage = built.stage;
+  const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_23_VALIDATION_KIT.json'), 'utf8'));
+  for (const relative of win39Integrity.REQUIRED_FILES) {
+    assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-39 closure: ${relative}`);
+  }
+  // §4 第 1 项：smoke 的 A9_SMOKE_PRODUCT_MAIN 拼出的相对路径在 W39 构建闭包中存在。
+  assert.ok(fs.existsSync(path.join(stage, 'resources', 'app', 'product', 'main.js')), 'candidate product entry must exist');
+  const smokeSource = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-39-smoke.cjs'), 'utf8');
+  assert.ok(smokeSource.includes("'resources', 'app', 'product', 'main.js'"), 'smoke must resolve the candidate product entry path');
+  assert.equal(kit.kit_id, 'A9-23-WIN7-39-20260926-01');
+  assert.equal(kit.candidate_label, 'WIN7-39');
+  assert.equal(kit.scope.decision, 'ADR-0142');
+  assert.equal(kit.scope.result_on_complete, 'A9_23_WIN7_39_A9_20_A9_21_PASS');
+  assert.equal(kit.scope.historical_candidate, 'WIN7-38 remains immutable as A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS and is not reclassified');
+  assert.equal(kit.external_release_authority.kind, 'WIN7_39_RELEASE_AUTHORITY');
+  assert.equal(kit.required_cases.length, 15);
+  assert.ok(kit.required_cases.every((item) => /^W39-\d{2}-/.test(item.case_id)));
+  for (const caseId of ['W39-01-CANDIDATE-INTEGRITY', 'W39-07-A9-20-GIT-FORMS-CMD', 'W39-08-A9-20-GIT-FORMS-POWERSHELL',
+    'W39-09-A9-20-GIT-FORMS-POSIX-AND-BULK', 'W39-10-M1-STARTUP-TARGETED-RECOVERY', 'W39-11-M1B-HEX-FREEZE-AND-URL-REDACTION',
+    'W39-12-M2-OUTPUT-LIMITS', 'W39-13-M3-CHECKPOINT-PAGINATION', 'W39-14-M4-COLLECTION-BOUNDS', 'W39-15-SECRET-SCAN-AND-POSTFLIGHT']) {
+    const item = kit.required_cases.find((entry) => entry.case_id === caseId);
+    assert.ok(item && item.assertions.length >= 2, `W39 case required: ${caseId}`);
+  }
+  assert.ok(Object.keys(kit.source_artifact_hashes).includes('docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'));
+  assert.equal(win39Report.KIT_ID, kit.kit_id);
+  assert.equal(win39Report.REQUIRED_CASE_COUNT, 15);
+  const driver = fs.readFileSync(path.join(stage, 'validation', 'a9-win7-39-driver.cjs'), 'utf8');
+  for (const suffix of ['03-INSPECTOR-PERSISTED-RESTART', '09-LATEST-OUTCOME-PROJECTION', '10-OLDER-EVENT-PAGINATION']) {
+    assert.ok(driver.includes(`W39-${suffix}`), `W39 driver key required: ${suffix}`);
+    assert.ok(!driver.includes(`W38-${suffix}`) && !driver.includes(`W37-${suffix}`), `stale driver key prohibited: ${suffix}`);
+  }
+  assert.ok(driver.includes('A9_W39_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
+  assert.ok(!driver.includes('A9_W37_DRIVER_PRODUCT_ENTRY_LATE_LOAD') && !driver.includes('A9_W38_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
+  assert.ok(driver.includes('async function runW39StartupProcess(') && driver.includes('async function runW39M4Process('));
+  assert.ok(driver.includes('A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED') && driver.includes('productMainLoaded'));
+  assert.deepEqual(w39RequiredRecordProblems(smokeSource, driver), [],
+    'every required W39 assertion must have a record call in the packaged driver or smoke');
+  assert.ok(w39RequiredRecordProblems(smokeSource, w39TemporarySourceCopy(driver.replace("record('A9-W39-LIVE-PROVIDER-PROBE'", "record('A9-W37-LIVE-PROVIDER-PROBE'")))
+    .includes('A9-W39-LIVE-PROVIDER-PROBE'), 'R3-3 injected old W37 record ID must fail the gate');
+  for (const token of ['A9_23_WIN7_39_AUTOMATIC_PRODUCT_SMOKE', "runW39Phase('w39_startup'", "runW39Phase('w39_git'",
+    "runW39Phase('w39_m1_small'", "runW39Phase('w39_m1_large'", "runW39Phase('w39_m1b'",
+    "runW39Phase('w39_m2'", "runW39Phase('w39_m3'", "runW39Phase('w39_m4'"]) {
+    assert.ok(smokeSource.includes(token), `W39 smoke token required: ${token}`);
+  }
+  // §4 第 1/2/3 项对构建闭包内的 smoke 生效。
+  assert.deepEqual(evaluateW39SmokeContract(smokeSource), []);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(stage, 'release-manifest.json'), 'utf8')).source_dirty, false);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 smoke contract keeps W37 mechanisms and rejects injected regressions (handoff items 2/3/4/5)', () => {
+  const smokeSource = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  // 正例：真实 W39 smoke 必须全过。
+  assert.deepEqual(evaluateW39SmokeContract(smokeSource), []);
+  // 注入反例 1（W38 缺陷形态）：去掉产品入口变量。
+  const withoutEntry = smokeSource
+    .replace("    A9_SMOKE_PRODUCT_MAIN: productMain,\n", '')
+    .replace("    A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1',\n", '');
+  assert.ok(evaluateW39SmokeContract(withoutEntry).some((item) => item.includes('A9_SMOKE_PRODUCT_MAIN')));
+  assert.ok(evaluateW39SmokeContract(withoutEntry).some((item) => item.includes('REQUIRE_PRODUCT_MAIN')));
+  // 注入反例 2：恒真断言（W38 缺陷写法）。
+  const literalTrue = smokeSource.replace(
+    "  record('A9-W39-FINAL-NO-RESIDUE', finalResidue.no_residue === true,",
+    "  record('A9-W39-FAKE-LITERAL-TRUE', true);\n  record('A9-W39-FINAL-NO-RESIDUE', finalResidue.no_residue === true,");
+  assert.ok(evaluateW39SmokeContract(literalTrue).some((item) => item.includes('literal true')));
+  // 注入反例 3：去掉残留快照的自身 PID 排除。
+  const withoutPidExclusion = smokeSource.replace('pid === process.pid', 'pid === -1');
+  assert.ok(evaluateW39SmokeContract(withoutPidExclusion).some((item) => item.includes('self-pid')));
+  // 注入反例 4：删除一个 W37 必需阶段（改掉 stop 的 A9_SMOKE_MODE，阶段即不再以 stop 运行）。
+  const withoutStopPhase = smokeSource.replace("A9_SMOKE_MODE: 'stop',", "A9_SMOKE_MODE: 'stop-disabled',");
+  assert.ok(evaluateW39SmokeContract(withoutStopPhase).some((item) => item.includes("phase stop")));
+  // 注入反例 5：删除运行时自检。
+  const withoutSelfCheck = smokeSource.replace("process.versions.electron !== '22.3.27'", "process.versions.electron !== '9.9.9'");
+  assert.ok(evaluateW39SmokeContract(withoutSelfCheck).some((item) => item.includes('runtime self-check')));
+});
+
+test('W39 driver resolves the candidate product entry exactly per the gated contract (handoff item 6)', () => {
+  const driverSource = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const match = driverSource.match(/\/\/ A9_W39_PRODUCT_ENTRY_RESOLVE_BEGIN([\s\S]*?)\/\/ A9_W39_PRODUCT_ENTRY_RESOLVE_END/);
+  assert.ok(match, 'driver must expose the marked resolveDriverProductEntry helper');
+  const pathStub = {
+    join: (...parts) => parts.join('/'),
+    resolve: (value) => value,
+    isAbsolute: (value) => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value),
+  };
+  const resolveDriverProductEntry = vm.runInNewContext(
+    `(function () { ${match[1]}\nreturn resolveDriverProductEntry; })()`, { path: pathStub });
+  // 临时目录模拟 <candidateRoot>\validation 与 <runRoot>\driver-app 的候选布局。
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-entry-'));
+  const candidateRoot = path.join(root, 'candidate 39 候选');
+  fs.mkdirSync(path.join(candidateRoot, 'validation'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'run', 'driver-app'), { recursive: true });
+  const candidateEntry = path.join(candidateRoot, 'resources', 'app', 'product', 'main.js');
+  // 设置 A9_SMOKE_PRODUCT_MAIN：解析到候选内路径。
+  const explicit = resolveDriverProductEntry({ A9_SMOKE_PRODUCT_MAIN: candidateEntry }, root);
+  assert.equal(explicit.productMain, candidateEntry);
+  assert.equal(explicit.fallbackUsed, false);
+  // REQUIRE=1 且缺入口变量：稳定错误码失败，不回落。
+  assert.throws(() => resolveDriverProductEntry({ A9_SMOKE_REQUIRE_PRODUCT_MAIN: '1' }, root),
+    (error) => error.code === 'A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED');
+  // 两个变量都不设：与现状（仓库布局回落）相同。
+  const fallback = resolveDriverProductEntry({}, root);
+  assert.equal(fallback.productMain, pathStub.join(root, 'src/shell/product/main.js'));
+  assert.equal(fallback.fallbackUsed, true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 M1/M4 seed builders use the public persistence API and recover exactly the seeded turn (handoff item 7)', () => {
+  const stateDist = path.join(process.cwd(), 'src', 'state', 'dist', 'a9-persistence.js');
+  const coreDist = path.join(process.cwd(), 'src', 'core', 'dist', 'index.js');
+  assert.ok(fs.existsSync(stateDist), 'src/state/dist must be built in this worktree (tsc)');
+  assert.ok(fs.existsSync(coreDist), 'src/core/dist must be built in this worktree (tsc)');
+  const { A9PersistenceManager } = require(stateDist);
+  const { canonicalizeWorkspacePath } = require(coreDist);
+  const openDatabase = (databasePath, options) => new Database(databasePath, options && options.readonly ? { readonly: true } : {});
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-seed-'));
+  const workspaceRoot = path.join(root, 'w39 seed workspace 中文');
+  const dataRoot = path.join(root, 'w39 seed data 中文');
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(dataRoot, { recursive: true });
+  const databasePath = path.join(dataRoot, 'a9-state.db');
+  const canonical = canonicalizeWorkspacePath(workspaceRoot);
+  // —— M1 种子：5 个 completed + 恰好 1 个 interrupted（无 checkpoint 行、无清单）。 ——
+  {
+    const outcome = A9PersistenceManager.open({ databasePath, openDatabase, dataRoot });
+    assert.equal(outcome.status, 'ready');
+    const manager = outcome.manager;
+    manager.saveSession('w39-m1-test-session', canonical, { title: 'w39 m1 seed test' });
+    manager.activateConversation(canonical, 'w39-m1-test-session');
+    manager.upsertTask('w39-m1-test-task', 'w39-m1-test-session', 'active');
+    for (let index = 1; index <= 5; index += 1) {
+      manager.upsertTurn(`w39-m1-completed-${String(index).padStart(3, '0')}`, 'w39-m1-test-task', 'w39-m1-test-session', 'completed',
+        { outcome: 'completed', verification: 'not_applicable' });
+      manager.recordModelEvent('w39-m1-test-session', `w39-m1-completed-${String(index).padStart(3, '0')}`, 'model_note',
+        { content: `seed turn ${index}`, step: index });
+    }
+    manager.upsertTurn('w39-m1-interrupted-001', 'w39-m1-test-task', 'w39-m1-test-session', 'interrupted',
+      { outcome: 'needs_approval', verification: 'not_applicable' });
+    manager.db.close();
+  }
+  {
+    const reopened = A9PersistenceManager.open({ databasePath, openDatabase, dataRoot });
+    assert.equal(reopened.status, 'ready');
+    const recovered = reopened.manager.findInterruptedWorkspaceTurnsNeedingCheckpoint(canonical);
+    assert.deepEqual(recovered, ['w39-m1-interrupted-001']);
+    reopened.manager.db.close();
+  }
+  // —— M4 种子：≥2500 条事件经公开方法写入。 ——
+  {
+    const outcome = A9PersistenceManager.open({ databasePath, openDatabase, dataRoot });
+    assert.equal(outcome.status, 'ready');
+    const manager = outcome.manager;
+    manager.upsertTask('w39-m4-test-task', 'w39-m1-test-session', 'active');
+    for (let index = 1; index <= 2500; index += 1) {
+      const turnId = `w39-m4-test-turn-${String(Math.floor((index - 1) / 250) + 1).padStart(3, '0')}`;
+      if ((index - 1) % 250 === 0) manager.upsertTurn(turnId, 'w39-m4-test-task', 'w39-m1-test-session', 'completed',
+        { outcome: 'completed', verification: 'not_applicable' });
+      if (index % 2 === 1) {
+        manager.recordModelEvent('w39-m1-test-session', turnId, 'model_note',
+          { content: `m4 seed note ${index}`, step: index });
+      } else {
+        manager.recordToolEvent('w39-m1-test-session', turnId, 'tool_end',
+          { toolName: 'search', callId: `w39-m4-${index}`, step: index, result: `m4 seed result ${index}` });
+      }
+    }
+    assert.ok(manager.countEvents() >= 2500, 'M4 seed must write at least 2500 events');
+    const perTurn = manager.db.prepare("SELECT turn_id, COUNT(*) AS n FROM a9_events WHERE turn_id LIKE 'w39-m4-test-turn-%' GROUP BY turn_id").all();
+    assert.ok(perTurn.length > 1 && perTurn.every((row) => row.n <= 450), 'each M4 seed turn must hold at most 450 events');
+    const smokeSource = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+    assert.match(smokeSource, /Math\.floor\(\(index - 1\) \/ 250\) \+ 1/);
+    assert.match(smokeSource, /\(index - 1\) % 250 === 0/);
+    manager.db.close();
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 repair helpers reject old Git, M2, M3 and M4 assertion counterexamples (W1/W3/W4/W6)', () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const match = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/);
+  assert.ok(match, 'W39 assertion helpers must be present in the candidate driver');
+  const helpers = vm.runInNewContext(`(function () { ${match[1]}
+    return { w39GitBindingMatches, w39M2TurnChecks, w39DiffIsReal, w39ReleasedCountCheck }; })()`);
+  const oldGitCardText = 'git push origin main';
+  assert.equal(oldGitCardText.includes('origin') && oldGitCardText.includes('main'), true);
+  assert.equal(helpers.w39GitBindingMatches({ binding: 'origin-main' },
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), false, 'W1: card text cannot replace gitBinding');
+  assert.equal(helpers.w39GitBindingMatches({ binding: 'summary' },
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), false);
+  assert.equal(helpers.w39GitBindingMatches({ binding: 'summary' },
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64), gitBinding: { commandSha256: 'b'.repeat(64) } }), true);
+
+  const missingTurn = { turnId: null, outcome: null, outputTruncated: false, truncationNotes: [], toolEventCount: 0 };
+  assert.equal(missingTurn.toolEventCount === 0 && 'same' === 'same', true);
+  assert.equal(helpers.w39M2TurnChecks(missingTurn, null, 'same', 'same').noTool, false,
+    'W3: zero events without a terminal turn cannot pass');
+  assert.equal(helpers.w39M2TurnChecks(missingTurn, null, 'same', 'same').warnings, false);
+
+  const placeholder = '选择 checkpoint 查看 Diff。';
+  assert.equal(placeholder.trim().length > 0, true);
+  assert.equal(helpers.w39DiffIsReal('', placeholder), false, 'W4: old nonempty rule accepts placeholder');
+  assert.equal(helpers.w39DiffIsReal(placeholder, '此 checkpoint 没有文件变更。'), false);
+  assert.equal(helpers.w39DiffIsReal(placeholder, 'diff --git a/counter.ts b/counter.ts'), true);
+
+  assert.equal(2000 + 80 - 0.9 * 2000, 280);
+  assert.equal(230 === 280, false, 'W6: old exact formula fails on split polling batches');
+  const olderEnabled = { present: true, text: '加载更早记录', disabled: false };
+  const olderDisabled = { present: true, text: '加载更早记录', disabled: true };
+  const olderAbsent = { present: false, text: '', disabled: null };
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条过程记录', olderEnabled).ok, true);
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条过程记录', olderDisabled).ok, false,
+    'W6: below cap requires clickable older-record button');
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条过程记录', olderAbsent).ok, false);
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条。已达界面上限 2000 条', olderAbsent).ok, true);
+  assert.equal(helpers.w39ReleasedCountCheck(230, 80, '已释放最早的 230 条。已达界面上限 2000 条', olderEnabled).ok, false);
+});
+
+test('W39 repair source gates reject six restored pre-repair forms in temporary copies (W1-W6)', () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const sourceProblems = (s, d) => {
+    const problems = [];
+    if (!d.includes('w39GitBindingMatches(form, pending)') || d.includes('bindingText.includes(')) problems.push('W1');
+    if (!s.includes('A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile') || !d.includes("fs.readFileSync(process.env.A9_SMOKE_W39_GIT_FORMS_FILE")
+      || !s.includes('w39AssertEnvironmentLengths(childEnv)')) problems.push('W2');
+    if (!d.includes("w39WaitTerminal(exec, beforeEventId, 'w39 m2 truncated turn')")
+      || !d.includes('w39M2TurnChecks(turnFacts, terminalTurn')) problems.push('W3');
+    if (!d.includes('t !== diffBefore') || !d.includes('w39DiffIsReal(diffBefore, diffText)')) problems.push('W4');
+    if (!s.includes('Math.floor((index - 1) / 250) + 1') || !s.includes('(index - 1) % 250 === 0')) problems.push('W5');
+    if (!d.includes('w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton)')
+      || !d.includes('older_button_after_eviction')) problems.push('W6');
+    return problems;
+  };
+  assert.deepEqual(sourceProblems(smoke, driver), []);
+  const copies = [
+    [smoke, driver.replace('w39GitBindingMatches(form, pending)', "bindingText.includes('origin')")],
+    [smoke.replace('A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile', 'A9_SMOKE_W39_GIT_FORMS: JSON.stringify(W39_GIT_FORMS)'), driver],
+    [smoke, driver.replace("w39WaitTerminal(exec, beforeEventId, 'w39 m2 truncated turn')", 'null')],
+    [smoke, driver.replace('w39DiffIsReal(diffBefore, diffText)', 'Boolean(diffText)')],
+    [smoke.replace('Math.floor((index - 1) / 250) + 1', '1'), driver],
+    [smoke, driver.replace('w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton)', 'released === 200 + turnEventCount')],
+  ];
+  copies.forEach(([s, d], index) => assert.ok(sourceProblems(s, d).includes(`W${index + 1}`),
+    `restored W${index + 1} form must fail its source gate`));
+  const envMatch = smoke.match(/\/\/ A9_W39_ENV_LIMIT_BEGIN([\s\S]*?)\/\/ A9_W39_ENV_LIMIT_END/);
+  assert.ok(envMatch);
+  const checkEnv = vm.runInNewContext(`(function () { ${envMatch[1]} return w39AssertEnvironmentLengths; })()`);
+  assert.doesNotThrow(() => checkEnv({ SHORT: 'a'.repeat(32767) }));
+  assert.throws(() => checkEnv({ TOO_LONG: 'a'.repeat(32768) }), /A9_W39_ENV_VALUE_TOO_LONG:TOO_LONG/);
+});
+
+test('W39 R3-1 denial requires no tool_start, denied zero-effect tool_end and a denied approval row', () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace('noExecution.ok && noExecution.sessionMatched',
+    'noExecution.executedCount === 0'));
+  assert.ok(!rehearsalCopy.includes('noExecution.ok && noExecution.sessionMatched'));
+  const match = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/);
+  const { w39GitDenialResult } = vm.runInNewContext(`(function () { ${match[1]} return { w39GitDenialResult }; })()`);
+  const approvalId = 'apr-test';
+  const turnId = 'turn-test';
+  const required = { eventId: 7, turnId, eventType: 'approval_required',
+    payload: { data: { approvalId, callId: 'call-test' } } };
+  const deniedEnd = { eventId: 9, turnId, eventType: 'tool_end',
+    payload: { data: { callId: 'call-test', denied: true, sideEffects: 0 } } };
+  const row = { approval_id: approvalId, turn_id: turnId, decision: 'denied' };
+  assert.equal([required, deniedEnd].filter((event) => ['tool_start', 'tool_end'].includes(event.eventType) && event.eventId > 7).length, 1,
+    'pre-rehearsal any-tool-event rule rejects a real denied tool_end');
+  assert.equal(w39GitDenialResult([required, deniedEnd], approvalId, turnId, row).ok, true);
+  assert.equal(w39GitDenialResult([required, { ...deniedEnd, eventType: 'tool_start' }], approvalId, turnId, row).ok, false);
+  assert.equal(w39GitDenialResult([required, { ...deniedEnd, payload: { data: { callId: 'call-test', denied: false, sideEffects: 1 } } }], approvalId, turnId, row).ok, false);
+  assert.equal(w39GitDenialResult([required, deniedEnd], approvalId, turnId, { ...row, decision: 'pending' }).ok, false);
+});
+
+test('W39 R3-2 summary Git binding requires command digest and no remote or branch', () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace("return form.binding === 'summary' && Boolean(binding)",
+    "return form.binding === 'summary' && !pending.gitBinding"));
+  assert.ok(!rehearsalCopy.includes("return form.binding === 'summary' && Boolean(binding)"));
+  const match = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/);
+  const { w39GitBindingMatches } = vm.runInNewContext(`(function () { ${match[1]} return { w39GitBindingMatches }; })()`);
+  const pending = { approvalId: 'apr', bindingDigest: 'a'.repeat(64), gitBinding: { commandSha256: 'b'.repeat(64) } };
+  assert.equal(!pending.gitBinding, false, 'pre-rehearsal summary rule rejects the real G04 binding');
+  assert.equal(w39GitBindingMatches({ binding: 'summary' }, pending), true);
+  assert.equal(w39GitBindingMatches({ binding: 'summary' }, { ...pending, gitBinding: { ...pending.gitBinding, remote: 'origin' } }), false);
+  assert.equal(w39GitBindingMatches({ binding: 'summary' }, { ...pending, gitBinding: { commandSha256: 'bad' } }), false);
+});
+
+test('W39 R3-4 and R3-5 fixture ordering and event-bound terminal source gate reject rehearsal forms', () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const problems = (s, d) => {
+    const result = [];
+    if (!s.includes("prompt === 'edit the small file' && !tools.includes('read')")
+      || !s.includes("tool: { name: 'read', args: { path: 'small.txt' } }")) result.push('R3-4');
+    const w39Driver = d.slice(d.indexOf('// W39 / A9-23 旅程'));
+    if (!s.includes("if (match && !tools.includes('read'))") || !s.includes("args: { path: 'counter.ts' }")
+      || w39Driver.includes('snapshot.conversation') || w39Driver.includes('w39FactsCount')
+      || !w39Driver.includes("event.eventType === 'turn_started'")
+      || !w39Driver.includes("event.eventType === 'turn_completed' || event.eventType === 'turn_failed'")) result.push('R3-5');
+    return result;
+  };
+  assert.deepEqual(problems(smoke, driver), []);
+  assert.ok(problems(w39TemporarySourceCopy(smoke.replace("prompt === 'edit the small file' && !tools.includes('read')", 'false')), driver).includes('R3-4'));
+  assert.ok(problems(w39TemporarySourceCopy(smoke.replace("if (match && !tools.includes('read'))", 'if (false)')), driver).includes('R3-5'));
+  assert.ok(problems(smoke, w39TemporarySourceCopy(driver.replace("event.eventType === 'turn_started'", 'snapshot.conversation.length > beforeFacts'))).includes('R3-5'));
+  const match = driver.match(/\/\/ A9_W39_TURN_EVENT_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_TURN_EVENT_HELPERS_END/);
+  const helpers = vm.runInNewContext(`(function () { ${match[1]} return { w39FindStartedTurn, w39FindTerminalTurn }; })()`);
+  const events = [
+    { eventId: 1, turnId: 'old', eventType: 'turn_started' },
+    { eventId: 2, turnId: 'new', eventType: 'turn_started' },
+    { eventId: 3, turnId: 'old', eventType: 'turn_completed', payload: { data: { outcome: 'completed' } } },
+    { eventId: 4, turnId: 'new', eventType: 'turn_failed', payload: { data: { outcome: 'failed' } } },
+  ];
+  const started = helpers.w39FindStartedTurn(events, 1);
+  assert.equal(started.turnId, 'new');
+  assert.equal(helpers.w39FindTerminalTurn(events, started).outcome, 'failed');
+});
+
+test('W39 R3-7 required summary separates missing from present-not-passed', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const match = source.match(/\/\/ A9_W39_REQUIRED_SUMMARY_BEGIN([\s\S]*?)\/\/ A9_W39_REQUIRED_SUMMARY_END/);
+  assert.ok(match);
+  const fn = vm.runInNewContext(`(function () { ${match[1]} return w39RequiredAssertionSummary; })()`);
+  const result = fn(['missing', 'failed', 'passed'], [{ id: 'failed', passed: false }, { id: 'passed', passed: true }]);
+  assert.deepEqual(Array.from(result.missing), ['missing']);
+  assert.deepEqual(Array.from(result.presentNotPassed), ['failed']);
+  const sourceProblems = (copy) => [
+    !copy.includes('PRESENT_NOT_PASSED: requiredSummary.presentNotPassed'),
+    copy.includes('`MISSING:${missingRequiredAssertions.join'),
+  ].filter(Boolean);
+  assert.deepEqual(sourceProblems(source), []);
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace('PRESENT_NOT_PASSED: requiredSummary.presentNotPassed',
+    '`MISSING:${missingRequiredAssertions.join'));
+  assert.ok(sourceProblems(rehearsalCopy).length > 0, 'R3-7 injected MISSING-only summary must fail');
+});
+
+test('W39 R3-6 M4 seed is visible through the real runtime and all 2500 events page back', async () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const seedContractProblems = (source, driverSource) => [
+    !source.includes("manager.recordModelEvent('w39-m4-seed-session', null, 'conversation.request', {"),
+    !source.includes('schemaVersion: 1, taskId, requestPrompt:'),
+    !source.includes('const M4_BULK_STEPS = 20;'),
+    !driverSource.includes("terminal.outcome === 'completed' && turnEventCount >= 50"),
+  ].filter(Boolean);
+  assert.deepEqual(seedContractProblems(smoke, driver), []);
+  assert.ok(seedContractProblems(w39TemporarySourceCopy(smoke.replace("manager.recordModelEvent('w39-m4-seed-session', null, 'conversation.request', {",
+    "manager.recordModelEvent('w39-m4-seed-session', turnId, 'model_note', {")), driver).length > 0,
+  'R3-6 injected seed without request facts must fail');
+  assert.ok(seedContractProblems(w39TemporarySourceCopy(smoke.replace('const M4_BULK_STEPS = 20;', 'const M4_BULK_STEPS = 55;')), driver).length > 0,
+    'R3-6 injected 55-step eviction must fail');
+  assert.ok(seedContractProblems(smoke, w39TemporarySourceCopy(driver.replaceAll("terminal.outcome === 'completed' && turnEventCount >= 50", 'true'))).length > 0,
+    'R3-6 injected no-event-minimum driver must fail');
+
+  const { A9PersistenceManager } = require(path.join(process.cwd(), 'src/state/dist/a9-persistence.js'));
+  const { canonicalizeWorkspacePath } = require(path.join(process.cwd(), 'src/core/dist/index.js'));
+  const { createA9AgentRuntime } = require(path.join(process.cwd(), 'src/shell/product/a9-agent-runtime.js'));
+  const openDatabase = (file, options) => new Database(file, options && options.readonly ? { readonly: true } : {});
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-m4-runtime-'));
+  const workspaceRoot = path.join(root, 'workspace 中文');
+  const dataRoot = path.join(root, 'data 中文');
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(dataRoot, { recursive: true });
+  const sessionId = 'w39-m4-seed-session';
+  let runtime;
+  try {
+    const outcome = A9PersistenceManager.open({ databasePath: path.join(dataRoot, 'a9-state.db'), openDatabase, dataRoot });
+    assert.equal(outcome.status, 'ready');
+    const manager = outcome.manager;
+    manager.saveSession(sessionId, canonicalizeWorkspacePath(workspaceRoot), { title: 'w39 m4 集合上限' });
+    manager.activateConversation(canonicalizeWorkspacePath(workspaceRoot), sessionId);
+    for (let index = 1; index <= 2500; index += 1) {
+      const turnNumber = Math.floor((index - 1) / 250) + 1;
+      const taskId = `w39-m4-seed-task-${String(turnNumber).padStart(3, '0')}`;
+      const turnId = `w39-m4-seed-turn-${String(turnNumber).padStart(3, '0')}`;
+      if ((index - 1) % 250 === 0) {
+        manager.upsertTask(taskId, sessionId, 'completed');
+        manager.recordModelEvent(sessionId, null, 'conversation.request', {
+          schemaVersion: 1, taskId, requestPrompt: `w39 m4 seed turn ${turnNumber}`,
+        });
+        manager.upsertTurn(turnId, taskId, sessionId, 'completed',
+          { outcome: 'completed', verification: 'not_applicable' });
+      }
+      if (index % 2 === 1) manager.recordModelEvent(sessionId, turnId, 'model_note', { content: `m4 seed note ${index}`, step: index });
+      else manager.recordToolEvent(sessionId, turnId, 'tool_end',
+        { toolName: 'search', callId: `w39-m4-${index}`, step: index, result: `m4 seed result ${index}` });
+    }
+    const perTurn = manager.db.prepare("SELECT turn_id, COUNT(*) AS n FROM a9_events WHERE turn_id LIKE 'w39-m4-seed-turn-%' GROUP BY turn_id").all();
+    assert.equal(perTurn.length, 10);
+    assert.ok(perTurn.every((row) => row.n === 250 && row.n <= 450));
+    manager.db.close();
+
+    runtime = createA9AgentRuntime({ workspaceRoot, dataRoot, openDatabase });
+    const snapshot = runtime.getSnapshot({ conversationPage: true });
+    assert.equal(snapshot.status, 'ready');
+    assert.equal(snapshot.activeConversationId, sessionId);
+    assert.equal(snapshot.conversation.length, 10);
+    assert.ok(snapshot.conversation.every((fact) => fact.requestPrompt.startsWith('w39 m4 seed turn ')));
+    const seen = new Set();
+    let beforeEventId;
+    do {
+      const page = runtime.queryEvents({ conversationId: sessionId, limit: 400,
+        ...(beforeEventId === undefined ? {} : { beforeEventId }) });
+      assert.equal(page.ok, true);
+      assert.ok(page.events.length > 0);
+      for (const event of page.events) {
+        if (event.turnId && event.turnId.startsWith('w39-m4-seed-turn-')) seen.add(event.eventId);
+      }
+      beforeEventId = page.events[0].eventId;
+      if (!page.hasMore) break;
+    } while (true);
+    assert.equal(seen.size, 2500);
+  } finally {
+    if (runtime) await runtime.shutdown();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('W39 R3-8 Git resolver chooses argument, MinGit, where and records no-Git without PATH mutation', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const match = source.match(/\/\/ A9_W39_GIT_RESOLVE_BEGIN([\s\S]*?)\/\/ A9_W39_GIT_RESOLVE_END/);
+  assert.ok(match);
+  const createResolver = (present) => {
+    const calls = [];
+    const fakeChildProcess = { spawnSync(exe) {
+      calls.push(exe);
+      return exe === 'where' ? { status: 0, stdout: 'C:\\tools\\git.exe\r\n' }
+        : { status: 0, stdout: 'git version 2.46.2.windows.1' };
+    } };
+    const fn = vm.runInNewContext(`(function () { ${match[1]} return w39ResolveGitExecutable; })()`,
+      { path: path.win32, fs: { existsSync: (value) => present.includes(value) }, childProcess: fakeChildProcess });
+    return { fn, calls };
+  };
+  const explicit = createResolver(['C:\\chosen\\git.exe', 'C:\\acceptance\\mvp_mingit\\cmd\\git.exe']);
+  assert.equal(explicit.fn('C:\\chosen\\git.exe').source, 'git-exe-argument');
+  assert.deepEqual(explicit.calls, ['C:\\chosen\\git.exe']);
+  assert.equal(createResolver(['C:\\acceptance\\mvp_mingit\\cmd\\git.exe']).fn('').source, 'mvp-mingit');
+  assert.equal(createResolver(['C:\\tools\\git.exe']).fn('').source, 'where-git');
+  assert.equal(createResolver([]).fn('').source, 'NOT_PERFORMED_NO_GIT');
+  const sourceProblems = (copy) => [
+    !copy.includes("const gitSelection = w39ResolveGitExecutable(argument('git-exe'));"),
+    copy.includes("spawnSync('git', ['--version']"),
+    copy.includes('process.env.PATH =') || copy.includes('childEnv.PATH ='),
+  ].filter(Boolean);
+  assert.deepEqual(sourceProblems(source), []);
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace("const gitSelection = w39ResolveGitExecutable(argument('git-exe'));",
+    "const gitAvailable = childProcess.spawnSync('git', ['--version'], { windowsHide: true }).status === 0;"));
+  assert.ok(sourceProblems(rehearsalCopy).length > 0, 'R3-8 injected PATH-dependent Git probe must fail');
+});
+
+test('W39 build rejects injected stale W37 candidate-scoped tokens (handoff item 8a)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win39-stale-w37-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  fs.appendFileSync(path.join(sourceRepositoryRoot, 'release', 'win7-product-v3', 'a9-package-integrity-w39.cjs'),
+    "\nconst staleW37CodeForTest = 'A9_W37_KIT_CONTRACT_INVALID';\n", 'utf8');
+  execFileSync('git', ['add', 'release/win7-product-v3/a9-package-integrity-w39.cjs'], { cwd: sourceRepositoryRoot });
+  execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'inject stale W37 code'], { cwd: sourceRepositoryRoot });
+  const inputs = fixture(root, sourceRepositoryRoot, 'win39');
+  assert.throws(() => buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  }), /A9_CANDIDATE_STALE_TOKEN:WIN7-39:.*A9_W37_KIT_CONTRACT_INVALID/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 build rejects injected stale W38 candidate-scoped tokens (handoff item 8b)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win39-stale-w38-'));
+  const sourceRepositoryRoot = cleanSourceFixture(root);
+  fs.appendFileSync(path.join(sourceRepositoryRoot, 'release', 'win7-product-v3', 'a9-win7-39-smoke.cjs'),
+    "\n// const staleW38ProbeForTest = 'A9_W38_LIVE_TEST_KEY_REQUIRED';\n", 'utf8');
+  execFileSync('git', ['add', 'release/win7-product-v3/a9-win7-39-smoke.cjs'], { cwd: sourceRepositoryRoot });
+  execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',
+    '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'inject stale W38 code'], { cwd: sourceRepositoryRoot });
+  const inputs = fixture(root, sourceRepositoryRoot, 'win39');
+  assert.throws(() => buildA9ProductCandidate({
+    repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out'),
+  }), /A9_CANDIDATE_STALE_TOKEN:WIN7-39:.*A9_W38_LIVE_TEST_KEY_REQUIRED/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('W39 R4-1 prefixed approval card uses snapshot ID for denial events and approval row; rejects rehearsal copy', async () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const helpers = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/)[1];
+  const journey = (copy) => copy.slice(copy.indexOf('async function runW39GitProcess('), copy.indexOf('\n/**\n * W39-10：'));
+  const approvalId = 'apr-53855dfe52cf255304118b9f';
+  const turnId = 'turn-1790437040752-1';
+  const pending = { approvalId, turnId, conversationId: 'conversation-test', bindingDigest: 'a'.repeat(64),
+    gitBinding: { remote: 'origin', branch: 'main' } };
+  const card = { approvalId: `approval: ${approvalId}`, digest: pending.bindingDigest, git: 'remote=origin', summary: 'git push' };
+  const events = [
+    { eventId: 7, turnId, eventType: 'approval_required', payload: { type: 'approval_required', data: { approvalId, callId: 'w39-git-1' } } },
+    { eventId: 9, turnId, eventType: 'tool_end', payload: { type: 'tool_end', data: { callId: 'w39-git-1', denied: true, sideEffects: 0 } } },
+  ];
+  const row = { approval_id: approvalId, turn_id: turnId, session_id: pending.conversationId, decision: 'denied' };
+  const run = async (copy) => {
+    const records = []; const queried = [];
+    const context = {
+      fs: { readFileSync: () => JSON.stringify([{ index: 1, id: 'cat1-control', command: 'cmd /c "git push origin main"', binding: 'origin-main' }]) },
+      process: { env: { A9_SMOKE_W39_GIT_FORMS_FILE: '/temporary/forms.json' } },
+      w39ConfigureProvider: async () => {}, w39EventCursor: async () => 0, w39SubmitPrompt: async () => {},
+      waitFor: async (fn) => fn(), w39ReadEvents: async () => events, w39WaitTerminal: async () => ({ turnId }),
+      w39OpenProductDatabase: () => ({ prepare: (sql) => {
+        assert.match(sql, /FROM a9_approvals WHERE approval_id = \?/);
+        return { get: (id) => { queried.push(id); return id === approvalId ? row : null; } };
+      }, close() {} }),
+      captureVisual: async () => {}, record: (id, passed, detail) => records.push({ id, passed, detail: JSON.parse(detail) }),
+    };
+    const api = vm.runInNewContext(`(function () { ${helpers}\n${journey(copy)} return { runW39GitProcess, w39SameApproval }; })()`, context);
+    assert.equal(api.w39SameApproval(pending, card), true);
+    assert.equal(api.w39SameApproval(pending, { ...card, digest: 'wrong' }), false);
+    assert.equal(api.w39SameApproval(pending, { ...card, approvalId }), false);
+    const exec = async (code) => code.includes('snapshot.pendingApproval') ? pending
+      : code.includes("const card = document.getElementById('a9-approval-card')") ? card : true;
+    await api.runW39GitProcess({}, exec, { dataRoot: '/temporary/data' });
+    return { record: records[0], queried };
+  };
+  const actual = await run(source);
+  assert.deepEqual(actual.queried, [approvalId]);
+  assert.equal(actual.record.passed, true);
+  assert.equal(actual.record.detail.noExecution.boundaryEventId, 7);
+  assert.equal(actual.record.detail.noExecution.approvalDecision, 'denied');
+  const rehearsalCopy = w39TemporarySourceCopy(source
+    .replace('.get(pending.approvalId)', '.get(card.approvalId)')
+    .replace('w39GitDenialResult(events, pending.approvalId, pending.turnId, approvalRow)',
+      'w39GitDenialResult(events, card.approvalId, pending.turnId, approvalRow)'));
+  const injected = await run(rehearsalCopy);
+  assert.deepEqual(injected.queried, [card.approvalId]);
+  assert.equal(injected.record.passed, false);
+  assert.equal(injected.record.detail.noExecution.boundaryEventId, null);
+  assert.equal(injected.record.detail.noExecution.approvalDecision, null);
+});
+
+test('W39 R4-2 Git setup creates workspace before README and init; rejects rehearsal copy', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const section = (copy) => copy.match(/\/\/ A9_W39_GIT_SETUP_BEGIN([\s\S]*?)\/\/ A9_W39_GIT_SETUP_END/)[1];
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'w39-git-setup-'));
+  try {
+    const run = (copy, suffix) => {
+      const gitWorkRepo = path.join(root, suffix, '中文 工作库');
+      const bareRoot = path.join(root, suffix, '中文 裸库');
+      const calls = [];
+      vm.runInNewContext(section(copy), { path, fs: {
+        mkdirSync: (...args) => { calls.push('mkdir'); return fs.mkdirSync(...args); },
+        writeFileSync: (...args) => { calls.push('README'); return fs.writeFileSync(...args); },
+      }, bareRoot, gitWorkRepo, gitSelection: { executable: '/fixed/git' }, childProcess: {
+        spawnSync: (executable, args, options) => {
+          assert.equal(executable, '/fixed/git');
+          if (options.cwd === gitWorkRepo) {
+            assert.equal(fs.statSync(gitWorkRepo).isDirectory(), true);
+            assert.equal(fs.existsSync(path.join(gitWorkRepo, 'README.md')), true);
+            calls.push(args[0]);
+          }
+          return { status: 0 };
+        },
+      } });
+      return calls;
+    };
+    assert.deepEqual(run(source, 'normal').slice(0, 3), ['mkdir', 'README', 'init']);
+    const rehearsalCopy = w39TemporarySourceCopy(source.replace('fs.mkdirSync(gitWorkRepo, { recursive: true });', ''));
+    assert.throws(() => run(rehearsalCopy, 'injected'), /ENOENT/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('W39 R4-3 M1b accepts warned completion with its own persisted checkpoint; rejects rehearsal copy', async () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const helpers = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/)[1];
+  const section = (copy) => copy.slice(copy.indexOf('async function runW39M1bProcess('), copy.indexOf('\n/**\n * W39-12：'));
+  const terminal = { turnId: 'm1b-turn', outcome: 'completed_with_warnings', verification: 'unverified' };
+  const checkpointRow = { turn_id: terminal.turnId, session_id: 'session', created_at: '2026-09-26T15:37:47Z' };
+  const run = async (copy, row) => {
+    let now = 0; const records = []; const queried = []; const report = {};
+    const context = { report, process: { env: { A9_SMOKE_W39_M1B_URL_PASSWORD: 'test-only-fixture' } },
+      Date: { now: () => now++ === 0 ? 0 : 369 }, w39ConfigureProvider: async () => {},
+      w39EventCursor: async () => 0, w39SubmitPrompt: async () => {}, w39WaitTerminal: async () => terminal,
+      w39OpenProductDatabase: () => ({ prepare: (sql) => {
+        assert.match(sql, /FROM a9_checkpoints WHERE turn_id = \?/);
+        return { get: (turnId) => { queried.push(turnId); return row; } };
+      }, close() {} }), record: (id, passed) => records.push({ id, passed }) };
+    const api = vm.runInNewContext(`(function () { ${helpers}\n${section(copy)} return { runW39M1bProcess, w39M1bFreezeCheck }; })()`, context);
+    await api.runW39M1bProcess({}, async () => ({ checkpoints: 1 }), { dataRoot: '/temporary/data' });
+    return { check: api.w39M1bFreezeCheck, record: records[0], queried, report };
+  };
+  const actual = await run(source, checkpointRow);
+  assert.equal(actual.record.passed, true);
+  assert.deepEqual(actual.queried, [terminal.turnId]);
+  assert.equal(actual.report.w39M1b.freeze_ms, 369);
+  assert.equal(actual.check({ ...terminal, outcome: 'completed' }, 369, checkpointRow), true);
+  assert.equal(actual.check(terminal, 10000, checkpointRow), false);
+  assert.equal(actual.check({ ...terminal, outcome: 'blocked' }, 369, checkpointRow), false);
+  assert.equal((await run(source, null)).record.passed, false);
+  assert.equal((await run(source, { ...checkpointRow, turn_id: 'old-turn' })).record.passed, false);
+  const oldCheckpoint = "  const checkpointState = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ checkpoints: (r.snapshot.checkpoints || []).length }))');";
+  const rehearsalCopy = w39TemporarySourceCopy(source
+    .replace(/  const db = w39OpenProductDatabase\(env.dataRoot\);\n  let checkpointRow;[\s\S]*?\} finally \{ db.close\(\); \}/, oldCheckpoint)
+    .replace('terminal, checkpoint: checkpointRow', 'terminal, checkpoints: checkpointState.checkpoints')
+    .replace("record('A9-W39-M1B-FREEZE-DURATION', w39M1bFreezeCheck(terminal, freezeMs, checkpointRow)",
+      "record('A9-W39-M1B-FREEZE-DURATION', Boolean(terminal) && terminal.outcome === 'completed' && freezeMs < 10000 && checkpointState.checkpoints >= 1"));
+  assert.equal((await run(rehearsalCopy, checkpointRow)).record.passed, false,
+    '369 ms, warned completion and own checkpoint is rejected by the rehearsal predicate');
+  assert.equal(section(rehearsalCopy).includes('FROM a9_checkpoints WHERE turn_id = ?'), false,
+    'restored snapshot total cannot establish that this turn has a checkpoint');
+});
+
+test('W39 R4-4 source gate requires readonly warmup and top button wait before paging; rejects rehearsal copy', () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const problems = (copy) => {
+    const stage = copy.slice(copy.indexOf('async function runW39M4Process('), copy.indexOf('\nfunction writeDriverReport('));
+    const paging = stage.indexOf('for (let round = 0; round < 40; round += 1)');
+    const submit = stage.indexOf("w39SubmitPrompt(exec, 'load m4 history')");
+    const terminal = stage.indexOf("w39WaitTerminal(exec, beforeWarmupEventId, 'w39 m4 warmup turn')");
+    const button = stage.indexOf("'w39 m4 warmup older-record button'");
+    return [!(submit >= 0 && submit < terminal && terminal < button && button < paging),
+      !stage.slice(terminal, paging).includes("document.getElementById('a9-task-stream').firstChild"),
+      !stage.includes('events.filter((event) => event.turnId === ${JSON.stringify(terminal.turnId)}).length'),
+      !stage.includes('warmup_counted_in_received_total: true'),
+    ].filter(Boolean);
+  };
+  assert.deepEqual(problems(driver), []);
+  const rehearsalCopy = w39TemporarySourceCopy(driver.replace(/  \/\/ chooseWorkspace only refreshes facts;[\s\S]*?(?=  const sampleRendererMemory =)/, ''));
+  assert.ok(problems(rehearsalCopy).length > 0, 'no warmup/button wait reproduces the pre-pagination gate violation');
+  const fixture = smoke.slice(smoke.indexOf("if (prompt === 'load m4 history')"), smoke.indexOf("if (prompt === 'generate many events'"));
+  assert.ok(fixture.includes("tool: { name: 'search'"));
+  assert.ok(!/name: '(?:edit|write|shell)'/.test(fixture));
+});
+
+const W39_R5_PHASE_FIXTURE = path.join(process.cwd(), 'release', 'win7-product-v3',
+  'a9-w39-rehearsal-20260927-0059-phases.json');
+
+function w39R5ReplayInputs() {
+  const fixture = JSON.parse(fs.readFileSync(W39_R5_PHASE_FIXTURE, 'utf8'));
+  const phases = fixture.phases.map(({ phase, exit_code }) => ({ phase, code: exit_code }));
+  const w39Phases = fixture.w39Phases.map(({ phase, exit_code }) => ({ phase, code: exit_code }));
+  const filesExist = Object.fromEntries(Object.keys(fixture.reports).map((mode) => [mode, true]));
+  return { fixture, phases, w39Phases, filesExist };
+}
+
+test('W39 R5-1 source gate searches inherited and w39 phase records together', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const summary = source.slice(source.indexOf('function validatePhaseReports('), source.indexOf('function expectedErrorContract('));
+  assert.match(summary, /phases\.concat\(w39Phases\)/);
+  assert.doesNotMatch(summary, /\bphases\.find\(/);
+  assert.match(source, /const phaseReportsValid = validatePhaseReports\(phases, w39Phases, reports, reportFilesExist\)/);
+});
+
+test('W39 R5-1 replays all 13 third-rehearsal phase reports from a provenance-pinned fixture', () => {
+  const { fixture, phases, w39Phases, filesExist } = w39R5ReplayInputs();
+  const { validatePhaseReports } = require(W39_SMOKE_PATH);
+  const records = phases.concat(w39Phases);
+  assert.equal(phases.length, 5);
+  assert.equal(w39Phases.length, 8);
+  assert.equal(Object.keys(fixture.reports).length, 13);
+  assert.equal(Object.keys(fixture.sources.reports).length, 13);
+  for (const source of [fixture.sources.automatic_smoke, ...Object.values(fixture.sources.reports)]) {
+    assert.match(source.path, /^evidence\/win7\/evidence\/smoke\//);
+    assert.match(source.sha256, /^[a-f0-9]{64}$/);
+  }
+  assert.equal(validatePhaseReports(phases, w39Phases, fixture.reports, filesExist), true);
+  for (const { phase } of records) {
+    assert.equal(validatePhaseReports(phases, w39Phases, fixture.reports, { [phase]: true }), true, phase);
+  }
+});
+
+test('W39 R5-1 replay rejects inherited-only lookup and a failed or wrong-mode w39 report', () => {
+  const { fixture, phases, w39Phases, filesExist } = w39R5ReplayInputs();
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const functions = source.slice(source.indexOf('function normalPhaseContract('), source.indexOf('function expectedErrorContract('));
+  const injected = functions.replace('allPhases.find((item) => item.phase === mode)',
+    'phases.find((item) => item.phase === mode)');
+  assert.notEqual(injected, functions);
+  const inheritedOnly = vm.runInNewContext(`${injected}\nvalidatePhaseReports`, {});
+  assert.equal(inheritedOnly(phases, w39Phases, fixture.reports, filesExist), false,
+    'the old lookup cannot find the eight w39 process records');
+  const { validatePhaseReports } = require(W39_SMOKE_PATH);
+  const failed = structuredClone(fixture.reports);
+  failed.w39_git.status = 'FAIL';
+  assert.equal(validatePhaseReports(phases, w39Phases, failed, filesExist), false,
+    'a failed w39 report must fail replay');
+  const wrongMode = structuredClone(fixture.reports);
+  wrongMode.w39_git.mode = 'first';
+  assert.equal(validatePhaseReports(phases, w39Phases, wrongMode, filesExist), false,
+    'a wrong-mode w39 report must fail replay');
 });

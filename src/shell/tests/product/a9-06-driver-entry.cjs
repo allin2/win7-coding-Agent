@@ -26,7 +26,28 @@ const path = require('path');
 const { app, BrowserWindow, dialog } = require('electron');
 
 const repositoryRoot = path.resolve(__dirname, '../../../..');
-const productMain = process.env.A9_SMOKE_PRODUCT_MAIN || path.join(repositoryRoot, 'src/shell/product/main.js');
+const requireProductMain = process.env.A9_SMOKE_REQUIRE_PRODUCT_MAIN === '1';
+
+/**
+ * W39 / A9-23 S-2：候选内产品入口解析合同（纯函数，供开发机单测直接调用）。
+ * - 设置 A9_SMOKE_PRODUCT_MAIN：解析到该显式路径（候选内 main.js），不回退。
+ * - 未设置且 A9_SMOKE_REQUIRE_PRODUCT_MAIN=1：以稳定错误码
+ *   A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED 失败，绝不回落仓库布局。
+ * - 两个变量都不设：与历史行为逐字节等价——回落仓库布局 main.js。
+ */
+// A9_W39_PRODUCT_ENTRY_RESOLVE_BEGIN
+const W39_PRODUCT_MAIN_REQUIRED_ERROR_CODE = 'A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED';
+function resolveDriverProductEntry(env, fallbackRepositoryRoot) {
+  const explicit = env.A9_SMOKE_PRODUCT_MAIN || '';
+  if (explicit) return { productMain: explicit, fallbackUsed: false };
+  if (env.A9_SMOKE_REQUIRE_PRODUCT_MAIN === '1') {
+    const error = new Error(`${W39_PRODUCT_MAIN_REQUIRED_ERROR_CODE}: A9_SMOKE_REQUIRE_PRODUCT_MAIN=1 but A9_SMOKE_PRODUCT_MAIN is not set; repository-layout fallback is disabled`);
+    error.code = W39_PRODUCT_MAIN_REQUIRED_ERROR_CODE;
+    throw error;
+  }
+  return { productMain: path.join(fallbackRepositoryRoot, 'src/shell/product/main.js'), fallbackUsed: true };
+}
+// A9_W39_PRODUCT_ENTRY_RESOLVE_END
 const requireModelNotes = process.env.A9_SMOKE_REQUIRE_MODEL_NOTES === '1';
 const driverProtocol = process.env.A9_SMOKE_DRIVER_PROTOCOL === 'projection' ? 'projection' : 'legacy';
 const projectionEnabled = driverProtocol === 'projection';
@@ -264,6 +285,20 @@ async function waitFor(condition, timeoutMs, label) {
 
 const LATE_LOAD_ERROR_CODE = 'A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD';
 
+// W39 / A9-23：w39_* 阶段清单。每个阶段绑定自己的工作区与数据根（路径含中文与空格）。
+const W39_WORKSPACE_SELECT_MODES = Object.freeze([
+  'w39_startup', 'w39_git', 'w39_m1_small', 'w39_m1_large', 'w39_m1b', 'w39_m2', 'w39_m3', 'w39_m4',
+]);
+// W39-03/10：进程启动毫秒基准（driver 模块加载时刻；供启动耗时与运行时就绪耗时断言）。
+const driverProcessStartMs = Date.now();
+// W39-03：w39_* 阶段的未捕获异常观察（仅 w39_* 模式安装，历史模式行为不变）。
+const w39UncaughtExceptions = [];
+if ((process.env.A9_SMOKE_MODE || '').startsWith('w39_')) {
+  process.on('uncaughtException', (error) => {
+    w39UncaughtExceptions.push(String(error && error.stack ? error.stack : error).slice(0, 1000));
+  });
+}
+
 function installDriverPreReadySeamsAndLoadProduct() {
   if (typeof app.isReady === 'function' && app.isReady()) {
     const error = new Error(`${LATE_LOAD_ERROR_CODE}: formal product entry must be loaded before Electron app is ready`);
@@ -273,7 +308,9 @@ function installDriverPreReadySeamsAndLoadProduct() {
 
   const mode = process.env.A9_SMOKE_MODE || 'first';
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
-  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38') {
+  // W39：每个 w39_* 阶段都使用自己的工作区，并经真实 workspace.select IPC 绑定。
+  if (mode === 'workspace_select' || mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38'
+    || W39_WORKSPACE_SELECT_MODES.includes(mode)) {
     // Start with no active workspace, then drive the real workspace.select IPC.
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
@@ -318,7 +355,12 @@ function installDriverPreReadySeamsAndLoadProduct() {
     };
   }
   // 正式产品入口（真实 main.js：在 ready 前执行 Windows 软件渲染配置，注册全部产品 IPC 与 ready 窗口监听）。
-  require(productMain);
+  // W39 / S-2：门控变量为 1 时禁止仓库布局回落；require 成功后在报告中记录实际加载的绝对路径。
+  const resolvedProductEntry = resolveDriverProductEntry(process.env, repositoryRoot);
+  require(resolvedProductEntry.productMain);
+  if (requireProductMain) {
+    report.productMainLoaded = path.resolve(resolvedProductEntry.productMain);
+  }
 }
 
 async function main() {
@@ -345,7 +387,7 @@ async function main() {
     return;
   }
 
-  if (mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38') {
+  if (mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38' || W39_WORKSPACE_SELECT_MODES.includes(mode)) {
     await exec('document.getElementById("workspace-select").click(); true');
     const explorer = await waitFor(() => exec(`(() => {
       const file = Array.from(document.querySelectorAll('#workspace-tree button'))
@@ -377,6 +419,20 @@ async function main() {
     await runLiveProcess(win, exec, { fixtureUrl, testKey: process.env.A9_SMOKE_LIVE_TEST_KEY || '' });
   } else if (mode === 'w38') {
     await runW38Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w39_startup') {
+    await runW39StartupProcess(win, exec, { workspaceRoot });
+  } else if (mode === 'w39_git') {
+    await runW39GitProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w39_m1_small' || mode === 'w39_m1_large') {
+    await runW39M1Process(win, exec, { workspaceRoot, dataRoot, mode });
+  } else if (mode === 'w39_m1b') {
+    await runW39M1bProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w39_m2') {
+    await runW39M2Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w39_m3') {
+    await runW39M3Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w39_m4') {
+    await runW39M4Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'stop') {
     await runStopProcess(win, exec, {
       workspaceRoot,
@@ -2179,6 +2235,522 @@ async function runW38Process(win, exec, env) {
 }
 
 let driverTargetExitCode = 1;
+
+// ==========================================================================
+// W39 / A9-23 旅程（ADR-0142）：每阶段独立工作区与数据根（路径含中文与空格）、
+// 独立回环 fixture。全部断言只读产品运行后的产物（DOM、IPC、产品写入的
+// SQLite、工作区文件、诊断文件），不得以脚本自身步骤成功作为通过条件。
+// ==========================================================================
+
+/** W39 通用前置：Full Access 模式 + fixture Provider 配置（真实 probe）。 */
+async function w39ConfigureProvider(exec, fixtureUrl, model) {
+  await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
+  await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.mode)').then((m) => (m === 'full_access' ? m : null)), 15_000, 'w39 mode set');
+  await exec(`(() => {
+    document.getElementById('a9-provider-url').value = ${JSON.stringify(fixtureUrl)};
+    document.getElementById('a9-provider-model').value = ${JSON.stringify(model)};
+    document.getElementById('a9-provider-apply').click();
+    return true;
+  })()`);
+  const probe = await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent').then((t) => (t === 'tool_calling' ? t : null)), 30_000, 'w39 provider probe');
+  await exec('(() => { const b = document.querySelector(".drawer:not([hidden]) [data-close]"); if (b) b.click(); return true; })()');
+  return probe;
+}
+
+async function w39SubmitPrompt(exec, text) {
+  await exec(`(() => { const p = document.getElementById("task-prompt"); p.value = ${JSON.stringify(text)}; p.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()`);
+}
+
+async function w39ReadEvents(exec, turnId) {
+  return exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const conversationId = (await api.snapshot()).snapshot.activeConversationId;
+    const result = await api.queryEvents({ conversationId, limit: 1000,
+      ...(${JSON.stringify(turnId || '')} ? { turnId: ${JSON.stringify(turnId || '')} } : {}) });
+    if (!result || result.ok !== true || !Array.isArray(result.events)) throw new Error('A9_W39_EVENTS_QUERY_FAILED');
+    return result.events;
+  })()`);
+}
+
+// A9_W39_TURN_EVENT_HELPERS_BEGIN
+function w39FindStartedTurn(events, beforeEventId) {
+  return events.find((event) => event.eventId > beforeEventId && event.eventType === 'turn_started' && event.turnId)
+    || null;
+}
+
+function w39FindTerminalTurn(events, started) {
+  const terminal = events.find((event) => event.turnId === started.turnId && event.eventId > started.eventId
+    && (event.eventType === 'turn_completed' || event.eventType === 'turn_failed'));
+  if (!terminal) return null;
+  const data = terminal.payload && terminal.payload.data ? terminal.payload.data : {};
+  return { turnId: started.turnId, outcome: data.outcome || (terminal.eventType === 'turn_failed' ? 'failed' : null),
+    verification: data.verification || null, startedEventId: started.eventId, terminalEventId: terminal.eventId,
+    terminalEventType: terminal.eventType };
+}
+// A9_W39_TURN_EVENT_HELPERS_END
+
+async function w39EventCursor(exec) {
+  const events = await w39ReadEvents(exec);
+  return events.length ? events[events.length - 1].eventId : 0;
+}
+
+/** 经产品持久化事件绑定本次 turn_started，再等待同一 turnId 的终态事件。 */
+async function w39WaitTerminal(exec, beforeEventId, label, timeoutMs = 120_000) {
+  const started = await waitFor(async () => w39FindStartedTurn(await w39ReadEvents(exec), beforeEventId),
+    timeoutMs, `${label} started`);
+  return waitFor(async () => w39FindTerminalTurn(await w39ReadEvents(exec, started.turnId), started),
+    timeoutMs, label);
+}
+
+/** 打开产品写入的 SQLite（只读）。SQLite 取候选 resources/native/storage（Electron ABI）。 */
+function w39OpenProductDatabase(dataRoot) {
+  const sqliteRoot = process.env.WIN7AGENT_A9_ELECTRON_SQLITE || '';
+  if (!sqliteRoot || !dataRoot) throw new Error('A9_W39_PRODUCT_DB_UNAVAILABLE');
+  const Database = require(path.join(sqliteRoot, 'node_modules', 'better-sqlite3'));
+  return new Database(path.join(dataRoot, 'a9-state.db'), { readonly: true });
+}
+
+/**
+ * W39-03：启动耗时。工作台可见与工作区选择由本模式的公共前置（真实
+ * workspace.select IPC + Explorer 会话）完成后计时，阈值 60000 ms。
+ */
+async function runW39StartupProcess(win, exec, env) {
+  void env;
+  await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
+  const mode = await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.mode)').then((m) => (m === 'full_access' ? m : null)), 15_000, 'w39 startup mode set');
+  const elapsedMs = Date.now() - driverProcessStartMs;
+  report.w39Startup = {
+    elapsed_ms: elapsedMs, threshold_ms: 60000,
+    uncaught_exceptions: w39UncaughtExceptions.slice(),
+  };
+  record('A9-W39-STARTUP-WITHIN-60S', mode === 'full_access' && elapsedMs < 60000 && w39UncaughtExceptions.length === 0,
+    JSON.stringify(report.w39Startup));
+  await captureVisual(win, 'w39-startup');
+}
+
+// A9_W39_ASSERTION_HELPERS_BEGIN
+function w39SameApproval(pending, card) {
+  return Boolean(pending && pending.approvalId && pending.turnId && card
+    && card.approvalId === `approval: ${pending.approvalId}`
+    && pending.bindingDigest === card.digest);
+}
+
+function w39GitBindingMatches(form, pending) {
+  if (!pending || !pending.approvalId || !/^[0-9a-f]{64}$/i.test(String(pending.bindingDigest || ''))) return false;
+  if (form.binding === 'origin-main') {
+    return Boolean(pending.gitBinding && pending.gitBinding.remote === 'origin' && pending.gitBinding.branch === 'main');
+  }
+  const binding = pending.gitBinding;
+  return form.binding === 'summary' && Boolean(binding) && !Object.prototype.hasOwnProperty.call(binding, 'remote')
+    && !Object.prototype.hasOwnProperty.call(binding, 'branch')
+    && /^[0-9a-f]{64}$/i.test(String(binding.commandSha256 || ''));
+}
+
+function w39GitDenialResult(events, approvalId, pendingTurnId, approvalRow) {
+  const data = (event) => event && event.payload && event.payload.data ? event.payload.data : {};
+  const required = events.filter((event) => event.eventType === 'approval_required'
+    && event.turnId === pendingTurnId && data(event).approvalId === approvalId);
+  const boundary = required.length === 1 ? required[0] : null;
+  const callId = boundary ? data(boundary).callId : null;
+  const related = callId ? events.filter((event) => event.turnId === pendingTurnId
+    && event.eventId > boundary.eventId && data(event).callId === callId
+    && (event.eventType === 'tool_start' || event.eventType === 'tool_end')) : [];
+  const starts = related.filter((event) => event.eventType === 'tool_start');
+  const ends = related.filter((event) => event.eventType === 'tool_end');
+  const endsDenied = ends.every((event) => data(event).denied === true && data(event).sideEffects === 0);
+  const approvalDenied = Boolean(approvalRow && approvalRow.approval_id === approvalId
+    && approvalRow.turn_id === pendingTurnId && approvalRow.decision === 'denied');
+  return { ok: Boolean(boundary && callId) && starts.length === 0 && endsDenied && approvalDenied,
+    boundaryEventId: boundary ? boundary.eventId : null, callId,
+    toolStartCount: starts.length, toolEndCount: ends.length, toolEndsDenied: endsDenied,
+    approvalDecision: approvalRow ? approvalRow.decision : null, approvalDenied };
+}
+
+function w39M1bFreezeCheck(terminal, freezeMs, checkpointRow) {
+  return Boolean(terminal && terminal.turnId
+    && (terminal.outcome === 'completed' || terminal.outcome === 'completed_with_warnings')
+    && freezeMs < 10000 && checkpointRow && checkpointRow.turn_id === terminal.turnId);
+}
+
+function w39M2TurnChecks(turnFacts, terminal, beforeHash, afterHash) {
+  const sameTurn = Boolean(terminal && terminal.turnId && turnFacts.turnId === terminal.turnId);
+  return {
+    warnings: sameTurn && terminal.outcome === 'completed_with_warnings'
+      && turnFacts.outcome === 'completed_with_warnings' && turnFacts.outputTruncated === true
+      && turnFacts.truncationNotes.some((note) => note.turnId === terminal.turnId
+        && note.content.includes('模型输出超过 1 MiB 已被截断')),
+    noTool: sameTurn && turnFacts.toolEventCount === 0 && beforeHash !== null && afterHash === beforeHash,
+  };
+}
+
+function w39DiffIsReal(beforeText, afterText) {
+  const diff = String(afterText || '').trim();
+  return diff.length > 0 && diff !== String(beforeText || '').trim()
+    && diff.includes('counter.ts') && !diff.includes('选择 checkpoint 查看 Diff。')
+    && !diff.includes('此 checkpoint 没有文件变更。');
+}
+
+function w39ReleasedCountCheck(released, eventCount, noticeText, olderButton) {
+  const lower = 200;
+  const upper = 200 + eventCount;
+  const atCap = String(noticeText).includes('已达界面上限');
+  const buttonMatches = olderButton && olderButton.text === '加载更早记录';
+  const buttonOk = atCap ? !buttonMatches : buttonMatches && olderButton.disabled === false;
+  return { lower, upper, ok: Number.isInteger(released) && Number.isInteger(eventCount)
+    && eventCount > 0 && released > lower && released <= upper && buttonOk,
+  atCap, buttonOk };
+}
+// A9_W39_ASSERTION_HELPERS_END
+
+/**
+ * W39-07～09：A9-20 Git 确认形态。每个具体写法一项断言；通过条件：
+ * (1) 审批卡出现且携带 Git 外部写绑定（可精确解析形态含 origin 与 main，
+ *     G04 兜底形态为整条命令摘要）；(2) 拒绝后该工具调用无执行事件。
+ * 裸仓库 main ref 在拒绝前后相同由宿主 smoke 直接读 refs/heads/main 文件核对。
+ */
+async function runW39GitProcess(win, exec, env) {
+  let forms;
+  try { forms = JSON.parse(fs.readFileSync(process.env.A9_SMOKE_W39_GIT_FORMS_FILE || '', 'utf8')); } catch (_error) { forms = null; }
+  if (!Array.isArray(forms) || forms.length === 0) throw new Error('A9_W39_GIT_FORMS_REQUIRED');
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-git-model');
+  for (const form of forms) {
+    if (!form || !Number.isInteger(form.index) || typeof form.id !== 'string' || typeof form.command !== 'string'
+      || (form.binding !== 'origin-main' && form.binding !== 'summary')) {
+      throw new Error(`A9_W39_GIT_FORM_INVALID:${JSON.stringify(form).slice(0, 200)}`);
+    }
+    const beforeEventId = await w39EventCursor(exec);
+    await w39SubmitPrompt(exec, `run git form ${form.id}`);
+    const card = await waitFor(() => exec(`(() => {
+      const card = document.getElementById('a9-approval-card');
+      if (!card || card.hidden) return null;
+      return {
+        tool: document.getElementById('a9-approval-tool').textContent,
+        summary: document.getElementById('a9-approval-summary').textContent,
+        git: document.getElementById('a9-approval-git').textContent,
+        approvalId: document.getElementById('a9-approval-id').textContent,
+        digest: card.dataset.bindingDigest,
+        conversationId: card.dataset.conversationId, taskId: card.dataset.taskId, turnId: card.dataset.turnId,
+      };
+    })()`), 90_000, `git form ${form.id} approval card`);
+    const pending = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.pendingApproval || null)');
+    const bindingOk = w39GitBindingMatches(form, pending);
+    const sameApproval = w39SameApproval(pending, card);
+    await exec('document.getElementById("a9-approval-deny").click(); true');
+    await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, `git form ${form.id} denial`);
+    const events = await w39ReadEvents(exec);
+    const db = w39OpenProductDatabase(env.dataRoot);
+    let approvalRow;
+    try {
+      approvalRow = db.prepare('SELECT approval_id, session_id, turn_id, decision FROM a9_approvals WHERE approval_id = ?')
+        .get(pending.approvalId) || null;
+    } finally { db.close(); }
+    const noExecution = w39GitDenialResult(events, pending.approvalId, pending.turnId, approvalRow);
+    noExecution.sessionMatched = Boolean(approvalRow && approvalRow.session_id === pending.conversationId);
+    record(`A9-W39-GIT-FORM-${String(form.index).padStart(2, '0')}`,
+      Boolean(card) && sameApproval && bindingOk && noExecution.ok && noExecution.sessionMatched,
+      JSON.stringify({
+        form: form.id, binding: form.binding, binding_path: form.binding === 'origin-main' ? 'gitBinding' : 'command-digest',
+        pending_approval: pending ? { approvalId: pending.approvalId, turnId: pending.turnId,
+          bindingDigest: pending.bindingDigest, gitBinding: pending.gitBinding || null } : null,
+        approvalGit: String(card.git || '').slice(0, 200),
+        approvalSummary: String(card.summary || '').slice(0, 300),
+        noExecution,
+      }));
+    await w39WaitTerminal(exec, beforeEventId, `git form ${form.id} terminal`);
+  }
+  await captureVisual(win, 'w39-git');
+}
+
+/**
+ * W39-10：M1 启动定向恢复。种子由宿主 smoke 在启动前经候选内
+ * A9PersistenceManager 公开方法写入；期望中断 Turn 由环境变量传入。
+ */
+async function runW39M1Process(win, exec, env) {
+  const expectedTurnId = process.env.A9_SMOKE_W39_M1_EXPECTED_TURN_ID || '';
+  const expectedFactTurns = Number(process.env.A9_SMOKE_W39_M1_EXPECTED_FACT_TURNS || '0');
+  if (!expectedTurnId) throw new Error('A9_W39_M1_EXPECTED_TURN_REQUIRED');
+  await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
+  await waitFor(() => exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot.mode)').then((m) => (m === 'full_access' ? m : null)), 15_000, 'w39 m1 mode set');
+  const readyMs = Date.now() - driverProcessStartMs;
+  const snapshot = await exec('(window.win7Agent.a9.snapshot()).then(r => r.snapshot)');
+  const diagnostics = snapshot.checkpointRecoveryDiagnostics || null;
+  const rejected = diagnostics && Array.isArray(diagnostics.rejectedTurns) ? diagnostics.rejectedTurns : [];
+  const rejectedOk = rejected.length === 1 && rejected[0].turnId === expectedTurnId && rejected[0].status === 'missing';
+  const facts = await exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const snap = (await api.snapshot()).snapshot;
+    const queried = await api.queryEvents({ conversationId: snap.activeConversationId, limit: 1000 });
+    const events = (queried.ok === true && queried.events) ? queried.events : [];
+    const turnIds = Array.from(new Set(events.filter((event) => event.turnId).map((event) => event.turnId)));
+    return { conversationId: snap.activeConversationId, eventCount: events.length, turnCount: turnIds.length, turnIds };
+  })()`);
+  report.w39M1 = {
+    mode: env.mode, expected_turn_id: expectedTurnId, ready_ms: readyMs,
+    diagnostics, facts,
+  };
+  // 规范断言 ID（A9-W39-M1-*）由宿主 smoke 聚合两个阶段的报告后记录一次；
+  // driver 内记录阶段作用域的内部事实 ID，避免破坏"必需断言恰好一次"计数语义。
+  const m1PhaseSuffix = env.mode === 'w39_m1_large' ? 'LARGE' : 'SMALL';
+  record(`W39-M1-RECOVERY-${m1PhaseSuffix}`, rejectedOk && facts.turnCount === expectedFactTurns, JSON.stringify(report.w39M1));
+  record(`W39-M1-TIMING-${m1PhaseSuffix}`, Number.isFinite(readyMs) && readyMs > 0 && readyMs < 60000,
+    JSON.stringify({ mode: env.mode, ready_ms: readyMs, threshold_ms: 60000 }));
+}
+
+/**
+ * W39-11：M1b 冻结与脱敏。冻结耗时 = 提交到本轮结果出现；URL 口令由
+ * 宿主随机生成并只在 fixture 内使用，driver 报告不落任何口令明文。
+ */
+async function runW39M1bProcess(win, exec, env) {
+  const password = process.env.A9_SMOKE_W39_M1B_URL_PASSWORD || '';
+  if (!password) throw new Error('A9_W39_M1B_URL_PASSWORD_REQUIRED');
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-m1b-model');
+  const beforeEventId = await w39EventCursor(exec);
+  const submittedAt = Date.now();
+  await w39SubmitPrompt(exec, 'edit the small file');
+  const terminal = await w39WaitTerminal(exec, beforeEventId, 'w39 m1b edit turn');
+  const freezeMs = Date.now() - submittedAt;
+  const db = w39OpenProductDatabase(env.dataRoot);
+  let checkpointRow;
+  try {
+    checkpointRow = db.prepare('SELECT turn_id, session_id, created_at FROM a9_checkpoints WHERE turn_id = ?')
+      .get(terminal.turnId) || null;
+  } finally { db.close(); }
+  report.w39M1b = {
+    freeze_ms: freezeMs, threshold_ms: 10000, terminal, checkpoint: checkpointRow,
+  };
+  record('A9-W39-M1B-FREEZE-DURATION', w39M1bFreezeCheck(terminal, freezeMs, checkpointRow),
+    JSON.stringify(report.w39M1b));
+  const beforeUrlTurn = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'echo the service url');
+  const urlTerminal = await w39WaitTerminal(exec, beforeUrlTurn, 'w39 m1b url turn');
+  record('W39-M1B-URL-TURN-RAN', Boolean(urlTerminal) && urlTerminal.outcome === 'completed', JSON.stringify(urlTerminal));
+}
+
+/**
+ * W39-12：M2 输出上限。截断轮 turn_completed 结局 completed_with_warnings、
+ * model_note 含截断说明；目标文件哈希不变且无该轮工具事件；下一轮正常完成。
+ */
+async function runW39M2Process(win, exec, env) {
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-m2-model');
+  const targetPath = path.join(env.workspaceRoot, 'm2-target.txt');
+  const digest = (target) => (fs.existsSync(target)
+    ? crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex') : null);
+  const beforeHash = digest(targetPath);
+  const beforeEventId = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'trigger oversized model response');
+  const terminalTurn = await w39WaitTerminal(exec, beforeEventId, 'w39 m2 truncated turn');
+  if (!terminalTurn || !terminalTurn.turnId) throw new Error('A9_W39_M2_TURN_NO_TERMINAL');
+  const turnFacts = await exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const snap = (await api.snapshot()).snapshot;
+    const queried = await api.queryEvents({ conversationId: snap.activeConversationId, limit: 1000 });
+    const events = (queried.ok === true && queried.events) ? queried.events : [];
+    const kind = (event) => event.eventType || event.type;
+    const data = (event) => event.payload?.data || event.payload || event.data || {};
+    const turnId = ${JSON.stringify(terminalTurn.turnId)};
+    const terminal = events.find((event) => kind(event) === 'turn_completed' && event.turnId === turnId) || null;
+    const notes = events.filter((event) => event.turnId === turnId && kind(event) === 'model_note' && data(event).truncated === true);
+    const turnToolEvents = turnId
+      ? events.filter((event) => event.turnId === turnId && (kind(event) === 'tool_start' || kind(event) === 'tool_end'))
+      : [];
+    return {
+      turnId,
+      outcome: terminal ? data(terminal).outcome : null,
+      outputTruncated: terminal ? data(terminal).outputTruncated === true : false,
+      truncationNotes: notes.map((event) => ({
+        eventId: event.eventId, turnId: event.turnId || null,
+        content: String(data(event).content || '').slice(0, 200),
+      })),
+      toolEventCount: turnToolEvents.length,
+    };
+  })()`);
+  const afterHash = digest(targetPath);
+  const m2Checks = w39M2TurnChecks(turnFacts, terminalTurn, beforeHash, afterHash);
+  record('A9-W39-M2-TRUNCATED-WITH-WARNINGS',
+    m2Checks.warnings, JSON.stringify({ terminalTurn, turnFacts }));
+  record('A9-W39-M2-TOOL-NOT-EXECUTED',
+    m2Checks.noTool,
+    JSON.stringify({ terminalTurn, beforeHash, afterHash, toolEventCount: turnFacts.toolEventCount }));
+  const beforeNext = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'm2 second turn');
+  const next = await w39WaitTerminal(exec, beforeNext, 'w39 m2 second turn');
+  record('A9-W39-M2-NEXT-TURN-OK', Boolean(next) && next.outcome === 'completed', JSON.stringify(next));
+  await captureVisual(win, 'w39-m2');
+}
+
+/**
+ * W39-13：M3 checkpoint 分页。≥60 个真实 Turn（fixture 逐轮小修改）；
+ * 计数文案的共数必须等于产品 SQLite 的 a9_checkpoints 行数；反复加载更早
+ * 页收集的 turnId 与 DB 全集一致（无重复、时间连续）；最早一条 Diff 非空。
+ */
+async function runW39M3Process(win, exec, env) {
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-m3-model');
+  const totalTurns = Number(process.env.A9_SMOKE_W39_M3_TURNS || '60');
+  if (!Number.isInteger(totalTurns) || totalTurns < 60) throw new Error('A9_W39_M3_TURNS_BELOW_60');
+  const journeyStart = Date.now();
+  for (let index = 1; index <= totalTurns; index += 1) {
+    const beforeEventId = await w39EventCursor(exec);
+    await w39SubmitPrompt(exec, `m3 turn ${index}`);
+    const terminal = await w39WaitTerminal(exec, beforeEventId, `w39 m3 turn ${index}`, 180_000);
+    if (!terminal) throw new Error(`A9_W39_M3_TURN_NO_TERMINAL:${index}`);
+  }
+  const journeyMs = Date.now() - journeyStart;
+  report.w39M3 = { turns: totalTurns, journey_ms: journeyMs };
+  const countText = await exec('document.getElementById("a9-checkpoint-count").textContent');
+  const countMatch = /共 (\d+)/.exec(countText);
+  const domTotal = countMatch ? Number(countMatch[1]) : NaN;
+  const db = w39OpenProductDatabase(env.dataRoot);
+  let dbTotal = 0;
+  let dbTurnIdsAsc = [];
+  try {
+    const rows = db.prepare('SELECT turn_id, created_at FROM a9_checkpoints ORDER BY created_at ASC, turn_id ASC').all();
+    dbTotal = rows.length;
+    dbTurnIdsAsc = rows.map((row) => String(row.turn_id));
+  } finally {
+    db.close();
+  }
+  record('A9-W39-M3-COUNT-MATCHES-DB', domTotal === dbTotal,
+    JSON.stringify({ count_text: countText, dom_total: domTotal, db_total: dbTotal, journey_ms: journeyMs }));
+  for (let round = 0; round < 80; round += 1) {
+    const clicked = await exec(`(() => {
+      const load = Array.from(document.querySelectorAll('#a9-checkpoint-list button'))
+        .find((item) => item.textContent.startsWith('加载更早的'));
+      if (!load) return false;
+      load.click();
+      return true;
+    })()`);
+    if (!clicked) break;
+    await waitFor(() => exec(`(() => {
+      const loading = Array.from(document.querySelectorAll('#a9-checkpoint-list button'))
+        .some((item) => item.textContent.startsWith('加载中…'));
+      return loading ? null : true;
+    })()`), 15_000, 'checkpoint page settle');
+  }
+  const domIds = await exec(`(() => Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-id'))
+    .map((item) => item.textContent))()`);
+  const unique = new Set(domIds).size === domIds.length;
+  const coversDb = unique && domIds.length === dbTotal
+    && canonical(domIds) === canonical(dbTurnIdsAsc.slice().reverse());
+  record('A9-W39-M3-OLDER-PAGES-CONTINUOUS', coversDb,
+    JSON.stringify({ dom_count: domIds.length, db_total: dbTotal, unique }));
+  const diffBefore = await exec('document.getElementById("a9-diff").textContent');
+  const oldestTurnId = await exec(`(() => {
+    const rows = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'));
+    const oldest = rows[rows.length - 1];
+    if (!oldest) return null;
+    const diffButton = Array.from(oldest.querySelectorAll('button'))
+      .find((item) => item.textContent === '查看 Diff');
+    if (!diffButton) return null;
+    diffButton.click();
+    return oldest.querySelector('.checkpoint-id').textContent;
+  })()`);
+  const diffText = await waitFor(() => exec('document.getElementById("a9-diff").textContent')
+    .then((t) => (t !== diffBefore && w39DiffIsReal(diffBefore, t) ? t : null)), 15_000, 'w39 m3 oldest diff');
+  record('A9-W39-M3-OLDER-DIFF', Boolean(oldestTurnId) && w39DiffIsReal(diffBefore, diffText),
+    JSON.stringify({ oldest_turn_id: oldestTurnId, diff_before: String(diffBefore || '').slice(0, 100),
+      diff_head: String(diffText || '').slice(0, 200) }));
+  await captureVisual(win, 'w39-m3');
+}
+
+/**
+ * W39-14：M4 集合上限。种子 ≥2500 条由宿主写入；加载更早记录直到按钮消失
+ * 达到界面上限；淘汰轮次触发释放；释放数按区间核对；Renderer 内存
+ * 在约 1000 条与淘汰后各采样一次。
+ */
+async function runW39M4Process(win, exec, env) {
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-m4-model');
+  // chooseWorkspace only refreshes facts; a legal read-only turn triggers the
+  // product's own terminal history load. Do not call internal renderer loaders.
+  const beforeWarmupEventId = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'load m4 history');
+  const warmupTerminal = await w39WaitTerminal(exec, beforeWarmupEventId, 'w39 m4 warmup turn');
+  const warmupEvents = await w39ReadEvents(exec, warmupTerminal.turnId);
+  const warmupEventCount = warmupEvents.filter((event) => event.turnId === warmupTerminal.turnId).length;
+  report.w39M4 = { warmup: { terminal: warmupTerminal, event_count: warmupEventCount,
+    counted_in_received_total: true, excluded_from_eviction_E: true } };
+  if (warmupTerminal.outcome !== 'completed') throw new Error('A9_W39_M4_WARMUP_NOT_COMPLETED');
+  await waitFor(() => exec(`(() => {
+    const note = document.getElementById('a9-task-stream').firstChild;
+    const button = note && note.classList.contains('legacy-note') ? note.querySelector('button') : null;
+    return button && button.textContent === '加载更早记录' && !button.disabled ? true : null;
+  })()`), 15_000, 'w39 m4 warmup older-record button');
+  const sampleRendererMemory = () => {
+    const metrics = app.getAppMetrics();
+    const rendererPid = typeof win.webContents.getOSProcessId === 'function'
+      ? win.webContents.getOSProcessId() : null;
+    const entry = metrics.find((item) => item.pid === rendererPid) || null;
+    const memory = entry && entry.memory
+      ? { working_set: entry.memory.workingSetSize, peak: entry.memory.peakWorkingSetSize } : null;
+    return { renderer_pid: rendererPid, matched: Boolean(entry), memory, metric_count: metrics.length };
+  };
+  let sampleMidPagination = null;
+  for (let round = 0; round < 40; round += 1) {
+    const clicked = await exec(`(() => {
+      const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
+      const button = note ? note.querySelector('button') : null;
+      if (!button || button.textContent !== '加载更早记录' || button.disabled) return false;
+      button.click();
+      return true;
+    })()`);
+    if (!clicked) break;
+    await waitFor(() => exec(`(() => {
+      const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
+      const button = note ? note.querySelector('button') : null;
+      return button && button.textContent === '加载更早记录' && button.disabled ? null : true;
+    })()`), 15_000, 'w39 m4 load settle');
+    if (round === 2) sampleMidPagination = sampleRendererMemory();
+  }
+  const capNoteState = await exec(`(() => {
+    const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
+    return { text: note ? note.textContent : '' };
+  })()`);
+  record('A9-W39-M4-CAP-NOTICE', capNoteState.text.includes('已达界面上限 2000 条'),
+    JSON.stringify({ note: capNoteState.text.slice(0, 300) }));
+  const beforeEventId = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'generate many events');
+  const terminal = await w39WaitTerminal(exec, beforeEventId, 'w39 m4 eviction turn', 180_000);
+  if (!terminal || !terminal.turnId) throw new Error('A9_W39_M4_EVICT_TURN_NO_TERMINAL');
+  const turnEventCount = await exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const queried = await api.queryEvents({ conversationId: (await api.snapshot()).snapshot.activeConversationId, limit: 1000 });
+    const events = (queried.ok === true && queried.events) ? queried.events : [];
+    return events.filter((event) => event.turnId === ${JSON.stringify(terminal.turnId)}).length;
+  })()`);
+  record('W39-M4-EVICTION-EVENTS', terminal.outcome === 'completed' && turnEventCount >= 50,
+    JSON.stringify({ turnId: terminal.turnId, outcome: terminal.outcome, event_count: turnEventCount, minimum: 50 }));
+  const postState = await waitFor(() => exec(`(() => {
+    const note = document.querySelector('#a9-task-stream > .legacy-note:not(.conversation-history-note)');
+    const button = note ? note.querySelector('button') : null;
+    return { text: note ? note.textContent : '',
+      olderButton: { present: Boolean(button), text: button ? button.textContent : '', disabled: button ? button.disabled : null } };
+  })()`).then((state) => /已释放最早的 (\d+) 条/.test(state.text) ? state : null), 15_000, 'w39 m4 released note');
+  const releasedMatch = /已释放最早的 (\d+) 条/.exec(postState.text);
+  const released = releasedMatch ? Number(releasedMatch[1]) : null;
+  const releaseCheck = w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton);
+  record('A9-W39-M4-RELEASED-COUNT-ACCURATE',
+    releaseCheck.ok && terminal.outcome === 'completed' && turnEventCount >= 50,
+    JSON.stringify({
+      released_in_notice: released,
+      eviction_turn_event_count: turnEventCount,
+      warmup_turn_id: warmupTerminal.turnId,
+      warmup_event_count: warmupEventCount,
+      warmup_counted_in_received_total: true,
+      lower_exclusive: releaseCheck.lower,
+      upper_inclusive: releaseCheck.upper,
+      notice_text: postState.text,
+      at_event_cap: releaseCheck.atCap,
+      older_button_after_eviction: postState.olderButton,
+      button_rule_met: releaseCheck.buttonOk,
+      computation: 'N from product notice; E from product queryEvents filtered only by eviction terminal turnId; warmup events are included in received total but excluded from E; require 200 < N <= 200 + E; if notice says cap, older-record button absent, otherwise present and enabled',
+    }));
+  const sampleAfterEviction = sampleRendererMemory();
+  record('A9-W39-M4-RENDERER-MEMORY-SAMPLED',
+    Boolean(sampleMidPagination) && sampleMidPagination.matched && sampleMidPagination.memory
+      && sampleMidPagination.memory.working_set > 0
+      && sampleAfterEviction.matched && sampleAfterEviction.memory
+      && sampleAfterEviction.memory.working_set > 0,
+    JSON.stringify({ mid_pagination_approx_1000: sampleMidPagination, after_eviction: sampleAfterEviction }));
+}
 
 function writeDriverReport() {
   const outPath = process.env.A9_SMOKE_OUT;

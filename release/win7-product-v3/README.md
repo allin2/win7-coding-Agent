@@ -4,6 +4,29 @@
 SQLite 3.43.1，并要求 D-017 锁定 Win10 工具链返回的 D-013 v25 Current-User helper。D-013 v24、
 WIN7-19 及其证据保持只读，不继承 A7/A8 的产品 PASS。
 
+## A9-23 / WIN7-39 验证套件修复换发候选（ADR-0142）
+
+WIN7-38 在 Win7 实机 G2 失败：候选内验证套件缺陷导致产品从未运行（W38 smoke 非 W37 机械派生，丢失产品入口变量、
+运行时自检与多项断言语义；详见 `docs/reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md`）。
+WIN7-39 依据 ADR-0142 与 A9-23 任务书修复验证套件后换发：W39 smoke 从 `a9-win7-37-smoke.cjs` 机械派生
+（身份替换 + 只追加 w39_* 阶段，差异清单见 `A9_23_WIN7_39_VALIDATION.md` §派生差异），smoke 传
+`A9_SMOKE_PRODUCT_MAIN` 与 `A9_SMOKE_REQUIRE_PRODUCT_MAIN=1`，驱动在门控变量下检查候选内产品入口并在报告记录
+`productMainLoaded`；断言只读产品运行后的产物（DOM/IPC/产品 SQLite/工作区文件/诊断文件）。版本与能力集不变。
+w39* 旅程在开发机不可运行（无 Windows 版 Electron），标注"未运行，待 Win7 预演"。
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-23-win7-39-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <WIN7_D013_V25_HELPER_ARTIFACTS_20260903-084131.zip> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+现场步骤见 [`A9_23_WIN7_39_VALIDATION.md`](A9_23_WIN7_39_VALIDATION.md)。未知 ZIP 哈希须另行取得候选外
+`WIN7_39_RELEASE_AUTHORITY` 与独立 SHA-256 pin，才可在 Win7 进行 G1→G2→G3。WIN7-38 及更早候选与证据保持冻结
+（WIN7-38 维持 `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`，不重签、不补丁改包）。
+
 ## A9-22 / WIN7-38 换发与 Win7 实机验收候选（A9-20 + A9-21）
 
 WIN7-37（ZIP SHA-256 `4d70063254212ca581b7b3dac9f89edc81a2ba31a53b51a6b1c1d65667f167cf`）在 Win7 实机取得
