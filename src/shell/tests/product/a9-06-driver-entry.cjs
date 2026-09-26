@@ -2261,21 +2261,45 @@ async function w39SubmitPrompt(exec, text) {
   await exec(`(() => { const p = document.getElementById("task-prompt"); p.value = ${JSON.stringify(text)}; p.dispatchEvent(new Event("input", { bubbles: true })); document.getElementById("run-task").click(); return true; })()`);
 }
 
-async function w39FactsCount(exec) {
-  return exec('(window.win7Agent.a9.snapshot()).then(r => (r.snapshot.conversation || []).length)');
+async function w39ReadEvents(exec, turnId) {
+  return exec(`(async () => {
+    const api = window.win7Agent.a9;
+    const conversationId = (await api.snapshot()).snapshot.activeConversationId;
+    const result = await api.queryEvents({ conversationId, limit: 1000,
+      ...(${JSON.stringify(turnId || '')} ? { turnId: ${JSON.stringify(turnId || '')} } : {}) });
+    if (!result || result.ok !== true || !Array.isArray(result.events)) throw new Error('A9_W39_EVENTS_QUERY_FAILED');
+    return result.events;
+  })()`);
 }
 
-/** 等待当前轮次到达终态事实（agentStatus 离开 running 且事实数增长）。 */
-async function w39WaitTerminal(exec, beforeFacts, label, timeoutMs = 120_000) {
-  return waitFor(() => exec(`(async () => {
-    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
-    if (snapshot.agentStatus === 'running') return null;
-    const facts = snapshot.conversation || [];
-    if (facts.length <= ${beforeFacts}) return null;
-    const last = facts[facts.length - 1];
-    if (!last || !['completed', 'completed_with_warnings', 'failed', 'blocked', 'cancelled', 'interrupted'].includes(String(last.outcome || ''))) return null;
-    return { turnId: last.turnId || null, outcome: last.outcome || null, verification: last.verification || null };
-  })()`), timeoutMs, label);
+// A9_W39_TURN_EVENT_HELPERS_BEGIN
+function w39FindStartedTurn(events, beforeEventId) {
+  return events.find((event) => event.eventId > beforeEventId && event.eventType === 'turn_started' && event.turnId)
+    || null;
+}
+
+function w39FindTerminalTurn(events, started) {
+  const terminal = events.find((event) => event.turnId === started.turnId && event.eventId > started.eventId
+    && (event.eventType === 'turn_completed' || event.eventType === 'turn_failed'));
+  if (!terminal) return null;
+  const data = terminal.payload && terminal.payload.data ? terminal.payload.data : {};
+  return { turnId: started.turnId, outcome: data.outcome || (terminal.eventType === 'turn_failed' ? 'failed' : null),
+    verification: data.verification || null, startedEventId: started.eventId, terminalEventId: terminal.eventId,
+    terminalEventType: terminal.eventType };
+}
+// A9_W39_TURN_EVENT_HELPERS_END
+
+async function w39EventCursor(exec) {
+  const events = await w39ReadEvents(exec);
+  return events.length ? events[events.length - 1].eventId : 0;
+}
+
+/** 经产品持久化事件绑定本次 turn_started，再等待同一 turnId 的终态事件。 */
+async function w39WaitTerminal(exec, beforeEventId, label, timeoutMs = 120_000) {
+  const started = await waitFor(async () => w39FindStartedTurn(await w39ReadEvents(exec), beforeEventId),
+    timeoutMs, `${label} started`);
+  return waitFor(async () => w39FindTerminalTurn(await w39ReadEvents(exec, started.turnId), started),
+    timeoutMs, label);
 }
 
 /** 打开产品写入的 SQLite（只读）。SQLite 取候选 resources/native/storage（Electron ABI）。 */
@@ -2310,7 +2334,30 @@ function w39GitBindingMatches(form, pending) {
   if (form.binding === 'origin-main') {
     return Boolean(pending.gitBinding && pending.gitBinding.remote === 'origin' && pending.gitBinding.branch === 'main');
   }
-  return form.binding === 'summary' && !pending.gitBinding;
+  const binding = pending.gitBinding;
+  return form.binding === 'summary' && Boolean(binding) && !Object.prototype.hasOwnProperty.call(binding, 'remote')
+    && !Object.prototype.hasOwnProperty.call(binding, 'branch')
+    && /^[0-9a-f]{64}$/i.test(String(binding.commandSha256 || ''));
+}
+
+function w39GitDenialResult(events, approvalId, pendingTurnId, approvalRow) {
+  const data = (event) => event && event.payload && event.payload.data ? event.payload.data : {};
+  const required = events.filter((event) => event.eventType === 'approval_required'
+    && event.turnId === pendingTurnId && data(event).approvalId === approvalId);
+  const boundary = required.length === 1 ? required[0] : null;
+  const callId = boundary ? data(boundary).callId : null;
+  const related = callId ? events.filter((event) => event.turnId === pendingTurnId
+    && event.eventId > boundary.eventId && data(event).callId === callId
+    && (event.eventType === 'tool_start' || event.eventType === 'tool_end')) : [];
+  const starts = related.filter((event) => event.eventType === 'tool_start');
+  const ends = related.filter((event) => event.eventType === 'tool_end');
+  const endsDenied = ends.every((event) => data(event).denied === true && data(event).sideEffects === 0);
+  const approvalDenied = Boolean(approvalRow && approvalRow.approval_id === approvalId
+    && approvalRow.turn_id === pendingTurnId && approvalRow.decision === 'denied');
+  return { ok: Boolean(boundary && callId) && starts.length === 0 && endsDenied && approvalDenied,
+    boundaryEventId: boundary ? boundary.eventId : null, callId,
+    toolStartCount: starts.length, toolEndCount: ends.length, toolEndsDenied: endsDenied,
+    approvalDecision: approvalRow ? approvalRow.decision : null, approvalDenied };
 }
 
 function w39M2TurnChecks(turnFacts, terminal, beforeHash, afterHash) {
@@ -2350,7 +2397,6 @@ function w39ReleasedCountCheck(released, eventCount, noticeText, olderButton) {
  * 裸仓库 main ref 在拒绝前后相同由宿主 smoke 直接读 refs/heads/main 文件核对。
  */
 async function runW39GitProcess(win, exec, env) {
-  void env;
   let forms;
   try { forms = JSON.parse(fs.readFileSync(process.env.A9_SMOKE_W39_GIT_FORMS_FILE || '', 'utf8')); } catch (_error) { forms = null; }
   if (!Array.isArray(forms) || forms.length === 0) throw new Error('A9_W39_GIT_FORMS_REQUIRED');
@@ -2360,7 +2406,7 @@ async function runW39GitProcess(win, exec, env) {
       || (form.binding !== 'origin-main' && form.binding !== 'summary')) {
       throw new Error(`A9_W39_GIT_FORM_INVALID:${JSON.stringify(form).slice(0, 200)}`);
     }
-    const beforeFacts = await w39FactsCount(exec);
+    const beforeEventId = await w39EventCursor(exec);
     await w39SubmitPrompt(exec, `run git form ${form.id}`);
     const card = await waitFor(() => exec(`(() => {
       const card = document.getElementById('a9-approval-card');
@@ -2380,19 +2426,17 @@ async function runW39GitProcess(win, exec, env) {
       && pending.bindingDigest === card.digest && pending.turnId);
     await exec('document.getElementById("a9-approval-deny").click(); true');
     await waitFor(() => exec('document.getElementById("a9-approval-card").hidden === true'), 15_000, `git form ${form.id} denial`);
-    const noExecution = await exec(`(async () => {
-      const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
-      const queried = await window.win7Agent.a9.queryEvents({ conversationId: snapshot.activeConversationId, limit: 1000 });
-      const events = (queried.ok === true && queried.events) ? queried.events : [];
-      const kind = (event) => event.eventType || event.type;
-      const required = events.filter((event) => kind(event) === 'approval_required');
-      const boundary = required.length ? required[required.length - 1].eventId : 0;
-      const executed = events.filter((event) => (kind(event) === 'tool_start' || kind(event) === 'tool_end')
-        && event.eventId > boundary);
-      return { boundary, executedCount: executed.length };
-    })()`);
+    const events = await w39ReadEvents(exec);
+    const db = w39OpenProductDatabase(env.dataRoot);
+    let approvalRow;
+    try {
+      approvalRow = db.prepare('SELECT approval_id, session_id, turn_id, decision FROM a9_approvals WHERE approval_id = ?')
+        .get(card.approvalId) || null;
+    } finally { db.close(); }
+    const noExecution = w39GitDenialResult(events, card.approvalId, pending.turnId, approvalRow);
+    noExecution.sessionMatched = Boolean(approvalRow && approvalRow.session_id === pending.conversationId);
     record(`A9-W39-GIT-FORM-${String(form.index).padStart(2, '0')}`,
-      Boolean(card) && sameApproval && bindingOk && noExecution.executedCount === 0,
+      Boolean(card) && sameApproval && bindingOk && noExecution.ok && noExecution.sessionMatched,
       JSON.stringify({
         form: form.id, binding: form.binding, binding_path: form.binding === 'origin-main' ? 'gitBinding' : 'command-digest',
         pending_approval: pending ? { approvalId: pending.approvalId, turnId: pending.turnId,
@@ -2401,7 +2445,7 @@ async function runW39GitProcess(win, exec, env) {
         approvalSummary: String(card.summary || '').slice(0, 300),
         noExecution,
       }));
-    await w39WaitTerminal(exec, beforeFacts, `git form ${form.id} terminal`);
+    await w39WaitTerminal(exec, beforeEventId, `git form ${form.id} terminal`);
   }
   await captureVisual(win, 'w39-git');
 }
@@ -2449,10 +2493,10 @@ async function runW39M1bProcess(win, exec, env) {
   const password = process.env.A9_SMOKE_W39_M1B_URL_PASSWORD || '';
   if (!password) throw new Error('A9_W39_M1B_URL_PASSWORD_REQUIRED');
   await w39ConfigureProvider(exec, env.fixtureUrl, 'w39-m1b-model');
-  const beforeFacts = await w39FactsCount(exec);
+  const beforeEventId = await w39EventCursor(exec);
   const submittedAt = Date.now();
   await w39SubmitPrompt(exec, 'edit the small file');
-  const terminal = await w39WaitTerminal(exec, beforeFacts, 'w39 m1b edit turn');
+  const terminal = await w39WaitTerminal(exec, beforeEventId, 'w39 m1b edit turn');
   const freezeMs = Date.now() - submittedAt;
   const checkpointState = await exec('(window.win7Agent.a9.snapshot()).then(r => ({ checkpoints: (r.snapshot.checkpoints || []).length }))');
   report.w39M1b = {
@@ -2460,7 +2504,7 @@ async function runW39M1bProcess(win, exec, env) {
   };
   record('A9-W39-M1B-FREEZE-DURATION', Boolean(terminal) && terminal.outcome === 'completed'
     && freezeMs < 10000 && checkpointState.checkpoints >= 1, JSON.stringify(report.w39M1b));
-  const beforeUrlTurn = await w39FactsCount(exec);
+  const beforeUrlTurn = await w39EventCursor(exec);
   await w39SubmitPrompt(exec, 'echo the service url');
   const urlTerminal = await w39WaitTerminal(exec, beforeUrlTurn, 'w39 m1b url turn');
   record('W39-M1B-URL-TURN-RAN', Boolean(urlTerminal) && urlTerminal.outcome === 'completed', JSON.stringify(urlTerminal));
@@ -2476,9 +2520,9 @@ async function runW39M2Process(win, exec, env) {
   const digest = (target) => (fs.existsSync(target)
     ? crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex') : null);
   const beforeHash = digest(targetPath);
-  const beforeFacts = await w39FactsCount(exec);
+  const beforeEventId = await w39EventCursor(exec);
   await w39SubmitPrompt(exec, 'trigger oversized model response');
-  const terminalTurn = await w39WaitTerminal(exec, beforeFacts, 'w39 m2 truncated turn');
+  const terminalTurn = await w39WaitTerminal(exec, beforeEventId, 'w39 m2 truncated turn');
   if (!terminalTurn || !terminalTurn.turnId) throw new Error('A9_W39_M2_TURN_NO_TERMINAL');
   const turnFacts = await exec(`(async () => {
     const api = window.win7Agent.a9;
@@ -2511,7 +2555,7 @@ async function runW39M2Process(win, exec, env) {
   record('A9-W39-M2-TOOL-NOT-EXECUTED',
     m2Checks.noTool,
     JSON.stringify({ terminalTurn, beforeHash, afterHash, toolEventCount: turnFacts.toolEventCount }));
-  const beforeNext = await w39FactsCount(exec);
+  const beforeNext = await w39EventCursor(exec);
   await w39SubmitPrompt(exec, 'm2 second turn');
   const next = await w39WaitTerminal(exec, beforeNext, 'w39 m2 second turn');
   record('A9-W39-M2-NEXT-TURN-OK', Boolean(next) && next.outcome === 'completed', JSON.stringify(next));
@@ -2529,9 +2573,9 @@ async function runW39M3Process(win, exec, env) {
   if (!Number.isInteger(totalTurns) || totalTurns < 60) throw new Error('A9_W39_M3_TURNS_BELOW_60');
   const journeyStart = Date.now();
   for (let index = 1; index <= totalTurns; index += 1) {
-    const beforeFacts = await w39FactsCount(exec);
+    const beforeEventId = await w39EventCursor(exec);
     await w39SubmitPrompt(exec, `m3 turn ${index}`);
-    const terminal = await w39WaitTerminal(exec, beforeFacts, `w39 m3 turn ${index}`, 180_000);
+    const terminal = await w39WaitTerminal(exec, beforeEventId, `w39 m3 turn ${index}`, 180_000);
     if (!terminal) throw new Error(`A9_W39_M3_TURN_NO_TERMINAL:${index}`);
   }
   const journeyMs = Date.now() - journeyStart;
@@ -2631,9 +2675,9 @@ async function runW39M4Process(win, exec, env) {
   })()`);
   record('A9-W39-M4-CAP-NOTICE', capNoteState.text.includes('已达界面上限 2000 条'),
     JSON.stringify({ note: capNoteState.text.slice(0, 300) }));
-  const beforeFacts = await w39FactsCount(exec);
+  const beforeEventId = await w39EventCursor(exec);
   await w39SubmitPrompt(exec, 'generate many events');
-  const terminal = await w39WaitTerminal(exec, beforeFacts, 'w39 m4 eviction turn', 180_000);
+  const terminal = await w39WaitTerminal(exec, beforeEventId, 'w39 m4 eviction turn', 180_000);
   if (!terminal || !terminal.turnId) throw new Error('A9_W39_M4_EVICT_TURN_NO_TERMINAL');
   const turnEventCount = await exec(`(async () => {
     const api = window.win7Agent.a9;
@@ -2641,6 +2685,8 @@ async function runW39M4Process(win, exec, env) {
     const events = (queried.ok === true && queried.events) ? queried.events : [];
     return events.filter((event) => event.turnId === ${JSON.stringify(terminal.turnId)}).length;
   })()`);
+  record('W39-M4-EVICTION-EVENTS', terminal.outcome === 'completed' && turnEventCount >= 50,
+    JSON.stringify({ turnId: terminal.turnId, outcome: terminal.outcome, event_count: turnEventCount, minimum: 50 }));
   const postState = await waitFor(() => exec(`(() => {
     const note = document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
     const button = note ? note.querySelector('button') : null;
@@ -2651,7 +2697,7 @@ async function runW39M4Process(win, exec, env) {
   const released = releasedMatch ? Number(releasedMatch[1]) : null;
   const releaseCheck = w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton);
   record('A9-W39-M4-RELEASED-COUNT-ACCURATE',
-    releaseCheck.ok,
+    releaseCheck.ok && terminal.outcome === 'completed' && turnEventCount >= 50,
     JSON.stringify({
       released_in_notice: released,
       eviction_turn_event_count: turnEventCount,

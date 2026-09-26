@@ -316,6 +316,14 @@ function writeCandidateDriver(root, validationRoot, profile) {
   }
   if (profile.candidate === 'WIN7-39') {
     replacements.push(['A9_W37_LIVE_TEST_KEY_REQUIRED', `A9_${candidatePrefix}_LIVE_TEST_KEY_REQUIRED`]);
+    for (const suffix of [
+      'LIVE-PROVIDER-PROBE', 'RAIL-PRESERVED-AFTER-WORKSPACE-AND-CONVERSATION', 'HEADER-AND-LABELS',
+      'LIVE-TOOL-CARD-BEFORE-COMPLETION', 'LIVE-NOTE-BEFORE-COMPLETION',
+      'LIVE-PREVIEW-BEFORE-COMPLETION', 'LIVE-PREVIEW-CLEARED-AFTER-COMPLETION',
+      'LIVE-LATENCY-WITHIN-1500MS', 'LIVE-SECRET-NOT-EXPOSED',
+    ]) {
+      replacements.push([`A9-W37-${suffix}`, `A9-W39-${suffix}`]);
+    }
   }
   for (const [before, after] of replacements) {
     const occurrences = source.split(before).length - 1;

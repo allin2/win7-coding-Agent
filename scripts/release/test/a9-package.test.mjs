@@ -3559,6 +3559,17 @@ test('A9 v3 builder removes a partial work tree when sensitive payload scanning 
 const W39_SMOKE_PATH = path.join(process.cwd(), 'release', 'win7-product-v3', 'a9-win7-39-smoke.cjs');
 const W39_DRIVER_PATH = path.join(process.cwd(), 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
 
+function w39TemporarySourceCopy(source) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-injected-'));
+  const file = path.join(root, 'source.cjs');
+  try {
+    fs.writeFileSync(file, source, 'utf8');
+    return fs.readFileSync(file, 'utf8');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 /** W39 smoke 合同检查：W37 机制保留 + W39 追加要求。返回问题清单（空 = 通过）。 */
 function evaluateW39SmokeContract(smokeSource) {
   const problems = [];
@@ -3579,6 +3590,19 @@ function evaluateW39SmokeContract(smokeSource) {
     if (!smokeSource.includes(assertion)) problems.push(`W39 smoke must carry ${assertion}`);
   }
   return problems;
+}
+
+function w39RequiredRecordProblems(smokeSource, driverSource) {
+  const block = smokeSource.match(/const requiredSmokeAssertionIds = \[([\s\S]*?)\n  \];/);
+  if (!block) return ['required assertion list missing'];
+  const required = [...block[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).filter((id) => id.startsWith('A9-'));
+  required.push(...Array.from({ length: 19 }, (_item, index) => `A9-W39-GIT-FORM-${String(index + 1).padStart(2, '0')}`));
+  const recorded = new Set([...smokeSource.matchAll(/\brecord\(\s*'([^']+)'/g),
+    ...driverSource.matchAll(/\brecord\(\s*'([^']+)'/g)].map((match) => match[1]));
+  if (driverSource.includes('record(`A9-W39-GIT-FORM-${String(form.index).padStart(2, \'0\')}`')) {
+    for (let index = 1; index <= 19; index += 1) recorded.add(`A9-W39-GIT-FORM-${String(index).padStart(2, '0')}`);
+  }
+  return required.filter((id) => !recorded.has(id));
 }
 
 test('WIN7-39 carries the repaired validation kit on the immutable WIN7-38 with a 15-case current-candidate closure', () => {
@@ -3621,6 +3645,10 @@ test('WIN7-39 carries the repaired validation kit on the immutable WIN7-38 with 
   assert.ok(!driver.includes('A9_W37_DRIVER_PRODUCT_ENTRY_LATE_LOAD') && !driver.includes('A9_W38_DRIVER_PRODUCT_ENTRY_LATE_LOAD'));
   assert.ok(driver.includes('async function runW39StartupProcess(') && driver.includes('async function runW39M4Process('));
   assert.ok(driver.includes('A9_W39_DRIVER_PRODUCT_MAIN_REQUIRED') && driver.includes('productMainLoaded'));
+  assert.deepEqual(w39RequiredRecordProblems(smokeSource, driver), [],
+    'every required W39 assertion must have a record call in the packaged driver or smoke');
+  assert.ok(w39RequiredRecordProblems(smokeSource, w39TemporarySourceCopy(driver.replace("record('A9-W39-LIVE-PROVIDER-PROBE'", "record('A9-W37-LIVE-PROVIDER-PROBE'")))
+    .includes('A9-W39-LIVE-PROVIDER-PROBE'), 'R3-3 injected old W37 record ID must fail the gate');
   for (const token of ['A9_23_WIN7_39_AUTOMATIC_PRODUCT_SMOKE', "runW39Phase('w39_startup'", "runW39Phase('w39_git'",
     "runW39Phase('w39_m1_small'", "runW39Phase('w39_m1_large'", "runW39Phase('w39_m1b'",
     "runW39Phase('w39_m2'", "runW39Phase('w39_m3'", "runW39Phase('w39_m4'"]) {
@@ -3769,9 +3797,9 @@ test('W39 repair helpers reject old Git, M2, M3 and M4 assertion counterexamples
   assert.equal(helpers.w39GitBindingMatches({ binding: 'origin-main' },
     { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), false, 'W1: card text cannot replace gitBinding');
   assert.equal(helpers.w39GitBindingMatches({ binding: 'summary' },
-    { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), true);
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64) }), false);
   assert.equal(helpers.w39GitBindingMatches({ binding: 'summary' },
-    { approvalId: 'a', bindingDigest: 'a'.repeat(64), gitBinding: {} }), false);
+    { approvalId: 'a', bindingDigest: 'a'.repeat(64), gitBinding: { commandSha256: 'b'.repeat(64) } }), true);
 
   const missingTurn = { turnId: null, outcome: null, outputTruncated: false, truncationNotes: [], toolEventCount: 0 };
   assert.equal(missingTurn.toolEventCount === 0 && 'same' === 'same', true);
@@ -3806,7 +3834,7 @@ test('W39 repair source gates reject six restored pre-repair forms in temporary 
     if (!d.includes('w39GitBindingMatches(form, pending)') || d.includes('bindingText.includes(')) problems.push('W1');
     if (!s.includes('A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile') || !d.includes("fs.readFileSync(process.env.A9_SMOKE_W39_GIT_FORMS_FILE")
       || !s.includes('w39AssertEnvironmentLengths(childEnv)')) problems.push('W2');
-    if (!d.includes("w39WaitTerminal(exec, beforeFacts, 'w39 m2 truncated turn')")
+    if (!d.includes("w39WaitTerminal(exec, beforeEventId, 'w39 m2 truncated turn')")
       || !d.includes('w39M2TurnChecks(turnFacts, terminalTurn')) problems.push('W3');
     if (!d.includes('t !== diffBefore') || !d.includes('w39DiffIsReal(diffBefore, diffText)')) problems.push('W4');
     if (!s.includes('Math.floor((index - 1) / 250) + 1') || !s.includes('(index - 1) % 250 === 0')) problems.push('W5');
@@ -3818,7 +3846,7 @@ test('W39 repair source gates reject six restored pre-repair forms in temporary 
   const copies = [
     [smoke, driver.replace('w39GitBindingMatches(form, pending)', "bindingText.includes('origin')")],
     [smoke.replace('A9_SMOKE_W39_GIT_FORMS_FILE: gitFormsFile', 'A9_SMOKE_W39_GIT_FORMS: JSON.stringify(W39_GIT_FORMS)'), driver],
-    [smoke, driver.replace("w39WaitTerminal(exec, beforeFacts, 'w39 m2 truncated turn')", 'null')],
+    [smoke, driver.replace("w39WaitTerminal(exec, beforeEventId, 'w39 m2 truncated turn')", 'null')],
     [smoke, driver.replace('w39DiffIsReal(diffBefore, diffText)', 'Boolean(diffText)')],
     [smoke.replace('Math.floor((index - 1) / 250) + 1', '1'), driver],
     [smoke, driver.replace('w39ReleasedCountCheck(released, turnEventCount, postState.text, postState.olderButton)', 'released === 200 + turnEventCount')],
@@ -3830,6 +3858,205 @@ test('W39 repair source gates reject six restored pre-repair forms in temporary 
   const checkEnv = vm.runInNewContext(`(function () { ${envMatch[1]} return w39AssertEnvironmentLengths; })()`);
   assert.doesNotThrow(() => checkEnv({ SHORT: 'a'.repeat(32767) }));
   assert.throws(() => checkEnv({ TOO_LONG: 'a'.repeat(32768) }), /A9_W39_ENV_VALUE_TOO_LONG:TOO_LONG/);
+});
+
+test('W39 R3-1 denial requires no tool_start, denied zero-effect tool_end and a denied approval row', () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace('noExecution.ok && noExecution.sessionMatched',
+    'noExecution.executedCount === 0'));
+  assert.ok(!rehearsalCopy.includes('noExecution.ok && noExecution.sessionMatched'));
+  const match = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/);
+  const { w39GitDenialResult } = vm.runInNewContext(`(function () { ${match[1]} return { w39GitDenialResult }; })()`);
+  const approvalId = 'apr-test';
+  const turnId = 'turn-test';
+  const required = { eventId: 7, turnId, eventType: 'approval_required',
+    payload: { data: { approvalId, callId: 'call-test' } } };
+  const deniedEnd = { eventId: 9, turnId, eventType: 'tool_end',
+    payload: { data: { callId: 'call-test', denied: true, sideEffects: 0 } } };
+  const row = { approval_id: approvalId, turn_id: turnId, decision: 'denied' };
+  assert.equal([required, deniedEnd].filter((event) => ['tool_start', 'tool_end'].includes(event.eventType) && event.eventId > 7).length, 1,
+    'pre-rehearsal any-tool-event rule rejects a real denied tool_end');
+  assert.equal(w39GitDenialResult([required, deniedEnd], approvalId, turnId, row).ok, true);
+  assert.equal(w39GitDenialResult([required, { ...deniedEnd, eventType: 'tool_start' }], approvalId, turnId, row).ok, false);
+  assert.equal(w39GitDenialResult([required, { ...deniedEnd, payload: { data: { callId: 'call-test', denied: false, sideEffects: 1 } } }], approvalId, turnId, row).ok, false);
+  assert.equal(w39GitDenialResult([required, deniedEnd], approvalId, turnId, { ...row, decision: 'pending' }).ok, false);
+});
+
+test('W39 R3-2 summary Git binding requires command digest and no remote or branch', () => {
+  const source = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace("return form.binding === 'summary' && Boolean(binding)",
+    "return form.binding === 'summary' && !pending.gitBinding"));
+  assert.ok(!rehearsalCopy.includes("return form.binding === 'summary' && Boolean(binding)"));
+  const match = source.match(/\/\/ A9_W39_ASSERTION_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_ASSERTION_HELPERS_END/);
+  const { w39GitBindingMatches } = vm.runInNewContext(`(function () { ${match[1]} return { w39GitBindingMatches }; })()`);
+  const pending = { approvalId: 'apr', bindingDigest: 'a'.repeat(64), gitBinding: { commandSha256: 'b'.repeat(64) } };
+  assert.equal(!pending.gitBinding, false, 'pre-rehearsal summary rule rejects the real G04 binding');
+  assert.equal(w39GitBindingMatches({ binding: 'summary' }, pending), true);
+  assert.equal(w39GitBindingMatches({ binding: 'summary' }, { ...pending, gitBinding: { ...pending.gitBinding, remote: 'origin' } }), false);
+  assert.equal(w39GitBindingMatches({ binding: 'summary' }, { ...pending, gitBinding: { commandSha256: 'bad' } }), false);
+});
+
+test('W39 R3-4 and R3-5 fixture ordering and event-bound terminal source gate reject rehearsal forms', () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const problems = (s, d) => {
+    const result = [];
+    if (!s.includes("prompt === 'edit the small file' && !tools.includes('read')")
+      || !s.includes("tool: { name: 'read', args: { path: 'small.txt' } }")) result.push('R3-4');
+    const w39Driver = d.slice(d.indexOf('// W39 / A9-23 旅程'));
+    if (!s.includes("if (match && !tools.includes('read'))") || !s.includes("args: { path: 'counter.ts' }")
+      || w39Driver.includes('snapshot.conversation') || w39Driver.includes('w39FactsCount')
+      || !w39Driver.includes("event.eventType === 'turn_started'")
+      || !w39Driver.includes("event.eventType === 'turn_completed' || event.eventType === 'turn_failed'")) result.push('R3-5');
+    return result;
+  };
+  assert.deepEqual(problems(smoke, driver), []);
+  assert.ok(problems(w39TemporarySourceCopy(smoke.replace("prompt === 'edit the small file' && !tools.includes('read')", 'false')), driver).includes('R3-4'));
+  assert.ok(problems(w39TemporarySourceCopy(smoke.replace("if (match && !tools.includes('read'))", 'if (false)')), driver).includes('R3-5'));
+  assert.ok(problems(smoke, w39TemporarySourceCopy(driver.replace("event.eventType === 'turn_started'", 'snapshot.conversation.length > beforeFacts'))).includes('R3-5'));
+  const match = driver.match(/\/\/ A9_W39_TURN_EVENT_HELPERS_BEGIN([\s\S]*?)\/\/ A9_W39_TURN_EVENT_HELPERS_END/);
+  const helpers = vm.runInNewContext(`(function () { ${match[1]} return { w39FindStartedTurn, w39FindTerminalTurn }; })()`);
+  const events = [
+    { eventId: 1, turnId: 'old', eventType: 'turn_started' },
+    { eventId: 2, turnId: 'new', eventType: 'turn_started' },
+    { eventId: 3, turnId: 'old', eventType: 'turn_completed', payload: { data: { outcome: 'completed' } } },
+    { eventId: 4, turnId: 'new', eventType: 'turn_failed', payload: { data: { outcome: 'failed' } } },
+  ];
+  const started = helpers.w39FindStartedTurn(events, 1);
+  assert.equal(started.turnId, 'new');
+  assert.equal(helpers.w39FindTerminalTurn(events, started).outcome, 'failed');
+});
+
+test('W39 R3-7 required summary separates missing from present-not-passed', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const match = source.match(/\/\/ A9_W39_REQUIRED_SUMMARY_BEGIN([\s\S]*?)\/\/ A9_W39_REQUIRED_SUMMARY_END/);
+  assert.ok(match);
+  const fn = vm.runInNewContext(`(function () { ${match[1]} return w39RequiredAssertionSummary; })()`);
+  const result = fn(['missing', 'failed', 'passed'], [{ id: 'failed', passed: false }, { id: 'passed', passed: true }]);
+  assert.deepEqual(Array.from(result.missing), ['missing']);
+  assert.deepEqual(Array.from(result.presentNotPassed), ['failed']);
+  const sourceProblems = (copy) => [
+    !copy.includes('PRESENT_NOT_PASSED: requiredSummary.presentNotPassed'),
+    copy.includes('`MISSING:${missingRequiredAssertions.join'),
+  ].filter(Boolean);
+  assert.deepEqual(sourceProblems(source), []);
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace('PRESENT_NOT_PASSED: requiredSummary.presentNotPassed',
+    '`MISSING:${missingRequiredAssertions.join'));
+  assert.ok(sourceProblems(rehearsalCopy).length > 0, 'R3-7 injected MISSING-only summary must fail');
+});
+
+test('W39 R3-6 M4 seed is visible through the real runtime and all 2500 events page back', async () => {
+  const smoke = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W39_DRIVER_PATH, 'utf8');
+  const seedContractProblems = (source, driverSource) => [
+    !source.includes("manager.recordModelEvent('w39-m4-seed-session', null, 'conversation.request', {"),
+    !source.includes('schemaVersion: 1, taskId, requestPrompt:'),
+    !source.includes('const M4_BULK_STEPS = 20;'),
+    !driverSource.includes("terminal.outcome === 'completed' && turnEventCount >= 50"),
+  ].filter(Boolean);
+  assert.deepEqual(seedContractProblems(smoke, driver), []);
+  assert.ok(seedContractProblems(w39TemporarySourceCopy(smoke.replace("manager.recordModelEvent('w39-m4-seed-session', null, 'conversation.request', {",
+    "manager.recordModelEvent('w39-m4-seed-session', turnId, 'model_note', {")), driver).length > 0,
+  'R3-6 injected seed without request facts must fail');
+  assert.ok(seedContractProblems(w39TemporarySourceCopy(smoke.replace('const M4_BULK_STEPS = 20;', 'const M4_BULK_STEPS = 55;')), driver).length > 0,
+    'R3-6 injected 55-step eviction must fail');
+  assert.ok(seedContractProblems(smoke, w39TemporarySourceCopy(driver.replaceAll("terminal.outcome === 'completed' && turnEventCount >= 50", 'true'))).length > 0,
+    'R3-6 injected no-event-minimum driver must fail');
+
+  const { A9PersistenceManager } = require(path.join(process.cwd(), 'src/state/dist/a9-persistence.js'));
+  const { canonicalizeWorkspacePath } = require(path.join(process.cwd(), 'src/core/dist/index.js'));
+  const { createA9AgentRuntime } = require(path.join(process.cwd(), 'src/shell/product/a9-agent-runtime.js'));
+  const openDatabase = (file, options) => new Database(file, options && options.readonly ? { readonly: true } : {});
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w39-m4-runtime-'));
+  const workspaceRoot = path.join(root, 'workspace 中文');
+  const dataRoot = path.join(root, 'data 中文');
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  fs.mkdirSync(dataRoot, { recursive: true });
+  const sessionId = 'w39-m4-seed-session';
+  let runtime;
+  try {
+    const outcome = A9PersistenceManager.open({ databasePath: path.join(dataRoot, 'a9-state.db'), openDatabase, dataRoot });
+    assert.equal(outcome.status, 'ready');
+    const manager = outcome.manager;
+    manager.saveSession(sessionId, canonicalizeWorkspacePath(workspaceRoot), { title: 'w39 m4 集合上限' });
+    manager.activateConversation(canonicalizeWorkspacePath(workspaceRoot), sessionId);
+    for (let index = 1; index <= 2500; index += 1) {
+      const turnNumber = Math.floor((index - 1) / 250) + 1;
+      const taskId = `w39-m4-seed-task-${String(turnNumber).padStart(3, '0')}`;
+      const turnId = `w39-m4-seed-turn-${String(turnNumber).padStart(3, '0')}`;
+      if ((index - 1) % 250 === 0) {
+        manager.upsertTask(taskId, sessionId, 'completed');
+        manager.recordModelEvent(sessionId, null, 'conversation.request', {
+          schemaVersion: 1, taskId, requestPrompt: `w39 m4 seed turn ${turnNumber}`,
+        });
+        manager.upsertTurn(turnId, taskId, sessionId, 'completed',
+          { outcome: 'completed', verification: 'not_applicable' });
+      }
+      if (index % 2 === 1) manager.recordModelEvent(sessionId, turnId, 'model_note', { content: `m4 seed note ${index}`, step: index });
+      else manager.recordToolEvent(sessionId, turnId, 'tool_end',
+        { toolName: 'search', callId: `w39-m4-${index}`, step: index, result: `m4 seed result ${index}` });
+    }
+    const perTurn = manager.db.prepare("SELECT turn_id, COUNT(*) AS n FROM a9_events WHERE turn_id LIKE 'w39-m4-seed-turn-%' GROUP BY turn_id").all();
+    assert.equal(perTurn.length, 10);
+    assert.ok(perTurn.every((row) => row.n === 250 && row.n <= 450));
+    manager.db.close();
+
+    runtime = createA9AgentRuntime({ workspaceRoot, dataRoot, openDatabase });
+    const snapshot = runtime.getSnapshot({ conversationPage: true });
+    assert.equal(snapshot.status, 'ready');
+    assert.equal(snapshot.activeConversationId, sessionId);
+    assert.equal(snapshot.conversation.length, 10);
+    assert.ok(snapshot.conversation.every((fact) => fact.requestPrompt.startsWith('w39 m4 seed turn ')));
+    const seen = new Set();
+    let beforeEventId;
+    do {
+      const page = runtime.queryEvents({ conversationId: sessionId, limit: 400,
+        ...(beforeEventId === undefined ? {} : { beforeEventId }) });
+      assert.equal(page.ok, true);
+      assert.ok(page.events.length > 0);
+      for (const event of page.events) {
+        if (event.turnId && event.turnId.startsWith('w39-m4-seed-turn-')) seen.add(event.eventId);
+      }
+      beforeEventId = page.events[0].eventId;
+      if (!page.hasMore) break;
+    } while (true);
+    assert.equal(seen.size, 2500);
+  } finally {
+    if (runtime) await runtime.shutdown();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('W39 R3-8 Git resolver chooses argument, MinGit, where and records no-Git without PATH mutation', () => {
+  const source = fs.readFileSync(W39_SMOKE_PATH, 'utf8');
+  const match = source.match(/\/\/ A9_W39_GIT_RESOLVE_BEGIN([\s\S]*?)\/\/ A9_W39_GIT_RESOLVE_END/);
+  assert.ok(match);
+  const createResolver = (present) => {
+    const calls = [];
+    const fakeChildProcess = { spawnSync(exe) {
+      calls.push(exe);
+      return exe === 'where' ? { status: 0, stdout: 'C:\\tools\\git.exe\r\n' }
+        : { status: 0, stdout: 'git version 2.46.2.windows.1' };
+    } };
+    const fn = vm.runInNewContext(`(function () { ${match[1]} return w39ResolveGitExecutable; })()`,
+      { path: path.win32, fs: { existsSync: (value) => present.includes(value) }, childProcess: fakeChildProcess });
+    return { fn, calls };
+  };
+  const explicit = createResolver(['C:\\chosen\\git.exe', 'C:\\acceptance\\mvp_mingit\\cmd\\git.exe']);
+  assert.equal(explicit.fn('C:\\chosen\\git.exe').source, 'git-exe-argument');
+  assert.deepEqual(explicit.calls, ['C:\\chosen\\git.exe']);
+  assert.equal(createResolver(['C:\\acceptance\\mvp_mingit\\cmd\\git.exe']).fn('').source, 'mvp-mingit');
+  assert.equal(createResolver(['C:\\tools\\git.exe']).fn('').source, 'where-git');
+  assert.equal(createResolver([]).fn('').source, 'NOT_PERFORMED_NO_GIT');
+  const sourceProblems = (copy) => [
+    !copy.includes("const gitSelection = w39ResolveGitExecutable(argument('git-exe'));"),
+    copy.includes("spawnSync('git', ['--version']"),
+    copy.includes('process.env.PATH =') || copy.includes('childEnv.PATH ='),
+  ].filter(Boolean);
+  assert.deepEqual(sourceProblems(source), []);
+  const rehearsalCopy = w39TemporarySourceCopy(source.replace("const gitSelection = w39ResolveGitExecutable(argument('git-exe'));",
+    "const gitAvailable = childProcess.spawnSync('git', ['--version'], { windowsHide: true }).status === 0;"));
+  assert.ok(sourceProblems(rehearsalCopy).length > 0, 'R3-8 injected PATH-dependent Git probe must fail');
 });
 
 test('W39 build rejects injected stale W37 candidate-scoped tokens (handoff item 8a)', () => {

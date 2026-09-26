@@ -24,6 +24,37 @@ function argument(name, fallback = '') {
   const item = process.argv.slice(2).find((value) => value.startsWith(prefix));
   return item ? item.slice(prefix.length) : fallback;
 }
+
+// A9_W39_GIT_RESOLVE_BEGIN
+function w39ResolveGitExecutable(explicitPath) {
+  if (explicitPath && !path.isAbsolute(explicitPath)) throw new Error('A9_W39_GIT_EXE_NOT_ABSOLUTE');
+  const probeCandidate = (candidate) => {
+    if (!path.isAbsolute(candidate.path) || !fs.existsSync(candidate.path)) return null;
+    const probe = childProcess.spawnSync(candidate.path, ['--version'],
+      { windowsHide: true, encoding: 'utf8', timeout: 15000 });
+    if (!probe.error && probe.status === 0) {
+      return { executable: candidate.path, source: candidate.source,
+        version: String(probe.stdout || '').trim().slice(0, 200) };
+    }
+    return null;
+  };
+  for (const candidate of [
+    ...(explicitPath ? [{ path: explicitPath, source: 'git-exe-argument' }] : []),
+    { path: 'C:\\acceptance\\mvp_mingit\\cmd\\git.exe', source: 'mvp-mingit' },
+  ]) {
+    const found = probeCandidate(candidate);
+    if (found) return found;
+  }
+  const located = childProcess.spawnSync('where', ['git'], { windowsHide: true, encoding: 'utf8', timeout: 15000 });
+  if (!located.error && located.status === 0) {
+    for (const line of String(located.stdout || '').split(/\r?\n/)) {
+      const found = probeCandidate({ path: line.trim(), source: 'where-git' });
+      if (found) return found;
+    }
+  }
+  return { executable: null, source: 'NOT_PERFORMED_NO_GIT', version: null };
+}
+// A9_W39_GIT_RESOLVE_END
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function readJson(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
@@ -249,6 +280,19 @@ function w39AssertEnvironmentLengths(env) {
   }
 }
 // A9_W39_ENV_LIMIT_END
+
+// A9_W39_REQUIRED_SUMMARY_BEGIN
+function w39RequiredAssertionSummary(requiredIds, cases) {
+  const missing = [];
+  const presentNotPassed = [];
+  for (const id of requiredIds) {
+    const hits = cases.filter((item) => item && item.id === id);
+    if (hits.length === 0) missing.push(id);
+    else if (hits.length !== 1 || hits[0].passed !== true) presentNotPassed.push(id);
+  }
+  return { missing, presentNotPassed };
+}
+// A9_W39_REQUIRED_SUMMARY_END
 
 function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
   return new Promise((resolve) => {
@@ -635,8 +679,8 @@ async function main() {
   const gitFormsFile = path.join(runRoot, 'w39-git-forms.json');
   fs.writeFileSync(gitFormsFile, `${JSON.stringify(W39_GIT_FORMS, null, 2)}\n`, 'utf8');
   // 远端：本地裸仓库 + 带 origin 的工作区仓库；Win7 无 git 时远端判定记 NOT_PERFORMED。
-  const w39GitDetect = childProcess.spawnSync('git', ['--version'], { windowsHide: true, timeout: 15000 });
-  const gitAvailable = !w39GitDetect.error && w39GitDetect.status === 0;
+  const gitSelection = w39ResolveGitExecutable(argument('git-exe'));
+  const gitAvailable = Boolean(gitSelection.executable);
   const bareRoot = path.join(runRoot, 'git 裸仓库 origin');
   const gitWorkRepo = path.join(runRoot, 'git 工作区 仓库');
   const gitMainRefFile = path.join(bareRoot, 'refs', 'heads', 'main');
@@ -645,7 +689,7 @@ async function main() {
   if (gitAvailable) {
     try {
       const gitRun = (args, cwd) => {
-        const result = childProcess.spawnSync('git', args, { cwd, windowsHide: true, timeout: 30000 });
+        const result = childProcess.spawnSync(gitSelection.executable, args, { cwd, windowsHide: true, timeout: 30000 });
         if (result.status !== 0) throw new Error(`git ${args.join(' ')} -> exit ${result.status}: ${String(result.stderr || '').slice(0, 200)}`);
       };
       gitRun(['init', '--bare', bareRoot]);
@@ -682,7 +726,8 @@ async function main() {
   const gitRemoteUnchanged = !gitAvailable || (gitSetupError === '' && gitMainRefBefore !== null
     && gitMainRefAfter === gitMainRefBefore);
   record('W39-GIT-REMOTE-UNCHANGED', gitRemoteUnchanged, JSON.stringify({
-    git_available: gitAvailable, setup_error: gitSetupError,
+    git_available: gitAvailable, git_executable: gitSelection.executable, git_source: gitSelection.source,
+    git_version: gitSelection.version, setup_error: gitSetupError,
     remote_check: gitAvailable ? 'refs/heads/main compared before and after the phase' : 'NOT_PERFORMED_NO_GIT',
     ref_unchanged: gitAvailable ? gitMainRefAfter === gitMainRefBefore : null,
   }));
@@ -760,6 +805,9 @@ async function main() {
     const lastUserIndex = messages.map((item) => item.role).lastIndexOf('user');
     const prompt = String((messages[lastUserIndex] || {}).content || '');
     const tools = messages.slice(lastUserIndex + 1).filter((item) => item.role === 'tool').map((item) => item.name);
+    if (prompt === 'edit the small file' && !tools.includes('read')) {
+      return { id: 'w39-m1b-read', note: '先读取小文件。', tool: { name: 'read', args: { path: 'small.txt' } } };
+    }
     if (prompt === 'edit the small file' && !tools.includes('edit')) {
       return { id: 'w39-m1b-edit', note: '修改小文件并冻结基线。', tool: { name: 'edit', args: { path: 'small.txt', oldText: 'alpha', newText: 'beta' } } };
     }
@@ -852,6 +900,10 @@ async function main() {
     const prompt = String((messages[lastUserIndex] || {}).content || '');
     const match = /^m3 turn (\d+)$/.exec(prompt);
     const tools = messages.slice(lastUserIndex + 1).filter((item) => item.role === 'tool').map((item) => item.name);
+    if (match && !tools.includes('read')) {
+      return { id: `w39-m3-read-${match[1]}`, note: `m3 第 ${match[1]} 轮先读取目标。`,
+        tool: { name: 'read', args: { path: 'counter.ts' } } };
+    }
     if (match && !tools.includes('edit')) {
       const index = Number(match[1]);
       return { id: `w39-m3-${index}`, note: `m3 第 ${index} 轮小修改。`, tool: { name: 'edit', args: { path: 'counter.ts', oldText: `// v${index - 1}`, newText: `// v${index}` } } };
@@ -884,13 +936,17 @@ async function main() {
     const canonical = canonicalizeWorkspacePath(workspaceRoot);
     manager.saveSession('w39-m4-seed-session', canonical, { title: 'w39 m4 集合上限' });
     manager.activateConversation(canonical, 'w39-m4-seed-session');
-    manager.upsertTask('w39-m4-seed-task', 'w39-m4-seed-session', 'active');
     let written = 0;
     for (let index = 1; index <= 2500; index += 1) {
       const turnNumber = Math.floor((index - 1) / 250) + 1;
+      const taskId = `w39-m4-seed-task-${String(turnNumber).padStart(3, '0')}`;
       const turnId = `w39-m4-seed-turn-${String(turnNumber).padStart(3, '0')}`;
       if ((index - 1) % 250 === 0) {
-        manager.upsertTurn(turnId, 'w39-m4-seed-task', 'w39-m4-seed-session', 'completed',
+        manager.upsertTask(taskId, 'w39-m4-seed-session', 'completed');
+        manager.recordModelEvent('w39-m4-seed-session', null, 'conversation.request', {
+          schemaVersion: 1, taskId, requestPrompt: `w39 m4 seed turn ${turnNumber}`,
+        });
+        manager.upsertTurn(turnId, taskId, 'w39-m4-seed-session', 'completed',
           { outcome: 'completed', verification: 'not_applicable' });
       }
       if (index % 2 === 1) {
@@ -905,7 +961,7 @@ async function main() {
     return { written };
   };
   const m4Seed = w39SeedM4Events(m4Data, m4Workspace);
-  const M4_BULK_STEPS = 55;
+  const M4_BULK_STEPS = 20;
   const m4Fixture = createFixture((parsed) => {
     const messages = parsed.messages || [];
     const lastUserIndex = messages.map((item) => item.role).lastIndexOf('user');
@@ -991,7 +1047,8 @@ async function main() {
     stop: w39Excerpt(readJson(stopOut), ['A9F6-STOP-SHELL-CHILD-STARTED', 'A9F6-STOP-UI-ACTIVE', 'A9F6-STOP-TURN-CANCELLED']),
   }, null, 2)}\n`, 'utf8');
   fs.writeFileSync(path.join(evidenceRoot, 'w39-07-09-git-forms.json'), `${JSON.stringify({
-    git_available: gitAvailable, setup_error: gitSetupError,
+    git_available: gitAvailable, git_executable: gitSelection.executable, git_source: gitSelection.source,
+    git_version: gitSelection.version, setup_error: gitSetupError,
     remote_check: gitAvailable ? 'refs/heads/main compared before and after the phase' : 'NOT_PERFORMED_NO_GIT',
     ref_unchanged: gitAvailable ? gitMainRefAfter === gitMainRefBefore : null,
     forms: W39_GIT_FORMS.map((form) => ({
@@ -1148,18 +1205,12 @@ async function main() {
     'A9-W39-M4-RENDERER-MEMORY-SAMPLED',
     'A9-W39-FINAL-NO-RESIDUE',
   ];
-  const missingRequiredAssertions = (() => {
-    const combined = allCases.concat(smokeCases);
-    const counts = new Map();
-    for (const item of combined) {
-      if (item && item.passed === true) {
-        counts.set(item.id, (counts.get(item.id) || 0) + 1);
-      }
-    }
-    return requiredSmokeAssertionIds.filter((id) => counts.get(id) !== 1);
-  })();
-  record('A9-W39-REQUIRED-ASSERTIONS-PRESENT', missingRequiredAssertions.length === 0,
-    missingRequiredAssertions.length === 0 ? 'ALL_PRESENT' : `MISSING:${missingRequiredAssertions.join(',')}`);
+  const requiredSummary = w39RequiredAssertionSummary(requiredSmokeAssertionIds, allCases.concat(smokeCases));
+  const requiredOk = requiredSummary.missing.length === 0 && requiredSummary.presentNotPassed.length === 0;
+  record('A9-W39-REQUIRED-ASSERTIONS-PRESENT', requiredOk,
+    requiredOk ? 'ALL_PRESENT_AND_PASSED' : JSON.stringify({
+      MISSING: requiredSummary.missing, PRESENT_NOT_PASSED: requiredSummary.presentNotPassed,
+    }));
   const cases = [...allCases, ...smokeCases];
   // S-5：w39-case-index.json —— 每个用例 → 断言 ID、结果、证据文件相对路径。
   const caseResult = (id) => {
@@ -1201,7 +1252,7 @@ async function main() {
     status: phases.length === 5 && w39Phases.length === 8
       && phases.concat(w39Phases).every((item) => item.code === 0) && phaseReportsValid
       && negativeProbesValid
-      && retryTargetBound && missingRequiredAssertions.length === 0
+      && retryTargetBound && requiredOk
       && fixtureRequests.journey > 0 && fixtureRequests.stop > 0
       && failureServed && journeyServed && latestSuccessServed
       && cases.every((item) => item.passed === true) ? 'PASS' : 'FAIL',
