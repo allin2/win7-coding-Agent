@@ -174,3 +174,10 @@ shell 测试须在 state 构建之后运行（运行时加载 `state/dist`）。
 ### 9.4 验收方将检查
 
 相对 `106e650` 只改 `src/state/tests/**`；验收方自行复做 9.3 第 1 项；§8 其余各项继续成立。
+
+### 9.5 第二轮结论（2026-09-26，`ab5e792`，通过，已并回）
+
+- 相对 `106e650` 只改 `src/state/tests/a9-21-checkpoint-pagination.test.ts`：同一时刻 7 条记录按字节序逆序插入，页长 1 与 3 连续翻页逐条核对。
+- 验收方复测：两处排序去掉 `turn_id`、或只去掉分页查询的 `turn_id`，该用例均失败；state 305、shell 432 项通过。
+- 以 `--no-ff` 合并入 `codex/a9-alpha2`（`6dc75d0`），合并后 state 构建与全量测试、shell 全量测试、`verify:quick` 通过。
+  真实 Electron 冒烟与 Win7 实机未执行。
