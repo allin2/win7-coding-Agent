@@ -110,9 +110,17 @@ Decision: ADR-0142
   不需要联网。若构建发现缺失或哈希不符，停止并报告。
 - **Q3 PowerShell `/Command` 形态**：A9-20 §6 标为待验证；W39 只记录分类与确认结果，Win7 PowerShell 5.1 是否真正执行该形态以实机观察为准。
 
-## 8. 候选身份（冻结后填写）
+## 8. 候选身份（2026-09-27 冻结）
 
-未冻结。
+| 项 | 值 |
+|---|---|
+| 源码提交 | `7ec9db7a4111ad162b06dc3afed652a9614970c4`（`source_dirty=false`、`external_acceptance_eligible=true`） |
+| ZIP | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`，101,414,183 B，SHA-256 `6bf586e764f18947f52227ff9e321c60091e0410ed7a84061979e49d10cad9e5` |
+| manifest SHA-256 | `1388bebc54790f03cb52f9e2a1617b9d9fbcabfe5667ed448550c5d69df6f420`（790 文件） |
+| input lock SHA-256 | `a3decbc5ebeb93f9b241ac47a557991857f8bf4f95e41a8d1513bcc737643b48`（与仓库同名文件逐字节一致） |
+| Kit | `A9-23-WIN7-39-20260926-01`，15 项，`A9_23_VALIDATION_KIT.json` SHA-256 `3c946a0f56b1d8c02dfed90310a10f9ff20b8de9a523c6c73eba6ffcc8e7aad8` |
+| 冻结位置 | 本机 `.acceptance/candidates/WIN7-39/`（只读；`IDENTITY.sha256`、`DOUBLE_BUILD.json`） |
+| authority 草稿 | `.acceptance/runs/A9-23-W39/b0ebcf98-1697-431d-9ca5-22ac26ff2a67/authority/`，run-id `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`，目标 `192.168.1.3`；待负责人签发（门 A） |
 
 ## 9. 执行记录
 
@@ -144,3 +152,7 @@ Decision: ADR-0142
 - 2026-09-27：第 2 步完成：编写[正式实机交接书](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)（`DRAFT_PENDING_FREEZE`），补齐取证缺口：
   G0 本机与 Win7 端哈希复算、agent 会话进程基线、后飞行带命令行与父 PID 的进程表、计划任务删除原始输出、`SHA256SUMS.txt` 覆盖 scripts/authority/RUN_LOG/报告；
   计划任务 XML 以 CP936 注册（预演 K7），回读所得已注册 XML 另存 UTF-16LE 副本并登记；回读门与自检沿用预演交接书附录 B。下一步第 4 步双构建冻结。
+- 2026-09-27：第 4 步完成：从 `7ec9db7` 在两个独立干净工作树（`win7-w39-freeze-a`/`-b`，detached）构建，三项输入哈希与输入锁一致，ZIP 与构建结果逐字节一致，
+  冻结于 `.acceptance/candidates/WIN7-39/`（§8）。包内 smoke 与输入锁与仓库逐字节一致。候选自带完整性校验在开发机对草稿 authority：身份与全树核对通过
+  （790/791，零差异；运行时 ABI 项因开发机 Node ABI 115 按预期失败，Win7 以 Electron ABI 110 运行）；错误 pin 报 `A9_W39_AUTHORITY_PIN_MISMATCH`，
+  篡改 ZIP 与错误候选绑定报 `A9_W39_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 15 项模板、错误 pin 被拒。以上为开发机预检，不是 Win7 结果。

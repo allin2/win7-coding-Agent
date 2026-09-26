@@ -1,7 +1,7 @@
 # A9-23 / WIN7-39 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: DRAFT_PENDING_FREEZE（§3 待双构建冻结与门 A 签发后填写，届时改为 READY_FOR_EXECUTION）
+Status: DRAFT_PENDING_AUTHORITY（候选已冻结；待负责人签发 authority（门 A）后改为 READY_FOR_EXECUTION）
 Scope: A9-23 WIN7-39 换发与实机验收（A9-20 Git 确认分类器绕过修复 + A9-21 运行时加固移植；W39 验证套件）
 Executor: 外部执行模型（负责人指定）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）
@@ -17,7 +17,7 @@ Owner: 项目负责人（签发候选外授权、最终裁决）
 |---|---|---|
 | A. 换发依据（ADR-0142、A9-23 任务书、C14 路径） | 审核方起草，负责人批准 | 已完成 |
 | B. W39 验证套件修复 | 外部执行方实现，审核方验收 | 已完成：五轮返工、三次 Win7 预演（`REHEARSAL_NOT_ELIGIBLE`），套件 `e0e8da6` 于 `7ec9db7` 并入 `codex/a9-alpha2`（[套件修复交接书](A9_23_W39_KIT_REPAIR_HANDOFF.md) §7～§14） |
-| C. 双独立干净构建与冻结 | 审核方 | 待执行（A9-23 §6 第 4 步） |
+| C. 双独立干净构建与冻结 | 审核方 | 已完成（2026-09-27，A9-23 §8） |
 | D. 候选外 `WIN7_39_RELEASE_AUTHORITY` 与独立 SHA-256 pin | 负责人 | 待签发（门 A） |
 | **E. Win7 实机执行与取证（本文 §4～§8）** | **执行方** | 前置条件满足后开始 |
 | F. 证据审核、正式报告组装与 Win7 报告校验 | 审核方；负责人裁决（门 B） | 实机执行后 |
@@ -36,17 +36,17 @@ K12 由 R5-1 修复并以该次预演的真实产出在开发机重放证明，�
    输入锁、目标主机与 run-id；`.sha256` 与 authority 实际哈希一致。
 4. 负责人已在 Win7 控制台以 `agent` 登录（`query user` 显示 `agent` 为 `console`、状态“运行中”）。
 
-## 3. 候选身份（由审核方在冻结与签发后填写）
+## 3. 候选身份（2026-09-27 冻结）
 
 | 项 | 值 |
 |---|---|
 | 候选 ID | WIN7-39 |
-| 源码提交 | （冻结后填写） |
-| ZIP 文件名 / SHA-256 / 字节数 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` /（冻结后填写） |
-| manifest SHA-256 | （冻结后填写） |
-| input lock SHA-256 | （冻结后填写） |
-| authority SHA-256 | （签发后填写） |
-| run-id（已绑定在 authority 中，不得另起） | （签发后填写） |
+| 源码提交 | `7ec9db7a4111ad162b06dc3afed652a9614970c4` |
+| ZIP 文件名 / SHA-256 / 字节数 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / `6bf586e764f18947f52227ff9e321c60091e0410ed7a84061979e49d10cad9e5` / 101,414,183 B（本机 `.acceptance/candidates/WIN7-39/`） |
+| manifest SHA-256 | `1388bebc54790f03cb52f9e2a1617b9d9fbcabfe5667ed448550c5d69df6f420` |
+| input lock SHA-256 | `a3decbc5ebeb93f9b241ac47a557991857f8bf4f95e41a8d1513bcc737643b48` |
+| authority SHA-256 | 签发时填写（草稿 `approved_at` 待负责人签发时间写入后重算；独立 pin 为同目录 `release-authority.json.sha256`） |
+| run-id（已绑定在 authority 中，不得另起） | `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`（Win7 运行根取前 8 位 `b0ebcf98`） |
 | 本机运行目录 | `.acceptance/runs/A9-23-W39/<run-id>/`（下称 `<L>`）；authority 与锁文件在 `<L>/authority/` |
 | 目标主机（已绑定在 authority 中） | `192.168.1.3`；地址变化时停止并请负责人重签 authority |
 | 完整性命令 / 报告命令 / smoke | `RUN_A9_23_W39_INTEGRITY.cmd` / `RUN_WIN7_39_REPORT_VERIFY.cmd` / `validation\a9-win7-39-smoke.cjs`（候选内 `A9_23_WIN7_39_VALIDATION.md`） |
