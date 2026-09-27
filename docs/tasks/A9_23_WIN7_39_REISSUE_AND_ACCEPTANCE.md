@@ -160,3 +160,5 @@ Decision: ADR-0142
   候选自带校验对签发版 authority 的身份与全树核对通过，草稿 pin 被拒（开发机预检）。实机交接书改为 `READY_FOR_EXECUTION`。
 - 2026-09-27：第 6 步第一段：G0-1～G0-4 与 G1 完成（G1 `status=PASS`，790/791 零差异，Electron 22.3.27/ABI 110，`agent` Medium），G2 前因交接书完整性报告路径与候选实际路径不一致停止。
   审核方裁决为交接书路径错误（ZIP 含顶层目录，候选根为 `package\Win7CodingAgent-0.3.0-alpha.1-win7-x64\`），非候选缺陷；G1 证据有效不重跑，G2 按[实机交接书附录 A](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)续跑。
+- 2026-09-27：G2 续跑完成：smoke 退出码 0、`status=PASS`，13 个阶段与 181 条断言全部通过，零残留、未强杀，秘密扫描零真实命中。
+  第 7 步审核完成，见[审核报告](../reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md)：15 项满足判定要点，建议组装正式报告并在 Win7 复核后进入门 B；已知限制 4 条。
