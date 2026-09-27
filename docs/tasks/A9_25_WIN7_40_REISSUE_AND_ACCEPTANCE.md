@@ -71,9 +71,17 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 - **Q2 W40-22 的 DPI**：不修改验收机系统设置；是否需要另行安排 125% DPI 的会话，由负责人决定。
 - **Q3 回归范围**：建议 W40-01～15 全量回归（自动运行，增量成本低）；替代方案是只跑 A9-24 相关用例，但会失去对 A9-20/A9-21 在新候选上的回归证据。
 
-## 7. 候选身份（冻结后填写）
+## 7. 候选身份（2026-09-27 冻结，待门 A）
 
-未冻结。
+| 项 | 值 |
+|---|---|
+| 源码提交 | `64fd3a7490a320ae8d185089da946ba8d68a5fdb`（`source_dirty=false`、`external_acceptance_eligible=true`） |
+| ZIP | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`，101,441,102 B，SHA-256 `f14b7992370032d77daf042a23fd3b093c963522b2c401aace4f5276074158fb` |
+| manifest SHA-256 | `4d499d7390bfd9748e2ae89b5ff16e925ae1a1b14ed24b1f358f62d81ebe888f`（790 文件） |
+| input lock SHA-256 | `cadf215a19bc0d1c45fe63139bb0a8864305ed61733a1a6660315c92d0d82a20`（与仓库同名文件及包内副本逐字节一致） |
+| Kit | `A9-25-WIN7-40-20260926-01`，22 项，`A9_25_VALIDATION_KIT.json` SHA-256 `353bb9a3c6a1362a7181e82a0a3b87523fea1d4a7b4729e9d0ae19a6795b998f`，`result_on_complete` 为 `A9_25_WIN7_40_A9_24_PASS` |
+| 冻结位置 | 本机 `.acceptance/candidates/WIN7-40/`（只读；`IDENTITY.sha256`、`DOUBLE_BUILD.json`）；门 A 前撤回的 `3a2ecdb` 冻结保留于 `.acceptance/candidates/_superseded/WIN7-40-3a2ecdb/` |
+| authority | 待门 A |
 
 ## 8. 执行记录
 
@@ -101,3 +109,6 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
   门 A 前撤回该冻结（移至 `.acceptance/candidates/_superseded/WIN7-40-3a2ecdb/`，不消耗候选编号），第五轮套件返工见[套件交接书 §7.6](../plans/A9_25_W40_KIT_HANDOFF.md)，修复后重新冻结。
 - 2026-09-27：套件第五轮返工（`9bca1f5`、`f355e0c`：报告种类改为 A9-24 口径，PASS 处置取自 Kit `result_on_complete`，残留守卫增加 `A9_20_A9_21`）经验收方复核通过，
   包测试 85/85，负向对照（处置改回字面量）有效；于 `908f0f2` 并入 alpha2。从本记录所在提交重新双构建冻结。
+- 2026-09-27：第 4 步完成：从 `64fd3a7` 在两个独立干净工作树（`win7-w40-freeze-a`/`-b`，detached）构建，三项输入哈希与输入锁一致，ZIP 与构建结果逐字节一致，冻结于 `.acceptance/candidates/WIN7-40/`（§7）。
+  包内 smoke、完整性脚本、报告器、两个 `.cmd` 与输入锁与仓库逐字节一致，报告种类为 `A9_25_WIN7_40_A9_24_ACCEPTANCE`。开发机预检（草稿 authority，非签发件）：身份与全树核对零差异（790/791），
+  运行时 ABI 项因开发机 Node ABI 115 按预期失败；错误 pin 报 `A9_W40_AUTHORITY_PIN_MISMATCH`，篡改 ZIP 与错误候选绑定报 `A9_W40_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 22 项模板、错误 pin 被拒。以上不是 Win7 结果。下一步第 5 步门 A。
