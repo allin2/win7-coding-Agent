@@ -270,13 +270,17 @@ function createW40ReviewFixture() {
   });
 }
 
-function createW40ReviewModeFixture() {
+function createW40ReviewModeFixture(toolResultPath) {
   return createFixture((parsed) => {
     const messages = parsed.messages || [];
     const lastUserIndex = messages.map((item) => item.role).lastIndexOf('user');
     const calls = messages.slice(lastUserIndex + 1).filter((item) => item.role === 'tool');
     if (calls.length === 0) return { id: 'a925-review-denied', tool: { name: 'write', args: { path: 'review-denied.txt', content: 'must not appear\n' } } };
     const response = String(calls[0].content || '');
+    if (String(messages[lastUserIndex]?.content || '') === 'w40 review mode write')
+      fs.writeFileSync(toolResultPath, `${JSON.stringify({ source: 'product provider request tool messages',
+      prompt: String(messages[lastUserIndex]?.content || ''),
+      toolResults: calls.map((item) => ({ role: item.role, name: item.name, content: String(item.content || '') })) }, null, 2)}\n`, 'utf8');
     return { content: response.slice(0, 500) };
   });
 }
@@ -349,7 +353,33 @@ function w40RequiredAssertionSummary(requiredIds, cases) {
 }
 // A9_W40_REQUIRED_SUMMARY_END
 
+function w40PhaseClock() {
+  const clock = { wallMs: null, monotonicNs: null, errors: [] };
+  try { clock.wallMs = Date.now(); } catch (_error) { clock.errors.push('WALL_CLOCK_READ_ERROR'); }
+  try { clock.monotonicNs = process.hrtime.bigint(); } catch (_error) { clock.errors.push('MONOTONIC_CLOCK_READ_ERROR'); }
+  return clock;
+}
+
+function w40PhaseTiming(started, ended) {
+  const timing = { started_at: null, ended_at: null, duration_ms: null };
+  const errors = [...(started?.errors || []), ...(ended?.errors || [])];
+  for (const [name, value] of [['started_at', started?.wallMs], ['ended_at', ended?.wallMs]]) {
+    if (!Number.isFinite(value)) { errors.push(`${name.toUpperCase()}_INVALID`); continue; }
+    try { timing[name] = new Date(value).toISOString(); }
+    catch (_error) { errors.push(`${name.toUpperCase()}_INVALID`); }
+  }
+  if (typeof started?.monotonicNs === 'bigint' && typeof ended?.monotonicNs === 'bigint'
+    && ended.monotonicNs >= started.monotonicNs) {
+    const durationMs = Number(ended.monotonicNs - started.monotonicNs) / 1000000;
+    if (Number.isFinite(durationMs)) timing.duration_ms = durationMs;
+    else errors.push('MONOTONIC_DURATION_INVALID');
+  } else errors.push('MONOTONIC_DURATION_INVALID');
+  if (errors.length > 0) timing.timing_error = [...new Set(errors)].join(';');
+  return timing;
+}
+
 function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
+  const started = w40PhaseClock();
   return new Promise((resolve) => {
     const childEnv = { ...process.env, ...env };
     delete childEnv.ELECTRON_RUN_AS_NODE;
@@ -367,7 +397,8 @@ function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
     }, timeoutMs);
     child.on('close', (code) => {
       clearTimeout(timer);
-      resolve({ code: code == null ? 1 : code, stdout, stderr, timed_out: timedOut });
+      const timing = w40PhaseTiming(started, w40PhaseClock());
+      resolve({ code: code == null ? 1 : code, stdout, stderr, timed_out: timedOut, ...timing });
     });
   });
 }
@@ -1086,7 +1117,8 @@ async function main() {
   const a925StopFixture = createW40StopFixture(a925StopMarker);
   await a925StopFixture.listen();
   const a925StopReport = await runA925Phase('w40_stop', a925StopWorkspace, a925StopData,
-    a925StopFixture, { A9_SMOKE_STOP_PID_MARKER: a925StopMarker });
+    a925StopFixture, { A9_SMOKE_STOP_PID_MARKER: a925StopMarker,
+      A9_SMOKE_W40_STOP_EVIDENCE: path.join(evidenceRoot, 'w40-06-stop-exit.json') });
   await a925StopFixture.close();
 
   const a925ReviewFixture = createW40ReviewFixture();
@@ -1115,9 +1147,11 @@ async function main() {
   }
   a925Open.manager.setWorkspaceMode(a925Canonicalize(a925ModeWorkspace), 'review');
   a925Open.manager.db.close();
-  const a925ModeFixture = createW40ReviewModeFixture();
+  const a925ModeToolResults = path.join(evidenceRoot, 'w40-21-tool-results.json');
+  const a925ModeFixture = createW40ReviewModeFixture(a925ModeToolResults);
   await a925ModeFixture.listen();
-  const a925ModeReport = await runA925Phase('w40_review_mode', a925ModeWorkspace, a925ModeData, a925ModeFixture);
+  const a925ModeReport = await runA925Phase('w40_review_mode', a925ModeWorkspace, a925ModeData, a925ModeFixture,
+    { A9_SMOKE_W40_MODE_TOOL_RESULTS: a925ModeToolResults });
   await a925ModeFixture.close();
 
   // —— W40-02：中文空格路径 + 各阶段 productMainLoaded 有效。 ——
@@ -1290,7 +1324,7 @@ async function main() {
     .map((name) => path.join(evidenceRoot, name)).filter((filePath) => fs.existsSync(filePath));
   w40EvidenceFiles.push(...[
     'w40-06-stop-exit.json', 'w40-16-summary.json', 'w40-16-summary.png', 'w40-17-undo.json',
-    'w40-18-external.json', 'w40-19-later.json', 'w40-20-command.json', 'w40-21-mode.json',
+    'w40-18-external.json', 'w40-19-later.json', 'w40-20-command.json', 'w40-21-mode.json', 'w40-21-tool-results.json',
     'w40-22-layout.json', 'w40-22-layout.png',
   ].map((name) => path.join(evidenceRoot, name)).filter((filePath) => fs.existsSync(filePath)));
 
@@ -1518,7 +1552,9 @@ async function main() {
       },
     },
     projection_report_parse: { parseable: projectionParseable, detail: projectionParseDetail },
-    phases: phases.concat(w40Phases, a925Phases).map((item) => ({ phase: item.phase, exit_code: item.code, stderr_tail: item.stderr.slice(-2000) })),
+    phases: phases.concat(w40Phases, a925Phases).map((item) => ({ phase: item.phase, exit_code: item.code, stderr_tail: item.stderr.slice(-2000),
+      started_at: item.started_at, ended_at: item.ended_at, duration_ms: item.duration_ms,
+      ...(item.timing_error ? { timing_error: item.timing_error } : {}) })),
     cases,
     live_progress: reports.live && reports.live.liveProgress ? {
       first_persisted_ms: reports.live.liveProgress.firstPersisted, first_dom_ms: reports.live.liveProgress.firstDom,
@@ -1540,7 +1576,7 @@ async function main() {
   process.exitCode = report.status === 'PASS' ? 0 : 1;
 }
 
-module.exports = { validatePhaseReports };
+module.exports = { validatePhaseReports, w40PhaseTiming };
 
 if (require.main === module) {
   main().catch((error) => {
