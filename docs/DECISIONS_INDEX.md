@@ -148,3 +148,4 @@
 | ADR-0142 | WIN7-38 记为验证套件缺陷不通过，新建 A9-23 修复套件后换发 WIN7-39 | Accepted |
 | ADR-0143 | Alpha 2 的 Review 改为“先写后审”的改动审阅，不做暂存区式 Review 模式 | Accepted |
 | ADR-0144 | 以当前主线换发 WIN7-40，在 Win7 实机验收 A9-24 改动审阅 | Accepted |
+| ADR-0145 | WIN7-40 记为验证套件缺陷不通过，修订 A9-25 修复套件后换发 WIN7-41 | Accepted |

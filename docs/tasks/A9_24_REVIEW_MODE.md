@@ -114,3 +114,4 @@ Agent 直接写入工作区，所以能运行测试、自我修正；每轮结�
   分别使新增测试 1、1、2 项失败，还原后工作区干净。于 `c136d12` 并入 `codex/a9-alpha2`，`Phase-Gate` 改为 `A9_24_DEVELOPER_VERIFIED`。
   观察（不返工）：`getDiff` 同时计算旧 Diff 与审阅投影，大文件有重复开销；漂移路径靠解析 `path (原因)` 文本；Diff 截断时增删计数偏小且摘要卡不提示；
   真实 Electron 画面与 1366×768/125% DPI 布局未实测。真实 Electron 与 Win7 为 `NOT_PERFORMED`，由 WIN7-40 承担。
+- 2026-09-28：WIN7-40（A9-25）记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（套件时序缺陷，非产品缺陷；ADR-0145）；本任务的 Win7 结论改由 WIN7-41 取得，仍为 `NOT_PERFORMED`。

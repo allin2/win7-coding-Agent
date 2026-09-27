@@ -5,10 +5,10 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（A9-24 已于 c136d12 并入）
-Candidate: WIN7-40
-Phase-Gate: A9_25_KIT_AUTHORIZED
+Candidate: WIN7-40（A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS，已关闭）→ WIN7-41（§9 修订）
+Phase-Gate: A9_25_W41_KIT_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0144
+Decision: ADR-0144, ADR-0145
 ```
 
 > 2026-09-27 负责人批准本任务书，§6 Q1～Q3 按建议（保留预演；不改验收机 DPI 设置；W40-01～15 全量回归）。批准本任务书不等于候选外 authority 或实机 PASS。
@@ -115,3 +115,22 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 - 2026-09-27：第 5 步门 A：负责人在对话中签发 `WIN7_40_RELEASE_AUTHORITY`（`approved_at` 2026-09-27T15:38:29Z，SHA-256 `b17ab35f…5618`），绑定源码 `64fd3a7`、ZIP、manifest、输入锁、
   原生构建审批登记、Kit（22 项）、目标主机 `192.168.1.3` 与 run-id `81c7a234-…`。候选自带校验对签发版 authority 身份与全树核对通过，草稿 pin 被拒，报告器 `init` 生成 22 项模板（开发机预检）。
   [实机交接书](../plans/A9_25_WIN7_40_ACCEPTANCE_HANDOFF.md)改为 `READY_FOR_EXECUTION`，下一步第 6 步实机执行。
+- 2026-09-28：第 6 步实机执行（run-id `81c7a234`）：G1 `PASS`；G2 `w40_review` 因驱动时序缺陷失败，执行方按 §7 停止。第 7 步审核见[审核报告](../reports/2026-09/a9_25_win7_40_acceptance_review_2026-09-28.md)。
+- 2026-09-28：第 8 步门 B：负责人按审核建议裁决 WIN7-40 为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145），不做部分签发；修订本任务继续，见 §9。
+
+## 9. 修订：WIN7-40 不通过后换发 WIN7-41（2026-09-28，ADR-0145）
+
+> 负责人 2026-09-28 裁决“按建议裁决，修订 A9-25 继续”。本节优先于 §1～§6 中与之冲突的内容；§2 的身份与边界（不做产品改动、硬门、W39 及更早不改）继续有效。
+
+1. **身份**：新候选 `WIN7-41`；版本与能力集标识仍为 `WIN7-CODING-AGENT-A9-ALPHA1` / `0.3.0-alpha.1`；结论上限 `A9_25_WIN7_41_A9_24_PASS`（可部分签发），用例 W41-01～22 与 W40-01～22 一一对应、判定口径不变。
+2. **套件修复（R6）**：修复 `a925OpenFileDiff` 读取未重绘 DOM 的问题（等待产品完成 `showDiff` 后的重绘再判断展开状态）；`a925ClickUndo` 及 W40 旅程中其余一次性“查询即抛错”的操作改为带最后观察诊断的等待；
+   普查全部 `w40*` 旅程中的同类写法并逐处登记。以 WIN7-40 实机证据（`.acceptance/runs/A9-25-W40/81c7a234-…/`）作只读夹具重放。
+3. **W41 派生**：从修复后的 W40 派生文件机械派生 W41 文件（身份替换 `W40→W41`、`win7-40→win7-41`、`WIN7_40→WIN7_41`、`WIN7-40→WIN7-41`、`w40→w41` 及大小写变体；任务号 `A9-25` 不变），
+   谱系陈述按 ADR 与事实更正并登记（前序候选 `WIN7-40`，结论 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`）；打包驱动按 W40 的做法重基线；残留守卫覆盖 W40 字面量。
+   Kit 文件名不得与 W40 的 `A9_25_VALIDATION_KIT.json` 冲突，具体命名在套件交接书中确定。
+4. **C14 允许路径**（在 §3 基础上追加）：`release/win7-product-v3/` 下新增 `a9-25-win7-41-input-lock.json`、`a9-package-integrity-w41.cjs`、`a9-win7-41-report.cjs`、`a9-win7-41-smoke.cjs`、
+   `RUN_A9_25_W41_INTEGRITY.cmd`、`RUN_WIN7_41_REPORT_VERIFY.cmd`、`A9_25_WIN7_41_VALIDATION.md` 与文件名含 `w41` 的夹具；`src/shell/tests/product/a9-06-driver-entry.cjs` 中 `w40*` 旅程与 `a925*` 辅助函数可为 R6 修改；
+   构建脚本新增 `A9-25-INPUTS-WIN7-41` profile 与集合登记。WIN7-40 的发布文件（`*w40*`、`*win7-40*`、`A9_25_WIN7_40_VALIDATION.md`）不再修改。
+5. **步骤**：① R6 修复与 W41 派生（新套件交接书）→ 开发机门；② Win7 连续预演至少 2 次，全部 `PASS` 后才进入下一步，任一失败回到①；③ 以 WIN7-40 实机交接书为模板写 WIN7-41 实机交接书，
+   增加“执行方修正自产文件一律另存新文件名”；④ 双构建冻结；⑤ 门 A；⑥ 实机；⑦ 审核与 Win7 报告校验；⑧ 门 B。
+6. **Win7 目录**：WIN7-40 运行根 `C:\A9-W40\验收 目录\81c7a234` 与暂存目录保留至 WIN7-41 门 B 之后，再由负责人决定是否清理。
