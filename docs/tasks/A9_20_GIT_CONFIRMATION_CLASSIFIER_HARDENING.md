@@ -6,8 +6,8 @@ Task Type: SECURITY_HARDENING
 Target Branch: codex/a9-alpha2
 Source Baseline: c8691e3
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_20_DEVELOPER_VERIFIED
-Win7-Validation: NOT_PERFORMED
+Phase-Gate: A9_20_WIN7_39_PASS
+Win7-Validation: WIN7_39_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0137, ADR-0140
 ```
 
@@ -180,3 +180,7 @@ A9-18 工作树中的 F-1/F-2（部分形态修复与 32 项分类器用例）�
 
 - 2026-09-26：WIN7-38（A9-22）实机 G2 因候选内验证套件缺陷失败，产品未运行，未取得本任务的 Win7 结论（ADR-0142）。
   Win7 验证改由 [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 换发的 WIN7-39 承担；`Phase-Gate` 保持 `A9_20_DEVELOPER_VERIFIED`。
+- 2026-09-27：WIN7-39（A9-23，源码 `7ec9db7`）Win7 实机签发 `A9_23_WIN7_39_A9_20_A9_21_PASS`。W39-07～09 在 Win7 SP1 x64、`agent` Medium 下覆盖
+  §2 第 1～12 类的 19 种形态：全部出现审批卡，Git 绑定为 `origin`/`main`（第 11 类超长 CMD 为整条命令摘要绑定），拒绝后零执行，
+  本地裸仓库 `refs/heads/main` 不变（MinGit 2.46.2）。限制：第 9、10 类 POSIX 形态的可执行性与 PowerShell 5.1 下 `/Command` 的真实执行未测试（均在确认处被拒）。
+  `Phase-Gate` 改为 `A9_20_WIN7_39_PASS`。WIN7-22、WIN7-37 等既有候选的已签结论不改判，仍登记已知缺陷。

@@ -1189,3 +1189,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-27，WIN7-39 G2 续跑：smoke 退出码 0、`status=PASS`，13 个阶段与 181 条断言全部通过，零残留；审核报告 `a9_23_win7_39_acceptance_review_2026-09-27.md` 建议 15 项满足，待正式报告 Win7 复核与门 B。
 - 2026-09-27，负责人接受 WIN7-39 审核结论；正式报告 `report-w39.json`（`70229b79…2688`）开发机预检 `PASS`（15/15），Win7 复核按实机交接书附录 B 执行。
 - 2026-09-27，WIN7-39 正式报告 Win7 校验：`agent` Medium 下候选校验器 `status=PASS`、`verified_cases=15`、`REPORT_VERIFY_EXIT=0`；待负责人门 B 裁决。
+- 2026-09-27，**门 B**：负责人签发 WIN7-39 `A9_23_WIN7_39_A9_20_A9_21_PASS`（15 项，源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`），接受 W39-06 Stop 后 PID 以运行结束时不存在为准；已知限制随结论记录。A9-23 关闭；A9-20 改为 `A9_20_WIN7_39_PASS`；A9-21 §5 第 6 项关闭，`Phase-Gate` 待第 5 项。

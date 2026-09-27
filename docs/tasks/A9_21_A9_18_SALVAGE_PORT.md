@@ -7,7 +7,7 @@ Target Branch: codex/a9-alpha2
 Source Baseline: A9-20 完成后的 codex/a9-alpha2
 Target Version: 0.3.0-alpha.2
 Phase-Gate: A9_21_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: WIN7_39_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0138, ADR-0139
 ```
 
@@ -260,3 +260,10 @@ M5 的删除动作限于上述工作树与分支，不触碰其他工作树、�
 
 - WIN7-38 实机 G2 因候选内验证套件缺陷失败，产品未运行，§5 第 6 项未取得覆盖（ADR-0142）。改由
   [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 换发的 WIN7-39 覆盖；`Phase-Gate` 不变。
+
+### §5 第 6 项由 WIN7-39 完成（2026-09-27）
+
+- WIN7-39（A9-23，源码 `7ec9db7`）Win7 实机签发 `A9_23_WIN7_39_A9_20_A9_21_PASS`：真实 Electron 22.3.27 在 Win7 以 `agent` 运行完整任务闭环，
+  并覆盖 M1（5/100 轮历史启动 1692/1713 ms，中断 Turn 定向隔离）、M1b（1 MiB 单行冻结 369 ms，URL 口令零命中）、M2（>1 MiB 截断且工具未执行）、
+  M3（60 条 checkpoint 分页与最旧 Diff）、M4（2000 上限提示，释放 284 条，Renderer 内存两次采样）。模型为本地回环 fixture。§5 第 6 项关闭。
+- `Phase-Gate` 保持 `A9_21_IMPLEMENTATION_AUTHORIZED`：`A9_21_DEVELOPER_VERIFIED` 仍待 §5 第 5 项（gateway 偶发失败）结论，由负责人决定。

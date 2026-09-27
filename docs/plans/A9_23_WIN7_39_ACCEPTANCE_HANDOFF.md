@@ -1,7 +1,7 @@
 # A9-23 / WIN7-39 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: READY_FOR_EXECUTION（2026-09-27 候选冻结，负责人签发 authority）
+Status: CLOSED（2026-09-27 执行完毕：G1、G2 与正式报告 Win7 校验完成，负责人门 B 签发 `A9_23_WIN7_39_A9_20_A9_21_PASS`）
 Scope: A9-23 WIN7-39 换发与实机验收（A9-20 Git 确认分类器绕过修复 + A9-21 运行时加固移植；W39 验证套件）
 Executor: 外部执行模型（负责人指定）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）

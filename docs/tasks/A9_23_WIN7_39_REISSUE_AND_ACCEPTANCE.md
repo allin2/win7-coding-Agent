@@ -1,13 +1,13 @@
 # A9-23 — WIN7-39 换发与实机验收（修复 W38 验证套件，A9-20 + A9-21）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2（本任务书所在提交；产品源码与 WIN7-38 的 874f541 相同）
 Candidate: WIN7-39
-Phase-Gate: A9_23_KIT_REPAIR_AUTHORIZED
-Win7-Validation: NOT_PERFORMED
+Phase-Gate: A9_23_WIN7_39_A9_20_A9_21_PASS
+Win7-Validation: WIN7_39_A9_20_A9_21_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0142
 ```
 
@@ -166,3 +166,6 @@ Decision: ADR-0142
   篡改证据与错误 pin 均被拒；组装时补充发现 W39-06 Stop 后 PID 消失时间点无直接证据（已写入审核报告 §4 第 6 条，待门 B 决定口径）。Win7 复核按[实机交接书附录 B](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)执行。
 - 2026-09-27：附录 B Win7 报告校验完成：`agent` Medium 下候选内 `RUN_WIN7_39_REPORT_VERIFY.cmd` 输出 `status=PASS`、`verified_cases=15`、
   处置 `A9_23_WIN7_39_A9_20_A9_21_PASS`，`REPORT_VERIFY_EXIT=0`；验证包 41 项 Win7 端哈希一致，取回清单 137 项复算一致，前序证据未变。待负责人门 B 裁决。
+- 2026-09-27：**门 B**：负责人裁决签发 `A9_23_WIN7_39_A9_20_A9_21_PASS`（15 项，候选 WIN7-39，源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`），
+  接受 W39-06 以“Stop 后轮次取消、运行结束时子进程 PID 已不存在”为准的口径。已知限制（随结论记录）：W39-09 POSIX 可执行性 `NOT_PERFORMED`；W39-05/13 截图未显示 Diff 视图与 checkpoint 列表（判定依据 DOM 与产品库）；模型为本地回环 fixture，真实 Provider 未覆盖；PowerShell 5.1 下 `/Command` 真实执行未测试；W39-06 Stop 后 PID 消失以“运行结束时已不存在”为准。
+  本任务关闭；A9-20、A9-21 任务书已记录 Win7 结论。
