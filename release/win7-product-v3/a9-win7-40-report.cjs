@@ -15,7 +15,7 @@ const contract = require('./a9-projection-contract.cjs');
 
 const CANDIDATE_LABEL = 'WIN7-40';
 const KIT_ID = 'A9-25-WIN7-40-20260926-01';
-const REPORT_KIND = 'A9_25_WIN7_40_A9_20_A9_21_ACCEPTANCE';
+const REPORT_KIND = 'A9_25_WIN7_40_A9_24_ACCEPTANCE';
 const QUERY_EXPORT_KIND = contract.QUERY_EXPORT_KIND;
 const DOM_EXPORT_KIND = contract.DOM_EXPORT_KIND;
 const QUERY_EXPORT_SCHEMA_VERSION = contract.QUERY_EXPORT_SCHEMA_VERSION;
@@ -178,6 +178,8 @@ function verifyReport(report, kit, identity, evidenceRoot, fileSystem) {
     && kit.candidate_label === CANDIDATE_LABEL && Array.isArray(kit.required_cases)
     && kit.required_cases.length === REQUIRED_CASE_COUNT,
   'A9_W40_KIT_INVALID');
+  assert(plain(kit.scope) && typeof kit.scope.result_on_complete === 'string'
+    && kit.scope.result_on_complete.length > 0, 'A9_W40_KIT_RESULT_ON_COMPLETE_REQUIRED');
   for (const caseId of EXPECTED_CASES) {
     assert(kit.required_cases.some((item) => item.case_id === caseId && Array.isArray(item.assertions) && item.assertions.length > 0),
       `A9_W40_KIT_CASE_MISSING:${caseId}`);
@@ -203,7 +205,7 @@ function verifyReport(report, kit, identity, evidenceRoot, fileSystem) {
   assert(report.status === expectedStatus, 'A9_W40_OVERALL_STATUS_INVALID');
   return {
     status: report.status,
-    disposition: report.status === 'PASS' ? 'A9_25_WIN7_40_A9_20_A9_21_PASS' : report.status,
+    disposition: report.status === 'PASS' ? kit.scope.result_on_complete : report.status,
     candidate: identity,
     verified_cases: report.results.length,
     direct_current_candidate_cases: report.results.filter((item) => item.status === 'PASS').length,

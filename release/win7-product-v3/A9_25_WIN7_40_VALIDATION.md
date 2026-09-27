@@ -36,6 +36,8 @@
 | 完整性脚本头部 1～3 行 | `DERIVED FROM THE FROZEN WIN7-38 ARTIFACT … validation kit repair, ADR-0142`；`WIN7-38's G1 passed on the real machine … rebaselined from the W38 artifact` | `DERIVED FROM THE FROZEN WIN7-39 ARTIFACT … validation kit, ADR-0144`；`WIN7-39 passed on the real machine; this script retains its integrity contract and rebases candidate identity` | 纠正派生来源和 ADR，不宣称修改完整性逻辑 |
 | 完整性脚本 `lock.provenance` 校验 | `previous_candidate !== 'WIN7-38'`；`previous_candidate_result !== 'A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS'`；`change_scope !== 'A9_23_VALIDATION_KIT_REPAIR'` | `previous_candidate !== 'WIN7-39'`；`previous_candidate_result !== 'A9_23_WIN7_39_A9_20_A9_21_PASS'`；`change_scope !== 'A9_24_CHANGE_REVIEW_WIN7_40_VALIDATION'` | 与新锁同步，仍逐字段精确校验 |
 | 报告器头部 1～2 行 | `DERIVED FROM THE FROZEN WIN7-38 ARTIFACT … validation kit repair, ADR-0142`；`identity semantics unchanged` | `DERIVED FROM THE FROZEN WIN7-39 ARTIFACT … validation kit, ADR-0144`；`inherited checks retain their semantics` | 纠正来源；新增用例后仅继承部分语义保持原样 |
+| 报告器 `REPORT_KIND` | `A9_23_WIN7_39_A9_20_A9_21_ACCEPTANCE` | `A9_25_WIN7_40_A9_24_ACCEPTANCE` | 报告身份对应 A9-25 对 A9-24 的当前候选验证；旧 A9-20/A9-21 标签不再适用 |
+| 报告器 `verifyReport` 的 PASS 处置 | 字面量 `A9_23_WIN7_39_A9_20_A9_21_PASS` | `kit.scope.result_on_complete`（Kit 为 `A9_25_WIN7_40_A9_24_PASS`）；缺失或空字符串时报 `A9_W40_KIT_RESULT_ON_COMPLETE_REQUIRED` | 处置由候选 Kit 合同提供，不回退硬编码旧标签；非 PASS 仍回传原状态 |
 | smoke 头部 1～9 行 | `MECHANICALLY DERIVED FROM a9-win7-37-smoke.cjs … ADR-0142`；`W37→W39 …`；`WIN7-39 inherits the WIN7-37 …`；`W39 additions after the five W37 journeys …` | `MECHANICALLY DERIVED FROM THE FROZEN a9-win7-39-smoke.cjs … ADR-0144`；身份及差异指向本说明；说明 W39 八阶段重基线与 W40 四阶段追加 | W40 直接派生于 W39；W37 是更早祖先，不能写成直接来源 |
 | smoke ADR-0136 延迟流式 fixture 注释 | `// ADR-0136 / W39-16、W39-17：延迟流式 fixture。第一步先用约 3 秒逐块输出说明，再发起约 4 秒的 ping；` | `// ADR-0136 / A9-19 延迟流式用例（WIN7-37 编号 16/17）：第一步先用约 3 秒逐块输出说明，再发起约 4 秒的 ping；` | W39 的 16/17 指 A9-19 历史用例；机械身份替换会误指 W40 Review 新用例 |
 | smoke ADR-0136 第五阶段注释 | `// ADR-0136：第五阶段——延迟流式下的运行过程实时可见（W39-16/17），并核对头部文案与左栏保持（W39-20/21）。` | `// ADR-0136：第五阶段——A9-19 / WIN7-37 编号 16/17 的延迟流式运行过程实时可见，并核对编号 20/21 的头部文案与左栏保持。` | W39 的 16/17、20/21 都指历史用例；W40 相同编号分配给 A9-24 Review |
@@ -208,3 +210,13 @@ VM 超时测试确认最后一次小数几何/closed 状态同时进入落盘报
 两处已登记的 W39_WORKSPACE_SELECT_MODES 包含 A925_WORKSPACE_SELECT_MODES 判断在 `91df808` 已存在，本轮均未修改；剔除 W40 分派/辅助区后的历史驱动 SHA-256 仍锁定 `2eb11b5012c426ef046e286f3ffc8040cc889324c57f367fb0ffb2e3d90a23a2`。本轮不修改产品、历史断言键、重基线或残留守卫。测试同步 K-02 wait 调用名称、K-05 VM 装入新增辅助函数、§4.5 布局反例由 101 改为 101.01（恰好一像素现属正例）、R3 VM 子进程支持新增 error 监听并验证 spawn error 完成且原报告字节不变；精确派生门仅更新登记的 smoke 摘要为 `a57e7fc468aed21401ed7845defedf7f2f2a27f5ae382f00cc37f026e2bfa4d4`，其他五个派生文件摘要不变，未登记差异仍拒绝。
 
 开发机检查与各项注入反例输出位于套件工作树 `.acceptance/w40-rework-r4/`。w40* 旅程在开发机未运行，**待第三次预演**；开发机模拟主入口执行与只读夹具重放不构成当前 Win7 产品证据。本轮未发现需修复的产品缺陷。
+
+## 8. 第五轮返工登记（交接书 §7.6，基线 `45581e2`）
+
+本轮只更正报告器两处结论谱系残留，原文、目标文本与理由逐项见 §2。`verifyReport` 在 Kit 基本形状检查后额外要求 `scope.result_on_complete` 为非空字符串；状态为 PASS 时原样采用该字段。逐文件精确比对只更新报告器摘要为 `9a0ffd2c916def3be94e35beb54deae529c5c368c52eb3253a3efac1de52d392`；另五个派生文件的摘要不变，未登记差异仍被拒绝。
+
+构建残留守卫的 W40 分支新增 `A9_20_A9_21`。精确放行仅两处：输入锁 `provenance.previous_candidate_result` 的冻结 W39 结论，以及完整性脚本对此字段的原样校验；各仅遮蔽首个完整语句，其他位置（包括报告器和打包驱动）一律报 `A9_CANDIDATE_STALE_TOKEN`。构建脚本 `scope.historical_candidate` 仍记 W39 原有正式结论，仅用于 Kit 的历史说明；它不属于派生文件或打包驱动，故无需守卫豁免，也不改变 W39 结论。W40 Kit 的 `scope.result_on_complete` 仍为 `A9_25_WIN7_40_A9_24_PASS`。
+
+六个派生文件与构建脚本 W40 Kit 分支的结论名、任务号、ADR 号复查：报告器两处旧 A9-20/A9-21 标签已按 §2 更正；输入锁和完整性脚本各一处 W39 正式结论是前序来源；Kit `historical_candidate` 一处 W39 结论是历史说明。`does_not_reissue` 中 A9-14、A9-15、A9-16、A9-19 的结论是明确排除重签范围；W40-07～09 的 A9-20 用例名及说明指继承 Git 形态回归；smoke 的 A9-15 断言 ID 与 ADR-0121/0136、A9-19 历史注释均指原有继承检查；输入锁 WIN7-22 原生输入来源及 ADR-0143 fail-closed、ADR-0144 当前任务、构建脚本同名引用均与来源相符。两个 `.cmd` 无旧结论或旧 ADR；未发现其他须更正的结论、任务或 ADR 标签。
+
+开发机正例与注入反例见包测试 `W40 §4.1`、`W40 §4.2`、`W40 R5`：旧 `REPORT_KIND` 被 schema 拒绝，旧 PASS 字面量与缺 Kit 字段被测试识别，旧标签注入报告器、打包驱动、锁的非豁免字段被残留守卫拒绝。仓库驱动与 smoke 相对 `45581e2` 均无改动；本轮不重跑 Win7 产品旅程，目标机结果留待新候选正式验证。

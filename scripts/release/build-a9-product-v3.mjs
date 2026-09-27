@@ -246,6 +246,19 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
   const files = [profile.integrityScript, profile.reportScript, ...(profile.extraValidationScripts || []),
     ...(A915_CANDIDATES.has(profile.candidate) ? [driverName] : [])];
   const hits = [];
+  const w40ScopedSource = (file, source) => {
+    if (file === profile.lockFile) {
+      // Only the previous-candidate provenance field may name the frozen W39 result.
+      return source.replace('    "previous_candidate_result": "A9_23_WIN7_39_A9_20_A9_21_PASS",',
+        '    "previous_candidate_result": "",');
+    }
+    if (file === profile.integrityScript) {
+      // Its exact field check must agree with the lock; a second occurrence is still rejected.
+      return source.replace("lock.provenance?.previous_candidate_result !== 'A9_23_WIN7_39_A9_20_A9_21_PASS'",
+        "lock.provenance?.previous_candidate_result !== ''");
+    }
+    return source;
+  };
   for (const file of files) {
     const filePath = path.join(stage, 'validation', file);
     if (!fs.existsSync(filePath)) continue;
@@ -285,7 +298,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
       }
     }
     if (profile.candidate === 'WIN7-40') {
-      for (const match of source.matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT/g)) {
+      for (const match of w40ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_20_A9_21/g)) {
         hits.push(`${file}: inherited WIN7-37/38/39 active token ${match[0]}`);
       }
     }
@@ -306,7 +319,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     // The lock and both command entrypoints are derived files too, but live at stage root.
     for (const file of [profile.lockFile, profile.integrityCommand, profile.reportCommand]) {
       const source = fs.readFileSync(path.join(stage, file), 'utf8');
-      for (const match of source.matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT/g)) {
+      for (const match of w40ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_20_A9_21/g)) {
         hits.push(`${file}: inherited WIN7-37/38/39 active token ${match[0]}`);
       }
     }
