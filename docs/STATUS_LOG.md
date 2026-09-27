@@ -1190,3 +1190,11 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-27，负责人接受 WIN7-39 审核结论；正式报告 `report-w39.json`（`70229b79…2688`）开发机预检 `PASS`（15/15），Win7 复核按实机交接书附录 B 执行。
 - 2026-09-27，WIN7-39 正式报告 Win7 校验：`agent` Medium 下候选校验器 `status=PASS`、`verified_cases=15`、`REPORT_VERIFY_EXIT=0`；待负责人门 B 裁决。
 - 2026-09-27，**门 B**：负责人签发 WIN7-39 `A9_23_WIN7_39_A9_20_A9_21_PASS`（15 项，源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`），接受 W39-06 Stop 后 PID 以运行结束时不存在为准；已知限制随结论记录。A9-23 关闭；A9-20 改为 `A9_20_WIN7_39_PASS`；A9-21 §5 第 6 项关闭，`Phase-Gate` 待第 5 项。
+- 2026-09-26，A9-21 §5 第 5 项 gateway 偶发失败排查：独立分支 `codex/a9-21-gateway-flake`（基线 `8efd6ad`），Node 20.17.0，
+  `src/gateway` 全量 Jest 空载 100 次、3 个 Node CPU 负载下 100 次，每次 263/263 通过；**未复现、原因未定位**。
+  负载时段（北京时间）15:41:04～16:03:29、16:07:15～16:10:08、16:27:05～16:38:48；前两段与 WIN7-39 打包测试部分重叠，
+  两次中断运行未计数。初始 6 次预检因本工作树缺 `core/dist` 导致 J5 失败，补建后重新计数；不是原偶发失败的复现。
+  原始 JSON 与进程清理证据：`/tmp/a9-21-gateway-flake-evidence-20260926.tar.gz`，SHA-256
+  `7af335e5e63d85d97e3721949955a5cb91dd39432516fcbf3e89c08cf30ba2b0`（临时目录可能被清理）。
+  未改产品代码；是否接受未复现结论待负责人决定。`Phase-Gate` 不变，WIN7-39 实机待验证。
+- 2026-09-27，A9-21 收口：负责人接受 §5 第 5 项 gateway 排查结论“未复现、原因未定位”（开发机 200 次 263/263，审核方复核原始 JSON 一致），关闭第 5 项；第 6 项已由 WIN7-39 完成。`Phase-Gate` 改为 `A9_21_DEVELOPER_VERIFIED`。证据长期保存于 `.acceptance/runs/A9-21-GWFLAKE/a9-21-gateway-flake-evidence-20260926.tar.gz`（SHA-256 `7af335e5…a0ba2b0`，自 `/tmp` 复制长期保存）。
