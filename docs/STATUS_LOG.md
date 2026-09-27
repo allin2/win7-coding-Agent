@@ -1187,3 +1187,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-27，门 A：负责人在对话中明确指示“签发 WIN7-39 authority”，签发 `WIN7_39_RELEASE_AUTHORITY`（`approved_at` 2026-09-26T18:36:58Z，SHA-256 `b07588e00c47dce88d9ea95e28fedf0c8db26a28900351f2770251ea336f9a09`），绑定 ZIP `6bf586e7…d9e5`、manifest `1388bebc…f420`、输入锁 `a3decbc5…3b48`、目标 `192.168.1.3`、run-id `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`；A9-23 实机交接书改为 `READY_FOR_EXECUTION`。
 - 2026-09-27，WIN7-39 实机第一段：G0 与 G1 完成（完整性 `PASS`，Win7 端 ABI 110），G2 前因交接书完整性报告路径写错停止；审核方裁决为交接书勘误，G1 有效，G2 按实机交接书附录 A 续跑。
 - 2026-09-27，WIN7-39 G2 续跑：smoke 退出码 0、`status=PASS`，13 个阶段与 181 条断言全部通过，零残留；审核报告 `a9_23_win7_39_acceptance_review_2026-09-27.md` 建议 15 项满足，待正式报告 Win7 复核与门 B。
+- 2026-09-27，负责人接受 WIN7-39 审核结论；正式报告 `report-w39.json`（`70229b79…2688`）开发机预检 `PASS`（15/15），Win7 复核按实机交接书附录 B 执行。

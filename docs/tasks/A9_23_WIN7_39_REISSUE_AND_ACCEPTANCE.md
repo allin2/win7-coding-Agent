@@ -162,3 +162,5 @@ Decision: ADR-0142
   审核方裁决为交接书路径错误（ZIP 含顶层目录，候选根为 `package\Win7CodingAgent-0.3.0-alpha.1-win7-x64\`），非候选缺陷；G1 证据有效不重跑，G2 按[实机交接书附录 A](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)续跑。
 - 2026-09-27：G2 续跑完成：smoke 退出码 0、`status=PASS`，13 个阶段与 181 条断言全部通过，零残留、未强杀，秘密扫描零真实命中。
   第 7 步审核完成，见[审核报告](../reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md)：15 项满足判定要点，建议组装正式报告并在 Win7 复核后进入门 B；已知限制 4 条。
+- 2026-09-27：负责人接受审核结论。审核方组装正式报告 `report-w39.json`（`70229b79…2688`，15 项 PASS），开发机候选校验器 `status=PASS`、`verified_cases=15`，
+  篡改证据与错误 pin 均被拒；组装时补充发现 W39-06 Stop 后 PID 消失时间点无直接证据（已写入审核报告 §4 第 6 条，待门 B 决定口径）。Win7 复核按[实机交接书附录 B](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)执行。
