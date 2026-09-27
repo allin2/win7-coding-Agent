@@ -1203,3 +1203,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-27，负责人确认 A9-24 Demo 与开放问题建议，批准实施（`APPROVED_FOR_IMPLEMENTATION`）；冻结 C14 允许路径与 W37/W39 驱动兼容约束，发出实现交接书 `A9_24_CHANGE_REVIEW_HANDOFF.md`。
 - 2026-09-27，A9-24 实现 `a086626` 验收通过（workspace 216、shell 458、打包 60/60，三项负向对照有效），于 `c136d12` 并入 alpha2，`A9_24_DEVELOPER_VERIFIED`；起草 A9-25（WIN7-40 换发与实机验收，ADR-0144 Proposed）。
 - 2026-09-27，负责人批准 A9-25（ADR-0144 Accepted；保留预演、不改验收机 DPI、W40-01～15 全量回归），发出 W40 套件交接书。
+- 2026-09-27，负责人要求有序推进已规划工作；新增推进顺序文档 `A9_ALPHA2_DELIVERY_SEQUENCE.md`（一次一个 Win7 候选、产品改动分支开发冻结后并入、只读核查并行、先证据后修复）。
