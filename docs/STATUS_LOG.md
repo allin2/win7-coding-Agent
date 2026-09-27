@@ -1198,3 +1198,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
   `7af335e5e63d85d97e3721949955a5cb91dd39432516fcbf3e89c08cf30ba2b0`（临时目录可能被清理）。
   未改产品代码；是否接受未复现结论待负责人决定。`Phase-Gate` 不变，WIN7-39 实机待验证。
 - 2026-09-27，A9-21 收口：负责人接受 §5 第 5 项 gateway 排查结论“未复现、原因未定位”（开发机 200 次 263/263，审核方复核原始 JSON 一致），关闭第 5 项；第 6 项已由 WIN7-39 完成。`Phase-Gate` 改为 `A9_21_DEVELOPER_VERIFIED`。证据长期保存于 `.acceptance/runs/A9-21-GWFLAKE/a9-21-gateway-flake-evidence-20260926.tar.gz`（SHA-256 `7af335e5…a0ba2b0`，自 `/tmp` 复制长期保存）。
+- 2026-09-27，Alpha 2 剩余范围：负责人决定拆两任务、先做 Review；起草 A9-24 任务书（`DRAFT_PENDING_OWNER_REVIEW`）与交互 Demo `docs/plans/a9-24-review-demo/`，未授权实现。
