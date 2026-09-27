@@ -471,7 +471,7 @@ async function runWorkspaceSelectionProcess(win, exec, env) {
   record('A9F0-WORKSPACE-REQUIRED-BEFORE-SELECTION', initial.code === 'A9_WORKSPACE_REQUIRED' && initial.dialogHidden === true, JSON.stringify(initial));
 
   await exec('document.getElementById("workspace-select").click(); true');
-  await waitFor(() => exec(`(() => {
+  const selected = await waitFor(() => exec(`(() => {
     const dialogNode = document.getElementById('a9-mode-dialog');
     const fullAccess = document.querySelector('input[name="a9-mode-choice"][value="full_access"]');
     const shownWorkspace = document.getElementById('a9-workspace-value').textContent;

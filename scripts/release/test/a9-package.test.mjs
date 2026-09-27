@@ -4617,6 +4617,39 @@ test('W40 §4.6 VM loads actual workbench and renders driver selectors, undo and
   assert.ok(external.includes('被外部修改'));
 });
 
+test('W40 inherited workspace_select retains the selected observation used by A9F0', async () => {
+  const driver = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const begin = driver.indexOf('async function runWorkspaceSelectionProcess(');
+  const end = driver.indexOf('\nasync function runFirstProcess(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  const source = driver.slice(begin, end);
+  const run = async (functionSource) => {
+    const cases = [];
+    const context = {
+      process: { env: {} },
+      record: (id, passed) => cases.push({ id, passed }),
+      waitFor: async (read) => read(),
+      captureVisual: async () => {},
+    };
+    const journey = vm.runInNewContext(`${functionSource}\nrunWorkspaceSelectionProcess`, context);
+    const exec = async (expression) => {
+      if (expression.includes('snapshot.error')) return { code: 'A9_WORKSPACE_REQUIRED', dialogHidden: true };
+      if (expression.includes('const dialogNode')) return { dialogVisible: true, fullAccessVisible: true,
+        fullAccessChecked: true, workspace: 'C:\\中文 空格', errorHidden: true };
+      if (expression.includes('r.snapshot.mode === "full_access"')) return 'full_access';
+      if (expression.includes('sendDisabled: send.disabled')) return { sendDisabled: true, taskState: '空闲',
+        sessionStatus: 'Provider 尚未配置', errorHidden: true, error: '' };
+      return true;
+    };
+    await journey({}, exec, { workspaceRoot: 'C:\\中文 空格' });
+    return cases;
+  };
+  const cases = await run(source);
+  assert.equal(cases.find((item) => item.id === 'A9F0-FULL-ACCESS-REACHABLE-AFTER-WORKSPACE')?.passed, true);
+  assert.ok(source.includes('const selected = await waitFor('));
+  await assert.rejects(run(source.replace('const selected = await waitFor(', 'await waitFor(')), /selected is not defined/);
+});
+
 test('W40-20 index distinguishes observed, unperformed and failed product outcomes', () => {
   const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
   const match = source.match(/  const commandCase = w40CaseIndex\.cases\.find\([\s\S]*?(?=  addA925Case\('W40-21-)/);

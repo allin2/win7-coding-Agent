@@ -85,5 +85,7 @@ M src/workspace/src/checkpoint-manager.ts
 
 - 新断言读取产品运行后的 DOM、IPC 响应、文件字节哈希、产品库事件和状态；fixture 只发工具调用。`A9-W40-REQUIRED-ASSERTIONS-PRESENT` 要求新 ID 各出现一次且 `passed === true`，并区分 `MISSING` 与 `PRESENT_NOT_PASSED`。
 - `w40_stop` 记录 PID 与停止后每 100 ms 的生存检查；≤5000 ms 消失且本轮产品终态为 `cancelled` 才通过。W40-17 在 2 秒内执行撤回并等原倒计时到时后核对哈希；W40-22 另起一次待撤销状态量测“撤回”，量测文件与整轮按钮时先使用未禁用状态。W40-05/13 截图前断言改动页签、轮次与文件 Diff 已在 DOM 中呈现。
+- W40-22 的“撤销此文件”“撤销本轮全部”两个按钮，其包围盒与可聚焦数据取自排队撤销前的可用状态；“撤回”按钮及 `scrollWidth` 取自排队撤销后的状态。两次观察都读取产品 DOM，不把排队后暂时禁用的原按钮误判为不可用。
+- W40-21 的 review 模式 fixture 仅请求写入，并将产品返回的工具结果转述为最终文案；拒绝文案由产品快照的 `finalMessage` 观察。`review-denied.txt` 在调用前后均不存在、产品库中该轮 `tool_start` 与 `tool_end` 均为零，才判定零写入与 fail-closed。
 - 阶段汇总覆盖继承五阶段、W39 八阶段和 W40 四阶段，缺报告、退出错误、状态失败或断言失败均导致总状态 FAIL。W40-20 的不可触发分支会在用例索引另记 `NOT_PERFORMED`；不得据 smoke 状态把该子项解释为已通过。
 - W40-22 记录运行时 `devicePixelRatio`，仅为 1.25 时覆盖 125%；不修改系统 DPI。W40-20 的 Win7 `too_large` 可触发性、`w40_stop` 命令在 PowerShell 5.1 的行为，以及所有 `w40*` 旅程均待 Win7 预演；开发机未运行这些旅程。
