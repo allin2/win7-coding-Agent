@@ -6,7 +6,7 @@ Task Type: ALPHA2_PRODUCT_FEATURE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_24_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_24_DEVELOPER_VERIFIED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0143
 ```
@@ -107,3 +107,10 @@ Agent 直接写入工作区，所以能运行测试、自我修正；每轮结�
 ## 9. 执行记录
 
 - 2026-09-27：负责人确认 Demo 与 §6 建议，批准实施；实现交接书 [A9_24_CHANGE_REVIEW_HANDOFF.md](../plans/A9_24_CHANGE_REVIEW_HANDOFF.md)。
+- 2026-09-27：执行方交付 `a086626`（分支 `codex/a9-24-change-review`，基线 `2248074`）。验收方复核通过：相对基线 10 个文件均在 §5 允许路径内；
+  `getTurnReview` 只读，宿主响应只增字段（`review`、`driftReasons`），`later_turn` 判定按升序 checkpoint 取更晚轮次；界面全部 `textContent`，
+  延迟撤销在切换对话、切换工作区与页面卸载时取消，generation/epoch 防止旧响应串台，历史摘要限最近 10 轮、并发 2；§5.1 兼容点保留。
+  复跑 workspace 216/216、shell 458/458、`a9-package.test.mjs` 60/60，`verify:quick`、`docs:check` 通过；验收方负向对照（立即撤销、恒判 external、截短 Turn ID）
+  分别使新增测试 1、1、2 项失败，还原后工作区干净。于 `c136d12` 并入 `codex/a9-alpha2`，`Phase-Gate` 改为 `A9_24_DEVELOPER_VERIFIED`。
+  观察（不返工）：`getDiff` 同时计算旧 Diff 与审阅投影，大文件有重复开销；漂移路径靠解析 `path (原因)` 文本；Diff 截断时增删计数偏小且摘要卡不提示；
+  真实 Electron 画面与 1366×768/125% DPI 布局未实测。真实 Electron 与 Win7 为 `NOT_PERFORMED`，由 WIN7-40 承担。
