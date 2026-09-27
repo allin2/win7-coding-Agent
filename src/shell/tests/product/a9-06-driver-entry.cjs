@@ -289,6 +289,9 @@ const LATE_LOAD_ERROR_CODE = 'A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD';
 const W39_WORKSPACE_SELECT_MODES = Object.freeze([
   'w39_startup', 'w39_git', 'w39_m1_small', 'w39_m1_large', 'w39_m1b', 'w39_m2', 'w39_m3', 'w39_m4',
 ]);
+const A925_WORKSPACE_SELECT_MODES = Object.freeze([
+  'w40_stop', 'w40_review', 'w40_review_restart', 'w40_review_mode',
+]);
 // W39-03/10：进程启动毫秒基准（driver 模块加载时刻；供启动耗时与运行时就绪耗时断言）。
 const driverProcessStartMs = Date.now();
 // W39-03：w39_* 阶段的未捕获异常观察（仅 w39_* 模式安装，历史模式行为不变）。
@@ -310,7 +313,7 @@ function installDriverPreReadySeamsAndLoadProduct() {
   const workspaceRoot = process.env.A9_SMOKE_WORKSPACE;
   // W39：每个 w39_* 阶段都使用自己的工作区，并经真实 workspace.select IPC 绑定。
   if (mode === 'workspace_select' || mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38'
-    || W39_WORKSPACE_SELECT_MODES.includes(mode)) {
+    || W39_WORKSPACE_SELECT_MODES.includes(mode) || A925_WORKSPACE_SELECT_MODES.includes(mode)) {
     // Start with no active workspace, then drive the real workspace.select IPC.
     // The dialog replacement is confined to this acceptance process.
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
@@ -387,7 +390,8 @@ async function main() {
     return;
   }
 
-  if (mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38' || W39_WORKSPACE_SELECT_MODES.includes(mode)) {
+  if (mode === 'first' || mode === 'stop' || mode === 'live' || mode === 'w38'
+    || W39_WORKSPACE_SELECT_MODES.includes(mode) || A925_WORKSPACE_SELECT_MODES.includes(mode)) {
     await exec('document.getElementById("workspace-select").click(); true');
     const explorer = await waitFor(() => exec(`(() => {
       const file = Array.from(document.querySelectorAll('#workspace-tree button'))
@@ -433,6 +437,15 @@ async function main() {
     await runW39M3Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'w39_m4') {
     await runW39M4Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w40_stop') {
+    await runW40StopProcess(win, exec, { workspaceRoot, fixtureUrl,
+      pidMarker: process.env.A9_SMOKE_STOP_PID_MARKER });
+  } else if (mode === 'w40_review') {
+    await runW40ReviewProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+  } else if (mode === 'w40_review_restart') {
+    await runW40ReviewRestartProcess(win, exec, { workspaceRoot, dataRoot });
+  } else if (mode === 'w40_review_mode') {
+    await runW40ReviewModeProcess(win, exec, { workspaceRoot, fixtureUrl });
   } else if (mode === 'stop') {
     await runStopProcess(win, exec, {
       workspaceRoot,
@@ -458,7 +471,7 @@ async function runWorkspaceSelectionProcess(win, exec, env) {
   record('A9F0-WORKSPACE-REQUIRED-BEFORE-SELECTION', initial.code === 'A9_WORKSPACE_REQUIRED' && initial.dialogHidden === true, JSON.stringify(initial));
 
   await exec('document.getElementById("workspace-select").click(); true');
-  const selected = await waitFor(() => exec(`(() => {
+  await waitFor(() => exec(`(() => {
     const dialogNode = document.getElementById('a9-mode-dialog');
     const fullAccess = document.querySelector('input[name="a9-mode-choice"][value="full_access"]');
     const shownWorkspace = document.getElementById('a9-workspace-value').textContent;
@@ -2750,6 +2763,404 @@ async function runW39M4Process(win, exec, env) {
       && sampleAfterEviction.matched && sampleAfterEviction.memory
       && sampleAfterEviction.memory.working_set > 0,
     JSON.stringify({ mid_pagination_approx_1000: sampleMidPagination, after_eviction: sampleAfterEviction }));
+}
+
+// A9-25: W40-only observations. These functions do not alter the inherited journeys.
+// A925_PURE_BEGIN
+function a925Hash(filePath) {
+  return fs.existsSync(filePath) ? crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') : null;
+}
+function a925SummaryMatches(card, review) {
+  if (!card || !review || !Array.isArray(review.files) || !Array.isArray(review.unrecoverable)) return false;
+  const files = review.files.length + review.unrecoverable.length;
+  const additions = review.files.reduce((sum, item) => sum + (item.additions || 0), 0);
+  const deletions = review.files.reduce((sum, item) => sum + (item.deletions || 0), 0);
+  return card.fileCount === files && card.additions === additions && card.deletions === deletions;
+}
+function a925DriftMatches(response, relPath, kind, laterTurnId) {
+  if (!response || response.ok !== true || !Array.isArray(response.driftReasons)) return false;
+  const drift = response.driftReasons.find((item) => item.path === relPath && item.kind === kind);
+  return Boolean(drift) && (kind !== 'later_turn' || drift.laterTurnId === laterTurnId)
+    && Array.isArray(response.outcome && response.outcome.drifted)
+    && response.outcome.drifted.some((item) => item === relPath || String(item).startsWith(`${relPath} (`));
+}
+function a925LayoutMatches(geometry) {
+  return Boolean(geometry && geometry.tabSelected && geometry.summaryVisible
+    && Number.isFinite(geometry.scrollWidth) && geometry.scrollWidth <= geometry.clientWidth
+    && Array.isArray(geometry.controls) && geometry.controls.length === 3
+    && geometry.controls.every((item) => item.visible && item.focusable && item.left >= 0 && item.top >= 0
+      && item.right <= geometry.innerWidth && item.bottom <= geometry.innerHeight));
+}
+function a925PidExitMatches(observation) {
+  return Boolean(observation && Number.isInteger(observation.pid) && observation.pid > 0
+    && Number.isFinite(observation.elapsedMs) && observation.elapsedMs >= 0 && observation.elapsedMs <= 5000
+    && observation.childGone === true && observation.outcome === 'cancelled');
+}
+// A925_PURE_END
+
+async function a925OpenFileDiff(exec, turnId, relPath) {
+  const selected = await waitFor(() => exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const button = Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
+      .find((item) => item.textContent === '查看改动');
+    if (!button) return null;
+    button.click();
+    return true;
+  })()`), 15000, `w40 review turn row ${turnId}`);
+  return waitFor(() => exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const toggle = Array.from(row?.querySelectorAll('.review-file-toggle') || [])
+      .find((item) => item.textContent.includes(${JSON.stringify(relPath)}));
+    if (!toggle) return null;
+    if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
+    const current = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const detail = Array.from(current?.querySelectorAll('.review-file') || [])
+      .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes(${JSON.stringify(relPath)}))
+      ?.querySelector('.review-file-detail');
+    const diff = detail?.querySelector('.review-file-diff')?.textContent || '';
+    const full = document.getElementById('a9-diff')?.textContent || '';
+    const tab = document.getElementById('inspector-tab-changes');
+    return tab?.getAttribute('aria-selected') === 'true' && detail && !detail.hidden
+      && diff.length > 0 && full.includes(${JSON.stringify(relPath)})
+      ? { diff, full, tabSelected: true, turnId: ${JSON.stringify(turnId)}, path: ${JSON.stringify(relPath)} } : null;
+  })()`), 15000, `w40 review diff ${turnId}/${relPath}`);
+}
+
+async function a925ClickUndo(exec, turnId, relPath) {
+  const clicked = await exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const button = ${JSON.stringify(relPath || '')}
+      ? Array.from(Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
+        item.querySelector('.review-file-toggle')?.textContent.includes(${JSON.stringify(relPath || '')}))
+        ?.querySelectorAll('.review-file-detail button') || [])
+        .find((item) => item.textContent === '撤销此文件')
+      : Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
+        .find((item) => item.textContent === '撤销本轮全部');
+    if (!button || button.disabled) return false;
+    button.click();
+    return true;
+  })()`);
+  if (!clicked) throw new Error(`A9_W40_UNDO_BUTTON_UNAVAILABLE:${turnId}:${relPath || 'turn'}`);
+  await sleep(5400);
+  const confirmation = await exec(`(() => {
+    const button = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-confirmation button'))
+      .find((item) => item.textContent === '确认撤销');
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`);
+  if (confirmation) await sleep(500);
+  return waitFor(() => exec('document.getElementById("a9-undo-state").textContent')
+    .then((value) => value && !value.includes('将在 5 秒后') && !value.includes('已重新收集') ? value : null),
+    15000, 'w40 undo result');
+}
+
+async function a925CaptureM3Diff(win, exec, turnId) {
+  const viewed = await a925OpenFileDiff(exec, turnId, 'counter.ts');
+  record('A9-W40-M3-DIFF-SCREENSHOT', viewed.tabSelected && viewed.full.includes('counter.ts'), JSON.stringify(viewed));
+  await captureVisual(win, 'a925-m3-changes');
+}
+
+async function runW40StopProcess(win, exec, env) {
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w40-stop-model');
+  const before = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'run the long shell task');
+  const pid = await waitFor(() => {
+    if (!env.pidMarker || !fs.existsSync(env.pidMarker)) return null;
+    const value = Number(fs.readFileSync(env.pidMarker, 'utf8').trim());
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }, 45000, 'w40 shell child pid');
+  const isAlive = () => { try { process.kill(pid, 0); return true; } catch (error) {
+    if (error && error.code === 'ESRCH') return false;
+    throw error;
+  } };
+  const visible = await exec('document.getElementById("cancel-task").hidden === false');
+  if (!visible || !isAlive()) throw new Error('A9_W40_STOP_CHILD_NOT_RUNNING');
+  const startedAt = Date.now();
+  await exec('document.getElementById("cancel-task").click(); true');
+  let childGone = false;
+  let elapsedMs = null;
+  while (Date.now() - startedAt <= 5000) {
+    if (!isAlive()) { childGone = true; elapsedMs = Date.now() - startedAt; break; }
+    await sleep(100);
+  }
+  const terminal = await waitFor(async () => {
+    const events = await w39ReadEvents(exec);
+    const started = w39FindStartedTurn(events, before);
+    if (!started) return null;
+    const event = events.find((item) => item.turnId === started.turnId && item.eventId > started.eventId
+      && ['turn_cancelled', 'turn_completed', 'turn_failed'].includes(item.eventType));
+    if (!event) return null;
+    const data = event.payload?.data || {};
+    return { turnId: started.turnId, outcome: event.eventType === 'turn_cancelled' ? 'cancelled' : data.outcome || null,
+      eventId: event.eventId };
+  }, 45000, 'w40 cancelled event');
+  const observation = { pid, childGone, elapsedMs, outcome: terminal.outcome, terminal };
+  report.w40Stop = observation;
+  record('A9-W40-STOP-CHILD-EXIT-WITHIN-5S', a925PidExitMatches(observation), JSON.stringify(observation));
+  await captureVisual(win, 'a925-stop');
+}
+
+async function runW40ReviewProcess(win, exec, env) {
+  const modeChoices = await exec(`(() => Array.from(document.querySelectorAll('input[name="a9-mode-choice"]'))
+    .map((item) => item.value))()`);
+  record('A9-W40-MODE-TWO-OPTIONS', modeChoices.length === 2
+    && modeChoices.includes('full_access') && modeChoices.includes('read_only'), JSON.stringify(modeChoices));
+  await w39ConfigureProvider(exec, env.fixtureUrl, 'w40-change-review-model');
+  const file = (name) => path.join(env.workspaceRoot, name);
+  const baselineCalc = a925Hash(file('calc.ts'));
+  const baselineNote = a925Hash(file('notes.md'));
+  const submit = async (prompt) => {
+    const cursor = await w39EventCursor(exec);
+    await w39SubmitPrompt(exec, prompt);
+    const terminal = await w39WaitTerminal(exec, cursor, `w40 ${prompt}`, 180000);
+    if (!terminal || !terminal.turnId || !['completed', 'completed_with_warnings'].includes(terminal.outcome)) {
+      throw new Error(`A9_W40_REVIEW_TURN_INVALID:${prompt}:${JSON.stringify(terminal)}`);
+    }
+    return terminal;
+  };
+  const getDiff = (turnId) => exec(`window.win7Agent.a9.getDiff(${JSON.stringify(turnId)})`);
+  const first = await submit('w40 review turn 1');
+  const firstReview = await getDiff(first.turnId);
+  const card = await waitFor(() => exec(`(() => {
+    const node = document.querySelector('.change-summary[data-turn-id="${first.turnId}"]');
+    const text = node?.querySelector('strong')?.textContent || '';
+    const match = /改动了 (\\d+) 个文件 · \\+(\\d+) −(\\d+)/.exec(text);
+    return match ? { fileCount: Number(match[1]), additions: Number(match[2]), deletions: Number(match[3]), text,
+      paths: Array.from(node.querySelectorAll('.change-summary-file')).map((item) => item.textContent) } : null;
+  })()`), 15000, 'w40 change summary');
+  const firstPaths = (firstReview.review?.files || []).map((item) => item.path).sort();
+  const cardPaths = card.paths.slice().sort();
+  const summaryPass = firstReview.ok === true && a925SummaryMatches(card, firstReview.review)
+    && JSON.stringify(firstPaths) === JSON.stringify(cardPaths) && firstPaths.includes('calc.ts') && firstPaths.includes('notes.md')
+    && baselineNote === null && a925Hash(file('calc.ts')) !== baselineCalc && a925Hash(file('notes.md')) !== null;
+  report.w40Summary = { terminal: first, card, review: firstReview.review,
+    baselineCalc, afterCalc: a925Hash(file('calc.ts')), baselineNote, afterNote: a925Hash(file('notes.md')) };
+  record('A9-W40-REVIEW-SUMMARY-CARD', summaryPass, JSON.stringify(report.w40Summary));
+  await captureVisual(win, 'a925-summary');
+
+  const firstDiff = await a925OpenFileDiff(exec, first.turnId, 'calc.ts');
+  const firstScreenshotReady = firstDiff.tabSelected && firstDiff.full.includes('calc.ts')
+    && firstDiff.diff.length > 0;
+  record('A9-W40-DIFF-SCREENSHOT', firstScreenshotReady, JSON.stringify(firstDiff));
+  await captureVisual(win, 'a925-review-diff');
+
+  await a925OpenFileDiff(exec, first.turnId, 'notes.md');
+  const noteBeforeRecall = a925Hash(file('notes.md'));
+  const enabledControls = await exec(`(() => {
+    const inspect = (node, name) => {
+      if (!node) return { name, visible: false, focusable: false, left: -1, top: -1, right: Infinity, bottom: Infinity };
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      node.focus({ preventScroll: true });
+      return { name, visible: !node.hidden && style.display !== 'none' && style.visibility !== 'hidden'
+        && rect.width > 0 && rect.height > 0,
+        focusable: !node.disabled && document.activeElement === node,
+        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    };
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(first.turnId)});
+    const fileRow = Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
+      item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
+    return [inspect(Array.from(fileRow?.querySelectorAll('.review-file-detail button') || [])
+      .find((item) => item.textContent === '撤销此文件'), 'file'),
+      inspect(Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
+        .find((item) => item.textContent === '撤销本轮全部'), 'turn')];
+  })()`);
+  const queueNoteUndo = () => exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-file'))
+      .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
+    const button = Array.from(row?.querySelectorAll('.review-file-detail button') || [])
+      .find((item) => item.textContent === '撤销此文件');
+    if (!button || button.disabled) return false;
+    button.click();
+    return Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
+      .some((item) => item.textContent === '撤回');
+  })()`);
+  const recallNoteUndo = () => exec(`(() => { const b = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
+    .find((item) => item.textContent === '撤回');
+    if (!b) return false; b.click(); return document.getElementById('a9-undo-state').textContent.includes('已撤回撤销'); })()`);
+  const queueStarted = Date.now();
+  const queued = await queueNoteUndo();
+  const recalled = await recallNoteUndo();
+  const recallMs = Date.now() - queueStarted;
+  await sleep(5200);
+  const recallHash = a925Hash(file('notes.md'));
+  report.w40UndoRecall = { queued, recalled, recallMs, before: noteBeforeRecall, after: recallHash };
+  record('A9-W40-REVIEW-UNDO-RECALL', queued && recalled && recallMs <= 2000
+    && noteBeforeRecall !== null && recallHash === noteBeforeRecall, JSON.stringify(report.w40UndoRecall));
+
+  const layoutQueued = await queueNoteUndo();
+  const geometry = await exec(`(() => {
+    const collect = (node, name) => {
+      if (!node) return { name, visible: false, focusable: false, left: -1, top: -1, right: Infinity, bottom: Infinity };
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      const visible = !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      node.focus({ preventScroll: true });
+      return { name, visible, focusable: !node.disabled && document.activeElement === node,
+        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    };
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(first.turnId)});
+    const fileRow = Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
+      item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
+    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth,
+      innerWidth, innerHeight, devicePixelRatio,
+      tabSelected: document.getElementById('inspector-tab-changes')?.getAttribute('aria-selected') === 'true',
+      summaryVisible: Boolean(document.querySelector('.change-summary[data-turn-id="${first.turnId}"]')),
+      controls: [collect(Array.from(fileRow?.querySelectorAll('.review-file-detail button') || [])
+        .find((item) => item.textContent === '撤销此文件'), 'file'),
+        collect(Array.from(row?.querySelectorAll('.checkpoint-actions button') || []).find((item) => item.textContent === '撤销本轮全部'), 'turn'),
+        collect(Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
+          .find((item) => item.textContent === '撤回'), 'recall')] };
+  })()`);
+  geometry.controls[0] = enabledControls[0];
+  geometry.controls[1] = enabledControls[1];
+  await captureVisual(win, 'a925-review-layout');
+  const layoutRecalled = await recallNoteUndo();
+  report.w40Layout = geometry;
+  record('A9-W40-REVIEW-LAYOUT', layoutQueued && layoutRecalled && a925LayoutMatches(geometry),
+    JSON.stringify({ layoutQueued, layoutRecalled, geometry }));
+
+  await a925OpenFileDiff(exec, first.turnId, 'notes.md');
+  const noteUndoMessage = await a925ClickUndo(exec, first.turnId, 'notes.md');
+  const noteReview = await getDiff(first.turnId);
+  const noteUndone = noteReview.ok === true && noteReview.review?.files?.some((item) => item.path === 'notes.md' && item.undone);
+  report.w40UndoFile = { message: noteUndoMessage, note_hash: a925Hash(file('notes.md')), review: noteReview.review };
+  record('A9-W40-REVIEW-UNDO-FILE', noteUndone && a925Hash(file('notes.md')) === null
+    && noteUndoMessage.includes('已撤销'), JSON.stringify(report.w40UndoFile));
+
+  // The remaining calc.ts change is unreviewed; the next real turn must still run.
+  const beforeSecond = a925Hash(file('calc.ts'));
+  const aPreSecond = a925Hash(file('a.txt'));
+  const bPreSecond = a925Hash(file('b.txt'));
+  const second = await submit('w40 review turn 2');
+  const nonBlocking = beforeSecond !== baselineCalc && second.turnId !== first.turnId
+    && aPreSecond !== null && bPreSecond !== null
+    && a925Hash(file('a.txt')) !== aPreSecond && a925Hash(file('b.txt')) !== bPreSecond;
+  record('A9-W40-REVIEW-NON-BLOCKING', nonBlocking,
+    JSON.stringify({ first: first.turnId, second: second.turnId, beforeSecond, baselineCalc,
+      aPreSecond, aAfterSecond: a925Hash(file('a.txt')), bPreSecond, bAfterSecond: a925Hash(file('b.txt')) }));
+  const aBefore = process.env.A9_SMOKE_W40_A_BASELINE_SHA256 || '';
+  const bExternalText = 'external editor change after turn 2\n';
+  fs.writeFileSync(file('b.txt'), bExternalText, 'utf8');
+  const bExternalHash = a925Hash(file('b.txt'));
+  const secondDiff = await a925OpenFileDiff(exec, second.turnId, 'a.txt');
+  const externalMessage = await a925ClickUndo(exec, second.turnId, null);
+  const bAfter = a925Hash(file('b.txt'));
+  const aAfter = a925Hash(file('a.txt'));
+  const externalResponse = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(second.turnId)})`);
+  report.w40External = { terminal: second, viewed: secondDiff, response: externalResponse,
+    message: externalMessage, aBefore, aAfter, bExternalHash, bAfter };
+  record('A9-W40-REVIEW-EXTERNAL-DRIFT', aBefore && aAfter === aBefore && bAfter === bExternalHash
+    && a925DriftMatches(externalResponse, 'b.txt', 'external') && externalMessage.includes('外部修改'),
+    JSON.stringify(report.w40External));
+
+  const third = await submit('w40 review turn 3');
+  const afterThird = a925Hash(file('calc.ts'));
+  await a925OpenFileDiff(exec, first.turnId, 'calc.ts');
+  const laterMessage = await a925ClickUndo(exec, first.turnId, 'calc.ts');
+  const afterRejected = a925Hash(file('calc.ts'));
+  const laterResponse = await exec(`window.win7Agent.a9.undoFile(${JSON.stringify(first.turnId)}, 'calc.ts')`);
+  await a925OpenFileDiff(exec, third.turnId, 'calc.ts');
+  const undoThirdMessage = await a925ClickUndo(exec, third.turnId, 'calc.ts');
+  await a925OpenFileDiff(exec, first.turnId, 'calc.ts');
+  const undoFirstMessage = await a925ClickUndo(exec, first.turnId, 'calc.ts');
+  const afterBoth = a925Hash(file('calc.ts'));
+  report.w40Later = { first: first.turnId, third: third.turnId, afterThird, afterRejected,
+    response: laterResponse, laterMessage, undoThirdMessage, undoFirstMessage, afterBoth, baselineCalc };
+  record('A9-W40-REVIEW-LATER-TURN', afterThird !== null && afterRejected === afterThird
+    && a925DriftMatches(laterResponse, 'calc.ts', 'later_turn', third.turnId)
+    && laterMessage.includes('又被修改') && undoThirdMessage.includes('已撤销')
+    && undoFirstMessage.includes('已撤销') && afterBoth === baselineCalc,
+    JSON.stringify(report.w40Later));
+
+  const genBeforeCommand = a925Hash(file('gen.txt'));
+  const bigBeforeCommand = a925Hash(file('big.bin'));
+  const fourth = await submit('w40 review turn 4');
+  const fourthDiff = await getDiff(fourth.turnId);
+  const genBeforeUndo = a925Hash(file('gen.txt'));
+  const bigAfter = a925Hash(file('big.bin'));
+  const unrecoverable = (fourthDiff.review?.unrecoverable || []).find((item) => item.path === 'big.bin' && item.kind === 'too_large');
+  const unrecoverableText = await exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(fourth.turnId)});
+    row?.querySelector('.checkpoint-actions button')?.click();
+    return row?.textContent || '';
+  })()`);
+  await a925OpenFileDiff(exec, fourth.turnId, 'gen.txt');
+  const genUndoMessage = await a925ClickUndo(exec, fourth.turnId, 'gen.txt');
+  const genReview = await getDiff(fourth.turnId);
+  const genUndone = genReview.review?.files?.some((item) => item.path === 'gen.txt' && item.undone);
+  report.w40Command = { terminal: fourth, review: fourthDiff.review, genBeforeCommand,
+    genBeforeUndo, genAfterUndo: a925Hash(file('gen.txt')), genUndoMessage, genUndone,
+    bigBeforeCommand, bigAfter,
+    unrecoverableStatus: unrecoverable ? 'OBSERVED' : 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7',
+    unrecoverable: unrecoverable || null, unrecoverableText: String(unrecoverableText).slice(0, 500) };
+  record('A9-W40-REVIEW-COMMAND-CHANGES', genBeforeCommand === null && genBeforeUndo !== null
+    && a925Hash(file('gen.txt')) === null && genUndone && genUndoMessage.includes('已撤销')
+    && bigBeforeCommand !== null && bigAfter !== bigBeforeCommand
+    && (!unrecoverable || (unrecoverableText.includes('无法撤销') && unrecoverableText.includes('超过备份上限'))),
+    JSON.stringify(report.w40Command));
+  report.w40TurnIds = { first: first.turnId, second: second.turnId, third: third.turnId, fourth: fourth.turnId };
+}
+
+async function runW40ReviewRestartProcess(win, exec, env) {
+  void win;
+  const turnId = process.env.A9_SMOKE_W40_FIRST_TURN || '';
+  if (!turnId) throw new Error('A9_W40_RESTART_TURN_REQUIRED');
+  const beforeHash = a925Hash(path.join(env.workspaceRoot, 'notes.md'));
+  const diff = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(turnId)})`);
+  const shown = await a925OpenFileDiff(exec, turnId, 'notes.md');
+  const statusText = await exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-file'))
+      .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
+    return row?.querySelector('.review-file-toggle')?.textContent || '';
+  })()`);
+  const repeated = await exec(`window.win7Agent.a9.undoFile(${JSON.stringify(turnId)}, 'notes.md')`);
+  const afterHash = a925Hash(path.join(env.workspaceRoot, 'notes.md'));
+  report.w40UndoPersisted = { turnId, beforeHash, afterHash, review: diff.review,
+    shown, statusText, repeated };
+  record('A9-W40-REVIEW-UNDO-PERSISTED', beforeHash === null && afterHash === null
+    && diff.ok === true && diff.review?.files?.some((item) => item.path === 'notes.md' && item.undone)
+    && statusText.includes('已撤销') && repeated.ok === true
+    && repeated.outcome?.restored?.some((item) => item.includes('此前已撤销')),
+    JSON.stringify(report.w40UndoPersisted));
+}
+
+async function runW40ReviewModeProcess(win, exec, env) {
+  void win;
+  const snapshot = await exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)');
+  if (snapshot.mode !== 'review') throw new Error(`A9_W40_REVIEW_MODE_NOT_RESTORED:${snapshot.mode}`);
+  await exec(`(() => {
+    document.getElementById('a9-provider-url').value = ${JSON.stringify(env.fixtureUrl)};
+    document.getElementById('a9-provider-model').value = 'w40-review-mode-model';
+    document.getElementById('a9-provider-apply').click(); return true;
+  })()`);
+  await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent')
+    .then((value) => value === 'tool_calling' ? value : null), 30000, 'w40 review mode fixture probe');
+  const before = a925Hash(path.join(env.workspaceRoot, 'review-denied.txt'));
+  const cursor = await w39EventCursor(exec);
+  await w39SubmitPrompt(exec, 'w40 review mode write');
+  const terminal = await w39WaitTerminal(exec, cursor, 'w40 review mode turn');
+  const after = a925Hash(path.join(env.workspaceRoot, 'review-denied.txt'));
+  const events = await w39ReadEvents(exec, terminal.turnId);
+  const toolStarts = events.filter((item) => item.eventType === 'tool_start');
+  const toolEnds = events.filter((item) => item.eventType === 'tool_end');
+  const snapshotAfter = await exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)');
+  const refused = String(snapshotAfter.conversation?.at(-1)?.finalMessage || '');
+  report.w40ReviewMode = { mode: snapshotAfter.mode, terminal, before, after,
+    toolStartCount: toolStarts.length, toolEndCount: toolEnds.length, response: refused.slice(0, 300) };
+  record('A9-W40-REVIEW-MODE-FAIL-CLOSED', before === null && after === null
+    && snapshotAfter.mode === 'review' && terminal.turnId
+    && toolStarts.length === 0 && toolEnds.length === 0
+    && refused.includes('REVIEW mode requires a review staging backend')
+    && refused.includes('NOT performed'), JSON.stringify(report.w40ReviewMode));
 }
 
 function writeDriverReport() {
