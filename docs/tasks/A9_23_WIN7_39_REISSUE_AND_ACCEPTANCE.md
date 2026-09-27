@@ -164,3 +164,5 @@ Decision: ADR-0142
   第 7 步审核完成，见[审核报告](../reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md)：15 项满足判定要点，建议组装正式报告并在 Win7 复核后进入门 B；已知限制 4 条。
 - 2026-09-27：负责人接受审核结论。审核方组装正式报告 `report-w39.json`（`70229b79…2688`，15 项 PASS），开发机候选校验器 `status=PASS`、`verified_cases=15`，
   篡改证据与错误 pin 均被拒；组装时补充发现 W39-06 Stop 后 PID 消失时间点无直接证据（已写入审核报告 §4 第 6 条，待门 B 决定口径）。Win7 复核按[实机交接书附录 B](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)执行。
+- 2026-09-27：附录 B Win7 报告校验完成：`agent` Medium 下候选内 `RUN_WIN7_39_REPORT_VERIFY.cmd` 输出 `status=PASS`、`verified_cases=15`、
+  处置 `A9_23_WIN7_39_A9_20_A9_21_PASS`，`REPORT_VERIFY_EXIT=0`；验证包 41 项 Win7 端哈希一致，取回清单 137 项复算一致，前序证据未变。待负责人门 B 裁决。
