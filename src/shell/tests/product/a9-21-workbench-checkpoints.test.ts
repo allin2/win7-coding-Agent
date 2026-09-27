@@ -60,7 +60,7 @@ describe('A9-21 M3 real workbench checkpoint list', () => {
     view.render(recent, 70);
     expect(view.checkpointIds()).toHaveLength(10);
     expect(view.nodes.get('a9-checkpoint-count')!.textContent).toBe('最近 10 / 共 70');
-    expect(view.list.children[0].children[1].children[0].textContent).toBe('查看 Diff');
+    expect(view.list.children[0].children[1].children[0].textContent).toBe('查看改动');
     expect(view.button()!.textContent).toBe('加载更早的 20 条（还有 60 条）');
     view.button()!.handlers.click();
     expect(view.checkpointIds()).toHaveLength(30);
@@ -75,7 +75,7 @@ describe('A9-21 M3 real workbench checkpoint list', () => {
     expect(view.checkpointIds()).toEqual(Array.from({ length: 70 }, (_, i) => row(69 - i).turnId));
     expect(view.nodes.get('a9-checkpoint-count')!.textContent).toBe('共 70');
     expect(view.list.children[view.list.children.length - 1].className).toBe('checkpoint-row');
-    expect(view.list.children[69].children[1].children.map((action) => action.textContent)).toEqual(['查看 Diff', '撤销', '复制 ID']);
+    expect(view.list.children[69].children[1].children.map((action) => action.textContent)).toEqual(['查看改动', '撤销本轮全部', '复制 ID']);
   });
 
   it('keeps loaded history continuous and deduplicated when a new checkpoint arrives', async () => {

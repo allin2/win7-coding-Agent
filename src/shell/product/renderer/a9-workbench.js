@@ -18,7 +18,7 @@
   const MODE_LABELS = Object.freeze({
     full_access: 'Full Access',
     read_only: 'Read Only',
-    review: 'Review · Alpha 2',
+    review: 'Review（不可用）',
     needs_selection: '待选择',
   });
   const TAB_IDS = ['files', 'changes', 'activity', 'environment'];
@@ -65,6 +65,17 @@
     checkpointVisible: 10,
     checkpointLoading: false,
     checkpointError: '',
+    reviewCache: new Map(),
+    reviewEpoch: 0,
+    reviewOpenTurn: null,
+    reviewOpenFile: null,
+    reviewConfirmation: null,
+    reviewMessages: new Map(),
+    pendingUndo: null,
+    undoInFlight: null,
+    summaryQueue: [],
+    summaryActive: 0,
+    summaryQueued: new Set(),
     draftHydratedConversationId: null,
     draftTimer: null,
     draftSaving: false,
@@ -406,6 +417,7 @@
   }
 
   function resetConversationEvents() {
+    if (typeof cancelPendingUndo === 'function') cancelPendingUndo();
     state.historyGeneration = (state.historyGeneration || 0) + 1;
     state.conversationFacts = new Map();
     state.conversationPage = null;
@@ -955,6 +967,89 @@
     updateOutcomeCard(block, fact, events);
   }
 
+  function updateSummaryForTurn(turnId) {
+    const review = state.reviewCache.get(turnId);
+    const fact = ((state.snapshot && state.snapshot.conversation) || []).find((item) => item.turnId === turnId);
+    const block = fact && state.streamDom.get(fact.taskId);
+    if (!block || !TERMINAL_OUTCOMES.has(fact.outcome)) return;
+    const changed = review && (review.files || []).length + (review.unrecoverable || []).length;
+    if (!changed) {
+      if (block.summaryEl) { block.summaryEl.remove(); block.summaryEl = null; }
+      return;
+    }
+    if (!block.summaryEl) {
+      block.summaryEl = document.createElement('div');
+      block.summaryEl.className = 'change-summary';
+      block.summaryEl.dataset.turnId = turnId;
+      block.root.appendChild(block.summaryEl);
+    }
+    const card = block.summaryEl;
+    card.textContent = '';
+    const counts = reviewCounts(review);
+    const number = turnNumber(turnId);
+    const title = document.createElement('strong');
+    title.textContent = `${number === null ? '本轮' : `第 ${number} 轮`}改动了 ${changed} 个文件 · +${counts.additions} −${counts.deletions}`;
+    card.appendChild(title);
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.textContent = '审阅';
+    open.setAttribute('aria-label', `审阅 ${number === null ? turnId : `第 ${number} 轮`}的改动`);
+    open.addEventListener('click', () => { void showDiff(turnId); });
+    card.appendChild(open);
+    const chips = document.createElement('div');
+    chips.className = 'change-summary-files';
+    (review.files || []).forEach((file) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `change-summary-file${file.undone ? ' undone' : ''}`;
+      chip.textContent = file.path;
+      chip.setAttribute('aria-label', `审阅 ${file.path}`);
+      chip.addEventListener('click', () => { void showDiff(turnId, file.path); });
+      chips.appendChild(chip);
+    });
+    (review.unrecoverable || []).forEach((change) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'change-summary-file unrecoverable';
+      chip.textContent = `${change.path}（无法撤销）`;
+      chip.addEventListener('click', () => { void showDiff(turnId); });
+      chips.appendChild(chip);
+    });
+    card.appendChild(chips);
+  }
+
+  function pumpSummaryQueue() {
+    while (state.summaryActive < 2 && state.summaryQueue.length) {
+      const task = state.summaryQueue.shift();
+      state.summaryActive += 1;
+      void getReview(task.turnId).then((response) => {
+        if (response && response.ok !== true) throw response;
+      }).catch((error) => {
+        state.checkpointError = errorMessage(error, '改动摘要读取失败，请重试。');
+        if (state.snapshot) renderCheckpoints(state.snapshot);
+      }).finally(() => {
+        state.summaryActive -= 1;
+        state.summaryQueued.delete(task.turnId);
+        pumpSummaryQueue();
+      });
+    }
+  }
+
+  function loadRecentSummaries(snapshot) {
+    if (typeof orderedCheckpoints !== 'function') return;
+    const known = new Set(orderedCheckpoints().map((checkpoint) => checkpoint.turnId));
+    const facts = (snapshot.conversation || []).filter((fact) =>
+      fact.turnId && TERMINAL_OUTCOMES.has(fact.outcome) && known.has(fact.turnId)).slice(-10);
+    facts.forEach((fact) => {
+      if (state.reviewCache.has(fact.turnId)) updateSummaryForTurn(fact.turnId);
+      else if (!state.summaryQueued.has(fact.turnId)) {
+        state.summaryQueued.add(fact.turnId);
+        state.summaryQueue.push({ turnId: fact.turnId });
+      }
+    });
+    pumpSummaryQueue();
+  }
+
   /**
    * A9-19 P02（ADR-0135）：模型流式输出的内存预览。只来自快照 liveModelPreview（运行时已累积脱敏并
    * 保留尾部），不入事件、不落盘；轮次终态或预览消失即移除，由持久化的最终文本接替。
@@ -1002,7 +1097,7 @@
         String(fact.requestPrompt || '').length, String(fact.finalMessage || '').length,
       ]),
     ]);
-    if (state.conversationSignature === signature) return;
+    if (state.conversationSignature === signature) { loadRecentSummaries(snapshot); return; }
     state.conversationSignature = signature;
     if (state.renderedConversationId !== snapshot.activeConversationId) {
       state.renderedConversationId = snapshot.activeConversationId;
@@ -1065,6 +1160,7 @@
       state.truncatedNote = null;
     }
     el('a9-empty-state').hidden = facts.length > 0 || Boolean(state.localRequest);
+    loadRecentSummaries(snapshot);
     if (state.streamFollow) scrollToLatest();
   }
 
@@ -1177,6 +1273,122 @@
       b.createdAt.localeCompare(a.createdAt) || b.turnId.localeCompare(a.turnId));
   }
 
+  function turnNumber(turnId) {
+    if (state.conversationPage && state.conversationPage.hasMore) return null;
+    const facts = (state.snapshot && state.snapshot.conversation) || [];
+    const index = facts.findIndex((fact) => fact.turnId === turnId);
+    return index < 0 ? null : index + 1;
+  }
+
+  function reviewCounts(review) {
+    return (review.files || []).reduce((count, file) => ({
+      additions: count.additions + (file.additions || 0),
+      deletions: count.deletions + (file.deletions || 0),
+      remaining: count.remaining + (file.undone ? 0 : 1),
+    }), { additions: 0, deletions: 0, remaining: 0 });
+  }
+
+  function reviewActionLabel(file) {
+    if (file.originalKind === 'directory' || file.newKind === 'directory') return '目录';
+    return ({ create: '新建', modify: '修改', delete: '删除' })[file.action] || '改动';
+  }
+
+  function appendReviewFiles(item, turnId, review) {
+    if (!review || state.reviewOpenTurn !== turnId) return;
+    const files = document.createElement('div');
+    files.className = 'review-files';
+    (review.files || []).forEach((file, index) => {
+      const row = document.createElement('div');
+      row.className = `review-file${file.undone ? ' undone' : ''}`;
+      const fileId = `review-file-${index}-${String(turnId).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'review-file-toggle';
+      const isTarget = (request) => request && request.turnId === turnId
+        && (request.kind === 'turn' || request.path === file.path);
+      toggle.textContent = `${reviewActionLabel(file)} · ${file.path} · +${file.additions} −${file.deletions} · ${file.undone ? '已撤销' : isTarget(state.undoInFlight) ? '正在撤销' : isTarget(state.pendingUndo) ? '即将撤销' : '未撤销'}`;
+      toggle.setAttribute('aria-label', `查看 ${file.path} 的改动`);
+      toggle.setAttribute('aria-expanded', String(state.reviewOpenFile === file.path));
+      toggle.setAttribute('aria-controls', fileId);
+      toggle.addEventListener('click', () => {
+        state.reviewOpenFile = state.reviewOpenFile === file.path ? null : file.path;
+        renderCheckpoints(state.snapshot);
+      });
+      row.appendChild(toggle);
+      const detail = document.createElement('div');
+      detail.id = fileId;
+      detail.className = 'review-file-detail';
+      detail.hidden = state.reviewOpenFile !== file.path;
+      if (!detail.hidden) {
+        const diff = document.createElement('pre');
+        diff.className = 'review-file-diff';
+        diff.textContent = file.diffText || '目录或二进制改动无文本 Diff。';
+        detail.appendChild(diff);
+        if (file.diffTruncated) {
+          const note = document.createElement('p');
+          note.textContent = 'Diff 预览已截断；请在文件视图核对完整内容。';
+          detail.appendChild(note);
+        }
+        const undo = document.createElement('button');
+        undo.type = 'button';
+        undo.textContent = '撤销此文件';
+        undo.disabled = file.undone || Boolean(state.pendingUndo || state.undoInFlight);
+        undo.setAttribute('aria-label', `撤销 ${file.path}`);
+        undo.addEventListener('click', () => queueUndo('file', turnId, file.path));
+        detail.appendChild(undo);
+      }
+      row.appendChild(detail);
+      const result = state.reviewMessages.get(`${turnId}\u0000${file.path}`);
+      if (result) {
+        const message = document.createElement('p');
+        message.className = 'review-file-result';
+        message.textContent = result;
+        row.appendChild(message);
+      }
+      files.appendChild(row);
+    });
+    (review.unrecoverable || []).forEach((change) => {
+      const warning = document.createElement('p');
+      warning.className = 'review-unrecoverable';
+      const reason = ({ outside: '位于工作区外', too_large: '超过备份上限', backup_failed: '备份失败',
+        created: '缺少可恢复基线', modified: '缺少原始内容', deleted: '缺少原始内容', renamed: '无法确定原始路径' })[change.kind]
+        || '恢复依据不足';
+      warning.textContent = `命令产生 · 无法撤销 · ${change.path}：${reason}${change.reason ? `（${change.reason}）` : ''}`;
+      files.appendChild(warning);
+    });
+    if (state.reviewConfirmation && state.reviewConfirmation.turnId === turnId) {
+      const confirm = document.createElement('div');
+      confirm.className = 'review-confirmation';
+      const message = document.createElement('p');
+      message.textContent = '已重新收集命令后的当前状态。请先查看改动，再确认撤销；确认仅对这次请求有效。';
+      confirm.appendChild(message);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = '确认撤销';
+      button.disabled = Boolean(state.undoInFlight);
+      button.setAttribute('aria-label', `确认撤销 ${state.reviewConfirmation.path || '本轮全部改动'}`);
+      button.addEventListener('click', () => { void executeUndo(state.reviewConfirmation); });
+      confirm.appendChild(button);
+      files.appendChild(confirm);
+    }
+    if (state.pendingUndo && state.pendingUndo.turnId === turnId) {
+      const pending = document.createElement('div');
+      pending.className = 'review-pending';
+      pending.setAttribute('aria-live', 'polite');
+      const countdown = document.createElement('span');
+      countdown.textContent = `将在 ${Math.max(1, Math.ceil((state.pendingUndo.deadline - Date.now()) / 1000))} 秒后撤销。`;
+      state.pendingUndo.countdownNode = countdown;
+      pending.appendChild(countdown);
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = '撤回';
+      cancel.addEventListener('click', cancelPendingUndo);
+      pending.appendChild(cancel);
+      files.appendChild(pending);
+    }
+    item.appendChild(files);
+  }
+
   function renderCheckpoints(snapshot) {
     const previous = orderedCheckpoints();
     const oldestVisible = previous[state.checkpointVisible - 1];
@@ -1203,14 +1415,15 @@
       actions.className = 'checkpoint-actions';
       const diff = document.createElement('button');
       diff.type = 'button';
-      diff.textContent = '查看 Diff';
+      diff.textContent = '查看改动';
       diff.setAttribute('aria-label', `查看 ${checkpoint.turnId} Diff`);
       diff.addEventListener('click', () => { void showDiff(checkpoint.turnId); });
       const undo = document.createElement('button');
       undo.type = 'button';
-      undo.textContent = '撤销';
+      undo.textContent = '撤销本轮全部';
       undo.setAttribute('aria-label', `撤销 ${checkpoint.turnId}`);
-      undo.addEventListener('click', () => { void undoTurn(checkpoint.turnId); });
+      undo.disabled = Boolean(state.pendingUndo || state.undoInFlight);
+      undo.addEventListener('click', () => queueUndo('turn', checkpoint.turnId));
       const copy = document.createElement('button');
       copy.type = 'button';
       copy.textContent = '复制 ID';
@@ -1224,6 +1437,13 @@
       actions.appendChild(copy);
       item.appendChild(identity);
       item.appendChild(actions);
+      const review = state.reviewCache.get(checkpoint.turnId);
+      const counts = review ? reviewCounts(review) : null;
+      const heading = document.createElement('div');
+      heading.className = 'review-turn-heading';
+      heading.textContent = `${turnNumber(checkpoint.turnId) === null ? '更早的轮次' : `第 ${turnNumber(checkpoint.turnId)} 轮`}${counts ? ` · +${counts.additions} −${counts.deletions} · ${counts.remaining} 个文件未撤销` : ''}`;
+      item.appendChild(heading);
+      appendReviewFiles(item, checkpoint.turnId, review);
       list.appendChild(item);
     });
     if (state.checkpointError) {
@@ -1470,12 +1690,21 @@
   function syncCheckpointScope(snapshot) {
     const checkpointScope = `${snapshot.workspaceRoot || ''}\u0000${snapshot.activeConversationId || ''}`;
     if (state.checkpointScope !== checkpointScope) {
+      cancelPendingUndo();
       state.checkpointScope = checkpointScope;
       state.checkpointGeneration += 1;
+      state.reviewEpoch += 1;
       state.checkpointKnown.clear();
       state.checkpointVisible = 10;
       state.checkpointLoading = false;
       state.checkpointError = '';
+      state.reviewCache.clear();
+      state.reviewOpenTurn = null;
+      state.reviewOpenFile = null;
+      state.reviewConfirmation = null;
+      state.reviewMessages.clear();
+      state.summaryQueue = [];
+      state.summaryQueued.clear();
     }
   }
 
@@ -1646,6 +1875,7 @@
   }
 
   async function runConversationOperation(operation) {
+    cancelPendingUndo();
     clearGlobalError();
     try {
       await saveDraftNow();
@@ -1735,6 +1965,7 @@
   }
 
   async function chooseWorkspace() {
+    cancelPendingUndo();
     clearGlobalError();
     try {
       await saveDraftNow();
@@ -1943,7 +2174,7 @@
     text('a9-mode-title', needsSelection ? '选择此工作区的权限' : '更改此工作区的权限');
     text('a9-mode-badge', needsSelection ? '必须选择' : '可随时更改');
     text('a9-mode-intro', snapshot.mode === 'review'
-      ? '此工作区保存的是 Review。完整 Review 已延期到 Alpha 2；请选择 Alpha 1 支持的模式后才能继续。'
+      ? '此工作区保存了不可用的 Review 模式，写入仍会被拒绝。请选择 Full Access 或 Read Only。'
       : needsSelection
         ? '每个工作区单独保存权限。Full Access 使用当前 Windows 用户权限，不提供额外沙箱。'
         : '模式将保存到此工作区；正在执行的任务不会被静默改变。');
@@ -2053,24 +2284,137 @@
     return state.approvalDecision;
   }
 
-  async function showDiff(turnId) {
+  async function getReview(turnId) {
+    const generation = state.checkpointGeneration;
+    const epoch = state.reviewEpoch;
     const response = await a9.getDiff(turnId);
+    if (generation !== state.checkpointGeneration || epoch !== state.reviewEpoch) return null;
+    if (response && response.ok === true && response.review) {
+      state.reviewCache.set(turnId, response.review);
+      if (state.snapshot) renderCheckpoints(state.snapshot);
+      updateSummaryForTurn(turnId);
+    }
+    return response;
+  }
+
+  async function showDiff(turnId, filePath) {
+    const generation = state.checkpointGeneration;
+    state.reviewOpenTurn = turnId;
+    state.reviewOpenFile = filePath || null;
+    let response;
+    try { response = await getReview(turnId); }
+    catch (error) { response = { ok: false, error }; }
+    if (generation !== state.checkpointGeneration) return;
     text('a9-diff', response && response.ok === true
       ? (response.diff || []).map((item) => `--- ${item.path} (${item.action})\n${item.diffText}`).join('\n') || '此 checkpoint 没有文件变更。'
       : errorMessage(response, 'Diff 不可用。'));
+    if (state.snapshot) renderCheckpoints(state.snapshot);
     openInspector('changes');
   }
 
-  async function undoTurn(turnId) {
-    const response = await a9.undoTurn(turnId, state.undoConfirmations[turnId]);
-    if (response && response.needsConfirmation === true) state.undoConfirmations[turnId] = response.confirmationId;
-    else delete state.undoConfirmations[turnId];
-    text('a9-undo-state', response && response.ok === true
-      ? (response.needsConfirmation === true
-        ? response.outcome.errors[0]
-        : `restored=${(response.outcome.restored || []).length} · errors=${(response.outcome.errors || []).length}`)
-      : errorMessage(response, '撤销失败。'));
-    await refreshSnapshot();
+  function cancelPendingUndo() {
+    const pending = state.pendingUndo;
+    if (!pending) return;
+    root.clearTimeout(pending.timer);
+    root.clearInterval(pending.tick);
+    state.pendingUndo = null;
+    text('a9-undo-state', '已撤回撤销；文件未改动。');
+    if (state.snapshot) renderCheckpoints(state.snapshot);
+  }
+
+  function queueUndo(kind, turnId, path) {
+    if (state.pendingUndo || state.undoInFlight) return;
+    state.reviewOpenTurn = turnId;
+    const request = { kind, turnId, path: path || null, conversationId: state.activeConversationId };
+    const pending = { ...request, deadline: Date.now() + 5000, timer: null, tick: null };
+    pending.timer = root.setTimeout(() => {
+      if (state.pendingUndo !== pending) return;
+      root.clearInterval(pending.tick);
+      state.pendingUndo = null;
+      if (state.snapshot) renderCheckpoints(state.snapshot);
+      if (request.conversationId === state.activeConversationId) void executeUndo(request);
+    }, 5000);
+    pending.tick = root.setInterval(() => {
+      if (state.pendingUndo === pending && pending.countdownNode) {
+        pending.countdownNode.textContent = `将在 ${Math.max(1, Math.ceil((pending.deadline - Date.now()) / 1000))} 秒后撤销。`;
+      }
+    }, 1000);
+    state.pendingUndo = pending;
+    text('a9-undo-state', `将在 5 秒后撤销${kind === 'file' ? ` ${path}` : '本轮改动'}；可撤回。`);
+    if (state.snapshot) renderCheckpoints(state.snapshot);
+  }
+
+  function undoResultText(turnId, response) {
+    if (!response || response.ok !== true) return errorMessage(response, '撤销失败。');
+    const outcome = response.outcome || { restored: [], errors: [], drifted: [] };
+    const review = state.reviewCache.get(turnId);
+    const files = review ? review.files || [] : [];
+    const messages = [];
+    files.forEach((file) => {
+      const key = `${turnId}\u0000${file.path}`;
+      const drift = (response.driftReasons || []).find((entry) => entry.path === file.path);
+      if (drift) {
+        const later = drift.kind === 'later_turn' ? turnNumber(drift.laterTurnId) : null;
+        const message = drift.kind === 'later_turn'
+          ? `${file.path} 在${later === null ? `后续轮次 ${drift.laterTurnId}` : `第 ${later} 轮`}又被修改，先撤销后续轮次对它的修改；工作区未改动。`
+          : `${file.path} 在本轮之后被外部修改；为避免覆盖你的修改，已拒绝撤销，工作区未改动。`;
+        state.reviewMessages.set(key, message);
+        messages.push(message);
+      } else if ((outcome.restored || []).some((entry) => entry === file.path || entry.startsWith(`${file.path} (`))) {
+        const message = `已撤销 ${file.path}`;
+        state.reviewMessages.set(key, message);
+        messages.push(message);
+      } else if ((outcome.errors || []).some((entry) => entry.includes(file.path))) {
+        const message = `${file.path} 未撤销。`;
+        state.reviewMessages.set(key, message);
+        messages.push(message);
+      }
+    });
+    const covered = messages.length;
+    if (!covered && (outcome.restored || []).length) messages.push(`已撤销 ${outcome.restored.length} 个文件。`);
+    if (!covered && (outcome.drifted || []).length) messages.push(...outcome.drifted.map((entry) => `未撤销 ${entry}；工作区未改动。`));
+    if (outcome.errors && outcome.errors.length) messages.push(...outcome.errors);
+    if (!messages.length) messages.push('没有文件被撤销；工作区未改动。');
+    return messages.join('\n');
+  }
+
+  async function executeUndo(request) {
+    if (!request || request.conversationId !== state.activeConversationId || state.undoInFlight) return;
+    state.undoInFlight = request;
+    if (state.snapshot) renderCheckpoints(state.snapshot);
+    try {
+      const response = request.kind === 'file'
+        ? await a9.undoFile(request.turnId, request.path, request.confirmationId)
+        : await a9.undoTurn(request.turnId, request.confirmationId);
+      if (request.conversationId !== state.activeConversationId) return;
+      if (response && response.needsConfirmation === true) {
+        state.reviewConfirmation = { ...request, confirmationId: response.confirmationId };
+        state.reviewOpenTurn = request.turnId;
+        text('a9-undo-state', '命令后的状态已重新收集；查看改动后请确认撤销。');
+        return;
+      }
+      state.reviewConfirmation = null;
+      text('a9-undo-state', undoResultText(request.turnId, response));
+      state.reviewEpoch += 1;
+      state.reviewCache.delete(request.turnId);
+      await refreshSnapshot();
+      if (request.conversationId === state.activeConversationId) {
+        try {
+          const refreshed = await getReview(request.turnId);
+          if (refreshed && refreshed.ok !== true) throw refreshed;
+        }
+        catch (error) {
+          state.checkpointError = `撤销结果已返回，但改动状态刷新失败：${errorMessage(error, '请重试查看改动。')}`;
+        }
+      }
+    } catch (error) {
+      if (request.conversationId === state.activeConversationId) text('a9-undo-state', errorMessage(error, '撤销失败；请重试。'));
+    } finally {
+      if (state.undoInFlight === request) {
+        state.undoInFlight = null;
+        if (state.snapshot) renderCheckpoints(state.snapshot);
+      }
+    }
   }
 
   async function refreshGit() {
@@ -2443,6 +2787,7 @@
   }
 
   function bind() {
+    if (typeof root.addEventListener === 'function') root.addEventListener('beforeunload', cancelPendingUndo);
     el('workspace-select').addEventListener('click', () => { void chooseWorkspace(); });
     el('task-prompt').addEventListener('input', () => { resizeComposer(); scheduleDraftSave(); });
     el('task-prompt').addEventListener('blur', () => { void saveDraftNow(); });

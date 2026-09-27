@@ -1427,6 +1427,47 @@ export class CheckpointManager {
     return results;
   }
 
+  /** A9-24: read-only projection for the change inspector. */
+  getTurnReview(turnId: string): {
+    turnId: string;
+    files: Array<{
+      path: string; action: FileChangeRecord['action']; originalKind?: FileChangeRecord['originalKind'];
+      newKind?: FileChangeRecord['newKind']; undone: boolean; additions: number; deletions: number;
+      diffText: string; diffTruncated: boolean;
+    }>;
+    unrecoverable: UnrecoverableExternalChange[];
+    externalBaselineStatus: 'none' | PersistedExternalBaseline['collectionStatus'];
+  } | null {
+    const checkpoint = this.loadCheckpoint(turnId);
+    if (!checkpoint) return null;
+    const files = Object.entries(checkpoint.changes).map(([relPath, record]) => {
+      const original = record.originalBlobPath && fs.existsSync(record.originalBlobPath)
+        ? fs.readFileSync(record.originalBlobPath) : null;
+      const next = record.newBlobPath && fs.existsSync(record.newBlobPath)
+        ? fs.readFileSync(record.newBlobPath) : null;
+      const directory = record.isDirectory || record.originalKind === 'directory' || record.newKind === 'directory';
+      const diff = buildContentDiffPreview(original, next);
+      const lines = directory ? [] : diff.unifiedDiff.split('\n');
+      return {
+        path: relPath,
+        action: record.action,
+        originalKind: record.originalKind,
+        newKind: record.newKind,
+        undone: Boolean(record.undoAppliedAt),
+        additions: lines.filter((line) => line.startsWith('+') && !line.startsWith('+++')).length,
+        deletions: lines.filter((line) => line.startsWith('-') && !line.startsWith('---')).length,
+        diffText: diff.unifiedDiff,
+        diffTruncated: diff.truncated,
+      };
+    });
+    return {
+      turnId,
+      files,
+      unrecoverable: Object.values(checkpoint.unrecoverable ?? {}).map((item) => ({ ...item })),
+      externalBaselineStatus: checkpoint.externalBaseline?.collectionStatus ?? 'none',
+    };
+  }
+
   getTurnChanges(turnId: string): FileChangeRecord[] {
     const checkpoint = this.loadCheckpoint(turnId);
     return checkpoint ? Object.values(checkpoint.changes).map((r) => ({ ...r })) : [];
