@@ -1,18 +1,18 @@
 # A9-24 — 改动审阅（Alpha 2，取代 A9-16 R01–R05 的暂存区式 Review，ADR-0143）
 
 ```text
-Status: DRAFT_PENDING_OWNER_REVIEW
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: ALPHA2_PRODUCT_FEATURE
 Target Branch: codex/a9-alpha2
-Source Baseline: codex/a9-alpha2（批准时以批准提交为准）
+Source Baseline: codex/a9-alpha2 @ 本任务书批准提交
 Target Version: 0.3.0-alpha.2
-Phase-Gate: NOT_AUTHORIZED
+Phase-Gate: A9_24_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0143
 ```
 
 > 2026-09-27 负责人决定：Review 要么接近一线体验、要么不做；批准把 A9-16 R01–R05 改为“先写后审”的改动审阅（ADR-0143）。
-> 本文件是草稿，**不构成实现授权**（CLAUDE.md 行为规则 1、AGENTS.md C14）。交互 Demo：[a9-24-review-demo](../plans/a9-24-review-demo/index.html)。
+> 2026-09-27 负责人确认 Demo 与 §6 建议，批准实施（“我觉得可以，给我实施方案”）。实现只能在 §5 允许路径内进行（AGENTS.md C14）。交互 Demo：[a9-24-review-demo](../plans/a9-24-review-demo/index.html)。
 > 同日第一版草稿（暂存区式 Review 模式）已被本版取代，见 git 历史 `4019c02`。
 
 ## 1. 目标体验
@@ -31,7 +31,7 @@ Agent 直接写入工作区，所以能运行测试、自我修正；每轮结�
 | checkpoint 列表 | 检查器列出 Turn ID、“查看 Diff”“撤销”“复制 ID” | 面向开发者，不是面向改动 |
 | Review 模式 | `review` 值在 schema 与运行时存在；未配置暂存后端时写操作结构化拒绝 | 按 ADR-0143 保留为 fail-closed，不做入口 |
 
-## 3. 设计（Demo 所示，待负责人确认）
+## 3. 设计（Demo 所示，2026-09-27 负责人确认）
 
 - **C1 本轮改动摘要**：每轮结束且有文件变化时，在对话流中该轮结论下方显示摘要卡：“第 N 轮改动了 K 个文件 +a −d”，列出文件，点击任一文件或“审阅”在检查器中定位。
 - **C2 检查器“改动”页签**：取代现有 checkpoint 列表视图。按轮分组，最新在上；每轮显示增删计数、未撤销文件数与“撤销本轮全部”；
@@ -60,23 +60,50 @@ Agent 直接写入工作区，所以能运行测试、自我修正；每轮结�
 | CR-09 | 高影响操作确认行为与文案不变；A9-16 U01–U07、A9-19 布局与实时过程用例不回退；新增控件键盘可达、`aria` 完整 |
 | CR-10 | 摘要卡、改动页签与撤销提示不含秘密内容（沿用现有脱敏） |
 
-## 5. 实现范围草案（批准后冻结为 C14 允许路径）
+## 5. C14 允许路径（冻结）
 
-- 界面：`src/shell/product/renderer/workbench.html`、`a9-workbench.css`、`a9-workbench.js` 与 `src/shell/tests/product/a9-workbench-contract.test.ts`。
-- 产品宿主：`src/shell/product/a9-agent-runtime.js`（Diff 响应增加逐文件增删计数、撤销状态、不可恢复项与漂移原因分类；不新增 IPC 通道为首选）及其测试。
-- Workspace：`src/workspace/src/checkpoint-manager.ts` 仅新增只读查询（撤销状态、不可恢复项），不改撤销语义；及其测试。
-- 不改 schema（沿用 ADR-0138 不引入迁移的取向）；不改 Core。
-- 文档：本任务书、`docs/tasks/README.md`、STATUS/STATUS_LOG、`docs/plans/a9-24-review-demo/**`。
+实现在独立工作树与分支 `codex/a9-24-change-review`（自 `codex/a9-alpha2` 批准提交创建）进行，只允许修改或新增：
 
-## 6. 开放问题（批准前需负责人裁决）
+- `src/workspace/src/checkpoint-manager.ts`：**只新增只读查询**，不改任何撤销、持久化或漂移判定语义；
+- `src/workspace/tests/unit/**`：本任务新增测试；
+- `src/shell/product/a9-agent-runtime.js`：Diff 与撤销响应的只增字段、漂移原因分类；不新增 IPC 通道；
+- `src/shell/product/renderer/workbench.html`、`a9-workbench.css`、`a9-workbench.js`；
+- `src/shell/tests/product/**`：新增测试；既有测试只允许因文案变更而更新断言，不得删除用例或放宽断言。**不得修改** `a9-06-driver-entry.cjs`。
 
-- **Q1 撤回时长**：建议 5 秒；是否改为撤销前弹确认（更稳但多一步）。
-- **Q2 旧 checkpoint 列表**：建议由“改动”页签取代，Turn ID 与复制收进“更多”；是否保留原列表视图。
-- **Q3 按块撤销**：建议本任务验收后立即另立任务（需要反向补丁与块级漂移检测，是新后端能力）。
-- **Q4 Win7 验收**：开发机完成后另立换发任务出 WIN7-40，沿用 A9-23 的门 A/门 B 流程。
+不得修改：Core、State（含 schema）、`a9-product-ipc.js`、preload、`main.js`、native、发布脚本与 `release/**`、文档（文档由验收方维护）。
+若实现需要触碰清单外文件，停止并报告。
 
-## 7. 非目标
+### 5.1 兼容约束（W37/W39 驱动与既有契约依赖）
+
+- `#a9-checkpoint-list` 内每轮一行 `li.checkpoint-row`；行内 `.checkpoint-id` 显示**完整** Turn ID（可缩小、弱化，但须可见且 `title` 为完整 ID），
+  保留“复制 ID”；行内**第一个按钮**仍把该轮 Diff 写入 `#a9-diff`（文本含 `--- <path> (<action>)` 行）。
+- `#a9-checkpoint-count` 文案格式（“最近 N / 共 M”或“共 M”）与“加载更早…”分页按钮保持不变；`#a9-undo-state` 保留，改为人话结果。
+- `a9.diff.get` 响应的 `diff` 数组保持原结构，新增字段放在同级；撤销响应的 `outcome` 保持原结构。
+
+## 6. 裁决结果（2026-09-27）
+
+- Q1：撤销延迟 5 秒，期间可撤回；延迟期内切换对话、切换工作区或退出应用时不执行。
+- Q2：原 checkpoint 列表由按轮分组的改动视图取代；因 §5.1，完整 Turn ID 与复制保留为行内次要信息。
+- Q3：按块撤销在本任务验收后另立任务。
+- Q4：开发机完成后另立换发任务出 WIN7-40，沿用 A9-23 的门 A/门 B 流程。
+
+## 7. 验证矩阵
+
+开发机（macOS，Node 20.17）必须全部通过后才能交付：
+
+1. `src/workspace` 全量 Jest；`src/shell` 全量 Jest（含新增测试）；
+2. `npm run verify:quick`、`npm run docs:check`、`git diff --check`；
+3. `node --test scripts/release/test/a9-package.test.mjs`（证明驱动与发布套件未受影响）；
+4. 负向对照：把延迟撤销改为立即调用、把漂移分类恒定为 `external`、删除 `.checkpoint-id` 完整 ID，各自至少一个新增测试失败。
+
+真实 Electron（Windows）与 Win7 实机：`NOT_PERFORMED`，由 WIN7-40 换发任务承担，不得宣称通过。
+
+## 8. 非目标
 
 - 暂存区式 Review 模式、写入前审批（ADR-0143 已决定不做）。
 - Shell 运行中输出（S01–S06，另立任务，先写 helper v3 协议设计）。
 - 会话中选择工作区后过程记录不加载的产品侧观察（另议）。
+
+## 9. 执行记录
+
+- 2026-09-27：负责人确认 Demo 与 §6 建议，批准实施；实现交接书 [A9_24_CHANGE_REVIEW_HANDOFF.md](../plans/A9_24_CHANGE_REVIEW_HANDOFF.md)。

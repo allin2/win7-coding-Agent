@@ -1200,3 +1200,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-27，A9-21 收口：负责人接受 §5 第 5 项 gateway 排查结论“未复现、原因未定位”（开发机 200 次 263/263，审核方复核原始 JSON 一致），关闭第 5 项；第 6 项已由 WIN7-39 完成。`Phase-Gate` 改为 `A9_21_DEVELOPER_VERIFIED`。证据长期保存于 `.acceptance/runs/A9-21-GWFLAKE/a9-21-gateway-flake-evidence-20260926.tar.gz`（SHA-256 `7af335e5…a0ba2b0`，自 `/tmp` 复制长期保存）。
 - 2026-09-27，Alpha 2 剩余范围：负责人决定拆两任务、先做 Review；起草 A9-24 任务书（`DRAFT_PENDING_OWNER_REVIEW`）与交互 Demo `docs/plans/a9-24-review-demo/`，未授权实现。
 - 2026-09-27，负责人批准 ADR-0143：不做暂存区式 Review 模式，改为“先写后审”的改动审阅（直接写入、每轮改动摘要、逐文件 Diff 与撤销、整轮撤销、不阻断）；A9-16 追加 §21 修订登记；A9-24 草稿与 Demo 按新方向重写。
+- 2026-09-27，负责人确认 A9-24 Demo 与开放问题建议，批准实施（`APPROVED_FOR_IMPLEMENTATION`）；冻结 C14 允许路径与 W37/W39 驱动兼容约束，发出实现交接书 `A9_24_CHANGE_REVIEW_HANDOFF.md`。
