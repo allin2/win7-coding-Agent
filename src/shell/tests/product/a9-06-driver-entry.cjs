@@ -2789,8 +2789,8 @@ function a925InspectorReady(inspector) {
   if (!inspector || !inspector.open || !inspector.visible) return false;
   const values = [inspector.left, inspector.top, inspector.right, inspector.bottom,
     inspector.innerWidth, inspector.innerHeight];
-  if (!values.every(Number.isFinite) || inspector.left < 0 || inspector.top < 0
-    || inspector.right > inspector.innerWidth || inspector.bottom > inspector.innerHeight
+  if (!values.every(Number.isFinite) || inspector.left < -1 || inspector.top < -1
+    || inspector.right > inspector.innerWidth + 1 || inspector.bottom > inspector.innerHeight + 1
     || inspector.right <= inspector.left || inspector.bottom <= inspector.top) return false;
   const transform = inspector.transform;
   if (transform === 'none') return true;
@@ -2835,8 +2835,8 @@ function a925LayoutMatches(geometry) {
   return Boolean(geometry && a925InspectorReady(geometry.inspector) && geometry.tabSelected && geometry.summaryVisible
     && Number.isFinite(geometry.scrollWidth) && geometry.scrollWidth <= geometry.clientWidth
     && Array.isArray(geometry.controls) && geometry.controls.length === 3
-    && geometry.controls.every((item) => item.visible && item.focusable && item.left >= 0 && item.top >= 0
-      && item.right <= geometry.innerWidth && item.bottom <= geometry.innerHeight));
+    && geometry.controls.every((item) => item.visible && item.focusable && item.left >= -1 && item.top >= -1
+      && item.right <= geometry.innerWidth + 1 && item.bottom <= geometry.innerHeight + 1));
 }
 function a925StopTerminalMatches(terminal) {
   return Boolean(terminal && String(terminal.outcomeText || '').includes('cancelled')
@@ -2849,23 +2849,46 @@ function a925PidExitMatches(observation) {
 }
 // A925_PURE_END
 
+async function a925WaitFor(observe, timeoutMs, label, matches = (state) => Boolean(state)) {
+  let lastState = 'NOT_OBSERVED';
+  try {
+    return await waitFor(async () => {
+      try {
+        lastState = await observe();
+      } catch (error) {
+        lastState = { observation_error: String(error?.message || error).slice(0, 512) };
+        throw error;
+      }
+      return matches(lastState) ? lastState : null;
+    }, timeoutMs, label);
+  } catch (error) {
+    let text;
+    try { text = JSON.stringify(lastState); } catch (_error) { text = String(lastState); }
+    const diagnostic = { label, last_observation: String(text).slice(0, 2048),
+      error: String(error?.message || error).slice(0, 1024) };
+    (report.w40WaitTimeouts || (report.w40WaitTimeouts = [])).push(diagnostic);
+    writeDriverReport();
+    throw new Error(`${diagnostic.error}; last_observation=${diagnostic.last_observation}`);
+  }
+}
+
 async function a925OpenFileDiff(exec, turnId, relPath) {
-  const selected = await waitFor(() => exec(`(() => {
+  const selected = await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const button = Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
       .find((item) => item.textContent === '查看改动');
-    if (!button) return null;
-    button.click();
-    return true;
-  })()`), 15000, `w40 review turn row ${turnId}`);
-  return waitFor(() => exec(`(() => {
+    const state = { turnId: ${JSON.stringify(turnId)}, rowFound: Boolean(row), buttonFound: Boolean(button),
+      rowText: row?.textContent?.slice(0, 500) || '' };
+    if (button) button.click();
+    return state;
+  })()`), 15000, `w40 review turn row ${turnId}`, (state) => state.buttonFound);
+  return a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const toggle = Array.from(row?.querySelectorAll('.review-file-toggle') || [])
       .find((item) => item.textContent.includes(${JSON.stringify(relPath)}));
-    if (!toggle) return null;
-    if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
+    if (toggle && toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
     const current = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const detail = Array.from(current?.querySelectorAll('.review-file') || [])
@@ -2874,10 +2897,11 @@ async function a925OpenFileDiff(exec, turnId, relPath) {
     const diff = detail?.querySelector('.review-file-diff')?.textContent || '';
     const full = document.getElementById('a9-diff')?.textContent || '';
     const tab = document.getElementById('inspector-tab-changes');
-    return tab?.getAttribute('aria-selected') === 'true' && detail && !detail.hidden
-      && diff.length > 0 && full.includes(${JSON.stringify(relPath)})
-      ? { diff, full, tabSelected: true, turnId: ${JSON.stringify(turnId)}, path: ${JSON.stringify(relPath)} } : null;
-  })()`), 15000, `w40 review diff ${turnId}/${relPath}`);
+    return { diff, full, tabSelected: tab?.getAttribute('aria-selected') === 'true',
+      detailVisible: Boolean(detail && !detail.hidden), toggleFound: Boolean(toggle),
+      turnId: ${JSON.stringify(turnId)}, path: ${JSON.stringify(relPath)} };
+  })()`), 15000, `w40 review diff ${turnId}/${relPath}`, (state) => state.tabSelected
+    && state.toggleFound && state.detailVisible && state.diff.length > 0 && state.full.includes(relPath));
 }
 
 async function a925ClickUndo(exec, turnId, relPath) {
@@ -2905,9 +2929,8 @@ async function a925ClickUndo(exec, turnId, relPath) {
     return true;
   })()`);
   if (confirmation) await sleep(500);
-  return waitFor(() => exec('document.getElementById("a9-undo-state").textContent')
-    .then((value) => value && !value.includes('将在 5 秒后') && !value.includes('已重新收集') ? value : null),
-    15000, 'w40 undo result');
+  return a925WaitFor(() => exec('document.getElementById("a9-undo-state").textContent'), 15000, 'w40 undo result',
+    (value) => value && !value.includes('将在 5 秒后') && !value.includes('已重新收集'));
 }
 
 
@@ -2919,14 +2942,14 @@ async function a925InspectorState(exec) {
     return { open: document.getElementById('open-inspector').getAttribute('aria-expanded') === 'true',
       visible: !node.hidden && style.visibility !== 'hidden' && style.display !== 'none',
       left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
-      innerWidth, innerHeight, transform: style.transform };
+      innerWidth, innerHeight, clientWidth: document.documentElement.clientWidth,
+      clientHeight: document.documentElement.clientHeight,
+      visualViewport: window.visualViewport ? { width: window.visualViewport.width, height: window.visualViewport.height } : null,
+      transform: style.transform };
   })()`);
 }
 async function a925WaitInspector(exec) {
-  return waitFor(async () => {
-    const state = await a925InspectorState(exec);
-    return a925InspectorReady(state) ? state : null;
-  }, 15000, 'w40 inspector transition ended');
+  return a925WaitFor(() => a925InspectorState(exec), 15000, 'w40 inspector transition ended', a925InspectorReady);
 }
 async function a925DiffState(exec, turnId, relPath) {
   const inspector = await a925InspectorState(exec);
@@ -3018,11 +3041,12 @@ async function runW40StopProcess(win, exec, env) {
   await w39ConfigureProvider(exec, env.fixtureUrl, 'w40-stop-model');
   const before = await w39EventCursor(exec);
   await w39SubmitPrompt(exec, 'run the long shell task');
-  const pid = await waitFor(() => {
-    if (!env.pidMarker || !fs.existsSync(env.pidMarker)) return null;
-    const value = Number(fs.readFileSync(env.pidMarker, 'utf8').trim());
-    return Number.isInteger(value) && value > 0 ? value : null;
-  }, 45000, 'w40 shell child pid');
+  const pidState = await a925WaitFor(() => {
+    const exists = Boolean(env.pidMarker && fs.existsSync(env.pidMarker));
+    const text = exists ? fs.readFileSync(env.pidMarker, 'utf8').trim() : '';
+    return { marker: env.pidMarker || null, exists, text: text.slice(0, 100), pid: Number(text) };
+  }, 45000, 'w40 shell child pid', (state) => state.exists && Number.isInteger(state.pid) && state.pid > 0);
+  const pid = pidState.pid;
   const isAlive = () => { try { process.kill(pid, 0); return true; } catch (error) {
     if (error && error.code === 'ESRCH') return false;
     throw error;
@@ -3039,8 +3063,7 @@ async function runW40StopProcess(win, exec, env) {
   }
   const observation = { pid, childGone, elapsedMs, outcome: null };
   a925PersistStop(observation, env.evidencePath);
-  const outcomeText = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent')
-    .then((value) => value.includes('cancelled') ? value : null), 45000, 'w40 cancelled UI outcome');
+  const outcomeText = await a925WaitFor(() => exec('document.getElementById("a9-turn-outcome").textContent'), 45000, 'w40 cancelled UI outcome', (value) => value.includes('cancelled'));
   const snapshot = await exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)');
   const started = w39FindStartedTurn(await w39ReadEvents(exec), before);
   const databaseTurn = started ? a925ReadTurn(env.dataRoot, started.turnId) : null;
@@ -3072,13 +3095,15 @@ async function runW40ReviewProcess(win, exec, env) {
   const getDiff = (turnId) => exec(`window.win7Agent.a9.getDiff(${JSON.stringify(turnId)})`);
   const first = await submit('w40 review turn 1');
   const firstReview = await getDiff(first.turnId);
-  const card = await waitFor(() => exec(`(() => {
+  const card = await a925WaitFor(() => exec(`(() => {
     const node = document.querySelector('.change-summary[data-turn-id="${first.turnId}"]');
     const text = node?.querySelector('strong')?.textContent || '';
     const match = /改动了 (\\d+) 个文件 · \\+(\\d+) −(\\d+)/.exec(text);
-    return match ? { fileCount: Number(match[1]), additions: Number(match[2]), deletions: Number(match[3]), text,
-      paths: Array.from(node.querySelectorAll('.change-summary-file')).map((item) => item.textContent) } : null;
-  })()`), 15000, 'w40 change summary');
+    return { found: Boolean(node), matched: Boolean(match), text,
+      fileCount: match ? Number(match[1]) : null, additions: match ? Number(match[2]) : null,
+      deletions: match ? Number(match[3]) : null,
+      paths: Array.from(node?.querySelectorAll('.change-summary-file') || []).map((item) => item.textContent) };
+  })()`), 15000, 'w40 change summary', (state) => state.matched);
   const firstPaths = (firstReview.review?.files || []).map((item) => item.path).sort();
   const cardPaths = card.paths.slice().sort();
   const summaryPass = firstReview.ok === true && a925SummaryMatches(card, firstReview.review)
@@ -3121,7 +3146,9 @@ async function runW40ReviewProcess(win, exec, env) {
   const layoutQueued = await queueNoteUndo();
   const recallControls = await a925MeasureControls(exec, first.turnId, ['recall']);
   const geometry = await exec(`(() => ({ scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth, innerWidth, innerHeight, devicePixelRatio,
+    clientWidth: document.documentElement.clientWidth, clientHeight: document.documentElement.clientHeight,
+    visualViewport: window.visualViewport ? { width: window.visualViewport.width, height: window.visualViewport.height } : null,
+    innerWidth, innerHeight, devicePixelRatio,
     tabSelected: document.getElementById('inspector-tab-changes')?.getAttribute('aria-selected') === 'true',
     summaryVisible: Boolean(document.querySelector('.change-summary[data-turn-id="${first.turnId}"]')) }))()`);
   geometry.inspector = await a925WaitInspector(exec);
@@ -3193,12 +3220,12 @@ async function runW40ReviewProcess(win, exec, env) {
   const bigAfter = a925Hash(file('big.bin'));
   const unrecoverable = a925Unrecoverable(fourthDiff.review, 'big.bin');
   await a925OpenFileDiff(exec, fourth.turnId, 'gen.txt');
-  const unrecoverableText = unrecoverable ? await waitFor(() => exec(`(() => {
+  const unrecoverableText = unrecoverable ? await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(fourth.turnId)});
     return Array.from(row?.querySelectorAll('.review-unrecoverable') || [])
       .find((item) => item.textContent.includes('big.bin'))?.textContent || '';
-  })()`).then((text) => text || null), 15000, 'w40 unrecoverable rendered') : '';
+  })()`), 15000, 'w40 unrecoverable rendered') : '';
   const genUndoMessage = await a925ClickUndo(exec, fourth.turnId, 'gen.txt');
   const genReview = await getDiff(fourth.turnId);
   const genUndone = genReview.review?.files?.some((item) => item.path === 'gen.txt' && item.undone);
@@ -3247,8 +3274,7 @@ async function runW40ReviewModeProcess(win, exec, env) {
     document.getElementById('a9-provider-model').value = 'w40-review-mode-model';
     document.getElementById('a9-provider-apply').click(); return true;
   })()`);
-  await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent')
-    .then((value) => value === 'tool_calling' ? value : null), 30000, 'w40 review mode fixture probe');
+  await a925WaitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent'), 30000, 'w40 review mode fixture probe', (value) => value === 'tool_calling');
   const ui = await exec(`(async () => {
     const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
     const dialog = document.getElementById('a9-mode-dialog');
@@ -3270,10 +3296,10 @@ async function runW40ReviewModeProcess(win, exec, env) {
   let terminal = null;
   let events;
   if (turnId) {
-    terminal = await waitFor(() => {
+    terminal = await a925WaitFor(() => {
       const turn = a925ReadTurn(env.dataRoot, turnId);
-      return turn && !['active', 'needs_approval'].includes(turn.status) ? turn : null;
-    }, 120000, 'w40 review mode database terminal');
+      return turn;
+    }, 120000, 'w40 review mode database terminal', (turn) => turn && !['active', 'needs_approval'].includes(turn.status));
     events = await w39ReadEvents(exec, turnId);
     terminal.eventCount = events.length;
   } else {

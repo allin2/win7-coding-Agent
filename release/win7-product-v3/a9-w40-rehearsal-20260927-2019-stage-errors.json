@@ -1,0 +1,174 @@
+{
+  "eligibility": "REHEARSAL_NOT_ELIGIBLE",
+  "run_id": "20260927-2019",
+  "note": "只读提取两份实际阶段报告；没有采到几何，不把 1079.2 的合成正例当作实机观察。",
+  "sources": {
+    "w40_m3": {
+      "path": "evidence/win7-tree/smoke/自动 运行 w40-1790511803890/w40_m3.json",
+      "sha256": "390de351817c3fe7b160529e5921813dbbc0443493e83329229a69d219e81a46"
+    },
+    "w40_review": {
+      "path": "evidence/win7-tree/smoke/自动 运行 w40-1790511803890/w40_review.json",
+      "sha256": "8f231b0731c75ef663f0a36735ef206e8698307235de83a89f8206c1f8ee6fa6"
+    }
+  },
+  "reports": {
+    "w40_m3": {
+      "status": "ERROR",
+      "mode": "w40_m3",
+      "driver_protocol": "projection",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true,
+          "detail": "{\"path\":\"calc.ts\",\"workspace\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\m3 分页 workspace\"}"
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true,
+          "detail": "{\"visible\":true,\"workspace\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\m3 分页 workspace\"}"
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true,
+          "detail": "{\"node\":false,\"process\":false,\"workspaceShown\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\m3 分页 workspace\"}"
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true,
+          "detail": "{\"ok\":false,\"code\":\"A9_MODE_INVALID\"}"
+        },
+        {
+          "id": "A9-W40-M3-COUNT-MATCHES-DB",
+          "passed": true,
+          "detail": "{\"count_text\":\"最近 10 / 共 60\",\"dom_total\":60,\"db_total\":60,\"journey_ms\":9847}"
+        },
+        {
+          "id": "A9-W40-M3-OLDER-PAGES-CONTINUOUS",
+          "passed": true,
+          "detail": "{\"dom_count\":60,\"db_total\":60,\"unique\":true}"
+        },
+        {
+          "id": "A9-W40-M3-OLDER-DIFF",
+          "passed": true,
+          "detail": "{\"oldest_turn_id\":\"turn-1790511945170-1\",\"diff_before\":\"选择一轮查看改动。\",\"diff_head\":\"--- counter.ts (modify)\\n@@ -1,1 +1,1 @@\\n-// v0\\n+// v1\\n export const version = 0;\\n \"}"
+        },
+        {
+          "id": "A9_DRIVER_STAGE_ERROR",
+          "passed": false,
+          "detail": "Error: TIMEOUT waiting for w40 inspector transition ended (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:283:9)\n    at runNextTicks (node:internal/process/task_queues:61:5)\n    at process.processTimers (node:internal/timers:499:9)\n    at async a925CaptureDiff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2959:3)\n    at async a925CaptureM3Diff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:3013:20)\n    at async runW40M3Process (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2666:3)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:437:5)"
+        }
+      ],
+      "productMainLoaded": "C:\\A9-W40\\预演 目录\\20260927-2019\\package\\Win7CodingAgent-0.3.0-alpha.1-win7-x64\\resources\\app\\product\\main.js",
+      "w40M3": {
+        "turns": 60,
+        "journey_ms": 9847
+      },
+      "error": "A9_DRIVER_STAGE_ERROR: Error: TIMEOUT waiting for w40 inspector transition ended (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:283:9)\n    at runNextTicks (node:internal/process/task_queues:61:5)\n    at process.processTimers (node:internal/timers:499:9)\n    at async a925CaptureDiff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2959:3)\n    at async a925CaptureM3Diff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:3013:20)\n    at async runW40M3Process (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2666:3)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:437:5)",
+      "lastError": "A9_DRIVER_STAGE_ERROR: Error: TIMEOUT waiting for w40 inspector transition ended (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:283:9)\n    at runNextTicks (node:internal/process/task_queues:61:5)\n    at process.processTimers (node:internal/timers:499:9)\n    at async a925CaptureDiff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2959:3)\n    at async a925CaptureM3Diff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:3013:20)\n    at async runW40M3Process (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2666:3)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:437:5)"
+    },
+    "w40_review": {
+      "status": "ERROR",
+      "mode": "w40_review",
+      "driver_protocol": "projection",
+      "cases": [
+        {
+          "id": "A9F1-FORMAL-EXPLORER-SESSION",
+          "passed": true,
+          "detail": "{\"path\":\"calc.ts\",\"workspace\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\改动审阅 review workspace\"}"
+        },
+        {
+          "id": "A9F0-WORKSPACE-BOUND",
+          "passed": true,
+          "detail": "{\"visible\":true,\"workspace\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\改动审阅 review workspace\"}"
+        },
+        {
+          "id": "A9F0-RENDERER-CAPABILITY",
+          "passed": true,
+          "detail": "{\"node\":false,\"process\":false,\"workspaceShown\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\改动审阅 review workspace\"}"
+        },
+        {
+          "id": "A9F6-MODE-INVALID-PRECISE",
+          "passed": true,
+          "detail": "{\"ok\":false,\"code\":\"A9_MODE_INVALID\"}"
+        },
+        {
+          "id": "A9-W40-MODE-TWO-OPTIONS",
+          "passed": true,
+          "detail": "[\"full_access\",\"read_only\"]"
+        },
+        {
+          "id": "A9-W40-REVIEW-SUMMARY-CARD",
+          "passed": true,
+          "detail": "{\"terminal\":{\"turnId\":\"turn-1790511983428-1\",\"outcome\":\"completed_with_warnings\",\"verification\":\"unverified\",\"startedEventId\":4,\"terminalEventId\":19,\"terminalEventType\":\"turn_completed\"},\"card\":{\"fileCount\":2,\"additions\":3,\"deletions\":1,\"text\":\"第 1 轮改动了 2 个文件 · +3 −1\",\"paths\":[\"calc.ts\",\"notes.md\"]},\"review\":{\"turnId\":\"turn-1790511983428-1\",\"files\":[{\"path\":\"calc.ts\",\"action\":\"modify\",\"originalKind\":\"file\",\"newKind\":\"file\",\"undone\":false,\"additions\":1,\"deletions\":1,\"diffText\":\"@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \",\"diffTruncated\":false},{\"path\":\"notes.md\",\"action\":\"create\",\"originalKind\":\"absent\",\"newKind\":\"file\",\"undone\":false,\"additions\":2,\"deletions\":0,\"diffText\":\"@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"diffTruncated\":false}],\"unrecoverable\":[],\"externalBaselineStatus\":\"none\"},\"baselineCalc\":\"75cfacb7faac086c50b23ac4b29a709eb8680999e6756f620ca76d42aba07cab\",\"afterCalc\":\"5b63136552577a64d788dc3cd4552739d0d60f9e1adb63ec4dfb6932d56fc75d\",\"baselineNote\":null,\"afterNote\":\"ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a\"}"
+        },
+        {
+          "id": "A9-15-CAPTURE-a925-summary",
+          "passed": true,
+          "detail": "{\"path\":\"C:\\\\A9-W40\\\\预演 目录\\\\20260927-2019\\\\evidence\\\\smoke\\\\自动 运行 w40-1790511803890\\\\截图 screenshots\\\\a925-summary.png\",\"contentSize\":[1079,540],\"zoom\":1}"
+        },
+        {
+          "id": "A9_DRIVER_STAGE_ERROR",
+          "passed": false,
+          "detail": "Error: TIMEOUT waiting for w40 inspector transition ended (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:283:9)\n    at runNextTicks (node:internal/process/task_queues:61:5)\n    at process.processTimers (node:internal/timers:499:9)\n    at async a925CaptureDiff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2959:3)\n    at async runW40ReviewProcess (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:3092:21)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:444:5)"
+        }
+      ],
+      "productMainLoaded": "C:\\A9-W40\\预演 目录\\20260927-2019\\package\\Win7CodingAgent-0.3.0-alpha.1-win7-x64\\resources\\app\\product\\main.js",
+      "w40Summary": {
+        "terminal": {
+          "turnId": "turn-1790511983428-1",
+          "outcome": "completed_with_warnings",
+          "verification": "unverified",
+          "startedEventId": 4,
+          "terminalEventId": 19,
+          "terminalEventType": "turn_completed"
+        },
+        "card": {
+          "fileCount": 2,
+          "additions": 3,
+          "deletions": 1,
+          "text": "第 1 轮改动了 2 个文件 · +3 −1",
+          "paths": [
+            "calc.ts",
+            "notes.md"
+          ]
+        },
+        "review": {
+          "turnId": "turn-1790511983428-1",
+          "files": [
+            {
+              "path": "calc.ts",
+              "action": "modify",
+              "originalKind": "file",
+              "newKind": "file",
+              "undone": false,
+              "additions": 1,
+              "deletions": 1,
+              "diffText": "@@ -2,1 +2,1 @@\n export function add(a, b) {\n-  return a - b;\n+  return a + b;\n }\n ",
+              "diffTruncated": false
+            },
+            {
+              "path": "notes.md",
+              "action": "create",
+              "originalKind": "absent",
+              "newKind": "file",
+              "undone": false,
+              "additions": 2,
+              "deletions": 0,
+              "diffText": "@@ -1,0 +1,2 @@\n+# W40 note\n+",
+              "diffTruncated": false
+            }
+          ],
+          "unrecoverable": [],
+          "externalBaselineStatus": "none"
+        },
+        "baselineCalc": "75cfacb7faac086c50b23ac4b29a709eb8680999e6756f620ca76d42aba07cab",
+        "afterCalc": "5b63136552577a64d788dc3cd4552739d0d60f9e1adb63ec4dfb6932d56fc75d",
+        "baselineNote": null,
+        "afterNote": "ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a"
+      },
+      "error": "A9_DRIVER_STAGE_ERROR: Error: TIMEOUT waiting for w40 inspector transition ended (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:283:9)\n    at runNextTicks (node:internal/process/task_queues:61:5)\n    at process.processTimers (node:internal/timers:499:9)\n    at async a925CaptureDiff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2959:3)\n    at async runW40ReviewProcess (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:3092:21)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:444:5)",
+      "lastError": "A9_DRIVER_STAGE_ERROR: Error: TIMEOUT waiting for w40 inspector transition ended (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:283:9)\n    at runNextTicks (node:internal/process/task_queues:61:5)\n    at process.processTimers (node:internal/timers:499:9)\n    at async a925CaptureDiff (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:2959:3)\n    at async runW40ReviewProcess (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:3092:21)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-2019\\evidence\\smoke\\自动 运行 w40-1790511803890\\driver-app\\main.cjs:444:5)"
+    }
+  }
+}

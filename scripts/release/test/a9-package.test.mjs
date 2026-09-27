@@ -4315,7 +4315,7 @@ const W40_DERIVATIONS = [
   ['a9-23-win7-39-input-lock.json', 'a9-25-win7-40-input-lock.json', 'c58475cc8958cf7a0d16fdc4b76cf110863478d48cef6c731f7508dc8b20c88c'],
   ['a9-package-integrity-w39.cjs', 'a9-package-integrity-w40.cjs', '07fe7184cb918723f2cd6bff3b79d6b5e850b879d148dfa132357b0597e098f5'],
   ['a9-win7-39-report.cjs', 'a9-win7-40-report.cjs', '3481c61c47ebf1aa8a88315a7deea711536c80869b1b261f18810ec058710dea'],
-  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', '59b798686b5bf00797a2600a1515254334566b746fc963f578111d67e0720f7e'],
+  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', 'a57e7fc468aed21401ed7845defedf7f2f2a27f5ae382f00cc37f026e2bfa4d4'],
   ['RUN_A9_23_W39_INTEGRITY.cmd', 'RUN_A9_25_W40_INTEGRITY.cmd', '84953ad13d47101377ba4d3e7dbbfe7cf759e12bf6e23fb9997e8fb289f0daf5'],
   ['RUN_WIN7_39_REPORT_VERIFY.cmd', 'RUN_WIN7_40_REPORT_VERIFY.cmd', '47d031dd6d93e4cb9f09c8d81de8da4c085818546b1864b4e7cf2ae25b486ade'],
 ];
@@ -4483,7 +4483,7 @@ test('W40 §4.5 pure observation helpers reject count, drift, layout and PID cou
       bottom: 100, innerWidth: 100, innerHeight: 100, transform: 'none' }, controls: ['file', 'turn', 'recall'].map(control) };
   assert.equal(helpers.a925LayoutMatches(geometry), true);
   assert.equal(helpers.a925LayoutMatches({ ...geometry, controls: [control('file'), control('turn'),
-    { ...control('recall'), right: 101 }] }), false);
+    { ...control('recall'), right: 101.01 }] }), false);
   assert.equal(helpers.a925PidExitMatches({ pid: 42, elapsedMs: 5000, childGone: true, outcome: 'cancelled' }), true);
   assert.equal(helpers.a925PidExitMatches({ pid: 42, elapsedMs: 5001, childGone: true, outcome: 'cancelled' }), false);
 });
@@ -4724,7 +4724,7 @@ test('W40 R2 K-02 replays actual modified/too_large and waits for rendered reaso
   const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
   const injected = w40RepairHelpers(source.replace("item.kind === 'too_large' || String(item.reason || '').includes('too_large')", "item.kind === 'too_large'"));
   assert.throws(() => assert.ok(injected.a925Unrecoverable(review, 'big.bin')), /falsy/);
-  assert.match(source, /waitFor\([\s\S]*?\.review-unrecoverable[\s\S]*?w40 unrecoverable rendered/);
+  assert.match(source, /a925WaitFor\([\s\S]*?\.review-unrecoverable[\s\S]*?w40 unrecoverable rendered/);
 });
 
 test('W40 R2 K-03 review UI and backend denial reject mode upgrade, write and missing code', () => {
@@ -4769,7 +4769,7 @@ async function w40StopTimeoutProbe(driver) {
   const persist = driver.slice(driver.indexOf('function a925PersistStop('), driver.indexOf('async function a925CaptureM3Diff('));
   const stop = driver.slice(driver.indexOf('async function runW40StopProcess('), driver.indexOf('async function runW40ReviewProcess('));
   const files = new Map(); const report = {}; let aliveQueries = 0; let ticks = 0;
-  const run = vm.runInNewContext(`${pure}\n${persist}\n${stop}\nrunW40StopProcess`, {
+  const run = vm.runInNewContext(`${pure}\n${driver.slice(driver.indexOf('async function a925WaitFor('), driver.indexOf('async function a925OpenFileDiff('))}\n${persist}\n${stop}\nrunW40StopProcess`, {
     report, writeDriverReport() { files.set('phase.json', JSON.stringify(report)); },
     fs: { existsSync: () => true, readFileSync: () => '776', writeFileSync: (name, text) => files.set(name, text) },
     process: { kill() { if (++aliveQueries > 1) throw Object.assign(new Error('gone'), { code: 'ESRCH' }); } },
@@ -4851,7 +4851,12 @@ async function w40R3RunProbe(source, options = {}) {
   let rejectClose;
   const closeError = new Promise((_resolve, reject) => { rejectClose = reject; });
   const child = { stdout: { on() {} }, stderr: { on() {} }, on(event, callback) {
+    if (event === 'error') {
+      if (options.spawnError) queueMicrotask(() => callback(new Error('INJECTED_SPAWN_ERROR')));
+      return;
+    }
     assert.equal(event, 'close');
+    if (options.spawnError) return;
     queueMicrotask(() => { try { callback(0); } catch (error) { rejectClose(error); } });
   } };
   const run = vm.runInNewContext(`${source.slice(start, end)}\nrunElectron`, {
@@ -4877,6 +4882,9 @@ test('W40 R3-1 preserves corrupt driver bytes and rejects report rewrite injecti
   const observed = await w40R3RunProbe(source);
   assert.equal(observed.record.code, 0); assert.equal(observed.record.duration_ms, 17);
   assert.deepEqual(observed.bytes, observed.original); assert.equal(observed.reads, 0); assert.equal(observed.writes, 0);
+  const spawnError = await w40R3RunProbe(source, { spawnError: true });
+  assert.equal(spawnError.record.code, 1); assert.match(spawnError.record.execution_error, /INJECTED_SPAWN_ERROR/);
+  assert.deepEqual(spawnError.bytes, spawnError.original); assert.equal(spawnError.writes, 0);
   const line = 'const timing = w40PhaseTiming(started, w40PhaseClock());';
   const rewrite = source.replace(line, `${line}\n      const report = readJson(env.A9_SMOKE_OUT);\n      fs.writeFileSync(env.A9_SMOKE_OUT, JSON.stringify({ ...report, ...timing }));`);
   assert.notEqual(rewrite, source);
@@ -4931,4 +4939,232 @@ test('W40 R3-2 accepts any nonempty structured code and retains raw response; re
   const mode = source.slice(source.indexOf('async function runW40ReviewModeProcess('), source.indexOf('\nfunction writeDriverReport('));
   assert.match(mode, /report\.w40ReviewMode = \{ ui, hashSamples, response \}/);
   assert.match(mode, /terminal, response, hashSamples/);
+});
+
+// Fourth repair: actual smoke main with simulated child reports, never a Win7 claim.
+async function w40R4SmokeProbe(source, options = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'w40-r4-smoke-'));
+  const candidate = path.join(root, 'candidate'); const evidence = path.join(root, 'evidence');
+  const calls = []; const fixtures = [];
+  const productMain = path.join(candidate, 'resources/app/product/main.js');
+  for (const name of ['resources/app/product/main.js', 'resources/app/state/dist/a9-persistence.js',
+    'resources/app/core/dist/index.js', 'validation/a9-win7-40-driver.cjs']) {
+    const file = path.join(candidate, name); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, '// VM fixture');
+  }
+  const observed = JSON.parse(fs.readFileSync(path.join(W40_ROOT, 'a9-w40-rehearsal-20260927-2019-stage-errors.json'), 'utf8'));
+  const fixture = () => {
+    const value = { requests: [{}], responses: [
+      { prompt: 'expected provider failure', status: 503 }, { prompt: 'fix the bug', status: 200 },
+      { prompt: 'produce latest verified', status: 200 }],
+      server: { address: () => ({ port: 12345 }) }, listen: async () => {
+        if (options.reviewFixtureError && fixtures.indexOf(value) === 9) throw new Error('INJECTED_FIXTURE_LISTEN_ERROR');
+      }, close: async () => {} };
+    fixtures.push(value); return value;
+  };
+  const manager = { db: { close() {} }, setWorkspaceMode() {}, saveSession() {}, activateConversation() {},
+    upsertTask() {}, upsertTurn() {}, recordModelEvent() {}, recordToolEvent() {} };
+  const simulatedProcess = { platform: 'win32', arch: 'x64', versions: { electron: '22.3.27', modules: '110' },
+    env: { ELECTRON_RUN_AS_NODE: '1' }, argv: ['electron', 'smoke', `--evidence-root=${evidence}`],
+    stdout: { write() {} }, stderr: { write() {} }, hrtime: process.hrtime };
+  const context = vm.createContext({ fs, path, crypto, Buffer, process: simulatedProcess,
+    __dirname: path.join(candidate, 'validation'), module: { exports: {} }, setTimeout, clearTimeout,
+    require: Object.assign((name) => {
+      if (name.endsWith('a9-persistence.js')) {
+        if (options.seedError) throw new Error('INJECTED_SEED_REQUIRE_ERROR');
+        return { A9PersistenceManager: { open: () => ({ status: 'ready', manager }) } };
+      }
+      if (name.endsWith('core/dist/index.js')) return { canonicalizeWorkspacePath: (value) => value };
+      if (name.endsWith('better-sqlite3')) return class { prepare() { return { all: () => [] }; } close() {} };
+      if (name === 'child_process') return { spawnSync: () => ({ status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) }) };
+      if (name === './a9-win7-40-report.cjs') return {};
+      return require(name);
+    }, { main: null }), fixture, calls, productMain, candidate, observed });
+  try {
+    vm.runInContext(source, context);
+    vm.runInContext(`
+      createFixture = fixture; createJourneyFixture = fixture; createStopFixture = fixture;
+      createLiveFixture = fixture; createW40StopFixture = fixture; createW40ReviewFixture = fixture;
+      createW40ReviewModeFixture = fixture;
+      w40ResolveGitExecutable = () => ({ executable: null, source: 'NOT_PERFORMED_NO_GIT', version: null });
+      prepareDriverRuntime = (_candidate, runRoot) => {
+        const contractPath = path.join(runRoot, 'contract.cjs'); fs.writeFileSync(contractPath, '// contract');
+        return { electronPath: 'SIMULATED', driverPath: 'SIMULATED', contractPath, contractSha256: sha256File(contractPath) };
+      };
+      waitForNoRelatedProcesses = async () => ({ ok: true, residue: [], no_residue: true });
+      runElectron = async (_electron, _driver, env) => {
+        const mode = env.A9_SMOKE_MODE; calls.push(mode);
+        let report = { mode, status: 'PASS', productMainLoaded: productMain,
+          cases: [{ id: 'SIMULATED-OBSERVATION', passed: true }] };
+        if (mode === 'first') Object.assign(report, { oldApproval: {
+          approvalId: 'approval', bindingDigest: 'digest', conversationId: 'conversation', taskId: 'task', turnId: 'turn' },
+          projectionSeed: { conversationId: 'conversation', oldFailureTurnId: 'old-turn', oldFailureEventId: 1,
+            latestSuccessTurnId: 'new-turn', latestSuccessEventId: 2, displayed: 'completed' } });
+        if (mode === 'second') report.retryTarget = { conversationId: 'conversation' };
+        if (mode === 'retry') report.retryTarget = { conversationId: 'conversation' };
+        if (mode === 'w40_review') report = observed.reports.w40_review;
+        if (mode === 'w40_m3') report = observed.reports.w40_m3;
+        if (mode === 'late_load_negative') Object.assign(report, { status: 'ERROR',
+          error: 'A9_W40_DRIVER_PRODUCT_ENTRY_LATE_LOAD', cases: [{ id: 'A9_W40_DRIVER_PRODUCT_ENTRY_LATE_LOAD', passed: false }] });
+        if (mode === 'controlled_error_negative') Object.assign(report, { status: 'ERROR', error: 'A9_FORCED_STAGE_ERROR_FOR_TEST' });
+        fs.writeFileSync(env.A9_SMOKE_OUT, JSON.stringify(report));
+        return { code: report.status === 'PASS' ? 0 : 1, timed_out: false, stdout: '', stderr: '',
+          started_at: '2026-09-27T12:00:00.000Z', ended_at: '2026-09-27T12:00:00.010Z', duration_ms: 10 };
+      };`, context);
+    if (options.firstMissing || options.partialSeed) vm.runInContext(`const priorRun = runElectron;
+      runElectron = async (...args) => { const result = await priorRun(...args);
+        if (args[2].A9_SMOKE_MODE === 'first') {
+          const first = JSON.parse(fs.readFileSync(args[2].A9_SMOKE_OUT,'utf8'));
+          if (${Boolean(options.partialSeed)}) delete first.projectionSeed.oldFailureEventId;
+          else { first.status='ERROR'; delete first.oldApproval; delete first.projectionSeed; }
+          fs.writeFileSync(args[2].A9_SMOKE_OUT,JSON.stringify(first));
+        }
+        return result; };`, context);
+    await vm.runInContext('main()', context);
+    const runRoot = fs.readdirSync(evidence).find((name) => name.startsWith('自动'));
+    const reportFile = path.join(evidence, runRoot, 'automatic-smoke.json');
+    const indexFile = path.join(evidence, 'w40-case-index.json');
+    return { calls, report: JSON.parse(fs.readFileSync(reportFile, 'utf8')),
+      index: JSON.parse(fs.readFileSync(indexFile, 'utf8')), reportExists: fs.existsSync(reportFile),
+      indexExists: fs.existsSync(indexFile), restartDriverReportExists: fs.existsSync(path.join(evidence, runRoot, 'w40_review_restart.json')) };
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+}
+
+test('W40 R4-1 fractional viewport tolerance accepts 1079.2 and rejects beyond one pixel and real moving drawer', async () => {
+  const h = w40RepairHelpers(); const real = w40RehearsalObservations();
+  const inspector = { ...w40SettledInspector, left: -0.2, right: 1079.2, bottom: 540.2,
+    clientWidth: 1079, clientHeight: 540, visualViewport: { width: 1079.2, height: 540 } };
+  assert.equal(h.a925InspectorReady(inspector), true);
+  for (const change of [{ left: -1.01 }, { top: -1.01 }, { right: 1080.01 }, { bottom: 541.01 }]) {
+    assert.equal(h.a925InspectorReady({ ...inspector, ...change }), false);
+  }
+  const geometry = { ...real.layout, inspector, controls: ['file', 'turn', 'recall'].map((name) => ({
+    name, visible: true, focusable: true, left: -0.2, top: -0.2, right: 1079.2, bottom: 540.2 })) };
+  assert.equal(h.a925LayoutMatches(geometry), true);
+  for (const change of [{ left: -1.01 }, { top: -1.01 }, { right: 1080.01 }, { bottom: 541.01 }]) {
+    assert.equal(h.a925LayoutMatches({ ...geometry, controls: geometry.controls.map((item) => ({ ...item, ...change })) }), false);
+  }
+  assert.equal(real.layout.controls.find((item) => item.name === 'file').left, 1118.2000732421875);
+  assert.equal(h.a925LayoutMatches(real.layout), false);
+  assert.equal(h.a925InspectorReady({ ...inspector, left: -1, top: -1, right: 1080, bottom: 541 }), true);
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const strict = w40RepairHelpers(source.replaceAll('innerWidth + 1', 'innerWidth').replaceAll('innerHeight + 1', 'innerHeight'));
+  assert.throws(() => assert.equal(strict.a925InspectorReady(inspector), true), /false !== true/);
+  const wide = w40RepairHelpers(source.replaceAll('innerWidth + 1', 'innerWidth + 2'));
+  assert.throws(() => assert.equal(wide.a925LayoutMatches({ ...geometry, controls: geometry.controls.map((item) => ({ ...item, right: 1080.01 })) }), false), /true !== false/);
+  const viewport = source.slice(source.indexOf('async function a925InspectorState('), source.indexOf('async function a925WaitInspector('));
+  const stateReader = vm.runInNewContext(`${viewport}\na925InspectorState`, {});
+  for (const visualViewport of [{ width: 1079.2, height: 540.2 }, undefined]) {
+    const measured = await stateReader(async (expression) => vm.runInNewContext(expression, {
+      innerWidth: 1079, innerHeight: 540, window: { visualViewport },
+      document: { documentElement: { clientWidth: 1078, clientHeight: 539 },
+        getElementById: () => ({ getAttribute: () => 'true', getBoundingClientRect: () => inspector }) },
+      getComputedStyle: () => ({ visibility: 'visible', display: 'block', transform: 'none' }),
+    }));
+    assert.equal(measured.clientWidth, 1078); assert.equal(measured.clientHeight, 539);
+    assert.equal(measured.visualViewport?.width ?? null, visualViewport?.width ?? null);
+    assert.equal(measured.visualViewport?.height ?? null, visualViewport?.height ?? null);
+  }
+
+  for (const token of ['document.documentElement.clientWidth', 'document.documentElement.clientHeight', 'window.visualViewport.width', 'window.visualViewport.height']) {
+    assert.ok(viewport.includes(token));
+    assert.ok(source.slice(source.indexOf('const geometry = await exec')).includes(token));
+  }
+});
+
+test('W40 R4-2 actual smoke main continues after real review error, blocks restart and always writes FAIL summaries and index', async () => {
+  const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  const observed = await w40R4SmokeProbe(source);
+  assert.ok(observed.calls.includes('w40_review_mode'));
+  assert.ok(!observed.calls.includes('w40_review_restart'));
+  assert.equal(observed.restartDriverReportExists, false, 'no synthetic driver bytes for blocked phase');
+  assert.ok(observed.reportExists && observed.indexExists);
+  assert.equal(observed.report.status, 'FAIL'); assert.equal(observed.index.smoke_status, 'FAIL');
+  assert.equal(observed.report.phases.length, 17); assert.equal(observed.report.phase_summary.length, 17);
+  const restart = observed.report.phase_summary.find((item) => item.phase === 'w40_review_restart');
+  assert.equal(restart.status, 'BLOCKED'); assert.match(restart.blocked_reason, /w40_review/);
+  assert.equal(observed.index.cases.length, 22);
+  assert.equal(observed.index.cases.find((item) => item.case_id.startsWith('W40-17')).result, 'BLOCKED');
+  for (const number of [5, 13, 16, 18, 19, 20, 21, 22]) {
+    assert.equal(observed.index.cases.find((item) => item.case_id.startsWith(`W40-${String(number).padStart(2, '0')}`)).result, 'FAIL');
+  }
+  const oldThrow = source.replace('  const a925RestartBlocked =', "  if (!a925FirstTurnId) throw new Error('A9_W40_REVIEW_FIRST_TURN_MISSING');\n  const a925RestartBlocked =");
+  assert.notEqual(oldThrow, source);
+  await assert.rejects(w40R4SmokeProbe(oldThrow), /A9_W40_REVIEW_FIRST_TURN_MISSING/);
+});
+
+test('W40 R4-2 missing inherited prerequisites and seed exceptions block only dependent stages', async () => {
+  const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  for (const options of [{ firstMissing: true }, { partialSeed: true }, { seedError: true }, { reviewFixtureError: true }]) {
+    const observed = await w40R4SmokeProbe(source, options);
+    assert.ok(observed.reportExists && observed.indexExists); assert.equal(observed.report.status, 'FAIL');
+    assert.ok(observed.calls.includes('stop') && observed.calls.includes('w40_m3'));
+    const blocked = observed.report.phase_summary.filter((item) => item.status === 'BLOCKED');
+    const expected = (options.firstMissing || options.partialSeed) ? ['second', 'retry'] : options.reviewFixtureError
+      ? ['w40_review', 'w40_review_restart'] : ['w40_m1_small', 'w40_m1_large', 'w40_m4', 'w40_review_mode'];
+    for (const name of expected) {
+      assert.ok(!observed.calls.includes(name)); assert.ok(blocked.some((item) => item.phase === name && item.blocked_reason));
+    }
+  }
+  const ignoredSeeds = await w40R4SmokeProbe(source.replaceAll('if (blockedReason) {', 'if (false && blockedReason) {'), { seedError: true });
+  assert.throws(() => assert.ok(!ignoredSeeds.calls.includes('w40_m1_small')), /AssertionError/);
+  const ignoredFirst = await w40R4SmokeProbe(source.replace('if (!secondPrerequisite)', 'if (false && !secondPrerequisite)'), { firstMissing: true });
+  assert.throws(() => assert.ok(!ignoredFirst.calls.includes('second')), /AssertionError/);
+  const mainSource = source.slice(source.indexOf('async function main()'));
+  assert.doesNotMatch(mainSource.slice(mainSource.indexOf('const lateRun =')), /\bthrow\b/,
+    'no uncaught explicit throw after first child launch');
+  assert.ok(mainSource.indexOf('w40ResolveGitExecutable') < mainSource.indexOf('const lateRun ='));
+});
+
+async function w40R4WaitProbe(source, options = {}) {
+  const begin = source.indexOf('async function a925WaitFor('); const end = source.indexOf('async function a925OpenFileDiff(', begin);
+  const pure = source.match(/\/\/ A925_PURE_BEGIN([\s\S]*?)\/\/ A925_PURE_END/)[1];
+  const stateSource = source.slice(source.indexOf('async function a925InspectorState('), source.indexOf('async function a925DiffState('));
+  const report = {}; let saved; const states = [
+    { ...w40SettledInspector, right: 1079.2, transform: 'matrix(1, 0, 0, 1, 50, 0)' },
+    { ...w40SettledInspector, right: 1079.2, open: false, note: 'x'.repeat(4000) }];
+  const context = { report, writeDriverReport() { saved = JSON.stringify(report); },
+    waitFor: async (read, _timeout, label) => {
+      await read(); await read(); throw new Error(`TIMEOUT waiting for ${label}`);
+    }, fs, crypto };
+  const api = vm.runInNewContext(`${pure}\n${source.slice(begin, end)}\n${stateSource}
+    ({a925WaitFor,a925WaitInspector,a925InspectorState})`, context);
+  let count = 0;
+  const exec = async () => { if (options.observeError) throw new Error('OBSERVATION_IPC_ERROR'); return states[Math.min(count++, 1)]; };
+  let error;
+  try { await api.a925WaitInspector(exec); } catch (caught) { error = caught; }
+  return { report, saved: JSON.parse(saved), error, api };
+}
+
+test('W40 R4-3 inspector timeout records bounded last raw observation in report and error; covers every new wait', async () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const observed = await w40R4WaitProbe(source);
+  const state = observed.report.w40WaitTimeouts[0];
+  assert.equal(state.label, 'w40 inspector transition ended');
+  assert.ok(state.last_observation.includes('1079.2') && state.last_observation.includes('"open":false'));
+  assert.ok(state.last_observation.length <= 2048);
+  assert.ok(observed.error.message.includes(state.last_observation));
+  assert.deepEqual(observed.saved.w40WaitTimeouts, JSON.parse(JSON.stringify(observed.report.w40WaitTimeouts)));
+  const observationError = await w40R4WaitProbe(source, { observeError: true });
+  assert.ok(observationError.error.message.includes('OBSERVATION_IPC_ERROR'));
+  const noState = source.replace('lastState = await observe();', 'await observe(); lastState = null;');
+  const injected = await w40R4WaitProbe(noState);
+  assert.throws(() => assert.ok(injected.report.w40WaitTimeouts[0].last_observation.includes('1079.2')), /AssertionError/);
+  const openDiffSource = source.slice(source.indexOf('async function a925OpenFileDiff('), source.indexOf('async function a925ClickUndo('));
+  const checkToggle = async (body) => {
+    const openDiff = vm.runInNewContext(`${body}\na925OpenFileDiff`, {
+      a925WaitFor: async (_observe, _timeout, label, matches) => {
+        if (label.includes('turn row')) return { buttonFound: true };
+        const raw = { tabSelected: true, detailVisible: true, diff: 'actual diff', full: 'a.txt', toggleFound: false };
+        assert.equal(Boolean(matches(raw)), false, 'missing toggle must preserve original wait condition');
+        assert.equal(Boolean(matches({ ...raw, toggleFound: true })), true);
+        return raw;
+      },
+    });
+    await openDiff(() => {}, 'turn-1', 'a.txt');
+  };
+  await checkToggle(openDiffSource);
+  await assert.rejects(checkToggle(openDiffSource.replace('state.toggleFound && ', '')), /missing toggle/);
+  const newBlock = source.slice(source.indexOf('// A9-25: W40-only observations.'), source.indexOf('\nfunction writeDriverReport('));
+  assert.equal([...newBlock.matchAll(/\bwaitFor\(/g)].length, 1, 'only diagnostic wrapper calls historical waitFor');
+  assert.equal([...newBlock.matchAll(/\ba925WaitFor\(/g)].length, 11, 'ten new waits plus wrapper declaration');
 });

@@ -123,3 +123,88 @@ M src/workspace/src/checkpoint-manager.ts
 驱动相对 `2f14d69` 仅上述一处非新增改动，无历史旅程、`captureVisual`、工作区模式判断或其他 W40 代码改动。smoke 的非新增改动仅 R3-1 所列：计时函数、runElectron 启动采集、close 回调、总报告 timing_error 字段。WIN7-39 及更早文件、产品与 docs 不改，重基线与残留守卫不变。
 
 本轮开发机门与注入反例原始输出位于套件工作树 `.acceptance/w40-rework-r3/`。w40* 产品旅程未运行，**待第二次预演**；O-3 历史秘密路径测试时序观察仅保留登记，不在本轮修复。
+
+## 7. 第四轮返工登记（交接书 §7.4，代码比对基线 `91df808`）
+
+套件分支由 `5a20663` 按授权快进到 `2ed3cf3`（中间只有文档提交），开始编辑前工作树干净；本轮仅 R4-1～R4-3。第二次预演 `20260927-2019` 原件只读，不回写。所有新增辅助函数只属于 W40；仓库驱动的历史 `waitFor`、`captureVisual`、w39 与更早旅程保持原字节。
+
+### 7.1 R4-1：1 CSS 像素视口边界容差
+
+- `a925InspectorReady` 与 `a925LayoutMatches` 中四边改为 `left/top >= -1`、`right <= innerWidth + 1`、`bottom <= innerHeight + 1`。有限数、正尺寸、无位移 transform、可见与聚焦、页面无横向滚动等条件不变。
+- `a925InspectorState` 及 `w40Layout` 的 DOM 量测追加 `clientWidth/clientHeight` 和 `visualViewport: {width,height}`；无 visualViewport 时记录 null。保留原 innerWidth/innerHeight、物理截图大小、devicePixelRatio，不用新字段替换旧判定。
+- 测试用合成小数几何 `right=1079.2, innerWidth=1079`，并实际执行读取原值的 Renderer 表达式；恰好 1 像素的边界被接受，超过 1 像素的四方向反例被拒绝。第一次预演真实 `file.left=1118.2000732421875` 仍被拒绝。注入无容差或 2 像素容差均破坏对应测试；合成几何不是第二次预演新观察。
+
+### 7.2 R4-2：阶段错误、前置缺失与最终汇总
+
+`runElectron` 只追加 spawn error 事件处理；`w40RunElectron` 捕捉启动前环境异常/Promise 拒绝并记录非零退出与 execution_error，不修改 `A9_SMOKE_OUT`。原始驱动报告仍保持原字节，计时仍用单调时钟；损坏 JSON、非对象或非法 cases 形状只在 smoke 内形成 NO_REPORT/ERROR 观察，不写回。
+
+依赖与阻断规则（BLOCKED 不运行子进程，不生成伪造的阶段驱动文件；started_at/ended_at/duration_ms/exit_code 为 null）：
+
+| 阶段 | 前置与阻断原因 |
+|---|---|
+| second | first 提供完整五字段批准绑定和包含四个字符串/两个事件 ID 的 projectionSeed；缺少时记录原因 |
+| retry | second 提供 retryTarget.conversationId；缺少时记录原因 |
+| w40_m1_small / w40_m1_large | 各自公开持久化 API 种子；模块缺失、open 非 ready 或准备异常形成各自 BLOCKED |
+| w40_m4 | 自身公开事件 API 种子；模块缺失、open 非 ready 或准备异常形成 BLOCKED |
+| w40_review_restart | w40_review 报告为 PASS 且完整 w40TurnIds.first 存在；Review 阶段错误或缺 turnId 时记录原因 |
+| w40_review_mode | 自身公开持久化 API 保存 review 模式；准备错误仅阻断本阶段，不依赖 w40_review |
+| 需要本地 fixture 的各阶段 | 各自 fixture listen 错误仅阻断对应阶段；close 错误形成 smoke 内部失败断言 |
+
+Git 设置的失败原本已被本地 catch 捕获；改为显式错误字段与短路后续 Git 设置，不再 throw。阶段退出、报告错误及上述阻断均继续后续独立阶段。总报告追加 17 项 `phase_summary` 和 `phases[].status/blocked_reason`（运行异常时另有 execution_error），用例索引补齐各项 result：所需阶段 BLOCKED 则 BLOCKED 并给原因；所需阶段错误/缺失则 FAIL。W40-01 仍由候选外完整性门负责；W40-20 实际不可触发时的 NOT_PERFORMED 口径不变。阶段缺失/阻断使总状态 FAIL。用例索引装配异常只记录 case_index_errors 并使总状态 FAIL，不提前退出。
+
+新增 `a9-w40-rehearsal-20260927-2019-stage-errors.json` 是两份实际阶段报告的只读提取，登记原相对路径与 SHA-256，无几何补造。开发机 VM 执行真实 smoke main，仅模拟子进程与持久化接口：重放实际 w40_review/w40_m3 ERROR 后，w40_review_mode 仍调用，restart 为 BLOCKED，17 阶段汇总、22 用例索引与总报告存在且总状态 FAIL。另覆盖 first 产物缺失、种子 require 异常及 Review fixture listen 异常。注入旧的缺首轮 throw、忽略依赖阻断或忽略种子错误均破坏对应检查。
+
+保留的全部显式 throw（无第一个子进程启动后的 main throw）：
+
+| 所在函数与错误 | 保留理由 / 调用位置 |
+|---|---|
+| w40ResolveGitExecutable / A9_W40_GIT_EXE_NOT_ABSOLUTE | 显式 Git 参数须绝对路径；解析移动到任何阶段启动前 |
+| copyTree / A9_W40_DRIVER_RUNTIME_SPECIAL_FILE | 拒绝特殊运行时文件；仅 prepareDriverRuntime 在阶段前调用 |
+| prepareDriverRuntime / A9_W40_DRIVER_CONTRACT_SOURCE_MISSING | 阶段前候选依赖闭包检查 |
+| prepareDriverRuntime / A9_W40_DRIVER_CONTRACT_HASH_MISMATCH | 阶段前契约复制哈希检查 |
+| w40AssertEnvironmentLengths / A9_W40_ENV_VALUE_TOO_LONG | 每次子进程启动前环境长度检查；若已进入 smoke 的阶段序列，由 w40RunElectron 转为该次运行错误，继续汇总 |
+| main / A9_W40_SMOKE_RUNTIME_INVALID | 任何阶段前 Win7/Electron/ABI/运行方式环境门 |
+| main / A9_W40_SMOKE_EVIDENCE_INSIDE_CANDIDATE | 任何阶段前候选外证据路径门 |
+
+### 7.3 R4-3：W40 等待的最后观察
+
+新增 `a925WaitFor` 包裹原历史 waitFor；10 处 W40 新增等待全部使用该函数。原值读取与 ready 谓词分离，超时时不把未满足条件的实际状态丢成 null。超时立即追加 `report.w40WaitTimeouts[]`（label、last_observation、error）并写阶段报告；last_observation 为原观察 JSON 的前 2048 字符、error 前 1024 字符，观察读取异常记录前 512 字符并保留错误。错误信息同步包含相同的 last_observation。历史 waitFor 行为与继承调用不改。
+
+| 等待 | 最后观察来源（不改成功条件） |
+|---|---|
+| 轮次行 | turnId、rowFound、buttonFound、rowText（前 500 字符） |
+| 文件 Diff | 实际页签选择、detailVisible、toggleFound、diff/full、轮次与路径 |
+| 撤销结果 | #a9-undo-state 原文本 |
+| 抽屉过渡 | a925InspectorState 原几何、transform、open、视口原值 |
+| 子进程 PID | 标记路径、存在性、标记文本（前 100 字符）、PID 值 |
+| 取消终态 | #a9-turn-outcome 原文本 |
+| 摘要卡 | 节点存在性、匹配状态、实际文本、计数与文件路径 |
+| 无法撤销条目 | .review-unrecoverable 原文本 |
+| review 模式探针 | #a9-provider-probe-state 原文本 |
+| review 模式库终态 | 产品 a9_turns 原行或 null |
+
+VM 超时测试确认最后一次小数几何/closed 状态同时进入落盘报告与错误文本且截断；观察 IPC 报错也有诊断。注入丢弃 lastState 破坏测试。文件 Diff 的 toggle 存在性保留为原成功条件，缺 toggle 反例和移除该条件的注入均受测试约束。保留 K-05 注入终态等待异常的测试，PID 观察仍已先落盘。
+
+### 7.4 相对 `91df808` 的全部非新增修改位置
+
+| 文件 / 原有位置 | 本轮替换与理由 |
+|---|---|
+| 仓库驱动 a925InspectorReady、a925LayoutMatches | 四边容差（R4-1） |
+| 仓库驱动 a925OpenFileDiff 两处 wait、a925ClickUndo wait | 分离原观察与谓词，接入诊断（R4-3） |
+| 仓库驱动 a925InspectorState、a925WaitInspector | 追加视口原值；不丢弃不满足 ready 的状态（R4-1/3） |
+| 仓库驱动 runW40StopProcess 两处 wait | PID 原标记状态、取消 UI 原文本进入诊断；先落盘 PID 顺序与终态口径不变（R4-3） |
+| 仓库驱动 runW40ReviewProcess 摘要/无法撤销两处 wait、geometry | 原文本/摘要状态进入诊断；追加两种视口原值（R4-1/3） |
+| 仓库驱动 runW40ReviewModeProcess 探针/库终态两处 wait | 保留 raw 状态而非仅 null，接入诊断（R4-3） |
+| smoke readJson | malformed/非对象/非法 cases 只形成 smoke 内错误观察，避免阶段错误在汇总时抛出（R4-2） |
+| smoke runElectron | spawn error 的完成与诊断，原 close 正常路径和驱动字节保留（R4-2） |
+| smoke main 的所有子进程入口 | 改为 w40RunElectron 捕获启动错误；第二、重试、live 增阻断检查与 BLOCKED 报告读取（R4-2） |
+| smoke Git 参数解析与 Git 设置 | 参数解析移到第一个阶段前；Git 设置 throw 改为局部错误/短路；正常命令参数与顺序不变（R4-2） |
+| smoke runW40Phase 与 M1/M4 准备、调用 | 前置错误 BLOCKED；准备异常捕获，仅阻断依赖种子的阶段（R4-2） |
+| smoke 各 fixture listen/close 与 URL 读取 | 各阶段本地准备错误/关闭错误记录，独立阶段继续（R4-2） |
+| smoke runA925Phase 与 stop/review/restart/mode 调用 | BLOCKED 分支；移除缺首轮 throw；Review 模式种子异常仅阻断 mode（R4-2） |
+| smoke product_main_by_phase、reports 中 retry/live 读取 | 用 smoke 内 BLOCKED 记录表达未运行阶段，不伪造驱动文件（R4-2） |
+| smoke addCaseAssertion、最终 report / phases、exports | 索引装配异常变诊断；最终用例结果、阶段汇总及错误/阻断字段；导出新增纯辅助供测试（R4-2） |
+
+两处已登记的 W39_WORKSPACE_SELECT_MODES 包含 A925_WORKSPACE_SELECT_MODES 判断在 `91df808` 已存在，本轮均未修改；剔除 W40 分派/辅助区后的历史驱动 SHA-256 仍锁定 `2eb11b5012c426ef046e286f3ffc8040cc889324c57f367fb0ffb2e3d90a23a2`。本轮不修改产品、历史断言键、重基线或残留守卫。测试同步 K-02 wait 调用名称、K-05 VM 装入新增辅助函数、§4.5 布局反例由 101 改为 101.01（恰好一像素现属正例）、R3 VM 子进程支持新增 error 监听并验证 spawn error 完成且原报告字节不变；精确派生门仅更新登记的 smoke 摘要为 `a57e7fc468aed21401ed7845defedf7f2f2a27f5ae382f00cc37f026e2bfa4d4`，其他五个派生文件摘要不变，未登记差异仍拒绝。
+
+开发机检查与各项注入反例输出位于套件工作树 `.acceptance/w40-rework-r4/`。w40* 旅程在开发机未运行，**待第三次预演**；开发机模拟主入口执行与只读夹具重放不构成当前 Win7 产品证据。本轮未发现需修复的产品缺陷。
