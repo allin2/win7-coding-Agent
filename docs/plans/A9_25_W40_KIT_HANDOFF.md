@@ -217,3 +217,21 @@ K-06/R4-1 检查器右缘 1079.2、`innerWidth` 1079、`visualViewport.width` 10
 **结论：W40 套件无待修问题，A9-25 第 2 步完成。** 预演证据仍为 `REHEARSAL_NOT_ELIGIBLE`，不计入任何结论。
 
 产品侧观察（不返工，登记待议）：**O-4** Shell 命令产生的文件在改动视图中为 `+0 −0`、Diff 为空（如新建的 `gen.txt`），用户无法审阅命令写入的内容；建议与 O-1、O-2 一并在第一批评估。
+
+### 7.6 冻结预检发现的谱系残留与第五轮返工（2026-09-27）
+
+第 4 步从 `3a2ecdb` 双构建：ZIP 逐字节一致（`91e9f5cd…6fd5`，101,439,583 B），manifest `5ab1a49c…9411`（790 文件），`source_dirty=false`，包内 smoke、完整性脚本、报告器与两个 `.cmd` 与仓库一致。
+开发机预检（草稿 authority，非签发件）：身份与全树核对零差异（790/791），运行时 ABI 项因开发机 Node ABI 115 按预期失败；错误 pin 报 `A9_W40_AUTHORITY_PIN_MISMATCH`，
+篡改 ZIP 与错误候选绑定报 `A9_W40_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 22 项模板、错误 pin 被拒。
+
+**缺陷**：候选内 `a9-win7-40-report.cjs` 残留两处 W39 结论标签——第 18 行 `REPORT_KIND = 'A9_25_WIN7_40_A9_20_A9_21_ACCEPTANCE'`、第 206 行 PASS 处置 `A9_25_WIN7_40_A9_20_A9_21_PASS`；
+同一候选的 Kit `scope.result_on_complete` 为 `A9_25_WIN7_40_A9_24_PASS`（与 A9-25 §2 第 3 条一致）。§6.1 的谱系检索未覆盖结论标签。
+该冻结未经门 A，不消耗候选编号；冻结目录移至 `.acceptance/candidates/_superseded/WIN7-40-3a2ecdb/` 保留，修复后从新提交重新冻结。
+
+第五轮返工要求（允许路径与禁止项同前；另起提交，不 amend）：
+
+1. `REPORT_KIND` 改为 `A9_25_WIN7_40_A9_24_ACCEPTANCE`；PASS 处置改为取自 Kit `scope.result_on_complete`（值 `A9_25_WIN7_40_A9_24_PASS`），Kit 缺该字段时报错而不是回退到字面量。两处作为谱系更正在验证说明逐条登记，并加入逐文件精确比对放行。
+2. W40 残留守卫增加 `A9_20_A9_21`（W40 派生文件与打包驱动中出现即构建失败；`scope.historical_candidate` 等合法引用 WIN7-39 结论的位置须精确放行并说明）。
+3. 在全部 W40 派生文件与构建脚本的 W40 分支中再检索一次其他候选结论名、任务号与 ADR 号的残留，逐处列出处理结果。
+4. 测试与反例：`verify` 通过时处置等于 Kit 结论；注入旧标签时守卫与测试失败；Kit 缺 `result_on_complete` 时 `verify` 报错。
+5. §4 全部检查重跑；报告新 SHA、改动清单与反例结果。
