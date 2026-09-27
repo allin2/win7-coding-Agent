@@ -158,3 +158,5 @@ Decision: ADR-0142
   篡改 ZIP 与错误候选绑定报 `A9_W39_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 15 项模板、错误 pin 被拒。以上为开发机预检，不是 Win7 结果。
 - 2026-09-27：第 5 步门 A：负责人在对话中签发 `WIN7_39_RELEASE_AUTHORITY`（`approved_at` 2026-09-26T18:36:58Z，SHA-256 `b07588e00c47dce88d9ea95e28fedf0c8db26a28900351f2770251ea336f9a09`），绑定源码 `7ec9db7`、ZIP、manifest、输入锁、approval registry、Kit 与 15 项用例、目标 `192.168.1.3`、run-id `b0ebcf98-1697-431d-9ca5-22ac26ff2a67`。
   候选自带校验对签发版 authority 的身份与全树核对通过，草稿 pin 被拒（开发机预检）。实机交接书改为 `READY_FOR_EXECUTION`。
+- 2026-09-27：第 6 步第一段：G0-1～G0-4 与 G1 完成（G1 `status=PASS`，790/791 零差异，Electron 22.3.27/ABI 110，`agent` Medium），G2 前因交接书完整性报告路径与候选实际路径不一致停止。
+  审核方裁决为交接书路径错误（ZIP 含顶层目录，候选根为 `package\Win7CodingAgent-0.3.0-alpha.1-win7-x64\`），非候选缺陷；G1 证据有效不重跑，G2 按[实机交接书附录 A](../plans/A9_23_WIN7_39_ACCEPTANCE_HANDOFF.md)续跑。

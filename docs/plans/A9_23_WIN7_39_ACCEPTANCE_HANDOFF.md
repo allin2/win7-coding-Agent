@@ -187,3 +187,47 @@ K12 由 R5-1 修复并以该次预演的真实产出在开发机重放证明，�
 审核方基于原始证据独立复核：复算 `SHA256SUMS.txt` 与候选、authority 哈希；逐项对照 §6 与验证说明判定口径；核对时间线、`deviations[]` 与进程基线；
 用候选内报告器 `init` 生成模板并组装正式报告，在开发机预检后，另发附录请执行方在 Win7 以 `agent` 运行 `RUN_WIN7_39_REPORT_VERIFY.cmd` 复核（与 WIN7-37 附录 C 相同）。
 无法由原始证据支撑的结论按 `INSUFFICIENT_EVIDENCE` 处理。之后由负责人在门 B 裁决。
+
+## 附录 A：路径勘误与 G2 续跑（2026-09-27）
+
+### A.1 第一段执行结果与裁决
+
+第一段执行（本机 `<L>/`，`SHA256SUMS.txt` 198 行，自身 SHA-256 `89809955d129a920783c809de1e2c563f4b6c97d7a14207168dab935eb0bdffb`；
+`EXECUTOR_REPORT.json` SHA-256 `7bafa66b69ffe736acb6512e975fcf4202c5f675d20279a8b981ee12f7f5facd`）完成 G0-1～G0-4 与 G1，在 G2 前停止：
+§5 第 5 步写的完整性报告位置 `<W>\a9-win7-39-evidence\` 与候选脚本实际写出的 `<W>\package\a9-win7-39-evidence\` 不一致。执行方按矛盾上报停止，处理正确。
+
+裁决：**这是本交接书的路径错误，不是候选缺陷。** ZIP 内有顶层目录，候选根（下称 `<C>`）是 `<W>\package\Win7CodingAgent-0.3.0-alpha.1-win7-x64\`；
+`RUN_A9_23_W39_INTEGRITY.cmd` 在 `<C>` 中把报告写到 `..\a9-win7-39-evidence\`，即 `<W>\package\a9-win7-39-evidence\`，以候选行为为准。勘误如下，优先于 §5 正文：
+
+1. 第 5、6 步的运行目录是 `<C>`，不是 `<W>\package\`（执行方脚本实际已在 `<C>` 运行）。
+2. 第 5 步完整性报告位于 `<W>\package\a9-win7-39-evidence\a9-package-integrity.json`，本机对应 `<L>/a9-win7-39-evidence/`（已取回）。
+3. 第 7 步后飞行复算的 4 个文件位于 `<C>` 下。
+
+审核方复核第一段：`SHA256SUMS.txt` 198 行复算全部一致；authority 4 个文件未被改动；G1 在 `agent` Medium 下运行，5 个参数在中文与空格路径下原样到达，
+完整性报告 `status=PASS`，身份与全树核对 790/791 零差异，运行时 `win32`/`6.1.7601`/Electron 22.3.27/ABI 110，绑定 authority `b07588e0…9a09`。
+偏差 D1（`query user` 退出码 1 而表内 `agent` 为运行中 console 会话）、D2（首选回读失败改走 COM，逐字段一致）、D3（G1 首次状态读取遇文件占用，未重跑）按事实记录，
+不影响继续。后飞行新增的 `taskeng.exe`、`WmiPrvSE.exe`、`execs.exe`、`conhost.exe` 不是 Electron、helper 或测试 Shell。
+**G1 证据有效，不重跑；G2 按 A.2～A.4 在同一候选、同一 authority 与 run-id 下续跑。**
+
+### A.2 不变量
+
+1. 候选、authority、run-id、目标主机与 §3 完全相同；不重新上传或展开 `package\`，不重跑 G1。
+2. 第一段的 `<W>\evidence\`、`<W>\scripts\`、`<W>\package\a9-win7-39-evidence\` 与本机 `<L>/` 下全部既有文件保持原样，不覆盖、不删除、不改名；
+   包括 `<L>/RUN_LOG.md`、`SHA256SUMS.txt`、`EXECUTOR_REPORT.json`。
+3. 续跑的 Win7 目录为 `<W>\cont-a\{scripts,evidence}`，本机为 `<L>/continuation-a/`；续跑记录写 `<L>/continuation-a/RUN_LOG.md`。
+4. 计划任务名为 `A9W39Bb0ebcf98Selftest`、`A9W39Bb0ebcf98Smoke`；注册、回读门、UTF-16 副本与自检按 §4.2。
+
+### A.3 步骤
+
+1. **B1 会话、基线与哈希（只读）**：同 §5 第 2 步，进程表存 `cont-a\evidence\g0-process-baseline.csv`；
+   `certutil` 复算 `original\` 中的 ZIP、`authority\` 中 4 个文件与 `<C>` 下 `release-manifest.json`、`electron.exe`、`validation\a9-win7-39-smoke.cjs`、
+   `validation\a9-win7-39-driver.cjs`，存 `cont-a\evidence\b1-hash-win7.txt`，须与 §3 及第一段记录一致。创建 `cont-a` 并为 `agent` 授予 `(OI)(CI)M`。
+2. **B2 计划任务门与自检**：注册自检与 smoke 两个任务，按 §4.2 回读、存 UTF-16 副本，运行自检。
+3. **B3 G2 smoke**：同 §5 第 6 步，运行目录为 `<C>`，证据根改为 `"--evidence-root=<W>\cont-a\evidence\smoke"`，控制台输出存 `cont-a\evidence\smoke-console.txt`。
+4. **B4 后飞行**：同 §5 第 7 步，文件写入 `cont-a\evidence\`（进程表相对 B1 基线；删除两个续跑任务并存输出）。
+5. **B5 取回**：把 `<W>\cont-a\evidence\`、`<W>\cont-a\scripts\` 取回到 `<L>/continuation-a/` 下同名目录，逐文件核对哈希。
+6. **B6 秘密扫描**：同 §5 第 9 步，范围为 `<L>/continuation-a/`，结果存 `<L>/continuation-a/secret-scan.txt`。
+7. **B7 报告与清单**：写 `<L>/continuation-a/EXECUTOR_REPORT_A.json`，字段同 §8（`integrity` 写 `"see first segment"`），另加
+   `first_segment_sha256sums_sha256`（上文 `89809955…bdffb`）；最后生成 `<L>/continuation-a/SHA256SUMS.txt`，覆盖 `continuation-a/` 下全部文件（清单本身除外）。
+
+硬停止条件与“停止后不得”同 §7。报告只写事实，不用裁决字样。
