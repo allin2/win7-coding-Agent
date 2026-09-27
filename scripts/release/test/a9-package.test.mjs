@@ -4314,7 +4314,7 @@ const W40_DRIVER_PATH = path.join(process.cwd(), 'src', 'shell', 'tests', 'produ
 const W40_DERIVATIONS = [
   ['a9-23-win7-39-input-lock.json', 'a9-25-win7-40-input-lock.json', 'c58475cc8958cf7a0d16fdc4b76cf110863478d48cef6c731f7508dc8b20c88c'],
   ['a9-package-integrity-w39.cjs', 'a9-package-integrity-w40.cjs', '07fe7184cb918723f2cd6bff3b79d6b5e850b879d148dfa132357b0597e098f5'],
-  ['a9-win7-39-report.cjs', 'a9-win7-40-report.cjs', '3481c61c47ebf1aa8a88315a7deea711536c80869b1b261f18810ec058710dea'],
+  ['a9-win7-39-report.cjs', 'a9-win7-40-report.cjs', '9a0ffd2c916def3be94e35beb54deae529c5c368c52eb3253a3efac1de52d392'],
   ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', 'a57e7fc468aed21401ed7845defedf7f2f2a27f5ae382f00cc37f026e2bfa4d4'],
   ['RUN_A9_23_W39_INTEGRITY.cmd', 'RUN_A9_25_W40_INTEGRITY.cmd', '84953ad13d47101377ba4d3e7dbbfe7cf759e12bf6e23fb9997e8fb289f0daf5'],
   ['RUN_WIN7_39_REPORT_VERIFY.cmd', 'RUN_WIN7_40_REPORT_VERIFY.cmd', '47d031dd6d93e4cb9f09c8d81de8da4c085818546b1864b4e7cf2ae25b486ade'],
@@ -4364,8 +4364,13 @@ test('W40 §4.1 six derived files allow exactly registered identity, additions a
   }
 });
 
-function w40StaleProblems(source) {
-  return [...source.matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT/g)]
+function w40StaleProblems(source, file = '') {
+  const scoped = file === 'a9-25-win7-40-input-lock.json'
+    ? source.replace('    "previous_candidate_result": "A9_23_WIN7_39_A9_20_A9_21_PASS",', '    "previous_candidate_result": "",')
+    : file === 'a9-package-integrity-w40.cjs'
+      ? source.replace("lock.provenance?.previous_candidate_result !== 'A9_23_WIN7_39_A9_20_A9_21_PASS'",
+        "lock.provenance?.previous_candidate_result !== ''") : source;
+  return [...scoped.matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_20_A9_21/g)]
     .map((item) => item[0]);
 }
 test('W40 §4.2 stale-token guard rejects injected W39/W38/W37 active literals', () => {
@@ -4373,10 +4378,10 @@ test('W40 §4.2 stale-token guard rejects injected W39/W38/W37 active literals',
   assert.match(buildSource, /profile\.candidate === 'WIN7-40'[\s\S]*?inherited WIN7-37\/38\/39 active token/);
   for (const [oldName, newName] of W40_DERIVATIONS.slice(0, 4)) {
     void oldName;
-    assert.deepEqual(w40StaleProblems(fs.readFileSync(path.join(W40_ROOT, newName), 'utf8')), [], newName);
+    assert.deepEqual(w40StaleProblems(fs.readFileSync(path.join(W40_ROOT, newName), 'utf8'), newName), [], newName);
   }
   for (const token of ['A9-W39-FAKE', 'A9_W38_OLD', 'A9_W37_OLD', 'WIN7_39_RELEASE_AUTHORITY',
-    'APPROVED_FOR_WIN7_38_VALIDATION', "'W37-22-OLD'", 'A9_23_VALIDATION_KIT']) {
+    'APPROVED_FOR_WIN7_38_VALIDATION', "'W37-22-OLD'", 'A9_23_VALIDATION_KIT', 'A9_20_A9_21']) {
     assert.ok(w40StaleProblems(`${fs.readFileSync(W40_SMOKE_PATH, 'utf8')}\n${token}`).includes(token), token);
   }
   const guardSource = buildSource.slice(buildSource.indexOf('function assertNoStaleCandidateTokens('),
@@ -4402,6 +4407,12 @@ test('W40 §4.2 stale-token guard rejects injected W39/W38/W37 active literals',
     const smokePath = path.join(validation, 'a9-win7-40-smoke.cjs');
     const smoke = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
     fs.writeFileSync(smokePath, smoke);
+    const reportPath = path.join(validation, 'a9-win7-40-report.cjs');
+    const reportSource = fs.readFileSync(path.join(W40_ROOT, 'a9-win7-40-report.cjs'), 'utf8');
+    fs.writeFileSync(reportPath, reportSource);
+    fs.copyFileSync(path.join(W40_ROOT, 'a9-package-integrity-w40.cjs'), path.join(validation, 'a9-package-integrity-w40.cjs'));
+    const driverPath = path.join(validation, 'a9-win7-40-driver.cjs');
+    fs.writeFileSync(driverPath, '// W40 driver');
     const profile = { candidate: 'WIN7-40', lockFile: 'a9-25-win7-40-input-lock.json',
       kitFile: 'A9_25_VALIDATION_KIT.json', integrityScript: 'a9-package-integrity-w40.cjs',
       reportScript: 'a9-win7-40-report.cjs', extraValidationScripts: ['a9-win7-40-smoke.cjs'],
@@ -4412,11 +4423,79 @@ test('W40 §4.2 stale-token guard rejects injected W39/W38/W37 active literals',
       assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN/, token);
     }
     fs.writeFileSync(smokePath, smoke);
+    for (const token of ['A9_25_WIN7_40_A9_20_A9_21_ACCEPTANCE', 'A9_25_WIN7_40_A9_20_A9_21_PASS']) {
+      fs.writeFileSync(reportPath, `${reportSource}\n${token}`);
+      assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN.*A9_20_A9_21/, token);
+    }
+    fs.writeFileSync(reportPath, reportSource);
+    fs.writeFileSync(driverPath, '// W40 driver\nA9_20_A9_21');
+    assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN.*A9_20_A9_21/,
+      'packaged driver must reject the old result fragment');
+    fs.writeFileSync(driverPath, '// W40 driver');
+    const lockPath = path.join(stage, profile.lockFile);
+    const locked = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+    locked.injected_result = 'A9_25_WIN7_40_A9_20_A9_21_PASS';
+    fs.writeFileSync(lockPath, JSON.stringify(locked));
+    assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN.*A9_20_A9_21/,
+      'only the previous-candidate provenance field is exempt');
+    delete locked.injected_result;
+    fs.writeFileSync(lockPath, JSON.stringify(locked, null, 2));
+    assert.doesNotThrow(() => actualGuard(root, stage, profile));
     const commandPath = path.join(stage, profile.integrityCommand);
     fs.appendFileSync(commandPath, '\nA9-W39-FAKE');
     assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN/,
       'command entrypoints must also be guarded');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('W40 R5 report verify takes complete disposition from Kit and rejects old kind or missing result', () => {
+  const evidenceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w40-r5-report-'));
+  try {
+    const bytes = Buffer.from('observed-product-evidence');
+    fs.writeFileSync(path.join(evidenceRoot, 'observed.json'), bytes);
+    const identity = { candidate_label: 'WIN7-40', source_commit: HASH };
+    const kit = {
+      schema_version: 1, kit_id: win40Report.KIT_ID, candidate_label: 'WIN7-40',
+      scope: { result_on_complete: 'A9_25_WIN7_40_A9_24_PASS' },
+      required_cases: win40Report.EXPECTED_CASES.map((caseId) => ({
+        case_id: caseId, assertions: [{ assertion_id: `${caseId}-A01` }],
+      })),
+    };
+    const report = {
+      schema_version: 1, report_kind: win40Report.REPORT_KIND, status: 'PASS', candidate: identity,
+      results: kit.required_cases.map((item) => ({
+        case_id: item.case_id, status: 'PASS', executions: [{
+          candidate: identity, run_id: 'W40-R5-PROBE',
+          environment: { os: 'Windows 7 SP1 build 7601', architecture: 'x64',
+            user: 'ordinary-user', elevation: 'not-elevated', electron: '22.3.27', electron_abi: 110 },
+          assertions: [{ assertion_id: item.assertions[0].assertion_id, status: 'PASS' }],
+          evidence: [{ path: 'observed.json', sha256: digest(bytes), bytes: bytes.length }],
+        }],
+      })),
+    };
+    assert.equal(win40Report.REPORT_KIND, 'A9_25_WIN7_40_A9_24_ACCEPTANCE');
+    assert.equal(win40Report.verifyReport(report, kit, identity, evidenceRoot, fs).disposition,
+      kit.scope.result_on_complete);
+    const scopedDecision = structuredClone(kit);
+    scopedDecision.scope.result_on_complete = 'KIT_SCOPED_PROBE';
+    assert.equal(win40Report.verifyReport(report, scopedDecision, identity, evidenceRoot, fs).disposition,
+      scopedDecision.scope.result_on_complete, 'PASS disposition must follow Kit even if its value changes');
+    const oldKind = { ...report, report_kind: 'A9_25_WIN7_40_A9_20_A9_21_ACCEPTANCE' };
+    assert.throws(() => win40Report.verifyReport(oldKind, kit, identity, evidenceRoot, fs),
+      /A9_W40_REPORT_SCHEMA_INVALID/);
+    const missing = structuredClone(kit);
+    delete missing.scope.result_on_complete;
+    assert.throws(() => win40Report.verifyReport(report, missing, identity, evidenceRoot, fs),
+      /A9_W40_KIT_RESULT_ON_COMPLETE_REQUIRED/);
+    const oldDisposition = fs.readFileSync(path.join(W40_ROOT, 'a9-win7-40-report.cjs'), 'utf8')
+      .replace('kit.scope.result_on_complete : report.status',
+        "'A9_25_WIN7_40_A9_20_A9_21_PASS' : report.status");
+    const module = { exports: {} };
+    vm.runInNewContext(oldDisposition, { require: (name) => name.startsWith('./') ? {} : require(name),
+      module, process: { argv: [] }, Buffer, __dirname: W40_ROOT });
+    assert.notEqual(module.exports.verifyReport(report, kit, identity, evidenceRoot, fs).disposition,
+      kit.scope.result_on_complete, 'old hardcoded disposition must be detected');
+  } finally { fs.rmSync(evidenceRoot, { recursive: true, force: true }); }
 });
 
 function w40SourceAssertionProblems(smoke, driver) {
