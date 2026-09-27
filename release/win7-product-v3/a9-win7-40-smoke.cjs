@@ -55,8 +55,14 @@ function w40ResolveGitExecutable(explicitPath) {
 // A9_W40_GIT_RESOLVE_END
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function readJson(filePath) {
-  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
-  catch (_error) { return { status: 'NO_REPORT', cases: [] }; }
+  try {
+    const report = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!report || typeof report !== 'object' || Array.isArray(report) || !Array.isArray(report.cases)) {
+      return { mode: report?.mode, status: 'ERROR', raw_status: report?.status || null,
+        cases: [], error: 'A9_W40_DRIVER_REPORT_SHAPE_INVALID' };
+    }
+    return report;
+  } catch (error) { return { status: 'NO_REPORT', cases: [], error: String(error?.message || error).slice(0, 500) }; }
 }
 function quotePowerShell(value) { return `'${String(value).replace(/'/g, "''")}'`; }
 function copyTree(source, destination) {
@@ -400,7 +406,72 @@ function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
       const timing = w40PhaseTiming(started, w40PhaseClock());
       resolve({ code: code == null ? 1 : code, stdout, stderr, timed_out: timedOut, ...timing });
     });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ code: 1, stdout, stderr, timed_out: timedOut,
+        execution_error: String(error?.message || error).slice(0, 1000),
+        ...w40PhaseTiming(started, w40PhaseClock()) });
+    });
   });
+}
+
+// R4-2: failures belong to smoke records; never rewrite a driver report.
+async function w40RunElectron(electronPath, driverPath, env, timeoutMs) {
+  const started = w40PhaseClock();
+  try { return await runElectron(electronPath, driverPath, env, timeoutMs); }
+  catch (error) {
+    return { code: 1, timed_out: false, stdout: '', stderr: String(error?.stack || error).slice(0, 2000),
+      execution_error: String(error?.message || error).slice(0, 1000),
+      ...w40PhaseTiming(started, w40PhaseClock()) };
+  }
+}
+function w40PrepareSeed(prepare) {
+  try { return prepare(); }
+  catch (error) { return { error: String(error?.message || error).slice(0, 1000) }; }
+}
+async function w40ListenFixture(fixture) {
+  try { await fixture.listen(); return null; }
+  catch (error) { return `FIXTURE_LISTEN_ERROR:${String(error?.message || error).slice(0, 500)}`; }
+}
+async function w40CloseFixture(fixture) {
+  try {
+    const result = await fixture.close();
+    return result ? `FIXTURE_CLOSE_ERROR:${String(result.message || result).slice(0, 500)}` : null;
+  }
+  catch (error) { return `FIXTURE_CLOSE_ERROR:${String(error?.message || error).slice(0, 500)}`; }
+}
+function w40FixtureUrl(fixture) {
+  const address = fixture.server.address();
+  return address ? `http://127.0.0.1:${address.port}` : '';
+}
+function w40BlockPhase(phases, blockedReports, mode, reason) {
+  const report = { mode, status: 'BLOCKED', cases: [], blocked_reason: String(reason).slice(0, 1000) };
+  blockedReports[mode] = report;
+  phases.push({ phase: mode, status: 'BLOCKED', blocked_reason: report.blocked_reason,
+    code: null, timed_out: false, stdout: '', stderr: '', started_at: null, ended_at: null, duration_ms: null });
+  return report;
+}
+function w40FinalizeCaseIndex(index, runs, reports) {
+  const dependencies = [[], Object.keys(reports), ['w40_startup'], ['first'], ['first', 'w40_review'],
+    ['first', 'second', 'retry', 'stop', 'w40_stop'], ['w40_git'], ['w40_git'], ['w40_git'],
+    ['w40_m1_small', 'w40_m1_large'], ['w40_m1b'], ['w40_m2'], ['w40_m3'], ['w40_m4'], [],
+    ['w40_review'], ['w40_review', 'w40_review_restart'], ['w40_review'], ['w40_review'],
+    ['w40_review'], ['w40_review', 'w40_review_mode'], ['w40_review']];
+  for (const item of index.cases) {
+    const number = Number(item.case_id.slice(4, 6));
+    if (number === 1) continue; // Candidate-external integrity is not a smoke stage.
+    const modes = dependencies[number - 1] || [];
+    const blocked = modes.filter((mode) => reports[mode]?.status === 'BLOCKED');
+    const failed = modes.filter((mode) => !normalPhaseContract(runs.find((run) => run.phase === mode), reports[mode], mode));
+    if (blocked.length) {
+      item.result = 'BLOCKED';
+      item.reason = blocked.map((mode) => `${mode}: ${reports[mode].blocked_reason}`).join(';').slice(0, 2000);
+    } else if (failed.length) {
+      item.result = 'FAIL'; item.reason = `Required stage invalid or missing: ${failed.join(',')}`;
+    } else if (!item.result) {
+      item.result = item.assertions.length > 0 && item.assertions.every((entry) => entry.result === 'PASS') ? 'PASS' : 'FAIL';
+    }
+  }
 }
 
 function normalPhaseContract(run, report, expectedMode) {
@@ -509,6 +580,7 @@ async function main() {
   }
   // 派生差异 D-1：运行根与全部阶段目录名含中文与空格（W40-02 断言要求运行根、
   // 各工作区与数据根都含非 ASCII 字符与空格；W37 只有首个工作区满足）。
+  const gitSelection = w40ResolveGitExecutable(argument('git-exe'));
   const runRoot = path.join(evidenceRoot, `自动 运行 w40-${Date.now()}`);
   const workspaceRoot = path.join(runRoot, '中文 空格 workspace');
   const dataRoot = path.join(runRoot, '数据 data root');
@@ -623,7 +695,7 @@ async function main() {
   // 可解析 ERROR；同一父级正常阶段合同必须拒绝这些结果。每次反例后用 Win7 内置
   // WMI 直接扫描候选及本 run 路径，不允许 Electron/helper/Shell 子孙残留。
   const lateOut = path.join(runRoot, 'late-load-negative.json');
-  const lateRun = await runElectron(electronPath, driverPath, {
+  const lateRun = await w40RunElectron(electronPath, driverPath, {
     ...baseEnv,
     A9_SMOKE_MODE: 'late_load_negative',
     A9_SMOKE_WORKSPACE: negativeWorkspace,
@@ -645,7 +717,7 @@ async function main() {
     `normalPhaseAccepted=${!lateParentRejected}`);
 
   const controlledErrorOut = path.join(runRoot, 'controlled-error-negative.json');
-  const controlledErrorRun = await runElectron(electronPath, driverPath, {
+  const controlledErrorRun = await w40RunElectron(electronPath, driverPath, {
     ...baseEnv,
     A9_SMOKE_MODE: 'controlled_error_negative',
     A9_SMOKE_WORKSPACE: negativeWorkspace,
@@ -671,8 +743,9 @@ async function main() {
     && controlledErrorParentRejected && negativeProbesNoResidue;
 
   const phases = [];
+  const blockedReports = {};
   const firstOut = path.join(runRoot, 'first.json');
-  phases.push({ phase: 'first', ...(await runElectron(electronPath, driverPath, {
+  phases.push({ phase: 'first', ...(await w40RunElectron(electronPath, driverPath, {
     ...baseEnv, A9_SMOKE_MODE: 'first', A9_SMOKE_FIXTURE_URL: journeyUrl, A9_SMOKE_OUT: firstOut,
   })) });
   const first = readJson(firstOut);
@@ -689,7 +762,14 @@ async function main() {
     JSON.stringify({ before: approveTargetBefore, after: approveTargetAfter }));
   const approval = first.oldApproval || {};
   const secondOut = path.join(runRoot, 'second.json');
-  phases.push({ phase: 'second', ...(await runElectron(electronPath, driverPath, {
+  const secondPrerequisite = ['approvalId', 'bindingDigest', 'conversationId', 'taskId', 'turnId']
+    .every((key) => typeof approval[key] === 'string' && approval[key].length > 0)
+    && ['conversationId', 'oldFailureTurnId', 'latestSuccessTurnId', 'displayed']
+      .every((key) => typeof first.projectionSeed?.[key] === 'string' && first.projectionSeed[key].length > 0)
+    && ['oldFailureEventId', 'latestSuccessEventId']
+      .every((key) => Number.isSafeInteger(first.projectionSeed?.[key]) && first.projectionSeed[key] > 0);
+  if (!secondPrerequisite) w40BlockPhase(phases, blockedReports, 'second', 'first approval binding or projection seed missing');
+  else phases.push({ phase: 'second', ...(await w40RunElectron(electronPath, driverPath, {
     ...baseEnv, A9_SMOKE_MODE: 'second', A9_SMOKE_OUT: secondOut,
     A9_SMOKE_OLD_APPROVAL_ID: approval.approvalId || '',
     A9_SMOKE_OLD_APPROVAL_DIGEST: approval.bindingDigest || '',
@@ -698,11 +778,12 @@ async function main() {
     A9_SMOKE_OLD_APPROVAL_TURN: approval.turnId || '',
     A9_SMOKE_PROJECTION_SEED: JSON.stringify(first.projectionSeed || {}),
   })) });
-  const second = readJson(secondOut);
+  const second = blockedReports.second || readJson(secondOut);
   const retryTargetConversation = second.retryTarget && second.retryTarget.conversationId
     ? second.retryTarget.conversationId : '';
   const retryOut = path.join(runRoot, 'retry.json');
-  phases.push({ phase: 'retry', ...(await runElectron(electronPath, driverPath, {
+  if (!retryTargetConversation) w40BlockPhase(phases, blockedReports, 'retry', 'second retry target conversation missing');
+  else phases.push({ phase: 'retry', ...(await w40RunElectron(electronPath, driverPath, {
     ...baseEnv,
     A9_SMOKE_MODE: 'retry',
     A9_SMOKE_FIXTURE_URL: journeyUrl,
@@ -710,26 +791,30 @@ async function main() {
     A9_SMOKE_OUT: retryOut,
   })) });
   const stopOut = path.join(runRoot, 'stop.json');
-  phases.push({ phase: 'stop', ...(await runElectron(electronPath, driverPath, {
+  phases.push({ phase: 'stop', ...(await w40RunElectron(electronPath, driverPath, {
     ...baseEnv,
     A9_SMOKE_WORKSPACE: stopWorkspace, A9_SMOKE_DATAROOT: stopData,
     WIN7AGENT_A9_DATAROOT: stopData, A9_SMOKE_MODE: 'stop', A9_SMOKE_FIXTURE_URL: stopUrl,
     A9_SMOKE_STOP_PID_MARKER: stopMarker, A9_SMOKE_OUT: stopOut,
   })) });
-  await journey.close();
-  await stop.close();
+  const journeyCloseError = await w40CloseFixture(journey);
+  record('W40-FIXTURE-CLOSE-JOURNEY', journeyCloseError === null, journeyCloseError || 'CLOSED');
+  const stopCloseError = await w40CloseFixture(stop);
+  record('W40-FIXTURE-CLOSE-STOP', stopCloseError === null, stopCloseError || 'CLOSED');
   // ADR-0136：第五阶段——A9-19 / WIN7-37 编号 16/17 的延迟流式运行过程实时可见，并核对编号 20/21 的头部文案与左栏保持。
   const liveTestKey = `A9W40-LIVE-${crypto.randomBytes(8).toString('hex')}`;
   const live = createLiveFixture(liveTestKey);
-  await live.listen();
+  const liveError = await w40ListenFixture(live);
   const liveOut = path.join(runRoot, 'live.json');
-  phases.push({ phase: 'live', ...(await runElectron(electronPath, driverPath, {
+  if (liveError) w40BlockPhase(phases, blockedReports, 'live', liveError);
+  else phases.push({ phase: 'live', ...(await w40RunElectron(electronPath, driverPath, {
     ...baseEnv,
     A9_SMOKE_WORKSPACE: liveWorkspace, A9_SMOKE_DATAROOT: liveData, WIN7AGENT_A9_DATAROOT: liveData,
-    A9_SMOKE_MODE: 'live', A9_SMOKE_FIXTURE_URL: `http://127.0.0.1:${live.server.address().port}`,
+    A9_SMOKE_MODE: 'live', A9_SMOKE_FIXTURE_URL: w40FixtureUrl(live),
     A9_SMOKE_LIVE_TEST_KEY: liveTestKey, A9_SMOKE_OUT: liveOut,
   })) });
-  await live.close();
+  const liveCloseError = await w40CloseFixture(live);
+  record('W40-FIXTURE-CLOSE-LIVE', liveCloseError === null, liveCloseError || 'CLOSED');
   const liveRawText = fs.existsSync(liveOut) ? fs.readFileSync(liveOut, 'utf8') : '';
   record('A9-W40-LIVE-REPORT-HAS-NO-TEST-KEY', liveRawText.length > 0 && !liveRawText.includes(liveTestKey)
     && !liveRawText.includes(liveTestKey.slice(0, 10)), `bytes=${liveRawText.length}`);
@@ -740,9 +825,14 @@ async function main() {
   // =====================================================================
   const w40Phases = [];
   const w40PhaseReports = [];
-  const runW40Phase = async (name, workspace, dataRoot, extraEnv, fixtureUrl, timeoutMs) => {
+  const runW40Phase = async (name, workspace, dataRoot, extraEnv, fixtureUrl, timeoutMs, blockedReason) => {
     const outPath = path.join(runRoot, `${name}.json`);
-    w40Phases.push({ phase: name, ...(await runElectron(electronPath, driverPath, {
+    if (blockedReason) {
+      const phaseReport = w40BlockPhase(w40Phases, blockedReports, name, blockedReason);
+      w40PhaseReports.push({ phase: name, path: outPath, report: phaseReport });
+      return phaseReport;
+    }
+    w40Phases.push({ phase: name, ...(await w40RunElectron(electronPath, driverPath, {
       ...baseEnv,
       A9_SMOKE_WORKSPACE: workspace, A9_SMOKE_DATAROOT: dataRoot, WIN7AGENT_A9_DATAROOT: dataRoot,
       A9_SMOKE_MODE: name, A9_SMOKE_OUT: outPath,
@@ -787,7 +877,6 @@ async function main() {
   const gitFormsFile = path.join(runRoot, 'w40-git-forms.json');
   fs.writeFileSync(gitFormsFile, `${JSON.stringify(W40_GIT_FORMS, null, 2)}\n`, 'utf8');
   // 远端：本地裸仓库 + 带 origin 的工作区仓库；Win7 无 git 时远端判定记 NOT_PERFORMED。
-  const gitSelection = w40ResolveGitExecutable(argument('git-exe'));
   const gitAvailable = Boolean(gitSelection.executable);
   const bareRoot = path.join(runRoot, 'git 裸仓库 origin');
   const gitWorkRepo = path.join(runRoot, 'git 工作区 仓库');
@@ -799,18 +888,20 @@ async function main() {
       // A9_W40_GIT_SETUP_BEGIN
       const gitRun = (args, cwd) => {
         const result = childProcess.spawnSync(gitSelection.executable, args, { cwd, windowsHide: true, timeout: 30000 });
-        if (result.status !== 0) throw new Error(`git ${args.join(' ')} -> exit ${result.status}: ${String(result.stderr || '').slice(0, 200)}`);
+        if (result.error || result.status !== 0) {
+          gitSetupError = `git ${args.join(' ')} -> exit ${result.status}: ${String(result.error?.message || result.stderr || '').slice(0, 200)}`;
+          return false;
+        }
+        return true;
       };
-      gitRun(['init', '--bare', bareRoot]);
-      fs.mkdirSync(gitWorkRepo, { recursive: true });
-      fs.writeFileSync(path.join(gitWorkRepo, 'README.md'), 'w40 git forms workspace\n', 'utf8');
-      gitRun(['init'], gitWorkRepo);
-      gitRun(['config', 'user.email', 'w40-smoke@example.invalid'], gitWorkRepo);
-      gitRun(['config', 'user.name', 'w40-smoke'], gitWorkRepo);
-      gitRun(['add', 'README.md'], gitWorkRepo);
-      gitRun(['commit', '-m', 'w40 seed'], gitWorkRepo);
-      gitRun(['remote', 'add', 'origin', bareRoot], gitWorkRepo);
-      gitRun(['push', 'origin', 'HEAD:refs/heads/main'], gitWorkRepo);
+      if (gitRun(['init', '--bare', bareRoot])) {
+        fs.mkdirSync(gitWorkRepo, { recursive: true });
+        fs.writeFileSync(path.join(gitWorkRepo, 'README.md'), 'w40 git forms workspace\n', 'utf8');
+        const commands = [['init'], ['config', 'user.email', 'w40-smoke@example.invalid'],
+          ['config', 'user.name', 'w40-smoke'], ['add', 'README.md'], ['commit', '-m', 'w40 seed'],
+          ['remote', 'add', 'origin', bareRoot], ['push', 'origin', 'HEAD:refs/heads/main']];
+        commands.every((args) => gitRun(args, gitWorkRepo));
+      }
       // A9_W40_GIT_SETUP_END
       gitMainRefBefore = fs.existsSync(gitMainRefFile) ? fs.readFileSync(gitMainRefFile, 'utf8') : null;
     } catch (error) {
@@ -828,11 +919,12 @@ async function main() {
     }
     return { content: 'git form denied; nothing executed.' };
   });
-  await gitFixture.listen();
+  const gitFixtureError = await w40ListenFixture(gitFixture);
   const gitReport = await runW40Phase('w40_git', gitWorkspace, gitData, {
     A9_SMOKE_W40_GIT_FORMS_FILE: gitFormsFile,
-  }, `http://127.0.0.1:${gitFixture.server.address().port}`, 900000);
-  await gitFixture.close();
+  }, w40FixtureUrl(gitFixture), 900000, gitFixtureError);
+  const gitFixtureCloseError = await w40CloseFixture(gitFixture);
+  record('W40-FIXTURE-CLOSE-GITFIXTURE', gitFixtureCloseError === null, gitFixtureCloseError || 'CLOSED');
   const gitMainRefAfter = fs.existsSync(gitMainRefFile) ? fs.readFileSync(gitMainRefFile, 'utf8') : null;
   const gitRemoteUnchanged = !gitAvailable || (gitSetupError === '' && gitMainRefBefore !== null
     && gitMainRefAfter === gitMainRefBefore);
@@ -850,8 +942,8 @@ async function main() {
   const w40SeedM1History = (dataRoot, workspaceRoot, options) => {
     const stateModule = path.join(candidateRoot, 'resources', 'app', 'state', 'dist', 'a9-persistence.js');
     const coreModule = path.join(candidateRoot, 'resources', 'app', 'core', 'dist', 'index.js');
-    if (!fs.existsSync(stateModule)) throw new Error(`A9_W40_STATE_MODULE_MISSING:${stateModule}`);
-    if (!fs.existsSync(coreModule)) throw new Error(`A9_W40_CORE_MODULE_MISSING:${coreModule}`);
+    if (!fs.existsSync(stateModule)) return { error: `A9_W40_STATE_MODULE_MISSING:${stateModule}` };
+    if (!fs.existsSync(coreModule)) return { error: `A9_W40_CORE_MODULE_MISSING:${coreModule}` };
     const { A9PersistenceManager } = require(stateModule);
     const { canonicalizeWorkspacePath } = require(coreModule);
     const Database = require(path.join(candidateRoot, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3'));
@@ -860,7 +952,7 @@ async function main() {
       openDatabase: (databasePath, openOptions) => new Database(databasePath, openOptions && openOptions.readonly ? { readonly: true } : {}),
     });
     if (!outcome || outcome.status !== 'ready' || !outcome.manager) {
-      throw new Error(`A9_W40_M1_SEED_OPEN_FAILED:${JSON.stringify(outcome || {}).slice(0, 300)}`);
+      return { error: `A9_W40_M1_SEED_OPEN_FAILED:${JSON.stringify(outcome || {}).slice(0, 300)}` };
     }
     const manager = outcome.manager;
     const canonical = canonicalizeWorkspacePath(workspaceRoot);
@@ -880,22 +972,22 @@ async function main() {
     // 无 checkpoint 行、无磁盘清单：不调用 saveCheckpoint，也不写清单文件。
     return { canonicalWorkspace: canonical, interruptedTurnId };
   };
-  const m1SmallSeed = w40SeedM1History(m1SmallData, m1SmallWorkspace, {
+  const m1SmallSeed = w40PrepareSeed(() => w40SeedM1History(m1SmallData, m1SmallWorkspace, {
     sessionId: 'w40-m1-small-session', taskId: 'w40-m1-small-task', prefix: 'w40-m1-small',
     completedTurns: 5, title: 'w40 m1 小历史',
-  });
+  }));
   const m1SmallReport = await runW40Phase('w40_m1_small', m1SmallWorkspace, m1SmallData, {
     A9_SMOKE_W40_M1_EXPECTED_TURN_ID: m1SmallSeed.interruptedTurnId,
     A9_SMOKE_W40_M1_EXPECTED_FACT_TURNS: '5',
-  });
-  const m1LargeSeed = w40SeedM1History(m1LargeData, m1LargeWorkspace, {
+  }, undefined, undefined, m1SmallSeed.error);
+  const m1LargeSeed = w40PrepareSeed(() => w40SeedM1History(m1LargeData, m1LargeWorkspace, {
     sessionId: 'w40-m1-large-session', taskId: 'w40-m1-large-task', prefix: 'w40-m1-large',
     completedTurns: 100, title: 'w40 m1 大历史',
-  });
+  }));
   const m1LargeReport = await runW40Phase('w40_m1_large', m1LargeWorkspace, m1LargeData, {
     A9_SMOKE_W40_M1_EXPECTED_TURN_ID: m1LargeSeed.interruptedTurnId,
     A9_SMOKE_W40_M1_EXPECTED_FACT_TURNS: '100',
-  });
+  }, undefined, undefined, m1LargeSeed.error);
   const m1SmallCase = (m1SmallReport.cases || []).find((item) => item && item.id === 'W40-M1-RECOVERY-SMALL') || {};
   const m1LargeCase = (m1LargeReport.cases || []).find((item) => item && item.id === 'W40-M1-RECOVERY-LARGE') || {};
   const m1SmallTiming = (m1SmallReport.cases || []).find((item) => item && item.id === 'W40-M1-TIMING-SMALL') || {};
@@ -927,11 +1019,12 @@ async function main() {
     }
     return { content: 'm1b turn done.' };
   });
-  await m1bFixture.listen();
+  const m1bFixtureError = await w40ListenFixture(m1bFixture);
   const m1bReport = await runW40Phase('w40_m1b', m1bWorkspace, m1bData, {
     A9_SMOKE_W40_M1B_URL_PASSWORD: m1bPassword,
-  }, `http://127.0.0.1:${m1bFixture.server.address().port}`);
-  await m1bFixture.close();
+  }, w40FixtureUrl(m1bFixture), 600000, m1bFixtureError);
+  const m1bFixtureCloseError = await w40CloseFixture(m1bFixture);
+  record('W40-FIXTURE-CLOSE-M1BFIXTURE', m1bFixtureCloseError === null, m1bFixtureCloseError || 'CLOSED');
   const w40ScanDatabaseForSecret = (dataRoot, secret, marker) => {
     const result = { ok: false, rows_scanned: 0, secret_hits: 0, marker_hits: 0, error: '' };
     try {
@@ -1000,9 +1093,10 @@ async function main() {
     }
     return { content: 'second turn completed.' };
   });
-  await m2Fixture.listen();
-  const m2Report = await runW40Phase('w40_m2', m2Workspace, m2Data, {}, `http://127.0.0.1:${m2Fixture.server.address().port}`);
-  await m2Fixture.close();
+  const m2FixtureError = await w40ListenFixture(m2Fixture);
+  const m2Report = await runW40Phase('w40_m2', m2Workspace, m2Data, {}, w40FixtureUrl(m2Fixture), 600000, m2FixtureError);
+  const m2FixtureCloseError = await w40CloseFixture(m2Fixture);
+  record('W40-FIXTURE-CLOSE-M2FIXTURE', m2FixtureCloseError === null, m2FixtureCloseError || 'CLOSED');
 
   // —— W40-13：M3 checkpoint 分页（≥60 真实 Turn，逐轮小修改）。 ——
   const m3Fixture = createFixture((parsed) => {
@@ -1021,18 +1115,19 @@ async function main() {
     }
     return { content: `m3 turn ${match ? match[1] : '?'} done.` };
   });
-  await m3Fixture.listen();
+  const m3FixtureError = await w40ListenFixture(m3Fixture);
   const m3Report = await runW40Phase('w40_m3', m3Workspace, m3Data, {
     A9_SMOKE_W40_M3_TURNS: '60',
-  }, `http://127.0.0.1:${m3Fixture.server.address().port}`, 900000);
-  await m3Fixture.close();
+  }, w40FixtureUrl(m3Fixture), 900000, m3FixtureError);
+  const m3FixtureCloseError = await w40CloseFixture(m3Fixture);
+  record('W40-FIXTURE-CLOSE-M3FIXTURE', m3FixtureCloseError === null, m3FixtureCloseError || 'CLOSED');
 
   // —— W40-14：M4 集合上限（种子 ≥2500 条经公开事件写入方法）。 ——
   const w40SeedM4Events = (dataRoot, workspaceRoot) => {
     const stateModule = path.join(candidateRoot, 'resources', 'app', 'state', 'dist', 'a9-persistence.js');
     const coreModule = path.join(candidateRoot, 'resources', 'app', 'core', 'dist', 'index.js');
-    if (!fs.existsSync(stateModule)) throw new Error(`A9_W40_STATE_MODULE_MISSING:${stateModule}`);
-    if (!fs.existsSync(coreModule)) throw new Error(`A9_W40_CORE_MODULE_MISSING:${coreModule}`);
+    if (!fs.existsSync(stateModule)) return { error: `A9_W40_STATE_MODULE_MISSING:${stateModule}` };
+    if (!fs.existsSync(coreModule)) return { error: `A9_W40_CORE_MODULE_MISSING:${coreModule}` };
     const { A9PersistenceManager } = require(stateModule);
     const { canonicalizeWorkspacePath } = require(coreModule);
     const Database = require(path.join(candidateRoot, 'resources', 'native', 'storage', 'node_modules', 'better-sqlite3'));
@@ -1041,7 +1136,7 @@ async function main() {
       openDatabase: (databasePath, openOptions) => new Database(databasePath, openOptions && openOptions.readonly ? { readonly: true } : {}),
     });
     if (!outcome || outcome.status !== 'ready' || !outcome.manager) {
-      throw new Error(`A9_W40_M4_SEED_OPEN_FAILED:${JSON.stringify(outcome || {}).slice(0, 300)}`);
+      return { error: `A9_W40_M4_SEED_OPEN_FAILED:${JSON.stringify(outcome || {}).slice(0, 300)}` };
     }
     const manager = outcome.manager;
     const canonical = canonicalizeWorkspacePath(workspaceRoot);
@@ -1071,7 +1166,7 @@ async function main() {
     }
     return { written };
   };
-  const m4Seed = w40SeedM4Events(m4Data, m4Workspace);
+  const m4Seed = w40PrepareSeed(() => w40SeedM4Events(m4Data, m4Workspace));
   const M4_BULK_STEPS = 20;
   const m4Fixture = createFixture((parsed) => {
     const messages = parsed.messages || [];
@@ -1090,20 +1185,26 @@ async function main() {
     }
     return { content: 'bulk events generated.' };
   });
-  await m4Fixture.listen();
-  const m4Report = await runW40Phase('w40_m4', m4Workspace, m4Data, {}, `http://127.0.0.1:${m4Fixture.server.address().port}`, 900000);
-  await m4Fixture.close();
+  const m4FixtureError = await w40ListenFixture(m4Fixture);
+  const m4Report = await runW40Phase('w40_m4', m4Workspace, m4Data, {}, w40FixtureUrl(m4Fixture), 900000, m4Seed.error || m4FixtureError);
+  const m4FixtureCloseError = await w40CloseFixture(m4Fixture);
+  record('W40-FIXTURE-CLOSE-M4FIXTURE', m4FixtureCloseError === null, m4FixtureCloseError || 'CLOSED');
 
   // A9-25 stages use independent data roots except review/restart, which deliberately share one.
   const a925Phases = [];
   const a925PhaseReports = [];
-  const runA925Phase = async (mode, workspace, data, fixture, extraEnv = {}, timeoutMs = 600000) => {
+  const runA925Phase = async (mode, workspace, data, fixture, extraEnv = {}, timeoutMs = 600000, blockedReason) => {
     const output = path.join(runRoot, `${mode}.json`);
-    a925Phases.push({ phase: mode, ...(await runElectron(electronPath, driverPath, {
+    if (blockedReason) {
+      const phaseReport = w40BlockPhase(a925Phases, blockedReports, mode, blockedReason);
+      a925PhaseReports.push({ phase: mode, path: output, report: phaseReport });
+      return phaseReport;
+    }
+    a925Phases.push({ phase: mode, ...(await w40RunElectron(electronPath, driverPath, {
       ...baseEnv, A9_SMOKE_MODE: mode, A9_SMOKE_WORKSPACE: workspace,
       A9_SMOKE_DATAROOT: data, WIN7AGENT_A9_DATAROOT: data,
       A9_SMOKE_OUT: output,
-      ...(fixture ? { A9_SMOKE_FIXTURE_URL: `http://127.0.0.1:${fixture.server.address().port}` } : {}),
+      ...(fixture ? { A9_SMOKE_FIXTURE_URL: w40FixtureUrl(fixture) } : {}),
       ...extraEnv,
     }, timeoutMs)) });
     const residue = await waitForNoRelatedProcesses(candidateRoot, runRoot);
@@ -1115,24 +1216,28 @@ async function main() {
   };
 
   const a925StopFixture = createW40StopFixture(a925StopMarker);
-  await a925StopFixture.listen();
+  const a925StopFixtureError = await w40ListenFixture(a925StopFixture);
   const a925StopReport = await runA925Phase('w40_stop', a925StopWorkspace, a925StopData,
     a925StopFixture, { A9_SMOKE_STOP_PID_MARKER: a925StopMarker,
-      A9_SMOKE_W40_STOP_EVIDENCE: path.join(evidenceRoot, 'w40-06-stop-exit.json') });
-  await a925StopFixture.close();
+      A9_SMOKE_W40_STOP_EVIDENCE: path.join(evidenceRoot, 'w40-06-stop-exit.json') }, 600000, a925StopFixtureError);
+  const a925StopFixtureCloseError = await w40CloseFixture(a925StopFixture);
+  record('W40-FIXTURE-CLOSE-A925STOPFIXTURE', a925StopFixtureCloseError === null, a925StopFixtureCloseError || 'CLOSED');
 
   const a925ReviewFixture = createW40ReviewFixture();
-  await a925ReviewFixture.listen();
+  const a925ReviewFixtureError = await w40ListenFixture(a925ReviewFixture);
   const a925BeforeA = sha256File(path.join(a925ReviewWorkspace, 'a.txt'));
   const a925ReviewReport = await runA925Phase('w40_review', a925ReviewWorkspace, a925ReviewData,
-    a925ReviewFixture, { A9_SMOKE_W40_A_BASELINE_SHA256: a925BeforeA }, 900000);
-  await a925ReviewFixture.close();
+    a925ReviewFixture, { A9_SMOKE_W40_A_BASELINE_SHA256: a925BeforeA }, 900000, a925ReviewFixtureError);
+  const a925ReviewFixtureCloseError = await w40CloseFixture(a925ReviewFixture);
+  record('W40-FIXTURE-CLOSE-A925REVIEWFIXTURE', a925ReviewFixtureCloseError === null, a925ReviewFixtureCloseError || 'CLOSED');
   const a925FirstTurnId = a925ReviewReport.w40TurnIds && a925ReviewReport.w40TurnIds.first;
-  if (!a925FirstTurnId) throw new Error('A9_W40_REVIEW_FIRST_TURN_MISSING');
+  const a925RestartBlocked = a925ReviewReport.status !== 'PASS' ? 'w40_review did not complete successfully'
+    : !a925FirstTurnId ? 'w40_review first turnId missing' : null;
   const a925RestartReport = await runA925Phase('w40_review_restart', a925ReviewWorkspace, a925ReviewData,
-    null, { A9_SMOKE_W40_FIRST_TURN: a925FirstTurnId });
+    null, { A9_SMOKE_W40_FIRST_TURN: a925FirstTurnId }, 600000, a925RestartBlocked);
 
   // Seed the hidden staging-style Review value through the public persistence API before product startup.
+  const a925ModeSeed = w40PrepareSeed(() => {
   const { A9PersistenceManager: A925Persistence } = require(path.join(candidateRoot,
     'resources', 'app', 'state', 'dist', 'a9-persistence.js'));
   const { canonicalizeWorkspacePath: a925Canonicalize } = require(path.join(candidateRoot,
@@ -1142,17 +1247,20 @@ async function main() {
     databasePath: path.join(a925ModeData, 'a9-state.db'), dataRoot: a925ModeData,
     openDatabase: (databasePath, options) => new A925Database(databasePath, options?.readonly ? { readonly: true } : {}),
   });
-  if (a925Open.status !== 'ready' || !a925Open.manager) {
-    throw new Error(`A9_W40_REVIEW_MODE_SEED_FAILED:${JSON.stringify(a925Open).slice(0, 300)}`);
+  if (!a925Open || a925Open.status !== 'ready' || !a925Open.manager) {
+    return { error: `A9_W40_REVIEW_MODE_SEED_FAILED:${JSON.stringify(a925Open).slice(0, 300)}` };
   }
   a925Open.manager.setWorkspaceMode(a925Canonicalize(a925ModeWorkspace), 'review');
   a925Open.manager.db.close();
+    return { ready: true };
+  });
   const a925ModeToolResults = path.join(evidenceRoot, 'w40-21-tool-results.json');
   const a925ModeFixture = createW40ReviewModeFixture(a925ModeToolResults);
-  await a925ModeFixture.listen();
+  const a925ModeFixtureError = await w40ListenFixture(a925ModeFixture);
   const a925ModeReport = await runA925Phase('w40_review_mode', a925ModeWorkspace, a925ModeData, a925ModeFixture,
-    { A9_SMOKE_W40_MODE_TOOL_RESULTS: a925ModeToolResults });
-  await a925ModeFixture.close();
+    { A9_SMOKE_W40_MODE_TOOL_RESULTS: a925ModeToolResults }, 600000, a925ModeSeed.error || a925ModeFixtureError);
+  const a925ModeFixtureCloseError = await w40CloseFixture(a925ModeFixture);
+  record('W40-FIXTURE-CLOSE-A925MODEFIXTURE', a925ModeFixtureCloseError === null, a925ModeFixtureCloseError || 'CLOSED');
 
   // —— W40-02：中文空格路径 + 各阶段 productMainLoaded 有效。 ——
   const w40PathEntries = {
@@ -1185,8 +1293,8 @@ async function main() {
   let productMainOk = true;
   for (const entry of w40PhaseReports.concat(a925PhaseReports, [
     { phase: 'first', report: readJson(firstOut) }, { phase: 'second', report: readJson(secondOut) },
-    { phase: 'retry', report: readJson(retryOut) }, { phase: 'stop', report: readJson(stopOut) },
-    { phase: 'live', report: readJson(liveOut) },
+    { phase: 'retry', report: blockedReports.retry || readJson(retryOut) }, { phase: 'stop', report: readJson(stopOut) },
+    { phase: 'live', report: blockedReports.live || readJson(liveOut) },
   ])) {
     const loaded = entry.report && entry.report.productMainLoaded ? String(entry.report.productMainLoaded) : '';
     const valid = loaded.length > 0 && path.resolve(loaded).startsWith(path.resolve(candidateRoot) + path.sep)
@@ -1328,7 +1436,7 @@ async function main() {
     'w40-22-layout.json', 'w40-22-layout.png',
   ].map((name) => path.join(evidenceRoot, name)).filter((filePath) => fs.existsSync(filePath)));
 
-  const reports = { first, second, retry: readJson(retryOut), stop: readJson(stopOut), live: readJson(liveOut),
+  const reports = { first, second, retry: blockedReports.retry || readJson(retryOut), stop: readJson(stopOut), live: blockedReports.live || readJson(liveOut),
     ...w40Reports, w40_stop: a925StopReport, w40_review: a925ReviewReport,
     w40_review_restart: a925RestartReport, w40_review_mode: a925ModeReport };
   const phaseEntries = [
@@ -1490,9 +1598,10 @@ async function main() {
       { case_id: 'W40-15-SECRET-SCAN-AND-POSTFLIGHT', assertions: [{ id: 'A9-W40-FINAL-NO-RESIDUE', result: caseResult('A9-W40-FINAL-NO-RESIDUE') }], evidence: ['w40-15-residue.json'] },
     ],
   };
+  const caseIndexErrors = [];
   const addCaseAssertion = (caseId, id, evidence) => {
     const item = w40CaseIndex.cases.find((entry) => entry.case_id === caseId);
-    if (!item) throw new Error(`A9_W40_CASE_INDEX_MISSING:${caseId}`);
+    if (!item) { caseIndexErrors.push(`A9_W40_CASE_INDEX_MISSING:${caseId}`); return; }
     item.assertions.push({ id, result: caseResult(id) });
     for (const file of evidence) if (!item.evidence.includes(file)) item.evidence.push(file);
   };
@@ -1516,13 +1625,14 @@ async function main() {
   addA925Case('W40-21-NONBLOCKING-MODE', ['A9-W40-REVIEW-NON-BLOCKING', 'A9-W40-MODE-TWO-OPTIONS',
     'A9-W40-REVIEW-MODE-FAIL-CLOSED'], ['w40-21-mode.json']);
   addA925Case('W40-22-LAYOUT', ['A9-W40-REVIEW-LAYOUT'], ['w40-22-layout.json', 'w40-22-layout.png']);
+  w40FinalizeCaseIndex(w40CaseIndex, phases.concat(w40Phases, a925Phases), reports);
   const report = {
     schema_version: 1,
     evidence_kind: 'A9_25_WIN7_40_AUTOMATIC_PRODUCT_SMOKE',
     recorded_at: new Date().toISOString(),
     driver_protocol: baseEnv.A9_SMOKE_DRIVER_PROTOCOL,
     status: phases.length === 5 && w40Phases.length === 8 && a925Phases.length === 4
-      && w40CaseIndex.cases.length === 22
+      && w40CaseIndex.cases.length === 22 && caseIndexErrors.length === 0
       && phases.concat(w40Phases, a925Phases).every((item) => item.code === 0) && phaseReportsValid
       && negativeProbesValid
       && retryTargetBound && requiredOk
@@ -1539,6 +1649,14 @@ async function main() {
     fixture_requests: fixtureRequests,
     fixture_protocol: { failureServed, journeyServed, latestSuccessServed },
     phase_reports_valid: phaseReportsValid,
+    case_index_errors: caseIndexErrors,
+    phase_summary: phases.concat(w40Phases, a925Phases).map((run) => ({
+      phase: run.phase, status: run.status === 'BLOCKED' ? 'BLOCKED'
+        : normalPhaseContract(run, reports[run.phase], run.phase) ? 'PASS' : 'FAIL',
+      report_status: reports[run.phase]?.status || 'NO_REPORT',
+      error: reports[run.phase]?.error || run.execution_error || null,
+      blocked_reason: run.blocked_reason || null,
+    })),
     negative_probes: {
       valid: negativeProbesValid,
       late_load: {
@@ -1554,6 +1672,9 @@ async function main() {
     projection_report_parse: { parseable: projectionParseable, detail: projectionParseDetail },
     phases: phases.concat(w40Phases, a925Phases).map((item) => ({ phase: item.phase, exit_code: item.code, stderr_tail: item.stderr.slice(-2000),
       started_at: item.started_at, ended_at: item.ended_at, duration_ms: item.duration_ms,
+      status: item.status || (normalPhaseContract(item, reports[item.phase], item.phase) ? 'PASS' : 'FAIL'),
+      blocked_reason: item.blocked_reason || null,
+      ...(item.execution_error ? { execution_error: item.execution_error } : {}),
       ...(item.timing_error ? { timing_error: item.timing_error } : {}) })),
     cases,
     live_progress: reports.live && reports.live.liveProgress ? {
@@ -1576,7 +1697,7 @@ async function main() {
   process.exitCode = report.status === 'PASS' ? 0 : 1;
 }
 
-module.exports = { validatePhaseReports, w40PhaseTiming };
+module.exports = { validatePhaseReports, w40PhaseTiming, w40BlockPhase, w40FinalizeCaseIndex };
 
 if (require.main === module) {
   main().catch((error) => {
