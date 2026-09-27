@@ -1,17 +1,17 @@
 # A9-25 — WIN7-40 换发与实机验收（A9-24 改动审阅）
 
 ```text
-Status: DRAFT_PENDING_OWNER_APPROVAL
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
-Source Baseline: codex/a9-alpha2 @ c136d12（A9-24 已并入；批准时以批准提交为准）
+Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（A9-24 已于 c136d12 并入）
 Candidate: WIN7-40
-Phase-Gate: NOT_AUTHORIZED
+Phase-Gate: A9_25_KIT_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0144（Proposed）
+Decision: ADR-0144
 ```
 
-> 本文件是草稿，待负责人批准后改为 `APPROVED_FOR_IMPLEMENTATION`。批准本任务书不等于候选外 authority 或实机 PASS。
+> 2026-09-27 负责人批准本任务书，§6 Q1～Q3 按建议（保留预演；不改验收机 DPI 设置；W40-01～15 全量回归）。批准本任务书不等于候选外 authority 或实机 PASS。
 > 流程、硬门与取证沿用 [A9-23](A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md) 已验证的做法（ADR-0141/0142 与 WIN7-39 实机交接书附录 A、B）。
 
 ## 1. 背景
@@ -74,3 +74,7 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 ## 7. 候选身份（冻结后填写）
 
 未冻结。
+
+## 8. 执行记录
+
+- 2026-09-27：负责人批准；发出 [W40 套件交接书](../plans/A9_25_W40_KIT_HANDOFF.md)（第 1 步）。
