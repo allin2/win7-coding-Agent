@@ -3,311 +3,192 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>A9-24 Review 模式 Demo</title>
+<title>A9-24 改动审阅 Demo</title>
 <style>
-:root {
-  --bg:#f4f3ef; --panel:#faf9f6; --raised:#fff; --rail:#f0eee6; --line:#e6e3db; --line2:#d8d3c6;
-  --text:#1f2328; --muted:#59616b; --accent:#0f766e; --accent2:#0b5f59; --soft:#e7f3f0;
-  --amber:#995d13; --amberbg:#fff6e8; --red:#a2342d; --redbg:#fdf1ef; --ok:#1f7a4d; --okbg:#edf6f1;
-  --violet:#5b3fa3; --violetbg:#f3effb; --mono:Consolas,"Microsoft YaHei UI",monospace;
-}
+:root{--bg:#f4f3ef;--panel:#faf9f6;--raised:#fff;--rail:#f0eee6;--line:#e6e3db;--line2:#d8d3c6;--text:#1f2328;--muted:#59616b;
+--accent:#0f766e;--soft:#e7f3f0;--amber:#995d13;--amberbg:#fff6e8;--red:#a2342d;--redbg:#fdf1ef;--ok:#1f7a4d;--okbg:#edf6f1;
+--mono:Consolas,"Microsoft YaHei UI",monospace}
 *{box-sizing:border-box} html,body{margin:0;height:100%} [hidden]{display:none!important}
 body{background:var(--bg);color:var(--text);font:14px/1.55 "Microsoft YaHei","Segoe UI",sans-serif}
-button{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--raised);border-radius:8px;padding:6px 12px}
-button:disabled{opacity:.45;cursor:not-allowed}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button.danger{border-color:#e3b9b4;color:var(--red)}
-button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--raised);border-radius:8px;padding:5px 11px}
+button:disabled{opacity:.45;cursor:not-allowed} button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.ghost{border-color:transparent;background:none;color:var(--accent);padding:3px 6px}
+button.small{padding:2px 9px;font-size:12.5px} button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .demo-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 14px;background:#263238;color:#e8ecef;font-size:13px}
-.demo-bar b{margin-right:6px} .demo-bar button{background:#37474f;color:#fff;border-color:#546e7a;padding:3px 10px;font-size:12.5px}
-.demo-bar .note{opacity:.75;margin-left:auto}
-.wb{display:grid;grid-template-columns:230px minmax(0,1fr) 420px;height:calc(100% - 42px)}
-.rail{background:var(--rail);border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
-.brand{font-weight:700;display:flex;gap:8px;align-items:center}.logo{background:var(--accent);color:#fff;border-radius:6px;padding:2px 6px;font-size:12px}
+.demo-bar button{background:#37474f;color:#fff;border-color:#546e7a;padding:3px 10px;font-size:12.5px}
+.demo-bar .n{opacity:.75;margin-left:auto}
+.wb{display:grid;grid-template-columns:220px minmax(0,1fr) 440px;height:calc(100% - 42px)}
+.rail{background:var(--rail);border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:10px}
+.brand{font-weight:700}.brand span{background:var(--accent);color:#fff;border-radius:6px;padding:1px 6px;font-size:12px;margin-right:6px}
 .ws{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-.ws small{display:block;color:var(--muted);font-family:var(--mono);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws small{display:block;color:var(--muted);font-family:var(--mono);font-size:11.5px}
 .conv{background:var(--soft);border:1px solid #bfdcd6;border-radius:8px;padding:6px 10px;font-weight:600}
-.conv .time{float:right;font-weight:400;color:var(--muted);font-size:12px} .conv #rail-pending{display:block;font-weight:400}
-.pending-dot{display:inline-block;background:var(--violet);color:#fff;border-radius:10px;padding:0 7px;font-size:11.5px;margin-left:4px}
 .main{display:flex;flex-direction:column;min-width:0}
 .head{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
-.head h1{font-size:17px;margin:0;flex:1}
-.pill{border:1px solid var(--line2);border-radius:999px;padding:3px 12px;background:var(--raised);font-size:13px}
-.pill.review{border-color:#cdbfea;background:var(--violetbg);color:var(--violet);font-weight:600}
-.stream{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:10px}
-.msg-user{align-self:flex-end;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:8px 12px;max-width:70%}
-.note{color:var(--text)} .note:before{content:"■ ";color:var(--accent);font-size:10px}
-.act{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13.5px}
-.act .tag{font-size:11.5px;border-radius:5px;padding:1px 6px;margin-right:6px}
-.tag.staged{background:var(--violetbg);color:var(--violet)} .tag.ran{background:var(--okbg);color:var(--ok)} .tag.read{background:#eef0f3;color:#5b6472}
-.card{border-radius:12px;padding:12px 14px;border:1px solid}
-.card h3{margin:0 0 4px;font-size:14.5px;display:flex;gap:8px;align-items:center}
-.card .kind{font-size:11.5px;border-radius:5px;padding:1px 7px;font-weight:600}
-.card.review{background:var(--violetbg);border-color:#cdbfea}.card.review .kind{background:var(--violet);color:#fff}
-.card.cmd{background:#f5f7fa;border-color:#cfd8e3}.card.cmd .kind{background:#44546a;color:#fff}
-.card.high{background:var(--amberbg);border-color:#f0d3a3}.card.high .kind{background:var(--amber);color:#fff}
-.card .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:6px 0;word-break:break-all}
-.card .actions{display:flex;gap:8px;margin-top:8px}
-.card.done{background:var(--okbg);border-color:#bfe0cc}.card.fail{background:var(--redbg);border-color:#efc6c0}
-.warn{color:var(--amber);font-size:13px}
+.head h1{font-size:17px;margin:0;flex:1}.pill{border:1px solid var(--line2);border-radius:999px;padding:3px 12px;background:var(--raised);font-size:13px}
+.stream{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:9px}
+.u{align-self:flex-end;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:8px 12px;max-width:70%}
+.note:before{content:"■ ";color:var(--accent);font-size:10px}
+.act{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-size:13.5px}
+.tag{font-size:11.5px;border-radius:5px;padding:1px 6px;margin-right:6px;background:#eef0f3;color:#5b6472}.tag.w{background:#e8f0fe;color:#1d4ed8}.tag.ok{background:var(--okbg);color:var(--ok)}
 .outcome{border-left:3px solid var(--accent);background:var(--raised);border-radius:8px;padding:8px 12px}
+.chg{background:var(--raised);border:1px solid var(--line2);border-radius:12px;padding:10px 12px}
+.chg .top{display:flex;align-items:center;gap:8px}.chg .top b{flex:1}
+.stat{font-family:var(--mono);font-size:12.5px}.plus{color:var(--ok)}.minus{color:var(--red)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;background:#fcfcfb;cursor:pointer}
+.chip.undone{text-decoration:line-through;color:var(--muted)}
 .composer{border-top:1px solid var(--line);padding:12px 18px;background:var(--panel)}
-.composer .box{border:1px solid var(--line2);border-radius:12px;background:var(--raised);padding:10px 12px;display:flex;gap:10px;align-items:center}
-.composer input{flex:1;border:0;outline:0;font:inherit;background:transparent}
-.composer .block{margin-top:6px;color:var(--violet);font-size:13px}
+.box{border:1px solid var(--line2);border-radius:12px;background:var(--raised);padding:10px 12px;display:flex;gap:10px}
+.box input{flex:1;border:0;outline:0;font:inherit}
+.hint{font-size:12.5px;color:var(--muted);margin-top:5px}
 .insp{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0}
 .tabs{display:flex;gap:4px;padding:8px 10px 0;border-bottom:1px solid var(--line)}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:6px 10px}
 .tabs button[aria-selected=true]{border-bottom-color:var(--accent);font-weight:700}
-.rv{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
-.rv-head{display:flex;justify-content:space-between;align-items:center}
-.rv-head .meta{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
-.status{font-size:12px;border-radius:5px;padding:1px 7px;font-weight:600}
-.st-READY{background:var(--violetbg);color:var(--violet)} .st-STALE{background:var(--redbg);color:var(--red)}
-.st-APPLIED{background:var(--okbg);color:var(--ok)} .st-DISCARDED{background:#eef0f3;color:#5b6472}
-.st-RECOVERY_REQUIRED{background:var(--amberbg);color:var(--amber)} .st-STAGING{background:#eef0f3;color:#44546a}
-.file{border:1px solid var(--line);border-radius:10px;background:var(--raised)}
-.file-row{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
-.op{font-size:11.5px;border-radius:5px;padding:1px 6px;font-weight:600}
-.op-MODIFY{background:#e8f0fe;color:#1d4ed8}.op-CREATE{background:var(--okbg);color:var(--ok)}.op-DELETE{background:var(--redbg);color:var(--red)}
+.list{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+.turn{border:1px solid var(--line);border-radius:12px;background:var(--raised)}
+.turn-h{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.turn-h b{flex:1}.turn-h small{color:var(--muted)}
+.f{border-top:1px solid #f0eee8}.f:first-of-type{border-top:0}
+.f-row{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer}
+.op{font-size:11.5px;border-radius:5px;padding:1px 6px;font-weight:600}.op-M{background:#e8f0fe;color:#1d4ed8}.op-C{background:var(--okbg);color:var(--ok)}.op-D{background:var(--redbg);color:var(--red)}.op-X{background:var(--amberbg);color:var(--amber)}
 .path{flex:1;font-family:var(--mono);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dec{font-size:12px;border-radius:5px;padding:1px 6px}
-.dec-PENDING{background:#eef0f3;color:#5b6472}.dec-ACCEPTED{background:var(--okbg);color:var(--ok)}.dec-REJECTED{background:var(--redbg);color:var(--red)}
-.diff{border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;white-space:pre;overflow:auto;max-height:170px;padding:6px 10px;background:#fcfcfb}
+.f.undone .path{text-decoration:line-through;color:var(--muted)}
+.state{font-size:12px;color:var(--muted)}
+.diff{font-family:var(--mono);font-size:12px;white-space:pre;overflow:auto;max-height:190px;padding:6px 12px;background:#fcfcfb;border-top:1px solid #f0eee8}
 .diff .a{color:#1f7a4d;background:#eaf6ee;display:block}.diff .d{color:#a2342d;background:#fbeceb;display:block}.diff .h{color:#5b6472;display:block}
-.file .btns{display:flex;gap:6px;padding:6px 10px 10px}
-.rv-foot{border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;align-items:center;background:var(--panel)}
-.rv-foot .sum{flex:1;font-size:13px;color:var(--muted)}
+.f-act{display:flex;gap:6px;padding:6px 12px 10px;align-items:center}
+.msg{font-size:12.5px;padding:6px 12px 10px}.msg.warn{color:var(--amber)}.msg.err{color:var(--red)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#263238;color:#fff;padding:8px 10px 8px 14px;border-radius:8px;font-size:13px;display:flex;gap:10px;align-items:center;z-index:9}
+.toast button{background:#455a64;color:#fff;border-color:#607d8b;padding:2px 10px}
 .empty{color:var(--muted);text-align:center;margin-top:30px}
-.modal{position:fixed;inset:0;background:rgba(31,35,40,.35);display:flex;align-items:center;justify-content:center;z-index:9}
-.modal .dlg{background:var(--raised);border-radius:14px;padding:18px 20px;width:520px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
-.modal label{display:block;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;cursor:pointer}
-.modal label.sel{border-color:var(--accent);background:var(--soft)}
-.modal .desc{color:var(--muted);font-size:13px;margin-left:22px}
-.legend{font-size:12.5px;color:var(--muted)}
-.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#263238;color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;z-index:10}
 </style>
 </head>
 <body>
-<div class="demo-bar" role="toolbar" aria-label="Demo 控制">
+<div class="demo-bar">
   <b>Demo 场景</b>
   <button id="d-reset">① 重新开始</button>
-  <button id="d-run">② 运行一轮（Review 模式）</button>
-  <button id="d-drift">③ 模拟：外部修改 calc.ts</button>
-  <button id="d-restart">④ 模拟重启</button>
-  <button id="d-crash">⑤ 模拟 Apply 中断</button>
-  <button id="d-cards">⑥ 卡片类型对照</button>
-  <span class="note">静态演示：无真实文件、模型或进程；只用于确认交互方向</span>
+  <button id="d-run1">② 第 1 轮：修 bug + 补测试</button>
+  <button id="d-run2">③ 第 2 轮：再改 calc.ts</button>
+  <button id="d-ext">④ 模拟：外部编辑器改了 calc.test.ts</button>
+  <span class="n">静态演示：无真实文件、模型或进程；用于确认“先写后审”的交互方向</span>
 </div>
-
 <div class="wb">
-  <aside class="rail" aria-label="导航">
-    <div class="brand"><span class="logo">W7</span>Coding Agent</div>
-    <div class="ws"><b>中文 空格 workspace</b><small>C:\A9-Demo\示例 目录\calc</small></div>
-    <div class="legend">对话</div>
-    <div class="conv">修复计算逻辑<span class="time">刚刚</span><span id="rail-pending"></span></div>
-    <div class="legend" style="margin-top:auto">左栏在有待审改动时显示紫色计数，切换对话后仍可见。</div>
+  <aside class="rail"><div class="brand"><span>W7</span>Coding Agent</div>
+    <div class="ws"><b>calc 项目</b><small>C:\A9-Demo\示例 目录\calc</small></div>
+    <div class="conv">修复计算逻辑</div>
+    <div class="state" style="margin-top:auto">权限模式只有 Full Access / Read Only；不再有 Review 模式。</div>
   </aside>
-
   <main class="main">
-    <div class="head">
-      <h1>修复计算逻辑</h1>
-      <button class="pill" id="mode-pill">权限：Review</button>
-      <span class="pill" id="run-pill">空闲</span>
-    </div>
-    <div class="stream" id="stream" aria-live="polite"></div>
-    <div class="composer">
-      <div class="box"><input id="prompt" placeholder="描述要完成的任务，或询问当前代码…" aria-label="任务描述"><button class="primary" id="send">发送</button></div>
-      <div class="block" id="composer-block" hidden></div>
-    </div>
+    <div class="head"><h1>修复计算逻辑</h1><span class="pill">权限：Full Access</span><span class="pill" id="run">空闲</span></div>
+    <div class="stream" id="stream"></div>
+    <div class="composer"><div class="box"><input id="prompt" placeholder="继续描述任务…（不必先审阅上一轮）"><button class="primary" id="send">发送</button></div>
+      <div class="hint">改动直接写入工作区，Agent 可以运行测试验证；不满意时在右侧按文件撤销。</div></div>
   </main>
-
-  <section class="insp" aria-label="检查器">
-    <div class="tabs" role="tablist">
-      <button role="tab" aria-selected="true" id="tab-review">待审改动 <span id="tab-count" class="pending-dot" hidden></span></button>
-      <button role="tab" aria-selected="false" disabled>Diff / Checkpoint</button>
-      <button role="tab" aria-selected="false" disabled>诊断</button>
-    </div>
-    <div class="rv" id="rv"></div>
-    <div class="rv-foot" id="rv-foot" hidden>
-      <span class="sum" id="rv-sum"></span>
-      <button id="discard" class="danger">全部丢弃</button>
-      <button id="apply" class="primary">应用已接受</button>
-    </div>
+  <section class="insp">
+    <div class="tabs"><button aria-selected="true">改动</button><button disabled>文件</button><button disabled>诊断</button></div>
+    <div class="list" id="list"></div>
   </section>
 </div>
-
-<div class="modal" id="mode-modal" hidden>
-  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mode-title">
-    <h3 id="mode-title" style="margin:0 0 6px">选择权限模式</h3>
-    <div class="legend">有待审改动或轮次进行中时不能切换（R05）。</div>
-    <label data-mode="full_access"><input type="radio" name="m"> <b>Full Access</b><div class="desc">直接读写工作区；删除、外部写入、push 等仍逐次“高影响操作确认”。</div></label>
-    <label data-mode="review"><input type="radio" name="m"> <b>Review</b><div class="desc">写入先进入私有准备区，逐文件接受/拒绝后一次性应用；Shell 每条都需确认。</div></label>
-    <label data-mode="read_only"><input type="radio" name="m"> <b>Read Only</b><div class="desc">只读工具，不写任何文件、不运行 Shell。</div></label>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button id="mode-cancel">取消</button><button class="primary" id="mode-ok">确定</button></div>
-  </div>
-</div>
-
 <script>
-(function () {
-  const $ = (id) => document.getElementById(id);
-  const FILES0 = [
-    { path: 'src/calc.ts', op: 'MODIFY', diff: [['h','@@ -3,4 +3,4 @@'],['',' export function add(a: number, b: number) {'],['d','-  return a - b;'],['a','+  return a + b;'],['','  }']] },
-    { path: 'tests/calc.test.ts', op: 'CREATE', diff: [['h','@@ -0,0 +1,5 @@'],['a',"+import { add } from '../src/calc';"],['a','+'],['a',"+test('add', () => {"],['a','+  expect(add(2, 3)).toBe(5);'],['a','+});']] },
-    { path: 'src/legacy-calc.js', op: 'DELETE', diff: [['h','@@ -1,3 +0,0 @@'],['d','-// 旧实现，已被 calc.ts 取代'],['d','-exports.add = (a, b) => a - b;'],['d','-']] },
-  ];
-  let S;
-  function reset() {
-    S = { mode: 'review', set: null, drift: false, running: false, open: 'src/calc.ts', applied: [] };
-    $('stream').innerHTML = '';
-    say('msg-user', '修复 add 的计算错误并补一个测试');
-    render();
+(function(){
+const $=(i)=>document.getElementById(i), wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+let S; let pendingUndo=null;
+const esc=(t)=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function reset(){ S={turns:[],running:false,open:null}; $('stream').innerHTML=''; render(); }
+function say(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;$('stream').appendChild(d);$('stream').scrollTop=1e9;return d;}
+function toast(text,undoFn){document.querySelectorAll('.toast').forEach(t=>t.remove());const d=document.createElement('div');d.className='toast';d.innerHTML=`<span>${text}</span>`;
+  if(undoFn){const b=document.createElement('button');b.textContent='撤回';b.onclick=()=>{undoFn();d.remove();};d.appendChild(b);}
+  document.body.appendChild(d);setTimeout(()=>d.remove(),undoFn?5000:2600);}
+function stats(f){return f.diff.reduce((a,[k])=>{if(k==='a')a[0]++;if(k==='d')a[1]++;return a;},[0,0]);}
+function turnStats(t){return t.files.filter(f=>f.op!=='X').reduce((a,f)=>{const s=stats(f);return[a[0]+s[0],a[1]+s[1]];},[0,0]);}
+
+async function run(n){
+  if(S.running) return; S.running=true; render();
+  let t;
+  if(n===1){
+    say('u','修复 add 的计算错误并补一个测试');
+    say('note','先读取 calc.ts。'); say('act','<span class="tag">读取</span>src/calc.ts'); await wait(400);
+    t={n:1,id:'第 1 轮',files:[
+      {path:'src/calc.ts',op:'M',diff:[['h','@@ -3,4 +3,4 @@'],['',' export function add(a: number, b: number) {'],['d','-  return a - b;'],['a','+  return a + b;'],['',' }']]},
+      {path:'tests/calc.test.ts',op:'C',diff:[['h','@@ -0,0 +1,5 @@'],['a',"+import { add } from '../src/calc';"],['a','+'],['a',"+test('add', () => {"],['a','+  expect(add(2, 3)).toBe(5);'],['a','+});']]},
+      {path:'coverage/lcov.info',op:'X',why:'由命令 npx jest --coverage 生成（2.4 MB，超过备份上限），无法撤销',diff:[]},
+    ]};
+    say('act','<span class="tag w">修改</span>src/calc.ts'); await wait(300);
+    say('act','<span class="tag w">新建</span>tests/calc.test.ts'); await wait(300);
+    say('act','<span class="tag ok">运行命令</span>npx jest --coverage · exit=0 · 1 passed'); await wait(300);
+  } else {
+    say('u','给 add 加上参数校验');
+    t={n:2,id:'第 2 轮',files:[{path:'src/calc.ts',op:'M',diff:[['h','@@ -3,3 +3,4 @@'],['',' export function add(a: number, b: number) {'],['a',"+  if (!Number.isFinite(a) || !Number.isFinite(b)) throw new TypeError('bad input');"],['','   return a + b;']]}]};
+    say('act','<span class="tag w">修改</span>src/calc.ts'); await wait(300);
+    say('act','<span class="tag ok">运行命令</span>npx jest · exit=0 · 1 passed'); await wait(300);
   }
-  function hash(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return ('00000000' + h.toString(16)).slice(-8); }
-  function say(cls, html) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; $('stream').appendChild(d); $('stream').scrollTop = 1e9; return d; }
-  function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  function accepted() { return S.set ? S.set.files.filter((f) => f.decision === 'ACCEPTED') : []; }
-  function unresolved() { return S.set && ['READY', 'STALE', 'RECOVERY_REQUIRED', 'STAGING'].includes(S.set.status); }
+  S.turns.unshift(t); S.running=false;
+  say('outcome','<b>完成 · 已验证</b>');
+  const [p,m]=turnStats(t);
+  const card=say('chg',`<div class="top"><b>${t.id}改动了 ${t.files.filter(f=>f.op!=='X').length} 个文件</b><span class="stat"><span class="plus">+${p}</span> <span class="minus">−${m}</span></span><button class="small" data-open>审阅</button></div>
+    <div class="chips">${t.files.map(f=>`<span class="chip" data-path="${f.path}">${f.path}${f.op==='X'?'（命令产生）':''}</span>`).join('')}</div>`);
+  card.dataset.turn=t.n;
+  card.querySelector('[data-open]').onclick=()=>{S.open={turn:t.n,path:t.files[0].path};render();};
+  card.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{S.open={turn:t.n,path:c.dataset.path};render();});
+  render();
+}
 
-  async function runTurn() {
-    if (S.running || unresolved()) { toast('当前轮次或待审改动未处理，不能开始新一轮'); return; }
-    S.running = true; S.drift = false;
-    S.set = { id: 'rv-' + Date.now().toString(36).slice(-5), revision: 0, status: 'STAGING', baseline: hash('base' + Date.now()), files: [] };
-    render();
-    say('note', '先读取 calc.ts，确认 add 的实现。');
-    say('act', '<span class="tag read">读取</span>src/calc.ts');
-    await wait(500);
-    say('note', '修改 add，并新增测试文件、删除旧实现。');
-    for (const f of FILES0) {
-      await wait(450);
-      S.set.files.push({ ...f, decision: 'PENDING' }); S.set.revision += 1; render();
-      const verb = { MODIFY: '修改', CREATE: '新建', DELETE: '删除' }[f.op];
-      say('act', `<span class="tag staged">已暂存</span>${verb} ${f.path} <span class="legend">（未写入工作区 · 修订 r${S.set.revision}）</span>`);
-    }
-    await wait(400);
-    say('act', '<span class="tag read">读取</span>src/calc.ts <span class="legend">（读到的是暂存后的内容）</span>');
-    await wait(300);
-    const c = say('card cmd', `<h3><span class="kind">命令确认</span>运行测试</h3>
-      <div class="meta">npx jest tests/calc.test.ts</div>
-      <div class="warn">Review 模式下命令在正式工作区运行，看不到尚未应用的暂存改动。</div>
-      <div class="actions"><button class="primary">允许一次</button><button>拒绝</button></div>`);
-    const choice = await new Promise((res) => c.querySelectorAll('button').forEach((b, i) => b.onclick = () => res(i)));
-    c.querySelector('.actions').remove();
-    if (choice === 0) { say('act', '<span class="tag ran">已运行</span>npx jest · exit=1（正式工作区仍是旧实现，属预期）'); }
-    else { say('act', '<span class="tag read">已拒绝</span>命令未执行'); }
-    await wait(400);
-    S.set.status = 'READY'; S.running = false;
-    say('outcome', '<b>完成（有待审改动）</b><div>3 个文件已暂存，等待你在“待审改动”中逐个决定。</div>');
-    const sc = say('card review', `<h3><span class="kind">待审改动</span>本轮有 3 个文件等待决定</h3>
-      <div class="meta">${S.set.id} · 修订 r${S.set.revision} · 基线 ${S.set.baseline}</div>
-      <div class="actions"><button class="primary">在右侧查看</button></div>`);
-    sc.querySelector('button').onclick = () => { $('tab-review').focus(); toast('已定位到“待审改动”'); };
-    render();
-  }
+function laterTouch(turn,path){ return S.turns.find(x=>x.n>turn.n && x.files.some(f=>f.path===path && !f.undone)); }
+function requestUndo(turn,f){
+  const later=laterTouch(turn,f.path);
+  if(later){ f.msg={cls:'warn',t:`${f.path} 在${later.id}又被修改，不能单独撤销第 ${turn.n} 轮的版本。先撤销${later.id}对它的修改，再撤销本轮。`}; render(); return; }
+  if(f.externallyEdited){ f.msg={cls:'err',t:`${f.path} 在本轮之后被外部修改（可能是编辑器），为避免覆盖你的修改，已拒绝撤销；工作区未改动。`}; render(); return; }
+  f.pending=true; render();
+  const timer=setTimeout(()=>{f.pending=false;f.undone=true;f.msg={cls:'',t:'已撤销，文件恢复到本轮之前的状态。'};syncChips();render();},5000);
+  toast(`将在 5 秒后撤销 ${f.path}`,()=>{clearTimeout(timer);f.pending=false;render();});
+}
+function undoTurn(turn){
+  const blocked=turn.files.filter(f=>f.op!=='X'&&!f.undone&&(laterTouch(turn,f.path)||f.externallyEdited));
+  if(blocked.length){ blocked.forEach(f=>requestUndo(turn,f)); return; }
+  turn.files.filter(f=>f.op!=='X'&&!f.undone).forEach(f=>f.pending=true); render();
+  const timer=setTimeout(()=>{turn.files.forEach(f=>{if(f.pending){f.pending=false;f.undone=true;f.msg={cls:'',t:'已撤销。'};}});syncChips();render();},5000);
+  toast(`将在 5 秒后撤销${turn.id}的全部改动`,()=>{clearTimeout(timer);turn.files.forEach(f=>f.pending=false);render();});
+}
+function syncChips(){ document.querySelectorAll('.chg').forEach(c=>{const t=S.turns.find(x=>x.n==c.dataset.turn); c.querySelectorAll('.chip').forEach(ch=>{const f=t.files.find(x=>x.path===ch.dataset.path); ch.classList.toggle('undone',!!f.undone);});}); }
 
-  function decide(path, d) { const f = S.set.files.find((x) => x.path === path); f.decision = d; render(); }
-
-  function applyCard() {
-    const acc = accepted();
-    const setHash = hash(acc.map((f) => f.path + f.op).join('|') + S.set.revision);
-    const card = say('card review', `<h3><span class="kind">应用待审改动</span>把 ${acc.length} 个已接受文件写入工作区</h3>
-      <div>${acc.map((f) => `<div class="legend">· ${f.op === 'DELETE' ? '删除' : f.op === 'CREATE' ? '新建' : '修改'} ${f.path}</div>`).join('')}
-      ${S.set.files.filter((f) => f.decision === 'REJECTED').length ? `<div class="legend">已拒绝的 ${S.set.files.filter((f) => f.decision === 'REJECTED').length} 个文件将被丢弃。</div>` : ''}</div>
-      <div class="meta">绑定：${S.set.id} · r${S.set.revision} · 基线 ${S.set.baseline} · accepted-set ${setHash} · 5 分钟内有效</div>
-      <div class="actions"><button class="primary">确认应用</button><button>取消</button></div>`);
-    const [ok, cancel] = card.querySelectorAll('button');
-    $('apply').disabled = true;
-    cancel.onclick = () => { card.querySelector('.actions').remove(); card.insertAdjacentHTML('beforeend', '<div class="legend">已取消，未写入。</div>'); render(); };
-    ok.onclick = async () => {
-      card.querySelector('.actions').remove();
-      await wait(350);
-      if (S.drift) {
-        S.set.status = 'STALE'; card.className = 'card fail';
-        card.insertAdjacentHTML('beforeend', '<div><b>基线已变化，整批未应用，工作区零写入。</b> src/calc.ts 在暂存后被外部修改。可“重新比对”后再决定。</div>');
-      } else {
-        S.set.status = 'APPLIED'; card.className = 'card done';
-        card.insertAdjacentHTML('beforeend', `<div><b>已应用 ${acc.length} 个文件，并生成 checkpoint，可在 Diff / Checkpoint 中撤销。</b></div>`);
+function render(){
+  $('run').textContent=S.running?'运行中':'空闲'; $('send').disabled=S.running;
+  const L=$('list'); L.innerHTML='';
+  if(!S.turns.length){L.innerHTML='<div class="empty">还没有改动。<br>Agent 写入文件后，每一轮的改动会列在这里，可按文件撤销。</div>';return;}
+  for(const t of S.turns){
+    const el=document.createElement('div'); el.className='turn';
+    const [p,m]=turnStats(t); const live=t.files.filter(f=>f.op!=='X'&&!f.undone).length;
+    el.innerHTML=`<div class="turn-h"><b>${t.id}</b><span class="stat"><span class="plus">+${p}</span> <span class="minus">−${m}</span></span><small>${live} 个文件未撤销</small></div>`;
+    const btn=document.createElement('button'); btn.className='small'; btn.textContent='撤销本轮全部'; btn.disabled=!live||t.files.some(f=>f.pending); btn.onclick=()=>undoTurn(t);
+    el.querySelector('.turn-h').appendChild(btn);
+    for(const f of t.files){
+      const fe=document.createElement('div'); fe.className='f'+(f.undone?' undone':'');
+      const opn={M:'修改',C:'新建',D:'删除',X:'命令产生'}[f.op]; const [fp,fm]=stats(f);
+      fe.innerHTML=`<div class="f-row"><span class="op op-${f.op}">${opn}</span><span class="path" title="${f.path}">${f.path}</span>${f.op!=='X'?`<span class="stat"><span class="plus">+${fp}</span> <span class="minus">−${fm}</span></span>`:''}<span class="state">${f.undone?'已撤销':f.pending?'即将撤销…':''}</span></div>`;
+      const isOpen=S.open&&S.open.turn===t.n&&S.open.path===f.path;
+      if(isOpen){
+        if(f.op==='X'){ fe.insertAdjacentHTML('beforeend',`<div class="msg warn">${f.why}</div>`); }
+        else {
+          fe.insertAdjacentHTML('beforeend',`<div class="diff">${f.diff.map(([k,x])=>`<span class="${k}">${esc(x)}</span>`).join('')}</div>`);
+          const a=document.createElement('div'); a.className='f-act';
+          const u=document.createElement('button'); u.className='small'; u.textContent='撤销此文件'; u.disabled=!!(f.undone||f.pending); u.onclick=()=>requestUndo(t,f);
+          const h=document.createElement('button'); h.className='small'; h.textContent='按块撤销（第二步）'; h.disabled=true; h.title='逐块撤销列为第二步';
+          a.appendChild(u); a.appendChild(h); fe.appendChild(a);
+        }
+        if(f.msg) fe.insertAdjacentHTML('beforeend',`<div class="msg ${f.msg.cls}">${f.msg.t}</div>`);
       }
-      render();
-    };
+      fe.querySelector('.f-row').onclick=()=>{S.open=isOpen?null:{turn:t.n,path:f.path};render();};
+      el.appendChild(fe);
+    }
+    L.appendChild(el);
   }
-
-  function render() {
-    const set = S.set;
-    $('mode-pill').textContent = '权限：' + { review: 'Review', full_access: 'Full Access', read_only: 'Read Only' }[S.mode];
-    $('mode-pill').className = 'pill' + (S.mode === 'review' ? ' review' : '');
-    $('run-pill').textContent = S.running ? '运行中' : unresolved() ? '待审' : '空闲';
-    const pend = set && unresolved() ? set.files.length : 0;
-    $('rail-pending').innerHTML = pend ? `<span class="pending-dot">待审 ${pend}</span>` : '';
-    $('tab-count').hidden = !pend; $('tab-count').textContent = pend;
-    const block = unresolved() && !S.running;
-    $('send').disabled = S.running || block;
-    $('composer-block').hidden = !block;
-    $('composer-block').textContent = block ? '本对话有未处理的待审改动：先应用或丢弃，再开始新一轮（保证下一轮基于确定的工作区）。' : '';
-    const rv = $('rv'); rv.innerHTML = '';
-    if (!set) { rv.innerHTML = '<div class="empty">暂无待审改动。<br>Review 模式下的写操作会先出现在这里。</div>'; $('rv-foot').hidden = true; return; }
-    const head = document.createElement('div'); head.className = 'rv-head';
-    const stName = { STAGING: '暂存中', READY: '待决定', STALE: '基线已变化', APPLIED: '已应用', DISCARDED: '已丢弃', RECOVERY_REQUIRED: '需要恢复' }[set.status];
-    head.innerHTML = `<b>本轮改动</b><span class="status st-${set.status}">${stName}</span>`;
-    rv.appendChild(head);
-    rv.insertAdjacentHTML('beforeend', `<div class="rv-head"><span class="meta">${set.id} · 修订 r${set.revision} · 基线 ${set.baseline}</span></div>`);
-    if (set.status === 'STALE') {
-      rv.insertAdjacentHTML('beforeend', '<div class="card fail"><b>工作区在暂存后被修改。</b><div class="legend">整批已拒绝，未写入任何文件。重新比对会以当前工作区为新基线重算 Diff，已做的决定需要重新确认。</div><div class="actions"><button id="rebase" class="primary">重新比对</button></div></div>');
-    }
-    if (set.status === 'RECOVERY_REQUIRED') {
-      rv.insertAdjacentHTML('beforeend', '<div class="card high"><b>上次应用在写入途中中断。</b><div class="legend">已按应用前备份回滚到原状态（零部分写入）；请确认后重新应用。</div><div class="actions"><button id="recover" class="primary">确认已恢复</button></div></div>');
-    }
-    const locked = !['READY'].includes(set.status);
-    for (const f of set.files) {
-      const el = document.createElement('div'); el.className = 'file';
-      const opName = { MODIFY: '修改', CREATE: '新建', DELETE: '删除' }[f.op];
-      const decName = { PENDING: '未决定', ACCEPTED: '接受', REJECTED: '拒绝' }[f.decision];
-      el.innerHTML = `<div class="file-row"><span class="op op-${f.op}">${opName}</span><span class="path" title="${f.path}">${f.path}</span><span class="dec dec-${f.decision}">${decName}</span></div>`;
-      if (S.open === f.path) {
-        el.insertAdjacentHTML('beforeend', `<div class="diff">${f.diff.map(([k, t]) => `<span class="${k}">${t.replace(/</g, '&lt;')}</span>`).join('')}</div>`);
-        const btns = document.createElement('div'); btns.className = 'btns';
-        btns.innerHTML = `<button ${locked ? 'disabled' : ''}>接受</button><button ${locked ? 'disabled' : ''}>拒绝</button>`;
-        btns.children[0].onclick = () => decide(f.path, 'ACCEPTED');
-        btns.children[1].onclick = () => decide(f.path, 'REJECTED');
-        el.appendChild(btns);
-      }
-      el.querySelector('.file-row').onclick = () => { S.open = S.open === f.path ? null : f.path; render(); };
-      rv.appendChild(el);
-    }
-    const acc = accepted().length, rej = set.files.filter((f) => f.decision === 'REJECTED').length, pen = set.files.length - acc - rej;
-    $('rv-foot').hidden = !['READY', 'STALE'].includes(set.status);
-    $('rv-sum').textContent = `接受 ${acc} · 拒绝 ${rej} · 未决定 ${pen}`;
-    $('apply').textContent = `应用已接受（${acc}）`;
-    $('apply').disabled = set.status !== 'READY' || acc === 0 || pen > 0;
-    $('apply').title = pen > 0 ? '所有文件都要先决定接受或拒绝' : '';
-    $('discard').disabled = set.status !== 'READY' && set.status !== 'STALE';
-    const rb = $('rebase'); if (rb) rb.onclick = () => { set.status = 'READY'; set.revision += 1; set.baseline = hash('rebase' + Date.now()); S.drift = false; set.files.forEach((f) => f.decision = 'PENDING'); toast('已按当前工作区重新比对，请重新决定'); render(); };
-    const rc = $('recover'); if (rc) rc.onclick = () => { set.status = 'READY'; toast('已确认恢复，可重新应用'); render(); };
-  }
-
-  $('apply').onclick = applyCard;
-  $('discard').onclick = () => { S.set.status = 'DISCARDED'; say('card review', '<h3><span class="kind">待审改动</span>已全部丢弃</h3><div class="legend">准备区已清理，工作区未改动。</div>'); render(); };
-  $('send').onclick = () => { const v = $('prompt').value.trim(); if (v) { say('msg-user', v.replace(/</g, '&lt;')); $('prompt').value = ''; } runTurn(); };
-  $('d-reset').onclick = reset;
-  $('d-run').onclick = runTurn;
-  $('d-drift').onclick = () => { if (!S.set || S.set.status !== 'READY') { toast('先运行一轮，让改动进入“待决定”'); return; } S.drift = true; toast('已模拟：外部程序修改了 src/calc.ts（下一次应用会检测到）'); };
-  $('d-restart').onclick = () => { $('stream').innerHTML = ''; say('legend', '— 应用已重启 —'); if (S.set) say('legend', `已从本地记录恢复待审改动 ${S.set.id}（状态、修订与每个文件的决定都保留；过期的应用确认不会恢复，需要重新发起）。`); S.running = false; render(); };
-  $('d-crash').onclick = () => { if (!S.set || S.set.status !== 'READY' || accepted().length === 0) { toast('先运行一轮并接受至少一个文件'); return; } S.set.status = 'RECOVERY_REQUIRED'; say('legend', '— 应用写入途中进程退出，重启后检测到未完成的应用 —'); render(); };
-  $('d-cards').onclick = () => {
-    say('legend', '三类确认卡片在标题、颜色与说明上都可区分（R03/R04）：');
-    say('card review', '<h3><span class="kind">应用待审改动</span>只在 Review 模式出现</h3><div class="legend">决定是否把准备区的改动写入正式工作区；绑定 Review 集、修订、基线与接受集合。</div>');
-    say('card cmd', '<h3><span class="kind">命令确认</span>Review 模式下每条 Shell 命令</h3><div class="legend">只决定这一条命令是否运行；不写准备区，也不应用任何改动。</div>');
-    say('card high', '<h3><span class="kind">高影响操作确认</span>Full Access 的删除、外部写入、push、提权</h3><div class="legend">绑定一个精确目标，一次有效；与 Review 无关，Full Access 下不会出现 Review 卡。</div>');
-  };
-  $('mode-pill').onclick = () => {
-    if (S.running || unresolved()) { toast('轮次进行中或有未处理的待审改动，不能切换权限模式'); return; }
-    const m = $('mode-modal'); m.hidden = false;
-    m.querySelectorAll('label').forEach((l) => { l.classList.toggle('sel', l.dataset.mode === S.mode); l.querySelector('input').checked = l.dataset.mode === S.mode; l.onclick = () => { m.querySelectorAll('label').forEach((x) => x.classList.remove('sel')); l.classList.add('sel'); }; });
-  };
-  $('mode-cancel').onclick = () => { $('mode-modal').hidden = true; };
-  $('mode-ok').onclick = () => { const l = document.querySelector('#mode-modal label.sel'); if (l) S.mode = l.dataset.mode; $('mode-modal').hidden = true; render(); };
-  reset();
+}
+$('d-reset').onclick=reset; $('d-run1').onclick=()=>run(1); $('d-run2').onclick=()=>run(2);
+$('send').onclick=()=>{$('prompt').value='';run(S.turns.length?2:1);};
+$('d-ext').onclick=()=>{const t=S.turns.find(x=>x.n===1); if(!t){toast('先运行第 1 轮');return;} t.files.find(f=>f.path==='tests/calc.test.ts').externallyEdited=true; toast('已模拟：你在编辑器里改了 tests/calc.test.ts');};
+reset();
 })();
 </script>
 </body>
