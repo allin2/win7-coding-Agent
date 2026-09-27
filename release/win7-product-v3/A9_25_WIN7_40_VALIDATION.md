@@ -89,3 +89,24 @@ M src/workspace/src/checkpoint-manager.ts
 - W40-21 的 review 模式 fixture 仅请求写入，并将产品返回的工具结果转述为最终文案；拒绝文案由产品快照的 `finalMessage` 观察。`review-denied.txt` 在调用前后均不存在、产品库中该轮 `tool_start` 与 `tool_end` 均为零，才判定零写入与 fail-closed。
 - 阶段汇总覆盖继承五阶段、W39 八阶段和 W40 四阶段，缺报告、退出错误、状态失败或断言失败均导致总状态 FAIL。W40-20 的不可触发分支会在用例索引另记 `NOT_PERFORMED`；不得据 smoke 状态把该子项解释为已通过。
 - W40-22 记录运行时 `devicePixelRatio`，仅为 1.25 时覆盖 125%；不修改系统 DPI。W40-20 的 Win7 `too_large` 可触发性、`w40_stop` 命令在 PowerShell 5.1 的行为，以及所有 `w40*` 旅程均待 Win7 预演；开发机未运行这些旅程。
+
+## 5. 第二轮返工登记（交接书 §7，基线 `7d8458e`）
+
+本节追加并替代 §4 中涉及 K-01～K-06 的旧操作口径；WIN7-39 派生原文、历史证据及其结论均不回写。第一次预演 `20260927-1741` 保持 `REHEARSAL_NOT_ELIGIBLE`；§7.1 已把原 P-01/P-02 裁定为 K-05/K-06 套件问题，未发现产品缺陷。O-1 取消不写终态事件、O-2 `modified` 原因含 `too_large` 仅登记，不修改产品。
+
+| 登记 | 文件、范围与非身份差异 | 依据、判定与证据 |
+|---|---|---|
+| R2-01 / K-01 | 仓库驱动 W40 辅助区新增 `a925CaptureDiff`、检查器/文件 Diff 状态与截图后判定；修改 W40 的 M3、Review、布局截图调用 | W40-05/13/22 截图前打开检查器、选中改动页签、展开指定轮次文件；包围盒在视口内且 transform 无位移后截图；截图后再读 DOM，仍打开且文件 Diff 可见才记断言。记录 before/after、实际 PNG 路径与尺寸。`captureVisual` 与全部继承旅程原文不变；W40-16 仍用对话流截图 |
+| R2-02 / K-02 | 驱动 W40 Review 的 big.bin 匹配与文本读取、判定替换 | 按 path 且 kind=too_large 或 reason 含 too_large；打开该轮文件并等待 `.review-unrecoverable` 渲染。口径为“无法撤销”、big.bin 与“超过备份上限”或含 too_large 的原因；原文记入 `w40-20-command.json`。未触发时仍保留 NOT_PERFORMED，不用夹具准备替代产品观察 |
+| R2-03 / K-03 | 驱动 W40 Review-mode 替换界面提交路径；smoke 的 W40 Review-mode fixture 追加产品请求中工具结果采集 | 界面必须同时观察权限对话框可见、不可用 Review 文案、写入仍会拒绝文案、两个选项、发送禁用、mode=review。后端直接调用已有 `window.win7Agent.a9.submitTurn`，原样保留响应；有轮次则读取只读 a9_turns 与产品事件到结束。文件哈希在调用前、调用中每 50ms、调用后及库终态观察后采样，均须不存在；模式仍 review。结构化 Review 拒绝或该轮 write 工具结果含产品拒绝文案才满足后端部分；不调用 setMode。`w40-21-tool-results.json` 只保存产品 provider 请求中实际 tool 消息，不生成拒绝字面量。主观察仍在 `w40-21-mode.json` |
+| R2-04 / K-04 | W40 派生 smoke 的 `runElectron`、总报告阶段条目只追加 `started_at`、`ended_at`、`duration_ms` 字段；追加 `w40PhaseTiming` | 从真实阶段进程启动前与 close 后的时钟取值；阶段 JSON 与总报告都保存相同三字段。不改退出码、超时、阶段有效性、阈值或原有断言。负时长拒绝；不以 M3 journey_ms 或文件时间代替阶段耗时 |
+| R2-05 / K-05 | 驱动 W40 Stop 计时之后立即持久化；终态读取替换；smoke 追加固定证据路径环境参数 | 计时循环后立即把 pid/childGone/elapsedMs 写入阶段报告和 `w40-06-stop-exit.json`；即使后续 UI 终态读取超时也保留。按继承 stop 的 `#a9-turn-outcome` 含 cancelled 与 snapshot.agentStatus=cancelled 读取；绑定本轮 started turn 后另记只读 a9_turns 状态，要求该轮 cancelled，避免陈旧 UI。仍要求 PID ≤5000ms 消失；不等待终态事件 |
+| R2-06 / K-06 | 驱动 W40 布局量测与布局纯判定替换，新增 `a925MeasureControls` | 量测前等待检查器包围盒完整在视口内、transform 无位移；逐个按钮 scrollIntoView(nearest) 后读取包围盒并聚焦。记录检查器几何；file/turn 在排队前，recall 在同一已打开抽屉排队后测量；scrollWidth 在排队后读取。仍要求无页面横向滚动、三个按钮完整在视口内且可聚焦；不调整 DPI 或窗口 |
+| R2-07 / 开发机门 | 包测试追加 K-01～K-06 六项测试与继承驱动字节保护；更新现有 W40 观察源码检查、布局正例和 smoke 精确派生摘要 | 每项修复均有注入反例；反例分别为截图后关闭、删除 reason 匹配、允许 full_access、移除时长字段、延迟 PID 落盘、忽略抽屉位移。§4.1 仍逐文件精确摘要放行；本轮 smoke 摘要变更仅对应 R2-03/04/05 及新证据列表，未登记追加继续拒绝 |
+| R2-08 / 只读重放 | 新增 `a9-w40-rehearsal-20260927-1741-observations.json` | 从主工作区第一次预演只读提取 K-02 review.unrecoverable/旧行文本、K-05 真实 PID/继承 stop 观察/库轮次与事件类型、K-06 原始几何；登记六个来源相对路径与 SHA-256。旧行文本仍不满足新文本口径，旧几何仍被拒绝；不把合成的修复后正例写成 Win7 新观察，不回写 `.acceptance/rehearsals` |
+
+仓库驱动相对 `7d8458e` 的改动限于已存在的 W40 分派/旅程及新增 W40 辅助函数。排除 W40 分派和辅助/旅程区后，继承源码 SHA-256 仍为 `2eb11b5012c426ef046e286f3ffc8040cc889324c57f367fb0ffb2e3d90a23a2`，测试精确锁定并注入删除 `const selected` 的反例。已登记的两处 `W39_WORKSPACE_SELECT_MODES` 加入 `A925_WORKSPACE_SELECT_MODES` 在 `7d8458e` 已存在，本轮没有再改；所有其他历史函数与断言键逐字节不变。
+
+本轮没有改变重基线规则或残留守卫。源码 `w39`/`W39` 出现次数仍为 133/76；每个原有精确重基线源片段仍检查出现一次。新增阶段计时仅在 W40 smoke 副本追加，WIN7-39 文件不变。
+
+开发机门重跑全部 §4 检查；运行输出及六项进程级注入反例位于套件工作树 `.acceptance/w40-rework-r2/`。全部 w40* 旅程在开发机未运行，**待第二次预演**；开发机夹具与纯函数结果不构成当前 Win7 证据。

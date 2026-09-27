@@ -4315,7 +4315,7 @@ const W40_DERIVATIONS = [
   ['a9-23-win7-39-input-lock.json', 'a9-25-win7-40-input-lock.json', 'c58475cc8958cf7a0d16fdc4b76cf110863478d48cef6c731f7508dc8b20c88c'],
   ['a9-package-integrity-w39.cjs', 'a9-package-integrity-w40.cjs', '07fe7184cb918723f2cd6bff3b79d6b5e850b879d148dfa132357b0597e098f5'],
   ['a9-win7-39-report.cjs', 'a9-win7-40-report.cjs', '3481c61c47ebf1aa8a88315a7deea711536c80869b1b261f18810ec058710dea'],
-  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', 'a796c52d4ca2d031e7170735abfad211142dd3e494612e785171b63a779d817c'],
+  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', '1fed198556defa51183e2e53bc560fd215a6e4b2d55e2c5a4dfa5549e199832f'],
   ['RUN_A9_23_W39_INTEGRITY.cmd', 'RUN_A9_25_W40_INTEGRITY.cmd', '84953ad13d47101377ba4d3e7dbbfe7cf759e12bf6e23fb9997e8fb289f0daf5'],
   ['RUN_WIN7_39_REPORT_VERIFY.cmd', 'RUN_WIN7_40_REPORT_VERIFY.cmd', '47d031dd6d93e4cb9f09c8d81de8da4c085818546b1864b4e7cf2ae25b486ade'],
 ];
@@ -4430,7 +4430,7 @@ function w40SourceAssertionProblems(smoke, driver) {
   }
   if (!driver.includes('response.driftReasons')) problems.push('missing product driftReasons');
   const mode = driver.slice(driver.indexOf('async function runW40ReviewModeProcess('), driver.indexOf('\nfunction writeDriverReport('));
-  for (const token of ['snapshot()', "snapshotAfter.mode === 'review'", 'a925Hash(', 'finalMessage']) {
+  for (const token of ['snapshot()', 'mode: snapshotAfter.mode', 'a925Hash(', 'finalMessage', 'submitTurn(', 'a925ReviewModeMatches(']) {
     if (!mode.includes(token)) problems.push(`missing mode product observation: ${token}`);
   }
   const stop = driver.slice(driver.indexOf('async function runW40StopProcess('), driver.indexOf('async function runW40ReviewProcess('));
@@ -4479,7 +4479,8 @@ test('W40 §4.5 pure observation helpers reject count, drift, layout and PID cou
   assert.equal(helpers.a925DriftMatches(response, 'a', 'later_turn', 't2'), false);
   const control = (name) => ({ name, visible: true, focusable: true, left: 1, top: 1, right: 30, bottom: 30 });
   const geometry = { tabSelected: true, summaryVisible: true, scrollWidth: 100, clientWidth: 100,
-    innerWidth: 100, innerHeight: 100, controls: ['file', 'turn', 'recall'].map(control) };
+    innerWidth: 100, innerHeight: 100, inspector: { open: true, visible: true, left: 0, top: 0, right: 100,
+      bottom: 100, innerWidth: 100, innerHeight: 100, transform: 'none' }, controls: ['file', 'turn', 'recall'].map(control) };
   assert.equal(helpers.a925LayoutMatches(geometry), true);
   assert.equal(helpers.a925LayoutMatches({ ...geometry, controls: [control('file'), control('turn'),
     { ...control('recall'), right: 101 }] }), false);
@@ -4665,4 +4666,188 @@ test('W40-20 index distinguishes observed, unperformed and failed product outcom
   assert.equal(evaluate('PASS', 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7').result, 'NOT_PERFORMED');
   assert.match(evaluate('PASS', 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7').reason, /did not expose big\.bin/);
   assert.equal(evaluate('FAIL', 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7').result, 'FAIL');
+});
+
+function w40RepairHelpers(source = fs.readFileSync(W40_DRIVER_PATH, 'utf8')) {
+  const body = source.match(/\/\/ A925_PURE_BEGIN([\s\S]*?)\/\/ A925_PURE_END/)[1];
+  return vm.runInNewContext(`(() => {${body}; return {a925InspectorReady,a925ScreenshotMatches,
+    a925Unrecoverable,a925UnrecoverableTextMatches,a925ReviewModeMatches,a925StopTerminalMatches,a925LayoutMatches};})()`, { fs, crypto });
+}
+function w40RehearsalObservations() {
+  return JSON.parse(fs.readFileSync(path.join(W40_ROOT, 'a9-w40-rehearsal-20260927-1741-observations.json'), 'utf8'));
+}
+const w40SettledInspector = { open: true, visible: true, left: 649, top: 0, right: 1079, bottom: 540,
+  innerWidth: 1079, innerHeight: 540, transform: 'matrix(1, 0, 0, 1, 0, 0)' };
+
+test('W40 R2 K-01 screenshot checks DOM after capture and rejects closed inspector', () => {
+  const h = w40RepairHelpers();
+  const state = { inspector: w40SettledInspector, tabSelected: true, fileExpanded: true, diffVisible: true,
+    diff: '-old\n+new', full: '--- calc.ts\n-old\n+new', turnId: 'turn-1', path: 'calc.ts' };
+  const observation = { before: state, after: state, turnId: 'turn-1', path: 'calc.ts',
+    imageWritten: true, imageWidth: 1349, imageHeight: 675 };
+  assert.equal(h.a925ScreenshotMatches(observation), true);
+  const closed = { ...observation, after: { ...state, inspector: { ...state.inspector, open: false } } };
+  assert.equal(h.a925ScreenshotMatches(closed), false, 'post-capture close must reject');
+  assert.equal(h.a925ScreenshotMatches({ ...observation, after: { ...state, diffVisible: false } }), false);
+  assert.equal(h.a925ScreenshotMatches({ ...observation, imageWritten: false }), false);
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const injected = w40RepairHelpers(source.replace('[observation.before, observation.after]', '[observation.before]'));
+  assert.throws(() => assert.equal(injected.a925ScreenshotMatches(closed), false), /true !== false/,
+    'injected pre-capture-only predicate must violate negative control');
+  const capture = source.slice(source.indexOf('async function a925CaptureDiff('), source.indexOf('async function a925MeasureControls('));
+  assert.ok(capture.indexOf('const after = await a925DiffState') > capture.indexOf('capturePage()'));
+  assert.ok(!capture.includes('captureVisual('));
+});
+
+test('W40 R2 K-02 replays actual modified/too_large and waits for rendered reason', () => {
+  const h = w40RepairHelpers(); const real = w40RehearsalObservations();
+  const found = h.a925Unrecoverable(real.command.review, 'big.bin');
+  assert.equal(found.kind, 'modified'); assert.ok(found.reason.includes('too_large'));
+  assert.equal(h.a925Unrecoverable({ unrecoverable: [{ path: 'big.bin', kind: 'modified', reason: 'missing baseline' }] }, 'big.bin'), null);
+  assert.equal(h.a925Unrecoverable({ unrecoverable: [{ ...found, path: 'other.bin' }] }, 'big.bin'), null);
+  assert.ok(h.a925Unrecoverable({ unrecoverable: [{ path: 'big.bin', kind: 'too_large' }] }, 'big.bin'));
+  assert.equal(h.a925UnrecoverableTextMatches(real.command.unrecoverableText, 'big.bin'), false, 'old premature text must reject');
+  const nodes = new Map(); const node = (id) => { if (!nodes.has(id)) nodes.set(id, new W40FakeNode()); return nodes.get(id); };
+  const root = { innerWidth: 1400, win7Agent: { a9: {} }, setTimeout, clearTimeout, setInterval, clearInterval };
+  const document = { getElementById: node, createElement: (tag) => new W40FakeNode(tag),
+    querySelector: () => new W40FakeNode(), addEventListener: () => {} };
+  const product = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/a9-workbench.js'), 'utf8');
+  vm.runInNewContext(product.replace('  root.win7AgentA9Workbench = Object.freeze({',
+    '  root.__repair = {state, renderCheckpoints};\n  root.win7AgentA9Workbench = Object.freeze({'), { window: root, document, Date, Map, Set, Promise });
+  const review = real.command.review; const snapshot = { checkpoints: [{ turnId: review.turnId }], checkpointsTotal: 1,
+    workspaceRoot: 'C:\\中文 空格', activeConversationId: 'c', conversation: [] };
+  root.__repair.state.snapshot = snapshot; root.__repair.state.reviewOpenTurn = review.turnId;
+  root.__repair.state.reviewCache.set(review.turnId, review); root.__repair.renderCheckpoints(snapshot);
+  const rendered = w40FindClass(node('a9-checkpoint-list'), 'review-unrecoverable').textContent;
+  assert.equal(h.a925UnrecoverableTextMatches(rendered, 'big.bin'), true);
+  assert.equal(h.a925UnrecoverableTextMatches(rendered.replaceAll('too_large', 'missing'), 'big.bin'), false);
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const injected = w40RepairHelpers(source.replace("item.kind === 'too_large' || String(item.reason || '').includes('too_large')", "item.kind === 'too_large'"));
+  assert.throws(() => assert.ok(injected.a925Unrecoverable(review, 'big.bin')), /falsy/);
+  assert.match(source, /waitFor\([\s\S]*?\.review-unrecoverable[\s\S]*?w40 unrecoverable rendered/);
+});
+
+test('W40 R2 K-03 review UI and backend denial reject mode upgrade, write and unrelated error', () => {
+  const h = w40RepairHelpers(); const denial = 'REVIEW mode requires a review staging backend';
+  const observation = { ui: { mode: 'review', dialogVisible: true, intro: '不可用的 Review 模式；写入仍会被拒绝',
+    choices: ['full_access', 'read_only'], sendDisabled: true }, mode: 'review', hashSamples: [null, null],
+    response: { ok: false, error: { code: 'REVIEW_STAGING_REQUIRED', message: denial } } };
+  assert.equal(h.a925ReviewModeMatches(observation), true);
+  const toolDenied = { ...observation, response: { ok: true }, terminal: { status: 'completed', eventCount: 6 },
+    toolResults: [{ role: 'tool', name: 'write', content: denial }] };
+  assert.equal(h.a925ReviewModeMatches(toolDenied), true);
+  for (const bad of [{ ...observation, mode: 'full_access' }, { ...observation, hashSamples: [null, 'written', null] },
+    { ...observation, ui: { ...observation.ui, sendDisabled: false } },
+    { ...observation, response: { ok: false, error: { code: 'PROVIDER_ERROR', message: 'offline' } } },
+    { ...toolDenied, terminal: { status: 'active', eventCount: 6 } },
+    { ...toolDenied, toolResults: [{ role: 'assistant', name: 'write', content: denial }] }]) {
+    assert.equal(h.a925ReviewModeMatches(bad), false);
+  }
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const mode = source.slice(source.indexOf('async function runW40ReviewModeProcess('), source.indexOf('\nfunction writeDriverReport('));
+  assert.ok(mode.includes('window.win7Agent.a9.submitTurn(')); assert.ok(!mode.includes('setMode('));
+  assert.ok(!mode.includes('w39SubmitPrompt(')); assert.ok(mode.includes('a925ReadTurn('));
+  const injected = w40RepairHelpers(source.replace("observation.mode === 'review'", "observation.mode === 'full_access'"));
+  assert.throws(() => assert.equal(injected.a925ReviewModeMatches({ ...observation, mode: 'full_access' }), false), /true !== false/);
+});
+
+test('W40 R2 K-04 each process and phase report records exact timing with clock counterexample', async () => {
+  const { w40PhaseTiming } = require(W40_SMOKE_PATH);
+  assert.deepEqual(w40PhaseTiming(1000, 1017), { started_at: '1970-01-01T00:00:01.000Z',
+    ended_at: '1970-01-01T00:00:01.017Z', duration_ms: 17 });
+  assert.throws(() => w40PhaseTiming(1000, 999), /A9_W40_PHASE_CLOCK_INVALID/);
+  const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  const start = source.indexOf('function runElectron('); const end = source.indexOf('function normalPhaseContract(', start);
+  const code = source.slice(source.indexOf('function w40PhaseTiming('), end);
+  const execute = async (body) => {
+    const child = { stdout: { on() {} }, stderr: { on() {} }, on(_event, callback) { queueMicrotask(() => callback(0)); } };
+    const files = new Map([['phase.json', '{}']]); let clock = 1000;
+    const run = vm.runInNewContext(`${body}\nrunElectron`, { Date: class extends Date { static now() { return clock += 17; } },
+      process: { env: {} }, childProcess: { spawn: () => child }, setTimeout, clearTimeout,
+      w40AssertEnvironmentLengths() {}, readJson: (name) => JSON.parse(files.get(name)),
+      fs: { existsSync: (name) => files.has(name), writeFileSync: (name, value) => files.set(name, value) } });
+    const record = await run('electron', 'driver', { A9_SMOKE_OUT: 'phase.json' });
+    return { record, report: JSON.parse(files.get('phase.json')) };
+  };
+  const observed = await execute(code);
+  assert.equal(observed.record.duration_ms, 17); assert.equal(observed.report.duration_ms, 17);
+  assert.equal(observed.record.started_at, observed.report.started_at);
+  const injected = await execute(code.replace('timed_out: timedOut, ...timing', 'timed_out: timedOut'));
+  assert.throws(() => assert.equal(injected.record.duration_ms, 17), /undefined/);
+  assert.match(source, /started_at: item\.started_at, ended_at: item\.ended_at, duration_ms: item\.duration_ms/);
+});
+
+async function w40StopTimeoutProbe(driver) {
+  const pure = driver.match(/\/\/ A925_PURE_BEGIN([\s\S]*?)\/\/ A925_PURE_END/)[1];
+  const persist = driver.slice(driver.indexOf('function a925PersistStop('), driver.indexOf('async function a925CaptureM3Diff('));
+  const stop = driver.slice(driver.indexOf('async function runW40StopProcess('), driver.indexOf('async function runW40ReviewProcess('));
+  const files = new Map(); const report = {}; let aliveQueries = 0; let ticks = 0;
+  const run = vm.runInNewContext(`${pure}\n${persist}\n${stop}\nrunW40StopProcess`, {
+    report, writeDriverReport() { files.set('phase.json', JSON.stringify(report)); },
+    fs: { existsSync: () => true, readFileSync: () => '776', writeFileSync: (name, text) => files.set(name, text) },
+    process: { kill() { if (++aliveQueries > 1) throw Object.assign(new Error('gone'), { code: 'ESRCH' }); } },
+    Date: { now: () => ++ticks }, sleep: async () => {}, w39ConfigureProvider: async () => {},
+    w39EventCursor: async () => 0, w39SubmitPrompt: async () => {}, record() {},
+    waitFor: async (condition, _timeout, label) => {
+      if (label === 'w40 cancelled UI outcome') throw new Error('INJECTED_UI_TERMINAL_TIMEOUT');
+      return condition();
+    },
+  });
+  await assert.rejects(run({}, async () => true, { fixtureUrl: 'fixture', pidMarker: 'pid', evidencePath: 'stop.json' }),
+    /INJECTED_UI_TERMINAL_TIMEOUT/);
+  return files;
+}
+
+test('W40 R2 K-05 real cancelled state needs no terminal event; PID survives terminal timeout', async () => {
+  const h = w40RepairHelpers(); const real = w40RehearsalObservations();
+  assert.equal(real.stop.pid, 776); assert.ok(!real.stop.event_types.includes('turn_cancelled'));
+  const terminal = { outcomeText: real.stop.inherited_stop_case.detail.split(';')[0], agentStatus: 'cancelled',
+    databaseTurn: real.stop.database_turns[0] };
+  assert.equal(h.a925StopTerminalMatches(terminal), true);
+  assert.equal(h.a925StopTerminalMatches({ ...terminal, agentStatus: 'running' }), false);
+  assert.equal(h.a925StopTerminalMatches({ ...terminal, databaseTurn: { status: 'active' } }), false);
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const files = await w40StopTimeoutProbe(source);
+  const observation = JSON.parse(files.get('stop.json')).observation;
+  assert.equal(observation.pid, real.stop.pid); assert.equal(observation.childGone, true);
+  assert.ok(observation.elapsedMs >= 0 && observation.elapsedMs <= 5000);
+  assert.equal(JSON.parse(files.get('phase.json')).w40Stop.pid, real.stop.pid);
+  const injected = source.replace('  a925PersistStop(observation, env.evidencePath);\n  const outcomeText', '  const outcomeText');
+  const missing = await w40StopTimeoutProbe(injected);
+  assert.throws(() => assert.ok(missing.has('stop.json')), /falsy/);
+});
+
+test('W40 R2 K-06 replays real moving/offscreen geometry and rejects drawer displacement', () => {
+  const h = w40RepairHelpers(); const real = w40RehearsalObservations();
+  assert.equal(h.a925LayoutMatches(real.layout), false, 'original Win7 coordinates must still reject');
+  const controls = ['file', 'turn', 'recall'].map((name) => ({ name, visible: true, focusable: true,
+    left: 700, top: 300, right: 1000, bottom: 332 }));
+  const settled = { ...real.layout, inspector: w40SettledInspector, controls };
+  assert.equal(h.a925LayoutMatches(settled), true);
+  assert.equal(h.a925LayoutMatches({ ...settled, inspector: { ...w40SettledInspector, transform: 'matrix(1, 0, 0, 1, 50, 0)' } }), false);
+  assert.equal(h.a925LayoutMatches({ ...settled, controls: real.layout.controls }), false);
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const injected = w40RepairHelpers(source.replace('&& Math.abs(value - [1, 0, 0, 1, 0, 0][index]) < 0.001', ''));
+  assert.throws(() => assert.equal(injected.a925InspectorReady({ ...w40SettledInspector,
+    transform: 'matrix(1, 0, 0, 1, 50, 0)' }), false), /true !== false/);
+  const measurement = source.slice(source.indexOf('async function a925MeasureControls('), source.indexOf('function a925ReadTurn('));
+  assert.ok(measurement.indexOf('a925WaitInspector(exec)') < measurement.indexOf('for (const name of names)'));
+  assert.ok(measurement.indexOf('node.scrollIntoView(') < measurement.indexOf('node.getBoundingClientRect()'));
+});
+
+function w40HistoricalDriver(source) {
+  const addedStart = source.indexOf('// A9-25: W40-only observations.');
+  const addedEnd = source.indexOf('function writeDriverReport(', addedStart);
+  const stripped = source.slice(0, addedStart) + source.slice(addedEnd);
+  const dispatchStart = stripped.indexOf("  } else if (mode === 'w40_stop') {");
+  const dispatchEnd = stripped.indexOf("  } else if (mode === 'stop') {", dispatchStart);
+  return stripped.slice(0, dispatchStart) + stripped.slice(dispatchEnd);
+}
+test('W40 R2 historical driver outside W40 dispatch and helpers remains byte-identical to 7d8458e', () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const expected = '2eb11b5012c426ef046e286f3ffc8040cc889324c57f367fb0ffb2e3d90a23a2';
+  assert.equal(digest(w40HistoricalDriver(source)), expected);
+  const injected = source.replace('const selected = await waitFor(', 'await waitFor(');
+  assert.notEqual(injected, source);
+  assert.throws(() => assert.equal(digest(w40HistoricalDriver(injected)), expected), /AssertionError/);
 });

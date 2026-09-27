@@ -438,14 +438,15 @@ async function main() {
   } else if (mode === 'w39_m4') {
     await runW39M4Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'w40_stop') {
-    await runW40StopProcess(win, exec, { workspaceRoot, fixtureUrl,
-      pidMarker: process.env.A9_SMOKE_STOP_PID_MARKER });
+    await runW40StopProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl,
+      pidMarker: process.env.A9_SMOKE_STOP_PID_MARKER, evidencePath: process.env.A9_SMOKE_W40_STOP_EVIDENCE });
   } else if (mode === 'w40_review') {
     await runW40ReviewProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'w40_review_restart') {
     await runW40ReviewRestartProcess(win, exec, { workspaceRoot, dataRoot });
   } else if (mode === 'w40_review_mode') {
-    await runW40ReviewModeProcess(win, exec, { workspaceRoot, fixtureUrl });
+    await runW40ReviewModeProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl,
+      toolResultPath: process.env.A9_SMOKE_W40_MODE_TOOL_RESULTS });
   } else if (mode === 'stop') {
     await runStopProcess(win, exec, {
       workspaceRoot,
@@ -2784,12 +2785,62 @@ function a925DriftMatches(response, relPath, kind, laterTurnId) {
     && Array.isArray(response.outcome && response.outcome.drifted)
     && response.outcome.drifted.some((item) => item === relPath || String(item).startsWith(`${relPath} (`));
 }
+function a925InspectorReady(inspector) {
+  if (!inspector || !inspector.open || !inspector.visible) return false;
+  const values = [inspector.left, inspector.top, inspector.right, inspector.bottom,
+    inspector.innerWidth, inspector.innerHeight];
+  if (!values.every(Number.isFinite) || inspector.left < 0 || inspector.top < 0
+    || inspector.right > inspector.innerWidth || inspector.bottom > inspector.innerHeight
+    || inspector.right <= inspector.left || inspector.bottom <= inspector.top) return false;
+  const transform = inspector.transform;
+  if (transform === 'none') return true;
+  const match = /^matrix\(([^)]+)\)$/.exec(transform || '');
+  if (!match) return false;
+  const numbers = match[1].split(',').map(Number);
+  return numbers.length === 6 && numbers.every((value, index) =>
+    Number.isFinite(value) && Math.abs(value - [1, 0, 0, 1, 0, 0][index]) < 0.001);
+}
+function a925DiffMatches(state, turnId, relPath) {
+  return Boolean(state && a925InspectorReady(state.inspector) && state.tabSelected && state.fileExpanded
+    && state.diffVisible && typeof state.diff === 'string' && state.diff.length > 0
+    && state.turnId === turnId && state.path === relPath && state.full.includes(relPath));
+}
+function a925ScreenshotMatches(observation) {
+  return Boolean(observation && observation.imageWritten && observation.imageWidth > 0 && observation.imageHeight > 0
+    && [observation.before, observation.after].every((state) => a925DiffMatches(state, observation.turnId, observation.path)));
+}
+function a925Unrecoverable(review, relPath) {
+  return (review?.unrecoverable || []).find((item) => item.path === relPath
+    && (item.kind === 'too_large' || String(item.reason || '').includes('too_large'))) || null;
+}
+function a925UnrecoverableTextMatches(text, relPath) {
+  return typeof text === 'string' && text.includes('无法撤销') && text.includes(relPath)
+    && (text.includes('超过备份上限') || text.includes('too_large'));
+}
+function a925ReviewModeMatches(observation) {
+  const ui = observation?.ui;
+  const denial = 'REVIEW mode requires a review staging backend';
+  const rejected = observation?.response?.ok === false && typeof observation.response.error?.code === 'string'
+    && (observation.response.error.code.includes('REVIEW') || String(observation.response.error.message || '').includes(denial));
+  const deniedTool = observation?.toolResults?.some((item) => item.role === 'tool' && item.name === 'write'
+    && String(item.content || '').includes(denial));
+  return Boolean(ui && ui.dialogVisible && ui.intro.includes('不可用的 Review 模式') && ui.intro.includes('写入仍会被拒绝')
+    && ui.choices.length === 2 && ui.choices.includes('full_access') && ui.choices.includes('read_only')
+    && ui.sendDisabled && ui.mode === 'review' && observation.mode === 'review'
+    && observation.hashSamples.length >= 2 && observation.hashSamples.every((value) => value === null)
+    && (rejected || (deniedTool && observation.terminal && observation.terminal.status !== 'active'
+      && observation.terminal.status !== 'needs_approval' && observation.terminal.eventCount > 0)));
+}
 function a925LayoutMatches(geometry) {
-  return Boolean(geometry && geometry.tabSelected && geometry.summaryVisible
+  return Boolean(geometry && a925InspectorReady(geometry.inspector) && geometry.tabSelected && geometry.summaryVisible
     && Number.isFinite(geometry.scrollWidth) && geometry.scrollWidth <= geometry.clientWidth
     && Array.isArray(geometry.controls) && geometry.controls.length === 3
     && geometry.controls.every((item) => item.visible && item.focusable && item.left >= 0 && item.top >= 0
       && item.right <= geometry.innerWidth && item.bottom <= geometry.innerHeight));
+}
+function a925StopTerminalMatches(terminal) {
+  return Boolean(terminal && String(terminal.outcomeText || '').includes('cancelled')
+    && terminal.agentStatus === 'cancelled' && terminal.databaseTurn?.status === 'cancelled');
 }
 function a925PidExitMatches(observation) {
   return Boolean(observation && Number.isInteger(observation.pid) && observation.pid > 0
@@ -2859,10 +2910,108 @@ async function a925ClickUndo(exec, turnId, relPath) {
     15000, 'w40 undo result');
 }
 
+
+async function a925InspectorState(exec) {
+  return exec(`(() => {
+    const node = document.getElementById('inspector');
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return { open: document.getElementById('open-inspector').getAttribute('aria-expanded') === 'true',
+      visible: !node.hidden && style.visibility !== 'hidden' && style.display !== 'none',
+      left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+      innerWidth, innerHeight, transform: style.transform };
+  })()`);
+}
+async function a925WaitInspector(exec) {
+  return waitFor(async () => {
+    const state = await a925InspectorState(exec);
+    return a925InspectorReady(state) ? state : null;
+  }, 15000, 'w40 inspector transition ended');
+}
+async function a925DiffState(exec, turnId, relPath) {
+  const inspector = await a925InspectorState(exec);
+  const diff = await exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const file = Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
+      item.querySelector('.review-file-toggle')?.textContent.includes(${JSON.stringify(relPath)}));
+    const detail = file?.querySelector('.review-file-detail');
+    const node = detail?.querySelector('.review-file-diff');
+    if (node) node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const rect = node?.getBoundingClientRect();
+    const style = node ? getComputedStyle(node) : null;
+    return { tabSelected: document.getElementById('inspector-tab-changes')?.getAttribute('aria-selected') === 'true',
+      fileExpanded: file?.querySelector('.review-file-toggle')?.getAttribute('aria-expanded') === 'true' && !detail?.hidden,
+      diffVisible: Boolean(rect && rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.left < innerWidth
+        && rect.bottom > 0 && rect.top < innerHeight && style.display !== 'none' && style.visibility !== 'hidden'),
+      diff: node?.textContent || '', full: document.getElementById('a9-diff')?.textContent || '',
+      turnId: row?.querySelector('.checkpoint-id')?.textContent || '', path: ${JSON.stringify(relPath)} };
+  })()`);
+  return { ...diff, inspector };
+}
+async function a925CaptureDiff(win, exec, scene, turnId, relPath) {
+  await a925OpenFileDiff(exec, turnId, relPath);
+  await exec(`(() => {
+    if (document.getElementById('open-inspector').getAttribute('aria-expanded') !== 'true')
+      document.getElementById('open-inspector').click();
+    document.getElementById('inspector-tab-changes').click(); return true;
+  })()`);
+  await a925WaitInspector(exec);
+  const before = await a925DiffState(exec, turnId, relPath);
+  if (!a925DiffMatches(before, turnId, relPath))
+    throw new Error('A9_W40_SCREENSHOT_DOM_NOT_READY');
+  const directory = process.env.A9_SMOKE_VISUAL_DIR;
+  if (!directory) throw new Error('A9_W40_SCREENSHOT_DIRECTORY_REQUIRED');
+  fs.mkdirSync(directory, { recursive: true });
+  const target = path.join(directory, `${scene}.png`);
+  const captured = await win.webContents.capturePage();
+  fs.writeFileSync(target, captured.toPNG());
+  const size = captured.getSize();
+  const after = await a925DiffState(exec, turnId, relPath);
+  return { before, after, turnId, path: relPath, imagePath: target,
+    imageWritten: fs.existsSync(target), imageWidth: size.width, imageHeight: size.height };
+}
+async function a925MeasureControls(exec, turnId, names) {
+  await a925WaitInspector(exec);
+  const controls = [];
+  for (const name of names) {
+    controls.push(await exec(`(() => {
+      const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+        .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+      const file = Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
+        item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
+      const name = ${JSON.stringify(name)};
+      const candidates = name === 'file' ? file?.querySelectorAll('.review-file-detail button')
+        : row?.querySelectorAll(name === 'turn' ? '.checkpoint-actions button' : '.review-pending button');
+      const node = Array.from(candidates || []).find((item) => item.textContent ===
+        ({ file: '撤销此文件', turn: '撤销本轮全部', recall: '撤回' })[name]);
+      if (!node) return { name, visible: false, focusable: false };
+      node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      node.focus({ preventScroll: true });
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return { name, visible: !node.hidden && style.display !== 'none' && style.visibility !== 'hidden'
+        && rect.width > 0 && rect.height > 0, focusable: !node.disabled && document.activeElement === node,
+        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    })()`));
+  }
+  return controls;
+}
+function a925ReadTurn(dataRoot, turnId) {
+  const db = w39OpenProductDatabase(dataRoot);
+  try { return db.prepare('SELECT turn_id, status, outcome_json FROM a9_turns WHERE turn_id = ?').get(turnId) || null; }
+  finally { db.close(); }
+}
+function a925PersistStop(observation, evidencePath) {
+  report.w40Stop = { ...observation };
+  writeDriverReport();
+  if (!evidencePath) throw new Error('A9_W40_STOP_EVIDENCE_PATH_REQUIRED');
+  fs.writeFileSync(evidencePath, `${JSON.stringify({ observation: report.w40Stop, case: null }, null, 2)}\n`, 'utf8');
+}
+
 async function a925CaptureM3Diff(win, exec, turnId) {
-  const viewed = await a925OpenFileDiff(exec, turnId, 'counter.ts');
-  record('A9-W40-M3-DIFF-SCREENSHOT', viewed.tabSelected && viewed.full.includes('counter.ts'), JSON.stringify(viewed));
-  await captureVisual(win, 'a925-m3-changes');
+  const captured = await a925CaptureDiff(win, exec, 'a925-m3-changes', turnId, 'counter.ts');
+  record('A9-W40-M3-DIFF-SCREENSHOT', a925ScreenshotMatches(captured), JSON.stringify(captured));
 }
 
 async function runW40StopProcess(win, exec, env) {
@@ -2888,19 +3037,16 @@ async function runW40StopProcess(win, exec, env) {
     if (!isAlive()) { childGone = true; elapsedMs = Date.now() - startedAt; break; }
     await sleep(100);
   }
-  const terminal = await waitFor(async () => {
-    const events = await w39ReadEvents(exec);
-    const started = w39FindStartedTurn(events, before);
-    if (!started) return null;
-    const event = events.find((item) => item.turnId === started.turnId && item.eventId > started.eventId
-      && ['turn_cancelled', 'turn_completed', 'turn_failed'].includes(item.eventType));
-    if (!event) return null;
-    const data = event.payload?.data || {};
-    return { turnId: started.turnId, outcome: event.eventType === 'turn_cancelled' ? 'cancelled' : data.outcome || null,
-      eventId: event.eventId };
-  }, 45000, 'w40 cancelled event');
-  const observation = { pid, childGone, elapsedMs, outcome: terminal.outcome, terminal };
-  report.w40Stop = observation;
+  const observation = { pid, childGone, elapsedMs, outcome: null };
+  a925PersistStop(observation, env.evidencePath);
+  const outcomeText = await waitFor(() => exec('document.getElementById("a9-turn-outcome").textContent')
+    .then((value) => value.includes('cancelled') ? value : null), 45000, 'w40 cancelled UI outcome');
+  const snapshot = await exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)');
+  const started = w39FindStartedTurn(await w39ReadEvents(exec), before);
+  const databaseTurn = started ? a925ReadTurn(env.dataRoot, started.turnId) : null;
+  Object.assign(observation, { outcomeText, agentStatus: snapshot.agentStatus, databaseTurn });
+  observation.outcome = a925StopTerminalMatches(observation) ? 'cancelled' : null;
+  a925PersistStop(observation, env.evidencePath);
   record('A9-W40-STOP-CHILD-EXIT-WITHIN-5S', a925PidExitMatches(observation), JSON.stringify(observation));
   await captureVisual(win, 'a925-stop');
 }
@@ -2943,34 +3089,12 @@ async function runW40ReviewProcess(win, exec, env) {
   record('A9-W40-REVIEW-SUMMARY-CARD', summaryPass, JSON.stringify(report.w40Summary));
   await captureVisual(win, 'a925-summary');
 
-  const firstDiff = await a925OpenFileDiff(exec, first.turnId, 'calc.ts');
-  const firstScreenshotReady = firstDiff.tabSelected && firstDiff.full.includes('calc.ts')
-    && firstDiff.diff.length > 0;
-  record('A9-W40-DIFF-SCREENSHOT', firstScreenshotReady, JSON.stringify(firstDiff));
-  await captureVisual(win, 'a925-review-diff');
+  const firstDiff = await a925CaptureDiff(win, exec, 'a925-review-diff', first.turnId, 'calc.ts');
+  record('A9-W40-DIFF-SCREENSHOT', a925ScreenshotMatches(firstDiff), JSON.stringify(firstDiff));
 
   await a925OpenFileDiff(exec, first.turnId, 'notes.md');
   const noteBeforeRecall = a925Hash(file('notes.md'));
-  const enabledControls = await exec(`(() => {
-    const inspect = (node, name) => {
-      if (!node) return { name, visible: false, focusable: false, left: -1, top: -1, right: Infinity, bottom: Infinity };
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      node.focus({ preventScroll: true });
-      return { name, visible: !node.hidden && style.display !== 'none' && style.visibility !== 'hidden'
-        && rect.width > 0 && rect.height > 0,
-        focusable: !node.disabled && document.activeElement === node,
-        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
-    };
-    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
-      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(first.turnId)});
-    const fileRow = Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
-      item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
-    return [inspect(Array.from(fileRow?.querySelectorAll('.review-file-detail button') || [])
-      .find((item) => item.textContent === '撤销此文件'), 'file'),
-      inspect(Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
-        .find((item) => item.textContent === '撤销本轮全部'), 'turn')];
-  })()`);
+  const enabledControls = await a925MeasureControls(exec, first.turnId, ['file', 'turn']);
   const queueNoteUndo = () => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-file'))
       .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
@@ -2995,37 +3119,18 @@ async function runW40ReviewProcess(win, exec, env) {
     && noteBeforeRecall !== null && recallHash === noteBeforeRecall, JSON.stringify(report.w40UndoRecall));
 
   const layoutQueued = await queueNoteUndo();
-  const geometry = await exec(`(() => {
-    const collect = (node, name) => {
-      if (!node) return { name, visible: false, focusable: false, left: -1, top: -1, right: Infinity, bottom: Infinity };
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      const visible = !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-      node.focus({ preventScroll: true });
-      return { name, visible, focusable: !node.disabled && document.activeElement === node,
-        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
-    };
-    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
-      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(first.turnId)});
-    const fileRow = Array.from(row?.querySelectorAll('.review-file') || []).find((item) =>
-      item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
-    return { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth,
-      innerWidth, innerHeight, devicePixelRatio,
-      tabSelected: document.getElementById('inspector-tab-changes')?.getAttribute('aria-selected') === 'true',
-      summaryVisible: Boolean(document.querySelector('.change-summary[data-turn-id="${first.turnId}"]')),
-      controls: [collect(Array.from(fileRow?.querySelectorAll('.review-file-detail button') || [])
-        .find((item) => item.textContent === '撤销此文件'), 'file'),
-        collect(Array.from(row?.querySelectorAll('.checkpoint-actions button') || []).find((item) => item.textContent === '撤销本轮全部'), 'turn'),
-        collect(Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
-          .find((item) => item.textContent === '撤回'), 'recall')] };
-  })()`);
-  geometry.controls[0] = enabledControls[0];
-  geometry.controls[1] = enabledControls[1];
-  await captureVisual(win, 'a925-review-layout');
+  const recallControls = await a925MeasureControls(exec, first.turnId, ['recall']);
+  const geometry = await exec(`(() => ({ scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth, innerWidth, innerHeight, devicePixelRatio,
+    tabSelected: document.getElementById('inspector-tab-changes')?.getAttribute('aria-selected') === 'true',
+    summaryVisible: Boolean(document.querySelector('.change-summary[data-turn-id="${first.turnId}"]')) }))()`);
+  geometry.inspector = await a925WaitInspector(exec);
+  geometry.controls = enabledControls.concat(recallControls);
+  const layoutScreenshot = await a925CaptureDiff(win, exec, 'a925-review-layout', first.turnId, 'notes.md');
   const layoutRecalled = await recallNoteUndo();
   report.w40Layout = geometry;
-  record('A9-W40-REVIEW-LAYOUT', layoutQueued && layoutRecalled && a925LayoutMatches(geometry),
-    JSON.stringify({ layoutQueued, layoutRecalled, geometry }));
+  record('A9-W40-REVIEW-LAYOUT', layoutQueued && layoutRecalled && a925LayoutMatches(geometry) && a925ScreenshotMatches(layoutScreenshot),
+    JSON.stringify({ layoutQueued, layoutRecalled, geometry, layoutScreenshot }));
 
   await a925OpenFileDiff(exec, first.turnId, 'notes.md');
   const noteUndoMessage = await a925ClickUndo(exec, first.turnId, 'notes.md');
@@ -3086,14 +3191,14 @@ async function runW40ReviewProcess(win, exec, env) {
   const fourthDiff = await getDiff(fourth.turnId);
   const genBeforeUndo = a925Hash(file('gen.txt'));
   const bigAfter = a925Hash(file('big.bin'));
-  const unrecoverable = (fourthDiff.review?.unrecoverable || []).find((item) => item.path === 'big.bin' && item.kind === 'too_large');
-  const unrecoverableText = await exec(`(() => {
+  const unrecoverable = a925Unrecoverable(fourthDiff.review, 'big.bin');
+  await a925OpenFileDiff(exec, fourth.turnId, 'gen.txt');
+  const unrecoverableText = unrecoverable ? await waitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(fourth.turnId)});
-    row?.querySelector('.checkpoint-actions button')?.click();
-    return row?.textContent || '';
-  })()`);
-  await a925OpenFileDiff(exec, fourth.turnId, 'gen.txt');
+    return Array.from(row?.querySelectorAll('.review-unrecoverable') || [])
+      .find((item) => item.textContent.includes('big.bin'))?.textContent || '';
+  })()`).then((text) => text || null), 15000, 'w40 unrecoverable rendered') : '';
   const genUndoMessage = await a925ClickUndo(exec, fourth.turnId, 'gen.txt');
   const genReview = await getDiff(fourth.turnId);
   const genUndone = genReview.review?.files?.some((item) => item.path === 'gen.txt' && item.undone);
@@ -3105,7 +3210,7 @@ async function runW40ReviewProcess(win, exec, env) {
   record('A9-W40-REVIEW-COMMAND-CHANGES', genBeforeCommand === null && genBeforeUndo !== null
     && a925Hash(file('gen.txt')) === null && genUndone && genUndoMessage.includes('已撤销')
     && bigBeforeCommand !== null && bigAfter !== bigBeforeCommand
-    && (!unrecoverable || (unrecoverableText.includes('无法撤销') && unrecoverableText.includes('超过备份上限'))),
+    && (!unrecoverable || a925UnrecoverableTextMatches(unrecoverableText, 'big.bin')),
     JSON.stringify(report.w40Command));
   report.w40TurnIds = { first: first.turnId, second: second.turnId, third: third.turnId, fourth: fourth.turnId };
 }
@@ -3144,23 +3249,46 @@ async function runW40ReviewModeProcess(win, exec, env) {
   })()`);
   await waitFor(() => exec('document.getElementById("a9-provider-probe-state").textContent')
     .then((value) => value === 'tool_calling' ? value : null), 30000, 'w40 review mode fixture probe');
-  const before = a925Hash(path.join(env.workspaceRoot, 'review-denied.txt'));
+  const ui = await exec(`(async () => {
+    const snapshot = (await window.win7Agent.a9.snapshot()).snapshot;
+    const dialog = document.getElementById('a9-mode-dialog');
+    return { mode: snapshot.mode, dialogVisible: !dialog.hidden && dialog.open,
+      intro: document.getElementById('a9-mode-intro').textContent,
+      choices: Array.from(dialog.querySelectorAll('input[name="a9-mode-choice"]')).map((item) => item.value),
+      sendDisabled: document.getElementById('run-task').disabled };
+  })()`);
   const cursor = await w39EventCursor(exec);
-  await w39SubmitPrompt(exec, 'w40 review mode write');
-  const terminal = await w39WaitTerminal(exec, cursor, 'w40 review mode turn');
-  const after = a925Hash(path.join(env.workspaceRoot, 'review-denied.txt'));
-  const events = await w39ReadEvents(exec, terminal.turnId);
-  const toolStarts = events.filter((item) => item.eventType === 'tool_start');
-  const toolEnds = events.filter((item) => item.eventType === 'tool_end');
+  const deniedFile = path.join(env.workspaceRoot, 'review-denied.txt');
+  const hashSamples = [a925Hash(deniedFile)];
+  const monitor = setInterval(() => hashSamples.push(a925Hash(deniedFile)), 50);
+  let response;
+  try { response = await exec('window.win7Agent.a9.submitTurn("w40 review mode write")'); }
+  finally { clearInterval(monitor); hashSamples.push(a925Hash(deniedFile)); }
+  report.w40ReviewMode = { ui, hashSamples, response };
+  writeDriverReport();
+  const turnId = response?.result?.turnId;
+  let terminal = null;
+  let events;
+  if (turnId) {
+    terminal = await waitFor(() => {
+      const turn = a925ReadTurn(env.dataRoot, turnId);
+      return turn && !['active', 'needs_approval'].includes(turn.status) ? turn : null;
+    }, 120000, 'w40 review mode database terminal');
+    events = await w39ReadEvents(exec, turnId);
+    terminal.eventCount = events.length;
+  } else {
+    events = (await w39ReadEvents(exec)).filter((item) => item.eventId > cursor);
+  }
+  hashSamples.push(a925Hash(deniedFile));
   const snapshotAfter = await exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)');
-  const refused = String(snapshotAfter.conversation?.at(-1)?.finalMessage || '');
-  report.w40ReviewMode = { mode: snapshotAfter.mode, terminal, before, after,
-    toolStartCount: toolStarts.length, toolEndCount: toolEnds.length, response: refused.slice(0, 300) };
-  record('A9-W40-REVIEW-MODE-FAIL-CLOSED', before === null && after === null
-    && snapshotAfter.mode === 'review' && terminal.turnId
-    && toolStarts.length === 0 && toolEnds.length === 0
-    && refused.includes('REVIEW mode requires a review staging backend')
-    && refused.includes('NOT performed'), JSON.stringify(report.w40ReviewMode));
+  const toolResults = env.toolResultPath && fs.existsSync(env.toolResultPath)
+    ? JSON.parse(fs.readFileSync(env.toolResultPath, 'utf8')).toolResults : [];
+  report.w40ReviewMode = { ui, mode: snapshotAfter.mode, terminal, response, hashSamples,
+    before: hashSamples[0], after: a925Hash(deniedFile), toolResults,
+    toolStartCount: events.filter((item) => item.eventType === 'tool_start').length,
+    toolEndCount: events.filter((item) => item.eventType === 'tool_end').length,
+    finalMessage: snapshotAfter.conversation?.at(-1)?.finalMessage || '' };
+  record('A9-W40-REVIEW-MODE-FAIL-CLOSED', a925ReviewModeMatches(report.w40ReviewMode), JSON.stringify(report.w40ReviewMode));
 }
 
 function writeDriverReport() {

@@ -1,0 +1,139 @@
+{
+  "eligibility": "REHEARSAL_NOT_ELIGIBLE",
+  "source_root": ".acceptance/rehearsals/A9-25-W40/20260927-1741",
+  "sources": {
+    "command": {
+      "path": "evidence/win7-tree/smoke/w40-20-command.json",
+      "sha256": "2ab32db634c71bc890c8d5a143ccd27533cb4ecdd416ec7194beef01c30a8df6"
+    },
+    "layout": {
+      "path": "evidence/win7-tree/smoke/w40-22-layout.json",
+      "sha256": "91738a3d6114db32cdc88ad033ca92603083e809ad16e91853093caafefa98a7"
+    },
+    "stop_stage": {
+      "path": "evidence/win7-tree/smoke/自动 运行 w40-1790502586152/w40_stop.json",
+      "sha256": "20bf86f1550331c80f95d1a5347374130be13350d307ad3c49fa440a2893e485"
+    },
+    "inherited_stop": {
+      "path": "evidence/win7-tree/smoke/自动 运行 w40-1790502586152/stop.json",
+      "sha256": "d156f8929fde0a4a46c2ee8f90beebb99ca107bb767f9be114d9f6fc8731826e"
+    },
+    "stop_database_observations": {
+      "path": "evidence/product-db-observations.json",
+      "sha256": "6d890d35a9cfb99a4714b2ff5c5995f5c290a1bb601885747f752ef0583cb1e0"
+    },
+    "stop_pid": {
+      "path": "evidence/win7-tree/smoke/自动 运行 w40-1790502586152/w40-stop-child.pid",
+      "sha256": "07769cf01a9ea52324c9aaaca778d892e7fa155d2ad2b6a411c22e1d7c628c1b"
+    }
+  },
+  "command": {
+    "review": {
+      "turnId": "turn-1790502834140-4",
+      "files": [
+        {
+          "path": "big.bin",
+          "action": "modify",
+          "originalKind": "file",
+          "newKind": "file",
+          "undone": false,
+          "additions": 0,
+          "deletions": 0,
+          "diffText": "@@ -1,0 +1,0 @@",
+          "diffTruncated": false
+        },
+        {
+          "path": "gen.txt",
+          "action": "create",
+          "originalKind": "absent",
+          "newKind": "file",
+          "undone": false,
+          "additions": 0,
+          "deletions": 0,
+          "diffText": "@@ -1,0 +1,0 @@",
+          "diffTruncated": false
+        }
+      ],
+      "unrecoverable": [
+        {
+          "path": "big.bin",
+          "kind": "modified",
+          "reason": "轮前基线未覆盖（too_large），无法恢复原内容"
+        }
+      ],
+      "externalBaselineStatus": "complete"
+    },
+    "unrecoverableStatus": "NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7",
+    "unrecoverableText": "turn-1790502834140-4查看改动撤销本轮全部复制 ID第 4 轮 · +0 −0 · 2 个文件未撤销"
+  },
+  "layout": {
+    "scrollWidth": 1079,
+    "clientWidth": 1079,
+    "innerWidth": 1079,
+    "innerHeight": 540,
+    "devicePixelRatio": 1.25,
+    "tabSelected": true,
+    "summaryVisible": true,
+    "controls": [
+      {
+        "name": "file",
+        "visible": true,
+        "focusable": true,
+        "left": 1118.2000732421875,
+        "top": 734.75,
+        "right": 1454.4000854492188,
+        "bottom": 766.75
+      },
+      {
+        "name": "turn",
+        "visible": true,
+        "focusable": true,
+        "left": 1228.2625732421875,
+        "top": 516.5499877929688,
+        "right": 1344.3250732421875,
+        "bottom": 548.5499877929688
+      },
+      {
+        "name": "recall",
+        "visible": true,
+        "focusable": true,
+        "left": 782.3500366210938,
+        "top": 784.75,
+        "right": 854.3500366210938,
+        "bottom": 816.75
+      }
+    ]
+  },
+  "stop": {
+    "pid": 776,
+    "stage_status": "ERROR",
+    "stage_error": "A9_DRIVER_STAGE_ERROR: Error: TIMEOUT waiting for w40 cancelled event (last: none)\n    at waitFor (C:\\A9-W40\\预演 目录\\20260927-1741\\evidence\\smoke\\自动 运行 w40-1790502586152\\driver-app\\main.cjs:283:9)\n    at async runW40StopProcess (C:\\A9-W40\\预演 目录\\20260927-1741\\evidence\\smoke\\自动 运行 w40-1790502586152\\driver-app\\main.cjs:2891:20)\n    at async main (C:\\A9-W40\\预演 目录\\20260927-1741\\evidence\\smoke\\自动 运行 w40-1790502586152\\driver-app\\main.cjs:441:5)",
+    "stage_observation": null,
+    "database_turns": [
+      {
+        "turn_id": "turn-1790502749579-1",
+        "task_id": "task-1790502749573-xl5nr5",
+        "session_id": "a9c-1790502748468-b56daa719311",
+        "status": "cancelled",
+        "outcome_json": "{\"schemaVersion\":1,\"outcome\":\"cancelled\"}",
+        "created_at": "2026-09-27T09:52:29.580Z",
+        "updated_at": "2026-09-27T09:52:30.264Z"
+      }
+    ],
+    "event_types": [
+      "mode.set",
+      "provider.configure",
+      "conversation.request",
+      "turn_started",
+      "model_thinking",
+      "model_note",
+      "tool_start",
+      "tool_end"
+    ],
+    "inherited_stop_case": {
+      "id": "A9F6-STOP-TURN-CANCELLED",
+      "passed": true,
+      "detail": "outcome=cancelled · not_applicable; agentStatus=cancelled"
+    }
+  }
+}
