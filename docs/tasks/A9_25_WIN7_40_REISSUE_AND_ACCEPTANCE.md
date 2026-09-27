@@ -78,3 +78,9 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 ## 8. 执行记录
 
 - 2026-09-27：负责人批准；发出 [W40 套件交接书](../plans/A9_25_W40_KIT_HANDOFF.md)（第 1 步）。
+- 2026-09-27：执行方开工前提出两项合同矛盾（发布目录文档、派生文件谱系陈述）及一处派生注释编号冲突，验收方裁决见[套件交接书](../plans/A9_25_W40_KIT_HANDOFF.md) §6.1、§6.2。
+- 2026-09-27：**第 1 步开发机门通过**。执行方交付 `b99336f`（分支 `codex/a9-25-w40-kit`，基线 `ae25dd0`），验收方审计发现一处越界：继承旅程 `runWorkspaceSelectionProcess`
+  被删去 `const selected` 绑定，`workspace_select` 旅程运行时会抛 `ReferenceError`（包测试与 Jest 未覆盖），违反交接书 §2；返工 `8ce1bc3` 恢复原文，
+  新增执行该旅程的回归测试（删去绑定即失败），驱动相对基线的非新增改动只剩两处工作区选择模式判断。验收方复跑：`a9-package.test.mjs` 70/70、
+  shell Jest 458/458、`verify:quick`、`docs:check`、`git diff --check` 均通过；负向对照（未登记派生差异、放宽 PID 阈值到 6000 ms）各使对应测试失败；
+  W40 输入锁原生输入哈希与 W39 一致。于 `762e2d3` 并入 `codex/a9-alpha2`。`w40*` 旅程未运行，待第 2 步 Win7 预演；`Phase-Gate` 不变。
