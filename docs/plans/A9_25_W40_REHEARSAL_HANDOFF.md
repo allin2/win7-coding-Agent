@@ -121,3 +121,16 @@ smoke 退出码非 0 或断言失败**不是**停止条件：照常完成后飞�
    - K-06 / W40-22：检查器包围盒与 `transform`、三个按钮的包围盒、`innerWidth`/`innerHeight`/`devicePixelRatio`、`scrollWidth`/`clientWidth`；
    - K-04：17 个阶段的 `started_at`、`ended_at`、`duration_ms`。
 5. 若本次 17 个阶段与 22 个用例均无套件问题，报告中写明；是否进入第 3 步（正式实机交接书）由审核方决定，执行方不作结论。
+
+## 附录 B：第三次预演（2026-09-27，套件第四轮返工后）
+
+第二次预演（`20260927-2019`）的复核与第四轮返工见[套件交接书 §7.4](A9_25_W40_KIT_HANDOFF.md)；第四轮 `a7bb5cc` 已通过开发机门，于 `0ca5a81` 并入 `codex/a9-alpha2`。
+第三次预演按正文与附录 A 执行，以下差异优先：
+
+1. **构建源**：套件工作树执行 `git merge --ff-only 0ca5a81`，构建前确认工作树干净且 HEAD 为 `0ca5a81`。
+2. **目录**：新的日期目录与新的计划任务名，本机目录仍在主工作区 `.acceptance/rehearsals/A9-25-W40/` 下；`20260927-1741`、`20260927-2019` 两次预演的本机目录与 Win7 运行根只读保留。
+3. **报告字段**：`previous_rehearsal: "20260927-2019"`；`phases[]` 取 smoke 总报告中的阶段状态（含 `BLOCKED` 与 `blocked_reason`）、退出码、`started_at`、`ended_at`、`duration_ms` 与 `timing_error`。
+   **必须取回** `automatic-smoke.json` 与 `w40-case-index.json`；若仍未生成，报告中写明并附控制台输出，不补造。
+4. **逐项说明**（附证据文件）：K-01～K-06 与 R4-1～R4-3 本次是否仍出现。K-02、K-03、K-06 上次未到达，本次为首次实跑，按附录 A 第 4 项记录原始观察；
+   R4-1 另记检查器包围盒、`innerWidth`/`innerHeight`、`clientWidth`/`clientHeight`、`visualViewport` 原值；R4-3 如有等待超时，摘录其记录的最后观察。
+5. 若本次 17 个阶段与 22 个用例均无套件问题，报告中写明；是否进入第 3 步由审核方决定。
