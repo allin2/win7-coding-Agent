@@ -71,7 +71,7 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 - **Q2 W40-22 的 DPI**：不修改验收机系统设置；是否需要另行安排 125% DPI 的会话，由负责人决定。
 - **Q3 回归范围**：建议 W40-01～15 全量回归（自动运行，增量成本低）；替代方案是只跑 A9-24 相关用例，但会失去对 A9-20/A9-21 在新候选上的回归证据。
 
-## 7. 候选身份（2026-09-27 冻结，待门 A）
+## 7. 候选身份（2026-09-27 冻结，门 A 已签发）
 
 | 项 | 值 |
 |---|---|
@@ -81,7 +81,7 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 | input lock SHA-256 | `cadf215a19bc0d1c45fe63139bb0a8864305ed61733a1a6660315c92d0d82a20`（与仓库同名文件及包内副本逐字节一致） |
 | Kit | `A9-25-WIN7-40-20260926-01`，22 项，`A9_25_VALIDATION_KIT.json` SHA-256 `353bb9a3c6a1362a7181e82a0a3b87523fea1d4a7b4729e9d0ae19a6795b998f`，`result_on_complete` 为 `A9_25_WIN7_40_A9_24_PASS` |
 | 冻结位置 | 本机 `.acceptance/candidates/WIN7-40/`（只读；`IDENTITY.sha256`、`DOUBLE_BUILD.json`）；门 A 前撤回的 `3a2ecdb` 冻结保留于 `.acceptance/candidates/_superseded/WIN7-40-3a2ecdb/` |
-| authority | 待门 A |
+| authority | `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/authority/release-authority.json`，SHA-256 `b17ab35f05594163d8bd76b0984115dc637ba10f529f43b6c4a5869266365618`（独立 pin 同目录 `.sha256`）；run-id `81c7a234-4745-4c79-8554-8c1a4b9f407e`，目标 `192.168.1.3`；负责人签发 `2026-09-27T15:38:29Z` |
 
 ## 8. 执行记录
 
@@ -112,3 +112,6 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 - 2026-09-27：第 4 步完成：从 `64fd3a7` 在两个独立干净工作树（`win7-w40-freeze-a`/`-b`，detached）构建，三项输入哈希与输入锁一致，ZIP 与构建结果逐字节一致，冻结于 `.acceptance/candidates/WIN7-40/`（§7）。
   包内 smoke、完整性脚本、报告器、两个 `.cmd` 与输入锁与仓库逐字节一致，报告种类为 `A9_25_WIN7_40_A9_24_ACCEPTANCE`。开发机预检（草稿 authority，非签发件）：身份与全树核对零差异（790/791），
   运行时 ABI 项因开发机 Node ABI 115 按预期失败；错误 pin 报 `A9_W40_AUTHORITY_PIN_MISMATCH`，篡改 ZIP 与错误候选绑定报 `A9_W40_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 22 项模板、错误 pin 被拒。以上不是 Win7 结果。下一步第 5 步门 A。
+- 2026-09-27：第 5 步门 A：负责人在对话中签发 `WIN7_40_RELEASE_AUTHORITY`（`approved_at` 2026-09-27T15:38:29Z，SHA-256 `b17ab35f…5618`），绑定源码 `64fd3a7`、ZIP、manifest、输入锁、
+  原生构建审批登记、Kit（22 项）、目标主机 `192.168.1.3` 与 run-id `81c7a234-…`。候选自带校验对签发版 authority 身份与全树核对通过，草稿 pin 被拒，报告器 `init` 生成 22 项模板（开发机预检）。
+  [实机交接书](../plans/A9_25_WIN7_40_ACCEPTANCE_HANDOFF.md)改为 `READY_FOR_EXECUTION`，下一步第 6 步实机执行。

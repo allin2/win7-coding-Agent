@@ -1,7 +1,7 @@
 # A9-25 / WIN7-40 Win7 实机验收交接书（执行方：外部模型）
 
 ```text
-Status: DRAFT_PENDING_FREEZE_AND_GATE_A（§3 待候选冻结与门 A 后由审核方填写，改为 READY_FOR_EXECUTION 前不得开始）
+Status: READY_FOR_EXECUTION（2026-09-27：候选冻结于 `64fd3a7`，负责人门 A 签发 `WIN7_40_RELEASE_AUTHORITY`）
 Scope: A9-25 WIN7-40 换发与实机验收（A9-24 改动审阅 + W40-01～15 回归；W40 验证套件）
 Executor: 外部执行模型（负责人指定）
 Reviewer: Claude（最终审核，基于原始证据，不基于执行方摘要）
@@ -17,8 +17,8 @@ Owner: 项目负责人（签发候选外授权、最终裁决）
 |---|---|---|
 | A. 换发依据（ADR-0144、A9-25 任务书、C14 路径） | 审核方起草，负责人批准 | 已完成 |
 | B. W40 验证套件 | 外部执行方实现，审核方验收 | 已完成：四轮返工、三次 Win7 预演；最新套件于 `0ca5a81` 并入 `codex/a9-alpha2`（[套件交接书](A9_25_W40_KIT_HANDOFF.md) §7） |
-| C. 双独立干净构建与冻结 | 审核方 | 待执行（本文 §3） |
-| D. 候选外 `WIN7_40_RELEASE_AUTHORITY` 与独立 SHA-256 pin | 负责人 | 待签发（门 A） |
+| C. 双独立干净构建与冻结 | 审核方 | 已完成（2026-09-27，A9-25 §7、§8） |
+| D. 候选外 `WIN7_40_RELEASE_AUTHORITY` 与独立 SHA-256 pin | 负责人 | 已签发（2026-09-27T15:38:29Z，门 A） |
 | **E. Win7 实机执行与取证（本文 §4～§8）** | **执行方** | 前置条件满足后开始 |
 | F. 证据审核、正式报告组装与 Win7 报告校验 | 审核方；负责人裁决（门 B） | 实机执行后 |
 
@@ -34,17 +34,17 @@ Owner: 项目负责人（签发候选外授权、最终裁决）
 4. 负责人已在 Win7 控制台以 `agent` 登录（`query user` 表内 `agent` 为 `console`、状态“运行中”；该命令退出码可能为 1，以表内状态为准）。
 5. 验收机显示设置保持现状（当前为 125% DPI），执行方不得修改；W40-22 以运行时实测的 `devicePixelRatio` 为准。
 
-## 3. 候选身份（冻结后由审核方填写）
+## 3. 候选身份（2026-09-27 冻结，门 A 已签发）
 
 | 项 | 值 |
 |---|---|
 | 候选 ID | WIN7-40 |
-| 源码提交 | 待冻结 |
-| ZIP 文件名 / SHA-256 / 字节数 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / 待冻结 / 待冻结（本机 `.acceptance/candidates/WIN7-40/`） |
-| manifest SHA-256 | 待冻结 |
-| input lock SHA-256 | 待冻结 |
-| authority SHA-256 | 待门 A（`release-authority.json`；独立 pin 为同目录 `release-authority.json.sha256`） |
-| run-id（绑定在 authority 中，不得另起） | 待门 A（Win7 运行根取前 8 位） |
+| 源码提交 | `64fd3a7490a320ae8d185089da946ba8d68a5fdb` |
+| ZIP 文件名 / SHA-256 / 字节数 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / `f14b7992370032d77daf042a23fd3b093c963522b2c401aace4f5276074158fb` / 101,441,102 B（本机 `.acceptance/candidates/WIN7-40/`） |
+| manifest SHA-256 | `4d499d7390bfd9748e2ae89b5ff16e925ae1a1b14ed24b1f358f62d81ebe888f` |
+| input lock SHA-256 | `cadf215a19bc0d1c45fe63139bb0a8864305ed61733a1a6660315c92d0d82a20` |
+| authority SHA-256 | `b17ab35f05594163d8bd76b0984115dc637ba10f529f43b6c4a5869266365618`（`release-authority.json`；独立 pin 为同目录 `release-authority.json.sha256`） |
+| run-id（绑定在 authority 中，不得另起） | `81c7a234-4745-4c79-8554-8c1a4b9f407e`（Win7 运行根取前 8 位 `81c7a234`） |
 | 本机运行目录 | `.acceptance/runs/A9-25-W40/<run-id>/`（下称 `<L>`）；authority 与锁文件在 `<L>/authority/` |
 | 目标主机（绑定在 authority 中） | `192.168.1.3`；地址变化时停止并请负责人重签 authority |
 | Win7 运行根（下称 `<W>`） | `C:\A9-W40\验收 目录\<run-id前8位>`（W40-02 要求含中文与空格）；传输暂存目录 `C:\A9-W40\stage\<run-id前8位>\` |
