@@ -181,3 +181,27 @@ K-01、K-02、K-05、K-06 的实现符合 §7.2；新增预演夹具 `a9-w40-reh
 
 登记（不返工）：**O-3** 第二轮交付时 shell 全量 Jest 首次运行中 `a9-lifecycle.test.ts:945`（外部变化路径含秘密时本轮应失败）一次观察到 `turn.ok === true`；
 执行方单测与全量重跑、验收方单独重复 15 次均未复现。该用例由后台进程写文件，疑为后台写入与轮后变化收集之间的时序竞争；属于产品测试或产品行为，不在本套件范围，另行核查。
+
+### 7.4 第二次预演（`20260927-2019`）复核与第四轮返工
+
+预演目录位于主工作区 `.acceptance/rehearsals/A9-25-W40/20260927-2019/`，`SHA256SUMS.txt` 1755 条复算一致；构建源 `5a20663`，ZIP `51e0a0c6…5697`；`agent` Medium、回读 COM 后备七字段一致、后飞行零残留。
+
+- **K-05 已消除**：PID 8084 在点击停止后 106 ms 消失，界面 `cancelled · not_applicable`、`agentStatus=cancelled`、`a9_turns.status=cancelled`，`w40-06-stop-exit.json` 已落盘。
+- **K-01 新问题（R4-1）**：`w40_m3` 与 `w40_review` 均在 `w40 inspector transition ended` 等待 15 s 后超时。根因（依据代码与第一次预演几何推断，本次未采到状态）：
+  验收机 125% DPI 下窗口内容为 1349×675 物理像素，即 1079.2×540 CSS 像素，`innerWidth` 取整为 1079；检查器抽屉 `right: 0`，右缘 1079.2，
+  而 `a925InspectorReady` 要求 `right <= innerWidth` 且无容差，恒不满足。开发机测试只用整数视口，未覆盖。`a925LayoutMatches` 的按钮边界判定有同样问题。
+- **smoke 健壮性（R4-2）**：`w40_review` 失败后 smoke 在 `A9_W40_REVIEW_FIRST_TURN_MISSING` 处抛出退出，`w40_review_restart`、`w40_review_mode` 未运行，
+  总报告 `automatic-smoke.json` 与 `w40-case-index.json` 均未生成，K-04 的阶段计时因此不可见。这违反“阶段汇总覆盖全部阶段”（W39 套件教训）。
+- **诊断（R4-3）**：W40 新增的等待在超时时没有记录最后一次观察到的状态，本次无法直接证实上述根因。
+- K-02、K-03、K-06 因阶段中止未到达，仍待验证。
+
+第四轮返工要求（允许路径与禁止项同前；继承旅程与 `captureVisual` 不得修改；另起提交，不 amend）：
+
+1. **R4-1 视口边界容差**：检查器与按钮的“在视口内”判定改为以 1 CSS 像素为容差（`right <= innerWidth + 1`、`bottom <= innerHeight + 1`，左上 `>= -1`），并同时记录
+   `document.documentElement.clientWidth/clientHeight` 与 `visualViewport.width/height`（如存在）原值。测试须含小数视口正例（1079.2 对 1079）与超出 1 像素以上的反例，
+   第一次预演真实几何（`file.left=1118`）仍须被拒绝。
+2. **R4-2 阶段失败不得中止 smoke**：审查 smoke 在第一个阶段启动后的全部 `throw`。依赖前一阶段产出的阶段（如 `w40_review_restart` 依赖第一轮 turnId）在前置缺失时记为
+   `BLOCKED` 并写明原因、不运行；互不依赖的阶段（如 `w40_review_mode`）照常运行；总报告、阶段汇总与用例索引始终生成，缺失或阻断的阶段使总状态为 FAIL，受影响用例记 `FAIL` 或 `BLOCKED`。
+   逐处列出保留的 `throw` 及理由（仅限阶段开始前的环境与完整性前置检查）。测试与反例：模拟 `w40_review` 失败时，其余阶段仍运行且总报告、用例索引存在、状态为 FAIL。
+3. **R4-3 等待诊断**：W40 新增的每个 `waitFor` 在超时时把最后一次观察到的状态（截断到合理长度）写入阶段报告与错误信息。
+4. §4 全部检查重跑；交付报告列出每项改动、测试与反例，以及驱动与 smoke 相对 `91df808` 的非新增改动逐处清单。通过后做第三次预演。
