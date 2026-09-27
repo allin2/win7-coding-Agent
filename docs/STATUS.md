@@ -45,13 +45,18 @@
 
 ## 当前阻断与待办
 
-推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：当前为阶段 0（W40 套件实现 + 恢复目录误暂存只读核查并行）。
+推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 的 W40 套件实现进行中；恢复目录误暂存核查已完成，D1 已裁决（修复进第一批，见下文第 6 项）。
 
 1. **Alpha 2 剩余范围**：2026-09-27 负责人决定拆为两个任务、先做 Review：负责人批准把 Review 改为“先写后审”的改动审阅（ADR-0143），[A9-24](tasks/A9_24_REVIEW_MODE.md) 开发机通过并已并入（`A9_24_DEVELOPER_VERIFIED`，`c136d12`）；Win7 由 [A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) 换发 WIN7-40 验收（已批准，W40 套件实现中）；Shell 运行中输出（S01–S06）另立任务，先写 helper v3 协议设计。两者均需新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推；预算 #3 口径已按 ADR-0139 修订（K17-5 关闭），采样可开始。A9-18 需求与遗留项统一登记在[承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md)，已完成价值评估，有效部分由 A9-21 移植（已批准，ADR-0138/0139），移植后删除工作树。
 3. **A8-06 外部验收**：Win10/Win7 三层验证仍 `NOT_PERFORMED`。
 4. **A9-20 Git 确认分类器绕过**：WIN7-39 已签发 Win7 结论（[A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)，2026-09-27）；WIN7-22、WIN7-37 等既有候选仍含该缺陷，已签结论不改判。
 5. **A9-19 后续**：WIN7-37 已签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS`。Shell 真正增量输出（helper v3）、checkpoint 往返校验分片、左栏“进行中”分组滞后需各自另立任务。
+6. **已知问题：恢复目录可能被 Git 误暂存**（2026-09-27 [核查报告](reports/2026-09/a9_recovery_dir_git_exposure_check_2026-09-27.md)，开发机结论，未在 Win7 验证）：
+   产品在工作区根生成的 `.agent_recovery/` 不写任何 Git 排除规则，未忽略它的仓库中 `git add -A`/`git add .` 会将其纳入（含改动前原文、可能含未登记秘密与绝对路径）；
+   `git clean -fd`、`git stash -u` 会删除或收走它，之后撤销失效。自 A9-03 起全部 A9 候选（含 WIN7-22/37/39）同源，已签结论不改判。
+   手动缓解：在工作区的 `.agent_recovery/` 内新建内容为 `*` 的 `.gitignore`，或把 `.agent_recovery/` 加入仓库的 `.git/info/exclude`。
+   D1 已裁决：修复（方案 3b）作为第一批首个里程碑，WIN7-40 范围不变；迁出工作区与恢复目录清理另立任务评估。
 
 ## MVP 已接受的延期项
 
