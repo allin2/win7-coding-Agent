@@ -353,15 +353,33 @@ function w40RequiredAssertionSummary(requiredIds, cases) {
 }
 // A9_W40_REQUIRED_SUMMARY_END
 
-function w40PhaseTiming(startedMs, endedMs) {
-  if (!Number.isFinite(startedMs) || !Number.isFinite(endedMs) || endedMs < startedMs)
-    throw new Error('A9_W40_PHASE_CLOCK_INVALID');
-  return { started_at: new Date(startedMs).toISOString(), ended_at: new Date(endedMs).toISOString(),
-    duration_ms: endedMs - startedMs };
+function w40PhaseClock() {
+  const clock = { wallMs: null, monotonicNs: null, errors: [] };
+  try { clock.wallMs = Date.now(); } catch (_error) { clock.errors.push('WALL_CLOCK_READ_ERROR'); }
+  try { clock.monotonicNs = process.hrtime.bigint(); } catch (_error) { clock.errors.push('MONOTONIC_CLOCK_READ_ERROR'); }
+  return clock;
+}
+
+function w40PhaseTiming(started, ended) {
+  const timing = { started_at: null, ended_at: null, duration_ms: null };
+  const errors = [...(started?.errors || []), ...(ended?.errors || [])];
+  for (const [name, value] of [['started_at', started?.wallMs], ['ended_at', ended?.wallMs]]) {
+    if (!Number.isFinite(value)) { errors.push(`${name.toUpperCase()}_INVALID`); continue; }
+    try { timing[name] = new Date(value).toISOString(); }
+    catch (_error) { errors.push(`${name.toUpperCase()}_INVALID`); }
+  }
+  if (typeof started?.monotonicNs === 'bigint' && typeof ended?.monotonicNs === 'bigint'
+    && ended.monotonicNs >= started.monotonicNs) {
+    const durationMs = Number(ended.monotonicNs - started.monotonicNs) / 1000000;
+    if (Number.isFinite(durationMs)) timing.duration_ms = durationMs;
+    else errors.push('MONOTONIC_DURATION_INVALID');
+  } else errors.push('MONOTONIC_DURATION_INVALID');
+  if (errors.length > 0) timing.timing_error = [...new Set(errors)].join(';');
+  return timing;
 }
 
 function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
-  const startedMs = Date.now();
+  const started = w40PhaseClock();
   return new Promise((resolve) => {
     const childEnv = { ...process.env, ...env };
     delete childEnv.ELECTRON_RUN_AS_NODE;
@@ -379,11 +397,7 @@ function runElectron(electronPath, driverPath, env, timeoutMs = 240000) {
     }, timeoutMs);
     child.on('close', (code) => {
       clearTimeout(timer);
-      const timing = w40PhaseTiming(startedMs, Date.now());
-      if (env.A9_SMOKE_OUT && fs.existsSync(env.A9_SMOKE_OUT)) {
-        const report = readJson(env.A9_SMOKE_OUT);
-        fs.writeFileSync(env.A9_SMOKE_OUT, `${JSON.stringify({ ...report, ...timing }, null, 2)}\n`, 'utf8');
-      }
+      const timing = w40PhaseTiming(started, w40PhaseClock());
       resolve({ code: code == null ? 1 : code, stdout, stderr, timed_out: timedOut, ...timing });
     });
   });
@@ -1539,7 +1553,8 @@ async function main() {
     },
     projection_report_parse: { parseable: projectionParseable, detail: projectionParseDetail },
     phases: phases.concat(w40Phases, a925Phases).map((item) => ({ phase: item.phase, exit_code: item.code, stderr_tail: item.stderr.slice(-2000),
-      started_at: item.started_at, ended_at: item.ended_at, duration_ms: item.duration_ms })),
+      started_at: item.started_at, ended_at: item.ended_at, duration_ms: item.duration_ms,
+      ...(item.timing_error ? { timing_error: item.timing_error } : {}) })),
     cases,
     live_progress: reports.live && reports.live.liveProgress ? {
       first_persisted_ms: reports.live.liveProgress.firstPersisted, first_dom_ms: reports.live.liveProgress.firstDom,

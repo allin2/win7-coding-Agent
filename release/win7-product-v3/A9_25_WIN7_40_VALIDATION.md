@@ -110,3 +110,16 @@ M src/workspace/src/checkpoint-manager.ts
 本轮没有改变重基线规则或残留守卫。源码 `w39`/`W39` 出现次数仍为 133/76；每个原有精确重基线源片段仍检查出现一次。新增阶段计时仅在 W40 smoke 副本追加，WIN7-39 文件不变。
 
 开发机门重跑全部 §4 检查；运行输出及六项进程级注入反例位于套件工作树 `.acceptance/w40-rework-r2/`。全部 w40* 旅程在开发机未运行，**待第二次预演**；开发机夹具与纯函数结果不构成当前 Win7 证据。
+
+## 6. 第三轮返工登记（交接书 §7.3，套件基线 `2f14d69`）
+
+§7.3 从主工作区 `15722fc` 的交接书只读查阅；按负责人更正，套件分支保持 `2f14d69` 为基线，不 merge/rebase，也不复制该文档。本节仅替代 R2-03 中结构化拒绝的错误码限制与 R2-04 中阶段计时的保存位置及算法；其他登记与判定不变。
+
+| 登记 | 文件与本轮差异 | 判定、证据与测试 |
+|---|---|---|
+| R3-1 | W40 smoke 新增 `w40PhaseClock`；替换 `w40PhaseTiming`、`runElectron` 的时钟采集及 close 回调；总报告阶段条目只追加可选 `timing_error` | 删除对 `A9_SMOKE_OUT` 的读取与写回，驱动原始报告（包括损坏 JSON 与非 UTF-8 字节）保持原字节。耗时仅在 smoke 阶段记录与总报告中保存，`duration_ms` 来自 `process.hrtime.bigint()` 差值，墙钟仅生成 started_at/ended_at；墙钟回拨不改变耗时与阶段结束。时钟读取或数值异常保存 timing_error 与未知字段 null，不抛出，不以 0 伪造未知耗时。现有 K-04 测试按此裁决更新；新增损坏报告、回拨/时钟异常的真实 runElectron VM 测试，注入旧写回和回拨抛出分别使测试失败。精确 smoke 派生摘要更新为 `59b798686b5bf00797a2600a1515254334566b746fc963f578111d67e0720f7e`，未登记差异仍拒绝 |
+| R3-2 | 仓库驱动只替换 `a925ReviewModeMatches` 的 rejected 条件；包测试同步 K-03 并新增结构化拒绝测试 | response.ok=false 且 error.code 为长度大于零的字符串即为结构化拒绝；不要求码或 message 含 REVIEW。驱动原有 response 原样保存路径不改，保留原 code/message；界面层、hashSamples 零写入、mode=review、write 工具拒绝备用路径均不变。任意非空错误码正例；无 code/空 code/非字符串、文件写出、full_access 反例。注入旧窄错误码条件及放宽零写入/模式/缺码条件使相应测试失败 |
+
+驱动相对 `2f14d69` 仅上述一处非新增改动，无历史旅程、`captureVisual`、工作区模式判断或其他 W40 代码改动。smoke 的非新增改动仅 R3-1 所列：计时函数、runElectron 启动采集、close 回调、总报告 timing_error 字段。WIN7-39 及更早文件、产品与 docs 不改，重基线与残留守卫不变。
+
+本轮开发机门与注入反例原始输出位于套件工作树 `.acceptance/w40-rework-r3/`。w40* 产品旅程未运行，**待第二次预演**；O-3 历史秘密路径测试时序观察仅保留登记，不在本轮修复。

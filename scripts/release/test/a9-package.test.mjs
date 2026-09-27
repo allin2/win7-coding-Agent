@@ -4315,7 +4315,7 @@ const W40_DERIVATIONS = [
   ['a9-23-win7-39-input-lock.json', 'a9-25-win7-40-input-lock.json', 'c58475cc8958cf7a0d16fdc4b76cf110863478d48cef6c731f7508dc8b20c88c'],
   ['a9-package-integrity-w39.cjs', 'a9-package-integrity-w40.cjs', '07fe7184cb918723f2cd6bff3b79d6b5e850b879d148dfa132357b0597e098f5'],
   ['a9-win7-39-report.cjs', 'a9-win7-40-report.cjs', '3481c61c47ebf1aa8a88315a7deea711536c80869b1b261f18810ec058710dea'],
-  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', '1fed198556defa51183e2e53bc560fd215a6e4b2d55e2c5a4dfa5549e199832f'],
+  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', '59b798686b5bf00797a2600a1515254334566b746fc963f578111d67e0720f7e'],
   ['RUN_A9_23_W39_INTEGRITY.cmd', 'RUN_A9_25_W40_INTEGRITY.cmd', '84953ad13d47101377ba4d3e7dbbfe7cf759e12bf6e23fb9997e8fb289f0daf5'],
   ['RUN_WIN7_39_REPORT_VERIFY.cmd', 'RUN_WIN7_40_REPORT_VERIFY.cmd', '47d031dd6d93e4cb9f09c8d81de8da4c085818546b1864b4e7cf2ae25b486ade'],
 ];
@@ -4727,7 +4727,7 @@ test('W40 R2 K-02 replays actual modified/too_large and waits for rendered reaso
   assert.match(source, /waitFor\([\s\S]*?\.review-unrecoverable[\s\S]*?w40 unrecoverable rendered/);
 });
 
-test('W40 R2 K-03 review UI and backend denial reject mode upgrade, write and unrelated error', () => {
+test('W40 R2 K-03 review UI and backend denial reject mode upgrade, write and missing code', () => {
   const h = w40RepairHelpers(); const denial = 'REVIEW mode requires a review staging backend';
   const observation = { ui: { mode: 'review', dialogVisible: true, intro: '不可用的 Review 模式；写入仍会被拒绝',
     choices: ['full_access', 'read_only'], sendDisabled: true }, mode: 'review', hashSamples: [null, null],
@@ -4738,7 +4738,7 @@ test('W40 R2 K-03 review UI and backend denial reject mode upgrade, write and un
   assert.equal(h.a925ReviewModeMatches(toolDenied), true);
   for (const bad of [{ ...observation, mode: 'full_access' }, { ...observation, hashSamples: [null, 'written', null] },
     { ...observation, ui: { ...observation.ui, sendDisabled: false } },
-    { ...observation, response: { ok: false, error: { code: 'PROVIDER_ERROR', message: 'offline' } } },
+    { ...observation, response: { ok: false, error: { message: 'offline' } } },
     { ...toolDenied, terminal: { status: 'active', eventCount: 6 } },
     { ...toolDenied, toolResults: [{ role: 'assistant', name: 'write', content: denial }] }]) {
     assert.equal(h.a925ReviewModeMatches(bad), false);
@@ -4751,30 +4751,17 @@ test('W40 R2 K-03 review UI and backend denial reject mode upgrade, write and un
   assert.throws(() => assert.equal(injected.a925ReviewModeMatches({ ...observation, mode: 'full_access' }), false), /true !== false/);
 });
 
-test('W40 R2 K-04 each process and phase report records exact timing with clock counterexample', async () => {
+test('W40 R2 K-04 smoke phase timing uses monotonic duration and records invalid clocks', () => {
   const { w40PhaseTiming } = require(W40_SMOKE_PATH);
-  assert.deepEqual(w40PhaseTiming(1000, 1017), { started_at: '1970-01-01T00:00:01.000Z',
-    ended_at: '1970-01-01T00:00:01.017Z', duration_ms: 17 });
-  assert.throws(() => w40PhaseTiming(1000, 999), /A9_W40_PHASE_CLOCK_INVALID/);
+  const started = { wallMs: 1000, monotonicNs: 1000000n };
+  assert.deepEqual(w40PhaseTiming(started, { wallMs: 1017, monotonicNs: 18000000n }), {
+    started_at: '1970-01-01T00:00:01.000Z', ended_at: '1970-01-01T00:00:01.017Z', duration_ms: 17 });
+  const invalid = w40PhaseTiming(started, { wallMs: NaN, monotonicNs: 0n });
+  assert.equal(invalid.duration_ms, null); assert.equal(invalid.ended_at, null);
+  assert.match(invalid.timing_error, /ENDED_AT_INVALID;MONOTONIC_DURATION_INVALID/);
   const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
-  const start = source.indexOf('function runElectron('); const end = source.indexOf('function normalPhaseContract(', start);
-  const code = source.slice(source.indexOf('function w40PhaseTiming('), end);
-  const execute = async (body) => {
-    const child = { stdout: { on() {} }, stderr: { on() {} }, on(_event, callback) { queueMicrotask(() => callback(0)); } };
-    const files = new Map([['phase.json', '{}']]); let clock = 1000;
-    const run = vm.runInNewContext(`${body}\nrunElectron`, { Date: class extends Date { static now() { return clock += 17; } },
-      process: { env: {} }, childProcess: { spawn: () => child }, setTimeout, clearTimeout,
-      w40AssertEnvironmentLengths() {}, readJson: (name) => JSON.parse(files.get(name)),
-      fs: { existsSync: (name) => files.has(name), writeFileSync: (name, value) => files.set(name, value) } });
-    const record = await run('electron', 'driver', { A9_SMOKE_OUT: 'phase.json' });
-    return { record, report: JSON.parse(files.get('phase.json')) };
-  };
-  const observed = await execute(code);
-  assert.equal(observed.record.duration_ms, 17); assert.equal(observed.report.duration_ms, 17);
-  assert.equal(observed.record.started_at, observed.report.started_at);
-  const injected = await execute(code.replace('timed_out: timedOut, ...timing', 'timed_out: timedOut'));
-  assert.throws(() => assert.equal(injected.record.duration_ms, 17), /undefined/);
   assert.match(source, /started_at: item\.started_at, ended_at: item\.ended_at, duration_ms: item\.duration_ms/);
+  assert.match(source, /timing_error: item\.timing_error/);
 });
 
 async function w40StopTimeoutProbe(driver) {
@@ -4850,4 +4837,98 @@ test('W40 R2 historical driver outside W40 dispatch and helpers remains byte-ide
   const injected = source.replace('const selected = await waitFor(', 'await waitFor(');
   assert.notEqual(injected, source);
   assert.throws(() => assert.equal(digest(w40HistoricalDriver(injected)), expected), /AssertionError/);
+});
+
+async function w40R3RunProbe(source, options = {}) {
+  const start = source.indexOf('function w40PhaseClock(');
+  const end = source.indexOf('function normalPhaseContract(', start);
+  assert.ok(start >= 0 && end > start);
+  const original = Buffer.from([0x7b, 0x22, 0xff, 0x00, 0x0d, 0x0a]);
+  const files = new Map([['driver.json', original]]);
+  const walls = options.walls || [1000, 1017];
+  const monotonic = [1000000n, 18000000n];
+  let wallReads = 0; let monotonicReads = 0; let reads = 0; let writes = 0;
+  let rejectClose;
+  const closeError = new Promise((_resolve, reject) => { rejectClose = reject; });
+  const child = { stdout: { on() {} }, stderr: { on() {} }, on(event, callback) {
+    assert.equal(event, 'close');
+    queueMicrotask(() => { try { callback(0); } catch (error) { rejectClose(error); } });
+  } };
+  const run = vm.runInNewContext(`${source.slice(start, end)}\nrunElectron`, {
+    Date: class extends Date { static now() {
+      if (options.wallError) throw new Error('INJECTED_WALL_CLOCK_READ_ERROR');
+      return walls[wallReads++];
+    } },
+    process: { env: {}, hrtime: { bigint() {
+      if (options.monotonicError) throw new Error('INJECTED_MONOTONIC_CLOCK_READ_ERROR');
+      return monotonic[monotonicReads++];
+    } } },
+    childProcess: { spawn: () => child }, setTimeout, clearTimeout, w40AssertEnvironmentLengths() {},
+    readJson(name) { reads += 1; try { return JSON.parse(files.get(name).toString('utf8')); }
+      catch (_error) { return { status: 'NO_REPORT' }; } },
+    fs: { existsSync: (name) => files.has(name), writeFileSync(name, value) { writes += 1; files.set(name, Buffer.from(value)); } },
+  });
+  const record = await Promise.race([run('electron', 'driver', { A9_SMOKE_OUT: 'driver.json' }), closeError]);
+  return { record, original, bytes: files.get('driver.json'), reads, writes };
+}
+
+test('W40 R3-1 preserves corrupt driver bytes and rejects report rewrite injection', async () => {
+  const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  const observed = await w40R3RunProbe(source);
+  assert.equal(observed.record.code, 0); assert.equal(observed.record.duration_ms, 17);
+  assert.deepEqual(observed.bytes, observed.original); assert.equal(observed.reads, 0); assert.equal(observed.writes, 0);
+  const line = 'const timing = w40PhaseTiming(started, w40PhaseClock());';
+  const rewrite = source.replace(line, `${line}\n      const report = readJson(env.A9_SMOKE_OUT);\n      fs.writeFileSync(env.A9_SMOKE_OUT, JSON.stringify({ ...report, ...timing }));`);
+  assert.notEqual(rewrite, source);
+  const injected = await w40R3RunProbe(rewrite);
+  assert.throws(() => assert.deepEqual(injected.bytes, injected.original), /Expected values/);
+});
+
+test('W40 R3-1 wall-clock rollback completes with nonnegative monotonic duration; clock errors are fields', async () => {
+  const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  const observed = await w40R3RunProbe(source, { walls: [1000, 999] });
+  assert.equal(observed.record.code, 0); assert.equal(observed.record.timed_out, false);
+  assert.equal(observed.record.started_at, '1970-01-01T00:00:01.000Z');
+  assert.equal(observed.record.ended_at, '1970-01-01T00:00:00.999Z');
+  assert.equal(observed.record.duration_ms, 17); assert.ok(observed.record.duration_ms >= 0);
+  assert.equal(observed.record.timing_error, undefined); assert.deepEqual(observed.bytes, observed.original);
+  for (const options of [{ wallError: true }, { monotonicError: true }, { wallError: true, monotonicError: true }]) {
+    const errorObservation = await w40R3RunProbe(source, options);
+    assert.equal(errorObservation.record.code, 0);
+    assert.match(errorObservation.record.timing_error, /CLOCK_READ_ERROR/);
+    assert.deepEqual(errorObservation.bytes, errorObservation.original);
+    if (options.wallError) { assert.equal(errorObservation.record.started_at, null); assert.equal(errorObservation.record.ended_at, null); }
+    if (options.monotonicError) assert.equal(errorObservation.record.duration_ms, null);
+  }
+  const needle = 'const timing = { started_at: null, ended_at: null, duration_ms: null };';
+  const throwing = source.replace(needle, `${needle}\n  if (ended.wallMs < started.wallMs) throw new Error('A9_W40_PHASE_CLOCK_INVALID');`);
+  assert.notEqual(throwing, source);
+  await assert.rejects(w40R3RunProbe(throwing, { walls: [1000, 999] }), /A9_W40_PHASE_CLOCK_INVALID/);
+});
+
+test('W40 R3-2 accepts any nonempty structured code and retains raw response; rejects missing code, write and mode upgrade', () => {
+  const h = w40RepairHelpers();
+  const observation = { ui: { mode: 'review', dialogVisible: true, intro: '不可用的 Review 模式；写入仍会被拒绝',
+    choices: ['full_access', 'read_only'], sendDisabled: true }, mode: 'review', hashSamples: [null, null],
+    response: { ok: false, error: { code: 'PROVIDER_ERROR', message: 'arbitrary original message' } } };
+  for (const code of ['X', 'PROVIDER_ERROR', '任意非空错误码']) {
+    const item = { ...observation, response: { ok: false, error: { code, message: '原始错误消息' } } };
+    const original = JSON.stringify(item.response);
+    assert.equal(h.a925ReviewModeMatches(item), true); assert.equal(JSON.stringify(item.response), original);
+  }
+  for (const response of [{ ok: false }, { ok: false, error: { message: 'no code' } },
+    { ok: false, error: { code: '' } }, { ok: false, error: { code: 1 } }, { ok: true, error: { code: 'X' } }]) {
+    assert.equal(h.a925ReviewModeMatches({ ...observation, response }), false);
+  }
+  assert.equal(h.a925ReviewModeMatches({ ...observation, hashSamples: [null, 'written', null] }), false);
+  assert.equal(h.a925ReviewModeMatches({ ...observation, mode: 'full_access' }), false);
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const original = JSON.stringify(observation.response);
+  assert.equal(h.a925ReviewModeMatches(observation), true); assert.equal(JSON.stringify(observation.response), original);
+  const narrow = source.replace('observation.response.error.code.length > 0', "observation.response.error.code.includes('REVIEW')");
+  assert.notEqual(narrow, source);
+  assert.throws(() => assert.equal(w40RepairHelpers(narrow).a925ReviewModeMatches(observation), true), /false !== true/);
+  const mode = source.slice(source.indexOf('async function runW40ReviewModeProcess('), source.indexOf('\nfunction writeDriverReport('));
+  assert.match(mode, /report\.w40ReviewMode = \{ ui, hashSamples, response \}/);
+  assert.match(mode, /terminal, response, hashSamples/);
 });

@@ -2821,7 +2821,7 @@ function a925ReviewModeMatches(observation) {
   const ui = observation?.ui;
   const denial = 'REVIEW mode requires a review staging backend';
   const rejected = observation?.response?.ok === false && typeof observation.response.error?.code === 'string'
-    && (observation.response.error.code.includes('REVIEW') || String(observation.response.error.message || '').includes(denial));
+    && observation.response.error.code.length > 0;
   const deniedTool = observation?.toolResults?.some((item) => item.role === 'tool' && item.name === 'write'
     && String(item.content || '').includes(denial));
   return Boolean(ui && ui.dialogVisible && ui.intro.includes('不可用的 Review 模式') && ui.intro.includes('写入仍会被拒绝')
