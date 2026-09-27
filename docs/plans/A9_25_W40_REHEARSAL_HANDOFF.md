@@ -102,3 +102,22 @@ smoke 退出码非 0 或断言失败**不是**停止条件：照常完成后飞�
 
 审核方基于原始证据复核：套件问题 → 回到套件分支修复并重过开发机门，必要时再预演；疑似产品缺陷 → 按 A9-25 §2 第 2 条报告负责人，另立任务；
 均无问题 → 按 A9-25 §5 第 3 步起草正式实机交接书，再双构建冻结、门 A。
+
+## 附录 A：第二次预演（2026-09-27，套件第二、三轮返工后）
+
+第一次预演（`20260927-1741`）的复核与返工见[套件交接书 §7](A9_25_W40_KIT_HANDOFF.md)；第二轮 `2f14d69`、第三轮 `91df808` 已通过开发机门，于 `5a20663` 并入 `codex/a9-alpha2`。
+第二次预演按本交接书正文执行，以下差异优先：
+
+1. **构建源**：在套件工作树执行 `git merge --ff-only 5a20663`，构建前确认工作树干净且 HEAD 为 `5a20663`。
+2. **目录**：新的日期目录与新的计划任务名；本机预演目录改为**主工作区** `/Users/qlyf/Developer/win7-coding-Agent/.acceptance/rehearsals/A9-25-W40/<新的 YYYYMMDD-HHMM>/`，
+   不再放在套件工作树内。第一次预演的本机目录（套件工作树内原件与主工作区副本）与 Win7 运行根只读保留，不得覆盖或删除。
+3. **报告字段**：`REHEARSAL_REPORT.json` 增加 `previous_rehearsal: "20260927-1741"`；`phases[]` 的 `duration_ms` 取 smoke 总报告中的阶段计时（含 `timing_error` 如有）。
+   `suspected_kit_issues[]` 逐条说明 K-01～K-06 本次是否仍出现，并附证据文件。
+4. **重点观察**（在 §5 各项基础上补充）：
+   - K-01：`w40-05-diff.png`、`w40-13-checkpoint-paging.png`、`w40-22-layout.png` 是否可见检查器“改动”页签与对应文件 Diff（只描述所见）；截图后 DOM 复核字段的原值；
+   - K-02 / W40-20：`unrecoverableStatus`、匹配到的 `unrecoverable` 条目与 `.review-unrecoverable` 渲染文本原文；
+   - K-03 / W40-21：界面层观察（对话框、文案、选项、发送按钮、模式）、`submitTurn` 原始响应、`w40-21-tool-results.json` 是否生成及其中写工具结果摘录、`review-denied.txt` 哈希采样；
+   - K-05 / W40-06：`w40-06-stop-exit.json` 中 `pid`、`childGone`、`elapsedMs`、界面终态文本、`agentStatus`、`a9_turns` 状态；
+   - K-06 / W40-22：检查器包围盒与 `transform`、三个按钮的包围盒、`innerWidth`/`innerHeight`/`devicePixelRatio`、`scrollWidth`/`clientWidth`；
+   - K-04：17 个阶段的 `started_at`、`ended_at`、`duration_ms`。
+5. 若本次 17 个阶段与 22 个用例均无套件问题，报告中写明；是否进入第 3 步（正式实机交接书）由审核方决定，执行方不作结论。
