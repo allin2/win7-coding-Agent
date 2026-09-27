@@ -115,3 +115,49 @@
 3. 不改残留守卫；若更正后的文字仍触发守卫，停止并报告，不得放宽守卫。
 
 同类问题的一般规则：身份替换后与 W40 新编号或新断言 ID 冲突的**注释**，一律按本条更正并登记；若冲突出现在代码、断言 ID 或证据文件名中，停止并报告。
+
+## 7. 第一次预演（`20260927-1741`）复核与第二轮返工
+
+### 7.1 复核结论
+
+预演按[预演交接书](A9_25_W40_REHEARSAL_HANDOFF.md)执行，全部证据 `REHEARSAL_NOT_ELIGIBLE`；验收方已把目录复制到主工作区 `.acceptance/rehearsals/A9-25-W40/20260927-1741/`，
+`SHA256SUMS.txt` 2389 条复算一致。构建源 `7fce103`，ZIP `05e53092…55c5`；计划任务回读走 COM 后备，七字段一致；`agent` Medium；后飞行无 Electron、helper 或测试 Shell 残留（停止用例 PID 776 已不存在）。
+秘密扫描命中全部来自扫描规则自身、夹具源码模板或二进制片段，运行证据中无真实秘密。
+
+- 继承的 13 个阶段（`first`～`live`、`w40_startup`～`w40_m4`）退出码 0、报告 `PASS`；W40-01～15 的重基线在 Win7 实跑有效。
+- 新增 4 个阶段中，W40-16～19 的产品观察符合预期：摘要卡“2 个文件 · +3 −1”与 `review` 一致；撤回 4 ms、哈希不变；外部修改与后续轮次两种 `driftReasons` 正确；重启后“已撤销”，再次撤销为“此前已撤销，未重复执行”。
+- 执行方登记的 K-01～K-04 均属实；两项“疑似产品问题”经复核**均为套件问题**，改编为 K-05、K-06。本次预演**未发现产品缺陷**。
+
+| 编号 | 事实与根因 | 证据 |
+|---|---|---|
+| K-01 | 驱动 `captureVisual` 截图前关闭检查器，W40-05/13/22 截图均无“改动”页签与 Diff；`A9-W40-DIFF-SCREENSHOT`、`A9-W40-M3-DIFF-SCREENSHOT` 只在截图前检查 DOM，截图不符时仍为 `true` | `w40-05-diff.png`、`w40-13-checkpoint-paging.png`、`w40-22-layout.png` |
+| K-02 | 产品把超过基线上限的文件记为 `kind=modified`，`reason` 含 `too_large`；驱动按 `kind==='too_large'` 匹配，误记 `NOT_PERFORMED`。`unrecoverableText` 取自点击后立即读取的行文本，未等待展开渲染 | `w40-20-command.json` |
+| K-03 | 工作区为 `review` 时产品界面按设计禁用发送并弹出权限对话框（文案“此工作区保存了不可用的 Review 模式，写入仍会被拒绝”），驱动经界面提交而等待 `turn_started` 超时 | `w40_review_mode.json`、产品库 0 轮次 |
+| K-04 | 阶段报告无耗时字段 | `automatic-smoke.json` |
+| K-05（原 P-01） | 产品取消路径按现有设计不写终态事件（`finalize` 不带事件类型），终态只在 `a9_turns` 与界面 `#a9-turn-outcome`；继承的 `stop` 旅程即按界面判定。驱动等待 `turn_cancelled` 等事件超时，且 PID 计时结果只在等待之后写出，因超时丢失 | `w40_stop.json`、产品库 `a9_turns.status=cancelled` |
+| K-06（原 P-02） | 窗口宽 1079 < 1200 时检查器为抽屉（`translateX(100%)`，打开有 0.18 s 过渡）。由于 K-01 抽屉被关闭，再次打开后立即测量，按钮坐标落在抽屉滑入途中（`file.left=1118 > innerWidth=1079`）；纵向超出为列表未滚动到位 | `w40-22-layout.json`、`a9-workbench.css:452-459` |
+
+产品侧观察（不是缺陷，不返工，登记待议）：
+- **O-1** 取消的轮次不写终态事件，事件流与 `a9_turns` 的终态表达不一致；如后续功能依赖事件流判断终态，需另议。
+- **O-2** 超过基线上限的 Shell 变化以 `kind=modified` 记录，界面对 `too_large` 的“超过备份上限”映射在此路径不可达，原因文字会带出内部标记（如“缺少原始内容（轮前基线未覆盖（too_large）…）”）。满足 A9-24 CR-06“无法撤销并给原因”，措辞改进可并入第一批。
+
+### 7.2 返工要求（第二轮）
+
+分支、允许路径与禁止项同 §2（含 §6.1、§6.2）；继承旅程与 `captureVisual` 不得修改；另起提交，不 amend。
+
+1. **K-01**：新增 W40 专用截图辅助函数：确保检查器已打开且“改动”页签选中、目标轮次与文件 Diff 展开，等待抽屉过渡结束（检查器包围盒完全在视口内）后截图；
+   **截图后**再次读取 DOM，确认检查器仍打开、Diff 可见，才记录 `A9-W40-DIFF-SCREENSHOT`、`A9-W40-M3-DIFF-SCREENSHOT`。W40-05、W40-13、W40-22 改用该函数；W40-16 仍用对话流截图。
+2. **K-02**：按 `path === 'big.bin'` 且（`kind === 'too_large'` 或 `reason` 含 `too_large`）匹配；等待 `.review-unrecoverable` 渲染后读取其文本。
+   **W40-20 判定口径裁决**：界面文本含“无法撤销”、`big.bin` 与原因（“超过备份上限”或含 `too_large` 的原因文字之一），原文记入证据；不再要求必须出现“超过备份上限”（见 O-2）。
+3. **K-03 与 W40-21 review 模式判定口径裁决**：改为两部分，全部满足才记 `A9-W40-REVIEW-MODE-FAIL-CLOSED`：
+   (a) 界面：启动后权限对话框可见，文案含“不可用的 Review 模式”与“写入仍会被拒绝”，只有 `full_access`、`read_only` 两个选项，发送按钮禁用，`snapshot.mode` 仍为 `review`；
+   (b) 后端：直接调用产品的 `window.win7Agent.a9.submitTurn(...)`，原样记录响应；若启动了轮次，按 `a9_turns` 与事件等待其结束。要求 `review-denied.txt` 始终不存在、
+   模式未变为 `full_access`，且响应为结构化拒绝，或该轮写工具结果含 `REVIEW mode requires a review staging backend`。不得调用 `setMode` 或以其他方式绕过产品设置。
+4. **K-04**：每个阶段记录 `started_at`、`ended_at`、`duration_ms`（阶段记录只增字段，在验证说明登记为追加）。
+5. **K-05**：`w40_stop` 在计时循环结束后**立即**把 `pid`、`childGone`、`elapsedMs` 写入报告与 `w40-06-stop-exit.json`；终态按继承 `stop` 旅程的口径读取
+   `#a9-turn-outcome` 含 `cancelled` 与 `snapshot.agentStatus === 'cancelled'`，另记录产品库 `a9_turns` 该轮状态，不再等待终态事件。
+6. **K-06**：布局测量前确认检查器抽屉过渡结束（包围盒在视口内且 `transform` 为无位移），逐个按钮 `scrollIntoView({ block: 'nearest', inline: 'nearest' })` 后测量；
+   记录检查器包围盒；“撤回”在同一抽屉状态下测量。判定仍为页面无横向滚动、三个按钮完整在视口内且可聚焦。
+7. **开发机门**：§4 全部检查重跑；为 K-01、K-02、K-03、K-05、K-06 各新增纯函数或夹具测试并有注入反例（截图后检查器关闭、`kind=modified` 含/不含 `too_large`、
+   模式被改为 `full_access` 或文件被写出、终态读取超时时 PID 观察仍已落盘、抽屉滑入途中的几何）。以本次预演真实产出的 JSON 作只读夹具重放 K-02、K-05、K-06 的判定。
+8. 交付报告另列：每项返工与对应测试、反例失败证据、验证说明新增的登记项。返工通过后做第二次预演。
