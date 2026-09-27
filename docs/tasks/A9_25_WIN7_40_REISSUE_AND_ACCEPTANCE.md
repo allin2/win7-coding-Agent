@@ -96,3 +96,4 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
   于 `0ca5a81` 并入 alpha2。按[预演交接书附录 B](../plans/A9_25_W40_REHEARSAL_HANDOFF.md)做第三次 Win7 预演。
 - 2026-09-27：第三次 Win7 预演（`20260927-2224`，`REHEARSAL_NOT_ELIGIBLE`，构建源 `0ca5a81`）复核：smoke `PASS`，17 阶段、227 条断言、W40-02～22 全部通过，K-01～K-06 均已消除，
   **套件无待修问题，第 2 步完成**；登记产品侧观察 O-4（命令产生文件的 Diff 为空）。下一步起草第 3 步正式实机交接书。见[套件交接书 §7.5](../plans/A9_25_W40_KIT_HANDOFF.md)。
+- 2026-09-27：第 3 步：起草[正式实机交接书](../plans/A9_25_WIN7_40_ACCEPTANCE_HANDOFF.md)（`DRAFT_PENDING_FREEZE_AND_GATE_A`，§3 待冻结与门 A 后填写），并入 WIN7-39 附录 A 路径勘误与三次 W40 预演做法。下一步第 4 步双构建冻结。
