@@ -183,7 +183,7 @@ describe('A9 unified desktop workbench contract', () => {
     expect(html).toContain('name="a9-mode-choice" value="full_access"');
     expect(html).toContain('name="a9-mode-choice" value="read_only"');
     expect(html).not.toContain('value="review"');
-    expect(html).toContain('Review</strong><p>完整准备、审批与应用工作流将在下一阶段提供');
+    expect(html).toContain('Full Access 直接写入工作区，完成后可在“改动”中审阅和撤销文件');
     expect(script).toContain("const SUPPORTED_MODES = new Set(['full_access', 'read_only']);");
     expect(script).toContain("snapshot.mode === 'review'");
   });

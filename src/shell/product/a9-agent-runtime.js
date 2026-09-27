@@ -2131,13 +2131,35 @@ function createA9AgentRuntime(options) {
     }
   }
 
+  function classifyCheckpointDrift(turnId, outcome, manager) {
+    if (!outcome || !Array.isArray(outcome.drifted) || outcome.drifted.length === 0) return [];
+    const checkpoints = persistence.listCheckpoints(a9SessionId);
+    const targetIndex = checkpoints.findIndex((checkpoint) => checkpoint.turnId === String(turnId));
+    const later = targetIndex < 0 ? [] : checkpoints.slice(targetIndex + 1);
+    return outcome.drifted.map((entry) => {
+      const raw = String(entry);
+      const suffix = raw.lastIndexOf(' (');
+      const relPath = suffix < 0 ? raw : raw.slice(0, suffix);
+      const laterTurn = later.find((checkpoint) => manager.getTurnChanges(checkpoint.turnId)
+        .some((change) => change.filePath === relPath && !change.undoAppliedAt));
+      return laterTurn
+        ? { path: relPath, kind: 'later_turn', laterTurnId: laterTurn.turnId }
+        : { path: relPath, kind: 'external' };
+    });
+  }
+
+  function undoResponse(turnId, manager, outcome) {
+    return { ok: true, outcome, driftReasons: classifyCheckpointDrift(turnId, outcome, manager) };
+  }
+
   async function undoTurn(turnId, confirmationId) {
     assertCheckpointForCurrentConversation(turnId);
     const service = workspaceServiceForState();
     const reconciliation = await service.reconcilePendingExternalBaseline(String(turnId));
     if (reconciliation && confirmationId === reconciliation.confirmationId
       && service.getCheckpointManager().confirmExternalUndo(String(turnId), String(confirmationId))) {
-      return { ok: true, outcome: service.getCheckpointManager().undoTurn(String(turnId)) };
+      const manager = service.getCheckpointManager();
+      return undoResponse(turnId, manager, manager.undoTurn(String(turnId)));
     }
     if (reconciliation) {
       return {
@@ -2149,10 +2171,12 @@ function createA9AgentRuntime(options) {
           errors: ['已捕获崩溃后的当前状态并生成 Diff；请检查后再次执行撤销'],
           drifted: [],
         },
+        driftReasons: [],
         ...(reconciliation.report ? { externalChanges: reconciliation.report } : {}),
       };
     }
-    return { ok: true, outcome: service.getCheckpointManager().undoTurn(String(turnId)) };
+    const manager = service.getCheckpointManager();
+    return undoResponse(turnId, manager, manager.undoTurn(String(turnId)));
   }
 
   async function undoFile(turnId, relPath, confirmationId) {
@@ -2161,7 +2185,8 @@ function createA9AgentRuntime(options) {
     const reconciliation = await service.reconcilePendingExternalBaseline(String(turnId));
     if (reconciliation && confirmationId === reconciliation.confirmationId
       && service.getCheckpointManager().confirmExternalUndo(String(turnId), String(confirmationId))) {
-      return { ok: true, outcome: service.getCheckpointManager().undoFile(String(turnId), String(relPath)) };
+      const manager = service.getCheckpointManager();
+      return undoResponse(turnId, manager, manager.undoFile(String(turnId), String(relPath)));
     }
     if (reconciliation) {
       return {
@@ -2173,15 +2198,18 @@ function createA9AgentRuntime(options) {
           errors: ['已捕获崩溃后的当前状态并生成 Diff；请检查后再次执行单文件撤销'],
           drifted: [],
         },
+        driftReasons: [],
         ...(reconciliation.report ? { externalChanges: reconciliation.report } : {}),
       };
     }
-    return { ok: true, outcome: service.getCheckpointManager().undoFile(String(turnId), String(relPath)) };
+    const manager = service.getCheckpointManager();
+    return undoResponse(turnId, manager, manager.undoFile(String(turnId), String(relPath)));
   }
 
   function getDiff(turnId) {
     assertCheckpointForCurrentConversation(turnId);
-    return { ok: true, diff: workspaceServiceForState().getCheckpointManager().getTurnDiff(String(turnId)) };
+    const manager = workspaceServiceForState().getCheckpointManager();
+    return { ok: true, diff: manager.getTurnDiff(String(turnId)), review: manager.getTurnReview(String(turnId)) };
   }
 
   function canLeaveWorkspace() {
