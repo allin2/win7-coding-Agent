@@ -59,6 +59,8 @@ const win38Report = require('../../../release/win7-product-v3/a9-win7-38-report.
 // ADR-0142：A9-23 验证套件修复候选（WIN7-39）。
 const win39Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w39.cjs');
 const win39Report = require('../../../release/win7-product-v3/a9-win7-39-report.cjs');
+const win40Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w40.cjs');
+const win40Report = require('../../../release/win7-product-v3/a9-win7-40-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -443,6 +445,17 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         previous_candidate_result: 'A9_14_WIN7_22_GO_FOR_ALPHA',
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
+  }
+  if (candidate === 'win40') {
+    lock.lock_id = 'A9-25-INPUTS-WIN7-40';
+    lock.source_date_epoch = 1790380800;
+    lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
+    lock.gates.win7 = 'NOT_PERFORMED_WIN7_40';
+    lock.provenance = {
+      task: 'A9-25', previous_candidate: 'WIN7-39',
+      previous_candidate_result: 'A9_23_WIN7_39_A9_20_A9_21_PASS',
+      change_scope: 'A9_24_CHANGE_REVIEW_WIN7_40_VALIDATION',
+    };
   }
   const lockPath = path.join(root, ['win29', 'win30', 'win31'].includes(candidate)
     ? `a9-16-win7-${candidate.slice(-2)}-input-lock.json`
@@ -4291,4 +4304,365 @@ test('W39 R5-1 replay rejects inherited-only lookup and a failed or wrong-mode w
   wrongMode.w39_git.mode = 'first';
   assert.equal(validatePhaseReports(phases, w39Phases, wrongMode, filesExist), false,
     'a wrong-mode w39 report must fail replay');
+});
+
+// A9-25 §4: exact W39→W40 derivation and counterexamples. Hashes pin the complete
+// identity-normalized source and target bytes; any unregistered insertion or edit fails.
+const W40_ROOT = path.join(process.cwd(), 'release', 'win7-product-v3');
+const W40_SMOKE_PATH = path.join(W40_ROOT, 'a9-win7-40-smoke.cjs');
+const W40_DRIVER_PATH = path.join(process.cwd(), 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
+const W40_DERIVATIONS = [
+  ['a9-23-win7-39-input-lock.json', 'a9-25-win7-40-input-lock.json', 'c58475cc8958cf7a0d16fdc4b76cf110863478d48cef6c731f7508dc8b20c88c'],
+  ['a9-package-integrity-w39.cjs', 'a9-package-integrity-w40.cjs', '07fe7184cb918723f2cd6bff3b79d6b5e850b879d148dfa132357b0597e098f5'],
+  ['a9-win7-39-report.cjs', 'a9-win7-40-report.cjs', '3481c61c47ebf1aa8a88315a7deea711536c80869b1b261f18810ec058710dea'],
+  ['a9-win7-39-smoke.cjs', 'a9-win7-40-smoke.cjs', 'a796c52d4ca2d031e7170735abfad211142dd3e494612e785171b63a779d817c'],
+  ['RUN_A9_23_W39_INTEGRITY.cmd', 'RUN_A9_25_W40_INTEGRITY.cmd', '84953ad13d47101377ba4d3e7dbbfe7cf759e12bf6e23fb9997e8fb289f0daf5'],
+  ['RUN_WIN7_39_REPORT_VERIFY.cmd', 'RUN_WIN7_40_REPORT_VERIFY.cmd', '47d031dd6d93e4cb9f09c8d81de8da4c085818546b1864b4e7cf2ae25b486ade'],
+];
+function w40IdentityRebase(value) {
+  return [ ['WIN7_39', 'WIN7_40'], ['WIN7-39', 'WIN7-40'], ['win7-39', 'win7-40'],
+    ['A9_23', 'A9_25'], ['A9-23', 'A9-25'], ['a9-23', 'a9-25'], ['W39', 'W40'], ['w39', 'w40'] ]
+    .reduce((source, [oldToken, newToken]) => source.replaceAll(oldToken, newToken), value);
+}
+function w40DerivationDigest(oldSource, candidate) {
+  return digest(`${w40IdentityRebase(oldSource)}\0${candidate}`);
+}
+
+test('W40 §4.1 six derived files allow exactly registered identity, additions and lineage corrections', () => {
+  for (const [oldName, newName, expected] of W40_DERIVATIONS) {
+    const oldSource = fs.readFileSync(path.join(W40_ROOT, oldName), 'utf8');
+    const candidate = fs.readFileSync(path.join(W40_ROOT, newName), 'utf8');
+    assert.equal(w40DerivationDigest(oldSource, candidate), expected, `${newName}: unregistered difference`);
+    assert.notEqual(w40DerivationDigest(oldSource, `${candidate}\n// unregistered`), expected,
+      `${newName}: injected unregistered append must fail`);
+  }
+  const w39 = JSON.parse(fs.readFileSync(path.join(W40_ROOT, 'a9-23-win7-39-input-lock.json'), 'utf8'));
+  const w40 = JSON.parse(fs.readFileSync(path.join(W40_ROOT, 'a9-25-win7-40-input-lock.json'), 'utf8'));
+  for (const name of ['electron_zip', 'runner_return_zip', 'storage_return_zip']) {
+    assert.deepEqual(w40.inputs[name], JSON.parse(w40IdentityRebase(JSON.stringify(w39.inputs[name]))),
+      `${name} changed outside authorized identity derivation`);
+  }
+  assert.match(w40.provenance.rule, /Product source changed since WIN7-39 commit 7ec9db7/);
+  for (const name of ['src/shell/product/a9-agent-runtime.js', 'src/shell/product/renderer/a9-workbench.css',
+    'src/shell/product/renderer/a9-workbench.js', 'src/shell/product/renderer/workbench.html',
+    'src/workspace/src/checkpoint-manager.ts']) assert.ok(w40.provenance.rule.includes(name));
+  assert.match(w40.provenance.rule, /Review mode remains fail-closed/);
+  assert.match(w40.provenance.rule, /Shell running output remains closed/);
+  const w39Smoke = fs.readFileSync(path.join(W40_ROOT, 'a9-win7-39-smoke.cjs'), 'utf8');
+  const w40Smoke = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  for (const [oldLine, correctedLine] of [
+    ['// ADR-0136 / W39-16、W39-17：延迟流式 fixture。第一步先用约 3 秒逐块输出说明，再发起约 4 秒的 ping；',
+      '// ADR-0136 / A9-19 延迟流式用例（WIN7-37 编号 16/17）：第一步先用约 3 秒逐块输出说明，再发起约 4 秒的 ping；'],
+    ['// ADR-0136：第五阶段——延迟流式下的运行过程实时可见（W39-16/17），并核对头部文案与左栏保持（W39-20/21）。',
+      '// ADR-0136：第五阶段——A9-19 / WIN7-37 编号 16/17 的延迟流式运行过程实时可见，并核对编号 20/21 的头部文案与左栏保持。'],
+  ]) {
+    assert.ok(w39Smoke.includes(oldLine), `W39 source comment changed: ${oldLine}`);
+    assert.equal(w40Smoke.split(correctedLine).length - 1, 1, `W40 lineage correction missing or duplicated: ${correctedLine}`);
+    assert.ok(!w40Smoke.includes(w40IdentityRebase(oldLine)), 'misleading identity-rebased comment remains');
+    assert.notEqual(w40DerivationDigest(w39Smoke, w40Smoke.replace(correctedLine, w40IdentityRebase(oldLine))),
+      W40_DERIVATIONS[3][2], 'reverting a registered lineage correction must fail exact comparison');
+  }
+});
+
+function w40StaleProblems(source) {
+  return [...source.matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT/g)]
+    .map((item) => item[0]);
+}
+test('W40 §4.2 stale-token guard rejects injected W39/W38/W37 active literals', () => {
+  const buildSource = fs.readFileSync(path.join(process.cwd(), 'scripts/release/build-a9-product-v3.mjs'), 'utf8');
+  assert.match(buildSource, /profile\.candidate === 'WIN7-40'[\s\S]*?inherited WIN7-37\/38\/39 active token/);
+  for (const [oldName, newName] of W40_DERIVATIONS.slice(0, 4)) {
+    void oldName;
+    assert.deepEqual(w40StaleProblems(fs.readFileSync(path.join(W40_ROOT, newName), 'utf8')), [], newName);
+  }
+  for (const token of ['A9-W39-FAKE', 'A9_W38_OLD', 'A9_W37_OLD', 'WIN7_39_RELEASE_AUTHORITY',
+    'APPROVED_FOR_WIN7_38_VALIDATION', "'W37-22-OLD'", 'A9_23_VALIDATION_KIT']) {
+    assert.ok(w40StaleProblems(`${fs.readFileSync(W40_SMOKE_PATH, 'utf8')}\n${token}`).includes(token), token);
+  }
+  const guardSource = buildSource.slice(buildSource.indexOf('function assertNoStaleCandidateTokens('),
+    buildSource.indexOf('function writeCandidateDriver('));
+  const actualGuard = vm.runInNewContext(`${guardSource}\nassertNoStaleCandidateTokens`, {
+    fs, path, A915_CANDIDATES: new Set(['WIN7-40']), STALE_TOKEN_EXEMPT_CANDIDATES: new Set(),
+  });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w40-stale-'));
+  try {
+    const lockDir = path.join(root, 'release/win7-product-v3');
+    const stage = path.join(root, 'stage');
+    const validation = path.join(stage, 'validation');
+    fs.mkdirSync(lockDir, { recursive: true });
+    fs.mkdirSync(validation, { recursive: true });
+    fs.copyFileSync(path.join(W40_ROOT, 'a9-25-win7-40-input-lock.json'),
+      path.join(lockDir, 'a9-25-win7-40-input-lock.json'));
+    fs.copyFileSync(path.join(W40_ROOT, 'a9-25-win7-40-input-lock.json'),
+      path.join(stage, 'a9-25-win7-40-input-lock.json'));
+    for (const file of ['RUN_A9_25_W40_INTEGRITY.cmd', 'RUN_WIN7_40_REPORT_VERIFY.cmd']) {
+      fs.copyFileSync(path.join(W40_ROOT, file), path.join(stage, file));
+    }
+    fs.writeFileSync(path.join(stage, 'A9_25_VALIDATION_KIT.json'), JSON.stringify({ kit_id: 'A9-25-WIN7-40-20260926-01' }));
+    const smokePath = path.join(validation, 'a9-win7-40-smoke.cjs');
+    const smoke = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+    fs.writeFileSync(smokePath, smoke);
+    const profile = { candidate: 'WIN7-40', lockFile: 'a9-25-win7-40-input-lock.json',
+      kitFile: 'A9_25_VALIDATION_KIT.json', integrityScript: 'a9-package-integrity-w40.cjs',
+      reportScript: 'a9-win7-40-report.cjs', extraValidationScripts: ['a9-win7-40-smoke.cjs'],
+      integrityCommand: 'RUN_A9_25_W40_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_40_REPORT_VERIFY.cmd' };
+    assert.doesNotThrow(() => actualGuard(root, stage, profile));
+    for (const token of ['A9-W39-FAKE', 'A9_W38_OLD', 'A9_W37_OLD']) {
+      fs.writeFileSync(smokePath, `${smoke}\n${token}`);
+      assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN/, token);
+    }
+    fs.writeFileSync(smokePath, smoke);
+    const commandPath = path.join(stage, profile.integrityCommand);
+    fs.appendFileSync(commandPath, '\nA9-W39-FAKE');
+    assert.throws(() => actualGuard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN/,
+      'command entrypoints must also be guarded');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+function w40SourceAssertionProblems(smoke, driver) {
+  const problems = [];
+  if (/\brecord\(\s*['"]A9-W40-[^'"]+['"]\s*,\s*true\b/.test(`${smoke}\n${driver}`)) problems.push('literal true');
+  const review = driver.slice(driver.indexOf('async function runW40ReviewProcess('),
+    driver.indexOf('async function runW40ReviewRestartProcess('));
+  for (const token of ['.change-summary[data-turn-id=', 'window.win7Agent.a9.getDiff(', 'a925Hash(', 'undoFile(',
+    'undoTurn(', 'document.documentElement.scrollWidth']) {
+    if (!review.includes(token)) problems.push(`missing product observation: ${token}`);
+  }
+  if (!driver.includes('response.driftReasons')) problems.push('missing product driftReasons');
+  const mode = driver.slice(driver.indexOf('async function runW40ReviewModeProcess('), driver.indexOf('\nfunction writeDriverReport('));
+  for (const token of ['snapshot()', "snapshotAfter.mode === 'review'", 'a925Hash(', 'finalMessage']) {
+    if (!mode.includes(token)) problems.push(`missing mode product observation: ${token}`);
+  }
+  const stop = driver.slice(driver.indexOf('async function runW40StopProcess('), driver.indexOf('async function runW40ReviewProcess('));
+  if (!stop.includes('process.kill(pid, 0)') || !stop.includes('a925PidExitMatches(observation)')) problems.push('missing PID observation');
+  return problems;
+}
+test('W40 §4.3 assertions read product output and reject literal-true or fixture-only mutations', () => {
+  const smoke = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  const driver = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  assert.deepEqual(w40SourceAssertionProblems(smoke, driver), []);
+  assert.ok(w40SourceAssertionProblems(smoke, `${driver}\nrecord('A9-W40-FAKE', true);`).includes('literal true'));
+  const reviewStart = driver.indexOf('async function runW40ReviewProcess(');
+  const injected = `${driver.slice(0, reviewStart)}${driver.slice(reviewStart).replace('window.win7Agent.a9.getDiff(', 'fixturePrepared(')}`;
+  assert.ok(w40SourceAssertionProblems(smoke, injected).some((item) => item.includes('getDiff(')));
+});
+
+test('W40 §4.4 phase summary covers all 17 stages and rejects missing/failed new reports', () => {
+  const { validatePhaseReports } = require(W40_SMOKE_PATH);
+  const modes = ['first', 'second', 'retry', 'stop', 'live', 'w40_startup', 'w40_git',
+    'w40_m1_small', 'w40_m1_large', 'w40_m1b', 'w40_m2', 'w40_m3', 'w40_m4',
+    'w40_stop', 'w40_review', 'w40_review_restart', 'w40_review_mode'];
+  const phases = modes.slice(0, 5).map((phase) => ({ phase, code: 0, timed_out: false }));
+  const later = modes.slice(5).map((phase) => ({ phase, code: 0, timed_out: false }));
+  const reports = Object.fromEntries(modes.map((mode) => [mode, { mode, status: 'PASS', cases: [{ id: 'observed', passed: true }] }]));
+  const files = Object.fromEntries(modes.map((mode) => [mode, true]));
+  assert.equal(validatePhaseReports(phases, later, reports, files), true);
+  for (const mode of modes.slice(13)) {
+    assert.equal(validatePhaseReports(phases, later, reports, { ...files, [mode]: false }), false, `${mode} missing file`);
+    assert.equal(validatePhaseReports(phases, later, { ...reports, [mode]: { ...reports[mode], status: 'FAIL' } }, files), false,
+      `${mode} failed report`);
+  }
+});
+
+test('W40 §4.5 pure observation helpers reject count, drift, layout and PID counterexamples', () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const match = source.match(/\/\/ A925_PURE_BEGIN([\s\S]*?)\/\/ A925_PURE_END/);
+  assert.ok(match);
+  const helpers = vm.runInNewContext(`(function(){${match[1]}\nreturn {a925SummaryMatches,a925DriftMatches,a925LayoutMatches,a925PidExitMatches};})()`,
+    { fs, crypto });
+  const review = { files: [{ path: 'a', additions: 2, deletions: 1 }], unrecoverable: [] };
+  assert.equal(helpers.a925SummaryMatches({ fileCount: 1, additions: 2, deletions: 1 }, review), true);
+  assert.equal(helpers.a925SummaryMatches({ fileCount: 1, additions: 3, deletions: 1 }, review), false);
+  const response = { ok: true, driftReasons: [{ path: 'a', kind: 'later_turn', laterTurnId: 't3' }],
+    outcome: { drifted: ['a (later)'] } };
+  assert.equal(helpers.a925DriftMatches(response, 'a', 'later_turn', 't3'), true);
+  assert.equal(helpers.a925DriftMatches(response, 'a', 'later_turn', 't2'), false);
+  const control = (name) => ({ name, visible: true, focusable: true, left: 1, top: 1, right: 30, bottom: 30 });
+  const geometry = { tabSelected: true, summaryVisible: true, scrollWidth: 100, clientWidth: 100,
+    innerWidth: 100, innerHeight: 100, controls: ['file', 'turn', 'recall'].map(control) };
+  assert.equal(helpers.a925LayoutMatches(geometry), true);
+  assert.equal(helpers.a925LayoutMatches({ ...geometry, controls: [control('file'), control('turn'),
+    { ...control('recall'), right: 101 }] }), false);
+  assert.equal(helpers.a925PidExitMatches({ pid: 42, elapsedMs: 5000, childGone: true, outcome: 'cancelled' }), true);
+  assert.equal(helpers.a925PidExitMatches({ pid: 42, elapsedMs: 5001, childGone: true, outcome: 'cancelled' }), false);
+});
+
+// §4.6 additionally exercises the actual renderer in src/shell Jest; the package
+// gate pins its relevant selectors and strings against the current product source.
+test('W40 §4.6 selector and message contract is present in actual A9-24 workbench', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/a9-workbench.js'), 'utf8');
+  const driver = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  for (const token of ['change-summary', 'review-file-toggle', '撤销此文件', '撤销本轮全部', '撤回',
+    'a9-undo-state', '被外部修改', '又被修改']) {
+    assert.ok(source.includes(token), `product renderer missing ${token}`);
+    assert.ok(driver.includes(token) || (token === '被外部修改' && driver.includes('外部修改')),
+      `W40 driver missing ${token}`);
+  }
+  const html = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/workbench.html'), 'utf8');
+  assert.match(html, /id="inspector-tab-changes"/);
+  assert.match(html, /id="a9-undo-state"/);
+});
+
+test('WIN7-40 candidate build includes 22-case kit, rebased driver and all six derived files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win40-candidate-'));
+  try {
+    const sourceRepositoryRoot = cleanSourceFixture(root);
+    const inputs = fixture(root, sourceRepositoryRoot, 'win40');
+    const built = buildA9ProductCandidate({ repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') });
+    const stage = built.stage;
+    const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_25_VALIDATION_KIT.json'), 'utf8'));
+    assert.equal(kit.required_cases.length, 22);
+    assert.ok(kit.required_cases.every((item) => Array.isArray(item.runtime_assertions)
+      && item.runtime_assertions.length > 0), 'every W40 case must name its executable assertion IDs');
+    assert.deepEqual(kit.required_cases.find((item) => item.case_id.startsWith('W40-17-')).runtime_assertions,
+      ['A9-W40-REVIEW-UNDO-RECALL', 'A9-W40-REVIEW-UNDO-FILE', 'A9-W40-REVIEW-UNDO-PERSISTED']);
+    assert.equal(kit.candidate_label, 'WIN7-40');
+    assert.equal(kit.scope.decision, 'ADR-0144');
+    assert.equal(win40Report.KIT_ID, kit.kit_id);
+    assert.equal(win40Report.REQUIRED_CASE_COUNT, 22);
+    for (const relative of win40Integrity.REQUIRED_FILES) {
+      assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-40 closure: ${relative}`);
+    }
+    const driver = fs.readFileSync(path.join(stage, 'validation/a9-win7-40-driver.cjs'), 'utf8');
+    assert.deepEqual(w40StaleProblems(driver), [], 'packaged driver must have no W37/38/39 active token');
+    assert.ok(driver.includes("runW40ReviewProcess") && driver.includes("runW40StopProcess"));
+    assert.ok(driver.includes("item.textContent === '查看改动'"));
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+class W40FakeNode {
+  constructor(tagName = 'div') {
+    this.tagName = tagName; this.children = []; this.parentNode = null; this.dataset = {}; this.attributes = {};
+    this.handlers = {}; this.className = ''; this.hidden = false; this.disabled = false; this.title = '';
+    this.type = ''; this.value = ''; this.id = ''; this.ownText = '';
+    this.classList = {
+      contains: (name) => this.className.split(/\s+/).includes(name),
+      add: (name) => { if (!this.classList.contains(name)) this.className += ` ${name}`; },
+      remove: (name) => { this.className = this.className.split(/\s+/).filter((part) => part !== name).join(' '); },
+      toggle: (name, enabled) => { if (enabled) this.classList.add(name); else this.classList.remove(name); },
+    };
+  }
+  get textContent() { return this.ownText + this.children.map((child) => child.textContent).join(''); }
+  set textContent(value) { this.ownText = String(value ?? ''); this.children.forEach((child) => { child.parentNode = null; }); this.children = []; }
+  appendChild(child) { child.remove(); child.parentNode = this; this.children.push(child); return child; }
+  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((item) => item !== this); this.parentNode = null; }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return this.attributes[name] ?? null; }
+  addEventListener(name, handler) { this.handlers[name] = handler; }
+  focus() {}
+}
+
+function w40FindClass(node, name) {
+  if (node.className.split(/\s+/).includes(name)) return node;
+  for (const child of node.children) {
+    const found = w40FindClass(child, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+test('W40 §4.6 VM loads actual workbench and renders driver selectors, undo and drift messages', () => {
+  const nodes = new Map();
+  const node = (id) => { if (!nodes.has(id)) nodes.set(id, new W40FakeNode()); return nodes.get(id); };
+  const root = { innerWidth: 1400,
+    win7Agent: { a9: { getDiff: async () => ({ ok: true, diff: [], review: {} }), undoFile: async () => ({}), undoTurn: async () => ({}) } },
+    setTimeout, clearTimeout, setInterval, clearInterval };
+  const document = { getElementById: node, createElement: (tag) => new W40FakeNode(tag),
+    querySelector: () => new W40FakeNode(), addEventListener: () => {} };
+  const product = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/a9-workbench.js'), 'utf8');
+  const instrumented = product.replace('  root.win7AgentA9Workbench = Object.freeze({',
+    '  root.__w40Review = { state, syncCheckpointScope, renderCheckpoints, updateSummaryForTurn, queueUndo, cancelPendingUndo, undoResultText };\n  root.win7AgentA9Workbench = Object.freeze({');
+  assert.notEqual(instrumented, product);
+  vm.runInNewContext(instrumented, { window: root, document, Date, Map, Set, Promise });
+  const hooks = root.__w40Review;
+  const turnId = 'turn-001';
+  const snapshot = { workspaceRoot: 'C:\\中文 空格', activeConversationId: 'conversation-1', mode: 'full_access',
+    status: 'ready', provider: { configured: true, probe: { classification: 'tool_calling' } }, agentStatus: 'idle',
+    checkpoints: [{ turnId, createdAt: '2026-09-27T01:00:00Z' }], checkpointsTotal: 1,
+    conversation: [{ taskId: 'task-1', turnId, outcome: 'completed' }], interruptions: [] };
+  const review = { turnId, files: [{ path: 'calc.ts', action: 'modify', originalKind: 'file', newKind: 'file',
+    additions: 1, deletions: 1, undone: false, diffText: '@@ -1 +1 @@\n-old\n+new', diffTruncated: false }],
+    unrecoverable: [], externalBaselineStatus: 'none' };
+  hooks.syncCheckpointScope(snapshot);
+  hooks.state.activeConversationId = snapshot.activeConversationId;
+  hooks.state.snapshot = snapshot;
+  hooks.state.reviewOpenTurn = turnId;
+  hooks.state.reviewOpenFile = 'calc.ts';
+  hooks.state.reviewCache.set(turnId, review);
+  hooks.renderCheckpoints(snapshot);
+  const list = node('a9-checkpoint-list');
+  assert.ok(w40FindClass(list, 'review-file-toggle'));
+  assert.ok(w40FindClass(list, 'review-file-detail'));
+  assert.ok(w40FindClass(list, 'review-file-diff'));
+  assert.ok(list.textContent.includes('撤销此文件'));
+  assert.ok(list.textContent.includes('撤销本轮全部'));
+  const block = { root: new W40FakeNode('article'), summaryEl: null };
+  hooks.state.streamDom.set('task-1', block);
+  hooks.updateSummaryForTurn(turnId);
+  assert.ok(w40FindClass(block.root, 'change-summary'));
+  assert.equal(block.summaryEl.dataset.turnId, turnId);
+  hooks.queueUndo('file', turnId, 'calc.ts');
+  assert.ok(w40FindClass(list, 'review-pending'));
+  assert.ok(node('a9-undo-state').textContent.includes('将在 5 秒后'));
+  assert.ok(node('a9-checkpoint-list').textContent.includes('撤回'));
+  hooks.cancelPendingUndo();
+  assert.ok(node('a9-undo-state').textContent.includes('已撤回撤销'));
+  const later = hooks.undoResultText(turnId, { ok: true,
+    outcome: { restored: [], errors: [], drifted: ['calc.ts (drift)'] },
+    driftReasons: [{ path: 'calc.ts', kind: 'later_turn', laterTurnId: 'turn-3' }] });
+  assert.ok(later.includes('又被修改'));
+  const external = hooks.undoResultText(turnId, { ok: true,
+    outcome: { restored: [], errors: [], drifted: ['calc.ts (drift)'] },
+    driftReasons: [{ path: 'calc.ts', kind: 'external' }] });
+  assert.ok(external.includes('被外部修改'));
+});
+
+test('W40 inherited workspace_select retains the selected observation used by A9F0', async () => {
+  const driver = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const begin = driver.indexOf('async function runWorkspaceSelectionProcess(');
+  const end = driver.indexOf('\nasync function runFirstProcess(', begin);
+  assert.ok(begin >= 0 && end > begin);
+  const source = driver.slice(begin, end);
+  const run = async (functionSource) => {
+    const cases = [];
+    const context = {
+      process: { env: {} },
+      record: (id, passed) => cases.push({ id, passed }),
+      waitFor: async (read) => read(),
+      captureVisual: async () => {},
+    };
+    const journey = vm.runInNewContext(`${functionSource}\nrunWorkspaceSelectionProcess`, context);
+    const exec = async (expression) => {
+      if (expression.includes('snapshot.error')) return { code: 'A9_WORKSPACE_REQUIRED', dialogHidden: true };
+      if (expression.includes('const dialogNode')) return { dialogVisible: true, fullAccessVisible: true,
+        fullAccessChecked: true, workspace: 'C:\\中文 空格', errorHidden: true };
+      if (expression.includes('r.snapshot.mode === "full_access"')) return 'full_access';
+      if (expression.includes('sendDisabled: send.disabled')) return { sendDisabled: true, taskState: '空闲',
+        sessionStatus: 'Provider 尚未配置', errorHidden: true, error: '' };
+      return true;
+    };
+    await journey({}, exec, { workspaceRoot: 'C:\\中文 空格' });
+    return cases;
+  };
+  const cases = await run(source);
+  assert.equal(cases.find((item) => item.id === 'A9F0-FULL-ACCESS-REACHABLE-AFTER-WORKSPACE')?.passed, true);
+  assert.ok(source.includes('const selected = await waitFor('));
+  await assert.rejects(run(source.replace('const selected = await waitFor(', 'await waitFor(')), /selected is not defined/);
+});
+
+test('W40-20 index distinguishes observed, unperformed and failed product outcomes', () => {
+  const source = fs.readFileSync(W40_SMOKE_PATH, 'utf8');
+  const match = source.match(/  const commandCase = w40CaseIndex\.cases\.find\([\s\S]*?(?=  addA925Case\('W40-21-)/);
+  assert.ok(match, 'W40-20 result logic must be explicit');
+  const evaluate = (assertionResult, unrecoverableStatus) => {
+    const commandCase = { case_id: 'W40-20-COMMAND-CHANGES' };
+    const context = { w40CaseIndex: { cases: [commandCase] }, caseResult: () => assertionResult,
+      a925ReviewReport: { w40Command: { unrecoverableStatus } } };
+    vm.runInNewContext(match[0], context);
+    return commandCase;
+  };
+  assert.equal(evaluate('PASS', 'OBSERVED').result, 'PASS');
+  assert.equal(evaluate('PASS', 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7').result, 'NOT_PERFORMED');
+  assert.match(evaluate('PASS', 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7').reason, /did not expose big\.bin/);
+  assert.equal(evaluate('FAIL', 'NOT_PERFORMED_NOT_TRIGGERED_ON_WIN7').result, 'FAIL');
 });

@@ -487,3 +487,7 @@ native、SBOM、许可证、验证脚本和 kit 全部存在并交叉绑定；�
 incremental report 的 SHA-256/JSON pointer；任意新文件不能自报为历史证据。5 个 `W21-*` 用例必须直接
 执行，每个 execution 的 `candidate` 必须等于当前 ZIP/manifest 计算出的候选身份，并绑定 Win7 build 7601
 x64 普通用户、非提升、D-013 v25 Profile 的系统/令牌探测、候选启动和 postflight 证据。
+
+## A9-25 / WIN7-40 改动审阅验证套件（ADR-0144）
+
+WIN7-40 从冻结的 WIN7-39 套件派生，测试 A9-24 改动审阅，并保留 A9-20/A9-21 回归。套件包含 W40-01～22、完整性与报告入口、新增 `w40_stop` / `w40_review` / `w40_review_restart` / `w40_review_mode` 阶段。来源更正、派生差异、断言与证据映射见 `A9_25_WIN7_40_VALIDATION.md`。开发机检查不替代 Win7 普通用户预演或外部 authority；尚未签发 WIN7-40 验收结论。
