@@ -100,7 +100,7 @@ smoke 证据目录全部文件，至少包括 `automatic-smoke.json`、17 个阶
 1. **构建源**：套件工作树 `git merge --ff-only f77de6d`，构建前确认工作树干净且 HEAD 为 `f77de6d`。
 2. **目录**：新的日期目录与新的计划任务名；`20260928-1848`、`20260928-2128` 及其 Win7 运行根只读保留。
 3. **取回与展开（两轮预演的已知问题，直接照做）**：
-   - 证据归档条目名使用反斜杠（Win7 上 .NET Framework 的 `ZipFile.CreateFromDirectory`），本机展开时须把条目名中的 `\\` 归一化为 `/` 后再写出，然后逐文件核对；
+   - 证据归档条目名使用反斜杠（Win7 上 .NET Framework 的 `ZipFile.CreateFromDirectory`），本机展开时须把条目名中的 `\` 归一化为 `/` 后再写出，然后逐文件核对；
    - 约 100 MB 的证据归档用 scp 取回曾两次中断，可直接用带 `ServerAliveInterval` 的 sftp `reget` 续传；期望哈希一律从 certutil 原始输出程序化解析，不手工转写；
    - 监控脚本不得与已存在的文件同名；修正自产文件一律另存新文件名。
 4. **报告字段**：`previous_rehearsal: "20260928-2128"`；`suspected_kit_issues[]` 逐条说明 R8 问题（`w41_review` 的“确认撤销”等待超时）本次是否仍出现。
