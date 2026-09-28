@@ -4737,6 +4737,9 @@ async function w41DiffRace(delayMs, driverSource) {
     newKind: 'file', additions: 1, deletions: 0, undone: false, diffText: '+note', diffTruncated: false }],
   unrecoverable: [], externalBaselineStatus: 'none' };
   let diffObserver = null;
+  let diffResolved = false;
+  let resolveDiff;
+  const diffDone = new Promise((resolve) => { resolveDiff = resolve; });
   const diffNode = node('a9-diff');
   let diffText = '--- notes.md (create)\n+previous';
   Object.defineProperty(diffNode, 'textContent', {
@@ -4744,8 +4747,11 @@ async function w41DiffRace(delayMs, driverSource) {
     set: (value) => { diffText = String(value); diffObserver?.(); },
   });
   const root = { innerWidth: 1400, setTimeout, clearTimeout, setInterval, clearInterval,
-    win7Agent: { a9: { getDiff: () => new Promise((resolve) => setTimeout(() => resolve({ ok: true,
-      diff: [{ path: 'notes.md', action: 'create', diffText: '+note' }], review }), delayMs)) } } };
+    win7Agent: { a9: { getDiff: () => new Promise((resolve) => setTimeout(() => {
+      diffResolved = true;
+      resolve({ ok: true, diff: [{ path: 'notes.md', action: 'create', diffText: '+note' }], review });
+      resolveDiff();
+    }, delayMs)) } } };
   const document = { getElementById: node, createElement: (tag) => new W40FakeNode(tag),
     querySelectorAll: (selector) => selector.startsWith('#a9-checkpoint-list ')
       ? node('a9-checkpoint-list').querySelectorAll(selector.slice('#a9-checkpoint-list '.length)) : [],
@@ -4766,7 +4772,7 @@ async function w41DiffRace(delayMs, driverSource) {
     sleep: async () => {} });
   const product = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/a9-workbench.js'), 'utf8');
   const instrumented = product.replace('  root.win7AgentA9Workbench = Object.freeze({',
-    '  root.__r6 = { state, syncCheckpointScope, renderCheckpoints };\n  root.win7AgentA9Workbench = Object.freeze({');
+    '  root.__r6 = { state, syncCheckpointScope, renderCheckpoints, cancelPendingUndo };\n  root.win7AgentA9Workbench = Object.freeze({');
   assert.notEqual(instrumented, product);
   vm.runInContext(instrumented, context);
   const hooks = root.__r6;
@@ -4788,7 +4794,8 @@ async function w41DiffRace(delayMs, driverSource) {
   assert.ok(start >= 0 && end > start && clickEnd > end);
   const functions = vm.runInContext(`${driverSource.slice(start, clickEnd)}\n({ a925OpenFileDiff, a925ClickUndo })`, context);
   const exec = (expression) => vm.runInContext(expression, context);
-  return { functions, exec, node, turnId };
+  return { functions, exec, node, turnId, diffResolved: () => diffResolved,
+    waitForDiff: () => diffDone, cancelPendingUndo: () => hooks.cancelPendingUndo() };
 }
 
 test('W41 R6 real workbench delayed redraw defeats old driver and new driver handles immediate and delayed Diff', async () => {
@@ -4806,6 +4813,79 @@ test('W41 R6 real workbench delayed redraw defeats old driver and new driver han
     assert.equal(observed.buttonFound, true);
     assert.ok(current.node('a9-checkpoint-list').textContent.includes('撤销此文件'));
   }
+});
+
+function w41CachedExpandedFile(race) {
+  return JSON.parse(JSON.stringify(race.exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(race.turnId)});
+    const toggle = Array.from(row?.querySelectorAll('.review-file-toggle') || [])
+      .find((item) => item.textContent.includes('notes.md'));
+    const detail = toggle?.closest('.review-file')?.querySelector('.review-file-detail');
+    const button = Array.from(detail?.querySelectorAll('button') || [])
+      .find((item) => item.textContent === '撤销此文件');
+    return { expanded: toggle?.getAttribute('aria-expanded'), detailVisible: Boolean(detail && !detail.hidden),
+      buttonFound: Boolean(button), buttonDisabled: button?.disabled ?? null };
+  })()`)));
+}
+
+async function w41FinishDelayedDiff(race) {
+  await race.waitForDiff();
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
+test('W41 R6-5 cached expanded notes.md: 078eda2 driver loses undo button', async () => {
+  const oldSource = execFileSync('git', ['show', '078eda2:src/shell/tests/product/a9-06-driver-entry.cjs'], {
+    cwd: process.cwd(), encoding: 'utf8' });
+  const old = await w41DiffRace(900, oldSource);
+  assert.deepEqual(w41CachedExpandedFile(old), { expanded: 'true', detailVisible: true,
+    buttonFound: true, buttonDisabled: false });
+  await old.functions.a925OpenFileDiff(old.exec, old.turnId, 'notes.md');
+  assert.equal(old.diffResolved(), false, 'old driver returned before delayed getDiff');
+  await w41FinishDelayedDiff(old);
+  assert.equal(w41CachedExpandedFile(old).buttonFound, false, 'late redraw folded the file');
+  await assert.rejects(old.functions.a925ClickUndo(old.exec, old.turnId, 'notes.md'),
+    /A9_W40_UNDO_BUTTON_UNAVAILABLE/);
+});
+
+test('W41 R6-5 cached expanded notes.md: current driver waits and undo is clickable', async () => {
+  const current = await w41DiffRace(900, fs.readFileSync(W40_DRIVER_PATH, 'utf8'));
+  assert.deepEqual(w41CachedExpandedFile(current), { expanded: 'true', detailVisible: true,
+    buttonFound: true, buttonDisabled: false });
+  const observed = await current.functions.a925OpenFileDiff(current.exec, current.turnId, 'notes.md');
+  assert.equal(current.diffResolved(), true, 'driver waited for delayed getDiff');
+  assert.equal(observed.expanded, 'true');
+  assert.equal(observed.buttonFound, true);
+  assert.deepEqual(w41CachedExpandedFile(current), { expanded: 'true', detailVisible: true,
+    buttonFound: true, buttonDisabled: false });
+  try {
+    const clicked = current.exec(`(() => {
+      const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+        .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(current.turnId)});
+      const button = Array.from(row?.querySelectorAll('.review-file-detail button') || [])
+        .find((item) => item.textContent === '撤销此文件');
+      if (!button || button.disabled) return false;
+      button.click();
+      return true;
+    })()`);
+    assert.equal(clicked, true);
+    assert.match(current.node('a9-undo-state').textContent, /将在 5 秒后撤销 notes\.md/);
+  } finally { current.cancelPendingUndo(); }
+});
+
+test('W41 R6-5 cached expanded notes.md: removing update and redraw guards loses undo button', async () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const guard = '!state.updated || !state.redrawn || ';
+  assert.equal(source.split(guard).length - 1, 1);
+  const mutant = await w41DiffRace(900, source.replace(guard, ''));
+  assert.deepEqual(w41CachedExpandedFile(mutant), { expanded: 'true', detailVisible: true,
+    buttonFound: true, buttonDisabled: false });
+  await mutant.functions.a925OpenFileDiff(mutant.exec, mutant.turnId, 'notes.md');
+  assert.equal(mutant.diffResolved(), false, 'mutant returned within 300 ms stable window');
+  await w41FinishDelayedDiff(mutant);
+  assert.equal(w41CachedExpandedFile(mutant).buttonFound, false, 'late redraw folded the file');
+  await assert.rejects(mutant.functions.a925ClickUndo(mutant.exec, mutant.turnId, 'notes.md'),
+    /A9_W40_UNDO_BUTTON_UNAVAILABLE/);
 });
 
 test('W40 inherited workspace_select retains the selected observation used by A9F0', async () => {
