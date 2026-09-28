@@ -4949,6 +4949,135 @@ test('W41 R7-3 rehearsal last_observation fixtures: new criterion completes wher
   }
 });
 
+async function w41UndoRace(driverSource, options = {}) {
+  const nodes = new Map();
+  const node = (id) => { if (!nodes.has(id)) nodes.set(id, new W40FakeNode()); return nodes.get(id); };
+  const turnId = 'turn-r8-1';
+  const review = { turnId, files: [{ path: 'notes.md', action: 'create', originalKind: null,
+    newKind: 'file', additions: 1, deletions: 0, undone: false, diffText: '+note', diffTruncated: false }],
+  unrecoverable: [], externalBaselineStatus: 'none' };
+  const undoCalls = [];
+  const root = { innerWidth: 1400,
+    setTimeout: (fn, delay) => setTimeout(fn, Math.min(delay, 25)),
+    clearTimeout, setInterval: (fn, delay) => setInterval(fn, Math.min(delay, 25)), clearInterval,
+    win7Agent: { a9: {
+      getDiff: async () => ({ ok: true, diff: [{ path: 'notes.md', action: 'create', diffText: '+note' }],
+        review, text: '--- notes.md (create)\n+note' }),
+      undoFile: async (turn, path, confirmationId) => {
+        undoCalls.push({ turn, path, confirmationId: confirmationId || null });
+        if (options.needsConfirmation && !confirmationId) {
+          return { needsConfirmation: true, confirmationId: 'w41-confirmation-1' };
+        }
+        return { ok: true, outcome: { restored: ['notes.md'], errors: [], drifted: [] } };
+      },
+      undoTurn: async () => ({ ok: true, outcome: { restored: [], errors: [], drifted: [] } }),
+    } } };
+  const document = { getElementById: node, createElement: (tag) => new W40FakeNode(tag),
+    querySelectorAll: (selector) => selector.startsWith('#a9-checkpoint-list ')
+      ? node('a9-checkpoint-list').querySelectorAll(selector.slice('#a9-checkpoint-list '.length)) : [],
+    querySelector: () => new W40FakeNode(), addEventListener: () => {} };
+  const context = vm.createContext({ window: root, document, Date, Map, Set, Promise,
+    a925WaitFor: async (observe, timeoutMs, label, matches = Boolean) => {
+      const start = Date.now(); let last;
+      while (Date.now() - start < Math.min(timeoutMs, 3000)) {
+        last = await observe();
+        if (matches(last)) return last;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error(`${label}; last_observation=${JSON.stringify(last)}`);
+    },
+    sleep: async () => {} });
+  const product = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/a9-workbench.js'), 'utf8');
+  const instrumented = product.replace('  root.win7AgentA9Workbench = Object.freeze({',
+    '  root.__r8 = { state, syncCheckpointScope, renderCheckpoints, cancelPendingUndo };\n  root.win7AgentA9Workbench = Object.freeze({');
+  assert.notEqual(instrumented, product);
+  vm.runInContext(instrumented, context);
+  const hooks = root.__r8;
+  const snapshot = { workspaceRoot: 'C:\\中文 空格', activeConversationId: 'conversation-r8', mode: 'full_access',
+    status: 'ready', provider: { configured: true, probe: { classification: 'tool_calling' } },
+    agentStatus: 'idle', checkpoints: [{ turnId, createdAt: '2026-09-28T02:00:00Z' }], checkpointsTotal: 1,
+    conversation: [], interruptions: [] };
+  hooks.syncCheckpointScope(snapshot);
+  hooks.state.activeConversationId = snapshot.activeConversationId;
+  hooks.state.snapshot = snapshot;
+  hooks.state.reviewOpenTurn = turnId;
+  hooks.state.reviewOpenFile = 'notes.md';
+  hooks.state.reviewCache.set(turnId, review);
+  hooks.renderCheckpoints(snapshot);
+  node('inspector-tab-changes').setAttribute('aria-selected', 'true');
+  const start = driverSource.indexOf('async function a925OpenFileDiff(');
+  const settledStart = driverSource.lastIndexOf('function a925ShowDiffSettled(', start);
+  const realStart = settledStart >= 0 ? settledStart : start;
+  const end = driverSource.indexOf('async function a925ClickUndo(', start);
+  const clickEnd = driverSource.indexOf('\n\nasync function a925InspectorState(', end);
+  assert.ok(start >= 0 && end > start && clickEnd > end);
+  const functions = vm.runInContext(`${driverSource.slice(realStart, clickEnd)}\n({ a925OpenFileDiff, a925ClickUndo })`, context);
+  const exec = (expression) => vm.runInContext(expression, context);
+  return { functions, exec, node, turnId, undoCalls: () => undoCalls };
+}
+
+test('W41 R8-3 write-tool undo without confirmation card: e846366 driver times out, current driver completes', async () => {
+  const oldSource = execFileSync('git', ['show', 'e846366:src/shell/tests/product/a9-06-driver-entry.cjs'], {
+    cwd: process.cwd(), encoding: 'utf8' });
+  const old = await w41UndoRace(oldSource);
+  await assert.rejects(old.functions.a925ClickUndo(old.exec, old.turnId, 'notes.md'),
+    /w40 undo confirmation/);
+  assert.deepEqual(old.undoCalls(), [{ turn: old.turnId, path: 'notes.md', confirmationId: null }],
+    'product finished the undo on its own without any confirmation button');
+  const current = await w41UndoRace(fs.readFileSync(W40_DRIVER_PATH, 'utf8'));
+  const message = await current.functions.a925ClickUndo(current.exec, current.turnId, 'notes.md');
+  assert.match(message, /已撤销 notes\.md/);
+  assert.deepEqual(current.undoCalls(), [{ turn: current.turnId, path: 'notes.md', confirmationId: null }]);
+});
+
+test('W41 R8-3 shell-baseline undo with confirmation card: current driver clicks 确认撤销 and completes', async () => {
+  const current = await w41UndoRace(fs.readFileSync(W40_DRIVER_PATH, 'utf8'), { needsConfirmation: true });
+  const message = await current.functions.a925ClickUndo(current.exec, current.turnId, 'notes.md');
+  assert.match(message, /已撤销 notes\.md/);
+  assert.deepEqual(current.undoCalls(), [
+    { turn: current.turnId, path: 'notes.md', confirmationId: null },
+    { turn: current.turnId, path: 'notes.md', confirmationId: 'w41-confirmation-1' }],
+  'first call recaptured the baseline, the confirmation click carried the confirmation id');
+  const oldSource = execFileSync('git', ['show', 'e846366:src/shell/tests/product/a9-06-driver-entry.cjs'], {
+    cwd: process.cwd(), encoding: 'utf8' });
+  const old = await w41UndoRace(oldSource, { needsConfirmation: true });
+  const legacy = await old.functions.a925ClickUndo(old.exec, old.turnId, 'notes.md');
+  assert.match(legacy, /已撤销 notes\.md/);
+});
+
+test('W41 R8-3 injected counterexample: judging only clicked times out without the confirmation card', async () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const criterion = "'w40 undo confirmation', (state) => state.clicked || a925UndoSettled(state.undoState))";
+  assert.equal(source.split(criterion).length - 1, 1, 'R8-1 criterion is present exactly once');
+  const mutant = await w41UndoRace(source.replace(criterion,
+    "'w40 undo confirmation', (state) => state.clicked)"));
+  await assert.rejects(mutant.functions.a925ClickUndo(mutant.exec, mutant.turnId, 'notes.md'),
+    /w40 undo confirmation/);
+});
+
+test('W41 R8-3 rehearsal last_observation fixtures: optional criterion ends where the confirmation button never appeared', () => {
+  const fixturePath = path.join(W41_ROOT, 'a9-w41-rehearsal-undo-observations.json');
+  const bytes = fs.readFileSync(fixturePath);
+  assert.equal(digest(bytes), 'bf0badbc287922d41b052a9ba929374921e2bef8128bab18b1ebfb8dc9b625d8',
+    'rehearsal undo observation fixture bytes changed');
+  const fixture = JSON.parse(bytes.toString('utf8'));
+  assert.equal(fixture.observations.length, 2, 'both w41_review runs of the second rehearsal');
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const start = source.indexOf('function a925UndoSettled(');
+  const end = source.indexOf('async function a925OpenFileDiff(', start);
+  assert.ok(start >= 0 && end > start);
+  const settled = vm.runInNewContext(`${source.slice(start, end)}; a925UndoSettled`);
+  for (const entry of fixture.observations) {
+    const observation = JSON.parse(entry.last_observation);
+    assert.equal(observation.buttonFound, false, `${entry.run}: the confirmation card never rendered`);
+    assert.equal(observation.clicked, false, `${entry.run}: nothing was clicked`);
+    assert.equal(settled(observation.undoState), true,
+      `${entry.run}: new criterion judges the undo already finished`);
+    const legacy = Boolean(observation.clicked);
+    assert.equal(legacy, false, `${entry.run}: the clicked-only criterion still times out here`);
+  }
+});
+
 test('W41 R6-5 cached expanded notes.md: removing redraw and reset guards loses undo button', async () => {
   const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
   const guard = "state.redrawn === true && state.expanded === 'false'\n    && ";

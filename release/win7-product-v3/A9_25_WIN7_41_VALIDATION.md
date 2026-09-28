@@ -29,11 +29,13 @@
 
 W40-20 的 `big.bin` 无法恢复项已经等待该轮 `.review-unrecoverable` 文本；保持此项等待，不改变 `NOT_PERFORMED` 判定。独立的产品回执、文件哈希和最终断言仍按 W40 原口径读取，避免用套件自报代替产品证据。
 
+R8 起 `a925ClickUndo` 的确认步骤恢复 `078eda2` 原版可选语义：确认按钮出现则点击，或 `#a9-undo-state` 已到达终态（非空且不含“将在 5 秒后”“已重新收集”，判据提取为 `a925UndoSettled`）即结束；两者都未出现才超时并记录最后观察（`buttonFound`、`buttonDisabled`、`undoState`、`clicked`）。产品仅在 Shell 基线需重新确认时渲染 `.review-confirmation` 确认卡（A9-24 C5）；写工具新建的文件不出现确认卡，撤销经“将在 5 秒后撤销”倒计时自动完成——这是第二轮连续两次预演（`20260928-2128`）`w41_review` 同点超时的根因（两次最后观察均为 `buttonFound:false`、`clicked:false`、`undoState:"已撤销 notes.md"`，撤销已在产品侧完成，属 R6 返工引入的套件缺陷而非产品缺陷）。R6-2 曾把该可选操作误改为以 `state.clicked` 为判据的必达等待；`078eda2` 原版对确认按钮是“存在则点、不存在则继续”，且 `if (confirmation) sleep(500)` 表明本意即为可选。
+
 ## 3. 开发机与实机边界
 
 开发机验证运行 `scripts/release/test/a9-package.test.mjs`、`src/shell` 全量 Jest、`npm run verify:quick`、`npm run docs:check`、`git diff --check`；注入反例应使竞争旧写法、无最后观察、未登记派生差异和残留字面量失败。WIN7-40 正式实机 JSON 只读重放既有判定。W41 预演、冻结、authority、正式实机及验收均不在本文件授权范围；`w41*` 旅程待 Win7 预演。
 
-只读重放夹具逐字节复制自 `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/evidence/smoke/自动 运行 w40-1790527291597/`：`w40_review.json` → `a9-w41-physical-review.json`，SHA-256 `0bc9cdbb…d1e28`；`w40_review_mode.json` → `a9-w41-physical-review-mode.json`，`f406e796…0ecc`；`w40_stop.json` → `a9-w41-physical-stop.json`，`66050b41…1eafb`。测试以完整哈希固定三份副本，重放失败前四条审阅断言、Review 模式与 Stop 判定；这不把 W40 的失败阶段转为通过，也不替代 W41 实跑。R7 另以预演 `20260928-1848` 两次运行 `w41WaitTimeouts` 的 `last_observation` 原值逐字复制为 `a9-w41-rehearsal-redraw-observations.json`（四条：R1/R2 各一份 `w41_m3`、`w41_review`，SHA-256 `c72d30eb…fde00`），同样只被测试引用、不进入候选闭包；测试以驱动中的真实判据函数证明新判据在该状态下判定为“已完成”，旧 `updated` 判据在同一状态仍超时。
+只读重放夹具逐字节复制自 `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/evidence/smoke/自动 运行 w40-1790527291597/`：`w40_review.json` → `a9-w41-physical-review.json`，SHA-256 `0bc9cdbb…d1e28`；`w40_review_mode.json` → `a9-w41-physical-review-mode.json`，`f406e796…0ecc`；`w40_stop.json` → `a9-w41-physical-stop.json`，`66050b41…1eafb`。测试以完整哈希固定三份副本，重放失败前四条审阅断言、Review 模式与 Stop 判定；这不把 W40 的失败阶段转为通过，也不替代 W41 实跑。R7 另以预演 `20260928-1848` 两次运行 `w41WaitTimeouts` 的 `last_observation` 原值逐字复制为 `a9-w41-rehearsal-redraw-observations.json`（四条：R1/R2 各一份 `w41_m3`、`w41_review`，SHA-256 `c72d30eb…fde00`），同样只被测试引用、不进入候选闭包；测试以驱动中的真实判据函数证明新判据在该状态下判定为“已完成”，旧 `updated` 判据在同一状态仍超时。R8 再以第二轮预演 `20260928-2128` 两次 `w41_review` 的 `w41 undo confirmation` `last_observation` 原值逐字复制为 `a9-w41-rehearsal-undo-observations.json`（两条：R1/R2 各一条，SHA-256 `bf0badbc…625d8`），同样只被测试引用、不进入候选闭包；测试以驱动中的真实 `a925UndoSettled` 判据函数证明新判据在该状态下判定为“已结束”，只认 `clicked` 的旧判据在同一状态仍超时。
 
 ## 4. 用例到断言和证据映射
 
@@ -69,7 +71,7 @@ Kit 中的 `runtime_assertions` 与 `evidence` 如下；smoke 运行时还会给
 | 位置 | 处理 | 理由 |
 |---|---|---|
 | `a925OpenFileDiff` 的轮次按钮、重绘、文件行查询 | 改为三段等待；轮次行替换与产品重置收起状态、300 ms 稳定、按钮可见 | 消除 WIN7-40 已复现的旧 DOM 竞争；R7 起不依赖 `#a9-diff` 内容变化 |
-| `a925ClickUndo` 的撤销及确认按钮 | 改为等待并在同一 Renderer 查询中点击 | 控件未生成或禁用时保留最后观察，不再立即抛错 |
+| `a925ClickUndo` 的撤销及确认按钮 | 撤销按钮等待点击；确认按钮保持可选（出现则点击，或撤销终态即结束，R8） | 控件未生成或禁用时保留最后观察，不再立即抛错；确认卡只在 Shell 基线出现，可选语义与 `078eda2` 一致 |
 | `a925CaptureDiff` 的截图前 `SCREENSHOT_DOM_NOT_READY` | 改为 `a925WaitFor`；检查器页签点击后另有等待 | 过渡中的 DOM 不再立即失败；截图后仍做独立复核 |
 | `runW40StopProcess` 的 `STOP_CHILD_NOT_RUNNING` | 改为取消控件和 PID 同时就绪等待 | 进程标记与界面控件出现可有先后 |
 | `runW40ReviewProcess` 的 `queueNoteUndo` / `recallNoteUndo` | 改为按钮可用、待撤回/已撤回状态分别等待 | 点击与渲染分离，不以同步返回的旧 DOM 作结果 |
@@ -86,3 +88,24 @@ Kit 中的 `runtime_assertions` 与 `evidence` 如下；smoke 运行时还会给
 `scripts/release/build-a9-product-v3.mjs` 在七处原列出 `WIN7-40` 的集合/数组中追加 `WIN7-41`：`A915_CANDIDATES`、`A915_DIRECT_SMOKE_CANDIDATES`、候选投影键守卫、`writeCandidateDriver` 可重基线候选表及其晚载入错误码表、发布阶段拷贝投影契约的候选表、manifest 的投影契约候选表。另在 W41 专属分支登记 profile、残留守卫（validation 与 stage 根）、驱动重基线、Kit 生成、任务书契约拷贝、A9-20/A9-21 契约拷贝、输入锁谱系校验。WIN7-40 专属逻辑保留；W41 分支不修改历史候选生成规则。
 
 W41 打包驱动源片段计数：`w39` 133、`W39` 76、`w40` 58、`W40` 35；其余继承的 W37/W38 断言和动作替换仍逐片段要求恰好一次。源计数变化会使打包失败。W41 残留守卫覆盖 `A9-W40-`、`A9_W40_`、`WIN7_40_RELEASE_AUTHORITY`、`APPROVED_FOR_WIN7_40_VALIDATION`、引号内 W40 用例键、旧 `A9_25_VALIDATION_KIT`、W40 旧结论及 W37～W39 与 `A9_20_A9_21` 同类字面量。合法历史只在输入锁的 `previous_candidate_result`、`rule` 固定语句、完整性脚本的精确校验及 Kit `historical_candidate` 中描述；守卫只精确遮蔽前三处，额外出现旧结论即构建失败，均不作为当前结论。
+
+## 7. R8-2 可选语义逐处复核
+
+逐处对照 `078eda2` 原版驱动，复核 R6/R7 改为等待的全部操作。结论：只有 `a925ClickUndo` 的确认按钮在原版把“不存在”视为可继续，R6-2 误改为必达等待，R8-1 已修复；其余各处原版即必达抛错、必达等待或纯观察，等待化未引入可选语义损失。
+
+| 位置 | `078eda2` 原版形态 | 原版语义 | 改为等待后 | 结论 |
+|---|---|---|---|---|
+| `a925OpenFileDiff` 轮次“查看改动”按钮 | 已是 `a925WaitFor`（`buttonFound` 后点击） | 必达等待 | 增记 `__a925DiffWatch` 行引用（R7 重绘判据） | 无可选语义，一致 |
+| `a925OpenFileDiff` 重绘判定 | 原版无此段（点击后直接进入最终判定） | — | 新增等待（行替换、收起状态、300 ms 稳定） | 新增段，无原版对应 |
+| `a925OpenFileDiff` 最终判定 | 已是 `a925WaitFor`（`tabSelected`/`toggleFound`/`detailVisible`/`diff`/`full`） | 必达等待 | 判据收紧（`expanded === 'true'`、`buttonFound`） | 必达语义一致（R6-1 要求） |
+| `a925ClickUndo` 撤销按钮 | 一次性 `exec`，`!clicked` 即抛 `A9_W40_UNDO_BUTTON_UNAVAILABLE` | 必达 | `a925WaitFor(state.clicked)` | 必达语义一致 |
+| `a925ClickUndo` 确认按钮 | 一次性 `exec`，按钮不存在返回 `false` 并继续；`if (confirmation) sleep(500)` | **可选** | R6 曾改为 `state.clicked` 必达等待 | **未保留可选语义 → R8-1 修复为可选** |
+| `a925ClickUndo` 撤销结果 | 已是 `a925WaitFor`（终态文本判定） | 必达等待 | 复用 `a925UndoSettled` 判据（R8） | 必达语义一致 |
+| `a925CaptureDiff` 截图前 DOM | 一次性采样，不匹配即抛 `A9_W40_SCREENSHOT_DOM_NOT_READY` | 必达 | `a925WaitFor` | 必达语义一致 |
+| `runW40StopProcess` 取消控件与子进程 | 一次性读取，`!visible \|\| !isAlive()` 抛 `A9_W40_STOP_CHILD_NOT_RUNNING` | 必达 | `a925WaitFor(visible && alive)` | 必达语义一致 |
+| `queueNoteUndo` | 一次性 `exec`：按钮缺失或禁用返回 `false`；点击后返回“撤回”是否出现，结果仅进 `record` 断言 | 观察（`false` 使断言失败，非跳过路径） | 两个必达等待（`clicked`、pending“撤回”出现） | 原版非可选分支；pending 为产品确定性渲染，必达合理 |
+| `recallNoteUndo` | 一次性 `exec`：按钮缺失返回 `false`；点击后返回状态文本，结果仅进 `record` 断言 | 观察（同上） | 两个必达等待（`clicked`、“已撤回撤销”） | 原版非可选分支；“已撤回撤销”为产品确定性行为 |
+| `runW40ReviewRestartProcess` 撤销后行文字 | 一次性读取文本，无判定，文本进 `record` 断言 | 纯观察 | `a925WaitFor(value.includes('已撤销'))` | 原版非可选；重启后“已撤销”为 W40-17 确定性口径 |
+| `runW40ReviewModeProcess` 模式恢复 | 一次性 `snapshot()`，`mode !== 'review'` 抛 `A9_W40_REVIEW_MODE_NOT_RESTORED` | 必达 | `a925WaitFor(mode === 'review')` | 必达语义一致 |
+
+R8-3 测试以真实 `a9-workbench.js` 的 VM 假 DOM 覆盖两种撤销：写工具文件撤销（无确认卡，撤销经倒计时自动完成，`undoFile` 一次调用且无确认 ID）与 Shell 基线待确认（`undoFile` 先返回 `needsConfirmation`，确认卡渲染后点击“确认撤销”携带确认 ID 再次调用）。`e846366` 驱动在前者确认等待超时，当前驱动两者均完成并以“已撤销 notes.md”结束；把判据改回只认 `clicked` 的注入反例在无确认卡场景超时。两种场景中 `undoFile` 的调用序列（次数与确认 ID 有无）均被测试记录断言。
