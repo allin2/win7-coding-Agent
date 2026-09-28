@@ -1,0 +1,80 @@
+{
+  "status": "PASS",
+  "mode": "w40_review_mode",
+  "driver_protocol": "projection",
+  "cases": [
+    {
+      "id": "A9F1-FORMAL-EXPLORER-SESSION",
+      "passed": true,
+      "detail": "{\"path\":\"calc.ts\",\"workspace\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\审阅模式 mode workspace\"}"
+    },
+    {
+      "id": "A9F0-WORKSPACE-BOUND",
+      "passed": true,
+      "detail": "{\"visible\":true,\"workspace\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\审阅模式 mode workspace\"}"
+    },
+    {
+      "id": "A9F0-RENDERER-CAPABILITY",
+      "passed": true,
+      "detail": "{\"node\":false,\"process\":false,\"workspaceShown\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\审阅模式 mode workspace\"}"
+    },
+    {
+      "id": "A9F6-MODE-INVALID-PRECISE",
+      "passed": true,
+      "detail": "{\"ok\":false,\"code\":\"A9_MODE_INVALID\"}"
+    },
+    {
+      "id": "A9-W40-REVIEW-MODE-FAIL-CLOSED",
+      "passed": true,
+      "detail": "{\"ui\":{\"mode\":\"review\",\"dialogVisible\":true,\"intro\":\"此工作区保存了不可用的 Review 模式，写入仍会被拒绝。请选择 Full Access 或 Read Only。\",\"choices\":[\"full_access\",\"read_only\"],\"sendDisabled\":true},\"mode\":\"review\",\"terminal\":{\"turn_id\":\"turn-1790527466467-1\",\"status\":\"blocked\",\"outcome_json\":\"{\\\"schemaVersion\\\":1,\\\"outcome\\\":\\\"blocked\\\",\\\"verification\\\":\\\"not_applicable\\\"}\",\"eventCount\":6},\"response\":{\"ok\":true,\"result\":{\"turnId\":\"turn-1790527466467-1\",\"outcome\":\"blocked\",\"finalMessage\":\"Error: REVIEW mode requires a review staging backend, which is not configured. The write was NOT performed.\",\"totalSteps\":2,\"toolCallsExecuted\":0,\"verification\":\"not_applicable\"}},\"hashSamples\":[null,null,null],\"before\":null,\"after\":null,\"toolResults\":[{\"role\":\"tool\",\"name\":\"write\",\"content\":\"Error: REVIEW mode requires a review staging backend, which is not configured. The write was NOT performed.\"}],\"toolStartCount\":0,\"toolEndCount\":0,\"finalMessage\":\"Error: REVIEW mode requires a review staging backend, which is not configured. The write was NOT performed.\"}"
+    }
+  ],
+  "productMainLoaded": "C:\\A9-W40\\验收 目录\\81c7a234\\package\\Win7CodingAgent-0.3.0-alpha.1-win7-x64\\resources\\app\\product\\main.js",
+  "w40ReviewMode": {
+    "ui": {
+      "mode": "review",
+      "dialogVisible": true,
+      "intro": "此工作区保存了不可用的 Review 模式，写入仍会被拒绝。请选择 Full Access 或 Read Only。",
+      "choices": [
+        "full_access",
+        "read_only"
+      ],
+      "sendDisabled": true
+    },
+    "mode": "review",
+    "terminal": {
+      "turn_id": "turn-1790527466467-1",
+      "status": "blocked",
+      "outcome_json": "{\"schemaVersion\":1,\"outcome\":\"blocked\",\"verification\":\"not_applicable\"}",
+      "eventCount": 6
+    },
+    "response": {
+      "ok": true,
+      "result": {
+        "turnId": "turn-1790527466467-1",
+        "outcome": "blocked",
+        "finalMessage": "Error: REVIEW mode requires a review staging backend, which is not configured. The write was NOT performed.",
+        "totalSteps": 2,
+        "toolCallsExecuted": 0,
+        "verification": "not_applicable"
+      }
+    },
+    "hashSamples": [
+      null,
+      null,
+      null
+    ],
+    "before": null,
+    "after": null,
+    "toolResults": [
+      {
+        "role": "tool",
+        "name": "write",
+        "content": "Error: REVIEW mode requires a review staging backend, which is not configured. The write was NOT performed."
+      }
+    ],
+    "toolStartCount": 0,
+    "toolEndCount": 0,
+    "finalMessage": "Error: REVIEW mode requires a review staging backend, which is not configured. The write was NOT performed."
+  }
+}

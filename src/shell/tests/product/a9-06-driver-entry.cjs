@@ -2873,22 +2873,62 @@ async function a925WaitFor(observe, timeoutMs, label, matches = (state) => Boole
 }
 
 async function a925OpenFileDiff(exec, turnId, relPath) {
-  const selected = await a925WaitFor(() => exec(`(() => {
+  await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const button = Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
       .find((item) => item.textContent === '查看改动');
     const state = { turnId: ${JSON.stringify(turnId)}, rowFound: Boolean(row), buttonFound: Boolean(button),
       rowText: row?.textContent?.slice(0, 500) || '' };
-    if (button) button.click();
+    if (button) {
+      window.__a925DiffWatch?.observer.disconnect();
+      const node = document.getElementById('a9-diff');
+      const watch = { row, updates: 0, observer: new MutationObserver(() => { watch.updates += 1; }) };
+      watch.observer.observe(node, { childList: true, subtree: true, characterData: true });
+      window.__a925DiffWatch = watch;
+      button.click();
+    }
     return state;
   })()`), 15000, `w40 review turn row ${turnId}`, (state) => state.buttonFound);
-  return a925WaitFor(() => exec(`(() => {
+  let stableSince = null;
+  let stableKey = null;
+  await a925WaitFor(() => exec(`(() => {
+    const watch = window.__a925DiffWatch;
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const toggle = Array.from(row?.querySelectorAll('.review-file-toggle') || [])
+      .find((item) => item.textContent.includes(${JSON.stringify(relPath)}));
+    const file = toggle?.closest('.review-file');
+    const button = Array.from(file?.querySelectorAll('.review-file-detail button') || [])
+      .find((item) => item.textContent === '撤销此文件');
+    return { updated: Boolean(watch?.updates), redrawn: Boolean(row && watch && row !== watch.row),
+      full: document.getElementById('a9-diff')?.textContent || '',
+      expanded: toggle?.getAttribute('aria-expanded') || null, buttonFound: Boolean(button),
+      buttonDisabled: button?.disabled ?? null, toggleFound: Boolean(toggle),
+      undoState: document.getElementById('a9-undo-state')?.textContent || '' };
+  })()`), 15000, `w40 review redraw ${turnId}/${relPath}`, (state) => {
+    if (!state.updated || !state.redrawn || !state.full.includes(relPath) || !state.toggleFound) {
+      stableSince = null; stableKey = null; return false;
+    }
+    const key = JSON.stringify([state.expanded, state.buttonFound, state.buttonDisabled, state.full]);
+    if (key !== stableKey) { stableKey = key; stableSince = Date.now(); return false; }
+    return Date.now() - stableSince >= 300;
+  });
+  await exec(`(() => {
+    window.__a925DiffWatch?.observer.disconnect();
+    delete window.__a925DiffWatch;
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const toggle = Array.from(row?.querySelectorAll('.review-file-toggle') || [])
       .find((item) => item.textContent.includes(${JSON.stringify(relPath)}));
     if (toggle && toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
+    return Boolean(toggle);
+  })()`);
+  return a925WaitFor(() => exec(`(() => {
+    const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
+      .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
+    const toggle = Array.from(row?.querySelectorAll('.review-file-toggle') || [])
+      .find((item) => item.textContent.includes(${JSON.stringify(relPath)}));
     const current = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const detail = Array.from(current?.querySelectorAll('.review-file') || [])
@@ -2897,15 +2937,21 @@ async function a925OpenFileDiff(exec, turnId, relPath) {
     const diff = detail?.querySelector('.review-file-diff')?.textContent || '';
     const full = document.getElementById('a9-diff')?.textContent || '';
     const tab = document.getElementById('inspector-tab-changes');
+    const button = Array.from(detail?.querySelectorAll('button') || [])
+      .find((item) => item.textContent === '撤销此文件');
     return { diff, full, tabSelected: tab?.getAttribute('aria-selected') === 'true',
       detailVisible: Boolean(detail && !detail.hidden), toggleFound: Boolean(toggle),
+      expanded: toggle?.getAttribute('aria-expanded') || null, buttonFound: Boolean(button),
+      buttonDisabled: button?.disabled ?? null,
+      undoState: document.getElementById('a9-undo-state')?.textContent || '',
       turnId: ${JSON.stringify(turnId)}, path: ${JSON.stringify(relPath)} };
   })()`), 15000, `w40 review diff ${turnId}/${relPath}`, (state) => state.tabSelected
-    && state.toggleFound && state.detailVisible && state.diff.length > 0 && state.full.includes(relPath));
+    && state.toggleFound && state.expanded === 'true' && state.buttonFound
+    && state.detailVisible && state.diff.length > 0 && state.full.includes(relPath));
 }
 
 async function a925ClickUndo(exec, turnId, relPath) {
-  const clicked = await exec(`(() => {
+  await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});
     const button = ${JSON.stringify(relPath || '')}
@@ -2915,20 +2961,24 @@ async function a925ClickUndo(exec, turnId, relPath) {
         .find((item) => item.textContent === '撤销此文件')
       : Array.from(row?.querySelectorAll('.checkpoint-actions button') || [])
         .find((item) => item.textContent === '撤销本轮全部');
-    if (!button || button.disabled) return false;
-    button.click();
-    return true;
-  })()`);
-  if (!clicked) throw new Error(`A9_W40_UNDO_BUTTON_UNAVAILABLE:${turnId}:${relPath || 'turn'}`);
+    const file = ${JSON.stringify(relPath || '')} ? Array.from(row?.querySelectorAll('.review-file') || [])
+      .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes(${JSON.stringify(relPath || '')})) : null;
+    const state = { rowFound: Boolean(row), expanded: file?.querySelector('.review-file-toggle')?.getAttribute('aria-expanded') || null,
+      buttonFound: Boolean(button), buttonDisabled: button?.disabled ?? null,
+      undoState: document.getElementById('a9-undo-state')?.textContent || '', clicked: false };
+    if (button && !button.disabled) { button.click(); state.clicked = true; }
+    return state;
+  })()`), 15000, `A9_W40_UNDO_BUTTON_UNAVAILABLE:${turnId}:${relPath || 'turn'}`, (state) => state.clicked);
   await sleep(5400);
-  const confirmation = await exec(`(() => {
+  const confirmation = await a925WaitFor(() => exec(`(() => {
     const button = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-confirmation button'))
       .find((item) => item.textContent === '确认撤销');
-    if (!button) return false;
-    button.click();
-    return true;
-  })()`);
-  if (confirmation) await sleep(500);
+    const state = { buttonFound: Boolean(button), buttonDisabled: button?.disabled ?? null,
+      undoState: document.getElementById('a9-undo-state')?.textContent || '', clicked: false };
+    if (button && !button.disabled) { button.click(); state.clicked = true; }
+    return state;
+  })()`), 15000, 'w40 undo confirmation', (state) => state.clicked);
+  if (confirmation.clicked) await sleep(500);
   return a925WaitFor(() => exec('document.getElementById("a9-undo-state").textContent'), 15000, 'w40 undo result',
     (value) => value && !value.includes('将在 5 秒后') && !value.includes('已重新收集'));
 }
@@ -2980,9 +3030,8 @@ async function a925CaptureDiff(win, exec, scene, turnId, relPath) {
     document.getElementById('inspector-tab-changes').click(); return true;
   })()`);
   await a925WaitInspector(exec);
-  const before = await a925DiffState(exec, turnId, relPath);
-  if (!a925DiffMatches(before, turnId, relPath))
-    throw new Error('A9_W40_SCREENSHOT_DOM_NOT_READY');
+  const before = await a925WaitFor(() => a925DiffState(exec, turnId, relPath), 15000,
+    'A9_W40_SCREENSHOT_DOM_NOT_READY', (state) => a925DiffMatches(state, turnId, relPath));
   const directory = process.env.A9_SMOKE_VISUAL_DIR;
   if (!directory) throw new Error('A9_W40_SCREENSHOT_DIRECTORY_REQUIRED');
   fs.mkdirSync(directory, { recursive: true });
@@ -3051,8 +3100,9 @@ async function runW40StopProcess(win, exec, env) {
     if (error && error.code === 'ESRCH') return false;
     throw error;
   } };
-  const visible = await exec('document.getElementById("cancel-task").hidden === false');
-  if (!visible || !isAlive()) throw new Error('A9_W40_STOP_CHILD_NOT_RUNNING');
+  await a925WaitFor(async () => ({
+    visible: await exec('document.getElementById("cancel-task").hidden === false'), alive: isAlive(), pid,
+  }), 15000, 'A9_W40_STOP_CHILD_NOT_RUNNING', (state) => state.visible && state.alive);
   const startedAt = Date.now();
   await exec('document.getElementById("cancel-task").click(); true');
   let childGone = false;
@@ -3120,19 +3170,38 @@ async function runW40ReviewProcess(win, exec, env) {
   await a925OpenFileDiff(exec, first.turnId, 'notes.md');
   const noteBeforeRecall = a925Hash(file('notes.md'));
   const enabledControls = await a925MeasureControls(exec, first.turnId, ['file', 'turn']);
-  const queueNoteUndo = () => exec(`(() => {
+  const queueNoteUndo = async () => {
+    await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-file'))
       .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
     const button = Array.from(row?.querySelectorAll('.review-file-detail button') || [])
       .find((item) => item.textContent === '撤销此文件');
-    if (!button || button.disabled) return false;
-    button.click();
-    return Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
-      .some((item) => item.textContent === '撤回');
-  })()`);
-  const recallNoteUndo = () => exec(`(() => { const b = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
-    .find((item) => item.textContent === '撤回');
-    if (!b) return false; b.click(); return document.getElementById('a9-undo-state').textContent.includes('已撤回撤销'); })()`);
+    const state = { expanded: row?.querySelector('.review-file-toggle')?.getAttribute('aria-expanded') || null,
+      buttonFound: Boolean(button), buttonDisabled: button?.disabled ?? null,
+      undoState: document.getElementById('a9-undo-state')?.textContent || '', clicked: false };
+    if (button && !button.disabled) { button.click(); state.clicked = true; }
+    return state;
+  })()`), 15000, 'w40 queue notes undo', (state) => state.clicked);
+    await a925WaitFor(() => exec(`(() => ({
+      pending: Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
+        .some((item) => item.textContent === '撤回'),
+      undoState: document.getElementById('a9-undo-state')?.textContent || '' }))()`),
+    15000, 'w40 notes undo pending', (state) => state.pending);
+    return true;
+  };
+  const recallNoteUndo = async () => {
+    await a925WaitFor(() => exec(`(() => {
+      const button = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-pending button'))
+        .find((item) => item.textContent === '撤回');
+      const state = { buttonFound: Boolean(button), buttonDisabled: button?.disabled ?? null,
+        undoState: document.getElementById('a9-undo-state')?.textContent || '', clicked: false };
+      if (button && !button.disabled) { button.click(); state.clicked = true; }
+      return state;
+    })()`), 2000, 'w40 recall notes undo', (state) => state.clicked);
+    await a925WaitFor(() => exec('document.getElementById("a9-undo-state").textContent'),
+      2000, 'w40 notes recall state', (value) => value.includes('已撤回撤销'));
+    return true;
+  };
   const queueStarted = Date.now();
   const queued = await queueNoteUndo();
   const recalled = await recallNoteUndo();
@@ -3249,11 +3318,11 @@ async function runW40ReviewRestartProcess(win, exec, env) {
   const beforeHash = a925Hash(path.join(env.workspaceRoot, 'notes.md'));
   const diff = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(turnId)})`);
   const shown = await a925OpenFileDiff(exec, turnId, 'notes.md');
-  const statusText = await exec(`(() => {
+  const statusText = await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .review-file'))
       .find((item) => item.querySelector('.review-file-toggle')?.textContent.includes('notes.md'));
     return row?.querySelector('.review-file-toggle')?.textContent || '';
-  })()`);
+  })()`), 15000, 'w40 persisted undo row', (value) => value.includes('已撤销'));
   const repeated = await exec(`window.win7Agent.a9.undoFile(${JSON.stringify(turnId)}, 'notes.md')`);
   const afterHash = a925Hash(path.join(env.workspaceRoot, 'notes.md'));
   report.w40UndoPersisted = { turnId, beforeHash, afterHash, review: diff.review,
@@ -3267,8 +3336,8 @@ async function runW40ReviewRestartProcess(win, exec, env) {
 
 async function runW40ReviewModeProcess(win, exec, env) {
   void win;
-  const snapshot = await exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)');
-  if (snapshot.mode !== 'review') throw new Error(`A9_W40_REVIEW_MODE_NOT_RESTORED:${snapshot.mode}`);
+  await a925WaitFor(() => exec('(window.win7Agent.a9.snapshot()).then((r) => r.snapshot)'),
+    15000, 'A9_W40_REVIEW_MODE_NOT_RESTORED', (state) => state?.mode === 'review');
   await exec(`(() => {
     document.getElementById('a9-provider-url').value = ${JSON.stringify(env.fixtureUrl)};
     document.getElementById('a9-provider-model').value = 'w40-review-mode-model';

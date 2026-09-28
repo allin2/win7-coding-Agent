@@ -1,0 +1,187 @@
+{
+  "status": "ERROR",
+  "mode": "w40_review",
+  "driver_protocol": "projection",
+  "cases": [
+    {
+      "id": "A9F1-FORMAL-EXPLORER-SESSION",
+      "passed": true,
+      "detail": "{\"path\":\"calc.ts\",\"workspace\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\改动审阅 review workspace\"}"
+    },
+    {
+      "id": "A9F0-WORKSPACE-BOUND",
+      "passed": true,
+      "detail": "{\"visible\":true,\"workspace\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\改动审阅 review workspace\"}"
+    },
+    {
+      "id": "A9F0-RENDERER-CAPABILITY",
+      "passed": true,
+      "detail": "{\"node\":false,\"process\":false,\"workspaceShown\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\改动审阅 review workspace\"}"
+    },
+    {
+      "id": "A9F6-MODE-INVALID-PRECISE",
+      "passed": true,
+      "detail": "{\"ok\":false,\"code\":\"A9_MODE_INVALID\"}"
+    },
+    {
+      "id": "A9-W40-MODE-TWO-OPTIONS",
+      "passed": true,
+      "detail": "[\"full_access\",\"read_only\"]"
+    },
+    {
+      "id": "A9-W40-REVIEW-SUMMARY-CARD",
+      "passed": true,
+      "detail": "{\"terminal\":{\"turnId\":\"turn-1790527456266-1\",\"outcome\":\"completed_with_warnings\",\"verification\":\"unverified\",\"startedEventId\":4,\"terminalEventId\":19,\"terminalEventType\":\"turn_completed\"},\"card\":{\"found\":true,\"matched\":true,\"text\":\"第 1 轮改动了 2 个文件 · +3 −1\",\"fileCount\":2,\"additions\":3,\"deletions\":1,\"paths\":[\"calc.ts\",\"notes.md\"]},\"review\":{\"turnId\":\"turn-1790527456266-1\",\"files\":[{\"path\":\"calc.ts\",\"action\":\"modify\",\"originalKind\":\"file\",\"newKind\":\"file\",\"undone\":false,\"additions\":1,\"deletions\":1,\"diffText\":\"@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \",\"diffTruncated\":false},{\"path\":\"notes.md\",\"action\":\"create\",\"originalKind\":\"absent\",\"newKind\":\"file\",\"undone\":false,\"additions\":2,\"deletions\":0,\"diffText\":\"@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"diffTruncated\":false}],\"unrecoverable\":[],\"externalBaselineStatus\":\"none\"},\"baselineCalc\":\"75cfacb7faac086c50b23ac4b29a709eb8680999e6756f620ca76d42aba07cab\",\"afterCalc\":\"5b63136552577a64d788dc3cd4552739d0d60f9e1adb63ec4dfb6932d56fc75d\",\"baselineNote\":null,\"afterNote\":\"ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a\"}"
+    },
+    {
+      "id": "A9-15-CAPTURE-a925-summary",
+      "passed": true,
+      "detail": "{\"path\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\截图 screenshots\\\\a925-summary.png\",\"contentSize\":[1079,540],\"zoom\":1}"
+    },
+    {
+      "id": "A9-W40-DIFF-SCREENSHOT",
+      "passed": true,
+      "detail": "{\"before\":{\"tabSelected\":true,\"fileExpanded\":true,\"diffVisible\":true,\"diff\":\"@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \",\"full\":\"--- calc.ts (modify)\\n@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \\n--- notes.md (create)\\n@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"turnId\":\"turn-1790527456266-1\",\"path\":\"calc.ts\",\"inspector\":{\"open\":true,\"visible\":true,\"left\":649.2000122070312,\"top\":0,\"right\":1079.2000122070312,\"bottom\":540,\"innerWidth\":1079,\"innerHeight\":540,\"clientWidth\":1079,\"clientHeight\":540,\"visualViewport\":{\"width\":1079.199951171875,\"height\":540},\"transform\":\"matrix(1, 0, 0, 1, 0, 0)\"}},\"after\":{\"tabSelected\":true,\"fileExpanded\":true,\"diffVisible\":true,\"diff\":\"@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \",\"full\":\"--- calc.ts (modify)\\n@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \\n--- notes.md (create)\\n@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"turnId\":\"turn-1790527456266-1\",\"path\":\"calc.ts\",\"inspector\":{\"open\":true,\"visible\":true,\"left\":649.2000122070312,\"top\":0,\"right\":1079.2000122070312,\"bottom\":540,\"innerWidth\":1079,\"innerHeight\":540,\"clientWidth\":1079,\"clientHeight\":540,\"visualViewport\":{\"width\":1079.199951171875,\"height\":540},\"transform\":\"matrix(1, 0, 0, 1, 0, 0)\"}},\"turnId\":\"turn-1790527456266-1\",\"path\":\"calc.ts\",\"imagePath\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\截图 screenshots\\\\a925-review-diff.png\",\"imageWritten\":true,\"imageWidth\":1349,\"imageHeight\":675}"
+    },
+    {
+      "id": "A9-W40-REVIEW-UNDO-RECALL",
+      "passed": true,
+      "detail": "{\"queued\":true,\"recalled\":true,\"recallMs\":3,\"before\":\"ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a\",\"after\":\"ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a\"}"
+    },
+    {
+      "id": "A9-W40-REVIEW-LAYOUT",
+      "passed": true,
+      "detail": "{\"layoutQueued\":true,\"layoutRecalled\":true,\"geometry\":{\"scrollWidth\":1079,\"clientWidth\":1079,\"clientHeight\":540,\"visualViewport\":{\"width\":1079.199951171875,\"height\":540},\"innerWidth\":1079,\"innerHeight\":540,\"devicePixelRatio\":1.25,\"tabSelected\":true,\"summaryVisible\":true,\"inspector\":{\"open\":true,\"visible\":true,\"left\":649.2000122070312,\"top\":0,\"right\":1079.2000122070312,\"bottom\":540,\"innerWidth\":1079,\"innerHeight\":540,\"clientWidth\":1079,\"clientHeight\":540,\"visualViewport\":{\"width\":1079.199951171875,\"height\":540},\"transform\":\"matrix(1, 0, 0, 1, 0, 0)\"},\"controls\":[{\"name\":\"file\",\"visible\":true,\"focusable\":true,\"left\":688.2000122070312,\"top\":508.3500061035156,\"right\":1024.4000244140625,\"bottom\":540.3500061035156},{\"name\":\"turn\",\"visible\":true,\"focusable\":true,\"left\":798.2625122070312,\"top\":290.1499938964844,\"right\":914.3250122070312,\"bottom\":322.1499938964844},{\"name\":\"recall\",\"visible\":true,\"focusable\":true,\"left\":782.3500366210938,\"top\":507.95001220703125,\"right\":854.3500366210938,\"bottom\":539.9500122070312}]},\"layoutScreenshot\":{\"before\":{\"tabSelected\":true,\"fileExpanded\":true,\"diffVisible\":true,\"diff\":\"@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"full\":\"--- calc.ts (modify)\\n@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \\n--- notes.md (create)\\n@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"turnId\":\"turn-1790527456266-1\",\"path\":\"notes.md\",\"inspector\":{\"open\":true,\"visible\":true,\"left\":649.2000122070312,\"top\":0,\"right\":1079.2000122070312,\"bottom\":540,\"innerWidth\":1079,\"innerHeight\":540,\"clientWidth\":1079,\"clientHeight\":540,\"visualViewport\":{\"width\":1079.199951171875,\"height\":540},\"transform\":\"matrix(1, 0, 0, 1, 0, 0)\"}},\"after\":{\"tabSelected\":true,\"fileExpanded\":true,\"diffVisible\":true,\"diff\":\"@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"full\":\"--- calc.ts (modify)\\n@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \\n--- notes.md (create)\\n@@ -1,0 +1,2 @@\\n+# W40 note\\n+\",\"turnId\":\"turn-1790527456266-1\",\"path\":\"notes.md\",\"inspector\":{\"open\":true,\"visible\":true,\"left\":649.2000122070312,\"top\":0,\"right\":1079.2000122070312,\"bottom\":540,\"innerWidth\":1079,\"innerHeight\":540,\"clientWidth\":1079,\"clientHeight\":540,\"visualViewport\":{\"width\":1079.199951171875,\"height\":540},\"transform\":\"matrix(1, 0, 0, 1, 0, 0)\"}},\"turnId\":\"turn-1790527456266-1\",\"path\":\"notes.md\",\"imagePath\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\截图 screenshots\\\\a925-review-layout.png\",\"imageWritten\":true,\"imageWidth\":1349,\"imageHeight\":675}}"
+    },
+    {
+      "id": "A9_DRIVER_STAGE_ERROR",
+      "passed": false,
+      "detail": "Error: A9_W40_UNDO_BUTTON_UNAVAILABLE:turn-1790527456266-1:notes.md\n    at a925ClickUndo (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:2922:23)\n    at async runW40ReviewProcess (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:3163:27)\n    at async main (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:444:5)"
+    }
+  ],
+  "productMainLoaded": "C:\\A9-W40\\验收 目录\\81c7a234\\package\\Win7CodingAgent-0.3.0-alpha.1-win7-x64\\resources\\app\\product\\main.js",
+  "w40Summary": {
+    "terminal": {
+      "turnId": "turn-1790527456266-1",
+      "outcome": "completed_with_warnings",
+      "verification": "unverified",
+      "startedEventId": 4,
+      "terminalEventId": 19,
+      "terminalEventType": "turn_completed"
+    },
+    "card": {
+      "found": true,
+      "matched": true,
+      "text": "第 1 轮改动了 2 个文件 · +3 −1",
+      "fileCount": 2,
+      "additions": 3,
+      "deletions": 1,
+      "paths": [
+        "calc.ts",
+        "notes.md"
+      ]
+    },
+    "review": {
+      "turnId": "turn-1790527456266-1",
+      "files": [
+        {
+          "path": "calc.ts",
+          "action": "modify",
+          "originalKind": "file",
+          "newKind": "file",
+          "undone": false,
+          "additions": 1,
+          "deletions": 1,
+          "diffText": "@@ -2,1 +2,1 @@\n export function add(a, b) {\n-  return a - b;\n+  return a + b;\n }\n ",
+          "diffTruncated": false
+        },
+        {
+          "path": "notes.md",
+          "action": "create",
+          "originalKind": "absent",
+          "newKind": "file",
+          "undone": false,
+          "additions": 2,
+          "deletions": 0,
+          "diffText": "@@ -1,0 +1,2 @@\n+# W40 note\n+",
+          "diffTruncated": false
+        }
+      ],
+      "unrecoverable": [],
+      "externalBaselineStatus": "none"
+    },
+    "baselineCalc": "75cfacb7faac086c50b23ac4b29a709eb8680999e6756f620ca76d42aba07cab",
+    "afterCalc": "5b63136552577a64d788dc3cd4552739d0d60f9e1adb63ec4dfb6932d56fc75d",
+    "baselineNote": null,
+    "afterNote": "ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a"
+  },
+  "w40UndoRecall": {
+    "queued": true,
+    "recalled": true,
+    "recallMs": 3,
+    "before": "ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a",
+    "after": "ea63148d919461e150a5f7c6e49934c781ee7a17454106e99c56aa234e58833a"
+  },
+  "w40Layout": {
+    "scrollWidth": 1079,
+    "clientWidth": 1079,
+    "clientHeight": 540,
+    "visualViewport": {
+      "width": 1079.199951171875,
+      "height": 540
+    },
+    "innerWidth": 1079,
+    "innerHeight": 540,
+    "devicePixelRatio": 1.25,
+    "tabSelected": true,
+    "summaryVisible": true,
+    "inspector": {
+      "open": true,
+      "visible": true,
+      "left": 649.2000122070312,
+      "top": 0,
+      "right": 1079.2000122070312,
+      "bottom": 540,
+      "innerWidth": 1079,
+      "innerHeight": 540,
+      "clientWidth": 1079,
+      "clientHeight": 540,
+      "visualViewport": {
+        "width": 1079.199951171875,
+        "height": 540
+      },
+      "transform": "matrix(1, 0, 0, 1, 0, 0)"
+    },
+    "controls": [
+      {
+        "name": "file",
+        "visible": true,
+        "focusable": true,
+        "left": 688.2000122070312,
+        "top": 508.3500061035156,
+        "right": 1024.4000244140625,
+        "bottom": 540.3500061035156
+      },
+      {
+        "name": "turn",
+        "visible": true,
+        "focusable": true,
+        "left": 798.2625122070312,
+        "top": 290.1499938964844,
+        "right": 914.3250122070312,
+        "bottom": 322.1499938964844
+      },
+      {
+        "name": "recall",
+        "visible": true,
+        "focusable": true,
+        "left": 782.3500366210938,
+        "top": 507.95001220703125,
+        "right": 854.3500366210938,
+        "bottom": 539.9500122070312
+      }
+    ]
+  },
+  "error": "A9_DRIVER_STAGE_ERROR: Error: A9_W40_UNDO_BUTTON_UNAVAILABLE:turn-1790527456266-1:notes.md\n    at a925ClickUndo (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:2922:23)\n    at async runW40ReviewProcess (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:3163:27)\n    at async main (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:444:5)",
+  "lastError": "A9_DRIVER_STAGE_ERROR: Error: A9_W40_UNDO_BUTTON_UNAVAILABLE:turn-1790527456266-1:notes.md\n    at a925ClickUndo (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:2922:23)\n    at async runW40ReviewProcess (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:3163:27)\n    at async main (C:\\A9-W40\\验收 目录\\81c7a234\\evidence\\smoke\\自动 运行 w40-1790527291597\\driver-app\\main.cjs:444:5)"
+}

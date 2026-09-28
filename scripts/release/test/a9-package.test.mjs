@@ -61,6 +61,8 @@ const win39Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win39Report = require('../../../release/win7-product-v3/a9-win7-39-report.cjs');
 const win40Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w40.cjs');
 const win40Report = require('../../../release/win7-product-v3/a9-win7-40-report.cjs');
+const win41Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w41.cjs');
+const win41Report = require('../../../release/win7-product-v3/a9-win7-41-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -446,12 +448,17 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  if (candidate === 'win40') {
-    lock.lock_id = 'A9-25-INPUTS-WIN7-40';
+  if (candidate === 'win40' || candidate === 'win41') {
+    const next = candidate === 'win41';
+    lock.lock_id = next ? 'A9-25-INPUTS-WIN7-41' : 'A9-25-INPUTS-WIN7-40';
     lock.source_date_epoch = 1790380800;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
-    lock.gates.win7 = 'NOT_PERFORMED_WIN7_40';
-    lock.provenance = {
+    lock.gates.win7 = next ? 'NOT_PERFORMED_WIN7_41' : 'NOT_PERFORMED_WIN7_40';
+    lock.provenance = next ? {
+      task: 'A9-25', previous_candidate: 'WIN7-40',
+      previous_candidate_result: 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS',
+      change_scope: 'A9_25_R6_TIMING_REPAIR_WIN7_41_VALIDATION',
+    } : {
       task: 'A9-25', previous_candidate: 'WIN7-39',
       previous_candidate_result: 'A9_23_WIN7_39_A9_20_A9_21_PASS',
       change_scope: 'A9_24_CHANGE_REVIEW_WIN7_40_VALIDATION',
@@ -4629,6 +4636,31 @@ class W40FakeNode {
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
   addEventListener(name, handler) { this.handlers[name] = handler; }
+  click() { this.handlers.click?.(); }
+  closest(selector) {
+    let current = this;
+    while (current) {
+      if (selector.startsWith('.') && current.className.split(/\s+/).includes(selector.slice(1))) return current;
+      current = current.parentNode;
+    }
+    return null;
+  }
+  querySelectorAll(selector) {
+    const parts = selector.trim().split(/\s+/);
+    const matches = (item, part) => part.startsWith('.')
+      ? item.className.split(/\s+/).includes(part.slice(1)) : item.tagName.toLowerCase() === part.toLowerCase();
+    let current = [this];
+    for (const part of parts) {
+      current = current.flatMap((parent) => {
+        const found = [];
+        const walk = (item) => { for (const child of item.children) { if (matches(child, part)) found.push(child); walk(child); } };
+        walk(parent);
+        return found;
+      });
+    }
+    return current;
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   focus() {}
 }
 
@@ -4697,6 +4729,85 @@ test('W40 §4.6 VM loads actual workbench and renders driver selectors, undo and
   assert.ok(external.includes('被外部修改'));
 });
 
+async function w41DiffRace(delayMs, driverSource) {
+  const nodes = new Map();
+  const node = (id) => { if (!nodes.has(id)) nodes.set(id, new W40FakeNode()); return nodes.get(id); };
+  const turnId = 'turn-r6-1';
+  const review = { turnId, files: [{ path: 'notes.md', action: 'create', originalKind: null,
+    newKind: 'file', additions: 1, deletions: 0, undone: false, diffText: '+note', diffTruncated: false }],
+  unrecoverable: [], externalBaselineStatus: 'none' };
+  let diffObserver = null;
+  const diffNode = node('a9-diff');
+  let diffText = '--- notes.md (create)\n+previous';
+  Object.defineProperty(diffNode, 'textContent', {
+    get: () => diffText,
+    set: (value) => { diffText = String(value); diffObserver?.(); },
+  });
+  const root = { innerWidth: 1400, setTimeout, clearTimeout, setInterval, clearInterval,
+    win7Agent: { a9: { getDiff: () => new Promise((resolve) => setTimeout(() => resolve({ ok: true,
+      diff: [{ path: 'notes.md', action: 'create', diffText: '+note' }], review }), delayMs)) } } };
+  const document = { getElementById: node, createElement: (tag) => new W40FakeNode(tag),
+    querySelectorAll: (selector) => selector.startsWith('#a9-checkpoint-list ')
+      ? node('a9-checkpoint-list').querySelectorAll(selector.slice('#a9-checkpoint-list '.length)) : [],
+    querySelector: () => new W40FakeNode(), addEventListener: () => {} };
+  const context = vm.createContext({ window: root, document, Date, Map, Set, Promise,
+    MutationObserver: class { constructor(callback) { this.callback = callback; }
+      observe() { diffObserver = this.callback; }
+      disconnect() { diffObserver = null; } },
+    a925WaitFor: async (observe, timeoutMs, label, matches = Boolean) => {
+      const start = Date.now(); let last;
+      while (Date.now() - start < Math.min(timeoutMs, 3000)) {
+        last = await observe();
+        if (matches(last)) return last;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error(`${label}; last_observation=${JSON.stringify(last)}`);
+    },
+    sleep: async () => {} });
+  const product = fs.readFileSync(path.join(process.cwd(), 'src/shell/product/renderer/a9-workbench.js'), 'utf8');
+  const instrumented = product.replace('  root.win7AgentA9Workbench = Object.freeze({',
+    '  root.__r6 = { state, syncCheckpointScope, renderCheckpoints };\n  root.win7AgentA9Workbench = Object.freeze({');
+  assert.notEqual(instrumented, product);
+  vm.runInContext(instrumented, context);
+  const hooks = root.__r6;
+  const snapshot = { workspaceRoot: 'C:\\中文 空格', activeConversationId: 'conversation-r6', mode: 'full_access',
+    status: 'ready', provider: { configured: true, probe: { classification: 'tool_calling' } },
+    agentStatus: 'idle', checkpoints: [{ turnId, createdAt: '2026-09-28T01:00:00Z' }], checkpointsTotal: 1,
+    conversation: [], interruptions: [] };
+  hooks.syncCheckpointScope(snapshot);
+  hooks.state.activeConversationId = snapshot.activeConversationId;
+  hooks.state.snapshot = snapshot;
+  hooks.state.reviewOpenTurn = turnId;
+  hooks.state.reviewOpenFile = 'notes.md';
+  hooks.state.reviewCache.set(turnId, review);
+  hooks.renderCheckpoints(snapshot);
+  node('inspector-tab-changes').setAttribute('aria-selected', 'true');
+  const start = driverSource.indexOf('async function a925OpenFileDiff(');
+  const end = driverSource.indexOf('async function a925ClickUndo(', start);
+  const clickEnd = driverSource.indexOf('\n\nasync function a925InspectorState(', end);
+  assert.ok(start >= 0 && end > start && clickEnd > end);
+  const functions = vm.runInContext(`${driverSource.slice(start, clickEnd)}\n({ a925OpenFileDiff, a925ClickUndo })`, context);
+  const exec = (expression) => vm.runInContext(expression, context);
+  return { functions, exec, node, turnId };
+}
+
+test('W41 R6 real workbench delayed redraw defeats old driver and new driver handles immediate and delayed Diff', async () => {
+  const oldSource = execFileSync('git', ['show', '078eda2:src/shell/tests/product/a9-06-driver-entry.cjs'], {
+    cwd: process.cwd(), encoding: 'utf8' });
+  const old = await w41DiffRace(750, oldSource);
+  await old.functions.a925OpenFileDiff(old.exec, old.turnId, 'notes.md');
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  await assert.rejects(old.functions.a925ClickUndo(old.exec, old.turnId, 'notes.md'),
+    /A9_W40_UNDO_BUTTON_UNAVAILABLE/);
+  for (const delay of [0, 750]) {
+    const current = await w41DiffRace(delay, fs.readFileSync(W40_DRIVER_PATH, 'utf8'));
+    const observed = await current.functions.a925OpenFileDiff(current.exec, current.turnId, 'notes.md');
+    assert.equal(observed.expanded, 'true');
+    assert.equal(observed.buttonFound, true);
+    assert.ok(current.node('a9-checkpoint-list').textContent.includes('撤销此文件'));
+  }
+});
+
 test('W40 inherited workspace_select retains the selected observation used by A9F0', async () => {
   const driver = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
   const begin = driver.indexOf('async function runWorkspaceSelectionProcess(');
@@ -4750,7 +4861,8 @@ test('W40-20 index distinguishes observed, unperformed and failed product outcom
 function w40RepairHelpers(source = fs.readFileSync(W40_DRIVER_PATH, 'utf8')) {
   const body = source.match(/\/\/ A925_PURE_BEGIN([\s\S]*?)\/\/ A925_PURE_END/)[1];
   return vm.runInNewContext(`(() => {${body}; return {a925InspectorReady,a925ScreenshotMatches,
-    a925Unrecoverable,a925UnrecoverableTextMatches,a925ReviewModeMatches,a925StopTerminalMatches,a925LayoutMatches};})()`, { fs, crypto });
+    a925Unrecoverable,a925UnrecoverableTextMatches,a925ReviewModeMatches,a925StopTerminalMatches,a925LayoutMatches,
+    a925SummaryMatches,a925PidExitMatches};})()`, { fs, crypto });
 }
 function w40RehearsalObservations() {
   return JSON.parse(fs.readFileSync(path.join(W40_ROOT, 'a9-w40-rehearsal-20260927-1741-observations.json'), 'utf8'));
@@ -5229,21 +5341,202 @@ test('W40 R4-3 inspector timeout records bounded last raw observation in report 
   const injected = await w40R4WaitProbe(noState);
   assert.throws(() => assert.ok(injected.report.w40WaitTimeouts[0].last_observation.includes('1079.2')), /AssertionError/);
   const openDiffSource = source.slice(source.indexOf('async function a925OpenFileDiff('), source.indexOf('async function a925ClickUndo('));
-  const checkToggle = async (body) => {
-    const openDiff = vm.runInNewContext(`${body}\na925OpenFileDiff`, {
-      a925WaitFor: async (_observe, _timeout, label, matches) => {
-        if (label.includes('turn row')) return { buttonFound: true };
-        const raw = { tabSelected: true, detailVisible: true, diff: 'actual diff', full: 'a.txt', toggleFound: false };
-        assert.equal(Boolean(matches(raw)), false, 'missing toggle must preserve original wait condition');
-        assert.equal(Boolean(matches({ ...raw, toggleFound: true })), true);
-        return raw;
-      },
-    });
-    await openDiff(() => {}, 'turn-1', 'a.txt');
-  };
-  await checkToggle(openDiffSource);
-  await assert.rejects(checkToggle(openDiffSource.replace('state.toggleFound && ', '')), /missing toggle/);
+  assert.match(openDiffSource, /MutationObserver/);
+  assert.match(openDiffSource, /state\.toggleFound && state\.expanded === 'true' && state\.buttonFound/);
   const newBlock = source.slice(source.indexOf('// A9-25: W40-only observations.'), source.indexOf('\nfunction writeDriverReport('));
   assert.equal([...newBlock.matchAll(/\bwaitFor\(/g)].length, 1, 'only diagnostic wrapper calls historical waitFor');
-  assert.equal([...newBlock.matchAll(/\ba925WaitFor\(/g)].length, 11, 'ten new waits plus wrapper declaration');
+  assert.equal([...newBlock.matchAll(/\ba925WaitFor\(/g)].length, 22, 'R6 controls all use diagnostic waits');
+});
+
+const W41_ROOT = W40_ROOT;
+const W41_DERIVATIONS = [
+  ['a9-25-win7-40-input-lock.json', 'a9-25-win7-41-input-lock.json'],
+  ['a9-package-integrity-w40.cjs', 'a9-package-integrity-w41.cjs'],
+  ['a9-win7-40-report.cjs', 'a9-win7-41-report.cjs'],
+  ['a9-win7-40-smoke.cjs', 'a9-win7-41-smoke.cjs'],
+  ['RUN_A9_25_W40_INTEGRITY.cmd', 'RUN_A9_25_W41_INTEGRITY.cmd'],
+  ['RUN_WIN7_40_REPORT_VERIFY.cmd', 'RUN_WIN7_41_REPORT_VERIFY.cmd'],
+];
+function w41IdentityRebase(value) {
+  return [['A9_25_VALIDATION_KIT', 'A9_25_W41_VALIDATION_KIT'],
+    ['WIN7_40', 'WIN7_41'], ['WIN7-40', 'WIN7-41'], ['win7-40', 'win7-41'],
+    ['W40', 'W41'], ['w40', 'w41']].reduce((text, [before, after]) => text.replaceAll(before, after), value);
+}
+test('W41 six derivatives differ from W40 only by identity and registered lineage; W40 frozen files unchanged', () => {
+  for (const [oldName, newName] of W41_DERIVATIONS) {
+    const oldSource = fs.readFileSync(path.join(W41_ROOT, oldName), 'utf8');
+    const frozen = execFileSync('git', ['show', `033844a:release/win7-product-v3/${oldName}`],
+      { cwd: process.cwd(), encoding: 'utf8' });
+    assert.equal(oldSource, frozen, `${oldName}: frozen W40 source changed`);
+    const newSource = fs.readFileSync(path.join(W41_ROOT, newName), 'utf8');
+    if (newName.endsWith('.json')) {
+      const expected = JSON.parse(w41IdentityRebase(oldSource));
+      const actual = JSON.parse(newSource);
+      expected.provenance = actual.provenance;
+      assert.deepEqual(actual, expected, 'only the registered provenance object may differ');
+      assert.deepEqual(actual.inputs.electron_zip, JSON.parse(w41IdentityRebase(JSON.stringify(JSON.parse(oldSource).inputs.electron_zip))));
+      assert.deepEqual(actual.inputs.runner_return_zip, JSON.parse(w41IdentityRebase(JSON.stringify(JSON.parse(oldSource).inputs.runner_return_zip))));
+      assert.deepEqual(actual.inputs.storage_return_zip, JSON.parse(w41IdentityRebase(JSON.stringify(JSON.parse(oldSource).inputs.storage_return_zip))));
+      assert.equal(actual.provenance.previous_candidate, 'WIN7-40');
+      assert.equal(actual.provenance.previous_candidate_result, 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS');
+      assert.equal(actual.provenance.change_scope, 'A9_25_R6_TIMING_REPAIR_WIN7_41_VALIDATION');
+      assert.deepEqual(Object.keys(actual.provenance), ['task', 'previous_candidate',
+        'previous_candidate_result', 'change_scope', 'rule']);
+      assert.equal(digest(actual.provenance.rule),
+        '9f1b1d11560c583c3a008b04ff5ee5f3fab400418e5d6005bbc05df3e5aded57');
+      assert.match(actual.provenance.rule, /Product source is unchanged from WIN7-40 commit 64fd3a7/);
+      assert.equal(actual.gates.win7, 'NOT_PERFORMED_WIN7_41');
+    } else {
+      let expected = w41IdentityRebase(oldSource);
+      if (newName === 'a9-package-integrity-w41.cjs') {
+        expected = expected.replace("previous_candidate !== 'WIN7-39'", "previous_candidate !== 'WIN7-40'")
+          .replace("previous_candidate_result !== 'A9_23_WIN7_39_A9_20_A9_21_PASS'",
+            "previous_candidate_result !== 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS'")
+          .replace("change_scope !== 'A9_24_CHANGE_REVIEW_WIN7_41_VALIDATION'",
+            "change_scope !== 'A9_25_R6_TIMING_REPAIR_WIN7_41_VALIDATION'")
+          .replace('DERIVED FROM THE FROZEN WIN7-39 ARTIFACT', 'DERIVED FROM THE FROZEN WIN7-40 ARTIFACT')
+          .replace('WIN7-39 passed on the real machine; this script retains its integrity contract and',
+            'WIN7-40 closed as validation-kit defect; this script retains its integrity contract and');
+      }
+      if (newName === 'a9-win7-41-report.cjs')
+        expected = expected.replace('DERIVED FROM THE FROZEN WIN7-39 ARTIFACT', 'DERIVED FROM THE FROZEN WIN7-40 ARTIFACT');
+      if (newName === 'a9-win7-41-smoke.cjs')
+        expected = expected.replace('FROZEN a9-win7-39-smoke.cjs', 'FROZEN a9-win7-40-smoke.cjs')
+          .replace('W39 inherited contract', 'W40 inherited contract')
+          .replace("W39's eight added phases", "W40's eight inherited phases");
+      if (newName.endsWith('.cjs')) expected = expected.replaceAll('ADR-0144', 'ADR-0145');
+      if (['a9-package-integrity-w41.cjs', 'a9-win7-41-report.cjs'].includes(newName))
+        expected = expected.replaceAll('20260926-01', '20260928-01');
+      assert.equal(newSource, expected, `${newName}: unregistered difference`);
+      assert.notEqual(`${newSource}\n// unregistered`, expected, `${newName}: negative control`);
+    }
+  }
+});
+
+test('WIN7-41 fixture candidate has 22 cases, W41 driver and full validation closure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win41-candidate-'));
+  try {
+    const sourceRepositoryRoot = cleanSourceFixture(root);
+    const inputs = fixture(root, sourceRepositoryRoot, 'win41');
+    const built = buildA9ProductCandidate({ repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') });
+    const stage = built.stage;
+    const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_25_W41_VALIDATION_KIT.json'), 'utf8'));
+    assert.equal(kit.required_cases.length, 22);
+    assert.deepEqual(kit.required_cases.map((item) => item.case_id.slice(0, 6)),
+      Array.from({ length: 22 }, (_item, index) => `W41-${String(index + 1).padStart(2, '0')}`));
+    assert.equal(kit.scope.decision, 'ADR-0145');
+    assert.equal(kit.scope.result_on_complete, 'A9_25_WIN7_41_A9_24_PASS');
+    assert.match(kit.scope.historical_candidate, /WIN7-40.*VALIDATION_KIT_DEFECT_NOT_PASS/);
+    assert.equal(win41Report.KIT_ID, kit.kit_id);
+    assert.equal(win41Report.REPORT_KIND, 'A9_25_WIN7_41_A9_24_ACCEPTANCE');
+    assert.equal(win41Report.REQUIRED_CASE_COUNT, 22);
+    for (const relative of win41Integrity.REQUIRED_FILES)
+      assert.ok(fs.existsSync(path.join(stage, ...relative.split('/'))), `WIN7-41 closure: ${relative}`);
+    const driver = fs.readFileSync(path.join(stage, 'validation/a9-win7-41-driver.cjs'), 'utf8');
+    assert.ok(driver.includes('runW41ReviewProcess') && driver.includes('runW41StopProcess'));
+    assert.ok(!/A9-W40-|\bw40_/.test(driver));
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('W41 guard rejects injected W40/W39/W38/W37 active tokens and the old Kit name', () => {
+  const buildSource = fs.readFileSync(path.join(process.cwd(), 'scripts/release/build-a9-product-v3.mjs'), 'utf8');
+  const guardSource = buildSource.slice(buildSource.indexOf('function assertNoStaleCandidateTokens('),
+    buildSource.indexOf('function writeCandidateDriver('));
+  const guard = vm.runInNewContext(`${guardSource}\nassertNoStaleCandidateTokens`, {
+    fs, path, A915_CANDIDATES: new Set(['WIN7-41']), STALE_TOKEN_EXEMPT_CANDIDATES: new Set(),
+  });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w41-stale-'));
+  try {
+    const stage = path.join(root, 'stage');
+    const validation = path.join(stage, 'validation');
+    const lockDir = path.join(root, 'release/win7-product-v3');
+    fs.mkdirSync(validation, { recursive: true });
+    fs.mkdirSync(lockDir, { recursive: true });
+    const profile = { candidate: 'WIN7-41', lockFile: 'a9-25-win7-41-input-lock.json',
+      kitFile: 'A9_25_W41_VALIDATION_KIT.json', integrityScript: 'a9-package-integrity-w41.cjs',
+      reportScript: 'a9-win7-41-report.cjs', extraValidationScripts: ['a9-win7-41-smoke.cjs'],
+      integrityCommand: 'RUN_A9_25_W41_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_41_REPORT_VERIFY.cmd' };
+    for (const file of [profile.lockFile, profile.integrityCommand, profile.reportCommand]) {
+      fs.copyFileSync(path.join(W41_ROOT, file), path.join(stage, file));
+      if (file === profile.lockFile) fs.copyFileSync(path.join(W41_ROOT, file), path.join(lockDir, file));
+    }
+    for (const file of [profile.integrityScript, profile.reportScript, profile.extraValidationScripts[0]])
+      fs.copyFileSync(path.join(W41_ROOT, file), path.join(validation, file));
+    fs.writeFileSync(path.join(validation, 'a9-win7-41-driver.cjs'), '// driver\n');
+    fs.writeFileSync(path.join(stage, profile.kitFile), JSON.stringify({ kit_id: win41Report.KIT_ID }));
+    assert.doesNotThrow(() => guard(root, stage, profile));
+    const smokePath = path.join(validation, profile.extraValidationScripts[0]);
+    const source = fs.readFileSync(smokePath, 'utf8');
+    for (const token of ['A9-W40-OLD', 'A9_W40_OLD', 'WIN7_40_RELEASE_AUTHORITY',
+      'APPROVED_FOR_WIN7_40_VALIDATION', "'W40-17-OLD'", 'A9_25_VALIDATION_KIT',
+      'A9_25_WIN7_40_A9_24_PASS', 'A9-W39-OLD', 'A9_W38_OLD', 'A9-W37-OLD', 'A9_20_A9_21']) {
+      fs.writeFileSync(smokePath, `${source}\n${token}\n`);
+      assert.throws(() => guard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN/, token);
+    }
+    fs.writeFileSync(smokePath, source);
+    const lockPath = path.join(stage, profile.lockFile);
+    const lockText = fs.readFileSync(lockPath, 'utf8');
+    const lock = JSON.parse(lockText);
+    fs.writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+    assert.doesNotThrow(() => guard(root, stage, profile));
+    lock.injected_result = 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS';
+    fs.writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+    assert.throws(() => guard(root, stage, profile), /A9_CANDIDATE_STALE_TOKEN/,
+      'a second historical result outside the two exact lock statements is stale');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('W41 R6 undo timeout records last expanded, button and undo-state observation', async () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const wrapper = source.slice(source.indexOf('async function a925WaitFor('), source.indexOf('async function a925OpenFileDiff('));
+  const click = source.slice(source.indexOf('async function a925ClickUndo('), source.indexOf('\n\nasync function a925InspectorState('));
+  const probe = async (body) => {
+    const report = {};
+    const context = { report, writeDriverReport() {}, waitFor: async (condition, _timeout, label) => {
+      await condition(); await condition(); throw new Error(`INJECTED_TIMEOUT:${label}`);
+    } };
+    const run = vm.runInNewContext(`${body}\n${click}\na925ClickUndo`, context);
+    const error = await run(() => ({ rowFound: true, expanded: 'false', buttonFound: false,
+      buttonDisabled: null, undoState: 'waiting', clicked: false }), 'turn-r6', 'notes.md').catch((value) => value);
+    return { report, error };
+  };
+  const observed = await probe(wrapper);
+  assert.match(observed.error.message, /A9_W40_UNDO_BUTTON_UNAVAILABLE/);
+  const last = JSON.parse(observed.report.w40WaitTimeouts[0].last_observation);
+  assert.deepEqual({ expanded: last.expanded, buttonFound: last.buttonFound,
+    buttonDisabled: last.buttonDisabled, undoState: last.undoState },
+  { expanded: 'false', buttonFound: false, buttonDisabled: null, undoState: 'waiting' });
+  const injected = await probe(wrapper.replace('last_observation:', 'missing_observation:'));
+  assert.throws(() => assert.ok(injected.report.w40WaitTimeouts[0].last_observation), /AssertionError/);
+});
+
+test('W41 replays W40 physical JSON before failure, review mode and Stop through actual verdict helpers', () => {
+  const hashes = { w40_review: '0bc9cdbba52c01622e965365f20cc2f2b8490eb451adccc071dbbbb75e6d1e28',
+    w40_review_mode: 'f406e796cafb8e62f9fa2c31699b1d8e1fca4dc81596ce427edddd8c908b0ecc',
+    w40_stop: '66050b41e367fe396c8824ada463e07f9647c8233f3ed3d1abc826bda141eafb' };
+  const load = (name) => {
+    const bytes = fs.readFileSync(path.join(W41_ROOT, `a9-w41-w40-real-${name}.json`));
+    assert.equal(digest(bytes), hashes[name], `${name}: physical source fixture bytes changed`);
+    return JSON.parse(bytes.toString('utf8'));
+  };
+  const review = load('w40_review');
+  const mode = load('w40_review_mode');
+  const stop = load('w40_stop');
+  const helpers = w40RepairHelpers();
+  const beforeFailure = ['A9-W40-REVIEW-SUMMARY-CARD', 'A9-W40-DIFF-SCREENSHOT',
+    'A9-W40-REVIEW-UNDO-RECALL', 'A9-W40-REVIEW-LAYOUT'];
+  assert.ok(beforeFailure.every((id) => review.cases.some((item) => item.id === id && item.passed === true)));
+  assert.equal(helpers.a925SummaryMatches(review.w40Summary.card, review.w40Summary.review), true);
+  assert.equal(helpers.a925LayoutMatches(review.w40Layout), true);
+  assert.equal(review.w40UndoRecall.queued && review.w40UndoRecall.recalled
+    && review.w40UndoRecall.before === review.w40UndoRecall.after, true);
+  assert.match(review.error, /A9_W40_UNDO_BUTTON_UNAVAILABLE/);
+  assert.equal(helpers.a925ReviewModeMatches(mode.w40ReviewMode), true);
+  assert.equal(helpers.a925StopTerminalMatches(stop.w40Stop), true);
+  assert.equal(helpers.a925PidExitMatches(stop.w40Stop), true);
+  const rebased = beforeFailure.map((id) => id.replace('W40', 'W41'));
+  assert.deepEqual(rebased, ['A9-W41-REVIEW-SUMMARY-CARD', 'A9-W41-DIFF-SCREENSHOT',
+    'A9-W41-REVIEW-UNDO-RECALL', 'A9-W41-REVIEW-LAYOUT']);
+  assert.equal(helpers.a925ReviewModeMatches({ ...mode.w40ReviewMode, mode: 'full_access' }), false);
+  assert.equal(helpers.a925PidExitMatches({ ...stop.w40Stop, elapsedMs: 5001 }), false);
 });
