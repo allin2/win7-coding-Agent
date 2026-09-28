@@ -4729,7 +4729,21 @@ test('W40 §4.6 VM loads actual workbench and renders driver selectors, undo and
   assert.ok(external.includes('被外部修改'));
 });
 
-async function w41DiffRace(delayMs, driverSource) {
+function w41BlinkDiffText(node, initialText, onMutate) {
+  let text = String(initialText);
+  Object.defineProperty(node, 'textContent', {
+    get: () => text,
+    set: (value) => {
+      const next = String(value);
+      if (next === text) return;
+      text = next;
+      onMutate?.();
+    },
+  });
+  return node;
+}
+
+async function w41DiffRace(delayMs, driverSource, options = {}) {
   const nodes = new Map();
   const node = (id) => { if (!nodes.has(id)) nodes.set(id, new W40FakeNode()); return nodes.get(id); };
   const turnId = 'turn-r6-1';
@@ -4740,16 +4754,14 @@ async function w41DiffRace(delayMs, driverSource) {
   let diffResolved = false;
   let resolveDiff;
   const diffDone = new Promise((resolve) => { resolveDiff = resolve; });
+  const finalDiffText = '--- notes.md (create)\n+note';
   const diffNode = node('a9-diff');
-  let diffText = '--- notes.md (create)\n+previous';
-  Object.defineProperty(diffNode, 'textContent', {
-    get: () => diffText,
-    set: (value) => { diffText = String(value); diffObserver?.(); },
-  });
+  w41BlinkDiffText(diffNode, options.redisplayed ? finalDiffText : '--- notes.md (create)\n+previous',
+    () => diffObserver?.());
   const root = { innerWidth: 1400, setTimeout, clearTimeout, setInterval, clearInterval,
     win7Agent: { a9: { getDiff: () => new Promise((resolve) => setTimeout(() => {
       diffResolved = true;
-      resolve({ ok: true, diff: [{ path: 'notes.md', action: 'create', diffText: '+note' }], review });
+      resolve({ ok: true, diff: [{ path: 'notes.md', action: 'create', diffText: '+note' }], review, text: finalDiffText });
       resolveDiff();
     }, delayMs)) } } };
   const document = { getElementById: node, createElement: (tag) => new W40FakeNode(tag),
@@ -4789,10 +4801,12 @@ async function w41DiffRace(delayMs, driverSource) {
   hooks.renderCheckpoints(snapshot);
   node('inspector-tab-changes').setAttribute('aria-selected', 'true');
   const start = driverSource.indexOf('async function a925OpenFileDiff(');
+  const settledStart = driverSource.lastIndexOf('function a925ShowDiffSettled(', start);
+  const realStart = settledStart >= 0 ? settledStart : start;
   const end = driverSource.indexOf('async function a925ClickUndo(', start);
   const clickEnd = driverSource.indexOf('\n\nasync function a925InspectorState(', end);
   assert.ok(start >= 0 && end > start && clickEnd > end);
-  const functions = vm.runInContext(`${driverSource.slice(start, clickEnd)}\n({ a925OpenFileDiff, a925ClickUndo })`, context);
+  const functions = vm.runInContext(`${driverSource.slice(realStart, clickEnd)}\n({ a925OpenFileDiff, a925ClickUndo })`, context);
   const exec = (expression) => vm.runInContext(expression, context);
   return { functions, exec, node, turnId, diffResolved: () => diffResolved,
     waitForDiff: () => diffDone, cancelPendingUndo: () => hooks.cancelPendingUndo() };
@@ -4873,9 +4887,71 @@ test('W41 R6-5 cached expanded notes.md: current driver waits and undo is clicka
   } finally { current.cancelPendingUndo(); }
 });
 
-test('W41 R6-5 cached expanded notes.md: removing update and redraw guards loses undo button', async () => {
+test('W41 R7-2 fake DOM mirrors Blink: identical textContent assignment mutates nothing', () => {
+  const target = new W40FakeNode();
+  let mutations = 0;
+  w41BlinkDiffText(target, 'same', () => { mutations += 1; });
+  target.textContent = 'same';
+  assert.equal(mutations, 0, 'identical assignment must not report a mutation');
+  assert.equal(target.textContent, 'same');
+  target.textContent = 'different';
+  assert.equal(mutations, 1, 'changed assignment reports exactly one mutation');
+  assert.equal(target.textContent, 'different');
+  target.textContent = 'different';
+  assert.equal(mutations, 1, 'repeating the current value stays silent');
+});
+
+test('W41 R7-3 redisplayed identical Diff: 5d671bc driver times out, current driver completes at both timings', async () => {
+  const oldSource = execFileSync('git', ['show', '5d671bc:src/shell/tests/product/a9-06-driver-entry.cjs'], {
+    cwd: process.cwd(), encoding: 'utf8' });
+  for (const delay of [0, 750]) {
+    const old = await w41DiffRace(delay, oldSource, { redisplayed: true });
+    const error = await old.functions.a925OpenFileDiff(old.exec, old.turnId, 'notes.md')
+      .catch((value) => value);
+    assert.match(String(error?.message || error), /w40 review redraw turn-r6-1\/notes\.md/);
+    const last = JSON.parse(String(error.message).split('last_observation=')[1]);
+    assert.deepEqual({ updated: last.updated, redrawn: last.redrawn, expanded: last.expanded,
+      toggleFound: last.toggleFound, includes: last.full.includes('notes.md') },
+    { updated: false, redrawn: true, expanded: 'false', toggleFound: true, includes: true },
+    `${delay} ms: old driver observation matches the two rehearsal timeouts`);
+  }
+  for (const delay of [0, 750]) {
+    const current = await w41DiffRace(delay, fs.readFileSync(W40_DRIVER_PATH, 'utf8'), { redisplayed: true });
+    const observed = await current.functions.a925OpenFileDiff(current.exec, current.turnId, 'notes.md');
+    assert.equal(current.diffResolved(), true, `${delay} ms: driver waited for getDiff`);
+    assert.equal(observed.expanded, 'true');
+    assert.equal(observed.buttonFound, true);
+    assert.ok(current.node('a9-checkpoint-list').textContent.includes('撤销此文件'));
+  }
+});
+
+test('W41 R7-3 rehearsal last_observation fixtures: new criterion completes where the updated flag stayed false', () => {
+  const fixturePath = path.join(W41_ROOT, 'a9-w41-rehearsal-redraw-observations.json');
+  const bytes = fs.readFileSync(fixturePath);
+  assert.equal(digest(bytes), 'c72d30ebe1f1b505ad02a779868834264ee57f47a218812323b61101a29fde00',
+    'rehearsal observation fixture bytes changed');
+  const fixture = JSON.parse(bytes.toString('utf8'));
+  assert.equal(fixture.observations.length, 4, 'two journeys from each of the two rehearsals');
   const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
-  const guard = '!state.updated || !state.redrawn || ';
+  const start = source.indexOf('function a925ShowDiffSettled(');
+  const end = source.indexOf('async function a925OpenFileDiff(', start);
+  assert.ok(start >= 0 && end > start);
+  const settled = vm.runInNewContext(`${source.slice(start, end)}; a925ShowDiffSettled`);
+  for (const entry of fixture.observations) {
+    const observation = JSON.parse(entry.last_observation);
+    const relPath = entry.label.split('/').pop();
+    assert.equal(observation.updated, false, `${entry.run} ${entry.journey}: Blink fired no mutation`);
+    assert.equal(settled(observation, relPath), true,
+      `${entry.run} ${entry.journey}: new criterion judges showDiff completed`);
+    const legacy = Boolean(observation.updated && observation.redrawn
+      && observation.full.includes(relPath) && observation.toggleFound);
+    assert.equal(legacy, false, `${entry.run} ${entry.journey}: old criterion still times out here`);
+  }
+});
+
+test('W41 R6-5 cached expanded notes.md: removing redraw and reset guards loses undo button', async () => {
+  const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
+  const guard = "state.redrawn === true && state.expanded === 'false'\n    && ";
   assert.equal(source.split(guard).length - 1, 1);
   const mutant = await w41DiffRace(900, source.replace(guard, ''));
   assert.deepEqual(w41CachedExpandedFile(mutant), { expanded: 'true', detailVisible: true,
@@ -5421,7 +5497,11 @@ test('W40 R4-3 inspector timeout records bounded last raw observation in report 
   const injected = await w40R4WaitProbe(noState);
   assert.throws(() => assert.ok(injected.report.w40WaitTimeouts[0].last_observation.includes('1079.2')), /AssertionError/);
   const openDiffSource = source.slice(source.indexOf('async function a925OpenFileDiff('), source.indexOf('async function a925ClickUndo('));
-  assert.match(openDiffSource, /MutationObserver/);
+  assert.doesNotMatch(openDiffSource, /MutationObserver/, 'R7: completion must not depend on #a9-diff content changes');
+  assert.match(openDiffSource, /!a925ShowDiffSettled\(state, relPath\)/);
+  const settledSource = source.slice(source.indexOf('function a925ShowDiffSettled('), source.indexOf('async function a925OpenFileDiff('));
+  assert.match(settledSource, /state\.redrawn === true && state\.expanded === 'false'/);
+  assert.match(settledSource, /state\.toggleFound === true && typeof state\.full === 'string' && state\.full\.includes\(relPath\)/);
   assert.match(openDiffSource, /state\.toggleFound && state\.expanded === 'true' && state\.buttonFound/);
   const newBlock = source.slice(source.indexOf('// A9-25: W40-only observations.'), source.indexOf('\nfunction writeDriverReport('));
   assert.equal([...newBlock.matchAll(/\bwaitFor\(/g)].length, 1, 'only diagnostic wrapper calls historical waitFor');

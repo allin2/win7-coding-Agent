@@ -1,0 +1,30 @@
+{
+  "source": ".acceptance/rehearsals/A9-25-W41/20260928-1848",
+  "note": "w41WaitTimeouts last_observation raw strings, copied verbatim; read-only test fixture, not part of the candidate closure",
+  "observations": [
+    {
+      "run": "R1",
+      "journey": "w41_m3",
+      "label": "w41 review redraw turn-1790593064104-1/counter.ts",
+      "last_observation": "{\"updated\":false,\"redrawn\":true,\"full\":\"--- counter.ts (modify)\\n@@ -1,1 +1,1 @@\\n-// v0\\n+// v1\\n export const version = 0;\\n \",\"expanded\":\"false\",\"buttonFound\":false,\"buttonDisabled\":null,\"toggleFound\":true,\"undoState\":\"\"}"
+    },
+    {
+      "run": "R1",
+      "journey": "w41_review",
+      "label": "w41 review redraw turn-1790593105665-1/notes.md",
+      "last_observation": "{\"updated\":false,\"redrawn\":true,\"full\":\"--- calc.ts (modify)\\n@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \\n--- notes.md (create)\\n@@ -1,0 +1,2 @@\\n+# W41 note\\n+\",\"expanded\":\"false\",\"buttonFound\":false,\"buttonDisabled\":null,\"toggleFound\":true,\"undoState\":\"\"}"
+    },
+    {
+      "run": "R2",
+      "journey": "w41_m3",
+      "label": "w41 review redraw turn-1790593650813-1/counter.ts",
+      "last_observation": "{\"updated\":false,\"redrawn\":true,\"full\":\"--- counter.ts (modify)\\n@@ -1,1 +1,1 @@\\n-// v0\\n+// v1\\n export const version = 0;\\n \",\"expanded\":\"false\",\"buttonFound\":false,\"buttonDisabled\":null,\"toggleFound\":true,\"undoState\":\"\"}"
+    },
+    {
+      "run": "R2",
+      "journey": "w41_review",
+      "label": "w41 review redraw turn-1790593691325-1/notes.md",
+      "last_observation": "{\"updated\":false,\"redrawn\":true,\"full\":\"--- calc.ts (modify)\\n@@ -2,1 +2,1 @@\\n export function add(a, b) {\\n-  return a - b;\\n+  return a + b;\\n }\\n \\n--- notes.md (create)\\n@@ -1,0 +1,2 @@\\n+# W41 note\\n+\",\"expanded\":\"false\",\"buttonFound\":false,\"buttonDisabled\":null,\"toggleFound\":true,\"undoState\":\"\"}"
+    }
+  ]
+}

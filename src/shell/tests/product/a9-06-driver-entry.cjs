@@ -2872,6 +2872,11 @@ async function a925WaitFor(observe, timeoutMs, label, matches = (state) => Boole
   }
 }
 
+function a925ShowDiffSettled(state, relPath) {
+  return Boolean(state && state.redrawn === true && state.expanded === 'false'
+    && state.toggleFound === true && typeof state.full === 'string' && state.full.includes(relPath));
+}
+
 async function a925OpenFileDiff(exec, turnId, relPath) {
   await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
@@ -2881,11 +2886,7 @@ async function a925OpenFileDiff(exec, turnId, relPath) {
     const state = { turnId: ${JSON.stringify(turnId)}, rowFound: Boolean(row), buttonFound: Boolean(button),
       rowText: row?.textContent?.slice(0, 500) || '' };
     if (button) {
-      window.__a925DiffWatch?.observer.disconnect();
-      const node = document.getElementById('a9-diff');
-      const watch = { row, updates: 0, observer: new MutationObserver(() => { watch.updates += 1; }) };
-      watch.observer.observe(node, { childList: true, subtree: true, characterData: true });
-      window.__a925DiffWatch = watch;
+      window.__a925DiffWatch = { row };
       button.click();
     }
     return state;
@@ -2901,13 +2902,13 @@ async function a925OpenFileDiff(exec, turnId, relPath) {
     const file = toggle?.closest('.review-file');
     const button = Array.from(file?.querySelectorAll('.review-file-detail button') || [])
       .find((item) => item.textContent === '撤销此文件');
-    return { updated: Boolean(watch?.updates), redrawn: Boolean(row && watch && row !== watch.row),
+    return { redrawn: Boolean(row && watch && row !== watch.row),
       full: document.getElementById('a9-diff')?.textContent || '',
       expanded: toggle?.getAttribute('aria-expanded') || null, buttonFound: Boolean(button),
       buttonDisabled: button?.disabled ?? null, toggleFound: Boolean(toggle),
       undoState: document.getElementById('a9-undo-state')?.textContent || '' };
   })()`), 15000, `w40 review redraw ${turnId}/${relPath}`, (state) => {
-    if (!state.updated || !state.redrawn || !state.full.includes(relPath) || !state.toggleFound) {
+    if (!a925ShowDiffSettled(state, relPath)) {
       stableSince = null; stableKey = null; return false;
     }
     const key = JSON.stringify([state.expanded, state.buttonFound, state.buttonDisabled, state.full]);
@@ -2915,7 +2916,6 @@ async function a925OpenFileDiff(exec, turnId, relPath) {
     return Date.now() - stableSince >= 300;
   });
   await exec(`(() => {
-    window.__a925DiffWatch?.observer.disconnect();
     delete window.__a925DiffWatch;
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
       .find((item) => item.querySelector('.checkpoint-id')?.textContent === ${JSON.stringify(turnId)});

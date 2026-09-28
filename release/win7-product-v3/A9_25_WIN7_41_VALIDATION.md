@@ -25,7 +25,7 @@
 
 ## 2. R6 时序修复
 
-`a925OpenFileDiff` 在点击前建立 `#a9-diff` MutationObserver；只在该节点确实更新、目标轮次 DOM 重绘、完整 Diff 含目标路径，且展开状态与按钮状态相隔至少 300 ms 保持一致后决定是否展开。展开后再次等待目标 Diff 和“撤销此文件”按钮同时存在。`a925ClickUndo` 的按钮与确认按钮、`queueNoteUndo` / `recallNoteUndo` 的按钮和结果、截图前 DOM、Stop 子进程与取消控件、Review 模式恢复、重启后的撤销行文字均经带最后观察的等待。超时诊断写入阶段报告 `w40WaitTimeouts` 并附在错误信息中，单条上限 2048 字符。
+`a925OpenFileDiff` 的 showDiff 完成判据（R7）：点击“查看改动”时只记录目标轮次行元素；完成判据为该轮次行已被替换（产品 `renderCheckpoints` 已运行）、目标文件处于产品 `showDiff` 重置后的收起状态（`aria-expanded` 为 `false`）、完整 Diff 含目标路径、目标文件行存在，且展开状态与按钮状态相隔至少 300 ms 保持一致；随后展开并再次等待目标 Diff 和“撤销此文件”按钮同时存在。判据不依赖 `#a9-diff` 内容变化：产品重写的文本可能与已显示内容完全相同，Blink 对内容相同的 `textContent` 赋值不产生 DOM 变更，MutationObserver 不会触发——这是 WIN7-41 两次预演 `w41_m3` / `w41_review` 超时的根因（两次最后观察均为 `updated:false`、`redrawn:true`、`expanded:"false"`、`toggleFound:true`，且 `#a9-diff` 已是目标轮次完整 Diff，属判据缺陷而非产品缺陷）。`showDiff` 在异步 `getReview` 完成后先写 `#a9-diff` 再重绘轮次列表，行替换与收起状态只在完成后的重绘中同时成立；WIN7-40 旧 DOM 竞争的前置状态（轮次已缓存、文件已展开、行未替换）仍被排除，驱动不改写产品 DOM 制造变更。`a925ClickUndo` 的按钮与确认按钮、`queueNoteUndo` / `recallNoteUndo` 的按钮和结果、截图前 DOM、Stop 子进程与取消控件、Review 模式恢复、重启后的撤销行文字均经带最后观察的等待。超时诊断写入阶段报告 `w40WaitTimeouts` 并附在错误信息中，单条上限 2048 字符。
 
 W40-20 的 `big.bin` 无法恢复项已经等待该轮 `.review-unrecoverable` 文本；保持此项等待，不改变 `NOT_PERFORMED` 判定。独立的产品回执、文件哈希和最终断言仍按 W40 原口径读取，避免用套件自报代替产品证据。
 
@@ -33,7 +33,7 @@ W40-20 的 `big.bin` 无法恢复项已经等待该轮 `.review-unrecoverable` �
 
 开发机验证运行 `scripts/release/test/a9-package.test.mjs`、`src/shell` 全量 Jest、`npm run verify:quick`、`npm run docs:check`、`git diff --check`；注入反例应使竞争旧写法、无最后观察、未登记派生差异和残留字面量失败。WIN7-40 正式实机 JSON 只读重放既有判定。W41 预演、冻结、authority、正式实机及验收均不在本文件授权范围；`w41*` 旅程待 Win7 预演。
 
-只读重放夹具逐字节复制自 `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/evidence/smoke/自动 运行 w40-1790527291597/`：`w40_review.json` → `a9-w41-physical-review.json`，SHA-256 `0bc9cdbb…d1e28`；`w40_review_mode.json` → `a9-w41-physical-review-mode.json`，`f406e796…0ecc`；`w40_stop.json` → `a9-w41-physical-stop.json`，`66050b41…1eafb`。测试以完整哈希固定三份副本，重放失败前四条审阅断言、Review 模式与 Stop 判定；这不把 W40 的失败阶段转为通过，也不替代 W41 实跑。
+只读重放夹具逐字节复制自 `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/evidence/smoke/自动 运行 w40-1790527291597/`：`w40_review.json` → `a9-w41-physical-review.json`，SHA-256 `0bc9cdbb…d1e28`；`w40_review_mode.json` → `a9-w41-physical-review-mode.json`，`f406e796…0ecc`；`w40_stop.json` → `a9-w41-physical-stop.json`，`66050b41…1eafb`。测试以完整哈希固定三份副本，重放失败前四条审阅断言、Review 模式与 Stop 判定；这不把 W40 的失败阶段转为通过，也不替代 W41 实跑。R7 另以预演 `20260928-1848` 两次运行 `w41WaitTimeouts` 的 `last_observation` 原值逐字复制为 `a9-w41-rehearsal-redraw-observations.json`（四条：R1/R2 各一份 `w41_m3`、`w41_review`，SHA-256 `c72d30eb…fde00`），同样只被测试引用、不进入候选闭包；测试以驱动中的真实判据函数证明新判据在该状态下判定为“已完成”，旧 `updated` 判据在同一状态仍超时。
 
 ## 4. 用例到断言和证据映射
 
@@ -68,7 +68,7 @@ Kit 中的 `runtime_assertions` 与 `evidence` 如下；smoke 运行时还会给
 
 | 位置 | 处理 | 理由 |
 |---|---|---|
-| `a925OpenFileDiff` 的轮次按钮、重绘、文件行查询 | 改为三段等待；Diff mutation 与 DOM 重绘、300 ms 稳定、按钮可见 | 消除 WIN7-40 已复现的旧 DOM 竞争 |
+| `a925OpenFileDiff` 的轮次按钮、重绘、文件行查询 | 改为三段等待；轮次行替换与产品重置收起状态、300 ms 稳定、按钮可见 | 消除 WIN7-40 已复现的旧 DOM 竞争；R7 起不依赖 `#a9-diff` 内容变化 |
 | `a925ClickUndo` 的撤销及确认按钮 | 改为等待并在同一 Renderer 查询中点击 | 控件未生成或禁用时保留最后观察，不再立即抛错 |
 | `a925CaptureDiff` 的截图前 `SCREENSHOT_DOM_NOT_READY` | 改为 `a925WaitFor`；检查器页签点击后另有等待 | 过渡中的 DOM 不再立即失败；截图后仍做独立复核 |
 | `runW40StopProcess` 的 `STOP_CHILD_NOT_RUNNING` | 改为取消控件和 PID 同时就绪等待 | 进程标记与界面控件出现可有先后 |
