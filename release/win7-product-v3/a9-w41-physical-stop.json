@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "mode": "w40_stop",
+  "driver_protocol": "projection",
+  "cases": [
+    {
+      "id": "A9F1-FORMAL-EXPLORER-SESSION",
+      "passed": true,
+      "detail": "{\"path\":\"calc.ts\",\"workspace\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\审阅停止 stop workspace\"}"
+    },
+    {
+      "id": "A9F0-WORKSPACE-BOUND",
+      "passed": true,
+      "detail": "{\"visible\":true,\"workspace\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\审阅停止 stop workspace\"}"
+    },
+    {
+      "id": "A9F0-RENDERER-CAPABILITY",
+      "passed": true,
+      "detail": "{\"node\":false,\"process\":false,\"workspaceShown\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\审阅停止 stop workspace\"}"
+    },
+    {
+      "id": "A9F6-MODE-INVALID-PRECISE",
+      "passed": true,
+      "detail": "{\"ok\":false,\"code\":\"A9_MODE_INVALID\"}"
+    },
+    {
+      "id": "A9-W40-STOP-CHILD-EXIT-WITHIN-5S",
+      "passed": true,
+      "detail": "{\"pid\":2968,\"childGone\":true,\"elapsedMs\":104,\"outcome\":\"cancelled\",\"outcomeText\":\"cancelled · not_applicable\",\"agentStatus\":\"cancelled\",\"databaseTurn\":{\"turn_id\":\"turn-1790527452099-1\",\"status\":\"cancelled\",\"outcome_json\":\"{\\\"schemaVersion\\\":1,\\\"outcome\\\":\\\"cancelled\\\"}\"}}"
+    },
+    {
+      "id": "A9-15-CAPTURE-a925-stop",
+      "passed": true,
+      "detail": "{\"path\":\"C:\\\\A9-W40\\\\验收 目录\\\\81c7a234\\\\evidence\\\\smoke\\\\自动 运行 w40-1790527291597\\\\截图 screenshots\\\\a925-stop.png\",\"contentSize\":[1079,540],\"zoom\":1}"
+    }
+  ],
+  "productMainLoaded": "C:\\A9-W40\\验收 目录\\81c7a234\\package\\Win7CodingAgent-0.3.0-alpha.1-win7-x64\\resources\\app\\product\\main.js",
+  "w40Stop": {
+    "pid": 2968,
+    "childGone": true,
+    "elapsedMs": 104,
+    "outcome": "cancelled",
+    "outcomeText": "cancelled · not_applicable",
+    "agentStatus": "cancelled",
+    "databaseTurn": {
+      "turn_id": "turn-1790527452099-1",
+      "status": "cancelled",
+      "outcome_json": "{\"schemaVersion\":1,\"outcome\":\"cancelled\"}"
+    }
+  }
+}

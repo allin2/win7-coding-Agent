@@ -202,12 +202,21 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-40-smoke.cjs'],
     evidenceDirectory: 'a9-win7-40-evidence',
   },
+  // ADR-0145: R6 timing repair and reissued W41 validation kit; native inputs unchanged.
+  'A9-25-INPUTS-WIN7-41': {
+    task: 'A9-25', candidate: 'WIN7-41', lockFile: 'a9-25-win7-41-input-lock.json',
+    kitFile: 'A9_25_W41_VALIDATION_KIT.json', validationDoc: 'A9_25_WIN7_41_VALIDATION.md',
+    integrityCommand: 'RUN_A9_25_W41_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_41_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w41.cjs', reportScript: 'a9-win7-41-report.cjs',
+    extraValidationScripts: ['a9-win7-41-smoke.cjs'],
+    evidenceDirectory: 'a9-win7-41-evidence',
+  },
 };
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41']);
 
 // ADR-0126：派生脚本残留守卫。
 //
@@ -259,6 +268,20 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     return source;
   };
+  const w41ScopedSource = (file, source) => {
+    if (file === profile.lockFile) {
+      // Only the exact previous-candidate field and the locked lineage sentence may cite W40's result.
+      return source.replace('    "previous_candidate_result": "A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS",',
+        '    "previous_candidate_result": "",')
+        .replace('WIN7-40 is immutable as A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS;',
+          'WIN7-40 is immutable as ;');
+    }
+    if (file === profile.integrityScript) {
+      return source.replace("lock.provenance?.previous_candidate_result !== 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS'",
+        "lock.provenance?.previous_candidate_result !== ''");
+    }
+    return source;
+  };
   for (const file of files) {
     const filePath = path.join(stage, 'validation', file);
     if (!fs.existsSync(filePath)) continue;
@@ -279,7 +302,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     // WIN7-31 起，投影证据 case key 也属于候选身份。只检查引号内的真实对象键，
     // 避免历史说明文字误报；03/09/10 任一仍指向旧 Wxx 都必须在构建期失败。
-    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40'].includes(profile.candidate)) {
+    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
       const expectedPrefix = profile.candidate.replace('WIN7-', 'W');
       for (const match of source.matchAll(/['"](W\d+)-(03-INSPECTOR-PERSISTED-RESTART|09-LATEST-OUTCOME-PROJECTION|10-OLDER-EVENT-PAGINATION)['"]/g)) {
         if (match[1] !== expectedPrefix) hits.push(`${file}: ${match[0]} (expected ${expectedPrefix}-${match[2]})`);
@@ -300,6 +323,11 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     if (profile.candidate === 'WIN7-40') {
       for (const match of w40ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39)[-_][A-Z0-9-]+|WIN7_(?:37|38|39)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39)_VALIDATION|['"]W(?:37|38|39)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_20_A9_21/g)) {
         hits.push(`${file}: inherited WIN7-37/38/39 active token ${match[0]}`);
+      }
+    }
+    if (profile.candidate === 'WIN7-41') {
+      for (const match of w41ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39|40)[-_][A-Z0-9-]+|WIN7_(?:37|38|39|40)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39|40)_VALIDATION|['"]W(?:37|38|39|40)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_25_VALIDATION_KIT|A9_25_WIN7_40_[A-Z0-9_]+|A9_20_A9_21/g)) {
+        hits.push(`${file}: inherited WIN7-37/38/39/40 active token ${match[0]}`);
       }
     }
     if (profile.candidate === 'WIN7-37') {
@@ -324,6 +352,14 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
       }
     }
   }
+  if (profile.candidate === 'WIN7-41') {
+    for (const file of [profile.lockFile, profile.integrityCommand, profile.reportCommand]) {
+      const source = fs.readFileSync(path.join(stage, file), 'utf8');
+      for (const match of w41ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39|40)[-_][A-Z0-9-]+|WIN7_(?:37|38|39|40)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39|40)_VALIDATION|['"]W(?:37|38|39|40)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_25_VALIDATION_KIT|A9_25_WIN7_40_[A-Z0-9_]+|A9_20_A9_21/g)) {
+        hits.push(`${file}: inherited WIN7-37/38/39/40 active token ${match[0]}`);
+      }
+    }
+  }
   if (hits.length) {
     throw new Error(`A9_CANDIDATE_STALE_TOKEN:${profile.candidate}:${hits.join(' | ')}`);
   }
@@ -332,7 +368,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
 function writeCandidateDriver(root, validationRoot, profile) {
   const sourcePath = path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
   const targetPath = path.join(validationRoot, `a9-${profile.candidate.toLowerCase()}-driver.cjs`);
-  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40'].includes(profile.candidate)) {
+  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
     fs.copyFileSync(sourcePath, targetPath);
     return;
   }
@@ -344,7 +380,7 @@ function writeCandidateDriver(root, validationRoot, profile) {
     ['W28-10-OLDER-EVENT-PAGINATION', `${candidatePrefix}-10-OLDER-EVENT-PAGINATION`],
     ['A9_W28_PROJECTION_EVIDENCE_PACKAGE', `A9_${candidatePrefix}_PROJECTION_EVIDENCE_PACKAGE`],
   ];
-  if (['WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40'].includes(profile.candidate)) {
+  if (['WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
     replacements.push(['A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD', `A9_${candidatePrefix}_DRIVER_PRODUCT_ENTRY_LATE_LOAD`]);
   }
   if (profile.candidate === 'WIN7-38') {
@@ -361,13 +397,14 @@ function writeCandidateDriver(root, validationRoot, profile) {
       replacements.push([`A9-W37-${suffix}`, `A9-W39-${suffix}`]);
     }
   }
-  if (profile.candidate === 'WIN7-40') {
+  if (profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41') {
     // Rebase inherited W39 source only in the packaged driver; repository journeys stay byte-identical.
-    for (const [before, after, expected] of [
-      ['w39', 'w40', 133], ['W39', 'W40', 76],
-    ]) {
+    const identities = profile.candidate === 'WIN7-40'
+      ? [['w39', 'w40', 133], ['W39', 'W40', 76]]
+      : [['w39', 'w41', 133], ['W39', 'W41', 76], ['w40', 'w41', 58], ['W40', 'W41', 35]];
+    for (const [before, after, expected] of identities) {
       const occurrences = source.split(before).length - 1;
-      if (occurrences !== expected) throw new Error(`A9_W40_DRIVER_REBASE_SOURCE_INVALID:${before}:${occurrences}:${expected}`);
+      if (occurrences !== expected) throw new Error(`A9_${candidatePrefix}_DRIVER_REBASE_SOURCE_INVALID:${before}:${occurrences}:${expected}`);
       source = source.replaceAll(before, after);
     }
     for (const suffix of [
@@ -375,16 +412,16 @@ function writeCandidateDriver(root, validationRoot, profile) {
       'LIVE-TOOL-CARD-BEFORE-COMPLETION', 'LIVE-NOTE-BEFORE-COMPLETION',
       'LIVE-PREVIEW-BEFORE-COMPLETION', 'LIVE-PREVIEW-CLEARED-AFTER-COMPLETION',
       'LIVE-LATENCY-WITHIN-1500MS', 'LIVE-SECRET-NOT-EXPOSED',
-    ]) replacements.push([`A9-W37-${suffix}`, `A9-W40-${suffix}`]);
+    ]) replacements.push([`A9-W37-${suffix}`, `A9-${candidatePrefix}-${suffix}`]);
     for (const suffix of [
       'PROVIDER-PROBE', 'CMD-CONCAT-GIT-CONFIRM', 'POWERSHELL-PREFIX-GIT-CONFIRM',
       'POWERSHELL-POSITIONAL-GIT-CONFIRM', 'M1B-HEX-FREEZE-AND-URL-REDACTION',
       'M2-OUTPUT-LIMITS', 'M3-CHECKPOINT-PAGINATION', 'M4-COLLECTION-BOUNDS',
-    ]) replacements.push([`A9-W38-${suffix}`, `A9-W40-${suffix}`]);
-    replacements.push(['A9_W37_LIVE_TEST_KEY_REQUIRED', 'A9_W40_LIVE_TEST_KEY_REQUIRED']);
+    ]) replacements.push([`A9-W38-${suffix}`, `A9-${candidatePrefix}-${suffix}`]);
+    replacements.push(['A9_W37_LIVE_TEST_KEY_REQUIRED', `A9_${candidatePrefix}_LIVE_TEST_KEY_REQUIRED`]);
     // A9-24 preserves the first Diff button contract but labels it "查看改动".
     replacements.push([".find((item) => item.textContent === '查看 Diff')", ".find((item) => item.textContent === '查看改动')"]);
-    replacements.push(["await captureVisual(win, 'w40-m3');", 'await a925CaptureM3Diff(win, exec, oldestTurnId);']);
+    replacements.push([`await captureVisual(win, '${candidatePrefix.toLowerCase()}-m3');`, 'await a925CaptureM3Diff(win, exec, oldestTurnId);']);
   }
   for (const [before, after] of replacements) {
     const occurrences = source.split(before).length - 1;
@@ -519,7 +556,7 @@ export function buildA9ProductCandidate(options) {
     }
     // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
     // ADR-0125：WIN7-29 继承同一投影合同，因此同样需要随包携带该模块。
-    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40'].includes(profile.candidate)) {
+    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
         path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
@@ -651,7 +688,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
-    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
+    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -670,6 +707,9 @@ function createValidationKit(root, sourceCommit, lock, profile) {
   }
   if (profile.candidate === 'WIN7-40') {
     return createWin40ValidationKit(root, sourceCommit, lock, profile);
+  }
+  if (profile.candidate === 'WIN7-41') {
+    return createWin41ValidationKit(root, sourceCommit, lock, profile);
   }
   if (A915_CANDIDATES.has(profile.candidate)) {
     return createA915ValidationKit(root, sourceCommit, lock, profile);
@@ -1749,6 +1789,206 @@ function createWin40ValidationKit(root, sourceCommit, lock, profile) {
   };
 }
 
+function createWin41ValidationKit(root, sourceCommit, lock, profile) {
+  const kitDate = '20260928';
+  const decision = 'ADR-0145';
+  const runtimeAssertions = {
+    'W41-01': ['manifest_files_checked', 'zip_entries_checked', 'mismatches'],
+    'W41-02': ['A9-W41-CHINESE-SPACE-PATHS'],
+    'W41-03': ['A9-W41-STARTUP-WITHIN-60S'],
+    'W41-04': ['A9F1-TOOL-JOURNEY', 'A9F1-SHELL-EVENT-DTO-UI', 'A9-15-PROGRESS-EVENT-ORDER', 'A9-15-PROGRESS-RENDERED-ONCE'],
+    'W41-05': ['A9F1-DIFF', 'A9F1-SNAPSHOT-FACTS', 'A9-W41-DIFF-SCREENSHOT'],
+    'W41-06': ['A9F1-APPROVAL-CARD-TRUE-TARGET', 'A9-15-DENY-ZERO-TARGET-SIDE-EFFECT',
+      'A9F6-STOP-TURN-CANCELLED', 'A9F2-RESTORE-ACTIVE-WORKSPACE', 'A9-15-QUERY-FAILURE-VISIBLE-RETRY',
+      'A9-W41-STOP-CHILD-EXIT-WITHIN-5S'],
+    'W41-07': Array.from({ length: 6 }, (_item, index) => `A9-W41-GIT-FORM-${String(index + 1).padStart(2, '0')}`),
+    'W41-08': [7, 8, 9, 10, 11, 12, 18, 19].map((index) => `A9-W41-GIT-FORM-${String(index).padStart(2, '0')}`),
+    'W41-09': [13, 14, 15, 16, 17].map((index) => `A9-W41-GIT-FORM-${String(index).padStart(2, '0')}`),
+    'W41-10': ['A9-W41-M1-TARGETED-RECOVERY', 'A9-W41-M1-STARTUP-TIMING-RECORDED'],
+    'W41-11': ['A9-W41-M1B-FREEZE-DURATION', 'A9-W41-M1B-URL-REDACTED'],
+    'W41-12': ['A9-W41-M2-TRUNCATED-WITH-WARNINGS', 'A9-W41-M2-TOOL-NOT-EXECUTED', 'A9-W41-M2-NEXT-TURN-OK'],
+    'W41-13': ['A9-W41-M3-COUNT-MATCHES-DB', 'A9-W41-M3-OLDER-PAGES-CONTINUOUS',
+      'A9-W41-M3-OLDER-DIFF', 'A9-W41-M3-DIFF-SCREENSHOT'],
+    'W41-14': ['A9-W41-M4-CAP-NOTICE', 'A9-W41-M4-RELEASED-COUNT-ACCURATE', 'A9-W41-M4-RENDERER-MEMORY-SAMPLED'],
+    'W41-15': ['A9-W41-FINAL-NO-RESIDUE'],
+    'W41-16': ['A9-W41-REVIEW-SUMMARY-CARD'],
+    'W41-17': ['A9-W41-REVIEW-UNDO-RECALL', 'A9-W41-REVIEW-UNDO-FILE', 'A9-W41-REVIEW-UNDO-PERSISTED'],
+    'W41-18': ['A9-W41-REVIEW-EXTERNAL-DRIFT'],
+    'W41-19': ['A9-W41-REVIEW-LATER-TURN'],
+    'W41-20': ['A9-W41-REVIEW-COMMAND-CHANGES'],
+    'W41-21': ['A9-W41-REVIEW-NON-BLOCKING', 'A9-W41-MODE-TWO-OPTIONS', 'A9-W41-REVIEW-MODE-FAIL-CLOSED'],
+    'W41-22': ['A9-W41-REVIEW-LAYOUT'],
+  };
+  const sourceFiles = [
+    'docs/prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md',
+    'docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md',
+    'docs/tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md',
+    'docs/tasks/A9_21_A9_18_SALVAGE_PORT.md',
+    'docs/tasks/A9_24_REVIEW_MODE.md',
+    'docs/tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md',
+    'src/core/src/a9-agent-loop.ts',
+    'src/core/src/system-prompt.ts',
+    'src/core/src/git-command-policy.ts',
+    'src/core/src/policy.ts',
+    'src/gateway/src/provider/openai-compatible.ts',
+    'src/gateway/src/provider/sse-parser.ts',
+    'src/gateway/src/types/index.ts',
+    'src/state/src/a9-persistence.ts',
+    'src/workspace/src/checkpoint-manager.ts',
+    'src/shell/product/main.js',
+    'src/shell/product/a9-agent-runtime.js',
+    'src/shell/product/a9-product-ipc.js',
+    'src/shell/product/preload.js',
+    'src/shell/product/renderer/a9-workbench.js',
+    'src/shell/product/renderer/a9-workbench.css',
+    'src/shell/product/renderer/workbench.html',
+    'src/shell/tests/product/a9-06-driver-entry.cjs',
+    'scripts/release/build-a9-product-v3.mjs',
+    `release/win7-product-v3/${profile.lockFile}`,
+    `release/win7-product-v3/${profile.integrityScript}`,
+    `release/win7-product-v3/${profile.reportScript}`,
+    `release/win7-product-v3/${profile.extraValidationScripts[0]}`,
+    `release/win7-product-v3/${profile.integrityCommand}`,
+    `release/win7-product-v3/${profile.reportCommand}`,
+    `release/win7-product-v3/${profile.validationDoc}`,
+  ];
+  const caseOf = (caseId, purpose, assertions, evidence) => ({
+    case_id: caseId,
+    purpose,
+    runtime_assertions: runtimeAssertions[caseId.slice(0, 6)] || [],
+    environment: {
+      os: 'Windows 7 SP1 build 7601', architecture: 'x64',
+      user: 'ordinary-user', elevation: 'not-elevated', runtime: 'Electron 22.3.27 / ABI 110',
+    },
+    assertions: assertions.map((description, index) => ({
+      assertion_id: `${caseId}-A${String(index + 1).padStart(2, '0')}`,
+      description,
+    })),
+    evidence,
+  });
+  return {
+    schema_version: 1,
+    kit_id: `A9-25-WIN7-41-${kitDate}-01`,
+    candidate_id: lock.release_id,
+    candidate_label: 'WIN7-41',
+    candidate_version: lock.version,
+    source_commit: sourceCommit,
+    required_runner_helper_sha256: lock.inputs.runner_return_zip.required_entry_sha256,
+    source_artifact_hashes: Object.fromEntries(sourceFiles.map((item) => [item, sha256File(path.join(root, item))])),
+    external_release_authority: {
+      schema_version: 1,
+      kind: `${profile.candidate.replace('-', '_')}_RELEASE_AUTHORITY`,
+      required_arguments: ['formal-input-lock', 'approval-registry', 'release-authority', 'release-authority-sha256'],
+      pin_source: 'INDEPENDENT_RELEASE_APPROVAL_NOT_CANDIDATE_OR_SIDECAR',
+      instructions: profile.validationDoc,
+    },
+    commands: {
+      source_developer: 'npm run verify && npm run docs:check && git diff --check',
+      package_integrity: profile.integrityCommand,
+      direct_smoke: `.\\electron.exe .\\validation\\${profile.extraValidationScripts[0]} --evidence-root=<candidate-external-evidence-root>`,
+      report_verify: profile.reportCommand,
+    },
+    scope: {
+      decision,
+      task: 'A9-25',
+      result_on_complete: 'A9_25_WIN7_41_A9_24_PASS',
+      does_not_reissue: [
+        'A9_14_WIN7_22_GO_FOR_ALPHA',
+        'A9_15_WIN7_UI_INTEGRATION_PASS',
+        'A9_16_WIN7_UI_SUBSET_INTEGRATION_PASS',
+        'A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS',
+        'RC_PASS',
+      ],
+      historical_candidate: 'WIN7-40 remains immutable as A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS and is not reclassified',
+      capability_boundary: '0.3.0-alpha.1 identifier retained; A9-24 change review is tested, staging-style Review mode remains fail-closed under ADR-0143, Shell running output remains closed',
+      provider_rule: 'A real configured Provider multi-tool turn is mandatory; fixture evidence cannot satisfy real Provider requirements.',
+    },
+    required_cases: [
+      caseOf('W41-01-CANDIDATE-INTEGRITY',
+        'Verify candidate ZIP, manifest, input lock, validation kit and authority signatures with per-file check counts.',
+        ['RUN_A9_25_W41_INTEGRITY.cmd returns exit code 0 with manifest_files_checked and zip_entries_checked reported', 'per-file verification reports zero mismatches', 'independent authority pin verified successfully'],
+        ['integrity-output.txt', 'a9-package-integrity.json']),
+      caseOf('W41-02-CHINESE-SPACE-PATH',
+        'Verify extraction and execution under path containing Chinese characters and spaces.',
+        ['run root, every phase workspace and data root contain non-ASCII characters and spaces', 'productMainLoaded is recorded and valid for every phase'],
+        ['w41-02-paths.json']),
+      caseOf('W41-03-STARTUP-WITHIN-60S',
+        'Verify first startup and workspace selection within 60 seconds for ordinary user.',
+        ['driver records process-start to workbench-visible and workspace-selected milliseconds below 60000', 'no uncaught exception during startup', 'startup screenshot captured'],
+        ['w41-03-startup.png', 'w41-03-startup.json']),
+      caseOf('W41-04-TASK-READ-EDIT-SHELL',
+        'Verify complete task loop with read, edit, and shell tool calls (W37 first journey semantics).',
+        ['read tool retrieves target file content', 'edit tool applies modifications cleanly', 'shell tool executes verification command'],
+        ['w41-04-task-flow.json']),
+      caseOf('W41-05-DIFF-AND-CHECKPOINT',
+        'Verify checkpoint creation and diff presentation after modifications (W37 journey semantics).',
+        ['checkpoint record created and persisted in SQLite', 'diff view displays line modifications accurately'],
+        ['w41-05-diff.png', 'w41-05-diff.json']),
+      caseOf('W41-06-APPROVAL-STOP-RESTART',
+        'Verify approval denial zero-side-effect, stop process cleanup, and session restore after restart (W37 first/second/retry/stop semantics).',
+        ['denied destructive operation produces zero side effect', 'stop button terminates background shell process tree immediately', 'session and turn state restored faithfully on restart'],
+        ['w41-06-approval-stop-restart.json']),
+      caseOf('W41-07-A9-20-GIT-FORMS-CMD',
+        'Verify A9-20 CMD shell-host forms (control, concat, path, switch cluster, /R) trigger destination-bound confirmation.',
+        ['approval card appears and the pending item carries the Git external-write binding (origin/main for parseable forms, whole-command summary for G04 fallback)', 'after denial the turn has no execution event for the tool call and the bare repository main ref is unchanged'],
+        ['w41-07-09-git-forms.json']),
+      caseOf('W41-08-A9-20-GIT-FORMS-POWERSHELL',
+        'Verify A9-20 PowerShell forms (prefix, concat, EncodedCommand, positional) trigger destination-bound confirmation.',
+        ['approval card appears and the pending item carries the Git external-write binding (origin/main for parseable forms, whole-command summary for G04 fallback)', 'after denial the turn has no execution event for the tool call and the bare repository main ref is unchanged'],
+        ['w41-07-09-git-forms.json']),
+      caseOf('W41-09-A9-20-GIT-FORMS-POSIX-AND-BULK',
+        'Verify A9-20 POSIX shell forms (classification and confirmation only on Win7 without POSIX shell) and the >256 KiB CMD bulk payload fallback.',
+        ['POSIX forms record classification and confirmation with execution reachability marked NOT_PERFORMED when no POSIX shell exists', 'oversized quoted CMD payload triggers conservative whole-command confirmation and denial leaves zero side effects'],
+        ['w41-07-09-git-forms.json']),
+      caseOf('W41-10-M1-STARTUP-TARGETED-RECOVERY',
+        'Verify M1 targeted startup recovery seeded through the candidate persistence layer with real v4 schema.',
+        ['checkpointRecoveryDiagnostics.rejectedTurns contains exactly the seeded interrupted turn with status missing after product startup', 'remaining turns remain visible through conversation facts', 'startup timing recorded for both small and large histories below 60000 ms'],
+        ['w41-10-startup-recovery.json']),
+      caseOf('W41-11-M1B-HEX-FREEZE-AND-URL-REDACTION',
+        'Verify 1 MiB single-line hex freeze latency and URL credential redaction after a real editing turn.',
+        ['submit-to-result milliseconds recorded with the checkpoint row present, below 10000 ms', 'random URL password has zero hits in persisted events, data-root text files and driver report, and the product redaction marker appears'],
+        ['w41-11-m1b-hex-redaction.json']),
+      caseOf('W41-12-M2-OUTPUT-LIMITS',
+        'Verify M2 model output limits on a single response exceeding 1 MiB containing a later tool call.',
+        ['a9_turns status completed_with_warnings and model_note carries the truncation explanation', 'target file hash unchanged and no execution event for the withheld tool call', 'next turn completes normally'],
+        ['w41-12-output-limits.json']),
+      caseOf('W41-13-M3-CHECKPOINT-PAGINATION',
+        'Verify M3 checkpoint pagination over >=60 real turns each producing a checkpoint.',
+        ['checkpoint count text total equals the session a9_checkpoints row count', 'repeated older-page loads collect unique turn IDs totalling the DB count in continuous time order', 'diff on the oldest loaded checkpoint succeeds with non-empty content'],
+        ['w41-13-checkpoint-paging.png', 'w41-13-checkpoint-paging.json']),
+      caseOf('W41-14-M4-COLLECTION-BOUNDS',
+        'Verify M4 collection bounds with >=2500 seeded events and an eviction-triggering turn.',
+        ['conversation stream top shows the interface cap notice', 'released count in the notice matches the driver independent computation', 'renderer memory sampled twice via app.getAppMetrics and both samples recorded positive'],
+        ['w41-14-collection-bounds.json']),
+      caseOf('W41-15-SECRET-SCAN-AND-POSTFLIGHT',
+        'Verify zero residue after smoke completion with structured snapshots.',
+        ['final residue snapshot with process name, PID, parent PID and truncated command line records zero related processes', 'smoke does not force-kill residue to manufacture the zero-residue result'],
+        ['w41-15-residue.json']),
+      caseOf('W41-16-REVIEW-SUMMARY', 'Verify change-summary card against product Diff review.',
+        ['summary file count and additions/deletions equal a9.diff.get review after the terminal turn'],
+        ['w41-16-summary.json', 'w41-16-summary.png']),
+      caseOf('W41-17-REVIEW-UNDO', 'Verify delayed file undo recall and persisted idempotence.',
+        ['recall before five seconds preserves hash', 'undo removes created file', 'restart preserves undone status and repeated undo has no effect'],
+        ['w41-17-undo.json']),
+      caseOf('W41-18-EXTERNAL-DRIFT', 'Verify whole-turn undo protects external edits.',
+        ['external change remains and is classified external', 'other file restores'],
+        ['w41-18-external.json']),
+      caseOf('W41-19-LATER-TURN', 'Verify later-turn drift refusal and ordered undo.',
+        ['earlier undo refuses with later turn identity and zero write', 'undo later then earlier restores baseline'],
+        ['w41-19-later.json']),
+      caseOf('W41-20-COMMAND-CHANGES', 'Verify recoverable and oversized Shell changes.',
+        ['command-created file appears and can be undone', 'oversized file is marked unrecoverable if reachable without product change'],
+        ['w41-20-command.json']),
+      caseOf('W41-21-NONBLOCKING-MODE', 'Verify nonblocking changes and fail-closed review mode.',
+        ['next turn starts with unreviewed changes', 'mode dialog has only two choices', 'staging-style review mode refuses writes without side effects'],
+        ['w41-21-mode.json']),
+      caseOf('W41-22-LAYOUT', 'Verify change-review controls fit and remain keyboard reachable.',
+        ['no document horizontal overflow', 'undo controls are visible, in viewport and focusable; DPI recorded without changing OS settings'],
+        ['w41-22-layout.json', 'w41-22-layout.png']),
+    ],
+  };
+}
+
 function buildRuntimeDistributions(root, outputRoot) {
   const distributions = new Map();
   for (const moduleName of RUNTIME_MODULES) {
@@ -1796,7 +2036,7 @@ function copyContractEvidence(root, stage, profile) {
     ? 'docs/tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-39'
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
-    : profile.candidate === 'WIN7-40'
+    : (profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41')
     ? 'docs/tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-37'
     ? 'docs/tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md'
@@ -1812,7 +2052,7 @@ function copyContractEvidence(root, stage, profile) {
     'docs/status/a9-01-to-a9-06-developer-gates-20260823.json',
     taskBook,
   ];
-  if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40') {
+  if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41') {
     contracts.push('docs/tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md', 'docs/tasks/A9_21_A9_18_SALVAGE_PORT.md');
   }
   for (const relative of contracts) {
@@ -1991,8 +2231,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-25' && lock.provenance?.previous_candidate === 'WIN7-39'
     && lock.provenance?.previous_candidate_result === 'A9_23_WIN7_39_A9_20_A9_21_PASS'
     && lock.provenance?.change_scope === 'A9_24_CHANGE_REVIEW_WIN7_40_VALIDATION';
+  const win41Provenance = profile.candidate === 'WIN7-41'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_41'
+    && lock.provenance?.task === 'A9-25' && lock.provenance?.previous_candidate === 'WIN7-40'
+    && lock.provenance?.previous_candidate_result === 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS'
+    && lock.provenance?.change_scope === 'A9_25_R6_TIMING_REPAIR_WIN7_41_VALIDATION';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance && !win36Provenance && !win37Provenance && !win38Provenance && !win39Provenance && !win40Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance && !win36Provenance && !win37Provenance && !win38Provenance && !win39Provenance && !win40Provenance && !win41Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;
