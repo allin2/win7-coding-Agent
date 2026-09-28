@@ -2877,6 +2877,10 @@ function a925ShowDiffSettled(state, relPath) {
     && state.toggleFound === true && typeof state.full === 'string' && state.full.includes(relPath));
 }
 
+function a925UndoSettled(value) {
+  return Boolean(value) && !value.includes('将在 5 秒后') && !value.includes('已重新收集');
+}
+
 async function a925OpenFileDiff(exec, turnId, relPath) {
   await a925WaitFor(() => exec(`(() => {
     const row = Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row'))
@@ -2977,10 +2981,10 @@ async function a925ClickUndo(exec, turnId, relPath) {
       undoState: document.getElementById('a9-undo-state')?.textContent || '', clicked: false };
     if (button && !button.disabled) { button.click(); state.clicked = true; }
     return state;
-  })()`), 15000, 'w40 undo confirmation', (state) => state.clicked);
+  })()`), 15000, 'w40 undo confirmation', (state) => state.clicked || a925UndoSettled(state.undoState));
   if (confirmation.clicked) await sleep(500);
   return a925WaitFor(() => exec('document.getElementById("a9-undo-state").textContent'), 15000, 'w40 undo result',
-    (value) => value && !value.includes('将在 5 秒后') && !value.includes('已重新收集'));
+    a925UndoSettled);
 }
 
 

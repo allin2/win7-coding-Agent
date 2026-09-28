@@ -1,0 +1,18 @@
+{
+  "source": ".acceptance/rehearsals/A9-25-W41/20260928-2128",
+  "note": "w41_review w41 undo confirmation last_observation raw strings, copied verbatim; read-only test fixture, not part of the candidate closure",
+  "observations": [
+    {
+      "run": "R1",
+      "journey": "w41_review",
+      "label": "w41 undo confirmation",
+      "last_observation": "{\"buttonFound\":false,\"buttonDisabled\":null,\"undoState\":\"已撤销 notes.md\",\"clicked\":false}"
+    },
+    {
+      "run": "R2",
+      "journey": "w41_review",
+      "label": "w41 undo confirmation",
+      "last_observation": "{\"buttonFound\":false,\"buttonDisabled\":null,\"undoState\":\"已撤销 notes.md\",\"clicked\":false}"
+    }
+  ]
+}
