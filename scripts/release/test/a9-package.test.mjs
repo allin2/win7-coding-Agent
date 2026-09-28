@@ -5514,8 +5514,10 @@ test('W41 replays W40 physical JSON before failure, review mode and Stop through
   const hashes = { w40_review: '0bc9cdbba52c01622e965365f20cc2f2b8490eb451adccc071dbbbb75e6d1e28',
     w40_review_mode: 'f406e796cafb8e62f9fa2c31699b1d8e1fca4dc81596ce427edddd8c908b0ecc',
     w40_stop: '66050b41e367fe396c8824ada463e07f9647c8233f3ed3d1abc826bda141eafb' };
+  const files = { w40_review: 'a9-w41-physical-review.json',
+    w40_review_mode: 'a9-w41-physical-review-mode.json', w40_stop: 'a9-w41-physical-stop.json' };
   const load = (name) => {
-    const bytes = fs.readFileSync(path.join(W41_ROOT, `a9-w41-w40-real-${name}.json`));
+    const bytes = fs.readFileSync(path.join(W41_ROOT, files[name]));
     assert.equal(digest(bytes), hashes[name], `${name}: physical source fixture bytes changed`);
     return JSON.parse(bytes.toString('utf8'));
   };

@@ -33,7 +33,7 @@ W40-20 的 `big.bin` 无法恢复项已经等待该轮 `.review-unrecoverable` �
 
 开发机验证运行 `scripts/release/test/a9-package.test.mjs`、`src/shell` 全量 Jest、`npm run verify:quick`、`npm run docs:check`、`git diff --check`；注入反例应使竞争旧写法、无最后观察、未登记派生差异和残留字面量失败。WIN7-40 正式实机 JSON 只读重放既有判定。W41 预演、冻结、authority、正式实机及验收均不在本文件授权范围；`w41*` 旅程待 Win7 预演。
 
-只读重放夹具逐字节复制自 `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/evidence/smoke/自动 运行 w40-1790527291597/`：`w40_review.json` SHA-256 `0bc9cdbb…d1e28`、`w40_review_mode.json` `f406e796…0ecc`、`w40_stop.json` `66050b41…1eafb`。测试以完整哈希固定三份副本，重放失败前四条审阅断言、Review 模式与 Stop 判定；这不把 W40 的失败阶段转为通过，也不替代 W41 实跑。
+只读重放夹具逐字节复制自 `.acceptance/runs/A9-25-W40/81c7a234-4745-4c79-8554-8c1a4b9f407e/evidence/smoke/自动 运行 w40-1790527291597/`：`w40_review.json` → `a9-w41-physical-review.json`，SHA-256 `0bc9cdbb…d1e28`；`w40_review_mode.json` → `a9-w41-physical-review-mode.json`，`f406e796…0ecc`；`w40_stop.json` → `a9-w41-physical-stop.json`，`66050b41…1eafb`。测试以完整哈希固定三份副本，重放失败前四条审阅断言、Review 模式与 Stop 判定；这不把 W40 的失败阶段转为通过，也不替代 W41 实跑。
 
 ## 4. 用例到断言和证据映射
 
