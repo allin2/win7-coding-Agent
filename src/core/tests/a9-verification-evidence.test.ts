@@ -104,7 +104,7 @@ describe('A9-26 verification hypotheses before repair', () => {
     ['node gen.js', 'verify'], ['python test.py', 'verify'], ['py test.py', 'verify'],
     ['npm -v', 'neutral'], ['node --version', 'neutral'], ['python --help', 'neutral'],
     ['rm x', 'mutating'], ['npm install', 'mutating'], ['git add x', 'mutating'],
-    ['echo ok | npm test', 'verify'], ['echo ok | rm x', 'mutating'],
+    ['echo ok | npm test', 'mutating'], ['echo ok | rm x', 'mutating'],
   ] as const)('R1-02 classify %s as %s', (command, expected) => {
     expect(classifyShellCommandForVerification(command)).toBe(expected);
   });
@@ -170,6 +170,28 @@ describe('A9-26 verification hypotheses before repair', () => {
     const result = await runSequence([{ tool: 'shell', command: 'node -e "console.log(1)"' }]);
     expect(result.outcome).toBe('completed');
     expect(result.verification).toBe('not_applicable');
+    expect(result.verificationEvidence).toBeUndefined();
+  });
+
+  it.each([
+    ['npm test || echo ok', 'mutating'],
+    ['npm test; echo done', 'mutating'],
+    ['npm test | findstr PASS', 'mutating'],
+    ['npm test || exit 0', 'mutating'],
+    ['npm run build && npm test', 'verify'],
+    ['cd sub && npm test', 'verify'],
+    ['npm test && echo done', 'verify'],
+    ['git log | findstr x', 'neutral'],
+  ] as const)('B1 compound exit status: %s → %s', (command, expected) => {
+    expect(classifyShellCommandForVerification(command)).toBe(expected);
+  });
+
+  it('B1 edit then masked failing test with overall exit 0 remains unverified', async () => {
+    const result = await runSequence([
+      { tool: 'edit' }, { tool: 'shell', command: 'npm test || echo ok' },
+    ], [], { exitCodes: [0] });
+    expect(result.outcome).toBe('completed_with_warnings');
+    expect(result.verification).toBe('unverified');
     expect(result.verificationEvidence).toBeUndefined();
   });
 

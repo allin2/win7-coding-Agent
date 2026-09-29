@@ -19,8 +19,9 @@ const readOnlyGit = new Set<string>(READ_ONLY_GIT_COMMANDS);
 const directVerify = new Set<string>(DIRECT_VERIFICATION_COMMANDS);
 const npxVerify = new Set<string>(NPX_VERIFICATION_COMMANDS);
 
-function splitSegments(command: string): string[] | undefined {
+function splitSegments(command: string): { segments: string[]; allAnd: boolean } | undefined {
   const segments: string[] = [];
+  let allAnd = true;
   let current = '';
   let quote: string | undefined;
   for (let i = 0; i < command.length; i += 1) {
@@ -33,6 +34,7 @@ function splitSegments(command: string): string[] | undefined {
     if (char === '"' || char === "'") { quote = char; current += char; continue; }
     if (char === '|' || char === ';' || char === '&') {
       if (char === '&' && command[i + 1] !== '&') return undefined;
+      if (char !== '&') allAnd = false;
       segments.push(current.trim());
       current = '';
       if (command[i + 1] === char) i += 1;
@@ -42,7 +44,7 @@ function splitSegments(command: string): string[] | undefined {
   }
   if (quote) return undefined;
   segments.push(current.trim());
-  return segments.every(Boolean) ? segments : undefined;
+  return segments.every(Boolean) ? { segments, allAnd } : undefined;
 }
 
 function words(segment: string): string[] | undefined {
@@ -83,7 +85,8 @@ export function classifyShellCommandForVerification(command: string): Verificati
   if (payload === undefined) return 'mutating';
   const segments = splitSegments(payload);
   if (!segments) return 'mutating';
-  const classes = segments.map(classifySegment);
+  const classes = segments.segments.map(classifySegment);
   if (classes.includes('mutating')) return 'mutating';
+  if (classes.includes('verify') && !segments.allAnd) return 'mutating';
   return classes.includes('verify') ? 'verify' : 'neutral';
 }
