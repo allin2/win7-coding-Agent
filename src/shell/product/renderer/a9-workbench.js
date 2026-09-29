@@ -36,7 +36,7 @@
     completed_with_warnings: '完成（有警告）',
     blocked: '受阻',
     failed: '失败',
-    cancelled: '已取消',
+    cancelled: '已停止',
     interrupted: '已中断',
     needs_approval: '等待批准',
     running: '运行中',
@@ -561,7 +561,7 @@
     const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
     switch (event.type) {
       case 'turn_started': return '任务开始';
-      case 'turn_completed': return `任务完成 · ${data.outcome || '-'}`;
+      case 'turn_completed': return data.outcome === 'cancelled' ? '已停止' : `任务完成 · ${data.outcome || '-'}`;
       case 'turn_failed': return `任务失败 · ${String(data.error || '').slice(0, 120)}`;
       case 'model_note': return '模型说明';
       case 'model_chunk': return '模型输出（汇总）';
@@ -837,11 +837,13 @@
     let outcome = null;
     let verification = 'not_applicable';
     let message = '';
+    let verificationEvidence = null;
     for (const event of events) {
       if (event.type === 'turn_completed') {
         outcome = event.data.outcome || 'completed';
         verification = event.data.verification || 'not_applicable';
         message = event.data.finalMessage || '';
+        verificationEvidence = event.data.verificationEvidence || null;
       } else if (event.type === 'turn_failed') {
         outcome = 'failed';
         message = event.data.error ? `模型调用失败：${event.data.error}` : '';
@@ -854,7 +856,7 @@
         ? '应用重启后恢复了中断事实；未重放模型、工具或旧审批。'
         : '');
     }
-    return outcome ? { outcome, verification, message } : null;
+    return outcome ? { outcome, verification, message, verificationEvidence } : null;
   }
 
   function updateOutcomeCard(block, fact, events) {
@@ -867,8 +869,8 @@
       }
       return;
     }
-    const { outcome, verification, message } = projection;
-    const signature = JSON.stringify([outcome, verification, message]);
+    const { outcome, verification, message, verificationEvidence } = projection;
+    const signature = JSON.stringify([outcome, verification, message, verificationEvidence]);
     if (block.outcomeSig === signature) return;
     block.outcomeSig = signature;
     if (!block.outcomeEl) {
@@ -897,6 +899,12 @@
     const timeText = fact && fact.updatedAt ? new Date(fact.updatedAt).toLocaleTimeString() : '';
     block.outcomeMetaEl.textContent = [verificationText, timeText].filter(Boolean).join(' · ');
     block.outcomeBodyEl.textContent = clampText(message || '任务已返回结果。', NOTE_LIMIT);
+    if (verificationEvidence && verification === 'verified') {
+      const evidence = document.createElement('small');
+      evidence.className = 'verification-evidence';
+      evidence.textContent = `依据：${verificationEvidence.command} 退出码 ${verificationEvidence.exitCode}`;
+      block.outcomeBodyEl.appendChild(evidence);
+    }
   }
 
   function renderTurnDropped(block, released, remaining) {

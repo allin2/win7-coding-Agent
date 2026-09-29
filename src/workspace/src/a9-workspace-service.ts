@@ -138,7 +138,7 @@ export interface TurnContentBaseline {
 }
 
 export interface ExternalChangeReport {
-  changes: Array<{ path: string; kind: 'created' | 'modified' | 'deleted' | 'renamed'; recoverable: boolean; restoredVia?: 'delete-new' | 'restore-original' }>;
+  changes: Array<{ path: string; kind: 'created' | 'modified' | 'deleted' | 'renamed'; recoverable: boolean; restoredVia?: 'delete-new' | 'restore-original'; newHash?: string }>;
   unrecoverable: Array<{ path: string; kind: string; reason: string }>;
 }
 
@@ -1152,19 +1152,19 @@ export class A9WorkspaceService {
         });
         this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: `轮前基线未覆盖（${skippedFact.reason}），无法恢复原内容` });
         report.unrecoverable.push({ path: rel, kind: 'modified', reason: skippedFact.reason });
-        report.changes.push({ path: rel, kind: 'modified', recoverable: false });
+        report.changes.push({ path: rel, kind: 'modified', recoverable: false, newHash: fact.sha256 });
         continue;
       }
       if (!before) {
         if (isContentHash(fact.sha256)) {
           createdHashes.set(fact.sha256, rel);
           this.checkpointManager.recordExternalFact(turnId, rel, 'created', { newHash: fact.sha256 });
-          report.changes.push({ path: rel, kind: 'created', recoverable: true, restoredVia: 'delete-new' });
+          report.changes.push({ path: rel, kind: 'created', recoverable: true, restoredVia: 'delete-new', newHash: fact.sha256 });
         } else {
           this.checkpointManager.recordExternalFact(turnId, rel, 'created', { unrecoverable: true });
           this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'created', reason: '轮后文件不可读，无法绑定删除目标身份' });
           report.unrecoverable.push({ path: rel, kind: 'created', reason: 'backup_failed' });
-          report.changes.push({ path: rel, kind: 'created', recoverable: false });
+          report.changes.push({ path: rel, kind: 'created', recoverable: false, newHash: fact.sha256 });
         }
         continue;
       }
@@ -1176,11 +1176,11 @@ export class A9WorkspaceService {
           ...(!isContentHash(fact.sha256) ? { unrecoverable: true } : {}),
         });
         if (isContentHash(fact.sha256)) {
-          report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original' });
+          report.changes.push({ path: rel, kind: 'modified', recoverable: true, restoredVia: 'restore-original', newHash: fact.sha256 });
         } else {
           this.checkpointManager.recordUnrecoverableExternal(turnId, { path: rel, kind: 'modified', reason: '轮后文件不可读，无法绑定撤销目标身份' });
           report.unrecoverable.push({ path: rel, kind: 'modified', reason: 'backup_failed' });
-          report.changes.push({ path: rel, kind: 'modified', recoverable: false });
+          report.changes.push({ path: rel, kind: 'modified', recoverable: false, newHash: fact.sha256 });
         }
       }
     }

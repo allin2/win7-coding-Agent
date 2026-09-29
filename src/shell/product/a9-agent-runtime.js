@@ -1170,6 +1170,7 @@ function createA9AgentRuntime(options) {
         runner: runnerAdapter,
         permissionMode,
         externalChangePort: workspaceService,
+        redactText: redactSecrets,
         shellOptions: {
           kind: configuredShell.kind || shellSelection.kind,
           ...(configuredShell.path ? { path: configuredShell.path } : {}),

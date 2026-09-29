@@ -25,7 +25,8 @@ import { buildA9SystemPrompt } from './system-prompt';
 import { LoopDetector, TurnOutcome } from './loop-control';
 import * as crypto from 'crypto';
 import { AgentError, AgentErrorCode } from './errors';
-import { classifyGitCommand, expandShellHostPayloads, GitCommandApprovalBinding } from './git-command-policy';
+import { classifyGitCommand, GitCommandApprovalBinding } from './git-command-policy';
+import { classifyShellCommandForVerification } from './a9-verification-evidence';
 
 export interface A9LoopEvent {
   type:
@@ -150,7 +151,7 @@ export interface A9RunnerPort {
 
 /** R3：外部变化报告（与 workspace ExternalChangeReport 结构一致）。 */
 export interface A9ExternalChangeReport {
-  changes: Array<{ path: string; kind: 'created' | 'modified' | 'deleted' | 'renamed'; recoverable: boolean; restoredVia?: string }>;
+  changes: Array<{ path: string; kind: 'created' | 'modified' | 'deleted' | 'renamed'; recoverable: boolean; restoredVia?: string; newHash?: string }>;
   unrecoverable: Array<{ path: string; kind: string; reason: string }>;
 }
 
@@ -253,6 +254,8 @@ export interface A9AgentLoopConfig {
   /** 单个工具结果进入模型历史的字符上限，防止上下文无限膨胀。 */
   maxToolResultChars?: number;
   onEvent?: (event: A9LoopEvent) => void;
+  /** Host secret redaction, applied before verification commands leave Core. */
+  redactText?: (value: string) => string;
 }
 
 /**
@@ -368,6 +371,7 @@ export interface A9TurnResult {
   /** 挂起审批（不可变绑定对象；恢复必须携带 approvalId + bindingDigest）。 */
   pendingApproval?: A9ApprovalRequest;
   verification?: A9VerificationStatus;
+  verificationEvidence?: { command: string; exitCode: number };
   /** onEvent 处理器抛出的错误（不得静默吞掉）。 */
   eventHandlerErrors?: string[];
   /** R3：本轮 Shell/Git/脚本造成的工作区变化（与 checkpoint/Diff 同源）。 */
@@ -424,6 +428,8 @@ export class A9AgentLoop {
   private frozenBaseline: unknown;
   private baselineFrozen = false;
   private externalChanges: Array<{ path: string; kind: string; recoverable: boolean }> = [];
+  private readonly lastExternalSignatures = new Map<string, string>();
+  private verificationEvidence: { command: string; exitCode: number } | undefined;
 
   constructor(private readonly config: A9AgentLoopConfig) {
     this.permissionMode = config.permissionMode ?? PermissionMode.FULL_ACCESS;
@@ -469,6 +475,8 @@ export class A9AgentLoop {
     this.frozenBaseline = undefined;
     this.baselineFrozen = false;
     this.externalChanges = [];
+    this.lastExternalSignatures.clear();
+    this.verificationEvidence = undefined;
     this.turnSequence += 1;
     const turnId = `turn-${Date.now()}-${this.turnSequence}`;
     this.currentTurnId = turnId;
@@ -615,7 +623,7 @@ export class A9AgentLoop {
           finalMessage: 'Turn cancelled by user',
           totalSteps: stepCount,
           toolCallsExecuted,
-        });
+        }, 'turn_completed', { outcome: TurnOutcome.CANCELLED, finalMessage: 'Turn cancelled by user' });
       }
 
       stepCount++;
@@ -676,7 +684,7 @@ export class A9AgentLoop {
             finalMessage: 'Turn cancelled by user',
             totalSteps: stepCount,
             toolCallsExecuted,
-          });
+          }, 'turn_completed', { outcome: TurnOutcome.CANCELLED, finalMessage: 'Turn cancelled by user' });
         }
         this.emitEvent({
           type: 'turn_failed',
@@ -882,7 +890,7 @@ export class A9AgentLoop {
             finalMessage: 'Turn cancelled by user',
             totalSteps: stepCount,
             toolCallsExecuted: executed,
-          }),
+          }, 'turn_completed', { outcome: TurnOutcome.CANCELLED, finalMessage: 'Turn cancelled by user' }),
         };
       }
 
@@ -1083,16 +1091,23 @@ export class A9AgentLoop {
       // 收集不携带用户取消信号：取消后仍必须如实记录已发生的文件变化。
       const report = await this.config.externalChangePort.collectExternalChanges(turnId, this.frozenBaseline);
       const changes = Array.isArray(report) ? report : (report?.changes ?? []);
-      if (changes.length > 0) {
-        this.externalChanges.push(...changes);
+      const newChanges = changes.filter((change) => {
+        const signature = `${change.kind}:${change.newHash ?? ''}`;
+        if (this.lastExternalSignatures.get(change.path) === signature) return false;
+        this.lastExternalSignatures.set(change.path, signature);
+        return true;
+      });
+      if (newChanges.length > 0) {
+        this.externalChanges.push(...newChanges);
         // 外部（Shell）造成的真实文件变化：计为副作用并使既有验证失效。
         this.turnStats.mutations = true;
         this.turnStats.verifiedAfterMutation = false;
+        this.verificationEvidence = undefined;
         this.emitEvent({
           type: 'tool_end',
           turnId,
           timestamp: new Date().toISOString(),
-          data: { externalChanges: changes },
+          data: { externalChanges: newChanges },
         });
       }
     } catch (err) {
@@ -1255,27 +1270,26 @@ export class A9AgentLoop {
         this.turnStats.mutations = true;
         // 验证之后又发生源码修改 → 回到 unverified。
         this.turnStats.verifiedAfterMutation = false;
+        this.verificationEvidence = undefined;
       } else if (tc.name === 'shell' && !residueRisk) {
-        // git 写操作经分类器计入副作用（A9-T02：Shell 变化纳入同一审计链路）。
-        const gitDecision = typeof args.command === 'string' ? classifyGitCommand(args.command) : null;
-        if (gitDecision?.mutatesWorktree) {
+        const command = typeof args.command === 'string' ? args.command : '';
+        const commandClass = classifyShellCommandForVerification(command);
+        if (commandClass === 'mutating') {
           this.turnStats.mutations = true;
           this.turnStats.verifiedAfterMutation = false;
+          this.verificationEvidence = undefined;
         }
-        // 只有“非纯输出”的命令成功执行且此前存在文件副作用 → 才算验证证据；
-        // echo/ls/cat 等纯输出命令成功不产生 verified。Shell 宿主按其实际执行的
-        // 载荷判断，载荷无法提取即不计；Git 外部写（如 push）不是验证（ADR-0137 G07）。
-        const command = typeof args.command === 'string' ? args.command : '';
-        const executedText = expandShellHostPayloads(command);
         try {
           const parsed = JSON.parse(toolResultStr);
-          if (
-            typeof parsed.exitCode === 'number' && parsed.exitCode === 0 &&
-            this.turnStats.mutations && !gitDecision?.mutatesWorktree &&
-            gitDecision?.category !== 'always_confirm' &&
-            executedText !== undefined && !isNonVerifyingCommand(executedText)
-          ) {
+          if (commandClass === 'verify' && parsed.exitCode === 0 && this.turnStats.mutations) {
             this.turnStats.verifiedAfterMutation = true;
+            this.verificationEvidence = {
+              command: (this.config.redactText ? this.config.redactText(command) : command).slice(0, 200),
+              exitCode: 0,
+            };
+          } else if (commandClass === 'verify' && parsed.exitCode !== 0) {
+            this.turnStats.verifiedAfterMutation = false;
+            this.verificationEvidence = undefined;
           }
         } catch (_parseErr) { /* 非 JSON 结果无法证明验证 */ }
       }
@@ -1395,7 +1409,9 @@ export class A9AgentLoop {
     eventType: 'turn_completed' | 'turn_failed' | undefined = undefined,
     eventData: Record<string, unknown> = {},
   ): A9TurnResult {
-    const withPlan = this.visiblePlan ? { ...result, plan: { ...this.visiblePlan } } : result;
+    const withEvidence = result.verification === 'verified' && this.verificationEvidence
+      ? { ...result, verificationEvidence: { ...this.verificationEvidence } } : result;
+    const withPlan = this.visiblePlan ? { ...withEvidence, plan: { ...this.visiblePlan } } : withEvidence;
     const withExternal = this.externalChanges.length > 0
       ? { ...withPlan, externalChanges: [...this.externalChanges] }
       : withPlan;
@@ -1403,7 +1419,11 @@ export class A9AgentLoop {
       ? { ...withExternal, eventHandlerErrors: [...this.eventHandlerErrors] }
       : withExternal;
     if (eventType) {
-      this.emitEvent({ type: eventType, turnId, timestamp: new Date().toISOString(), data: eventData });
+      this.emitEvent({ type: eventType, turnId, timestamp: new Date().toISOString(), data: {
+        ...eventData,
+        ...(eventType === 'turn_completed' && result.verification === 'verified' && this.verificationEvidence
+          ? { verificationEvidence: { ...this.verificationEvidence } } : {}),
+      } });
     }
     return withErrors;
   }
