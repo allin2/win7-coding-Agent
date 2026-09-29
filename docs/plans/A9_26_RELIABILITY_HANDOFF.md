@@ -138,3 +138,17 @@
   允许只改**输入**：轮次开始前在工作区写入 `check.js`（内容 `console.log('verified')`），夹具命令改为 `node check.js`；**全部断言不改**（仍为 `completed`/`verified`）。
   同时新增一条宿主用例固定旧输入的新语义：`edit` 后执行 `node -e "console.log('verified')"` → `completed_with_warnings` / `unverified`，且 `verificationEvidence` 不存在。
 - 除上述之外，§4“既有测试只允许因文案变更更新断言”不变。
+
+**A6 打包测试 K-02、K-05（执行方第四次停止报告，`90c9796`）。** 验收方核实：基线 `36c08ba` 上 `a9-package.test.mjs` 101/101 通过；在 `90c9796` 上全量运行只有 K-02 失败，K-05 单独连跑 5 次与全量运行均通过。
+
+- **A6-1 K-02 根因在渲染端（改实现，白名单内）。** 回放数据来自旧后端，没有 `reasonCode`，`reason` 为“轮前基线未覆盖（too_large），无法恢复原内容”；现实现去掉 `（too_large）` 后落到“缺少原始内容”，
+  既不含“超过备份上限”也不含 `too_large`，旧 checkpoint 在真实使用中也会得到这种退化的文案。裁决（取代 §2 ⑤ O-2 中“无 `reasonCode` 时沿用现行映射”）：
+  渲染端在没有可用 `reasonCode` 时，先从 `reason` 文本按 `（<code>）` 解析原因码，解析到已知原因码即按原因码映射；解析不到才沿用按 `kind` 的现行映射。
+  补一条界面测试：无 `reasonCode`、`reason` 含 `（too_large）` 时显示“超过备份上限”且不含 `too_large`。
+- **A6-2 K-02 负向对照特许更新（白名单外，仅此一处）。** `scripts/release/test/a9-package.test.mjs` 的 K-02 中，
+  `assert.equal(h.a925UnrecoverableTextMatches(rendered.replaceAll('too_large', 'missing'), 'big.bin'), false);` 一行改为两行：
+  `assert.ok(!rendered.includes('too_large'));` 与 `assert.equal(h.a925UnrecoverableTextMatches(rendered.replaceAll('超过备份上限', '缺少原始内容'), 'big.bin'), false);`。
+  原负向对照依赖界面露出英文原因码，与 O-2 的目标相反；新对照仍证明判据依赖原因文字。该文件其余内容、`a9-06-driver-entry.cjs` 及全部冻结驱动**不得修改**。
+  验收方已在临时副本中试验 A6-1 与 A6-2：K-02、K-05 均通过（该副本缺各包 `dist`，其余构建类用例不作数）。
+- **A6-3 K-05 不授权任何修改。** 该用例只读取驱动源码与静态预演数据，不涉及产品代码，验收方无法复现。若执行方再次观察到失败，交回精确命令、工作目录、`git status`、完整输出以及
+  驱动文件的换行形式（`file src/shell/tests/product/a9-06-driver-entry.cjs`），不得修改驱动或测试。
