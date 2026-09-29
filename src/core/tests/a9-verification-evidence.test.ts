@@ -165,4 +165,27 @@ describe('A9-26 verification hypotheses before repair', () => {
     ]);
     expect(result.verification).toBe('unverified');
   });
+
+  it('A5-1 a mutating-class command without file changes has no observed side effect', async () => {
+    const result = await runSequence([{ tool: 'shell', command: 'node -e "console.log(1)"' }]);
+    expect(result.outcome).toBe('completed');
+    expect(result.verification).toBe('not_applicable');
+    expect(result.verificationEvidence).toBeUndefined();
+  });
+
+  it('A5-1 an observed external file change makes a mutating-class command unverified', async () => {
+    const result = await runSequence([{ tool: 'shell', command: 'node -e "writeFile()"' }], [
+      [{ path: 'generated.txt', kind: 'created', recoverable: true, newHash: 'new' }],
+    ]);
+    expect(result.outcome).toBe('completed_with_warnings');
+    expect(result.verification).toBe('unverified');
+    expect(result.verificationEvidence).toBeUndefined();
+  });
+
+  it('A5-1 Git worktree mutation remains a side effect without an external file report', async () => {
+    const result = await runSequence([{ tool: 'shell', command: 'git add calc.ts' }]);
+    expect(result.outcome).toBe('completed_with_warnings');
+    expect(result.verification).toBe('unverified');
+    expect(result.verificationEvidence).toBeUndefined();
+  });
 });

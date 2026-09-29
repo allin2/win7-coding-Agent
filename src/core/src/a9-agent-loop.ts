@@ -1360,6 +1360,12 @@ export class A9AgentLoop {
         const command = typeof args.command === 'string' ? args.command : '';
         const commandClass = classifyShellCommandForVerification(command);
         if (commandClass === 'mutating') {
+          this.turnStats.verifiedAfterMutation = false;
+          this.verificationEvidence = undefined;
+        }
+        // Shell 分类描述命令可否作为验证，不能证明它已修改文件。
+        // Git 工作树写操作仍按原有分类器计入副作用。
+        if (classifyGitCommand(command)?.mutatesWorktree) {
           this.turnStats.mutations = true;
           this.turnStats.verifiedAfterMutation = false;
           this.verificationEvidence = undefined;
