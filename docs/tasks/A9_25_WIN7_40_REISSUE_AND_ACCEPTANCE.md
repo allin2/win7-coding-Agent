@@ -155,3 +155,6 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
   （ZIP `66a4b3e4…93b0`，101,437,930 B；manifest `141ef659…343e`，790 文件；输入锁 `5dfd5dec…84b5`；Kit `A9-25-WIN7-41-20260928-01`，22 项，`result_on_complete` 为 `A9_25_WIN7_41_A9_24_PASS`）。
   包内套件文件与输入锁与仓库逐字节一致。开发机预检（草稿 authority，非签发件）：身份与全树核对零差异（790/791），运行时 ABI 项因开发机 Node ABI 115 按预期失败；错误 pin 报 `A9_W41_AUTHORITY_PIN_MISMATCH`，
   篡改 ZIP 与错误候选绑定报 `A9_W41_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 22 项模板、错误 pin 被拒。以上不是 Win7 结果。下一步第 ⑤ 步门 A。
+- 2026-09-29：§9 第 ⑤ 步门 A：负责人在对话中签发 `WIN7_41_RELEASE_AUTHORITY`（`approved_at` 2026-09-29T01:07:45Z，SHA-256 `aeaa20cf…ffcc8`），绑定源码 `0f8af24`、ZIP `66a4b3e4…93b0`、manifest `141ef659…343e`、
+  输入锁 `5dfd5dec…84b5`、原生构建审批登记、Kit（22 项）、目标主机 `192.168.1.3` 与 run-id `318e27e4-d7ac-4c42-9530-8f973abf033f`（authority 位于 `.acceptance/runs/A9-25-W41/318e27e4-…/authority/`）。
+  候选自带校验对签发版 authority 身份与全树核对通过，草稿 pin 被拒，报告器 `init` 生成 22 项模板（开发机预检）。[WIN7-41 实机交接书](../plans/A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md)改为 `READY_FOR_EXECUTION`。
