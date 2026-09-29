@@ -1412,8 +1412,10 @@
       const fallbackReason = ({ outside: '位于工作区外', too_large: '超过备份上限', backup_failed: '备份失败',
         created: '缺少可恢复基线', modified: '缺少原始内容', deleted: '缺少原始内容', renamed: '无法确定原始路径' })[change.kind]
         || '恢复依据不足';
-      const reason = reasonByCode[change.reasonCode] || fallbackReason;
-      const detail = reasonByCode[change.reasonCode] ? '' : String(change.reason || '').replace(/（[a-z_]+）/g, '');
+      const parsedCode = /（([a-z_]+)）/.exec(String(change.reason || ''))?.[1];
+      const reasonCode = reasonByCode[change.reasonCode] ? change.reasonCode : parsedCode;
+      const reason = reasonByCode[reasonCode] || fallbackReason;
+      const detail = reasonByCode[reasonCode] ? '' : String(change.reason || '').replace(/（[a-z_]+）/g, '');
       warning.textContent = `命令产生 · 无法撤销 · ${change.path}：${reason}${detail ? `（${detail}）` : ''}`;
       files.appendChild(warning);
     });

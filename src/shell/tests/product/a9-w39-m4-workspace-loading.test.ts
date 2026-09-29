@@ -234,3 +234,14 @@ it('R5 O-2 renders a recorded size reason without the internal code', () => {
   expect(item.textContent).toContain('超过备份上限（单文件 2 MiB），轮前未保存原内容');
   expect(item.textContent).not.toContain('too_large');
 });
+
+it('A6-1 maps a legacy reason token when reasonCode is absent', () => {
+  const h = makeWorkbench(async () => ({ ok: true, events: [], hasMore: false }));
+  const item = new FakeNode();
+  h.window.__w39.state.reviewOpenTurn = 'turn-1';
+  h.window.__w39.appendReviewFiles(item, 'turn-1', { files: [], unrecoverable: [{
+    path: 'large.bin', kind: 'modified', reason: '轮前基线未覆盖（too_large），无法恢复原内容',
+  }] });
+  expect(item.textContent).toContain('超过备份上限');
+  expect(item.textContent).not.toContain('too_large');
+});
