@@ -56,7 +56,9 @@ class FakeNode {
   querySelectorAll(selector: string): FakeNode[] {
     const found: FakeNode[] = [];
     const visit = (parent: FakeNode) => parent.children.forEach((child) => {
-      if (selector === child.tagName || (selector === 'details[open]' && child.tagName === 'details' && child.open)) found.push(child);
+      if (selector === child.tagName || (selector === 'details[open]' && child.tagName === 'details' && child.open)
+        || (selector === '.legacy-note:not(.conversation-history-note)' && child.classList.contains('legacy-note')
+          && !child.classList.contains('conversation-history-note'))) found.push(child);
       visit(child);
     });
     visit(this);
@@ -147,6 +149,10 @@ function makeWorkbench(query: (request: any) => Promise<any>, empty = false) {
   const document = { getElementById: node, createElement: (tag: string) => new FakeNode(tag),
     createTextNode: (value: string) => { const text = new FakeNode(); text.textContent = value; return text; },
     addEventListener: jest.fn(), querySelectorAll: () => [],
+    querySelector: (selector: string) => {
+      if (selector !== '#a9-task-stream .legacy-note:not(.conversation-history-note)') throw new Error('Unsupported selector: ' + selector);
+      return node('a9-task-stream').querySelector('.legacy-note:not(.conversation-history-note)');
+    },
   };
   const instrumented = script.replace('  root.win7AgentA9Workbench = Object.freeze({',
     '  root.__w39 = { chooseWorkspace, appendReviewFiles, state };\n  root.win7AgentA9Workbench = Object.freeze({');
@@ -161,7 +167,7 @@ function makeWorkbench(query: (request: any) => Promise<any>, empty = false) {
     visit(stream);
     return notes;
   };
-  return { window, node, stream, queryEvents, legacyNotes, setWorkspace: (root: string) => { workspaceRoot = root; } };
+  return { window, document, node, stream, queryEvents, legacyNotes, setWorkspace: (root: string) => { workspaceRoot = root; } };
 }
 
 it('R5-02 A4 keeps the legacy note until the history request returns', async () => {
@@ -182,20 +188,54 @@ it('R5-02 A4 keeps the legacy note until the history request returns', async () 
   expect(h.window.__w39.state.inspectorEvents.size).toBe(1);
 });
 
-it('R5-02 failure shows a retry button and succeeds on retry', async () => {
+it('B2 R5-02 initial failure exposes the inherited driver retry selector and recovers', async () => {
   let attempts = 0;
   const h = makeWorkbench(async () => ++attempts === 1 ? { ok: false }
     : { ok: true, events: [{ eventId: 2, turnId: 'turn-1', eventType: 'model_note',
       payload: { type: 'model_note', data: { content: 'retried' } } }], hasMore: false });
   await h.window.__w39.chooseWorkspace();
-  expect(h.stream.firstChild?.attributes.role).toBe('alert');
-  expect(h.stream.firstChild?.textContent).toContain('过程记录加载失败');
-  expect(h.stream.firstChild?.querySelector('button')?.textContent).toBe('重试');
-  h.stream.firstChild?.querySelector('button')?.click();
+  const note = h.document.querySelector('#a9-task-stream .legacy-note:not(.conversation-history-note)');
+  expect(note?.attributes.role).toBe('alert');
+  expect(note?.textContent).toContain('过程记录加载失败');
+  expect(note?.querySelector('button')?.textContent).toBe('重试加载');
+  expect(h.stream.querySelectorAll('button').filter((button) => button.textContent.includes('重试'))).toHaveLength(1);
+  note?.querySelector('button')?.click();
   for (let i = 0; i < 8 && h.window.__w39.state.eventsLoading; i += 1) await Promise.resolve();
   expect(h.queryEvents).toHaveBeenCalledTimes(2);
   expect(h.window.__w39.state.inspectorEvents.size).toBe(1);
+  expect(h.queryEvents.mock.calls[1][0]).toEqual({ conversationId: 'conversation-a', limit: 300 });
+  expect(h.window.__w39.state.eventsError).toBe('');
+  expect(h.stream.textContent).not.toContain('重试加载');
   expect(h.stream.firstChild?.attributes.role).not.toBe('alert');
+});
+
+it('B2 older page failure retries the same beforeEventId through the inherited selector', async () => {
+  let attempts = 0;
+  const event = (eventId: number) => ({ eventId, turnId: 'turn-1', eventType: 'model_note',
+    payload: { type: 'model_note', data: { content: 'event ' + eventId } } });
+  const h = makeWorkbench(async () => {
+    attempts += 1;
+    if (attempts === 1) return { ok: true, events: [event(301)], hasMore: true };
+    if (attempts === 2) return { ok: false };
+    return { ok: true, events: [event(1)], hasMore: false };
+  });
+  await h.window.__w39.chooseWorkspace();
+  const selector = '#a9-task-stream .legacy-note:not(.conversation-history-note)';
+  h.document.querySelector(selector)?.querySelector('button')?.click();
+  for (let i = 0; i < 32 && h.window.__w39.state.eventsLoading; i += 1) await Promise.resolve();
+  const errorNote = h.document.querySelector(selector);
+  expect(errorNote?.attributes.role).toBe('alert');
+  expect(errorNote?.querySelector('button')?.textContent).toBe('重试加载');
+  expect(h.window.__w39.state.inspectorEvents.size).toBe(1);
+  errorNote?.querySelector('button')?.click();
+  for (let i = 0; i < 32 && h.window.__w39.state.eventsLoading; i += 1) await Promise.resolve();
+  expect(h.queryEvents).toHaveBeenCalledTimes(3);
+  expect(h.queryEvents.mock.calls[1][0]).toEqual({ conversationId: 'conversation-a', limit: 300, beforeEventId: 301 });
+  expect(h.queryEvents.mock.calls[2][0]).toEqual(h.queryEvents.mock.calls[1][0]);
+  expect(h.window.__w39.state.inspectorEvents.size).toBe(2);
+  expect(h.window.__w39.state.eventsError).toBe('');
+  expect(h.stream.textContent).not.toContain('重试加载');
+  expect(h.document.querySelector(selector)?.attributes.role).not.toBe('alert');
 });
 
 it('R5-03 discards A late response after selecting B', async () => {
