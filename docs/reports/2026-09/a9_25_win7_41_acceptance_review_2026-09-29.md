@@ -50,3 +50,16 @@
 - **开发机预检**（非 Win7 结果）：候选内校验器 `status=PASS`、`verified_cases=22`、处置 `A9_25_WIN7_41_A9_24_PASS`；篡改一个证据字节被 `A9_W41_EVIDENCE_SIZE_MISMATCH` 拒绝，错误 pin 被 `A9_W41_AUTHORITY_PIN_MISMATCH` 拒绝。
 - **建议**：在执行方按实机交接书附录 A 于 Win7 以 `agent` 完成报告校验、结果为 `status=PASS` 后，负责人在门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项全部，随结论记录 §4 的限制）。
   Win7 报告校验未完成前不签发。
+
+## 6. Win7 报告校验（实机交接书附录 A，2026-09-29）
+
+审核方核对 `<L>/report-verify/` 原始证据：
+
+- `SHA256SUMS.txt` 76/76 OK；C1 `agent` 为 `console`“运行中”，Win7 端 ZIP 与 4 个 authority 文件哈希与 §3 一致。
+- C3 Win7 端 `certutil` 逐文件与本机一致（36/36），其中含钉住的 `report-w41.json`（`81f677d7…75ae`）与 `RUN_REPORT_VERIFY_AS_AGENT.cmd`（`698c236a…2123`）。
+- C4 任务 `A9W41C318e27e4ReportVerify` 只运行一次；回读门 COM 后备逐字段一致。`report-verify-output.txt` 原值：`whoami /groups` 含 `S-1-16-8192`，
+  校验器输出 `status=PASS`、`disposition=A9_25_WIN7_41_A9_24_PASS`、`verified_cases=22`、`direct_current_candidate_cases=22`，绑定源码 `0f8af24`、ZIP `66a4b3e4…93b0`、authority `aeaa20cf…ffcc8`；末行 `REPORT_VERIFY_EXIT=0`。
+- C5 无新增 Electron，任务已删除（`remaining_count=0`），取回 14/14 一致。
+- 偏差 DEV-C1、C1b、C4a、C4b、C6 均为执行方自产脚本或清单的修正，已登记且另存或未影响校验运行；其中 DEV-C6 为交回前重算 `SHA256SUMS.txt`，最终清单复算一致。
+
+**建议**：负责人在门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（W41-01～22 全部），随结论记录 §4 的已知限制与 DEV-3。
