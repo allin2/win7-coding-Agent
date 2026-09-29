@@ -1171,6 +1171,9 @@ function createA9AgentRuntime(options) {
         permissionMode,
         externalChangePort: workspaceService,
         redactText: redactSecrets,
+        loadProjectInstructions: () => modules.core.loadProjectInstructions(workspaceRoot, {
+          containsSensitiveData: containsSensitiveCheckpointData,
+        }),
         shellOptions: {
           kind: configuredShell.kind || shellSelection.kind,
           ...(configuredShell.path ? { path: configuredShell.path } : {}),

@@ -27,6 +27,12 @@ import * as crypto from 'crypto';
 import { AgentError, AgentErrorCode } from './errors';
 import { classifyGitCommand, GitCommandApprovalBinding } from './git-command-policy';
 import { classifyShellCommandForVerification } from './a9-verification-evidence';
+import { loadProjectInstructions, ProjectInstructionResult } from './a9-project-instructions';
+
+const PROJECT_INSTRUCTIONS_PREFIX = '<project_instructions source="AGENTS.md"';
+function isProjectInstructionMessage(message: A9LoopMessage): boolean {
+  return message.role === 'system' && message.content.startsWith(PROJECT_INSTRUCTIONS_PREFIX);
+}
 
 export interface A9LoopEvent {
   type:
@@ -256,6 +262,7 @@ export interface A9AgentLoopConfig {
   onEvent?: (event: A9LoopEvent) => void;
   /** Host secret redaction, applied before verification commands leave Core. */
   redactText?: (value: string) => string;
+  loadProjectInstructions?: () => ProjectInstructionResult;
 }
 
 /**
@@ -456,7 +463,8 @@ export class A9AgentLoop {
   }
 
   getConversationHistory(): A9LoopMessage[] {
-    return this.conversationHistory.map((message) => ({ ...message }));
+    return this.conversationHistory.filter((message) => !isProjectInstructionMessage(message))
+      .map((message) => ({ ...message }));
   }
 
   /**
@@ -482,11 +490,22 @@ export class A9AgentLoop {
     this.currentTurnId = turnId;
     const maxSteps = this.config.maxStepsPerTurn || 30;
 
+    let projectInstructions: ProjectInstructionResult;
+    try {
+      projectInstructions = this.config.loadProjectInstructions
+        ? this.config.loadProjectInstructions()
+        : loadProjectInstructions(this.config.workspaceRoot, { containsSensitiveData: () => false });
+    } catch (_error) {
+      projectInstructions = { status: 'decode_error', bytes: 0 };
+    }
+
     this.emitEvent({
       type: 'turn_started',
       turnId,
       timestamp: new Date().toISOString(),
-      data: { userPrompt, mode: this.permissionMode },
+      data: { userPrompt, mode: this.permissionMode, projectInstructions: {
+        status: projectInstructions.status, bytes: projectInstructions.bytes, sha256: projectInstructions.sha256,
+      } },
     });
 
     if (!this.conversationHistory.some((m) => m.role === 'system')) {
@@ -498,6 +517,16 @@ export class A9AgentLoop {
         visibleTools: this.getVisibleTools(),
       });
       this.conversationHistory.push({ role: 'system', content: systemPromptContract.content });
+    }
+
+    const previousIndex = this.conversationHistory.findIndex(isProjectInstructionMessage);
+    if (projectInstructions.status === 'loaded' && projectInstructions.content !== undefined) {
+      const instructionMessage: A9LoopMessage = { role: 'system',
+        content: `<project_instructions source="AGENTS.md" sha256="${projectInstructions.sha256}">\n${projectInstructions.content}\n</project_instructions>` };
+      if (previousIndex >= 0) this.conversationHistory[previousIndex] = instructionMessage;
+      else this.conversationHistory.splice(1, 0, instructionMessage);
+    } else if (previousIndex >= 0) {
+      this.conversationHistory.splice(previousIndex, 1);
     }
 
     this.conversationHistory.push({ role: 'user', content: userPrompt });
@@ -1433,9 +1462,10 @@ export class A9AgentLoop {
    * 会话投影为 loop 消息后注入，替代原 System Prompt 重建新模型上下文。
    */
   restoreConversationHistory(messages: A9LoopMessage[]): void {
-    if (messages.length === 0) return;
-    const rebuilt: A9LoopMessage[] = messages.some((m) => m.role === 'system')
-      ? [...messages]
+    const persistentMessages = messages.filter((message) => !isProjectInstructionMessage(message));
+    if (persistentMessages.length === 0) return;
+    const rebuilt: A9LoopMessage[] = persistentMessages.some((m) => m.role === 'system')
+      ? [...persistentMessages]
       : [
         {
           role: 'system',
@@ -1447,7 +1477,7 @@ export class A9AgentLoop {
             visibleTools: this.getVisibleTools(),
           }).content,
         },
-        ...messages,
+        ...persistentMessages,
       ];
     this.conversationHistory.length = 0;
     this.conversationHistory.push(...rebuilt.map((m) => ({ ...m })));

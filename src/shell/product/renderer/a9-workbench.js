@@ -729,6 +729,24 @@
   function appendEventNode(block, event) {
     const data = event.data || {};
     switch (event.type) {
+      case 'turn_started': {
+        const instruction = data.projectInstructions;
+        if (!instruction) break;
+        const statusText = {
+          absent: '未找到工作区根 AGENTS.md',
+          too_large: 'AGENTS.md 超过 32 KiB，未加载',
+          decode_error: 'AGENTS.md 无法按 UTF-8 读取',
+          secret_blocked: 'AGENTS.md 含已知秘密，未加载',
+          outside: 'AGENTS.md 指向工作区外，未加载',
+        };
+        const note = document.createElement('p');
+        note.className = 'note-line';
+        note.textContent = instruction.status === 'loaded'
+          ? `已加载 AGENTS.md（${(instruction.bytes / 1024).toFixed(1)} KB）`
+          : (statusText[instruction.status] || 'AGENTS.md 未加载');
+        block.progressEl.appendChild(note);
+        break;
+      }
       case 'model_note': {
         closeActivityGroup(block);
         const note = document.createElement('p');
