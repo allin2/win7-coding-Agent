@@ -151,3 +151,7 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 - 2026-09-29：负责人认定 §9 第 ② 步完成，并确认 DEV-2 的授权来自负责人。进入第 ③ 步起草 WIN7-41 实机交接书。
 - 2026-09-29：§9 第 ③ 步：起草 [WIN7-41 实机交接书](../plans/A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md)（`DRAFT_PENDING_FREEZE_AND_GATE_A`），以 WIN7-40 交接书为模板，并入反斜杠归档展开、大归档续传、自产文件另存、秘密扫描逐条分类，
   以及“`agent` 须为控制台运行中会话、禁止会话切换”的硬前置与硬停止。下一步第 ④ 步双构建冻结。
+- 2026-09-29：§9 第 ④ 步完成：WIN7-41 从 `0f8af24` 在两个独立干净工作树（`win7-w40-freeze-a`/`-b`，detached）构建，三项输入哈希与输入锁一致，ZIP 与构建结果逐字节一致，冻结于 `.acceptance/candidates/WIN7-41/`
+  （ZIP `66a4b3e4…93b0`，101,437,930 B；manifest `141ef659…343e`，790 文件；输入锁 `5dfd5dec…84b5`；Kit `A9-25-WIN7-41-20260928-01`，22 项，`result_on_complete` 为 `A9_25_WIN7_41_A9_24_PASS`）。
+  包内套件文件与输入锁与仓库逐字节一致。开发机预检（草稿 authority，非签发件）：身份与全树核对零差异（790/791），运行时 ABI 项因开发机 Node ABI 115 按预期失败；错误 pin 报 `A9_W41_AUTHORITY_PIN_MISMATCH`，
+  篡改 ZIP 与错误候选绑定报 `A9_W41_RELEASE_AUTHORITY_BINDING_INVALID`；报告器 `init` 正确 pin 生成 22 项模板、错误 pin 被拒。以上不是 Win7 结果。下一步第 ⑤ 步门 A。

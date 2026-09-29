@@ -18,7 +18,7 @@ WIN7-40 实机与 W41 三轮预演暴露的做法问题（反斜杠归档条目�
 |---|---|---|
 | A. 换发依据（ADR-0145、A9-25 §9、C14 路径） | 审核方起草，负责人批准 | 已完成 |
 | B. W41 验证套件 | 外部执行方实现，审核方验收 | 已完成：R6～R8 返工、三轮连续两次 Win7 预演；最新套件于 `f77de6d` 并入 `codex/a9-alpha2`（[W41 套件交接书](A9_25_W41_KIT_HANDOFF.md) §6～§9） |
-| C. 双独立干净构建与冻结 | 审核方 | 待执行（本文 §3） |
+| C. 双独立干净构建与冻结 | 审核方 | 已完成（2026-09-29，本文 §3） |
 | D. 候选外 `WIN7_41_RELEASE_AUTHORITY` 与独立 SHA-256 pin | 负责人 | 待签发（门 A） |
 | **E. Win7 实机执行与取证（本文 §4～§8）** | **执行方** | 前置条件满足后开始 |
 | F. 证据审核、正式报告组装与 Win7 报告校验 | 审核方；负责人裁决（门 B） | 实机执行后 |
@@ -37,15 +37,15 @@ WIN7-40 结论为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）�
    `agent` 显示“断开”或控制台由其他账户持有时**不开始**，交回请负责人处理；执行方不得执行 `tscon` 或任何会话切换、注销，不得改账户策略，不得以 `dccs-chaizl` 或 High 令牌运行产品。
 5. 验收机显示设置保持现状（当前为 125% DPI），执行方不得修改；W41-22 以运行时实测的 `devicePixelRatio` 为准。
 
-## 3. 候选身份（冻结与门 A 后由审核方填写）
+## 3. 候选身份（2026-09-29 冻结，authority 与 run-id 待门 A）
 
 | 项 | 值 |
 |---|---|
 | 候选 ID | WIN7-41 |
-| 源码提交 | 待冻结 |
-| ZIP 文件名 / SHA-256 / 字节数 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / 待冻结 / 待冻结（本机 `.acceptance/candidates/WIN7-41/`） |
-| manifest SHA-256 | 待冻结 |
-| input lock SHA-256 | 待冻结 |
+| 源码提交 | `0f8af24d90a8e4821c02cf8de69224f630f8b807` |
+| ZIP 文件名 / SHA-256 / 字节数 | `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip` / `66a4b3e4d7fd7ded791cf031bd227c5e9d227c9fba8ba4a8c58e230b83ec93b0` / 101,437,930 B（本机 `.acceptance/candidates/WIN7-41/`） |
+| manifest SHA-256 | `141ef659b5f9235fc73d2674c015ac3c57a03749e1f3af2bfde9c7d8b6cd343e`（790 文件） |
+| input lock SHA-256 | `5dfd5dec4a52828627090f97cd14f8c99fd62cbb8940265800d1e6f72e9f84b5` |
 | authority SHA-256 | 待门 A（`release-authority.json`；独立 pin 为同目录 `release-authority.json.sha256`） |
 | run-id（绑定在 authority 中，不得另起） | 待门 A（Win7 运行根取前 8 位） |
 | 本机运行目录 | `.acceptance/runs/A9-25-W41/<run-id>/`（下称 `<L>`）；authority 与锁文件在 `<L>/authority/` |
