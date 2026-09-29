@@ -198,6 +198,7 @@ export {
 } from './system-prompt';
 
 export { loadProjectInstructions, ProjectInstructionResult, ProjectInstructionStatus } from './a9-project-instructions';
+export { assembleWithinBudget, ContextBudgetStats } from './a9-context-budget';
 
 export {
   VerificationRequirement,

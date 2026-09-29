@@ -28,6 +28,13 @@ import { AgentError, AgentErrorCode } from './errors';
 import { classifyGitCommand, GitCommandApprovalBinding } from './git-command-policy';
 import { classifyShellCommandForVerification } from './a9-verification-evidence';
 import { loadProjectInstructions, ProjectInstructionResult } from './a9-project-instructions';
+import { assembleWithinBudget } from './a9-context-budget';
+
+const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000;
+function isContextOverflowError(error: any): boolean {
+  return (error?.statusCode === 400 || error?.statusCode === 413)
+    && /context_length_exceeded|maximum context length|too many tokens|prompt is too long/i.test(String(error?.message || ''));
+}
 
 const PROJECT_INSTRUCTIONS_PREFIX = '<project_instructions source="AGENTS.md"';
 function isProjectInstructionMessage(message: A9LoopMessage): boolean {
@@ -263,6 +270,7 @@ export interface A9AgentLoopConfig {
   /** Host secret redaction, applied before verification commands leave Core. */
   redactText?: (value: string) => string;
   loadProjectInstructions?: () => ProjectInstructionResult;
+  contextBudgetChars?: number;
 }
 
 /**
@@ -438,6 +446,20 @@ export class A9AgentLoop {
   private readonly lastExternalSignatures = new Map<string, string>();
   private verificationEvidence: { command: string; exitCode: number } | undefined;
 
+  private contextBudgetChars(): number {
+    const value = this.config.contextBudgetChars;
+    return Number.isSafeInteger(value) && value! >= 16_000 && value! <= 1_000_000
+      ? value! : DEFAULT_CONTEXT_BUDGET_CHARS;
+  }
+
+  private assembleRequest(budgetChars: number) {
+    const firstNonSystem = this.conversationHistory.findIndex((message) => message.role !== 'system');
+    return assembleWithinBudget(this.conversationHistory, {
+      budgetChars,
+      fixedPrefixCount: firstNonSystem < 0 ? this.conversationHistory.length : firstNonSystem,
+    });
+  }
+
   constructor(private readonly config: A9AgentLoopConfig) {
     this.permissionMode = config.permissionMode ?? PermissionMode.FULL_ACCESS;
     this.policyEngine = config.policyEngine ?? new PolicyEngine();
@@ -499,15 +521,6 @@ export class A9AgentLoop {
       projectInstructions = { status: 'decode_error', bytes: 0 };
     }
 
-    this.emitEvent({
-      type: 'turn_started',
-      turnId,
-      timestamp: new Date().toISOString(),
-      data: { userPrompt, mode: this.permissionMode, projectInstructions: {
-        status: projectInstructions.status, bytes: projectInstructions.bytes, sha256: projectInstructions.sha256,
-      } },
-    });
-
     if (!this.conversationHistory.some((m) => m.role === 'system')) {
       const systemPromptContract = buildA9SystemPrompt({
         cwd: this.config.workspaceRoot,
@@ -530,6 +543,19 @@ export class A9AgentLoop {
     }
 
     this.conversationHistory.push({ role: 'user', content: userPrompt });
+
+    this.emitEvent({
+      type: 'turn_started',
+      turnId,
+      timestamp: new Date().toISOString(),
+      data: {
+        userPrompt, mode: this.permissionMode,
+        projectInstructions: {
+          status: projectInstructions.status, bytes: projectInstructions.bytes, sha256: projectInstructions.sha256,
+        },
+        context: this.assembleRequest(this.contextBudgetChars()).stats,
+      },
+    });
 
     return this.runLoop(turnId, options.signal, 0, 0, []);
   }
@@ -681,10 +707,10 @@ export class A9AgentLoop {
 
       let chunkBytesThisResponse = 0;
       try {
-        response = await this.config.provider.sendStreamRequest(
+        const send = (messages: A9LoopMessage[]) => this.config.provider.sendStreamRequest(
           {
             id: `req-${turnId}-${stepCount}`,
-            messages: this.conversationHistory,
+            messages,
             tools: openAITools,
             toolChoice: 'auto',
           },
@@ -703,6 +729,19 @@ export class A9AgentLoop {
           },
           { signal },
         );
+        try {
+          response = await send(this.assembleRequest(this.contextBudgetChars()).messages);
+        } catch (firstError: any) {
+          if (!isContextOverflowError(firstError) || signal?.aborted) throw firstError;
+          try {
+            response = await send(this.assembleRequest(Math.floor(this.contextBudgetChars() / 2)).messages);
+          } catch (retryError) {
+            if (signal?.aborted) throw retryError;
+            const error = new Error('对话过长，已尝试压缩仍超出模型上限');
+            (error as any).contextOverflowRetryFailed = true;
+            throw error;
+          }
+        }
       } catch (err: any) {
         // 用户主动取消（stop）打断模型请求 → cancelled，而不是 failed；
         // Provider 网络/鉴权异常仍是 failed（F5 状态语义）。
@@ -724,7 +763,7 @@ export class A9AgentLoop {
         return this.finalize(turnId, {
           turnId,
           outcome: TurnOutcome.FAILED,
-          finalMessage: `Model invocation failed: ${err.message}`,
+          finalMessage: err.contextOverflowRetryFailed ? err.message : `Model invocation failed: ${err.message}`,
           totalSteps: stepCount,
           toolCallsExecuted,
         });

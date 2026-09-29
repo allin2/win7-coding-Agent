@@ -2774,6 +2774,10 @@
     if (state.snapshot) {
       rows.push(['A9 Runtime status', state.snapshot.status || '-']);
       rows.push(['A9 Runtime diagnostic', state.snapshot.status === 'ready' ? 'ready' : runtimeDiagnostic(state.snapshot)]);
+      rows.push(['上下文预算', String(state.snapshot.contextWindow?.budgetChars || '-')]);
+      if (state.snapshot.contextBudgetDiagnostics) {
+        rows.push(['上下文预算诊断', `${state.snapshot.contextBudgetDiagnostics.code}: ${state.snapshot.contextBudgetDiagnostics.detail}`]);
+      }
       (state.snapshot.recoveryIgnoreDiagnostics || []).forEach((diagnostic) => {
         rows.push(['恢复区忽略规则', `${diagnostic.code}: ${diagnostic.detail}`]);
       });

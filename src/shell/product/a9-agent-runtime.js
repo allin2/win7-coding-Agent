@@ -356,6 +356,7 @@ function createA9AgentRuntime(options) {
 
   // ----- Provider（R4：非秘密配置版本化持久化；秘密仅 DPAPI；未配置即拒绝执行） -----
   const PROVIDER_CONFIG_SCHEMA_VERSION = 1;
+  const DEFAULT_CONTEXT_BUDGET_CHARS = 96_000;
   const providerConfigPath = path.join(dataRoot, 'a9-provider-config.v1.json');
 
   // DPAPI 不可用时降级为仅内存（vault 构造抛错 → 捕获），不另造明文凭据文件。
@@ -381,6 +382,7 @@ function createA9AgentRuntime(options) {
   let memorySecrets = null;        // header 值/代理密码（仅内存）
   let providerProbe = null;        // { classification, checkedAt, latencyMs, error? }
   let providerDiagnostics = null;  // fail-closed 诊断（不删除证据）
+  let contextBudgetDiagnostics = null;
   let provider = null;
   let providerConfigurationInFlight = false;
   const knownSecrets = new Set();  // 仅内存；保留本进程见过的旧值用于切换后继续脱敏。
@@ -513,6 +515,11 @@ function createA9AgentRuntime(options) {
           ...(proxy.username !== undefined ? { username: proxy.username } : {}),
         };
       }
+      if (doc.contextBudgetChars !== undefined && (!Number.isSafeInteger(doc.contextBudgetChars)
+        || doc.contextBudgetChars < 16_000 || doc.contextBudgetChars > 1_000_000)) {
+        contextBudgetDiagnostics = { code: 'A9_CONTEXT_BUDGET_INVALID', detail: '已保存的上下文预算无效，使用默认 96000 字符' };
+        doc.contextBudgetChars = DEFAULT_CONTEXT_BUDGET_CHARS;
+      }
       return doc;
     } catch (err) {
       providerDiagnostics = {
@@ -596,6 +603,7 @@ function createA9AgentRuntime(options) {
       baseUrl: doc.baseUrl,
       model: doc.model,
       customHeaderNames: doc.customHeaderNames || [],
+      contextBudgetChars: doc.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS,
       ...(doc.caBundle ? { caBundle: doc.caBundle } : {}),
       ...(doc.proxy ? { proxy: doc.proxy } : {}),
       keyRemembered: doc.keyRemembered === true,
@@ -1170,6 +1178,7 @@ function createA9AgentRuntime(options) {
         runner: runnerAdapter,
         permissionMode,
         externalChangePort: workspaceService,
+        contextBudgetChars: providerConfig?.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS,
         redactText: redactSecrets,
         loadProjectInstructions: () => modules.core.loadProjectInstructions(workspaceRoot, {
           containsSensitiveData: containsSensitiveCheckpointData,
@@ -1525,10 +1534,12 @@ function createA9AgentRuntime(options) {
       try { if (secretsVault) secretsVault.clearApiKey(); } catch (_err) { /* best effort */ }
     }
 
+    const retainedContextBudgetChars = providerConfig?.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS;
     providerConfig = {
       baseUrl: validatedBaseUrl,
       model: values.model.trim(),
       customHeaderNames,
+      contextBudgetChars: retainedContextBudgetChars,
       ...(caBundle ? { caBundle } : {}),
       ...(proxyConfig ? { proxy: proxyConfig } : {}),
     };
@@ -1594,6 +1605,7 @@ function createA9AgentRuntime(options) {
       baseUrl: providerConfig.baseUrl,
       model: providerConfig.model,
       customHeaderNames,
+      contextBudgetChars: providerConfig.contextBudgetChars,
       ...(providerConfig.caBundle ? { caBundle: providerConfig.caBundle } : {}),
       ...(providerConfig.proxy ? { proxy: providerConfig.proxy } : {}),
       // F4：keyRemembered=true 仅表示秘密（API Key 或 Header/代理密码）已成功经 DPAPI
@@ -2004,6 +2016,7 @@ function createA9AgentRuntime(options) {
       modeRecommended: 'full_access',
       ...(modeDiagnostics ? { modeDiagnostics } : {}),
       ...(checkpointRecoveryDiagnostics ? { checkpointRecoveryDiagnostics } : {}),
+      ...(contextBudgetDiagnostics ? { contextBudgetDiagnostics } : {}),
       recoveryIgnoreDiagnostics: [...new Set([standaloneWorkspaceService, loopWorkspaceService].filter(Boolean)
         .flatMap((service) => service.getCheckpointManager().getRecoveryDiagnostics())
         .map((diagnostic) => JSON.stringify(diagnostic)))].map((item) => JSON.parse(item)),
@@ -2043,7 +2056,7 @@ function createA9AgentRuntime(options) {
         reason: blockReason,
         maxActive: modules.state.A9_MAX_ACTIVE_CONVERSATIONS || 16,
       },
-      contextWindow: restoredContext.stats,
+      contextWindow: { ...restoredContext.stats, budgetChars: providerConfig?.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS },
       draft: readDraft(a9SessionId),
       ...(persistenceOutcome.backupPath ? {
         migrationBackup: {
