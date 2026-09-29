@@ -33,7 +33,7 @@ export interface SystemPromptContract {
 export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPromptContract {
   const mode = options.mode || PermissionMode.FULL_ACCESS;
   const shell = options.shell || 'powershell';
-  const targetOs = options.targetOs || 'Windows 7 SP1 x64';
+  const targetOs = options.targetOs || 'unknown';
 
   const modeInstructions = mode === PermissionMode.FULL_ACCESS
     ? [
@@ -57,7 +57,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
   const shellLabel = options.shellVersion ? `${shell} ${options.shellVersion}` : shell;
   const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'update_plan'];
   const content = [
-    `[${A9_SYSTEM_PROMPT_VERSION}] You are the Windows 7 Trusted Coding Agent.`,
+    `[${A9_SYSTEM_PROMPT_VERSION}] You are the Trusted Coding Agent.`,
     `Target Environment: ${targetOs}. Shell: ${shellLabel}.`,
     options.cwd ? `Working Directory: ${options.cwd}.` : '',
     '',

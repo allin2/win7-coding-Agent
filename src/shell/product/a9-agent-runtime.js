@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const { serializeError } = require('./desktop-host');
 const { createDpapiCredentialVault } = require('./credential-vault');
 
@@ -1171,8 +1172,20 @@ function createA9AgentRuntime(options) {
         throw err;
       }
       ensureProviderContextRestored();
+      const detectedPlatform = os.platform();
+      const detectedRelease = os.release();
+      const detectedArch = os.arch();
+      const environmentFacts = modules.core.buildEnvironmentFacts({
+        platform: detectedPlatform, release: detectedRelease, arch: detectedArch,
+        shell: { kind: configuredShell.kind || shellSelection.kind,
+          version: configuredShell.version || shellSelection.version, explicit: Boolean(configuredShell.path) },
+        pathDirs: (process.env.PATH || '').split(path.delimiter).filter(Boolean),
+        exists: fs.existsSync,
+      });
       loop = new modules.core.A9AgentLoop({
         workspaceRoot,
+        targetOs: `${detectedPlatform} ${detectedRelease} ${detectedArch}`,
+        environmentFacts,
         provider,
         workspaceService,
         runner: runnerAdapter,

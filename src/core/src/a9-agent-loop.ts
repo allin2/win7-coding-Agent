@@ -37,8 +37,12 @@ function isContextOverflowError(error: any): boolean {
 }
 
 const PROJECT_INSTRUCTIONS_PREFIX = '<project_instructions source="AGENTS.md"';
+const ENVIRONMENT_FACTS_PREFIX = '<environment_facts>';
 function isProjectInstructionMessage(message: A9LoopMessage): boolean {
   return message.role === 'system' && message.content.startsWith(PROJECT_INSTRUCTIONS_PREFIX);
+}
+function isEnvironmentFactsMessage(message: A9LoopMessage): boolean {
+  return message.role === 'system' && message.content.startsWith(ENVIRONMENT_FACTS_PREFIX);
 }
 
 export interface A9LoopEvent {
@@ -271,6 +275,8 @@ export interface A9AgentLoopConfig {
   redactText?: (value: string) => string;
   loadProjectInstructions?: () => ProjectInstructionResult;
   contextBudgetChars?: number;
+  environmentFacts?: string;
+  targetOs?: string;
 }
 
 /**
@@ -485,7 +491,7 @@ export class A9AgentLoop {
   }
 
   getConversationHistory(): A9LoopMessage[] {
-    return this.conversationHistory.filter((message) => !isProjectInstructionMessage(message))
+    return this.conversationHistory.filter((message) => !isProjectInstructionMessage(message) && !isEnvironmentFactsMessage(message))
       .map((message) => ({ ...message }));
   }
 
@@ -524,6 +530,7 @@ export class A9AgentLoop {
     if (!this.conversationHistory.some((m) => m.role === 'system')) {
       const systemPromptContract = buildA9SystemPrompt({
         cwd: this.config.workspaceRoot,
+        targetOs: this.config.targetOs,
         mode: this.permissionMode,
         shell: this.config.shellOptions?.kind,
         ...(this.config.shellOptions?.version ? { shellVersion: this.config.shellOptions.version } : {}),
@@ -540,6 +547,16 @@ export class A9AgentLoop {
       else this.conversationHistory.splice(1, 0, instructionMessage);
     } else if (previousIndex >= 0) {
       this.conversationHistory.splice(previousIndex, 1);
+    }
+
+    const environmentIndex = this.conversationHistory.findIndex(isEnvironmentFactsMessage);
+    if (this.config.environmentFacts) {
+      const environmentMessage: A9LoopMessage = { role: 'system',
+        content: `<environment_facts>\n${this.config.environmentFacts}\n</environment_facts>` };
+      if (environmentIndex >= 0) this.conversationHistory[environmentIndex] = environmentMessage;
+      else this.conversationHistory.splice(1, 0, environmentMessage);
+    } else if (environmentIndex >= 0) {
+      this.conversationHistory.splice(environmentIndex, 1);
     }
 
     this.conversationHistory.push({ role: 'user', content: userPrompt });
@@ -1501,7 +1518,7 @@ export class A9AgentLoop {
    * 会话投影为 loop 消息后注入，替代原 System Prompt 重建新模型上下文。
    */
   restoreConversationHistory(messages: A9LoopMessage[]): void {
-    const persistentMessages = messages.filter((message) => !isProjectInstructionMessage(message));
+    const persistentMessages = messages.filter((message) => !isProjectInstructionMessage(message) && !isEnvironmentFactsMessage(message));
     if (persistentMessages.length === 0) return;
     const rebuilt: A9LoopMessage[] = persistentMessages.some((m) => m.role === 'system')
       ? [...persistentMessages]
@@ -1510,6 +1527,7 @@ export class A9AgentLoop {
           role: 'system',
           content: buildA9SystemPrompt({
             cwd: this.config.workspaceRoot,
+            targetOs: this.config.targetOs,
             mode: this.permissionMode,
             shell: this.config.shellOptions?.kind,
             ...(this.config.shellOptions?.version ? { shellVersion: this.config.shellOptions.version } : {}),
