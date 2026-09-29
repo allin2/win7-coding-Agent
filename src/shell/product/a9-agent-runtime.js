@@ -2000,6 +2000,9 @@ function createA9AgentRuntime(options) {
       modeRecommended: 'full_access',
       ...(modeDiagnostics ? { modeDiagnostics } : {}),
       ...(checkpointRecoveryDiagnostics ? { checkpointRecoveryDiagnostics } : {}),
+      recoveryIgnoreDiagnostics: [...new Set([standaloneWorkspaceService, loopWorkspaceService].filter(Boolean)
+        .flatMap((service) => service.getCheckpointManager().getRecoveryDiagnostics())
+        .map((diagnostic) => JSON.stringify(diagnostic)))].map((item) => JSON.parse(item)),
       shell: shellSelection,
       provider: providerConfig
         ? {

@@ -101,6 +101,8 @@ export class CheckpointManager {
   private readonly snapshotsRoot: string;
   private readonly manifestsRoot: string;
   private readonly containsSensitiveData: (value: string | Buffer) => boolean;
+  private recoveryIgnoreChecked = false;
+  private readonly recoveryDiagnostics: Array<{ code: string; detail: string }> = [];
 
   constructor(
     workspaceRoot: string,
@@ -127,6 +129,60 @@ export class CheckpointManager {
 
   getRecoveryRoot(): string {
     return this.recoveryRoot;
+  }
+
+  getRecoveryDiagnostics(): Array<{ code: string; detail: string }> {
+    return this.recoveryDiagnostics.slice();
+  }
+
+  /** Check an existing rule without changing it, or atomically add the default rule. */
+  ensureRecoveryIgnore(): void {
+    if (this.recoveryIgnoreChecked || !fs.existsSync(this.recoveryRoot)) return;
+    this.recoveryIgnoreChecked = true;
+    const target = path.join(this.recoveryRoot, '.gitignore');
+    let existing: fs.Stats | undefined;
+    try {
+      existing = fs.lstatSync(target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        this.recoveryDiagnostics.push({ code: 'A9_RECOVERY_GITIGNORE_UNVERIFIED', detail: 'Could not inspect recovery ignore rule' });
+        return;
+      }
+    }
+    if (existing) {
+      if (!existing.isFile() || existing.size > 4096) {
+        this.recoveryDiagnostics.push({ code: 'A9_RECOVERY_GITIGNORE_CUSTOM', detail: 'Existing recovery ignore rule is not the default rule' });
+        return;
+      }
+      try {
+        const raw = fs.readFileSync(target);
+        const content = new TextDecoder('utf-8', { fatal: true }).decode(raw).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+        const rules = content.split('\n').map((line) => line.trim()).filter((line) => line !== '' && !line.startsWith('#'));
+        if (!rules.includes('*') || rules.some((line) => line.startsWith('!'))) {
+          this.recoveryDiagnostics.push({ code: 'A9_RECOVERY_GITIGNORE_CUSTOM', detail: 'Existing recovery ignore rule may expose recovery data' });
+        }
+      } catch (_error) {
+        this.recoveryDiagnostics.push({ code: 'A9_RECOVERY_GITIGNORE_UNVERIFIED', detail: 'Could not read recovery ignore rule' });
+      }
+      return;
+    }
+    const temporary = `${target}.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
+    try {
+      fs.writeFileSync(temporary, '*\n', { encoding: 'utf8', flag: 'wx' });
+      fs.renameSync(temporary, target);
+    } catch (error) {
+      this.recoveryDiagnostics.push({
+        code: 'A9_RECOVERY_GITIGNORE_WRITE_FAILED',
+        detail: `Could not write recovery ignore rule (${(error as NodeJS.ErrnoException).code || 'unknown'})`,
+      });
+      try { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); } catch (_cleanupError) { /* best effort */ }
+    }
+  }
+
+  private ensureRecoveryDir(dir: string): void {
+    fs.mkdirSync(this.recoveryRoot, { recursive: true });
+    this.ensureRecoveryIgnore();
+    fs.mkdirSync(dir, { recursive: true });
   }
 
   private assertSafeTurnId(turnId: string): void {
@@ -216,7 +272,7 @@ export class CheckpointManager {
     this.assertNotSensitive(relPath, 'checkpoint path');
     this.assertNotSensitive(content, 'checkpoint file content');
     const target = this.fileSnapshotPath(turnId, relPath, role);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
+    this.ensureRecoveryDir(path.dirname(target));
     // A Turn-entry baseline is immutable. A later tool mutation in the same
     // Turn must not replace it with an already-modified intermediate state.
     if ((role === 'baseline' || role === 'original') && fs.existsSync(target)) return target;
@@ -270,7 +326,7 @@ export class CheckpointManager {
     this.assertSafeTurnId(turnId);
     this.assertWorkspaceRelativePath(relPath, 'directory baseline path');
     const target = this.snapshotPath(turnId, relPath, 'baseline');
-    fs.mkdirSync(path.dirname(target), { recursive: true });
+    this.ensureRecoveryDir(path.dirname(target));
     if (fs.existsSync(target)) return { snapshotPath: target, treeHash: this.hashDirectoryTree(target) };
     fs.mkdirSync(target);
     return { snapshotPath: target, treeHash: this.hashDirectoryTree(target) };
@@ -343,7 +399,7 @@ export class CheckpointManager {
   ): void {
     const absPath = path.resolve(this.workspaceRoot, relPath);
     const { backup } = this.restoreSwapPaths(checkpoint, relPath);
-    fs.mkdirSync(path.dirname(backup), { recursive: true });
+    this.ensureRecoveryDir(path.dirname(backup));
 
     // 崩溃发生在 target→backup 后：只删除仍与轮后身份一致的隔离对象。
     if (fs.existsSync(backup)) {
@@ -382,7 +438,7 @@ export class CheckpointManager {
     const absPath = path.resolve(this.workspaceRoot, relPath);
     const { stage, backup, stageCleanup, backupCleanup } = this.restoreSwapPaths(checkpoint, relPath);
     const swapRoot = path.dirname(stage);
-    fs.mkdirSync(swapRoot, { recursive: true });
+    this.ensureRecoveryDir(swapRoot);
 
     if (fs.existsSync(backupCleanup) && !fs.existsSync(absPath)) {
       throw new CheckpointDriftError('恢复清理隔离对象存在但已恢复目标消失，拒绝继续');
@@ -429,7 +485,7 @@ export class CheckpointManager {
     try {
       if (isDirectory) fs.cpSync(source, stage, { recursive: true });
       else {
-        fs.mkdirSync(path.dirname(stage), { recursive: true });
+        this.ensureRecoveryDir(path.dirname(stage));
         fs.copyFileSync(source, stage);
       }
       if (!this.artifactMatches(stage, isDirectory, expectedHash)) {
@@ -752,7 +808,7 @@ export class CheckpointManager {
 
   private persist(checkpoint: TurnCheckpoint): void {
     checkpoint.updatedAt = new Date().toISOString();
-    fs.mkdirSync(this.manifestsRoot, { recursive: true });
+    this.ensureRecoveryDir(this.manifestsRoot);
     const target = this.manifestPath(checkpoint.turnId);
     const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
     try {
@@ -843,7 +899,7 @@ export class CheckpointManager {
     const hash = this.hashBytes(content);
     const blobPath = path.join(this.blobsRoot, hash.slice(0, 2), hash);
     if (!fs.existsSync(blobPath)) {
-      fs.mkdirSync(path.dirname(blobPath), { recursive: true });
+      this.ensureRecoveryDir(path.dirname(blobPath));
       const tmp = `${blobPath}.tmp-${process.pid}-${Date.now()}`;
       fs.writeFileSync(tmp, content);
       fs.renameSync(tmp, blobPath);
@@ -871,7 +927,7 @@ export class CheckpointManager {
     };
     inspect(absDir, relPath);
     const target = this.snapshotPath(turnId, relPath, role);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
+    this.ensureRecoveryDir(path.dirname(target));
     if (role === 'original' && fs.existsSync(target)) {
       return { path: target, treeHash: this.hashDirectoryTree(target) };
     }

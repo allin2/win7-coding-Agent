@@ -2748,6 +2748,9 @@
     if (state.snapshot) {
       rows.push(['A9 Runtime status', state.snapshot.status || '-']);
       rows.push(['A9 Runtime diagnostic', state.snapshot.status === 'ready' ? 'ready' : runtimeDiagnostic(state.snapshot)]);
+      (state.snapshot.recoveryIgnoreDiagnostics || []).forEach((diagnostic) => {
+        rows.push(['恢复区忽略规则', `${diagnostic.code}: ${diagnostic.detail}`]);
+      });
     }
     rows.forEach(([label, value]) => {
       const dt = document.createElement('dt');

@@ -181,6 +181,9 @@ export class A9WorkspaceService {
     this.containsSensitiveData = options.containsSensitiveData ?? (() => false);
     this.ignoreFilter = createWorkspaceIgnoreFilter(canonicalRoot);
     this.checkpointManager = new CheckpointManager(canonicalRoot, undefined, this.containsSensitiveData);
+    if (fs.existsSync(this.checkpointManager.getRecoveryRoot())) {
+      this.checkpointManager.ensureRecoveryIgnore();
+    }
   }
 
   getCheckpointManager(): CheckpointManager {
