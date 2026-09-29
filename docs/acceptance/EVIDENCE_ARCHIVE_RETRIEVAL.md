@@ -11,6 +11,7 @@
 |---|---|---|
 | `archive-20260911-v2` | 2026-09-11 | 原 `~/.codex/a9-release` 下 12 个 A9 历史候选（20260903～20260911）及当时的 Git 历史 bundle |
 | `archive-20260925` | 2026-09-25 | 下表 15 组、40 个目录；另含 `source-history-20260925.bundle.enc`（全部本地 refs，含未推送提交） |
+| `archive-20260930` | 2026-09-30 | 下文 5 组、25 个目录（A9-23/A9-25 全部预演，WIN7-36～40 候选、WIN7-37/38 构建及同期运行证据）；另含 `source-history-20260930.bundle.enc` |
 
 两批使用同一恢复密钥。密钥不在 GitHub，由负责人保管；位置与离机备份要求见私有仓库 README。
 
@@ -36,9 +37,27 @@
 | 仓库外 `../win7-agent-artifacts/releases` | `artifacts-releases` | `releases` |
 | 仓库外 `../win7-agent-artifacts/` 下 `a1-a3-worktree-closeout-20260820`、`worktree-closeout-20260820`、`tmpdir-evidence-20260911`、`tmpdir-evidence-20260914` | `artifacts-misc` | 与目录同名 |
 
-仍保留在本机、未归档：`.acceptance/candidates/WIN7-36`、`WIN7-37`，`.acceptance/runs/WIN7-36`、`WIN7-37`、
+（2026-09-25 时）仍保留在本机、未归档：`.acceptance/candidates/WIN7-36`、`WIN7-37`，`.acceptance/runs/WIN7-36`、`WIN7-37`、
 `A9-19-EXPLORE`，`.acceptance/builds/WIN7-37`，以及 `deps/`、`evidence/`、`ssh/`、`build-kits/`、`coordinator/`。
 其中 WIN7-36 运行与 A9-19-EXPLORE 为 [A9-19 WIN7-37 交接](../plans/A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) 所需。
+
+## `archive-20260930` 原路径对照
+
+| 原本机路径（仓库根相对） | 组 | 集合 |
+|---|---|---|
+| `.acceptance/rehearsals/A9-23-W39/<时间戳>`（`20260926-1935`、`-2303`、`-2331`、`20260927-0059`） | `rehearsals-w39` | `rehearsals-A9-23-W39-<时间戳>` |
+| `.acceptance/rehearsals/A9-25-W40/<时间戳>`（`20260927-1741`、`-2019`、`-2224`） | `rehearsals-w40` | `rehearsals-A9-25-W40-<时间戳>` |
+| `.acceptance/rehearsals/A9-25-W41/<时间戳>`（`20260928-1848`、`-2128`、`20260929-0748`） | `rehearsals-w41` | `rehearsals-A9-25-W41-<时间戳>` |
+| `.acceptance/candidates/WIN7-36`～`WIN7-38`、`.acceptance/builds/WIN7-37`、`WIN7-38` | `win7-36-38` | `candidates-WIN7-<N>`、`builds-WIN7-<N>` |
+| `.acceptance/runs/WIN7-36`、`WIN7-37`、`A9-19-EXPLORE`、`A9-21-GWFLAKE`、`A9-22-W38` | `win7-36-38` | `runs-<目录名>` |
+| `.acceptance/candidates/WIN7-39`、`WIN7-40`、`_superseded`（含 `WIN7-40-3a2ecdb`） | `win7-39-40` | `candidates-<目录名>` |
+| `.acceptance/runs/A9-23-W39`、`A9-25-W40` | `win7-39-40` | `runs-<目录名>` |
+
+预演证据均为 `REHEARSAL_NOT_ELIGIBLE`，取回后也不计入任何结论。取回方法与上文相同，Release 名换为 `archive-20260930`。
+上传前已在本机把 25 个集合全部解密还原，经恢复工具逐文件核对并与原目录 `diff -r` 比对一致；上传后每个附件重新下载核对 SHA-256。
+
+2026-09-30 之后仍保留在本机、未归档：`.acceptance/candidates/WIN7-41`、`.acceptance/runs/A9-25-W41`（W42 套件派生可能需要，
+计划在 WIN7-42 门 B 之后归档），以及 `deps/`、`evidence/`、`ssh/`、`build-kits/`、`coordinator/`。
 `.acceptance/ssh/` 私钥从不归档或上传。`.DS_Store` 未归档。
 
 ## 取回步骤
