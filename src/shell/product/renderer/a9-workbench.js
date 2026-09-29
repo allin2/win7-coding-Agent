@@ -94,6 +94,9 @@
     eventsBeforeId: null,
     eventsError: '',
     eventsLoading: false,
+    eventsStatusNote: null,
+    eventsErrorNote: null,
+    workspaceSelectionGeneration: 0,
     streamDom: new Map(),
     truncatedNote: null,
     localRequest: null,
@@ -438,6 +441,8 @@
     state.eventsBeforeId = null;
     state.eventsError = '';
     state.eventsLoading = false;
+    state.eventsStatusNote = null;
+    state.eventsErrorNote = null;
     state.streamDom = new Map();
     state.pendingToolLabel = null;
     state.truncatedNote = null;
@@ -457,6 +462,8 @@
     const requestedConversationId = state.activeConversationId;
     const generation = state.historyGeneration;
     state.eventsLoading = true;
+    state.conversationSignature = null;
+    if (state.snapshot) renderConversation(state.snapshot);
     try {
       const response = await a9.queryEvents({ conversationId: requestedConversationId, limit,
         ...(older && state.eventsBeforeId ? { beforeEventId: state.eventsBeforeId } : {}) });
@@ -1113,6 +1120,8 @@
     const signature = JSON.stringify([
       snapshot.activeConversationId,
       state.eventMaxId,
+      state.eventsLoading,
+      state.eventsError,
       state.eventsTruncated,
       state.releasedEventCount,
       state.inspectorEvents.size >= EVENT_GLOBAL_LIMIT,
@@ -1161,7 +1170,7 @@
       ? `${latestProjection.outcome} · ${latestProjection.verification}`
       : '');
     const atEventCap = state.inspectorEvents.size >= EVENT_GLOBAL_LIMIT;
-    if (state.releasedEventCount || state.eventsTruncated || state.eventsError || atEventCap) {
+    if (state.releasedEventCount || state.eventsTruncated || atEventCap) {
       if (!state.truncatedNote || !state.truncatedNote.parentNode) {
         const note = document.createElement('p');
         note.className = 'legacy-note';
@@ -1170,13 +1179,13 @@
       }
       const releasedNote = state.releasedEventCount
         ? `为控制内存，界面已释放最早的 ${state.releasedEventCount} 条过程记录（本地记录完整保存）。` : '';
-      const historyNote = state.eventsError || (state.eventsTruncated && !atEventCap ? '还有更早的过程记录。' : '');
+      const historyNote = state.eventsTruncated && !atEventCap ? '还有更早的过程记录。' : '';
       const capNote = atEventCap ? ` 已达界面上限 ${EVENT_GLOBAL_LIMIT} 条，更早记录不再加载。` : '';
       state.truncatedNote.textContent = `${releasedNote}${historyNote ? `${releasedNote ? ' ' : ''}${historyNote}` : ''}${capNote}`;
-      if (!atEventCap && (state.eventsTruncated || state.eventsError)) {
+      if (!atEventCap && state.eventsTruncated) {
         const load = document.createElement('button');
         load.type = 'button';
-        load.textContent = state.eventsError ? '重试加载' : '加载更早记录';
+        load.textContent = '加载更早记录';
         load.disabled = state.eventsLoading;
         load.addEventListener('click', () => { void loadConversationEvents(Boolean(state.eventsBeforeId)); });
         state.truncatedNote.appendChild(load);
@@ -1184,6 +1193,28 @@
     } else if (state.truncatedNote) {
       state.truncatedNote.remove();
       state.truncatedNote = null;
+    }
+    if (state.eventsStatusNote) state.eventsStatusNote.remove();
+    state.eventsStatusNote = null;
+    if (state.eventsErrorNote) state.eventsErrorNote.remove();
+    state.eventsErrorNote = null;
+    if (state.eventsLoading) {
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      status.textContent = '正在加载过程记录…';
+      stream.insertBefore(status, stream.firstChild);
+      state.eventsStatusNote = status;
+    } else if (state.eventsError) {
+      const alert = document.createElement('p');
+      alert.setAttribute('role', 'alert');
+      alert.textContent = state.eventsError;
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.textContent = '重试';
+      retry.addEventListener('click', () => { void loadConversationEvents(); });
+      alert.appendChild(retry);
+      stream.insertBefore(alert, stream.firstChild);
+      state.eventsErrorNote = alert;
     }
     el('a9-empty-state').hidden = facts.length > 0 || Boolean(state.localRequest);
     loadRecentSummaries(snapshot);
@@ -1376,10 +1407,14 @@
     (review.unrecoverable || []).forEach((change) => {
       const warning = document.createElement('p');
       warning.className = 'review-unrecoverable';
-      const reason = ({ outside: '位于工作区外', too_large: '超过备份上限', backup_failed: '备份失败',
+      const reasonByCode = { too_large: '超过备份上限（单文件 2 MiB），轮前未保存原内容',
+        outside: '位于工作区外，轮前未保存原内容', backup_failed: '备份失败，轮前未保存原内容' };
+      const fallbackReason = ({ outside: '位于工作区外', too_large: '超过备份上限', backup_failed: '备份失败',
         created: '缺少可恢复基线', modified: '缺少原始内容', deleted: '缺少原始内容', renamed: '无法确定原始路径' })[change.kind]
         || '恢复依据不足';
-      warning.textContent = `命令产生 · 无法撤销 · ${change.path}：${reason}${change.reason ? `（${change.reason}）` : ''}`;
+      const reason = reasonByCode[change.reasonCode] || fallbackReason;
+      const detail = reasonByCode[change.reasonCode] ? '' : String(change.reason || '').replace(/（[a-z_]+）/g, '');
+      warning.textContent = `命令产生 · 无法撤销 · ${change.path}：${reason}${detail ? `（${detail}）` : ''}`;
       files.appendChild(warning);
     });
     if (state.reviewConfirmation && state.reviewConfirmation.turnId === turnId) {
@@ -1850,10 +1885,11 @@
     syncComposer();
   }
 
-  async function refreshSnapshot() {
+  async function refreshSnapshot(isCurrent = () => true) {
     if (!a9) return null;
     try {
       const response = await a9.snapshot();
+      if (!isCurrent()) return null;
       if (!response || response.ok !== true) {
         const code = response && response.error && response.error.code;
         if (code === 'A9_WORKSPACE_REQUIRED') {
@@ -1991,12 +2027,14 @@
   }
 
   async function chooseWorkspace() {
+    const selectionGeneration = ++state.workspaceSelectionGeneration;
     cancelPendingUndo();
     clearGlobalError();
     try {
       await saveDraftNow();
       const result = await api.selectWorkspace();
       if (!result || !result.selected) return;
+      if (selectionGeneration !== state.workspaceSelectionGeneration) return;
       let sessionsResult = await api.listSessions();
       let sessions = sessionsResult && sessionsResult.sessions ? sessionsResult.sessions : [];
       let session = sessions.find((item) => item.status === 'ACTIVE' && item.workspacePath === result.selected.workspacePath);
@@ -2005,7 +2043,18 @@
         session = created && created.session;
       }
       state.explorerSessionId = session ? session.sessionId : null;
-      await refreshSnapshot();
+      const refreshed = await refreshSnapshot(() => selectionGeneration === state.workspaceSelectionGeneration);
+      if (selectionGeneration !== state.workspaceSelectionGeneration) return;
+      if (!refreshed) return;
+      resetConversationEvents();
+      for (const fact of state.snapshot?.conversation || []) state.conversationFacts.set(fact.taskId, fact);
+      state.conversationPage = state.snapshot?.conversationPage || null;
+      state.conversationSignature = null;
+      if (state.snapshot) renderConversation(state.snapshot);
+      if (state.activeConversationId && (state.snapshot?.conversation || []).length > 0) {
+        await loadConversationEvents();
+      }
+      if (selectionGeneration !== state.workspaceSelectionGeneration) return;
       await refreshWorkspace('');
       dismissNavigationDrawer();
     } catch (error) {

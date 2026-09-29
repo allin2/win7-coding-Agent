@@ -1491,7 +1491,7 @@ export class CheckpointManager {
       newKind?: FileChangeRecord['newKind']; undone: boolean; additions: number; deletions: number;
       diffText: string; diffTruncated: boolean;
     }>;
-    unrecoverable: UnrecoverableExternalChange[];
+    unrecoverable: Array<UnrecoverableExternalChange & { reasonCode?: string }>;
     externalBaselineStatus: 'none' | PersistedExternalBaseline['collectionStatus'];
   } | null {
     const checkpoint = this.loadCheckpoint(turnId);
@@ -1519,7 +1519,13 @@ export class CheckpointManager {
     return {
       turnId,
       files,
-      unrecoverable: Object.values(checkpoint.unrecoverable ?? {}).map((item) => ({ ...item })),
+      unrecoverable: Object.values(checkpoint.unrecoverable ?? {}).map((item) => {
+        const skippedFact = checkpoint.externalBaseline?.skipped.find((fact) => fact.path === item.path);
+        const reasonCode = skippedFact?.reason
+          || (['too_large', 'outside', 'backup_failed'].includes(item.kind) ? item.kind : undefined)
+          || /（([a-z_]+)）/.exec(item.reason)?.[1];
+        return { ...item, ...(reasonCode ? { reasonCode } : {}) };
+      }),
       externalBaselineStatus: checkpoint.externalBaseline?.collectionStatus ?? 'none',
     };
   }
