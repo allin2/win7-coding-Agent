@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A9-26 历史加载 Demo</title>
+<style>
+:root{--bg:#f4f3ef;--panel:#faf9f6;--raised:#fff;--rail:#f0eee6;--line:#e6e3db;--line2:#d8d3c6;--text:#1f2328;--muted:#59616b;
+--accent:#0f766e;--soft:#e7f3f0;--amber:#995d13;--amberbg:#fff6e8;--red:#a2342d;--redbg:#fdf1ef;--ok:#1f7a4d;--okbg:#edf6f1;
+--mono:Consolas,"Microsoft YaHei UI",monospace}
+*{box-sizing:border-box} html,body{margin:0;height:100%} [hidden]{display:none!important}
+body{background:var(--bg);color:var(--text);font:14px/1.55 "Microsoft YaHei","Segoe UI",sans-serif}
+button{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--raised);border-radius:8px;padding:5px 11px;color:inherit}
+button:disabled{opacity:.45;cursor:not-allowed} button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.ghost{border-color:transparent;background:none;color:var(--accent);padding:3px 6px}
+button.small{padding:2px 9px;font-size:12.5px} button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.demo-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 14px;background:#263238;color:#e8ecef;font-size:13px}
+.demo-bar button{background:#37474f;color:#fff;border-color:#546e7a;padding:3px 10px;font-size:12.5px}
+.demo-bar button[aria-pressed=true]{background:#0f766e;border-color:#14b8a6}
+.demo-bar .sep{width:1px;height:20px;background:#546e7a;margin:0 4px}
+.demo-bar .n{opacity:.8;margin-left:auto;max-width:520px}
+.wb{display:grid;grid-template-columns:230px minmax(0,1fr) 380px;height:calc(100% - 44px)}
+.rail{background:var(--rail);border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.brand{font-weight:700}.brand span{background:var(--accent);color:#fff;border-radius:6px;padding:1px 6px;font-size:12px;margin-right:6px}
+.ws{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ws b{display:block}.ws small{display:block;color:var(--muted);font-family:var(--mono);font-size:11.5px;overflow-wrap:anywhere}
+.menu{background:var(--raised);border:1px solid var(--line2);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px}
+.menu button{text-align:left;border:0;background:none;padding:5px 8px}.menu button:hover{background:var(--soft)}
+.menu small{display:block;color:var(--muted);font-family:var(--mono);font-size:11px}
+.sec{font-size:12px;color:var(--muted);margin-top:4px}
+.conv{background:var(--soft);border:1px solid #bfdcd6;border-radius:8px;padding:6px 10px;font-weight:600}
+.conv small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.main{display:flex;flex-direction:column;min-width:0}
+.head{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+.head h1{font-size:17px;margin:0;flex:1}.pill{border:1px solid var(--line2);border-radius:999px;padding:3px 12px;background:var(--raised);font-size:13px}
+.stream{flex:1;overflow:auto;padding:16px 22px;display:flex;flex-direction:column;gap:9px}
+.banner{border-radius:10px;padding:8px 12px;font-size:13.5px;display:flex;align-items:center;gap:10px}
+.banner.loading{background:var(--soft);border:1px solid #bfdcd6;color:#115e59}
+.banner.error{background:var(--redbg);border:1px solid #efc9c4;color:var(--red)}
+.banner.info{background:#eef0f3;border:1px solid var(--line2);color:var(--muted)}
+.banner span{flex:1}
+.spin{width:14px;height:14px;border:2px solid #99d5cc;border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.u{align-self:flex-end;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:8px 12px;max-width:70%}
+.u small{display:block;color:var(--muted);font-size:11.5px}
+.act{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:13px}
+.tag{font-size:11.5px;border-radius:5px;padding:1px 6px;margin-right:6px;background:#eef0f3;color:#5b6472}
+.tag.w{background:#e8f0fe;color:#1d4ed8}.tag.sh{background:var(--amberbg);color:var(--amber)}
+.outcome{border-left:3px solid var(--accent);background:var(--raised);border-radius:8px;padding:8px 12px}
+.outcome.warn{border-left-color:var(--amber)}.outcome.stop{border-left-color:#8a94a0}
+.outcome small{display:block;color:var(--muted);font-size:12px}
+.legacy-note{color:var(--muted);font-size:12.5px;margin:0;padding:2px 0 2px 12px;border-left:2px dashed var(--line2)}
+.skel{height:30px;border-radius:10px;background:linear-gradient(90deg,#eceae4,#f6f5f1,#eceae4);background-size:200% 100%;animation:sk 1.2s linear infinite}
+@keyframes sk{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+.empty{margin:auto;text-align:center;color:var(--muted)}
+.composer{border-top:1px solid var(--line);padding:12px 18px;background:var(--panel)}
+.box{border:1px solid var(--line2);border-radius:12px;background:var(--raised);padding:8px 10px;display:flex;gap:10px;align-items:center}
+.box input{flex:1;border:0;outline:0;font:inherit;background:none}
+.hint{font-size:12.5px;color:var(--muted);margin-top:5px}
+.insp{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0}
+.tabs{display:flex;gap:4px;padding:8px 10px 0;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:6px 10px}
+.tabs button[aria-selected=true]{border-bottom-color:var(--accent);font-weight:700}
+.list{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+.turn{border:1px solid var(--line);border-radius:12px;background:var(--raised)}
+.turn-h{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.turn-h b{flex:1}.turn-h small{color:var(--muted)}
+.f-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid #f0eee8}
+.op{font-size:11.5px;border-radius:5px;padding:1px 6px;font-weight:600}.op-M{background:#e8f0fe;color:#1d4ed8}.op-C{background:var(--okbg);color:var(--ok)}
+.path{flex:1;font-family:var(--mono);font-size:12.5px}
+.stat{font-family:var(--mono);font-size:12.5px}.plus{color:var(--ok)}.minus{color:var(--red)}
+.review-unrecoverable{margin:0;padding:8px 12px;border-top:1px solid #f0eee8;background:var(--amberbg);color:var(--amber);font-size:12.5px;border-radius:0 0 12px 12px}
+.cmp{font-size:12px;color:var(--muted);padding:0 12px 10px}
+.cmp code{font-family:var(--mono);font-size:11.5px;background:#f3f1ec;border-radius:4px;padding:0 4px}
+.log{border-top:1px solid var(--line);padding:8px 12px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:150px;overflow:auto;background:#fcfcfb}
+.log div:before{content:"› ";color:var(--accent)}
+.mode-flag{font-size:12px;border-radius:6px;padding:2px 8px;font-weight:700}
+.mode-flag.before{background:var(--redbg);color:var(--red)}.mode-flag.after{background:var(--okbg);color:var(--ok)}
+@media (max-width:1100px){.wb{grid-template-columns:200px minmax(0,1fr)}.insp{display:none}}
+@media (max-width:720px){.wb{grid-template-columns:1fr}.rail{display:none}}
+</style>
+</head>
+<body>
+<div class="demo-bar" role="toolbar" aria-label="Demo 控制">
+  <b>A9-26 ⑤ Demo</b>
+  <button id="m-before" aria-pressed="false">现状</button>
+  <button id="m-after" aria-pressed="true">修复后</button>
+  <span class="sep"></span>
+  <button id="s-normal">情景 1：选择有历史的工作区</button>
+  <button id="s-fail">情景 2：加载失败 → 重试</button>
+  <button id="s-race">情景 3：快速切换 A→B</button>
+  <button id="s-empty">情景 4：空工作区</button>
+  <button id="s-reset">重置</button>
+  <span class="n" id="narr">先选“现状/修复后”，再选情景；也可以直接点左栏“选择工作区…”。</span>
+</div>
+<div class="wb">
+  <aside class="rail">
+    <div class="brand"><span>A9</span>Win7 Coding Agent</div>
+    <div class="ws" id="ws-card"><b id="ws-name">未选择工作区</b><small id="ws-path">—</small></div>
+    <button id="pick">选择工作区…</button>
+    <div class="menu" id="menu" hidden role="menu" aria-label="工作区">
+      <button role="menuitem" data-ws="A"><b>订单 服务</b><small>D:\项目\订单 服务</small></button>
+      <button role="menuitem" data-ws="B"><b>报表工具</b><small>D:\项目\报表工具</small></button>
+      <button role="menuitem" data-ws="E"><b>新项目</b><small>D:\新项目</small></button>
+    </div>
+    <div class="sec">对话</div>
+    <div id="conv-list"></div>
+  </aside>
+  <main class="main">
+    <div class="head"><h1 id="title">对话</h1><span class="mode-flag after" id="mode-flag">修复后</span><span class="pill">Full Access</span></div>
+    <div class="stream" id="stream" aria-live="polite"></div>
+    <div class="composer">
+      <div class="box"><input id="prompt" placeholder="描述任务…" aria-label="任务描述"><button class="primary" id="send">发送</button></div>
+      <div class="hint" id="hint">现状下需提交一轮后过程记录才出现；修复后选择工作区即加载。</div>
+    </div>
+  </main>
+  <aside class="insp" aria-label="检查器">
+    <div class="tabs" role="tablist"><button role="tab" aria-selected="true">改动</button><button role="tab" aria-selected="false" disabled>过程</button><button role="tab" aria-selected="false" disabled>诊断</button></div>
+    <div class="list" id="changes"></div>
+    <div class="log" id="log" aria-label="Demo 后台调用记录"></div>
+  </aside>
+</div>
+<script>
+(function(){
+  'use strict';
+  var WS = {
+    A:{name:'订单 服务',path:'D:\\项目\\订单 服务',conv:'修复金额取整',turns:[
+      {n:9,prompt:'把 calc.ts 的金额取整改成四舍五入到分',acts:[['read','calc.ts'],['edit','calc.ts'],['shell','npm test']],out:'ok',msg:'已改为按分四舍五入，npm test 通过（42 项）。'},
+      {n:10,prompt:'生成一份大样例数据跑一下性能',acts:[['shell','node scripts/gen-big.js'],['shell','npm test']],out:'ok',msg:'生成了 data/big.bin，测试通过；big.bin 超过备份上限，无法撤销（见右侧改动）。'},
+      {n:11,prompt:'顺便把 README 的示例也更新一下',acts:[['read','README.md']],out:'stop',msg:''},
+      {n:12,prompt:'README 示例改成新的取整规则',acts:[['read','README.md'],['edit','README.md']],out:'warn2',msg:'README 示例已更新；本轮没有运行验证。'}
+    ],older:8},
+    B:{name:'报表工具',path:'D:\\项目\\报表工具',conv:'导出 CSV 编码',turns:[
+      {n:3,prompt:'导出的 CSV 在 Excel 里中文乱码',acts:[['search','csv'],['edit','export.ts'],['shell','npm test']],out:'ok',msg:'导出改为带 BOM 的 UTF-8，测试通过。'},
+      {n:4,prompt:'再加一个 GBK 选项',acts:[['edit','export.ts'],['shell','npm test']],out:'ok',msg:'已加 GBK 选项，测试通过。'}
+    ],older:2},
+    E:{name:'新项目',path:'D:\\新项目',conv:null,turns:[],older:0}
+  };
+  var S = {mode:'after',ws:null,phase:'idle',fail:false,race:false,gen:0,olderLoaded:false,warm:false};
+  function $(id){return document.getElementById(id);}
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+  function log(t){var d=el('div',null,t);$('log').appendChild(d);$('log').scrollTop=1e6;}
+  function narr(t){$('narr').textContent=t;}
+
+  function setMode(m){
+    S.mode=m;$('m-before').setAttribute('aria-pressed',m==='before');$('m-after').setAttribute('aria-pressed',m==='after');
+    var f=$('mode-flag');f.textContent=m==='before'?'现状':'修复后';f.className='mode-flag '+m;reset(true);
+  }
+  function reset(keepMode){
+    S.gen++;S.ws=null;S.phase='idle';S.fail=false;S.race=false;S.olderLoaded=false;S.warm=false;
+    $('log').textContent='';render();if(!keepMode)narr('已重置。');
+  }
+
+  function choose(key){
+    $('menu').hidden=true;
+    var gen=++S.gen;S.ws=key;S.olderLoaded=false;S.warm=false;
+    log('selectWorkspace → '+WS[key].path);log('a9.snapshot()（对话事实 '+(WS[key].turns.length+WS[key].older)+' 轮）');
+    if(S.mode==='before'){S.phase='idle';render();log('（现状）未调用 queryEvents');return;}
+    if(!WS[key].conv){S.phase='loaded';render();log('活动对话无历史，不发 queryEvents');return;}
+    S.phase='loading';render();
+    log('queryEvents({limit:300}) 请求 #'+gen+'（'+WS[key].name+'）');
+    var delay=S.race&&key==='A'?1800:900;
+    setTimeout(function(){
+      if(gen!==S.gen){log('请求 #'+gen+' 迟到（'+WS[key].name+'），historyGeneration 不符，丢弃');return;}
+      if(S.fail){S.phase='error';log('请求 #'+gen+' 失败：EVENT_HISTORY_UNAVAILABLE');}
+      else{S.phase='loaded';log('请求 #'+gen+' 返回 300 条，hasMore=true');}
+      render();
+    },delay);
+  }
+
+  function renderRail(){
+    var w=S.ws&&WS[S.ws];
+    $('ws-name').textContent=w?w.name:'未选择工作区';$('ws-path').textContent=w?w.path:'—';
+    var cl=$('conv-list');cl.textContent='';
+    if(w&&w.conv){var c=el('div','conv',w.conv);c.appendChild(el('small',null,(w.turns.length+w.older)+' 轮'));cl.appendChild(c);}
+    else if(w){cl.appendChild(el('div','sec','暂无对话'));}
+    $('title').textContent=w&&w.conv?w.conv:'对话';
+  }
+
+  function outcomeCard(t){
+    var after=S.mode==='after';
+    if(t.out==='stop'){
+      var c=el('div','outcome stop',after?'已停止':'任务完成 · cancelled');
+      c.appendChild(el('small',null,after?'你在第 1 步后停止了本轮；工作区未改动。（O-1：取消轮次写入终态事件）':'（现状：取消轮次不写终态事件，界面把原始结局码直接拼出）'));
+      return c;
+    }
+    var cls=t.out==='ok'?'outcome':'outcome warn';
+    var head=t.out==='ok'?'已完成 · 已验证':'已完成 · 有警告 · 未验证';
+    var c2=el('div',cls,head+'　'+t.msg);
+    if(t.out==='ok'&&after)c2.appendChild(el('small',null,'依据：npm test 退出码 0（① Q3 建议的只增字段）'));
+    return c2;
+  }
+
+  function turnBlock(stream,t,loaded){
+    var u=el('div','u',t.prompt);u.insertBefore(el('small',null,'第 '+t.n+' 轮'),u.firstChild);stream.appendChild(u);
+    if(loaded){
+      t.acts.forEach(function(a){
+        var r=el('div','act');var tg=el('span','tag'+(a[0]==='edit'?' w':a[0]==='shell'?' sh':''),a[0]);r.appendChild(tg);
+        r.appendChild(document.createTextNode(a[1]));stream.appendChild(r);
+      });
+    }else{
+      stream.appendChild(el('p','legacy-note','历史记录未包含过程。'));
+    }
+    stream.appendChild(outcomeCard(t));
+  }
+
+  function renderStream(){
+    var s=$('stream');s.textContent='';var w=S.ws&&WS[S.ws];
+    if(!w){s.appendChild(el('div','empty','选择一个工作区开始。'));return;}
+    if(!w.conv){s.appendChild(el('div','empty','这个工作区还没有对话。输入任务开始第一轮。'));return;}
+    var loaded=S.phase==='loaded'||S.warm;
+    if(S.phase==='loading'){
+      var b=el('div','banner loading');b.setAttribute('role','status');b.appendChild(el('span','spin'));b.appendChild(el('span',null,'正在加载过程记录…'));s.appendChild(b);
+    }
+    if(S.phase==='error'){
+      var e=el('div','banner error');e.setAttribute('role','alert');e.appendChild(el('span',null,'过程记录加载失败；已有请求和结果仍保留。'));
+      var rb=el('button','small','重试');rb.addEventListener('click',function(){S.fail=false;choose(S.ws);});e.appendChild(rb);s.appendChild(e);
+    }
+    if(loaded&&w.older>0){
+      var o=el('div','banner info');o.appendChild(el('span',null,S.olderLoaded?'已显示全部 '+(w.turns.length+w.older)+' 轮的过程记录。':'更早的 '+w.older+' 轮过程记录尚未加载。'));
+      if(!S.olderLoaded){var lb=el('button','small','加载更早记录');lb.addEventListener('click',function(){S.olderLoaded=true;log('queryEvents({beforeEventId}) 加载更早记录');render();});o.appendChild(lb);}
+      s.appendChild(o);
+    }
+    if(!loaded&&S.phase!=='loading'&&w.older>0){
+      s.appendChild(el('p','legacy-note','更早的 '+w.older+' 轮：历史记录未包含过程。'));
+    }
+    if(S.phase==='loading'){
+      w.turns.forEach(function(t){var u=el('div','u',t.prompt);u.insertBefore(el('small',null,'第 '+t.n+' 轮'),u.firstChild);s.appendChild(u);s.appendChild(el('div','skel'));});
+      return;
+    }
+    w.turns.forEach(function(t){turnBlock(s,t,loaded);});
+    if(S.mode==='before'&&!S.warm){
+      narr('现状：过程记录没有加载，每轮都显示“历史记录未包含过程。”（其实只是没加载）。发送一轮后才会出现。');
+    }
+  }
+
+  function renderChanges(){
+    var c=$('changes');c.textContent='';var w=S.ws&&WS[S.ws];
+    if(!w||S.ws!=='A'){c.appendChild(el('div','sec',w?'该工作区没有可展示的改动（Demo 只为“订单 服务”画了 O-2 卡片）。':'选择工作区后显示按轮分组的改动。'));return;}
+    var t=el('div','turn');var h=el('div','turn-h');h.appendChild(el('b',null,'第 10 轮'));h.appendChild(el('small',null,'2 个文件'));t.appendChild(h);
+    var r1=el('div','f-row');r1.appendChild(el('span','op op-C','新建'));r1.appendChild(el('span','path','bench/result.json'));
+    var st=el('span','stat');st.appendChild(el('span','plus','+18'));st.appendChild(document.createTextNode(' '));st.appendChild(el('span','minus','−0'));r1.appendChild(st);t.appendChild(r1);
+    var r2=el('div','f-row');r2.appendChild(el('span','op op-M','修改'));r2.appendChild(el('span','path','data/big.bin'));r2.appendChild(el('span','stat','—'));t.appendChild(r2);
+    var msg=S.mode==='after'
+      ?'命令产生 · 无法撤销 · data/big.bin：超过备份上限（单文件 2 MiB），轮前未保存原内容'
+      :'命令产生 · 无法撤销 · data/big.bin：缺少原始内容（轮前基线未覆盖（too_large），无法恢复原内容）';
+    t.appendChild(el('p','review-unrecoverable',msg));
+    var cmp=el('div','cmp');cmp.appendChild(document.createTextNode(S.mode==='after'?'O-2：按只增字段 ':'O-2 现状：按 '));
+    cmp.appendChild(el('code',null,S.mode==='after'?'reasonCode=too_large':'change.kind=modified'));
+    cmp.appendChild(document.createTextNode(S.mode==='after'?' 显示原因，不露内部标记。':' 取原因，再拼上后端原文，露出内部标记。'));
+    t.appendChild(cmp);c.appendChild(t);
+  }
+
+  function render(){renderRail();renderStream();renderChanges();}
+
+  $('pick').addEventListener('click',function(){var m=$('menu');m.hidden=!m.hidden;if(!m.hidden)m.querySelector('button').focus();});
+  Array.prototype.forEach.call(document.querySelectorAll('#menu button'),function(b){b.addEventListener('click',function(){S.fail=false;S.race=false;choose(b.dataset.ws);});});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')$('menu').hidden=true;});
+  $('m-before').addEventListener('click',function(){setMode('before');narr('现状：选择工作区后不加载过程记录。');});
+  $('m-after').addEventListener('click',function(){setMode('after');narr('修复后：选择工作区后立即加载最近 300 条过程记录。');});
+  $('s-reset').addEventListener('click',function(){reset(false);});
+  $('s-normal').addEventListener('click',function(){reset(true);narr(S.mode==='after'?'情景 1：选择“订单 服务”，先显示加载提示与骨架，约 1 秒后出现过程记录；顶部可“加载更早记录”。':'情景 1（现状）：选择后每轮都显示“历史记录未包含过程。”，发送一轮后才加载。');choose('A');});
+  $('s-fail').addEventListener('click',function(){reset(true);if(S.mode==='before'){narr('现状下不发加载请求，所以不存在“加载失败”状态；切到“修复后”再看。');return;}S.fail=true;narr('情景 2：加载失败时显示原因与“重试”，已有请求和结论保留。点“重试”。');choose('A');});
+  $('s-race').addEventListener('click',function(){reset(true);if(S.mode==='before'){narr('现状下不发加载请求；切到“修复后”再看。');return;}S.race=true;narr('情景 3：先选 A（慢响应），0.3 秒后切到 B。A 的迟到响应被丢弃，只显示 B。看右下调用记录。');choose('A');setTimeout(function(){S.race=false;choose('B');},300);});
+  $('s-empty').addEventListener('click',function(){reset(true);narr('情景 4：空工作区不发请求、不报错，显示空状态。');choose('E');});
+  $('send').addEventListener('click',function(){
+    var w=S.ws&&WS[S.ws];if(!w)return;var v=$('prompt').value.trim()||'继续';
+    if(S.mode==='before'&&w.conv&&!S.warm){log('submitTurn("'+v+'") → 完成后才调用 queryEvents');setTimeout(function(){S.warm=true;log('queryEvents({limit:300}) 返回');render();narr('现状：直到这一轮完成，过程记录才加载出来（W39～W41 旅程用“热身轮”规避的就是这个）。');},700);}
+    else{log('submitTurn("'+v+'")（Demo 不模拟新轮次）');}
+    $('prompt').value='';
+  });
+  render();
+})();
+</script>
+</body>
+</html>

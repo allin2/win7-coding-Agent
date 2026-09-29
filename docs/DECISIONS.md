@@ -2381,3 +2381,23 @@
   （3）仓库驱动中的 `w40*` 旅程与辅助函数允许为修复而修改（WIN7-40 已关闭，其冻结 ZIP 保留）；WIN7-40 及更早的发布文件、`w39` 与更早旅程仍不改。
   （4）推进顺序中原定第一批使用的 `WIN7-41` 顺延为 `WIN7-42`。
 - 后果：A9-24 的 Win7 结论改由 WIN7-41 取得；WIN7-39 及更早候选结论不变。执行方修正自产文件须另存新文件名，写入下一份实机交接书。
+
+## ADR-0146 第一批可靠性（A9-26）：恢复目录自忽略、验证证据收紧、项目说明与环境事实注入、输入上下文预算
+
+- 状态：Accepted（2026-09-29，负责人批准 [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)，§7 全部按建议）
+- 背景：推进顺序阶段 2 的第一批；D1 裁决（方案 3b）；W41 预演证据中编辑后只执行 `Write-Output` 即被记为 `verified`；
+  System Prompt 声明 AGENTS.md 优先级但运行时从不加载；进程内对话历史无总量控制；目标 OS 为写死的默认值；选择工作区后过程记录不加载。
+- 决策：
+  1. 恢复根创建时写入内容为 `*` 的 `.agent_recovery/.gitignore`，打开工作区时幂等补写；已存在的文件不改写；写入失败不阻断，发结构化诊断 `A9_RECOVERY_GITIGNORE_WRITE_FAILED`。
+     `git clean -fdx` 下的保护、迁出工作区与清理另议。
+  2. 验证证据按“验证类 / 中性类 / 变更类”三分类，只有验证类成功才记 `verified`，无法判断归变更类；清除 `verified` 的条件改为相对上一次收集出现新变化。
+     `turn_completed.data` 只增 `verificationEvidence`（脱敏命令 ≤200 字符与退出码），结论卡显示依据。具体分类以复现结果定稿，写入任务书执行记录。
+  3. 每轮加载工作区根 `AGENTS.md`（≤32 KiB，UTF-8），作为 System Prompt 之后的独立消息且每轮替换，不进入对话事实与恢复历史；
+     失败原因以 `turn_started.data.projectInstructions.status` 表达。System Prompt 升为 `a9-system-prompt-v3`，只声明实际加载的来源。
+  4. Provider 请求按字符预算组装（默认 96,000，可在 Provider 配置选填 `contextBudgetChars`，不加界面）：固定前缀 → 当前轮 → 历史完整轮次；
+     当前轮超限时以占位替换最早的工具结果并保持 `tool_calls`/`tool` 成对；可识别的超长错误以半预算重试一次。`turn_started.data` 只增 `context` 统计。
+  5. 环境事实只注入不启动进程即可探测的事实与对应的 Win7 注意事项（≤1.5 KB），非 Win7 环境不写 Win7。
+  6. 取消轮次发 `turn_completed`（`outcome=cancelled`），不新增事件类型、不改 State；改动审阅响应只增 `reasonCode`。
+  7. 选择或切换工作区后立即加载活动对话的过程记录，未加载轮次的 `.legacy-note` 语义保持。
+- 后果：事件与响应只增字段，持久化格式不变；W39～W41 驱动与旅程不改，WIN7-42 套件去掉 M4 热身轮。
+  O-4（命令产生文件的 Diff）不在本批，与按块撤销另立任务。Win7 结论由 WIN7-42 取得，此前为 `NOT_PERFORMED`。

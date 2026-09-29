@@ -39,6 +39,7 @@
 | A9-21 A9-18 有效成果移植 | `A9_21_DEVELOPER_VERIFIED`（2026-09-27 负责人接受 §5 第 5 项“未复现、原因未定位”；§5 第 6 项由 WIN7-39 实机完成） | [A9-21 §8](tasks/A9_21_A9_18_SALVAGE_PORT.md) | 遗留：`deniedPermissions` 无上限、`listConversationFacts` 随 checkpoint 总数增长；gateway 偶发失败未定位，再现时另查 |
 | A9-22 WIN7-38 换发与实机验收 | `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`（2026-09-26 实机 G2 失败：候选内 smoke 未传产品入口，产品未运行；非产品缺陷结论；ADR-0142） | [A9-22](tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)、[审查报告](reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md) | 已关闭；候选与证据保留，不得复用改判 |
 | A9-23 WIN7-39 换发与实机验收 | `A9_23_WIN7_39_A9_20_A9_21_PASS`（2026-09-27 门 B；源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`；15 项，已知限制随结论记录）。**产品侧观察**（2026-09-27 记录，待定是否另立任务）：会话中选择或切换到已有历史的工作区后，过程记录不加载，需切换对话或完成一轮后才显示 | [A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md) | 已关闭；限制：POSIX 可执行性与 PowerShell `/Command` 真实执行未测、真实 Provider 未覆盖、W39-06 Stop 后 PID 以运行结束时不存在为准 |
+| A9-26 第一批：可靠性 | `A9_26_IMPLEMENTATION_AUTHORIZED`（2026-09-29 负责人批准，ADR-0146）：⓪ 恢复目录自忽略、① “已验证”判定复现与收紧（含 O-1）、② AGENTS.md 加载、③ 输入上下文预算、④ 环境事实注入、⑤ 选择工作区后历史加载（含 O-2） | [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)、[实现交接书](plans/A9_26_RELIABILITY_HANDOFF.md) | 分支 `codex/a9-26-reliability` 开发；开发机门通过后并入，Win7 由 WIN7-42 取得（`NOT_PERFORMED`） |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Review、Shell streaming 与新的 RC 均未获任何 PASS 结论。
@@ -57,6 +58,7 @@
    `git clean -fd`、`git stash -u` 会删除或收走它，之后撤销失效。自 A9-03 起全部 A9 候选（含 WIN7-22/37/39）同源，已签结论不改判。
    手动缓解：在工作区的 `.agent_recovery/` 内新建内容为 `*` 的 `.gitignore`，或把 `.agent_recovery/` 加入仓库的 `.git/info/exclude`。
    D1 已裁决：修复（方案 3b）作为第一批首个里程碑，WIN7-40 范围不变；迁出工作区与恢复目录清理另立任务评估。
+   第一批已立为 [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)（2026-09-29 批准，ADR-0146）；修复通过 WIN7-42 前维持本条登记与手动缓解。
 
 ## MVP 已接受的延期项
 
