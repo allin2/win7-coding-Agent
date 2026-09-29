@@ -1,1 +1,5 @@
 *.bat text eol=crlf
+
+# GitHub Linguist: exclude third-party license artifacts and doc HTML exports from language stats
+spikes/**/compliance/licenses/** linguist-vendored
+docs/**/*.html linguist-documentation
