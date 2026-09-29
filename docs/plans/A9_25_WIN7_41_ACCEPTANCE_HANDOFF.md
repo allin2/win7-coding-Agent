@@ -194,3 +194,35 @@ WIN7-40 结论为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）�
 审核方基于原始证据独立复核：复算 `SHA256SUMS.txt` 与候选、authority 哈希；逐项对照 §6 与验证说明判定口径；核对时间线、`deviations[]` 与进程基线；
 用候选内报告器 `init` 生成模板并组装正式报告，在开发机预检后，另发附录请执行方在 Win7 以 `agent` 运行 `RUN_WIN7_41_REPORT_VERIFY.cmd` 复核（与 WIN7-39 附录 B 相同）。
 无法由原始证据支撑的结论按 `INSUFFICIENT_EVIDENCE` 处理。之后由负责人在门 B 裁决。
+
+## 附录 A：正式报告的 Win7 校验（2026-09-29，实机执行后）
+
+审核结论见 [审核报告](../reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)。审核方已用候选内报告器 `init` 生成模板并组装正式报告 `report-w41.json`（22 项均为 PASS），
+开发机上候选自带校验器结果 `status=PASS`、`verified_cases=22`、处置 `A9_25_WIN7_41_A9_24_PASS`；篡改证据字节与错误 pin 均被拒绝。**以上是开发机预检，不是 Win7 校验。** 门 B 前必须在 Win7 上以 `agent` 用候选内校验器复核一次。
+
+### A.1 输入（审核方已钉住，执行方不得修改）
+
+以下路径均相对于 `<L>/review/`：
+
+- 验证包 `bundle/`：`report-w41.json`（SHA-256 `81f677d7769df27230968706e65242d14e5e6c5a7de925d902b48c81a19975ae`）与 34 个被引用证据文件，路径全部为 ASCII；清单 `BUNDLE_SHA256SUMS.txt` 共 35 行。
+- 校验脚本 `report-verify-kit/RUN_REPORT_VERIFY_AS_AGENT.cmd`（由 WIN7-39 同名脚本机械派生：纯 ASCII、CRLF，路径由 `%~dp0` 推导，检查 `agent` 与 Medium，结果与 `whoami /groups` 写入
+  `<W>\rv\evidence\report-verify-output.txt`，末行 `REPORT_VERIFY_EXIT=<n>`）。
+- 钉住清单 `REPORT_VERIFY_KIT.sha256`：覆盖上述 `.cmd` 与 `BUNDLE_SHA256SUMS.txt`，清单自身 SHA-256 为 `2033f86b1c4c1fb53b5b0189b0a4f66ed4927868f51f9c392297ea50d3f2c18a`。
+
+### A.2 步骤
+
+记录以追加方式写 `<L>/report-verify/RUN_LOG.md`（每步后追加，不得整体重写）；Win7 目录为 `<W>\rv\{bundle,scripts,evidence}`，本机取回到 `<L>/report-verify/`。
+
+1. **C1 会话与哈希（只读）**：`query user` 须显示 `agent` 为 `console`“运行中”，否则停止；`certutil` 复算 `original\` 中的 ZIP 与 `authority\` 中 4 个文件，须与 §3 一致；记录进程基线。
+2. **C2 本机校验**：在 `<L>/review/report-verify-kit/` 下 `shasum -a 256 -c ../REPORT_VERIFY_KIT.sha256` 2 项 OK，复算清单自身哈希须等于 A.1；
+   在 `bundle/` 下 `shasum -a 256 -c ../BUNDLE_SHA256SUMS.txt` 35 项 OK。任一不符即停止。
+3. **C3 上传**：经 ASCII 暂存目录把 `bundle/` 全部内容按原相对路径放到 `<W>\rv\bundle\`，把 `.cmd` 放到 `<W>\rv\scripts\`；`certutil` 逐个复算 35 个文件与 `.cmd`，
+   结果存 `<W>\rv\evidence\upload-hash-win7.txt`，须全部一致；为 `agent` 授予 `<W>\rv` 的 `(OI)(CI)M`。
+4. **C4 运行**：按 §4.2 注册任务 `A9W41C318e27e4ReportVerify`（CP936 XML，动作 `cmd.exe /d /c call "<W>\rv\scripts\RUN_REPORT_VERIFY_AS_AGENT.cmd"`），
+   回读门逐字段核对并存 UTF-16LE 副本；运行并等待结束（上限 15 分钟）。不需要另跑自检任务：`.cmd` 自身检查 `agent` 与 Medium。
+   `report-verify-output.txt` 出现 `REPORT_VERIFY_BLOCKED_`、`_MISSING` 或没有 `REPORT_VERIFY_EXIT=` 行即停止。不得重跑。
+5. **C5 后飞行与取回**：进程表相对 C1 基线无新增 Electron；删除任务并存原始输出；取回 `<W>\rv\evidence\` 与 `<W>\rv\scripts\` 到 `<L>/report-verify/`；生成 `<L>/report-verify/SHA256SUMS.txt`。
+6. **C6 报告**：`<L>/report-verify/EXECUTOR_REPORT_C.json`，字段：`kit_manifest_sha256`、`kit_hash_verified_local`、`upload_hash_verified_on_win7`、`task_readback`、`steps[]`、
+   `report_verify_exit_line`（原文）、`report_verify_output_status`（校验器输出中 `status` 与 `verified_cases` 原值）、`stop_reason`、`deviations[]`。只写事实，不用裁决字样。
+
+候选、authority、`package\` 与本次实机的全部证据保持原样；硬停止条件同 §7。

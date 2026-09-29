@@ -158,3 +158,6 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
 - 2026-09-29：§9 第 ⑤ 步门 A：负责人在对话中签发 `WIN7_41_RELEASE_AUTHORITY`（`approved_at` 2026-09-29T01:07:45Z，SHA-256 `aeaa20cf…ffcc8`），绑定源码 `0f8af24`、ZIP `66a4b3e4…93b0`、manifest `141ef659…343e`、
   输入锁 `5dfd5dec…84b5`、原生构建审批登记、Kit（22 项）、目标主机 `192.168.1.3` 与 run-id `318e27e4-d7ac-4c42-9530-8f973abf033f`（authority 位于 `.acceptance/runs/A9-25-W41/318e27e4-…/authority/`）。
   候选自带校验对签发版 authority 身份与全树核对通过，草稿 pin 被拒，报告器 `init` 生成 22 项模板（开发机预检）。[WIN7-41 实机交接书](../plans/A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md)改为 `READY_FOR_EXECUTION`。
+- 2026-09-29：§9 第 ⑥ 步实机执行（外部执行方，run-id `318e27e4`）：首轮因 `agent` 会话断开按 §7 硬停止，负责人登录 `agent` 后重新发起；G0～G2 与后飞行完成，G1、G2 退出码 0，smoke `status=PASS`。
+- 2026-09-29：§9 第 ⑦ 步审核（[审核报告](../reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）：原始证据支持 22 项全部成立；审核方组装正式报告 `report-w41.json` 并完成开发机预检（`status=PASS`，篡改与错误 pin 被拒）；
+  登记未申报偏差 DEV-3（`RUN_LOG.md` 事后整体写入，不影响结论）。发出[实机交接书附录 A](../plans/A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md)，由执行方在 Win7 以 `agent` 做报告校验；完成后提交门 B。
