@@ -699,7 +699,7 @@ describe('A9 unified desktop workbench contract', () => {
     expect(ingested.map(x => x.eventId)).toEqual([301, 1]);
     expect(state.eventsError).toBe('');
     expect(state.eventsTruncated).toBe(false);
-    expect(render).toHaveBeenCalledTimes(3);
+    expect(render).toHaveBeenCalledTimes(6); // start and terminal state for each request
     expect(renderTimeline).toHaveBeenCalledTimes(3);
   });
 

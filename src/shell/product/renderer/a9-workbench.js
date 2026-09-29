@@ -36,7 +36,7 @@
     completed_with_warnings: '完成（有警告）',
     blocked: '受阻',
     failed: '失败',
-    cancelled: '已取消',
+    cancelled: '已停止',
     interrupted: '已中断',
     needs_approval: '等待批准',
     running: '运行中',
@@ -94,6 +94,8 @@
     eventsBeforeId: null,
     eventsError: '',
     eventsLoading: false,
+    eventsStatusNote: null,
+    workspaceSelectionGeneration: 0,
     streamDom: new Map(),
     truncatedNote: null,
     localRequest: null,
@@ -438,6 +440,7 @@
     state.eventsBeforeId = null;
     state.eventsError = '';
     state.eventsLoading = false;
+    state.eventsStatusNote = null;
     state.streamDom = new Map();
     state.pendingToolLabel = null;
     state.truncatedNote = null;
@@ -457,6 +460,8 @@
     const requestedConversationId = state.activeConversationId;
     const generation = state.historyGeneration;
     state.eventsLoading = true;
+    state.conversationSignature = null;
+    if (state.snapshot) renderConversation(state.snapshot);
     try {
       const response = await a9.queryEvents({ conversationId: requestedConversationId, limit,
         ...(older && state.eventsBeforeId ? { beforeEventId: state.eventsBeforeId } : {}) });
@@ -561,7 +566,7 @@
     const shell = data.shell && data.shell.schemaVersion === 1 ? data.shell : null;
     switch (event.type) {
       case 'turn_started': return '任务开始';
-      case 'turn_completed': return `任务完成 · ${data.outcome || '-'}`;
+      case 'turn_completed': return data.outcome === 'cancelled' ? '已停止' : `任务完成 · ${data.outcome || '-'}`;
       case 'turn_failed': return `任务失败 · ${String(data.error || '').slice(0, 120)}`;
       case 'model_note': return '模型说明';
       case 'model_chunk': return '模型输出（汇总）';
@@ -729,6 +734,24 @@
   function appendEventNode(block, event) {
     const data = event.data || {};
     switch (event.type) {
+      case 'turn_started': {
+        const instruction = data.projectInstructions;
+        if (!instruction) break;
+        const statusText = {
+          absent: '未找到工作区根 AGENTS.md',
+          too_large: 'AGENTS.md 超过 32 KiB，未加载',
+          decode_error: 'AGENTS.md 无法按 UTF-8 读取',
+          secret_blocked: 'AGENTS.md 含已知秘密，未加载',
+          outside: 'AGENTS.md 指向工作区外，未加载',
+        };
+        const note = document.createElement('p');
+        note.className = 'note-line';
+        note.textContent = instruction.status === 'loaded'
+          ? `已加载 AGENTS.md（${(instruction.bytes / 1024).toFixed(1)} KB）`
+          : (statusText[instruction.status] || 'AGENTS.md 未加载');
+        block.progressEl.appendChild(note);
+        break;
+      }
       case 'model_note': {
         closeActivityGroup(block);
         const note = document.createElement('p');
@@ -837,11 +860,13 @@
     let outcome = null;
     let verification = 'not_applicable';
     let message = '';
+    let verificationEvidence = null;
     for (const event of events) {
       if (event.type === 'turn_completed') {
         outcome = event.data.outcome || 'completed';
         verification = event.data.verification || 'not_applicable';
         message = event.data.finalMessage || '';
+        verificationEvidence = event.data.verificationEvidence || null;
       } else if (event.type === 'turn_failed') {
         outcome = 'failed';
         message = event.data.error ? `模型调用失败：${event.data.error}` : '';
@@ -854,7 +879,7 @@
         ? '应用重启后恢复了中断事实；未重放模型、工具或旧审批。'
         : '');
     }
-    return outcome ? { outcome, verification, message } : null;
+    return outcome ? { outcome, verification, message, verificationEvidence } : null;
   }
 
   function updateOutcomeCard(block, fact, events) {
@@ -867,8 +892,8 @@
       }
       return;
     }
-    const { outcome, verification, message } = projection;
-    const signature = JSON.stringify([outcome, verification, message]);
+    const { outcome, verification, message, verificationEvidence } = projection;
+    const signature = JSON.stringify([outcome, verification, message, verificationEvidence]);
     if (block.outcomeSig === signature) return;
     block.outcomeSig = signature;
     if (!block.outcomeEl) {
@@ -897,6 +922,12 @@
     const timeText = fact && fact.updatedAt ? new Date(fact.updatedAt).toLocaleTimeString() : '';
     block.outcomeMetaEl.textContent = [verificationText, timeText].filter(Boolean).join(' · ');
     block.outcomeBodyEl.textContent = clampText(message || '任务已返回结果。', NOTE_LIMIT);
+    if (verificationEvidence && verification === 'verified') {
+      const evidence = document.createElement('small');
+      evidence.className = 'verification-evidence';
+      evidence.textContent = `依据：${verificationEvidence.command} 退出码 ${verificationEvidence.exitCode}`;
+      block.outcomeBodyEl.appendChild(evidence);
+    }
   }
 
   function renderTurnDropped(block, released, remaining) {
@@ -1087,6 +1118,8 @@
     const signature = JSON.stringify([
       snapshot.activeConversationId,
       state.eventMaxId,
+      state.eventsLoading,
+      state.eventsError,
       state.eventsTruncated,
       state.releasedEventCount,
       state.inspectorEvents.size >= EVENT_GLOBAL_LIMIT,
@@ -1142,6 +1175,13 @@
         stream.insertBefore(note, stream.firstChild);
         state.truncatedNote = note;
       }
+      if (state.eventsError) {
+        state.truncatedNote.setAttribute('role', 'alert');
+        state.truncatedNote.dataset.historyError = 'true';
+      } else if (state.truncatedNote.dataset.historyError === 'true') {
+        state.truncatedNote.removeAttribute('role');
+        delete state.truncatedNote.dataset.historyError;
+      }
       const releasedNote = state.releasedEventCount
         ? `为控制内存，界面已释放最早的 ${state.releasedEventCount} 条过程记录（本地记录完整保存）。` : '';
       const historyNote = state.eventsError || (state.eventsTruncated && !atEventCap ? '还有更早的过程记录。' : '');
@@ -1158,6 +1198,15 @@
     } else if (state.truncatedNote) {
       state.truncatedNote.remove();
       state.truncatedNote = null;
+    }
+    if (state.eventsStatusNote) state.eventsStatusNote.remove();
+    state.eventsStatusNote = null;
+    if (state.eventsLoading) {
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      status.textContent = '正在加载过程记录…';
+      stream.insertBefore(status, stream.firstChild);
+      state.eventsStatusNote = status;
     }
     el('a9-empty-state').hidden = facts.length > 0 || Boolean(state.localRequest);
     loadRecentSummaries(snapshot);
@@ -1350,10 +1399,16 @@
     (review.unrecoverable || []).forEach((change) => {
       const warning = document.createElement('p');
       warning.className = 'review-unrecoverable';
-      const reason = ({ outside: '位于工作区外', too_large: '超过备份上限', backup_failed: '备份失败',
+      const reasonByCode = { too_large: '超过备份上限（单文件 2 MiB），轮前未保存原内容',
+        outside: '位于工作区外，轮前未保存原内容', backup_failed: '备份失败，轮前未保存原内容' };
+      const fallbackReason = ({ outside: '位于工作区外', too_large: '超过备份上限', backup_failed: '备份失败',
         created: '缺少可恢复基线', modified: '缺少原始内容', deleted: '缺少原始内容', renamed: '无法确定原始路径' })[change.kind]
         || '恢复依据不足';
-      warning.textContent = `命令产生 · 无法撤销 · ${change.path}：${reason}${change.reason ? `（${change.reason}）` : ''}`;
+      const parsedCode = /（([a-z_]+)）/.exec(String(change.reason || ''))?.[1];
+      const reasonCode = reasonByCode[change.reasonCode] ? change.reasonCode : parsedCode;
+      const reason = reasonByCode[reasonCode] || fallbackReason;
+      const detail = reasonByCode[reasonCode] ? '' : String(change.reason || '').replace(/（[a-z_]+）/g, '');
+      warning.textContent = `命令产生 · 无法撤销 · ${change.path}：${reason}${detail ? `（${detail}）` : ''}`;
       files.appendChild(warning);
     });
     if (state.reviewConfirmation && state.reviewConfirmation.turnId === turnId) {
@@ -1824,10 +1879,11 @@
     syncComposer();
   }
 
-  async function refreshSnapshot() {
+  async function refreshSnapshot(isCurrent = () => true) {
     if (!a9) return null;
     try {
       const response = await a9.snapshot();
+      if (!isCurrent()) return null;
       if (!response || response.ok !== true) {
         const code = response && response.error && response.error.code;
         if (code === 'A9_WORKSPACE_REQUIRED') {
@@ -1965,12 +2021,14 @@
   }
 
   async function chooseWorkspace() {
+    const selectionGeneration = ++state.workspaceSelectionGeneration;
     cancelPendingUndo();
     clearGlobalError();
     try {
       await saveDraftNow();
       const result = await api.selectWorkspace();
       if (!result || !result.selected) return;
+      if (selectionGeneration !== state.workspaceSelectionGeneration) return;
       let sessionsResult = await api.listSessions();
       let sessions = sessionsResult && sessionsResult.sessions ? sessionsResult.sessions : [];
       let session = sessions.find((item) => item.status === 'ACTIVE' && item.workspacePath === result.selected.workspacePath);
@@ -1979,7 +2037,18 @@
         session = created && created.session;
       }
       state.explorerSessionId = session ? session.sessionId : null;
-      await refreshSnapshot();
+      const refreshed = await refreshSnapshot(() => selectionGeneration === state.workspaceSelectionGeneration);
+      if (selectionGeneration !== state.workspaceSelectionGeneration) return;
+      if (!refreshed) return;
+      resetConversationEvents();
+      for (const fact of state.snapshot?.conversation || []) state.conversationFacts.set(fact.taskId, fact);
+      state.conversationPage = state.snapshot?.conversationPage || null;
+      state.conversationSignature = null;
+      if (state.snapshot) renderConversation(state.snapshot);
+      if (state.activeConversationId && (state.snapshot?.conversation || []).length > 0) {
+        await loadConversationEvents();
+      }
+      if (selectionGeneration !== state.workspaceSelectionGeneration) return;
       await refreshWorkspace('');
       dismissNavigationDrawer();
     } catch (error) {
@@ -2748,6 +2817,13 @@
     if (state.snapshot) {
       rows.push(['A9 Runtime status', state.snapshot.status || '-']);
       rows.push(['A9 Runtime diagnostic', state.snapshot.status === 'ready' ? 'ready' : runtimeDiagnostic(state.snapshot)]);
+      rows.push(['上下文预算', String(state.snapshot.contextWindow?.budgetChars || '-')]);
+      if (state.snapshot.contextBudgetDiagnostics) {
+        rows.push(['上下文预算诊断', `${state.snapshot.contextBudgetDiagnostics.code}: ${state.snapshot.contextBudgetDiagnostics.detail}`]);
+      }
+      (state.snapshot.recoveryIgnoreDiagnostics || []).forEach((diagnostic) => {
+        rows.push(['恢复区忽略规则', `${diagnostic.code}: ${diagnostic.detail}`]);
+      });
     }
     rows.forEach(([label, value]) => {
       const dt = document.createElement('dt');

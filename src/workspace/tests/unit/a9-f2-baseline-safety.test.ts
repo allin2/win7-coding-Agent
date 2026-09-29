@@ -35,6 +35,9 @@ describe('F2: skipped baseline files are never treated as created', () => {
     const entry = report.changes.find((c) => c.path === 'big.bin');
     expect(entry?.kind).toBe('modified');
     expect(entry?.recoverable).toBe(false);
+    expect(service.getCheckpointManager().getTurnReview('t1')?.unrecoverable).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'big.bin', kind: 'modified', reasonCode: 'too_large' }),
+    ]));
 
     const undo = service.getCheckpointManager().undoTurn('t1');
     // 原文件被保留（绝不能被 delete-new 删除）。

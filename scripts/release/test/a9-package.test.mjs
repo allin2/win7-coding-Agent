@@ -5196,7 +5196,8 @@ test('W40 R2 K-02 replays actual modified/too_large and waits for rendered reaso
   root.__repair.state.reviewCache.set(review.turnId, review); root.__repair.renderCheckpoints(snapshot);
   const rendered = w40FindClass(node('a9-checkpoint-list'), 'review-unrecoverable').textContent;
   assert.equal(h.a925UnrecoverableTextMatches(rendered, 'big.bin'), true);
-  assert.equal(h.a925UnrecoverableTextMatches(rendered.replaceAll('too_large', 'missing'), 'big.bin'), false);
+  assert.ok(!rendered.includes('too_large'));
+  assert.equal(h.a925UnrecoverableTextMatches(rendered.replaceAll('超过备份上限', '缺少原始内容'), 'big.bin'), false);
   const source = fs.readFileSync(W40_DRIVER_PATH, 'utf8');
   const injected = w40RepairHelpers(source.replace("item.kind === 'too_large' || String(item.reason || '').includes('too_large')", "item.kind === 'too_large'"));
   assert.throws(() => assert.ok(injected.a925Unrecoverable(review, 'big.bin')), /falsy/);

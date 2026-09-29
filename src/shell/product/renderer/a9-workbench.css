@@ -279,6 +279,7 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .outcome-head strong { color: var(--text-secondary); font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
 .outcome-head span { font: 11px var(--font-mono); }
 .outcome-body { padding: 4px 14px 13px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.verification-evidence { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
 .legacy-note { margin: 0; padding: 2px 4px; color: var(--muted); font-size: 12px; }
 
 /* ------------------------------------------------------- composer footer */

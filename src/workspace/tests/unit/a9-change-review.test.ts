@@ -44,7 +44,7 @@ describe('A9-24 change review read-only projection', () => {
       { path: 'new.txt', action: 'create', additions: 1, deletions: 0, undone: false, diffTruncated: false },
     ]);
     expect(review!.files[0].diffText).toContain('+gamma');
-    expect(review!.unrecoverable).toEqual([{ path: 'large.bin', kind: 'too_large', reason: '超过备份上限' }]);
+    expect(review!.unrecoverable).toEqual([{ path: 'large.bin', kind: 'too_large', reason: '超过备份上限', reasonCode: 'too_large' }]);
     expect(review!.externalBaselineStatus).toBe('none');
     expect(manager.getTurnReview('missing')).toBeNull();
     expect(fileHashes(root)).toEqual(before);
@@ -60,6 +60,22 @@ describe('A9-24 change review read-only projection', () => {
     const reopened = new A9WorkspaceService(root).getCheckpointManager();
     expect(reopened.getTurnReview('turn-undo')!.files[0].undone).toBe(true);
     expect(fs.readFileSync(path.join(root, 'calc.ts'), 'utf8')).toBe('before');
+    expect(fileHashes(root)).toEqual(before);
+  });
+
+  it('R5 O-2 derives reasonCode from recorded reason text without changing persisted facts', () => {
+    const manager = service.getCheckpointManager();
+    manager.recordUnrecoverableExternal('turn-reason', {
+      path: 'large.bin', kind: 'modified', reason: '轮前基线未覆盖（too_large），无法恢复原内容',
+    });
+    manager.recordUnrecoverableExternal('turn-reason', {
+      path: 'unknown.bin', kind: 'modified', reason: '无法恢复原内容',
+    });
+    const before = fileHashes(root);
+    expect(manager.getTurnReview('turn-reason')!.unrecoverable).toEqual([
+      { path: 'large.bin', kind: 'modified', reason: '轮前基线未覆盖（too_large），无法恢复原内容', reasonCode: 'too_large' },
+      { path: 'unknown.bin', kind: 'modified', reason: '无法恢复原内容' },
+    ]);
     expect(fileHashes(root)).toEqual(before);
   });
 

@@ -525,11 +525,12 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
     const fixture = await startFixtureModel([
       { tool: { id: 'r1', name: 'read', args: { path: 'calc.ts' } } },
       { tool: { id: 'e1', name: 'edit', args: { path: 'calc.ts', oldText: 'return a - b;', newText: 'return a + b;' } } },
-      { tool: { id: 's1', name: 'shell', args: { command: 'node -e \"console.log(\'verified\')\"' } } },
+      { tool: { id: 's1', name: 'shell', args: { command: 'node check.js' } } },
       { content: 'Fixed and verified.' },
     ]);
     try {
       fs.writeFileSync(path.join(env.workspaceRoot, 'calc.ts'), 'export function add(a, b) {\n  return a - b;\n}\n');
+      fs.writeFileSync(path.join(env.workspaceRoot, 'check.js'), "console.log('verified')\n", 'utf8');
       const runtime = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
       runtime.setMode('full_access');
       const configured = await runtime.configureProvider({
@@ -568,6 +569,29 @@ describe('A9-06: desktop a9 runtime composite (real modules, real sqlite)', () =
       });
       runtime.shutdown();
     } finally {
+      await fixture.close();
+    }
+  }, 30_000);
+
+  it('A5-2 edit followed by node -e output remains unverified', async () => {
+    const fixture = await startFixtureModel([
+      { tool: { id: 'r1', name: 'read', args: { path: 'calc.ts' } } },
+      { tool: { id: 'e1', name: 'edit', args: { path: 'calc.ts', oldText: 'return a - b;', newText: 'return a + b;' } } },
+      { tool: { id: 's1', name: 'shell', args: { command: 'node -e \"console.log(\'verified\')\"' } } },
+      { content: 'Done.' },
+    ]);
+    const runtime = createA9AgentRuntime({ workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot, openDatabase: openReal });
+    try {
+      fs.writeFileSync(path.join(env.workspaceRoot, 'calc.ts'), 'export function add(a, b) {\n  return a - b;\n}\n');
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const turn = await runtime.submitTurn('fix the bug');
+      expect(turn.ok).toBe(true);
+      expect(turn.result.outcome).toBe('completed_with_warnings');
+      expect(turn.result.verification).toBe('unverified');
+      expect(turn.result.verificationEvidence).toBeUndefined();
+    } finally {
+      await runtime.shutdown();
       await fixture.close();
     }
   }, 30_000);

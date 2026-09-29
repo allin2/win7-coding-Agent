@@ -1,13 +1,13 @@
 /**
  * @module system-prompt
- * @description A9 System Prompt V2 契约与构建器
+ * @description A9 System Prompt V3 契约与构建器
  * @remarks ADR-0089 / PRD §7 A9-GW01 / PRD §8 A9-A01
  */
 
 import * as crypto from 'crypto';
 import { PermissionMode } from './types';
 
-export const A9_SYSTEM_PROMPT_VERSION = 'a9-system-prompt-v2';
+export const A9_SYSTEM_PROMPT_VERSION = 'a9-system-prompt-v3';
 
 export interface SystemPromptOptions {
   mode?: PermissionMode;
@@ -28,12 +28,12 @@ export interface SystemPromptContract {
 }
 
 /**
- * 构建符合 A9 契约的 System Prompt V2
+ * 构建符合 A9 契约的 System Prompt V3
  */
 export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPromptContract {
   const mode = options.mode || PermissionMode.FULL_ACCESS;
   const shell = options.shell || 'powershell';
-  const targetOs = options.targetOs || 'Windows 7 SP1 x64';
+  const targetOs = options.targetOs || 'unknown';
 
   const modeInstructions = mode === PermissionMode.FULL_ACCESS
     ? [
@@ -57,7 +57,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
   const shellLabel = options.shellVersion ? `${shell} ${options.shellVersion}` : shell;
   const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'update_plan'];
   const content = [
-    `[${A9_SYSTEM_PROMPT_VERSION}] You are the Windows 7 Trusted Coding Agent.`,
+    `[${A9_SYSTEM_PROMPT_VERSION}] You are the Trusted Coding Agent.`,
     `Target Environment: ${targetOs}. Shell: ${shellLabel}.`,
     options.cwd ? `Working Directory: ${options.cwd}.` : '',
     '',
@@ -66,7 +66,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
     'Instruction Hierarchy:',
     '1. Runtime invariants & active permission mode (highest priority).',
     '2. Explicit user prompt for the current task.',
-    '3. AGENTS.md and detected project instructions (CLAUDE.md, etc.).',
+    '3. Project instructions from the workspace-root AGENTS.md when provided below.',
     '4. Codebase contents and data.',
     '',
     'Tool Guidelines:',
