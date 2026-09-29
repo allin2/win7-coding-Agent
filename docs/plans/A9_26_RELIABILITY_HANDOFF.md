@@ -126,3 +126,15 @@
 **A4 ⑤ 加载期间的 `.legacy-note`（取代 §2 ⑤ 第 1 条中“终态轮次在加载期间不显示 `.legacy-note`”；验收方自查发现，预先裁决）。** 任务书 §4 兼容约束优先：
 `a9-06-driver-entry.cjs:1383-1386` 以 `.legacy-note` 消失判断“该轮已加载”，加载期间提前移除会造成误判。裁决：加载期间未加载轮次的 `.legacy-note` 元素、类名与文本**保持不变**，
 只在对话流顶部增加“正在加载过程记录…”提示；事件真正进入已加载历史后才按现行逻辑移除。Demo 中加载期间的骨架占位不实现。补一条测试：加载请求未返回时 `.legacy-note` 仍在。
+
+**A5 ① 变更类命令的作用与三个既有 Shell 测试（执行方第三次停止报告，`9d30719`）。**
+
+- **A5-1 实现纠正（取代 `fa564d0` 中“变更类命令即置 `mutations=true`”）。** 任务书 ① 只规定变更类命令**清除**验证证据，没有规定它本身构成副作用。
+  变更类命令只执行 `verifiedAfterMutation=false` 与清空 `verificationEvidence`，**不**设置 `turnStats.mutations`。副作用仍只来自三处：Full Access 文件写工具、相对上次收集的新外部变化、
+  `classifyGitCommand(command).mutatesWorktree`（恢复原有 Git 规则，只读调用 `git-command-policy.ts`）。
+  `a9-lifecycle.test.ts` 中“persists a managed background process…”与“restores completed conversation facts after restart…”**不得修改**，改正实现后须原样通过（该轮只启动后台进程、未改文件，应为 `completed`）。
+  新增 Core 用例：只执行变更类命令且无文件变化 → `completed` / `not_applicable`；变更类命令产生文件 → 经外部变化记为 `unverified`；改工作树的 Git 命令无外部变化时仍计副作用。
+- **A5-2 `a9-product-contract.test.ts`“full fixture round”（特许例外）。** 原输入 `node -e "console.log('verified')"` 在新规则下实为输出类命令，记 `unverified` 是正确结果；该用例的本意是端到端覆盖“修复后验证”的路径。
+  允许只改**输入**：轮次开始前在工作区写入 `check.js`（内容 `console.log('verified')`），夹具命令改为 `node check.js`；**全部断言不改**（仍为 `completed`/`verified`）。
+  同时新增一条宿主用例固定旧输入的新语义：`edit` 后执行 `node -e "console.log('verified')"` → `completed_with_warnings` / `unverified`，且 `verificationEvidence` 不存在。
+- 除上述之外，§4“既有测试只允许因文案变更更新断言”不变。
