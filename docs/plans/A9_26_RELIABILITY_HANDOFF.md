@@ -95,3 +95,22 @@
 
 本地提交后交回：各里程碑提交哈希；相对基线的改动文件清单（须全部在允许路径内）；① 的复现结论（H1～H4 各自复现与否、所用序列）；
 各 R 用例对应测试名与结果；回归测试摘要；负向对照说明（改回什么、哪条测试失败）；未完成项与偏离。开发机结果不得写成 Win7 或真实 Electron 通过。
+
+## 附录 A 裁决（2026-09-29，执行方首次停止报告）
+
+本附录取代正文中对应条目；正文其余部分不变。
+
+**A1 ⓪ 恢复根的创建入口（取代 §2 ⓪ 第 2 条）。** 正文所引 `checkpoint-manager.ts:296` 有误：该处只拼接撤销交换路径。恢复根实际由写入恢复区的多处
+`fs.mkdirSync(..., { recursive: true })` 顺带创建（基线 `6acbb14` 上为第 219、273/275、346、385、432、755、846、874 行附近；第 443 行写工作区，不属此列）。裁决：**统一入口**。
+
+- 新增私有方法 `ensureRecoveryDir(dir: string)`：先 `mkdirSync(this.recoveryRoot, { recursive: true })`，再调用 `ensureRecoveryIgnore()`（实例内以布尔标志只执行一次），最后 `mkdirSync(dir, { recursive: true })`；
+- 上述每一处**目标位于恢复根内**的 `mkdirSync` 都改为调用 `ensureRecoveryDir`，不改其他逻辑；`mkdirSync(target)`（第 275 行这种非递归、依赖“已存在即失败”语义的调用）保留原调用，只在其前面加 `ensureRecoveryDir(path.dirname(target))`；
+- 新增测试：以源码文本检查 `checkpoint-manager.ts` 中除 `ensureRecoveryDir` 内部与写工作区的那一处外，不再有直接 `mkdirSync` 指向恢复区路径（按变量名 `recoveryRoot/blobsRoot/snapshotsRoot/manifestsRoot/swapRoot` 等判断，允许清单写在测试里）；
+- `A9WorkspaceService` 构造时的补写不变（只在恢复根已存在时调用 `ensureRecoveryIgnore`）；
+- 负向对照增加一项：让 `ensureRecoveryDir` 不调用 `ensureRecoveryIgnore`，R0-01 失败。
+
+**A2 ① 首个测试提交（取代 §2 ① 第 1 步）。** 任务书 R1-01 的“先红后绿”优先于正文“断言当前行为”。裁决：
+
+- 首个提交按**目标行为**写 H1～H4 用例，对当前代码会失败的用例用 Jest 29 的 `it.failing(...)` 标注，使套件保持通过，同时每个 `it.failing` 本身证明缺陷在现状下存在；
+- 某条假设在现状下不失败（即未复现）时，改为普通 `it` 断言现状并在测试名中加“未复现”，报告中写明序列，不修；
+- 修复提交把对应的 `it.failing` 改为 `it`，不得改动断言内容；验收方以两次提交之间断言文本不变、标注由 `failing` 变为普通为“先红后绿”的证据。
