@@ -45,7 +45,7 @@
 
 ## 当前阻断与待办
 
-推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项）；当前处于阶段 1：WIN7-40 实机 G2 因套件时序缺陷失败，门 B 裁决 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）；按修订后的 A9-25 §9：W41 套件已于 `5d671bc` 并入，下一步 Win7 连续两次预演，全部通过后换发 WIN7-41。
+推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项）；当前处于阶段 1：WIN7-40 实机 G2 因套件时序缺陷失败，门 B 裁决 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）；按修订后的 A9-25 §9：W41 套件经 R6～R8 返工与三轮连续两次预演（第三轮 `20260929-0748` 两次全部通过）稳定，最新并入 `f77de6d`；下一步起草 WIN7-41 实机交接书、双构建冻结与门 A。
 
 1. **Alpha 2 剩余范围**：2026-09-27 负责人决定拆为两个任务、先做 Review：负责人批准把 Review 改为“先写后审”的改动审阅（ADR-0143），[A9-24](tasks/A9_24_REVIEW_MODE.md) 开发机通过并已并入（`A9_24_DEVELOPER_VERIFIED`，`c136d12`）；Win7 由 [A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) 换发验收：WIN7-40（`64fd3a7`）实机 G1 通过、G2 因套件驱动时序缺陷失败，记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（[审核报告](reports/2026-09/a9_25_win7_40_acceptance_review_2026-09-28.md)、ADR-0145，非产品缺陷）；A9-25 修订后换发 WIN7-41（§9）；Shell 运行中输出（S01–S06）另立任务，先写 helper v3 协议设计。两者均需新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推；预算 #3 口径已按 ADR-0139 修订（K17-5 关闭），采样可开始。A9-18 需求与遗留项统一登记在[承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md)，已完成价值评估，有效部分由 A9-21 移植（已批准，ADR-0138/0139），移植后删除工作树。
