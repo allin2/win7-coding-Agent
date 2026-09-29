@@ -1227,3 +1227,4 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-29，A9-25 §9 第 ③④ 步：起草 WIN7-41 实机交接书；WIN7-41 从 `0f8af24` 双构建冻结（ZIP `66a4b3e4…93b0`，manifest `141ef659…343e`），开发机预检通过（非 Win7 结果）；等待门 A。
 - 2026-09-29，A9-25 门 A：负责人签发 WIN7-41 authority（`aeaa20cf…ffcc8`，run-id `318e27e4`，目标 `192.168.1.3`）；WIN7-41 实机交接书 `READY_FOR_EXECUTION`，Win7 实机验收待执行。
 - 2026-09-29，A9-26 第一批可靠性任务书与 ⑤ 交互 Demo 经负责人批准（C1/C2、Q1～Q7 按建议；O-1、O-2 并入，O-4 另立），追加 ADR-0146 与推进顺序记录，发出实现交接书；状态 `A9_26_IMPLEMENTATION_AUTHORIZED`。
+- 2026-09-29，A9-26 首次交回（`445aaaf`）验收需返工 B1（掩盖退出码的组合被判为验证）、B2（删除“重试加载”破坏继承的 retry 旅程）；返工 `1c8fb06` 复核通过，开发机门通过，`0fea04b` 并入 `codex/a9-alpha2`，状态 `A9_26_DEVELOPER_VERIFIED`；Win7 由 WIN7-42 承担。

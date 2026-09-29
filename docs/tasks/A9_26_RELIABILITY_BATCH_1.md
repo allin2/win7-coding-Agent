@@ -6,7 +6,7 @@ Task Type: RELIABILITY_HARDENING
 Target Branch: codex/a9-alpha2（开发在独立工作树与分支 codex/a9-26-reliability）
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（WIN7-41 已于 0f8af24 冻结）
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_26_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_26_DEVELOPER_VERIFIED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0146
 ```
@@ -241,6 +241,9 @@ WIN7-40 实机运行 `81c7a234` 的证据未跑到这些阶段。因此“未验
 - 2026-09-29：执行方交回 `445aaaf`（9 个提交、25 个文件）。验收方在 Node 20.17.0 下复现 Core 485/485、Workspace 230/230、Shell 472/472、打包 101/101、`verify:quick` 通过，工作树干净，源码树无恢复目录残留；
   H1～H3 复现、H4 未复现，“先红后绿”证据成立。**需返工两项**（交接书附录 B）：B1 `npm test || echo ok`、`npm test; echo done`、`npm test | findstr` 等掩盖退出码的组合被判为验证；
   B2 加载失败入口删除了“重试加载”按钮，破坏 W41 冒烟继承的 `retry` 旅程（驱动 W28-H06，开发机测试无法发现；源于交接书写法，责任在验收方）。另记接受的偏离三项。`Phase-Gate` 不变。
+- 2026-09-29：执行方交回返工 `1c8fb06`（`96a92c9` B1、`0c0770a`/`1c8fb06` B2，仅四个白名单文件）。验收方复核：B1 分类结果逐例符合附录 B（只有全 `&&` 组合可为验证）；B2 与基线 `6acbb14` 的“重试加载”写法一致，仅错误期间加 `role="alert"`；
+  独立负向对照（去掉错误按钮）使两条 B2 用例失败。Node 20.17.0 下 Core 494/494、Workspace 230/230、Shell 473/473、打包 101/101、`verify:quick`、`docs:check`、`git diff --check` 通过，工作树干净。
+  **开发机门通过**，于 `0fea04b` 非快进并入 `codex/a9-alpha2`（代码与 `1c8fb06` 一致），`Phase-Gate` 改为 `A9_26_DEVELOPER_VERIFIED`。Windows Git、真实 Electron 与 Win7 实机为 `NOT_PERFORMED`，由 WIN7-42 承担。
 
 ## 9. ADR
 
