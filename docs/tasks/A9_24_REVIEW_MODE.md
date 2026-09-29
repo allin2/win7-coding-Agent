@@ -7,7 +7,7 @@ Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交
 Target Version: 0.3.0-alpha.2
 Phase-Gate: A9_24_DEVELOPER_VERIFIED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: WIN7_41_A9_24_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0143
 ```
 
@@ -115,3 +115,4 @@ Agent 直接写入工作区，所以能运行测试、自我修正；每轮结�
   观察（不返工）：`getDiff` 同时计算旧 Diff 与审阅投影，大文件有重复开销；漂移路径靠解析 `path (原因)` 文本；Diff 截断时增删计数偏小且摘要卡不提示；
   真实 Electron 画面与 1366×768/125% DPI 布局未实测。真实 Electron 与 Win7 为 `NOT_PERFORMED`，由 WIN7-40 承担。
 - 2026-09-28：WIN7-40（A9-25）记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（套件时序缺陷，非产品缺陷；ADR-0145）；本任务的 Win7 结论改由 WIN7-41 取得，仍为 `NOT_PERFORMED`。
+- 2026-09-29：WIN7-41（A9-25 §9）门 B 签发 `A9_25_WIN7_41_A9_24_PASS`，W41-16～22 覆盖本任务 CR-01～CR-10 的 Win7 实机观察（[审核报告](../reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）；真实 Provider 未覆盖。

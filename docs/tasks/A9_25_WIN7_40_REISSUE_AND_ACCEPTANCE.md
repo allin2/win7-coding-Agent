@@ -1,13 +1,13 @@
 # A9-25 — WIN7-40 换发与实机验收（A9-24 改动审阅）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（A9-24 已于 c136d12 并入）
 Candidate: WIN7-40（A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS，已关闭）→ WIN7-41（§9 修订）
-Phase-Gate: A9_25_W41_KIT_AUTHORIZED
-Win7-Validation: NOT_PERFORMED
+Phase-Gate: A9_25_WIN7_41_A9_24_PASS
+Win7-Validation: WIN7_41_A9_24_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0144, ADR-0145
 ```
 
@@ -163,3 +163,6 @@ W40-01～15 由 W39-01～15 机械派生（判定口径不变，编号与候选�
   登记未申报偏差 DEV-3（`RUN_LOG.md` 事后整体写入，不影响结论）。发出[实机交接书附录 A](../plans/A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md)，由执行方在 Win7 以 `agent` 做报告校验；完成后提交门 B。
 - 2026-09-29：附录 A Win7 报告校验（执行方，任务 `A9W41C318e27e4ReportVerify`，只运行一次）：校验器在 `agent` Medium 下输出 `status=PASS`、`verified_cases=22`、处置 `A9_25_WIN7_41_A9_24_PASS`，`REPORT_VERIFY_EXIT=0`；
   审核方核对原始输出与上传哈希一致（[审核报告 §6](../reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)），建议门 B 签发 `A9_25_WIN7_41_A9_24_PASS`，待负责人裁决。
+- 2026-09-29：**门 B**：负责人裁决“按建议签发” `A9_25_WIN7_41_A9_24_PASS`（22 项，候选 WIN7-41，源码 `0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`）。
+  已知限制（随结论记录）：模型为本地回环 fixture，真实 Provider 未覆盖；POSIX Shell 与 PowerShell `/Command` 只验证确认拦截，真实执行未测；≤799px 分支 `PRODUCT_UNREACHABLE / NOT_VERIFIED`；实机执行 `RUN_LOG.md` 事后整体写入（DEV-3，不影响结论）。
+  本任务关闭；A9-24 任务书已记录 Win7 结论。WIN7-40 运行根与各轮预演目录按 §9 第 6 条保留，由负责人决定是否清理。
