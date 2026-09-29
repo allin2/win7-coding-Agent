@@ -152,3 +152,33 @@
   验收方已在临时副本中试验 A6-1 与 A6-2：K-02、K-05 均通过（该副本缺各包 `dist`，其余构建类用例不作数）。
 - **A6-3 K-05 不授权任何修改。** 该用例只读取驱动源码与静态预演数据，不涉及产品代码，验收方无法复现。若执行方再次观察到失败，交回精确命令、工作目录、`git status`、完整输出以及
   驱动文件的换行形式（`file src/shell/tests/product/a9-06-driver-entry.cjs`），不得修改驱动或测试。
+
+## 附录 B 首次交回验收（2026-09-29，`445aaaf`）
+
+验收方复核：25 个文件均在允许路径内（加 A6 特许一处）；Core 485/485、Workspace 230/230、Shell 472/472 在 Node 20.17.0 下复现通过；① 的 `it.failing` 提交与修复提交之间 H1～H3 断言文本未变。
+⓪～⑤ 与 O-1、O-2 的实现总体符合任务书与附录 A，但有两项须返工后才能判定开发机门通过。
+
+**B1 ① 掩盖退出码的组合被判为验证（必须返工）。** `classifyShellCommandForVerification` 不区分分隔符：`npm test || echo ok`、`npm test; echo done`、`npm test | findstr PASS` 均返回 `verify`，
+而这些写法在测试失败时整体退出码仍可为 0，结论会被记为 `verified`——正是 ① 要消除的假阳性。裁决：
+
+- 只有当命令中**所有**分隔符都是 `&&`（单段命令天然满足）时，含验证段的命令才可为 `verify`；
+- 含验证段但出现 `|`、`||`、`;` 任一分隔符 → `mutating`（不证明，并清除既有验证）；不含验证段的组合保持现行判定（如 `git log | findstr x` 仍为 `neutral`）；
+- 新增用例：上述三例及 `npm test || exit 0` → `mutating`；`npm run build && npm test`、`cd sub && npm test`、`npm test && echo done` → `verify`；`git log | findstr x` → `neutral`；
+  外加一条回合级用例：`edit` 后 `npm test || echo ok` 退出码 0 → `unverified`；
+- 负向对照：去掉分隔符检查，新增用例至少一条失败。
+
+**B2 ⑤ 加载失败入口破坏继承的 `retry` 旅程（必须返工）。** `a9-06-driver-entry.cjs` 的 `runRetryProcess`（W28-H06，第 1890 行起）在 W41 冒烟中作为继承阶段 `retry` 运行
+（`release/win7-product-v3/a9-win7-41-smoke.cjs:456`、`:786`），它等待 `#a9-task-stream .legacy-note:not(.conversation-history-note)` 内文字恰为“重试加载”的按钮并点击。
+实现删除了该按钮、改为顶部 `role="alert"` 加“重试”，开发机测试无法发现，WIN7-42 预演中该阶段必然失败。此项源于交接书 §2 ⑤ 的写法未核对该依赖，责任在验收方。裁决（取代 §2 ⑤ 的失败提示写法）：
+
+- 恢复基线 `6acbb14` 中 `eventsError` 的呈现：错误文字写入该截断/历史 note，note 内按钮文字“重试加载”，点击行为与基线一致（`loadConversationEvents(Boolean(state.eventsBeforeId))`）；
+  仅在错误状态下给该 note 增加 `role="alert"`。删除新增的顶部错误提示与“重试”按钮，避免两个重试入口；加载中的 `role="status"` 提示保留；
+- 新增界面用例：选择工作区后首次加载失败时，按驱动同一选择器能找到“重试加载”按钮，点击后再次查询成功且错误消失；翻页加载失败时重试的是更早一页；
+- 负向对照：删除该按钮，新增用例失败。
+
+**接受的偏离（不返工，记录在案）：** `a9-workbench-contract.test.ts` 渲染次数 3→6（加载开始多渲染一次加载提示，仍为精确计数）；
+`a9-change-review.test.ts` 精确相等加入 `reasonCode`（只增字段的必然结果，未放宽）；`a9-verification-evidence.test.ts` 的测试辅助函数兼容扩展。
+
+**观察（不返工）：** 当前轮自身超过预算时请求仍可能略超预算，由超长重试兜底；`targetOs` 格式为 `<platform> <release> <arch>`。
+
+返工以追加提交完成，不改写历史；完成后重跑 Core、Workspace、Shell 全量、打包测试、`verify:quick`、`docs:check` 与 B1、B2 的负向对照，再交回。
