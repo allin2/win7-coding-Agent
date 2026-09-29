@@ -1175,8 +1175,13 @@
         stream.insertBefore(note, stream.firstChild);
         state.truncatedNote = note;
       }
-      if (state.eventsError) state.truncatedNote.setAttribute('role', 'alert');
-      else state.truncatedNote.removeAttribute('role');
+      if (state.eventsError) {
+        state.truncatedNote.setAttribute('role', 'alert');
+        state.truncatedNote.dataset.historyError = 'true';
+      } else if (state.truncatedNote.dataset.historyError === 'true') {
+        state.truncatedNote.removeAttribute('role');
+        delete state.truncatedNote.dataset.historyError;
+      }
       const releasedNote = state.releasedEventCount
         ? `为控制内存，界面已释放最早的 ${state.releasedEventCount} 条过程记录（本地记录完整保存）。` : '';
       const historyNote = state.eventsError || (state.eventsTruncated && !atEventCap ? '还有更早的过程记录。' : '');

@@ -217,7 +217,7 @@ it('B2 older page failure retries the same beforeEventId through the inherited s
     attempts += 1;
     if (attempts === 1) return { ok: true, events: [event(301)], hasMore: true };
     if (attempts === 2) return { ok: false };
-    return { ok: true, events: [event(1)], hasMore: false };
+    return { ok: true, events: [event(1)], hasMore: true };
   });
   await h.window.__w39.chooseWorkspace();
   const selector = '#a9-task-stream .legacy-note:not(.conversation-history-note)';
@@ -236,6 +236,7 @@ it('B2 older page failure retries the same beforeEventId through the inherited s
   expect(h.window.__w39.state.eventsError).toBe('');
   expect(h.stream.textContent).not.toContain('重试加载');
   expect(h.document.querySelector(selector)?.attributes.role).not.toBe('alert');
+  expect(h.document.querySelector(selector)?.querySelector('button')?.textContent).toBe('加载更早记录');
 });
 
 it('R5-03 discards A late response after selecting B', async () => {
