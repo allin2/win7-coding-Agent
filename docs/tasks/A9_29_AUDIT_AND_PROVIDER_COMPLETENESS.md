@@ -5,7 +5,7 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: SECURITY_AND_RUNTIME_HARDENING
 Target Branch: codex/a9-alpha2（A9-28 后在独立工作树与 codex/a9-29-audit-provider 实现）
 Source Baseline: 本任务书批准提交及已审核的 A9-28 结果
-Phase-Gate: A9_29_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_29_DEVELOPER_VERIFIED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0149
 ```
@@ -52,3 +52,5 @@ Node 20.17 下 Core/Gateway/Shell 全量、verify:quick、docs:check、diff 检�
 
 负责人已批准上述完整性兼容策略、允许路径及 W42 扩为 30 项。若策略需要进一步调整，先更新本任务书并取得明确裁决。
 本任务只关闭两项合并安全阻断，不顺带重构或开放 Shell streaming/后台进程等能力；A9-28 两项合同修复由其独立任务负责。
+
+- 2026-09-30：最小修复、开发机必需检查及负向对照通过，独立复核后并入 alpha2；详见[开发机修复记录](../reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)。Win7 尚未执行。

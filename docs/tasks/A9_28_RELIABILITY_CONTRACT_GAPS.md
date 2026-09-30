@@ -5,7 +5,7 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELIABILITY_HARDENING
 Target Branch: codex/a9-alpha2（实现采用独立工作树与 codex/a9-28-contract-gaps）
 Source Baseline: 本任务书批准提交
-Phase-Gate: A9_28_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_28_DEVELOPER_VERIFIED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0148
 ```
@@ -43,3 +43,5 @@ Decision: ADR-0148
 ## 5. 执行记录
 
 - 2026-09-30：负责人批准 A9-28，按本任务书两项合同修复与 W42 补强范围实施；A9-29 继承安全风险另行等待批准。
+
+- 2026-09-30：最小修复、开发机必需检查及负向对照通过，独立复核后并入 alpha2；详见[开发机修复记录](../reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)。Win7 尚未执行。
