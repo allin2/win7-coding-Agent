@@ -6,7 +6,7 @@ Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（A9-26 已于 0fea04b 并入）
 Candidate: WIN7-42
-Phase-Gate: A9_27_WIN7_42_FROZEN_AWAITING_GATE_A
+Phase-Gate: A9_27_WIN7_42_GATE_A_APPROVED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0147
 ```
@@ -101,3 +101,5 @@ W42-01～22 由 W41-01～22 派生（判定口径不变；初始夹具替换及�
 - 2026-09-30：准确提交 `c62323f` 的两轮 Win7 预演整体 FAIL：冷历史种子缺少 checkpoint，历史请求的 turnId 为 null；实时说明观测把新增 AGENTS.md 提示计入，得到 -1648 / -1642 ms。七个其他新增阶段和全部继承非实时阶段通过；两轮后飞行均零残留。仅在已允许的 W42 套件补齐冷历史种子关联并新增 w42 实时观测包装，不改产品、历史 helper 或原判据。详见[预演返工记录](../reports/2026-09/a9_27_w42_rehearsal_repair_2026-09-30.md)。两次失败不能进入冻结，修复后重新连续两轮。
 
 - 2026-09-30：返工源 `94385a8` 连续两次 Win7 预演全部 25 阶段 / W42-02～30 PASS（W42-01 无 authority，NOT_PERFORMED）。每轮 743 文件哈希一致，零残留、零真实秘密。双独立干净工作树构建 ZIP 逐字节一致，已冻结 WIN7-42，ZIP `3b6e0b72…a01cf`、manifest `6f7b224c…908c9`。正式实机交接书与候选外 authority 草案已形成，[门 A 待负责人签发](../plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)；正式 Win7 / 门 B / main 合并仍 NOT_PERFORMED。
+
+- 2026-09-30：负责人签发上述冻结候选的门 A，确认主代理执行/组装草案、负责人独立审核/门 B。正式 authority 与独立 pin 在候选外生成（SHA-256 `35111410302d33cacd8e042f4a4d3979d558825ce939d6b280e47d9b77fc4f79`），草案保留，开始正式 Win7 执行。最终验证、门 B 与 main 合并仍 NOT_PERFORMED。

@@ -1248,3 +1248,5 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 返工源 `94385a8` 连续两轮 Win7 预演 25 阶段及 W42-02～30 均 PASS；W42-01 无 authority 为 NOT_PERFORMED。每轮 743 文件与 Win7 哈希一致，零残留、零真实秘密。证据 `.acceptance/rehearsals/A9-27-W42/20260930-1423/`，属于 REHEARSAL_NOT_ELIGIBLE。
 - 双独立干净构建逐字节一致并与预演 ZIP 相等，WIN7-42 已冻结：source `94385a87d22928acc1ce5dd8f1881d89e0d4473b`，ZIP `3b6e0b72b98de794594cd6924a1298ef75ed72bafcebacf966c86ad2382a01cf`，manifest `6f7b224cdb304c9e10edf87ec9c490ffeb7dd5be42f9432ba3b6c5f3df3908c9`。固定正式 run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`，目标 `192.168.1.3`。
 - [正式交接书](plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)与候选外 authority 草案就绪，等待负责人门 A 签发及角色确认；正式执行、独立证据审核、门 B 和本地 main 合并均 NOT_PERFORMED，未推送。
+
+- 2026-09-30，负责人回复“签发门 A，按上述角色继续”，批准冻结候选和上述固定目标/run-id；主代理执行，负责人独立证据审核及门 B。候选外 authority 与独立 pin 已落盘（SHA-256 `35111410302d33cacd8e042f4a4d3979d558825ce939d6b280e47d9b77fc4f79`），开始正式执行；门 B/main 合并仍 NOT_PERFORMED。

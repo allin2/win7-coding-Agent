@@ -1,10 +1,10 @@
 # A9-27 / WIN7-42 正式实机验收交接书
 
-Status: AWAITING_OWNER_GATE_A
+Status: READY_FOR_EXECUTION
 
 本交接书依据 [A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) §5，沿用 [WIN7-41 实机交接书](A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md) 的严格传输、普通用户、原始取证和报告复核合同。W41 的 authority、候选及证据不得复用为 W42。
 
-角色方案待负责人在门 A 确认：本任务主代理执行及组装报告草案，负责人独立审核原始证据、签发门 B；亦可另行指定外部执行方与独立审核方。同一代理不得兼任正式执行和独立验收审核。执行方不签发 authority、不宣称 A9-26 最终 PASS。
+2026-09-30 负责人回复“签发门 A，按上述角色继续”：确认本任务主代理执行及组装报告草案，负责人独立审核原始证据、签发门 B。同一代理不得兼任正式执行和独立验收审核。正式 authority 按负责人签发内容落盘，执行方不宣称 A9-26 最终 PASS。
 
 ## 1. 前置证据
 
@@ -31,6 +31,8 @@ Status: AWAITING_OWNER_GATE_A
 草案 status 为 DRAFT_PENDING_OWNER_GATE_A，approved_by / approved_at 均为空；草案和其校验和不构成正式 authority / 独立 pin。签发后另建正式文件，不覆盖草案或冻结候选。
 
 门 A 必须由负责人签发候选外 `WIN7_42_RELEASE_AUTHORITY` 与独立 SHA-256 pin，准确绑定源、ZIP、manifest、输入锁、native 批准登记、Kit、目标 `192.168.1.3` 与固定 run-id。审批原 A9-27/A9-28/A9-29 不替代门 A。仅有 draft 时不得注册或运行正式任务。
+
+门 A 已签发，落盘时间 `2026-09-30T07:18:36.793623+00:00`；正式文件为本轮 authority 目录的 `release-authority.json`，独立 pin 文件为 `release-authority.json.sha256`，SHA-256 `35111410302d33cacd8e042f4a4d3979d558825ce939d6b280e47d9b77fc4f79`。冻结候选、草案与输入身份复核一致；审批回执保存于本轮 `GATE_A_RECEIPT.json`。门 B 仍 NOT_PERFORMED。
 
 ## 3. 正式执行步骤
 
