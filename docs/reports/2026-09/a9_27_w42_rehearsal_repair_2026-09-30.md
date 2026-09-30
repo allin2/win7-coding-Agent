@@ -23,3 +23,11 @@
 返工开发机门：Node 20.17.0，包测试 106/106（`package-rehearsal-repair-full.log`）、Shell 49 suites / 478 tests（`shell-rehearsal-repair-v2.log`）、verify:quick、docs:check、diff 检查均 PASS。首次 Shell 命令误传 Jest 不支持的 --run，仅参数错误；原日志保留，正确 --runInBand 复测通过。R1 全字节扫描覆盖 744 文件及 UTF-16 形态，唯一生成测试 key 只在指定 AGENTS.md 输入中，数据库/日志/报告零泄漏；命中逐条登记为锁定包字节、结构字段、夹具输入，未分类项 0，真实秘密 0（`SECRET_SCAN_V2.json`）。
 
 R2 同样 744 文件逐字节/哈希相等。最终扫描加入全部本地原始输出和自产脚本：R1 794 文件、R2 781 文件，逐条分类，未分类 0、已知夹具 key 泄漏 0、真实秘密 0（`SECRET_SCAN_V3.json`）。两轮完整 `REHEARSAL_REPORT.json`、`RUN_LOG.md` 及 `SHA256SUMS.txt` 已保存；两轮均为 REHEARSAL_NOT_ELIGIBLE / FAIL。
+
+## 返工后闭合与冻结
+
+`94385a8` / ZIP `3b6e0b72…a01cf` 在 `.acceptance/rehearsals/A9-27-W42/20260930-1423/` 连续两次预演均 PASS，退出码 0；全部 25 阶段及 W42-02～30 通过，W42-01 无 authority 为 NOT_PERFORMED。两轮各 743 文件与 Win7 清单一致；R1/R2 全字节与 UTF-16 扫描为 779 / 778 文件，未分类 0、夹具 key 泄漏 0、真实秘密 0，后飞行零残留。
+
+R1 冷历史 DOM 299 条、加载更早可用，IPC 序列 select=1、queryEvents=2（limit=300）、submit=0；数据库十个 checkpoint。实时说明/tool/完成延迟均 0 ms。全部原值在 REHEARSAL_REPORT、driver JSON、SQLite 和截图中保留；R2 同样完整通过，不以 R1 摘要代替 R2。
+
+两个独立干净工作树 `/Users/qlyf/Developer/win7-coding-agent-w42-build` 与 `/Users/qlyf/.codex/worktrees/w42-freeze-2/win7-coding-Agent` 完成正式构建：源码相同、source_dirty=false、external_acceptance_eligible=true、ZIP 逐字节一致并与预演一致。候选 `.acceptance/candidates/WIN7-42/` 已冻结；身份与角色方案见[正式交接书](../../plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)。authority 仅有未批准草案；门 A、正式执行、门 B、main 合并均未执行。

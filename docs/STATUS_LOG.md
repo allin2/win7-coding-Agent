@@ -1240,3 +1240,11 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 ## A9-28 / A9-29 开发机修复整合（2026-09-30）
 
 四项冻结前阻断已修复并独立复核，通过必要开发机检查后并入 alpha2（`186e850`）。详见[记录](reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)。W42 套件补强中，Win7 为 NOT_PERFORMED，尚未冻结或合入 main。
+
+## A9-27 WIN7-42 换发（2026-09-30）
+
+- 负责人批准 A9-27，并分别批准 A9-28/A9-29 的四项冻结前合同修复；开发机验证和独立产品复核闭合。W42 扩为 30 项。
+- 源 `c62323f` 连续两轮预演 FAIL，保留原包和全部证据。仅修 W42 冷历史种子轮次关联与实时模型说明观测，继承函数和原断言不改。
+- 返工源 `94385a8` 连续两轮 Win7 预演 25 阶段及 W42-02～30 均 PASS；W42-01 无 authority 为 NOT_PERFORMED。每轮 743 文件与 Win7 哈希一致，零残留、零真实秘密。证据 `.acceptance/rehearsals/A9-27-W42/20260930-1423/`，属于 REHEARSAL_NOT_ELIGIBLE。
+- 双独立干净构建逐字节一致并与预演 ZIP 相等，WIN7-42 已冻结：source `94385a87d22928acc1ce5dd8f1881d89e0d4473b`，ZIP `3b6e0b72b98de794594cd6924a1298ef75ed72bafcebacf966c86ad2382a01cf`，manifest `6f7b224cdb304c9e10edf87ec9c490ffeb7dd5be42f9432ba3b6c5f3df3908c9`。固定正式 run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`，目标 `192.168.1.3`。
+- [正式交接书](plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)与候选外 authority 草案就绪，等待负责人门 A 签发及角色确认；正式执行、独立证据审核、门 B 和本地 main 合并均 NOT_PERFORMED，未推送。
