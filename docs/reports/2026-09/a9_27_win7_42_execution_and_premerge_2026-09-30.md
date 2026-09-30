@@ -1,8 +1,8 @@
 # WIN7-42 正式执行、报告复核与合并前检查（2026-09-30）
 
-结论：当前冻结候选在 Win7 正式执行 **30 项 / 25 阶段通过**，报告器在 Win7 复核退出码 0。执行方技术检查未发现未关闭的合并阻断；**负责人独立证据审核与门 B 待完成，main 尚未合并，未推送**。
+结论：当前冻结候选在 Win7 正式执行 **30 项 / 25 阶段通过**，报告器在 Win7 复核退出码 0。执行方技术检查未发现未关闭的合并阻断；**负责人在偏差解读与接受建议后回复“接受”，门 B 收尾裁决记为 `A9_27_WIN7_42_A9_26_PASS`；补充真实 Windows Git R0-01～04 全通过。准备按原授权合入本地 main，未推送**。
 
-角色依负责人门 A 回复“签发门 A，按上述角色继续”：主代理执行、组装报告草案；负责人独立审核原始证据、裁决门 B。本报告为执行方事实材料，不能代替负责人审核。结论上限 `A9_27_WIN7_42_A9_26_PASS`，不是完整 Alpha 2 / RC。
+角色依负责人门 A 回复“签发门 A，按上述角色继续”：主代理执行、组装报告草案；负责人独立审核原始证据、裁决门 B。本报告为执行方事实材料，负责人原话和上下文单独记录；主代理不兼任独立审核。结论上限 `A9_27_WIN7_42_A9_26_PASS`，不是完整 Alpha 2 / RC。
 
 本轮本机证据根（下称 `<L>`）：`/Users/qlyf/Developer/win7-coding-Agent/.acceptance/runs/A9-27-W42/92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`。这些原始工件位于 Git 忽略目录，保留完整路径，未复制进仓库。
 
@@ -21,7 +21,7 @@
 
 - 执行方完整收尾记录：`<L>/FORMAL_EXECUTION_CLOSEOUT.json`、正式报告草案：`<L>/review/report-w42.json`、逐用例断言与附件映射：`<L>/review/ASSERTION_OBSERVATIONS.json`。
 - Win7 报告复核原始输出：`<L>/returned-report-review/unpacked/evidence/report-verify-console.json`、报告复核后飞行：`<L>/returned-report-review/unpacked/evidence/report-verify-postflight-status.json`。
-- 最终秘密扫描逐条分类：`<L>/SECRET_SCAN_V4.json`、全文件校验和：`<L>/SHA256SUMS.txt`、追加执行日志：`<L>/RUN_LOG.md`。
+- 正式执行秘密扫描逐条分类：`<L>/SECRET_SCAN_V4.json`、全文件校验和：`<L>/SHA256SUMS.txt`、追加执行日志：`<L>/RUN_LOG.md`。
 - 全部执行原始证据位于 `/Users/qlyf/Developer/win7-coding-Agent/.acceptance/runs/A9-27-W42/92d693e0-e80a-4d58-9f7f-aaff5ec69bd3/returned/unpacked/`；报告复核原始证据位于 `/Users/qlyf/Developer/win7-coding-Agent/.acceptance/runs/A9-27-W42/92d693e0-e80a-4d58-9f7f-aaff5ec69bd3/returned-report-review/unpacked/`。冻结候选与两次预演保持不变，预演不计入本次结论。
 
 ## 2. 前置、运行与闭包
@@ -69,4 +69,17 @@ agent 为 console 运行中，实际身份 `dccs-chaizl-pc\agent`，Medium、非
 
 原有两处 spike ZIP 删除及未跟踪 `release/win7-product-v3/check.py` 均未暂存或修改。门 B 签发后再复查 Git ref/工作区，在独立干净 main 工作树做快进合并；不切换或清理当前脏工作区、不推送。
 
-请负责人按已确认角色独立审核上述原始证据及三项执行偏差，再裁决门 B。通过时签发 `A9_27_WIN7_42_A9_26_PASS`，按原授权合入本地 main；未签发前保持待审核，不将执行方技术 PASS 记为最终验收。
+2026-09-30 负责人在三项偏差解读及接受建议之后回复“接受”。结合已确认的负责人独立审核/门 B 角色和原验证后合入 main 授权，记录门 B 收尾裁决 `A9_27_WIN7_42_A9_26_PASS`，并按授权继续本地合并。原话仅为“接受”，不改写为“签发门 B”，不声称负责人亲自重跑或逐文件阅读证据。回执 `<L>/GATE_B_OWNER_ACCEPTANCE.json` 绑定本节准确报告、source、ZIP、authority、run-id 和既有边界。三项偏差接受后未补造原始控制台；正式报告及旧 pending 快照保持不变。
+
+
+## 6. 收尾补充：真实 Git 原矩阵
+
+收尾检查发现原 W42-23 的 dry-add/dry-clean 不能单独证明 A9-26 §5 第 5 项全部 R0-01～04；此前汇总未充分区分。保持冻结源和产品字节，在同一 Win7 `agent` Medium 控制台增加候选外补充：包内 Workspace API 执行编辑、基线/外部改动收集及撤销，实际 PowerShell 输入和已有 Windows Git 执行命令。此补充不替代原 W42 main/preload/IPC/Runner 与 GUI 旅程。
+
+根仓库和 `pkg` 子工作区均实际执行 `git add -A`、`git add .`、`git add :/`，缓存仅含目标代码；`clean -nd` 清单为空后执行 `clean -fd`，实际删除项为空；实际 `stash -u` 后恢复目录全文件哈希不变，Shell 轮和编辑轮撤销均零错误、代码恢复原字节。旧目录首次补写 `*\n`，二次打开哈希/mtime 不变；预置自定义规则原字节/mtime 保持，留下对应诊断。四项均 PASS，wrapper 退出码 0。
+
+首轮补充在 stash 后严格 LF 断言遇到 Git `autocrlf` 的 CRLF 转换而退出 1，原控制台、脚本、Git 仓库和恢复数据全部保留。第二轮在新临时根、仅逐命令 `-c core.autocrlf=false` 固定夹具换行契约后通过；没有修改全局、系统或用户仓库配置，没有改产品或放宽断言。两个任务逐项移除并确认不存在，后飞行零进程残留，原 ZIP/authority 哈希仍一致。
+
+补充报告：`<L>/returned-supplement/unpacked/supplement-recovery-v2/evidence/recovery-matrix.json`，SHA-256 `dfea7bc316cc74881514d11cc388b245a6a4d635af7db7b06124255f5915b41c`。182 个文件含首轮失败和第二轮通过证据，与 Win7 清单哈希闭合；返回 ZIP SHA-256 `3abd16628753fa1f5fca7f64da5123c65d90f6b9aeb93dfada7d3e24d4c95e64`。取回后扫描 `SECRET_SCAN_V5.json`：1,161 文件、未分类 0、已知夹具秘密泄漏 0、确认真实秘密 0。后续回执/检查追加使用另命名校验和快照，不覆盖原校验和。
+
+开发机 R0 使用真实 Apple Git 的测试入口为 `src/workspace/tests/unit/a9-recovery-ignore.test.ts`，收尾窄范围复查 13/13 PASS、零跳过（Apple Git 2.39.5 / Node 20.17.0），记录 `<L>/review/APPLE_GIT_R0_CLOSEOUT.log`；这与上述 Windows Git 补充共同关闭 A9-26 原矩阵第 5 项。`git clean -fdx` 限制继续保留，历史候选不改判。

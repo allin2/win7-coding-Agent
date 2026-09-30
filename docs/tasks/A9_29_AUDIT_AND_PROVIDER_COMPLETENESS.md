@@ -1,12 +1,12 @@
 # A9-29 — 必需审计故障与 Provider 响应完整性修复
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: SECURITY_AND_RUNTIME_HARDENING
 Target Branch: codex/a9-alpha2（A9-28 后在独立工作树与 codex/a9-29-audit-provider 实现）
 Source Baseline: 本任务书批准提交及已审核的 A9-28 结果
-Phase-Gate: A9_29_DEVELOPER_VERIFIED
-Win7-Validation: WIN7_42_REPORT_VERIFIED_GATE_B_PENDING
+Phase-Gate: A9_29_WIN7_42_PASS
+Win7-Validation: WIN7_42_A9_26_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0149
 ```
 
@@ -56,3 +56,5 @@ Node 20.17 下 Core/Gateway/Shell 全量、verify:quick、docs:check、diff 检�
 - 2026-09-30：最小修复、开发机必需检查及负向对照通过，独立复核后并入 alpha2；详见[开发机修复记录](../reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)。Win7 尚未执行。
 
 - 2026-09-30：WIN7-42 正式实机执行完成，源 `94385a8`，run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`；30 项 / 25 阶段及 Win7 报告复核通过，证据哈希相等，零残留、零真实秘密。[执行与合并前检查材料](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已交负责人独立审核；门 B / main 合并仍 NOT_PERFORMED，不自行记最终 PASS。
+
+- 2026-09-30：负责人在三项执行偏差解读后回复“接受”，按已确认角色与原合并授权完成门 B 收尾，结论 `A9_27_WIN7_42_A9_26_PASS`。WIN7-42 正式 30 项/25 阶段及报告复核通过，补充真实 Windows Git R0-01～04 通过；冻结源 `94385a8`，run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`。证据、偏差和边界见[正式执行报告](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)，不是完整 Alpha 2/RC，未推送。

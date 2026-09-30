@@ -1,13 +1,13 @@
 # A9-26 — 第一批：可靠性（恢复目录自忽略、验证判定、项目说明、上下文预算、环境事实、历史加载）
 
 ```text
-Status: APPROVED_FOR_IMPLEMENTATION
+Status: COMPLETE
 Task Type: RELIABILITY_HARDENING
 Target Branch: codex/a9-alpha2（开发在独立工作树与分支 codex/a9-26-reliability）
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（WIN7-41 已于 0f8af24 冻结）
 Target Version: 0.3.0-alpha.2
-Phase-Gate: A9_26_DEVELOPER_VERIFIED
-Win7-Validation: WIN7_42_REPORT_VERIFIED_GATE_B_PENDING
+Phase-Gate: A9_26_WIN7_42_PASS
+Win7-Validation: WIN7_42_A9_26_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0146
 ```
 
@@ -251,3 +251,5 @@ ADR-0146（已写入 `docs/DECISIONS.md`）：恢复目录自写 `.gitignore`；
 工作区根 AGENTS.md 每轮加载且不入历史、`a9-system-prompt-v3`；输入上下文字符预算与超长一次降级重试；环境事实只注入探测结果；取消轮次发终态事件；改动审阅 `reasonCode` 只增字段。
 
 - 2026-09-30：WIN7-42 正式实机执行完成，源 `94385a8`，run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`；30 项 / 25 阶段及 Win7 报告复核通过，证据哈希相等，零残留、零真实秘密。[执行与合并前检查材料](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已交负责人独立审核；门 B / main 合并仍 NOT_PERFORMED，不自行记最终 PASS。
+
+- 2026-09-30：负责人在三项执行偏差解读后回复“接受”，按已确认角色与原合并授权完成门 B 收尾，结论 `A9_27_WIN7_42_A9_26_PASS`。WIN7-42 正式 30 项/25 阶段及报告复核通过，补充真实 Windows Git R0-01～04 通过；冻结源 `94385a8`，run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`。证据、偏差和边界见[正式执行报告](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)，不是完整 Alpha 2/RC，未推送。

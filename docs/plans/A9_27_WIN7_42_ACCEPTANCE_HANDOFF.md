@@ -1,6 +1,6 @@
 # A9-27 / WIN7-42 正式实机验收交接书
 
-Status: EXECUTED_REPORT_VERIFIED_AWAITING_OWNER_GATE_B
+Status: OWNER_ACCEPTED_GATE_B_A9_26_PASS
 
 本交接书依据 [A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) §5，沿用 [WIN7-41 实机交接书](A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md) 的严格传输、普通用户、原始取证和报告复核合同。W41 的 authority、候选及证据不得复用为 W42。
 
@@ -32,7 +32,7 @@ Status: EXECUTED_REPORT_VERIFIED_AWAITING_OWNER_GATE_B
 
 门 A 必须由负责人签发候选外 `WIN7_42_RELEASE_AUTHORITY` 与独立 SHA-256 pin，准确绑定源、ZIP、manifest、输入锁、native 批准登记、Kit、目标 `192.168.1.3` 与固定 run-id。审批原 A9-27/A9-28/A9-29 不替代门 A。仅有 draft 时不得注册或运行正式任务。
 
-门 A 已签发，落盘时间 `2026-09-30T07:18:36.793623+00:00`；正式文件为本轮 authority 目录的 `release-authority.json`，独立 pin 文件为 `release-authority.json.sha256`，SHA-256 `35111410302d33cacd8e042f4a4d3979d558825ce939d6b280e47d9b77fc4f79`。冻结候选、草案与输入身份复核一致；审批回执保存于本轮 `GATE_A_RECEIPT.json`。门 B 仍 NOT_PERFORMED。
+门 A 已签发，落盘时间 `2026-09-30T07:18:36.793623+00:00`；正式文件为本轮 authority 目录的 `release-authority.json`，独立 pin 文件为 `release-authority.json.sha256`，SHA-256 `35111410302d33cacd8e042f4a4d3979d558825ce939d6b280e47d9b77fc4f79`。冻结候选、草案与输入身份复核一致；审批回执保存于本轮 `GATE_A_RECEIPT.json`。门 B 的后续负责人裁决见 §6。
 
 ## 3. 正式执行步骤
 
@@ -57,4 +57,4 @@ Status: EXECUTED_REPORT_VERIFIED_AWAITING_OWNER_GATE_B
 
 固定候选/run-id 正式执行已完成：完整性 796 文件/797 ZIP 条目、25 阶段、30 项以及 Win7 agent 正式报告复核通过；774+19 原始文件哈希相等，零残留、四个任务逐项移除，916 文件最终秘密扫描未分类/真实秘密为零。候选和草案未改。原始报告 SHA-256 `13b4201622fe782647a5a38381f02b064f9fa0987625d1b51e61248fec7aa2fc`。
 
-[执行方事实材料与三项偏差](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成；主代理未兼任独立验收审核，等待负责人核对原始证据及门 B，main 尚未合并。
+[执行方事实材料与三项偏差](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成；主代理未兼任独立验收审核；负责人在偏差解读/接受建议后回复“接受”，按已确认角色及原授权完成门 B 收尾，记录 `A9_27_WIN7_42_A9_26_PASS`。回执保留原话及绑定身份，不声称负责人亲自重跑。正式报告和候选保持不变；补充真实 Windows Git R0-01～04 全通过。准备本地 main 合并，未推送。
