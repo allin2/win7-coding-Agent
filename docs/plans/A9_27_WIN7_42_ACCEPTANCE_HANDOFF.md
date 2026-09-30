@@ -1,6 +1,6 @@
 # A9-27 / WIN7-42 正式实机验收交接书
 
-Status: OWNER_ACCEPTED_GATE_B_A9_26_PASS
+Status: COMPLETE_A9_26_PASS_LOCAL_MAIN_INTEGRATED
 
 本交接书依据 [A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) §5，沿用 [WIN7-41 实机交接书](A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md) 的严格传输、普通用户、原始取证和报告复核合同。W41 的 authority、候选及证据不得复用为 W42。
 
@@ -57,4 +57,4 @@ Status: OWNER_ACCEPTED_GATE_B_A9_26_PASS
 
 固定候选/run-id 正式执行已完成：完整性 796 文件/797 ZIP 条目、25 阶段、30 项以及 Win7 agent 正式报告复核通过；774+19 原始文件哈希相等，零残留、四个任务逐项移除，916 文件最终秘密扫描未分类/真实秘密为零。候选和草案未改。原始报告 SHA-256 `13b4201622fe782647a5a38381f02b064f9fa0987625d1b51e61248fec7aa2fc`。
 
-[执行方事实材料与三项偏差](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成；主代理未兼任独立验收审核；负责人在偏差解读/接受建议后回复“接受”，按已确认角色及原授权完成门 B 收尾，记录 `A9_27_WIN7_42_A9_26_PASS`。回执保留原话及绑定身份，不声称负责人亲自重跑。正式报告和候选保持不变；补充真实 Windows Git R0-01～04 全通过。准备本地 main 合并，未推送。
+[执行方事实材料与三项偏差](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成；主代理未兼任独立验收审核；负责人在偏差解读/接受建议后回复“接受”，按已确认角色及原授权完成门 B 收尾，记录 `A9_27_WIN7_42_A9_26_PASS`。回执保留原话及绑定身份，不声称负责人亲自重跑。正式报告和候选保持不变；补充真实 Windows Git R0-01～04 全通过。本地 main 已在独立干净工作树快进整合至 `829ad39`，文档收尾同样并入；未推送。

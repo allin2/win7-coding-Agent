@@ -1,6 +1,6 @@
 # WIN7-42 正式执行、报告复核与合并前检查（2026-09-30）
 
-结论：当前冻结候选在 Win7 正式执行 **30 项 / 25 阶段通过**，报告器在 Win7 复核退出码 0。执行方技术检查未发现未关闭的合并阻断；**负责人在偏差解读与接受建议后回复“接受”，门 B 收尾裁决记为 `A9_27_WIN7_42_A9_26_PASS`；补充真实 Windows Git R0-01～04 全通过。准备按原授权合入本地 main，未推送**。
+结论：当前冻结候选在 Win7 正式执行 **30 项 / 25 阶段通过**，报告器在 Win7 复核退出码 0。执行方技术检查未发现未关闭的合并阻断；**负责人在偏差解读与接受建议后回复“接受”，门 B 收尾裁决记为 `A9_27_WIN7_42_A9_26_PASS`；补充真实 Windows Git R0-01～04 全通过。已按原授权快进合入本地 main（实现整合节点 `829ad39`），未推送**。
 
 角色依负责人门 A 回复“签发门 A，按上述角色继续”：主代理执行、组装报告草案；负责人独立审核原始证据、裁决门 B。本报告为执行方事实材料，负责人原话和上下文单独记录；主代理不兼任独立审核。结论上限 `A9_27_WIN7_42_A9_26_PASS`，不是完整 Alpha 2 / RC。
 
@@ -67,7 +67,7 @@ agent 为 console 运行中，实际身份 `dccs-chaizl-pc\agent`，Medium、非
 
 `main` / 刷新后的 `origin/main` 为 `38ca46ea09cb9427d125e5f0d5bf09270660eabc`，是当前 alpha2 的祖先。冻结源至当前 HEAD 的 `src/`、`release/`、`scripts/` 无差异；来源、输入、native、Kit 不重绑。main 至当前分支 22 个产品源码文件已由对应批准任务及当前/继承实机用例覆盖；合并前快照的文件/提交清单在本轮 `review/PREMERGE_FACTS.json`，后续文档追加不改变冻结实现。
 
-原有两处 spike ZIP 删除及未跟踪 `release/win7-product-v3/check.py` 均未暂存或修改。门 B 签发后再复查 Git ref/工作区，在独立干净 main 工作树做快进合并；不切换或清理当前脏工作区、不推送。
+原有两处 spike ZIP 删除及未跟踪 `release/win7-product-v3/check.py` 均未暂存或修改。门 B 收尾后已复查 Git ref/工作区，在独立干净 main 工作树完成快进合并；当前脏工作区的原有文件状态保留，不推送。
 
 2026-09-30 负责人在三项偏差解读及接受建议之后回复“接受”。结合已确认的负责人独立审核/门 B 角色和原验证后合入 main 授权，记录门 B 收尾裁决 `A9_27_WIN7_42_A9_26_PASS`，并按授权继续本地合并。原话仅为“接受”，不改写为“签发门 B”，不声称负责人亲自重跑或逐文件阅读证据。回执 `<L>/GATE_B_OWNER_ACCEPTANCE.json` 绑定本节准确报告、source、ZIP、authority、run-id 和既有边界。三项偏差接受后未补造原始控制台；正式报告及旧 pending 快照保持不变。
 
@@ -83,3 +83,10 @@ agent 为 console 运行中，实际身份 `dccs-chaizl-pc\agent`，Medium、非
 补充报告：`<L>/returned-supplement/unpacked/supplement-recovery-v2/evidence/recovery-matrix.json`，SHA-256 `dfea7bc316cc74881514d11cc388b245a6a4d635af7db7b06124255f5915b41c`。182 个文件含首轮失败和第二轮通过证据，与 Win7 清单哈希闭合；返回 ZIP SHA-256 `3abd16628753fa1f5fca7f64da5123c65d90f6b9aeb93dfada7d3e24d4c95e64`。取回后扫描 `SECRET_SCAN_V5.json`：1,161 文件、未分类 0、已知夹具秘密泄漏 0、确认真实秘密 0。后续回执/检查追加使用另命名校验和快照，不覆盖原校验和。
 
 开发机 R0 使用真实 Apple Git 的测试入口为 `src/workspace/tests/unit/a9-recovery-ignore.test.ts`，收尾窄范围复查 13/13 PASS、零跳过（Apple Git 2.39.5 / Node 20.17.0），记录 `<L>/review/APPLE_GIT_R0_CLOSEOUT.log`；这与上述 Windows Git 补充共同关闭 A9-26 原矩阵第 5 项。`git clean -fdx` 限制继续保留，历史候选不改判。
+
+
+## 7. 本地 main 合并结果
+
+已在 `/Users/qlyf/.codex/worktrees/a9-main-integration/win7-coding-Agent` 的干净工作树切到既有 main，从 `38ca46ea09cb9427d125e5f0d5bf09270660eabc` 快进到验收收尾提交 `829ad39f215958e6c7cf4ec064a72ac5b897e62b`。无冲突、无历史改写；本节及状态记录作为文档追加后同样快进到 main。最终本地 ref 与保护核对结果单独保存于 `<L>/LOCAL_MAIN_MERGE_CLOSEOUT.json`，不把冻结候选重绑到文档提交。
+
+合并后 main 与 alpha2 的产品/发布/套件字节均等于冻结源 `94385a8`；main 工作树干净，主工作树仍为 alpha2，原有两处 ZIP 删除与未跟踪 check.py 均保持。origin/main 未改动，未执行 push。验收范围及已知限制不因合并扩大。
