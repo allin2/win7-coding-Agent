@@ -259,6 +259,7 @@ describe('R3: honest verification semantics (real loop)', () => {
 
   it('edit then a real node test that imports the module becomes verified', async () => {
     fs.writeFileSync(path.join(workspaceRoot, 'calc.js'), 'exports.add = (a, b) => a - b;\n');
+    fs.writeFileSync(path.join(workspaceRoot, 'verify.js'), "const c = require('./calc.js'); if (c.add(1,2)!==3) process.exit(1); console.log('real test passed');\n");
     const model = await startBehaviorModel((seen) => {
       if (!seen.some((e) => e.startsWith('read:'))) {
         return { tool: { id: 'r1', name: 'read', args: { path: 'calc.js' } } };
@@ -271,7 +272,7 @@ describe('R3: honest verification semantics (real loop)', () => {
           tool: {
             id: 's1',
             name: 'shell',
-            args: { command: 'node -e "const c = require(\'./calc.js\'); if (c.add(1,2)!==3) process.exit(1); console.log(\'real test passed\')"' },
+            args: { command: 'node verify.js' },
           },
         };
       }

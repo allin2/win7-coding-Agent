@@ -906,6 +906,30 @@ export class A9AgentLoop {
       }
 
       const toolCalls = response.toolCalls || [];
+      const callIds = new Set<string>();
+      const malformedCalls = toolCalls.some((call) => {
+        if (!call.id || !call.name || callIds.has(call.id)) return true;
+        callIds.add(call.id);
+        if (call.truncated) return false;
+        try {
+          const parsed = JSON.parse(call.arguments || '{}');
+          return parsed === null || typeof parsed !== 'object' || Array.isArray(parsed);
+        } catch (_error) { return true; }
+      });
+      if (response.finishReason === 'length' || response.finishReason === 'content_filter' ||
+          (toolCalls.length > 0 && response.finishReason !== 'tool_calls') || malformedCalls) {
+        if (malformedCalls && callIds.size === toolCalls.length && toolCalls.every((call) => call.id && call.name)) {
+          this.conversationHistory.push({ role: 'assistant', content: '',
+            toolCalls: toolCalls.map((call) => ({ ...call, arguments: '{}' })) });
+          for (const call of toolCalls) this.conversationHistory.push({ role: 'tool', toolCallId: call.id,
+            toolName: call.name, content: 'Error: tool arguments must be a JSON object. The response was NOT executed.' });
+        }
+        return this.finalize(turnId, {
+          turnId, outcome: TurnOutcome.FAILED,
+          finalMessage: '模型响应未正常完成或结束原因与工具调用矛盾，本轮未执行其中的工具。',
+          totalSteps: stepCount, toolCallsExecuted,
+        }, 'turn_failed', { code: 'A9_PROVIDER_RESPONSE_INCOMPLETE', finishReason: response.finishReason });
+      }
 
       // 模型未调用工具：给出最终结论。按诚实完成规则分类：
       // 有副作用但无后续成功验证 → COMPLETED_WITH_WARNINGS；全部工具失败 → BLOCKED。

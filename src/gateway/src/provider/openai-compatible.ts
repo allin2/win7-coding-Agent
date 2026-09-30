@@ -386,6 +386,10 @@ export class OpenAICompatibleProvider {
       );
       const parser = new SseParser();
       let finishReason: FinishReason = FinishReason.STOP;
+      let sawFinishReason = false;
+      let sawDataEvent = false;
+      let streamDone = false;
+      let observedFinishReason: FinishReason | undefined;
       let promptTokens = 0;
       let completionTokens = 0;
       let totalTokens = 0;
@@ -470,6 +474,18 @@ export class OpenAICompatibleProvider {
       /** 处理一个 SSE 事件；命中上限时截断结算。 */
       const handleEvent = (event: import('./sse-parser').SseStreamEvent): void => {
         if (settled || responseTruncated) return;
+        sawDataEvent = true;
+
+        // Once a finish reason has been declared, only usage/empty frames may
+        // follow. Accepting further content or tool deltas would allow a
+        // provider to append executable work after the terminal frame.
+        if (sawFinishReason && (
+          (event.toolCallDeltas?.length ?? 0) > 0
+          || (event.content !== null && event.content.length > 0)
+        )) {
+          settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream emitted content after finish_reason'));
+          return;
+        }
 
         // R-5：恢复基线行为——content !== null（含空字符串）即触发 onChunk；空串计 0 字节。
         if (event.content !== null) {
@@ -508,7 +524,24 @@ export class OpenAICompatibleProvider {
 
         // G-2：截断粘性——命中后不再改 finishReason；此处尚未截断才更新。
         if (event.finishReason) {
-          if (event.finishReason === 'tool_calls' || event.finishReason === 'function_call') {
+          if (!['stop', 'tool_calls', 'length', 'content_filter'].includes(event.finishReason)) {
+            settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream returned unsupported finish_reason'));
+            return;
+          }
+          sawFinishReason = true;
+          const nextFinishReason = event.finishReason === 'tool_calls'
+            ? FinishReason.TOOL_CALLS
+              : event.finishReason === 'length'
+                ? FinishReason.LENGTH
+                : event.finishReason === 'content_filter'
+                  ? FinishReason.CONTENT_FILTER
+                  : FinishReason.STOP;
+          if (observedFinishReason && observedFinishReason !== nextFinishReason) {
+            settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream returned conflicting finish_reason values'));
+            return;
+          }
+          observedFinishReason = nextFinishReason;
+          if (event.finishReason === 'tool_calls') {
             finishReason = FinishReason.TOOL_CALLS;
           } else if (event.finishReason === 'length') {
             finishReason = FinishReason.LENGTH;
@@ -556,7 +589,15 @@ export class OpenAICompatibleProvider {
           }
           for (const outcome of outcomes) {
             if (settled || responseTruncated) return;
-            if (outcome.kind === 'ignore' || outcome.kind === 'done') continue;
+            if (outcome.kind === 'ignore') continue;
+            if (outcome.kind === 'done') {
+              streamDone = true;
+              continue;
+            }
+            if (streamDone) {
+              settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream emitted data after DONE'));
+              return;
+            }
             handleEvent(outcome.event);
           }
         });
@@ -568,6 +609,10 @@ export class OpenAICompatibleProvider {
             for (const outcome of parser.finish()) {
               if (settled || responseTruncated) return;
               if (outcome.kind === 'ignore' || outcome.kind === 'done') continue;
+              if (streamDone) {
+                settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream emitted data after DONE'));
+                return;
+              }
               handleEvent(outcome.event);
             }
           } catch (err: any) {
@@ -592,14 +637,51 @@ export class OpenAICompatibleProvider {
           const toolCalls: ToolCall[] = toolAccumulator.toArray();
           // G-4：参数/函数名超限的调用已在 ToolCall.truncated 标记；槽位溢出走 settleTruncated。
           // 响应级截断（settleTruncated）不携带 toolCalls；单项截断调用保留在数组中供 Core 拒绝执行。
-          if (toolCalls.length > 0) {
-            finishReason = FinishReason.TOOL_CALLS;
+          if (!sawDataEvent || !sawFinishReason) {
+            settle(new GatewayError(
+              ErrorCode.STREAM_INTERRUPTED,
+              'Gateway stream ended without a finish_reason',
+            ));
+            return;
+          }
+
+          if (toolCalls.length > 0 && finishReason === FinishReason.STOP) {
+            // A provider must not turn an ordinary stop (or a missing/late
+            // tool finish) into executable tool calls merely because deltas
+            // happened to contain tools.
+            settle(new GatewayError(
+              ErrorCode.STREAM_INTERRUPTED,
+              'Gateway stream returned tool calls with stop finish_reason',
+            ));
+            return;
+          }
+
+          if (toolCalls.length > 0 && finishReason !== FinishReason.TOOL_CALLS) {
+            // length/content_filter are genuine provider reasons. Preserve
+            // them and discard calls so Core cannot execute incomplete output.
+            settle(undefined, {
+              id: request.id,
+              requestId: request.id,
+              content: accumulatedContent || '',
+              finishReason,
+              usage: {
+                promptTokens,
+                completionTokens,
+                totalTokens: totalTokens || (promptTokens + completionTokens),
+              },
+            });
+            return;
+          }
+
+          if (finishReason === FinishReason.TOOL_CALLS && toolCalls.length === 0) {
+            settle(new GatewayError(ErrorCode.STREAM_INTERRUPTED, 'Gateway stream declared tool_calls without tool calls'));
+            return;
           }
 
           settle(undefined, {
             id: request.id,
             requestId: request.id,
-            content: accumulatedContent || (toolCalls.length > 0 ? '' : 'Completed'),
+            content: accumulatedContent,
             finishReason,
             toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
             usage: {
