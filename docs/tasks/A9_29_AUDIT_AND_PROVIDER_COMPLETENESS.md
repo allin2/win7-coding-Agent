@@ -1,16 +1,16 @@
 # A9-29 — 必需审计故障与 Provider 响应完整性修复
 
 ```text
-Status: DRAFT_PENDING_OWNER_REVIEW
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: SECURITY_AND_RUNTIME_HARDENING
 Target Branch: codex/a9-alpha2（A9-28 后在独立工作树与 codex/a9-29-audit-provider 实现）
 Source Baseline: 本任务书批准提交及已审核的 A9-28 结果
-Phase-Gate: A9_29_DRAFT
+Phase-Gate: A9_29_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0149（批准后追加）
+Decision: ADR-0149
 ```
 
-本草案不是实现授权。依据[冻结前复核报告](../reports/2026-09/a9_27_premerge_contract_review_2026-09-30.md)，修复两项已在开发机内存整合入口复现的继承风险；不将它们称为本次新增回归或 Win7 现场事件。
+2026-09-30 负责人明确批准 A9-29，修复后继续原流程。依据[冻结前复核报告](../reports/2026-09/a9_27_premerge_contract_review_2026-09-30.md)，修复两项已在开发机内存整合入口复现的继承风险；不将它们称为本次新增回归或 Win7 现场事件。
 
 ## 1. 可观察成功条件与最小契约
 
@@ -29,7 +29,7 @@ tool_start 持久化失败时零 dispatch；tool_end 失败后停止后续工具
 length/content_filter、未完整或矛盾响应零工具执行；工具 ID、名称、参数、配对仍独立验证。空流不虚构 Completed。
 异常响应不自动重试可能产生副作用的工具；已有超限、取消、TLS 和 Provider 秘密保护不减弱。
 
-## 2. C14 允许路径（批准后冻结）
+## 2. C14 允许路径（已批准并冻结）
 
 - `src/core/src/a9-agent-loop.ts`、`src/core/src/index.ts`：必要审计端口、故障语义及完整性消费边界；只改本任务相关内容。
 - `src/shell/product/a9-agent-runtime.js`：必需审计装配，与事件投影/UI 观察回调分离；不新增 IPC。
@@ -50,5 +50,5 @@ Node 20.17 下 Core/Gateway/Shell 全量、verify:quick、docs:check、diff 检�
 
 ## 4. 批准与边界
 
-建议负责人批准上述完整性兼容策略、允许路径及 W42 扩为 30 项后执行。若策略需要进一步调整，先更新本草案并取得明确裁决。
+负责人已批准上述完整性兼容策略、允许路径及 W42 扩为 30 项。若策略需要进一步调整，先更新本任务书并取得明确裁决。
 本任务只关闭两项合并安全阻断，不顺带重构或开放 Shell streaming/后台进程等能力；A9-28 两项合同修复由其独立任务负责。
