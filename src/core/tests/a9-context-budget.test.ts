@@ -48,6 +48,7 @@ describe('A9-26 request context budget', () => {
         arguments: JSON.stringify({ path: 'x', ...(source === 'tool arguments' ? { marker: 'a'.repeat(20_000) } : {}) }) }] };
     }) };
     const loop = new A9AgentLoop({ workspaceRoot: '/mock', provider, runner: {} as any, contextBudgetChars: 16_000,
+      maxToolResultChars: 30_000,
       workspaceService: { read: jest.fn().mockResolvedValue({ content: 'x'.repeat(source === 'last tool result' ? 20_000 : 4) }) } as any });
     const result = await loop.runTurn('read x');
     expect(requests).toHaveLength(1);
@@ -60,7 +61,8 @@ describe('A9-26 request context budget', () => {
       expect(JSON.parse(history.find((message) => message.toolCalls)?.toolCalls![0].arguments || '{}').marker)
         .toHaveLength(20_000);
     } else {
-      expect(history.find((message) => message.role === 'tool')?.content).toContain('x'.repeat(16 * 1024));
+      expect(history.find((message) => message.role === 'tool')?.content)
+        .toBe(JSON.stringify({ content: 'x'.repeat(20_000) }, null, 2));
     }
   });
 
