@@ -7,6 +7,66 @@ import {
   TurnOutcome,
 } from '../src';
 
+describe('A9-28 failed verification must clear prior evidence before output truncation', () => {
+  async function runRetest(secondOutcome: unknown, reject = false, command = 'npm test') {
+    let request = 0;
+    let execution = 0;
+    const calls = [
+      { name: 'edit', args: { path: 'x', old_text: 'a', new_text: 'b' } },
+      { name: 'shell', args: { command: 'npm test' } },
+      { name: 'shell', args: { command } },
+    ];
+    const provider: A9ModelPort = { sendStreamRequest: jest.fn().mockImplementation(async () => {
+      const call = calls[request++];
+      return call ? { id: 'r', content: '', finishReason: 'tool_calls',
+        toolCalls: [{ id: `c-${request}`, name: call.name, arguments: JSON.stringify(call.args) }] }
+        : { id: 'done', content: 'done', finishReason: 'stop' };
+    }) };
+    const runner: A9RunnerPort = { execute: jest.fn().mockImplementation(async () => {
+      if (++execution === 1) return { exitCode: 0, stdout: 'PASS', stderr: '', timedOut: false, durationMs: 1 };
+      if (reject) throw new Error('injected runner failure');
+      return secondOutcome;
+    }) };
+    const loop = new A9AgentLoop({ workspaceRoot: '/mock', provider, runner,
+      workspaceService: { edit: jest.fn().mockResolvedValue({ replaced: true }) } as any });
+    return loop.runTurn('edit and verify twice');
+  }
+
+  it.each([4, 20_000])('failed check with %i output chars revokes the earlier exit-0 evidence', async (size) => {
+    const result = await runRetest({ exitCode: 1, stdout: 'x'.repeat(size), stderr: 'FAIL', timedOut: false, durationMs: 1 });
+    expect(result.verification).toBe('unverified');
+    expect(result.verificationEvidence).toBeUndefined();
+    expect(result.outcome).toBe('completed_with_warnings');
+  });
+
+  it('Runner failure revokes earlier evidence', async () => {
+    const result = await runRetest(undefined, true);
+    expect(result.verification).toBe('unverified');
+    expect(result.verificationEvidence).toBeUndefined();
+  });
+
+  it.each([
+    { exitCode: null, stdout: 'unknown', stderr: '', timedOut: false, durationMs: 1 },
+    { exitCode: 0, stdout: 'incomplete', stderr: '', timedOut: true, durationMs: 1 },
+  ])('unknown or timed-out check cannot retain verification: %j', async (outcome) => {
+    const result = await runRetest(outcome);
+    expect(result.verification).toBe('unverified');
+    expect(result.verificationEvidence).toBeUndefined();
+  });
+
+  it('successful large output remains valid verification', async () => {
+    const result = await runRetest({ exitCode: 0, stdout: 'x'.repeat(20_000), stderr: '', timedOut: false, durationMs: 1 });
+    expect(result.verification).toBe('verified');
+    expect(result.verificationEvidence).toEqual({ command: 'npm test', exitCode: 0 });
+  });
+
+  it('neutral large output preserves prior successful evidence', async () => {
+    const result = await runRetest({ exitCode: 0, stdout: 'x'.repeat(20_000), stderr: '', timedOut: false, durationMs: 1 }, false, 'type x');
+    expect(result.verification).toBe('verified');
+    expect(result.verificationEvidence).toEqual({ command: 'npm test', exitCode: 0 });
+  });
+});
+
 describe('A9-05: A9AgentLoop and Coding Workflow', () => {
   it('passes explicit read encoding and the original cancellation signal without defaulting auto-detection', async () => {
     const controller = new AbortController();
@@ -390,20 +450,23 @@ describe('A9-21 M2 C-1..C-5: turn output budget and truncation', () => {
     };
   });
 
-  function makeLoop(provider: A9ModelPort, onEvent?: (e: any) => void) {
+  function makeLoop(provider: A9ModelPort, onEvent?: (e: any) => void, contextBudgetChars?: number) {
     return new A9AgentLoop({
       workspaceRoot: '/test/workspace',
       provider,
       workspaceService: mockWorkspace,
       runner: mockRunner,
       permissionMode: PermissionMode.FULL_ACCESS,
+      ...(contextBudgetChars ? { contextBudgetChars } : {}),
       ...(onEvent ? { onEvent } : {}),
     });
   }
 
   it('9. accumulates tool-argument bytes across responses and ends BUDGET_EXCEEDED without executing the over-budget response tools', async () => {
-    const bigArgs = JSON.stringify({ path: 'a', content: 'x'.repeat(1.2 * 1024 * 1024) });
-    const bigArgs2 = JSON.stringify({ path: 'b', content: 'y'.repeat(1.2 * 1024 * 1024) });
+    // Keep the original byte stress while fitting the separate input-character
+    // budget, so this test still reaches the cumulative output-byte guard.
+    const bigArgs = JSON.stringify({ path: 'a', content: '汉'.repeat(Math.floor(1.2 * 1024 * 1024 / 3)) });
+    const bigArgs2 = JSON.stringify({ path: 'b', content: '汉'.repeat(Math.floor(1.2 * 1024 * 1024 / 3)) });
     let call = 0;
     const provider: A9ModelPort = {
       sendStreamRequest: jest.fn().mockImplementation(async () => {
@@ -421,18 +484,19 @@ describe('A9-21 M2 C-1..C-5: turn output budget and truncation', () => {
       }),
     };
     const events: any[] = [];
-    const loop = makeLoop(provider, (e) => events.push(e));
+    const loop = makeLoop(provider, (e) => events.push(e), 1_000_000);
     const result = await loop.runTurn('write big');
     // 两次 1.2 MiB 参数累加 > 2 MiB → BUDGET_EXCEEDED
     expect(result.outcome).toBe(TurnOutcome.BUDGET_EXCEEDED);
+    expect(provider.sendStreamRequest).toHaveBeenCalledTimes(2);
     expect(events.some((e) => e.type === 'turn_failed')).toBe(true);
     // 超限响应的工具未执行（只允许第一次 write）
     expect(mockWorkspace.write).toHaveBeenCalledTimes(1);
   });
 
   it('10. budget is not reset across approval suspend/resume; resume continues toward the cap', async () => {
-    const bigWrite = JSON.stringify({ path: 'a', content: 'x'.repeat(1.5 * 1024 * 1024) });
-    const afterWrite = JSON.stringify({ path: 'b', content: 'y'.repeat(1.0 * 1024 * 1024) });
+    const bigWrite = JSON.stringify({ path: 'a', content: '汉'.repeat(Math.floor(1.5 * 1024 * 1024 / 3)) });
+    const afterWrite = JSON.stringify({ path: 'b', content: '汉'.repeat(Math.floor(1.0 * 1024 * 1024 / 3)) });
     let call = 0;
     const provider: A9ModelPort = {
       sendStreamRequest: jest.fn().mockImplementation(async () => {
@@ -454,7 +518,7 @@ describe('A9-21 M2 C-1..C-5: turn output budget and truncation', () => {
         };
       }),
     };
-    const loop = makeLoop(provider);
+    const loop = makeLoop(provider, undefined, 1_000_000);
     const suspended = await loop.runTurn('write then push');
     expect(suspended.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
     const approval = suspended.pendingApproval!;
@@ -465,6 +529,7 @@ describe('A9-21 M2 C-1..C-5: turn output budget and truncation', () => {
     });
     // 若预算在恢复时被错误清零，r2 的 1.0 MiB 不会触发上限。
     expect(resumed.outcome).toBe(TurnOutcome.BUDGET_EXCEEDED);
+    expect(provider.sendStreamRequest).toHaveBeenCalledTimes(2);
     expect(mockWorkspace.write).toHaveBeenCalledTimes(1); // w1 执行，w2 因超限未执行
   });
 

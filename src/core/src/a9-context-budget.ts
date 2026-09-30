@@ -23,7 +23,7 @@ function groupRounds(messages: A9LoopMessage[]): A9LoopMessage[][] {
 export function assembleWithinBudget(
   messages: A9LoopMessage[],
   options: { budgetChars: number; fixedPrefixCount: number },
-): { messages: A9LoopMessage[]; stats: ContextBudgetStats } {
+): { messages: A9LoopMessage[]; stats: ContextBudgetStats; budgetExceeded: boolean } {
   const prefix = messages.slice(0, options.fixedPrefixCount);
   const rounds = groupRounds(messages.slice(options.fixedPrefixCount));
   const current = rounds.pop() || [];
@@ -57,6 +57,7 @@ export function assembleWithinBudget(
   }
   return {
     messages: [...prefix, ...selected.flat(), ...selectedCurrent],
+    budgetExceeded: estimatedChars > options.budgetChars,
     stats: {
       budgetChars: options.budgetChars,
       estimatedChars,

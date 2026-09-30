@@ -724,38 +724,51 @@ export class A9AgentLoop {
 
       let chunkBytesThisResponse = 0;
       try {
-        const send = (messages: A9LoopMessage[]) => this.config.provider.sendStreamRequest(
-          {
-            id: `req-${turnId}-${stepCount}`,
-            messages,
-            tools: openAITools,
-            toolChoice: 'auto',
-          },
-          (chunk) => {
-            // C-1：经 onChunk 到达的内容字节（增量，每字节只计一次）。
-            if (chunk.content) {
-              chunkBytesThisResponse += Buffer.byteLength(chunk.content, 'utf8');
-              this.turnOutputBytes += Buffer.byteLength(chunk.content, 'utf8');
-            }
-            this.emitEvent({
-              type: 'model_chunk',
-              turnId,
-              timestamp: new Date().toISOString(),
-              data: { content: chunk.content },
-            });
-          },
-          { signal },
-        );
+        const send = (budgetChars: number) => {
+          const assembled = this.assembleRequest(budgetChars);
+          if (assembled.budgetExceeded) {
+            const error = new Error('输入上下文超过预算，请缩短当前输入或项目说明后重试');
+            Object.assign(error, { code: 'A9_CONTEXT_BUDGET_EXCEEDED', budgetChars,
+              estimatedChars: assembled.stats.estimatedChars });
+            throw error;
+          }
+          return this.config.provider.sendStreamRequest(
+            {
+              id: `req-${turnId}-${stepCount}`,
+              messages: assembled.messages,
+              tools: openAITools,
+              toolChoice: 'auto',
+            },
+            (chunk) => {
+              // C-1：经 onChunk 到达的内容字节（增量，每字节只计一次）。
+              if (chunk.content) {
+                chunkBytesThisResponse += Buffer.byteLength(chunk.content, 'utf8');
+                this.turnOutputBytes += Buffer.byteLength(chunk.content, 'utf8');
+              }
+              this.emitEvent({
+                type: 'model_chunk',
+                turnId,
+                timestamp: new Date().toISOString(),
+                data: { content: chunk.content },
+              });
+            },
+            { signal },
+          );
+        };
         try {
-          response = await send(this.assembleRequest(this.contextBudgetChars()).messages);
+          response = await send(this.contextBudgetChars());
         } catch (firstError: any) {
           if (!isContextOverflowError(firstError) || signal?.aborted) throw firstError;
           try {
-            response = await send(this.assembleRequest(Math.floor(this.contextBudgetChars() / 2)).messages);
-          } catch (retryError) {
+            response = await send(Math.floor(this.contextBudgetChars() / 2));
+          } catch (retryError: any) {
             if (signal?.aborted) throw retryError;
             const error = new Error('对话过长，已尝试压缩仍超出模型上限');
             (error as any).contextOverflowRetryFailed = true;
+            if (retryError?.code === 'A9_CONTEXT_BUDGET_EXCEEDED') {
+              Object.assign(error, { code: retryError.code, budgetChars: retryError.budgetChars,
+                estimatedChars: retryError.estimatedChars });
+            }
             throw error;
           }
         }
@@ -775,12 +788,14 @@ export class A9AgentLoop {
           type: 'turn_failed',
           turnId,
           timestamp: new Date().toISOString(),
-          data: { error: err.message },
+          data: { error: err.message, ...(err.code === 'A9_CONTEXT_BUDGET_EXCEEDED'
+            ? { code: err.code, budgetChars: err.budgetChars, estimatedChars: err.estimatedChars } : {}) },
         });
         return this.finalize(turnId, {
           turnId,
           outcome: TurnOutcome.FAILED,
-          finalMessage: err.contextOverflowRetryFailed ? err.message : `Model invocation failed: ${err.message}`,
+          finalMessage: err.contextOverflowRetryFailed || err.code === 'A9_CONTEXT_BUDGET_EXCEEDED'
+            ? err.message : `Model invocation failed: ${err.message}`,
           totalSteps: stepCount,
           toolCallsExecuted,
         });
@@ -1348,6 +1363,16 @@ export class A9AgentLoop {
       toolResultStr = `${toolResultStr.slice(0, this.maxToolResultChars)}\n[Tool output truncated at ${this.maxToolResultChars} characters; full output preserved in tool logs]`;
     }
 
+    const shellCommandClass = isShellTool
+      ? classifyShellCommandForVerification(typeof args.command === 'string' ? args.command : '') : undefined;
+    if (shellCommandClass === 'verify') {
+      // A new check supersedes earlier evidence even if execution fails or its
+      // model-facing output is truncated. Only the original structured result
+      // below may establish fresh successful evidence.
+      this.turnStats.verifiedAfterMutation = false;
+      this.verificationEvidence = undefined;
+    }
+
     if (executed) {
       this.turnStats.executed += 1;
       if (this.permissionMode === PermissionMode.FULL_ACCESS && ['write', 'edit', 'copy', 'move', 'delete'].includes(tc.name)) {
@@ -1358,7 +1383,7 @@ export class A9AgentLoop {
         this.verificationEvidence = undefined;
       } else if (tc.name === 'shell' && !residueRisk) {
         const command = typeof args.command === 'string' ? args.command : '';
-        const commandClass = classifyShellCommandForVerification(command);
+        const commandClass = shellCommandClass;
         if (commandClass === 'mutating') {
           this.turnStats.verifiedAfterMutation = false;
           this.verificationEvidence = undefined;
@@ -1370,19 +1395,13 @@ export class A9AgentLoop {
           this.turnStats.verifiedAfterMutation = false;
           this.verificationEvidence = undefined;
         }
-        try {
-          const parsed = JSON.parse(toolResultStr);
-          if (commandClass === 'verify' && parsed.exitCode === 0 && this.turnStats.mutations) {
-            this.turnStats.verifiedAfterMutation = true;
-            this.verificationEvidence = {
-              command: (this.config.redactText ? this.config.redactText(command) : command).slice(0, 200),
-              exitCode: 0,
-            };
-          } else if (commandClass === 'verify' && parsed.exitCode !== 0) {
-            this.turnStats.verifiedAfterMutation = false;
-            this.verificationEvidence = undefined;
-          }
-        } catch (_parseErr) { /* 非 JSON 结果无法证明验证 */ }
+        if (commandClass === 'verify' && shellEvent?.exitCode === 0 && shellEvent.timedOut !== true && this.turnStats.mutations) {
+          this.turnStats.verifiedAfterMutation = true;
+          this.verificationEvidence = {
+            command: (this.config.redactText ? this.config.redactText(command) : command).slice(0, 200),
+            exitCode: 0,
+          };
+        }
       }
     }
 
