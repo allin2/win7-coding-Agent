@@ -438,7 +438,18 @@ async function main() {
   } else if (mode === 'w39_m4') {
     await runW39M4Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'w40_stop') {
-    await runW40StopProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl,
+    const w42Mode = process.env.A9_W42_MODE || '';
+    if (w42Mode) report.mode = w42Mode;
+    if (w42Mode === 'w42_recovery_dir') await runW42RecoveryDirSafetyProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+    else if (w42Mode === 'w42_verification') await runW42VerificationClassificationProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+    else if (w42Mode === 'w42_instructions_environment') await runW42InstructionsEnvironmentProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+    else if (w42Mode === 'w42_context_budget') await runW42ContextBudgetRetryProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+    else if (w42Mode === 'w42_cold_history') await runW42ColdHistoryLoadProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+    else if (w42Mode === 'w42_audit') await runW42ProductProbeProcess(exec, 'audit', 'A9-W42-AUDIT-FAIL-CLOSED');
+    else if (w42Mode === 'w42_provider') await runW42ProductProbeProcess(exec, 'provider', 'A9-W42-PROVIDER-COMPLETENESS');
+    else if (w42Mode === 'w42_cancel_output') await runW42CancelOutputReasonProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl,
+      pidMarker: process.env.A9_SMOKE_W42_CANCEL_PID_MARKER });
+    else await runW40StopProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl,
       pidMarker: process.env.A9_SMOKE_STOP_PID_MARKER, evidencePath: process.env.A9_SMOKE_W40_STOP_EVIDENCE });
   } else if (mode === 'w40_review') {
     await runW40ReviewProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
@@ -3389,6 +3400,84 @@ async function runW40ReviewModeProcess(win, exec, env) {
     finalMessage: snapshotAfter.conversation?.at(-1)?.finalMessage || '' };
   record('A9-W40-REVIEW-MODE-FAIL-CLOSED', a925ReviewModeMatches(report.w40ReviewMode), JSON.stringify(report.w40ReviewMode));
 }
+
+// A9-27 / W42: target Runtime observations and separate real Electron UI checks.
+const w42IpcObservations = [];
+function w42ObserveProductIpc() {
+  const { ipcMain } = require('electron');
+  const original = ipcMain.handle.bind(ipcMain);
+  ipcMain.handle = (channel, listener) => original(channel, async (...args) => {
+    const request = args[1];
+    const action = request?.action || request?.type;
+    if (['workspace.select', 'a9.events.query', 'a9.turn.submit'].includes(action)) {
+      w42IpcObservations.push({ seq: w42IpcObservations.length + 1, action, at: new Date().toISOString(),
+        limit: request?.payload?.limit || null });
+    }
+    return listener(...args);
+  });
+}
+if (process.env.A9_W42_MODE) w42ObserveProductIpc();
+function w42ReadProof(kind) {
+  const file = process.env.A9_SMOKE_W42_PROOF;
+  if (!file || crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== process.env.A9_SMOKE_W42_PROOF_SHA256) {
+    throw new Error('A9_W42_PROOF_HASH_MISMATCH');
+  }
+  const proof = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (proof.kind !== kind || proof.host?.platform !== 'win32' || !/^6\.1\./.test(proof.host.release)) {
+    throw new Error('A9_W42_PROOF_HOST_OR_KIND_INVALID');
+  }
+  return proof;
+}
+async function w42ReadEvents(exec, turnId) {
+  return exec(`(async () => { const api = window.win7Agent.a9; const snap = (await api.snapshot()).snapshot; const r = await api.queryEvents({ conversationId: snap.activeConversationId, limit: 1000, ...(${JSON.stringify(turnId || '')} ? { turnId: ${JSON.stringify(turnId || '')} } : {}) }); if (!r?.ok || !Array.isArray(r.events)) throw new Error('W42_EVENTS_UNAVAILABLE'); return r.events; })()`);
+}
+async function runW42ProductProbeProcess(exec, kind, assertion) {
+  const proof = w42ReadProof(kind);
+  const { matches } = require('./w42-product-probes.cjs');
+  const ui = await exec(`({ text: document.body.innerText, outcome: document.getElementById('a9-turn-outcome')?.textContent || '' })`);
+  let uiPassed = true;
+  if (kind === 'verification') uiPassed = /unverified/.test(ui.outcome) && ui.text.includes('依据：') && ui.text.includes('退出码 0');
+  if (kind === 'instructions') uiPassed = ui.text.includes('已加载 AGENTS.md') && ui.text.includes('含已知秘密，未加载');
+  if (kind === 'context') uiPassed = ui.text.includes('对话过长，已尝试压缩仍超出模型上限') && /failed/.test(ui.outcome);
+  report.w42Reliability = { kind, proof, ui: { outcome: ui.outcome, matched: uiPassed }, ipc: w42IpcObservations };
+  record(assertion, proof.passed === true && matches(kind, proof.observation) && uiPassed, JSON.stringify(report.w42Reliability));
+}
+async function runW42RecoveryDirSafetyProcess(win, exec, env) {
+  void win; void env;
+  await runW42ProductProbeProcess(exec, 'recovery', 'A9-W42-RECOVERY-DIR-GIT-SAFETY');
+}
+async function runW42VerificationClassificationProcess(win, exec, env) {
+  void win; void env;
+  await runW42ProductProbeProcess(exec, 'verification', 'A9-W42-VERIFICATION-CLASSIFICATION');
+}
+async function runW42InstructionsEnvironmentProcess(win, exec, env) {
+  void win; void env;
+  await runW42ProductProbeProcess(exec, 'instructions', 'A9-W42-INSTRUCTIONS-ENVIRONMENT');
+}
+async function runW42ContextBudgetRetryProcess(win, exec, env) {
+  void win; void env;
+  await runW42ProductProbeProcess(exec, 'context', 'A9-W42-CONTEXT-BUDGET-RETRY');
+}
+async function runW42ColdHistoryLoadProcess(win, exec, env) {
+  void win; void env;
+  const ui = await waitFor(() => exec(`(() => { const items = document.querySelectorAll('.activity-item, .note-line');
+    const button = Array.from(document.querySelectorAll('.legacy-note button')).find(b => b.textContent === '加载更早记录');
+    return items.length && button && !button.disabled ? { rows: items.length, olderEnabled: true } : null; })()`), 20000, 'w42 cold history without submit');
+  const selected = w42IpcObservations.find(item => item.action === 'workspace.select');
+  const queried = w42IpcObservations.find(item => item.action === 'a9.events.query' && item.limit && item.limit <= 320);
+  const submitted = w42IpcObservations.filter(item => item.action === 'a9.turn.submit');
+  report.w42Reliability = { kind: 'cold', ui, selected, queried, submits: submitted.length, ipc: w42IpcObservations };
+  record('A9-W42-COLD-HISTORY-LOAD', require('./w42-product-probes.cjs').matches('cold', report.w42Reliability), JSON.stringify(report.w42Reliability));
+}
+async function runW42CancelOutputReasonProcess(win, exec, env) {
+  void win; void env;
+  const proof = w42ReadProof('cancel');
+  const { matches } = require('./w42-product-probes.cjs');
+  const ui = await waitFor(() => exec(`({ stopped: document.body.innerText.includes('已停止') })`).then(state => state.stopped ? state : null), 20000, 'w42 stopped history');
+  report.w42Reliability = { kind: 'cancel', proof, ui };
+  record('A9-W42-CANCEL-AND-OUTPUT-REASON', matches('cancel', proof.observation) && ui.stopped, JSON.stringify(report.w42Reliability));
+}
+
 
 function writeDriverReport() {
   const outPath = process.env.A9_SMOKE_OUT;

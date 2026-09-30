@@ -63,6 +63,8 @@ const win40Integrity = require('../../../release/win7-product-v3/a9-package-inte
 const win40Report = require('../../../release/win7-product-v3/a9-win7-40-report.cjs');
 const win41Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w41.cjs');
 const win41Report = require('../../../release/win7-product-v3/a9-win7-41-report.cjs');
+const win42Integrity = require('../../../release/win7-product-v3/a9-package-integrity-w42.cjs');
+const win42Report = require('../../../release/win7-product-v3/a9-win7-42-report.cjs');
 const projectionContract = require('../../../release/win7-product-v3/a9-projection-contract.cjs');
 const win7Report = require('../../../release/win7-product-v3/a9-win7-17-report.cjs');
 const win22Report = require('../../../release/win7-product-v3/a9-win7-22-report.cjs');
@@ -448,13 +450,18 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
         change_scope: 'UI_PROGRESS_FEEDBACK',
       };
   }
-  if (candidate === 'win40' || candidate === 'win41') {
+  if (candidate === 'win40' || candidate === 'win41' || candidate === 'win42') {
     const next = candidate === 'win41';
-    lock.lock_id = next ? 'A9-25-INPUTS-WIN7-41' : 'A9-25-INPUTS-WIN7-40';
+    const w42 = candidate === 'win42';
+    lock.lock_id = w42 ? 'A9-27-INPUTS-WIN7-42' : (next ? 'A9-25-INPUTS-WIN7-41' : 'A9-25-INPUTS-WIN7-40');
     lock.source_date_epoch = 1790380800;
     lock.gates.win10 = 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH';
-    lock.gates.win7 = next ? 'NOT_PERFORMED_WIN7_41' : 'NOT_PERFORMED_WIN7_40';
-    lock.provenance = next ? {
+    lock.gates.win7 = w42 ? 'NOT_PERFORMED_WIN7_42' : (next ? 'NOT_PERFORMED_WIN7_41' : 'NOT_PERFORMED_WIN7_40');
+    lock.provenance = w42 ? {
+      task: 'A9-27', previous_candidate: 'WIN7-41',
+      previous_candidate_result: 'A9_25_WIN7_41_A9_24_PASS',
+      change_scope: 'A9_26_RELIABILITY_WIN7_42_VALIDATION',
+    } : next ? {
       task: 'A9-25', previous_candidate: 'WIN7-40',
       previous_candidate_result: 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS',
       change_scope: 'A9_25_R6_TIMING_REPAIR_WIN7_41_VALIDATION',
@@ -468,7 +475,9 @@ function fixture(root, sourceRepositoryRoot = process.cwd(), candidate = 'win23'
     ? `a9-16-win7-${candidate.slice(-2)}-input-lock.json`
     : ['win23', 'win24', 'win25', 'win26', 'win27', 'win28'].includes(candidate)
       ? `a9-15-win7-${candidate.slice(-2)}-input-lock.json`
-      : 'a9-14-win7-22-input-lock.json');
+    : ['win40', 'win41'].includes(candidate)
+      ? `a9-25-win7-${candidate.slice(-2)}-input-lock.json`
+      : candidate === 'win42' ? 'a9-27-win7-42-input-lock.json' : 'a9-14-win7-22-input-lock.json');
   writeJson(lockPath, lock);
   return { electronZip, runnerZip, storageZip, lockPath, approvalRegistryPath };
 }
@@ -581,6 +590,84 @@ test('A9 v3 builder produces byte-identical fixture candidates with the complete
   assert.match(fs.readFileSync(path.join(second.stage, 'validation', 'a9-package-integrity.cjs'), 'utf8'), /package_sha256: packageSha256/);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test('WIN7-42 W42 kit exposes 30 cases, A9-26 additions and W42 closure', () => {
+  const kitPath = path.join(process.cwd(), 'release/win7-product-v3/A9_27_W42_VALIDATION_KIT.json');
+  // The kit is generated during candidate assembly; source-side contract is checked
+  // through the eight explicitly registered additions and the W42 verifier closure.
+  assert.equal(win42Report.REQUIRED_CASE_COUNT, 30);
+  assert.ok(win42Integrity.REQUIRED_FILES.includes('validation/a9-win7-42-driver.cjs'));
+  assert.ok(win42Integrity.REQUIRED_FILES.includes('A9_27_WIN7_42_VALIDATION.md'));
+  assert.match(fs.readFileSync(path.join(process.cwd(), 'release/win7-product-v3/a9-win7-42-smoke.cjs'), 'utf8'), /W42-28-CANCEL-AND-OUTPUT-REASON/);
+  assert.match(fs.readFileSync(path.join(process.cwd(), 'src/shell/tests/product/a9-06-driver-entry.cjs'), 'utf8'), /runW42ColdHistoryLoadProcess/);
+  assert.ok(!fs.existsSync(kitPath) || JSON.parse(fs.readFileSync(kitPath, 'utf8')).required_cases.length === 30);
+});
+
+test('WIN7-42 fixture build emits the 30-case kit and rebased driver', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-win42-candidate-'));
+  try {
+    const sourceRepositoryRoot = cleanSourceFixture(root);
+    const inputs = fixture(root, sourceRepositoryRoot, 'win42');
+    const built = buildA9ProductCandidate({ repositoryRoot: sourceRepositoryRoot, ...inputs, outputRoot: path.join(root, 'out') });
+    const stage = built.stage;
+    const kit = JSON.parse(fs.readFileSync(path.join(stage, 'A9_27_W42_VALIDATION_KIT.json'), 'utf8'));
+    assert.equal(kit.required_cases.length, 30);
+    assert.equal(kit.scope.result_on_complete, 'A9_27_WIN7_42_A9_26_PASS');
+    assert.equal(win42Report.REQUIRED_CASE_COUNT, 30);
+    const integrity = fs.readFileSync(path.join(stage, 'validation/a9-package-integrity-w42.cjs'), 'utf8');
+    const begin = integrity.indexOf('  if (kit.schema_version');
+    const end = integrity.indexOf('  const resolvedAuthority', begin);
+    const evaluate = value => vm.runInNewContext(`${integrity.slice(begin, end)}; true;`, { kit: value,
+      manifest: { release_id: kit.candidate_id, version: kit.candidate_version, source_commit: kit.source_commit } });
+    assert.equal(evaluate(kit), true);
+    assert.throws(() => evaluate({ ...kit, required_cases: kit.required_cases.slice(0, 29) }), /KIT_CONTRACT_INVALID/);
+    assert.throws(() => evaluate({ ...kit, required_cases: kit.required_cases.map((item, index) => index === 29
+      ? { ...item, case_id: 'W42-31-INVALID' } : item) }), /KIT_CONTRACT_INVALID/);
+    for (const relative of win42Integrity.REQUIRED_FILES) assert.ok(fs.existsSync(path.join(stage, relative)), relative);
+
+    const driver = fs.readFileSync(path.join(stage, 'validation/a9-win7-42-driver.cjs'), 'utf8');
+    assert.match(driver, /runW42ColdHistoryLoadProcess/);
+    assert.doesNotMatch(driver, /A9-W41-|\bw41_/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('WIN7-42 added protection predicates reject injected contradictory observations', () => {
+  const probes = require('../../../release/win7-product-v3/w42-product-probes.cjs');
+  const cases = {
+    recovery: { ignoreHex: '2a0a', legacyHex: '2a0a', shellObserved: true, status: '', dryAdd: '', dryClean: '', first: { hash: 'a', mtime: 1 }, second: { hash: 'a', mtime: 1 } },
+    verification: { results: [{ verification: 'unverified' }, { verification: 'verified', verificationEvidence: { exitCode: 0 } }, { verification: 'unverified' }, { verification: 'unverified' }], largeFailure: true },
+    instructions: { firstTwo: [1,2].map(() => ({ instructions: 1, environment: 1, instructionText: '工作区说明', environmentText: 'Windows 7 SP1 powershell 5.1' })), statuses: ['loaded','loaded','secret_blocked'], lastInstructionCount: 0, secretInRequests: false, secretInAudit: false, secretInData: false, filesScanned: 1 },
+    context: { successfulRetry: { requests: [{ chars: 15000 }, { chars: 7500 }], result: { outcome: 'completed' } }, failedRetry: { requests: [{}, {}], result: { outcome: 'failed' } }, irreducible: { requests: 0, result: { outcome: 'failed' }, failureCode: 'A9_CONTEXT_BUDGET_EXCEEDED' }, uiRequests: 2, uiResult: { outcome: 'failed', finalMessage: '对话过长，已尝试压缩仍超出模型上限' } },
+    audit: { records: ['control','tool_start','tool_end','turn_completed'].map(event => ({ event, requests: ['control','turn_completed'].includes(event) ? 3 : 2, secondContent: ['control','turn_completed'].includes(event) ? 'changed\n' : 'original\n', content: event === 'tool_start' ? 'original\n' : 'changed\n', result: { ok: event === 'control', result: { toolCallsExecuted: event === 'tool_start' ? 2 : event === 'tool_end' ? 3 : 4, auditIncomplete: event === 'control' ? undefined : { failedEvent: event } } } })) },
+    provider: { records: ['tool_calls','missing','length','content_filter','stop','empty','invalid_json'].map(finish => ({ finish, requests: finish === 'tool_calls' ? 2 : 1, content: finish === 'tool_calls' ? 'changed\n' : 'original\n', result: { toolCallsExecuted: finish === 'tool_calls' ? 1 : 0, outcome: finish === 'tool_calls' ? 'completed_with_warnings' : 'failed' } })) },
+    cold: { selected: { seq: 1 }, queried: { seq: 2 }, submits: 0, ui: { rows: 300, olderEnabled: true } },
+    cancel: { inheritedStopPassed: true, inheritedReviewPassed: true, cancelEvents: [{ type: 'turn_completed', data: { outcome: 'cancelled' } }], oversizedText: 'big.bin 超过备份上限（单文件 2 MiB）' },
+  };
+  const mutate = {
+    recovery: value => { value.dryAdd = 'add .agent_recovery/source'; },
+    verification: value => { value.results[3].verification = 'verified'; },
+    instructions: value => { value.secretInData = true; },
+    context: value => { value.irreducible.requests = 1; },
+    audit: value => { value.records[1].content = 'changed\n'; },
+    provider: value => { value.records[1].content = 'changed\n'; value.records[1].result.toolCallsExecuted = 1; },
+    cold: value => { value.submits = 1; },
+    cancel: value => { value.cancelEvents[0].type = 'turn_cancelled'; },
+  };
+  for (const [kind, baseline] of Object.entries(cases)) {
+    assert.equal(probes.matches(kind, baseline), true, kind);
+    const negative = JSON.parse(JSON.stringify(baseline)); mutate[kind](negative);
+    assert.equal(probes.matches(kind, negative), false, `${kind} counterexample`);
+  }
+  const driver = fs.readFileSync(path.join(process.cwd(), 'src/shell/tests/product/a9-06-driver-entry.cjs'), 'utf8');
+  const cold = driver.slice(driver.indexOf('async function runW42ColdHistoryLoadProcess'), driver.indexOf('async function runW42CancelOutputReasonProcess'));
+  assert.doesNotMatch(cold, /submitTurn|run-task.*click/);
+  assert.match(cold, /matches\('cold', report\.w42Reliability\)/);
+  const check = fs.readFileSync(path.join(process.cwd(), 'release/win7-product-v3/w42-check.py'), 'utf8');
+  assert.match(check, /return a \+ b/);
+  assert.match(check, /return 1/);
+  assert.ok(win42Integrity.REQUIRED_FILES.includes('validation/w42-product-probes.cjs'));
+});
+
 
 test('A9 v3 formal source identity must equal the current clean HEAD', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-source-identity-'));
@@ -5633,7 +5720,10 @@ test('W40 R4-3 inspector timeout records bounded last raw observation in report 
   assert.match(settledSource, /state\.redrawn === true && state\.expanded === 'false'/);
   assert.match(settledSource, /state\.toggleFound === true && typeof state\.full === 'string' && state\.full\.includes\(relPath\)/);
   assert.match(openDiffSource, /state\.toggleFound && state\.expanded === 'true' && state\.buttonFound/);
-  const newBlock = source.slice(source.indexOf('// A9-25: W40-only observations.'), source.indexOf('\nfunction writeDriverReport('));
+  const begin = source.indexOf('// A9-25: W40-only observations.');
+  const reportStart = source.indexOf('\nfunction writeDriverReport(', begin);
+  const w42Start = source.indexOf('// A9-27 / W42:', begin);
+  const newBlock = source.slice(begin, w42Start >= 0 && w42Start < reportStart ? w42Start : reportStart);
   assert.equal([...newBlock.matchAll(/\bwaitFor\(/g)].length, 1, 'only diagnostic wrapper calls historical waitFor');
   assert.equal([...newBlock.matchAll(/\ba925WaitFor\(/g)].length, 22, 'R6 controls all use diagnostic waits');
 });

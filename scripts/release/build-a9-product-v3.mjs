@@ -211,12 +211,21 @@ const RELEASE_PROFILES = {
     extraValidationScripts: ['a9-win7-41-smoke.cjs'],
     evidenceDirectory: 'a9-win7-41-evidence',
   },
+  // ADR-0147: A9-26 reliability batch reissue; derives the frozen W41 kit and adds W42-23..28.
+  'A9-27-INPUTS-WIN7-42': {
+    task: 'A9-27', candidate: 'WIN7-42', lockFile: 'a9-27-win7-42-input-lock.json',
+    kitFile: 'A9_27_W42_VALIDATION_KIT.json', validationDoc: 'A9_27_WIN7_42_VALIDATION.md',
+    integrityCommand: 'RUN_A9_27_W42_INTEGRITY.cmd', reportCommand: 'RUN_WIN7_42_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w42.cjs', reportScript: 'a9-win7-42-report.cjs',
+    extraValidationScripts: ['a9-win7-42-smoke.cjs', 'w42-product-probes.cjs'],
+    evidenceDirectory: 'a9-win7-42-evidence',
+  },
 };
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
-const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41']);
-const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41']);
+const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42']);
+const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42']);
 
 // ADR-0126：派生脚本残留守卫。
 //
@@ -282,6 +291,18 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     return source;
   };
+  const w42ScopedSource = (file, source) => {
+    if (file === profile.lockFile) {
+      return source.replace('    "previous_candidate_result": "A9_25_WIN7_41_A9_24_PASS",',
+        '    "previous_candidate_result": "",')
+        .replace('WIN7-41 is immutable as A9_25_WIN7_41_A9_24_PASS;', 'WIN7-41 is immutable as ;');
+    }
+    if (file === profile.integrityScript) {
+      return source.replace("lock.provenance?.previous_candidate_result !== 'A9_25_WIN7_41_A9_24_PASS'",
+        "lock.provenance?.previous_candidate_result !== ''");
+    }
+    return source;
+  };
   for (const file of files) {
     const filePath = path.join(stage, 'validation', file);
     if (!fs.existsSync(filePath)) continue;
@@ -302,7 +323,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     }
     // WIN7-31 起，投影证据 case key 也属于候选身份。只检查引号内的真实对象键，
     // 避免历史说明文字误报；03/09/10 任一仍指向旧 Wxx 都必须在构建期失败。
-    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
+    if (['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42'].includes(profile.candidate)) {
       const expectedPrefix = profile.candidate.replace('WIN7-', 'W');
       for (const match of source.matchAll(/['"](W\d+)-(03-INSPECTOR-PERSISTED-RESTART|09-LATEST-OUTCOME-PROJECTION|10-OLDER-EVENT-PAGINATION)['"]/g)) {
         if (match[1] !== expectedPrefix) hits.push(`${file}: ${match[0]} (expected ${expectedPrefix}-${match[2]})`);
@@ -328,6 +349,11 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
     if (profile.candidate === 'WIN7-41') {
       for (const match of w41ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39|40)[-_][A-Z0-9-]+|WIN7_(?:37|38|39|40)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39|40)_VALIDATION|['"]W(?:37|38|39|40)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_25_VALIDATION_KIT|A9_25_WIN7_40_[A-Z0-9_]+|A9_20_A9_21/g)) {
         hits.push(`${file}: inherited WIN7-37/38/39/40 active token ${match[0]}`);
+      }
+    }
+    if (profile.candidate === 'WIN7-42') {
+      for (const match of w42ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39|40|41)[-_][A-Z0-9-]+|WIN7_(?:37|38|39|40|41)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39|40|41)_VALIDATION|['"]W(?:37|38|39|40|41)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_25_W41_[A-Z0-9_]+|A9_25_VALIDATION_KIT|A9_20_A9_21/g)) {
+        hits.push(`${file}: inherited WIN7-37/38/39/40/41 active token ${match[0]}`);
       }
     }
     if (profile.candidate === 'WIN7-37') {
@@ -360,6 +386,14 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
       }
     }
   }
+  if (profile.candidate === 'WIN7-42') {
+    for (const file of [profile.lockFile, profile.integrityCommand, profile.reportCommand]) {
+      const source = fs.readFileSync(path.join(stage, file), 'utf8');
+      for (const match of w42ScopedSource(file, source).matchAll(/A9[-_]W(?:37|38|39|40|41)[-_][A-Z0-9-]+|WIN7_(?:37|38|39|40|41)_RELEASE_AUTHORITY|APPROVED_FOR_WIN7_(?:37|38|39|40|41)_VALIDATION|['"]W(?:37|38|39|40|41)-\d{2}-[A-Z0-9-]+['"]|A9_(?:19|22|23)_VALIDATION_KIT|A9_25_W41_[A-Z0-9_]+|A9_25_VALIDATION_KIT|A9_20_A9_21/g)) {
+        hits.push(`${file}: inherited WIN7-37/38/39/40/41 active token ${match[0]}`);
+      }
+    }
+  }
   if (hits.length) {
     throw new Error(`A9_CANDIDATE_STALE_TOKEN:${profile.candidate}:${hits.join(' | ')}`);
   }
@@ -368,7 +402,7 @@ function assertNoStaleCandidateTokens(root, stage, profile) {
 function writeCandidateDriver(root, validationRoot, profile) {
   const sourcePath = path.join(root, 'src', 'shell', 'tests', 'product', 'a9-06-driver-entry.cjs');
   const targetPath = path.join(validationRoot, `a9-${profile.candidate.toLowerCase()}-driver.cjs`);
-  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
+  if (!['WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42'].includes(profile.candidate)) {
     fs.copyFileSync(sourcePath, targetPath);
     return;
   }
@@ -380,7 +414,7 @@ function writeCandidateDriver(root, validationRoot, profile) {
     ['W28-10-OLDER-EVENT-PAGINATION', `${candidatePrefix}-10-OLDER-EVENT-PAGINATION`],
     ['A9_W28_PROJECTION_EVIDENCE_PACKAGE', `A9_${candidatePrefix}_PROJECTION_EVIDENCE_PACKAGE`],
   ];
-  if (['WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
+  if (['WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42'].includes(profile.candidate)) {
     replacements.push(['A9_W35_DRIVER_PRODUCT_ENTRY_LATE_LOAD', `A9_${candidatePrefix}_DRIVER_PRODUCT_ENTRY_LATE_LOAD`]);
   }
   if (profile.candidate === 'WIN7-38') {
@@ -397,31 +431,43 @@ function writeCandidateDriver(root, validationRoot, profile) {
       replacements.push([`A9-W37-${suffix}`, `A9-W39-${suffix}`]);
     }
   }
-  if (profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41') {
+  if (profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41' || profile.candidate === 'WIN7-42') {
     // Rebase inherited W39 source only in the packaged driver; repository journeys stay byte-identical.
     const identities = profile.candidate === 'WIN7-40'
       ? [['w39', 'w40', 133], ['W39', 'W40', 76]]
-      : [['w39', 'w41', 133], ['W39', 'W41', 76], ['w40', 'w41', 58], ['W40', 'W41', 35]];
+      : profile.candidate === 'WIN7-41'
+        ? [['w39', 'w41', 133], ['W39', 'W41', 76], ['w40', 'w41', 58], ['W40', 'W41', 35]]
+        : [['w39', 'w42', 133], ['W39', 'W42', 76], ['w40', 'w42', 58], ['W40', 'W42', 35]];
     for (const [before, after, expected] of identities) {
       const occurrences = source.split(before).length - 1;
       if (occurrences !== expected) throw new Error(`A9_${candidatePrefix}_DRIVER_REBASE_SOURCE_INVALID:${before}:${occurrences}:${expected}`);
       source = source.replaceAll(before, after);
     }
-    for (const suffix of [
+    if (profile.candidate === 'WIN7-42') {
+      for (const [before, after] of [
+        ['A9_W37', 'A9_W42'], ['A9-W37', 'A9-W42'], ['A9_W38', 'A9_W42'], ['A9-W38', 'A9-W42'],
+        ['A9_W39', 'A9_W42'], ['A9-W39', 'A9-W42'], ['A9_W40', 'A9_W42'], ['A9-W40', 'A9-W42'],
+      ]) source = source.replaceAll(before, after);
+      source = source.replaceAll("Write-Output 'smoke-verified'", 'C:\\\\acceptance\\\\python38_mvp\\\\python.exe check.py');
+      source = source.replaceAll("Write-Output 'projection-verified'", 'C:\\\\acceptance\\\\python38_mvp\\\\python.exe check.py');
+    }
+    if (profile.candidate !== 'WIN7-42') for (const suffix of [
       'LIVE-PROVIDER-PROBE', 'RAIL-PRESERVED-AFTER-WORKSPACE-AND-CONVERSATION', 'HEADER-AND-LABELS',
       'LIVE-TOOL-CARD-BEFORE-COMPLETION', 'LIVE-NOTE-BEFORE-COMPLETION',
       'LIVE-PREVIEW-BEFORE-COMPLETION', 'LIVE-PREVIEW-CLEARED-AFTER-COMPLETION',
       'LIVE-LATENCY-WITHIN-1500MS', 'LIVE-SECRET-NOT-EXPOSED',
     ]) replacements.push([`A9-W37-${suffix}`, `A9-${candidatePrefix}-${suffix}`]);
-    for (const suffix of [
+    if (profile.candidate !== 'WIN7-42') for (const suffix of [
       'PROVIDER-PROBE', 'CMD-CONCAT-GIT-CONFIRM', 'POWERSHELL-PREFIX-GIT-CONFIRM',
       'POWERSHELL-POSITIONAL-GIT-CONFIRM', 'M1B-HEX-FREEZE-AND-URL-REDACTION',
       'M2-OUTPUT-LIMITS', 'M3-CHECKPOINT-PAGINATION', 'M4-COLLECTION-BOUNDS',
     ]) replacements.push([`A9-W38-${suffix}`, `A9-${candidatePrefix}-${suffix}`]);
-    replacements.push(['A9_W37_LIVE_TEST_KEY_REQUIRED', `A9_${candidatePrefix}_LIVE_TEST_KEY_REQUIRED`]);
+    if (profile.candidate !== 'WIN7-42') replacements.push(['A9_W37_LIVE_TEST_KEY_REQUIRED', `A9_${candidatePrefix}_LIVE_TEST_KEY_REQUIRED`]);
     // A9-24 preserves the first Diff button contract but labels it "查看改动".
-    replacements.push([".find((item) => item.textContent === '查看 Diff')", ".find((item) => item.textContent === '查看改动')"]);
-    replacements.push([`await captureVisual(win, '${candidatePrefix.toLowerCase()}-m3');`, 'await a925CaptureM3Diff(win, exec, oldestTurnId);']);
+    {
+      replacements.push([".find((item) => item.textContent === '查看 Diff')", ".find((item) => item.textContent === '查看改动')"]);
+      replacements.push([`await captureVisual(win, '${candidatePrefix.toLowerCase()}-m3');`, 'await a925CaptureM3Diff(win, exec, oldestTurnId);']);
+    }
   }
   for (const [before, after] of replacements) {
     const occurrences = source.split(before).length - 1;
@@ -551,12 +597,15 @@ export function buildA9ProductCandidate(options) {
     for (const script of profile.extraValidationScripts || []) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', script), path.join(validationRoot, script));
     }
+    if (profile.candidate === 'WIN7-42') {
+      fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'w42-check.py'), path.join(validationRoot, 'check.py'));
+    }
     if (A915_CANDIDATES.has(profile.candidate)) {
       writeCandidateDriver(root, validationRoot, profile);
     }
     // ADR-0121：投影契约模块随候选打包，driver 与报告器在候选内使用同一实现。
     // ADR-0125：WIN7-29 继承同一投影合同，因此同样需要随包携带该模块。
-    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate)) {
+    if (['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42'].includes(profile.candidate)) {
       fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'a9-projection-contract.cjs'),
         path.join(validationRoot, 'a9-projection-contract.cjs'));
     }
@@ -686,9 +735,10 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     `validation/${profile.integrityScript}`, `validation/${profile.reportScript}`,
     profile.kitFile, profile.validationDoc, profile.integrityCommand, profile.reportCommand,
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
+    ...(profile.candidate === 'WIN7-42' ? ['validation/check.py'] : []),
     ...(A915_CANDIDATES.has(profile.candidate)
       ? [`validation/a9-${profile.candidate.toLowerCase()}-driver.cjs`] : []),
-    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
+    ...(['WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42'].includes(profile.candidate) ? ['validation/a9-projection-contract.cjs'] : []),
     ...(profile.candidate === 'WIN7-22' ? ['validation/a9-win7-17-report.cjs', 'RUN_WIN7_17_REPORT_VERIFY.cmd'] : []),
   ];
   for (const relative of [...commonClosure, ...profileClosure]) {
@@ -711,10 +761,52 @@ function createValidationKit(root, sourceCommit, lock, profile) {
   if (profile.candidate === 'WIN7-41') {
     return createWin41ValidationKit(root, sourceCommit, lock, profile);
   }
+  if (profile.candidate === 'WIN7-42') {
+    return createWin42ValidationKit(root, sourceCommit, lock, profile);
+  }
   if (A915_CANDIDATES.has(profile.candidate)) {
     return createA915ValidationKit(root, sourceCommit, lock, profile);
   }
   return createWin22ValidationKit(root, sourceCommit, lock);
+}
+
+function createWin42ValidationKit(root, sourceCommit, lock, profile) {
+  const base = createWin41ValidationKit(root, sourceCommit, lock, {
+    ...profile,
+    candidate: 'WIN7-41',
+    lockFile: 'a9-25-win7-41-input-lock.json',
+    kitFile: 'A9_25_W41_VALIDATION_KIT.json',
+    validationDoc: 'A9_25_WIN7_41_VALIDATION.md',
+    integrityCommand: 'RUN_A9_25_W41_INTEGRITY.cmd',
+    reportCommand: 'RUN_WIN7_41_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-package-integrity-w41.cjs',
+    reportScript: 'a9-win7-41-report.cjs',
+    extraValidationScripts: ['a9-win7-41-smoke.cjs'],
+  });
+  const rebased = JSON.parse(JSON.stringify(base).replaceAll('A9_25', 'A9_27')
+    .replaceAll('A9-25', 'A9-27').replaceAll('WIN7_41', 'WIN7_42')
+    .replaceAll('WIN7-41', 'WIN7-42').replaceAll('win7-41', 'win7-42')
+    .replaceAll('W41', 'W42').replaceAll('w41', 'w42'));
+  rebased.scope.task = 'A9-27';
+  rebased.scope.result_on_complete = 'A9_27_WIN7_42_A9_26_PASS';
+  rebased.scope.historical_candidate = 'WIN7-41 remains immutable as A9_25_WIN7_41_A9_24_PASS and is not reclassified';
+  rebased.scope.capability_boundary = '0.3.0-alpha.1 identifier retained; A9-26 reliability batch is tested, Shell running output remains closed';
+  rebased.scope.decision = 'ADR-0147';
+  rebased.required_cases.push(
+    { case_id: 'W42-23-RECOVERY-DIR-GIT-SAFETY', purpose: 'Verify recovery directory protection and legacy repair.', assertions: [{ assertion_id: 'W42-23-RECOVERY-DIR-GIT-SAFETY-A01', description: 'recovery directory is ignored and legacy directory is repaired without repeated rewrite' }], evidence: ['w42-23-recovery-dir.json'] },
+    { case_id: 'W42-24-VERIFICATION-CLASSIFICATION', purpose: 'Verify verification-class command classification and compound-command rejection.', assertions: [{ assertion_id: 'W42-24-VERIFICATION-CLASSIFICATION-A01', description: 'write-only and semicolon compound commands remain unverified while check.py exit 0 is verified' }], evidence: ['w42-24-verification.json'] },
+    { case_id: 'W42-25-INSTRUCTIONS-ENVIRONMENT', purpose: 'Verify project instructions, environment facts and secret rejection.', assertions: [{ assertion_id: 'W42-25-INSTRUCTIONS-ENVIRONMENT-A01', description: 'one project instruction and one environment facts block are included; known secret instructions are excluded' }], evidence: ['w42-25-context.json'] },
+    { case_id: 'W42-26-CONTEXT-BUDGET-RETRY', purpose: 'Verify context budget retry and terminal failure.', assertions: [{ assertion_id: 'W42-26-CONTEXT-BUDGET-RETRY-A01', description: '400 context_length_exceeded retries with reduced context and terminal repeated failure is visible' }], evidence: ['w42-26-context-budget.json'] },
+    { case_id: 'W42-27-COLD-HISTORY-LOAD', purpose: 'Verify history loads on workspace selection without a warmup turn.', assertions: [{ assertion_id: 'W42-27-COLD-HISTORY-LOAD-A01', description: 'queryEvents occurs after workspace selection and before the first turn' }], evidence: ['w42-27-cold-history.json'] },
+    { case_id: 'W42-28-CANCEL-AND-OUTPUT-REASON', purpose: 'Verify cancellation terminal event and localized output-limit reason.', assertions: [{ assertion_id: 'W42-28-CANCEL-AND-OUTPUT-REASON-A01', description: 'cancelled turn_completed is recorded and oversized backup text contains no too_large reason code' }], evidence: ['w42-28-cancel-output.json'] },
+    { case_id: 'W42-29-AUDIT-FAIL-CLOSED', purpose: 'Verify mandatory audit failure before and after tool dispatch.', assertions: [{ assertion_id: 'W42-29-AUDIT-FAIL-CLOSED-A01', description: 'real Runtime and SQLite failures stop later dispatch and retain accurate executed operation counts' }], evidence: ['w42-29-audit.json'] },
+    { case_id: 'W42-30-PROVIDER-COMPLETENESS', purpose: 'Verify stream completion and zero edits for incomplete or contradictory streams.', assertions: [{ assertion_id: 'W42-30-PROVIDER-COMPLETENESS-A01', description: 'explicit tool_calls plus normal EOF edits, malformed or incomplete responses perform zero edits' }], evidence: ['w42-30-provider.json'] },
+  );
+  const addedRuntimeAssertions = ['A9-W42-RECOVERY-DIR-GIT-SAFETY', 'A9-W42-VERIFICATION-CLASSIFICATION',
+    'A9-W42-INSTRUCTIONS-ENVIRONMENT', 'A9-W42-CONTEXT-BUDGET-RETRY', 'A9-W42-COLD-HISTORY-LOAD',
+    'A9-W42-CANCEL-AND-OUTPUT-REASON', 'A9-W42-AUDIT-FAIL-CLOSED', 'A9-W42-PROVIDER-COMPLETENESS'];
+  rebased.required_cases.slice(22).forEach((item, index) => { item.runtime_assertions = [addedRuntimeAssertions[index]]; });
+  return rebased;
 }
 
 function createWin22ValidationKit(root, sourceCommit, lock) {
@@ -2038,6 +2130,8 @@ function copyContractEvidence(root, stage, profile) {
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
     : (profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41')
     ? 'docs/tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md'
+    : profile.candidate === 'WIN7-42'
+    ? 'docs/tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-37'
     ? 'docs/tasks/A9_19_LIVE_PROGRESS_AND_WORKBENCH_LAYOUT.md'
     : ['WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36'].includes(profile.candidate)
@@ -2052,7 +2146,7 @@ function copyContractEvidence(root, stage, profile) {
     'docs/status/a9-01-to-a9-06-developer-gates-20260823.json',
     taskBook,
   ];
-  if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41') {
+  if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41' || profile.candidate === 'WIN7-42') {
     contracts.push('docs/tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md', 'docs/tasks/A9_21_A9_18_SALVAGE_PORT.md');
   }
   for (const relative of contracts) {
@@ -2237,8 +2331,14 @@ function validateA9Lock(lock) {
     && lock.provenance?.task === 'A9-25' && lock.provenance?.previous_candidate === 'WIN7-40'
     && lock.provenance?.previous_candidate_result === 'A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS'
     && lock.provenance?.change_scope === 'A9_25_R6_TIMING_REPAIR_WIN7_41_VALIDATION';
+  const win42Provenance = profile.candidate === 'WIN7-42'
+    && lock.gates?.win10 === 'INHERITED_NATIVE_INPUTS_FROM_WIN7_22_EXACT_HASH'
+    && lock.gates?.win7 === 'NOT_PERFORMED_WIN7_42'
+    && lock.provenance?.task === 'A9-27' && lock.provenance?.previous_candidate === 'WIN7-41'
+    && lock.provenance?.previous_candidate_result === 'A9_25_WIN7_41_A9_24_PASS'
+    && lock.provenance?.change_scope === 'A9_26_RELIABILITY_WIN7_42_VALIDATION';
   if (lock.gates?.alpha !== 'NOT_PERFORMED'
-      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance && !win36Provenance && !win37Provenance && !win38Provenance && !win39Provenance && !win40Provenance && !win41Provenance)) {
+      || (!win22Provenance && !win23Provenance && !win24Provenance && !win25Provenance && !win26Provenance && !win27Provenance && !win28Provenance && !win29Provenance && !win30Provenance && !win31Provenance && !win32Provenance && !win33Provenance && !win34Provenance && !win35Provenance && !win36Provenance && !win37Provenance && !win38Provenance && !win39Provenance && !win40Provenance && !win41Provenance && !win42Provenance)) {
     throw new Error('A9_WIN7_22_INPUT_LOCK_PROVENANCE_INVALID');
   }
   const runner = lock.inputs.runner_return_zip;
