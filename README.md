@@ -13,7 +13,7 @@
 ## 核心特性
 
 - 🛡️ **Win7 深度适配与强边界**：原生适配 Windows 7 SP1 x64 环境，基于 Win32 Job Object 与 D-013 隔离帮助程序 (`helper.exe`)，实现进程树受控清理与防僵尸进程保障。
-- ⚡ **无依赖绿色便携包**：发布包自包含 Electron 22.3.27（Win7 最终支持分支）、预编译 SQLite 3.43 原生模块及精简便携 Git，目标机无需安装 Node.js、Python 或构建工具链。
+- ⚡ **绿色便携包**：WIN7-42 发布包包含 Electron 22.3.27（Win7 最终支持分支）、预编译 SQLite 3.43 原生模块与 D-013 helper，运行界面无需另装 Node.js 或构建工具链；Git 功能使用用户环境中的 Git，包内不包含 Git 可执行程序。
 - 🔄 **原子工作区读写与快照回滚**：全量文件写入具备编码探测（UTF-8、GBK、UTF-16LE）、确定性 Diff、每轮检查点与一键回滚能力。
 - 📜 **SQLite WAL 事件账本**：会话、计划、交互审计均写入本地高性能 SQLite WAL 数据库，支持离线追溯与故障恢复。
 - 🔒 **严格的安全模型与 IPC 隔离**：渲染进程与系统内核严格隔离，所有高权限操作均经 Schema 强校验 IPC、安全策略链与目标绑定确认。
@@ -52,7 +52,7 @@ flowchart LR
 3. **硬件**：建议本地 NTFS SSD 分区（保障 SQLite WAL 并发事务性能）
 
 #### 启动步骤
-1. 前往 **[GitHub Releases 页面](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.1)** 下载便携版压缩包 `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`。
+1. 前往 **[GitHub Releases 页面](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.1-win7-42)** 下载便携版压缩包 `Win7CodingAgent-0.3.0-alpha.1-win7-x64.zip`。
 2. 解压至本地无特殊字符路径（如 `D:\Tools\Win7CodingAgent`）。
 3. 双击运行主程序 `electron.exe`。
 4. 首次启动在设置中配置远程/内网 LLM 端点（Base URL、API Key、模型名称）。

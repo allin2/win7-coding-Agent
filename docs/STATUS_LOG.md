@@ -1256,3 +1256,10 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-30，负责人在三项执行偏差解读及接受建议后回复“接受”；按已确认角色和原合并授权，门 B 收尾记为 `A9_27_WIN7_42_A9_26_PASS`。收尾发现 W42-23 dry-run 不足以独立关闭 A9-26 全部真实 Git 原矩阵，补充当前包 Windows Git R0-01～04 全 PASS；首轮换行断言失败及第二轮逐命令固定换行后通过均保留。182 个补充文件哈希闭合，零残留，两个任务逐项移除；1,161 文件扫描零真实秘密。A9-26～29 更新验收状态，恢复目录登记在当前候选关闭，保留 fdx 与既有未测边界；开始按授权本地 main 合并，未推送。
 
 - 2026-09-30，本地 main 在 `/Users/qlyf/.codex/worktrees/a9-main-integration/win7-coding-Agent` 干净工作树快进：`38ca46e` → `829ad39`（负责人验收收尾与已批准实现），无冲突；本条文档追加同样快进并入。冻结源/候选/正式报告未重绑，主工作树仍 alpha2，原有两处 ZIP 删除与 check.py 未改动；origin/main 未变，未推送。
+
+## WIN7-42 预发布分发（2026-09-30）
+
+- 负责人明确授权“推送、发布”。实时核对远端 main 已在 `a53c9b9`，显式推送返回 Everything up-to-date；新建并推送预发布标签 `v0.3.0-alpha.1-win7-42`，精确指向冻结源 `94385a87d22928acc1ce5dd8f1881d89e0d4473b`。
+- [GitHub 预发布版](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.1-win7-42)上传原 WIN7-42 ZIP 与原同名 SHA-256 文件，无重建、覆盖或重绑。ZIP 为 101,454,849 字节，SHA-256 `3b6e0b72b98de794594cd6924a1298ef75ed72bafcebacf966c86ad2382a01cf`；上传后回下载两附件，哈希均与冻结文件一致，远端 tag 解引用也与源一致。
+- 包内 manifest 闭集及 796 个文件逐项大小/哈希通过，SBOM 与许可证文件存在；README 下载入口更新至本版，并修正 Git 分发声明：本 ZIP 不含 Git 可执行程序，Git 功能使用用户环境中的 Git。
+- 发布说明保留真实 Provider、同候选 Win10 smoke、POSIX/PowerShell `/Command`、≤799px、Shell 增量输出与 `git clean -fdx` 的边界；包内构建时 NOT_PERFORMED 快照保持原样，正式 Win7 结论引用外部收口报告。历史 Release、候选和原始证据保持不变，不提升为完整 Alpha 2/RC。
