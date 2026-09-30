@@ -1,6 +1,6 @@
 # A9-27 WIN7-42 连续两次预演交接书
 
-Status: WAITING_FOR_REPAIRED_REHEARSALS
+Status: READY_FOR_EXECUTION
 
 授权：[A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)、ADR-0147。当前由主代理执行套件补强与预演准备；正式执行与审核角色按后续交接书分离。
 2026-09-30 套件开发机门及主代理范围复核完成，详见[套件检查记录](../reports/2026-09/a9_27_w42_kit_developer_review_2026-09-30.md)。预演输入源提交 `c62323fdbd7264e1629637e26f52397470a2ec94`，干净隔离构建 ZIP SHA-256 `8aab0528bd193c4efd1e027c3ef31bf4252e4eda4b4f3f2f3bc277dd367daf20`，manifest SHA-256 `8d02bd0b6a691719a7dce915d9f1b4c0ec85f6ecd7a87f8093c4434a185f7c74`。两次输出目录构建字节一致只作为预演准备，正式冻结仍使用两个独立干净工作树。
@@ -47,3 +47,7 @@ W42-26 保存两次实际 Provider 请求字符数与结果；W42-27 保存选�
 ## 5. 首轮连续预演返工
 
 `c62323f` / ZIP `8aab0528…af20` 的 R1、R2 均 FAIL，原证据完整保留在 `.acceptance/rehearsals/A9-27-W42/20260930-1240/`；不能冻结或签发 authority。W42-27 种子轮次关联和实时说明观测的套件修复见[返工记录](../reports/2026-09/a9_27_w42_rehearsal_repair_2026-09-30.md)。修复源与新 ZIP 必须另行绑定，新两轮使用新的运行目录及任务名，旧两轮保持不动。
+
+## 6. 返工后准确输入
+
+开发机门通过。新预演 source `94385a87d22928acc1ce5dd8f1881d89e0d4473b`；ZIP SHA-256 `3b6e0b72b98de794594cd6924a1298ef75ed72bafcebacf966c86ad2382a01cf`；manifest SHA-256 `6f7b224cdb304c9e10edf87ec9c490ffeb7dd5be42f9432ba3b6c5f3df3908c9`，source_dirty=false、external_acceptance_eligible=true。这一次准确干净构建作为两次预演的唯一输入；正式双独立干净工作树构建仍未执行。新预演本机根 `.acceptance/rehearsals/A9-27-W42/20260930-1423/`，Win7 根 `C:\A9-W42\预演 目录\20260930-1423-R1` 与 `…-R2`，任务名前缀 `A9W42R20260930T1423R1` / `…R2`。旧轮保持不动，当前无 authority。
