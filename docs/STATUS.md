@@ -47,6 +47,8 @@
 
 ## 当前阻断与待办
 
+2026-09-30 冻结前复核复现 A9-26 两项合同遗漏（失败大输出仍 verified、不可压缩前缀突破预算），随后在开发机内存整合入口复现两项继承安全阻断（SQLite 必需审计失败后仍编辑、未正常结束的 Provider 工具流仍执行）。参见[复核报告](reports/2026-09/a9_27_premerge_contract_review_2026-09-30.md)。A9-27 套件准备继续，产品冻结与合并暂停；[A9-28](tasks/A9_28_RELIABILITY_CONTRACT_GAPS.md) 已批准，独立工作树修复中；[A9-29](tasks/A9_29_AUDIT_AND_PROVIDER_COMPLETENESS.md) 草案待批准。Win7 结果仍为 NOT_PERFORMED。
+
 推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项）；阶段 1 已完成：WIN7-40 记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）后换发 WIN7-41（`0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项，[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）。阶段 2 第一批（A9-26）开发机门已通过；下一步阶段 3 换发 WIN7-42（[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) 2026-09-30 已批准，套件实现中）。
 
 1. **Alpha 2 剩余范围**：2026-09-27 负责人决定拆为两个任务、先做 Review：负责人批准把 Review 改为“先写后审”的改动审阅（ADR-0143），[A9-24](tasks/A9_24_REVIEW_MODE.md) 开发机通过并已并入（`A9_24_DEVELOPER_VERIFIED`，`c136d12`）；Win7 由 [A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) 换发验收：WIN7-40（`64fd3a7`）实机 G1 通过、G2 因套件驱动时序缺陷失败，记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（[审核报告](reports/2026-09/a9_25_win7_40_acceptance_review_2026-09-28.md)、ADR-0145，非产品缺陷）；A9-25 修订后换发 WIN7-41（§9），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`，A9-24 改动审阅取得 Win7 结论；Shell 运行中输出（S01–S06）另立任务，先写 helper v3 协议设计。Shell 运行中输出仍需新候选完成 Win7 实机验收。
