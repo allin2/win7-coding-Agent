@@ -1,9 +1,9 @@
 # A9-27 WIN7-42 连续两次预演交接书
 
-Status: DRAFT_PENDING_KIT_REVIEW
+Status: READY_FOR_EXECUTION
 
 授权：[A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)、ADR-0147。当前由主代理执行套件补强与预演准备；正式执行与审核角色按后续交接书分离。
-本文件只有在套件开发机门与审核通过、记录准确构建提交后，才改为 READY_FOR_EXECUTION。
+2026-09-30 套件开发机门及主代理范围复核完成，详见[套件检查记录](../reports/2026-09/a9_27_w42_kit_developer_review_2026-09-30.md)。预演输入源提交 `c62323fdbd7264e1629637e26f52397470a2ec94`，干净隔离构建 ZIP SHA-256 `8aab0528bd193c4efd1e027c3ef31bf4252e4eda4b4f3f2f3bc277dd367daf20`，manifest SHA-256 `8d02bd0b6a691719a7dce915d9f1b4c0ec85f6ecd7a87f8093c4434a185f7c74`。两次输出目录构建字节一致只作为预演准备，正式冻结仍使用两个独立干净工作树。
 两次预演均为 `REHEARSAL_NOT_ELIGIBLE`，不生成 authority，不计入正式 Win7 结论。
 
 ## 1. 身份与边界
