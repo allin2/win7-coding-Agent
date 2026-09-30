@@ -23,7 +23,7 @@
 祖先，但不应在每次文档提交后伪造重绑。当前代码 HEAD 以 Git 历史为准；表中哈希只表示
 已归档的结构化证据生成点。
 
-## 当前工作项一览（更新至 2026-09-24）
+## 当前工作项一览（更新至 2026-09-30）
 
 | 工作项 | 当前结论 | 权威依据 | 下一步 / 阻断 |
 |---|---|---|---|
@@ -40,16 +40,16 @@
 | A9-22 WIN7-38 换发与实机验收 | `A9_22_WIN7_38_VALIDATION_KIT_DEFECT_NOT_PASS`（2026-09-26 实机 G2 失败：候选内 smoke 未传产品入口，产品未运行；非产品缺陷结论；ADR-0142） | [A9-22](tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md)、[审查报告](reports/2026-09/a9_22_win7_38_acceptance_review_2026-09-26.md) | 已关闭；候选与证据保留，不得复用改判 |
 | A9-23 WIN7-39 换发与实机验收 | `A9_23_WIN7_39_A9_20_A9_21_PASS`（2026-09-27 门 B；源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`；15 项，已知限制随结论记录）。**产品侧观察**（2026-09-27 记录，待定是否另立任务）：会话中选择或切换到已有历史的工作区后，过程记录不加载，需切换对话或完成一轮后才显示 | [A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md) | 已关闭；限制：POSIX 可执行性与 PowerShell `/Command` 真实执行未测、真实 Provider 未覆盖、W39-06 Stop 后 PID 以运行结束时不存在为准 |
 | A9-24/A9-25 改动审阅与 WIN7-41 | `A9_25_WIN7_41_A9_24_PASS`（2026-09-29 门 B；源码 `0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`；22 项，已知限制随结论记录） | [A9-24](tasks/A9_24_REVIEW_MODE.md)、[A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md) | 已关闭；限制：真实 Provider 未覆盖、POSIX/`/Command` 真实执行未测、≤799px 不可达 |
-| A9-26 第一批：可靠性 | `A9_26_DEVELOPER_VERIFIED`（2026-09-29 负责人批准，ADR-0146；同日开发机门通过，`0fea04b` 并入）：⓪ 恢复目录自忽略、① “已验证”判定复现与收紧（含 O-1）、② AGENTS.md 加载、③ 输入上下文预算、④ 环境事实注入、⑤ 选择工作区后历史加载（含 O-2） | [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)、[实现交接书](plans/A9_26_RELIABILITY_HANDOFF.md) | Windows Git、真实 Electron 与 Win7 为 `NOT_PERFORMED`，由 WIN7-42 取得（须在 WIN7-41 门 B 之后换发） |
+| A9-26 第一批：可靠性 | `A9_26_DEVELOPER_VERIFIED`（2026-09-29 负责人批准，ADR-0146；同日开发机门通过，`0fea04b` 并入）：⓪ 恢复目录自忽略、① “已验证”判定复现与收紧（含 O-1）、② AGENTS.md 加载、③ 输入上下文预算、④ 环境事实注入、⑤ 选择工作区后历史加载（含 O-2） | [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)、[实现交接书](plans/A9_26_RELIABILITY_HANDOFF.md) | WIN7-42 当前候选正式执行/报告复核已完成，Windows Git / 真实 Electron / Win7 技术证据通过；待负责人独立审核与门 B，尚未记为最终验收 |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Shell streaming 与新的 RC 均未获任何 PASS 结论；A9-24 改动审阅的 Win7 结论来自 WIN7-41（`0.3.0-alpha.1` 能力集标识，非完整 Alpha 2）。
 
 ## 当前阻断与待办
 
-2026-09-30 冻结前复核复现 A9-26 两项合同遗漏（失败大输出仍 verified、不可压缩前缀突破预算），随后在开发机内存整合入口复现两项继承安全阻断（SQLite 必需审计失败后仍编辑、未正常结束的 Provider 工具流仍执行）。参见[复核报告](reports/2026-09/a9_27_premerge_contract_review_2026-09-30.md)。负责人已批准 [A9-28](tasks/A9_28_RELIABILITY_CONTRACT_GAPS.md) 与 [A9-29](tasks/A9_29_AUDIT_AND_PROVIDER_COMPLETENESS.md)，两项任务均已在独立工作树修复、通过开发机检查和独立复核，整合于 `186e850`（[记录](reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)），W42 扩为 30 项。A9-27 首轮两次预演 FAIL 后仅修套件；返工源 `94385a8` 连续两次 Win7 预演全部通过，双独立干净构建逐字节一致，WIN7-42 已冻结（ZIP `3b6e0b72…a01cf`）。[正式交接书](plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)门 A 已由负责人签发，角色已确认，进入正式执行；[预演记录](reports/2026-09/a9_27_w42_rehearsal_repair_2026-09-30.md)。正式 Win7、门 B、main 合并仍为 NOT_PERFORMED。
+2026-09-30 冻结前复核复现 A9-26 两项合同遗漏（失败大输出仍 verified、不可压缩前缀突破预算），随后在开发机内存整合入口复现两项继承安全阻断（SQLite 必需审计失败后仍编辑、未正常结束的 Provider 工具流仍执行）。参见[复核报告](reports/2026-09/a9_27_premerge_contract_review_2026-09-30.md)。负责人已批准 [A9-28](tasks/A9_28_RELIABILITY_CONTRACT_GAPS.md) 与 [A9-29](tasks/A9_29_AUDIT_AND_PROVIDER_COMPLETENESS.md)，两项任务均已在独立工作树修复、通过开发机检查和独立复核，整合于 `186e850`（[记录](reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)），W42 扩为 30 项。A9-27 首轮两次预演 FAIL 后仅修套件；返工源 `94385a8` 连续两次 Win7 预演全部通过，双独立干净构建逐字节一致，WIN7-42 已冻结（ZIP `3b6e0b72…a01cf`）。[正式交接书](plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)门 A 已由负责人签发，角色已确认；[预演记录](reports/2026-09/a9_27_w42_rehearsal_repair_2026-09-30.md)。正式 Win7 已执行（30 项 / 25 阶段，退出码 0），报告已由 Win7 agent 复核（30 项 / 退出码 0）；原始 774+19 文件哈希一致、零残留、最终 916 文件扫描零真实秘密。[执行与合并前检查材料](reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成，负责人独立证据审核/门 B 待完成，main 合并仍 NOT_PERFORMED。
 
-推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项）；阶段 1 已完成：WIN7-40 记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）后换发 WIN7-41（`0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项，[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）。阶段 2 第一批（A9-26）开发机门已通过；下一步阶段 3 换发 WIN7-42（[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) 2026-09-30 已批准，连续两次预演通过、双构建冻结、门 A 已签发）。
+推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项）；阶段 1 已完成：WIN7-40 记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）后换发 WIN7-41（`0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项，[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）。阶段 2 第一批（A9-26）开发机门已通过；下一步阶段 3 换发 WIN7-42（[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) 2026-09-30 已批准，连续两次预演通过、双构建冻结、门 A 已签发、正式执行及报告复核通过，待负责人审核/门 B）。
 
 1. **Alpha 2 剩余范围**：2026-09-27 负责人决定拆为两个任务、先做 Review：负责人批准把 Review 改为“先写后审”的改动审阅（ADR-0143），[A9-24](tasks/A9_24_REVIEW_MODE.md) 开发机通过并已并入（`A9_24_DEVELOPER_VERIFIED`，`c136d12`）；Win7 由 [A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) 换发验收：WIN7-40（`64fd3a7`）实机 G1 通过、G2 因套件驱动时序缺陷失败，记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（[审核报告](reports/2026-09/a9_25_win7_40_acceptance_review_2026-09-28.md)、ADR-0145，非产品缺陷）；A9-25 修订后换发 WIN7-41（§9），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`，A9-24 改动审阅取得 Win7 结论；Shell 运行中输出（S01–S06）另立任务，先写 helper v3 协议设计。Shell 运行中输出仍需新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推；预算 #3 口径已按 ADR-0139 修订（K17-5 关闭），采样可开始。A9-18 需求与遗留项统一登记在[承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md)，已完成价值评估，有效部分由 A9-21 移植（已批准，ADR-0138/0139），移植后删除工作树。
@@ -61,7 +61,7 @@
    `git clean -fd`、`git stash -u` 会删除或收走它，之后撤销失效。自 A9-03 起全部 A9 候选（含 WIN7-22/37/39）同源，已签结论不改判。
    手动缓解：在工作区的 `.agent_recovery/` 内新建内容为 `*` 的 `.gitignore`，或把 `.agent_recovery/` 加入仓库的 `.git/info/exclude`。
    D1 已裁决：修复（方案 3b）作为第一批首个里程碑，WIN7-40 范围不变；迁出工作区与恢复目录清理另立任务评估。
-   第一批已立为 [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)（2026-09-29 批准，ADR-0146）；修复通过 WIN7-42 前维持本条登记与手动缓解。
+   第一批已立为 [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)（2026-09-29 批准，ADR-0146）；WIN7-42 W42-23 已取得当前正式 Windows Git 技术证据；门 B 确认前维持本条历史缺陷登记。`git clean -fdx` 清除忽略目录的限制继续适用。
 
 ## MVP 已接受的延期项
 

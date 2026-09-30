@@ -1,6 +1,6 @@
 # A9-27 / WIN7-42 正式实机验收交接书
 
-Status: READY_FOR_EXECUTION
+Status: EXECUTED_REPORT_VERIFIED_AWAITING_OWNER_GATE_B
 
 本交接书依据 [A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md) §5，沿用 [WIN7-41 实机交接书](A9_25_WIN7_41_ACCEPTANCE_HANDOFF.md) 的严格传输、普通用户、原始取证和报告复核合同。W41 的 authority、候选及证据不得复用为 W42。
 
@@ -52,3 +52,9 @@ Status: READY_FOR_EXECUTION
 审核方独立核对原始证据和全部哈希、源码及产物身份、断言/用例原值、时间线、偏差、图像与零残留/秘密。正式报告用候选内报告器 init 生成模板，完整组装 30 项；开发机预检和证据篡改/错 pin 拒绝对照之后，须由 agent 在 Win7 用 `RUN_WIN7_42_REPORT_VERIFY.cmd` 复核，另立同样回读/令牌门的新任务。报告完整性通过不代替独立证据审核。
 
 结论上限 `A9_27_WIN7_42_A9_26_PASS`（可部分签发），不是 Alpha 2 / RC。负责人门 B 之后更新 A9-26/A9-27、STATUS/STATUS_LOG；恢复目录问题仅在 W42-23 正式通过后解除登记，保留 git clean -fdx 说明。完成合并前审查后按已授权目标合入本地 main；推送未获授权。
+
+## 5. 本轮执行完成记录（2026-09-30）
+
+固定候选/run-id 正式执行已完成：完整性 796 文件/797 ZIP 条目、25 阶段、30 项以及 Win7 agent 正式报告复核通过；774+19 原始文件哈希相等，零残留、四个任务逐项移除，916 文件最终秘密扫描未分类/真实秘密为零。候选和草案未改。原始报告 SHA-256 `13b4201622fe782647a5a38381f02b064f9fa0987625d1b51e61248fec7aa2fc`。
+
+[执行方事实材料与三项偏差](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成；主代理未兼任独立验收审核，等待负责人核对原始证据及门 B，main 尚未合并。

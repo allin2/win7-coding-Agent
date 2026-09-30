@@ -6,7 +6,7 @@ Task Type: SECURITY_AND_RUNTIME_HARDENING
 Target Branch: codex/a9-alpha2（A9-28 后在独立工作树与 codex/a9-29-audit-provider 实现）
 Source Baseline: 本任务书批准提交及已审核的 A9-28 结果
 Phase-Gate: A9_29_DEVELOPER_VERIFIED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: WIN7_42_REPORT_VERIFIED_GATE_B_PENDING
 Decision: ADR-0149
 ```
 
@@ -54,3 +54,5 @@ Node 20.17 下 Core/Gateway/Shell 全量、verify:quick、docs:check、diff 检�
 本任务只关闭两项合并安全阻断，不顺带重构或开放 Shell streaming/后台进程等能力；A9-28 两项合同修复由其独立任务负责。
 
 - 2026-09-30：最小修复、开发机必需检查及负向对照通过，独立复核后并入 alpha2；详见[开发机修复记录](../reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)。Win7 尚未执行。
+
+- 2026-09-30：WIN7-42 正式实机执行完成，源 `94385a8`，run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`；30 项 / 25 阶段及 Win7 报告复核通过，证据哈希相等，零残留、零真实秘密。[执行与合并前检查材料](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已交负责人独立审核；门 B / main 合并仍 NOT_PERFORMED，不自行记最终 PASS。

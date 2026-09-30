@@ -6,8 +6,8 @@ Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（A9-26 已于 0fea04b 并入）
 Candidate: WIN7-42
-Phase-Gate: A9_27_WIN7_42_GATE_A_APPROVED
-Win7-Validation: NOT_PERFORMED
+Phase-Gate: A9_27_WIN7_42_REPORT_VERIFIED_AWAITING_GATE_B
+Win7-Validation: WIN7_42_REPORT_VERIFIED_GATE_B_PENDING
 Decision: ADR-0147
 ```
 
@@ -103,3 +103,5 @@ W42-01～22 由 W41-01～22 派生（判定口径不变；初始夹具替换及�
 - 2026-09-30：返工源 `94385a8` 连续两次 Win7 预演全部 25 阶段 / W42-02～30 PASS（W42-01 无 authority，NOT_PERFORMED）。每轮 743 文件哈希一致，零残留、零真实秘密。双独立干净工作树构建 ZIP 逐字节一致，已冻结 WIN7-42，ZIP `3b6e0b72…a01cf`、manifest `6f7b224c…908c9`。正式实机交接书与候选外 authority 草案已形成，[门 A 待负责人签发](../plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)；正式 Win7 / 门 B / main 合并仍 NOT_PERFORMED。
 
 - 2026-09-30：负责人签发上述冻结候选的门 A，确认主代理执行/组装草案、负责人独立审核/门 B。正式 authority 与独立 pin 在候选外生成（SHA-256 `35111410302d33cacd8e042f4a4d3979d558825ce939d6b280e47d9b77fc4f79`），草案保留，开始正式 Win7 执行。最终验证、门 B 与 main 合并仍 NOT_PERFORMED。
+
+- 2026-09-30：WIN7-42 正式实机执行完成，源 `94385a8`，run-id `92d693e0-e80a-4d58-9f7f-aaff5ec69bd3`；30 项 / 25 阶段及 Win7 报告复核通过，证据哈希相等，零残留、零真实秘密。[执行与合并前检查材料](../reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已交负责人独立审核；门 B / main 合并仍 NOT_PERFORMED，不自行记最终 PASS。
