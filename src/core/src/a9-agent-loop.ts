@@ -271,6 +271,8 @@ export interface A9AgentLoopConfig {
   /** 单个工具结果进入模型历史的字符上限，防止上下文无限膨胀。 */
   maxToolResultChars?: number;
   onEvent?: (event: A9LoopEvent) => void;
+  /** Synchronous mandatory persistence; product assembly always supplies this port. */
+  onAuditEvent?: (event: A9LoopEvent) => void;
   /** Host secret redaction, applied before verification commands leave Core. */
   redactText?: (value: string) => string;
   loadProjectInstructions?: () => ProjectInstructionResult;
@@ -395,6 +397,7 @@ export interface A9TurnResult {
   verificationEvidence?: { command: string; exitCode: number };
   /** onEvent 处理器抛出的错误（不得静默吞掉）。 */
   eventHandlerErrors?: string[];
+  auditIncomplete?: { code: 'A9_AUDIT_PERSISTENCE_FAILED'; failedEvent: string };
   /** R3：本轮 Shell/Git/脚本造成的工作区变化（与 checkpoint/Diff 同源）。 */
   externalChanges?: Array<{ path: string; kind: string; recoverable: boolean }>;
   /** A9-21 M2 C-4：本轮是否出现过模型输出截断。 */
@@ -440,6 +443,8 @@ export class A9AgentLoop {
   private currentTurnId = '';
   private visiblePlan: A9VisiblePlan | undefined;
   private eventHandlerErrors: string[] = [];
+  private auditFailure: A9TurnResult['auditIncomplete'];
+  private currentSteps = 0;
   private turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
   private turnSequence = 0;
   /** A9-21 M2 C-1：单 Turn 已用输出字节（审批挂起期间不清零）。 */
@@ -500,10 +505,22 @@ export class A9AgentLoop {
    * 可调用 `resumeAfterApproval` 恢复。
    */
   async runTurn(userPrompt: string, options: { signal?: AbortSignal } = {}): Promise<A9TurnResult> {
+    if (this.auditFailure) return this.auditFailureResult();
+    try {
+      return await this.runAuditedTurn(userPrompt, options);
+    } catch (error) {
+      if (!this.auditFailure) throw error;
+      return this.auditFailureResult();
+    }
+  }
+
+  private async runAuditedTurn(userPrompt: string, options: { signal?: AbortSignal }): Promise<A9TurnResult> {
     this.suspended = undefined;
     // 循环检测按 Turn 重置，避免跨用户 Turn 累积误判。
     this.loopDetector.reset();
     this.eventHandlerErrors = [];
+    this.auditFailure = undefined;
+    this.currentSteps = 0;
     this.turnStats = { attempted: 0, executed: 0, mutations: false, verifiedAfterMutation: false };
     // C-1：预算只在新 Turn 开始时清零。
     this.turnOutputBytes = 0;
@@ -583,6 +600,15 @@ export class A9AgentLoop {
    * - approved=false：向模型回执“用户已拒绝”，原 tool call 零副作用。
    */
   async resumeAfterApproval(input: A9ApprovalDecision, options: { signal?: AbortSignal } = {}): Promise<A9TurnResult> {
+    try {
+      return await this.resumeAuditedApproval(input, options);
+    } catch (error) {
+      if (!this.auditFailure) throw error;
+      return this.auditFailureResult();
+    }
+  }
+
+  private async resumeAuditedApproval(input: A9ApprovalDecision, options: { signal?: AbortSignal }): Promise<A9TurnResult> {
     const suspended = this.suspended;
     if (!suspended) {
       throw new AgentError(AgentErrorCode.RUNTIME_INPUT_INVALID, 'No suspended turn awaiting approval.', {}, '先通过 runTurn 触发 NEEDS_APPROVAL。');
@@ -699,6 +725,7 @@ export class A9AgentLoop {
       }
 
       stepCount++;
+      this.currentSteps = stepCount;
 
       this.emitEvent({
         type: 'model_thinking',
@@ -879,6 +906,30 @@ export class A9AgentLoop {
       }
 
       const toolCalls = response.toolCalls || [];
+      const callIds = new Set<string>();
+      const malformedCalls = toolCalls.some((call) => {
+        if (!call.id || !call.name || callIds.has(call.id)) return true;
+        callIds.add(call.id);
+        if (call.truncated) return false;
+        try {
+          const parsed = JSON.parse(call.arguments || '{}');
+          return parsed === null || typeof parsed !== 'object' || Array.isArray(parsed);
+        } catch (_error) { return true; }
+      });
+      if (response.finishReason === 'length' || response.finishReason === 'content_filter' ||
+          (toolCalls.length > 0 && response.finishReason !== 'tool_calls') || malformedCalls) {
+        if (malformedCalls && callIds.size === toolCalls.length && toolCalls.every((call) => call.id && call.name)) {
+          this.conversationHistory.push({ role: 'assistant', content: '',
+            toolCalls: toolCalls.map((call) => ({ ...call, arguments: '{}' })) });
+          for (const call of toolCalls) this.conversationHistory.push({ role: 'tool', toolCallId: call.id,
+            toolName: call.name, content: 'Error: tool arguments must be a JSON object. The response was NOT executed.' });
+        }
+        return this.finalize(turnId, {
+          turnId, outcome: TurnOutcome.FAILED,
+          finalMessage: '模型响应未正常完成或结束原因与工具调用矛盾，本轮未执行其中的工具。',
+          totalSteps: stepCount, toolCallsExecuted,
+        }, 'turn_failed', { code: 'A9_PROVIDER_RESPONSE_INCOMPLETE', finishReason: response.finishReason });
+      }
 
       // 模型未调用工具：给出最终结论。按诚实完成规则分类：
       // 有副作用但无后续成功验证 → COMPLETED_WITH_WARNINGS；全部工具失败 → BLOCKED。
@@ -1093,9 +1144,6 @@ export class A9AgentLoop {
           content: staged,
         });
         executed++;
-        if (!staged.startsWith('Error:')) {
-          this.turnStats.executed += 1;
-        }
         continue;
       }
 
@@ -1265,6 +1313,7 @@ export class A9AgentLoop {
       return message;
     }
     const message = `Change staged for user review (not applied to workspace): ${JSON.stringify(staged)}`;
+    this.turnStats.executed += 1;
     this.emitEvent({
       type: 'tool_end',
       turnId,
@@ -1316,6 +1365,8 @@ export class A9AgentLoop {
     } catch (err: any) {
       toolResultStr = `Tool execution error: ${err.message}`;
     }
+    // Count successful dispatch before post-execution collection or audit can fail.
+    if (executed || residueRisk) this.turnStats.executed += 1;
     if (isShellTool) {
       // 成功、超时、取消、residueRisk 后都要收集变化（同一 checkpoint 链路）。
       await this.collectExternal(turnId, signal);
@@ -1374,7 +1425,6 @@ export class A9AgentLoop {
     }
 
     if (executed) {
-      this.turnStats.executed += 1;
       if (this.permissionMode === PermissionMode.FULL_ACCESS && ['write', 'edit', 'copy', 'move', 'delete'].includes(tc.name)) {
         // Review staging 不触碰正式工作区，不计为副作用。
         this.turnStats.mutations = true;
@@ -1525,9 +1575,6 @@ export class A9AgentLoop {
     const withExternal = this.externalChanges.length > 0
       ? { ...withPlan, externalChanges: [...this.externalChanges] }
       : withPlan;
-    const withErrors = this.eventHandlerErrors.length > 0
-      ? { ...withExternal, eventHandlerErrors: [...this.eventHandlerErrors] }
-      : withExternal;
     if (eventType) {
       this.emitEvent({ type: eventType, turnId, timestamp: new Date().toISOString(), data: {
         ...eventData,
@@ -1535,7 +1582,8 @@ export class A9AgentLoop {
           ? { verificationEvidence: { ...this.verificationEvidence } } : {}),
       } });
     }
-    return withErrors;
+    return this.eventHandlerErrors.length > 0
+      ? { ...withExternal, eventHandlerErrors: [...this.eventHandlerErrors] } : withExternal;
   }
 
   /**
@@ -1566,6 +1614,15 @@ export class A9AgentLoop {
   }
 
   private emitEvent(event: A9LoopEvent): void {
+    if (this.auditFailure) throw new Error(this.auditFailure.code);
+    if (this.config.onAuditEvent) {
+      try {
+        this.config.onAuditEvent(event);
+      } catch (_error) {
+        this.auditFailure = { code: 'A9_AUDIT_PERSISTENCE_FAILED', failedEvent: event.type };
+        throw new Error(this.auditFailure.code);
+      }
+    }
     if (this.config.onEvent) {
       try {
         this.config.onEvent(event);
@@ -1575,5 +1632,18 @@ export class A9AgentLoop {
         if (this.eventHandlerErrors.length < 50) this.eventHandlerErrors.push(message);
       }
     }
+  }
+
+  private auditFailureResult(): A9TurnResult {
+    this.suspended = undefined;
+    return {
+      turnId: this.currentTurnId, outcome: TurnOutcome.FAILED,
+      finalMessage: `必需审计写入失败（${this.auditFailure!.failedEvent}），自动执行已停止；已执行的操作不会自动撤销。请检查存储并重新打开工作区后重试。`,
+      totalSteps: this.currentSteps, toolCallsExecuted: this.turnStats.executed,
+      verification: this.turnStats.mutations ? 'unverified' : 'not_applicable',
+      auditIncomplete: { ...this.auditFailure! },
+      ...(this.externalChanges.length ? { externalChanges: [...this.externalChanges] } : {}),
+      ...(this.eventHandlerErrors.length ? { eventHandlerErrors: [...this.eventHandlerErrors] } : {}),
+    };
   }
 }

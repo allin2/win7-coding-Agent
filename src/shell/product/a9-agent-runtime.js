@@ -1182,6 +1182,7 @@ function createA9AgentRuntime(options) {
         pathDirs: (process.env.PATH || '').split(path.delimiter).filter(Boolean),
         exists: fs.existsSync,
       });
+      const auditedEvents = new WeakMap();
       loop = new modules.core.A9AgentLoop({
         workspaceRoot,
         targetOs: `${detectedPlatform} ${detectedRelease} ${detectedArch}`,
@@ -1204,7 +1205,7 @@ function createA9AgentRuntime(options) {
             : {}),
           ...(configuredShell.envOverlay ? { envOverlay: configuredShell.envOverlay } : {}),
         },
-        onEvent: (event) => {
+        onAuditEvent: (event) => {
           if (event.type === 'model_chunk') {
             if (!liveModelPreview || liveModelPreview.turnId !== event.turnId) markLivePreviewBoundary(event.turnId);
             const previous = pendingModelChunks.get(event.turnId) || { content: '', timestamp: event.timestamp };
@@ -1213,13 +1214,7 @@ function createA9AgentRuntime(options) {
             pendingModelChunks.set(event.turnId, previous);
             return;
           }
-          if (event.type === 'turn_completed' || event.type === 'turn_failed') {
-            liveModelPreview = null;
-            flushModelChunks(event.turnId);
-          } else {
-            // 任一非 chunk 事件都是步边界：已输出的文本由 model_note/最终结果承接，预览从此重新开始。
-            markLivePreviewBoundary(event.turnId);
-          }
+          const flushed = flushModelChunks(event.turnId, false);
           const safeEvent = { ...event, data: redactForProjection(event.data) };
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
           if (event.type === 'turn_started' && activeLifecycle && !activeLifecycle.turnId) {
@@ -1234,10 +1229,19 @@ function createA9AgentRuntime(options) {
             type: event.type,
             data: safeEvent.data,
           });
-          pushTimeline({ ...safeEvent, eventId, sequence: eventId });
           if (event.type === 'tool_end' && event.data && event.data.toolName === 'shell') {
             syncManagedProcessFacts();
           }
+          auditedEvents.set(event, { safeEvent: { ...safeEvent, eventId, sequence: eventId }, flushed });
+        },
+        onEvent: (event) => {
+          if (event.type === 'model_chunk') return;
+          if (event.type === 'turn_completed' || event.type === 'turn_failed') liveModelPreview = null;
+          else markLivePreviewBoundary(event.turnId);
+          const audited = auditedEvents.get(event);
+          if (audited.flushed) pushTimeline(audited.flushed);
+          pushTimeline(audited.safeEvent);
+          auditedEvents.delete(event);
         },
         onApprovalPending: (approval) => {
           // 等待用户前持久化 pending 审批（含真实工具与目标绑定）。
@@ -1282,7 +1286,7 @@ function createA9AgentRuntime(options) {
     if (timeline.length > MAX_TIMELINE) timeline.splice(0, timeline.length - MAX_TIMELINE);
   }
 
-  function flushModelChunks(turnId) {
+  function flushModelChunks(turnId, project = true) {
     const pending = pendingModelChunks.get(turnId);
     if (!pending) return;
     pendingModelChunks.delete(turnId);
@@ -1297,7 +1301,9 @@ function createA9AgentRuntime(options) {
       type: safeEvent.type,
       data: safeEvent.data,
     });
-    pushTimeline({ ...safeEvent, eventId, sequence: eventId });
+    const persistedEvent = { ...safeEvent, eventId, sequence: eventId };
+    if (project) pushTimeline(persistedEvent);
+    return persistedEvent;
   }
 
   /**
@@ -1799,11 +1805,27 @@ function createA9AgentRuntime(options) {
     return { ...projected, pendingApproval: approvalIdentity(approval) };
   }
 
+  function presentAuditFailure(result) {
+    auditFailureBlock = result;
+    agentStatus = 'failed';
+    activeLifecycle = null;
+    currentPendingApproval = null;
+    liveModelPreview = null;
+    pendingModelChunks.delete(result.turnId);
+    return { ok: false, result: presentTurnResult(result), error: {
+      code: result.auditIncomplete.code, message: result.finalMessage,
+      failedEvent: result.auditIncomplete.failedEvent,
+    } };
+  }
+
+  let auditFailureBlock = null;
+
   function presentError(error) {
     return redactForProjection(serializeError(error));
   }
 
   async function submitTurn(prompt) {
+    if (auditFailureBlock) return presentAuditFailure(auditFailureBlock);
     if (activeController) {
       const err = new Error('A9_TURN_ALREADY_ACTIVE: 当前已有运行中的任务');
       err.code = 'A9_TURN_ALREADY_ACTIVE';
@@ -1835,6 +1857,7 @@ function createA9AgentRuntime(options) {
       activeLifecycle = { taskId: createdTaskId, turnId: null, runId: null, requestPrompt: persistedRequestPrompt };
       const activeLoop = ensureRuntime();
       const result = await activeLoop.runTurn(requestPrompt, { signal: ownedController.signal });
+      if (result.auditIncomplete) return presentAuditFailure(result);
       // turn_started 已写入 active turn/run；这里补齐句柄（幂等）。
       const runId = activeLifecycle && activeLifecycle.runId ? activeLifecycle.runId : `run-${result.turnId}`;
       if (!activeLifecycle || !activeLifecycle.turnId) {
@@ -1925,6 +1948,7 @@ function createA9AgentRuntime(options) {
         bindingDigest: input.bindingDigest,
       }, { signal: ownedController.signal });
       resumeProducedResult = true;
+      if (result.auditIncomplete) return presentAuditFailure(result);
       const lifecycle = activeLifecycle || null;
       if (lifecycle && lifecycle.turnId) {
         persistTurnResult(lifecycle, result);
