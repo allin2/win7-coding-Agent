@@ -5922,3 +5922,52 @@ test('W41 replays W40 physical JSON before failure, review mode and Stop through
   assert.equal(helpers.a925ReviewModeMatches({ ...mode.w40ReviewMode, mode: 'full_access' }), false);
   assert.equal(helpers.a925PidExitMatches({ ...stop.w40Stop, elapsedMs: 5001 }), false);
 });
+
+test('W42 cold seed links persisted history turns without a warmup submission', () => {
+  const { A9PersistenceManager } = require('../../../src/state/dist/a9-persistence.js');
+  const { w42LinkColdSeedTurns } = require('../../../release/win7-product-v3/a9-win7-42-smoke.cjs');
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-w42-cold-seed-'));
+  const opened = A9PersistenceManager.open({ databasePath: path.join(dataRoot, 'a9-state.db'), dataRoot,
+    openDatabase: (file, options) => new Database(file, options?.readonly ? { readonly: true } : {}) });
+  assert.equal(opened.status, 'ready');
+  const manager = opened.manager;
+  try {
+    manager.saveSession('w42-m4-seed-session', dataRoot);
+    for (let n = 1; n <= 10; n++) {
+      const taskId = `w42-m4-seed-task-${String(n).padStart(3, '0')}`;
+      const turnId = `w42-m4-seed-turn-${String(n).padStart(3, '0')}`;
+      manager.upsertTask(taskId, 'w42-m4-seed-session', 'completed');
+      manager.upsertTurn(turnId, taskId, 'w42-m4-seed-session', 'completed', { outcome: 'completed' });
+      manager.recordModelEvent('w42-m4-seed-session', null, 'conversation.request', { schemaVersion: 1, taskId, requestPrompt: `w42 m4 seed turn ${n}` });
+      for (let i = 0; i < 250; i++) manager.recordModelEvent('w42-m4-seed-session', turnId, 'model_note', { content: `seed ${n}/${i}` });
+    }
+    const before = manager.listConversationFacts('w42-m4-seed-session');
+    assert.equal(before.length, 10);
+    assert.ok(before.every(fact => fact.turnId === null), 'original seed cannot associate DOM process rows');
+    assert.throws(() => assert.ok(before.every(fact => fact.turnId)), /AssertionError/);
+    const after = w42LinkColdSeedTurns(manager);
+    assert.equal(after.length, 10);
+    assert.ok(after.every(fact => fact.turnId && fact.outcome === 'completed'));
+    assert.equal(manager.db.prepare("SELECT COUNT(*) AS n FROM a9_events WHERE event_type='model_note'").get().n, 2500);
+  } finally { manager.db.close(); }
+});
+
+test('W42 live model-note observation excludes AGENTS notice and requires matching persisted content', async () => {
+  const driver = fs.readFileSync(path.join(process.cwd(), 'src/shell/tests/product/a9-06-driver-entry.cjs'), 'utf8');
+  const start = driver.indexOf('async function w42RunLiveProcess(');
+  const end = driver.indexOf('async function runW42ColdHistoryLoadProcess(', start);
+  let nodes = [{ textContent: '未找到工作区根 AGENTS.md' }];
+  let events = [];
+  const script = "({ notes: q('.note-line').length })";
+  const exec = code => vm.runInNewContext(code, { q: () => nodes, events, kind: e => e.eventType });
+  let observed;
+  const runLiveProcess = async (_win, wrapped) => { observed = await wrapped(script); };
+  const probe = vm.runInNewContext(`${driver.slice(start, end)}; w42RunLiveProcess`, { runLiveProcess });
+  await probe(null, exec, {}); assert.equal(observed.notes, 0);
+  assert.equal(exec(script).notes, 1, 'inherited selector miscounts the instruction notice');
+  events = [{ eventType: 'model_note', payload: { data: { content: 'actual model note' } } }];
+  await probe(null, exec, {}); assert.equal(observed.notes, 0);
+  nodes.push({ textContent: 'actual model note' });
+  await probe(null, exec, {}); assert.equal(observed.notes, 1);
+  assert.match(driver.slice(start, end), /await runLiveProcess\(win, w42Exec, env\)/);
+});

@@ -53,6 +53,21 @@ function w42ResolveGitExecutable(explicitPath) {
   return { executable: null, source: 'NOT_PERFORMED_NO_GIT', version: null };
 }
 // A9_W42_GIT_RESOLVE_END
+function w42LinkColdSeedTurns(manager) {
+  // M4 seeds events without checkpoints. Cold history needs the same task/turn
+  // association as a completed product turn; the inherited M4 seed is unchanged.
+  for (let turnNumber = 1; turnNumber <= 10; turnNumber += 1) {
+    const turnId = `w42-m4-seed-turn-${String(turnNumber).padStart(3, '0')}`;
+    manager.saveCheckpoint({ turnId, sessionId: 'w42-m4-seed-session', payload: {
+      schemaVersion: 1, requestPrompt: `w42 m4 seed turn ${turnNumber}`,
+      outcome: 'completed', verification: 'not_applicable', finalMessage: 'm4 seed completed',
+      toolCallsExecuted: 0, externalChanges: [], providerContextGeneration: 0,
+    } });
+  }
+  const facts = manager.listConversationFacts('w42-m4-seed-session');
+  if (facts.length !== 10 || facts.some(fact => !fact.turnId)) throw new Error('W42_COLD_SEED_FACTS_UNLINKED');
+  return facts;
+}
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function readJson(filePath) {
   try {
@@ -833,7 +848,7 @@ async function main() {
   else phases.push({ phase: 'live', ...(await w42RunElectron(electronPath, driverPath, {
     ...baseEnv,
     A9_SMOKE_WORKSPACE: liveWorkspace, A9_SMOKE_DATAROOT: liveData, WIN7AGENT_A9_DATAROOT: liveData,
-    A9_SMOKE_MODE: 'live', A9_SMOKE_FIXTURE_URL: w42FixtureUrl(live),
+    A9_SMOKE_MODE: 'w42_stop', A9_W42_MODE: 'w42_live', A9_SMOKE_FIXTURE_URL: w42FixtureUrl(live),
     A9_SMOKE_LIVE_TEST_KEY: liveTestKey, A9_SMOKE_OUT: liveOut,
   })) });
   const liveCloseError = await w42CloseFixture(live);
@@ -1302,6 +1317,12 @@ async function main() {
       if (mode === 'w42_cold_history') {
         const seeded = w42PrepareSeed(() => w42SeedM4Events(roots.data, roots.workspace));
         if (seeded.error || seeded.written !== 2500) throw new Error(seeded.error || 'W42_COLD_SEED_COUNT');
+        const { A9PersistenceManager } = require(path.join(candidateRoot, 'resources/app/state/dist/a9-persistence.js'));
+        const Database = require(path.join(sqliteRoot, 'node_modules/better-sqlite3'));
+        const opened = A9PersistenceManager.open({ databasePath: path.join(roots.data, 'a9-state.db'), dataRoot: roots.data,
+          openDatabase: (file, options) => new Database(file, options?.readonly ? { readonly: true } : {}) });
+        if (!opened.manager || opened.status !== 'ready') throw new Error('W42_COLD_SEED_LINK_OPEN_FAILED');
+        try { w42LinkColdSeedTurns(opened.manager); } finally { opened.manager.db.close(); }
       } else if (mode === 'w42_cancel_output') {
         const Database = require(path.join(sqliteRoot, 'node_modules/better-sqlite3'));
         const db = new Database(path.join(a925StopData, 'a9-state.db'), { readonly: true });
@@ -1797,7 +1818,7 @@ async function main() {
   process.exitCode = report.status === 'PASS' ? 0 : 1;
 }
 
-module.exports = { validatePhaseReports, w42PhaseTiming, w42BlockPhase, w42FinalizeCaseIndex };
+module.exports = { validatePhaseReports, w42PhaseTiming, w42BlockPhase, w42FinalizeCaseIndex, w42LinkColdSeedTurns };
 
 if (require.main === module) {
   main().catch((error) => {

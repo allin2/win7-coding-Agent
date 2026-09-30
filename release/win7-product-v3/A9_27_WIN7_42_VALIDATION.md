@@ -8,7 +8,8 @@
 
 - W41 身份替换为 W42，A9-25 替换为 A9-27；谱系明确保留 WIN7-41 已签结论。
 - 首轮及最新成功轮的纯输出命令改为 `C:\acceptance\python38_mvp\python.exe check.py`。脚本只有检测到 calc.ts 的 `return a + b` 才退出 0；按实际内容输出 smoke/projection 标记。输入、执行路径、版本及哈希在目标机核实。
-- 继承 M4 热身与历史断言不改；W42-27 独立覆盖无热身加载。
+- 继承 M4 热身与历史断言不改；W42-27 独立覆盖无热身加载。其种子补齐十个已结束轮次的 checkpoint，使请求事实与 2,500 条过程事件按真实持久化格式关联；不在选择后提交热身轮。
+- W42 实时输出通过新增 `w42RunLiveProcess` 调用继承旅程，仅将模型说明节点与真实持久化 `model_note` 内容配对，排除 A9-26 新增的 AGENTS.md 提示。继承函数、断言 ID、0～1,500 ms 上限和完成前可见要求均不改。
 - 新增 `w42-product-probes.cjs`：使用包内 Runtime/Core/Gateway/Workspace、真实 SQLite、manifest 绑定的 D-013 helper 和隔离 loopback 模型夹具。观察写在候选外并记录 SHA-256，Electron 驱动重新核对观察、主机身份及对应 UI。模型夹具不自报产品结论。
 - 新阶段独立工作区与数据根均含中文空格。W42-28 复用同一轮继承 Stop/Review 的直接观察，另打开 Stop 历史核对“已停止”。所有阶段结束后保留进程残留检查。
 

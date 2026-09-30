@@ -1,6 +1,6 @@
 # A9-27 WIN7-42 连续两次预演交接书
 
-Status: READY_FOR_EXECUTION
+Status: WAITING_FOR_REPAIRED_REHEARSALS
 
 授权：[A9-27](../tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)、ADR-0147。当前由主代理执行套件补强与预演准备；正式执行与审核角色按后续交接书分离。
 2026-09-30 套件开发机门及主代理范围复核完成，详见[套件检查记录](../reports/2026-09/a9_27_w42_kit_developer_review_2026-09-30.md)。预演输入源提交 `c62323fdbd7264e1629637e26f52397470a2ec94`，干净隔离构建 ZIP SHA-256 `8aab0528bd193c4efd1e027c3ef31bf4252e4eda4b4f3f2f3bc277dd367daf20`，manifest SHA-256 `8d02bd0b6a691719a7dce915d9f1b4c0ec85f6ecd7a87f8093c4434a185f7c74`。两次输出目录构建字节一致只作为预演准备，正式冻结仍使用两个独立干净工作树。
@@ -43,3 +43,7 @@ W42-26 保存两次实际 Provider 请求字符数与结果；W42-27 保存选�
 每步立即追加 RUN_LOG.md 并记录其哈希；修正自产文件使用新文件名，保留旧文件。
 生成 SHA256SUMS 与 REHEARSAL_REPORT.json，记录构建源、ZIP 哈希、两轮全部阶段/断言/用例原值、偏差、后飞行与差异。
 审核方依据原始证据确认两次均全部成立后，才起草正式实机交接书并双构建冻结；预演结果不签发正式 PASS。
+
+## 5. 首轮连续预演返工
+
+`c62323f` / ZIP `8aab0528…af20` 的 R1、R2 均 FAIL，原证据完整保留在 `.acceptance/rehearsals/A9-27-W42/20260930-1240/`；不能冻结或签发 authority。W42-27 种子轮次关联和实时说明观测的套件修复见[返工记录](../reports/2026-09/a9_27_w42_rehearsal_repair_2026-09-30.md)。修复源与新 ZIP 必须另行绑定，新两轮使用新的运行目录及任务名，旧两轮保持不动。

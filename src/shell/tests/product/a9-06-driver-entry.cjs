@@ -439,8 +439,9 @@ async function main() {
     await runW39M4Process(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
   } else if (mode === 'w40_stop') {
     const w42Mode = process.env.A9_W42_MODE || '';
-    if (w42Mode) report.mode = w42Mode;
-    if (w42Mode === 'w42_recovery_dir') await runW42RecoveryDirSafetyProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
+    if (w42Mode) report.mode = w42Mode === 'w42_live' ? 'live' : w42Mode;
+    if (w42Mode === 'w42_live') await w42RunLiveProcess(win, exec, { fixtureUrl, testKey: process.env.A9_SMOKE_LIVE_TEST_KEY || '' });
+    else if (w42Mode === 'w42_recovery_dir') await runW42RecoveryDirSafetyProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
     else if (w42Mode === 'w42_verification') await runW42VerificationClassificationProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
     else if (w42Mode === 'w42_instructions_environment') await runW42InstructionsEnvironmentProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
     else if (w42Mode === 'w42_context_budget') await runW42ContextBudgetRetryProcess(win, exec, { workspaceRoot, dataRoot, fixtureUrl });
@@ -3457,6 +3458,13 @@ async function runW42InstructionsEnvironmentProcess(win, exec, env) {
 async function runW42ContextBudgetRetryProcess(win, exec, env) {
   void win; void env;
   await runW42ProductProbeProcess(exec, 'context', 'A9-W42-CONTEXT-BUDGET-RETRY');
+}
+async function w42RunLiveProcess(win, exec, env) {
+  // A9-26 adds instruction notices to .note-line. Pair the model-note DOM
+  // observation with the actual persisted model_note; keep inherited limits.
+  const w42Exec = (code) => exec(code.replace("notes: q('.note-line').length",
+    "notes: Array.from(q('.note-line')).filter(node => events.some(e => kind(e) === 'model_note' && node.textContent === ((e.payload && e.payload.data && e.payload.data.content) || (e.payload && e.payload.content) || ''))).length"));
+  await runLiveProcess(win, w42Exec, env);
 }
 async function runW42ColdHistoryLoadProcess(win, exec, env) {
   void win; void env;
