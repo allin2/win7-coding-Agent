@@ -1,18 +1,19 @@
 # A9-27 — WIN7-42 换发与实机验收（A9-26 第一批可靠性）
 
 ```text
-Status: DRAFT_PENDING_OWNER_REVIEW
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-alpha2
 Source Baseline: codex/a9-alpha2 @ 本任务书批准提交（A9-26 已于 0fea04b 并入）
 Candidate: WIN7-42
-Phase-Gate: A9_27_DRAFT
+Phase-Gate: A9_27_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0147（批准时追加）
+Decision: ADR-0147
 ```
 
 > 依据：[A9 Alpha 2 推进顺序](../plans/A9_ALPHA2_DELIVERY_SEQUENCE.md) 阶段 3、ADR-0146、[A9-26](A9_26_RELIABILITY_BATCH_1.md) §5。
-> 本草稿不构成实现授权，也不改变 WIN7-41 的流程与结论。流程、硬门与取证沿用 [A9-25](A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) §9 与 WIN7-41 实机交接书。
+> 2026-09-30 负责人在当前对话批准本任务书，授权完成 A9-26 实机验证，验证及合并前审查通过后合入 main。
+> 本批准允许 §4 范围内的套件实现，不改变 WIN7-41 结论，也不代替候选冻结后的门 A 与证据审核后的门 B。流程、硬门与取证沿用 [A9-25](A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) §9 与 WIN7-41 实机交接书。
 
 ## 1. 进入条件与身份
 
@@ -70,7 +71,7 @@ W42-01～22 由 W41-01～22 派生（判定口径不变；§2 第一行的夹具
 6. **实机执行**（外部执行方）→ 7. **审核**（审核方组装正式报告并在 Win7 以 `agent` 复核）→ 8. **门 B**：负责人裁决；更新本任务书、A9-26、STATUS、STATUS_LOG，
    W42-23 通过后解除 STATUS 中“恢复目录可能被 Git 误暂存”的已知问题登记（保留 `git clean -fdx` 限制说明）。
 
-## 6. 待裁决
+## 6. 批准裁决与环境核实（2026-09-30）
 
 **矛盾**（CLAUDE.md 行为规则 2）：
 
@@ -91,3 +92,6 @@ W42-01～22 由 W41-01～22 派生（判定口径不变；§2 第一行的夹具
 ## 7. 执行记录
 
 - 2026-09-29：审核方起草本任务书，交负责人审阅。
+
+- 2026-09-30：负责人批准任务书并授权后续验证、合并前审查与合入 main。按本任务书建议执行 C1/C2、Q1/Q3/Q4/Q5：保留继承旅程，新增无热身历史加载用例；验证命令替换登记差异；两次连续预演；维持 Alpha 1 能力集标识；W42-01～22 全量回归。Q2 通过严格 SSH 只读核实，不假定可用。
+- 2026-09-30：严格 SSH 预检成功：Windows 6.1.7601、agent 为 console 运行中、PowerShell 5.1.14409.1018；Python 与 MinGit 声明路径存在。路径存在不等于 agent 可执行，版本、哈希与令牌将在预演前置中核实。原始证据位于 `.acceptance/preflight/A9-27-20260930/`。

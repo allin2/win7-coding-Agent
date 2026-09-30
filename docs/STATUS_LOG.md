@@ -1231,3 +1231,5 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 - 2026-09-29，WIN7-41 实机执行完成（run-id `318e27e4`，首轮因 `agent` 断开硬停止后重新发起；G1/G2 退出码 0、smoke PASS）；审核方复核原始证据支持 22 项成立，组装正式报告并开发机预检通过，待执行方 Win7 报告校验后提交门 B。
 - 2026-09-29，WIN7-41 正式报告 Win7 校验完成（`agent` Medium，`status=PASS`、22 项、`REPORT_VERIFY_EXIT=0`）；审核方核对一致，建议门 B 签发 `A9_25_WIN7_41_A9_24_PASS`，待负责人裁决。
 - 2026-09-29，WIN7-41 门 B：负责人“按建议签发” `A9_25_WIN7_41_A9_24_PASS`（22 项，源码 `0f8af24`，run-id `318e27e4`）；A9-25 关闭，A9-24 取得 Win7 结论；推进顺序阶段 1 完成。
+
+- 2026-09-30，负责人批准 A9-27 / WIN7-42，授权完成 A9-26 实机验证、合并前审查并合入 main；任务状态为 `APPROVED_FOR_IMPLEMENTATION / A9_27_IMPLEMENTATION_AUTHORIZED`。候选门 A/B 仍按独立绑定签发流程执行。严格 SSH 只读预检成功，agent 为控制台运行中；实际产品验证仍为 `NOT_PERFORMED`。
