@@ -109,3 +109,34 @@ describe('A9 v3 package runtime', () => {
     env.cleanup();
   });
 });
+
+
+describe('A9-30 v26 package binding', () => {
+  function v26() {
+    const env = fixture();
+    const descriptorPath = path.join(env.productRoot, '..', 'a9-runtime.json');
+    const manifestPath = path.join(env.releaseRoot, 'release-manifest.json');
+    const descriptor = JSON.parse(fs.readFileSync(descriptorPath, 'utf8'));
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    descriptor.version = manifest.version = '0.3.0-alpha.2';
+    descriptor.runner_helper_profile = manifest.required_native.runner_helper_profile = 'D-013-v26-a9-trusted-shell-current-user';
+    descriptor.runner_helper_protocol = manifest.required_native.runner_helper_protocol = 3;
+    const save = () => { fs.writeFileSync(descriptorPath, JSON.stringify(descriptor)); fs.writeFileSync(manifestPath, JSON.stringify(manifest)); };
+    save(); return { ...env, descriptor, manifest, save };
+  }
+  it('accepts only matching v26/protocol3/Alpha2 descriptor and hash-bound native closure', () => {
+    const env = v26();
+    try { expect(loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' })).toMatchObject({ runnerHelperProtocol: 3, runnerHelperProfile: 'D-013-v26-a9-trusted-shell-current-user' }); }
+    finally { env.cleanup(); }
+  });
+  it.each(['protocol', 'profile', 'version', 'hash'])('rejects mismatched v26 %s without fallback', (field) => {
+    const env = v26();
+    try {
+      if (field === 'protocol') env.descriptor.runner_helper_protocol = 2;
+      if (field === 'profile') env.manifest.required_native.runner_helper_profile = 'D-013-v25-a9-trusted-shell-current-user';
+      if (field === 'version') env.descriptor.version = env.manifest.version = '0.3.0-alpha.1';
+      if (field === 'hash') env.manifest.required_native.runner_helper = 'a'.repeat(64);
+      env.save(); expect(() => loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' })).toThrow();
+    } finally { env.cleanup(); }
+  });
+});

@@ -39,7 +39,7 @@ export {
 export {
   NativeHelperRequest,
   NativeHelperRequestV1,
-  NativeHelperRequestV2,
+  NativeHelperRequestV2, NativeHelperRequestV3, NativeHelperExecutionResultV3, NativeOutputChunk, NativeOutputTruncated,
   NativeHelperResponse,
   NativeHelperExecutionResult,
   NativeHelperExecutionResultV2,
@@ -117,3 +117,6 @@ export {
   parseWindowsProcessTable,
   KillResult,
 } from './process-cleanup';
+
+export { SafeOutputStream, secretVariants } from './stream-output';
+export type { ShellOutputChunk, OutputEncoding } from './stream-output';

@@ -34,3 +34,27 @@ No prebuilt binary is committed here. Release binaries must be produced with
 the locked D-017 toolchain, assigned a new v25 release/input-lock hash, pass two
 clean deterministic builds, and then pass WIN7-20. Existing v24 hashes and
 WIN7-19 evidence remain historical and must not be rewritten.
+
+
+## A9-30 v26 source implementation (2026-10-01)
+
+The current source additionally declares protocol v3 / D-013 v26 and profile
+`a9-trusted-shell-current-user-v2`. Frozen v24/v25 kits, hashes and candidate
+contracts remain historical. v3 sends UTF-8 JSON Lines with request-bound
+`execution_started`, byte-preserving Base64 output frames, truncation notices,
+and a structured terminal without repeating output. Stream encodings are frozen
+in the trusted request. Runner decodes and redacts before logging or publication.
+
+The writer has a 256 KiB queue and 32 KiB frame bound. Each raw output frame is
+at most 16 KiB; each stream publishes at most 1 MiB and 4,096 chunks while pipes
+continue draining. A Win32-only writer thread keeps synchronous output writes
+away from cancellation polling. Writer shutdown waits 5 seconds, attempts
+`CancelSynchronousIo`, then waits another 5 seconds; an unjoinable writer causes
+fail-closed process exit, without claiming cleanup proof. The new API registration
+is in `docs/WIN7_CONSTRAINTS.md` §10.
+
+macOS platform-neutral logic tests do not compile or execute this Win32 writer.
+No v26 Windows binary, input lock or candidate is available yet. Approved clean
+source, v26 build/return kit, D-017 environment verification, independent safety
+review, two authorized clean builds, PE/API/CRT checks and input-lock recording
+must precede assembly. Real Electron and Win7 execution are NOT_PERFORMED.

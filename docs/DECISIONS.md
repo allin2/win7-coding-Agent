@@ -2432,3 +2432,39 @@
   （2）保留 Provider 真实结束原因，工具执行需明确 tool_calls 原因及 DONE 或正常 EOF；缺失或矛盾结束、length/content_filter 均零工具执行，空流不虚构完成。兼容有明确结束原因但无 DONE 的服务，不自动重试异常工具响应。
   （3）W42 扩为 30 项，新增审计故障与 Provider 完整性，保留原 01～28 判据与 A9-28 补强。开发机、独立审核和目标环境证据分别记录，门 A/B 不因任务批准而省略。
 - 后果：不改持久化格式、依赖或网络权限；按隔离分支追加提交，修复通过后恢复预演及原验收/合并流程，历史候选不改。
+
+## ADR-0150 helper v3 和 A9-30 Shell 运行中输出
+
+- 状态：Accepted（2026-10-01，负责人明确批准 A9-30 和 ADR-0150，作为开始 Shell 实时输出实现的具体依据；原生构建另行授权）
+- 背景：WIN7-42 完成第一批可靠性；现 helper 只发送启动和最终输出，S01–S06 尚未覆盖。
+- 决策：[helper v3](plans/A9_HELPER_V3_STREAMING_PROTOCOL.md)采用 requestId/序号/双源字节帧、独立有界 writer、可等待输出回调及跨块解码脱敏；先持久化再发布版本化 tool_output，SQLite 表 schema 保持。
+  新 D-013 v26/协议 v3/Current User Profile 独立登记，D-017 双独立干净构建和新锁；历史 v24/v25、输入锁和候选不改。
+  [A9-30](tasks/A9_30_SHELL_STREAMING.md)给出已批准的精确文件和验证合同；不启用后台 release 或继续。
+- 后果：A9-30 可按批准分支、基线和精确白名单开展实现；新 Profile/API 依赖登记及独立安全复核仍须完成。本机 Demo 和 docs 检查不构成原生或 Win7 PASS。构建、提交推送、候选门 A/B 分别授权；ADR-0151/0152 仍为 Proposed。
+
+## ADR-0151 A9-31 后台进程模型工具与显式释放提案
+
+- 状态：Proposed（2026-10-01，未批准实现）
+- 背景：现有 BackgroundProcessManager 不等于完整模型工具面；helper KILL_ON_JOB_CLOSE 使 dispose(false) 不能证明 Win7 进程留给系统。
+- 提案：[A9-31](tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md)复用输出流，增加 start_process/read_process_output/stop_process；句柄/游标绑定工作区、对话和原启动身份，最多三个，禁止任意 PID。
+  保留高影响目标确认、Stop 和切换限制。释放仅用于用户明确选择“留给系统后退出”，先审计，再 request-bound release/回执、Job 位回读和退出后实测；错误/回执缺失不写成功。
+  release 扩展须另一次 v26 原生 revision、依赖评审、双构建和重锁；不能全局关闭 Job 崩溃回收。
+- 后果：重启只探测旧事实，不重放/接管；安全审阅和目标平台存活证据独立，具体任务批准不代替候选裁决。
+
+## ADR-0152 A9-32 用户主动继续中断任务提案
+
+- 状态：Proposed（2026-10-01，未批准实现）
+- 背景：用户已选择“用户点击继续”，第一批历史加载和预算基础已完成。
+- 提案：[A9-32](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md)在严格身份/revision与SQLite事务去重后创建关联的新Turn；恢复事实摘要并重核模式、Provider、AGENTS.md、当前文件和预算。
+  未完成工具结果标未知，先读现状；旧Shell/工具调用/审批不重放；重启零自动请求。新事件payload版本化，无表迁移。
+- 后果：按钮不提升权限；双击、崩溃、审计/Provider/预算失败可追溯。本提案不是完整Alpha2或RC通过结论。
+
+
+## ADR-0153 A9-30 v26 开发检查包及独立返回复核登记
+
+- 状态：Proposed（2026-10-01；本地实现依据负责人已授权的 A9-30 收口计划，正式套件和返回批准仍待独立复核）
+- 背景：A9-30 需先取得原生与真实 Electron 开发证据，不能复用 WIN7-42 或提前占用 WIN7-43；技术 PASS 不能替代独立返回复核。
+- 提案：新增独立 A9-30-DEVELOPER-INPUTS-D013-V26 锁和 A9_30_DEVELOPER_CHECK.json，使用 Alpha 2 / 协议 v3 / Current User v2，
+  无正式 authority 或历史验收结论。套件登记与 committed HEAD 绑定，return_review 另绑定独立复核人、实现人、报告 SHA、时间及两组 run-id/ZIP SHA；
+  原生记录器与装配生产者都拒绝缺失或错配。v25/W42 保持逐字节原合同；未知清理不签 PASS。
+- 后果：批准源码实现不等于批准正式 kit、返回复核、构建机动作或开发 Gate；具体交接和负例见 [A9-30 收口交接包](plans/A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)。

@@ -1257,9 +1257,42 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 - 2026-09-30，本地 main 在 `/Users/qlyf/.codex/worktrees/a9-main-integration/win7-coding-Agent` 干净工作树快进：`38ca46e` → `829ad39`（负责人验收收尾与已批准实现），无冲突；本条文档追加同样快进并入。冻结源/候选/正式报告未重绑，主工作树仍 alpha2，原有两处 ZIP 删除与 check.py 未改动；origin/main 未变，未推送。
 
-## WIN7-42 预发布分发（2026-09-30）
+## A9 第二批设计准备（2026-10-01）
 
-- 负责人明确授权“推送、发布”。实时核对远端 main 已在 `a53c9b9`，显式推送返回 Everything up-to-date；新建并推送预发布标签 `v0.3.0-alpha.1-win7-42`，精确指向冻结源 `94385a87d22928acc1ce5dd8f1881d89e0d4473b`。
-- [GitHub 预发布版](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.1-win7-42)上传原 WIN7-42 ZIP 与原同名 SHA-256 文件，无重建、覆盖或重绑。ZIP 为 101,454,849 字节，SHA-256 `3b6e0b72b98de794594cd6924a1298ef75ed72bafcebacf966c86ad2382a01cf`；上传后回下载两附件，哈希均与冻结文件一致，远端 tag 解引用也与源一致。
-- 包内 manifest 闭集及 796 个文件逐项大小/哈希通过，SBOM 与许可证文件存在；README 下载入口更新至本版，并修正 Git 分发声明：本 ZIP 不含 Git 可执行程序，Git 功能使用用户环境中的 Git。
-- 发布说明保留真实 Provider、同候选 Win10 smoke、POSIX/PowerShell `/Command`、≤799px、Shell 增量输出与 `git clean -fdx` 的边界；包内构建时 NOT_PERFORMED 快照保持原样，正式 Win7 结论引用外部收口报告。历史 Release、候选和原始证据保持不变，不提升为完整 Alpha 2/RC。
+依据负责人 2026-09-30 推进指令，追加第一批/WIN7-42 收尾和后续编号说明，形成
+[helper v3 设计](plans/A9_HELPER_V3_STREAMING_PROTOCOL.md)、A9-30～32 三任务草稿和
+[Shell 模拟 Demo](plans/a9-30-shell-streaming-demo/index.html)，ADR-0150～0152 保持 Proposed。
+默认用户点击继续、第二批整批候选，暂定 WIN7-43，冻结前复查编号；构建实际阻塞才提出拆分裁决。
+现有修改/删除/check.py 保留，未同步分支、提交、推送、构建或实机执行。产品实现须具体任务批准及允许路径/分支硬门。
+
+## A9-30 实现授权登记（2026-10-01）
+
+负责人明确指示“请批准 A9-30 和 ADR-0150，作为开始 Shell 实时输出实现的具体依据”。
+据此将 [A9-30](tasks/A9_30_SHELL_STREAMING.md) 登记为 APPROVED_FOR_IMPLEMENTATION、ADR-0150 为 Accepted，
+同步 helper v3 的 A9-30 设计状态及索引；范围、源码基线 c14a968、目标分支和精确白名单保持。
+A9-31/A9-32、ADR-0151/0152 仍是草稿/Proposed。独立安全/依赖复核、原生构建、提交推送及候选门 A/B 不因本登记获代替授权。
+本次仅更新批准记录，产品实现、原生构建、冻结和 Win7 验证尚未执行；保留现有工作区改动。
+
+
+## A9-30 源码接入与开发机定向验证（2026-10-01）
+
+依据负责人独立工作树指令，在 `c14a96808d048c34f6079cc378ba12b4f60f5c62` 建立
+`codex/a9-30-shell-streaming`，保留原工作区文档修改、ZIP 删除与未跟踪 check.py。
+负责人另补批打包运行时及其测试两个精确路径，仅用于新增 v26 校验、保留 v25 合同。
+已接入 native v3 writer、严格 Runner、Core 必需审计、SQLite 输出事件及活动卡；既有 Schema IPC/preload 复用。
+开发机模块回归、真实 Node 子进程两秒 tick、实际 SQLite 及 Schema IPC、DOM 夹具和四类负向对照通过。
+[源码验证报告](reports/2026-10/a9_30_shell_streaming_source_validation_2026-10-01.md)记录命令、哈希、首轮失败及证据边界。
+新 Profile/API 已先行登记，原生工件哈希仍 NOT_LOCKED。v26 构建返回套件/发布生产者尚未实现，
+独立复核、D-017 实际环境、Win32 helper、两次干净构建/PE/API/CRT、新输入锁、真实 Electron、Win7、
+候选门 A/B 均 NOT_PERFORMED；不签整体 DEVELOPER_VERIFIED 或 Alpha 2。未提交、推送或合并。
+
+
+## A9-30 收口本地交接准备（2026-10-01）
+
+已实现白名单内 v26 套件/返回校验及独立 A9-30 开发检查包，补齐源码/输入/返回哈希、双构建身份、
+原始 v3 事件、PE/API/CRT 和独立复核登记的拒绝路径；本地夹具测试通过，旧 v25/W42 文件哈希保持。
+首轮打包失败为源码脱敏规则内完整私钥头部字符串触发秘密扫描；改为等价字符串构造，未弱化扫描规则，Runner 与打包定向回归通过。
+[收口准备报告](reports/2026-10/a9_30_closeout_readiness_2026-10-01.md)及[交接包](plans/A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)已形成。
+未提交/推送/合并，未读写构建机，未生成正式 kit/输入锁；独立复核人与 D-017 主机未指定。
+当前 LOCAL_HANDOFF_READY / DEVELOPER_GATE_NOT_SIGNED；Windows 原生/真实 Electron/Win7 均 NOT_PERFORMED，
+A9-31/A9-32、第二批新候选、完整 Alpha 2 和 RC 均不改判。

@@ -304,3 +304,31 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 - [Git for Windows：版本与平台支持发布记录](https://github.com/git-for-windows/build-extra/blob/main/ReleaseNotes.md)
 
 上游依据用于筛选候选，不替代本项目在 Win7 SP1 x64 上对精确工件的验收。
+
+## 10. A9-30 D-013 v26 实现登记（2026-10-01，ADR-0150）
+
+仅批准 A9-30 源码范围；D-013 v26 协议 3 / `a9-trusted-shell-current-user-v2`，
+仓库 C++、Apache-2.0，无新第三方依赖。D-017 延用 VS2019/v142、SDK 10.0.19041.0、静态 CRT。
+新源码提交、kit/manifest 和 helper 工件哈希均 `NOT_LOCKED`，不得装配或冒用 v25 输入锁。
+独立安全/依赖复核、Win10 双干净构建/PE/API/CRT、Win7 普通用户实测均 `NOT_PERFORMED`。
+
+writer 使用 CreateThread、CreateEventW/SetEvent、CriticalSection、WaitForSingleObject、WriteFile、
+CancelSynchronousIo、HeapAlloc/HeapFree/GetProcessHeap 与 CloseHandle；均为 Kernel32 本地 API。
+线程/事件无继承权限；writer 仅消费有界协议队列，只调用 Win32 API，避免在线程中调用 CRT。
+[CreateThread 官方合同](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread)
+声明最低 XP；[CancelSynchronousIo 官方合同](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelsynchronousio)
+声明最低 Vista，取消请求不能替代线程完成证明。同步写等待超过 5 s 后请求取消，仍须核对线程终止。
+队列满/线程或 I/O 失败触发 Job 回收；无法完整交付终态时拒绝成功，清理报告 unknown。
+不引入命名管道服务、网络、ConPTY、提权或系统配置修改。拒绝版本/Profile 不匹配，不降级到 v25。
+适用项：C14/C15/C16、P01/P02/P06/P11/P14/P15/P20，中文路径/显式编码/日志脱敏；其余依赖沿用当前登记。
+
+
+### A9-30 v26 构建机捕获与装配补充（2026-10-01）
+
+v26 构建限定 D-017 的 VS2019 16.11 / MSVC 14.29 / SDK 19041 / x64 / 静态 CRT，
+独立 build-profile、源码提交时间、完整输入 manifest 和固定 C:\a9-v26-kit 路径映射。
+构建机已有 Windows PowerShell 5.1 Desktop / .NET 的 Process、Stream、Task、单调时钟和事件仅供原始字节捕获；
+不进入产品、目标 Win7 依赖或产品 SBOM，不安装组件。实际版本/API 执行仍 NOT_PERFORMED，需预检与独立复核。
+实际 cl/dumpbin/mt/vswhere/powershell 路径及 SHA-256 绑定返回证据；同工具链双构建身份和 helper 字节必须一致。
+新 v26 运行时、runner manifest、许可证及 SBOM 均声明 Current User streaming，不描述为安全沙箱。
+正式 kit / helper / input lock 哈希仍 NOT_LOCKED；开发检查包无 WIN7 候选 authority，不产生 Win7 或完整 Alpha 2 PASS。

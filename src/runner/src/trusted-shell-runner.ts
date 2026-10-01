@@ -22,12 +22,13 @@ import { spawn } from 'child_process';
 import { selectShell, ShellKind } from './shell-detection';
 import { BackgroundProcessHandle, BackgroundProcessManager } from './background-process-manager';
 import { killProcessTree } from './process-cleanup';
+import { SafeOutputStream, secretVariants, ShellOutputChunk, OutputEncoding } from './stream-output';
 import { HelperTransport } from './native-transport';
 import { createTrustedShellEnvironment, validateTrustedShellEnvironmentOverlay } from './trusted-shell-environment';
 import {
   decodeNativeHelperBase64,
   hasCompleteHelperCleanupProof,
-  NativeHelperRequestV2,
+  NativeHelperRequestV2, NativeHelperRequestV3,
 } from './native-protocol';
 
 export interface TrustedShellRequest {
@@ -45,6 +46,7 @@ export interface TrustedShellRequest {
   maxOutputLines?: number;
   background?: boolean;
   signal?: AbortSignal;
+  onOutput?: (chunk: ShellOutputChunk) => Promise<void> | void;
 }
 
 export interface TrustedShellTermination {
@@ -57,6 +59,8 @@ export interface TrustedShellTermination {
 
 export interface TrustedShellResult {
   schemaVersion: '2.0';
+  outputProtocolVersion?: 3;
+  outputSummary?: { lastOutputSeq: number; stdout: { rawBytesRead: number; emittedBytes: number; omittedBytes: number }; stderr: { rawBytesRead: number; emittedBytes: number; omittedBytes: number } };
   status: 'exited' | 'timeout' | 'cancelled' | 'failed' | 'background_started';
   exitCode: number | null;
   stdout: string;
@@ -89,6 +93,8 @@ export interface TrustedShellResult {
 export interface TrustedShellRunnerOptions {
   /** 提供 D-013 helper 传输时，Windows 上命令在 Job Object 内执行。 */
   helperTransport?: HelperTransport;
+  helperProtocolVersion?: 2 | 3;
+  outputEncoding?: { stdout: OutputEncoding; stderr: OutputEncoding };
   /** 原始日志目录；默认 os.tmpdir()/win7-agent-shell-logs。 */
   logDir?: string;
   /** 单流原始日志字节上限。 */
@@ -280,6 +286,9 @@ export class TrustedShellRunner {
       return this.executeViaHelper(requestId, validatedRequest, exe, args, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
     }
 
+    if (this.options.helperProtocolVersion === 3) {
+      return { ...mapHelperFailure('A9_OUTPUT_V3_HELPER_REQUIRED', 'capability_unavailable', true), durationMs: Date.now() - startTime, shell: shellMeta };
+    }
     return this.executeDirect(requestId, validatedRequest, exe, args, verbatim, cwd, shellMeta, startTime, maxOutputBytes, maxOutputLines);
   }
 
@@ -483,6 +492,10 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
     maxOutputLines: number,
   ): Promise<TrustedShellResult> {
+    if (this.options.helperProtocolVersion === 3) {
+      return this.executeStreamingHelper(requestId, request, exe, args, cwd, shellMeta, startTime, maxOutputBytes);
+    }
+    if (request.onOutput) return { ...mapHelperFailure('A9_OUTPUT_PROFILE_REQUIRED', 'protocol_error', true), durationMs: Date.now() - startTime, shell: shellMeta };
     let helperRequest: NativeHelperRequestV2;
     try {
       helperRequest = this.createV2HelperRequest(
@@ -559,6 +572,95 @@ export class TrustedShellRunner {
         containment: 'job_object',
         detail: `helper job object: hostJobDetected=${response.hostJob.detected}, childJobAssignmentVerified=${response.hostJob.childJobAssignmentVerified}`,
       },
+    };
+  }
+
+  private async executeStreamingHelper(
+    requestId: string, request: TrustedShellRequest, exe: string, args: string[], cwd: string,
+    shell: TrustedShellResult['shell'], started: number, maxBytes: number,
+  ): Promise<TrustedShellResult> {
+    let helperRequest: NativeHelperRequestV3;
+    let streams: Record<'stdout' | 'stderr', SafeOutputStream>;
+    try {
+      const v2 = this.createV2HelperRequest(requestId, request, exe, args, cwd, shell, Math.min(maxBytes, 1024 * 1024), false);
+      const encoding = this.options.outputEncoding ?? { stdout: shell.kind === 'cmd' ? 'cp936' : 'utf-8', stderr: shell.kind === 'cmd' ? 'cp936' : 'utf-8' };
+      helperRequest = { ...v2, schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', outputEncoding: encoding };
+      const secrets = secretVariants(this.options.getSensitiveValues?.() ?? []);
+      streams = { stdout: new SafeOutputStream(encoding.stdout, secrets, (s) => this.redact(s)), stderr: new SafeOutputStream(encoding.stderr, secrets, (s) => this.redact(s)) };
+    } catch (_error) {
+      return { ...mapHelperFailure('A9_OUTPUT_PROFILE_INVALID', 'protocol_error', true), durationMs: Date.now() - started, shell };
+    }
+    const text = { stdout: '', stderr: '' };
+    const raw = { stdout: 0, stderr: 0 };
+    const cut = { stdout: false, stderr: false };
+    const logged = { stdout: 0, stderr: 0 };
+    const source = { stdout: 0, stderr: 0 };
+    let outputSeq = 0;
+    let paths: { stdout: string; stderr: string } | undefined;
+    try {
+      fs.mkdirSync(this.logDir, { recursive: true });
+      // Generated request IDs are UUIDs; never accept a user path as a log basename.
+      const logId = crypto.randomUUID();
+      paths = { stdout: path.join(this.logDir, `${logId}.stdout.log`), stderr: path.join(this.logDir, `${logId}.stderr.log`) };
+      fs.writeFileSync(paths.stdout, '', { encoding: 'utf8', flag: 'wx' });
+      fs.writeFileSync(paths.stderr, '', { encoding: 'utf8', flag: 'wx' });
+    } catch (_error) { return { ...mapHelperFailure('A9_OUTPUT_LOG_FAILED', 'protocol_error', true), durationMs: Date.now() - started, shell }; }
+    const publish = async (stream: 'stdout' | 'stderr', fragment: string, terminal = false) => {
+      const warning = streams[stream].warning;
+      if (warning) cut[stream] = true;
+      if (!fragment && !terminal && !warning) return;
+      // All exits consume the same already-redacted projection; raw bytes never reach disk.
+      const limit = Math.min(maxBytes, 1024 * 1024);
+      const room = Math.max(0, limit - Buffer.byteLength(text[stream]));
+      let safe = fragment;
+      if (Buffer.byteLength(safe) > room) {
+        safe = new TextDecoder('utf-8', { fatal: false }).decode(Buffer.from(safe).subarray(0, room)).replace(/\uFFFD$/, ''); cut[stream] = true;
+      }
+      text[stream] += safe;
+      const logRoom = Math.max(0, this.maxLogBytes - logged[stream]);
+      const log = Buffer.from(safe).subarray(0, logRoom);
+      fs.appendFileSync(paths![stream], log); logged[stream] += log.length;
+      const pieces: string[] = [];
+      let piece = ''; let bytes = 0;
+      for (const character of safe) {
+        const size = Buffer.byteLength(character);
+        if (bytes + size > 16 * 1024) { pieces.push(piece); piece = ''; bytes = 0; }
+        piece += character; bytes += size;
+      }
+      if (piece || pieces.length === 0) pieces.push(piece);
+      for (const projected of pieces) {
+        await request.onOutput?.({ requestId, stream, outputSeq: ++outputSeq, sourceSeqThrough: source[stream], text: projected, rawBytesRead: raw[stream], truncated: cut[stream], ...(warning ? { warning } : {}) });
+      }
+    };
+    const transport = await this.options.helperTransport!.invoke(helperRequest, request.signal,
+      createTrustedShellEnvironment(process.env, {}, this.options.getSensitiveValues?.()), async (chunk) => {
+        const stream = chunk.stream;
+        if (chunk.type === 'output_truncated') { cut[stream] = true; await publish(stream, streams[stream].finish(), true); return; }
+        raw[stream] += chunk.byteLength; source[stream] = chunk.seq;
+        await publish(stream, streams[stream].push(decodeNativeHelperBase64(chunk.dataBase64, chunk.byteLength, 'output')));
+      });
+    if (transport.kind !== 'response' || transport.response.type !== 'execution_result' || !('schemaVersion' in transport.response) || transport.response.schemaVersion !== 3) {
+      return { ...mapHelperFailure(transport.kind !== 'response' ? transport.detail : 'A9_OUTPUT_VERSION_MISMATCH', 'protocol_error', transport.kind !== 'response' && transport.cleanupConfirmed), stdout: text.stdout, stderr: text.stderr, durationMs: Date.now() - started, shell, logPaths: paths };
+    }
+    const response = transport.response;
+    try {
+      for (const stream of ['stdout', 'stderr'] as const) {
+        raw[stream] = response[stream].rawBytesRead;
+        await publish(stream, streams[stream].finish(), true);
+      }
+    } catch (_error) {
+      return { ...mapHelperFailure('A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED', 'protocol_error', hasCompleteHelperCleanupProof(response)), durationMs: Date.now() - started, shell, logPaths: paths };
+    }
+    const clean = hasCompleteHelperCleanupProof(response);
+    return {
+      schemaVersion: '2.0', outputProtocolVersion: 3,
+      outputSummary: { lastOutputSeq: outputSeq, stdout: response.stdout, stderr: response.stderr },
+      status: clean ? response.canceled ? 'cancelled' : response.timedOut || response.idleTimedOut ? 'timeout' : 'exited' : 'failed',
+      exitCode: clean ? response.exitCode : null, stdout: text.stdout, stderr: text.stderr,
+      rawStdoutBytes: raw.stdout, rawStderrBytes: raw.stderr, truncated: response.outputTruncated || cut.stdout || cut.stderr,
+      durationMs: response.executionTimeMs, shell, encoding: helperRequest.outputEncoding.stdout === 'cp936' ? 'gbk' : helperRequest.outputEncoding.stdout,
+      logPaths: paths, ...(clean ? {} : { residueRisk: true }),
+      termination: { requested: response.canceled || response.timedOut || !clean, processTreeReaped: clean, containment: 'job_object' },
     };
   }
 

@@ -1184,3 +1184,40 @@ describe('A9 unified desktop workbench contract', () => {
     expect(archiveCount.textContent).toBe('1');
   });
 });
+
+
+describe('A9-30 streamed activity cards', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+  function scenario() {
+    const { document, FakeNode } = createRendererDomHarness();
+    const item: any = { li: new FakeNode('li'), tag: new FakeNode('span') };
+    const block: any = { pendingItems: new Map([['call', item]]) };
+    const context: any = { document, TOOL_OUTPUT_LIMIT: 8192, Number, String, Date, state: {},
+      clampText: (s: string, n: number) => s.slice(0, n),
+      toolDetailText: (d: any) => d.shell.stdout,
+      settleItem: jest.fn(), toolEndStatus: () => ['success', '已完成'],
+    };
+    const source = script.slice(script.indexOf('  function attachActivityDetail('), script.indexOf('  function buildPlanCard('));
+    vm.runInNewContext(source + ';this.append = appendEventNode;', context);
+    const emit = (seq: number, stream: string, text: string) => context.append(block, { type: 'tool_output', data: {
+      schemaVersion: 1, toolCallId: 'call', outputSeq: seq, stream, text,
+    } });
+    return { context, block, item, emit };
+  }
+  it('merges stdout/stderr by stable sequence and does not repeat the terminal output', () => {
+    const { context, block, item, emit } = scenario();
+    emit(1, 'stdout', 'tick-first'); emit(1, 'stdout', 'tick-first'); emit(2, 'stderr', 'problem');
+    expect(item.li.textContent.match(/tick-first/g)).toHaveLength(1);
+    expect(item.li.textContent).toContain('stderr:\nproblem');
+    context.append(block, { type: 'tool_end', data: { toolName: 'shell', callId: 'call', shell: { exitCode: 0, stdout: 'tick-first' } } });
+    expect(item.li.textContent.match(/tick-first/g)).toHaveLength(1);
+    expect(item.li.textContent).toContain('退出：0');
+  });
+  it('caps output and reports gaps without interpreting child HTML', () => {
+    const { item, emit } = scenario();
+    emit(2, 'stdout', '<img src=x onerror=alert(1)>' + 'x'.repeat(10000));
+    expect(item.streamOutput.stdout.length).toBe(8192);
+    expect(item.li.textContent).toContain('输出已截断或存在缺口');
+    expect(item.outputEl.children).toHaveLength(0);
+  });
+});

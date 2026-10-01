@@ -35,7 +35,12 @@ export interface NativeHelperRequestV2 {
   idleTimeoutMs?: number;
 }
 
-export type NativeHelperRequest = NativeHelperRequestV1 | NativeHelperRequestV2;
+export interface NativeHelperRequestV3 extends Omit<NativeHelperRequestV2, 'schemaVersion' | 'profileId'> {
+  schemaVersion: 3;
+  profileId: 'a9-trusted-shell-current-user-v2';
+  outputEncoding: { stdout: 'utf-8' | 'cp936' | 'utf-16le'; stderr: 'utf-8' | 'cp936' | 'utf-16le' };
+}
+export type NativeHelperRequest = NativeHelperRequestV1 | NativeHelperRequestV2 | NativeHelperRequestV3;
 
 interface HostJobProof {
   detected: boolean;
@@ -146,13 +151,31 @@ export interface NativeHelperErrorResultV2 {
   message: string;
 }
 
+export interface NativeHelperStartedResultV3 extends Omit<NativeHelperStartedResultV2, 'schemaVersion' | 'profileId'> {
+  schemaVersion: 3; profileId: 'a9-trusted-shell-current-user-v2';
+}
+export interface NativeOutputChunk {
+  schemaVersion: 3; type: 'output_chunk'; requestId: string; profileId: 'a9-trusted-shell-current-user-v2';
+  seq: number; stream: 'stdout' | 'stderr'; streamOffset: number; byteLength: number; dataBase64: string;
+}
+export interface NativeOutputTruncated {
+  schemaVersion: 3; type: 'output_truncated'; requestId: string; profileId: 'a9-trusted-shell-current-user-v2';
+  stream: 'stdout' | 'stderr'; reason: 'byte_limit' | 'event_limit';
+}
+export interface NativeOutputCounts { rawBytesRead: number; emittedBytes: number; omittedBytes: number }
+export interface NativeHelperExecutionResultV3 extends Omit<NativeHelperExecutionResultV2,
+  'schemaVersion' | 'profileId' | 'stdoutSize' | 'stderrSize' | 'stdoutBase64' | 'stderrBase64'> {
+  schemaVersion: 3; profileId: 'a9-trusted-shell-current-user-v2'; lastOutputSeq: number;
+  stdout: NativeOutputCounts; stderr: NativeOutputCounts;
+}
+export interface NativeHelperErrorResultV3 extends Omit<NativeHelperErrorResultV2, 'schemaVersion'> { schemaVersion: 3 }
 export type NativeHelperResponse = NativeHelperExecutionResult | NativeHelperErrorResult
-  | NativeHelperExecutionResultV2 | NativeHelperErrorResultV2;
-export type NativeHelperMessage = NativeHelperResponse | NativeHelperStartedResultV2;
+  | NativeHelperExecutionResultV2 | NativeHelperErrorResultV2 | NativeHelperExecutionResultV3 | NativeHelperErrorResultV3;
+export type NativeHelperMessage = NativeHelperResponse | NativeHelperStartedResultV2 | NativeHelperStartedResultV3 | NativeOutputChunk | NativeOutputTruncated;
 
 /** One profile-aware cleanup-proof predicate shared by every helper consumer. */
 export function hasCompleteHelperCleanupProof(
-  result: NativeHelperExecutionResult | NativeHelperExecutionResultV2,
+  result: NativeHelperExecutionResult | NativeHelperExecutionResultV2 | NativeHelperExecutionResultV3,
 ): boolean {
   const hostJobOk = result.hostJob.childJobAssignmentVerified === true
     && (!result.hostJob.detected || result.hostJob.breakaway === 'explicit' || result.hostJob.breakaway === 'silent');
@@ -160,7 +183,7 @@ export function hasCompleteHelperCleanupProof(
     ? result.hostJob.breakaway === 'explicit' || result.hostJob.breakaway === 'silent'
     : result.hostJob.breakaway === 'none';
   if ('schemaVersion' in result) {
-    const tokenOk = result.profileId === 'a9-trusted-shell-current-user-v1'
+    const tokenOk = (result.profileId === 'a9-trusted-shell-current-user-v1' || result.profileId === 'a9-trusted-shell-current-user-v2')
       && result.tokenAudit.verified === true
       && result.tokenAudit.tokenMode === 'current_user'
       && result.tokenAudit.restrictedToken === false
@@ -201,14 +224,48 @@ export function decodeNativeHelperBase64(value: string, expectedSize: number, la
 export function parseNativeHelperResponse(
   line: string,
   expectedRequestId: string,
-  expectedSchemaVersion: 1 | 2 = 1,
+  expectedSchemaVersion: 1 | 2 | 3 = 1,
 ): NativeHelperMessage {
   let value: unknown;
   try { value = JSON.parse(line); } catch (_error) { throw new Error('Helper response is not valid JSON'); }
   if (!isRecord(value)) throw new Error('Helper response is not an object');
+  if (expectedSchemaVersion === 3) return parseV3(value, expectedRequestId);
   return expectedSchemaVersion === 2
     ? parseV2(value, expectedRequestId)
     : parseV1(value, expectedRequestId);
+}
+
+function parseV3(value: Record<string, unknown>, requestId: string): NativeHelperMessage {
+  if (value.schemaVersion !== 3 || value.requestId !== requestId) throw new Error('Helper v3 request/version mismatch');
+  if (value.type === 'error') {
+    if (!hasExactKeys(value, ['schemaVersion', 'type', 'requestId', 'error', 'message']) || typeof value.error !== 'string' || typeof value.message !== 'string') throw new Error('Helper v3 error invalid');
+    return value as unknown as NativeHelperErrorResultV3;
+  }
+  if (value.profileId !== 'a9-trusted-shell-current-user-v2') throw new Error('Helper v3 profile mismatch');
+  const envelope = ['schemaVersion', 'type', 'requestId', 'profileId'];
+  if (value.type === 'output_chunk') {
+    if (!hasExactKeys(value, [...envelope, 'seq', 'stream', 'streamOffset', 'byteLength', 'dataBase64']) || !isPositiveInteger(value.seq)
+      || !['stdout', 'stderr'].includes(String(value.stream)) || !isNonNegativeInteger(value.streamOffset)
+      || !isPositiveInteger(value.byteLength) || value.byteLength > 16384 || typeof value.dataBase64 !== 'string') throw new Error('Helper v3 chunk invalid');
+    decodeNativeHelperBase64(value.dataBase64, value.byteLength, 'output_chunk');
+    return value as unknown as NativeOutputChunk;
+  }
+  if (value.type === 'output_truncated') {
+    if (!hasExactKeys(value, [...envelope, 'stream', 'reason']) || !['stdout', 'stderr'].includes(String(value.stream)) || !['byte_limit', 'event_limit'].includes(String(value.reason))) throw new Error('Helper v3 truncation invalid');
+    return value as unknown as NativeOutputTruncated;
+  }
+  const legacy: Record<string, unknown> = { ...value, schemaVersion: 2, profileId: 'a9-trusted-shell-current-user-v1' };
+  if (value.type === 'execution_result') {
+    for (const stream of ['stdout', 'stderr']) {
+      const c = value[stream];
+      if (!isRecord(c) || !hasExactKeys(c, ['rawBytesRead', 'emittedBytes', 'omittedBytes']) || Object.values(c).some((n) => !isNonNegativeInteger(n)) || c.rawBytesRead !== Number(c.emittedBytes) + Number(c.omittedBytes)) throw new Error('Helper v3 counts invalid');
+    }
+    if (!isNonNegativeInteger(value.lastOutputSeq)) throw new Error('Helper v3 watermark invalid');
+    delete legacy.lastOutputSeq; delete legacy.stdout; delete legacy.stderr;
+    Object.assign(legacy, { stdoutSize: 0, stderrSize: 0, stdoutBase64: '', stderrBase64: '' });
+  }
+  parseV2(legacy, requestId);
+  return value as unknown as NativeHelperStartedResultV3 | NativeHelperExecutionResultV3;
 }
 
 function parseV2(value: Record<string, unknown>, expectedRequestId: string): NativeHelperMessage {

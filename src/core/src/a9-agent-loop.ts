@@ -51,6 +51,7 @@ export interface A9LoopEvent {
     | 'model_thinking'
     | 'model_note'
     | 'model_chunk'
+    | 'tool_output'
     | 'tool_start'
     | 'tool_end'
     | 'approval_required'
@@ -130,7 +131,12 @@ export interface A9ReviewStagingPort {
   stageDelete(path: string, options?: { recursive?: boolean; turnId?: string }): Promise<unknown>;
 }
 
+export interface A9ShellOutput {
+  requestId: string; stream: 'stdout' | 'stderr'; outputSeq: number; sourceSeqThrough: number;
+  text: string; rawBytesRead: number; truncated: boolean; warning?: string;
+}
 export interface A9RunnerExecutionOptions {
+  onOutput?: (chunk: A9ShellOutput) => Promise<void> | void;
   cwd?: string;
   /** 可选任务级 deadline；未提供时不施加固定硬超时（A9/C08）。 */
   timeoutMs?: number;
@@ -160,6 +166,8 @@ export interface A9RunnerExecutionResult {
   processTreeReaped?: boolean;
   residueRisk?: boolean;
   softDurationExceeded?: boolean;
+  outputProtocolVersion?: 3;
+  outputSummary?: unknown;
 }
 
 export interface A9RunnerPort {
@@ -1357,7 +1365,7 @@ export class A9AgentLoop {
     let logPaths: { stdout: string; stderr: string } | undefined;
     const isShellTool = tc.name === 'shell';
     try {
-      const outcome = await this.dispatchTool(tc.name, args, turnId, signal);
+      const outcome = await this.dispatchTool(tc.name, args, turnId, signal, tc.id);
       toolResultStr = typeof outcome.payload === 'string' ? outcome.payload : JSON.stringify(outcome.payload, null, 2);
       residueRisk = outcome.residueRisk;
       logPaths = outcome.logPaths;
@@ -1381,12 +1389,14 @@ export class A9AgentLoop {
         const stderr = typeof parsed.stderr === 'string' ? parsed.stderr : '';
         shellEvent = {
           schemaVersion: 1,
+          ...(parsed.outputProtocolVersion === 3 ? { outputProtocolVersion: 3, outputSummary: parsed.outputSummary } : {}),
           status: typeof parsed.status === 'string' ? parsed.status : 'unknown',
           exitCode: typeof parsed.exitCode === 'number' || parsed.exitCode === null ? parsed.exitCode : null,
           stdout: stdout.slice(0, previewLimit),
           stderr: stderr.slice(0, previewLimit),
           durationMs: typeof parsed.durationMs === 'number' ? parsed.durationMs : 0,
           timedOut: parsed.timedOut === true,
+          ...(typeof parsed.processTreeReaped === 'boolean' ? { processTreeReaped: parsed.processTreeReaped } : {}),
           truncated: parsed.truncated === true || stdout.length > previewLimit || stderr.length > previewLimit,
           ...(typeof parsed.rawStdoutBytes === 'number' ? { rawStdoutBytes: parsed.rawStdoutBytes } : {}),
           ...(typeof parsed.rawStderrBytes === 'number' ? { rawStderrBytes: parsed.rawStderrBytes } : {}),
@@ -1484,6 +1494,7 @@ export class A9AgentLoop {
     args: Record<string, any>,
     turnId: string,
     signal?: AbortSignal,
+    toolCallId?: string,
   ): Promise<{ payload: any; residueRisk?: boolean; logPaths?: { stdout: string; stderr: string } }> {
     const ws = this.config.workspaceService;
     switch (name) {
@@ -1508,6 +1519,11 @@ export class A9AgentLoop {
         // background/shell kind/path/env 由产品级配置传入，不取自模型参数。
         const shellResult = await this.config.runner.execute(args.command, {
           cwd: args.cwd || this.config.workspaceRoot,
+          onOutput: async (chunk) => {
+            if (!toolCallId) throw new Error('A9_OUTPUT_TOOL_BINDING_MISSING');
+            this.emitEvent({ type: 'tool_output', turnId, timestamp: new Date().toISOString(),
+              data: { schemaVersion: 1, toolName: 'shell', callId: toolCallId, toolCallId, ...chunk } });
+          },
           ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
           ...(args.background !== undefined ? { background: args.background } : {}),
           ...(this.config.shellOptions?.kind !== undefined ? { shellKind: this.config.shellOptions.kind } : {}),
@@ -1517,6 +1533,7 @@ export class A9AgentLoop {
         });
         const payload = {
           ...(shellResult.status ? { status: shellResult.status } : {}),
+          ...(shellResult.outputProtocolVersion ? { outputProtocolVersion: shellResult.outputProtocolVersion, outputSummary: shellResult.outputSummary } : {}),
           exitCode: shellResult.exitCode,
           stdout: shellResult.stdout,
           stderr: shellResult.stderr,
@@ -1526,6 +1543,7 @@ export class A9AgentLoop {
           ...(shellResult.rawStdoutBytes !== undefined ? { rawStdoutBytes: shellResult.rawStdoutBytes } : {}),
           ...(shellResult.rawStderrBytes !== undefined ? { rawStderrBytes: shellResult.rawStderrBytes } : {}),
           ...(shellResult.logPaths ? { logPaths: shellResult.logPaths } : {}),
+          ...(typeof shellResult.processTreeReaped === 'boolean' ? { processTreeReaped: shellResult.processTreeReaped } : {}),
           ...(shellResult.backgroundHandle ? { backgroundHandle: shellResult.backgroundHandle } : {}),
           ...(shellResult.residueRisk
             ? { residueWarning: 'Process tree cleanup could NOT be confirmed. Manual residue inspection is required before continuing.' }

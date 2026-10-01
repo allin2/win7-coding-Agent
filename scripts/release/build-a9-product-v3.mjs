@@ -23,11 +23,15 @@ import {
 } from './release-contract.mjs';
 import { extractZip, getZipEntry, readZipEntries, readZipEntry, writeDeterministicZip } from './zip-utils.mjs';
 
+import { verifyV26ReturnReview } from './a9-v26-return-evidence.mjs';
+
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 const RELEASE_PROFILES = {
+  'A9-30-DEVELOPER-INPUTS-D013-V26': { task: 'A9-30', candidate: 'A9-30-DEVELOPER', developmentOnly: true,
+    lockFile: 'a9-v26-input-lock.json', kitFile: 'A9_30_DEVELOPER_CHECK.json' },
   'A9-14-INPUTS-D013-V25-WIN7-22': {
     task: 'A9-14', candidate: 'WIN7-22', lockFile: 'a9-14-win7-22-input-lock.json',
     kitFile: 'A9_14_VALIDATION_KIT.json', validationDoc: 'A9_14_WINDOWS_VALIDATION.md',
@@ -490,6 +494,10 @@ export function buildA9ProductCandidate(options) {
     throw new Error('A9_SOURCE_COMMIT_HEAD_MISMATCH');
   }
   const sourceStatus = git(root, ['status', '--porcelain', '--untracked-files=all']).trim();
+  if (profile.developmentOnly) {
+    if (sourceStatus || options.allowUncommitted) throw new Error('A9_V26_CLEAN_SOURCE_REQUIRED');
+    verifyV26CommittedInputs(root, lock);
+  }
   if (sourceStatus && !options.allowUncommitted) throw new Error('A9_SOURCE_WORKTREE_NOT_CLEAN');
 
   const electronZip = requiredInput(options.electronZip, 'A9_ELECTRON_ZIP');
@@ -507,6 +515,7 @@ export function buildA9ProductCandidate(options) {
   assertHash('A9_STORAGE_ENTRY', sha256Bytes(storageBytes), lock.inputs.storage_return_zip.required_entry_sha256);
 
   const outputRoot = path.resolve(options.outputRoot || path.join(root, 'release', 'win7-product-v3', 'out'));
+  if (profile.developmentOnly && fs.existsSync(outputRoot)) throw new Error('A9_V26_NEW_OUTPUT_DIRECTORY_REQUIRED');
   const workRoot = path.join(outputRoot, '.work');
   const runtimeBuildRoot = path.join(outputRoot, `.runtime-build-${process.pid}`);
   const packageName = `Win7CodingAgent-${lock.version}-win7-x64`;
@@ -529,7 +538,7 @@ export function buildA9ProductCandidate(options) {
     }
     const runtimeDependencies = copyRuntimeDependencies(root, appRoot);
     writeJson(path.join(appRoot, 'package.json'), {
-      name: 'win7-coding-agent-a9-alpha1',
+      name: profile.developmentOnly ? 'win7-coding-agent-a9-alpha2-developer' : 'win7-coding-agent-a9-alpha1',
       productName: 'Win7 Coding Agent',
       version: lock.version,
       private: true,
@@ -551,7 +560,9 @@ export function buildA9ProductCandidate(options) {
 
     fs.mkdirSync(path.join(nativeRoot, 'runner'), { recursive: true });
     fs.writeFileSync(path.join(nativeRoot, 'runner', 'spike02_helper.exe'), helperBytes);
-    writeJson(path.join(nativeRoot, 'runner', 'runner-manifest.json'), createRunnerManifest(lock));
+    const runnerManifest = createRunnerManifest(lock);
+    if (profile.developmentOnly) runnerManifest.streaming_profile = { id: 'a9-trusted-shell-current-user-v2', protocol_version: 3, token: 'current_user', security_sandbox: false };
+    writeJson(path.join(nativeRoot, 'runner', 'runner-manifest.json'), runnerManifest);
     extractStorageRuntime(storageZip, nativeRoot);
     assertNativeOutsideApp(stage);
     verifyPackagedJavaScript(appRoot);
@@ -565,8 +576,8 @@ export function buildA9ProductCandidate(options) {
       storage_module_root: '../native/storage',
       storage_native_binding: '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
       runner_helper: '../native/runner/spike02_helper.exe',
-      runner_helper_profile: 'D-013-v25-a9-trusted-shell-current-user',
-      runner_helper_protocol: 2,
+      runner_helper_profile: lock.inputs.runner_return_zip.profile,
+      runner_helper_protocol: lock.inputs.runner_return_zip.protocol_version,
       state_schema: 4,
       data_root: '%LOCALAPPDATA%\\Win7CodingAgent\\a9',
       portable_flag: '--portable',
@@ -578,10 +589,24 @@ export function buildA9ProductCandidate(options) {
     fs.copyFileSync(path.join(root, 'LICENSE'), path.join(licensesRoot, 'PROJECT-APACHE-2.0.txt'));
     if (!fs.existsSync(path.join(stage, 'LICENSE'))) throw new Error('A9_ELECTRON_LICENSE_MISSING');
     fs.copyFileSync(path.join(stage, 'LICENSE'), path.join(licensesRoot, 'ELECTRON-MIT.txt'));
-    writeJson(path.join(stage, 'SBOM.cdx.json'), buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies));
-    fs.writeFileSync(path.join(stage, 'THIRD_PARTY_LICENSES.md'), licenseInventory(lock), 'utf8');
-    fs.writeFileSync(path.join(stage, 'INSTALLATION.md'), installationGuide(lock), 'utf8');
+    const sbom = buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies);
+    if (profile.developmentOnly) {
+      sbom.components.find((c) => c.name === 'D-013 native helper').properties = [{ name: 'win7:delivery_note', value: 'v26 protocol v3 current-user streaming; Job containment is not a security sandbox' }];
+      sbom.metadata.properties.find((p) => p.name === 'win7:status').value = 'DEVELOPER_CHECK_NOT_CANDIDATE';
+    }
+    writeJson(path.join(stage, 'SBOM.cdx.json'), sbom);
+    const licenses = profile.developmentOnly
+      ? licenseInventory(lock).replace('Process containment compatibility input', 'v26 protocol v3 current-user streaming; not a security sandbox')
+      : licenseInventory(lock);
+    fs.writeFileSync(path.join(stage, 'THIRD_PARTY_LICENSES.md'), licenses, 'utf8');
+    fs.writeFileSync(path.join(stage, 'INSTALLATION.md'), profile.developmentOnly
+      ? '# A9-30 developer check package\n\nOffline Windows x64 / Electron 22 / protocol v3. Extract to a new directory and use an isolated test data root. This package has no formal candidate identity or authority. Win7, Alpha 2 and RC are NOT_PERFORMED.\n' : installationGuide(lock), 'utf8');
     fs.copyFileSync(lockPath, path.join(stage, profile.lockFile));
+    if (profile.developmentOnly) {
+      writeJson(path.join(stage, profile.kitFile), { schema_version: 1, task: 'A9-30', development_only: true,
+        status: 'NOT_FORMAL_ACCEPTANCE', source_commit: sourceCommit, cases: ['S01','S02','S03','S04','S05','S06'],
+        win7: 'NOT_PERFORMED', authority: 'NOT_GRANTED' });
+    } else {
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'A9_07_WINDOWS_VALIDATION.md'), path.join(stage, 'A9_07_WINDOWS_VALIDATION.md'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_A9_07_INTEGRITY.cmd'), path.join(stage, 'RUN_A9_07_INTEGRITY.cmd'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', profile.integrityCommand), path.join(stage, profile.integrityCommand));
@@ -615,6 +640,7 @@ export function buildA9ProductCandidate(options) {
     writeJson(path.join(stage, profile.kitFile), createValidationKit(root, sourceCommit, lock, profile));
     // 必须在 candidate driver 与 kit 均已生成后扫描，否则无法拦截 driver 的历史 case key。
     assertNoStaleCandidateTokens(root, stage, profile);
+    }
     copyContractEvidence(root, stage, profile);
     scanSensitivePayload(stage);
 
@@ -625,9 +651,9 @@ export function buildA9ProductCandidate(options) {
       version: lock.version,
       source_commit: sourceCommit,
       source_dirty: Boolean(sourceStatus),
-      external_acceptance_eligible: !sourceStatus,
+      external_acceptance_eligible: !profile.developmentOnly && !sourceStatus,
       source_date_epoch: lock.source_date_epoch,
-      status: 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS',
+      status: profile.developmentOnly ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS',
       target: lock.target,
       layout: {
         application: 'resources/app (trusted local UI and A9 runtime)',
@@ -649,11 +675,11 @@ export function buildA9ProductCandidate(options) {
         better_sqlite3_node: lock.inputs.storage_return_zip.required_entry_sha256,
         electron_abi: lock.inputs.storage_return_zip.electron_abi,
       },
-      release_authority: {
+      ...(profile.developmentOnly ? { development_inputs: { native_input_lock_sha256: sha256File(lockPath) } } : { release_authority: {
         formal_input_lock_sha256: sha256File(lockPath),
         approval_registry_commit: lock.inputs.runner_return_zip.approval_registry.commit,
         approval_registry_sha256: lock.inputs.runner_return_zip.approval_registry.sha256,
-      },
+      } }),
       files,
       gates: {
         developer_package_integrity: 'PASS',
@@ -683,7 +709,7 @@ export function buildA9ProductCandidate(options) {
       version: lock.version,
       source_commit: sourceCommit,
       source_dirty: Boolean(sourceStatus),
-      external_acceptance_eligible: !sourceStatus,
+      external_acceptance_eligible: !profile.developmentOnly && !sourceStatus,
       package: path.basename(zipPath),
       package_sha256: zipHash,
       manifest_sha256: sha256File(path.join(stage, 'release-manifest.json')),
@@ -710,7 +736,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
   const rootPrefix = manifestEntries[0].name.slice(0, -'release-manifest.json'.length);
   const manifest = JSON.parse(readZipEntry(manifestEntries[0]).toString('utf8'));
   if (manifest.release_id !== lock.release_id || manifest.version !== lock.version ||
-      manifest.status !== 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS') throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
+      manifest.status !== (profile.developmentOnly ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS')) throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
   const byName = new Map(entries.map((entry) => [entry.name, entry]));
   const expected = new Set([`${rootPrefix}release-manifest.json`]);
   for (const file of manifest.files || []) {
@@ -731,7 +757,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     'resources/native/runner/spike02_helper.exe',
     'resources/native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
   ];
-  const profileClosure = [
+  const profileClosure = profile.developmentOnly ? [profile.kitFile] : [
     `validation/${profile.integrityScript}`, `validation/${profile.reportScript}`,
     profile.kitFile, profile.validationDoc, profile.integrityCommand, profile.reportCommand,
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
@@ -2124,7 +2150,7 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125/ADR-0141/ADR-0142：候选任务书映射。
-  const taskBook = profile.candidate === 'WIN7-38'
+  const taskBook = profile.developmentOnly ? 'docs/tasks/A9_30_SHELL_STREAMING.md' : profile.candidate === 'WIN7-38'
     ? 'docs/tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-39'
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
@@ -2156,7 +2182,8 @@ function copyContractEvidence(root, stage, profile) {
 }
 
 function verifyA9Manifest(stage, manifest, lock) {
-  if (manifest.status !== 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS' ||
+  const expectedStatus = RELEASE_PROFILES[lock.lock_id].developmentOnly ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+  if (manifest.status !== expectedStatus ||
       manifest.gates.win10 !== 'NOT_PERFORMED' || manifest.gates.win7 !== 'NOT_PERFORMED' || manifest.gates.alpha !== 'NOT_PERFORMED') {
     throw new Error('A9_MANIFEST_GATE_STATUS_INVALID');
   }
@@ -2200,6 +2227,7 @@ function scanSensitivePayload(stage) {
 }
 
 function validateA9Lock(lock) {
+  if (lock?.lock_id === 'A9-30-DEVELOPER-INPUTS-D013-V26') return validateV26DeveloperLock(lock);
   const profile = lock && RELEASE_PROFILES[lock.lock_id];
   if (!profile || lock.schema_version !== 1
       || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA1' ||
@@ -2400,4 +2428,59 @@ function parseArguments(argv) {
   }
   if (!values.electronZip || !values.runnerZip || !values.storageZip) throw new Error('A9_ARGUMENT_REQUIRED_INPUT_ARCHIVES');
   return values;
+}
+
+
+function validateV26DeveloperLock(lock) {
+  const hex = (n, v) => new RegExp('^[a-f0-9]{' + n + '}$').test(String(v || ''));
+  const runner = lock.inputs?.runner_return_zip;
+  if (lock.schema_version !== 1 || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA2' || lock.version !== '0.3.0-alpha.2'
+    || lock.inputs_are_not_a9_pass !== true || !lock.runtime_profiles?.runner || !Number.isSafeInteger(lock.source_date_epoch)
+    || lock.provenance?.task !== 'A9-30' || lock.provenance?.development_only !== true
+    || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED' || lock.gates?.win7 !== 'NOT_PERFORMED' || lock.gates?.alpha !== 'NOT_PERFORMED'
+    || runner?.profile !== 'D-013-v26-a9-trusted-shell-current-user' || runner.protocol_version !== 3
+    || runner.runtime_profile !== 'a9-trusted-shell-current-user-v2' || !hex(40, runner.source_commit)
+    || runner.build_kit?.source_commit !== runner.source_commit || !hex(64, runner.build_kit?.sha256)
+    || !hex(64, runner.build_kit?.input_lock_sha256) || !hex(64, runner.build_kit?.package_manifest_sha256)
+    || !hex(40, runner.approval_registry?.commit) || !hex(64, runner.approval_registry?.sha256)
+    || runner.approval_registry?.path !== 'release/win7-product-v3/a9-v26-approved-build-kits.json'
+    || !Array.isArray(runner.reproducible_builds) || runner.reproducible_builds.length !== 2
+    || runner.reproducible_builds.some((b) => !hex(64,b.sha256) || !hex(64,b.evidence_binding_sha256)
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(b.run_id)))
+    || new Set(runner.reproducible_builds.map((b) => b.sha256)).size !== 2
+    || new Set(runner.reproducible_builds.map((b) => b.run_id)).size !== 2 || runner.sha256 !== runner.reproducible_builds[0].sha256) {
+    throw new Error('A9_V26_DEVELOPER_INPUT_LOCK_INVALID');
+  }
+  for (const input of Object.values(lock.inputs)) if (!hex(64,input.sha256) || !hex(64,input.required_entry_sha256)) throw new Error('A9_INPUT_LOCK_HASH_INVALID');
+  if (lock.inputs.storage_return_zip?.sqlite !== '3.43.1' || lock.inputs.storage_return_zip?.electron_abi !== 110) throw new Error('A9_STORAGE_PROFILE_INVALID');
+  return RELEASE_PROFILES[lock.lock_id];
+}
+
+function verifyV26CommittedInputs(root, lock) {
+  const runner = lock.inputs.runner_return_zip;
+  const relative = 'release/win7-product-v3/a9-v26-approved-build-kits.json';
+  const bytes = fs.readFileSync(path.join(root, relative));
+  let committed;
+  try { committed = Buffer.from(execFileSync('git', ['show', runner.approval_registry.commit + ':' + relative], {cwd:root, stdio:['ignore','pipe','ignore']})); }
+  catch (_error) { throw new Error('A9_V26_COMMITTED_REGISTRY_REQUIRED'); }
+  if (sha256Bytes(bytes) !== runner.approval_registry.sha256 || !bytes.equals(committed)) throw new Error('A9_V26_REGISTRY_BINDING_MISMATCH');
+  const registry = JSON.parse(bytes.toString('utf8'));
+  const kit = runner.build_kit;
+  const approved = registry.kits?.find((e) => e.status === 'APPROVED_FOR_RETURN_RECORDING' && e.sha256 === kit.sha256
+    && e.filename === kit.filename && e.revision === kit.revision && e.source_commit === runner.source_commit
+    && e.input_lock_sha256 === kit.input_lock_sha256 && e.package_manifest_sha256 === kit.package_manifest_sha256);
+  if (!approved) throw new Error('A9_V26_BUILD_KIT_NOT_PREAPPROVED');
+  verifyV26ReturnReview(approved.return_review, runner.reproducible_builds);
+  for (const name of ['helper.cpp','helper.h','protocol.cpp','logic_tests.cpp','CMakeLists.txt','stream_writer.cpp','stream_writer.h','whitelist.cpp','whitelist.h','argv_builder.cpp','argv_builder.h','json_parser.cpp','json_parser.h']) {
+    let frozen, current;
+    try {
+      frozen = Buffer.from(execFileSync('git', ['show', runner.source_commit + ':native/helper/' + name], {cwd:root,stdio:['ignore','pipe','ignore']}));
+      current = Buffer.from(execFileSync('git', ['show', 'HEAD:native/helper/' + name], {cwd:root,stdio:['ignore','pipe','ignore']}));
+    } catch (_error) { throw new Error('A9_V26_LOCKED_NATIVE_SOURCE_REQUIRED'); }
+    if (!frozen.equals(current)) throw new Error('A9_V26_LOCKED_NATIVE_SOURCE_MISMATCH');
+  }
+  for (const commit of [runner.source_commit, runner.approval_registry.commit]) {
+    try { execFileSync('git', ['merge-base','--is-ancestor',commit,'HEAD'], {cwd:root,stdio:['ignore','pipe','ignore']}); }
+    catch (_error) { throw new Error('A9_V26_INPUT_SOURCE_NOT_ANCESTOR'); }
+  }
 }

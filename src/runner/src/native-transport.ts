@@ -1,3 +1,4 @@
+import { TextDecoder } from 'util';
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { createTrustedShellEnvironment } from './trusted-shell-environment';
 import {
@@ -5,15 +6,17 @@ import {
   NativeHelperRequest,
   NativeHelperResponse,
   NativeHelperStartedResultV2,
-  parseNativeHelperResponse,
+  parseNativeHelperResponse, NativeOutputChunk, NativeOutputTruncated, hasCompleteHelperCleanupProof,
 } from './native-protocol';
 
-export type HelperTransportResult =
-  | { kind: 'response'; response: NativeHelperResponse }
+export type HelperTransportResult<R = Exclude<NativeHelperResponse, { schemaVersion: 3 }>> =
+  | { kind: 'response'; response: R }
   | { kind: 'spawn_failed' | 'helper_crashed' | 'cancelled' | 'watchdog_timeout'; detail: string; cleanupConfirmed: boolean };
 
+export type NativeOutputHandler = (chunk: NativeOutputChunk | NativeOutputTruncated) => Promise<void> | void;
+
 export interface HelperTransport {
-  invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv): Promise<HelperTransportResult>;
+  invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv, onOutput?: NativeOutputHandler): Promise<HelperTransportResult<NativeHelperResponse>>;
   startManaged?(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv): ManagedHelperInvocation;
 }
 
@@ -21,7 +24,7 @@ export interface ManagedHelperInvocation {
   /** Helper PID is diagnostic only; managed process identity comes from ready.childPid. */
   pid?: number;
   ready: Promise<NativeHelperStartedResultV2>;
-  completion: Promise<HelperTransportResult>;
+  completion: Promise<HelperTransportResult<Exclude<NativeHelperResponse, { schemaVersion: 3 }>>>;
   cancel(): void;
 }
 
@@ -39,8 +42,8 @@ export class StdioHelperTransport implements HelperTransport {
     private readonly startupTimeoutMs = 15_000,
   ) {}
 
-  invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv): Promise<HelperTransportResult> {
-    return this.invokeInternal(request, signal, {}, environment);
+  invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv, onOutput?: NativeOutputHandler): Promise<HelperTransportResult<NativeHelperResponse>> {
+    return this.invokeInternal(request, signal, {}, environment, onOutput);
   }
 
   startManaged(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv): ManagedHelperInvocation {
@@ -60,7 +63,7 @@ export class StdioHelperTransport implements HelperTransport {
       onStarted: resolveReady,
       onReadyFailure: rejectReady,
     }, environment);
-    return { pid, ready, completion, cancel: () => controller.abort() };
+    return { pid, ready, completion: completion as ManagedHelperInvocation['completion'], cancel: () => controller.abort() };
   }
 
   private invokeInternal(
@@ -68,8 +71,9 @@ export class StdioHelperTransport implements HelperTransport {
     signal?: AbortSignal,
     hooks: InvocationHooks = {},
     environment?: NodeJS.ProcessEnv,
-  ): Promise<HelperTransportResult> {
-    const protocolVersion: 1 | 2 = 'schemaVersion' in request ? 2 : 1;
+    onOutput?: NativeOutputHandler,
+  ): Promise<HelperTransportResult<NativeHelperResponse>> {
+    const protocolVersion = 'schemaVersion' in request ? request.schemaVersion : 1;
     return new Promise((resolve) => {
       let settled = false;
       let readySeen = false;
@@ -84,11 +88,24 @@ export class StdioHelperTransport implements HelperTransport {
       let pendingLine = Buffer.alloc(0);
       let stderr = Buffer.alloc(0);
       let child: ChildProcessWithoutNullStreams | undefined;
+      let outputSeq = 0;
+      const offsets = { stdout: 0, stderr: 0 };
+      const chunks = { stdout: 0, stderr: 0 };
+      const truncated = { stdout: false, stderr: false };
+      let queuedBytes = 0;
+      let delivery = Promise.resolve();
+      let streamFailure: string | undefined;
+      const failStream = (detail: string) => {
+        if (streamFailure) return;
+        // Never include child protocol/raw diagnostics (they may contain credentials).
+        streamFailure = detail;
+        onAbort();
+      };
 
       const failReady = (detail: string) => {
         if (!readySeen) hooks.onReadyFailure?.(new Error(detail));
       };
-      const finish = (result: HelperTransportResult) => {
+      const finish = (result: HelperTransportResult<NativeHelperResponse>) => {
         if (settled) return;
         settled = true;
         if (watchdog) clearTimeout(watchdog);
@@ -102,8 +119,8 @@ export class StdioHelperTransport implements HelperTransport {
       const onAbort = () => {
         if (cancelRequested || settled) return;
         cancelRequested = true;
-        const control = protocolVersion === 2
-          ? { schemaVersion: 2, type: 'cancel', requestId: request.requestId }
+        const control = protocolVersion >= 2
+          ? { schemaVersion: protocolVersion, type: 'cancel', requestId: request.requestId }
           : { schema_version: 1, type: 'cancel', requestId: request.requestId };
         try {
           child?.stdin.end(`${JSON.stringify(control)}\n`, 'utf8');
@@ -140,20 +157,54 @@ export class StdioHelperTransport implements HelperTransport {
         try {
           message = parseNativeHelperResponse(line, request.requestId, protocolVersion);
         } catch (error) {
+          if (protocolVersion === 3) { failStream('A9_OUTPUT_PROTOCOL_ERROR'); return; }
           child?.kill();
           finish({ kind: 'helper_crashed', detail: String(error), cleanupConfirmed: false });
           return;
         }
         if (message.type === 'execution_started') {
-          if (protocolVersion !== 2 || readySeen || finalResponse) {
+          if (protocolVersion < 2 || readySeen || finalResponse) {
+            if (protocolVersion === 3) { failStream('A9_OUTPUT_PROTOCOL_ORDER'); return; }
             child?.kill();
             finish({ kind: 'helper_crashed', detail: 'Helper readiness message order is invalid', cleanupConfirmed: false });
             return;
           }
           readySeen = true;
           if (startupWatchdog) clearTimeout(startupWatchdog);
-          hooks.onStarted?.(message);
+          if (message.schemaVersion === 2) hooks.onStarted?.(message);
           return;
+        }
+        if (message.type === 'output_chunk' || message.type === 'output_truncated') {
+          if (!readySeen || finalResponse) { failStream('A9_OUTPUT_PROTOCOL_ORDER'); return; }
+          const stream = message.stream;
+          if (message.type === 'output_chunk') {
+            const cap = 'schemaVersion' in request ? (stream === 'stdout' ? request.maxStdoutBytes : request.maxStderrBytes) : 0;
+            if (message.seq !== outputSeq + 1 || message.streamOffset !== offsets[stream] || truncated[stream]
+              || chunks[stream] >= 4096 || offsets[stream] + message.byteLength > cap) { failStream('A9_OUTPUT_PROTOCOL_SEQUENCE'); return; }
+            outputSeq = message.seq; offsets[stream] += message.byteLength; chunks[stream]++;
+          } else {
+            if (truncated[stream]) { failStream('A9_OUTPUT_PROTOCOL_TRUNCATION'); return; }
+            const cap = 'schemaVersion' in request ? (stream === 'stdout' ? request.maxStdoutBytes : request.maxStderrBytes) : 0;
+            if ((message.reason === 'event_limit' && chunks[stream] < 4096) || (message.reason === 'byte_limit' && offsets[stream] < cap)) { failStream('A9_OUTPUT_PROTOCOL_TRUNCATION'); return; }
+            truncated[stream] = true;
+          }
+          if (!streamFailure) {
+            const outputMessage = message;
+            const size = Buffer.byteLength(line);
+            if (queuedBytes + size > 256 * 1024) { failStream('A9_OUTPUT_BACKPRESSURE'); return; }
+            queuedBytes += size;
+            delivery = delivery.then(async () => {
+              if (!streamFailure) await onOutput?.(outputMessage);
+            }).catch(() => failStream('A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED')).then(() => { queuedBytes -= size; });
+          }
+          return;
+        }
+        if (message.type === 'execution_result' && 'schemaVersion' in message && message.schemaVersion === 3) {
+          if (!readySeen || message.lastOutputSeq !== outputSeq || message.stdout.emittedBytes !== offsets.stdout
+            || message.stderr.emittedBytes !== offsets.stderr || message.outputTruncated !== (truncated.stdout || truncated.stderr)
+            || (!truncated.stdout && message.stdout.omittedBytes !== 0) || (!truncated.stderr && message.stderr.omittedBytes !== 0)) {
+            failStream('A9_OUTPUT_PROTOCOL_COUNTS'); return;
+          }
         }
         if (finalResponse) {
           child?.kill();
@@ -170,7 +221,7 @@ export class StdioHelperTransport implements HelperTransport {
           stdio: ['pipe', 'pipe', 'pipe'],
           // v1 keeps its historical contract. v2 uses the caller's filtered
           // snapshot without merging the original process environment back in.
-          ...(protocolVersion === 2 ? { env: createTrustedShellEnvironment(environment ?? process.env, {}) } : {}),
+          ...(protocolVersion >= 2 ? { env: createTrustedShellEnvironment(environment ?? process.env, {}) } : {}),
         });
         hooks.onSpawn?.(child.pid);
       } catch (error) {
@@ -179,8 +230,9 @@ export class StdioHelperTransport implements HelperTransport {
       }
       child.once('error', (error) => finish({ kind: 'spawn_failed', detail: String(error), cleanupConfirmed: true }));
       child.stdout.on('data', (chunk: Buffer) => {
-        stdout = Buffer.concat([stdout, chunk]);
+        if (protocolVersion !== 3) stdout = Buffer.concat([stdout, chunk]);
         pendingLine = Buffer.concat([pendingLine, chunk]);
+        if (protocolVersion === 3 && pendingLine.length > 256 * 1024) { failStream('A9_OUTPUT_BACKPRESSURE'); pendingLine = Buffer.alloc(0); return; }
         if (stdout.length > this.protocolOutputLimit) {
           child?.kill();
           finish({ kind: 'helper_crashed', detail: 'Helper protocol output exceeded its hard limit', cleanupConfirmed: false });
@@ -194,16 +246,24 @@ export class StdioHelperTransport implements HelperTransport {
           if (lineBytes.length > 0 && lineBytes[lineBytes.length - 1] === 0x0D) {
             lineBytes = lineBytes.subarray(0, lineBytes.length - 1);
           }
-          if (lineBytes.length > 0) acceptMessage(lineBytes.toString('utf8'));
+          if (protocolVersion === 3 && lineBytes.length > 32768) { failStream('A9_OUTPUT_FRAME_LIMIT'); continue; }
+          try { if (lineBytes.length > 0) acceptMessage(new TextDecoder('utf-8', { fatal: true }).decode(lineBytes)); }
+          catch (_error) { failStream('A9_OUTPUT_PROTOCOL_ENCODING'); }
         }
+        if (protocolVersion === 3 && pendingLine.length > 32768) { failStream('A9_OUTPUT_FRAME_LIMIT'); pendingLine = Buffer.alloc(0); }
       });
       child.stderr.on('data', (chunk: Buffer) => {
         if (stderr.length < 64 * 1024) stderr = Buffer.concat([stderr, chunk]).subarray(0, 64 * 1024);
       });
-      child.once('close', (code) => {
+      child.once('close', async (code) => {
         if (settled) return;
-        if (pendingLine.length > 0) acceptMessage(pendingLine.toString('utf8').replace(/\r$/, ''));
+        if (protocolVersion === 3 && pendingLine.length > 0) failStream('A9_OUTPUT_MISSING_LF');
+        if (protocolVersion !== 3 && pendingLine.length > 0) acceptMessage(pendingLine.toString('utf8').replace(/\r$/, ''));
         if (settled) return;
+        await Promise.race([delivery, new Promise<void>((done) => { const timer = setTimeout(() => { failStream('A9_OUTPUT_BACKPRESSURE'); done(); }, 5000); delivery.finally(() => clearTimeout(timer)); })]);
+        if (streamFailure) {
+          finish({ kind: 'helper_crashed', detail: streamFailure, cleanupConfirmed: code === 0 && !!finalResponse && finalResponse.type === 'execution_result' && hasCompleteHelperCleanupProof(finalResponse) }); return;
+        }
         if (forcedExit === 'watchdog_timeout') {
           finish({ kind: 'watchdog_timeout', detail: 'Helper required watchdog termination', cleanupConfirmed: false });
           return;
@@ -213,9 +273,9 @@ export class StdioHelperTransport implements HelperTransport {
           return;
         }
         if (code !== 0 || !finalResponse ||
-            (protocolVersion === 2 && finalResponse.type === 'execution_result' && !readySeen) ||
+            (protocolVersion >= 2 && finalResponse.type === 'execution_result' && !readySeen) ||
             (protocolVersion === 1 && readySeen)) {
-          finish({ kind: 'helper_crashed', detail: `Helper exited ${code}: ${stderr.toString('utf8')}`, cleanupConfirmed: false });
+          finish({ kind: 'helper_crashed', detail: protocolVersion === 3 ? 'A9_OUTPUT_HELPER_MISSING_TERMINAL' : `Helper exited ${code}: ${stderr.toString('utf8')}`, cleanupConfirmed: false });
           return;
         }
         if (cancelRequested && (finalResponse.type !== 'execution_result' || finalResponse.canceled !== true)) {
@@ -225,7 +285,7 @@ export class StdioHelperTransport implements HelperTransport {
         finish({ kind: 'response', response: finalResponse });
       });
 
-      if (protocolVersion === 2) {
+      if (protocolVersion >= 2) {
         startupWatchdog = setTimeout(() => {
           child?.kill();
           finish({ kind: 'watchdog_timeout', detail: 'Helper did not prove execution readiness', cleanupConfirmed: false });

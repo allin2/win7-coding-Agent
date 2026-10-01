@@ -1285,6 +1285,25 @@ export class A9PersistenceManager {
   }
 
   recordToolEvent(sessionId: string, turnId: string | null, eventType: string, payload: Record<string, unknown>): { eventId: number } {
+    if (eventType === 'tool_output') {
+      const d = payload.data as Record<string, unknown> | undefined;
+      if (!d || d.schemaVersion !== 1 || d.conversationId !== sessionId || d.turnId !== turnId
+        || typeof d.taskId !== 'string' || !d.taskId || typeof d.toolCallId !== 'string' || !d.toolCallId
+        || typeof d.requestId !== 'string' || !d.requestId || !['stdout', 'stderr'].includes(String(d.stream))
+        || typeof d.text !== 'string' || Buffer.byteLength(d.text) > 64 * 1024
+        || !Number.isSafeInteger(d.outputSeq) || Number(d.outputSeq) < 1
+        || !Number.isSafeInteger(d.sourceSeqThrough) || Number(d.sourceSeqThrough) < 0
+        || !Number.isSafeInteger(d.rawBytesRead) || Number(d.rawBytesRead) < 0 || typeof d.truncated !== 'boolean') {
+        throw new Error('A9_OUTPUT_EVENT_INVALID');
+      }
+      // The runtime is the unique writer; transaction binds sequence checks and insertion.
+      return this.db.transaction(() => {
+        const row = this.db.prepare("SELECT payload_json FROM a9_events WHERE session_id = ? AND turn_id = ? AND event_type = 'tool_output' AND json_extract(payload_json, '$.data.toolCallId') = ? ORDER BY id DESC LIMIT 1").get(sessionId, turnId, d.toolCallId) as { payload_json: string } | undefined;
+        const previous = row ? (safeParse(row.payload_json) as any)?.data : undefined;
+        if (Number(d.outputSeq) !== Number(previous?.outputSeq ?? 0) + 1 || (previous && (previous.requestId !== d.requestId || previous.taskId !== d.taskId))) throw new Error('A9_OUTPUT_EVENT_SEQUENCE');
+        return this.insertEvent(sessionId, turnId, 'tool', eventType, payload);
+      })();
+    }
     return this.insertEvent(sessionId, turnId, 'tool', eventType, payload);
   }
 

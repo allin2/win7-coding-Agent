@@ -41,6 +41,8 @@
  */
 
 #include "helper.h"
+#include "stream_writer.h"
+#include <memory>
 
 #include <algorithm>
 #include <cstdio>
@@ -558,6 +560,36 @@ bool DrainAvailable(HANDLE hPipe, std::vector<unsigned char>* buffer,
     const size_t take = std::min<size_t>(room, read);
     if (take) buffer->insert(buffer->end(), chunk, chunk + take);
     if (take < read) *truncated = true;
+    return true;
+}
+
+// v3 drains raw bytes even after publication caps. Only successful enqueues advance sequence/offset.
+bool DrainStreaming(HANDLE pipe, const char* stream, long long cap,
+                    const ProcessConfig& config, ProcessResult* result, StreamWriter* writer,
+                    bool* activity, bool* transportFailed) {
+    DWORD available = 0;
+    if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) return false;
+    if (!available) return true;
+    unsigned char bytes[16384]; DWORD read = 0;
+    if (!ReadFile(pipe, bytes, (std::min)(available, static_cast<DWORD>(sizeof(bytes))), &read, nullptr) || !read) return false;
+    if (activity) *activity = true;
+    const bool out = stream[0] == 's' && stream[3] == 'o';
+    long long& raw = out ? result->stdoutRaw : result->stderrRaw;
+    long long& emitted = out ? result->stdoutEmitted : result->stderrEmitted;
+    long long& chunks = out ? result->stdoutChunks : result->stderrChunks;
+    bool& truncated = out ? result->stdoutTruncated : result->stderrTruncated;
+    raw += read;
+    if (*transportFailed || truncated) return true;
+    const size_t take = chunks >= 4096 ? 0 : static_cast<size_t>((std::min)(static_cast<long long>(read), (std::max)(0LL, cap - emitted)));
+    const std::string id = WideToUtf8(config.requestId);
+    if (take) {
+        if (!writer->Enqueue(RenderOutputJson(id, stream, result->lastOutputSeq + 1, emitted, bytes, take))) { *transportFailed = true; return true; }
+        emitted += take; ++chunks; ++result->lastOutputSeq;
+    }
+    if (take < read) {
+        truncated = true; result->outputTruncated = true;
+        if (!writer->Enqueue(RenderTruncatedJson(id, stream, chunks >= 4096 ? "event_limit" : "byte_limit"))) *transportFailed = true;
+    }
     return true;
 }
 
@@ -1253,7 +1285,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     result->schemaVersion = config.schemaVersion;
     result->profileId = config.profileId;
     result->workDirAclModified = false;
-    const bool currentUserProfile = config.schemaVersion == 2;
+    const bool currentUserProfile = config.schemaVersion >= 2;
     std::wstring commandLine;
     if (currentUserProfile && config.shellKind == L"cmd") {
         if (!BuildCmdVerbatimCommandLine(
@@ -1685,11 +1717,17 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     result->inputDetached = true;
     result->stdoutCaptureReady = true;
     result->stderrCaptureReady = true;
+    std::unique_ptr<StreamWriter> writer;
+    bool streamTransportFailed = false;
+    if (config.schemaVersion == 3) writer.reset(new StreamWriter());
     if (currentUserProfile) {
         const std::string started = RenderStartedJson(WideToUtf8(config.requestId), *result);
-        std::fwrite(started.data(), 1, started.size(), stdout);
-        std::fputc('\n', stdout);
-        std::fflush(stdout);
+        if (writer) streamTransportFailed = !writer->Enqueue(started);
+        else {
+            std::fwrite(started.data(), 1, started.size(), stdout);
+            std::fputc('\n', stdout);
+            std::fflush(stdout);
+        }
     }
 
     ResumeThread(pi.hThread);
@@ -1726,10 +1764,14 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         }
         const DWORD waitResult = WaitForSingleObject(pi.hProcess, slice);
         bool outputActivity = false;
-        DrainAvailable(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated,
-                       &outputActivity);
-        DrainAvailable(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated,
-                       &outputActivity);
+        if (writer) {
+            DrainStreaming(hOutRead, "stdout", stdoutCap, config, result, writer.get(), &outputActivity, &streamTransportFailed);
+            DrainStreaming(hErrRead, "stderr", stderrCap, config, result, writer.get(), &outputActivity, &streamTransportFailed);
+            if (writer->Failed() || streamTransportFailed) { result->canceled = true; done = true; }
+        } else {
+            DrainAvailable(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated, &outputActivity);
+            DrainAvailable(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated, &outputActivity);
+        }
         if (outputActivity) lastActivity = GetTickCount64();
         bool cancellationRequested = false;
         std::string cancellationError;
@@ -1773,8 +1815,18 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     }
     // Ensure the tree is gone before draining (writers dead -> EOF).
     WaitForSingleObject(pi.hProcess, 10000);
-    DrainUntilEof(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated);
-    DrainUntilEof(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated);
+    if (writer) {
+        bool outOpen = true, errOpen = true;
+        const ULONGLONG drainDeadline = GetTickCount64() + 5000;
+        while ((outOpen || errOpen) && GetTickCount64() < drainDeadline) {
+            if (outOpen) outOpen = DrainStreaming(hOutRead, "stdout", stdoutCap, config, result, writer.get(), nullptr, &streamTransportFailed);
+            if (errOpen) errOpen = DrainStreaming(hErrRead, "stderr", stderrCap, config, result, writer.get(), nullptr, &streamTransportFailed);
+        }
+        if (outOpen || errOpen) streamTransportFailed = true;
+    } else {
+        DrainUntilEof(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated);
+        DrainUntilEof(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated);
+    }
 
     GetExitCodeProcess(pi.hProcess, &result->exitCode);
     const ULONGLONG cleanupDeadline = GetTickCount64() + 10000;
@@ -1840,7 +1892,13 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         }
         return HELPER_ERR_ACL_ROLLBACK;
     }
-    if (cancelProtocolFailed) return HELPER_ERR_CANCEL_PROTOCOL;
+    if (cancelProtocolFailed && !writer) return HELPER_ERR_CANCEL_PROTOCOL;
+    if (writer) {
+        if (cancelProtocolFailed) { result->canceled = true; }
+        const bool terminalQueued = !streamTransportFailed && writer->Enqueue(RenderResultJson(WideToUtf8(config.requestId), *result));
+        const bool delivered = writer->Finish();
+        if (!terminalQueued || !delivered) return HELPER_ERR_INTERNAL;
+    }
     return HELPER_OK;
 }
 
@@ -1891,7 +1949,9 @@ int RunHelperLoop() {
         ProcessConfig config;
         std::string error;
         if (!ParseJsonConfig(line, &config, &error)) {
-            int errorSchemaVersion = line.find("\"schemaVersion\":2") != std::string::npos ? 2 : 1;
+            int errorSchemaVersion = config.schemaVersion >= 2 ? config.schemaVersion :
+                (line.find("\"schemaVersion\":2") != std::string::npos ? 2 : 1);
+            requestId = WideToUtf8(config.requestId);
             const std::string out = RenderErrorJson(requestId, "JSON_PARSE_FAILED",
                                                     "invalid request: " + error,
                                                     errorSchemaVersion);
@@ -1924,7 +1984,7 @@ int RunHelperLoop() {
             return HELPER_OK;
         }
         config.executable = canonical;
-        if (config.schemaVersion == 2) {
+        if (config.schemaVersion >= 2) {
             std::wstring canonicalShell;
             std::wstring canonicalCwd;
             std::wstring identity;
@@ -1971,6 +2031,7 @@ int RunHelperLoop() {
         ProcessResult result;
         const int errorCode = LaunchRestrictedProcess(config, &result);
         if (errorCode != HELPER_OK) {
+            if (config.schemaVersion == 3 && result.childPid != 0) return errorCode;
             const char* code = "PROCESS_LAUNCH_FAILED";
             if (errorCode == HELPER_ERR_HOST_IN_JOB) code = "HOST_ALREADY_IN_JOB";
             else if (errorCode == HELPER_ERR_JOB_CREATE) code = "JOB_CREATE_FAILED";
@@ -1991,6 +2052,7 @@ int RunHelperLoop() {
             return HELPER_OK;
         }
 
+        if (config.schemaVersion == 3) return HELPER_OK; // writer already delivered the terminal.
         const std::string out = RenderResultJson(requestId, result);
         std::fwrite(out.data(), 1, out.size(), stdout);
         std::fputc('\n', stdout);
@@ -2026,18 +2088,19 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("win7-agent-helper 1.3.0-d013-v25 win7-x64 profiles=v1-low-risk,v2-current-user\n");
+            std::printf("win7-agent-helper 1.4.0-d013-v26 win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {
             std::printf(
-                "spike02-helper: JSON-over-stdio D-013 process host with two separate profiles.\n"
+                "spike02-helper: JSON-over-stdio D-013 process host with separate versioned profiles.\n"
                 "v1 / D-013-v24-low-risk-noninteractive: Restricted Token + Low Integrity +\n"
                 "Job Object + authorized ACL changes; canonical low-risk System32 argv only.\n"
                 "v2 / D-013-v25-a9-trusted-shell-current-user: current-user Primary Token +\n"
                 "Job Object, detached stdin, bounded output, ready/cancel/result messages,\n"
                 "shell identity binding, filtered environment overlay and optional deadline.\n"
-                "v2 is NOT a security sandbox and provides no file, network or privilege\n"
+                "v3 / D-013-v26: byte-sequenced dual-stream output with a bounded writer; no release.\n"
+                "v2/v3 are NOT a security sandbox and provides no file, network or privilege\n"
                 "isolation beyond the permissions of the current Windows user.\n");
             return 0;
         }

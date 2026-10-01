@@ -999,6 +999,7 @@ function createA9AgentRuntime(options) {
   const loopTrustedRunner = new modules.runner.TrustedShellRunner({
     ...(config.runnerHelperPath ? {
       helperTransport: new modules.runner.StdioHelperTransport(config.runnerHelperPath),
+      helperProtocolVersion: 3,
     } : {}),
     ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
     redactText: redactSecrets,
@@ -1215,7 +1216,11 @@ function createA9AgentRuntime(options) {
             return;
           }
           const flushed = flushModelChunks(event.turnId, false);
-          const safeEvent = { ...event, data: redactForProjection(event.data) };
+          const outputIdentity = event.type === 'tool_output' ? {
+            conversationId: a9SessionId, taskId: activeLifecycle && activeLifecycle.taskId,
+            turnId: event.turnId,
+          } : {};
+          const safeEvent = { ...event, data: { ...redactForProjection(event.data), ...outputIdentity } };
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
           if (event.type === 'turn_started' && activeLifecycle && !activeLifecycle.turnId) {
             const runId = `run-${event.turnId}`;

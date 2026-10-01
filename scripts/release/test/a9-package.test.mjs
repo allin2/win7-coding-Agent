@@ -5971,3 +5971,52 @@ test('W42 live model-note observation excludes AGENTS notice and requires matchi
   await probe(null, exec, {}); assert.equal(observed.notes, 1);
   assert.match(driver.slice(start, end), /await runLiveProcess\(win, w42Exec, env\)/);
 });
+
+
+function v26DeveloperFixture(root, repositoryRoot) {
+  const inputs = fixture(root, repositoryRoot, 'win22');
+  const lock = JSON.parse(fs.readFileSync(inputs.lockPath));
+  const native = lock.inputs.runner_return_zip;
+  const registryRelative = 'release/win7-product-v3/a9-v26-approved-build-kits.json';
+  const registryPath = path.join(repositoryRoot, registryRelative);
+  writeJson(registryPath, {schema_version:1, kits:[{...native.build_kit,status:'APPROVED_FOR_RETURN_RECORDING',return_review:{status:'APPROVED_FOR_INPUT_LOCK',independent_reviewer:'TEST_ONLY reviewer',implementation_author:'TEST_ONLY implementer',reviewed_at:'2026-10-01T00:00:00Z',report_sha256:'b'.repeat(64),builds:native.reproducible_builds.map(b=>({run_id:b.run_id,sha256:b.sha256}))}}]});
+  execFileSync('git',['add',registryRelative],{cwd:repositoryRoot});
+  execFileSync('git',['-c','user.name=A9 TEST_ONLY','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false','commit','--quiet','-m','TEST_ONLY developer package approval fixture'],{cwd:repositoryRoot});
+  const approvalCommit = execFileSync('git',['rev-parse','HEAD'],{cwd:repositoryRoot,encoding:'utf8'}).trim();
+  Object.assign(lock,{lock_id:'A9-30-DEVELOPER-INPUTS-D013-V26',release_id:'WIN7-CODING-AGENT-A9-ALPHA2',version:'0.3.0-alpha.2',provenance:{task:'A9-30',development_only:true}});
+  Object.assign(native,{version:'D-013-v26-a9-trusted-shell-current-user',profile:'D-013-v26-a9-trusted-shell-current-user',protocol_version:3,runtime_profile:'a9-trusted-shell-current-user-v2',approval_registry:{commit:approvalCommit,path:registryRelative,sha256:sha256File(registryPath)}});
+  lock.gates={win10:'PASS_D013_V26_RETURN_REVIEWED',win7:'NOT_PERFORMED',alpha:'NOT_PERFORMED'};
+  writeJson(inputs.lockPath,lock);return {...inputs, lock};
+}
+test('v26 developer package uses protocol 3, remains noncandidate and has reproducible closure',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'a9-v26-developer-TEST_ONLY-'));
+  const repositoryRoot=cleanSourceFixture(root);const inputs=v26DeveloperFixture(root,repositoryRoot);
+  const first=buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'first')});
+  const second=buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'second')});
+  assert.deepEqual(fs.readFileSync(first.zipPath),fs.readFileSync(second.zipPath));
+  assert.equal(first.manifest.status,'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE');assert.equal(first.manifest.external_acceptance_eligible,false);assert.equal(first.manifest.release_authority,undefined);
+  assert.equal(first.manifest.required_native.runner_helper_protocol,3);assert.equal(first.manifest.gates.win7,'NOT_PERFORMED');
+  const app=path.join(first.stage,'resources/app');const runtime=JSON.parse(fs.readFileSync(path.join(app,'a9-runtime.json')));
+  assert.equal(runtime.runner_helper_protocol,3);assert.equal(runtime.runner_helper_profile,'D-013-v26-a9-trusted-shell-current-user');
+  const sbom=JSON.parse(fs.readFileSync(path.join(first.stage,'SBOM.cdx.json')));assert.match(sbom.components.find((c)=>c.name==='D-013 native helper').properties[0].value,/v26 protocol v3 current-user/);
+  assert.match(fs.readFileSync(path.join(first.stage,'THIRD_PARTY_LICENSES.md'),'utf8'),/v26 protocol v3 current-user/);
+  const kit=JSON.parse(fs.readFileSync(path.join(first.stage,'A9_30_DEVELOPER_CHECK.json')));assert.equal(kit.status,'NOT_FORMAL_ACCEPTANCE');
+  assert.equal(fs.existsSync(path.join(first.stage,'validation')),false);
+  assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'first')}),/NEW_OUTPUT_DIRECTORY_REQUIRED/);
+});
+test('v26 producer refuses protocol/profile/gates/registry drift and uncommitted sources',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'a9-v26-producer-negative-TEST_ONLY-'));
+  const repositoryRoot=cleanSourceFixture(root);const inputs=v26DeveloperFixture(root,repositoryRoot);const original=inputs.lock;
+  for(const mutate of [
+    (v)=>{v.inputs.runner_return_zip.protocol_version=2;},
+    (v)=>{v.inputs.runner_return_zip.runtime_profile='a9-trusted-shell-current-user-v1';},
+    (v)=>{v.gates.win7='PASS';},
+    (v)=>{v.inputs.runner_return_zip.reproducible_builds[1].run_id=v.inputs.runner_return_zip.reproducible_builds[0].run_id;},
+    (v)=>{v.inputs.runner_return_zip.build_kit.revision='not-approved';},
+  ]) {const lock=JSON.parse(JSON.stringify(original));mutate(lock);writeJson(inputs.lockPath,lock);assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'never-written')}),/A9_V26_/);}
+  writeJson(inputs.lockPath,original);fs.appendFileSync(path.join(repositoryRoot,'native/helper/helper.cpp'),'\n// TEST_ONLY source drift\n');
+  assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,allowUncommitted:true,outputRoot:path.join(root,'never-written')}),/CLEAN_SOURCE_REQUIRED/);
+  execFileSync('git',['add','native/helper/helper.cpp'],{cwd:repositoryRoot});
+  execFileSync('git',['-c','user.name=A9 TEST_ONLY','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false','commit','--quiet','-m','TEST_ONLY native source changed after lock'],{cwd:repositoryRoot});
+  assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'never-written')}),/LOCKED_NATIVE_SOURCE_MISMATCH/);
+});
