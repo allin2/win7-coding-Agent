@@ -36,6 +36,41 @@
         "D:\\A9-A30-V26-20261001\\build-b"
       ],
       "revocation_reason": "P1: role-only identity gate accepted an elevated High-integrity restricted token. No formal build performed; r2 must not be used."
+    },
+    {
+      "revision": "A9-30-D013-V26-r3",
+      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "filename": "A9_30_V26_BUILDKIT_r3.zip",
+      "sha256": "c0add425ed6510bc8e7f5946ab806f200101f99d42ec0557685b79ff36508698",
+      "source_commit": "ff153483ef4e6df5daae59c6dcef9784e29d4140",
+      "input_lock_sha256": "276f2cd903529cc7d3f04c28b92c867265772210d5fa43760c76fff909154d26",
+      "package_manifest_sha256": "e36b46a88f5aadcd610c1e03f38c5df5538cd6f0345018dbb44b32b88c1f605d",
+      "approved_by": "user",
+      "approved_at": "2026-10-02T00:27:00+08:00",
+      "approval_scope": "User authorized independent read-only review and local kit/approval commit after passing; native build independently authorized. No push or merge.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_30_native_kit_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T00:25:31+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r3_independent_kit_review_2026-10-02.md",
+        "report_sha256": "e9dc6705505fb2f536d16b2c35db1388c75ef2bca2520401a1c57d23b019c0bb",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_conditions": [
+        "non-elevated ordinary token verified",
+        "no Host Job verified",
+        "approved fresh directories only"
+      ],
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "approved_write_targets": [
+        "D:\\A9-A30-V26-20261001\\control",
+        "D:\\A9-A30-V26-20261001\\build-a",
+        "D:\\A9-A30-V26-20261001\\build-b"
+      ]
     }
   ]
 }
