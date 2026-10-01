@@ -3,9 +3,9 @@
   "package": "WIN10_D013_V26_HELPER_BUILD_KIT",
   "revision": "a9-30-r1",
   "status": "READY_FOR_WIN10_BUILD",
-  "source_commit": "ff153483ef4e6df5daae59c6dcef9784e29d4140",
-  "source_commit_timestamp": "2026-10-02T00:16:47+08:00",
-  "generated_at": "2026-10-02T00:16:47+08:00",
+  "source_commit": "8e2bcfc38b03813f2cfa34ec17e60c89e23f68ff",
+  "source_commit_timestamp": "2026-10-02T01:30:01+08:00",
+  "generated_at": "2026-10-02T01:30:01+08:00",
   "delivery_type": "offline build inputs; independent approval required; not a Win7 candidate",
   "excluded": [
     "work/",
@@ -17,8 +17,8 @@
   "files": [
     {
       "path": "src/helper.cpp",
-      "size": 95827,
-      "sha256": "52750d635439a5eff03a81cc4dc5c5d26394e1de75e697558b4db2c53ab77358"
+      "size": 96804,
+      "sha256": "8d47a86387614cdadcc2a17725974426ec45193d80d50e315d1d28e55c8b2d42"
     },
     {
       "path": "src/helper.h",
@@ -113,17 +113,17 @@
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "5d6f740f21a791b014cded3f3dd3dc3073739aeb05a1f9483208b24915e0e620"
+      "sha256": "23afe3c91b5a4e8cb365d4148781afcc976232f285382558ec9bb53eb1f6377d"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
       "size": 26,
-      "sha256": "4dd61b00047bf3b3785f00271e405d69fa0d5fa7dc96af40c767e9b8b1841a58"
+      "sha256": "51908fdc78260c78417c734781d979c41a870792e59a62b1b4405cbfd42f8f85"
     },
     {
       "path": "input-lock.json",
       "size": 3454,
-      "sha256": "276f2cd903529cc7d3f04c28b92c867265772210d5fa43760c76fff909154d26"
+      "sha256": "141fcbd6d406342a3a4187f4b8b2dc0bd6b3c8fd063b2deb64d5bc2856e37356"
     }
   ]
 }
