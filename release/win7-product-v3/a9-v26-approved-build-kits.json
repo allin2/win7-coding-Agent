@@ -108,6 +108,79 @@
         "D:\\A9-A30-V26-20261001\\build-r4-b"
       ],
       "revocation_reason": "First formal build run 17ae5e37-c173-45f3-9201-8e8d41b7a091 failed ACL_ROLLBACK_FAILED at mandatory-label restore. Preserve diagnostics; no BuildB/relock/assembly."
+    },
+    {
+      "revision": "A9-30-D013-V26-r6",
+      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "filename": "A9_30_V26_BUILDKIT_r6.zip",
+      "sha256": "8c0f79bf2f5383be3b59b6542f27e159c00efb23f07eeabdc0a05477462cf406",
+      "source_commit": "7feae402edfb30da9adb649841d777ca82cc6e80",
+      "input_lock_sha256": "b36aeffc0392363a21177e400211742fac2eb7777fcb4b28a411ed5ef894d51a",
+      "package_manifest_sha256": "db84d5ebd36a6045fc3193156d3650bcea1ef53297affaffbf434f6c024f4e52",
+      "approved_by": "user",
+      "approved_at": "2026-10-02T05:51:25.559836+08:00",
+      "approval_scope": "User approved exact four-path OS host repair commit; standing authorization permits kit/approval local commit after independent PASS; double builds use existing approved empty r5 directories/SID1005 and four exact v1 WRITE_OWNER fixture paths. No push or merge.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_30_r4_label_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T05:49:54+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r6_independent_kit_review_2026-10-02.md",
+        "report_sha256": "5873a1d31ead5ab325f7830323a254d1916e82c2ad84f2d0f94a9bad7c0e38e2",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_conditions": [
+        "live non-elevated ordinary SID1005 Medium token and no Host Job verified",
+        "Win10 runtime/HKLM and VS2019 16.11/v142/MSVC14.29/SDK19041 tools readonly preflight",
+        "actual PS5.1 control syntax and pre-staging unapproved negative check",
+        "exact committed approval registry and report HEAD bytes verified before stage/launch",
+        "approved fresh build-r5-a/b directories only",
+        "only work/smoke/allowed and work/smoke/cancel-allowed self noninheriting exact WRITE_OWNER ACE with approved flag",
+        "any BuildA failure stops BuildB/relock/assembly"
+      ],
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "build_user_sid": "S-1-5-21-3031939772-989444280-3099258187-1005",
+      "approved_write_targets": [
+        "D:\\A9-A30-V26-20261001\\control",
+        "D:\\A9-A30-V26-20261001\\build-r5-a",
+        "D:\\A9-A30-V26-20261001\\build-r5-b"
+      ],
+      "control_scripts": [
+        {
+          "file": "r6-standard-worker.ps1",
+          "sha256": "eeda5aad99879ce04bd5363949de72ff4ccddcdef24f487ff9e50b219c48420d",
+          "size": 7250
+        },
+        {
+          "file": "stage-r6-kit.ps1",
+          "sha256": "b1c99cc9d1daab632c4ee1b972fdde733af0d0e3643eff2cbd38bc64fae3f252",
+          "size": 3731
+        },
+        {
+          "file": "serve-r6-controlled-build.ps1",
+          "sha256": "9098e6927e8c10e31b221038356f0f72a68c2d35d0339f7140be25255f9c5d90",
+          "size": 3656
+        },
+        {
+          "file": "launch-r6-controlled-build.ps1",
+          "sha256": "c96057f0cbc46a5f81869017a2cb6e7d8886aae370c59be358bb402a2868e759",
+          "size": 5603
+        },
+        {
+          "file": "test-r6-input-closure.ps1",
+          "sha256": "f7d0b595aa2448eb8a73ae23281c899c4adc32c10b145bfee152a6b7660ad13e",
+          "size": 2178
+        },
+        {
+          "file": "verify-r6-registry-head.py",
+          "sha256": "6fa25210e9d93b082ab34994b312f9b77612ef4d8e237991d827fdbd2b3a4302",
+          "size": 2402
+        }
+      ],
+      "network_preflight_at_registration": "CONNECTION_TIMEOUT; r6 transfer/staging/build NOT_PERFORMED"
     }
   ]
 }

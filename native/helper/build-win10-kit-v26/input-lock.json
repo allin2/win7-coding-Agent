@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "profile": "WIN10-VS2019-V142-SDK19041-D013-V26-STREAMING-X64",
-  "source_commit": "8e2bcfc38b03813f2cfa34ec17e60c89e23f68ff",
-  "source_commit_timestamp": "2026-10-02T01:30:01+08:00",
-  "generated_at": "2026-10-02T01:30:01+08:00",
+  "source_commit": "7feae402edfb30da9adb649841d777ca82cc6e80",
+  "source_commit_timestamp": "2026-10-02T05:41:55+08:00",
+  "generated_at": "2026-10-02T05:41:55+08:00",
   "sources": [
     {
       "path": "src/helper.cpp",
-      "size": 96804,
-      "sha256": "8d47a86387614cdadcc2a17725974426ec45193d80d50e315d1d28e55c8b2d42"
+      "size": 97826,
+      "sha256": "7d2c7a810d6684a768d85800338bfa87db47d25f46df5ce55fe2210aab21370d"
     },
     {
       "path": "src/helper.h",
@@ -82,8 +82,8 @@
     },
     {
       "path": "build.ps1",
-      "size": 72619,
-      "sha256": "4437235f15b6dc9548eda4de9850e9272abe60cb560fc981feb3ad249607e813"
+      "size": 81201,
+      "sha256": "66ba584b439ae5cffad0469d562ab584b4198a05b18eea9d8f6316fa0a1acc8a"
     },
     {
       "path": "build-profile.json",
@@ -92,8 +92,8 @@
     },
     {
       "path": "README_BUILD.md",
-      "size": 4794,
-      "sha256": "f15fcfa739b8d6deea21debbf5a185d24ec4aca7421f4dd9313c5a7905525a74"
+      "size": 6363,
+      "sha256": "797ef1199de5243d82f20d45f059739440d7c2f8aefcfc028d705830f1cd9fe5"
     },
     {
       "path": "helper.exe.manifest",
@@ -103,12 +103,12 @@
     {
       "path": "SOURCE_COMMIT.txt",
       "size": 41,
-      "sha256": "23afe3c91b5a4e8cb365d4148781afcc976232f285382558ec9bb53eb1f6377d"
+      "sha256": "a8add7aef2b7f30ccc145e3b0e458ac5cc393f4428485525c196c3d9bf76ac81"
     },
     {
       "path": "SOURCE_COMMIT_TIMESTAMP.txt",
       "size": 26,
-      "sha256": "51908fdc78260c78417c734781d979c41a870792e59a62b1b4405cbfd42f8f85"
+      "sha256": "9575745b7bec687af638e6909f59e68b21692d62ba6d3c30527ae4ecfc4953e7"
     }
   ]
 }
