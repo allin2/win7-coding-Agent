@@ -1,7 +1,9 @@
 # A9-30 D-013 v26：离线构建与返回合同
 
-当前仅为套件源码模板，SOURCE_COMMIT / 时间为 NOT_LOCKED；没有正式输入锁或 manifest。
-不得把本目录当作已批准构建包，也不得以隔离 TEST_ONLY 生成器证据冒充真实 Windows 构建。
+本目录可处于未绑定源码模板或已生成套件状态。以 SOURCE_COMMIT.txt、SOURCE_COMMIT_TIMESTAMP.txt、
+input-lock.json 和 PACKAGE_MANIFEST.json 的实际内容判定输入是否绑定；模板中的 NOT_LOCKED 值或缺失锁/manifest 不能用于构建。
+生成套件的精确源码与输入哈希已绑定，不代表产品 helper 已构建或套件已获批准。
+正式批准以干净 HEAD 中的 a9-v26-approved-build-kits.json 登记为准；隔离 TEST_ONLY 证据不能冒充真实 Windows 构建。
 
 ## 绑定与封装（源码提交获准后）
 
