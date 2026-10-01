@@ -34,6 +34,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -TestSmokeRe
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
+v1 回归的完整性标签设置需要私有 fixture 的 WRITE_OWNER。构建机只授 Modify 时，默认入口会明确拒绝缺失前置，
+不提升账户、不跳过 smoke。仅在负责人批准两个新构建目录内 `work\smoke\allowed`、
+`work\smoke\cancel-allowed` 的本人、不继承、单个 WRITE_OWNER ACE 后，正式入口可增加 `-AllowV1FixtureWriteOwner`。
+该标志不适用于父目录、protected、v2/v3 工作区或任意路径；目录须新建、空、无重解析点并由当前普通用户拥有。
+使用 Raw CommonAce 精确写入 0x80000，拒绝额外权限、旧 ACE 字节/顺序或 owner/group/control flags 改变；
+实际 WRITE_OWNER 句柄证明通过后才启动 helper。写入/验证失败停止，尝试恢复原 DACL，清理未知不标 PASS。
+授权与读回记录写入已有 environment.json 并随返回包哈希绑定；helper 的恢复比较基线包括这条已批准 ACE。
+v1 保留历史标签应用结构判据；回滚后仍按原标签快照比较，并要求 DACL/owner 无漂移。该目录权限标志不代表具体写入授权，需与批准记录配套。
+
 -TestSmokeRequestOnly 保留原 v2 请求复制自检，不能替代构建。主入口完成 logic/capture/v1/v2/v3、PE/API/CRT 与 manifest。
 v3 检查两秒 tick/双源、UTF-8/CP936/UTF-16LE 字节、无换行、上限、取消、暂停消费者；stdout 原始协议 bytes 先写证据，
 每帧接收时间相对于单调时钟记录。输出 JSON 不等于产品脱敏证明；秘密测试只能用合成 marker，不能注入真实凭据。

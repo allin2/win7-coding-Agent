@@ -1288,6 +1288,13 @@ bool CaptureLowIntegrityLabel(const std::wstring& directory,
 bool RestoreLowIntegrityLabel(const std::wstring& directory,
                               const SecurityDescriptorSnapshot& restore,
                               std::wstring* error) {
+    // A failed application may leave the captured label unchanged. Prove
+    // that state by re-reading it before attempting a redundant label write.
+    // A read failure or mismatch must still take the restoration path.
+    std::wstring comparisonError;
+    if (CurrentLabelAclMatches(directory, restore.acl, &comparisonError)) {
+        return true;
+    }
     const DWORD result = SetNamedSecurityInfoW(
         const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
         LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, restore.acl);
@@ -1503,7 +1510,22 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     };
 
     if (fatalAclFailure) {
+        std::string setupError = "ACL setup failed";
+        for (const AclChangeRecord& record : aclRecords) {
+            if (!record.applied || !record.verified) {
+                setupError += " (" + WideToUtf8(record.mechanism) + "): ";
+                setupError += record.error.empty()
+                    ? (record.applied ? "verification failed" : "application failed")
+                    : WideToUtf8(record.error);
+                break;
+            }
+        }
         const int failure = failAfterRollback(HELPER_ERR_ACL_SET);
+        if (failure == HELPER_ERR_ACL_ROLLBACK) {
+            result->errorMessage += "; primary " + setupError;
+        } else {
+            result->errorMessage = setupError;
+        }
         if (userSid) LocalFree(userSid);
         CloseHandle(hRestricted);
         CloseHandle(hJob);

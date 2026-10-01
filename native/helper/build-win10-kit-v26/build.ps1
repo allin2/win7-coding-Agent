@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly, [switch]$TestBuildIdentityOnly)
+param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly, [switch]$TestBuildIdentityOnly,
+      [switch]$AllowV1FixtureWriteOwner)
 
 # D-013 containment helper — offline Win10 build kit.
 #
@@ -20,6 +21,7 @@ public static class A9V26BuildToken {
     [DllImport("advapi32.dll", SetLastError=true)] public static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError=true)] public static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr data, int size, out int required);
     [DllImport("kernel32.dll", SetLastError=true)] public static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern IntPtr CreateFileW(string path, uint access, uint share, IntPtr sa, uint creation, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError=true)] public static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool inside);
 }
 '@
@@ -72,6 +74,98 @@ if ($TestBuildIdentityOnly) {
     $buildIdentity | ConvertTo-Json -Depth 4 -Compress
     Assert-V26BuildIdentity $buildIdentity
     return
+}
+
+function Assert-V1FixtureWriteOwnerDelta($beforeBytes,$afterBytes,$sid){
+ $a=New-Object Security.AccessControl.RawSecurityDescriptor($beforeBytes,0)
+ $b=New-Object Security.AccessControl.RawSecurityDescriptor($afterBytes,0)
+ if($a.Owner.Value -cne $b.Owner.Value -or $a.Group.Value -cne $b.Group.Value -or $a.ControlFlags -ne $b.ControlFlags){throw 'Owner/group/control flags changed during private grant.'}
+ if($null -ne $a.SystemAcl -or $null -ne $b.SystemAcl){throw 'Unexpected SACL in private grant snapshot.'}
+ if($null -eq $a.DiscretionaryAcl -or $null -eq $b.DiscretionaryAcl -or $b.DiscretionaryAcl.Count -ne ($a.DiscretionaryAcl.Count+1)){throw 'Grant is not exactly one added ACE.'}
+ $oldIndex=0;$added=0
+ foreach($ace in $b.DiscretionaryAcl){
+  $newBytes=New-Object byte[] $ace.BinaryLength;$ace.GetBinaryForm($newBytes,0)
+  $matchesOld=$false
+  if($oldIndex -lt $a.DiscretionaryAcl.Count){$old=$a.DiscretionaryAcl[$oldIndex];$oldBytes=New-Object byte[] $old.BinaryLength;$old.GetBinaryForm($oldBytes,0);$matchesOld=([Convert]::ToBase64String($newBytes) -ceq [Convert]::ToBase64String($oldBytes))}
+  if($matchesOld){$oldIndex++;continue}
+  if($ace -isnot [Security.AccessControl.CommonAce] -or $ace.AceType -ne [Security.AccessControl.AceType]::AccessAllowed -or $ace.AceFlags -ne [Security.AccessControl.AceFlags]::None -or $ace.IsCallback -or $ace.AccessMask -ne 524288 -or $ace.SecurityIdentifier.Value -cne $sid){throw 'Unexpected permission delta.'}
+  $added++
+ }
+ if($oldIndex -ne $a.DiscretionaryAcl.Count -or $added -ne 1){throw 'Original ACE bytes/order were not preserved.'}
+ return $true
+}
+
+function Initialize-V1FixtureWriteOwner([string]$Directory, [string]$SmokeRoot) {
+    # Only two freshly created v1 fixtures may receive a scoped grant.
+    $full = [IO.Path]::GetFullPath($Directory)
+    $allowed = [IO.Path]::GetFullPath((Join-Path $SmokeRoot 'allowed'))
+    $cancel = [IO.Path]::GetFullPath((Join-Path $SmokeRoot 'cancel-allowed'))
+    if (($full -ine $allowed -and $full -ine $cancel) -or
+        (Get-Item -LiteralPath $full -Force).Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -or
+        @(Get-ChildItem -LiteralPath $full -Force).Count -ne 0) {
+        throw 'v1 WRITE_OWNER prerequisites require a fresh, direct, empty allowed/cancel-allowed fixture.'
+    }
+    $current = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $acl = Get-Acl -LiteralPath $full
+    if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne $current.User.Value) {
+        throw 'v1 fixture must be owned by the non-elevated build user.'
+    }
+    $record = [ordered]@{ path = $full; owner_sid = $current.User.Value; status = 'FAIL'
+        dacl_before = $acl.Sddl; permission_changed = $false; grant_attempted = $false
+        grant_applied = $false; mask = 524288; inheritance = 'None' }
+    $beforeBytes = $acl.GetSecurityDescriptorBinaryForm()
+    $handle = [A9V26BuildToken]::CreateFileW($full, 524288, 7, [IntPtr]::Zero, 3, 33554432, [IntPtr]::Zero)
+    $alreadyPresent = $handle -ne [IntPtr](-1)
+    if ($alreadyPresent) { $null = [A9V26BuildToken]::CloseHandle($handle) }
+    $grantAttempted = $false
+    try {
+        if (-not $alreadyPresent) {
+            if (-not $AllowV1FixtureWriteOwner) {
+                throw 'Missing v1 fixture WRITE_OWNER; a specifically approved -AllowV1FixtureWriteOwner is required.'
+            }
+            $raw = New-Object Security.AccessControl.RawSecurityDescriptor($beforeBytes, 0)
+            # FileSystemAccessRule adds SYNCHRONIZE. Raw CommonAce preserves the exact approved mask.
+            $ace = New-Object Security.AccessControl.CommonAce([Security.AccessControl.AceFlags]::None,
+                [Security.AccessControl.AceQualifier]::AccessAllowed, 524288, $current.User, $false, $null)
+            $raw.DiscretionaryAcl.InsertAce(0, $ace)
+            $grantBytes = New-Object byte[] $raw.BinaryLength
+            $raw.GetBinaryForm($grantBytes, 0)
+            $acl.SetSecurityDescriptorBinaryForm($grantBytes, [Security.AccessControl.AccessControlSections]::Access)
+            $grantAttempted = $true
+            $record.grant_attempted = $true
+            $record.grant_applied = 'UNKNOWN_UNTIL_WRITE_RETURNS'
+            $record.permission_changed = 'UNKNOWN_UNTIL_WRITE_RETURNS'
+            Set-Acl -LiteralPath $full -AclObject $acl
+            $record.grant_applied = $true
+            $record.permission_changed = $true
+            $afterAcl = Get-Acl -LiteralPath $full
+            $record.exact_delta_verified = Assert-V1FixtureWriteOwnerDelta $beforeBytes ($afterAcl.GetSecurityDescriptorBinaryForm()) $current.User.Value
+        }
+        $handle = [A9V26BuildToken]::CreateFileW($full, 524288, 7, [IntPtr]::Zero, 3, 33554432, [IntPtr]::Zero)
+        if ($handle -eq [IntPtr](-1)) {
+            $record.write_owner_error = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw 'v1 fixture WRITE_OWNER open proof failed; do not start helper.'
+        }
+        $null = [A9V26BuildToken]::CloseHandle($handle)
+        $record.write_owner_open_verified = $true
+        $record.dacl_after = (Get-Acl -LiteralPath $full).Sddl
+        $record.status = 'PASS'
+        $record.mode = $(if ($alreadyPresent) { 'PRESENT_NO_CHANGE' } else { 'EXACT_OWNED_FIXTURE_GRANT' })
+    } catch {
+        $record.error = $_.Exception.Message
+        if ($grantAttempted) {
+            try {
+                $restore = Get-Acl -LiteralPath $full
+                $restore.SetSecurityDescriptorBinaryForm($beforeBytes, [Security.AccessControl.AccessControlSections]::Access)
+                Set-Acl -LiteralPath $full -AclObject $restore
+                $record.grant_rollback_verified = (Get-Acl -LiteralPath $full).Sddl -ceq $record.dacl_before
+            } catch { $record.grant_rollback_error = $_.Exception.Message; $record.grant_rollback_verified = $false }
+        }
+        throw
+    } finally {
+        $environment['v1_fixture_prerequisites'] = @($environment['v1_fixture_prerequisites']) + @($record)
+        Write-Json $environment (Join-Path $EvidenceRoot 'environment.json')
+    }
 }
 
 function New-V25RejectedEnvironmentRequest([System.Collections.IDictionary]$Request) {
@@ -719,6 +813,7 @@ try {
         msvc_version = $msvcDirectory.Name; platform_toolset = "v142"; windows_sdk_version = $sdkVersion
         compiler = $cl; archive_tool = $tarCommand.Source; network_required = $false
     }
+    $environment['v1_fixture_prerequisites'] = @()
     $buildIdentity = Get-V26BuildIdentity
     foreach ($key in $buildIdentity.Keys) { $environment[$key] = $buildIdentity[$key] }
     Write-Json $environment (Join-Path $EvidenceRoot 'environment.json')
@@ -856,6 +951,7 @@ try {
         $smokeProtected = Join-Path $smokeRoot "protected"
         Ensure-Directory $smokeAllowed
         Ensure-Directory $smokeProtected
+        Initialize-V1FixtureWriteOwner -Directory $smokeAllowed -SmokeRoot $smokeRoot
         $smokeAllowedAclBefore = (Get-Acl -LiteralPath $smokeAllowed).Sddl
         $smokeProtectedAclBefore = (Get-Acl -LiteralPath $smokeProtected).Sddl
         $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
@@ -990,6 +1086,7 @@ try {
             # original integrity label, and only then acknowledges canceled.
             $cancelAllowed = Join-Path $smokeRoot "cancel-allowed"
             Ensure-Directory $cancelAllowed
+            Initialize-V1FixtureWriteOwner -Directory $cancelAllowed -SmokeRoot $smokeRoot
             $cancelAllowedAclBefore = (Get-Acl -LiteralPath $cancelAllowed).Sddl
             $pingExe = Join-Path $env:SystemRoot "System32\ping.exe"
             if (-not (Test-Path -LiteralPath $pingExe -PathType Leaf)) { throw "ping.exe cancel smoke target was not detected." }

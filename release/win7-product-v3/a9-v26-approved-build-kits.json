@@ -75,7 +75,7 @@
     },
     {
       "revision": "A9-30-D013-V26-r4",
-      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "status": "REVOKED",
       "filename": "A9_30_V26_BUILDKIT_r4.zip",
       "sha256": "f7157f71da3ea91d09ef5891344d5ba7a6850c3207e52e231cdd425c54fbc296",
       "source_commit": "8e2bcfc38b03813f2cfa34ec17e60c89e23f68ff",
@@ -106,7 +106,8 @@
         "D:\\A9-A30-V26-20261001\\control",
         "D:\\A9-A30-V26-20261001\\build-r4-a",
         "D:\\A9-A30-V26-20261001\\build-r4-b"
-      ]
+      ],
+      "revocation_reason": "First formal build run 17ae5e37-c173-45f3-9201-8e8d41b7a091 failed ACL_ROLLBACK_FAILED at mandatory-label restore. Preserve diagnostics; no BuildB/relock/assembly."
     }
   ]
 }
