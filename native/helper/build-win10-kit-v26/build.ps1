@@ -13,6 +13,36 @@ param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly, [switch]$TestBuildIdent
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
+function Assert-V26BuildHostOs($RuntimeVersion, $Registry, [string]$Platform, [bool]$Is64Bit) {
+    if ($Platform -cne 'Win32NT' -or -not $Is64Bit -or $RuntimeVersion -isnot [Version] -or
+        $RuntimeVersion.Major -ne 10 -or $RuntimeVersion.Minor -ne 0 -or
+        $RuntimeVersion.Build -lt 10240 -or $RuntimeVersion.Build -ge 22000) {
+        throw 'Locked profile requires an actual Windows 10 x64 runtime version.'
+    }
+    foreach ($name in @('ProductName','InstallationType','CurrentMajorVersionNumber','CurrentMinorVersionNumber','CurrentBuildNumber','UBR')) {
+        if ($null -eq $Registry -or $null -eq $Registry.PSObject.Properties[$name] -or
+            $null -eq $Registry.$name) { throw 'Build host registry identity is incomplete.' }
+    }
+    if ($Registry.ProductName -isnot [string] -or $Registry.ProductName -notlike 'Windows 10 *' -or
+        $Registry.InstallationType -cne 'Client' -or
+        $Registry.CurrentMajorVersionNumber -isnot [int] -or $Registry.CurrentMajorVersionNumber -ne $RuntimeVersion.Major -or
+        $Registry.CurrentMinorVersionNumber -isnot [int] -or $Registry.CurrentMinorVersionNumber -ne $RuntimeVersion.Minor -or
+        $Registry.CurrentBuildNumber -isnot [string] -or $Registry.CurrentBuildNumber -cne $RuntimeVersion.Build.ToString() -or
+        $Registry.UBR -isnot [int] -or $Registry.UBR -lt 0) {
+        throw 'Build host runtime and read-only registry identity disagree or are unsupported.'
+    }
+    return [pscustomobject]@{
+        Caption = $Registry.ProductName; Version = $RuntimeVersion.ToString(); BuildNumber = $Registry.CurrentBuildNumber
+        Probe = 'runtime-version+readonly-HKLM'; UpdateBuildRevision = $Registry.UBR; InstallationType = $Registry.InstallationType
+    }
+}
+
+function Get-V26BuildHostOs() {
+    # Ordinary users need no WMI permission: both facts must independently agree.
+    $registry = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    return Assert-V26BuildHostOs ([Environment]::OSVersion.Version) $registry ([Environment]::OSVersion.Platform.ToString()) ([Environment]::Is64BitOperatingSystem)
+}
+
 function Get-V26BuildIdentity() {
     Add-Type -TypeDefinition @'
 using System;
@@ -769,9 +799,7 @@ try {
 
     $currentStage = "VERIFY_BUILD_HOST"
     Write-Host "[4/9] Enforce Win10 + VS2019 + v142 + SDK 10.0.19041.0"
-    if (-not [Environment]::Is64BitOperatingSystem) { throw "A 64-bit Windows build host is required." }
-    $os = Get-CimInstance Win32_OperatingSystem
-    if ($os.Caption -notlike "*Windows 10*") { throw "This locked profile requires Windows 10 x64; detected: $($os.Caption)." }
+    $os = Get-V26BuildHostOs
 
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path -LiteralPath $vswhere)) { throw "vswhere.exe not found." }
@@ -809,6 +837,7 @@ try {
     $environment = [ordered]@{
         schema_version = 1; status = "PASS"; captured_at = [DateTime]::UtcNow.ToString("o")
         computer_name = $env:COMPUTERNAME; os_caption = $os.Caption; os_version = $os.Version; os_build = $os.BuildNumber
+        os_probe = $os.Probe; os_update_revision = $os.UpdateBuildRevision; os_installation_type = $os.InstallationType
         powershell = $PSVersionTable.PSVersion.ToString(); visual_studio_path = $vsPath; visual_studio_version = $vsVersion
         msvc_version = $msvcDirectory.Name; platform_toolset = "v142"; windows_sdk_version = $sdkVersion
         compiler = $cl; archive_tool = $tarCommand.Source; network_required = $false

@@ -130,3 +130,40 @@ test('duplicate build identity and unapproved or dirty registry are rejected',()
 test('Windows smoke harness syntax and actual execution remain target-platform checks', {skip:process.platform!=='win32'?'Windows PowerShell 5.1 NOT_PERFORMED':false},()=>{
   const result=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(root,'native/helper/build-win10-kit-v26/build.ps1'),'-TestSmokeRequestOnly'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
 });
+
+test('Windows host gate rejects contradictory and unsupported runtime/registry facts', {skip:process.platform!=='win32'?'Windows PowerShell 5.1 NOT_PERFORMED':false},()=>{
+  const script=String.raw`$BuildScript=$env:A9_V26_TEST_BUILD_SCRIPT;$ProbeActualHost=$false
+$ErrorActionPreference='Stop';Set-StrictMode -Version 2
+$tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($BuildScript,[ref]$tokens,[ref]$errors)
+if($errors.Count -ne 0){throw 'Build script parse errors.'}
+foreach($name in @('Assert-V26BuildHostOs','Get-V26BuildHostOs')){
+ $fn=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name},$true)
+ if($null -eq $fn){throw 'Actual host gate function missing.'};Invoke-Expression $fn.Extent.Text
+}
+function New-TestRegistry {return [pscustomobject]@{ProductName='Windows 10 Pro';InstallationType='Client';CurrentMajorVersionNumber=10;CurrentMinorVersionNumber=0;CurrentBuildNumber='19045';UBR=6466}}
+$positive=Assert-V26BuildHostOs ([version]'10.0.19045.0') (New-TestRegistry) 'Win32NT' $true
+if($positive.Probe -cne 'runtime-version+readonly-HKLM' -or $positive.BuildNumber -cne '19045' -or $positive.UpdateBuildRevision -ne 6466){throw 'Positive host facts not retained.'}
+$names=@('non-windows','x86','runtime-string','win7','win11','early-win10','minor','null-registry','missing-product','missing-ubr','wrong-product','server','major-type','major-mismatch','minor-type','minor-mismatch','build-type','build-mismatch','ubr-type','negative-ubr')
+$rows=@()
+foreach($name in $names){
+ $r=New-TestRegistry;$v=[version]'10.0.19045.0';$platform='Win32NT';$is64=$true
+ switch($name){
+  'non-windows'{$platform='Unix'} 'x86'{$is64=$false} 'runtime-string'{$v='10.0.19045.0'}
+  'win7'{$v=[version]'6.1.7601.0'} 'win11'{$v=[version]'10.0.22000.0'} 'early-win10'{$v=[version]'10.0.10239.0'} 'minor'{$v=[version]'10.1.19045.0'}
+  'null-registry'{$r=$null} 'missing-product'{$r.PSObject.Properties.Remove('ProductName')} 'missing-ubr'{$r.PSObject.Properties.Remove('UBR')}
+  'wrong-product'{$r.ProductName='Windows 11 Pro'} 'server'{$r.InstallationType='Server'}
+  'major-type'{$r.CurrentMajorVersionNumber='10'} 'major-mismatch'{$r.CurrentMajorVersionNumber=6}
+  'minor-type'{$r.CurrentMinorVersionNumber='0'} 'minor-mismatch'{$r.CurrentMinorVersionNumber=1}
+  'build-type'{$r.CurrentBuildNumber=19045} 'build-mismatch'{$r.CurrentBuildNumber='19044'}
+  'ubr-type'{$r.UBR='6466'} 'negative-ubr'{$r.UBR=-1}
+ }
+ $rejected=$false;try{$null=Assert-V26BuildHostOs $v $r $platform $is64}catch{$rejected=$true}
+ if(-not $rejected){throw ('Invalid host accepted: '+$name)};$rows += [ordered]@{case=$name;rejected=$true}
+}
+$result=[ordered]@{status='HOST_GATE_TEST_PASS';parse_errors=0;positive_cases=1;negative_cases=$rows;build_script_sha256=(Get-FileHash -LiteralPath $BuildScript -Algorithm SHA256).Hash.ToLowerInvariant();native_build='NOT_PERFORMED'}
+if($ProbeActualHost){$result.actual_host=Get-V26BuildHostOs;$result.sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value}
+$result|ConvertTo-Json -Depth 6 -Compress
+`;
+  const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',env:{...process.env,A9_V26_TEST_BUILD_SCRIPT:path.join(root,'native/helper/build-win10-kit-v26/build.ps1')}});
+  assert.equal(result.status,0,result.stderr);const facts=JSON.parse(result.stdout);assert.equal(facts.status,'HOST_GATE_TEST_PASS');assert.equal(facts.positive_cases,1);assert.equal(facts.negative_cases.length,20);
+});

@@ -25,6 +25,9 @@ VS2019 16.11/MSVC 14.29 v142、SDK 10.0.19041.0、静态 /MT。离线，不安�
 身份必须实测普通角色、TokenElevation=false、ElevationType=Default/Limited、Medium SID/RID 8192 及无 Host Job；缺失或未知拒绝。
 -TestBuildIdentityOnly 只输出身份并检查，不生成正式返回包；管理员角色禁用仍可能是提升令牌，不作为降权证明。
 工具实际路径、版本、SHA-256 均进入证据。路径映射为 C:\a9-v26-kit，源码/对象参数为相对路径。
+系统身份由实际 .NET Windows 版本与只读 HKLM CurrentVersion 交叉核对，不要求普通账户具备 WMI 权限。
+必须为 Win32NT/x64、10.0、build 10240–21999，注册表产品为 Windows 10、Client，major/minor/build 与运行时一致，UBR 已知。
+缺项、类型错、矛盾、Server、Windows 11 或未知版本均拒绝；探测来源及 UBR 写入 environment.json。不调整账户、WMI 或系统策略。
 
 同一批准 ZIP 解压到两个全新目录，例如 C:\a9v26-a 和 C:\a9v26-b。目录需负责人具体授权；
 脚本拒绝复用已有 work/output/evidence/result，不删除历史文件。每个目录运行：
