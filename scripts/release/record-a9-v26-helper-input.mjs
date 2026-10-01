@@ -218,7 +218,11 @@ function inspectEligibleReturn(runnerZip, sidecar, authorizedKit, sourceReposito
     || !String(environment.msvc_version || '').startsWith('14.29.')
     || !/Windows 10/i.test(String(environment.os_caption || '')) || !/^10\.0\./.test(String(environment.os_version || ''))
     || environment.platform_toolset !== 'v142' || environment.windows_sdk_version !== '10.0.19041.0'
-    || environment.network_required !== false || environment.ordinary_user !== true) {
+    || environment.network_required !== false || environment.ordinary_user !== true
+    || environment.identity_schema_version !== 1 || environment.identity_probe !== 'win32-process-token'
+    || environment.token_is_elevated !== false || ![1, 3].includes(environment.token_elevation_type)
+    || environment.integrity_rid !== 8192 || environment.integrity_sid !== 'S-1-16-8192'
+    || environment.job_probe_ok !== true || environment.in_host_job !== false) {
     throw new Error('A9_V26_BUILD_ENVIRONMENT_NOT_ELIGIBLE');
   }
   if (buildProfile.profile !== 'WIN10-VS2019-V142-SDK19041-D013-V26-STREAMING-X64'

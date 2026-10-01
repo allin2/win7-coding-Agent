@@ -332,3 +332,10 @@ v26 构建限定 D-017 的 VS2019 16.11 / MSVC 14.29 / SDK 19041 / x64 / 静态 
 实际 cl/dumpbin/mt/vswhere/powershell 路径及 SHA-256 绑定返回证据；同工具链双构建身份和 helper 字节必须一致。
 新 v26 运行时、runner manifest、许可证及 SBOM 均声明 Current User streaming，不描述为安全沙箱。
 正式 kit / helper / input lock 哈希仍 NOT_LOCKED；开发检查包无 WIN7 候选 authority，不产生 Win7 或完整 Alpha 2 PASS。
+
+
+### A9-30 D-017 构建身份门补充（2026-10-02）
+
+仅构建脚本以 Windows PowerShell 5.1/.NET P/Invoke 读取既有 Win32 OpenProcessToken、GetTokenInformation（Elevation/Type/Integrity）、IsProcessInJob、CloseHandle。
+来源为构建机系统 advapi32/kernel32，不复制或引入新产品 DLL；系统工具哈希随环境证据绑定。既有 D-013 使用这些令牌/Job 查询能力，产品导入和 Win7 前置不变。
+身份事实格式见 ADR-0154；查询失败拒绝构建，无角色判定回退。此记录不替代独立套件复核和目标运行证据。

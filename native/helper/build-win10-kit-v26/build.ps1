@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly)
+param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly, [switch]$TestBuildIdentityOnly)
 
 # D-013 containment helper — offline Win10 build kit.
 #
@@ -11,6 +11,68 @@ param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly)
 # Usage: .\build.ps1 [-SkipSmoke] [-TestSmokeRequestOnly]
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
+
+function Get-V26BuildIdentity() {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class A9V26BuildToken {
+    [DllImport("advapi32.dll", SetLastError=true)] public static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError=true)] public static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr data, int size, out int required);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool inside);
+}
+'@
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    $result = [ordered]@{
+        identity_schema_version = 1; identity_probe = 'win32-process-token'
+        user = $identity.Name
+        ordinary_user = -not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    $token = [IntPtr]::Zero; $buffer = [IntPtr]::Zero
+    try {
+        if (-not [A9V26BuildToken]::OpenProcessToken([IntPtr](-1), 8, [ref]$token)) { throw 'Build token query failed.' }
+        $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal(4); $required = 0
+        if (-not [A9V26BuildToken]::GetTokenInformation($token, 20, $buffer, 4, [ref]$required)) { throw 'Build elevation query failed.' }
+        $result['token_is_elevated'] = [Runtime.InteropServices.Marshal]::ReadInt32($buffer) -ne 0
+        if (-not [A9V26BuildToken]::GetTokenInformation($token, 18, $buffer, 4, [ref]$required)) { throw 'Build elevation type query failed.' }
+        $result['token_elevation_type'] = [Runtime.InteropServices.Marshal]::ReadInt32($buffer)
+        [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer); $buffer = [IntPtr]::Zero
+        $required = 0
+        $null = [A9V26BuildToken]::GetTokenInformation($token, 25, [IntPtr]::Zero, 0, [ref]$required)
+        if ($required -le 0 -or $required -gt 65536) { throw 'Build integrity query size invalid.' }
+        $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($required)
+        if (-not [A9V26BuildToken]::GetTokenInformation($token, 25, $buffer, $required, [ref]$required)) { throw 'Build integrity query failed.' }
+        $sid = New-Object Security.Principal.SecurityIdentifier([Runtime.InteropServices.Marshal]::ReadIntPtr($buffer))
+        $result['integrity_sid'] = $sid.Value
+        if ($sid.Value -notmatch '^S-1-16-([0-9]+)$') { throw 'Build integrity SID invalid.' }
+        $result['integrity_rid'] = [int]$Matches[1]
+        $inside = $false
+        if (-not [A9V26BuildToken]::IsProcessInJob([IntPtr](-1), [IntPtr]::Zero, [ref]$inside)) { throw 'Build Host Job query failed.' }
+        $result['job_probe_ok'] = $true; $result['in_host_job'] = $inside
+        return $result
+    } finally {
+        if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer) }
+        if ($token -ne [IntPtr]::Zero) { $null = [A9V26BuildToken]::CloseHandle($token) }
+    }
+}
+
+function Assert-V26BuildIdentity([System.Collections.IDictionary]$Identity) {
+    if ($Identity.ordinary_user -ne $true -or $Identity.token_is_elevated -ne $false -or
+        $Identity.token_elevation_type -notin @(1, 3) -or $Identity.integrity_rid -ne 8192 -or
+        $Identity.integrity_sid -cne 'S-1-16-8192' -or $Identity.job_probe_ok -ne $true -or
+        $Identity.in_host_job -ne $false) {
+        throw 'v26 build requires a non-elevated Medium-integrity ordinary user outside a Host Job.'
+    }
+}
+
+if ($TestBuildIdentityOnly) {
+    $buildIdentity = Get-V26BuildIdentity
+    $buildIdentity | ConvertTo-Json -Depth 4 -Compress
+    Assert-V26BuildIdentity $buildIdentity
+    return
+}
 
 function New-V25RejectedEnvironmentRequest([System.Collections.IDictionary]$Request) {
     # [ordered]@{} is an OrderedDictionary, not a Hashtable with Clone().
@@ -657,10 +719,10 @@ try {
         msvc_version = $msvcDirectory.Name; platform_toolset = "v142"; windows_sdk_version = $sdkVersion
         compiler = $cl; archive_tool = $tarCommand.Source; network_required = $false
     }
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-    $environment['ordinary_user'] = -not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    if (-not $environment.ordinary_user) { throw 'v26 smoke requires a non-elevated ordinary user.' }
+    $buildIdentity = Get-V26BuildIdentity
+    foreach ($key in $buildIdentity.Keys) { $environment[$key] = $buildIdentity[$key] }
+    Write-Json $environment (Join-Path $EvidenceRoot 'environment.json')
+    Assert-V26BuildIdentity $buildIdentity
     $tools = @()
     foreach ($toolPath in @($cl, $dumpbin, $mt, $vswhere, (Join-Path $PSHOME 'powershell.exe'))) {
         $tools += [ordered]@{ path = $toolPath; sha256 = (Get-FileHash -LiteralPath $toolPath -Algorithm SHA256).Hash.ToLowerInvariant() }

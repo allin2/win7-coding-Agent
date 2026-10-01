@@ -3,7 +3,7 @@
   "kits": [
     {
       "revision": "A9-30-D013-V26-r2",
-      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "status": "REVOKED",
       "filename": "A9_30_V26_BUILDKIT_r2.zip",
       "sha256": "de0f0e538feea02de4f955d7a3e1e5b94587ddfa6463d025e2aebae1190d48ae",
       "source_commit": "c904ab5256c86ebc7c5991c46643d3cc9b6a8151",
@@ -34,7 +34,8 @@
         "D:\\A9-A30-V26-20261001\\control",
         "D:\\A9-A30-V26-20261001\\build-a",
         "D:\\A9-A30-V26-20261001\\build-b"
-      ]
+      ],
+      "revocation_reason": "P1: role-only identity gate accepted an elevated High-integrity restricted token. No formal build performed; r2 must not be used."
     }
   ]
 }

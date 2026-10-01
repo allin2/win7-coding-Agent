@@ -2468,3 +2468,11 @@
   无正式 authority 或历史验收结论。套件登记与 committed HEAD 绑定，return_review 另绑定独立复核人、实现人、报告 SHA、时间及两组 run-id/ZIP SHA；
   原生记录器与装配生产者都拒绝缺失或错配。v25/W42 保持逐字节原合同；未知清理不签 PASS。
 - 后果：批准源码实现不等于批准正式 kit、返回复核、构建机动作或开发 Gate；具体交接和负例见 [A9-30 收口交接包](plans/A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)。
+
+
+## ADR-0154 A9-30 v26 构建身份事实校验
+
+- 状态：Proposed（2026-10-02；依据已批准的非提升构建合同修复身份门，未自行 Accepted）
+- 背景：Win10 实测受限令牌管理员角色为 false，但 TokenElevation=true、High RID 12288。r2 仅按角色判定，已撤销且未构建。
+- 提案：environment 身份字段版本 1，直接查询进程令牌的提升标志、提升类型、Integrity SID/RID 和 Host Job；仅接受普通角色、非提升、Default/Limited 类型、Medium SID/RID 8192 及明确无 Job。构建与返回记录器都拒绝缺失或未知。
+- 后果：诊断入口只输出身份，不生成正式证据；历史 v25 合同不变。重发独立复核的新 kit，保留失败探针及 r2 历史登记。

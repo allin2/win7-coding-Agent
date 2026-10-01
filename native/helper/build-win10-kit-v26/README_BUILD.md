@@ -22,6 +22,8 @@ node native/helper/build-win10-kit-v26/package-kit.cjs --out <新的绝对路径
 
 负责人指定构建机和非提升执行用户后，只读预检并审批写入目标。固定 Windows 10 x64、Windows PowerShell 5.1 Desktop、
 VS2019 16.11/MSVC 14.29 v142、SDK 10.0.19041.0、静态 /MT。离线，不安装或下载组件。
+身份必须实测普通角色、TokenElevation=false、ElevationType=Default/Limited、Medium SID/RID 8192 及无 Host Job；缺失或未知拒绝。
+-TestBuildIdentityOnly 只输出身份并检查，不生成正式返回包；管理员角色禁用仍可能是提升令牌，不作为降权证明。
 工具实际路径、版本、SHA-256 均进入证据。路径映射为 C:\a9-v26-kit，源码/对象参数为相对路径。
 
 同一批准 ZIP 解压到两个全新目录，例如 C:\a9v26-a 和 C:\a9v26-b。目录需负责人具体授权；

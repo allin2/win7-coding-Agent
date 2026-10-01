@@ -67,7 +67,7 @@ test('recording validates raw v3 evidence and two independent builds without for
   assert.equal(lock.lock_id,'A9-30-DEVELOPER-INPUTS-D013-V26');assert.equal(lock.inputs.runner_return_zip.protocol_version,3);assert.equal(lock.gates.win7,'NOT_PERFORMED');assert.equal(lock.provenance.development_only,true);assert.notEqual(result.runnerZipSha256,result.runnerZip2Sha256);
   assert.throws(()=>recordA9V26HelperInput(opts),/REFUSES_OVERWRITE/);
 });
-for(const mode of ['request_id','sequence','base64','counts','invalid_json','extra_field','missing_terminal','prestart','offset','exit_type','tool_drift','extra_return','missing_return','source_mismatch','not_live','not_clean','encoding','tools','wrong_profile','fail','api','crt','pe_arch','changed_helper'])test('rebound return evidence cannot conceal '+mode,()=>{
+for(const mode of ['request_id','sequence','base64','counts','invalid_json','extra_field','missing_terminal','prestart','offset','exit_type','tool_drift','extra_return','missing_return','source_mismatch','not_live','not_clean','encoding','tools','wrong_profile','fail','api','crt','pe_arch','changed_helper','identity_missing','identity_elevated','identity_full','identity_high','identity_sid','identity_type','identity_job','identity_unknown_job'])test('rebound return evidence cannot conceal '+mode,()=>{
   const f=fixture();const mutate=(dir)=>{
     const edit=(n,change)=>{const file=path.join(dir,'evidence',n);const value=JSON.parse(fs.readFileSync(file));change(value);writeJson(file,value);};
     if(['request_id','sequence','base64','counts','not_clean','extra_field','missing_terminal','prestart','offset','exit_type'].includes(mode)){
@@ -88,6 +88,16 @@ for(const mode of ['request_id','sequence','base64','counts','invalid_json','ext
     if(mode==='encoding')edit('v26-cp936-request.json',(v)=>{v.outputEncoding.stdout='utf-8';});
     if(mode==='tool_drift')edit('v26-tools.json',v=>{v.tools[0].sha256='f'.repeat(64);});
     if(mode==='tools')edit('v26-tools.json',(v)=>{v.tools.pop();});
+    if(mode.startsWith('identity_'))edit('environment.json',v=>{
+      if(mode==='identity_missing')delete v.token_is_elevated;
+      if(mode==='identity_elevated')v.token_is_elevated=true;
+      if(mode==='identity_full')v.token_elevation_type=2;
+      if(mode==='identity_high'){v.integrity_rid=12288;v.integrity_sid='S-1-16-12288';}
+      if(mode==='identity_sid')v.integrity_sid='S-1-16-12288';
+      if(mode==='identity_type')v.integrity_rid='8192';
+      if(mode==='identity_job')v.in_host_job=true;
+      if(mode==='identity_unknown_job')delete v.job_probe_ok;
+    });
     if(mode==='wrong_profile')edit('build-result.json',(v)=>{v.helper_protocol=2;});
     if(mode==='fail')edit('build-result.json',(v)=>{v.status='FAIL';});
     if(['api','crt','pe_arch','changed_helper'].includes(mode)){
