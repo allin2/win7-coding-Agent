@@ -1231,15 +1231,32 @@ bool ApplyDenyAce(const std::wstring& directory, PSID userSid,
 bool RestoreDirectoryDacl(const std::wstring& directory,
                           const SecurityDescriptorSnapshot& restore,
                           std::wstring* error) {
-    // SetNamedSecurityInfoW re-applies inheritance and can add the
-    // SE_DACL_AUTO_INHERITED control bit even when the captured descriptor did
-    // not contain it. Restore the captured descriptor so both ACE bytes and
-    // inheritance-control state return to their exact pre-run values.
-    if (!SetFileSecurityW(directory.c_str(), DACL_SECURITY_INFORMATION,
-                          restore.descriptor)) {
+    SECURITY_DESCRIPTOR_CONTROL originalControl = 0;
+    DWORD revision = 0;
+    if (!GetSecurityDescriptorControl(restore.descriptor, &originalControl, &revision)) {
+        if (error) *error = L"GetSecurityDescriptorControl(DACL restore) failed: " + WinErrorText(GetLastError());
+        return false;
+    }
+    // SetFileSecurityW can clear AUTO_INHERITED on an originally inherited
+    // DACL. Restore that case while preserving its captured protection mode;
+    // keep the descriptor path for snapshots without AUTO_INHERITED.
+    if ((originalControl & SE_DACL_AUTO_INHERITED) != 0) {
+        const SECURITY_INFORMATION protection = (originalControl & SE_DACL_PROTECTED) != 0
+            ? PROTECTED_DACL_SECURITY_INFORMATION : UNPROTECTED_DACL_SECURITY_INFORMATION;
+        const DWORD result = SetNamedSecurityInfoW(
+            const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | protection,
+            nullptr, nullptr, restore.acl, nullptr);
+        if (result != ERROR_SUCCESS) {
+            if (error) *error = L"SetNamedSecurityInfoW(DACL restore) failed: " + WinErrorText(result);
+            return false;
+        }
+    } else if (!SetFileSecurityW(directory.c_str(), DACL_SECURITY_INFORMATION,
+                                 restore.descriptor)) {
         if (error) *error = L"SetFileSecurityW(DACL restore) failed: " + WinErrorText(GetLastError());
         return false;
     }
+    // Neither API success nor equivalent access rights proves exact rollback.
     return CurrentDaclMatches(directory, restore, error);
 }
 
