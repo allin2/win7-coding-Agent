@@ -121,6 +121,8 @@ describe('A9-30 v26 package binding', () => {
     descriptor.version = manifest.version = '0.3.0-alpha.2';
     descriptor.runner_helper_profile = manifest.required_native.runner_helper_profile = 'D-013-v26-a9-trusted-shell-current-user';
     descriptor.runner_helper_protocol = manifest.required_native.runner_helper_protocol = 3;
+    manifest.status = 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE';
+    manifest.external_acceptance_eligible = false;
     const save = () => { fs.writeFileSync(descriptorPath, JSON.stringify(descriptor)); fs.writeFileSync(manifestPath, JSON.stringify(manifest)); };
     save(); return { ...env, descriptor, manifest, save };
   }
@@ -137,6 +139,18 @@ describe('A9-30 v26 package binding', () => {
       if (field === 'version') env.descriptor.version = env.manifest.version = '0.3.0-alpha.1';
       if (field === 'hash') env.manifest.required_native.runner_helper = 'a'.repeat(64);
       env.save(); expect(() => loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' })).toThrow();
+    } finally { env.cleanup(); }
+  });
+  it.each(['historical_status', 'acceptance', 'authority', 'win10', 'win7'])('rejects promoted or historical v26 %s', (field) => {
+    const env = v26();
+    try {
+      if (field === 'historical_status') env.manifest.status = 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+      if (field === 'acceptance') env.manifest.external_acceptance_eligible = true;
+      if (field === 'authority') env.manifest.release_authority = {};
+      if (field === 'win10') env.manifest.gates.win10 = 'PASS';
+      if (field === 'win7') env.manifest.gates.win7 = 'PASS';
+      env.save();
+      expect(() => loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' })).toThrow('A9_PACKAGE_RELEASE_MANIFEST_INVALID');
     } finally { env.cleanup(); }
   });
 });

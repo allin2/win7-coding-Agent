@@ -77,7 +77,13 @@ function validateDescriptor(descriptor, manifest) {
       descriptor.data_root !== '%LOCALAPPDATA%\\Win7CodingAgent\\a9' || descriptor.portable_flag !== '--portable') {
     throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
   }
-  if (!manifest || manifest.schema_version !== 1 || manifest.status !== 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS' ||
+  const developerStreaming = descriptor.runner_helper_protocol === 3;
+  const expectedStatus = developerStreaming
+    ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'
+    : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+  if (!manifest || manifest.schema_version !== 1 || manifest.status !== expectedStatus ||
+      (developerStreaming && (manifest.external_acceptance_eligible !== false ||
+        Object.prototype.hasOwnProperty.call(manifest, 'release_authority'))) ||
       !['0.3.0-alpha.1', '0.3.0-alpha.2'].includes(manifest.version) || !manifest.required_native || !Array.isArray(manifest.files) ||
       manifest.required_native.runner_helper_profile !== descriptor.runner_helper_profile ||
       manifest.required_native.runner_helper_protocol !== descriptor.runner_helper_protocol ||
