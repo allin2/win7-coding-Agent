@@ -691,7 +691,7 @@
     return { li, tag, elapsedEl: null, startedAt: 0 };
   }
 
-  /** A9-19 P05：运行中的工具项显示已运行时长；Shell 如实说明输出在结束后显示（未实现增量输出）。 */
+  /** A9-30：运行中的工具项显示已运行时长，输出到达后在活动卡呈现。 */
   function markItemRunning(item, data, startedAt) {
     item.startedAt = startedAt || Date.now();
     const elapsed = document.createElement('span');
@@ -701,7 +701,7 @@
     if (data && data.toolName === 'shell') {
       const note = document.createElement('p');
       note.className = 'activity-pending-note';
-      note.textContent = '命令运行中；输出将在命令结束后显示。';
+      note.textContent = '命令运行中；收到输出后会在此显示，可随时停止。';
       item.li.appendChild(note);
       item.pendingNoteEl = note;
     }

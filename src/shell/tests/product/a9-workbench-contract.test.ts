@@ -572,7 +572,8 @@ describe('A9 unified desktop workbench contract', () => {
       expect(live.stream).toContain('运行命令 ping -n 30 127.0.0.1');
       expect(live.stream).toContain('执行中');
       expect(live.stream).toMatch(/已运行 \d+秒/);
-      expect(live.stream).toContain('命令运行中；输出将在命令结束后显示。');
+      expect(live.stream).toContain('命令运行中；收到输出后会在此显示，可随时停止。');
+      expect(live.stream).not.toContain('输出将在命令结束后显示');
       expect(live.stream).toContain('模型正在输出');
       expect(live.stream).toContain('正在分析日志输出…');
     }
