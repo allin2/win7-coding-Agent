@@ -5,7 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readZipEntries, readZipEntry } from './zip-utils.mjs';
-import { verifyV26ReturnEvidence, requiredV26Evidence, verifyV26ReturnReview } from './a9-v26-return-evidence.mjs';
+import { verifyV26ReturnEvidence, requiredV26Evidence, requiredV26ManagedEvidence, verifyV26ReturnReview } from './a9-v26-return-evidence.mjs';
 
 const NATIVE_SOURCES = ['helper.cpp','helper.h','protocol.cpp','logic_tests.cpp','CMakeLists.txt','stream_writer.cpp','stream_writer.h','whitelist.cpp','whitelist.h','argv_builder.cpp','argv_builder.h','json_parser.cpp','json_parser.h'];
 const KIT_INPUTS = ['prepare-kit.cjs','package-kit.cjs','build.ps1','build-profile.json','README_BUILD.md','helper.exe.manifest','SOURCE_COMMIT.txt','SOURCE_COMMIT_TIMESTAMP.txt'];
@@ -132,6 +132,7 @@ function inspectApprovedKit(kitZip, registryPath, sourceRepositoryRoot) {
   if (inputLock.source_commit !== approved.source_commit
     || packageManifest.source_commit !== approved.source_commit
     || packageManifest.status !== 'READY_FOR_WIN10_BUILD'
+    || (inputLock.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64' && (packageManifest.revision !== 'a9-31-managed-r1' || approved.revision !== packageManifest.revision))
     || !Array.isArray(packageManifest.files)) {
     throw new Error('A9_V26_APPROVED_KIT_SOURCE_BINDING_MISMATCH');
   }
@@ -198,17 +199,20 @@ function inspectEligibleReturn(runnerZip, sidecar, authorizedKit, sourceReposito
   const returnManifest = parseJson(readSingle(entries, 'RETURN_PACKAGE_MANIFEST.json'), 'A9_V26_RETURN_MANIFEST');
   const helperBytes = readSingle(entries, 'output/helper.exe');
   const helperSha256 = sha256(helperBytes);
-  const expectedReturnFiles = new Set(['output/helper.exe','build-profile.json','helper.exe.manifest','input-lock.json','PACKAGE_MANIFEST.json','RETURN_PACKAGE_MANIFEST.json','evidence/validation-binding.json',...requiredV26Evidence]);
+  const managed = buildProfile.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64';
+  const expectedBuildProfile = managed ? 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64' : 'WIN10-VS2019-V142-SDK19041-D013-V26-STREAMING-X64';
+  const expectedHelperProfile = managed ? 'D-013-v26-managed-a9-trusted-shell-current-user' : 'D-013-v26-a9-trusted-shell-current-user';
+  const expectedReturnFiles = new Set(['output/helper.exe','build-profile.json','helper.exe.manifest','input-lock.json','PACKAGE_MANIFEST.json','RETURN_PACKAGE_MANIFEST.json','evidence/validation-binding.json',...requiredV26Evidence, ...(managed ? requiredV26ManagedEvidence : [])]);
   const actualReturnFiles = entries.filter((entry) => !entry.directory).map((entry) => entry.name);
   if (actualReturnFiles.length !== expectedReturnFiles.size || actualReturnFiles.some((name) => !expectedReturnFiles.has(name))) throw new Error('A9_V26_RETURN_FILE_SET_MISMATCH');
   if (buildResult.schema_version !== 3 || buildResult.status !== 'PASS'
     || buildResult.candidate_eligible !== true
-    || buildResult.helper_profile !== 'D-013-v26-a9-trusted-shell-current-user'
+    || buildResult.helper_profile !== expectedHelperProfile
     || buildResult.helper_protocol !== 3 || buildResult.win10_smoke !== 'PASS'
     || buildResult.pe_api_crt_analysis !== 'PASS' || buildResult.logic_tests !== 'PASS'
     || buildResult.process_capture_selftest !== 'PASS' || buildResult.architecture !== 'x64'
     || buildResult.toolset !== 'v142' || buildResult.crt !== 'static /MT'
-    || buildResult.profile !== 'WIN10-VS2019-V142-SDK19041-D013-V26-STREAMING-X64'
+    || buildResult.profile !== expectedBuildProfile
     || buildResult.windows_sdk !== '10.0.19041.0'
     || buildResult.manifest !== 'embedded' || !/^[a-f0-9]{40}$/.test(buildResult.source_commit || '')
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(buildResult.run_id || '')) {
@@ -225,7 +229,7 @@ function inspectEligibleReturn(runnerZip, sidecar, authorizedKit, sourceReposito
     || environment.job_probe_ok !== true || environment.in_host_job !== false) {
     throw new Error('A9_V26_BUILD_ENVIRONMENT_NOT_ELIGIBLE');
   }
-  if (buildProfile.profile !== 'WIN10-VS2019-V142-SDK19041-D013-V26-STREAMING-X64'
+  if (buildProfile.profile !== expectedBuildProfile
     || buildProfile.target?.architecture !== 'x64' || buildProfile.target?.crt !== 'static /MT (no VCRUNTIME140/MSVCP140/UCRTBASE dynamic dependencies)'
     || !Array.isArray(buildProfile.build_flags?.link)
     || !buildProfile.build_flags.link.includes('/Brepro')
@@ -298,8 +302,9 @@ export function recordA9V26HelperInput(options) {
   const baseLockPath = path.resolve(options.baseLock || path.join(
     repositoryRoot, 'release', 'win7-product-v3', 'a9-27-win7-42-input-lock.json',
   ));
+  const managed = options.lockId === 'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED';
   const outputPath = path.resolve(options.output || path.join(
-    repositoryRoot, 'release', 'win7-product-v3', 'a9-v26-input-lock.json',
+    repositoryRoot, 'release', 'win7-product-v3', managed ? 'a9-v26-managed-input-lock.json' : 'a9-v26-input-lock.json',
   ));
   const kitZip = path.resolve(options.kitZip || '');
   if (options.testOnlyApprovedKitRegistry && options.testOnly !== true) {
@@ -313,7 +318,7 @@ export function recordA9V26HelperInput(options) {
   const win7Gate = options.win7Gate || 'NOT_PERFORMED';
   const provenance = options.provenance
     || 'A9-30 D-017 double-clean builds; development input lock, not a Win7 candidate.';
-  if (lockId !== 'A9-30-DEVELOPER-INPUTS-D013-V26' || win7Gate !== 'NOT_PERFORMED') throw new Error('A9_V26_DEVELOPER_IDENTITY_REQUIRED');
+  if (!['A9-30-DEVELOPER-INPUTS-D013-V26','A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'].includes(lockId) || win7Gate !== 'NOT_PERFORMED') throw new Error('A9_V26_DEVELOPER_IDENTITY_REQUIRED');
   for (const [label, file] of [
     ['RUNNER_ZIP', runnerZip], ['SIDECAR', sidecar],
     ['RUNNER_ZIP_2', runnerZip2], ['SIDECAR_2', sidecar2],
@@ -356,7 +361,10 @@ export function recordA9V26HelperInput(options) {
     || base.inputs?.runner_return_zip?.profile !== 'D-013-v25-a9-trusted-shell-current-user') {
     throw new Error('A9_V26_HISTORICAL_V25_LOCK_INVALID');
   }
-  const releaseProvenance = { task: 'A9-30', development_only: true, rule: 'no candidate identity or formal Win7 authority; independently reviewed v26 returns only' };
+  const approvedProfile = JSON.parse(authorizedKit.authorizedFiles.get('build-profile.json').toString('utf8'));
+  if ((approvedProfile.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64') !== managed) throw new Error('A9_V26_MANAGED_LOCK_PROFILE_MISMATCH');
+  const helperProfile = managed ? 'D-013-v26-managed-a9-trusted-shell-current-user' : 'D-013-v26-a9-trusted-shell-current-user';
+  const releaseProvenance = { task: managed ? 'A9-31' : 'A9-30', development_only: true, rule: 'no candidate identity or formal Win7 authority; independently reviewed v26 returns only' };
   const historicalV25 = JSON.parse(JSON.stringify(base.inputs.runner_return_zip));
   const next = {
     ...base,
@@ -368,11 +376,12 @@ export function recordA9V26HelperInput(options) {
       runner_return_zip_v25_historical: historicalV25,
       runner_return_zip: {
         filename: path.basename(runnerZip),
-        version: 'D-013-v26-a9-trusted-shell-current-user',
+        version: helperProfile,
         sha256: archiveSha256,
         required_entry: 'output/helper.exe',
         required_entry_sha256: helperSha256,
-        profile: 'D-013-v26-a9-trusted-shell-current-user',
+        profile: helperProfile,
+        ...(managed ? { managed_contract: approvedProfile.managed_contract } : {}),
         protocol_version: 3,
         runtime_profile: 'a9-trusted-shell-current-user-v2',
         source_commit: buildResult.source_commit || null,

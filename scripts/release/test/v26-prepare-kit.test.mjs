@@ -13,21 +13,21 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..')
 const req=createRequire(import.meta.url);
 const {SOURCES,INPUTS}=req('../../../native/helper/build-win10-kit-v26/prepare-kit.cjs');
 const runIds=['318e27e4-ec82-4d65-9975-18fd28a904dc','b70f9534-6e7e-4f2f-a51d-26f035644bba'];
-function fixture() {
-  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'A9-V26-TEST_ONLY-'));const helper=path.join(dir,'native/helper');const kit=path.join(helper,'build-win10-kit-v26');
-  fs.mkdirSync(kit,{recursive:true});for(const n of SOURCES)fs.copyFileSync(path.join(root,'native/helper',n),path.join(helper,n));
-  for(const n of INPUTS)fs.copyFileSync(path.join(root,'native/helper/build-win10-kit-v26',n),path.join(kit,n));
+function fixture(managed=false) {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'A9-V26-TEST_ONLY-'));const helper=path.join(dir,'native/helper');const kit=path.join(helper,managed?'build-win10-kit-v26-managed':'build-win10-kit-v26');
+  fs.mkdirSync(kit,{recursive:true});for(const n of SOURCES)fs.writeFileSync(path.join(helper,n),managed?fs.readFileSync(path.join(root,'native/helper',n)):execFileSync('git',['show','c2b6356f83ef8502a34516010924547c57a3bec2:native/helper/'+n],{cwd:root}));
+  for(const n of INPUTS.filter(n=>!managed||!n.startsWith('SOURCE_COMMIT')))fs.copyFileSync(path.join(root,'native/helper',managed?'build-win10-kit-v26-managed':'build-win10-kit-v26',n),path.join(kit,n));
   const git=(args)=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
   git(['init','--quiet']);git(['add','native/helper']);git(['-c','user.name=A9 TEST_ONLY','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false','commit','--quiet','-m','TEST_ONLY committed fixture, not production source']);
   const commit=git(['rev-parse','HEAD']);fs.writeFileSync(path.join(kit,'SOURCE_COMMIT.txt'),commit+'\n');fs.writeFileSync(path.join(kit,'SOURCE_COMMIT_TIMESTAMP.txt'),git(['show','-s','--format=%cI','HEAD'])+'\n');
-  return {dir,helper,kit,commit,git};
+  return {dir,helper,kit,commit,git,managed};
 }
 const prepare=(f)=>spawnSync(process.execPath,[path.join(f.kit,'prepare-kit.cjs')],{cwd:f.dir,encoding:'utf8'});
 function authorized(f) {
   const p=prepare(f);assert.equal(p.status,0,p.stderr);
   const kitZip=path.join(f.dir,'TEST_ONLY-buildkit.zip');writeDeterministicZip(f.kit,kitZip,1787443200);
   const registry=path.join(f.dir,'release/win7-product-v3/a9-v26-approved-build-kits.json');
-  writeJson(registry,{schema_version:1,kits:[{revision:'TEST_ONLY-r1',filename:path.basename(kitZip),sha256:digest(fs.readFileSync(kitZip)),source_commit:f.commit,input_lock_sha256:digest(fs.readFileSync(path.join(f.kit,'input-lock.json'))),package_manifest_sha256:digest(fs.readFileSync(path.join(f.kit,'PACKAGE_MANIFEST.json'))),status:'APPROVED_FOR_RETURN_RECORDING'}]});
+  writeJson(registry,{schema_version:1,kits:[{revision:f.managed?'a9-31-managed-r1':'TEST_ONLY-r1',filename:path.basename(kitZip),sha256:digest(fs.readFileSync(kitZip)),source_commit:f.commit,input_lock_sha256:digest(fs.readFileSync(path.join(f.kit,'input-lock.json'))),package_manifest_sha256:digest(fs.readFileSync(path.join(f.kit,'PACKAGE_MANIFEST.json'))),status:'APPROVED_FOR_RETURN_RECORDING'}]});
   return {kitZip,registry};
 }
 function inputPair(f, mutate=()=>{}, secondId=runIds[1]) {
@@ -170,4 +170,46 @@ $result|ConvertTo-Json -Depth 6 -Compress
 `;
   const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',env:{...process.env,A9_V26_TEST_BUILD_SCRIPT:path.join(root,'native/helper/build-win10-kit-v26/build.ps1')}});
   assert.equal(result.status,0,result.stderr);const facts=JSON.parse(result.stdout);assert.equal(facts.status,'HOST_GATE_TEST_PASS');assert.equal(facts.positive_cases,1);assert.equal(facts.negative_cases.length,20);
+});
+
+test('managed generator and recorder create a distinct lock only with pinned release lifecycle',()=>{
+  const f=fixture(true), opts=inputPair(f); const result=recordA9V26HelperInput({...opts,lockId:'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'});
+  const lock=JSON.parse(fs.readFileSync(opts.output));assert.equal(lock.provenance.task,'A9-31');assert.equal(lock.inputs.runner_return_zip.profile,'D-013-v26-managed-a9-trusted-shell-current-user');
+  assert.equal(lock.inputs.runner_return_zip.managed_contract.revision,'a9-31-managed-r1'); assert.equal(lock.gates.win7,'NOT_PERFORMED');
+});
+for(const mode of ['wrong_pid','lost_receipt','not_alive','not_settled','cancel_released','wrong_sequence','wrong_counts','old_profile','ready_input_attached','ready_token_incomplete','extra_frame_field'])test('managed recorder rejects '+mode,()=>{
+  const f=fixture(true),opts=inputPair(f,(dir)=>{
+    const summaryFile=path.join(dir,'evidence/v26-managed.json');const summary=JSON.parse(fs.readFileSync(summaryFile));
+    if(mode==='wrong_pid')summary.rows[0].root_pid=999;if(mode==='not_alive')summary.rows[0].child_alive_after_helper_exit=false;if(mode==='not_settled')summary.rows[0].lifecycle_settled=false;writeJson(summaryFile,summary);
+    const file=path.join(dir,'evidence/v26-managed-release-stdout.jsonl'),frames=fs.readFileSync(file,'utf8').trim().split('\n').map(JSON.parse);
+    if(mode==='ready_input_attached')frames[0].ready.inputDetached=false;if(mode==='ready_token_incomplete')delete frames[0].tokenAudit.tokenType;if(mode==='extra_frame_field')frames[1].pid=999;
+    if(mode==='lost_receipt')frames.pop();if(mode==='wrong_sequence')frames[1].seq=2;if(mode==='wrong_counts')frames.at(-1).stdout.rawBytesRead++;if(mode==='old_profile')frames[0].profileId='a9-trusted-shell-current-user-v1';fs.writeFileSync(file,frames.map(JSON.stringify).join('\n')+'\n');
+    if(mode==='cancel_released'){const f=path.join(dir,'evidence/v26-managed-cancel-stdout.jsonl');const v=fs.readFileSync(f,'utf8').trim().split('\n').map(JSON.parse);v.at(-1).type='execution_released';fs.writeFileSync(f,v.map(JSON.stringify).join('\n')+'\n');}
+  });assert.throws(()=>recordA9V26HelperInput({...opts,lockId:'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'}),/A9_V26_/);assert.equal(fs.existsSync(opts.output),false);
+});
+
+test('managed README prepares and packages its own revision through the documented command paths',()=>{
+  const f=fixture(true),readme=fs.readFileSync(path.join(f.kit,'README_BUILD.md'),'utf8');
+  const prepareCommand=readme.split('\n').find(line=>line.startsWith('node ')&&line.includes('/prepare-kit.cjs'));
+  const packageCommand=readme.split('\n').find(line=>line.startsWith('node ')&&line.includes('/package-kit.cjs'));
+  assert.ok(prepareCommand);assert.ok(packageCommand);
+  const prepared=spawnSync(process.execPath,[prepareCommand.split(' ')[1]],{cwd:f.dir,encoding:'utf8'});assert.equal(prepared.status,0,prepared.stderr);
+  const zip=path.join(f.dir,'TEST_ONLY-readme-managed.zip');
+  const packaged=spawnSync(process.execPath,[packageCommand.split(' ')[1],'--out',zip],{cwd:f.dir,encoding:'utf8'});assert.equal(packaged.status,0,packaged.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.kit,'PACKAGE_MANIFEST.json'))).revision,'a9-31-managed-r1');
+  assert.match(readme,/--lock-id A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED/);
+});
+for(const mode of ['revision','control','release_terminal','persistent_adoption'])test('managed prepare rejects contract drift before replacing locks: '+mode,()=>{
+  const f=fixture(true);assert.equal(prepare(f).status,0);const before=fs.readFileSync(path.join(f.kit,'input-lock.json'));
+  const profile=JSON.parse(fs.readFileSync(path.join(f.kit,'build-profile.json')));
+  if(mode==='revision')profile.managed_contract.revision='a9-30-r6';
+  if(mode==='control')profile.managed_contract.control=['cancel'];
+  if(mode==='release_terminal')profile.managed_contract.release_terminal='execution_result';
+  if(mode==='persistent_adoption')profile.managed_contract.persistent_adoption=true;
+  writeJson(path.join(f.kit,'build-profile.json'),profile);assert.notEqual(prepare(f).status,0);assert.deepEqual(fs.readFileSync(path.join(f.kit,'input-lock.json')),before);
+});
+test('managed packager rejects a wrong manifest revision before emitting any ZIP',()=>{
+  const f=fixture(true);assert.equal(prepare(f).status,0);const file=path.join(f.kit,'PACKAGE_MANIFEST.json');
+  const m=JSON.parse(fs.readFileSync(file));m.revision='a9-30-r6';writeJson(file,m);const zip=path.join(f.dir,'TEST_ONLY-wrong-revision.zip');
+  const result=spawnSync(process.execPath,[path.join(f.kit,'package-kit.cjs'),'--out',zip],{encoding:'utf8'});assert.notEqual(result.status,0);assert.equal(fs.existsSync(zip),false);
 });

@@ -73,12 +73,13 @@ function validateDescriptor(descriptor, manifest) {
       descriptor.storage_native_binding !== '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node' ||
       descriptor.runner_helper !== '../native/runner/spike02_helper.exe' ||
       !((descriptor.runner_helper_profile === 'D-013-v25-a9-trusted-shell-current-user' && descriptor.runner_helper_protocol === 2 && descriptor.version === '0.3.0-alpha.1') ||
-        (descriptor.runner_helper_profile === 'D-013-v26-a9-trusted-shell-current-user' && descriptor.runner_helper_protocol === 3 && descriptor.version === '0.3.0-alpha.2')) ||
+        (['D-013-v26-a9-trusted-shell-current-user','D-013-v26-managed-a9-trusted-shell-current-user'].includes(descriptor.runner_helper_profile) && descriptor.runner_helper_protocol === 3 && descriptor.version === '0.3.0-alpha.2')) ||
       descriptor.data_root !== '%LOCALAPPDATA%\\Win7CodingAgent\\a9' || descriptor.portable_flag !== '--portable') {
     throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
   }
   const developerStreaming = descriptor.runner_helper_protocol === 3;
-  const expectedStatus = developerStreaming
+  const developerManaged = descriptor.runner_helper_profile === 'D-013-v26-managed-a9-trusted-shell-current-user';
+  const expectedStatus = developerManaged ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : developerStreaming
     ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'
     : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
   if (!manifest || manifest.schema_version !== 1 || manifest.status !== expectedStatus ||

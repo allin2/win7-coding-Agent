@@ -20,7 +20,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { selectShell, ShellKind } from './shell-detection';
-import { BackgroundProcessHandle, BackgroundProcessManager } from './background-process-manager';
+import { BackgroundProcessHandle, BackgroundProcessManager, ManagedProcessOwner } from './background-process-manager';
 import { killProcessTree } from './process-cleanup';
 import { SafeOutputStream, secretVariants, ShellOutputChunk, OutputEncoding } from './stream-output';
 import { HelperTransport } from './native-transport';
@@ -45,6 +45,7 @@ export interface TrustedShellRequest {
   maxOutputBytes?: number;
   maxOutputLines?: number;
   background?: boolean;
+  managedOwner?: ManagedProcessOwner;
   signal?: AbortSignal;
   onOutput?: (chunk: ShellOutputChunk) => Promise<void> | void;
 }
@@ -678,14 +679,20 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
   ): Promise<TrustedShellResult> {
     try {
-      const helperRequest = this.options.helperTransport && this.platform === 'win32'
+      let helperRequest: NativeHelperRequestV2 | NativeHelperRequestV3 | undefined = this.options.helperTransport && this.platform === 'win32'
         ? this.createV2HelperRequest(
           requestId, request, exe, args, cwd, shellMeta, maxOutputBytes, true,
         )
         : undefined;
+      if (helperRequest && this.options.helperProtocolVersion === 3) {
+        helperRequest = { ...helperRequest, schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2',
+          maxStdoutBytes: Math.min(maxOutputBytes, 1024 * 1024),
+          maxStderrBytes: Math.min(maxOutputBytes, 1024 * 1024),
+          outputEncoding: this.options.outputEncoding ?? { stdout: shellMeta.kind === 'cmd' ? 'cp936' : 'utf-8', stderr: shellMeta.kind === 'cmd' ? 'cp936' : 'utf-8' } };
+      }
       const handle = await this.backgroundManager.start(
         requestId, request.command, exe, args, cwd,
-        createTrustedShellEnvironment(process.env, request.envOverlay ?? {}, this.options.getSensitiveValues?.()), helperRequest,
+        createTrustedShellEnvironment(process.env, request.envOverlay ?? {}, this.options.getSensitiveValues?.()), helperRequest, { owner: request.managedOwner, onOutput: request.onOutput },
       );
       if (handle.status === 'failed' || handle.pid === undefined) {
         return {

@@ -58,3 +58,17 @@ No v26 Windows binary, input lock or candidate is available yet. Approved clean
 source, v26 build/return kit, D-017 environment verification, independent safety
 review, two authorized clean builds, PE/API/CRT checks and input-lock recording
 must precede assembly. Real Electron and Win7 execution are NOT_PERFORMED.
+
+## A9-31 managed revision (local implementation)
+
+`1.4.1-d013-v26-managed` adds request-bound v3 `release` control and
+`execution_released`. Only this helper's existing Job is queried and changed:
+clear KILL_ON_JOB_CLOSE, verify every other limit flag, close owned capture/process/
+Job handles, then send the receipt. Failure or a lost receipt is not proof of
+release. The nonblocking control loop keeps cancel responsive to partial lines.
+
+The six templates in `build-win10-kit-v26-managed` require a separately approved
+clean source commit and kit. Source extraction, managed lifecycle smoke, two
+independent builds, imports/static CRT and return review precede a new managed
+input lock. No managed Windows binary/lock or physical PASS is available yet.
+Old v25 and A9-30 v26 source kits and evidence stay immutable.

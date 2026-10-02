@@ -265,6 +265,12 @@ export interface A9AgentLoopConfig {
   provider: A9ModelPort;
   workspaceService: A9WorkspacePort;
   runner: A9RunnerPort;
+  /** Product-owned scope and persistence; model parameters never supply owner/PID. */
+  managedProcesses?: {
+    start(command: string, context: { cwd: string; turnId: string; toolCallId: string; signal?: AbortSignal }): Promise<A9RunnerExecutionResult>;
+    read(handleId: string, cursor?: string, maxBytes?: number): unknown;
+    stop(handleId: string): Promise<unknown>;
+  };
   /** Review 模式必填：缺失时 Review 写操作按结构化错误拒绝，绝不直写工作区。 */
   reviewStaging?: A9ReviewStagingPort;
   /** 产品级 Shell 选择与环境覆盖（工作区设置），逐次传入 Runner。 */
@@ -342,7 +348,7 @@ function buildApprovalSummary(toolName: string, args: Record<string, any>): stri
   if (toolName === 'delete') {
     return `delete path=${String(args.path)} permanent=${String(args.permanent === true)}`;
   }
-  if (toolName === 'shell') {
+  if (toolName === 'shell' || toolName === 'start_process') {
     const command = typeof args.command === 'string' ? args.command : '';
     const git = classifyGitCommand(command);
     if (git) return git.binding.summary;
@@ -373,7 +379,7 @@ export function buildA9ApprovalRequest(
 ): A9ApprovalRequest {
   const summary = buildApprovalSummary(toolName, args as Record<string, any>);
   const bindingDigest = computeApprovalBindingDigest(callId, toolName, args, summary);
-  const gitBinding = toolName === 'shell' && typeof (args as any).command === 'string'
+  const gitBinding = (toolName === 'shell' || toolName === 'start_process') && typeof (args as any).command === 'string'
     ? classifyGitCommand((args as any).command)?.binding
     : undefined;
   return {
@@ -1157,8 +1163,10 @@ export class A9AgentLoop {
 
       const decision = this.policyEngine.evaluate({
         id: tc.id,
-        toolName: tc.name,
-        args: validatedCall.args,
+        // Existing policy semantics remain authoritative: starts are Shell,
+        // reads are read-only, and bound Stop is a controlled Shell operation.
+        toolName: tc.name === 'start_process' || tc.name === 'stop_process' ? 'shell' : tc.name === 'read_process_output' ? 'read' : tc.name,
+        args: tc.name === 'stop_process' ? { command: 'stop managed process' } : validatedCall.args,
         approvalLevel: specApprovalLevel,
       });
 
@@ -1238,7 +1246,7 @@ export class A9AgentLoop {
     // Workspace write tools create their own pre/post mutation checkpoints.
     // Only opaque Shell execution needs the bounded whole-workspace baseline.
     // This also preserves Review mode's zero-write staging contract.
-    return name === 'shell';
+    return name === 'shell' || name === 'start_process';
   }
 
   private async collectExternal(turnId: string, signal: AbortSignal | undefined): Promise<void> {
@@ -1371,11 +1379,14 @@ export class A9AgentLoop {
       logPaths = outcome.logPaths;
       executed = !residueRisk;
     } catch (err: any) {
-      toolResultStr = `Tool execution error: ${err.message}`;
+      toolResultStr = JSON.stringify({ error: { code: typeof err?.code === 'string' ? err.code : 'A9_TOOL_EXECUTION_FAILED',
+        message: this.config.redactText ? this.config.redactText(String(err?.message ?? err)) : String(err?.message ?? err),
+        ...(typeof err?.oldestCursor === 'string' ? { oldestCursor: err.oldestCursor } : {}) } });
+      residueRisk = err?.residueRisk === true || err?.cleanupRequired === true;
     }
     // Count successful dispatch before post-execution collection or audit can fail.
     if (executed || residueRisk) this.turnStats.executed += 1;
-    if (isShellTool) {
+    if (isShellTool || tc.name === 'start_process') {
       // 成功、超时、取消、residueRisk 后都要收集变化（同一 checkpoint 链路）。
       await this.collectExternal(turnId, signal);
     }
@@ -1439,6 +1450,10 @@ export class A9AgentLoop {
         // Review staging 不触碰正式工作区，不计为副作用。
         this.turnStats.mutations = true;
         // 验证之后又发生源码修改 → 回到 unverified。
+        this.turnStats.verifiedAfterMutation = false;
+        this.verificationEvidence = undefined;
+      } else if (tc.name === 'start_process') {
+        this.turnStats.mutations = true;
         this.turnStats.verifiedAfterMutation = false;
         this.verificationEvidence = undefined;
       } else if (tc.name === 'shell' && !residueRisk) {
@@ -1514,6 +1529,18 @@ export class A9AgentLoop {
         return { payload: await ws.move(args.source, args.destination, { overwrite: args.overwrite, turnId }) };
       case 'delete':
         return { payload: await ws.delete(args.path, { recursive: args.recursive, permanent: args.permanent, turnId }) };
+      case 'start_process': {
+        if (!this.config.managedProcesses || !toolCallId) throw new Error('A9_MANAGED_RUNTIME_UNAVAILABLE');
+        if (typeof args.command !== 'string' || !args.command.trim()) throw new Error('A9_MANAGED_COMMAND_INVALID');
+        const result = await this.config.managedProcesses.start(args.command, { cwd: args.cwd || this.config.workspaceRoot, turnId, toolCallId, signal });
+        return { payload: result, residueRisk: result.residueRisk };
+      }
+      case 'read_process_output':
+        if (!this.config.managedProcesses) throw new Error('A9_MANAGED_RUNTIME_UNAVAILABLE');
+        return { payload: this.config.managedProcesses.read(args.handleId, args.cursor, args.maxBytes) };
+      case 'stop_process':
+        if (!this.config.managedProcesses) throw new Error('A9_MANAGED_RUNTIME_UNAVAILABLE');
+        return { payload: await this.config.managedProcesses.stop(args.handleId) };
       case 'shell': {
         // timeoutMs 为可选任务级 deadline；未提供时不施加固定硬超时（A9/C08 局部取代）。
         // background/shell kind/path/env 由产品级配置传入，不取自模型参数。
@@ -1525,7 +1552,6 @@ export class A9AgentLoop {
               data: { schemaVersion: 1, toolName: 'shell', callId: toolCallId, toolCallId, ...chunk } });
           },
           ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
-          ...(args.background !== undefined ? { background: args.background } : {}),
           ...(this.config.shellOptions?.kind !== undefined ? { shellKind: this.config.shellOptions.kind } : {}),
           ...(this.config.shellOptions?.path !== undefined ? { shellPath: this.config.shellOptions.path } : {}),
           ...(this.config.shellOptions?.envOverlay !== undefined ? { envOverlay: this.config.shellOptions.envOverlay } : {}),

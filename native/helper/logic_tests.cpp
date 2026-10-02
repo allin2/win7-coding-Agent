@@ -556,6 +556,20 @@ static void TestRenderResult() {
 }
 
 int main() {
+    std::wstring releaseId; std::string releaseError;
+    CHECK(ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"r","releaseId":"release_1"})", L"r", &releaseId, &releaseError));
+    CHECK(releaseId == L"release_1");
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"wrong","releaseId":"release_1"})", L"r", &releaseId, &releaseError));
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":2,"type":"release","requestId":"r","releaseId":"release_1"})", L"r", &releaseId, &releaseError));
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"r","releaseId":"release_1","pid":42})", L"r", &releaseId, &releaseError));
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"r","releaseId":"release_1","releaseId":"release_2"})", L"r", &releaseId, &releaseError));
+    ProcessResult released; released.schemaVersion = 3; released.profileId = L"a9-trusted-shell-current-user-v2";
+    CHECK(RenderReleasedJson("r", released).empty());
+    released.childPid = 42; released.releaseId = L"release_1"; released.ownershipReleased = true;
+    const std::string receipt = RenderReleasedJson("r", released);
+    CHECK(receipt.find("execution_released") != std::string::npos);
+    CHECK(receipt.find("jobKillOnCloseDisabled\":true") != std::string::npos);
+
     TestTokenGroupsSizeProbe();
     TestHostJobLaunchPolicy();
     TestJsonParser();

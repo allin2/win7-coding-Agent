@@ -2444,7 +2444,7 @@
 
 ## ADR-0151 A9-31 后台进程模型工具与显式释放提案
 
-- 状态：Proposed（2026-10-01，未批准实现）
+- 状态：Accepted（2026-10-03，负责人批准C2：A9-31修订任务书、精确白名单、增量检查及C1实际提交基线绑定；原生构建另行批准）
 - 背景：现有 BackgroundProcessManager 不等于完整模型工具面；helper KILL_ON_JOB_CLOSE 使 dispose(false) 不能证明 Win7 进程留给系统。
 - 提案：[A9-31](tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md)复用输出流，增加 start_process/read_process_output/stop_process；句柄/游标绑定工作区、对话和原启动身份，最多三个，禁止任意 PID。
   保留高影响目标确认、Stop 和切换限制。释放仅用于用户明确选择“留给系统后退出”，先审计，再 request-bound release/回执、Job 位回读和退出后实测；错误/回执缺失不写成功。
@@ -2452,6 +2452,8 @@
 - 后果：重启只探测旧事实，不重放/接管；安全审阅和目标平台存活证据独立，具体任务批准不代替候选裁决。
 - 2026-10-02待审补充：managed升级v3，不从旧v2或直接spawn静默回退；启动/归属/输出/release意图必需审计。
   managed kit及runtime消费逐项授权，新helper影响的Shell/背压/脱敏/清理按 [增量矩阵](plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)重测。仍Proposed。
+- 2026-10-03批准登记：上述“仍Proposed”为待审历史时点，现以负责人C2具体批准为准；
+  基线c2b6356f83ef8502a34516010924547c57a3bec2，实际原生锁/构建、独立复核和Win7结论不由本批准代签。
 
 ## ADR-0152 A9-32 用户主动继续中断任务提案
 

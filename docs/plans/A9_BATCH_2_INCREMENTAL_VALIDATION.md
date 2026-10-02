@@ -82,3 +82,11 @@ SSH仅传输/校验/调度/回收，不把Session0当真实桌面；不复活旧
 普通夹具失败可在已证明生命周期结束后等待新请求；身份/完整性/安全/审计/未知生命周期立即HALTED，
 重新确认事实并按批准的新入口恢复，不能超时后直接记WAITING。
 控制器不扩权、改系统、安装服务或自动删除文件。所有原始返回先保存再断言，首失败不可覆盖。
+
+## 6. A9-31 C2及本地矩阵（2026-10-03追加）
+
+C2已批准A9-31增量合同；本文件其他未来阶段仍待具体批准。
+本轮Core185/Runner162/State70/Shell113直接本地检查，矩阵在候选外
+`.acceptance/a9-31-developer/handoff/local-evidence-matrix-r1.json`，逐项绑定组件SHA、日志SHA及本地环境。
+本地模拟native消息和POSIX进程不作为Windows直接证据；修改helper/Runner/runtime后的S01–S06、BG/SAFE/UI/PACKAGE
+维持MUST_RERUN，未为任何新Win10/Win7包签发INHERITED_EVIDENCE。

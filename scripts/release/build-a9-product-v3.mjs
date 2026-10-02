@@ -30,6 +30,8 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 const RELEASE_PROFILES = {
+  'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED': { task: 'A9-31', candidate: 'A9-31-DEVELOPER', developmentOnly: true,
+    lockFile: 'a9-v26-managed-input-lock.json', kitFile: 'A9_31_DEVELOPER_CHECK.json' },
   'A9-30-DEVELOPER-INPUTS-D013-V26': { task: 'A9-30', candidate: 'A9-30-DEVELOPER', developmentOnly: true,
     lockFile: 'a9-v26-input-lock.json', kitFile: 'A9_30_DEVELOPER_CHECK.json' },
   'A9-14-INPUTS-D013-V25-WIN7-22': {
@@ -591,7 +593,7 @@ export function buildA9ProductCandidate(options) {
     fs.copyFileSync(path.join(stage, 'LICENSE'), path.join(licensesRoot, 'ELECTRON-MIT.txt'));
     const sbom = buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies);
     if (profile.developmentOnly) {
-      sbom.components.find((c) => c.name === 'D-013 native helper').properties = [{ name: 'win7:delivery_note', value: 'v26 protocol v3 current-user streaming; Job containment is not a security sandbox' }];
+      sbom.components.find((c) => c.name === 'D-013 native helper').properties = [{ name: 'win7:delivery_note', value: profile.task === 'A9-31' ? 'v26 managed revision protocol v3 output and explicit Job ownership release; not a security sandbox' : 'v26 protocol v3 current-user streaming; Job containment is not a security sandbox' }];
       sbom.metadata.properties.find((p) => p.name === 'win7:status').value = 'DEVELOPER_CHECK_NOT_CANDIDATE';
     }
     writeJson(path.join(stage, 'SBOM.cdx.json'), sbom);
@@ -600,10 +602,10 @@ export function buildA9ProductCandidate(options) {
       : licenseInventory(lock);
     fs.writeFileSync(path.join(stage, 'THIRD_PARTY_LICENSES.md'), licenses, 'utf8');
     fs.writeFileSync(path.join(stage, 'INSTALLATION.md'), profile.developmentOnly
-      ? '# A9-30 developer check package\n\nOffline Windows x64 / Electron 22 / protocol v3. Extract to a new directory and use an isolated test data root. This package has no formal candidate identity or authority. Win7, Alpha 2 and RC are NOT_PERFORMED.\n' : installationGuide(lock), 'utf8');
+      ? '# ' + profile.task + ' developer check package\n\nOffline Windows x64 / Electron 22 / protocol v3. Extract to a new directory and use an isolated test data root. This package has no formal candidate identity or authority. Win7, Alpha 2 and RC are NOT_PERFORMED.\n' : installationGuide(lock), 'utf8');
     fs.copyFileSync(lockPath, path.join(stage, profile.lockFile));
     if (profile.developmentOnly) {
-      writeJson(path.join(stage, profile.kitFile), { schema_version: 1, task: 'A9-30', development_only: true,
+      writeJson(path.join(stage, profile.kitFile), { schema_version: 1, task: profile.task, development_only: true,
         status: 'NOT_FORMAL_ACCEPTANCE', source_commit: sourceCommit, cases: ['S01','S02','S03','S04','S05','S06'],
         win7: 'NOT_PERFORMED', authority: 'NOT_GRANTED' });
     } else {
@@ -653,7 +655,7 @@ export function buildA9ProductCandidate(options) {
       source_dirty: Boolean(sourceStatus),
       external_acceptance_eligible: !profile.developmentOnly && !sourceStatus,
       source_date_epoch: lock.source_date_epoch,
-      status: profile.developmentOnly ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS',
+      status: profile.developmentOnly ? (profile.task === 'A9-31' ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE') : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS',
       target: lock.target,
       layout: {
         application: 'resources/app (trusted local UI and A9 runtime)',
@@ -736,7 +738,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
   const rootPrefix = manifestEntries[0].name.slice(0, -'release-manifest.json'.length);
   const manifest = JSON.parse(readZipEntry(manifestEntries[0]).toString('utf8'));
   if (manifest.release_id !== lock.release_id || manifest.version !== lock.version ||
-      manifest.status !== (profile.developmentOnly ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS')) throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
+      manifest.status !== (profile.developmentOnly ? (profile.task === 'A9-31' ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE') : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS')) throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
   const byName = new Map(entries.map((entry) => [entry.name, entry]));
   const expected = new Set([`${rootPrefix}release-manifest.json`]);
   for (const file of manifest.files || []) {
@@ -2150,7 +2152,7 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125/ADR-0141/ADR-0142：候选任务书映射。
-  const taskBook = profile.developmentOnly ? 'docs/tasks/A9_30_SHELL_STREAMING.md' : profile.candidate === 'WIN7-38'
+  const taskBook = profile.developmentOnly ? (profile.task === 'A9-31' ? 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md' : 'docs/tasks/A9_30_SHELL_STREAMING.md') : profile.candidate === 'WIN7-38'
     ? 'docs/tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-39'
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
@@ -2182,7 +2184,7 @@ function copyContractEvidence(root, stage, profile) {
 }
 
 function verifyA9Manifest(stage, manifest, lock) {
-  const expectedStatus = RELEASE_PROFILES[lock.lock_id].developmentOnly ? 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+  const expectedStatus = RELEASE_PROFILES[lock.lock_id].developmentOnly ? (RELEASE_PROFILES[lock.lock_id].task === 'A9-31' ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE') : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
   if (manifest.status !== expectedStatus ||
       manifest.gates.win10 !== 'NOT_PERFORMED' || manifest.gates.win7 !== 'NOT_PERFORMED' || manifest.gates.alpha !== 'NOT_PERFORMED') {
     throw new Error('A9_MANIFEST_GATE_STATUS_INVALID');
@@ -2227,7 +2229,7 @@ function scanSensitivePayload(stage) {
 }
 
 function validateA9Lock(lock) {
-  if (lock?.lock_id === 'A9-30-DEVELOPER-INPUTS-D013-V26') return validateV26DeveloperLock(lock);
+  if (['A9-30-DEVELOPER-INPUTS-D013-V26','A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'].includes(lock?.lock_id)) return validateV26DeveloperLock(lock);
   const profile = lock && RELEASE_PROFILES[lock.lock_id];
   if (!profile || lock.schema_version !== 1
       || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA1' ||
@@ -2432,13 +2434,17 @@ function parseArguments(argv) {
 
 
 function validateV26DeveloperLock(lock) {
+  const managed = lock.lock_id === 'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED';
+  const expectedTask = managed ? 'A9-31' : 'A9-30';
+  const expectedHelper = managed ? 'D-013-v26-managed-a9-trusted-shell-current-user' : 'D-013-v26-a9-trusted-shell-current-user';
   const hex = (n, v) => new RegExp('^[a-f0-9]{' + n + '}$').test(String(v || ''));
   const runner = lock.inputs?.runner_return_zip;
   if (lock.schema_version !== 1 || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA2' || lock.version !== '0.3.0-alpha.2'
     || lock.inputs_are_not_a9_pass !== true || !lock.runtime_profiles?.runner || !Number.isSafeInteger(lock.source_date_epoch)
-    || lock.provenance?.task !== 'A9-30' || lock.provenance?.development_only !== true
+    || lock.provenance?.task !== expectedTask || lock.provenance?.development_only !== true
     || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED' || lock.gates?.win7 !== 'NOT_PERFORMED' || lock.gates?.alpha !== 'NOT_PERFORMED'
-    || runner?.profile !== 'D-013-v26-a9-trusted-shell-current-user' || runner.protocol_version !== 3
+    || runner?.profile !== expectedHelper || runner.protocol_version !== 3
+    || (managed && runner.managed_contract?.revision !== 'a9-31-managed-r1')
     || runner.runtime_profile !== 'a9-trusted-shell-current-user-v2' || !hex(40, runner.source_commit)
     || runner.build_kit?.source_commit !== runner.source_commit || !hex(64, runner.build_kit?.sha256)
     || !hex(64, runner.build_kit?.input_lock_sha256) || !hex(64, runner.build_kit?.package_manifest_sha256)

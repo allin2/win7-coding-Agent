@@ -8,6 +8,7 @@
  */
 
 import { TrustedShellRunner, TrustedShellResult } from './trusted-shell-runner';
+import { ManagedProcessOwner } from './background-process-manager';
 import { ShellOutputChunk } from './stream-output';
 import { ShellKind } from './shell-detection';
 
@@ -17,6 +18,7 @@ export interface LoopRunnerOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
   background?: boolean;
+  managedOwner?: ManagedProcessOwner;
   shellKind?: string;
   shellPath?: string;
   envOverlay?: Record<string, string>;
@@ -102,6 +104,7 @@ export function createTrustedShellLoopAdapter(
     async execute(command: string, options: LoopRunnerOptions = {}): Promise<LoopRunnerResult> {
       const result = await runner.execute({
         command,
+        ...(options.managedOwner ? { managedOwner: options.managedOwner } : {}),
         ...(options.onOutput ? { onOutput: options.onOutput } : {}),
         ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         // 未提供 timeoutMs 时不设置任何固定硬超时。

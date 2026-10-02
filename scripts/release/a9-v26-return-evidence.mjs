@@ -15,6 +15,62 @@ export const requiredV26Evidence = [
   'v25-env-overlay-reject-stdout.txt', 'v25-env-overlay-reject-stderr.txt',
 ].concat(['v26-streaming.json', 'v26-tools.json', ...['tick','utf8','cp936','utf16le','limit','cancel','backpressure'].flatMap((name) => [`v26-${name}-request.json`, `v26-${name}-stdout.jsonl`, `v26-${name}-stderr.bin`])]).map((name) => `evidence/${name}`);
 
+export const requiredV26ManagedEvidence = ['evidence/v26-managed.json', ...['release', 'cancel', 'cancel-release'].flatMap((name) =>
+  ['request.json', 'stdout.jsonl', 'stderr.bin'].map((suffix) => `evidence/v26-managed-${name}-${suffix}`))];
+
+export function verifyV26ManagedEvidence(read) {
+  const json = (name) => JSON.parse(read('evidence/' + name).toString('utf8').replace(/^\uFEFF/, ''));
+  const summary = json('v26-managed.json');
+  check(summary.schema_version === 1 && summary.revision === 'a9-31-managed-r1' && Array.isArray(summary.rows)
+    && summary.rows.length === 3 && new Set(summary.rows.map((r) => r.name)).size === 3, 'MANAGED_MATRIX_INVALID');
+  for (const name of ['release', 'cancel', 'cancel-release']) {
+    const row = summary.rows.find((r) => r.name === name), req = json(`v26-managed-${name}-request.json`);
+    check(row && req.schemaVersion === 3 && req.profileId === 'a9-trusted-shell-current-user-v2' && req.managed === true
+      && req.requestId === 'd013-v26-managed-' + name && req.maxStdoutBytes === 1048576 && req.maxStderrBytes === 1048576, 'MANAGED_REQUEST_INVALID');
+    const bytes = read(`evidence/v26-managed-${name}-stdout.jsonl`);
+    check(bytes.length > 0 && bytes.length <= 4 * 1024 * 1024 && bytes.at(-1) === 10 && read(`evidence/v26-managed-${name}-stderr.bin`).length === 0, 'MANAGED_CAPTURE_INVALID');
+    const frames = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trimEnd().split('\n').map((line) => { check(Buffer.byteLength(line) <= 32768, 'MANAGED_FRAME_LIMIT'); return JSON.parse(line); });
+    const ready = frames.shift(), terminal = frames.pop();
+    check(exact(ready, ['schemaVersion','profileId','requestId','type','helperPid','childPid','tokenAudit','ready']) && uint(ready.helperPid) && ready.helperPid > 0 && uint(ready.childPid) && ready.childPid > 0
+      && ready?.type === 'execution_started' && ready.requestId === req.requestId && ready.childPid === row.root_pid
+      && ready.schemaVersion === 3 && ready.profileId === req.profileId && ready.ready?.childJobAssignmentVerified === true
+      && exact(ready.ready, ['childJobAssignmentVerified','inputDetached','stdoutCaptureReady','stderrCaptureReady'])
+      && Object.values(ready.ready).every((v) => v === true) && tokenProof(ready.tokenAudit), 'MANAGED_READY_INVALID');
+    let seq = 0; const offsets = { stdout: 0, stderr: 0 }, captured = { stdout: [], stderr: [] };
+    for (const frame of frames) {
+      check(exact(frame, ['schemaVersion','type','requestId','profileId','seq','stream','streamOffset','byteLength','dataBase64']) && frame.type === 'output_chunk' && frame.schemaVersion === 3 && frame.requestId === req.requestId && frame.profileId === req.profileId
+        && ['stdout','stderr'].includes(frame.stream) && frame.seq === ++seq && frame.streamOffset === offsets[frame.stream]
+        && Number.isSafeInteger(frame.byteLength) && frame.byteLength > 0 && frame.byteLength <= 16384, 'MANAGED_OUTPUT_ORDER');
+      const data = Buffer.from(frame.dataBase64, 'base64'); check(data.toString('base64') === frame.dataBase64 && data.length === frame.byteLength, 'MANAGED_OUTPUT_BYTES');
+      captured[frame.stream].push(data); offsets[frame.stream] += data.length;
+      check(offsets[frame.stream] <= 1048576 && seq <= 8192, 'MANAGED_OUTPUT_LIMIT');
+    }
+    const marker = /A9_RELEASE_CHILD:([0-9]+):([0-9]+)[\r\n]/.exec(Buffer.concat(captured.stdout).toString('utf8'));
+    check(marker && Number(marker[1]) === row.child_pid && marker[2] === row.child_start_ticks && row.child_pid !== row.root_pid
+      && /^[0-9]{16,20}$/.test(row.root_start_ticks) && /^[0-9]{16,20}$/.test(row.child_start_ticks)
+      && row.identity_pinned_before_control === true && row.lifecycle_settled === true && row.exit_code === 0
+      && uint(row.elapsed_ms) && row.elapsed_ms <= 30000 && Array.isArray(row.frame_times_ms)
+      && row.frame_times_ms.length === frames.length + 2 && row.frame_times_ms.every((t, i, a) => Number.isSafeInteger(t) && t >= 0 && t <= row.elapsed_ms && (!i || t >= a[i-1])), 'MANAGED_LIFECYCLE_IDENTITY');
+    check(terminal?.schemaVersion === 3 && terminal.requestId === req.requestId && terminal.profileId === req.profileId && terminal.lastOutputSeq === seq, 'MANAGED_TERMINAL_IDENTITY');
+    for (const stream of ['stdout','stderr']) check(terminal[stream]?.rawBytesRead === offsets[stream] && terminal[stream].emittedBytes === offsets[stream] && terminal[stream].omittedBytes === 0, 'MANAGED_TERMINAL_COUNTS');
+    const controls = row.control.split('\n').map((line) => JSON.parse(line));
+    check(controls.every((c) => exact(c, c.type === 'release' ? ['schemaVersion','type','requestId','releaseId'] : ['schemaVersion','type','requestId']) && c.schemaVersion === 3 && c.requestId === req.requestId), 'MANAGED_CONTROL_BINDING');
+    if (name === 'release') check(exact(terminal, ['schemaVersion','type','requestId','profileId','releaseId','childPid','lastOutputSeq','stdout','stderr','jobKillOnCloseDisabled','ownershipReleased']) && controls.length === 1 && controls[0].type === 'release' && controls[0].releaseId === 'release-release'
+      && terminal.type === 'execution_released' && terminal.releaseId === controls[0].releaseId && terminal.childPid === ready.childPid
+      && terminal.jobKillOnCloseDisabled === true && terminal.ownershipReleased === true && row.root_alive_after_helper_exit === true && row.child_alive_after_helper_exit === true, 'MANAGED_RELEASE_NOT_PROVEN');
+    else check(exact(terminal, ['schemaVersion','type','requestId','profileId','status','exitCode','executionTimeMs','timedOut','idleTimedOut','canceled','outputTruncated','containmentVerified','inputDetached','cleanupConfirmed','workDirAclModified','tokenAudit','hostJob','lastOutputSeq','stdout','stderr'])
+      && tokenProof(terminal.tokenAudit) && terminal.containmentVerified === true && terminal.inputDetached === true && terminal.workDirAclModified === false
+      && terminal.status === 'completed' && uint(terminal.exitCode) && uint(terminal.executionTimeMs) && terminal.timedOut === false && terminal.idleTimedOut === false && terminal.outputTruncated === false
+      && exact(terminal.hostJob, ['detected','breakaway','limitFlags','childJobAssignmentVerified']) && terminal.hostJob.childJobAssignmentVerified === true
+      && uint(terminal.hostJob.limitFlags) && typeof terminal.hostJob.detected === 'boolean'
+      && (terminal.hostJob.detected ? ['explicit','silent'].includes(terminal.hostJob.breakaway) : terminal.hostJob.breakaway === 'none') && controls.length === (name === 'cancel' ? 1 : 2) && controls[0].type === 'cancel'
+      && (name !== 'cancel-release' || (controls[1].type === 'release' && controls[1].releaseId === 'release-cancel-release'))
+      && terminal.type === 'execution_result' && terminal.canceled === true && terminal.cleanupConfirmed === true
+      && row.root_alive_after_helper_exit === false && row.child_alive_after_helper_exit === false, 'MANAGED_CANCEL_NOT_PROVEN');
+  }
+  return { revision: 'a9-31-managed-r1', status: 'PASS_RELEASE_AND_CANCEL_LIFECYCLE' };
+}
+
 // Read the actual PE, not dumpbin's caller-supplied PASS summary. This reader
 // deliberately rejects delay imports/ordinals and ambiguous or truncated RVAs.
 export function inspectV26Pe(bytes, profile) {
@@ -125,6 +181,8 @@ export function verifyV26ReturnEvidence(read, helperBytes, buildResult, profile)
   };
   const text = (name) => read(`evidence/${name}`).toString('utf8').replace(/^\uFEFF/, '').trim();
   const declared = profile.delivery?.evidence;
+  const managed = profile.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64';
+  if (managed) { check(profile.managed_contract?.revision === 'a9-31-managed-r1' && requiredV26ManagedEvidence.every((name) => declared?.includes(name)), 'MANAGED_PROFILE_CLOSURE'); verifyV26ManagedEvidence(read); }
   const artifact = buildResult.artifacts?.find((entry) => entry.path === 'helper.exe');
   check(artifact && artifact.size === helperBytes.length && artifact.sha256 === hash(helperBytes), 'BUILD_ARTIFACT_BINDING_MISMATCH');
   check(Array.isArray(declared) && requiredV26Evidence.every((name) => declared.includes(name))
@@ -167,7 +225,7 @@ export function verifyV26ReturnEvidence(read, helperBytes, buildResult, profile)
   check(selftest.schema_version === 1 && selftest.status === 'PASS' && selftest.scenario === 'synthetic TOKEN_CREATE_FAILED'
     && selftest.expected_candidate_eligible === false, 'RETURN_SELFTEST_NOT_PASS');
   check(text('build-transcript.txt').length > 0, 'BUILD_TRANSCRIPT_EMPTY');
-  check(text('version-stdout.txt') === 'win7-agent-helper 1.4.0-d013-v26 win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming', 'VERSION_EVIDENCE_MISMATCH');
+  check(text('version-stdout.txt') === (managed ? 'win7-agent-helper 1.4.1-d013-v26-managed win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming,v3-managed-release' : 'win7-agent-helper 1.4.0-d013-v26 win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming'), 'VERSION_EVIDENCE_MISMATCH');
   for (const stem of ['version', 'smoke', 'cancel-smoke', 'v25-smoke', 'v25-cancel-smoke', 'v25-env-overlay-reject']) {
     check(text(`${stem}-stderr.txt`) === '', 'SMOKE_STDERR_NOT_EMPTY');
   }

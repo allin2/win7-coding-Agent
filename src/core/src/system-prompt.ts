@@ -55,7 +55,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
         ];
 
   const shellLabel = options.shellVersion ? `${shell} ${options.shellVersion}` : shell;
-  const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'update_plan'];
+  const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'start_process', 'read_process_output', 'stop_process', 'update_plan'];
   const content = [
     `[${A9_SYSTEM_PROMPT_VERSION}] You are the Trusted Coding Agent.`,
     `Target Environment: ${targetOs}. Shell: ${shellLabel}.`,
@@ -81,6 +81,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
     '- Never fabricate progress; if there is nothing to report, stay silent and keep working.',
     '',
     'Honest Verification & Outcome:',
+    '- Use start_process for a managed background command, read_process_output with the returned cursor, and stop_process with its handle. Never supply a PID. Background start/output is not completed verification evidence.',
     '- Never claim tests or builds passed without actual execution evidence via `shell`.',
     '- Report task status honestly: Verified Complete (when tests/builds passed), Completed with Warnings (if unverified), or Blocked (with reasons).',
   ].join('\n');

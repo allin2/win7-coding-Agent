@@ -46,7 +46,7 @@ tag 指向冻结源 `94385a8`，ZIP 摘要 `3b6e0b72…a01cf`。当前工作区�
 | A9-23 WIN7-39 换发与实机验收 | `A9_23_WIN7_39_A9_20_A9_21_PASS`（2026-09-27 门 B；源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`；15 项，已知限制随结论记录）。**产品侧观察**（2026-09-27 记录，待定是否另立任务）：会话中选择或切换到已有历史的工作区后，过程记录不加载，需切换对话或完成一轮后才显示 | [A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md) | 已关闭；限制：POSIX 可执行性与 PowerShell `/Command` 真实执行未测、真实 Provider 未覆盖、W39-06 Stop 后 PID 以运行结束时不存在为准 |
 | A9-24/A9-25 改动审阅与 WIN7-41 | `A9_25_WIN7_41_A9_24_PASS`（2026-09-29 门 B；源码 `0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`；22 项，已知限制随结论记录） | [A9-24](tasks/A9_24_REVIEW_MODE.md)、[A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md) | 已关闭；限制：真实 Provider 未覆盖、POSIX/`/Command` 真实执行未测、≤799px 不可达 |
 | A9-26 第一批：可靠性（含 A9-28/A9-29 修复） | `A9_27_WIN7_42_A9_26_PASS`（2026-09-30 门 B 收尾；负责人回复“接受”；源 `94385a8`，ZIP `3b6e0b72…a01cf`，run-id `92d693e0`；正式 30 项/25 阶段、补充真实 Windows Git R0-01～04 全通过） | [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)、[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)、[执行报告及裁决](reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md) | 验证已关闭，已按授权合入本地 main（实现整合节点 `829ad39`）；真实 Provider、POSIX/`/Command`、≤799px 与 `git clean -fdx` 边界保留，非完整 Alpha 2/RC |
-| A9-30～32 第二批执行能力 | A9-30 `DEVELOPER_VERIFIED`，产品source `32ee0b4`；v26双构建/重锁、打包与Win10受影响验证及最终独立复核通过 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[开发机收口裁决](reports/2026-10/a9_30_developer_closeout_decision_2026-10-02.md)、ADR-0150 Accepted | 独立Luna high复核P0/P1/P2=0，28冻结/66归档/111返回文件字节匹配；新包直接启动1项/交互32项、精确未变组件继承满足开发机合同。原生物理pipe背压清理UNKNOWN是批准的有界失败边界，保持原文，不能改为清理PASS；旧失败及R2暂停保留。Win7 NOT_PERFORMED，A9-31/32仍草稿、WIN7-43未占用，完整Alpha2/RC未裁决 |
+| A9-30～32 第二批执行能力 | A9-30 `DEVELOPER_VERIFIED`，产品source `32ee0b4`；v26双构建/重锁、打包与Win10受影响验证及最终独立复核通过 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[开发机收口裁决](reports/2026-10/a9_30_developer_closeout_decision_2026-10-02.md)、ADR-0150 Accepted | 独立Luna high复核P0/P1/P2=0，28冻结/66归档/111返回文件字节匹配；新包直接启动1项/交互32项、精确未变组件继承满足开发机合同。原生物理pipe背压清理UNKNOWN是批准的有界失败边界，保持原文，不能改为清理PASS；旧失败及R2暂停保留。Win7 NOT_PERFORMED，A9-31已批准并在独立分支实施，A9-32仍草稿、WIN7-43未占用，完整Alpha2/RC未裁决 |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Shell streaming 与新的 RC 均未获任何 PASS 结论；A9-24 改动审阅的 Win7 结论来自 WIN7-41（`0.3.0-alpha.1` 能力集标识，非完整 Alpha 2）。
@@ -111,3 +111,12 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
 Exact four-path source commit: `7feae402edfb30da9adb649841d777ca82cc6e80`. New r6 ZIP SHA-256: `8c0f79bf2f5383be3b59b6542f27e159c00efb23f07eeabdc0a05477462cf406`. Independent kit/control review P0/P1/P2=0; 23 ZIP entries / 13 exact committed native source blobs. Registration commit: `3e2f6f602bf7b6aa0786b7c800c8541eff1198f4`. Exact HEAD registry/report byte binding PASS; no push/merge. The stage script now checks approval before writes; actual PS5.1 syntax and missing-approval negative check must run before staging.
 
 Current 192.168.1.4 SSH/TCP22 connection times out. The pretransfer guard did not succeed: r6 transfer/staging/BuildA/BuildB NOT_PERFORMED. Network cause UNKNOWN; no account/permission/Bitvise/UAC/system policy changes. Resume after readonly network, SID1005 identity, host/tool and fresh build-r5-a/b checks; these existing approved targets remain the only build directories. Returned-evidence review, product relock, actual Electron and Win7 NOT_PERFORMED; DEVELOPER_VERIFIED not signed. See [r6 independent review](reports/2026-10/a9_30_v26_r6_independent_kit_review_2026-10-02.md).
+
+### A9-31 本地实施（2026-10-03）
+
+负责人已批准C1准确25路径登记和C2任务/ADR-0151/68路径/增量合同。
+登记提交 `c2b6356f83ef8502a34516010924547c57a3bec2`，实现分支 `codex/a9-31-background-tools`。
+后台启动/有界游标读/停止、不可变归属、跨块脱敏与先审计、release意图/回执、退出选择已进入本地实现。
+当前仍为 `A9_31_IMPLEMENTATION_IN_PROGRESS`；源码提交、managed kit批准/双构建/新锁、真实Electron均未完成。
+本地模拟协议及POSIX进程检查不证明Windows Job；Win10/Win7新工件验证均 `NOT_PERFORMED`。
+A9-32/33未批准、候选未冻结，不签发第二批Win7 PASS或Alpha2/RC。

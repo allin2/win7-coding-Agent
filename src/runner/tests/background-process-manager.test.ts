@@ -314,6 +314,7 @@ describe('A9-02: BackgroundProcessManager', () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(states).toEqual([
+      expect.objectContaining({ handleId: 'bg-natural', status: 'starting', pid: undefined }),
       expect.objectContaining({ handleId: 'bg-natural', status: 'running', cleanupRequired: true }),
       expect.objectContaining({ handleId: 'bg-natural', status: 'exited', cleanupRequired: false }),
     ]);
@@ -334,7 +335,7 @@ describe('A9-02: BackgroundProcessManager', () => {
       maxOutputSize: 1024, allowNetwork: false, allowedDirectories: [], protectedDirectories: [],
     };
     await manager.start('bg-contradictory', 'echo ok', 'cmd.exe', [], 'C:\\acceptance', undefined, request);
-    expect(states).toEqual([expect.objectContaining({ status: 'running', cleanupRequired: true, pid: 7442 })]);
+    expect(states).toEqual([expect.objectContaining({ status: 'starting', pid: undefined }), expect.objectContaining({ status: 'running', cleanupRequired: true, pid: 7442 })]);
 
     finish({
       kind: 'response',
@@ -388,4 +389,120 @@ describe('A9-02: BackgroundProcessManager', () => {
     expect(result.leftToSystem).toContain('bg-leave');
     expect(manager.list()).toEqual([]);
   });
+});
+
+const managedOwner = { workspace: '/w', conversationId: 'c', taskId: 't', turnId: 'turn', toolCallId: 'call' };
+function managedFixture(stateHook: (h: any) => void = () => {}, outputHook: (c: any) => Promise<void> | void = () => {}) {
+  let resolve!: (v: any) => void;
+  const completion = new Promise<any>((r) => { resolve = r; });
+  let send!: (c: any) => Promise<void> | void;
+  let seq = 0, bytes = 0;
+  const transport: any = { invoke: jest.fn(), startManaged: jest.fn((_r: any, _e: any, cb: any) => {
+    send = cb;
+    return { ready: Promise.resolve({ ...helperReady(345, 'req'), schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2' }), completion,
+      cancel: jest.fn(() => resolve({ kind: 'cancelled', detail: 'fixture confirmed stopped', cleanupConfirmed: true })),
+      release: jest.fn(async (releaseId: string) => {
+        const receipt = { schemaVersion: 3, type: 'execution_released', requestId: 'req', profileId: 'a9-trusted-shell-current-user-v2', releaseId, childPid: 345,
+          lastOutputSeq: seq, stdout: { rawBytesRead: bytes, emittedBytes: bytes, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, jobKillOnCloseDisabled: true, ownershipReleased: true };
+        resolve({ kind: 'response', response: receipt }); return receipt;
+      }) };
+  }) };
+  const m = new BackgroundProcessManager(transport, (s) => s, () => ['chunk-secret'], stateHook);
+  const request: any = { schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', requestId: 'req', managed: true, outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' } };
+  return { m, transport, completion, resolve, request,
+    start: (id = 'handle') => m.start(id, 'echo tick', 'cmd.exe', [], '/w', undefined, request, { owner: managedOwner, onOutput: outputHook }),
+    output: async (text: string) => { const buffer = Buffer.from(text); bytes += buffer.length;
+      await send({ schemaVersion: 3, type: 'output_chunk', requestId: 'req', profileId: request.profileId, stream: 'stdout', seq: ++seq,
+        streamOffset: bytes - buffer.length, byteLength: buffer.length, dataBase64: buffer.toString('base64') }); },
+  };
+}
+it('v3 requires start intent audit before transport invocation and rejects unsafe native fallback', async () => {
+  const f = managedFixture(() => { throw new Error('disk failed'); });
+  await expect(f.start()).rejects.toMatchObject({ code: 'A9_BACKGROUND_STATE_PERSIST_FAILED' });
+  expect(f.transport.startManaged).not.toHaveBeenCalled();
+  expect(f.m.getActiveCount()).toBe(0);
+  await expect(f.m.start('direct', 'x', process.execPath, [], '/w', undefined, undefined, { owner: managedOwner })).rejects.toMatchObject({ code: 'A9_MANAGED_V3_REQUIRED' });
+});
+it('v3 redacts split secrets before audit/ring, preserves Unicode and rereads an opaque cursor', async () => {
+  const audited: any[] = []; const f = managedFixture(undefined, (c) => { audited.push(c); }); await f.start();
+  const cursor = f.m.readOutput('handle', managedOwner).nextCursor;
+  await f.output('chunk-'); expect(audited).toHaveLength(0);
+  await f.output('secret 中文😀\n');
+  const first = f.m.readOutput('handle', managedOwner, cursor, 16384);
+  expect(first).toEqual(f.m.readOutput('handle', managedOwner, cursor, 16384));
+  const text = first.entries.map((e) => e.text).join(''); expect(text).toContain('***redacted***'); expect(text).toContain('中文😀');
+  expect(JSON.stringify(audited)).not.toContain('chunk-secret');
+  const small = f.m.readOutput('handle', managedOwner, cursor, 4);
+  expect(Buffer.byteLength(small.entries.map((e) => e.text).join(''))).toBeLessThanOrEqual(4);
+  const tail = f.m.readOutput('handle', managedOwner, small.nextCursor, 16384);
+  expect(small.entries.map((e) => e.text).join('') + tail.entries.map((e) => e.text).join('')).toBe(text);
+  await f.m.dispose({ stopManaged: false });
+});
+it('v3 rejects wrong owner, forged/future cursor and invalid byte budgets without stopping a process', async () => {
+  const f = managedFixture(); await f.start();
+  expect(() => f.m.readOutput('handle', { ...managedOwner, conversationId: 'other' })).toThrow('WRONG_OWNER');
+  await expect(f.m.stopOwned('handle', { ...managedOwner, workspace: '/other' })).rejects.toMatchObject({ code: 'A9_MANAGED_HANDLE_WRONG_OWNER' });
+  expect(() => f.m.readOutput('handle', managedOwner, 'forged')).toThrow('CURSOR_INVALID');
+  const cursor = f.m.readOutput('handle', managedOwner).nextCursor;
+  expect(() => f.m.readOutput('handle', managedOwner, cursor.replace('.1.0', '.9.0'))).toThrow('CURSOR_INVALID');
+  const foreign = (cursor[0] === 'a' ? 'b' : 'a') + cursor.slice(1);
+  expect(() => f.m.readOutput('handle', managedOwner, foreign)).toThrow('CURSOR_INVALID');
+  expect(() => f.m.readOutput('handle', managedOwner, undefined, 0)).toThrow('BUDGET_INVALID');
+  await f.m.dispose({ stopManaged: false });
+});
+it('v3 expires discarded frames explicitly and caps retained output', async () => {
+  const f = managedFixture(); await f.start(); const old = f.m.readOutput('handle', managedOwner).nextCursor;
+  for (let i = 0; i < 4097; i++) await f.output('tick\n');
+  let failure: any; try { f.m.readOutput('handle', managedOwner, old); } catch (e) { failure = e; }
+  expect(failure).toMatchObject({ code: 'CURSOR_EXPIRED', oldestCursor: expect.any(String) });
+  expect(f.m.readOutput('handle', managedOwner, failure.oldestCursor).truncated).toBe(true);
+  await f.m.dispose({ stopManaged: false });
+});
+it('v3 audits release intent and receipt, and never treats missing acknowledgement as leftToSystem', async () => {
+  const states: any[] = []; const f = managedFixture((h) => states.push(h)); await f.start();
+  const released = await f.m.dispose({ stopManaged: false });
+  expect(released).toMatchObject({ stopped: [], leftToSystem: ['handle'], unresolved: [] });
+  expect(states.map((h) => h.ownershipState)).toEqual(['owned', 'owned', 'release_intent', 'released']);
+  expect(f.m.getActiveCount()).toBe(0);
+  const broken = managedFixture(); await broken.start();
+  const invocation = broken.transport.startManaged.mock.results[0].value;
+  invocation.release = async () => { broken.resolve({ kind: 'helper_crashed', detail: 'lost receipt', cleanupConfirmed: false }); throw new Error('A9_RELEASE_UNKNOWN'); };
+  const result = await broken.m.dispose({ stopManaged: false });
+  expect(result.leftToSystem).toEqual([]); expect(result.unresolved).toHaveLength(1);
+  expect(broken.m.list()[0]).toMatchObject({ ownershipState: 'release_unknown', cleanupRequired: true });
+  expect(broken.m.getActiveCount()).toBe(1);
+});
+it('v3 publishes no output when mandatory output audit fails', async () => {
+  const f = managedFixture(undefined, () => { throw new Error('audit failed'); }); await f.start();
+  await expect(f.output('visible tick\n')).rejects.toThrow('audit failed');
+  expect(f.m.readOutput('handle', managedOwner).entries).toEqual([]);
+  f.resolve({ kind: 'helper_crashed', detail: 'output audit failed', cleanupConfirmed: false });
+  await f.completion; await new Promise((r) => setImmediate(r));
+  expect(f.m.list()[0].cleanupRequired).toBe(true);
+});
+it('v3 owned handles enforce three active processes and repeat Stop only after cleanup proof', async () => {
+  const cancelCalls: string[] = [];
+  const transport: any = { invoke: jest.fn(), startManaged: (request: any) => {
+    let finish!: (value: any) => void;
+    const ready = { ...helperReady(345, request.requestId), schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2' };
+    return { ready: Promise.resolve(ready), completion: new Promise((resolve) => { finish = resolve; }), cancel: () => {
+      cancelCalls.push(request.requestId);
+      finish({ kind: 'response', response: { schemaVersion: 3, type: 'execution_result', requestId: request.requestId,
+        profileId: ready.profileId, exitCode: 1, canceled: true, timedOut: false, idleTimedOut: false,
+        containmentVerified: true, inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
+        hostJob: { detected: false, breakaway: 'none', childJobAssignmentVerified: true }, tokenAudit: ready.tokenAudit } });
+    } };
+  } };
+  const m = new BackgroundProcessManager(transport);
+  const start = (id: string) => m.start(id, 'fixture', 'unused', [], '/workspace', undefined,
+    { schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', requestId: id, managed: true, outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' } } as any, { owner: managedOwner });
+  try {
+    await start('one'); await start('two'); await start('three');
+    expect(m.getActiveCount()).toBe(3);
+    await expect(start('four')).rejects.toThrow(/3|limit|上限/);
+    expect((await m.stopOwned('one', managedOwner)).status).toBe('stopped');
+    expect((await m.stopOwned('one', managedOwner)).status).toBe('stopped');
+    expect(cancelCalls.filter((id) => id === 'one')).toHaveLength(1);
+    await start('four'); expect(m.getActiveCount()).toBe(3);
+  } finally { expect((await m.dispose({ stopManaged: true })).unresolved).toEqual([]); }
 });

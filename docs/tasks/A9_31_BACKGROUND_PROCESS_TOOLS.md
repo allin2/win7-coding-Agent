@@ -1,13 +1,13 @@
 # A9-31 — 托管后台进程工具
 
 ```text
-Status: DRAFT_READY_FOR_REVIEW
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: EXECUTION_CAPABILITY
 Target Branch: codex/a9-31-background-tools
-Source Baseline: 32ee0b48edd286c77aa543bdda9eb834fd4576aa (inspection only; registration commit pending)
-Phase-Gate: A9_31_DESIGN_PENDING_APPROVAL
+Source Baseline: c2b6356f83ef8502a34516010924547c57a3bec2
+Phase-Gate: A9_31_IMPLEMENTATION_IN_PROGRESS
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0151 (Proposed)
+Decision: ADR-0151 (Accepted)
 ```
 
 ## 1. 授权与依赖
@@ -61,7 +61,7 @@ release 意图先落盘，逐句柄回执成功才报告 leftToSystem；部分�
 释放与 cancel 竞态、回执丢失写 release_unknown；Win7 实测退出后根/子 PID 身份和存活。
 依赖 stdout pipe 的程序可能在闭管道后退出，失败如实报告，不泛化任意程序存活保证。
 
-## 4. 拟批准精确路径
+## 4. 已批准精确路径
 
 - Core：`src/core/src/a9-tools.ts`、`src/core/src/a9-agent-loop.ts`、`src/core/src/system-prompt.ts`、`src/core/src/index.ts`。
 - Runner：`src/runner/src/background-process-manager.ts`、`src/runner/src/trusted-shell-runner.ts`、`src/runner/src/trusted-shell-adapter.ts`、`src/runner/src/native-protocol.ts`、`src/runner/src/native-transport.ts`、`src/runner/src/stream-output.ts`、`src/runner/src/index.ts`。
@@ -104,3 +104,22 @@ Shell 顺序、双源、三种编码、跨块秘密、限额、背压、Stop、�
 Win10 必须通过真实 main/preload/SQLite/IPC/Renderer 入口检查后台工具和退出选择，Runner-only 不代签 UI。
 每组失败先留原始响应；不可证明清理时记 UNKNOWN 并暂停派发，不要求夹具把 UNKNOWN 改成成功。
 模块定向检查完成后执行 verify:quick；新变化/失败扩大到受影响项，不机械重跑全部已验证稳定宿主项。
+
+## 6. C1/C2具体批准与进入实施（2026-10-03）
+
+负责人对已准备的C1/C2请求回复“批准”：准确25路径登记提交为
+`c2b6356f83ef8502a34516010924547c57a3bec2`，逐项提交blob匹配审批快照，产品字节等于32ee0b4。
+据此批准本任务§1–5、ADR-0151、68项精确路径及增量检查清单；本节是当前授权入口，前文草稿时点保留。
+独立工作树 `/Users/qlyf/.codex/worktrees/a9-31-background-tools/win7-coding-Agent` 从上述准确提交建立，
+分支 `codex/a9-31-background-tools`，开始时tracked/untracked干净。主代理实施，不默认委派。
+本任务后续源码提交、原生kit批准/双构建、远端新目录/写入、本地整合与候选门另行具体批准；
+A9-32/33仍草稿，Win7 NOT_PERFORMED，不推送、不合main、不发布。
+
+## 7. 本地实施交接（2026-10-03）
+
+[交接材料](../plans/A9_31_IMPLEMENTATION_HANDOFF.md)及
+[本地报告](../reports/2026-10/a9_31_local_implementation_and_source_handoff_2026-10-03.md)登记本轮结果。
+Core185、Runner162、State70、Shell113规定项通过，4类故障反例红且源码恢复；发布/文档以最终日志与矩阵为准。
+Mac原生逻辑PASS只覆盖平台无关逻辑。源码未提交，managed模板未正式批准，新锁NOT_LOCKED；
+Windows原生/真实Electron/Win7、独立收口复核均NOT_PERFORMED。Phase-Gate继续IMPLEMENTATION_IN_PROGRESS。
+本节不批准源码提交、远端写入、构建、整合或任何候选门。

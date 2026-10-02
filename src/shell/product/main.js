@@ -869,12 +869,7 @@ function createMainWindow() {
     if (a9WindowCloseInFlight) return;
     a9WindowCloseInFlight = (async () => {
       try {
-        const result = await a9RuntimeInstance.shutdown();
-        if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
-          const leave = await confirmA9LeaveToSystem(result.leftToSystem);
-          if (!leave) throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
-          await a9RuntimeInstance.shutdown({ stopManaged: false });
-        }
+        if (!await executeA9ShutdownChoice()) return;
         a9ShutdownComplete = true;
         window.close();
       } catch (error) {
@@ -1030,21 +1025,27 @@ ipcMain.handle('product:a9-request', withStartupBarrier(createA9ProductRequestHa
 let a9ShutdownComplete = false;
 let a9ShutdownInFlight = null;
 let a9WindowCloseInFlight = null;
-async function confirmA9LeaveToSystem(leftToSystem) {
-  const residueLines = Array.isArray(leftToSystem)
-    ? leftToSystem.slice(0, 20).map((item) => String(item).slice(0, 500))
-    : [String(leftToSystem == null ? '' : leftToSystem).slice(0, 2000)];
-  const choice = await dialog.showMessageBox({
-    type: 'warning',
-    title: '托管进程清理无法确认',
-    message: '仍有托管进程或清理事实无法确认。可以继续运行并检查残留，或明确将进程留给系统后退出。',
-    detail: residueLines.join('\n'),
-    buttons: ['继续运行并重试', '将进程留给系统并退出'],
-    defaultId: 0,
-    cancelId: 0,
-    noLink: true,
-  });
-  return choice.response === 1;
+async function selectA9ShutdownPolicy() {
+  const snapshot = a9RuntimeInstance && typeof a9RuntimeInstance.getSnapshot === 'function' ? a9RuntimeInstance.getSnapshot() : null;
+  const handles = snapshot && Array.isArray(snapshot.managedProcesses) ? snapshot.managedProcesses : [];
+  const active = handles.filter((h) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(h.lastProbeStatus) || h.cleanupRequired === true);
+  if (!active.length) return true;
+  const choice = await dialog.showMessageBox({ type: 'question', title: '退出时处理后台进程',
+    message: '选择停止后台进程后退出，或将已确认移交的进程留给系统后退出。',
+    detail: active.slice(0, 20).map((h) => String(h.handleId).slice(0, 160)).join('\n'),
+    buttons: ['停止后退出', '留给系统后退出', '取消'], defaultId: 0, cancelId: 2, noLink: true });
+  if (choice.response === 2) return null;
+  return choice.response === 0;
+}
+async function executeA9ShutdownChoice() {
+  const stopManaged = await selectA9ShutdownPolicy();
+  if (stopManaged === null) return false;
+  const result = stopManaged ? await a9RuntimeInstance.shutdown() : await a9RuntimeInstance.shutdown({ stopManaged: false });
+  const unresolved = result && Array.isArray(result.unresolved) ? result.unresolved : [];
+  const leftToSystem = result && result.leftToSystem;
+  const residueLines = [...unresolved, ...(Array.isArray(leftToSystem) && stopManaged ? leftToSystem : [])].slice(0, 20).map((item) => String(item).slice(0, 500));
+  if (residueLines.length) throw new Error('A9_SHUTDOWN_RESIDUE:' + residueLines.join('\n'));
+  return true;
 }
 function beginA9ShutdownBeforeQuit(event) {
   if (a9ShutdownComplete || !a9RuntimeInstance || typeof a9RuntimeInstance.shutdown !== 'function') return;
@@ -1052,12 +1053,7 @@ function beginA9ShutdownBeforeQuit(event) {
   if (a9ShutdownInFlight) return;
   a9ShutdownInFlight = (async () => {
     try {
-      const result = await a9RuntimeInstance.shutdown();
-      if (result && Array.isArray(result.leftToSystem) && result.leftToSystem.length > 0) {
-        const leave = await confirmA9LeaveToSystem(result.leftToSystem);
-        if (!leave) throw new Error(`A9_SHUTDOWN_RESIDUE:${result.leftToSystem.join(';')}`);
-        await a9RuntimeInstance.shutdown({ stopManaged: false });
-      }
+      if (!await executeA9ShutdownChoice()) { a9ShutdownInFlight = null; return; }
       a9ShutdownComplete = true;
       app.quit();
     } catch (error) {

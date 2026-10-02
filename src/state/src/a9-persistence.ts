@@ -1260,6 +1260,48 @@ export class A9PersistenceManager {
     );
   }
 
+  /** Versioned owner/release events plus legacy fact update share one SQLite transaction. */
+  recordManagedOwnership(fact: Parameters<A9PersistenceManager['recordManagedProcess']>[0], ownership: {
+    schemaVersion: 1; owner: { workspace: string; conversationId: string; taskId: string; turnId: string; toolCallId: string };
+    requestId: string; ownershipState: 'owned' | 'release_intent' | 'released' | 'release_unknown'; releaseId?: string;
+    recoveryStatus?: 'running_unknown' | 'identity_mismatch' | 'exited';
+  }): void {
+    const owner = ownership.owner;
+    if (ownership.schemaVersion !== 1 || !owner || Object.values(owner).some((v) => typeof v !== 'string' || !v.trim())
+      || !ownership.requestId || !fact.handleId || !['owned', 'release_intent', 'released', 'release_unknown'].includes(ownership.ownershipState)
+      || (ownership.ownershipState !== 'owned' && !/^[a-zA-Z0-9_-]{1,128}$/.test(ownership.releaseId ?? ''))) throw new Error('A9_MANAGED_OWNERSHIP_INVALID');
+    this.db.transaction(() => {
+      const origin = this.db.prepare(`SELECT s.workspace_path, s.state FROM a9_sessions s JOIN a9_tasks t ON t.session_id=s.session_id
+        JOIN a9_turns tr ON tr.task_id=t.task_id AND tr.session_id=s.session_id
+        WHERE s.session_id=? AND t.task_id=? AND tr.turn_id=?`).get(owner.conversationId, owner.taskId, owner.turnId) as any;
+      const canonical = process.platform === 'win32' ? path.win32.resolve(fact.workspacePath.replace(/\//g, '\\')).toLowerCase() : path.posix.resolve(fact.workspacePath.replace(/\\/g, '/'));
+      if (!origin || origin.workspace_path !== fact.workspacePath || owner.workspace !== canonical || origin.state !== 'active') throw new Error('A9_MANAGED_OWNER_MISMATCH');
+      const previous = this.getManagedOwnership(fact.handleId);
+      if (previous && (JSON.stringify(previous.owner) !== JSON.stringify(owner) || previous.requestId !== ownership.requestId)) throw new Error('A9_MANAGED_OWNER_IMMUTABLE');
+      if (previous?.ownershipState === 'released' && ownership.ownershipState !== 'released') throw new Error('A9_MANAGED_RELEASE_TERMINAL');
+      if (ownership.ownershipState === 'released' && !['release_intent', 'released'].includes(previous?.ownershipState ?? '')) throw new Error('A9_MANAGED_RELEASE_INTENT_MISSING');
+      // An owned live process needs future cleanup; this is not a failed-cleanup status.
+      // Keep the legacy residual representation for every uncertain/terminal failure.
+      const storedFact = ownership.ownershipState === 'owned' && ['starting', 'running'].includes(fact.lastProbeStatus ?? '')
+        ? { ...fact, cleanupRequired: false } : fact;
+      if (previous && JSON.stringify(previous) === JSON.stringify(ownership)) { this.recordManagedProcess(storedFact); return; }
+      this.recordManagedProcess(storedFact);
+      this.insertEvent(owner.conversationId, owner.turnId, 'tool', 'managed_process_ownership', { handleId: fact.handleId, ...ownership });
+    })();
+  }
+
+  getManagedOwnership(handleId: string): {
+    schemaVersion: 1; owner: { workspace: string; conversationId: string; taskId: string; turnId: string; toolCallId: string };
+    requestId: string; ownershipState: 'owned' | 'release_intent' | 'released' | 'release_unknown'; releaseId?: string;
+    recoveryStatus?: 'running_unknown' | 'identity_mismatch' | 'exited';
+  } | undefined {
+    const row = this.db.prepare("SELECT payload_json FROM a9_events WHERE event_type='managed_process_ownership' AND json_extract(payload_json, '$.handleId')=? ORDER BY id DESC LIMIT 1").get(handleId) as any;
+    if (!row) return undefined;
+    const payload = safeParse(row.payload_json) as any;
+    if (!payload || payload.schemaVersion !== 1 || !payload.owner) throw new Error('A9_MANAGED_OWNERSHIP_CORRUPT');
+    const { handleId: _handleId, ...ownership } = payload; return ownership;
+  }
+
   listManagedProcesses(workspacePath: string): Array<{
     handleId: string; pid: number | null; command: string; cwd: string;
     startedAt: string; lastProbeStatus: string | null; pidReusePossible: boolean; cleanupRequired: boolean;
@@ -1272,7 +1314,8 @@ export class A9PersistenceManager {
       startedAt: r.started_at,
       lastProbeStatus: r.last_probe_status,
       pidReusePossible: r.pid_reuse_possible === 1,
-      cleanupRequired: r.last_probe_status === 'cleanup_required',
+      cleanupRequired: r.last_probe_status === 'cleanup_required'
+        || (['starting', 'running'].includes(r.last_probe_status) && this.getManagedOwnership(r.handle_id)?.ownershipState === 'owned'),
     }));
   }
 

@@ -152,3 +152,16 @@ source4318634原锁定包在A9 Builder普通非提升Medium/无Job真实桌面�
 [审批包](A9_BATCH_2_IMPLEMENTATION_APPROVAL.md) C1列25项准确本地登记路径，C2申请A9-31/ADR-0151及基线绑定，
 C3–C5在实际source/套件/候选形成后分别申请。[增量矩阵](A9_BATCH_2_INCREMENTAL_VALIDATION.md)复用未受影响证据，
 新helper/Runtime影响的共享安全、输出和退出链路重测；正式Win7全部NOT_PERFORMED。
+
+
+### A9-31实施批准与工作树（2026-10-03）
+
+负责人批准C1/C2，C1本地25路径提交c2b6356完成且产品字节未变；
+A9-31/ADR-0151已批准，独立分支codex/a9-31-background-tools进入实施。
+新原生kit/构建/远端写入、产品源码提交及整合尚未批准；A9-32/33仍草稿，Win7 NOT_PERFORMED。
+
+### 2026-10-03 A9-31实施进度追加
+
+C1已提交c2b6356，C2批准A9-31/ADR-0151及精确68路径后在独立分支实施。
+[源码交接](A9_31_IMPLEMENTATION_HANDOFF.md)形成，本地定向与反例通过；managed工件/锁、实际Windows与独立收口待。
+A9-32/33仍草稿；WIN7-43仍只暂定，不复用候选、不改旧结论，不以本地检查提前签批次Win7 PASS。

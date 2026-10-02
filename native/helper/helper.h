@@ -230,6 +230,8 @@ struct ProcessResult {
     bool stdoutCaptureReady = false;
     bool stderrCaptureReady = false;
     DWORD childPid = 0;
+    std::wstring releaseId;
+    bool ownershipReleased = false;
     long long lastOutputSeq = 0;
     long long stdoutRaw = 0, stderrRaw = 0;
     long long stdoutEmitted = 0, stderrEmitted = 0;
@@ -367,6 +369,9 @@ bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error);
 
 // Render the execution result as a JSON response line (UTF-8, binary-safe via
 // base64 for stdout/stderr).
+bool ParseReleaseControl(const std::string& jsonUtf8, const std::wstring& expectedRequestId,
+                         std::wstring* releaseId, std::string* error);
+std::string RenderReleasedJson(const std::string& requestId, const ProcessResult& result);
 std::string RenderResultJson(const std::string& requestId, const ProcessResult& result);
 
 // Render the v2 readiness boundary. This is emitted only after the child is

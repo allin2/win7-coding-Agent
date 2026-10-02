@@ -171,7 +171,14 @@ export interface NativeHelperExecutionResultV3 extends Omit<NativeHelperExecutio
 export interface NativeHelperErrorResultV3 extends Omit<NativeHelperErrorResultV2, 'schemaVersion'> { schemaVersion: 3 }
 export type NativeHelperResponse = NativeHelperExecutionResult | NativeHelperErrorResult
   | NativeHelperExecutionResultV2 | NativeHelperErrorResultV2 | NativeHelperExecutionResultV3 | NativeHelperErrorResultV3;
-export type NativeHelperMessage = NativeHelperResponse | NativeHelperStartedResultV2 | NativeHelperStartedResultV3 | NativeOutputChunk | NativeOutputTruncated;
+export interface NativeHelperReleasedResultV3 {
+  schemaVersion: 3; type: 'execution_released'; requestId: string;
+  profileId: 'a9-trusted-shell-current-user-v2'; releaseId: string; childPid: number;
+  lastOutputSeq: number; jobKillOnCloseDisabled: true; ownershipReleased: true;
+  stdout: NativeHelperExecutionResultV3['stdout']; stderr: NativeHelperExecutionResultV3['stderr'];
+}
+export type NativeManagedResponse = NativeHelperResponse | NativeHelperReleasedResultV3;
+export type NativeHelperMessage = NativeManagedResponse | NativeHelperStartedResultV2 | NativeHelperStartedResultV3 | NativeOutputChunk | NativeOutputTruncated;
 
 /** One profile-aware cleanup-proof predicate shared by every helper consumer. */
 export function hasCompleteHelperCleanupProof(
@@ -243,6 +250,19 @@ function parseV3(value: Record<string, unknown>, requestId: string): NativeHelpe
   }
   if (value.profileId !== 'a9-trusted-shell-current-user-v2') throw new Error('Helper v3 profile mismatch');
   const envelope = ['schemaVersion', 'type', 'requestId', 'profileId'];
+  if (value.type === 'execution_released') {
+    if (!hasExactKeys(value, [...envelope, 'releaseId', 'childPid', 'lastOutputSeq', 'stdout', 'stderr', 'jobKillOnCloseDisabled', 'ownershipReleased'])
+      || typeof value.releaseId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(value.releaseId)
+      || !isPositiveInteger(value.childPid) || !isNonNegativeInteger(value.lastOutputSeq)
+      || value.jobKillOnCloseDisabled !== true || value.ownershipReleased !== true) throw new Error('Helper release proof invalid');
+    for (const stream of ['stdout', 'stderr']) {
+      const c = value[stream];
+      if (!isRecord(c) || !hasExactKeys(c, ['rawBytesRead', 'emittedBytes', 'omittedBytes'])
+        || Object.values(c).some((n) => !isNonNegativeInteger(n))
+        || c.rawBytesRead !== Number(c.emittedBytes) + Number(c.omittedBytes)) throw new Error('Helper release counts invalid');
+    }
+    return value as unknown as NativeHelperReleasedResultV3;
+  }
   if (value.type === 'output_chunk') {
     if (!hasExactKeys(value, [...envelope, 'seq', 'stream', 'streamOffset', 'byteLength', 'dataBase64']) || !isPositiveInteger(value.seq)
       || !['stdout', 'stderr'].includes(String(value.stream)) || !isNonNegativeInteger(value.streamOffset)

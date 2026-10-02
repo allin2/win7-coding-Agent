@@ -514,6 +514,42 @@ bool ParseCancelControl(const std::string& jsonUtf8,
     return true;
 }
 
+bool ParseReleaseControl(const std::string& jsonUtf8, const std::wstring& expectedRequestId,
+                         std::wstring* releaseId, std::string* error) {
+    releaseId->clear();
+    JsonValue root;
+    if (!JsonParse(jsonUtf8, &root, error) || root.type != JsonValue::Type::Object ||
+        !ObjectHasOnlyUniqueKeys(root, {L"schemaVersion", L"type", L"requestId", L"releaseId"}, error) || root.object.size() != 4) {
+        *error = "release control must have exactly four unique fields"; return false;
+    }
+    const JsonValue* version = JsonObjectGet(root, L"schemaVersion");
+    const JsonValue* type = JsonObjectGet(root, L"type");
+    const JsonValue* request = JsonObjectGet(root, L"requestId");
+    const JsonValue* id = JsonObjectGet(root, L"releaseId");
+    std::wstring controlType, controlRequest, controlId;
+    if (!version || JsonAsInt(*version, -1) != 3 || !type || !JsonAsString(*type, &controlType) || controlType != L"release" ||
+        !request || !JsonAsString(*request, &controlRequest) || controlRequest != expectedRequestId ||
+        !id || !JsonAsString(*id, &controlId) || controlId.empty() || controlId.size() > 128) {
+        *error = "release control identity mismatch"; return false;
+    }
+    for (wchar_t c : controlId) if (!((c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') ||
+        (c >= L'0' && c <= L'9') || c == L'_' || c == L'-')) { *error = "releaseId must be ASCII identifier"; return false; }
+    *releaseId = controlId; return true;
+}
+
+std::string RenderReleasedJson(const std::string& requestId, const ProcessResult& result) {
+    // This renderer cannot fabricate a release for another profile or incomplete proof.
+    if (result.schemaVersion != 3 || result.profileId != L"a9-trusted-shell-current-user-v2" || !result.ownershipReleased || result.releaseId.empty() || !result.childPid) return "";
+    auto counts = [](long long raw, long long emitted) {
+        return "{\"rawBytesRead\":" + std::to_string(raw) + ",\"emittedBytes\":" + std::to_string(emitted) +
+            ",\"omittedBytes\":" + std::to_string(raw - emitted) + "}";
+    };
+    return "{\"schemaVersion\":3,\"type\":\"execution_released\",\"requestId\":\"" + JsonEscape(Utf8ToUtf16(requestId)) +
+        "\",\"profileId\":\"a9-trusted-shell-current-user-v2\",\"releaseId\":\"" + JsonEscape(result.releaseId) + "\",\"childPid\":" + std::to_string(result.childPid) +
+        ",\"lastOutputSeq\":" + std::to_string(result.lastOutputSeq) + ",\"jobKillOnCloseDisabled\":true,\"ownershipReleased\":true,\"stdout\":" +
+        counts(result.stdoutRaw, result.stdoutEmitted) + ",\"stderr\":" + counts(result.stderrRaw, result.stderrEmitted) + "}";
+}
+
 bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error) {
     if (config.allowedDirectories.empty() && config.protectedDirectories.empty()) return true;
     if (!config.aclPolicy.valid) {

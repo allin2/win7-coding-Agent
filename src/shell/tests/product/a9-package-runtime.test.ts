@@ -154,3 +154,19 @@ describe('A9-30 v26 package binding', () => {
     } finally { env.cleanup(); }
   });
 });
+
+describe('A9-31 managed package binding', () => {
+  it('requires a distinct managed status and profile while refusing streaming status and formal authority', () => {
+    const env = fixture();
+    const descriptorFile = path.join(env.productRoot, '..', 'a9-runtime.json'), manifestFile = path.join(env.releaseRoot, 'release-manifest.json');
+    const descriptor = JSON.parse(fs.readFileSync(descriptorFile, 'utf8')), manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    descriptor.version = manifest.version = '0.3.0-alpha.2'; descriptor.runner_helper_protocol = manifest.required_native.runner_helper_protocol = 3;
+    descriptor.runner_helper_profile = manifest.required_native.runner_helper_profile = 'D-013-v26-managed-a9-trusted-shell-current-user';
+    manifest.status = 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'; manifest.external_acceptance_eligible = false;
+    const save = () => { fs.writeFileSync(descriptorFile, JSON.stringify(descriptor)); fs.writeFileSync(manifestFile, JSON.stringify(manifest)); };
+    try { save(); expect(loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' }).runnerHelperProfile).toBe(descriptor.runner_helper_profile);
+      manifest.status = 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'; save(); expect(() => loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' })).toThrow('MANIFEST_INVALID');
+      manifest.status = 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'; manifest.release_authority = {}; save(); expect(() => loadA9PackageRuntime({ productRoot: env.productRoot, platform: 'linux' })).toThrow('MANIFEST_INVALID');
+    } finally { env.cleanup(); }
+  });
+});

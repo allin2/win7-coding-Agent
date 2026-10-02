@@ -156,3 +156,12 @@ outputSeq 缺口且事件仍在可查询范围内时先补查；缺失/保留期
 
 新用例有移除输出/脱敏/序号/审计条件的负向对照，恢复后核对源哈希。开发机通过与 Win10 构建、Win7 当前候选证据分别记录。
 界面审阅入口：[Shell 输出 Demo](a9-30-shell-streaming-demo/index.html)（模拟数据，不签发 S01–S06 或 Win7 PASS）。
+
+## 8. A9-31 C2实施绑定（2026-10-03追加）
+
+负责人已批准A9-31/ADR-0151及§2.1 release扩展源码实施；旧“仍草稿”记录保留历史时点。
+managed新revision/工具/API及失败边界见WIN7_CONSTRAINTS§11追加和A9_31_IMPLEMENTATION_HANDOFF。
+release终态精确字段为schemaVersion/type/requestId/profileId/releaseId/childPid/lastOutputSeq/stdout/stderr/
+jobKillOnCloseDisabled/ownershipReleased。各counter为rawBytesRead/emittedBytes/omittedBytes，当前managed生命周期smoke不允许省略或额外帧字段。
+软件ready必须完整token审计、管道就绪与Job绑定；来源身份仍由具体源码与批准套件固定。
+当前实现不新增原生锁、候选或目标PASS，真实Windows的生命周期/编译/双构建/独立复核继续作为门。

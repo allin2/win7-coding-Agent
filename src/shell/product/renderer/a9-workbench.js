@@ -195,7 +195,7 @@
   }
 
   function activeManagedProcesses(snapshot) {
-    return ((snapshot && snapshot.managedProcesses) || []).filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting');
+    return ((snapshot && snapshot.managedProcesses) || []).filter((item) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus) || item.cleanupRequired === true);
   }
 
   function syncComposer() {
@@ -789,7 +789,8 @@
         if (!block.groupEl.dataset.eventId) block.groupEl.dataset.eventId = String(event.eventId);
         const item = addActivityItem(block, data, 'running', '执行中');
         markItemRunning(item, data, Date.parse(event.timestamp || '') || Date.now());
-        if (data.callId) block.pendingItems.set(String(data.callId), item);
+        if (!block.outputItems) block.outputItems = new Map();
+        if (data.callId) { block.pendingItems.set(String(data.callId), item); block.outputItems.set(String(data.callId), item); }
         else block.pendingItems.set('__last__', item);
         break;
       }
@@ -797,11 +798,13 @@
         if (data.schemaVersion !== 1 || !data.toolCallId || !Number.isSafeInteger(data.outputSeq) || data.outputSeq < 1
           || !['stdout', 'stderr'].includes(data.stream) || typeof data.text !== 'string') break;
         const key = String(data.toolCallId);
-        let item = block.pendingItems.get(key);
+        if (!block.outputItems) block.outputItems = new Map();
+        let item = block.outputItems.get(key) || block.pendingItems.get(key);
         if (!item) {
           ensureActivityGroup(block);
-          item = addActivityItem(block, { toolName: 'shell', callId: key }, 'interrupted', '历史输出');
+          item = addActivityItem(block, { toolName: data.toolName === 'start_process' ? 'start_process' : 'shell', callId: key }, 'interrupted', '历史输出');
           block.pendingItems.set(key, item);
+          block.outputItems.set(key, item);
         }
         if (!item.streamOutput) {
           item.streamOutput = { stdout: '', stderr: '', seq: 0, truncated: false };

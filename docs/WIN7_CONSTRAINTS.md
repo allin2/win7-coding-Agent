@@ -354,3 +354,18 @@ D-017保持既有VS2019/v142、SDK19041、x64和静态CRT；新managed源码/kit
 依赖pipe的程序可能退出、回执丢失记release_unknown；Win7实际生命周期NOT_PERFORMED。
 来源/版本/许可证沿用仓库及D-017登记，来源哈希在审批具体source/kit时锁定；EOL责任仍由项目承担。
 独立安全/依赖复核、Win10双构建/重锁及Win7证据均待，不把草稿写成准入PASS。
+
+### A9-31 C2实现登记（2026-10-03，ADR-0151 Accepted）
+
+负责人已批准任务§1–5及具体API方向；仅源码实施批准，构建与二进制准入独立。
+源码基线 `c2b6356f83ef8502a34516010924547c57a3bec2`；revision `a9-31-managed-r1`，
+二进制版本 `1.4.1-d013-v26-managed`，协议3/profile `a9-trusted-shell-current-user-v2`。
+新装配Profile为 `D-013-v26-managed-a9-trusted-shell-current-user`，
+D-017 kit为 `WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64`。
+来源仓库C++，Apache-2.0；无新第三方依赖。仅本helper所有Job的
+`QueryInformationJobObject`/`SetInformationJobObject(JobObjectExtendedLimitInformation)`/`CloseHandle`，
+设置并回读只去掉 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`，其他位不变；API最低Win7满足方向需由imports实证。
+Win32控制管道使用既有 `PeekNamedPipe`/`ReadFile` 非阻塞轮询；没有服务、网络监听、任意PID接管或提权。
+root/child进程句柄存活检查只在构建机测试捕获器；构建脚本实际PS5.1/C#编译仍NOT_PERFORMED。
+当前只有六个套件模板，source/ZIP/manifest/native SHA尚未正式绑定，managed锁NOT_LOCKED。
+旧A9-30 v26双构建及锁继续有效，不能替代本revision；新Windows返回证据必须严格审核。

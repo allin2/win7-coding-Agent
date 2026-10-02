@@ -1456,3 +1456,17 @@ Mac已解锁；只重连本机到同一Win10的UU连接，鼠标/快捷键仍无
 A9-30保持DEVELOPER_VERIFIED；A9-31/32/33均草稿，ADR-0151/0152/0155均Proposed。
 [审批包](plans/A9_BATCH_2_IMPLEMENTATION_APPROVAL.md)列C1本地25路径登记和C2具体实现请求；
 未提交、未开始新实现、未写远端或冻结，Win7 NOT_PERFORMED。主工作区已有修改保持。
+
+
+### A9-31实施批准与工作树（2026-10-03）
+
+负责人批准C1/C2，C1本地25路径提交c2b6356完成且产品字节未变；
+A9-31/ADR-0151已批准，独立分支codex/a9-31-background-tools进入实施。
+新原生kit/构建/远端写入、产品源码提交及整合尚未批准；A9-32/33仍草稿，Win7 NOT_PERFORMED。
+
+### 2026-10-03 A9-31本地实施交接
+
+新后台三工具、owner/cursor/ring、release及退出路径已实现；Core185/Runner162/State70/Shell113通过。
+四项故障注入反例红，恢复源码哈希一致；构建返回/装配负例及七模块静态检查见A9-31交接报告。
+仅本地源码/模拟协议/真实SQLite与POSIX证据，无managed Windows工件/锁或真实Electron/Win7新证据。
+源码提交等待确切清单批准，原生套件/目录/构建及独立复核分开；A9-32/33仍草稿，未推送或整合。

@@ -108,6 +108,34 @@ bool PollCancellationControl(const std::wstring& requestId, int schemaVersion, b
     return true;
 }
 
+// v3 controls are nonblocking and bounded; partial control input cannot stall pipe draining.
+bool PollV3Control(const ProcessConfig& config, bool* canceled, std::wstring* releaseId, std::string* error) {
+    *canceled = false; releaseId->clear();
+    if (gStdinPending.find('\n') == std::string::npos) {
+        DWORD available = 0;
+        if (!PeekNamedPipe(GetStdHandle(STD_INPUT_HANDLE), nullptr, 0, nullptr, &available, nullptr)) {
+            if (GetLastError() == ERROR_BROKEN_PIPE && !config.managed && gStdinPending.empty()) return true;
+            *error = "v3 control channel closed or unavailable"; return false;
+        }
+        if (available) {
+            char buffer[4096]; DWORD count = 0;
+            if (!ReadFile(GetStdHandle(STD_INPUT_HANDLE), buffer, std::min<DWORD>(available, sizeof(buffer)), &count, nullptr) || !count) {
+                *error = "v3 control read failed"; return false;
+            }
+            gStdinPending.append(buffer, count);
+        }
+    }
+    const size_t newline = gStdinPending.find('\n');
+    if (gStdinPending.size() > 16384 || (newline == std::string::npos && gStdinPending.size() >= 16384)) { *error = "v3 control frame exceeds limit"; return false; }
+    if (newline == std::string::npos) return true;
+    std::string line = gStdinPending.substr(0, newline); gStdinPending.erase(0, newline + 1);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    std::string cancelError;
+    if (ParseCancelControl(line, config.requestId, 3, &cancelError)) { *canceled = true; return true; }
+    if (config.managed && ParseReleaseControl(line, config.requestId, releaseId, error)) return true;
+    *error = "v3 control must be bound cancel or managed release"; return false;
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 std::wstring WinErrorText(DWORD code) {
@@ -1792,6 +1820,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     ULONGLONG lastActivity = startTime;
     bool done = false;
     bool cancelProtocolFailed = false;
+    std::wstring requestedReleaseId;
     while (!done) {
         const ULONGLONG elapsed = GetTickCount64() - startTime;
         DWORD slice = 50;
@@ -1812,10 +1841,13 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
             DrainAvailable(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated, &outputActivity);
         }
         if (outputActivity) lastActivity = GetTickCount64();
+        if (done) continue; // A failed writer never authorizes ownership release.
         bool cancellationRequested = false;
         std::string cancellationError;
-        if (!PollCancellationControl(config.requestId, config.schemaVersion, &cancellationRequested,
-                                     &cancellationError)) {
+        const bool controlOk = config.schemaVersion == 3
+            ? PollV3Control(config, &cancellationRequested, &requestedReleaseId, &cancellationError)
+            : PollCancellationControl(config.requestId, config.schemaVersion, &cancellationRequested, &cancellationError);
+        if (!controlOk) {
             cancelProtocolFailed = true;
             result->errorMessage = cancellationError;
             done = true;
@@ -1823,6 +1855,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
             result->canceled = true;
             done = true;
         }
+        if (!requestedReleaseId.empty()) done = true;
         if (done) continue;
         if (waitResult == WAIT_OBJECT_0) {
             done = true;
@@ -1844,6 +1877,28 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         }
     }
     result->executionTimeMs = static_cast<long long>(GetTickCount64() - startTime);
+
+    if (!requestedReleaseId.empty() && !cancelProtocolFailed && !result->canceled && writer && config.managed && currentUserProfile &&
+        pendingRestores.empty() && pendingLabelRestores.empty() && WaitForSingleObject(pi.hProcess, 0) == WAIT_TIMEOUT) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {}, verified = {};
+        const bool queried = QueryInformationJobObject(hJob, JobObjectExtendedLimitInformation, &limits, sizeof(limits), nullptr) != FALSE;
+        if (queried) limits.BasicLimitInformation.LimitFlags &= ~JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        const bool released = queried && SetInformationJobObject(hJob, JobObjectExtendedLimitInformation, &limits, sizeof(limits)) &&
+            QueryInformationJobObject(hJob, JobObjectExtendedLimitInformation, &verified, sizeof(verified), nullptr) &&
+            !(verified.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE) &&
+            verified.BasicLimitInformation.LimitFlags == limits.BasicLimitInformation.LimitFlags;
+        if (released) {
+            result->releaseId = requestedReleaseId; result->ownershipReleased = true; result->cleanupConfirmed = false;
+            // Close capture endpoints and ownership handles BEFORE the terminal receipt.
+            CloseHandle(pi.hProcess); CloseHandle(hNullIn); CloseHandle(hOutRead); CloseHandle(hErrRead);
+            CloseHandle(hRestricted); if (userSid) LocalFree(userSid); CloseHandle(hJob);
+            const bool queued = writer->Enqueue(RenderReleasedJson(WideToUtf8(config.requestId), *result));
+            const bool delivered = writer->Finish();
+            // A lost receipt is UNKNOWN at the caller; never claim the child was cleaned up.
+            return queued && delivered ? HELPER_OK : HELPER_ERR_INTERNAL;
+        }
+        cancelProtocolFailed = true; result->errorMessage = "managed release Job flags could not be verified";
+    }
 
     if (result->timedOut || result->idleTimedOut || result->canceled || cancelProtocolFailed) {
         // Kill the whole tree — never taskkill (N06).
@@ -2127,7 +2182,7 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("win7-agent-helper 1.4.0-d013-v26 win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming\n");
+            std::printf("win7-agent-helper 1.4.1-d013-v26-managed win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming,v3-managed-release\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {

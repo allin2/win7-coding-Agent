@@ -291,3 +291,33 @@ test.each(['request_id', 'gap', 'base64', 'byte_count', 'stream_offset', 'versio
   await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', cleanupConfirmed: false });
   expect(output).not.toHaveBeenCalled();
 });
+
+function releasedV3() { return { schemaVersion: 3, type: 'execution_released', requestId: 'cancel-1', profileId: 'a9-trusted-shell-current-user-v2',
+  releaseId: 'release-1', childPid: startedV3().childPid, lastOutputSeq: 0, jobKillOnCloseDisabled: true, ownershipReleased: true,
+  stdout: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 } }; }
+test('managed v3 release binds the same request and native child and is idempotent per releaseId', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const release = managed.release!('release-1'); const repeat = managed.release!('release-1');
+  await expect(managed.release!('other')).rejects.toThrow('RELEASE_ID_MISMATCH');
+  send(child, releasedV3()); child.emit('close', 0);
+  await expect(release).resolves.toMatchObject({ ownershipReleased: true }); await expect(repeat).resolves.toMatchObject({ releaseId: 'release-1' });
+  expect(controls.filter((s) => s.includes('"type":"release"'))).toHaveLength(1);
+  expect(JSON.parse(controls[1])).toEqual({ schemaVersion: 3, type: 'release', requestId: 'cancel-1', releaseId: 'release-1' });
+});
+test.each([{ childPid: 1 }, { releaseId: 'other' }, { jobKillOnCloseDisabled: false }, { ownershipReleased: false }, { lastOutputSeq: 1 },
+  { stdout: { rawBytesRead: 1, emittedBytes: 1, omittedBytes: 0 } }])('managed v3 rejects an invalid release receipt %j', async (patch) => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true }); send(child, startedV3()); await managed.ready;
+  const released = managed.release!('release-1'); send(child, { ...releasedV3(), ...patch }); child.emit('close', 0);
+  await expect(released).rejects.toThrow('RELEASE_UNKNOWN'); await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
+});
+test('unsolicited release and cancel-before-release cannot transfer ownership', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true }); send(child, startedV3()); await managed.ready;
+  managed.cancel(); await expect(managed.release!('release-1')).rejects.toThrow('RELEASE_STATE_INVALID');
+  send(child, releasedV3()); child.emit('close', 0);
+  await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
+});

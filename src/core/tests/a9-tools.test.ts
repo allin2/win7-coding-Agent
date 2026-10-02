@@ -16,7 +16,7 @@ describe('A9-01: A9 Tool Spec Catalog', () => {
     expect(properties.maxLines.description).toContain('正整数');
     expect(properties.maxLines.maximum).toBe(2000);
   });
-  it('declares all 10 standard A9 tools for Full Access mode', () => {
+  it('declares all 13 standard A9 tools for Full Access mode', () => {
     const specs = a9ToolSpecs(PermissionMode.FULL_ACCESS);
     const names = specs.map((s) => s.name);
     expect(names).toEqual([
@@ -24,19 +24,22 @@ describe('A9-01: A9 Tool Spec Catalog', () => {
       'read',
       'search',
       'update_plan',
+      'read_process_output',
       'write',
       'edit',
       'copy',
       'move',
       'delete',
       'shell',
+      'start_process',
+      'stop_process',
     ]);
   });
 
   it('filters tool catalog in Read Only mode', () => {
     const specs = a9ToolSpecs(PermissionMode.READ_ONLY);
     const names = specs.map((s) => s.name);
-    expect(names).toEqual(['list', 'read', 'search', 'update_plan']);
+    expect(names).toEqual(['list', 'read', 'search', 'update_plan', 'read_process_output']);
     expect(specs.every((s) => s.approvalLevel === ApprovalLevel.READ_ONLY)).toBe(true);
   });
 

@@ -7,6 +7,7 @@ import {
   NativeHelperResponse,
   NativeHelperStartedResultV2,
   parseNativeHelperResponse, NativeOutputChunk, NativeOutputTruncated, hasCompleteHelperCleanupProof,
+  NativeHelperStartedResultV3, NativeHelperReleasedResultV3, NativeManagedResponse,
 } from './native-protocol';
 
 export type HelperTransportResult<R = Exclude<NativeHelperResponse, { schemaVersion: 3 }>> =
@@ -17,21 +18,23 @@ export type NativeOutputHandler = (chunk: NativeOutputChunk | NativeOutputTrunca
 
 export interface HelperTransport {
   invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv, onOutput?: NativeOutputHandler): Promise<HelperTransportResult<NativeHelperResponse>>;
-  startManaged?(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv): ManagedHelperInvocation;
+  startManaged?(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv, onOutput?: NativeOutputHandler): ManagedHelperInvocation;
 }
 
 export interface ManagedHelperInvocation {
   /** Helper PID is diagnostic only; managed process identity comes from ready.childPid. */
   pid?: number;
-  ready: Promise<NativeHelperStartedResultV2>;
-  completion: Promise<HelperTransportResult<Exclude<NativeHelperResponse, { schemaVersion: 3 }>>>;
+  ready: Promise<NativeHelperStartedResultV2 | NativeHelperStartedResultV3>;
+  completion: Promise<HelperTransportResult<NativeManagedResponse>>;
   cancel(): void;
+  release?(releaseId: string): Promise<NativeHelperReleasedResultV3>;
 }
 
 interface InvocationHooks {
   onSpawn?: (pid: number | undefined) => void;
-  onStarted?: (started: NativeHelperStartedResultV2) => void;
+  onStarted?: (started: NativeHelperStartedResultV2 | NativeHelperStartedResultV3) => void;
   onReadyFailure?: (error: Error) => void;
+  bindRelease?: (send: (releaseId: string) => void) => void;
 }
 
 /** One request per helper process. No shell and no inherited stdio. */
@@ -43,27 +46,46 @@ export class StdioHelperTransport implements HelperTransport {
   ) {}
 
   invoke(request: NativeHelperRequest, signal?: AbortSignal, environment?: NodeJS.ProcessEnv, onOutput?: NativeOutputHandler): Promise<HelperTransportResult<NativeHelperResponse>> {
-    return this.invokeInternal(request, signal, {}, environment, onOutput);
+    return this.invokeInternal(request, signal, {}, environment, onOutput) as Promise<HelperTransportResult<NativeHelperResponse>>;
   }
 
-  startManaged(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv): ManagedHelperInvocation {
-    if (!('schemaVersion' in request) || request.schemaVersion !== 2 || request.managed !== true) {
-      throw new Error('Managed helper execution requires a protocol v2 managed request');
+  startManaged(request: NativeHelperRequest, environment?: NodeJS.ProcessEnv, onOutput?: NativeOutputHandler): ManagedHelperInvocation {
+    if (!('schemaVersion' in request) || ![2, 3].includes(request.schemaVersion) || request.managed !== true) {
+      throw new Error('Managed helper execution requires a protocol v2/v3 managed request');
     }
     const controller = new AbortController();
     let pid: number | undefined;
-    let resolveReady!: (value: NativeHelperStartedResultV2) => void;
+    let resolveReady!: (value: NativeHelperStartedResultV2 | NativeHelperStartedResultV3) => void;
     let rejectReady!: (error: Error) => void;
-    const ready = new Promise<NativeHelperStartedResultV2>((resolve, reject) => {
+    const ready = new Promise<NativeHelperStartedResultV2 | NativeHelperStartedResultV3>((resolve, reject) => {
       resolveReady = resolve;
       rejectReady = reject;
     });
+    let sendRelease: ((releaseId: string) => void) | undefined;
     const completion = this.invokeInternal(request, controller.signal, {
       onSpawn: (spawnedPid) => { pid = spawnedPid; },
       onStarted: resolveReady,
       onReadyFailure: rejectReady,
-    }, environment);
-    return { pid, ready, completion: completion as ManagedHelperInvocation['completion'], cancel: () => controller.abort() };
+      bindRelease: (send) => { sendRelease = send; },
+    }, environment, onOutput);
+    let releaseAttempt: { id: string; result: Promise<NativeHelperReleasedResultV3> } | undefined;
+    return { pid, ready, completion, cancel: () => controller.abort(),
+      ...(request.schemaVersion === 3 ? { release: (releaseId: string) => {
+        if (releaseAttempt) {
+          if (releaseAttempt.id !== releaseId) return Promise.reject(new Error('A9_RELEASE_ID_MISMATCH'));
+          return releaseAttempt.result;
+        }
+        const result = (async () => {
+          if (!sendRelease) throw new Error('A9_RELEASE_UNAVAILABLE');
+          sendRelease(releaseId);
+          const terminal = await completion;
+          if (terminal.kind !== 'response' || terminal.response.type !== 'execution_released'
+            || terminal.response.releaseId !== releaseId) throw new Error('A9_RELEASE_UNKNOWN');
+          return terminal.response;
+        })();
+        releaseAttempt = { id: releaseId, result }; return result;
+      } } : {}),
+    };
   }
 
   private invokeInternal(
@@ -72,12 +94,14 @@ export class StdioHelperTransport implements HelperTransport {
     hooks: InvocationHooks = {},
     environment?: NodeJS.ProcessEnv,
     onOutput?: NativeOutputHandler,
-  ): Promise<HelperTransportResult<NativeHelperResponse>> {
+  ): Promise<HelperTransportResult<NativeManagedResponse>> {
     const protocolVersion = 'schemaVersion' in request ? request.schemaVersion : 1;
     return new Promise((resolve) => {
       let settled = false;
       let readySeen = false;
-      let finalResponse: NativeHelperResponse | undefined;
+      let finalResponse: NativeManagedResponse | undefined;
+      let readyChildPid: number | undefined;
+      let releaseRequested: string | undefined;
       let forcedExit: 'watchdog_timeout' | null = null;
       let cancelRequested = false;
       let cancellationEscalated = false;
@@ -105,7 +129,7 @@ export class StdioHelperTransport implements HelperTransport {
       const failReady = (detail: string) => {
         if (!readySeen) hooks.onReadyFailure?.(new Error(detail));
       };
-      const finish = (result: HelperTransportResult<NativeHelperResponse>) => {
+      const finish = (result: HelperTransportResult<NativeManagedResponse>) => {
         if (settled) return;
         settled = true;
         if (watchdog) clearTimeout(watchdog);
@@ -114,10 +138,15 @@ export class StdioHelperTransport implements HelperTransport {
         signal?.removeEventListener('abort', onAbort);
         if (result.kind !== 'response') failReady(result.detail);
         else if (result.response.type === 'error') failReady(result.response.message);
+        if (releaseRequested && result.kind !== 'response') {
+          // Close only our control endpoint. Native EOF cleanup/release remains authoritative; never claim cleanup here.
+          try { child?.stdin.end(); } catch (_error) { /* structured UNKNOWN already retained */ }
+        }
         resolve(result);
       };
       const onAbort = () => {
         if (cancelRequested || settled) return;
+        if (releaseRequested) { finish({ kind: 'helper_crashed', detail: 'A9_RELEASE_UNKNOWN', cleanupConfirmed: false }); return; }
         cancelRequested = true;
         const control = protocolVersion >= 2
           ? { schemaVersion: protocolVersion, type: 'cancel', requestId: request.requestId }
@@ -171,7 +200,8 @@ export class StdioHelperTransport implements HelperTransport {
           }
           readySeen = true;
           if (startupWatchdog) clearTimeout(startupWatchdog);
-          if (message.schemaVersion === 2) hooks.onStarted?.(message);
+          readyChildPid = message.childPid;
+          hooks.onStarted?.(message);
           return;
         }
         if (message.type === 'output_chunk' || message.type === 'output_truncated') {
@@ -194,7 +224,7 @@ export class StdioHelperTransport implements HelperTransport {
             if (queuedBytes + size > 256 * 1024) { failStream('A9_OUTPUT_BACKPRESSURE'); return; }
             queuedBytes += size;
             delivery = delivery.then(async () => {
-              if (!streamFailure) await onOutput?.(outputMessage);
+              if (!streamFailure && !settled) await onOutput?.(outputMessage);
             }).catch(() => failStream('A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED')).then(() => { queuedBytes -= size; });
           }
           return;
@@ -204,6 +234,13 @@ export class StdioHelperTransport implements HelperTransport {
             || message.stderr.emittedBytes !== offsets.stderr || message.outputTruncated !== (truncated.stdout || truncated.stderr)
             || (!truncated.stdout && message.stdout.omittedBytes !== 0) || (!truncated.stderr && message.stderr.omittedBytes !== 0)) {
             failStream('A9_OUTPUT_PROTOCOL_COUNTS'); return;
+          }
+        }
+        if (message.type === 'execution_released') {
+          if (!readySeen || !releaseRequested || message.releaseId !== releaseRequested || message.childPid !== readyChildPid
+            || message.lastOutputSeq !== outputSeq || message.stdout.emittedBytes !== offsets.stdout || message.stderr.emittedBytes !== offsets.stderr
+            || (!truncated.stdout && message.stdout.omittedBytes !== 0) || (!truncated.stderr && message.stderr.omittedBytes !== 0)) {
+            failStream('A9_RELEASE_PROTOCOL_ERROR'); return;
           }
         }
         if (finalResponse) {
@@ -291,6 +328,15 @@ export class StdioHelperTransport implements HelperTransport {
           finish({ kind: 'watchdog_timeout', detail: 'Helper did not prove execution readiness', cleanupConfirmed: false });
         }, this.startupTimeoutMs);
       }
+      hooks.bindRelease?.((releaseId) => {
+        if (protocolVersion !== 3 || !('managed' in request) || request.managed !== true || !readySeen || settled
+          || finalResponse || cancelRequested || releaseRequested || streamFailure || !/^[a-zA-Z0-9_-]{1,128}$/.test(releaseId)) {
+          throw new Error('A9_RELEASE_STATE_INVALID');
+        }
+        releaseRequested = releaseId;
+        child!.stdin.write(`${JSON.stringify({ schemaVersion: 3, type: 'release', requestId: request.requestId, releaseId })}\n`, 'utf8');
+        forcedExitTimer = setTimeout(() => finish({ kind: 'helper_crashed', detail: 'A9_RELEASE_UNKNOWN', cleanupConfirmed: false }), 10_000);
+      });
       armRuntimeWatchdog();
       signal?.addEventListener('abort', onAbort, { once: true });
       child.stdin.write(`${JSON.stringify(request)}\n`, 'utf8');

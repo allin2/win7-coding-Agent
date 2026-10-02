@@ -5973,10 +5973,11 @@ test('W42 live model-note observation excludes AGENTS notice and requires matchi
 });
 
 
-function v26DeveloperFixture(root, repositoryRoot) {
+function v26DeveloperFixture(root, repositoryRoot, managed = false) {
   const inputs = fixture(root, repositoryRoot, 'win22');
   const lock = JSON.parse(fs.readFileSync(inputs.lockPath));
   const native = lock.inputs.runner_return_zip;
+  if (managed) native.build_kit.revision = 'a9-31-managed-r1';
   const registryRelative = 'release/win7-product-v3/a9-v26-approved-build-kits.json';
   const registryPath = path.join(repositoryRoot, registryRelative);
   writeJson(registryPath, {schema_version:1, kits:[{...native.build_kit,status:'APPROVED_FOR_RETURN_RECORDING',return_review:{status:'APPROVED_FOR_INPUT_LOCK',independent_reviewer:'TEST_ONLY reviewer',implementation_author:'TEST_ONLY implementer',reviewed_at:'2026-10-01T00:00:00Z',report_sha256:'b'.repeat(64),builds:native.reproducible_builds.map(b=>({run_id:b.run_id,sha256:b.sha256}))}}]});
@@ -5985,6 +5986,7 @@ function v26DeveloperFixture(root, repositoryRoot) {
   const approvalCommit = execFileSync('git',['rev-parse','HEAD'],{cwd:repositoryRoot,encoding:'utf8'}).trim();
   Object.assign(lock,{lock_id:'A9-30-DEVELOPER-INPUTS-D013-V26',release_id:'WIN7-CODING-AGENT-A9-ALPHA2',version:'0.3.0-alpha.2',provenance:{task:'A9-30',development_only:true}});
   Object.assign(native,{version:'D-013-v26-a9-trusted-shell-current-user',profile:'D-013-v26-a9-trusted-shell-current-user',protocol_version:3,runtime_profile:'a9-trusted-shell-current-user-v2',approval_registry:{commit:approvalCommit,path:registryRelative,sha256:sha256File(registryPath)}});
+  if(managed){lock.lock_id='A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED';lock.provenance.task='A9-31';native.version=native.profile='D-013-v26-managed-a9-trusted-shell-current-user';native.managed_contract={revision:'a9-31-managed-r1'};}
   lock.gates={win10:'PASS_D013_V26_RETURN_REVIEWED',win7:'NOT_PERFORMED',alpha:'NOT_PERFORMED'};
   writeJson(inputs.lockPath,lock);return {...inputs, lock};
 }
@@ -6019,4 +6021,16 @@ test('v26 producer refuses protocol/profile/gates/registry drift and uncommitted
   execFileSync('git',['add','native/helper/helper.cpp'],{cwd:repositoryRoot});
   execFileSync('git',['-c','user.name=A9 TEST_ONLY','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false','commit','--quiet','-m','TEST_ONLY native source changed after lock'],{cwd:repositoryRoot});
   assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'never-written')}),/LOCKED_NATIVE_SOURCE_MISMATCH/);
+});
+
+test('managed developer package is distinct from streaming and cannot consume an old profile or candidate authority',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'a9-v26-managed-TEST_ONLY-')), repositoryRoot=cleanSourceFixture(root), inputs=v26DeveloperFixture(root,repositoryRoot,true);
+  const built=buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'managed')});
+  assert.equal(built.manifest.status,'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE');assert.equal(built.manifest.external_acceptance_eligible,false);assert.equal(built.manifest.release_authority,undefined);
+  assert.equal(built.manifest.required_native.runner_helper_profile,'D-013-v26-managed-a9-trusted-shell-current-user');
+  assert.ok(fs.existsSync(path.join(built.stage,'A9_31_DEVELOPER_CHECK.json')));assert.ok(!fs.existsSync(path.join(built.stage,'A9_30_DEVELOPER_CHECK.json')));
+  const original=JSON.parse(fs.readFileSync(inputs.lockPath));
+  for(const mutate of [v=>{v.inputs.runner_return_zip.profile='D-013-v26-a9-trusted-shell-current-user'},v=>{delete v.inputs.runner_return_zip.managed_contract},v=>{v.provenance.task='A9-30'}]){
+    const lock=JSON.parse(JSON.stringify(original));mutate(lock);writeJson(inputs.lockPath,lock);assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'not-written')}),/A9_V26_/);
+  }
 });

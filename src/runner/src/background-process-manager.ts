@@ -8,13 +8,31 @@
  */
 
 import { ChildProcess, spawn } from 'child_process';
+import { randomBytes } from 'crypto';
+import { SafeOutputStream, secretVariants, ShellOutputChunk } from './stream-output';
 import { StringDecoder } from 'string_decoder';
 import { killProcessTree } from './process-cleanup';
 import { HelperTransport, HelperTransportResult, ManagedHelperInvocation } from './native-transport';
-import { decodeNativeHelperBase64, hasCompleteHelperCleanupProof, NativeHelperRequest } from './native-protocol';
+import { decodeNativeHelperBase64, hasCompleteHelperCleanupProof, NativeHelperRequest, NativeManagedResponse } from './native-protocol';
+
+export interface ManagedProcessOwner {
+  workspace: string; conversationId: string; taskId: string; turnId: string; toolCallId: string;
+}
+export interface ManagedStartOptions {
+  owner?: ManagedProcessOwner;
+  onOutput?: (chunk: ShellOutputChunk) => Promise<void> | void;
+}
+interface OutputEntry { seq: number; stream: 'stdout' | 'stderr'; text: string; }
+interface ManagedRing { nonce: string; nextSeq: number; bytes: { stdout: number; stderr: number }; entries: OutputEntry[]; }
+function managedError(code: string): Error & { code: string } { return Object.assign(new Error(code), { code }); }
 
 export interface BackgroundProcessHandle {
   handleId: string;
+  owner?: ManagedProcessOwner;
+  requestId?: string;
+  ownershipState?: 'owned' | 'release_intent' | 'released' | 'release_unknown';
+  releaseId?: string;
+  recoveryStatus?: 'running_unknown' | 'identity_mismatch' | 'exited';
   command: string;
   cwd: string;
   pid: number | undefined;
@@ -47,6 +65,10 @@ export interface ProbeFact {
   cwd: string;
   startTime: string;
   cleanupRequired?: boolean;
+  owner?: ManagedProcessOwner;
+  ownershipState?: BackgroundProcessHandle['ownershipState'];
+  releaseId?: string;
+  requestId?: string;
 }
 
 /** 每流日志行数上限；超出后丢弃最旧行并计数。 */
@@ -74,6 +96,8 @@ export class BackgroundProcessManager {
     recoveredFact: boolean;
     helperInvocation?: ManagedHelperInvocation;
     helperCleanupConfirmed?: boolean;
+    terminal?: Promise<void>;
+    ring?: ManagedRing;
     pendingLogText: { stdout: string; stderr: string };
     logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
   }>();
@@ -116,6 +140,7 @@ export class BackgroundProcessManager {
     cwd: string,
     environment?: NodeJS.ProcessEnv,
     helperRequest?: NativeHelperRequest,
+    options: ManagedStartOptions = {},
   ): Promise<BackgroundProcessHandle> {
     if (this.getActiveCount() >= BackgroundProcessManager.MAX_PROCESSES) {
       throw new Error(`已达到托管后台进程上限 (${BackgroundProcessManager.MAX_PROCESSES})，请先停止已有后台进程。`);
@@ -123,7 +148,9 @@ export class BackgroundProcessManager {
     if (this.processes.has(handleId)) {
       throw new Error(`后台进程句柄已存在: ${handleId}`);
     }
-    if (helperRequest) return this.startViaHelper(handleId, command, cwd, helperRequest, environment);
+    if (options.owner && (!helperRequest || !('schemaVersion' in helperRequest) || helperRequest.schemaVersion !== 3)) throw managedError('A9_MANAGED_V3_REQUIRED');
+    if (options.owner && Object.values(options.owner).some((v) => typeof v !== 'string' || !v.trim())) throw managedError('A9_MANAGED_OWNER_INVALID');
+    if (helperRequest) return this.startViaHelper(handleId, command, cwd, helperRequest, environment, options);
 
     let child: ChildProcess;
     try {
@@ -213,11 +240,15 @@ export class BackgroundProcessManager {
     cwd: string,
     request: NativeHelperRequest,
     environment?: NodeJS.ProcessEnv,
+    options: ManagedStartOptions = {},
   ): Promise<BackgroundProcessHandle> {
     if (!this.helperTransport?.startManaged) {
       throw Object.assign(new Error('D-013 helper does not support managed execution'), { code: 'A9_BACKGROUND_HELPER_UNAVAILABLE' });
     }
-    const invocation = this.helperTransport.startManaged(request, environment);
+    const v3 = 'schemaVersion' in request && request.schemaVersion === 3;
+    const variants = secretVariants(this.getSensitiveValues());
+    const encoding = v3 ? request.outputEncoding : { stdout: 'utf-8' as const, stderr: 'utf-8' as const };
+    const streams = { stdout: new SafeOutputStream(encoding.stdout, variants, this.redactText), stderr: new SafeOutputStream(encoding.stderr, variants, this.redactText) };
     const handle: BackgroundProcessHandle = {
       handleId,
       command,
@@ -225,6 +256,7 @@ export class BackgroundProcessManager {
       pid: undefined,
       startTime: new Date().toISOString(),
       status: 'starting',
+      ...(options.owner ? { owner: Object.freeze({ ...options.owner }), requestId: request.requestId, ownershipState: 'owned' as const } : {}),
       exitCode: null,
       logs: { stdout: [], stderr: [] },
       droppedLogLines: { stdout: 0, stderr: 0 },
@@ -236,18 +268,64 @@ export class BackgroundProcessManager {
       lastPolledStdoutIdx: 0,
       lastPolledStderrIdx: 0,
       recoveredFact: false,
-      helperInvocation: invocation,
+      helperInvocation: undefined as ManagedHelperInvocation | undefined,
+      terminal: undefined as Promise<void> | undefined,
+      ring: { nonce: randomBytes(16).toString('hex'), nextSeq: 1, bytes: { stdout: 0, stderr: 0 }, entries: [] } as ManagedRing,
       helperCleanupConfirmed: false,
       pendingLogText: { stdout: '', stderr: '' },
       logDecoders: { stdout: new StringDecoder('utf8'), stderr: new StringDecoder('utf8') },
     };
     this.processes.set(handleId, entry);
-    invocation.completion.then((result) => this.finishHelperInvocation(entry, result));
+    // Starting intent is a mandatory durable boundary BEFORE any child can be created.
+    const intentError = this.notifyStateChange(handle);
+    if (intentError) { this.processes.delete(handleId); throw managedError('A9_BACKGROUND_STATE_PERSIST_FAILED'); }
+    const raw = { stdout: 0, stderr: 0 }, source = { stdout: 0, stderr: 0 }, truncated = { stdout: false, stderr: false };
+    let outputSeq = 0;
+    const publish = async (stream: 'stdout' | 'stderr', text: string, terminal = false) => {
+      if (!text && !terminal && !streams[stream].warning) return;
+      let piece = '', size = 0;
+      const pieces: string[] = [];
+      for (const c of text) {
+        const n = Buffer.byteLength(c); if (size + n > 16 * 1024) { pieces.push(piece); piece = ''; size = 0; }
+        piece += c; size += n;
+      }
+      if (piece || !pieces.length) pieces.push(piece);
+      for (const projected of pieces) {
+        const chunk: ShellOutputChunk = { requestId: request.requestId, stream, outputSeq: ++outputSeq, sourceSeqThrough: source[stream], text: projected,
+          rawBytesRead: raw[stream], truncated: truncated[stream] || Boolean(streams[stream].warning), ...(streams[stream].warning ? { warning: streams[stream].warning } : {}) };
+        await options.onOutput?.(chunk); // Mandatory audit before ring/model/UI publication.
+        this.appendRedactedText(handle, stream, projected);
+        const ring = entry.ring;
+        ring.entries.push({ seq: ring.nextSeq++, stream, text: projected }); ring.bytes[stream] += Buffer.byteLength(projected);
+        while (ring.entries.length > 4096 || ring.bytes.stdout > 1024 * 1024 || ring.bytes.stderr > 1024 * 1024) {
+          const old = ring.entries.shift()!; ring.bytes[old.stream] -= Buffer.byteLength(old.text);
+        }
+      }
+    };
+    let invocation: ManagedHelperInvocation;
+    try { invocation = this.helperTransport.startManaged(request, environment, v3 ? async (chunk) => {
+      const stream = chunk.stream;
+      if (chunk.type === 'output_truncated') { truncated[stream] = true; await publish(stream, streams[stream].finish(), true); return; }
+      raw[stream] += chunk.byteLength; source[stream] = chunk.seq;
+      await publish(stream, streams[stream].push(decodeNativeHelperBase64(chunk.dataBase64, chunk.byteLength, 'output')));
+    } : undefined); }
+    catch (error) { handle.status = 'failed'; handle.cleanupRequired = false; entry.helperCleanupConfirmed = true; this.notifyStateChange(handle); throw error; }
+    entry.helperInvocation = invocation;
+    entry.terminal = invocation.completion.then(async (result) => {
+      try {
+        if (v3 && result.kind === 'response' && ['execution_result', 'execution_released'].includes(result.response.type)) for (const stream of ['stdout', 'stderr'] as const) await publish(stream, streams[stream].finish());
+        this.finishHelperInvocation(entry, result);
+      } catch (error) {
+        handle.status = 'failed'; handle.cleanupRequired = true;
+        this.appendRedactedText(handle, 'stderr', 'A9_MANAGED_OUTPUT_AUDIT_FAILED');
+        const failure = this.notifyStateChange(handle); if (failure) handle.cleanupRequired = true;
+      }
+    });
     try {
       const started = await invocation.ready;
       if (handle.status === 'failed') throw new Error(handle.logs.stderr.join('\n') || 'helper failed after readiness');
       handle.pid = started.childPid;
-      handle.status = 'running';
+      if (handle.status === 'starting') handle.status = 'running';
     } catch (error) {
       // The helper process may already have created and Job-bound the child
       // even when execution_started is missing or malformed. Cancel this same
@@ -255,9 +333,10 @@ export class BackgroundProcessManager {
       // start failure; the retained map entry remains actionable when cleanup
       // cannot be proven.
       invocation.cancel();
-      let completion: HelperTransportResult;
+      let completion: HelperTransportResult<NativeManagedResponse>;
       try {
         completion = await invocation.completion;
+        await entry.terminal;
       } catch (completionError) {
         completion = {
           kind: 'helper_crashed',
@@ -313,9 +392,17 @@ export class BackgroundProcessManager {
       pendingLogText: { stdout: string; stderr: string };
       logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
     },
-    result: HelperTransportResult,
+    result: HelperTransportResult<NativeManagedResponse>,
   ): void {
     const handle = entry.handle;
+    if (result.kind === 'response' && result.response.type === 'execution_released') {
+      handle.ownershipState = 'released'; handle.releaseId = result.response.releaseId;
+      handle.cleanupRequired = false; entry.helperCleanupConfirmed = false;
+      const failure = this.notifyStateChange(handle);
+      if (failure) { handle.ownershipState = 'release_unknown'; handle.cleanupRequired = true; }
+      return;
+    }
+    if (handle.ownershipState === 'release_intent') handle.ownershipState = 'release_unknown';
     if (result.kind !== 'response' || result.response.type !== 'execution_result') {
       entry.helperCleanupConfirmed = result.kind !== 'response' && result.cleanupConfirmed;
       handle.cleanupRequired = !entry.helperCleanupConfirmed;
@@ -335,8 +422,10 @@ export class BackgroundProcessManager {
     entry.helperCleanupConfirmed = hasCompleteHelperCleanupProof(response);
     handle.cleanupRequired = !entry.helperCleanupConfirmed;
     try {
+      if (!('schemaVersion' in response) || response.schemaVersion !== 3) {
       this.appendLog(entry, 'stdout', decodeNativeHelperBase64(response.stdoutBase64, response.stdoutSize, 'stdoutBase64'));
       this.appendLog(entry, 'stderr', decodeNativeHelperBase64(response.stderrBase64, response.stderrSize, 'stderrBase64'));
+      }
     } catch (error) {
       entry.helperCleanupConfirmed = false;
       handle.cleanupRequired = true;
@@ -352,7 +441,8 @@ export class BackgroundProcessManager {
     handle.status = entry.helperCleanupConfirmed
       ? response.canceled ? 'stopped' : response.timedOut || response.idleTimedOut ? 'failed' : 'exited'
       : 'failed';
-    this.notifyStateChange(handle);
+    const persistenceError = this.notifyStateChange(handle);
+    if (persistenceError) handle.cleanupRequired = true;
   }
 
   private appendLog(
@@ -453,6 +543,7 @@ export class BackgroundProcessManager {
     }
 
     const { handle, child } = entry;
+    if (handle.ownershipState === 'released' || handle.ownershipState === 'release_unknown' || handle.ownershipState === 'release_intent') throw managedError('A9_MANAGED_OWNERSHIP_UNCONFIRMED');
     if (entry.recoveredFact && handle.cleanupRequired === true) {
       throw Object.assign(new Error(
         `后台进程 ${handleId} 是重启前遗留的未确认 D-013 清理事实；应用不会把 helper PID 消失误判为进程树已清理。请完成独立残留检查。`,
@@ -462,6 +553,7 @@ export class BackgroundProcessManager {
       if (handle.status === 'running' || handle.status === 'starting') {
         entry.helperInvocation.cancel();
         await entry.helperInvocation.completion;
+        await entry.terminal;
       }
       const terminalStatus = handle.status as BackgroundProcessHandle['status'];
       if (!entry.helperCleanupConfirmed || (terminalStatus !== 'stopped' && terminalStatus !== 'exited')) {
@@ -511,13 +603,18 @@ export class BackgroundProcessManager {
       handleId,
       command: fact.command,
       cwd: fact.cwd,
-      pid: fact.pid,
+      pid: fact.pid || undefined,
+      requestId: fact.requestId,
       startTime: fact.startTime,
       status: alive ? 'running' : 'exited',
       exitCode: alive ? null : null,
       logs: { stdout: [], stderr: [] },
       droppedLogLines: { stdout: 0, stderr: 0 },
       pidReusePossible: alive,
+      recoveryStatus: alive ? 'running_unknown' : 'exited',
+      ...(fact.owner ? { owner: { ...fact.owner } } : {}),
+      ...(fact.ownershipState ? { ownershipState: fact.ownershipState } : {}),
+      ...(fact.releaseId ? { releaseId: fact.releaseId } : {}),
       ...(fact.cleanupRequired === true ? { cleanupRequired: true } : {}),
     };
     this.processes.set(handleId, {
@@ -563,6 +660,7 @@ export class BackgroundProcessManager {
     helperInvocation?: ManagedHelperInvocation;
     helperCleanupConfirmed?: boolean;
   }): boolean {
+    if (entry.handle.ownershipState === 'released') return false;
     return entry.handle.status === 'running' || entry.handle.status === 'starting'
       || entry.handle.cleanupRequired === true
       || Boolean(entry.helperInvocation && entry.helperCleanupConfirmed !== true);
@@ -573,49 +671,80 @@ export class BackgroundProcessManager {
    * 清理无法确认的活动项必须保留，以便上层阻止退出并允许再次处置。
    * false 将进程留给系统（仅忘记句柄，不发送信号）。
    */
-  async dispose(options: { stopManaged: boolean }): Promise<{ stopped: string[]; leftToSystem: string[] }> {
-    const stopped: string[] = [];
-    const leftToSystem: string[] = [];
-    if (options.stopManaged) {
-      for (const [id, entry] of this.processes.entries()) {
-        const status = entry.handle.status;
-        if (entry.handle.cleanupRequired === true && entry.recoveredFact) {
-          leftToSystem.push(`${id} (recovered helper cleanup remains unconfirmed)`);
-        } else if ((status === 'running' || status === 'starting') && entry.recoveredFact) {
-          // 重启恢复的 PID 可能已复用；应用退出不能代替用户确认去杀未知进程。
-          leftToSystem.push(`${id} (recovered PID fact requires explicit stop confirmation)`);
-        } else if (entry.helperInvocation && entry.helperCleanupConfirmed !== true) {
-          try {
-            await this.stop(id);
-            stopped.push(id);
-          } catch (error: any) {
-            leftToSystem.push(`${id} (helper cleanup unconfirmed: ${error?.message || error})`);
-          }
-        } else if ((status === 'running' || status === 'starting') && entry.child?.pid) {
-          const kill = await killProcessTree(entry.child.pid);
-          if (kill.success) {
-            entry.handle.status = 'stopped';
-            stopped.push(id);
-          } else {
-            // 清理失败也必须如实暴露，不静默转为“留给系统”。
-            leftToSystem.push(`${id} (cleanup unconfirmed: ${kill.error ?? 'unknown'})`);
-          }
-        }
-      }
-    } else {
-      for (const [id, entry] of this.processes.entries()) {
-        if (entry.handle.status === 'running' || entry.handle.status === 'starting') {
+  async dispose(options: { stopManaged: boolean }): Promise<{ stopped: string[]; leftToSystem: string[]; unresolved: string[] }> {
+    const stopped: string[] = [], leftToSystem: string[] = [], unresolved: string[] = [];
+    for (const [id, entry] of this.processes) {
+      if (!this.requiresCleanupAttention(entry)) continue;
+      try {
+        if (options.stopManaged) { await this.stop(id); stopped.push(id); }
+        else if (entry.helperInvocation) {
+          if (entry.recoveredFact || !entry.helperInvocation.release || entry.handle.status !== 'running'
+            || entry.handle.ownershipState === 'release_unknown') throw managedError('A9_RELEASE_UNAVAILABLE');
+          entry.handle.releaseId = entry.handle.releaseId ?? randomBytes(16).toString('hex');
+          entry.handle.ownershipState = 'release_intent';
+          const failure = this.notifyStateChange(entry.handle); if (failure) { entry.handle.ownershipState = 'owned'; throw managedError('A9_RELEASE_AUDIT_FAILED'); }
+          await entry.helperInvocation.release(entry.handle.releaseId); await entry.terminal;
+          if (entry.handle.ownershipState as string !== 'released') throw managedError('A9_RELEASE_UNKNOWN');
           leftToSystem.push(id);
-        }
+        } else if (!entry.recoveredFact && !entry.handle.owner && entry.child?.pid) {
+          // Legacy direct-spawn profile has no Job ownership to release.
+          leftToSystem.push(id); entry.handle.ownershipState = 'released';
+        } else throw managedError('A9_RELEASE_UNAVAILABLE');
+      } catch (error) {
+        if (entry.handle.ownershipState === 'release_intent') { entry.handle.ownershipState = 'release_unknown'; entry.handle.cleanupRequired = true; this.notifyStateChange(entry.handle); }
+        const reason = entry.recoveredFact ? (entry.handle.cleanupRequired ? 'recovered helper cleanup remains unconfirmed' : 'recovered PID fact requires explicit stop confirmation')
+          : entry.helperInvocation && options.stopManaged ? `helper cleanup unconfirmed: ${this.redactText(String(error)).slice(0, 512)}` : this.redactText(String(error)).slice(0, 512);
+        const detail = `${id} (${reason})`;
+        unresolved.push(detail);
+        // Legacy stop callers already use leftToSystem as their exit blocker.
+        if (options.stopManaged) leftToSystem.push(detail);
       }
     }
-    for (const [id, entry] of this.processes.entries()) {
-      const active = this.requiresCleanupAttention(entry);
-      // stopManaged=false 是用户明确选择“留给系统”，因此可以忘记句柄；
-      // stopManaged=true 时只有已终止项可移除，残留事实必须继续可见。
-      if (!options.stopManaged || !active) this.processes.delete(id);
+    for (const [id, entry] of this.processes) if (!this.requiresCleanupAttention(entry)) this.processes.delete(id);
+    return { stopped, leftToSystem, unresolved };
+  }
+
+  private ownedEntry(handleId: string, owner: Pick<ManagedProcessOwner, 'workspace' | 'conversationId'>) {
+    const entry = this.processes.get(handleId);
+    if (!entry) throw managedError('A9_MANAGED_HANDLE_UNKNOWN');
+    if (!entry.handle.owner || entry.handle.owner.workspace !== owner.workspace || entry.handle.owner.conversationId !== owner.conversationId) throw managedError('A9_MANAGED_HANDLE_WRONG_OWNER');
+    return entry;
+  }
+
+  async stopOwned(handleId: string, owner: Pick<ManagedProcessOwner, 'workspace' | 'conversationId'>): Promise<BackgroundProcessHandle> {
+    this.ownedEntry(handleId, owner); return this.stop(handleId);
+  }
+
+  readOutput(handleId: string, owner: Pick<ManagedProcessOwner, 'workspace' | 'conversationId'>, cursor?: string, maxBytes = 8192) {
+    const entry = this.ownedEntry(handleId, owner), ring = entry.ring;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 16384) throw managedError('A9_MANAGED_OUTPUT_BUDGET_INVALID');
+    if (!ring || entry.recoveredFact) throw managedError('CURSOR_EXPIRED');
+    const oldest = ring.entries[0]?.seq ?? ring.nextSeq;
+    let seq = oldest, offset = 0;
+    if (cursor !== undefined) {
+      const m = /^([a-f0-9]{32})\.([1-9][0-9]*)\.([0-9]+)$/.exec(cursor);
+      if (!m || m[1] !== ring.nonce) throw managedError('A9_MANAGED_CURSOR_INVALID');
+      seq = Number(m[2]); offset = Number(m[3]);
+      if (!Number.isSafeInteger(seq) || !Number.isSafeInteger(offset) || seq > ring.nextSeq) throw managedError('A9_MANAGED_CURSOR_INVALID');
+      if (seq < oldest) throw Object.assign(managedError('CURSOR_EXPIRED'), { oldestCursor: `${ring.nonce}.${oldest}.0` });
     }
-    return { stopped, leftToSystem };
+    const target = ring.entries.find((e) => e.seq === seq);
+    if ((!target && offset !== 0) || (target && (offset > target.text.length || (offset > 0 && /[\uDC00-\uDFFF]/.test(target.text[offset] ?? ''))))) throw managedError('A9_MANAGED_CURSOR_INVALID');
+    const entries: OutputEntry[] = []; let bytes = 0;
+    for (const item of ring.entries) {
+      if (item.seq < seq) continue;
+      let text = '', consumed = offset;
+      for (const c of item.text.slice(offset)) {
+        const n = Buffer.byteLength(c); if (bytes + n > maxBytes) break;
+        text += c; bytes += n; consumed += c.length;
+      }
+      if (text || item.text.length === 0) entries.push({ seq: item.seq, stream: item.stream, text });
+      if (consumed < item.text.length) { seq = item.seq; offset = consumed; break; }
+      seq = item.seq + 1; offset = 0;
+    }
+    return { handleId, entries, nextCursor: `${ring.nonce}.${seq}.${offset}`, oldestCursor: `${ring.nonce}.${oldest}.0`,
+      truncated: oldest > 1, status: entry.handle.status, exitCode: entry.handle.exitCode, ownershipState: entry.handle.ownershipState,
+      cleanupRequired: entry.handle.cleanupRequired === true, recoveryStatus: entry.handle.recoveryStatus };
   }
 
   /** 兼容旧入口：停止全部。 */

@@ -111,7 +111,7 @@ function startBackgroundFixture(commandOverride?: string): Promise<{ baseUrl: st
         const toolMsgs = (parsed.messages ?? []).filter((m: any) => m.role === 'tool' && m.name !== 'probe_test_echo');
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
         if (toolMsgs.length === 0) {
-          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'bg1', function: { name: 'shell', arguments: JSON.stringify({ command, background: true }) } }] }, finish_reason: 'tool_calls' }] });
+          sse(res, { choices: [{ delta: { tool_calls: [{ index: 0, id: 'bg1', function: { name: 'start_process', arguments: JSON.stringify({ command }) } }] }, finish_reason: 'tool_calls' }] });
         } else {
           sse(res, { choices: [{ delta: { content: 'background started' }, finish_reason: 'stop' }] });
         }
@@ -238,8 +238,67 @@ function listDataFiles(dir: string): string[] {
   return files;
 }
 
-function makeRuntime(env: ReturnType<typeof makeEnv>) {
+/** TEST_ONLY: actual POSIX process lifecycle behind a simulated v3 transport.
+ * Job/token fields below model the interface only; they are not Windows evidence.
+ * Production transport/Runner fail-closed behavior is never overridden outside this fixture.
+ */
+function managedLifecycleModules() {
+  const actual = require('../../../runner/dist');
+  class FixtureRunner extends actual.TrustedShellRunner {
+    private manager: any;
+    constructor(options: any) {
+      super(options);
+      const transport = { invoke: () => { throw new Error('TEST_ONLY managed transport'); },
+        startManaged: (request: any, environment: any, onOutput: any) => {
+          const child = spawn('/bin/sh', ['-c', request.command], { cwd: request.cwd, env: environment, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+          let cancelled = false, seq = 0, output = Promise.resolve();
+          const counts = { stdout: 0, stderr: 0 };
+          const tokenAudit = { verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true, lowIntegrity: false };
+          const ready = new Promise<any>((resolve, reject) => {
+            child.once('error', reject);
+            child.once('spawn', () => resolve({ childPid: child.pid }));
+          });
+          for (const stream of ['stdout', 'stderr'] as const) child[stream]!.on('data', (chunk: Buffer) => {
+            const offset = counts[stream]; counts[stream] += chunk.length;
+            const frame = { type: 'output_chunk', requestId: request.requestId, stream, seq: ++seq, streamOffset: offset, byteLength: chunk.length, dataBase64: chunk.toString('base64') };
+            output = output.then(() => onOutput(frame));
+          });
+          const completion = new Promise<any>((resolve) => {
+            child.once('error', (error) => resolve({ kind: 'spawn_failed', detail: error.message, cleanupConfirmed: true }));
+            child.once('close', async (exitCode) => {
+              try { await output; } catch (error) { resolve({ kind: 'helper_crashed', detail: String(error), cleanupConfirmed: false }); return; }
+              resolve({ kind: 'response', response: { schemaVersion: 3, type: 'execution_result', requestId: request.requestId,
+                profileId: 'a9-trusted-shell-current-user-v2', exitCode, canceled: cancelled, timedOut: false, idleTimedOut: false,
+                containmentVerified: true, inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
+                hostJob: { detected: false, breakaway: 'none', childJobAssignmentVerified: true }, tokenAudit } });
+            });
+          });
+          return { ready, completion, cancel: () => { cancelled = true; void actual.killProcessTree(child.pid); } };
+        } };
+      this.manager = new actual.BackgroundProcessManager(transport, options.redactText, options.getSensitiveValues, options.onBackgroundStateChange);
+    }
+    getBackgroundManager() { return this.manager; }
+  }
+  return { core: require('../../../core/dist'), gateway: require('../../../gateway/dist'), state: require('../../../state/dist'),
+    workspace: require('../../../workspace/dist'), gitAdapter: require('../../../git-adapter/dist'),
+    runner: { ...actual, TrustedShellRunner: FixtureRunner, createTrustedShellLoopAdapter: (runner: any) => {
+      const adapter = actual.createTrustedShellLoopAdapter(runner);
+      return { ...adapter, execute: async (command: string, options: any) => {
+        if (!options.background || !options.managedOwner) return adapter.execute(command, options);
+        const requestId = `TEST_ONLY-${Date.now()}-${Math.random()}`;
+        const handle = await runner.getBackgroundManager().start(requestId, command, '/bin/sh', ['-c', command], options.cwd, process.env,
+          { schemaVersion: 3, requestId, command, cwd: options.cwd, managed: true, outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' } },
+          { owner: options.managedOwner, onOutput: options.onOutput });
+        // Preserve the external-change collection race exercised by the historical fixture.
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { status: 'background_started', backgroundHandle: handle.handleId, exitCode: null, stdout: '', stderr: '', durationMs: 100, timedOut: false };
+      } };
+    } } };
+}
+
+function makeRuntime(env: ReturnType<typeof makeEnv>, managedFixture = false) {
   return createA9AgentRuntime({
+    ...(managedFixture ? { modules: managedLifecycleModules() } : {}),
     workspaceRoot: env.workspaceRoot,
     dataRoot: env.dataRoot,
     ownerId: `f5-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -712,13 +771,13 @@ describe('F5: pending approval keeps active state and resume continues the same 
   it('persists a managed background process and keeps Stop available after the turn completes', async () => {
     const env = makeEnv();
     const fixture = await startBackgroundFixture();
-    const runtime = makeRuntime(env);
+    const runtime = makeRuntime(env, true);
     try {
       runtime.setMode('full_access');
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
       const turn = await runtime.submitTurn('start a managed background process');
       expect(turn.ok).toBe(true);
-      expect(turn.result.outcome).toBe('completed');
+      expect(turn.result.outcome).toBe('completed_with_warnings');
 
       const running = runtime.getSnapshot().managedProcesses.filter((item: any) => item.lastProbeStatus === 'running');
       expect(running).toHaveLength(1);
@@ -747,7 +806,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
     let first: any;
     let reopened: any;
     try {
-      first = makeRuntime(env);
+      first = makeRuntime(env, true);
       first.setMode('full_access');
       await first.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
       const turn = await first.submitTurn('restore this exact request after restart');
@@ -755,12 +814,12 @@ describe('F5: pending approval keeps active state and resume continues the same 
       await first.stop();
       await first.shutdown();
 
-      reopened = makeRuntime(env);
+      reopened = makeRuntime(env, true);
       const snapshot = reopened.getSnapshot();
       expect(snapshot.conversation).toEqual([expect.objectContaining({
         turnId: turn.result.turnId,
         requestPrompt: 'restore this exact request after restart',
-        outcome: 'completed',
+        outcome: 'completed_with_warnings',
         finalMessage: expect.any(String),
       })]);
       expect(snapshot.timeline).toEqual([]);
@@ -812,7 +871,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
     let first: any;
     let reopened: any;
     try {
-      first = makeRuntime(env);
+      first = makeRuntime(env, true);
       first.setMode('full_access');
       const secret = 'a9/conversation secret';
       await first.configureProvider({
@@ -844,7 +903,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
         }
       }
 
-      reopened = makeRuntime(env);
+      reopened = makeRuntime(env, true);
       const serialized = JSON.stringify(reopened.getSnapshot().conversation);
       expect(serialized).toContain('***redacted***');
       expect(serialized).not.toContain(secret);
@@ -937,7 +996,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
     const secret = 'EXTERNAL-PATH-SECRET-42';
     const script = `require('fs').writeFileSync(${JSON.stringify(path.join(env.workspaceRoot, `${secret}.txt`))}, 'x')`;
     const fixture = await startBackgroundFixture(`${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`);
-    const runtime = makeRuntime(env);
+    const runtime = makeRuntime(env, true);
     try {
       runtime.setMode('full_access');
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
@@ -964,7 +1023,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
     const encodedSecret = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(secret, 'utf16le')]);
     fs.writeFileSync(path.join(env.workspaceRoot, 'utf16-secret.txt'), encodedSecret);
     const fixture = await startBackgroundFixture();
-    const runtime = makeRuntime(env);
+    const runtime = makeRuntime(env, true);
     try {
       runtime.setMode('full_access');
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
@@ -1006,7 +1065,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
   it('does not resolve shutdown until managed background processes are reaped', async () => {
     const env = makeEnv();
     const fixture = await startBackgroundFixture();
-    const runtime = makeRuntime(env);
+    const runtime = makeRuntime(env, true);
     try {
       runtime.setMode('full_access');
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
@@ -1029,7 +1088,7 @@ describe('F5: pending approval keeps active state and resume continues the same 
     const secret = 'MANAGED-COMMAND-SECRET-42';
     const command = `${JSON.stringify(process.execPath)} -e "setInterval(() => {}, 1000)" ${secret}`;
     const fixture = await startBackgroundFixture(command);
-    const runtime = makeRuntime(env);
+    const runtime = makeRuntime(env, true);
     try {
       runtime.setMode('full_access');
       await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: secret, skipProbe: true });
