@@ -13,6 +13,8 @@ Accepted ADR 正文不得改写。下表“当前处置”为 2026-09-24 整理�
 |---|---|---|
 | [A9_ALPHA2_DELIVERY_SEQUENCE.md](A9_ALPHA2_DELIVERY_SEQUENCE.md) | 顺序与历史裁决 | 2026-10-01 追加第一批/W42 收尾及第二批候选编号说明；不构成实现授权 |
 | [A9_BATCH_2_ACCEPTANCE_COVERAGE.md](A9_BATCH_2_ACCEPTANCE_COVERAGE.md) | `DRAFT_PLANNING_ONLY` | 第二批候选与 Alpha 2 需求覆盖台账；不生成任何 PASS |
+| [A9_BATCH_2_INCREMENTAL_VALIDATION.md](A9_BATCH_2_INCREMENTAL_VALIDATION.md) | `DRAFT_READY_FOR_REVIEW` | 精确继承、受影响必跑项、真实桌面自动化与失败恢复合同 |
+| [A9_BATCH_2_IMPLEMENTATION_APPROVAL.md](A9_BATCH_2_IMPLEMENTATION_APPROVAL.md) | `READY_FOR_OWNER_REVIEW_NOT_APPROVED` | A9-30收口登记25路径及A9-31具体实现批准材料；构建与候选各自审批 |
 | [A9_HELPER_V3_STREAMING_PROTOCOL.md](A9_HELPER_V3_STREAMING_PROTOCOL.md) | `APPROVED_FOR_A9_30 / A9_31_RELEASE_DRAFT` | A9-30/ADR-0150 已批准；后台 release 及 A9-31/A9-32 仍待批准，模拟 Demo 不构成产品证据 |
 | [A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md](A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md) | `DRAFT_READY_FOR_FREEZE` | A9-22 / WIN7-38 Win7 实机验收交接书（外部执行模型执行，审核方复核，负责人签发与裁决） |
 | [A9_19_WIN7_37_REISSUE_PROPOSAL.md](A9_19_WIN7_37_REISSUE_PROPOSAL.md) | `APPROVED_FOR_IMPLEMENTATION` | A9-19 / WIN7-37 换发合同（ADR-0136），已完成：WIN7-37 于 2026-09-25 签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS` |
@@ -42,4 +44,4 @@ Accepted ADR 正文不得改写。下表“当前处置”为 2026-09-24 整理�
 
 结果：WIN7-28 取得 A9-15 UI 集成 PASS（见 [收口报告](../reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md)）。
 
-- [A9-30 开发机收口交接包](A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)：LOCAL_HANDOFF_READY，源码提交/独立复核/D-017 主机待审批，整体开发 Gate 未签发。
+- [A9-30 开发机收口交接包](A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)：DEVELOPER_VERIFIED，v26双构建/重锁、新开发包与Win10受影响交互及最终独立复核完成；[裁决](../reports/2026-10/a9_30_developer_closeout_decision_2026-10-02.md)，Win7 NOT_PERFORMED。

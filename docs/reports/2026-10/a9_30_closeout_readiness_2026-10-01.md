@@ -1,5 +1,7 @@
 # A9-30 收口准备与需求证据矩阵（2026-10-01）
 
+本报告保留首次准备及后续中间快照。2026-10-02最终独立复核通过，当前开发机结论为 `DEVELOPER_VERIFIED`，见[最终收口裁决](a9_30_developer_closeout_decision_2026-10-02.md)；Win7仍NOT_PERFORMED。
+
 ```text
 Branch: codex/a9-30-shell-streaming
 HEAD: c14a96808d048c34f6079cc378ba12b4f60f5c62
@@ -90,3 +92,17 @@ negative-holdback.json 绑定恢复 SHA `11a25977dad2aecd0471c069ec595bcffdb3f2c
 精确 return_review 登记提交、v26 重锁及真实 Electron/打包 S01–S06 检查。当前全部未执行，不能以本报告替代。
 原先源码报告为当时快照，旧记录原文保留；本次新增交接不回写历史结论。
 A9-31/A9-32、新候选 Win7/门 A/B、完整 Alpha 2、RC、性能/A8/迁移/安装器/凭据生命周期均不纳入本次。
+
+
+## 5. 后续事实补录
+
+本报告主体保留为负责人审批源码时的快照。负责人随后回复“批准”，完成准确源码提交及未批准 kit 生成；
+当前完整 source/三项哈希与后续未执行门见 [源码提交与 kit 绑定报告](a9_30_source_commit_and_v26_kit_binding_2026-10-01.md)。
+原生 helper 和产品输入锁仍 NOT_LOCKED，不改判整体开发 Gate、Alpha 2 或 RC。
+
+
+### A9-30 修复换包与真实 Electron 子集（2026-10-02）
+
+负责人批准runtime/test准确两路径后，本地source `4318634` 的开发ZIP `b57d6806…7b232`、manifest `19d734ce…527ca`完整性与SID1005 Session3普通非提升无Job真实桌面启动PASS；原生source/kit/helper/开发锁按精确SHA继承。真实main/preload/native/Runner/Core/SQLite/IPC/Renderer路径的tick/双源/UTF-8/截断/Stop、已结束任务刷新/重启，以及回看/焦点/视图返回子集通过。CP936/UTF-16LE、40 native秘密切点、实际Runner背压及consumer失败、真实SQLite拒绝写入、协议帧故障、29秘密变体及4003直接切点另有范围明确的实机子集证据。9根310输出文件/84合成变体扫描命中0、正向对照有效，受检Electron已退出；历史native raw-pipe背压UNKNOWN不改判。
+
+完整S01–S06和DEVELOPER_VERIFIED仍未签发：两文件运行中提示修正已完成39定向PASS及独立P0/P1/P2=0，源码提交待具体授权；失败验证撤销旧verified目标夹具已准备但未执行，编码负例、中断重启/退出交互仍待完成。UU在线而CUA远端输入无响应，坐标报noWindowsAvailable，不以SSH Session0代签。全部首失败和历史原文保留；不推送/合并、不占WIN7-43、不开放A9-31/32，不签Win7/Alpha2/RC。详见[当前包与实机矩阵](a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)。

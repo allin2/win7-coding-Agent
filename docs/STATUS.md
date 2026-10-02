@@ -28,7 +28,7 @@ WIN7-42 [预发布版](https://github.com/allin2/win7-coding-Agent/releases/tag/
 tag 指向冻结源 `94385a8`，ZIP 摘要 `3b6e0b72…a01cf`。当前工作区仍为 alpha2 `a53c9b9`，
 上表与下方收尾段中的“未推送”保留为发布前动作记录，本次未执行 push。本次只追加文档，不重签实机结论。
 
-## 当前工作项一览（更新至 2026-10-01）
+## 当前工作项一览（更新至 2026-10-02）
 
 | 工作项 | 当前结论 | 权威依据 | 下一步 / 阻断 |
 |---|---|---|---|
@@ -46,7 +46,7 @@ tag 指向冻结源 `94385a8`，ZIP 摘要 `3b6e0b72…a01cf`。当前工作区�
 | A9-23 WIN7-39 换发与实机验收 | `A9_23_WIN7_39_A9_20_A9_21_PASS`（2026-09-27 门 B；源码 `7ec9db7`，ZIP `6bf586e7…d9e5`，run-id `b0ebcf98`；15 项，已知限制随结论记录）。**产品侧观察**（2026-09-27 记录，待定是否另立任务）：会话中选择或切换到已有历史的工作区后，过程记录不加载，需切换对话或完成一轮后才显示 | [A9-23](tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_23_win7_39_acceptance_review_2026-09-27.md) | 已关闭；限制：POSIX 可执行性与 PowerShell `/Command` 真实执行未测、真实 Provider 未覆盖、W39-06 Stop 后 PID 以运行结束时不存在为准 |
 | A9-24/A9-25 改动审阅与 WIN7-41 | `A9_25_WIN7_41_A9_24_PASS`（2026-09-29 门 B；源码 `0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`；22 项，已知限制随结论记录） | [A9-24](tasks/A9_24_REVIEW_MODE.md)、[A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md)、[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md) | 已关闭；限制：真实 Provider 未覆盖、POSIX/`/Command` 真实执行未测、≤799px 不可达 |
 | A9-26 第一批：可靠性（含 A9-28/A9-29 修复） | `A9_27_WIN7_42_A9_26_PASS`（2026-09-30 门 B 收尾；负责人回复“接受”；源 `94385a8`，ZIP `3b6e0b72…a01cf`，run-id `92d693e0`；正式 30 项/25 阶段、补充真实 Windows Git R0-01～04 全通过） | [A9-26](tasks/A9_26_RELIABILITY_BATCH_1.md)、[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)、[执行报告及裁决](reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md) | 验证已关闭，已按授权合入本地 main（实现整合节点 `829ad39`）；真实 Provider、POSIX/`/Command`、≤799px 与 `git clean -fdx` 边界保留，非完整 Alpha 2/RC |
-| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`（2026-10-01）；A9-31/A9-32 `DRAFT_READY_FOR_REVIEW`；A9-30 源码链路及开发机定向检查已完成，整体开发机门尚未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[A9-31](tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md)、[A9-32](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md)、[helper v3](plans/A9_HELPER_V3_STREAMING_PROTOCOL.md)，ADR-0150 Accepted，ADR-0151/0152 Proposed | A9-30 在独立工作树按批准基线/分支/白名单实施（[源码报告](reports/2026-10/a9_30_shell_streaming_source_validation_2026-10-01.md)）；新 Profile/API 已登记但 NOT_LOCKED，v26 套件/发布生产者已本地实现（[收口交接包](plans/A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)），正式源码/kit/原生锁未锁定；独立安全复核、原生构建/重锁及真实 Electron 仍待完成。A9-31/A9-32 另行批准；第二批整批暂定 WIN7-43，冻结前核号，Win7 `NOT_PERFORMED` |
+| A9-30～32 第二批执行能力 | A9-30 `DEVELOPER_VERIFIED`，产品source `32ee0b4`；v26双构建/重锁、打包与Win10受影响验证及最终独立复核通过 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[开发机收口裁决](reports/2026-10/a9_30_developer_closeout_decision_2026-10-02.md)、ADR-0150 Accepted | 独立Luna high复核P0/P1/P2=0，28冻结/66归档/111返回文件字节匹配；新包直接启动1项/交互32项、精确未变组件继承满足开发机合同。原生物理pipe背压清理UNKNOWN是批准的有界失败边界，保持原文，不能改为清理PASS；旧失败及R2暂停保留。Win7 NOT_PERFORMED，A9-31/32仍草稿、WIN7-43未占用，完整Alpha2/RC未裁决 |
 | Phase 1/2、SPIKE、Phase 3–7 | 见 [ROADMAP](ROADMAP.md) 与 [任务索引](tasks/README.md) | 各任务书 | 正式 Phase Gate 未整体关闭 |
 
 完整 Alpha 2、Shell streaming 与新的 RC 均未获任何 PASS 结论；A9-24 改动审阅的 Win7 结论来自 WIN7-41（`0.3.0-alpha.1` 能力集标识，非完整 Alpha 2）。
@@ -58,7 +58,7 @@ tag 指向冻结源 `94385a8`，ZIP 摘要 `3b6e0b72…a01cf`。当前工作区�
 
 2026-09-30 冻结前复核复现 A9-26 两项合同遗漏（失败大输出仍 verified、不可压缩前缀突破预算），随后在开发机内存整合入口复现两项继承安全阻断（SQLite 必需审计失败后仍编辑、未正常结束的 Provider 工具流仍执行）。参见[复核报告](reports/2026-09/a9_27_premerge_contract_review_2026-09-30.md)。负责人已批准 [A9-28](tasks/A9_28_RELIABILITY_CONTRACT_GAPS.md) 与 [A9-29](tasks/A9_29_AUDIT_AND_PROVIDER_COMPLETENESS.md)，两项任务均已在独立工作树修复、通过开发机检查和独立复核，整合于 `186e850`（[记录](reports/2026-09/a9_28_a9_29_developer_closeout_2026-09-30.md)），W42 扩为 30 项。A9-27 首轮两次预演 FAIL 后仅修套件；返工源 `94385a8` 连续两次 Win7 预演全部通过，双独立干净构建逐字节一致，WIN7-42 已冻结（ZIP `3b6e0b72…a01cf`）。[正式交接书](plans/A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md)门 A 已由负责人签发，角色已确认；[预演记录](reports/2026-09/a9_27_w42_rehearsal_repair_2026-09-30.md)。正式 Win7 已执行（30 项 / 25 阶段，退出码 0），报告已由 Win7 agent 复核（30 项 / 退出码 0）；原始 774+19 文件哈希一致、零残留、最终 916 文件扫描零真实秘密。[执行与合并前检查材料](reports/2026-09/a9_27_win7_42_execution_and_premerge_2026-09-30.md)已形成，负责人在三项偏差解读及接受建议后回复“接受”，门 B 收尾记为 `A9_27_WIN7_42_A9_26_PASS`；收尾补齐 Windows Git R0-01～04，182 个补充文件哈希闭合，1,161 文件扫描零真实秘密。已在独立干净 main 工作树快进整合至 `829ad39`，后续文档收尾同样并入；原工作区修改保留，未推送。
 
-推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项（当前候选已关闭））；阶段 1 已完成：WIN7-40 记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）后换发 WIN7-41（`0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项，[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）。阶段 2 第一批（A9-26）及阶段 3 WIN7-42 已关闭（[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)，正式验证、报告复核与门 B 收尾完成）；第二批设计及 A9-30～32 任务已形成；2026-10-01 负责人批准 A9-30 和 ADR-0150，helper v3 的 Shell 实时输出合同作为实现依据。A9-31/A9-32 与后台 release 扩展仍待各自批准，独立安全/依赖复核及原生构建授权尚未完成。
+推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项（当前候选已关闭））；阶段 1 已完成：WIN7-40 记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）后换发 WIN7-41（`0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项，[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）。阶段 2 第一批（A9-26）及阶段 3 WIN7-42 已关闭（[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)，正式验证、报告复核与门 B 收尾完成）；第二批设计及 A9-30～32 任务已形成；2026-10-01 负责人批准 A9-30 和 ADR-0150，helper v3 的 Shell 实时输出合同作为实现依据。A9-31/A9-32 与后台 release 扩展仍待各自批准，A9-30 独立原生套件/返回复核、构建授权及重锁已完成；真实产品检查仍为子集，开发机门未签发。A9-31/A9-32 的独立安全/依赖与原生扩展构建批准保持各自待办。
 
 1. **Alpha 2 剩余范围**：2026-09-27 负责人决定拆为两个任务、先做 Review：负责人批准把 Review 改为“先写后审”的改动审阅（ADR-0143），[A9-24](tasks/A9_24_REVIEW_MODE.md) 开发机通过并已并入（`A9_24_DEVELOPER_VERIFIED`，`c136d12`）；Win7 由 [A9-25](tasks/A9_25_WIN7_40_REISSUE_AND_ACCEPTANCE.md) 换发验收：WIN7-40（`64fd3a7`）实机 G1 通过、G2 因套件驱动时序缺陷失败，记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（[审核报告](reports/2026-09/a9_25_win7_40_acceptance_review_2026-09-28.md)、ADR-0145，非产品缺陷）；A9-25 修订后换发 WIN7-41（§9），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`，A9-24 改动审阅取得 Win7 结论；Shell 运行中输出（S01–S06）另立任务，先写 helper v3 协议设计。Shell 运行中输出仍需新候选完成 Win7 实机验收。
 2. **A9-17 实机证据**：执行包已就绪于 `scripts/mvp_acceptance/a9-startup-baseline/**`，Win7/Win10 采样未执行，性能收益不得外推；预算 #3 口径已按 ADR-0139 修订（K17-5 关闭），采样可开始。A9-18 需求与遗留项统一登记在[承接台账](plans/A9_17_A9_18_CARRYOVER_LEDGER.md)，已完成价值评估，有效部分由 A9-21 移植（已批准，ADR-0138/0139），移植后删除工作树。
@@ -80,6 +80,13 @@ tag 指向冻结源 `94385a8`，ZIP 摘要 `3b6e0b72…a01cf`。当前工作区�
 
 ## RC PASS 后续边界
 
+第二批最新推进：2026-10-02已按负责人选择准备三项整批Win7验收合同。
+A9-30保持DEVELOPER_VERIFIED；A9-31/32仍待具体批准，A9-33候选合同新建草稿。
+[审批包](plans/A9_BATCH_2_IMPLEMENTATION_APPROVAL.md)列出25项本地登记和A9-31/ADR-0151实现请求；
+[增量矩阵](plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)限定继承与直接重测。
+未提交、未开始A9-31/32实现、未写远端、未冻结WIN7-43；Win7全部NOT_PERFORMED。
+本说明和A9-30收口行是当前入口，前述“开发机门未签发”及后续构建失败等追加段保留其历史时点，不撤销正式收口。
+
 1. A7 状态已进入 main，双层标签与长期归档已完成；这些治理动作没有改变候选字节或实机证据。
 2. 交互 winpty、任意 Shell、高风险/未知 Profile、网络隔离声明和未登记在线更新继续关闭；任何开放均需新任务书、依赖评审和独立 Win7 验收。
 3. 企业代理/CA/模型/更新服务具备后再执行 E7；视觉、冷重启、物理断网或严格全新 OS 证据不得从本次隔离目录验收外推。
@@ -92,3 +99,15 @@ ADR-0066 已将机械盘要求替换为本地 SSD 正式 Profile；D-014 构建 
 
 - 本页只维护当前结论；新的时间线条目追加到 [STATUS_LOG.md](STATUS_LOG.md) 对应工作项下，并同步更新本页“当前工作项一览”。
 - 模块窗口不得直接修改本页或 README、ROADMAP、DECISIONS；由整合窗口在验证完成后统一更新。
+
+
+### A9-30 r5 宿主预检与待提交修正（2026-10-02）
+
+五路径批准源码提交已追加 `27a1de9`，r5 ZIP 闭包独立复核通过；当前 SID1005 Bitvise 连接、普通非提升Medium无Job身份通过。WMI/CIM OS查询拒绝，正式r5双构建未启动。新白名单宿主探测修正采用运行时版本+只读HKLM交叉，实际PS5.1 1正20负通过，控制入口负例及独立增量复核P0/P1/P2=0；新增源码提交待具体批准。两个已批准r5目录仍空；未调整系统/账户/WMI权限，未重锁、装配或登记DEVELOPER_VERIFIED。后续Windows双构建/真实Electron/Win7仍NOT_PERFORMED。详见[宿主预检报告](reports/2026-10/a9_30_r5_win10_host_preflight_2026-10-02.md)。
+
+
+### A9-30 r6 kit registration (2026-10-02)
+
+Exact four-path source commit: `7feae402edfb30da9adb649841d777ca82cc6e80`. New r6 ZIP SHA-256: `8c0f79bf2f5383be3b59b6542f27e159c00efb23f07eeabdc0a05477462cf406`. Independent kit/control review P0/P1/P2=0; 23 ZIP entries / 13 exact committed native source blobs. Registration commit: `3e2f6f602bf7b6aa0786b7c800c8541eff1198f4`. Exact HEAD registry/report byte binding PASS; no push/merge. The stage script now checks approval before writes; actual PS5.1 syntax and missing-approval negative check must run before staging.
+
+Current 192.168.1.4 SSH/TCP22 connection times out. The pretransfer guard did not succeed: r6 transfer/staging/BuildA/BuildB NOT_PERFORMED. Network cause UNKNOWN; no account/permission/Bitvise/UAC/system policy changes. Resume after readonly network, SID1005 identity, host/tool and fresh build-r5-a/b checks; these existing approved targets remain the only build directories. Returned-evidence review, product relock, actual Electron and Win7 NOT_PERFORMED; DEVELOPER_VERIFIED not signed. See [r6 independent review](reports/2026-10/a9_30_v26_r6_independent_kit_review_2026-10-02.md).

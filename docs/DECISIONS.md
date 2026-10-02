@@ -2450,6 +2450,8 @@
   保留高影响目标确认、Stop 和切换限制。释放仅用于用户明确选择“留给系统后退出”，先审计，再 request-bound release/回执、Job 位回读和退出后实测；错误/回执缺失不写成功。
   release 扩展须另一次 v26 原生 revision、依赖评审、双构建和重锁；不能全局关闭 Job 崩溃回收。
 - 后果：重启只探测旧事实，不重放/接管；安全审阅和目标平台存活证据独立，具体任务批准不代替候选裁决。
+- 2026-10-02待审补充：managed升级v3，不从旧v2或直接spawn静默回退；启动/归属/输出/release意图必需审计。
+  managed kit及runtime消费逐项授权，新helper影响的Shell/背压/脱敏/清理按 [增量矩阵](plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)重测。仍Proposed。
 
 ## ADR-0152 A9-32 用户主动继续中断任务提案
 
@@ -2458,6 +2460,8 @@
 - 提案：[A9-32](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md)在严格身份/revision与SQLite事务去重后创建关联的新Turn；恢复事实摘要并重核模式、Provider、AGENTS.md、当前文件和预算。
   未完成工具结果标未知，先读现状；旧Shell/工具调用/审批不重放；重启零自动请求。新事件payload版本化，无表迁移。
 - 后果：按钮不提升权限；双击、崩溃、审计/Provider/预算失败可追溯。本提案不是完整Alpha2或RC通过结论。
+- 2026-10-02待审补充：绑定A9-31已审核整合SHA/managed锁；未改native可提议精确继承，
+  Runtime/Core/State/Renderer的继续、审计/预算/恢复仍直接检查。仍Proposed。
 
 
 ## ADR-0153 A9-30 v26 开发检查包及独立返回复核登记
@@ -2476,3 +2480,13 @@
 - 背景：Win10 实测受限令牌管理员角色为 false，但 TokenElevation=true、High RID 12288。r2 仅按角色判定，已撤销且未构建。
 - 提案：environment 身份字段版本 1，直接查询进程令牌的提升标志、提升类型、Integrity SID/RID 和 Host Job；仅接受普通角色、非提升、Default/Limited 类型、Medium SID/RID 8192 及明确无 Job。构建与返回记录器都拒绝缺失或未知。
 - 后果：诊断入口只输出身份，不生成正式证据；历史 v25 合同不变。重发独立复核的新 kit，保留失败探针及 r2 历史登记。
+
+## ADR-0155 第二批增量证据与独立新候选验收提案
+
+- 状态：Proposed（2026-10-02；负责人要求准备整批推进，未批准具体套件或候选）
+- 背景：A9-30完成开发机收口，A9-31/32将改变共享调用链；逐次重跑稳定宿主浪费，但仅比文件hash不足以证明行为未受影响。
+- 提案：[增量矩阵](plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)将源码/工件/依赖/配置/调用行为/原报告run-id与身份一并绑定；
+  新接口和共享安全入口直接检查，未受影响且具体获批的记录才标INHERITED_EVIDENCE。
+  [A9-33](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md)另立正式v3装配/套件合同，不能套A9-30开发包authority；
+  新候选连续双预演、双干净产品构建、冻结/门A/普通Win7桌面执行/独立审核/门B，历史失败不覆盖。
+- 后果：不放宽C14、权限、安全或Win7硬门；当前Win7未执行，完整Alpha2/RC不纳入本批裁决。

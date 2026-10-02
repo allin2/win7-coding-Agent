@@ -339,3 +339,18 @@ v26 构建限定 D-017 的 VS2019 16.11 / MSVC 14.29 / SDK 19041 / x64 / 静态 
 仅构建脚本以 Windows PowerShell 5.1/.NET P/Invoke 读取既有 Win32 OpenProcessToken、GetTokenInformation（Elevation/Type/Integrity）、IsProcessInJob、CloseHandle。
 来源为构建机系统 advapi32/kernel32，不复制或引入新产品 DLL；系统工具哈希随环境证据绑定。既有 D-013 使用这些令牌/Job 查询能力，产品导入和 Win7 前置不变。
 身份事实格式见 ADR-0154；查询失败拒绝构建，无角色判定回退。此记录不替代独立套件复核和目标运行证据。
+
+## 11. A9-31 managed revision 依赖评审草稿（2026-10-02，ADR-0151 Proposed）
+
+本节仅待审登记，不授予实现或原生构建批准。D-013仍为仓库C++/Apache-2.0，协议3及Current User Profile，
+release只操作本helper持有的Job，拟沿用既有SetInformationJobObject/QueryInformationJobObject/CloseHandle，
+设置并回读KILL_ON_JOB_CLOSE位；不请求管理员权限或全局改Job，不引入第三方DLL/服务/网络监听。
+新API若实际需要，先补C15/C16登记及具体评审；不能因本表省略API/导入检查。
+
+D-017保持既有VS2019/v142、SDK19041、x64和静态CRT；新managed源码/kit/helper/manifest/锁
+均NOT_LOCKED。获准后分别绑定准确来源、源码和工件SHA、工具补丁版本/API/CRT、许可证/SBOM及两个独立run-id。
+需要新的managed kit和输入锁，不覆盖A9-30 kit/锁或v25历史合同。
+启动/ready/输出/终态/release及失败清理须经真实新helper检查；release回执不是清理成功或任意程序存活保证。
+依赖pipe的程序可能退出、回执丢失记release_unknown；Win7实际生命周期NOT_PERFORMED。
+来源/版本/许可证沿用仓库及D-017登记，来源哈希在审批具体source/kit时锁定；EOL责任仍由项目承担。
+独立安全/依赖复核、Win10双构建/重锁及Win7证据均待，不把草稿写成准入PASS。

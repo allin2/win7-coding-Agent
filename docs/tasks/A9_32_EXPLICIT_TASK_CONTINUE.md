@@ -4,7 +4,7 @@
 Status: DRAFT_READY_FOR_REVIEW
 Task Type: EXECUTION_CAPABILITY
 Target Branch: codex/a9-32-explicit-continue
-Source Baseline: c14a96808d048c34f6079cc378ba12b4f60f5c62 (inspection only)
+Source Baseline: NOT_BOUND (requires approved A9-31 integration commit; inspection source 32ee0b48edd286c77aa543bdda9eb834fd4576aa)
 Phase-Gate: A9_32_DESIGN_PENDING_APPROVAL
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0152 (Proposed)
@@ -15,6 +15,10 @@ Decision: ADR-0152 (Proposed)
 2026-09-30 用户选择“用户点击继续”，第二批整批候选；2026-10-01 草稿，仅文档获准。
 负责人批准任务及 ADR 后，绑定先前任务整合后的准确干净 source hash，在上述独立分支实现。
 依赖 A9-26/A9-28 历史加载、AGENTS.md、预算能力；不重写 ContextManager，不做自动执行。
+
+2026-10-02 负责人要求第二批整批推进至 Win7 PASS；本任务及 ADR-0152 仍待具体批准。
+实现基线必须为包含已审核 A9-30/31、managed 输入锁及整合登记的准确干净 SHA，
+形成时按 [审批包](../plans/A9_BATCH_2_IMPLEMENTATION_APPROVAL.md) C3 绑定，不拿当前 inspection source 代替。
 
 中断卡列原目标、最后已确认步骤、修改/验证、未知结果和残留；“继续”创建新 Turn，关联原 taskId/interruptedTurnId。
 不改旧 Turn 终态、不重放旧 tool_call/Shell/审批，不把任意历史助手陈述当成已确认事实。
@@ -57,12 +61,12 @@ Enter/Space可触发，焦点留在任务卡，不抢滚动；视图切换/刷�
 
 ## 5. 验证
 
-Node20.17，直接影响 State/Core/Shell：
+拟批准的增量合同使用 Node20.17，直接影响 State/Core/Shell；只有本修订获批后才取代旧草稿整 workspace 命令：
 
 ```sh
-npm test --workspace=@win7-agent/state -- --runInBand
-npm test --workspace=@win7-agent/core -- --runInBand
-npm test --workspace=@win7-agent/shell -- --runInBand
+npm test --workspace=@win7-agent/state -- --runInBand --runTestsByPath tests/a9-task-continue.test.ts tests/a9-persistence-contract.test.ts tests/a9-stream-output.test.ts
+npm test --workspace=@win7-agent/core -- --runInBand --runTestsByPath tests/a9-task-continue.test.ts tests/a9-agent-loop.test.ts tests/a9-audit-integrity.test.ts tests/a9-verification-evidence.test.ts tests/a9-context-budget.test.ts tests/a9-project-instructions.test.ts tests/a9-permission-modes.test.ts
+npm test --workspace=@win7-agent/shell -- --runInBand --runTestsByPath tests/product/a9-task-continue.test.ts tests/product/a9-workbench-contract.test.ts tests/product/a9-lifecycle.test.ts tests/product/a9-audit-integrity.test.ts tests/product/a9-mode-fail-closed.test.ts tests/product/a9-workspace-binding.test.ts tests/product/a9-preload-capability.test.ts tests/product/a9-shell-streaming.test.ts tests/product/a9-background-tools.test.ts tests/product/a9-26-context-budget-config.test.ts
 npm run verify:quick
 npm run docs:check
 git -c core.fsmonitor=false diff --check
@@ -72,3 +76,9 @@ git -c core.fsmonitor=false diff --check
 移除服务端去重/身份校验、恢复自动派发、旧审批重放的反例必须红，恢复源哈希。
 真实Electron检查加载/焦点/Stop/重启；Win7由新候选取得。证据 `.acceptance/a9-32-developer/`，报告 docs/reports/2026-10。
 当前产品实现/真实Electron/Win7均NOT_PERFORMED，开发机完成不代表完整Alpha2或RC。
+
+真实 Electron 必须证明重启零自动请求、点击一个新 Turn、重复点击只一次、旧批准失效、
+未知副作用先核查、Provider/预算/审计失败及再次主动尝试；含滚动、焦点和 Stop。
+复用已锁定 A9-31 native，须核对源码、Profile、helper/锁/依赖哈希一致，且没有受变动调用行为影响的遗漏。
+Runtime/Core/State/Renderer 变化后的继续与共享审计/预算/恢复不能只按 native 未变继承。
+完整准入与扩测规则见 [验证矩阵](../plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)。

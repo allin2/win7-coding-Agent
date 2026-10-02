@@ -2,7 +2,7 @@
 
 ```text
 Status: DRAFT_PLANNING_ONLY
-Updated: 2026-10-01
+Updated: 2026-10-02
 Candidate: WIN7-43 (tentative, NOT_FROZEN)
 A9-30 Implementation: APPROVED_FOR_IMPLEMENTATION
 Candidate / Win7 Authorization: NOT_GRANTED
@@ -16,7 +16,7 @@ Candidate / Win7 Authorization: NOT_GRANTED
 
 | 范围 | 当前事实（本次未重签） | 第二批所需证据 / 结论边界 |
 |---|---|---|
-| S01–S06 Shell 实时输出 | 已批准并接入源码；开发机定向检查通过，真实 Electron/Win32 helper/Win7 NOT_PERFORMED | A9-30，真实 native→Runner→Core→SQLite→IPC→Renderer；新候选直接 Win7 矩阵 |
+| S01–S06 Shell 实时输出 | A9-30 DEVELOPER_VERIFIED，source32ee0b4；原生双构建/锁及Win10直接和精确继承证据通过，Win7 NOT_PERFORMED | 新managed helper影响的Shell链路直接回归；新候选直接Win7矩阵，不能用Win10替代 |
 | A9-SH03 后台工具 | 有管理器/状态事实，不等于完整模型工具面 | A9-31，归属/游标、上限/Stop、重启与释放实测；新 revision lock |
 | A9-ST03 用户显式继续 | 历史/预算基础在 W42 取得结论，具体继续入口未实现 | A9-32，重启零请求、主动新 Turn、去重/旧审批失效/未知副作用 |
 | 第一批可靠性与审计/Provider完整性 | W42 门 B 收尾，A9-26/28/29 | 第二批会改事件/dispatch/Runtime，直接回归预算、验证、审计失败和协议完整性，不自动继承旧 PASS |
@@ -61,3 +61,13 @@ Candidate / Win7 Authorization: NOT_GRANTED
 两秒 tick 来自实际 Node 子进程协议 peer；SQLite/Schema IPC 用真实模块和数据库，但原生入口使用夹具；
 活动卡恢复是 DOM harness 检查。上述证据不能合成为当前 Win7 S01–S06 PASS。
 v26 原生哈希尚未锁定，第二批无冻结候选，未批准新的 INHERITED_EVIDENCE。
+
+## 5. 当前收口与后续合同补齐（2026-10-02）
+
+§4是2026-10-01历史快照，保持原文。旧表S01–S06“当前事实”为：
+“已批准并接入源码；开发机定向检查通过，真实 Electron/Win32 helper/Win7 NOT_PERFORMED”。
+现已据 [收口裁决](../reports/2026-10/a9_30_developer_closeout_decision_2026-10-02.md)更新当前行；
+helper/锁和证据身份不重绑，Win7仍NOT_PERFORMED。
+新批继承合同见 [增量矩阵](A9_BATCH_2_INCREMENTAL_VALIDATION.md)，未来source尚未批准任何继承。
+A9-31/32与 [A9-33草稿](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md)保持待审；
+编号WIN7-43仍暂定，推进和审批顺序见 [具体审批包](A9_BATCH_2_IMPLEMENTATION_APPROVAL.md)。
