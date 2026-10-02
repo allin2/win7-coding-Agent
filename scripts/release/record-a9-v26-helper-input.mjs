@@ -198,7 +198,7 @@ function inspectEligibleReturn(runnerZip, sidecar, authorizedKit, sourceReposito
   const returnManifest = parseJson(readSingle(entries, 'RETURN_PACKAGE_MANIFEST.json'), 'A9_V26_RETURN_MANIFEST');
   const helperBytes = readSingle(entries, 'output/helper.exe');
   const helperSha256 = sha256(helperBytes);
-  const expectedReturnFiles = new Set(['output/helper.exe','build-profile.json','input-lock.json','PACKAGE_MANIFEST.json','RETURN_PACKAGE_MANIFEST.json','evidence/validation-binding.json',...requiredV26Evidence]);
+  const expectedReturnFiles = new Set(['output/helper.exe','build-profile.json','helper.exe.manifest','input-lock.json','PACKAGE_MANIFEST.json','RETURN_PACKAGE_MANIFEST.json','evidence/validation-binding.json',...requiredV26Evidence]);
   const actualReturnFiles = entries.filter((entry) => !entry.directory).map((entry) => entry.name);
   if (actualReturnFiles.length !== expectedReturnFiles.size || actualReturnFiles.some((name) => !expectedReturnFiles.has(name))) throw new Error('A9_V26_RETURN_FILE_SET_MISMATCH');
   if (buildResult.schema_version !== 3 || buildResult.status !== 'PASS'
@@ -243,6 +243,7 @@ function inspectEligibleReturn(runnerZip, sidecar, authorizedKit, sourceReposito
   if (!inputLockBytes.equals(authorizedInputLock)
     || !packageManifestBytes.equals(authorizedPackageManifest)
     || !buildProfileBytes.equals(authorizedKit.authorizedFiles.get('build-profile.json'))
+    || !readSingle(entries, 'helper.exe.manifest').equals(authorizedKit.authorizedFiles.get('helper.exe.manifest'))
     || returnManifest.authorized_inputs?.input_lock_sha256 !== sha256(authorizedInputLock)
     || returnManifest.authorized_inputs?.package_manifest_sha256 !== sha256(authorizedPackageManifest)) {
     throw new Error('A9_V26_AUTHORIZED_KIT_BINDING_MISMATCH');

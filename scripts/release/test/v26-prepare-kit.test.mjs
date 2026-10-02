@@ -67,6 +67,10 @@ test('recording validates raw v3 evidence and two independent builds without for
   assert.equal(lock.lock_id,'A9-30-DEVELOPER-INPUTS-D013-V26');assert.equal(lock.inputs.runner_return_zip.protocol_version,3);assert.equal(lock.gates.win7,'NOT_PERFORMED');assert.equal(lock.provenance.development_only,true);assert.notEqual(result.runnerZipSha256,result.runnerZip2Sha256);
   assert.throws(()=>recordA9V26HelperInput(opts),/REFUSES_OVERWRITE/);
 });
+for(const mode of ['missing','rebound-drift'])test('returned application manifest must match approved kit: '+mode,()=>{
+  const f=fixture();const opts=inputPair(f,(dir)=>{const file=path.join(dir,'helper.exe.manifest');if(mode==='missing')fs.renameSync(file,path.join(f.dir,'preserved-return-manifest.xml'));else fs.appendFileSync(file,'<!-- TEST_ONLY drift rebound into return manifest -->');});
+  assert.throws(()=>recordA9V26HelperInput(opts),mode==='missing'?/RETURN_FILE_SET_MISMATCH/:/AUTHORIZED_KIT_BINDING_MISMATCH/);assert.equal(fs.existsSync(opts.output),false);
+});
 for(const mode of ['request_id','sequence','base64','counts','invalid_json','extra_field','missing_terminal','prestart','offset','exit_type','tool_drift','extra_return','missing_return','source_mismatch','not_live','not_clean','encoding','tools','wrong_profile','fail','api','crt','pe_arch','changed_helper','identity_missing','identity_elevated','identity_full','identity_high','identity_sid','identity_type','identity_job','identity_unknown_job'])test('rebound return evidence cannot conceal '+mode,()=>{
   const f=fixture();const mutate=(dir)=>{
     const edit=(n,change)=>{const file=path.join(dir,'evidence',n);const value=JSON.parse(fs.readFileSync(file));change(value);writeJson(file,value);};

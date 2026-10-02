@@ -180,7 +180,29 @@
           "size": 2402
         }
       ],
-      "network_preflight_at_registration": "CONNECTION_TIMEOUT; r6 transfer/staging/build NOT_PERFORMED"
+      "network_preflight_at_registration": "CONNECTION_TIMEOUT; r6 transfer/staging/build NOT_PERFORMED",
+      "return_review": {
+        "status": "APPROVED_FOR_INPUT_LOCK",
+        "independent_reviewer": "/root/a9_30_r4_label_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T08:38:11+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r6_independent_return_review_2026-10-02.md",
+        "report_sha256": "85473f1be044f0b47e39cb4cfb9c408a0b4d1a4cbf54413b3ae48d1f550ad89b",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0,
+        "builds": [
+          {
+            "run_id": "16b5abc3-e4bb-4615-a5bc-12e02fcb5e17",
+            "sha256": "4634a99211556698421649ba381ebb9192b523c4bbf1e0080a40137dba2d203a"
+          },
+          {
+            "run_id": "33e3d3c9-bf4d-4f40-92f5-31b8915d13f9",
+            "sha256": "c9591d5ba2bce1edbf72bd08287774eaf8074c17e1a3903f40be3fcd9d232e75"
+          }
+        ],
+        "scope": "Win10 native double-build return closure only; backpressure bounded fail-closed, cleanup UNKNOWN; no product/Electron/Win7/DEVELOPER_VERIFIED acceptance."
+      }
     }
   ]
 }
