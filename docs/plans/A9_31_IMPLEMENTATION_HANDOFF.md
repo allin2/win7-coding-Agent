@@ -63,3 +63,19 @@ r1来源ZIP生成但未批准，独立指出审计历史解释/反向竞态缺�
 [修复交接](../reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)及
 候选外source-approval-r3.json是下一份准确审批材料。上文“源码未提交/生成文件不存在”是历史时点，保留原文。
 r1的17项生成文件不混入修复源码提交，新kit/批准登记/构建仍各自待批准。
+
+## managed r2独立复核之后（2026-10-03）
+
+r3修复已按负责人批准提交d9b5be502c9475e50c54b349a6a12abd27b199f8；来源绑定managed r2 ZIP已形成。
+本次独立复核FAIL_NOT_APPROVED（P1=1），[报告](../reports/2026-10/a9_31_managed_r2_independent_kit_review_2026-10-03.md)。
+只读Toolhelp父子身份取证与schema2/退出码修复见[精确补批材料](A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)，
+ADR-0156 Proposed。新增系统API具体批准前不实施；kit批准登记/源码提交/远端构建仍分开批准。
+历史未提交状态及旧套件不改写，当前完整开发机/Win7门未通过。
+
+## ADR-0156实施及准确源码交接（2026-10-03）
+
+负责人具体批准后六路径修复完成，reader超时资源收尾P2另修并另冻输入/重跑kit。
+[独立补充](../reports/2026-10/a9_31_managed_identity_repair_independent_followup_2026-10-03.md)静态0/0/0，
+[最终交接](../reports/2026-10/a9_31_managed_identity_repair_source_handoff_2026-10-03.md)和
+候选外source-approval-r4.json将供准确提交审批。90直接/644精确继承，真实Windows仍NOT_PERFORMED。
+只在具体源码提交授权后生成未批准新r3 ZIP；保留原r2失败、旧生成文件和所有锁，登记/构建分别待批。

@@ -132,3 +132,28 @@ managed r1生成但未批准；独立Luna high提出P1审计历史解释/P2反�
 修复提交审批r3待负责人回复，后续准确kit哈希/构建/整合仍需各自授权。
 见[修复交接](../reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
 Phase-Gate仍A9_31_IMPLEMENTATION_IN_PROGRESS，Windows双构建/真实Electron/Win7均NOT_PERFORMED。
+
+## 9. managed r2独立复核与待审修复（2026-10-03）
+
+负责人批准r3源码提交17项字节，准确source为d9b5be502c9475e50c54b349a6a12abd27b199f8。
+新managed r2套件已生成，负责人明确授权独立只读复核；
+[报告](../reports/2026-10/a9_31_managed_r2_independent_kit_review_2026-10-03.md)结论FAIL_NOT_APPROVED（P1=1）。
+原生烟测真实helper/root/child身份绑定需补齐，尚无对应产品缺陷证据。
+[精确修复材料](../plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)/ADR-0156待审；
+新增只读系统API具体批准前暂停相关实现，其他既有授权不扩大。源码/kit/构建/整合授权仍按§6。
+r2和旧r1失败保留；本任务仍IMPLEMENTATION_IN_PROGRESS，原生双构建/真实Electron/Win7均NOT_PERFORMED。
+
+## 10. ADR-0156具体修复批准（2026-10-03）
+
+负责人对准确修复请求回复“批准”：批准ADR-0156及[六路径修复合同](../plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)，
+在source d9b5be502c9475e50c54b349a6a12abd27b199f8/本任务分支修复身份取证、schema2及退出码并做本地定向检查。
+只读Toolhelp系统API登记已具体批准；旧r2 FAIL_NOT_APPROVED不改判。
+该批准不包含后续源码提交、套件批准登记、远端写入、原生构建、推送/整合或候选门。
+
+## 11. ADR-0156修复交接（2026-10-03）
+
+六路径身份/证据修复完成；独立补充的reader超时句柄收尾P2也已在build.ps1内修复。
+[独立补充](../reports/2026-10/a9_31_managed_identity_repair_independent_followup_2026-10-03.md)静态P0/P1/P2=0，
+[源码交接](../reports/2026-10/a9_31_managed_identity_repair_source_handoff_2026-10-03.md)登记90直接+644继承。
+原r2 FAIL_NOT_APPROVED不改判，源码未提交、新kit未生成；实际PS/C#、双构建、Electron和Win7仍NOT_PERFORMED。
+准确r4源码提交和从新source生成未批准r3 ZIP待负责人具体批准，不含套件登记/构建/整合。

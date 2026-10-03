@@ -2492,3 +2492,11 @@
   [A9-33](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md)另立正式v3装配/套件合同，不能套A9-30开发包authority；
   新候选连续双预演、双干净产品构建、冻结/门A/普通Win7桌面执行/独立审核/门B，历史失败不覆盖。
 - 后果：不放宽C14、权限、安全或Win7硬门；当前Win7未执行，完整Alpha2/RC不纳入本批裁决。
+
+## ADR-0156 A9-31 managed 构建烟测的 OS 进程身份证据
+
+- 状态：Accepted（2026-10-03；负责人批准ADR-0156、已形成六路径修复合同及本地定向检查；提交/构建另行授权）
+- 背景：managed r2 独立复核发现P1。协议childPid与同字段派生的smoke root_pid互相对照，不能独立证明实际helper/root/marker child的父子关系；release自然退出未绑定真实退出码。原r2为FAIL_NOT_APPROVED。
+- 提案：仅构建机捕获器增加只读Toolhelp进程快照（CreateToolhelp32Snapshot/Process32FirstW/Process32NextW/CloseHandle），绑定实际helper句柄/PID/creation、root/child句柄/PID/creation/父PID，在相关父进程存活时完成钉住后才发control。任何未知/不符停止该smoke，不提升权限或回退WMI。来源为构建机系统Kernel32，不进入产品DLL或目标Win7运行时。
+- 格式：仅尚未批准managed返回证据v26-managed.json升schema_version=2，必需实际helper/父子身份、时间与真实退出码；release两组须固定根/子进程自然退出且exit0；cancel两组须根退出码与协议终态一致。旧证据不升级或重绑，A9-30/v1/v2锁和native协议不变。
+- 结果：批准后只在[精确修复材料](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)六项白名单内实施；源码提交、新kit批准/双构建、远端写入和候选门仍分别具体授权。当前原生/真实Electron/Win7均NOT_PERFORMED。

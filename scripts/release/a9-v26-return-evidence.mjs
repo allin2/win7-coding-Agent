@@ -21,7 +21,7 @@ export const requiredV26ManagedEvidence = ['evidence/v26-managed.json', ...['rel
 export function verifyV26ManagedEvidence(read) {
   const json = (name) => JSON.parse(read('evidence/' + name).toString('utf8').replace(/^\uFEFF/, ''));
   const summary = json('v26-managed.json');
-  check(summary.schema_version === 1 && summary.revision === 'a9-31-managed-r1' && Array.isArray(summary.rows)
+  check(summary.schema_version === 2 && summary.revision === 'a9-31-managed-r1' && Array.isArray(summary.rows)
     && summary.rows.length === 4 && new Set(summary.rows.map((r) => r.name)).size === 4, 'MANAGED_MATRIX_INVALID');
   for (const name of ['release', 'cancel', 'cancel-release', 'release-cancel']) {
     const row = summary.rows.find((r) => r.name === name), req = json(`v26-managed-${name}-request.json`);
@@ -32,7 +32,7 @@ export function verifyV26ManagedEvidence(read) {
     const frames = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trimEnd().split('\n').map((line) => { check(Buffer.byteLength(line) <= 32768, 'MANAGED_FRAME_LIMIT'); return JSON.parse(line); });
     const ready = frames.shift(), terminal = frames.pop();
     check(exact(ready, ['schemaVersion','profileId','requestId','type','helperPid','childPid','tokenAudit','ready']) && uint(ready.helperPid) && ready.helperPid > 0 && uint(ready.childPid) && ready.childPid > 0
-      && ready?.type === 'execution_started' && ready.requestId === req.requestId && ready.childPid === row.root_pid
+      && ready?.type === 'execution_started' && ready.requestId === req.requestId && ready.helperPid === row.helper_pid && ready.childPid === row.root_pid
       && ready.schemaVersion === 3 && ready.profileId === req.profileId && ready.ready?.childJobAssignmentVerified === true
       && exact(ready.ready, ['childJobAssignmentVerified','inputDetached','stdoutCaptureReady','stderrCaptureReady'])
       && Object.values(ready.ready).every((v) => v === true) && tokenProof(ready.tokenAudit), 'MANAGED_READY_INVALID');
@@ -46,8 +46,15 @@ export function verifyV26ManagedEvidence(read) {
       check(offsets[frame.stream] <= 1048576 && seq <= 8192, 'MANAGED_OUTPUT_LIMIT');
     }
     const marker = /A9_RELEASE_CHILD:([0-9]+):([0-9]+)[\r\n]/.exec(Buffer.concat(captured.stdout).toString('utf8'));
-    check(marker && Number(marker[1]) === row.child_pid && marker[2] === row.child_start_ticks && row.child_pid !== row.root_pid
-      && /^[0-9]{16,20}$/.test(row.root_start_ticks) && /^[0-9]{16,20}$/.test(row.child_start_ticks)
+    const ticks = (value) => typeof value === 'string' && /^[1-9][0-9]{15,18}$/.test(value) && BigInt(value) <= 3155378975999999999n;
+    const exitCode = (value) => Number.isSafeInteger(value) && value >= -2147483648 && value <= 2147483647;
+    check(marker && uint(row.helper_pid) && row.helper_pid > 0 && uint(row.root_pid) && row.root_pid > 0
+      && uint(row.child_pid) && row.child_pid > 0 && Number(marker[1]) === row.child_pid && marker[2] === row.child_start_ticks
+      && row.child_pid !== row.root_pid && row.child_pid !== row.helper_pid && row.root_pid !== row.helper_pid
+      && row.root_parent_pid === row.helper_pid && row.child_parent_pid === row.root_pid
+      && ticks(row.helper_start_ticks) && ticks(row.root_start_ticks) && ticks(row.child_start_ticks)
+      && BigInt(row.helper_start_ticks) <= BigInt(row.root_start_ticks) && BigInt(row.root_start_ticks) <= BigInt(row.child_start_ticks)
+      && exitCode(row.root_exit_code) && exitCode(row.child_exit_code)
       && row.identity_pinned_before_control === true && row.lifecycle_settled === true && row.exit_code === 0
       && uint(row.elapsed_ms) && row.elapsed_ms <= 30000 && Array.isArray(row.frame_times_ms)
       && row.frame_times_ms.length === frames.length + 2 && row.frame_times_ms.every((t, i, a) => Number.isSafeInteger(t) && t >= 0 && t <= row.elapsed_ms && (!i || t >= a[i-1])), 'MANAGED_LIFECYCLE_IDENTITY');
@@ -58,7 +65,8 @@ export function verifyV26ManagedEvidence(read) {
     if (name === 'release' || name === 'release-cancel') check(exact(terminal, ['schemaVersion','type','requestId','profileId','releaseId','childPid','lastOutputSeq','stdout','stderr','jobKillOnCloseDisabled','ownershipReleased']) && controls.length === (name === 'release' ? 1 : 2) && controls[0].type === 'release' && controls[0].releaseId === 'release-' + name
       && (name !== 'release-cancel' || controls[1].type === 'cancel')
       && terminal.type === 'execution_released' && terminal.releaseId === controls[0].releaseId && terminal.childPid === ready.childPid
-      && terminal.jobKillOnCloseDisabled === true && terminal.ownershipReleased === true && row.root_alive_after_helper_exit === true && row.child_alive_after_helper_exit === true, 'MANAGED_RELEASE_NOT_PROVEN');
+      && terminal.jobKillOnCloseDisabled === true && terminal.ownershipReleased === true && row.root_alive_after_helper_exit === true && row.child_alive_after_helper_exit === true
+      && row.root_exit_code === 0 && row.child_exit_code === 0, 'MANAGED_RELEASE_NOT_PROVEN');
     else check(exact(terminal, ['schemaVersion','type','requestId','profileId','status','exitCode','executionTimeMs','timedOut','idleTimedOut','canceled','outputTruncated','containmentVerified','inputDetached','cleanupConfirmed','workDirAclModified','tokenAudit','hostJob','lastOutputSeq','stdout','stderr'])
       && tokenProof(terminal.tokenAudit) && terminal.containmentVerified === true && terminal.inputDetached === true && terminal.workDirAclModified === false
       && terminal.status === 'completed' && uint(terminal.exitCode) && uint(terminal.executionTimeMs) && terminal.timedOut === false && terminal.idleTimedOut === false && terminal.outputTruncated === false
@@ -67,6 +75,7 @@ export function verifyV26ManagedEvidence(read) {
       && (terminal.hostJob.detected ? ['explicit','silent'].includes(terminal.hostJob.breakaway) : terminal.hostJob.breakaway === 'none') && controls.length === (name === 'cancel' ? 1 : 2) && controls[0].type === 'cancel'
       && (name !== 'cancel-release' || (controls[1].type === 'release' && controls[1].releaseId === 'release-cancel-release'))
       && terminal.type === 'execution_result' && terminal.canceled === true && terminal.cleanupConfirmed === true
+      && terminal.exitCode === (row.root_exit_code >>> 0)
       && row.root_alive_after_helper_exit === false && row.child_alive_after_helper_exit === false, 'MANAGED_CANCEL_NOT_PROVEN');
   }
   return { revision: 'a9-31-managed-r1', status: 'PASS_RELEASE_AND_CANCEL_LIFECYCLE' };
@@ -183,7 +192,10 @@ export function verifyV26ReturnEvidence(read, helperBytes, buildResult, profile)
   const text = (name) => read(`evidence/${name}`).toString('utf8').replace(/^\uFEFF/, '').trim();
   const declared = profile.delivery?.evidence;
   const managed = profile.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64';
-  if (managed) { check(profile.managed_contract?.revision === 'a9-31-managed-r1' && requiredV26ManagedEvidence.every((name) => declared?.includes(name)), 'MANAGED_PROFILE_CLOSURE'); verifyV26ManagedEvidence(read); }
+  if (managed) { check(profile.managed_contract?.revision === 'a9-31-managed-r1'
+    && profile.managed_contract.evidence_schema_version === 2 && profile.managed_contract.parent_process_probe === 'Toolhelp32'
+    && profile.managed_contract.release_natural_exit_code === 0
+    && requiredV26ManagedEvidence.every((name) => declared?.includes(name)), 'MANAGED_PROFILE_CLOSURE'); verifyV26ManagedEvidence(read); }
   const artifact = buildResult.artifacts?.find((entry) => entry.path === 'helper.exe');
   check(artifact && artifact.size === helperBytes.length && artifact.sha256 === hash(helperBytes), 'BUILD_ARTIFACT_BINDING_MISMATCH');
   check(Array.isArray(declared) && requiredV26Evidence.every((name) => declared.includes(name))

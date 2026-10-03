@@ -163,6 +163,9 @@
   },
   "managed_contract": {
     "schema_version": 1,
+    "evidence_schema_version": 2,
+    "parent_process_probe": "Toolhelp32",
+    "release_natural_exit_code": 0,
     "revision": "a9-31-managed-r1",
     "control": [
       "cancel",

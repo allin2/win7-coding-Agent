@@ -49,10 +49,12 @@ export function syntheticV26ManagedEvidence() {
     files[`v26-managed-${name}-stdout.jsonl`] = frames.map(JSON.stringify).join('\n')+'\n'; files[`v26-managed-${name}-stderr.bin`]='';
     const release = JSON.stringify({schemaVersion:3,type:'release',requestId,releaseId:'release-'+name});
     const cancel = JSON.stringify({schemaVersion:3,type:'cancel',requestId});
-    rows.push({name,control:name==='release'?release:name==='cancel'?cancel:name==='release-cancel'?release+'\n'+cancel:cancel+'\n'+release,root_pid:111,root_start_ticks:'639000000000000000',child_pid:222,child_start_ticks:'639000000000000001',
+    rows.push({name,control:name==='release'?release:name==='cancel'?cancel:name==='release-cancel'?release+'\n'+cancel:cancel+'\n'+release,
+      helper_pid:110,helper_start_ticks:'638999999999999999',root_pid:111,root_parent_pid:110,root_start_ticks:'639000000000000000',child_pid:222,child_parent_pid:111,child_start_ticks:'639000000000000001',
+      root_exit_code:['release','release-cancel'].includes(name)?0:1,child_exit_code:['release','release-cancel'].includes(name)?0:1,
       identity_pinned_before_control:true,lifecycle_settled:true,root_alive_after_helper_exit:['release','release-cancel'].includes(name),child_alive_after_helper_exit:['release','release-cancel'].includes(name),exit_code:0,elapsed_ms:1000,frame_times_ms:[1,10,500]});
   }
-  files['v26-managed.json']=JSON.stringify({schema_version:1,revision:'a9-31-managed-r1',rows}); return files;
+  files['v26-managed.json']=JSON.stringify({schema_version:2,revision:'a9-31-managed-r1',rows}); return files;
 }
 
 export function createV26ReturnFixture(dir, kit, runId, suffix, mutate=()=>{}) {

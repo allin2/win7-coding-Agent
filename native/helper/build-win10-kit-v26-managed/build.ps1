@@ -281,11 +281,56 @@ function Invoke-V26StreamingSmoke([string]$Helper, [string]$Cmd, [System.Collect
     Add-Type -TypeDefinition @'
 using System; using System.IO; using System.Text; using System.Collections.Generic;
 using System.Diagnostics; using System.Threading; using System.Threading.Tasks;
+using System.Runtime.InteropServices; using System.ComponentModel;
 public sealed class A9V26Capture {
     public int ExitCode; public bool TimedOut, ReaderFailed, CancelWritten;
     public bool IdentityPinnedBeforeControl, RootAliveAfterHelperExit, ChildAliveAfterHelperExit, LifecycleSettled;
-    public int RootPid, ChildPid; public long RootStartTicks, ChildStartTicks;
+    public int HelperPid, RootPid, ChildPid, RootParentPid, ChildParentPid;
+    public long HelperStartTicks, RootStartTicks, ChildStartTicks;
+    public int? RootExitCode, ChildExitCode;
     public long ExitMs; public List<long> FrameMs=new List<long>();
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+    private struct ProcessEntry {
+        public uint Size, Usage, Pid; public UIntPtr Heap;
+        public uint Module, Threads, ParentPid; public int Priority; public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst=260)] public string Exe;
+    }
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern IntPtr CreateToolhelp32Snapshot(uint flags,uint pid);
+    [DllImport("kernel32.dll", EntryPoint="Process32FirstW", CharSet=CharSet.Unicode, SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)] private static extern bool ProcessFirst(IntPtr snapshot,ref ProcessEntry entry);
+    [DllImport("kernel32.dll", EntryPoint="Process32NextW", CharSet=CharSet.Unicode, SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)] private static extern bool ProcessNext(IntPtr snapshot,ref ProcessEntry entry);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+    private static void DisposePinned(Process root,Process child,ManualResetEventSlim childReady) {
+        try {if(root!=null)root.Dispose();}
+        finally {try {if(child!=null)child.Dispose();} finally {childReady.Dispose();}}
+    }
+    private static void PinParents(A9V26Capture r,Process helper,Process root,Process child) {
+        if(helper.HasExited||root.HasExited||child.HasExited)throw new Exception("MANAGED_IDENTITY_EARLY_EXIT");
+        IntPtr snapshot=CreateToolhelp32Snapshot(2,0);
+        if(snapshot==new IntPtr(-1))throw new Win32Exception(Marshal.GetLastWin32Error(),"MANAGED_PARENT_SNAPSHOT_FAILED");
+        bool rootFound=false,childFound=false;
+        try {
+            var entry=new ProcessEntry {Size=(uint)Marshal.SizeOf(typeof(ProcessEntry))};
+            if(!ProcessFirst(snapshot,ref entry))throw new Win32Exception(Marshal.GetLastWin32Error(),"MANAGED_PARENT_READ_FAILED");
+            do {
+                if(entry.Pid==(uint)r.RootPid){r.RootParentPid=checked((int)entry.ParentPid);rootFound=true;}
+                if(entry.Pid==(uint)r.ChildPid){r.ChildParentPid=checked((int)entry.ParentPid);childFound=true;}
+                if(rootFound&&childFound)break;
+            } while(ProcessNext(snapshot,ref entry));
+            if(!rootFound||!childFound)throw new Exception("MANAGED_PARENT_IDENTITY_MISSING");
+        } finally {
+            if(!CloseHandle(snapshot))throw new Win32Exception(Marshal.GetLastWin32Error(),"MANAGED_PARENT_SNAPSHOT_CLOSE_FAILED");
+        }
+        if(r.HelperPid!=helper.Id||r.RootParentPid!=r.HelperPid||r.ChildParentPid!=r.RootPid
+            ||r.RootPid==r.HelperPid||r.ChildPid==r.RootPid||r.ChildPid==r.HelperPid
+            ||r.RootStartTicks<r.HelperStartTicks||r.ChildStartTicks<r.RootStartTicks
+            ||helper.StartTime.ToUniversalTime().Ticks!=r.HelperStartTicks
+            ||root.StartTime.ToUniversalTime().Ticks!=r.RootStartTicks||child.StartTime.ToUniversalTime().Ticks!=r.ChildStartTicks
+            ||helper.HasExited||root.HasExited||child.HasExited)throw new Exception("MANAGED_PARENT_IDENTITY_MISMATCH");
+        r.IdentityPinnedBeforeControl=true;
+    }
     public static A9V26Capture Run(string exe,string request,string cancel,string stdout,string stderr,int pauseMs) {
         var r=new A9V26Capture();
         bool lifecycle=request.Contains("\"managed\":true");
@@ -295,6 +340,7 @@ public sealed class A9V26Capture {
             RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true };
         using(var process=new Process {StartInfo=info}) using(var ready=new ManualResetEventSlim(false)) {
             var watch=Stopwatch.StartNew(); if(!process.Start()) throw new Exception("V26_CAPTURE_START_FAILED");
+            if(lifecycle){var pinnedHelperHandle=process.Handle;r.HelperPid=process.Id;r.HelperStartTicks=process.StartTime.ToUniversalTime().Ticks;}
             var outputTask=Task.Factory.StartNew(()=> {
                 try { using(var input=new BufferedStream(process.StandardOutput.BaseStream))
                     using(var output=new BufferedStream(File.Open(stdout,FileMode.CreateNew))) {
@@ -305,8 +351,9 @@ public sealed class A9V26Capture {
                             if(lifecycle) {
                                 string line=Encoding.UTF8.GetString(frameBytes.ToArray());frameBytes.Clear();
                                 if(line.Contains("\"type\":\"execution_started\"")) {
+                                    var helperPid=System.Text.RegularExpressions.Regex.Match(line,"\"helperPid\":([0-9]+)");
                                     var pid=System.Text.RegularExpressions.Regex.Match(line,"\"childPid\":([0-9]+)");
-                                    if(!pid.Success)throw new Exception("MANAGED_ROOT_IDENTITY_MISSING");
+                                    if(root!=null||!helperPid.Success||Int32.Parse(helperPid.Groups[1].Value)!=r.HelperPid||!pid.Success)throw new Exception("MANAGED_ROOT_IDENTITY_MISSING");
                                     r.RootPid=Int32.Parse(pid.Groups[1].Value);root=Process.GetProcessById(r.RootPid);var pinnedRootHandle=root.Handle;r.RootStartTicks=root.StartTime.ToUniversalTime().Ticks;
                                 }
                                 if(line.Contains("\"type\":\"output_chunk\"") && line.Contains("\"stream\":\"stdout\"")) {
@@ -338,7 +385,10 @@ r.FrameMs.Add(watch.ElapsedMilliseconds);
                 if(!ready.Wait(5000))r.TimedOut=true;
                 else {Thread.Sleep(pauseMs>0?1500:500);
                     if(lifecycle && !childReady.Wait(5000))throw new Exception("MANAGED_CHILD_NOT_READY");
-                    if(lifecycle)r.IdentityPinnedBeforeControl=root!=null&&child!=null&&!root.HasExited&&!child.HasExited;
+                    if(lifecycle) {
+                        if(root==null||child==null||r.ReaderFailed)throw new Exception("MANAGED_LIFECYCLE_IDENTITY_MISSING");
+                        PinParents(r,process,root,child);
+                    }
                     try {process.StandardInput.WriteLine(cancel);process.StandardInput.Flush();r.CancelWritten=true;} catch {r.CancelWritten=false;}
                 }
             }
@@ -353,12 +403,21 @@ r.FrameMs.Add(watch.ElapsedMilliseconds);
                 bool rootExited=root.WaitForExit(30000), childExited=child.WaitForExit(30000);
                 r.LifecycleSettled=rootExited&&childExited;
                 if(!r.LifecycleSettled)throw new Exception("MANAGED_LIFECYCLE_UNKNOWN");
-                root.Dispose();child.Dispose();childReady.Dispose();
+                r.RootExitCode=root.ExitCode;r.ChildExitCode=child.ExitCode;
             }
             return r;
             } finally {
                 if(!process.HasExited) {try {process.Kill();process.WaitForExit(5000);} catch {r.ReaderFailed=true;}}
                 if(!Task.WaitAll(new Task[]{outputTask,errorTask},5000))r.ReaderFailed=true;
+                if(outputTask.IsCompleted)DisposePinned(root,child,childReady);
+                else {
+                    // A pending reader already makes this capture ineligible. Close its pinned
+                    // resources only after it terminates; do not race it or rely on GC timing.
+                    r.ReaderFailed=true;
+                    outputTask.ContinueWith(done=> {
+                        try {DisposePinned(root,child,childReady);} catch {r.ReaderFailed=true;}
+                    },CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
+                }
             }
         }
     }
@@ -438,12 +497,17 @@ function Invoke-V26ManagedSmoke([string]$Helper, [System.Collections.IDictionary
         $capture=[A9V26Capture]::Run($Helper,($request|ConvertTo-Json -Depth 12 -Compress),$control,$stdout,$stderr,0)
         if($capture.TimedOut -or $capture.ReaderFailed -or !$capture.CancelWritten -or !$capture.IdentityPinnedBeforeControl -or !$capture.LifecycleSettled -or $capture.ExitCode -ne 0 -or (Get-Item $stderr).Length -ne 0){throw 'MANAGED_CAPTURE_OR_LIFECYCLE_FAILED'}
         if($name -in @('release','release-cancel') -and (!$capture.RootAliveAfterHelperExit -or !$capture.ChildAliveAfterHelperExit)){throw 'MANAGED_RELEASE_SURVIVAL_FAILED'}
+        if($null -eq $capture.RootExitCode -or $null -eq $capture.ChildExitCode){throw 'MANAGED_EXIT_RESULT_UNKNOWN'}
+        if($name -in @('release','release-cancel') -and ($capture.RootExitCode -ne 0 -or $capture.ChildExitCode -ne 0)){throw 'MANAGED_RELEASE_EXIT_FAILED'}
         if($name -in @('cancel','cancel-release') -and ($capture.RootAliveAfterHelperExit -or $capture.ChildAliveAfterHelperExit)){throw 'MANAGED_CANCEL_REAP_FAILED'}
-        $rows+=[ordered]@{name=$name;control=$control;root_pid=$capture.RootPid;root_start_ticks=$capture.RootStartTicks.ToString();child_pid=$capture.ChildPid;child_start_ticks=$capture.ChildStartTicks.ToString()
+        $rows+=[ordered]@{name=$name;control=$control;helper_pid=$capture.HelperPid;helper_start_ticks=$capture.HelperStartTicks.ToString()
+            root_pid=$capture.RootPid;root_parent_pid=$capture.RootParentPid;root_start_ticks=$capture.RootStartTicks.ToString()
+            child_pid=$capture.ChildPid;child_parent_pid=$capture.ChildParentPid;child_start_ticks=$capture.ChildStartTicks.ToString()
+            root_exit_code=$capture.RootExitCode;child_exit_code=$capture.ChildExitCode
             identity_pinned_before_control=$capture.IdentityPinnedBeforeControl;root_alive_after_helper_exit=$capture.RootAliveAfterHelperExit;child_alive_after_helper_exit=$capture.ChildAliveAfterHelperExit
             lifecycle_settled=$capture.LifecycleSettled;frame_times_ms=@($capture.FrameMs.ToArray());exit_code=$capture.ExitCode;elapsed_ms=$capture.ExitMs}
     }
-    Write-Json ([ordered]@{schema_version=1;revision='a9-31-managed-r1';rows=$rows}) (Join-Path $EvidenceRoot 'v26-managed.json')
+    Write-Json ([ordered]@{schema_version=2;revision='a9-31-managed-r1';rows=$rows}) (Join-Path $EvidenceRoot 'v26-managed.json')
 }
 
 function Ensure-Directory([string]$Path) {
@@ -791,6 +855,9 @@ try {
 
     $lock = Get-Content -LiteralPath (Join-Path $KitRoot "input-lock.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $profile = Get-Content -LiteralPath (Join-Path $KitRoot "build-profile.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($profile.managed_contract.evidence_schema_version -ne 2 -or
+        $profile.managed_contract.parent_process_probe -cne 'Toolhelp32' -or
+        $profile.managed_contract.release_natural_exit_code -ne 0) { throw 'MANAGED_PROFILE_IDENTITY_CONTRACT_MISMATCH' }
     $profileId = [string]$profile.profile
     $sourceCommit = [string]$lock.source_commit
 

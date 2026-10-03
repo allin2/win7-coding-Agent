@@ -182,6 +182,42 @@ test('managed evidence proves both release/cancel control orders',()=>{
   const files=syntheticV26ManagedEvidence();
   assert.equal(verifyV26ManagedEvidence((name)=>Buffer.from(files[name.replace(/^evidence\//,'')])).status,'PASS_RELEASE_AND_CANCEL_LIFECYCLE');
 });
+for(const mode of ['old_schema','missing_helper','wrong_helper','wrong_root_parent','wrong_child_parent','same_pid',
+  'missing_helper_time','root_before_helper','child_before_root','invalid_ticks','unknown_root_exit','unknown_child_exit',
+  'release_root_failed','release_child_failed','cancel_exit_mismatch'])test('managed evidence rejects OS identity gap: '+mode,()=>{
+  const files=syntheticV26ManagedEvidence(),summary=JSON.parse(files['v26-managed.json']);
+  const row=summary.rows.find(r=>r.name===(mode==='cancel_exit_mismatch'?'cancel':'release'));
+  if(mode==='old_schema')summary.schema_version=1;
+  if(mode==='missing_helper')delete row.helper_pid;
+  if(mode==='wrong_helper')row.helper_pid=999;
+  if(mode==='wrong_root_parent')row.root_parent_pid=999;
+  if(mode==='wrong_child_parent')row.child_parent_pid=999;
+  if(mode==='same_pid')row.child_pid=row.helper_pid;
+  if(mode==='missing_helper_time')delete row.helper_start_ticks;
+  if(mode==='root_before_helper')row.helper_start_ticks='639000000000000001';
+  if(mode==='child_before_root')row.child_start_ticks='638999999999999999';
+  if(mode==='invalid_ticks')row.helper_start_ticks='9999999999999999999';
+  if(mode==='unknown_root_exit')row.root_exit_code=null;
+  if(mode==='unknown_child_exit')delete row.child_exit_code;
+  if(mode==='release_root_failed')row.root_exit_code=1;
+  if(mode==='release_child_failed')row.child_exit_code=1;
+  if(mode==='cancel_exit_mismatch')row.root_exit_code=2;
+  files['v26-managed.json']=JSON.stringify(summary);
+  assert.throws(()=>verifyV26ManagedEvidence(name=>Buffer.from(files[name.replace(/^evidence\//,'')])),/A9_V26_MANAGED_/);
+});
+test('managed evidence rejects protocol helper PID that disagrees with actual capture',()=>{
+  const files=syntheticV26ManagedEvidence(),name='v26-managed-release-stdout.jsonl';
+  const frames=files[name].trim().split('\n').map(JSON.parse);frames[0].helperPid=999;
+  files[name]=frames.map(JSON.stringify).join('\n')+'\n';
+  assert.throws(()=>verifyV26ManagedEvidence(name=>Buffer.from(files[name.replace(/^evidence\//,'')])),/A9_V26_MANAGED_READY_INVALID/);
+});
+for(const field of ['evidence_schema_version','parent_process_probe','release_natural_exit_code'])test('managed recorder rejects missing identity profile: '+field,()=>{
+  const f=fixture(true),profilePath=path.join(f.kit,'build-profile.json');
+  const profile=JSON.parse(fs.readFileSync(profilePath));delete profile.managed_contract[field];writeJson(profilePath,profile);
+  const opts=inputPair(f);
+  assert.throws(()=>recordA9V26HelperInput({...opts,lockId:'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'}),/A9_V26_MANAGED_PROFILE_CLOSURE/);
+  assert.equal(fs.existsSync(opts.output),false);
+});
 for(const mode of ['missing_release_cancel','reversed_control','release_cancel_reaped','release_cancel_wrong_receipt'])test('managed evidence rejects incomplete reverse race: '+mode,()=>{
   const files=syntheticV26ManagedEvidence(),summary=JSON.parse(files['v26-managed.json']);
   const row=summary.rows.find((r)=>r.name==='release-cancel');

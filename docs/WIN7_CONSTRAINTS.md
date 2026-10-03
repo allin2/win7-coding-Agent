@@ -369,3 +369,21 @@ Win32控制管道使用既有 `PeekNamedPipe`/`ReadFile` 非阻塞轮询；没�
 root/child进程句柄存活检查只在构建机测试捕获器；构建脚本实际PS5.1/C#编译仍NOT_PERFORMED。
 当前只有六个套件模板，source/ZIP/manifest/native SHA尚未正式绑定，managed锁NOT_LOCKED。
 旧A9-30 v26双构建及锁继续有效，不能替代本revision；新Windows返回证据必须严格审核。
+
+### A9-31 managed smoke OS身份查询登记（2026-10-03，ADR-0156 Proposed）
+
+仅待审，不授予实现或构建批准。构建机Windows PowerShell 5.1/.NET捕获器拟从系统Kernel32 P/Invoke
+CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)、Process32FirstW、Process32NextW及既有CloseHandle，
+只读记录PROCESSENTRY32W父进程PID；不复制系统DLL、不引入第三方库、不进入产品SBOM。
+[快照合同](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot)、
+[进程条目](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32)
+均声明最低XP；实际调用仅在D-017 Win10构建机，声明不代替实测。
+来源Microsoft Windows/系统许可，精确OS/工具版本和powershell/Kernel32哈希须绑定构建环境返回；不下载安装。
+进程查询失败/缺失/时间或父子身份冲突停止烟测，不要求管理员、WMI、UAC/ACL/服务修改或任意PID接管。
+快照CloseHandle、进程句柄钉住、creation ticks及真实退出码共同取证，不把一个PID当作持续身份。
+C15/C16来源与交付沿用D-017，EOL责任由项目承担；源码/套件哈希在具体后续提交和套件批准时锁定。
+证据schema2及精确六路径见[修复材料](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)。
+新API具体评审、实现、PS5.1/C#运行、双构建/实证返回、Electron及Win7仍待；历史锁/证据不改判。
+
+2026-10-03，负责人批准ADR-0156及精确六路径源码/本地检查。上述待审登记据此取得构建捕获器源码准入；
+实际系统API/PS5.1/C#、原生双构建和目标机证据仍NOT_PERFORMED，远端执行另行批准。

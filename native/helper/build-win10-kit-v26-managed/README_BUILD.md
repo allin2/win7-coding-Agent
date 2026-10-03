@@ -94,3 +94,16 @@ managed smoke 必须证明 release 前固定的根/子进程身份、回执后�
 回执后固定根/子身份仍存活及随后实际自然退出；缺行、控制次序/身份/回执错误均拒绝返回重锁。
 Runner 在 release 等回执时再收到 cancel 保持 UNKNOWN；确认 release 后 cancel 不再发送控制。
 这些源码/本地模拟证明不替代新 Windows 工件烟测。旧 r1 ZIP 不包含新增第四项，保留为未批准历史输入。
+
+### OS进程身份与退出结果（ADR-0156，2026-10-03）
+
+managed返回汇总v26-managed.json使用schema_version=2；旧schema1不用于新managed重锁。
+捕获器保留实际helper句柄/PID/UTC creation ticks，协议helperPid必须与实际进程一致。
+control前固定root/child句柄与creation ticks，且在父进程均存活时用只读Toolhelp32进程快照验证
+root parent=helper、marker child parent=root；creation顺序或marker错配、查询失败/缺失/提前退出均拒绝。
+Toolhelp32只在构建机调用系统Kernel32，不要求WMI/管理员、不调整权限；快照finally CloseHandle。
+固定句柄等待真实退出并记录root_exit_code/child_exit_code，未知不得填0。
+release和release-cancel须实际移交后仍存活、随后自然退出且根/子exit0；取消两组根退出码必须与协议终态一致。
+profile.managed_contract要求evidence_schema_version=2、parent_process_probe=Toolhelp32、release_natural_exit_code=0；
+捕获、profile和返回verifier任一错配均拒绝。此变化只涉及新managed证据，不改native协议、产品代码或A9-30历史锁。
+原r2独立FAIL_NOT_APPROVED保留；修复后需新source/new kit及独立复核，当前实际Windows smoke仍NOT_PERFORMED。

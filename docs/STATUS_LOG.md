@@ -1489,3 +1489,21 @@ SQLite跨Jest VM matcher误判根因及四行控制次序已修复，本地Runne
 当前仍为 `A9_31_IMPLEMENTATION_IN_PROGRESS`；源码提交、managed kit批准/双构建/新锁、真实Electron均未完成。
 本地模拟协议及POSIX进程检查不证明Windows Job；Win10/Win7新工件验证均 `NOT_PERFORMED`。
 A9-32/33未批准、候选未冻结，不签发第二批Win7 PASS或Alpha2/RC。
+
+### 2026-10-03 — A9-31 managed r2独立复核不通过
+
+负责人批准r3准确17文件提交及未批准新套件生成后，source=d9b5be502c9475e50c54b349a6a12abd27b199f8。
+managed r2 ZIP SHA=5172a895d62e2db63635c427b31e9e0ba24c277c0d032742a4f0a7656a6362c2，23文件闭包匹配。
+负责人明确要求“进行独立复核”；Luna high复核P0=0/P1=1/P2=0、FAIL_NOT_APPROVED。
+P1为构建smoke真实helper/root/child父子身份和release退出码证据缺口；主代理合成反例进一步复现错误接受。
+ADR-0156/系统API登记和精确六路径修复合同已形成，均待具体批准；没有修改实现、登记套件批准或运行构建。
+报告见[独立复核](reports/2026-10/a9_31_managed_r2_independent_kit_review_2026-10-03.md)，
+材料见[修复请求](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)。Win7及第二批正式门均NOT_PERFORMED。
+
+### 2026-10-03 — A9-31 ADR-0156身份修复本地交接
+
+负责人具体批准ADR-0156/六路径修复和本地检查；真实helper/root/child父子关系、时间和退出码/schema2闭合。
+独立发现reader超时资源收尾P2，修复后另冻输入并复跑kit90PASS/2 WindowsPS NOT_PERFORMED。
+独立静态P0/P1/P2=0；90直接+644精确继承=734唯一项，不将21定向/首轮重叠kit重复计数。
+源码尚未提交、新kit未生成、实际Windows/构建/Electron/Win7仍NOT_PERFORMED，原r2不改判。
+见[源码交接](reports/2026-10/a9_31_managed_identity_repair_source_handoff_2026-10-03.md)。
