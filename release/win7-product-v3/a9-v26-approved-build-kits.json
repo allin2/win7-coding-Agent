@@ -292,5 +292,37 @@
         "p2": 0
       }
     }
+  ],
+  "controller_retries": [
+    {
+      "id": "A9-31-managed-r3-controller-r2",
+      "status": "APPROVED_FOR_CONTROLLED_BUILD_LAUNCH",
+      "source_commit": "10114503a1e79706131ea4a11a5b96bd2958807a",
+      "kit_sha256": "0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1",
+      "launcher_file": "launch-managed-r3-controlled-build-r2.ps1",
+      "launcher_sha256": "14cc77765d4149d6c87f7cc3362ff733c37f31ed2671d8c6c951257b072dba45",
+      "launcher_size": 14330,
+      "dispatcher_sha256": "02a25bc8515781941adf8cf93ed66ad3b88cc89fbf8726fe269ec59c05365924",
+      "original_dispatcher_sha256": "05bfd2cbf98882c32d798bbeeed6e27f803c79a18833be0bd253a683d16c57c4",
+      "local_transport_sha256": "f3f4f86757b2f824772e00c311422a226d3d7d94623e6d0ed017dabe271cc609",
+      "creation_flags": 16,
+      "caller_requires_no_host_job": true,
+      "launch_record_file": "managed-r3-controlled-launch-r2.json",
+      "retained_failure_sha256": "c7a5b14ffffde3cd67175ddbc17f1c13b811f4ccb189a6174b30232c8973e4ea",
+      "request_limit": 2,
+      "validity_minutes": 60,
+      "independent_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_31_controller_r2_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_controller_r2_independent_review_2026-10-03.md",
+        "report_sha256": "aa449a22ba947d8f98e57ae8daa43c203703351e26f74b22af0da5b1dd663756",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "owner_approved_at": "2026-10-03"
+    }
   ]
 }

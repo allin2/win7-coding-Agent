@@ -2500,3 +2500,11 @@
 - 提案：仅构建机捕获器增加只读Toolhelp进程快照（CreateToolhelp32Snapshot/Process32FirstW/Process32NextW/CloseHandle），绑定实际helper句柄/PID/creation、root/child句柄/PID/creation/父PID，在相关父进程存活时完成钉住后才发control。任何未知/不符停止该smoke，不提升权限或回退WMI。来源为构建机系统Kernel32，不进入产品DLL或目标Win7运行时。
 - 格式：仅尚未批准managed返回证据v26-managed.json升schema_version=2，必需实际helper/父子身份、时间与真实退出码；release两组须固定根/子进程自然退出且exit0；cancel两组须根退出码与协议终态一致。旧证据不升级或重绑，A9-30/v1/v2锁和native协议不变。
 - 结果：批准后只在[精确修复材料](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)六项白名单内实施；源码提交、新kit批准/双构建、远端写入和候选门仍分别具体授权。当前原生/真实Electron/Win7均NOT_PERFORMED。
+
+## ADR-0157 A9-31 控制器调用者身份与不可覆盖的重试记录
+
+- 状态：Accepted（2026-10-03；负责人批准R2精确控制输入、独立只读复核、复核通过后四路径本地登记提交及既有范围内远端部署/普通用户双构建；原生与目标平台结论仍依据实际证据）
+- 背景：managed r3 首次启动在 CreateProcessW 的 breakaway 创建处返回 code 5，未记录调用者 Job/令牌；重复运行被已有失败记录阻断。只读查询确认当前 WorkBuddy 进程在 Job，普通桌面 CMD/Explorer 不在 Job；不能据此还原已退出的失败进程身份。
+- 提案：[R2 补批材料](plans/A9_31_MANAGED_R3_CONTROLLER_RETRY_APPROVAL.md)只增加固定启动入口及本地调度器。调用者先实测普通角色、非提升、Medium、SID1005/Session3、无 Job，再以 CREATE_NEW_CONSOLE 创建同令牌子进程；子进程沿用原 worker 再检查完整身份。未知或失败停止，不请求脱离 Job、不修改系统设置或提升权限。
+- 格式：原启动失败 JSON 保持原名/字节；新增 launch-r2 记录 schema_version=2，绑定调用者 PID/启动时间/SID/Session/完整令牌与 Job、实际创建结果、source/kit/批准登记及保留失败哈希。批准登记 schema_version=1 只追加 controller_retries 元数据，历史 kits 数组不改；缺失具体批准/独立报告/准确输入或依赖哈希拒绝启动和派发。
+- 后果：保持原两固定请求、60分钟和 BuildA→BuildB，原 native源码/23文件kit/六控制/构建目录及权限不变。调度器只把精确哈希的原首失败作为历史事实；任一新 FAIL/漂移/未知生命周期停止。实际输入部署与本地登记提交需具体授权，原生/真实Electron/Win7仍 NOT_PERFORMED，不自行签收口。
