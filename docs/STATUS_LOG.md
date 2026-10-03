@@ -1470,3 +1470,22 @@ A9-31/ADR-0151已批准，独立分支codex/a9-31-background-tools进入实施�
 四项故障注入反例红，恢复源码哈希一致；构建返回/装配负例及七模块静态检查见A9-31交接报告。
 仅本地源码/模拟协议/真实SQLite与POSIX证据，无managed Windows工件/锁或真实Electron/Win7新证据。
 源码提交等待确切清单批准，原生套件/目录/构建及独立复核分开；A9-32/33仍草稿，未推送或整合。
+
+### A9-31准确源码与managed r1独立复核修复（2026-10-03）
+
+r2准确51项批准后已本地提交2ecfc86d22bd7816cb75222db0917b25d32291a1，未推送/整合。
+r1技术闭包通过，独立P1审计解释/P2反向竞态缺口使原kit不获批准；原ZIP和首FAIL保留。
+SQLite跨Jest VM matcher误判根因及四行控制次序已修复，本地Runner166/Shell114与七模块检查通过。
+独立补充关闭本地P1/P2；修复未提交，新kit未形成，managed锁/构建/真实Electron/Win7仍待。
+见[修复交接](reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
+
+### A9-31源码提交更新前的当前快照原文（2026-10-03）
+
+### A9-31 本地实施（2026-10-03）
+
+负责人已批准C1准确25路径登记和C2任务/ADR-0151/68路径/增量合同。
+登记提交 `c2b6356f83ef8502a34516010924547c57a3bec2`，实现分支 `codex/a9-31-background-tools`。
+后台启动/有界游标读/停止、不可变归属、跨块脱敏与先审计、release意图/回执、退出选择已进入本地实现。
+当前仍为 `A9_31_IMPLEMENTATION_IN_PROGRESS`；源码提交、managed kit批准/双构建/新锁、真实Electron均未完成。
+本地模拟协议及POSIX进程检查不证明Windows Job；Win10/Win7新工件验证均 `NOT_PERFORMED`。
+A9-32/33未批准、候选未冻结，不签发第二批Win7 PASS或Alpha2/RC。

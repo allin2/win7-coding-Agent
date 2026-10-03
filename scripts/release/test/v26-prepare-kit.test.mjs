@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { recordA9V26HelperInput, verifyCommittedApprovalRegistry } from '../record-a9-v26-helper-input.mjs';
 import { writeDeterministicZip } from '../zip-utils.mjs';
-import { digest, writeJson, createV26ReturnFixture } from './v26-evidence-fixture.mjs';
+import { digest, writeJson, createV26ReturnFixture, syntheticV26ManagedEvidence } from './v26-evidence-fixture.mjs';
+import { verifyV26ManagedEvidence } from '../a9-v26-return-evidence.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
 const req=createRequire(import.meta.url);
 const {SOURCES,INPUTS}=req('../../../native/helper/build-win10-kit-v26/prepare-kit.cjs');
@@ -176,6 +177,23 @@ test('managed generator and recorder create a distinct lock only with pinned rel
   const f=fixture(true), opts=inputPair(f); const result=recordA9V26HelperInput({...opts,lockId:'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'});
   const lock=JSON.parse(fs.readFileSync(opts.output));assert.equal(lock.provenance.task,'A9-31');assert.equal(lock.inputs.runner_return_zip.profile,'D-013-v26-managed-a9-trusted-shell-current-user');
   assert.equal(lock.inputs.runner_return_zip.managed_contract.revision,'a9-31-managed-r1'); assert.equal(lock.gates.win7,'NOT_PERFORMED');
+});
+test('managed evidence proves both release/cancel control orders',()=>{
+  const files=syntheticV26ManagedEvidence();
+  assert.equal(verifyV26ManagedEvidence((name)=>Buffer.from(files[name.replace(/^evidence\//,'')])).status,'PASS_RELEASE_AND_CANCEL_LIFECYCLE');
+});
+for(const mode of ['missing_release_cancel','reversed_control','release_cancel_reaped','release_cancel_wrong_receipt'])test('managed evidence rejects incomplete reverse race: '+mode,()=>{
+  const files=syntheticV26ManagedEvidence(),summary=JSON.parse(files['v26-managed.json']);
+  const row=summary.rows.find((r)=>r.name==='release-cancel');
+  if(mode==='missing_release_cancel')summary.rows=summary.rows.filter((r)=>r!==row);
+  if(mode==='reversed_control')row.control=row.control.split('\n').reverse().join('\n');
+  if(mode==='release_cancel_reaped')row.child_alive_after_helper_exit=false;
+  if(mode==='release_cancel_wrong_receipt'){
+    const name='v26-managed-release-cancel-stdout.jsonl',frames=files[name].trim().split('\n').map(JSON.parse);
+    frames.at(-1).releaseId='release-cancel-release';files[name]=frames.map(JSON.stringify).join('\n')+'\n';
+  }
+  files['v26-managed.json']=JSON.stringify(summary);
+  assert.throws(()=>verifyV26ManagedEvidence((name)=>Buffer.from(files[name.replace(/^evidence\//,'')])),/A9_V26_/);
 });
 for(const mode of ['wrong_pid','lost_receipt','not_alive','not_settled','cancel_released','wrong_sequence','wrong_counts','old_profile','ready_input_attached','ready_token_incomplete','extra_frame_field'])test('managed recorder rejects '+mode,()=>{
   const f=fixture(true),opts=inputPair(f,(dir)=>{

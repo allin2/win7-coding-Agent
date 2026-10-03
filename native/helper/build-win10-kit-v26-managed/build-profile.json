@@ -154,7 +154,10 @@
       "evidence/v26-managed-cancel-stderr.bin",
       "evidence/v26-managed-cancel-release-request.json",
       "evidence/v26-managed-cancel-release-stdout.jsonl",
-      "evidence/v26-managed-cancel-release-stderr.bin"
+      "evidence/v26-managed-cancel-release-stderr.bin",
+      "evidence/v26-managed-release-cancel-request.json",
+      "evidence/v26-managed-release-cancel-stdout.jsonl",
+      "evidence/v26-managed-release-cancel-stderr.bin"
     ],
     "status_marker": "PACKAGE_MANIFEST records technical readiness; committed approval registry separately authorizes returns"
   },

@@ -86,3 +86,11 @@ SOURCE_COMMIT/TIMESTAMP 与生成源码/manifest/input-lock 必须在准确源�
 需要重新批准准确 kit ZIP/manifest/input-lock 以及构建机两个全新目录；旧 A9-30 授权不覆盖本批。
 managed smoke 必须证明 release 前固定的根/子进程身份、回执后仍存活、随后实际退出；取消先接受时不移交。
 任何身份、审计、回执或生命周期失败保留诊断包并阻断重锁，不安装依赖或调整系统策略。
+
+### managed 控制竞态复核补充（2026-10-03）
+
+新返回矩阵必须包含 release、cancel、cancel-release、release-cancel 四项。
+原生控制帧按接收顺序处理：cancel-first 必须证明树清理，release-first 必须收到准确 release 回执、
+回执后固定根/子身份仍存活及随后实际自然退出；缺行、控制次序/身份/回执错误均拒绝返回重锁。
+Runner 在 release 等回执时再收到 cancel 保持 UNKNOWN；确认 release 后 cancel 不再发送控制。
+这些源码/本地模拟证明不替代新 Windows 工件烟测。旧 r1 ZIP 不包含新增第四项，保留为未批准历史输入。

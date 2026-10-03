@@ -117,6 +117,8 @@ Current 192.168.1.4 SSH/TCP22 connection times out. The pretransfer guard did no
 负责人已批准C1准确25路径登记和C2任务/ADR-0151/68路径/增量合同。
 登记提交 `c2b6356f83ef8502a34516010924547c57a3bec2`，实现分支 `codex/a9-31-background-tools`。
 后台启动/有界游标读/停止、不可变归属、跨块脱敏与先审计、release意图/回执、退出选择已进入本地实现。
-当前仍为 `A9_31_IMPLEMENTATION_IN_PROGRESS`；源码提交、managed kit批准/双构建/新锁、真实Electron均未完成。
+当前仍为 `A9_31_IMPLEMENTATION_IN_PROGRESS`；准确源码已本地提交 `2ecfc86`，managed r1未获批准。
+独立提出的审计解释/反向竞态缺口已本地修复并复核；修复提交、新kit批准/双构建/新锁、真实Electron仍待，
+见[修复交接](reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
 本地模拟协议及POSIX进程检查不证明Windows Job；Win10/Win7新工件验证均 `NOT_PERFORMED`。
 A9-32/33未批准、候选未冻结，不签发第二批Win7 PASS或Alpha2/RC。

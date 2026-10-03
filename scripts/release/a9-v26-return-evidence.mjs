@@ -15,15 +15,15 @@ export const requiredV26Evidence = [
   'v25-env-overlay-reject-stdout.txt', 'v25-env-overlay-reject-stderr.txt',
 ].concat(['v26-streaming.json', 'v26-tools.json', ...['tick','utf8','cp936','utf16le','limit','cancel','backpressure'].flatMap((name) => [`v26-${name}-request.json`, `v26-${name}-stdout.jsonl`, `v26-${name}-stderr.bin`])]).map((name) => `evidence/${name}`);
 
-export const requiredV26ManagedEvidence = ['evidence/v26-managed.json', ...['release', 'cancel', 'cancel-release'].flatMap((name) =>
+export const requiredV26ManagedEvidence = ['evidence/v26-managed.json', ...['release', 'cancel', 'cancel-release', 'release-cancel'].flatMap((name) =>
   ['request.json', 'stdout.jsonl', 'stderr.bin'].map((suffix) => `evidence/v26-managed-${name}-${suffix}`))];
 
 export function verifyV26ManagedEvidence(read) {
   const json = (name) => JSON.parse(read('evidence/' + name).toString('utf8').replace(/^\uFEFF/, ''));
   const summary = json('v26-managed.json');
   check(summary.schema_version === 1 && summary.revision === 'a9-31-managed-r1' && Array.isArray(summary.rows)
-    && summary.rows.length === 3 && new Set(summary.rows.map((r) => r.name)).size === 3, 'MANAGED_MATRIX_INVALID');
-  for (const name of ['release', 'cancel', 'cancel-release']) {
+    && summary.rows.length === 4 && new Set(summary.rows.map((r) => r.name)).size === 4, 'MANAGED_MATRIX_INVALID');
+  for (const name of ['release', 'cancel', 'cancel-release', 'release-cancel']) {
     const row = summary.rows.find((r) => r.name === name), req = json(`v26-managed-${name}-request.json`);
     check(row && req.schemaVersion === 3 && req.profileId === 'a9-trusted-shell-current-user-v2' && req.managed === true
       && req.requestId === 'd013-v26-managed-' + name && req.maxStdoutBytes === 1048576 && req.maxStderrBytes === 1048576, 'MANAGED_REQUEST_INVALID');
@@ -55,7 +55,8 @@ export function verifyV26ManagedEvidence(read) {
     for (const stream of ['stdout','stderr']) check(terminal[stream]?.rawBytesRead === offsets[stream] && terminal[stream].emittedBytes === offsets[stream] && terminal[stream].omittedBytes === 0, 'MANAGED_TERMINAL_COUNTS');
     const controls = row.control.split('\n').map((line) => JSON.parse(line));
     check(controls.every((c) => exact(c, c.type === 'release' ? ['schemaVersion','type','requestId','releaseId'] : ['schemaVersion','type','requestId']) && c.schemaVersion === 3 && c.requestId === req.requestId), 'MANAGED_CONTROL_BINDING');
-    if (name === 'release') check(exact(terminal, ['schemaVersion','type','requestId','profileId','releaseId','childPid','lastOutputSeq','stdout','stderr','jobKillOnCloseDisabled','ownershipReleased']) && controls.length === 1 && controls[0].type === 'release' && controls[0].releaseId === 'release-release'
+    if (name === 'release' || name === 'release-cancel') check(exact(terminal, ['schemaVersion','type','requestId','profileId','releaseId','childPid','lastOutputSeq','stdout','stderr','jobKillOnCloseDisabled','ownershipReleased']) && controls.length === (name === 'release' ? 1 : 2) && controls[0].type === 'release' && controls[0].releaseId === 'release-' + name
+      && (name !== 'release-cancel' || controls[1].type === 'cancel')
       && terminal.type === 'execution_released' && terminal.releaseId === controls[0].releaseId && terminal.childPid === ready.childPid
       && terminal.jobKillOnCloseDisabled === true && terminal.ownershipReleased === true && row.root_alive_after_helper_exit === true && row.child_alive_after_helper_exit === true, 'MANAGED_RELEASE_NOT_PROVEN');
     else check(exact(terminal, ['schemaVersion','type','requestId','profileId','status','exitCode','executionTimeMs','timedOut','idleTimedOut','canceled','outputTruncated','containmentVerified','inputDetached','cleanupConfirmed','workDirAclModified','tokenAudit','hostJob','lastOutputSeq','stdout','stderr'])

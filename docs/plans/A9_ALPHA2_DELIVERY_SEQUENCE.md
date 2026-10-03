@@ -165,3 +165,11 @@ A9-31/ADR-0151已批准，独立分支codex/a9-31-background-tools进入实施�
 C1已提交c2b6356，C2批准A9-31/ADR-0151及精确68路径后在独立分支实施。
 [源码交接](A9_31_IMPLEMENTATION_HANDOFF.md)形成，本地定向与反例通过；managed工件/锁、实际Windows与独立收口待。
 A9-32/33仍草稿；WIN7-43仍只暂定，不复用候选、不改旧结论，不以本地检查提前签批次Win7 PASS。
+
+### A9-31源码与独立复核推进（2026-10-03）
+
+r2准确51项已批准并本地提交2ecfc86；managed r1因独立P1/P2证据缺口不获批准。
+修复与独立补充关闭审计matcher根因/反向竞态缺口；原kit和首FAIL保留。
+修复源码r3审批、新准确kit批准/双构建/新锁仍待，未推送或整合。
+见[修复交接](../reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
+A9-31保持IMPLEMENTATION_IN_PROGRESS；A9-32/33草稿，WIN7-43未冻结，不提前裁决Win7/Alpha2/RC。

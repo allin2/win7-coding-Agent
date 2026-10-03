@@ -321,3 +321,28 @@ test('unsolicited release and cancel-before-release cannot transfer ownership', 
   send(child, releasedV3()); child.emit('close', 0);
   await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
 });
+test('cancel during an unacknowledged release remains unknown and cannot send an opposing control', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const release = managed.release!('release-1'); managed.cancel();
+  await expect(release).rejects.toThrow('RELEASE_UNKNOWN');
+  await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
+  send(child, releasedV3()); child.emit('close', 0);
+  expect(controls.filter((s) => s.includes('"type":"release"'))).toHaveLength(1);
+  expect(controls.some((s) => s.includes('"type":"cancel"'))).toBe(false);
+  expect(child.kill).not.toHaveBeenCalled();
+});
+test('cancel after a confirmed release leaves ownership transferred and sends no further control', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const release = managed.release!('release-1'); send(child, releasedV3()); child.emit('close', 0);
+  await expect(release).resolves.toMatchObject({ ownershipReleased: true });
+  managed.cancel();
+  await expect(managed.completion).resolves.toMatchObject({ kind: 'response', response: { type: 'execution_released' } });
+  expect(controls.some((s) => s.includes('"type":"cancel"'))).toBe(false);
+  expect(child.kill).not.toHaveBeenCalled();
+});

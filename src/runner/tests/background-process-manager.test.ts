@@ -472,6 +472,35 @@ it('v3 audits release intent and receipt, and never treats missing acknowledgeme
   expect(broken.m.list()[0]).toMatchObject({ ownershipState: 'release_unknown', cleanupRequired: true });
   expect(broken.m.getActiveCount()).toBe(1);
 });
+it('v3 rejects Stop while release is pending or completed without sending cancel', async () => {
+  const f = managedFixture(); await f.start();
+  const invocation = f.transport.startManaged.mock.results[0].value;
+  const originalRelease = invocation.release;
+  let unblock!: () => void; const gate = new Promise<void>((r) => { unblock = r; });
+  invocation.release = jest.fn(async (id: string) => { await gate; return originalRelease(id); });
+  const pending = f.m.dispose({ stopManaged: false });
+  expect(f.m.list()[0].ownershipState).toBe('release_intent');
+  await expect(f.m.stopOwned('handle', managedOwner)).rejects.toMatchObject({ code: 'A9_MANAGED_OWNERSHIP_UNCONFIRMED' });
+  expect(invocation.cancel).not.toHaveBeenCalled();
+  unblock(); await expect(pending).resolves.toEqual({ stopped: [], leftToSystem: ['handle'], unresolved: [] });
+  await expect(f.m.stopOwned('handle', managedOwner)).rejects.toMatchObject({ code: 'A9_MANAGED_HANDLE_UNKNOWN' });
+  expect(invocation.cancel).not.toHaveBeenCalled();
+});
+it('v3 Stop before release proves stopped and cannot later report leftToSystem', async () => {
+  const f = managedFixture(); await f.start();
+  const invocation = f.transport.startManaged.mock.results[0].value;
+  invocation.cancel = jest.fn(() => f.resolve({ kind: 'response', response: {
+    schemaVersion: 3, type: 'execution_result', requestId: 'req', profileId: 'a9-trusted-shell-current-user-v2',
+    status: 'completed', exitCode: 1, executionTimeMs: 1, timedOut: false, idleTimedOut: false, canceled: true,
+    outputTruncated: false, containmentVerified: true, inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
+    tokenAudit: helperReady(345, 'req').tokenAudit,
+    hostJob: { detected: false, breakaway: 'none', limitFlags: 0x2000, childJobAssignmentVerified: true },
+    lastOutputSeq: 0, stdout: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 },
+  } }));
+  await expect(f.m.stopOwned('handle', managedOwner)).resolves.toMatchObject({ status: 'stopped', cleanupRequired: false });
+  await expect(f.m.dispose({ stopManaged: false })).resolves.toEqual({ stopped: [], leftToSystem: [], unresolved: [] });
+  expect(invocation.cancel).toHaveBeenCalledTimes(1); expect(invocation.release).not.toHaveBeenCalled();
+});
 it('v3 publishes no output when mandatory output audit fails', async () => {
   const f = managedFixture(undefined, () => { throw new Error('audit failed'); }); await f.start();
   await expect(f.output('visible tick\n')).rejects.toThrow('audit failed');

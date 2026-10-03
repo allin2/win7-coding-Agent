@@ -123,3 +123,12 @@ Core185、Runner162、State70、Shell113规定项通过，4类故障反例红且
 Mac原生逻辑PASS只覆盖平台无关逻辑。源码未提交，managed模板未正式批准，新锁NOT_LOCKED；
 Windows原生/真实Electron/Win7、独立收口复核均NOT_PERFORMED。Phase-Gate继续IMPLEMENTATION_IN_PROGRESS。
 本节不批准源码提交、远端写入、构建、整合或任何候选门。
+
+## 8. 源码提交、独立复核与修复（2026-10-03）
+
+负责人具体批准r2的51项字节，source2ecfc86d22bd7816cb75222db0917b25d32291a1已本地提交，父为C1。
+managed r1生成但未批准；独立Luna high提出P1审计历史解释/P2反向竞态缺口。
+两项在原白名单内修复且本地证据/独立补充闭环；原r1和首失败不改判。
+修复提交审批r3待负责人回复，后续准确kit哈希/构建/整合仍需各自授权。
+见[修复交接](../reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
+Phase-Gate仍A9_31_IMPLEMENTATION_IN_PROGRESS，Windows双构建/真实Electron/Win7均NOT_PERFORMED。

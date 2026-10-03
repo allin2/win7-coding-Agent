@@ -82,6 +82,37 @@ it.each(['tick\n', 'visible tick\n', '中文 late output\r\n'])('late mandatory 
     expect(f.db.prepare("SELECT count(*) n FROM a9_events WHERE event_type='tool_output'").get().n).toBe(0);
   } finally { f.close(); }
 });
+it('identifies the historical cross-realm SqliteError matcher failure without weakening audit assertions', async () => {
+  const f = await scenario(true);
+  const req = createRequire(path.resolve(__dirname, '../../product/a9-agent-runtime.js'));
+  const addon = req(path.resolve(path.dirname(req.resolve('better-sqlite3')), '../build/Release/better_sqlite3.node'));
+  let originalConstructor: any;
+  try { f.db.exec('SELECT * FROM audit_matcher_missing_table'); }
+  catch (error) { originalConstructor = Object.getPrototypeOf(error).constructor; }
+  const foreign: any = { module: { exports: {} } };
+  vm.runInNewContext(fs.readFileSync(path.resolve(path.dirname(req.resolve('better-sqlite3')), 'sqlite-error.js'), 'utf8'), foreign);
+  // The native addon retains its first initialized constructor across Jest VMs.
+  // Reproduce that prior-suite realm explicitly, then restore its constructor.
+  addon.setErrorConstructor(foreign.module.exports);
+  try {
+    let caught: any; try { await f.output('tick\n'); } catch (error) { caught = error; }
+    expect(caught?.message).toContain('disk failed');
+    expect(caught?.name).toBe('SqliteError');
+    expect(Object.prototype.toString.call(caught)).toBe('[object Object]');
+    expect(caught instanceof Error).toBe(false);
+    // A prior realm's SQLite Error prototype differs from this Jest VM's,
+    // so rejects.toThrow misclassifies an actual rejected audit write.
+    let matcherFailure: any;
+    try { await expect(Promise.reject(caught)).rejects.toThrow('disk failed'); }
+    catch (error) { matcherFailure = error; }
+    expect(matcherFailure?.message).toContain('Received function did not throw');
+    await expect(Promise.reject(new Error(caught.message))).rejects.toThrow('disk failed');
+    expect(f.trace().audited).toBe(1);
+    expect(f.manager.readOutput('h', f.manager.list()[0].owner!).entries).toEqual([]);
+    expect(f.db.prepare("SELECT count(*) n FROM a9_events WHERE event_type='tool_output'").get().n).toBe(0);
+    expect((await f.runtime.submitTurn('retry')).error.code).toBe('A9_AUDIT_PERSISTENCE_FAILED');
+  } finally { addon.setErrorConstructor(originalConstructor); f.close(); }
+});
 it('lost release acknowledgement retains workspace lock and visible unknown ownership', async () => {
   const f = await scenario(false, true); try {
     const result = await f.runtime.shutdown({ stopManaged: false }); expect(result.leftToSystem).toEqual([]); expect(result.unresolved).toHaveLength(1);

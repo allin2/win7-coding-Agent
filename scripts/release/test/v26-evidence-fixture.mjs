@@ -36,21 +36,21 @@ export function syntheticV26Evidence() {
 }
 export function syntheticV26ManagedEvidence() {
   const files = {}, rows = [];
-  for (const name of ['release','cancel','cancel-release']) {
+  for (const name of ['release','cancel','cancel-release','release-cancel']) {
     const requestId = 'd013-v26-managed-' + name, profileId = 'a9-trusted-shell-current-user-v2';
     const marker = Buffer.from('A9_RELEASE_CHILD:222:639000000000000001\n');
     files[`v26-managed-${name}-request.json`] = JSON.stringify({ schemaVersion: 3, profileId, requestId, managed: true, maxStdoutBytes: 1048576, maxStderrBytes: 1048576 });
     const tokenAudit = { source:'suspended_child_process_token', verified:true, tokenType:'primary', tokenMode:'current_user', sameUser:true, restrictedToken:false, lowIntegrity:false, integritySid:'S-1-16-8192', integrityRid:8192 };
     const frames = [{schemaVersion:3,profileId,requestId,type:'execution_started',helperPid:110,childPid:111,ready:{childJobAssignmentVerified:true,inputDetached:true,stdoutCaptureReady:true,stderrCaptureReady:true},tokenAudit},
       {schemaVersion:3,profileId,requestId,type:'output_chunk',stream:'stdout',seq:1,streamOffset:0,byteLength:marker.length,dataBase64:marker.toString('base64')},
-      {schemaVersion:3,profileId,requestId,type:name==='release'?'execution_released':'execution_result',lastOutputSeq:1,
+      {schemaVersion:3,profileId,requestId,type:['release','release-cancel'].includes(name)?'execution_released':'execution_result',lastOutputSeq:1,
         stdout:{rawBytesRead:marker.length,emittedBytes:marker.length,omittedBytes:0},stderr:{rawBytesRead:0,emittedBytes:0,omittedBytes:0},
-        ...(name==='release'?{releaseId:'release-release',childPid:111,jobKillOnCloseDisabled:true,ownershipReleased:true}:{status:'completed',exitCode:1,executionTimeMs:500,timedOut:false,idleTimedOut:false,canceled:true,outputTruncated:false,cleanupConfirmed:true,containmentVerified:true,inputDetached:true,workDirAclModified:false,tokenAudit,hostJob:{detected:false,breakaway:'none',limitFlags:0x2000,childJobAssignmentVerified:true}})}];
+        ...(['release','release-cancel'].includes(name)?{releaseId:'release-'+name,childPid:111,jobKillOnCloseDisabled:true,ownershipReleased:true}:{status:'completed',exitCode:1,executionTimeMs:500,timedOut:false,idleTimedOut:false,canceled:true,outputTruncated:false,cleanupConfirmed:true,containmentVerified:true,inputDetached:true,workDirAclModified:false,tokenAudit,hostJob:{detected:false,breakaway:'none',limitFlags:0x2000,childJobAssignmentVerified:true}})}];
     files[`v26-managed-${name}-stdout.jsonl`] = frames.map(JSON.stringify).join('\n')+'\n'; files[`v26-managed-${name}-stderr.bin`]='';
     const release = JSON.stringify({schemaVersion:3,type:'release',requestId,releaseId:'release-'+name});
     const cancel = JSON.stringify({schemaVersion:3,type:'cancel',requestId});
-    rows.push({name,control:name==='release'?release:name==='cancel'?cancel:cancel+'\n'+release,root_pid:111,root_start_ticks:'639000000000000000',child_pid:222,child_start_ticks:'639000000000000001',
-      identity_pinned_before_control:true,lifecycle_settled:true,root_alive_after_helper_exit:name==='release',child_alive_after_helper_exit:name==='release',exit_code:0,elapsed_ms:1000,frame_times_ms:[1,10,500]});
+    rows.push({name,control:name==='release'?release:name==='cancel'?cancel:name==='release-cancel'?release+'\n'+cancel:cancel+'\n'+release,root_pid:111,root_start_ticks:'639000000000000000',child_pid:222,child_start_ticks:'639000000000000001',
+      identity_pinned_before_control:true,lifecycle_settled:true,root_alive_after_helper_exit:['release','release-cancel'].includes(name),child_alive_after_helper_exit:['release','release-cancel'].includes(name),exit_code:0,elapsed_ms:1000,frame_times_ms:[1,10,500]});
   }
   files['v26-managed.json']=JSON.stringify({schema_version:1,revision:'a9-31-managed-r1',rows}); return files;
 }

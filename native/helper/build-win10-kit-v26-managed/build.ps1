@@ -414,7 +414,7 @@ $TranscriptPath = Join-Path $EvidenceRoot "build-transcript.txt"
 
 function Invoke-V26ManagedSmoke([string]$Helper, [System.Collections.IDictionary]$Template) {
     $rows=@();$ps=Join-Path $PSHOME 'powershell.exe'
-    foreach($name in @('release','cancel','cancel-release')) {
+    foreach($name in @('release','cancel','cancel-release','release-cancel')) {
         $request=[ordered]@{};foreach($key in $Template.Keys){$request[$key]=$Template[$key]}
         $request['schemaVersion']=3;$request['profileId']='a9-trusted-shell-current-user-v2';$request['managed']=$true
         $request['requestId']='d013-v26-managed-'+$name;$request['envOverlay']=[ordered]@{}
@@ -429,14 +429,16 @@ function Invoke-V26ManagedSmoke([string]$Helper, [System.Collections.IDictionary
         $control=([ordered]@{schemaVersion=3;type='release';requestId=$request.requestId;releaseId='release-'+$name}|ConvertTo-Json -Compress)
         if($name -ne 'release') {
             $cancel=([ordered]@{schemaVersion=3;type='cancel';requestId=$request.requestId}|ConvertTo-Json -Compress)
-            if($name -eq 'cancel'){$control=$cancel}else{$control=$cancel+"`n"+$control}
+            if($name -eq 'cancel'){$control=$cancel}
+            elseif($name -eq 'release-cancel'){$control=$control+"`n"+$cancel}
+            else{$control=$cancel+"`n"+$control}
         }
         Write-Json $request (Join-Path $EvidenceRoot ('v26-managed-'+$name+'-request.json'))
         $stdout=Join-Path $EvidenceRoot ('v26-managed-'+$name+'-stdout.jsonl');$stderr=Join-Path $EvidenceRoot ('v26-managed-'+$name+'-stderr.bin')
         $capture=[A9V26Capture]::Run($Helper,($request|ConvertTo-Json -Depth 12 -Compress),$control,$stdout,$stderr,0)
         if($capture.TimedOut -or $capture.ReaderFailed -or !$capture.CancelWritten -or !$capture.IdentityPinnedBeforeControl -or !$capture.LifecycleSettled -or $capture.ExitCode -ne 0 -or (Get-Item $stderr).Length -ne 0){throw 'MANAGED_CAPTURE_OR_LIFECYCLE_FAILED'}
-        if($name -eq 'release' -and (!$capture.RootAliveAfterHelperExit -or !$capture.ChildAliveAfterHelperExit)){throw 'MANAGED_RELEASE_SURVIVAL_FAILED'}
-        if($name -ne 'release' -and ($capture.RootAliveAfterHelperExit -or $capture.ChildAliveAfterHelperExit)){throw 'MANAGED_CANCEL_REAP_FAILED'}
+        if($name -in @('release','release-cancel') -and (!$capture.RootAliveAfterHelperExit -or !$capture.ChildAliveAfterHelperExit)){throw 'MANAGED_RELEASE_SURVIVAL_FAILED'}
+        if($name -in @('cancel','cancel-release') -and ($capture.RootAliveAfterHelperExit -or $capture.ChildAliveAfterHelperExit)){throw 'MANAGED_CANCEL_REAP_FAILED'}
         $rows+=[ordered]@{name=$name;control=$control;root_pid=$capture.RootPid;root_start_ticks=$capture.RootStartTicks.ToString();child_pid=$capture.ChildPid;child_start_ticks=$capture.ChildStartTicks.ToString()
             identity_pinned_before_control=$capture.IdentityPinnedBeforeControl;root_alive_after_helper_exit=$capture.RootAliveAfterHelperExit;child_alive_after_helper_exit=$capture.ChildAliveAfterHelperExit
             lifecycle_settled=$capture.LifecycleSettled;frame_times_ms=@($capture.FrameMs.ToArray());exit_code=$capture.ExitCode;elapsed_ms=$capture.ExitMs}
