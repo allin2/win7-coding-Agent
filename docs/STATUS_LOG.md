@@ -1507,3 +1507,16 @@ ADR-0156/系统API登记和精确六路径修复合同已形成，均待具体�
 独立静态P0/P1/P2=0；90直接+644精确继承=734唯一项，不将21定向/首轮重叠kit重复计数。
 源码尚未提交、新kit未生成、实际Windows/构建/Electron/Win7仍NOT_PERFORMED，原r2不改判。
 见[源码交接](reports/2026-10/a9_31_managed_identity_repair_source_handoff_2026-10-03.md)。
+
+## 2026-10-03 A9-31准确source及managed r3前置
+
+16项批准源码已提交10114503a1e79706131ea4a11a5b96bd2958807a，新managed r3闭包23项，
+ZIP0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1。
+独立只读复核PASS_FOR_OWNER_KIT_APPROVAL，P0/P1/P2=0/0/0；旧r1/r2不改判。
+准确套件登记/三目标目录/SID1005权限/四v1 fixture/双构建材料待具体审批，尚无新远端写入。
+普通SSH受Bitvise许可证限制；使用已在线普通桌面的固定控制器方案，不改profile/账户/许可证。
+[具体审批包](plans/A9_31_MANAGED_R3_WIN10_BUILD_APPROVAL.md)记录范围和失败边界，Win7 NOT_PERFORMED。
+
+2026-10-03，负责人对managed r3审批包回复“批准上述具体套件登记和构建范围”。
+批准24路径本地登记、三新Win10目录/SID1005权限/四v1 fixture、普通桌面固定双构建控制器及回收。
+尚未执行的构建/新锁/Electron/Win7不改判；不推送、合并或改账户/profile/许可证。

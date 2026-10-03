@@ -127,3 +127,13 @@ Current 192.168.1.4 SSH/TCP22 connection times out. The pretransfer guard did no
 旧r1/r2及失败证据保留；新kit批准/双构建/新锁、真实Electron均未执行。
 本地模拟协议及POSIX进程检查不证明Windows Job；Win10/Win7新工件验证均 `NOT_PERFORMED`。
 A9-32/33未批准、候选未冻结，不签发第二批Win7 PASS或Alpha2/RC。
+
+### A9-31 managed r3 构建前置补录（2026-10-03）
+
+准确source10114503a1e79706131ea4a11a5b96bd2958807a已按16文件批准提交；
+managed r3套件已生成、独立复核P0/P1/P2=0/0/0。
+[具体套件登记/Win10双构建范围](plans/A9_31_MANAGED_R3_WIN10_BUILD_APPROVAL.md)已形成待裁决材料。
+原生构建、managed新锁、真实Electron及Win7 NOT_PERFORMED，A9-31保持IMPLEMENTATION_IN_PROGRESS。
+
+managed r3具体套件登记及Win10双构建范围已获负责人批准（2026-10-03），按准确24路径追加本地提交。
+范围及未执行边界见上述审批包；构建结果仍待实际普通用户执行，不由批准推导PASS。

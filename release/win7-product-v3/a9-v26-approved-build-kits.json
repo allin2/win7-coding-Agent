@@ -203,6 +203,94 @@
         ],
         "scope": "Win10 native double-build return closure only; backpressure bounded fail-closed, cleanup UNKNOWN; no product/Electron/Win7/DEVELOPER_VERIFIED acceptance."
       }
+    },
+    {
+      "revision": "A9-31-D013-V26-MANAGED-r3",
+      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "filename": "A9_31_V26_MANAGED_BUILDKIT_r3.zip",
+      "sha256": "0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1",
+      "source_commit": "10114503a1e79706131ea4a11a5b96bd2958807a",
+      "input_lock_sha256": "5d3159712d77ccd89e0a38e7e89379562685c98cc208d0b48c4d9f34912a68b4",
+      "package_manifest_sha256": "82ae5dd5539a85facade3b8aea6659e15bcede90e0601fd6cca075912ca248de",
+      "approved_by": "user",
+      "approved_at": "2026-10-03T09:44:56.498796+08:00",
+      "approval_scope": "User explicitly approved reviewed managed r3 kit and exact 24-path local registration commit; three D-drive directories/SID1005 Modify, parent read/execute only if needed, four exact owned noninheriting WRITE_OWNER fixtures, fixed same-token Session3 controller, two gated clean builds and evidence return. No push, merge, account/profile/license changes.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_31_managed_r2_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_independent_kit_review_2026-10-03.md",
+        "report_sha256": "59b365b9885c8248dd864914d3f8060e014f0f4398e934eac5b1015853ccda29",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "build_user_sid": "S-1-5-21-3031939772-989444280-3099258187-1005",
+      "approved_write_targets": [
+        "D:\\A9-A31-V26-MANAGED-20261003\\control",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-a",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-b"
+      ],
+      "v1_fixture_write_owner_targets": [
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-a\\work\\smoke\\allowed",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-a\\work\\smoke\\cancel-allowed",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-b\\work\\smoke\\allowed",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-b\\work\\smoke\\cancel-allowed"
+      ],
+      "control_scripts": [
+        {
+          "file": "launch-managed-r3-controlled-build.ps1",
+          "size": 9584,
+          "sha256": "e335c59f695d13d0f451d394a7990f5111d1503f6f5153b00b349ec733e7afc3"
+        },
+        {
+          "file": "managed-r3-standard-worker.ps1",
+          "size": 10139,
+          "sha256": "aa4175d1f5052bbfeddd680e7fdd1e5a95e9f0e12bc240c440abc378507a7059"
+        },
+        {
+          "file": "serve-managed-r3-controlled-build.ps1",
+          "size": 4419,
+          "sha256": "f57896c288e826342b536307ebc53873eda704b5b5a4f2bce13ca8c0fe5c2678"
+        },
+        {
+          "file": "stage-managed-r3-kit.ps1",
+          "size": 5471,
+          "sha256": "3f6e0cf45d90cf6d33c2e2484b45e5a372690ddc1e11b7e3badb7c2a746a8621"
+        },
+        {
+          "file": "test-managed-r3-input-closure.ps1",
+          "size": 2360,
+          "sha256": "2d51d120e0ab36e039d847243e51c9363c3e970b688efd67a59e678f3dcc93cd"
+        },
+        {
+          "file": "verify-managed-r3-registry-head.py",
+          "size": 2426,
+          "sha256": "9381f52996733554918f3491c9e4c823b8cd6d2c3401b8db05c24c94e045e3b1"
+        }
+      ],
+      "build_conditions": [
+        "ordinary SID1005 Medium, non-elevated, no Host Job, interactive Session3",
+        "actual PS5.1 syntax/negative checks before build",
+        "exact clean committed registry/report/control inputs",
+        "two fresh independently staged inputs; failure stops BuildB/relock/assembly",
+        "four exact owned empty v1 fixture self noninheriting WRITE_OWNER only",
+        "controller max2 fixed requests in60minutes; no arbitrary commands"
+      ],
+      "independent_control_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_31_managed_r2_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_control_inputs_independent_review_2026-10-03.md",
+        "report_sha256": "41e721c6770f6a5d08cc12d4be413db60a8dc71028dee505acd1b1ef61d71d75",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      }
     }
   ]
 }

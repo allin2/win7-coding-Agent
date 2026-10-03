@@ -157,3 +157,19 @@ r2和旧r1失败保留；本任务仍IMPLEMENTATION_IN_PROGRESS，原生双构�
 [源码交接](../reports/2026-10/a9_31_managed_identity_repair_source_handoff_2026-10-03.md)登记90直接+644继承。
 原r2 FAIL_NOT_APPROVED不改判，源码未提交、新kit未生成；实际PS/C#、双构建、Electron和Win7仍NOT_PERFORMED。
 准确r4源码提交和从新source生成未批准r3 ZIP待负责人具体批准，不含套件登记/构建/整合。
+
+## 12. 准确r4源码提交与r3套件独立复核（2026-10-03）
+
+负责人要求执行两个前置步骤并构建，准确16项源码已提交为10114503a1e79706131ea4a11a5b96bd2958807a，
+从该source生成managed r3，独立复核P0/P1/P2=0/0/0，PASS_FOR_OWNER_KIT_APPROVAL。
+详见[独立报告](../reports/2026-10/a9_31_managed_r3_independent_kit_review_2026-10-03.md)及
+[具体登记/Win10构建审批包](../plans/A9_31_MANAGED_R3_WIN10_BUILD_APPROVAL.md)。
+一般构建指令未预先指定新远端目录/ACL；准确套件登记及本包具体范围仍待负责人裁决。
+原r1/r2与失败证据保持不变，原生/真实Electron/Win7 NOT_PERFORMED；Phase-Gate不升级。
+
+## 13. managed r3套件登记及准确Win10双构建批准（2026-10-03）
+
+负责人回复“批准上述具体套件登记和构建范围”，批准[具体审批包](../plans/A9_31_MANAGED_R3_WIN10_BUILD_APPROVAL.md)
+的r3套件、24路径登记提交、三新目录及SID1005权限/四v1 fixture、受控双构建和回收。
+套件与六控制输入独立复核均P0/P1/P2=0；必须在正式构建前通过普通身份和完整PS ParseFile硬门。
+不推送/合并，不修改账户/profile/许可证；Phase-Gate不提升，后续返回复核/重锁/Electron/Win7按合同。
