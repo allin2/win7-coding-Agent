@@ -200,3 +200,14 @@ ADR-0158 Proposed及[准确十路径登记/五路径重锁审批包](../plans/A9
 独立报告0/1/0、原NOT_APPROVED准入结论及controller exit/tree UNKNOWN保留；
 准入由负责人具体裁决单独登记。旧ADR-0157、原返回/失败/候选不改。
 正式提交和锁结果仍待本次实际执行，不签DEVELOPER_VERIFIED；真实Electron/Win7 NOT_PERFORMED。
+
+
+## 17. managed r3正式输入重锁（2026-10-03）
+
+按负责人ADR-0158和精确格式补批，十路径登记提交为 `dcf541892ec3ee5f5413833206f07efa3f3ee6e2`；
+正式managed输入锁生成/回读PASS，SHA-256 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e`，7905 bytes。
+[准确审批/执行记录](../plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)绑定原生source10114503、
+helper2036bf69…51e4b7、两个run-id/返回及clean committed批准registry；旧锁不改。
+独立P1=1、controller exit/tree UNKNOWN和原生背压缺终态保留，只解除本包离线原生输入准入。
+本节及锁仅按五路径批准登记；Phase-Gate继续A9_31_IMPLEMENTATION_IN_PROGRESS。
+产品装配/真实Electron和Win7 NOT_PERFORMED，尚未DEVELOPER_VERIFIED，不推送/整合/发布。

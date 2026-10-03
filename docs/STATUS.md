@@ -162,3 +162,14 @@ ADR-0158 Proposed与[具体登记/重锁材料](plans/A9_31_MANAGED_R3_RETURN_RE
 准确两个原生返回允许离线重锁；独立P1=1与控制器退出码/完整树UNKNOWN保留，不改历史证据。
 正在执行本地登记/锁生成，未签开发机收口；新远端执行、真实Electron和Win7 NOT_PERFORMED。
 A9-31仍IMPLEMENTATION_IN_PROGRESS；不推送/整合/发布，候选未分配。
+
+
+### A9-31 managed r3正式重锁（2026-10-03）
+
+准确十路径登记提交 `dcf541892ec3ee5f5413833206f07efa3f3ee6e2`，正式managed输入锁生成并回读PASS：
+SHA-256 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e`（7905 bytes）。
+原生source10114503、双返回/kit和helper2036bf69…51e4b7绑定新登记HEAD；历史输入保持原字节。
+[执行记录](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)是本轮事实入口。
+独立P1=1、controller退出码/完整树UNKNOWN保持，仅按ADR-0158批准两个返回离线准入。
+新锁/执行结果只按批准五路径登记；A9-31仍IMPLEMENTATION_IN_PROGRESS，产品装配/真实Electron/Win7 NOT_PERFORMED。
+后续需新的产品验证输入/控制器具体合同，不恢复旧控制器，不分配候选，不推送/合并/发布。

@@ -152,3 +152,25 @@ A9-31保持IMPLEMENTATION_IN_PROGRESS。前文待审状态为历史时点，以�
 新归档报告SHA-256 `d3067b1858846010ffdcef7403ccc0369873b5763e04aa7d568800678eab71e0`。
 复核正文、原结论NOT_APPROVED_FOR_INPUT_LOCK、P0/P1/P2=0/1/0不变；
 controller exit/tree UNKNOWN和ADR-0158有限范围不变，继续原十路径提交及五路径锁登记。
+
+
+## 9. 准确登记提交及正式重锁结果（2026-10-03）
+
+第一提交 `dcf541892ec3ee5f5413833206f07efa3f3ee6e2`：准确十路径blob与负责人批准/格式补批快照逐项一致，提交后工作树干净。
+正式registry SHA-256 `de75a45050d1c38d168746542fc1837dd4cabbe13769b1fc3a3f33eb125a2e38`，报告归档SHA按上节格式补批绑定，
+owner_decision已批准，独立原结论/0-1-0和controller UNKNOWN保留。
+
+已在上述clean committed HEAD使用§5准确正式命令生成新managed输入锁；生成时间
+`2026-10-03T07:20:10.862Z`，回读时间 `2026-10-03T07:24:58.065831Z`。
+锁路径 [a9-v26-managed-input-lock.json](../../release/win7-product-v3/a9-v26-managed-input-lock.json)，
+7905 bytes / SHA-256 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e`。
+helper/source/kit/Profile/approvalHEAD、两run-id/返回SHA及evidence-binding SHA全部回读PASS；
+helper为361472bytes/SHA2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7，两个字节相同。
+旧A9-30/W42/v25/v24输入字节保持原绑定。实际证据在候选外
+`.acceptance/a9-31-developer/native-kit-r3/formal-managed-input-lock-20261003T072010Z/`，原命令/日志/锁/回读结果完整保存。
+
+当前结果 `NATIVE_INPUT_LOCKED_NOT_DEVELOPER_VERIFIED`；本节及锁只按原批准五路径登记。
+准确第二提交SHA与blob核验结果保存在该证据目录的commit-verification.json，避免文档自引用commit。
+Win10 gate仅为PASS_D013_V26_RETURN_REVIEWED原生准入，产品装配/完整性、真实Electron、Win7及Alpha均未执行。
+独立P1=1、controller exit/tree UNKNOWN及原生背压终态缺失仍保留；不恢复旧控制器、不新增远端执行。
+不推送/合并/发布、不分配WIN7-43、不签开发机/Alpha2/RC或Win7 PASS。

@@ -1547,3 +1547,16 @@ helper361472bytes/SHA2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab5
 十路径本地登记提交及五路径锁登记提交开始执行；仅两个准确managed r3返回允许离线重锁。
 独立P1=1/原NOT_APPROVED准入结论保留，由负责人单独准入；控制器退出码/完整树UNKNOWN不改判。
 不重编、不写远端、不推送/合并/发布；真实Electron/Win7 NOT_PERFORMED，Phase-Gate不升级。
+
+
+### 2026-10-03 — A9-31准确十路径登记与managed正式锁生成
+
+7处Markdown硬换行触发首轮暂存检查FAIL；负责人精确补批仅删除14字节并同步报告SHA，原版/失败日志保留。
+格式修正后docs检查237文件/48任务及暂存/未暂存diff检查通过，准确十路径提交 `dcf541892ec3ee5f5413833206f07efa3f3ee6e2`。
+正式记录器从clean committed registry生成独立managed锁，时间 `2026-10-03T07:20:10.862Z`，
+SHA-256 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e` / 7905bytes；全部原生/返回/批准/继承绑定回读PASS。
+独立P1=1和controller UNKNOWN原样保存，按ADR-0158有限裁决离线重锁，不自签独立豁免。
+Python回读曾按正斜杠直接查找Win10归档反斜杠条目而报KeyError；诊断保留，改用唯一规范化映射后回读通过，
+没有改动产品或锁，正式记录器仍为一次成功生成。旧A9-30/W42/v25/v24不改。
+本节及锁只按批准五路径登记；本轮无重编/远端写入/推送/整合/发布。
+产品装配/真实Electron/Win7 NOT_PERFORMED，Phase-Gate不升级。
