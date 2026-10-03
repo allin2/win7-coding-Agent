@@ -137,3 +137,28 @@ managed r3套件已生成、独立复核P0/P1/P2=0/0/0。
 
 managed r3具体套件登记及Win10双构建范围已获负责人批准（2026-10-03），按准确24路径追加本地提交。
 范围及未执行边界见上述审批包；构建结果仍待实际普通用户执行，不由批准推导PASS。
+
+### A9-31 managed r3实际双构建返回（2026-10-03）
+
+R2普通桌面身份通过，准确source10114503/kit0191f61d与批准HEAD a4ec353绑定；
+BuildA/BuildB实际原生返回PASS、run-id独立、helper逐字节一致（2036bf69…51e4b7）。
+返回闭包和原始smoke技术检查通过；记录器编号误绑定在原白名单内修复，未提交。
+控制器退出码/完整进程树清理UNKNOWN，独立返回复核与managed重锁待办，依ADR-0157暂停下游。
+[事实报告](reports/2026-10/a9_31_managed_r3_native_double_build_return_2026-10-03.md)为当前补录入口；
+A9-31仍IMPLEMENTATION_IN_PROGRESS、真实Electron/Win7 NOT_PERFORMED，候选及Alpha2/RC不改判。
+
+### A9-31 managed r3独立返回复核（2026-10-03）
+
+[独立报告](reports/2026-10/a9_31_managed_r3_independent_return_review_2026-10-03.md)
+PASS_TECHNICAL_RETURN_EVIDENCE / NOT_APPROVED_FOR_INPUT_LOCK，P0/P1/P2=0/1/0。
+唯一P1为控制器退出码/完整树UNKNOWN证据缺口；原生输入及双返回无缺陷发现，不重新编译。
+ADR-0158 Proposed与[具体登记/重锁材料](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)待负责人批准；
+当前仍停止重锁/装配，正式registry不改、managed新锁NOT_LOCKED，Electron/Win7 NOT_PERFORMED。
+
+
+### A9-31 managed r3有限离线重锁批准（2026-10-03）
+
+负责人于 `2026-10-03T07:10:46.920499Z` 登记批准[具体十/五路径包](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)及ADR-0158。
+准确两个原生返回允许离线重锁；独立P1=1与控制器退出码/完整树UNKNOWN保留，不改历史证据。
+正在执行本地登记/锁生成，未签开发机收口；新远端执行、真实Electron和Win7 NOT_PERFORMED。
+A9-31仍IMPLEMENTATION_IN_PROGRESS；不推送/整合/发布，候选未分配。

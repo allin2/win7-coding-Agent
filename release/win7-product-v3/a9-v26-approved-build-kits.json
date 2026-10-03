@@ -290,6 +290,63 @@
         "p0": 0,
         "p1": 0,
         "p2": 0
+      },
+      "return_review": {
+        "status": "APPROVED_FOR_INPUT_LOCK",
+        "independent_reviewer": "/root/a9_31_native_return_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03T06:53:00Z",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_independent_return_review_2026-10-03.md",
+        "report_sha256": "d3067b1858846010ffdcef7403ccc0369873b5763e04aa7d568800678eab71e0",
+        "independent_technical_result": "PASS_TECHNICAL_RETURN_EVIDENCE",
+        "independent_input_lock_result": "NOT_APPROVED_FOR_INPUT_LOCK",
+        "findings": {
+          "p0": 0,
+          "p1": 1,
+          "p2": 0
+        },
+        "builds": [
+          {
+            "run_id": "3abe9a16-449b-4900-956e-6d0fb4c40fe2",
+            "sha256": "251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40"
+          },
+          {
+            "run_id": "33514a91-c5e8-4bb0-9176-135782175c88",
+            "sha256": "ce8679187e120d8c0c9896fd201f37dfb1187e87d58702c3529f24b73737ff44"
+          }
+        ],
+        "owner_decision": {
+          "decision": "ADR-0158",
+          "status": "APPROVED",
+          "scope": "EXACT_TWO_RETURNS_OFFLINE_DEVELOPER_INPUT_LOCK_ONLY",
+          "controller_pid": 24088,
+          "controller_exit_code": "UNKNOWN",
+          "controller_tree_cleanup": "UNKNOWN",
+          "evidence": [
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/controller-r2-BuildA-final.json",
+              "sha256": "b02be7ee72a04a9b45828054eef37b591c1f3edb98172ae5c1e44858ba82fec2"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/controller-r2-BuildB-final.json",
+              "sha256": "db39a93b092797d1cd6e61837563b56d9db52694732720bdb2b37f87c19f6808"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/ordinary-controller-r2-identity-live.json",
+              "sha256": "ec3b50a1541bb78ea42097357b98fdfd540b4d93d6d49303bf152e2eababd079"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/managed-r3-controller-security-events-readonly-20261003T064537Z.json",
+              "sha256": "fac77bbd0121676b2c7fb90db058cbf6130e43299f3b50406df4fea6fa080b2d"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/managed-r3-double-build-return-precheck-r2-20261003.json",
+              "sha256": "e03518427d5a88f25fee07985b857ff6564453cf9aa49031f167f5b9f0c85838"
+            }
+          ],
+          "approved_by": "user",
+          "approved_at": "2026-10-03T07:10:46.920499Z"
+        }
       }
     }
   ],

@@ -132,7 +132,9 @@ function inspectApprovedKit(kitZip, registryPath, sourceRepositoryRoot) {
   if (inputLock.source_commit !== approved.source_commit
     || packageManifest.source_commit !== approved.source_commit
     || packageManifest.status !== 'READY_FOR_WIN10_BUILD'
-    || (inputLock.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64' && (packageManifest.revision !== 'a9-31-managed-r1' || approved.revision !== packageManifest.revision))
+    // The approved kit registration has its own revision label; its pinned
+    // manifest hash binds the native revision checked here.
+    || (inputLock.profile === 'WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64' && packageManifest.revision !== 'a9-31-managed-r1')
     || !Array.isArray(packageManifest.files)) {
     throw new Error('A9_V26_APPROVED_KIT_SOURCE_BINDING_MISMATCH');
   }

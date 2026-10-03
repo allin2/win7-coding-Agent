@@ -28,7 +28,7 @@ function authorized(f) {
   const p=prepare(f);assert.equal(p.status,0,p.stderr);
   const kitZip=path.join(f.dir,'TEST_ONLY-buildkit.zip');writeDeterministicZip(f.kit,kitZip,1787443200);
   const registry=path.join(f.dir,'release/win7-product-v3/a9-v26-approved-build-kits.json');
-  writeJson(registry,{schema_version:1,kits:[{revision:f.managed?'a9-31-managed-r1':'TEST_ONLY-r1',filename:path.basename(kitZip),sha256:digest(fs.readFileSync(kitZip)),source_commit:f.commit,input_lock_sha256:digest(fs.readFileSync(path.join(f.kit,'input-lock.json'))),package_manifest_sha256:digest(fs.readFileSync(path.join(f.kit,'PACKAGE_MANIFEST.json'))),status:'APPROVED_FOR_RETURN_RECORDING'}]});
+  writeJson(registry,{schema_version:1,kits:[{revision:f.managed?'A9-31-D013-V26-MANAGED-r3':'TEST_ONLY-r1',filename:path.basename(kitZip),sha256:digest(fs.readFileSync(kitZip)),source_commit:f.commit,input_lock_sha256:digest(fs.readFileSync(path.join(f.kit,'input-lock.json'))),package_manifest_sha256:digest(fs.readFileSync(path.join(f.kit,'PACKAGE_MANIFEST.json'))),status:'APPROVED_FOR_RETURN_RECORDING'}]});
   return {kitZip,registry};
 }
 function inputPair(f, mutate=()=>{}, secondId=runIds[1]) {
@@ -177,6 +177,16 @@ test('managed generator and recorder create a distinct lock only with pinned rel
   const f=fixture(true), opts=inputPair(f); const result=recordA9V26HelperInput({...opts,lockId:'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'});
   const lock=JSON.parse(fs.readFileSync(opts.output));assert.equal(lock.provenance.task,'A9-31');assert.equal(lock.inputs.runner_return_zip.profile,'D-013-v26-managed-a9-trusted-shell-current-user');
   assert.equal(lock.inputs.runner_return_zip.managed_contract.revision,'a9-31-managed-r1'); assert.equal(lock.gates.win7,'NOT_PERFORMED');
+});
+test('managed recorder rejects a wrong native revision even with an approved kit registration label',()=>{
+  const f=fixture(true),opts=inputPair(f),manifestFile=path.join(f.kit,'PACKAGE_MANIFEST.json');
+  const manifest=JSON.parse(fs.readFileSync(manifestFile));manifest.revision='a9-30-r6';writeJson(manifestFile,manifest);
+  writeDeterministicZip(f.kit,opts.kitZip,1787443200);
+  const registry=JSON.parse(fs.readFileSync(opts.testOnlyApprovedKitRegistry));
+  registry.kits[0].sha256=digest(fs.readFileSync(opts.kitZip));registry.kits[0].package_manifest_sha256=digest(fs.readFileSync(manifestFile));
+  writeJson(opts.testOnlyApprovedKitRegistry,registry);
+  assert.throws(()=>recordA9V26HelperInput({...opts,lockId:'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'}),/APPROVED_KIT_SOURCE_BINDING_MISMATCH/);
+  assert.equal(fs.existsSync(opts.output),false);
 });
 test('managed evidence proves both release/cancel control orders',()=>{
   const files=syntheticV26ManagedEvidence();

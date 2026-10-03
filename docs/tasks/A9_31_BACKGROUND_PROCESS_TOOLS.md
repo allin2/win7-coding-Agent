@@ -173,3 +173,30 @@ r2和旧r1失败保留；本任务仍IMPLEMENTATION_IN_PROGRESS，原生双构�
 的r3套件、24路径登记提交、三新目录及SID1005权限/四v1 fixture、受控双构建和回收。
 套件与六控制输入独立复核均P0/P1/P2=0；必须在正式构建前通过普通身份和完整PS ParseFile硬门。
 不推送/合并，不修改账户/profile/许可证；Phase-Gate不提升，后续返回复核/重锁/Electron/Win7按合同。
+
+## 14. managed r3实际Win10双构建与待返回复核（2026-10-03）
+
+负责人从普通桌面启动R2后，SID1005/Session3/Medium/非提升/无Job门通过。
+原登记HEAD a4ec353保持绑定；两次原生返回PASS，独立run-id/不同ZIP哈希、相同helper字节。
+见[返回事实报告](../reports/2026-10/a9_31_managed_r3_native_double_build_return_2026-10-03.md)。
+真实预检发现并在原白名单内修复记录器误把kit登记编号等同native revision；源/哈希/固定native合同保持。
+独立返回复核/return_review/managed新锁尚未完成，控制器退出码/完整树清理UNKNOWN，依ADR-0157暂停下游。
+源码修正未提交；Phase-Gate保持IMPLEMENTATION_IN_PROGRESS，真实Electron/Win7 NOT_PERFORMED。
+不重编已通过的原生输入，不覆盖首失败/超时/旧kit或历史候选，不推送/合并/发布。
+
+## 15. managed r3独立返回复核与有限离线裁决待批（2026-10-03）
+
+独立gpt-6-luna/high返回复核完成，PASS_TECHNICAL_RETURN_EVIDENCE / NOT_APPROVED_FOR_INPUT_LOCK；
+P0/P1/P2=0/1/0，控制器UNKNOWN为唯一准入缺口，不改判原生helper失败。
+[独立报告](../reports/2026-10/a9_31_managed_r3_independent_return_review_2026-10-03.md)绑定两个准确返回。
+ADR-0158 Proposed及[准确十路径登记/五路径重锁审批包](../plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)待负责人裁决；
+正式registry/锁未改，源码修正未提交。ADR-0157停止下游继续有效，Phase-Gate不升级。
+
+
+## 16. managed r3有限离线重锁具体批准（2026-10-03）
+
+负责人批准[准确返回登记/重锁包](../plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)§1–6及ADR-0158，
+实际登记时间 `2026-10-03T07:10:46.920499Z`。允许准确十路径登记、两个不可变返回离线重锁及五路径锁登记提交。
+独立报告0/1/0、原NOT_APPROVED准入结论及controller exit/tree UNKNOWN保留；
+准入由负责人具体裁决单独登记。旧ADR-0157、原返回/失败/候选不改。
+正式提交和锁结果仍待本次实际执行，不签DEVELOPER_VERIFIED；真实Electron/Win7 NOT_PERFORMED。

@@ -2508,3 +2508,11 @@
 - 提案：[R2 补批材料](plans/A9_31_MANAGED_R3_CONTROLLER_RETRY_APPROVAL.md)只增加固定启动入口及本地调度器。调用者先实测普通角色、非提升、Medium、SID1005/Session3、无 Job，再以 CREATE_NEW_CONSOLE 创建同令牌子进程；子进程沿用原 worker 再检查完整身份。未知或失败停止，不请求脱离 Job、不修改系统设置或提升权限。
 - 格式：原启动失败 JSON 保持原名/字节；新增 launch-r2 记录 schema_version=2，绑定调用者 PID/启动时间/SID/Session/完整令牌与 Job、实际创建结果、source/kit/批准登记及保留失败哈希。批准登记 schema_version=1 只追加 controller_retries 元数据，历史 kits 数组不改；缺失具体批准/独立报告/准确输入或依赖哈希拒绝启动和派发。
 - 后果：保持原两固定请求、60分钟和 BuildA→BuildB，原 native源码/23文件kit/六控制/构建目录及权限不变。调度器只把精确哈希的原首失败作为历史事实；任一新 FAIL/漂移/未知生命周期停止。实际输入部署与本地登记提交需具体授权，原生/真实Electron/Win7仍 NOT_PERFORMED，不自行签收口。
+
+## ADR-0158 A9-31 准确原生双返回的有限离线重锁裁决
+
+- 状态：Accepted（2026-10-03；负责人对准确审批包§1–6及ADR-0158回复“批准”，允许准确两个返回离线重锁和十路径/五路径两次本地提交；UNKNOWN和独立P1保留）
+- 背景：准确 managed r3 在普通 SID1005/Session3/Medium/非提升/无 Host Job 的 Win10 桌面完成两次独立干净构建。两返回原生证据、helper字节、输入闭包及工具一致性通过；R2控制器完成后未持有句柄记录其实际退出码/完整子树，后飞行和Security4688/4689只读补查不能补足，仍为UNKNOWN。ADR-0157现行硬门因此停止重锁/装配，不能事后伪造清理PASS。
+- 提案：仅当负责人批准且独立报告确认没有原生身份、审计、安全或managed根/子生命周期缺口时，允许离线登记并重锁[具体材料](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)绑定的两个不可变返回。source `10114503a1e79706131ea4a11a5b96bd2958807a`；kit SHA `0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1`；BuildA run `3abe9a16-449b-4900-956e-6d0fb4c40fe2` / ZIP `251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40`；BuildB run `33514a91-c5e8-4bb0-9176-135782175c88` / ZIP `ce8679187e120d8c0c9896fd201f37dfb1187e87d58702c3529f24b73737ff44`。除此以外不调整ADR-0157的停止规则。
+- 格式与证据：registry schema1仅向managed r3追加独立return_review；kit登记编号与已锁定manifest原生revision分别核对，后者固定`a9-31-managed-r1`，源/完整manifest/输入及返回哈希保持严格绑定。新managed输入锁单独生成，provenance明确controller退出码/树清理UNKNOWN、负责人裁决与开发用途；原报告/返回/首失败/超时不改判。原生pipe背压缺失终态保持既有有界失败边界，不写清理PASS。
+- 失败与范围：批准前或独立报告发现上述原生缺口时继续阻断。该一次裁决不证明controller生命周期、不恢复旧控制器、不允许新增远端执行或改变账户/ACL/UAC/Job；后续产品装配/真实Electron/Win7仍按各自合同和新控制器证据准入。新执行入口必须预先形成句柄退出码与生命周期取证合同。源码/登记提交与新锁生成/提交按准确十路径、后续五路径范围另行批准；不推送/合并/发布，不签DEVELOPER_VERIFIED、Alpha2/RC或Win7 PASS。

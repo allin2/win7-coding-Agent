@@ -1520,3 +1520,30 @@ ZIP0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1。
 2026-10-03，负责人对managed r3审批包回复“批准上述具体套件登记和构建范围”。
 批准24路径本地登记、三新Win10目录/SID1005权限/四v1 fixture、普通桌面固定双构建控制器及回收。
 尚未执行的构建/新锁/Electron/Win7不改判；不推送、合并或改账户/profile/许可证。
+
+### 2026-10-03 — A9-31 managed r3原生双返回与收口边界
+
+用户启动普通桌面R2后，SID1005/Session3/Medium/非提升/无Job通过，按原批准登记恢复BuildA→BuildB。
+两份返回PASS；run-id3abe9a16-449b-4900-956e-6d0fb4c40fe2、33514a91-c5e8-4bb0-9176-135782175c88，
+helper361472bytes/SHA2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7逐字节一致。
+本地记录器误等同kit/native revision已按白名单修复；首失败、旧code5及首次30分钟等待超时保留。
+独立返回复核和新锁未完成，控制器退出码/完整树清理UNKNOWN，停止下游重锁/装配。
+[事实报告](reports/2026-10/a9_31_managed_r3_native_double_build_return_2026-10-03.md)记录边界；
+不推送、不整合、不发布，不签DEVELOPER_VERIFIED/Win7/Alpha2/RC。
+
+### 2026-10-03 — A9-31独立返回技术通过及准确离线裁决待批
+
+负责人继续推进指令后启动独立gpt-6-luna/high只读复核；原生双返回/记录器修正技术通过，
+独立91 PASS/0 FAIL/2 WindowsPS本地NOT_PERFORMED。P0/P1/P2=0/1/0，唯一P1为控制器UNKNOWN准入缺口。
+[独立报告](reports/2026-10/a9_31_managed_r3_independent_return_review_2026-10-03.md)保留NOT_APPROVED_FOR_INPUT_LOCK。
+只读4688/4689补查无证明；新增ADR-0158 Proposed和[具体审批包](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)，
+限定两个准确返回的离线登记/重锁及两次精确本地提交，尚未获得具体批准。
+没有原生重编、formal registry/新锁写入、远端修改、推送/整合/发布，当前下游门保持停止。
+
+
+### 2026-10-03 — A9-31准确双返回有限离线重锁获批
+
+负责人回复“批准”，实际批准登记时间 `2026-10-03T07:10:46.920499Z`；批准准确审批包§1–6和ADR-0158。
+十路径本地登记提交及五路径锁登记提交开始执行；仅两个准确managed r3返回允许离线重锁。
+独立P1=1/原NOT_APPROVED准入结论保留，由负责人单独准入；控制器退出码/完整树UNKNOWN不改判。
+不重编、不写远端、不推送/合并/发布；真实Electron/Win7 NOT_PERFORMED，Phase-Gate不升级。
