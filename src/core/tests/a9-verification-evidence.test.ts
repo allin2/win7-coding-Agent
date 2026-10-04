@@ -112,7 +112,7 @@ describe('A9-26 verification hypotheses before repair', () => {
   it('R1-03 verify after edit records redacted evidence, then a new shell change invalidates it', async () => {
     const events: any[] = [];
     const result = await runSequence([
-      { tool: 'edit' }, { tool: 'shell', command: 'npm test' }, { tool: 'shell', command: 'rm file.txt' },
+      { tool: 'edit' }, { tool: 'shell', command: 'npm test' }, { tool: 'shell', command: 'copy file.txt copied.txt' },
     ], [], { events });
     expect(result.verification).toBe('unverified');
     expect(events.find((event) => event.type === 'turn_completed').data.verificationEvidence).toBeUndefined();

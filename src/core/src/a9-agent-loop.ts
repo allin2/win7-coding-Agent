@@ -351,8 +351,8 @@ function buildApprovalSummary(toolName: string, args: Record<string, any>): stri
   if (toolName === 'shell' || toolName === 'start_process') {
     const command = typeof args.command === 'string' ? args.command : '';
     const git = classifyGitCommand(command);
-    if (git) return git.binding.summary;
-    return `shell: ${command.slice(0, 160)}`;
+    const shellSummary = `shell${args.cwd ? ` cwd=${String(args.cwd)}` : ''}: ${command}`;
+    return git ? `${git.binding.summary}\n${shellSummary}` : shellSummary;
   }
   if (toolName === 'write') return `write path=${String(args.path)}`;
   if (toolName === 'edit') return `edit path=${String(args.path)}`;
