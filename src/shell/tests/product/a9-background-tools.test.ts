@@ -8,7 +8,16 @@ import * as Core from '../../../core/src';
 import * as State from '../../../state/src/a9-persistence';
 import { BackgroundProcessManager } from '../../../runner/src/background-process-manager';
 
-async function scenario(auditFailure = false, releaseFailure = false) {
+function testPlatform(value: NodeJS.Platform) {
+  const original = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { ...original, value });
+  return { restore: () => Object.defineProperty(process, 'platform', original) };
+}
+
+async function scenario(auditFailure = false, releaseFailure = false, options: {
+  workspace?: string; canonicalize?: (workspace: string) => string; startingAuditFailure?: boolean;
+} = {}) {
+  const workspace = options.workspace ?? '/memory/workspace';
   const disk = new Map<string, unknown>();
   const memoryFs = { mkdirSync() {}, existsSync: (p: string) => disk.has(p), writeFileSync: (p: string, v: unknown) => disk.set(p, v),
     readFileSync: (p: string) => disk.get(p), renameSync: (a: string, b: string) => { disk.set(b, disk.get(a)); disk.delete(a); } };
@@ -18,7 +27,7 @@ async function scenario(auditFailure = false, releaseFailure = false) {
   vm.runInNewContext(fs.readFileSync(file, 'utf8'), box, { filename: file });
   const projected: string[] = []; let audited = 0;
   let db: any, manager!: BackgroundProcessManager, publish!: (c: any) => Promise<void>;
-  let complete!: (c: any) => void; let requests = 0, seq = 0, bytes = 0;
+  let complete!: (c: any) => void; let requests = 0, seq = 0, bytes = 0, nativeStarts = 0;
   class Mode { static settingsFilePathFor() { return '/memory/mode'; } static legacyBasenameFilePathFor() { return '/memory/legacy'; }
     load() { return { status: 'configured', settings: { permissionMode: 'full_access' } }; } }
   class Workspace { getCheckpointManager() { return { loadCheckpoint() {}, revalidatePersistedTurns() {}, getRecoveryDiagnostics: () => [] }; }
@@ -26,8 +35,20 @@ async function scenario(auditFailure = false, releaseFailure = false) {
   class Runner {
     constructor(opts: any) {
       manager = new BackgroundProcessManager({ invoke: jest.fn(), startManaged: (_request: any, _env: any, callback: any) => {
+        nativeStarts++;
+        const intent = db.prepare("SELECT payload_json FROM a9_events WHERE event_type='managed_process_ownership' ORDER BY id DESC LIMIT 1").get();
+        expect(intent).toBeDefined();
+        expect(JSON.parse(intent.payload_json)).toMatchObject({ handleId: 'h', ownershipState: 'owned' });
+        expect(db.prepare('SELECT last_probe_status FROM a9_managed_processes WHERE handle_id=?').get('h')).toEqual({ last_probe_status: 'starting' });
         publish = callback; const completion = new Promise<any>((r) => { complete = r; });
-        return { ready: Promise.resolve({ childPid: 345 } as any), completion, cancel: () => complete({ kind: 'cancelled', detail: 'stopped', cleanupConfirmed: true }),
+        return { ready: Promise.resolve({ childPid: 345 } as any), completion, cancel: () => complete({ kind: 'response', response: {
+          schemaVersion: 3, type: 'execution_result', requestId: 'req', profileId: 'a9-trusted-shell-current-user-v2',
+          exitCode: 1, canceled: true, timedOut: false, idleTimedOut: false, containmentVerified: true,
+          inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
+          hostJob: { detected: false, breakaway: 'none', childJobAssignmentVerified: true },
+          tokenAudit: { verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true, lowIntegrity: false },
+          lastOutputSeq: seq, stdout: { rawBytesRead: bytes, emittedBytes: bytes, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 },
+        } }),
           release: async (releaseId: string) => {
             if (releaseFailure) { complete({ kind: 'helper_crashed', detail: 'lost receipt', cleanupConfirmed: false }); throw new Error('A9_RELEASE_UNKNOWN'); }
             const receipt: any = { type: 'execution_released', schemaVersion: 3, releaseId, requestId: 'req', childPid: 345, lastOutputSeq: seq,
@@ -41,22 +62,65 @@ async function scenario(auditFailure = false, releaseFailure = false) {
   class Provider { async sendStreamRequest() { return ++requests === 1
     ? { id: 'tools', content: '', finishReason: 'tool_calls', toolCalls: [{ id: 'start-call', name: 'start_process', arguments: '{"command":"echo tick"}' }] }
     : { id: 'done', content: 'done', finishReason: 'stop' }; } }
-  const runtime = box.module.exports.createA9AgentRuntime({ workspaceRoot: '/memory/workspace', dataRoot: '/memory/data', ownerId: 'managed-test',
-    modules: { core: { ...Core, canonicalizeWorkspacePath: (p: string) => p, WorkspaceModeSettingsStore: Mode }, state: State,
+  const runtime = box.module.exports.createA9AgentRuntime({ workspaceRoot: workspace, dataRoot: '/memory/data', ownerId: 'managed-test',
+    modules: { core: { ...Core, canonicalizeWorkspacePath: options.canonicalize ?? ((p: string) => p), WorkspaceModeSettingsStore: Mode }, state: State,
       workspace: { A9WorkspaceService: Workspace }, gateway: { OpenAICompatibleProvider: Provider }, gitAdapter: {},
       runner: { TrustedShellRunner: Runner, selectShell: () => ({ available: true, kind: 'cmd' }), validateTrustedShellEnvironmentOverlay: (x: any) => x,
         createTrustedShellLoopAdapter: () => ({ execute: async (_command: string, opts: any) => {
-          await manager.start('h', 'echo tick', 'cmd.exe', [], '/memory/workspace', undefined,
+          await manager.start('h', 'echo tick', 'cmd.exe', [], workspace, undefined,
             { schemaVersion: 3, requestId: 'req', outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' }, managed: true } as any, { owner: opts.managedOwner, onOutput: async (c) => { audited++; await opts.onOutput(c); } });
           return { status: 'background_started', backgroundHandle: 'h', exitCode: null, stdout: '', stderr: '', durationMs: 1, timedOut: false };
         } }) } }, openDatabase: () => { db = new Database(':memory:'); return db; } });
   await runtime.configureProvider({ baseUrl: 'http://example.invalid', model: 'fixture', skipProbe: true });
-  const result = await runtime.submitTurn('start background'); expect(result.ok).toBe(true);
+  if (options.startingAuditFailure) db.exec("CREATE TRIGGER fail_intent BEFORE INSERT ON a9_events WHEN NEW.event_type='managed_process_ownership' BEGIN SELECT RAISE(FAIL,'intent disk failed'); END");
+  const result = await runtime.submitTurn('start background');
+  if (!options.startingAuditFailure && !result.ok) { db.close(); expect(result.ok).toBe(true); }
   if (auditFailure) db.exec("CREATE TRIGGER fail_output BEFORE INSERT ON a9_events WHEN NEW.event_type='tool_output' BEGIN SELECT RAISE(FAIL,'disk failed'); END");
   async function output(text: string) { const b = Buffer.from(text); bytes += b.length; await publish({ type: 'output_chunk', requestId: 'req', stream: 'stdout', seq: ++seq, streamOffset: bytes - b.length, byteLength: b.length, dataBase64: b.toString('base64') }); }
-  return { runtime, db, manager, output, result, trace: () => ({ audited, projected }), close: () => db.close(),
+  return { runtime, db, manager, output, result, trace: () => ({ audited, projected, nativeStarts, requests }), close: () => db.close(),
     ipc: req('./a9-product-ipc').createA9ProductRequestHandler({ getA9Runtime: () => runtime, isValidRendererSender: () => true }) };
 }
+
+it.each(['stop', 'release'])('uses canonical Windows ownership before native start and keeps display-path facts through %s', async (choice) => {
+  const platform = testPlatform('win32');
+  const workspace = 'C:\\Users\\A9 Builder\\中文 空格%#\\Project';
+  let f: Awaited<ReturnType<typeof scenario>> | undefined;
+  try {
+    f = await scenario(false, false, { workspace, canonicalize: Core.canonicalizeWorkspacePath });
+    expect(f.result.ok).toBe(true);
+    const owner = f.manager.list()[0].owner!;
+    expect(owner.workspace).toBe(Core.canonicalizeWorkspacePath(workspace, 'win32'));
+    expect(f.trace().nativeStarts).toBe(1);
+    expect(f.db.prepare('SELECT workspace_path FROM a9_sessions').get()).toEqual({ workspace_path: owner.workspace });
+    expect(f.db.prepare('SELECT workspace_path FROM a9_managed_processes').get()).toEqual({ workspace_path: workspace });
+    await f.output('中文 tick after completed turn\n');
+    expect(f.db.prepare("SELECT turn_id FROM a9_events WHERE event_type='tool_output'").get()).toEqual({ turn_id: owner.turnId });
+    expect(f.runtime.getSnapshot().managedProcesses).toEqual([expect.objectContaining({ handleId: 'h' })]);
+    expect(() => f!.manager.readOutput('h', { ...owner, workspace: owner.workspace + '-other' })).toThrow('WRONG_OWNER');
+    const page = await f.ipc({}, { schemaVersion: 7, action: 'a9.events.query', payload: { conversationId: owner.conversationId, limit: 100 } });
+    expect(page.events.some((e: any) => e.eventType === 'tool_output')).toBe(true);
+    const result = await f.runtime.shutdown({ stopManaged: choice === 'stop' });
+    expect(result.unresolved).toEqual([]);
+    expect(result.leftToSystem).toEqual(choice === 'release' ? ['h'] : []);
+    expect(f.db.prepare('SELECT last_probe_status FROM a9_managed_processes').get().last_probe_status).toBe(choice === 'release' ? 'released' : 'stopped');
+  } finally { f?.close(); platform.restore(); }
+});
+
+it('does not launch or publish a Windows managed process when its starting audit transaction fails', async () => {
+  const platform = testPlatform('win32');
+  let f: Awaited<ReturnType<typeof scenario>> | undefined;
+  try {
+    f = await scenario(false, false, { workspace: 'C:\\Users\\A9 Builder\\Project', canonicalize: Core.canonicalizeWorkspacePath, startingAuditFailure: true });
+    expect(f.result).toMatchObject({ ok: false, error: { code: 'A9_AUDIT_PERSISTENCE_FAILED', failedEvent: 'tool_end' } });
+    expect(f.trace().nativeStarts).toBe(0);
+    expect(f.manager.list()).toEqual([]);
+    expect(f.db.prepare('SELECT count(*) AS n FROM a9_managed_processes').get()).toEqual({ n: 0 });
+    expect(f.db.prepare("SELECT count(*) AS n FROM a9_events WHERE event_type IN ('managed_process_ownership','tool_output')").get()).toEqual({ n: 0 });
+    const requests = f.trace().requests;
+    expect((await f.runtime.submitTurn('retry')).error.code).toBe('A9_AUDIT_PERSISTENCE_FAILED');
+    expect(f.trace().requests).toBe(requests);
+  } finally { f?.close(); platform.restore(); }
+});
 it('keeps late background output bound to original completed turn and exposes SQLite identity through IPC', async () => {
   const f = await scenario(); try {
     const owner = f.manager.list()[0].owner!;

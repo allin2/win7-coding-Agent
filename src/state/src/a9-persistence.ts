@@ -1275,7 +1275,7 @@ export class A9PersistenceManager {
         JOIN a9_turns tr ON tr.task_id=t.task_id AND tr.session_id=s.session_id
         WHERE s.session_id=? AND t.task_id=? AND tr.turn_id=?`).get(owner.conversationId, owner.taskId, owner.turnId) as any;
       const canonical = process.platform === 'win32' ? path.win32.resolve(fact.workspacePath.replace(/\//g, '\\')).toLowerCase() : path.posix.resolve(fact.workspacePath.replace(/\\/g, '/'));
-      if (!origin || origin.workspace_path !== fact.workspacePath || owner.workspace !== canonical || origin.state !== 'active') throw new Error('A9_MANAGED_OWNER_MISMATCH');
+      if (!origin || !sameWorkspacePath(origin.workspace_path, fact.workspacePath) || owner.workspace !== canonical || origin.state !== 'active') throw new Error('A9_MANAGED_OWNER_MISMATCH');
       const previous = this.getManagedOwnership(fact.handleId);
       if (previous && (JSON.stringify(previous.owner) !== JSON.stringify(owner) || previous.requestId !== ownership.requestId)) throw new Error('A9_MANAGED_OWNER_IMMUTABLE');
       if (previous?.ownershipState === 'released' && ownership.ownershipState !== 'released') throw new Error('A9_MANAGED_RELEASE_TERMINAL');
@@ -1306,7 +1306,14 @@ export class A9PersistenceManager {
     handleId: string; pid: number | null; command: string; cwd: string;
     startedAt: string; lastProbeStatus: string | null; pidReusePossible: boolean; cleanupRequired: boolean;
   }> {
-    return (this.db.prepare('SELECT * FROM a9_managed_processes WHERE workspace_path = ?').all(workspacePath) as any[]).map((r) => ({
+    // Legacy facts retain the selected display path. Windows spelling changes must
+    // not hide cleanup/recovery facts; compare path keys before loading their rows.
+    const workspaceKeys = process.platform === 'win32'
+      ? (this.db.prepare('SELECT DISTINCT workspace_path FROM a9_managed_processes').all() as Array<{ workspace_path: string }>)
+        .filter((row) => sameWorkspacePath(row.workspace_path, workspacePath)).map((row) => row.workspace_path)
+      : [workspacePath];
+    const query = this.db.prepare('SELECT * FROM a9_managed_processes WHERE workspace_path = ?');
+    return workspaceKeys.flatMap((key) => query.all(key) as any[]).map((r) => ({
       handleId: r.handle_id,
       pid: r.pid,
       command: r.command,
@@ -1877,7 +1884,10 @@ function displayNameFor(workspacePath: string): string {
 }
 
 function sameWorkspacePath(left: string, right: string): boolean {
-  const looksWindows = path.win32.isAbsolute(left) || path.win32.isAbsolute(right);
+  // win32.isAbsolute('/w') is true too. A POSIX root alone is not a drive/UNC
+  // path and must not make POSIX conversation ownership case-insensitive.
+  const looksWindows = process.platform === 'win32' || [left, right].some((value) =>
+    path.win32.isAbsolute(value) && path.win32.parse(value).root.length > 1);
   if (looksWindows) {
     return path.win32.normalize(left).replace(/[\\/]+$/, '').toLowerCase()
       === path.win32.normalize(right).replace(/[\\/]+$/, '').toLowerCase();
