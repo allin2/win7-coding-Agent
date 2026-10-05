@@ -46,6 +46,72 @@ it('mandatory start audit failure prevents background spawning and subsequent di
 
 const deletionCommand = 'Remove-Item -LiteralPath "C:\\中文 路径\\confirmation-must-not-run" -Force';
 
+it.each(['shell', 'start_process'])('r5 blocks reported variable calls through %s with zero simulated dispatch', async (name) => {
+  for (const raw of [
+    "$b='npm'; if (0) {$b='echo'}; . $b publish",
+    "${tool-name}='npm'; if (0) {${tool-name}='echo'}; & (${tool-name}) publish",
+    "${script:tool}='npm'; if (0) {${script:tool}='echo'}; & (${script:tool}) publish",
+    "$tool='npm'; if (0) {$tool='echo'}; Write-Output \"$(. $tool publish)\"",
+    "$tool='npm'; if (0) {$tool='echo'}; Write-Output \"$(& $tool publish)\"",
+  ]) {
+    let command = raw;
+    for (let depth = 0; depth <= 4; depth += 1) {
+      const f = loopFor([{ name, arguments: JSON.stringify({ command }) }]);
+      const result = await f.loop.runTurn('r5 variable call');
+      expect(result.outcome).toBe('needs_approval');
+      expect(result.pendingApproval?.args.command).toBe(command);
+      expect(f.start).not.toHaveBeenCalled(); expect(f.execute).not.toHaveBeenCalled();
+      command = 'powershell -EncodedCommand ' + Buffer.from(command, 'utf16le').toString('base64');
+    }
+  }
+});
+
+it.each(['shell', 'start_process'])('r5 keeps ordinary development commands autonomous through %s', async (name) => {
+  for (const command of [
+    "if ($env:CI -eq 'true') { npm test }",
+    "foreach ($project in @('core','shell')) { npm test --workspace=$project }",
+    "foreach ($crate in @('core','cli')) { cargo test -p $crate }",
+    "npm test; $ok = $LASTEXITCODE -eq 0; if ($ok) { Write-Output 'ok' }",
+    "if (Test-Path package.json) { Write-Output '& ${tool}'; npm test }",
+    'if (Test-Path package.json) { npm test } # example: & ${tool}',
+    'npm test', 'cargo test', "$tool='npm'; & $tool test", "$tool='cargo'; & $tool test",
+    'if ($true) { npm test }', "${tool}='npm'; & ${tool} test",
+    "$tool='echo'; & $tool 'if npm'", "$tool='echo'; & $tool hello # if npm",
+  ]) {
+    const f = loopFor([{ name, arguments: JSON.stringify({ command }) }]);
+    const result = await f.loop.runTurn('r5 ordinary development');
+    expect(result.outcome).not.toBe('needs_approval');
+    expect(name === 'shell' ? f.execute : f.start).toHaveBeenCalledTimes(1);
+  }
+});
+
+it.each(['shell', 'start_process'])('r6 dispatches ordinary expression syntax once through %s', async (name) => {
+  for (const command of [
+    "if ($env:CI -eq'true') { npm test }",
+    'if ($LASTEXITCODE -ne0) { throw "npm test failed" }',
+    "$paths=@('core','shell'); if ($paths[ 0 ] -eq 'core') { npm test }",
+    'foreach ($n in ($start .. $end)) { npm test }',
+  ]) {
+    const f = loopFor([{ name, arguments: JSON.stringify({ command }) }]);
+    const result = await f.loop.runTurn('r6 expression');
+    expect(result.outcome).not.toBe('needs_approval');
+    expect(name === 'shell' ? f.execute : f.start).toHaveBeenCalledTimes(1);
+  }
+});
+
+it.each(['shell', 'start_process'])('r6 keeps explicit variable calls pending approval through %s', async (name) => {
+  for (const command of [
+    "$tool='npm'; if (0) {$tool='echo'}; & $tool -eq'true'",
+    "$tool='npm'; if (0) {$tool='echo'}; . $tool -ne0",
+    "$tools='npm'; if (0) {$tools='echo'}; & $tools[ 0 ] publish",
+  ]) {
+    const f = loopFor([{ name, arguments: JSON.stringify({ command }) }]);
+    const result = await f.loop.runTurn('r6 invocation');
+    expect(result.outcome).toBe('needs_approval');
+    expect(f.start).not.toHaveBeenCalled(); expect(f.execute).not.toHaveBeenCalled();
+  }
+});
+
 it.each(['shell', 'start_process'])('shows the entire original command and cwd for %s approval', (toolName) => {
   for (const command of [
     'git status; npm --registry https://example.invalid publish',
@@ -68,6 +134,15 @@ it.each([
   ['start_process', 'git status; sc.exe delete A9PolicyProbe'],
   ['shell', "$tool='npm'; & $tool publish"],
   ['start_process', 'cmd /c "set PKG=sc.exe & %PKG% stop A9PolicyProbe"'],
+  ['shell', 'Write-Output "C:\\"; npm publish'],
+  ['start_process', 'Write-Output "C:\\"; sc.exe delete A9ReviewProbe'],
+  ['start_process', "$tool='npm'; if ($false) { $tool='echo' }; & $tool publish"],
+  ['shell', "$tool='echo'; if ($true) {$tool=$env:ComSpec}; & $tool /c 'npm publish'"],
+  ['start_process', 'cmd /v:on /c "set PKG=echo& if 1==1 set PKG=npm& !PKG! publish"'],
+  ['shell', "$tool=$env:ComSpec; if ($false) { Write-Output \"$($tool='echo')\" }; & $tool /c 'npm publish'"],
+  ['start_process', "function f { Write-Output \"$($tool='npm')\" }; $tool='echo'; . f; & $tool publish"],
+  ['shell', "$script:tool='npm'; if (0) {$script:tool='echo'}; & $script:tool publish"],
+  ['start_process', "$tool='npm'; if (0) {$tool='echo'}; Write-Output \"$(& $tool publish)\""],
 ])('blocks %s pending approval and rejects altered high-impact binding: %s', async (name, command) => {
   let saved!: A9ApprovalRequest;
   const f = loopFor([{ name, arguments: JSON.stringify({ command }) }], PermissionMode.FULL_ACCESS, false,

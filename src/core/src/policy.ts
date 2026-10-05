@@ -213,13 +213,18 @@ function subexpressionEnd(command: string, start: number): number {
  * single-quoted text and comments are data. Unsupported execution containing a
  * high-impact operation is handled conservatively by the caller.
  */
-function shellExecutionSegments(command: string, cmdShell: boolean): Array<{ command: string; expressions: string[] }> {
-  const segments: Array<{ command: string; expressions: string[] }> = [];
+function shellExecutionSegments(command: string, cmdShell: boolean, backslashEscapes = true, variableCalls = false): Array<{ command: string; expressions: string[]; called: boolean }> {
+  const segments: Array<{ command: string; expressions: string[]; called: boolean }> = [];
   let expressions: string[] = [];
   let current = '';
   let quote: string | undefined;
+  // PowerShell's & call operator splits segments; remember that it introduced the next one.
+  let called = false;
   const flush = () => {
-    if (current.trim()) segments.push({ command: current.trim(), expressions });
+    if (current.trim()) {
+      segments.push({ command: current.trim(), expressions, called });
+      called = false;
+    }
     current = ''; expressions = [];
   };
   for (let i = 0; i < command.length; i += 1) {
@@ -237,7 +242,7 @@ function shellExecutionSegments(command: string, cmdShell: boolean): Array<{ com
         continue;
       }
       current += ch;
-      if (ch === '\\' && quote === '"' && /["\\]/.test(command[i + 1] || '')) {
+      if (backslashEscapes && ch === '\\' && quote === '"' && /["\\]/.test(command[i + 1] || '')) {
         current += command[++i];
       } else if (ch === quote) {
         if (command[i + 1] === quote) current += command[++i];
@@ -257,31 +262,95 @@ function shellExecutionSegments(command: string, cmdShell: boolean): Array<{ com
       quote = ch;
       current += ch;
     } else if (!cmdShell && ch === '$' && command[i + 1] === '{' &&
-        /^\$\{[A-Za-z_]\w*\}/.test(command.slice(i))) {
+        (variableCalls ? /^\$\{[^}]+\}/ : /^\$\{[A-Za-z_]\w*\}/).test(command.slice(i))) {
       const end = command.indexOf('}', i + 2);
       current += command.slice(i, end + 1);
       i = end;
     } else if ((cmdShell ? /[\r\n|&()]/ : /[;\r\n|&(){}]/).test(ch)) {
+      // Only the supplemental R reading preserves a parenthesized dot-call operand.
+      if (variableCalls && !cmdShell && ch === '(' && current.trim() === '.') {
+        current = ''; called = true;
+      }
       flush();
+      if (!cmdShell && ch === '&' && command[i + 1] !== '&' && command[i - 1] !== '&') called = true;
     } else current += ch;
   }
   flush();
   return segments;
 }
 
-function shellImpact(command: string, depth = 0, cmdShell = false, commandVariables = new Map<string, string>()): ShellImpact | undefined {
+/** Risk context of the enclosing execution text, carried into nested payloads (ADR-0184). */
+interface ShellRiskContext { controlFlow: boolean; highImpactWord: boolean }
+/** Text for control-structure detection: variable braces, single-quoted data and comments removed; a quoted $() stays. */
+function shellStructureText(command: string, cmdShell: boolean): string {
+  if (cmdShell) return command.replace(/"[^"]*"/g, '""');
+  return command
+    .replace(/\$\{[^}]*\}/g, '$v')
+    .replace(/<#[\s\S]*?#>/g, ' ')
+    .replace(/'[^']*'/g, "''")
+    .replace(/"(?:[^"`]|`.)*"/g, (quoted) => (quoted.includes('$(') ? '"$("' : '""'))
+    .replace(/(^|\s)#[^\r\n]*/g, '$1');
+}
+/** A command-name token that is a variable reference (cmd @ prefix and PowerShell escapes ignored). */
+function isShellVariableCommand(token: string, cmdShell: boolean): boolean {
+  if (cmdShell) return /^(?:%[^%\s]+%|![^!\s]+!)$/.test(token.replace(/^@/, '').replace(/\^(?=.)/g, ''));
+  const name = token.replace(/`(?=.)/g, '');
+  return /^\$(?:\{[^}]+\}|[^\s=+*/%!?<>&|(),{};]+)$/.test(name) && !/^\$(?:true|false|null)$/i.test(name);
+}
+/** Preserve the operator/operand boundary, including quotes or adjacent numeric/variable operands. */
+const SHELL_EXPRESSION_OPERATOR = /^(?:in|[-+*/%]?=|\+\+|--|[-+*/%<>&|,\[]|\.\.|-(?:(?:c|i)?(?:eq|ne|gt|ge|lt|le|like|notlike|match|notmatch|contains|notcontains|in|notin|split|replace)|and|or|xor|band|bor|bxor|shl|shr|is|isnot|as|join|f))(?=$|['"$\d.\[+-])/i;
+/** Lexical R reading: preserve variable braces while respecting strings, comments and call operators. */
+function shellVariableInvocation(command: string, cmdShell: boolean, backslashEscapes: boolean): boolean {
+  return shellExecutionSegments(command, cmdShell, backslashEscapes, true).some(({ command: segment, called }) => {
+    const tokens = tokenizeCommand(segment);
+    let start = 0;
+    while (shellCommandName(tokens[start]) === 'call') start += 1;
+    const dotCalled = !cmdShell && tokens[start] === '.';
+    if (dotCalled) start += 1;
+    if (!isShellVariableCommand(tokens[start] || '', cmdShell)) return false;
+    if (cmdShell || called || dotCalled) return true;
+    // Bare indexing/ranges are expressions. Do not mistake spaces within an index
+    // for arguments; braces belonging to the variable name are not indexing syntax.
+    const operand = tokens[start].replace(/^\$\{[^}]+\}/, '$v');
+    const next = (rawShellWords(segment)[start + 1] || '').replace(/`(?=.)/g, '');
+    return tokens.length > start + 1 && !/\[|\.\./.test(operand) && !SHELL_EXPRESSION_OPERATOR.test(next);
+  });
+}
+const HIGH_IMPACT_WORD = /\b(?:remove-item|ri|rm|rmdir|rd|del|erase|unlink|npm|yarn|pnpm|cargo|twine|reg|net|sc|icacls|cmd|powershell|pwsh|sh|bash|dash|zsh)\b/i;
+/** Control structures whose effect on a variable's value this recognizer does not follow. */
+const SHELL_CONTROL_FLOW = /[{}()]|\$\(|&&|\|\||(?:^|[;&|\s])\.\s|\b(?:if|else|elseif|for|foreach|while|do|switch|try|catch|finally|trap|function|filter|call|iex|invoke-expression|invoke-command|goto)\b/i;
+
+function shellImpact(command: string, depth = 0, cmdShell = false, commandVariables = new Map<string, string>(), outer: ShellRiskContext = { controlFlow: false, highImpactWord: false }): ShellImpact | undefined {
+  // The original (escape) reading is evaluated unchanged; the PowerShell/cmd reading,
+  // where a backslash before a quote is literal, can only add confirmations.
+  for (const backslashEscapes of /\\"/.test(command) ? [true, false] : [true]) {
+    const impact = shellImpactReading(command, depth, cmdShell, new Map(commandVariables), backslashEscapes, outer);
+    if (impact) return impact;
+  }
+  return undefined;
+}
+
+function shellImpactReading(command: string, depth: number, cmdShell: boolean, commandVariables: Map<string, string>, backslashEscapes: boolean, outer: ShellRiskContext): ShellImpact | undefined {
+  // Evaluate R before the original depth guard, including inherited context at the
+  // boundary. This does not decode or recurse beyond the existing bound.
+  const risk: ShellRiskContext = {
+    controlFlow: outer.controlFlow || SHELL_CONTROL_FLOW.test(shellStructureText(command, cmdShell)),
+    highImpactWord: outer.highImpactWord || HIGH_IMPACT_WORD.test(command.replace(/\^(?=.)|`(?=.)/g, '')),
+  };
+  if (risk.controlFlow && risk.highImpactWord && shellVariableInvocation(command, cmdShell, backslashEscapes)) return 'unanalysed';
   if (depth > 4) {
     // An unanalysed host can conceal an encoded or nested high-impact payload.
     return /\b(?:remove-item|ri|rm|rmdir|rd|del|erase|unlink|npm|yarn|pnpm|cargo|twine|reg|net|sc|icacls|cmd|powershell|pwsh|sh|bash|dash|zsh)\b/i.test(command.replace(/\^(?=.)|`(?=.)/g, '')) ? 'unanalysed' : undefined;
   }
   // Normalize executable-name escapes only at lookup; escaped delimiters and
   // quoted output remain data. The original command is bound by approval.
-  const segments = shellExecutionSegments(command, cmdShell);
+  const segments = shellExecutionSegments(command, cmdShell, backslashEscapes);
+
   for (const { command: segment, expressions } of segments) {
     // Resolve subexpressions with preceding literal assignments in this command,
     // before treating the enclosing output as data. Child assignments stay local.
     for (const expression of expressions) {
-      const impact = shellImpact(expression, depth + 1, false, new Map(commandVariables));
+      const impact = shellImpact(expression, depth + 1, false, new Map(commandVariables), risk);
       if (impact) return impact;
     }
     recordShellCommandAssignment(segment, commandVariables, cmdShell);
@@ -300,7 +369,7 @@ function shellImpact(command: string, depth = 0, cmdShell = false, commandVariab
     if (['do', 'else', 'iex', 'invoke-expression'].includes(name)) {
       const rawWords = rawShellWords(segment);
       const payload = start + 1 === tokens.length - 1 ? tokens[start + 1] : rawWords.slice(start + 1).join(' ');
-      const impact = shellImpact(payload || '', depth + 1, cmdShell, new Map(commandVariables));
+      const impact = shellImpact(payload || '', depth + 1, cmdShell, new Map(commandVariables), risk);
       if (impact) return impact;
       continue;
     }
@@ -330,7 +399,10 @@ function shellImpact(command: string, depth = 0, cmdShell = false, commandVariab
           else if (match?.[2] === undefined && ['executionpolicy', 'ep', 'windowstyle', 'configurationname', 'inputformat', 'outputformat', 'psconsolefile', 'version', 'settingsfile', 'workingdirectory', 'custompipename'].some((value) => value.startsWith(option))) i += 1;
         } else if (/^-[A-Za-z]*c[A-Za-z]*$/.test(token)) payload = rest(i + 1);
         if (payload !== undefined) {
-          const impact = shellImpact(payload, depth + 1, name === 'cmd');
+          // The host's own name is not a risk word for its payload.
+          const hostRisk: ShellRiskContext = { controlFlow: risk.controlFlow,
+            highImpactWord: outer.highImpactWord || HIGH_IMPACT_WORD.test(command.replace(tokens[start] ?? '', '').replace(/\^(?=.)|`(?=.)/g, '')) };
+          const impact = shellImpact(payload, depth + 1, name === 'cmd', undefined, hostRisk);
           if (impact) return impact;
           break;
         }
@@ -348,7 +420,7 @@ function shellImpact(command: string, depth = 0, cmdShell = false, commandVariab
       else if (tokens[cursor]?.includes('==')) cursor += 1;
       else if (['equ', 'neq', 'lss', 'leq', 'gtr', 'geq'].includes(tokens[cursor + 1]?.toLowerCase())) cursor += 3;
       if (cursor > start + 1) {
-        const impact = shellImpact(rawShellWords(segment).slice(cursor).join(' '), depth + 1, cmdShell, new Map(commandVariables));
+        const impact = shellImpact(rawShellWords(segment).slice(cursor).join(' '), depth + 1, cmdShell, new Map(commandVariables), risk);
         if (impact) return impact;
         continue;
       }
@@ -361,7 +433,7 @@ function shellImpact(command: string, depth = 0, cmdShell = false, commandVariab
         const nested = directShellImpact(shellCommandName(tokens[i]), tokens.slice(i + 1));
         if (nested) return nested;
         if (/\s/.test(tokens[i]) && /\b(?:npm|yarn|pnpm|cargo|twine|reg|net|sc|icacls)\b/i.test(tokens[i])) {
-          const embedded = shellImpact(tokens[i], depth + 1, cmdShell, new Map(commandVariables));
+          const embedded = shellImpact(tokens[i], depth + 1, cmdShell, new Map(commandVariables), risk);
           if (embedded) return embedded;
         }
       }
