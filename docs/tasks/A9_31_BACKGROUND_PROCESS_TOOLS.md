@@ -969,3 +969,15 @@ R2本地准备`prepare-r4r2-local.py`误把`validation-sync-current`按R9字节�
 ### 2026-10-06：治理文档提交材料批准与执行前C14登记
 
 负责人回复“批准，D1选A，D2同意”，绑定[治理文档提交材料](../plans/A9_31_GOVERNANCE_DOCS_COMMIT_APPROVAL.md)原文SHA256 a72bd2ec2a8e7922805ea6035b0bf09ce1e99a5138999384b31a12468976ae70（执行前复核一致）。D1=A：两处SSH私钥路径原样提交；D2：采用材料§2.4提交信息。C14仅新增`.acceptance/a9-31-developer/governance-docs-commit-r1/`下`pre-commit-status.json`、`staged-name-status.txt`、`commit-result.json`。只本地提交附录A的84个路径，不推送/合并/改写历史。
+
+### 2026-10-06：治理文档本地提交完成（未推送）
+
+按批准材料执行：分支/HEAD `8d207ab`/空暂存区复核，工作树改动集合等于附录A 84路径，docs检查与diff --check通过；逐路径暂存、暂存blob与工作文件哈希逐一一致，钩子未绕过。提交`2b6f3e22301b5b8a9e3593256eb5a3fccfa2a811`（父`8d207ab`），变更路径恰为附录A，提交后工作树干净。证据`.acceptance/a9-31-developer/governance-docs-commit-r1/`（`commit-result.json`=`GOVERNANCE_DOCS_COMMIT_DONE`）。未推送/合并；本条目将随下一次提交带入。未在Win7实机验证。
+
+### 2026-10-06：分支推送材料（仅草案）
+
+负责人要求起草；[推送材料](../plans/A9_31_BRANCH_PUSH_APPROVAL.md)（SHA256 196a1d19d98d0ab43d2ff82c40249dce14343377a28927baf91974fcbf2c26ce）DRAFT_NOT_APPROVED：origin为公开仓库；把`codex/a9-31-background-tools`推送为同名新远端分支（25提交，含A9-30从未推送的14个），不建PR/不合并。新增公开暴露：测试机主机名、账户名、更多私网地址、SSH私钥路径（均无凭据内容）。待D1（接受暴露）、D2（先提交任务书与本稿再推送，推荐）、D3（A9-30提交一并公开）。
+
+### 2026-10-06：分支推送材料批准与执行前C14登记
+
+负责人回复“批准，D1接受，D2选B，D3确认”，绑定[推送材料](../plans/A9_31_BRANCH_PUSH_APPROVAL.md)原文SHA256 196a1d19d98d0ab43d2ff82c40249dce14343377a28927baf91974fcbf2c26ce（执行前复核一致）。D1接受§2新增公开暴露；D2=B先本地提交任务书与推送材料两路径；D3确认A9-30的14个提交一并公开。C14仅新增`.acceptance/a9-31-developer/branch-push-r1/`下`pre-push-status.json`、`push-output.txt`、`push-result.json`。仅推送`codex/a9-31-background-tools`为同名新远端分支，不建PR/不合并/不强推。
