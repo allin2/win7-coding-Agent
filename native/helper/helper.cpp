@@ -41,6 +41,8 @@
  */
 
 #include "helper.h"
+#include "stream_writer.h"
+#include <memory>
 
 #include <algorithm>
 #include <cstdio>
@@ -104,6 +106,34 @@ bool PollCancellationControl(const std::wstring& requestId, int schemaVersion, b
     if (!ParseCancelControl(line, requestId, schemaVersion, error)) return false;
     *canceled = true;
     return true;
+}
+
+// v3 controls are nonblocking and bounded; partial control input cannot stall pipe draining.
+bool PollV3Control(const ProcessConfig& config, bool* canceled, std::wstring* releaseId, std::string* error) {
+    *canceled = false; releaseId->clear();
+    if (gStdinPending.find('\n') == std::string::npos) {
+        DWORD available = 0;
+        if (!PeekNamedPipe(GetStdHandle(STD_INPUT_HANDLE), nullptr, 0, nullptr, &available, nullptr)) {
+            if (GetLastError() == ERROR_BROKEN_PIPE && !config.managed && gStdinPending.empty()) return true;
+            *error = "v3 control channel closed or unavailable"; return false;
+        }
+        if (available) {
+            char buffer[4096]; DWORD count = 0;
+            if (!ReadFile(GetStdHandle(STD_INPUT_HANDLE), buffer, std::min<DWORD>(available, sizeof(buffer)), &count, nullptr) || !count) {
+                *error = "v3 control read failed"; return false;
+            }
+            gStdinPending.append(buffer, count);
+        }
+    }
+    const size_t newline = gStdinPending.find('\n');
+    if (gStdinPending.size() > 16384 || (newline == std::string::npos && gStdinPending.size() >= 16384)) { *error = "v3 control frame exceeds limit"; return false; }
+    if (newline == std::string::npos) return true;
+    std::string line = gStdinPending.substr(0, newline); gStdinPending.erase(0, newline + 1);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    std::string cancelError;
+    if (ParseCancelControl(line, config.requestId, 3, &cancelError)) { *canceled = true; return true; }
+    if (config.managed && ParseReleaseControl(line, config.requestId, releaseId, error)) return true;
+    *error = "v3 control must be bound cancel or managed release"; return false;
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -558,6 +588,36 @@ bool DrainAvailable(HANDLE hPipe, std::vector<unsigned char>* buffer,
     const size_t take = std::min<size_t>(room, read);
     if (take) buffer->insert(buffer->end(), chunk, chunk + take);
     if (take < read) *truncated = true;
+    return true;
+}
+
+// v3 drains raw bytes even after publication caps. Only successful enqueues advance sequence/offset.
+bool DrainStreaming(HANDLE pipe, const char* stream, long long cap,
+                    const ProcessConfig& config, ProcessResult* result, StreamWriter* writer,
+                    bool* activity, bool* transportFailed) {
+    DWORD available = 0;
+    if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) return false;
+    if (!available) return true;
+    unsigned char bytes[16384]; DWORD read = 0;
+    if (!ReadFile(pipe, bytes, (std::min)(available, static_cast<DWORD>(sizeof(bytes))), &read, nullptr) || !read) return false;
+    if (activity) *activity = true;
+    const bool out = stream[0] == 's' && stream[3] == 'o';
+    long long& raw = out ? result->stdoutRaw : result->stderrRaw;
+    long long& emitted = out ? result->stdoutEmitted : result->stderrEmitted;
+    long long& chunks = out ? result->stdoutChunks : result->stderrChunks;
+    bool& truncated = out ? result->stdoutTruncated : result->stderrTruncated;
+    raw += read;
+    if (*transportFailed || truncated) return true;
+    const size_t take = chunks >= 4096 ? 0 : static_cast<size_t>((std::min)(static_cast<long long>(read), (std::max)(0LL, cap - emitted)));
+    const std::string id = WideToUtf8(config.requestId);
+    if (take) {
+        if (!writer->Enqueue(RenderOutputJson(id, stream, result->lastOutputSeq + 1, emitted, bytes, take))) { *transportFailed = true; return true; }
+        emitted += take; ++chunks; ++result->lastOutputSeq;
+    }
+    if (take < read) {
+        truncated = true; result->outputTruncated = true;
+        if (!writer->Enqueue(RenderTruncatedJson(id, stream, chunks >= 4096 ? "event_limit" : "byte_limit"))) *transportFailed = true;
+    }
     return true;
 }
 
@@ -1199,15 +1259,32 @@ bool ApplyDenyAce(const std::wstring& directory, PSID userSid,
 bool RestoreDirectoryDacl(const std::wstring& directory,
                           const SecurityDescriptorSnapshot& restore,
                           std::wstring* error) {
-    // SetNamedSecurityInfoW re-applies inheritance and can add the
-    // SE_DACL_AUTO_INHERITED control bit even when the captured descriptor did
-    // not contain it. Restore the captured descriptor so both ACE bytes and
-    // inheritance-control state return to their exact pre-run values.
-    if (!SetFileSecurityW(directory.c_str(), DACL_SECURITY_INFORMATION,
-                          restore.descriptor)) {
+    SECURITY_DESCRIPTOR_CONTROL originalControl = 0;
+    DWORD revision = 0;
+    if (!GetSecurityDescriptorControl(restore.descriptor, &originalControl, &revision)) {
+        if (error) *error = L"GetSecurityDescriptorControl(DACL restore) failed: " + WinErrorText(GetLastError());
+        return false;
+    }
+    // SetFileSecurityW can clear AUTO_INHERITED on an originally inherited
+    // DACL. Restore that case while preserving its captured protection mode;
+    // keep the descriptor path for snapshots without AUTO_INHERITED.
+    if ((originalControl & SE_DACL_AUTO_INHERITED) != 0) {
+        const SECURITY_INFORMATION protection = (originalControl & SE_DACL_PROTECTED) != 0
+            ? PROTECTED_DACL_SECURITY_INFORMATION : UNPROTECTED_DACL_SECURITY_INFORMATION;
+        const DWORD result = SetNamedSecurityInfoW(
+            const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | protection,
+            nullptr, nullptr, restore.acl, nullptr);
+        if (result != ERROR_SUCCESS) {
+            if (error) *error = L"SetNamedSecurityInfoW(DACL restore) failed: " + WinErrorText(result);
+            return false;
+        }
+    } else if (!SetFileSecurityW(directory.c_str(), DACL_SECURITY_INFORMATION,
+                                 restore.descriptor)) {
         if (error) *error = L"SetFileSecurityW(DACL restore) failed: " + WinErrorText(GetLastError());
         return false;
     }
+    // Neither API success nor equivalent access rights proves exact rollback.
     return CurrentDaclMatches(directory, restore, error);
 }
 
@@ -1239,6 +1316,13 @@ bool CaptureLowIntegrityLabel(const std::wstring& directory,
 bool RestoreLowIntegrityLabel(const std::wstring& directory,
                               const SecurityDescriptorSnapshot& restore,
                               std::wstring* error) {
+    // A failed application may leave the captured label unchanged. Prove
+    // that state by re-reading it before attempting a redundant label write.
+    // A read failure or mismatch must still take the restoration path.
+    std::wstring comparisonError;
+    if (CurrentLabelAclMatches(directory, restore.acl, &comparisonError)) {
+        return true;
+    }
     const DWORD result = SetNamedSecurityInfoW(
         const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
         LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, restore.acl);
@@ -1253,7 +1337,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     result->schemaVersion = config.schemaVersion;
     result->profileId = config.profileId;
     result->workDirAclModified = false;
-    const bool currentUserProfile = config.schemaVersion == 2;
+    const bool currentUserProfile = config.schemaVersion >= 2;
     std::wstring commandLine;
     if (currentUserProfile && config.shellKind == L"cmd") {
         if (!BuildCmdVerbatimCommandLine(
@@ -1454,7 +1538,22 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     };
 
     if (fatalAclFailure) {
+        std::string setupError = "ACL setup failed";
+        for (const AclChangeRecord& record : aclRecords) {
+            if (!record.applied || !record.verified) {
+                setupError += " (" + WideToUtf8(record.mechanism) + "): ";
+                setupError += record.error.empty()
+                    ? (record.applied ? "verification failed" : "application failed")
+                    : WideToUtf8(record.error);
+                break;
+            }
+        }
         const int failure = failAfterRollback(HELPER_ERR_ACL_SET);
+        if (failure == HELPER_ERR_ACL_ROLLBACK) {
+            result->errorMessage += "; primary " + setupError;
+        } else {
+            result->errorMessage = setupError;
+        }
         if (userSid) LocalFree(userSid);
         CloseHandle(hRestricted);
         CloseHandle(hJob);
@@ -1685,11 +1784,17 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     result->inputDetached = true;
     result->stdoutCaptureReady = true;
     result->stderrCaptureReady = true;
+    std::unique_ptr<StreamWriter> writer;
+    bool streamTransportFailed = false;
+    if (config.schemaVersion == 3) writer.reset(new StreamWriter());
     if (currentUserProfile) {
         const std::string started = RenderStartedJson(WideToUtf8(config.requestId), *result);
-        std::fwrite(started.data(), 1, started.size(), stdout);
-        std::fputc('\n', stdout);
-        std::fflush(stdout);
+        if (writer) streamTransportFailed = !writer->Enqueue(started);
+        else {
+            std::fwrite(started.data(), 1, started.size(), stdout);
+            std::fputc('\n', stdout);
+            std::fflush(stdout);
+        }
     }
 
     ResumeThread(pi.hThread);
@@ -1715,6 +1820,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     ULONGLONG lastActivity = startTime;
     bool done = false;
     bool cancelProtocolFailed = false;
+    std::wstring requestedReleaseId;
     while (!done) {
         const ULONGLONG elapsed = GetTickCount64() - startTime;
         DWORD slice = 50;
@@ -1726,15 +1832,22 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         }
         const DWORD waitResult = WaitForSingleObject(pi.hProcess, slice);
         bool outputActivity = false;
-        DrainAvailable(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated,
-                       &outputActivity);
-        DrainAvailable(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated,
-                       &outputActivity);
+        if (writer) {
+            DrainStreaming(hOutRead, "stdout", stdoutCap, config, result, writer.get(), &outputActivity, &streamTransportFailed);
+            DrainStreaming(hErrRead, "stderr", stderrCap, config, result, writer.get(), &outputActivity, &streamTransportFailed);
+            if (writer->Failed() || streamTransportFailed) { result->canceled = true; done = true; }
+        } else {
+            DrainAvailable(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated, &outputActivity);
+            DrainAvailable(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated, &outputActivity);
+        }
         if (outputActivity) lastActivity = GetTickCount64();
+        if (done) continue; // A failed writer never authorizes ownership release.
         bool cancellationRequested = false;
         std::string cancellationError;
-        if (!PollCancellationControl(config.requestId, config.schemaVersion, &cancellationRequested,
-                                     &cancellationError)) {
+        const bool controlOk = config.schemaVersion == 3
+            ? PollV3Control(config, &cancellationRequested, &requestedReleaseId, &cancellationError)
+            : PollCancellationControl(config.requestId, config.schemaVersion, &cancellationRequested, &cancellationError);
+        if (!controlOk) {
             cancelProtocolFailed = true;
             result->errorMessage = cancellationError;
             done = true;
@@ -1742,6 +1855,7 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
             result->canceled = true;
             done = true;
         }
+        if (!requestedReleaseId.empty()) done = true;
         if (done) continue;
         if (waitResult == WAIT_OBJECT_0) {
             done = true;
@@ -1764,6 +1878,28 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     }
     result->executionTimeMs = static_cast<long long>(GetTickCount64() - startTime);
 
+    if (!requestedReleaseId.empty() && !cancelProtocolFailed && !result->canceled && writer && config.managed && currentUserProfile &&
+        pendingRestores.empty() && pendingLabelRestores.empty() && WaitForSingleObject(pi.hProcess, 0) == WAIT_TIMEOUT) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {}, verified = {};
+        const bool queried = QueryInformationJobObject(hJob, JobObjectExtendedLimitInformation, &limits, sizeof(limits), nullptr) != FALSE;
+        if (queried) limits.BasicLimitInformation.LimitFlags &= ~JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        const bool released = queried && SetInformationJobObject(hJob, JobObjectExtendedLimitInformation, &limits, sizeof(limits)) &&
+            QueryInformationJobObject(hJob, JobObjectExtendedLimitInformation, &verified, sizeof(verified), nullptr) &&
+            !(verified.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE) &&
+            verified.BasicLimitInformation.LimitFlags == limits.BasicLimitInformation.LimitFlags;
+        if (released) {
+            result->releaseId = requestedReleaseId; result->ownershipReleased = true; result->cleanupConfirmed = false;
+            // Close capture endpoints and ownership handles BEFORE the terminal receipt.
+            CloseHandle(pi.hProcess); CloseHandle(hNullIn); CloseHandle(hOutRead); CloseHandle(hErrRead);
+            CloseHandle(hRestricted); if (userSid) LocalFree(userSid); CloseHandle(hJob);
+            const bool queued = writer->Enqueue(RenderReleasedJson(WideToUtf8(config.requestId), *result));
+            const bool delivered = writer->Finish();
+            // A lost receipt is UNKNOWN at the caller; never claim the child was cleaned up.
+            return queued && delivered ? HELPER_OK : HELPER_ERR_INTERNAL;
+        }
+        cancelProtocolFailed = true; result->errorMessage = "managed release Job flags could not be verified";
+    }
+
     if (result->timedOut || result->idleTimedOut || result->canceled || cancelProtocolFailed) {
         // Kill the whole tree — never taskkill (N06).
         TerminateJobObject(hJob, 1);
@@ -1773,8 +1909,18 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
     }
     // Ensure the tree is gone before draining (writers dead -> EOF).
     WaitForSingleObject(pi.hProcess, 10000);
-    DrainUntilEof(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated);
-    DrainUntilEof(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated);
+    if (writer) {
+        bool outOpen = true, errOpen = true;
+        const ULONGLONG drainDeadline = GetTickCount64() + 5000;
+        while ((outOpen || errOpen) && GetTickCount64() < drainDeadline) {
+            if (outOpen) outOpen = DrainStreaming(hOutRead, "stdout", stdoutCap, config, result, writer.get(), nullptr, &streamTransportFailed);
+            if (errOpen) errOpen = DrainStreaming(hErrRead, "stderr", stderrCap, config, result, writer.get(), nullptr, &streamTransportFailed);
+        }
+        if (outOpen || errOpen) streamTransportFailed = true;
+    } else {
+        DrainUntilEof(hOutRead, &result->stdoutBytes, stdoutCap, &result->outputTruncated);
+        DrainUntilEof(hErrRead, &result->stderrBytes, stderrCap, &result->outputTruncated);
+    }
 
     GetExitCodeProcess(pi.hProcess, &result->exitCode);
     const ULONGLONG cleanupDeadline = GetTickCount64() + 10000;
@@ -1840,7 +1986,13 @@ int LaunchRestrictedProcess(const ProcessConfig& config, ProcessResult* result) 
         }
         return HELPER_ERR_ACL_ROLLBACK;
     }
-    if (cancelProtocolFailed) return HELPER_ERR_CANCEL_PROTOCOL;
+    if (cancelProtocolFailed && !writer) return HELPER_ERR_CANCEL_PROTOCOL;
+    if (writer) {
+        if (cancelProtocolFailed) { result->canceled = true; }
+        const bool terminalQueued = !streamTransportFailed && writer->Enqueue(RenderResultJson(WideToUtf8(config.requestId), *result));
+        const bool delivered = writer->Finish();
+        if (!terminalQueued || !delivered) return HELPER_ERR_INTERNAL;
+    }
     return HELPER_OK;
 }
 
@@ -1891,7 +2043,9 @@ int RunHelperLoop() {
         ProcessConfig config;
         std::string error;
         if (!ParseJsonConfig(line, &config, &error)) {
-            int errorSchemaVersion = line.find("\"schemaVersion\":2") != std::string::npos ? 2 : 1;
+            int errorSchemaVersion = config.schemaVersion >= 2 ? config.schemaVersion :
+                (line.find("\"schemaVersion\":2") != std::string::npos ? 2 : 1);
+            requestId = WideToUtf8(config.requestId);
             const std::string out = RenderErrorJson(requestId, "JSON_PARSE_FAILED",
                                                     "invalid request: " + error,
                                                     errorSchemaVersion);
@@ -1924,7 +2078,7 @@ int RunHelperLoop() {
             return HELPER_OK;
         }
         config.executable = canonical;
-        if (config.schemaVersion == 2) {
+        if (config.schemaVersion >= 2) {
             std::wstring canonicalShell;
             std::wstring canonicalCwd;
             std::wstring identity;
@@ -1971,6 +2125,7 @@ int RunHelperLoop() {
         ProcessResult result;
         const int errorCode = LaunchRestrictedProcess(config, &result);
         if (errorCode != HELPER_OK) {
+            if (config.schemaVersion == 3 && result.childPid != 0) return errorCode;
             const char* code = "PROCESS_LAUNCH_FAILED";
             if (errorCode == HELPER_ERR_HOST_IN_JOB) code = "HOST_ALREADY_IN_JOB";
             else if (errorCode == HELPER_ERR_JOB_CREATE) code = "JOB_CREATE_FAILED";
@@ -1991,6 +2146,7 @@ int RunHelperLoop() {
             return HELPER_OK;
         }
 
+        if (config.schemaVersion == 3) return HELPER_OK; // writer already delivered the terminal.
         const std::string out = RenderResultJson(requestId, result);
         std::fwrite(out.data(), 1, out.size(), stdout);
         std::fputc('\n', stdout);
@@ -2026,18 +2182,19 @@ int wmain(int argc, wchar_t* argv[]) {
     if (argc >= 2) {
         const std::wstring flag = argv[1];
         if (flag == L"--version" || flag == L"-v") {
-            std::printf("win7-agent-helper 1.3.0-d013-v25 win7-x64 profiles=v1-low-risk,v2-current-user\n");
+            std::printf("win7-agent-helper 1.4.1-d013-v26-managed win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming,v3-managed-release\n");
             return 0;
         }
         if (flag == L"--help" || flag == L"-h") {
             std::printf(
-                "spike02-helper: JSON-over-stdio D-013 process host with two separate profiles.\n"
+                "spike02-helper: JSON-over-stdio D-013 process host with separate versioned profiles.\n"
                 "v1 / D-013-v24-low-risk-noninteractive: Restricted Token + Low Integrity +\n"
                 "Job Object + authorized ACL changes; canonical low-risk System32 argv only.\n"
                 "v2 / D-013-v25-a9-trusted-shell-current-user: current-user Primary Token +\n"
                 "Job Object, detached stdin, bounded output, ready/cancel/result messages,\n"
                 "shell identity binding, filtered environment overlay and optional deadline.\n"
-                "v2 is NOT a security sandbox and provides no file, network or privilege\n"
+                "v3 / D-013-v26: byte-sequenced dual-stream output with a bounded writer; no release.\n"
+                "v2/v3 are NOT a security sandbox and provides no file, network or privilege\n"
                 "isolation beyond the permissions of the current Windows user.\n");
             return 0;
         }

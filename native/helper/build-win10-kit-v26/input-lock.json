@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "profile": "WIN10-VS2019-V142-SDK19041-D013-V26-STREAMING-X64",
+  "source_commit": "7feae402edfb30da9adb649841d777ca82cc6e80",
+  "source_commit_timestamp": "2026-10-02T05:41:55+08:00",
+  "generated_at": "2026-10-02T05:41:55+08:00",
+  "sources": [
+    {
+      "path": "src/helper.cpp",
+      "size": 97826,
+      "sha256": "7d2c7a810d6684a768d85800338bfa87db47d25f46df5ce55fe2210aab21370d"
+    },
+    {
+      "path": "src/helper.h",
+      "size": 17296,
+      "sha256": "d99df9851914f1a992edc900908e02605a15e5dd542d1ad6dff77c0da55c415b"
+    },
+    {
+      "path": "src/protocol.cpp",
+      "size": 35245,
+      "sha256": "4609bf864c352d648fc2f8b0775678df9897830401e304ae9f412e8ee9910638"
+    },
+    {
+      "path": "src/logic_tests.cpp",
+      "size": 30550,
+      "sha256": "b2e84526c385434e6c758439e9a38944db15373bebcfe4aad420ecf4884aaba8"
+    },
+    {
+      "path": "src/CMakeLists.txt",
+      "size": 3291,
+      "sha256": "3bc54873d0c2bd8469f75b3553657ddeec4e4dd5059138b6f2f6ad4ff1e0d43e"
+    },
+    {
+      "path": "src/stream_writer.cpp",
+      "size": 2908,
+      "sha256": "e630058b8992ceabaa19506eceaf5c5b0b62c7445b485ab5dab8bc6f89dde6af"
+    },
+    {
+      "path": "src/stream_writer.h",
+      "size": 687,
+      "sha256": "b5bcfb506dff00c69d7415d4ed64e53df58acadab048cf30e2dcd88871add1df"
+    },
+    {
+      "path": "src/whitelist.cpp",
+      "size": 8788,
+      "sha256": "b4102bb576965e61b7f2aeeced4e7df40c842d9ff0e255aa78c357a66550aa05"
+    },
+    {
+      "path": "src/whitelist.h",
+      "size": 4093,
+      "sha256": "a2b6bcb9adf264115189828c132488562aa1a6e85bb80ae8fcfc84a47cf4aabf"
+    },
+    {
+      "path": "src/argv_builder.cpp",
+      "size": 2973,
+      "sha256": "ab81535d40d33fc53c79b236f3abf6e53999809011e328d3718393293537aad3"
+    },
+    {
+      "path": "src/argv_builder.h",
+      "size": 1617,
+      "sha256": "ce4ae7dbe6f4b085f8d32fb4e7f4f25a4f792d49a8dbf3793b935545b73a656e"
+    },
+    {
+      "path": "src/json_parser.cpp",
+      "size": 12913,
+      "sha256": "bfbd048d605e3cdabb9bb139a1cb38244ca2c74f7aa47415bcbe8607968d5ae8"
+    },
+    {
+      "path": "src/json_parser.h",
+      "size": 2653,
+      "sha256": "559eaa6d53f001a4bdcf436c031ea554bebfd9ef7811b21b977261a10536ef65"
+    },
+    {
+      "path": "prepare-kit.cjs",
+      "size": 6048,
+      "sha256": "9a8be3f57fe0a3e2885a041e2c25f13a48d975b755357f585cd3f346b594d3af"
+    },
+    {
+      "path": "package-kit.cjs",
+      "size": 2652,
+      "sha256": "d173641b06e8449dc3b45f8d83e469bcf801ccc0c186b65a249ad2de76b70ec8"
+    },
+    {
+      "path": "build.ps1",
+      "size": 81201,
+      "sha256": "66ba584b439ae5cffad0469d562ab584b4198a05b18eea9d8f6316fa0a1acc8a"
+    },
+    {
+      "path": "build-profile.json",
+      "size": 5198,
+      "sha256": "0e160156802756874d7839465295560483b196140c69f3173f723c1a3195f180"
+    },
+    {
+      "path": "README_BUILD.md",
+      "size": 6363,
+      "sha256": "797ef1199de5243d82f20d45f059739440d7c2f8aefcfc028d705830f1cd9fe5"
+    },
+    {
+      "path": "helper.exe.manifest",
+      "size": 1119,
+      "sha256": "d5bcc8b0074e4c3ada637b1faac5fc212a90664d840add1e7667dee09a6e4d5e"
+    },
+    {
+      "path": "SOURCE_COMMIT.txt",
+      "size": 41,
+      "sha256": "a8add7aef2b7f30ccc145e3b0e458ac5cc393f4428485525c196c3d9bf76ac81"
+    },
+    {
+      "path": "SOURCE_COMMIT_TIMESTAMP.txt",
+      "size": 26,
+      "sha256": "9575745b7bec687af638e6909f59e68b21692d62ba6d3c30527ae4ecfc4953e7"
+    }
+  ]
+}

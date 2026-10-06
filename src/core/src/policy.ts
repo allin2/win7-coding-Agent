@@ -7,7 +7,7 @@
 import { ToolCall, ApprovalLevel, PolicyDecision, PolicyVerdict, CapabilityToken } from './types';
 import { bindCapabilityToToolCall } from './approval-binding';
 import { policyDeniedError } from './errors';
-import { classifyGitCommand, MAX_ANALYZABLE_GIT_COMMAND_BYTES } from './git-command-policy';
+import { classifyGitCommand, MAX_ANALYZABLE_GIT_COMMAND_BYTES, tokenizeCommand } from './git-command-policy';
 
 const PROHIBITED_SHELL_HOSTS = new Set([
   'cmd',
@@ -72,6 +72,376 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
   'update_plan',
 ]);
 
+const SHELL_DELETE_COMMANDS = new Set(['remove-item', 'ri', 'rm', 'rmdir', 'rd', 'del', 'erase', 'unlink']);
+const SHELL_DATA_COMMANDS = new Set(['echo', 'echo.', 'printf', 'rem', '::', 'write-output', 'write-host', 'out-host']);
+const SHELL_HOSTS = new Set(['cmd', 'powershell', 'pwsh', 'sh', 'bash', 'dash', 'zsh']);
+type ShellImpact = 'delete' | 'publish' | 'system' | 'global_install' | 'unanalysed';
+const PACKAGE_COMMANDS = new Set(['npm', 'yarn', 'pnpm', 'cargo', 'twine']);
+const PACKAGE_VALUE_OPTIONS: Record<string, Set<string>> = {
+  npm: new Set(['--registry', '--tag', '--workspace', '-w', '--prefix', '--cache', '--userconfig', '--globalconfig',
+    '--user-agent', '--loglevel', '--otp', '--access', '--scope', '--proxy', '--https-proxy']),
+  yarn: new Set(['--registry', '--cwd', '--cache-folder', '--use-yarnrc', '--modules-folder', '--mutex',
+    '--network-timeout', '--proxy', '--https-proxy']),
+  pnpm: new Set(['--registry', '--tag', '--dir', '-c', '--workspace', '--prefix', '--store-dir', '--config-dir']),
+  cargo: new Set(['--registry', '--config', '--manifest-path', '--target', '--target-dir', '--package', '-p',
+    '--features', '--jobs', '-j', '--color', '-c']),
+  twine: new Set(['--repository', '-r', '--repository-url', '--username', '-u', '--password', '-p',
+    '--config-file', '--cert', '--client-cert']),
+};
+
+/** Locate the package subcommand; option values such as a registry named publish are data. */
+function packageOperation(name: string, args: string[]): ShellImpact | undefined {
+  let subcommand: string | undefined;
+  let subcommandIndex = -1;
+  let global = false;
+  let uncertain = false;
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i].replace(/\^(?=.)|`(?=.)/g, '').toLowerCase();
+    const option = token.split('=')[0];
+    if (PACKAGE_VALUE_OPTIONS[name].has(option)) {
+      if (!token.includes('=')) i += 1;
+    } else if (token === '-g' || option === '--global') {
+      global = token !== '--global=false';
+    } else if (!subcommand && token === '--') {
+      subcommand = args[++i]?.toLowerCase(); subcommandIndex = i;
+      if (subcommand?.startsWith('-')) uncertain = true;
+    } else if (!subcommand && !token.startsWith('-')) {
+      subcommand = token; subcommandIndex = i;
+    } else if (!subcommand && token.startsWith('-') &&
+        !['--silent', '--verbose', '--no-color', '--non-interactive', '--offline', '--locked', '--frozen', '--dry-run'].includes(token)) {
+      // An unknown option may consume the following token; do not infer a safe
+      // subcommand if an explicit publish/upload operation remains later.
+      uncertain = true;
+    }
+  }
+  if (subcommand === 'publish' || (name === 'twine' && subcommand === 'upload')) return 'publish';
+  if (uncertain && args.some((arg) => /^(?:publish|upload)$/i.test(arg))) return 'publish';
+  if (name === 'cargo' && ['install', 'uninstall'].includes(subcommand || '')) return 'global_install';
+  if (name === 'yarn' && subcommand === 'global' &&
+      ['add', 'remove', 'upgrade', 'upgrade-interactive'].includes(args[subcommandIndex + 1]?.toLowerCase())) return 'global_install';
+  if (global && ['install', 'i', 'add', 'remove', 'rm', 'uninstall', 'update', 'upgrade'].includes(subcommand || '')) return 'global_install';
+  return undefined;
+}
+
+function directShellImpact(name: string, args: string[]): ShellImpact | undefined {
+  if (SHELL_DELETE_COMMANDS.has(name)) return 'delete';
+  if (PACKAGE_COMMANDS.has(name)) return packageOperation(name, args);
+  const action = args[0]?.replace(/\^(?=.)|`(?=.)/g, '').toLowerCase();
+  if (name === 'reg' && ['add', 'delete', 'import', 'restore', 'load', 'unload', 'copy', 'save'].includes(action)) return 'system';
+  if (name === 'net' && action === 'user') return 'system';
+  const serviceAction = name === 'sc' && args[0]?.startsWith('\\\\') ? args[1]?.toLowerCase() : action;
+  if (name === 'sc' && ['config', 'create', 'delete', 'start', 'stop', 'pause', 'continue', 'control', 'sdset',
+    'failure', 'failureflag', 'description', 'privs', 'sidtype'].includes(serviceAction)) return 'system';
+  if (name === 'icacls') return 'system';
+  return undefined;
+}
+
+function shellCommandName(token: string = ''): string {
+  return token.replace(/\^(?=.)|`(?=.)/g, '').replace(/^@/, '').replace(/\\/g, '/').split('/').pop()!.toLowerCase().replace(/\.(?:exe|cmd|bat)$/, '');
+}
+
+/** Track only literal executable assignments; do not evaluate variable expressions. */
+function recordShellCommandAssignment(segment: string, variables: Map<string, string>, cmdShell: boolean): void {
+  if (cmdShell) {
+    const assignment = /^@?set\s+(?:"([A-Za-z_]\w*)=([^"]*)"|([A-Za-z_]\w*)=(.*))$/i.exec(segment);
+    if (assignment) {
+      const key = (assignment[1] || assignment[3]).toLowerCase();
+      const value = assignment[2] ?? assignment[4];
+      variables.delete(key);
+      if (!/[%!^]/.test(value)) variables.set(key, value.trim());
+    }
+  } else {
+    const assignment = /^\$(?:([A-Za-z_]\w*)|\{([A-Za-z_]\w*)\})\s*=\s*(.*)$/.exec(segment);
+    if (assignment) {
+      const key = (assignment[1] || assignment[2]).toLowerCase();
+      const literal = /^(?:'([^']*)'|"([^"$`]*)")$/.exec(assignment[3]);
+      variables.delete(key);
+      if (literal) variables.set(key, literal[1] ?? literal[2]);
+    }
+  }
+}
+
+function resolveShellCommandToken(token: string = '', variables: Map<string, string>, cmdShell: boolean): string {
+  const reference = cmdShell ? /^(?:%([A-Za-z_]\w*)%|!([A-Za-z_]\w*)!)$/.exec(token)
+    : /^\$(?:([A-Za-z_]\w*)|\{([A-Za-z_]\w*)\})$/.exec(token);
+  return reference ? variables.get((reference[1] || reference[2]).toLowerCase()) ?? token : token;
+}
+
+/** Raw words retain data quotes when an unquoted host command spans several arguments. */
+function rawShellWords(command: string): string[] {
+  const words: string[] = [];
+  let start = 0;
+  let quote: string | undefined;
+  for (let i = 0; i <= command.length; i += 1) {
+    const ch = command[i];
+    if ((ch === '`' || ch === '^') && command[i + 1] && quote !== "'") { i += 1; continue; }
+    if (quote) {
+      if (ch === '\\' && quote === '"' && /["\\]/.test(command[i + 1] || '')) i += 1;
+      else if (ch === quote) quote = undefined;
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (i === command.length || /\s/.test(ch)) {
+      if (i > start) words.push(command.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (start < command.length && quote) words.push(command.slice(start));
+  return words;
+}
+
+/** Find a PowerShell subexpression inside a double-quoted string, without evaluating it. */
+function subexpressionEnd(command: string, start: number): number {
+  let depth = 1;
+  let quote: string | undefined;
+  for (let i = start; i < command.length; i += 1) {
+    const ch = command[i];
+    if (ch === '`' && command[i + 1] && quote !== "'") { i += 1; continue; }
+    if (quote) {
+      if (ch === quote) {
+        if (command[i + 1] === quote) i += 1;
+        else quote = undefined;
+      }
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '(') depth += 1;
+    else if (ch === ')' && --depth === 0) return i;
+  }
+  return command.length;
+}
+
+/**
+ * Preserve quoted data and expose executable segments/groups. This is bounded
+ * Shell recognition, not a parser or a sandbox. Double-quoted $() is execution;
+ * single-quoted text and comments are data. Unsupported execution containing a
+ * high-impact operation is handled conservatively by the caller.
+ */
+function shellExecutionSegments(command: string, cmdShell: boolean, backslashEscapes = true, variableCalls = false): Array<{ command: string; expressions: string[]; called: boolean }> {
+  const segments: Array<{ command: string; expressions: string[]; called: boolean }> = [];
+  let expressions: string[] = [];
+  let current = '';
+  let quote: string | undefined;
+  // PowerShell's & call operator splits segments; remember that it introduced the next one.
+  let called = false;
+  const flush = () => {
+    if (current.trim()) {
+      segments.push({ command: current.trim(), expressions, called });
+      called = false;
+    }
+    current = ''; expressions = [];
+  };
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i];
+    if ((cmdShell ? ch === '^' : ch === '`') && command[i + 1] && quote !== "'") {
+      current += ch + command[++i];
+      continue;
+    }
+    if (quote) {
+      if (!cmdShell && quote === '"' && ch === '$' && command[i + 1] === '(') {
+        const end = subexpressionEnd(command, i + 2);
+        expressions.push(command.slice(i + 2, end));
+        current += command.slice(i, end + 1);
+        i = end;
+        continue;
+      }
+      current += ch;
+      if (backslashEscapes && ch === '\\' && quote === '"' && /["\\]/.test(command[i + 1] || '')) {
+        current += command[++i];
+      } else if (ch === quote) {
+        if (command[i + 1] === quote) current += command[++i];
+        else quote = undefined;
+      }
+      continue;
+    }
+    if (!cmdShell && ch === '<' && command[i + 1] === '#') {
+      const end = command.indexOf('#>', i + 2);
+      if (end < 0) break;
+      current += ' ';
+      i = end + 1;
+    } else if (!cmdShell && ch === '#' && (!current.trim() || /\s/.test(command[i - 1] || ''))) {
+      while (i < command.length && !/[\r\n]/.test(command[i])) i += 1;
+      flush();
+    } else if (ch === '"' || (!cmdShell && ch === "'")) {
+      quote = ch;
+      current += ch;
+    } else if (!cmdShell && ch === '$' && command[i + 1] === '{' &&
+        (variableCalls ? /^\$\{[^}]+\}/ : /^\$\{[A-Za-z_]\w*\}/).test(command.slice(i))) {
+      const end = command.indexOf('}', i + 2);
+      current += command.slice(i, end + 1);
+      i = end;
+    } else if ((cmdShell ? /[\r\n|&()]/ : /[;\r\n|&(){}]/).test(ch)) {
+      // Only the supplemental R reading preserves a parenthesized dot-call operand.
+      if (variableCalls && !cmdShell && ch === '(' && current.trim() === '.') {
+        current = ''; called = true;
+      }
+      flush();
+      if (!cmdShell && ch === '&' && command[i + 1] !== '&' && command[i - 1] !== '&') called = true;
+    } else current += ch;
+  }
+  flush();
+  return segments;
+}
+
+/** Risk context of the enclosing execution text, carried into nested payloads (ADR-0184). */
+interface ShellRiskContext { controlFlow: boolean; highImpactWord: boolean }
+/** Text for control-structure detection: variable braces, single-quoted data and comments removed; a quoted $() stays. */
+function shellStructureText(command: string, cmdShell: boolean): string {
+  if (cmdShell) return command.replace(/"[^"]*"/g, '""');
+  return command
+    .replace(/\$\{[^}]*\}/g, '$v')
+    .replace(/<#[\s\S]*?#>/g, ' ')
+    .replace(/'[^']*'/g, "''")
+    .replace(/"(?:[^"`]|`.)*"/g, (quoted) => (quoted.includes('$(') ? '"$("' : '""'))
+    .replace(/(^|\s)#[^\r\n]*/g, '$1');
+}
+/** A command-name token that is a variable reference (cmd @ prefix and PowerShell escapes ignored). */
+function isShellVariableCommand(token: string, cmdShell: boolean): boolean {
+  if (cmdShell) return /^(?:%[^%\s]+%|![^!\s]+!)$/.test(token.replace(/^@/, '').replace(/\^(?=.)/g, ''));
+  const name = token.replace(/`(?=.)/g, '');
+  return /^\$(?:\{[^}]+\}|[^\s=+*/%!?<>&|(),{};]+)$/.test(name) && !/^\$(?:true|false|null)$/i.test(name);
+}
+/** Preserve the operator/operand boundary, including quotes or adjacent numeric/variable operands. */
+const SHELL_EXPRESSION_OPERATOR = /^(?:in|[-+*/%]?=|\+\+|--|[-+*/%<>&|,\[]|\.\.|-(?:(?:c|i)?(?:eq|ne|gt|ge|lt|le|like|notlike|match|notmatch|contains|notcontains|in|notin|split|replace)|and|or|xor|band|bor|bxor|shl|shr|is|isnot|as|join|f))(?=$|['"$\d.\[+-])/i;
+/** Lexical R reading: preserve variable braces while respecting strings, comments and call operators. */
+function shellVariableInvocation(command: string, cmdShell: boolean, backslashEscapes: boolean): boolean {
+  return shellExecutionSegments(command, cmdShell, backslashEscapes, true).some(({ command: segment, called }) => {
+    const tokens = tokenizeCommand(segment);
+    let start = 0;
+    while (shellCommandName(tokens[start]) === 'call') start += 1;
+    const dotCalled = !cmdShell && tokens[start] === '.';
+    if (dotCalled) start += 1;
+    if (!isShellVariableCommand(tokens[start] || '', cmdShell)) return false;
+    if (cmdShell || called || dotCalled) return true;
+    // Bare indexing/ranges are expressions. Do not mistake spaces within an index
+    // for arguments; braces belonging to the variable name are not indexing syntax.
+    const operand = tokens[start].replace(/^\$\{[^}]+\}/, '$v');
+    const next = (rawShellWords(segment)[start + 1] || '').replace(/`(?=.)/g, '');
+    return tokens.length > start + 1 && !/\[|\.\./.test(operand) && !SHELL_EXPRESSION_OPERATOR.test(next);
+  });
+}
+const HIGH_IMPACT_WORD = /\b(?:remove-item|ri|rm|rmdir|rd|del|erase|unlink|npm|yarn|pnpm|cargo|twine|reg|net|sc|icacls|cmd|powershell|pwsh|sh|bash|dash|zsh)\b/i;
+/** Control structures whose effect on a variable's value this recognizer does not follow. */
+const SHELL_CONTROL_FLOW = /[{}()]|\$\(|&&|\|\||(?:^|[;&|\s])\.\s|\b(?:if|else|elseif|for|foreach|while|do|switch|try|catch|finally|trap|function|filter|call|iex|invoke-expression|invoke-command|goto)\b/i;
+
+function shellImpact(command: string, depth = 0, cmdShell = false, commandVariables = new Map<string, string>(), outer: ShellRiskContext = { controlFlow: false, highImpactWord: false }): ShellImpact | undefined {
+  // The original (escape) reading is evaluated unchanged; the PowerShell/cmd reading,
+  // where a backslash before a quote is literal, can only add confirmations.
+  for (const backslashEscapes of /\\"/.test(command) ? [true, false] : [true]) {
+    const impact = shellImpactReading(command, depth, cmdShell, new Map(commandVariables), backslashEscapes, outer);
+    if (impact) return impact;
+  }
+  return undefined;
+}
+
+function shellImpactReading(command: string, depth: number, cmdShell: boolean, commandVariables: Map<string, string>, backslashEscapes: boolean, outer: ShellRiskContext): ShellImpact | undefined {
+  // Evaluate R before the original depth guard, including inherited context at the
+  // boundary. This does not decode or recurse beyond the existing bound.
+  const risk: ShellRiskContext = {
+    controlFlow: outer.controlFlow || SHELL_CONTROL_FLOW.test(shellStructureText(command, cmdShell)),
+    highImpactWord: outer.highImpactWord || HIGH_IMPACT_WORD.test(command.replace(/\^(?=.)|`(?=.)/g, '')),
+  };
+  if (risk.controlFlow && risk.highImpactWord && shellVariableInvocation(command, cmdShell, backslashEscapes)) return 'unanalysed';
+  if (depth > 4) {
+    // An unanalysed host can conceal an encoded or nested high-impact payload.
+    return /\b(?:remove-item|ri|rm|rmdir|rd|del|erase|unlink|npm|yarn|pnpm|cargo|twine|reg|net|sc|icacls|cmd|powershell|pwsh|sh|bash|dash|zsh)\b/i.test(command.replace(/\^(?=.)|`(?=.)/g, '')) ? 'unanalysed' : undefined;
+  }
+  // Normalize executable-name escapes only at lookup; escaped delimiters and
+  // quoted output remain data. The original command is bound by approval.
+  const segments = shellExecutionSegments(command, cmdShell, backslashEscapes);
+
+  for (const { command: segment, expressions } of segments) {
+    // Resolve subexpressions with preceding literal assignments in this command,
+    // before treating the enclosing output as data. Child assignments stay local.
+    for (const expression of expressions) {
+      const impact = shellImpact(expression, depth + 1, false, new Map(commandVariables), risk);
+      if (impact) return impact;
+    }
+    recordShellCommandAssignment(segment, commandVariables, cmdShell);
+    let tokens = tokenizeCommand(segment);
+    let start = 0;
+    while (shellCommandName(tokens[start]) === 'call') start += 1;
+    if (shellCommandName(tokens[start]) === 'env') {
+      start += 1;
+      while (tokens[start] && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[start]) || tokens[start].startsWith('-'))) start += 1;
+    }
+    const name = shellCommandName(resolveShellCommandToken(tokens[start], commandVariables, cmdShell));
+    const direct = directShellImpact(name, tokens.slice(start + 1));
+    if (direct) return direct;
+    if (SHELL_DATA_COMMANDS.has(name)) continue;
+
+    if (['do', 'else', 'iex', 'invoke-expression'].includes(name)) {
+      const rawWords = rawShellWords(segment);
+      const payload = start + 1 === tokens.length - 1 ? tokens[start + 1] : rawWords.slice(start + 1).join(' ');
+      const impact = shellImpact(payload || '', depth + 1, cmdShell, new Map(commandVariables), risk);
+      if (impact) return impact;
+      continue;
+    }
+
+    if (SHELL_HOSTS.has(name)) {
+      // Preserve the quote boundary after a glued host switch (/c"...", -c'...').
+      const hostCommand = segment.replace(/(^|\s)([-/][A-Za-z][A-Za-z0-9:/]*)(?=["'])/g, '$1$2 ');
+      tokens = tokenizeCommand(hostCommand);
+      const rawWords = rawShellWords(hostCommand);
+      const rest = (index: number) => index === tokens.length - 1 ? tokens[index] : rawWords.slice(index).join(' ');
+      for (let i = start + 1; i < tokens.length; i += 1) {
+        const token = tokens[i].replace(/\^(?=.)|`(?=.)/g, '');
+        let payload: string | undefined;
+        if (name === 'cmd') {
+          const match = /\/(?:c|k|r)(.*)$/i.exec(token);
+          if (match) payload = [match[1], rest(i + 1)].filter(Boolean).join(' ');
+        } else if (name === 'powershell' || name === 'pwsh') {
+          const match = /^[-/]([^:]+)(?::(.*))?$/.exec(token);
+          const option = match?.[1].toLowerCase();
+          if (!option) payload = rest(i);
+          else if ('command'.startsWith(option)) payload = [match?.[2], rest(i + 1)].filter(Boolean).join(' ');
+          else if ('encodedcommand'.startsWith(option) || option === 'ec') {
+            const encoded = match?.[2] || tokens[i + 1] || '';
+            if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length % 4 !== 0) return 'unanalysed';
+            payload = Buffer.from(encoded, 'base64').toString('utf16le');
+          } else if ('file'.startsWith(option)) break;
+          else if (match?.[2] === undefined && ['executionpolicy', 'ep', 'windowstyle', 'configurationname', 'inputformat', 'outputformat', 'psconsolefile', 'version', 'settingsfile', 'workingdirectory', 'custompipename'].some((value) => value.startsWith(option))) i += 1;
+        } else if (/^-[A-Za-z]*c[A-Za-z]*$/.test(token)) payload = rest(i + 1);
+        if (payload !== undefined) {
+          // The host's own name is not a risk word for its payload.
+          const hostRisk: ShellRiskContext = { controlFlow: risk.controlFlow,
+            highImpactWord: outer.highImpactWord || HIGH_IMPACT_WORD.test(command.replace(tokens[start] ?? '', '').replace(/\^(?=.)|`(?=.)/g, '')) };
+          const impact = shellImpact(payload, depth + 1, name === 'cmd', undefined, hostRisk);
+          if (impact) return impact;
+          break;
+        }
+      }
+      continue;
+    }
+
+    // CMD's ungrouped IF predicates precede the executable body. Preserve the
+    // data sink in `if exist x echo del y` instead of scanning later words.
+    if (name === 'if') {
+      let cursor = start + 1;
+      if (tokens[cursor]?.toLowerCase() === '/i') cursor += 1;
+      if (tokens[cursor]?.toLowerCase() === 'not') cursor += 1;
+      if (['exist', 'defined', 'errorlevel', 'cmdextversion'].includes(tokens[cursor]?.toLowerCase())) cursor += 2;
+      else if (tokens[cursor]?.includes('==')) cursor += 1;
+      else if (['equ', 'neq', 'lss', 'leq', 'gtr', 'geq'].includes(tokens[cursor + 1]?.toLowerCase())) cursor += 3;
+      if (cursor > start + 1) {
+        const impact = shellImpact(rawShellWords(segment).slice(cursor).join(' '), depth + 1, cmdShell, new Map(commandVariables), risk);
+        if (impact) return impact;
+        continue;
+      }
+    }
+    // Dynamic assignment/evaluation and unsupported control prefixes with an
+    // explicit high-impact command cannot be proven to be ordinary output data.
+    if (/^(?:\$|set\b|if\b|for\b|foreach\b|while\b)/i.test(segment)) {
+      if (tokens.some((token) => /(?:^|[\s='"])(?:remove-item|ri|rm|rmdir|rd|del|erase|unlink)(?:\.(?:exe|cmd|bat))?(?:$|[\s'"])/i.test(token.replace(/\^(?=.)|`(?=.)/g, '')))) return 'delete';
+      for (let i = start + 1; i < tokens.length; i += 1) {
+        const nested = directShellImpact(shellCommandName(tokens[i]), tokens.slice(i + 1));
+        if (nested) return nested;
+        if (/\s/.test(tokens[i]) && /\b(?:npm|yarn|pnpm|cargo|twine|reg|net|sc|icacls)\b/i.test(tokens[i])) {
+          const embedded = shellImpact(tokens[i], depth + 1, cmdShell, new Map(commandVariables), risk);
+          if (embedded) return embedded;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 /**
  * 检查是否属于 A9-M03 规定的必须一次性确认的操作。
  * Git 命令使用 tokenize 分类器（git-command-policy），不依赖可绕过的正则。
@@ -91,6 +461,15 @@ function checkAlwaysConfirmOperation(toolCall: ToolCall): { needsConfirm: boolea
       };
     }
 
+    // Non-Git high-impact execution must not be masked by autonomous Git.
+    const impact = shellImpact(cmd);
+    if (impact) {
+      const operation = {
+        delete: 'Shell 永久删除文件/目录', publish: '发布/上传包', system: '系统服务/注册表/权限变更',
+        global_install: '系统级/全局依赖变更', unanalysed: '无法完整分析的潜在高影响Shell',
+      }[impact];
+      return { needsConfirm: true, reason: `${operation}操作需要用户显式确认（绑定完整命令、目标与参数）` };
+    }
     const gitDecision = classifyGitCommand(cmd);
     if (gitDecision) {
       if (gitDecision.category === 'always_confirm') {
@@ -102,17 +481,6 @@ function checkAlwaysConfirmOperation(toolCall: ToolCall): { needsConfirm: boolea
       return { needsConfirm: false };
     }
 
-    // 非 Git 的外部写/系统级操作。
-    const nonGit = cmd.trim();
-    if (/\b(?:npm|yarn|pnpm|cargo|twine)\s+publish\b/i.test(nonGit)) {
-      return { needsConfirm: true, reason: '发布/上传包操作需要用户显式确认' };
-    }
-    if (/\btwine\s+upload\b/i.test(nonGit)) {
-      return { needsConfirm: true, reason: '发布/上传包操作需要用户显式确认' };
-    }
-    if (/\b(?:reg(?:\.exe)?\s+(?:add|delete|import)|net(?:\.exe)?\s+user|sc(?:\.exe)?\s+(?:config|create|delete)|icacls(?:\.exe)?)\b/i.test(nonGit)) {
-      return { needsConfirm: true, reason: '系统服务/注册表/权限变更操作需要用户显式确认' };
-    }
   }
   return { needsConfirm: false };
 }

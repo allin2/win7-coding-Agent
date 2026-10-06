@@ -142,6 +142,13 @@ export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS): 
     },
   ];
 
+  readOnlyTools.push({
+    schemaVersion: '2.0', name: 'read_process_output', description: '读取当前工作区及对话的托管后台输出。游标可重读；过期必须重新取得 oldestCursor。',
+    approvalLevel: ApprovalLevel.READ_ONLY, capability: 'workspace.read',
+    inputSchema: { properties: { handleId: { type: 'string', description: '产品返回的进程句柄。' }, cursor: { type: 'string', description: '上次返回的不透明游标。' },
+      maxBytes: { type: 'number', description: '安全文本 UTF-8 字节预算。', default: 8192, minimum: 1, maximum: 16384 } }, required: ['handleId'], additionalProperties: false },
+  });
+
   if (mode === PermissionMode.READ_ONLY) {
     return readOnlyTools;
   }
@@ -301,11 +308,6 @@ export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS): 
             minimum: 1000,
             maximum: 3600000,
           },
-          background: {
-            type: 'boolean',
-            description: '是否作为托管后台进程启动（如 dev server 或 watcher，默认 false）。',
-            default: false,
-          },
         },
         required: ['command'],
         additionalProperties: false,
@@ -313,6 +315,15 @@ export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS): 
     },
   ];
 
+  mutatingTools.push({
+    schemaVersion: '2.0', name: 'start_process', description: '通过批准的 Shell 启动托管后台进程，最多三个；不提供任意 PID 操作。后台启动和输出不构成验证成功。',
+    approvalLevel: writeLevel, capability: 'shell.exec',
+    inputSchema: { properties: { command: { type: 'string', description: '完整非空命令。' }, cwd: { type: 'string', description: '工作目录，省略为当前工作区。', default: '' } }, required: ['command'], additionalProperties: false },
+  }, {
+    schemaVersion: '2.0', name: 'stop_process', description: '停止当前工作区及对话的托管进程，必须取得实际清理证明。',
+    approvalLevel: writeLevel, capability: 'shell.exec',
+    inputSchema: { properties: { handleId: { type: 'string', description: '产品返回的进程句柄。' } }, required: ['handleId'], additionalProperties: false },
+  });
   return [...readOnlyTools, ...mutatingTools];
 }
 

@@ -195,6 +195,15 @@ static void TestParseJsonConfig() {
     CHECK(v2.envOverlay.size() == 1 && v2.envOverlay[0].first == L"A9_MODE");
     CHECK(v2.maxStdoutBytes == 4096 && v2.maxStderrBytes == 2048);
 
+    std::string validV3 = validV2;
+    validV3.replace(validV3.find("schemaVersion\":2"), std::strlen("schemaVersion\":2"), "schemaVersion\":3");
+    validV3.replace(validV3.find("current-user-v1"), std::strlen("current-user-v1"), "current-user-v2");
+    validV3 = validV3.substr(0, validV3.size() - 1) + ",\"outputEncoding\":{\"stdout\":\"utf-8\",\"stderr\":\"cp936\"}}";
+    ProcessConfig v3;
+    CHECK(ParseJsonConfig(validV3, &v3, &error));
+    CHECK(v3.schemaVersion == 3 && v3.stdoutEncoding == L"utf-8");
+    CHECK(!ParseJsonConfig(validV3.substr(0, validV3.size() - 1) + ",\"unknown\":true}", &v3, &error));
+
     // v2 is exact and fail-closed: downgrade spelling, unknown fields,
     // duplicate fields, deadline coercion and secret/control env are rejected.
     CHECK(!ParseJsonConfig("{\"schema_version\":2,\"requestId\":\"downgrade\"}", &config, &error));
@@ -547,6 +556,20 @@ static void TestRenderResult() {
 }
 
 int main() {
+    std::wstring releaseId; std::string releaseError;
+    CHECK(ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"r","releaseId":"release_1"})", L"r", &releaseId, &releaseError));
+    CHECK(releaseId == L"release_1");
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"wrong","releaseId":"release_1"})", L"r", &releaseId, &releaseError));
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":2,"type":"release","requestId":"r","releaseId":"release_1"})", L"r", &releaseId, &releaseError));
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"r","releaseId":"release_1","pid":42})", L"r", &releaseId, &releaseError));
+    CHECK(!ParseReleaseControl(R"({"schemaVersion":3,"type":"release","requestId":"r","releaseId":"release_1","releaseId":"release_2"})", L"r", &releaseId, &releaseError));
+    ProcessResult released; released.schemaVersion = 3; released.profileId = L"a9-trusted-shell-current-user-v2";
+    CHECK(RenderReleasedJson("r", released).empty());
+    released.childPid = 42; released.releaseId = L"release_1"; released.ownershipReleased = true;
+    const std::string receipt = RenderReleasedJson("r", released);
+    CHECK(receipt.find("execution_released") != std::string::npos);
+    CHECK(receipt.find("jobKillOnCloseDisabled\":true") != std::string::npos);
+
     TestTokenGroupsSizeProbe();
     TestHostJobLaunchPolicy();
     TestJsonParser();
@@ -557,6 +580,19 @@ int main() {
     TestWhitelist();
     TestAclPolicy();
     TestRenderResult();
+    ProcessResult streaming; streaming.schemaVersion = 3; streaming.profileId = L"a9-trusted-shell-current-user-v2";
+    streaming.lastOutputSeq = 2; streaming.stdoutRaw = 7; streaming.stdoutEmitted = 5; streaming.outputTruncated = true;
+    const std::string streamResult = RenderResultJson("v3", streaming);
+    CHECK(streamResult.find("\"lastOutputSeq\":2") != std::string::npos);
+    CHECK(streamResult.find("\"omittedBytes\":2") != std::string::npos);
+    CHECK(streamResult.find("stdoutBase64") == std::string::npos);
+    JsonValue streamedJson; std::string streamedError;
+    CHECK(JsonParse(streamResult, &streamedJson, &streamedError));
+    CHECK(JsonAsInt(*JsonObjectGet(streamedJson, L"schemaVersion"), -1) == 3);
+    CHECK(JsonAsInt(*JsonObjectGet(*JsonObjectGet(streamedJson, L"stdout"), L"rawBytesRead"), -1) == 7);
+    const unsigned char tick[] = {116, 105, 99, 107};
+    CHECK(RenderOutputJson("v3", "stdout", 1, 0, tick, 4).find("\"dataBase64\":\"dGljaw==\"") != std::string::npos);
+    CHECK(RenderTruncatedJson("v3", "stderr", "byte_limit").find("output_truncated") != std::string::npos);
 
     if (gFailures == 0) {
         std::printf("logic_tests: ALL PASS\n");

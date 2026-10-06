@@ -1,7 +1,7 @@
 # ADR 索引
 
 > 由 [DECISIONS.md](DECISIONS.md) 各 ADR 标题与首条“状态”行整理（2026-09-24），不替代 ADR 正文；
-> 状态以正文为准。新增 ADR 时在本表末尾追加一行。ADR-0024 编号在正文中未使用。
+> 状态以正文为准。新增 ADR 时在本表末尾追加一行。ADR-0024 编号在正文中未使用。ADR-0169 为主仓另一分支所用，本分支正文未收录（见ADR-0170边界）。
 
 | ADR | 标题 | 状态 |
 |---|---|---|
@@ -153,3 +153,41 @@
 | ADR-0147 | 批准 A9-27：以 WIN7-42 验收 A9-26 第一批可靠性 | Accepted |
 | ADR-0148 | A9-28 修复失败验证大输出与不可压缩上下文预算遗漏 | Accepted |
 | ADR-0149 | A9-29 必需审计故障与 Provider 响应完整性修复 | Accepted |
+| ADR-0150 | helper v3 和 A9-30 Shell 运行中输出 | Accepted |
+| ADR-0151 | A9-31 后台进程模型工具与显式释放提案 | Accepted |
+| ADR-0152 | A9-32 用户主动继续中断任务提案 | Proposed |
+| ADR-0153 | A9-30 v26 开发检查包及独立返回复核登记 | Proposed |
+| ADR-0154 | A9-30 v26 构建身份事实校验 | Proposed |
+| ADR-0155 | 第二批增量证据与独立新候选验收提案 | Proposed |
+| ADR-0156 | A9-31 managed 构建烟测的 OS 进程身份证据 | Accepted |
+| ADR-0157 | A9-31 控制器调用者身份与不可覆盖的重试记录 | Accepted |
+| ADR-0158 | A9-31 准确原生双返回的有限离线重锁裁决 | Accepted |
+| ADR-0159 | A9-31 新产品验证控制器的持有句柄生命周期合同 | Accepted |
+| ADR-0160 | A9-31 有限桌面调度窗口与不可变 driver 修复版本 | Accepted |
+| ADR-0161 | A9-31 R4 捕获与失败收尾的准确新合同 | Accepted |
+| ADR-0162 | A9-31 R5 捕获程序集的准备编译与运行准入 | Accepted |
+| ADR-0163 | A9-31 R5 fixed interactive scheduled desktop entry | Accepted |
+| ADR-0164 | A9-31 R6 入口所有权与历史硬停止隔离 | Accepted |
+| ADR-0165 | A9-31 R7 查询句柄捕获与 Renderer 动作序列化 | Accepted |
+| ADR-0166 | A9-31 R8 快照区间内实例的双观察绑定与准确诊断 | Accepted |
+| ADR-0167 | A9-31 R9 同步只读系统探测的真实退出回执 | Accepted |
+| ADR-0168 | A9-31 R10 外部Win10捕获的精确UTC边界 | Accepted |
+| ADR-0170 | A9-31 Shell永久删除的本地Policy确认修复 | Accepted |
+| ADR-0171 | A9-31 非Git高影响复合命令分类与完整可见审批 | Accepted |
+| ADR-0172 | A9-31 短命进程的manifest精确字段补证提案 | Proposed |
+| ADR-0173 | A9-31 manifest conhost proof的有限普通取证接入 | Accepted |
+| ADR-0174 | A9-31 Recovery重启实例证据文件命名修复 | Accepted |
+| ADR-0175 | A9-31 控制器conhost proof父进程种类按NT设备路径判定 | Accepted |
+| ADR-0176 | A9-31 原生退出对话框人工点击流程 | Accepted |
+| ADR-0177 | A9-31 R8独立复核缺口的候选外本地修复 | Accepted |
+| ADR-0178 | A9-31 R8采用复核修复版driver的新不可变revision | Accepted |
+| ADR-0179 | A9-31 R9：Recovery按“保留清理未知”修订driver预期并单独续验 | Accepted |
+| ADR-0180 | A9-31 整批Win10跨根证据：先补正式评审再组合 | Accepted |
+| ADR-0181 | A9-31 Shell Policy：引号与控制流歧义的保守求值（ADR-0171补充） | Accepted |
+| ADR-0182 | A9-31 Shell Policy：进入当前作用域的赋值效果只追加候选（ADR-0181补充） | Accepted |
+| ADR-0183 | A9-31 Shell Policy：变量调用遇控制结构一律保守确认（替换ADR-0181的F2与ADR-0182） | Accepted |
+| ADR-0184 | A9-31 Shell Policy：R判定条件修订与P1修复收敛标准（ADR-0183补充） | Accepted |
+| ADR-0185 | A9-31 Shell Policy：r4独立复核四项P1的有限修复（ADR-0184补充） | Accepted |
+| ADR-0186 | A9-31 r4开发包与Win10单根全量重验 | Accepted |
+| ADR-0187 | A9-31 r4 Win10重验：新根R2同源重编取证组件并换绑其构建批准（ADR-0186补充） | Accepted |
+| ADR-0188 | A9-31 登记 `A9_31_DEVELOPER_VERIFIED`（带已知限制） | Accepted |

@@ -1,0 +1,385 @@
+{
+  "schema_version": 1,
+  "kits": [
+    {
+      "revision": "A9-30-D013-V26-r2",
+      "status": "REVOKED",
+      "filename": "A9_30_V26_BUILDKIT_r2.zip",
+      "sha256": "de0f0e538feea02de4f955d7a3e1e5b94587ddfa6463d025e2aebae1190d48ae",
+      "source_commit": "c904ab5256c86ebc7c5991c46643d3cc9b6a8151",
+      "input_lock_sha256": "a1b5bacdb1bfb707862c8138387ea17c68468799a3905316d1e2e241005222c7",
+      "package_manifest_sha256": "108b56944f78cf30071926ed7442ea9b79d75860561aa8a9d16390e8f06ecf4b",
+      "approved_by": "user",
+      "approved_at": "2026-10-01T23:45:39+08:00",
+      "approval_scope": "User authorized independent read-only review and local kit/approval commit after passing; native build independently authorized. No push or merge.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_30_native_kit_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-01T23:43:13+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r2_independent_kit_review_2026-10-01.md",
+        "report_sha256": "7f3230c7f6f76a87aab077dfd31fb34a1031fee5fe069e46c0c55aab3319aae4",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_conditions": [
+        "non-elevated ordinary token verified",
+        "no Host Job verified",
+        "approved fresh directories only"
+      ],
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "approved_write_targets": [
+        "D:\\A9-A30-V26-20261001\\control",
+        "D:\\A9-A30-V26-20261001\\build-a",
+        "D:\\A9-A30-V26-20261001\\build-b"
+      ],
+      "revocation_reason": "P1: role-only identity gate accepted an elevated High-integrity restricted token. No formal build performed; r2 must not be used."
+    },
+    {
+      "revision": "A9-30-D013-V26-r3",
+      "status": "REVOKED",
+      "filename": "A9_30_V26_BUILDKIT_r3.zip",
+      "sha256": "c0add425ed6510bc8e7f5946ab806f200101f99d42ec0557685b79ff36508698",
+      "source_commit": "ff153483ef4e6df5daae59c6dcef9784e29d4140",
+      "input_lock_sha256": "276f2cd903529cc7d3f04c28b92c867265772210d5fa43760c76fff909154d26",
+      "package_manifest_sha256": "e36b46a88f5aadcd610c1e03f38c5df5538cd6f0345018dbb44b32b88c1f605d",
+      "approved_by": "user",
+      "approved_at": "2026-10-02T00:27:00+08:00",
+      "approval_scope": "User authorized independent read-only review and local kit/approval commit after passing; native build independently authorized. No push or merge.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_30_native_kit_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T00:25:31+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r3_independent_kit_review_2026-10-02.md",
+        "report_sha256": "e9dc6705505fb2f536d16b2c35db1388c75ef2bca2520401a1c57d23b019c0bb",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_conditions": [
+        "non-elevated ordinary token verified",
+        "no Host Job verified",
+        "approved fresh directories only"
+      ],
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "approved_write_targets": [
+        "D:\\A9-A30-V26-20261001\\control",
+        "D:\\A9-A30-V26-20261001\\build-a",
+        "D:\\A9-A30-V26-20261001\\build-b"
+      ],
+      "revocation_reason": "First formal build run 8cfdd065-77e4-4634-b508-a729af6344c1 failed ACL_ROLLBACK_FAILED; r4 source required. Preserve r3 kit, report and diagnostics."
+    },
+    {
+      "revision": "A9-30-D013-V26-r4",
+      "status": "REVOKED",
+      "filename": "A9_30_V26_BUILDKIT_r4.zip",
+      "sha256": "f7157f71da3ea91d09ef5891344d5ba7a6850c3207e52e231cdd425c54fbc296",
+      "source_commit": "8e2bcfc38b03813f2cfa34ec17e60c89e23f68ff",
+      "input_lock_sha256": "141fcbd6d406342a3a4187f4b8b2dc0bd6b3c8fd063b2deb64d5bc2856e37356",
+      "package_manifest_sha256": "ed625fe9e5be83fcc3d999c93320ec5b71dc24e31079dae7232db9693250538f",
+      "approved_by": "user",
+      "approved_at": "2026-10-02T01:34:29+08:00",
+      "approval_scope": "User approved exact ACL repair source commit, two fresh r4 directories and a9builder Modify grants, and r4 double builds. Prior authorization permits kit registration after independent PASS. No push or merge.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_30_native_kit_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T01:32:41+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r4_independent_kit_review_2026-10-02.md",
+        "report_sha256": "53a4277cbbff8cd211c43b3bbb664d1eee10c4e41541c88179de2764e748effa",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_conditions": [
+        "non-elevated ordinary token verified",
+        "no Host Job verified",
+        "approved fresh directories only"
+      ],
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "approved_write_targets": [
+        "D:\\A9-A30-V26-20261001\\control",
+        "D:\\A9-A30-V26-20261001\\build-r4-a",
+        "D:\\A9-A30-V26-20261001\\build-r4-b"
+      ],
+      "revocation_reason": "First formal build run 17ae5e37-c173-45f3-9201-8e8d41b7a091 failed ACL_ROLLBACK_FAILED at mandatory-label restore. Preserve diagnostics; no BuildB/relock/assembly."
+    },
+    {
+      "revision": "A9-30-D013-V26-r6",
+      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "filename": "A9_30_V26_BUILDKIT_r6.zip",
+      "sha256": "8c0f79bf2f5383be3b59b6542f27e159c00efb23f07eeabdc0a05477462cf406",
+      "source_commit": "7feae402edfb30da9adb649841d777ca82cc6e80",
+      "input_lock_sha256": "b36aeffc0392363a21177e400211742fac2eb7777fcb4b28a411ed5ef894d51a",
+      "package_manifest_sha256": "db84d5ebd36a6045fc3193156d3650bcea1ef53297affaffbf434f6c024f4e52",
+      "approved_by": "user",
+      "approved_at": "2026-10-02T05:51:25.559836+08:00",
+      "approval_scope": "User approved exact four-path OS host repair commit; standing authorization permits kit/approval local commit after independent PASS; double builds use existing approved empty r5 directories/SID1005 and four exact v1 WRITE_OWNER fixture paths. No push or merge.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_30_r4_label_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T05:49:54+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r6_independent_kit_review_2026-10-02.md",
+        "report_sha256": "5873a1d31ead5ab325f7830323a254d1916e82c2ad84f2d0f94a9bad7c0e38e2",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_conditions": [
+        "live non-elevated ordinary SID1005 Medium token and no Host Job verified",
+        "Win10 runtime/HKLM and VS2019 16.11/v142/MSVC14.29/SDK19041 tools readonly preflight",
+        "actual PS5.1 control syntax and pre-staging unapproved negative check",
+        "exact committed approval registry and report HEAD bytes verified before stage/launch",
+        "approved fresh build-r5-a/b directories only",
+        "only work/smoke/allowed and work/smoke/cancel-allowed self noninheriting exact WRITE_OWNER ACE with approved flag",
+        "any BuildA failure stops BuildB/relock/assembly"
+      ],
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "build_user_sid": "S-1-5-21-3031939772-989444280-3099258187-1005",
+      "approved_write_targets": [
+        "D:\\A9-A30-V26-20261001\\control",
+        "D:\\A9-A30-V26-20261001\\build-r5-a",
+        "D:\\A9-A30-V26-20261001\\build-r5-b"
+      ],
+      "control_scripts": [
+        {
+          "file": "r6-standard-worker.ps1",
+          "sha256": "eeda5aad99879ce04bd5363949de72ff4ccddcdef24f487ff9e50b219c48420d",
+          "size": 7250
+        },
+        {
+          "file": "stage-r6-kit.ps1",
+          "sha256": "b1c99cc9d1daab632c4ee1b972fdde733af0d0e3643eff2cbd38bc64fae3f252",
+          "size": 3731
+        },
+        {
+          "file": "serve-r6-controlled-build.ps1",
+          "sha256": "9098e6927e8c10e31b221038356f0f72a68c2d35d0339f7140be25255f9c5d90",
+          "size": 3656
+        },
+        {
+          "file": "launch-r6-controlled-build.ps1",
+          "sha256": "c96057f0cbc46a5f81869017a2cb6e7d8886aae370c59be358bb402a2868e759",
+          "size": 5603
+        },
+        {
+          "file": "test-r6-input-closure.ps1",
+          "sha256": "f7d0b595aa2448eb8a73ae23281c899c4adc32c10b145bfee152a6b7660ad13e",
+          "size": 2178
+        },
+        {
+          "file": "verify-r6-registry-head.py",
+          "sha256": "6fa25210e9d93b082ab34994b312f9b77612ef4d8e237991d827fdbd2b3a4302",
+          "size": 2402
+        }
+      ],
+      "network_preflight_at_registration": "CONNECTION_TIMEOUT; r6 transfer/staging/build NOT_PERFORMED",
+      "return_review": {
+        "status": "APPROVED_FOR_INPUT_LOCK",
+        "independent_reviewer": "/root/a9_30_r4_label_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-02T08:38:11+08:00",
+        "report": "docs/reports/2026-10/a9_30_v26_r6_independent_return_review_2026-10-02.md",
+        "report_sha256": "85473f1be044f0b47e39cb4cfb9c408a0b4d1a4cbf54413b3ae48d1f550ad89b",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0,
+        "builds": [
+          {
+            "run_id": "16b5abc3-e4bb-4615-a5bc-12e02fcb5e17",
+            "sha256": "4634a99211556698421649ba381ebb9192b523c4bbf1e0080a40137dba2d203a"
+          },
+          {
+            "run_id": "33e3d3c9-bf4d-4f40-92f5-31b8915d13f9",
+            "sha256": "c9591d5ba2bce1edbf72bd08287774eaf8074c17e1a3903f40be3fcd9d232e75"
+          }
+        ],
+        "scope": "Win10 native double-build return closure only; backpressure bounded fail-closed, cleanup UNKNOWN; no product/Electron/Win7/DEVELOPER_VERIFIED acceptance."
+      }
+    },
+    {
+      "revision": "A9-31-D013-V26-MANAGED-r3",
+      "status": "APPROVED_FOR_RETURN_RECORDING",
+      "filename": "A9_31_V26_MANAGED_BUILDKIT_r3.zip",
+      "sha256": "0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1",
+      "source_commit": "10114503a1e79706131ea4a11a5b96bd2958807a",
+      "input_lock_sha256": "5d3159712d77ccd89e0a38e7e89379562685c98cc208d0b48c4d9f34912a68b4",
+      "package_manifest_sha256": "82ae5dd5539a85facade3b8aea6659e15bcede90e0601fd6cca075912ca248de",
+      "approved_by": "user",
+      "approved_at": "2026-10-03T09:44:56.498796+08:00",
+      "approval_scope": "User explicitly approved reviewed managed r3 kit and exact 24-path local registration commit; three D-drive directories/SID1005 Modify, parent read/execute only if needed, four exact owned noninheriting WRITE_OWNER fixtures, fixed same-token Session3 controller, two gated clean builds and evidence return. No push, merge, account/profile/license changes.",
+      "independent_kit_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_31_managed_r2_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_independent_kit_review_2026-10-03.md",
+        "report_sha256": "59b365b9885c8248dd864914d3f8060e014f0f4398e934eac5b1015853ccda29",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "build_host": "WIN-2JQ66JE4HTQ",
+      "build_host_ip": "192.168.1.4",
+      "build_user_sid": "S-1-5-21-3031939772-989444280-3099258187-1005",
+      "approved_write_targets": [
+        "D:\\A9-A31-V26-MANAGED-20261003\\control",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-a",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-b"
+      ],
+      "v1_fixture_write_owner_targets": [
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-a\\work\\smoke\\allowed",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-a\\work\\smoke\\cancel-allowed",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-b\\work\\smoke\\allowed",
+        "D:\\A9-A31-V26-MANAGED-20261003\\build-r3-b\\work\\smoke\\cancel-allowed"
+      ],
+      "control_scripts": [
+        {
+          "file": "launch-managed-r3-controlled-build.ps1",
+          "size": 9584,
+          "sha256": "e335c59f695d13d0f451d394a7990f5111d1503f6f5153b00b349ec733e7afc3"
+        },
+        {
+          "file": "managed-r3-standard-worker.ps1",
+          "size": 10139,
+          "sha256": "aa4175d1f5052bbfeddd680e7fdd1e5a95e9f0e12bc240c440abc378507a7059"
+        },
+        {
+          "file": "serve-managed-r3-controlled-build.ps1",
+          "size": 4419,
+          "sha256": "f57896c288e826342b536307ebc53873eda704b5b5a4f2bce13ca8c0fe5c2678"
+        },
+        {
+          "file": "stage-managed-r3-kit.ps1",
+          "size": 5471,
+          "sha256": "3f6e0cf45d90cf6d33c2e2484b45e5a372690ddc1e11b7e3badb7c2a746a8621"
+        },
+        {
+          "file": "test-managed-r3-input-closure.ps1",
+          "size": 2360,
+          "sha256": "2d51d120e0ab36e039d847243e51c9363c3e970b688efd67a59e678f3dcc93cd"
+        },
+        {
+          "file": "verify-managed-r3-registry-head.py",
+          "size": 2426,
+          "sha256": "9381f52996733554918f3491c9e4c823b8cd6d2c3401b8db05c24c94e045e3b1"
+        }
+      ],
+      "build_conditions": [
+        "ordinary SID1005 Medium, non-elevated, no Host Job, interactive Session3",
+        "actual PS5.1 syntax/negative checks before build",
+        "exact clean committed registry/report/control inputs",
+        "two fresh independently staged inputs; failure stops BuildB/relock/assembly",
+        "four exact owned empty v1 fixture self noninheriting WRITE_OWNER only",
+        "controller max2 fixed requests in60minutes; no arbitrary commands"
+      ],
+      "independent_control_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_31_managed_r2_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_control_inputs_independent_review_2026-10-03.md",
+        "report_sha256": "41e721c6770f6a5d08cc12d4be413db60a8dc71028dee505acd1b1ef61d71d75",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "return_review": {
+        "status": "APPROVED_FOR_INPUT_LOCK",
+        "independent_reviewer": "/root/a9_31_native_return_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03T06:53:00Z",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_independent_return_review_2026-10-03.md",
+        "report_sha256": "d3067b1858846010ffdcef7403ccc0369873b5763e04aa7d568800678eab71e0",
+        "independent_technical_result": "PASS_TECHNICAL_RETURN_EVIDENCE",
+        "independent_input_lock_result": "NOT_APPROVED_FOR_INPUT_LOCK",
+        "findings": {
+          "p0": 0,
+          "p1": 1,
+          "p2": 0
+        },
+        "builds": [
+          {
+            "run_id": "3abe9a16-449b-4900-956e-6d0fb4c40fe2",
+            "sha256": "251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40"
+          },
+          {
+            "run_id": "33514a91-c5e8-4bb0-9176-135782175c88",
+            "sha256": "ce8679187e120d8c0c9896fd201f37dfb1187e87d58702c3529f24b73737ff44"
+          }
+        ],
+        "owner_decision": {
+          "decision": "ADR-0158",
+          "status": "APPROVED",
+          "scope": "EXACT_TWO_RETURNS_OFFLINE_DEVELOPER_INPUT_LOCK_ONLY",
+          "controller_pid": 24088,
+          "controller_exit_code": "UNKNOWN",
+          "controller_tree_cleanup": "UNKNOWN",
+          "evidence": [
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/controller-r2-BuildA-final.json",
+              "sha256": "b02be7ee72a04a9b45828054eef37b591c1f3edb98172ae5c1e44858ba82fec2"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/controller-r2-BuildB-final.json",
+              "sha256": "db39a93b092797d1cd6e61837563b56d9db52694732720bdb2b37f87c19f6808"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/ordinary-controller-r2-identity-live.json",
+              "sha256": "ec3b50a1541bb78ea42097357b98fdfd540b4d93d6d49303bf152e2eababd079"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/managed-r3-controller-security-events-readonly-20261003T064537Z.json",
+              "sha256": "fac77bbd0121676b2c7fb90db058cbf6130e43299f3b50406df4fea6fa080b2d"
+            },
+            {
+              "path": ".acceptance/a9-31-developer/native-kit-r3/managed-r3-double-build-return-precheck-r2-20261003.json",
+              "sha256": "e03518427d5a88f25fee07985b857ff6564453cf9aa49031f167f5b9f0c85838"
+            }
+          ],
+          "approved_by": "user",
+          "approved_at": "2026-10-03T07:10:46.920499Z"
+        }
+      }
+    }
+  ],
+  "controller_retries": [
+    {
+      "id": "A9-31-managed-r3-controller-r2",
+      "status": "APPROVED_FOR_CONTROLLED_BUILD_LAUNCH",
+      "source_commit": "10114503a1e79706131ea4a11a5b96bd2958807a",
+      "kit_sha256": "0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1",
+      "launcher_file": "launch-managed-r3-controlled-build-r2.ps1",
+      "launcher_sha256": "14cc77765d4149d6c87f7cc3362ff733c37f31ed2671d8c6c951257b072dba45",
+      "launcher_size": 14330,
+      "dispatcher_sha256": "02a25bc8515781941adf8cf93ed66ad3b88cc89fbf8726fe269ec59c05365924",
+      "original_dispatcher_sha256": "05bfd2cbf98882c32d798bbeeed6e27f803c79a18833be0bd253a683d16c57c4",
+      "local_transport_sha256": "f3f4f86757b2f824772e00c311422a226d3d7d94623e6d0ed017dabe271cc609",
+      "creation_flags": 16,
+      "caller_requires_no_host_job": true,
+      "launch_record_file": "managed-r3-controlled-launch-r2.json",
+      "retained_failure_sha256": "c7a5b14ffffde3cd67175ddbc17f1c13b811f4ccb189a6174b30232c8973e4ea",
+      "request_limit": 2,
+      "validity_minutes": 60,
+      "independent_review": {
+        "status": "PASS",
+        "independent_reviewer": "/root/a9_31_controller_r2_independent_review",
+        "implementation_author": "/root",
+        "reviewed_at": "2026-10-03",
+        "report": "docs/reports/2026-10/a9_31_managed_r3_controller_r2_independent_review_2026-10-03.md",
+        "report_sha256": "aa449a22ba947d8f98e57ae8daa43c203703351e26f74b22af0da5b1dd663756",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0
+      },
+      "owner_approved_at": "2026-10-03"
+    }
+  ]
+}

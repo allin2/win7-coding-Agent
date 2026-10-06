@@ -53,6 +53,7 @@
     explorerPath: '',
     viewer: null,
     running: false,
+    outputGapRequests: new Set(),
     approvalDecision: null,
     lastFocused: null,
     providerHydratedSignature: null,
@@ -194,7 +195,7 @@
   }
 
   function activeManagedProcesses(snapshot) {
-    return ((snapshot && snapshot.managedProcesses) || []).filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting');
+    return ((snapshot && snapshot.managedProcesses) || []).filter((item) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus) || item.cleanupRequired === true);
   }
 
   function syncComposer() {
@@ -690,7 +691,7 @@
     return { li, tag, elapsedEl: null, startedAt: 0 };
   }
 
-  /** A9-19 P05：运行中的工具项显示已运行时长；Shell 如实说明输出在结束后显示（未实现增量输出）。 */
+  /** A9-30：运行中的工具项显示已运行时长，输出到达后在活动卡呈现。 */
   function markItemRunning(item, data, startedAt) {
     item.startedAt = startedAt || Date.now();
     const elapsed = document.createElement('span');
@@ -700,7 +701,7 @@
     if (data && data.toolName === 'shell') {
       const note = document.createElement('p');
       note.className = 'activity-pending-note';
-      note.textContent = '命令运行中；输出将在命令结束后显示。';
+      note.textContent = '命令运行中；收到输出后会在此显示，可随时停止。';
       item.li.appendChild(note);
       item.pendingNoteEl = note;
     }
@@ -723,7 +724,11 @@
   }
 
   function attachActivityDetail(item, data) {
-    const detailText = toolDetailText(data);
+    const detailText = item.streamOutput ? [
+      `退出：${data.shell && data.shell.exitCode !== null ? data.shell.exitCode : '未知'}`,
+      data.shell && data.shell.processTreeReaped === true ? '进程树清理已确认' : '进程树清理未确认，请检查残留',
+      data.shell && data.shell.truncated ? '输出已截断' : '',
+    ].filter(Boolean).join('\n') : toolDetailText(data);
     if (!detailText) return;
     const detail = document.createElement('pre');
     detail.className = 'activity-detail';
@@ -784,8 +789,49 @@
         if (!block.groupEl.dataset.eventId) block.groupEl.dataset.eventId = String(event.eventId);
         const item = addActivityItem(block, data, 'running', '执行中');
         markItemRunning(item, data, Date.parse(event.timestamp || '') || Date.now());
-        if (data.callId) block.pendingItems.set(String(data.callId), item);
+        if (!block.outputItems) block.outputItems = new Map();
+        if (data.callId) { block.pendingItems.set(String(data.callId), item); block.outputItems.set(String(data.callId), item); }
         else block.pendingItems.set('__last__', item);
+        break;
+      }
+      case 'tool_output': {
+        if (data.schemaVersion !== 1 || !data.toolCallId || !Number.isSafeInteger(data.outputSeq) || data.outputSeq < 1
+          || !['stdout', 'stderr'].includes(data.stream) || typeof data.text !== 'string') break;
+        const key = String(data.toolCallId);
+        if (!block.outputItems) block.outputItems = new Map();
+        let item = block.outputItems.get(key) || block.pendingItems.get(key);
+        if (!item) {
+          ensureActivityGroup(block);
+          item = addActivityItem(block, { toolName: data.toolName === 'start_process' ? 'start_process' : 'shell', callId: key }, 'interrupted', '历史输出');
+          block.pendingItems.set(key, item);
+          block.outputItems.set(key, item);
+        }
+        if (!item.streamOutput) {
+          item.streamOutput = { stdout: '', stderr: '', seq: 0, truncated: false };
+          item.outputEl = document.createElement('pre');
+          item.outputEl.className = 'activity-detail shell-live-output';
+          item.outputEl.setAttribute('aria-label', 'Shell 输出');
+          item.li.appendChild(item.outputEl);
+        }
+        const output = item.streamOutput;
+        if (data.outputSeq <= output.seq) break;
+        if (data.outputSeq !== output.seq + 1) {
+          output.truncated = true;
+          // One bounded history fetch per detected gap; existing pagination preserves identities.
+          const gapKey = `${state.activeConversationId || ''}:${event.turnId}:${key}:${data.outputSeq}`;
+          const requests = state.outputGapRequests || (state.outputGapRequests = new Set());
+          if (!requests.has(gapKey) && requests.size < 128 && state.eventsBeforeId && typeof loadConversationEvents === 'function') {
+            requests.add(gapKey);
+            Promise.resolve().then(() => loadConversationEvents(true));
+          }
+        }
+        output.seq = data.outputSeq;
+        const room = Math.max(0, TOOL_OUTPUT_LIMIT - output.stdout.length - output.stderr.length);
+        output[data.stream] += data.text.slice(0, room);
+        output.truncated = output.truncated || data.truncated || data.text.length > room || Boolean(data.warning);
+        if (data.warning === 'A9_OUTPUT_ENCODING_ERROR') output.warning = '输出编码错误，该流文本已停止';
+        else if (data.warning === 'redaction_boundary') output.warning = '片段无法安全判定，已屏蔽';
+        item.outputEl.textContent = `stdout:\n${output.stdout}\nstderr:\n${output.stderr}${output.truncated ? '\n[输出已截断或存在缺口]' : ''}${output.warning ? `\n[${output.warning}]` : ''}`;
         break;
       }
       case 'tool_end': {

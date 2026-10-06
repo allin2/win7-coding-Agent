@@ -1,0 +1,1387 @@
+[CmdletBinding()]
+param([switch]$SkipSmoke, [switch]$TestSmokeRequestOnly, [switch]$TestBuildIdentityOnly,
+      [switch]$AllowV1FixtureWriteOwner)
+
+# D-013 containment helper — offline Win10 build kit.
+#
+# Builds spike02_helper.exe on a locked Windows 10 x64 host:
+#   VS2019 16.11 / v142 / MSVC 14.29 / Windows SDK 10.0.19041.0
+# Static CRT (/MT), Win7 target (_WIN32_WINNT=0x0601), embedded manifest,
+# PE/API/CRT gate, Win10 smoke, evidence-bound return package + SHA-256.
+#
+# Usage: .\build.ps1 [-SkipSmoke] [-TestSmokeRequestOnly]
+Set-StrictMode -Version 2.0
+$ErrorActionPreference = "Stop"
+
+function Assert-V26BuildHostOs($RuntimeVersion, $Registry, [string]$Platform, [bool]$Is64Bit) {
+    if ($Platform -cne 'Win32NT' -or -not $Is64Bit -or $RuntimeVersion -isnot [Version] -or
+        $RuntimeVersion.Major -ne 10 -or $RuntimeVersion.Minor -ne 0 -or
+        $RuntimeVersion.Build -lt 10240 -or $RuntimeVersion.Build -ge 22000) {
+        throw 'Locked profile requires an actual Windows 10 x64 runtime version.'
+    }
+    foreach ($name in @('ProductName','InstallationType','CurrentMajorVersionNumber','CurrentMinorVersionNumber','CurrentBuildNumber','UBR')) {
+        if ($null -eq $Registry -or $null -eq $Registry.PSObject.Properties[$name] -or
+            $null -eq $Registry.$name) { throw 'Build host registry identity is incomplete.' }
+    }
+    if ($Registry.ProductName -isnot [string] -or $Registry.ProductName -notlike 'Windows 10 *' -or
+        $Registry.InstallationType -cne 'Client' -or
+        $Registry.CurrentMajorVersionNumber -isnot [int] -or $Registry.CurrentMajorVersionNumber -ne $RuntimeVersion.Major -or
+        $Registry.CurrentMinorVersionNumber -isnot [int] -or $Registry.CurrentMinorVersionNumber -ne $RuntimeVersion.Minor -or
+        $Registry.CurrentBuildNumber -isnot [string] -or $Registry.CurrentBuildNumber -cne $RuntimeVersion.Build.ToString() -or
+        $Registry.UBR -isnot [int] -or $Registry.UBR -lt 0) {
+        throw 'Build host runtime and read-only registry identity disagree or are unsupported.'
+    }
+    return [pscustomobject]@{
+        Caption = $Registry.ProductName; Version = $RuntimeVersion.ToString(); BuildNumber = $Registry.CurrentBuildNumber
+        Probe = 'runtime-version+readonly-HKLM'; UpdateBuildRevision = $Registry.UBR; InstallationType = $Registry.InstallationType
+    }
+}
+
+function Get-V26BuildHostOs() {
+    # Ordinary users need no WMI permission: both facts must independently agree.
+    $registry = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    return Assert-V26BuildHostOs ([Environment]::OSVersion.Version) $registry ([Environment]::OSVersion.Platform.ToString()) ([Environment]::Is64BitOperatingSystem)
+}
+
+function Get-V26BuildIdentity() {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class A9V26BuildToken {
+    [DllImport("advapi32.dll", SetLastError=true)] public static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError=true)] public static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr data, int size, out int required);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern IntPtr CreateFileW(string path, uint access, uint share, IntPtr sa, uint creation, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool inside);
+}
+'@
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    $result = [ordered]@{
+        identity_schema_version = 1; identity_probe = 'win32-process-token'
+        user = $identity.Name
+        ordinary_user = -not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    $token = [IntPtr]::Zero; $buffer = [IntPtr]::Zero
+    try {
+        if (-not [A9V26BuildToken]::OpenProcessToken([IntPtr](-1), 8, [ref]$token)) { throw 'Build token query failed.' }
+        $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal(4); $required = 0
+        if (-not [A9V26BuildToken]::GetTokenInformation($token, 20, $buffer, 4, [ref]$required)) { throw 'Build elevation query failed.' }
+        $result['token_is_elevated'] = [Runtime.InteropServices.Marshal]::ReadInt32($buffer) -ne 0
+        if (-not [A9V26BuildToken]::GetTokenInformation($token, 18, $buffer, 4, [ref]$required)) { throw 'Build elevation type query failed.' }
+        $result['token_elevation_type'] = [Runtime.InteropServices.Marshal]::ReadInt32($buffer)
+        [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer); $buffer = [IntPtr]::Zero
+        $required = 0
+        $null = [A9V26BuildToken]::GetTokenInformation($token, 25, [IntPtr]::Zero, 0, [ref]$required)
+        if ($required -le 0 -or $required -gt 65536) { throw 'Build integrity query size invalid.' }
+        $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($required)
+        if (-not [A9V26BuildToken]::GetTokenInformation($token, 25, $buffer, $required, [ref]$required)) { throw 'Build integrity query failed.' }
+        $sid = New-Object Security.Principal.SecurityIdentifier([Runtime.InteropServices.Marshal]::ReadIntPtr($buffer))
+        $result['integrity_sid'] = $sid.Value
+        if ($sid.Value -notmatch '^S-1-16-([0-9]+)$') { throw 'Build integrity SID invalid.' }
+        $result['integrity_rid'] = [int]$Matches[1]
+        $inside = $false
+        if (-not [A9V26BuildToken]::IsProcessInJob([IntPtr](-1), [IntPtr]::Zero, [ref]$inside)) { throw 'Build Host Job query failed.' }
+        $result['job_probe_ok'] = $true; $result['in_host_job'] = $inside
+        return $result
+    } finally {
+        if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer) }
+        if ($token -ne [IntPtr]::Zero) { $null = [A9V26BuildToken]::CloseHandle($token) }
+    }
+}
+
+function Assert-V26BuildIdentity([System.Collections.IDictionary]$Identity) {
+    if ($Identity.ordinary_user -ne $true -or $Identity.token_is_elevated -ne $false -or
+        $Identity.token_elevation_type -notin @(1, 3) -or $Identity.integrity_rid -ne 8192 -or
+        $Identity.integrity_sid -cne 'S-1-16-8192' -or $Identity.job_probe_ok -ne $true -or
+        $Identity.in_host_job -ne $false) {
+        throw 'v26 build requires a non-elevated Medium-integrity ordinary user outside a Host Job.'
+    }
+}
+
+if ($TestBuildIdentityOnly) {
+    $buildIdentity = Get-V26BuildIdentity
+    $buildIdentity | ConvertTo-Json -Depth 4 -Compress
+    Assert-V26BuildIdentity $buildIdentity
+    return
+}
+
+function Assert-V1FixtureWriteOwnerDelta($beforeBytes,$afterBytes,$sid){
+ $a=New-Object Security.AccessControl.RawSecurityDescriptor($beforeBytes,0)
+ $b=New-Object Security.AccessControl.RawSecurityDescriptor($afterBytes,0)
+ if($a.Owner.Value -cne $b.Owner.Value -or $a.Group.Value -cne $b.Group.Value -or $a.ControlFlags -ne $b.ControlFlags){throw 'Owner/group/control flags changed during private grant.'}
+ if($null -ne $a.SystemAcl -or $null -ne $b.SystemAcl){throw 'Unexpected SACL in private grant snapshot.'}
+ if($null -eq $a.DiscretionaryAcl -or $null -eq $b.DiscretionaryAcl -or $b.DiscretionaryAcl.Count -ne ($a.DiscretionaryAcl.Count+1)){throw 'Grant is not exactly one added ACE.'}
+ $oldIndex=0;$added=0
+ foreach($ace in $b.DiscretionaryAcl){
+  $newBytes=New-Object byte[] $ace.BinaryLength;$ace.GetBinaryForm($newBytes,0)
+  $matchesOld=$false
+  if($oldIndex -lt $a.DiscretionaryAcl.Count){$old=$a.DiscretionaryAcl[$oldIndex];$oldBytes=New-Object byte[] $old.BinaryLength;$old.GetBinaryForm($oldBytes,0);$matchesOld=([Convert]::ToBase64String($newBytes) -ceq [Convert]::ToBase64String($oldBytes))}
+  if($matchesOld){$oldIndex++;continue}
+  if($ace -isnot [Security.AccessControl.CommonAce] -or $ace.AceType -ne [Security.AccessControl.AceType]::AccessAllowed -or $ace.AceFlags -ne [Security.AccessControl.AceFlags]::None -or $ace.IsCallback -or $ace.AccessMask -ne 524288 -or $ace.SecurityIdentifier.Value -cne $sid){throw 'Unexpected permission delta.'}
+  $added++
+ }
+ if($oldIndex -ne $a.DiscretionaryAcl.Count -or $added -ne 1){throw 'Original ACE bytes/order were not preserved.'}
+ return $true
+}
+
+function Initialize-V1FixtureWriteOwner([string]$Directory, [string]$SmokeRoot) {
+    # Only two freshly created v1 fixtures may receive a scoped grant.
+    $full = [IO.Path]::GetFullPath($Directory)
+    $allowed = [IO.Path]::GetFullPath((Join-Path $SmokeRoot 'allowed'))
+    $cancel = [IO.Path]::GetFullPath((Join-Path $SmokeRoot 'cancel-allowed'))
+    if (($full -ine $allowed -and $full -ine $cancel) -or
+        (Get-Item -LiteralPath $full -Force).Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -or
+        @(Get-ChildItem -LiteralPath $full -Force).Count -ne 0) {
+        throw 'v1 WRITE_OWNER prerequisites require a fresh, direct, empty allowed/cancel-allowed fixture.'
+    }
+    $current = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $acl = Get-Acl -LiteralPath $full
+    if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne $current.User.Value) {
+        throw 'v1 fixture must be owned by the non-elevated build user.'
+    }
+    $record = [ordered]@{ path = $full; owner_sid = $current.User.Value; status = 'FAIL'
+        dacl_before = $acl.Sddl; permission_changed = $false; grant_attempted = $false
+        grant_applied = $false; mask = 524288; inheritance = 'None' }
+    $beforeBytes = $acl.GetSecurityDescriptorBinaryForm()
+    $handle = [A9V26BuildToken]::CreateFileW($full, 524288, 7, [IntPtr]::Zero, 3, 33554432, [IntPtr]::Zero)
+    $alreadyPresent = $handle -ne [IntPtr](-1)
+    if ($alreadyPresent) { $null = [A9V26BuildToken]::CloseHandle($handle) }
+    $grantAttempted = $false
+    try {
+        if (-not $alreadyPresent) {
+            if (-not $AllowV1FixtureWriteOwner) {
+                throw 'Missing v1 fixture WRITE_OWNER; a specifically approved -AllowV1FixtureWriteOwner is required.'
+            }
+            $raw = New-Object Security.AccessControl.RawSecurityDescriptor($beforeBytes, 0)
+            # FileSystemAccessRule adds SYNCHRONIZE. Raw CommonAce preserves the exact approved mask.
+            $ace = New-Object Security.AccessControl.CommonAce([Security.AccessControl.AceFlags]::None,
+                [Security.AccessControl.AceQualifier]::AccessAllowed, 524288, $current.User, $false, $null)
+            $raw.DiscretionaryAcl.InsertAce(0, $ace)
+            $grantBytes = New-Object byte[] $raw.BinaryLength
+            $raw.GetBinaryForm($grantBytes, 0)
+            $acl.SetSecurityDescriptorBinaryForm($grantBytes, [Security.AccessControl.AccessControlSections]::Access)
+            $grantAttempted = $true
+            $record.grant_attempted = $true
+            $record.grant_applied = 'UNKNOWN_UNTIL_WRITE_RETURNS'
+            $record.permission_changed = 'UNKNOWN_UNTIL_WRITE_RETURNS'
+            Set-Acl -LiteralPath $full -AclObject $acl
+            $record.grant_applied = $true
+            $record.permission_changed = $true
+            $afterAcl = Get-Acl -LiteralPath $full
+            $record.exact_delta_verified = Assert-V1FixtureWriteOwnerDelta $beforeBytes ($afterAcl.GetSecurityDescriptorBinaryForm()) $current.User.Value
+        }
+        $handle = [A9V26BuildToken]::CreateFileW($full, 524288, 7, [IntPtr]::Zero, 3, 33554432, [IntPtr]::Zero)
+        if ($handle -eq [IntPtr](-1)) {
+            $record.write_owner_error = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw 'v1 fixture WRITE_OWNER open proof failed; do not start helper.'
+        }
+        $null = [A9V26BuildToken]::CloseHandle($handle)
+        $record.write_owner_open_verified = $true
+        $record.dacl_after = (Get-Acl -LiteralPath $full).Sddl
+        $record.status = 'PASS'
+        $record.mode = $(if ($alreadyPresent) { 'PRESENT_NO_CHANGE' } else { 'EXACT_OWNED_FIXTURE_GRANT' })
+    } catch {
+        $record.error = $_.Exception.Message
+        if ($grantAttempted) {
+            try {
+                $restore = Get-Acl -LiteralPath $full
+                $restore.SetSecurityDescriptorBinaryForm($beforeBytes, [Security.AccessControl.AccessControlSections]::Access)
+                Set-Acl -LiteralPath $full -AclObject $restore
+                $record.grant_rollback_verified = (Get-Acl -LiteralPath $full).Sddl -ceq $record.dacl_before
+            } catch { $record.grant_rollback_error = $_.Exception.Message; $record.grant_rollback_verified = $false }
+        }
+        throw
+    } finally {
+        $environment['v1_fixture_prerequisites'] = @($environment['v1_fixture_prerequisites']) + @($record)
+        Write-Json $environment (Join-Path $EvidenceRoot 'environment.json')
+    }
+}
+
+function New-V25RejectedEnvironmentRequest([System.Collections.IDictionary]$Request) {
+    # [ordered]@{} is an OrderedDictionary, not a Hashtable with Clone().
+    # Copy top-level entries; replace (never mutate) the nested overlay.
+    $copy = [ordered]@{}
+    foreach ($key in $Request.Keys) {
+        $copy[$key] = $Request[$key]
+    }
+    $copy['requestId'] = 'd013-v25-env-overlay-reject'
+    $copy['envOverlay'] = [ordered]@{ NODE_DEBUG = 'D013_FORBIDDEN_OVERLAY_VALUE' }
+    return $copy
+}
+
+function New-V25SmokeCommand() {
+    return 'if defined AZURE_OPENAI_KEY (exit /b 41) else if defined CUSTOM_PROVIDER_KEY (exit /b 42) else if defined NODE_EXTRA_CA_CERTS (exit /b 43) else if defined SSLKEYLOGFILE (exit /b 44) else if defined NODE_DEBUG (exit /b 45) else if defined NODE_DEBUG_NATIVE (exit /b 46) else if defined NODE_PRESERVE_SYMLINKS (exit /b 47) else if defined NODE_ICU_DATA (exit /b 48) else if defined NODE_NO_WARNINGS (exit /b 49) else echo %A9_D013_SMOKE%'
+}
+
+function New-V25CmdVerbatimSmokeCommand() {
+    # Quotes around the environment-provided Chinese/space path are the exact
+    # WIN7-21 regression. The helper must preserve them for cmd.exe instead of
+    # applying CRT backslash escaping to this already-bound payload.
+    return 'if defined AZURE_OPENAI_KEY (exit /b 41) else if defined CUSTOM_PROVIDER_KEY (exit /b 42) else if defined NODE_EXTRA_CA_CERTS (exit /b 43) else if defined SSLKEYLOGFILE (exit /b 44) else if defined NODE_DEBUG (exit /b 45) else if defined NODE_DEBUG_NATIVE (exit /b 46) else if defined NODE_PRESERVE_SYMLINKS (exit /b 47) else if defined NODE_ICU_DATA (exit /b 48) else if defined NODE_NO_WARNINGS (exit /b 49) else (> "%A9_D013_MARKER_PATH%" <nul set /p "=%A9_D013_SMOKE%" & type "%A9_D013_MARKER_PATH%")'
+}
+
+if ($TestSmokeRequestOnly) {
+    # Standalone regression: no compiler, helper process, filesystem writes or
+    # PASS return package. Run with Windows PowerShell 5.1, not pwsh.
+    if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1 -or
+        $PSVersionTable.PSEdition -ne 'Desktop') {
+        throw 'V25 smoke request self-test requires Windows PowerShell 5.1 Desktop.'
+    }
+    $original = [ordered]@{
+        schemaVersion = 2; requestId = 'fixture-original'
+        argv = @('/d', '/s', '/c', 'echo fixture')
+        envOverlay = [ordered]@{ A9_D013_SMOKE = 'D013_V25_CURRENT_USER' }
+    }
+    $before = $original | ConvertTo-Json -Depth 12 -Compress
+    $items = @(New-V25RejectedEnvironmentRequest $original)
+    if ($items.Count -ne 1 -or
+        $items[0] -isnot [System.Collections.Specialized.OrderedDictionary]) {
+        throw 'V25 smoke request copy must return exactly one ordered dictionary.'
+    }
+    $copied = $items[0]
+    if ([object]::ReferenceEquals($copied, $original) -or
+        ($original | ConvertTo-Json -Depth 12 -Compress) -cne $before -or
+        ($copied.Keys -join ',') -cne ($original.Keys -join ',') -or
+        $copied.schemaVersion -ne 2 -or ($copied.argv -join ',') -cne ($original.argv -join ',') -or
+        $copied.requestId -cne 'd013-v25-env-overlay-reject' -or
+        $copied.envOverlay.Count -ne 1 -or
+        $copied.envOverlay['NODE_DEBUG'] -cne 'D013_FORBIDDEN_OVERLAY_VALUE') {
+        throw 'V25 smoke request copy changed the source or lost request fields.'
+    }
+    $selfTestBlockedNames = @('AZURE_OPENAI_KEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'SSLKEYLOGFILE',
+        'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'NODE_PRESERVE_SYMLINKS', 'NODE_ICU_DATA', 'NODE_NO_WARNINGS')
+    $selfTestSavedValues = @{}
+    foreach ($blockedName in $selfTestBlockedNames) {
+        $selfTestSavedValues[$blockedName] = [Environment]::GetEnvironmentVariable($blockedName, 'Process')
+        [Environment]::SetEnvironmentVariable($blockedName, $null, 'Process')
+    }
+    $savedMarker = [Environment]::GetEnvironmentVariable('A9_D013_SMOKE', 'Process')
+    try {
+        [Environment]::SetEnvironmentVariable('A9_D013_SMOKE', 'D013_V25_CURRENT_USER', 'Process')
+        $smokeCommand = New-V25SmokeCommand
+        $smokeOutput = @(& (Join-Path $env:SystemRoot 'System32\cmd.exe') /d /s /c $smokeCommand)
+        $smokeExit = $LASTEXITCODE
+    } finally {
+        [Environment]::SetEnvironmentVariable('A9_D013_SMOKE', $savedMarker, 'Process')
+        foreach ($blockedName in $selfTestBlockedNames) {
+            [Environment]::SetEnvironmentVariable($blockedName, $selfTestSavedValues[$blockedName], 'Process')
+        }
+    }
+    if ($smokeExit -ne 0 -or ($smokeOutput -join "`n") -notmatch 'D013_V25_CURRENT_USER') {
+        throw 'V25 cmd smoke syntax did not reach the final marker.'
+    }
+    Write-Output 'D013_V25_SMOKE_REQUEST_SELFTEST_PASS WindowsPowerShell=5.1'
+    return
+}
+
+
+# Build-host-only raw byte capture, separate from the product Runner.
+function Invoke-V26StreamingSmoke([string]$Helper, [string]$Cmd, [System.Collections.IDictionary]$Template) {
+    Add-Type -TypeDefinition @'
+using System; using System.IO; using System.Text; using System.Collections.Generic;
+using System.Diagnostics; using System.Threading; using System.Threading.Tasks;
+public sealed class A9V26Capture {
+    public int ExitCode; public bool TimedOut, ReaderFailed, CancelWritten;
+    public long ExitMs; public List<long> FrameMs=new List<long>();
+    public static A9V26Capture Run(string exe,string request,string cancel,string stdout,string stderr,int pauseMs) {
+        var r=new A9V26Capture();
+        var info=new ProcessStartInfo(exe) { UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true };
+        using(var process=new Process {StartInfo=info}) using(var ready=new ManualResetEventSlim(false)) {
+            var watch=Stopwatch.StartNew(); if(!process.Start()) throw new Exception("V26_CAPTURE_START_FAILED");
+            var outputTask=Task.Factory.StartNew(()=> {
+                try { using(var input=new BufferedStream(process.StandardOutput.BaseStream))
+                    using(var output=new BufferedStream(File.Open(stdout,FileMode.CreateNew))) {
+                    int b,frame=0; long total=0;
+                    while((b=input.ReadByte())>=0) {
+                        output.WriteByte((byte)b); if(++total>4*1024*1024 || ++frame>32768) throw new Exception("V26_CAPTURE_BOUND");
+                        if(b==10) { output.Flush();frame=0;r.FrameMs.Add(watch.ElapsedMilliseconds);
+                            if(r.FrameMs.Count==1) {ready.Set();if(pauseMs>0)Thread.Sleep(pauseMs);} }
+                    }
+                }} catch {r.ReaderFailed=true;ready.Set();}
+            });
+            var errorTask=Task.Factory.StartNew(()=> {
+                try {using(var output=File.Open(stderr,FileMode.CreateNew)) {
+                    var buffer=new byte[4096];int n;long total=0;
+                    while((n=process.StandardError.BaseStream.Read(buffer,0,buffer.Length))>0) {
+                        total+=n;if(total>65536)throw new Exception("V26_STDERR_BOUND");output.Write(buffer,0,n);
+                    }
+                }} catch {r.ReaderFailed=true;}
+            });
+            try {
+            process.StandardInput.WriteLine(request);process.StandardInput.Flush();
+            if(!String.IsNullOrEmpty(cancel)) {
+                if(!ready.Wait(5000))r.TimedOut=true;
+                else {Thread.Sleep(pauseMs>0?1500:500);
+                    try {process.StandardInput.WriteLine(cancel);process.StandardInput.Flush();r.CancelWritten=true;} catch {r.CancelWritten=false;}
+                }
+            }
+            process.StandardInput.Close();
+            if(!process.WaitForExit(15000)) {r.TimedOut=true;process.Kill();process.WaitForExit(5000);}
+            if(!Task.WaitAll(new Task[]{outputTask,errorTask},5000))r.ReaderFailed=true;
+            r.ExitMs=watch.ElapsedMilliseconds;
+            r.ExitCode=process.HasExited?process.ExitCode:-1;return r;
+            } finally {
+                if(!process.HasExited) {try {process.Kill();process.WaitForExit(5000);} catch {r.ReaderFailed=true;}}
+                if(!Task.WaitAll(new Task[]{outputTask,errorTask},5000))r.ReaderFailed=true;
+            }
+        }
+    }
+}
+'@
+    $rows=@(); $ps=Join-Path $PSHOME 'powershell.exe'
+    foreach($name in @('tick','utf8','cp936','utf16le','limit','cancel','backpressure')) {
+        $request=[ordered]@{};foreach($key in $Template.Keys){$request[$key]=$Template[$key]}
+        $request['schemaVersion']=3;$request['profileId']='a9-trusted-shell-current-user-v2'
+        $request['requestId']='d013-v26-'+$name;$request['managed']=$false;$request['envOverlay']=[ordered]@{}
+        $request['maxStdoutBytes']=1048576;$request['maxStderrBytes']=1048576;$encoding='utf-8'
+        if($name -eq 'tick') {$command='echo tick-1 & ping -n 3 127.0.0.1 >nul & echo tick-2 & echo stderr-tick 1>&2 & ping -n 3 127.0.0.1 >nul'}
+        elseif($name -eq 'cancel') {$command='echo before-cancel & ping -t 127.0.0.1 >nul'}
+        else {
+            $encodingName='utf-8'
+            if($name -eq 'cp936'){$encoding='cp936';$encodingName='gbk'}
+            if($name -eq 'utf16le'){$encoding='utf-16le';$encodingName='utf-16'}
+            $text=[string][char]0x4E2D+[char]0x6587+" no-newline`r`n"
+            $bytes=[Text.Encoding]::GetEncoding($encodingName).GetBytes($text)
+            $base64=[Convert]::ToBase64String($bytes)
+            $child='$b=[Convert]::FromBase64String("'+$base64+'"); foreach($v in $b){[Console]::OpenStandardOutput().WriteByte($v)}'
+            if($name -eq 'limit'){$request['maxStdoutBytes']=4096;$child='$b=[Text.Encoding]::ASCII.GetBytes("x"*32768); [Console]::OpenStandardOutput().Write($b,0,$b.Length)'}
+            if($name -eq 'backpressure'){$child='[Console]::OpenStandardOutput().Write((New-Object byte[] 4194304),0,4194304)'}
+            $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($child))
+            $command='"'+$ps+'" -NoProfile -NonInteractive -EncodedCommand '+$encoded
+        }
+        $request['command']=$command;$request['argv']=@('/d','/s','/c',$command)
+        $request['outputEncoding']=[ordered]@{stdout=$encoding;stderr=$encoding}
+        $json=$request | ConvertTo-Json -Depth 12 -Compress
+        Write-Json $request (Join-Path $EvidenceRoot ('v26-'+$name+'-request.json'))
+        $control='';$pause=0
+        if($name -eq 'cancel' -or $name -eq 'backpressure'){$control=([ordered]@{schemaVersion=3;type='cancel';requestId=$request.requestId}|ConvertTo-Json -Compress)}
+        if($name -eq 'backpressure'){$pause=2500}
+        $stdout=Join-Path $EvidenceRoot ('v26-'+$name+'-stdout.jsonl');$stderr=Join-Path $EvidenceRoot ('v26-'+$name+'-stderr.bin')
+        $capture=[A9V26Capture]::Run($Helper,$json,$control,$stdout,$stderr,$pause)
+        $utf8=New-Object Text.UTF8Encoding($false,$true)
+        $lines=@(($utf8.GetString([IO.File]::ReadAllBytes($stdout))-split "`n")|Where-Object{$_.Length -gt 0})
+        if($capture.TimedOut -or $capture.ReaderFailed -or $lines.Count -ne $capture.FrameMs.Count -or (Get-Item $stderr).Length -ne 0){throw 'V26_STREAM_CAPTURE_FAILED'}
+        if($name -ne 'backpressure' -and $capture.ExitCode -ne 0){throw 'V26_STREAM_PROCESS_FAILED'}
+        $rows+=[ordered]@{name=$name;exit_code=$capture.ExitCode;elapsed_ms=$capture.ExitMs;frame_times_ms=@($capture.FrameMs.ToArray())
+            cancel_written=$capture.CancelWritten;slow_consumer_ms=$pause;timed_out=$capture.TimedOut;reader_failed=$capture.ReaderFailed}
+    }
+    # The return verifier checks raw frames and timings; PASS labels alone are insufficient.
+    Write-Json ([ordered]@{schema_version=1;rows=$rows}) (Join-Path $EvidenceRoot 'v26-streaming.json')
+}
+
+$KitRoot = $PSScriptRoot
+$WorkRoot = Join-Path $KitRoot "work"
+$OutputRoot = Join-Path $KitRoot "output"
+$EvidenceRoot = Join-Path $KitRoot "evidence"
+$ResultRoot = Join-Path $KitRoot "result"
+$TranscriptPath = Join-Path $EvidenceRoot "build-transcript.txt"
+
+function Ensure-Directory([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { New-Item -ItemType Directory -Path $Path | Out-Null }
+}
+
+function Write-Json([object]$Value, [string]$Path) {
+    [System.IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Invoke-Utf8ProcessBytes(
+    [string]$FilePath,
+    [string]$Arguments,
+    [AllowNull()][object]$StandardInputText,
+    [string]$StdoutPath,
+    [string]$StderrPath
+) {
+    # Windows PowerShell 5.1 decodes native-command output with its console/OEM
+    # code page. That corrupts UTF-8 helper JSON on Chinese hosts and can let a
+    # DBCS lead byte consume the closing quote. Read both redirected streams as
+    # bytes, persist them before decoding, then apply strict UTF-8 explicitly.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = $Arguments
+    $startInfo.WorkingDirectory = $KitRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) { throw "Failed to start UTF-8 process: $FilePath" }
+
+    $stdoutBuffer = New-Object System.IO.MemoryStream
+    $stderrBuffer = New-Object System.IO.MemoryStream
+    $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdoutBuffer)
+    $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderrBuffer)
+    $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+    if ($null -ne $StandardInputText) {
+        $stdinBytes = $utf8.GetBytes(([string]$StandardInputText) + "`r`n")
+        $null = $process.StandardInput.BaseStream.Write($stdinBytes, 0, $stdinBytes.Length)
+        $null = $process.StandardInput.BaseStream.Flush()
+    }
+    $null = $process.StandardInput.Close()
+    $null = $process.WaitForExit()
+    # Windows PowerShell 5.1 can surface VoidTaskResult from these calls. Any
+    # unsuppressed value becomes part of the function output and turns the
+    # intended capture object into Object[]. Keep the output contract exact.
+    $null = $stdoutTask.GetAwaiter().GetResult()
+    $null = $stderrTask.GetAwaiter().GetResult()
+
+    $stdoutBytes = $stdoutBuffer.ToArray()
+    $stderrBytes = $stderrBuffer.ToArray()
+    # These are the actual native bytes. Keep this ordering before GetString so
+    # invalid UTF-8 remains recoverable in a DIAGNOSTICS return package.
+    $null = [System.IO.File]::WriteAllBytes($StdoutPath, $stdoutBytes)
+    $null = [System.IO.File]::WriteAllBytes($StderrPath, $stderrBytes)
+    $stdoutText = $utf8.GetString($stdoutBytes)
+    $stderrText = $utf8.GetString($stderrBytes)
+    $exitCode = $process.ExitCode
+    $null = $stdoutBuffer.Dispose()
+    $null = $stderrBuffer.Dispose()
+    $null = $process.Dispose()
+    return [pscustomobject][ordered]@{
+        exit_code = $exitCode
+        stdout_text = $stdoutText
+        stderr_text = $stderrText
+        stdout_size = $stdoutBytes.Length
+        stderr_size = $stderrBytes.Length
+    }
+}
+
+function Get-ValidatedProcessCapture([object[]]$Items, [string]$Context) {
+    if ($null -eq $Items -or $Items.Count -ne 1) {
+        $actualCount = $(if ($null -eq $Items) { 0 } else { $Items.Count })
+        throw "$Context process capture output contract failed: expected 1 object, got $actualCount."
+    }
+    $capture = $Items[0]
+    foreach ($propertyName in @("exit_code", "stdout_text", "stderr_text", "stdout_size", "stderr_size")) {
+        if ($null -eq $capture.PSObject.Properties[$propertyName]) {
+            throw "$Context process capture output contract failed: missing property $propertyName."
+        }
+    }
+    return $capture
+}
+
+function Reset-OwnedDirectory([string]$Path) {
+    $root = [System.IO.Path]::GetFullPath($KitRoot).TrimEnd('\')
+    $target = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+    if (-not $target.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to reset a directory outside the kit: $target"
+    }
+    if (Test-Path -LiteralPath $target) { throw "Refusing to reuse an existing build directory: $target" }
+    Ensure-Directory $target
+}
+
+function Get-RelativeFileName([string]$Root, [string]$FullName) {
+    return $FullName.Substring($Root.Length + 1).Replace('\', '/')
+}
+
+function Get-ArtifactEntries([string]$Root) {
+    $entries = @()
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return $entries }
+    foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File) {
+        $entries += [ordered]@{
+            path = (Get-RelativeFileName $Root $file.FullName)
+            size = $file.Length
+            sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+    return $entries
+}
+
+function New-ReturnPackage(
+    [string]$BuildRunId,
+    [string]$Status,
+    [string]$CurrentStage,
+    [string]$FailureCode,
+    [string]$FailureMessage,
+    [string]$HelperError,
+    [string]$ProfileId,
+    [string]$SourceCommit,
+    [string]$SdkVersion,
+    [string]$SmokeStatus,
+    [string]$PeStatus,
+    [string]$LogicStatus,
+    [string]$CaptureStatus,
+    [bool]$CandidateEligible,
+    [string]$PackageOutputRoot,
+    [string]$PackageEvidenceRoot,
+    [string]$PackageResultRoot
+) {
+    Ensure-Directory $PackageOutputRoot
+    Ensure-Directory $PackageEvidenceRoot
+    Ensure-Directory $PackageResultRoot
+
+    $artifactEntries = @(Get-ArtifactEntries $PackageOutputRoot)
+    $buildResult = [ordered]@{
+        schema_version = 3
+        run_id = $BuildRunId
+        status = $Status
+        stage = $CurrentStage
+        failure_code = $FailureCode
+        failure_message = $FailureMessage
+        helper_error = $HelperError
+        candidate_eligible = $CandidateEligible
+        profile = $ProfileId
+        source_commit = $SourceCommit
+        completed_at = [DateTime]::UtcNow.ToString("o")
+        helper = "spike02_helper_v26"
+        helper_profile = "D-013-v26-a9-trusted-shell-current-user"
+        helper_protocol = 3
+        architecture = "x64"
+        toolset = "v142"
+        windows_sdk = $SdkVersion
+        crt = "static /MT"
+        manifest = "embedded"
+        logic_tests = $LogicStatus
+        process_capture_selftest = $CaptureStatus
+        win10_smoke = $SmokeStatus
+        pe_api_crt_analysis = $PeStatus
+        win7_validation = "NOT_PERFORMED"
+        artifacts = $artifactEntries
+    }
+    Write-Json $buildResult (Join-Path $PackageEvidenceRoot "build-result.json")
+
+    if ($Status -eq "PASS") {
+        # The versioned binding ties every required raw result to this clean
+        # run and the final, manifest-embedded helper bytes (not just PASS labels).
+        $boundEvidence = @()
+        foreach ($relative in $profile.delivery.evidence) {
+            if ($relative -eq 'evidence/validation-binding.json') { continue }
+            $evidenceFile = Join-Path $PackageEvidenceRoot ($relative.Substring('evidence/'.Length))
+            if (-not (Test-Path -LiteralPath $evidenceFile -PathType Leaf)) { throw "Required return evidence is missing: $relative" }
+            $boundEvidence += [ordered]@{
+                path = $relative; size = (Get-Item -LiteralPath $evidenceFile).Length
+                sha256 = (Get-FileHash -LiteralPath $evidenceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+        }
+        Write-Json ([ordered]@{
+            schema_version = 1; status = "PASS"; run_id = $BuildRunId
+            source_commit = $SourceCommit; profile = $ProfileId
+            helper_sha256 = (Get-FileHash -LiteralPath (Join-Path $PackageOutputRoot 'helper.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+            files = $boundEvidence
+            exit_codes = [ordered]@{
+                logic = [int]$logicExit; capture = [int]$captureProbe.exit_code
+                version = [int]$versionCapture.exit_code; v1_smoke = [int]$smokeCapture.exit_code
+                v1_cancel = [int]$cancelCapture.exit_code; v2_smoke = [int]$v2Capture.exit_code
+                v2_cancel = [int]$v2CancelCapture.exit_code; v2_overlay_reject = [int]$v2RejectedCapture.exit_code
+                v3_streaming = 0
+            }
+        }) (Join-Path $PackageEvidenceRoot 'validation-binding.json')
+    }
+
+    $staging = Join-Path $WorkRoot ("result-staging-" + [Guid]::NewGuid().ToString("N"))
+    Reset-OwnedDirectory $staging
+    if ((Get-ChildItem -LiteralPath $PackageOutputRoot -Force | Measure-Object).Count -gt 0) {
+        Copy-Item -LiteralPath $PackageOutputRoot -Destination (Join-Path $staging "output") -Recurse
+    }
+    Copy-Item -LiteralPath $PackageEvidenceRoot -Destination (Join-Path $staging "evidence") -Recurse
+    foreach ($name in @("input-lock.json", "build-profile.json", "helper.exe.manifest", "PACKAGE_MANIFEST.json")) {
+        $source = Join-Path $KitRoot $name
+        if (Test-Path -LiteralPath $source -PathType Leaf) {
+            Copy-Item -LiteralPath $source -Destination $staging
+        }
+    }
+
+    $returnFiles = @()
+    foreach ($file in Get-ChildItem -LiteralPath $staging -Recurse -File | Sort-Object FullName) {
+        $returnFiles += [ordered]@{
+            path = (Get-RelativeFileName $staging $file.FullName)
+            size = $file.Length
+            sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+    Write-Json ([ordered]@{
+        schema_version = 1
+        run_id = $BuildRunId
+        source_commit = $SourceCommit
+        status = $Status
+        candidate_eligible = $CandidateEligible
+        authorized_inputs = [ordered]@{
+            input_lock_sha256 = (Get-FileHash -LiteralPath (Join-Path $KitRoot "input-lock.json") -Algorithm SHA256).Hash.ToLowerInvariant()
+            package_manifest_sha256 = (Get-FileHash -LiteralPath (Join-Path $KitRoot "PACKAGE_MANIFEST.json") -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        files = $returnFiles
+    }) (Join-Path $staging "RETURN_PACKAGE_MANIFEST.json")
+
+    $stamp = [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss")
+    $prefix = $(if ($Status -eq "PASS") { "WIN7_D013_V26_HELPER_ARTIFACTS_" } else { "WIN7_D013_V26_HELPER_DIAGNOSTICS_" })
+    $resultZip = Join-Path $PackageResultRoot ($prefix + $stamp + ".zip")
+    Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $resultZip -CompressionLevel Optimal -Force
+    $resultHash = (Get-FileHash -LiteralPath $resultZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    [System.IO.File]::WriteAllText(
+        $resultZip + ".sha256",
+        ($resultHash + "  " + [System.IO.Path]::GetFileName($resultZip) + "`r`n"),
+        [System.Text.Encoding]::ASCII)
+    # Retain owned staging as failure/recovery evidence; a new build uses a new kit directory.
+    return [ordered]@{ path = $resultZip; sha256 = $resultHash; status = $Status }
+}
+
+function Test-ReturnPackageWriter {
+    $selfTestRoot = Join-Path $WorkRoot "return-package-selftest"
+    Reset-OwnedDirectory $selfTestRoot
+    $selfOutput = Join-Path $selfTestRoot "output"
+    $selfEvidence = Join-Path $selfTestRoot "evidence"
+    $selfResult = Join-Path $selfTestRoot "result"
+    Ensure-Directory $selfOutput
+    Ensure-Directory $selfEvidence
+    Ensure-Directory $selfResult
+    [System.IO.File]::WriteAllText(
+        (Join-Path $selfEvidence "synthetic-failure.txt"),
+        "TOKEN_CREATE_FAILED`r`n", [System.Text.Encoding]::ASCII)
+    $selfRunId = [Guid]::NewGuid().ToString("D")
+    $created = New-ReturnPackage -BuildRunId $selfRunId -Status "FAIL" -CurrentStage "SELFTEST" `
+        -FailureCode "TOKEN_CREATE_FAILED" -FailureMessage "synthetic failure" `
+        -HelperError "TOKEN_CREATE_FAILED" -ProfileId "SELFTEST" -SourceCommit "SELFTEST" -SdkVersion "SELFTEST" `
+        -SmokeStatus "FAIL" -PeStatus "NOT_PERFORMED" -LogicStatus "NOT_PERFORMED" `
+        -CaptureStatus "NOT_PERFORMED" `
+        -CandidateEligible $false -PackageOutputRoot $selfOutput `
+        -PackageEvidenceRoot $selfEvidence -PackageResultRoot $selfResult
+    if (-not ([System.IO.Path]::GetFileName([string]$created.path).StartsWith("WIN7_D013_V26_HELPER_DIAGNOSTICS_"))) {
+        throw "return-package self-test produced the wrong filename"
+    }
+    $expectedHash = (Get-Content -LiteralPath ([string]$created.path + ".sha256") -Raw).Split(' ')[0].Trim()
+    $actualHash = (Get-FileHash -LiteralPath ([string]$created.path) -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($expectedHash -ne ([string]$created.sha256) -or $actualHash -ne ([string]$created.sha256)) {
+        throw "return-package self-test ZIP/sidecar hash mismatch"
+    }
+    $extract = Join-Path $selfTestRoot "extract"
+    Expand-Archive -LiteralPath ([string]$created.path) -DestinationPath $extract -Force
+    $selfResultJson = Get-Content -LiteralPath (Join-Path $extract "evidence\build-result.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($selfResultJson.schema_version -ne 3 -or $selfResultJson.run_id -ne $selfRunId -or
+        $selfResultJson.status -ne "FAIL" -or
+        $selfResultJson.stage -ne "SELFTEST" -or
+        $selfResultJson.failure_code -ne "TOKEN_CREATE_FAILED" -or
+        $selfResultJson.candidate_eligible -ne $false -or
+        $selfResultJson.helper_error -ne "TOKEN_CREATE_FAILED" -or
+        $selfResultJson.process_capture_selftest -ne "NOT_PERFORMED") {
+        throw "return-package self-test build-result contract mismatch"
+    }
+    $returnManifestPath = Join-Path $extract "RETURN_PACKAGE_MANIFEST.json"
+    if (-not (Test-Path -LiteralPath $returnManifestPath -PathType Leaf)) {
+        throw "return-package self-test internal manifest missing"
+    }
+    $returnManifest = Get-Content -LiteralPath $returnManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($returnManifest.schema_version -ne 1 -or $returnManifest.run_id -ne $selfRunId -or
+        $returnManifest.source_commit -ne "SELFTEST" -or
+        -not $returnManifest.authorized_inputs.input_lock_sha256 -or
+        -not $returnManifest.authorized_inputs.package_manifest_sha256 -or
+        $returnManifest.status -ne "FAIL" -or
+        $returnManifest.candidate_eligible -ne $false -or (@($returnManifest.files).Count -eq 0)) {
+        throw "return-package self-test internal manifest contract mismatch"
+    }
+    $manifestPaths = @($returnManifest.files | ForEach-Object { [string]$_.path } | Sort-Object)
+    $actualPaths = @(Get-ChildItem -LiteralPath $extract -Recurse -File | ForEach-Object {
+        Get-RelativeFileName $extract $_.FullName
+    } | Where-Object { $_ -ne "RETURN_PACKAGE_MANIFEST.json" } | Sort-Object)
+    if (@(Compare-Object -ReferenceObject $manifestPaths -DifferenceObject $actualPaths).Count -ne 0) {
+        throw "return-package self-test internal manifest file set mismatch"
+    }
+    foreach ($entry in $returnManifest.files) {
+        $entryPath = Join-Path $extract ([string]$entry.path).Replace('/', '\')
+        if (-not (Test-Path -LiteralPath $entryPath -PathType Leaf) -or
+            (Get-Item -LiteralPath $entryPath).Length -ne [int64]$entry.size -or
+            (Get-FileHash -LiteralPath $entryPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne
+                ([string]$entry.sha256).ToLowerInvariant()) {
+            throw "return-package self-test internal manifest mismatch: $($entry.path)"
+        }
+    }
+    # Retain self-test evidence in this fresh build directory.
+}
+
+$currentStage = "INITIALIZE"
+$buildStatus = "FAIL"
+$buildExitCode = 1
+$failureCode = "UNHANDLED_BUILD_FAILURE"
+$failureMessage = ""
+$helperError = ""
+$profileId = "UNKNOWN"
+$sourceCommit = "UNKNOWN"
+$sdkVersion = "UNKNOWN"
+$smokeStatus = "NOT_PERFORMED"
+$peStatus = "NOT_PERFORMED"
+$logicStatus = "NOT_PERFORMED"
+$captureStatus = "NOT_PERFORMED"
+$candidateEligible = $false
+$returnPackage = $null
+$transcriptStarted = $false
+$packagingSucceeded = $false
+$buildRunId = [Guid]::NewGuid().ToString("D")
+
+try {
+    # Work, output, evidence and result are build-owned state. Initialization
+    # is inside the same failure closure, so even transcript startup failure
+    # reaches the diagnostics finalizer instead of terminating the script.
+    Reset-OwnedDirectory $WorkRoot
+    Reset-OwnedDirectory $OutputRoot
+    Reset-OwnedDirectory $EvidenceRoot
+    Reset-OwnedDirectory $ResultRoot
+    Start-Transcript -Path $TranscriptPath -Force | Out-Null
+    $transcriptStarted = $true
+
+    $lock = Get-Content -LiteralPath (Join-Path $KitRoot "input-lock.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $profile = Get-Content -LiteralPath (Join-Path $KitRoot "build-profile.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $profileId = [string]$profile.profile
+    $sourceCommit = [string]$lock.source_commit
+
+    $currentStage = "VERIFY_INPUT"
+    Write-Host "[1/9] Verify full package manifest and locked source snapshot"
+    $packageManifest = Get-Content -LiteralPath (Join-Path $KitRoot "PACKAGE_MANIFEST.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($entry in $packageManifest.files) {
+        $path = Join-Path $KitRoot ([string]$entry.path).Replace('/', '\')
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing package file: $($entry.path)" }
+        if ((Get-Item -LiteralPath $path).Length -ne [int64]$entry.size) { throw "Package file size mismatch: $($entry.path)" }
+        if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne ([string]$entry.sha256).ToLowerInvariant()) {
+            throw "Package file SHA-256 mismatch: $($entry.path)"
+        }
+    }
+    $verifiedSources = @()
+    foreach ($entry in $lock.sources) {
+        $path = Join-Path $KitRoot ([string]$entry.path)
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing locked source: $($entry.path)" }
+        $actualHash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        $actualSize = (Get-Item -LiteralPath $path).Length
+        if ($actualHash -ne ([string]$entry.sha256).ToLowerInvariant()) { throw "SHA-256 mismatch: $($entry.path)" }
+        if ($actualSize -ne [int64]$entry.size) { throw "Size mismatch: $($entry.path)" }
+        $verifiedSources += [ordered]@{ path = $entry.path; sha256 = $actualHash; size = $actualSize; status = "PASS" }
+    }
+    Write-Json ([ordered]@{ schema_version = 1; status = "PASS"; sources = $verifiedSources }) (Join-Path $EvidenceRoot "input-verification.json")
+
+    $currentStage = "PROCESS_CAPTURE_SELFTEST"
+    Write-Host "[2/9] Verify PowerShell 5.1 single-object and strict UTF-8 capture contract"
+    $captureProbeScript = Join-Path $WorkRoot "capture-selftest.ps1"
+    $captureProbeStdout = Join-Path $EvidenceRoot "capture-selftest-stdout.bin"
+    $captureProbeStderr = Join-Path $EvidenceRoot "capture-selftest-stderr.bin"
+    # Keep this probe source ASCII so Windows PowerShell 5.1 never depends on
+    # BOM/ACP detection. The child constructs the non-ASCII marker by codepoint
+    # and emits it with an explicitly strict UTF-8 console encoding.
+    $captureProbeSource = '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false, $true); [Console]::Out.Write("D013_" + [char]0x4E2D + [char]0x6587)'
+    $null = [System.IO.File]::WriteAllText($captureProbeScript, $captureProbeSource, [System.Text.Encoding]::ASCII)
+    $powershellExe = Join-Path $PSHOME "powershell.exe"
+    if (-not (Test-Path -LiteralPath $powershellExe -PathType Leaf)) {
+        throw "Windows PowerShell executable was not detected for capture self-test."
+    }
+    $captureProbeArguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $captureProbeScript + '"'
+    $captureProbeItems = @(Invoke-Utf8ProcessBytes -FilePath $powershellExe `
+        -Arguments $captureProbeArguments -StandardInputText $null `
+        -StdoutPath $captureProbeStdout -StderrPath $captureProbeStderr)
+    $captureProbe = Get-ValidatedProcessCapture -Items $captureProbeItems -Context "capture self-test"
+    $expectedCaptureMarker = "D013_" + [char]0x4E2D + [char]0x6587
+    if ([int]$captureProbe.exit_code -ne 0 -or [string]$captureProbe.stdout_text -ne $expectedCaptureMarker -or
+        [int]$captureProbe.stdout_size -ne 11 -or [int]$captureProbe.stderr_size -ne 0) {
+        throw "PowerShell process capture self-test did not preserve the exact UTF-8 payload."
+    }
+    $captureStatus = "PASS"
+    Write-Json ([ordered]@{
+        schema_version = 1
+        status = "PASS"
+        output_object_count = $captureProbeItems.Count
+        exit_code = [int]$captureProbe.exit_code
+        stdout_size = [int]$captureProbe.stdout_size
+        stderr_size = [int]$captureProbe.stderr_size
+        decoded_marker = [string]$captureProbe.stdout_text
+        raw_bytes_persisted_before_decode = $true
+        strict_utf8 = $true
+    }) (Join-Path $EvidenceRoot "capture-selftest.json")
+
+    $currentStage = "RETURN_PACKAGE_SELFTEST"
+    Write-Host "[3/9] Verify FAIL diagnostics finalizer with a synthetic TOKEN_CREATE_FAILED"
+    Test-ReturnPackageWriter
+    Write-Json ([ordered]@{
+        schema_version = 1
+        status = "PASS"
+        scenario = "synthetic TOKEN_CREATE_FAILED"
+        expected_prefix = "WIN7_D013_HELPER_DIAGNOSTICS_"
+        expected_candidate_eligible = $false
+    }) (Join-Path $EvidenceRoot "return-package-selftest.json")
+
+    $currentStage = "VERIFY_BUILD_HOST"
+    Write-Host "[4/9] Enforce Win10 + VS2019 + v142 + SDK 10.0.19041.0"
+    $os = Get-V26BuildHostOs
+
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path -LiteralPath $vswhere)) { throw "vswhere.exe not found." }
+    # VS2019 reports its built-in v142 C++ tools as VC.Tools.x86.x64. The
+    # alternate VC.v142 ID is retained for installations that register it, but
+    # the 16.11 Visual Studio and 14.29 toolset gates below remain mandatory.
+    $vsArgs = @(
+        '-latest', '-version', '[16.11,16.12)', '-products', '*', '-requires',
+        'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+        'Microsoft.VisualStudio.Component.VC.v142.x86.x64',
+        '-requiresAny'
+    )
+    $vsPath = (& $vswhere @vsArgs -property installationPath | Select-Object -First 1)
+    $vsVersion = (& $vswhere @vsArgs -property installationVersion | Select-Object -First 1)
+    if (-not $vsPath -or -not ([string]$vsVersion).StartsWith('16.11.')) { throw "Visual Studio 2019 16.11 with v142 x64 was not detected." }
+
+    $msvcRoot = Join-Path $vsPath "VC\Tools\MSVC"
+    $msvcDirectory = Get-ChildItem -LiteralPath $msvcRoot -Directory | Where-Object { $_.Name -like '14.29.*' } | Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $msvcDirectory) { throw "An MSVC 14.29 (v142) compiler directory was not detected." }
+    $cl = Join-Path $msvcDirectory.FullName "bin\Hostx64\x64\cl.exe"
+    $dumpbin = Join-Path $msvcDirectory.FullName "bin\Hostx64\x64\dumpbin.exe"
+    if (-not (Test-Path -LiteralPath $cl) -or -not (Test-Path -LiteralPath $dumpbin)) { throw "cl.exe/dumpbin.exe x64 were not detected." }
+
+    $sdkVersion = [string]$profile.build_host.windows_sdk_version
+    $sdkInclude = Join-Path ${env:ProgramFiles(x86)} ("Windows Kits\10\Include\" + $sdkVersion)
+    $sdkLib = Join-Path ${env:ProgramFiles(x86)} ("Windows Kits\10\Lib\" + $sdkVersion)
+    if (-not (Test-Path -LiteralPath $sdkInclude) -or -not (Test-Path -LiteralPath $sdkLib)) {
+        throw "Locked Windows SDK $sdkVersion was not detected."
+    }
+    $mt = Join-Path ${env:ProgramFiles(x86)} ("Windows Kits\10\bin\" + $sdkVersion + "\x64\mt.exe")
+    if (-not (Test-Path -LiteralPath $mt)) { throw "mt.exe (SDK $sdkVersion x64) was not detected." }
+    $tarCommand = Get-Command tar.exe -ErrorAction SilentlyContinue
+    if (-not $tarCommand) { throw "Windows 10 tar.exe was not detected." }
+
+    $environment = [ordered]@{
+        schema_version = 1; status = "PASS"; captured_at = [DateTime]::UtcNow.ToString("o")
+        computer_name = $env:COMPUTERNAME; os_caption = $os.Caption; os_version = $os.Version; os_build = $os.BuildNumber
+        os_probe = $os.Probe; os_update_revision = $os.UpdateBuildRevision; os_installation_type = $os.InstallationType
+        powershell = $PSVersionTable.PSVersion.ToString(); visual_studio_path = $vsPath; visual_studio_version = $vsVersion
+        msvc_version = $msvcDirectory.Name; platform_toolset = "v142"; windows_sdk_version = $sdkVersion
+        compiler = $cl; archive_tool = $tarCommand.Source; network_required = $false
+    }
+    $environment['v1_fixture_prerequisites'] = @()
+    $buildIdentity = Get-V26BuildIdentity
+    foreach ($key in $buildIdentity.Keys) { $environment[$key] = $buildIdentity[$key] }
+    Write-Json $environment (Join-Path $EvidenceRoot 'environment.json')
+    Assert-V26BuildIdentity $buildIdentity
+    $tools = @()
+    foreach ($toolPath in @($cl, $dumpbin, $mt, $vswhere, (Join-Path $PSHOME 'powershell.exe'))) {
+        $tools += [ordered]@{ path = $toolPath; sha256 = (Get-FileHash -LiteralPath $toolPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+    }
+    Write-Json ([ordered]@{ schema_version = 1; tools = $tools }) (Join-Path $EvidenceRoot 'v26-tools.json')
+    Write-Json $environment (Join-Path $EvidenceRoot "environment.json")
+
+    $currentStage = "BUILD_LOGIC_TESTS"
+    Write-Host "[5/9] Build and run platform-neutral logic tests with v142"
+    Ensure-Directory $WorkRoot
+    Ensure-Directory $OutputRoot
+    Ensure-Directory $ResultRoot
+    $srcDir = Join-Path $KitRoot "src"
+    $common = $profile.build_flags.compile | ForEach-Object { [string]$_ }
+    $pathMap = "/pathmap:$KitRoot=C:\a9-v26-kit"
+    $logicObjDir = Join-Path $WorkRoot "logic-obj"
+    Ensure-Directory $logicObjDir
+    $logicSources = @('logic_tests.cpp', 'json_parser.cpp', 'argv_builder.cpp', 'whitelist.cpp', 'protocol.cpp')
+    $logicObjects = @()
+    foreach ($source in $logicSources) {
+        $obj = Join-Path $logicObjDir ($source -replace '\.cpp$', '.obj')
+        $relativeObj = Join-Path ".\work\logic-obj" ($source -replace '\.cpp$', '.obj')
+        Push-Location $KitRoot
+        try {
+            & $cl @common $pathMap "/I.\src" "/Fo$relativeObj" "/c" (Join-Path ".\src" $source)
+        } finally {
+            Pop-Location
+        }
+        if ($LASTEXITCODE -ne 0) {
+            $logicStatus = "FAIL"
+            throw "cl.exe failed for logic test source $source (exit $LASTEXITCODE)."
+        }
+        $logicObjects += $obj
+    }
+    $logicExe = Join-Path $WorkRoot "logic_tests.exe"
+    $logicLinkArgs = @()
+    foreach ($obj in $logicObjects) { $logicLinkArgs += $obj }
+    $logicLinkArgs += "/link"
+    foreach ($flag in $profile.build_flags.link) { $logicLinkArgs += [string]$flag }
+    $logicLinkArgs += "/OUT:$logicExe"
+    & $cl @logicLinkArgs
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $logicExe)) {
+        $logicStatus = "FAIL"
+        throw "logic_tests link failed (exit $LASTEXITCODE)."
+    }
+    $logicLines = @(& $logicExe 2>&1)
+    $logicExit = $LASTEXITCODE
+    [System.IO.File]::WriteAllLines(
+        (Join-Path $EvidenceRoot "logic-tests.txt"), [string[]]$logicLines,
+        [System.Text.Encoding]::UTF8)
+    if ($logicExit -ne 0 -or (($logicLines -join "`n") -notmatch 'logic_tests: ALL PASS')) {
+        $logicStatus = "FAIL"
+        throw "logic_tests.exe failed (exit $logicExit)."
+    }
+    $logicStatus = "PASS"
+
+    $currentStage = "BUILD_HELPER"
+    Write-Host "[6/9] Build spike02_helper.exe (static CRT, Win7 target)"
+    $objDir = Join-Path $WorkRoot "obj"
+    Ensure-Directory $objDir
+    $sources = @('helper.cpp', 'json_parser.cpp', 'argv_builder.cpp', 'whitelist.cpp', 'protocol.cpp', 'stream_writer.cpp')
+    $objects = @()
+    foreach ($source in $sources) {
+        $obj = Join-Path $objDir ($source -replace '\.cpp$', '.obj')
+        $relativeObj = Join-Path ".\work\obj" ($source -replace '\.cpp$', '.obj')
+        Push-Location $KitRoot
+        try {
+            & $cl @common $pathMap "/I.\src" "/Fo$relativeObj" "/c" (Join-Path ".\src" $source)
+        } finally {
+            Pop-Location
+        }
+        if ($LASTEXITCODE -ne 0) { throw "cl.exe failed for $source (exit $LASTEXITCODE)." }
+        $objects += $obj
+    }
+    $helperExe = Join-Path $OutputRoot "helper.exe"
+    $linkArgs = @()
+    foreach ($obj in $objects) { $linkArgs += $obj }
+    $linkArgs += "/link"
+    foreach ($flag in $profile.build_flags.link) { $linkArgs += [string]$flag }
+    $linkArgs += "/OUT:$helperExe"
+    & $cl @linkArgs
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $helperExe)) { throw "link failed (exit $LASTEXITCODE)." }
+
+    $currentStage = "EMBED_MANIFEST"
+    Write-Host "[7/9] Embed application manifest"
+    & $mt -nologo -manifest (Join-Path $KitRoot "helper.exe.manifest") -outputresource:"$helperExe;#1"
+    if ($LASTEXITCODE -ne 0) { throw "mt.exe manifest embedding failed (exit $LASTEXITCODE)." }
+
+    $currentStage = "PE_API_CRT_GATE"
+    Write-Host "[8/9] Fail closed on PE architecture, forbidden APIs and CRT closure"
+    $peResults = @()
+    $peFailure = $false
+    $crtRegex = '(?i)\b(?:VCRUNTIME[0-9_A-Z]*|MSVCP[0-9_A-Z]*|UCRTBASE|API-MS-WIN-CRT-[0-9A-Z-]+)\.DLL\b'
+    $headersLog = Join-Path $EvidenceRoot "pe-helper-headers.txt"
+    $dependentsLog = Join-Path $EvidenceRoot "pe-helper-dependents.txt"
+    $importsLog = Join-Path $EvidenceRoot "pe-helper-imports.txt"
+    $headerLines = @(& $dumpbin /HEADERS $helperExe 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "dumpbin /HEADERS failed." }
+    $dependentLines = @(& $dumpbin /DEPENDENTS $helperExe 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "dumpbin /DEPENDENTS failed." }
+    $importLines = @(& $dumpbin /IMPORTS $helperExe 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "dumpbin /IMPORTS failed." }
+    [System.IO.File]::WriteAllLines($headersLog, [string[]]$headerLines, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllLines($dependentsLog, [string[]]$dependentLines, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllLines($importsLog, [string[]]$importLines, [System.Text.Encoding]::UTF8)
+    $headerText = $headerLines -join "`n"
+    $importText = ($dependentLines + $importLines) -join "`n"
+    $isX64 = $headerText -match '(?i)8664.*\(x64\)'
+    $forbiddenHits = @()
+    foreach ($api in $profile.forbidden_imports) { if ($importText -match ('(?i)\b' + [regex]::Escape([string]$api) + '\b')) { $forbiddenHits += [string]$api } }
+    $crtDependencies = @([regex]::Matches($importText, $crtRegex) | ForEach-Object { $_.Value.ToUpperInvariant() } | Sort-Object -Unique)
+    $status = "PASS"
+    if (-not $isX64 -or $forbiddenHits.Count -gt 0 -or $crtDependencies.Count -gt 0) { $status = "FAIL"; $peFailure = $true }
+    $peResults += [ordered]@{ path = "helper.exe"; status = $status; x64 = $isX64; forbidden_imports = $forbiddenHits; dynamic_crt_dependencies = $crtDependencies }
+    Write-Json ([ordered]@{ schema_version = 1; status = $(if ($peFailure) { "FAIL" } else { "PASS" }); dumpbin = $dumpbin; files = $peResults }) (Join-Path $EvidenceRoot "pe-api-crt-analysis.json")
+    if ($peFailure) {
+        $peStatus = "FAIL"
+        throw "PE/API/CRT closure failed. See pe-api-crt-analysis.json."
+    }
+    $peStatus = "PASS"
+
+    $currentStage = "WIN10_SMOKE"
+    Write-Host "[9/9] Win10 smoke: version, JSON round trip and exact token/ACL audit"
+    $smokeStatus = "SKIPPED_REQUESTED"
+    if (-not $SkipSmoke) {
+        $smokeStdout = Join-Path $EvidenceRoot "smoke-stdout.txt"
+        $smokeStderr = Join-Path $EvidenceRoot "smoke-stderr.txt"
+        $smokeRoot = Join-Path $WorkRoot "smoke"
+        Reset-OwnedDirectory $smokeRoot
+        $smokeAllowed = Join-Path $smokeRoot "allowed"
+        $smokeProtected = Join-Path $smokeRoot "protected"
+        Ensure-Directory $smokeAllowed
+        Ensure-Directory $smokeProtected
+        Initialize-V1FixtureWriteOwner -Directory $smokeAllowed -SmokeRoot $smokeRoot
+        $smokeAllowedAclBefore = (Get-Acl -LiteralPath $smokeAllowed).Sddl
+        $smokeProtectedAclBefore = (Get-Acl -LiteralPath $smokeProtected).Sddl
+        $cmdExe = Join-Path $env:SystemRoot "System32\cmd.exe"
+        if (-not (Test-Path -LiteralPath $cmdExe -PathType Leaf)) { throw "cmd.exe smoke target was not detected." }
+        $versionStdout = Join-Path $EvidenceRoot "version-stdout.txt"
+        $versionStderr = Join-Path $EvidenceRoot "version-stderr.txt"
+        $versionCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "--version" `
+            -StandardInputText $null -StdoutPath $versionStdout -StderrPath $versionStderr)
+        $versionCapture = Get-ValidatedProcessCapture -Items $versionCaptureItems -Context "helper --version"
+        if ($versionCapture.exit_code -ne 0 -or
+            ([string]$versionCapture.stdout_text).Trim() -ne 'win7-agent-helper 1.4.0-d013-v26 win7-x64 profiles=v1-low-risk,v2-current-user,v3-streaming') {
+            throw "helper --version smoke failed."
+        }
+        $requestPayload = [ordered]@{
+            schema_version = 1
+            requestId = "d013-smoke"
+            executable = $cmdExe
+            argv = @('/d', '/s', '/c', 'echo D013_NATIVE_SMOKE')
+            workingDirectory = $smokeAllowed
+            timeoutMs = 10000
+            idleTimeoutMs = 5000
+            maxOutputSize = 4096
+            allowedDirectories = @($smokeAllowed)
+            protectedDirectories = @($smokeProtected)
+            aclPolicy = [ordered]@{
+                acceptanceRoot = $WorkRoot
+                perRunRoot = $smokeRoot
+            }
+        }
+        # Serialize the payload instead of hand-writing JSON. ConvertTo-Json
+        # escapes Windows path separators, quotes and future special characters.
+        $request = $requestPayload | ConvertTo-Json -Compress
+        $requestCheck = $request | ConvertFrom-Json
+        if (($requestCheck.executable -ne $requestPayload.executable) -or ($requestCheck.workingDirectory -ne $requestPayload.workingDirectory)) {
+            throw "helper JSON smoke request did not survive serialization round trip."
+        }
+        $smokeCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+            -StandardInputText $request -StdoutPath $smokeStdout -StderrPath $smokeStderr)
+        $smokeCapture = Get-ValidatedProcessCapture -Items $smokeCaptureItems -Context "helper JSON smoke"
+        $smokeProcessExit = [int]$smokeCapture.exit_code
+        $responseText = ([string]$smokeCapture.stdout_text) -replace "[\r\n]+$", ""
+        if ($smokeProcessExit -ne 0) {
+            $smokeStatus = "FAIL"
+            throw "helper JSON smoke process failed (exit $smokeProcessExit)."
+        }
+        $response = $responseText | ConvertFrom-Json
+        if ($response.type -eq 'error' -and $response.error -eq 'HOST_ALREADY_IN_JOB') {
+            # The build host itself runs inside a Job: the helper's C02
+            # fail-closed behaviour is correct; smoke is environmentally skipped.
+            $smokeStatus = "SKIPPED_IN_JOB"
+            $helperError = [string]$response.error
+        } elseif ($response.type -eq 'error' -and $response.error -eq 'PROCESS_CREATE_FAILED') {
+            # Some agent sandboxes allow compilation but block restricted-token
+            # process creation
+            # from creating the restricted child. Keep the build evidence-bound
+            # and non-PASS instead of masking the host limitation as success.
+            $smokeStatus = "SKIPPED_PROCESS_CREATE_FAILED"
+            $helperError = [string]$response.error
+        } elseif ($response.type -eq 'error') {
+            $smokeStatus = "FAIL"
+            $helperError = [string]$response.error
+            throw "helper JSON smoke returned error: $responseText"
+        } else {
+            if ($response.status -ne 'completed' -or $response.exitCode -ne 0) {
+                $smokeStatus = "FAIL"
+                $helperError = "CHILD_EXIT_" + [string]$response.exitCode
+                throw "helper JSON smoke did not complete cleanly: $responseText"
+            }
+            $decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String([string]$response.stdoutBase64))
+            if ($decoded -notmatch 'D013_NATIVE_SMOKE') { throw "helper JSON smoke stdout did not contain the marker." }
+            if ($response.containmentVerified -ne $true -or $response.inputDetached -ne $true) {
+                throw "helper JSON smoke did not prove containment/input detachment."
+            }
+            $hostJob = $response.PSObject.Properties['hostJob']
+            if (-not $hostJob -or
+                $hostJob.Value.detected -ne $false -or
+                $hostJob.Value.breakaway -ne 'none' -or
+                $hostJob.Value.childJobAssignmentVerified -ne $true) {
+                throw "helper JSON smoke did not prove the no-host-Job assignment contract: $responseText"
+            }
+            $tokenAuditProperty = $response.PSObject.Properties['tokenAudit']
+            if (-not $tokenAuditProperty) {
+                throw "helper JSON smoke did not return the trusted child-token audit: $responseText"
+            }
+            $tokenAudit = $tokenAuditProperty.Value
+            if ($tokenAudit.source -ne 'suspended_child_process_token' -or
+                $tokenAudit.verified -ne $true -or
+                $tokenAudit.isRestricted -ne $true -or
+                $tokenAudit.tokenType -ne 'primary' -or
+                $tokenAudit.restrictedSidSetVerified -ne $true -or
+                $tokenAudit.userRestrictedSid -ne $true -or
+                $tokenAudit.worldRestrictedSid -ne $true -or
+                $tokenAudit.administratorsRestrictedSid -ne $false -or
+                [int64]$tokenAudit.restrictedSidCount -lt 2 -or
+                $tokenAudit.integritySid -ne 'S-1-16-4096' -or
+                [int64]$tokenAudit.integrityRid -ne 4096) {
+                $smokeStatus = "FAIL"
+                $helperError = "TOKEN_AUDIT_CONTRACT_MISMATCH"
+                throw "helper JSON smoke did not prove the actual child is a restricted primary Low Integrity token: $responseText"
+            }
+            $aclChanges = @($response.aclChanges)
+            if ($aclChanges.Count -ne 2) {
+                throw "helper JSON smoke did not return both ACL changes: $responseText"
+            }
+            $allowedChanges = @($aclChanges | Where-Object {
+                $_.mechanism -eq 'low_integrity_label' -and
+                [string]::Equals([string]$_.path, $smokeAllowed, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+            $protectedChanges = @($aclChanges | Where-Object {
+                $_.mechanism -eq 'deny_ace' -and
+                [string]::Equals([string]$_.path, $smokeProtected, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+            if ($allowedChanges.Count -ne 1 -or $protectedChanges.Count -ne 1) {
+                throw "helper JSON smoke returned unexpected ACL paths/mechanisms: $responseText"
+            }
+            foreach ($aclChange in @($allowedChanges[0], $protectedChanges[0])) {
+                if ($aclChange.applied -ne $true -or
+                    $aclChange.verified -ne $true -or
+                    $aclChange.rolledBack -ne $true) {
+                    throw "helper JSON smoke did not prove both ACL applications and exact rollback: $responseText"
+                }
+            }
+            $smokeAllowedAclAfter = (Get-Acl -LiteralPath $smokeAllowed).Sddl
+            $smokeProtectedAclAfter = (Get-Acl -LiteralPath $smokeProtected).Sddl
+            if ($smokeAllowedAclAfter -ne $smokeAllowedAclBefore -or
+                $smokeProtectedAclAfter -ne $smokeProtectedAclBefore) {
+                throw "helper JSON smoke changed an ACL/owner after rollback."
+            }
+
+            # v24 cancellation must be cooperative: the helper receives a
+            # request-bound second JSON line, kills its Job, restores the
+            # original integrity label, and only then acknowledges canceled.
+            $cancelAllowed = Join-Path $smokeRoot "cancel-allowed"
+            Ensure-Directory $cancelAllowed
+            Initialize-V1FixtureWriteOwner -Directory $cancelAllowed -SmokeRoot $smokeRoot
+            $cancelAllowedAclBefore = (Get-Acl -LiteralPath $cancelAllowed).Sddl
+            $pingExe = Join-Path $env:SystemRoot "System32\ping.exe"
+            if (-not (Test-Path -LiteralPath $pingExe -PathType Leaf)) { throw "ping.exe cancel smoke target was not detected." }
+            $cancelRequestPayload = [ordered]@{
+                schema_version = 1
+                requestId = "d013-cancel-smoke"
+                executable = $pingExe
+                argv = @('-t', '127.0.0.1')
+                workingDirectory = $cancelAllowed
+                timeoutMs = 10000
+                idleTimeoutMs = 5000
+                maxOutputSize = 4096
+                allowedDirectories = @($cancelAllowed)
+                protectedDirectories = @()
+                aclPolicy = [ordered]@{ acceptanceRoot = $WorkRoot; perRunRoot = $smokeRoot }
+            }
+            $cancelControlPayload = [ordered]@{
+                schema_version = 1
+                type = "cancel"
+                requestId = "d013-cancel-smoke"
+            }
+            $cancelInput = ($cancelRequestPayload | ConvertTo-Json -Compress) + "`n" +
+                ($cancelControlPayload | ConvertTo-Json -Compress) + "`n"
+            $cancelStdout = Join-Path $EvidenceRoot "cancel-smoke-stdout.txt"
+            $cancelStderr = Join-Path $EvidenceRoot "cancel-smoke-stderr.txt"
+            $cancelCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+                -StandardInputText $cancelInput -StdoutPath $cancelStdout -StderrPath $cancelStderr)
+            $cancelCapture = Get-ValidatedProcessCapture -Items $cancelCaptureItems -Context "helper cooperative cancel smoke"
+            if ([int]$cancelCapture.exit_code -ne 0) { throw "helper cooperative cancel smoke process failed." }
+            $cancelResponseText = ([string]$cancelCapture.stdout_text) -replace "[\r\n]+$", ""
+            $cancelResponse = $cancelResponseText | ConvertFrom-Json
+            $cancelAclChanges = @($cancelResponse.aclChanges)
+            if ($cancelResponse.type -ne 'execution_result' -or
+                $cancelResponse.canceled -ne $true -or
+                $cancelResponse.timedOut -ne $false -or
+                $cancelResponse.idleTimedOut -ne $false -or
+                $cancelResponse.containmentVerified -ne $true -or
+                $cancelAclChanges.Count -ne 1 -or
+                $cancelAclChanges[0].mechanism -ne 'low_integrity_label' -or
+                $cancelAclChanges[0].applied -ne $true -or
+                $cancelAclChanges[0].verified -ne $true -or
+                $cancelAclChanges[0].rolledBack -ne $true) {
+                throw "helper cooperative cancel smoke did not prove containment and exact ACL rollback: $cancelResponseText"
+            }
+            $cancelAllowedAclAfter = (Get-Acl -LiteralPath $cancelAllowed).Sddl
+            if ($cancelAllowedAclAfter -ne $cancelAllowedAclBefore) {
+                throw "helper cooperative cancel smoke changed the integrity label after rollback."
+            }
+
+            # v25 protocol v2 must run as the current ordinary user, emit a
+            # verified readiness message, preserve the workdir ACL, apply a
+            # non-secret environment overlay and honour a real no-deadline mode.
+            $v2Work = Join-Path $smokeRoot "v25-current-user"
+            Ensure-Directory $v2Work
+            # Windows PowerShell 5.1 treats UTF-8-without-BOM scripts as the
+            # active ANSI code page. Construct the non-ASCII path from Unicode
+            # code points so the request evidence is stable on CP936 hosts.
+            $v2MarkerDirectoryName = [string][char]0x4E2D + [char]0x6587 + ' ' + [char]0x7A7A + [char]0x683C
+            $v2MarkerDirectory = Join-Path $v2Work $v2MarkerDirectoryName
+            Ensure-Directory $v2MarkerDirectory
+            $v2Marker = Join-Path $v2MarkerDirectory "cmd-current-user.txt"
+            $v2WorkAclBefore = (Get-Acl -LiteralPath $v2Work).Sddl
+            $cmdIdentity = (Get-FileHash -LiteralPath $cmdExe -Algorithm SHA256).Hash.ToLowerInvariant()
+            $cmdVersion = [string](Get-Item -LiteralPath $cmdExe).VersionInfo.FileVersion
+            if ([string]::IsNullOrWhiteSpace($cmdVersion)) { $cmdVersion = "windows-system-cmd" }
+            $v2SmokeCommand = New-V25CmdVerbatimSmokeCommand
+            $v2RequestPayload = [ordered]@{
+                schemaVersion = 2
+                requestId = "d013-v25-smoke"
+                profileId = "a9-trusted-shell-current-user-v1"
+                executable = $cmdExe
+                argv = @('/d', '/s', '/c', $v2SmokeCommand)
+                shellKind = "cmd"
+                shellPath = $cmdExe
+                shellVersion = $cmdVersion
+                shellIdentity = $cmdIdentity
+                shellSource = "automatic"
+                command = $v2SmokeCommand
+                cwd = $v2Work
+                envOverlay = [ordered]@{
+                    A9_D013_SMOKE = "D013_V25_CURRENT_USER"
+                    A9_D013_MARKER_PATH = $v2Marker
+                }
+                maxStdoutBytes = 4096
+                maxStderrBytes = 4096
+                managed = $false
+                deadlineMode = "none"
+            }
+            $v2Stdout = Join-Path $EvidenceRoot "v25-smoke-stdout.txt"
+            $v2Stderr = Join-Path $EvidenceRoot "v25-smoke-stderr.txt"
+            $v2RequestEvidence = Join-Path $EvidenceRoot "v25-smoke-request.json"
+            $v2ResponseEvidence = Join-Path $EvidenceRoot "v25-smoke-response.jsonl"
+            $v2MarkerEvidence = Join-Path $EvidenceRoot "v25-smoke-marker.bin"
+            $v2RequestText = $v2RequestPayload | ConvertTo-Json -Compress
+            [System.IO.File]::WriteAllText(
+                $v2RequestEvidence, $v2RequestText, (New-Object System.Text.UTF8Encoding($false)))
+            $blockedInheritedNames = @('AZURE_OPENAI_KEY', 'CUSTOM_PROVIDER_KEY', 'NODE_EXTRA_CA_CERTS', 'SSLKEYLOGFILE',
+                'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'NODE_PRESERVE_SYMLINKS', 'NODE_ICU_DATA', 'NODE_NO_WARNINGS')
+            $savedInheritedValues = @{}
+            foreach ($blockedName in $blockedInheritedNames) {
+                $savedInheritedValues[$blockedName] = [Environment]::GetEnvironmentVariable($blockedName, 'Process')
+                [Environment]::SetEnvironmentVariable($blockedName, 'D013_FORBIDDEN_INHERITED_VALUE', 'Process')
+            }
+            try {
+                $v2CaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+                    -StandardInputText $v2RequestText `
+                    -StdoutPath $v2Stdout -StderrPath $v2Stderr)
+            } finally {
+                foreach ($blockedName in $blockedInheritedNames) {
+                    [Environment]::SetEnvironmentVariable($blockedName, $savedInheritedValues[$blockedName], 'Process')
+                }
+            }
+            $v2Capture = Get-ValidatedProcessCapture -Items $v2CaptureItems -Context "helper v25 current-user smoke"
+            if ([int]$v2Capture.exit_code -ne 0) { throw "helper v25 current-user smoke process failed." }
+            [System.IO.File]::WriteAllText(
+                $v2ResponseEvidence, [string]$v2Capture.stdout_text,
+                (New-Object System.Text.UTF8Encoding($false)))
+            $v2Lines = @(([string]$v2Capture.stdout_text -split '\r?\n') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            if ($v2Lines.Count -ne 2) { throw "helper v25 smoke did not emit exactly readiness + result." }
+            $v2Started = $v2Lines[0] | ConvertFrom-Json
+            $v2Result = $v2Lines[1] | ConvertFrom-Json
+            if ($v2Started.schemaVersion -ne 2 -or $v2Started.type -ne 'execution_started' -or
+                $v2Started.requestId -ne 'd013-v25-smoke' -or
+                [int64]$v2Started.childPid -le 0 -or
+                $v2Started.ready.childJobAssignmentVerified -ne $true -or
+                $v2Started.ready.inputDetached -ne $true -or
+                $v2Started.ready.stdoutCaptureReady -ne $true -or
+                $v2Started.ready.stderrCaptureReady -ne $true -or
+                $v2Started.tokenAudit.tokenMode -ne 'current_user' -or
+                $v2Started.tokenAudit.restrictedToken -ne $false -or
+                $v2Started.tokenAudit.lowIntegrity -ne $false -or
+                $v2Started.tokenAudit.sameUser -ne $true) {
+                throw "helper v25 readiness proof failed: $($v2Lines[0])"
+            }
+            $v2Decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String([string]$v2Result.stdoutBase64))
+            if ($v2Result.schemaVersion -ne 2 -or $v2Result.type -ne 'execution_result' -or
+                $v2Result.requestId -ne 'd013-v25-smoke' -or $v2Result.exitCode -ne 0 -or
+                $v2Result.containmentVerified -ne $true -or $v2Result.inputDetached -ne $true -or
+                $v2Result.cleanupConfirmed -ne $true -or $v2Result.workDirAclModified -ne $false -or
+                $v2Result.tokenAudit.tokenMode -ne 'current_user' -or
+                $v2Result.tokenAudit.restrictedToken -ne $false -or
+                $v2Result.tokenAudit.lowIntegrity -ne $false -or
+                $v2Decoded -notmatch 'D013_V25_CURRENT_USER') {
+                throw "helper v25 result proof failed: $($v2Lines[1])"
+            }
+            if (-not (Test-Path -LiteralPath $v2Marker -PathType Leaf)) {
+                throw "helper v25 cmd verbatim smoke did not create the quoted Chinese-space marker."
+            }
+            $v2MarkerBytes = [System.IO.File]::ReadAllBytes($v2Marker)
+            $v2ExpectedMarkerBytes = [System.Text.Encoding]::ASCII.GetBytes("D013_V25_CURRENT_USER")
+            [System.IO.File]::WriteAllBytes($v2MarkerEvidence, $v2MarkerBytes)
+            if ([System.Convert]::ToBase64String($v2MarkerBytes) -cne
+                [System.Convert]::ToBase64String($v2ExpectedMarkerBytes)) {
+                throw "helper v25 cmd verbatim smoke marker bytes did not match."
+            }
+            if ((Get-Acl -LiteralPath $v2Work).Sddl -ne $v2WorkAclBefore) {
+                throw "helper v25 current-user profile modified the working-directory ACL."
+            }
+
+            $v2RejectedOverlay = New-V25RejectedEnvironmentRequest $v2RequestPayload
+            $v2RejectedStdout = Join-Path $EvidenceRoot 'v25-env-overlay-reject-stdout.txt'
+            $v2RejectedStderr = Join-Path $EvidenceRoot 'v25-env-overlay-reject-stderr.txt'
+            $v2RejectedItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments '' `
+                -StandardInputText ($v2RejectedOverlay | ConvertTo-Json -Compress) `
+                -StdoutPath $v2RejectedStdout -StderrPath $v2RejectedStderr)
+            $v2RejectedCapture = Get-ValidatedProcessCapture -Items $v2RejectedItems -Context 'helper v25 environment overlay rejection'
+            $v2RejectedText = ([string]$v2RejectedCapture.stdout_text) -replace '[\r\n]+$', ''
+            $v2RejectedResult = $v2RejectedText | ConvertFrom-Json
+            if ([int]$v2RejectedCapture.exit_code -ne 0 -or
+                $v2RejectedResult.type -ne 'error' -or
+                $v2RejectedResult.error -ne 'JSON_PARSE_FAILED' -or
+                $v2RejectedText -match 'D013_FORBIDDEN_OVERLAY_VALUE') {
+                throw "helper v25 forbidden environment overlay was not rejected without value disclosure."
+            }
+
+            $v2CancelRequest = [ordered]@{
+                schemaVersion = 2; requestId = "d013-v25-cancel";
+                profileId = "a9-trusted-shell-current-user-v1"; executable = $cmdExe;
+                argv = @('/d', '/s', '/c', 'ping -t 127.0.0.1'); shellKind = "cmd";
+                shellPath = $cmdExe; shellVersion = $cmdVersion; shellIdentity = $cmdIdentity;
+                shellSource = "automatic"; command = 'ping -t 127.0.0.1'; cwd = $v2Work;
+                envOverlay = [ordered]@{}; maxStdoutBytes = 4096; maxStderrBytes = 4096;
+                managed = $true; deadlineMode = "none"
+            }
+            $v2CancelControl = [ordered]@{ schemaVersion = 2; type = "cancel"; requestId = "d013-v25-cancel" }
+            $v2CancelInput = ($v2CancelRequest | ConvertTo-Json -Compress) + "`n" +
+                ($v2CancelControl | ConvertTo-Json -Compress) + "`n"
+            $v2CancelStdout = Join-Path $EvidenceRoot "v25-cancel-smoke-stdout.txt"
+            $v2CancelStderr = Join-Path $EvidenceRoot "v25-cancel-smoke-stderr.txt"
+            $v2CancelCaptureItems = @(Invoke-Utf8ProcessBytes -FilePath $helperExe -Arguments "" `
+                -StandardInputText $v2CancelInput -StdoutPath $v2CancelStdout -StderrPath $v2CancelStderr)
+            $v2CancelCapture = Get-ValidatedProcessCapture -Items $v2CancelCaptureItems -Context "helper v25 cancel smoke"
+            $v2CancelLines = @(([string]$v2CancelCapture.stdout_text -split '\r?\n') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            if ([int]$v2CancelCapture.exit_code -ne 0 -or $v2CancelLines.Count -ne 2) {
+                throw "helper v25 cancel smoke did not emit readiness + result."
+            }
+            $v2CancelResult = $v2CancelLines[1] | ConvertFrom-Json
+            if ($v2CancelResult.type -ne 'execution_result' -or $v2CancelResult.canceled -ne $true -or
+                $v2CancelResult.cleanupConfirmed -ne $true -or $v2CancelResult.workDirAclModified -ne $false) {
+                throw "helper v25 cancel smoke did not prove cleanup: $($v2CancelLines[1])"
+            }
+            Invoke-V26StreamingSmoke -Helper $helperExe -Cmd $cmdExe -Template $v2RequestPayload
+            $smokeStatus = "PASS"
+        }
+    }
+    $currentStage = "COMPLETE"
+    if ($smokeStatus -eq "PASS") {
+        $buildStatus = "PASS"
+        $buildExitCode = 0
+        $failureCode = ""
+        $failureMessage = ""
+        $candidateEligible = $true
+    } else {
+        $buildStatus = "PARTIAL"
+        $buildExitCode = 2
+        $failureCode = $smokeStatus
+        $failureMessage = "Win10 smoke was skipped by request or a classified host limitation."
+        $candidateEligible = $false
+    }
+} catch {
+    $buildStatus = "FAIL"
+    $buildExitCode = 1
+    $candidateEligible = $false
+    $failureMessage = [string]$_.Exception.Message
+    if ($helperError) {
+        $failureCode = $helperError
+    } else {
+        $failureCode = "BUILD_" + $currentStage + "_FAILED"
+    }
+    if ($smokeStatus -eq "NOT_PERFORMED" -or $smokeStatus -like "SKIPPED*") {
+        $smokeStatus = "FAIL"
+    }
+    if ($currentStage -eq "PROCESS_CAPTURE_SELFTEST" -and $captureStatus -eq "NOT_PERFORMED") {
+        $captureStatus = "FAIL"
+    }
+    [Console]::Error.WriteLine("BUILD ERROR: " + $failureMessage)
+} finally {
+    if ($transcriptStarted) { try { Stop-Transcript | Out-Null } catch {} }
+}
+
+try {
+    $returnPackage = New-ReturnPackage -BuildRunId $buildRunId -Status $buildStatus -CurrentStage $currentStage `
+        -FailureCode $failureCode -FailureMessage $failureMessage -HelperError $helperError `
+        -ProfileId $profileId -SourceCommit $sourceCommit -SdkVersion $sdkVersion -SmokeStatus $smokeStatus `
+        -PeStatus $peStatus -LogicStatus $logicStatus -CaptureStatus $captureStatus `
+        -CandidateEligible $candidateEligible `
+        -PackageOutputRoot $OutputRoot -PackageEvidenceRoot $EvidenceRoot `
+        -PackageResultRoot $ResultRoot
+    $packagingSucceeded = $true
+} catch {
+    [Console]::Error.WriteLine("BUILD PACKAGING ERROR: " + [string]$_.Exception.Message)
+    [Console]::Error.WriteLine("Unpackaged evidence directory: " + $EvidenceRoot)
+    $buildExitCode = 1
+}
+
+if (-not $packagingSucceeded) {
+    Write-Host "BUILD FAIL (RETURN PACKAGING)"
+} elseif ($buildStatus -eq "PASS") {
+    Write-Host "BUILD PASS"
+} elseif ($buildStatus -eq "PARTIAL") {
+    Write-Host "BUILD PARTIAL"
+} else {
+    Write-Host "BUILD FAIL"
+}
+if ($packagingSucceeded) {
+    Write-Host "Return package: $($returnPackage.path)"
+    Write-Host "SHA-256: $($returnPackage.sha256)"
+}
+exit $buildExitCode

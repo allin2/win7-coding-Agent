@@ -291,3 +291,5 @@ export {
   computeApprovalBindingDigest,
   canonicalizeArgsJson,
 } from './a9-agent-loop';
+
+export type { A9ShellOutput } from './a9-agent-loop';

@@ -39,17 +39,17 @@ export {
 export {
   NativeHelperRequest,
   NativeHelperRequestV1,
-  NativeHelperRequestV2,
+  NativeHelperRequestV2, NativeHelperRequestV3, NativeHelperExecutionResultV3, NativeOutputChunk, NativeOutputTruncated,
   NativeHelperResponse,
   NativeHelperExecutionResult,
   NativeHelperExecutionResultV2,
-  NativeHelperStartedResultV2,
+  NativeHelperStartedResultV2, NativeHelperStartedResultV3, NativeHelperReleasedResultV3, NativeManagedResponse,
   NativeHelperErrorResult,
   parseNativeHelperResponse,
   hasCompleteHelperCleanupProof,
   decodeNativeHelperBase64,
 } from './native-protocol';
-export { HelperTransport, HelperTransportResult, StdioHelperTransport } from './native-transport';
+export { HelperTransport, HelperTransportResult, StdioHelperTransport, ManagedHelperInvocation, NativeOutputHandler } from './native-transport';
 export { NativeRunner, NativeRunnerOptions, RunnerEvent, RunnerEventKind } from './native-runner';
 
 // 审批逻辑
@@ -109,7 +109,7 @@ export {
   BackgroundProcessHandle,
   PollResult,
   ProbeFact,
-  BackgroundProcessManager,
+  BackgroundProcessManager, ManagedProcessOwner, ManagedStartOptions,
 } from './background-process-manager';
 
 export {
@@ -117,3 +117,6 @@ export {
   parseWindowsProcessTable,
   KillResult,
 } from './process-cleanup';
+
+export { SafeOutputStream, secretVariants } from './stream-output';
+export type { ShellOutputChunk, OutputEncoding } from './stream-output';

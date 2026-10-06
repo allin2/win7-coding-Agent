@@ -996,9 +996,16 @@ function createA9AgentRuntime(options) {
       code: 'A9_RUNNER_HELPER_REQUIRED',
     });
   }
+  let managedAuditFailure = null;
+  function blockManagedAudit(owner, failedEvent, code = 'A9_AUDIT_PERSISTENCE_FAILED') {
+    managedAuditFailure = { turnId: owner && owner.turnId, outcome: 'failed', finalMessage: '后台进程必需审计失败，已暂停后续派发。',
+      auditIncomplete: { code, failedEvent } };
+    if (activeController) activeController.abort();
+  }
   const loopTrustedRunner = new modules.runner.TrustedShellRunner({
     ...(config.runnerHelperPath ? {
       helperTransport: new modules.runner.StdioHelperTransport(config.runnerHelperPath),
+      helperProtocolVersion: 3,
     } : {}),
     ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
     redactText: redactSecrets,
@@ -1008,17 +1015,24 @@ function createA9AgentRuntime(options) {
   });
 
   function recordManagedHandle(handle) {
-    persistence.recordManagedProcess({
+    if (handle.owner && handle.status === 'failed') blockManagedAudit(handle.owner, 'managed_process_terminal', 'A9_MANAGED_PROCESS_FAILED');
+    const fact = {
       handleId: handle.handleId,
       workspacePath: workspaceRoot,
       ...(handle.pid ? { pid: handle.pid } : {}),
       command: redactSecrets(handle.command),
       cwd: redactSecrets(handle.cwd),
       startedAt: handle.startTime,
-      lastProbeStatus: handle.status,
+      lastProbeStatus: handle.ownershipState === 'released' ? 'released' : handle.recoveryStatus || handle.status,
       pidReusePossible: handle.pidReusePossible === true,
       cleanupRequired: handle.cleanupRequired === true,
-    });
+    };
+    try {
+    if (handle.owner) persistence.recordManagedOwnership(fact, { schemaVersion: 1, owner: handle.owner,
+      requestId: handle.requestId || handle.handleId, ownershipState: handle.ownershipState || 'owned',
+      ...(handle.releaseId ? { releaseId: handle.releaseId } : {}), ...(handle.recoveryStatus ? { recoveryStatus: handle.recoveryStatus } : {}) });
+    else persistence.recordManagedProcess(fact);
+    } catch (error) { blockManagedAudit(handle.owner, 'managed_process_ownership'); throw error; }
   }
 
   function syncManagedProcessFacts() {
@@ -1027,6 +1041,7 @@ function createA9AgentRuntime(options) {
     const byId = new Map(handles.map((handle) => [handle.handleId, handle]));
     return persistence.listManagedProcesses(workspaceRoot).map((fact) => ({
       ...fact,
+      ...(persistence.getManagedOwnership(fact.handleId) || {}),
       ...((fact.cleanupRequired === true || byId.get(fact.handleId)?.cleanupRequired === true)
         ? { cleanupRequired: true }
         : {}),
@@ -1035,14 +1050,15 @@ function createA9AgentRuntime(options) {
 
   // 崩溃恢复只采纳 PID 事实，不重放命令；PID 复用风险保留给显式 Stop 决策。
   for (const fact of persistence.listManagedProcesses(workspaceRoot)) {
-    if ((fact.lastProbeStatus === 'running' || fact.lastProbeStatus === 'starting' || fact.cleanupRequired === true) && fact.pid) {
+    if ((['running', 'starting', 'running_unknown'].includes(fact.lastProbeStatus) || fact.cleanupRequired === true)) {
       try {
         recordManagedHandle(loopTrustedRunner.getBackgroundManager().adoptRecoveredFact(fact.handleId, {
-          pid: fact.pid,
+          pid: fact.pid || 0,
           command: fact.command,
           cwd: fact.cwd,
           startTime: fact.startedAt,
           cleanupRequired: fact.cleanupRequired === true,
+          ...(persistence.getManagedOwnership(fact.handleId) || {}),
         }));
       } catch (_err) { /* 重复句柄保持现有管理器事实 */ }
     }
@@ -1190,6 +1206,33 @@ function createA9AgentRuntime(options) {
         provider,
         workspaceService,
         runner: runnerAdapter,
+        managedProcesses: {
+          async start(command, context) {
+            if (!activeLifecycle || !activeLifecycle.taskId || !activeLifecycle.turnId || activeLifecycle.turnId !== context.turnId) throw new Error('A9_MANAGED_ORIGIN_MISSING');
+            const owner = Object.freeze({ workspace: canonicalWorkspace, conversationId: a9SessionId, taskId: activeLifecycle.taskId,
+              turnId: context.turnId, toolCallId: context.toolCallId });
+            const result = await runnerAdapter.execute(command, { cwd: context.cwd, background: true, managedOwner: owner,
+              shellKind: configuredShell.kind || shellSelection.kind, ...(configuredShell.path ? { shellPath: configuredShell.path } : {}),
+              ...(configuredShell.envOverlay ? { envOverlay: configuredShell.envOverlay } : {}), signal: context.signal,
+              onOutput: async (chunk) => {
+                const data = { schemaVersion: 1, toolName: 'start_process', callId: owner.toolCallId, toolCallId: owner.toolCallId,
+                  conversationId: owner.conversationId, taskId: owner.taskId, turnId: owner.turnId, ...redactForProjection(chunk) };
+                let eventId;
+                try { ({ eventId } = persistence.recordToolEvent(owner.conversationId, owner.turnId, 'tool_output', { data })); }
+                catch (error) { blockManagedAudit(owner, 'tool_output'); throw error; }
+                if (a9SessionId === owner.conversationId) pushTimeline({ type: 'tool_output', turnId: owner.turnId, timestamp: new Date().toISOString(), data, eventId });
+              } });
+            if (result.status !== 'background_started') return result;
+            const handle = loopTrustedRunner.getBackgroundManager().list().find((h) => h.handleId === result.backgroundHandle);
+            return { ...result, handleId: handle.handleId, processStatus: handle.status, owner: handle.owner, cleanupRequired: handle.cleanupRequired === true };
+          },
+          read(handleId, cursor, maxBytes) { return loopTrustedRunner.getBackgroundManager().readOutput(handleId, { workspace: canonicalWorkspace, conversationId: a9SessionId }, cursor, maxBytes); },
+          async stop(handleId) {
+            const handle = await loopTrustedRunner.getBackgroundManager().stopOwned(handleId, { workspace: canonicalWorkspace, conversationId: a9SessionId });
+            recordManagedHandle(handle);
+            return { handleId, status: handle.status, exitCode: handle.exitCode, cleanupRequired: handle.cleanupRequired === true, recoveryStatus: handle.recoveryStatus };
+          },
+        },
         permissionMode,
         externalChangePort: workspaceService,
         contextBudgetChars: providerConfig?.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS,
@@ -1206,6 +1249,7 @@ function createA9AgentRuntime(options) {
           ...(configuredShell.envOverlay ? { envOverlay: configuredShell.envOverlay } : {}),
         },
         onAuditEvent: (event) => {
+          if (managedAuditFailure) throw new Error('A9_MANAGED_AUDIT_BLOCKED');
           if (event.type === 'model_chunk') {
             if (!liveModelPreview || liveModelPreview.turnId !== event.turnId) markLivePreviewBoundary(event.turnId);
             const previous = pendingModelChunks.get(event.turnId) || { content: '', timestamp: event.timestamp };
@@ -1215,7 +1259,11 @@ function createA9AgentRuntime(options) {
             return;
           }
           const flushed = flushModelChunks(event.turnId, false);
-          const safeEvent = { ...event, data: redactForProjection(event.data) };
+          const outputIdentity = event.type === 'tool_output' ? {
+            conversationId: a9SessionId, taskId: activeLifecycle && activeLifecycle.taskId,
+            turnId: event.turnId,
+          } : {};
+          const safeEvent = { ...event, data: { ...redactForProjection(event.data), ...outputIdentity } };
           // F5：turn_started 携带 turnId，立即写入 active turn/run（不等 Turn 结束）。
           if (event.type === 'turn_started' && activeLifecycle && !activeLifecycle.turnId) {
             const runId = `run-${event.turnId}`;
@@ -1229,7 +1277,7 @@ function createA9AgentRuntime(options) {
             type: event.type,
             data: safeEvent.data,
           });
-          if (event.type === 'tool_end' && event.data && event.data.toolName === 'shell') {
+          if (event.type === 'tool_end' && event.data && ['shell', 'start_process', 'stop_process'].includes(event.data.toolName)) {
             syncManagedProcessFacts();
           }
           auditedEvents.set(event, { safeEvent: { ...safeEvent, eventId, sequence: eventId }, flushed });
@@ -1336,6 +1384,9 @@ function createA9AgentRuntime(options) {
    * tool_calling / chat_only / unavailable；模型切换保留会话上下文。
    */
   async function configureProvider(input) {
+    if (loopTrustedRunner.getBackgroundManager().getActiveCount() > 0) {
+      throw Object.assign(new Error('A9_PROVIDER_MANAGED_ACTIVE: 请先停止后台进程，再修改 Provider 凭据或配置。'), { code: 'A9_PROVIDER_MANAGED_ACTIVE' });
+    }
     if (providerConfigurationInFlight) {
       const error = new Error('A9_PROVIDER_RECONFIGURE_BUSY: Provider 配置正在验证，不能并发覆盖');
       error.code = 'A9_PROVIDER_RECONFIGURE_BUSY';
@@ -1825,6 +1876,7 @@ function createA9AgentRuntime(options) {
   }
 
   async function submitTurn(prompt) {
+    if (managedAuditFailure) return presentAuditFailure(managedAuditFailure);
     if (auditFailureBlock) return presentAuditFailure(auditFailureBlock);
     if (activeController) {
       const err = new Error('A9_TURN_ALREADY_ACTIVE: 当前已有运行中的任务');
@@ -2041,7 +2093,7 @@ function createA9AgentRuntime(options) {
     retryWorkspaceLock();
     const shellSelection = shellSnapshot();
     const managedProcesses = syncManagedProcessFacts();
-    const activeManaged = managedProcesses.filter((item) => item.lastProbeStatus === 'running' || item.lastProbeStatus === 'starting' || item.cleanupRequired === true);
+    const activeManaged = managedProcesses.filter((item) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus) || item.cleanupRequired === true);
     const blockReason = conversationBlockReason();
     const checkpointPage = persistence.listRecentCheckpoints(a9SessionId, 50);
     return {
@@ -2346,16 +2398,15 @@ function createA9AgentRuntime(options) {
       const stopManaged = options.stopManaged !== false;
       const result = await manager.dispose({ stopManaged });
       for (const handle of before) {
-        recordManagedHandle({
-          ...handle,
-          status: result.stopped.includes(handle.handleId) ? 'stopped' : handle.status,
-        });
+        // Terminal/released state was already audited by the manager. Do not overwrite it with a pre-release snapshot.
+        if (result.stopped.includes(handle.handleId)) recordManagedHandle({ ...handle, status: 'stopped', cleanupRequired: false });
       }
       if (activeController) {
-        result.leftToSystem.push('active turn cleanup did not settle before the 10 second shutdown deadline');
+        result.unresolved.push('active turn cleanup did not settle before the 10 second shutdown deadline');
+        if (stopManaged) result.leftToSystem.push('active turn cleanup remains unknown');
       }
-      const cleanupConfirmed = !activeController && manager.getActiveCount() === 0 && result.leftToSystem.length === 0;
-      if (cleanupConfirmed || !stopManaged) releaseWorkspaceLock();
+      const cleanupConfirmed = !activeController && manager.getActiveCount() === 0 && result.unresolved.length === 0;
+      if (cleanupConfirmed) releaseWorkspaceLock();
       return result;
     })();
     shutdownPromise = attempt;

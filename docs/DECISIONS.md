@@ -2432,3 +2432,325 @@
   （2）保留 Provider 真实结束原因，工具执行需明确 tool_calls 原因及 DONE 或正常 EOF；缺失或矛盾结束、length/content_filter 均零工具执行，空流不虚构完成。兼容有明确结束原因但无 DONE 的服务，不自动重试异常工具响应。
   （3）W42 扩为 30 项，新增审计故障与 Provider 完整性，保留原 01～28 判据与 A9-28 补强。开发机、独立审核和目标环境证据分别记录，门 A/B 不因任务批准而省略。
 - 后果：不改持久化格式、依赖或网络权限；按隔离分支追加提交，修复通过后恢复预演及原验收/合并流程，历史候选不改。
+
+## ADR-0150 helper v3 和 A9-30 Shell 运行中输出
+
+- 状态：Accepted（2026-10-01，负责人明确批准 A9-30 和 ADR-0150，作为开始 Shell 实时输出实现的具体依据；原生构建另行授权）
+- 背景：WIN7-42 完成第一批可靠性；现 helper 只发送启动和最终输出，S01–S06 尚未覆盖。
+- 决策：[helper v3](plans/A9_HELPER_V3_STREAMING_PROTOCOL.md)采用 requestId/序号/双源字节帧、独立有界 writer、可等待输出回调及跨块解码脱敏；先持久化再发布版本化 tool_output，SQLite 表 schema 保持。
+  新 D-013 v26/协议 v3/Current User Profile 独立登记，D-017 双独立干净构建和新锁；历史 v24/v25、输入锁和候选不改。
+  [A9-30](tasks/A9_30_SHELL_STREAMING.md)给出已批准的精确文件和验证合同；不启用后台 release 或继续。
+- 后果：A9-30 可按批准分支、基线和精确白名单开展实现；新 Profile/API 依赖登记及独立安全复核仍须完成。本机 Demo 和 docs 检查不构成原生或 Win7 PASS。构建、提交推送、候选门 A/B 分别授权；ADR-0151/0152 仍为 Proposed。
+
+## ADR-0151 A9-31 后台进程模型工具与显式释放提案
+
+- 状态：Accepted（2026-10-03，负责人批准C2：A9-31修订任务书、精确白名单、增量检查及C1实际提交基线绑定；原生构建另行批准）
+- 背景：现有 BackgroundProcessManager 不等于完整模型工具面；helper KILL_ON_JOB_CLOSE 使 dispose(false) 不能证明 Win7 进程留给系统。
+- 提案：[A9-31](tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md)复用输出流，增加 start_process/read_process_output/stop_process；句柄/游标绑定工作区、对话和原启动身份，最多三个，禁止任意 PID。
+  保留高影响目标确认、Stop 和切换限制。释放仅用于用户明确选择“留给系统后退出”，先审计，再 request-bound release/回执、Job 位回读和退出后实测；错误/回执缺失不写成功。
+  release 扩展须另一次 v26 原生 revision、依赖评审、双构建和重锁；不能全局关闭 Job 崩溃回收。
+- 后果：重启只探测旧事实，不重放/接管；安全审阅和目标平台存活证据独立，具体任务批准不代替候选裁决。
+- 2026-10-02待审补充：managed升级v3，不从旧v2或直接spawn静默回退；启动/归属/输出/release意图必需审计。
+  managed kit及runtime消费逐项授权，新helper影响的Shell/背压/脱敏/清理按 [增量矩阵](plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)重测。仍Proposed。
+- 2026-10-03批准登记：上述“仍Proposed”为待审历史时点，现以负责人C2具体批准为准；
+  基线c2b6356f83ef8502a34516010924547c57a3bec2，实际原生锁/构建、独立复核和Win7结论不由本批准代签。
+
+## ADR-0152 A9-32 用户主动继续中断任务提案
+
+- 状态：Proposed（2026-10-01，未批准实现）
+- 背景：用户已选择“用户点击继续”，第一批历史加载和预算基础已完成。
+- 提案：[A9-32](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md)在严格身份/revision与SQLite事务去重后创建关联的新Turn；恢复事实摘要并重核模式、Provider、AGENTS.md、当前文件和预算。
+  未完成工具结果标未知，先读现状；旧Shell/工具调用/审批不重放；重启零自动请求。新事件payload版本化，无表迁移。
+- 后果：按钮不提升权限；双击、崩溃、审计/Provider/预算失败可追溯。本提案不是完整Alpha2或RC通过结论。
+- 2026-10-02待审补充：绑定A9-31已审核整合SHA/managed锁；未改native可提议精确继承，
+  Runtime/Core/State/Renderer的继续、审计/预算/恢复仍直接检查。仍Proposed。
+
+
+## ADR-0153 A9-30 v26 开发检查包及独立返回复核登记
+
+- 状态：Proposed（2026-10-01；本地实现依据负责人已授权的 A9-30 收口计划，正式套件和返回批准仍待独立复核）
+- 背景：A9-30 需先取得原生与真实 Electron 开发证据，不能复用 WIN7-42 或提前占用 WIN7-43；技术 PASS 不能替代独立返回复核。
+- 提案：新增独立 A9-30-DEVELOPER-INPUTS-D013-V26 锁和 A9_30_DEVELOPER_CHECK.json，使用 Alpha 2 / 协议 v3 / Current User v2，
+  无正式 authority 或历史验收结论。套件登记与 committed HEAD 绑定，return_review 另绑定独立复核人、实现人、报告 SHA、时间及两组 run-id/ZIP SHA；
+  原生记录器与装配生产者都拒绝缺失或错配。v25/W42 保持逐字节原合同；未知清理不签 PASS。
+- 后果：批准源码实现不等于批准正式 kit、返回复核、构建机动作或开发 Gate；具体交接和负例见 [A9-30 收口交接包](plans/A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)。
+
+
+## ADR-0154 A9-30 v26 构建身份事实校验
+
+- 状态：Proposed（2026-10-02；依据已批准的非提升构建合同修复身份门，未自行 Accepted）
+- 背景：Win10 实测受限令牌管理员角色为 false，但 TokenElevation=true、High RID 12288。r2 仅按角色判定，已撤销且未构建。
+- 提案：environment 身份字段版本 1，直接查询进程令牌的提升标志、提升类型、Integrity SID/RID 和 Host Job；仅接受普通角色、非提升、Default/Limited 类型、Medium SID/RID 8192 及明确无 Job。构建与返回记录器都拒绝缺失或未知。
+- 后果：诊断入口只输出身份，不生成正式证据；历史 v25 合同不变。重发独立复核的新 kit，保留失败探针及 r2 历史登记。
+
+## ADR-0155 第二批增量证据与独立新候选验收提案
+
+- 状态：Proposed（2026-10-02；负责人要求准备整批推进，未批准具体套件或候选）
+- 背景：A9-30完成开发机收口，A9-31/32将改变共享调用链；逐次重跑稳定宿主浪费，但仅比文件hash不足以证明行为未受影响。
+- 提案：[增量矩阵](plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)将源码/工件/依赖/配置/调用行为/原报告run-id与身份一并绑定；
+  新接口和共享安全入口直接检查，未受影响且具体获批的记录才标INHERITED_EVIDENCE。
+  [A9-33](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md)另立正式v3装配/套件合同，不能套A9-30开发包authority；
+  新候选连续双预演、双干净产品构建、冻结/门A/普通Win7桌面执行/独立审核/门B，历史失败不覆盖。
+- 后果：不放宽C14、权限、安全或Win7硬门；当前Win7未执行，完整Alpha2/RC不纳入本批裁决。
+
+## ADR-0156 A9-31 managed 构建烟测的 OS 进程身份证据
+
+- 状态：Accepted（2026-10-03；负责人批准ADR-0156、已形成六路径修复合同及本地定向检查；提交/构建另行授权）
+- 背景：managed r2 独立复核发现P1。协议childPid与同字段派生的smoke root_pid互相对照，不能独立证明实际helper/root/marker child的父子关系；release自然退出未绑定真实退出码。原r2为FAIL_NOT_APPROVED。
+- 提案：仅构建机捕获器增加只读Toolhelp进程快照（CreateToolhelp32Snapshot/Process32FirstW/Process32NextW/CloseHandle），绑定实际helper句柄/PID/creation、root/child句柄/PID/creation/父PID，在相关父进程存活时完成钉住后才发control。任何未知/不符停止该smoke，不提升权限或回退WMI。来源为构建机系统Kernel32，不进入产品DLL或目标Win7运行时。
+- 格式：仅尚未批准managed返回证据v26-managed.json升schema_version=2，必需实际helper/父子身份、时间与真实退出码；release两组须固定根/子进程自然退出且exit0；cancel两组须根退出码与协议终态一致。旧证据不升级或重绑，A9-30/v1/v2锁和native协议不变。
+- 结果：批准后只在[精确修复材料](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)六项白名单内实施；源码提交、新kit批准/双构建、远端写入和候选门仍分别具体授权。当前原生/真实Electron/Win7均NOT_PERFORMED。
+
+## ADR-0157 A9-31 控制器调用者身份与不可覆盖的重试记录
+
+- 状态：Accepted（2026-10-03；负责人批准R2精确控制输入、独立只读复核、复核通过后四路径本地登记提交及既有范围内远端部署/普通用户双构建；原生与目标平台结论仍依据实际证据）
+- 背景：managed r3 首次启动在 CreateProcessW 的 breakaway 创建处返回 code 5，未记录调用者 Job/令牌；重复运行被已有失败记录阻断。只读查询确认当前 WorkBuddy 进程在 Job，普通桌面 CMD/Explorer 不在 Job；不能据此还原已退出的失败进程身份。
+- 提案：[R2 补批材料](plans/A9_31_MANAGED_R3_CONTROLLER_RETRY_APPROVAL.md)只增加固定启动入口及本地调度器。调用者先实测普通角色、非提升、Medium、SID1005/Session3、无 Job，再以 CREATE_NEW_CONSOLE 创建同令牌子进程；子进程沿用原 worker 再检查完整身份。未知或失败停止，不请求脱离 Job、不修改系统设置或提升权限。
+- 格式：原启动失败 JSON 保持原名/字节；新增 launch-r2 记录 schema_version=2，绑定调用者 PID/启动时间/SID/Session/完整令牌与 Job、实际创建结果、source/kit/批准登记及保留失败哈希。批准登记 schema_version=1 只追加 controller_retries 元数据，历史 kits 数组不改；缺失具体批准/独立报告/准确输入或依赖哈希拒绝启动和派发。
+- 后果：保持原两固定请求、60分钟和 BuildA→BuildB，原 native源码/23文件kit/六控制/构建目录及权限不变。调度器只把精确哈希的原首失败作为历史事实；任一新 FAIL/漂移/未知生命周期停止。实际输入部署与本地登记提交需具体授权，原生/真实Electron/Win7仍 NOT_PERFORMED，不自行签收口。
+
+## ADR-0158 A9-31 准确原生双返回的有限离线重锁裁决
+
+- 状态：Accepted（2026-10-03；负责人对准确审批包§1–6及ADR-0158回复“批准”，允许准确两个返回离线重锁和十路径/五路径两次本地提交；UNKNOWN和独立P1保留）
+- 背景：准确 managed r3 在普通 SID1005/Session3/Medium/非提升/无 Host Job 的 Win10 桌面完成两次独立干净构建。两返回原生证据、helper字节、输入闭包及工具一致性通过；R2控制器完成后未持有句柄记录其实际退出码/完整子树，后飞行和Security4688/4689只读补查不能补足，仍为UNKNOWN。ADR-0157现行硬门因此停止重锁/装配，不能事后伪造清理PASS。
+- 提案：仅当负责人批准且独立报告确认没有原生身份、审计、安全或managed根/子生命周期缺口时，允许离线登记并重锁[具体材料](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)绑定的两个不可变返回。source `10114503a1e79706131ea4a11a5b96bd2958807a`；kit SHA `0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1`；BuildA run `3abe9a16-449b-4900-956e-6d0fb4c40fe2` / ZIP `251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40`；BuildB run `33514a91-c5e8-4bb0-9176-135782175c88` / ZIP `ce8679187e120d8c0c9896fd201f37dfb1187e87d58702c3529f24b73737ff44`。除此以外不调整ADR-0157的停止规则。
+- 格式与证据：registry schema1仅向managed r3追加独立return_review；kit登记编号与已锁定manifest原生revision分别核对，后者固定`a9-31-managed-r1`，源/完整manifest/输入及返回哈希保持严格绑定。新managed输入锁单独生成，provenance明确controller退出码/树清理UNKNOWN、负责人裁决与开发用途；原报告/返回/首失败/超时不改判。原生pipe背压缺失终态保持既有有界失败边界，不写清理PASS。
+- 失败与范围：批准前或独立报告发现上述原生缺口时继续阻断。该一次裁决不证明controller生命周期、不恢复旧控制器、不允许新增远端执行或改变账户/ACL/UAC/Job；后续产品装配/真实Electron/Win7仍按各自合同和新控制器证据准入。新执行入口必须预先形成句柄退出码与生命周期取证合同。源码/登记提交与新锁生成/提交按准确十路径、后续五路径范围另行批准；不推送/合并/发布，不签DEVELOPER_VERIFIED、Alpha2/RC或Win7 PASS。
+
+
+## ADR-0159 A9-31 新产品验证控制器的持有句柄生命周期合同
+
+- 状态：Accepted（2026-10-03；负责人具体批准执行合同§1–6、四个准确外部验证路径、新profile根和8phase/2小时16请求；旧UNKNOWN/P1保留）
+- 背景：managed r3原生双返回已有限离线重锁，旧控制器实际exit/tree UNKNOWN及独立P1=1保留。产品实机需新控制器，旧A9-30/到期入口不可复用；SID1005实际profile带主机后缀，不能猜同名profile或扩大ACL。
+- 提案：[具体执行合同](plans/A9_31_PRODUCT_R1_WIN10_VALIDATION_APPROVAL.md)绑定source35a1925、ZIPaae71bb0…d2f10c0/manifestdf70fa5b…97e7b9/managed锁7593e758…461d3e、SID1005/Session3与实际profile下全新隔离根。四个精确外部脚本在C14补充批准后实施，固定8phase/2小时/16请求及不可变hash pin。监督器持有controller句柄，controller持有实际Electron/helper/root/child句柄与PID/creation/parent，记录真实exit和树；不以消失补签清理。
+- 失败与范围：普通夹具失败只有已证明生命周期结束才可等待新请求；身份/完整性/安全/审计/未知生命周期立即HALTED。release真实存活与自然退出分开，不造零残留。沿用已有令牌/Job/Toolhelp/.NET捕获，不改变产品依赖/API/数据schema、账户/ACL/UAC/Bitvise/服务；新根使用用户现有继承权限。批准前不编写四个未在白名单的脚本、不写远端。
+- 后果：本包技术/用户审批不代替真实Electron、最终独立收口或Win7证据；旧UNKNOWN/P1不改。原生不重编、不复活旧控制器、不签Alpha2/RC，不默认提交/推送/合并/发布或委派。
+
+
+## ADR-0160 A9-31 有限桌面调度窗口与不可变 driver 修复版本
+
+- 状态：Accepted（2026-10-03；负责人对R3具体合同§1–6及ADR-0160明确回复“批准”；同四路径及准确R3目标内实施/检查/冻结/执行获准，原硬门不变）
+- 背景：R2 在实际普通桌面启动，但外部 driver 误用 ASAR 感知 fs，Boot 原错误与持有实例 exit1 已保存。按 ADR-0088 的本地修复通过；冻结 driver 不可覆盖，旧入口不能执行新字节。每次修复都重新人工启动阻碍验证。
+- 提案：[R3 具体合同](plans/A9_31_PRODUCT_R1_R3_REUSABLE_DESKTOP_APPROVAL.md)在同四项 C14 外部测试源路径实现有限桌面调度窗口，固定2小时/16请求/原八phase/同 source 与包/目标/身份。三PS与捕获/安全门冻结；同范围 driver 修复可定向检查、CreateNew登记新不可变 revision pin/四文件副本，由 SSH 派发新 run；不替换在执行的副本。master/revision/范围登记均版本1，九字段请求绑定准确 script digest 与 pin。
+- 兼容：只读复用 R2 锁定输入、包及 Electron，R3 写准确隔离新根；不改变 native/产品/SQLite/IPC 格式，物理 ASAR 校验使用已登记内建 original-fs。保持普通 SID1005/Session3/Medium/非提升/无Host Job，既有API和权限，不加入服务、自动登录或任意命令接口。
+- 失败：普通 driver 失败且持有的真实树全部结束可 WAITING；身份/完整性/安全/必需审计/未知生命周期立即停止，不复活旧 HALTED，不用新 revision 改判旧失败。到期/到限不重置，三PS或安全合同变动需新具体裁决。
+- 边界：批准前仅既有授权下的 ASAR 源修复/本地检查及文档完成；新调度实现与R3远端写入 NOT_PERFORMED。不授权提交、发布、原生重编、账户/ACL、Win7或开发收口。ADR-0159 持有实例/退出证明和硬停止合同继续适用；只有本提案 Accepted 后，R3 的调度/普通修复版本部分采用本准确新合同。
+
+
+## ADR-0161 A9-31 R4 捕获与失败收尾的准确新合同
+
+- 状态：Accepted（2026-10-03；负责人对R4合同§1–5及ADR-0161回复“批准上述 R4 合同与 ADR-0161”；只批准新R4，不改变历史UNKNOWN）
+- 背景：R3普通桌面身份通过，准确Boot run979976d3260e49a7a316bf8c0e604971先出现权限选择前测试焦点的夹具失败；两监督器又在Toolhelp观察后绑定PID13524失败，HALTED且若干实例退出码UNKNOWN。原始快照未含Exe/底层原因，不能靠后来PID消失补签清理。
+- 提案：[R4准确合同](plans/A9_31_PRODUCT_R1_R4_CAPTURE_RETRY_APPROVAL.md)仅四外部测试源，把同次观察/持句柄步骤移入既有C#捕获层，保留失败观察与完整异常信息；硬失败保持HALTED，同时有界记录已经持有实例的实际退出。新窗口/根和master须负责人具体批准，不复活R3或忽略无法绑定进程。
+- 格式：新增schema1捕获诊断绑定master/revision/request/观察PID/父/Exe/步骤/异常/已持有实例及unresolved_observations；本次controller-abort固定五字段，仅两种已有生命周期原因，driver核对后走既有真实产品Stop/等待/关闭链，不接受任意命令/PID。不新增系统API或产品权限，未绑定观察保留UNKNOWN，即使其余句柄退出也不改判。
+- 后果：只在批准后的准确Win10普通SID1005/Session3/Medium/无HostJob桌面执行，同R2锁定产品和八phase、2小时16请求、冻结三PS和master、逐版driver登记、完整性/审计/身份/生命周期硬门继续。所有旧输入、首次失败和UNKNOWN保持；Win7、独立收口和任何提交/系统改变不包含。
+
+
+## ADR-0162 A9-31 R5 捕获程序集的准备编译与运行准入
+
+- 状态：Accepted（2026-10-03；负责人回复“批准”，批准R5合同§1–5及ADR-0162；R4硬停止及UNKNOWN保留）
+- 背景：R4普通桌面启动通过；Boot run01e5a8be22e9473fae4da8b1059eb46a在worker初始化观察csc.exe PID33576但已无法取得句柄，编译器creation/exit UNKNOWN。冻结serve每进程Add-Type源编译的路径与该父关系/时间相符。增加轮询速度不能保证持有短命编译器。
+- 提案：[R5准确合同](plans/A9_31_PRODUCT_R1_R5_CAPTURE_PRECOMPILE_APPROVAL.md)仅原四外部测试源，将现有7700 bytes/7fe2e6db…6269b1捕获C#移到准备阶段编译为单独DLL。固定已安装Microsoft Framework编译器与参考hash，实际编译句柄/exit与输出登记；普通dispatcher/worker在完整批准/PS/master/程序集准入后从校验的同一字节加载，不回退源编译或搜索DLL。编译器仍不可忽略，其他未绑定观察仍HALTED。
+- 格式与运行：外部schema1 master/revision新增严格capture_library闭包，绑定源、工具、参考、成功编译记录、准确DLL尺寸/hash与Win10测试Runtime Profile；缺失/额外/错配/reparse拒绝。不是产品依赖或D-013重锁，不改变SQLite/IPC/原生。该Framework预检不声明Win7前置或兼容PASS。
+- 范围：准确R5根与派生编译/输入/控制文件、普通SID1005/Session3/Medium/非提升/noHostJob、2小时16请求/八phase、冻结三PS/master/程序集及新checked driver版本按具体合同。Administrator仅准备/传输，不代替普通产品证据；原12捕获/abort、协议判据及程序集准入负例和实际无worker编译器检查必跑。
+- 后果：负责人具体批准前只读与文档；R3/R4/旧native P1及UNKNOWN保留。硬停止后另立合同，不恢复旧窗口，不改账户/权限/Job/UAC/Bitvise/许可证，不提交/推送/整合/发布/委派，不执行Win7或自签开发收口。
+
+
+## ADR-0163 A9-31 R5 fixed interactive scheduled desktop entry
+
+- Status: Accepted (2026-10-03; the current user explicitly approved the exact no-manual-PowerShell plan).
+- Contract: [approved entry plan](plans/A9_31_R5_SCHEDULED_DESKTOP_START.md). Register only root task `\A9-A31-R5-Desktop-20261003` with TASK_CREATE, never overwrite. Principal SID1005, InteractiveToken, LeastPrivilege; fixed system PowerShell, exact frozen R5 launcher and master arguments. No triggers, no automatic restart, IgnoreNew, demand start only.
+- Administrator SSH performs configuration and dispatch only; product execution must prove SID1005/Session3/Medium8192/non-elevated/noHostJob. No password, automatic logon, service or account changes.
+- Verify exact task XML and tool hashes before Run; require real start/ready and token evidence rather than Task State or LastTaskResult. Repeated Run must not create another instance. Retain original bounded R5 stop/lifecycle rules. If identity or Job gate fails, stop downstream and disable this task; do not detach Job or weaken the gate.
+- Scope: existing ADR-0162 source/product/eight phases/two hours/sixteen requests and all hard gates remain. Only this exact task setup, launch verification and failure-disable rollback are added. Frozen script changes and new product inputs require their existing authorization. Current R5 product acceptance and Win7 remain unconfirmed. No commit, push, merge or release.
+
+### ADR-0163 direct result (2026-10-03)
+
+Registration/readback succeeded; actual scheduled launch inherited a Host Job and failed the unchanged R5 noHostJob gate before any product request. Approved rollback disabled the exact task. ADR-0163 authorization is not an acceptance PASS. [Evidence](reports/2026-10/a9_31_r5_scheduled_desktop_entry_failure_2026-10-03.md); R5 remains HALTED, no restart or manual-command fallback.
+
+
+## ADR-0164 A9-31 R6 入口所有权与历史硬停止隔离
+
+- 状态：Accepted（2026-10-03；负责人回复“批准”，批准R6合同§1–5及ADR-0164；旧R5硬停止和UNKNOWN保留）。
+- 背景：R5计划任务曾因InJob=true HALTED；之后普通手动实例虽身份通过，却因冻结入口只检查旧start而与旧final并存。代理没有复查最新硬停止即给旧命令，未派发产品请求；停止实际退出仍UNKNOWN，旧final保留。
+- 合同：[R6准确审批](plans/A9_31_PRODUCT_R1_R6_ENTRY_GUARD_APPROVAL.md)仅四外部测试源和新准确R6根。入口拒绝已有claim/start/ready/final/stop，CreateNew取得独占claim；未取得者零worker、不写共享终态，禁止重启污染。普通桌面/noHostJob、捕获与UNKNOWN判据继续。
+- 来源：只读沿用准确R5预编译DLL及原build，capture_library严格增加build_approval_sha256、固定capture-build-scope-approval.json，区分原编译批准与新执行批准，原记录不改绑。精确字段、两批准来源及重复/并发/硬停止负例按合同检查后才能冻结。
+- 边界：原R5永久保留，不再执行；旧窗口正常stop/GUI关闭须跨动作持有准确实例，退出不可证明仍UNKNOWN。R6仅批准后普通桌面一次启动、原八phase/两小时16请求及checked driver可复用调度；不新增系统API/任务/账户/权限，不改产品/native/锁，不提交/委派/执行Win7或自签收口。
+
+## ADR-0165 A9-31 R7 查询句柄捕获与 Renderer 动作序列化
+
+- 状态：Accepted（2026-10-03；负责人回复“批准 R7 精确范围及 ADR-0165”，批准合同§2–5及精确新增源/API/编译/远端范围）。
+- 背景：R6普通桌面门通过，但权限选择表达式引号转义导致Renderer语法失败；独立的短命cmd在取得.NET Handle时已退出，dispatcher HALTED。已有53文件原始回收与UNKNOWN不改判。
+- 合同：[R7准确范围](plans/A9_31_PRODUCT_R1_R7_QUERY_HANDLE_CAPTURE_APPROVAL.md)。普通driver具名函数序列化已在原精确路径修复、73检查通过。新增第五外部C#源，使用最小查询/等待权限非继承真实句柄，查询原实例创建/退出时间、PID/Session/映像及signaled/真实退出码，替代依赖.NET非退出Handle属性；已经销毁、错身份/拓扑/时间、API失败仍UNKNOWN/HALTED。
+- 接口：新WIN10_PS51_NET4_QUERY_HANDLE_CAPTURE_V2_TEST_ONLY捕获profile和严格source/API/DLL/MVID/build/批准闭包，仅外部夹具。新增kernel32查询API先按WIN7_CONSTRAINTS登记并具体批准；不进产品/SBOM/D-013锁，不声明Win7实机兼容，不调整Job/权限或使用debug/终止API。
+- 边界：新准确R7根、准备编译与有限普通窗口须确认；R6不复用，只有树真实结束的普通driver失败可同窗口不可变版本重试。原八phase、2小时16请求、所有安全/生命周期硬门保持，不提交、改系统、委派、执行Win7或自签收口。
+
+
+## ADR-0166 A9-31 R8 快照区间内实例的双观察绑定与准确诊断
+
+- 状态：Accepted（2026-10-03；负责人本轮回复“批准”，批准R8合同§2–4及ADR-0166的准确范围）。
+- 背景：R7普通身份通过，唯一Boot在子PID66612的父创建/退出、Session、snapshot开始联合判据失败。后续实际持有同子实例的creation/Session/exit支持调用区间内创建的推断，但首gap缺少边界，不能改判UNKNOWN；R7已HALTED。
+- 提案：[R8合同](plans/A9_31_PRODUCT_R1_R8_SNAPSHOT_INTERVAL_APPROVAL.md)仅同五个精确外部源记录CreateToolhelp调用前和成功返回后的准确区间。创建早于开始保持旧判据；区间内先保留真实查询句柄、禁止派发，以额外一次Toolhelp同PID/父/exe及第二只查询句柄的PID/creation/Session/native映像证明同实例，关闭核对句柄而不替换原对象。过晚创建、缺失第二次证明、任何错配/查询/关闭失败仍gap及HALTED；每次捕获最多两个snapshot，不扩权限/API。
+- 格式：仅外部测试Profile/API合同升V3，捕获diagnostic schema2保留精确边界、比较值和证明状态；未知保持UNKNOWN，历史schema1/首失败不改。产品/native/输入锁/SQLite/IPC不变；准备编译仍用已锁定系统csc/三参考和具体批准。
+- 范围：未批准前不实施、不编译、不创建R8。批准后仅准确R8根、SID1005普通桌面八phase/两小时16请求、受控普通失败与同实例不可变driver修复重试。身份/安全/完整性/审计/生命周期未知仍停止，固定PS/capture安全门冻结后不可热改。无提交/系统设置/委派/Win7或收口授权。ADR-0165及R7时间门仍为历史合同，不用本提案改判旧run。
+
+## ADR-0167 A9-31 R9 同步只读系统探测的真实退出回执
+
+- 状态：Accepted（2026-10-04；负责人回复“批准 R9 §2–4及 ADR-0167”，批准准确五源、证明合同及R9执行范围）。
+- 背景：[R8直接报告](reports/2026-10/a9_31_r8_interval_capture_and_short_lived_cmd_failure_2026-10-03.md)中普通身份和7项Boot检查通过，cmd PID78328被Toolhelp观察后OpenQueryHandle返回87，creation/exit UNKNOWN，窗口HALTED。源码有同步cmd-ver只读探测；缺少该次调用回执，来源不能直接认定。区间双观察不能补造已经无法取得的句柄。
+- 提案：[R9 §2–4](plans/A9_31_PRODUCT_R1_R9_SYNC_PROBE_RECEIPT_APPROVAL.md)仅五外部源，在锁定Electron/Node原spawnSync调用记录真实pid/status/error和来源、准确argv、系统cmd及模块hash、父kernel pin、调用区间。只对唯一准确只读cmd-ver、status0且无error/signal的直接同步回执定义SYNC_READONLY_PROBE_EXIT_PROVEN；仍须证明与当前观测唯一关联，精度/复用/缺失/错属或其他执行全部UNKNOWN/HALTED。
+- 证据边界：新回执证明Node同步调用的实际等待/退出，不等同取得原生查询句柄或精确OS creation。单列证明种类与原失败，不虚构Held/kernel cleanup，不改R8及历史UNKNOWN。有副作用/managed/异步工具及其他子进程继续原句柄/Job/Stop/release硬门。
+- 范围：新外部测试profile及准确R9根、普通有限八phase/同窗口普通失败后正常Boot复验；准备编译仍用锁定系统csc/三参考，新source/DLL闭包独立锁定。未批准前不实施/编译/创建R9；不提交/改产品/native/锁或系统/委派/Win7/自签收口。ADR-0166及R8全部原始证据保持。
+
+
+## ADR-0168 A9-31 R10 外部Win10捕获的精确UTC边界
+
+- 状态：Accepted（2026-10-04；负责人回复“批准”，批准R10合同§2–4的准确范围）。
+- 背景：[R9实际报告](reports/2026-10/a9_31_r9_desktop_partial_pass_and_clock_boundary_halt_2026-10-04.md)中同窗口Boot和Shell通过；编码54项断言通过后，实际PowerShell creation比DateTime.UtcNow记录的snapshot返回晚206ticks。原严格边界HALTED；后续同实例退出0不改首观测UNKNOWN。不同UTC精度是待实测假设。
+- 提案：[R10 §2–4](plans/A9_31_PRODUCT_R1_R10_PRECISE_UTC_CAPTURE_APPROVAL.md)仅同五外部测试源，新增kernel32!GetSystemTimePreciseAsFileTime读取精确UTC包围同一Toolhelp调用。外部Profile/API升V4，准确系统DLL版本/hash/签名/入口与新source/DLL/MVID/master/revision/checks绑定；API不可用、时钟反向、类型或边界错配立即拒绝，无粗UTC回退/时间容差/移动边界。
+- 不变判据：creation晚于捕获仍拒绝，区间内须原句柄及第二snapshot/查询的同实例证明；QueryAccess、非继承、native映像、父/Session/退出、两snapshot上限和R9准确只读cmd-ver回执安全合同保持。对照明确区分真实API与受控metadata；无数字PID清理或旧UNKNOWN改判。
+- 兼容：该API最低Windows8，仅准确Win10/build19045外部测试，不进入产品/native/SBOM/Win7前置；未来Win7取证需独立合同，不加载此V4 DLL。官方依据：[精确UTC接口](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemtimepreciseasfiletime)。
+- 范围：准确新R10根、锁定系统csc/三参考、只读API准入及普通有限八组/同窗口复验。R9不恢复，所有原证据/失败保留；未批准前只形成文档。不提交/改产品/native/锁或系统/委派/Win7/自签收口。
+
+
+## ADR-0170 A9-31 Shell永久删除的本地Policy确认修复
+
+- 状态：Accepted（2026-10-04；负责人回复“审批同意并检查有无类似问题”，批准准确三路径合同原§1–3）。
+- 背景：r2实际Win10完整后台run `1c1848e6c2d446438f0e6ab355c2dfbb`在Full Access下未确认便派发Remove-Item；原FAIL、已停止根及r2包不改。
+- 决定：仅`src/core/src/policy.ts`复用既有tokenize边界，识别明显非Git永久删除执行及支持的Shell包裹/复合形态；纯输出/注释为数据，删除执行歧义保守ASK。沿用原approvalId/完整command及args摘要、pending持久化与一次性消费；删除检查不得被自主Git提前返回跳过。不声称解析任意脚本或建立安全沙箱。
+- 验证：仅policy.test.ts和a9-background-tools.test.ts新增实际反例、删除家族/纯文本及拒绝/错绑定零managed派发测试；离线Node20.17.0直接本地检查，不执行删除/网络/系统命令。既有合同Core八组/Shell九组及静态门消费当前构建，保护dist与工作区。
+- 边界：[准确批准材料](plans/A9_31_SHELL_DELETE_POLICY_REPAIR_APPROVAL.md)。其他高影响分类只读核查，三路径外/非删除实现另报；不改Runner/IPC/SQLite/native/锁，不打包、提交、远端重启或恢复R10，不签独立/Win7/DEVELOPER_VERIFIED。主仓已有ADR-0169，本工作树不占用该号，也不改其Accepted正文。
+
+
+## ADR-0171 A9-31 非Git高影响复合命令分类与完整可见审批
+
+- 状态：Accepted（2026-10-04；负责人要求“检查同类问题，如果确实存在请修复”，当前纯求值/源码已确认缺口）。
+- 背景：删除修复后的当前源码仍有发布/系统8漏确认2误确认；自主Git提前返回、后缀/参数/转义拼写和全文正则导致漏报/误报。审批参数已完整digest绑定，但UI只显示summary，长命令截断或复合命令只含Git摘要不满足完整可见操作。
+- 决定：在原有界Shell识别入口聚合非Git删除、包发布/上传、明确全局安装和reg/net user/sc/icacls系统变更，先于Git自主裁决；支持明显执行/宿主/控制流，区分纯数据/注释，歧义保守确认。审批summary包含完整原command及显式cwd，同时保留Git信息；digest算法、目标/参数变化失效和一次性流程不变。维持PRD尽力识别，不宣称通用解析或沙箱。
+- 范围与验证：[修复材料§7](plans/A9_31_SHELL_DELETE_POLICY_REPAIR_APPROVAL.md)准确四路径及原一行夹具保留；Node20.17.0离线先红后修、编译后Core九组/Shell九组和静态/文档/diff。仅纯求值和受控派发端口；本地结果不能代签真实Windows/UI/SQLite和目标平台。
+- 边界：原898ee945、r2包/首FAIL/停止根和历史保持；不改原ADR-0170正文，不引入模块/依赖/API或改Runner/State/native/IPC格式；不打包、提交、远端操作、恢复R10、委派或自签独立/Win7/DEVELOPER_VERIFIED。
+
+## ADR-0172 A9-31 短命进程的manifest精确字段补证提案
+
+- 状态：Proposed（2026-10-04；独立manifest诊断已另获批准并完成，普通控制器接入仍未批准）。
+- 事实：已批准独立经典ETW诊断在Win10取得12 cmd/12 conhost完整Start/End，零丢失且自有会话停止；但事件时间与OS创建时间不同，当前镜像只有basename。此结果不满足原实例身份合同，原R4及conhost78648的UNKNOWN不改判。
+- 提案：按[准确补证材料](plans/A9_31_CONHOST_MANIFEST_FIELDS_APPROVAL.md)，独立验证manifest provider的CreateTime/ExitTime/ImageName；先在持有真实句柄的cmd上逐字段相等验证，再检查conhost的同PID+CreateTime、唯一父实例、Session、完整系统映像及真实End状态。缺失或矛盾保持NOT_PROVEN，不用事件头时间代替OS创建时间，不因父退出推断子退出。
+- proof schema v1仅为候选：绑定source/run/机器/OS/provider版本、父与目标实例、准确创建与退出事实、会话零丢失和停止状态及组件hash/MVID；实际验证前不作为现有控制器可接受的新分支。新增EnableTraceEx2、TdhGetEventInformation及固定C:只读QueryDosDeviceW仅拟用于独立Win10测试，不进入Win7产品。
+- 边界：本条不修改任何Accepted ADR，不授权恢复R4、普通第五根、正式PASS、产品/native/capture/控制器修改或权限配置。诊断通过后须另行批准具体普通接入与执行合同。
+
+同日直接结果：准确诊断批准原文1f61d8b2…fac15171，manifest v3实际12 cmd/12 conhost、精确CreateTime/ExitTime与根句柄相等、Start完整系统映像、同实例End退出0、零丢失且session停止；36项真实报告反例通过。Stop仅basename，完整映像只来自Start，旧R4 UNKNOWN不改。[R5具体接入与执行草案](plans/A9_31_MANIFEST_PROOF_R5_EXECUTION_APPROVAL.md)已形成但未批准，须先复核其握手/最终收尾设计，不把本诊断PASS当作普通产品或新proof自动准入。
+
+## ADR-0173 A9-31 manifest conhost proof的有限普通取证接入
+
+- 状态：Accepted（2026-10-04；负责人回复“批准”，批准[R5合同r3](plans/A9_31_MANIFEST_PROOF_R5_EXECUTION_APPROVAL.md)§1–5，原文SHA256 540a7c614482cb13db57c45855531f5fc1898ad50b66e249857287c1066ed0d5）。ADR-0172 保持Proposed历史记录，不改写；其候选proof schema由本条在下列范围内采用。
+- 背景：R4受控Boot因短命conhost快照后OpenQueryHandle返回87而HALTED，原creation/session/完整映像/exit为UNKNOWN且不改判；Win10隔离诊断已直接证明manifest provider可给出精确CreateTime/ExitTime、Start完整系统映像及同PID+CreateTime的End退出码。
+- 决定：新增proof_kind `MANIFEST_CONHOST_INSTANCE_EXIT_V1`，仅放行“conhost.exe、OpenQueryHandle原生错误87、同PID+CreateTime的Start/End、准确System32路径、Session3、exit0、父为已证明cmd或PowerShell实例”这一分支；其余进程类别与错误类别继续原硬门，默认不预授权其他映像。观察器以Administrator持有独立自有会话，普通产品账户权限不变；停止信号仅由代理发出，phase PASS须等会话停止、零丢失、观察器exit0与最终清单一致。时间比较按DateTime→FILETIME固定换算并用16毫秒容差，同PID多候选一律HALTED。
+- 边界：不恢复R4/R10，不改原query-failure与UNKNOWN字段，不修改产品/native/锁/capture，不新增系统配置；事件会话为Win10测试路径，不进入Win7产品，Win7实机验证未执行。独立验收、DEVELOPER_VERIFIED、Win7均不由此签发。
+
+## ADR-0174 A9-31 Recovery重启实例证据文件命名修复
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[R6合同r2](plans/A9_31_R6_RECOVERY_RESTART_AND_REMAINING_PHASES_APPROVAL.md)§1–5，原文SHA256 97d402a37c7f0b8876d2a8c0bb56cedf4ac997c57556fa6f6bda9da5e6a7826f）。
+- 背景：R5 Recovery在崩溃实例退出码93后由控制器再起重启Electron，该实例在模块加载期以`'wx'`打开已存在的`driver-journal.jsonl`，抛出`EEXIST`并弹出Electron主进程错误框（负责人提供原文），进程未退出，控制器`LIFECYCLE_RESTART_TIMEOUT`，dispatcher HALTED。该路径此前从未在Win10实际运行。
+- 决定：仅外部driver，当`A9_TEST_RESTART==='1'`时journal、截图、post-final事件使用重启专用文件名，常规实例文件名不变；新增Node自检复现旧写法冲突并证明新写法与崩溃实例证据文件集不相交；另增控制器每请求前以普通账户读取观察器events文件的实际路径检查。观察器源字节不变并重新编译。
+- 边界：不改产品/native/锁/capture、断言、真实对话框规则、SYNC、九字段请求；R5 HALTED入口与证据不改判、不恢复；不新增系统API；Win7实机未验证；不签DEVELOPER_VERIFIED/独立验收。
+
+## ADR-0175 A9-31 控制器conhost proof父进程种类按NT设备路径判定
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[R7合同](plans/A9_31_R7_CONTROLLER_PARENT_KIND_REPAIR_APPROVAL.md)§1–5，原文SHA256 73646d58787a1fee7062a74bddfffb37114b1a7d4e816ed8cbb164d62ab5fa4e）。
+- 背景：R6 EncodingSecurity遇conhost OpenQueryHandle 87缺口时，观察器记录完整，但控制器以`C:\Windows\System32\cmd.exe`比较持有树`Binding.Image`；该字段实际是NT设备路径（R6全部185个真实条目均如此），种类为空而未放行，`LIFECYCLE_OBSERVED_CHILD_NOT_PINNED`硬停并使入口HALTED。
+- 决定：仅控制器`Resolve-ManifestObservation`：先取观察器ready记录的`c_device_mapping`（须匹配`^\\Device\\HarddiskVolume[0-9]+$`），父进程`Binding.Image`仅在与`<映射>\Windows\System32\cmd.exe`或`<映射>\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`大小写不敏感精确相等时才判为cmd/PowerShell，其余走原硬门；控制器新逻辑的检查夹具须取自真实证据格式，并增加真实缺口回放准入检查。
+- 边界：不改产品/native/锁/capture、观察器源与proof判据、断言、真实对话框规则、SYNC、九字段请求；不放宽任何未知生命周期门；R4/R5/R6 HALTED入口与证据不改判；Win7实机未验证；不签DEVELOPER_VERIFIED/独立验收。
+
+## ADR-0176 A9-31 原生退出对话框人工点击流程
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[R8合同r2](plans/A9_31_R8_EXIT_PHASES_AND_CLICK_PROTOCOL_APPROVAL.md)§1–5，原文SHA256 eb9b1c76e0b87fc8626ca14c8272ec6e7d2bce3ffa8e5a738586e45c8590e21b）。
+- 背景：R7 StopExit三次均未通过：两次人工点击在对话框弹出后160.5/263.7秒才发生，超120秒限时判FAIL；第三次点击3.8秒返回`response=1`（要求0），`ACTUAL_NATIVE_EXIT_CHOICE`失败触发`SAFETY_DRIVER_HARD_GATE`，入口HALTED。对话框在控制器启动后约5.2秒弹出并保持打开，按钮为`[停止后退出] [留给系统后退出] [取消]`，`defaultId=0`、`cancelId=2`。
+- 决定：不改任何代码或断言，把人工点击固化为流程：就位确认与提前量、每次只报一个目标按钮、“不确定就不点”、超时（FAIL、非HALT）可在同一入口重试且每个点击phase最多3次、点错按钮或Esc/取消按HALT处理且不重试；弹出→点击耗时与`response`一律由证据计算。
+- 边界：不放宽对话框断言、不延长120秒限时、不降级错误选择、不伪造选择；不改产品/native/锁/capture、控制器/driver/观察器源；Win7实机未验证；不签DEVELOPER_VERIFIED/独立验收。
+
+## ADR-0177 A9-31 R8独立复核缺口的候选外本地修复
+
+- 状态：Accepted（2026-10-05；负责人在Codex独立复核四项发现后要求“帮我修复这个问题”，仅本地修复）。
+- 背景：复核脚本会创建/删除临时文件；重启自检检查了命名辅助函数而实际post-final-event仍使用原名；新增点击脚本删除/覆盖旧输出且未登记；R8冻结状态残留R7标签。R8已冻结，不覆盖或重绑原输入和证据。
+- 决定：在任务书登记的`r8-review-repair-r1`中形成修复版本。晚到日志实际创建点使用restartAware，离线检查执行提取的实际entry函数并保留原实现同名冲突反例；只读验证器不运行写盘自检、不把未执行项计为PASS。点击提前量固定45秒，输出独占创建，失败保留且不继续发布后续动作。冻结工具明确R8身份并拒绝已冻结根。
+- 边界：本决策只覆盖候选外本地修复与检查，不改变ADR-0176的原执行输入/断言/120秒限时/重试与停止规则，不把新driver冒充R7仅换绑或继承原准入；不改产品/native/锁/capture/观察器/proof/九字段协议。无远端连接、普通入口、请求、删除或第九根授权；新执行版本仍须满足准确范围、准入和冻结合同。Win10/Win7/DEVELOPER_VERIFIED仍不签。
+
+## ADR-0178 A9-31 R8采用复核修复版driver的新不可变revision
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[R8修订](plans/A9_31_R8_DRIVER_REVISION_AMENDMENT_APPROVAL.md)，原文SHA256 5a928e2a22e47ac3b822acd164633f5f84f1609265999d02d27c2f8f09f46e6f）。
+- 背景：Codex开跑前复核发现driver实际创建`post-final-event-N.json`未用重启命名（崩溃实例与重启实例同名时重启实例会`EEXIST`），并经我独立核实成立；R8已冻结、入口未启动。master的`initial_driver_sha256`仅校验格式、不与revision driver比较，SYNC安全摘要新旧driver相同（=master的`driver_safety_sha256`），故可在不变master下新增不可变driver revision。
+- 决定：仅新建一个`normal-short`新revision（修复版driver，SHA256 cbeea557…），StopExit/ReleaseExit/Recovery统一使用；旧四个revision保持已登记不变、不用于请求；新revision须在Win10锁定Electron-as-Node 16.17.1完成driver五项自检、绑定新revision夹具的schema检查及完整闭包stage后方可使用，失败不回退旧revision。点击脚本只允许normal-short，固定45秒、独占创建日志。
+- 边界：不改master、观察器、控制脚本、根、输入、对话框断言、120秒限时、点击重试/停止规则、九字段请求；不改产品/native/锁/capture；Win7实机未验证；不签DEVELOPER_VERIFIED/独立验收；不创建第九根。
+
+## ADR-0179 A9-31 R9：Recovery按“保留清理未知”修订driver预期并单独续验
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[R9合同r2](plans/A9_31_R9_RECOVERY_RETAINED_UNKNOWN_APPROVAL.md)原文SHA256 f6ed73d5dd269c9a03f6790bfca581ab994f43a58e42ba9cef35e04fa358abbe，及[R9修订](plans/A9_31_R9_ADMISSION_REVISIONS_AMENDMENT.md)原文SHA256 b29a0bff156d9bde13b679b8881408bee840b58962977eb94b4ed8c9229768ab）。
+- 背景：R8 Recovery第13项`BACKGROUND_FACTS_ONLY`期望`exited`，产品重启后按设计保留`cleanup_required`；负责人裁决D1=C（[裁决材料r2](plans/A9_31_R8_RECOVERY_EXPECTATION_RULING.md)）：driver预期有误，产品处置出口另由A9-34处理。
+- 决定：driver以复核修复版cbeea557…为基础，只改重启分支断言（保留未知、OS层已退出、Stop被拒、切换与正常关闭被阻断）、重启实例以`app.exit(0)`结束并写`normal_product_exit=BLOCKED_BY_DESIGN_NOT_PERFORMED`、重启实例失败直接`app.exit(1)`，并新增离线自检；四个revision按R8机械变换派生，仅`normal-short`用于请求；新根R9只跑Recovery一个请求，失败不重试。既有重启证据自检中锚定重启分支文本的一处字符串随分支改写同步更新，输出不变。
+- 边界：不改产品/native/锁/capture、控制器逻辑、观察器源；不放宽其他断言或生命周期门；R9 Recovery PASS不表示崩溃后产品可正常关闭；不预授权第十根；Win7实机未验证；不签DEVELOPER_VERIFIED/独立验收。
+
+## ADR-0180 A9-31 整批Win10跨根证据：先补正式评审再组合
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[跨根组合裁决材料r2](plans/A9_31_WIN10_BATCH_CROSS_ROOT_RULING.md)原文SHA256 6847b87ea6b6b6ce08bed205957fb0d8e6d58ce2f1db14b8ca530d33884c614e，D1=A9-34推迟到第二批之后，D2=B，D3/D4按该稿§9）。
+- 背景：八个Win10 phase分布在R5–R9通过；被测产品输入各根完全相同，测试工具差异只落在重启、观察器读检查与conhost proof路径；R5–R7的PASS phase缺正式评审结论文件。
+- 决定：在R5–R7各自目录，以该根原样评审脚本和按规则选定的入口身份记录，对已回收证据补跑正式评审（只新增文件、不改既有文件、无远端动作）；全部通过时组合结论记为`WIN10_CROSS_ROOT_COMBINED_PASS_WITH_LIMITS`并逐条附限制；任一不通过则该phase记NOT_PASS另报。
+- 边界：不是DEVELOPER_VERIFIED、独立验收或Win7结论；不改判任何HALTED；A9-34推迟意味着A9-33须列“后台进程运行中崩溃后对话与正常退出被永久阻断”为已知限制；Win7实机未验证。
+
+## ADR-0181 A9-31 Shell Policy：引号与控制流歧义的保守求值（ADR-0171补充）
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[P1修复材料](plans/A9_31_POLICY_P1_REPAIR_APPROVAL.md)原文SHA256 e0dc01e23289d3f536f5d148376518002949be42a2a8ad4d2e8de9ae5408e9ae，含D1–D3）。
+- 背景：Codex独立复核发现两项P1并经我方复现：PowerShell/cmd中把`\"`当转义致后续发布/系统/删除命令被当作输出数据放行；未执行分支内的字面赋值被当作确定值致变量调用的发布命令放行。
+- 决定：PowerShell/cmd段切分不再把`\`当引号转义；命令含“反斜杠紧接双引号”时按转义与不转义两种解释求值，任一得出高影响即取之。嵌套块/控制流内的字面赋值作为候选值追加，任一候选解析出高影响即取之。接受由此产生的少量误确认（如`bash -c`载荷中的合法`\"`）。
+- 边界：只改`src/core/src/policy.ts`及其测试；不改审批摘要/digest、Read Only、其他工具或非Policy路径；不扩展为任意脚本求值；提交、新包、Win10/Win7另行批准；Win7实机未验证。
+
+## ADR-0182 A9-31 Shell Policy：进入当前作用域的赋值效果只追加候选（ADR-0181补充）
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[P1修复修订r2](plans/A9_31_POLICY_P1_REPAIR_R2_AMENDMENT.md)原文SHA256 9359f34478ed17c3ff7186038b2a220075652829d20993ed4f589000371bbec8）。
+- 背景：Codex聚焦复核发现ADR-0181实现丢弃条件块内的非字面赋值（引入回归），且cmd无括号`if … set`、双引号`$()`与点调用带回当前作用域的赋值未计入。
+- 决定：条件段非字面赋值追加“未知”候选（解析时还原为原变量记号，走修复前保守检查）；`if`/`do`/`else`载荷与双引号`$()`中的赋值求值后作为条件候选并入当前变量表；点调用段把本命令中出现过的块内赋值重新并入。均只追加、不移除候选；不求解任意表达式。
+- 边界：只改`src/core/src/policy.ts`及其测试；提交、新包、Win10/Win7另行批准；Win7实机未验证。
+
+## ADR-0183 A9-31 Shell Policy：变量调用遇控制结构一律保守确认（替换ADR-0181的F2与ADR-0182）
+
+- 状态：Accepted（2026-10-05；负责人回复“批准”，批准[P1修复修订r3](plans/A9_31_POLICY_P1_REPAIR_R3_AMENDMENT.md)原文SHA256 207617b72fa11333320d2b0edb1957237221712bd6198e56175e46cc24bf32f3）。ADR-0181的F2部分与ADR-0182的G1–G4由本条替换，二者原文保留不改；ADR-0181的F1继续有效。
+- 背景：逐项追踪赋值候选的两轮实现各自引入HEAD ASK→ALLOW回归，组合场景不收敛。
+- 决定：在HEAD `ebda911`的Shell Policy上只做两处只增不减的改动：F1（原转义读法原样保留，含`\"`时另加不转义读法）；R（以变量作为命令名的段，若该层文本含控制结构且出现高影响词，即按无法完整分析的潜在高影响Shell确认）。由构造保证HEAD为ASK的输入新版必为ASK；接受由此产生的误确认。
+- 边界：只改`src/core/src/policy.ts`及其测试；提交、新包、Win10/Win7另行批准；Win7实机未验证。
+
+## ADR-0184 A9-31 Shell Policy：R判定条件修订与P1修复收敛标准（ADR-0183补充）
+
+- 状态：Accepted（2026-10-05；负责人回复“批准，采用收敛标准”，批准[P1修复修订r4](plans/A9_31_POLICY_P1_REPAIR_R4_AMENDMENT.md)原文SHA256 9e9b58108e034c74804ca46fd343a16de37946520472be4c002e8a1230cea15c）。ADR-0183原文不改。
+- 背景：Codex第四轮确认r3对HEAD不放宽，但R漏掉多种变量调用形式、递归时丢失外层上下文（HEAD同样漏报），并对条件变量、`${}`、单引号数据与注释产生误确认。
+- 决定：R的变量记号判定去除cmd `@`与转义、接受任意`$`/`%…%`/`!…!`记号（排除`$true`/`$false`/`$null`）并文本检查`& ${…}`；PowerShell仅`&`引出或带参数时视为调用；控制结构与高影响词随递归向内传递（宿主自身名称不计）；控制结构在去掉`${}`、单引号字符串、注释后的文本上判定。仍只增加确认。
+- 收敛标准：阻断＝HEAD为ASK而修复版非ASK、已报告反例未修复、修复引入的明显影响普通开发命令的误确认；HEAD与修复版均放行且不属已报告类别的新写法登记为已知限制并转后续任务。
+- 边界：只改`src/core/src/policy.ts`及其测试；提交、新包、Win10/Win7另行批准；Win7实机未验证。
+
+## ADR-0185 A9-31 Shell Policy：r4独立复核四项P1的有限修复（ADR-0184补充）
+
+- 状态：Accepted（2026-10-05；负责人明确要求建立6.1sol xhigh修复对话，修复四项P1后交原对话独立只读复核；本对话受领相同三文件与本地验证范围）。ADR-0183/0184原文保留。
+- 背景：r4将条件/循环/赋值表达式误认作变量调用，原文调用正则扫描数据，漏掉点调用及括号包裹的花括号变量；四层EncodedCommand进入子表达式时深度守卫丢失外层风险。
+- 决定：R单独使用尊重字符串/注释、保留任意花括号变量的增量分段读法；区分表达式操作符与调用参数，识别`&`/`.`及其括号操作数。在原深度守卫前应用继承上下文的R判定，递归/解码上限保持不变。HEAD求值段切分、赋值记录、变量解析及原深度守卫保持原读法；不恢复候选值追踪。
+- 验证：先保存r4失败和红测试；复用两组5,122/13,878构造、32原反例及1–4层编码的两入口模拟；检查普通开发ALLOW、回退变红和任务§5必需项。证据新增`policy-p1-repair-r5/`，不覆盖r1–r4。
+- 边界：沿用ADR-0184收敛标准。仅三个源码/测试文件及原报告/必要治理记录；无子代理、网络、远端、危险命令执行、提交、打包或发布；Windows/Win10/Win7仍NOT_PERFORMED。
+
+## ADR-0186 A9-31 r4开发包与Win10单根全量重验
+
+- 状态：Accepted（2026-10-06；负责人回复“批准，D1同意，D2选B，D3重跑”，批准[r4包与Win10重验材料](plans/A9_31_PRODUCT_R4_PACKAGE_WIN10_APPROVAL.md)原文SHA256 f784fa4a226ccc8393a71a94f481e59fc2a86349b2114308730996ed27dd06a8）。
+- 背景：源码由`ebda911`提交为`8d207ab`（Shell Policy P1修复），既有Win10证据绑定旧包，对新源码失去直接绑定。
+- 决定：由`8d207ab`干净检出、以与r3相同的生产者/锁/离线输入装配r4包；新远端根`A9-A31-Product-R4-20261006-R1`使用R9现行测试工具，仅换根、批准、source、包哈希与观察器重编绑定（反向换绑须与R9逐字相同），另加在Win10 Node16上加载新包Policy模块的准入检查；一个入口跑全部10个phase请求（含Boot），全部正式评审PASS记为单根通过。D2：普通phase非HALT的FAIL可在同一入口重试至多1次；点击phase沿用ADR-0176；HALT即停。
+- 边界：不改产品/native/锁/capture、driver与控制器功能逻辑、判据、限时；不推送/合并/发布；不委派；不预授权新根之外的根；Win7、独立验收、DEVELOPER_VERIFIED不在内。Win7实机未验证。
+
+## ADR-0187 A9-31 r4 Win10重验：新根R2同源重编取证组件并换绑其构建批准（ADR-0186补充）
+
+- 状态：Accepted（2026-10-06；负责人回复“批准，D1用R2，D2同意”，批准[取证组件重编修订](plans/A9_31_PRODUCT_R4_CAPTURE_REBUILD_AMENDMENT.md)原文SHA256 da7c6341bbd11878a0e625aa195ada1fc57c822fa9eb16c6a9942ddbb59d4f33）。ADR-0186原文不改。
+- 背景：R1根准入因取证组件构建记录绑定`ebda911`且控制器写死r3构建批准（`37cd8d4b…`/ADR-0168/`dd64e5bf…`）而停止；改写来源不可接受。
+- 决定：新根`A9-A31-Product-R4-20261006-R2`；以`stage -PrepareCapture`用同一C#源/编译器/参考程序集重编取证组件并绑定`8d207ab`；R2批准记录采用r3八字段格式（合同=本修订SHA，decision=ADR-0187）兼作构建批准；换绑表增加r3取证构建批准常量与旧组件绑定；准入在R2全部重做。R1保留不删、不复用其检查。
+- 边界：不改产品/native/锁、取证源与判据、控制器/driver功能逻辑；Win7实机未验证。
+
+## ADR-0188 A9-31 登记 `A9_31_DEVELOPER_VERIFIED`（带已知限制）
+
+- 状态：Accepted（2026-10-06；负责人回复“批准，D1选B，D2同意”，批准[登记材料](plans/A9_31_DEVELOPER_VERIFIED_REGISTRATION.md)原文SHA256 166ee45d9742a48ab77e06a9655db9a0ccad689d018457df8a5fbe2c815d5d39；按D1=B，Codex对[R2证据聚焦复核请求](reports/2026-10/a9_31_developer_verified_r2_evidence_review_request_2026-10-06.md)（SHA256 bd3fbacc…）只读复核P0/P1/P2=0/0/0，建议登记）。
+- 依据：裁决r2（ADR未另编号的D1=B/D2/D3）链完成——G1 Codex首轮P1经Policy r1–r6按ADR-0184收口；G2 r6全量绑定`8d207ab`源码树；r4包Win10 R2 `WIN10_SINGLE_ROOT_PASS`（ADR-0186/0187）；managed native独立复核0/0/0。Codex另以按键/文本位置还原补足master、四revision与准入输入的反向换绑证明（原生成过程仅正向）。
+- 决定：A9-31阶段门登记为`A9_31_DEVELOPER_VERIFIED`，源码为本地提交`8d207ab`（未推送）。
+- 已知限制：G3重启后`cleanup_required`无产品内处置（A9-34推迟，A9-33须列明）；G4 Esc/取消未实测；Shell Policy静态识别边界（ADR-0184）；conhost证明仅解除“普通环境未真实触发cmd父分支”一项，不扩大到PowerShell父分支、重复可靠性、原生QueryHandle成功或Win7，原查询`UNKNOWN`保留。
+- 边界：不签发独立验收、Win7（`Win7-Validation`保持`NOT_PERFORMED`）、Alpha2/RC、推送/合并/发布或A9-32/33/34任何状态；未在Win7实机验证。

@@ -205,3 +205,144 @@ test('a structurally valid but semantically contradictory token/job audit never 
   expect(parsed.type).toBe('execution_result');
   if (parsed.type === 'execution_result') expect(hasCompleteHelperCleanupProof(parsed)).toBe(false);
 });
+
+function requestV3(): import('../src/native-protocol').NativeHelperRequestV3 {
+  return { ...requestV2(), schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', managed: false, outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' } };
+}
+function startedV3() { return { ...startedV2(), schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2' }; }
+function chunkV3(seq = 1, stream = 'stdout', text = 'tick 1\n', offset = 0) {
+  const bytes = Buffer.from(text);
+  return { schemaVersion: 3, type: 'output_chunk', requestId: 'cancel-1', profileId: 'a9-trusted-shell-current-user-v2', seq, stream, streamOffset: offset, byteLength: bytes.length, dataBase64: bytes.toString('base64') };
+}
+function terminalV3(lastOutputSeq = 1, stdout = 7, stderr = 0, canceled = false) {
+  const { stdoutSize, stderrSize, stdoutBase64, stderrBase64, ...rest } = cancelledResponseV2();
+  return { ...rest, schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', canceled, lastOutputSeq,
+    stdout: { rawBytesRead: stdout, emittedBytes: stdout, omittedBytes: 0 }, stderr: { rawBytesRead: stderr, emittedBytes: stderr, omittedBytes: 0 } };
+}
+function send(child: FakeChild, message: unknown) { child.stdout.write(JSON.stringify(message) + '\n'); }
+
+test('v3 output is delivered before exit, preserves cross-stream sequence, awaits callbacks', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const output: unknown[] = [];
+  const pending = new StdioHelperTransport('helper').invoke(requestV3(), undefined, undefined, async (chunk) => { await Promise.resolve(); output.push(chunk); });
+  send(child, startedV3()); send(child, chunkV3());
+  await new Promise((r) => setImmediate(r)); expect(output).toHaveLength(1);
+  send(child, chunkV3(2, 'stderr', 'bad\n')); send(child, terminalV3(2, 7, 4)); child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'response', response: { lastOutputSeq: 2 } });
+  expect(output).toHaveLength(2);
+});
+test.each([
+  { requestId: 'wrong' }, { schemaVersion: 2 }, { profileId: 'wrong' }, { seq: 2 },
+  { streamOffset: 2 }, { byteLength: 4 }, { dataBase64: 'invalid' }, { extra: true },
+])('v3 rejects protocol corruption %j and requests bound cancellation', async (patch) => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const output = jest.fn(); const pending = new StdioHelperTransport('helper').invoke(requestV3(), undefined, undefined, output);
+  send(child, startedV3()); send(child, { ...chunkV3(), ...patch }); child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', cleanupConfirmed: false });
+  expect(output).not.toHaveBeenCalled(); expect(controls.join('')).toContain('"type":"cancel"');
+});
+test.each(['before_start', 'duplicate', 'missing_terminal', 'after_terminal', 'wrong_counts'])('v3 rejects %s', async (mode) => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const output = jest.fn(); const pending = new StdioHelperTransport('helper').invoke(requestV3(), undefined, undefined, output);
+  if (mode !== 'before_start') send(child, startedV3());
+  send(child, chunkV3());
+  if (mode === 'duplicate') send(child, chunkV3());
+  if (!['before_start', 'missing_terminal', 'duplicate'].includes(mode)) send(child, terminalV3(1, mode === 'wrong_counts' ? 8 : 7));
+  if (mode === 'after_terminal') send(child, chunkV3(2, 'stdout', 'later', 7));
+  child.emit('close', 0); await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed' });
+  if (mode === 'before_start') expect(output).not.toHaveBeenCalled();
+});
+test('v3 audit callback failure suppresses later dispatch and retains proven cleanup', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const callback = jest.fn().mockRejectedValue(new Error('private diagnostic'));
+  const pending = new StdioHelperTransport('helper').invoke(requestV3(), undefined, undefined, callback);
+  send(child, startedV3()); send(child, chunkV3()); await new Promise((r) => setImmediate(r));
+  send(child, chunkV3(2, 'stdout', 'next\n', 7)); send(child, terminalV3(2, 12, 0, true)); child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', detail: 'A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED', cleanupConfirmed: true });
+  expect(callback).toHaveBeenCalledTimes(1);
+});
+test('v3 slow consumer is bounded and cannot block cancel control', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  let unblock!: () => void;
+  const blocked = new Promise<void>((r) => { unblock = r; });
+  const pending = new StdioHelperTransport('helper').invoke({ ...requestV3(), maxStdoutBytes: 1024 * 1024 }, undefined, undefined, () => blocked);
+  send(child, startedV3());
+  for (let n = 1; n <= 20; n++) send(child, chunkV3(n, 'stdout', 'x'.repeat(16384), (n - 1) * 16384));
+  expect(controls.join('')).toContain('"type":"cancel"'); unblock(); child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', detail: 'A9_OUTPUT_BACKPRESSURE' });
+});
+
+
+test.each(['request_id', 'gap', 'base64', 'byte_count', 'stream_offset', 'version'])('v3 rejects malformed chunk %s without publishing it', async (mode) => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const output = jest.fn();
+  const pending = new StdioHelperTransport('helper').invoke(requestV3(), undefined, undefined, output);
+  send(child, startedV3());
+  const malformed: any = chunkV3();
+  if (mode === 'request_id') malformed.requestId = 'other-request';
+  if (mode === 'gap') malformed.seq = 2;
+  if (mode === 'base64') malformed.dataBase64 = '%%%';
+  if (mode === 'byte_count') malformed.byteLength++;
+  if (mode === 'stream_offset') malformed.streamOffset = 1;
+  if (mode === 'version') malformed.schemaVersion = 2;
+  send(child, malformed); child.emit('close', 0);
+  await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', cleanupConfirmed: false });
+  expect(output).not.toHaveBeenCalled();
+});
+
+function releasedV3() { return { schemaVersion: 3, type: 'execution_released', requestId: 'cancel-1', profileId: 'a9-trusted-shell-current-user-v2',
+  releaseId: 'release-1', childPid: startedV3().childPid, lastOutputSeq: 0, jobKillOnCloseDisabled: true, ownershipReleased: true,
+  stdout: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 } }; }
+test('managed v3 release binds the same request and native child and is idempotent per releaseId', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const release = managed.release!('release-1'); const repeat = managed.release!('release-1');
+  await expect(managed.release!('other')).rejects.toThrow('RELEASE_ID_MISMATCH');
+  send(child, releasedV3()); child.emit('close', 0);
+  await expect(release).resolves.toMatchObject({ ownershipReleased: true }); await expect(repeat).resolves.toMatchObject({ releaseId: 'release-1' });
+  expect(controls.filter((s) => s.includes('"type":"release"'))).toHaveLength(1);
+  expect(JSON.parse(controls[1])).toEqual({ schemaVersion: 3, type: 'release', requestId: 'cancel-1', releaseId: 'release-1' });
+});
+test.each([{ childPid: 1 }, { releaseId: 'other' }, { jobKillOnCloseDisabled: false }, { ownershipReleased: false }, { lastOutputSeq: 1 },
+  { stdout: { rawBytesRead: 1, emittedBytes: 1, omittedBytes: 0 } }])('managed v3 rejects an invalid release receipt %j', async (patch) => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true }); send(child, startedV3()); await managed.ready;
+  const released = managed.release!('release-1'); send(child, { ...releasedV3(), ...patch }); child.emit('close', 0);
+  await expect(released).rejects.toThrow('RELEASE_UNKNOWN'); await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
+});
+test('unsolicited release and cancel-before-release cannot transfer ownership', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true }); send(child, startedV3()); await managed.ready;
+  managed.cancel(); await expect(managed.release!('release-1')).rejects.toThrow('RELEASE_STATE_INVALID');
+  send(child, releasedV3()); child.emit('close', 0);
+  await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
+});
+test('cancel during an unacknowledged release remains unknown and cannot send an opposing control', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const release = managed.release!('release-1'); managed.cancel();
+  await expect(release).rejects.toThrow('RELEASE_UNKNOWN');
+  await expect(managed.completion).resolves.toMatchObject({ cleanupConfirmed: false });
+  send(child, releasedV3()); child.emit('close', 0);
+  expect(controls.filter((s) => s.includes('"type":"release"'))).toHaveLength(1);
+  expect(controls.some((s) => s.includes('"type":"cancel"'))).toBe(false);
+  expect(child.kill).not.toHaveBeenCalled();
+});
+test('cancel after a confirmed release leaves ownership transferred and sends no further control', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  const controls: string[] = []; child.stdin.on('data', (b) => controls.push(b.toString()));
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const release = managed.release!('release-1'); send(child, releasedV3()); child.emit('close', 0);
+  await expect(release).resolves.toMatchObject({ ownershipReleased: true });
+  managed.cancel();
+  await expect(managed.completion).resolves.toMatchObject({ kind: 'response', response: { type: 'execution_released' } });
+  expect(controls.some((s) => s.includes('"type":"cancel"'))).toBe(false);
+  expect(child.kill).not.toHaveBeenCalled();
+});

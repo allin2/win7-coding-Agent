@@ -1257,9 +1257,657 @@ Profile 已被实际使用，但下表只说明“可以进入 Win7 集成/验�
 
 - 2026-09-30，本地 main 在 `/Users/qlyf/.codex/worktrees/a9-main-integration/win7-coding-Agent` 干净工作树快进：`38ca46e` → `829ad39`（负责人验收收尾与已批准实现），无冲突；本条文档追加同样快进并入。冻结源/候选/正式报告未重绑，主工作树仍 alpha2，原有两处 ZIP 删除与 check.py 未改动；origin/main 未变，未推送。
 
-## WIN7-42 预发布分发（2026-09-30）
+## A9 第二批设计准备（2026-10-01）
 
-- 负责人明确授权“推送、发布”。实时核对远端 main 已在 `a53c9b9`，显式推送返回 Everything up-to-date；新建并推送预发布标签 `v0.3.0-alpha.1-win7-42`，精确指向冻结源 `94385a87d22928acc1ce5dd8f1881d89e0d4473b`。
-- [GitHub 预发布版](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.1-win7-42)上传原 WIN7-42 ZIP 与原同名 SHA-256 文件，无重建、覆盖或重绑。ZIP 为 101,454,849 字节，SHA-256 `3b6e0b72b98de794594cd6924a1298ef75ed72bafcebacf966c86ad2382a01cf`；上传后回下载两附件，哈希均与冻结文件一致，远端 tag 解引用也与源一致。
-- 包内 manifest 闭集及 796 个文件逐项大小/哈希通过，SBOM 与许可证文件存在；README 下载入口更新至本版，并修正 Git 分发声明：本 ZIP 不含 Git 可执行程序，Git 功能使用用户环境中的 Git。
-- 发布说明保留真实 Provider、同候选 Win10 smoke、POSIX/PowerShell `/Command`、≤799px、Shell 增量输出与 `git clean -fdx` 的边界；包内构建时 NOT_PERFORMED 快照保持原样，正式 Win7 结论引用外部收口报告。历史 Release、候选和原始证据保持不变，不提升为完整 Alpha 2/RC。
+依据负责人 2026-09-30 推进指令，追加第一批/WIN7-42 收尾和后续编号说明，形成
+[helper v3 设计](plans/A9_HELPER_V3_STREAMING_PROTOCOL.md)、A9-30～32 三任务草稿和
+[Shell 模拟 Demo](plans/a9-30-shell-streaming-demo/index.html)，ADR-0150～0152 保持 Proposed。
+默认用户点击继续、第二批整批候选，暂定 WIN7-43，冻结前复查编号；构建实际阻塞才提出拆分裁决。
+现有修改/删除/check.py 保留，未同步分支、提交、推送、构建或实机执行。产品实现须具体任务批准及允许路径/分支硬门。
+
+## A9-30 实现授权登记（2026-10-01）
+
+负责人明确指示“请批准 A9-30 和 ADR-0150，作为开始 Shell 实时输出实现的具体依据”。
+据此将 [A9-30](tasks/A9_30_SHELL_STREAMING.md) 登记为 APPROVED_FOR_IMPLEMENTATION、ADR-0150 为 Accepted，
+同步 helper v3 的 A9-30 设计状态及索引；范围、源码基线 c14a968、目标分支和精确白名单保持。
+A9-31/A9-32、ADR-0151/0152 仍是草稿/Proposed。独立安全/依赖复核、原生构建、提交推送及候选门 A/B 不因本登记获代替授权。
+本次仅更新批准记录，产品实现、原生构建、冻结和 Win7 验证尚未执行；保留现有工作区改动。
+
+
+## A9-30 源码接入与开发机定向验证（2026-10-01）
+
+依据负责人独立工作树指令，在 `c14a96808d048c34f6079cc378ba12b4f60f5c62` 建立
+`codex/a9-30-shell-streaming`，保留原工作区文档修改、ZIP 删除与未跟踪 check.py。
+负责人另补批打包运行时及其测试两个精确路径，仅用于新增 v26 校验、保留 v25 合同。
+已接入 native v3 writer、严格 Runner、Core 必需审计、SQLite 输出事件及活动卡；既有 Schema IPC/preload 复用。
+开发机模块回归、真实 Node 子进程两秒 tick、实际 SQLite 及 Schema IPC、DOM 夹具和四类负向对照通过。
+[源码验证报告](reports/2026-10/a9_30_shell_streaming_source_validation_2026-10-01.md)记录命令、哈希、首轮失败及证据边界。
+新 Profile/API 已先行登记，原生工件哈希仍 NOT_LOCKED。v26 构建返回套件/发布生产者尚未实现，
+独立复核、D-017 实际环境、Win32 helper、两次干净构建/PE/API/CRT、新输入锁、真实 Electron、Win7、
+候选门 A/B 均 NOT_PERFORMED；不签整体 DEVELOPER_VERIFIED 或 Alpha 2。未提交、推送或合并。
+
+
+## A9-30 收口本地交接准备（2026-10-01）
+
+已实现白名单内 v26 套件/返回校验及独立 A9-30 开发检查包，补齐源码/输入/返回哈希、双构建身份、
+原始 v3 事件、PE/API/CRT 和独立复核登记的拒绝路径；本地夹具测试通过，旧 v25/W42 文件哈希保持。
+首轮打包失败为源码脱敏规则内完整私钥头部字符串触发秘密扫描；改为等价字符串构造，未弱化扫描规则，Runner 与打包定向回归通过。
+[收口准备报告](reports/2026-10/a9_30_closeout_readiness_2026-10-01.md)及[交接包](plans/A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)已形成。
+未提交/推送/合并，未读写构建机，未生成正式 kit/输入锁；独立复核人与 D-017 主机未指定。
+当前 LOCAL_HANDOFF_READY / DEVELOPER_GATE_NOT_SIGNED；Windows 原生/真实 Electron/Win7 均 NOT_PERFORMED，
+A9-31/A9-32、第二批新候选、完整 Alpha 2 和 RC 均不改判。
+
+
+## A9-30 源码提交与 kit 审阅准备（2026-10-01）
+
+负责人回复“批准”，按准确 61 路径追加一次本地 source `a3b6a67dbda43c41d27cedccbdf0875e1acc46d9`，父提交 c14a968，提交后干净。
+从该 source 的干净 checkout 生成 23 文件 v26 kit，ZIP SHA `54879a93754b3561922120c6eb680ac6a5f926fbb7cf2f4b106e2bcde040b1fc`；
+kit-lock/manifest SHA 及保护检查见 [绑定报告](reports/2026-10/a9_30_source_commit_and_v26_kit_binding_2026-10-01.md)。
+状态 SOURCE_COMMITTED_KIT_READY_FOR_REVIEW；生成文件/文档未提交，kit 未批准，登记为空。
+未推送/合并，未访问构建机；独立复核人/构建机仍待指定，原生重锁和真实 Electron/Win7 NOT_PERFORMED。
+
+### 2026-10-02 A9-30 Win10 构建身份推进
+
+r2因真实提升High令牌可能绕过角色判定已撤销；r3已独立复核并本地提交批准登记，source ff153483ef4e6df5daae59c6dcef9784e29d4140，登记0a96eb3。专用标准账户与三个目录获批并已创建，r3已校验部署。标准令牌非提升Medium，但远程启动子进程仍带HostJob；正式双构建/重锁 NOT_PERFORMED。等待真实桌面探针，不放宽身份门。见[身份报告](reports/2026-10/a9_30_win10_standard_account_identity_2026-10-02.md)及[桌面入口](plans/A9_30_WIN10_INTERACTIVE_BUILD_ENTRY.md)。未推送/合并，保留主工作区及历史证据，不提升DEVELOPER_VERIFIED。
+
+## A9-30 r3 桌面身份通过与首轮失败（2026-10-02）
+
+标准账户桌面身份探针 PASS：非提升、Medium、无 Host Job。首轮 run `8cfdd065-77e4-4634-b508-a729af6344c1` 编译、logic/capture、manifest、PE/API/CRT 通过，v1 smoke 因 `ACL_ROLLBACK_FAILED` 失败，第二轮未启动。失败 helper 不可锁定或装配；r3 撤销登记待提交。
+
+唯一产品修复为 helper.cpp 的 DACL 恢复分支，严格比较及原保护状态保持；四组合管理员隔离探针通过，独立只读复核 P0/P1/P2=0。修复源码未提交，标准用户新 helper smoke 未执行。新源码提交与新 r4 构建目录审批范围见[首轮失败报告](reports/2026-10/a9_30_r3_win10_first_build_failure_2026-10-02.md)。保留旧套件、失败目录和全部诊断，产品重锁、真实 Electron、Win7均 NOT_PERFORMED，不登记 DEVELOPER_VERIFIED。
+
+## A9-30 r4 新授权及首轮标签失败（2026-10-02）
+
+负责人批准源码三个精确路径和两个全新 r4 目录、标准账户 Modify 及双构建。source `8e2bcfc`、独立套件复核登记 `989bac9`；两目录23文件输入及五项负例通过。用户启动真实桌面入口，标准身份非提升 Medium、无 Host Job，控制PID31172/Session2所有者在请求前核对。
+
+首轮 run `17ae5e37-c173-45f3-9201-8e8d41b7a091` 编译、logic/capture、PE/API/CRT 通过，但 v1 smoke LABEL 恢复拒绝访问，后续 smoke 及第二轮未启动。DIAGNOSTICS SHA-256 `ed89c181dd8ad6942d3f2bc1831cc96c7ebafc3836998423bb76e3ac25841cec` 与 sidecar 一致，全部首轮证据保留；r4 撤销登记待提交。最小 LABEL 修复及标准用户原始 API 探针继续定位，详见[r4 失败报告](reports/2026-10/a9_30_r4_win10_first_build_failure_2026-10-02.md)。不得以 Modify 推导标签能力，不扩大账户或系统权限，不生成产品锁、不装配、不提升 DEVELOPER_VERIFIED。未推送、未合并；Win7仍 NOT_PERFORMED。
+
+2026-10-02 02:14～02:25 +08，直接 a9builder SSH 实测 Job flags2048已允许显式breakaway；CreateProcessW同账户独立控制台子进程通过实际非提升Medium/无Job身份门，未改SSH/UAC/账户配置。由此取得标准用户标签负例：WRITE_OWNER打开、Apply Low、冗余restore均5，LABEL/DACL/owner末态不变。保留最初命令行超长和无身份记录的失败尝试，不以退出0冒充PASS。最小helper修复仍未提交，单个全新自有私有目录的WRITE_OWNER追加探针草稿待具体授权；正式构建/锁/装配/Electron仍未完成，见同一[r4报告](reports/2026-10/a9_30_r4_win10_first_build_failure_2026-10-02.md)。
+
+2026-10-02 02:41:53 +08，现有 a9builder 直接 SSH 认证及同账户 breakaway 子进程再次通过完整身份门，删除重建账户的条件不成立。保留账户，继续定位已复现的私有目录 WRITE_OWNER 缺失。单目录最小权限探针补齐增量授权证明、句柄 fail-closed 和精确 Low 标签标志；尚待具体权限批准，未运行。其后 SSH:22 连接超时，材料未上传；不将网络或身份探针状态提升为构建结论。见[r4失败报告](reports/2026-10/a9_30_r4_win10_first_build_failure_2026-10-02.md)。
+
+2026-10-02 02:48 +08，负责人批准单个精确新私有目录的不继承 WRITE_OWNER 探针；本地批准材料字节已核对，历史待批状态不重复求批。再次连接 192.168.1.4:22 超时，权限增加/标签探针/构建仍 NOT_PERFORMED，状态 APPROVED_WAITING_HOST_CONNECTION。账户无需重建且保留，网络恢复后继续已批准动作。见[r4报告](reports/2026-10/a9_30_r4_win10_first_build_failure_2026-10-02.md)。
+
+2026-10-02 连接恢复后，SID1004在同一已批准私有目录的WRITE_OWNER/标签探针r2 PASS，r1自动SYNCHRONIZE增量失败和DACL恢复证据保留。v26测试46 PASS/1 Windows专项SKIP，实际PS5.1解析及纯ACL增量1正7负通过，均不代替正式helper构建。现有账户随后以新SID1005出现，标准/启用状态只读确认，SSH仍KeyNotTrusted；创建脚本两次前置停止，未由本代理创建/删除账户或改Bitvise设置。新source/kit/构建未执行，详见[r4报告](reports/2026-10/a9_30_r4_win10_first_build_failure_2026-10-02.md)。
+
+2026-10-02 03:56～03:57 +08，Bitvise两账户认证恢复；SID1005独立控制台子PID29816实测普通/非提升Medium/无Job，构建身份门PASS。直接SSH父子带HostJob不用于正式构建，未改变服务/账户配置。新source五精确路径及两r5目录/四个私有fixture WRITE_OWNER待具体授权，r4诊断工件不重跑或装配。见[r4推进报告](reports/2026-10/a9_30_r4_win10_first_build_failure_2026-10-02.md)。
+
+
+### A9-30 r5 宿主预检补充（2026-10-02）
+
+负责人批准的五路径源码提交已追加为 `27a1de9`，未推送/合并；r5 kit 源码/ZIP 闭包独立复核通过，仍未登记正式批准。新 SID1005 的普通非提升Medium无Job身份通过，CIM/WMI OS查询拒绝，正式r5构建未启动。已准备只读运行时版本+HKLM交叉校验修正，实际PS5.1宿主门1正20负通过；控制入口目录/日志/批准绑定/阶段顺序修正及负例通过。修正源码提交待具体授权；两个已批准r5目录仍空，未扩权限/策略，产品锁、双构建、真实Electron/Win7及整体开发机门仍未完成。详见[宿主预检报告](reports/2026-10/a9_30_r5_win10_host_preflight_2026-10-02.md)。
+
+
+### A9-30 r6 kit registration (2026-10-02)
+
+Exact four-path source commit: `7feae402edfb30da9adb649841d777ca82cc6e80`. New r6 ZIP SHA-256: `8c0f79bf2f5383be3b59b6542f27e159c00efb23f07eeabdc0a05477462cf406`. Independent kit/control review P0/P1/P2=0; 23 ZIP entries / 13 exact committed native source blobs. Registration commit: `3e2f6f602bf7b6aa0786b7c800c8541eff1198f4`. Exact HEAD registry/report byte binding PASS; no push/merge. The stage script now checks approval before writes; actual PS5.1 syntax and missing-approval negative check must run before staging.
+
+Current 192.168.1.4 SSH/TCP22 connection times out. The pretransfer guard did not succeed: r6 transfer/staging/BuildA/BuildB NOT_PERFORMED. Network cause UNKNOWN; no account/permission/Bitvise/UAC/system policy changes. Resume after readonly network, SID1005 identity, host/tool and fresh build-r5-a/b checks; these existing approved targets remain the only build directories. Returned-evidence review, product relock, actual Electron and Win7 NOT_PERFORMED; DEVELOPER_VERIFIED not signed. See [r6 independent review](reports/2026-10/a9_30_v26_r6_independent_kit_review_2026-10-02.md).
+
+
+### A9-30 r6 Win10 双构建与独立返回复核（2026-10-02）
+
+连接恢复并获负责人“开始构建”指令后，同一批准 source `7feae402edfb30da9adb649841d777ca82cc6e80` / registry HEAD `3e2f6f602bf7b6aa0786b7c800c8541eff1198f4` / r6 kit 在既有批准全新 `build-r5-a`、`build-r5-b` 完成两次普通非提升Medium无Job原生构建。run-id `16b5abc3-e4bb-4615-a5bc-12e02fcb5e17`、`33e3d3c9-bf4d-4f40-92f5-31b8915d13f9`；helper350720 bytes、SHA `c895a2f9e4abcb84ae2295d2e33ada6289cfd34c692b88e92276e7749cdc5a2b`，原始字节一致；两个返回包独立。实际PE/API/静态CRT、logic/capture、v1/v2及v3原始证据通过相应检查。最终独立只读返回复核P0/P1/P2=0，08:38:11+08。
+
+A首轮返回触发旧consumer精确清单漏 `helper.exe.manifest`，保留原始ZIP/失败证据并暂停B；在已批准三精确路径修正清单及与kit的字节绑定，红2 FAIL/1 PASS、绿48 PASS/2 Windows平台SKIP，独立复核通过后在未消费的B目录构建。三文件修正仍未提交，未更改原生source/kit；不删返回项或放宽批准/身份门。背压只证明有界fail-closed，进程树清理UNKNOWN；返回复核登记、产品v26输入锁、打包及真实Electron、Win7未完成，DEVELOPER_VERIFIED不签发。主工作区和旧证据保留，未推送/合并，不占用WIN7-43，不改变A9-31/A9-32或Alpha2/RC。见 [双构建报告](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md) 和 [独立返回复核](reports/2026-10/a9_30_v26_r6_independent_return_review_2026-10-02.md)。
+
+
+### A9-30 六路径授权提交与 v26 开发输入锁（2026-10-02）
+
+负责人对准确六路径材料回复“授权”。按已审批字节追加本地提交 `9896ebffeef17b8e703d15e0933d767f99186780`，仅包含记录器/fixture/定向测试三文件、双构建和独立返回复核两报告、批准registry的 `return_review` 登记；分支 `codex/a9-30-shell-streaming`，未推送/合并。所有六路径提交blob逐项匹配批准SHA，原生source `7feae402edfb30da9adb649841d777ca82cc6e80`及r6 kit不变；其他11项工作树文件原始字节保留。
+
+随后使用生产 `record-a9-v26-helper-input.mjs`、准确HEAD批准registry、同一r6 kit和两份原始返回包生成新 `release/win7-product-v3/a9-v26-input-lock.json`（7323 bytes，SHA-256 `2e5942b115f1e5f1ecf6a6c31d91ed5d4f9145b9e0751941a0aa566fdebda9df`）。锁ID `A9-30-DEVELOPER-INPUTS-D013-V26`，仅开发，记录两独立run/返回SHA及helper SHA `c895a2f9e4abcb84ae2295d2e33ada6289cfd34c692b88e92276e7749cdc5a2b`。原v25锁哈希/历史runner条目及全部其余继承输入一致；新锁当前未提交，未写正式候选authority，不占用WIN7-43。
+
+生产重锁证据 `.acceptance/a9-30-developer/closeout/r6-production-development-lock-record.json`、`r6-development-lock-verification.json`；六路径审批/执行证据 `r6-receiver-commit-approval-material.json`、`r6-receiver-approved-commit-execution.json`。此前“待授权/NOT_LOCKED”原文及PENDING只读校验快照保留为历史。当前win10门 `PASS_D013_V26_RETURN_REVIEWED`仅原生返回范围；背压清理UNKNOWN，打包完整性/装配、真实Electron及Win7仍NOT_PERFORMED，整体DEVELOPER_VERIFIED/Alpha2/RC均未裁决。
+
+### A9-30 开发包与真实桌面启动（2026-10-02）
+
+开发包source `9896ebf`、ZIP SHA `fb07ec3803d933f96e5fbbf8f9d987e2068d0b0ddfca62319be3ab8eb391e93d`，本地与Win10解压完整784文件核验通过。负责人唤醒后，SID1005 Session3普通非提升Medium无Job真实桌面启动报 `A9_PACKAGE_RELEASE_MANIFEST_INVALID`：生产者使用v26开发状态，runtime只接受历史状态。
+
+在补批runtime/test两精确路径完成最小修复；反证2FAIL/13PASS→15PASS，Shell492PASS、kit/打包回归156PASS/2Windows专项SKIP，verify:quick通过；独立局部复核P0/P1/P2=0。两路径源码提交待本次批准，未覆盖首失败包、未改原生source/kit/helper、未推送/合并。S01–S06和修复后新包未执行，整体DEVELOPER_VERIFIED不签发，背压清理UNKNOWN，Win7/Alpha2/RC未执行。见[打包与启动报告](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)。
+
+
+### A9-30 修复换包与真实 Electron 子集（2026-10-02）
+
+负责人批准runtime/test准确两路径后，本地source `4318634` 的开发ZIP `b57d6806…7b232`、manifest `19d734ce…527ca`完整性与SID1005 Session3普通非提升无Job真实桌面启动PASS；原生source/kit/helper/开发锁按精确SHA继承。真实main/preload/native/Runner/Core/SQLite/IPC/Renderer路径的tick/双源/UTF-8/截断/Stop、已结束任务刷新/重启，以及回看/焦点/视图返回子集通过。CP936/UTF-16LE、40 native秘密切点、实际Runner背压及consumer失败、真实SQLite拒绝写入、协议帧故障、29秘密变体及4003直接切点另有范围明确的实机子集证据。9根310输出文件/84合成变体扫描命中0、正向对照有效，受检Electron已退出；历史native raw-pipe背压UNKNOWN不改判。
+
+完整S01–S06和DEVELOPER_VERIFIED仍未签发：两文件运行中提示修正已完成39定向PASS及独立P0/P1/P2=0，源码提交待具体授权；失败验证撤销旧verified目标夹具已准备但未执行，编码负例、中断重启/退出交互仍待完成。UU在线而CUA远端输入无响应，坐标报noWindowsAvailable，不以SSH Session0代签。全部首失败和历史原文保留；不推送/合并、不占WIN7-43、不开放A9-31/32，不签Win7/Alpha2/RC。详见[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)。
+
+更新前A9-30当前行（历史快照）：
+
+```text
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26 r6 Win10双构建helper一致、开发锁已生成；开发包ZIP完整性PASS，真实桌面启动FAIL，最小修复待本次提交授权；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[双构建报告](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[独立返回复核](reports/2026-10/a9_30_v26_r6_independent_return_review_2026-10-02.md)、[打包与启动报告](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 六路径本地提交 `9896ebf`、原生source `7feae402`、开发锁SHA `2e5942b1…a9df`。首包784文件本地/Win10核验通过；SID1005 Session3普通非提升无Job真实启动报manifest状态不匹配。两批准路径修复15定向/492 Shell/156打包回归PASS，独立局部复核P0/P1/P2=0；源码提交待批，修复后新包和S01–S06未执行。背压清理UNKNOWN，Win7/DEVELOPER_VERIFIED未签发；A9-31/A9-32草稿，WIN7-43未占用 |
+```
+
+
+### A9-30 当前子集证据独立复核（2026-10-02 12:27 +08）
+
+Luna high只读复核最新实机子集报告/矩阵/出口扫描，P0/P1/P2=0；仅确认所列证据范围，未签整体DEVELOPER_VERIFIED。再次连接确认a9builder SID1005 console Session3 Active；GUI输入工具仍报noWindowsAvailable，verification-r1尚未启动。当前报告与记录见 docs/reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md §7 和 .acceptance/a9-30-developer/closeout/r6-current-partial-evidence-independent-review-r1.json。文案提交具体审批、当前目标剩余编码/verified/中断恢复及退出交互仍待完成；Win7不改判。
+
+
+### A9-30 继续验证：目标编码模块与会话边界（2026-10-02 14:37 +08）
+
+当前source4318634和开发包身份不变。目标Electron二进制Node模式的解码器13断言PASS（中文三编码62切分点、8类错误及待判秘密前缀）；沿用获批同账户非提升无Job路线完成真实Electron/native/Runner编码负例96PASS，8个子进程消失且清理证明true。以上均为Session0模块证据，未取得GUI补充PASS。新增24个返回文件精确SHA一致，单独合成样本扫描0命中。原直接SSH HostJob门拒绝保留；未修改账户/Bitvise/系统策略。
+
+UU诊断终端为Administrator SID500已断开Session1，A9 Builder console Session3仍活跃；只读诊断后退出本次终端，不影响其他连接。原生模块门已重新实测SID1005普通非提升Medium/noJob，桌面输入尚未恢复，故verified撤销、中断恢复、剩余退出交互NOT_PERFORMED。新r2桌面脚本已传输和解析，未执行。两文件提示修正的具体提交仍待确认；开发机门不签发。当前准确报告§8及矩阵r6-real-electron-evidence-matrix-r2.json；主工作区和旧证据保持。
+
+
+此前STATUS当前行/阶段说明快照（历史；本轮仅维护当前状态，不改历史裁决）：
+
+~~~text
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；310输出文件合成秘密扫描0命中。两文件提示修正提交待具体授权，失败验证撤销/编码负例/中断重启与退出交互尚未完成，远控输入不可用；完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+推进顺序见 [A9 Alpha 2 推进顺序](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md)：阶段 0 已完成（W40 套件开发机门通过并入 `762e2d3`；恢复目录误暂存核查已完成，D1 已裁决，修复进第一批，见下文第 6 项（当前候选已关闭））；阶段 1 已完成：WIN7-40 记为 `A9_25_WIN7_40_VALIDATION_KIT_DEFECT_NOT_PASS`（ADR-0145）后换发 WIN7-41（`0f8af24`，ZIP `66a4b3e4…93b0`，run-id `318e27e4`），2026-09-29 门 B 签发 `A9_25_WIN7_41_A9_24_PASS`（22 项，[审核报告](reports/2026-09/a9_25_win7_41_acceptance_review_2026-09-29.md)）。阶段 2 第一批（A9-26）及阶段 3 WIN7-42 已关闭（[A9-27](tasks/A9_27_WIN7_42_REISSUE_AND_ACCEPTANCE.md)，正式验证、报告复核与门 B 收尾完成）；第二批设计及 A9-30～32 任务已形成；2026-10-01 负责人批准 A9-30 和 ADR-0150，helper v3 的 Shell 实时输出合同作为实现依据。A9-31/A9-32 与后台 release 扩展仍待各自批准，独立安全/依赖复核及原生构建授权尚未完成。
+~~~
+
+
+2026-10-02 14:43+08，新增目标解码器/原生编码子集独立只读复核P0/P1/P2=0；评审版本报告、矩阵r2与原始证据精确SHA登记在r6-added-encoding-independent-review-r1.json，矩阵r3追加复核而不覆盖r1/r2。纯模块13PASS/实际Electron-native-Runner96PASS的范围保持；桌面补充、具体文案提交/新包和完整开发机门仍未完成。
+
+
+### A9-30 桌面重连及固定入口准备（2026-10-02 15:19 +08）
+
+Mac已解锁；只重连本机到同一Win10的UU连接，鼠标/快捷键仍无可确认桌面响应。重连后的只读UU终端SID500/Session1，与a9builder console Session3不同；故障根因UNKNOWN。四步First→Close→Crash→Recover固定桌面入口、隔离目录、哈希及PS5.1解析已准备，GUI均NOT_PERFORMED。Scheduler cmdlet只读CIM查询拒绝，另行COM只读连接成功；同账户LUA/InteractiveToken唯一任务创建/启动/精确移除材料已形成，待具体授权，没有任务登记或安全/账户改变。准确报告§10–11，整体开发机门NOT_SIGNED，Win7 NOT_PERFORMED。
+
+此前当前行快照保留：
+
+~~~text
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；310输出文件合成秘密扫描0命中。两文件提示修正提交待具体授权，目标解码器13项及实际native/Runner编码负例96项通过（Session0模块范围）；失败验证撤销、完整编码warning贯通、中断重启与退出交互尚未完成。UU终端为Administrator已断开Session1，A9 Builder桌面Session3仍活跃，输入未恢复；完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+~~~
+
+### A9-30 桌面验证前状态快照（2026-10-02 16:10 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；310输出文件合成秘密扫描0命中。两文件提示修正提交待具体授权，目标解码器13项及实际native/Runner编码负例96项通过（Session0模块范围）；失败验证撤销、完整编码warning贯通、中断重启与退出交互尚未完成。Mac已解锁，UU重连终端仍实测Administrator/Session1，A9 Builder桌面Session3活跃，输入未恢复；四步桌面入口已准备；同账户普通权限InteractiveToken任务备选待具体授权，未登记/启动；完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+### A9-30 批准交互任务前状态快照（2026-10-02 20:05 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；解码器13项及native/Runner编码负例96项通过（模块范围）。新增真实标准桌面验证撤销12项PASS，新增98出口文件/84变体扫描0命中。运行中退出夹具首轮Send超时FAIL、Shell未启动，Crash/Recover停止；修正版三步入口已准备未执行，UU输入再次无响应。完整编码warning贯通、中断重启/退出、新证据完整复核及两文件提示提交/新包仍待完成；旧计划任务提案未创建且不再适用于当前入口。完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+
+### A9-30 自动桌面入口验证前状态快照（2026-10-02 20:25 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；解码器13项及native/Runner编码负例96项通过（模块范围）。新增真实标准桌面验证撤销12项PASS，新增98出口文件/84变体扫描0命中。运行中退出夹具首轮Send超时FAIL、Shell未启动，Crash/Recover停止；修正版三步入口已准备未执行，UU输入再次无响应。完整编码warning贯通、中断重启/退出、新证据完整复核及两文件提示提交/新包仍待完成；批准R2交互任务已进入SID1005/Session3，但合并身份门FAIL（具体失败项UNKNOWN），未启动产品阶段；任务已停止并按精确登记/XML核对移除。R3同令牌独立子进程固定入口已准备，新增动作待具体批准。完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+
+### A9-30 桌面控制器自动验证前快照（2026-10-02 20:35 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；解码器13项及native/Runner编码负例96项通过（模块范围）。新增真实标准桌面验证撤销12项PASS，新增98出口文件/84变体扫描0命中。运行中退出夹具首轮Send超时FAIL、Shell未启动，Crash/Recover停止；修正版三步入口已准备未执行，UU输入再次无响应。完整编码warning贯通、中断重启/退出、新证据完整复核及两文件提示提交/新包仍待完成；批准R2/R3交互任务均在身份/独立子进程门前停止并精确移除；R3实测Session3普通非提升Medium但HostJob=true、CreateProcessW错误5、无产品阶段。负责人手动桌面启动后身份无Job通过；r3 Close因夹具错误正文判据超时FAIL、Shell未启动，Crash/Recover停止；r4走真实Provider表单的固定三步入口已准备，待执行。完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+
+### A9-30 实机矩阵r8更新前的当前状态原文（2026-10-02 21:30 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包完整性/真实桌面启动与多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 实际SQLite审计失败、协议负例、背压、脱敏、回看/焦点、已结束任务重启子集通过；解码器13项及native/Runner编码负例96项通过（模块范围）。新增真实标准桌面验证撤销12项PASS，新增98出口文件/84变体扫描0命中。运行中退出/中断恢复r4真实桌面15/10/15断言通过（Crash为故障注入），新251出口文件/84变体0命中。桌面控制器一次启动后SSH派发；重复请求拒绝、故意夹具失败后同一控制器完成修正版Close15断言，均有直接证据。旧失败及R2/R3身份入口失败保留，控制器无服务/提权/策略更改。完整编码warning贯通、新证据独立复核及两文件提示提交/新包仍待完成；完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+
+### A9-30 提示源码提交与新开发包更新前原文（2026-10-02 22:38 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `4318634` 开发包真实桌面多项实时输出子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 真实审计失败、协议负例、背压/脱敏、视图/焦点、验证撤销及运行中退出/中断恢复子集已通过。r12新增11组UTF-8/CP936/UTF-16LE及错误字节样本、运行中关闭，共94断言PASS；UTF-16LE为可信外部选项，文件选择器UI未测。新增423出口文件/84变体、58控制器回传0命中，登记14个r12进程均已退出。一次桌面启动后SSH派发及普通故障重试有直接证据；R1超时UNKNOWN未暂停的缺陷保留，自动接管R2后实测UNKNOWN停止。r14漏建夹具目录首失败不改判，当前控制器HALTED，未继续派发。两文件提示源码提交/新包与新证据完整独立复核仍待；完整S01–S06/DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+### A9-30 新包实机更新前原文（2026-10-02 23:08 +08）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，最新两文件source `32ee0b4`，Node20.17新开发包完整性PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 独立Luna high复核冻结66项及旧包直接实机/当前精确提示差异P0/P1/P2=0。仅两批准路径追加源码提交；主工作区及其余修改保持，无推送/合并。新包ZIP08425b62…、manifest3afb3367…，780/783载荷与旧包字节相同，原helper/SQLite/许可不变。旧source4318634的94项及生命周期证据不重绑为新包直接PASS；新包启动/提示/输出/Stop仍NOT_PERFORMED。r14新增只读事实无Task/Turn/工具事件，原UNKNOWN保留、R2暂停不恢复。R3两个固定阶段与准确三目录方案仅本地准备，Win部署/启动待具体授权；最终DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+### A9-30 最终开发机裁决前原文（2026-10-02）
+
+| A9-30～32 第二批执行能力 | A9-30 `APPROVED_FOR_IMPLEMENTATION`；v26原生双构建/重锁完成，source `32ee0b4` 新开发包完整性、Win10直接启动及受影响交互子集PASS；整体开发机门未签发 | [A9-30](tasks/A9_30_SHELL_STREAMING.md)、[原生双构建](reports/2026-10/a9_30_v26_r6_win10_double_build_2026-10-02.md)、[当前包与实机矩阵](reports/2026-10/a9_30_v26_r6_product_package_and_windows_validation_2026-10-02.md)、ADR-0150 Accepted | 新包ZIP08425b62…/manifest3afb3367…在SID1005 Session3普通非提升Medium无Job桌面完成Boot15启动1项、First16交互32项PASS。新提示、退出前双源输出/顺序、Stop/清理、307次先落盘再IPC观察、刷新分页/滚动焦点通过；111返回文件哈希匹配，84合成变体0命中且正向对照有效，8登记进程已退出。新R3两请求后自动结束；原R2暂停/UNKNOWN保留。旧source4318634直接证据不重绑，新包新证据和精确继承待最终独立复核；DEVELOPER_VERIFIED/Win7未签发。A9-31/32草稿、WIN7-43未占用 |
+
+
+### 第二批推进合同准备（2026-10-02）
+
+负责人要求整批推进到Win7实机PASS，已在A9-30工作树完成待审合同及登记材料。
+A9-30保持DEVELOPER_VERIFIED；A9-31/32/33均草稿，ADR-0151/0152/0155均Proposed。
+[审批包](plans/A9_BATCH_2_IMPLEMENTATION_APPROVAL.md)列C1本地25路径登记和C2具体实现请求；
+未提交、未开始新实现、未写远端或冻结，Win7 NOT_PERFORMED。主工作区已有修改保持。
+
+
+### A9-31实施批准与工作树（2026-10-03）
+
+负责人批准C1/C2，C1本地25路径提交c2b6356完成且产品字节未变；
+A9-31/ADR-0151已批准，独立分支codex/a9-31-background-tools进入实施。
+新原生kit/构建/远端写入、产品源码提交及整合尚未批准；A9-32/33仍草稿，Win7 NOT_PERFORMED。
+
+### 2026-10-03 A9-31本地实施交接
+
+新后台三工具、owner/cursor/ring、release及退出路径已实现；Core185/Runner162/State70/Shell113通过。
+四项故障注入反例红，恢复源码哈希一致；构建返回/装配负例及七模块静态检查见A9-31交接报告。
+仅本地源码/模拟协议/真实SQLite与POSIX证据，无managed Windows工件/锁或真实Electron/Win7新证据。
+源码提交等待确切清单批准，原生套件/目录/构建及独立复核分开；A9-32/33仍草稿，未推送或整合。
+
+### A9-31准确源码与managed r1独立复核修复（2026-10-03）
+
+r2准确51项批准后已本地提交2ecfc86d22bd7816cb75222db0917b25d32291a1，未推送/整合。
+r1技术闭包通过，独立P1审计解释/P2反向竞态缺口使原kit不获批准；原ZIP和首FAIL保留。
+SQLite跨Jest VM matcher误判根因及四行控制次序已修复，本地Runner166/Shell114与七模块检查通过。
+独立补充关闭本地P1/P2；修复未提交，新kit未形成，managed锁/构建/真实Electron/Win7仍待。
+见[修复交接](reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
+
+### A9-31源码提交更新前的当前快照原文（2026-10-03）
+
+### A9-31 本地实施（2026-10-03）
+
+负责人已批准C1准确25路径登记和C2任务/ADR-0151/68路径/增量合同。
+登记提交 `c2b6356f83ef8502a34516010924547c57a3bec2`，实现分支 `codex/a9-31-background-tools`。
+后台启动/有界游标读/停止、不可变归属、跨块脱敏与先审计、release意图/回执、退出选择已进入本地实现。
+当前仍为 `A9_31_IMPLEMENTATION_IN_PROGRESS`；源码提交、managed kit批准/双构建/新锁、真实Electron均未完成。
+本地模拟协议及POSIX进程检查不证明Windows Job；Win10/Win7新工件验证均 `NOT_PERFORMED`。
+A9-32/33未批准、候选未冻结，不签发第二批Win7 PASS或Alpha2/RC。
+
+### 2026-10-03 — A9-31 managed r2独立复核不通过
+
+负责人批准r3准确17文件提交及未批准新套件生成后，source=d9b5be502c9475e50c54b349a6a12abd27b199f8。
+managed r2 ZIP SHA=5172a895d62e2db63635c427b31e9e0ba24c277c0d032742a4f0a7656a6362c2，23文件闭包匹配。
+负责人明确要求“进行独立复核”；Luna high复核P0=0/P1=1/P2=0、FAIL_NOT_APPROVED。
+P1为构建smoke真实helper/root/child父子身份和release退出码证据缺口；主代理合成反例进一步复现错误接受。
+ADR-0156/系统API登记和精确六路径修复合同已形成，均待具体批准；没有修改实现、登记套件批准或运行构建。
+报告见[独立复核](reports/2026-10/a9_31_managed_r2_independent_kit_review_2026-10-03.md)，
+材料见[修复请求](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)。Win7及第二批正式门均NOT_PERFORMED。
+
+### 2026-10-03 — A9-31 ADR-0156身份修复本地交接
+
+负责人具体批准ADR-0156/六路径修复和本地检查；真实helper/root/child父子关系、时间和退出码/schema2闭合。
+独立发现reader超时资源收尾P2，修复后另冻输入并复跑kit90PASS/2 WindowsPS NOT_PERFORMED。
+独立静态P0/P1/P2=0；90直接+644精确继承=734唯一项，不将21定向/首轮重叠kit重复计数。
+源码尚未提交、新kit未生成、实际Windows/构建/Electron/Win7仍NOT_PERFORMED，原r2不改判。
+见[源码交接](reports/2026-10/a9_31_managed_identity_repair_source_handoff_2026-10-03.md)。
+
+## 2026-10-03 A9-31准确source及managed r3前置
+
+16项批准源码已提交10114503a1e79706131ea4a11a5b96bd2958807a，新managed r3闭包23项，
+ZIP0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1。
+独立只读复核PASS_FOR_OWNER_KIT_APPROVAL，P0/P1/P2=0/0/0；旧r1/r2不改判。
+准确套件登记/三目标目录/SID1005权限/四v1 fixture/双构建材料待具体审批，尚无新远端写入。
+普通SSH受Bitvise许可证限制；使用已在线普通桌面的固定控制器方案，不改profile/账户/许可证。
+[具体审批包](plans/A9_31_MANAGED_R3_WIN10_BUILD_APPROVAL.md)记录范围和失败边界，Win7 NOT_PERFORMED。
+
+2026-10-03，负责人对managed r3审批包回复“批准上述具体套件登记和构建范围”。
+批准24路径本地登记、三新Win10目录/SID1005权限/四v1 fixture、普通桌面固定双构建控制器及回收。
+尚未执行的构建/新锁/Electron/Win7不改判；不推送、合并或改账户/profile/许可证。
+
+### 2026-10-03 — A9-31 managed r3原生双返回与收口边界
+
+用户启动普通桌面R2后，SID1005/Session3/Medium/非提升/无Job通过，按原批准登记恢复BuildA→BuildB。
+两份返回PASS；run-id3abe9a16-449b-4900-956e-6d0fb4c40fe2、33514a91-c5e8-4bb0-9176-135782175c88，
+helper361472bytes/SHA2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7逐字节一致。
+本地记录器误等同kit/native revision已按白名单修复；首失败、旧code5及首次30分钟等待超时保留。
+独立返回复核和新锁未完成，控制器退出码/完整树清理UNKNOWN，停止下游重锁/装配。
+[事实报告](reports/2026-10/a9_31_managed_r3_native_double_build_return_2026-10-03.md)记录边界；
+不推送、不整合、不发布，不签DEVELOPER_VERIFIED/Win7/Alpha2/RC。
+
+### 2026-10-03 — A9-31独立返回技术通过及准确离线裁决待批
+
+负责人继续推进指令后启动独立gpt-6-luna/high只读复核；原生双返回/记录器修正技术通过，
+独立91 PASS/0 FAIL/2 WindowsPS本地NOT_PERFORMED。P0/P1/P2=0/1/0，唯一P1为控制器UNKNOWN准入缺口。
+[独立报告](reports/2026-10/a9_31_managed_r3_independent_return_review_2026-10-03.md)保留NOT_APPROVED_FOR_INPUT_LOCK。
+只读4688/4689补查无证明；新增ADR-0158 Proposed和[具体审批包](plans/A9_31_MANAGED_R3_RETURN_RELOCK_APPROVAL.md)，
+限定两个准确返回的离线登记/重锁及两次精确本地提交，尚未获得具体批准。
+没有原生重编、formal registry/新锁写入、远端修改、推送/整合/发布，当前下游门保持停止。
+
+
+### 2026-10-03 — A9-31准确双返回有限离线重锁获批
+
+负责人回复“批准”，实际批准登记时间 `2026-10-03T07:10:46.920499Z`；批准准确审批包§1–6和ADR-0158。
+十路径本地登记提交及五路径锁登记提交开始执行；仅两个准确managed r3返回允许离线重锁。
+独立P1=1/原NOT_APPROVED准入结论保留，由负责人单独准入；控制器退出码/完整树UNKNOWN不改判。
+不重编、不写远端、不推送/合并/发布；真实Electron/Win7 NOT_PERFORMED，Phase-Gate不升级。
+
+
+### 2026-10-03 — A9-31准确十路径登记与managed正式锁生成
+
+7处Markdown硬换行触发首轮暂存检查FAIL；负责人精确补批仅删除14字节并同步报告SHA，原版/失败日志保留。
+格式修正后docs检查237文件/48任务及暂存/未暂存diff检查通过，准确十路径提交 `dcf541892ec3ee5f5413833206f07efa3f3ee6e2`。
+正式记录器从clean committed registry生成独立managed锁，时间 `2026-10-03T07:20:10.862Z`，
+SHA-256 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e` / 7905bytes；全部原生/返回/批准/继承绑定回读PASS。
+独立P1=1和controller UNKNOWN原样保存，按ADR-0158有限裁决离线重锁，不自签独立豁免。
+Python回读曾按正斜杠直接查找Win10归档反斜杠条目而报KeyError；诊断保留，改用唯一规范化映射后回读通过，
+没有改动产品或锁，正式记录器仍为一次成功生成。旧A9-30/W42/v25/v24不改。
+本节及锁只按批准五路径登记；本轮无重编/远端写入/推送/整合/发布。
+产品装配/真实Electron/Win7 NOT_PERFORMED，Phase-Gate不升级。
+
+
+### 2026-10-03 — A9-31开发检查包及Win10只读预检完成
+
+负责人批准继续下一步。按source35a1925及准确managed锁7593e758…461d3e生成A9-31独立开发包，
+ZIPaae71bb0…d2f10c0、manifestdf70fa5b…97e7b9；本地生产者完整性PASS、784项内容一致、包内描述符/native哈希PASS。
+实际Win10管理SSH成功；SID1005/Session3在线。只读发现实际profile为a9builder.WIN-2JQ66JE4HTQ，
+新合同使用该profile下现有读写父目录，不猜路径或修改ACL；目标新根不存在，C盘余量约3.4GiB。
+四个新测试源路径不在现任务白名单，先形成ADR-0159 Proposed及具体路径/新根/8phase/16请求取证合同。
+旧控制器不复活、旧UNKNOWN/P1不改；新脚本/远端写入/真实Electron/Win7未执行。
+新文档留待具体交付授权，不提交/推送/合并/发布，不开启新代理或重编原生。
+
+
+### 2026-10-03 — A9-31新产品r1验证具体批准
+
+负责人批准精确执行合同§1–6及ADR-0159；四个外部测试路径及准确profile新根获批，开始定向实现/检查。
+包字节/source35a1925/managed锁保持冻结，普通身份/实际生命周期门仍适用。
+本次运行结果尚未取得，Phase-Gate不升级；旧UNKNOWN/P1保留，无提交/整合/发布或Win7动作。
+
+
+### 2026-10-03 — product r1控制器首失败与R2具体重试待批
+
+Supervisor/controller普通SID1005/Session3/Medium/非提升/noJob门通过。首个Boot在原始字段正则被误拒绝，
+r1 HALTED，持有controller及子进程句柄退出1/0，runs=0，产品未派发；首失败字节保留。
+四批准源路径内已修复，实际PS5.1三解析、69原始JSON检查及Node32项PASS。
+R2新根和独立控制器具体合同待负责人裁决，旧r1不复活，不写远端R2；真实Electron和Win7仍NOT_PERFORMED。
+Phase-Gate不升级，无提交、原生重编、账户/ACL改变、推送、整合或发布。
+
+
+### 2026-10-03 — product r1 R2准确重试获批
+
+负责人批准R2重试合同§1–5；在SID1005实际profile下新R2根部署相同冻结包与四脚本，重新实测普通桌面身份。
+R1保持HALTED及原始退出/首失败证据，不复活、不删除；本次最多2小时16固定phase请求。
+批准覆盖同四路径必要修复/检查及最终hash冻结，产品/native及旧锁保持；Phase-Gate不升级。
+真实Electron/Win7结果尚未取得，无提交/推送/整合/发布、原生重编或账户/ACL修改。
+
+
+### 2026-10-03 — product r1 R2 Boot ASAR 夹具失败，R3 具体材料就绪
+
+准确普通身份下 Electron22/Node16/ABI110 已直接启动；外部 manifestCheck 使用虚拟ASAR视图误报 ENOENT，cases/tools/provider=0，原始错误与持有 Electron exit1/结束树保留。
+仅批准 driver 源按已 Accepted ADR-0088 修复，Node语法/40检查和八物理完整性用例PASS；R2冻结脚本、pin和产品/native不改。
+ADR-0160/R3有限可复用调度合同待具体批准；当前普通夹具失败可等待，但同冻结入口不重复派发必败Boot。修复后实机/Win7 NOT_PERFORMED，无提交/推送/整合/发布或系统权限改变。
+
+
+### 2026-10-03 — R3有限可复用窗口获批、部署装配通过
+
+负责人批准R3合同§1–6及ADR-0160；四准确源路径内实施完成。Node54项、物理ASAR八正负项、实际PS5.1三解析和210请求/revision/限额/未知树检查通过。
+新R3根及17输入已部署，装配复核产品784项/宿主73项及登记通过；首装配参数绑定失败与同准确输入绑定后的成功均保留，冻结三PS不覆盖。
+R2已批准stop并取得持有controller/Electron实例真实exit0/1和完整观察树结束，不把首轮Boot失败改为PASS。
+[实施证据与准确master/revision哈希](reports/2026-10/a9_31_product_r1_r3_reusable_dispatcher_2026-10-03.md)已登记；Mac锁屏暂停Computer Use，R3尚待普通桌面一次启动，功能/复用实机证明与Win7 NOT_PERFORMED，Gate不升级，无提交/系统权限改变。
+
+
+### 2026-10-03 — R3普通桌面Boot首失败、HALTED与R4准确材料
+
+R3 dispatcher32184/worker34536/Electron4196均直接通过SID1005/Session3/Medium/普通非提升/noHostJob。Boot run979976d3260e49a7a316bf8c0e604971的实际Electron/Node/SQLite、可见窗口和Renderer隔离三项通过，权限模式未选择时的INPUT_FOCUS失败；夹具前置在原driver路径修正且语法/54检查/784物理闭包PASS，实际复验未执行。
+两层捕获报告未绑定观察PID13524，HALTED；原始13文件/截图/数据库及hash已回收，未知退出不因后续PID不存在改判。R3不复活，Shell及余六phase/同窗口重试证明NOT_PERFORMED。
+[首失败报告](reports/2026-10/a9_31_product_r1_r3_boot_focus_and_capture_failure_2026-10-03.md)与[R4具体合同](plans/A9_31_PRODUCT_R1_R4_CAPTURE_RETRY_APPROVAL.md)/ADR-0161 Proposed已形成；冻结PS捕获/收尾修复及新R4远端执行待具体批准。A9-31保持IMPLEMENTATION_IN_PROGRESS，Win7/独立收口NOT_PERFORMED，无提交/推送/整合/发布/系统权限改变。
+
+
+### 2026-10-03 — R4准确批准、捕获修复与部署通过
+
+负责人批准R4合同§1–5及ADR-0161。四外部源完成新捕获/失败收尾/UTF8/参数绑定和焦点前置；Node68、实际PS三解析/210判据和实际12捕获/abort API检查通过，普通产品证据不由Administrator/Session0预检替代。取证模板/编码读取首失败均保留。
+R4已CreateNew传输18项，完整784产品/73宿主闭包及登记装配通过；[准确冻结与部署报告](reports/2026-10/a9_31_product_r1_r4_capture_fix_and_deployment_2026-10-03.md)绑定全部hash。UU可见桌面但键盘输入未送入CMD，SSH无R4启动记录，等待一次普通桌面启动；R3不恢复、UNKNOWN不改判。Boot及后续/同窗口复验/Win7 NOT_PERFORMED，A9-31仍IMPLEMENTATION_IN_PROGRESS，无提交/系统改变。
+
+
+### 2026-10-03 — R4普通桌面已启动、编译器捕获首失败及R5材料
+
+Computer Use通过Windows运行框直接键入并确认焦点后启动R4；dispatcher28448/worker28356/Electron34180均实际通过SID1005/Session3/Medium/普通非提升/noHostJob。Boot run `01e5a8be22e9473fae4da8b1059eb46a` 观察短命csc.exe PID33576（父worker28356）但GetProcessById失败，dispatcher HALTED；固定abort生效，worker/Electron真实exit1、持有树结束，编译器creation/exit仍UNKNOWN。全部15文件/hash与秘密扫描已回收，不以PID消失补签清理，不派发Shell或余六组。
+[首失败事实](reports/2026-10/a9_31_product_r1_r4_boot_compiler_capture_failure_2026-10-03.md)及[R5预编译具体合同](plans/A9_31_PRODUCT_R1_R5_CAPTURE_PRECOMPILE_APPROVAL.md)/ADR-0162 Proposed已形成；拟部署前预编译锁定现有C#，worker仅校验加载，保留所有硬门。R5实施/编译/远端写入/重试待准确批准，NOT_PERFORMED。A9-31仍IMPLEMENTATION_IN_PROGRESS，独立收口/Win7未执行，无提交/系统权限改变，历史R3/R4 UNKNOWN不改判。
+
+
+### 2026-10-03 — R5普通手动实例身份通过，但历史HALTED阻断；R6材料就绪
+
+R5准备预编译、Node68/实际PS三解析/237判据/22实际API文件检查、784产品/73宿主装配已通过；原51文件准备索引和首失败均保留。另轮计划任务PID22728因HostJob失败，原HALTED不改判。
+代理给旧指令前未复查该记录；用户普通桌面新PID36076/creation639266265512707074直接通过SID1005/Session3/Medium/非提升/noJob，但旧final仍在，不派发产品。固定stop已发送，持有30秒未退出，exit UNKNOWN；20:20快照仍在且无直接子进程，不代签清理。
+[准确事实与五文件hash](reports/2026-10/a9_31_r5_manual_restart_guard_failure_2026-10-03.md)保留旧final SHA39d6b4b…147967及新start/ready分属不同实例。R6新根/入口claim防护/原编译批准来源严格校验具体合同与ADR-0164 Proposed已形成，实施/远端R6 NOT_PERFORMED；A9-31仍IMPLEMENTATION_IN_PROGRESS，产品八phase、独立收口、Win7 NOT_PERFORMED，无提交或系统权限改变。
+
+
+### 2026-10-03 — R6批准、入口防护实施及271协议检查通过；容量阻断部署
+
+负责人批准R6合同§1–5及ADR-0164；仅原四外部源完成唯一claim/旧final拒绝、实例绑定、原capture编译批准独立校验和新根绑定。Node68、784产品闭包、实际PS5.1三解析/271判据PASS，真实旧R5根被新guard只读拒绝且原final hash不变。ASAR八负例按完整函数字节/调用和原记录hash继承，原DLL/产品/native锁不重建。
+[直接记录及边界](reports/2026-10/a9_31_r6_entry_guard_local_checks_capacity_block_2026-10-03.md)：C盘20:31仅1536315392 bytes、20:35仅1589366784 bytes，低于部署门2147483648；R6未创建。真实文件/并发及22项API、完整装配/冻结、新普通窗口/八产品phase NOT_PERFORMED。旧R5 PID36076仍在、固定stop后实际exit UNKNOWN，UU入口不可用；不派发、不清理或迁移目标。A9-31仍IMPLEMENTATION_IN_PROGRESS，Win7/独立收口未执行，无提交或系统改变。
+
+### 2026-10-03 — R6容量恢复、定向检查与冻结部署通过；普通桌面待启动
+
+容量实际恢复至6053187584 bytes后，在批准R6根完成25项实际capture/API/文件用例及22项入口/文件/并发检查。271协议、三PS解析、Node68与784本地闭包绑定相同源；两并发调用只有一个取得claim，旧claim/start/ready/final/stop拒绝且不污染共享记录。首轮准备失败保留，固定实现源未再改。
+R6 master9c9812d1…172cf、初始revisionc2fb083d…ea666、checks/registration已准确冻结；21新目标CreateNew传输/哈希/ParseFile与远端784产品/73宿主装配通过，DLL及原build/批准字节不变，产品/native锁未重建。
+[直接记录及桌面交接](reports/2026-10/a9_31_r6_frozen_deployment_and_desktop_handoff_2026-10-03.md)：旧R5 PID36076/creation639266265512707074在50秒实际Process持有观察结束仍存活，exit UNKNOWN、零产品request、旧final不变；21:17:39快照仍存活，R6无entry/ready/final、零产品request。UU无法连接服务器，已请用户普通桌面正常关闭旧R5并启动新R6一次；旧控制器不能派发及新SID1005普通身份未证实前不创建产品请求。八产品phase/同窗口重试/独立收口/Win7 NOT_PERFORMED，A9-31仍IMPLEMENTATION_IN_PROGRESS；无提交、账户/权限/系统变更。
+
+
+### 2026-10-03 — Computer Use取得旧命令红字，R6普通身份通过但Boot生命周期硬停止
+
+Computer Use退出UU本机被控详情后进入准确Win10桌面，读取旧R5命令导致既有dispatcher-final的IOException；随后键入准确R6入口。dispatcher PID113716/creation639266316299998155通过SID1005/Session3/Medium8192/普通非提升/noJob门，旧R5当前不存在而历史退出码仍UNKNOWN。
+唯一Boot run `42a85eb4c6644abe8f3f892d7f7a9239`通过四项基础检查后出现Renderer执行失败；只读冻结表达式复现权限选择脚本引号转义SyntaxError，属于夹具缺陷。独立的cmd.exe PID48664（父Electron84472）在取得句柄前退出，dispatcher报LIFECYCLE_OBSERVED_CHILD_NOT_PINNED并HALTED。七个已持有实例实际退出0不能覆盖未持有cmd的creation/exit UNKNOWN。
+[准确首失败与回收报告](reports/2026-10/a9_31_r6_cua_errors_and_boot_capture_failure_2026-10-03.md)绑定53文件/6162158 bytes，逐文件hash一致；R6不恢复、不派发后续七phase，不改冻结捕获。后续根及捕获修复须按R6合同§4另立准确合同。A9-31仍IMPLEMENTATION_IN_PROGRESS，独立收口/Win7 NOT_PERFORMED；无提交、产品/native/锁或系统配置改变。
+
+
+### 2026-10-03 — R6夹具本地修复73项通过；R7查询句柄准确材料待确认
+
+负责人“批准批准”后，在原精确外部driver路径修复Full Access表达式序列化，Node语法/73判据（原68加5个真实序列化/DOM作用/缺失元素负例）通过；19完整字面Renderer参数解析通过，动态参数仍须真实Electron。R6冻结四源及首失败不变，检查器首轮环境/分类失败保留，没有安装依赖。
+[R7具体合同](plans/A9_31_PRODUCT_R1_R7_QUERY_HANDLE_CAPTURE_APPROVAL.md)及ADR-0165 Proposed已形成：拟新增第五C#源和最小权限非继承查询句柄/API、准确R7根内准备编译及普通有限桌面窗口。新路径/API/编译/远端写入须确认本合同；这些新增动作NOT_PERFORMED，不把修复方向批准冒充准确范围批准。原产品/native/锁不变，R6 HALTED/UNKNOWN不改判，A9-31保持IMPLEMENTATION_IN_PROGRESS，独立收口/Win7未执行；无提交/系统改变/委派。
+
+
+### 2026-10-03 — R7定向检查和真实普通身份通过，首轮生命周期硬停止
+
+负责人已批准R7合同§2–5及ADR-0165。五外部源完成查询捕获，Node73/19表达式/784闭包、实际PS5.1三解析、275准入、27查询/API、16文件门和22入口/并发PASS；八项ASAR负例按准确字节继承。三compile及首失败全部保留，最终DLL15f05ce0…3c9d6e7d/source7ec6a125…859ab7b和28新目标冻结，784产品/73宿主装配PASS。
+Computer Use直接在A9 Builder CMD启动R7；PID78592/creation639266349360687397通过SID1005/Session3/Medium8192/普通非提升/noJob。唯一Boot run c26f1c3b3e2846a7bc4c432c006ecf35通过五项真实产品基础/Full Access表单检查，但尚未到受控断言即在子PID66612/父66864的CreationSessionImage联合判据失败。worker保留UNKNOWN并HALTED，dispatcher停止；后续实际持有该子实例/exit0不能覆盖首观察未知。
+[直接报告](reports/2026-10/a9_31_r7_query_capture_and_snapshot_gate_failure_2026-10-03.md)绑定55文件/6166259 bytes全部hash核验、秘密扫描0命中。首gap缺失比较边界，snapshot调用区间内创建仅为有支持的推断。R7不恢复，正常Boot、同窗口失败后成功复验、后续七组/独立收口/Win7 NOT_PERFORMED。
+[R8具体材料](plans/A9_31_PRODUCT_R1_R8_SNAPSHOT_INTERVAL_APPROVAL.md)和ADR-0166仅Proposed：同五路径、新准确根、时间区间和同实例双观察/准确诊断；具体批准前不实施/编译/写R8。A9-31仍IMPLEMENTATION_IN_PROGRESS；主工作区、产品/native/锁及历史证据保持，无提交/系统配置/委派。
+
+
+### 2026-10-03 — R8精确执行：普通Boot查询缺口硬停止
+
+负责人本轮回复“批准”，批准R8§2–4及ADR-0166。五外部源完成准确快照区间/同实例双观察/schema2诊断，锁定编译PASS；source97154a59…1c59e1c2、DLL9de64e7d…e67094b7。Node73/19表达式/784、实际PS5.1三解析、275准入、27查询/API、19区间、16文件门、22入口/并发PASS；ASAR八负例准确继承。所有探针首失败保留，不声称已制造两个合法句柄之间的PID复用/不同creation或Session。
+Computer Use启动真实SID1005/Session3/Medium/非提升/noJob，dispatcher37244/creation639266379938146705。唯一Boot415b73bf23ba4648b0849e18e74c952b七项产品检查通过，受控断言也执行；worker在cmd PID78328/父Electron77368 OpenQueryHandle返回原生87、creation/exit UNKNOWN，HALTED，不能作为可重试普通失败。55文件/6259483 bytes全部hash一致、秘密扫描0。R8不恢复，正常Boot/同窗口成功复验/后续七phase/独立收口/Win7 NOT_PERFORMED。[直接报告](./reports/2026-10/a9_31_r8_interval_capture_and_short_lived_cmd_failure_2026-10-03.md)保留具体比较值及全部证据。
+[R9材料](./plans/A9_31_PRODUCT_R1_R9_SYNC_PROBE_RECEIPT_APPROVAL.md)/ADR-0167只为Proposed：准确只读cmd-ver原spawnSync回执的新证明合同，尚未实施/编译/创建R9。当前源码只能支持来源推断，不能把该cmd具体绑定为已知探测。A9-31仍IMPLEMENTATION_IN_PROGRESS；产品/native/锁、主工作区及历史失败/UNKNOWN保留，无提交/系统改变/委派/Win7。
+
+### 2026-10-04 R9 具体批准与执行起点
+
+负责人回复“批准 R9 §2–4及 ADR-0167”，[R9合同](./plans/A9_31_PRODUCT_R1_R9_SYNC_PROBE_RECEIPT_APPROVAL.md)的原文SHA-256 `8a6ee203efe3e2c14d6afd83ba0e2b54a7a68c240985b6a73a0ace5a25d02c5b`，批准记录SHA-256 `070063d745013b43c8d6f80075245b40a8746940deceee982e18739a7a2e9b8d`。仅五个准确外部测试源及新R9范围，开始实现/检查；原R8 HALTED、历史UNKNOWN和产品source35a19250不改判。不提交、不改产品/native/锁或系统、不委派、不执行Win7。
+
+
+### 2026-10-04 — R9准入、冻结与退出补充登记通过；普通桌面待启动
+
+按具体批准完成五外部源、新source/DLL/MVID及实际锁定Electron/Node同步cmd-ver准入；原pid58684/status0、真实父kernel身份/快照与当前reader重验通过。Node73+88、Renderer19/784、PS三解析/315schema/27查询/19区间/16文件门/22入口/77回执检查PASS；ASAR8精确继承，不改绑旧报告。准入和检查编排首失败保留。
+Master6e2131f0…6340266、受控Boot877845b7…9afb70a、正常退出补充revision e6c6394d…22d7501已冻结；40+8登记文件/实际784产品/73宿主hash及登记PASS。release丢回执/取消竞态补充仅准备检查，真实Core/SQLite/UI退出仍待执行。
+[准确报告与交接](reports/2026-10/a9_31_r9_sync_receipt_freeze_and_desktop_handoff_2026-10-04.md)：SSH通过、A9 Builder Session3 Active；R9无entry/ready/final、零request。Mac锁屏使Computer Use无法启动，已请求解锁；不以管理员/SSH注入替代普通门。八phase/同窗口复验/独立收口/Win7 NOT_PERFORMED，A9-31仍IMPLEMENTATION_IN_PROGRESS；产品/native/锁/历史证据保留，无提交/系统改变/委派。
+
+
+### 2026-10-04 — R9实际部分通过及编码捕获硬停止
+
+R9批准范围内：真实SID1005普通桌面同控制器受控Boot失败→正常Boot8项通过，Shell22项通过；编码54项断言通过后实际PowerShell创建时间超过snapshot返回206ticks，硬门HALTED。原观测UNKNOWN保持，后续持有同实例实际退出0不补签；其余五phase未执行。
+[直接报告](reports/2026-10/a9_31_r9_desktop_partial_pass_and_clock_boundary_halt_2026-10-04.md)：301原始文件/30382895bytes hash全部一致、秘密扫描0，后飞行784/73/四输入PASS，顶层exit UNKNOWN。新r9-desktop-evidence-matrix不覆盖原准备矩阵。R9不恢复，A9-31仍IMPLEMENTATION_IN_PROGRESS，独立收口/Win7 NOT_PERFORMED。
+[R10具体合同](plans/A9_31_PRODUCT_R1_R10_PRECISE_UTC_CAPTURE_APPROVAL.md)/ADR-0168只Proposed，新取时API/Profile/新根尚未批准/实施/编译/部署。主工作区、产品/native/锁及历史失败保留，无提交/系统/委派。
+
+
+### 2026-10-04 R10具体批准
+
+负责人回复“批准”，批准[R10合同§2–4](plans/A9_31_PRODUCT_R1_R10_PRECISE_UTC_CAPTURE_APPROVAL.md)及ADR-0168。原合同SHA-256 `c388ae5ea1fc3eb73cb28f4de371f8d76db0243a0986d6cce31b9cd38c1da8d3`，原文批准SHA-256 `ef47799d2506546ec7ccee62026a0d677489b7e6b6e0a2adf0414bac15cd30d6`。仅五外部测试源、精确UTC API/V4测试Profile和准确R10准备/固定编译/准入/冻结/普通有限八组；原严格边界与全部硬门保持，不恢复R9，不改产品/native/锁或系统，不提交/委派/执行Win7。实际证据随后登记。
+
+
+### 2026-10-04：R10 新捕获冻结就绪，普通桌面待启动
+
+R10 §2–4/ADR-0168 已按负责人具体批准执行；新 capture DLL/MVID/精确 UTC、master 和两个不可变 revision 已冻结，当前准确源的本地/Win10 准入及远端产品784/宿主73闭包通过。原始准备返回163文件/3177366bytes逐文件哈希核对。Computer Use 键入/粘贴未进入CMD；普通控制器尚无启动记录，全部八组仍 NOT_PERFORMED，已交付一次性入口。R9 HALTED、首失败和 UNKNOWN 不改；A9-31不升级 DEVELOPER_VERIFIED，Win7不执行。详见 [R10冻结交接报告](reports/2026-10/a9_31_r10_precise_utc_capture_freeze_and_desktop_handoff_2026-10-04.md)。
+
+### 2026-10-04 — R10真实桌面部分通过，后台必需归属审计失败
+
+[现场及证据矩阵](reports/2026-10/a9_31_r10_partial_pass_and_windows_ownership_failure_2026-10-04.md)：SID1005/Session3/Medium/普通非提升/noJob，正常Boot8、Shell22、编码安全重试70直接PASS。受控Boot及编码首失败保留；后者仅按冻结driver合同增加预算内正例、保留超预算失败对照。
+Background run5dee77858e484e51b7380c9bcf9fa701在helper启动前失败；真实DB只有tool_start，无managed事实。包内原方法结合实际Windows origin/fact复现同目录大小写被字符串比较拒绝；错属反例仍拒绝，本地受控复现不冒充Windows新执行。
+依R10审计硬门停止后续派发，原stop合同取得dispatcher实际exit0；143树实例退出码均取得，657文件49075360bytes全hash核验、秘密出口0命中，后飞行144旧实例未见存活。raw COMPLETED只表示停止，三phase通过不代表八组通过。
+[三路径本地修复材料](plans/A9_31_WINDOWS_WORKSPACE_OWNERSHIP_REPAIR_APPROVAL.md)待具体批准；产品/native/锁未改，无提交/远端新部署/委派。FailureBoundaries/StopExit/ReleaseExit/Recovery和独立收口/Win7均NOT_PERFORMED；A9-31仍IMPLEMENTATION_IN_PROGRESS，未签DEVELOPER_VERIFIED。
+
+### 2026-10-04 — 三路径归属修复及两项同路径共性修复本地通过
+
+负责人明确批准三路径本地修改/规定检查及共性检查。现[本地修复报告](reports/2026-10/a9_31_windows_workspace_ownership_local_repair_2026-10-04.md)登记：修复Windows canonical/display归属误拒绝、旧managed facts路径变体查回缺失，以及共享比较对POSIX大小写的错误放宽。均在原三路径内，其他身份canonical键不机械替换。
+原代码反例、Jest平台属性夹具失败、首轮Stop回执/旧sibling dist失败及中断记录保留。最终State82、Shell117、verify:quick七模块build/static通过；规定检查后生成的24个Runner dist副本保全并只恢复原HEAD字节。原生/managed锁未变，无外部写入/提交/委派。
+结论仅LOCAL_REPAIR_VERIFIED，源码提交和新包Windows复验待具体交付；旧R10不改判/恢复，独立收口/Win7 NOT_PERFORMED，A9-31不登记DEVELOPER_VERIFIED。
+
+
+## 2026-10-04：归属修复准确源码提交完成；新开发包待具体批准
+
+负责人批准五路径本地提交，准确source为`898ee9459a9b987840e94ddef336556ea58dd389`，父为`35a19250ed6589f6a7ba35b940a784325970c111`；五blob/SHA、提交路径和35个其余修改字节复核通过。原State82/Shell117/verify:quick所测源码与提交一致，没有重复产品检查或改绑旧Windows报告。
+[提交记录](plans/A9_31_WINDOWS_WORKSPACE_REPAIR_SOURCE_COMMIT_APPROVAL.md)与[新包r2本地合同](plans/A9_31_PRODUCT_R2_LOCAL_PACKAGE_APPROVAL.md)可检索。新包装配尚未获批/执行，无推送/合并/远端写入/原生或锁变更；A9-31仍IMPLEMENTATION_IN_PROGRESS，新包Win10、独立收口与Win7均NOT_PERFORMED。
+
+### 2026-10-04 — A9-31 r2本地装配批准/执行
+
+负责人批准r2本地合同§1–3；source898ee945准确干净clone、离线七模块编译和原生产者首次exit0，ZIP d7323ac4…15122c47 / manifest1c5084a4…816b6225。784文件双向闭包、实际包runtime/Profile/native哈希/JS入口、State修复/适配器受控转发、许可证/SBOM及影响比较通过。[本地报告](reports/2026-10/a9_31_product_r2_local_package_2026-10-04.md)与原product-r2统一矩阵为证据入口。
+符号链接的目录型忽略规则首失败及新clone八个精确exclude登记保留；源码、原工作区、依赖输入、旧R10与历史证据保护，无提交/推送/合并/远端写入/原生重建/委派。新Windows合同只形成草案，实际Windows/独立收口/Win7未执行；任务Gate不提升。
+
+### 2026-10-04 — r2 Win10具体批准、范围纠错和普通入口阻塞
+
+负责人批准[r2 Win10合同](plans/A9_31_PRODUCT_R2_WIN10_VALIDATION_APPROVAL.md)原§1–5；原合同9c21e3b7…e45ca99e、批准a593b05e…6bd55f0。四源准确实施；新根产品784/宿主73、一次固定C#编译、PS5.1、实际锁定Node16和查询/区间/回执准入通过。旧run引用、夹具input-holder、读取器作用域/参数及本地长度/盘点/回收首错全部保留，未放宽安全门。
+初始文件门负例遗漏旧R5批准读取，范围错误明确登记，不作为仅新根合格检查。新run cd7eb70b…b524c2b用明确构造的无效批准数据完成原16项；旧控制器未启动/写入。新metadata revisions 210ffb9a…a8cb77 / 82c5a69a…4d6c13绑定修正后的17记录checks，master46441acf…3b821及四执行源/DLL保持；新登记和784/73闭包实查PASS。原冻结r1及首矩阵保留，不再派发。
+[报告](reports/2026-10/a9_31_product_r2_win10_preparation_and_desktop_block_2026-10-04.md)记录1067文件清单、208文件4811376bytes返回及859保留输入逐hash匹配；两个显式junction负例不跟随。UU远控未将输入送入目标CMD，新root无claim/start/ready/final、请求0、普通token未取得，120分钟窗口未开始；旧剪贴板R10命令未执行。依普通桌面合同暂停产品派发，八phase/同控制器失败后成功复验/独立收口/Win7 NOT_PERFORMED。A9-31仍IMPLEMENTATION_IN_PROGRESS，无提交/推送/产品native锁修改/系统改变/委派。
+
+
+### 2026-10-04 — A9-31 r2负责人手工协助入口
+
+负责人随后表示“如果远控输入不行，我可以手工参与。”据此允许在WIN-2JQ66JE4HTQ的A9 Builder普通桌面由负责人打开全新非管理员CMD，一次执行同一冻结r2入口命令；仅替换§4的输入操作者，不变更源/包/master/revision、SID1005/Session3/Medium/非提升/noHostJob、120分钟/16请求及全部安全门。后续固定派发/取证仍由代理完成。旧窗口残留R10文本不执行，旧控制器不恢复；原批准§1–5和历史输入保留。
+
+最近只读检查UTC 2026-10-04T06:30:43.8945785Z仍无claim/start/ready/final、正式请求0，普通token未取得；手工入口待实际启动，八phase、独立收口及Win7均NOT_PERFORMED。入口启动须先用实际进程实例/token核验，再按受控Boot失败→真实整树退出→同dispatcher正常Boot→Background最短链路的顺序推进。证据为product-r2/manual-assistance-owner-steering-r1.json和manual-entry-watch-063043241315.json。
+
+
+### 2026-10-04 — A9-31 r2普通验证与Policy阻断
+
+负责人一次手工普通入口实际核验通过；同dispatcher受控Boot失败/真实树退出后正常Boot8项PASS，Background最短28项PASS。完整后台首错游标夹具误取历史句柄，修正匹配当前handle后通过相关游标/3-4/Stop项，但永久删除确认场景未批准即真实派发Remove-Item。SQLite+包内Policy证明产品缺口，完整Background FAIL；六个下游phase、独立与Win7 NOT_PERFORMED。固定stop取得dispatcher exit0，112个dispatcher树实例/合并116个持有实例退出与后飞行闭合；479新增文件43568598bytes回收核验，原1067文件不变。当前统一矩阵为product-r2/win10-evidence-matrix-r4.json；raw COMPLETED/Background标记只表示停止/最短范围。r2已停止不可恢复，A9-31仍IMPLEMENTATION_IN_PROGRESS。
+
+实际报告：[r2执行与Policy失败](reports/2026-10/a9_31_product_r2_win10_execution_and_policy_failure_2026-10-04.md)。具体三路径本地修复提案：[Shell删除Policy修复](plans/A9_31_SHELL_DELETE_POLICY_REPAIR_APPROVAL.md)，DRAFT_NOT_APPROVED；不扩大本轮已执行授权，不改源码/包/native/锁，不提交/推送/委派。
+
+
+### 2026-10-04 — A9-31删除Policy三路径批准修复与同类核查
+
+负责人“审批同意并检查有无类似问题”批准精确三路径原§1–3；C14和ADR-0170登记。真实r2命令先红后ASK，删除族检查位于自主Git提前返回之前，执行与数据分开；原审批绑定/等待持久化/拒绝/错绑定/ReadOnly零端口派发保持。Policy113、后台Core10、Shell九组117、七模块lint/build通过。必需Core总302 PASS/1 FAIL：旧R1-03把rm file.txt当自主修改，与新ASK冲突；第四测试路径一行copy替换已准备但未批准/应用，首失败保留，不弱化安全或排除suite。
+
+相邻16个纯Policy输入显示删除2项修复，发布/系统剩8漏确认2误确认；不执行这些命令，不扩大删除实现范围。[实际报告](reports/2026-10/a9_31_shell_delete_policy_local_repair_and_adjacent_audit_2026-10-04.md)与[第四路径材料§5](plans/A9_31_SHELL_DELETE_POLICY_REPAIR_APPROVAL.md)集中记录。HEAD898ee945未变、三路径diff未提交，444个生成产物保全后24个tracked Runner dist恢复；原dirty/main、r2/三ZIP/native锁保留。A9-31仍IMPLEMENTATION_IN_PROGRESS；新包/Windows/独立/Win7 NOT_PERFORMED，无远端重启/R10恢复/提交/推送/系统改动/委派。
+
+
+### 2026-10-04 — 第四测试路径补批与删除本地检查闭合
+
+负责人针对精确§5/一行补丁回复“批准”，C14追加src/core/tests/a9-verification-evidence.test.ts。仅rm file.txt→copy file.txt copied.txt，原断言逐字保留，Core九组303项PASS并自然退出。产品/编译与原三路径不变，Shell117和七模块静态按原记录精确继承，不重复构建或用恢复后的旧Runner dist测试消费者。原302 PASS/1 FAIL、原r1全部证据及r2 FAIL不改判；当前结果见[报告§7](reports/2026-10/a9_31_shell_delete_policy_local_repair_and_adjacent_audit_2026-10-04.md)和fixture-supplement-r1。四路径工作区diff未提交，范围外8漏确认2误确认未实现；A9-31保持IMPLEMENTATION_IN_PROGRESS，新包/Windows/独立/Win7未执行，无远端/系统/委派。
+
+
+### 2026-10-04：A9-31同类高影响Policy与可见审批本地闭合
+
+负责人要求检查确实存在的同类问题并修复；实现前C14/材料§7与ADR-0171登记。原16项复核8漏2误有效，新首红144 PASS/66 FAIL保留；包管理器前置参数分别解析、非Git高影响先于自主Git，纯数据不再触发全文正则，明确全局依赖和注册表/服务变更纳入ASK。长/复合审批包含完整原command及显式cwd，保留旧digest/Git动态保守门。中间396/1新增错误ALLOW预期经原字节诊断改为原合同ASK，未放宽产品门。最终Core397、Shell117、七模块静态/构建PASS；实际编译22项零不符。源898ee945基线加未提交五路径diff（本轮四路径、上轮一行夹具不变），444编译文件保全后24 tracked dist复原。原r2/首FAIL/UNKNOWN、历史、工作区保留；新包/Windows/独立/Win7 NOT_PERFORMED，r2/R10不恢复，A9-31仍IMPLEMENTATION_IN_PROGRESS。见[报告](reports/2026-10/a9_31_shell_high_impact_policy_repair_2026-10-04.md)。
+
+### 2026-10-04：A9-31再次核查、变量执行补修与Win10准入材料
+
+负责人要求再次检查并推进Win10实际验证；沿已批准本地四路径/C14/ADR-0171修复静态命令变量npm/sc/reg漏确认与明确发布歧义。首红232项222 PASS/10 FAIL，第一版412/117后追加条件体/子表达式/${变量}三反例；共同上下文修复后最终Core417/417、Shell117/117、七模块静态编译PASS及24项实际编译纯求值零不符。原结果保持，拒绝/变化绑定零派发，444编译文件保全、24 tracked dist只恢复本轮起始字节。
+
+目标只读预检C盘由首次不足2GiB到最终6543396864bytes，非代理清理；新r3根不存在、旧指定Electron零进程。两次stdin准备传输超时停止该路径，未计产品PASS。当前准确源码/五路径diff未提交，新包/真实Windows UI/SQLite/八phase、独立、Win7 NOT_PERFORMED。具体[C1/C2/C3材料](plans/A9_31_POLICY_R3_SOURCE_PACKAGE_WIN10_APPROVAL.md)一次列明源提交、干净r3装配、新根普通八phase和有界夹具重试，仍待项目要求的具体批准。原r2/失败/UNKNOWN/历史和工作区保留，不恢复R10；A9-31继续IMPLEMENTATION_IN_PROGRESS。[当前报告](reports/2026-10/a9_31_policy_win10_readiness_recheck_2026-10-04.md)集中登记。
+
+### 2026-10-04：R4短命conhost共同根因与已批准事件诊断
+
+当前源ebda911/r3；R3真实退出选择迟到导致终态日志访问已关闭journal，外部driver已修复并通过实际Win10 Node检查，原失败保留。已批准准确R3残留收尾及R4新根；R4受控Boot因conhost78648快照后消失、OpenQuery87而HALTED，8持有实例已退出但原子实例UNKNOWN，不重试整批。
+
+负责人“解决”批准独立最小诊断；原三次尝试及所有失败保留。v3 GUI诊断宿主实际取得12 cmd/12 conhost、48 Start/End、exit0/零丢失/会话停止，26项纯回放与反例通过。38文件427988bytes完整返回/秘密零命中，R2/R3/R4共48冻结脚本、4 capture文件、原18诊断返回和5产品源均零不符，HEAD/index未变。经典事件尚缺OS创建FILETIME和完整镜像；因此整批Win10仍不PASS。新增精确字段材料与ADR-0172仅Proposed，未执行新API/探针/第五根。详细授权、首失败和证据均集中于[r3统一报告](reports/2026-10/a9_31_product_r3_package_and_win10_execution_2026-10-04.md)；独立/Win7未执行，无提交/推送/删除/R10恢复。
+
+### 2026-10-04：manifest精确字段补证通过并交接
+
+负责人批准准确manifest诊断§1–3（原文1f61d8b2…fac15171），新增两源/三个API先登记。v1固定父字段偏移失败保留；改为按字段名读取后v2一组、v3十二组通过：12 cmd/12 conhost、48事件、根CreateTime/ExitTime与真实句柄相等、Start完整系统映像及同实例End退出0、零丢失/session停止。36项真实报告反例及7自检通过，26文件264909bytes完整回收，最后诊断进程0。源/EXE/MVID/首失败及准确结果见[r3统一报告](reports/2026-10/a9_31_product_r3_package_and_win10_execution_2026-10-04.md)。
+
+负责人要求其他agent接手，新增[handoff](reports/2026-10/a9_31_manifest_diagnostic_handoff_2026-10-04.md)。R5仅形成待批草案，普通取证接入/六源/新根未实现，原R4 HALTED及UNKNOWN不改判，整批Win10不PASS。交接前48历史控制脚本/4 capture/两批64返回文件/5产品源零不符，HEAD ebda911、index空；未提交/推送/删除/委派/恢复R10，独立/Win7未执行。
+
+### 2026-10-04：R5 manifest proof接入合同批准
+
+负责人批准[R5合同r3](plans/A9_31_MANIFEST_PROOF_R5_EXECUTION_APPROVAL.md)§1–5与ADR-0173，原文SHA256 540a7c614482cb13db57c45855531f5fc1898ad50b66e249857287c1066ed0d5；六源C14与观察器C15/C16已在实施前登记。D1/D2已采纳，D3核实为仅Recovery双根、ReleaseExit由3个释放实例钉住信号管理。尚未实现、编译或部署；R4 HALTED、UNKNOWN与全部旧证据不变，整批Win10仍NOT_PASS。
+
+### 2026-10-04：R5观察器v2准入通过，磁盘空间待清理
+
+R5根已创建并展开；观察器v2三轮准入通过（12根12证明、零丢失、会话停止）。C盘空闲约2.19GB贴近2GiB硬门，负责人选择自行清理旧根副本；代理未删除任何文件。冻结物上传、定向检查与普通phase均待空间确认，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R5入口已启动、首个请求未被接单并交接
+
+R5冻结物与普通入口（SID1005/Session3/Medium8192）已通过；首个受控Boot请求在观察器就绪后发布，但dispatcher未接单、无run目录，观察器750秒到期自行HALTED（零事件/零丢失），请求仍pending。合同§5.3跨账户读写实测尚未执行。无普通phase证据，整批Win10仍NOT_PASS。见[handoff](reports/2026-10/a9_31_r5_manifest_proof_handoff_2026-10-05.md)。
+
+### 2026-10-05：R5唯一pending请求获批撤回，窗口恢复待确认
+
+负责人批准复核、撤回唯一请求并通过computer use解除选择模式。00:59:58（北京时间），Administrator经Strict SSH将`request-8d4805e86d3947b5a08cc65ff3769273.json`从R5 requests同卷移至evidence的withdrawn文件；525bytes、SHA256 `8c8d48fc552b47f4be37e716a964697edc626ac5eb9ddc7c86094fb9bd41e1f8`与本地副本及移动前后相等，原路径不存在、请求目录为空。Computer use看到标题“选择”，但Esc及标题栏输入无预期可见效果，恢复未确认；01:02:13同dispatcher PID92564/creation639267280524271566存活、无run/final、3秒CPU/I/O增量0。需一次手工退出选择模式后只读复核，不重开入口或发布新请求。原观察器HALTED/exit2及§5.3遗漏保留，整批Win10 NOT_PASS、独立/Win7 NOT_PERFORMED。首个传输长度失败和后续完整回执均保留，详见[handoff §9](reports/2026-10/a9_31_r5_manifest_proof_handoff_2026-10-05.md#9-批准撤回后的当前停点2026-10-05)。未提交/推送/删除/重发/恢复HALTED观察器。
+
+### 2026-10-05：R5手工Esc后原入口恢复等待已核验
+
+负责人手工Esc后，01:06:50（北京时间）Strict SSH复核原PID92564/creation639267280524271566存活，3秒CPU增加31.25ms；computer use直接看到窗口标题“选择”消失及`A9-31 reusable desktop dispatcher ready`输出。请求目录为空、原请求无run、无dispatcher-final，保全文件hash一致。批准的复核/撤回/退出选择模式第1–3步完成；原截止02:27:36不变，新请求和观察器重启未执行，原HALTED、§5.3遗漏及整批Win10 NOT_PASS保持。详见[handoff §9](reports/2026-10/a9_31_r5_manifest_proof_handoff_2026-10-05.md#9-批准撤回后的当前停点2026-10-05)第4项及`owner-esc-readonly-status-20261005-r1.*`。
+
+### 2026-10-05：R5部分普通证据与入口HALTED
+
+R5普通入口上Boot、StopExit（真实原生选择，21.1秒）、ReleaseExit（9.7秒）PASS且观察器终态核对通过；Recovery重启实例未退出，dispatcher HALTED（5/16请求）。其余phase未执行，整批Win10仍NOT_PASS。详见任务书同日条目与[handoff](reports/2026-10/a9_31_r5_manifest_proof_handoff_2026-10-05.md)。
+
+### 2026-10-05：R6新根批准材料草案
+
+[R6草案](plans/A9_31_R6_RECOVERY_RESTART_AND_REMAINING_PHASES_APPROVAL.md)已形成，未批准；前置P0=JS报错原文，裁决D1–D4待负责人。R5入口HALTED，其余phase未执行。
+
+### 2026-10-05：R6合同r2批准
+
+负责人批准[R6合同r2](plans/A9_31_R6_RECOVERY_RESTART_AND_REMAINING_PHASES_APPROVAL.md)（SHA256 97d402a37c7f0b8876d2a8c0bb56cedf4ac997c57556fa6f6bda9da5e6a7826f）及D1=B/D2/D3/D4；P0已由报错框原文满足（`EEXIST driver-journal.jsonl`）。六源C14与观察器C15/C16、ADR-0174已在实施前登记；另查出重启实例`boot.png`同类冲突并纳入同范围修复。尚未实现、编译或部署，R5入口HALTED，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R6准入与冻结通过
+
+R6根、观察器重编、driver重启证据文件名修复及全部定向检查通过，4个revision stage PASS；普通入口待负责人启动，整批Win10仍NOT_PASS。见任务书同日条目。
+
+### 2026-10-05：R6部分证据与入口HALTED
+
+R6上Boot、Background短/完整、ready预期负例、Shell通过且观察器终态核对通过；EncodingSecurity遇conhost 87缺口，新proof因控制器父进程种类判断缺陷（NT设备路径与C:\\比较）未解析而硬停，入口HALTED（6/16）。观察器记录完整，真实回放得有效proof。其余五个phase未执行，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R7新根批准材料草案
+
+[R7草案](plans/A9_31_R7_CONTROLLER_PARENT_KIND_REPAIR_APPROVAL.md)已形成，未批准；D1–D4待负责人裁决。预验证17项通过（真实R6缺口回放），R6入口HALTED，EncodingSecurity等五个phase未执行。
+
+### 2026-10-05：R7合同批准
+
+负责人批准[R7合同](plans/A9_31_R7_CONTROLLER_PARENT_KIND_REPAIR_APPROVAL.md)（SHA256 73646d58787a1fee7062a74bddfffb37114b1a7d4e816ed8cbb164d62ab5fa4e）及D1=A/D2/D3/D4；六源C14、观察器C15/C16、ADR-0175已在实施前登记。尚未实现、编译或部署，R6入口HALTED，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R7准入与冻结通过
+
+R7根、观察器重编、控制器父进程种类修复及全部定向检查（含真实缺口回放16项）通过，4个revision stage PASS；普通入口待负责人启动，整批Win10仍NOT_PASS。见任务书同日条目。
+
+### 2026-10-05：R7部分证据与入口HALTED
+
+R7上EncodingSecurity、FailureBoundaries通过；StopExit三次：两次人工点击超过120秒限时判FAIL，第三次点击返回response=1（要求0）触发硬门，入口HALTED（5/16）。ReleaseExit、Recovery未执行，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8新根批准材料草案
+
+[R8草案](plans/A9_31_R8_EXIT_PHASES_AND_CLICK_PROTOCOL_APPROVAL.md)已形成，未批准；前置P1（腾空间）、P2（界面确认）与D1–D4待负责人。R7入口HALTED，StopExit/ReleaseExit/Recovery在最终字节上仍无通过记录。
+
+### 2026-10-05：R8合同批准
+
+负责人批准[R8合同r2](plans/A9_31_R8_EXIT_PHASES_AND_CLICK_PROTOCOL_APPROVAL.md)（SHA256 eb9b1c76e0b87fc8626ca14c8272ec6e7d2bce3ffa8e5a738586e45c8590e21b）及D1–D4；P1（空闲6.18GiB）、P2（按钮顺序）已满足。六源C14、观察器C15/C16、ADR-0176已在实施前登记。尚未实现、编译或部署，R7入口HALTED，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8准入与冻结通过
+
+R8根、观察器重编及全部定向检查通过（含真实缺口回放16项），4个revision stage PASS，控制脚本与R7仅差根/哈希绑定；普通入口待负责人启动，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8开跑前复核请求已备
+
+复核请求与只读验证脚本已落盘，等待Codex复核；R8入口未启动、无请求发出，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8独立复核四项本地修复，冻结候选保持
+
+Codex复核发现未登记点击脚本删除/覆盖、实际晚到日志未使用重启命名、验证脚本非只读及R7状态标签残留。负责人要求修复，按任务末尾/ADR-0177形成候选外`r8-review-repair-r1`五源；只读28、真实entry文件系统9、late-journal15、点击/冻结21项通过，R5–R8 5448文件哈希不变。首次只读Git检查失败保留；改为仅允许/dev/null字符设备后成功，不放开普通文件写入或网络。准确结果见[复核请求§6](reports/2026-10/a9_31_r8_pre_run_review_request_2026-10-05.md)。LOCAL_REPAIR_VERIFIED_NOT_DEPLOYED；原R8不开跑、不热替换，新版尚无Node16/Electron/PS5.1准入或远端绑定，不授权第九根。无远端连接/请求/删除/提交/推送，整批Win10仍NOT_PASS，DEVELOPER_VERIFIED/独立/Win7未签。
+
+### 2026-10-05：Codex复核修复的独立核对
+
+Codex四项发现均成立，修复本地验证通过但未应用；R8冻结结果状态字符串勘误（R7标签应读作R8，不改写原证据）；采用新driver需负责人修订R8范围。R8入口未启动，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8 driver修订草案
+
+[R8修订草案](plans/A9_31_R8_DRIVER_REVISION_AMENDMENT_APPROVAL.md)已形成，未批准；采用修复版driver、新normal-short revision挂在不变master下。R8入口未启动，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8修订批准
+
+负责人批准[R8修订](plans/A9_31_R8_DRIVER_REVISION_AMENDMENT_APPROVAL.md)（SHA256 5a928e2a22e47ac3b822acd164633f5f84f1609265999d02d27c2f8f09f46e6f）：采用修复版driver、仅新建normal-short新revision、三个phase统一normal-short。C14（driver-r1各文件）与ADR-0178已在实施前登记。尚未实现、部署，R8入口未启动，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8 driver-r1实施完成，新normal-short revision准入通过
+
+新revision `2d38064cb135c87d…`（driver `d1d05dc7…`）挂在不变master `0450ccc6…`下；Win10 Node16.17.1五行退出码0、schema336项0失败、完整闭包stage PASS；5448文件基线0差异；远端无dispatcher/请求，观察器0。C14实际路径与预登记差异已在任务书末尾勘误。R8入口未启动，整批Win10仍NOT_PASS。
+
+### 2026-10-05：R8执行——StopExit/ReleaseExit PASS，Recovery HALTED，入口终止
+
+driver-r1 revision `2d38064c…`下：StopExit（response 0，3.557秒）与ReleaseExit（response 1，3.28秒）各一次PASS，均完整取回并通过评审；Recovery真实崩溃重启首次执行，重启四项通过，`BACKGROUND_FACTS_ONLY`失败（期望`exited`，实际`cleanup_required`，`recoveryStatus=exited`）后failure stop超时，`dispatcher-final`=HALTED（`LIFECYCLE_PINNED_TREE_UNKNOWN`），入口终止。Recovery仅取回evidence/signals 33文件，无精确完整取回；遗留产品树仍存活，未处理。新conhost证明分支未被触发。整批Win10仍NOT_PASS，未在Win7实机验证。
+
+### 2026-10-05：R8 Recovery完整取回完成
+
+负责人关闭遗留产品树后（已直接核对进程不存在）完整取回88文件/9,484,576字节，逐SHA一致、秘密扫描0；与此前partial的evidence/signals逐文件相同。SQLite副本显示受管行`cleanup_required`（pid 35788）与未释放的工作区锁`main-16064`。关闭方式未记录。Recovery仍HALTED，整批Win10仍NOT_PASS，未在Win7实机验证。
+
+### 2026-10-05：R8 遗留进程树关闭方式登记
+
+负责人口述为“手动关闭的进程”，无对话框`response`或其他证据文件，不作为任何按钮/Esc的实测结果；发生在HALTED终态之后、完整取回之前。结论不变：Recovery HALTED，整批Win10 NOT_PASS。
+
+### 2026-10-05：A9-31 Recovery裁决、R9批准实施与Recovery通过
+
+负责人裁决R8 Recovery第13项为D1=C（driver预期有误，产品处置出口另立A9-34草案）；批准R9合同r2与修订（ADR-0179）。R9实施、准入（Node16 24行等全套）与冻结通过后，负责人启动入口，Recovery一个请求PASS并经`review-phase-r9.py`评审通过（保留清理未知语义，`normal_product_exit=BLOCKED_BY_DESIGN_NOT_PERFORMED`）。矩阵r8（事后补写）与r9、统一报告§12/§13已更新。跨根组合是否算整批Win10通过待负责人裁决；未在Win7实机验证。
+
+### 2026-10-05：A9-31整批Win10跨根组合（ADR-0180）
+
+R9入口经`stop.json`正常结束（dispatcher-final COMPLETED）。负责人裁决A9-34推迟到第二批之后、选B并批准跨根组合裁决r2；R5–R7已回收证据以原样评审脚本补跑正式评审10项全部通过，组合结论`WIN10_CROSS_ROOT_COMBINED_PASS_WITH_LIMITS`。限制：conhost证明分支未触发、Esc/取消未实测、Recovery仅保留未知语义、跨根等价为推断；DEVELOPER_VERIFIED/独立/Win7未签，未在Win7实机验证。
+
+### 2026-10-06：A9-31 Shell Policy P1修复本地提交
+
+Codex独立复核发现两项Shell审批漏报（P1），经r1–r6本地修复与多轮独立复核，按ADR-0184收敛标准收口；本地提交`8d207ab`（仅policy.ts与两测试文件，父ebda911），未推送。既有Win10证据绑定旧包，需新包重验；DEVELOPER_VERIFIED未登记，未在Win7实机验证。
+
+### 2026-10-06：A9-31 r4 Win10重验R2准入冻结
+
+R1根因取证组件构建记录绑定旧source停止；负责人批准修订（ADR-0187）后在新根R2同源重编取证组件（新DLL `3f45cc66…`），R9工具仅换绑定，准入全套与新增包内Policy检查（Node 16.17.1，ask 140/ordinary 238/dispatch 11）通过，四revision冻结PASS。准备阶段sync-current派生偏差已按R9流程更正并留痕。C3普通桌面重验待负责人启动入口；未在Win7实机验证。
+
+### 2026-10-06：A9-31 r4 Win10单根通过
+
+R2普通入口一次跑完10请求，全部首次通过正式评审，dispatcher自行COMPLETED；当前源`8d207ab`的Win10结论由跨根组合升级为`WIN10_SINGLE_ROOT_PASS`，conhost证明分支限制解除。剩余限制：A9-34推迟、Esc/取消未实测、Policy识别边界。DEVELOPER_VERIFIED待负责人裁决；未在Win7实机验证。
+
+### 2026-10-06：A9-31 登记 DEVELOPER_VERIFIED
+
+Codex对R2证据集聚焦只读复核P0/P1/P2=0/0/0（并补足派生文件反向换绑证明），按已批准登记材料登记`A9_31_DEVELOPER_VERIFIED`（ADR-0188），源码本地提交`8d207ab`未推送。已知限制：A9-34推迟、Esc/取消未实测、Policy识别边界、conhost仅cmd父分支。Win7/独立验收/Alpha2/RC不签发；未在Win7实机验证。

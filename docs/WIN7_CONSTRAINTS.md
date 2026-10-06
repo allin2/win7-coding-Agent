@@ -304,3 +304,233 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 - [Git for Windows：版本与平台支持发布记录](https://github.com/git-for-windows/build-extra/blob/main/ReleaseNotes.md)
 
 上游依据用于筛选候选，不替代本项目在 Win7 SP1 x64 上对精确工件的验收。
+
+## 10. A9-30 D-013 v26 实现登记（2026-10-01，ADR-0150）
+
+仅批准 A9-30 源码范围；D-013 v26 协议 3 / `a9-trusted-shell-current-user-v2`，
+仓库 C++、Apache-2.0，无新第三方依赖。D-017 延用 VS2019/v142、SDK 10.0.19041.0、静态 CRT。
+新源码提交、kit/manifest 和 helper 工件哈希均 `NOT_LOCKED`，不得装配或冒用 v25 输入锁。
+独立安全/依赖复核、Win10 双干净构建/PE/API/CRT、Win7 普通用户实测均 `NOT_PERFORMED`。
+
+writer 使用 CreateThread、CreateEventW/SetEvent、CriticalSection、WaitForSingleObject、WriteFile、
+CancelSynchronousIo、HeapAlloc/HeapFree/GetProcessHeap 与 CloseHandle；均为 Kernel32 本地 API。
+线程/事件无继承权限；writer 仅消费有界协议队列，只调用 Win32 API，避免在线程中调用 CRT。
+[CreateThread 官方合同](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread)
+声明最低 XP；[CancelSynchronousIo 官方合同](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelsynchronousio)
+声明最低 Vista，取消请求不能替代线程完成证明。同步写等待超过 5 s 后请求取消，仍须核对线程终止。
+队列满/线程或 I/O 失败触发 Job 回收；无法完整交付终态时拒绝成功，清理报告 unknown。
+不引入命名管道服务、网络、ConPTY、提权或系统配置修改。拒绝版本/Profile 不匹配，不降级到 v25。
+适用项：C14/C15/C16、P01/P02/P06/P11/P14/P15/P20，中文路径/显式编码/日志脱敏；其余依赖沿用当前登记。
+
+
+### A9-30 v26 构建机捕获与装配补充（2026-10-01）
+
+v26 构建限定 D-017 的 VS2019 16.11 / MSVC 14.29 / SDK 19041 / x64 / 静态 CRT，
+独立 build-profile、源码提交时间、完整输入 manifest 和固定 C:\a9-v26-kit 路径映射。
+构建机已有 Windows PowerShell 5.1 Desktop / .NET 的 Process、Stream、Task、单调时钟和事件仅供原始字节捕获；
+不进入产品、目标 Win7 依赖或产品 SBOM，不安装组件。实际版本/API 执行仍 NOT_PERFORMED，需预检与独立复核。
+实际 cl/dumpbin/mt/vswhere/powershell 路径及 SHA-256 绑定返回证据；同工具链双构建身份和 helper 字节必须一致。
+新 v26 运行时、runner manifest、许可证及 SBOM 均声明 Current User streaming，不描述为安全沙箱。
+正式 kit / helper / input lock 哈希仍 NOT_LOCKED；开发检查包无 WIN7 候选 authority，不产生 Win7 或完整 Alpha 2 PASS。
+
+
+### A9-30 D-017 构建身份门补充（2026-10-02）
+
+仅构建脚本以 Windows PowerShell 5.1/.NET P/Invoke 读取既有 Win32 OpenProcessToken、GetTokenInformation（Elevation/Type/Integrity）、IsProcessInJob、CloseHandle。
+来源为构建机系统 advapi32/kernel32，不复制或引入新产品 DLL；系统工具哈希随环境证据绑定。既有 D-013 使用这些令牌/Job 查询能力，产品导入和 Win7 前置不变。
+身份事实格式见 ADR-0154；查询失败拒绝构建，无角色判定回退。此记录不替代独立套件复核和目标运行证据。
+
+## 11. A9-31 managed revision 依赖评审草稿（2026-10-02，ADR-0151 Proposed）
+
+本节仅待审登记，不授予实现或原生构建批准。D-013仍为仓库C++/Apache-2.0，协议3及Current User Profile，
+release只操作本helper持有的Job，拟沿用既有SetInformationJobObject/QueryInformationJobObject/CloseHandle，
+设置并回读KILL_ON_JOB_CLOSE位；不请求管理员权限或全局改Job，不引入第三方DLL/服务/网络监听。
+新API若实际需要，先补C15/C16登记及具体评审；不能因本表省略API/导入检查。
+
+D-017保持既有VS2019/v142、SDK19041、x64和静态CRT；新managed源码/kit/helper/manifest/锁
+均NOT_LOCKED。获准后分别绑定准确来源、源码和工件SHA、工具补丁版本/API/CRT、许可证/SBOM及两个独立run-id。
+需要新的managed kit和输入锁，不覆盖A9-30 kit/锁或v25历史合同。
+启动/ready/输出/终态/release及失败清理须经真实新helper检查；release回执不是清理成功或任意程序存活保证。
+依赖pipe的程序可能退出、回执丢失记release_unknown；Win7实际生命周期NOT_PERFORMED。
+来源/版本/许可证沿用仓库及D-017登记，来源哈希在审批具体source/kit时锁定；EOL责任仍由项目承担。
+独立安全/依赖复核、Win10双构建/重锁及Win7证据均待，不把草稿写成准入PASS。
+
+### A9-31 C2实现登记（2026-10-03，ADR-0151 Accepted）
+
+负责人已批准任务§1–5及具体API方向；仅源码实施批准，构建与二进制准入独立。
+源码基线 `c2b6356f83ef8502a34516010924547c57a3bec2`；revision `a9-31-managed-r1`，
+二进制版本 `1.4.1-d013-v26-managed`，协议3/profile `a9-trusted-shell-current-user-v2`。
+新装配Profile为 `D-013-v26-managed-a9-trusted-shell-current-user`，
+D-017 kit为 `WIN10-VS2019-V142-SDK19041-D013-V26-MANAGED-X64`。
+来源仓库C++，Apache-2.0；无新第三方依赖。仅本helper所有Job的
+`QueryInformationJobObject`/`SetInformationJobObject(JobObjectExtendedLimitInformation)`/`CloseHandle`，
+设置并回读只去掉 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`，其他位不变；API最低Win7满足方向需由imports实证。
+Win32控制管道使用既有 `PeekNamedPipe`/`ReadFile` 非阻塞轮询；没有服务、网络监听、任意PID接管或提权。
+root/child进程句柄存活检查只在构建机测试捕获器；构建脚本实际PS5.1/C#编译仍NOT_PERFORMED。
+当前只有六个套件模板，source/ZIP/manifest/native SHA尚未正式绑定，managed锁NOT_LOCKED。
+旧A9-30 v26双构建及锁继续有效，不能替代本revision；新Windows返回证据必须严格审核。
+
+### A9-31 managed smoke OS身份查询登记（2026-10-03，ADR-0156 Proposed）
+
+仅待审，不授予实现或构建批准。构建机Windows PowerShell 5.1/.NET捕获器拟从系统Kernel32 P/Invoke
+CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)、Process32FirstW、Process32NextW及既有CloseHandle，
+只读记录PROCESSENTRY32W父进程PID；不复制系统DLL、不引入第三方库、不进入产品SBOM。
+[快照合同](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot)、
+[进程条目](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32)
+均声明最低XP；实际调用仅在D-017 Win10构建机，声明不代替实测。
+来源Microsoft Windows/系统许可，精确OS/工具版本和powershell/Kernel32哈希须绑定构建环境返回；不下载安装。
+进程查询失败/缺失/时间或父子身份冲突停止烟测，不要求管理员、WMI、UAC/ACL/服务修改或任意PID接管。
+快照CloseHandle、进程句柄钉住、creation ticks及真实退出码共同取证，不把一个PID当作持续身份。
+C15/C16来源与交付沿用D-017，EOL责任由项目承担；源码/套件哈希在具体后续提交和套件批准时锁定。
+证据schema2及精确六路径见[修复材料](plans/A9_31_MANAGED_IDENTITY_REPAIR_APPROVAL.md)。
+新API具体评审、实现、PS5.1/C#运行、双构建/实证返回、Electron及Win7仍待；历史锁/证据不改判。
+
+2026-10-03，负责人批准ADR-0156及精确六路径源码/本地检查。上述待审登记据此取得构建捕获器源码准入；
+实际系统API/PS5.1/C#、原生双构建和目标机证据仍NOT_PERFORMED，远端执行另行批准。
+
+
+### A9-31 R5外部验证捕获程序集登记（2026-10-03，ADR-0162 Accepted）
+
+仅Win10外部验证夹具Runtime Profile `WIN10_PS51_NET4_CAPTURE_TEST_ONLY`，不进入产品/SBOM或Win7交付前置；
+负责人具体批准[R5合同§1–5](plans/A9_31_PRODUCT_R1_R5_CAPTURE_PRECOMPILE_APPROVAL.md)。现有捕获C#仓库测试代码，Apache-2.0；
+固定UTF8无BOM/LF片段7700 bytes，SHA `7fe2e6db6b49247da7dc8d6c034bced5bbe88aab84889481ed9c3ec4006269b1`。
+系统API仍为既有Toolhelp/令牌/Job查询/CloseHandle及.NET Process/Task/Stream，不新增产品进程控制API。
+准备编译来源现有Microsoft Framework系统许可，Microsoft签名Valid，安装环境不变；
+`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 4.8.9232.0/2569696 bytes，SHA `aae1db57f898ca8bda18590c56f86ced6d0ead80c22033b76fdfe9119706f116`。
+明确引用mscorlib.dll 5445664 bytes/SHA `cbba0b14d43901ff3d92cc44efe6a79149bfcaa3006c08ca05e186b2a75b54b5`、
+System.dll 3541424 bytes/SHA `af12577769e3b0c94fc8e4715cdfd21cbcf0f665bf63489f81e5a0934c94c7e4`、
+System.Core.dll 1551312 bytes/SHA `78c77c7250b6e318e69c1162980640bf7da5e8d3303d3abcc32401a52d667139`。
+三者同目录，签名Valid/版本和原始只读证据绑定product-r1/r5-system-reference-preflight及compiler-preflight记录。
+编译为AnyCPU/.NET4 library，不代表Win7可执行性。实际DLL/编译记录SHA仍NOT_LOCKED，准备时产生并完整绑定后才允许装配。
+实际准备编译持有compiler句柄及exit，Administrator/Session0准备证据不替代普通产品验证；
+普通dispatcher/worker验证同字节SHA后Reflection.Assembly.Load，无源编译或搜索回退。所有历史UNKNOWN保留，C14/C15/C16/严格准入/目标硬门继续。
+
+
+## A9-31 R5 scheduled entry external test profile (ADR-0163)
+
+Profile `WIN10_A31_R5_INTERACTIVE_SCHEDULED_START` is approved only for the current Win10 build19045 host. Existing Microsoft Windows Task Scheduler 2.0 COM Schedule.Service: bounded NewTask/root GetFolder/GetTask/RegisterTaskDefinition(TASK_CREATE), exact task Run/GetInstances and Enabled=false rollback. No arbitrary task or command interface.
+
+Windows system license; no download, copied runtime, installation or product SBOM additions. taskschd.dll 10.0.19041.1, 708720 bytes, SHA-256 `bbe733452e6ce871d5d2064948847aab2a71f7feda2c962ba4002f64e2d198f2`; system PowerShell 10.0.19041.1, 455680 bytes, SHA-256 `9785001b0dcf755eddb8af294a373c0b87b2498660f724e76c4d53f9c217c7a3`. Both directly verified signature Valid/Microsoft Windows. OS/tool drift stops this entry; system updates and EOL risk remain with the existing build environment owner. Task XML is pinned after registration.
+
+Fixed SID1005 InteractiveToken/LeastPrivilege, demand start only, no saved password/logon trigger/restart/forced timeout. Existing R5 handles its two-hour/sixteen-request lifecycle. Job or identity mismatch stops downstream and disables the task; never weaken or bypass the gate. No changes to other tasks, accounts, ACL, UAC, Bitvise or services.
+
+[Microsoft registration](https://learn.microsoft.com/en-us/windows/win32/taskschd/taskfolder-registertaskdefinition), [interactive token](https://learn.microsoft.com/en-us/windows/win32/taskschd/principal-logontype), [least privilege](https://learn.microsoft.com/en-us/windows/win32/taskschd/principal-runlevel) document minimum Vista support; actual execution here is Win10 only, Win7 NOT_PERFORMED. Exact implementation authority is the [approved plan](plans/A9_31_R5_SCHEDULED_DESKTOP_START.md)/ADR-0163, not a product acceptance decision.
+
+
+### A9-31 R6 外部夹具来源及入口登记（ADR-0164）
+
+仅批准Win10/PS5.1测试入口四源内扩展。继续原WIN10_PS51_NET4_CAPTURE_TEST_ONLY准确DLL/build/compiler/Framework闭包；原R5编译批准与R6执行批准独立校验，不改编译来源或声明Win7兼容。入口claim仅使用已登记FileMode.CreateNew/既有Process实例、Token及Reflection验证；不新增产品依赖、OS API、服务或系统权限。准确根、并发与旧终态负例、容量、普通桌面和UNKNOWN硬门按R6具体合同；当前只完成本地/无磁盘写入的定向判据，未冻结/部署或做Win7验证。
+
+### A9-31 R7 查询句柄捕获登记（2026-10-03，ADR-0165 Proposed）
+
+拟新增外部测试profile `WIN10_PS51_NET4_QUERY_HANDLE_CAPTURE_V2_TEST_ONLY`，源精确为 `.acceptance/a9-31-developer/product-r1/control-scripts/capture-library.cs`，仓库测试源码/Apache-2.0；源/DLL/MVID/build哈希尚未形成，NOT_LOCKED。来源为现有Win10 kernel32及Framework系统组件，既有csc/三参考版本、签名和准确哈希在[R7合同](plans/A9_31_PRODUCT_R1_R7_QUERY_HANDLE_CAPTURE_APPROVAL.md)登记，漂移拒绝，不安装软件。
+拟使用OpenProcess、GetProcessId、GetProcessTimes、GetExitCodeProcess、WaitForSingleObject、ProcessIdToSessionId、QueryFullProcessImageNameW，既有CloseHandle/Toolhelp/Token/Job查询沿用；仅PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE、句柄不继承，禁止ALL_ACCESS、终止/内存写入/debug/suspend/Job调整。新SafeHandle测试对象只提供查询、等待和Dispose；取得失败/错身份/拓扑/时间保持UNKNOWN及硬停止。
+仅Win10外部验证，不进入产品/SBOM或Win7前置，不改变D-013/D-017锁，不以API文档声明替代实际目标检查。新增C#实施、准备编译、准确R7根部署及普通桌面执行待具体批准；本轮普通driver表达式修复不代表这些新增动作获批。
+
+
+### 2026-10-03 — R7精确批准
+
+负责人回复“批准 R7 精确范围及 ADR-0165”，批准[R7合同§2–5](plans/A9_31_PRODUCT_R1_R7_QUERY_HANDLE_CAPTURE_APPROVAL.md)。仅五精确外部源、新查询/等待API、准确R7准备编译/冻结部署和普通有限桌面窗口；产品/native/锁不改，所有历史UNKNOWN和硬门保留，不提交/改系统/委派/执行Win7。实现和实机结论依实际后续证据。
+
+
+### 2026-10-03 — R7实际检查和R8提案边界
+
+[R7报告](reports/2026-10/a9_31_r7_query_capture_and_snapshot_gate_failure_2026-10-03.md)登记同已批准QueryFullProcessImageNameW固定native flags1，在最小权限非继承原对象上实际取得退出后映像。DLL15f05ce0…3c9d6e7d及source7ec6a125…859ab7b/编译器/参考/MVID严格锁定；准备检查不替代产品证据。普通桌面首Boot于snapshot绑定门失败HALTED，历史UNKNOWN保留，Win7未执行。
+ADR-0166/[R8合同](plans/A9_31_PRODUCT_R1_R8_SNAPSHOT_INTERVAL_APPROVAL.md)拟登记WIN10_PS51_NET4_QUERY_HANDLE_CAPTURE_V3_TEST_ONLY及QUERY_LIMITED_INFORMATION_SYNCHRONIZE_SNAPSHOT_V3，仅文档Proposed。拟使用相同已登记API/工具，增加时间区间、同实例双观察与diagnostic schema2，不进产品/native/SBOM或Win7前置；具体批准前不实施/编译/创建准确R8根。
+
+
+### 2026-10-03 — R8精确执行批准
+
+负责人本轮回复“批准”，批准R8合同§2–4及ADR-0166。仅五精确外部源、新快照区间/同实例双观察和schema2诊断、准确R8根内准备编译/检查/冻结部署及SID1005普通桌面有限窗口；保留R7 HALTED/UNKNOWN及全部硬门，不提交/改系统/委派/执行Win7。原审批合同SHA-256 `744236b70e84c0ad795624e51e453b8ef347641ed073fabfdea77b5f552e83ec`；原始批准记录SHA-256 `51a1b77635b3d354b7e6536c9ecc74e2b26731a140cc5849ae2bd5d71a29c4d8`。实际检查和产品结论待直接证据。
+
+
+### 2026-10-03 — R8精确执行：普通Boot查询缺口硬停止
+
+负责人本轮回复“批准”，批准R8§2–4及ADR-0166。五外部源完成准确快照区间/同实例双观察/schema2诊断，锁定编译PASS；source97154a59…1c59e1c2、DLL9de64e7d…e67094b7。Node73/19表达式/784、实际PS5.1三解析、275准入、27查询/API、19区间、16文件门、22入口/并发PASS；ASAR八负例准确继承。所有探针首失败保留，不声称已制造两个合法句柄之间的PID复用/不同creation或Session。
+Computer Use启动真实SID1005/Session3/Medium/非提升/noJob，dispatcher37244/creation639266379938146705。唯一Boot415b73bf23ba4648b0849e18e74c952b七项产品检查通过，受控断言也执行；worker在cmd PID78328/父Electron77368 OpenQueryHandle返回原生87、creation/exit UNKNOWN，HALTED，不能作为可重试普通失败。55文件/6259483 bytes全部hash一致、秘密扫描0。R8不恢复，正常Boot/同窗口成功复验/后续七phase/独立收口/Win7 NOT_PERFORMED。[直接报告](./reports/2026-10/a9_31_r8_interval_capture_and_short_lived_cmd_failure_2026-10-03.md)保留具体比较值及全部证据。
+[R9材料](./plans/A9_31_PRODUCT_R1_R9_SYNC_PROBE_RECEIPT_APPROVAL.md)/ADR-0167只为Proposed：准确只读cmd-ver原spawnSync回执的新证明合同，尚未实施/编译/创建R9。当前源码只能支持来源推断，不能把该cmd具体绑定为已知探测。A9-31仍IMPLEMENTATION_IN_PROGRESS；产品/native/锁、主工作区及历史失败/UNKNOWN保留，无提交/系统改变/委派/Win7。
+
+
+### R9 Proposed依赖/API登记（未实施）
+
+拟新增外部测试profile WIN10_ELECTRON22_NODE16_SYNC_READONLY_PROBE_RECEIPT_V1_TEST_ONLY。只复用已锁定Electron22.3.27/Node16.17.1/ABI110及现有child_process.spawnSync、fs/crypto/Buffer/计时API；来源/许可证继承已登记Electron/Node闭包，产品ZIP/manifest及模块hash按准确套件核验。新回执源码与数据schema1尚未形成，NOT_LOCKED，不能提前宣称支持或取得R9证据。
+准确系统cmd.exe路径/hash仅只读取得并锁定，限定原cmd `/d /c ver` 系统版本查询，不变参数/环境/timeout或重放。回执不能替代有副作用/managed工具的实际原句柄/Job/Stop/release门。C#原Profile/API沿用R8登记，新字节及构建记录待准确批准后实际生成。新API/证明合同只外部Win10验证，不进产品/SBOM或Win7前置，不修改D-013/D-017锁，不安装软件。范围/负例/风险与失败边界见R9 §2–4，ADR-0167 Proposed。
+
+### 2026-10-04 R9 具体批准与执行起点
+
+负责人回复“批准 R9 §2–4及 ADR-0167”，[R9合同](./plans/A9_31_PRODUCT_R1_R9_SYNC_PROBE_RECEIPT_APPROVAL.md)的原文SHA-256 `8a6ee203efe3e2c14d6afd83ba0e2b54a7a68c240985b6a73a0ace5a25d02c5b`，批准记录SHA-256 `070063d745013b43c8d6f80075245b40a8746940deceee982e18739a7a2e9b8d`。仅五个准确外部测试源及新R9范围，开始实现/检查；原R8 HALTED、历史UNKNOWN和产品source35a19250不改判。不提交、不改产品/native/锁或系统、不委派、不执行Win7。
+
+### 2026-10-04 R9 已批准计时合同的实现细化
+
+R9 §2已批准UTC和单调计时。原生查询API/C# Profile保持V3；外部PS通过现有锁定System.dll的System.Diagnostics.Stopwatch.GetTimestamp/Frequency/IsHighResolution包住同一次Snapshot，Node沿用process.hrtime.bigint。它们复用已包含于Node/.NET运行时的QueryPerformanceCounter/Frequency，无新P/Invoke、组件、权限或系统配置。实际高分辨率/frequency及跨运行时同计数域正负例未通过时拒绝装配，不采用DateTime回退。
+
+初版UTC每边16ms保守边界未能证明约23ms同步调用，原run不改判。拟用单调快照的包围区间与原spawnSync起止ns作严格包含，并对已锁定计数器到ns转换保留4096ns舍入余量；UTC继续用16ms作一致性检测，时间矛盾、缺失/反向/错频率/重复PID仍失败。所有新增字段和安全校验冻结于同R9新master/revision，未冻结的局部修复后重跑受影响检查；原八phase和首失败保留。
+
+来源：[libuv1.43.0 uv_hrtime](https://raw.githubusercontent.com/libuv/libuv/v1.43.0/src/win/util.c)及[Microsoft Framework Stopwatch参考实现](https://raw.githubusercontent.com/microsoft/referencesource/main/System/services/monitoring/system/diagnosticts/Stopwatch.cs)。参考源码只说明计时实现，不能代替本批锁定二进制和实际跨运行时边界证明。初轮已验证实际Node16.17.1/uv1.43.0/Electron22.3.27/ABI110；普通桌面产品验证仍NOT_PERFORMED。
+
+R9单调计时第二次准入保留为失败：实际调用在快照开始后创建，严格全包含拒绝，原始父/回执/三个快照及真实查询失败已保留。按R9“区间支持且唯一”的既定判据，最终实现用实际包围区间与真实调用区间的严格交集（交集两侧各4096ns舍入余量）支持观测；同一父的多回执区间与该快照相交、重复PID、无交集、UTC矛盾均拒绝。创建时间仍UNKNOWN，不能把SecondSnapshot失败或任何非OpenQueryHandle/87行转换成例外。两次准入失败不改判；尚无冻结或普通产品证据。
+
+
+### 2026-10-04 R9 外部测试闭包执行登记
+
+准确source35a19250下，外部capture source cdb3cc68f391c39e47d2193dec335c0587f1573d9b8b8cac927ead4063dfbe2a、DLL f815675cbdbf9091a7c9ca89d6898c6c5cb54738eb9798e8a6e1b3fd6fdc6a94、MVID a91f1189-675e-40de-ac0d-91a3e58c0ab4已实际形成；固定csc/参考/API不变。只读cmd-ver实际API准入通过，两个准入首失败保留；父kernel、单调计数域、返回status及当前reader/hash闭合。UTF8返回文本重编码计数不冒充原始字节；缺OS creation/query仍UNKNOWN/NOT_OBTAINED。
+[R9报告](reports/2026-10/a9_31_r9_sync_receipt_freeze_and_desktop_handoff_2026-10-04.md)列明全部定向检查和准确40+8登记文件及784/73闭包；ASAR8精确继承。普通release补充不增加API/权限，模块日志和真实Core/SQLite/UI证明分开。普通桌面/Win7未执行，不是新产品依赖/SBOM或Win7前置，无账户/ACL/Job/UAC/系统改变。
+
+
+### 2026-10-04 R10 Proposed外部Win10精确UTC API登记
+
+[R10具体合同](plans/A9_31_PRODUCT_R1_R10_PRECISE_UTC_CAPTURE_APPROVAL.md)/ADR-0168 Proposed，尚未实施或锁定新构建。拟外部Profile `WIN10_PS51_NET4_QUERY_HANDLE_CAPTURE_V4_TEST_ONLY`、API合同 `QUERY_LIMITED_INFORMATION_SYNCHRONIZE_SNAPSHOT_PRECISE_UTC_V4`，唯一新增只读kernel32!GetSystemTimePreciseAsFileTime；最低Windows8，明确不支持Win7加载，不进入产品/SBOM/D-013/D-017或Win7运行前置。
+来源为目标自带System32 kernel32.dll，Microsoft系统组件/OS许可证；当前只读快照版本10.0.19041.5915、783720bytes、SHA-256 `4636f65d449b1353100578c6cb139933cf2b134f5e246119d18968873a058bed`、签名Valid。具体批准后重新核验准确路径、版本、hash、签名和实际入口，绑定新capture source/DLL/MVID及master/revision/checks；当前记录不是新构建正式锁。
+风险为UTC读数精度、时钟反向/调整、错误OS或库版本；API缺失/值未知/反向/边界矛盾立即停止，不回退DateTime.UtcNow或扩大容差，不改系统时钟。QueryAccess/父/Session/映像/同实例/退出等原硬门保持；实际API/时钟对照未执行NOT_PERFORMED，不能声称修复已成功。官方依据见R10合同。R9普通部分证据与HALTED首观测按[直接报告](reports/2026-10/a9_31_r9_desktop_partial_pass_and_clock_boundary_halt_2026-10-04.md)保留。
+
+
+### 2026-10-04 R10具体批准
+
+负责人回复“批准”，批准[R10合同§2–4](plans/A9_31_PRODUCT_R1_R10_PRECISE_UTC_CAPTURE_APPROVAL.md)及ADR-0168。原合同SHA-256 `c388ae5ea1fc3eb73cb28f4de371f8d76db0243a0986d6cce31b9cd38c1da8d3`，原文批准SHA-256 `ef47799d2506546ec7ccee62026a0d677489b7e6b6e0a2adf0414bac15cd30d6`。仅五外部测试源、精确UTC API/V4测试Profile和准确R10准备/固定编译/准入/冻结/普通有限八组；原严格边界与全部硬门保持，不恢复R9，不改产品/native/锁或系统，不提交/委派/执行Win7。实际证据随后登记。
+<!-- A9-31 conhost diagnostic registration, approved 2026-10-04 before implementation. -->
+
+## 独立短命进程事件诊断组件（2026-10-04）
+
+依据[A9-31准确诊断批准](plans/A9_31_CONHOST_CAPTURE_DIAGNOSTIC_APPROVAL.md)，新增仅外部Win10诊断profile `WIN10_TEST_ONLY_NOT_PRODUCT_NOT_WIN7_EVIDENCE`；两源已在任务书登记，仓库自有Apache-2.0测试代码。目标Win10 build19045/PS5.1/CLR4/x64，使用既有锁定Framework64 csc和三参考，逐hash复核；新source/DLL/MVID/build编译后独立冻结，当前NOT_BUILT。不得用于Win7产品或兼容结论。
+
+API为advapi32的StartTraceW/ControlTraceW/OpenTraceW/ProcessTrace/CloseTrace，以及tdh的TdhGetPropertySize/TdhGetProperty。命名系统实时logger是Windows8+路径，仅当前Win10测试使用；进程Start/End回调内过滤准确探针父链，不输出原始ETL或其他进程字段。不可用、会话占用、丢事件、未知schema、停止不确认均失败，无降级绕过。
+
+系统组件随OS许可；advapi32.dll 10.0.19041.4522/712320bytes/SHA bde5f0e6f36a706a8a2e0fab1b362eea267aa6ee9f18aab1f899f38888c21280，tdh.dll同版/1128960bytes/SHA ff70ee258e974fb7b775c14d6f7b1be73aacb83c27f803a9f512776803e93a24，14:16Z签名均Valid。每次运行前固定路径核验；不安装新工具，不改变服务、账户、ACL或注册表。
+
+C16：用途是取得短命进程事件事实；来源为Microsoft系统组件和本仓测试源；版本/哈希与Win10边界如上；许可为OS/Apache-2.0；风险由目标过滤、有限缓冲/60秒、准确自有会话停止和零丢失门控制；替代方案是保留UNKNOWN并停止验收，不能用父退出推断子进程；交付仅独立诊断源/DLL/MVID及脱敏证据，不进入产品/SBOM。最小探针未证明所需事实则NOT_PROVEN，原R4失败保持。
+
+### 同日实际诊断构建和边界
+
+原三次最小探针完成，初次DLL继承console未产生conhost；第二次/target:winexe独立GUI宿主的Console.OutputEncoding抛IOException，未启动ETW；第三次标准输出StreamWriter修复后取得12 cmd/12 conhost完整事件、零丢失且会话停止。没有新引用或产品依赖。实际v3源732673463ac037572f30900995279b45a40f583fa9448124f61355ba67cd672b，EXE d6949a4cf8d5dac6b51fb1c644413e151eafa38780af0b515afe4189cd3589bd/19456bytes/MVID cadddfe2-38b1-4612-b47c-88f02c84cf8d；原csc/三引用/系统库逐hash一致。
+
+后续checks-r3仅加载程序集重放上述事实，源d9d0018218dace016edb3c3bd18f8eb61ae9b506163bad090c35b3570042fb22、EXE357e0c342f21ecd2f98f021103cc6ad2d735c1b3ccc542fc8b8af87382a5b295/25088bytes/MVID f4d31aa8-1d15-4a2d-880b-cd7a666fe5dd，26项通过；未运行原生探针。完整构建和失败见[r3统一报告](reports/2026-10/a9_31_product_r3_package_and_win10_execution_2026-10-04.md)；经典事件缺OS创建FILETIME、当前输出缺完整映像，不能作为普通产品或Win7 PASS。新增EnableTraceEx2/TdhGetEventInformation/固定C: QueryDosDeviceW及manifest字段补证仅Proposed，尚未登记为获批可执行组件。
+
+### 同日已批准manifest诊断组件C15/C16登记（实施前）
+
+负责人批准[manifest补证§1–3](plans/A9_31_CONHOST_MANIFEST_FIELDS_APPROVAL.md)，原文SHA256 1f61d8b26a935bca8925c4273bf146172c0546f8907e66dd93f9a4a7fac15171。两源见任务C14；独立Apache-2.0测试组件，Profile WIN10_TEST_ONLY_NOT_PRODUCT_NOT_WIN7_EVIDENCE，Win10 19045/PS5.1/CLR4/x64，固定Framework64 csc4.8.9232.0与原mscorlib/System/System.Core，不新增依赖。编译后锁定新source/EXE/MVID/pin，当前未构建。
+
+新增advapi32!EnableTraceEx2只启用自有临时session上的准确manifest provider Process Start/Stop；tdh!TdhGetEventInformation仅验证目标事件字段schema；kernel32!QueryDosDeviceW仅查询固定C:，用于完整系统映像路径映射。沿用原7个ETW/TDH API。来源均为现有Microsoft系统组件/OS许可，advapi32/tdh版本与hash按上一登记；kernel32 10.0.19041.5915/783720bytes/SHA256 4636f65d449b1353100578c6cb139933cf2b134f5e246119d18968873a058bed。构建/运行前逐hash及签名核验，不安装或修改组件。
+
+风险为provider schema/时间与OS事实不符、事件丢失、错父实例、设备映射歧义及session残留；以有界目标筛选、字段类型/长度验证、实际句柄逐字段对照、完整路径核验、零丢失及准确自有session停止控制。API或字段不可用则NOT_PROVEN，无降级绕过；不启用Analytic日志、不改ACL/服务/账户/注册表或时钟。交付仅诊断源/EXE/MVID和脱敏原始结果，不进入产品/SBOM/Win7，不授权普通控制器使用新proof。
+
+实际构建补录：manifest v3源2ecf0ee5b927fd1c8ac316e212515c62f4961002615970d27c46b5e80d0754a5，EXE1428b9f421cc86349343ee23cd2de6020082d661921c2fc7fd0a09c138a73c76/32256bytes，MVID e08a0d38-a05f-4e3d-aec5-102a2498c808；固定csc/三引用/三系统库逐hash一致。实际12 cmd/12 conhost精确字段、零丢失/停止及36项纯回放通过。v1父字段固定偏移失败保留，最终按TDH字段名读取；Stop仅basename，完整映像事实来自Start。完整build/pin/真实报告和保护核验见[handoff](reports/2026-10/a9_31_manifest_diagnostic_handoff_2026-10-04.md)。普通R5观察器及新proof接入未获批准，不由此登记为普通或Win7可用组件。
+
+### 2026-10-04 R5普通manifest观察器C15/C16登记（实施前）
+
+负责人批准[R5合同r3](plans/A9_31_MANIFEST_PROOF_R5_EXECUTION_APPROVAL.md)（原文SHA256 540a7c614482cb13db57c45855531f5fc1898ad50b66e249857287c1066ed0d5）。新增独立Apache-2.0测试组件`manifest-process-observer.cs`与`launch-manifest-observer.ps1`（路径见任务C14），Profile WIN10_TEST_ONLY_NOT_PRODUCT_NOT_WIN7_EVIDENCE，Win10 19045/PS5.1/CLR4/x64，固定Framework64 csc4.8.9232.0（SHA256 aae1db57…f116）与原mscorlib/System/System.Core，不新增依赖。沿用已登记的10个ETW/TDH/路径API（StartTraceW/ControlTraceW/OpenTraceW/ProcessTrace/CloseTrace/EnableTraceEx2、TdhGetPropertySize/TdhGetProperty/TdhGetEventInformation、kernel32!QueryDosDeviceW仅固定C:），无新增系统API；系统库逐hash与签名按上一登记核验，不安装或修改。编译后新source/EXE/MVID/build/pin单独冻结，不冒充诊断EXE字节继承。
+
+风险与控制：事件丢失、错父实例、PID+CreateTime复用、跨账户共享目录权限、会话残留与观察器失去生命周期；以每请求自有会话、有界事件/文件预算、同PID多候选HALTED、独立失败码ACCESS_OBSERVER_SHARED_ROOT、代理独占停止信号及30秒收尾门控制。会话名固定为`A9-A31-R5-Manifest-<request_id>`，仅停止准确自有会话。不进入产品/SBOM/Win7；Win7未验证。
+
+R5观察器实际构建补录：v2源b949ba520eb103548cfd08a578d76df1d3d48e46089045188dc7b4b1df112a7d，EXE21cd35311f31bb5de37f34623baed6050dceeb1a7edc3484a121b75498ba8d80/34304bytes，MVID160fb51d-083c-49fb-89fc-d364eaa1a7f0，pin f4db96d49dd19667fb8528d0b6382d2a661fe23da0b87e02d0baaae8a26e31f2；固定csc 4.8.9232.0与原三引用/系统库逐hash一致，另锁powershell.exe（9785001b…c7a3/455680bytes）与conhost.exe（b02ee54f…8963/867840bytes）的只读hash及Valid签名。v1（EXE f7bf41b5…）因普通账户无法读取管理员进程信息而被v2取代，保留不改判。准入三轮（共25个固定cmd/PowerShell根）均通过，新增仅为文件心跳，无新增系统API。不进入产品/SBOM/Win7；Win7未验证。
+
+### 2026-10-05 R6观察器C15/C16登记（实施前）
+
+负责人批准[R6合同r2](plans/A9_31_R6_RECOVERY_RESTART_AND_REMAINING_PHASES_APPROVAL.md)（原文SHA256 97d402a37c7f0b8876d2a8c0bb56cedf4ac997c57556fa6f6bda9da5e6a7826f）。观察器C#源与R5字节相同（SHA256 b949ba520eb103548cfd08a578d76df1d3d48e46089045188dc7b4b1df112a7d），在R6组件目录以固定Framework64 csc 4.8.9232.0与原三引用重新编译，新EXE/MVID/pin单独冻结，不冒充R5 v2字节继承；`launch-manifest-observer.ps1`仅替换根常量。沿用已登记的10个ETW/TDH/路径API与系统库（含powershell.exe/conhost.exe只读hash）逐hash核验，无新增依赖或系统API，不进入产品/SBOM/Win7；Win7未验证。准入三轮预算、每轮≤12固定cmd/PowerShell根，同R5。
+
+### 2026-10-05 R7观察器C15/C16登记（实施前）
+
+负责人批准[R7合同](plans/A9_31_R7_CONTROLLER_PARENT_KIND_REPAIR_APPROVAL.md)（原文SHA256 73646d58787a1fee7062a74bddfffb37114b1a7d4e816ed8cbb164d62ab5fa4e）。观察器C#源与R5/R6字节相同（SHA256 b949ba520eb103548cfd08a578d76df1d3d48e46089045188dc7b4b1df112a7d），在R7组件目录以固定Framework64 csc 4.8.9232.0与原三引用重新编译，新EXE/MVID/pin单独冻结，不冒充R5/R6字节继承；`launch-manifest-observer.ps1`仅替换根常量。沿用已登记的10个ETW/TDH/路径API与系统库（含powershell.exe/conhost.exe只读hash）逐hash核验，无新增依赖或系统API，不进入产品/SBOM/Win7；Win7未验证。准入三轮预算、每轮≤12固定cmd/PowerShell根，同R6。
+
+### 2026-10-05 R8观察器C15/C16登记（实施前）
+
+负责人批准[R8合同r2](plans/A9_31_R8_EXIT_PHASES_AND_CLICK_PROTOCOL_APPROVAL.md)（原文SHA256 eb9b1c76e0b87fc8626ca14c8272ec6e7d2bce3ffa8e5a738586e45c8590e21b）。观察器C#源与R5–R7字节相同（SHA256 b949ba520eb103548cfd08a578d76df1d3d48e46089045188dc7b4b1df112a7d），在R8组件目录以固定Framework64 csc 4.8.9232.0与原三引用重新编译，新EXE/MVID/pin单独冻结，不冒充R5–R7字节继承；`launch-manifest-observer.ps1`仅替换根常量。沿用已登记的10个ETW/TDH/路径API与系统库逐hash核验，无新增依赖或系统API，不进入产品/SBOM/Win7；Win7未验证。准入三轮预算、每轮≤12固定cmd/PowerShell根，同R7。

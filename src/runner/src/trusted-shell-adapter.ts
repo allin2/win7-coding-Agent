@@ -8,6 +8,8 @@
  */
 
 import { TrustedShellRunner, TrustedShellResult } from './trusted-shell-runner';
+import { ManagedProcessOwner } from './background-process-manager';
+import { ShellOutputChunk } from './stream-output';
 import { ShellKind } from './shell-detection';
 
 /** 与 @win7-agent/core 的 A9RunnerExecutionOptions 结构兼容。 */
@@ -16,10 +18,12 @@ export interface LoopRunnerOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
   background?: boolean;
+  managedOwner?: ManagedProcessOwner;
   shellKind?: string;
   shellPath?: string;
   envOverlay?: Record<string, string>;
   maxOutputBytes?: number;
+  onOutput?: (chunk: ShellOutputChunk) => Promise<void> | void;
 }
 
 /** 与 @win7-agent/core 的 A9RunnerExecutionResult 结构兼容。 */
@@ -39,6 +43,8 @@ export interface LoopRunnerResult {
   processTreeReaped?: boolean;
   residueRisk?: boolean;
   softDurationExceeded?: boolean;
+  outputProtocolVersion?: 3;
+  outputSummary?: TrustedShellResult['outputSummary'];
 }
 
 export interface TrustedShellLoopAdapter {
@@ -53,6 +59,7 @@ function toShellKind(value: string | undefined): ShellKind | undefined {
 function toLoopResult(result: TrustedShellResult): LoopRunnerResult {
   return {
     status: result.status,
+    ...(result.outputProtocolVersion ? { outputProtocolVersion: result.outputProtocolVersion, outputSummary: result.outputSummary } : {}),
     exitCode: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr,
@@ -97,6 +104,8 @@ export function createTrustedShellLoopAdapter(
     async execute(command: string, options: LoopRunnerOptions = {}): Promise<LoopRunnerResult> {
       const result = await runner.execute({
         command,
+        ...(options.managedOwner ? { managedOwner: options.managedOwner } : {}),
+        ...(options.onOutput ? { onOutput: options.onOutput } : {}),
         ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         // 未提供 timeoutMs 时不设置任何固定硬超时。
         ...(options.timeoutMs !== undefined && options.timeoutMs > 0 ? { timeoutMs: options.timeoutMs } : {}),

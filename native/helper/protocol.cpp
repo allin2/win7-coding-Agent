@@ -273,29 +273,39 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
     const JsonValue* schemaVersion = legacySchemaVersion
         ? legacySchemaVersion : currentSchemaVersion;
     const long long schema = schemaVersion ? JsonAsInt(*schemaVersion, -1) : -1;
-    if (schema != 1 && schema != 2) {
+    if (schema != 1 && schema != 2 && schema != 3) {
         *error = "unsupported or missing 'schema_version'";
         return false;
     }
     if ((schema == 1 && !legacySchemaVersion) ||
-        (schema == 2 && !currentSchemaVersion)) {
+        (schema >= 2 && !currentSchemaVersion)) {
         *error = "schema version field does not match the protocol version";
         return false;
     }
     config->schemaVersion = static_cast<int>(schema);
 
-    if (schema == 2) {
-        const std::vector<std::wstring> allowedKeys = {
+    if (schema >= 2) {
+        std::vector<std::wstring> allowedKeys = {
             L"schemaVersion", L"requestId", L"profileId", L"executable", L"argv",
             L"shellKind", L"shellPath", L"shellVersion", L"shellIdentity", L"shellSource",
             L"command", L"cwd", L"envOverlay", L"maxStdoutBytes", L"maxStderrBytes", L"managed",
             L"deadlineMode", L"timeoutMs", L"idleTimeoutMs",
         };
+        if (schema == 3) allowedKeys.push_back(L"outputEncoding");
         if (!ObjectHasOnlyUniqueKeys(root, allowedKeys, error)) return false;
+        if (schema == 3) {
+            const JsonValue* enc = JsonObjectGet(root, L"outputEncoding");
+            if (!enc || !ObjectHasOnlyUniqueKeys(*enc, {L"stdout", L"stderr"}, error) ||
+                !ExtractRequiredString(*enc, L"stdout", &config->stdoutEncoding, 16, error) ||
+                !ExtractRequiredString(*enc, L"stderr", &config->stderrEncoding, 16, error)) return false;
+            for (const auto& e : {config->stdoutEncoding, config->stderrEncoding}) {
+                if (e != L"utf-8" && e != L"cp936" && e != L"utf-16le") { *error = "invalid outputEncoding"; return false; }
+            }
+        }
 
         if (!ExtractRequiredString(root, L"requestId", &config->requestId, 128, error) ||
             !ExtractRequiredString(root, L"profileId", &config->profileId, 128, error) ||
-            config->profileId != L"a9-trusted-shell-current-user-v1" ||
+            config->profileId != (schema == 3 ? L"a9-trusted-shell-current-user-v2" : L"a9-trusted-shell-current-user-v1") ||
             !ExtractRequiredString(root, L"executable", &config->executable, 32767, error) ||
             !ExtractRequiredString(root, L"shellKind", &config->shellKind, 32, error) ||
             !ExtractRequiredString(root, L"shellPath", &config->shellPath, 32767, error) ||
@@ -386,8 +396,8 @@ bool ParseJsonConfig(const std::string& jsonUtf8, ProcessConfig* config,
         }
         const long long stdoutCapValue = JsonAsInt(*stdoutCap, -1);
         const long long stderrCapValue = JsonAsInt(*stderrCap, -1);
-        if (stdoutCapValue < 1024 || stdoutCapValue > kMaxOutputSizeAbsolute ||
-            stderrCapValue < 1024 || stderrCapValue > kMaxOutputSizeAbsolute) {
+        if (stdoutCapValue < 1024 || stdoutCapValue > (schema == 3 ? 1024 * 1024 : kMaxOutputSizeAbsolute) ||
+            stderrCapValue < 1024 || stderrCapValue > (schema == 3 ? 1024 * 1024 : kMaxOutputSizeAbsolute)) {
             *error = "output bound is outside the v2 limit";
             return false;
         }
@@ -487,8 +497,9 @@ bool ParseCancelControl(const std::string& jsonUtf8,
         *error = "cancel control must be a JSON object";
         return false;
     }
+    if (expectedSchemaVersion == 3 && (!ObjectHasOnlyUniqueKeys(root, {L"schemaVersion", L"type", L"requestId"}, error) || root.object.size() != 3)) return false;
     const JsonValue* schemaVersion = JsonObjectGet(
-        root, expectedSchemaVersion == 2 ? L"schemaVersion" : L"schema_version");
+        root, expectedSchemaVersion >= 2 ? L"schemaVersion" : L"schema_version");
     const JsonValue* type = JsonObjectGet(root, L"type");
     const JsonValue* requestId = JsonObjectGet(root, L"requestId");
     std::wstring controlType;
@@ -501,6 +512,42 @@ bool ParseCancelControl(const std::string& jsonUtf8,
         return false;
     }
     return true;
+}
+
+bool ParseReleaseControl(const std::string& jsonUtf8, const std::wstring& expectedRequestId,
+                         std::wstring* releaseId, std::string* error) {
+    releaseId->clear();
+    JsonValue root;
+    if (!JsonParse(jsonUtf8, &root, error) || root.type != JsonValue::Type::Object ||
+        !ObjectHasOnlyUniqueKeys(root, {L"schemaVersion", L"type", L"requestId", L"releaseId"}, error) || root.object.size() != 4) {
+        *error = "release control must have exactly four unique fields"; return false;
+    }
+    const JsonValue* version = JsonObjectGet(root, L"schemaVersion");
+    const JsonValue* type = JsonObjectGet(root, L"type");
+    const JsonValue* request = JsonObjectGet(root, L"requestId");
+    const JsonValue* id = JsonObjectGet(root, L"releaseId");
+    std::wstring controlType, controlRequest, controlId;
+    if (!version || JsonAsInt(*version, -1) != 3 || !type || !JsonAsString(*type, &controlType) || controlType != L"release" ||
+        !request || !JsonAsString(*request, &controlRequest) || controlRequest != expectedRequestId ||
+        !id || !JsonAsString(*id, &controlId) || controlId.empty() || controlId.size() > 128) {
+        *error = "release control identity mismatch"; return false;
+    }
+    for (wchar_t c : controlId) if (!((c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') ||
+        (c >= L'0' && c <= L'9') || c == L'_' || c == L'-')) { *error = "releaseId must be ASCII identifier"; return false; }
+    *releaseId = controlId; return true;
+}
+
+std::string RenderReleasedJson(const std::string& requestId, const ProcessResult& result) {
+    // This renderer cannot fabricate a release for another profile or incomplete proof.
+    if (result.schemaVersion != 3 || result.profileId != L"a9-trusted-shell-current-user-v2" || !result.ownershipReleased || result.releaseId.empty() || !result.childPid) return "";
+    auto counts = [](long long raw, long long emitted) {
+        return "{\"rawBytesRead\":" + std::to_string(raw) + ",\"emittedBytes\":" + std::to_string(emitted) +
+            ",\"omittedBytes\":" + std::to_string(raw - emitted) + "}";
+    };
+    return "{\"schemaVersion\":3,\"type\":\"execution_released\",\"requestId\":\"" + JsonEscape(Utf8ToUtf16(requestId)) +
+        "\",\"profileId\":\"a9-trusted-shell-current-user-v2\",\"releaseId\":\"" + JsonEscape(result.releaseId) + "\",\"childPid\":" + std::to_string(result.childPid) +
+        ",\"lastOutputSeq\":" + std::to_string(result.lastOutputSeq) + ",\"jobKillOnCloseDisabled\":true,\"ownershipReleased\":true,\"stdout\":" +
+        counts(result.stdoutRaw, result.stdoutEmitted) + ",\"stderr\":" + counts(result.stderrRaw, result.stderrEmitted) + "}";
 }
 
 bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error) {
@@ -529,10 +576,10 @@ bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error) {
 }
 
 std::string RenderResultJson(const std::string& requestId, const ProcessResult& result) {
-    if (result.schemaVersion == 2) {
+    if (result.schemaVersion >= 2) {
         std::string out;
         out.reserve(640 + result.stdoutBytes.size() / 3 * 4 + result.stderrBytes.size() / 3 * 4);
-        out += "{\"schemaVersion\":2,\"type\":\"execution_result\",\"requestId\":\"";
+        out += "{\"schemaVersion\":" + std::to_string(result.schemaVersion) + ",\"type\":\"execution_result\",\"requestId\":\"";
         out += JsonEscape(Utf8ToUtf16(requestId));
         out += "\",\"profileId\":\"";
         out += JsonEscape(result.profileId);
@@ -562,6 +609,12 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
         out += ",\"lowIntegrity\":"; out += result.tokenAudit.lowIntegrity ? "true" : "false";
         out += ",\"integritySid\":\"" + JsonEscape(result.tokenAudit.integritySid) + "\",\"integrityRid\":";
         out += std::to_string(static_cast<unsigned long>(result.tokenAudit.integrityRid));
+        if (result.schemaVersion == 3) {
+            out += "},\"lastOutputSeq\":" + std::to_string(result.lastOutputSeq);
+            out += ",\"stdout\":{\"rawBytesRead\":" + std::to_string(result.stdoutRaw) + ",\"emittedBytes\":" + std::to_string(result.stdoutEmitted) + ",\"omittedBytes\":" + std::to_string(result.stdoutRaw - result.stdoutEmitted) + "}";
+            out += ",\"stderr\":{\"rawBytesRead\":" + std::to_string(result.stderrRaw) + ",\"emittedBytes\":" + std::to_string(result.stderrEmitted) + ",\"omittedBytes\":" + std::to_string(result.stderrRaw - result.stderrEmitted) + "}}";
+            return out;
+        }
         out += "},\"stdoutSize\":" + std::to_string(static_cast<long long>(result.stdoutBytes.size()));
         out += ",\"stderrSize\":" + std::to_string(static_cast<long long>(result.stderrBytes.size()));
         out += ",\"stdoutBase64\":\"" + Base64Encode(result.stdoutBytes.data(), result.stdoutBytes.size());
@@ -650,7 +703,7 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
 }
 
 std::string RenderStartedJson(const std::string& requestId, const ProcessResult& result) {
-    std::string out = "{\"schemaVersion\":2,\"type\":\"execution_started\",\"requestId\":\"";
+    std::string out = "{\"schemaVersion\":" + std::to_string(result.schemaVersion) + ",\"type\":\"execution_started\",\"requestId\":\"";
     out += JsonEscape(Utf8ToUtf16(requestId));
     out += "\",\"profileId\":\"" + JsonEscape(result.profileId);
     out += "\",\"helperPid\":";
@@ -679,9 +732,21 @@ std::string RenderStartedJson(const std::string& requestId, const ProcessResult&
     return out;
 }
 
+std::string RenderOutputJson(const std::string& requestId, const char* stream, long long seq,
+                             long long offset, const unsigned char* bytes, size_t size) {
+    return "{\"schemaVersion\":3,\"type\":\"output_chunk\",\"requestId\":\"" + JsonEscape(Utf8ToUtf16(requestId)) +
+        "\",\"profileId\":\"a9-trusted-shell-current-user-v2\",\"seq\":" + std::to_string(seq) +
+        ",\"stream\":\"" + stream + "\",\"streamOffset\":" + std::to_string(offset) +
+        ",\"byteLength\":" + std::to_string(size) + ",\"dataBase64\":\"" + Base64Encode(bytes, size) + "\"}";
+}
+std::string RenderTruncatedJson(const std::string& requestId, const char* stream, const char* reason) {
+    return "{\"schemaVersion\":3,\"type\":\"output_truncated\",\"requestId\":\"" + JsonEscape(Utf8ToUtf16(requestId)) +
+        "\",\"profileId\":\"a9-trusted-shell-current-user-v2\",\"stream\":\"" + stream + "\",\"reason\":\"" + reason + "\"}";
+}
+
 std::string RenderErrorJson(const std::string& requestId, const char* code,
                             const std::string& message, int schemaVersion) {
-    std::string out = std::string("{\"") + (schemaVersion == 2 ? "schemaVersion" : "schema_version") +
+    std::string out = std::string("{\"") + (schemaVersion >= 2 ? "schemaVersion" : "schema_version") +
                       "\":" + std::to_string(schemaVersion) +
                       ",\"type\":\"error\",\"requestId\":\"";
     out += JsonEscape(Utf8ToUtf16(requestId));

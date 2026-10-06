@@ -41,6 +41,7 @@ target_include_directories(helper_logic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 if(WIN32)
     add_executable(helper
         helper.cpp
+        stream_writer.cpp
         ${HELPER_LOGIC_SOURCES}
     )
     target_include_directories(helper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

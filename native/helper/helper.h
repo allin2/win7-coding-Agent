@@ -166,6 +166,8 @@ struct ProcessConfig {
     std::wstring shellSource;
     std::wstring command;
     std::vector<std::pair<std::wstring, std::wstring>> envOverlay;
+    std::wstring stdoutEncoding;
+    std::wstring stderrEncoding;
     bool managed = false;
     bool deadlineEnabled = true;
     bool idleDeadlineEnabled = true;
@@ -228,6 +230,13 @@ struct ProcessResult {
     bool stdoutCaptureReady = false;
     bool stderrCaptureReady = false;
     DWORD childPid = 0;
+    std::wstring releaseId;
+    bool ownershipReleased = false;
+    long long lastOutputSeq = 0;
+    long long stdoutRaw = 0, stderrRaw = 0;
+    long long stdoutEmitted = 0, stderrEmitted = 0;
+    long long stdoutChunks = 0, stderrChunks = 0;
+    bool stdoutTruncated = false, stderrTruncated = false;
     std::vector<unsigned char> stdoutBytes;
     std::vector<unsigned char> stderrBytes;
     RestrictedTokenAudit tokenAudit;
@@ -360,6 +369,9 @@ bool ValidateAclPolicy(const ProcessConfig& config, std::wstring* error);
 
 // Render the execution result as a JSON response line (UTF-8, binary-safe via
 // base64 for stdout/stderr).
+bool ParseReleaseControl(const std::string& jsonUtf8, const std::wstring& expectedRequestId,
+                         std::wstring* releaseId, std::string* error);
+std::string RenderReleasedJson(const std::string& requestId, const ProcessResult& result);
 std::string RenderResultJson(const std::string& requestId, const ProcessResult& result);
 
 // Render the v2 readiness boundary. This is emitted only after the child is
@@ -368,6 +380,9 @@ std::string RenderResultJson(const std::string& requestId, const ProcessResult& 
 std::string RenderStartedJson(const std::string& requestId, const ProcessResult& result);
 
 // Render an error response line.
+std::string RenderOutputJson(const std::string& requestId, const char* stream, long long seq,
+                             long long offset, const unsigned char* bytes, size_t size);
+std::string RenderTruncatedJson(const std::string& requestId, const char* stream, const char* reason);
 std::string RenderErrorJson(const std::string& requestId, const char* code,
                             const std::string& message, int schemaVersion = 1);
 
