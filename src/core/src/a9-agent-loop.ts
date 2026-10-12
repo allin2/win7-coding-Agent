@@ -38,6 +38,11 @@ function isContextOverflowError(error: any): boolean {
     && /context_length_exceeded|maximum context length|too many tokens|prompt is too long/i.test(String(error?.message || ''));
 }
 
+// ENOTDIR: a path component is a file, so the exact target cannot exist (same fact as ENOENT).
+function isAbsentPathError(error: any): boolean {
+  return error?.code === 'ENOENT' || error?.code === 'ENOTDIR';
+}
+
 const PROJECT_INSTRUCTIONS_PREFIX = '<project_instructions source="AGENTS.md"';
 const ENVIRONMENT_FACTS_PREFIX = '<environment_facts>';
 function isProjectInstructionMessage(message: A9LoopMessage): boolean {
@@ -1425,7 +1430,7 @@ export class A9AgentLoop {
         message: this.config.redactText ? this.config.redactText(String(err?.message ?? err)) : String(err?.message ?? err),
         ...(typeof err?.oldestCursor === 'string' ? { oldestCursor: err.oldestCursor } : {}) } });
       residueRisk = err?.residueRisk === true || err?.cleanupRequired === true;
-      if (this.recoveryCheck && tc.name === 'read' && err?.code === 'ENOENT' && !residueRisk) {
+      if (this.recoveryCheck && tc.name === 'read' && isAbsentPathError(err) && !residueRisk) {
         recoveryObservationVerified = await this.verifyRecoveryPath(args.path, 'absent', signal);
       }
     }
@@ -1550,7 +1555,9 @@ export class A9AgentLoop {
           }
         }
       }
-      if (tc.name === 'read' || tc.name === 'list') this.recoveryCheck.opaque = false;
+      // Only a verified exact-directory list reveals current facts for an opaque operation.
+      // A read of an unrelated path (existing or absent) says nothing about unknown Shell effects.
+      if (tc.name === 'list') this.recoveryCheck.opaque = false;
     }
     this.conversationHistory.push({
       role: 'tool',
@@ -1580,10 +1587,10 @@ export class A9AgentLoop {
     for (;;) {
       try { canonical = path.join(await fs.promises.realpath(probe), ...suffix); break; }
       catch (error: any) {
-        if (error?.code !== 'ENOENT') throw error;
+        if (!isAbsentPathError(error)) throw error;
         // A dangling symlink has unknown destination; do not treat it as an absent file.
         try { await fs.promises.lstat(probe); return false; }
-        catch (statError: any) { if (statError?.code !== 'ENOENT') throw statError; }
+        catch (statError: any) { if (!isAbsentPathError(statError)) throw statError; }
         const parent = path.dirname(probe);
         if (parent === probe) return false;
         suffix.unshift(path.basename(probe)); probe = parent;
@@ -1594,7 +1601,7 @@ export class A9AgentLoop {
     if (observation === 'directory') await fs.promises.readdir(canonical);
     else {
       try { await fs.promises.stat(canonical); return false; }
-      catch (error: any) { if (error?.code !== 'ENOENT') throw error; }
+      catch (error: any) { if (!isAbsentPathError(error)) throw error; }
     }
     return !signal?.aborted;
   }

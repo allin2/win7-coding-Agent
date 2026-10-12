@@ -138,7 +138,8 @@ ENGINEERING_02 §138 的 p17/w16 HALTED 保持，不消费任何旧授权或新�
 | Core 路径核验 | `a9-agent-loop.ts:1571–1600` 的 verifyRecoveryPath 直接使用 fs realpath/lstat/stat/readdir。 | 跨层职责已在 ADR-0189 说明观察规则。措辞仍待负责人确认；现有字节不在本轮修复范围。 | 开发机代码阅读，d8fd760a…；Win7 实机 NOT_PERFORMED。 |
 | ADR-0189 治理 | 隔离树用 0189 追加观察规则。主工作区治理线在 DECISIONS.md:2493 声明 0153–0189 已用于并行工作树。 | 整合存在编号和引用冲突风险。当前不整合，不改 Accepted 正文；本轮文档流程可继续。措辞与编号处理待负责人确认。 | 开发机只读文档，隔离 d8fd760a…；主工作区 a53c9b9d… 加既有 dirty/untracked。 |
 
-F5 已由负责人确认，见 §7.2；ADR-0189 已选 A（原文保持，补充 ADR 待核号），见 §7.3。
+F5 已由负责人确认，见 §7.2；ADR-0189 补充已落为 ADR-0236，见 §7.3、§7.4。
+F6 与 ENOTDIR 两行已于 2026-10-12 按负责人裁决在独立复核前修复，见 §7.4，取代上文“不得自行修改”对这两行的限制；其余三行仍是已知限制。
 真实 Electron、Win10、Win7 与指定独立审核均 NOT_PERFORMED。
 批准材料见 [A9-33 §6](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)；限制依据见 [D1 §7](../reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md#7-已知限制后续再修d3)。
 
@@ -158,3 +159,16 @@ ADR-0189 保持 Accepted 原文。批准未来新增一条补充 ADR，补充 F6
 本轮不新增 ADR、不分配编号。编号须在整合前核对所有工作树后另行裁决。
 §7.1 的 F6、ENOTDIR 仍是已知限制，本裁决不修复它们，也不改动 `src/` 代码。
 第 4～6 项涉及 A9-33，见 [A9-33 §6.5](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)。
+补充 ADR 编号已取 ADR-0236，见 §7.4。
+
+### 7.4 F6 与 ENOTDIR 独立复核前修复（2026-10-12）
+
+负责人在聊天中原话：“A选，新开审核会话”。F6 与 ENOTDIR 登记为选项 A，在独立复核前修复。
+独立审核者是负责人另开的新审核会话，由负责人启动；执行代理不参与审核，也不签审核结论栏。
+改动路径均在 §4 白名单内：`src/core/src/a9-agent-loop.ts`、`src/core/tests/a9-task-continue.test.ts`。文档为 ADR-0236 及索引、本任务、STATUS、STATUS_LOG。
+行为见 [ADR-0236](../DECISIONS.md)：opaque 门只由已核验目录的 `list` 解除；ENOTDIR 与 ENOENT 同按路径不存在处理，软链接越界仍阻断。
+不改：错误码可读性、Core fs 范围、`src/state`、`src/shell`、native、依赖、schema 和 IPC。
+开发机验证：State 84、Core 218（原 212 加新增 6 项）、Shell 133 全部 PASS，`verify:quick` 退出 0。两个反例断言失败后恢复同一 SHA，见 `.acceptance/a9-32-developer/mutation-results-r5.json`。
+残余限制：任何已核验目录的 `list` 仍可解除 opaque 门，包括无关目录；彻底解决需要基线比较，另立任务。
+ENOTDIR 在 Win7 NTFS 上的实际错误码、真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+本节改动在提交前是未提交差异。独立复核对象将从 `d8fd760a…` 变为修复提交；独立审核交接包须在提交后重新绑定，原 D4 绑定的 `d8fd760a…` 和 r2 清单保留为历史。

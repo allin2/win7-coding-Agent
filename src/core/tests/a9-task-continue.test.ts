@@ -133,3 +133,39 @@ it.each([
   await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: [pending] } });
   expect(f.workspaceService.write).toHaveBeenCalledTimes(allowed ? 1 : 0);
 });
+
+const gateBlocks = (f: ReturnType<typeof scenario>) => f.loop.getConversationHistory().filter((m) => m.role === 'tool' && m.content.includes('A9_CONTINUE_READ_ONLY_CHECK_REQUIRED')).length;
+it.each([
+  { label: 'absent (ENOENT)', readError: Object.assign(new Error('absent'), { code: 'ENOENT' }) },
+  { label: 'existing', readError: undefined },
+])('an unrelated $label read does not release an opaque unknown Shell; a verified list does', async ({ readError }) => {
+  const f = scenario([{ name: 'read', args: { path: 'unrelated.txt' } }, { name: 'shell', args: { command: 'echo blocked' } },
+    { name: 'list', args: { path: '.' } }, { name: 'shell', args: { command: 'echo fresh' } }], { readError });
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: [], opaqueUnknown: true } });
+  expect(f.runner.execute).toHaveBeenCalledTimes(1);
+  expect(gateBlocks(f)).toBe(1);
+});
+it('reading the affected path clears only that path; the opaque gate waits for a verified list', async () => {
+  const f = scenario([{ name: 'read', args: { path: 'a.txt' } }, { name: 'write', args: { path: 'other.txt', content: 'blocked' } },
+    { name: 'list', args: { path: '.' } }, { name: 'write', args: { path: 'other.txt', content: 'fresh' } }]);
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: ['a.txt'], opaqueUnknown: true } });
+  expect(f.workspaceService.write).toHaveBeenCalledTimes(1);
+  expect(f.workspaceService.write.mock.calls[0][1]).toBe('fresh');
+  expect(gateBlocks(f)).toBe(1);
+});
+it.each(['ENOENT', 'ENOTDIR'])('%s below a file parent observes the exact target as absent', async (code) => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-notdir-'));
+  fs.writeFileSync(path.join(workspaceRoot, 'file.txt'), 'x');
+  const f = scenario([{ name: 'read', args: { path: 'file.txt/child' } }, { name: 'write', args: { path: 'other.txt', content: 'fresh' } }],
+    { workspaceRoot, readError: Object.assign(new Error(code), { code }) });
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: ['file.txt/child'] } });
+  expect(f.workspaceService.write).toHaveBeenCalledTimes(1);
+});
+it('ENOTDIR below a symlink to an outside file stays closed', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-notdir-link-')), workspaceRoot = path.join(root, 'workspace');
+  fs.mkdirSync(workspaceRoot); fs.writeFileSync(path.join(root, 'outside.txt'), 'x'); fs.symlinkSync(path.join(root, 'outside.txt'), path.join(workspaceRoot, 'link'));
+  const f = scenario([{ name: 'read', args: { path: 'link/child' } }, { name: 'write', args: { path: 'other.txt', content: 'unsafe' } }],
+    { workspaceRoot, readError: Object.assign(new Error('ENOTDIR'), { code: 'ENOTDIR' }) });
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: ['link/child'] } });
+  expect(f.workspaceService.write).not.toHaveBeenCalled();
+});

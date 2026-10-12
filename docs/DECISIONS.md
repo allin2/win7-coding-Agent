@@ -2769,3 +2769,14 @@ Registration/readback succeeded; actual scheduled launch inherited a Host Job an
 - 原目标：继续生成提示只进入 `turn_started` 审计，不新增 `conversation.request`。普通/分页投影过滤既存继续请求。继续 checkpoint 使用原目标；原请求被清理后恢复返回 `A9_RECOVERY_GOAL_UNAVAILABLE`，不从继续提示或 checkpoint 推导新原目标。
 - 编号：0189 是此隔离树的下一个空号。主工作区治理编号已漂移，存在整合编号冲突风险；整合前核号并按裁决处理。此次不改主工作区或 ADR-0152 既有正文。
 - 证据：基线 `571ec550…` 加本轮未提交差异。开发机 State 84、Core 212、Shell 133 项 PASS。8 个反例均为断言失败，逐项绑定与恢复 SHA 见 `.acceptance/a9-32-developer/mutation-results-r4.json`。win32 路径用例是开发机模拟，Win7 实机 NOT_PERFORMED。真实 Electron、打包、远端和阶段签发不在本轮范围。
+
+## ADR-0236 A9-32 未知 Shell 观察门只由已核验目录列表解除，ENOTDIR 按路径不存在处理（ADR-0189 补充）
+
+- 状态：Accepted（2026-10-12；负责人在聊天中对 F6 与 ENOTDIR 选择“独立复核前修复”方案 A，并批准新增此补充 ADR）。ADR-0189 正文保持原字节。
+- 背景：F6 是已知限制。未知 Shell 之后，任何已核验的 `read`（包括读不存在的无关路径）都会清除 opaque 观察门。ENOTDIR 是另一条已知限制：路径某一级是文件时，核验函数只接受 ENOENT，ENOTDIR 会使观察门无法解除。
+- 决定一：opaque 门只由持久化 `tool_end` 成功后的、已核验精确目录的 `list` 解除。`read` 只消除与其路径键相同的待核查路径，不解除 opaque 门。
+- 决定二：ENOENT 与 ENOTDIR 都表示精确目标当前不存在。Core 对二者使用同一核验：工作区边界、软链接和未知目的地规则不变。父级是指向工作区外文件的软链接时，仍按越界阻断。
+- 不变：其他读取错误、越界、取消、超时、残留和审计失败仍阻断。表 schema、recoveryRevision 哈希输入、IPC 和后续 Policy 与新目标绑定审批不变。
+- 残余限制：本决定收窄 F6，没有消除它。未知 Shell 的影响范围未知，任何一个已核验目录的 `list` 仍可解除 opaque 门，包括无关目录。彻底解决需要与基线比较，另立任务。
+- 编号：0236 取自核号结果。主工作区含未提交改动的 `DECISIONS.md` 最大编号 ADR-0235，其他本地与远端分支最大编号 ADR-0189。整合前须再次核号，被占用时按负责人裁决改号并统一引用。
+- 证据（开发机，基线 `571ec550…` 加本轮未提交差异）：State 84、Core 218、Shell 133 项 PASS，`verify:quick` 退出 0。两个反例均断言失败：回退本决定一时 3 项用例变红，回退决定二时 2 项用例变红；原字节与恢复字节 SHA 相同，见 `.acceptance/a9-32-developer/mutation-results-r5.json`。ENOTDIR 在 Win7 NTFS 上的实际错误码 NOT_PERFORMED，真实 Electron、打包和 Win7 实机均 NOT_PERFORMED。

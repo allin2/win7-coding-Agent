@@ -206,7 +206,7 @@ WIN7-43 仅暂定第二批候选号。冻结前完整核对 refs、候选注册�
 | 3 ADR-0189 | A | ADR-0189 原文保持；批准未来新增补充 ADR；编号整合前另行核对裁决 |
 | 4 §6.1 路径 | A，条件批准 | 20 个路径与本地实施提案在 §1 前置满足后生效；前置当前未满足 |
 | 5 Electron | A | 本地不下载；Electron 取证在获准的新 Windows 包阶段进行 |
-| 6 目标绑定 | A，值未提供 | 采用本节清单和 §6.2 步骤 6 的退出取证对象；机器、账户、目录等值待负责人提供 |
+| 6 目标绑定 | A，Win7 已指定 | 采用本节清单和 §6.2 步骤 6 的退出取证对象；Win10 确认、普通桌面账户、目录等值待负责人提供 |
 
 §6.1 路径生效前须满足 §1：独立复核者已指定并完成复核，完整干净基线 SHA 已形成。
 生效时执行代理登记前置证据，再把任务状态改为 APPROVED_FOR_IMPLEMENTATION（AGENTS.md C14）。
@@ -218,7 +218,7 @@ WIN7-43 仅暂定第二批候选号。冻结前完整核对 refs、候选注册�
 | 绑定项 | 当前值 | 说明 |
 |---|---|---|
 | Win10 目标机器与管理账户 | 候选，待负责人确认 | 文档记载 `Administrator@192.168.1.4:22`、主机 `WIN-2JQ66JE4HTQ`；ENGINEERING_02 §105 指定为可信，技术完整性 UNKNOWN；旧值不自动成为 A9-33 授权 |
-| Win7 目标机器与普通账户 | UNKNOWN | 本任务文档未记载；机器、账户/SID、会话/权限/Job 合同待负责人提供 |
+| Win7 目标机器与普通账户 | 已指定，实际身份待执行前核验 | 负责人 2026-10-12 聊天回复“用候选”：管理账户 `dccs-chaizl`，地址 `192.168.1.3`，主机 `DCCS-CHAIZL-PC`；普通账户 `dccs-chaizl-pc\\agent`，Medium、非提升（连接参数见主工作区 `docs/REMOTE_WINDOWS_CONNECTIONS.md` §3，本分支不含该文件）。SID、Session、Job 与地址有效性执行前直接核验，当前 NOT_PERFORMED；HostKeyAlias 沿用既有锁定记录，不写入本文 |
 | Win10 普通桌面账户 | UNKNOWN | 账户/SID、Session、Integrity、Elevation、InJob 待负责人提供 |
 | 部署/工作区/dataRoot/证据目录 | UNKNOWN | 每个绝对根、权限、容量待负责人提供；证据根在候选外 |
 | driver 版本与 SHA-256 | UNKNOWN | 新源与新包形成后才能计算，不填占位值 |

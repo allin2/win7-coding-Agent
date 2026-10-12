@@ -1946,3 +1946,8 @@ D5 第 3～6 项裁决（2026-10-12）：负责人在聊天中原话“第3到6�
 ADR-0189 保持原文，批准未来新增补充 ADR，编号整合前另行核对（[A9-32 §7.3](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#73-adr-0189-处理裁决2026-10-12)）。
 A9-33 §6.1 的 20 个路径在 §1 前置满足后生效；不下载 Electron；目标值未提供，八项绑定清单见 [A9-33 §6.5](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)。
 A9-33 Status 与 Phase-Gate 不变；真实 Electron、Win10、Win7、独立审核均 NOT_PERFORMED。
+补充（2026-10-12）：负责人对 Win7 目标回复“用候选”，登记 `dccs-chaizl@192.168.1.3`、普通账户 `agent`；实际身份执行前核验，NOT_PERFORMED。
+
+F6/ENOTDIR 复核前修复与独立审核者（2026-10-12）：负责人在聊天中原话“A选，新开审核会话”。独立审核者为负责人另开的新审核会话，尚未启动。
+修复见 [A9-32 §7.4](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#74-f6-与-enotdir-独立复核前修复2026-10-12) 和 ADR-0236：opaque 门只由已核验目录的 `list` 解除，ENOTDIR 按路径不存在处理。
+开发机 State 84、Core 218、Shell 133 PASS，`verify:quick` 退出 0，两个反例断言失败并恢复同一 SHA。改动未提交；残余限制是无关目录的 `list` 仍可解除 opaque 门。真实 Electron、Win10、Win7 均 NOT_PERFORMED。

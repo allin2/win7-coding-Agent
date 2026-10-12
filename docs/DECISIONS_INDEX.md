@@ -192,3 +192,4 @@
 | ADR-0187 | A9-31 r4 Win10重验：新根R2同源重编取证组件并换绑其构建批准（ADR-0186补充） | Accepted |
 | ADR-0188 | A9-31 登记 `A9_31_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
 | ADR-0189 | A9-32 继续前观察缺失路径、目录与路径身份（ADR-0152补充） | Accepted |
+| ADR-0236 | A9-32 未知 Shell 观察门只由已核验目录列表解除，ENOTDIR 按路径不存在处理（ADR-0189补充） | Accepted |
