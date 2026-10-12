@@ -1950,4 +1950,6 @@ A9-33 Status 与 Phase-Gate 不变；真实 Electron、Win10、Win7、独立审�
 
 F6/ENOTDIR 复核前修复与独立审核者（2026-10-12）：负责人在聊天中原话“A选，新开审核会话”。独立审核者为负责人另开的新审核会话，尚未启动。
 修复见 [A9-32 §7.4](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#74-f6-与-enotdir-独立复核前修复2026-10-12) 和 ADR-0236：opaque 门只由已核验目录的 `list` 解除，ENOTDIR 按路径不存在处理。
-开发机 State 84、Core 218、Shell 133 PASS，`verify:quick` 退出 0，两个反例断言失败并恢复同一 SHA。改动未提交；残余限制是无关目录的 `list` 仍可解除 opaque 门。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+开发机 State 84、Core 218、Shell 133 PASS，`verify:quick` 退出 0，两个反例断言失败并恢复同一 SHA。残余限制是无关目录的 `list` 仍可解除 opaque 门。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+提交（2026-10-12，负责人授权“两个都提交”）：修复提交 `59a3f6507ecac3c0c89fdcd6fc9b8ef79ceba73c`，审核交接包重绑提交 `7504832a64d2ba879dcba436676c84ea5f0d9fc8`；均未推送、未合并。
+审核清单 r3 的 SHA-256 为 `51ac0ca0…`。r4 的 4 个 Core 反例在修复提交上未重跑，NOT_PERFORMED。新审核会话由负责人启动，尚未启动。

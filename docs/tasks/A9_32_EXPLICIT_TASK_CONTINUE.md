@@ -171,4 +171,6 @@ ADR-0189 保持 Accepted 原文。批准未来新增一条补充 ADR，补充 F6
 开发机验证：State 84、Core 218（原 212 加新增 6 项）、Shell 133 全部 PASS，`verify:quick` 退出 0。两个反例断言失败后恢复同一 SHA，见 `.acceptance/a9-32-developer/mutation-results-r5.json`。
 残余限制：任何已核验目录的 `list` 仍可解除 opaque 门，包括无关目录；彻底解决需要基线比较，另立任务。
 ENOTDIR 在 Win7 NTFS 上的实际错误码、真实 Electron、Win10、Win7 均 NOT_PERFORMED。
-本节改动在提交前是未提交差异。独立复核对象将从 `d8fd760a…` 变为修复提交；独立审核交接包须在提交后重新绑定，原 D4 绑定的 `d8fd760a…` 和 r2 清单保留为历史。
+修复已提交为 `59a3f6507ecac3c0c89fdcd6fc9b8ef79ceba73c`。独立复核对象由 `d8fd760a…` 变为该提交。
+审核交接包已在 `7504832a…` 重绑，新清单为 `review-bundle-manifest-r3.json`（SHA-256 `51ac0ca0…`）。原 D4 绑定的 `d8fd760a…` 和 r2 清单保留为历史。
+r4 的 4 个 Core 反例在修复提交上未重跑，状态 NOT_PERFORMED，原因见交接包 §4.1。
