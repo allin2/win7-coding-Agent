@@ -1941,3 +1941,8 @@ Gate 保持 A9_32_IMPLEMENTATION_AUTHORIZED；未暂存、提交、推送、合�
 
 F5 授权来源确认（2026-10-12）：负责人在聊天中确认“我授权了A9-32”，按 D5 第 1 项选项 A 登记，见 [A9-32 §7.2](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#72-f5-授权来源确认2026-10-12)。
 范围仍为 §6 的基线 `571ec550…` 与 §1–5 本地实现；不含提交、推送、合并、远端、下载、冻结、发布和门 A/B。Gate 保持 A9_32_IMPLEMENTATION_AUTHORIZED；ADR-0189 与 D5 第 2～6 项待裁决。
+
+D5 第 3～6 项裁决（2026-10-12）：负责人在聊天中原话“第3到6项按推荐选A”。第 2 项（独立审核者）未裁决。
+ADR-0189 保持原文，批准未来新增补充 ADR，编号整合前另行核对（[A9-32 §7.3](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#73-adr-0189-处理裁决2026-10-12)）。
+A9-33 §6.1 的 20 个路径在 §1 前置满足后生效；不下载 Electron；目标值未提供，八项绑定清单见 [A9-33 §6.5](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)。
+A9-33 Status 与 Phase-Gate 不变；真实 Electron、Win10、Win7、独立审核均 NOT_PERFORMED。

@@ -9,6 +9,8 @@ A9-30/31 原开发结论保持。F1～F3 已修复；开发机 State84/Core212/S
 生产页面交互为 SURROGATE；真实 Electron/新包/Win7/独立审核 NOT_PERFORMED。
 A9-32 Gate 保持 IMPLEMENTATION_AUTHORIZED；[本轮报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)给出准确源/待提交范围。
 第二批、完整 Alpha 2 与 RC 未裁决。ENGINEERING_02 §138 HALTED 保持。
+2026-10-12 负责人对 D5 第 3～6 项选 A：ADR-0189 补充待核号，A9-33 路径条件批准，不下载 Electron，目标值待提供（[A9-33 §6.5](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)）。
+独立审核者（D5 第 2 项）未指定；A9-33 保持 DRAFT_READY_FOR_REVIEW。
 原工作树及旧候选、数据库、首失败不变。
 
 
@@ -390,4 +392,4 @@ R8开跑前独立复核发现四项缺口，负责人要求的候选外本地修
 **整批Win10跨根组合（2026-10-05，ADR-0180）：** 负责人裁决A9-34推迟、选B并批准；R5–R7补正式评审10项全部通过（无远端动作，基线0差异），组合结论`WIN10_CROSS_ROOT_COMBINED_PASS_WITH_LIMITS`（`win10-cross-root-combined.json`）。这不是DEVELOPER_VERIFIED、独立验收或Win7结论；未在Win7实机验证。
 
 开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
-[D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；F5 已确认，ADR-0189 待负责人确认，真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。
+[D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；F5 已确认，第 3～6 项已选 A（第 2 项独立审核者待裁决），真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。

@@ -116,7 +116,7 @@ Status 仍为 DRAFT_READY_FOR_REVIEW；Phase-Gate 仍为 A9_33_CONTRACT_PENDING_
 父提交为 `571ec550b5e09611f55557563d0cf2f1a4a40d1b`。managed 锁为 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e`。
 正式实施前还须满足 §1 的开发合同、独立审核和完整干净基线门。
 生产者实施后产生新的源码提交，执行前重新绑定完整 SHA；不得冒用 d8fd760a… 作为新实现身份。
-F5 原授权来源与 ADR-0189 措辞/编号均待负责人确认。
+F5 已确认，ADR-0189 补充已选 A，见 §6.5。
 
 ### 6.1 拟批准精确允许路径
 
@@ -195,3 +195,35 @@ CMD 入口沿原 §3 的 ASCII/CRLF；其他新文本 UTF-8 无 BOM、LF。
 发现阻断级源码问题，只记录并上报；产品修复回到相应任务，不能扩大本提案路径。
 WIN7-43 仅暂定第二批候选号。冻结前完整核对 refs、候选注册、目录、历史失败与编号占用。
 核号后锁/manifest/报告/authority/pin 必须一致；此处没有冻结或执行结果。
+
+### 6.5 负责人裁决登记（2026-10-12）
+
+负责人在聊天中原话：“第3到6项按推荐选A”。对应 [D5](../reports/2026-10/a9_32_owner_decisions_2026-10-12.md) 第 3～6 项；第 2 项（指定独立审核者）未裁决。
+本节只登记裁决，不改 Status（DRAFT_READY_FOR_REVIEW）和 Phase-Gate（A9_33_CONTRACT_PENDING_APPROVAL）。
+
+| D5 项 | 选择 | 对本任务的效果 |
+|---|---|---|
+| 3 ADR-0189 | A | ADR-0189 原文保持；批准未来新增补充 ADR；编号整合前另行核对裁决 |
+| 4 §6.1 路径 | A，条件批准 | 20 个路径与本地实施提案在 §1 前置满足后生效；前置当前未满足 |
+| 5 Electron | A | 本地不下载；Electron 取证在获准的新 Windows 包阶段进行 |
+| 6 目标绑定 | A，值未提供 | 采用本节清单和 §6.2 步骤 6 的退出取证对象；机器、账户、目录等值待负责人提供 |
+
+§6.1 路径生效前须满足 §1：独立复核者已指定并完成复核，完整干净基线 SHA 已形成。
+生效时执行代理登记前置证据，再把任务状态改为 APPROVED_FOR_IMPLEMENTATION（AGENTS.md C14）。
+生效前不得创建 `codex/a9-33-batch2-win7-acceptance` 实现，不得写入 §6.1 路径。
+提交/推送、下载、远端目录/传输/执行、authority、冻结、门 A/B 仍须各自准确授权。
+
+§6.3 八项绑定的当前状态：
+
+| 绑定项 | 当前值 | 说明 |
+|---|---|---|
+| Win10 目标机器与管理账户 | 候选，待负责人确认 | 文档记载 `Administrator@192.168.1.4:22`、主机 `WIN-2JQ66JE4HTQ`；ENGINEERING_02 §105 指定为可信，技术完整性 UNKNOWN；旧值不自动成为 A9-33 授权 |
+| Win7 目标机器与普通账户 | UNKNOWN | 本任务文档未记载；机器、账户/SID、会话/权限/Job 合同待负责人提供 |
+| Win10 普通桌面账户 | UNKNOWN | 账户/SID、Session、Integrity、Elevation、InJob 待负责人提供 |
+| 部署/工作区/dataRoot/证据目录 | UNKNOWN | 每个绝对根、权限、容量待负责人提供；证据根在候选外 |
+| driver 版本与 SHA-256 | UNKNOWN | 新源与新包形成后才能计算，不填占位值 |
+| 取证/调度组件版本与 SHA-256 | UNKNOWN | 待独立工具 source/artifact/构建记录 |
+| 精确调用数与运行 ID | UNKNOWN | 实现后提供 phase→argv→计数表，不超过 2 小时/16 请求上限提案 |
+| 实际退出证据绑定方案 | 方案已定，结果 NOT_PERFORMED | 采集对象按 §6.2 步骤 6：句柄与 creation ticks、父链、退出码与时间、对话框实际返回、失败收尾 |
+
+Win10、Win7、普通桌面入口与正式执行均 NOT_PERFORMED。ENGINEERING_02 p17/w16 不恢复，旧预算及已消费授权不借用。
