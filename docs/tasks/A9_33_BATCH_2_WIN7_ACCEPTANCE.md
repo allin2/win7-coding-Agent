@@ -107,3 +107,91 @@ G0–G4、两次连续预演、双干净构建、冻结、门 A、正式执行�
 具体目标/账户/目录、driver/version、调用数和 actual exit 仍为 UNKNOWN，须执行前准确批准。
 A9-34 延期、G3 恢复 cleanup-required 无产品内处置、G4 native退出取消未测均明列限制。
 不恢复 ENGINEERING_02 p17/w16，不追加工具平台、预算或远端派发。
+
+## 6. A9-33 批准请求包（2026-10-12）
+
+本节为开发机文档提案，绑定整合基线 `d8fd760a1c283b638996bde50c90fc7d2d139ccb`。
+Status 仍为 DRAFT_READY_FOR_REVIEW；Phase-Gate 仍为 A9_33_CONTRACT_PENDING_APPROVAL。
+头部 Source Baseline 的 NOT_BOUND 及 §5 保留历史时点。本节准确 SHA 是拟批准的产品整合输入，不是正式候选或已批准实现源。
+父提交为 `571ec550b5e09611f55557563d0cf2f1a4a40d1b`。managed 锁为 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e`。
+正式实施前还须满足 §1 的开发合同、独立审核和完整干净基线门。
+生产者实施后产生新的源码提交，执行前重新绑定完整 SHA；不得冒用 d8fd760a… 作为新实现身份。
+F5 原授权来源与 ADR-0189 措辞/编号均待负责人确认。
+
+### 6.1 拟批准精确允许路径
+
+路径和最小责任见 [D1 §3](../reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md#3-d1b逐文件最小变更提案)。
+以下共 20 个精确路径。此提案补原 §3 的 A9-32 开发锁；原 managed 锁不改。
+- `scripts/release/build-a9-product-v3.mjs`。
+- `src/shell/product/a9-package-runtime.js`。
+- `src/shell/tests/product/a9-batch2-driver-entry.cjs`。
+- `scripts/release/test/a9-batch2-package.test.mjs`。
+- `scripts/release/test/a9-package.test.mjs`。
+- `src/shell/tests/product/a9-batch2-contract.test.ts`。
+- `src/shell/tests/product/a9-package-runtime.test.ts`。
+- `release/win7-product-v3/a9-32-input-lock.json`。
+- `release/win7-product-v3/a9-batch2-input-lock.json`。
+- `release/win7-product-v3/a9-batch2-package-integrity.cjs`。
+- `release/win7-product-v3/a9-batch2-report.cjs`。
+- `release/win7-product-v3/a9-batch2-smoke.cjs`。
+- `release/win7-product-v3/a9-batch2-fixtures.cjs`。
+- `release/win7-product-v3/A9_BATCH2_WIN7_VALIDATION.md`。
+- `release/win7-product-v3/README.md`。
+- `release/win7-product-v3/RUN_A9_BATCH2_INTEGRITY.cmd`。
+- `release/win7-product-v3/RUN_A9_BATCH2_SMOKE.cmd`。
+- `release/win7-product-v3/RUN_A9_BATCH2_REPORT_VERIFY.cmd`。
+- `release/win7-product-v3/a9-batch2-desktop-controller.ps1`。
+- `release/win7-product-v3/a9-batch2-desktop-request.cjs`。
+
+拟批准分支仍为 `codex/a9-33-batch2-win7-acceptance`。本轮在 A9-32 树只编辑文档。
+不批准后台/继续产品语义修复，不批准旧取证组件变更。缺口超出上述路径时先记录并停止相关实现。
+CMD 入口沿原 §3 的 ASCII/CRLF；其他新文本 UTF-8 无 BOM、LF。
+提交/推送、下载、远端目录/传输/执行、authority、冻结、门 A/B均须准确授权，不能由路径批准推导。
+
+### 6.2 最短真实链路的阶段断言提案
+
+下表均为计划断言，没有已执行结果。证据文件名是拟用闭集；证据根必须由负责人绑定在候选外。
+先完成当前包/目标/普通身份/旧树生命周期准入，再进入链路。main/preload/IPC/State/native 必须来自当前包。
+
+| 步骤 | 输入 | 预期可观察结果 | 拟证据文件 | 失败即停条件 |
+|---|---|---|---|---|
+| 1 启动 | 准确新 ZIP/manifest/锁、工作区/dataRoot、模式、批准 driver/run-id；一次普通桌面入口 | 当前产品首绘；实际 source/native/SQLite/ABI 一致；SID/Session/Integrity/Elevation/Job 满足合同 | `01-start-identity.json`、`01-package-load.json`、`01-start.png`、`product.log` | 身份或包完整性不明、加载失败、旧树退出未知、错误模式或审计失败；停止所有依赖动作 |
+| 2 后台输出 | 经实际产品入口启动一个批准的有界后台夹具，记录 owner/handle | 进程结束前可见 tick/stdout/stderr；SQLite 先落盘；卡片/输出与同一 handle 绑定 | `02-background.json`、`02-output-frames.jsonl`、`state.sqlite`、`02-output.png` | 未 ready、错属/错序/缺审计、秘密出口或输出超限；保存首失败并停止链路 |
+| 3 Stop | 点击该后台句柄 Stop，不传任意 PID | 卡片即时反馈；同一 Job/进程树实际退出；输出/审计终态一致，无未知残留 | `03-stop.json`、`03-held-exit.json`、`03-process-tree.json`、`03-stop.png` | cancel/终态/持有句柄退出不明，cleanup_required，审计缺失；不以 PID 消失代签退出 |
+| 4 中断/重启零请求 | 在批准可恢复点中断当前任务；保留旧 Turn；重启/刷新，采集计数基线与增量 | 恢复事实卡出现；旧 Turn 终态不改；重启/刷新新增 Provider/工具请求为零 | `04-interruption.json`、`04-restart-counters.json`、`04-task-turn-events.json`、`04-card.png` | 自动派发、旧命令/审批重放、事实错属、计数缺失或未知生命周期；硬停止 |
+| 5 主动继续 | 对当前 recoveryRevision 点击继续；再提交同一 key 的重复动作；原高影响动作重新审批 | 一个新 Turn 关联原任务；重复 key 仅返回同一身份；未知副作用先核查；旧批准不可执行；新 Turn 接 Stop | `05-continue-ipc.json`、`05-provider-requests.jsonl`、`05-tool-audit.jsonl`、`05-turn-dedup.json`、`05-focus-scroll.png` | 错 revision/错属放行、重复请求、旧批准复用、预算/必需审计失败或未经观察的副作用；保存并停止 |
+| 6 正常退出 | 从真实产品退出入口完成已批准的可见退出选择；核对全部登记树 | 记录真实对话框选择与实际返回；产品/driver/helper/Shell 树的同实例退出码和时间可核验；证据完整回收 | `06-dialog-response.json`、`06-held-exit.json`、`06-postflight.json`、`evidence-manifest.json` | 任一身份/退出/后飞行/秘密扫描未知或失败；不以顶层退出 0 签产品 PASS |
+
+最短链路不替代 §5 的 S01–S06/BG/CONT/SAFE/UI、正式报告负例、预演或双构建。
+旧 key 的重复提交、焦点/滚动及新高影响确认须按实际入口取证；不能用 Mock 代替正式退出。
+
+### 6.3 资源上限与批准前绑定清单
+
+沿用 §5，拟一个普通桌面窗口、最多 2 小时/16 请求。这是资源上限提案，不是已获预算。
+所有准备、重复提交与失败调用均计入实际批准调用数；实现后提供精确 phase→argv→计数表，不超过上限。
+
+| 批准前必须由负责人绑定 | 当前值 | 必需内容 |
+|---|---|---|
+| Win10 目标机器与管理账户 | UNKNOWN | 主机/地址/OS；管理仅传输/校验/调度，不代签普通桌面 |
+| Win7 目标机器与普通账户 | UNKNOWN | Win7 SP1 x64、机器、账户/SID、会话/权限/Job 合同 |
+| Win10 普通桌面账户 | UNKNOWN | 账户/SID、实际 Session、Integrity、Elevation、InJob |
+| 部署/工作区/dataRoot/证据目录 | UNKNOWN | 每个绝对根、权限、容量、候选外证据及旧树生命周期 |
+| driver 版本与 SHA-256 | UNKNOWN | 新源、新包实际 driver 字节及准确命令哈希 |
+| 取证/调度组件版本与 SHA-256 | UNKNOWN | 独立工具 source/artifact/构建记录、适用运行时与闭包 |
+| 精确调用数与运行 ID | UNKNOWN | phase/命令闭集、run-id、重复/失败计数、时间边界 |
+| 实际退出证据绑定方案 | UNKNOWN | 句柄/creation ticks、父链、退出码/时间、对话框实际返回、失败收尾 |
+
+实际退出结果只能执行后取得。批准前由负责人绑定其采集对象与判据，不预填成功。
+当前目标背景见 [D5 第6项](../reports/2026-10/a9_32_owner_decisions_2026-10-12.md#6-win10win7-目标账户与目录绑定)。
+旧地址、账户或根不自动成为 A9-33 授权。ENGINEERING_02 p17/w16 不恢复，旧预算及已消费授权不借用。
+
+### 6.4 停止、诊断与核号
+
+身份、完整性、权限、安全、必需审计或未知生命周期失败，立即停止所有依赖派发与下游 Gate。
+首失败与原始字节先保存；结果写候选外。旧 FAIL/UNKNOWN 与 HALTED 保留。
+同类失败连续两轮仍未解释或闭环时，暂停整批重试，先最小复现与共同根因诊断。
+此规则来自负责人本轮提供的 AGENTS.md §6；不延长等待、减少断言或弱化判据。
+其他独立且已授权文档工作可继续。到达时限/请求上限停止接单，不自动续预算。
+发现阻断级源码问题，只记录并上报；产品修复回到相应任务，不能扩大本提案路径。
+WIN7-43 仅暂定第二批候选号。冻结前完整核对 refs、候选注册、目录、历史失败与编号占用。
+核号后锁/manifest/报告/authority/pin 必须一致；此处没有冻结或执行结果。

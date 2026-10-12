@@ -155,3 +155,19 @@ Core 原生/Provider/依赖路径未改变。ADR-0152 正文保持，追加 ADR-
 r1 全部清单、patch、日志与构建保存字节保持。新清单 supersedes 指向 r1 清单 SHA，不改旧结论。
 26 文件准确 bytes/SHA 及 r2 patch SHA 见 `review-bundle-manifest-r2.json`；复制用列表见 `sha256-files-r2.txt`。文件集合没有增加。
 提交提议只覆盖该26文件，authorization=NOT_GRANTED。所有 remaining 项为 NOT_PERFORMED。
+
+## 9. 已知限制，后续再修（2026-10-12追加）
+
+本节为开发机代码/文档阅读，绑定提交 `d8fd760a1c283b638996bde50c90fc7d2d139ccb`。
+前文检查与 r2 清单是提交前快照；不回改其字节或历史结果。
+本轮不重新执行那些检查。负责人要求登记限制后推进文档主流程。
+| 项 | 现象与触发条件 | 影响及不阻断本轮主流程的理由 | 证据层级与绑定 |
+|---|---|---|---|
+| F6 | 未知 Shell 恢复时，读取无关但在工作区内的缺失路径。已审计 ENOENT 后，`src/core/src/a9-agent-loop.ts:1553` 无条件执行 `recoveryCheck.opaque = false`。 | 未知 Shell 的观察门会被清除；Shell 仍受原 Policy 与新审批约束。负责人本轮要求登记后继续文档流程。此登记不批准正式安全判据，不代表所有 Shell 副作用已核查。 | 开发机代码阅读，d8fd760a…；本轮反例实验 NOT_PERFORMED。 |
+| ENOTDIR | 目标父级为文件。`a9-agent-loop.ts:1583,1586,1597` 只接受 ENOENT，ENOTDIR 会抛出。 | 对应观察门无法解除，主动继续被阻断；没有放行副作用。此边缘路径不阻断批准材料编制。实际行为状态 UNKNOWN，代码阅读，未实验。 | 开发机代码阅读，d8fd760a…；运行实验 NOT_PERFORMED。 |
+| 错误码可读性 | 恢复卡存在 blockedReason 时，`src/shell/product/renderer/a9-workbench.js:1025–1026` 直接显示英文错误码。 | 影响卡片诊断可读性，不改变 IPC/Policy/审批判定；不阻断文档流程。 | 开发机代码阅读，d8fd760a…；本轮真实 Electron NOT_PERFORMED。 |
+| Core 路径核验 | `a9-agent-loop.ts:1571–1600` 的 verifyRecoveryPath 直接使用 fs realpath/lstat/stat/readdir。 | 跨层职责已在 ADR-0189 说明观察规则。措辞仍待负责人确认；现有字节不在本轮修复范围。 | 开发机代码阅读，d8fd760a…；Win7 实机 NOT_PERFORMED。 |
+| ADR-0189 治理 | 隔离树用 0189 追加观察规则。主工作区治理线在 DECISIONS.md:2493 声明 0153–0189 已用于并行工作树。 | 整合存在编号和引用冲突风险。当前不整合，不改 Accepted 正文；本轮文档流程可继续。措辞与编号处理待负责人确认。 | 开发机只读文档，隔离 d8fd760a…；主工作区 a53c9b9d… 加既有 dirty/untracked。 |
+
+不得自行修改上述问题代码。F5 与 ADR-0189 措辞/编号仍待负责人确认。
+本轮生产者分析、批准提案及审核交接见 [D1](a9_33_producer_gap_analysis_2026-10-12.md)、[D4](a9_32_independent_review_handoff_2026-10-12.md)、[D5](a9_32_owner_decisions_2026-10-12.md)。

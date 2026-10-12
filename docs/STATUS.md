@@ -388,3 +388,6 @@ R8开跑前独立复核发现四项缺口，负责人要求的候选外本地修
 **R9执行结果（2026-10-05）：** 按ADR-0179新根只跑Recovery一个请求（request d1a04183…，normal-short revision c75f5734…，无人工点击）：控制器PHASE_PASS_REQUIRES_EVIDENCE_REVIEW、driver PASS（崩溃16项、重启23项，含保留未知/OS层已退出/Stop被拒/切换与正常关闭被阻断四项新断言），隔离测试退出码0，23实例全部已退出；入口随后经负责人批准的`stop.json`正常结束（dispatcher-final COMPLETED），观察器终态核对通过（64事件、零丢失），完整回收87文件、秘密扫描0，`review-phase-r9.py`=DIRECT_CURRENT_SOURCE_PHASE_PASS。该PASS不证明崩溃后产品可正常关闭（A9-34）。整批Win10是否通过待负责人裁决；未在Win7实机验证。
 
 **整批Win10跨根组合（2026-10-05，ADR-0180）：** 负责人裁决A9-34推迟、选B并批准；R5–R7补正式评审10项全部通过（无远端动作，基线0差异），组合结论`WIN10_CROSS_ROOT_COMBINED_PASS_WITH_LIMITS`（`win10-cross-root-combined.json`）。这不是DEVELOPER_VERIFIED、独立验收或Win7结论；未在Win7实机验证。
+
+开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
+[D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；F5/ADR-0189 待负责人确认，真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。

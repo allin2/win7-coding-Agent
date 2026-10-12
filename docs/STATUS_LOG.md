@@ -1935,3 +1935,6 @@ Codex对R2证据集聚焦只读复核P0/P1/P2=0/0/0（并补足派生文件反�
 8 个反例全部为断言失败；原/恢复 SHA 相同，绑定最终 r2 清单。首次夹具编译、目录权限反例和注入编译失败保留。
 F5 授权来源待负责人确认，不扩写 §6。真实 Electron、打包、新源 Win10、Win7、独立审核、完整 Alpha2 检查 NOT_PERFORMED。
 Gate 保持 A9_32_IMPLEMENTATION_AUTHORIZED；未暂存、提交、推送、合并或改 PR。保护核查与准确待提交范围见[本轮报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)。
+
+开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
+[D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；F5/ADR-0189 待负责人确认，真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。

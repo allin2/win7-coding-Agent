@@ -69,3 +69,6 @@
 - 这些数字不可直接合并；重新验证后应写入 `docs/status/latest-validation.json`，并绑定最终代码 commit。
 
 - [A9-32 本地实现与第二批准备（2026-10-11）](2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)：开发机定向 PASS，真实 Electron/Win7 未执行。
+
+开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](../tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
+[D4 独立审核交接](2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](2026-10/a9_32_owner_decisions_2026-10-12.md)；F5/ADR-0189 待负责人确认，真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。
