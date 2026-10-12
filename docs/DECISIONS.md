@@ -2457,7 +2457,7 @@
 
 ## ADR-0152 A9-32 用户主动继续中断任务提案
 
-- 状态：Proposed（2026-10-01，未批准实现）
+- 状态：Accepted（2026-10-11，本轮负责人直接实施指令）
 - 背景：用户已选择“用户点击继续”，第一批历史加载和预算基础已完成。
 - 提案：[A9-32](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md)在严格身份/revision与SQLite事务去重后创建关联的新Turn；恢复事实摘要并重核模式、Provider、AGENTS.md、当前文件和预算。
   未完成工具结果标未知，先读现状；旧Shell/工具调用/审批不重放；重启零自动请求。新事件payload版本化，无表迁移。
@@ -2465,6 +2465,10 @@
 - 2026-10-02待审补充：绑定A9-31已审核整合SHA/managed锁；未改native可提议精确继承，
   Runtime/Core/State/Renderer的继续、审计/预算/恢复仍直接检查。仍Proposed。
 
+
+- 2026-10-11批准依据：负责人要求“按照这个规划制定实施计划，并新开窗口，采用gpt-6.1 sol xhigh实施”。
+  本轮批准 A9-32 §1–5 本地范围、准确基线 571ec550b5e09611f55557563d0cf2f1a4a40d1b 及同范围修复/验证。
+  不代签独立审核、真实 Electron、Win7、完整 Alpha2、Git提交/推送、远端或候选门。
 
 ## ADR-0153 A9-30 v26 开发检查包及独立返回复核登记
 
@@ -2754,3 +2758,14 @@ Registration/readback succeeded; actual scheduled launch inherited a Host Job an
 - 决定：A9-31阶段门登记为`A9_31_DEVELOPER_VERIFIED`，源码为本地提交`8d207ab`（未推送）。
 - 已知限制：G3重启后`cleanup_required`无产品内处置（A9-34推迟，A9-33须列明）；G4 Esc/取消未实测；Shell Policy静态识别边界（ADR-0184）；conhost证明仅解除“普通环境未真实触发cmd父分支”一项，不扩大到PowerShell父分支、重复可靠性、原生QueryHandle成功或Win7，原查询`UNKNOWN`保留。
 - 边界：不签发独立验收、Win7（`Win7-Validation`保持`NOT_PERFORMED`）、Alpha2/RC、推送/合并/发布或A9-32/33/34任何状态；未在Win7实机验证。
+
+
+## ADR-0189 A9-32 继续前观察缺失路径、目录与路径身份（ADR-0152补充）
+
+- 状态：Accepted（2026-10-11；负责人在本聊天明确要求修复 F1～F3，并追加此观察规则决定）。本批准只绑定本轮隔离树修复。A9-32 §6 的原始授权来源待负责人确认，不据此扩大原批准。
+- 决定：`read` 的 ENOENT 可以确认精确路径不存在。Core 再核验工作区真实边界与当前不存在事实。精确目录的成功 `list` 可以确认目录当前可读；父目录或其他目录不能代替。Workspace 的扫描错误可能被吞掉，Core 额外要求该目录 `readdir` 成功。
+- 安全：只有持久化 `tool_end` 成功后才消除对应观察门。权限、越界、取消、超时、其他读取错误、残留和审计失败仍阻断。异常入口清零观察标记。失效或不可核验的软链接不按不存在处理。后续副作用仍经原 Policy 与新目标绑定审批。
+- 路径：仅内存比较使用工作区相对键。对应平台 path API 接受工作区内绝对路径，折叠点段并保留越界拒绝。win32 统一分隔符并默认折叠大小写；POSIX 保留字面反斜杠和大小写。`recoveryPathPlatform` 与 `recoveryPathCaseInsensitive` 可注入，默认继承宿主平台；支持的 Win7 NTFS 宿主因此默认不区分大小写。不改变持久化路径、schema 或 recoveryRevision 哈希输入。
+- 原目标：继续生成提示只进入 `turn_started` 审计，不新增 `conversation.request`。普通/分页投影过滤既存继续请求。继续 checkpoint 使用原目标；原请求被清理后恢复返回 `A9_RECOVERY_GOAL_UNAVAILABLE`，不从继续提示或 checkpoint 推导新原目标。
+- 编号：0189 是此隔离树的下一个空号。主工作区治理编号已漂移，存在整合编号冲突风险；整合前核号并按裁决处理。此次不改主工作区或 ADR-0152 既有正文。
+- 证据：基线 `571ec550…` 加本轮未提交差异。开发机 State 84、Core 212、Shell 133 项 PASS。8 个反例均为断言失败，逐项绑定与恢复 SHA 见 `.acceptance/a9-32-developer/mutation-results-r4.json`。win32 路径用例是开发机模拟，Win7 实机 NOT_PERFORMED。真实 Electron、打包、远端和阶段签发不在本轮范围。

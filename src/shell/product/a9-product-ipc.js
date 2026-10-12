@@ -15,6 +15,7 @@ const A9_ACTIONS = Object.freeze({
   PROVIDER_PROBE: 'a9.provider.probe',
   SHELL_CONFIGURE: 'a9.shell.configure',
   TURN_SUBMIT: 'a9.turn.submit',
+  TASK_CONTINUE: 'a9.task.continue',
   TURN_RESUME_APPROVAL: 'a9.turn.resumeApproval',
   TURN_STOP: 'a9.turn.stop',
   CONVERSATION_CREATE: 'a9.conversation.create',
@@ -121,6 +122,13 @@ function createA9ProductRequestHandler(options) {
           exactObject(payload, ['kind', 'envOverlay'], 'A9_PAYLOAD_INVALID');
           return runtime.configureShell(payload);
         }
+        case A9_ACTIONS.TASK_CONTINUE:
+          exactObject(payload, ['conversationId', 'taskId', 'interruptedTurnId', 'recoveryRevision'], 'A9_PAYLOAD_INVALID');
+          if (!['conversationId', 'taskId', 'interruptedTurnId'].every((key) => typeof payload[key] === 'string' && payload[key].length > 0 && payload[key].length <= 256) ||
+              typeof payload.recoveryRevision !== 'string' || !/^[a-f0-9]{64}$/.test(payload.recoveryRevision)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid continuation identity'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return runtime.continueTask(payload);
         case A9_ACTIONS.TURN_SUBMIT: {
           exactObject(payload, ['prompt'], 'A9_PAYLOAD_INVALID');
           return runtime.submitTurn(payload.prompt);

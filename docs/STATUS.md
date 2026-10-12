@@ -1,5 +1,17 @@
 # 当前项目状态
 
+## A9-32 隔离实施入口（2026-10-11）
+
+A9-32 本地实现已获准，基线 `571ec550…`，分支 `codex/a9-32-explicit-continue`。
+合同见[A9-32 §6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#6-本轮本地实施批准与影响登记2026-10-11)。
+A9-30/31 原开发结论保持。F1～F3 已修复；开发机 State84/Core212/Shell133 PASS。
+本轮绑定 r2 源清单，8 个最终字节反例均断言失败并恢复。F5 授权来源待负责人确认。
+生产页面交互为 SURROGATE；真实 Electron/新包/Win7/独立审核 NOT_PERFORMED。
+A9-32 Gate 保持 IMPLEMENTATION_AUTHORIZED；[本轮报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)给出准确源/待提交范围。
+第二批、完整 Alpha 2 与 RC 未裁决。ENGINEERING_02 §138 HALTED 保持。
+原工作树及旧候选、数据库、首失败不变。
+
+
 > 本页是当前状态的唯一人类可读入口，只保留当前快照、阻断项与边界。历史报告中的测试数量不自动代表当前基线。
 > 2026-09-24 之前的逐条时间线已原文迁移到 [STATUS_LOG.md](STATUS_LOG.md)；新的时间线条目追加到该文件，本页只更新结论。
 

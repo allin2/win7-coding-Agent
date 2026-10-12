@@ -47,3 +47,5 @@ Accepted ADR 正文不得改写。下表“当前处置”为 2026-09-24 整理�
 - [A9-30 开发机收口交接包](A9_30_DEVELOPER_CLOSEOUT_HANDOFF.md)：DEVELOPER_VERIFIED，v26双构建/重锁、新开发包与Win10受影响交互及最终独立复核完成；[裁决](../reports/2026-10/a9_30_developer_closeout_decision_2026-10-02.md)，Win7 NOT_PERFORMED。
 
 - [A9-31源码交接与构建前置](A9_31_IMPLEMENTATION_HANDOFF.md)：批准范围内本地实现，精确差异提交待具体批准；不等于开发机/Win7收口。
+
+A9-32 交互说明：[主动继续 Demo](a9-32-explicit-continue-demo/index.html)，演示非验收证据。

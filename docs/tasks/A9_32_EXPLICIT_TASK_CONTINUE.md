@@ -1,13 +1,13 @@
 # A9-32 — 用户主动继续中断任务
 
 ```text
-Status: DRAFT_READY_FOR_REVIEW
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: EXECUTION_CAPABILITY
 Target Branch: codex/a9-32-explicit-continue
-Source Baseline: NOT_BOUND (requires approved A9-31 integration commit; inspection source 32ee0b48edd286c77aa543bdda9eb834fd4576aa)
-Phase-Gate: A9_32_DESIGN_PENDING_APPROVAL
+Source Baseline: 571ec550b5e09611f55557563d0cf2f1a4a40d1b
+Phase-Gate: A9_32_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0152 (Proposed)
+Decision: ADR-0152 (Accepted)
 ```
 
 ## 1. 授权与产品语义
@@ -82,3 +82,46 @@ git -c core.fsmonitor=false diff --check
 复用已锁定 A9-31 native，须核对源码、Profile、helper/锁/依赖哈希一致，且没有受变动调用行为影响的遗漏。
 Runtime/Core/State/Renderer 变化后的继续与共享审计/预算/恢复不能只按 native 未变继承。
 完整准入与扩测规则见 [验证矩阵](../plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md)。
+
+## 6. 本轮本地实施批准与影响登记（2026-10-11）
+
+负责人直接指令：“按照这个规划制定实施计划，并新开窗口，采用gpt-6.1 sol xhigh实施”。
+执行范围以[推进顺序 §6](../plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#6-第二批实施计划与新窗口交接2026-10-11)为准。
+本轮批准上述 §1–5 本地实现及同范围必要修复、验证。历史待审时点保持。
+原合同 SHA-256 `54041ffcaca6da76a32ccb6671a4e8405d80c4c862c4638fc6407fa9a093fa49`。
+准确基线 `571ec550b5e09611f55557563d0cf2f1a4a40d1b`，已包含 A9-30/31。
+隔离分支 `codex/a9-32-explicit-continue`；原两工作区 dirty/untracked 保留。
+
+用户可见结果：中断事实卡提供主动继续；新 Turn 接现有 Stop。重启与刷新零派发。
+影响 State/Core/Runtime/Schema IPC/preload/Renderer；不增加表、依赖、原生能力或权限。
+先编译七模块，再执行 §5 定向检查；消费者使用本工作树当前 dist。
+managed 锁保持 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e`。
+原生证据仅为可提议继承；继续、审计、预算、恢复与新包入口必须直接检查。
+
+交互说明登记于[Demo](../plans/a9-32-explicit-continue-demo/index.html)。
+继续卡列原目标、确认步骤、路径/验证摘要、未知结果及阻断原因。
+按钮使用原生 button，支持 Enter/Space；点击后显示“正在继续”。
+刷新更新同一卡，保持焦点与用户滚动；失败保留诊断，允许新中断 Turn 主动重试。
+
+两工作树治理差异：隔离基线未含 2026-10-06 在制治理改动。
+本轮遵守负责人提供的更严格 C14、证据与输出规则，不批量复制治理文件或脚本。
+新任务索引补当前入口；旧索引内容保留为历史。Accepted ADR 正文不改写。
+真实 Electron 前读取两级验收流程；GUI、打包、远端与正式候选证据分列。
+未授权提交、推送、合并、远端写入、系统修改、删除、冻结、发布或门 A/B。
+ENGINEERING_02 §138 的 p17/w16 HALTED 保持，不消费任何旧授权或新增预算。
+
+## 7. 本轮本地交付与剩余门（2026-10-11）
+
+开发机 F1～F3 修复与准确 §5 增量检查 PASS；State 84 / Core 212 / Shell 133。
+准确源/消费者身份见 r2 清单；8 个最终字节行为反例均断言失败并恢复。
+原 §6 授权来源待负责人确认。本轮修复直接授权不扩大 §6。
+真实文件/SQLite 的只读核查后新 write、持久去重及 Stop/重试有直接开发证据。
+生产页面键盘、焦点、滚动、失败与 Stop 为 SURROGATE。
+真实 Electron、打包、新源 Win10、Win7、独立审核均 NOT_PERFORMED。
+本任务保持 A9_32_IMPLEMENTATION_AUTHORIZED，不提前签 DEVELOPER_VERIFIED。
+结果、准确源/消费者身份、首失败和待提交范围见[本轮报告](../reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)。
+表 schema、依赖和 native 不变。事件保留后去重仍绑定现存 Turn 元数据。
+原用户目标缺失时返回 A9_RECOVERY_GOAL_UNAVAILABLE；不得使用旧继续提示嵌套。
+路径不存在可以由已审计 ENOENT 观察；目录必须成功列出精确路径。
+观察规则、平台键与编号冲突风险见 ADR-0189。
+原任务前文的 NOT_PERFORMED 是草稿时点；当前证据以本节及报告为准。

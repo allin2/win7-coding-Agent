@@ -1222,3 +1222,22 @@ describe('A9-30 streamed activity cards', () => {
     expect(item.outputEl.children).toHaveLength(0);
   });
 });
+
+describe('A9-32 recovery card uses production DOM and preserves node identity', () => {
+  it('renders bounded facts and blocks the button with a visible reason, then updates the same node', () => {
+    const harness = createRendererDomHarness();
+    const script = fs.readFileSync(path.join(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+    const fragment = script.slice(script.indexOf('  function updateContinuationCard('), script.indexOf('  function renderTurnDropped('));
+    const state = { running: false, continuingTaskId: null as string | null }; const click = jest.fn();
+    const box: any = { document: harness.document, state, continueInterruptedTask: click };
+    vm.runInNewContext(fragment + ';this.render = updateContinuationCard;', box);
+    const block: any = { root: new harness.FakeNode() };
+    const recovery = { taskId: 'task', originalGoal: '原目标', confirmedSteps: ['read: recorded'], changedPaths: ['中文.txt'], verification: 'not_verified', unknownResults: [{ status: 'result_unknown' }], canContinue: false, blockedReason: 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED' };
+    box.render(block, recovery); const card = block.continueEl;
+    expect(card.textContent).toContain('原目标'); expect(card.textContent).toContain('副作用结果未知'); expect(card.textContent).toContain('A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED'); expect(block.continueButton.disabled).toBe(true);
+    card.scrollTop = 80; recovery.canContinue = true; recovery.blockedReason = ''; state.continuingTaskId = 'task'; box.render(block, recovery);
+    expect(block.continueEl).toBe(card); expect(card.scrollTop).toBe(80); expect(block.continueButton.textContent).toBe('正在继续'); expect(block.continueButton.disabled).toBe(true);
+    state.continuingTaskId = null; box.render(block, recovery); expect(block.continueButton.disabled).toBe(false);
+    box.render(block, null); expect(block.continueEl).toBeNull();
+  });
+});

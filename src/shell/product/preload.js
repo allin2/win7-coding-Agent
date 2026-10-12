@@ -57,6 +57,9 @@ const productApi = Object.freeze({
     probeProvider: () => a9Request('a9.provider.probe', {}),
     configureShell: (values) => a9Request('a9.shell.configure', values),
     submitTurn: (prompt) => a9Request('a9.turn.submit', { prompt }),
+    continueTask: (conversationId, taskId, interruptedTurnId, recoveryRevision) => a9Request('a9.task.continue', {
+      conversationId, taskId, interruptedTurnId, recoveryRevision,
+    }),
     resumeApproval: (approvalId, decision, bindingDigest, conversationId, taskId, turnId) => a9Request('a9.turn.resumeApproval', {
       approvalId, decision, bindingDigest, conversationId, taskId, turnId,
     }),

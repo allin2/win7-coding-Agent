@@ -1333,3 +1333,20 @@ describe('F5: pending approval keeps active state and resume continues the same 
     }
   }, 30_000);
 });
+
+it('A9-32 permits a fresh continuation alongside a healthy owned background process without relaxing switching', async () => {
+  const env = makeEnv(); const fixture = await startBackgroundFixture(); const runtime = makeRuntime(env, true);
+  try {
+    runtime.setMode('full_access'); await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+    await runtime.submitTurn('start managed process');
+    const snapshot = runtime.getSnapshot(); expect(snapshot.managedProcesses.some((item: any) => item.lastProbeStatus === 'running')).toBe(true);
+    const db = new Database(path.join(env.dataRoot, 'a9-state.db'));
+    db.prepare("INSERT INTO a9_tasks(task_id,session_id,status,created_at,updated_at) VALUES('continue-task',?,'interrupted','2026-01-01','2026-01-01')").run(snapshot.activeConversationId);
+    db.prepare("INSERT INTO a9_turns(turn_id,task_id,session_id,status,outcome_json,created_at,updated_at) VALUES('continue-old','continue-task',?,'interrupted','{}','2026-01-01','2026-01-01')").run(snapshot.activeConversationId);
+    db.prepare("INSERT INTO a9_events(session_id,turn_id,kind,event_type,payload_json,created_at) VALUES(?,NULL,'model','conversation.request',?,'2026-01-01')").run(snapshot.activeConversationId, JSON.stringify({ taskId: 'continue-task', requestPrompt: 'continue' }));
+    const recovery = runtime.getSnapshot().recoveryTasks.find((item: any) => item.taskId === 'continue-task');
+    expect(recovery.canContinue).toBe(true); expect(runtime.canLeaveWorkspace().allowed).toBe(false);
+    const result = await runtime.continueTask({ conversationId: recovery.conversationId, taskId: recovery.taskId, interruptedTurnId: recovery.interruptedTurnId, recoveryRevision: recovery.recoveryRevision });
+    expect(result.ok).toBe(true); expect(result.continuation.turnId).not.toBe('continue-old'); expect(runtime.canLeaveWorkspace().allowed).toBe(false); db.close();
+  } finally { await runtime.shutdown(); await fixture.close(); }
+});

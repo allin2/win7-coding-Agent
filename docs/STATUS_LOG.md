@@ -1911,3 +1911,27 @@ R2普通入口一次跑完10请求，全部首次通过正式评审，dispatcher
 ### 2026-10-06：A9-31 登记 DEVELOPER_VERIFIED
 
 Codex对R2证据集聚焦只读复核P0/P1/P2=0/0/0（并补足派生文件反向换绑证明），按已批准登记材料登记`A9_31_DEVELOPER_VERIFIED`（ADR-0188），源码本地提交`8d207ab`未推送。已知限制：A9-34推迟、Esc/取消未实测、Policy识别边界、conhost仅cmd父分支。Win7/独立验收/Alpha2/RC不签发；未在Win7实机验证。
+
+## A9-32 本地授权登记（2026-10-11）
+
+负责人本轮直接实施指令登记 A9-32 APPROVED_FOR_IMPLEMENTATION、ADR-0152 Accepted。
+隔离工作树从准确 `571ec550b5e09611f55557563d0cf2f1a4a40d1b` 创建。
+四份合同哈希与交接一致；原主工作区及 A9-31 工作树未修改。
+产品检查、真实 Electron、Win7 尚未执行；提交/推送/远端/冻结/门 A/B 未授权。
+
+## A9-32 本地实现与准确增量检查（2026-10-11）
+
+基线 `571ec550b5e09611f55557563d0cf2f1a4a40d1b`，12产品/测试文件未提交；State82/Core183/Shell125开发机PASS。
+重启/去重、实际文件核查后新写、旧审批、失败/Stop、审计/预算与正常后台共存已检查。
+生产页面六项为SURROGATE；真实Electron/打包/新源Win10/Win7和独立审核NOT_PERFORMED。
+任务Gate不升级，完整Alpha2未裁决；A9-33仍草稿，具体准备见[报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)。
+本轮没有提交/推送/远端/冻结/发布；ENGINEERING_02 HALTED保持。
+
+
+## A9-32 独立复核修复与 r2 清单（2026-10-11）
+
+执行代理仅在原隔离树修复 F1～F3。基线 `571ec550…` 与 26 文件未提交差异保持。
+开发机 State84/Core212/Shell133、七模块编译 PASS。12 产品/测试文件集合 SHA-256 `d8cf72fbe590e01eab974a176a5ccd9c7f01071cc349c8375c7b2206bd291637`。
+8 个反例全部为断言失败；原/恢复 SHA 相同，绑定最终 r2 清单。首次夹具编译、目录权限反例和注入编译失败保留。
+F5 授权来源待负责人确认，不扩写 §6。真实 Electron、打包、新源 Win10、Win7、独立审核、完整 Alpha2 检查 NOT_PERFORMED。
+Gate 保持 A9_32_IMPLEMENTATION_AUTHORIZED；未暂存、提交、推送、合并或改 PR。保护核查与准确待提交范围见[本轮报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)。

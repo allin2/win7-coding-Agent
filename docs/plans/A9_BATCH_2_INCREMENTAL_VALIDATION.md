@@ -90,3 +90,21 @@ C2已批准A9-31增量合同；本文件其他未来阶段仍待具体批准。
 `.acceptance/a9-31-developer/handoff/local-evidence-matrix-r1.json`，逐项绑定组件SHA、日志SHA及本地环境。
 本地模拟native消息和POSIX进程不作为Windows直接证据；修改helper/Runner/runtime后的S01–S06、BG/SAFE/UI/PACKAGE
 维持MUST_RERUN，未为任何新Win10/Win7包签发INHERITED_EVIDENCE。
+
+## 7. A9-32 本地影响与后续准入（2026-10-11）
+
+A9-32 本地 §1–5 已批准，增量命令本轮直接执行。
+准确基线 `571ec550…`，未提交源差异与检查见[报告](../reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)。
+State 82/Core 183/Shell 125 和编译为开发机 PASS。生产页面交互为 SURROGATE。
+native/Runner源、依赖/锁不变；当前 native 不重构建。
+没有签发未来 source 的 INHERITED_EVIDENCE，原报告继续绑定原 run。
+
+| 范围 | 本地本轮 | 新包/Win10/Win7 |
+|---|---|---|
+| State/CONT/SAFE | 当前事实、事务/Turn去重、未知副作用、审批、审计、预算直接开发检查 | MUST_RERUN；真实 Node16/SQLite ABI110及包内入口 |
+| Runtime/IPC/UI | 当前 dist、文件/SQLite、本地HTTP及实际生产页面/SURROGATE | MUST_RERUN；真实 Electron/preload、滚动焦点/Stop/正常退出 |
+| native BUILD/S04解码 | 未变源码/锁，ELIGIBLE_FOR_REVIEW | 先核字节/参数/配置/调用适用及原报告；新包加载与共享集成直接执行 |
+| S01–S06/BG/恢复 | 原合同本地回归直接执行；Windows native未执行 | MUST_RERUN；不能以源码未改继承共享派发与生命周期 |
+| PACKAGE/ENV/审核 | NOT_PERFORMED | 新 source/ZIP/锁/实际身份/闭包/普通出口与独立审核直接绑定 |
+
+原矩阵未来继承未批准的边界保持。未测项和旧 FAIL/UNKNOWN/HALTED 不改判。

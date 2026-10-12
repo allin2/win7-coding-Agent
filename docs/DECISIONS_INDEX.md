@@ -155,7 +155,7 @@
 | ADR-0149 | A9-29 必需审计故障与 Provider 响应完整性修复 | Accepted |
 | ADR-0150 | helper v3 和 A9-30 Shell 运行中输出 | Accepted |
 | ADR-0151 | A9-31 后台进程模型工具与显式释放提案 | Accepted |
-| ADR-0152 | A9-32 用户主动继续中断任务提案 | Proposed |
+| ADR-0152 | A9-32 用户主动继续中断任务提案 | Accepted |
 | ADR-0153 | A9-30 v26 开发检查包及独立返回复核登记 | Proposed |
 | ADR-0154 | A9-30 v26 构建身份事实校验 | Proposed |
 | ADR-0155 | 第二批增量证据与独立新候选验收提案 | Proposed |
@@ -191,3 +191,4 @@
 | ADR-0186 | A9-31 r4开发包与Win10单根全量重验 | Accepted |
 | ADR-0187 | A9-31 r4 Win10重验：新根R2同源重编取证组件并换绑其构建批准（ADR-0186补充） | Accepted |
 | ADR-0188 | A9-31 登记 `A9_31_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
+| ADR-0189 | A9-32 继续前观察缺失路径、目录与路径身份（ADR-0152补充） | Accepted |

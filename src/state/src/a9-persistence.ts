@@ -70,6 +70,20 @@ interface A9EventRow {
   created_at: string;
 }
 
+export interface A9TaskContinueInput {
+  conversationId: string;
+  taskId: string;
+  interruptedTurnId: string;
+  recoveryRevision: string;
+}
+export interface A9TaskRecovery extends A9TaskContinueInput {
+  originalGoal: string;
+  confirmedSteps: string[];
+  changedPaths: string[];
+  verification: string;
+  unknownResults: Array<{ toolName: string; callId: string; status: 'result_unknown'; paths: string[] }>;
+}
+
 export class A9PersistenceManager {
   private constructor(
     readonly db: SqliteDatabase,
@@ -917,6 +931,99 @@ export class A9PersistenceManager {
     return interrupted;
   }
 
+  /** A9-32: derive recovery from durable lifecycle/tool facts, never assistant prose. */
+  getTaskRecovery(workspacePath: string, sessionId: string, taskId: string): A9TaskRecovery | null {
+    const conversation = this.requireConversation(sessionId);
+    const active = this.db.prepare('SELECT active_session_id FROM a9_workspace_conversation_state WHERE workspace_path = ?').get(workspacePath) as any;
+    if (conversation.workspacePath !== workspacePath || conversation.state !== 'active' || active?.active_session_id !== sessionId) {
+      throw a9PersistenceError('A9_CONTINUE_IDENTITY_MISMATCH', '继续仅允许当前工作区的活动对话。');
+    }
+    const task = this.db.prepare('SELECT * FROM a9_tasks WHERE task_id = ? AND session_id = ?').get(taskId, sessionId) as any;
+    if (!task) throw a9PersistenceError('A9_CONTINUE_IDENTITY_MISMATCH', '任务不属于当前对话。');
+    const turn = this.db.prepare('SELECT * FROM a9_turns WHERE task_id = ? AND session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(taskId, sessionId) as any;
+    if (!turn || turn.status !== 'interrupted' || task.status !== 'interrupted') return null;
+    const rows = this.db.prepare("SELECT e.id, e.turn_id, e.event_type, e.payload_json FROM a9_events e JOIN a9_turns t ON t.turn_id = e.turn_id WHERE e.session_id = ? AND t.task_id = ? AND e.event_type IN ('tool_start','tool_end','external.changes') ORDER BY e.id LIMIT 1001").all(sessionId, taskId) as any[];
+    if (rows.length > 1000) throw a9PersistenceError('A9_RECOVERY_FACTS_LIMIT', '恢复事实超出有界窗口，禁止省略未知结果后继续。');
+    const started = new Map<string, any>();
+    const confirmedSteps: string[] = [];
+    const changes: string[] = [];
+    for (const row of rows) {
+      const payload = safeParse(row.payload_json) as any;
+      const data = payload.data || payload;
+      if (row.event_type === 'tool_start' && typeof data.callId === 'string') started.set(`${row.turn_id}:${data.callId}`, data);
+      if (row.event_type === 'tool_end' && typeof data.callId === 'string') {
+        started.delete(`${row.turn_id}:${data.callId}`);
+        // Record only audited completion identity/status. Raw output/commands are not authorization.
+        confirmedSteps.push(`${String(data.toolName || 'tool').slice(0, 40)}: ${data.error || data.residueRisk || /"error"\s*:/.test(String(data.result || '')) ? 'result_unknown' : 'recorded'}`);
+      }
+      if (row.event_type === 'external.changes' && Array.isArray(data.changes)) {
+        for (const change of data.changes) if (typeof change.path === 'string') changes.push(change.path.slice(0, 512));
+      }
+    }
+    const sideEffects = new Set(['write','edit','copy','move','delete','shell','start_process','stop_process']);
+    const unknownResults = [...started.values()].filter((data) => sideEffects.has(data.toolName)).map((data) => ({
+      toolName: String(data.toolName), callId: String(data.callId), status: 'result_unknown' as const,
+      paths: ['path','source','destination'].map((key) => data.args?.[key]).filter((value) => typeof value === 'string').map((value: string) => value.slice(0, 512)),
+    }));
+    const request = this.db.prepare("SELECT payload_json FROM a9_events WHERE session_id = ? AND event_type = 'conversation.request' AND json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.interruptedTurnId') IS NULL AND json_extract(payload_json, '$.taskId') = ? ORDER BY id LIMIT 1").get(sessionId, taskId) as any;
+    const checkpoint = this.db.prepare('SELECT payload_json FROM a9_checkpoints WHERE session_id = ? AND turn_id = ?').get(sessionId, turn.turn_id) as any;
+    const checkpointPayload = checkpoint ? safeParse(checkpoint.payload_json) as any : {};
+    if (Array.isArray(checkpointPayload.externalChanges)) {
+      for (const change of checkpointPayload.externalChanges) if (typeof change.path === 'string') changes.push(change.path.slice(0, 512));
+    }
+    const requestPayload = request ? safeParse(request.payload_json) as any : {};
+    const originalGoal = typeof requestPayload.requestPrompt === 'string' ? requestPayload.requestPrompt.slice(0, 2000) : '';
+    if (!originalGoal) throw a9PersistenceError('A9_RECOVERY_GOAL_UNAVAILABLE', '原用户目标不可核验，请输入新的任务要求。');
+    const recoveryRevision = crypto.createHash('sha256').update(JSON.stringify({ workspacePath, sessionId, task, turn, rows, checkpoint }), 'utf8').digest('hex');
+    return { conversationId: sessionId, taskId, interruptedTurnId: turn.turn_id, recoveryRevision, originalGoal,
+      confirmedSteps: confirmedSteps.slice(-12), changedPaths: [...new Set(changes)].slice(-12),
+      verification: checkpointPayload.verification === 'verified' ? 'historical_verified' : 'not_verified', unknownResults };
+  }
+
+  listTaskRecoveries(workspacePath: string, sessionId: string): A9TaskRecovery[] {
+    const rows = this.db.prepare("SELECT task_id FROM a9_tasks WHERE session_id = ? AND status = 'interrupted' ORDER BY updated_at DESC LIMIT 20").all(sessionId) as any[];
+    return rows.map((row) => this.getTaskRecovery(workspacePath, sessionId, row.task_id)).filter((fact): fact is A9TaskRecovery => fact !== null);
+  }
+
+  findTaskContinuation(workspacePath: string, input: A9TaskContinueInput): { turnId: string; taskId: string; duplicate: boolean } | null {
+    const owner = this.db.prepare('SELECT s.workspace_path, t.session_id FROM a9_tasks t JOIN a9_sessions s ON s.session_id = t.session_id WHERE t.task_id = ?').get(input.taskId) as any;
+    const conversation = this.requireConversation(input.conversationId);
+    const active = this.db.prepare('SELECT active_session_id FROM a9_workspace_conversation_state WHERE workspace_path = ?').get(workspacePath) as any;
+    if (!owner || owner.workspace_path !== workspacePath || owner.session_id !== input.conversationId || conversation.state !== 'active' || active?.active_session_id !== input.conversationId) {
+      throw a9PersistenceError('A9_CONTINUE_IDENTITY_MISMATCH', '继续身份不匹配。');
+    }
+    const row = this.db.prepare(`SELECT turn_id FROM a9_events WHERE session_id = ? AND event_type = 'task_continue_requested'
+      AND json_extract(payload_json, '$.schemaVersion') = 1 AND json_extract(payload_json, '$.taskId') = ?
+      AND json_extract(payload_json, '$.interruptedTurnId') = ? AND json_extract(payload_json, '$.recoveryRevision') = ? LIMIT 1`)
+      .get(input.conversationId, input.taskId, input.interruptedTurnId, input.recoveryRevision) as any;
+    // Event retention must not erase a committed key while its Turn still exists.
+    const durable = row || this.db.prepare(`SELECT turn_id FROM a9_turns WHERE session_id = ? AND task_id = ?
+      AND ((json_extract(outcome_json, '$.interruptedTurnId') = ? AND json_extract(outcome_json, '$.recoveryRevision') = ?)
+        OR (json_extract(outcome_json, '$.continuation.interruptedTurnId') = ? AND json_extract(outcome_json, '$.continuation.recoveryRevision') = ?))
+      ORDER BY created_at LIMIT 1`).get(input.conversationId, input.taskId, input.interruptedTurnId, input.recoveryRevision, input.interruptedTurnId, input.recoveryRevision) as any;
+    return durable ? { turnId: durable.turn_id, taskId: input.taskId, duplicate: true } : null;
+  }
+
+  /** The workspace writer owns this transaction; intent, new Turn and request commit together. */
+  requestTaskContinuation(workspacePath: string, input: A9TaskContinueInput, turnId: string, requestPrompt: string): { turnId: string; taskId: string; duplicate: boolean } {
+    return this.db.transaction(() => {
+      const duplicate = this.findTaskContinuation(workspacePath, input);
+      if (duplicate) return duplicate;
+      const fact = this.getTaskRecovery(workspacePath, input.conversationId, input.taskId);
+      if (!fact || fact.interruptedTurnId !== input.interruptedTurnId || fact.recoveryRevision !== input.recoveryRevision) {
+        throw a9PersistenceError('A9_CONTINUE_REVISION_MISMATCH', '恢复事实已变化，请刷新中断卡。');
+      }
+      const busy = this.db.prepare(`SELECT 1 FROM a9_tasks WHERE session_id = ? AND status = 'active'
+        UNION ALL SELECT 1 FROM a9_approvals WHERE session_id = ? AND decision = 'pending' LIMIT 1`).get(input.conversationId, input.conversationId);
+      if (busy) throw a9PersistenceError('A9_TURN_ALREADY_ACTIVE', '当前对话仍有活动任务或待审批。');
+      this.upsertTurn(turnId, input.taskId, input.conversationId, 'active', { schemaVersion: 1, interruptedTurnId: input.interruptedTurnId, recoveryRevision: input.recoveryRevision });
+      this.upsertRun(`run-${turnId}`, turnId, input.conversationId, 'active');
+      this.upsertTask(input.taskId, input.conversationId, 'active');
+      this.recordModelEvent(input.conversationId, turnId, 'task_continue_requested', { schemaVersion: 1, ...input, continuationTurnId: turnId });
+      return { turnId, taskId: input.taskId, duplicate: false };
+    })();
+  }
+
   listInterruptions(sessionId?: string): Array<{ kind: 'task' | 'turn' | 'run'; id: string; sessionId: string }> {
     const result: Array<{ kind: 'task' | 'turn' | 'run'; id: string; sessionId: string }> = [];
     const suffix = sessionId ? ' AND session_id = ?' : '';
@@ -1083,11 +1190,11 @@ export class A9PersistenceManager {
     const tasks = new Map(taskRows.map((row) => [row.task_id, row]));
     const requestRows = this.db.prepare(`
       SELECT payload_json, created_at FROM a9_events
-      WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request'
+      WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request' AND json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.interruptedTurnId') IS NULL
       ORDER BY id DESC${cappedLimit ? ' LIMIT ?' : ''}
     `).all(...(cappedLimit ? [sessionId, cappedLimit] : [sessionId])) as any[];
     const checkpointRows = this.db.prepare(`
-      SELECT c.turn_id, c.created_at, c.payload_json, t.task_id, t.status
+      SELECT c.turn_id, c.created_at, c.payload_json, t.task_id, t.status, t.outcome_json AS turn_payload
       FROM a9_checkpoints c
       LEFT JOIN a9_turns t ON t.turn_id = c.turn_id
       WHERE c.session_id = ?
@@ -1117,7 +1224,7 @@ export class A9PersistenceManager {
       facts.set(taskId, {
         taskId,
         turnId: row.turn_id,
-        requestPrompt: existing?.requestPrompt || (typeof payload.requestPrompt === 'string' ? payload.requestPrompt : ''),
+        requestPrompt: existing?.requestPrompt || (!this.isContinuationTurn(row.turn_payload) && typeof payload.requestPrompt === 'string' ? payload.requestPrompt : ''),
         outcome: payload.outcome || row.status || 'completed',
         verification: payload.verification || 'not_applicable',
         finalMessage: typeof payload.finalMessage === 'string' ? payload.finalMessage : '',
@@ -1151,7 +1258,7 @@ export class A9PersistenceManager {
       WITH requests AS (
         SELECT id, created_at,
           json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.taskId') AS task_id
-        FROM a9_events WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request'
+        FROM a9_events WHERE session_id = ? AND kind = 'model' AND event_type = 'conversation.request' AND json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.interruptedTurnId') IS NULL
           AND json_type(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.requestPrompt') = 'text'
       ), latest_requests AS (
         SELECT task_id, MAX(id) AS request_id FROM requests
@@ -1175,7 +1282,7 @@ export class A9PersistenceManager {
       )
       SELECT p.*, e.payload_json AS request_payload, c.payload_json AS checkpoint_payload,
         c.created_at AS checkpoint_at, t.status AS task_status, t.updated_at AS task_updated,
-        tr.status AS turn_status
+        tr.status AS turn_status, tr.outcome_json AS turn_payload
       FROM page p LEFT JOIN a9_events e ON e.id = p.request_id
       LEFT JOIN a9_checkpoints c ON c.turn_id = p.turn_id AND c.session_id = ?
       LEFT JOIN a9_tasks t ON t.task_id = p.task_id AND t.session_id = ?
@@ -1192,7 +1299,7 @@ export class A9PersistenceManager {
       return {
         taskId: row.task_id, turnId: row.turn_id || null,
         requestPrompt: (typeof request.requestPrompt === 'string' && request.requestPrompt)
-          || (typeof checkpoint.requestPrompt === 'string' ? checkpoint.requestPrompt : ''),
+          || (!this.isContinuationTurn(row.turn_payload) && typeof checkpoint.requestPrompt === 'string' ? checkpoint.requestPrompt : ''),
         outcome: row.turn_id ? checkpoint.outcome || row.turn_status || 'completed' : row.task_status || 'running',
         verification: row.turn_id ? checkpoint.verification || 'not_applicable' : 'not_applicable',
         finalMessage: typeof checkpoint.finalMessage === 'string' ? checkpoint.finalMessage : '',
@@ -1204,9 +1311,14 @@ export class A9PersistenceManager {
     return { facts, hasMore, nextBefore: hasMore && last ? { createdAt: last.created_at, taskId: last.task_id } : null };
   }
 
+  private isContinuationTurn(payloadJson: string | undefined): boolean {
+    const payload = safeParse(payloadJson || '{}') as any;
+    return typeof payload.interruptedTurnId === 'string' || typeof payload.continuation?.interruptedTurnId === 'string';
+  }
+
   hasConversationFacts(sessionId: string): boolean {
     return Boolean(this.db.prepare(`SELECT 1 FROM a9_events WHERE session_id = ? AND kind = 'model'
-      AND event_type = 'conversation.request' LIMIT 1`).get(sessionId) ||
+      AND event_type = 'conversation.request' AND json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.interruptedTurnId') IS NULL LIMIT 1`).get(sessionId) ||
       this.db.prepare('SELECT 1 FROM a9_checkpoints WHERE session_id = ? LIMIT 1').get(sessionId));
   }
 

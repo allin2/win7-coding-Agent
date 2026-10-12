@@ -58,6 +58,7 @@
     lastFocused: null,
     providerHydratedSignature: null,
     conversationSignature: null,
+    continuingTaskId: null,
     renderedConversationId: null,
     activeConversationId: null,
     checkpointScope: '',
@@ -594,6 +595,7 @@
     const stream = el('a9-task-stream');
     const rootArticle = document.createElement('article');
     rootArticle.className = 'turn-block';
+    rootArticle.tabIndex = -1;
     rootArticle.dataset.turnKey = key;
     const request = document.createElement('div');
     request.className = 'turn-request';
@@ -976,6 +978,54 @@
     }
   }
 
+  function updateContinuationCard(block, recovery) {
+    if (!recovery && block.recovery && state.continuingTaskId === block.recovery.taskId) recovery = block.recovery;
+    if (!recovery) {
+      if (block.continueEl) { block.continueEl.remove(); block.continueEl = null; }
+      return;
+    }
+    if (!block.continueEl) {
+      const card = document.createElement('section');
+      card.className = 'continuation-card';
+      card.tabIndex = -1;
+      card.setAttribute('aria-label', '中断任务继续');
+      const title = document.createElement('strong');
+      title.textContent = '继续中断任务';
+      const facts = document.createElement('p');
+      facts.className = 'continuation-facts';
+      const reason = document.createElement('p');
+      reason.className = 'continuation-reason';
+      reason.setAttribute('role', 'status');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'primary';
+      button.addEventListener('click', () => { void continueInterruptedTask(block.recovery, block); });
+      card.appendChild(title);
+      card.appendChild(facts);
+      card.appendChild(reason);
+      card.appendChild(button);
+      block.root.appendChild(card);
+      block.continueEl = card;
+      block.continueFacts = facts;
+      block.continueReason = reason;
+      block.continueButton = button;
+    }
+    block.recovery = recovery;
+    const busy = state.continuingTaskId === recovery.taskId;
+    block.continueButton.textContent = busy ? '正在继续' : '继续';
+    block.continueButton.disabled = busy || state.running || recovery.canContinue !== true;
+    const unknown = (recovery.unknownResults || []).length;
+    block.continueFacts.textContent = [
+      `原目标：${recovery.originalGoal || '原目标不可用'}`,
+      `已记录步骤：${(recovery.confirmedSteps || []).join('；') || '无'}`,
+      `修改路径：${(recovery.changedPaths || []).join('、') || '未记录'}`,
+      `验证：${recovery.verification === 'historical_verified' ? '历史检查已记录，继续后需重新验证' : '未验证'}`,
+      unknown ? `${unknown} 项副作用结果未知，将先核查当前事实。` : '新轮重新核查当前事实。',
+    ].join('\n');
+    block.continueReason.textContent = block.continueError || (recovery.blockedReason
+      ? `当前不能继续：${recovery.blockedReason}` : '继续会创建一个新轮次；旧工具与批准不会重放。');
+  }
+
   function renderTurnDropped(block, released, remaining) {
     if (!released) {
       if (block.releasedEl) { block.releasedEl.remove(); block.releasedEl = null; }
@@ -1165,6 +1215,8 @@
       snapshot.activeConversationId,
       state.eventMaxId,
       state.eventsLoading,
+      state.continuingTaskId,
+      snapshot.recoveryTasks || [],
       state.eventsError,
       state.eventsTruncated,
       state.releasedEventCount,
@@ -1195,6 +1247,7 @@
       const bucket = turnId ? state.turnEvents.get(turnId) : null;
       const events = bucket ? bucket.events : [];
       updateTurnBlock(block, fact, events, bucket ? bucket.released || 0 : 0);
+      updateContinuationCard(block, (snapshot.recoveryTasks || []).find((recovery) => recovery.taskId === fact.taskId));
       latestProjection = projectOutcome(fact, events);
     });
     if (state.localRequest) {
@@ -2224,6 +2277,42 @@
     return response;
   }
 
+  async function continueInterruptedTask(recovery, block) {
+    if (!recovery || !recovery.canContinue || state.running || state.continuingTaskId) return null;
+    state.continuingTaskId = recovery.taskId;
+    state.running = true;
+    block.continueError = '';
+    updateContinuationCard(block, recovery);
+    // Focus stays on the task card; continuing does not opt the user into tail scrolling.
+    block.continueEl.focus({ preventScroll: true });
+    syncComposer();
+    startLiveTracking();
+    const finishPolling = beginSnapshotPolling();
+    let response;
+    try {
+      response = await a9.continueTask(recovery.conversationId, recovery.taskId, recovery.interruptedTurnId, recovery.recoveryRevision);
+      if (!response || response.ok !== true || (response.result && !['completed', 'completed_with_warnings', 'needs_approval'].includes(response.result.outcome))) {
+        block.continueError = errorMessage(response, response && response.result && response.result.finalMessage || '继续未完成，事实已保留；请刷新后再次主动尝试。');
+        setFieldError('a9-turn-error', block.continueError);
+      }
+    } catch (error) {
+      block.continueError = errorMessage(error, '继续请求失败，事实保留。');
+      setFieldError('a9-turn-error', block.continueError);
+    } finally {
+      await finishPolling();
+      state.running = false;
+      state.continuingTaskId = null;
+      stopLiveTracking();
+      state.conversationSignature = null;
+      await refreshSnapshot();
+      await loadConversationEvents();
+      syncComposer();
+      if (block.continueEl) block.continueEl.focus({ preventScroll: true });
+      else block.root.focus({ preventScroll: true });
+    }
+    return response;
+  }
+
   async function stopTurn() {
     const canStop = state.running || activeManagedProcesses(state.snapshot).length > 0 ||
       Boolean(state.snapshot && state.snapshot.controls && state.snapshot.controls.canStop);
@@ -3060,6 +3149,7 @@
     refreshSnapshot,
     submitPrompt,
     stopTurn,
+    continueInterruptedTask,
     decideApproval,
     chooseMode,
     applyProvider,

@@ -71,3 +71,24 @@ helper/锁和证据身份不重绑，Win7仍NOT_PERFORMED。
 新批继承合同见 [增量矩阵](A9_BATCH_2_INCREMENTAL_VALIDATION.md)，未来source尚未批准任何继承。
 A9-31/32与 [A9-33草稿](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md)保持待审；
 编号WIN7-43仍暂定，推进和审批顺序见 [具体审批包](A9_BATCH_2_IMPLEMENTATION_APPROVAL.md)。
+
+## 6. A9-32 本地推进后的完整 Alpha 2 边界（2026-10-11）
+
+[本轮报告](../reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)只证明开发机当前未提交差异。
+A9-30/31 原开发结论保持；A9-32 真实 Electron/第二批 Win7 未执行。
+整批 PASS 与完整 Alpha 2 分别裁决，不用测试数量代替产品覆盖。
+
+| 裁决范围 | 当前边界及还需核对的证据 |
+|---|---|
+| 改动审阅 / 模式 | ADR-0143 的先写后审、Diff/逐文件撤销/漂移保护；Full Access与Read Only。不得把旧 staging Review 或可见入口计为支持模式 |
+| J1 项目解释 | 当前 AGENTS、真实引用/搜索、未知代码库；真实 Provider 环境仍 NOT_PERFORMED |
+| J2 缺陷修复 | 当前候选读取→修改→失败修复→验证→Diff；本轮 read/write 仅开发机、本地Provider fixture |
+| J3 跨文件小功能 | 当前候选多文件与依赖/脚本旅程；尚无本轮正式证据 |
+| J4 Shell / Git | CMD/PS5.1、真实构建/测试、Git状态/Diff/目标确认；POSIX和PowerShell /Command 保留 NOT_PERFORMED |
+| J5 撤销 / 恢复 | 新候选 checkpoint/撤销、崩溃恢复、零重放、主动继续；A9-34处置出口延期限制保留 |
+| 部署 / 回退 / 闭包 | 同包新目录升级与旧目录回退、数据库/备份、秘密/DPAPI/许可证/SBOM、普通用户实际加载，未执行不能继承整体PASS |
+| 性能 / 企业 / 响应式 | A9-17目标机采样、真实Provider/企业CA/代理保持NOT_PERFORMED；≤799px保持PRODUCT_UNREACHABLE / NOT_VERIFIED |
+
+J1–J5 来源为 A9 总合同 §6；模式按后续有效裁决解释。
+A9-34 已推迟到第二批之后：恢复后清理未确认可永久阻断对话/正常退出，须随结论明列。
+负责人尚未裁决完整 Alpha 2；A7仍是唯一既有RC。

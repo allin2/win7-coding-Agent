@@ -552,3 +552,10 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 }
 
 .shell-live-output { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+
+/* A9-32: keep recovery controls in the existing task stream. */
+.continuation-card { margin-top: 10px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 8px; }
+.continuation-card:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.continuation-facts { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.continuation-reason { color: var(--muted); font-size: 12px; }
+.continuation-card button { min-height: 40px; }

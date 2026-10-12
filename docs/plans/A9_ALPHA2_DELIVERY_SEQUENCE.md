@@ -173,3 +173,76 @@ r2准确51项已批准并本地提交2ecfc86；managed r1因独立P1/P2证据缺
 修复源码r3审批、新准确kit批准/双构建/新锁仍待，未推送或整合。
 见[修复交接](../reports/2026-10/a9_31_managed_review_fixes_and_source_handoff_2026-10-03.md)。
 A9-31保持IMPLEMENTATION_IN_PROGRESS；A9-32/33草稿，WIN7-43未冻结，不提前裁决Win7/Alpha2/RC。
+
+## 6. 第二批实施计划与新窗口交接（2026-10-11）
+
+负责人本轮要求：“按照这个规划制定实施计划，并新开窗口，采用gpt-6.1 sol xhigh实施”。
+新窗口使用 `gpt-6.1-sol` / `xhigh`，由该窗口主代理执行，不默认委派子代理。
+目标依次为 A9-32 主动继续、第二批产品整合、A9-33 Win7 验收、完整 Alpha 2 范围裁决。
+本节沿用本推进顺序及既有任务、矩阵和报告，不另建状态台账。
+
+### 6.1 已核对基线与保护范围
+
+| 对象 | 准确基线与用途 |
+|---|---|
+| 当前主工作区 | `codex/a9-alpha2@a53c9b9d861486e5923bc82ea70b31b76af1a939`；已有 dirty/untracked 和历史缺失 ZIP 保留，不在这里改产品 |
+| 第二批实现起点 | `571ec550b5e09611f55557563d0cf2f1a4a40d1b`，A9-31 功能分支；已包含 A9-30 `c2b6356f…` 及 A9-31 产品源 `8d207ab1…` |
+| A9-31 参考工作树 | `/Users/qlyf/.codex/worktrees/a9-31-background-tools/win7-coding-Agent`；只读参考，不复制其中全部在制修改 |
+| A9-32 当前有效草稿 | 上述参考工作树 `docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md`，7111 字节，SHA-256 `54041ffcaca6da76a32ccb6671a4e8405d80c4c862c4638fc6407fa9a093fa49`；采用其 §1–5 产品合同、精确路径和增量检查 |
+| managed 原生输入锁 | 同工作树 `release/win7-product-v3/a9-v26-managed-input-lock.json`，7905 字节，SHA-256 `7593e7584305fd76f8ebb7d99adbdcb302a3272ccd616423c2346bd7ff461d3e` |
+| 共享验证矩阵 | 同工作树 `docs/plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md`，SHA-256 `6ea33294be318f7abcc3b43ae253e5e973683509298733add0cf3a2a42106016`；实际形成新源后逐项判影响与继承 |
+| 后续 A9-33 合同 | 同工作树 `docs/tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md`，SHA-256 `66c7d503dcd6d42438cbff022e5ad9058097e09cb344b6927abf3aa7fdffcd54`；仍须补具体基线、断言、命令及授权 |
+
+2026-10-11 只读核对：PR #11 为 OPEN/Draft，头 `571ec550…`，未合 main。
+WIN7-42 已发布内部预览，本地冻结 ZIP 与发布附件 SHA-256 一致；没有完整 Alpha 2 或新 RC 结论。
+A9-30/31 的开发收口及既有 Win10 结论保留，均不代替新源或 Win7 直接证据。
+主工作区、A9-30/31 工作树、候选、数据库、首失败、冻结输入、HALTED 和 UNKNOWN 均受保护。
+ENGINEERING_02 §138 的 p17/w16 已停止，不恢复、不追加 p18/w17 或预算，不承接其远端授权。
+
+### 6.2 本地实施范围与执行前登记
+
+本轮直接实施指令授权新窗口推进 A9-32 的上述 §1–5 本地范围及同范围必要修复、验证。
+执行代理先复核起点和合同字节，再创建或复用隔离工作树，在 `codex/a9-32-explicit-continue` 上登记。
+起点使用完整 `571ec550…`，禁止从旧 alpha2/main 或 inspection source 开始，禁止覆盖同名脏工作树。
+登记 A9-32 为 APPROVED_FOR_IMPLEMENTATION、ADR-0152 为 Accepted，追加本轮负责人原话、准确基线和范围。
+同步该新工作树任务索引、STATUS/STATUS_LOG；保留历史草稿段落及所有 Accepted ADR 正文。
+本计划 §6 作为交接输入，先写入新工作树已有推进顺序；核对治理规则差异，不批量覆盖其他分支文件。
+当前分支旧 A9-31 草稿副本不作为 A9-32 产品实现合同，功能分支事实须按原证据引用。
+
+实现仅修改以下产品与测试路径，路径外缺口先保存具体分析，停止其依赖动作：
+
+- `src/state/src/a9-persistence.ts`。
+- `src/core/src/a9-agent-loop.ts`。
+- `src/shell/product/a9-agent-runtime.js`、`src/shell/product/a9-product-ipc.js`、`src/shell/product/preload.js`。
+- `src/shell/product/renderer/a9-workbench.js`、`src/shell/product/renderer/a9-workbench.css`。
+- `src/state/tests/a9-task-continue.test.ts`、`src/core/tests/a9-task-continue.test.ts`。
+- `src/shell/tests/product/a9-task-continue.test.ts`、`src/shell/tests/product/a9-workbench-contract.test.ts`、`src/shell/tests/product/a9-lifecycle.test.ts`。
+
+文档限本任务、推进顺序、现有矩阵、任务/方案索引、STATUS/STATUS_LOG、ADR/ADR 索引和本任务报告。
+新开发证据写隔离工作树 `.acceptance/a9-32-developer/`，不得覆盖其他任务或旧 run。
+不新增依赖、持久化表或原生能力，不改旧审批、Provider 网络边界、系统设置或恢复清理语义。
+本轮未授权 Git 提交/推送/合并、远端写入、正式候选冻结、发布或正式门 A/B。
+先完成可审阅的本地改动与检查；必要的后续动作再绑定准确文件、差异、哈希、目标及范围提交一次完整裁决。
+
+### 6.3 实施顺序与完成条件
+
+| 顺序 | 交付与执行 | 完成条件及后续依赖 |
+|---|---|---|
+| 1：A9-32 本地产品 | 先做 State 恢复事实/事务去重，再接 Runtime/Core、Schema IPC/preload、最后接继续卡与 Stop；沿用现有 UI，并先提供交互 Demo/受影响交互说明，Demo 路径在任务书登记 | 重启零自动请求；点击创建新 Turn；双击/刷新/崩溃后去重；旧批准失效；未知副作用先核查；残留/身份/预算/审计失败零新增派发；失败可再次主动尝试 |
+| 2：开发验证与第二批整合准备 | 先编译依赖，再跑有效 A9-32 §5 的 State/Core/Shell 定向检查、verify:quick、docs:check 和 diff --check；按影响检查真实 Electron 的焦点、滚动、Stop、重启；核对 managed 锁及实际加载输出 | 完成允许路径内必要修复；提交改动摘要、当前源+补丁身份、直接/继承/未执行矩阵；准确本地提交/整合须另行授权，不改 main 或 PR #11 |
+| 3：最短真实产品链路与受影响回归 | 新源和包身份形成后，准备准确开发打包/Win10 范围；复用 A9-31 既有普通入口和工具，先“启动→后台输出→Stop→重启零请求→主动继续→正常退出”，再补共享安全/恢复/预算回归 | 新包完整闭包和实际入口直接检查；旧原生仅按准确字节与上下游影响继承；远端动作按目标/身份/目录/调用上限/退出证明取得准确授权；不扩建 ENGINEERING_02 |
+| 4：A9-33 整批 Win7 | 前三项满足后补齐具体 A9-33，纳入 S01–S06/BG/CONT/SAFE/UI 和已知限制；核号、预演、双干净构建、冻结、门 A、正式执行、独立审核、门 B 按该任务合同顺序 | WIN7-43 仅建议号；两次连续预演及双构建采用具体合同，不由通用规则额外增加；正式 Win7 PASS 绑定同一准确 source/ZIP/锁/run/环境/身份 |
+| 5：完整 Alpha 2 裁决 | 沿用覆盖台账核对改动审阅、支持模式、五条核心旅程、恢复/部署要求及延期；补齐尚无证据项的处置 | 第二批 PASS 不自动成为完整 Alpha 2；A9-17 实机采样、真实 Provider/企业环境、POSIX/PowerShell /Command、≤799px 和 A9-34 分别保留未测或已批准限制，由负责人裁决 |
+
+真实 Electron 或后续打包执行前读取两级验收流程；影响 UI 时采用适用前端 skill，不做整站重设计。
+本轮实施指令不指定独立审核者；执行主代理不能自签独立复核，准备完整可复核材料后由负责人指定。
+整合需要干净提交时，先完成全部已授权本地工作，再提交一次准确提交/整合范围，不因旧草稿状态重复询问本地实现。
+
+### 6.4 停止、恢复与交付
+
+安全、身份、完整性、必需审计或未知生命周期硬门失败，立即停止依赖派发并保存首失败。
+同类失败两轮仍未闭环，停止整批重试，先最小复现和共同根因；不增加等待、弱化判据或追加工具建设。
+遇到后续授权缺口，只暂停依赖动作，继续本地独立分析、矩阵、保护和可审阅材料。
+恢复只能基于新的准确授权、源码/产物/run 和已满足原门；不恢复任何 HALTED，不改判旧 FAIL/UNKNOWN。
+每阶段更新新工作树既有任务书、STATUS/STATUS_LOG、矩阵和本任务报告，写明可见行为、证据层级及准确身份。
+最终返回已完成能力、实际检查、未执行项、可复用结果和下一项准确动作；不以断言数替代 Alpha 2 完成判断。

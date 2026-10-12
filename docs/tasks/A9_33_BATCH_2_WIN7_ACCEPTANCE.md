@@ -72,3 +72,38 @@ git -c core.fsmonitor=false diff --check
 G0目标/会话 → G1包/锁完整性 → G2正式smoke → G3回传与报告核验 → G4秘密/后飞行 → 独立审核 → 门B。
 门B只在本合同必需项满足且限制明确时由负责人裁决，任何缺项保持FAIL/NOT_PERFORMED。
 Git提交/本地整合/推送/发布各自审批，不因为实机PASS自动执行。
+
+## 5. 基于 A9-32 本地差异的具体化准备（2026-10-11）
+
+仍为 DRAFT_READY_FOR_REVIEW。Source Baseline 保持 NOT_BOUND。
+本轮产品输入是 `571ec550…` 加[报告](../reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)所绑定的 12 文件差异。
+干净新 source、开发 Profile/新包、真实 Electron 和独立审核尚未形成。
+不从准备材料创建候选、authority 或正式执行入口。
+
+| 阶段 / ID | 必须直接执行的具体断言 | 证据闭集 |
+|---|---|---|
+| G0 / ENV | Win7 SP1 x64、普通桌面、SID/Session/Integrity/Elevation/Job、Electron22/Node16/ABI110、Shell/codepage/补丁、空间与旧进程树 | 环境/身份、路径/哈希、句柄与退出回执；未知停止 |
+| G1 / PACKAGE | 两个独立干净产品构建 ZIP 逐字节一致；准确整合 source、batch2 锁、helper/SQLite/manifest/SBOM/许可证一致；正确实际加载 | 两 build/run、ZIP/manifest/输入锁、包完整闭包、模块加载结果 |
+| G2 / S01–S03 | 退出前可见 tick、stdout/stderr 稳定序列、SQLite 先落盘再 IPC；终态验证与审计失败零后续派发 | 原始协议、SQLite 事件、IPC/Renderer 观察、审计负例 |
+| G2 / S04–S05 | UTF-8/CP936/UTF-16LE 跨块、CRLF/无换行；限额、跨块秘密、背压、取消、实际 Job 回收 | 原始字节/文本、截断计数、秘密负例、同实例进程树/清理结果 |
+| G2 / S06 / BG | 刷新/分页/返回/重启；3 个后台可用/第4拒绝；owner/handle/cursor错属与边界；双 Stop、ready失败、release及正常退出 | 句柄归属、游标/输出事件、退出对话框/回执与退出后证据 |
+| G2 / CONT-01 | 重启/刷新零 Provider/工具请求；单击/双击只一个新 Turn；旧 Turn 终态不改 | 请求计数、SQLite tasks/turns/events、Schema IPC、卡片/时间线 |
+| G2 / CONT-02 | 事务前/后、Provider与工具前/后中断；旧 key 返回旧身份；新 revision 主动重试；事件保留仍去重 | 分点崩溃记录、事务/事件/Turn 身份、重启零重放 |
+| G2 / CONT-03 | 旧审批不能执行；未知 write/edit/delete/Shell 先读当前事实；健康 owned 后台共存；残留/错属/revision漂移/诊断模式零派发 | 新目标审批、工具审计顺序、拒绝/后台事实、零请求证明 |
+| G2 / SAFE | 当前 AGENTS/模式/Provider/环境与预算；不可压缩超限零请求；必需审计失败硬停止；未知副作用不填零 | Provider原始请求、当前规则SHA、预算诊断、SQLite失败与进程状态 |
+| G2 / UI | 加载/重试、继续反馈、Enter/Space、焦点留卡、不抢滚动、视图返回、Stop、失败新卡及正常退出 | 1366×768/100%与125%、四种可达布局、较矮窗口，操作绑定截图/状态 |
+| G3–G4 | 普通用户实际报告核验、错 pin/漏证据/改报告负例、秘密扫描正控、完整后飞行、独立审核 | 原始返回文件闭包、报告、scanner、签名/哈希、全部登记树与实际退出 |
+
+预演调用路径仍采用拟批准 `RUN_A9_BATCH2_INTEGRITY.cmd` → `RUN_A9_BATCH2_SMOKE.cmd` → `RUN_A9_BATCH2_REPORT_VERIFY.cmd`。
+这些文件尚未实现；命令状态为 NOT_IMPLEMENTED / NOT_PERFORMED，不能直接上机执行。
+每个入口只能使用包内 electron.exe 的已声明 Node 模式，不假设系统 Node。
+参数闭集是批准包根/ZIP、外部锁/authority/pin、目标身份、phase、run-id、候选外证据根。
+具体 argv 和命令哈希须由 §3 实现后本地/实际运行时验证，再写交接书。
+G0–G4、两次连续预演、双干净构建、冻结、门 A、正式执行、独立审核、门 B 顺序不变。
+
+最短开发链路先覆盖启动→后台输出→Stop→中断/重启零请求→主动继续→正常退出。
+拟一个普通桌面窗口，最多 2 小时/16 请求；同类失败两轮先共同根因诊断。
+身份、完整性、必需审计或未知生命周期立即停止全部依赖动作。
+具体目标/账户/目录、driver/version、调用数和 actual exit 仍为 UNKNOWN，须执行前准确批准。
+A9-34 延期、G3 恢复 cleanup-required 无产品内处置、G4 native退出取消未测均明列限制。
+不恢复 ENGINEERING_02 p17/w16，不追加工具平台、预算或远端派发。

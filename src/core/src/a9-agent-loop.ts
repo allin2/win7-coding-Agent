@@ -24,6 +24,8 @@ import { a9ToolSpecs, normalizeToolCallArgs } from './a9-tools';
 import { buildA9SystemPrompt } from './system-prompt';
 import { LoopDetector, TurnOutcome } from './loop-control';
 import * as crypto from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs';
 import { AgentError, AgentErrorCode } from './errors';
 import { classifyGitCommand, GitCommandApprovalBinding } from './git-command-policy';
 import { classifyShellCommandForVerification } from './a9-verification-evidence';
@@ -262,6 +264,10 @@ function tokenizeSimple(command: string): string[] {
 
 export interface A9AgentLoopConfig {
   workspaceRoot: string;
+  /** Recovery comparison follows the target filesystem; injectable for host tests. */
+  recoveryPathPlatform?: 'win32' | 'posix';
+  /** Defaults to true only for win32 (the supported Win7 NTFS target). */
+  recoveryPathCaseInsensitive?: boolean;
   provider: A9ModelPort;
   workspaceService: A9WorkspacePort;
   runner: A9RunnerPort;
@@ -398,6 +404,16 @@ export function buildA9ApprovalRequest(
 /** 诚实完成三态（A9-A05）：verified 需要真实验证证据。 */
 export type A9VerificationStatus = 'verified' | 'unverified' | 'not_applicable';
 
+export interface A9ContinuationContext {
+  turnId: string;
+  taskId: string;
+  interruptedTurnId: string;
+  recoveryRevision: string;
+  unknownPaths: string[];
+  opaqueUnknown: boolean;
+}
+export interface A9TurnOptions { signal?: AbortSignal; continuation?: A9ContinuationContext }
+
 export interface A9TurnResult {
   turnId: string;
   outcome: TurnOutcome;
@@ -469,6 +485,7 @@ export class A9AgentLoop {
   private baselineFrozen = false;
   private externalChanges: Array<{ path: string; kind: string; recoverable: boolean }> = [];
   private readonly lastExternalSignatures = new Map<string, string>();
+  private recoveryCheck: { paths: Set<string>; opaque: boolean } | undefined;
   private verificationEvidence: { command: string; exitCode: number } | undefined;
 
   private contextBudgetChars(): number {
@@ -518,7 +535,7 @@ export class A9AgentLoop {
    * 执行一轮交互 Turn。若返回 NEEDS_APPROVAL，原 tool call 保留在挂起状态，
    * 可调用 `resumeAfterApproval` 恢复。
    */
-  async runTurn(userPrompt: string, options: { signal?: AbortSignal } = {}): Promise<A9TurnResult> {
+  async runTurn(userPrompt: string, options: A9TurnOptions = {}): Promise<A9TurnResult> {
     if (this.auditFailure) return this.auditFailureResult();
     try {
       return await this.runAuditedTurn(userPrompt, options);
@@ -528,7 +545,7 @@ export class A9AgentLoop {
     }
   }
 
-  private async runAuditedTurn(userPrompt: string, options: { signal?: AbortSignal }): Promise<A9TurnResult> {
+  private async runAuditedTurn(userPrompt: string, options: A9TurnOptions): Promise<A9TurnResult> {
     this.suspended = undefined;
     // 循环检测按 Turn 重置，避免跨用户 Turn 累积误判。
     this.loopDetector.reset();
@@ -545,7 +562,13 @@ export class A9AgentLoop {
     this.lastExternalSignatures.clear();
     this.verificationEvidence = undefined;
     this.turnSequence += 1;
-    const turnId = `turn-${Date.now()}-${this.turnSequence}`;
+    const continuation = options.continuation;
+    if (continuation && (!continuation.turnId || !continuation.taskId || !continuation.interruptedTurnId ||
+        !/^[a-f0-9]{64}$/.test(continuation.recoveryRevision) || !Array.isArray(continuation.unknownPaths))) {
+      throw new Error('A9_CONTINUE_CONTEXT_INVALID');
+    }
+    this.recoveryCheck = continuation ? { paths: new Set(continuation.unknownPaths), opaque: continuation.opaqueUnknown } : undefined;
+    const turnId = continuation ? continuation.turnId : `turn-${Date.now()}-${this.turnSequence}`;
     this.currentTurnId = turnId;
     const maxSteps = this.config.maxStepsPerTurn || 30;
 
@@ -598,6 +621,7 @@ export class A9AgentLoop {
       timestamp: new Date().toISOString(),
       data: {
         userPrompt, mode: this.permissionMode,
+        ...(continuation ? { continuation: { taskId: continuation.taskId, interruptedTurnId: continuation.interruptedTurnId, recoveryRevision: continuation.recoveryRevision } } : {}),
         projectInstructions: {
           status: projectInstructions.status, bytes: projectInstructions.bytes, sha256: projectInstructions.sha256,
         },
@@ -1125,6 +1149,14 @@ export class A9AgentLoop {
         continue;
       }
 
+      // A9-32: fresh policy/approval still applies after successful read-only recovery checks.
+      if (this.recoveryCheck && (this.recoveryCheck.paths.size > 0 || this.recoveryCheck.opaque) &&
+          ['write','edit','copy','move','delete','shell','start_process','stop_process'].includes(tc.name)) {
+        this.conversationHistory.push({ role: 'tool', toolCallId: tc.id, toolName: tc.name,
+          content: 'A9_CONTINUE_READ_ONLY_CHECK_REQUIRED: prior side effects are result_unknown. Read the affected current files (or list current facts for an opaque operation) before proposing any new side effect. No prior tool or approval is authorized.' });
+        continue;
+      }
+
       // R3：第一个潜在副作用工具前冻结轮前内容基线（读工具不冻结）。
       if (!this.baselineFrozen && this.config.externalChangePort && this.isPotentialSideEffectTool(tc.name)) {
         try {
@@ -1369,6 +1401,7 @@ export class A9AgentLoop {
 
     let toolResultStr = '';
     let executed = false;
+    let recoveryObservationVerified = false;
     let residueRisk: boolean | undefined;
     let logPaths: { stdout: string; stderr: string } | undefined;
     const isShellTool = tc.name === 'shell';
@@ -1378,11 +1411,23 @@ export class A9AgentLoop {
       residueRisk = outcome.residueRisk;
       logPaths = outcome.logPaths;
       executed = !residueRisk;
+      recoveryObservationVerified = executed && !(outcome.payload && typeof outcome.payload === 'object' &&
+        ((outcome.payload as any).outsideWorkspace === true || (outcome.payload as any).error ||
+          (outcome.payload as any).timedOut === true || (outcome.payload as any).cancelled === true ||
+          ['cancelled', 'timed_out', 'timeout'].includes((outcome.payload as any).status)));
+      if (this.recoveryCheck && tc.name === 'list' && recoveryObservationVerified) {
+        // Workspace.list catches scan errors. Independently require readable exact directory.
+        recoveryObservationVerified = await this.verifyRecoveryPath(args.path ?? '', 'directory', signal);
+      }
     } catch (err: any) {
+      recoveryObservationVerified = false;
       toolResultStr = JSON.stringify({ error: { code: typeof err?.code === 'string' ? err.code : 'A9_TOOL_EXECUTION_FAILED',
         message: this.config.redactText ? this.config.redactText(String(err?.message ?? err)) : String(err?.message ?? err),
         ...(typeof err?.oldestCursor === 'string' ? { oldestCursor: err.oldestCursor } : {}) } });
       residueRisk = err?.residueRisk === true || err?.cleanupRequired === true;
+      if (this.recoveryCheck && tc.name === 'read' && err?.code === 'ENOENT' && !residueRisk) {
+        recoveryObservationVerified = await this.verifyRecoveryPath(args.path, 'absent', signal);
+      }
     }
     // Count successful dispatch before post-execution collection or audit can fail.
     if (executed || residueRisk) this.turnStats.executed += 1;
@@ -1495,6 +1540,18 @@ export class A9AgentLoop {
       },
     });
 
+    // tool_end has been durably audited; absence is an observation, not successful execution.
+    if (recoveryObservationVerified && !signal?.aborted && this.recoveryCheck) {
+      if (tc.name === 'read' || tc.name === 'list') {
+        const observedKey = this.recoveryPathKey(args.path ?? '');
+        if (observedKey !== undefined) {
+          for (const pendingPath of this.recoveryCheck.paths) {
+            if (this.recoveryPathKey(pendingPath) === observedKey) this.recoveryCheck.paths.delete(pendingPath);
+          }
+        }
+      }
+      if (tc.name === 'read' || tc.name === 'list') this.recoveryCheck.opaque = false;
+    }
     this.conversationHistory.push({
       role: 'tool',
       toolCallId: tc.id,
@@ -1502,6 +1559,44 @@ export class A9AgentLoop {
       content: toolResultStr,
     });
     return { executed, result: toolResultStr, ...(residueRisk ? { residueRisk } : {}), ...(logPaths ? { logPaths } : {}) };
+  }
+
+  private recoveryPathKey(targetPath: string): string | undefined {
+    const platform = this.config.recoveryPathPlatform ?? (process.platform === 'win32' ? 'win32' : 'posix');
+    const api = platform === 'win32' ? path.win32 : path.posix;
+    const nativeRelative = api.relative(api.resolve(this.config.workspaceRoot), api.resolve(this.config.workspaceRoot, targetPath));
+    const relative = platform === 'win32' ? nativeRelative.replace(/\\/g, '/') : nativeRelative;
+    if (relative === '..' || relative.startsWith('../') || api.isAbsolute(relative)) return undefined;
+    return (this.config.recoveryPathCaseInsensitive ?? platform === 'win32') ? relative.toLowerCase() : relative;
+  }
+
+  private async verifyRecoveryPath(targetPath: string, observation: 'absent' | 'directory', signal?: AbortSignal): Promise<boolean> {
+    if (signal?.aborted || this.recoveryPathKey(targetPath) === undefined) return false;
+    const root = await fs.promises.realpath(this.config.workspaceRoot);
+    const absolute = path.resolve(this.config.workspaceRoot, targetPath);
+    let probe = absolute;
+    const suffix: string[] = [];
+    let canonical: string;
+    for (;;) {
+      try { canonical = path.join(await fs.promises.realpath(probe), ...suffix); break; }
+      catch (error: any) {
+        if (error?.code !== 'ENOENT') throw error;
+        // A dangling symlink has unknown destination; do not treat it as an absent file.
+        try { await fs.promises.lstat(probe); return false; }
+        catch (statError: any) { if (statError?.code !== 'ENOENT') throw statError; }
+        const parent = path.dirname(probe);
+        if (parent === probe) return false;
+        suffix.unshift(path.basename(probe)); probe = parent;
+      }
+    }
+    const relative = path.relative(root, canonical);
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return false;
+    if (observation === 'directory') await fs.promises.readdir(canonical);
+    else {
+      try { await fs.promises.stat(canonical); return false; }
+      catch (error: any) { if (error?.code !== 'ENOENT') throw error; }
+    }
+    return !signal?.aborted;
   }
 
   private async dispatchTool(

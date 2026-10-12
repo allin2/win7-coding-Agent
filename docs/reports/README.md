@@ -67,3 +67,5 @@
 - 2026-07-30 报告记录的是 685 项测试的历史快照。
 - 2026-07-31 报告记录了后续 837、853 或 885 等不同阶段的快照。
 - 这些数字不可直接合并；重新验证后应写入 `docs/status/latest-validation.json`，并绑定最终代码 commit。
+
+- [A9-32 本地实现与第二批准备（2026-10-11）](2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)：开发机定向 PASS，真实 Electron/Win7 未执行。
