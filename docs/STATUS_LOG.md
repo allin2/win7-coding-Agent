@@ -1962,3 +1962,28 @@ R-01 修复与 R-03 补用例（2026-10-12，工作树，未提交）：`getTask
 
 R-01 修复提交与 D4 重绑（2026-10-12）：负责人授权“A，提交这9个文件”后，修复提交为 `adb9d0f0a5a78dd6a82917a794d0930bff6ffa60`；负责人授权“重绑D4并提交”后，D4 交接包重绑提交为 `9dea138455430a17482dff3703708592cd0603d4`。均未推送、未合并。
 上一条“工作树，未提交”是提交前的快照，以本条为准。复审范围 `59a3f650…..adb9d0f0…`，r4 清单 SHA-256 `d00d1123…`；D4 命令原文在全新归档上执行通过（开发机，Node 20.17.0）。增量复审由负责人另开会话执行，NOT_PERFORMED；不签 DEVELOPER_VERIFIED。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+
+
+## A9-32 增量复审结论登记（2026-10-12）
+
+执行代理按负责人提供的交接书登记，登记起点为 `codex/a9-32-explicit-continue` 的 `4667bb02…`。负责人原话：“R-08 和 R-09 登记为已知限制，不补”。
+独立审核者是负责人另开的 Claude Sonnet 5.5 会话。结论为有发现项 PASS（开发机），绑定 `adb9d0f0…`，增量 `59a3f650…..adb9d0f0…`；未发现阻断、高、中级问题。
+原文见[增量复审结论](reports/2026-10/a9_32_incremental_independent_review_conclusion_2026-10-12.md)，SHA-256 `561b23ce…`；逐文件核对的证据副本在 `.acceptance/a9-32-developer/independent-review-r2/`。
+独立审核复算 `verify:quick` 退出 0，State 88、Core 221、Shell 134 项通过；26 个清单成员一致。41 个独立反例中 31 个变红、10 个存活，恢复 SHA 全部一致，核对点 a～e 全部 PASS。
+R-01 修复与 R-03 的 3 个新增用例通过本次增量复审。R-08、R-09 仅登记为回归防护的已知限制，见 [A9-32 §7.7](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#77-增量复审结论与已知限制2026-10-12)。
+执行代理本次只改登记文档与新增证据副本，不补用例、不改 Accepted ADR 正文、不签 DEVELOPER_VERIFIED。真实 Electron、打包、Win10、Win7 均 NOT_PERFORMED；未提交、推送或合并。
+
+## A9-32 独立审核者追认（2026-10-12）
+
+执行代理提出问题：是否追认负责人另开的 Claude Sonnet 5.5 会话为 A9-32 的独立审核者。负责人在聊天中回复“选A”，按 D5 第 2 项选项 A 登记。
+追认对象是 [A9-32 §7.5](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#75-独立审核结论登记与-r-01-裁决2026-10-12) 对 `59a3f650…` 的审核，以及 [§7.7](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#77-增量复审结论与已知限制2026-10-12) 对 `adb9d0f0…` 的增量复审。证据层级为开发机。
+追认不覆盖 A9-33 的技术独立复核者，不签 DEVELOPER_VERIFIED，不产生 Win10 或 Win7 结论。A9-33 §1 仍缺完整干净基线 SHA，§6.1 路径未生效。
+登记位置：[A9-32 §7.8](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#78-独立审核者追认2026-10-12)、[A9-33 §6.5 补记](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)、D5 第 2 项。执行代理只改文档；未提交、推送或合并。
+
+## A9-32 DEVELOPER_VERIFIED 条件与 A9-33 前置修订（2026-10-12）
+
+执行代理上报顺序矛盾：A9-32 §5 要求真实 Electron；D5 第 5 项把 Electron 取证放在新 Windows 包阶段；该包依赖 A9-33 §6.1 路径；A9-33 §1 又以 A9-32 开发机合同通过为 §6.1 生效前置。
+负责人在聊天中回复“选C”。A9-32 不签 DEVELOPER_VERIFIED，Gate 保持 `A9_32_IMPLEMENTATION_AUTHORIZED`；§5 真实 Electron 要求不变，取证改在 §6.1 新增开发 Profile 所构建的包上。
+A9-33 §1 对 A9-32 的前置改为“开发机检查与独立复核通过”。该部分已满足（开发机，`adb9d0f0…`，State 88 / Core 221 / Shell 134）。完整干净基线 SHA 未形成，§6.1 路径仍未生效。
+登记位置：[A9-32 §7.9](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#79-developer_verified-签发条件裁决2026-10-12)、[A9-33 §6.6](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#66-1-前置修订裁决2026-10-12)、[推进顺序 §6.5 补记](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#65-补记真实-electron-检查位置2026-10-12)。
+未新增 ADR。执行代理只改文档；真实 Electron、Win10、Win7 均 NOT_PERFORMED；未提交、推送或合并。

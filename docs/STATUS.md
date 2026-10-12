@@ -6,13 +6,15 @@ A9-32 本地实现已获准，基线 `571ec550…`，分支 `codex/a9-32-explici
 合同见[A9-32 §6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#6-本轮本地实施批准与影响登记2026-10-11)。
 A9-30/31 原开发结论保持。F1～F3 已修复；开发机 State84/Core212/Shell133 PASS。
 本轮绑定 r2 源清单，8 个最终字节反例均断言失败并恢复。F5 已于 2026-10-12 由负责人确认（[§7.2](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#72-f5-授权来源确认2026-10-12)）。
-生产页面交互为 SURROGATE；真实 Electron/新包/Win7/独立审核 NOT_PERFORMED。
+生产页面交互为 SURROGATE；真实 Electron/新包/Win7 NOT_PERFORMED。独立审核结论见下文。
 A9-32 Gate 保持 IMPLEMENTATION_AUTHORIZED；[本轮报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)给出准确源/待提交范围。
 第二批、完整 Alpha 2 与 RC 未裁决。ENGINEERING_02 §138 HALTED 保持。
 2026-10-12 负责人对 D5 第 3～6 项选 A：ADR-0189 补充待核号，A9-33 路径条件批准，不下载 Electron，目标值待提供（[A9-33 §6.5](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)）。
-独立审核（负责人另开会话）：开发机 PASS，绑定 `59a3f650…`，无阻断级发现，结论见[审核结论](reports/2026-10/a9_32_independent_review_conclusion_2026-10-12.md)。
-R-01（前台 Shell 残留后继续不启动观察门）负责人选 B 修复，R-03 补 3 个用例，见 [A9-32 §7.5](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#75-独立审核结论登记与-r-01-裁决2026-10-12)；修复前 PASS 不覆盖 R-01，不签 DEVELOPER_VERIFIED。A9-33 保持 DRAFT_READY_FOR_REVIEW。
-R-01 修复与 R-03 用例已提交为 `adb9d0f0…`（ADR-0237，[A9-32 §7.6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#76-r-01-修复与-r-03-补用例2026-10-12)）；开发机 State 88 / Core 221 / Shell 134 PASS，4 个反例均变红。D4 交接包已在 `9dea1384…` 重绑到该提交，r4 清单 SHA-256 `d00d1123…`；增量复审由负责人另开会话执行，NOT_PERFORMED。
+独立增量复审（负责人另开的 Claude Sonnet 5.5 会话）：有发现项 PASS（开发机），绑定 `adb9d0f0…`，增量 `59a3f650…..adb9d0f0…`。未发现阻断、高、中级问题，结论见[增量复审结论](reports/2026-10/a9_32_incremental_independent_review_conclusion_2026-10-12.md)。
+R-01 修复与 R-03 的 3 个新增用例通过本次增量复审。负责人裁决 R-08、R-09 为已知限制，不补用例，见 [A9-32 §7.7](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#77-增量复审结论与已知限制2026-10-12)。不签 DEVELOPER_VERIFIED，A9-33 保持 DRAFT_READY_FOR_REVIEW。
+2026-10-12 负责人对 D5 第 2 项选 A，追认上述 Claude Sonnet 5.5 会话为 A9-32 的独立审核者（[A9-32 §7.8](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#78-独立审核者追认2026-10-12)）。该追认不覆盖 A9-33 技术独立复核者，不签 DEVELOPER_VERIFIED；A9-33 §1 仍缺完整干净基线 SHA。
+2026-10-12 负责人对顺序矛盾选 C：A9-32 不签 DEVELOPER_VERIFIED，须待新 Windows 开发包取得 §5 要求的真实 Electron 证据后另行裁决；A9-33 §1 前置改为“A9-32 开发机检查与独立复核通过”加完整干净基线 SHA（[A9-32 §7.9](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#79-developer_verified-签发条件裁决2026-10-12)、[A9-33 §6.6](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#66-1-前置修订裁决2026-10-12)）。A9-32 部分前置已满足，干净基线 SHA 未形成，§6.1 路径仍未生效。
+R-01 修复与 R-03 用例已提交为 `adb9d0f0…`（ADR-0237，[A9-32 §7.6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#76-r-01-修复与-r-03-补用例2026-10-12)）；开发机 State 88 / Core 221 / Shell 134 PASS，4 个反例均变红。D4 交接包已在 `9dea1384…` 重绑到该提交，r4 清单 SHA-256 `d00d1123…`；独立审核复算 State 88 / Core 221 / Shell 134 PASS；41 个独立反例中 31 个变红、10 个存活，恢复 SHA 全部一致。本次只登记文档，未提交、推送或合并。
 F6 与 ENOTDIR 已在独立复核前修复（ADR-0236，[A9-32 §7.4](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#74-f6-与-enotdir-独立复核前修复2026-10-12)）；开发机 State 84 / Core 218 / Shell 133 PASS。修复已提交为 `59a3f650…`，复核对象即该提交；审核交接包已在 `7504832a…` 重绑。
 原工作树及旧候选、数据库、首失败不变。
 

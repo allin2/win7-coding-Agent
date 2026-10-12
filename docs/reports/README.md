@@ -73,3 +73,5 @@
 开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](../tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
 [D4 独立审核交接](2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](2026-10/a9_32_owner_decisions_2026-10-12.md)；F5/ADR-0189 待负责人确认，真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。
 [独立审核结论（2026-10-12）](2026-10/a9_32_independent_review_conclusion_2026-10-12.md)：开发机 PASS，绑定 `59a3f650…`，无阻断级发现，R-01 待修复；真实 Electron/Win10/Win7 NOT_PERFORMED。
+
+[独立增量复审结论（2026-10-12）](2026-10/a9_32_incremental_independent_review_conclusion_2026-10-12.md)：有发现项 PASS（开发机），绑定 `adb9d0f0…`，增量 `59a3f650…..adb9d0f0…`。R-08、R-09 登记为已知限制，不补用例；不签 DEVELOPER_VERIFIED。真实 Electron、打包、Win10、Win7 NOT_PERFORMED。
