@@ -1956,3 +1956,6 @@ F6/ENOTDIR 复核前修复与独立审核者（2026-10-12）：负责人在聊�
 
 独立审核结论登记（2026-10-12，负责人回复“B，补用例，登记并提交”）：负责人另开的 Claude Sonnet 5.5 会话对 `59a3f650…` 给出开发机 PASS，无阻断级发现，结论全文见[独立审核结论](reports/2026-10/a9_32_independent_review_conclusion_2026-10-12.md)（原文 SHA-256 `2843769f…`）。
 发现 R-01～R-07；R-01 选 B 修复，R-03 补 3 个用例，R-04～R-07 登记为已知限制，见 [A9-32 §7.5](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#75-独立审核结论登记与-r-01-裁决2026-10-12)。不签 DEVELOPER_VERIFIED。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+
+R-01 修复与 R-03 补用例（2026-10-12，工作树，未提交）：`getTaskRecovery` 对带 `residueRisk` 的副作用工具 `tool_end` 保留未知结果（ADR-0237，[A9-32 §7.6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#76-r-01-修复与-r-03-补用例2026-10-12)）。
+开发机（macOS，Node 20.17.0，基线 `62a73f78…` 加未提交差异）State 88、Core 221、Shell 134 PASS，`verify:quick`、`docs:check`、`git diff --check` 通过；4 个反例均由断言变红并恢复同一 SHA。`59a3f650…` 的 PASS 不覆盖本修复，须增量再审；不签 DEVELOPER_VERIFIED。真实 Electron、Win10、Win7 均 NOT_PERFORMED。

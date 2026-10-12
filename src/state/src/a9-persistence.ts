@@ -947,12 +947,15 @@ export class A9PersistenceManager {
     const started = new Map<string, any>();
     const confirmedSteps: string[] = [];
     const changes: string[] = [];
+    const sideEffects = new Set(['write','edit','copy','move','delete','shell','start_process','stop_process']);
     for (const row of rows) {
       const payload = safeParse(row.payload_json) as any;
       const data = payload.data || payload;
       if (row.event_type === 'tool_start' && typeof data.callId === 'string') started.set(`${row.turn_id}:${data.callId}`, data);
       if (row.event_type === 'tool_end' && typeof data.callId === 'string') {
-        started.delete(`${row.turn_id}:${data.callId}`);
+        const key = `${row.turn_id}:${data.callId}`;
+        // A side effect that ended with unconfirmed process-tree cleanup may still change files: keep it unknown.
+        if (!(data.residueRisk === true && sideEffects.has(started.get(key)?.toolName))) started.delete(key);
         // Record only audited completion identity/status. Raw output/commands are not authorization.
         confirmedSteps.push(`${String(data.toolName || 'tool').slice(0, 40)}: ${data.error || data.residueRisk || /"error"\s*:/.test(String(data.result || '')) ? 'result_unknown' : 'recorded'}`);
       }
@@ -960,7 +963,6 @@ export class A9PersistenceManager {
         for (const change of data.changes) if (typeof change.path === 'string') changes.push(change.path.slice(0, 512));
       }
     }
-    const sideEffects = new Set(['write','edit','copy','move','delete','shell','start_process','stop_process']);
     const unknownResults = [...started.values()].filter((data) => sideEffects.has(data.toolName)).map((data) => ({
       toolName: String(data.toolName), callId: String(data.callId), status: 'result_unknown' as const,
       paths: ['path','source','destination'].map((key) => data.args?.[key]).filter((value) => typeof value === 'string').map((value: string) => value.slice(0, 512)),

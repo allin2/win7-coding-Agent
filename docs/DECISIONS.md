@@ -2780,3 +2780,14 @@ Registration/readback succeeded; actual scheduled launch inherited a Host Job an
 - 残余限制：本决定收窄 F6，没有消除它。未知 Shell 的影响范围未知，任何一个已核验目录的 `list` 仍可解除 opaque 门，包括无关目录。彻底解决需要与基线比较，另立任务。
 - 编号：0236 取自核号结果。主工作区含未提交改动的 `DECISIONS.md` 最大编号 ADR-0235，其他本地与远端分支最大编号 ADR-0189。整合前须再次核号，被占用时按负责人裁决改号并统一引用。
 - 证据（开发机，基线 `571ec550…` 加本轮未提交差异）：State 84、Core 218、Shell 133 项 PASS，`verify:quick` 退出 0。两个反例均断言失败：回退本决定一时 3 项用例变红，回退决定二时 2 项用例变红；原字节与恢复字节 SHA 相同，见 `.acceptance/a9-32-developer/mutation-results-r5.json`。ENOTDIR 在 Win7 NTFS 上的实际错误码 NOT_PERFORMED，真实 Electron、打包和 Win7 实机均 NOT_PERFORMED。
+
+## ADR-0237 A9-32 前台 Shell 带 residueRisk 结束时，继续仍按未知结果处理（ADR-0189、ADR-0236 补充）
+
+- 状态：Accepted（2026-10-12；负责人在聊天中对独立审核发现 R-01 选 B，并回复“B，补用例，登记并提交”）。ADR-0189 与 ADR-0236 正文保持原字节。
+- 背景：前台 Shell 在清理进程树未确认时，以 `residueRisk: true` 写入 `tool_end`。`getTaskRecovery` 见到 `tool_end` 就清除该调用，不再计入 `unknownResults`。后果：该 Shell 可能仍在改文件，而继续没有启动观察门，副作用工具不被拦截。此缺陷来自 `d8fd760a…`，不是 ADR-0236 引入。
+- 决定一：副作用工具（`shell`、`write`、`edit`、`delete` 等 `sideEffects` 集合内的工具）的 `tool_end` 带 `residueRisk: true` 时，`getTaskRecovery` 保留其 `tool_start`，继续计为 `result_unknown`。
+- 决定二：保留后的条目沿用既有观察规则。`shell` 无路径，按 opaque 处理，只由已核验目录的 `list` 解除（ADR-0236）。带路径的副作用工具保留其路径，由对应路径的核验解除（ADR-0189）。
+- 不变：只读工具（如 `read`）带 `residueRisk` 不计未知；无 `residueRisk` 的 `tool_end` 照旧清除。表 schema、`recoveryRevision` 哈希输入、IPC、Core 观察门逻辑不变。失败方向仍是阻断。
+- 残余限制：与 ADR-0236 相同，任何已核验目录的 `list` 仍可解除 opaque 门，包括无关目录。
+- 编号：0237 紧接 ADR-0236。整合前须再次核号，规则同 ADR-0236。
+- 证据（开发机，macOS，Node 20.17.0，基线 `62a73f78…` 加本轮未提交差异）：State 88、Core 221、Shell 134 项 PASS，`verify:quick`、`docs:check`、`git diff --check` 均通过。新增用例：State 4（`it.each` 覆盖 shell/edit 带残留保持未知、无残留与只读带残留不计）、Core 3（R-03）、Shell 1（端到端：残留 Shell 之后写入被拦，`read` 不解除，`list` 后放行）。4 个反例均断言失败并恢复同一 SHA：回退本决定时 State 2 项与 Shell 1 项变红；审核者留下的 3 个存活反例（悬空软链接保护移除、`stat` 检查反转、`search` 解除 opaque 门）各使 1 项 Core 用例变红。见 `.acceptance/a9-32-developer/mutation-results-r6.json`。真实 Electron、打包、Win10、Win7 均 NOT_PERFORMED。

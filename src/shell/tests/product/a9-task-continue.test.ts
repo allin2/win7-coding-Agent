@@ -178,6 +178,18 @@ it.each([true, false])('unknown move requires both source and destination observ
     expect(fs.existsSync(path.join(f.workspaceRoot, 'blocked.txt'))).toBe(false); expect(fs.readFileSync(path.join(f.workspaceRoot, 'fresh.txt'), 'utf8')).toBe('fresh');
   } finally { await f.close(); }
 });
+it('a foreground Shell that ended with residueRisk keeps the continuation opaque until a verified list', async () => {
+  const f = await setup({ sequence: [{ name: 'write', args: { path: 'blocked-1.txt', content: 'unsafe' } }, { name: 'read', args: { path: 'note.txt' } },
+    { name: 'write', args: { path: 'blocked-2.txt', content: 'unsafe' } }, { name: 'list', args: { path: '.' } }, { name: 'write', args: { path: 'fresh.txt', content: 'fresh' } }] });
+  try {
+    seed(f, 'shell', { command: 'stop dev server' });
+    f.db.prepare("INSERT INTO a9_events(session_id,turn_id,kind,event_type,payload_json,created_at) VALUES(?,'old-turn','tool','tool_end',?,'2026-01-01')").run(f.fact().conversationId, JSON.stringify({ data: { toolName: 'shell', callId: 'unknown-shell', residueRisk: true, result: 'process tree cleanup unconfirmed' } }));
+    expect(f.fact().unknownResults).toEqual([{ toolName: 'shell', callId: 'unknown-shell', status: 'result_unknown', paths: [] }]);
+    const result = await f.click(f.fact()); expect(result.ok).toBe(true);
+    expect(fs.existsSync(path.join(f.workspaceRoot, 'blocked-1.txt'))).toBe(false); expect(fs.existsSync(path.join(f.workspaceRoot, 'blocked-2.txt'))).toBe(false);
+    expect(fs.readFileSync(path.join(f.workspaceRoot, 'fresh.txt'), 'utf8')).toBe('fresh');
+  } finally { await f.close(); }
+});
 it('normal and paged conversation show the original user goal before, after continuation and restart', async () => {
   const f = await setup();
   try {

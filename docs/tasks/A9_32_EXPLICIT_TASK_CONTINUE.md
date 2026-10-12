@@ -194,3 +194,18 @@ r4 的 4 个 Core 反例在修复提交上未重跑，状态 NOT_PERFORMED，原
 
 §7.1 的错误码可读性、Core 路径核验职责两行仍是已知限制，审核者确认仍存在。
 审核者发现交接包 §2 的依赖搭建命令有缺陷，已修订并在全新归档上实测。
+
+### 7.6 R-01 修复与 R-03 补用例（2026-10-12）
+
+依据：负责人回复“B，补用例，登记并提交”（§7.5）。决策见 ADR-0237。
+
+| 项 | 改动 | 文件 |
+|---|---|---|
+| R-01 | `getTaskRecovery` 对带 `residueRisk` 的副作用工具 `tool_end` 保留未知结果；只读工具和无残留不变 | `src/state/src/a9-persistence.ts` |
+| R-01 用例 | State 4 项、Shell 端到端 1 项 | `src/state/tests/a9-task-continue.test.ts`、`src/shell/tests/product/a9-task-continue.test.ts` |
+| R-03 用例 | 悬空软链接保护、读取报 ENOENT 但文件存在、`search` 不解除 opaque 门，共 3 项 | `src/core/tests/a9-task-continue.test.ts` |
+
+开发机验证（基线 `62a73f78…` 加本轮差异）：State 88、Core 221、Shell 134 全部 PASS；`verify:quick`、`docs:check`、`git diff --check` 通过。较 §7.4 的 84/218/133 增加 4/3/1。
+反例：4 个均由断言变红并恢复同一 SHA，见 `.acceptance/a9-32-developer/mutation-results-r6.json`。`verify:quick` 重建的 24 个 `src/runner/dist/*` 已归档并恢复，见 `generated-output-preservation-r6.json`。
+范围：不改 Core 逻辑、schema、IPC、依赖、native。`59a3f650…` 的 PASS 不覆盖本修复，须对 `59a3f650…` 到修复提交的增量再审。
+DEVELOPER_VERIFIED 未签。真实 Electron、Win10、Win7 均 NOT_PERFORMED。

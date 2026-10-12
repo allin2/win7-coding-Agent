@@ -12,7 +12,7 @@ function scenario(calls: Array<{ name: string; args: any }>, options: { readFail
     return call ? { id: String(round), content: '', finishReason: 'tool_calls', toolCalls: [{ id: `c${round}`, name: call.name, arguments: JSON.stringify(call.args) }] }
       : { id: 'done', content: 'done', finishReason: 'stop' };
   }) };
-  const workspaceService: any = { read: jest.fn(async () => { options.onRead?.(); if (options.readError) throw options.readError; if (options.readFailure) throw new Error('read failed'); return options.readResult || { content: 'current facts' }; }), write: jest.fn(async () => ({ written: true })), list: jest.fn(async () => { if (options.listError) throw options.listError; return { entries: [] }; }) };
+  const workspaceService: any = { read: jest.fn(async () => { options.onRead?.(); if (options.readError) throw options.readError; if (options.readFailure) throw new Error('read failed'); return options.readResult || { content: 'current facts' }; }), write: jest.fn(async () => ({ written: true })), list: jest.fn(async () => { if (options.listError) throw options.listError; return { entries: [] }; }), search: jest.fn(async () => ({ matches: [] })) };
   const runner = { execute: jest.fn(async () => ({ exitCode: 0, stdout: '', stderr: '', durationMs: 1, timedOut: false })) };
   const loop = new A9AgentLoop({ workspaceRoot: options.workspaceRoot || fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-core-')), recoveryPathPlatform: options.platform, recoveryPathCaseInsensitive: options.caseInsensitive, permissionMode: PermissionMode.FULL_ACCESS, provider, workspaceService, runner,
     contextBudgetChars: options.budget, loadProjectInstructions: () => options.instructions || { status: 'missing', bytes: 0 },
@@ -160,6 +160,30 @@ it.each(['ENOENT', 'ENOTDIR'])('%s below a file parent observes the exact target
     { workspaceRoot, readError: Object.assign(new Error(code), { code }) });
   await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: ['file.txt/child'] } });
   expect(f.workspaceService.write).toHaveBeenCalledTimes(1);
+});
+it('a dangling symlink is not an absent file even when the read reports ENOENT', async () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-dangling-'));
+  fs.symlinkSync(path.join(workspaceRoot, 'nowhere'), path.join(workspaceRoot, 'link'));
+  const f = scenario([{ name: 'read', args: { path: 'link' } }, { name: 'write', args: { path: 'other.txt', content: 'unsafe' } }],
+    { workspaceRoot, readError: Object.assign(new Error('absent'), { code: 'ENOENT' }) });
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: ['link'] } });
+  expect(f.workspaceService.write).not.toHaveBeenCalled();
+});
+it('an ENOENT read of a file that actually exists does not observe it as absent', async () => {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-exists-'));
+  fs.writeFileSync(path.join(workspaceRoot, 'exists.txt'), 'x');
+  const f = scenario([{ name: 'read', args: { path: 'exists.txt' } }, { name: 'write', args: { path: 'other.txt', content: 'unsafe' } }],
+    { workspaceRoot, readError: Object.assign(new Error('absent'), { code: 'ENOENT' }) });
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: ['exists.txt'] } });
+  expect(f.workspaceService.write).not.toHaveBeenCalled();
+});
+it('a successful search does not release an opaque unknown Shell; a verified list does', async () => {
+  const f = scenario([{ name: 'search', args: { pattern: 'anything' } }, { name: 'shell', args: { command: 'echo blocked' } },
+    { name: 'list', args: { path: '.' } }, { name: 'shell', args: { command: 'echo fresh' } }]);
+  await f.loop.runTurn('continue', { continuation: { ...continuation, unknownPaths: [], opaqueUnknown: true } });
+  expect(f.workspaceService.search).toHaveBeenCalledTimes(1);
+  expect(f.runner.execute).toHaveBeenCalledTimes(1);
+  expect(gateBlocks(f)).toBe(1);
 });
 it('ENOTDIR below a symlink to an outside file stays closed', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-notdir-link-')), workspaceRoot = path.join(root, 'workspace');

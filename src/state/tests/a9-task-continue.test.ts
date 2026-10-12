@@ -33,6 +33,21 @@ it('derives stable identity and result_unknown from durable tool facts without c
     expect(manager.getTaskRecovery('/workspace', 'c', 'task')!.unknownResults).toEqual([]);
   } finally { manager.db.close(); }
 });
+it.each([
+  { toolName: 'shell', args: { command: 'cleanup failed' }, residueRisk: true, unknown: true, paths: [] as string[] },
+  { toolName: 'edit', args: { path: 'a.txt' }, residueRisk: true, unknown: true, paths: ['a.txt'] },
+  { toolName: 'shell', args: { command: 'echo ok' }, residueRisk: undefined, unknown: false, paths: [] as string[] },
+  { toolName: 'read', args: { path: 'a.txt' }, residueRisk: true, unknown: false, paths: [] as string[] },
+])('tool_end residueRisk keeps only side-effect tools unknown: %j', ({ toolName, args, residueRisk, unknown, paths }) => {
+  const manager = open();
+  try {
+    seed(manager);
+    manager.recordToolEvent('c', 'old', 'tool_end', { data: { callId: 'old-write', toolName: 'edit', result: 'done' } });
+    manager.recordToolEvent('c', 'old', 'tool_start', { data: { callId: 'call-x', toolName, args } });
+    manager.recordToolEvent('c', 'old', 'tool_end', { data: { callId: 'call-x', toolName, result: 'ended', ...(residueRisk ? { residueRisk: true } : {}) } });
+    expect(manager.getTaskRecovery('/workspace', 'c', 'task')!.unknownResults).toEqual(unknown ? [{ toolName, callId: 'call-x', status: 'result_unknown', paths }] : []);
+  } finally { manager.db.close(); }
+});
 it('commits one new Turn and audit intent atomically; repeated key returns its identity', () => {
   const manager = open();
   try {
