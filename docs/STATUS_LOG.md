@@ -1938,3 +1938,6 @@ Gate 保持 A9_32_IMPLEMENTATION_AUTHORIZED；未暂存、提交、推送、合�
 
 开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
 [D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；F5/ADR-0189 待负责人确认，真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。
+
+F5 授权来源确认（2026-10-12）：负责人在聊天中确认“我授权了A9-32”，按 D5 第 1 项选项 A 登记，见 [A9-32 §7.2](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#72-f5-授权来源确认2026-10-12)。
+范围仍为 §6 的基线 `571ec550…` 与 §1–5 本地实现；不含提交、推送、合并、远端、下载、冻结、发布和门 A/B。Gate 保持 A9_32_IMPLEMENTATION_AUTHORIZED；ADR-0189 与 D5 第 2～6 项待裁决。
