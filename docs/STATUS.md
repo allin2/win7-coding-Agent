@@ -10,7 +10,8 @@ A9-30/31 原开发结论保持。F1～F3 已修复；开发机 State84/Core212/S
 A9-32 Gate 保持 IMPLEMENTATION_AUTHORIZED；[本轮报告](reports/2026-10/a9_32_local_implementation_and_batch2_readiness_2026-10-11.md)给出准确源/待提交范围。
 第二批、完整 Alpha 2 与 RC 未裁决。ENGINEERING_02 §138 HALTED 保持。
 2026-10-12 负责人对 D5 第 3～6 项选 A：ADR-0189 补充待核号，A9-33 路径条件批准，不下载 Electron，目标值待提供（[A9-33 §6.5](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#65-负责人裁决登记2026-10-12)）。
-独立审核者（D5 第 2 项）已选方案 A：由负责人另开新审核会话担任，会话尚未启动；A9-33 保持 DRAFT_READY_FOR_REVIEW。
+独立审核（负责人另开会话）：开发机 PASS，绑定 `59a3f650…`，无阻断级发现，结论见[审核结论](reports/2026-10/a9_32_independent_review_conclusion_2026-10-12.md)。
+R-01（前台 Shell 残留后继续不启动观察门）负责人选 B 修复，R-03 补 3 个用例，见 [A9-32 §7.5](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#75-独立审核结论登记与-r-01-裁决2026-10-12)；修复前 PASS 不覆盖 R-01，不签 DEVELOPER_VERIFIED。A9-33 保持 DRAFT_READY_FOR_REVIEW。
 F6 与 ENOTDIR 已在独立复核前修复（ADR-0236，[A9-32 §7.4](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#74-f6-与-enotdir-独立复核前修复2026-10-12)）；开发机 State 84 / Core 218 / Shell 133 PASS。修复已提交为 `59a3f650…`，复核对象即该提交；审核交接包已在 `7504832a…` 重绑。
 原工作树及旧候选、数据库、首失败不变。
 

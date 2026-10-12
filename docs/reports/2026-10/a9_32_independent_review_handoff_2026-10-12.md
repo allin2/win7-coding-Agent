@@ -32,9 +32,18 @@ r3 补丁 `.acceptance/a9-32-developer/reviewable-local-change-r3.patch`，SHA-2
 REPO=/Users/qlyf/.codex/worktrees/a9-32-explicit-continue/win7-coding-Agent
 REVIEW_DIR=$(mktemp -d /private/tmp/a9-32-independent-review.XXXXXX)
 git -C "$REPO" -c core.fsmonitor=false archive 59a3f6507ecac3c0c89fdcd6fc9b8ef79ceba73c | tar -x -C "$REVIEW_DIR"
-ln -s /Users/qlyf/Developer/win7-coding-Agent/node_modules "$REVIEW_DIR/node_modules"
+MAIN=/Users/qlyf/Developer/win7-coding-Agent
+for mod in . src/*; do
+  [ -d "$MAIN/$mod/node_modules" ] || continue
+  mkdir -p "$REVIEW_DIR/$mod/node_modules"
+  for entry in "$MAIN/$mod/node_modules"/* "$MAIN/$mod/node_modules/.bin" "$MAIN/$mod/node_modules/.package-lock.json"; do
+    [ -e "$entry" ] || continue
+    [ "$(basename "$entry")" = "@win7-agent" ] && continue
+    ln -s "$entry" "$REVIEW_DIR/$mod/node_modules/$(basename "$entry")"
+  done
+done
 cd "$REVIEW_DIR"
-export PATH=/Users/qlyf/.nvm/versions/node/v20.17.0/bin:$PATH
+export PATH=/Users/qlyf/.nvm/versions/node/v20.17.0/bin:$PATH NPM_CONFIG_OFFLINE=true
 node --version
 npm run verify:quick
 npm test --workspace=@win7-agent/state -- --runInBand --runTestsByPath tests/a9-task-continue.test.ts tests/a9-persistence-contract.test.ts tests/a9-stream-output.test.ts
@@ -45,6 +54,8 @@ npm test --workspace=@win7-agent/shell -- --runInBand --runTestsByPath tests/pro
 预期 Node 为 v20.17.0。`verify:quick` 先构建七模块，再验证消费者；预期退出码 0。
 开发机在提交前的工作树上得到：State 84、Core 218（原 212 加新增 6 项）、Shell 133，均退出 0。日志为 `state-contract-r5.log`、`core-contract-r5.log`、`shell-contract-r5.log`、`verify-quick-r5.log`。
 该工作树的 `a9-agent-loop.ts` 与提交 `59a3f650…` 同为 SHA-256 `34184a20…`。
+依赖搭建说明（2026-10-12 修订）：`verify_integration.mjs` 要求每个 `src/<模块>/node_modules` 存在，且根 `node_modules/@win7-agent/*` 是相对软链接。初版把根 `node_modules` 整体链到主工作区，既过不了依赖检查，也会让包解析到主工作区。上面的循环改为逐项软链接，不链 `@win7-agent`。
+初版写法由首位独立审核者发现并绕过；修订写法已在 `59a3f650…` 的全新归档上实测：`verify:quick` 退出 0，Core `a9-task-continue` 39 项通过（开发机）。
 归档里的 `src/runner/dist` 是提交版本，`verify:quick` 会在审核者目录内重新生成，不影响原树。
 SQLite 本地依赖必须可用于该 Node 与架构；不符时记环境差异，不能降判据。
 独立目录没有 .git，不在归档副本运行依赖 Git 枚举的 `docs:check`。文档检查在原隔离树单独完成：322 个文件，ok。
@@ -156,8 +167,13 @@ PY
 
 ## 6. 审核结论栏
 
-以下栏位留空，由负责人另开的新审核会话填写在自己的 `review-conclusion.md`。
+审核者把结论写在自己的 `review-conclusion.md`；是否登记进本表由负责人决定。
 
 | 审核者 | 日期 | 绑定提交 | 结论 | 发现项 |
 |---|---|---|---|---|
-| | | | | |
+| Claude Sonnet 5.5，负责人另开的独立审核会话 | 2026-10-12 | `59a3f650…` | PASS（开发机）；无阻断级发现；R-01 待修复 | R-01 中，负责人选 B；R-02～R-04 低；R-05～R-07 信息 |
+
+登记日期 2026-10-12，登记依据为负责人在聊天中回复“B，补用例，登记并提交”。
+审核结论全文见[独立审核结论](a9_32_independent_review_conclusion_2026-10-12.md)，原文 SHA-256 `2843769f…`。证据副本在 `.acceptance/a9-32-developer/independent-review-r1/`。
+登记不签 `DEVELOPER_VERIFIED`。R-01 修复完成前，对 `59a3f650…` 的 PASS 不覆盖 R-01。
+审核者发现第 2 节的依赖搭建命令有缺陷，已在本文件第 2 节修订。

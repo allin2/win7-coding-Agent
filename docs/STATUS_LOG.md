@@ -1953,3 +1953,6 @@ F6/ENOTDIR 复核前修复与独立审核者（2026-10-12）：负责人在聊�
 开发机 State 84、Core 218、Shell 133 PASS，`verify:quick` 退出 0，两个反例断言失败并恢复同一 SHA。残余限制是无关目录的 `list` 仍可解除 opaque 门。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
 提交（2026-10-12，负责人授权“两个都提交”）：修复提交 `59a3f6507ecac3c0c89fdcd6fc9b8ef79ceba73c`，审核交接包重绑提交 `7504832a64d2ba879dcba436676c84ea5f0d9fc8`；均未推送、未合并。
 审核清单 r3 的 SHA-256 为 `51ac0ca0…`。r4 的 4 个 Core 反例在修复提交上未重跑，NOT_PERFORMED。新审核会话由负责人启动，尚未启动。
+
+独立审核结论登记（2026-10-12，负责人回复“B，补用例，登记并提交”）：负责人另开的 Claude Sonnet 5.5 会话对 `59a3f650…` 给出开发机 PASS，无阻断级发现，结论全文见[独立审核结论](reports/2026-10/a9_32_independent_review_conclusion_2026-10-12.md)（原文 SHA-256 `2843769f…`）。
+发现 R-01～R-07；R-01 选 B 修复，R-03 补 3 个用例，R-04～R-07 登记为已知限制，见 [A9-32 §7.5](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#75-独立审核结论登记与-r-01-裁决2026-10-12)。不签 DEVELOPER_VERIFIED。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
