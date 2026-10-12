@@ -1,15 +1,15 @@
 # A9-33 — 第二批整批换发与 Win7 验收合同草稿
 
 ```text
-Status: DRAFT_READY_FOR_REVIEW
+Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: codex/a9-33-batch2-win7-acceptance
-Source Baseline: NOT_BOUND (requires reviewed A9-30/31/32 integration commit)
+Source Baseline: 152106f3efd41e5cb8aa6688a4fddc0df99db42a (codex/a9-32-explicit-continue; see §6.7)
 Target Version: 0.3.0-alpha.2
 Candidate: WIN7-43 (tentative; NOT_FROZEN)
-Phase-Gate: A9_33_CONTRACT_PENDING_APPROVAL
+Phase-Gate: A9_33_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0155 (Proposed)
+Decision: ADR-0155 (Proposed; not accepted by §6.7)
 ```
 
 ## 1. 授权与前置
@@ -249,10 +249,33 @@ Win10、Win7、普通桌面入口与正式执行均 NOT_PERFORMED。ENGINEERING_
 | A9-30、A9-31 | 保持各自任务书的 `DEVELOPER_VERIFIED` | 保持，本次未重核 |
 | A9-32 | 开发机检查与独立复核通过；不再要求已签 `DEVELOPER_VERIFIED` | 已满足：开发机 State 88、Core 221、Shell 134 通过，独立复审 PASS，绑定 `adb9d0f0…`（A9-32 §7.7、§7.8） |
 | 原生双构建与锁 | 按 A9-30、A9-31 任务书保持；A9-32 不新增原生能力 | 保持，本次未重核 |
-| 完整干净基线 SHA | 须形成 | **未形成**（A9-30/31/32 尚未整合；整合须提交授权，并先核对 ADR 编号） |
-| §6.1 的 20 个路径 | 上述四项全部满足后生效 | **仍未生效** |
+| 完整干净基线 SHA | 须形成 | **未形成**（A9-30/31/32 尚未整合；整合须提交授权，并先核对 ADR 编号）。2026-10-12 更新：已形成，见 §6.7 |
+| §6.1 的 20 个路径 | 上述四项全部满足后生效 | **仍未生效**。2026-10-12 更新：已生效，见 §6.7 |
 
 - A9-32 的 §5 真实 Electron 要求不降低。取证改在 §6.1 新增的 A9-32 开发 Profile 所构建的包上，取证结果由负责人另行裁决是否签 A9-32 `DEVELOPER_VERIFIED`。
 - A9-32 `DEVELOPER_VERIFIED` 与 WIN7-43 冻结的先后，本裁决未规定，冻结前由负责人另行确定。
 - A9-33 的技术独立复核者属于 §2 末项，在正式执行与审核阶段前指定，本裁决不改变；§6.5 补记表中该行含义相同。
 - 本修订不改接口、数据格式、兼容性或安全模型，不新增 ADR。
+
+### 6.7 基线登记与 §6.1 生效（2026-10-12）
+
+负责人对“完整干净基线 SHA 怎么定”回复“选A”。执行代理把 9 个未提交文档文件提交到 `codex/a9-32-explicit-continue`（未推送），再登记本节。
+按 §6.5 的规则，前置满足后由执行代理登记前置证据，并把任务状态改为 `APPROVED_FOR_IMPLEMENTATION`（AGENTS.md C14）。
+
+| 前置项 | 证据（开发机） |
+|---|---|
+| 基线提交 | `152106f3efd41e5cb8aa6688a4fddc0df99db42a`，分支 `codex/a9-32-explicit-continue`，父 `4667bb02…`，未推送 |
+| 工作树 | 提交后 `git status --porcelain` 输出 0 行 |
+| 产品源码 | `adb9d0f0…` 到基线提交的变更全部在 `docs/` 内；`src`、`scripts`、`release` 的差异为空，产品源码与独立复审对象字节相同 |
+| A9-32 开发机检查与独立复核 | State 88 / Core 221 / Shell 134 通过，独立复审 PASS，绑定 `adb9d0f0…`（A9-32 §7.7、§7.8；本次未重跑） |
+| A9-30、A9-31 与原生双构建、锁 | 沿用各自任务书结论，本次未重核 |
+
+登记后的状态与范围：
+
+- **状态：** Status 改为 `APPROVED_FOR_IMPLEMENTATION`，Phase-Gate 改为 `A9_33_IMPLEMENTATION_AUTHORIZED`，Source Baseline 为上表基线提交。该基线取代 §6 绑定的 `d8fd760a…`；§6 中“不得冒用 d8fd760a… 作为新实现身份”仍有效。
+- **授权范围：** §6.1 的 20 个路径与本地实施提案，仅限分支 `codex/a9-33-batch2-win7-acceptance`。该分支尚未创建；创建时须从含本登记的提交或其后代建立，并用 `git diff --name-only 152106f3..HEAD` 复核差异只在 `docs/`。
+- **不授权：** 产品语义修复、旧取证组件变更、推送与合并、下载、远端目录/传输/执行、authority、冻结、门 A/B。这些仍须各自准确授权。
+- **ADR-0155 仍为 `Proposed`，本节不接受它。** 它所依赖的增量矩阵尚未批准任何 `INHERITED_EVIDENCE`；批准前不得把继承证据计入通过。
+- **未解除的事项：** A9-32 `DEVELOPER_VERIFIED` 待真实 Electron 取证；A9-33 技术独立复核者未指定；Win10 目标等 7 项绑定为 `UNKNOWN`；ADR 编号隔离树到 0237、主工作区到 0235，主线整合前须核号。
+
+A9-33 的产品、套件实现、构建、Win10 与 Win7 均 NOT_PERFORMED。

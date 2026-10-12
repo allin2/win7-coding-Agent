@@ -1987,3 +1987,11 @@ R-01 修复与 R-03 的 3 个新增用例通过本次增量复审。R-08、R-09 
 A9-33 §1 对 A9-32 的前置改为“开发机检查与独立复核通过”。该部分已满足（开发机，`adb9d0f0…`，State 88 / Core 221 / Shell 134）。完整干净基线 SHA 未形成，§6.1 路径仍未生效。
 登记位置：[A9-32 §7.9](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#79-developer_verified-签发条件裁决2026-10-12)、[A9-33 §6.6](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#66-1-前置修订裁决2026-10-12)、[推进顺序 §6.5 补记](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#65-补记真实-electron-检查位置2026-10-12)。
 未新增 ADR。执行代理只改文档；真实 Electron、Win10、Win7 均 NOT_PERFORMED；未提交、推送或合并。
+
+## A9-32 基线登记与 A9-33 §6.1 生效（2026-10-12）
+
+负责人对“完整干净基线 SHA 怎么定”回复“选A”。执行代理把 9 个未提交文档文件提交为 `152106f3efd41e5cb8aa6688a4fddc0df99db42a`（分支 `codex/a9-32-explicit-continue`，父 `4667bb02…`，未推送）。
+提交后工作树干净；`adb9d0f0…` 到该提交的变更全部在 `docs/` 内，`src`、`scripts`、`release` 差异为空。证据层级为开发机。
+按 A9-33 §6.5 的规则，前置满足后登记 A9-33 为 APPROVED_FOR_IMPLEMENTATION，Phase-Gate 为 A9_33_IMPLEMENTATION_AUTHORIZED，Source Baseline 为 `152106f3…`。
+ADR-0155 仍为 Proposed，未被接受；增量矩阵尚未批准任何 INHERITED_EVIDENCE。A9-32 DEVELOPER_VERIFIED 仍未签。
+A9-33 分支 `codex/a9-33-batch2-win7-acceptance` 尚未创建；A9-33 实现、构建、Win10、Win7 均 NOT_PERFORMED。登记位置：[A9-33 §6.7](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#67-基线登记与-61-生效2026-10-12)。
