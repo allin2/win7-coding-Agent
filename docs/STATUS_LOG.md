@@ -1959,3 +1959,6 @@ F6/ENOTDIR 复核前修复与独立审核者（2026-10-12）：负责人在聊�
 
 R-01 修复与 R-03 补用例（2026-10-12，工作树，未提交）：`getTaskRecovery` 对带 `residueRisk` 的副作用工具 `tool_end` 保留未知结果（ADR-0237，[A9-32 §7.6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#76-r-01-修复与-r-03-补用例2026-10-12)）。
 开发机（macOS，Node 20.17.0，基线 `62a73f78…` 加未提交差异）State 88、Core 221、Shell 134 PASS，`verify:quick`、`docs:check`、`git diff --check` 通过；4 个反例均由断言变红并恢复同一 SHA。`59a3f650…` 的 PASS 不覆盖本修复，须增量再审；不签 DEVELOPER_VERIFIED。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+
+R-01 修复提交与 D4 重绑（2026-10-12）：负责人授权“A，提交这9个文件”后，修复提交为 `adb9d0f0a5a78dd6a82917a794d0930bff6ffa60`；负责人授权“重绑D4并提交”后，D4 交接包重绑提交为 `9dea138455430a17482dff3703708592cd0603d4`。均未推送、未合并。
+上一条“工作树，未提交”是提交前的快照，以本条为准。复审范围 `59a3f650…..adb9d0f0…`，r4 清单 SHA-256 `d00d1123…`；D4 命令原文在全新归档上执行通过（开发机，Node 20.17.0）。增量复审由负责人另开会话执行，NOT_PERFORMED；不签 DEVELOPER_VERIFIED。真实 Electron、Win10、Win7 均 NOT_PERFORMED。

@@ -209,3 +209,7 @@ r4 的 4 个 Core 反例在修复提交上未重跑，状态 NOT_PERFORMED，原
 反例：4 个均由断言变红并恢复同一 SHA，见 `.acceptance/a9-32-developer/mutation-results-r6.json`。`verify:quick` 重建的 24 个 `src/runner/dist/*` 已归档并恢复，见 `generated-output-preservation-r6.json`。
 范围：不改 Core 逻辑、schema、IPC、依赖、native。`59a3f650…` 的 PASS 不覆盖本修复，须对 `59a3f650…` 到修复提交的增量再审。
 DEVELOPER_VERIFIED 未签。真实 Electron、Win10、Win7 均 NOT_PERFORMED。
+
+提交（2026-10-12，负责人授权“A，提交这9个文件”）：修复提交 `adb9d0f0a5a78dd6a82917a794d0930bff6ffa60`，父提交 `62a73f78…`，未推送、未合并。上文验证基于该提交的提交前工作树，提交时字节相同。
+D4 重绑（负责人授权“重绑D4并提交”）：提交 `9dea138455430a17482dff3703708592cd0603d4`，复审对象 `adb9d0f0…`，范围 `59a3f650…..adb9d0f0…`。r4 清单 SHA-256 `d00d1123…`，增量补丁 SHA-256 `acd63137…`。
+D4 第 2～4 节的命令原文已在 `adb9d0f0…` 的全新归档上执行：`verify:quick` 退出 0，State 88、Core 221、Shell 134 通过，清单与三组反例核对通过，日志 `d4-doc-commands-r4.log`。增量复审 NOT_PERFORMED。
