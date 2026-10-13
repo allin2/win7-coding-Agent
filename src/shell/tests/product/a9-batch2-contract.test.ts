@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import * as vm from 'vm';
 import Database from 'better-sqlite3';
 
 // A9-33 batch-2 contract tests. Dev-machine evidence only: nothing here starts Electron, PowerShell, Win10 or Win7.
@@ -860,10 +861,94 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(body).not.toMatch(/writeFileSync\(/ );
     expect(body).toContain('settings_corrupt_at_start');
     expect(source).not.toContain('A9_BATCH2_DRIVER_PRODUCT_BUSY');
-    expect(source).toMatch(/async function submit\(prompt\) \{\s*await waitFor\(composerReady/);
+    // The send button stays disabled while the prompt is empty, so the wait for it must come after the text is typed.
+    expect(source).not.toContain('composerReady');
+    expect(source).toMatch(/async function submit\(prompt\) \{\s*await waitComposer\(composerOpen, 30000, 'composer open'\);[\s\S]*?p\.value = \$\{JSON\.stringify\(prompt\)\}[\s\S]*?await waitComposer\(sendEnabled, 30000, 'send enabled'\);[\s\S]*?\.click\(\)/);
     expect(source).toMatch(/async function runPrompt\(token, timeoutMs\) \{\s*await waitIdle\(/);
     // The two audit follow-ups are the observation itself: they click without waiting and record the composer state.
     expect((source.match(/await submitRaw\('b2:s01'\)/g) || []).length).toBe(2);
+  });
+
+  describe('the submit wait against the real renderer composer logic (rehearsal 5: p03 stopped at the first submission)', () => {
+    const rendererSource = fs.readFileSync(path.resolve(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+    const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const slice = (source: string, from: string, to: string) => {
+      const start = source.indexOf(from);
+      const end = source.indexOf(to, start);
+      expect(start).toBeGreaterThan(-1);
+      expect(end).toBeGreaterThan(start);
+      return source.slice(start, end);
+    };
+
+    // The composer functions come from the shipped renderer; only the DOM nodes and the snapshot are stubs.
+    function page(snapshot: any, running = false) {
+      const nodes: Record<string, any> = {};
+      const clicks: string[] = [];
+      let resize: () => void = () => undefined;
+      const node = (id: string) => (nodes[id] = nodes[id] || {
+        id, value: '', hidden: false, disabled: false, textContent: '', dataset: {}, style: {},
+        scrollHeight: 20,
+        dispatchEvent(event: any) { if (id === 'task-prompt' && event.type === 'input') resize(); },
+        click() { if (!this.disabled) clicks.push(`${id}:${nodes['task-prompt'].value}`); },
+      });
+      ['task-prompt', 'run-task', 'cancel-task', 'rail-stop', 'session-status', 'cancel-task-label', 'rail-stop-label'].forEach(node);
+      const code = slice(rendererSource, 'function canSubmit()', '// ADR-0114 事件数据层');
+      const box: any = {
+        state: { snapshot, running }, SUPPORTED_MODES: new Set(['full_access', 'read_only']), el: node,
+        text: (id: string, value: any) => { node(id).textContent = String(value); }, runtimeDiagnostic: () => 'diagnostic',
+      };
+      vm.runInNewContext(`${code}\n;this.sync = syncComposer; this.resize = resizeComposer;`, box);
+      resize = box.resize;
+      box.sync();
+      const doc = { getElementById: (id: string) => node(id) };
+      const exec = async (source: string) => vm.runInNewContext(source, { document: doc, Event: class { type: string; constructor(type: string) { this.type = type; } } });
+      return { nodes, clicks, box, exec };
+    }
+    const ready = () => ({ status: 'ready', mode: 'full_access', provider: { configured: true, probe: { classification: 'tool_calling' } }, agentStatus: 'idle', managedProcesses: [], controls: { canStop: false, stopKind: 'none' } });
+
+    // The driver's own wait and submit code, cut out of the source and run against the page above.
+    function driverComposer(p: any) {
+      const code = [slice(driverSource, 'async function waitFor(condition, timeoutMs, label)', '// ---- SQLite inspection'), slice(driverSource, 'const composerState = ', '  // Idle means no Turn is running.')].join('\n');
+      const box: any = { exec: p.exec, sleep: () => new Promise((resolve) => setTimeout(resolve, 2)), Date, JSON, Boolean, Error, Promise, String };
+      vm.runInNewContext(`${code}\n;this.api = { submit, composerState, waitComposer, composerOpen, sendEnabled };`, box);
+      return box.api;
+    }
+
+    test('an empty prompt leaves the send button disabled and typing enables it, as the driver now relies on', () => {
+      const p = page(ready());
+      expect(p.nodes['run-task']).toMatchObject({ hidden: false, disabled: true });
+      expect(p.nodes['task-prompt'].disabled).toBe(false);
+      p.nodes['task-prompt'].value = 'b2:hello';
+      p.nodes['task-prompt'].dispatchEvent({ type: 'input' });
+      expect(p.nodes['run-task'].disabled).toBe(false);
+      expect(rendererSource).toMatch(/function canSubmit\(\) \{[\s\S]*?el\('task-prompt'\)\.value\.trim\(\)/);
+      expect(rendererSource).toMatch(/el\('task-prompt'\)\.addEventListener\('input', \(\) => \{ resizeComposer\(\);/);
+    });
+
+    test('submit types into the empty composer, waits for the button and clicks exactly once', async () => {
+      const p = page(ready());
+      await driverComposer(p).submit('b2:first');
+      expect(p.clicks).toEqual(['run-task:b2:first']);
+    });
+
+    test('submit waits while a Turn is running and goes through once the composer opens', async () => {
+      const p = page(ready(), true);
+      p.box.sync();
+      const d = driverComposer(p);
+      expect(await d.composerState()).toEqual({ send_hidden: true, send_disabled: true, prompt_disabled: true });
+      setTimeout(() => { p.box.state.running = false; p.box.sync(); }, 30);
+      await d.submit('b2:after-turn');
+      expect(p.clicks).toEqual(['run-task:b2:after-turn']);
+    });
+
+    test('a blocked composer never clicks and the timeout names the state', async () => {
+      const blocked = ready();
+      blocked.mode = 'unselected';
+      const p = page(blocked);
+      const d = driverComposer(p);
+      await expect(d.waitComposer(d.composerOpen, 60, 'composer open')).rejects.toThrow(/^TIMEOUT:composer open:composer=\{"send_hidden":false,"send_disabled":true,"prompt_disabled":true\}/);
+      expect(p.clicks).toEqual([]);
+    });
   });
 
   test('the normal-exit tree assertion needs an observed non-empty tree and a working process listing', () => {

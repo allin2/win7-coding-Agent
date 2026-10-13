@@ -550,17 +550,27 @@ async function runDriver() {
     await setFixture({ shellKind: snap.shell && snap.shell.kind === 'powershell' ? 'powershell' : 'cmd' });
     return snap;
   }
-  // The send button is hidden while the renderer still treats a Turn as running and disabled while the composer is blocked.
-  // A click on it is ignored silently in those states, so a submission waits until a user could click it (rehearsal 4: p04 stopped at the first check).
+  // The send button is hidden while the renderer still treats a Turn as running, and the prompt is disabled while the composer is blocked.
+  // The send button is also disabled while the prompt is empty (canSubmit needs prompt text), so a submission waits in three steps:
+  // the composer is open, the text is typed (the input event refreshes the button), the button is enabled. Waiting for an enabled
+  // button before typing cannot end (rehearsal 5: p03 stopped at the first submission after 30 s). Every timeout carries the state.
   const composerState = () => exec(`(() => { const send = document.getElementById('run-task'); const prompt = document.getElementById('task-prompt');
     return { send_hidden: send ? send.hidden : null, send_disabled: send ? send.disabled : null, prompt_disabled: prompt ? prompt.disabled : null }; })()`);
-  const composerReady = async () => { const state = await composerState(); return state.send_hidden === false && state.send_disabled === false && state.prompt_disabled === false; };
+  const composerOpen = (state) => Boolean(state) && state.send_hidden === false && state.prompt_disabled === false;
+  const sendEnabled = (state) => composerOpen(state) && state.send_disabled === false;
+  const waitComposer = (accept, timeoutMs, label) => waitFor(async () => {
+    const state = await composerState();
+    if (!accept(state)) throw new Error(`composer=${JSON.stringify(state)}`);
+    return true;
+  }, timeoutMs, label);
   async function submitRaw(prompt) {
     await exec(`(() => { const p = document.getElementById('task-prompt'); p.value = ${JSON.stringify(prompt)}; p.dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('run-task').click(); return true; })()`);
   }
   async function submit(prompt) {
-    await waitFor(composerReady, 30000, 'composer ready');
-    await submitRaw(prompt);
+    await waitComposer(composerOpen, 30000, 'composer open');
+    await exec(`(() => { const p = document.getElementById('task-prompt'); p.value = ${JSON.stringify(prompt)}; p.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    await waitComposer(sendEnabled, 30000, 'send enabled');
+    await exec(`(() => { document.getElementById('run-task').click(); return true; })()`);
   }
   // Idle means no Turn is running. A managed background process keeps controls.canStop true, so only stopKind 'turn' counts as busy.
   const waitIdle = (timeoutMs, label) => waitFor(async () => { const snap = await snapshot(); return snap.controls && snap.controls.stopKind !== 'turn' && snap.agentStatus !== 'running' ? snap : null; }, timeoutMs, label || 'idle');
