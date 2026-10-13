@@ -659,3 +659,58 @@ SID 核验：2026-10-13 08:15:22Z，一次 SSH 会话，只读执行 `wmic usera
 4. 同意后按 [批准材料草案](../plans/A9_33_REHEARSAL_AND_EXECUTION_APPROVAL_DRAFT.md) §4 的 R1～R8 闭集动作执行。
 
 本节不授予写入类远端动作，不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。
+
+### 6.17 预演 1 执行记录与 p03 修复（2026-10-13）
+
+结论：负责人批准预演授权文件后，执行代理在 Win7 实机完成预演 1。p01、p02 通过，p03 失败（`PHASE_RESULT_MISSING`），p04～p10 因前置未过而未执行。失败原因是冒烟脚本漏设 `process.noAsar`，修复已提交为 `5499843…`（本地，未推送），尚未在 Win7 复核。
+证据层级为 Win7 实机（预演，`REHEARSAL_NOT_ELIGIBLE`），绑定源提交 `445f12e2…`、授权文件 `4b566715…`、运行编号 `0f3591ba`。Win7 验收、正式执行、Win10 均 `NOT_PERFORMED`。
+
+负责人原话：“批准，授权文件 SHA-256 4b566715… 同意，开始 Win7 预演”；失败报告后又答：“选A，同意提交修复并构建预演2”。第一句用前 8 位加省略号，与提问时的缩写一致，该前缀只对应一份授权文件。
+
+| 步骤 | 时间（UTC） | 结果 |
+|---|---|---|
+| R1 只读复核 | 08:23:51Z | 机器名 `dccs-chaizl-PC`；`agent` 在控制台会话 2 运行中；C: 剩余 884258213888 字节；`C:\A9-W43` 不存在；进程表无 Electron 与 helper |
+| R2 建根 | 08:29:12Z | 新建 `C:\A9-W43\run\0f3591ba\{deploy,work,data,evidence}`，`icacls` 只授 `agent` 该根的修改权 |
+| R3 传输 | 08:29:37Z～08:39:18Z | 包 ZIP（101555587 字节）、授权文件、输入锁、构建套件登记及执行代理粘合文件共 10 个文件；Win7 端 `certutil` 复算与开发机逐项相同；ZIP 上传 9 分 41 秒 |
+| R4 展开 | 08:39:38Z | .NET `ZipFile` 展开到 `deploy`，800 个文件，`electron.exe` 存在 |
+| R5 计划任务 | 每阶段一次 | 注册、COM 回读 11 项字段一致、运行、删除；P01、P02、P03 均已删除 |
+| R6 阶段 | 08:40:28Z～08:42:51Z | 见下表 |
+| R7 取回 | 08:50:36Z | 证据目录 102 个文件，取回 20 个并与 Win7 端哈希逐项一致；其余 82 个是候选运行时副本（149 MB），传输约 170 KB/s，中止取回，只留 Win7 端哈希清单 |
+| R8 后飞行 | 08:50:53Z | 进程表 104 行，无 `electron`、`spike02`、`node`，与 p01 基线行数相同；运行根保留 |
+
+| 阶段 | 结果 | 依据 |
+|---|---|---|
+| p01 环境与身份 | PASS，5/5 断言 | `agent` SID、Medium、会话 2、非提升、`in_job=false`；Electron 22.3.27、Node 16.17.1、ABI 110；进程 104 个无残留；空闲 883916107776 字节 |
+| p02 包完整性 | PASS，4/4 断言 | 799 个清单文件与 800 个 ZIP 条目 0 处不一致；helper 与 sqlite 哈希；7 个模块在候选 Electron 里加载 |
+| p03 最短链路 | FAIL | `PHASE_RESULT_MISSING`；账本 CONSUMED→COMPLETED 结果 FAIL；无 `phase-result.json` |
+| p04～p10 | `NOT_PERFORMED` | 前置阶段 p03 未通过 |
+
+p03 根因：`prepareDriverRuntime` 用 `fs.copyFileSync` 复制 `default_app.asar`（`a9-batch2-smoke.cjs`）。Electron 的 fs 包装把以 `.asar` 结尾的路径当归档根，报 `ENOENT,  not found in …default_app.asar`。证据是 `evidence\driver-electron\resources` 已建但为空。WIN7-42 冒烟脚本首行有 `process.noAsar = true;` 并写明原因，本批冒烟脚本漏了；p02 的完整性脚本用 `original-fs`，不受影响。
+修复（`5499843…`，2 个文件、+45 行）：冒烟脚本加 `process.noAsar = true;`；契约测试加 2 个用例（模块加载置位；复制在虚拟化开启时失败、关闭时成功）。去掉修复后两个用例都失败。该修复在真实 Electron 上是否生效，要预演 2 才能确认，`UNKNOWN`。
+
+计划任务合同（草案 §7 中“计划任务 XML 合同”一项，由执行代理起草，此处报备）：
+
+| 项 | 内容 |
+|---|---|
+| 任务名 | `\A9W43R<运行编号前 8 位>P<阶段序号>`，每阶段一个，运行后删除 |
+| 主体 | `agent` 精确 SID，`InteractiveToken`，`LeastPrivilege`，无触发器，`IgnoreNew`，`ExecutionTimeLimit` 为 `PT3H` |
+| 动作 | `C:\Windows\System32\cmd.exe /d /c call "<根>\work\phase.cmd" <阶段> false`，工作目录 `<根>\work` |
+| 编码 | 注册 XML 为 ASCII、无 BOM、无编码声明；`.cmd` 为 ASCII、CRLF |
+| 回读 | `schtasks /query /xml` 报“无法加载列资源”（W40 起已知），改用 Task Scheduler COM 导出，核对 URI、命令、参数、工作目录、SID、登录类型、运行级别、时限、实例策略、触发器数、动作数 |
+| 运行前核对 | 每次运行前只读核对机器名与 `agent` 控制台会话 2，不符即停 |
+
+粘合文件是执行代理工具，不在候选内，也不是仓库文件，存放在隔离树 `.acceptance/a9-33-rehearsal/rehearsal-1/glue/`（被忽略）：`make-request.cjs` `e4d76403…`、`phase.cmd` `1cb12059…`、`extract.ps1` `b04dbb23…`、`sum-tree.ps1` `2cc6b80b…`、`readback.ps1` `9ae866cd…`、`binding.json` `2ae85b4b…`。
+与批准材料草案 §4 R3 的差异：R3 写的是传输“阶段请求文件”。本次改由 `make-request.cjs` 在 Win7 上调用候选自己的 `createRequest` 生成请求，因为请求含 900 秒有效期，开发机与 Win7 时钟偏差会触发 `NOT_YET_VALID` 或 `EXPIRED`。请求内容仍由候选代码生成，粘合文件只读账本、不写账本。
+请求目标的 `machine_name` 用控制器报告的 `DCCS-CHAIZL-PC`（大写），授权文件写的是 `dccs-chaizl-PC`；请求脚本逐字比较，两者只差大小写，Windows 机器名不区分大小写。
+
+执行偏差与披露：
+
+- R2 有两次无远端效果的失败尝试：本机 zsh 未拆分参数（ssh 未连接），远端 `cmd` 在括号块里遇到 `(OI)(CI)M` 而整条拒绝（随后只读核对 `C:\A9-W43` 不存在）。
+- 中止 `driver-electron` 的取回时已在本机收到 7 个文件，清单见预演 1 目录 `runs/p03-chain/driver-electron-partial-listing.txt`，字节已删除。
+- Win7 PowerShell 为 5.1.14409.1018，控制器的 PS 2.0 兼容性仍未验证。
+
+开发机检查（修复后，提交 `5499843…`）：契约 jest 60 通过（含 2 个新用例）；批次包测试 8 通过；去掉修复后 2 个新用例都失败。
+全量 shell jest 618 个用例中 615 通过，3 个失败都在 `a9-lifecycle.test.ts`（后台进程）；同一文件在修复前的 `445f12e2…`（临时工作树复跑）同样 3 个失败，且该文件不引用本次改动的两个文件，根因 `UNKNOWN`。完整 `node --test` 与 `verify:quick` 本次 `NOT_PERFORMED`。
+预算：预演 1/4，请求 3/64（索引 1～3，p03 为失败），窗口至 2026-10-16T06:59:59Z。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。预演 2 使用新的运行编号、新的 Win7 运行根、新构建的包，须另有负责人对新授权文件 SHA-256 的同意。
