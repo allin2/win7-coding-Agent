@@ -772,3 +772,65 @@ B2-CH-06 现象：对话框标记 10:58:11.260Z 已写出，按钮三个、文�
 预算：预演 2/4，请求 6/64（预演 2 的索引 1～3，p03 为失败），用时自 08:29Z 起约 2 小时 50 分，窗口至 2026-10-16T06:59:59Z。p03 的失败类别与预演 1 不同，不触发“同一失败两次即暂停”。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。预演 3 使用新的运行编号、新的 Win7 运行根、新构建的包，须另有负责人对新授权文件 SHA-256 的同意。
+
+### 6.19 预演 3 执行记录与 p03 两项剩余失败（2026-10-13）
+
+结论：预演 3 在 Win7 实机完成。p01、p02 通过，p03 的 12 个断言 10 个通过、2 个失败（`ASSERTION_FAILED`），p04～p10 因前置未过而未执行。退出对话框点击在 Win7 上成功。剩余两项：B2-CH-06-A02 是验收套件把自身进程算作残留，已修复；B2-CH-02-A01 是产品界面在 Turn 结束后不显示后台输出，负责人裁决选 B：登记为已知限制 KL-3 并收窄断言，产品不改。两项修复提交为 `83e03bf6…`（本地，未推送）。
+证据层级为 Win7 实机（预演，`REHEARSAL_NOT_ELIGIBLE`），绑定源提交 `a22fde42…`、授权文件 `d66d8bd5…`、运行编号 `79a32916`。Win7 验收、正式执行、Win10 均 `NOT_PERFORMED`。
+
+负责人原话：“选A，同意提交修复并构建预演3”；“批准，授权文件 SHA-256 d66d8bd5… 同意，开始预演3”；预演 3 报告后答：“选B，同意提交修复与文档”。
+
+| 步骤 | 时间（UTC） | 结果 |
+|---|---|---|
+| R1 只读复核 | 11:54:04Z | 机器名 `dccs-chaizl-PC`；`agent` 在控制台会话 2 运行中；C: 剩余 883108356096 字节；新根不存在；旧根 `0f3591ba`、`d254bfcb` 仍在 |
+| R3 传输 | 11:54:31Z～12:22Z | 包 ZIP（101563969 字节）经 scp 三次中断，改用 sftp `reput` 续传完成；其余 10 个文件一次传完；Win7 端 `certutil` 复算 11 个文件与开发机逐项相同；中断原因 `UNKNOWN` |
+| R4 展开 | 12:22:52Z | 800 个文件；包内冒烟脚本含 `process.noAsar = true;`，控制器含 `B2Dialog` |
+| R5 计划任务 | 每阶段一次 | 注册、COM 回读 11 项字段一致、运行、删除；P01、P02、P03 经 COM 回读均为“找不到文件” |
+| R6 阶段 | 12:22:56Z～12:25:25Z | 见下表 |
+| R7 取回 | 12:25Z | Win7 端 evidence 154 个文件已算哈希；取回 55 个，与哈希逐项一致 |
+| R8 后飞行 | 12:26Z | 进程表 103 行，无 `electron`、`spike02`、`node`、`powershell`、`wmic`；运行根保留 |
+
+| 阶段 | 结果 | 依据 |
+|---|---|---|
+| p01 环境与身份 | PASS，5/5 断言 | — |
+| p02 包完整性 | PASS，4/4 断言 | — |
+| p03 最短链路 | FAIL，`ASSERTION_FAILED`，10/12 断言 PASS | B2-CH-01（2）、B2-CH-02-A02、B2-CH-03（2，Stop 反馈 290 ms）、B2-CH-04（2）、B2-CH-05（2）、B2-CH-06-A01 PASS；B2-CH-02-A01、B2-CH-06-A02 FAIL |
+| p04～p10 | `NOT_PERFORMED` | 请求脚本返回 `PREREQUISITE_NOT_PASSED:p03-chain` |
+
+预演 2 的两项修复在 Win7 上的结果：
+
+| 修复 | Win7 结果 |
+|---|---|
+| 观测循环在 Turn 结束后继续 8 秒 | B2-CH-02-A02 PASS，frames=6；Stop 时命令仍在运行（`running_processes=1`） |
+| `ClickDialog` 先 Win32 按钮点击 | 输出 `clicked index 0 via win32; button_gone=True`；产品退出码 0；B2-CH-06-A01 PASS（`returned_index=0`） |
+
+剩余失败 1，B2-CH-06-A02（套件缺陷，已在工作树修复，未提交）：断言 observed 为 `exit_code=0; survivors=0; tree_before=6; listing_failed=false; residue=1`，残留为 pid 7300 的 `electron.exe`。`finishChainEvidence` 统计候选目录下的全部进程，不排除冒烟脚本自身，而冒烟脚本本身就是候选目录下的 `electron.exe`（`ELECTRON_RUN_AS_NODE=1`）。证据：7300 不在 4 个驱动 pid（3520、1408、7556、6344）之中；R8 在阶段结束后无 `electron`；预演 2 的 pid 6084 同样如此。7300 即冒烟脚本自身，是由此推断，证据里没有记录冒烟脚本的 pid，所以确认要等下一次运行的 `06-postflight.json` 新增字段 `own_pids_excluded`。修复：排除 `ctx.pid` 与父进程，与 `runPostflightPhase` 一致。
+
+剩余失败 2，B2-CH-02-A01（产品行为缺口，不在 §6.1 路径内；负责人选 B，登记 KL-3）：原断言要求 tick、stdout、stderr 在进程结束前显示在界面。observed 为 `first_visible_ms=null; running_processes=1; stdout_has_tick=true; stderr_has_err=true; observations=22`。11 次采样中，IPC 快照的帧数从 0 增到 6，界面 DOM 的帧数始终为 0；`02-output.png` 显示卡片“工具活动 · 1 项”、“后台运行 1”，没有输出文字。原因在 `src/shell/product/renderer/a9-workbench.js`：`beginSnapshotPolling` 只在提交的 Turn 内运行；主进程推送通道 `desktop:event` 只转发 `task.event`；`tickLiveStatus` 不刷新托管进程输出。`start_process` 让 Turn 立即结束，之后产生的输出要等下一次快照刷新才显示。该断言在预演 2 与预演 3 都失败，原因不同（预演 2 是观测过早）。
+
+开发机检查（绑定 `83e03bf6…`，提交前同一工作树）：契约 jest 65 通过，新增 2 个用例；A02 用例无修复时失败（Expected PASS，Received FAIL）、有修复时通过；A01 评估器 4 项变异（去掉运行数、去掉快照帧、要求界面帧、去掉 stderr）各被拦住；`node --test` 120 通过；`verify:quick` 退出 0；两个 shell 测试文件 108 通过；`docs:check` 通过。
+
+负责人裁决与已知限制 KL-3（选项 B）：
+
+| 编号 | 来源 | 现象 | 影响 | 预演与正式执行中的处置 |
+|---|---|---|---|---|
+| KL-3 | 预演 3 的 B2-CH-02-A01 | 启动后台进程的 Turn 结束后，渲染层不再刷新对话；输出帧已写入 SQLite 并出现在 IPC 快照，界面要等下一次刷新才显示 | 用户在该 Turn 结束后看不到后台进程的实时输出，要发下一条消息或切换对话才出现。这是产品缺口，不是套件缺陷 | A01 收窄为“输出已落库并出现在 IPC 快照，且不先于落库”；`02-background.json` 与 observed 记录 `dom_frames_max`，界面显示不作判据。B2-S01 仍检查 Turn 内的界面实时显示。Alpha 2 结论须带这一条限制，产品修复须另立任务书 |
+
+收窄后的 A01 是否通过只取决于落库与快照事实；它不再证明“用户在 Turn 结束后能在界面看到后台输出”，该能力 `NOT_VERIFIED`，且已知缺失。`dom_frames_max` 大于 0 说明产品已改，须重新评估 KL-3。
+
+未知与未验证：
+
+- pid 7300 是否为冒烟脚本自身：见上，`UNKNOWN`。
+- p04～p10 从未在 Win7 运行，其中是否存在其他套件缺陷 `UNKNOWN`。
+- ZIP 上传三次中断的原因 `UNKNOWN`；预演 1、2 未中断。
+- B2-S01 在活动 Turn 内的界面实时显示，在 Win7 上 `UNKNOWN`：p04 未运行，该断言仍以界面为判据，KL-3 不覆盖它。
+- Win7 PowerShell 为 5.1.14409.1018，控制器的 PS 2.0 兼容性仍未验证。
+
+执行偏差与披露：
+
+- 本次 R7 与预演 2 相同，只取回账本与请求目录，不含 `driver-electron`。
+- B2-CH-02-A01 在预演 2、3 各失败一次。按“同一失败出现两次即暂停”的字面读法，执行代理暂停了 Win7 动作，直到负责人裁决（选 B）。
+
+预算：预演 3/4，请求 9/64（每次预演 3 个），用时自 08:29Z 起已过 5 小时（上限 8 小时，到 16:29Z），窗口至 2026-10-16T06:59:59Z。只剩预演 4 一次。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。预演 4 须有新构建的包、新授权文件和负责人对其 SHA-256 的同意。
