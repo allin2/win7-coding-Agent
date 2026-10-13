@@ -3,7 +3,7 @@
 # Runs in the ordinary interactive desktop session of the approved user. PowerShell 2.0 compatible, ASCII only.
 # It never reads a command from a request. Every action is one of the fixed ones below:
 #   Run         verify one approved phase request, consume it, run the one derived packaged script, record the result
-#   ClickDialog click one button of the product's own exit dialog by index (0..2) through UI Automation
+#   ClickDialog click one button of the product's own exit dialog by index (0..2): Win32 button click, then UI Automation
 # The request script (a9-batch2-desktop-request.cjs) does all JSON work, because PowerShell 2.0 has no JSON parser.
 # This controller proves nothing about the product: a phase is PASS only when its phase-result.json says PASS.
 param(
@@ -109,33 +109,220 @@ if ($Action -eq 'ClickDialog') {
     ([string][char]0x7559 + [char]0x7ED9 + [char]0x7CFB + [char]0x7EDF + [char]0x540E + [char]0x9000 + [char]0x51FA),
     ([string][char]0x53D6 + [char]0x6D88)
   )
-  [void][System.Reflection.Assembly]::LoadWithPartialName('UIAutomationClient')
-  [void][System.Reflection.Assembly]::LoadWithPartialName('UIAutomationTypes')
-  $root = [System.Windows.Automation.AutomationElement]::RootElement
-  $byProcess = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pidValue)
-  $deadline = (Get-Date).AddSeconds(30)
-  $clicked = $false
-  while ((Get-Date) -lt $deadline -and -not $clicked) {
-    $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $byProcess)
-    foreach ($window in $windows) {
-      $isButton = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-      $buttons = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $isButton)
-      foreach ($button in $buttons) {
-        $name = $button.Current.Name
-        if ($name -and ($name.Replace('&', '') -eq $labels[$indexValue])) {
+
+  # The exit dialog is a native dialog window (class #32770) of the product process. Two ways to press its button are tried in turn:
+  # 1. the push button window of that dialog (BM_CLICK, what a user click sends), 2. UI Automation Invoke on a button of a #32770 window of
+  # the same process. UI Automation never walks the product's Chromium window, and the Win32 search sends no message to it. A miss writes
+  # what was seen to stderr (ASCII only), because the Win7 desktop cannot be inspected from outside; the first run of this action
+  # (WIN7-43 rehearsal 2) found no button and left no trace.
+  function Normalize-Label([string]$text) {
+    if ($text -eq $null) { return '' }
+    $plain = $text -replace '&', ''
+    $plain = $plain -replace '\([A-Za-z]\)\s*$', ''
+    return ($plain -replace '\s+', '')
+  }
+  function Ascii-Safe([string]$text) {
+    if ($text -eq $null) { return '' }
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($ch in $text.ToCharArray()) {
+      $code = [int]$ch
+      if ($code -ge 32 -and $code -lt 127) { [void]$builder.Append($ch) } else { [void]$builder.Append('\u' + $code.ToString('x4')) }
+    }
+    return $builder.ToString()
+  }
+
+  $win32Ready = $false
+  $win32Error = ''
+  try {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class B2Dialog {
+  private delegate bool EnumProc(IntPtr hwnd, IntPtr lparam);
+  [DllImport("user32.dll")]
+  private static extern bool EnumWindows(EnumProc callback, IntPtr lparam);
+  [DllImport("user32.dll")]
+  private static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr lparam);
+  [DllImport("user32.dll")]
+  private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int max);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int max);
+  [DllImport("user32.dll")]
+  private static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")]
+  private static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint message, UIntPtr wparam, StringBuilder lparam, uint flags, uint timeout, out UIntPtr result);
+  // GetWindowText does not return the text of a control that lives in another process, so a button or label falls back to WM_GETTEXT
+  // (answered within 500 ms or abandoned). Other window classes, the Chromium ones included, are never sent a message.
+  private static string TextOf(IntPtr hwnd, string windowClass) {
+    StringBuilder builder = new StringBuilder(512);
+    GetWindowText(hwnd, builder, 512);
+    string text = builder.ToString();
+    if (text.Length == 0 && (windowClass == "Button" || windowClass == "Static")) {
+      StringBuilder viaMessage = new StringBuilder(512);
+      UIntPtr result = UIntPtr.Zero;
+      SendMessageTimeout(hwnd, 0x000D, new UIntPtr(512), viaMessage, 0x0002, 500, out result);
+      text = viaMessage.ToString();
+    }
+    return text;
+  }
+  private static string ClassOf(IntPtr hwnd) {
+    StringBuilder builder = new StringBuilder(256);
+    GetClassName(hwnd, builder, 256);
+    return builder.ToString();
+  }
+  // One row per top-level window of the process: handle|class|visible|title
+  public static string[] TopWindows(int processId) {
+    List<string> found = new List<string>();
+    EnumWindows(delegate(IntPtr hwnd, IntPtr lparam) {
+      uint owner = 0;
+      GetWindowThreadProcessId(hwnd, out owner);
+      if (owner == (uint)processId) {
+        string windowClass = ClassOf(hwnd);
+        found.Add(hwnd.ToInt64().ToString() + "|" + windowClass + "|" + (IsWindowVisible(hwnd) ? "1" : "0") + "|" + TextOf(hwnd, windowClass));
+      }
+      return true;
+    }, IntPtr.Zero);
+    return found.ToArray();
+  }
+  // One row per descendant window: handle|class|text
+  public static string[] Children(long parent) {
+    List<string> found = new List<string>();
+    EnumChildWindows(new IntPtr(parent), delegate(IntPtr hwnd, IntPtr lparam) {
+      string windowClass = ClassOf(hwnd);
+      found.Add(hwnd.ToInt64().ToString() + "|" + windowClass + "|" + TextOf(hwnd, windowClass));
+      return true;
+    }, IntPtr.Zero);
+    return found.ToArray();
+  }
+  // BM_CLICK is posted, not sent, so a dialog that closes on the click cannot block this process.
+  public static bool Click(long hwnd) {
+    return PostMessage(new IntPtr(hwnd), 0x00F5, IntPtr.Zero, IntPtr.Zero);
+  }
+}
+'@
+    $win32Ready = $true
+  } catch { $win32Error = $_.Exception.Message }
+
+  $uiaReady = $false
+  $uiaError = ''
+  try {
+    [void][System.Reflection.Assembly]::LoadWithPartialName('UIAutomationClient')
+    [void][System.Reflection.Assembly]::LoadWithPartialName('UIAutomationTypes')
+    [void][System.Windows.Automation.AutomationElement]::RootElement
+    $uiaReady = $true
+  } catch { $uiaError = $_.Exception.Message }
+
+  function Get-DialogWindows([int]$owner) {
+    $rows = @()
+    foreach ($row in [B2Dialog]::TopWindows($owner)) {
+      $parts = $row -split '\|', 4
+      $rows += New-Object PSObject -Property @{ Handle = [long]$parts[0]; Class = $parts[1]; Visible = ($parts[2] -eq '1'); Title = $parts[3] }
+    }
+    return $rows
+  }
+  function Find-ButtonWindow([int]$owner, [string]$wanted) {
+    foreach ($window in @(Get-DialogWindows $owner)) {
+      if (-not $window.Visible) { continue }
+      foreach ($childRow in [B2Dialog]::Children($window.Handle)) {
+        $child = $childRow -split '\|', 3
+        if ($child[1] -eq 'Button' -and (Normalize-Label $child[2]) -eq $wanted) { return [long]$child[0] }
+      }
+    }
+    return [long]0
+  }
+  function Invoke-UiaButton([int]$owner, [string]$wanted) {
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $byProcess = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $owner)
+    $byClass = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, '#32770')
+    $isDialog = New-Object System.Windows.Automation.AndCondition($byProcess, $byClass)
+    $isButton = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+    foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $isDialog)) {
+      foreach ($button in $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $isButton)) {
+        if ((Normalize-Label $button.Current.Name) -eq $wanted) {
           $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
           $pattern.Invoke()
-          $clicked = $true
-          break
+          return $true
         }
       }
-      if ($clicked) { break }
     }
-    if (-not $clicked) { Start-Sleep -Milliseconds 500 }
+    return $false
   }
-  if (-not $clicked) { Fail 'The exit dialog button was not found within 30 seconds.' 3 }
-  Write-Output ('clicked index ' + $indexValue)
-  exit 0
+
+  $wanted = Normalize-Label $labels[$indexValue]
+  $deadline = (Get-Date).AddSeconds(30)
+  $method = ''
+  $uiaFailure = ''
+  while ((Get-Date) -lt $deadline -and $method -eq '') {
+    if ($win32Ready) {
+      $buttonWindow = Find-ButtonWindow $pidValue $wanted
+      if ($buttonWindow -ne 0) {
+        if ([B2Dialog]::Click($buttonWindow)) { $method = 'win32' }
+      }
+    }
+    if ($method -eq '' -and $uiaReady) {
+      try { if (Invoke-UiaButton $pidValue $wanted) { $method = 'uia' } } catch { $uiaFailure = $_.Exception.Message }
+    }
+    if ($method -eq '') { Start-Sleep -Milliseconds 500 }
+  }
+
+  if ($method -ne '') {
+    # A pressed button closes the dialog. The wait makes a click that did nothing visible in the output (button_gone=False).
+    $gone = 'unknown'
+    if ($win32Ready) {
+      $gone = 'False'
+      $until = (Get-Date).AddSeconds(8)
+      while ((Get-Date) -lt $until -and $gone -eq 'False') {
+        if ((Find-ButtonWindow $pidValue $wanted) -eq 0) { $gone = 'True' } else { Start-Sleep -Milliseconds 250 }
+      }
+    }
+    Write-Output ('clicked index ' + $indexValue + ' via ' + $method + '; button_gone=' + $gone)
+    exit 0
+  }
+
+  # Not found: describe what the process showed. This must never change the exit code below.
+  $report = New-Object System.Text.StringBuilder
+  [void]$report.Append('The exit dialog button was not found within 30 seconds. want=' + (Ascii-Safe $wanted) + '; win32_ready=' + $win32Ready + '; uia_ready=' + $uiaReady + '.')
+  if ($win32Error) { [void]$report.Append(' win32_error=' + (Ascii-Safe $win32Error) + '.') }
+  if ($uiaError) { [void]$report.Append(' uia_error=' + (Ascii-Safe $uiaError) + '.') }
+  if ($uiaFailure) { [void]$report.Append(' uia_last_failure=' + (Ascii-Safe $uiaFailure) + '.') }
+  try {
+    if ($win32Ready) {
+      foreach ($window in @(Get-DialogWindows $pidValue)) {
+        [void]$report.Append(' W[' + $window.Handle + ',' + $window.Class + ',visible=' + $window.Visible + ',' + (Ascii-Safe $window.Title) + ']')
+        if ($window.Class -like 'Chrome_*') { continue }
+        foreach ($childRow in [B2Dialog]::Children($window.Handle)) {
+          $child = $childRow -split '\|', 3
+          [void]$report.Append(' C[' + $child[1] + ',' + (Ascii-Safe $child[2]) + ']')
+        }
+      }
+    }
+  } catch { [void]$report.Append(' win32_dump_failed=' + (Ascii-Safe $_.Exception.Message)) }
+  try {
+    if ($uiaReady) {
+      $root = [System.Windows.Automation.AutomationElement]::RootElement
+      $byProcess = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $pidValue)
+      foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $byProcess)) {
+        $className = $window.Current.ClassName
+        [void]$report.Append(' U[' + $className + ',' + (Ascii-Safe $window.Current.Name) + ']')
+        if ($className -like 'Chrome_*') { continue }
+        $shown = 0
+        foreach ($item in $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+          if ($shown -ge 30) { break }
+          [void]$report.Append(' u[' + $item.Current.ControlType.ProgrammaticName + ',' + (Ascii-Safe $item.Current.Name) + ']')
+          $shown = $shown + 1
+        }
+      }
+    }
+  } catch { [void]$report.Append(' uia_dump_failed=' + (Ascii-Safe $_.Exception.Message)) }
+  $text = $report.ToString()
+  if ($text.Length -gt 7000) { $text = $text.Substring(0, 7000) }
+  Fail $text 3
 }
 
 # ---- Run ----------------------------------------------------------------------------------------------------------

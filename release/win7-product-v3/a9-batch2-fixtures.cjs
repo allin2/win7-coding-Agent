@@ -507,7 +507,9 @@ function providerStep(parsed, state) {
   }
   switch (token) {
     case 'b2:bg-start':
-      return done === 0 ? call('b2-bg-1', 'start_process', { command: shellCommand(kind, { name: 'ticks', ticks: 14 }) }) : { content: 'background process started.' };
+      // The longest bounded run: the journeys read the tree, take screenshots and click Stop (or the exit dialog) while it is still alive.
+      // Rehearsal 2 used 14 ticks (about 6 s on Win7), which leaves too little margin for those steps.
+      return done === 0 ? call('b2-bg-1', 'start_process', { command: shellCommand(kind, { name: 'ticks', ticks: FIXTURE_BOUNDS.max_ticks }) }) : { content: 'background process started.' };
     case 'b2:bg-long':
       // Outlives the guard journey of p06; it ends only by Stop, and the journey stops it in its own cleanup.
       return done === 0 ? call('b2-bgl-1', 'start_process', { command: shellCommand(kind, { name: 'long-running' }) }) : { content: 'long background process started.' };

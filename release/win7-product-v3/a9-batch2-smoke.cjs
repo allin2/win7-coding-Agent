@@ -443,11 +443,13 @@ function killTree(pid) {
 }
 
 // Asks the desktop controller to click one button of the product's own exit dialog (fixed argv; the index is the only value).
+const CLICK_OUTPUT_LIMIT = 8000;
 function clickExitDialog(controllerScript, pid, buttonIndex, spawnSync = childProcess.spawnSync) {
   if (!Number.isInteger(pid) || pid < 1 || !Number.isInteger(buttonIndex) || buttonIndex < 0 || buttonIndex > 2) throw new Error('A9_BATCH2_DIALOG_CLICK_ARGUMENT_INVALID');
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', controllerScript,
     '-Action', 'ClickDialog', '-ProcessId', String(pid), '-ButtonIndex', String(buttonIndex)], { windowsHide: true, encoding: 'utf8', timeout: 60000 });
-  return { status: result.status, stdout: String(result.stdout || '').slice(0, 2000), stderr: String(result.stderr || '').slice(0, 2000) };
+  // A miss prints the windows and controls the product process showed (controller ClickDialog, about 7000 characters at most).
+  return { status: result.status, stdout: String(result.stdout || '').slice(0, CLICK_OUTPUT_LIMIT), stderr: String(result.stderr || '').slice(0, CLICK_OUTPUT_LIMIT) };
 }
 
 // Launches one driver process; resolves with the observed exit. spawn and the click helper are injectable for the unit tests.

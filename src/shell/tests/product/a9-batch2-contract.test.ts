@@ -1017,6 +1017,61 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.evaluateLiveTick(null, 4500)).toMatchObject({ ok: false, reason: 'missing observation' });
   });
 
+  test('the background observation outlives the Turn end until output frames arrive (rehearsal 2, p03 B2-CH-02)', () => {
+    // Rehearsal 2 on Win7: the Turn completed 13 ms after start_process returned and the first tick was stored 451 ms later.
+    // The old rule (6 frames or the Turn end) closed the observation after two samples with 0 frames.
+    expect(driver.backgroundObservationDone(0, true, 489)).toBe(false);
+    expect(driver.backgroundObservationDone(5, true, 3000)).toBe(false);
+    expect(driver.backgroundObservationDone(6, false, 1500)).toBe(true);
+    expect(driver.backgroundObservationDone(6, true, 10)).toBe(true);
+    // A command that never writes still ends once the Turn is over and the grace period has passed; the overall timeout is observeUntil's.
+    expect(driver.backgroundObservationDone(0, true, 7999)).toBe(false);
+    expect(driver.backgroundObservationDone(0, true, 8000)).toBe(true);
+    expect(driver.backgroundObservationDone(0, false, 60000)).toBe(false);
+    expect(driver.backgroundObservationDone(2, 'yes', 9000)).toBe(false);
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    expect(source).toMatch(/observeUntil\(async \(evts, _dom, t\) => backgroundObservationDone\(framesFromEvents\(evts\)\.length, terminalReached\(evts\), t\), 90000, 'background frames'\)/);
+    expect(source).not.toMatch(/framesFromEvents\(evts\)\.length >= 6 \|\| terminalReached\(evts\)/);
+  });
+
+  test('the background fixture runs the longest bounded command so Stop and the exit dialog find it alive', () => {
+    const start = (kind: string) => fixtures.providerStep({ messages: [{ role: 'user', content: 'please run b2:bg-start' }] }, { shellKind: kind }).tool.args.command;
+    expect(start('powershell')).toBe(fixtures.backgroundCommandPowerShell(fixtures.FIXTURE_BOUNDS.max_ticks));
+    expect(start('cmd')).toBe(fixtures.backgroundCommandCmd(fixtures.FIXTURE_BOUNDS.max_ticks));
+    expect(start('powershell')).toContain(`1..${fixtures.FIXTURE_BOUNDS.max_ticks} `);
+  });
+
+  test('ClickDialog presses the button through the dialog window first, then UI Automation, and explains a miss', () => {
+    const text = fs.readFileSync(path.join(releaseDir, 'a9-batch2-desktop-controller.ps1'), 'utf8');
+    const block = text.slice(text.indexOf("if ($Action -eq 'ClickDialog')"), text.indexOf("# ---- Run ---"));
+    expect(block.length).toBeGreaterThan(1000);
+    // Win32 first: push button windows of the product process, BM_CLICK posted (never sent), control text through WM_GETTEXT.
+    expect(block).toMatch(/Add-Type -TypeDefinition @'/);
+    expect(block).toMatch(/PostMessage\(new IntPtr\(hwnd\), 0x00F5, IntPtr\.Zero, IntPtr\.Zero\)/);
+    expect(block).toMatch(/0x000D/);
+    expect(block).toMatch(/\$child\[1\] -eq 'Button'/);
+    // The Win32 type is compiled only here and a compile failure falls back to UI Automation instead of ending the action.
+    expect(block).toMatch(/\} catch \{ \$win32Error = /);
+    expect(text.indexOf('B2Dialog')).toBeGreaterThan(text.indexOf("if ($Action -eq 'ClickDialog')"));
+    // UI Automation only looks at dialog windows (#32770) of the process, never at the Chromium window.
+    expect(block).toMatch(/ClassNameProperty, '#32770'/);
+    expect(block).not.toMatch(/RootElement\.FindAll\(\[System\.Windows\.Automation\.TreeScope\]::Children, \$byProcess\)\s*\n\s*foreach \(\$window in \$windows\)/);
+    // A miss lists windows, child controls and UI Automation items as ASCII and still exits with code 3.
+    expect(block).toMatch(/Ascii-Safe/);
+    expect(block).toMatch(/' W\['/);
+    expect(block).toMatch(/' U\['/);
+    expect(block).toMatch(/Fail \$text 3/);
+    expect(block).not.toMatch(/Invoke-Expression|\biex\b|ConvertFrom-Json|-EncodedCommand/i);
+    // C# in the here-string is C# 2.0 syntax, so it also compiles under PowerShell 2.0: no lambdas, var or string interpolation.
+    const csharp = block.slice(block.indexOf("@'") + 2, block.indexOf("\n'@"));
+    expect(csharp).not.toMatch(/=>|\bvar\b|\$"/);
+    expect(csharp).not.toContain('$');
+    // The click output reaches the evidence whole (limit 8000), not cut at 2000.
+    const long = 'x'.repeat(9000);
+    const out = smoke.clickExitDialog('c.ps1', 77, 0, () => ({ status: 3, stdout: '', stderr: long }));
+    expect(out.stderr.length).toBe(8000);
+  });
+
   test('display before persistence is found from stored timestamps, DOM ghosts and tokens that never reached the database', () => {
     const base = { t: 1, dbFrameTexts: ['tick 1'], ipcEventIds: [], dbEventIds: [], domReadEndMs: 1000 };
     const stored = (persistedAtMs: number | undefined) => [{ eventId: 1, text: 'tick 1', persistedAtMs }];

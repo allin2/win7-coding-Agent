@@ -125,6 +125,14 @@ function evaluateLiveTick(firstTickVisibleMs, commandEndedMs, minimumLeadMs) {
   const lead = commandEndedMs - firstTickVisibleMs;
   return { ok: lead >= need, lead_ms: lead, required_ms: need };
 }
+// A background command returns to the model at once, so its Turn completes before the first output frame is stored (rehearsal 2 on Win7:
+// the Turn completed 13 ms after the tool ended, the first tick was stored 451 ms after the Turn). The Turn end alone must not close the observation;
+// it only counts after the grace period, so a command that never writes still ends the observation with 0 frames.
+const BACKGROUND_FRAMES_NEEDED = 6;
+const BACKGROUND_TURN_END_GRACE_MS = 8000;
+function backgroundObservationDone(frameCount, turnEnded, elapsedMs) {
+  return frameCount >= BACKGROUND_FRAMES_NEEDED || (turnEnded === true && elapsedMs >= BACKGROUND_TURN_END_GRACE_MS);
+}
 function secretLeak(text, secret) {
   const value = String(text || '');
   const needle = String(secret || '');
@@ -609,7 +617,7 @@ async function runDriver() {
     const conv = await conversationId();
     const baselineTree = myTree();
     await submit('b2:bg-start');
-    const observed = await observeUntil(async (evts) => framesFromEvents(evts).length >= 6 || terminalReached(evts), 90000, 'background frames');
+    const observed = await observeUntil(async (evts, _dom, t) => backgroundObservationDone(framesFromEvents(evts).length, terminalReached(evts), t), 90000, 'background frames');
     const running = (await snapshot()).managedProcesses.filter((item) => ['running', 'starting'].includes(item.lastProbeStatus));
     const frames = framesFromEvents(observed.events);
     const stdoutText = textsPerStream(frames, 'stdout');
@@ -1414,7 +1422,7 @@ async function runDriver() {
 }
 
 module.exports = {
-  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, secretLeak,
+  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
