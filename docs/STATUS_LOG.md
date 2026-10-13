@@ -1995,3 +1995,21 @@ A9-33 §1 对 A9-32 的前置改为“开发机检查与独立复核通过”。
 按 A9-33 §6.5 的规则，前置满足后登记 A9-33 为 APPROVED_FOR_IMPLEMENTATION，Phase-Gate 为 A9_33_IMPLEMENTATION_AUTHORIZED，Source Baseline 为 `152106f3…`。
 ADR-0155 仍为 Proposed，未被接受；增量矩阵尚未批准任何 INHERITED_EVIDENCE。A9-32 DEVELOPER_VERIFIED 仍未签。
 A9-33 分支 `codex/a9-33-batch2-win7-acceptance` 尚未创建；A9-33 实现、构建、Win10、Win7 均 NOT_PERFORMED。登记位置：[A9-33 §6.7](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#67-基线登记与-61-生效2026-10-12)。
+
+## A9-33 本地实现与开发机检查（2026-10-12）
+
+执行代理按负责人“选A”在分支 `codex/a9-33-batch2-win7-acceptance`（HEAD `7e96f561…`，工作树未提交）实现 A9-33 §6.1 的 20 个路径。证据层级为开发机。
+`node --test` 两个包测试文件 119 通过；shell jest 两个文件 73 通过；`npm run verify:quick`、`npm run docs:check`、`git diff --check` 通过。
+驱动、冒烟、桌面控制器只在开发机用纯函数、假进程和回环 Provider 测过；真实 Electron、PowerShell、Win10、Win7 均 NOT_PERFORMED。
+5 条断言按设计为 NOT_PERFORMED，阶段 p06、p07、p08 在负责人裁决前不能 PASS。新套件数据格式尚无 ADR，写入前须先核号。
+`src/runner/dist` 被跟踪且落后于源码，`verify:quick` 会使其变脏；已还原。执行代理未提交、推送或合并，未创建 ADR，未冻结候选，未签关口 A 或 B。
+登记位置：[A9-33 §6.8](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#68-本地实现进展2026-10-12)。
+
+## A9-33 合同收窄与驱动补全（2026-10-12）
+
+负责人回复“同意，独立复核者是codex”：放宽两条文档限制（缩小合同；A9-32 §5 真实 Electron 取证可由首次 Win7 预演取得），保留另外 7 条，指定 codex 为 A9-33 技术独立复核者。
+合同由 27 用例、45 断言、53 个证据文件收窄为 25 用例、42 断言、51 个证据文件；B2-CONT-02 与 B2-SAFE-01 移为已知限制。证据层级为开发机，绑定分支 `codex/a9-33-batch2-win7-acceptance`，实现提交 `905bf760…`（父 `7e96f561…`，本地，未推送）。
+驱动新增 `continue_guards`、`continue_mode_guard` 两个模式，补全 B2-CONT-03 第 2 条与 B2-UI-01 九个子项，并修正套件自身三处缺陷（空闲判断、滚动容器、继续后请求基线）。
+`node --test` 两个包测试文件 119 通过；shell jest 两个文件 78 通过；`npm run verify:quick`、`npm run docs:check`、`git diff --check` 通过；用驱动自己的写入函数对真实运行时（Node）核对了错误码与阻断原因。
+驱动、冒烟、桌面控制器仍未在 Electron、PowerShell、Win10、Win7 运行。负责人选 A 授权本地提交；执行代理未推送或合并，未创建 ADR，未冻结候选，未签关口 A 或 B。
+登记位置：[A9-33 §6.9](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#69-负责人裁决登记与合同收窄2026-10-12)。

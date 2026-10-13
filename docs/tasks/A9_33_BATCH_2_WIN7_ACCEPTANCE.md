@@ -279,3 +279,96 @@ Win10、Win7、普通桌面入口与正式执行均 NOT_PERFORMED。ENGINEERING_
 - **未解除的事项：** A9-32 `DEVELOPER_VERIFIED` 待真实 Electron 取证；A9-33 技术独立复核者未指定；Win10 目标等 7 项绑定为 `UNKNOWN`；ADR 编号隔离树到 0237、主工作区到 0235，主线整合前须核号。
 
 A9-33 的产品、套件实现、构建、Win10 与 Win7 均 NOT_PERFORMED。
+
+### 6.8 本地实现进展（2026-10-12）
+
+结论：§6.1 的 20 个路径已在本地实现，开发机的 §4 五项检查通过。全部改动未提交；真实 Electron、PowerShell、Win10、Win7 均 NOT_PERFORMED。
+绑定：分支 `codex/a9-33-batch2-win7-acceptance`，HEAD `7e96f561…`（A9-32 尖端，含 §6.7 登记）。证据层级为开发机。
+
+| §4 检查 | 结果（开发机） |
+|---|---|
+| `node --test` 两个包测试文件 | 119 通过、0 失败；本批新增 10 个用例（`a9-batch2-package.test.mjs` 7 个，`a9-package.test.mjs` 3 个） |
+| shell jest 两个文件 | 73 通过；新增 30 个用例，原有 43 个 |
+| `npm run verify:quick` | 通过 |
+| `npm run docs:check` | `ok`，324 个文件 |
+| `git diff --check` | 0 行输出；该命令不检查未跟踪文件，新文件另行核对无行尾空白、无 CR、无 BOM |
+
+实现范围（均在 §6.1 路径内）：
+
+| 部分 | 内容 |
+|---|---|
+| 生产者与运行时描述 | `build-a9-product-v3.mjs` 新增 batch2 与 A9-32 两个 Profile；`a9-package-runtime.js` 区分 A9-30/31、A9-32 开发锁与 batch2 正式锁；两个锁文件新建 |
+| 套件 | 合同（10 阶段、27 用例、45 断言、53 个证据文件）、请求与追加账本、完整性、冒烟、产品驱动、报告复核、桌面控制器、3 个 `.cmd` 入口、验证说明、README 小节 |
+| 测试 | 新增 `a9-batch2-package.test.mjs`、`a9-batch2-contract.test.ts`；`a9-package.test.mjs` 与 `a9-package-runtime.test.ts` 各增回归与拒绝用例 |
+
+未覆盖与限制（均为 `NOT_PERFORMED` 或 `UNKNOWN`，不计入通过）：
+
+- 驱动、冒烟、控制器只在开发机用纯函数、假进程和回环 Provider 测过，未在 Electron、PowerShell 或 Windows 上运行。驱动读取的产品 DOM 与 IPC 依据源码阅读，须经预演修正。
+- 5 条断言按设计为 `NOT_PERFORMED`：B2-CONT-02 两条、B2-CONT-03 第 2 条、B2-SAFE-01、B2-UI-01。原因是产品没有故障注入接缝、上下文预算设置入口，或该旅程未被驱动。因此阶段 p06、p07、p08 在负责人裁决前不能 PASS（裁决选项：补接缝、缩小合同、保留为已知限制）。
+- B2-S04 编码断言只在所选 Shell 为 PowerShell 时可观察，否则记 `UNKNOWN`。B2-CH-03 在未观察到命令进程时记 `UNKNOWN`，不记 PASS。
+- 新套件的数据格式（请求、账本、阶段结果）尚无 ADR。ADR 编号隔离树到 0237、主工作区到 0235，写入前须先核号。
+- `.gitattributes` 只有 `*.bat` 的换行规则，`.cmd` 没有。生产者在装配时拒绝 LF 的 `.cmd`，所以错误的检出会让装配失败，不会静默改坏入口。该文件不在 §6.1 路径内，未改。
+- 被跟踪的 `src/runner/dist`（64 个文件）落后于 `src/runner/src`：`verify:quick` 重建后其中 24 个文件变化，工作树随之变脏，冻结前的干净源检查会拒绝。本次已用 `git restore` 还原这些构建产物；runner 源码未改。
+
+本节不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不冻结候选，不签关口 A 或 B；Win10、Win7 与完整 Alpha 2 均 NOT_PERFORMED。未在 Win7 实机验证。
+
+### 6.9 负责人裁决登记与合同收窄（2026-10-12）
+
+结论：负责人同意放宽两条文档限制，并指定 codex 为 A9-33 技术独立复核者。合同收窄为 25 用例、42 断言、51 个证据文件；驱动已实现 B2-UI-01 与 B2-CONT-03 第 2 条。
+证据层级为开发机。绑定分支 `codex/a9-33-batch2-win7-acceptance`，实现提交 `905bf760…`（父 `7e96f561…`，仅 §6.1 的 20 个路径，本地，未推送）。
+负责人对“改动怎样落到分支”选 A，授权按此提交；本节与 STATUS、STATUS_LOG 的记录在随后的文档提交中。下表检查的对象与该提交的 20 个路径字节相同。
+
+执行代理在聊天中评估了 9 条文档限制，建议放宽第 2、3 条，保留其余 7 条，并请负责人指定技术独立复核者。负责人回复“同意，独立复核者是codex”。
+
+| 问题 | 裁决 | 影响 |
+|---|---|---|
+| 第 2 条：45 条断言须全部 PASS（§6.2） | 同意缩小合同（选项 A）：B2-CONT-02 两条与 B2-SAFE-01 一条移为已知限制；B2-UI-01 与 B2-CONT-03 第 2 条由驱动实现 | 合同由 27 用例、45 断言、53 个证据文件变为 25 用例、42 断言、51 个证据文件。本节取代 §6.2 中 CONT-02、SAFE-01 两行，以及 §6.8 中“5 条断言按设计为 NOT_PERFORMED”一项 |
+| 第 3 条：A9-32 §5 真实 Electron 取证位置（§6.6） | 同意用首次 Win7 预演取证，不再要求单独的 Win10 开发包轮次 | 预演仍标 `REHEARSAL_NOT_ELIGIBLE`；不自动签 A9-32 `DEVELOPER_VERIFIED`，由负责人另行裁决；预演结果能否覆盖 §5 全部项为 `UNKNOWN`，须逐项对照。登记见 [A9-32 §7.10](A9_32_EXPLICIT_TASK_CONTINUE.md#710-5-真实-electron-取证位置放宽2026-10-12) |
+| A9-33 技术独立复核者（§2 末项） | codex | 复核者不由实现方担任；复核对象与时点由后续请求绑定，本节不预设 |
+| 其余 7 条限制 | 保留 | 白名单与 C14、两次连续 Win7 预演、双独立干净构建、每个远端动作的准确授权、批准材料合并、第二批 PASS 不等于完整 Alpha 2、复核者职责分离、ADR-0155 保持 Proposed |
+
+本裁决只追加记录，不改既有条文，不改接口、数据格式或安全模型，不新增 ADR。
+
+收窄后的合同：
+
+| 阶段 | 用例与断言数 |
+|---|---|
+| p06-continue | B2-CONT-01（2 条）、B2-CONT-03（2 条） |
+| p07-safe | B2-SAFE-02（1 条） |
+| p08-ui | B2-UI-01（1 条，含 9 个子项）、B2-UI-02 |
+
+已知限制新增两项：B2-CONT-02 的崩溃点无法从产品外部命中；B2-SAFE-01 的不可压缩超预算请求无法构造，因为 Renderer 不暴露上下文预算设置。两项只由 A9-32 的开发机测试覆盖。
+
+驱动实现（均在 §6.1 路径内）：
+
+| 部分 | 内容 |
+|---|---|
+| B2-CONT-03 第 2 条 | 5 个子观察：错误归属、修订漂移、残留、健康后台进程共存、模式诊断。前三项和共存由新模式 `continue_guards` 完成，模式诊断由 `continue_mode_guard` 完成，最后由 `continue_unknown` 汇总记录 |
+| B2-UI-01 | 九个子项：卡片就绪、加载反馈、忙时焦点留在卡片、不抢滚动、忙时只派发一次、Stop 后回到可操作的新卡片、Stop 后焦点、视图返回、空格键重试再建一个新轮次。缺任何一项观察即为 `UNKNOWN` |
+| 注入方式 | 错误归属、修订漂移、残留和共存用候选自带的 SQLite 写入一条中断任务，残留再写一条 `cleanup_required` 的托管进程事实并随后删除；模式诊断在工作区打开前把模式设置文件改为截断 JSON，用后还原。这些不是真实崩溃，真实崩溃由 p03 和 p06 的杀进程旅程覆盖 |
+
+实现时发现并修正三处套件自身缺陷（均非产品缺陷）：
+
+- `waitIdle` 以 `canStop === false` 判断空闲，但托管后台进程在运行时 `canStop` 恒为真，S06/BG 的等待在预演中会超时。现改为 `stopKind !== 'turn'`。
+- 滚动探针读 `#a9-task-stream`，真实滚动容器是 `#conversation`，原探针恒为 0，“不抢滚动”会假通过。现读 `#conversation`，且滚动区不可滚动时记 `UNKNOWN`。
+- `continue_unknown` 以中断时刻的请求计数取“继续后第一条 Provider 请求”，插入新模式后会取错。现以点击时刻的计数为基线。
+
+开发机验证：
+
+| 检查 | 结果（开发机） |
+|---|---|
+| `node --test` 两个包测试文件 | 119 通过、0 失败（386 秒）；代码定稿后整体重跑 |
+| shell jest 两个文件 | 78 通过（原有 43，本批 35） |
+| `npm run verify:quick` | 通过（退出码 0）；运行后已用 `git restore` 还原 `src/runner/dist` |
+| `npm run docs:check` | ok，324 个文件 |
+| `git diff --check` | 0 行输出；该命令不检查未跟踪文件，新文件另行核对无行尾空白、无 CR、无 BOM |
+| 新增运行时核对 | `a9-batch2-contract.test.ts` 用驱动自己的写入函数对真实 `createA9AgentRuntime`（Node）核对：错误会话号得 `A9_CONTINUE_IDENTITY_MISMATCH`，过期修订得 `A9_CONTINUE_REVISION_MISMATCH`，残留得卡片 `canContinue=false` 与 `A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED`，删除残留后恢复，模式文件不可读得 `A9_MODE_SELECTION_REQUIRED`；全程 Provider 请求为 0 |
+
+未覆盖与待裁决（均为 `NOT_PERFORMED` 或 `UNKNOWN`）：
+
+- 驱动、冒烟、控制器仍未在 Electron、PowerShell、Windows 上运行。B2-UI-01 的按键、焦点、滚动只经纯函数评估器测过，真实行为须由预演观察；DOM 与 IPC 读取依据源码阅读。
+- “健康后台进程共存”的运行时侧由 A9-32 生命周期测试覆盖（POSIX 夹具）；驱动侧只在预演中观察。
+- 合同原文的“诊断模式”本节读作 `modeDiagnostics`（模式设置不可读时 fail-closed，错误码 `A9_MODE_SELECTION_REQUIRED`）。SQLite 不可用时的诊断运行时（`A9_DIAGNOSTICS_MODE`）未覆盖。若负责人要求覆盖后者，须另补用例。
+- 新套件数据格式（请求、账本、阶段结果）仍无 ADR；写入前须先核号（隔离树到 0237，主工作区到 0235）。
+
+本节不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不冻结候选，不签关口 A 或 B，不推送或合并。Win10、Win7 与完整 Alpha 2 均 NOT_PERFORMED。未在 Win7 实机验证。
