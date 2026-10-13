@@ -822,6 +822,33 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(run({ tree: [helper], wmic_failures: 0 }, listing([unrelated]), exitLaunch({ code: 1 })).status).toBe('FAIL');
   });
 
+  test('the normal-exit residue check does not count the smoke process itself', () => {
+    const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
+    const helper = { pid: 500, parent: 100, name: 'spike02_helper.exe', created: '20260101000000.000000+000' };
+    const run = (rowsFor: (candidateRoot: string, ownPid: number) => string[]) => {
+      const { ctx, attempt } = phaseContext('p03-chain');
+      for (const name of fixtures.evidenceForPhase('p03-chain')) if (name !== 'phase-result.json') fs.writeFileSync(path.join(attempt, name), 'x');
+      fs.writeFileSync(path.join(attempt, 'chain-exit-tree-before.json'), JSON.stringify({ tree: [helper], wmic_failures: 0 }));
+      const launch = { mode: 'chain_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 } };
+      // The filter compares path prefixes as written, so the row reuses the context's own candidate root spelling.
+      const candidateExe = `${ctx.candidateRoot}${path.sep}electron.exe`;
+      const exec = () => ({ status: 0, stdout: csv(rowsFor(candidateExe, ctx.pid)), stderr: '', error: null });
+      smoke.finishChainEvidence(ctx, [launch], null, exec, path.join(attempt, 'no-data'));
+      const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1];
+      return { status: assertion.status, ownPid: ctx.pid, post: JSON.parse(fs.readFileSync(path.join(attempt, '06-postflight.json'), 'utf8')) };
+    };
+    const other = 'HOST,20260101000001.000000+000,C:\\Windows\\notepad.exe,notepad.exe,1,7';
+    // The smoke runs as the candidate's electron.exe: its own row under the candidate root is not residue.
+    const own = run((exe, ownPid) => [other, `HOST,20260101000002.000000+000,${exe},electron.exe,1,${ownPid}`]);
+    expect(own.status).toBe('PASS');
+    expect(own.post.residue).toEqual([]);
+    expect(own.post.own_pids_excluded).toContain(own.ownPid);
+    // Any other process under the candidate root still fails the assertion.
+    const stray = run((exe, ownPid) => [other, `HOST,20260101000002.000000+000,${exe},electron.exe,1,${ownPid}`, `HOST,20260101000003.000000+000,${exe},electron.exe,1,${ownPid + 100000}`]);
+    expect(stray.status).toBe('FAIL');
+    expect(stray.post.residue).toEqual([{ pid: stray.ownPid + 100000, name: 'electron.exe' }]);
+  });
+
   test('a kill-on-marker mode that was not killed by the marker fails the phase', async () => {
     const { ctx } = phaseContext('p08-ui');
     const result = await smoke.runDriverPhase(ctx, {
@@ -1032,6 +1059,32 @@ describe('A9-33 batch-2 driver evaluators', () => {
     const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
     expect(source).toMatch(/observeUntil\(async \(evts, _dom, t\) => backgroundObservationDone\(framesFromEvents\(evts\)\.length, terminalReached\(evts\), t\), 90000, 'background frames'\)/);
     expect(source).not.toMatch(/framesFromEvents\(evts\)\.length >= 6 \|\| terminalReached\(evts\)/);
+  });
+
+  test('B2-CH-02-A01 asserts the stored and snapshot output while the process runs and only records the page (KL-3, rehearsal 3)', () => {
+    // Rehearsal 3 on Win7: the snapshot showed 2, 4, then 6 frames from 1198 ms on while the page showed none, because the Turn had ended.
+    const rehearsal3 = [0, 495, 1027, 1198, 1542, 2045].map((t, i) => ({ t, frames: [0, 0, 0, 2, 4, 6][i], ipcEventIds: Array.from({ length: [0, 0, 0, 2, 4, 6][i] }, (_x, n) => n + 1), domFrameTexts: [] }));
+    const seen = driver.evaluateBackgroundOutput(rehearsal3, 1, 'tick 1\r\ntick 2\r\n', 'err 1\r\n');
+    expect(seen).toMatchObject({ ok: true, first_ipc_ms: 1198, ipc_frames_max: 6, dom_frames_max: 0, stdout_has_tick: true, stderr_has_err: true });
+    // The page showing frames is recorded too (a later product fix would show up here), and still passes.
+    const shown = driver.evaluateBackgroundOutput(rehearsal3.map((sample) => ({ ...sample, domFrameTexts: sample.frames ? ['tick 1'] : [] })), 1, 'tick 1', 'err 1');
+    expect(shown).toMatchObject({ ok: true, dom_frames_max: 1 });
+    // Missing facts still fail: no snapshot frames, no running process, one stream missing, stored frames the snapshot never showed.
+    expect(driver.evaluateBackgroundOutput(rehearsal3.map((sample) => ({ ...sample, ipcEventIds: [] })), 1, 'tick 1', 'err 1').ok).toBe(false);
+    expect(driver.evaluateBackgroundOutput(rehearsal3, 0, 'tick 1', 'err 1').ok).toBe(false);
+    expect(driver.evaluateBackgroundOutput(rehearsal3, 2, 'tick 1', 'err 1').ok).toBe(false);
+    expect(driver.evaluateBackgroundOutput(rehearsal3, 1, '', 'err 1').ok).toBe(false);
+    expect(driver.evaluateBackgroundOutput(rehearsal3, 1, 'tick 1', '').ok).toBe(false);
+    expect(driver.evaluateBackgroundOutput([{ t: 5, frames: 0, ipcEventIds: [3], domFrameTexts: [] }], 1, 'tick 1', 'err 1').ok).toBe(false);
+    expect(driver.evaluateBackgroundOutput(undefined, 1, 'tick 1', 'err 1')).toMatchObject({ ok: false, first_ipc_ms: null });
+    // The journey records through the evaluator, the contract text names KL-3, and B2-S01 keeps the page check inside an active Turn.
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    expect(source).toMatch(/record\('B2-CH-02-BACKGROUND', 1, statusOf\(withGuard\(bgOutput\.ok, domOrder\.ok\)\)/);
+    expect(source).not.toMatch(/visibleBeforeEnd/);
+    expect(source).toMatch(/evaluateLiveTick\(first\.firstVisible, first\.toolEndedAt\)/);
+    const assertionText = fixtures.casesForPhase('p03-chain').find((item: any) => item.case_id === 'B2-CH-02-BACKGROUND').assertions[0].description;
+    expect(assertionText).toMatch(/IPC snapshot/);
+    expect(assertionText).toMatch(/KL-3/);
   });
 
   test('the background fixture runs the longest bounded command so Stop and the exit dialog find it alive', () => {

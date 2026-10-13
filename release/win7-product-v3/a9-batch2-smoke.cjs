@@ -671,8 +671,10 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
     exit_code_scope: 'the product process the parent launched; descendants are checked by creation-date identity only, their exit codes cannot be read from outside',
     tree_before: before, tree_observed: treeObserved, absence_observed_at: absenceObservedAt, survivors, processes_listed: rows.length, listing_failed: listingFailed });
   const roots = [ctx.candidateRoot, path.join(ctx.runRoot, 'driver-electron')].map((item) => item.toLowerCase());
-  const residue = rows.filter((row) => roots.some((root) => String(row.ExecutablePath || '').toLowerCase().startsWith(root))).map((row) => ({ pid: Number(row.ProcessId), name: row.Name }));
-  writeJson(path.join(ctx.attemptDir, '06-postflight.json'), { residue, survivors: survivors.length, processes_listed: rows.length });
+  // The smoke itself is the candidate's electron.exe (ELECTRON_RUN_AS_NODE), so its own row is not residue; the post-flight phase excludes it the same way.
+  const own = new Set([ctx.pid, process.ppid]);
+  const residue = rows.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ExecutablePath || '').toLowerCase().startsWith(root))).map((row) => ({ pid: Number(row.ProcessId), name: row.Name }));
+  writeJson(path.join(ctx.attemptDir, '06-postflight.json'), { residue, survivors: survivors.length, processes_listed: rows.length, own_pids_excluded: [...own] });
   const created = fixtures.evidenceForPhase(ctx.phase);
   const manifest = buildEvidenceManifest(ctx.attemptDir, [path.join(ctx.attemptDir, 'evidence-manifest.json'), path.join(ctx.attemptDir, 'phase-result.json')]);
   writeJson(path.join(ctx.attemptDir, 'evidence-manifest.json'), manifest);

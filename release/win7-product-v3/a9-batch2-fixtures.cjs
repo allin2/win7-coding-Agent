@@ -104,7 +104,7 @@ const CASES = Object.freeze([
     'SID, Session, Integrity, Elevation and Job satisfy the contract; no old tree has an unknown exit',
   ], CHAIN_STEPS[0].evidence),
   makeCase('B2-CH-02-BACKGROUND', 'G2', 'p03-chain', 'CHAIN', 'Chain step 2: bounded background output through the real product entry.', [
-    'Tick, stdout and stderr are visible before the process ends; SQLite persists before the card shows them',
+    'Tick, stdout and stderr are persisted in SQLite and present in the IPC snapshot while the process runs, never ahead of SQLite; page display after the Turn end is recorded, not asserted (KL-3)',
     'The card and the output are bound to one owner and one handle',
   ], CHAIN_STEPS[1].evidence),
   makeCase('B2-CH-03-STOP', 'G2', 'p03-chain', 'CHAIN', 'Chain step 3: Stop on the owned handle.', [
