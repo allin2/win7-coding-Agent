@@ -438,3 +438,58 @@ codex 在复核中读取了自己的 `~/.codex` 记忆与指引目录，这属�
 | 复核者 | codex，无头会话，只读复核；结果由执行代理登记，结论仍由负责人裁决 |
 
 本节不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不冻结候选，不签关口 A 或 B，不推送或合并。Win10、Win7 与完整 Alpha 2 均 `NOT_PERFORMED`。
+
+### 6.11 codex 第一阶段第二轮复核与第二修复轮（2026-10-13）
+
+结论：codex 对修复提交 `8c16ffd9…` 的第二轮复核结论仍是“不建议进入预演授权评审”：0 个 P0、4 组 P1、2 组 P2；第一轮 11 组中 5 组已关闭、6 组部分关闭。负责人选 A，授权开第二修复轮。
+执行代理已在 §6.1 的 20 个路径内修复 R1～R6 全部 6 组，并为每组补回归用例，提交为 `0c163c24…`。复核者尚未重审。
+证据层级为开发机。复核绑定 `8c16ffd9…`；修复绑定 `0c163c24…`。真实 Electron、PowerShell、Win10、Win7 均 `NOT_PERFORMED`，未在 Win7 实机验证。
+
+复核过程：codex 在负责人另开的无头会话中运行（fast 服务层级），只读复核，在自己的目录复算。执行代理逐条对照源码，确认 6 组发现全部属实。
+codex 的 jest 有 6 项失败，原因都是沙箱禁止回环监听（`listen EPERM 127.0.0.1`），不是产品缺陷；执行代理在无沙箱环境实测通过。
+codex 在复核中读取了自己的 `~/.codex` 记忆目录，仅作保护边界线索，这属于独立性披露。
+证据归档在 `.acceptance/a9-33-review/codex-stage1-round2-20261013/`（被忽略，含 `SHA256SUMS.txt`）。
+
+| 编号 | 级别 | 发现 | 修复（均在 §6.1 路径内） |
+|---|---|---|---|
+| R1 | P1 | 退出后进程列表的非零状态或 `error` 不抛异常，部分输出仍使 B2-CH-06-NORMAL-EXIT 第 2 条 PASS | 新增 `listProcesses`：状态非 0、带 `error` 或抛异常均记 `failed`。环境阶段、退出链证据、后飞行阶段都读 `listing_failed`；列表失败或为空时记 `UNKNOWN`，已见的残留仍记 `FAIL` |
+| R2 | P1 | 驱动把 `cancelled` 也当作可重试停止，但产品只为 `interrupted` 给出恢复卡 | `retryableStopStatus` 只接受 `interrupted`；新增 `stopLeavesActionableCard`：停止后 `canContinue` 为真，且中断轮次编号与恢复修订都已更换才为真；字段缺失记 `UNKNOWN`。B2-CH-05 第 2 条使用它 |
+| R3 | P1 | 占用目录含阶段名，同一索引的不同阶段可被两个进程同时消费，账本索引成为 `[1,2,2]` | `consumeRequest` 占用后检查同索引（`NN-` 前缀）的其他目录，存在即返回 `A9_BATCH2_REQUEST_ALREADY_CLAIMED` 并释放自己的空目录。两个进程可能同时被拒，向关闭方向失败，不会同时成功 |
+| R4 | P1 | 流区令牌只抓 `tick` 与 `err`，漏掉 `out`；存储时间与读取结束同毫秒时放行 | `OUTPUT_TOKEN_PATTERN` 含 `out`；同毫秒的落盘时间记 `tied_same_millisecond`，结果为 `UNKNOWN`，不再放行 |
+| R5 | P2 | 布局检查不看 `disabled`，禁用的继续卡可通过 | 探针读 `disabled`；`cardUsable` 要求可见、可达且 `disabled === false`；每种布局与较矮窗口都需满足 |
+| R6 | P2 | M5（正式锁摘要改一位）与 M8（必需负例名单删 `NEG-ORPHAN-COMPLETION`）存活 | 包测试新增对已提交正式锁与开发锁的断言：其构建套件必须被已提交批准登记批准；`REQUIRED_NEGATIVES` 提到模块级并导出，测试要求它与封闭名单完全相等 |
+
+交接包第 4 节第 8 项写“用后清理”有误。B2-UI-02 注入的任务、轮次、事件行在驱动结束时只关闭数据库，没有删除；它们留在一次性数据根里，不是产品数据污染。套件说明已按此改写。
+
+开发机验证（`0c163c24…` 定稿，证据层级开发机）：
+
+| 检查 | 结果 |
+|---|---|
+| `node --test` 两个包测试文件 | 120 通过、0 失败（537 秒）；比 8c16ffd9 多 1 个用例（正式锁与批准登记） |
+| shell jest 两个文件 | 2 个套件、100 个用例通过（8c16ffd9 为 94；本轮净增 6 个：新增 7 个，替换 1 个） |
+| `npm run verify:quick` | 退出码 0；运行后已用 `git restore` 还原 `src/runner/dist` |
+| `npm run docs:check` | ok，328 个文件（该提交的内容） |
+| `git diff --check` | 0 行输出 |
+| 变异重放 | 8 项全部被杀死并还原，还原后哈希一致：R1 列表非零状态、R2 `cancelled`、R3 同索引互斥、R4 `out` 令牌、R4 同毫秒、R5 `disabled`、M8 必需名单、M5 正式锁 |
+| 卫生检查 | 新增与改动的文本文件无 BOM、无 CR；CMD 入口未改 |
+
+提交统计：`0c163c24…` 改 7 个文件，+235、−43；相对 `7e96f561…`，`release`、`scripts`、`src` 下累计 20 个文件，+6701、−31。
+
+未覆盖与限制（均为 `NOT_PERFORMED` 或 `UNKNOWN`，不计入通过）：
+
+- 驱动、冒烟、控制器仍未在 Electron、PowerShell、Windows 上运行。`wmic` 列表失败的真实触发条件、Job 查询行为只在源码层核对。
+- Node 16 与 PowerShell 2.0 的准确兼容性仍为 `UNKNOWN`。
+- 毫秒墙钟时间不能证明同毫秒内的先后；同毫秒按 `UNKNOWN` 处理，不按通过处理。
+- Windows 文件系统上 `mkdir` 独占与同索引检查的并发行为 `UNKNOWN`。
+- 修复后未经 codex 重审；第三轮复核须新交接包，且发送给外部服务须负责人批准。
+
+负责人 2026-10-13 对第二修复轮选 A。落到分支的方式沿用 §6.10：
+
+| 项 | 内容 |
+|---|---|
+| 修复提交 | `0c163c24…`（父 `46bce3a0…`），本地，未推送；7 个文件，+235、−43，均在 §6.1 路径内 |
+| 文档提交 | 随后一个本地文档提交（不推送），含本节、STATUS、STATUS_LOG、README 登记和第三轮交接包；该提交只改 `docs/` |
+| 新交接包 | [第三轮交接包](../reports/2026-10/a9_33_independent_review_handoff_stage1_rerun3_2026-10-13.md)，绑定 `0c163c24…` |
+| 复核者 | codex，无头会话（fast 服务层级），只读复核；结果由执行代理登记，结论仍由负责人裁决 |
+
+本节不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不冻结候选，不签关口 A 或 B，不推送或合并。Win10、Win7 与完整 Alpha 2 均 `NOT_PERFORMED`。
