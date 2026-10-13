@@ -30,6 +30,21 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 const RELEASE_PROFILES = {
+  // A9-33 §6.1：正式 batch2 候选 Profile。候选号 WIN7-43 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
+  'A9-BATCH2-INPUTS-D013-V26-MANAGED': {
+    task: 'A9-33', candidate: 'WIN7-43', candidateTentative: true, batch2: true,
+    lockFile: 'a9-batch2-input-lock.json', kitFile: 'A9_BATCH2_VALIDATION_KIT.json',
+    validationDoc: 'A9_BATCH2_WIN7_VALIDATION.md',
+    integrityCommand: 'RUN_A9_BATCH2_INTEGRITY.cmd', smokeCommand: 'RUN_A9_BATCH2_SMOKE.cmd',
+    reportCommand: 'RUN_A9_BATCH2_REPORT_VERIFY.cmd',
+    integrityScript: 'a9-batch2-package-integrity.cjs', reportScript: 'a9-batch2-report.cjs',
+    smokeScript: 'a9-batch2-smoke.cjs', fixturesScript: 'a9-batch2-fixtures.cjs',
+    requestScript: 'a9-batch2-desktop-request.cjs', controllerScript: 'a9-batch2-desktop-controller.ps1',
+    driverFile: 'a9-batch2-driver.cjs', evidenceDirectory: 'a9-batch2-evidence',
+  },
+  // A9-33 §6.1：A9-32 开发 Profile。沿用 managed v26 原生字节，新锁，不覆盖 a9-v26-managed-input-lock.json。
+  'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED': { task: 'A9-32', candidate: 'A9-32-DEVELOPER', developmentOnly: true,
+    lockFile: 'a9-32-input-lock.json', kitFile: 'A9_32_DEVELOPER_CHECK.json' },
   'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED': { task: 'A9-31', candidate: 'A9-31-DEVELOPER', developmentOnly: true,
     lockFile: 'a9-v26-managed-input-lock.json', kitFile: 'A9_31_DEVELOPER_CHECK.json' },
   'A9-30-DEVELOPER-INPUTS-D013-V26': { task: 'A9-30', candidate: 'A9-30-DEVELOPER', developmentOnly: true,
@@ -230,6 +245,25 @@ const RELEASE_PROFILES = {
 
 // 说明：集合名沿用历史命名（不重命名以避免无谓改动）。WIN7-29 与 A9-15 候选共享同一条
 // 候选管线形状（driver 打包、kit 生成、契约证据拷贝），差异由 profile 与候选分支承载。
+// 开发包状态按任务号派生，A9-30/31 的结果与既有字面量逐字相同；正式候选沿用既有状态值，不新增状态词。
+function manifestStatus(profile) {
+  return profile.developmentOnly
+    ? `${profile.task.replace('-', '_')}_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE`
+    : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+}
+// 协议 v3 流式 helper 的包：A9-30/31/32 开发包与正式 batch2 候选。
+function usesStreamingProtocol(profile) { return Boolean(profile.developmentOnly || profile.batch2); }
+// 新 Profile 在描述符与 manifest 中写入锁身份，运行时据此区分开发包与正式 batch2；旧 Profile 的字节不变。
+function stampsLockIdentity(profile) { return profile.task === 'A9-32' || Boolean(profile.batch2); }
+function developerCases(profile) {
+  return profile.task === 'A9-32' ? ['CONT-01', 'CONT-02', 'CONT-03'] : ['S01', 'S02', 'S03', 'S04', 'S05', 'S06'];
+}
+function helperDeliveryNote(profile) {
+  return profile.task === 'A9-30'
+    ? 'v26 protocol v3 current-user streaming; Job containment is not a security sandbox'
+    : 'v26 managed revision protocol v3 output and explicit Job ownership release; not a security sandbox';
+}
+
 const A915_CANDIDATES = new Set(['WIN7-23', 'WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42']);
 const A915_DIRECT_SMOKE_CANDIDATES = new Set(['WIN7-24', 'WIN7-25', 'WIN7-26', 'WIN7-27', 'WIN7-28', 'WIN7-29', 'WIN7-30', 'WIN7-31', 'WIN7-32', 'WIN7-33', 'WIN7-34', 'WIN7-35', 'WIN7-36', 'WIN7-37', 'WIN7-38', 'WIN7-39', 'WIN7-40', 'WIN7-41', 'WIN7-42']);
 
@@ -500,6 +534,9 @@ export function buildA9ProductCandidate(options) {
     if (sourceStatus || options.allowUncommitted) throw new Error('A9_V26_CLEAN_SOURCE_REQUIRED');
     verifyV26CommittedInputs(root, lock);
   }
+  // 正式 batch2 与开发包使用同一批已核验 v26 原生输入，因此同样核对批准注册表、构建包和锁定源码；
+  // 预演构建允许 allowUncommitted，但其 manifest 标 external_acceptance_eligible=false。
+  if (profile.batch2) verifyV26CommittedInputs(root, lock);
   if (sourceStatus && !options.allowUncommitted) throw new Error('A9_SOURCE_WORKTREE_NOT_CLEAN');
 
   const electronZip = requiredInput(options.electronZip, 'A9_ELECTRON_ZIP');
@@ -517,7 +554,7 @@ export function buildA9ProductCandidate(options) {
   assertHash('A9_STORAGE_ENTRY', sha256Bytes(storageBytes), lock.inputs.storage_return_zip.required_entry_sha256);
 
   const outputRoot = path.resolve(options.outputRoot || path.join(root, 'release', 'win7-product-v3', 'out'));
-  if (profile.developmentOnly && fs.existsSync(outputRoot)) throw new Error('A9_V26_NEW_OUTPUT_DIRECTORY_REQUIRED');
+  if (usesStreamingProtocol(profile) && fs.existsSync(outputRoot)) throw new Error('A9_V26_NEW_OUTPUT_DIRECTORY_REQUIRED');
   const workRoot = path.join(outputRoot, '.work');
   const runtimeBuildRoot = path.join(outputRoot, `.runtime-build-${process.pid}`);
   const packageName = `Win7CodingAgent-${lock.version}-win7-x64`;
@@ -540,7 +577,7 @@ export function buildA9ProductCandidate(options) {
     }
     const runtimeDependencies = copyRuntimeDependencies(root, appRoot);
     writeJson(path.join(appRoot, 'package.json'), {
-      name: profile.developmentOnly ? 'win7-coding-agent-a9-alpha2-developer' : 'win7-coding-agent-a9-alpha1',
+      name: profile.developmentOnly ? 'win7-coding-agent-a9-alpha2-developer' : profile.batch2 ? 'win7-coding-agent-a9-alpha2' : 'win7-coding-agent-a9-alpha1',
       productName: 'Win7 Coding Agent',
       version: lock.version,
       private: true,
@@ -563,7 +600,7 @@ export function buildA9ProductCandidate(options) {
     fs.mkdirSync(path.join(nativeRoot, 'runner'), { recursive: true });
     fs.writeFileSync(path.join(nativeRoot, 'runner', 'spike02_helper.exe'), helperBytes);
     const runnerManifest = createRunnerManifest(lock);
-    if (profile.developmentOnly) runnerManifest.streaming_profile = { id: 'a9-trusted-shell-current-user-v2', protocol_version: 3, token: 'current_user', security_sandbox: false };
+    if (usesStreamingProtocol(profile)) runnerManifest.streaming_profile = { id: 'a9-trusted-shell-current-user-v2', protocol_version: 3, token: 'current_user', security_sandbox: false };
     writeJson(path.join(nativeRoot, 'runner', 'runner-manifest.json'), runnerManifest);
     extractStorageRuntime(storageZip, nativeRoot);
     assertNativeOutsideApp(stage);
@@ -580,6 +617,7 @@ export function buildA9ProductCandidate(options) {
       runner_helper: '../native/runner/spike02_helper.exe',
       runner_helper_profile: lock.inputs.runner_return_zip.profile,
       runner_helper_protocol: lock.inputs.runner_return_zip.protocol_version,
+      ...(stampsLockIdentity(profile) ? { lock_id: lock.lock_id, ...(profile.batch2 ? { candidate: profile.candidate } : {}) } : {}),
       state_schema: 4,
       data_root: '%LOCALAPPDATA%\\Win7CodingAgent\\a9',
       portable_flag: '--portable',
@@ -592,22 +630,25 @@ export function buildA9ProductCandidate(options) {
     if (!fs.existsSync(path.join(stage, 'LICENSE'))) throw new Error('A9_ELECTRON_LICENSE_MISSING');
     fs.copyFileSync(path.join(stage, 'LICENSE'), path.join(licensesRoot, 'ELECTRON-MIT.txt'));
     const sbom = buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies);
-    if (profile.developmentOnly) {
-      sbom.components.find((c) => c.name === 'D-013 native helper').properties = [{ name: 'win7:delivery_note', value: profile.task === 'A9-31' ? 'v26 managed revision protocol v3 output and explicit Job ownership release; not a security sandbox' : 'v26 protocol v3 current-user streaming; Job containment is not a security sandbox' }];
-      sbom.metadata.properties.find((p) => p.name === 'win7:status').value = 'DEVELOPER_CHECK_NOT_CANDIDATE';
+    if (usesStreamingProtocol(profile)) {
+      sbom.components.find((c) => c.name === 'D-013 native helper').properties = [{ name: 'win7:delivery_note', value: helperDeliveryNote(profile) }];
     }
+    if (profile.developmentOnly) sbom.metadata.properties.find((p) => p.name === 'win7:status').value = 'DEVELOPER_CHECK_NOT_CANDIDATE';
     writeJson(path.join(stage, 'SBOM.cdx.json'), sbom);
-    const licenses = profile.developmentOnly
+    const licenses = usesStreamingProtocol(profile)
       ? licenseInventory(lock).replace('Process containment compatibility input', 'v26 protocol v3 current-user streaming; not a security sandbox')
       : licenseInventory(lock);
     fs.writeFileSync(path.join(stage, 'THIRD_PARTY_LICENSES.md'), licenses, 'utf8');
     fs.writeFileSync(path.join(stage, 'INSTALLATION.md'), profile.developmentOnly
-      ? '# ' + profile.task + ' developer check package\n\nOffline Windows x64 / Electron 22 / protocol v3. Extract to a new directory and use an isolated test data root. This package has no formal candidate identity or authority. Win7, Alpha 2 and RC are NOT_PERFORMED.\n' : installationGuide(lock), 'utf8');
+      ? '# ' + profile.task + ' developer check package\n\nOffline Windows x64 / Electron 22 / protocol v3. Extract to a new directory and use an isolated test data root. This package has no formal candidate identity or authority. Win7, Alpha 2 and RC are NOT_PERFORMED.\n'
+      : profile.batch2 ? batch2InstallationGuide(lock, profile) : installationGuide(lock), 'utf8');
     fs.copyFileSync(lockPath, path.join(stage, profile.lockFile));
     if (profile.developmentOnly) {
       writeJson(path.join(stage, profile.kitFile), { schema_version: 1, task: profile.task, development_only: true,
-        status: 'NOT_FORMAL_ACCEPTANCE', source_commit: sourceCommit, cases: ['S01','S02','S03','S04','S05','S06'],
+        status: 'NOT_FORMAL_ACCEPTANCE', source_commit: sourceCommit, cases: developerCases(profile),
         win7: 'NOT_PERFORMED', authority: 'NOT_GRANTED' });
+    } else if (profile.batch2) {
+      assembleBatch2Validation(root, stage, sourceCommit, lock, profile);
     } else {
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'A9_07_WINDOWS_VALIDATION.md'), path.join(stage, 'A9_07_WINDOWS_VALIDATION.md'));
     fs.copyFileSync(path.join(root, 'release', 'win7-product-v3', 'RUN_A9_07_INTEGRITY.cmd'), path.join(stage, 'RUN_A9_07_INTEGRITY.cmd'));
@@ -654,8 +695,9 @@ export function buildA9ProductCandidate(options) {
       source_commit: sourceCommit,
       source_dirty: Boolean(sourceStatus),
       external_acceptance_eligible: !profile.developmentOnly && !sourceStatus,
+      ...(stampsLockIdentity(profile) ? { lock_id: lock.lock_id, ...(profile.batch2 ? { candidate: profile.candidate, candidate_tentative: true } : {}) } : {}),
       source_date_epoch: lock.source_date_epoch,
-      status: profile.developmentOnly ? (profile.task === 'A9-31' ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE') : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS',
+      status: manifestStatus(profile),
       target: lock.target,
       layout: {
         application: 'resources/app (trusted local UI and A9 runtime)',
@@ -738,7 +780,8 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
   const rootPrefix = manifestEntries[0].name.slice(0, -'release-manifest.json'.length);
   const manifest = JSON.parse(readZipEntry(manifestEntries[0]).toString('utf8'));
   if (manifest.release_id !== lock.release_id || manifest.version !== lock.version ||
-      manifest.status !== (profile.developmentOnly ? (profile.task === 'A9-31' ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE') : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS')) throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
+      manifest.status !== manifestStatus(profile) ||
+      (stampsLockIdentity(profile) && manifest.lock_id !== lock.lock_id)) throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
   const byName = new Map(entries.map((entry) => [entry.name, entry]));
   const expected = new Set([`${rootPrefix}release-manifest.json`]);
   for (const file of manifest.files || []) {
@@ -759,7 +802,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
     'resources/native/runner/spike02_helper.exe',
     'resources/native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
   ];
-  const profileClosure = profile.developmentOnly ? [profile.kitFile] : [
+  const profileClosure = profile.developmentOnly ? [profile.kitFile] : profile.batch2 ? batch2Closure(profile) : [
     `validation/${profile.integrityScript}`, `validation/${profile.reportScript}`,
     profile.kitFile, profile.validationDoc, profile.integrityCommand, profile.reportCommand,
     ...(profile.extraValidationScripts || []).map((item) => `validation/${item}`),
@@ -777,6 +820,7 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
 }
 
 function createValidationKit(root, sourceCommit, lock, profile) {
+  if (profile.batch2) return createBatch2ValidationKit(root, sourceCommit, lock, profile, {});
   if (profile.candidate === 'WIN7-38') {
     return createWin38ValidationKit(root, sourceCommit, lock, profile);
   }
@@ -796,6 +840,108 @@ function createValidationKit(root, sourceCommit, lock, profile) {
     return createA915ValidationKit(root, sourceCommit, lock, profile);
   }
   return createWin22ValidationKit(root, sourceCommit, lock);
+}
+
+// ---- A9-33 正式 batch2 候选（WIN7-43 暂定）-------------------------------------------------------
+// 套件文件清单与 kit 由 a9-batch2-fixtures.cjs 的合同定义；生产者只搬运、校验编码并绑定哈希。
+
+function batch2Closure(profile) {
+  return [
+    `validation/${profile.integrityScript}`, `validation/${profile.reportScript}`, `validation/${profile.smokeScript}`,
+    `validation/${profile.fixturesScript}`, `validation/${profile.requestScript}`, `validation/${profile.controllerScript}`,
+    `validation/${profile.driverFile}`,
+    profile.kitFile, profile.validationDoc, profile.integrityCommand, profile.smokeCommand, profile.reportCommand,
+    profile.lockFile,
+  ];
+}
+
+function batch2InstallationGuide(lock, profile) {
+  return `# A9 batch-2 candidate ${profile.candidate} (tentative) installation and rollback\n\n`
+    + `- Target: ${lock.target.os}, ${lock.target.architecture}; self-contained offline ZIP; ordinary user.\n`
+    + '- Extract to a new directory. Never overwrite WIN7-42, an earlier A9 directory or a developer check package.\n'
+    + `- Before running candidate executables, use the trusted repository verifier and the independently approved release-authority SHA-256 (${profile.validationDoc}). `
+    + `Then run ${profile.integrityCommand} with the original ZIP, the external input lock, the external approval registry, the external release authority and its approved SHA-256. No system Node is required.\n`
+    + '- Default state is %LOCALAPPDATA%\\Win7CodingAgent\\a9. Use electron.exe --portable only when package-adjacent state is explicitly wanted.\n'
+    + '- The application does not change PATH, services, registry or firewall and does not download a runtime.\n'
+    + '- Keep the old program directory during upgrade. On failure stop the new candidate and relaunch the old directory against the preserved data; retain corruption backups and evidence.\n'
+    + '- API keys are entered only in Settings. Never put them in validation commands or reports.\n'
+    + `- The tentative number ${profile.candidate} is re-checked against refs, registrations and directories before freeze. This package is NOT_PERFORMED for Win10, Win7 and Alpha 2 until same-candidate external evidence is recorded.\n`;
+}
+
+function loadBatch2Fixtures(root) {
+  const requireFrom = createRequire(path.join(root, 'release', 'win7-product-v3', 'load.cjs'));
+  return requireFrom('./a9-batch2-fixtures.cjs');
+}
+
+// CMD 入口 ASCII/CRLF；PowerShell 与其他套件文本为无 BOM、无 CR 的 UTF-8（PowerShell 与 CMD 另限 ASCII，避免旧版按系统代码页误读）。
+function assertBatch2SuiteEncoding(name, bytes) {
+  const text = bytes.toString('latin1');
+  if (/\.cmd$/i.test(name)) {
+    if (/[^\x00-\x7f]/.test(text) || /(?<!\r)\n/.test(text) || !text.endsWith('\r\n')) throw new Error(`A9_BATCH2_CMD_ENCODING_INVALID:${name}`);
+    return;
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) throw new Error(`A9_BATCH2_SUITE_BOM_PROHIBITED:${name}`);
+  if (text.includes('\r')) throw new Error(`A9_BATCH2_SUITE_CR_PROHIBITED:${name}`);
+  if (/\.ps1$/i.test(name) && /[^\x00-\x7f]/.test(text)) throw new Error(`A9_BATCH2_POWERSHELL_NON_ASCII:${name}`);
+}
+
+function assembleBatch2Validation(root, stage, sourceCommit, lock, profile) {
+  const releaseDirectory = path.join(root, 'release', 'win7-product-v3');
+  const validationRoot = path.join(stage, 'validation');
+  fs.mkdirSync(validationRoot, { recursive: true });
+  const copies = [];
+  for (const name of [profile.validationDoc, profile.integrityCommand, profile.smokeCommand, profile.reportCommand]) {
+    copies.push([path.join(releaseDirectory, name), path.join(stage, name), name]);
+  }
+  for (const name of [profile.integrityScript, profile.reportScript, profile.smokeScript, profile.fixturesScript, profile.requestScript, profile.controllerScript]) {
+    copies.push([path.join(releaseDirectory, name), path.join(validationRoot, name), `validation/${name}`]);
+  }
+  copies.push([path.join(root, 'src', 'shell', 'tests', 'product', 'a9-batch2-driver-entry.cjs'), path.join(validationRoot, profile.driverFile), `validation/${profile.driverFile}`]);
+  const suiteHashes = {};
+  for (const [source, target, name] of copies) {
+    if (!fs.existsSync(source)) throw new Error(`A9_BATCH2_SUITE_FILE_MISSING:${name}`);
+    const bytes = fs.readFileSync(source);
+    assertBatch2SuiteEncoding(name, bytes);
+    fs.writeFileSync(target, bytes);
+    suiteHashes[name] = sha256Bytes(bytes);
+  }
+  writeJson(path.join(stage, profile.kitFile), createBatch2ValidationKit(root, sourceCommit, lock, profile, suiteHashes));
+}
+
+function createBatch2ValidationKit(root, sourceCommit, lock, profile, suiteHashes) {
+  const fixtures = loadBatch2Fixtures(root);
+  const contract = fixtures.selfCheck();
+  if (!contract.ok) throw new Error(`A9_BATCH2_FIXTURE_CONTRACT_INVALID:${contract.problems.join(',')}`);
+  if (fixtures.CONTRACT.lock_id !== lock.lock_id || fixtures.CONTRACT.candidate !== profile.candidate
+      || fixtures.CONTRACT.release_id !== lock.release_id || fixtures.CONTRACT.version !== lock.version) {
+    throw new Error('A9_BATCH2_FIXTURE_IDENTITY_MISMATCH');
+  }
+  return {
+    schema_version: 1,
+    kit_id: `A9-33-${profile.candidate}-BATCH2-1`,
+    candidate_label: profile.candidate,
+    candidate_tentative: profile.candidateTentative === true,
+    candidate_id: lock.release_id,
+    candidate_version: lock.version,
+    lock_id: lock.lock_id,
+    source_commit: sourceCommit,
+    scope: {
+      task: fixtures.CONTRACT.task,
+      decision: fixtures.CONTRACT.decision,
+      result_on_complete: fixtures.CONTRACT.result_on_complete,
+      result_ceiling: fixtures.CONTRACT.result_ceiling,
+    },
+    limits: fixtures.LIMITS,
+    gates: fixtures.GATES,
+    phases: fixtures.PHASES,
+    chain_steps: fixtures.CHAIN_STEPS,
+    required_cases: fixtures.CASES,
+    known_limits: fixtures.KNOWN_LIMITS,
+    suite_sha256: suiteHashes,
+    win10: 'NOT_PERFORMED',
+    win7: 'NOT_PERFORMED',
+    authority: 'NOT_GRANTED_BY_PACKAGE',
+  };
 }
 
 function createWin42ValidationKit(root, sourceCommit, lock, profile) {
@@ -2152,7 +2298,8 @@ function copyContractEvidence(root, stage, profile) {
   const destination = path.join(stage, 'evidence', 'contracts');
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125/ADR-0141/ADR-0142：候选任务书映射。
-  const taskBook = profile.developmentOnly ? (profile.task === 'A9-31' ? 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md' : 'docs/tasks/A9_30_SHELL_STREAMING.md') : profile.candidate === 'WIN7-38'
+  const developerTaskBooks = { 'A9-30': 'docs/tasks/A9_30_SHELL_STREAMING.md', 'A9-31': 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'A9-32': 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md' };
+  const taskBook = profile.developmentOnly ? developerTaskBooks[profile.task] : profile.batch2 ? 'docs/tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md' : profile.candidate === 'WIN7-38'
     ? 'docs/tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-39'
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
@@ -2177,6 +2324,11 @@ function copyContractEvidence(root, stage, profile) {
   if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41' || profile.candidate === 'WIN7-42') {
     contracts.push('docs/tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md', 'docs/tasks/A9_21_A9_18_SALVAGE_PORT.md');
   }
+  // A9-33 §6.1：正式 batch2 须带 A9-30/31/32/33 合同与当前增量矩阵、覆盖台账。
+  if (profile.batch2) {
+    contracts.push('docs/tasks/A9_30_SHELL_STREAMING.md', 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md',
+      'docs/plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md', 'docs/plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md');
+  }
   for (const relative of contracts) {
     const source = path.join(root, relative);
     if (fs.existsSync(source)) fs.copyFileSync(source, path.join(destination, path.basename(source)));
@@ -2184,7 +2336,7 @@ function copyContractEvidence(root, stage, profile) {
 }
 
 function verifyA9Manifest(stage, manifest, lock) {
-  const expectedStatus = RELEASE_PROFILES[lock.lock_id].developmentOnly ? (RELEASE_PROFILES[lock.lock_id].task === 'A9-31' ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE') : 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+  const expectedStatus = manifestStatus(RELEASE_PROFILES[lock.lock_id]);
   if (manifest.status !== expectedStatus ||
       manifest.gates.win10 !== 'NOT_PERFORMED' || manifest.gates.win7 !== 'NOT_PERFORMED' || manifest.gates.alpha !== 'NOT_PERFORMED') {
     throw new Error('A9_MANIFEST_GATE_STATUS_INVALID');
@@ -2229,7 +2381,8 @@ function scanSensitivePayload(stage) {
 }
 
 function validateA9Lock(lock) {
-  if (['A9-30-DEVELOPER-INPUTS-D013-V26','A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED'].includes(lock?.lock_id)) return validateV26DeveloperLock(lock);
+  if (['A9-30-DEVELOPER-INPUTS-D013-V26','A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED','A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED'].includes(lock?.lock_id)) return validateV26DeveloperLock(lock);
+  if (lock?.lock_id === 'A9-BATCH2-INPUTS-D013-V26-MANAGED') return validateBatch2Lock(lock);
   const profile = lock && RELEASE_PROFILES[lock.lock_id];
   if (!profile || lock.schema_version !== 1
       || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA1' ||
@@ -2434,15 +2587,37 @@ function parseArguments(argv) {
 
 
 function validateV26DeveloperLock(lock) {
-  const managed = lock.lock_id === 'A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED';
-  const expectedTask = managed ? 'A9-31' : 'A9-30';
+  const managed = ['A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED', 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED'].includes(lock.lock_id);
+  const expectedTask = lock.lock_id === 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED' ? 'A9-32' : managed ? 'A9-31' : 'A9-30';
+  if (lock.provenance?.task !== expectedTask || lock.provenance?.development_only !== true
+    || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED' || lock.gates?.win7 !== 'NOT_PERFORMED' || lock.gates?.alpha !== 'NOT_PERFORMED') {
+    throw new Error('A9_V26_DEVELOPER_INPUT_LOCK_INVALID');
+  }
+  validateV26NativeInputs(lock, managed, 'A9_V26_DEVELOPER_INPUT_LOCK_INVALID');
+  return RELEASE_PROFILES[lock.lock_id];
+}
+
+// A9-33 §6.1：正式 batch2 锁。原生字节与 A9-31 managed 开发锁相同，但身份、来源与 Win7 门独立声明，
+// 不能由开发锁改字段得到，也不能被开发 Profile 接受。
+function validateBatch2Lock(lock) {
+  const profile = RELEASE_PROFILES['A9-BATCH2-INPUTS-D013-V26-MANAGED'];
+  if (lock.lock_id !== 'A9-BATCH2-INPUTS-D013-V26-MANAGED'
+    || lock.provenance?.task !== profile.task || lock.provenance?.development_only !== false
+    || lock.provenance?.candidate !== profile.candidate || lock.provenance?.candidate_tentative !== true
+    || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED'
+    || lock.gates?.win7 !== `NOT_PERFORMED_${profile.candidate.replace('-', '_')}` || lock.gates?.alpha !== 'NOT_PERFORMED') {
+    throw new Error('A9_BATCH2_INPUT_LOCK_INVALID');
+  }
+  validateV26NativeInputs(lock, true, 'A9_BATCH2_INPUT_LOCK_INVALID');
+  return profile;
+}
+
+function validateV26NativeInputs(lock, managed, failure) {
   const expectedHelper = managed ? 'D-013-v26-managed-a9-trusted-shell-current-user' : 'D-013-v26-a9-trusted-shell-current-user';
   const hex = (n, v) => new RegExp('^[a-f0-9]{' + n + '}$').test(String(v || ''));
   const runner = lock.inputs?.runner_return_zip;
   if (lock.schema_version !== 1 || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA2' || lock.version !== '0.3.0-alpha.2'
     || lock.inputs_are_not_a9_pass !== true || !lock.runtime_profiles?.runner || !Number.isSafeInteger(lock.source_date_epoch)
-    || lock.provenance?.task !== expectedTask || lock.provenance?.development_only !== true
-    || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED' || lock.gates?.win7 !== 'NOT_PERFORMED' || lock.gates?.alpha !== 'NOT_PERFORMED'
     || runner?.profile !== expectedHelper || runner.protocol_version !== 3
     || (managed && runner.managed_contract?.revision !== 'a9-31-managed-r1')
     || runner.runtime_profile !== 'a9-trusted-shell-current-user-v2' || !hex(40, runner.source_commit)
@@ -2455,11 +2630,10 @@ function validateV26DeveloperLock(lock) {
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(b.run_id)))
     || new Set(runner.reproducible_builds.map((b) => b.sha256)).size !== 2
     || new Set(runner.reproducible_builds.map((b) => b.run_id)).size !== 2 || runner.sha256 !== runner.reproducible_builds[0].sha256) {
-    throw new Error('A9_V26_DEVELOPER_INPUT_LOCK_INVALID');
+    throw new Error(failure);
   }
   for (const input of Object.values(lock.inputs)) if (!hex(64,input.sha256) || !hex(64,input.required_entry_sha256)) throw new Error('A9_INPUT_LOCK_HASH_INVALID');
   if (lock.inputs.storage_return_zip?.sqlite !== '3.43.1' || lock.inputs.storage_return_zip?.electron_abi !== 110) throw new Error('A9_STORAGE_PROFILE_INVALID');
-  return RELEASE_PROFILES[lock.lock_id];
 }
 
 function verifyV26CommittedInputs(root, lock) {

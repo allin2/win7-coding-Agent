@@ -1,0 +1,115 @@
+# A9-33 / WIN7-43 批次 2 验证套件
+
+候选 WIN7-43 是暂定编号：冻结前由执行代理按引用、登记和目录核对，ADR-0155 仍为 Proposed。
+本套件不授予任何放行权限；是否具备批次 2 执行能力只由负责人在关口 B 裁决。
+结论上限固定为“批次 2 执行能力”，不是完整 Alpha 2，也不是 RC。
+
+## 本套件包含什么
+
+| 文件 | 作用 |
+|---|---|
+| `RUN_A9_BATCH2_INTEGRITY.cmd` | 单独运行包完整性校验，写入 `..\a9-batch2-evidence\standalone-integrity` |
+| `RUN_A9_BATCH2_SMOKE.cmd` | 把一个已批准的阶段请求交给桌面控制器 |
+| `RUN_A9_BATCH2_REPORT_VERIFY.cmd` | 复核整次运行的账本、结果文件和证据哈希 |
+| `validation\a9-batch2-desktop-controller.ps1` | 普通桌面会话控制器；只执行请求推导出的固定命令 |
+| `validation\a9-batch2-desktop-request.cjs` | 请求、账本和调用次数合同 |
+| `validation\a9-batch2-package-integrity.cjs` | 包完整性（阶段 p02） |
+| `validation\a9-batch2-smoke.cjs` | 环境、产品旅程和收尾（阶段 p01、p03～p08、p10） |
+| `validation\a9-batch2-driver.cjs` | 真实产品入口驱动，只经真实窗口、preload 和 IPC |
+| `validation\a9-batch2-report.cjs` | 报告复核和负向对照（阶段 p09） |
+| `validation\a9-batch2-fixtures.cjs` | 阶段、用例、断言、限额和脚本化 Provider 合同 |
+| `A9_BATCH2_VALIDATION_KIT.json` | 由合同派生的套件清单，含所有套件文件哈希 |
+
+## 包外输入
+
+四个文件都必须在候选目录之外，路径由负责人经请求提供。
+
+| 输入 | 内容 |
+|---|---|
+| 原始 ZIP | 文件名 `Win7CodingAgent-0.3.0-alpha.2-win7-x64.zip` |
+| 正式输入锁 | 与包内 `a9-batch2-input-lock.json` 逐字节相同 |
+| 构建套件登记 | `a9-v26-approved-build-kits.json`，其中必须登记锁中的构建套件 |
+| 放行授权 | 见下节；其 SHA-256 由负责人另行批准并经请求传入 |
+
+## 放行授权文件
+
+授权文件只说明“允许对这个候选执行批次 2 验证”，不是对产品的验收结论。
+
+| 字段 | 要求 |
+|---|---|
+| `kind` | `WIN7_43_RELEASE_AUTHORITY` |
+| `status` | `APPROVED_FOR_WIN7_43_VALIDATION` |
+| `run_id` | UUID；整次运行只用这一个 |
+| `target.machine_name`、`target.account_sid` | 被批准的目标机器和账户 |
+| `candidate.source_commit` | 40 位提交 |
+| `candidate.package_sha256`、`manifest_sha256`、`kit_sha256`、`helper_sha256` | 与候选实际哈希逐项相同 |
+
+## 运行方式
+
+1. 负责人批准授权文件，并把它的 SHA-256 单独告知执行代理。
+2. 执行代理为每个阶段生成一个请求文件；请求绑定运行编号、四个哈希、目标身份和 900 秒有效期。
+3. 控制器校验请求，写入账本，再运行唯一推导出的命令：候选 `electron.exe` 的 Node 模式加一个套件脚本。
+4. 阶段脚本把原始文件写进该次尝试自己的目录；失败和重试不会覆盖更早的原始证据。
+5. 阶段结束后账本记录 `phase-result.json` 的哈希；账本只能追加。
+
+请求里没有自由文本命令字段。控制器不接收任何其他命令。
+
+## 阶段和关口
+
+| 阶段 | 关口 | 内容 | 前置 |
+|---|---|---|---|
+| p01-env | G0 | 目标身份、运行时、Shell、代码页、补丁、剩余空间、旧进程树 | 无 |
+| p02-integrity | G1 | 包完整性：ZIP、清单、输入锁、授权、模块加载 | p01 |
+| p03-chain | G2 | 最短链：启动、后台输出、停止、中断重启、显式继续、正常退出 | p02 |
+| p04-streaming | G2 | 实时输出、顺序、先落盘后显示、编码、限额、审计失败 | p03 |
+| p05-session-bg | G2 | 刷新、分页、重启后的输出；三个后台进程、游标、重复停止 | p03 |
+| p06-continue | G2 | 重启零请求、双击一次、未知副作用、旧审批 | p03 |
+| p07-safe | G2 | 必需审计失败的硬停止 | p03 |
+| p08-ui | G2 | 继续卡交互、布局和缩放 | p03 |
+| p09-report | G3 | 报告复核和负向对照 | p04～p08 |
+| p10-postflight | G4 | 密钥扫描（含正向对照）、残留检查、证据清单 | p09 |
+
+## 限额
+
+| 项目 | 值 |
+|---|---|
+| 请求总数上限 | 16；一次完整运行消耗 10，余量 6 |
+| 总时长上限 | 7200 秒 |
+| 请求有效期 | 900 秒 |
+| 桌面窗口数 | 1 |
+| 后台进程数 | 3 |
+
+同一类失败连续出现两次，运行停止，先写出根因再继续。
+
+## 结果如何判定
+
+阶段通过的唯一依据是 `phase-result.json` 为 `PASS`，且其中每个用例的每条断言都有非空的观察值。
+控制器的退出码为 0 不构成通过。驱动无法观察的事实记为 `UNKNOWN`，并写明原因；任何断言都不预先记为 `NOT_PERFORMED`。
+
+## 哪些旅程写入了持久化事实
+
+下列旅程不是真实崩溃。驱动用候选自带的 SQLite 写入持久化事实，再观察产品是否拒绝派发；真实崩溃由 p03 和 p06 的杀进程旅程覆盖。
+
+| 用例 | 观察方式 |
+|---|---|
+| B2-CONT-03 第 2 条：错误归属、修订漂移 | 写入一条中断任务，用错误会话号和过期修订各调用一次继续，观察错误码、零 Provider 请求和零继续事件 |
+| B2-CONT-03 第 2 条：残留 | 写入一条 `cleanup_required` 的托管进程事实，观察卡片禁用、错误码和零请求，随后删除该事实 |
+| B2-CONT-03 第 2 条：健康后台进程共存 | 保留一个运行中的本会话后台进程，点击继续，观察新轮次发出且进程仍在运行 |
+| B2-CONT-03 第 2 条：诊断模式 | 在工作区打开前把模式设置文件改为截断 JSON，观察真实中断任务被 `A9_MODE_SELECTION_REQUIRED` 阻断，随后还原文件 |
+| B2-UI-01 | 真实 DOM 与真实按键事件（Enter、空格），九个子项逐项观察，缺一项即为 `UNKNOWN` |
+
+## 已知限制
+
+- A9-34 恢复后清理处置推迟；恢复出的 `cleanup_required` 没有产品内处置入口。
+- 未测量原生退出取消（Esc）。
+- B2-CONT-02 的崩溃点（事务前后、Provider 与工具派发前后）无法从产品外部命中，只由 A9-32 的开发机测试覆盖。
+- B2-SAFE-01 的不可压缩超预算请求无法构造，因为 Renderer 不暴露上下文预算设置，只由 A9-32 的开发机测试覆盖。
+- 不覆盖真实 Provider 和企业环境，只使用本机回环固定响应。
+- 不测量 POSIX 可执行位和 PowerShell `/Command` 的真实执行。
+- 低于 800 px 的布局不可达，记为 `NOT_VERIFIED`。
+- ADR-0155 为 Proposed 期间，不批准任何 `INHERITED_EVIDENCE`。
+
+## 本套件不做什么
+
+不创建授权，不冻结候选，不签关口 A 或 B，不联网，不推送，不合并。
+没有在 Win10 验收机或 Win7 实机上运行过；`win10` 与 `win7` 状态均为 `NOT_PERFORMED`。

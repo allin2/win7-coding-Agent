@@ -1,5 +1,28 @@
 # A9 `0.3.0-alpha.1` v3 自包含候选
 
+## A9-33 / WIN7-43 批次 2 验证套件（暂定编号，ADR-0155 仍为 Proposed）
+
+本节的候选编号 WIN7-43 是暂定值：冻结前由执行代理按引用、登记和目录核对。套件不授予任何放行权限，结论上限是“批次 2 执行能力”。
+开发机结果不构成 Win10 验收机或 Win7 实机 PASS；`win10` 与 `win7` 状态保持 `NOT_PERFORMED`。
+
+| 构建配置 | 输入锁 | 清单状态 | 用途 |
+|---|---|---|---|
+| `A9-BATCH2-INPUTS-D013-V26-MANAGED` | `a9-batch2-input-lock.json` | `DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS`，可进入外部验收 | 批次 2 候选，含 `validation\` 套件与 `A9_BATCH2_VALIDATION_KIT.json` |
+| `A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED` | `a9-32-input-lock.json` | `A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE`，不可进入外部验收 | A9-32 开发机检查包，不含验证套件 |
+
+```bat
+node scripts\release\build-a9-product-v3.mjs ^
+  --formal-input-lock release\win7-product-v3\a9-batch2-input-lock.json ^
+  --electron-zip <electron-v22.3.27-win32-x64.zip> ^
+  --runner-zip <approved D-013 v26 managed helper ZIP> ^
+  --storage-zip <WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip> ^
+  --output <new-empty-output-directory>
+```
+
+批次 2 套件由十个阶段（p01～p10）和五个关口（G0～G4）组成，一次完整运行消耗 10 个请求，上限 16 个。
+阶段、关口、限额、判定口径和已知限制见 [`A9_BATCH2_WIN7_VALIDATION.md`](A9_BATCH2_WIN7_VALIDATION.md)。
+`.cmd` 入口只用 ASCII 与 CRLF；其余新增文本用 UTF-8（无 BOM）与 LF，生产脚本在装配时逐文件检查。
+
 ## A9-27 / WIN7-42 A9-26 可靠性换发套件（ADR-0147）
 
 W42 从冻结的 WIN7-41 套件机械派生，保留 W42-01～22 回归并登记验证命令替换差异；新增 W42-23～30 覆盖恢复目录保护、验证分类、项目指令与环境事实、上下文预算重试、无热身历史加载及取消/超限终态，并补强失败验证/不可压缩预算、审计故障与 Provider 完整性。套件开发机结果不构成 Win7 实机 PASS，现场步骤见 [`A9_27_WIN7_42_VALIDATION.md`](A9_27_WIN7_42_VALIDATION.md)。

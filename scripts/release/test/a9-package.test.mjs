@@ -6034,3 +6034,43 @@ test('managed developer package is distinct from streaming and cannot consume an
     const lock=JSON.parse(JSON.stringify(original));mutate(lock);writeJson(inputs.lockPath,lock);assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'not-written')}),/A9_V26_/);
   }
 });
+
+function a932DeveloperFixture(root,repositoryRoot){
+  const inputs=v26DeveloperFixture(root,repositoryRoot,true);const lock=JSON.parse(fs.readFileSync(inputs.lockPath));
+  lock.lock_id='A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED';lock.provenance.task='A9-32';writeJson(inputs.lockPath,lock);return {...inputs,lock};
+}
+test('A9-32 developer package is its own noncandidate profile with reproducible closure and no validation suite',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'a9-32-developer-TEST_ONLY-')), repositoryRoot=cleanSourceFixture(root), inputs=a932DeveloperFixture(root,repositoryRoot);
+  const first=buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'first')});
+  const second=buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'second')});
+  assert.deepEqual(fs.readFileSync(first.zipPath),fs.readFileSync(second.zipPath));
+  assert.equal(first.manifest.status,'A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE');assert.equal(first.manifest.external_acceptance_eligible,false);
+  assert.equal(first.manifest.release_authority,undefined);assert.equal(first.manifest.candidate,undefined);
+  assert.equal(first.manifest.lock_id,'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED');assert.equal(first.manifest.gates.win10,'NOT_PERFORMED');assert.equal(first.manifest.gates.win7,'NOT_PERFORMED');
+  assert.equal(first.manifest.required_native.runner_helper_profile,'D-013-v26-managed-a9-trusted-shell-current-user');assert.equal(first.manifest.required_native.runner_helper_protocol,3);
+  assert.ok(fs.existsSync(path.join(first.stage,'A9_32_DEVELOPER_CHECK.json')));assert.ok(!fs.existsSync(path.join(first.stage,'A9_31_DEVELOPER_CHECK.json')));
+  assert.equal(fs.existsSync(path.join(first.stage,'validation')),false);assert.equal(fs.existsSync(path.join(first.stage,'A9_BATCH2_VALIDATION_KIT.json')),false);
+  const runtime=JSON.parse(fs.readFileSync(path.join(first.stage,'resources/app/a9-runtime.json')));
+  assert.equal(runtime.lock_id,'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED');assert.equal(runtime.runner_helper_protocol,3);assert.equal(runtime.candidate,undefined);
+  assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'first')}),/NEW_OUTPUT_DIRECTORY_REQUIRED/);
+});
+test('A9-32 developer lock cannot be marked non-developer, take another task or drop the managed contract',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'a9-32-negative-TEST_ONLY-')), repositoryRoot=cleanSourceFixture(root), inputs=a932DeveloperFixture(root,repositoryRoot);const original=inputs.lock;
+  for(const mutate of [
+    v=>{v.provenance.development_only=false},
+    v=>{v.provenance.task='A9-31'},
+    v=>{v.provenance.task='A9-33'},
+    v=>{delete v.inputs.runner_return_zip.managed_contract},
+    v=>{v.inputs.runner_return_zip.profile='D-013-v26-a9-trusted-shell-current-user'},
+    v=>{v.gates.win7='PASS'},
+  ]){const lock=JSON.parse(JSON.stringify(original));mutate(lock);writeJson(inputs.lockPath,lock);assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'not-written')}),/A9_V26_/);}
+});
+test('batch-2 lock identity is refused when the lock claims a developer provenance or an older lock id',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'a9-batch2-identity-TEST_ONLY-')), repositoryRoot=cleanSourceFixture(root), inputs=a932DeveloperFixture(root,repositoryRoot);const original=inputs.lock;
+  for(const mutate of [
+    v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED'},
+    v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED';v.provenance={task:'A9-33',development_only:false,candidate:'WIN7-42',candidate_tentative:true}},
+    v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED';v.provenance={task:'A9-33',development_only:false,candidate:'WIN7-43',candidate_tentative:false}},
+    v=>{v.lock_id='A9-33-DEVELOPER-INPUTS-D013-V26-MANAGED'},
+  ]){const lock=JSON.parse(JSON.stringify(original));mutate(lock);writeJson(inputs.lockPath,lock);assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'not-written')}),/A9_/);}
+});

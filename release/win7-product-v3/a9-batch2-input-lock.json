@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "lock_id": "A9-BATCH2-INPUTS-D013-V26-MANAGED",
+  "release_id": "WIN7-CODING-AGENT-A9-ALPHA2",
+  "version": "0.3.0-alpha.2",
+  "source_date_epoch": 1790380800,
+  "target": {
+    "os": "Windows 7 SP1 build 7601",
+    "architecture": "x64",
+    "delivery": "SELF_CONTAINED_OFFLINE_WIN7_X64"
+  },
+  "inputs_are_not_a9_pass": true,
+  "runtime_profiles": {
+    "runner": {
+      "id": "win7-whoami",
+      "executable_path": "C:\\Windows\\System32\\whoami.exe",
+      "executable_sha256": "c36cf78f2257f606ab67b14afb02dca652a3fa6907c7805efbd2d47241ee609a",
+      "output_encoding": "cp936",
+      "working_directory_token": "${RC_RUNNER_WORK_ROOT}",
+      "argv_exact": [
+        [],
+        [
+          "/all"
+        ]
+      ]
+    }
+  },
+  "inputs": {
+    "electron_zip": {
+      "filename": "electron-v22.3.27-win32-x64.zip",
+      "version": "22.3.27",
+      "sha256": "ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6",
+      "required_entry": "electron.exe",
+      "required_entry_sha256": "2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb"
+    },
+    "runner_return_zip": {
+      "filename": "WIN7_D013_V26_HELPER_ARTIFACTS_20261003-060935.zip",
+      "version": "D-013-v26-managed-a9-trusted-shell-current-user",
+      "sha256": "251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40",
+      "required_entry": "output/helper.exe",
+      "required_entry_sha256": "2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7",
+      "profile": "D-013-v26-managed-a9-trusted-shell-current-user",
+      "managed_contract": {
+        "schema_version": 1,
+        "evidence_schema_version": 2,
+        "parent_process_probe": "Toolhelp32",
+        "release_natural_exit_code": 0,
+        "revision": "a9-31-managed-r1",
+        "control": [
+          "cancel",
+          "release"
+        ],
+        "release_terminal": "execution_released",
+        "persistent_adoption": false
+      },
+      "protocol_version": 3,
+      "runtime_profile": "a9-trusted-shell-current-user-v2",
+      "source_commit": "10114503a1e79706131ea4a11a5b96bd2958807a",
+      "build_kit": {
+        "revision": "A9-31-D013-V26-MANAGED-r3",
+        "filename": "A9_31_V26_MANAGED_BUILDKIT_r3.zip",
+        "sha256": "0191f61db2719eb42e0cbf822cbed6f6f07eeed69a7c5f0b04a9e19d54a367c1",
+        "source_commit": "10114503a1e79706131ea4a11a5b96bd2958807a",
+        "input_lock_sha256": "5d3159712d77ccd89e0a38e7e89379562685c98cc208d0b48c4d9f34912a68b4",
+        "package_manifest_sha256": "82ae5dd5539a85facade3b8aea6659e15bcede90e0601fd6cca075912ca248de"
+      },
+      "approval_registry": {
+        "commit": "dcf541892ec3ee5f5413833206f07efa3f3ee6e2",
+        "sha256": "de75a45050d1c38d168746542fc1837dd4cabbe13769b1fc3a3f33eb125a2e38",
+        "path": "release/win7-product-v3/a9-v26-approved-build-kits.json"
+      },
+      "reproducible_builds": [
+        {
+          "filename": "WIN7_D013_V26_HELPER_ARTIFACTS_20261003-060935.zip",
+          "sha256": "251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40",
+          "run_id": "3abe9a16-449b-4900-956e-6d0fb4c40fe2",
+          "evidence_binding_sha256": "0fe62a78efe2bf4e0dfefba7cd711e4650093a192ab4e490b9f743997bb1c562"
+        },
+        {
+          "filename": "WIN7_D013_V26_HELPER_ARTIFACTS_20261003-061029.zip",
+          "sha256": "ce8679187e120d8c0c9896fd201f37dfb1187e87d58702c3529f24b73737ff44",
+          "run_id": "33514a91-c5e8-4bb0-9176-135782175c88",
+          "evidence_binding_sha256": "b2a1144654fbdfea98abb72e6877b7bd2b96011b7cb11b6c822e72707ccc603e"
+        }
+      ],
+      "provenance": "Native bytes are the independently reviewed A9-31 managed r3 D-017 double-clean returns (ADR-0158); no helper, SQLite or Electron byte differs from a9-v26-managed-input-lock.json. Formal batch-2 input lock for the tentative WIN7-43 candidate; the candidate number is re-checked before freeze (A9-33 section 6.4)."
+    },
+    "storage_return_zip": {
+      "filename": "WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
+      "version": "8.7.0",
+      "sha256": "2cb0cd324bb449fb5457549addd3e7f8f0610d6258415309ee748fb279a72794",
+      "required_entry": "output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "required_entry_sha256": "7138aa2365e0027ced9bc8ae356097b31776d084a5a8f91cc2d3677785e915cc",
+      "sqlite": "3.43.1",
+      "electron_abi": 110,
+      "profile": "E22-SQLITE343-LOCAL-SSD"
+    }
+  },
+  "forbidden_payload_patterns": [
+    "node_modules/.cache/",
+    ".git/",
+    ".env",
+    "id_rsa",
+    "private.pem",
+    "winpty",
+    "node-pty",
+    "portable-data/",
+    "a9-provider-config",
+    "a9-state.db",
+    "-wal",
+    "-shm"
+  ],
+  "gates": {
+    "developer_package_integrity": "NOT_PERFORMED",
+    "product_assembly": "NOT_PERFORMED",
+    "win10": "PASS_D013_V26_RETURN_REVIEWED",
+    "win7": "NOT_PERFORMED_WIN7_43",
+    "alpha": "NOT_PERFORMED"
+  },
+  "generated_at": "2026-10-12T00:00:00.000Z",
+  "provenance": {
+    "task": "A9-33",
+    "development_only": false,
+    "candidate": "WIN7-43",
+    "candidate_tentative": true,
+    "decision": "ADR-0155 (Proposed; not accepted by A9-33 section 6.7)",
+    "rule": "formal candidate lock; release authority and independent pin are external to the candidate and are bound only at gate A"
+  }
+}

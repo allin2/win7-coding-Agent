@@ -170,3 +170,106 @@ describe('A9-31 managed package binding', () => {
     } finally { env.cleanup(); }
   });
 });
+
+describe('A9-32 developer and A9-33 batch-2 package binding', () => {
+  const MANAGED = 'D-013-v26-managed-a9-trusted-shell-current-user';
+  const A9_32 = 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED';
+  const BATCH2 = 'A9-BATCH2-INPUTS-D013-V26-MANAGED';
+  const AUTHORITY = { formal_input_lock_sha256: 'b'.repeat(64), approval_registry_commit: 'c'.repeat(40), approval_registry_sha256: 'd'.repeat(64) };
+
+  function managed(kind: 'a9-32' | 'batch2' | 'a9-31') {
+    const env = fixture();
+    const descriptorFile = path.join(env.productRoot, '..', 'a9-runtime.json');
+    const manifestFile = path.join(env.releaseRoot, 'release-manifest.json');
+    const descriptor = JSON.parse(fs.readFileSync(descriptorFile, 'utf8'));
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    descriptor.version = manifest.version = '0.3.0-alpha.2';
+    descriptor.runner_helper_protocol = manifest.required_native.runner_helper_protocol = 3;
+    descriptor.runner_helper_profile = manifest.required_native.runner_helper_profile = MANAGED;
+    if (kind === 'a9-31') {
+      manifest.status = 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE';
+      manifest.external_acceptance_eligible = false;
+    } else if (kind === 'a9-32') {
+      descriptor.lock_id = manifest.lock_id = A9_32;
+      manifest.status = 'A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE';
+      manifest.external_acceptance_eligible = false;
+    } else {
+      descriptor.lock_id = manifest.lock_id = BATCH2;
+      descriptor.candidate = manifest.candidate = 'WIN7-43';
+      manifest.candidate_tentative = true;
+      manifest.status = 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
+      manifest.external_acceptance_eligible = true;
+      manifest.release_authority = { ...AUTHORITY };
+    }
+    const save = () => { fs.writeFileSync(descriptorFile, JSON.stringify(descriptor)); fs.writeFileSync(manifestFile, JSON.stringify(manifest)); };
+    save();
+    return { ...env, descriptor, manifest, save };
+  }
+  const load = (productRoot: string) => loadA9PackageRuntime({ productRoot, platform: 'linux' });
+
+  it('accepts the A9-32 developer package and the formal batch-2 package, each only with its own identity', () => {
+    const dev = managed('a9-32');
+    const formal = managed('batch2');
+    try {
+      expect(load(dev.productRoot)).toMatchObject({ runnerHelperProtocol: 3, runnerHelperProfile: MANAGED });
+      expect(load(formal.productRoot)).toMatchObject({ runnerHelperProtocol: 3, runnerHelperProfile: MANAGED });
+    } finally { dev.cleanup(); formal.cleanup(); }
+  });
+
+  it('keeps the unstamped A9-31 managed contract byte-compatible', () => {
+    const env = managed('a9-31');
+    try { expect(load(env.productRoot).runnerHelperProfile).toBe(MANAGED); } finally { env.cleanup(); }
+  });
+
+  it.each([
+    ['a9-32 descriptor with the A9-31 status', 'a9-32', (e: any) => { e.manifest.status = 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'; }],
+    ['a9-32 manifest promoted to acceptance', 'a9-32', (e: any) => { e.manifest.external_acceptance_eligible = true; }],
+    ['a9-32 manifest with release authority', 'a9-32', (e: any) => { e.manifest.release_authority = { ...AUTHORITY }; }],
+    ['a9-32 manifest with another lock id', 'a9-32', (e: any) => { e.manifest.lock_id = BATCH2; }],
+    ['a9-32 descriptor with a candidate', 'a9-32', (e: any) => { e.descriptor.candidate = 'WIN7-43'; }],
+    ['a9-31 descriptor stamped with a lock id', 'a9-31', (e: any) => { e.descriptor.lock_id = A9_32; e.manifest.lock_id = A9_32; }],
+    ['a9-31 manifest stamped with a lock id', 'a9-31', (e: any) => { e.manifest.lock_id = A9_32; }],
+    ['a9-31 descriptor with a candidate', 'a9-31', (e: any) => { e.descriptor.candidate = 'WIN7-43'; }],
+    ['batch2 manifest with a developer status', 'batch2', (e: any) => { e.manifest.status = 'A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE'; }],
+    ['batch2 manifest without release authority', 'batch2', (e: any) => { delete e.manifest.release_authority; }],
+    ['batch2 manifest with a malformed authority hash', 'batch2', (e: any) => { e.manifest.release_authority.formal_input_lock_sha256 = 'short'; }],
+    ['batch2 manifest with a malformed registry commit', 'batch2', (e: any) => { e.manifest.release_authority.approval_registry_commit = 'c'.repeat(39); }],
+    ['batch2 manifest with another candidate', 'batch2', (e: any) => { e.manifest.candidate = 'WIN7-44'; }],
+    ['batch2 manifest with another lock id', 'batch2', (e: any) => { e.manifest.lock_id = A9_32; }],
+    ['batch2 manifest without a lock id', 'batch2', (e: any) => { delete e.manifest.lock_id; }],
+    ['batch2 manifest without candidate_tentative', 'batch2', (e: any) => { delete e.manifest.candidate_tentative; }],
+    ['batch2 manifest without the acceptance flag', 'batch2', (e: any) => { delete e.manifest.external_acceptance_eligible; }],
+    ['batch2 manifest claiming a Win7 pass', 'batch2', (e: any) => { e.manifest.gates = { win10: 'NOT_PERFORMED', win7: 'PASS' }; }],
+  ])('rejects %s', (_label, kind, mutate) => {
+    const env = managed(kind as 'a9-32' | 'batch2' | 'a9-31');
+    try {
+      (mutate as (e: unknown) => void)(env);
+      env.save();
+      expect(() => load(env.productRoot)).toThrow(/A9_PACKAGE_(RELEASE_MANIFEST|RUNTIME_CONFIG)_INVALID/);
+    } finally { env.cleanup(); }
+  });
+
+  it.each([
+    ['unknown lock id', (e: any) => { e.descriptor.lock_id = 'A9-OTHER-INPUTS'; }],
+    ['batch2 lock with the non-managed v26 helper profile', (e: any) => { e.descriptor.runner_helper_profile = e.manifest.required_native.runner_helper_profile = 'D-013-v26-a9-trusted-shell-current-user'; }],
+    ['batch2 lock on protocol 2', (e: any) => { e.descriptor.runner_helper_protocol = 2; e.manifest.required_native.runner_helper_protocol = 2; }],
+    ['batch2 lock without a candidate', (e: any) => { delete e.descriptor.candidate; }],
+    ['batch2 lock with a malformed candidate', (e: any) => { e.descriptor.candidate = 'WIN7-4'; e.manifest.candidate = 'WIN7-4'; }],
+    ['batch2 lock on the alpha.1 version', (e: any) => { e.descriptor.version = e.manifest.version = '0.3.0-alpha.1'; }],
+  ])('rejects a descriptor with %s', (_label, mutate) => {
+    const env = managed('batch2');
+    try {
+      (mutate as (e: unknown) => void)(env);
+      env.save();
+      expect(() => load(env.productRoot)).toThrow(/A9_PACKAGE_(RELEASE_MANIFEST|RUNTIME_CONFIG)_INVALID/);
+    } finally { env.cleanup(); }
+  });
+
+  it('still verifies the native hashes of a formal batch-2 package', () => {
+    const env = managed('batch2');
+    try {
+      fs.writeFileSync(path.join(env.releaseRoot, 'resources', 'native', 'runner', 'spike02_helper.exe'), 'changed');
+      expect(() => load(env.productRoot)).toThrow('A9_PACKAGE_RUNNER_HELPER_SHA256_MISMATCH');
+    } finally { env.cleanup(); }
+  });
+});
