@@ -328,6 +328,23 @@ test('batch-2 producer refuses a drifted lock, a non-ASCII or LF CMD entry and a
   assert.throws(() => buildA9ProductCandidate(buildOptions(inputs, fresh(root))), /A9_BATCH2_SUITE_BOM_PROHIBITED/);
 });
 
+test('the committed formal and developer locks name a build kit that the committed approval registry approves', () => {
+  // Reads the real files, not a fixture: one changed hex digit in either lock makes the kit unapproved and this test fail.
+  const release = path.join(process.cwd(), 'release/win7-product-v3');
+  for (const name of ['a9-batch2-input-lock.json', 'a9-32-input-lock.json']) {
+    const lock = JSON.parse(fs.readFileSync(path.join(release, name), 'utf8'));
+    const runner = lock.inputs.runner_return_zip;
+    const kit = runner.build_kit;
+    const registryBytes = fs.readFileSync(path.join(release, 'a9-v26-approved-build-kits.json'));
+    assert.equal(digest(registryBytes), runner.approval_registry.sha256, `${name}: registry digest`);
+    const registry = JSON.parse(registryBytes.toString('utf8'));
+    const approved = registry.kits.find((entry) => entry.status === 'APPROVED_FOR_RETURN_RECORDING' && entry.sha256 === kit.sha256
+      && entry.filename === kit.filename && entry.revision === kit.revision && entry.source_commit === runner.source_commit
+      && entry.input_lock_sha256 === kit.input_lock_sha256 && entry.package_manifest_sha256 === kit.package_manifest_sha256);
+    assert.ok(approved, `${name}: build kit is not approved by the committed registry`);
+  }
+});
+
 test('batch-2 report verifier accepts a complete bound run and rejects every tampering control', () => {
   const state = sharedCandidate();
   const files = externalFiles(state);

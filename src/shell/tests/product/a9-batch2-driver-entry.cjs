@@ -65,10 +65,13 @@ function textsPerStream(frames, stream) { return frames.filter((frame) => frame.
 // event timestamps. A frame is displayed before it was persisted when every stored copy of its text has a stored timestamp later
 // than the end of a DOM read that already showed it. The check cannot prove order for frames with no timestamp: those are counted
 // as unchecked and the answer stays UNKNOWN. A sample with nothing to show proves nothing; at least one frame must be seen.
+// The fixture output tokens: tick (S01), out and err (S02). A token the stream area showed that the database never held is a ghost frame.
+const OUTPUT_TOKEN_PATTERN = /\b(?:tick|out|err) \d+\b/g;
 function evaluateDomAfterDb(samples, persisted) {
   const violations = [];
   let seen = 0;
   let unchecked = 0;
+  let tied = 0;
   const stored = Array.isArray(persisted) ? persisted : null;
   for (const sample of samples) {
     const dbJoined = (sample.dbFrameTexts || []).join('');
@@ -79,7 +82,14 @@ function evaluateDomAfterDb(samples, persisted) {
         const copies = stored.filter((item) => item.text === text);
         const stamps = copies.map((item) => item.persistedAtMs).filter(Number.isFinite);
         if (copies.length === 0 || stamps.length === 0) unchecked += 1;
-        else if (stamps.every((stamp) => stamp > sample.domReadEndMs)) violations.push({ t: sample.t, kind: 'displayed_before_persisted', text: String(text).slice(0, 60), persistedAtMs: Math.min(...stamps), domReadEndMs: sample.domReadEndMs });
+        else {
+          // The stored time is a millisecond wall clock taken before the INSERT. A time later than the end of a DOM read that already
+          // showed the frame proves display came first; an earlier time does not by itself prove the commit preceded the display
+          // (the later-database check above covers frames that never arrived), and the same millisecond proves nothing either way.
+          const first = Math.min(...stamps);
+          if (first > sample.domReadEndMs) violations.push({ t: sample.t, kind: 'displayed_before_persisted', text: String(text).slice(0, 60), persistedAtMs: first, domReadEndMs: sample.domReadEndMs });
+          else if (first === sample.domReadEndMs) tied += 1;
+        }
       }
     }
     for (const token of sample.domTokens || []) {
@@ -92,7 +102,7 @@ function evaluateDomAfterDb(samples, persisted) {
     }
   }
   const complete = violations.length === 0 && seen > 0;
-  return { ok: complete && unchecked === 0 ? true : violations.length > 0 ? false : null, samples: samples.length, observations: seen, unchecked_without_timestamp: unchecked,
+  return { ok: complete && unchecked === 0 && tied === 0 ? true : violations.length > 0 ? false : null, samples: samples.length, observations: seen, unchecked_without_timestamp: unchecked, tied_same_millisecond: tied,
     persisted_timestamps_used: Boolean(stored), violations: violations.slice(0, 5) };
 }
 // firstTickVisibleMs and commandEndedMs are driver-clock offsets; the contract needs the first tick at least 1 s earlier.
@@ -174,8 +184,17 @@ function guardRefused(result, code, requests, continueEvents) {
     && requests.before === requests.after && continueEvents.before === continueEvents.after;
 }
 // Joins a base condition with a guard answer: an unobserved guard keeps the sub-journey UNKNOWN unless the base already fails.
-// A stopped continuation turn is retryable: the product stores task, turn and run as `interrupted` and shows a new enabled card.
-const retryableStopStatus = (status) => status === 'interrupted' || status === 'cancelled';
+// A stopped continuation turn is retryable: the product stores task, turn and run as `interrupted` (persistTurnResult) and shows a new enabled card.
+// Only `interrupted` yields a recovery fact, so `cancelled` is never accepted as retryable.
+const retryableStopStatus = (status) => status === 'interrupted';
+// After Stop the same task must offer a new continuation: still continuable, another interrupted turn, another revision.
+// A missing fact is null (UNKNOWN); a recovery task that cannot continue is false.
+function stopLeavesActionableCard(before, after) {
+  if (!before || !after || !before.interruptedTurnId || !before.recoveryRevision) return null;
+  if (after.canContinue === false) return false;
+  if (after.canContinue !== true || !after.interruptedTurnId || !after.recoveryRevision) return null;
+  return after.interruptedTurnId !== before.interruptedTurnId && after.recoveryRevision !== before.recoveryRevision;
+}
 const statusOf = (value) => (value === null || value === undefined ? 'UNKNOWN' : value ? 'PASS' : 'FAIL');
 function withGuard(base, refused) { return base === false || refused === false ? false : refused === null || base === null ? null : true; }
 // Persisted-fact writers shared by the guard journeys and their runtime-backed tests. They write the same rows the A9-32
@@ -205,6 +224,21 @@ const CORRUPT_MODE_SETTINGS = '{ "schemaVersion": ';
 const CARD_BUTTON_READY = '继续';
 const CARD_BUTTON_BUSY = '正在继续';
 // B2-UI-01: the whole journey is judged from observed facts; a missing observation stays UNKNOWN.
+// B2-UI-02 verdict from the layout probes. A control is usable when it is visible, inside the viewport and not covered; the continuation
+// card button must also be enabled. No rows, or no continuation card in some layout, leaves the case UNKNOWN unless a base control already fails.
+function evaluateUiLayouts(rows, shorter, cardFacts) {
+  const list = Array.isArray(rows) ? rows : [];
+  const usable = (item) => Boolean(item) && !item.hidden && item.inViewport === true && item.reachable === true;
+  const cardUsable = (item) => usable(item) && item.disabled === false;
+  const bad = list.filter((row) => ['task-prompt', 'run-task'].some((id) => !usable(row.controls && row.controls[id])));
+  const cardBad = list.filter((row) => !cardUsable(row.controls && row.controls.card_button));
+  const shorterCard = shorter && shorter.card_button ? shorter.card_button : null;
+  const shorterCardOk = Boolean(shorterCard) && shorterCard.inViewport === true && shorterCard.reachable === true && shorterCard.disabled === false;
+  const cardObserved = Boolean(cardFacts && cardFacts.card_found) && list.length > 0 && list.every((row) => row.controls && row.controls.card_button) && Boolean(shorterCard);
+  const baseOk = list.length > 0 && bad.length === 0 && Boolean(shorter) && shorter.inViewport === true;
+  const status = list.length > 0 && !baseOk || (cardObserved && (cardBad.length > 0 || !shorterCardOk)) ? 'FAIL' : baseOk && cardObserved ? 'PASS' : 'UNKNOWN';
+  return { status, bad: bad.length, card_bad: cardBad.length, card_observed: cardObserved, shorter_card_ok: shorterCardOk, base_ok: baseOk };
+}
 function evaluateUiJourney(f) {
   const facts = f || {};
   const card0 = facts.card0 || null;
@@ -443,7 +477,7 @@ async function runDriver() {
       const finalTexts = frames.map((frame) => frame.text).filter((text) => text.trim());
       for (const sample of samples) {
         sample.domFrameTexts = finalTexts.filter((text) => sample._domPresent.includes(text.trim()));
-        sample.domTokens = [...new Set(String(sample._domStream).match(/\b(?:tick|err) \d+\b/g) || [])];
+        sample.domTokens = [...new Set(String(sample._domStream).match(OUTPUT_TOKEN_PATTERN) || [])];
         delete sample._domPresent;
         delete sample._domStream;
       }
@@ -667,10 +701,12 @@ async function runDriver() {
     const factsDelivered = firstLine.recovery_unknown_count === unknownCount && unknownCount !== null;
     const approvalDead = resume && resume.ok === false && fileStillThere;
     // Stop on a continuation turn that did not finish leaves the task retryable: the product writes task, turn and run as
-    // `interrupted` (persistTurnResult, retryable continuation) and shows a new enabled card; `cancelled` is also accepted.
-    const stoppedRetryable = retryableStopStatus(newStatus);
-    record('B2-CH-05-CONTINUE', 2, approvalDead && factsDelivered && stoppedRetryable ? 'PASS' : 'FAIL',
-      `old_approval_ok=${resume && resume.ok}; old_approval_error=${resume && resume.error && resume.error.code}; file_still_exists=${fileStillThere}; recovery_unknown_results=${unknownCount}; first_request_recovery_unknown=${firstLine.recovery_unknown_count}; new_turn_status_after_stop=${newStatus}`);
+    // `interrupted` (persistTurnResult, retryable continuation) and shows a new enabled card; only `interrupted` is accepted.
+    const afterTask = Array.isArray(idle.recoveryTasks) ? idle.recoveryTasks.find((item) => item.taskId === pre.taskId) || null : null;
+    const actionable = stopLeavesActionableCard({ interruptedTurnId: pre.turnId, recoveryRevision: facts.recovery.recoveryRevision }, afterTask);
+    const stoppedRetryable = withGuard(retryableStopStatus(newStatus), actionable);
+    record('B2-CH-05-CONTINUE', 2, approvalDead && factsDelivered ? statusOf(stoppedRetryable) : 'FAIL',
+      `old_approval_ok=${resume && resume.ok}; old_approval_error=${resume && resume.error && resume.error.code}; file_still_exists=${fileStillThere}; recovery_unknown_results=${unknownCount}; first_request_recovery_unknown=${firstLine.recovery_unknown_count}; new_turn_status_after_stop=${newStatus}; new_card_actionable=${actionable}`);
   }
 
   async function chainExit() {
@@ -1275,7 +1311,7 @@ async function runDriver() {
             if (!cardButton) out.card_button = null;
             else { const r = cardButton.getBoundingClientRect();
               const hit = r.width > 0 && r.height > 0 ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
-              out.card_button = { hidden: cardButton.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === cardButton || cardButton.contains(hit))) }; }
+              out.card_button = { hidden: cardButton.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === cardButton || cardButton.contains(hit))), disabled: Boolean(cardButton.disabled) }; }
             for (const id of ids) { const el = document.getElementById(id); if (!el) { out[id] = null; continue; } const r = el.getBoundingClientRect();
               const hit = r.width > 0 && r.height > 0 ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
               out[id] = { hidden: el.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === el || el.contains(hit))) }; }
@@ -1292,19 +1328,12 @@ async function runDriver() {
       const b = document.querySelector('section.continuation-card button'); if (b) b.scrollIntoView({ block: 'nearest' });
       const br = b ? b.getBoundingClientRect() : null; const hit = br && br.width > 0 && br.height > 0 ? document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2) : null;
       return { innerHeight: window.innerHeight, inViewport: r.bottom <= window.innerHeight && r.top >= 0,
-        card_button: br ? { inViewport: br.left >= 0 && br.top >= 0 && br.right <= window.innerWidth && br.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === b || b.contains(hit))) } : null }; })()`);
+        card_button: br ? { inViewport: br.left >= 0 && br.top >= 0 && br.right <= window.innerWidth && br.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === b || b.contains(hit))), disabled: Boolean(b.disabled) } : null }; })()`);
     win.setContentSize(1366, 768);
     await screenshot('ui02-layouts.png');
-    const usable = (item) => Boolean(item) && !item.hidden && item.inViewport === true && item.reachable === true;
-    const bad = rows.filter((row) => ['task-prompt', 'run-task'].some((id) => !usable(row.controls[id])));
-    const cardBad = rows.filter((row) => !usable(row.controls.card_button));
-    const shorterCardOk = Boolean(shorter.card_button) && shorter.card_button.inViewport === true && shorter.card_button.reachable === true;
-    // No continuation card at all means the card was not observed: UNKNOWN, never PASS.
-    const cardObserved = cardFacts.card_found && rows.every((row) => row.controls.card_button !== null) && shorter.card_button !== null;
-    const baseOk = bad.length === 0 && shorter.inViewport;
-    const uiStatus = !baseOk || (cardObserved && (cardBad.length > 0 || !shorterCardOk)) ? 'FAIL' : cardObserved ? 'PASS' : 'UNKNOWN';
-    out('ui02-layouts.json', { rows, shorter, card: cardFacts, zoom_note: 'zoomFactor 1 and 1.25 (page zoom); this is not Windows DPI scaling', below_800: 'NOT_VERIFIED', bad: bad.length, card_bad: cardBad.length });
-    record('B2-UI-02-LAYOUTS-DPI', 1, uiStatus, `layouts=${rows.length}; unusable=${bad.length}; card_found=${cardFacts.card_found}; card_unusable=${cardBad.length}; shorter_window_run_in_viewport=${shorter.inViewport}; shorter_window_card_usable=${shorterCardOk}; page_zoom_only_not_windows_dpi=true; below_800=NOT_VERIFIED`);
+    const verdict = evaluateUiLayouts(rows, shorter, cardFacts);
+    out('ui02-layouts.json', { rows, shorter, card: cardFacts, zoom_note: 'zoomFactor 1 and 1.25 (page zoom); this is not Windows DPI scaling', below_800: 'NOT_VERIFIED', bad: verdict.bad, card_bad: verdict.card_bad, verdict });
+    record('B2-UI-02-LAYOUTS-DPI', 1, verdict.status, `layouts=${rows.length}; unusable=${verdict.bad}; card_found=${cardFacts.card_found}; card_unusable_or_disabled=${verdict.card_bad}; shorter_window_run_in_viewport=${shorter.inViewport}; shorter_window_card_usable=${verdict.shorter_card_ok}; page_zoom_only_not_windows_dpi=true; below_800=NOT_VERIFIED`);
   }
 
   // ---- Dispatcher ------------------------------------------------------------------------------------------------------------------
@@ -1374,7 +1403,7 @@ async function runDriver() {
 module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
-  subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, evaluateUiJourney,
+  subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, OUTPUT_TOKEN_PATTERN,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
 };
 

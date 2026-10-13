@@ -262,7 +262,7 @@ function argvForRequest(request, layout) {
 // Consuming first claims the attempt directory with a non-recursive mkdir, which the file system makes exclusive: of two
 // processes that both passed verification, only one gets the claim and the other stops. Only the claimant re-reads the
 // ledger, records the request and copies it into the attempt directory. A request refused before anything was recorded
-// releases its empty claim; a claim left behind by a crash keeps that request index closed (fail closed), and the operator
+// releases its empty claim; a request whose index already has another claim (another phase) is refused the same way; a claim left behind by a crash keeps that request index closed (fail closed), and the operator
 // records the cause instead of reusing the index.
 function consumeRequest(request, evidenceRoot, now) {
   const when = (now instanceof Date ? now : new Date()).toISOString();
@@ -274,6 +274,11 @@ function consumeRequest(request, evidenceRoot, now) {
   }
   let recorded = false;
   try {
+    // The claim directory name carries the phase, so two requests of one index but different phases claim different
+    // directories. After claiming, any other directory of this index means a rival got in: both back off (fail closed).
+    const indexPrefix = `${String(request.request_index).padStart(2, '0')}-`;
+    const rivals = fs.readdirSync(path.dirname(attempt)).filter((name) => name.startsWith(indexPrefix) && name !== path.basename(attempt));
+    if (rivals.length > 0) throw new Error('A9_BATCH2_REQUEST_ALREADY_CLAIMED');
     const ledger = readLedger(evidenceRoot);
     const consumed = consumedRequests(ledger);
     if (consumed.some((entry) => entry.digest === request.digest || entry.request_index === request.request_index)) throw new Error('A9_BATCH2_REQUEST_REPLAYED');

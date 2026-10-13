@@ -180,6 +180,10 @@ function verifyRun(io, options) {
 }
 
 // Negative controls: each must be rejected with its own problem class. Only meaningful when the baseline is clean.
+// The closed list of negative controls a report must have run and passed; a missing id fails the report.
+const REQUIRED_NEGATIVES = Object.freeze(['NEG-WRONG-PIN', 'NEG-WRONG-CANDIDATE', 'NEG-MISSING-EVIDENCE', 'NEG-EDITED-EVIDENCE', 'NEG-EDITED-REPORT',
+  'NEG-STRIPPED-OBSERVATION', 'NEG-REPLAYED-REQUEST', 'NEG-ORPHAN-COMPLETION']);
+
 function runNegativeControls(io, options) {
   const baseline = verifyRun(io, options);
   if (!baseline.ok) return { performed: false, reason: 'BASELINE_NOT_CLEAN', results: [] };
@@ -250,8 +254,6 @@ function main(argv = process.argv.slice(2), io = diskIo()) {
   if (phaseMode) options.through = 'p08-ui';
   const verdict = verifyRun(io, options);
   const negatives = runNegativeControls(io, options);
-  const REQUIRED_NEGATIVES = ['NEG-WRONG-PIN', 'NEG-WRONG-CANDIDATE', 'NEG-MISSING-EVIDENCE', 'NEG-EDITED-EVIDENCE', 'NEG-EDITED-REPORT',
-    'NEG-STRIPPED-OBSERVATION', 'NEG-REPLAYED-REQUEST', 'NEG-ORPHAN-COMPLETION'];
   const negativesOk = negatives.performed && REQUIRED_NEGATIVES.every((id) => negatives.results.some((item) => item.id === id))
     && negatives.results.every((item) => item.status === 'PASS');
   const report = {
@@ -288,7 +290,7 @@ function main(argv = process.argv.slice(2), io = diskIo()) {
   return report;
 }
 
-module.exports = { verifyRun, runNegativeControls, diskIo, overlayIo, main, AUTHORITY_KIND, AUTHORITY_STATUS };
+module.exports = { verifyRun, runNegativeControls, diskIo, overlayIo, main, AUTHORITY_KIND, AUTHORITY_STATUS, REQUIRED_NEGATIVES };
 if (require.main === module) {
   try { main(); } catch (error) {
     process.stderr.write(`${error && error.message ? error.message : String(error)}\n`);

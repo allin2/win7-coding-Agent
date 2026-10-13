@@ -286,6 +286,49 @@ describe('A9-33 batch-2 request and ledger', () => {
     expect(fs.existsSync(path.join(requests.consumeRequest(good, root), 'request.json'))).toBe(true);
   });
 
+  test('another claim on the same index, even for a different phase, stops the consumer and leaves no claim of its own', () => {
+    const base = temp('index-claim');
+    const first = request({ base });
+    const root = first.evidence_root;
+    // A claim of index 1 for another phase (a rival, or a crash leftover) already exists.
+    fs.mkdirSync(requests.attemptDirectory(root, 1, 'p02-integrity'), { recursive: true });
+    expect(() => requests.consumeRequest(first, root)).toThrow(/A9_BATCH2_REQUEST_ALREADY_CLAIMED/);
+    expect(fs.existsSync(requests.attemptDirectory(root, 1, 'p01-env'))).toBe(false);
+    expect(requests.readLedger(root)).toEqual([]);
+  });
+
+  test('two processes consuming one index for different phases at the same moment never both win', async () => {
+    const base = temp('index-race');
+    const one = request({ base });
+    const two = request({ base, phase: 'p03-chain', requestIndex: 1 });
+    const files = [one, two].map((req, i) => {
+      const file = path.join(base, `race-${i}.json`);
+      fs.writeFileSync(file, JSON.stringify(req));
+      return file;
+    });
+    const startAt = Date.now() + 2000;
+    const run = (file: string) => new Promise<number>((resolve) => {
+      const script = `const r=require(${JSON.stringify(path.join(releaseDir, 'a9-batch2-desktop-request.cjs'))});`
+        + `const q=JSON.parse(require('fs').readFileSync(${JSON.stringify(file)},'utf8'));while(Date.now()<${startAt}){}`
+        + 'try{r.consumeRequest(q,q.evidence_root);process.exit(0)}catch(e){process.exit(3)}';
+      childProcess.spawn(process.execPath, ['-e', script], { stdio: 'ignore' }).on('exit', (code) => resolve(code === null ? -1 : code));
+    });
+    const codes = await Promise.all(files.map(run));
+    const wins = codes.filter((code) => code === 0).length;
+    // Both backing off is allowed (fail closed); both winning is the defect.
+    expect(wins).toBeLessThanOrEqual(1);
+    expect(codes.every((code) => code === 0 || code === 3)).toBe(true);
+    const consumedEntries = requests.readLedger(one.evidence_root).filter((entry: any) => entry.state === 'CONSUMED');
+    expect(consumedEntries).toHaveLength(wins);
+  }, 30_000);
+
+  test('the report verifier requires exactly the closed list of negative controls', () => {
+    expect(report.REQUIRED_NEGATIVES).toEqual(['NEG-WRONG-PIN', 'NEG-WRONG-CANDIDATE', 'NEG-MISSING-EVIDENCE', 'NEG-EDITED-EVIDENCE', 'NEG-EDITED-REPORT',
+      'NEG-STRIPPED-OBSERVATION', 'NEG-REPLAYED-REQUEST', 'NEG-ORPHAN-COMPLETION']);
+    expect(Object.isFrozen(report.REQUIRED_NEGATIVES)).toBe(true);
+    expect(new Set(report.REQUIRED_NEGATIVES).size).toBe(report.REQUIRED_NEGATIVES.length);
+  });
+
   test('two processes consuming the same request at the same moment cannot both win', async () => {
     const req = request();
     const requestFile = path.join(path.dirname(req.evidence_root), 'race-request.json');
@@ -765,6 +808,15 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(run(null, listing([unrelated])).status).toBe('UNKNOWN');
     expect(run({ tree: [helper], wmic_failures: 0 }, () => { throw new Error('wmic missing'); }).status).toBe('UNKNOWN');
     expect(run({ tree: [helper], wmic_failures: 0 }, listing([])).status).toBe('UNKNOWN');
+    // The real executor returns a status or an error instead of throwing: a partial listing from a failed command is no listing.
+    const partial = csv([unrelated]);
+    const nonZero = run({ tree: [helper], wmic_failures: 0 }, () => ({ status: 1, stdout: partial, stderr: 'denied', error: null }));
+    expect(nonZero.status).toBe('UNKNOWN');
+    expect(nonZero.held.listing_failed).toBe(true);
+    const timedOut = run({ tree: [helper], wmic_failures: 0 }, () => ({ status: 0, stdout: partial, stderr: '', error: 'spawnSync wmic.exe ETIMEDOUT' }));
+    expect(timedOut.status).toBe('UNKNOWN');
+    expect(timedOut.held.listing_failed).toBe(true);
+    expect(run({ tree: [helper], wmic_failures: 0 }, () => ({ status: null, stdout: partial, stderr: '', error: null })).status).toBe('UNKNOWN');
     // A survivor of the same pid and creation stamp, or a bad exit, fails.
     expect(run({ tree: [helper], wmic_failures: 0 }, listing([unrelated, 'HOST,20260101000000.000000+000,C:\\x\\h.exe,spike02_helper.exe,100,500'])).status).toBe('FAIL');
     expect(run({ tree: [helper], wmic_failures: 0 }, listing([unrelated]), exitLaunch({ code: 1 })).status).toBe('FAIL');
@@ -801,6 +853,28 @@ describe('A9-33 batch-2 smoke pieces', () => {
     void left;
     const none = smoke.runPostflightPhase(phaseContext('p10-postflight', 10).ctx, () => ({ status: 0, stdout: '', stderr: '', error: null }));
     expect(none.cases[0].assertions[1].status).toBe('UNKNOWN');
+    // A failed listing (non-zero status, error object or throw) that still printed rows is not an observation of "no residue".
+    const failedRows = (over: any) => () => ({ status: 0, stdout: rows().stdout, stderr: '', error: null, ...over });
+    for (const exec of [failedRows({ status: 1 }), failedRows({ error: 'ETIMEDOUT' }), () => { throw new Error('wmic missing'); }]) {
+      const failed = phaseContext('p10-postflight', 10);
+      fs.writeFileSync(path.join(failed.runRoot, 'note.txt'), 'harmless evidence');
+      const result = smoke.runPostflightPhase(failed.ctx, exec);
+      expect(result.cases[0].assertions[1].status).toBe('UNKNOWN');
+      expect(result.status).not.toBe('PASS');
+      expect(JSON.parse(fs.readFileSync(path.join(failed.attempt, 'g4-postflight.json'), 'utf8')).listing_failed).toBe(true);
+    }
+  });
+
+  test('the environment phase does not call stale trees absent when the process listing failed', () => {
+    const req = { target: TARGET, evidence_root: '/evidence' };
+    const exec = (over: any) => (name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? 'Node,ProcessId,ParentProcessId,Name,ExecutablePath,SessionId\r\nH,5,1,x.exe,C:\\x.exe,1\r\n' : '', stderr: '', error: null, ...(name === 'wmic_processes' ? over : {}) });
+    expect(smoke.collectEnvironment(exec({ status: 1 }), { pid: 5, watchedRoots: [], freeBytes: 1 }).processes_listing_failed).toBe(true);
+    expect(smoke.collectEnvironment(exec({ error: 'ETIMEDOUT' }), { pid: 5, watchedRoots: [], freeBytes: 1 }).processes_listing_failed).toBe(true);
+    expect(smoke.collectEnvironment(exec({}), { pid: 5, watchedRoots: [], freeBytes: 1 }).processes_listing_failed).toBe(false);
+    expect(smoke.evaluateEnvironment({ ...FACTS(), processes_listing_failed: true, processes_total: 40 }, req, '/candidate')[0].status).toBe('UNKNOWN');
+    expect(smoke.evaluateEnvironment({ ...FACTS(), processes_total: 0 }, req, '/candidate')[0].status).toBe('UNKNOWN');
+    // A stale tree seen in a partial listing is still a failure: evidence of presence stays evidence.
+    expect(smoke.evaluateEnvironment({ ...FACTS(), processes_listing_failed: true, stale_processes: [{ pid: 9, name: 'spike02_helper.exe' }] }, req, '/candidate')[0].status).toBe('FAIL');
   });
 });
 
@@ -858,12 +932,59 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.evaluateDomAfterDb([{ ...base, domFrameTexts: [], domTokens: [] }], stored(900)).ok).toBeNull();
   });
 
-  test('a stopped continuation turn is retryable when the product stores it as interrupted or cancelled', () => {
+  test('a stopped continuation turn is retryable only as interrupted, and only when a new actionable card exists', () => {
     expect(driver.retryableStopStatus('interrupted')).toBe(true);
-    expect(driver.retryableStopStatus('cancelled')).toBe(true);
-    expect(driver.retryableStopStatus('completed')).toBe(false);
-    expect(driver.retryableStopStatus('running')).toBe(false);
-    expect(driver.retryableStopStatus(null)).toBe(false);
+    // The product writes no recovery fact for a cancelled turn, so cancelled is never retryable.
+    for (const status of ['cancelled', 'completed', 'running', 'failed', null, undefined]) expect(driver.retryableStopStatus(status)).toBe(false);
+    const before = { interruptedTurnId: 'turn-old', recoveryRevision: 'rev-old' };
+    expect(driver.stopLeavesActionableCard(before, { canContinue: true, interruptedTurnId: 'turn-new', recoveryRevision: 'rev-new' })).toBe(true);
+    // Same turn or same revision: the card did not move on. A task that cannot continue: no actionable card.
+    expect(driver.stopLeavesActionableCard(before, { canContinue: true, interruptedTurnId: 'turn-old', recoveryRevision: 'rev-new' })).toBe(false);
+    expect(driver.stopLeavesActionableCard(before, { canContinue: true, interruptedTurnId: 'turn-new', recoveryRevision: 'rev-old' })).toBe(false);
+    expect(driver.stopLeavesActionableCard(before, { canContinue: false, interruptedTurnId: 'turn-new', recoveryRevision: 'rev-new' })).toBe(false);
+    // A missing fact is never an answer: null stays UNKNOWN.
+    expect(driver.stopLeavesActionableCard(before, null)).toBeNull();
+    expect(driver.stopLeavesActionableCard(null, { canContinue: true, interruptedTurnId: 'a', recoveryRevision: 'b' })).toBeNull();
+    expect(driver.stopLeavesActionableCard(before, { interruptedTurnId: 'a', recoveryRevision: 'b' })).toBeNull();
+    expect(driver.statusOf(driver.withGuard(driver.retryableStopStatus('cancelled'), true))).toBe('FAIL');
+    expect(driver.statusOf(driver.withGuard(driver.retryableStopStatus('interrupted'), null))).toBe('UNKNOWN');
+    expect(driver.statusOf(driver.withGuard(driver.retryableStopStatus('interrupted'), true))).toBe('PASS');
+  });
+
+  test('stream output tokens include stdout, so a never-stored out frame is a ghost and a same-millisecond persist is not proof', () => {
+    expect(['tick 1', 'out 2', 'err 3', 'tick 12'].every((token) => new RegExp(driver.OUTPUT_TOKEN_PATTERN.source).test(token))).toBe(true);
+    expect('x out 999 y err 1 tick 2'.match(driver.OUTPUT_TOKEN_PATTERN)).toEqual(['out 999', 'err 1', 'tick 2']);
+    const base = { t: 1, dbFrameTexts: ['out 1', 'err 1'], domFrameTexts: [], ipcEventIds: [], dbEventIds: [], domReadEndMs: 1000 };
+    // DOM shows out 1, err 1 and a never-stored out 999: the ghost is a violation even though the stored frames match.
+    const ghost = driver.evaluateDomAfterDb([{ ...base, domTokens: ['out 1', 'err 1', 'out 999'] }]);
+    expect(ghost.ok).toBe(false);
+    expect(ghost.violations[0]).toMatchObject({ kind: 'dom_token', text: 'out 999' });
+    expect(driver.evaluateDomAfterDb([{ ...base, domTokens: ['out 1', 'err 1'] }]).ok).toBe(true);
+    // Same millisecond: neither a violation nor proof of order, so the answer is UNKNOWN; one millisecond earlier is fine, later is a violation.
+    const sample = { ...base, dbFrameTexts: ['tick 1'], domFrameTexts: ['tick 1'], domTokens: [] };
+    const stored = (persistedAtMs: number) => [{ eventId: 1, text: 'tick 1', persistedAtMs }];
+    expect(driver.evaluateDomAfterDb([sample], stored(1000))).toMatchObject({ ok: null, tied_same_millisecond: 1 });
+    expect(driver.evaluateDomAfterDb([sample], stored(999)).ok).toBe(true);
+    expect(driver.evaluateDomAfterDb([sample], stored(1001)).ok).toBe(false);
+  });
+
+  test('the layout verdict needs an enabled, visible, reachable continuation card in every layout and the shorter window', () => {
+    const control = { hidden: false, inViewport: true, reachable: true };
+    const row = (card: any) => ({ controls: { 'task-prompt': control, 'run-task': control, 'cancel-task': control, card_button: card } });
+    const card = { ...control, disabled: false };
+    const shorter = (cardButton: any) => ({ inViewport: true, card_button: cardButton });
+    const good = driver.evaluateUiLayouts([row(card), row(card)], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true });
+    expect(good).toMatchObject({ status: 'PASS', bad: 0, card_bad: 0, card_observed: true, shorter_card_ok: true });
+    // A disabled card button is not usable, visible and reachable though it is.
+    expect(driver.evaluateUiLayouts([row({ ...card, disabled: true })], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('FAIL');
+    expect(driver.evaluateUiLayouts([row(card)], shorter({ inViewport: true, reachable: true, disabled: true }), { card_found: true }).status).toBe('FAIL');
+    // Hidden, covered or outside the viewport fails; a failing base control fails whatever the card does.
+    expect(driver.evaluateUiLayouts([row({ ...card, reachable: false })], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('FAIL');
+    expect(driver.evaluateUiLayouts([{ controls: { ...row(card).controls, 'run-task': { ...control, hidden: true } } }], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('FAIL');
+    // No card found, a layout without the card, or no rows at all: UNKNOWN, never PASS.
+    expect(driver.evaluateUiLayouts([row(null)], shorter(null), { card_found: false }).status).toBe('UNKNOWN');
+    expect(driver.evaluateUiLayouts([row(card), row(null)], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('UNKNOWN');
+    expect(driver.evaluateUiLayouts([], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('UNKNOWN');
   });
 
   test('secret, CRLF, paging and status helpers behave on edge input', () => {
@@ -1129,6 +1250,9 @@ describe('A9-33 batch-2 guard journeys against the real runtime', () => {
       expect(after).toMatchObject({ canContinue: true });
       expect(after.interruptedTurnId).not.toBe(before.interruptedTurnId);
       expect(after.recoveryRevision).not.toBe(before.recoveryRevision);
+      // The driver's verdict function sees the same snapshot facts the driver reads after Stop.
+      expect(driver.stopLeavesActionableCard({ interruptedTurnId: before.interruptedTurnId, recoveryRevision: before.recoveryRevision }, after)).toBe(true);
+      expect(runtime.getSnapshot().recoveryTasks.find((item: any) => item.taskId === 'b2-stop-task')).toMatchObject({ taskId: 'b2-stop-task' });
     } finally {
       try { await runtime.shutdown({ stopManaged: true }); } catch (_error) { /* already stopped */ }
       for (const socket of sockets) socket.destroy();

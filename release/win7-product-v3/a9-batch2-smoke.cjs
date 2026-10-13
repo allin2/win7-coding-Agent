@@ -93,11 +93,21 @@ function parseWmicCsv(text) {
   });
 }
 
+// A process listing is observed only when the command ran, exited 0 and reported no error. A thrown error, a non-zero
+// status or an error object means any rows are partial and prove nothing: callers must not turn them into "absent".
+function listProcesses(exec) {
+  let result;
+  try { result = exec('wmic_processes'); } catch (_error) { return { rows: [], failed: true }; }
+  if (!result || result.status !== 0 || result.error) return { rows: [], failed: true };
+  return { rows: parseWmicCsv(result.stdout), failed: false };
+}
+
 // ---- Environment (G0) -----------------------------------------------------------------------------------
 
 function collectEnvironment(exec, context) {
   const run = (name) => { try { return exec(name); } catch (error) { return { status: null, stdout: '', stderr: '', error: String(error && error.message ? error.message : error) }; } };
-  const processes = parseWmicCsv(run('wmic_processes').stdout);
+  const listing = listProcesses(exec);
+  const processes = listing.rows;
   const selfPid = context.pid;
   const own = new Set([selfPid]);
   // Walk up the parent chain so this runner and its controllers are not counted as stale trees.
@@ -131,6 +141,7 @@ function collectEnvironment(exec, context) {
     hotfixes: parseWmicCsv(run('wmic_hotfix').stdout).map((row) => row.HotFixID).filter(Boolean),
     hotfix_command_status: run('wmic_hotfix').status,
     processes_total: processes.length,
+    processes_listing_failed: listing.failed,
     stale_processes: stale,
     free_bytes: context.freeBytes === undefined ? null : context.freeBytes,
     controller_identity: context.controllerIdentity || null,
@@ -164,6 +175,7 @@ function evaluateEnvironment(facts, request, candidateRoot) {
   if (!facts.ver || !facts.wmic_os.build) add(0, 'UNKNOWN', 'OS version facts missing');
   else if (!buildOk || !machineOk) add(0, 'FAIL', `ver=${facts.ver}; build=${facts.wmic_os.build}; sp=${facts.wmic_os.service_pack}; arch=${facts.node.arch}; host=${facts.node.hostname}`);
   else if (facts.stale_processes.length > 0) add(0, 'FAIL', `stale_processes=${JSON.stringify(facts.stale_processes).slice(0, 600)}`);
+  else if (facts.processes_listing_failed === true || !(facts.processes_total > 0)) add(0, 'UNKNOWN', `the process listing failed or was empty (listing_failed=${facts.processes_listing_failed === true}; processes_total=${facts.processes_total}); stale trees were not observed`);
   else add(0, 'PASS', `Windows 7 SP1 build 7601 x64 on ${facts.node.hostname}; stale_processes=0 of ${facts.processes_total}`);
   // A02
   const who = parseWhoamiSid(facts.whoami_user);
@@ -632,9 +644,9 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
       treeObserved = Array.isArray(parsed.tree) && parsed.wmic_failures === 0;
     } catch (_error) { before = []; treeObserved = false; }
   }
-  let rows = [];
-  let listingFailed = false;
-  try { rows = parseWmicCsv(exec('wmic_processes').stdout); } catch (_error) { rows = []; listingFailed = true; }
+  const listing = listProcesses(exec);
+  const rows = listing.rows;
+  const listingFailed = listing.failed;
   const absenceObservedAt = new Date().toISOString();
   const survivors = before.filter((item) => rows.some((row) => Number(row.ProcessId) === item.pid && (row.CreationDate || '') === item.created));
   const stateDb = path.join(dataRoot, 'a9-state.db');
@@ -664,12 +676,13 @@ function runPostflightPhase(ctx, exec = realExec) {
   const secretLiteral = fixtures.testOnlySecret();
   const scan = scanRun(ctx.runRoot, secretLiteral);
   writeEvidence(ctx, 'g4-secret-scan.json', { schema_version: 1, ...scan });
-  const processes = parseWmicCsv(((() => { try { return exec('wmic_processes').stdout; } catch (_error) { return ''; } })()));
+  const listing = listProcesses(exec);
+  const processes = listing.rows;
   const roots = [ctx.candidateRoot, path.join(ctx.runRoot, 'driver-electron'), ctx.runRoot].map((item) => item.toLowerCase());
   const own = new Set([ctx.pid, process.ppid]);
   const residue = processes.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ExecutablePath || '').toLowerCase().startsWith(root)))
     .map((row) => ({ pid: Number(row.ProcessId), name: row.Name, path: row.ExecutablePath }));
-  writeEvidence(ctx, 'g4-postflight.json', { schema_version: 1, processes_total: processes.length, residue, ledger_lines: requests.readLedger(ctx.runRoot).length });
+  writeEvidence(ctx, 'g4-postflight.json', { schema_version: 1, processes_total: processes.length, listing_failed: listing.failed, residue, ledger_lines: requests.readLedger(ctx.runRoot).length });
   const ledgerFile = path.join(ctx.runRoot, requests.LEDGER_FILE);
   const manifest = buildEvidenceManifest(ctx.runRoot, [path.join(ctx.attemptDir, 'evidence-manifest.json'), path.join(ctx.attemptDir, 'phase-result.json')]);
   manifest.ledger_sha256_at_manifest = fs.existsSync(ledgerFile) ? sha256File(ledgerFile) : null;
@@ -680,8 +693,8 @@ function runPostflightPhase(ctx, exec = realExec) {
   applyAssertions(ctx, [
     { case_id: caseId, assertion_id: ids[0], status: scan.positive_control_detected && scan.findings.length === 0 ? 'PASS' : 'FAIL',
       observed: `files_scanned=${scan.files_scanned}; findings=${scan.findings.length}; positive_control_detected=${scan.positive_control_detected}` },
-    { case_id: caseId, assertion_id: ids[1], status: residue.length === 0 && processes.length > 0 && manifest.files.length > 0 ? 'PASS' : processes.length === 0 ? 'UNKNOWN' : 'FAIL',
-      observed: `residue=${residue.length}; processes_total=${processes.length}; manifest_files=${manifest.files.length}` },
+    { case_id: caseId, assertion_id: ids[1], status: residue.length > 0 ? 'FAIL' : listing.failed || processes.length === 0 ? 'UNKNOWN' : manifest.files.length > 0 ? 'PASS' : 'FAIL',
+      observed: `residue=${residue.length}; processes_total=${processes.length}; listing_failed=${listing.failed}; manifest_files=${manifest.files.length}` },
   ]);
   void postflightCase;
   return finishPhase(ctx, scan.findings.length ? 'SECRET_FOUND' : residue.length ? 'PROCESS_RESIDUE' : null);
@@ -700,7 +713,7 @@ async function main(argv = process.argv.slice(2), environment = {}) {
 
 module.exports = {
   main, createContext, runEnvironmentPhase, runDriverPhase, runPostflightPhase, finishPhase, applyAssertions, writeEvidence,
-  collectEnvironment, evaluateEnvironment, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
+  collectEnvironment, evaluateEnvironment, listProcesses, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
   ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, launchDriver, realExec, MIN_FREE_BYTES,
   chainIdentityAssertion, finishChainEvidence, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
 };
