@@ -76,5 +76,6 @@
 [A9-33 独立复核交接包（2026-10-12）](2026-10/a9_33_independent_review_handoff_2026-10-12.md)：绑定 `905bf760…`，复核者 codex，第一阶段为开发机源码复核；第二、三阶段（预演与正式证据）NOT_PERFORMED。
 [A9-33 独立复核交接包第二轮（2026-10-13）](2026-10/a9_33_independent_review_handoff_stage1_rerun_2026-10-13.md)：绑定修复提交 `8c16ffd9…`，复核者 codex，第一段第二轮为开发机源码复核；第二、三段（预演与正式证据）NOT_PERFORMED。
 [A9-33 独立复核交接包第三轮（2026-10-13）](2026-10/a9_33_independent_review_handoff_stage1_rerun3_2026-10-13.md)：绑定第二修复提交 `0c163c24…`，复核者 codex，第一段第三轮为开发机源码复核；第二、三段（预演与正式证据）NOT_PERFORMED。
+[A9-33 独立复核交接包第四轮（2026-10-13）](2026-10/a9_33_independent_review_handoff_stage1_rerun4_2026-10-13.md)：绑定第三修复提交 `cde53348…`，复核者 codex，第一段第四轮为开发机源码复核；第二、三段（预演与正式证据）NOT_PERFORMED。
 
 [独立增量复审结论（2026-10-12）](2026-10/a9_32_incremental_independent_review_conclusion_2026-10-12.md)：有发现项 PASS（开发机），绑定 `adb9d0f0…`，增量 `59a3f650…..adb9d0f0…`。R-08、R-09 登记为已知限制，不补用例；不签 DEVELOPER_VERIFIED。真实 Electron、打包、Win10、Win7 NOT_PERFORMED。
