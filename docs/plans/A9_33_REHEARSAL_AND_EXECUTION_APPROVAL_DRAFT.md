@@ -2,21 +2,22 @@
 
 ```text
 Status: DRAFT_FOR_OWNER_REVIEW
-Updated: 2026-10-12
+Updated: 2026-10-13
 Task: A9-33
 Candidate: WIN7-43 (tentative, NOT_FROZEN)
-Source: 905bf760… (implementation commit, local, not pushed)
+Source: cde53348… (third fix commit; implementation commit 905bf760…; local, not pushed)
 Authorization: NOT_GRANTED
 ```
 
 结论：本草案把 A9-33 [§6.3](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#63-资源上限与批准前绑定清单)的八项绑定、请求上限、时间窗和远端动作闭集合并成一次裁决。
-负责人回复 Q1～Q4 并确认 Win7 机器名与普通账户后，预演才有可用的授权范围。
+负责人已于 2026-10-13 回复 Q1～Q4（见 [§3A](#3a-负责人裁决2026-10-13)）。仍缺 Win7 机器名与普通账户确认，补齐后预演才有可用的授权范围。
 本草案不是授权，不冻结候选，不签关口 A 或 B。Win10、Win7 与正式执行均 `NOT_PERFORMED`。未在 Win7 实机验证。
 
 ## 1. 范围
 
 本草案覆盖：两次连续预演，以及预演失败后的有限重试。
 本草案不覆盖：正式执行的准确哈希。正式执行的哈希、授权文件和独立 pin 在冻结后随关口 A 另行绑定。
+预演使用的源码为 `cde53348…`（本地提交，未推送）。第一段独立复核（codex 四轮）未通过；负责人 2026-10-13 例外裁决，将两项 P2 登记为已知限制 KL-1、KL-2（[A9-33 §6.13](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#613-第一段独立复核终局与负责人例外裁决2026-10-13)）。
 预演仍为 `REHEARSAL_NOT_ELIGIBLE`，不计正式结论。首次预演兼作 A9-32 §5 的真实 Electron 取证（[A9-32 §7.10](../tasks/A9_32_EXPLICIT_TASK_CONTINUE.md)），不自动签 A9-32 `DEVELOPER_VERIFIED`。
 
 ## 2. 八项绑定清单
@@ -82,6 +83,33 @@ Authorization: NOT_GRANTED
 
 推荐 A：W42 以同样方式运行。
 
+## 3A. 负责人裁决（2026-10-13）
+
+| 问题 | 裁决 | 生效内容 |
+|---|---|---|
+| Q1 预演授权文件 | A | 每次预演单独签一份预演授权文件（`kind` 为 `WIN7_43_RELEASE_AUTHORITY`），绑定预演专用 run-id、目标账户和当次包哈希，不得当作关口 A。负责人对每份文件的 SHA-256 回复同意后才可使用 |
+| Q2 运行预算 | B | 有限滚动批准：预演最多 4 次（含失败），总计 ≤64 请求、≤8 小时，每次 ≤16 请求、≤7200 秒；同一失败连续两次即暂停诊断；首次预演结束后先向负责人报告再继续；每个新包哈希在传输前报备；修复只能在 §6.1 路径内 |
+| Q3 Win10 | A | 本批不使用 Win10；第 1、3 项绑定不适用 |
+| Q4 普通桌面前置 | A | 负责人保证 `agent` 已登录 Win7 控制台；执行代理执行前只读核验会话，不符即停 |
+
+预演授权前仍缺的项：
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| Win7 机器名 | `UNKNOWN` | 授权文件的 `target.machine_name` 必填；执行代理不得自行取得后自行批准 |
+| 普通账户 | 待负责人确认仍为 `agent` | SID 由执行前只读核验，与批准值不符即停 |
+| 时间窗起点 | 待负责人确认 | 草案写“自回复日起 3 个日历日”，按字面为 2026-10-13 至 2026-10-16。机器名未到前预演无法开始，建议把起点改为授权项补齐的当日 |
+
+本地构建输入核对（开发机，只读，未构建）：
+
+| 输入 | 位置 | 与输入锁的 SHA-256 |
+|---|---|---|
+| Electron ZIP | 主工作区 `.acceptance/deps/electron/electron-v22.3.27-win32-x64.zip` | 一致（`ad723ed7…`） |
+| 存储 ZIP | 主工作区 `.acceptance/deps/a6/WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip` | 一致（`2cb0cd32…`） |
+| 运行器 ZIP | A9-31 隔离树 `.acceptance/a9-31-developer/native-kit-r3/return-BuildA/WIN7_D013_V26_HELPER_ARTIFACTS_20261003-060935.zip` | 一致（`25167410…`） |
+
+三个输入都在本机，不需要下载。构建预演包是授权补齐之后的第一步，包哈希在传输前报备。
+
 ## 4. 远端动作闭集
 
 下表之外的动作均不在授权内。
@@ -106,6 +134,7 @@ Authorization: NOT_GRANTED
 1. 目标机器名、账户 SID、完整性等级或会话与批准值不符：立即停止，不进入 R2。
 2. 任一哈希两端不一致：停止下游，保存两端原始输出。
 3. 到达时间窗或请求上限：停止接单，不自动续预算。
+4. 出现 KL-1（进程列表失败）或 KL-2（`dom_token` 违规）的迹象：按 §6.13 的处置保存原始输出、停止诊断并报告，不改判，不继续下一次请求。
 
 预演失败不计入“连续两次成功”，连续计数归零。失败的原始证据保留，不覆盖。
 
@@ -123,6 +152,8 @@ Authorization: NOT_GRANTED
 | 项 | 状态 |
 |---|---|
 | 驱动、冒烟、控制器在 Electron、PowerShell、Windows 上运行 | `NOT_PERFORMED` |
+| 第一段独立复核（codex，源码与开发机检查） | 四轮均不建议进入预演授权评审（第四轮 0 个 P0、0 个 P1、2 个 P2）；负责人例外裁决，未通过的状态不改写 |
+| 已知限制 KL-1、KL-2 | 已登记，不再修；真实 Windows 是否触发 `UNKNOWN` |
 | 双独立干净构建、冻结、关口 A、关口 B | `NOT_PERFORMED` |
 | Win7 机器名 | `UNKNOWN` |
 | `agent` 账户当前 SID、会话与控制台登录状态 | `UNKNOWN`，执行前只读核验 |
