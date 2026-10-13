@@ -714,3 +714,61 @@ p03 根因：`prepareDriverRuntime` 用 `fs.copyFileSync` 复制 `default_app.as
 预算：预演 1/4，请求 3/64（索引 1～3，p03 为失败），窗口至 2026-10-16T06:59:59Z。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。预演 2 使用新的运行编号、新的 Win7 运行根、新构建的包，须另有负责人对新授权文件 SHA-256 的同意。
+
+### 6.18 预演 2 执行记录与 p03 两项失败的修复（2026-10-13）
+
+结论：预演 2 在 Win7 实机完成。p01、p02 通过，p03 的 12 个断言 8 个通过、4 个失败（`DRIVER_CHAIN_EXIT_FAILED`），p04～p10 因前置未过而未执行。两个失败的原因都在验收套件，不在产品。后台输出一项已确认根因；退出对话框一项根因 `UNKNOWN`。修复提交为 `9820934c…`（本地，未推送），尚未在 Win7 复核。
+证据层级为 Win7 实机（预演，`REHEARSAL_NOT_ELIGIBLE`），绑定源提交 `efc785a8…`、授权文件 `b05f72a1…`、运行编号 `d254bfcb`。Win7 验收、正式执行、Win10 均 `NOT_PERFORMED`。
+
+负责人原话：“批准，授权文件 SHA-256 b05f72a1… 同意，开始预演2”；失败报告后又答：“选A，同意提交修复并构建预演3”。
+
+| 步骤 | 时间（UTC） | 结果 |
+|---|---|---|
+| R1 只读复核 | 10:52:25Z | 机器名 `dccs-chaizl-PC`；`agent` 在控制台会话 2 运行中；C: 剩余 883684192256 字节；新根不存在；预演 1 的根仍在 |
+| R2 建根 | 10:52:51Z | 新建 `C:\A9-W43\run\d254bfcb\{deploy,work,data,evidence}`，`icacls` 只授 `agent` 该根的修改权 |
+| R3 传输 | 10:53:03Z～10:55:23Z | 包 ZIP（101558808 字节）及其余 10 个文件；Win7 端 `certutil` 复算 11 个文件与开发机逐项相同；ZIP 改用 `aes128-ctr` 上传，2 分 20 秒 |
+| R4 展开 | 10:55:48Z | 800 个文件；包内冒烟脚本含 `process.noAsar = true;` |
+| R5 计划任务 | 每阶段一次 | 注册、COM 回读 11 项字段一致、运行、删除；P01、P02、P03 经 COM 回读均为“找不到文件”，已删除 |
+| R6 阶段 | 10:56:02Z～11:00:44Z | 见下表 |
+| R7 取回 | 11:13Z | Win7 端 evidence 153 个文件已算哈希；取回 54 个（账本与三个请求目录），与哈希逐项一致，0 个不一致；其余 99 个是候选运行时副本，只留哈希清单 |
+| R8 后飞行 | 11:13Z | 进程表 102 行，无 `electron`、`spike02`、`node`、`powershell`、`wmic`；p03 后飞行记录的残留 `electron.exe`（pid 6084）已不存在，执行代理未强杀，结束方式 `UNKNOWN`；运行根保留 |
+
+| 阶段 | 结果 | 依据 |
+|---|---|---|
+| p01 环境与身份 | PASS，5/5 断言 | `in_job=false` 一次被接受 |
+| p02 包完整性 | PASS，4/4 断言 | Electron 22.3.27、ABI 110 在 Win7 上读到 |
+| p03 最短链路 | FAIL，`DRIVER_CHAIN_EXIT_FAILED` | B2-CH-01（2）、B2-CH-03（2，Stop 反馈 293 ms）、B2-CH-04（2）、B2-CH-05（2）PASS；B2-CH-02（2）、B2-CH-06（2）FAIL |
+| p04～p10 | `NOT_PERFORMED` | 前置阶段 p03 未通过 |
+
+预演 1 的 `process.noAsar` 修复在 Win7 上生效：p03 运行了 3 分 9 秒，套件首次在 Win7 上驱动产品完成启动、Stop、中断重启恢复与继续。
+
+B2-CH-02 根因（已确认，对 `state.sqlite` 与源码核实）：驱动的观测循环在“已存 6 帧或 Turn 结束”时停止。`start_process` 立即返回，`tool_end` 为 10:57:57.832Z，`turn_completed` 为 57.845Z，第一帧 `tick 1` 为 58.296Z，晚 451 ms。循环在 489 ms 的第 2 次采样遇到 `turn_completed`，此时 0 帧，随后进入 Stop。同一命令在第二个会话里正常落库 14 个 `tick` 与 14 个 `err`，间隔约 410 ms，说明产品输出链路工作。
+B2-CH-06 现象：对话框标记 10:58:11.260Z 已写出，按钮三个、文字与预期一致；控制器的 UI Automation 搜索 30 秒未找到按钮，退出码 3；产品等待 150 秒后被驱动计时器终止，退出码 1。根因 `UNKNOWN`：原实现对同 PID 的每个窗口取全部后代按钮并逐字比较名称，没有留下窗口树，无法区分是控件类型、名称还是窗口归属不同。
+
+修复（`9820934c…`，5 个文件，+280/−26，全部在 §6.1 的 20 个路径内；不改产品语义）：
+
+| 文件 | 改动 |
+|---|---|
+| `a9-batch2-driver-entry.cjs` | 新增 `backgroundObservationDone`：6 帧，或 Turn 已结束且观测已满 8 秒；背景观测改用它 |
+| `a9-batch2-fixtures.cjs` | `b2:bg-start` 的 tick 数由 14 改为夹具上限 `FIXTURE_BOUNDS.max_ticks`（30，Win7 的 PowerShell 夹具约 12 秒），保证 Stop 与退出对话框点击时命令仍在运行 |
+| `a9-batch2-desktop-controller.ps1` | `ClickDialog` 先按同 PID 对话框窗口里的 `Button` 子窗口点击（`PostMessage` 发 `BM_CLICK`，取不到文字时对 `Button`、`Static` 用 `WM_GETTEXT`），再用 UI Automation（限定类名 `#32770`）；点击后等按钮消失并输出 `button_gone`；未找到时输出窗口、子控件、UI Automation 项（ASCII 转义，至多 7000 字符）并仍以退出码 3 结束。Win32 类型在 `ClickDialog` 内部编译，编译失败时回落到 UI Automation，不影响 `Run` |
+| `a9-batch2-smoke.cjs` | 点击输出保留上限由 2000 改为 8000 字符 |
+| `a9-batch2-contract.test.ts` | 新增 3 个用例（观测规则与源码绑定、夹具 tick 数、`ClickDialog` 结构与 C# 2.0 语法限制） |
+
+开发机检查（绑定 `9820934c…` 的内容，提交前同一工作树）：契约 jest 63 通过（含 3 个新用例）；4 项变异（还原观测规则、夹具 tick 数、控制器、点击输出上限）各被一个新用例拦住；批次包测试加 A9 包测试 `node --test` 120 通过；两个 shell 测试文件共 106 通过；`verify:quick` 通过（`src/runner/dist` 已还原）；`git diff --check` 无输出。全量 shell jest 本轮 `NOT_PERFORMED`（预演 1 记录的 3 个 `a9-lifecycle` 失败仍为 `UNKNOWN` 根因的既有问题）。
+
+未知与未验证：
+
+- 控制器的 PowerShell 与内联 C# 没有在任何 Windows 上运行（开发机无 `pwsh`、`csc`）；Win32 点击能否命中 Electron 的退出对话框 `UNKNOWN`，要预演 3 才能确认。
+- 30 个 tick 是否影响 p04 之后用到 `b2:bg-start` 的路径 `UNKNOWN`；p04～p10 从未在 Win7 运行，其中是否存在其他套件缺陷 `UNKNOWN`。
+- Win7 PowerShell 为 5.1.14409.1018，控制器的 PS 2.0 兼容性仍未验证。
+
+执行偏差与披露：
+
+- R1 的进程表与机器名核对放在同一条 `cmd` 命令里，`if … else (…)` 链跳过了进程表；随后单独读取并记录，没有重复写类动作。
+- 本节的预演 2 取回的是账本与请求目录，不含 `driver-electron`；该目录只留 Win7 端哈希清单。
+
+粘合文件与预演 1 同属执行代理工具，不在候选内，存放在隔离树 `.acceptance/a9-33-rehearsal/rehearsal-2/glue/`（被忽略）：`make-request.cjs` `e4d76403…`（与预演 1 逐字节相同）、`phase.cmd` `81eb9db0…`、`extract.ps1` `b04dbb23…`、`sum-tree.ps1` `2cc6b80b…`、`readback.ps1` `9ae866cd…`、`binding.json` `9c2435b8…`。
+预算：预演 2/4，请求 6/64（预演 2 的索引 1～3，p03 为失败），用时自 08:29Z 起约 2 小时 50 分，窗口至 2026-10-16T06:59:59Z。p03 的失败类别与预演 1 不同，不触发“同一失败两次即暂停”。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。预演 3 使用新的运行编号、新的 Win7 运行根、新构建的包，须另有负责人对新授权文件 SHA-256 的同意。
