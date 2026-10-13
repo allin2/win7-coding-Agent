@@ -58,12 +58,17 @@ const FIXED_COMMANDS = Object.freeze({
   wmic_processes: { file: 'wmic.exe', args: ['process', 'get', 'ProcessId,ParentProcessId,Name,ExecutablePath,SessionId,CreationDate', '/format:csv'] },
 });
 
+const STDOUT_CAP = 262144;
+
 function realExec(name, extra) {
   const spec = FIXED_COMMANDS[name] || (extra && extra.dynamic);
   if (!spec) throw new Error(`A9_BATCH2_COMMAND_NOT_ALLOWED:${name}`);
   const result = childProcess.spawnSync(spec.file, spec.args, { windowsHide: true, encoding: 'utf8', timeout: COMMAND_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 });
-  return { status: result.status, stdout: String(result.stdout || '').slice(0, 262144), stderr: String(result.stderr || '').slice(0, 8192),
-    error: result.error ? String(result.error.message || result.error).slice(0, 300) : null };
+  const stdout = String(result.stdout || '');
+  // Output beyond the cap is cut off, and a cut-off listing cannot show that anything is absent: it is reported as an error and flagged.
+  const truncated = stdout.length > STDOUT_CAP;
+  return { status: result.status, stdout: stdout.slice(0, STDOUT_CAP), stderr: String(result.stderr || '').slice(0, 8192),
+    error: result.error ? String(result.error.message || result.error).slice(0, 300) : truncated ? `stdout_truncated:${stdout.length}` : null, truncated };
 }
 
 function parseCsvLine(line) {
@@ -81,24 +86,28 @@ function parseCsvLine(line) {
   return out;
 }
 // wmic /format:csv: a blank line, then "Node,Col1,Col2..." and one row per object (columns in alphabetical order).
-function parseWmicCsv(text) {
+// With completeOnly, a row that has fewer cells than the header (for example the last row of a cut-off listing) is dropped.
+function parseWmicCsv(text, options) {
   const lines = String(text || '').split(/\r?\r?\n/).map((line) => line.replace(/\r/g, '')).filter((line) => line.trim() !== '');
   if (lines.length < 1) return [];
   const header = parseCsvLine(lines[0]);
-  return lines.slice(1).map((line) => {
-    const cells = parseCsvLine(line);
+  const completeOnly = Boolean(options && options.completeOnly);
+  return lines.slice(1).map((line) => parseCsvLine(line)).filter((cells) => !completeOnly || cells.length === header.length).map((cells) => {
     const row = {};
     header.forEach((name, index) => { row[name] = cells[index] === undefined ? '' : cells[index]; });
     return row;
   });
 }
 
-// A process listing is observed only when the command ran, exited 0 and reported no error. A thrown error, a non-zero
-// status or an error object means any rows are partial and prove nothing: callers must not turn them into "absent".
+// A process listing is observed only when the command ran, exited 0, reported no error and was not cut off. A thrown error,
+// a non-zero status, an error object or a cut-off output means the rows are partial and prove nothing about absence: callers
+// must not turn them into "absent". The complete rows such a listing did print are still evidence of presence, so they are
+// kept (failed is true) and a survivor or residue found in them is a failure.
 function listProcesses(exec) {
   let result;
   try { result = exec('wmic_processes'); } catch (_error) { return { rows: [], failed: true }; }
-  if (!result || result.status !== 0 || result.error) return { rows: [], failed: true };
+  if (!result) return { rows: [], failed: true };
+  if (result.status !== 0 || result.error || result.truncated === true) return { rows: parseWmicCsv(result.stdout, { completeOnly: true }), failed: true };
   return { rows: parseWmicCsv(result.stdout), failed: false };
 }
 

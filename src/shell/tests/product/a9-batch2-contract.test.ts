@@ -876,6 +876,73 @@ describe('A9-33 batch-2 smoke pieces', () => {
     // A stale tree seen in a partial listing is still a failure: evidence of presence stays evidence.
     expect(smoke.evaluateEnvironment({ ...FACTS(), processes_listing_failed: true, stale_processes: [{ pid: 9, name: 'spike02_helper.exe' }] }, req, '/candidate')[0].status).toBe('FAIL');
   });
+
+  test('a listing cut off at the cap is a failed listing, and the complete rows of a failed listing still show presence', () => {
+    const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
+    const helperRow = 'HOST,20260101000000.000000+000,C:\\x\\h.exe,spike02_helper.exe,100,500';
+    const helper = { pid: 500, parent: 100, name: 'spike02_helper.exe', created: '20260101000000.000000+000' };
+    const filler = (count: number) => Array.from({ length: count }, (_v, i) => `HOST,20260101000001.000000+000,C:\\Windows\\filler${i}.exe,filler${i}.exe,1,${1000 + i}`);
+    const exitLaunch = { mode: 'chain_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 } };
+    const runExit = (exec: any) => {
+      const { ctx, attempt } = phaseContext('p03-chain');
+      for (const name of fixtures.evidenceForPhase('p03-chain')) if (name !== 'phase-result.json') fs.writeFileSync(path.join(attempt, name), 'x');
+      fs.writeFileSync(path.join(attempt, 'chain-exit-tree-before.json'), JSON.stringify({ tree: [helper], wmic_failures: 0 }));
+      smoke.finishChainEvidence(ctx, [exitLaunch], null, exec, path.join(attempt, 'no-data'));
+      const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1];
+      return { status: assertion.status, held: JSON.parse(fs.readFileSync(path.join(attempt, '06-held-exit.json'), 'utf8')) };
+    };
+    // The real executor cuts its output at the cap. A cut listing loses the tail rows, so it must say so instead of reporting absence.
+    const realChild = require('child_process');
+    const big = csv([...filler(4000), helperRow]);
+    expect(big.length).toBeGreaterThan(262144);
+    const spy = jest.spyOn(realChild, 'spawnSync').mockReturnValue({ status: 0, stdout: big, stderr: '', error: undefined } as any);
+    try {
+      const cut = smoke.realExec('wmic_processes');
+      expect(cut).toMatchObject({ status: 0, truncated: true });
+      expect(cut.stdout.length).toBe(262144);
+      expect(cut.error).toMatch(/^stdout_truncated:/);
+      expect(smoke.listProcesses((name: string) => smoke.realExec(name)).failed).toBe(true);
+      const lost = runExit((name: string) => smoke.realExec(name));
+      expect(lost.status).toBe('UNKNOWN');
+      expect(lost.held).toMatchObject({ listing_failed: true, survivors: [] });
+      // The same helper in a listing under the cap is seen, and the survivor fails the assertion.
+      spy.mockReturnValue({ status: 0, stdout: csv([...filler(1000), helperRow]), stderr: '', error: undefined } as any);
+      expect(smoke.realExec('wmic_processes').truncated).toBe(false);
+      const seen = runExit((name: string) => smoke.realExec(name));
+      expect(seen.status).toBe('FAIL');
+      expect(seen.held.survivors).toHaveLength(1);
+    } finally { spy.mockRestore(); }
+
+    // A failed listing proves no absence, yet a complete row it printed is still evidence that the helper is alive.
+    const failedWith = (over: any, text: string) => () => ({ status: 0, stdout: text, stderr: '', error: null, ...over });
+    for (const over of [{ status: 1 }, { error: 'ETIMEDOUT' }, { truncated: true }]) {
+      const present = runExit(failedWith(over, csv([helperRow])));
+      expect(present.status).toBe('FAIL');
+      expect(present.held).toMatchObject({ listing_failed: true });
+      expect(present.held.survivors).toHaveLength(1);
+    }
+    // A row cut in half is evidence of nothing; a failed listing without the helper stays UNKNOWN.
+    const halfRow = `${csv([])}HOST,20260101000000.000000+000,C:\\x\\h.exe,spike02_helper.exe,100`;
+    expect(runExit(failedWith({ status: 1 }, halfRow)).status).toBe('UNKNOWN');
+    expect(runExit(failedWith({ status: 1 }, csv(filler(3)))).status).toBe('UNKNOWN');
+    const header = 'Node,Name,ProcessId';
+    const text = `${header}\r\nH,a.exe,1\r\nH,b.exe`;
+    expect(smoke.parseWmicCsv(text, { completeOnly: true })).toEqual([{ Node: 'H', Name: 'a.exe', ProcessId: '1' }]);
+    expect(smoke.parseWmicCsv(text)).toHaveLength(2);
+
+    // The postflight phase and the environment phase read a failed listing the same way: residue and stale trees seen are failures.
+    const residue = phaseContext('p10-postflight', 10);
+    fs.writeFileSync(path.join(residue.runRoot, 'note.txt'), 'harmless evidence');
+    const residueRow = `H,${path.join(residue.candidateRoot, 'electron.exe')},electron.exe,1,600`;
+    const post = smoke.runPostflightPhase(residue.ctx, () => ({ status: 1, stdout: `Node,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${residueRow}\r\n`, stderr: '', error: null }));
+    expect(post.cases[0].assertions[1].status).toBe('FAIL');
+    expect(post.failure_class).toBe('PROCESS_RESIDUE');
+    const staleCsv = 'Node,ProcessId,ParentProcessId,Name,ExecutablePath,SessionId\r\nH,9,1,spike02_helper.exe,C:\\old\\spike02_helper.exe,1\r\n';
+    const collected = smoke.collectEnvironment((name: string) => ({ status: name === 'wmic_processes' ? 1 : 0, stdout: name === 'wmic_processes' ? staleCsv : '', stderr: '', error: null }), { pid: 5, watchedRoots: [], freeBytes: 1 });
+    expect(collected.processes_listing_failed).toBe(true);
+    expect(collected.stale_processes).toHaveLength(1);
+    expect(smoke.evaluateEnvironment({ ...FACTS(), processes_listing_failed: true, stale_processes: collected.stale_processes }, { target: TARGET, evidence_root: '/evidence' }, '/candidate')[0].status).toBe('FAIL');
+  });
 });
 
 describe('A9-33 batch-2 driver evaluators', () => {
@@ -966,6 +1033,17 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.evaluateDomAfterDb([sample], stored(1000))).toMatchObject({ ok: null, tied_same_millisecond: 1 });
     expect(driver.evaluateDomAfterDb([sample], stored(999)).ok).toBe(true);
     expect(driver.evaluateDomAfterDb([sample], stored(1001)).ok).toBe(false);
+    // A prefix of a stored token is not that token: out 9 is a ghost next to a stored out 99, tick 2 next to tick 20.
+    for (const [storedText, shown] of [['out 99\r\n', 'out 9'], ['tick 20\n', 'tick 2'], ['err 100', 'err 10']]) {
+      const prefixGhost = driver.evaluateDomAfterDb([{ ...base, dbFrameTexts: [storedText], domTokens: [shown] }]);
+      expect(prefixGhost.ok).toBe(false);
+      expect(prefixGhost.violations[0]).toMatchObject({ kind: 'dom_token', text: shown });
+    }
+    // Whole tokens, a token that ends the stored text (it may still be growing) and a token split across frames are stored.
+    expect(driver.storedHasToken('out 99\r\nout 9\r\n', 'out 9')).toBe(true);
+    expect(driver.storedHasToken('out 9', 'out 9')).toBe(true);
+    expect(driver.storedHasToken('xout 9', 'out 9')).toBe(false);
+    expect(driver.evaluateDomAfterDb([{ ...base, dbFrameTexts: ['out ', '12\r\n'], domTokens: ['out 12'] }]).ok).toBe(true);
   });
 
   test('the layout verdict needs an enabled, visible, reachable continuation card in every layout and the shorter window', () => {

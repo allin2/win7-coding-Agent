@@ -67,6 +67,19 @@ function textsPerStream(frames, stream) { return frames.filter((frame) => frame.
 // as unchecked and the answer stays UNKNOWN. A sample with nothing to show proves nothing; at least one frame must be seen.
 // The fixture output tokens: tick (S01), out and err (S02). A token the stream area showed that the database never held is a ghost frame.
 const OUTPUT_TOKEN_PATTERN = /\b(?:tick|out|err) \d+\b/g;
+// A displayed token counts as stored only when the stored text holds it as a whole token: the character before it is not a letter
+// and the one after it is not a digit ("out 9" is not in "out 99"). Frames are joined without a separator, so a digit before is
+// allowed. A token that ends the stored text may still be growing, so it counts.
+function storedHasToken(text, token) {
+  let at = text.indexOf(token);
+  while (at !== -1) {
+    const before = at === 0 ? '' : text[at - 1];
+    const after = text[at + token.length];
+    if (!/[A-Za-z_]/.test(before) && (after === undefined || !/\d/.test(after))) return true;
+    at = text.indexOf(token, at + 1);
+  }
+  return false;
+}
 function evaluateDomAfterDb(samples, persisted) {
   const violations = [];
   let seen = 0;
@@ -94,7 +107,7 @@ function evaluateDomAfterDb(samples, persisted) {
     }
     for (const token of sample.domTokens || []) {
       seen += 1;
-      if (!dbJoined.includes(token)) violations.push({ t: sample.t, kind: 'dom_token', text: token });
+      if (!storedHasToken(dbJoined, token)) violations.push({ t: sample.t, kind: 'dom_token', text: token });
     }
     for (const id of sample.ipcEventIds || []) {
       seen += 1;
@@ -1403,7 +1416,7 @@ async function runDriver() {
 module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
-  subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, OUTPUT_TOKEN_PATTERN,
+  subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
 };
 
