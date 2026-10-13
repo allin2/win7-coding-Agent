@@ -10,6 +10,11 @@
 // electron.exe in ELECTRON_RUN_AS_NODE=1 mode; Windows only for the real phases, pure parts run anywhere.
 'use strict';
 
+// Electron patches fs to virtualize .asar paths. The driver runtime copy must move the physical default_app.asar bytes
+// to a candidate-external folder, so asar virtualization is switched off before anything else runs (same remedy as the
+// WIN7-42 smoke; the first rehearsal of this suite stopped at p03 with "ENOENT, not found in ...default_app.asar").
+process.noAsar = true;
+
 const childProcess = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');

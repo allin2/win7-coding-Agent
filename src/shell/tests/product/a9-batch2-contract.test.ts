@@ -877,6 +877,46 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(smoke.evaluateEnvironment({ ...FACTS(), processes_listing_failed: true, stale_processes: [{ pid: 9, name: 'spike02_helper.exe' }] }, req, '/candidate')[0].status).toBe('FAIL');
   });
 
+  test('loading the smoke module switches asar virtualization off', () => {
+    const previous = (process as any).noAsar;
+    (process as any).noAsar = false;
+    try {
+      jest.isolateModules(() => { require(path.join(releaseDir, 'a9-batch2-smoke.cjs')); });
+      expect((process as any).noAsar).toBe(true);
+    } finally { (process as any).noAsar = previous; }
+  });
+
+  test('the driver runtime copy moves the physical default_app.asar when Electron virtualizes asar paths', () => {
+    // Electron's fs wrapper reads a path ending in .asar as an archive root and fails the copy with "ENOENT,  not found in <path>".
+    // This emulation throws exactly that unless process.noAsar is true; the first Win7 rehearsal stopped at p03 with that error.
+    expect((process as any).noAsar).toBe(true);
+    const candidate = temp('asar-candidate');
+    const runRoot = temp('asar-run');
+    const runRootOff = temp('asar-run-off');
+    fs.mkdirSync(path.join(candidate, 'resources'), { recursive: true });
+    fs.mkdirSync(path.join(candidate, 'validation'), { recursive: true });
+    fs.writeFileSync(path.join(candidate, 'electron.exe'), 'e');
+    fs.writeFileSync(path.join(candidate, 'resources', 'default_app.asar'), 'physical asar bytes');
+    fs.writeFileSync(path.join(candidate, 'validation', 'a9-batch2-driver.cjs'), '// driver');
+    const realFs = require('fs');
+    const realCopy = realFs.copyFileSync;
+    const spy = jest.spyOn(realFs, 'copyFileSync').mockImplementation(((source: any, target: any, ...rest: any[]) => {
+      if (String(source).endsWith('.asar') && (process as any).noAsar !== true) throw new Error(`ENOENT,  not found in ${String(source)}`);
+      return (realCopy as any)(source, target, ...rest);
+    }) as any);
+    try {
+      smoke.prepareDriverRuntime(candidate, runRoot);
+      expect(fs.readFileSync(path.join(runRoot, 'driver-electron', 'resources', 'default_app.asar'), 'utf8')).toBe('physical asar bytes');
+      // With virtualization on, the same call stops at the asar copy, which is the failure seen on Win7.
+      (process as any).noAsar = false;
+      expect(() => smoke.prepareDriverRuntime(candidate, runRootOff)).toThrow(/not found in .*default_app\.asar/);
+    } finally {
+      (process as any).noAsar = true;
+      spy.mockRestore();
+      for (const directory of [candidate, runRoot, runRootOff]) fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   test('a listing cut off at the cap is a failed listing, and the complete rows of a failed listing still show presence', () => {
     const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
     const helperRow = 'HOST,20260101000000.000000+000,C:\\x\\h.exe,spike02_helper.exe,100,500';
