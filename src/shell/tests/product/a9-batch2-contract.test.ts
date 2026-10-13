@@ -1,4 +1,5 @@
 /// <reference path="./better-sqlite3.d.ts" />
+import * as childProcess from 'child_process';
 import * as crypto from 'crypto';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
@@ -11,6 +12,7 @@ import Database from 'better-sqlite3';
 const releaseDir = path.resolve(__dirname, '../../../../release/win7-product-v3');
 const fixtures = require(path.join(releaseDir, 'a9-batch2-fixtures.cjs')) as any;
 const requests = require(path.join(releaseDir, 'a9-batch2-desktop-request.cjs')) as any;
+const report = require(path.join(releaseDir, 'a9-batch2-report.cjs')) as any;
 const smoke = require(path.join(releaseDir, 'a9-batch2-smoke.cjs')) as any;
 const driver = require(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs')) as any;
 const { createA9AgentRuntime } = require('../../product/a9-agent-runtime') as any;
@@ -82,6 +84,59 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(failing.first_failure).toMatchObject({ case_id: 'B2-SAFE-02-AUDIT-HARD-STOP' });
     expect(() => fixtures.setAssertion(failing, 'B2-SAFE-02-AUDIT-HARD-STOP', 'NOPE', 'PASS', 'x')).toThrow(/UNKNOWN_ASSERTION/);
     expect(() => fixtures.setAssertion(failing, 'B2-SAFE-02-AUDIT-HARD-STOP', 'B2-SAFE-02-AUDIT-HARD-STOP-A01', 'MAYBE', 'x')).toThrow(/STATUS_INVALID/);
+  });
+
+  test('an UNKNOWN or NOT_PERFORMED assertion never lets a case or a phase pass', () => {
+    const bindings = { source_commit: 'a'.repeat(40), package_sha256: 'b'.repeat(64), manifest_sha256: 'c'.repeat(64), kit_sha256: 'd'.repeat(64) };
+    const build = (override: string) => {
+      const result = fixtures.newPhaseResult('p07-safe', RUN_ID, 3, bindings);
+      const cases = fixtures.casesForPhase('p07-safe');
+      for (const item of cases) for (const a of item.assertions) fixtures.setAssertion(result, item.case_id, a.assertion_id, 'PASS', 'seen');
+      const target = cases[0];
+      fixtures.setAssertion(result, target.case_id, target.assertions[0].assertion_id, override, 'could not observe');
+      result.evidence = fixtures.evidenceForPhase('p07-safe').map((name: string) => ({ file: name, size: 1, sha256: sha(name) }));
+      return { result, target };
+    };
+    const unknown = build('UNKNOWN');
+    fixtures.finalizePhaseResult(unknown.result, null);
+    expect(unknown.result.cases.find((item: any) => item.case_id === unknown.target.case_id).status).toBe('UNKNOWN');
+    expect(unknown.result.status).toBe('NOT_PERFORMED');
+    expect(unknown.result.failure_class).toBe('INCOMPLETE');
+    const notPerformed = build('NOT_PERFORMED');
+    fixtures.finalizePhaseResult(notPerformed.result, null);
+    expect(notPerformed.result.cases.find((item: any) => item.case_id === notPerformed.target.case_id).status).toBe('NOT_PERFORMED');
+    expect(notPerformed.result.status).toBe('NOT_PERFORMED');
+    // A hand-forged PASS on the case or the phase over an UNKNOWN assertion is refused by the verifier.
+    const forged = build('UNKNOWN');
+    fixtures.finalizePhaseResult(forged.result, null);
+    forged.result.cases.find((item: any) => item.case_id === forged.target.case_id).status = 'PASS';
+    forged.result.status = 'PASS';
+    forged.result.failure_class = null;
+    const problems = fixtures.phaseResultProblems(forged.result, { runId: RUN_ID, phase: 'p07-safe', bindings });
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems).toContain(`ASSERTION_NOT_PASS:${forged.target.assertions[0].assertion_id}`);
+  });
+
+  test('a named phase failure outranks assertions that all passed', () => {
+    const bindings = { source_commit: 'a'.repeat(40), package_sha256: 'b'.repeat(64), manifest_sha256: 'c'.repeat(64), kit_sha256: 'd'.repeat(64) };
+    const result = fixtures.newPhaseResult('p07-safe', RUN_ID, 3, bindings);
+    for (const item of fixtures.casesForPhase('p07-safe')) for (const a of item.assertions) fixtures.setAssertion(result, item.case_id, a.assertion_id, 'PASS', 'seen');
+    result.evidence = fixtures.evidenceForPhase('p07-safe').map((name: string) => ({ file: name, size: 1, sha256: sha(name) }));
+    // A driver ERROR or non-zero exit names a failure class; every assertion recorded before it cannot make the phase PASS.
+    fixtures.finalizePhaseResult(result, 'DRIVER_SAFE_RULES_FAILED');
+    expect(result).toMatchObject({ status: 'FAIL', failure_class: 'DRIVER_SAFE_RULES_FAILED' });
+    expect(result.first_failure).toMatchObject({ case_id: null, detail: 'DRIVER_SAFE_RULES_FAILED' });
+    expect(fixtures.phaseResultProblems(result, { runId: RUN_ID, phase: 'p07-safe', bindings })).toEqual([]);
+  });
+
+  test('the exit and layout assertions say only what can be observed from outside', () => {
+    const exit = fixtures.CASES.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1].description;
+    expect(exit).toMatch(/product process exits with a recorded exit code and time/);
+    expect(exit).toMatch(/creation-date identity/);
+    expect(exit).not.toMatch(/same-instance exit codes/);
+    const layouts = fixtures.CASES.find((item: any) => item.case_id === 'B2-UI-02-LAYOUTS-DPI').assertions[0].description;
+    expect(layouts).toMatch(/not Windows DPI scaling/);
+    expect(layouts).toMatch(/continuation card button/);
   });
 
   test('scripted Provider scenarios are bounded and stateless apart from hold and shell kind', () => {
@@ -169,14 +224,132 @@ describe('A9-33 batch-2 request and ledger', () => {
   test('every phase derives only electron.exe in Node mode with one packaged script', () => {
     for (const phase of fixtures.PHASES) {
       const base = temp(`argv-${phase.id}`);
-      const externalFiles = phase.script === 'integrity'
-        ? Object.fromEntries(['package_zip', 'formal_input_lock', 'approval_registry', 'release_authority'].map((key) => [key, { path: path.join(base, 'ext', key), sha256: 'e'.repeat(64) }])) : {};
+      const needed = requests.externalsNeeded(phase);
+      const externalFiles = Object.fromEntries(needed.map((key: string) => [key, { path: path.join(base, 'ext', key), sha256: 'e'.repeat(64) }]));
       const derived = requests.argvForRequest(request({ base, phase: phase.id, requestIndex: phase.order, externalFiles }));
+      // Exactly the phases that read the pinned authority receive it as an argument, and nothing else carries a path.
+      expect(derived.args.some((item: string) => item.startsWith('--release-authority='))).toBe(phase.script === 'integrity' || phase.script === 'report');
       expect(path.basename(derived.program)).toBe('electron.exe');
       expect(derived.args[0]).toMatch(/validation[\\/]a9-batch2-(package-integrity|smoke|report)\.cjs$/);
       expect(derived.args).toContain(`--phase=${phase.id}`);
       expect(derived.args.some((item: string) => /^--(command|exec|shell)=/.test(item))).toBe(false);
     }
+  });
+
+  test('a report request must carry the pinned authority and hands it to the report script', () => {
+    const base = temp('report-argv');
+    const authority = { path: path.join(base, 'ext', 'release-authority.json'), sha256: 'e'.repeat(64) };
+    expect(() => request({ base, phase: 'p09-report', requestIndex: 9, externalFiles: {} })).toThrow(/EXTERNAL_RELEASE_AUTHORITY/);
+    const good = request({ base, phase: 'p09-report', requestIndex: 9, externalFiles: { release_authority: authority } });
+    const argv = requests.argvForRequest(good);
+    expect(argv.args[0]).toBe(path.join(good.candidate_root, 'validation', 'a9-batch2-report.cjs'));
+    expect(argv.args).toContain(`--release-authority=${authority.path}`);
+    expect(argv.args).toContain(`--release-authority-sha256=${'e'.repeat(64)}`);
+    expect(requests.argvForRequest(request({ base, phase: 'p10-postflight', requestIndex: 10 })).args.some((item: string) => item.startsWith('--release-authority'))).toBe(false);
+    expect(() => request({ base, phase: 'p09-report', requestIndex: 9, externalFiles: { release_authority: { path: path.join(base, 'candidate', 'a.json'), sha256: 'e'.repeat(64) } } })).toThrow(/INSIDE_CANDIDATE/);
+    expect(() => request({ base, phase: 'p09-report', requestIndex: 9, externalFiles: { release_authority: { ...authority, sha256: '1'.repeat(64) } } })).toThrow(/AUTHORITY_PIN_MISMATCH/);
+  });
+
+  test('bindings, target and external entries are closed to unknown keys', () => {
+    const good = request();
+    const redigest = (value: any) => ({ ...value, digest: requests.requestDigest(value) });
+    expect(requests.structuralProblems(redigest({ ...good, bindings: { ...good.bindings, command: 'cmd /c calc' } }))).toContain('BINDING_UNKNOWN_FIELD:command');
+    expect(requests.structuralProblems(redigest({ ...good, target: { ...good.target, command: 'cmd /c calc' } }))).toContain('TARGET_UNKNOWN_FIELD:command');
+    expect(requests.structuralProblems(redigest({ ...good, external_files: { release_authority: { path: path.join(os.tmpdir(), 'a.json'), sha256: 'e'.repeat(64), command: 'x' } } })))
+      .toContain('EXTERNAL_UNKNOWN_FIELD:release_authority.command');
+  });
+
+  test('consuming claims the attempt directory exclusively, so a second consumer of the same request stops', () => {
+    const first = request();
+    const root = first.evidence_root;
+    const attempt = requests.consumeRequest(first, root);
+    expect(fs.existsSync(path.join(attempt, 'request.json'))).toBe(true);
+    expect(() => requests.consumeRequest(first, root)).toThrow(/A9_BATCH2_REQUEST_ALREADY_CLAIMED/);
+    expect(requests.readLedger(root).filter((entry: any) => entry.state === 'CONSUMED')).toHaveLength(1);
+    // A claim left behind without a ledger entry keeps that request index closed instead of being reused.
+    const orphan = request();
+    fs.mkdirSync(requests.attemptDirectory(orphan.evidence_root, 1, 'p01-env'), { recursive: true });
+    expect(() => requests.consumeRequest(orphan, orphan.evidence_root)).toThrow(/ALREADY_CLAIMED/);
+    expect(requests.readLedger(orphan.evidence_root)).toEqual([]);
+  });
+
+  test('a request refused before it is recorded releases its claim, so the right request can still use that index', () => {
+    const base = temp('release-claim');
+    const good = request({ base });
+    const root = good.evidence_root;
+    // Index 3 while nothing is consumed is out of order; the refusal must not leave a claim that closes index 3.
+    const early = request({ base, phase: 'p03-chain', requestIndex: 3 });
+    expect(() => requests.consumeRequest(early, root)).toThrow(/A9_BATCH2_REQUEST_INDEX_NOT_NEXT/);
+    expect(fs.existsSync(requests.attemptDirectory(root, 3, 'p03-chain'))).toBe(false);
+    expect(requests.readLedger(root)).toEqual([]);
+    // The in-order request still goes through; the refused index stays free for its turn.
+    expect(fs.existsSync(path.join(requests.consumeRequest(good, root), 'request.json'))).toBe(true);
+  });
+
+  test('two processes consuming the same request at the same moment cannot both win', async () => {
+    const req = request();
+    const requestFile = path.join(path.dirname(req.evidence_root), 'race-request.json');
+    fs.mkdirSync(path.dirname(requestFile), { recursive: true });
+    fs.writeFileSync(requestFile, JSON.stringify(req));
+    const startAt = Date.now() + 2000;
+    const script = `const r=require(${JSON.stringify(path.join(releaseDir, 'a9-batch2-desktop-request.cjs'))});`
+      + `const q=JSON.parse(require('fs').readFileSync(${JSON.stringify(requestFile)},'utf8'));while(Date.now()<${startAt}){}`
+      + 'try{r.consumeRequest(q,q.evidence_root);process.exit(0)}catch(e){process.stderr.write(String(e.message));process.exit(3)}';
+    const run = () => new Promise<number>((resolve) => {
+      const child = childProcess.spawn(process.execPath, ['-e', script], { stdio: 'ignore' });
+      child.on('exit', (code) => resolve(code === null ? -1 : code));
+    });
+    const codes = await Promise.all([run(), run()]);
+    expect(codes.slice().sort()).toEqual([0, 3]);
+    expect(requests.readLedger(req.evidence_root).filter((entry: any) => entry.state === 'CONSUMED')).toHaveLength(1);
+  }, 30_000);
+
+  test('a completion needs its own consumption, happens once and a PASS needs a PASS result file', () => {
+    const req = request();
+    const root = req.evidence_root;
+    expect(() => requests.completeRequest(req, root, 'FAIL', 'X')).toThrow(/A9_BATCH2_LEDGER_NOT_CONSUMED/);
+    const attempt = requests.consumeRequest(req, root);
+    expect(() => requests.completeRequest({ ...req, digest: 'f'.repeat(64) }, root, 'FAIL', 'X')).toThrow(/NOT_CONSUMED/);
+    fs.writeFileSync(path.join(attempt, 'phase-result.json'), JSON.stringify({ status: 'FAIL' }));
+    expect(() => requests.completeRequest(req, root, 'PASS')).toThrow(/A9_BATCH2_LEDGER_RESULT_NOT_PASS/);
+    fs.writeFileSync(path.join(attempt, 'phase-result.json'), JSON.stringify({ status: 'PASS' }));
+    requests.completeRequest(req, root, 'PASS');
+    expect(() => requests.completeRequest(req, root, 'PASS')).toThrow(/A9_BATCH2_LEDGER_ALREADY_COMPLETED/);
+    expect(requests.readLedger(root).map((entry: any) => entry.state)).toEqual(['CONSUMED', 'COMPLETED']);
+  });
+
+  test('the report verifier rejects a completion that no consumed request produced', () => {
+    const root = temp('orphan');
+    const authorityFile = path.join(root, 'authority.json');
+    const body = JSON.stringify({ kind: 'WIN7_43_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_43_VALIDATION', run_id: RUN_ID,
+      candidate: { source_commit: 'a'.repeat(40), package_sha256: 'b'.repeat(64), manifest_sha256: 'c'.repeat(64), kit_sha256: 'd'.repeat(64) } });
+    fs.writeFileSync(authorityFile, body);
+    fs.writeFileSync(path.join(root, requests.LEDGER_FILE), `${JSON.stringify(completed(1, 'p01-env'))}\n`);
+    const io = { exists: (file: string) => fs.existsSync(file), readFile: (file: string) => fs.readFileSync(file) };
+    const verdict = report.verifyRun(io, { runRoot: root, authorityPath: authorityFile, authoritySha256: sha(body), requireAll: false, through: 'p01-env' });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.problems).toContain('LEDGER_COMPLETION_ORPHAN');
+    // A consumed request with the same index, phase, run and digest is accepted as the source of the completion.
+    fs.writeFileSync(path.join(root, requests.LEDGER_FILE), `${JSON.stringify(consumed(1, 'p01-env'))}\n${JSON.stringify(completed(1, 'p01-env'))}\n`);
+    expect(report.verifyRun(io, { runRoot: root, authorityPath: authorityFile, authoritySha256: sha(body), requireAll: false, through: 'p01-env' }).problems).not.toContain('LEDGER_COMPLETION_ORPHAN');
+  });
+
+  test('the controller never turns a failed Job query into "not in a Job"', () => {
+    const text = fs.readFileSync(path.join(releaseDir, 'a9-batch2-desktop-controller.ps1'), 'utf8');
+    expect(text).not.toMatch(/\[void\]\[B2Native\]::IsProcessInJob/);
+    expect(text).toMatch(/\$jobQueryOk = \[B2Native\]::IsProcessInJob/);
+    expect(text).toMatch(/\$jobText = 'unknown'/);
+    expect(text).toMatch(/\$jobJson = 'null'/);
+    // The request script reads anything but the words true and false as null, which never equals the approved boolean.
+    const first = request();
+    const requestFile = path.join(path.dirname(first.evidence_root), 'job-request.json');
+    fs.mkdirSync(path.dirname(requestFile), { recursive: true });
+    fs.writeFileSync(requestFile, JSON.stringify(first));
+    const identity = ['--actual-machine-name=TEST-ONLY-HOST', '--actual-account-sid=S-1-5-21-1-2-3-1001', '--actual-integrity-level=Medium', '--actual-session-id=1', '--actual-elevated=false'];
+    expect(requests.main(['verify', `--request=${requestFile}`, ...identity, '--actual-in-job=false'])).toEqual({ ok: true });
+    const unknown = requests.main(['verify', `--request=${requestFile}`, ...identity, '--actual-in-job=unknown']);
+    expect(unknown.ok).toBe(false);
+    expect(unknown.problems).toContain('TARGET_MISMATCH:in_job');
   });
 
   test('verification refuses replay, wrong order, missing prerequisites, expiry and identity drift', () => {
@@ -543,6 +716,60 @@ describe('A9-33 batch-2 smoke pieces', () => {
     await expect(smoke.runDriverPhase(phaseContext('p01-env').ctx, {})).rejects.toThrow(/NOT_A_DRIVER_PHASE/);
   });
 
+  test('a driver ERROR or non-zero exit fails the phase even when every assertion was already recorded as PASS', async () => {
+    const { ctx } = phaseContext('p07-safe');
+    const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
+    const assertions = [{ case_id: 'B2-SAFE-02-AUDIT-HARD-STOP', assertion_id: 'B2-SAFE-02-AUDIT-HARD-STOP-A01', status: 'PASS', observed: 'hard stop before side effect' }];
+    const result = await smoke.runDriverPhase(ctx, {
+      runtime, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
+      launchDriver: async (_runtime: any, env: any) => {
+        fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'ERROR', error: 'cleanup threw after the assertion', assertions }));
+        return { code: 2, signal: null, killed_by: null, duration_ms: 1, stdout: '', stderr: '', pid: 5 };
+      },
+    });
+    expect(result).toMatchObject({ status: 'FAIL', failure_class: 'DRIVER_SAFE_RULES_FAILED' });
+    expect(result.cases[0].status).toBe('PASS');
+    const exitOnly = phaseContext('p07-safe', 2);
+    const nonZero = await smoke.runDriverPhase(exitOnly.ctx, {
+      runtime, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
+      launchDriver: async (_runtime: any, env: any) => {
+        fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions }));
+        return { code: 7, signal: null, killed_by: null, duration_ms: 1, stdout: '', stderr: '', pid: 6 };
+      },
+    });
+    expect(nonZero).toMatchObject({ status: 'FAIL', failure_class: 'DRIVER_SAFE_RULES_FAILED' });
+  });
+
+  test('the normal-exit tree assertion needs an observed non-empty tree and a working process listing', () => {
+    const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
+    const unrelated = 'HOST,20260101000001.000000+000,C:\\Windows\\notepad.exe,notepad.exe,1,7';
+    const helper = { pid: 500, parent: 100, name: 'spike02_helper.exe', created: '20260101000000.000000+000' };
+    const exitLaunch = (over: any = {}) => ({ mode: 'chain_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 }, ...over });
+    const run = (treeFile: any, exec: any, launch: any = exitLaunch()) => {
+      const { ctx, attempt } = phaseContext('p03-chain');
+      for (const name of fixtures.evidenceForPhase('p03-chain')) if (name !== 'phase-result.json') fs.writeFileSync(path.join(attempt, name), 'x');
+      if (treeFile) fs.writeFileSync(path.join(attempt, 'chain-exit-tree-before.json'), JSON.stringify(treeFile));
+      smoke.finishChainEvidence(ctx, [launch], null, exec, path.join(attempt, 'no-data'));
+      const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1];
+      return { status: assertion.status, observed: assertion.observed, held: JSON.parse(fs.readFileSync(path.join(attempt, '06-held-exit.json'), 'utf8')) };
+    };
+    const listing = (rows: string[]) => () => ({ status: 0, stdout: csv(rows), stderr: '', error: null });
+    const passed = run({ tree: [helper], wmic_failures: 0 }, listing([unrelated]));
+    expect(passed.status).toBe('PASS');
+    expect(passed.held).toMatchObject({ tree_observed: true, survivors: [], listing_failed: false });
+    expect(passed.held.absence_observed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(passed.held.exit_code_scope).toMatch(/descendants are checked by creation-date identity only/);
+    // Nothing observed is never absence: a failed query, an empty tree, a missing record and a failed listing are all UNKNOWN.
+    expect(run({ tree: [helper], wmic_failures: 1 }, listing([unrelated])).status).toBe('UNKNOWN');
+    expect(run({ tree: [], wmic_failures: 0 }, listing([unrelated])).status).toBe('UNKNOWN');
+    expect(run(null, listing([unrelated])).status).toBe('UNKNOWN');
+    expect(run({ tree: [helper], wmic_failures: 0 }, () => { throw new Error('wmic missing'); }).status).toBe('UNKNOWN');
+    expect(run({ tree: [helper], wmic_failures: 0 }, listing([])).status).toBe('UNKNOWN');
+    // A survivor of the same pid and creation stamp, or a bad exit, fails.
+    expect(run({ tree: [helper], wmic_failures: 0 }, listing([unrelated, 'HOST,20260101000000.000000+000,C:\\x\\h.exe,spike02_helper.exe,100,500'])).status).toBe('FAIL');
+    expect(run({ tree: [helper], wmic_failures: 0 }, listing([unrelated]), exitLaunch({ code: 1 })).status).toBe('FAIL');
+  });
+
   test('a kill-on-marker mode that was not killed by the marker fails the phase', async () => {
     const { ctx } = phaseContext('p08-ui');
     const result = await smoke.runDriverPhase(ctx, {
@@ -603,10 +830,40 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.evaluateDomAfterDb([{ t: 1, domFrameTexts: ['tick 1'], dbFrameTexts: ['tick 1', 'tick 2'], ipcEventIds: [4], dbEventIds: [4, 5] }])).toMatchObject({ ok: true, observations: 2 });
     expect(driver.evaluateDomAfterDb([{ t: 1, domFrameTexts: ['tick 9'], dbFrameTexts: ['tick 1'], ipcEventIds: [], dbEventIds: [] }]).violations).toEqual([{ t: 1, kind: 'dom', text: 'tick 9' }]);
     expect(driver.evaluateDomAfterDb([{ t: 1, domFrameTexts: [], dbFrameTexts: ['x'], ipcEventIds: [7], dbEventIds: [] }]).violations[0]).toMatchObject({ kind: 'ipc', eventId: 7 });
-    expect(driver.evaluateDomAfterDb([{ t: 1, domFrameTexts: [], dbFrameTexts: ['x'], ipcEventIds: [], dbEventIds: [] }]).ok).toBe(false);
+    expect(driver.evaluateDomAfterDb([{ t: 1, domFrameTexts: [], dbFrameTexts: ['x'], ipcEventIds: [], dbEventIds: [] }]).ok).toBeNull();
     expect(driver.evaluateLiveTick(1000, 4200)).toMatchObject({ ok: true, lead_ms: 3200 });
     expect(driver.evaluateLiveTick(4000, 4500)).toMatchObject({ ok: false, lead_ms: 500 });
     expect(driver.evaluateLiveTick(null, 4500)).toMatchObject({ ok: false, reason: 'missing observation' });
+  });
+
+  test('display before persistence is found from stored timestamps, DOM ghosts and tokens that never reached the database', () => {
+    const base = { t: 1, dbFrameTexts: ['tick 1'], ipcEventIds: [], dbEventIds: [], domReadEndMs: 1000 };
+    const stored = (persistedAtMs: number | undefined) => [{ eventId: 1, text: 'tick 1', persistedAtMs }];
+    // Persisted before the DOM read ended: nothing observed against the order.
+    expect(driver.evaluateDomAfterDb([{ ...base, domFrameTexts: ['tick 1'], domTokens: [] }], stored(900))).toMatchObject({ ok: true, unchecked_without_timestamp: 0, persisted_timestamps_used: true });
+    // Persisted after a DOM read that already showed it: displayed before persisted.
+    const early = driver.evaluateDomAfterDb([{ ...base, domFrameTexts: ['tick 1'], domTokens: [] }], stored(1500));
+    expect(early.ok).toBe(false);
+    expect(early.violations[0]).toMatchObject({ kind: 'displayed_before_persisted', persistedAtMs: 1500, domReadEndMs: 1000 });
+    // A frame with no usable stored timestamp cannot be ordered: UNKNOWN, not PASS.
+    expect(driver.evaluateDomAfterDb([{ ...base, domFrameTexts: ['tick 1'], domTokens: [] }], stored(undefined))).toMatchObject({ ok: null, unchecked_without_timestamp: 1 });
+    // A DOM frame the database read of the same sample did not have is a violation even though the database has it later.
+    expect(driver.evaluateDomAfterDb([{ ...base, dbFrameTexts: [], domFrameTexts: ['tick 1'], domTokens: [] }], stored(900)).violations[0]).toMatchObject({ kind: 'dom' });
+    // Output tokens the stream area showed but the database never held (a ghost frame) are violations.
+    const ghost = driver.evaluateDomAfterDb([{ ...base, domFrameTexts: [], domTokens: ['tick 77'] }], stored(900));
+    expect(ghost.ok).toBe(false);
+    expect(ghost.violations[0]).toMatchObject({ kind: 'dom_token', text: 'tick 77' });
+    // Without stored timestamps the old subset check still applies and an empty observation is UNKNOWN.
+    expect(driver.evaluateDomAfterDb([{ ...base, domFrameTexts: ['tick 1'], domTokens: [] }]).ok).toBe(true);
+    expect(driver.evaluateDomAfterDb([{ ...base, domFrameTexts: [], domTokens: [] }], stored(900)).ok).toBeNull();
+  });
+
+  test('a stopped continuation turn is retryable when the product stores it as interrupted or cancelled', () => {
+    expect(driver.retryableStopStatus('interrupted')).toBe(true);
+    expect(driver.retryableStopStatus('cancelled')).toBe(true);
+    expect(driver.retryableStopStatus('completed')).toBe(false);
+    expect(driver.retryableStopStatus('running')).toBe(false);
+    expect(driver.retryableStopStatus(null)).toBe(false);
   });
 
   test('secret, CRLF, paging and status helpers behave on edge input', () => {
@@ -679,7 +936,17 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.guardRefused(refused, 'A9_CONTINUE_REVISION_MISMATCH', still, { before: 0, after: 1 })).toBe(false);
     expect(driver.guardRefused({ ok: true }, 'A9_CONTINUE_REVISION_MISMATCH', still, { before: 0, after: 0 })).toBe(false);
     expect(driver.guardRefused(null, 'A9_CONTINUE_REVISION_MISMATCH', still, { before: 0, after: 0 })).toBe(false);
-    expect(driver.guardRefused(refused, 'A9_CONTINUE_REVISION_MISMATCH', undefined, { before: 0, after: 0 })).toBe(false);
+    // Counters that were not observed are UNKNOWN, never "unchanged": undefined === undefined must not prove a refusal.
+    expect(driver.guardRefused(refused, 'A9_CONTINUE_REVISION_MISMATCH', undefined, { before: 0, after: 0 })).toBeNull();
+    expect(driver.guardRefused(refused, 'A9_CONTINUE_REVISION_MISMATCH', {}, {})).toBeNull();
+    expect(driver.guardRefused(refused, 'A9_CONTINUE_REVISION_MISMATCH', { before: 1, after: 1 }, { before: 'x', after: 'x' })).toBeNull();
+    expect(driver.subResult('g', driver.guardRefused(refused, 'A9_CONTINUE_REVISION_MISMATCH', {}, {})).status).toBe('UNKNOWN');
+    // A failed base condition stays FAIL even when the guard answer is unknown, and an unknown guard keeps a good base UNKNOWN.
+    expect(driver.withGuard(false, null)).toBe(false);
+    expect(driver.withGuard(true, null)).toBeNull();
+    expect(driver.withGuard(true, true)).toBe(true);
+    expect(driver.withGuard(true, false)).toBe(false);
+    expect(driver.statusOf(null)).toBe('UNKNOWN');
   });
 
   test('the UI-01 journey passes only from a complete observed set and names the broken step', () => {
@@ -813,6 +1080,59 @@ describe('A9-33 batch-2 guard journeys against the real runtime', () => {
     } finally {
       try { await runtime.shutdown(); } catch (_error) { /* already shut down */ }
       await provider.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('stopping a continuation turn leaves the task retryable: interrupted rows and a new enabled card', async () => {
+    const root = temp('stop');
+    const workspaceRoot = path.join(root, 'ws');
+    const dataRoot = path.join(root, 'data');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    fs.mkdirSync(dataRoot, { recursive: true });
+    // A Provider that accepts the request and then never answers, so the turn is stopped while it waits.
+    const sockets = new Set<any>();
+    let arrive: () => void = () => undefined;
+    const arrived = new Promise<void>((resolve) => { arrive = resolve; });
+    const server = http.createServer((req, res) => {
+      req.on('data', () => undefined);
+      req.on('end', () => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': hold\n\n'); arrive(); });
+    });
+    server.on('connection', (socket) => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const baseUrl = `http://127.0.0.1:${(server.address() as any).port}`;
+    const runtime = createA9AgentRuntime({
+      workspaceRoot, dataRoot, ownerId: `b2-stop-${process.pid}-${Date.now()}`,
+      openDatabase: (file: string, options?: { readonly?: boolean }) => new Database(file, options && options.readonly ? { readonly: true } : {}),
+    });
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl, model: 'fixture', skipProbe: true });
+      const conversation = runtime.getSnapshot().activeConversationId;
+      const writer = new Database(path.join(dataRoot, 'a9-state.db'));
+      try { driver.insertInterruptedTask(writer, conversation, 'b2-stop-task', 'b2-stop-old-turn'); } finally { writer.close(); }
+      const find = () => runtime.getSnapshot().recoveryTasks.find((item: any) => item.taskId === 'b2-stop-task');
+      const before = find();
+      const continuation = runtime.continueTask({ conversationId: conversation, taskId: 'b2-stop-task', interruptedTurnId: before.interruptedTurnId, recoveryRevision: before.recoveryRevision });
+      await Promise.race([arrived, new Promise((_resolve, reject) => setTimeout(() => reject(new Error('the Provider request never arrived')), 20000))]);
+      await runtime.stop();
+      await continuation;
+      const reader = new Database(path.join(dataRoot, 'a9-state.db'), { readonly: true });
+      let turns: any[];
+      try { turns = reader.prepare('SELECT turn_id, status FROM a9_turns WHERE task_id = ? ORDER BY rowid').all('b2-stop-task') as any[]; } finally { reader.close(); }
+      const newest = turns[turns.length - 1];
+      expect(newest.turn_id).not.toBe('b2-stop-old-turn');
+      // The product fact the driver's CH-05 second assertion depends on: a stopped continuation is stored as interrupted.
+      expect(newest.status).toBe('interrupted');
+      expect(driver.retryableStopStatus(newest.status)).toBe(true);
+      const after = find();
+      expect(after).toMatchObject({ canContinue: true });
+      expect(after.interruptedTurnId).not.toBe(before.interruptedTurnId);
+      expect(after.recoveryRevision).not.toBe(before.recoveryRevision);
+    } finally {
+      try { await runtime.shutdown({ stopManaged: true }); } catch (_error) { /* already stopped */ }
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
       fs.rmSync(root, { recursive: true, force: true });
     }
   }, 60_000);

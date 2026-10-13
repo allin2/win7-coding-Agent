@@ -26,6 +26,16 @@ const SCRIPT_BY_KIND = Object.freeze({
 });
 const TARGET_FIELDS = Object.freeze(['machine_name', 'account_name', 'account_sid', 'integrity_level']);
 const EXTERNAL_FIELDS = Object.freeze(['package_zip', 'formal_input_lock', 'approval_registry', 'release_authority']);
+const BINDING_FIELDS = Object.freeze(['source_commit', 'package_sha256', 'manifest_sha256', 'kit_sha256', 'release_authority_sha256']);
+const TARGET_EXTRA_FIELDS = Object.freeze(['session_id', 'elevated', 'in_job']);
+const EXTERNAL_ITEM_FIELDS = Object.freeze(['path', 'sha256']);
+// The integrity phase reads every external file; the report phase re-derives its verdict from the pinned authority alone.
+function externalsNeeded(phase) {
+  if (!phase) return [];
+  if (phase.script === 'integrity') return EXTERNAL_FIELDS;
+  if (phase.script === 'report') return ['release_authority'];
+  return [];
+}
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -143,11 +153,13 @@ function structuralProblems(request) {
     if (lifetime < 30 || lifetime > fixtures.LIMITS.request_ttl_seconds) problems.push('LIFETIME');
   }
   const bindings = request.bindings || {};
+  for (const key of Object.keys(bindings)) if (!BINDING_FIELDS.includes(key)) problems.push(`BINDING_UNKNOWN_FIELD:${key}`);
   if (!HEX40.test(String(bindings.source_commit || ''))) problems.push('BINDING_SOURCE_COMMIT');
   for (const key of ['package_sha256', 'manifest_sha256', 'kit_sha256', 'release_authority_sha256']) {
     if (!HEX64.test(String(bindings[key] || ''))) problems.push(`BINDING_${key.toUpperCase()}`);
   }
   const target = request.target || {};
+  for (const key of Object.keys(target)) if (![...TARGET_FIELDS, ...TARGET_EXTRA_FIELDS].includes(key)) problems.push(`TARGET_UNKNOWN_FIELD:${key}`);
   for (const key of TARGET_FIELDS) if (typeof target[key] !== 'string' || !target[key] || target[key].length > 256 || /[\r\n]/.test(target[key])) problems.push(`TARGET_${key.toUpperCase()}`);
   if (!Number.isInteger(target.session_id) || target.session_id < 0) problems.push('TARGET_SESSION_ID');
   if (target.elevated !== false) problems.push('TARGET_ELEVATED');
@@ -158,16 +170,20 @@ function structuralProblems(request) {
     && (contained(request.candidate_root, request.evidence_root) || contained(request.evidence_root, request.candidate_root))) problems.push('EVIDENCE_ROOT_NOT_EXTERNAL');
   const phase = fixtures.phaseById(request.phase);
   const externals = request.external_files || {};
-  const needsExternals = phase && phase.script === 'integrity';
+  const needed = externalsNeeded(phase);
   for (const key of Object.keys(externals)) if (!EXTERNAL_FIELDS.includes(key)) problems.push(`EXTERNAL_UNKNOWN:${key}`);
-  if (needsExternals) {
-    for (const key of EXTERNAL_FIELDS) {
+  for (const key of Object.keys(externals)) {
+    const item = externals[key];
+    if (item && typeof item === 'object') for (const field of Object.keys(item)) if (!EXTERNAL_ITEM_FIELDS.includes(field)) problems.push(`EXTERNAL_UNKNOWN_FIELD:${key}.${field}`);
+  }
+  if (needed.length > 0) {
+    for (const key of needed) {
       const item = externals[key];
       if (!item || typeof item.path !== 'string' || !path.isAbsolute(item.path) || !HEX64.test(String(item.sha256 || ''))) problems.push(`EXTERNAL_${key.toUpperCase()}`);
       else if (typeof request.candidate_root === 'string' && path.isAbsolute(request.candidate_root) && contained(request.candidate_root, item.path)) problems.push(`EXTERNAL_${key.toUpperCase()}_INSIDE_CANDIDATE`);
     }
-    if (externals.release_authority && externals.release_authority.sha256 !== bindings.release_authority_sha256) problems.push('AUTHORITY_PIN_MISMATCH');
   }
+  if (externals.release_authority && externals.release_authority.sha256 !== bindings.release_authority_sha256) problems.push('AUTHORITY_PIN_MISMATCH');
   if (request.digest !== undefined && request.digest !== requestDigest(request)) problems.push('DIGEST');
   if (request.digest === undefined) problems.push('DIGEST_MISSING');
   return problems;
@@ -227,11 +243,14 @@ function argvForRequest(request, layout) {
   const args = [path.join(candidateRoot, ...script.split('/')), `--phase=${phase.id}`, `--run-id=${request.run_id}`,
     `--request-index=${request.request_index}`, `--run-root=${evidenceRoot}`,
     `--evidence-root=${attemptDirectory(evidenceRoot, request.request_index, phase.id)}`];
+  const externals = request.external_files || {};
   if (phase.script === 'integrity') {
-    const externals = request.external_files;
     args.push(`--package-zip=${externals.package_zip.path}`, `--formal-input-lock=${externals.formal_input_lock.path}`,
       `--approval-registry=${externals.approval_registry.path}`, `--release-authority=${externals.release_authority.path}`,
       `--release-authority-sha256=${request.bindings.release_authority_sha256}`);
+  } else if (phase.script === 'report') {
+    // The report phase must be able to re-read the same pinned authority; without these two arguments it cannot start.
+    args.push(`--release-authority=${externals.release_authority.path}`, `--release-authority-sha256=${request.bindings.release_authority_sha256}`);
   }
   return {
     program: path.join(candidateRoot, 'electron.exe'),
@@ -240,13 +259,32 @@ function argvForRequest(request, layout) {
   };
 }
 
-// Consuming records the request in the ledger first, then copies it into its own attempt directory for the phase script.
+// Consuming first claims the attempt directory with a non-recursive mkdir, which the file system makes exclusive: of two
+// processes that both passed verification, only one gets the claim and the other stops. Only the claimant re-reads the
+// ledger, records the request and copies it into the attempt directory. A request refused before anything was recorded
+// releases its empty claim; a claim left behind by a crash keeps that request index closed (fail closed), and the operator
+// records the cause instead of reusing the index.
 function consumeRequest(request, evidenceRoot, now) {
   const when = (now instanceof Date ? now : new Date()).toISOString();
-  appendLedger(evidenceRoot, { state: 'CONSUMED', request_index: request.request_index, phase: request.phase,
-    run_id: request.run_id, digest: request.digest, consumed_at: when });
   const attempt = attemptDirectory(evidenceRoot, request.request_index, request.phase);
-  fs.mkdirSync(attempt, { recursive: true });
+  fs.mkdirSync(path.dirname(attempt), { recursive: true });
+  try { fs.mkdirSync(attempt); } catch (error) {
+    if (error && error.code === 'EEXIST') throw new Error('A9_BATCH2_REQUEST_ALREADY_CLAIMED');
+    throw error;
+  }
+  let recorded = false;
+  try {
+    const ledger = readLedger(evidenceRoot);
+    const consumed = consumedRequests(ledger);
+    if (consumed.some((entry) => entry.digest === request.digest || entry.request_index === request.request_index)) throw new Error('A9_BATCH2_REQUEST_REPLAYED');
+    if (request.request_index !== consumed.length + 1) throw new Error('A9_BATCH2_REQUEST_INDEX_NOT_NEXT');
+    appendLedger(evidenceRoot, { state: 'CONSUMED', request_index: request.request_index, phase: request.phase,
+      run_id: request.run_id, digest: request.digest, consumed_at: when });
+    recorded = true;
+  } finally {
+    // A refused request that recorded nothing must not close its index: the empty directory this call created is released.
+    if (!recorded) { try { fs.rmdirSync(attempt); } catch (_error) { /* not empty or already gone: leave it */ } }
+  }
   fs.writeFileSync(path.join(attempt, 'request.json'), `${JSON.stringify(request, null, 2)}\n`, 'utf8');
   return attempt;
 }
@@ -263,11 +301,22 @@ function derivedResult(request, evidenceRoot, exitCode) {
 }
 
 // The result file is hashed into the ledger entry, so editing phase-result.json afterwards is detectable.
+// A completion is only accepted for a request this ledger consumed with the same index, phase, run and digest, and only once.
+// A PASS completion also needs a phase-result.json whose own status is PASS.
 function completeRequest(request, evidenceRoot, result, failureClass, now) {
   if (!['PASS', 'FAIL'].includes(result)) throw new Error('A9_BATCH2_LEDGER_RESULT_INVALID');
+  const ledger = readLedger(evidenceRoot);
+  const match = consumedRequests(ledger).find((entry) => entry.request_index === request.request_index);
+  if (!match || match.phase !== request.phase || match.run_id !== request.run_id || match.digest !== request.digest) throw new Error('A9_BATCH2_LEDGER_NOT_CONSUMED');
+  if (completionFor(ledger, request.request_index)) throw new Error('A9_BATCH2_LEDGER_ALREADY_COMPLETED');
   const resultFile = path.join(attemptDirectory(evidenceRoot, request.request_index, request.phase), 'phase-result.json');
   const resultSha256 = fs.existsSync(resultFile) ? sha256(fs.readFileSync(resultFile)) : null;
   if (result === 'PASS' && !resultSha256) throw new Error('A9_BATCH2_LEDGER_RESULT_FILE_MISSING');
+  if (result === 'PASS') {
+    let parsed = null;
+    try { parsed = JSON.parse(fs.readFileSync(resultFile, 'utf8')); } catch (_error) { parsed = null; }
+    if (!parsed || parsed.status !== 'PASS') throw new Error('A9_BATCH2_LEDGER_RESULT_NOT_PASS');
+  }
   appendLedger(evidenceRoot, { state: 'COMPLETED', request_index: request.request_index, phase: request.phase,
     run_id: request.run_id, digest: request.digest, result, result_sha256: resultSha256,
     ...(failureClass ? { failure_class: String(failureClass).slice(0, 80) } : {}),
@@ -310,7 +359,9 @@ function main(argv) {
     if (option(argv, 'actual-account-sid')) {
       actual.target = {
         machine_name: option(argv, 'actual-machine-name'), account_sid: option(argv, 'actual-account-sid'), integrity_level: option(argv, 'actual-integrity-level'),
-        session_id: Number(option(argv, 'actual-session-id')), elevated: option(argv, 'actual-elevated') === 'true', in_job: option(argv, 'actual-in-job') === 'true',
+        session_id: Number(option(argv, 'actual-session-id')), elevated: option(argv, 'actual-elevated') === 'true',
+        // Anything other than the words true or false (for example unknown) is not a boolean and never equals the approved value.
+        in_job: option(argv, 'actual-in-job') === 'true' ? true : option(argv, 'actual-in-job') === 'false' ? false : null,
       };
     }
     const verdict = verifyRequest(request, { now: new Date(), runId: option(argv, 'run-id') || undefined, ledger: readLedger(evidenceRoot), actual });
@@ -339,7 +390,7 @@ function main(argv) {
 }
 
 module.exports = {
-  REQUEST_SCHEMA, REQUEST_KIND, LEDGER_FILE, SCRIPT_BY_KIND, TARGET_FIELDS, EXTERNAL_FIELDS,
+  REQUEST_SCHEMA, REQUEST_KIND, LEDGER_FILE, SCRIPT_BY_KIND, TARGET_FIELDS, EXTERNAL_FIELDS, BINDING_FIELDS, externalsNeeded,
   canonicalJson, requestDigest, attemptDirectory, createRequest, structuralProblems, verifyRequest, argvForRequest,
   parseLedger, readLedger, appendLedger, consumeRequest, completeRequest, derivedResult, sameClassFailureTwice, phasePassed, main,
 };

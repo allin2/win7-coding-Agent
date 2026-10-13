@@ -121,7 +121,7 @@ const CASES = Object.freeze([
   ], CHAIN_STEPS[4].evidence),
   makeCase('B2-CH-06-NORMAL-EXIT', 'G2', 'p03-chain', 'CHAIN', 'Chain step 6: normal exit through the real exit dialog.', [
     'The visible exit choice and its actual return value are recorded',
-    'Product, driver, helper and Shell trees exit with same-instance exit codes and times; evidence is fully collected',
+    'The product process exits with a recorded exit code and time; every driver, helper and Shell process of a non-empty pre-exit tree is absent by creation-date identity, with the absence observation time recorded; evidence is fully collected',
   ], CHAIN_STEPS[5].evidence),
 
   makeCase('B2-S01-LIVE-TICK', 'G2', 'p04-streaming', 'S01', 'Shell output is visible before the command exits.', [
@@ -170,7 +170,7 @@ const CASES = Object.freeze([
     'Loading/retry, continue feedback, Enter/Space, focus staying on the card, no scroll theft, view return, Stop and a new failure card',
   ], ['ui01-interaction.json', 'ui01-interaction.png']),
   makeCase('B2-UI-02-LAYOUTS-DPI', 'G2', 'p08-ui', 'UI', 'Reachable layouts and DPI.', [
-    '1366x768 at 100% and 125%, the four reachable layouts and a shorter window keep the cards usable; below 800 px stays NOT_VERIFIED',
+    '1366x768 at page zoom 100% and 125% (not Windows DPI scaling), the four reachable layouts and a shorter window keep the prompt, the run control and the continuation card button usable; below 800 px stays NOT_VERIFIED',
   ], ['ui02-layouts.json', 'ui02-layouts.png']),
 
   makeCase('B2-G3-REPORT-NEGATIVES', 'G3', 'p09-report', 'REPORT', 'Ordinary-user report verification with negative controls.', [
@@ -308,6 +308,12 @@ function finalizePhaseResult(result, failureClass) {
   }
   const all = result.cases.map((item) => item.status);
   result.status = all.length > 0 && all.every((state) => state === 'PASS') ? 'PASS' : all.includes('FAIL') ? 'FAIL' : 'NOT_PERFORMED';
+  // A phase-level failure (a driver ERROR or non-zero exit, a secret or residue finding, a failed verification) outranks the
+  // assertions recorded before it: a named failure class can never end in PASS.
+  if (failureClass && result.status === 'PASS') {
+    result.status = 'FAIL';
+    if (!result.first_failure) result.first_failure = { case_id: null, assertion_id: null, detail: String(failureClass).slice(0, 200) };
+  }
   result.failure_class = result.status === 'PASS' ? null : (failureClass || (result.first_failure ? 'ASSERTION_FAILED' : 'INCOMPLETE'));
   result.finished_at = new Date().toISOString();
   return result;

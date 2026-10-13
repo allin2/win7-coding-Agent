@@ -58,22 +58,42 @@ function evaluateStreamOrder(frames) {
 }
 function textsPerStream(frames, stream) { return frames.filter((frame) => frame.stream === stream).map((frame) => frame.text).join(''); }
 
-// samples: [{ t, domFrameTexts, dbFrameTexts, ipcEventIds, dbEventIds }]. DOM and IPC are read before the DB in each sample,
-// so anything they show must already be in the DB. A sample with nothing to show proves nothing; at least one frame must be seen.
-function evaluateDomAfterDb(samples) {
+// samples: [{ t, domFrameTexts, domTokens, dbFrameTexts, ipcEventIds, dbEventIds, domReadEndMs }]. DOM and IPC are read before the DB
+// in each sample. domFrameTexts are the frames that were persisted by the end of the observation and were visible in this sample's
+// DOM read (so a frame shown before the DB could answer for it is not filtered away); domTokens are the fixture output tokens the
+// stream area showed, which also catches output that never reached the DB. persisted: [{ text, persistedAtMs }] from the stored
+// event timestamps. A frame is displayed before it was persisted when every stored copy of its text has a stored timestamp later
+// than the end of a DOM read that already showed it. The check cannot prove order for frames with no timestamp: those are counted
+// as unchecked and the answer stays UNKNOWN. A sample with nothing to show proves nothing; at least one frame must be seen.
+function evaluateDomAfterDb(samples, persisted) {
   const violations = [];
   let seen = 0;
+  let unchecked = 0;
+  const stored = Array.isArray(persisted) ? persisted : null;
   for (const sample of samples) {
+    const dbJoined = (sample.dbFrameTexts || []).join('');
     for (const text of sample.domFrameTexts || []) {
       seen += 1;
       if (!(sample.dbFrameTexts || []).includes(text)) violations.push({ t: sample.t, kind: 'dom', text: String(text).slice(0, 60) });
+      if (stored && Number.isFinite(sample.domReadEndMs)) {
+        const copies = stored.filter((item) => item.text === text);
+        const stamps = copies.map((item) => item.persistedAtMs).filter(Number.isFinite);
+        if (copies.length === 0 || stamps.length === 0) unchecked += 1;
+        else if (stamps.every((stamp) => stamp > sample.domReadEndMs)) violations.push({ t: sample.t, kind: 'displayed_before_persisted', text: String(text).slice(0, 60), persistedAtMs: Math.min(...stamps), domReadEndMs: sample.domReadEndMs });
+      }
+    }
+    for (const token of sample.domTokens || []) {
+      seen += 1;
+      if (!dbJoined.includes(token)) violations.push({ t: sample.t, kind: 'dom_token', text: token });
     }
     for (const id of sample.ipcEventIds || []) {
       seen += 1;
       if (!(sample.dbEventIds || []).includes(id)) violations.push({ t: sample.t, kind: 'ipc', eventId: id });
     }
   }
-  return { ok: violations.length === 0 && seen > 0, samples: samples.length, observations: seen, violations: violations.slice(0, 5) };
+  const complete = violations.length === 0 && seen > 0;
+  return { ok: complete && unchecked === 0 ? true : violations.length > 0 ? false : null, samples: samples.length, observations: seen, unchecked_without_timestamp: unchecked,
+    persisted_timestamps_used: Boolean(stored), violations: violations.slice(0, 5) };
 }
 // firstTickVisibleMs and commandEndedMs are driver-clock offsets; the contract needs the first tick at least 1 s earlier.
 function evaluateLiveTick(firstTickVisibleMs, commandEndedMs, minimumLeadMs) {
@@ -146,10 +166,18 @@ function summarizeSubs(subs) {
   return { status: combineStatus(subs.map((item) => item.status)), text: subs.map((item) => `${item.name}=${item.status}`).join('; ') };
 }
 // A guard refused the request when it returned the named structured error and neither the Provider nor the event log moved.
+// Counters that are not integers were not observed: the answer is null (UNKNOWN), never "unchanged" (undefined === undefined).
+const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 function guardRefused(result, code, requests, continueEvents) {
+  if (!requests || !continueEvents || !isCount(requests.before) || !isCount(requests.after) || !isCount(continueEvents.before) || !isCount(continueEvents.after)) return null;
   return Boolean(result) && result.ok === false && Boolean(result.error) && result.error.code === code
-    && Boolean(requests) && requests.before === requests.after && Boolean(continueEvents) && continueEvents.before === continueEvents.after;
+    && requests.before === requests.after && continueEvents.before === continueEvents.after;
 }
+// Joins a base condition with a guard answer: an unobserved guard keeps the sub-journey UNKNOWN unless the base already fails.
+// A stopped continuation turn is retryable: the product stores task, turn and run as `interrupted` and shows a new enabled card.
+const retryableStopStatus = (status) => status === 'interrupted' || status === 'cancelled';
+const statusOf = (value) => (value === null || value === undefined ? 'UNKNOWN' : value ? 'PASS' : 'FAIL');
+function withGuard(base, refused) { return base === false || refused === false ? false : refused === null || base === null ? null : true; }
 // Persisted-fact writers shared by the guard journeys and their runtime-backed tests. They write the same rows the A9-32
 // lifecycle tests write, into the candidate's own database, and nothing else.
 const GUARD_STAMP = '2026-01-01T00:00:00.000Z';
@@ -312,7 +340,7 @@ async function runDriver() {
   const domState = () => exec(`(() => {
     const stream = document.getElementById('a9-task-stream');
     const cancel = document.getElementById('cancel-task');
-    return { visible: document.body.innerText, present: document.body.textContent, outcome: (document.getElementById('a9-turn-outcome') || {}).textContent || '',
+    return { visible: document.body.innerText, present: document.body.textContent, stream: stream ? stream.textContent : '', outcome: (document.getElementById('a9-turn-outcome') || {}).textContent || '',
       cancelHidden: cancel ? cancel.hidden : null, cancelLabel: cancel ? cancel.textContent : null,
       cards: document.querySelectorAll('section.continuation-card').length, streamScroll: stream ? stream.scrollTop : null };
   })()`);
@@ -333,10 +361,13 @@ async function runDriver() {
   const findRecovery = async (taskId) => ((await snapshot()).recoveryTasks || []).find((item) => item.taskId === taskId) || null;
   const lastTurnOf = (evts) => { const started = evts.filter((e) => e.eventType === 'turn_started'); return started.length ? started[started.length - 1].turnId : null; };
 
+  // A failed WMIC query is counted, never turned into an empty-but-valid process list. Every verdict that reads a process tree
+  // checks `wmicFailures` and answers UNKNOWN when any query failed.
+  let wmicFailures = 0;
   function wmicRows() {
     const result = childProcess.spawnSync('wmic.exe', ['process', 'get', 'ProcessId,ParentProcessId,Name,CreationDate', '/format:csv'], { windowsHide: true, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 });
     const lines = String(result.stdout || '').replace(/\r/g, '').split('\n').filter((line) => line.trim());
-    if (lines.length < 2) return [];
+    if (result.error || result.status !== 0 || lines.length < 2) { wmicFailures += 1; return []; }
     const header = lines[0].split(',');
     return lines.slice(1).map((line) => { const cells = line.split(','); const row = {}; header.forEach((name, index) => { row[name] = cells[index]; }); return row; });
   }
@@ -406,21 +437,39 @@ async function runDriver() {
     let firstVisible = null;
     let toolEndedAt = null;
     const conv = await conversationId();
+    // The DOM is read first in every sample, then the snapshot, then the stored events. The DOM text is kept until the observation
+    // ends, because which frames count as "displayed" is decided against the frames stored by the END (not by this sample's DB read).
+    const closeSamples = (frames) => {
+      const finalTexts = frames.map((frame) => frame.text).filter((text) => text.trim());
+      for (const sample of samples) {
+        sample.domFrameTexts = finalTexts.filter((text) => sample._domPresent.includes(text.trim()));
+        sample.domTokens = [...new Set(String(sample._domStream).match(/\b(?:tick|err) \d+\b/g) || [])];
+        delete sample._domPresent;
+        delete sample._domStream;
+      }
+      return persistedStamps(frames);
+    };
     while (Date.now() - started < timeoutMs) {
       const t = Date.now() - started;
       const dom = await domState();
+      const domReadEndMs = Date.now();
       const snap = await snapshot();
       const ipcEventIds = (snap.timeline || []).filter((item) => item.type === 'tool_output' && Number.isSafeInteger(item.eventId)).map((item) => item.eventId);
       const evts = (await events(conv, 1000)).events;
       const frames = framesFromEvents(evts);
-      const domFrameTexts = frames.filter((frame) => frame.text.trim() && dom.present.includes(frame.text.trim())).map((frame) => frame.text);
-      samples.push({ t, domFrameTexts, dbFrameTexts: frames.map((frame) => frame.text), ipcEventIds, dbEventIds: frames.map((frame) => frame.eventId), frames: frames.length, outcome: dom.outcome });
+      samples.push({ t, domFrameTexts: [], domTokens: [], dbFrameTexts: frames.map((frame) => frame.text), ipcEventIds, dbEventIds: frames.map((frame) => frame.eventId), frames: frames.length, outcome: dom.outcome,
+        domReadEndMs, _domPresent: dom.present, _domStream: dom.stream || '' });
       if (firstVisible === null && frames.some((frame) => frame.text.trim() && dom.visible.includes(frame.text.trim()))) firstVisible = t;
       if (toolEndedAt === null && evts.some((e) => e.eventType === 'tool_end' && ['shell', 'start_process'].includes(eventData(e).toolName))) toolEndedAt = t;
-      if (await done(evts, dom, t)) return { samples, firstVisible, toolEndedAt, events: evts, dom };
+      if (await done(evts, dom, t)) { const persisted = closeSamples(frames); return { samples, persisted, firstVisible, toolEndedAt, events: evts, dom }; }
       await sleep(150);
     }
     throw new Error(`TIMEOUT:${label}`);
+  }
+  // Stored timestamps of the persisted frames: the product writes created_at when the event row is inserted.
+  function persistedStamps(frames) {
+    const stamps = new Map(dbAll("SELECT id, created_at FROM a9_events WHERE event_type = 'tool_output'").map((row) => [row.id, Date.parse(row.created_at)]));
+    return frames.map((frame) => ({ eventId: frame.eventId, text: frame.text, persistedAtMs: stamps.get(frame.eventId) }));
   }
   const terminalReached = (evts) => evts.some((e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed');
 
@@ -518,14 +567,14 @@ async function runDriver() {
     const frames = framesFromEvents(observed.events);
     const stdoutText = textsPerStream(frames, 'stdout');
     const stderrText = textsPerStream(frames, 'stderr');
-    const domOrder = evaluateDomAfterDb(observed.samples);
+    const domOrder = evaluateDomAfterDb(observed.samples, observed.persisted);
     await screenshot('02-output.png');
     out('02-output-frames.jsonl', `${frames.map((frame) => JSON.stringify(frame)).join('\n')}\n`);
     out('02-background.json', { samples: observed.samples.map((s) => ({ t: s.t, frames: s.frames, domFrames: s.domFrameTexts.length, ipcFrames: s.ipcEventIds.length })), first_visible_ms: observed.firstVisible,
       running_at_observation: running.map((item) => ({ handleId: item.handleId, pid: item.pid, status: item.lastProbeStatus })), dom_after_db: domOrder,
       stdout_head: stdoutText.slice(0, 120), stderr_head: stderrText.slice(0, 120) });
     const visibleBeforeEnd = observed.firstVisible !== null && running.length === 1 && /tick \d/.test(stdoutText) && /err \d/.test(stderrText);
-    record('B2-CH-02-BACKGROUND', 1, visibleBeforeEnd && domOrder.ok ? 'PASS' : 'FAIL',
+    record('B2-CH-02-BACKGROUND', 1, statusOf(withGuard(visibleBeforeEnd, domOrder.ok)),
       `first_visible_ms=${observed.firstVisible}; running_processes=${running.length}; stdout_has_tick=${/tick \d/.test(stdoutText)}; stderr_has_err=${/err \d/.test(stderrText)}; dom_after_db_violations=${domOrder.violations.length}; observations=${domOrder.observations}`);
     const handle = running[0];
     const startEnd = toolEndsFor(observed.events, 'start_process')[0];
@@ -558,9 +607,9 @@ async function runDriver() {
     const noneActive = idle.managedProcesses.every((item) => !['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus));
     const lastFrame = frames[frames.length - 1];
     // An empty command tree means the processes were not observed, so a missing survivor would prove nothing.
-    const stopVerdict = survivors.length > 0 || !noneActive || feedback.ms > 3000 ? 'FAIL' : treeBefore.length === 0 ? 'UNKNOWN' : 'PASS';
+    const stopVerdict = survivors.length > 0 || !noneActive || feedback.ms > 3000 ? 'FAIL' : treeBefore.length === 0 || wmicFailures > 0 ? 'UNKNOWN' : 'PASS';
     record('B2-CH-03-STOP', 1, stopVerdict,
-      `feedback_ms=${feedback.ms}; command_tree_before=${treeBefore.length}; survivors=${survivors.length}; active_after=${!noneActive}; frames_before_stop=${frames.length}; last_frame_seq=${lastFrame ? lastFrame.outputSeq : 'none'}`);
+      `feedback_ms=${feedback.ms}; command_tree_before=${treeBefore.length}; wmic_failures=${wmicFailures}; survivors=${survivors.length}; active_after=${!noneActive}; frames_before_stop=${frames.length}; last_frame_seq=${lastFrame ? lastFrame.outputSeq : 'none'}`);
     const stopSchema = providerLines().map((entry) => entry.tool_params && entry.tool_params.stop_process).filter(Boolean)[0];
     const noCleanup = idle.managedProcesses.every((item) => item.cleanupRequired !== true);
     record('B2-CH-03-STOP', 2, Array.isArray(stopSchema) && stopSchema.length === 1 && stopSchema[0] === 'handleId' && noCleanup ? 'PASS' : stopSchema ? 'FAIL' : 'UNKNOWN',
@@ -617,7 +666,10 @@ async function runDriver() {
     const unknownCount = Array.isArray(facts.recovery.unknownResults) ? facts.recovery.unknownResults.length : null;
     const factsDelivered = firstLine.recovery_unknown_count === unknownCount && unknownCount !== null;
     const approvalDead = resume && resume.ok === false && fileStillThere;
-    record('B2-CH-05-CONTINUE', 2, approvalDead && factsDelivered && newStatus === 'cancelled' ? 'PASS' : approvalDead && factsDelivered ? 'FAIL' : 'FAIL',
+    // Stop on a continuation turn that did not finish leaves the task retryable: the product writes task, turn and run as
+    // `interrupted` (persistTurnResult, retryable continuation) and shows a new enabled card; `cancelled` is also accepted.
+    const stoppedRetryable = retryableStopStatus(newStatus);
+    record('B2-CH-05-CONTINUE', 2, approvalDead && factsDelivered && stoppedRetryable ? 'PASS' : 'FAIL',
       `old_approval_ok=${resume && resume.ok}; old_approval_error=${resume && resume.error && resume.error.code}; file_still_exists=${fileStillThere}; recovery_unknown_results=${unknownCount}; first_request_recovery_unknown=${firstLine.recovery_unknown_count}; new_turn_status_after_stop=${newStatus}`);
   }
 
@@ -629,7 +681,7 @@ async function runDriver() {
     const snap = await snapshot();
     const running = snap.managedProcesses.filter((item) => ['running', 'starting'].includes(item.lastProbeStatus));
     const tree = myTree();
-    out('chain-exit-tree-before.json', { driver_pid: process.pid, tree, running: running.map((item) => ({ handleId: item.handleId, pid: item.pid })) });
+    out('chain-exit-tree-before.json', { driver_pid: process.pid, tree, wmic_failures: wmicFailures, running: running.map((item) => ({ handleId: item.handleId, pid: item.pid })) });
     ownsExit = true;
     const timer = setTimeout(() => {
       record('B2-CH-06-NORMAL-EXIT', 1, 'FAIL', 'the exit dialog did not return within 150 s');
@@ -669,9 +721,9 @@ async function runDriver() {
       && outLines.indexOf('out 1') < outLines.indexOf('out 4') && errLines.indexOf('err 1') < errLines.indexOf('err 4');
     out('s02-stream-order.json', { order, frames: callFrames, stdout: outLines, stderr: errLines });
     record('B2-S02-STREAM-ORDER', 1, order.ok && streamsOk ? 'PASS' : 'FAIL', `ordered=${order.ok}; frames=${order.frames}; problems=${JSON.stringify(order.problems)}; both_streams_complete=${streamsOk}`);
-    const merged = evaluateDomAfterDb([...first.samples, ...second.samples]);
+    const merged = evaluateDomAfterDb([...first.samples, ...second.samples], [...(first.persisted || []), ...(second.persisted || [])]);
     out('s03-sqlite-before-ipc.json', merged);
-    record('B2-S03-SQLITE-BEFORE-IPC', 1, merged.ok ? 'PASS' : 'FAIL', `observations=${merged.observations}; violations=${merged.violations.length}; samples=${merged.samples}`);
+    record('B2-S03-SQLITE-BEFORE-IPC', 1, statusOf(merged.ok), `observations=${merged.observations}; violations=${merged.violations.length}; unchecked_without_timestamp=${merged.unchecked_without_timestamp}; samples=${merged.samples}`);
   }
 
   async function streamEncodings() {
@@ -727,8 +779,9 @@ async function runDriver() {
     const extra = newProcesses(baselineTree, afterTree);
     out('s05-limits-secret.json', { limit: { frames: limitFrames.length, order: limitOrder, truncated }, secret: { frames: secretFrames.length, leaks },
       cancel: { baseline_tree: baselineTree.length, mid_tree: midTree.length, after_tree: afterTree.length, new_processes_after_cancel: extra, status: idle.agentStatus } });
-    record('B2-S05-LIMITS-SECRET-BACKPRESSURE', 2, limitOrder.ok && extra.length === 0 && midTree.length > baselineTree.length ? 'PASS' : 'FAIL',
-      `limit_frames=${limitFrames.length}; sequence_ok=${limitOrder.ok}; tree=${baselineTree.length}->${midTree.length}->${afterTree.length}; new_processes_after_cancel=${extra.length}`);
+    const s05Status = !limitOrder.ok || extra.length > 0 ? 'FAIL' : wmicFailures > 0 ? 'UNKNOWN' : midTree.length > baselineTree.length ? 'PASS' : 'FAIL';
+    record('B2-S05-LIMITS-SECRET-BACKPRESSURE', 2, s05Status,
+      `limit_frames=${limitFrames.length}; sequence_ok=${limitOrder.ok}; tree=${baselineTree.length}->${midTree.length}->${afterTree.length}; new_processes_after_cancel=${extra.length}; wmic_failures=${wmicFailures}`);
   }
 
   async function auditStop() {
@@ -964,9 +1017,9 @@ async function runDriver() {
       note.residue = { recovery_blocked_reason: blockedRecovery && blockedRecovery.blockedReason, can_continue: blockedRecovery && blockedRecovery.canContinue,
         card_button_disabled: blockedCard && blockedCard.disabled, card_text_names_reason: Boolean(blockedCard && blockedCard.text.includes('A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED')),
         error: blocked.result && blocked.result.error && blocked.result.error.code, requests: blocked.requests, continue_events: blocked.continueEvents };
-      subs.push(subResult('residue', Boolean(blockedRecovery) && blockedRecovery.canContinue === false && blockedRecovery.blockedReason === 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED'
-        && Boolean(blockedCard) && blockedCard.disabled === true && note.residue.card_text_names_reason
-        && guardRefused(blocked.result, 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED', blocked.requests, blocked.continueEvents),
+      subs.push(subResult('residue', withGuard(Boolean(blockedRecovery) && blockedRecovery.canContinue === false && blockedRecovery.blockedReason === 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED'
+        && Boolean(blockedCard) && blockedCard.disabled === true && note.residue.card_text_names_reason,
+        guardRefused(blocked.result, 'A9_MANAGED_PROCESS_CLEANUP_UNCONFIRMED', blocked.requests, blocked.continueEvents)),
       `reason=${note.residue.recovery_blocked_reason}; button_disabled=${note.residue.card_button_disabled}; error=${note.residue.error}; requests=${blocked.requests.before}->${blocked.requests.after}`));
       const cleanup = openDb(false);
       try { deleteResidueFact(cleanup, residueHandle); } finally { cleanup.close(); }
@@ -1189,6 +1242,21 @@ async function runDriver() {
   async function uiLayouts() {
     await bootstrap();
     await newConversation();
+    // The continuation card is part of what the layouts must keep usable: the same persisted-fact injection as the guard
+    // journeys gives this conversation one interrupted task, hence one card, without a crash or a Provider request.
+    const conv = await conversationId();
+    const cardFacts = { injected: false, card_found: false };
+    try {
+      const db = openDb(false);
+      try { insertInterruptedTask(db, conv, 'b2-ui02-task', 'b2-ui02-old-turn'); } finally { db.close(); }
+      cardFacts.injected = true;
+      await reloadRenderer();
+      await activateConversation(conv);
+      await waitFor(async () => (await domState()).cards > 0, 30000, 'ui02 continue card');
+      cardFacts.card_found = true;
+    } catch (error) {
+      cardFacts.error = String(error && error.message ? error.message : error).slice(0, 200);
+    }
     const rows = [];
     for (const zoom of [1, 1.25]) {
       win.setContentSize(1366, 768);
@@ -1202,6 +1270,12 @@ async function runDriver() {
           const probe = await exec(`(() => {
             const ids = ['task-prompt', 'run-task', 'cancel-task'];
             const out = {};
+            const cardButton = document.querySelector('section.continuation-card button');
+            if (cardButton) cardButton.scrollIntoView({ block: 'nearest' });
+            if (!cardButton) out.card_button = null;
+            else { const r = cardButton.getBoundingClientRect();
+              const hit = r.width > 0 && r.height > 0 ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+              out.card_button = { hidden: cardButton.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === cardButton || cardButton.contains(hit))) }; }
             for (const id of ids) { const el = document.getElementById(id); if (!el) { out[id] = null; continue; } const r = el.getBoundingClientRect();
               const hit = r.width > 0 && r.height > 0 ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
               out[id] = { hidden: el.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === el || el.contains(hit))) }; }
@@ -1214,12 +1288,23 @@ async function runDriver() {
     win.setContentSize(1366, 600);
     win.webContents.setZoomFactor(1);
     await sleep(600);
-    const shorter = await exec(`(() => { const el = document.getElementById('run-task'); const r = el.getBoundingClientRect(); return { innerHeight: window.innerHeight, inViewport: r.bottom <= window.innerHeight && r.top >= 0 }; })()`);
+    const shorter = await exec(`(() => { const el = document.getElementById('run-task'); const r = el.getBoundingClientRect();
+      const b = document.querySelector('section.continuation-card button'); if (b) b.scrollIntoView({ block: 'nearest' });
+      const br = b ? b.getBoundingClientRect() : null; const hit = br && br.width > 0 && br.height > 0 ? document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2) : null;
+      return { innerHeight: window.innerHeight, inViewport: r.bottom <= window.innerHeight && r.top >= 0,
+        card_button: br ? { inViewport: br.left >= 0 && br.top >= 0 && br.right <= window.innerWidth && br.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === b || b.contains(hit))) } : null }; })()`);
     win.setContentSize(1366, 768);
     await screenshot('ui02-layouts.png');
-    const bad = rows.filter((row) => ['task-prompt', 'run-task'].some((id) => !row.controls[id] || row.controls[id].hidden || !row.controls[id].inViewport || !row.controls[id].reachable));
-    out('ui02-layouts.json', { rows, shorter, below_800: 'NOT_VERIFIED', bad: bad.length });
-    record('B2-UI-02-LAYOUTS-DPI', 1, bad.length === 0 && shorter.inViewport ? 'PASS' : 'FAIL', `layouts=${rows.length}; unusable=${bad.length}; shorter_window_run_in_viewport=${shorter.inViewport}; below_800=NOT_VERIFIED`);
+    const usable = (item) => Boolean(item) && !item.hidden && item.inViewport === true && item.reachable === true;
+    const bad = rows.filter((row) => ['task-prompt', 'run-task'].some((id) => !usable(row.controls[id])));
+    const cardBad = rows.filter((row) => !usable(row.controls.card_button));
+    const shorterCardOk = Boolean(shorter.card_button) && shorter.card_button.inViewport === true && shorter.card_button.reachable === true;
+    // No continuation card at all means the card was not observed: UNKNOWN, never PASS.
+    const cardObserved = cardFacts.card_found && rows.every((row) => row.controls.card_button !== null) && shorter.card_button !== null;
+    const baseOk = bad.length === 0 && shorter.inViewport;
+    const uiStatus = !baseOk || (cardObserved && (cardBad.length > 0 || !shorterCardOk)) ? 'FAIL' : cardObserved ? 'PASS' : 'UNKNOWN';
+    out('ui02-layouts.json', { rows, shorter, card: cardFacts, zoom_note: 'zoomFactor 1 and 1.25 (page zoom); this is not Windows DPI scaling', below_800: 'NOT_VERIFIED', bad: bad.length, card_bad: cardBad.length });
+    record('B2-UI-02-LAYOUTS-DPI', 1, uiStatus, `layouts=${rows.length}; unusable=${bad.length}; card_found=${cardFacts.card_found}; card_unusable=${cardBad.length}; shorter_window_run_in_viewport=${shorter.inViewport}; shorter_window_card_usable=${shorterCardOk}; page_zoom_only_not_windows_dpi=true; below_800=NOT_VERIFIED`);
   }
 
   // ---- Dispatcher ------------------------------------------------------------------------------------------------------------------
@@ -1289,7 +1374,7 @@ async function runDriver() {
 module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
-  subResult, summarizeSubs, guardRefused, evaluateUiJourney,
+  subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, evaluateUiJourney,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
 };
 

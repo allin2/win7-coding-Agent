@@ -623,14 +623,25 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
   const exit = launches.find((item) => item.mode === 'chain_exit');
   const treeFile = path.join(ctx.attemptDir, 'chain-exit-tree-before.json');
   let before = [];
-  if (fs.existsSync(treeFile)) { try { before = JSON.parse(fs.readFileSync(treeFile, 'utf8')).tree || []; } catch (_error) { before = []; } }
+  // The tree is observed only when the driver recorded it with no failed query; otherwise absence proves nothing (UNKNOWN).
+  let treeObserved = false;
+  if (fs.existsSync(treeFile)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(treeFile, 'utf8'));
+      before = Array.isArray(parsed.tree) ? parsed.tree : [];
+      treeObserved = Array.isArray(parsed.tree) && parsed.wmic_failures === 0;
+    } catch (_error) { before = []; treeObserved = false; }
+  }
   let rows = [];
-  try { rows = parseWmicCsv(exec('wmic_processes').stdout); } catch (_error) { rows = []; }
+  let listingFailed = false;
+  try { rows = parseWmicCsv(exec('wmic_processes').stdout); } catch (_error) { rows = []; listingFailed = true; }
+  const absenceObservedAt = new Date().toISOString();
   const survivors = before.filter((item) => rows.some((row) => Number(row.ProcessId) === item.pid && (row.CreationDate || '') === item.created));
   const stateDb = path.join(dataRoot, 'a9-state.db');
   if (fs.existsSync(stateDb)) fs.copyFileSync(stateDb, path.join(ctx.attemptDir, 'state.sqlite'));
   writeJson(path.join(ctx.attemptDir, '06-held-exit.json'), { exit: exit ? { code: exit.code, signal: exit.signal, killed_by: exit.killed_by, started_at: exit.started_at, ended_at: exit.ended_at, duration_ms: exit.duration_ms, pid: exit.pid, dialog_click: exit.dialog_click } : null,
-    tree_before: before, survivors, processes_listed: rows.length });
+    exit_code_scope: 'the product process the parent launched; descendants are checked by creation-date identity only, their exit codes cannot be read from outside',
+    tree_before: before, tree_observed: treeObserved, absence_observed_at: absenceObservedAt, survivors, processes_listed: rows.length, listing_failed: listingFailed });
   const roots = [ctx.candidateRoot, path.join(ctx.runRoot, 'driver-electron')].map((item) => item.toLowerCase());
   const residue = rows.filter((row) => roots.some((root) => String(row.ExecutablePath || '').toLowerCase().startsWith(root))).map((row) => ({ pid: Number(row.ProcessId), name: row.Name }));
   writeJson(path.join(ctx.attemptDir, '06-postflight.json'), { residue, survivors: survivors.length, processes_listed: rows.length });
@@ -640,9 +651,13 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
   const listed = new Set(manifest.files.map((item) => item.path));
   const missing = created.filter((name) => name !== 'phase-result.json' && !listed.has(name));
   const exitOk = Boolean(exit) && exit.code === 0 && !exit.killed_by && !exit.spawn_error && Boolean(exit.dialog_click) && exit.dialog_click.status === 0;
-  const status = exitOk && survivors.length === 0 && residue.length === 0 && missing.length <= 1 && rows.length > 0 ? 'PASS' : exit ? 'FAIL' : 'NOT_PERFORMED';
+  // A tree that was not observed (failed query, missing or empty record) or a listing that failed cannot show absence: UNKNOWN.
+  const unobserved = !treeObserved || before.length === 0 || listingFailed || rows.length === 0;
+  const status = !exit ? 'NOT_PERFORMED'
+    : !exitOk || survivors.length > 0 || residue.length > 0 || missing.length > 1 ? 'FAIL'
+      : unobserved ? 'UNKNOWN' : 'PASS';
   applyAssertions(ctx, [{ case_id: 'B2-CH-06-NORMAL-EXIT', assertion_id: 'B2-CH-06-NORMAL-EXIT-A02', status,
-    observed: exit ? `exit_code=${exit.code}; killed_by=${exit.killed_by}; ended_at=${exit.ended_at}; dialog_click_status=${exit.dialog_click && exit.dialog_click.status}; tree_before=${before.length}; survivors=${survivors.length}; residue=${residue.length}; missing_evidence=${missing.join(',') || 'none'}` : 'chain_exit did not run' }]);
+    observed: exit ? `exit_code=${exit.code}; killed_by=${exit.killed_by}; ended_at=${exit.ended_at}; dialog_click_status=${exit.dialog_click && exit.dialog_click.status}; tree_observed=${treeObserved}; tree_before=${before.length}; listing_failed=${listingFailed}; absence_observed_at=${absenceObservedAt}; survivors=${survivors.length}; residue=${residue.length}; missing_evidence=${missing.join(',') || 'none'}` : 'chain_exit did not run' }]);
 }
 
 function runPostflightPhase(ctx, exec = realExec) {

@@ -288,6 +288,8 @@ test('batch-2 integrity in phase mode writes a bound phase result that names the
   assert.match(failed.first_failure.detail, /AUTHORITY_PIN_MISMATCH/);
 });
 
+const flipHex = (value) => `${value[0] === '0' ? '1' : '0'}${value.slice(1)}`;
+
 test('batch-2 producer refuses a drifted lock, a non-ASCII or LF CMD entry and a BOM in suite text', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-batch2-negative-TEST_ONLY-'));
   const repositoryRoot = cleanSourceFixture(root);
@@ -302,6 +304,11 @@ test('batch-2 producer refuses a drifted lock, a non-ASCII or LF CMD entry and a
     (v) => { v.provenance.task = 'A9-32'; },
     (v) => { v.inputs.runner_return_zip.protocol_version = 2; },
     (v) => { delete v.inputs.runner_return_zip.managed_contract; },
+    // A managed build kit must match its approved identity field by field; one changed hex digit is a different kit.
+    (v) => { v.inputs.runner_return_zip.build_kit.input_lock_sha256 = flipHex(v.inputs.runner_return_zip.build_kit.input_lock_sha256); },
+    (v) => { v.inputs.runner_return_zip.build_kit.package_manifest_sha256 = flipHex(v.inputs.runner_return_zip.build_kit.package_manifest_sha256); },
+    (v) => { v.inputs.runner_return_zip.build_kit.sha256 = flipHex(v.inputs.runner_return_zip.build_kit.sha256); },
+    (v) => { v.inputs.runner_return_zip.build_kit.source_commit = flipHex(v.inputs.runner_return_zip.build_kit.source_commit); },
   ]) {
     const lock = JSON.parse(JSON.stringify(original)); mutate(lock); writeJson(inputs.lockPath, lock);
     assert.throws(() => buildA9ProductCandidate(buildOptions(inputs, fresh(root))), /A9_(BATCH2|V26)_/);
@@ -351,7 +358,9 @@ test('batch-2 report verifier accepts a complete bound run and rejects every tam
   try { verdict = reportTool.main(argv); } finally { process.stdout.write = write; process.exitCode = 0; }
   assert.equal(verdict.status, 'PASS', JSON.stringify(verdict.problems));
   assert.equal(verdict.negative_controls.results.every((item) => item.status === 'PASS'), true);
-  assert.ok(verdict.negative_controls.results.length >= 5);
+  const controlIds = verdict.negative_controls.results.map((item) => item.id);
+  for (const id of ['NEG-WRONG-PIN', 'NEG-WRONG-CANDIDATE', 'NEG-MISSING-EVIDENCE', 'NEG-EDITED-EVIDENCE', 'NEG-EDITED-REPORT',
+    'NEG-STRIPPED-OBSERVATION', 'NEG-REPLAYED-REQUEST', 'NEG-ORPHAN-COMPLETION']) assert.ok(controlIds.includes(id), `missing negative control ${id}`);
   // Editing one result after the ledger hashed it is caught.
   const first = path.join(requests.attemptDirectory(runRoot, 1, 'p01-env'), 'phase-result.json');
   const keep = fs.readFileSync(first);

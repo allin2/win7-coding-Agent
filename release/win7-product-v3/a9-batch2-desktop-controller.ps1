@@ -77,8 +77,11 @@ function Get-IntegrityLevel {
 function Get-ControllerIdentity {
   $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
   $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
+  # Job membership is a three-valued fact: 'true', 'false', or 'unknown' when the API call itself failed.
+  # An unknown value is never written as false; the request script then refuses the request (the approved value is a boolean).
   $inJob = $false
-  [void][B2Native]::IsProcessInJob([System.Diagnostics.Process]::GetCurrentProcess().Handle, [IntPtr]::Zero, [ref]$inJob)
+  $jobQueryOk = [B2Native]::IsProcessInJob([System.Diagnostics.Process]::GetCurrentProcess().Handle, [IntPtr]::Zero, [ref]$inJob)
+  if ($jobQueryOk) { $jobText = $inJob.ToString().ToLower() } else { $jobText = 'unknown' }
   return New-Object PSObject -Property @{
     MachineName = [System.Environment]::MachineName
     AccountName = $identity.Name
@@ -86,7 +89,7 @@ function Get-ControllerIdentity {
     Integrity = (Get-IntegrityLevel)
     SessionId = [System.Diagnostics.Process]::GetCurrentProcess().SessionId
     Elevated = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-    InJob = $inJob
+    InJob = $jobText
   }
 }
 
@@ -149,7 +152,7 @@ $identity = Get-ControllerIdentity
 $common = @($requestScript)
 $verifyArgs = $common + @('argv', ('--request=' + $requestFull), '--format=lines', ('--manifest-sha256=' + $manifestSha), ('--kit-sha256=' + $kitSha),
   ('--actual-machine-name=' + $identity.MachineName), ('--actual-account-sid=' + $identity.AccountSid), ('--actual-integrity-level=' + $identity.Integrity),
-  ('--actual-session-id=' + $identity.SessionId), ('--actual-elevated=' + $identity.Elevated.ToString().ToLower()), ('--actual-in-job=' + $identity.InJob.ToString().ToLower()))
+  ('--actual-session-id=' + $identity.SessionId), ('--actual-elevated=' + $identity.Elevated.ToString().ToLower()), ('--actual-in-job=' + $identity.InJob))
 $derived = Invoke-Node $verifyArgs
 if ($derived.Code -ne 0) { Fail ('The request was refused: ' + $derived.Out + $derived.Err) 4 }
 $lines = @($derived.Out -split "`n" | ForEach-Object { $_.TrimEnd("`r") } | Where-Object { $_ -ne '' })
@@ -165,8 +168,9 @@ $attemptLine = ($consumed.Out | Select-String -Pattern '"attempt_directory":"([^
 if (-not $attemptLine) { Fail 'The consume step did not name an attempt directory.' 4 }
 $attemptDir = $attemptLine -replace '\\\\', '\'
 
+if ($identity.InJob -eq 'unknown') { $jobJson = 'null' } else { $jobJson = $identity.InJob }
 $identityJson = '{"machine_name":"' + (Json-Escape $identity.MachineName) + '","account_name":"' + (Json-Escape $identity.AccountName) + '","account_sid":"' + $identity.AccountSid +
-  '","integrity_level":"' + $identity.Integrity + '","session_id":' + $identity.SessionId + ',"elevated":' + $identity.Elevated.ToString().ToLower() + ',"in_job":' + $identity.InJob.ToString().ToLower() + '}'
+  '","integrity_level":"' + $identity.Integrity + '","session_id":' + $identity.SessionId + ',"elevated":' + $identity.Elevated.ToString().ToLower() + ',"in_job":' + $jobJson + '}'
 [System.IO.File]::WriteAllText((Join-Path $attemptDir 'controller-identity.json'), $identityJson + "`n", (New-Object System.Text.UTF8Encoding($false)))
 
 $env:ELECTRON_RUN_AS_NODE = '1'

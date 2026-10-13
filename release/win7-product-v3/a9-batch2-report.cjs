@@ -93,6 +93,13 @@ function verifyRun(io, options) {
     // The request being verified right now (the report phase itself) is allowed to be the only open one.
     if (done.length !== 1 && !(isLast && done.length === 0)) problem(problems, 'LEDGER_COMPLETION_INVALID');
   });
+  // Every completion must belong to a consumed request with the same index, phase, run and digest; a completion without
+  // its consumption would let a PASS exist that no counted request produced.
+  completed.forEach((entry) => {
+    const match = consumed.find((item) => item.request_index === entry.request_index);
+    if (!match || match.phase !== entry.phase || match.digest !== entry.digest || match.run_id !== entry.run_id) problem(problems, 'LEDGER_COMPLETION_ORPHAN');
+    if (runId && entry.run_id !== runId) problem(problems, 'LEDGER_RUN_ID_MISMATCH');
+  });
   if (consumed.length > 0) {
     const started = Date.parse(consumed[0].consumed_at);
     const ended = Math.max(...completed.map((entry) => Date.parse(entry.completed_at)).filter(Number.isFinite), started);
@@ -212,6 +219,10 @@ function runNegativeControls(io, options) {
   control('NEG-STRIPPED-OBSERVATION', 'ASSERTION_NOT_PASS', verifyRun(overlayIo(io, { replace: new Map([[resultFile, strippedBytes], [ledgerFile, Buffer.from(rewrittenLedger)]]) }), options));
   const replayed = ledger.concat([{ ...ledger.find((entry) => entry.state === 'CONSUMED') }]);
   control('NEG-REPLAYED-REQUEST', 'LEDGER_REPLAYED_REQUEST', verifyRun(overlayIo(io, { replace: new Map([[ledgerFile, Buffer.from(replayed.map((entry) => JSON.stringify(entry)).join('\n').concat('\n'))]]) }), options));
+  // A PASS completion for a request that was never consumed (the first consumption is dropped from a copy of the ledger).
+  const firstConsumed = ledger.find((entry) => entry.state === 'CONSUMED');
+  const withoutConsumption = ledger.filter((entry) => entry !== firstConsumed);
+  control('NEG-ORPHAN-COMPLETION', 'LEDGER_COMPLETION_ORPHAN', verifyRun(overlayIo(io, { replace: new Map([[ledgerFile, Buffer.from(withoutConsumption.map((entry) => JSON.stringify(entry)).join('\n').concat('\n'))]]) }), options));
   return { performed: true, reason: null, results };
 }
 
@@ -239,7 +250,10 @@ function main(argv = process.argv.slice(2), io = diskIo()) {
   if (phaseMode) options.through = 'p08-ui';
   const verdict = verifyRun(io, options);
   const negatives = runNegativeControls(io, options);
-  const negativesOk = negatives.performed && negatives.results.length >= 5 && negatives.results.every((item) => item.status === 'PASS');
+  const REQUIRED_NEGATIVES = ['NEG-WRONG-PIN', 'NEG-WRONG-CANDIDATE', 'NEG-MISSING-EVIDENCE', 'NEG-EDITED-EVIDENCE', 'NEG-EDITED-REPORT',
+    'NEG-STRIPPED-OBSERVATION', 'NEG-REPLAYED-REQUEST', 'NEG-ORPHAN-COMPLETION'];
+  const negativesOk = negatives.performed && REQUIRED_NEGATIVES.every((id) => negatives.results.some((item) => item.id === id))
+    && negatives.results.every((item) => item.status === 'PASS');
   const report = {
     schema_version: 1, kind: 'A9_BATCH2_REPORT_VERIFICATION', candidate_label: CONTRACT.candidate, candidate_tentative: true,
     recorded_at: new Date().toISOString(), run_root: runRoot, through: options.through || null,
