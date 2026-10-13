@@ -370,7 +370,8 @@ function main(argv) {
       };
     }
     const verdict = verifyRequest(request, { now: new Date(), runId: option(argv, 'run-id') || undefined, ledger: readLedger(evidenceRoot), actual });
-    if (!verdict.ok) return { ok: false, problems: verdict.problems };
+    // The actual target is echoed so a TARGET_MISMATCH refusal shows the observed values next to the approved ones (rehearsal 4: in_job refused with no value shown).
+    if (!verdict.ok) return { ok: false, problems: verdict.problems, actual_target: actual.target || null };
     if (command === 'verify') return { ok: true };
     if (command === 'consume') { return { ok: true, attempt_directory: consumeRequest(request, evidenceRoot) }; }
     const derived = argvForRequest(request);

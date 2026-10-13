@@ -393,6 +393,25 @@ describe('A9-33 batch-2 request and ledger', () => {
     const unknown = requests.main(['verify', `--request=${requestFile}`, ...identity, '--actual-in-job=unknown']);
     expect(unknown.ok).toBe(false);
     expect(unknown.problems).toContain('TARGET_MISMATCH:in_job');
+    // The refusal shows what was observed, so an unknown value is visible next to the approved boolean.
+    expect(unknown.actual_target).toMatchObject({ machine_name: 'TEST-ONLY-HOST', session_id: 1, elevated: false, in_job: null });
+  });
+
+  test('the controller retries a failed Job query, keeps the attempts and the Win32 error, and never reports a failed query as false', () => {
+    const text = fs.readFileSync(path.join(releaseDir, 'a9-batch2-desktop-controller.ps1'), 'utf8');
+    expect(text).toMatch(/while \(\(-not \$jobQueryOk\) -and \(\$jobAttempts -lt 5\)\)/);
+    expect(text).toMatch(/\$jobQueryOk = \[B2Native\]::IsProcessInJob\(\$jobHandle, \[IntPtr\]::Zero, \[ref\]\$inJob\)/);
+    expect(text).toContain('[B2Native]::GetCurrentProcess()');
+    expect(text).toContain('GetLastWin32Error()');
+    // After the loop only a successful query yields a boolean word; every other outcome is the word unknown.
+    expect(text).toMatch(/if \(\$jobQueryOk\) \{ \$jobText = \$inJob\.ToString\(\)\.ToLower\(\) \} else \{ \$jobText = 'unknown' \}/);
+    expect(text).toContain('"in_job_attempts":');
+    expect(text).toContain('"in_job_last_error":');
+    // A refusal prints the observed identity, including the attempts and the last error.
+    expect(text).toMatch(/The request was refused: ' \+ \$derived\.Out \+ \$derived\.Err \+ ' actual_identity: '/);
+    expect(text).toContain("' in_job_attempts=' + $identity.InJobAttempts");
+    expect(/[^\x00-\x7f]/.test(text)).toBe(false);
+    expect(text.includes('\r')).toBe(false);
   });
 
   test('verification refuses replay, wrong order, missing prerequisites, expiry and identity drift', () => {
@@ -781,6 +800,70 @@ describe('A9-33 batch-2 smoke pieces', () => {
       },
     });
     expect(nonZero).toMatchObject({ status: 'FAIL', failure_class: 'DRIVER_SAFE_RULES_FAILED' });
+  });
+
+  test('the smoke corrupts the mode settings before the unresolved-mode mode starts and restores the original bytes afterwards', async () => {
+    // The product reads the settings once at startup (rehearsal 4: corrupting after startup only reached the drift check), so the file must already be unreadable at launch.
+    expect(smoke.CORRUPT_MODE_SETTINGS).toBe(driver.CORRUPT_MODE_SETTINGS);
+    expect(smoke.DRIVER_MODES.continue_mode_guard.corruptModeSettings).toBe(true);
+    expect(Object.entries(smoke.DRIVER_MODES).filter(([, spec]: any) => spec.corruptModeSettings).map(([mode]) => mode)).toEqual(['continue_mode_guard']);
+
+    const { ctx, runRoot, attempt } = phaseContext('p06-continue');
+    const modes = path.join(runRoot, 'data', 'p06-continue', 'workspace-modes');
+    fs.mkdirSync(modes, { recursive: true });
+    const original = Buffer.from('{"schemaVersion":2,"permissionMode":"full_access","workspaceRoot":"X"}\n', 'utf8');
+    fs.writeFileSync(path.join(modes, 'abc.json'), original);
+    fs.writeFileSync(path.join(modes, 'abc.v1.json'), 'v1 file must stay untouched');
+    const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
+    const seen: Record<string, any> = {};
+    const result = await smoke.runDriverPhase(ctx, {
+      runtime, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
+      launchDriver: async (_runtime: any, env: any) => {
+        seen[env.A9_BATCH2_MODE] = { content: fs.readFileSync(path.join(modes, 'abc.json'), 'utf8'), flag: env.A9_BATCH2_MODE_SETTINGS_CORRUPTED || null, v1: fs.readFileSync(path.join(modes, 'abc.v1.json'), 'utf8') };
+        fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: [] }));
+        return { code: 0, signal: null, killed_by: env.A9_BATCH2_MODE.endsWith('interrupt') ? 'marker' : null, duration_ms: 1, stdout: '', stderr: '', pid: 1 };
+      },
+    });
+    void result;
+    expect(seen.continue_guards.content).toBe(original.toString('utf8'));
+    expect(seen.continue_mode_guard).toMatchObject({ content: smoke.CORRUPT_MODE_SETTINGS, flag: '1', v1: 'v1 file must stay untouched' });
+    // The next mode starts from the original bytes again, and the launch record says what was done.
+    expect(seen.continue_unknown.content).toBe(original.toString('utf8'));
+    expect(seen.continue_unknown.flag).toBeNull();
+    expect(fs.readFileSync(path.join(modes, 'abc.json'))).toEqual(original);
+    const launches = JSON.parse(fs.readFileSync(path.join(attempt, 'driver-launches.json'), 'utf8')).launches;
+    expect(launches.find((item: any) => item.mode === 'continue_mode_guard').mode_settings).toMatchObject({ files_found: 1, corrupted: true, restore: { restored: true, matches_original: true } });
+    expect(launches.find((item: any) => item.mode === 'continue_guards').mode_settings).toBeUndefined();
+  });
+
+  test('without exactly one settings file the smoke touches nothing and the mode learns that it was not corrupted', async () => {
+    const dataRoot = temp('modes-none');
+    expect(smoke.corruptModeSettings(dataRoot)).toMatchObject({ files_found: 0, corrupted: false, file: null });
+    fs.mkdirSync(path.join(dataRoot, 'workspace-modes'), { recursive: true });
+    fs.writeFileSync(path.join(dataRoot, 'workspace-modes', 'a.json'), 'a');
+    fs.writeFileSync(path.join(dataRoot, 'workspace-modes', 'b.json'), 'b');
+    const two = smoke.corruptModeSettings(dataRoot);
+    expect(two).toMatchObject({ files_found: 2, corrupted: false });
+    expect(fs.readFileSync(path.join(dataRoot, 'workspace-modes', 'a.json'), 'utf8')).toBe('a');
+    expect(smoke.restoreModeSettings(two)).toMatchObject({ restored: false, matches_original: false });
+    // A restore that cannot write reports the failure instead of claiming success.
+    fs.rmSync(path.join(dataRoot, 'workspace-modes', 'b.json'));
+    const one = smoke.corruptModeSettings(dataRoot);
+    expect(one.corrupted).toBe(true);
+    fs.rmSync(path.join(dataRoot, 'workspace-modes'), { recursive: true, force: true });
+    expect(smoke.restoreModeSettings(one)).toMatchObject({ restored: false, matches_original: false });
+  });
+
+  test('the driver no longer corrupts the settings itself and waits for an idle, ready composer', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const body = source.slice(source.indexOf('async function continueModeGuard'), source.indexOf('async function continueUnknown'));
+    expect(body).not.toMatch(/writeFileSync\(/ );
+    expect(body).toContain('settings_corrupt_at_start');
+    expect(source).not.toContain('A9_BATCH2_DRIVER_PRODUCT_BUSY');
+    expect(source).toMatch(/async function submit\(prompt\) \{\s*await waitFor\(composerReady/);
+    expect(source).toMatch(/async function runPrompt\(token, timeoutMs\) \{\s*await waitIdle\(/);
+    // The two audit follow-ups are the observation itself: they click without waiting and record the composer state.
+    expect((source.match(/await submitRaw\('b2:s01'\)/g) || []).length).toBe(2);
   });
 
   test('the normal-exit tree assertion needs an observed non-empty tree and a working process listing', () => {
@@ -1196,7 +1279,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
 
   test('the layout verdict needs an enabled, visible, reachable continuation card in every layout and the shorter window', () => {
     const control = { hidden: false, inViewport: true, reachable: true };
-    const row = (card: any) => ({ controls: { 'task-prompt': control, 'run-task': control, 'cancel-task': control, card_button: card } });
+    const row = (card: any) => ({ pane_state_ok: true, drawer_open: false, controls: { 'task-prompt': control, 'run-task': control, 'cancel-task': control, card_button: card } });
     const card = { ...control, disabled: false };
     const shorter = (cardButton: any) => ({ inViewport: true, card_button: cardButton });
     const good = driver.evaluateUiLayouts([row(card), row(card)], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true });
@@ -1211,6 +1294,27 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.evaluateUiLayouts([row(null)], shorter(null), { card_found: false }).status).toBe('UNKNOWN');
     expect(driver.evaluateUiLayouts([row(card), row(null)], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('UNKNOWN');
     expect(driver.evaluateUiLayouts([], shorter({ inViewport: true, reachable: true, disabled: false }), { card_found: true }).status).toBe('UNKNOWN');
+  });
+
+  test('an open drawer is judged by its close control, and a pane state that was not reached is never a PASS', () => {
+    const control = { hidden: false, inViewport: true, reachable: true };
+    const covered = { ...control, reachable: false };
+    const card = { ...control, disabled: false };
+    const shorter = { inViewport: true, card_button: { inViewport: true, reachable: true, disabled: false } };
+    const docked = { pane_state_ok: true, drawer_open: false, controls: { 'task-prompt': control, 'run-task': control, 'cancel-task': control, card_button: card } };
+    // The inspector drawer (below 1200 px) covers the composer and the card by design; its close control is what must be reachable.
+    const drawer = (close: any) => ({ pane_state_ok: true, drawer_open: true, controls: { 'task-prompt': covered, 'run-task': covered, 'cancel-task': covered, card_button: { ...covered, disabled: false }, drawer_close: close } });
+    const good = driver.evaluateUiLayouts([docked, drawer(control)], shorter, { card_found: true });
+    expect(good).toMatchObject({ status: 'PASS', bad: 0, card_bad: 0, drawer_rows: 1, docked_rows: 1, state_unobserved: 0 });
+    // A drawer that cannot be closed, or whose close control is missing, fails the layout.
+    expect(driver.evaluateUiLayouts([docked, drawer(covered)], shorter, { card_found: true })).toMatchObject({ status: 'FAIL', bad: 1 });
+    expect(driver.evaluateUiLayouts([docked, drawer(undefined)], shorter, { card_found: true }).status).toBe('FAIL');
+    // A covered composer without an open drawer is still a failure.
+    expect(driver.evaluateUiLayouts([{ ...docked, controls: { ...docked.controls, 'run-task': covered } }], shorter, { card_found: true }).status).toBe('FAIL');
+    // Rows that never reached the wanted pane state, or only drawer rows, cannot carry a PASS.
+    expect(driver.evaluateUiLayouts([docked, { ...docked, pane_state_ok: false }], shorter, { card_found: true })).toMatchObject({ status: 'UNKNOWN', state_unobserved: 1 });
+    expect(driver.evaluateUiLayouts([docked, { ...docked, pane_state_ok: undefined }], shorter, { card_found: true }).status).toBe('UNKNOWN');
+    expect(driver.evaluateUiLayouts([drawer(control)], shorter, { card_found: true }).status).toBe('UNKNOWN');
   });
 
   test('secret, CRLF, paging and status helpers behave on edge input', () => {
@@ -1262,6 +1366,59 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.summarizeToolEnd(ends[1])).toMatchObject({ toolName: 'stop_process', ok: false, error: 'A9_HANDLE_NOT_OWNED' });
     expect(driver.EXIT_BUTTONS).toEqual(['停止后退出', '留给系统后退出', '取消']);
     expect(driver.sha256('a')).toBe(sha('a'));
+  });
+  test('tool end events are classified from the escaped JSON result a real product writes (rehearsal 4)', () => {
+    // The shape is copied from rehearsal 4 evidence: data.result is a JSON string, there is no top-level ok or error.
+    const real = (toolName: string, result: unknown) => event(10, { schemaVersion: 1, toolName, callId: 'c', step: 1, result: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }, 'tool_end');
+    const started = real('start_process', { status: 'background_started', exitCode: null, stdout: '[Background process started; handle sh-1]', stderr: '' });
+    const limit = real('start_process', { status: 'failed', exitCode: null, stdout: '', stderr: '已达到托管后台进程上限 (3)，请先停止已有后台进程' });
+    const unknownHandle = real('read_process_output', { error: { code: 'A9_MANAGED_HANDLE_UNKNOWN', message: 'A9_MANAGED_HANDLE_UNKNOWN' } });
+    const badCursor = real('read_process_output', { error: { code: 'A9_MANAGED_CURSOR_INVALID', message: 'A9_MANAGED_CURSOR_INVALID' } });
+    const entries = real('read_process_output', { handleId: 'sh-1', entries: [], nextCursor: 'x.1.0' });
+    const stopped = real('stop_process', { handleId: 'sh-1', status: 'stopped', exitCode: 1, cleanupRequired: false });
+    // BG-01 judges the four starts, BG-02 the four reads, BG-03 the two stops.
+    expect([started, started, started, limit].map(driver.toolEndFailed)).toEqual([false, false, false, true]);
+    expect([unknownHandle, badCursor, entries, entries].map(driver.toolEndFailed)).toEqual([true, true, false, false]);
+    expect([stopped, stopped].map(driver.toolEndFailed)).toEqual([false, false]);
+    // Command output nested in a structured result never turns a successful call into a failure.
+    expect(driver.toolEndFailed(real('shell', { status: 'completed', exitCode: 0, stdout: '"status": "failed" A9_X_LIMIT', stderr: 'A9_Y_INVALID' }))).toBe(false);
+    // An object result, a plain-text product code and a plain-text success are all classified.
+    expect(driver.toolEndFailed(event(11, { toolName: 'x', result: { error: { code: 'A9_Z' } } }, 'tool_end'))).toBe(true);
+    expect(driver.toolEndFailed(real('read_process_output', 'A9_MANAGED_HANDLE_UNKNOWN'))).toBe(true);
+    expect(driver.toolEndFailed(real('read_process_output', 'all good'))).toBe(false);
+    expect(driver.toolEndFailed(event(12, { toolName: 'x' }, 'tool_end'))).toBe(false);
+    // The summary names the structured status and error code, and keeps enough of the result to read the refusal message.
+    expect(driver.summarizeToolEnd(unknownHandle)).toMatchObject({ toolName: 'read_process_output', ok: null, error: 'A9_MANAGED_HANDLE_UNKNOWN', failed: true });
+    expect(driver.summarizeToolEnd(limit)).toMatchObject({ result_status: 'failed', failed: true });
+    expect(driver.summarizeToolEnd(limit).result_head).toContain('上限');
+    expect(driver.summarizeToolEnd(started)).toMatchObject({ result_status: 'background_started', failed: false, error: null });
+    expect(driver.toolEndResult(event(13, { result: '{not json' }, 'tool_end'))).toEqual({ parsed: null, text: '{not json' });
+  });
+  test('streamed rows are judged once in the live-output blocks, not once in the whole page (rehearsal 4)', () => {
+    const counts = (blocks: number, live: number[], body: number[] = live) => ({ live_blocks: blocks, per_text: live.map((count, index) => ({ text: `t${index}`, live: count, body: body[index] })) });
+    expect(driver.evaluateStreamedOnce(counts(1, [1, 1, 1]), ['a', 'b', 'c'])).toBe(true);
+    // The same text also sits in the tool result detail: two in the page is fine, two in the live blocks is a duplicate.
+    expect(driver.evaluateStreamedOnce(counts(1, [1, 1], [2, 2]), ['a', 'b'])).toBe(true);
+    expect(driver.evaluateStreamedOnce(counts(1, [1, 2]), ['a', 'b'])).toBe(false);
+    expect(driver.evaluateStreamedOnce(counts(2, [1, 1]), ['a', 'b'])).toBe(false);
+    expect(driver.evaluateStreamedOnce(counts(0, [0, 0]), ['a', 'b'])).toBe(false);
+    expect(driver.evaluateStreamedOnce(counts(1, [1]), ['a', 'b'])).toBeNull();
+    expect(driver.evaluateStreamedOnce(null, ['a'])).toBeNull();
+    expect(driver.evaluateStreamedOnce(counts(1, [1]), [])).toBeNull();
+    expect(driver.evaluateStreamedOnce({ live_blocks: undefined, per_text: [{ live: 1 }] }, ['a'])).toBeNull();
+  });
+  test('managed residue items name every live or unconfirmed fact and keep its identifying fields', () => {
+    const facts = [
+      { handleId: 'h1', lastProbeStatus: 'stopped', ownershipState: 'owned' },
+      { handleId: 'h2', lastProbeStatus: 'running', ownershipState: 'owned', pidReusePossible: true },
+      { handleId: 'h3', lastProbeStatus: 'failed', cleanupRequired: true },
+      { handleId: 'h4', lastProbeStatus: 'identity_mismatch' },
+      { handleId: 'h5', lastProbeStatus: 'released' },
+    ];
+    expect(driver.managedResidueItems(facts).map((item: any) => item.handleId)).toEqual(['h2', 'h3', 'h4']);
+    expect(driver.managedResidueItems(undefined)).toEqual([]);
+    expect(driver.managedFactSummary(facts[1])).toEqual({ handleId: 'h2', status: 'running', cleanup_required: false, ownership: 'owned', recovery: null, pid_reuse_possible: true });
+    expect(driver.managedFactSummary(facts[2])).toMatchObject({ handleId: 'h3', status: 'failed', cleanup_required: true });
   });
   test('guard sub-results never turn an unobserved fact into PASS', () => {
     expect(driver.subResult('x', true, 'seen')).toEqual({ name: 'x', status: 'PASS', detail: 'seen' });

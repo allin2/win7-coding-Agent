@@ -62,6 +62,8 @@ using System.Runtime.InteropServices;
 public static class B2Native {
   [DllImport("kernel32.dll", SetLastError = true)]
   public static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
+  [DllImport("kernel32.dll")]
+  public static extern IntPtr GetCurrentProcess();
 }
 "@
 
@@ -79,8 +81,21 @@ function Get-ControllerIdentity {
   $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
   # Job membership is a three-valued fact: 'true', 'false', or 'unknown' when the API call itself failed.
   # An unknown value is never written as false; the request script then refuses the request (the approved value is a boolean).
+  # Rehearsal 4 saw the query fail once with no recorded cause. It is retried up to 5 times, alternating the .NET process handle and the pseudo handle,
+  # and the number of attempts and the last Win32 error are kept so a refusal explains itself. A failure after all attempts stays 'unknown'.
   $inJob = $false
-  $jobQueryOk = [B2Native]::IsProcessInJob([System.Diagnostics.Process]::GetCurrentProcess().Handle, [IntPtr]::Zero, [ref]$inJob)
+  $jobQueryOk = $false
+  $jobAttempts = 0
+  $jobLastError = 0
+  while ((-not $jobQueryOk) -and ($jobAttempts -lt 5)) {
+    $jobAttempts = $jobAttempts + 1
+    if (($jobAttempts % 2) -eq 1) { $jobHandle = [System.Diagnostics.Process]::GetCurrentProcess().Handle } else { $jobHandle = [B2Native]::GetCurrentProcess() }
+    $jobQueryOk = [B2Native]::IsProcessInJob($jobHandle, [IntPtr]::Zero, [ref]$inJob)
+    if (-not $jobQueryOk) {
+      $jobLastError = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+      Start-Sleep -Milliseconds 300
+    }
+  }
   if ($jobQueryOk) { $jobText = $inJob.ToString().ToLower() } else { $jobText = 'unknown' }
   return New-Object PSObject -Property @{
     MachineName = [System.Environment]::MachineName
@@ -90,6 +105,8 @@ function Get-ControllerIdentity {
     SessionId = [System.Diagnostics.Process]::GetCurrentProcess().SessionId
     Elevated = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
     InJob = $jobText
+    InJobAttempts = $jobAttempts
+    InJobLastError = $jobLastError
   }
 }
 
@@ -341,7 +358,9 @@ $verifyArgs = $common + @('argv', ('--request=' + $requestFull), '--format=lines
   ('--actual-machine-name=' + $identity.MachineName), ('--actual-account-sid=' + $identity.AccountSid), ('--actual-integrity-level=' + $identity.Integrity),
   ('--actual-session-id=' + $identity.SessionId), ('--actual-elevated=' + $identity.Elevated.ToString().ToLower()), ('--actual-in-job=' + $identity.InJob))
 $derived = Invoke-Node $verifyArgs
-if ($derived.Code -ne 0) { Fail ('The request was refused: ' + $derived.Out + $derived.Err) 4 }
+$identityText = 'machine=' + $identity.MachineName + ' sid=' + $identity.AccountSid + ' integrity=' + $identity.Integrity + ' session=' + $identity.SessionId + ' elevated=' + $identity.Elevated.ToString().ToLower() +
+  ' in_job=' + $identity.InJob + ' in_job_attempts=' + $identity.InJobAttempts + ' in_job_last_error=' + $identity.InJobLastError
+if ($derived.Code -ne 0) { Fail ('The request was refused: ' + $derived.Out + $derived.Err + ' actual_identity: ' + $identityText) 4 }
 $lines = @($derived.Out -split "`n" | ForEach-Object { $_.TrimEnd("`r") } | Where-Object { $_ -ne '' })
 if ($lines.Count -lt 2) { Fail 'The request script returned no command.' 4 }
 $program = $lines[0]
@@ -357,7 +376,7 @@ $attemptDir = $attemptLine -replace '\\\\', '\'
 
 if ($identity.InJob -eq 'unknown') { $jobJson = 'null' } else { $jobJson = $identity.InJob }
 $identityJson = '{"machine_name":"' + (Json-Escape $identity.MachineName) + '","account_name":"' + (Json-Escape $identity.AccountName) + '","account_sid":"' + $identity.AccountSid +
-  '","integrity_level":"' + $identity.Integrity + '","session_id":' + $identity.SessionId + ',"elevated":' + $identity.Elevated.ToString().ToLower() + ',"in_job":' + $jobJson + '}'
+  '","integrity_level":"' + $identity.Integrity + '","session_id":' + $identity.SessionId + ',"elevated":' + $identity.Elevated.ToString().ToLower() + ',"in_job":' + $jobJson + ',"in_job_attempts":' + $identity.InJobAttempts + ',"in_job_last_error":' + $identity.InJobLastError + '}'
 [System.IO.File]::WriteAllText((Join-Path $attemptDir 'controller-identity.json'), $identityJson + "`n", (New-Object System.Text.UTF8Encoding($false)))
 
 $env:ELECTRON_RUN_AS_NODE = '1'

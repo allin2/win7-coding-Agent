@@ -394,7 +394,7 @@ const DRIVER_MODES = Object.freeze({
   continue_unknown_interrupt: { timeoutMs: 180000, killOnMarker: true },
   continue_unknown: { timeoutMs: 300000 },
   continue_guards: { timeoutMs: 360000 },
-  continue_mode_guard: { timeoutMs: 300000 },
+  continue_mode_guard: { timeoutMs: 300000, corruptModeSettings: true },
   safe_rules: { timeoutMs: 240000 },
   ui_interrupt: { timeoutMs: 180000, killOnMarker: true },
   ui_continue: { timeoutMs: 300000 },
@@ -408,6 +408,35 @@ const DRIVER_PLANS = Object.freeze({
   'p07-safe': ['safe_rules'],
   'p08-ui': ['ui_interrupt', 'ui_continue', 'ui_layouts'],
 });
+
+// The product reads the workspace mode settings once, when it opens the workspace at startup. The unresolved-mode guard (B2-CONT-03) can only be
+// observed when the file is already unreadable at that moment, so the smoke corrupts it before launching the mode and restores the original bytes afterwards.
+// The v2 settings file is the only *.json in workspace-modes that is not a v1 file; anything else is not unique and nothing is touched.
+const CORRUPT_MODE_SETTINGS = '{ "schemaVersion": ';
+function findModeSettingsFile(dataRoot) {
+  const directory = path.join(dataRoot, 'workspace-modes');
+  const names = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => /\.json$/.test(name) && !/\.v1\.json$/.test(name)) : [];
+  return { count: names.length, file: names.length === 1 ? path.join(directory, names[0]) : null };
+}
+function corruptModeSettings(dataRoot) {
+  const found = findModeSettingsFile(dataRoot);
+  const state = { files_found: found.count, corrupted: false, file: found.file, original: null, original_sha256: null, error: null };
+  if (!found.file) return state;
+  try {
+    state.original = fs.readFileSync(found.file);
+    state.original_sha256 = sha256Bytes(state.original);
+    fs.writeFileSync(found.file, CORRUPT_MODE_SETTINGS, 'utf8');
+    state.corrupted = true;
+  } catch (error) { state.error = String(error && error.message ? error.message : error).slice(0, 200); }
+  return state;
+}
+function restoreModeSettings(state) {
+  if (!state || !state.file || !state.original) return { restored: false, matches_original: false, error: state && state.error ? state.error : null };
+  try {
+    fs.writeFileSync(state.file, state.original);
+    return { restored: true, matches_original: sha256Bytes(fs.readFileSync(state.file)) === state.original_sha256, error: null };
+  } catch (error) { return { restored: false, matches_original: false, error: String(error && error.message ? error.message : error).slice(0, 200) }; }
+}
 
 function prepareDriverRuntime(candidateRoot, runRoot) {
   const runtimeRoot = path.join(runRoot, 'driver-electron');
@@ -622,10 +651,19 @@ async function runDriverPhase(ctx, hooks) {
         WIN7AGENT_A9_ELECTRON_SQLITE: path.join(ctx.candidateRoot, 'resources', 'native', 'storage'),
         ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
       };
-      const exit = await launch(runtime, env, { timeoutMs: spec.timeoutMs, killMarker, dialogMarker,
-        clickDialog: (pid) => (hooks && hooks.clickDialog ? hooks.clickDialog(pid, spec.dialogButton) : clickExitDialog(controllerScript, pid, spec.dialogButton)) });
+      const modeSettings = spec.corruptModeSettings ? corruptModeSettings(dataRoot) : null;
+      if (modeSettings) env.A9_BATCH2_MODE_SETTINGS_CORRUPTED = modeSettings.corrupted ? '1' : '0';
+      let exit;
+      try {
+        exit = await launch(runtime, env, { timeoutMs: spec.timeoutMs, killMarker, dialogMarker,
+          clickDialog: (pid) => (hooks && hooks.clickDialog ? hooks.clickDialog(pid, spec.dialogButton) : clickExitDialog(controllerScript, pid, spec.dialogButton)) });
+      } finally {
+        // The next mode must start from the original settings whatever happened to this one.
+        if (modeSettings) modeSettings.restore = restoreModeSettings(modeSettings);
+      }
       launches.push({ mode, code: exit.code, signal: exit.signal, killed_by: exit.killed_by, duration_ms: exit.duration_ms, started_at: exit.started_at, ended_at: exit.ended_at,
-        spawn_error: exit.spawn_error || null, pid: exit.pid, dialog_click: exit.dialog_click || null });
+        spawn_error: exit.spawn_error || null, pid: exit.pid, dialog_click: exit.dialog_click || null,
+        ...(modeSettings ? { mode_settings: { files_found: modeSettings.files_found, corrupted: modeSettings.corrupted, original_sha256: modeSettings.original_sha256, error: modeSettings.error, restore: modeSettings.restore } } : {}) });
       productLog.push(`==== ${mode} (exit=${exit.code}; killed_by=${exit.killed_by}) ====\n${exit.stdout}\n${exit.stderr}\n`);
       let driverResult = null;
       if (fs.existsSync(driverResultFile)) { try { driverResult = JSON.parse(fs.readFileSync(driverResultFile, 'utf8')); } catch (_error) { driverResult = null; } }
@@ -733,6 +771,7 @@ module.exports = {
   main, createContext, runEnvironmentPhase, runDriverPhase, runPostflightPhase, finishPhase, applyAssertions, writeEvidence,
   collectEnvironment, evaluateEnvironment, listProcesses, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
   ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, launchDriver, realExec, MIN_FREE_BYTES,
+  CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
   chainIdentityAssertion, finishChainEvidence, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
 };
 

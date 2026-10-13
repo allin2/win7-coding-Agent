@@ -186,15 +186,34 @@ function newProcesses(baseline, current) {
 function toolEndsFor(events, toolName) {
   return (events || []).filter((event) => event.eventType === 'tool_end' && eventData(event).toolName === toolName);
 }
+// A product tool_end carries its result as an escaped JSON string in data.result (rehearsal 4: {"toolName":"start_process","step":4,"result":"{\n  \"status\": \"failed\", ...}"}),
+// so status and error code are read from the parsed result. A result that is not JSON is plain text.
+function toolEndResult(event) {
+  const raw = eventData(event).result;
+  if (raw && typeof raw === 'object') return { parsed: raw, text: JSON.stringify(raw) };
+  if (typeof raw !== 'string') return { parsed: null, text: '' };
+  try {
+    const parsed = JSON.parse(raw);
+    return { parsed: parsed && typeof parsed === 'object' ? parsed : null, text: raw };
+  } catch (_error) { return { parsed: null, text: raw }; }
+}
+const FAILED_RESULT_STATUS = /^(error|failed|rejected)$/;
+const isFailedStatus = (value) => typeof value === 'string' && FAILED_RESULT_STATUS.test(value);
+const errorCodeOf = (value) => (value ? String(value.code || value).slice(0, 80) : null);
 function summarizeToolEnd(event) {
   const data = eventData(event);
-  const text = JSON.stringify(data);
-  return { eventId: event.eventId, toolName: data.toolName, ok: data.ok === undefined ? null : data.ok, error: data.error ? String(data.error.code || data.error).slice(0, 80) : null, head: text.slice(0, 200) };
+  const result = toolEndResult(event);
+  const parsed = result.parsed;
+  return { eventId: event.eventId, toolName: data.toolName, ok: data.ok === undefined ? null : data.ok, error: errorCodeOf(data.error) || (parsed ? errorCodeOf(parsed.error) : null),
+    result_status: parsed && typeof parsed.status === 'string' ? parsed.status : null, failed: toolEndFailed(event), result_head: result.text.slice(0, 300), head: JSON.stringify(data).slice(0, 200) };
 }
 function toolEndFailed(event) {
   const data = eventData(event);
-  const text = JSON.stringify(data);
-  return data.ok === false || Boolean(data.error) || /"status"\s*:\s*"(error|failed|rejected)"/.test(text) || /A9_[A-Z_]*(INVALID|LIMIT|OWNER|EXPIRED|REJECT)/.test(text);
+  if (data.ok === false || Boolean(data.error) || isFailedStatus(data.status)) return true;
+  const result = toolEndResult(event);
+  // A structured result is judged by its own fields only: command output nested in it must not be mistaken for a tool failure.
+  if (result.parsed) return result.parsed.ok === false || Boolean(result.parsed.error) || isFailedStatus(result.parsed.status);
+  return /A9_[A-Z_]*(INVALID|LIMIT|OWNER|EXPIRED|REJECT|UNKNOWN)/.test(result.text);
 }
 function normalizeCrlf(text) { return String(text || '').replace(/\r\n/g, '\n'); }
 // Combines sub-observations: any FAIL fails, otherwise any UNKNOWN is unknown, otherwise all PASS.
@@ -261,18 +280,27 @@ const CARD_BUTTON_BUSY = '正在继续';
 // B2-UI-01: the whole journey is judged from observed facts; a missing observation stays UNKNOWN.
 // B2-UI-02 verdict from the layout probes. A control is usable when it is visible, inside the viewport and not covered; the continuation
 // card button must also be enabled. No rows, or no continuation card in some layout, leaves the case UNKNOWN unless a base control already fails.
+// Rows are the probed pane layouts. A row whose pane state is not the wanted one was not the layout it claims (null → never PASS).
+// An open drawer is a modal overlay (inspector below 1200 px, rail below 800 px): its backdrop covers the composer by design, so such a row is judged by
+// the drawer's close control; the composer and the continuation card are judged in the rows where no drawer is open.
 function evaluateUiLayouts(rows, shorter, cardFacts) {
   const list = Array.isArray(rows) ? rows : [];
   const usable = (item) => Boolean(item) && !item.hidden && item.inViewport === true && item.reachable === true;
   const cardUsable = (item) => usable(item) && item.disabled === false;
-  const bad = list.filter((row) => ['task-prompt', 'run-task'].some((id) => !usable(row.controls && row.controls[id])));
-  const cardBad = list.filter((row) => !cardUsable(row.controls && row.controls.card_button));
+  const drawerRows = list.filter((row) => row.drawer_open === true);
+  const dockedRows = list.filter((row) => row.drawer_open !== true);
+  const badDocked = dockedRows.filter((row) => ['task-prompt', 'run-task'].some((id) => !usable(row.controls && row.controls[id])));
+  const badDrawer = drawerRows.filter((row) => !usable(row.controls && row.controls.drawer_close));
+  const bad = [...badDocked, ...badDrawer];
+  const cardBad = dockedRows.filter((row) => !cardUsable(row.controls && row.controls.card_button));
+  const stateUnobserved = list.filter((row) => row.pane_state_ok !== true);
   const shorterCard = shorter && shorter.card_button ? shorter.card_button : null;
   const shorterCardOk = Boolean(shorterCard) && shorterCard.inViewport === true && shorterCard.reachable === true && shorterCard.disabled === false;
-  const cardObserved = Boolean(cardFacts && cardFacts.card_found) && list.length > 0 && list.every((row) => row.controls && row.controls.card_button) && Boolean(shorterCard);
+  const cardObserved = Boolean(cardFacts && cardFacts.card_found) && dockedRows.length > 0 && dockedRows.every((row) => row.controls && row.controls.card_button) && Boolean(shorterCard);
   const baseOk = list.length > 0 && bad.length === 0 && Boolean(shorter) && shorter.inViewport === true;
-  const status = list.length > 0 && !baseOk || (cardObserved && (cardBad.length > 0 || !shorterCardOk)) ? 'FAIL' : baseOk && cardObserved ? 'PASS' : 'UNKNOWN';
-  return { status, bad: bad.length, card_bad: cardBad.length, card_observed: cardObserved, shorter_card_ok: shorterCardOk, base_ok: baseOk };
+  const status = list.length > 0 && !baseOk || (cardObserved && (cardBad.length > 0 || !shorterCardOk)) ? 'FAIL'
+    : baseOk && cardObserved && stateUnobserved.length === 0 ? 'PASS' : 'UNKNOWN';
+  return { status, bad: bad.length, card_bad: cardBad.length, card_observed: cardObserved, shorter_card_ok: shorterCardOk, base_ok: baseOk, drawer_rows: drawerRows.length, docked_rows: dockedRows.length, state_unobserved: stateUnobserved.length };
 }
 function evaluateUiJourney(f) {
   const facts = f || {};
@@ -304,6 +332,24 @@ function evaluateUiJourney(f) {
     space ? `events_total=${space.continue_events_total}; ipc_calls=${space.ipc_continue_calls_total}; second_turn=${space.second_turn_status}` : 'Space retry not observed'));
   return subs;
 }
+
+// Streamed rows are counted where the product renders them: the live-output block of the tool call (pre.shell-live-output, one per call).
+// The same text also appears in the tool result detail and the raw output panel; those places are not duplicates of the rows (rehearsal 4: whole-page count was 2).
+// Missing counts are not observed (null); a block count other than one, or a text not exactly once in the blocks, is a violated expectation (false).
+function evaluateStreamedOnce(counts, expectedTexts) {
+  const texts = Array.isArray(expectedTexts) ? expectedTexts : [];
+  if (!counts || !Array.isArray(counts.per_text) || counts.per_text.length !== texts.length || !Number.isSafeInteger(counts.live_blocks) || texts.length === 0) return null;
+  return counts.live_blocks === 1 && counts.per_text.every((item) => item && item.live === 1);
+}
+
+// Managed process facts that still count as live work or unconfirmed cleanup (the same states the product uses to block a conversation switch).
+const ACTIVE_MANAGED_STATES = Object.freeze(['running', 'starting', 'running_unknown', 'identity_mismatch']);
+function managedResidueItems(managedProcesses) {
+  return (Array.isArray(managedProcesses) ? managedProcesses : []).filter((item) => item && (ACTIVE_MANAGED_STATES.includes(item.lastProbeStatus) || item.cleanupRequired === true));
+}
+// One record per fact, enough to tell a lagging status from a real leftover without reading the database.
+const managedFactSummary = (item) => ({ handleId: item.handleId, status: item.lastProbeStatus, cleanup_required: item.cleanupRequired === true, ownership: item.ownershipState || null,
+  recovery: item.recoveryStatus || null, pid_reuse_possible: item.pidReusePossible === true });
 
 // Pages through events with beforeEventId; the union must equal the full list in order.
 function evaluatePaging(full, pages) {
@@ -413,6 +459,35 @@ async function runDriver() {
       cancelHidden: cancel ? cancel.hidden : null, cancelLabel: cancel ? cancel.textContent : null,
       cards: document.querySelectorAll('section.continuation-card').length, streamScroll: stream ? stream.scrollTop : null };
   })()`);
+  // Counts each text in the live-output blocks and in the whole page, and lists where the first texts are rendered (tag, id, class, parent).
+  const domOutputCounts = (texts) => exec(`(() => {
+    const texts = ${JSON.stringify(texts)};
+    const blocks = Array.from(document.querySelectorAll('pre.shell-live-output'));
+    const body = document.body.textContent;
+    const countIn = (haystack, needle) => haystack.split(needle).length - 1;
+    const places = (text) => Array.from(document.querySelectorAll('body *')).filter((node) => Array.from(node.childNodes).some((child) => child.nodeType === 3 && child.textContent.includes(text))).slice(0, 8)
+      .map((node) => ({ tag: node.tagName, id: node.id || null, cls: String(node.className || '').slice(0, 60), parent: node.parentElement ? node.parentElement.tagName + '.' + String(node.parentElement.className || '').slice(0, 40) : null }));
+    const stream = document.getElementById('a9-task-stream');
+    return { live_blocks: blocks.length, per_text: texts.map((text) => ({ text, live: blocks.reduce((sum, block) => sum + countIn(block.textContent, text), 0), body: countIn(body, text) })),
+      locations: texts.slice(0, 3).map((text) => ({ text, places: places(text) })), stream_excerpt: stream ? stream.textContent.slice(0, 400) : null };
+  })()`);
+  // Waits until every text is rendered at least once, holds briefly, then counts again, so a count taken before the page finished rendering is not a verdict.
+  async function settledOutputCounts(texts, timeoutMs) {
+    const started = Date.now();
+    const samples = [];
+    let counts = await domOutputCounts(texts);
+    samples.push({ t: 0, blocks: counts.live_blocks, live: counts.per_text.map((item) => item.live) });
+    while (!counts.per_text.every((item) => item.live >= 1) && Date.now() - started < timeoutMs) {
+      await sleep(500);
+      counts = await domOutputCounts(texts);
+      samples.push({ t: Date.now() - started, blocks: counts.live_blocks, live: counts.per_text.map((item) => item.live) });
+    }
+    const presentAt = Date.now() - started;
+    await sleep(800);
+    counts = await domOutputCounts(texts);
+    samples.push({ t: Date.now() - started, blocks: counts.live_blocks, live: counts.per_text.map((item) => item.live) });
+    return { counts, present_after_ms: presentAt, waited_ms: Date.now() - started, samples: samples.slice(-14), once: evaluateStreamedOnce(counts, texts) };
+  }
   // The scrolling element of the task stream is #conversation, not #a9-task-stream.
   const scrollProbe = (toTop) => exec(`(() => { const c = document.getElementById('conversation'); if (!c) return null; if (${toTop === true}) c.scrollTop = 0;
     return { top: c.scrollTop, height: c.scrollHeight, client: c.clientHeight }; })()`);
@@ -475,8 +550,17 @@ async function runDriver() {
     await setFixture({ shellKind: snap.shell && snap.shell.kind === 'powershell' ? 'powershell' : 'cmd' });
     return snap;
   }
-  async function submit(prompt) {
+  // The send button is hidden while the renderer still treats a Turn as running and disabled while the composer is blocked.
+  // A click on it is ignored silently in those states, so a submission waits until a user could click it (rehearsal 4: p04 stopped at the first check).
+  const composerState = () => exec(`(() => { const send = document.getElementById('run-task'); const prompt = document.getElementById('task-prompt');
+    return { send_hidden: send ? send.hidden : null, send_disabled: send ? send.disabled : null, prompt_disabled: prompt ? prompt.disabled : null }; })()`);
+  const composerReady = async () => { const state = await composerState(); return state.send_hidden === false && state.send_disabled === false && state.prompt_disabled === false; };
+  async function submitRaw(prompt) {
     await exec(`(() => { const p = document.getElementById('task-prompt'); p.value = ${JSON.stringify(prompt)}; p.dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('run-task').click(); return true; })()`);
+  }
+  async function submit(prompt) {
+    await waitFor(composerReady, 30000, 'composer ready');
+    await submitRaw(prompt);
   }
   // Idle means no Turn is running. A managed background process keeps controls.canStop true, so only stopKind 'turn' counts as busy.
   const waitIdle = (timeoutMs, label) => waitFor(async () => { const snap = await snapshot(); return snap.controls && snap.controls.stopKind !== 'turn' && snap.agentStatus !== 'running' ? snap : null; }, timeoutMs, label || 'idle');
@@ -542,12 +626,13 @@ async function runDriver() {
   }
   const terminalReached = (evts) => evts.some((e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed');
 
+  // The previous Turn's end event is persisted before the runtime clears its controller and before the renderer lets go of the Turn,
+  // so a prompt waits for idle (no running Turn) and a ready composer instead of failing on the first read (rehearsal 4, p04).
   async function runPrompt(token, timeoutMs) {
-    await newConversationIfBusy();
+    await waitIdle(30000, `idle before ${token}`);
     await submit(token);
     return observeUntil(async (evts) => terminalReached(evts), timeoutMs || 120000, token);
   }
-  async function newConversationIfBusy() { const snap = await snapshot(); if (snap.controls && snap.controls.canStop) throw new Error('A9_BATCH2_DRIVER_PRODUCT_BUSY'); }
 
   // The smoke kills this process tree on <mode>.ready; the facts are persisted first so the next process can compare.
   async function interruptAt(kind, preName, prelude) {
@@ -877,14 +962,16 @@ async function runDriver() {
       const turnId = lastTurnOf(evts);
       const starts = evts.filter((e) => e.turnId === turnId && e.eventType === 'tool_start').length;
       const completed = evts.some((e) => e.turnId === turnId && e.eventType === 'turn_completed');
-      await submit('b2:s01');
+      // The follow-up is the observation: after a stopped audit the product may refuse it, so the click is not preceded by a wait; the composer state is recorded.
+      const composerBefore = await composerState();
+      await submitRaw('b2:s01');
       await sleep(4000);
       const c2 = await counters();
       const evts2 = (await events(conv, 1000)).events;
       const laterShell = evts2.filter((e) => e.eventType === 'tool_start' && eventData(e).toolName === 'shell').length;
       const dom = await domState();
       out('s03t-terminal-audit.json', { requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, tool_starts_in_turn: starts, turn_completed_persisted: completed,
-        later_shell_dispatches: laterShell, outcome_text: dom.outcome, turn_status: turnStatus(turnId) });
+        later_shell_dispatches: laterShell, outcome_text: dom.outcome, turn_status: turnStatus(turnId), composer_before_next_submit: composerBefore });
       record('B2-S03T-TERMINAL-AUDIT', 1, starts === 3 && !completed && c2.requests === c1.requests && laterShell === 0 ? 'PASS' : 'FAIL',
         `tool_starts=${starts}; turn_completed_persisted=${completed}; requests=${c0.requests}->${c1.requests}->${c2.requests}; later_shell_dispatches=${laterShell}`);
     } finally {
@@ -903,8 +990,9 @@ async function runDriver() {
     const frames = framesFromEvents(streamed.events);
     const texts = frames.map((frame) => frame.text.trim()).filter(Boolean);
     await reloadRenderer();
-    const afterRefresh = await domState();
-    const onceEach = texts.map((text) => ({ text, count: afterRefresh.present.split(text).length - 1 }));
+    const refreshView = await settledOutputCounts(texts, 15000);
+    await screenshot('s06-after-refresh.png');
+    const onceEach = texts.map((text, index) => ({ text, count: refreshView.counts.per_text[index].live, page_count: refreshView.counts.per_text[index].body }));
     const full = (await events(conv, 1000)).events;
     const pages = [];
     let before;
@@ -921,7 +1009,7 @@ async function runDriver() {
     await sleep(1200);
     const afterReturn = await domState();
     const returned = texts.every((text) => afterReturn.present.includes(text));
-    const part = { conversationId: conv, other_conversation: other, texts, once_each_after_refresh: onceEach, paging, view_return_ok: returned };
+    const part = { conversationId: conv, other_conversation: other, texts, once_each_after_refresh: onceEach, refresh_view: refreshView, paging, view_return_ok: returned };
     out('s06-part1.json', part);
 
     // BG-01: three allowed, the fourth rejected.
@@ -967,10 +1055,21 @@ async function runDriver() {
     await waitIdle(180000, 'bg-ready-fail turn');
     const failEvents = (await events(convFail, 1000)).events;
     const startFail = toolEndsFor(failEvents, 'start_process');
-    const snapFail = await snapshot();
-    const residue = snapFail.managedProcesses.filter((item) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus) || item.cleanupRequired === true);
+    // Rehearsal 4 read residue=1 and kept no item, so the cause is UNKNOWN. A lagging status of the fast-failing process is one candidate.
+    // Residue is therefore judged after a bounded settle (20 s), and the first read, every later read and the settled facts are all recorded.
+    const settle = [];
+    const settleStarted = Date.now();
+    let snapFail = await snapshot();
+    settle.push({ t: 0, residue: managedResidueItems(snapFail.managedProcesses).map(managedFactSummary) });
+    while (managedResidueItems(snapFail.managedProcesses).length > 0 && Date.now() - settleStarted < 20000) {
+      await sleep(500);
+      snapFail = await snapshot();
+      settle.push({ t: Date.now() - settleStarted, residue: managedResidueItems(snapFail.managedProcesses).map(managedFactSummary) });
+    }
+    const residue = managedResidueItems(snapFail.managedProcesses);
     out('bg03-stop-release.json', { stops: stops.map(summarizeToolEnd), after_stop_facts: snapStop.managedProcesses.map((item) => ({ handleId: item.handleId, status: item.lastProbeStatus, ownership: item.ownershipState })),
-      ready_fail: startFail.map(summarizeToolEnd), residue_after_fail: residue.length });
+      ready_fail: startFail.map(summarizeToolEnd), residue_after_fail: residue.length, residue_items: residue.map(managedFactSummary), settle_samples: settle.slice(-30), settled_after_ms: residue.length === 0 ? settle[settle.length - 1].t : null,
+      all_facts_after_fail: snapFail.managedProcesses.map(managedFactSummary) });
     const stopsOk = stops.length === 2 && !toolEndFailed(stops[0]) && !/crash|exception|TypeError/i.test(JSON.stringify(eventData(stops[1])));
     const afterStopClean = snapStop.managedProcesses.every((item) => !['running', 'starting'].includes(item.lastProbeStatus));
     record('B2-BG-03-STOP-RELEASE-EXIT', 1, stopsOk && afterStopClean && startFail.length === 1 && residue.length === 0 ? 'PASS' : 'FAIL',
@@ -990,15 +1089,17 @@ async function runDriver() {
     const part = readJsonFile('s06-part1.json');
     await bootstrap();
     await activateConversation(part.conversationId);
-    await sleep(1500);
-    const dom = await domState();
+    const restartView = await settledOutputCounts(part.texts, 15000);
+    await screenshot('s06-after-restart.png');
+    const restartSnap = await snapshot();
     const frames = framesFromEvents((await events(part.conversationId, 1000)).events);
     const restartTexts = frames.map((frame) => frame.text.trim()).filter(Boolean);
     const sameRows = JSON.stringify(restartTexts) === JSON.stringify(part.texts);
-    const once = part.texts.map((text) => ({ text, count: dom.present.split(text).length - 1 }));
-    const refreshOnce = part.once_each_after_refresh.every((item) => item.count === 1);
-    const restartOnce = once.every((item) => item.count === 1);
-    out('s06-refresh-paging.json', { part1: part, restart: { rows_equal: sameRows, once_each: once }, refresh_once: refreshOnce, paging_ok: part.paging.ok, view_return_ok: part.view_return_ok });
+    const once = part.texts.map((text, index) => ({ text, count: restartView.counts.per_text[index].live, page_count: restartView.counts.per_text[index].body }));
+    const refreshOnce = part.refresh_view ? part.refresh_view.once === true : false;
+    const restartOnce = restartView.once === true;
+    out('s06-refresh-paging.json', { part1: part, restart: { rows_equal: sameRows, once_each: once, view: restartView, active_conversation_is_streamed: restartSnap.activeConversationId === part.conversationId,
+      timeline_tool_output_rows: (restartSnap.timeline || []).filter((item) => item.type === 'tool_output').length }, refresh_once: refreshOnce, paging_ok: part.paging.ok, view_return_ok: part.view_return_ok });
     record('B2-S06-REFRESH-PAGING-RESTART', 1, refreshOnce && restartOnce && part.paging.ok && part.view_return_ok && sameRows ? 'PASS' : 'FAIL',
       `refresh_once=${refreshOnce}; paging=${part.paging.ok}; view_return=${part.view_return_ok}; restart_rows_equal=${sameRows}; restart_once=${restartOnce}`);
   }
@@ -1126,25 +1227,33 @@ async function runDriver() {
   }
 
   // CONT-03 second assertion, mode part: an unreadable mode settings file must leave the real interrupted task blocked.
+  // The product reads the mode settings file once, when it opens the workspace at startup (restoreActiveWorkspace). The smoke therefore corrupts the file
+  // BEFORE it launches this mode and restores the original bytes after the process is gone; corrupting it from here, after startup, only reaches the
+  // continue-time drift check (rehearsal 4: mode_after_open=full_access, error A9_CONTINUE_MODE_DRIFT).
   async function continueModeGuard() {
     const pre = readJsonFile('cont-unknown-pre.json');
     const subs = [];
     const note = {};
     const found = findModeSettingsFile(dataRoot);
     note.settings_files = found.count;
+    note.smoke_reported_corruption = env.A9_BATCH2_MODE_SETTINGS_CORRUPTED || null;
     if (!found.file) {
       subs.push(subResult('mode_diagnostics', null, `expected exactly one mode settings file, found ${found.count}`));
       out('cont03-part-mode.json', { subs, note });
       return;
     }
-    const file = found.file;
-    const original = fs.readFileSync(file);
+    note.settings_corrupt_at_start = fs.readFileSync(found.file, 'utf8') === CORRUPT_MODE_SETTINGS;
+    if (!note.settings_corrupt_at_start) {
+      subs.push(subResult('mode_diagnostics', null, 'the mode settings file was not corrupt when the product started; the unresolved-mode guard cannot be judged'));
+      out('cont03-part-mode.json', { subs, note });
+      return;
+    }
     try {
       await waitFor(() => exec('document.readyState === "complete"'), 30000, 'renderer ready');
-      fs.writeFileSync(file, CORRUPT_MODE_SETTINGS, 'utf8');
       await selectWorkspace();
       const snap = await snapshot();
       note.mode_after_open = snap.mode === undefined ? 'undefined' : snap.mode;
+      note.mode_diagnostics_in_snapshot = snap.modeDiagnostics || null;
       await activateConversation(pre.conversationId);
       const recovery = await waitFor(() => findRecovery(pre.taskId), 45000, 'recovery fact under unresolved mode');
       await reloadRenderer();
@@ -1166,10 +1275,8 @@ async function runDriver() {
       `reason=${note.recovery.blockedReason}; button_disabled=${card && card.disabled}; error=${note.error}; requests=${c0.requests}->${c1.requests}; continue_events=${events1.length}`));
     } catch (error) {
       subs.push(subResult('mode_diagnostics', null, `journey stopped before it finished: ${String(error && error.message ? error.message : error).slice(0, 300)}`));
-    } finally {
-      try { fs.writeFileSync(file, original); note.settings_restored = true; } catch (error) { note.settings_restored = false; note.restore_error = String(error && error.message ? error.message : error).slice(0, 200); }
     }
-    out('cont03-part-mode.json', { subs, note, corruption: 'the mode settings file was replaced by truncated JSON before the workspace was opened, then restored from its original bytes' });
+    out('cont03-part-mode.json', { subs, note, corruption: 'the mode settings file was replaced by truncated JSON by the smoke before this process started, and is restored by the smoke from its original bytes after this process exits' });
   }
 
   async function continueUnknown() {
@@ -1221,12 +1328,13 @@ async function runDriver() {
       const turnId = lastTurnOf(evts);
       const toolEnds = evts.filter((e) => e.turnId === turnId && e.eventType === 'tool_end').length;
       const row = dbAll('SELECT status, outcome_json FROM a9_turns WHERE turn_id = ?', turnId)[0] || {};
-      await submit('b2:s01');
+      const composerBefore = await composerState();
+      await submitRaw('b2:s01');
       await sleep(4000);
       const c2 = await counters();
       const dom = await domState();
       out('safe02-audit-hard-stop.json', { file_written_on_disk: fileWritten, tool_end_events_persisted: toolEnds, turn_status: row.status || null, outcome_json: String(row.outcome_json || '').slice(0, 400),
-        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, outcome_text: dom.outcome });
+        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, outcome_text: dom.outcome, composer_before_next_submit: composerBefore });
       const auditFlag = /A9_AUDIT_PERSISTENCE_FAILED|auditIncomplete/.test(`${row.outcome_json || ''}${dom.present}`);
       record('B2-SAFE-02-AUDIT-HARD-STOP', 1, fileWritten && toolEnds === 0 && auditFlag && row.status !== 'completed' && c2.requests === c1.requests ? 'PASS' : 'FAIL',
         `file_written=${fileWritten}; tool_end_persisted=${toolEnds}; audit_flag_visible=${auditFlag}; turn_status=${row.status}; requests=${c0.requests}->${c1.requests}->${c2.requests}`);
@@ -1335,8 +1443,10 @@ async function runDriver() {
       await sleep(600);
       for (const rail of [false, true]) {
         for (const inspector of [false, true]) {
-          await exec(`(() => { const wb = document.querySelector('.workbench'); const want = ${rail}; if (wb && wb.classList.contains('rail-closed') === want) { const n = document.getElementById('open-navigation'); if (n) n.click(); }
-            const ins = document.getElementById('inspector'); const open = ins && ins.classList.contains('open'); if (${inspector} !== Boolean(open)) { const t = document.getElementById(${inspector} ? 'open-inspector' : 'close-inspector'); if (t) t.click(); } return true; })()`);
+          // Both toggles flip on click, and aria-expanded is kept in step with the state in desktop and drawer mode alike; click only when the state differs from the wanted one.
+          await exec(`(() => { const isOpen = (id) => { const b = document.getElementById(id); return Boolean(b) && b.getAttribute('aria-expanded') === 'true'; };
+            const nav = document.getElementById('open-navigation'); if (nav && isOpen('open-navigation') !== ${!rail}) nav.click();
+            const ins = document.getElementById('open-inspector'); if (ins && isOpen('open-inspector') !== ${inspector}) ins.click(); return true; })()`);
           await sleep(500);
           const probe = await exec(`(() => {
             const ids = ['task-prompt', 'run-task', 'cancel-task'];
@@ -1350,9 +1460,17 @@ async function runDriver() {
             for (const id of ids) { const el = document.getElementById(id); if (!el) { out[id] = null; continue; } const r = el.getBoundingClientRect();
               const hit = r.width > 0 && r.height > 0 ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
               out[id] = { hidden: el.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === el || el.contains(hit))) }; }
-            return { innerWidth: window.innerWidth, innerHeight: window.innerHeight, controls: out };
+            const isOpen = (id) => { const b = document.getElementById(id); return b ? b.getAttribute('aria-expanded') === 'true' : null; };
+            const railOpen = isOpen('open-navigation'); const inspectorOpen = isOpen('open-inspector');
+            // An open drawer (inspector below 1200 px, rail below 800 px) is a modal overlay: its backdrop covers the composer by design, so the drawer's own close control is what must be reachable.
+            const drawerOpen = (inspectorOpen === true && window.innerWidth < 1200) || (railOpen === true && window.innerWidth < 800);
+            const closeId = inspectorOpen === true && window.innerWidth < 1200 ? 'close-inspector' : 'close-navigation';
+            if (drawerOpen) { const el = document.getElementById(closeId); if (!el) out.drawer_close = null; else { const r = el.getBoundingClientRect();
+              const hit = r.width > 0 && r.height > 0 ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+              out.drawer_close = { id: closeId, hidden: el.hidden || r.width === 0, inViewport: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight, reachable: Boolean(hit && (hit === el || el.contains(hit))) }; } }
+            return { innerWidth: window.innerWidth, innerHeight: window.innerHeight, rail_open_actual: railOpen, inspector_open_actual: inspectorOpen, drawer_open: drawerOpen, controls: out };
           })()`);
-          rows.push({ zoom, rail_closed: rail, inspector_open: inspector, ...probe });
+          rows.push({ zoom, rail_closed: rail, inspector_open: inspector, pane_state_ok: probe.rail_open_actual === !rail && probe.inspector_open_actual === inspector, ...probe });
         }
       }
     }
@@ -1436,7 +1554,7 @@ async function runDriver() {
 }
 
 module.exports = {
-  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, secretLeak,
+  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
