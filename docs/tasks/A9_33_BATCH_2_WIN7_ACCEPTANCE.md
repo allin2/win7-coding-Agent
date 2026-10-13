@@ -372,3 +372,69 @@ A9-33 的产品、套件实现、构建、Win10 与 Win7 均 NOT_PERFORMED。
 - 新套件数据格式（请求、账本、阶段结果）仍无 ADR；写入前须先核号（隔离树到 0237，主工作区到 0235）。
 
 本节不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不冻结候选，不签关口 A 或 B，不推送或合并。Win10、Win7 与完整 Alpha 2 均 NOT_PERFORMED。未在 Win7 实机验证。
+
+### 6.10 codex 第一阶段复核与修复轮（2026-10-13）
+
+结论：codex 对实现提交 `905bf760…` 的第一阶段复核结论是“不建议进入预演授权评审”：0 个 P0、8 组 P1、3 组 P2，路径白名单无越界。负责人选 A，授权开修复轮并确认 P1-6 收窄。
+执行代理已在 §6.1 的 20 个路径内修复全部 11 组发现，并为每组补回归用例。修复未提交；复核者尚未重审。
+证据层级为开发机。复核绑定 `905bf760…`；修复绑定未提交工作树，基线为文档提交 `d027af7d…`。真实 Electron、PowerShell、Win10、Win7 均 `NOT_PERFORMED`，未在 Win7 实机验证。
+
+复核过程：codex 在负责人另开的无头会话中运行，会话 `01a1330d…`，只读复核，在自己的目录复算。执行代理逐条对照源码，确认 11 组发现全部属实。
+codex 的 jest 有 4 项失败，原因是它的沙箱禁止回环监听（`EPERM`），不是产品缺陷；执行代理在无沙箱环境实测通过。
+codex 在复核中读取了自己的 `~/.codex` 记忆与指引目录，这属于独立性披露，不影响结论的可复算性。
+证据归档在 `.acceptance/a9-33-review/codex-stage1-20261013/`（被忽略，含 `SHA256SUMS.txt`）。
+
+| 编号 | 发现 | 修复（均在 §6.1 路径内） |
+|---|---|---|
+| P1-1 | p09 报告阶段的请求没有 `--release-authority` 与 pin 参数，报告脚本无法启动 | `argvForRequest` 对完整性与报告两个阶段都传授权路径和 pin；`externalsNeeded` 规定报告阶段必须带授权文件，缺失或在候选内即拒绝 |
+| P1-2 | B2-CH-05 第 2 条期望 `cancelled`，产品把被停止的继续轮次存为 `interrupted` | 驱动以 `retryableStopStatus` 接受 `interrupted` 或 `cancelled`；新用例用真实 `createA9AgentRuntime` 停止继续轮次，核对数据库为 `interrupted`、任务仍可继续且修订已更新 |
+| P1-3 | 驱动 `ERROR` 或非零退出时，已记录 PASS 的断言仍可使阶段 PASS | `finalizePhaseResult` 在带失败类时把 PASS 降为 FAIL，首失败写入失败类 |
+| P1-4 | 消费请求先校验后追加，并发或重放可重复消费 | `consumeRequest` 先用非递归 `mkdir` 独占该次尝试目录，失败返回 `A9_BATCH2_REQUEST_ALREADY_CLAIMED`；校验失败而未记录时释放空目录；崩溃遗留的占用保持索引关闭。新用例用两个并发进程验证只有一个成功 |
+| P1-5 | `complete` 不核对账本，报告器接受没有消费记录的 PASS | `completeRequest` 要求同索引、阶段、运行、摘要的消费记录，只允许完成一次，PASS 需要结果文件为 PASS；报告器新增 `LEDGER_COMPLETION_ORPHAN` 与必需负例 `NEG-ORPHAN-COMPLETION` |
+| P1-6 | 退出检查在进程表查询失败时返回空，树为空也能 PASS；“同实例退出码”从外部不可观测 | 见下方收窄；`finishChainEvidence` 要求退出前树已观察、非空、列表成功，否则 `UNKNOWN` |
+| P1-7 | `guardRefused` 对缺失计数判相等；DOM 帧先被数据库帧过滤，先显示后落盘无法发现 | 四个计数必须是非负安全整数，否则结果为 `null`（`UNKNOWN`）；`evaluateDomAfterDb` 读存储的落盘时间，检出“先显示后落盘”、DOM 中数据库没有的帧和流区幽灵令牌 |
+| P1-8 | 控制器丢弃 `IsProcessInJob` 的返回值，查询失败时按“不在 Job”处理 | 返回值进入 `$jobQueryOk`，失败写 `unknown`，身份 JSON 写 `null`；请求脚本把 `unknown` 读作 `null`，与批准的布尔值不等，请求被拒（`TARGET_MISMATCH:in_job`） |
+| P2-1 | M2（UNKNOWN 晋级 PASS）与 M5（build-kit `input_lock_sha256` 改一位）反例存活 | 新用例覆盖 UNKNOWN、NOT_PERFORMED 不得使用例或阶段通过及伪造 PASS；生产者测试新增 build-kit 四个字段的变异，直接断言生产者拒绝。执行代理重放了 M2，变异被杀死；M5 未重放，只有上述直接断言 |
+| P2-2 | 请求的 `bindings`、`target`、`external_files` 条目未封闭额外键 | 结构校验新增 `BINDING_UNKNOWN_FIELD`、`TARGET_UNKNOWN_FIELD`、`EXTERNAL_UNKNOWN_FIELD` |
+| P2-3 | B2-UI-02 未观察继续卡，且把页面缩放称为 DPI | 驱动在各布局注入继续卡并核对其按钮可用，没有继续卡记 `UNKNOWN`；断言文字改为“页面缩放，不是 Windows DPI 缩放” |
+
+### P1-6 收窄（负责人 2026-10-13 确认）
+
+本小节取代 §6.2 步骤 6 中“产品/driver/helper/Shell 树的同实例退出码和时间可核验”一句。
+
+| 项 | 原文 | 收窄后 |
+|---|---|---|
+| 退出码与时间 | 全部登记树的同实例退出码和时间 | 只记父进程直接启动的产品进程的退出码、信号与起止时间 |
+| 子孙进程 | 同上 | 退出前树中的 driver、helper、Shell 进程，按“进程号加创建时间”核对退出后不存在，并记录观察缺席的时刻；它们的退出码从外部不可读，不声称 |
+| 树的前提 | 未规定 | 退出前树必须已观察（无失败查询）、非空，且退出后进程列表成功；否则断言记 `UNKNOWN`，不记 PASS |
+
+理由：Windows 上父进程拿不到非直接子进程的退出码，原文无法从外部满足。本收窄不放宽“无存活进程”的判据，只去掉不可观测的措辞。
+覆盖范围：B2-CH-06-NORMAL-EXIT 第 2 条断言的文字与判据；不影响其他用例。
+
+开发机验证（修复轮定稿后整体重跑，证据层级开发机）：
+
+| 检查 | 结果 |
+|---|---|
+| `node --test` 两个包测试文件 | 119 通过、0 失败（621 秒）；用例数与修复前相同，新增断言在既有用例内 |
+| shell jest 两个文件 | 94 通过（修复前 78，本轮新增 16 个用例） |
+| `npm run verify:quick` | 通过（退出码 0）；运行后已用 `git restore` 还原 `src/runner/dist` |
+| `npm run docs:check` | ok，327 个文件 |
+| `git diff --check` | 0 行输出；该命令不检查未跟踪文件，新文件另行核对无行尾空白、无 CR、无 BOM |
+| M2 变异重放 | 在原文件上把“UNKNOWN 视作 PASS”写入 `finalizePhaseResult`，新用例失败（期望 `UNKNOWN`，实得 `PASS`）；已还原，哈希一致 |
+
+未覆盖与限制（均为 `NOT_PERFORMED` 或 `UNKNOWN`，不计入通过）：
+
+- 驱动、冒烟、控制器仍未在 Electron、PowerShell、Windows 上运行。P1-8 与进程表查询的 PowerShell 2.0、`wmic` 行为只在源码层核对，运行时行为由预演观察。
+- Node 16 与 PowerShell 2.0 的准确兼容性仍为 `UNKNOWN`（codex 静态检查未见禁用 API，但未在目标运行时执行）。
+- 修复后未经 codex 重审；新提交的复核须新交接包，且发送给外部服务须负责人批准。
+
+负责人 2026-10-13 对“怎样落到分支”选 A，并同意草案并入文档提交、提交后重跑 codex 第一阶段：
+
+| 项 | 内容 |
+|---|---|
+| 修复提交 | `8c16ffd9…`（父 `d027af7d…`），本地，未推送；9 个文件，+574、−56，均在 §6.1 路径内 |
+| 文档提交 | 随后一个本地文档提交（不推送），含本节、STATUS、STATUS_LOG、三份草案（批准材料、缺口处置表、上一轮交接包）、两处 README 登记和新交接包；该提交只改 `docs/` |
+| 新交接包 | [第二轮交接包](../reports/2026-10/a9_33_independent_review_handoff_stage1_rerun_2026-10-13.md)，绑定 `8c16ffd9…`；命令在全新克隆实测一次通过（`node --test` 119 通过、jest 94 通过、`docs:check` 324 个文件） |
+| 复核者 | codex，无头会话，只读复核；结果由执行代理登记，结论仍由负责人裁决 |
+
+本节不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不冻结候选，不签关口 A 或 B，不推送或合并。Win10、Win7 与完整 Alpha 2 均 `NOT_PERFORMED`。

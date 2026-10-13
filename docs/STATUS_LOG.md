@@ -2013,3 +2013,13 @@ A9-33 分支 `codex/a9-33-batch2-win7-acceptance` 尚未创建；A9-33 实现、
 `node --test` 两个包测试文件 119 通过；shell jest 两个文件 78 通过；`npm run verify:quick`、`npm run docs:check`、`git diff --check` 通过；用驱动自己的写入函数对真实运行时（Node）核对了错误码与阻断原因。
 驱动、冒烟、桌面控制器仍未在 Electron、PowerShell、Win10、Win7 运行。负责人选 A 授权本地提交；执行代理未推送或合并，未创建 ADR，未冻结候选，未签关口 A 或 B。
 登记位置：[A9-33 §6.9](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#69-负责人裁决登记与合同收窄2026-10-12)。
+
+## A9-33 codex 第一阶段复核与修复轮（2026-10-13）
+
+codex 对实现提交 `905bf760…` 的第一阶段复核结论：不建议进入预演授权评审，0 个 P0、8 组 P1、3 组 P2，路径白名单无越界。执行代理逐条对照源码，确认全部属实。
+负责人选 A：开修复轮并确认 P1-6 收窄（退出码只记直接启动的产品进程，子孙进程按创建时间核对缺席，退出前树为空或未观察记 UNKNOWN）。
+执行代理在 §6.1 的 20 个路径内修复全部 11 组发现并补回归用例；修复未提交，复核者尚未重审。证据层级为开发机，绑定未提交工作树（基线 `d027af7d…`）。
+驱动、冒烟、桌面控制器仍未在 Electron、PowerShell、Win10、Win7 运行；未在 Win7 实机验证。执行代理未推送、合并、冻结候选或签关口 A、B，未创建 ADR。
+负责人对“怎样落到分支”选 A，草案并入文档提交，并同意提交后重跑 codex 第一阶段。修复已提交为 `8c16ffd9…`（父 `d027af7d…`，9 个文件，+574/−56，本地，未推送）；开发机整体重跑 `node --test` 119 通过、shell jest 94 通过、`verify:quick` 与 `docs:check` 通过。
+新交接包 [第二轮](reports/2026-10/a9_33_independent_review_handoff_stage1_rerun_2026-10-13.md)绑定 `8c16ffd9…`，命令在全新克隆实测一次通过。codex 第二轮结果登记前，结论仍为“修复未经独立重审”。
+登记位置：[A9-33 §6.10](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#610-codex-第一阶段复核与修复轮2026-10-13)。
