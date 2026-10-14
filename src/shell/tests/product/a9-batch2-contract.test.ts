@@ -1744,50 +1744,110 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
   const step = (token: string, tools: any[] = [], state: any = {}) => fixtures.providerStep({ messages: [{ role: 'user', content: `please run ${token}` }, ...tools] }, state);
   const toolMessages = (count: number) => Array.from({ length: count }, () => ({ role: 'tool', content: 'ok' }));
 
-  describe('S04: a prompt ends at the end event it adds, and every prompt has its own call id', () => {
+  describe('S04: a prompt ends at the end event of its own Turn, and every prompt has its own call id', () => {
+    const START = (eventId: number, turnId: string) => ({ eventId, turnId, eventType: 'turn_started' });
+    const OUT = (eventId: number, turnId: string) => ({ eventId, turnId, eventType: 'tool_output' });
     const END = (eventId: number, turnId: string) => ({ eventId, turnId, eventType: 'turn_completed' });
     const runnerCode = () => slice('const isTerminalEvent = ', '  // The smoke kills this process tree');
-    // Event lists as the product returns them for one conversation: the first prompt has ended (event 5); the second prompt starts and ends.
-    const polls = [
-      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1')],
-      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1'), { eventId: 6, turnId: 't2', eventType: 'turn_started' }],
-      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1'), { eventId: 6, turnId: 't2', eventType: 'turn_started' }, { eventId: 7, turnId: 't2', eventType: 'tool_output' }],
-      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1'), { eventId: 6, turnId: 't2', eventType: 'turn_started' }, { eventId: 7, turnId: 't2', eventType: 'tool_output' }, END(8, 't2')],
-    ];
-    async function run(code: string) {
+    // The conversation as the product keeps it: the events query returns the newest 1000 events in ascending order, whatever the
+    // conversation holds. The submit appends the first step (a Turn starts at once); every poll that does not end the prompt appends the next.
+    async function run(code: string, before: any[], steps: any[][]) {
+      const stored = before.slice();
       const seen: boolean[] = [];
       let submitted = false;
+      let queryCount = 0;
       const box: any = {
-        waitIdle: async () => ({}), conversationId: async () => 'conv-1', submit: async () => { submitted = true; },
-        events: async () => ({ events: polls[0] }),
+        waitIdle: async () => ({}), conversationId: async () => 'conv-1',
+        events: async () => { queryCount += 1; return { events: stored.slice(-1000) }; },
+        submit: async () => { submitted = true; stored.push(...(steps[0] || [])); },
         observeUntil: async (done: any) => {
-          // The stub plays the polls after the submit and stops when the driver's predicate says the prompt has ended.
-          for (let i = 1; i < polls.length; i += 1) {
-            const verdict = Boolean(await done(polls[i]));
+          for (let tick = 0; ; tick += 1) {
+            const verdict = Boolean(await done(stored.slice(-1000)));
             seen.push(verdict);
-            if (verdict) return { polls: i };
+            if (verdict) return { tick };
+            if (tick + 1 >= steps.length) throw new Error('never ended');
+            stored.push(...steps[tick + 1]);
           }
-          throw new Error('never ended');
         },
       };
       vm.runInNewContext(`${code}\n;this.api = { runPrompt };`, box);
       const result = await box.api.runPrompt('b2:s04-utf16le');
-      return { seen, submitted, result };
+      return { seen, submitted, result, queryCount };
     }
+    const first = [START(1, 't1'), END(5, 't1')];
 
     test('the second prompt of a conversation is not ended by the end event of the first', async () => {
-      const outcome = await run(runnerCode());
+      const outcome = await run(runnerCode(), first, [[START(6, 't2')], [OUT(7, 't2')], [END(8, 't2')]]);
       expect(outcome.submitted).toBe(true);
-      // Poll 1 (new Turn started, nothing else) and poll 2 (output arriving) are not the end; poll 3 holds the new end event.
       expect(outcome.seen).toEqual([false, false, true]);
-      expect(outcome.result).toEqual({ polls: 3 });
+      expect(outcome.result).toEqual({ tick: 2 });
     });
 
-    test('negative control: the earlier rule (any end event) ends the second prompt at once', async () => {
-      const old = runnerCode().replace('terminalCount(evts) > endsBefore', 'terminalReached(evts)');
-      expect(old).not.toBe(runnerCode());
-      const outcome = await run(old);
-      expect(outcome.seen[0]).toBe(true);
+    test('a Turn that has ended before the first poll after the submit ends the prompt on that poll', async () => {
+      const outcome = await run(runnerCode(), first, [[START(6, 't2'), OUT(7, 't2'), END(8, 't2')]]);
+      expect(outcome.seen).toEqual([true]);
+    });
+
+    test('negative control: a baseline read after the submit never lets the prompt end', async () => {
+      const code = runnerCode();
+      const mutated = code.replace(/(const baseline = await eventBaseline\(\);\s*)(await submit\(token\);)/, '$2\n    $1');
+      expect(mutated).not.toBe(code);
+      // The mutated order reads the baseline after the Turn has started and ended, so the end event is never newer than the baseline.
+      await expect(run(mutated, first, [[START(6, 't2'), OUT(7, 't2'), END(8, 't2')]])).rejects.toThrow('never ended');
+    });
+
+    test('an end event of another Turn that arrives after the submit does not end the prompt', async () => {
+      const outcome = await run(runnerCode(), first, [[START(6, 't2')], [END(7, 't-late-older-turn')], [END(8, 't2')]]);
+      expect(outcome.seen).toEqual([false, false, true]);
+    });
+
+    test('a conversation whose last Turn was cut off (a start event, no end event) names the new Turn by the new start event', async () => {
+      // After a killed process the stored events can end with the start event of the cut-off Turn. Its id is the baseline, so only a start
+      // event newer than the baseline is the new Turn.
+      const cutOff = [...first, START(6, 't-cut-off')];
+      const outcome = await run(runnerCode(), cutOff, [[START(7, 't2')], [END(8, 't2')]]);
+      expect(outcome.seen).toEqual([false, true]);
+    });
+
+    test('a first prompt in an empty conversation ends at its own end event', async () => {
+      const outcome = await run(runnerCode(), [], [[START(1, 't1')], [END(2, 't1')]]);
+      expect(outcome.seen).toEqual([false, true]);
+    });
+
+    test('a conversation with more than 1000 events: the oldest end event leaves the window and the prompt still ends', async () => {
+      // 1500 stored events with end events at 501 and 1400. The Turn adds 22 events, so the newest-1000 window moves from 501 to 523 and the
+      // end event at 501 leaves it. A count of end events (2 before, 2 after) never rises.
+      const filler = Array.from({ length: 1500 }, (_v, i) => OUT(i + 1, 'tx'));
+      const long = filler.map((e) => (e.eventId === 501 || e.eventId === 1400 ? END(e.eventId, 'tx') : e));
+      const outcome = await run(runnerCode(), long, [[START(1501, 't2')], Array.from({ length: 19 }, (_v, i) => OUT(1502 + i, 't2')), [END(1521, 't2')]]);
+      expect(outcome.seen).toEqual([false, false, true]);
+    });
+
+    test('negative control: the earlier rule (count of end events in the window) never ends that prompt', async () => {
+      const filler = Array.from({ length: 1500 }, (_v, i) => OUT(i + 1, 'tx'));
+      const long = filler.map((e) => (e.eventId === 501 || e.eventId === 1400 ? END(e.eventId, 'tx') : e));
+      const earlier = `const isTerminalEvent = (e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed';
+        const terminalCount = (evts) => evts.filter(isTerminalEvent).length;
+        async function runPrompt(token, timeoutMs) {
+          await waitIdle(30000, 'idle');
+          const endsBefore = terminalCount((await events(await conversationId(), 1000)).events);
+          await submit(token);
+          return observeUntil(async (evts) => terminalCount(evts) > endsBefore, timeoutMs || 120000, token);
+        }`;
+      await expect(run(earlier, long, [[START(1501, 't2')], Array.from({ length: 19 }, (_v, i) => OUT(1502 + i, 't2')), [END(1521, 't2')]])).rejects.toThrow('never ended');
+    });
+
+    test('when the window no longer reaches back to the baseline, the first end event after it ends the prompt', async () => {
+      const before = Array.from({ length: 1000 }, (_v, i) => OUT(i + 1, 'tx'));
+      const flood = Array.from({ length: 1100 }, (_v, i) => OUT(1002 + i, 't2'));
+      const outcome = await run(runnerCode(), before, [[START(1001, 't2')], flood, [END(2102, 't2')]]);
+      expect(outcome.seen).toEqual([false, false, true]);
+    });
+
+    test('the second prompt in the s01/s02 and s05 journeys is waited for with runPrompt, not with a count of end events', () => {
+      expect(driverSource).not.toMatch(/\.length >= 2, 120000/);
+      expect(driverSource).toContain("const second = await runPrompt('b2:s02');");
+      expect(driverSource).toContain("const secret = await runPrompt('b2:s05-secret');");
     });
 
     test('each encoding prompt gets its own scripted call id', () => {
@@ -1895,16 +1955,20 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
 
   describe('S06: a conversation is switched from the sidebar, and a page that does not follow is a recorded fact', () => {
     // A page with two conversations. The sidebar row click is the page's own switch; the bridge call changes the main process only.
-    function stage(options: { followsClick?: boolean; titles?: string[] } = {}) {
+    function stage(options: { followsClick?: boolean; titles?: string[]; active?: string; duplicateRowOf?: string; rowSource?: string } = {}) {
       const titles = options.titles || ['b2:s02', 'b2:bg-ready-fail'];
-      const world: any = { active: 'conv-b', pageCurrent: 'conv-b', bridgeCalls: 0, clicks: 0 };
+      const initial = options.active || 'conv-b';
+      const world: any = { active: initial, pageCurrent: initial, bridgeCalls: 0, clicks: 0 };
       const conversations = titles.map((title, index) => ({ sessionId: index === 0 ? 'conv-a' : 'conv-b', title, state: 'active' }));
+      // A row as the renderer builds it: the label is "<title>，<status>，更新于 <time>" and the title is the text of the <strong> element.
       const button = (conversation: any) => ({
         getAttribute: (name: string) => (name === 'aria-label' ? `${conversation.title}，空闲，更新于 2026/10/14` : name === 'aria-current' ? String(world.pageCurrent === conversation.sessionId) : null),
+        querySelector: (selector: string) => (selector === 'strong' ? { textContent: conversation.title } : null),
         get disabled() { return world.pageCurrent === conversation.sessionId; },
         click() { world.clicks += 1; world.active = conversation.sessionId; if (options.followsClick !== false) world.pageCurrent = conversation.sessionId; },
       });
       const buttons = conversations.map(button);
+      if (options.duplicateRowOf) buttons.push(button(conversations.find((item) => item.sessionId === options.duplicateRowOf)));
       const win: any = { win7Agent: { a9: {
         snapshot: async () => ({ ok: true, snapshot: { activeConversationId: world.active, conversations } }),
         activateConversation: async (id: string) => { world.bridgeCalls += 1; world.active = id; return { ok: true }; },
@@ -1915,7 +1979,7 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       const FakeDate = { now: () => { clock += 1000; return clock; } };
       const sleep = async () => undefined;
       const code = [slice('async function waitFor(condition, timeoutMs, label)', '// ---- SQLite inspection'), slice('const snapshot = async', 'const events = async'),
-        slice('const conversationId = async', 'async function newConversation'), slice('const conversationRows = ', 'async function reloadRenderer')].join('\n');
+        slice('const conversationId = async', 'async function newConversation'), options.rowSource || slice('const conversationRows = ', 'async function reloadRenderer')].join('\n');
       const box: any = { exec, sleep, Date: FakeDate, JSON, Boolean, Error, Promise, String, Array, RegExp };
       vm.runInNewContext(`${code}\n;this.api = { activateConversation, switchConversationInUi, conversationRows };`, box);
       return { api: box.api, world };
@@ -1945,6 +2009,40 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       await expect(stage({ titles: ['same', 'same'] }).api.switchConversationInUi('conv-a')).rejects.toThrow(/^A9_BATCH2_DRIVER_CONVERSATION_TITLE_NOT_UNIQUE:same:2/);
     });
 
+    test('a title that is the start of another row label is opened by its own row (the label prefix cannot name a row)', async () => {
+      // The first row reads "基础，附录，空闲，…" and the second "基础，空闲，…": both labels start with "基础，". The title "基础" belongs to the second row.
+      const { api, world } = stage({ titles: ['基础，附录', '基础'], active: 'conv-a' });
+      expect(await api.activateConversation('conv-b')).toEqual({ method: 'ui', title: '基础' });
+      expect(world).toMatchObject({ active: 'conv-b', pageCurrent: 'conv-b', clicks: 1, bridgeCalls: 0 });
+    });
+
+    test('negative control: the earlier rule (label prefix) cannot open that row', async () => {
+      // The row lookup of the commit before this one, kept here as text: the first row whose label starts with "<title>，".
+      const earlier = `const conversationRows = () => exec(\`(() => Array.from(document.querySelectorAll('#conversation-list button')).map((b) => ({ label: b.getAttribute('aria-label') || '', current: b.getAttribute('aria-current') === 'true', disabled: b.disabled })))()\`);
+        const conversationTitleOf = (snap, id) => { const item = (snap.conversations || []).find((c) => c.sessionId === id); return item ? (item.title || '新对话') : null; };
+        async function switchConversationInUi(id) {
+          const snap = await snapshot();
+          if (snap.activeConversationId === id) return { method: 'already_active', title: conversationTitleOf(snap, id) };
+          const title = conversationTitleOf(snap, id);
+          const prefix = title + '，';
+          const rowOf = (rows) => rows.find((row) => row.label.startsWith(prefix));
+          await waitFor(async () => { const row = rowOf(await conversationRows()); return row && !row.disabled ? row : null; }, 30000, 'conversation row enabled: ' + title);
+          const clicked = await exec(\`(() => { const b = Array.from(document.querySelectorAll('#conversation-list button')).find((x) => (x.getAttribute('aria-label') || '').startsWith(\${JSON.stringify(prefix)})); if (!b || b.disabled) return false; b.click(); return true; })()\`);
+          if (!clicked) throw new Error('NOT_CLICKED');
+          await waitFor(async () => (await conversationId()) === id, 20000, 'switched conversation');
+          return { method: 'ui', title };
+        }
+        async function activateConversation(id) { return switchConversationInUi(id); }`;
+      const { api } = stage({ titles: ['基础，附录', '基础'], active: 'conv-a', rowSource: earlier });
+      await expect(api.activateConversation('conv-b')).rejects.toThrow(/^TIMEOUT:conversation row enabled: 基础/);
+    });
+
+    test('a page that shows two rows for one active title is a finding, not a click on the first row', async () => {
+      const { api, world } = stage({ titles: ['b2:s02', 'b2:bg-ready-fail'], active: 'conv-b', duplicateRowOf: 'conv-a' });
+      await expect(api.activateConversation('conv-a')).rejects.toThrow(/^A9_BATCH2_DRIVER_CONVERSATION_ROW_COUNT:b2:s02:2/);
+      expect(world.clicks).toBe(0);
+    });
+
     test('the restart journey opens the streamed conversation through the sidebar and records the rows and the method', () => {
       const body = slice('async function sessionRestart()', '// ---- Modes: continue (p06)');
       expect(body).toMatch(/const rowsBefore = await conversationRows\(\);\s*const switched = await activateConversation\(part\.conversationId\);/);
@@ -1952,6 +2050,212 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       expect(body).toContain('sidebar_before');
       expect(body).toContain('sidebar_after');
       expect(driverSource).not.toMatch(/await exec\(`window\.win7Agent\.a9\.activateConversation\(\$\{JSON\.stringify\(id\)\}\)`\);\s*await waitFor\(async \(\) => \(await conversationId\(\)\) === id, 20000, 'activate conversation'\);\s*\}\s*async function reloadRenderer/);
+    });
+  });
+
+  describe('S05 key: every driver process enters the API key again when the product process does not hold it', () => {
+    const FIXTURE_URL = 'http://127.0.0.1:41999/v1';
+    const PLACEHOLDER = 'TEST-ONLY-PLACEHOLDER-KEY-NOT-A-SECRET';
+    // The product keeps the key in memory only: after a restart the snapshot still shows a configured provider with apiKey.available=false.
+    function stageProvider(options: { configured?: boolean; baseUrl?: string; keyAvailable?: boolean; secret?: string; applyRegistersKey?: boolean; rowSource?: string } = {}) {
+      const secret = options.secret === undefined ? PLACEHOLDER : options.secret;
+      const world: any = {
+        applies: [] as string[], closes: 0, probe: 'tool_calling',
+        provider: options.configured === false ? { configured: false }
+          : { configured: true, baseUrl: options.baseUrl || FIXTURE_URL, model: 'batch2-scripted', apiKey: { remembered: false, source: options.keyAvailable ? 'memory' : 'none', available: options.keyAvailable === true } },
+      };
+      const exec = async (source: string) => {
+        if (source.includes('window.win7Agent.a9.snapshot()')) return { ok: true, snapshot: { provider: world.provider } };
+        if (source.includes('a9-provider-apply')) {
+          world.applies.push(source);
+          const entered = secret !== '' && source.includes(JSON.stringify(secret));
+          world.provider = { configured: true, baseUrl: source.includes(JSON.stringify(FIXTURE_URL)) ? FIXTURE_URL : 'other', model: 'batch2-scripted',
+            apiKey: { remembered: false, source: entered ? 'memory' : 'none', available: entered && options.applyRegistersKey !== false } };
+          world.probe = 'tool_calling';
+          return true;
+        }
+        if (source.includes('data-close')) { world.closes += 1; return true; }
+        if (source.includes('a9-provider-probe-state')) return world.probe;
+        throw new Error(`unexpected exec: ${source.slice(0, 60)}`);
+      };
+      let clock = 0;
+      const box: any = { exec, sleep: async () => undefined, Date: { now: () => { clock += 1000; return clock; } }, JSON, Boolean, Error, Promise, String, fixtureUrl: FIXTURE_URL, secretLiteral: secret };
+      const code = [slice('async function waitFor(condition, timeoutMs, label)', '// ---- SQLite inspection'), slice('const snapshot = async', 'const events = async'),
+        options.rowSource || slice('const providerKeyFacts = ', 'async function bootstrap(options)')].join('\n');
+      vm.runInNewContext(`${code}\n;this.api = { ensureProvider, providerKeyFacts };`, box);
+      return { api: box.api, world };
+    }
+
+    test('a configured provider whose key is not available gets the form again, with the URL and the key', async () => {
+      const { api, world } = stageProvider({ keyAvailable: false });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applies).toHaveLength(1);
+      expect(world.applies[0]).toContain(JSON.stringify(FIXTURE_URL));
+      expect(world.applies[0]).toContain(JSON.stringify(PLACEHOLDER));
+      expect(world.provider.apiKey.available).toBe(true);
+      expect(world.closes).toBe(1);
+    });
+
+    test('a provider whose key is available in this product process is left alone', async () => {
+      const { api, world } = stageProvider({ keyAvailable: true });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applies).toHaveLength(0);
+    });
+
+    test('a provider of another address gets the form again even when its key is available', async () => {
+      const { api, world } = stageProvider({ keyAvailable: true, baseUrl: 'http://127.0.0.1:1/v1' });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applies).toHaveLength(1);
+    });
+
+    test('a provider that is not configured gets the form', async () => {
+      const { api, world } = stageProvider({ configured: false });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applies).toHaveLength(1);
+    });
+
+    test('a driver without the secret literal stops by name before it touches the page', async () => {
+      const { api, world } = stageProvider({ secret: '' });
+      await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow('A9_BATCH2_DRIVER_SECRET_LITERAL_MISSING');
+      expect(world.applies).toHaveLength(0);
+    });
+
+    test('a mode that does not judge the secret leaves a configured provider alone, whether or not its key is available', async () => {
+      for (const keyAvailable of [false, true]) {
+        const { api, world } = stageProvider({ keyAvailable });
+        await api.ensureProvider();
+        await api.ensureProvider({ requireKey: false });
+        expect(world.applies).toHaveLength(0);
+      }
+    });
+
+    test('a mode that does not judge the secret does not wait for the key after a fresh form', async () => {
+      const { api, world } = stageProvider({ configured: false, applyRegistersKey: false });
+      await api.ensureProvider();
+      expect(world.applies).toHaveLength(1);
+    });
+
+    test('only the S05 limits mode asks for the key', () => {
+      expect(driverSource.match(/bootstrap\(\{ requireKey: true \}\)/g)).toHaveLength(1);
+      expect(slice('async function streamLimits()', 'async function auditStop()')).toContain('await bootstrap({ requireKey: true });');
+      expect(driverSource.match(/ensureProvider\(/g)).toHaveLength(2);
+    });
+
+    test('a form that does not leave the key available in the product fails by name instead of passing', async () => {
+      const { api } = stageProvider({ keyAvailable: false, applyRegistersKey: false });
+      await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow(/^TIMEOUT:provider key available/);
+    });
+
+    test('negative control: the earlier skip rule (configured and probe passed) leaves the restarted process without the key', async () => {
+      const earlier = `const providerKeyFacts = () => ({});
+        async function ensureProvider() {
+          const current = await snapshot();
+          if (current.provider && current.provider.configured && (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling') return;
+          await exec('document.getElementById("a9-provider-apply")');
+        }`;
+      const { api, world } = stageProvider({ keyAvailable: false, rowSource: earlier });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applies).toHaveLength(0);
+      expect(world.provider.apiKey.available).toBe(false);
+    });
+
+    test('the facts hold no secret value', () => {
+      const { api } = stageProvider({ keyAvailable: true });
+      const facts = api.providerKeyFacts({ provider: { configured: true, baseUrl: FIXTURE_URL, apiKey: { available: true, source: 'memory', remembered: false, note: PLACEHOLDER } } });
+      expect(facts).toEqual({ configured: true, base_url_is_fixture: true, key_available: true, key_source: 'memory', key_remembered: false });
+      expect(JSON.stringify(facts)).not.toContain(PLACEHOLDER);
+    });
+
+    describe('the S05 verdict', () => {
+      const clean = { events: { leaked: false, checked: true }, dom: { leaked: false, checked: true }, snapshot: { leaked: false, checked: true } };
+      test('a clean output with a registered key passes', () => {
+        expect(driver.evaluateSecretCheck({ key_available: true, leaks: clean, truncated: true, produced: true }).status).toBe('PASS');
+      });
+      test('a clean output with a key the product never held is UNKNOWN, not PASS', () => {
+        const verdict = driver.evaluateSecretCheck({ key_available: false, leaks: clean, truncated: true, produced: true });
+        expect(verdict).toMatchObject({ status: 'UNKNOWN', decided: false });
+      });
+      test('a leak in the events, the page or the snapshot fails', () => {
+        for (const name of ['events', 'dom', 'snapshot']) {
+          const leaks = { ...clean, [name]: { leaked: true, checked: true } };
+          expect(driver.evaluateSecretCheck({ key_available: true, leaks, truncated: true, produced: true }).status).toBe('FAIL');
+        }
+      });
+      test('a missing truncation report or missing secret frames fails', () => {
+        expect(driver.evaluateSecretCheck({ key_available: true, leaks: clean, truncated: false, produced: true }).status).toBe('FAIL');
+        expect(driver.evaluateSecretCheck({ key_available: true, leaks: clean, truncated: true, produced: false }).status).toBe('FAIL');
+      });
+      test('a secret literal that was never configured is UNKNOWN', () => {
+        const leaks = { ...clean, events: { leaked: false, checked: false } };
+        expect(driver.evaluateSecretCheck({ key_available: true, leaks, truncated: true, produced: true }).status).toBe('UNKNOWN');
+      });
+      test('the S05 journey takes the key facts before the secret prompt and records them', () => {
+        const body = slice('async function streamLimits()', 'async function auditStop()');
+        expect(body.indexOf('providerKeyFacts(await snapshot())')).toBeGreaterThan(-1);
+        expect(body.indexOf('providerKeyFacts(await snapshot())')).toBeLessThan(body.indexOf("runPrompt('b2:s05-secret')"));
+        expect(body).toContain('key_before_prompt: keyBeforeSecret');
+        expect(body).toContain('key_available_before_prompt=');
+      });
+    });
+  });
+
+  describe('S04 cuts: each first write ends inside the unit its label is about', () => {
+    const bytesOf = (label: string) => { const fx = fixtures.encodingFixtures(); return ({ utf8: fx.utf8, utf16le: fx.utf16le, cp936: fx.cp936_zhongwen, crlf: fx.crlf } as any)[label] as Buffer; };
+    const labels = ['utf8', 'utf16le', 'cp936', 'crlf'];
+
+    test('the fixture check finds no problem and the self check carries it', () => {
+      expect(fixtures.encodingCutProblems()).toEqual([]);
+      expect(fixtures.selfCheck().problems).toEqual([]);
+    });
+
+    test.each(['utf8', 'utf16le', 'cp936'])('%s: the first chunk alone is not valid text (a strict decoder refuses it), the two chunks together are the fixture', (label) => {
+      const cut = fixtures.ENCODING_CUTS[label];
+      const whole = bytesOf(label);
+      const encoding = ({ utf8: 'utf-8', utf16le: 'utf-16le', cp936: 'gbk' } as any)[label];
+      expect(() => new (global as any).TextDecoder(encoding, { fatal: true }).decode(whole.subarray(0, cut))).toThrow();
+      expect(Buffer.concat([whole.subarray(0, cut), whole.subarray(cut)]).equals(whole)).toBe(true);
+      const decoder = new (global as any).TextDecoder(encoding, { fatal: true });
+      const joined = decoder.decode(whole.subarray(0, cut), { stream: true }) + decoder.decode(whole.subarray(cut), { stream: true }) + decoder.decode();
+      expect(joined).toBe(label === 'cp936' ? '中文' : fixtures.encodingFixtures().text);
+    });
+
+    test('crlf: the first chunk ends with CR and the second starts with LF', () => {
+      const whole = bytesOf('crlf');
+      const cut = fixtures.ENCODING_CUTS.crlf;
+      expect(whole.subarray(0, cut).toString('utf8')).toBe('line one\r');
+      expect(whole.subarray(cut).toString('utf8').startsWith('\nline two')).toBe(true);
+    });
+
+    test('the PowerShell command writes exactly those two chunks', () => {
+      for (const label of labels) {
+        const command: string = fixtures.encodingCommandPowerShell(label);
+        const cut = fixtures.ENCODING_CUTS[label];
+        const whole = bytesOf(label);
+        const arrays = [...command.matchAll(/\[byte\[\]\]@\(([0-9,]*)\)/g)].map((m) => Buffer.from(m[1].split(',').map(Number)));
+        expect(arrays).toHaveLength(2);
+        expect(arrays[0].equals(whole.subarray(0, cut))).toBe(true);
+        expect(arrays[1].equals(whole.subarray(cut))).toBe(true);
+      }
+    });
+
+    test('the self check fails when a cut is moved out of its unit, and the cut table is restored afterwards', () => {
+      const original = fixtures.ENCODING_CUTS.utf8;
+      try {
+        fixtures.ENCODING_CUTS.utf8 = 9;
+        const check = fixtures.selfCheck();
+        expect(check.ok).toBe(false);
+        expect(check.problems).toContain('ENCODING_CUT_NOT_INSIDE_UNIT:utf8:9');
+      } finally {
+        fixtures.ENCODING_CUTS.utf8 = original;
+      }
+      expect(fixtures.selfCheck().ok).toBe(true);
+    });
+
+    test('negative control: the earlier cuts (half of the length) are flagged for utf8, utf16le and crlf', () => {
+      const earlier: any = {};
+      for (const label of labels) earlier[label] = Math.max(1, Math.floor(bytesOf(label).length / 2) - (label === 'crlf' ? 0 : 1));
+      expect(earlier).toEqual({ utf8: 9, utf16le: 11, cp936: 1, crlf: 22 });
+      expect(fixtures.encodingCutProblems(earlier).map((item: string) => item.split(':')[1]).sort()).toEqual(['crlf', 'utf16le', 'utf8']);
     });
   });
 });

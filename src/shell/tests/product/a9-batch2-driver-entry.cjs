@@ -153,6 +153,14 @@ function secretLeak(text, secret) {
   if (!needle) return { leaked: false, checked: false };
   return { leaked: value.includes(needle) || value.includes(needle.slice(0, 10)), checked: true };
 }
+// S05 first assertion. A key that the product process does not know cannot be hidden by it, so the leak check decides nothing then
+// (UNKNOWN, not PASS or FAIL): a leak-free output proves nothing when no secret was registered (rehearsal 6 review, round 1).
+function evaluateSecretCheck(input) {
+  const leaks = input.leaks || {};
+  const leaked = ['events', 'dom', 'snapshot'].some((name) => !leaks[name] || leaks[name].leaked !== false);
+  const decided = input.key_available === true && Boolean(leaks.events && leaks.events.checked);
+  return { decided, clean: !leaked, status: !decided ? 'UNKNOWN' : input.truncated === true && input.produced === true && !leaked ? 'PASS' : 'FAIL' };
+}
 function descendantsOf(rows, rootPid) {
   const children = new Map();
   for (const row of rows) {
@@ -530,9 +538,23 @@ async function runDriver() {
     await exec('document.querySelector(\'input[name="a9-mode-choice"][value="full_access"]\').checked = true; document.getElementById("a9-mode-apply").click(); true');
     await waitFor(async () => (await snapshot()).mode === 'full_access', 20000, 'full_access');
   }
-  async function ensureProvider() {
+  // The product keeps the API key in process memory only (the suite never asks it to remember the key) and registers it as a known secret
+  // when it is entered. A mode that judges the hiding of the secret (S05) therefore has to enter the key in its own driver process: a
+  // configured provider with a key that is not available leaves the runtime without a secret to hide, and S05 would test nothing
+  // (rehearsal 6, p04: events 129, 130 and 134 held the test secret). Only that mode asks for it (requireKey): the other modes keep the
+  // earlier rule, so the restart and recovery journeys of p05 to p08 do not meet a changed provider. The facts below hold no secret value.
+  const providerKeyFacts = (snap) => {
+    const provider = snap.provider || {};
+    const key = provider.apiKey || {};
+    return { configured: provider.configured === true, base_url_is_fixture: provider.baseUrl === fixtureUrl, key_available: key.available === true, key_source: key.source || null, key_remembered: key.remembered === true };
+  };
+  const providerReady = (snap) => { const facts = providerKeyFacts(snap); return facts.configured && facts.base_url_is_fixture && facts.key_available; };
+  async function ensureProvider(options) {
+    const requireKey = Boolean(options && options.requireKey);
+    if (requireKey && !secretLiteral) throw new Error('A9_BATCH2_DRIVER_SECRET_LITERAL_MISSING');
     const current = await snapshot();
-    if (current.provider && current.provider.configured && (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling') return;
+    const settled = requireKey ? providerReady(current) : Boolean(current.provider && current.provider.configured);
+    if (settled && (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling') return;
     await exec(`(() => {
       document.getElementById('a9-provider-url').value = ${JSON.stringify(fixtureUrl)};
       document.getElementById('a9-provider-model').value = 'batch2-scripted';
@@ -542,13 +564,14 @@ async function runDriver() {
       return true;
     })()`);
     await waitFor(async () => (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling', 45000, 'provider probe');
+    if (requireKey) await waitFor(async () => providerReady(await snapshot()), 20000, 'provider key available');
     await exec('(() => { const b = document.querySelector(".drawer:not([hidden]) [data-close]"); if (b) b.click(); return true; })()');
   }
-  async function bootstrap() {
+  async function bootstrap(options) {
     await waitFor(() => exec('document.readyState === "complete"'), 30000, 'renderer ready');
     await selectWorkspace();
     await ensureMode();
-    await ensureProvider();
+    await ensureProvider(options);
     const snap = await snapshot();
     await setFixture({ shellKind: snap.shell && snap.shell.kind === 'powershell' ? 'powershell' : 'cmd' });
     return snap;
@@ -586,7 +609,9 @@ async function runDriver() {
   // A conversation switch the way a person makes it: click the conversation's row in the sidebar. The preload bridge alone changes the main
   // process only; the page loads the new conversation on its own switch path (rehearsal 6, p05: after a restart the snapshot named the
   // streamed conversation as active for 16 s while the page kept showing the old one). A title that is not unique cannot name one row.
-  const conversationRows = () => exec(`(() => Array.from(document.querySelectorAll('#conversation-list button')).map((b) => ({ label: b.getAttribute('aria-label') || '', current: b.getAttribute('aria-current') === 'true', disabled: b.disabled })))()`);
+  // A row is named by its own title element (the <strong> of the row), compared whole: a label prefix cannot tell the title "基础" from a
+  // row "基础，附录" because the label of every row is "<title>，<status>…" (rehearsal 6 review, round 1).
+  const conversationRows = () => exec(`(() => Array.from(document.querySelectorAll('#conversation-list button')).map((b) => { const strong = b.querySelector('strong'); return { title: strong ? strong.textContent : '', label: b.getAttribute('aria-label') || '', current: b.getAttribute('aria-current') === 'true', disabled: b.disabled }; }))()`);
   const conversationTitleOf = (snap, id) => { const item = (snap.conversations || []).find((c) => c.sessionId === id); return item ? (item.title || '新对话') : null; };
   async function switchConversationInUi(id) {
     const snap = await snapshot();
@@ -595,13 +620,15 @@ async function runDriver() {
     if (title === null) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_NOT_LISTED:${id}`);
     const same = (snap.conversations || []).filter((c) => c.state === 'active' && (c.title || '新对话') === title);
     if (same.length !== 1) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_TITLE_NOT_UNIQUE:${title}:${same.length}`);
-    const prefix = `${title}，`;
-    const rowOf = (rows) => rows.find((row) => row.label.startsWith(prefix));
-    await waitFor(async () => { const row = rowOf(await conversationRows()); return row && !row.disabled ? row : null; }, 30000, `conversation row enabled: ${title}`);
-    const clicked = await exec(`(() => { const b = Array.from(document.querySelectorAll('#conversation-list button')).find((x) => (x.getAttribute('aria-label') || '').startsWith(${JSON.stringify(prefix)})); if (!b || b.disabled) return false; b.click(); return true; })()`);
+    const titled = (rows) => rows.filter((row) => row.title === title);
+    await waitFor(async () => { const rows = titled(await conversationRows()); return rows.length >= 1 && rows.every((row) => !row.disabled) ? rows : null; }, 30000, `conversation row enabled: ${title}`);
+    // The snapshot names one active conversation with this title; a page that shows another number of rows disagrees with it and is a finding.
+    const shown = titled(await conversationRows()).length;
+    if (shown !== 1) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_ROW_COUNT:${title}:${shown}`);
+    const clicked = await exec(`(() => { const rows = Array.from(document.querySelectorAll('#conversation-list button')).filter((x) => { const strong = x.querySelector('strong'); return strong && strong.textContent === ${JSON.stringify(title)}; }); if (rows.length !== 1 || rows[0].disabled) return false; rows[0].click(); return true; })()`);
     if (!clicked) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_ROW_NOT_CLICKED:${title}`);
     await waitFor(async () => (await conversationId()) === id, 20000, 'switched conversation');
-    await waitFor(async () => { const current = (await conversationRows()).filter((row) => row.current); return current.length === 1 && current[0].label.startsWith(prefix) ? true : null; }, 20000, `page marks the conversation current: ${title}`);
+    await waitFor(async () => { const current = (await conversationRows()).filter((row) => row.current); return current.length === 1 && current[0].title === title ? true : null; }, 20000, `page marks the conversation current: ${title}`);
     return { method: 'ui', title };
   }
   // The bridge call stays only for a conversation the sidebar cannot name (not listed, or a title shared with another conversation).
@@ -667,17 +694,29 @@ async function runDriver() {
   }
   const isTerminalEvent = (e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed';
   const terminalReached = (evts) => evts.some(isTerminalEvent);
-  const terminalCount = (evts) => evts.filter(isTerminalEvent).length;
+  const newestEventId = (evts) => evts.reduce((max, e) => (Number.isSafeInteger(e.eventId) && e.eventId > max ? e.eventId : max), 0);
+  const eventBaseline = async () => newestEventId((await events(await conversationId(), 1000)).events);
+  // The end event of the Turn that a prompt starts. The events query returns only the newest 1000 events, so the baseline is the newest
+  // event id before the submit (ids only grow), not a count of end events. The first turn_started after the baseline names the Turn and only
+  // its own end event counts. When the window no longer reaches back to the baseline, the start event may be out of it and any end event
+  // after the baseline is the one.
+  const targetTurnEnd = (evts, baselineId) => {
+    const started = evts.find((e) => e.eventType === 'turn_started' && e.eventId > baselineId);
+    const pastBaseline = (e) => isTerminalEvent(e) && e.eventId > baselineId;
+    if (started) return evts.find((e) => pastBaseline(e) && e.turnId === started.turnId) || null;
+    return evts.length > 0 && evts[0].eventId > baselineId ? evts.find(pastBaseline) || null : null;
+  };
 
   // The previous Turn's end event is persisted before the runtime clears its controller and before the renderer lets go of the Turn,
   // so a prompt waits for idle (no running Turn) and a ready composer instead of failing on the first read (rehearsal 4, p04).
-  // The end event counted is the one this prompt adds: the events of a conversation keep the end events of its earlier prompts, so
-  // "any end event exists" ends the second and later prompts of one conversation at the submit (rehearsal 6, p04 S04: frames 4, 4, 8, 11).
+  // The end event waited for is the one of the Turn this prompt starts: the events of a conversation keep the end events of its earlier
+  // prompts, so "any end event exists" ends the second and later prompts of one conversation at the submit (rehearsal 6, p04 S04: frames
+  // 4, 4, 8, 11).
   async function runPrompt(token, timeoutMs) {
     await waitIdle(30000, `idle before ${token}`);
-    const endsBefore = terminalCount((await events(await conversationId(), 1000)).events);
+    const baseline = await eventBaseline();
     await submit(token);
-    return observeUntil(async (evts) => terminalCount(evts) > endsBefore, timeoutMs || 120000, token);
+    return observeUntil(async (evts) => Boolean(targetTurnEnd(evts, baseline)), timeoutMs || 120000, token);
   }
 
   // The smoke kills this process tree on <mode>.ready; the facts are persisted first so the next process can compare.
@@ -912,8 +951,7 @@ async function runDriver() {
     out('s01-live-tick.json', { first_tick_visible_ms: first.firstVisible, command_ended_ms: first.toolEndedAt, lead, frames: framesFromEvents(first.events).length });
     record('B2-S01-LIVE-TICK', 1, lead.ok ? 'PASS' : 'FAIL', `first_tick_visible_ms=${first.firstVisible}; command_ended_ms=${first.toolEndedAt}; lead_ms=${lead.lead_ms}; required_ms=${lead.required_ms}`);
     await sleep(500);
-    await submit('b2:s02');
-    const second = await observeUntil(async (evts) => evts.filter((e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed').length >= 2, 120000, 's02');
+    const second = await runPrompt('b2:s02');
     const allFrames = framesFromEvents(second.events);
     const callFrames = allFrames.filter((frame) => frame.toolCallId === (allFrames[allFrames.length - 1] || {}).toolCallId);
     const order = evaluateStreamOrder(callFrames);
@@ -951,7 +989,7 @@ async function runDriver() {
   }
 
   async function streamLimits() {
-    await bootstrap();
+    await bootstrap({ requireKey: true });
     await newConversation();
     const conv = await conversationId();
     const limit = await runPrompt('b2:s05-limit', 180000);
@@ -959,16 +997,17 @@ async function runDriver() {
     const limitOrder = evaluateStreamOrder(limitFrames);
     const truncated = limitFrames.some((frame) => frame.truncated) || limit.events.some((e) => e.eventType === 'tool_end' && /trunc/i.test(JSON.stringify(eventData(e))));
     await sleep(400);
-    await submit('b2:s05-secret');
-    const secret = await observeUntil(async (evts) => evts.filter((e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed').length >= 2, 120000, 'secret');
+    const keyBeforeSecret = providerKeyFacts(await snapshot());
+    const secret = await runPrompt('b2:s05-secret');
     const snapJson = JSON.stringify(await snapshot());
     const allEvents = JSON.stringify((await events(conv, 1000)).events);
     const dom = await domState();
     const leaks = { events: secretLeak(allEvents, secretLiteral), dom: secretLeak(dom.present, secretLiteral), snapshot: secretLeak(snapJson, secretLiteral) };
     const secretFrames = framesFromEvents(secret.events).filter((frame) => frame.toolCallId !== (limitFrames[0] || {}).toolCallId);
     const produced = secretFrames.length > 0;
-    record('B2-S05-LIMITS-SECRET-BACKPRESSURE', 1, truncated && produced && !leaks.events.leaked && !leaks.dom.leaked && !leaks.snapshot.leaked && leaks.events.checked ? 'PASS' : 'FAIL',
-      `truncation_reported=${truncated}; secret_frames=${secretFrames.length}; leaks=${JSON.stringify({ events: leaks.events.leaked, dom: leaks.dom.leaked, snapshot: leaks.snapshot.leaked })}; secret_configured=${leaks.events.checked}`);
+    const secretCheck = evaluateSecretCheck({ key_available: keyBeforeSecret.key_available, leaks, truncated, produced });
+    record('B2-S05-LIMITS-SECRET-BACKPRESSURE', 1, secretCheck.status,
+      `truncation_reported=${truncated}; secret_frames=${secretFrames.length}; leaks=${JSON.stringify({ events: leaks.events.leaked, dom: leaks.dom.leaked, snapshot: leaks.snapshot.leaked })}; secret_configured=${leaks.events.checked}; key_available_before_prompt=${keyBeforeSecret.key_available}; key_source=${keyBeforeSecret.key_source}`);
     await sleep(400);
     const baselineTree = myTree();
     await submit('b2:s05-cancel');
@@ -979,7 +1018,7 @@ async function runDriver() {
     await sleep(1500);
     const afterTree = descendantsOf(wmicRows(), process.pid);
     const extra = newProcesses(baselineTree, afterTree);
-    out('s05-limits-secret.json', { limit: { frames: limitFrames.length, order: limitOrder, truncated }, secret: { frames: secretFrames.length, leaks },
+    out('s05-limits-secret.json', { limit: { frames: limitFrames.length, order: limitOrder, truncated }, secret: { frames: secretFrames.length, leaks, key_before_prompt: keyBeforeSecret },
       cancel: { baseline_tree: baselineTree.length, mid_tree: midTree.length, after_tree: afterTree.length, new_processes_after_cancel: extra, status: idle.agentStatus } });
     const s05Status = !limitOrder.ok || extra.length > 0 ? 'FAIL' : wmicFailures > 0 ? 'UNKNOWN' : midTree.length > baselineTree.length ? 'PASS' : 'FAIL';
     record('B2-S05-LIMITS-SECRET-BACKPRESSURE', 2, s05Status,
@@ -1607,7 +1646,7 @@ async function runDriver() {
 }
 
 module.exports = {
-  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
+  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,

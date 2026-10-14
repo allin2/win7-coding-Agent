@@ -245,6 +245,7 @@ function selfCheck() {
       seenEvidence.set(name, item.case_id);
     }
   }
+  problems.push(...encodingCutProblems());
   CHAIN_STEPS.forEach((step, index) => {
     if (step.index !== index + 1) problems.push(`CHAIN_INDEX:${step.id}`);
     const chainCase = CASES.find((item) => item.case_id.startsWith(`B2-CH-0${step.index}-`));
@@ -394,6 +395,32 @@ function encodingFixtures() {
   };
 }
 
+// Where the first write ends. Each cut falls inside the unit that the label is about, so the product has to join two chunks to read it
+// (rehearsal 6 review: the earlier cut at half the length fell on ASCII bytes for utf8 and between two lines for crlf).
+//   utf8:    after the first byte of the three-byte character 文 (bytes 3 to 5), so its lead byte and two tail bytes are in two chunks
+//   utf16le: after the first byte of the two-byte unit of 文 (bytes 2 and 3)
+//   cp936:   after the first byte of the two-byte character 中 (D6 D0)
+//   crlf:    between CR and LF of the first line end
+const ENCODING_CUTS = { utf8: 4, utf16le: 3, cp936: 1, crlf: 9 };
+
+function encodingCutProblems(cuts = ENCODING_CUTS) {
+  const fx = encodingFixtures();
+  const bytes = { utf8: fx.utf8, utf16le: fx.utf16le, cp936: fx.cp936_zhongwen, crlf: fx.crlf };
+  const problems = [];
+  for (const [label, cut] of Object.entries(cuts)) {
+    const buffer = bytes[label];
+    if (!buffer || !(cut > 0 && cut < buffer.length)) { problems.push(`ENCODING_CUT_RANGE:${label}`); continue; }
+    const inside = {
+      utf8: () => buffer[cut] >= 0x80 && buffer[cut] <= 0xbf && buffer[cut - 1] >= 0xc0,
+      utf16le: () => cut % 2 === 1 && buffer[cut - 1] !== 0 && buffer[cut] !== 0,
+      cp936: () => buffer[cut - 1] >= 0x81 && buffer[cut - 1] <= 0xfe && cut % 2 === 1,
+      crlf: () => buffer[cut - 1] === 0x0d && buffer[cut] === 0x0a,
+    }[label];
+    if (!inside()) problems.push(`ENCODING_CUT_NOT_INSIDE_UNIT:${label}:${cut}`);
+  }
+  return problems;
+}
+
 // Splits a buffer at every given offset to build the cross-chunk cases.
 function splitAt(buffer, offsets) {
   const cuts = [0].concat(offsets.filter((n) => n > 0 && n < buffer.length).sort((a, b) => a - b), [buffer.length]);
@@ -477,7 +504,7 @@ function encodingCommandPowerShell(label) {
   const table = { utf8: fx.utf8, utf16le: fx.utf16le, cp936: fx.cp936_zhongwen, crlf: fx.crlf };
   const bytes = table[label];
   if (!bytes) throw new Error(`A9_BATCH2_ENCODING_LABEL_UNKNOWN:${label}`);
-  const first = Math.max(1, Math.floor(bytes.length / 2) - (label === 'crlf' ? 0 : 1));
+  const first = ENCODING_CUTS[label];
   const list = (buffer) => `@(${Array.from(buffer).join(',')})`;
   return `$o=[Console]::OpenStandardOutput(); $a=[byte[]]${list(bytes.slice(0, first))}; $b=[byte[]]${list(bytes.slice(first))}; `
     + '$o.Write($a,0,$a.Length); $o.Flush(); Start-Sleep -Milliseconds 400; $o.Write($b,0,$b.Length); $o.Flush()';
@@ -588,7 +615,7 @@ function evidenceForPhase(phaseId) {
 module.exports = {
   CONTRACT, LIMITS, GATES, PHASES, CHAIN_STEPS, CASES, KNOWN_LIMITS, FIXTURE_BOUNDS,
   evidenceSet, evidenceForPhase, phaseById, selfCheck,
-  backgroundCommandCmd, backgroundCommandPowerShell, encodingFixtures, splitAt,
+  backgroundCommandCmd, backgroundCommandPowerShell, encodingFixtures, ENCODING_CUTS, encodingCutProblems, splitAt,
   testOnlySecret, secretSplitAcrossChunks, AUDIT_READ_FILES,
   RESULT_KIND, casesForPhase, newPhaseResult, setAssertion, finalizePhaseResult, phaseResultProblems,
   shellCommand, encodingCommandPowerShell, providerStep, lastUserPrompt, extractHandleId, extractNextCursor,
