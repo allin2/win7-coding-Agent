@@ -104,16 +104,76 @@ function parseWmicCsv(text, options) {
   });
 }
 
-// A process listing is observed only when the command ran, exited 0, reported no error and was not cut off. A thrown error,
-// a non-zero status, an error object or a cut-off output means the rows are partial and prove nothing about absence: callers
-// must not turn them into "absent". The complete rows such a listing did print are still evidence of presence, so they are
-// kept (failed is true) and a survivor or residue found in them is a failure.
+// Strict reading of one wmic CSV line. wmic does not quote its cells, so a quote may only open a cell, and a quoted cell must be closed and
+// followed by a comma or the end of the line. null means the line is not well formed; parseCsvLine above is lenient and pads or rejoins.
+function parseCsvLineStrict(line) {
+  const out = [];
+  let index = 0;
+  for (;;) {
+    let cell = '';
+    if (line[index] === '"') {
+      index += 1;
+      let closed = false;
+      while (index < line.length) {
+        if (line[index] === '"') {
+          if (line[index + 1] === '"') { cell += '"'; index += 2; continue; }
+          closed = true;
+          index += 1;
+          break;
+        }
+        cell += line[index];
+        index += 1;
+      }
+      if (!closed || (index < line.length && line[index] !== ',')) return null;
+    } else {
+      while (index < line.length && line[index] !== ',') {
+        if (line[index] === '"') return null;
+        cell += line[index];
+        index += 1;
+      }
+    }
+    out.push(cell);
+    if (index >= line.length) return out;
+    index += 1;
+  }
+}
+// A table is intact only when its header names are non-empty and unique and every line reads strictly and has as many cells as the header.
+// A line that does not is dropped from rows (a complete line is still evidence of presence) and the table is no proof of absence: whatever
+// is missing from a table with a broken line may be exactly the line that broke.
+function readWmicTable(text) {
+  const lines = String(text || '').split(/\r?\n/).map((line) => line.replace(/\r/g, '')).filter((line) => line.trim() !== '');
+  if (lines.length === 0) return { rows: [], intact: false, problem: 'empty_output' };
+  const header = parseCsvLineStrict(lines[0]);
+  if (!header || header.some((name) => name.trim() === '') || new Set(header).size !== header.length) return { rows: [], intact: false, problem: 'header_invalid' };
+  const rows = [];
+  let problem = null;
+  lines.slice(1).forEach((line, index) => {
+    const cells = parseCsvLineStrict(line);
+    if (!cells || cells.length !== header.length) {
+      if (problem === null) problem = `row_${index + 2}_${cells ? 'cell_count' : 'quoting'}`;
+      return;
+    }
+    const row = {};
+    header.forEach((name, column) => { row[name] = cells[column]; });
+    rows.push(row);
+  });
+  if (problem === null && rows.length === 0) problem = 'no_rows';
+  return { rows, intact: problem === null, problem };
+}
+
+// A process listing is observed only when the command ran, exited 0, reported no error, was not cut off and printed an intact table. A thrown error,
+// a non-zero status, an error object, a cut-off output or a table with a broken line means the rows are partial and prove nothing about
+// absence: callers must not turn them into "absent". The complete rows such a listing did print are still evidence of presence, so they are
+// kept (failed is true) and a survivor or residue found in them is a failure. problem names the first defect and never quotes the output.
 function listProcesses(exec) {
   let result;
-  try { result = exec('wmic_processes'); } catch (_error) { return { rows: [], failed: true }; }
-  if (!result) return { rows: [], failed: true };
-  if (result.status !== 0 || result.error || result.truncated === true) return { rows: parseWmicCsv(result.stdout, { completeOnly: true }), failed: true };
-  return { rows: parseWmicCsv(result.stdout), failed: false };
+  try { result = exec('wmic_processes'); } catch (_error) { return { rows: [], failed: true, problem: 'exec_threw' }; }
+  if (!result) return { rows: [], failed: true, problem: 'no_result' };
+  const table = readWmicTable(result.stdout);
+  if (result.status !== 0 || result.error || result.truncated === true) {
+    return { rows: table.rows, failed: true, problem: result.truncated === true ? 'truncated' : result.error ? 'command_error' : 'exit_status' };
+  }
+  return { rows: table.rows, failed: !table.intact, problem: table.problem };
 }
 
 // ---- Environment (G0) -----------------------------------------------------------------------------------
@@ -541,11 +601,14 @@ const STRAY_SWEEP_ROUNDS = 8;
 const STRAY_SWEEP_CLEAN_ROUNDS = 2;
 const STRAY_SWEEP_WAIT_MS = 500;
 const PROCESS_LISTING_COLUMNS = ['ProcessId', 'ParentProcessId', 'Name', 'ExecutablePath'];
-// A process table can parse and still show nothing: no rows, a header only, a column missing. Such a table proves nothing about absence.
+// A process table can read as intact and still show nothing: no rows, a column missing, a row without a process id. The sweep selects by
+// ExecutablePath, so it also needs the four columns on every row and one live process. Such a table proves nothing about absence.
+const DIGITS = /^\d+$/;
 function usableProcessListing(listing) {
-  if (listing.failed || listing.rows.length === 0) return false;
-  if (!PROCESS_LISTING_COLUMNS.every((column) => Object.prototype.hasOwnProperty.call(listing.rows[0], column))) return false;
-  return listing.rows.some((row) => Number(row.ProcessId) > 0);
+  if (listing.failed) return false;
+  const shaped = listing.rows.every((row) => PROCESS_LISTING_COLUMNS.every((column) => Object.prototype.hasOwnProperty.call(row, column))
+    && DIGITS.test(String(row.ProcessId).trim()) && DIGITS.test(String(row.ParentProcessId).trim()) && String(row.Name).trim() !== '');
+  return shaped && listing.rows.some((row) => Number(row.ProcessId) > 0);
 }
 function findDriverStrays(exec, runtimeRoot) {
   const listing = listProcesses(exec);
@@ -893,7 +956,7 @@ async function main(argv = process.argv.slice(2), environment = {}) {
 module.exports = {
   main, createContext, runEnvironmentPhase, runDriverPhase, runPostflightPhase, finishPhase, applyAssertions, writeEvidence,
   collectEnvironment, evaluateEnvironment, listProcesses, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
-  ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
+  ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, parseCsvLineStrict, readWmicTable, usableProcessListing, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
   CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
   chainIdentityAssertion, finishChainEvidence, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
 };

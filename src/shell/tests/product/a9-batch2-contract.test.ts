@@ -1421,6 +1421,127 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(smoke.findDriverStrays(() => wmicCsv([]), runtimeRoot)).toEqual({ strays: [], failed: false });
     });
 
+    // Codex round 12 (N1): a table is read line by line. One line that does not read as a complete row can be the very row that matters,
+    // so it makes the whole table no proof of absence, whatever the other lines show. wmic does not quote, so a quote is never legal inside a cell.
+    const goodRow = (exe: string, pid: number, parent: number, name: string) => `HOST,20261014172412.000000+000,${exe},${name},${parent},${pid},2`;
+    const tableOf = (lines: string[], head = header) => rawListing(`${head}\r\n${[goodRow(bystander[0], bystander[1], bystander[2], bystander[3]), ...lines].join('\r\n')}\r\n`);
+    const brokenTables: Array<[string, any]> = [
+      ['a short row with the path cell missing (the table of codex round 12)', rawListing('Node,ProcessId,ParentProcessId,Name,ExecutablePath\r\nHOST,304,4,smss.exe,C:\\x\\smss.exe\r\nHOST,4736,4988,electron.exe\r\n')],
+      ['only a short row', rawListing('Node,ProcessId,ParentProcessId,Name,ExecutablePath\r\nHOST,4736,4988,electron.exe\r\n')],
+      ['a short line after normal rows', tableOf(['HOST,date'])],
+      ['an unclosed quote on a row that names the driver path', tableOf([`HOST,20261014172412.000000+000,"${electronInside},electron.exe,4988,4736,2`])],
+      ['one cell too many (a path with a comma)', tableOf([`HOST,20261014172412.000000+000,${path.join(runtimeRoot, 'a,b')}${path.sep}x.exe,x.exe,4,5,2`])],
+      ['a quote inside an unquoted cell', tableOf(['HOST,20261014172412.000000+000,C:\\a"b\\x.exe,x.exe,4,5,2'])],
+      ['text after a closing quote', tableOf(['HOST,20261014172412.000000+000,"C:\\x.exe"junk,x.exe,4,5,2'])],
+      ['a junk line before the header', rawListing(`WARNING: slow query\r\n${tableOf([]).stdout}`)],
+      ['a junk line after the rows', rawListing(`${tableOf([]).stdout}ERROR - output cut\r\n`)],
+      ['a duplicated column name', tableOf([], 'Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,ProcessId')],
+      ['an empty column name', tableOf([], 'Node,CreationDate,,Name,ParentProcessId,ProcessId,SessionId')],
+      ['a quote inside a column name', tableOf([], 'Node,Creation"Dat"e,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId')],
+    ];
+    // These read as intact tables but a row has no usable process id, parent id or name.
+    const unshapedTables: Array<[string, any]> = [
+      ['a process id that is not a number', tableOf([goodRow(electronInside, 4736, 4988, 'electron.exe').replace(',4736,', ',abc,')])],
+      ['a parent process id that is empty', tableOf([goodRow(electronInside, 4736, 4988, 'electron.exe').replace(',4988,', ',,')])],
+      ['a row without a name', tableOf([goodRow(electronInside, 4736, 4988, '')])],
+    ];
+
+    test('the strict line reader accepts what wmic prints and refuses a line that is not whole', () => {
+      expect(smoke.parseCsvLineStrict('a,b,')).toEqual(['a', 'b', '']);
+      expect(smoke.parseCsvLineStrict('')).toEqual(['']);
+      expect(smoke.parseCsvLineStrict('"a,b",c')).toEqual(['a,b', 'c']);
+      expect(smoke.parseCsvLineStrict('"a""b",c')).toEqual(['a"b', 'c']);
+      expect(smoke.parseCsvLineStrict('a"b')).toBeNull();
+      expect(smoke.parseCsvLineStrict('"ab')).toBeNull();
+      expect(smoke.parseCsvLineStrict('"ab"c,d')).toBeNull();
+      expect(smoke.readWmicTable('A,B\r\n1,2\r\n3\r\n')).toEqual({ rows: [{ A: '1', B: '2' }], intact: false, problem: 'row_3_cell_count' });
+      expect(smoke.readWmicTable('A,B\r\n1,"2\r\n')).toMatchObject({ rows: [], intact: false, problem: 'row_2_quoting' });
+      expect(smoke.readWmicTable('A,B\r\n')).toMatchObject({ intact: false, problem: 'no_rows' });
+      expect(smoke.readWmicTable('')).toMatchObject({ intact: false, problem: 'empty_output' });
+      expect(smoke.readWmicTable('A,A\r\n1,2\r\n')).toMatchObject({ intact: false, problem: 'header_invalid' });
+    });
+
+    test('a process table with one broken line is a failed listing, however clean the other lines look, and its complete rows still show presence (codex round 12, N1)', async () => {
+      for (const [label, table] of brokenTables) {
+        const listed = smoke.listProcesses(() => table);
+        expect({ label, failed: listed.failed, named: typeof listed.problem === 'string' }).toEqual({ label, failed: true, named: true });
+        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toMatchObject({ label, failed: true });
+        const swept = await smoke.sweepDriverStrays(() => table, runtimeRoot, { kill: () => undefined, wait: instant });
+        expect({ label, observed: swept.observed }).toEqual({ label, observed: false });
+      }
+      for (const [label, table] of unshapedTables) {
+        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toMatchObject({ label, failed: true });
+        expect({ label, observed: (await smoke.sweepDriverStrays(() => table, runtimeRoot, { kill: () => undefined, wait: instant })).observed }).toEqual({ label, observed: false });
+      }
+      // The driver's complete row beside a broken line is seen and killed, and is not confirmed removed.
+      const mixed = tableOf([goodRow(electronInside, 4736, 4988, 'electron.exe'), 'HOST,date']);
+      const orphan = { pid: 4736, parent_pid: 4988, name: 'electron.exe' };
+      expect(smoke.findDriverStrays(() => mixed, runtimeRoot)).toEqual({ strays: [orphan], failed: true });
+      const killed: number[] = [];
+      expect(await smoke.sweepDriverStrays(() => mixed, runtimeRoot, { kill: (pid: number) => { killed.push(pid); }, wait: instant }))
+        .toEqual({ attempted: [orphan], removed: [], remaining: [orphan], observed: false });
+      expect(killed.length).toBeGreaterThan(0);
+
+      // Tables that are whole stay usable: another column order, a byte order mark, LF line ends, blank lines, a quoted comma, an empty path.
+      const intactTables: Array<[string, any]> = [
+        ['another column order', rawListing('Node,ProcessId,ParentProcessId,Name,ExecutablePath\r\nHOST,304,4,smss.exe,C:\\Windows\\System32\\smss.exe\r\n')],
+        ['a byte order mark', rawListing(`\uFEFF${tableOf([]).stdout}`)],
+        ['LF line ends', rawListing(tableOf([]).stdout.replace(/\r\n/g, '\n'))],
+        ['blank lines between the lines', rawListing(tableOf([]).stdout.replace(/\r\n/g, '\r\n\r\n'))],
+        // The line end wmic prints on Windows 7 is CR CR LF (parseWmicCsv reads the same).
+        ['CR CR LF line ends', rawListing(tableOf([]).stdout.replace(/\r\n/g, '\r\r\n'))],
+        ['a quoted path with a comma', tableOf([`HOST,20261014172412.000000+000,"${path.join(runtimeBase, 'a,b')}${path.sep}x.exe",x.exe,4,5,2`])],
+        ['an empty path', tableOf([goodRow('', 4802, 1, 'electron.exe')])],
+      ];
+      for (const [label, table] of intactTables) {
+        expect({ label, ...smoke.listProcesses(() => table) }).toMatchObject({ label, failed: false, problem: null });
+        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toMatchObject({ label, failed: false });
+      }
+    });
+
+    test('whatever single line of a process table is damaged, the table stops proving absence (seeded corruption of 8-row tables)', () => {
+      let seed = 20261014;
+      const rand = (limit: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit; };
+      const rows = Array.from({ length: 8 }, (_v, index) => goodRow(`C:\\Windows\\System32\\p${index}.exe`, 300 + index, 4, `p${index}.exe`));
+      const build = (lines: string[]) => rawListing(`${header}\r\n${lines.join('\r\n')}\r\n`);
+      expect(smoke.findDriverStrays(() => build(rows), runtimeRoot).failed).toBe(false);
+      const split = (line: string) => line.split(',');
+      const corruptions: Array<[string, (line: string) => string]> = [
+        ['a cell removed', (line) => { const cells = split(line); cells.splice(rand(cells.length - 1) + 1, 1); return cells.join(','); }],
+        ['a cell added', (line) => { const cells = split(line); cells.splice(rand(cells.length), 0, 'extra'); return cells.join(','); }],
+        ['a lone quote at the end of a cell', (line) => { const cells = split(line); const at = rand(cells.length); cells[at] = `${cells[at]}"`; return cells.join(','); }],
+        ['a cell that opens a quote and never closes it', (line) => { const cells = split(line); cells[rand(cells.length)] = '"unclosed'; return cells.join(','); }],
+        // Cut inside the line and short of its last comma, so the cut line has fewer cells than the header.
+        ['a line cut short', (line) => line.slice(0, rand(line.lastIndexOf(',')) + 1)],
+        ['a process id that is not a number', (line) => line.replace(/,(\d+),2$/, ',x$1,2')],
+        ['a junk line instead of the row', () => 'ERROR - no row here'],
+      ];
+      for (const [label, corrupt] of corruptions) {
+        for (let trial = 0; trial < 40; trial += 1) {
+          const damaged = rows.slice();
+          const at = rand(damaged.length);
+          damaged[at] = corrupt(damaged[at]);
+          expect({ label, trial, damaged: damaged[at], failed: smoke.findDriverStrays(() => build(damaged), runtimeRoot).failed }).toEqual({ label, trial, damaged: damaged[at], failed: true });
+        }
+      }
+    });
+
+    test('the environment check, the post-flight check and the chain post-check read a broken table as a failed listing as well (codex round 12, N1)', () => {
+      const environment = (table: any) => smoke.collectEnvironment((name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? table.stdout : '', stderr: '', error: null }), { pid: 5, watchedRoots: [], freeBytes: 1 });
+      expect(environment(tableOf([])).processes_listing_failed).toBe(false);
+      expect(environment(tableOf(['HOST,date'])).processes_listing_failed).toBe(true);
+      let index = 11;
+      const postflight = (table: any) => {
+        const made = phaseContext('p10-postflight', index);
+        index += 1;
+        fs.writeFileSync(path.join(made.runRoot, 'note.txt'), 'harmless evidence');
+        return smoke.runPostflightPhase(made.ctx, () => table).cases[0].assertions[1].status;
+      };
+      expect(postflight(tableOf([]))).toBe('PASS');
+      expect(postflight(tableOf(['HOST,date']))).toBe('UNKNOWN');
+      expect(postflight(tableOf(['HOST,20261014172412.000000+000,"unclosed,x.exe,4,5,2']))).toBe('UNKNOWN');
+    });
+
     test('the sweep removes a stray, needs two clean rounds, does not call a failed listing clean and reports what survives', async () => {
       const killed: number[] = [];
       const waits: number[] = [];
@@ -1561,6 +1682,14 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const emptyLaunches = launchesOf(empty.attempt);
       expect(emptyLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt']);
       expect(emptyLaunches[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { attempted: [], removed: [], observed: false } });
+
+      // A table with one broken line cannot show absence either (codex round 12, N1).
+      const damaged = ctxPhase('p08-ui', 7);
+      const damagedResult = await smoke.runDriverPhase(damaged.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? tableOf(['HOST,date']) : { status: 0, stdout: '', stderr: '', error: null })));
+      expect(damagedResult.status).not.toBe('PASS');
+      const damagedLaunches = launchesOf(damaged.attempt);
+      expect(damagedLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt']);
+      expect(damagedLaunches[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { observed: false } });
 
       // A sweep that cannot list processes cannot show absence either.
       const blind = ctxPhase('p08-ui', 5);
