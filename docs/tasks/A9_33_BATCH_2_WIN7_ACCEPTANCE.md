@@ -1860,3 +1860,59 @@ KL-7 现含边界 a（路径分量 `C:\t` 加密钥形态）、边界 b（连续
 下一步（负责人 2026-10-14 裁决：预演无需审批、预演次数上限取消）：执行代理用同一个 ZIP（`f3edefcb…`，字节不变）生成预演 10 的新授权文件和新 run，在聊天里先报授权文件哈希，再依 R1～R8 上 Win7。预演 10 若出现失败，连续计数归零，按 [§6.4](#64-停止诊断与核号) 先诊断。请求总数 51/64，预演 10 的 10 个请求使累计达到 61/64；若还需要预演 11，累计会超过 64，先暂停报告。窗口 `2026-10-16T06:59:59Z` 不变。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效。未在 Win7 验收通过。
+
+### 6.43 预演 10 失败、驱动残留进程与第 5 个驱动修复（2026-10-14）
+
+结论：预演 10 在 Win7 上失败，连续成功计数归零。p01～p06 通过，p07、p08 以 `PHASE_RESULT_MISSING` 失败，p09、p10 被套件守卫拒绝。原因是套件缺陷：p06 终止驱动后遗留一个 Electron 网络服务孤儿进程，占用 `driver-electron\electron.exe`，后续阶段复制该文件报 `EBUSY`。预演 9 的全部通过含时序运气。
+证据层级为 Win7 实机（预演，非验收证据），绑定源提交 `0af45d36…`、套件代码 `c869661e…`、run `6c90a56e…`、授权文件 SHA-256 `f49a9e7e…`、ZIP `f3edefcb…`（与预演 9 字节相同）。修复是开发机，绑定代码提交 `14d1f43c…`。执行者是执行代理，目标 `dccs-chaizl-PC`，账户 agent，SID 与授权文件一致。
+
+执行（UTC，2026-10-14；原始记录在 `.acceptance/a9-33-rehearsal/rehearsal-10/`，该目录不入库）：
+
+| 步骤 | 时间 | 结果 |
+|---|---|---|
+| R1、R2 | 17:16:05Z～17:16:15Z | 只读检查无残留；创建运行根 `C:\A9-W43\run\6c90a56e` |
+| R3 | 17:16:16Z～17:19:30Z | 上传 ZIP 与 11 个粘合文件；certutil 复核 11/11 哈希与开发机相同 |
+| R4 | 17:19:31Z | Win7 本机解压，800 个文件，`EXTRACT_PASS` |
+| R5、R6 | 17:19:42Z～17:27:12Z | p01～p06 PASS；p07、p08 FAIL；p09、p10 被拒绝 |
+| R8（先于 R7 执行） | 17:28:12Z | 残留 1 个 electron 进程（见下）；`A9W43*` 计划任务 0 个；agent 仍在 console 会话 2 |
+| R7 | 17:28:49Z | Win7 本机 `SUM_TREE_PASS files=275`；取回 192 个文件，0 个哈希不一致，0 个缺失；83 个 `driver-electron` 文件不取回 |
+
+结果（执行代理读取取回的证据）：
+
+| 项 | 结果 |
+|---|---|
+| p01～p06 | PASS，20 个用例、36 条断言 |
+| p07、p08 | FAIL，`PHASE_RESULT_MISSING`，各用时不到 1 秒，没有 `phase-result.json` |
+| p09、p10 | 被 `SAME_CLASS_FAILURE_TWICE_DIAGNOSE_FIRST` 与 `PREREQUISITE_NOT_PASSED` 拒绝，不计请求 |
+| 请求账本 | 8 次 CONSUMED、8 次 COMPLETED；本次 8 个请求，累计 59/64 |
+| 控制器错误 | p07、p08 相同：`EBUSY: resource busy or locked, copyfile …\deploy\…\electron.exe -> …\evidence\driver-electron\electron.exe` |
+
+根因（执行代理推断，已用 Win7 取回证据核对，待 codex 独立复核）：
+
+1. p06 的 `continue_unknown_interrupt` 由驱动 PID 4988 运行，被 `taskkill /T /F` 终止（`killed_by=marker`，17:24:12.998Z）。
+2. 同一时刻 `product.log` 记录 `Network service crashed, restarting service`（17:24:12.958Z）。重启出的网络服务子进程 PID 4736 不在 `taskkill /T` 一次枚举的子进程列表里，主进程消失后成为孤儿，一直映射着 `driver-electron\electron.exe`，17:29:41Z 复查仍在运行。
+3. p07、p08 的 `prepareDriverRuntime` 每个阶段都把整个运行时重新复制一遍，复制被映射的可执行文件时 Windows 返回 `EBUSY`，控制器抛错，没有阶段结果。
+4. 对照：预演 9 同一步骤（驱动 PID 3104）的 `product.log` 没有网络服务崩溃记录，R8 无残留，p07、p08 通过。
+
+执行代理的偏差：顺序脚本只在“阶段启动或等待出问题”时停止，p07 失败后没有停下，p08 因此多消耗 1 个请求，p09、p10 各发出 1 个被拒绝的请求（不计账本）。预演 11 起，脚本在任何阶段 FAIL 时停止。
+
+修复（代码提交 `14d1f43c…`，开发机；只改 20 个路径中的 2 个）：
+
+| 文件 | 变更 |
+|---|---|
+| `release/win7-product-v3/a9-batch2-smoke.cjs` | `copyRuntimeFile`：目标内容相同则不复制，被映射的可执行文件不再报错；`sweepDriverStrays`：套件终止驱动（`marker` 或 `timeout`）后，清扫从本次运行 `driver-electron` 目录运行的进程，两轮列表为空才算完成，列表失败不算空，每次清除记入 `driver-launches.json`；`runDriverPhase`：运行时复制失败时以 `DRIVER_RUNTIME_PREPARE_FAILED` 结束阶段并写出阶段结果；清扫没有清干净的启动记 `DRIVER_STRAY_PROCESS_NOT_REMOVED` |
+| `src/shell/tests/product/a9-batch2-contract.test.ts` | 新增 6 个用例 |
+
+开发机验证（执行代理，绑定 `14d1f43c…`）：jest 224 个全部通过，`tsc` 通过，`node --test` 120 个通过，`docs:check` 340 个文件通过，`git diff --check` 无输出。25 个变异中 23 个被拦、1 个等价（去掉大小比较，仍是哈希比较）；M13（`remaining` 条件）与 `observed` 重复，已简化删除。累计范围仍是 20 个路径，`20 files changed, 9887 insertions(+), 31 deletions(-)`。
+
+未知与未验证：
+
+- 修复后的清扫在 Win7 上的行为：`NOT_PERFORMED`。`wmic process get ExecutablePath` 对孤儿进程是否返回完整路径：`UNKNOWN`（执行代理查孤儿用的是 `CommandLine`）。
+- 孤儿进程可否被 `taskkill /PID /T /F` 终止：`NOT_PERFORMED`。
+- 更晚才出现的孤儿（清扫结束之后才重启的辅助进程）：由 p10 残留检查兜底，未实测。
+- 预演 10 遗留的 PID 4736 仍在运行，终止它不在 R1～R8 闭集内，等负责人裁决。
+
+待裁决：请求上限 64，已用 59，预演 11 的常规路径需要 10 个，累计 69；PID 4736 是否终止。两项见 2026-10-14 聊天中的问题 1、2，执行代理按字面保守处理，未自行提高上限，未终止进程。
+codex 第 11 轮复核已于 2026-10-14T17:46:43Z 启动（`gpt-6.1-sol`、`xhigh`、非 fast 模式）。交接包 `docs/reports/2026-10/a9_33_independent_review_handoff_stray_sweep_2026-10-14.md`。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效。未在 Win7 验收通过。
