@@ -1196,13 +1196,13 @@ Win7 状态：R8 后检无残留进程，无 `A9W43*` 计划任务；旧根 0f35
 
 ### 6.26 预演 7 失败分类（2026-10-14，开发机只读）
 
-结论：B2-UI-01 归为套件缺陷，B2-SAFE-02 归为套件判据过窄，B2-S04 归为合同与产品不一致。三项都不是 Win7 环境问题。
+结论：B2-UI-01 归为套件缺陷，B2-SAFE-02 归为套件判据过窄，B2-S04 归为合同与产品不一致。B2-SAFE-02 与 B2-S04 的原因已在源码层定位，不是 Win7 环境问题；B2-UI-01 的原因 `UNKNOWN`，Win7 环境因素（窗口焦点、输入注入）未排除。
 证据层级为开发机，绑定提交 `09fd4772…`。执行代理只读分析预演 7 取回的 Win7 证据和源码，没有访问 Win7，没有改套件代码。本节不是修复授权。
 标 `UNKNOWN` 的原因，只能靠再跑一次 Win7 预演确认。
 
 | 失败 | 归类 | 已确认的事实 | UNKNOWN |
 |---|---|---|---|
-| B2-UI-01 `loading_feedback`、`one_dispatch_while_busy` | 套件缺陷（首选归类）；产品侧只剩点击处理的静默提前返回一条路径，未排除 | ① 驱动 IPC 日志在 05:50:16.687Z 到 05:50:26.650Z 之间没有任何调用完成记录（日志在调用返回后写入）。点击通过守卫后会启动 500 ms 一次的快照轮询（`a9-workbench.js:2340`），所以这 9.96 秒内没有通过守卫的点击。② 点击通过守卫后，在第一个 `await` 之前同步把按钮改成“正在继续”（`a9-workbench.js:2280` 起，标签在 `:1015`），通过守卫的点击不存在延迟响应；`continueInterruptedTask` 的守卫（`canContinue`、`state.running`、`state.continuingTaskId`）会无声返回，按钮在渲染时为启用说明三者当时为假，之后是否变化 `UNKNOWN`。③ 全局键盘处理只拦截 Ctrl+K、Ctrl+I、抽屉内 Tab 和 Esc；输入框（`:3005`）和对话操作区（`:3020`）另有局部处理，都不挂在卡片按钮上，由原生按钮处理 Enter 与 Space。④ `press()` 只在 UI-01 使用，发送 keyDown、char、keyUp，`keyCode` 是字符串 `Enter` 或 `Space`；Space 经同一函数两次成功（continue 事件 26.670Z、27.735Z）。⑤ 页面焦点在按钮上（`focus_element=BUTTON`）。 | 第一次 Enter 没有生效的原因。假设 H1：Electron 把 `char` 事件的文本取成字符串 `Enter`，按钮收不到 Enter 的 keypress。假设 H2：第一次按键发生在窗口取得焦点之前，被丢弃。额外那次 Enter 与 Space 里哪一个触发了 26.670Z 的事件，数据无法区分。开发机没有可运行的 Electron（`node_modules/electron` 无 `dist`，本机只有 Windows 的 electron.exe 压缩包），H1、H2 都无法在开发机验证 |
+| B2-UI-01 `loading_feedback`、`one_dispatch_while_busy` | 套件缺陷（首选归类，原因 `UNKNOWN`）；产品侧原因与 Win7 环境因素均未排除 | ① 驱动 IPC 日志在 05:50:16.687Z 到 05:50:26.650Z 之间没有任何调用完成记录（日志在调用返回后写入）。点击通过守卫后会启动 500 ms 一次的快照轮询（`a9-workbench.js:2340`），这与“9.96 秒内没有通过守卫的点击”一致，但完成记录的空窗不能单独排除其他路径（点击被静默提前返回的守卫挡下、调用未完成），原因 `UNKNOWN`。② 点击通过守卫后，在第一个 `await` 之前同步把按钮改成“正在继续”（`a9-workbench.js:2280` 起，标签在 `:1015`），通过守卫的点击不存在延迟响应；`continueInterruptedTask` 的守卫（`canContinue`、`state.running`、`state.continuingTaskId`）会无声返回，按钮在渲染时为启用说明三者当时为假，之后是否变化 `UNKNOWN`。③ 全局键盘处理只拦截 Ctrl+K、Ctrl+I、抽屉内 Tab 和 Esc；输入框（`:3005`）和对话操作区（`:3020`）另有局部处理，都不挂在卡片按钮上，由原生按钮处理 Enter 与 Space。④ `press()` 只在 UI-01 使用，发送 keyDown、char、keyUp，`keyCode` 是字符串 `Enter` 或 `Space`；continue 事件出现在 26.670Z 与 27.735Z；26.670Z 由额外 Enter 或额外 Space 触发，数据无法区分，27.735Z 对应的按键未单独核对，所以 Enter 与 Space 路径都不算已验证。⑤ 页面焦点在按钮上（`focus_element=BUTTON`）。 | 第一次 Enter 没有生效的原因。假设 H1：Electron 把 `char` 事件的文本取成字符串 `Enter`，按钮收不到 Enter 的 keypress。假设 H2：第一次按键发生在窗口取得焦点之前，被丢弃。额外那次 Enter 与 Space 里哪一个触发了 26.670Z 的事件，数据无法区分。开发机没有可运行的 Electron（`node_modules/electron` 无 `dist`，本机只有 Windows 的 electron.exe 压缩包），H1、H2 都无法在开发机验证 |
 | B2-SAFE-02 | 套件判据过窄，另有一条产品观察 | ① `a9.turn.submit` 两次都返回 `ok=false`、错误码 `A9_AUDIT_PERSISTENCE_FAILED`（05:49:35.770Z、05:49:37.550Z，`driver-safe_rules.json`）。② `tool_end` 事件 0 条，文件已写入，Provider 请求 `0→1→1`，发送键被禁用。③ `presentAuditFailure` 只设置内存状态 `auditFailureBlock` 与 `agentStatus='failed'`，把错误码放进 IPC 返回值（`a9-agent-runtime.js:1861`），不写 Turn 行。④ 渲染层显示 `error.message`，不显示错误码（`a9-workbench.js:123`）。⑤ 驱动判据 `audit_flag_visible` 在 `outcome_json` 与整页文字里找错误码或 `auditIncomplete`，没有读 IPC 返回值；合同文字只写“必需审计失败停止 Turn，未知副作用不记为零”，没有要求这个标记。其余判据项全部满足 | 页面实际显示的文字（驱动没有保存 `dom.visible`，p07 没有截图）。Turn 行停在 `active` 是设计还是遗漏。应用重启后该 Turn 如何收尾 |
 | B2-S04 `utf16le`、`cp936` | 合同与产品不一致 | ① 产品在 PowerShell 下把 stdout 按严格 UTF-8 解码（`trusted-shell-runner.ts:587`），非法字节得到 `A9_OUTPUT_ENCODING_ERROR`，与切点无关。② CP936 默认只对 cmd 生效，UTF-16LE 在 A9-30 中记为外部选项。③ A9-30 对 CP936、UTF-16LE 解码器的证据是模块级的（Win7，Session 0），不是经 PowerShell 的端到端 | 能否通过产品设置选 cmd 来覆盖 CP936：`a9-agent-runtime.js:1181～1215` 读取 `shellOptions`，设置入口未查，`UNKNOWN` |
 
@@ -1327,3 +1327,49 @@ codex 的其余结论（信息）：
 KL-1～KL-5 仍有效；任何 Alpha 2 结论必须带上 KL-3 与 KL-5。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
+
+### 6.30 第五修复轮实现与 codex 第 5 轮复核（2026-10-14）
+
+结论：第五修复轮已按 §6.29 实现并提交，codex 复核后对 `c8d9113b…` 报告 0 个 P0、2 个 P1、2 个 P2，不建议进入预演 8 的授权评审。
+证据层级为开发机，绑定提交 `c8d9113b1261fc112d6a804ee0782f70786501d0`（上一被复核提交 `1a2b2783…`，中间文档提交 `9fbb68aa…`）。codex 用 gpt-6.1-sol、`xhigh`、非 fast 模式，未改仓库，未访问 Win7。
+
+实现（执行代理，开发机）：本地提交 `c8d9113b…`，只改 2 个套件文件（+317/−21，累计相对 `7e96f561…` 为 20 个文件 +9008/−31，路径仍是 §6.1 的 20 个）。内容：N1 首轮请求数固定为 1 且第二次 `a9.turn.submit` 必须被观察；N2 额外 Enter 与 Space 的 `keydown` 必须被页面记录；U-A 加固（`keydown_target` 为按钮且 `focus()` 返回值为真）；为 `safeRules`、`streamEncodings`、`uiContinue` 增加 11 个闭包用例。验证：contract 161 通过、package-runtime 43 通过、`node --test` 120 通过、`tsc --noEmit` 退出码 0、`docs:check` 334 个文件。23 个变异最终全部被拦（S1 首次存活，补桩后拦住）。
+
+过程：2026-10-14T08:47:17Z 启动，09:15:46Z 完成，退出码 0。最终报告与证据存档在 `.acceptance/a9-33-review/codex-stage2-round5-20261014/`，131 个文件有 `SHA256SUMS.txt`。交接包为 `docs/reports/2026-10/a9_33_independent_review_handoff_rehearsal7_fixes_round2_2026-10-14.md`，执行代理试跑 401 秒，退出码 0。
+
+| 编号 | 级别 | 发现 | 性质 | 执行代理的核实（开发机） |
+|---|---|---|---|---|
+| R1 | P1 | B2-S03T 的 PASS 条件只有 `starts === 3 && !completed && c2.requests === c1.requests && laterShell === 0`。第二次 `a9.turn.submit` 是否到达 IPC 不是条件，请求计数不要求是整数 | 既有套件缺陷，本轮首次发现；与 N1 同类 | 读源码确认：驱动 `s03t-terminal-audit` 记录处只有上述条件；`counters()` 在响应体为空时返回 `{}`，`undefined === undefined` 为真。codex 的探针未重跑 |
+| R2 | P1 | 重启检查 `zeroAdded` 直接比较三份 `requests`，不检查存在性；`B2-CONT-01` 第 2 项比较旧 Turn 状态，两次都查不到（`null`）也得 PASS。`guardRefused` 已有整数检查，这里遗漏 | 既有套件缺陷，本轮首次发现；与 N1 同类 | 读源码确认：`zeroAdded` 与 `old_turn_status` 比较均无存在性检查；共用的 `zeroAdded` 还影响 `B2-CH-04` 第 2 项。codex 的探针未重跑 |
+| R3 | P2 | `one_dispatch_while_busy` 先要求 `extrasReached === true`。额外键发送前已观察到 2 条 continue 事件，额外键丢失仍判 `UNKNOWN`，原先是 `FAIL` | 第五修复轮引入的回归 | 在 `c8d9113b…` 的真实评估器上复现：`events_busy=2`、两个额外键 `keydown=false` 得 `UNKNOWN`。`1a2b2783…` 没有额外键条件，计数 2 不等于 1，读源码为 `FAIL` |
+| R4 | P2 | 首轮固定增加 1 个请求，会把合法的网络重试判成硬停止失败 | 第五修复轮引入的误判风险 | 读源码确认：Gateway 对 `ECONNRESET`、`ETIMEDOUT`、5xx 等最多重试 5 次（`openai-compatible.ts:210～265`，`transport/index.ts:99～103`）；夹具在服务器侧计数每个非探测请求（smoke `requestCount += 1`）。仅当首个请求已被服务器计数、响应随后丢失时才出现 2；预演 7 是否发生过这种故障 `UNKNOWN`（样本为 `0→1→1`）。codex 的探针未重跑 |
+
+codex 的其余结论（信息）：
+
+1. N1、N2、目标元素信息项、A1、A2、A3 的原反例已在开发机关闭；23 个交接包变异全部重做且被拦；codex 另试 7 个，B2（`warnings` 取全部 `tool_output`，不按 `toolCallId` 过滤）与 C1（删掉真实 `b.focus()`）存活。原因：`uiContinue` 的桩按代码子串返回 `buttonFocused`，不执行 DOM；`streamEncodings` 的桩每次只有一个 `toolCallId`。当前源码调用正确，属覆盖盲点。
+2. 假设 42 在无条件表述下不成立；43、45 为 `UNKNOWN`；44 在标准 DOM 事件模型下成立，Electron 22 的实际落点 `UNKNOWN`。
+3. 契约测试在沙箱内 197 通过、7 个因 `listen EPERM 127.0.0.1` 为 `UNKNOWN`（与前几轮相同的 7 个）；包测试 120 通过；`docs:check` 334 个文件；范围恰为 §6.1 的 20 个路径。
+4. 闭包用例未覆盖：真实 IPC 在调用返回后记录而桩在 `submit` 内同步记录（晚到答复的时序）、SQLite 触发器的实际创建与删除、`exec` 内的 DOM 动作、多 `toolCallId` 的警告归属。
+
+对文档措辞的更正（codex 第 5 轮指出，执行代理核实）：
+
+- 本任务书 §6.26 原文“三项都不是 Win7 环境问题”过强，已改为只对 B2-SAFE-02 与 B2-S04 成立，B2-UI-01 的原因 `UNKNOWN`、Win7 环境因素未排除。
+- §6.26 与第四轮交接包原文“所以这 9.96 秒内没有通过守卫的点击”已改为“与之一致，但不能单独排除其他路径”。
+- §6.26 与第四轮交接包原文“Space 经同一函数两次成功”已改为：26.670Z 的事件由额外 Enter 或额外 Space 触发，数据无法区分，27.735Z 对应的按键未单独核对。
+- `docs/STATUS_LOG.md` 中“点击没有发生”的已提交旧句（B2-UI-01 条目）保留不改，更正以本节为准。
+
+建议的修复（等负责人裁决，未实施；全部在 §6.1 的 20 个路径内，不改产品代码）：
+
+1. R1：B2-S03T 要求请求计数为非负整数，并用与 B2-SAFE-02 相同的 IPC 基线方法确认第二次 `a9.turn.submit` 到达；缺失则 `UNKNOWN`。不固定请求总数。
+2. R2：`zeroAdded` 要求三份请求计数和两份工具事件计数都是整数，旧 Turn 状态前后都非空；缺失则 `UNKNOWN`。
+3. R3：`one_dispatch_while_busy` 先看计数：任一计数大于 1 即 `FAIL`，与额外键是否到达无关；只有计数都等于 1 且 Enter 与额外键都到达才 `PASS`；其余 `UNKNOWN`。
+4. R4：B2-SAFE-02 不再用“首轮增量恰好为 1”，改为读 Provider 日志（每条请求有 `tool_messages` 字段）：窗口内没有任何请求带工具结果，且次轮提交后计数不增；这个替代判据本身需 codex 复审。
+5. 覆盖盲点：`uiContinue` 的桩真正执行 `focus()`，使删掉 `b.focus()` 的变异被拦；`streamEncodings` 增加含两个 `toolCallId` 的用例。
+
+未知与未验证：
+
+- Electron 22 下 `\r` 的 `char` 事件、已禁用按钮后额外键的派发、`focus()` 的落点（假设 37、43、45）：`UNKNOWN`，需下一次 Win7 预演。
+- 上述修复与第五修复轮的效果：未在 Win7 实机验证。
+- 预算仍是 7/7 耗尽，预演 8 未授权；Win7 授权窗口 `2026-10-16T06:59:59Z` 结束。
+
+本节不开修复轮，不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
