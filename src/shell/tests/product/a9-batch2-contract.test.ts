@@ -612,6 +612,60 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(dirty.findings.map((item: any) => item.file)).toEqual(['leak.log']);
   });
 
+  test('the api-key-prefix pattern still finds a key behind a JSON, hex or URL escape and keeps the full key charset (codex round 7, N1 and N2)', () => {
+    const secret = fixtures.testOnlySecret();
+    // A key that is not the configured one, so only the pattern can report it. "_" and "-" sit inside its first 20 characters.
+    const other = `sk-${'Q'.repeat(8)}_${'r'.repeat(8)}-${'7'.repeat(8)}`;
+    const taskId = `task-${'1791978065779'}-vt8baz`;
+    const symbols = ['SubgroupEqMask-SubgroupEqMask-04370', 'VkPipelineLayoutMask-commandBuffer-parameter'];
+    const found = (text: string) => smoke.scanBytesForSecrets(Buffer.from(text), []);
+    // N1: JSON.stringify writes control characters as \n \t \r \f \b \u00XX, so the byte before the key is a letter or a digit.
+    for (const control of ['\n', '\t', '\r', '\f', '\b', '\u0000', '\u001b']) {
+      const json = JSON.stringify({ message: `${control}${other}` });
+      expect(json).not.toContain(control);
+      expect(found(json)).toEqual(['api-key-prefix']);
+    }
+    // Escaped twice, as a JSON text held inside a JSON string.
+    expect(found(JSON.stringify(JSON.stringify(`\n${other}`)))).toEqual(['api-key-prefix']);
+    expect(found(JSON.stringify(JSON.stringify({ message: `\t${other}` })))).toEqual(['api-key-prefix']);
+    // URL percent-encoding, hex escapes and unicode escapes.
+    for (const before of ['%20', '%0A', '%0d', '%7C', '\\x0a', '\\x1B', '\\u000a', '\\u00E9', '\\n', '\\t', '\\r', '\\f', '\\b']) {
+      expect(found(`q=${before}${other}`)).toEqual(['api-key-prefix']);
+    }
+    // A predecessor that is not a complete escape is still a word: one hex digit, an unknown escape letter, a bare letter or digit.
+    for (const before of ['%2', '\\u00e', '\\x0', '\\d', '\\q', 'n', 't', 'content', 'ab12', 'u0000', 'x0a']) {
+      expect(found(`${before}${other}`)).toEqual([]);
+    }
+    // Task ids and binary symbol names stay out, also directly behind an escape.
+    expect(found(JSON.stringify({ message: `\n${taskId}`, other: `\t${taskId}` }))).toEqual([]);
+    expect(found(`q=%20${taskId}`)).toEqual([]);
+    for (const symbol of symbols) expect(found(JSON.stringify({ symbol: `\u0000${symbol}` }))).toEqual([]);
+    // A task id and a real key in one text: the key is found.
+    expect(found(JSON.stringify({ message: `\n${taskId}\n${other}` }))).toEqual(['api-key-prefix']);
+    // N2: the key body may hold "_" and "-" inside its first 20 characters, so both belong to the charset.
+    expect(found(` sk-${'A'.repeat(10)}_${'B'.repeat(10)}`)).toEqual(['api-key-prefix']);
+    expect(found(` sk-${'A'.repeat(10)}-${'B'.repeat(10)}`)).toEqual(['api-key-prefix']);
+    expect(found(` sk-${'A'.repeat(10)}.${'B'.repeat(10)}`)).toEqual([]);
+    // The whole run: an escaped key in an events file is a finding, and no executable or library extension is skipped.
+    const root = temp('scan-escape');
+    fs.writeFileSync(path.join(root, 'escaped.json'), JSON.stringify({ message: `\n${other}` }));
+    for (const name of ['leak.exe', 'leak.dll', 'leak.json', 'leak.txt', 'leak']) {
+      fs.writeFileSync(path.join(root, name), Buffer.concat([Buffer.from([0x4d, 0x5a, 0, 0]), Buffer.from(`token=${secret}`)]));
+    }
+    for (const name of ['skip.png', 'skip.sqlite', 'skip.db', 'skip.ico', 'skip.pak']) fs.writeFileSync(path.join(root, name), Buffer.from(secret));
+    const scan = smoke.scanRun(root, secret);
+    expect(scan.positive_control_detected).toBe(true);
+    expect(scan.files_scanned).toBe(6);
+    expect([...scan.findings].sort((left: any, right: any) => left.file.localeCompare(right.file))).toEqual([
+      { file: 'escaped.json', hits: ['api-key-prefix'] },
+      { file: 'leak', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'leak.dll', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'leak.exe', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'leak.json', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'leak.txt', hits: ['api-key-prefix', 'configured-secret-literal'] },
+    ]);
+  });
+
   test('suite files hold no literal that the producer payload scan or the encoding rules would reject', () => {
     const sources = ['a9-batch2-fixtures.cjs', 'a9-batch2-desktop-request.cjs', 'a9-batch2-package-integrity.cjs', 'a9-batch2-report.cjs', 'a9-batch2-smoke.cjs',
       'a9-batch2-desktop-controller.ps1', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'RUN_A9_BATCH2_SMOKE.cmd', 'RUN_A9_BATCH2_REPORT_VERIFY.cmd']
