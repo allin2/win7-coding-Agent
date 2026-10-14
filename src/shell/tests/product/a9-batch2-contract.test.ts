@@ -613,7 +613,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(dirty.findings.map((item: any) => item.file)).toEqual(['leak.log']);
   });
 
-  test('the api-key-prefix scan judges the character before a key after undoing JSON, hex and URL layers, and keeps the full key charset (codex rounds 7 and 8)', () => {
+  test('the api-key-prefix scan judges the character before a key after undoing JSON, hex and URL layers, and keeps the full key charset (codex rounds 7, 8 and 9)', () => {
     const secret = fixtures.testOnlySecret();
     // A key that is not the configured one, so only the pattern can report it. "_" and "-" sit inside its first 20 characters.
     const other = `sk-${'Q'.repeat(8)}_${'r'.repeat(8)}-${'7'.repeat(8)}`;
@@ -630,11 +630,12 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(found(JSON.stringify(JSON.stringify(`\n${other}`)))).toEqual(['api-key-prefix']);
     expect(found(JSON.stringify(JSON.stringify({ message: `\t${other}` })))).toEqual(['api-key-prefix']);
     // URL percent-encoding, hex escapes and unicode escapes.
-    for (const before of ['%20', '%0A', '%0d', '%7C', '\\x0a', '\\x1B', '\\u000a', '\\u00E9', '\\n', '\\t', '\\r', '\\f', '\\b']) {
+    // The last two build the escape of a line feed from two escapes: the run is decoded through every lead-in in it, not only the last one.
+    for (const before of ['%20', '%0A', '%0d', '%7C', '\\x0a', '\\x1B', '\\u000a', '\\u00E9', '\\n', '\\t', '\\r', '\\f', '\\b', '%5C%6E', '\\x5c\\x6e']) {
       expect(found(`q=${before}${other}`)).toEqual(['api-key-prefix']);
     }
     // A predecessor that is not a complete escape is still a word: one hex digit, an unknown escape letter, a bare letter or digit.
-    for (const before of ['%2', '\\u00e', '\\x0', '\\d', '\\q', 'n', 't', 'content', 'ab12', 'u0000', 'x0a']) {
+    for (const before of ['%2', '\\u00e', '\\x0', '\\d', '\\q', 'n', 't', 'content', 'ab12', 'u0000', 'x0a', 'g', 'Z', 'q', 'zz', '%g', '\\g']) {
       expect(found(`${before}${other}`)).toEqual([]);
     }
     // Task ids and binary symbol names stay out, also directly behind an escape.
@@ -690,14 +691,36 @@ describe('A9-33 batch-2 smoke pieces', () => {
     }
     expect(sequences).toHaveLength(156);
     expect(wrong).toEqual([]);
-    // A letter hidden under five URL layers is still the letter: decoded within the limit, it is a word character and the key is not reported.
-    let hiddenLetter = '%61';
-    for (let layer = 0; layer < 4; layer += 1) hiddenLetter = url(hiddenLetter);
-    expect(found(`q=${hiddenLetter}${other}`)).toEqual([]);
-    // Nested deeper than the decoding limit: the scan reports instead of guessing (here the layers hide the letter a).
-    let deep = '%61';
-    for (let layer = 0; layer < 8; layer += 1) deep = url(deep);
-    expect(found(`q=${deep}${other}`)).toEqual(['api-key-prefix']);
+    // Exactly six decoding layers resolve: a letter under six URL layers is a word character, under seven the scan reports (codex round 9, N8).
+    const urlTimes = (text: string, times: number) => {
+      let value = text;
+      for (let layer = 0; layer < times; layer += 1) value = url(value);
+      return value;
+    };
+    const letterUnder = (layers: number) => urlTimes('%61', layers - 1);
+    for (const layers of [1, 2, 5, 6]) expect({ layers, hits: found(`q=${letterUnder(layers)}${other}`) }).toEqual({ layers, hits: [] });
+    for (const layers of [7, 8, 9]) expect({ layers, hits: found(`q=${letterUnder(layers)}${other}`) }).toEqual({ layers, hits: ['api-key-prefix'] });
+    // Round 9, N6: a nested escape is judged whole. From 48 URL layers on, 97 or more characters stand before the key; none of them hides it.
+    for (const layers of [1, 6, 7, 8, 47, 48, 49, 50, 60, 100, 300, 511, 512, 600]) {
+      expect({ layers, hits: found(urlTimes(`\n${other}`, layers)) }).toEqual({ layers, hits: ['api-key-prefix'] });
+    }
+    for (const layers of [48, 50, 100]) {
+      expect({ layers, hits: found(urlTimes(` ${other}`, layers)) }).toEqual({ layers, hits: ['api-key-prefix'] });
+      expect({ layers, hits: found(JSON.stringify({ message: urlTimes(` ${other}`, layers) })) }).toEqual({ layers, hits: ['api-key-prefix'] });
+      expect({ layers, hits: found(urlTimes(JSON.stringify({ message: `\n${other}` }), layers)) }).toEqual({ layers, hits: ['api-key-prefix'] });
+    }
+    // Round 9, N7: layers used up by an unrelated escape elsewhere on the line do not count against the word in front of the key.
+    for (const layers of [1, 7, 8, 9, 50]) {
+      for (const word of [taskId, ...symbols, `ask-${'A'.repeat(24)}`]) {
+        expect({ layers, word, hits: found(JSON.stringify({ url: urlTimes(' ', layers), name: word })) }).toEqual({ layers, word, hits: [] });
+      }
+      expect({ layers, hits: found(JSON.stringify({ url: urlTimes(' ', layers), message: `\n${other}` })) }).toEqual({ layers, hits: ['api-key-prefix'] });
+    }
+    // A run of escape characters that is 1024 characters long is not judged and reports; one character shorter is decoded and stays a word.
+    expect(found(`.${'a'.repeat(1023)}${other}`)).toEqual([]);
+    expect(found(`.${'a'.repeat(1024)}${other}`)).toEqual(['api-key-prefix']);
+    expect(found(`${'a'.repeat(1023)}${other}`)).toEqual([]);
+    expect(found(`${'a'.repeat(1024)}${other}`)).toEqual(['api-key-prefix']);
     // Accepted over-detection (KL-7 candidate): a Windows directory named like "t" plus "sk-" and a key-length tail is indistinguishable
     // from an escaped tab, in the raw path and in its JSON form alike. The scan errs on the side of reporting.
     expect(found(`C:\\t${other}\\file.log`)).toEqual(['api-key-prefix']);
@@ -717,11 +740,16 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const plainMs = best(() => /sk-[A-Za-z0-9_-]{20,}/.test(filler.toString('latin1')));
     const scanMs = best(() => smoke.scanBytesForSecrets(filler, []));
     expect(scanMs).toBeLessThan(plainMs * 10 + 100);
-    // Many candidates that are all rejected: only a window before each one may be decoded, never the whole text before it.
+    // Many candidates that are all rejected: only the run of escape characters before each one may be decoded, never the whole text before it.
     const dense = Buffer.from('ask-AAAAAAAAAAAAAAAAAAAAAAAA '.repeat(20000));
     const denseStarted = process.hrtime.bigint();
     expect(smoke.scanBytesForSecrets(dense, [])).toEqual([]);
     expect(Number(process.hrtime.bigint() - denseStarted) / 1e6).toBeLessThan(1500);
+    // Candidates behind long runs of escape characters: the runs of different candidates do not overlap, so the cost stays linear.
+    const runs = Buffer.from(`${'a'.repeat(500)}sk-${'a'.repeat(20)}`.repeat(20000));
+    const runsStarted = process.hrtime.bigint();
+    expect(smoke.scanBytesForSecrets(runs, [])).toEqual([]);
+    expect(Number(process.hrtime.bigint() - runsStarted) / 1e6).toBeLessThan(1500);
     // The whole run: an escaped key in an events file is a finding, and no executable or library extension is skipped.
     const root = temp('scan-escape');
     fs.writeFileSync(path.join(root, 'escaped.json'), JSON.stringify({ message: `\n${other}` }));

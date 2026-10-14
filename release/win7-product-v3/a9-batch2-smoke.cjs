@@ -224,10 +224,17 @@ function evaluateEnvironment(facts, request, candidateRoot) {
 // "sk-" (task ids, symbol names in binaries), so it is not a key start. The character before is judged after the serialization
 // that wrote the evidence is undone, layer by layer: JSON \n \t \r \f \b \uXXXX, util.inspect \xXX and URL %XX. A key behind
 // "\n", "%0A", "%5Cn" or "%250A" therefore still counts, while "%61" or the unicode escape of a is the letter a. The search runs
-// on the literal "sk-" first, so a 150 MB binary costs a plain substring search; only the 96 characters before each candidate
-// are decoded.
-const KEY_CONTEXT_CHARS = 96;
+// on the literal "sk-" first, so a 150 MB binary costs a plain substring search. Only the run of escape characters that ends
+// right at the candidate is decoded, up to its first character that no escape is made of, so a long nested escape is seen
+// whole and an unrelated escape elsewhere on the line cannot use up the layers.
+const KEY_MAX_RUN = 1024;
 const KEY_MAX_DECODE_LAYERS = 6;
+const ESCAPE_CHARACTER_CODES = (() => {
+  const table = new Uint8Array(128);
+  // Hex digits (which cover the escape letters f and b), the lead-ins % and a backslash, u and x, and the escape letters n t r.
+  for (const character of '0123456789abcdefABCDEF%\\uxntr') table[character.charCodeAt(0)] = 1;
+  return table;
+})();
 const SERIALIZED_CHARACTER = /\\(?:u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|([ntrfb]))|%([0-9a-fA-F]{2})/g;
 const ESCAPE_LETTERS = Object.freeze({ n: '\n', t: '\t', r: '\r', f: '\f', b: '\b' });
 function decodeSerializationOnce(text) {
@@ -239,7 +246,12 @@ function decodeSerializationOnce(text) {
   });
 }
 function startsApiKey(text, index) {
-  let context = text.slice(Math.max(0, index - KEY_CONTEXT_CHARS), index);
+  let begin = index;
+  while (begin > 0 && index - begin < KEY_MAX_RUN && ESCAPE_CHARACTER_CODES[text.charCodeAt(begin - 1)] === 1) begin -= 1;
+  // A run this long is not judged: the scan reports instead of guessing.
+  if (index - begin >= KEY_MAX_RUN) return true;
+  // The character before the run is no part of an escape; it stays in the context as the end of a run of length zero.
+  let context = text.slice(Math.max(0, begin - 1), index);
   for (let layer = 0; layer <= KEY_MAX_DECODE_LAYERS; layer += 1) {
     if (context === '' || !/[A-Za-z0-9]$/.test(context)) return true;
     const decoded = decodeSerializationOnce(context);
