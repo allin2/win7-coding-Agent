@@ -221,7 +221,8 @@ function evaluateEnvironment(facts, request, candidateRoot) {
 // ---- Secret scan (G4) -------------------------------------------------------------------------------------
 
 const SECRET_PATTERNS = Object.freeze([
-  { id: 'api-key-prefix', pattern: /sk-[A-Za-z0-9_-]{20,}/ },
+  // The left boundary keeps words that end in "sk-" (task ids, symbol names in binaries) from matching.
+  { id: 'api-key-prefix', pattern: /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}/ },
   { id: 'bearer-token', pattern: /Authorization\s*:\s*Bearer\s+[A-Za-z0-9._-]{16,}/i },
   { id: 'private-key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
 ]);

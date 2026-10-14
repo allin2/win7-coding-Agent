@@ -577,6 +577,41 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(smoke.scanRun(root, '').positive_control_detected).toBe(false);
   });
 
+  test('the api-key-prefix pattern needs a left boundary so task ids and binary symbol names are not secrets (rehearsal 8, p10)', () => {
+    const secret = fixtures.testOnlySecret();
+    // Shapes that rehearsal 8 reported as findings: a task id inside JSON evidence and Vulkan symbol names in an Electron binary.
+    const taskId = `task-${'1791978065779'}-vt8baz`;
+    const symbols = ['SubgroupEqMask-SubgroupEqMask-04370', 'VkPipelineLayoutMask-commandBuffer-parameter'];
+    const oldPattern = /sk-[A-Za-z0-9_-]{20,}/;
+    expect(oldPattern.test(taskId)).toBe(true);
+    for (const symbol of symbols) expect(oldPattern.test(symbol)).toBe(true);
+    expect(smoke.scanBytesForSecrets(Buffer.from(`{"taskId": "${taskId}", "linked_task": "${taskId}"}`), [])).toEqual([]);
+    expect(smoke.scanBytesForSecrets(Buffer.from(`k=${taskId}`), [])).toEqual([]);
+    for (const symbol of symbols) expect(smoke.scanBytesForSecrets(Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(symbol), Buffer.from([0])]), [])).toEqual([]);
+    // A letter or a digit directly before "sk-" keeps it out; every other predecessor still counts as a key start.
+    for (const before of ['a', 'Z', '9']) expect(smoke.scanBytesForSecrets(Buffer.from(`${before}${secret}`), [])).toEqual([]);
+    const starts = ['', ' ', '"', "'", '=', ':', '\n', '\0', 'Bearer ', 'key_', 'x-'];
+    for (const before of starts) expect(smoke.scanBytesForSecrets(Buffer.from(`${before}${secret}`), [])).toEqual(['api-key-prefix']);
+    expect(smoke.scanBytesForSecrets(Buffer.concat([Buffer.from([0xe9]), Buffer.from(secret)]), [])).toEqual(['api-key-prefix']);
+    expect(smoke.scanBytesForSecrets(Buffer.from(`{"apiKey":"${secret}"}`), [])).toEqual(['api-key-prefix']);
+    // The length floor is exactly 20 characters after the prefix.
+    expect(smoke.scanBytesForSecrets(Buffer.from(` sk-${'A'.repeat(20)}`), [])).toEqual(['api-key-prefix']);
+    expect(smoke.scanBytesForSecrets(Buffer.from(` sk-${'A'.repeat(19)}`), [])).toEqual([]);
+    // A real key later in a text that also holds a task id is still found.
+    expect(smoke.scanBytesForSecrets(Buffer.from(`${taskId} ${secret}`), [])).toEqual(['api-key-prefix']);
+    // The configured literal does not depend on the boundary.
+    expect(smoke.scanBytesForSecrets(Buffer.from(`a${secret}`), [secret])).toEqual(['configured-secret-literal']);
+    const root = temp('scan-boundary');
+    fs.writeFileSync(path.join(root, 'events.json'), `{"taskId": "${taskId}"}`);
+    fs.writeFileSync(path.join(root, 'runtime.dll'), Buffer.concat([Buffer.from([0x4d, 0x5a, 0]), Buffer.from(symbols.join('\0'))]));
+    const clean = smoke.scanRun(root, secret);
+    expect(clean).toMatchObject({ positive_control_detected: true, files_scanned: 2 });
+    expect(clean.findings).toEqual([]);
+    fs.writeFileSync(path.join(root, 'leak.log'), `token="${secret}"`);
+    const dirty = smoke.scanRun(root, secret);
+    expect(dirty.findings.map((item: any) => item.file)).toEqual(['leak.log']);
+  });
+
   test('suite files hold no literal that the producer payload scan or the encoding rules would reject', () => {
     const sources = ['a9-batch2-fixtures.cjs', 'a9-batch2-desktop-request.cjs', 'a9-batch2-package-integrity.cjs', 'a9-batch2-report.cjs', 'a9-batch2-smoke.cjs',
       'a9-batch2-desktop-controller.ps1', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'RUN_A9_BATCH2_SMOKE.cmd', 'RUN_A9_BATCH2_REPORT_VERIFY.cmd']
