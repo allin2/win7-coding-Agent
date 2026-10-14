@@ -61,6 +61,7 @@ const FIXED_COMMANDS = Object.freeze({
   wmic_os: { file: 'wmic.exe', args: ['os', 'get', 'Version,CSDVersion,OSArchitecture,BuildNumber', '/format:csv'] },
   wmic_hotfix: { file: 'wmic.exe', args: ['qfe', 'get', 'HotFixID', '/format:csv'] },
   wmic_processes: { file: 'wmic.exe', args: ['process', 'get', 'ProcessId,ParentProcessId,Name,ExecutablePath,SessionId,CreationDate', '/format:csv'] },
+  wmic_process_commands: { file: 'wmic.exe', args: ['process', 'get', 'ProcessId,CommandLine', '/format:list'] },
 });
 
 const STDOUT_CAP = 262144;
@@ -161,19 +162,86 @@ function readWmicTable(text) {
   return { rows, intact: problem === null, problem };
 }
 
+// wmic /format:list prints one block per object: one "Key=Value" line per property, a blank line between blocks. A value may hold commas and
+// quotes, so a command line reads safely here where csv cannot carry it. Strict like readWmicTable: a line that is not "Key=Value" for a
+// requested key, or a block that lacks a requested key or repeats one, means the listing proves nothing about absence. A complete block is
+// still returned as evidence of presence. problem names the first defect and never quotes the output.
+function readWmicList(text, keys) {
+  const lines = String(text || '').split('\n').map((line) => line.replace(/\r/g, ''));
+  if (lines.every((line) => line.trim() === '')) return { rows: [], intact: false, problem: 'empty_output' };
+  const rows = [];
+  let problem = null;
+  let count = 0;
+  let block = null;
+  let damaged = false;
+  const finish = () => {
+    if (block === null) return;
+    count += 1;
+    if (!damaged && keys.every((key) => block.has(key))) rows.push(Object.fromEntries(block));
+    else if (problem === null) problem = `block_${count}_${damaged ? 'line' : 'keys'}`;
+    block = null;
+    damaged = false;
+  };
+  for (const line of lines) {
+    if (line.trim() === '') { finish(); continue; }
+    if (block === null) block = new Map();
+    const at = line.indexOf('=');
+    const key = at > 0 ? line.slice(0, at) : '';
+    if (!keys.includes(key) || block.has(key)) { damaged = true; continue; }
+    block.set(key, line.slice(at + 1));
+  }
+  finish();
+  return { rows, intact: problem === null, problem };
+}
+
+const DIGITS = /^\d+$/;
+const COMMAND_LINE_KEYS = ['ProcessId', 'CommandLine'];
+// wmic cannot read the image path of a process whose first thread never ran (observed on Win7: an orphaned Chromium helper of a killed
+// driver, one thread, no CPU time, ExecutablePath empty, command line intact). Such a process holds the driver runtime copy mapped and no
+// table row names its image. Its command line does, so a second query supplies it. Command lines are only a fallback for empty paths.
+function listCommandLines(exec) {
+  let result;
+  try { result = exec('wmic_process_commands'); } catch (_error) { return { byPid: new Map(), failed: true, problem: 'exec_threw' }; }
+  if (!result) return { byPid: new Map(), failed: true, problem: 'no_result' };
+  const list = readWmicList(result.stdout, COMMAND_LINE_KEYS);
+  const byPid = new Map();
+  let problem = list.problem;
+  for (const row of list.rows) {
+    if (DIGITS.test(row.ProcessId.trim())) byPid.set(row.ProcessId.trim(), row.CommandLine);
+    else if (problem === null) problem = 'process_id';
+  }
+  if (result.status !== 0 || result.error || result.truncated === true) {
+    return { byPid, failed: true, problem: result.truncated === true ? 'truncated' : result.error ? 'command_error' : 'exit_status' };
+  }
+  return { byPid, failed: problem !== null, problem };
+}
+// The image a row runs from: its ExecutablePath, or when wmic left that empty, the start of its command line (one leading quote removed).
+function withImagePath(rows, commandLines) {
+  return rows.map((row) => {
+    const executable = String(row.ExecutablePath || '');
+    if (executable !== '') return { ...row, ImagePath: executable, ImageSource: 'executable_path' };
+    const command = String(commandLines.get(String(row.ProcessId).trim()) || '').replace(/^"/, '');
+    return { ...row, ImagePath: command, ImageSource: command === '' ? 'none' : 'command_line' };
+  });
+}
+
 // A process listing is observed only when the command ran, exited 0, reported no error, was not cut off and printed an intact table. A thrown error,
 // a non-zero status, an error object, a cut-off output or a table with a broken line means the rows are partial and prove nothing about
 // absence: callers must not turn them into "absent". The complete rows such a listing did print are still evidence of presence, so they are
 // kept (failed is true) and a survivor or residue found in them is a failure. problem names the first defect and never quotes the output.
+// Every row carries ImagePath and ImageSource; the command-line query must be intact too, or the listing fails (command_lines_<problem>).
 function listProcesses(exec) {
   let result;
   try { result = exec('wmic_processes'); } catch (_error) { return { rows: [], failed: true, problem: 'exec_threw' }; }
   if (!result) return { rows: [], failed: true, problem: 'no_result' };
   const table = readWmicTable(result.stdout);
   if (result.status !== 0 || result.error || result.truncated === true) {
-    return { rows: table.rows, failed: true, problem: result.truncated === true ? 'truncated' : result.error ? 'command_error' : 'exit_status' };
+    return { rows: withImagePath(table.rows, new Map()), failed: true, problem: result.truncated === true ? 'truncated' : result.error ? 'command_error' : 'exit_status' };
   }
-  return { rows: table.rows, failed: !table.intact, problem: table.problem };
+  const commands = listCommandLines(exec);
+  const rows = withImagePath(table.rows, commands.byPid);
+  if (!table.intact) return { rows, failed: true, problem: table.problem };
+  return { rows, failed: commands.failed, problem: commands.failed ? `command_lines_${commands.problem}` : null };
 }
 
 // ---- Environment (G0) -----------------------------------------------------------------------------------
@@ -195,10 +263,10 @@ function collectEnvironment(exec, context) {
   const normalizedRoots = (context.watchedRoots || []).map((item) => String(item).toLowerCase());
   const stale = processes.filter((row) => {
     if (own.has(Number(row.ProcessId))) return false;
-    const exe = String(row.ExecutablePath || '').toLowerCase();
+    const exe = String(row.ImagePath || '').toLowerCase();
     const name = String(row.Name || '').toLowerCase();
     return normalizedRoots.some((root) => root && exe.startsWith(root)) || ['spike02_helper.exe', 'helper.exe'].includes(name);
-  }).map((row) => ({ pid: Number(row.ProcessId), parent: Number(row.ParentProcessId), name: row.Name, path: row.ExecutablePath, session: Number(row.SessionId) }));
+  }).map((row) => ({ pid: Number(row.ProcessId), parent: Number(row.ParentProcessId), name: row.Name, path: String(row.ImagePath).slice(0, 260), image_source: row.ImageSource, session: Number(row.SessionId) }));
   const sessionRow = processes.find((row) => Number(row.ProcessId) === selfPid);
   const os1 = parseWmicCsv(run('wmic_os').stdout)[0] || {};
   return {
@@ -602,8 +670,8 @@ const STRAY_SWEEP_CLEAN_ROUNDS = 2;
 const STRAY_SWEEP_WAIT_MS = 500;
 const PROCESS_LISTING_COLUMNS = ['ProcessId', 'ParentProcessId', 'Name', 'ExecutablePath'];
 // A process table can read as intact and still show nothing: no rows, a column missing, a row without a process id. The sweep selects by
-// ExecutablePath, so it also needs the four columns on every row and one live process. Such a table proves nothing about absence.
-const DIGITS = /^\d+$/;
+// ImagePath (the ExecutablePath, or the command line when that is empty), so it also needs the four columns on every row and one live
+// process. Such a table proves nothing about absence.
 function usableProcessListing(listing) {
   if (listing.failed) return false;
   const shaped = listing.rows.every((row) => PROCESS_LISTING_COLUMNS.every((column) => Object.prototype.hasOwnProperty.call(row, column))
@@ -614,8 +682,8 @@ function findDriverStrays(exec, runtimeRoot) {
   const listing = listProcesses(exec);
   const prefix = `${path.resolve(runtimeRoot).toLowerCase().replace(/[\\/]+$/, '')}${path.sep}`;
   const strays = listing.rows
-    .filter((row) => Number(row.ProcessId) !== process.pid && String(row.ExecutablePath || '').toLowerCase().startsWith(prefix))
-    .map((row) => ({ pid: Number(row.ProcessId), parent_pid: Number(row.ParentProcessId), name: String(row.Name || '') }));
+    .filter((row) => Number(row.ProcessId) !== process.pid && String(row.ImagePath || '').toLowerCase().startsWith(prefix))
+    .map((row) => ({ pid: Number(row.ProcessId), parent_pid: Number(row.ParentProcessId), name: String(row.Name || ''), image_source: row.ImageSource }));
   return { strays, failed: !usableProcessListing(listing) };
 }
 async function sweepDriverStrays(exec, runtimeRoot, hooks) {
@@ -897,7 +965,7 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
   const roots = [ctx.candidateRoot, path.join(ctx.runRoot, 'driver-electron')].map((item) => item.toLowerCase());
   // The smoke itself is the candidate's electron.exe (ELECTRON_RUN_AS_NODE), so its own row is not residue; the post-flight phase excludes it the same way.
   const own = new Set([ctx.pid, process.ppid]);
-  const residue = rows.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ExecutablePath || '').toLowerCase().startsWith(root))).map((row) => ({ pid: Number(row.ProcessId), name: row.Name }));
+  const residue = rows.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ImagePath || '').toLowerCase().startsWith(root))).map((row) => ({ pid: Number(row.ProcessId), name: row.Name, image_source: row.ImageSource }));
   writeJson(path.join(ctx.attemptDir, '06-postflight.json'), { residue, survivors: survivors.length, processes_listed: rows.length, own_pids_excluded: [...own] });
   const created = fixtures.evidenceForPhase(ctx.phase);
   const manifest = buildEvidenceManifest(ctx.attemptDir, [path.join(ctx.attemptDir, 'evidence-manifest.json'), path.join(ctx.attemptDir, 'phase-result.json')]);
@@ -922,8 +990,8 @@ function runPostflightPhase(ctx, exec = realExec) {
   const processes = listing.rows;
   const roots = [ctx.candidateRoot, path.join(ctx.runRoot, 'driver-electron'), ctx.runRoot].map((item) => item.toLowerCase());
   const own = new Set([ctx.pid, process.ppid]);
-  const residue = processes.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ExecutablePath || '').toLowerCase().startsWith(root)))
-    .map((row) => ({ pid: Number(row.ProcessId), name: row.Name, path: row.ExecutablePath }));
+  const residue = processes.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ImagePath || '').toLowerCase().startsWith(root)))
+    .map((row) => ({ pid: Number(row.ProcessId), name: row.Name, path: String(row.ImagePath).slice(0, 260), image_source: row.ImageSource }));
   writeEvidence(ctx, 'g4-postflight.json', { schema_version: 1, processes_total: processes.length, listing_failed: listing.failed, residue, ledger_lines: requests.readLedger(ctx.runRoot).length });
   const ledgerFile = path.join(ctx.runRoot, requests.LEDGER_FILE);
   const manifest = buildEvidenceManifest(ctx.runRoot, [path.join(ctx.attemptDir, 'evidence-manifest.json'), path.join(ctx.attemptDir, 'phase-result.json')]);
@@ -955,7 +1023,7 @@ async function main(argv = process.argv.slice(2), environment = {}) {
 
 module.exports = {
   main, createContext, runEnvironmentPhase, runDriverPhase, runPostflightPhase, finishPhase, applyAssertions, writeEvidence,
-  collectEnvironment, evaluateEnvironment, listProcesses, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
+  collectEnvironment, evaluateEnvironment, listProcesses, listCommandLines, readWmicList, withImagePath, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
   ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, parseCsvLineStrict, readWmicTable, usableProcessListing, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
   CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
   chainIdentityAssertion, finishChainEvidence, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,

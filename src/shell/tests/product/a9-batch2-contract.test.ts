@@ -23,6 +23,15 @@ const RUN_ID = '3f1c2a52-6b0e-4c1e-9f5e-0d7b8a1c2e44';
 const TARGET = { machine_name: 'TEST-ONLY-HOST', account_name: 'TEST-ONLY\\runner', account_sid: 'S-1-5-21-1-2-3-1001', integrity_level: 'Medium', session_id: 1, elevated: false, in_job: false };
 const sha = (value: string | Buffer) => crypto.createHash('sha256').update(value).digest('hex');
 const temp = (label: string) => fs.mkdtempSync(path.join(os.tmpdir(), `a9-batch2-${label}-`));
+// A process listing is two queries: the table (wmic_processes) and the command lines (wmic_process_commands, /format:list, printed on Win7 with
+// CR CR LF line ends; rehearsal 11 R1). answers() serves both from one place; any other command gets an empty success.
+const commandLineList = (entries: Array<[number, string]> = [[304, '\\SystemRoot\\System32\\smss.exe']]) => ({ status: 0, error: null, stderr: '',
+  stdout: `\r\r\n${entries.map(([pid, command]) => `CommandLine=${command}\r\r\nProcessId=${pid}\r\r\n`).join('\r\r\n\r\r\n')}\r\r\n` });
+const answers = (table: any, commands: any = commandLineList()) => (name: string) => {
+  if (name === 'wmic_process_commands') return typeof commands === 'function' ? commands(name) : commands;
+  if (name === 'wmic_processes') return typeof table === 'function' ? table(name) : table;
+  return { status: 0, stdout: '', stderr: '', error: null };
+};
 
 function request(overrides: any = {}) {
   const base = overrides.base || temp('request');
@@ -545,7 +554,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       'H,1,C:\\elsewhere\\spike02_helper.exe,spike02_helper.exe,1,300,1',
       'H,1,C:\\Windows\\notepad.exe,notepad.exe,1,400,1',
     ].join('\r\n');
-    const exec = (name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? csv : name === 'ver' ? 'Microsoft Windows [Version 6.1.7601]' : '', stderr: '', error: null });
+    const exec = (name: string) => (name === 'wmic_process_commands' ? commandLineList() : { status: 0, stdout: name === 'wmic_processes' ? csv : name === 'ver' ? 'Microsoft Windows [Version 6.1.7601]' : '', stderr: '', error: null });
     const facts = smoke.collectEnvironment(exec, { pid: 100, watchedRoots: ['C:\\run\\cand'], freeBytes: 1, controllerIdentity: null });
     expect(facts.stale_processes.map((item: any) => item.pid).sort()).toEqual([200, 300]);
     expect(facts.session_id).toBe(1);
@@ -555,7 +564,9 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(broken.ver).toBe('');
     expect(broken.stale_processes).toEqual([]);
     expect(() => smoke.realExec('rm -rf')).toThrow(/COMMAND_NOT_ALLOWED/);
-    expect(Object.keys(smoke.FIXED_COMMANDS).sort()).toEqual(['chcp', 'powershell_codepages', 'powershell_version', 'ver', 'whoami_groups', 'whoami_user', 'wmic_hotfix', 'wmic_os', 'wmic_processes']);
+    expect(Object.keys(smoke.FIXED_COMMANDS).sort()).toEqual(['chcp', 'powershell_codepages', 'powershell_version', 'ver', 'whoami_groups', 'whoami_user', 'wmic_hotfix', 'wmic_os', 'wmic_process_commands', 'wmic_processes']);
+    // The command-line query is fixed: two columns, list format, no filter (a filter would need quoting; rehearsal 11 R1 ran exactly this).
+    expect(smoke.FIXED_COMMANDS.wmic_process_commands).toEqual({ file: 'wmic.exe', args: ['process', 'get', 'ProcessId,CommandLine', '/format:list'] });
   });
 
   test('the secret scan sees the split secret after joining, and its positive control must fire', () => {
@@ -1021,7 +1032,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     // The interrupt modes are killed by the harness, so each is followed by a sweep; it needs a usable process table (codex round 11, N1).
     const processTable = 'Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId\r\nHOST,20261014172412.000000+000,C:\\Windows\\System32\\smss.exe,smss.exe,4,304,0\r\n';
     const result = await smoke.runDriverPhase(ctx, {
-      runtime, exec: (name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? processTable : '', stderr: '', error: null }),
+      runtime, exec: answers({ status: 0, stdout: processTable, stderr: '', error: null }),
       strays: { kill: () => undefined, wait: async () => undefined },
       launchDriver: async (_runtime: any, env: any) => {
         seen[env.A9_BATCH2_MODE] = { content: fs.readFileSync(path.join(modes, 'abc.json'), 'utf8'), flag: env.A9_BATCH2_MODE_SETTINGS_CORRUPTED || null, v1: fs.readFileSync(path.join(modes, 'abc.v1.json'), 'utf8') };
@@ -1168,7 +1179,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1];
       return { status: assertion.status, observed: assertion.observed, held: JSON.parse(fs.readFileSync(path.join(attempt, '06-held-exit.json'), 'utf8')) };
     };
-    const listing = (rows: string[]) => () => ({ status: 0, stdout: csv(rows), stderr: '', error: null });
+    const listing = (rows: string[]) => answers({ status: 0, stdout: csv(rows), stderr: '', error: null });
     const passed = run({ tree: [helper], wmic_failures: 0 }, listing([unrelated]));
     expect(passed.status).toBe('PASS');
     expect(passed.held).toMatchObject({ tree_observed: true, survivors: [], listing_failed: false });
@@ -1204,7 +1215,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const launch = { mode: 'chain_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 } };
       // The filter compares path prefixes as written, so the row reuses the context's own candidate root spelling.
       const candidateExe = `${ctx.candidateRoot}${path.sep}electron.exe`;
-      const exec = () => ({ status: 0, stdout: csv(rowsFor(candidateExe, ctx.pid)), stderr: '', error: null });
+      const exec = answers({ status: 0, stdout: csv(rowsFor(candidateExe, ctx.pid)), stderr: '', error: null });
       smoke.finishChainEvidence(ctx, [launch], null, exec, path.join(attempt, 'no-data'));
       const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1];
       return { status: assertion.status, ownPid: ctx.pid, post: JSON.parse(fs.readFileSync(path.join(attempt, '06-postflight.json'), 'utf8')) };
@@ -1218,7 +1229,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     // Any other process under the candidate root still fails the assertion.
     const stray = run((exe, ownPid) => [other, `HOST,20260101000002.000000+000,${exe},electron.exe,1,${ownPid}`, `HOST,20260101000003.000000+000,${exe},electron.exe,1,${ownPid + 100000}`]);
     expect(stray.status).toBe('FAIL');
-    expect(stray.post.residue).toEqual([{ pid: stray.ownPid + 100000, name: 'electron.exe' }]);
+    expect(stray.post.residue).toEqual([{ pid: stray.ownPid + 100000, name: 'electron.exe', image_source: 'executable_path' }]);
   });
 
   test('a kill-on-marker mode that was not killed by the marker fails the phase', async () => {
@@ -1235,7 +1246,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const clean = phaseContext('p10-postflight', 10);
     fs.writeFileSync(path.join(clean.runRoot, 'note.txt'), 'harmless evidence');
     const rows = (extra = '') => ({ status: 0, stdout: `Node,ExecutablePath,Name,ParentProcessId,ProcessId\r\nH,C:\\Windows\\notepad.exe,notepad.exe,1,500\r\n${extra}`, stderr: '', error: null });
-    const ok = smoke.runPostflightPhase(clean.ctx, () => rows());
+    const ok = smoke.runPostflightPhase(clean.ctx, answers(rows()));
     const firstCase = ok.cases[0];
     expect(firstCase.assertions[0].status).toBe('PASS');
     expect(firstCase.assertions[1].status).toBe('PASS');
@@ -1243,12 +1254,12 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
     const leaking = phaseContext('p10-postflight', 10);
     fs.writeFileSync(path.join(leaking.runRoot, 'leak.log'), `key ${fixtures.testOnlySecret()}`);
-    const leaked = smoke.runPostflightPhase(leaking.ctx, () => rows());
+    const leaked = smoke.runPostflightPhase(leaking.ctx, answers(rows()));
     expect(leaked.status).toBe('FAIL');
     expect(leaked.failure_class).toBe('SECRET_FOUND');
 
     const residue = phaseContext('p10-postflight', 10);
-    const left = smoke.runPostflightPhase(residue.ctx, () => rows(`H,${path.join(residue.candidateRoot, 'electron.exe').replace(/\//g, '\\')},electron.exe,1,600\r\n`));
+    const left = smoke.runPostflightPhase(residue.ctx, answers(rows(`H,${path.join(residue.candidateRoot, 'electron.exe').replace(/\//g, '\\')},electron.exe,1,600\r\n`)));
     void left;
     const none = smoke.runPostflightPhase(phaseContext('p10-postflight', 10).ctx, () => ({ status: 0, stdout: '', stderr: '', error: null }));
     expect(none.cases[0].assertions[1].status).toBe('UNKNOWN');
@@ -1266,7 +1277,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
   test('the environment phase does not call stale trees absent when the process listing failed', () => {
     const req = { target: TARGET, evidence_root: '/evidence' };
-    const exec = (over: any) => (name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? 'Node,ProcessId,ParentProcessId,Name,ExecutablePath,SessionId\r\nH,5,1,x.exe,C:\\x.exe,1\r\n' : '', stderr: '', error: null, ...(name === 'wmic_processes' ? over : {}) });
+    const exec = (over: any) => (name: string) => (name === 'wmic_process_commands' ? commandLineList() : { status: 0, stdout: name === 'wmic_processes' ? 'Node,ProcessId,ParentProcessId,Name,ExecutablePath,SessionId\r\nH,5,1,x.exe,C:\\x.exe,1\r\n' : '', stderr: '', error: null, ...(name === 'wmic_processes' ? over : {}) });
     expect(smoke.collectEnvironment(exec({ status: 1 }), { pid: 5, watchedRoots: [], freeBytes: 1 }).processes_listing_failed).toBe(true);
     expect(smoke.collectEnvironment(exec({ error: 'ETIMEDOUT' }), { pid: 5, watchedRoots: [], freeBytes: 1 }).processes_listing_failed).toBe(true);
     expect(smoke.collectEnvironment(exec({}), { pid: 5, watchedRoots: [], freeBytes: 1 }).processes_listing_failed).toBe(false);
@@ -1385,16 +1396,16 @@ describe('A9-33 batch-2 smoke pieces', () => {
     });
 
     test('a stray is found by the path of the driver runtime copy only: case-insensitive, never a sibling directory, never the smoke itself', () => {
-      const exec = () => wmicCsv([
+      const exec = answers(wmicCsv([
         [electronInside.toUpperCase(), 4736, 4988, 'electron.exe'],
         [path.join(runtimeRoot, 'resources', 'helper.exe'), 4737, 4736, 'helper.exe'],
         [`${runtimeRoot}-old${path.sep}electron.exe`, 4800, 1, 'electron.exe'],
         [path.join(runtimeBase, 'deploy', 'electron.exe'), 4801, 1, 'electron.exe'],
         [electronInside, process.pid, 1, 'electron.exe'],
         ['', 4802, 1, 'electron.exe'],
-      ]);
+      ]));
       expect(smoke.findDriverStrays(exec, runtimeRoot)).toEqual({ failed: false, strays: [
-        { pid: 4736, parent_pid: 4988, name: 'electron.exe' }, { pid: 4737, parent_pid: 4736, name: 'helper.exe' },
+        { pid: 4736, parent_pid: 4988, name: 'electron.exe', image_source: 'executable_path' }, { pid: 4737, parent_pid: 4736, name: 'helper.exe', image_source: 'executable_path' },
       ] });
       expect(smoke.findDriverStrays(exec, `${runtimeRoot}${path.sep}`).strays.map((item: any) => item.pid)).toEqual([4736, 4737]);
       expect(smoke.findDriverStrays(() => ({ status: 1, error: null, stdout: '', stderr: '' }), runtimeRoot)).toEqual({ strays: [], failed: true });
@@ -1413,12 +1424,12 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
     test('a process table that shows nothing usable is a failed listing, so no sweep can call it clean (codex round 11, N1)', async () => {
       for (const [label, table] of unusableTables) {
-        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toEqual({ label, strays: [], failed: true });
-        const swept = await smoke.sweepDriverStrays(() => table, runtimeRoot, { kill: () => undefined, wait: instant });
+        expect({ label, ...smoke.findDriverStrays(answers(table), runtimeRoot) }).toEqual({ label, strays: [], failed: true });
+        const swept = await smoke.sweepDriverStrays(answers(table), runtimeRoot, { kill: () => undefined, wait: instant });
         expect({ label, ...swept }).toEqual({ label, attempted: [], removed: [], remaining: [], observed: false });
       }
       // A table with one usable row is enough, and the row may be a process unrelated to the driver.
-      expect(smoke.findDriverStrays(() => wmicCsv([]), runtimeRoot)).toEqual({ strays: [], failed: false });
+      expect(smoke.findDriverStrays(answers(wmicCsv([])), runtimeRoot)).toEqual({ strays: [], failed: false });
     });
 
     // Codex round 12 (N1): a table is read line by line. One line that does not read as a complete row can be the very row that matters,
@@ -1463,22 +1474,22 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
     test('a process table with one broken line is a failed listing, however clean the other lines look, and its complete rows still show presence (codex round 12, N1)', async () => {
       for (const [label, table] of brokenTables) {
-        const listed = smoke.listProcesses(() => table);
+        const listed = smoke.listProcesses(answers(table));
         expect({ label, failed: listed.failed, named: typeof listed.problem === 'string' }).toEqual({ label, failed: true, named: true });
-        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toMatchObject({ label, failed: true });
-        const swept = await smoke.sweepDriverStrays(() => table, runtimeRoot, { kill: () => undefined, wait: instant });
+        expect({ label, ...smoke.findDriverStrays(answers(table), runtimeRoot) }).toMatchObject({ label, failed: true });
+        const swept = await smoke.sweepDriverStrays(answers(table), runtimeRoot, { kill: () => undefined, wait: instant });
         expect({ label, observed: swept.observed }).toEqual({ label, observed: false });
       }
       for (const [label, table] of unshapedTables) {
-        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toMatchObject({ label, failed: true });
-        expect({ label, observed: (await smoke.sweepDriverStrays(() => table, runtimeRoot, { kill: () => undefined, wait: instant })).observed }).toEqual({ label, observed: false });
+        expect({ label, ...smoke.findDriverStrays(answers(table), runtimeRoot) }).toMatchObject({ label, failed: true });
+        expect({ label, observed: (await smoke.sweepDriverStrays(answers(table), runtimeRoot, { kill: () => undefined, wait: instant })).observed }).toEqual({ label, observed: false });
       }
       // The driver's complete row beside a broken line is seen and killed, and is not confirmed removed.
       const mixed = tableOf([goodRow(electronInside, 4736, 4988, 'electron.exe'), 'HOST,date']);
-      const orphan = { pid: 4736, parent_pid: 4988, name: 'electron.exe' };
-      expect(smoke.findDriverStrays(() => mixed, runtimeRoot)).toEqual({ strays: [orphan], failed: true });
+      const orphan = { pid: 4736, parent_pid: 4988, name: 'electron.exe', image_source: 'executable_path' };
+      expect(smoke.findDriverStrays(answers(mixed), runtimeRoot)).toEqual({ strays: [orphan], failed: true });
       const killed: number[] = [];
-      expect(await smoke.sweepDriverStrays(() => mixed, runtimeRoot, { kill: (pid: number) => { killed.push(pid); }, wait: instant }))
+      expect(await smoke.sweepDriverStrays(answers(mixed), runtimeRoot, { kill: (pid: number) => { killed.push(pid); }, wait: instant }))
         .toEqual({ attempted: [orphan], removed: [], remaining: [orphan], observed: false });
       expect(killed.length).toBeGreaterThan(0);
 
@@ -1494,8 +1505,8 @@ describe('A9-33 batch-2 smoke pieces', () => {
         ['an empty path', tableOf([goodRow('', 4802, 1, 'electron.exe')])],
       ];
       for (const [label, table] of intactTables) {
-        expect({ label, ...smoke.listProcesses(() => table) }).toMatchObject({ label, failed: false, problem: null });
-        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toMatchObject({ label, failed: false });
+        expect({ label, ...smoke.listProcesses(answers(table)) }).toMatchObject({ label, failed: false, problem: null });
+        expect({ label, ...smoke.findDriverStrays(answers(table), runtimeRoot) }).toMatchObject({ label, failed: false });
       }
     });
 
@@ -1504,7 +1515,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const rand = (limit: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit; };
       const rows = Array.from({ length: 8 }, (_v, index) => goodRow(`C:\\Windows\\System32\\p${index}.exe`, 300 + index, 4, `p${index}.exe`));
       const build = (lines: string[]) => rawListing(`${header}\r\n${lines.join('\r\n')}\r\n`);
-      expect(smoke.findDriverStrays(() => build(rows), runtimeRoot).failed).toBe(false);
+      expect(smoke.findDriverStrays(answers(build(rows)), runtimeRoot).failed).toBe(false);
       const split = (line: string) => line.split(',');
       const corruptions: Array<[string, (line: string) => string]> = [
         ['a cell removed', (line) => { const cells = split(line); cells.splice(rand(cells.length - 1) + 1, 1); return cells.join(','); }],
@@ -1521,13 +1532,13 @@ describe('A9-33 batch-2 smoke pieces', () => {
           const damaged = rows.slice();
           const at = rand(damaged.length);
           damaged[at] = corrupt(damaged[at]);
-          expect({ label, trial, damaged: damaged[at], failed: smoke.findDriverStrays(() => build(damaged), runtimeRoot).failed }).toEqual({ label, trial, damaged: damaged[at], failed: true });
+          expect({ label, trial, damaged: damaged[at], failed: smoke.findDriverStrays(answers(build(damaged)), runtimeRoot).failed }).toEqual({ label, trial, damaged: damaged[at], failed: true });
         }
       }
     });
 
     test('the environment check, the post-flight check and the chain post-check read a broken table as a failed listing as well (codex round 12, N1)', () => {
-      const environment = (table: any) => smoke.collectEnvironment((name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? table.stdout : '', stderr: '', error: null }), { pid: 5, watchedRoots: [], freeBytes: 1 });
+      const environment = (table: any) => smoke.collectEnvironment(answers(table), { pid: 5, watchedRoots: [], freeBytes: 1 });
       expect(environment(tableOf([])).processes_listing_failed).toBe(false);
       expect(environment(tableOf(['HOST,date'])).processes_listing_failed).toBe(true);
       let index = 11;
@@ -1535,7 +1546,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
         const made = phaseContext('p10-postflight', index);
         index += 1;
         fs.writeFileSync(path.join(made.runRoot, 'note.txt'), 'harmless evidence');
-        return smoke.runPostflightPhase(made.ctx, () => table).cases[0].assertions[1].status;
+        return smoke.runPostflightPhase(made.ctx, answers(table)).cases[0].assertions[1].status;
       };
       expect(postflight(tableOf([]))).toBe('PASS');
       expect(postflight(tableOf(['HOST,date']))).toBe('UNKNOWN');
@@ -1546,11 +1557,11 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const killed: number[] = [];
       const waits: number[] = [];
       const hooks = { kill: (pid: number) => { killed.push(pid); }, wait: async (ms: number) => { waits.push(ms); } };
-      const stray = (pid: number) => ({ pid, parent_pid: 4988, name: 'electron.exe' });
+      const stray = (pid: number) => ({ pid, parent_pid: 4988, name: 'electron.exe', image_source: 'executable_path' });
       // The orphan exists from the first listing on and dies after the kill; two clean listings in a row end the sweep.
       let calls = 0;
       const dying = () => { calls += 1; return calls === 1 ? wmicCsv([[electronInside, 4736, 4988, 'electron.exe']]) : wmicCsv([]); };
-      const first = await smoke.sweepDriverStrays(dying, runtimeRoot, hooks);
+      const first = await smoke.sweepDriverStrays(answers(dying), runtimeRoot, hooks);
       expect(first).toEqual({ attempted: [stray(4736)], removed: [stray(4736)], remaining: [], observed: true });
       expect(killed).toEqual([4736]);
       expect(calls).toBe(3);
@@ -1560,25 +1571,25 @@ describe('A9-33 batch-2 smoke pieces', () => {
       killed.length = 0;
       calls = 0;
       const late = () => { calls += 1; return calls === 2 ? wmicCsv([[electronInside, 4900, 4988, 'electron.exe']]) : wmicCsv([]); };
-      expect(await smoke.sweepDriverStrays(late, runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 4900 }], removed: [{ pid: 4900 }], remaining: [], observed: true });
+      expect(await smoke.sweepDriverStrays(answers(late), runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 4900 }], removed: [{ pid: 4900 }], remaining: [], observed: true });
       expect(killed).toEqual([4900]);
 
       // A stray found after one clean round resets the count: clean, stray, clean, clean needs four listings (codex round 11, X02).
       calls = 0;
       const reset = () => { calls += 1; return calls === 2 ? wmicCsv([[electronInside, 4901, 4988, 'electron.exe']]) : wmicCsv([]); };
-      expect(await smoke.sweepDriverStrays(reset, runtimeRoot, hooks)).toMatchObject({ removed: [{ pid: 4901 }], observed: true });
+      expect(await smoke.sweepDriverStrays(answers(reset), runtimeRoot, hooks)).toMatchObject({ removed: [{ pid: 4901 }], observed: true });
       expect(calls).toBe(4);
 
       // The eighth round is still used: six rounds with a stray, then two clean ones end observed (codex round 11, X03).
       calls = 0;
       const lateClean = () => { calls += 1; return calls <= 6 ? wmicCsv([[electronInside, 4902, 4988, 'electron.exe']]) : wmicCsv([]); };
-      expect(await smoke.sweepDriverStrays(lateClean, runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 4902 }], removed: [{ pid: 4902 }], remaining: [], observed: true });
+      expect(await smoke.sweepDriverStrays(answers(lateClean), runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 4902 }], removed: [{ pid: 4902 }], remaining: [], observed: true });
       expect(calls).toBe(8);
 
       // A stray that survives every kill is attempted, not removed, and reported (codex round 11, N3).
       const stubborn = () => wmicCsv([[electronInside, 5000, 1, 'electron.exe']]);
-      const survived = await smoke.sweepDriverStrays(stubborn, runtimeRoot, hooks);
-      expect(survived).toEqual({ attempted: [{ pid: 5000, parent_pid: 1, name: 'electron.exe' }], removed: [], remaining: [{ pid: 5000, parent_pid: 1, name: 'electron.exe' }], observed: false });
+      const survived = await smoke.sweepDriverStrays(answers(stubborn), runtimeRoot, hooks);
+      expect(survived).toEqual({ attempted: [{ pid: 5000, parent_pid: 1, name: 'electron.exe', image_source: 'executable_path' }], removed: [], remaining: [{ pid: 5000, parent_pid: 1, name: 'electron.exe', image_source: 'executable_path' }], observed: false });
 
       // A listing that never succeeds shows nothing.
       const blind = await smoke.sweepDriverStrays(() => ({ status: 1, error: 'wmic failed', stdout: '', stderr: '' }), runtimeRoot, hooks);
@@ -1592,13 +1603,223 @@ describe('A9-33 batch-2 smoke pieces', () => {
         if (calls === 2) return { ...wmicCsv([[electronInside, 5100, 1, 'electron.exe']]), status: 1 };
         return { status: 1, error: 'wmic failed', stdout: '', stderr: '' };
       };
-      expect(await smoke.sweepDriverStrays(partial, runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 5100 }], removed: [], observed: false });
+      expect(await smoke.sweepDriverStrays(answers(partial), runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 5100 }], removed: [], observed: false });
 
       // A failed listing between clean ones restarts the count.
       let step = 0;
       const flaky = () => { step += 1; return step === 2 ? { status: 1, error: 'x', stdout: '', stderr: '' } : wmicCsv([]); };
-      expect(await smoke.sweepDriverStrays(flaky, runtimeRoot, hooks)).toEqual({ attempted: [], removed: [], remaining: [], observed: true });
+      expect(await smoke.sweepDriverStrays(answers(flaky), runtimeRoot, hooks)).toEqual({ attempted: [], removed: [], remaining: [], observed: true });
       expect(step).toBe(4);
+    });
+
+    // Rehearsal 11, R1 (Win7 real machine, read-only, before any run): the orphan PID 4736 that rehearsal 10 left had ExecutablePath empty in the
+    // suite's own table query and a whole command line in the list query. It had one thread, no CPU time and two handles: created, first thread
+    // never run. The sweep that matched ExecutablePath read the real table as intact and selected nothing.
+    const orphanCommand = (exe: string) => `"${exe}" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --user-data-dir="C:\\Users\\agent\\AppData\\Local\\Win7CodingAgent" --mojo-platform-channel-handle=1724 --field-trial-handle=1164,i,11018407756519213193,6108635375228123541,131072 --disable-features=SpareRendererForSitePerProcess,WinRetrieveSuggestionsOnlyOnDemand /prefetch:8`;
+    const unreadableRow = (pid: number, parent = 4988, name = 'electron.exe') => goodRow('', pid, parent, name);
+    const commandsFor = (...entries: Array<[number, string]>) => commandLineList([[bystander[1], bystander[0]], ...entries]);
+    const viaCommand = (pid: number, parent = 4988, name = 'electron.exe') => ({ pid, parent_pid: parent, name, image_source: 'command_line' });
+
+    test('the list reader accepts what wmic prints and refuses a listing that is not whole (rehearsal 11 R1)', () => {
+      const keys = ['ProcessId', 'CommandLine'];
+      const block = (pid: string, command: string) => `CommandLine=${command}\r\r\nProcessId=${pid}\r\r\n`;
+      const command = orphanCommand('C:\\x\\electron.exe');
+      const text = `\r\r\n\r\r\n${[block('0', ''), block('4', ''), block('4736', command)].join('\r\r\n\r\r\n')}\r\r\n`;
+      const read = smoke.readWmicList(text, keys);
+      expect(read).toEqual({ rows: [{ CommandLine: '', ProcessId: '0' }, { CommandLine: '', ProcessId: '4' }, { CommandLine: command, ProcessId: '4736' }], intact: true, problem: null });
+      // Commas, quotes and equals signs stay in the value; the line end and the order of the properties do not matter.
+      expect(smoke.readWmicList(text.replace(/\r\r\n/g, '\n'), keys)).toEqual(read);
+      expect(smoke.readWmicList(text.replace(/\r\r\n/g, '\r\n'), keys)).toEqual(read);
+      expect(smoke.readWmicList('ProcessId=7\r\nCommandLine=a=b\r\n', keys)).toEqual({ rows: [{ ProcessId: '7', CommandLine: 'a=b' }], intact: true, problem: null });
+      // A separator that holds only spaces still separates blocks.
+      expect(smoke.readWmicList('ProcessId=7\r\nCommandLine=a\r\n  \r\nProcessId=8\r\nCommandLine=b\r\n', keys).rows).toHaveLength(2);
+      const refused: Array<[string, string, string, number]> = [
+        ['empty output', '', 'empty_output', 0],
+        ['blank lines only', '\r\r\n\r\r\n', 'empty_output', 0],
+        ['text that is not a list', 'ERROR:\r\nDescription = Invalid query\r\n', 'block_1_line', 0],
+        ['a junk line inside a block', `${block('4', 'a')}junk\r\r\n`, 'block_1_line', 0],
+        ['a property nobody asked for', 'Name=x\r\r\nProcessId=4\r\r\nCommandLine=\r\r\n', 'block_1_line', 0],
+        ['a repeated property', 'ProcessId=4\r\r\nProcessId=5\r\r\nCommandLine=\r\r\n', 'block_1_line', 0],
+        ['a property name in another case', 'processid=4\r\r\nCommandLine=\r\r\n', 'block_1_line', 0],
+        ['a line that starts with an equals sign', '=4\r\r\nProcessId=4\r\r\nCommandLine=\r\r\n', 'block_1_line', 0],
+        ['a block without a ProcessId', 'CommandLine=a\r\r\n', 'block_1_keys', 0],
+        ['a block without a CommandLine', 'ProcessId=4\r\r\n', 'block_1_keys', 0],
+        ['a command line broken over two lines', 'CommandLine=a\r\r\nb\r\r\nProcessId=4\r\r\n', 'block_1_line', 0],
+        ['a blank line inside a block', 'CommandLine=a\r\r\n\r\r\nProcessId=4\r\r\n', 'block_1_keys', 0],
+        ['an incomplete block after a complete one', `${block('4', 'a')}\r\r\nProcessId=5\r\r\n`, 'block_2_keys', 1],
+        ['a cut inside the last block', `${block('4', 'a')}\r\r\nCommandLine=b`, 'block_2_keys', 1],
+        ['a line without an equals sign that begins like a property', 'ProcessIdx\r\r\nCommandLine=\r\r\n', 'block_1_line', 0],
+        ['a damaged block before a complete one', `junk\r\r\n\r\r\n${block('4', 'a')}`, 'block_1_line', 1],
+      ];
+      for (const [label, input, problem, kept] of refused) {
+        const got = smoke.readWmicList(input, keys);
+        expect({ label, intact: got.intact, problem: got.problem, kept: got.rows.length }).toEqual({ label, intact: false, problem, kept });
+      }
+    });
+
+    test('a listing whose command-line query failed or is not whole is a failed listing that names the query, and the table rows still show presence (rehearsal 11 R1)', async () => {
+      const table = tableOf([goodRow(electronInside, 4736, 4988, 'electron.exe')]);
+      const ok = commandLineList();
+      const driverRow = { pid: 4736, parent_pid: 4988, name: 'electron.exe', image_source: 'executable_path' };
+      const bad: Array<[string, any, string]> = [
+        ['a non-zero status', { ...ok, status: 1 }, 'command_lines_exit_status'],
+        ['an error object', { ...ok, error: 'ETIMEDOUT' }, 'command_lines_command_error'],
+        ['a cut-off output', { ...ok, truncated: true }, 'command_lines_truncated'],
+        ['empty output', { ...ok, stdout: '' }, 'command_lines_empty_output'],
+        ['a broken block', { ...ok, stdout: `${ok.stdout}junk\r\r\n` }, 'command_lines_block_2_line'],
+        ['a process id that is not a number', { ...ok, stdout: ok.stdout.replace('ProcessId=304', 'ProcessId=abc') }, 'command_lines_process_id'],
+        ['no result', () => undefined, 'command_lines_no_result'],
+        ['a throw', () => { throw new Error('wmic missing'); }, 'command_lines_exec_threw'],
+      ];
+      for (const [label, commands, problem] of bad) {
+        const listed = smoke.listProcesses(answers(table, commands));
+        expect({ label, failed: listed.failed, problem: listed.problem, rows: listed.rows.length }).toEqual({ label, failed: true, problem, rows: 2 });
+        expect({ label, ...smoke.findDriverStrays(answers(table, commands), runtimeRoot) }).toEqual({ label, strays: [driverRow], failed: true });
+        const swept = await smoke.sweepDriverStrays(answers(table, commands), runtimeRoot, { kill: () => undefined, wait: instant });
+        expect({ label, observed: swept.observed }).toEqual({ label, observed: false });
+      }
+      // A table that is not whole is named first; a table whose command failed is not asked for command lines at all.
+      expect(smoke.listProcesses(answers(tableOf(['HOST,date']))).problem).toBe('row_3_cell_count');
+      let asked = 0;
+      const failedTable = smoke.listProcesses(answers({ ...table, status: 1 }, () => { asked += 1; return ok; }));
+      expect({ failed: failedTable.failed, problem: failedTable.problem, asked }).toEqual({ failed: true, problem: 'exit_status', asked: 0 });
+      expect(smoke.listProcesses(answers(table))).toMatchObject({ failed: false, problem: null });
+      // A process id printed with blanks around it still names its process.
+      const padded = smoke.listProcesses(answers(tableOf([unreadableRow(4736)]), { ...ok, stdout: `${ok.stdout}CommandLine=${orphanCommand(electronInside)}\r\r\nProcessId= 4736 \r\r\n` }));
+      expect(padded.failed).toBe(false);
+      expect(padded.rows.find((row: any) => row.ProcessId === '4736')).toMatchObject({ ImageSource: 'command_line' });
+    });
+
+    test('whatever single line of the command-line list is damaged, the listing stops proving absence (seeded corruption of 8-block lists)', () => {
+      let seed = 20261015;
+      const rand = (limit: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % limit; };
+      const blocks = Array.from({ length: 8 }, (_v, index) => [`CommandLine=C:\\Windows\\System32\\p${index}.exe /x,"y"=1`, `ProcessId=${300 + index}`]);
+      const textOf = (parts: string[][]) => `\r\r\n${parts.map((part) => `${part.join('\r\r\n')}\r\r\n`).join('\r\r\n')}`;
+      const listOf = (stdout: string) => ({ status: 0, error: null, stderr: '', stdout });
+      const listing = (stdout: string) => smoke.listProcesses(answers(tableOf([]), listOf(stdout)));
+      expect(listing(textOf(blocks))).toMatchObject({ failed: false, problem: null });
+      const corruptions: Array<[string, (part: string[]) => void]> = [
+        ['the ProcessId line removed', (part) => { part.splice(1, 1); }],
+        ['the CommandLine line removed', (part) => { part.splice(0, 1); }],
+        ['a line repeated', (part) => { part.push(part[rand(2)]); }],
+        ['a junk line inside the block', (part) => { part.splice(rand(3), 0, 'junk'); }],
+        ['a command line broken over two lines', (part) => { part[0] = `${part[0]}\r\r\ncontinued`; }],
+        ['a blank line inside the block', (part) => { part.splice(1, 0, ''); }],
+        ['a property name cut short', (part) => { const at = rand(2); part[at] = part[at].slice(0, 1 + rand(part[at].indexOf('='))); }],
+        ['a process id that is not a number', (part) => { part[1] = `ProcessId=x${rand(100)}`; }],
+      ];
+      for (const [label, corrupt] of corruptions) {
+        for (let trial = 0; trial < 40; trial += 1) {
+          const damaged = blocks.map((part) => part.slice());
+          corrupt(damaged[rand(damaged.length)]);
+          const text = textOf(damaged);
+          expect({ label, trial, failed: listing(text).failed }).toEqual({ label, trial, failed: true });
+        }
+      }
+      // A cut-off output inside the last block, short of its ProcessId line.
+      const whole = textOf(blocks);
+      const lastStart = whole.lastIndexOf('CommandLine=');
+      const lastProcess = whole.lastIndexOf('ProcessId=');
+      for (let trial = 0; trial < 40; trial += 1) {
+        const cut = whole.slice(0, lastStart + 1 + rand(lastProcess - lastStart - 1));
+        expect({ trial, failed: listing(cut).failed }).toEqual({ trial, failed: true });
+      }
+    });
+
+    test('a row takes its image from ExecutablePath, and from its command line only when wmic left the path empty (rehearsal 11 R1)', () => {
+      const table = tableOf([
+        goodRow(electronInside, 4737, 4736, 'electron.exe'),
+        unreadableRow(4736),
+        unreadableRow(4738),
+        goodRow('', 4739, 1, 'x.exe'),
+        goodRow('C:\\Windows\\notepad.exe', 4740, 1, 'notepad.exe'),
+      ]);
+      const commands = commandsFor([4737, 'C:\\somewhere\\else.exe'], [4736, orphanCommand(electronInside)], [4738, ''], [4740, `"${electronInside}" --decoy`]);
+      const listed = smoke.listProcesses(answers(table, commands));
+      expect(listed).toMatchObject({ failed: false, problem: null });
+      const byPid = (pid: number) => listed.rows.find((row: any) => Number(row.ProcessId) === pid);
+      expect(byPid(4737)).toMatchObject({ ImagePath: electronInside, ImageSource: 'executable_path' });
+      expect(byPid(4736)).toMatchObject({ ImagePath: orphanCommand(electronInside).slice(1), ImageSource: 'command_line' });
+      expect(byPid(4738)).toMatchObject({ ImagePath: '', ImageSource: 'none' });
+      expect(byPid(4739)).toMatchObject({ ImagePath: '', ImageSource: 'none' });
+      expect(byPid(4740)).toMatchObject({ ImagePath: 'C:\\Windows\\notepad.exe', ImageSource: 'executable_path' });
+      // The readable path decides for a row that has one; the command line decides only for an empty path.
+      expect(smoke.findDriverStrays(answers(table, commands), runtimeRoot)).toEqual({ failed: false, strays: [
+        { pid: 4737, parent_pid: 4736, name: 'electron.exe', image_source: 'executable_path' }, viaCommand(4736),
+      ] });
+      // The same table with no command lines to read shows nothing: what rehearsal 10 left stayed invisible to the path rule.
+      expect(smoke.findDriverStrays(answers(tableOf([unreadableRow(4736)]), commandsFor([4736, ''])), runtimeRoot)).toEqual({ strays: [], failed: false });
+      // A command line names the runtime copy when it starts with it: quoted or not, in any letter case, followed by any arguments.
+      for (const command of [orphanCommand(electronInside), orphanCommand(electronInside).replace(/"/g, ''), orphanCommand(electronInside).toUpperCase(), `${electronInside} --type=utility`]) {
+        expect(smoke.findDriverStrays(answers(tableOf([unreadableRow(4736)]), commandsFor([4736, command])), runtimeRoot)).toEqual({ failed: false, strays: [viaCommand(4736)] });
+      }
+      // It does not when the runtime copy is only mentioned, or belongs to a sibling directory, to the deploy tree or to another run.
+      const elsewhere = [
+        `C:\\Windows\\System32\\cmd.exe /c ${electronInside}`,
+        `"${runtimeRoot}-old${path.sep}electron.exe" --type=utility`,
+        `"${path.join(runtimeBase, 'deploy', 'electron.exe')}"`,
+        `"${path.join(runtimeBase, 'other', 'driver-electron', 'electron.exe')}" --type=utility`,
+        '',
+      ];
+      for (const command of elsewhere) {
+        expect(smoke.findDriverStrays(answers(tableOf([unreadableRow(4736)]), commandsFor([4736, command])), runtimeRoot)).toEqual({ strays: [], failed: false });
+      }
+    });
+
+    test('the sweep finds, kills and confirms the removal of an orphan that only its command line identifies (rehearsal 11 R1: PID 4736)', async () => {
+      const killed: number[] = [];
+      const hooks = { kill: (pid: number) => { killed.push(pid); }, wait: instant };
+      let round = 0;
+      const table = () => { round += 1; return round === 1 ? tableOf([unreadableRow(4736)]) : tableOf([]); };
+      const commands = () => (round === 1 ? commandsFor([4736, orphanCommand(electronInside)]) : commandsFor());
+      expect(await smoke.sweepDriverStrays(answers(table, commands), runtimeRoot, hooks))
+        .toEqual({ attempted: [viaCommand(4736)], removed: [viaCommand(4736)], remaining: [], observed: true });
+      expect(killed).toEqual([4736]);
+      expect(round).toBe(3);
+
+      // An orphan that no kill removes is reported as remaining, found by its command line.
+      killed.length = 0;
+      const stuck = answers(tableOf([unreadableRow(4736)]), commandsFor([4736, orphanCommand(electronInside)]));
+      expect(await smoke.sweepDriverStrays(stuck, runtimeRoot, hooks)).toEqual({ attempted: [viaCommand(4736)], removed: [], remaining: [viaCommand(4736)], observed: false });
+      expect(killed.length).toBeGreaterThan(0);
+
+      // When the command-line query never works, the empty-path row cannot be told apart from a system process: the sweep must not call it clean.
+      const blind = answers(tableOf([unreadableRow(4736)]), { status: 1, error: 'wmic failed', stdout: '', stderr: '' });
+      expect(await smoke.sweepDriverStrays(blind, runtimeRoot, hooks)).toEqual({ attempted: [], removed: [], remaining: [], observed: false });
+    });
+
+    test('the environment, post-flight and chain post-check read an empty-path process by its command line as well (rehearsal 11 R1)', () => {
+      const orphanTable = tableOf([unreadableRow(4736)]);
+      // G0: a process under a watched root is stale however its image was learned; a failed command-line query makes the listing failed.
+      const facts = smoke.collectEnvironment(answers(orphanTable, commandsFor([4736, orphanCommand(electronInside)])), { pid: 5, watchedRoots: [runtimeRoot], freeBytes: 1 });
+      expect(facts.processes_listing_failed).toBe(false);
+      expect(facts.stale_processes).toEqual([{ pid: 4736, parent: 4988, name: 'electron.exe', path: orphanCommand(electronInside).slice(1, 261), image_source: 'command_line', session: 2 }]);
+      const blindFacts = smoke.collectEnvironment(answers(orphanTable, { status: 1, error: 'x', stdout: '', stderr: '' }), { pid: 5, watchedRoots: [runtimeRoot], freeBytes: 1 });
+      expect(blindFacts).toMatchObject({ processes_listing_failed: true, stale_processes: [] });
+
+      // p10: an empty-path process under the run root is residue; without command lines the listing is failed and the verdict is UNKNOWN.
+      const made = phaseContext('p10-postflight', 14);
+      fs.writeFileSync(path.join(made.runRoot, 'note.txt'), 'harmless evidence');
+      const driverExe = path.join(made.runRoot, 'driver-electron', 'electron.exe');
+      const post = smoke.runPostflightPhase(made.ctx, answers(orphanTable, commandsFor([4736, orphanCommand(driverExe)])));
+      expect(post.cases[0].assertions[1].status).toBe('FAIL');
+      expect(post.failure_class).toBe('PROCESS_RESIDUE');
+      expect(JSON.parse(fs.readFileSync(path.join(made.attempt, 'g4-postflight.json'), 'utf8')).residue)
+        .toEqual([{ pid: 4736, name: 'electron.exe', path: orphanCommand(driverExe).slice(1, 261), image_source: 'command_line' }]);
+      const unseen = phaseContext('p10-postflight', 15);
+      fs.writeFileSync(path.join(unseen.runRoot, 'note.txt'), 'harmless evidence');
+      expect(smoke.runPostflightPhase(unseen.ctx, answers(orphanTable, { status: 1, error: 'x', stdout: '', stderr: '' })).cases[0].assertions[1].status).toBe('UNKNOWN');
+
+      // The chain post-check lists residue under the run's driver copy the same way.
+      const chain = phaseContext('p03-chain');
+      for (const name of fixtures.evidenceForPhase('p03-chain')) if (name !== 'phase-result.json') fs.writeFileSync(path.join(chain.attempt, name), 'x');
+      fs.writeFileSync(path.join(chain.attempt, 'chain-exit-tree-before.json'), JSON.stringify({ tree: [{ pid: 500, parent: 100, name: 'spike02_helper.exe', created: '20260101000000.000000+000' }], wmic_failures: 0 }));
+      const launch = { mode: 'chain_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 } };
+      const chainExe = path.join(chain.ctx.runRoot, 'driver-electron', 'electron.exe');
+      smoke.finishChainEvidence(chain.ctx, [launch], null, answers(orphanTable, commandsFor([4736, orphanCommand(chainExe)])), path.join(chain.attempt, 'no-data'));
+      const verdict = chain.ctx.result.cases.find((item: any) => item.case_id === 'B2-CH-06-NORMAL-EXIT').assertions[1];
+      expect(verdict.status).toBe('FAIL');
+      expect(JSON.parse(fs.readFileSync(path.join(chain.attempt, '06-postflight.json'), 'utf8')).residue).toEqual([{ pid: 4736, name: 'electron.exe', image_source: 'command_line' }]);
     });
 
     test('a driver killed by the harness is followed by a recorded sweep; a normal exit is not swept; a stray that stays or a listing that fails ends the phase', async () => {
@@ -1622,7 +1843,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       // Normal exit: no process listing for a sweep, no kill, no strays entry.
       let listings = 0;
       const normal = ctxRoot(1);
-      const normalResult = await smoke.runDriverPhase(normal.ctx, hooksFor(null, (name: string) => { if (name === 'wmic_processes') listings += 1; return wmicCsv([]); }));
+      const normalResult = await smoke.runDriverPhase(normal.ctx, hooksFor(null, answers(() => { listings += 1; return wmicCsv([]); })));
       expect(normalResult.status).toBe('PASS');
       expect(listings).toBe(0);
       expect(JSON.parse(fs.readFileSync(path.join(normal.attempt, 'driver-launches.json'), 'utf8')).launches[0].strays).toBeUndefined();
@@ -1641,15 +1862,14 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const markerExe = path.join(runtimeBase, 'run-2', 'driver-electron', 'electron.exe');
       let first = true;
       kills.length = 0;
-      await smoke.runDriverPhase(marker.ctx, uiHooks('marker', (name: string) => {
-        if (name !== 'wmic_processes') return { status: 0, stdout: '', stderr: '', error: null };
+      await smoke.runDriverPhase(marker.ctx, uiHooks('marker', answers(() => {
         if (first) { first = false; return wmicCsv([[markerExe, 6002, 1, 'electron.exe']]); }
         return wmicCsv([]);
-      }));
+      })));
       expect(kills).toEqual([6002]);
       const markerLaunches = launchesOf(marker.attempt);
       expect(markerLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt', 'ui_continue', 'ui_layouts']);
-      expect(markerLaunches[0].strays).toEqual({ attempted: [{ pid: 6002, parent_pid: 1, name: 'electron.exe' }], removed: [{ pid: 6002, parent_pid: 1, name: 'electron.exe' }], remaining: [], observed: true });
+      expect(markerLaunches[0].strays).toEqual({ attempted: [{ pid: 6002, parent_pid: 1, name: 'electron.exe', image_source: 'executable_path' }], removed: [{ pid: 6002, parent_pid: 1, name: 'electron.exe', image_source: 'executable_path' }], remaining: [], observed: true });
       expect(markerLaunches[0].failed).toBeUndefined();
       expect(markerLaunches[1].strays).toBeUndefined();
 
@@ -1658,18 +1878,17 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const timeoutExe = path.join(runtimeBase, 'run-3', 'driver-electron', 'electron.exe');
       first = true;
       kills.length = 0;
-      await smoke.runDriverPhase(timeout.ctx, uiHooks('timeout', (name: string) => {
-        if (name !== 'wmic_processes') return { status: 0, stdout: '', stderr: '', error: null };
+      await smoke.runDriverPhase(timeout.ctx, uiHooks('timeout', answers(() => {
         if (first) { first = false; return wmicCsv([[timeoutExe, 6003, 1, 'electron.exe']]); }
         return wmicCsv([]);
-      }));
+      })));
       expect(kills).toEqual([6003]);
       expect(launchesOf(timeout.attempt)[0]).toMatchObject({ killed_by: 'timeout', failed: true, strays: { attempted: [{ pid: 6003 }], removed: [{ pid: 6003 }], remaining: [] } });
 
       // A stray that survives the kill: the launch is failed with a named reason and no later mode starts.
       const stuck = ctxPhase('p08-ui', 4);
       const stuckExe = path.join(runtimeBase, 'run-4', 'driver-electron', 'electron.exe');
-      const stuckResult = await smoke.runDriverPhase(stuck.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? wmicCsv([[stuckExe, 6100, 1, 'electron.exe']]) : { status: 0, stdout: '', stderr: '', error: null })));
+      const stuckResult = await smoke.runDriverPhase(stuck.ctx, uiHooks('marker', answers(wmicCsv([[stuckExe, 6100, 1, 'electron.exe']]))));
       expect(stuckResult.status).not.toBe('PASS');
       const stuckLaunches = launchesOf(stuck.attempt);
       expect(stuckLaunches).toHaveLength(1);
@@ -1677,7 +1896,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
       // A process table that comes back empty (exit 0, no rows) cannot show absence: the phase stops after the first killed mode (codex round 11, N1).
       const empty = ctxPhase('p08-ui', 6);
-      const emptyResult = await smoke.runDriverPhase(empty.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? rawListing('') : { status: 0, stdout: '', stderr: '', error: null })));
+      const emptyResult = await smoke.runDriverPhase(empty.ctx, uiHooks('marker', answers(rawListing(''))));
       expect(emptyResult.status).not.toBe('PASS');
       const emptyLaunches = launchesOf(empty.attempt);
       expect(emptyLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt']);
@@ -1685,7 +1904,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
       // A table with one broken line cannot show absence either (codex round 12, N1).
       const damaged = ctxPhase('p08-ui', 7);
-      const damagedResult = await smoke.runDriverPhase(damaged.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? tableOf(['HOST,date']) : { status: 0, stdout: '', stderr: '', error: null })));
+      const damagedResult = await smoke.runDriverPhase(damaged.ctx, uiHooks('marker', answers(tableOf(['HOST,date']))));
       expect(damagedResult.status).not.toBe('PASS');
       const damagedLaunches = launchesOf(damaged.attempt);
       expect(damagedLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt']);
@@ -1693,8 +1912,18 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
       // A sweep that cannot list processes cannot show absence either.
       const blind = ctxPhase('p08-ui', 5);
-      await smoke.runDriverPhase(blind.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? { status: 1, error: 'wmic failed', stdout: '', stderr: '' } : { status: 0, stdout: '', stderr: '', error: null })));
+      await smoke.runDriverPhase(blind.ctx, uiHooks('marker', answers({ status: 1, error: 'wmic failed', stdout: '', stderr: '' })));
       expect(launchesOf(blind.attempt)[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { observed: false } });
+
+      // The orphan of rehearsal 10 had no readable path; only its command line names the driver runtime copy (rehearsal 11 R1).
+      const hidden = ctxPhase('p08-ui', 8);
+      const hiddenExe = path.join(runtimeBase, 'run-8', 'driver-electron', 'electron.exe');
+      let seen = 0;
+      kills.length = 0;
+      await smoke.runDriverPhase(hidden.ctx, uiHooks('marker', answers(() => { seen += 1; return seen === 1 ? tableOf([unreadableRow(6200)]) : tableOf([]); }, () => (seen === 1 ? commandsFor([6200, orphanCommand(hiddenExe)]) : commandsFor()))));
+      expect(kills).toEqual([6200]);
+      expect(launchesOf(hidden.attempt)[0].strays).toEqual({ attempted: [viaCommand(6200)], removed: [viaCommand(6200)], remaining: [], observed: true });
+      expect(launchesOf(hidden.attempt)[0].failed).toBeUndefined();
     });
 
     test('a driver phase whose runtime copy cannot be prepared ends with a named failure class and a phase result', async () => {
@@ -1727,7 +1956,8 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const realChild = require('child_process');
     const big = csv([...filler(4000), helperRow]);
     expect(big.length).toBeGreaterThan(262144);
-    const spy = jest.spyOn(realChild, 'spawnSync').mockReturnValue({ status: 0, stdout: big, stderr: '', error: undefined } as any);
+    const listText = commandLineList().stdout;
+    const spy = jest.spyOn(realChild, 'spawnSync').mockImplementation(((_file: any, args: any) => ({ status: 0, stdout: (args as string[]).includes('/format:list') ? listText : big, stderr: '', error: undefined })) as any);
     try {
       const cut = smoke.realExec('wmic_processes');
       expect(cut).toMatchObject({ status: 0, truncated: true });
@@ -1738,7 +1968,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(lost.status).toBe('UNKNOWN');
       expect(lost.held).toMatchObject({ listing_failed: true, survivors: [] });
       // The same helper in a listing under the cap is seen, and the survivor fails the assertion.
-      spy.mockReturnValue({ status: 0, stdout: csv([...filler(1000), helperRow]), stderr: '', error: undefined } as any);
+      spy.mockImplementation(((_file: any, args: any) => ({ status: 0, stdout: (args as string[]).includes('/format:list') ? listText : csv([...filler(1000), helperRow]), stderr: '', error: undefined })) as any);
       expect(smoke.realExec('wmic_processes').truncated).toBe(false);
       const seen = runExit((name: string) => smoke.realExec(name));
       expect(seen.status).toBe('FAIL');
