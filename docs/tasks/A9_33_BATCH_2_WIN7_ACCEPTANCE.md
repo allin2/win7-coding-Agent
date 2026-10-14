@@ -1193,3 +1193,73 @@ codex 的其他结论：
 Win7 状态：R8 后检无残留进程，无 `A9W43*` 计划任务；旧根 0f3591ba、79a32916、82f275a9、d254bfcb、dbd8df63、37632497 未改动；新根 `C:\A9-W43\run\16f6af76` 保留。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
+
+### 6.26 预演 7 失败分类（2026-10-14，开发机只读）
+
+结论：B2-UI-01 归为套件缺陷，B2-SAFE-02 归为套件判据过窄，B2-S04 归为合同与产品不一致。三项都不是 Win7 环境问题。
+证据层级为开发机，绑定提交 `09fd4772…`。执行代理只读分析预演 7 取回的 Win7 证据和源码，没有访问 Win7，没有改套件代码。本节不是修复授权。
+标 `UNKNOWN` 的原因，只能靠再跑一次 Win7 预演确认。
+
+| 失败 | 归类 | 已确认的事实 | UNKNOWN |
+|---|---|---|---|
+| B2-UI-01 `loading_feedback`、`one_dispatch_while_busy` | 套件缺陷，产品侧原因已排除 | ① 驱动 IPC 日志在 05:50:16.687Z 到 05:50:26.650Z 之间没有任何调用。点击处理一旦运行，就会启动 500 ms 一次的快照轮询（`a9-workbench.js:2340`），所以这 9.96 秒内没有发生点击。② 点击处理在第一个 `await` 之前，同步把按钮改成“正在继续”（`a9-workbench.js:2280` 起，标签在 `:1015`），产品不存在延迟响应。③ 渲染层只拦截 Ctrl+K、Ctrl+I、抽屉内 Tab 和 Esc；卡片按钮没有自定义键盘处理，由原生按钮处理 Enter 与 Space。④ `press()` 只在 UI-01 使用，发送 keyDown、char、keyUp，`keyCode` 是字符串 `Enter` 或 `Space`；Space 经同一函数两次成功（continue 事件 26.670Z、27.735Z）。⑤ 页面焦点在按钮上（`focus_element=BUTTON`）。 | 第一次 Enter 没有生效的原因。假设 H1：Electron 把 `char` 事件的文本取成字符串 `Enter`，按钮收不到 Enter 的 keypress。假设 H2：第一次按键发生在窗口取得焦点之前，被丢弃。额外那次 Enter 与 Space 里哪一个触发了 26.670Z 的事件，数据无法区分。开发机没有可运行的 Electron（`node_modules/electron` 无 `dist`，本机只有 Windows 的 electron.exe 压缩包），H1、H2 都无法在开发机验证 |
+| B2-SAFE-02 | 套件判据过窄，另有一条产品观察 | ① `a9.turn.submit` 两次都返回 `ok=false`、错误码 `A9_AUDIT_PERSISTENCE_FAILED`（05:49:35.770Z、05:49:37.550Z，`driver-safe_rules.json`）。② `tool_end` 事件 0 条，文件已写入，Provider 请求 `0→1→1`，发送键被禁用。③ `presentAuditFailure` 只设置内存状态 `auditFailureBlock` 与 `agentStatus='failed'`，把错误码放进 IPC 返回值（`a9-agent-runtime.js:1861`），不写 Turn 行。④ 渲染层显示 `error.message`，不显示错误码（`a9-workbench.js:123`）。⑤ 驱动判据 `audit_flag_visible` 在 `outcome_json` 与整页文字里找错误码或 `auditIncomplete`，没有读 IPC 返回值；合同文字只写“必需审计失败停止 Turn，未知副作用不记为零”，没有要求这个标记。其余判据项全部满足 | 页面实际显示的文字（驱动没有保存 `dom.visible`，p07 没有截图）。Turn 行停在 `active` 是设计还是遗漏。应用重启后该 Turn 如何收尾 |
+| B2-S04 `utf16le`、`cp936` | 合同与产品不一致 | ① 产品在 PowerShell 下把 stdout 按严格 UTF-8 解码（`trusted-shell-runner.ts:587`），非法字节得到 `A9_OUTPUT_ENCODING_ERROR`，与切点无关。② CP936 默认只对 cmd 生效，UTF-16LE 在 A9-30 中记为外部选项。③ A9-30 对 CP936、UTF-16LE 解码器的证据是模块级的（Win7，Session 0），不是经 PowerShell 的端到端 | 能否通过产品设置选 cmd 来覆盖 CP936：`a9-agent-runtime.js:1181～1215` 读取 `shellOptions`，设置入口未查，`UNKNOWN` |
+
+处置选项（等负责人裁决；套件修复都在 [§6.1](#61-拟批准精确允许路径) 的 20 个路径内，不需要新路径；产品修改不在 §6.1 内）：
+
+| 编号 | 失败 | 选项 | 影响 |
+|---|---|---|---|
+| U-A | UI-01 | 套件修复：`press()` 的 `char` 事件改发字符（Enter 发 `\r`，Space 发空格）；页面里装按键记录器，记录 keydown、keypress、click 与 `defaultPrevented`；Enter 没有送达时判 `UNKNOWN`，不重按 | 改驱动与合同测试。开发机只能验证逻辑，效果要等下一次 Win7 预演；记录器让 H1、H2 在下一次运行中变成已记录的事实 |
+| U-B | UI-01 | 登记已知限制，Enter 路径不验收 | 去掉 `loading_feedback` 与 `one_dispatch_while_busy` 的覆盖，键盘可达性证据缺 Enter |
+| S-A | SAFE-02 | 套件修复：判据改读 `a9.turn.submit` 的 IPC 返回值（`ok=false` 与错误码），保留文件已写入、`tool_end` 0 条、无新 Provider 请求、Turn 非 `completed`；页面文字与 Turn 行状态写入证据，不参与判定 | 判据与合同文字一致。Turn 行停在 `active` 记为产品观察，不阻断 |
+| S-B | SAFE-02 | 产品任务：要求审计失败后 Turn 行标记失败、页面显示错误码 | 需要新任务书。失败标记要写入已经失败的持久化，设计需 ADR。不在 A9-33 授权路径内，Alpha 2 时间窗内不可行 |
+| S-C | SAFE-02 | 登记已知限制，保持判据不变 | 该断言保持 FAIL，Alpha 2 不能通过 |
+| E-A | S04 | 收窄合同并登记 KL-5（草案见下） | 端到端编码覆盖只剩 UTF-8 与 CRLF；用例数 25、断言数 42 不变 |
+| E-B | S04 | 保持合同，开产品任务接入 CP936、UTF-16LE 解码 | 需要新任务书与 ADR，不在 §6.1 内，Alpha 2 时间窗内不可行 |
+
+推荐：U-A、S-A、E-A。三项修复都只改套件和文档；修复后须再做 codex 独立复核，并需要预演 8（新授权文件、新构建、负责人批准 SHA-256 和 8 小时计时说明）。p09、p10 从未在 Win7 运行，预演 8 可能暴露新失败。
+
+S04 收窄草案（E-A，未生效）：
+
+1. 夹具里 S04 断言文字（`a9-batch2-fixtures.cjs`）与任务书第 89 行，由“UTF-8、CP936 和 UTF-16LE 跨块无损解码；CRLF 与无换行末行保留”改为“PowerShell 下 UTF-8 文本跨块无损解码；CRLF 与无换行末行保留”。
+2. 判定只用 `utf8` 与 `crlf`。`utf16le`、`cp936` 仍执行，结果写入 `s04-encoding.json` 并标 `INFORMATIONAL`，不参与 PASS 或 FAIL。预期值是 `A9_OUTPUT_ENCODING_ERROR`；产品日后支持这两种编码时，证据里会出现差异。
+3. 登记 KL-5：产品在 PowerShell 下只按严格 UTF-8 解码 Shell 输出。CP936 与 UTF-16LE 输出得到 `A9_OUTPUT_ENCODING_ERROR`，不是无损解码。批次 2 只验收 PowerShell 下的 UTF-8 与 CRLF。CP936、UTF-16LE 解码器只有 A9-30 的模块级证据。任何 Alpha 2 结论必须带上 KL-5。
+4. 改动位置：夹具、驱动 `stream_encodings`（`a9-batch2-driver-entry.cjs:997` 附近）、合同测试，以及本任务书、覆盖计划 [A9_BATCH_2_ACCEPTANCE_COVERAGE.md](../plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md)。
+
+未知与未验证：
+
+- 表中标 `UNKNOWN` 的原因与观察。
+- U-A、S-A、E-A 的效果：未在 Win7 实机验证。
+- p09、p10 在 Win7 上的行为 `NOT_PERFORMED`。
+
+本节不开修复轮，不提交代码，不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
+
+### 6.27 第四修复轮裁决与 KL-5（2026-10-14）
+
+结论：负责人批准 U-A、S-A、E-A，开第四修复轮，修复结果送 codex 复审，提交 4 个分类文档，并登记 KL-5。
+证据层级为开发机，绑定提交 `09fd4772…`。本节记录裁决，不含实现结果。
+
+负责人原话：“批准”。所答问题是：“是否批准 U-A、S-A、E-A，开第四修复轮（修复结果送 codex 复审），同时提交这 4 个分类文档，并登记 KL-5”。回复时间戳 `UNKNOWN`。
+
+本裁决包括：
+
+1. U-A：`press()` 的 `char` 事件改发字符，页面装按键记录器，Enter 没有送达时判 `UNKNOWN`，不重按。
+2. S-A：B2-SAFE-02 判据改读 `a9.turn.submit` 的 IPC 返回值，页面文字与 Turn 行状态写入证据，不参与判定。
+3. E-A：B2-S04 收窄为 PowerShell 下 UTF-8 与 CRLF；`utf16le`、`cp936` 仍执行并标 `INFORMATIONAL`。
+4. 修复范围限于 [§6.1](#61-拟批准精确允许路径) 的 20 个路径内的套件文件，以及本任务书与覆盖计划；不改产品代码。
+5. 修复结果送 codex 复审，codex 用 gpt-6.1-sol、`xhigh`、非 fast 模式（沿用前三轮）。
+6. 提交 4 个分类文档（任务书、STATUS、STATUS_LOG、草案）。
+7. 登记 KL-5。
+
+本裁决不包括：预演 8 的预算放宽、授权文件、构建与任何 Win7 动作。预算仍是 7/7 耗尽，请求 31/64；修复与复审完成后，执行代理另行向负责人提问。
+
+已知限制 KL-5：
+
+| 编号 | 来源 | 现象 | 影响 | 预演与正式执行中的处置 |
+|---|---|---|---|---|
+| KL-5 | 预演 7 的 B2-S04（合同与产品不一致） | 产品在 PowerShell 下只按严格 UTF-8 解码 Shell 输出；CP936 与 UTF-16LE 输出得到 `A9_OUTPUT_ENCODING_ERROR`，不是无损解码 | 批次 2 只验收 PowerShell 下的 UTF-8 与 CRLF，不验收 CP936 与 UTF-16LE 的端到端解码。CP936、UTF-16LE 解码器只有 A9-30 的模块级证据（Win7，Session 0） | `utf16le`、`cp936` 仍执行并写入 `s04-encoding.json`，标 `INFORMATIONAL`，不参与 PASS 或 FAIL。任何 Alpha 2 结论必须带上 KL-5 |
+
+KL-1、KL-2、KL-3、KL-4 仍有效；任何 Alpha 2 结论都必须带上 KL-3 与 KL-5。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
