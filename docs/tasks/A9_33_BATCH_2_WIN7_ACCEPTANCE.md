@@ -1916,3 +1916,57 @@ KL-7 现含边界 a（路径分量 `C:\t` 加密钥形态）、边界 b（连续
 codex 第 11 轮复核已于 2026-10-14T17:46:43Z 启动（`gpt-6.1-sol`、`xhigh`、非 fast 模式）。交接包 `docs/reports/2026-10/a9_33_independent_review_handoff_stray_sweep_2026-10-14.md`。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效。未在 Win7 验收通过。
+
+### 6.44 codex 第 11 轮复核结论与第 6 个驱动修复（2026-10-14）
+
+结论：codex 对 `14d1f43c…` 报告 0 个 P0、1 个 P1（N1）、2 个 P2（N2、N3），不建议进入预演 11。执行代理按负责人 2026-10-14 的裁决直接修复，修复提交 `00fd643b…` 已送 codex 第 12 轮复审。第 12 轮结果出来之前，不构建预演 11 包，不上 Win7。
+证据层级为开发机（macOS、Node 20.17.0）。原缺陷的读取结论是 Win7 实机（预演，非验收证据）。修复后的清扫在 Win7 上的运行是 `NOT_PERFORMED`。未在 Win7 实机验证。
+
+过程：codex 2026-10-14T17:46:43Z 启动，18:11:00Z 完成，退出码 0。报告与证据存档在 `.acceptance/a9-33-review/codex-stage2-round11-20261014/`，46 个文件有 `SHA256SUMS.txt`，复核 0 个不一致；报告 SHA-256 前缀 `084ea940…`。检出 `14d1f43c…`，范围核对 `PATHS_MATCH`，源码 40/40 份与提交对象一致。
+
+发现与修复：
+
+| 编号 | 级别 | 发现 | 修复（`00fd643b…`） |
+|---|---|---|---|
+| N1 | P1 | 清扫只看 `listing.failed`。空输出、只有表头、非 CSV 文本、缺 `ExecutablePath` 列的表被累计成两轮干净；在假 exec 的控制流探针里，空输出使 `ui_interrupt` 之后继续执行 `ui_continue`、`ui_layouts`，阶段 PASS | 新增 `usableProcessListing`：表须含 `ProcessId`、`ParentProcessId`、`Name`、`ExecutablePath` 四列，且至少一行 `ProcessId` 为正数，否则按失败列表处理，不算干净轮并重置计数 |
+| N2 | P2 | 两个存活变异：删除发现残留后的 `clean=0`（X02）；最大轮数 8 改 7（X03） | 补两个用例：`[干净, 残留, 干净, 干净]` 需要 4 次列表；6 轮残留后 2 轮干净需要第 8 轮 |
+| N3 | P2 | `removed` 在发出 kill 后立即追加，顽固进程同时出现在 `removed` 与 `remaining` | 返回 `attempted`、`removed`、`remaining` 三项；`removed` 只含在最近一次可用列表里已不在的进程，失败列表使该判断失效 |
+
+codex 的独立检查（开发机，绑定 `14d1f43c…`）：
+
+| 项 | 结果 |
+|---|---|
+| 范围 | `20 files changed, 9887 insertions(+), 31 deletions(-)`；本轮 2 个文件 `275 insertions(+), 6 deletions(-)` |
+| 包测试 | `node --test` 120 通过、0 失败 |
+| shell jest | 216 通过、8 个用例因沙箱禁止回环监听（`listen EPERM`）失败，标 `UNKNOWN`（沙箱）；执行代理在无沙箱环境的 224 个全通过结果不变。其中新增的清扫用例经 `ProviderFixture.listen`，所以交接包写的“只用临时目录和假 exec”不准确 |
+| 变异 | 指定 24 个中 23 个被拦、M03 存活（codex 认可限定等价）；另试 X01 被拦，X02、X03 存活（即 N2） |
+| 复制耗时 | 自造 157,602,304 字节文件，每次两读、零复制，三次 232～273 毫秒，最高 RSS 约 336.5 MiB；真实 Win7 耗时与内存 `UNKNOWN` |
+| 根因 | 孤儿与 `EBUSY` 在同一驱动副本，网络服务重启日志紧邻 marker 终止，强烈支持归因；因果确证、`wmic` 对该孤儿返回完整 `ExecutablePath`、`taskkill /T /F` 对该孤儿的效果都是 `UNKNOWN` |
+
+对 §6.43 与第 11 轮交接包的更正：`driver-launches.json` 的 `strays` 只含 `pid`、`parent_pid`、`name`，没有路径字符串；六个驱动阶段的 `fixtures.evidenceForPhase` 都不含 `driver-launches.json`，既有的递归扫描与清单仍纳入它。§6.43 写的“新增 6 个用例”现为 7 个。
+
+修复的开发机验证（执行代理，绑定 `00fd643b…`）：
+
+| 项 | 结果 |
+|---|---|
+| shell jest | 225 个全部通过；`driver runtime copy and the sweep` 组 7 个 |
+| 类型检查 | `tsc --noEmit` 通过 |
+| 包测试 | `node --test` 120 个通过 |
+| 变异 | 34 个中 33 个被拦、1 个等价（M03）；含 codex 的 X02（M26）、X03（M16）与 N1、N3 相关的 M27～M34 |
+| 范围 | 累计 `20 files changed, 9958 insertions(+), 31 deletions(-)`；相对 `14d1f43c…` 为 `2 files changed, 97 insertions(+), 26 deletions(-)`；仍是 §6.1 的 20 个路径 |
+
+另一处连带修改：既有用例 `the smoke corrupts the mode settings before the unresolved-mode mode starts and restores the original bytes afterwards` 原来给清扫一个空进程表，现在空表属于不可用，该用例改为提供可用的进程表和清扫钩子。
+
+未知与未验证：
+
+- 修复后的清扫在 Win7 上的行为：`NOT_PERFORMED`。
+- 清扫结束之后才出现的孤儿：由 p10 残留检查兜底，未实测；清扫的观察窗口是有限的，更晚出现的孤儿 `UNKNOWN`。
+- `killTree` 带 `/T`，对树外进程的实际影响：`UNKNOWN`。
+- 真实 Win7 上整文件哈希 157 MB 两次的耗时与内存：`UNKNOWN`。
+- 83 个 `driver-electron` 文件未取回，扫描回放 `NOT_PERFORMED`；构建期载荷扫描 `build-a9-product-v3.mjs:2371` 未改。
+
+待裁决（仍未回复，执行代理按字面保守处理）：请求上限 64，已用 59，预演 11 的常规路径需要 10 个，累计 69；预演 10 遗留的 Win7 PID 4736 是否终止。预演 11 前，执行代理还要把顺序脚本改为任何阶段 FAIL 即停止。
+
+codex 第 12 轮复核已于 2026-10-14T18:27:28Z 启动（`gpt-6.1-sol`、`xhigh`、非 fast 模式），交接包 `docs/reports/2026-10/a9_33_independent_review_handoff_stray_sweep_2026-10-14.md`（已更新为绑定 `00fd643b…`）。处理规则：有 P0 或 P1，直接修复并送 codex 复审；只剩 P2 及以下，登记已知限制，构建预演 11 包。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效。未在 Win7 验收通过。
