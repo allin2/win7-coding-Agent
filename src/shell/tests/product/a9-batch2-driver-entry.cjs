@@ -318,10 +318,16 @@ function evaluateUiJourney(f) {
   const back = facts.view_return || null;
   const space = facts.space || null;
   const scroll = enter && enter.scroll ? enter.scroll : null;
-  // The two Enter-dependent assertions are judged only when the page saw a real Enter keypress; otherwise the input never arrived and the answer is UNKNOWN.
+  // The two Enter-dependent assertions are judged only when the page saw a real Enter keypress that went to the button (codex round 4: the page body would
+  // also have counted); otherwise the input never arrived where it was meant to and the answer is UNKNOWN.
   const delivery = enter && enter.enter_delivery ? enter.enter_delivery : null;
-  const enterReached = delivery ? delivery.delivered === true : null;
-  const deliveryText = delivery ? `; enter_delivered=${delivery.delivered}; keydown=${delivery.keydown}; keypress13=${delivery.keypress}; page_focused=${delivery.page_focused}` : '; enter delivery not observed';
+  const enterReached = delivery ? delivery.delivered === true && delivery.keydown_target === 'BUTTON' && enter.button_focused === true : null;
+  const deliveryText = delivery ? `; enter_delivered=${delivery.delivered}; keydown=${delivery.keydown}; keypress13=${delivery.keypress}; keydown_target=${delivery.keydown_target}; button_focused=${enter.button_focused}; page_focused=${delivery.page_focused}` : '; enter delivery not observed';
+  // The repeated-input challenge only counts when the extra Enter and the extra Space were seen by the page (their keydown); a disabled button need not click.
+  const extraEnter = enter && enter.extra_enter ? enter.extra_enter : null;
+  const extraSpace = enter && enter.extra_space ? enter.extra_space : null;
+  const extrasReached = extraEnter && extraSpace ? extraEnter.keydown === true && extraSpace.keydown === true : null;
+  const extraText = `; extra_enter_keydown=${extraEnter ? extraEnter.keydown : 'not observed'}; extra_space_keydown=${extraSpace ? extraSpace.keydown : 'not observed'}`;
   const subs = [];
   subs.push(subResult('card_ready', card0 ? card0.button === CARD_BUTTON_READY && card0.disabled === false : null, card0 ? `button=${card0.button}; disabled=${card0.disabled}` : 'no card observed'));
   subs.push(subResult('loading_feedback', enter && enterReached === true ? enter.busy_label === true && enter.button_disabled === true : null,
@@ -330,9 +336,9 @@ function evaluateUiJourney(f) {
     enter ? `focus_in_card=${enter.focus_in_card}` : 'Enter journey not observed'));
   subs.push(subResult('no_scroll_theft', scroll && scroll.testable === true ? Math.abs(Number(scroll.after) - Number(scroll.before)) <= 2 : null,
     scroll ? `testable=${scroll.testable}; before=${scroll.before}; after=${scroll.after}` : 'scroll not observed'));
-  subs.push(subResult('one_dispatch_while_busy', enter && enterReached === true && Number.isSafeInteger(enter.continue_events_while_busy) && Number.isSafeInteger(enter.continue_events_after_extra_keys)
+  subs.push(subResult('one_dispatch_while_busy', enter && enterReached === true && extrasReached === true && Number.isSafeInteger(enter.continue_events_while_busy) && Number.isSafeInteger(enter.continue_events_after_extra_keys)
     ? enter.continue_events_while_busy === 1 && enter.continue_events_after_extra_keys === 1 : null,
-  enter ? `events_busy=${enter.continue_events_while_busy}; events_after_extra_keys=${enter.continue_events_after_extra_keys}${deliveryText}` : 'Enter journey not observed'));
+  enter ? `events_busy=${enter.continue_events_while_busy}; events_after_extra_keys=${enter.continue_events_after_extra_keys}${deliveryText}${extraText}` : 'Enter journey not observed'));
   subs.push(subResult('stop_returns_actionable_new_card', stopped && stopped.card ? stopped.card.disabled === false && stopped.card.button === CARD_BUTTON_READY
     && stopped.interrupted_turn_changed === true && stopped.revision_changed === true : null,
   stopped && stopped.card ? `button=${stopped.card.button}; disabled=${stopped.card.disabled}; turn_changed=${stopped.interrupted_turn_changed}; revision_changed=${stopped.revision_changed}` : 'no card after Stop'));
@@ -364,7 +370,9 @@ function summarizeKeyPress(records, fromIndex, key) {
   const keypress = has('keypress', (item) => item.charCode === KEY_CHAR_CODES[key]);
   const keyup = has('keyup', (item) => item.key === name);
   const clicks = list.filter((item) => Boolean(item) && item.type === 'click').length;
-  return { key, keydown, keypress, keyup, clicks, delivered: key === 'Enter' ? keydown && keypress : keydown && keyup };
+  // The element the page gave the key to: "delivered" says the page saw the key, the target says whom it went to (the button, or the page body).
+  const down = list.find((item) => Boolean(item) && item.type === 'keydown' && item.key === name);
+  return { key, keydown, keypress, keyup, clicks, delivered: key === 'Enter' ? keydown && keypress : keydown && keyup, keydown_target: down ? down.target : null };
 }
 const KEY_RECORDER_SOURCE = `(() => { if (window.__b2KeyRecords) return true; const list = window.__b2KeyRecords = [];
   for (const type of ['keydown', 'keypress', 'keyup', 'click']) {
@@ -377,21 +385,28 @@ const KEY_RECORDER_SOURCE = `(() => { if (window.__b2KeyRecords) return true; co
 // The product reports the failure in the IPC answer of a9.turn.submit (error code A9_AUDIT_PERSISTENCE_FAILED), keeps the dispatch stopped and does
 // not write the Turn row, so the verdict reads the IPC answer; page text and Turn row are evidence only.
 const AUDIT_FAILURE_CODE = 'A9_AUDIT_PERSISTENCE_FAILED';
+// The scenario b2:audit-write asks the Provider once; the second request would carry the write result, so a hard stop after the failed tool_end leaves exactly one.
+const AUDIT_FIRST_TURN_REQUESTS = 1;
 function evaluateAuditHardStop(f) {
   const facts = f || {};
-  const first = Array.isArray(facts.submit_calls) && facts.submit_calls[0] ? facts.submit_calls[0] : null;
+  const calls = Array.isArray(facts.submit_calls) ? facts.submit_calls : [];
+  const first = calls[0] || null;
+  const second = calls[1] || null;
   const requests = facts.requests || {};
   const observed = Boolean(first) && typeof facts.file_written === 'boolean' && Number.isSafeInteger(facts.tool_ends)
-    && Number.isSafeInteger(requests.after_turn) && Number.isSafeInteger(requests.after_next_submit);
-  const second = Array.isArray(facts.submit_calls) && facts.submit_calls[1] ? facts.submit_calls[1] : null;
+    && Number.isSafeInteger(requests.before) && Number.isSafeInteger(requests.after_turn) && Number.isSafeInteger(requests.after_next_submit);
   const detail = `file_written=${facts.file_written}; tool_end_persisted=${facts.tool_ends}; submit_ok=${first ? first.ok : null}; submit_error_code=${first ? first.error : null}; `
-    + `next_submit_error_code=${second ? second.error : null}; turn_status=${facts.turn_status}; requests=${requests.before}->${requests.after_turn}->${requests.after_next_submit}; `
+    + `next_submit_error_code=${second ? second.error : 'not observed'}; turn_status=${facts.turn_status}; requests=${requests.before}->${requests.after_turn}->${requests.after_next_submit} (first turn must add ${AUDIT_FIRST_TURN_REQUESTS}); `
     + `page_shows_code=${facts.page_shows_code} (observation); outcome_json_has_code=${facts.outcome_json_has_code} (observation)`;
   if (!observed) return { status: 'UNKNOWN', detail: `a9.turn.submit answer or counters not observed; ${detail}` };
   const codeReturned = first.ok === false && first.error === AUDIT_FAILURE_CODE;
+  const firstTurnStopped = requests.after_turn - requests.before === AUDIT_FIRST_TURN_REQUESTS;
   const dispatchStopped = requests.after_next_submit === requests.after_turn;
-  const ok = facts.file_written === true && facts.tool_ends === 0 && codeReturned && facts.turn_status !== 'completed' && dispatchStopped;
-  return { status: ok ? 'PASS' : 'FAIL', detail };
+  const ok = facts.file_written === true && facts.tool_ends === 0 && codeReturned && facts.turn_status !== 'completed' && firstTurnStopped && dispatchStopped;
+  if (!ok) return { status: 'FAIL', detail };
+  // "No new request after the next submit" proves nothing when that submit never reached the product.
+  if (!second) return { status: 'UNKNOWN', detail: `the second a9.turn.submit was not observed; ${detail}` };
+  return { status: 'PASS', detail };
 }
 
 // B2-S04 (rehearsal 7, KL-5): under Windows PowerShell the product decodes Shell output as strict UTF-8, so only UTF-8 and CRLF decide the
@@ -1566,7 +1581,7 @@ async function runDriver() {
       await sleep(600);
       const scroll0 = await scrollProbe(true);
       await setFixture({ afterHold: true, holdNext: true });
-      await exec(`(() => { const b = document.querySelector('section.continuation-card button'); b.focus({ preventScroll: true }); return document.activeElement === b; })()`);
+      const buttonFocused = (await exec(`(() => { const b = document.querySelector('section.continuation-card button'); b.focus({ preventScroll: true }); return document.activeElement === b; })()`)) === true;
       const enterDelivery = await pressKey('Enter');
       const busy = await waitFor(async () => { const c = await cardInfo(); return c && c.button === CARD_BUTTON_BUSY ? c : null; }, 8000, 'busy label').catch(() => null);
       await sleep(1200);
@@ -1578,7 +1593,7 @@ async function runDriver() {
       await sleep(800);
       const eventsExtra = await continueEventsFor(pre.conversationId, pre.taskId);
       await screenshot('ui01-interaction.png');
-      facts.enter = { busy_label: Boolean(busy), button_disabled: busy ? busy.disabled === true : null, focus_in_card: focus.inCard, focus_element: focus.tag,
+      facts.enter = { button_focused: buttonFocused, busy_label: Boolean(busy), button_disabled: busy ? busy.disabled === true : null, focus_in_card: focus.inCard, focus_element: focus.tag,
         scroll: scroll0 && scroll1 ? { testable: scroll0.height - scroll0.client >= 60, before: scroll0.top, after: scroll1.top, height: scroll0.height, client: scroll0.client } : null,
         continue_events_while_busy: eventsBusy.length, continue_events_after_extra_keys: eventsExtra.length,
         enter_delivery: enterDelivery, extra_enter: extraEnter, extra_space: extraSpace, key_records: (await keyRecords()).slice(0, 60) };
@@ -1758,7 +1773,7 @@ module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
-  keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE,
+  keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, AUDIT_FIRST_TURN_REQUESTS,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
 };
 

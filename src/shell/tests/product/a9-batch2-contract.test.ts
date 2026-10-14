@@ -1542,8 +1542,10 @@ describe('A9-33 batch-2 driver evaluators', () => {
     const card = (button = '继续', disabled = false) => ({ text: '继续中断任务', button, disabled });
     const full = (): any => ({
       card0: card(),
-      enter: { busy_label: true, button_disabled: true, focus_in_card: true, scroll: { testable: true, before: 0, after: 1 }, continue_events_while_busy: 1, continue_events_after_extra_keys: 1,
-        enter_delivery: { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, page_focused: true } },
+      enter: { button_focused: true, busy_label: true, button_disabled: true, focus_in_card: true, scroll: { testable: true, before: 0, after: 1 }, continue_events_while_busy: 1, continue_events_after_extra_keys: 1,
+        enter_delivery: { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, keydown_target: 'BUTTON', page_focused: true },
+        extra_enter: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, keydown_target: 'BODY' },
+        extra_space: { key: 'Space', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: true, keydown_target: 'BODY' } },
       stopped: { card: card(), focus_in_card: true, interrupted_turn_changed: true, revision_changed: true },
       view_return: { card: card() },
       space: { continue_events_total: 2, ipc_continue_calls_total: 2, second_turn_status: 'completed' },
@@ -1584,8 +1586,10 @@ describe('A9-33 batch-2 driver evaluators', () => {
   test('UI-01: the two Enter assertions are judged only when the page saw a real Enter keypress (rehearsal 7: no click in 9.96 s, cause UNKNOWN)', () => {
     const base = (): any => ({
       card0: { text: 'c', button: '继续', disabled: false },
-      enter: { busy_label: false, button_disabled: null, focus_in_card: true, scroll: { testable: true, before: 0, after: 0 }, continue_events_while_busy: 0, continue_events_after_extra_keys: 1,
-        enter_delivery: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, page_focused: true } },
+      enter: { button_focused: true, busy_label: false, button_disabled: null, focus_in_card: true, scroll: { testable: true, before: 0, after: 0 }, continue_events_while_busy: 0, continue_events_after_extra_keys: 1,
+        enter_delivery: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, keydown_target: 'BUTTON', page_focused: true },
+        extra_enter: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, keydown_target: 'BODY' },
+        extra_space: { key: 'Space', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: true, keydown_target: 'BODY' } },
       stopped: { card: { text: 'c', button: '继续', disabled: false }, focus_in_card: true, interrupted_turn_changed: true, revision_changed: true },
       view_return: { card: { text: 'c', button: '继续', disabled: false } },
       space: { continue_events_total: 2, ipc_continue_calls_total: 2, second_turn_status: 'completed' },
@@ -1601,7 +1605,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(byName(lost, 'stop_returns_actionable_new_card').status).toBe('PASS');
     expect(byName(lost, 'space_retry_creates_one_more_turn').status).toBe('PASS');
     // A delivered Enter that produced no busy label and no event is a product FAIL.
-    const delivered = base(); delivered.enter.enter_delivery = { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 0, delivered: true, page_focused: true };
+    const delivered = base(); delivered.enter.enter_delivery = { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 0, delivered: true, keydown_target: 'BUTTON', page_focused: true };
     const product = driver.evaluateUiJourney(delivered);
     expect(byName(product, 'loading_feedback').status).toBe('FAIL');
     expect(byName(product, 'one_dispatch_while_busy').status).toBe('FAIL');
@@ -1609,6 +1613,48 @@ describe('A9-33 batch-2 driver evaluators', () => {
     const legacy = base(); legacy.enter.busy_label = true; legacy.enter.button_disabled = true; legacy.enter.continue_events_while_busy = 1; delete legacy.enter.enter_delivery;
     expect(byName(driver.evaluateUiJourney(legacy), 'loading_feedback').status).toBe('UNKNOWN');
     expect(byName(driver.evaluateUiJourney(legacy), 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+  });
+
+  test('UI-01 (codex round 4): the repeated-input challenge counts only when the page saw the extra keys, and an Enter that went to the page body is UNKNOWN', () => {
+    const card = { text: 'c', button: '继续', disabled: false };
+    const full = (): any => ({
+      card0: card,
+      enter: { button_focused: true, busy_label: true, button_disabled: true, focus_in_card: true, scroll: { testable: true, before: 0, after: 0 }, continue_events_while_busy: 1, continue_events_after_extra_keys: 1,
+        enter_delivery: { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, keydown_target: 'BUTTON', page_focused: true },
+        extra_enter: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, keydown_target: 'BODY' },
+        extra_space: { key: 'Space', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: true, keydown_target: 'BODY' } },
+      stopped: { card, focus_in_card: true, interrupted_turn_changed: true, revision_changed: true },
+      view_return: { card },
+      space: { continue_events_total: 2, ipc_continue_calls_total: 2, second_turn_status: 'completed' },
+    });
+    const sub = (facts: any, name: string) => driver.evaluateUiJourney(facts).find((item: any) => item.name === name);
+    expect(driver.summarizeSubs(driver.evaluateUiJourney(full())).status).toBe('PASS');
+    // The finding of codex round 4: neither extra key reached the page, yet the old check answered PASS.
+    const noExtras = full(); noExtras.enter.extra_enter = { ...noExtras.enter.extra_enter, keydown: false, keyup: false }; noExtras.enter.extra_space = { ...noExtras.enter.extra_space, keydown: false, keyup: false };
+    expect(sub(noExtras, 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+    expect(driver.summarizeSubs(driver.evaluateUiJourney(noExtras)).status).toBe('UNKNOWN');
+    const oneExtra = full(); oneExtra.enter.extra_space.keydown = false;
+    expect(sub(oneExtra, 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+    const missingExtra = full(); delete missingExtra.enter.extra_enter;
+    expect(sub(missingExtra, 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+    expect(sub(missingExtra, 'one_dispatch_while_busy').detail).toContain('extra_enter_keydown=not observed');
+    // The extra keys reached the page and a second dispatch happened: FAIL.
+    const twice = full(); twice.enter.continue_events_after_extra_keys = 2;
+    expect(sub(twice, 'one_dispatch_while_busy').status).toBe('FAIL');
+    // A disabled button need not click: extra keys with zero clicks are the normal case.
+    expect(full().enter.extra_enter.clicks).toBe(0);
+    // The extra keys do not matter for loading_feedback.
+    expect(sub(noExtras, 'loading_feedback').status).toBe('PASS');
+    // An Enter that the page gave to the body, or a focus call that did not land on the button, is UNKNOWN for both Enter assertions.
+    const body = full(); body.enter.enter_delivery.keydown_target = 'BODY';
+    const unfocused = full(); unfocused.enter.button_focused = false;
+    const unknownFocus = full(); delete unknownFocus.enter.button_focused;
+    for (const facts of [body, unfocused, unknownFocus]) {
+      expect(sub(facts, 'loading_feedback').status).toBe('UNKNOWN');
+      expect(sub(facts, 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+    }
+    expect(sub(body, 'loading_feedback').detail).toContain('keydown_target=BODY');
+    expect(sub(unfocused, 'loading_feedback').detail).toContain('button_focused=false');
   });
 
   test('key input: a char event carries the typed character, and the page-side summary tells a real Enter from a lost one', () => {
@@ -1619,7 +1665,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(() => driver.keyEventsFor('Escape')).toThrow(/KEY_UNKNOWN/);
     const entry = (type: string, extra: any = {}) => ({ type, key: null, charCode: null, target: 'BUTTON', trusted: true, ...extra });
     const real = [entry('keydown', { key: 'Enter' }), entry('keypress', { key: 'Enter', charCode: 13 }), entry('click'), entry('keyup', { key: 'Enter' })];
-    expect(driver.summarizeKeyPress(real, 0, 'Enter')).toEqual({ key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true });
+    expect(driver.summarizeKeyPress(real, 0, 'Enter')).toEqual({ key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, keydown_target: 'BUTTON' });
     // The suspected failure of rehearsal 7 (hypothesis H1): the char text was the string "Enter", so the keypress carried char code 69 ("E").
     const wrongChar = [entry('keydown', { key: 'Enter' }), entry('keypress', { key: 'E', charCode: 69 }), entry('keyup', { key: 'Enter' })];
     expect(driver.summarizeKeyPress(wrongChar, 0, 'Enter')).toMatchObject({ keydown: true, keypress: false, delivered: false, clicks: 0 });
@@ -1631,6 +1677,11 @@ describe('A9-33 batch-2 driver evaluators', () => {
     const space = [entry('keydown', { key: ' ' }), entry('keypress', { key: ' ', charCode: 32 }), entry('keyup', { key: ' ' }), entry('click')];
     expect(driver.summarizeKeyPress(space, 0, 'Space')).toMatchObject({ delivered: true, clicks: 1 });
     expect(driver.summarizeKeyPress(space.slice(0, 1), 0, 'Space')).toMatchObject({ delivered: false });
+    // The target says whom the page gave the key to; the same keys on the page body are "delivered" but not to the button (codex round 4).
+    const onBody = [entry('keydown', { key: 'Enter', target: 'BODY' }), entry('keypress', { key: 'Enter', charCode: 13, target: 'BODY' }), entry('keyup', { key: 'Enter', target: 'BODY' })];
+    expect(driver.summarizeKeyPress(onBody, 0, 'Enter')).toMatchObject({ delivered: true, keydown_target: 'BODY' });
+    expect(driver.summarizeKeyPress([], 0, 'Enter').keydown_target).toBeNull();
+    expect(driver.summarizeKeyPress(real, 0, 'Space').keydown_target).toBeNull();
   });
 
   test('key recorder: the page-side source records keydown, keypress, keyup and click once and is idempotent', () => {
@@ -1672,6 +1723,10 @@ describe('A9-33 batch-2 driver evaluators', () => {
       ['the first submit failed with another code', (f) => { f.submit_calls[0] = { ok: false, error: 'A9_WORKSPACE_REQUIRED' }; }],
       ['the Turn completed', (f) => { f.turn_status = 'completed'; }],
       ['the next submit reached the Provider', (f) => { f.requests.after_next_submit = 2; }],
+      // codex round 4, P1: the first turn must add exactly one request; a second request inside the first turn is an extra dispatch.
+      ['the first turn dispatched twice and then stopped', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; }],
+      ['the first turn dispatched nothing', (f) => { f.requests = { before: 0, after_turn: 0, after_next_submit: 0 }; }],
+      ['the first turn dispatched twice and the second submit was never observed', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; f.submit_calls = [f.submit_calls[0]]; }],
     ];
     for (const [label, mutate] of failures) {
       const facts = rehearsal7(); mutate(facts);
@@ -1687,12 +1742,23 @@ describe('A9-33 batch-2 driver evaluators', () => {
       ['file state unknown', (f) => { delete f.file_written; }],
       ['tool_end count unknown', (f) => { f.tool_ends = null; }],
       ['request counter missing', (f) => { f.requests = { before: 0 }; }],
+      ['baseline counter missing', (f) => { f.requests = { after_turn: 1, after_next_submit: 1 }; }],
+      // codex round 4, P1: with no second a9.turn.submit the "no new request" check is empty.
+      ['second submit not observed', (f) => { f.submit_calls = [f.submit_calls[0]]; }],
     ];
     for (const [label, mutate] of unobserved) {
       const facts = rehearsal7(); mutate(facts);
       expect({ label, status: driver.evaluateAuditHardStop(facts).status }).toEqual({ label, status: 'UNKNOWN' });
     }
     expect(driver.evaluateAuditHardStop(null).status).toBe('UNKNOWN');
+    // The first-turn count is relative to the baseline, and the constant matches the scenario: one Provider request asks for the write, the next would carry its result.
+    expect(driver.AUDIT_FIRST_TURN_REQUESTS).toBe(1);
+    const later = rehearsal7(); later.requests = { before: 3, after_turn: 4, after_next_submit: 4 };
+    expect(driver.evaluateAuditHardStop(later).status).toBe('PASS');
+    const asked = (done: number) => fixtures.providerStep({ messages: [{ role: 'user', content: 'please run b2:audit-write' }, ...(done ? [{ role: 'tool', tool_call_id: 'b2-aw-1', content: 'ok' }] : [])] }, {});
+    expect(JSON.stringify(asked(0))).toContain('"write"');
+    expect(asked(1)).toEqual({ content: 'audit write scenario finished.' });
+    expect(driver.evaluateAuditHardStop(rehearsal7()).detail).toContain('first turn must add 1');
   });
 
   test('S04 (KL-5): only UTF-8 and CRLF decide the verdict; CP936 and UTF-16LE are INFORMATIONAL (rehearsal 7 facts)', () => {
@@ -2606,5 +2672,220 @@ describe('A9-33 batch-2 key press in the UI-01 journey', () => {
     expect(sentBefore).toBe(true);
     await r.api.pressKey('Enter');
     expect(r.sent.find((event: any) => event.type === 'char').keyCode).toBe('\r');
+  });
+});
+
+// Rehearsal 7 fix round 5 (codex round 4, survivors A1, A2, A3): the three journey closures of the driver, cut out of the source and run against stubs that
+// stand in for the page, the IPC log and the Provider counters. They check the wiring that the pure evaluators cannot see: which press feeds which fact,
+// where the IPC baseline is taken, and which errors end the case. They are not Electron, Win10 or Win7 evidence.
+describe('A9-33 batch-2 journey closures', () => {
+  const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+  const slice = (from: string, to: string) => {
+    const start = driverSource.indexOf(from);
+    const end = driverSource.indexOf(to, start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return driverSource.slice(start, end);
+  };
+  const AUDIT_CODE = 'A9_AUDIT_PERSISTENCE_FAILED';
+
+  describe('S04 closure (A3): only the decisive labels end the case on an error', () => {
+    function rig(plan: Record<string, 'ok' | 'throw' | 'wrong'>, shell: any = { kind: 'powershell' }) {
+      const fx = fixtures.encodingFixtures();
+      const outs: any[] = []; const records: any[][] = []; const prompts: string[] = [];
+      const textFor: any = { utf8: fx.text, utf16le: fx.text, cp936: '中文', crlf: 'line one\r\nline two\r\nlast line without newline' };
+      const runPrompt = async (prompt: string) => {
+        prompts.push(prompt);
+        const label = prompt.replace('b2:s04-', '');
+        const mode = plan[label] || 'ok';
+        if (mode === 'throw') throw new Error(`prompt ${label} failed`);
+        const data: any = { toolCallId: `b2-s04-${label}`, stream: 'stdout', outputSeq: 1, text: mode === 'wrong' ? '' : textFor[label] };
+        if (mode === 'wrong') { data.warning = 'A9_OUTPUT_ENCODING_ERROR'; data.truncated = true; }
+        return { events: [{ eventType: 'tool_output', eventId: prompts.length, turnId: 't', payload: { data } }] };
+      };
+      const box: any = { bootstrap: async () => ({ shell }), newConversation: async () => undefined, runPrompt, sleep: async () => undefined,
+        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args), path, candidateRoot: '/candidate',
+        require: () => ({ encodingFixtures: () => fx }), framesFromEvents: driver.framesFromEvents, eventData: driver.eventData, ENCODING_GATING: driver.ENCODING_GATING,
+        evaluateEncodingOutcomes: driver.evaluateEncodingOutcomes, Set, Array, Error, String };
+      vm.runInNewContext(`${slice('  async function streamEncodings() {', '  async function streamLimits() {')}\n;this.api = { streamEncodings };`, box);
+      return { api: box.api, outs, records, prompts };
+    }
+
+    test('the four prompts run in order and the rehearsal 7 shape (UTF-16LE and CP936 fail with the product warning) passes', async () => {
+      const r = rig({ utf16le: 'wrong', cp936: 'wrong' });
+      await r.api.streamEncodings();
+      expect(r.prompts).toEqual(['b2:s04-utf8', 'b2:s04-utf16le', 'b2:s04-cp936', 'b2:s04-crlf']);
+      expect(r.records).toHaveLength(1);
+      expect(r.records[0].slice(0, 3)).toEqual(['B2-S04-ENCODING-CROSSCHUNK', 1, 'PASS']);
+      const payload = r.outs[0].payload;
+      expect(payload.outcomes.map((item: any) => [item.label, item.gating, item.ok])).toEqual([['utf8', true, true], ['utf16le', false, false], ['cp936', false, false], ['crlf', true, true]]);
+      expect(payload.outcomes[1].warnings).toEqual(['A9_OUTPUT_ENCODING_ERROR']);
+      expect(payload.outcomes[0].warnings).toEqual([]);
+      expect(payload.known_limit).toContain('KL-5');
+    });
+
+    test('an informational prompt that throws is recorded and the decisive CRLF prompt still runs', async () => {
+      const r = rig({ cp936: 'throw' });
+      await r.api.streamEncodings();
+      expect(r.prompts).toHaveLength(4);
+      expect(r.records[0][2]).toBe('PASS');
+      const cp936 = r.outs[0].payload.outcomes.find((item: any) => item.label === 'cp936');
+      expect(cp936).toMatchObject({ ok: false, gating: false });
+      expect(cp936.error).toContain('prompt cp936 failed');
+    });
+
+    test('a decisive prompt that throws ends the case with that error and records no verdict', async () => {
+      for (const label of ['utf8', 'crlf']) {
+        const r = rig({ [label]: 'throw' });
+        await expect(r.api.streamEncodings()).rejects.toThrow(`prompt ${label} failed`);
+        expect(r.records).toHaveLength(0);
+        expect(r.outs).toHaveLength(0);
+      }
+    });
+
+    test('a failed decisive label fails the case, and a shell other than PowerShell is UNKNOWN without a prompt', async () => {
+      const bad = rig({ crlf: 'wrong' });
+      await bad.api.streamEncodings();
+      expect(bad.records[0][2]).toBe('FAIL');
+      const cmd = rig({}, { kind: 'cmd' });
+      await cmd.api.streamEncodings();
+      expect(cmd.prompts).toEqual([]);
+      expect(cmd.records[0][2]).toBe('UNKNOWN');
+    });
+  });
+
+  describe('SAFE-02 closure (A2): the IPC baseline is taken before the first submit', () => {
+    function rig(options: { requestsFirstTurn?: number; secondReachesIpc?: boolean; fileWritten?: boolean; toolEnds?: number; injectFails?: boolean; submitThrows?: boolean } = {}) {
+      const opts = { requestsFirstTurn: 1, secondReachesIpc: true, fileWritten: true, toolEnds: 0, injectFails: false, submitThrows: false, ...options };
+      const ipcLog: any[] = [
+        { action: 'a9.snapshot.get', ok: false, error: 'A9_WORKSPACE_REQUIRED' },
+        { action: 'a9.turn.submit', ok: true, error: null },
+      ];
+      const world = { requests: 0 };
+      const execs: string[] = []; const outs: any[] = []; const records: any[][] = [];
+      let opened = 0;
+      const events = [{ turnId: 't1', eventType: 'turn_started' }, { turnId: 't1', eventType: 'tool_start' }, ...Array.from({ length: opts.toolEnds }, () => ({ turnId: 't1', eventType: 'tool_end' }))];
+      const box: any = {
+        bootstrap: async () => ({}), newConversation: async () => undefined, conversationId: async () => 'conv-1',
+        openDb: () => { opened += 1; if (opts.injectFails && opened === 1) throw new Error('database is locked'); return { exec: (sql: string) => execs.push(sql), close: () => undefined }; },
+        counters: async () => ({ requests: world.requests }), ipcLog,
+        submit: async () => { if (opts.submitThrows) throw new Error('submit failed'); world.requests += opts.requestsFirstTurn; ipcLog.push({ action: 'a9.turn.submit', ok: false, error: AUDIT_CODE }); },
+        submitRaw: async () => { if (opts.secondReachesIpc) ipcLog.push({ action: 'a9.turn.submit', ok: false, error: AUDIT_CODE }); },
+        waitFor: async (condition: () => Promise<any>) => condition(), snapshot: async () => { ipcLog.push({ action: 'a9.snapshot.get', ok: true, error: null }); return { controls: { canStop: false }, agentStatus: 'idle' }; }, sleep: async () => undefined,
+        fs: { existsSync: () => opts.fileWritten }, path, workspaceRoot: '/workspace', events: async () => ({ events }), lastTurnOf: () => 't1',
+        dbAll: () => [{ status: 'active', outcome_json: '{}' }], composerState: async () => ({ send_disabled: true }), domState: async () => ({ present: '', visible: 'page text', outcome: '' }),
+        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args),
+        evaluateAuditHardStop: driver.evaluateAuditHardStop, Boolean, String, RegExp, Array, Error,
+      };
+      vm.runInNewContext(`${slice('  async function safeRules() {', '  // ---- Modes: UI (p08)')}\n;this.api = { safeRules };`, box);
+      return { api: box.api, ipcLog, execs, outs, records };
+    }
+
+    test('the facts of rehearsal 7 (one request in the first turn, both submits answered with the code) pass; earlier submits in the log are not counted', async () => {
+      const r = rig();
+      await r.api.safeRules();
+      expect(r.records[0].slice(0, 3)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP', 1, 'PASS']);
+      expect(r.outs[0].payload.submit_calls).toEqual([{ ok: false, error: AUDIT_CODE }, { ok: false, error: AUDIT_CODE }]);
+      expect(r.outs[0].payload.requests).toEqual({ before: 0, after_turn: 1, after_next_submit: 1 });
+      expect(r.execs[0]).toContain('CREATE TRIGGER b2_audit_write');
+      expect(r.execs[r.execs.length - 1]).toContain('DROP TRIGGER IF EXISTS b2_audit_write');
+    });
+
+    test('a second request inside the first turn fails, and a second submit that never reached the product is UNKNOWN', async () => {
+      const twice = rig({ requestsFirstTurn: 2 });
+      await twice.api.safeRules();
+      expect(twice.records[0][2]).toBe('FAIL');
+      const unseen = rig({ secondReachesIpc: false });
+      await unseen.api.safeRules();
+      expect(unseen.records[0][2]).toBe('UNKNOWN');
+      expect(unseen.outs[0].payload.submit_calls).toHaveLength(1);
+    });
+
+    test('a persisted tool_end or a file that was never written fails the case', async () => {
+      const persisted = rig({ toolEnds: 1 });
+      await persisted.api.safeRules();
+      expect(persisted.records[0][2]).toBe('FAIL');
+      const noFile = rig({ fileWritten: false });
+      await noFile.api.safeRules();
+      expect(noFile.records[0][2]).toBe('FAIL');
+    });
+
+    test('when the failure cannot be injected the case is UNKNOWN and nothing is submitted; the trigger is dropped even when a submit throws', async () => {
+      const locked = rig({ injectFails: true });
+      await locked.api.safeRules();
+      expect(locked.records[0].slice(0, 3)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP', 1, 'UNKNOWN']);
+      expect(locked.ipcLog).toHaveLength(2);
+      const broken = rig({ submitThrows: true });
+      await expect(broken.api.safeRules()).rejects.toThrow('submit failed');
+      expect(broken.execs[broken.execs.length - 1]).toContain('DROP TRIGGER IF EXISTS b2_audit_write');
+    });
+  });
+
+  describe('UI-01 closure (A1): every fact comes from its own key press', () => {
+    function rig(options: { firstEnterWorks?: boolean; buttonFocused?: boolean; firstTarget?: string; pressThrowsAt?: number } = {}) {
+      const opts = { firstEnterWorks: true, buttonFocused: true, firstTarget: 'BUTTON', pressThrowsAt: 0, ...options };
+      const presses: string[] = []; const outs: any[] = []; const records: any[][] = [];
+      const world = { busy: false, recoveryCalls: 0, stage: 'start' };
+      const card = () => ({ text: '继续中断任务', button: world.busy ? '正在继续' : '继续', disabled: world.busy });
+      const eventCount = () => (presses.length >= 4 ? 2 : presses.length >= 1 && (opts.firstEnterWorks || presses.length >= 2) ? 1 : 0);
+      const box: any = {
+        readJsonFile: () => ({ conversationId: 'conv-1', taskId: 'task-1' }), bootstrap: async () => ({}), activateConversation: async () => undefined,
+        waitFor: async (condition: () => Promise<any>, _ms: number, label: string) => { const value = await condition(); if (!value) throw new Error(`TIMEOUT:${label}`); return value; },
+        domState: async () => ({ cards: 1 }), findRecovery: async () => { world.recoveryCalls += 1; return { interruptedTurnId: `turn-${world.recoveryCalls}`, recoveryRevision: `rev-${world.recoveryCalls}` }; },
+        cardInfo: async () => card(), win: { setContentSize: () => undefined }, sleep: async () => undefined, scrollProbe: async () => ({ top: 0, height: 1000, client: 400 }),
+        setFixture: async () => undefined, CARD_BUTTON_BUSY: '正在继续',
+        exec: async (code: string) => { if (code.includes('cancel-task')) world.busy = false; return code.includes('activeElement === b') ? opts.buttonFocused : true; },
+        pressKey: async (key: string) => {
+          presses.push(key);
+          const n = presses.length;
+          if (opts.pressThrowsAt === n) throw new Error(`press ${n} failed`);
+          if (n === 1 && opts.firstEnterWorks) world.busy = true;
+          return { key, marker: `press-${n}-${key}`, keydown: true, keypress: key === 'Enter', keyup: true, clicks: 0, delivered: true, keydown_target: n === 1 ? opts.firstTarget : 'BODY', page_focused: true };
+        },
+        focusProbe: async () => ({ inCard: true, tag: 'BUTTON' }), continueEventsFor: async () => Array.from({ length: eventCount() }, (_x, i) => ({ turnId: `turn-continue-${i}` })),
+        screenshot: async () => undefined, keyRecords: async () => [], waitIdle: async () => ({}), newConversation: async () => undefined, continueIpcCalls: () => 2, turnStatus: () => 'completed',
+        evaluateUiJourney: driver.evaluateUiJourney, summarizeSubs: driver.summarizeSubs, out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args),
+        Boolean, String, Error, Promise, Array,
+      };
+      vm.runInNewContext(`${slice('  async function uiContinue() {', '  async function uiLayouts() {')}\n;this.api = { uiContinue };`, box);
+      return { api: box.api, presses, outs, records };
+    }
+
+    test('the first Enter feeds enter_delivery, the next two presses feed the extra keys, the Space retry feeds space_delivery, and a working journey passes', async () => {
+      const r = rig();
+      await r.api.uiContinue();
+      expect(r.presses).toEqual(['Enter', 'Enter', 'Space', 'Space']);
+      const facts = r.outs[0].payload.facts;
+      expect(facts.enter.enter_delivery.marker).toBe('press-1-Enter');
+      expect(facts.enter.extra_enter.marker).toBe('press-2-Enter');
+      expect(facts.enter.extra_space.marker).toBe('press-3-Space');
+      expect(facts.space_delivery.marker).toBe('press-4-Space');
+      expect(facts.enter.button_focused).toBe(true);
+      expect(facts.enter).toMatchObject({ busy_label: true, button_disabled: true, continue_events_while_busy: 1, continue_events_after_extra_keys: 1 });
+      expect(r.records[0].slice(0, 3)).toEqual(['B2-UI-01-CONTINUE-INTERACTION', 1, 'PASS']);
+    });
+
+    test('a focus call that did not land on the button, or an Enter the page gave to another element, leaves the two Enter assertions UNKNOWN', async () => {
+      const unfocused = rig({ buttonFocused: false });
+      await unfocused.api.uiContinue();
+      expect(unfocused.outs[0].payload.facts.enter.button_focused).toBe(false);
+      expect(unfocused.records[0][2]).toBe('UNKNOWN');
+      const body = rig({ firstTarget: 'BODY' });
+      await body.api.uiContinue();
+      expect(body.records[0][2]).toBe('UNKNOWN');
+    });
+
+    test('an Enter that reached the button without any feedback is a FAIL, and a press that throws is noted and leaves the case UNKNOWN', async () => {
+      const silent = rig({ firstEnterWorks: false });
+      await silent.api.uiContinue();
+      const subs = silent.outs[0].payload.subs;
+      expect(subs.find((item: any) => item.name === 'loading_feedback').status).toBe('FAIL');
+      expect(silent.records[0][2]).toBe('FAIL');
+      const thrown = rig({ pressThrowsAt: 1 });
+      await thrown.api.uiContinue();
+      expect(thrown.outs[0].payload.notes.errors[0]).toContain('enter_journey: press 1 failed');
+      expect(thrown.outs[0].payload.facts.enter).toBeNull();
+      expect(thrown.records[0][2]).toBe('UNKNOWN');
+    });
   });
 });
