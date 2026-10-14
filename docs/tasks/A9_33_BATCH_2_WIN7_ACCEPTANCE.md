@@ -86,7 +86,7 @@ Git提交/本地整合/推送/发布各自审批，不因为实机PASS自动执�
 | G0 / ENV | Win7 SP1 x64、普通桌面、SID/Session/Integrity/Elevation/Job、Electron22/Node16/ABI110、Shell/codepage/补丁、空间与旧进程树 | 环境/身份、路径/哈希、句柄与退出回执；未知停止 |
 | G1 / PACKAGE | 两个独立干净产品构建 ZIP 逐字节一致；准确整合 source、batch2 锁、helper/SQLite/manifest/SBOM/许可证一致；正确实际加载 | 两 build/run、ZIP/manifest/输入锁、包完整闭包、模块加载结果 |
 | G2 / S01–S03 | 退出前可见 tick、stdout/stderr 稳定序列、SQLite 先落盘再 IPC；终态验证与审计失败零后续派发 | 原始协议、SQLite 事件、IPC/Renderer 观察、审计负例 |
-| G2 / S04–S05 | UTF-8/CP936/UTF-16LE 跨块、CRLF/无换行；限额、跨块秘密、背压、取消、实际 Job 回收 | 原始字节/文本、截断计数、秘密负例、同实例进程树/清理结果 |
+| G2 / S04–S05 | PowerShell 下 UTF-8 跨块、CRLF/无换行（CP936/UTF-16LE 仅记录，不参与判定，KL-5）；限额、跨块秘密、背压、取消、实际 Job 回收 | 原始字节/文本、截断计数、秘密负例、同实例进程树/清理结果 |
 | G2 / S06 / BG | 刷新/分页/返回/重启；3 个后台可用/第4拒绝；owner/handle/cursor错属与边界；双 Stop、ready失败、release及正常退出 | 句柄归属、游标/输出事件、退出对话框/回执与退出后证据 |
 | G2 / CONT-01 | 重启/刷新零 Provider/工具请求；单击/双击只一个新 Turn；旧 Turn 终态不改 | 请求计数、SQLite tasks/turns/events、Schema IPC、卡片/时间线 |
 | G2 / CONT-02 | 事务前/后、Provider与工具前/后中断；旧 key 返回旧身份；新 revision 主动重试；事件保留仍去重 | 分点崩溃记录、事务/事件/Turn 身份、重启零重放 |
@@ -1202,7 +1202,7 @@ Win7 状态：R8 后检无残留进程，无 `A9W43*` 计划任务；旧根 0f35
 
 | 失败 | 归类 | 已确认的事实 | UNKNOWN |
 |---|---|---|---|
-| B2-UI-01 `loading_feedback`、`one_dispatch_while_busy` | 套件缺陷，产品侧原因已排除 | ① 驱动 IPC 日志在 05:50:16.687Z 到 05:50:26.650Z 之间没有任何调用。点击处理一旦运行，就会启动 500 ms 一次的快照轮询（`a9-workbench.js:2340`），所以这 9.96 秒内没有发生点击。② 点击处理在第一个 `await` 之前，同步把按钮改成“正在继续”（`a9-workbench.js:2280` 起，标签在 `:1015`），产品不存在延迟响应。③ 渲染层只拦截 Ctrl+K、Ctrl+I、抽屉内 Tab 和 Esc；卡片按钮没有自定义键盘处理，由原生按钮处理 Enter 与 Space。④ `press()` 只在 UI-01 使用，发送 keyDown、char、keyUp，`keyCode` 是字符串 `Enter` 或 `Space`；Space 经同一函数两次成功（continue 事件 26.670Z、27.735Z）。⑤ 页面焦点在按钮上（`focus_element=BUTTON`）。 | 第一次 Enter 没有生效的原因。假设 H1：Electron 把 `char` 事件的文本取成字符串 `Enter`，按钮收不到 Enter 的 keypress。假设 H2：第一次按键发生在窗口取得焦点之前，被丢弃。额外那次 Enter 与 Space 里哪一个触发了 26.670Z 的事件，数据无法区分。开发机没有可运行的 Electron（`node_modules/electron` 无 `dist`，本机只有 Windows 的 electron.exe 压缩包），H1、H2 都无法在开发机验证 |
+| B2-UI-01 `loading_feedback`、`one_dispatch_while_busy` | 套件缺陷（首选归类）；产品侧只剩点击处理的静默提前返回一条路径，未排除 | ① 驱动 IPC 日志在 05:50:16.687Z 到 05:50:26.650Z 之间没有任何调用完成记录（日志在调用返回后写入）。点击通过守卫后会启动 500 ms 一次的快照轮询（`a9-workbench.js:2340`），所以这 9.96 秒内没有通过守卫的点击。② 点击通过守卫后，在第一个 `await` 之前同步把按钮改成“正在继续”（`a9-workbench.js:2280` 起，标签在 `:1015`），通过守卫的点击不存在延迟响应；`continueInterruptedTask` 的守卫（`canContinue`、`state.running`、`state.continuingTaskId`）会无声返回，按钮在渲染时为启用说明三者当时为假，之后是否变化 `UNKNOWN`。③ 全局键盘处理只拦截 Ctrl+K、Ctrl+I、抽屉内 Tab 和 Esc；输入框（`:3005`）和对话操作区（`:3020`）另有局部处理，都不挂在卡片按钮上，由原生按钮处理 Enter 与 Space。④ `press()` 只在 UI-01 使用，发送 keyDown、char、keyUp，`keyCode` 是字符串 `Enter` 或 `Space`；Space 经同一函数两次成功（continue 事件 26.670Z、27.735Z）。⑤ 页面焦点在按钮上（`focus_element=BUTTON`）。 | 第一次 Enter 没有生效的原因。假设 H1：Electron 把 `char` 事件的文本取成字符串 `Enter`，按钮收不到 Enter 的 keypress。假设 H2：第一次按键发生在窗口取得焦点之前，被丢弃。额外那次 Enter 与 Space 里哪一个触发了 26.670Z 的事件，数据无法区分。开发机没有可运行的 Electron（`node_modules/electron` 无 `dist`，本机只有 Windows 的 electron.exe 压缩包），H1、H2 都无法在开发机验证 |
 | B2-SAFE-02 | 套件判据过窄，另有一条产品观察 | ① `a9.turn.submit` 两次都返回 `ok=false`、错误码 `A9_AUDIT_PERSISTENCE_FAILED`（05:49:35.770Z、05:49:37.550Z，`driver-safe_rules.json`）。② `tool_end` 事件 0 条，文件已写入，Provider 请求 `0→1→1`，发送键被禁用。③ `presentAuditFailure` 只设置内存状态 `auditFailureBlock` 与 `agentStatus='failed'`，把错误码放进 IPC 返回值（`a9-agent-runtime.js:1861`），不写 Turn 行。④ 渲染层显示 `error.message`，不显示错误码（`a9-workbench.js:123`）。⑤ 驱动判据 `audit_flag_visible` 在 `outcome_json` 与整页文字里找错误码或 `auditIncomplete`，没有读 IPC 返回值；合同文字只写“必需审计失败停止 Turn，未知副作用不记为零”，没有要求这个标记。其余判据项全部满足 | 页面实际显示的文字（驱动没有保存 `dom.visible`，p07 没有截图）。Turn 行停在 `active` 是设计还是遗漏。应用重启后该 Turn 如何收尾 |
 | B2-S04 `utf16le`、`cp936` | 合同与产品不一致 | ① 产品在 PowerShell 下把 stdout 按严格 UTF-8 解码（`trusted-shell-runner.ts:587`），非法字节得到 `A9_OUTPUT_ENCODING_ERROR`，与切点无关。② CP936 默认只对 cmd 生效，UTF-16LE 在 A9-30 中记为外部选项。③ A9-30 对 CP936、UTF-16LE 解码器的证据是模块级的（Win7，Session 0），不是经 PowerShell 的端到端 | 能否通过产品设置选 cmd 来覆盖 CP936：`a9-agent-runtime.js:1181～1215` 读取 `shellOptions`，设置入口未查，`UNKNOWN` |
 
@@ -1261,5 +1261,69 @@ S04 收窄草案（E-A，未生效）：
 | KL-5 | 预演 7 的 B2-S04（合同与产品不一致） | 产品在 PowerShell 下只按严格 UTF-8 解码 Shell 输出；CP936 与 UTF-16LE 输出得到 `A9_OUTPUT_ENCODING_ERROR`，不是无损解码 | 批次 2 只验收 PowerShell 下的 UTF-8 与 CRLF，不验收 CP936 与 UTF-16LE 的端到端解码。CP936、UTF-16LE 解码器只有 A9-30 的模块级证据（Win7，Session 0） | `utf16le`、`cp936` 仍执行并写入 `s04-encoding.json`，标 `INFORMATIONAL`，不参与 PASS 或 FAIL。任何 Alpha 2 结论必须带上 KL-5 |
 
 KL-1、KL-2、KL-3、KL-4 仍有效；任何 Alpha 2 结论都必须带上 KL-3 与 KL-5。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
+
+### 6.28 第四修复轮的 codex 复核（2026-10-14）
+
+结论：codex 对 `1a2b2783…` 报告 0 个 P0、1 个 P1、1 个 P2，不建议进入预演 8 的授权评审。执行代理逐条在已提交代码上复现，两条发现成立；它们都是套件判据误通过，没有证明产品或 Win7 回归。
+证据层级为开发机，绑定提交 `1a2b2783…`（上一代码提交 `6679ef30…`）。codex 用 gpt-6.1-sol、`xhigh`、非 fast 模式，未改仓库，未访问 Win7。
+
+过程：2026-10-14T06:44:59Z 的第一次运行在 07:16:45Z 以“Selected model is at capacity”失败，没有最终报告（中途消息不作为报告；其小文件存档在 `.acceptance/a9-33-review/codex-stage2-round4-attempt1-20261014/`）。07:39:41Z 在全新复核根重试，08:05:23Z 完成，退出码 0。最终报告与证据存档在 `.acceptance/a9-33-review/codex-stage2-round4-20261014/`，92 个文件有 `SHA256SUMS.txt`。
+
+| 编号 | 级别 | 发现 | 执行代理的复现（开发机，已提交代码） |
+|---|---|---|---|
+| N1 | P1 | B2-SAFE-02 的 `dispatchStopped` 只比较 `after_next_submit === after_turn`，首轮请求增量不参与判定；第二次 `a9.turn.submit` 是否到达 IPC 也不是必要条件 | `evaluateAuditHardStop`：首轮 `0→2→2` 得 PASS；只有一次 submit 记录也得 PASS。预演 7 的真实样本 `0→1→1`、两次记录仍得 PASS（预期） |
+| N2 | P2 | `one_dispatch_while_busy` 只读第一次 Enter 的到达情况；额外 Enter 与 Space 都没有到达页面时，仍可 PASS | `evaluateUiJourney`：`extra_enter.delivered=false`、`extra_space.delivered=false` 时 `one_dispatch_while_busy` 与整体都是 PASS |
+
+codex 的其余结论（信息）：
+
+1. U-A 部分关闭：`\r` 构造、首次按键绑定和不重按通过；Electron 22 对该 `char` 事件的映射 `UNKNOWN`。到达记录不绑定元素：BODY 上的 keydown 与 keypress 13 也使 `delivered=true`，`pressKey` 之前的焦点返回值（`activeElement === button`）被忽略，所以 `delivered` 只证明页面收到事件，不证明指定按钮收到 Enter。
+2. S-A 的错误码定位已关闭，完整硬停止判据部分关闭（N1）。E-A 按 KL-5 已关闭，开发机。
+3. 16 个变异中 13 个被拦，3 个存活：A1（`enter_delivery` 绑定到额外 Enter）、A2（`ipcFrom` 移到 `submit` 之后）、A3（判定项编码也吞异常）。它们在驱动闭包内，当前接线正确，但 `enter_journey`、`safeRules`、`streamEncodings` 没有闭包级行为用例。
+4. 契约测试：沙箱内 185 通过、7 个因 `listen EPERM 127.0.0.1` 为 `UNKNOWN`（与前几轮相同的 7 个）；包测试 120 通过；`docs:check` 333 个文件。
+5. 假设 37、38、39 为 `UNKNOWN`，40、41 成立（限预演 7 样本）。
+6. 范围：累计恰为 §6.1 的 20 个路径，本轮只改 3 个套件文件。
+
+对本任务书 §6.26 的更正（codex 指出，执行代理核实）：
+
+- 原文“产品侧原因已排除”过强。驱动 IPC 日志在调用返回后写入，没有记录不等于没有调用进入；点击处理有静默提前返回的守卫，旧证据不能排除“点击发生但被守卫返回”。归类改为套件缺陷（首选），产品侧剩这一条路径。本轮新增的记录器记录 `click` 事件，下一次运行可区分“没有点击”与“点击后被守卫返回”。
+- 原文“渲染层只拦截四种键”过宽：另有输入框与对话操作区的局部键盘处理，都不挂在卡片按钮上。
+- 已提交的 `ec546e5…` 与 STATUS_LOG 中的原句保留不改，更正以本节为准。
+
+建议的修复（等负责人裁决，未实施）：
+
+1. N1：夹具固定首轮应有的请求数为 1，判据要求 `after_turn − before === 1`；第二次 `a9.turn.submit` 必须被观察到，缺失则 `UNKNOWN`；第二次的错误码仍只是观察。
+2. N2：`one_dispatch_while_busy` 要求额外 Enter 与 Space 的 `keydown` 被页面记录；缺失则 `UNKNOWN`。不要求 disabled 按钮产生 click，不重按。
+3. U-A 加固：记录第一次 Enter 前的焦点返回值和 keydown 的目标元素；目标不是按钮则判 `UNKNOWN` 并写明目标。
+4. 为 `safeRules`、`streamEncodings`、`uiContinue` 的 `enter_journey` 增加闭包级行为用例，覆盖 A1、A2、A3。
+
+未知与未验证：
+
+- Electron 22 下 `\r` 的 `char` 事件是否产生 keypress 13 并点击按钮（假设 37）：`UNKNOWN`，需下一次 Win7 预演。
+- 上述修复的效果：未在 Win7 实机验证。
+- 预算仍是 7/7 耗尽，预演 8 未授权。
+
+本节不开修复轮，不提交代码，不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
+
+### 6.29 第五修复轮裁决（2026-10-14）
+
+结论：负责人选 A，开第五修复轮，并提交 §6.28 及相关文档。
+证据层级为开发机，绑定提交 `1a2b2783…`。本节记录裁决，不含实现结果。
+
+负责人原话：“选A，开第五修复轮并提交这些文档”。所答问题是：“是否开第五修复轮，还是登记已知限制后直接评审预演 8”；选项 A 的内容见 [§6.28](#628-第四修复轮的-codex-复核2026-10-14) 的“建议的修复”四条。回复时间戳 `UNKNOWN`。
+
+本裁决包括：
+
+1. N1：夹具固定首轮应有请求数为 1，判据要求 `after_turn − before === 1`；第二次 `a9.turn.submit` 未被观察到时判 `UNKNOWN`。
+2. N2：`one_dispatch_while_busy` 要求额外 Enter 与 Space 的 `keydown` 被页面记录，缺失判 `UNKNOWN`；不重按。
+3. U-A 加固：记录第一次 Enter 前的焦点返回值和 `keydown` 的目标元素，目标不是按钮判 `UNKNOWN`。
+4. 为 `safeRules`、`streamEncodings`、`uiContinue` 的 `enter_journey` 增加闭包级行为用例，覆盖 A1、A2、A3。
+5. 修复限于 [§6.1](#61-拟批准精确允许路径) 的 20 个路径内的套件文件，以及本任务书与覆盖计划；不改产品代码。
+6. 修复结果送 codex 复审（gpt-6.1-sol、`xhigh`、非 fast 模式，沿用前几轮）。
+7. 提交 §6.28 及相关文档（任务书、STATUS、STATUS_LOG、草案、第四修复轮交接包）。
+
+本裁决不包括：预演 8 的预算放宽、授权文件、构建与任何 Win7 动作。预算仍是 7/7 耗尽，请求 31/64；修复与复审完成后，执行代理另行向负责人提问。
+KL-1～KL-5 仍有效；任何 Alpha 2 结论必须带上 KL-3 与 KL-5。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
