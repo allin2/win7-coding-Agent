@@ -2081,3 +2081,72 @@ KL-8 之外 codex 的信息项，登记为未知与未验证，不是发现：
 待裁决（仍未回复）：请求上限 64，已用 59，预演 11 的常规路径需要 10 个，累计 69；预演 10 遗留的 Win7 PID 4736 是否终止。两项没有答复之前，执行代理只做开发机上的准备（构建预演包、生成授权文件、粘合文件和开发机完整性演练），不在 Win7 上执行任何动作。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。未在 Win7 验收通过。
+
+### 6.47 预演 11 的 R1 发现与第 8 个驱动修复（2026-10-14）
+
+结论：预演 11 在 R1 暂停，没有进入 R2。R1（Win7 实机，只读）显示，预演 10 遗留的孤儿进程 PID 4736 在套件自己的进程表里 `ExecutablePath` 为空；清扫按路径匹配，在真实表上选中 0 行，会把它判为干净，预演 10 的失败会重现。执行代理新增命令行查询，作为路径为空时的身份来源，修复提交 `ea597905…` 已送 codex 第 14 轮复核。第 14 轮结果出来之前，不重建预演 11 包，不再上 Win7。
+证据层级：事实是 Win7 实机（预演 11 的 R1，只读，非验收证据）；修复是开发机（macOS、Node 20.17.0）。修复后的清扫在 Win7 上的运行是 `NOT_PERFORMED`。未在 Win7 实机验证。
+
+负责人裁决（2026-10-14，执行代理提问，负责人在选项里作答）：
+
+| 问题 | 答复 | 影响 |
+|---|---|---|
+| 请求总数上限 | 由 64 提到 80 | 已用 59；预演 11 常规路径最多 10 个，累计 69；预演 12 最多 10 个，累计 79；超过 80 时执行代理再问负责人 |
+| 终止预演 10 遗留的 PID 4736 | 授权，只终止这一个进程 | 2026-10-14T23:19:23Z 已执行；不碰目录、其他文件和旧运行根 |
+
+R1 过程（执行代理，2026-10-14T23:15:52Z～23:21:49Z，目标 `dccs-chaizl-PC`，账户 `agent`；原始输出在 `.acceptance/a9-33-rehearsal/rehearsal-11/r1/`，被忽略，哈希写在交接包第 3 节）：
+
+| 项 | 事实 |
+|---|---|
+| 主机与会话 | `ver` 为 6.1.7601；`agent` 在 console 会话 2；C: 盘空闲 878250921984 字节；`C:\A9-W43\run` 下 10 个旧目录，没有 `d913d345` |
+| 孤儿 | 进程表里只有一个 `electron.exe`：PID 4736，父进程 4988 已不在，会话 2；命令行指向 `C:\A9-W43\run\6c90a56e\evidence\driver-electron\electron.exe`，类型 `network.mojom.NetworkService` |
+| 套件的表命令 | 原始输出 10979 字节，102 行，每行逗号数一致，没有引号，行尾为 `CR CR LF`；严格读取器判为完整、可用 |
+| 孤儿在该表里 | `ExecutablePath` 为空；会话 2 的其余 24 个进程路径都非空，所以不是 SSH 账户的权限问题 |
+| 孤儿状态 | 线程数 1、句柄数 2、内核态与用户态 CPU 时间均为 0、工作集 128 KB；与“进程已创建、初始线程从未运行”一致，成因 `UNKNOWN` |
+| list 格式 | `wmic process get ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine /format:list`：102 个块，每块恰好 5 个键，值里的逗号与引号原样保留。生产命令 `wmic process get ProcessId,CommandLine /format:list`（终止孤儿之后取得）：101 个块，每块 2 个键 |
+| 开发机回放（绑定 `bed2210…` 的套件） | 现有清扫规则（`ExecutablePath` 前缀）在真实表上选中 0 行 |
+| 终止 | 先核对 PID 4736 的命令行路径，再 `taskkill /PID 4736 /F`，输出“成功”；复查该 PID 与所有 `electron.exe` 均无实例 |
+
+对 §6.45、§6.46 的更正：两节把“表完整但孤儿那一行路径为空，清扫看不到它”记为既有 `UNKNOWN`，理由是路径在真实 Win7 上的行为没有证据。R1 取得了证据，该孤儿的路径为空，所以它从 `UNKNOWN` 变成已证实的缺陷。codex 第 12、13 轮的结论不受影响，它们复核的是表的读取方式。§6.43 的根因判断（强支持、因果确证 `UNKNOWN`）不变。
+
+修复（代码提交 `ea597905…`，开发机；只改 20 个路径中的 2 个）：
+
+| 位置 | 变更 |
+|---|---|
+| `wmic_process_commands` | 新增固定命令 `wmic.exe process get ProcessId,CommandLine /format:list`，两列、不加过滤 |
+| `readWmicList` | 按块严格读取 list 输出：非“请求的键 `=` 值”的行、块内重复的键、缺键的块、空输出，都使整张列表 `intact=false` 并给出不含输出内容的 `problem`；值里的逗号、引号、等号原样保留；完整的块仍返回 |
+| `listCommandLines` | 运行上述命令，`ProcessId` 须为数字；状态非零、有错误、被截断或列表不完整时 `failed`；结果是 `ProcessId` 到命令行的映射 |
+| `withImagePath` | 每行得到 `ImagePath` 与 `ImageSource`：`ExecutablePath` 非空则用它（`executable_path`）；为空则用命令行去掉一个开头引号后的字符串（`command_line`）；都没有为空（`none`）。可读路径的行不看命令行 |
+| `listProcesses` | 表命令失败或表不完整的处理不变，且不再查命令行；表完整时查命令行，查询失败或不完整则整个列表 `failed`，`problem` 为 `command_lines_<原因>` |
+| 使用方 | 清扫、G0 的 `stale`、链路后检、p10 后检都按 `ImagePath` 做小写前缀匹配；stray、residue、stale 记录新增 `image_source`；G0 与 p10 记录的 `path` 取前 260 个字符 |
+| 测试文件 | 顶层新增 `commandLineList`、`answers`，既有假执行器全部改为同时回答两条命令，断言没有放宽；同一 `describe` 新增 6 个用例（共 17 个） |
+
+开发机验证（执行代理，绑定 `ea597905…`）：
+
+| 项 | 结果 |
+|---|---|
+| shell jest | 235 个全部通过（合同文件 192、包运行时文件 43） |
+| 类型检查 | `tsc --noEmit` 通过 |
+| 包测试 | `node --test` 120 个通过 |
+| 变异 | 94 个：92 个被拦、2 个等价（M03；L15，等号在行首与 `at > 0` 等价）；G08 在 `-t` 过滤下存活，整文件运行时被拦 |
+| 范围 | 累计 `20 files changed, 10448 insertions(+), 31 deletions(-)`；相对 `52bcfb88…` 为 `2 files changed, 363 insertions(+), 65 deletions(-)`；仍是 §6.1 的 20 个路径 |
+| 真实数据回放 | 新规则在真实表上选中 `[4736]`；来源计数为 `executable_path` 98、`command_line` 2、`none` 2 |
+
+未知与未验证：
+
+- 修复后的清扫在 Win7 上的行为：`NOT_PERFORMED`。
+- 路径为空且命令行也为空的进程：仍看不见，`UNKNOWN`。
+- 命令行不是以绝对路径、反斜杠、可选引号开头（8.3 短名、`\\?\` 前缀、相对路径、正斜杠）：`UNKNOWN`；R1 只有一个孤儿样本。
+- “初始线程从未运行”的成因：`UNKNOWN`。
+- 清扫用的 `taskkill /T /F` 对这类新孤儿的效果：`UNKNOWN`；对已存在的孤儿，不带 `/T` 的 `taskkill /PID 4736 /F` 成功。
+- 套件运行期间（进程更多、命令行更长）两条查询的真实输出：`UNKNOWN`；R1 只取了空闲时的 101～102 个进程。
+- 两次查询之间出现或退出的进程：该轮看不到；清扫靠连续 2 个干净轮，G0、链路后检、p10 是一次性读取。
+- 含非 ASCII 的命令行在 `utf8` 解码下的表现：`UNKNOWN`；R1 样本没有非 ASCII，前缀与键名是 ASCII。
+- 旧运行遗留的孤儿不在 G0 的监视根内，G0 不报告。
+- 驱动 `wmicRows` 自己读 wmic，未改；83 个 `driver-electron` 文件仍未取回。
+
+预演 11 的包 `0e7d4afa…` 和授权文件 `caadb248…`（run_id `d913d345…`）从未在 Win7 上使用，作废；套件代码变化后重建。请求 59/80，R1 的读取不是请求，没有消耗。
+
+codex 第 14 轮复核交接包 `docs/reports/2026-10/a9_33_independent_review_handoff_command_line_identity_2026-10-14.md`（绑定 `ea597905…`）。处理规则：有 P0 或 P1，直接修复并送 codex 复审；只剩 P2 及以下，登记已知限制，重建预演 11 包并上 Win7。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。未在 Win7 验收通过。
