@@ -1313,6 +1313,214 @@ describe('A9-33 batch-2 smoke pieces', () => {
     }
   });
 
+  // Rehearsal 10 (Win7): p06 killed the driver, Chromium restarted the network service in that instant and the new helper lost its parent.
+  // The orphan kept driver-electron\\electron.exe mapped, so the next phase failed copying it with EBUSY and wrote no phase result.
+  describe('the driver runtime copy and the sweep of processes the harness left behind (rehearsal 10: p07 and p08 EBUSY)', () => {
+    const wmicCsv = (rows: Array<[string, number, number, string]>) => ({ status: 0, error: null, stderr: '',
+      stdout: `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId\r\n${rows.map(([exe, pid, parent, name]) => `HOST,20261014172412.000000+000,${exe},${name},${parent},${pid},2`).join('\r\n')}\r\n` });
+    const runtimeBase = temp('stray');
+    const runtimeRoot = path.join(runtimeBase, 'driver-electron');
+    const electronInside = path.join(runtimeRoot, 'electron.exe');
+    const instant = async () => undefined;
+
+    test('copying the runtime leaves a target with the same bytes alone, copies different bytes and still stops on a copy error', () => {
+      const dir = temp('copy-same');
+      try {
+        const from = path.join(dir, 'from.exe');
+        const to = path.join(dir, 'to.exe');
+        fs.writeFileSync(from, 'AAAA');
+        const realFs = require('fs');
+        const real = realFs.copyFileSync;
+        const busy = jest.spyOn(realFs, 'copyFileSync').mockImplementation(((source: any, target: any, ...rest: any[]) => {
+          if (String(target).endsWith('to.exe') && fs.existsSync(target)) throw Object.assign(new Error('EBUSY: resource busy or locked, copyfile'), { code: 'EBUSY' });
+          return (real as any)(source, target, ...rest);
+        }) as any);
+        try {
+          smoke.copyRuntimeFile(from, to);
+          expect(fs.readFileSync(to, 'utf8')).toBe('AAAA');
+          // Same size and same bytes: no copy is attempted, so the mapped executable of a running process is not an error.
+          expect(() => smoke.copyRuntimeFile(from, to)).not.toThrow();
+          // Same size, different bytes: the copy is attempted and the EBUSY error stops the caller.
+          fs.writeFileSync(from, 'BBBB');
+          expect(() => smoke.copyRuntimeFile(from, to)).toThrow(/EBUSY/);
+          // Different size: the copy is attempted as well.
+          fs.writeFileSync(from, 'CC');
+          expect(() => smoke.copyRuntimeFile(from, to)).toThrow(/EBUSY/);
+        } finally { busy.mockRestore(); }
+        fs.writeFileSync(from, 'DDDD');
+        smoke.copyRuntimeFile(from, to);
+        expect(fs.readFileSync(to, 'utf8')).toBe('DDDD');
+      } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    test('preparing the runtime a second time while its executable is mapped does not fail', () => {
+      const candidate = temp('prep-candidate');
+      const runRoot = temp('prep-run');
+      try {
+        fs.mkdirSync(path.join(candidate, 'resources'), { recursive: true });
+        fs.mkdirSync(path.join(candidate, 'locales'), { recursive: true });
+        fs.mkdirSync(path.join(candidate, 'validation'), { recursive: true });
+        fs.writeFileSync(path.join(candidate, 'electron.exe'), 'electron bytes');
+        fs.writeFileSync(path.join(candidate, 'locales', 'en.pak'), 'pak bytes');
+        fs.writeFileSync(path.join(candidate, 'resources', 'default_app.asar'), 'asar bytes');
+        fs.writeFileSync(path.join(candidate, 'validation', 'a9-batch2-driver.cjs'), '// driver');
+        smoke.prepareDriverRuntime(candidate, runRoot);
+        const realFs = require('fs');
+        const real = realFs.copyFileSync;
+        const busy = jest.spyOn(realFs, 'copyFileSync').mockImplementation(((source: any, target: any, ...rest: any[]) => {
+          if (/(electron\.exe|en\.pak|default_app\.asar)$/.test(String(target))) throw Object.assign(new Error(`EBUSY: resource busy or locked, copyfile ${String(target)}`), { code: 'EBUSY' });
+          return (real as any)(source, target, ...rest);
+        }) as any);
+        try { expect(() => smoke.prepareDriverRuntime(candidate, runRoot)).not.toThrow(); } finally { busy.mockRestore(); }
+        expect(fs.readFileSync(path.join(runRoot, 'driver-electron', 'electron.exe'), 'utf8')).toBe('electron bytes');
+        expect(fs.readFileSync(path.join(runRoot, 'driver-electron', 'locales', 'en.pak'), 'utf8')).toBe('pak bytes');
+        expect(fs.readFileSync(path.join(runRoot, 'driver-electron', 'resources', 'default_app.asar'), 'utf8')).toBe('asar bytes');
+      } finally { for (const directory of [candidate, runRoot]) fs.rmSync(directory, { recursive: true, force: true }); }
+    });
+
+    test('a stray is found by the path of the driver runtime copy only: case-insensitive, never a sibling directory, never the smoke itself', () => {
+      const exec = () => wmicCsv([
+        [electronInside.toUpperCase(), 4736, 4988, 'electron.exe'],
+        [path.join(runtimeRoot, 'resources', 'helper.exe'), 4737, 4736, 'helper.exe'],
+        [`${runtimeRoot}-old${path.sep}electron.exe`, 4800, 1, 'electron.exe'],
+        [path.join(runtimeBase, 'deploy', 'electron.exe'), 4801, 1, 'electron.exe'],
+        [electronInside, process.pid, 1, 'electron.exe'],
+        ['', 4802, 1, 'electron.exe'],
+      ]);
+      expect(smoke.findDriverStrays(exec, runtimeRoot)).toEqual({ failed: false, strays: [
+        { pid: 4736, parent_pid: 4988, name: 'electron.exe' }, { pid: 4737, parent_pid: 4736, name: 'helper.exe' },
+      ] });
+      expect(smoke.findDriverStrays(exec, `${runtimeRoot}${path.sep}`).strays.map((item: any) => item.pid)).toEqual([4736, 4737]);
+      expect(smoke.findDriverStrays(() => ({ status: 1, error: null, stdout: '', stderr: '' }), runtimeRoot)).toEqual({ strays: [], failed: true });
+    });
+
+    test('the sweep removes a stray, needs two clean rounds, does not call a failed listing clean and reports what survives', async () => {
+      const killed: number[] = [];
+      const waits: number[] = [];
+      const hooks = { kill: (pid: number) => { killed.push(pid); }, wait: async (ms: number) => { waits.push(ms); } };
+      // The orphan exists from the first listing on and dies after the kill; two empty listings in a row end the sweep.
+      let calls = 0;
+      const dying = () => { calls += 1; return calls === 1 ? wmicCsv([[electronInside, 4736, 4988, 'electron.exe']]) : wmicCsv([]); };
+      const first = await smoke.sweepDriverStrays(dying, runtimeRoot, hooks);
+      expect(first).toEqual({ removed: [{ pid: 4736, parent_pid: 4988, name: 'electron.exe' }], remaining: [], observed: true });
+      expect(killed).toEqual([4736]);
+      expect(calls).toBe(3);
+      expect(waits.every((ms) => ms === 500)).toBe(true);
+
+      // A helper that appears only in the second round (a restart after the first listing) is still removed.
+      killed.length = 0;
+      calls = 0;
+      const late = () => { calls += 1; return calls === 2 ? wmicCsv([[electronInside, 4900, 1, 'electron.exe']]) : wmicCsv([]); };
+      expect(await smoke.sweepDriverStrays(late, runtimeRoot, hooks)).toMatchObject({ removed: [{ pid: 4900 }], remaining: [], observed: true });
+      expect(killed).toEqual([4900]);
+
+      // A stray that survives every kill is reported, and so is a listing that never succeeds.
+      const stubborn = () => wmicCsv([[electronInside, 5000, 1, 'electron.exe']]);
+      const survived = await smoke.sweepDriverStrays(stubborn, runtimeRoot, hooks);
+      expect(survived.remaining.map((item: any) => item.pid)).toEqual([5000]);
+      expect(survived.observed).toBe(false);
+      const blind = await smoke.sweepDriverStrays(() => ({ status: 1, error: 'wmic failed', stdout: '', stderr: '' }), runtimeRoot, hooks);
+      expect(blind).toMatchObject({ removed: [], observed: false });
+      // A failed listing between clean ones restarts the count.
+      let step = 0;
+      const flaky = () => { step += 1; return step === 2 ? { status: 1, error: 'x', stdout: '', stderr: '' } : wmicCsv([]); };
+      calls = 0;
+      expect(await smoke.sweepDriverStrays(flaky, runtimeRoot, hooks)).toEqual({ removed: [], remaining: [], observed: true });
+      expect(step).toBe(4);
+    });
+
+    test('a driver killed by the harness is followed by a recorded sweep; a normal exit is not swept; a stray that stays or a listing that fails ends the phase', async () => {
+      const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
+      const assertions = [{ case_id: 'B2-SAFE-02-AUDIT-HARD-STOP', assertion_id: 'B2-SAFE-02-AUDIT-HARD-STOP-A01', status: 'PASS', observed: 'hard stop before side effect' }];
+      const kills: number[] = [];
+      const hooksFor = (killedBy: string | null, execFor: any) => ({
+        runtime, exec: execFor, strays: { kill: (pid: number) => { kills.push(pid); }, wait: instant },
+        launchDriver: async (_runtime: any, env: any) => {
+          fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions }));
+          fs.writeFileSync(path.join(env.A9_BATCH2_ATTEMPT_DIR, 'safe02-audit-hard-stop.json'), '{}');
+          return { code: killedBy ? 1 : 0, signal: null, killed_by: killedBy, duration_ms: 1, stdout: '', stderr: '', pid: 1 };
+        },
+      });
+      const ctxPhase = (phase: string, index: number) => {
+        const made = phaseContext(phase, index);
+        (made.ctx as any).runRoot = path.join(runtimeBase, `run-${index}`);
+        return made;
+      };
+      const ctxRoot = (index: number) => ctxPhase('p07-safe', index);
+      // Normal exit: no process listing for a sweep, no kill, no strays entry.
+      let listings = 0;
+      const normal = ctxRoot(1);
+      const normalResult = await smoke.runDriverPhase(normal.ctx, hooksFor(null, (name: string) => { if (name === 'wmic_processes') listings += 1; return wmicCsv([]); }));
+      expect(normalResult.status).toBe('PASS');
+      expect(listings).toBe(0);
+      expect(JSON.parse(fs.readFileSync(path.join(normal.attempt, 'driver-launches.json'), 'utf8')).launches[0].strays).toBeUndefined();
+
+      // The UI phase starts with a kill-on-marker mode. A harness kill is followed by a sweep that removes this run's stray and records it.
+      const uiHooks = (killedBy: string | null, execFor: any) => ({
+        runtime, exec: execFor, strays: { kill: (pid: number) => { kills.push(pid); }, wait: instant },
+        launchDriver: async (_runtime: any, env: any) => {
+          fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: [] }));
+          const killedMode = env.A9_BATCH2_MODE === 'ui_interrupt';
+          return { code: killedMode ? 1 : 0, signal: null, killed_by: killedMode ? killedBy : null, duration_ms: 1, stdout: '', stderr: '', pid: 1 };
+        },
+      });
+      const launchesOf = (attempt: string) => JSON.parse(fs.readFileSync(path.join(attempt, 'driver-launches.json'), 'utf8')).launches;
+      const marker = ctxPhase('p08-ui', 2);
+      const markerExe = path.join(runtimeBase, 'run-2', 'driver-electron', 'electron.exe');
+      let first = true;
+      kills.length = 0;
+      await smoke.runDriverPhase(marker.ctx, uiHooks('marker', (name: string) => {
+        if (name !== 'wmic_processes') return { status: 0, stdout: '', stderr: '', error: null };
+        if (first) { first = false; return wmicCsv([[markerExe, 6002, 1, 'electron.exe']]); }
+        return wmicCsv([]);
+      }));
+      expect(kills).toEqual([6002]);
+      const markerLaunches = launchesOf(marker.attempt);
+      expect(markerLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt', 'ui_continue', 'ui_layouts']);
+      expect(markerLaunches[0].strays).toEqual({ removed: [{ pid: 6002, parent_pid: 1, name: 'electron.exe' }], remaining: [], observed: true });
+      expect(markerLaunches[0].failed).toBeUndefined();
+      expect(markerLaunches[1].strays).toBeUndefined();
+
+      // A timeout kill is a harness kill as well: the sweep runs, and the launch then fails by the existing rule (only a marker kill is expected).
+      const timeout = ctxPhase('p08-ui', 3);
+      const timeoutExe = path.join(runtimeBase, 'run-3', 'driver-electron', 'electron.exe');
+      first = true;
+      kills.length = 0;
+      await smoke.runDriverPhase(timeout.ctx, uiHooks('timeout', (name: string) => {
+        if (name !== 'wmic_processes') return { status: 0, stdout: '', stderr: '', error: null };
+        if (first) { first = false; return wmicCsv([[timeoutExe, 6003, 1, 'electron.exe']]); }
+        return wmicCsv([]);
+      }));
+      expect(kills).toEqual([6003]);
+      expect(launchesOf(timeout.attempt)[0]).toMatchObject({ killed_by: 'timeout', failed: true, strays: { removed: [{ pid: 6003 }], remaining: [] } });
+
+      // A stray that survives the kill: the launch is failed with a named reason and no later mode starts.
+      const stuck = ctxPhase('p08-ui', 4);
+      const stuckExe = path.join(runtimeBase, 'run-4', 'driver-electron', 'electron.exe');
+      const stuckResult = await smoke.runDriverPhase(stuck.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? wmicCsv([[stuckExe, 6100, 1, 'electron.exe']]) : { status: 0, stdout: '', stderr: '', error: null })));
+      expect(stuckResult.status).not.toBe('PASS');
+      const stuckLaunches = launchesOf(stuck.attempt);
+      expect(stuckLaunches).toHaveLength(1);
+      expect(stuckLaunches[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { remaining: [{ pid: 6100 }], observed: false } });
+
+      // A sweep that cannot list processes cannot show absence either.
+      const blind = ctxPhase('p08-ui', 5);
+      await smoke.runDriverPhase(blind.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? { status: 1, error: 'wmic failed', stdout: '', stderr: '' } : { status: 0, stdout: '', stderr: '', error: null })));
+      expect(launchesOf(blind.attempt)[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { observed: false } });
+    });
+
+    test('a driver phase whose runtime copy cannot be prepared ends with a named failure class and a phase result', async () => {
+      const made = phaseContext('p07-safe', 9);
+      // The test candidate has no resources\\default_app.asar, so the copy throws before any driver starts.
+      const result = await smoke.runDriverPhase(made.ctx, { exec: () => ({ status: 0, stdout: '', stderr: '', error: null }) });
+      expect(result).toMatchObject({ status: 'NOT_PERFORMED', failure_class: 'DRIVER_RUNTIME_PREPARE_FAILED' });
+      expect(JSON.parse(fs.readFileSync(path.join(made.attempt, 'phase-result.json'), 'utf8'))).toMatchObject({ failure_class: 'DRIVER_RUNTIME_PREPARE_FAILED' });
+      expect(JSON.parse(fs.readFileSync(path.join(made.attempt, 'driver-launches.json'), 'utf8')).runtime_prepare_error).toMatch(/default_app\.asar|ENOENT/);
+    });
+
+    afterAll(() => { fs.rmSync(runtimeBase, { recursive: true, force: true }); });
+  });
+
   test('a listing cut off at the cap is a failed listing, and the complete rows of a failed listing still show presence', () => {
     const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
     const helperRow = 'HOST,20260101000000.000000+000,C:\\x\\h.exe,spike02_helper.exe,100,500';

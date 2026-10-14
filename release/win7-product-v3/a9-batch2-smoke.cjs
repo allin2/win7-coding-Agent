@@ -488,18 +488,29 @@ function restoreModeSettings(state) {
   } catch (error) { return { restored: false, matches_original: false, error: String(error && error.message ? error.message : error).slice(0, 200) }; }
 }
 
+// Every driver phase prepares the runtime copy again. Windows refuses to overwrite an executable that a process still has mapped (EBUSY),
+// so a target that already holds the same bytes is left alone; any other target is copied and a copy error still stops the phase.
+function copyRuntimeFile(from, to) {
+  let same = false;
+  try {
+    const target = fs.statSync(to);
+    same = target.isFile() && target.size === fs.statSync(from).size && sha256File(to) === sha256File(from);
+  } catch (_error) { same = false; }
+  if (!same) fs.copyFileSync(from, to);
+}
+
 function prepareDriverRuntime(candidateRoot, runRoot) {
   const runtimeRoot = path.join(runRoot, 'driver-electron');
   fs.mkdirSync(runtimeRoot, { recursive: true });
   for (const entry of fs.readdirSync(candidateRoot, { withFileTypes: true })) {
-    if (entry.isFile()) fs.copyFileSync(path.join(candidateRoot, entry.name), path.join(runtimeRoot, entry.name));
+    if (entry.isFile()) copyRuntimeFile(path.join(candidateRoot, entry.name), path.join(runtimeRoot, entry.name));
   }
   for (const directory of ['locales', 'swiftshader']) {
     const source = path.join(candidateRoot, directory);
     if (fs.existsSync(source)) copyTree(source, path.join(runtimeRoot, directory));
   }
   fs.mkdirSync(path.join(runtimeRoot, 'resources'), { recursive: true });
-  fs.copyFileSync(path.join(candidateRoot, 'resources', 'default_app.asar'), path.join(runtimeRoot, 'resources', 'default_app.asar'));
+  copyRuntimeFile(path.join(candidateRoot, 'resources', 'default_app.asar'), path.join(runtimeRoot, 'resources', 'default_app.asar'));
   const appRoot = path.join(runRoot, 'driver-app');
   fs.mkdirSync(appRoot, { recursive: true });
   const driverSource = path.join(candidateRoot, 'validation', 'a9-batch2-driver.cjs');
@@ -512,13 +523,52 @@ function copyTree(source, target) {
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
     const from = path.join(source, entry.name);
     const to = path.join(target, entry.name);
-    if (entry.isDirectory()) copyTree(from, to); else if (entry.isFile()) fs.copyFileSync(from, to);
+    if (entry.isDirectory()) copyTree(from, to); else if (entry.isFile()) copyRuntimeFile(from, to);
   }
 }
 
 function killTree(pid) {
   if (process.platform === 'win32') childProcess.spawnSync('taskkill.exe', ['/PID', String(Number(pid)), '/T', '/F'], { windowsHide: true, timeout: 30000 });
   else { try { process.kill(pid, 'SIGKILL'); } catch (_error) { /* gone */ } }
+}
+
+// taskkill /T lists the children of a process once. When the main process dies, Chromium can restart a helper (the network service) in
+// that instant; the new helper is not on the list, loses its parent and keeps the driver runtime copy mapped. A driver the harness
+// killed itself (marker or timeout) is therefore followed by a sweep of the processes that run from the driver runtime copy, and each
+// removal is recorded. Only that copy is swept: the candidate's own files, the product's children and any other path are never touched.
+const STRAY_SWEEP_ROUNDS = 8;
+const STRAY_SWEEP_CLEAN_ROUNDS = 2;
+const STRAY_SWEEP_WAIT_MS = 500;
+function findDriverStrays(exec, runtimeRoot) {
+  const listing = listProcesses(exec);
+  const prefix = `${path.resolve(runtimeRoot).toLowerCase().replace(/[\\/]+$/, '')}${path.sep}`;
+  const strays = listing.rows
+    .filter((row) => Number(row.ProcessId) !== process.pid && String(row.ExecutablePath || '').toLowerCase().startsWith(prefix))
+    .map((row) => ({ pid: Number(row.ProcessId), parent_pid: Number(row.ParentProcessId), name: String(row.Name || '') }));
+  return { strays, failed: listing.failed };
+}
+async function sweepDriverStrays(exec, runtimeRoot, hooks) {
+  const kill = (hooks && hooks.kill) || killTree;
+  const wait = (hooks && hooks.wait) || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const removed = [];
+  let clean = 0;
+  let observed = true;
+  let remaining = [];
+  for (let round = 0; round < STRAY_SWEEP_ROUNDS && clean < STRAY_SWEEP_CLEAN_ROUNDS; round += 1) {
+    await wait(STRAY_SWEEP_WAIT_MS);
+    const found = findDriverStrays(exec, runtimeRoot);
+    // A listing that failed shows presence but never absence: it does not count as a clean round.
+    if (found.failed) { observed = false; clean = 0; } else observed = true;
+    remaining = found.strays;
+    if (found.strays.length) {
+      clean = 0;
+      for (const stray of found.strays) {
+        kill(stray.pid);
+        if (!removed.some((item) => item.pid === stray.pid)) removed.push(stray);
+      }
+    } else if (!found.failed) clean += 1;
+  }
+  return { removed, remaining: clean >= STRAY_SWEEP_CLEAN_ROUNDS ? [] : remaining, observed: observed && clean >= STRAY_SWEEP_CLEAN_ROUNDS };
 }
 
 // Asks the desktop controller to click one button of the product's own exit dialog (fixed argv; the index is the only value).
@@ -667,9 +717,16 @@ async function runDriverPhase(ctx, hooks) {
   if (!plan) throw new Error(`A9_BATCH2_PHASE_NOT_A_DRIVER_PHASE:${ctx.phase}`);
   const launch = (hooks && hooks.launchDriver) || launchDriver;
   const exec = (hooks && hooks.exec) || realExec;
-  const runtime = (hooks && hooks.runtime) || prepareDriverRuntime(ctx.candidateRoot, ctx.runRoot);
-  const providerLog = path.join(ctx.attemptDir, 'provider-requests.jsonl');
   fs.mkdirSync(ctx.attemptDir, { recursive: true });
+  let runtime;
+  try { runtime = (hooks && hooks.runtime) || prepareDriverRuntime(ctx.candidateRoot, ctx.runRoot); }
+  catch (error) {
+    // A runtime copy that cannot be prepared is a named phase failure with its error, not a controller crash without a phase result.
+    writeJson(path.join(ctx.attemptDir, 'driver-launches.json'), { schema_version: 1, driver_sha256: null, launches: [],
+      runtime_prepare_error: String(error && error.message ? error.message : error).slice(0, 400) });
+    return finishPhase(ctx, 'DRIVER_RUNTIME_PREPARE_FAILED');
+  }
+  const providerLog = path.join(ctx.attemptDir, 'provider-requests.jsonl');
   fs.writeFileSync(providerLog, '', 'utf8');
   const fixture = new ProviderFixture(providerLog);
   const port = await fixture.listen();
@@ -711,8 +768,10 @@ async function runDriverPhase(ctx, hooks) {
         // The next mode must start from the original settings whatever happened to this one.
         if (modeSettings) modeSettings.restore = restoreModeSettings(modeSettings);
       }
+      const strays = exit.killed_by ? await sweepDriverStrays(exec, path.join(ctx.runRoot, 'driver-electron'), hooks && hooks.strays) : null;
       launches.push({ mode, code: exit.code, signal: exit.signal, killed_by: exit.killed_by, duration_ms: exit.duration_ms, started_at: exit.started_at, ended_at: exit.ended_at,
         spawn_error: exit.spawn_error || null, pid: exit.pid, dialog_click: exit.dialog_click || null,
+        ...(strays ? { strays } : {}),
         ...(modeSettings ? { mode_settings: { files_found: modeSettings.files_found, corrupted: modeSettings.corrupted, original_sha256: modeSettings.original_sha256, error: modeSettings.error, restore: modeSettings.restore } } : {}) });
       productLog.push(`==== ${mode} (exit=${exit.code}; killed_by=${exit.killed_by}) ====\n${exit.stdout}\n${exit.stderr}\n`);
       let driverResult = null;
@@ -722,6 +781,8 @@ async function runDriverPhase(ctx, hooks) {
       // A driver that was not supposed to die, or exited non-zero without a result, makes its mode a failure.
       if (!spec.killOnMarker && (exit.code !== 0 || !driverResult)) { launches[launches.length - 1].failed = true; break; }
       if (spec.killOnMarker && exit.killed_by !== 'marker') { launches[launches.length - 1].failed = true; break; }
+      // A sweep that is not observed clean (a process still runs from the driver runtime copy, or the listing failed) ends the phase here.
+      if (strays && !strays.observed) { launches[launches.length - 1].failed = true; launches[launches.length - 1].driver_error = 'DRIVER_STRAY_PROCESS_NOT_REMOVED'; break; }
     }
   } finally {
     writeJson(path.join(ctx.attemptDir, 'driver-launches.json'), { schema_version: 1, driver_sha256: runtime.driverSha256 || null, launches });
@@ -820,7 +881,7 @@ async function main(argv = process.argv.slice(2), environment = {}) {
 module.exports = {
   main, createContext, runEnvironmentPhase, runDriverPhase, runPostflightPhase, finishPhase, applyAssertions, writeEvidence,
   collectEnvironment, evaluateEnvironment, listProcesses, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
-  ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, launchDriver, realExec, MIN_FREE_BYTES,
+  ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
   CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
   chainIdentityAssertion, finishChainEvidence, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
 };
