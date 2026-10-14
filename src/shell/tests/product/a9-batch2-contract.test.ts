@@ -1710,7 +1710,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.AUDIT_FAILURE_CODE).toBe(code);
     // The facts of rehearsal 7: file written, no tool_end, Turn row still active, no new request, the code only in the IPC answers.
     const rehearsal7 = (): any => ({ file_written: true, tool_ends: 0, turn_status: 'active', submit_calls: [{ ok: false, error: code }, { ok: false, error: code }],
-      requests: { before: 0, after_turn: 1, after_next_submit: 1 }, page_shows_code: false, outcome_json_has_code: false });
+      requests: { before: 0, after_turn: 1, after_next_submit: 1 }, provider_window: { requests: 1, tool_result_requests: 0 }, page_shows_code: false, outcome_json_has_code: false });
     expect(driver.evaluateAuditHardStop(rehearsal7())).toMatchObject({ status: 'PASS' });
     expect(driver.evaluateAuditHardStop(rehearsal7()).detail).toContain(`submit_error_code=${code}`);
     // Page text and outcome_json are observations: they change the detail, never the verdict.
@@ -1722,11 +1722,11 @@ describe('A9-33 batch-2 driver evaluators', () => {
       ['the first submit succeeded', (f) => { f.submit_calls[0] = { ok: true, error: null }; }],
       ['the first submit failed with another code', (f) => { f.submit_calls[0] = { ok: false, error: 'A9_WORKSPACE_REQUIRED' }; }],
       ['the Turn completed', (f) => { f.turn_status = 'completed'; }],
-      ['the next submit reached the Provider', (f) => { f.requests.after_next_submit = 2; }],
-      // codex round 4, P1: the first turn must add exactly one request; a second request inside the first turn is an extra dispatch.
-      ['the first turn dispatched twice and then stopped', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; }],
-      ['the first turn dispatched nothing', (f) => { f.requests = { before: 0, after_turn: 0, after_next_submit: 0 }; }],
-      ['the first turn dispatched twice and the second submit was never observed', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; f.submit_calls = [f.submit_calls[0]]; }],
+      ['the next submit reached the Provider', (f) => { f.requests.after_next_submit = 2; f.provider_window = { requests: 2, tool_result_requests: 0 }; }],
+      // codex round 4, P1, restated after round 5: a request that carries the tool result is a dispatch after the failed tool_end, whatever the request total.
+      ['the first turn sent the tool result back and then stopped', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; f.provider_window = { requests: 2, tool_result_requests: 1 }; }],
+      ['the first turn sent the tool result back and the second submit was never observed', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; f.provider_window = { requests: 2, tool_result_requests: 1 }; f.submit_calls = [f.submit_calls[0]]; }],
+      ['the first turn dispatched nothing', (f) => { f.requests = { before: 0, after_turn: 0, after_next_submit: 0 }; f.provider_window = { requests: 0, tool_result_requests: 0 }; }],
     ];
     for (const [label, mutate] of failures) {
       const facts = rehearsal7(); mutate(facts);
@@ -1735,6 +1735,11 @@ describe('A9-33 batch-2 driver evaluators', () => {
     // The second answer is an observation only.
     const secondOk = rehearsal7(); secondOk.submit_calls[1] = { ok: true, error: null };
     expect(driver.evaluateAuditHardStop(secondOk).status).toBe('PASS');
+    // codex round 5, R4: the Gateway retries a lost response, so the first turn may count several requests; none of them carries the tool result.
+    for (const total of [2, 3, 6]) {
+      const retried = rehearsal7(); retried.requests = { before: 0, after_turn: total, after_next_submit: total }; retried.provider_window = { requests: total, tool_result_requests: 0 };
+      expect({ total, status: driver.evaluateAuditHardStop(retried).status }).toEqual({ total, status: 'PASS' });
+    }
     // Anything not observed is UNKNOWN, never PASS and never FAIL.
     const unobserved: Array<[string, (f: any) => void]> = [
       ['no submit answer', (f) => { f.submit_calls = []; }],
@@ -1745,20 +1750,23 @@ describe('A9-33 batch-2 driver evaluators', () => {
       ['baseline counter missing', (f) => { f.requests = { after_turn: 1, after_next_submit: 1 }; }],
       // codex round 4, P1: with no second a9.turn.submit the "no new request" check is empty.
       ['second submit not observed', (f) => { f.submit_calls = [f.submit_calls[0]]; }],
+      ['Provider log not read', (f) => { delete f.provider_window; }],
+      ['a log line without a tool_messages count', (f) => { f.provider_window = { requests: 1, tool_result_requests: null }; }],
+      ['the log holds fewer lines than the counters', (f) => { f.requests = { before: 0, after_turn: 2, after_next_submit: 2 }; f.provider_window = { requests: 1, tool_result_requests: 0 }; }],
     ];
     for (const [label, mutate] of unobserved) {
       const facts = rehearsal7(); mutate(facts);
       expect({ label, status: driver.evaluateAuditHardStop(facts).status }).toEqual({ label, status: 'UNKNOWN' });
     }
     expect(driver.evaluateAuditHardStop(null).status).toBe('UNKNOWN');
-    // The first-turn count is relative to the baseline, and the constant matches the scenario: one Provider request asks for the write, the next would carry its result.
-    expect(driver.AUDIT_FIRST_TURN_REQUESTS).toBe(1);
+    expect(driver.AUDIT_FIRST_TURN_REQUESTS).toBeUndefined();
+    // The baseline is relative, and the criterion matches the scenario: the first request asks for the write, the request that carries its result is the forbidden dispatch.
     const later = rehearsal7(); later.requests = { before: 3, after_turn: 4, after_next_submit: 4 };
     expect(driver.evaluateAuditHardStop(later).status).toBe('PASS');
     const asked = (done: number) => fixtures.providerStep({ messages: [{ role: 'user', content: 'please run b2:audit-write' }, ...(done ? [{ role: 'tool', tool_call_id: 'b2-aw-1', content: 'ok' }] : [])] }, {});
     expect(JSON.stringify(asked(0))).toContain('"write"');
     expect(asked(1)).toEqual({ content: 'audit write scenario finished.' });
-    expect(driver.evaluateAuditHardStop(rehearsal7()).detail).toContain('first turn must add 1');
+    expect(driver.evaluateAuditHardStop(rehearsal7()).detail).toContain('requests_with_tool_result=0');
   });
 
   test('S04 (KL-5): only UTF-8 and CRLF decide the verdict; CP936 and UTF-16LE are INFORMATIONAL (rehearsal 7 facts)', () => {
@@ -2675,9 +2683,9 @@ describe('A9-33 batch-2 key press in the UI-01 journey', () => {
   });
 });
 
-// Rehearsal 7 fix round 5 (codex round 4, survivors A1, A2, A3): the three journey closures of the driver, cut out of the source and run against stubs that
-// stand in for the page, the IPC log and the Provider counters. They check the wiring that the pure evaluators cannot see: which press feeds which fact,
-// where the IPC baseline is taken, and which errors end the case. They are not Electron, Win10 or Win7 evidence.
+// Rehearsal 7 fix rounds 5 and 6 (codex rounds 4 and 5): the journey closures of the driver, cut out of the source and run against stubs that stand in for
+// the page, the IPC log, the Provider counters and the Provider log. They check the wiring that the pure evaluators cannot see: which press feeds which fact,
+// where the IPC baseline is taken, which errors end the case, and which evaluator feeds which record. They are not Electron, Win10 or Win7 evidence.
 describe('A9-33 batch-2 journey closures', () => {
   const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
   const slice = (from: string, to: string) => {
@@ -2688,8 +2696,15 @@ describe('A9-33 batch-2 journey closures', () => {
     return driverSource.slice(start, end);
   };
   const AUDIT_CODE = 'A9_AUDIT_PERSISTENCE_FAILED';
+  const evaluators = {
+    evaluateAuditHardStop: driver.evaluateAuditHardStop, evaluateTerminalAudit: driver.evaluateTerminalAudit, evaluateRestartCounts: driver.evaluateRestartCounts,
+    evaluateOldTurnUnchanged: driver.evaluateOldTurnUnchanged, evaluateInterruptRecords: driver.evaluateInterruptRecords, evaluateUiJourney: driver.evaluateUiJourney,
+    summarizeSubs: driver.summarizeSubs, evaluateEncodingOutcomes: driver.evaluateEncodingOutcomes, withGuard: driver.withGuard, statusOf: driver.statusOf, isCount: driver.isCount,
+    isStatusText: driver.isStatusText, eventData: driver.eventData, framesFromEvents: driver.framesFromEvents, ENCODING_GATING: driver.ENCODING_GATING,
+    Boolean, String, RegExp, Array, Error, Set, Promise,
+  };
 
-  describe('S04 closure (A3): only the decisive labels end the case on an error', () => {
+  describe('S04 closure (A3, B2): only the decisive labels end the case on an error, and a warning belongs to its own tool call', () => {
     function rig(plan: Record<string, 'ok' | 'throw' | 'wrong'>, shell: any = { kind: 'powershell' }) {
       const fx = fixtures.encodingFixtures();
       const outs: any[] = []; const records: any[][] = []; const prompts: string[] = [];
@@ -2701,12 +2716,13 @@ describe('A9-33 batch-2 journey closures', () => {
         if (mode === 'throw') throw new Error(`prompt ${label} failed`);
         const data: any = { toolCallId: `b2-s04-${label}`, stream: 'stdout', outputSeq: 1, text: mode === 'wrong' ? '' : textFor[label] };
         if (mode === 'wrong') { data.warning = 'A9_OUTPUT_ENCODING_ERROR'; data.truncated = true; }
-        return { events: [{ eventType: 'tool_output', eventId: prompts.length, turnId: 't', payload: { data } }] };
+        // Another tool call of the same prompt carries its own warning; it comes first so that the call under test is the last frame.
+        const other = { eventType: 'tool_output', eventId: prompts.length * 10, turnId: 't', payload: { data: { toolCallId: 'b2-other-call', stream: 'stdout', outputSeq: 1, text: 'other', warning: 'OTHER_CALL_WARNING' } } };
+        return { events: [other, { eventType: 'tool_output', eventId: prompts.length * 10 + 1, turnId: 't', payload: { data } }] };
       };
       const box: any = { bootstrap: async () => ({ shell }), newConversation: async () => undefined, runPrompt, sleep: async () => undefined,
         out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args), path, candidateRoot: '/candidate',
-        require: () => ({ encodingFixtures: () => fx }), framesFromEvents: driver.framesFromEvents, eventData: driver.eventData, ENCODING_GATING: driver.ENCODING_GATING,
-        evaluateEncodingOutcomes: driver.evaluateEncodingOutcomes, Set, Array, Error, String };
+        require: () => ({ encodingFixtures: () => fx }), ...evaluators };
       vm.runInNewContext(`${slice('  async function streamEncodings() {', '  async function streamLimits() {')}\n;this.api = { streamEncodings };`, box);
       return { api: box.api, outs, records, prompts };
     }
@@ -2720,7 +2736,9 @@ describe('A9-33 batch-2 journey closures', () => {
       const payload = r.outs[0].payload;
       expect(payload.outcomes.map((item: any) => [item.label, item.gating, item.ok])).toEqual([['utf8', true, true], ['utf16le', false, false], ['cp936', false, false], ['crlf', true, true]]);
       expect(payload.outcomes[1].warnings).toEqual(['A9_OUTPUT_ENCODING_ERROR']);
+      expect(payload.outcomes[2].warnings).toEqual(['A9_OUTPUT_ENCODING_ERROR']);
       expect(payload.outcomes[0].warnings).toEqual([]);
+      expect(payload.outcomes[3].warnings).toEqual([]);
       expect(payload.known_limit).toContain('KL-5');
     });
 
@@ -2754,28 +2772,35 @@ describe('A9-33 batch-2 journey closures', () => {
     });
   });
 
-  describe('SAFE-02 closure (A2): the IPC baseline is taken before the first submit', () => {
-    function rig(options: { requestsFirstTurn?: number; secondReachesIpc?: boolean; fileWritten?: boolean; toolEnds?: number; injectFails?: boolean; submitThrows?: boolean } = {}) {
-      const opts = { requestsFirstTurn: 1, secondReachesIpc: true, fileWritten: true, toolEnds: 0, injectFails: false, submitThrows: false, ...options };
+  describe('SAFE-02 closure (A2, R4): the IPC baseline is taken before the first submit, and the verdict reads the Provider log', () => {
+    function rig(options: { requestsFirstTurn?: number; toolResult?: boolean; secondReachesIpc?: boolean; fileWritten?: boolean; toolEnds?: number; injectFails?: boolean; submitThrows?: boolean;
+      logShape?: 'full' | 'short' | 'no-tool-messages' } = {}) {
+      const opts = { requestsFirstTurn: 1, toolResult: false, secondReachesIpc: true, fileWritten: true, toolEnds: 0, injectFails: false, submitThrows: false, logShape: 'full', ...options };
       const ipcLog: any[] = [
         { action: 'a9.snapshot.get', ok: false, error: 'A9_WORKSPACE_REQUIRED' },
         { action: 'a9.turn.submit', ok: true, error: null },
       ];
-      const world = { requests: 0 };
+      // Three requests of earlier phases are already in the Provider log, and they carried tool results: only the lines after the baseline belong to this case.
+      const world = { requests: 3 };
       const execs: string[] = []; const outs: any[] = []; const records: any[][] = [];
       let opened = 0;
       const events = [{ turnId: 't1', eventType: 'turn_started' }, { turnId: 't1', eventType: 'tool_start' }, ...Array.from({ length: opts.toolEnds }, () => ({ turnId: 't1', eventType: 'tool_end' }))];
+      const providerLines = () => {
+        const lines: any[] = Array.from({ length: world.requests }, (_x, i) => (opts.logShape === 'no-tool-messages' && i >= 3 ? { index: i + 1 }
+          : { index: i + 1, tool_messages: i < 3 || (opts.toolResult && i === 4) ? 1 : 0 }));
+        return opts.logShape === 'short' ? lines.slice(0, -1) : lines;
+      };
       const box: any = {
         bootstrap: async () => ({}), newConversation: async () => undefined, conversationId: async () => 'conv-1',
         openDb: () => { opened += 1; if (opts.injectFails && opened === 1) throw new Error('database is locked'); return { exec: (sql: string) => execs.push(sql), close: () => undefined }; },
-        counters: async () => ({ requests: world.requests }), ipcLog,
+        counters: async () => ({ requests: world.requests }), ipcLog, providerLines,
         submit: async () => { if (opts.submitThrows) throw new Error('submit failed'); world.requests += opts.requestsFirstTurn; ipcLog.push({ action: 'a9.turn.submit', ok: false, error: AUDIT_CODE }); },
         submitRaw: async () => { if (opts.secondReachesIpc) ipcLog.push({ action: 'a9.turn.submit', ok: false, error: AUDIT_CODE }); },
-        waitFor: async (condition: () => Promise<any>) => condition(), snapshot: async () => { ipcLog.push({ action: 'a9.snapshot.get', ok: true, error: null }); return { controls: { canStop: false }, agentStatus: 'idle' }; }, sleep: async () => undefined,
+        waitFor: async (condition: () => Promise<any>) => condition(),
+        snapshot: async () => { ipcLog.push({ action: 'a9.snapshot.get', ok: true, error: null }); return { controls: { canStop: false }, agentStatus: 'idle' }; }, sleep: async () => undefined,
         fs: { existsSync: () => opts.fileWritten }, path, workspaceRoot: '/workspace', events: async () => ({ events }), lastTurnOf: () => 't1',
         dbAll: () => [{ status: 'active', outcome_json: '{}' }], composerState: async () => ({ send_disabled: true }), domState: async () => ({ present: '', visible: 'page text', outcome: '' }),
-        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args),
-        evaluateAuditHardStop: driver.evaluateAuditHardStop, Boolean, String, RegExp, Array, Error,
+        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args), ...evaluators,
       };
       vm.runInNewContext(`${slice('  async function safeRules() {', '  // ---- Modes: UI (p08)')}\n;this.api = { safeRules };`, box);
       return { api: box.api, ipcLog, execs, outs, records };
@@ -2786,19 +2811,38 @@ describe('A9-33 batch-2 journey closures', () => {
       await r.api.safeRules();
       expect(r.records[0].slice(0, 3)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP', 1, 'PASS']);
       expect(r.outs[0].payload.submit_calls).toEqual([{ ok: false, error: AUDIT_CODE }, { ok: false, error: AUDIT_CODE }]);
-      expect(r.outs[0].payload.requests).toEqual({ before: 0, after_turn: 1, after_next_submit: 1 });
+      expect(r.outs[0].payload.requests).toEqual({ before: 3, after_turn: 4, after_next_submit: 4 });
+      expect(r.outs[0].payload.provider_window).toEqual({ requests: 1, tool_result_requests: 0 });
       expect(r.execs[0]).toContain('CREATE TRIGGER b2_audit_write');
       expect(r.execs[r.execs.length - 1]).toContain('DROP TRIGGER IF EXISTS b2_audit_write');
     });
 
-    test('a second request inside the first turn fails, and a second submit that never reached the product is UNKNOWN', async () => {
-      const twice = rig({ requestsFirstTurn: 2 });
-      await twice.api.safeRules();
-      expect(twice.records[0][2]).toBe('FAIL');
+    test('a tool result sent back to the Provider fails the case, a retried request does not, and a second submit that never reached the product is UNKNOWN', async () => {
+      const sentBack = rig({ requestsFirstTurn: 2, toolResult: true });
+      await sentBack.api.safeRules();
+      expect(sentBack.records[0][2]).toBe('FAIL');
+      expect(sentBack.outs[0].payload.provider_window).toEqual({ requests: 2, tool_result_requests: 1 });
+      const retried = rig({ requestsFirstTurn: 2 });
+      await retried.api.safeRules();
+      expect(retried.records[0][2]).toBe('PASS');
+      expect(retried.outs[0].payload.provider_window).toEqual({ requests: 2, tool_result_requests: 0 });
+      const nothing = rig({ requestsFirstTurn: 0 });
+      await nothing.api.safeRules();
+      expect(nothing.records[0][2]).toBe('FAIL');
       const unseen = rig({ secondReachesIpc: false });
       await unseen.api.safeRules();
       expect(unseen.records[0][2]).toBe('UNKNOWN');
       expect(unseen.outs[0].payload.submit_calls).toHaveLength(1);
+    });
+
+    test('a Provider log that is shorter than the counters, or lines without a tool_messages count, leave the case UNKNOWN', async () => {
+      const short = rig({ requestsFirstTurn: 2, logShape: 'short' });
+      await short.api.safeRules();
+      expect(short.records[0][2]).toBe('UNKNOWN');
+      const bare = rig({ logShape: 'no-tool-messages' });
+      await bare.api.safeRules();
+      expect(bare.records[0][2]).toBe('UNKNOWN');
+      expect(bare.outs[0].payload.provider_window).toEqual({ requests: 1, tool_result_requests: null });
     });
 
     test('a persisted tool_end or a file that was never written fails the case', async () => {
@@ -2821,20 +2865,171 @@ describe('A9-33 batch-2 journey closures', () => {
     });
   });
 
-  describe('UI-01 closure (A1): every fact comes from its own key press', () => {
-    function rig(options: { firstEnterWorks?: boolean; buttonFocused?: boolean; firstTarget?: string; pressThrowsAt?: number } = {}) {
-      const opts = { firstEnterWorks: true, buttonFocused: true, firstTarget: 'BUTTON', pressThrowsAt: 0, ...options };
+  describe('S03T closure (R1): the follow-up submit must reach the product and the counters must be read', () => {
+    function rig(options: { starts?: number; completed?: boolean; requestsTurn?: number; nextAdds?: number; secondReachesIpc?: boolean; laterShell?: number; countersMissing?: boolean;
+      injectFails?: boolean; submitThrows?: boolean } = {}) {
+      const opts = { starts: 3, completed: false, requestsTurn: 4, nextAdds: 0, secondReachesIpc: true, laterShell: 0, countersMissing: false, injectFails: false, submitThrows: false, ...options };
+      const ipcLog: any[] = [{ action: 'a9.conversation.create', ok: true, error: null }, { action: 'a9.turn.submit', ok: true, error: null }];
+      const world = { requests: 17 };
+      const execs: string[] = []; const outs: any[] = []; const records: any[][] = []; const written: string[] = [];
+      let opened = 0; let eventCalls = 0;
+      const turnEvents: any[] = [...Array.from({ length: opts.starts }, () => ({ turnId: 't1', eventType: 'tool_start', payload: { data: { toolName: 'read' } } })),
+        ...(opts.completed ? [{ turnId: 't1', eventType: 'turn_completed' }] : [])];
+      const box: any = {
+        bootstrap: async () => ({}), newConversation: async () => undefined, conversationId: async () => 'conv-1',
+        require: () => ({ AUDIT_READ_FILES: ['b2-audit-read-0.txt', 'b2-audit-read-1.txt', 'b2-audit-read-2.txt'] }), candidateRoot: '/candidate', workspaceRoot: '/workspace', path,
+        fs: { writeFileSync: (file: string) => written.push(file) },
+        openDb: () => { opened += 1; if (opts.injectFails && opened === 1) throw new Error('database is locked'); return { exec: (sql: string) => execs.push(sql), close: () => undefined }; },
+        counters: async () => (opts.countersMissing ? {} : { requests: world.requests }), ipcLog,
+        submit: async () => { if (opts.submitThrows) throw new Error('submit failed'); world.requests += opts.requestsTurn; ipcLog.push({ action: 'a9.turn.submit', ok: false, error: AUDIT_CODE }); },
+        submitRaw: async () => { world.requests += opts.nextAdds; if (opts.secondReachesIpc) ipcLog.push({ action: 'a9.turn.submit', ok: false, error: AUDIT_CODE }); },
+        waitFor: async (condition: () => Promise<any>) => condition(),
+        snapshot: async () => { ipcLog.push({ action: 'a9.snapshot.get', ok: true, error: null }); return { controls: { canStop: false }, agentStatus: 'idle' }; }, sleep: async () => undefined,
+        events: async () => { eventCalls += 1; return { events: eventCalls === 1 ? turnEvents : [...turnEvents, ...Array.from({ length: opts.laterShell }, () => ({ turnId: 't2', eventType: 'tool_start', payload: { data: { toolName: 'shell' } } }))] }; },
+        lastTurnOf: () => 't1', composerState: async () => ({ send_disabled: true }), domState: async () => ({ outcome: '' }), turnStatus: () => 'active',
+        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args), ...evaluators,
+      };
+      vm.runInNewContext(`${slice('  async function auditStop() {', '  // ---- Modes: session and background (p05)')}\n;this.api = { auditStop };`, box);
+      return { api: box.api, ipcLog, execs, outs, records, written };
+    }
+
+    test('the facts of rehearsal 7 (17 to 21 to 21 requests, three reads, two submits answered with the code) pass; both submits of this case are counted', async () => {
+      const r = rig();
+      await r.api.auditStop();
+      expect(r.records[0].slice(0, 3)).toEqual(['B2-S03T-TERMINAL-AUDIT', 1, 'PASS']);
+      expect(r.outs[0].payload.submit_calls).toEqual([{ ok: false, error: AUDIT_CODE }, { ok: false, error: AUDIT_CODE }]);
+      expect(r.outs[0].payload.requests).toEqual({ before: 17, after_turn: 21, after_next_submit: 21 });
+      expect(r.written).toHaveLength(3);
+      expect(r.execs[0]).toContain('CREATE TRIGGER b2_audit_fail');
+      expect(r.execs[r.execs.length - 1]).toContain('DROP TRIGGER IF EXISTS b2_audit_fail');
+    });
+
+    test('a follow-up that never reached a9.turn.submit, or counters that were not read, leave the case UNKNOWN', async () => {
+      const unseen = rig({ secondReachesIpc: false });
+      await unseen.api.auditStop();
+      expect(unseen.records[0][2]).toBe('UNKNOWN');
+      expect(unseen.outs[0].payload.submit_calls).toHaveLength(1);
+      const blind = rig({ countersMissing: true });
+      await blind.api.auditStop();
+      expect(blind.records[0][2]).toBe('UNKNOWN');
+    });
+
+    test('a request after the follow-up, a completed Turn, a missing read or a later shell dispatch fails the case', async () => {
+      for (const options of [{ nextAdds: 1 }, { completed: true }, { starts: 2 }, { laterShell: 1 }]) {
+        const r = rig(options);
+        await r.api.auditStop();
+        expect({ options, status: r.records[0][2] }).toEqual({ options, status: 'FAIL' });
+      }
+    });
+
+    test('when the failure cannot be injected the case is UNKNOWN and nothing is submitted; the trigger is dropped even when a submit throws', async () => {
+      const locked = rig({ injectFails: true });
+      await locked.api.auditStop();
+      expect(locked.records[0].slice(0, 3)).toEqual(['B2-S03T-TERMINAL-AUDIT', 1, 'UNKNOWN']);
+      expect(locked.ipcLog).toHaveLength(2);
+      const broken = rig({ submitThrows: true });
+      await expect(broken.api.auditStop()).rejects.toThrow('submit failed');
+      expect(broken.execs[broken.execs.length - 1]).toContain('DROP TRIGGER IF EXISTS b2_audit_fail');
+    });
+  });
+
+  describe('restart closures (R2): a counter or a Turn status that was not read is UNKNOWN', () => {
+    const preFacts = (): any => ({ conversationId: 'conv-1', turnId: 'turn-0', taskId: 'task-1', counters: { requests: 5 }, toolEvents: 2 });
+    const restartFacts = (): any => ({ afterBoot: { requests: 5 }, afterRefresh: { requests: 5 }, state1: { turn: 'active', tools: 2 }, state2: { turn: 'active', tools: 2 },
+      recovery: { canContinue: true, recoveryRevision: 'rev-1' }, card: { button: '继续' }, pending: null });
+
+    function continueRig(options: { facts?: (f: any) => void; continueEvents?: number; turnAfter?: string | null } = {}) {
+      const facts = restartFacts(); if (options.facts) options.facts(facts);
+      const outs: any[] = []; const records: any[][] = [];
+      const count = options.continueEvents === undefined ? 1 : options.continueEvents;
+      const box: any = {
+        readJsonFile: () => preFacts(), recoverFacts: async () => facts, oldApprovalResult: async () => ({ ok: false, error: { code: 'A9_APPROVAL_STALE' } }),
+        fs: { existsSync: () => true }, path, workspaceRoot: '/workspace', attemptDir: '/attempt', writeJson: () => undefined,
+        counters: async () => ({ requests: 5 }), setFixture: async () => undefined, exec: async () => 'double-clicked', waitIdle: async () => ({}),
+        events: async () => ({ events: Array.from({ length: count }, () => ({ eventType: 'task_continue_requested', turnId: 'turn-new', payload: { data: { taskId: 'task-1' } } })) }),
+        turnStatus: () => (options.turnAfter === undefined ? 'active' : options.turnAfter),
+        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args), ...evaluators,
+      };
+      vm.runInNewContext(`${slice('  async function continueRestart() {', '  // CONT-03 second assertion, in-process part.')}\n;this.api = { continueRestart };`, box);
+      return { api: box.api, outs, records };
+    }
+    const statuses = (records: any[][]) => records.map((item) => item[2]);
+
+    test('CONT-01: healthy facts pass both assertions', async () => {
+      const r = continueRig();
+      await r.api.continueRestart();
+      expect(r.records.map((item) => [item[0], item[1], item[2]])).toEqual([['B2-CONT-01-RESTART-ZERO-REQUEST', 1, 'PASS'], ['B2-CONT-01-RESTART-ZERO-REQUEST', 2, 'PASS']]);
+      expect(r.outs[0].payload.zero_added).toBe(true);
+    });
+
+    test('CONT-01: a counter that was not read is UNKNOWN for the zero-request answer, and a duplicate dispatch still fails it', async () => {
+      const blind = continueRig({ facts: (f) => { f.afterBoot = {}; } });
+      await blind.api.continueRestart();
+      expect(statuses(blind.records)).toEqual(['UNKNOWN', 'PASS']);
+      expect(blind.records[0][3]).toContain('zero_added=not observed');
+      expect(blind.outs[0].payload.zero_added).toBeNull();
+      const blindAndTwice = continueRig({ facts: (f) => { f.afterRefresh = {}; }, continueEvents: 2 });
+      await blindAndTwice.api.continueRestart();
+      expect(statuses(blindAndTwice.records)[0]).toBe('FAIL');
+      const added = continueRig({ facts: (f) => { f.afterBoot = { requests: 6 }; } });
+      await added.api.continueRestart();
+      expect(statuses(added.records)[0]).toBe('FAIL');
+      const toolAdded = continueRig({ facts: (f) => { f.state2.tools = 3; } });
+      await toolAdded.api.continueRestart();
+      expect(statuses(toolAdded.records)[0]).toBe('FAIL');
+    });
+
+    test('CONT-01: an old Turn status that was not read before or after is UNKNOWN, and a changed status fails', async () => {
+      const noAfter = continueRig({ turnAfter: null });
+      await noAfter.api.continueRestart();
+      expect(statuses(noAfter.records)).toEqual(['PASS', 'UNKNOWN']);
+      const noBefore = continueRig({ facts: (f) => { f.state2.turn = null; } });
+      await noBefore.api.continueRestart();
+      expect(statuses(noBefore.records)[1]).toBe('UNKNOWN');
+      const changed = continueRig({ turnAfter: 'completed' });
+      await changed.api.continueRestart();
+      expect(statuses(changed.records)[1]).toBe('FAIL');
+    });
+
+    function interruptRig(facts: any, pre: any = preFacts()) {
+      const records: any[][] = [];
+      const box: any = { record: (...args: any[]) => records.push(args), ...evaluators };
+      vm.runInNewContext(`${slice('  function recordInterruptChecks(pre, facts) {', '  async function chainRecover() {')}\n;this.api = { recordInterruptChecks };`, box);
+      box.api.recordInterruptChecks(pre, facts);
+      return records;
+    }
+
+    test('CH-04: the two answers come from the interrupted-state check and the zero-request check, in that order', () => {
+      const healthy = interruptRig(restartFacts());
+      expect(healthy.map((item) => [item[0], item[1], item[2]])).toEqual([['B2-CH-04-INTERRUPT-RESTART', 1, 'PASS'], ['B2-CH-04-INTERRUPT-RESTART', 2, 'PASS']]);
+      const noCounters = restartFacts(); noCounters.afterBoot = {}; noCounters.afterRefresh = {};
+      expect(interruptRig(noCounters).map((item) => item[2])).toEqual(['PASS', 'UNKNOWN']);
+      const noTurns = restartFacts(); noTurns.state1.turn = null; noTurns.state2.turn = null;
+      expect(interruptRig(noTurns).map((item) => item[2])).toEqual(['UNKNOWN', 'PASS']);
+      const completed = restartFacts(); completed.state1.turn = 'completed'; completed.state2.turn = 'completed';
+      expect(interruptRig(completed).map((item) => item[2])).toEqual(['FAIL', 'PASS']);
+      const cannot = restartFacts(); cannot.recovery.canContinue = false; cannot.state1.turn = null; cannot.state2.turn = null;
+      expect(interruptRig(cannot).map((item) => item[2])).toEqual(['FAIL', 'PASS']);
+    });
+  });
+
+  describe('UI-01 closure (A1, C1): every fact comes from its own key press, and the focus call is really made', () => {
+    function rig(options: { firstEnterWorks?: boolean; focusLands?: boolean; firstTarget?: string; pressThrowsAt?: number } = {}) {
+      const opts = { firstEnterWorks: true, focusLands: true, firstTarget: 'BUTTON', pressThrowsAt: 0, ...options };
       const presses: string[] = []; const outs: any[] = []; const records: any[][] = [];
       const world = { busy: false, recoveryCalls: 0, stage: 'start' };
       const card = () => ({ text: '继续中断任务', button: world.busy ? '正在继续' : '继续', disabled: world.busy });
       const eventCount = () => (presses.length >= 4 ? 2 : presses.length >= 1 && (opts.firstEnterWorks || presses.length >= 2) ? 1 : 0);
+      // A fake page: the driver's own focus script runs against it, so a script that no longer calls focus() leaves the button unfocused.
+      const button: any = { focus: () => { if (opts.focusLands) doc.activeElement = button; } };
+      const doc: any = { activeElement: null, querySelector: () => button, getElementById: () => ({ click: () => { world.busy = false; } }) };
       const box: any = {
         readJsonFile: () => ({ conversationId: 'conv-1', taskId: 'task-1' }), bootstrap: async () => ({}), activateConversation: async () => undefined,
         waitFor: async (condition: () => Promise<any>, _ms: number, label: string) => { const value = await condition(); if (!value) throw new Error(`TIMEOUT:${label}`); return value; },
         domState: async () => ({ cards: 1 }), findRecovery: async () => { world.recoveryCalls += 1; return { interruptedTurnId: `turn-${world.recoveryCalls}`, recoveryRevision: `rev-${world.recoveryCalls}` }; },
         cardInfo: async () => card(), win: { setContentSize: () => undefined }, sleep: async () => undefined, scrollProbe: async () => ({ top: 0, height: 1000, client: 400 }),
         setFixture: async () => undefined, CARD_BUTTON_BUSY: '正在继续',
-        exec: async (code: string) => { if (code.includes('cancel-task')) world.busy = false; return code.includes('activeElement === b') ? opts.buttonFocused : true; },
+        exec: async (code: string) => vm.runInNewContext(code, { document: doc }),
         pressKey: async (key: string) => {
           presses.push(key);
           const n = presses.length;
@@ -2844,8 +3039,7 @@ describe('A9-33 batch-2 journey closures', () => {
         },
         focusProbe: async () => ({ inCard: true, tag: 'BUTTON' }), continueEventsFor: async () => Array.from({ length: eventCount() }, (_x, i) => ({ turnId: `turn-continue-${i}` })),
         screenshot: async () => undefined, keyRecords: async () => [], waitIdle: async () => ({}), newConversation: async () => undefined, continueIpcCalls: () => 2, turnStatus: () => 'completed',
-        evaluateUiJourney: driver.evaluateUiJourney, summarizeSubs: driver.summarizeSubs, out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args),
-        Boolean, String, Error, Promise, Array,
+        out: (name: string, payload: any) => outs.push({ name, payload }), record: (...args: any[]) => records.push(args), ...evaluators,
       };
       vm.runInNewContext(`${slice('  async function uiContinue() {', '  async function uiLayouts() {')}\n;this.api = { uiContinue };`, box);
       return { api: box.api, presses, outs, records };
@@ -2865,8 +3059,8 @@ describe('A9-33 batch-2 journey closures', () => {
       expect(r.records[0].slice(0, 3)).toEqual(['B2-UI-01-CONTINUE-INTERACTION', 1, 'PASS']);
     });
 
-    test('a focus call that did not land on the button, or an Enter the page gave to another element, leaves the two Enter assertions UNKNOWN', async () => {
-      const unfocused = rig({ buttonFocused: false });
+    test('the driver script really focuses the button: when the focus call does not land, or an Enter went to another element, both Enter assertions are UNKNOWN', async () => {
+      const unfocused = rig({ focusLands: false });
       await unfocused.api.uiContinue();
       expect(unfocused.outs[0].payload.facts.enter.button_focused).toBe(false);
       expect(unfocused.records[0][2]).toBe('UNKNOWN');
@@ -2887,5 +3081,100 @@ describe('A9-33 batch-2 journey closures', () => {
       expect(thrown.outs[0].payload.facts.enter).toBeNull();
       expect(thrown.records[0][2]).toBe('UNKNOWN');
     });
+  });
+});
+
+describe('A9-33 batch-2 evaluators of fix round 6', () => {
+  test('S03T: the verdict needs integer counters and a follow-up that reached a9.turn.submit; the request total is not fixed', () => {
+    const code = 'A9_AUDIT_PERSISTENCE_FAILED';
+    const rehearsal7 = (): any => ({ tool_starts: 3, turn_completed: false, requests: { before: 17, after_turn: 21, after_next_submit: 21 }, later_shell_dispatches: 0,
+      submit_calls: [{ ok: false, error: code }, { ok: false, error: code }] });
+    expect(driver.evaluateTerminalAudit(rehearsal7()).status).toBe('PASS');
+    // A lost response is retried by the Gateway: more requests in the first turn are not a failure.
+    const retried = rehearsal7(); retried.requests = { before: 17, after_turn: 24, after_next_submit: 24 };
+    expect(driver.evaluateTerminalAudit(retried).status).toBe('PASS');
+    const failures: Array<[string, (f: any) => void]> = [
+      ['not three reads', (f) => { f.tool_starts = 2; }],
+      ['the Turn completed', (f) => { f.turn_completed = true; }],
+      ['a request after the follow-up', (f) => { f.requests.after_next_submit = 22; }],
+      ['a later shell dispatch', (f) => { f.later_shell_dispatches = 1; }],
+    ];
+    for (const [label, mutate] of failures) {
+      const facts = rehearsal7(); mutate(facts);
+      expect({ label, status: driver.evaluateTerminalAudit(facts).status }).toEqual({ label, status: 'FAIL' });
+    }
+    const unobserved: Array<[string, (f: any) => void]> = [
+      ['follow-up never reached the product', (f) => { f.submit_calls = [f.submit_calls[0]]; }],
+      ['no submit list', (f) => { delete f.submit_calls; }],
+      ['counters empty', (f) => { f.requests = {}; }],
+      ['one counter missing', (f) => { delete f.requests.after_turn; }],
+      ['counter is not an integer', (f) => { f.requests.before = '17'; }],
+      ['tool starts missing', (f) => { delete f.tool_starts; }],
+      ['completion flag missing', (f) => { delete f.turn_completed; }],
+      ['later shell count missing', (f) => { delete f.later_shell_dispatches; }],
+    ];
+    for (const [label, mutate] of unobserved) {
+      const facts = rehearsal7(); mutate(facts);
+      expect({ label, status: driver.evaluateTerminalAudit(facts).status }).toEqual({ label, status: 'UNKNOWN' });
+    }
+    // undefined === undefined is not "no new request".
+    expect(driver.evaluateTerminalAudit({ tool_starts: 3, turn_completed: false, requests: { before: undefined, after_turn: undefined, after_next_submit: undefined }, later_shell_dispatches: 0,
+      submit_calls: [{}, {}] }).status).toBe('UNKNOWN');
+    expect(driver.evaluateTerminalAudit(null).status).toBe('UNKNOWN');
+  });
+
+  test('restart: missing counters and missing Turn statuses are null (UNKNOWN), never equal', () => {
+    const pre = { counters: { requests: 5 }, toolEvents: 2 };
+    const facts = () => ({ afterBoot: { requests: 5 }, afterRefresh: { requests: 5 }, state1: { turn: 'active', tools: 2 }, state2: { turn: 'active', tools: 2 } });
+    expect(driver.evaluateRestartCounts(pre, facts())).toBe(true);
+    const added: any = facts(); added.afterRefresh.requests = 6;
+    expect(driver.evaluateRestartCounts(pre, added)).toBe(false);
+    const tools: any = facts(); tools.state1.tools = 3;
+    expect(driver.evaluateRestartCounts(pre, tools)).toBe(false);
+    for (const hide of [(f: any) => { f.afterBoot = {}; }, (f: any) => { f.afterRefresh = null; }, (f: any) => { delete f.state1.tools; }, (f: any) => { f.state2 = undefined; }, (f: any) => { f.afterBoot.requests = -1; }]) {
+      const hidden: any = facts(); hide(hidden);
+      expect(driver.evaluateRestartCounts(pre, hidden)).toBeNull();
+    }
+    // Both sides missing is still not "equal".
+    expect(driver.evaluateRestartCounts({}, { afterBoot: {}, afterRefresh: {}, state1: {}, state2: {} })).toBeNull();
+    expect(driver.evaluateRestartCounts(null, null)).toBeNull();
+    expect(driver.evaluateOldTurnUnchanged('active', 'active')).toBe(true);
+    expect(driver.evaluateOldTurnUnchanged('active', 'completed')).toBe(false);
+    for (const [before, after] of [[null, null], [undefined, undefined], ['active', null], ['', ''], [3, 3]] as any[]) {
+      expect(driver.evaluateOldTurnUnchanged(before, after)).toBeNull();
+    }
+  });
+
+  test('UI-01 (codex round 5, R3): two continue events are a FAIL whatever the extra keys or the first Enter did; one event still needs all the key evidence', () => {
+    const card = { text: '继续中断任务', button: '继续', disabled: false };
+    const full = (): any => ({
+      card0: card,
+      enter: { button_focused: true, busy_label: true, button_disabled: true, focus_in_card: true, scroll: { testable: true, before: 0, after: 0 }, continue_events_while_busy: 1, continue_events_after_extra_keys: 1,
+        enter_delivery: { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, keydown_target: 'BUTTON', page_focused: true },
+        extra_enter: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, keydown_target: 'BODY' },
+        extra_space: { key: 'Space', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: true, keydown_target: 'BODY' } },
+      stopped: { card, focus_in_card: true, interrupted_turn_changed: true, revision_changed: true },
+      view_return: { card },
+      space: { continue_events_total: 2, ipc_continue_calls_total: 2, second_turn_status: 'completed' },
+    });
+    const sub = (facts: any) => driver.evaluateUiJourney(facts).find((item: any) => item.name === 'one_dispatch_while_busy');
+    expect(sub(full()).status).toBe('PASS');
+    const lost = (f: any) => { f.enter.extra_enter = { ...f.enter.extra_enter, keydown: false }; f.enter.extra_space = { ...f.enter.extra_space, keydown: false }; };
+    // The reviewed case: two events before any extra key was sent, and the extra keys never reached the page.
+    const duplicateBeforeExtras = full(); duplicateBeforeExtras.enter.continue_events_while_busy = 2; duplicateBeforeExtras.enter.continue_events_after_extra_keys = 2; lost(duplicateBeforeExtras);
+    expect(sub(duplicateBeforeExtras).status).toBe('FAIL');
+    const duplicateAfterExtras = full(); duplicateAfterExtras.enter.continue_events_after_extra_keys = 2; lost(duplicateAfterExtras);
+    expect(sub(duplicateAfterExtras).status).toBe('FAIL');
+    const duplicateWithBodyEnter = full(); duplicateWithBodyEnter.enter.continue_events_while_busy = 2; duplicateWithBodyEnter.enter.enter_delivery.keydown_target = 'BODY';
+    expect(sub(duplicateWithBodyEnter).status).toBe('FAIL');
+    // One event, key evidence missing: still UNKNOWN. Counts missing: UNKNOWN, not FAIL.
+    const oneButLost = full(); lost(oneButLost);
+    expect(sub(oneButLost).status).toBe('UNKNOWN');
+    const noCounts = full(); delete noCounts.enter.continue_events_while_busy;
+    expect(sub(noCounts).status).toBe('UNKNOWN');
+    // Zero events with every key delivered is the rehearsal 7 shape (nothing happened) and stays a FAIL.
+    const nothing = full(); nothing.enter.continue_events_while_busy = 0; nothing.enter.continue_events_after_extra_keys = 0;
+    expect(sub(nothing).status).toBe('FAIL');
+    expect(driver.evaluateUiJourney({ card0: card, enter: null, stopped: null, view_return: null, space: null }).find((item: any) => item.name === 'one_dispatch_while_busy').status).toBe('UNKNOWN');
   });
 });

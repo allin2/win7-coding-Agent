@@ -336,7 +336,11 @@ function evaluateUiJourney(f) {
     enter ? `focus_in_card=${enter.focus_in_card}` : 'Enter journey not observed'));
   subs.push(subResult('no_scroll_theft', scroll && scroll.testable === true ? Math.abs(Number(scroll.after) - Number(scroll.before)) <= 2 : null,
     scroll ? `testable=${scroll.testable}; before=${scroll.before}; after=${scroll.after}` : 'scroll not observed'));
-  subs.push(subResult('one_dispatch_while_busy', enter && enterReached === true && extrasReached === true && Number.isSafeInteger(enter.continue_events_while_busy) && Number.isSafeInteger(enter.continue_events_after_extra_keys)
+  // Two continue events are a duplicate dispatch whatever the extra keys did (codex round 5, R3): the counts are judged first, and the key evidence only
+  // decides whether a count of one may be signed PASS.
+  const dispatchCounts = Boolean(enter) && Number.isSafeInteger(enter.continue_events_while_busy) && Number.isSafeInteger(enter.continue_events_after_extra_keys);
+  const duplicateSeen = dispatchCounts && (enter.continue_events_while_busy > 1 || enter.continue_events_after_extra_keys > 1);
+  subs.push(subResult('one_dispatch_while_busy', duplicateSeen ? false : dispatchCounts && enterReached === true && extrasReached === true
     ? enter.continue_events_while_busy === 1 && enter.continue_events_after_extra_keys === 1 : null,
   enter ? `events_busy=${enter.continue_events_while_busy}; events_after_extra_keys=${enter.continue_events_after_extra_keys}${deliveryText}${extraText}` : 'Enter journey not observed'));
   subs.push(subResult('stop_returns_actionable_new_card', stopped && stopped.card ? stopped.card.disabled === false && stopped.card.button === CARD_BUTTON_READY
@@ -385,28 +389,85 @@ const KEY_RECORDER_SOURCE = `(() => { if (window.__b2KeyRecords) return true; co
 // The product reports the failure in the IPC answer of a9.turn.submit (error code A9_AUDIT_PERSISTENCE_FAILED), keeps the dispatch stopped and does
 // not write the Turn row, so the verdict reads the IPC answer; page text and Turn row are evidence only.
 const AUDIT_FAILURE_CODE = 'A9_AUDIT_PERSISTENCE_FAILED';
-// The scenario b2:audit-write asks the Provider once; the second request would carry the write result, so a hard stop after the failed tool_end leaves exactly one.
-const AUDIT_FIRST_TURN_REQUESTS = 1;
+// The scenario b2:audit-write asks the Provider for one write. A request that carries the tool result (a message with role "tool") is the dispatch
+// after the failed tool_end that the hard stop must prevent. The number of requests is not fixed: the Gateway retries a lost response up to five times
+// and a retry carries no tool result (codex round 5, R4). The Provider log must agree with the counters, or the window was not fully observed.
 function evaluateAuditHardStop(f) {
   const facts = f || {};
   const calls = Array.isArray(facts.submit_calls) ? facts.submit_calls : [];
   const first = calls[0] || null;
   const second = calls[1] || null;
   const requests = facts.requests || {};
-  const observed = Boolean(first) && typeof facts.file_written === 'boolean' && Number.isSafeInteger(facts.tool_ends)
-    && Number.isSafeInteger(requests.before) && Number.isSafeInteger(requests.after_turn) && Number.isSafeInteger(requests.after_next_submit);
+  const providerWindow = facts.provider_window || {};
+  const countersObserved = isCount(requests.before) && isCount(requests.after_turn) && isCount(requests.after_next_submit);
+  const logAgrees = countersObserved && isCount(providerWindow.requests) && isCount(providerWindow.tool_result_requests)
+    && providerWindow.requests === requests.after_next_submit - requests.before;
+  const observed = Boolean(first) && typeof facts.file_written === 'boolean' && Number.isSafeInteger(facts.tool_ends) && countersObserved && logAgrees;
   const detail = `file_written=${facts.file_written}; tool_end_persisted=${facts.tool_ends}; submit_ok=${first ? first.ok : null}; submit_error_code=${first ? first.error : null}; `
-    + `next_submit_error_code=${second ? second.error : 'not observed'}; turn_status=${facts.turn_status}; requests=${requests.before}->${requests.after_turn}->${requests.after_next_submit} (first turn must add ${AUDIT_FIRST_TURN_REQUESTS}); `
+    + `next_submit_error_code=${second ? second.error : 'not observed'}; turn_status=${facts.turn_status}; requests=${requests.before}->${requests.after_turn}->${requests.after_next_submit}; `
+    + `provider_log_requests=${providerWindow.requests}; requests_with_tool_result=${providerWindow.tool_result_requests}; `
     + `page_shows_code=${facts.page_shows_code} (observation); outcome_json_has_code=${facts.outcome_json_has_code} (observation)`;
-  if (!observed) return { status: 'UNKNOWN', detail: `a9.turn.submit answer or counters not observed; ${detail}` };
+  if (!observed) return { status: 'UNKNOWN', detail: `a9.turn.submit answer, counters or Provider log not observed (the log must hold one line per counted request); ${detail}` };
   const codeReturned = first.ok === false && first.error === AUDIT_FAILURE_CODE;
-  const firstTurnStopped = requests.after_turn - requests.before === AUDIT_FIRST_TURN_REQUESTS;
+  const firstTurnDispatched = requests.after_turn - requests.before >= 1;
+  const noToolResultDispatch = providerWindow.tool_result_requests === 0;
   const dispatchStopped = requests.after_next_submit === requests.after_turn;
-  const ok = facts.file_written === true && facts.tool_ends === 0 && codeReturned && facts.turn_status !== 'completed' && firstTurnStopped && dispatchStopped;
+  const ok = facts.file_written === true && facts.tool_ends === 0 && codeReturned && facts.turn_status !== 'completed' && firstTurnDispatched && noToolResultDispatch && dispatchStopped;
   if (!ok) return { status: 'FAIL', detail };
   // "No new request after the next submit" proves nothing when that submit never reached the product.
   if (!second) return { status: 'UNKNOWN', detail: `the second a9.turn.submit was not observed; ${detail}` };
   return { status: 'PASS', detail };
+}
+
+// B2-S03T (codex round 5, R1): the Turn ends as stuck after three reads and the terminal audit write fails. The follow-up submit is the challenge; "no new
+// request" proves nothing unless the counters were read and the follow-up reached the product through a9.turn.submit. The request total is not fixed.
+function evaluateTerminalAudit(f) {
+  const facts = f || {};
+  const calls = Array.isArray(facts.submit_calls) ? facts.submit_calls : [];
+  const requests = facts.requests || {};
+  const observed = isCount(requests.before) && isCount(requests.after_turn) && isCount(requests.after_next_submit)
+    && isCount(facts.tool_starts) && isCount(facts.later_shell_dispatches) && typeof facts.turn_completed === 'boolean';
+  const detail = `tool_starts=${facts.tool_starts}; turn_completed_persisted=${facts.turn_completed}; requests=${requests.before}->${requests.after_turn}->${requests.after_next_submit}; `
+    + `later_shell_dispatches=${facts.later_shell_dispatches}; submit_calls=${calls.length}`;
+  if (!observed) return { status: 'UNKNOWN', detail: `counters or events not observed; ${detail}` };
+  const ok = facts.tool_starts === 3 && !facts.turn_completed && requests.after_next_submit === requests.after_turn && facts.later_shell_dispatches === 0;
+  if (!ok) return { status: 'FAIL', detail };
+  if (calls.length < 2) return { status: 'UNKNOWN', detail: `the second a9.turn.submit was not observed; ${detail}` };
+  return { status: 'PASS', detail };
+}
+
+// Restart checks (codex round 5, R2): a counter or a Turn status that was not read is UNKNOWN. `undefined === undefined` and `null === null` are not "unchanged".
+const isStatusText = (value) => typeof value === 'string' && value.length > 0;
+function evaluateRestartCounts(pre, facts) {
+  const at = (object, key) => (object ? object[key] : undefined);
+  const kill = at(at(pre, 'counters'), 'requests');
+  const boot = at(at(facts, 'afterBoot'), 'requests');
+  const refresh = at(at(facts, 'afterRefresh'), 'requests');
+  const toolsKill = at(pre, 'toolEvents');
+  const toolsBoot = at(at(facts, 'state1'), 'tools');
+  const toolsRefresh = at(at(facts, 'state2'), 'tools');
+  if (![kill, boot, refresh, toolsKill, toolsBoot, toolsRefresh].every(isCount)) return null;
+  return boot === kill && refresh === kill && toolsBoot === toolsKill && toolsRefresh === toolsKill;
+}
+function evaluateOldTurnUnchanged(before, after) {
+  if (!isStatusText(before) || !isStatusText(after)) return null;
+  return before === after;
+}
+// The two B2-CH-04 answers of the restart phase: [interrupted state is stable, no request or tool event was added].
+function evaluateInterruptRecords(pre, facts) {
+  const at = (object, key) => (object ? object[key] : undefined);
+  const turnRestart = at(at(facts, 'state1'), 'turn');
+  const turnRefresh = at(at(facts, 'state2'), 'turn');
+  const stable = isStatusText(turnRestart) && isStatusText(turnRefresh) ? turnRestart === turnRefresh && turnRefresh !== 'completed' : null;
+  const rest = Boolean(at(facts, 'recovery')) && facts.recovery.canContinue === true && Boolean(at(facts, 'card')) && facts.card.button === '继续' && at(facts, 'pending') === null;
+  const zero = evaluateRestartCounts(pre, facts);
+  return [
+    { status: statusOf(withGuard(rest, stable)),
+      detail: `can_continue=${at(at(facts, 'recovery'), 'canContinue')}; card_button=${at(at(facts, 'card'), 'button')}; turn_status_restart=${turnRestart}; turn_status_refresh=${turnRefresh}; pending_approval=${at(facts, 'pending') ? 'present' : 'none'}` },
+    { status: statusOf(zero),
+      detail: `provider_requests_kill=${at(at(pre, 'counters'), 'requests')}; after_bootstrap=${at(at(facts, 'afterBoot'), 'requests')}; after_refresh=${at(at(facts, 'afterRefresh'), 'requests')}; `
+        + `tool_events=${at(pre, 'toolEvents')}->${at(at(facts, 'state1'), 'tools')}->${at(at(facts, 'state2'), 'tools')}${zero === null ? ' (not observed)' : ''}` },
+  ];
 }
 
 // B2-S04 (rehearsal 7, KL-5): under Windows PowerShell the product decodes Shell output as strict UTF-8, so only UTF-8 and CRLF decide the
@@ -874,8 +935,6 @@ async function runDriver() {
     const pending = (await snapshot()).pendingApproval || null;
     return { baseline, afterBoot, afterRefresh, recovery, card, state1, state2, pending };
   }
-  const zeroAdded = (pre, facts) => facts.afterBoot.requests === pre.counters.requests && facts.afterRefresh.requests === pre.counters.requests
-    && facts.state1.tools === pre.toolEvents && facts.state2.tools === pre.toolEvents;
   const oldApprovalResult = (pre) => exec(`window.win7Agent.a9.resumeApproval(${JSON.stringify(pre.approval.approvalId)}, 'approved', ${JSON.stringify(pre.approval.bindingDigest)}, ${JSON.stringify(pre.conversationId)}, ${JSON.stringify(pre.taskId)}, ${JSON.stringify(pre.turnId)})`);
 
   // ---- Modes: chain (p03) ------------------------------------------------------------------------------------------------
@@ -964,6 +1023,13 @@ async function runDriver() {
 
   const chainInterrupt = () => interruptAt('approval', '04-interruption-pre.json');
 
+  // The B2-CH-04 answers of the restart phase; a counter or Turn status that was not read is UNKNOWN (codex round 5, R2).
+  function recordInterruptChecks(pre, facts) {
+    const verdicts = evaluateInterruptRecords(pre, facts);
+    record('B2-CH-04-INTERRUPT-RESTART', 1, verdicts[0].status, verdicts[0].detail);
+    record('B2-CH-04-INTERRUPT-RESTART', 2, verdicts[1].status, verdicts[1].detail);
+  }
+
   async function chainRecover() {
     const pre = readJsonFile('04-interruption-pre.json');
     const facts = await recoverFacts(pre);
@@ -974,10 +1040,7 @@ async function runDriver() {
       tool_events_before: pre.toolEvents, tool_events_after_restart: facts.state1.tools, tool_events_after_refresh: facts.state2.tools });
     out('04-task-turn-events.json', { turn_id: pre.turnId, task_id: pre.taskId, task_status: dbAll('SELECT status FROM a9_tasks WHERE task_id = ?', pre.taskId)[0] || null,
       turn_status: facts.state2.turn, events: evts.map((e) => ({ eventId: e.eventId, eventType: e.eventType })) });
-    record('B2-CH-04-INTERRUPT-RESTART', 1, facts.recovery.canContinue === true && facts.card && facts.card.button === '继续' && facts.state1.turn === facts.state2.turn && facts.state2.turn !== 'completed' && facts.pending === null ? 'PASS' : 'FAIL',
-      `can_continue=${facts.recovery.canContinue}; card_button=${facts.card && facts.card.button}; turn_status_restart=${facts.state1.turn}; turn_status_refresh=${facts.state2.turn}; pending_approval=${facts.pending ? 'present' : 'none'}`);
-    record('B2-CH-04-INTERRUPT-RESTART', 2, zeroAdded(pre, facts) ? 'PASS' : 'FAIL',
-      `provider_requests_kill=${pre.counters.requests}; after_bootstrap=${facts.afterBoot.requests}; after_refresh=${facts.afterRefresh.requests}; tool_events=${pre.toolEvents}->${facts.state1.tools}->${facts.state2.tools}`);
+    recordInterruptChecks(pre, facts);
 
     // Step 5: old approval is dead, explicit continue creates one Turn, duplicate key is idempotent, Stop works on the new Turn.
     const resume = await oldApprovalResult(pre);
@@ -1159,6 +1222,7 @@ async function runDriver() {
     }
     try {
       const c0 = await counters();
+      const ipcFrom = ipcLog.length;
       await submit('b2:audit-three');
       await waitFor(async () => { const s = await snapshot(); return s.controls.canStop === false && s.agentStatus !== 'running' ? s : null; }, 120000, 'audit turn settled');
       await sleep(1500);
@@ -1175,10 +1239,12 @@ async function runDriver() {
       const evts2 = (await events(conv, 1000)).events;
       const laterShell = evts2.filter((e) => e.eventType === 'tool_start' && eventData(e).toolName === 'shell').length;
       const dom = await domState();
+      const submitCalls = ipcLog.slice(ipcFrom).filter((item) => item.action === 'a9.turn.submit').map((item) => ({ ok: item.ok === true, error: item.error }));
+      const verdict = evaluateTerminalAudit({ tool_starts: starts, turn_completed: completed, requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests },
+        later_shell_dispatches: laterShell, submit_calls: submitCalls });
       out('s03t-terminal-audit.json', { requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, tool_starts_in_turn: starts, turn_completed_persisted: completed,
-        later_shell_dispatches: laterShell, outcome_text: dom.outcome, turn_status: turnStatus(turnId), composer_before_next_submit: composerBefore });
-      record('B2-S03T-TERMINAL-AUDIT', 1, starts === 3 && !completed && c2.requests === c1.requests && laterShell === 0 ? 'PASS' : 'FAIL',
-        `tool_starts=${starts}; turn_completed_persisted=${completed}; requests=${c0.requests}->${c1.requests}->${c2.requests}; later_shell_dispatches=${laterShell}`);
+        later_shell_dispatches: laterShell, submit_calls: submitCalls, outcome_text: dom.outcome, turn_status: turnStatus(turnId), composer_before_next_submit: composerBefore, verdict });
+      record('B2-S03T-TERMINAL-AUDIT', 1, verdict.status, verdict.detail);
     } finally {
       try { const db = openDb(false); try { db.exec('DROP TRIGGER IF EXISTS b2_audit_fail'); } finally { db.close(); } } catch (_error) { /* data root is disposable */ }
     }
@@ -1333,12 +1399,13 @@ async function runDriver() {
     const after = await counters();
     const newTurns = [...new Set(requested.map((e) => e.turnId))];
     const oldStatusAfter = turnStatus(pre.turnId);
-    out('cont01-restart.json', { zero_added: zeroAdded(pre, facts), counters: { kill: pre.counters.requests, after_boot: facts.afterBoot.requests, after_refresh: facts.afterRefresh.requests, before_click: before.requests, after_settle: after.requests },
+    const zeroAdded = evaluateRestartCounts(pre, facts);
+    out('cont01-restart.json', { zero_added: zeroAdded, counters: { kill: pre.counters.requests, after_boot: facts.afterBoot.requests, after_refresh: facts.afterRefresh.requests, before_click: before.requests, after_settle: after.requests },
       double_click: first, continue_events: requested.length, new_turns: newTurns, old_turn_status: { before: facts.state2.turn, after: oldStatusAfter } });
     writeJson(path.join(attemptDir, 'cont03-part-approval.json'), { old_approval_ok: approvalResult && approvalResult.ok, old_approval_error: approvalResult && approvalResult.error && approvalResult.error.code, file_still_exists: fileStillThere });
-    record('B2-CONT-01-RESTART-ZERO-REQUEST', 1, zeroAdded(pre, facts) && requested.length === 1 && newTurns.length === 1 ? 'PASS' : 'FAIL',
-      `zero_added=${zeroAdded(pre, facts)}; double_click_continue_events=${requested.length}; new_turns=${newTurns.length}; (single click: see B2-CH-05-CONTINUE)`);
-    record('B2-CONT-01-RESTART-ZERO-REQUEST', 2, facts.state2.turn === oldStatusAfter ? 'PASS' : 'FAIL', `old_turn_status_before=${facts.state2.turn}; after=${oldStatusAfter}`);
+    record('B2-CONT-01-RESTART-ZERO-REQUEST', 1, statusOf(withGuard(requested.length === 1 && newTurns.length === 1, zeroAdded)),
+      `zero_added=${zeroAdded === null ? 'not observed' : zeroAdded}; double_click_continue_events=${requested.length}; new_turns=${newTurns.length}; (single click: see B2-CH-05-CONTINUE)`);
+    record('B2-CONT-01-RESTART-ZERO-REQUEST', 2, statusOf(evaluateOldTurnUnchanged(facts.state2.turn, oldStatusAfter)), `old_turn_status_before=${facts.state2.turn}; after=${oldStatusAfter}`);
   }
 
   // CONT-03 second assertion, in-process part. The interrupted task is written into the candidate's own database the way the
@@ -1545,12 +1612,15 @@ async function runDriver() {
       const c2 = await counters();
       const dom = await domState();
       const submitCalls = ipcLog.slice(ipcFrom).filter((item) => item.action === 'a9.turn.submit').map((item) => ({ ok: item.ok === true, error: item.error }));
+      // The Provider log has one line per counted request; a line whose tool_messages is above zero carries a tool result, so it was sent after a tool ended.
+      const providerWindow = providerLines().filter((entry) => entry.index > c0.requests);
+      const providerFacts = { requests: providerWindow.length, tool_result_requests: providerWindow.every((entry) => isCount(entry.tool_messages)) ? providerWindow.filter((entry) => entry.tool_messages > 0).length : null };
       const pageShowsCode = /A9_AUDIT_PERSISTENCE_FAILED|auditIncomplete/.test(String(dom.present));
       const outcomeHasCode = /A9_AUDIT_PERSISTENCE_FAILED|auditIncomplete/.test(String(row.outcome_json || ''));
       const verdict = evaluateAuditHardStop({ file_written: fileWritten, tool_ends: toolEnds, turn_status: row.status || null, submit_calls: submitCalls,
-        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, page_shows_code: pageShowsCode, outcome_json_has_code: outcomeHasCode });
+        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, provider_window: providerFacts, page_shows_code: pageShowsCode, outcome_json_has_code: outcomeHasCode });
       out('safe02-audit-hard-stop.json', { file_written_on_disk: fileWritten, tool_end_events_persisted: toolEnds, turn_status: row.status || null, outcome_json: String(row.outcome_json || '').slice(0, 400),
-        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, submit_calls: submitCalls, page_shows_code: pageShowsCode, outcome_json_has_code: outcomeHasCode,
+        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, provider_window: providerFacts, submit_calls: submitCalls, page_shows_code: pageShowsCode, outcome_json_has_code: outcomeHasCode,
         page_visible_tail: String(dom.visible || '').slice(-600), outcome_text: dom.outcome, composer_before_next_submit: composerBefore, verdict });
       record('B2-SAFE-02-AUDIT-HARD-STOP', 1, verdict.status, verdict.detail);
     } finally {
@@ -1773,7 +1843,7 @@ module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
-  keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, AUDIT_FIRST_TURN_REQUESTS,
+  keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, evaluateTerminalAudit, evaluateRestartCounts, evaluateOldTurnUnchanged, evaluateInterruptRecords, isCount, isStatusText,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
 };
 
