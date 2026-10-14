@@ -1018,8 +1018,11 @@ describe('A9-33 batch-2 smoke pieces', () => {
     fs.writeFileSync(path.join(modes, 'abc.v1.json'), 'v1 file must stay untouched');
     const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
     const seen: Record<string, any> = {};
+    // The interrupt modes are killed by the harness, so each is followed by a sweep; it needs a usable process table (codex round 11, N1).
+    const processTable = 'Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId\r\nHOST,20261014172412.000000+000,C:\\Windows\\System32\\smss.exe,smss.exe,4,304,0\r\n';
     const result = await smoke.runDriverPhase(ctx, {
-      runtime, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
+      runtime, exec: (name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? processTable : '', stderr: '', error: null }),
+      strays: { kill: () => undefined, wait: async () => undefined },
       launchDriver: async (_runtime: any, env: any) => {
         seen[env.A9_BATCH2_MODE] = { content: fs.readFileSync(path.join(modes, 'abc.json'), 'utf8'), flag: env.A9_BATCH2_MODE_SETTINGS_CORRUPTED || null, v1: fs.readFileSync(path.join(modes, 'abc.v1.json'), 'utf8') };
         fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: [] }));
@@ -1316,8 +1319,11 @@ describe('A9-33 batch-2 smoke pieces', () => {
   // Rehearsal 10 (Win7): p06 killed the driver, Chromium restarted the network service in that instant and the new helper lost its parent.
   // The orphan kept driver-electron\\electron.exe mapped, so the next phase failed copying it with EBUSY and wrote no phase result.
   describe('the driver runtime copy and the sweep of processes the harness left behind (rehearsal 10: p07 and p08 EBUSY)', () => {
+    // A usable process table always shows at least the system processes; the bystander row stands for them.
+    const bystander: [string, number, number, string] = [path.join(os.tmpdir(), 'Windows', 'System32', 'smss.exe'), 304, 4, 'smss.exe'];
     const wmicCsv = (rows: Array<[string, number, number, string]>) => ({ status: 0, error: null, stderr: '',
-      stdout: `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId\r\n${rows.map(([exe, pid, parent, name]) => `HOST,20261014172412.000000+000,${exe},${name},${parent},${pid},2`).join('\r\n')}\r\n` });
+      stdout: `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId\r\n${[bystander, ...rows].map(([exe, pid, parent, name]) => `HOST,20261014172412.000000+000,${exe},${name},${parent},${pid},2`).join('\r\n')}\r\n` });
+    const rawListing = (stdout: string) => ({ status: 0, error: null, stderr: '', stdout });
     const runtimeBase = temp('stray');
     const runtimeRoot = path.join(runtimeBase, 'driver-electron');
     const electronInside = path.join(runtimeRoot, 'electron.exe');
@@ -1394,15 +1400,37 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(smoke.findDriverStrays(() => ({ status: 1, error: null, stdout: '', stderr: '' }), runtimeRoot)).toEqual({ strays: [], failed: true });
     });
 
+    // Codex round 11 (N1): a table that parses but shows nothing usable is not a clean listing.
+    const header = 'Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId,SessionId';
+    const unusableTables: Array<[string, any]> = [
+      ['empty output', rawListing('')],
+      ['a header and no rows', rawListing(`${header}\r\n`)],
+      ['text that is not CSV', rawListing('ERROR:\r\nDescription = Invalid query\r\n')],
+      ['a table without the ExecutablePath column', rawListing('Node,Name,ParentProcessId,ProcessId\r\nHOST,smss.exe,4,304\r\n')],
+      ['a table without the ProcessId column', rawListing('Node,ExecutablePath,Name,ParentProcessId\r\nHOST,C:\\x\\a.exe,a.exe,4\r\n')],
+      ['rows whose process ids are not positive', rawListing(`${header}\r\nHOST,20261014172412.000000+000,,System Idle Process,0,0,0\r\n`)],
+    ];
+
+    test('a process table that shows nothing usable is a failed listing, so no sweep can call it clean (codex round 11, N1)', async () => {
+      for (const [label, table] of unusableTables) {
+        expect({ label, ...smoke.findDriverStrays(() => table, runtimeRoot) }).toEqual({ label, strays: [], failed: true });
+        const swept = await smoke.sweepDriverStrays(() => table, runtimeRoot, { kill: () => undefined, wait: instant });
+        expect({ label, ...swept }).toEqual({ label, attempted: [], removed: [], remaining: [], observed: false });
+      }
+      // A table with one usable row is enough, and the row may be a process unrelated to the driver.
+      expect(smoke.findDriverStrays(() => wmicCsv([]), runtimeRoot)).toEqual({ strays: [], failed: false });
+    });
+
     test('the sweep removes a stray, needs two clean rounds, does not call a failed listing clean and reports what survives', async () => {
       const killed: number[] = [];
       const waits: number[] = [];
       const hooks = { kill: (pid: number) => { killed.push(pid); }, wait: async (ms: number) => { waits.push(ms); } };
-      // The orphan exists from the first listing on and dies after the kill; two empty listings in a row end the sweep.
+      const stray = (pid: number) => ({ pid, parent_pid: 4988, name: 'electron.exe' });
+      // The orphan exists from the first listing on and dies after the kill; two clean listings in a row end the sweep.
       let calls = 0;
       const dying = () => { calls += 1; return calls === 1 ? wmicCsv([[electronInside, 4736, 4988, 'electron.exe']]) : wmicCsv([]); };
       const first = await smoke.sweepDriverStrays(dying, runtimeRoot, hooks);
-      expect(first).toEqual({ removed: [{ pid: 4736, parent_pid: 4988, name: 'electron.exe' }], remaining: [], observed: true });
+      expect(first).toEqual({ attempted: [stray(4736)], removed: [stray(4736)], remaining: [], observed: true });
       expect(killed).toEqual([4736]);
       expect(calls).toBe(3);
       expect(waits.every((ms) => ms === 500)).toBe(true);
@@ -1410,22 +1438,45 @@ describe('A9-33 batch-2 smoke pieces', () => {
       // A helper that appears only in the second round (a restart after the first listing) is still removed.
       killed.length = 0;
       calls = 0;
-      const late = () => { calls += 1; return calls === 2 ? wmicCsv([[electronInside, 4900, 1, 'electron.exe']]) : wmicCsv([]); };
-      expect(await smoke.sweepDriverStrays(late, runtimeRoot, hooks)).toMatchObject({ removed: [{ pid: 4900 }], remaining: [], observed: true });
+      const late = () => { calls += 1; return calls === 2 ? wmicCsv([[electronInside, 4900, 4988, 'electron.exe']]) : wmicCsv([]); };
+      expect(await smoke.sweepDriverStrays(late, runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 4900 }], removed: [{ pid: 4900 }], remaining: [], observed: true });
       expect(killed).toEqual([4900]);
 
-      // A stray that survives every kill is reported, and so is a listing that never succeeds.
+      // A stray found after one clean round resets the count: clean, stray, clean, clean needs four listings (codex round 11, X02).
+      calls = 0;
+      const reset = () => { calls += 1; return calls === 2 ? wmicCsv([[electronInside, 4901, 4988, 'electron.exe']]) : wmicCsv([]); };
+      expect(await smoke.sweepDriverStrays(reset, runtimeRoot, hooks)).toMatchObject({ removed: [{ pid: 4901 }], observed: true });
+      expect(calls).toBe(4);
+
+      // The eighth round is still used: six rounds with a stray, then two clean ones end observed (codex round 11, X03).
+      calls = 0;
+      const lateClean = () => { calls += 1; return calls <= 6 ? wmicCsv([[electronInside, 4902, 4988, 'electron.exe']]) : wmicCsv([]); };
+      expect(await smoke.sweepDriverStrays(lateClean, runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 4902 }], removed: [{ pid: 4902 }], remaining: [], observed: true });
+      expect(calls).toBe(8);
+
+      // A stray that survives every kill is attempted, not removed, and reported (codex round 11, N3).
       const stubborn = () => wmicCsv([[electronInside, 5000, 1, 'electron.exe']]);
       const survived = await smoke.sweepDriverStrays(stubborn, runtimeRoot, hooks);
-      expect(survived.remaining.map((item: any) => item.pid)).toEqual([5000]);
-      expect(survived.observed).toBe(false);
+      expect(survived).toEqual({ attempted: [{ pid: 5000, parent_pid: 1, name: 'electron.exe' }], removed: [], remaining: [{ pid: 5000, parent_pid: 1, name: 'electron.exe' }], observed: false });
+
+      // A listing that never succeeds shows nothing.
       const blind = await smoke.sweepDriverStrays(() => ({ status: 1, error: 'wmic failed', stdout: '', stderr: '' }), runtimeRoot, hooks);
-      expect(blind).toMatchObject({ removed: [], observed: false });
+      expect(blind).toEqual({ attempted: [], removed: [], remaining: [], observed: false });
+
+      // A stray seen only in a failed listing is attempted; without a usable listing afterwards it is not confirmed removed.
+      calls = 0;
+      const partial = () => {
+        calls += 1;
+        if (calls === 1) return wmicCsv([]);
+        if (calls === 2) return { ...wmicCsv([[electronInside, 5100, 1, 'electron.exe']]), status: 1 };
+        return { status: 1, error: 'wmic failed', stdout: '', stderr: '' };
+      };
+      expect(await smoke.sweepDriverStrays(partial, runtimeRoot, hooks)).toMatchObject({ attempted: [{ pid: 5100 }], removed: [], observed: false });
+
       // A failed listing between clean ones restarts the count.
       let step = 0;
       const flaky = () => { step += 1; return step === 2 ? { status: 1, error: 'x', stdout: '', stderr: '' } : wmicCsv([]); };
-      calls = 0;
-      expect(await smoke.sweepDriverStrays(flaky, runtimeRoot, hooks)).toEqual({ removed: [], remaining: [], observed: true });
+      expect(await smoke.sweepDriverStrays(flaky, runtimeRoot, hooks)).toEqual({ attempted: [], removed: [], remaining: [], observed: true });
       expect(step).toBe(4);
     });
 
@@ -1477,7 +1528,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(kills).toEqual([6002]);
       const markerLaunches = launchesOf(marker.attempt);
       expect(markerLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt', 'ui_continue', 'ui_layouts']);
-      expect(markerLaunches[0].strays).toEqual({ removed: [{ pid: 6002, parent_pid: 1, name: 'electron.exe' }], remaining: [], observed: true });
+      expect(markerLaunches[0].strays).toEqual({ attempted: [{ pid: 6002, parent_pid: 1, name: 'electron.exe' }], removed: [{ pid: 6002, parent_pid: 1, name: 'electron.exe' }], remaining: [], observed: true });
       expect(markerLaunches[0].failed).toBeUndefined();
       expect(markerLaunches[1].strays).toBeUndefined();
 
@@ -1492,7 +1543,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
         return wmicCsv([]);
       }));
       expect(kills).toEqual([6003]);
-      expect(launchesOf(timeout.attempt)[0]).toMatchObject({ killed_by: 'timeout', failed: true, strays: { removed: [{ pid: 6003 }], remaining: [] } });
+      expect(launchesOf(timeout.attempt)[0]).toMatchObject({ killed_by: 'timeout', failed: true, strays: { attempted: [{ pid: 6003 }], removed: [{ pid: 6003 }], remaining: [] } });
 
       // A stray that survives the kill: the launch is failed with a named reason and no later mode starts.
       const stuck = ctxPhase('p08-ui', 4);
@@ -1501,7 +1552,15 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(stuckResult.status).not.toBe('PASS');
       const stuckLaunches = launchesOf(stuck.attempt);
       expect(stuckLaunches).toHaveLength(1);
-      expect(stuckLaunches[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { remaining: [{ pid: 6100 }], observed: false } });
+      expect(stuckLaunches[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { attempted: [{ pid: 6100 }], removed: [], remaining: [{ pid: 6100 }], observed: false } });
+
+      // A process table that comes back empty (exit 0, no rows) cannot show absence: the phase stops after the first killed mode (codex round 11, N1).
+      const empty = ctxPhase('p08-ui', 6);
+      const emptyResult = await smoke.runDriverPhase(empty.ctx, uiHooks('marker', (name: string) => (name === 'wmic_processes' ? rawListing('') : { status: 0, stdout: '', stderr: '', error: null })));
+      expect(emptyResult.status).not.toBe('PASS');
+      const emptyLaunches = launchesOf(empty.attempt);
+      expect(emptyLaunches.map((item: any) => item.mode)).toEqual(['ui_interrupt']);
+      expect(emptyLaunches[0]).toMatchObject({ failed: true, driver_error: 'DRIVER_STRAY_PROCESS_NOT_REMOVED', strays: { attempted: [], removed: [], observed: false } });
 
       // A sweep that cannot list processes cannot show absence either.
       const blind = ctxPhase('p08-ui', 5);

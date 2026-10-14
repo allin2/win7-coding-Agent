@@ -535,40 +535,52 @@ function killTree(pid) {
 // taskkill /T lists the children of a process once. When the main process dies, Chromium can restart a helper (the network service) in
 // that instant; the new helper is not on the list, loses its parent and keeps the driver runtime copy mapped. A driver the harness
 // killed itself (marker or timeout) is therefore followed by a sweep of the processes that run from the driver runtime copy, and each
-// removal is recorded. Only that copy is swept: the candidate's own files, the product's children and any other path are never touched.
+// kill attempt and each confirmed removal is recorded. Only that copy is swept: the candidate's own files, the product's children and
+// any other path are never touched.
 const STRAY_SWEEP_ROUNDS = 8;
 const STRAY_SWEEP_CLEAN_ROUNDS = 2;
 const STRAY_SWEEP_WAIT_MS = 500;
+const PROCESS_LISTING_COLUMNS = ['ProcessId', 'ParentProcessId', 'Name', 'ExecutablePath'];
+// A process table can parse and still show nothing: no rows, a header only, a column missing. Such a table proves nothing about absence.
+function usableProcessListing(listing) {
+  if (listing.failed || listing.rows.length === 0) return false;
+  if (!PROCESS_LISTING_COLUMNS.every((column) => Object.prototype.hasOwnProperty.call(listing.rows[0], column))) return false;
+  return listing.rows.some((row) => Number(row.ProcessId) > 0);
+}
 function findDriverStrays(exec, runtimeRoot) {
   const listing = listProcesses(exec);
   const prefix = `${path.resolve(runtimeRoot).toLowerCase().replace(/[\\/]+$/, '')}${path.sep}`;
   const strays = listing.rows
     .filter((row) => Number(row.ProcessId) !== process.pid && String(row.ExecutablePath || '').toLowerCase().startsWith(prefix))
     .map((row) => ({ pid: Number(row.ProcessId), parent_pid: Number(row.ParentProcessId), name: String(row.Name || '') }));
-  return { strays, failed: listing.failed };
+  return { strays, failed: !usableProcessListing(listing) };
 }
 async function sweepDriverStrays(exec, runtimeRoot, hooks) {
   const kill = (hooks && hooks.kill) || killTree;
   const wait = (hooks && hooks.wait) || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-  const removed = [];
+  const attempted = [];
   let clean = 0;
-  let observed = true;
-  let remaining = [];
+  let lastStrays = [];
+  let lastUsable = null;
   for (let round = 0; round < STRAY_SWEEP_ROUNDS && clean < STRAY_SWEEP_CLEAN_ROUNDS; round += 1) {
     await wait(STRAY_SWEEP_WAIT_MS);
     const found = findDriverStrays(exec, runtimeRoot);
-    // A listing that failed shows presence but never absence: it does not count as a clean round.
-    if (found.failed) { observed = false; clean = 0; } else observed = true;
-    remaining = found.strays;
+    lastStrays = found.strays;
+    lastUsable = found.failed ? null : new Set(found.strays.map((item) => item.pid));
     if (found.strays.length) {
       clean = 0;
       for (const stray of found.strays) {
         kill(stray.pid);
-        if (!removed.some((item) => item.pid === stray.pid)) removed.push(stray);
+        if (!attempted.some((item) => item.pid === stray.pid)) attempted.push(stray);
       }
-    } else if (!found.failed) clean += 1;
+    // A listing that failed or showed nothing usable shows presence at most, never absence: it is not a clean round and restarts the count.
+    } else if (found.failed) clean = 0;
+    else clean += 1;
   }
-  return { removed, remaining: clean >= STRAY_SWEEP_CLEAN_ROUNDS ? [] : remaining, observed: observed && clean >= STRAY_SWEEP_CLEAN_ROUNDS };
+  const observed = clean >= STRAY_SWEEP_CLEAN_ROUNDS;
+  // A kill is only an attempt. A process counts as removed when the latest usable listing no longer shows it.
+  const removed = attempted.filter((item) => lastUsable !== null && !lastUsable.has(item.pid));
+  return { attempted, removed, remaining: observed ? [] : lastStrays, observed };
 }
 
 // Asks the desktop controller to click one button of the product's own exit dialog (fixed argv; the index is the only value).
