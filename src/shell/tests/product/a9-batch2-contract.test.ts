@@ -646,6 +646,21 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(found(` sk-${'A'.repeat(10)}_${'B'.repeat(10)}`)).toEqual(['api-key-prefix']);
     expect(found(` sk-${'A'.repeat(10)}-${'B'.repeat(10)}`)).toEqual(['api-key-prefix']);
     expect(found(` sk-${'A'.repeat(10)}.${'B'.repeat(10)}`)).toEqual([]);
+    // Cost: p10 scans the 150 MB Electron binary in the run root. A pattern that tests the predecessor before the literal "sk-"
+    // costs about 70 times the plain literal search; this one must stay within a small multiple of it.
+    const filler = Buffer.from('ab12 Cd34-ef_56 '.repeat(2 * 1024 * 1024));
+    const best = (run: () => unknown) => {
+      let fastest = Infinity;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const started = process.hrtime.bigint();
+        run();
+        fastest = Math.min(fastest, Number(process.hrtime.bigint() - started) / 1e6);
+      }
+      return fastest;
+    };
+    const plainMs = best(() => /sk-[A-Za-z0-9_-]{20,}/.test(filler.toString('latin1')));
+    const scanMs = best(() => smoke.scanBytesForSecrets(filler, []));
+    expect(scanMs).toBeLessThan(plainMs * 10 + 100);
     // The whole run: an escaped key in an events file is a finding, and no executable or library extension is skipped.
     const root = temp('scan-escape');
     fs.writeFileSync(path.join(root, 'escaped.json'), JSON.stringify({ message: `\n${other}` }));

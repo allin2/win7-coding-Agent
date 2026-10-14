@@ -223,8 +223,9 @@ function evaluateEnvironment(facts, request, candidateRoot) {
 const SECRET_PATTERNS = Object.freeze([
   // A letter or digit right before "sk-" means a word that ends in "sk-" (task ids, symbol names in binaries), so it is
   // not a key start. The exception is an escape that serialization puts in front of a real key and that itself ends in a
-  // letter or digit: JSON \n \t \r \f \b, \uXXXX, \xXX and URL %XX.
-  { id: 'api-key-prefix', pattern: /(?:(?<![A-Za-z0-9])|(?<=\\[ntrfb])|(?<=\\u[0-9a-fA-F]{4})|(?<=\\x[0-9a-fA-F]{2})|(?<=%[0-9a-fA-F]{2}))sk-[A-Za-z0-9_-]{20,}/ },
+  // letter or digit: JSON \n \t \r \f \b, \uXXXX, \xXX and URL %XX. The literal "sk-" comes first and the predecessor is
+  // checked behind it, so the engine skips ahead to each "sk-" instead of testing every position of a 150 MB binary.
+  { id: 'api-key-prefix', pattern: /sk-(?:(?<=(?<![A-Za-z0-9])sk-)|(?<=\\[ntrfb]sk-)|(?<=\\u[0-9a-fA-F]{4}sk-)|(?<=\\x[0-9a-fA-F]{2}sk-)|(?<=%[0-9a-fA-F]{2}sk-))[A-Za-z0-9_-]{20,}/ },
   { id: 'bearer-token', pattern: /Authorization\s*:\s*Bearer\s+[A-Za-z0-9._-]{16,}/i },
   { id: 'private-key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
 ]);
