@@ -1511,7 +1511,7 @@ p10 失败分类（证据：`.acceptance/a9-33-rehearsal/rehearsal-8/r7/`，开�
 | 命中 | 数量 | 已确认的事实 |
 |---|---|---|
 | 11 个 JSON 证据文件（p03、p06、p08 的请求目录） | 17 处 | 匹配的是 `task-<13 位数字>-<6 位>` 编号里的 `sk-…`，前一字符是 `a`。`sk-` 之后有 20 个字符（13 位数字、连字符、6 位），刚好达到正则 `sk-[A-Za-z0-9_-]{20,}` 的下限 |
-| 3 个 `driver-electron` 二进制 | 23 处 | `electron.exe`、`vk_swiftshader.dll`、`vulkan-1.dll` 里的 Vulkan 符号名（`…Mask-…`、`…Mask-commandBuffer-parameter`）。三个文件与本机 Electron ZIP 同名条目的大小和 SHA-256 逐项相同 |
+| 3 个 `driver-electron` 二进制 | 23 处 | `electron.exe`、`vk_swiftshader.dll`、`vulkan-1.dll` 里的 Vulkan 符号名（以 `Mask` 结尾的名字，后接连字符和 20 个以上字符）。三个文件与本机 Electron ZIP 同名条目的大小和 SHA-256 逐项相同 |
 | `configured-secret-literal`、`bearer-token` | 0 处 | 扫描结果只含 `api-key-prefix`；开发机对 245 个取回文件搜索 `sk-TESTONLY`，0 个文件命中 |
 
 根因：`a9-batch2-smoke.cjs:224` 的正则没有左边界，任何以 `sk-` 结尾的单词加 20 个以上字符都命中；扫描范围包含 Electron 运行时副本。p03 的证据含任务编号，所以按当前扫描器，p10 在这类证据上判 `FAIL`。该缺陷此前不可见，因为 p10 从未在 Win7 执行。
@@ -1529,7 +1529,7 @@ p10 失败分类（证据：`.acceptance/a9-33-rehearsal/rehearsal-8/r7/`，开�
 
 建议的修复（等负责人裁决，未实施；全部在 [§6.1](#61-拟批准精确允许路径) 的 20 个路径内，不改产品代码）：
 
-1. `api-key-prefix` 正则加左边界：`/(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}/`；开发机 Node 20 验证 `task-1791978065779-vt8baz` 不命中；Win7 的 Electron 22（Node 16.17.1）支持该语法，仍需在 Win7 取得。
+1. `api-key-prefix` 正则加左边界：`/(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}/`；开发机 Node 20 验证 `task-` 加 13 位数字、连字符、6 位字符的任务编号不命中；Win7 的 Electron 22（Node 16.17.1）支持该语法，仍需在 Win7 取得。
 2. 契约测试：`task-` 编号、`…Mask-…` 符号名不命中；`sk-TESTONLYBATCH2…`、`"apiKey":"sk-…"`、`Bearer sk-…`、`=sk-…` 命中；正控仍检出。
 3. 开发机回放：用修复后的扫描器扫预演 8 取回的 245 个文件和 3 个 ZIP 条目，期望 0 个命中。
 4. 修复结果送 codex 复审（范围限扫描器差异）。
