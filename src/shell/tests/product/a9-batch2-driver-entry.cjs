@@ -549,6 +549,8 @@ async function runDriver() {
     return { configured: provider.configured === true, base_url_is_fixture: provider.baseUrl === fixtureUrl, key_available: key.available === true, key_source: key.source || null, key_remembered: key.remembered === true };
   };
   const providerReady = (snap) => { const facts = providerKeyFacts(snap); return facts.configured && facts.base_url_is_fixture && facts.key_available; };
+  const providerApplyState = () => exec(`(() => { const apply = document.getElementById('a9-provider-apply'); const error = document.getElementById('a9-provider-error'); const probe = document.getElementById('a9-provider-probe-state');
+    return { busy: !apply || apply.disabled || apply.getAttribute('aria-busy') === 'true', error: error && !error.hidden ? String(error.textContent || '') : '', probe: probe ? probe.textContent : null }; })()`);
   async function ensureProvider(options) {
     const requireKey = Boolean(options && options.requireKey);
     if (requireKey && !secretLiteral) throw new Error('A9_BATCH2_DRIVER_SECRET_LITERAL_MISSING');
@@ -563,7 +565,15 @@ async function runDriver() {
       document.getElementById('a9-provider-apply').click();
       return true;
     })()`);
-    await waitFor(async () => (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling', 45000, 'provider probe');
+    // The apply ends when the page lets go of the button, after the configuration and its probe have returned and the snapshot is read
+    // again. The probe text alone is the text of the earlier probe until then, and the key is registered before the new probe runs
+    // (rehearsal 6 review, round 2, N1). The button is disabled inside the click, so the first read already sees it busy.
+    await waitFor(async () => {
+      const state = await providerApplyState();
+      if (state.error) throw new Error(`provider form error: ${state.error}`);
+      if (!state.busy && state.probe !== 'tool_calling') throw new Error(`provider probe text: ${state.probe}`);
+      return !state.busy;
+    }, 45000, 'provider apply finished');
     if (requireKey) await waitFor(async () => providerReady(await snapshot()), 20000, 'provider key available');
     await exec('(() => { const b = document.querySelector(".drawer:not([hidden]) [data-close]"); if (b) b.click(); return true; })()');
   }
@@ -697,13 +707,17 @@ async function runDriver() {
   const newestEventId = (evts) => evts.reduce((max, e) => (Number.isSafeInteger(e.eventId) && e.eventId > max ? e.eventId : max), 0);
   const eventBaseline = async () => newestEventId((await events(await conversationId(), 1000)).events);
   // The end event of the Turn that a prompt starts. The events query returns only the newest 1000 events, so the baseline is the newest
-  // event id before the submit (ids only grow), not a count of end events. The first turn_started after the baseline names the Turn and only
-  // its own end event counts. When the window no longer reaches back to the baseline, the start event may be out of it and any end event
-  // after the baseline is the one.
-  const targetTurnEnd = (evts, baselineId) => {
+  // event id before the submit (ids only grow), not a count of end events. The first turn_started after the baseline names the Turn;
+  // runPrompt keeps that name across polls, because the start event can leave the window while the Turn runs, and only the end event
+  // of that Turn counts. Only when no poll has held the start event and the window no longer reaches back to the baseline, the first
+  // end event after the baseline is taken.
+  const newTurnId = (evts, baselineId) => {
     const started = evts.find((e) => e.eventType === 'turn_started' && e.eventId > baselineId);
+    return started ? started.turnId : null;
+  };
+  const targetTurnEnd = (evts, baselineId, turnId) => {
     const pastBaseline = (e) => isTerminalEvent(e) && e.eventId > baselineId;
-    if (started) return evts.find((e) => pastBaseline(e) && e.turnId === started.turnId) || null;
+    if (turnId) return evts.find((e) => pastBaseline(e) && e.turnId === turnId) || null;
     return evts.length > 0 && evts[0].eventId > baselineId ? evts.find(pastBaseline) || null : null;
   };
 
@@ -716,7 +730,11 @@ async function runDriver() {
     await waitIdle(30000, `idle before ${token}`);
     const baseline = await eventBaseline();
     await submit(token);
-    return observeUntil(async (evts) => Boolean(targetTurnEnd(evts, baseline)), timeoutMs || 120000, token);
+    let turnId = null;
+    return observeUntil(async (evts) => {
+      turnId = turnId || newTurnId(evts, baseline);
+      return Boolean(targetTurnEnd(evts, baseline, turnId));
+    }, timeoutMs || 120000, token);
   }
 
   // The smoke kills this process tree on <mode>.ready; the facts are persisted first so the next process can compare.

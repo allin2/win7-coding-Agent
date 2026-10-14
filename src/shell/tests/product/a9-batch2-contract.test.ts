@@ -1837,11 +1837,29 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       await expect(run(earlier, long, [[START(1501, 't2')], Array.from({ length: 19 }, (_v, i) => OUT(1502 + i, 't2')), [END(1521, 't2')]])).rejects.toThrow('never ended');
     });
 
-    test('when the window no longer reaches back to the baseline, the first end event after it ends the prompt', async () => {
+    test('when no poll has held the start event and the window no longer reaches back to the baseline, the first end event after it ends the prompt', async () => {
+      // The Turn starts and floods 1100 events before the first poll: the start event is already out of the window.
       const before = Array.from({ length: 1000 }, (_v, i) => OUT(i + 1, 'tx'));
       const flood = Array.from({ length: 1100 }, (_v, i) => OUT(1002 + i, 't2'));
+      const outcome = await run(runnerCode(), before, [[START(1001, 't2'), ...flood], [END(2102, 't2')]]);
+      expect(outcome.seen).toEqual([false, true]);
+    });
+
+    test('the Turn named by an early poll is kept: a late end event of an older Turn does not end the prompt after the start event has left the window', async () => {
+      const before = Array.from({ length: 1000 }, (_v, i) => OUT(i + 1, 'tx'));
+      const flood = Array.from({ length: 1100 }, (_v, i) => (1002 + i === 1500 ? END(1500, 't-old') : OUT(1002 + i, 't2')));
       const outcome = await run(runnerCode(), before, [[START(1001, 't2')], flood, [END(2102, 't2')]]);
       expect(outcome.seen).toEqual([false, false, true]);
+    });
+
+    test('negative control: naming the Turn again at every poll takes the late end event of the older Turn', async () => {
+      const code = runnerCode();
+      const forgetful = code.replace('turnId = turnId || newTurnId(evts, baseline);', 'turnId = newTurnId(evts, baseline);');
+      expect(forgetful).not.toBe(code);
+      const before = Array.from({ length: 1000 }, (_v, i) => OUT(i + 1, 'tx'));
+      const flood = Array.from({ length: 1100 }, (_v, i) => (1002 + i === 1500 ? END(1500, 't-old') : OUT(1002 + i, 't2')));
+      const outcome = await run(forgetful, before, [[START(1001, 't2')], flood, [END(2102, 't2')]]);
+      expect(outcome.seen).toEqual([false, true]);
     });
 
     test('the second prompt in the s01/s02 and s05 journeys is waited for with runPrompt, not with a count of end events', () => {
@@ -2056,44 +2074,94 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
   describe('S05 key: every driver process enters the API key again when the product process does not hold it', () => {
     const FIXTURE_URL = 'http://127.0.0.1:41999/v1';
     const PLACEHOLDER = 'TEST-ONLY-PLACEHOLDER-KEY-NOT-A-SECRET';
-    // The product keeps the key in memory only: after a restart the snapshot still shows a configured provider with apiKey.available=false.
-    function stageProvider(options: { configured?: boolean; baseUrl?: string; keyAvailable?: boolean; secret?: string; applyRegistersKey?: boolean; rowSource?: string } = {}) {
+    // A page and a product process, driven by the driver's own statements. The page is a small DOM (elements by id); the product process
+    // keeps the key in memory only: after a restart the snapshot shows a configured provider with apiKey.available=false and the page
+    // still shows the probe text of the earlier probe. A click on the apply button works as in the renderer (applyProvider): the button is
+    // disabled inside the click, the key is registered at once, the probe answers later, and only then the page lets go of the button.
+    // Time is the number of driver calls: the apply ends `applyCalls` calls after the click.
+    function stageProvider(options: { configured?: boolean; baseUrl?: string; keyAvailable?: boolean; secret?: string; applyRegistersKey?: boolean; rowSource?: string;
+      restoredProbe?: string; probeAfterApply?: string; applyCalls?: number; formError?: string; stuckBusy?: boolean } = {}) {
       const secret = options.secret === undefined ? PLACEHOLDER : options.secret;
-      const world: any = {
-        applies: [] as string[], closes: 0, probe: 'tool_calling',
-        provider: options.configured === false ? { configured: false }
-          : { configured: true, baseUrl: options.baseUrl || FIXTURE_URL, model: 'batch2-scripted', apiKey: { remembered: false, source: options.keyAvailable ? 'memory' : 'none', available: options.keyAvailable === true } },
+      const configured = options.configured !== false;
+      const world: any = { calls: 0, applies: [] as any[], closes: 0, applyFinished: 0, finishedAtCall: null as number | null, pending: null as any,
+        provider: configured ? { configured: true, baseUrl: options.baseUrl || FIXTURE_URL, model: 'batch2-scripted', apiKey: { remembered: false, source: options.keyAvailable ? 'memory' : 'none', available: options.keyAvailable === true } }
+          : { configured: false } };
+      const element = (extra: any = {}) => ({ value: '', checked: false, textContent: '', hidden: false, disabled: false, attributes: {} as any,
+        getAttribute(name: string) { return name in this.attributes ? this.attributes[name] : null; },
+        setAttribute(name: string, value: string) { this.attributes[name] = value; },
+        removeAttribute(name: string) { delete this.attributes[name]; }, click() {}, ...extra });
+      const apply: any = element({ click() {
+        world.applies.push({ url: dom['a9-provider-url'].value, model: dom['a9-provider-model'].value, key: dom['a9-provider-key'].value, remember: dom['a9-provider-remember'].checked });
+        if (options.formError) { dom['a9-provider-error'].textContent = options.formError; dom['a9-provider-error'].hidden = false; return; }
+        apply.disabled = true; apply.setAttribute('aria-busy', 'true');
+        const entered = secret !== '' && dom['a9-provider-key'].value === secret;
+        // The runtime registers the key before it probes (a9-agent-runtime.js: memoryApiKey is set, then classifyProviderWithProbe).
+        world.provider = { configured: true, baseUrl: dom['a9-provider-url'].value, model: 'batch2-scripted',
+          apiKey: { remembered: false, source: entered ? 'memory' : 'none', available: entered && options.applyRegistersKey !== false } };
+        world.pending = { doneAt: world.calls + (options.applyCalls === undefined ? 6 : options.applyCalls) };
+      } });
+      const dom: any = {
+        'a9-provider-url': element(), 'a9-provider-model': element(), 'a9-provider-key': element(), 'a9-provider-remember': element(), 'a9-provider-apply': apply,
+        'a9-provider-error': element({ hidden: true }),
+        'a9-provider-probe-state': element({ textContent: options.restoredProbe || (configured ? 'tool_calling' : '未探测') }),
+      };
+      const drawerClose = element({ click() { world.closes += 1; } });
+      const document = { getElementById: (id: string) => dom[id] || null, querySelector: (selector: string) => (selector.includes('data-close') ? drawerClose : null) };
+      const advance = () => {
+        world.calls += 1;
+        if (world.pending && world.calls >= world.pending.doneAt && !options.stuckBusy) {
+          world.pending = null;
+          dom['a9-provider-probe-state'].textContent = options.probeAfterApply || 'tool_calling';
+          dom['a9-provider-key'].value = '';
+          apply.disabled = false; apply.removeAttribute('aria-busy');
+          world.applyFinished += 1; world.finishedAtCall = world.calls;
+        }
       };
       const exec = async (source: string) => {
+        advance();
         if (source.includes('window.win7Agent.a9.snapshot()')) return { ok: true, snapshot: { provider: world.provider } };
-        if (source.includes('a9-provider-apply')) {
-          world.applies.push(source);
-          const entered = secret !== '' && source.includes(JSON.stringify(secret));
-          world.provider = { configured: true, baseUrl: source.includes(JSON.stringify(FIXTURE_URL)) ? FIXTURE_URL : 'other', model: 'batch2-scripted',
-            apiKey: { remembered: false, source: entered ? 'memory' : 'none', available: entered && options.applyRegistersKey !== false } };
-          world.probe = 'tool_calling';
-          return true;
-        }
-        if (source.includes('data-close')) { world.closes += 1; return true; }
-        if (source.includes('a9-provider-probe-state')) return world.probe;
-        throw new Error(`unexpected exec: ${source.slice(0, 60)}`);
+        return vm.runInNewContext(source, { document });
       };
       let clock = 0;
       const box: any = { exec, sleep: async () => undefined, Date: { now: () => { clock += 1000; return clock; } }, JSON, Boolean, Error, Promise, String, fixtureUrl: FIXTURE_URL, secretLiteral: secret };
       const code = [slice('async function waitFor(condition, timeoutMs, label)', '// ---- SQLite inspection'), slice('const snapshot = async', 'const events = async'),
         options.rowSource || slice('const providerKeyFacts = ', 'async function bootstrap(options)')].join('\n');
       vm.runInNewContext(`${code}\n;this.api = { ensureProvider, providerKeyFacts };`, box);
-      return { api: box.api, world };
+      return { api: box.api, world, dom };
     }
 
     test('a configured provider whose key is not available gets the form again, with the URL and the key', async () => {
       const { api, world } = stageProvider({ keyAvailable: false });
       await api.ensureProvider({ requireKey: true });
-      expect(world.applies).toHaveLength(1);
-      expect(world.applies[0]).toContain(JSON.stringify(FIXTURE_URL));
-      expect(world.applies[0]).toContain(JSON.stringify(PLACEHOLDER));
+      expect(world.applies).toEqual([{ url: FIXTURE_URL, model: 'batch2-scripted', key: PLACEHOLDER, remember: false }]);
       expect(world.provider.apiKey.available).toBe(true);
       expect(world.closes).toBe(1);
+    });
+
+    test('the driver returns only after the page has let go of the apply button (the restored probe text and the early key do not end the wait)', async () => {
+      // After the click the page already shows the restored probe text "tool_calling" and the product already holds the key, but the
+      // configuration and its probe are still running; the apply ends 6 calls after the click.
+      const { api, world } = stageProvider({ keyAvailable: false, applyCalls: 6 });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applyFinished).toBe(1);
+      expect(world.applies).toHaveLength(1);
+      expect(world.calls).toBeGreaterThanOrEqual(world.finishedAtCall as number);
+    });
+
+    test('a new probe that fails after an earlier success is a failure by name, not a pass on the old text', async () => {
+      const { api } = stageProvider({ keyAvailable: false, probeAfterApply: 'unavailable' });
+      await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow(/^TIMEOUT:provider apply finished:provider probe text: unavailable/);
+    });
+
+    test('a form error ends the wait with the error text', async () => {
+      const { api, world } = stageProvider({ keyAvailable: false, formError: 'Base URL 与模型 ID 都必须填写。' });
+      await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow(/^TIMEOUT:provider apply finished:provider form error: Base URL/);
+      expect(world.applies).toHaveLength(1);
+    });
+
+    test('a page that never lets go of the button fails by name', async () => {
+      const { api } = stageProvider({ keyAvailable: false, stuckBusy: true });
+      await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow(/^TIMEOUT:provider apply finished/);
     });
 
     test('a provider whose key is available in this product process is left alone', async () => {
@@ -2108,10 +2176,11 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       expect(world.applies).toHaveLength(1);
     });
 
-    test('a provider that is not configured gets the form', async () => {
+    test('a provider that is not configured gets the form and the driver waits for the first probe', async () => {
       const { api, world } = stageProvider({ configured: false });
       await api.ensureProvider({ requireKey: true });
       expect(world.applies).toHaveLength(1);
+      expect(world.applyFinished).toBe(1);
     });
 
     test('a driver without the secret literal stops by name before it touches the page', async () => {
@@ -2133,6 +2202,7 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       const { api, world } = stageProvider({ configured: false, applyRegistersKey: false });
       await api.ensureProvider();
       expect(world.applies).toHaveLength(1);
+      expect(world.applyFinished).toBe(1);
     });
 
     test('only the S05 limits mode asks for the key', () => {
@@ -2144,6 +2214,42 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
     test('a form that does not leave the key available in the product fails by name instead of passing', async () => {
       const { api } = stageProvider({ keyAvailable: false, applyRegistersKey: false });
       await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow(/^TIMEOUT:provider key available/);
+    });
+
+    test('negative control: without the click the form is never applied and the wait fails by name', async () => {
+      const code = slice('const providerKeyFacts = ', 'async function bootstrap(options)');
+      const noClick = code.replace("document.getElementById('a9-provider-apply').click();", "document.getElementById('a9-provider-apply');");
+      expect(noClick).not.toBe(code);
+      const { api, world } = stageProvider({ keyAvailable: false, rowSource: noClick });
+      await expect(api.ensureProvider({ requireKey: true })).rejects.toThrow(/^TIMEOUT:provider key available/);
+      expect(world.applies).toHaveLength(0);
+    });
+
+    test('negative control: the driver of the commit before this one returns while the apply is still running', async () => {
+      // The wait of the commit before this one: the probe text and the key, nothing about the end of the apply.
+      const earlier = `const providerKeyFacts = (snap) => { const provider = snap.provider || {}; const key = provider.apiKey || {};
+          return { configured: provider.configured === true, base_url_is_fixture: provider.baseUrl === fixtureUrl, key_available: key.available === true, key_source: key.source || null, key_remembered: key.remembered === true }; };
+        const providerReady = (snap) => { const facts = providerKeyFacts(snap); return facts.configured && facts.base_url_is_fixture && facts.key_available; };
+        async function ensureProvider(options) {
+          const requireKey = Boolean(options && options.requireKey);
+          const current = await snapshot();
+          const settled = requireKey ? providerReady(current) : Boolean(current.provider && current.provider.configured);
+          if (settled && (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling') return;
+          await exec(\`(() => {
+            document.getElementById('a9-provider-url').value = \${JSON.stringify(fixtureUrl)};
+            document.getElementById('a9-provider-model').value = 'batch2-scripted';
+            const key = document.getElementById('a9-provider-key'); if (key) key.value = \${JSON.stringify(secretLiteral)};
+            const remember = document.getElementById('a9-provider-remember'); if (remember) remember.checked = false;
+            document.getElementById('a9-provider-apply').click();
+            return true;
+          })()\`);
+          await waitFor(async () => (await exec('document.getElementById("a9-provider-probe-state").textContent')) === 'tool_calling', 45000, 'provider probe');
+          if (requireKey) await waitFor(async () => providerReady(await snapshot()), 20000, 'provider key available');
+        }`;
+      const { api, world } = stageProvider({ keyAvailable: false, applyCalls: 6, rowSource: earlier });
+      await api.ensureProvider({ requireKey: true });
+      expect(world.applyFinished).toBe(0);
+      expect(world.pending).not.toBeNull();
     });
 
     test('negative control: the earlier skip rule (configured and probe passed) leaves the restarted process without the key', async () => {
