@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import * as util from 'util';
 import * as vm from 'vm';
 import Database from 'better-sqlite3';
 
@@ -612,7 +613,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(dirty.findings.map((item: any) => item.file)).toEqual(['leak.log']);
   });
 
-  test('the api-key-prefix pattern still finds a key behind a JSON, hex or URL escape and keeps the full key charset (codex round 7, N1 and N2)', () => {
+  test('the api-key-prefix scan judges the character before a key after undoing JSON, hex and URL layers, and keeps the full key charset (codex rounds 7 and 8)', () => {
     const secret = fixtures.testOnlySecret();
     // A key that is not the configured one, so only the pattern can report it. "_" and "-" sit inside its first 20 characters.
     const other = `sk-${'Q'.repeat(8)}_${'r'.repeat(8)}-${'7'.repeat(8)}`;
@@ -646,6 +647,61 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(found(` sk-${'A'.repeat(10)}_${'B'.repeat(10)}`)).toEqual(['api-key-prefix']);
     expect(found(` sk-${'A'.repeat(10)}-${'B'.repeat(10)}`)).toEqual(['api-key-prefix']);
     expect(found(` sk-${'A'.repeat(10)}.${'B'.repeat(10)}`)).toEqual([]);
+    // Round 8, N3: serializers stacked on each other. The key stays readable and only the character before it hides behind layers.
+    const url = (text: string) => encodeURIComponent(text);
+    const json = (text: string) => JSON.stringify({ message: text });
+    const layered: Array<[string, string]> = [
+      ['URL of JSON LF', url(json(`\n${other}`))],
+      ['URL of inspect ESC', url(util.inspect({ message: `\x1b${other}` }))],
+      ['URL of URL LF', `q=${url(url(`\n${other}`))}`],
+      ['URL of URL space', `q=${url(url(` ${other}`))}`],
+      ['JSON of URL of URL LF', JSON.stringify({ url: url(url(`\n${other}`)) })],
+      ['JSON of URL of JSON LF', JSON.stringify({ url: url(json(`\n${other}`)) })],
+      ['URL x3 of JSON NUL (12 characters before the key)', url(url(url(json(`\0${other}`))))],
+      ['URL x3 of JSON LF (four decoding layers)', url(url(url(json(`\n${other}`))))],
+      ['JSON x3 of LF', JSON.stringify(JSON.stringify(JSON.stringify(`\n${other}`)))],
+      ['upper case unicode escape', `x\\u000A${other}`],
+    ];
+    for (const [name, text] of layered) expect({ name, hits: found(text) }).toEqual({ name, hits: ['api-key-prefix'] });
+    // Round 8, N4: an escape that decodes to a letter or a digit is a word character, as in the plain letter before the key.
+    for (const before of ['%61', '%41', '%39', '\\u0061', '\\x61', '\\u0039', '%2561']) expect({ before, hits: found(`q=${before}${other}`) }).toEqual({ before, hits: [] });
+    // Composition: up to three layers of the suite's serializers over one character and the key. The answer follows the character that
+    // sits right before the key after all layers are undone: a control, separator or non-ASCII character reports, a letter or digit does not.
+    const serializers: Record<string, (text: string) => string> = {
+      J: (text) => JSON.stringify(text),
+      O: (text) => JSON.stringify({ message: text }),
+      U: (text) => encodeURIComponent(text),
+      I: (text) => util.inspect(text),
+      P: (text) => util.inspect({ message: text }),
+    };
+    const sequences: string[][] = [[]];
+    for (let depth = 1; depth <= 3; depth += 1) {
+      for (const previous of sequences.filter((sequence) => sequence.length === depth - 1)) for (const name of Object.keys(serializers)) sequences.push(previous.concat(name));
+    }
+    const separators = ['\n', '\t', '\r', '\f', '\b', '\0', '\x1b', '\x7f', '\x0b', ' ', '"', "'", '=', ':', '/', '\\', '%', '\u00e9', '\u4e2d', '\u2028'];
+    const wordCharacters = ['a', 'Z', '9', 't', 'n'];
+    const wrong: string[] = [];
+    for (const sequence of sequences) {
+      for (const [character, expected] of [...separators.map((value) => [value, true]), ...wordCharacters.map((value) => [value, false])] as Array<[string, boolean]>) {
+        let text = `${character}${other}`;
+        for (const name of sequence) text = serializers[name](text);
+        if (found(text).includes('api-key-prefix') !== expected) wrong.push(`${sequence.join('>') || 'plain'} ${JSON.stringify(character)} expected=${expected}`);
+      }
+    }
+    expect(sequences).toHaveLength(156);
+    expect(wrong).toEqual([]);
+    // A letter hidden under five URL layers is still the letter: decoded within the limit, it is a word character and the key is not reported.
+    let hiddenLetter = '%61';
+    for (let layer = 0; layer < 4; layer += 1) hiddenLetter = url(hiddenLetter);
+    expect(found(`q=${hiddenLetter}${other}`)).toEqual([]);
+    // Nested deeper than the decoding limit: the scan reports instead of guessing (here the layers hide the letter a).
+    let deep = '%61';
+    for (let layer = 0; layer < 8; layer += 1) deep = url(deep);
+    expect(found(`q=${deep}${other}`)).toEqual(['api-key-prefix']);
+    // Accepted over-detection (KL-7 candidate): a Windows directory named like "t" plus "sk-" and a key-length tail is indistinguishable
+    // from an escaped tab, in the raw path and in its JSON form alike. The scan errs on the side of reporting.
+    expect(found(`C:\\t${other}\\file.log`)).toEqual(['api-key-prefix']);
+    expect(found(JSON.stringify({ path: `C:\\t${other}\\file.log` }))).toEqual(['api-key-prefix']);
     // Cost: p10 scans the 150 MB Electron binary in the run root. A pattern that tests the predecessor before the literal "sk-"
     // costs about 70 times the plain literal search; this one must stay within a small multiple of it.
     const filler = Buffer.from('ab12 Cd34-ef_56 '.repeat(2 * 1024 * 1024));
@@ -661,6 +717,11 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const plainMs = best(() => /sk-[A-Za-z0-9_-]{20,}/.test(filler.toString('latin1')));
     const scanMs = best(() => smoke.scanBytesForSecrets(filler, []));
     expect(scanMs).toBeLessThan(plainMs * 10 + 100);
+    // Many candidates that are all rejected: only a window before each one may be decoded, never the whole text before it.
+    const dense = Buffer.from('ask-AAAAAAAAAAAAAAAAAAAAAAAA '.repeat(20000));
+    const denseStarted = process.hrtime.bigint();
+    expect(smoke.scanBytesForSecrets(dense, [])).toEqual([]);
+    expect(Number(process.hrtime.bigint() - denseStarted) / 1e6).toBeLessThan(1500);
     // The whole run: an escaped key in an events file is a finding, and no executable or library extension is skipped.
     const root = temp('scan-escape');
     fs.writeFileSync(path.join(root, 'escaped.json'), JSON.stringify({ message: `\n${other}` }));
@@ -668,10 +729,18 @@ describe('A9-33 batch-2 smoke pieces', () => {
       fs.writeFileSync(path.join(root, name), Buffer.concat([Buffer.from([0x4d, 0x5a, 0, 0]), Buffer.from(`token=${secret}`)]));
     }
     for (const name of ['skip.png', 'skip.sqlite', 'skip.db', 'skip.ico', 'skip.pak']) fs.writeFileSync(path.join(root, name), Buffer.from(secret));
+    // Round 8, N5: hidden files, a hidden directory and a key far beyond the first kilobytes or megabytes are scanned as well.
+    fs.writeFileSync(path.join(root, '.hidden.log'), `token=${secret}`);
+    fs.mkdirSync(path.join(root, '.dot'));
+    fs.writeFileSync(path.join(root, '.dot', 'leak.log'), `token=${secret}`);
+    fs.writeFileSync(path.join(root, 'deep.log'), Buffer.concat([Buffer.alloc(2 * 1024 * 1024 + 17, 0x20), Buffer.from(`token=${secret}`)]));
     const scan = smoke.scanRun(root, secret);
     expect(scan.positive_control_detected).toBe(true);
-    expect(scan.files_scanned).toBe(6);
-    expect([...scan.findings].sort((left: any, right: any) => left.file.localeCompare(right.file))).toEqual([
+    expect(scan.files_scanned).toBe(9);
+    expect([...scan.findings].sort((left: any, right: any) => (left.file < right.file ? -1 : 1))).toEqual([
+      { file: path.join('.dot', 'leak.log'), hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: '.hidden.log', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'deep.log', hits: ['api-key-prefix', 'configured-secret-literal'] },
       { file: 'escaped.json', hits: ['api-key-prefix'] },
       { file: 'leak', hits: ['api-key-prefix', 'configured-secret-literal'] },
       { file: 'leak.dll', hits: ['api-key-prefix', 'configured-secret-literal'] },

@@ -220,12 +220,46 @@ function evaluateEnvironment(facts, request, candidateRoot) {
 
 // ---- Secret scan (G4) -------------------------------------------------------------------------------------
 
+// An API key is "sk-" followed by at least 20 key characters. A letter or digit right before "sk-" means a word that ends in
+// "sk-" (task ids, symbol names in binaries), so it is not a key start. The character before is judged after the serialization
+// that wrote the evidence is undone, layer by layer: JSON \n \t \r \f \b \uXXXX, util.inspect \xXX and URL %XX. A key behind
+// "\n", "%0A", "%5Cn" or "%250A" therefore still counts, while "%61" or the unicode escape of a is the letter a. The search runs
+// on the literal "sk-" first, so a 150 MB binary costs a plain substring search; only the 96 characters before each candidate
+// are decoded.
+const KEY_CONTEXT_CHARS = 96;
+const KEY_MAX_DECODE_LAYERS = 6;
+const SERIALIZED_CHARACTER = /\\(?:u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|([ntrfb]))|%([0-9a-fA-F]{2})/g;
+const ESCAPE_LETTERS = Object.freeze({ n: '\n', t: '\t', r: '\r', f: '\f', b: '\b' });
+function decodeSerializationOnce(text) {
+  return text.replace(SERIALIZED_CHARACTER, (_match, unicode, hex, letter, percent) => {
+    if (unicode !== undefined) return String.fromCharCode(parseInt(unicode, 16));
+    if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
+    if (percent !== undefined) return String.fromCharCode(parseInt(percent, 16));
+    return ESCAPE_LETTERS[letter];
+  });
+}
+function startsApiKey(text, index) {
+  let context = text.slice(Math.max(0, index - KEY_CONTEXT_CHARS), index);
+  for (let layer = 0; layer <= KEY_MAX_DECODE_LAYERS; layer += 1) {
+    if (context === '' || !/[A-Za-z0-9]$/.test(context)) return true;
+    const decoded = decodeSerializationOnce(context);
+    if (decoded === context) return false;
+    context = decoded;
+  }
+  // Nested deeper than any serializer of this suite writes: the scan reports instead of guessing.
+  return true;
+}
+function containsApiKey(text) {
+  const candidate = /sk-(?=[A-Za-z0-9_-]{20})/g;
+  let found = candidate.exec(text);
+  while (found !== null) {
+    if (startsApiKey(text, found.index)) return true;
+    found = candidate.exec(text);
+  }
+  return false;
+}
 const SECRET_PATTERNS = Object.freeze([
-  // A letter or digit right before "sk-" means a word that ends in "sk-" (task ids, symbol names in binaries), so it is
-  // not a key start. The exception is an escape that serialization puts in front of a real key and that itself ends in a
-  // letter or digit: JSON \n \t \r \f \b, \uXXXX, \xXX and URL %XX. The literal "sk-" comes first and the predecessor is
-  // checked behind it, so the engine skips ahead to each "sk-" instead of testing every position of a 150 MB binary.
-  { id: 'api-key-prefix', pattern: /sk-(?:(?<=(?<![A-Za-z0-9])sk-)|(?<=\\[ntrfb]sk-)|(?<=\\u[0-9a-fA-F]{4}sk-)|(?<=\\x[0-9a-fA-F]{2}sk-)|(?<=%[0-9a-fA-F]{2}sk-))[A-Za-z0-9_-]{20,}/ },
+  { id: 'api-key-prefix', pattern: { test: containsApiKey } },
   { id: 'bearer-token', pattern: /Authorization\s*:\s*Bearer\s+[A-Za-z0-9._-]{16,}/i },
   { id: 'private-key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
 ]);
