@@ -1146,3 +1146,50 @@ codex 的其他结论：
 预算与计时：预演 6/7 已用；预演 7 是最后一次，仍须单独授权文件和负责人对其 SHA-256 的同意；请求 23/64，预演 7 最多再用 10 个；其余条件同 §6.23；窗口至 2026-10-16T06:59:59Z。8 小时计时同 §6.23，请在批准预演 7 授权文件时确认。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。
+
+### 6.25 预演 7 执行记录（2026-10-14）
+
+结论：预演 7 在 Win7 实机完成。p01、p02、p03、p05、p06 通过；p04、p07、p08 各有失败的断言（`ASSERTION_FAILED`）；p09、p10 `NOT_PERFORMED`。第 7 次预演的预算已用完，A9-33 batch-2 未取得全部通过。
+证据层级为 Win7 实机（预演，`REHEARSAL_NOT_ELIGIBLE`），绑定源提交 `0722df00…`、ZIP `9ce89f06…`、授权文件 `caf9a83c…`、运行编号 `16f6af76`。套件代码为 `6679ef30…`，修复的验证层级仍是开发机。
+
+负责人原话：“选A，同意提交文档并构建预演7包”“批准，授权文件 SHA-256 caf9a83c… 同意，开始预演7”。回复时间戳 `UNKNOWN`；执行代理 2026-10-14T05:40:39Z 首次读到批准。第二条回复没有重述 8 小时计时，执行代理按 2026-10-14 的裁决“用已有做法，规则最少变动”（自批准授权文件 SHA-256 时重新计时 8 小时）处理，截止 2026-10-14T13:40:39Z；负责人可更正。Win7 动作 R1～R8 全部在截止之前完成，最后一次是 05:51:55Z。
+
+| 阶段 | 结果 | 要点 |
+|---|---|---|
+| p01 环境 | PASS，5/5 | |
+| p02 完整性 | PASS，4/4 | 799 个清单文件、800 个 ZIP 条目，0 个不一致 |
+| p03 最短链路 | PASS，12/12 | B2-CH-02-A01：`first_ipc_ms=654; ipc_frames_max=6; dom_frames_max=0`，KL-3 再现 |
+| p04 流式输出 | FAIL | 只有 S04 失败：`utf8=true; utf16le=false; cp936=false; crlf=true`。S03T（`tool_starts=3`）、S05-A01（密钥已配置、可用、来源 memory，三处无泄漏）、S05-A02（取消后无新增进程）在 Win7 上首次通过 |
+| p05 会话与后台 | PASS | S06 刷新与重启路径、BG-01/02/03 通过 |
+| p06 继续 | PASS | 首次在 Win7 运行，4 条断言通过 |
+| p07 安全规则 | FAIL | 首次在 Win7 运行；只有 B2-SAFE-02 一条断言，失败 |
+| p08 界面 | FAIL | 首次在 Win7 运行；B2-UI-02 PASS；B2-UI-01 九项中 7 项 PASS，2 项 FAIL |
+| p09 报告、p10 后检 | NOT_PERFORMED | p09 要求 p04～p08 全部通过；p07、p08 连续两次 `ASSERTION_FAILED`，套件守卫也会拒绝。p09、p10 从未在 Win7 运行 |
+
+三项失败的归类（证据：`.acceptance/a9-33-rehearsal/rehearsal-7/r7/`，数据库副本只读）：
+
+| 失败 | 已确认的事实 | UNKNOWN |
+|---|---|---|
+| p04 S04 编码 | 产品输出事件 `text=""`、`truncated=true`、`warning=A9_OUTPUT_ENCODING_ERROR`；utf16le 第一块 3 字节、cp936 第一块 4 字节就报错。PowerShell 下 stdout 解码器是严格 UTF-8（`trusted-shell-runner.ts:587`，`stream-output.ts:63～71`），cp936 默认只对 cmd，A9-30 记 UTF-16LE 为外部选项。失败与切点无关 | 打包产品能否触达 UTF-16LE 解码选项 |
+| p07 B2-SAFE-02 | 注入 `tool_end` 写失败后：文件已写入，`tool_end` 事件 0 条，之后无 Provider 请求（`requests=0->1->1`），`a9.turn.submit` 返回 `A9_AUDIT_PERSISTENCE_FAILED`；库里 Turn 行 `status=active`、`outcome_json={}`，事件只到 `tool_start`，页面文字不含该错误码。判据要求错误码出现在 `outcome_json` 或页面文字 | 套件判据过窄，还是产品未把审计失败记入 Turn 与页面 |
+| p08 B2-UI-01 | 按 Enter 后 8 秒内按钮没有变忙，再 1.2 秒后 continue 事件为 0；再按 Enter 与 Space 后事件为 1。其余 7 项通过（含停止、视图返回、空格重试） | 第一次 Enter 是否送达；产品是否延迟响应 |
+
+矛盾清单（`CLAUDE.md` 行为规则 2，等负责人裁决，执行代理不自行取舍）：
+
+1. B2-S04 的合同文字写“UTF-8、CP936 和 UTF-16LE 跨块无损解码”，而产品在 PowerShell 下只解码 UTF-8，cp936 仅在 cmd、UTF-16LE 仅为外部选项。合同、A9-30 的设计和实测三者不一致。
+2. B2-SAFE-02 合同写“必需审计失败停止 Turn，未知副作用不记为零”。产品停止了派发，但 Turn 行仍是 `active`，没有记录失败原因。该合同是否要求 Turn 行与页面带审计失败标记，合同文字没有写明。
+
+已关闭或首次得到 Win7 证据的事项：预演 6 的 p04 四项套件缺陷（子进程误计、密钥前缀误报、S04 取错 Turn、S03T）在 Win7 上不再出现；R1 的密钥重录入在 Win7 上生效（`key_available_before_prompt=true`），p04 库内没有任何事件含 `sk-TESTONLY` 前缀；p05 的 S06 重启路径通过。
+
+未知与未验证：
+
+- 三项失败的归类中标 `UNKNOWN` 的部分。
+- p09、p10 在 Win7 上的行为 `NOT_PERFORMED`。
+- KL-4 在预演 7 中是否触发 `UNKNOWN`：p04～p08 没有出现提供方不可用类失败，驱动不记录应用后的探测分类。
+- KL-1、KL-2、KL-3 仍有效；KL-3 在 p03 再现（`dom_frames_max=0`）。任何 Alpha 2 结论都必须带上 KL-3。
+
+预算与计时：预演 7/7，预算耗尽；请求 31/64；窗口至 2026-10-16T06:59:59Z。继续预演须负责人再次放宽，且需要新的授权文件。
+
+Win7 状态：R8 后检无残留进程，无 `A9W43*` 计划任务；旧根 0f3591ba、79a32916、82f275a9、d254bfcb、dbd8df63、37632497 未改动；新根 `C:\A9-W43\run\16f6af76` 保留。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。未在 Win7 验收通过。
