@@ -1542,7 +1542,8 @@ describe('A9-33 batch-2 driver evaluators', () => {
     const card = (button = '继续', disabled = false) => ({ text: '继续中断任务', button, disabled });
     const full = (): any => ({
       card0: card(),
-      enter: { busy_label: true, button_disabled: true, focus_in_card: true, scroll: { testable: true, before: 0, after: 1 }, continue_events_while_busy: 1, continue_events_after_extra_keys: 1 },
+      enter: { busy_label: true, button_disabled: true, focus_in_card: true, scroll: { testable: true, before: 0, after: 1 }, continue_events_while_busy: 1, continue_events_after_extra_keys: 1,
+        enter_delivery: { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, page_focused: true } },
       stopped: { card: card(), focus_in_card: true, interrupted_turn_changed: true, revision_changed: true },
       view_return: { card: card() },
       space: { continue_events_total: 2, ipc_continue_calls_total: 2, second_turn_status: 'completed' },
@@ -1578,6 +1579,153 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(verdict(flat).status).toBe('UNKNOWN');
     const noSpace = full(); noSpace.space = null;
     expect(verdict(noSpace).status).toBe('UNKNOWN');
+  });
+
+  test('UI-01: the two Enter assertions are judged only when the page saw a real Enter keypress (rehearsal 7: no click in 9.96 s, cause UNKNOWN)', () => {
+    const base = (): any => ({
+      card0: { text: 'c', button: '继续', disabled: false },
+      enter: { busy_label: false, button_disabled: null, focus_in_card: true, scroll: { testable: true, before: 0, after: 0 }, continue_events_while_busy: 0, continue_events_after_extra_keys: 1,
+        enter_delivery: { key: 'Enter', keydown: true, keypress: false, keyup: true, clicks: 0, delivered: false, page_focused: true } },
+      stopped: { card: { text: 'c', button: '继续', disabled: false }, focus_in_card: true, interrupted_turn_changed: true, revision_changed: true },
+      view_return: { card: { text: 'c', button: '继续', disabled: false } },
+      space: { continue_events_total: 2, ipc_continue_calls_total: 2, second_turn_status: 'completed' },
+    });
+    const byName = (subs: any[], name: string) => subs.find((item: any) => item.name === name);
+    // The rehearsal 7 facts with the new delivery record: the key reached the page as keydown and keyup but never as a keypress with char code 13, so UNKNOWN, not FAIL.
+    const lost = driver.evaluateUiJourney(base());
+    expect(byName(lost, 'loading_feedback').status).toBe('UNKNOWN');
+    expect(byName(lost, 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+    expect(byName(lost, 'loading_feedback').detail).toContain('keypress13=false');
+    expect(driver.summarizeSubs(lost).status).toBe('UNKNOWN');
+    // The assertions that do not depend on Enter keep their own verdicts.
+    expect(byName(lost, 'stop_returns_actionable_new_card').status).toBe('PASS');
+    expect(byName(lost, 'space_retry_creates_one_more_turn').status).toBe('PASS');
+    // A delivered Enter that produced no busy label and no event is a product FAIL.
+    const delivered = base(); delivered.enter.enter_delivery = { key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 0, delivered: true, page_focused: true };
+    const product = driver.evaluateUiJourney(delivered);
+    expect(byName(product, 'loading_feedback').status).toBe('FAIL');
+    expect(byName(product, 'one_dispatch_while_busy').status).toBe('FAIL');
+    // No delivery record at all is UNKNOWN as well: the old facts shape cannot carry a PASS.
+    const legacy = base(); legacy.enter.busy_label = true; legacy.enter.button_disabled = true; legacy.enter.continue_events_while_busy = 1; delete legacy.enter.enter_delivery;
+    expect(byName(driver.evaluateUiJourney(legacy), 'loading_feedback').status).toBe('UNKNOWN');
+    expect(byName(driver.evaluateUiJourney(legacy), 'one_dispatch_while_busy').status).toBe('UNKNOWN');
+  });
+
+  test('key input: a char event carries the typed character, and the page-side summary tells a real Enter from a lost one', () => {
+    expect(driver.keyEventsFor('Enter')).toEqual([{ type: 'keyDown', keyCode: 'Enter' }, { type: 'char', keyCode: '\r' }, { type: 'keyUp', keyCode: 'Enter' }]);
+    expect(driver.keyEventsFor('Space')).toEqual([{ type: 'keyDown', keyCode: 'Space' }, { type: 'char', keyCode: ' ' }, { type: 'keyUp', keyCode: 'Space' }]);
+    // Negative control: the earlier driver sent the key name as the char text, which is not a carriage return.
+    expect(driver.keyEventsFor('Enter')[1].keyCode).not.toBe('Enter');
+    expect(() => driver.keyEventsFor('Escape')).toThrow(/KEY_UNKNOWN/);
+    const entry = (type: string, extra: any = {}) => ({ type, key: null, charCode: null, target: 'BUTTON', trusted: true, ...extra });
+    const real = [entry('keydown', { key: 'Enter' }), entry('keypress', { key: 'Enter', charCode: 13 }), entry('click'), entry('keyup', { key: 'Enter' })];
+    expect(driver.summarizeKeyPress(real, 0, 'Enter')).toEqual({ key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true });
+    // The suspected failure of rehearsal 7 (hypothesis H1): the char text was the string "Enter", so the keypress carried char code 69 ("E").
+    const wrongChar = [entry('keydown', { key: 'Enter' }), entry('keypress', { key: 'E', charCode: 69 }), entry('keyup', { key: 'Enter' })];
+    expect(driver.summarizeKeyPress(wrongChar, 0, 'Enter')).toMatchObject({ keydown: true, keypress: false, delivered: false, clicks: 0 });
+    // Nothing recorded after the press (the key never reached the page, hypothesis H2), and records from earlier presses are skipped.
+    expect(driver.summarizeKeyPress([], 0, 'Enter')).toMatchObject({ delivered: false });
+    expect(driver.summarizeKeyPress(real, real.length, 'Enter')).toMatchObject({ delivered: false, clicks: 0 });
+    expect(driver.summarizeKeyPress(null, 0, 'Enter')).toMatchObject({ delivered: false });
+    // Space is activated on keyup, so keydown and keyup of the space key decide.
+    const space = [entry('keydown', { key: ' ' }), entry('keypress', { key: ' ', charCode: 32 }), entry('keyup', { key: ' ' }), entry('click')];
+    expect(driver.summarizeKeyPress(space, 0, 'Space')).toMatchObject({ delivered: true, clicks: 1 });
+    expect(driver.summarizeKeyPress(space.slice(0, 1), 0, 'Space')).toMatchObject({ delivered: false });
+  });
+
+  test('key recorder: the page-side source records keydown, keypress, keyup and click once and is idempotent', () => {
+    const listeners: Array<[string, (event: any) => void, boolean]> = [];
+    const fakeWindow: any = { addEventListener: (type: string, listener: (event: any) => void, capture: boolean) => { listeners.push([type, listener, capture]); } };
+    expect(vm.runInNewContext(driver.KEY_RECORDER_SOURCE, { window: fakeWindow })).toBe(true);
+    expect(listeners.map((item) => item[0])).toEqual(['keydown', 'keypress', 'keyup', 'click']);
+    expect(listeners.every((item) => item[2] === true)).toBe(true);
+    const fire = (type: string, event: any) => listeners.filter((item) => item[0] === type).forEach((item) => item[1](event));
+    fire('keydown', { key: 'Enter', target: { tagName: 'BUTTON' }, isTrusted: true });
+    fire('keypress', { key: 'Enter', charCode: 13, target: { tagName: 'BUTTON' }, isTrusted: true });
+    fire('click', { target: { tagName: 'BUTTON' }, isTrusted: false });
+    expect(fakeWindow.__b2KeyRecords).toEqual([
+      { type: 'keydown', key: 'Enter', charCode: null, target: 'BUTTON', trusted: true },
+      { type: 'keypress', key: 'Enter', charCode: 13, target: 'BUTTON', trusted: true },
+      { type: 'click', key: null, charCode: null, target: 'BUTTON', trusted: false },
+    ]);
+    // A second install on the same window adds no listener, so one press is never counted twice.
+    expect(vm.runInNewContext(driver.KEY_RECORDER_SOURCE, { window: fakeWindow })).toBe(true);
+    expect(listeners).toHaveLength(4);
+    expect(driver.summarizeKeyPress(fakeWindow.__b2KeyRecords, 0, 'Enter')).toMatchObject({ delivered: true, clicks: 1 });
+  });
+
+  test('SAFE-02: the verdict reads the IPC answer of a9.turn.submit, not the page or the Turn row (rehearsal 7 facts)', () => {
+    const code = 'A9_AUDIT_PERSISTENCE_FAILED';
+    expect(driver.AUDIT_FAILURE_CODE).toBe(code);
+    // The facts of rehearsal 7: file written, no tool_end, Turn row still active, no new request, the code only in the IPC answers.
+    const rehearsal7 = (): any => ({ file_written: true, tool_ends: 0, turn_status: 'active', submit_calls: [{ ok: false, error: code }, { ok: false, error: code }],
+      requests: { before: 0, after_turn: 1, after_next_submit: 1 }, page_shows_code: false, outcome_json_has_code: false });
+    expect(driver.evaluateAuditHardStop(rehearsal7())).toMatchObject({ status: 'PASS' });
+    expect(driver.evaluateAuditHardStop(rehearsal7()).detail).toContain(`submit_error_code=${code}`);
+    // Page text and outcome_json are observations: they change the detail, never the verdict.
+    const shown = rehearsal7(); shown.page_shows_code = true; shown.outcome_json_has_code = true;
+    expect(driver.evaluateAuditHardStop(shown).status).toBe('PASS');
+    const failures: Array<[string, (f: any) => void]> = [
+      ['the side effect did not happen', (f) => { f.file_written = false; }],
+      ['a tool_end was persisted', (f) => { f.tool_ends = 1; }],
+      ['the first submit succeeded', (f) => { f.submit_calls[0] = { ok: true, error: null }; }],
+      ['the first submit failed with another code', (f) => { f.submit_calls[0] = { ok: false, error: 'A9_WORKSPACE_REQUIRED' }; }],
+      ['the Turn completed', (f) => { f.turn_status = 'completed'; }],
+      ['the next submit reached the Provider', (f) => { f.requests.after_next_submit = 2; }],
+    ];
+    for (const [label, mutate] of failures) {
+      const facts = rehearsal7(); mutate(facts);
+      expect({ label, status: driver.evaluateAuditHardStop(facts).status }).toEqual({ label, status: 'FAIL' });
+    }
+    // The second answer is an observation only.
+    const secondOk = rehearsal7(); secondOk.submit_calls[1] = { ok: true, error: null };
+    expect(driver.evaluateAuditHardStop(secondOk).status).toBe('PASS');
+    // Anything not observed is UNKNOWN, never PASS and never FAIL.
+    const unobserved: Array<[string, (f: any) => void]> = [
+      ['no submit answer', (f) => { f.submit_calls = []; }],
+      ['no answers list', (f) => { delete f.submit_calls; }],
+      ['file state unknown', (f) => { delete f.file_written; }],
+      ['tool_end count unknown', (f) => { f.tool_ends = null; }],
+      ['request counter missing', (f) => { f.requests = { before: 0 }; }],
+    ];
+    for (const [label, mutate] of unobserved) {
+      const facts = rehearsal7(); mutate(facts);
+      expect({ label, status: driver.evaluateAuditHardStop(facts).status }).toEqual({ label, status: 'UNKNOWN' });
+    }
+    expect(driver.evaluateAuditHardStop(null).status).toBe('UNKNOWN');
+  });
+
+  test('S04 (KL-5): only UTF-8 and CRLF decide the verdict; CP936 and UTF-16LE are INFORMATIONAL (rehearsal 7 facts)', () => {
+    expect(driver.ENCODING_GATING).toEqual(['utf8', 'crlf']);
+    const outcome = (label: string, ok: boolean) => ({ label, ok, gating: ['utf8', 'crlf'].includes(label) });
+    const rehearsal7 = () => [outcome('utf8', true), outcome('utf16le', false), outcome('cp936', false), outcome('crlf', true)];
+    const verdict = driver.evaluateEncodingOutcomes(rehearsal7());
+    expect(verdict.status).toBe('PASS');
+    expect(verdict.text).toBe('utf8=true; utf16le=false (INFORMATIONAL, KL-5); cp936=false (INFORMATIONAL, KL-5); crlf=true');
+    // A product that starts decoding the two informational encodings does not change the verdict either.
+    expect(driver.evaluateEncodingOutcomes([outcome('utf8', true), outcome('utf16le', true), outcome('cp936', true), outcome('crlf', true)]).status).toBe('PASS');
+    // The two decisive labels still fail the case.
+    expect(driver.evaluateEncodingOutcomes([outcome('utf8', false), outcome('utf16le', true), outcome('cp936', true), outcome('crlf', true)]).status).toBe('FAIL');
+    expect(driver.evaluateEncodingOutcomes([outcome('utf8', true), outcome('utf16le', true), outcome('cp936', true), outcome('crlf', false)]).status).toBe('FAIL');
+    // A decisive label that was not observed is UNKNOWN; so is an empty or missing list.
+    expect(driver.evaluateEncodingOutcomes([outcome('utf8', true), outcome('utf16le', false), outcome('cp936', false)])).toMatchObject({ status: 'UNKNOWN' });
+    expect(driver.evaluateEncodingOutcomes([]).status).toBe('UNKNOWN');
+    expect(driver.evaluateEncodingOutcomes(undefined).status).toBe('UNKNOWN');
+  });
+
+  test('S04 (KL-5): the contract text names PowerShell UTF-8 and CRLF, keeps 25 cases and 42 assertions, and carries KL-5', () => {
+    const s04 = fixtures.CASES.find((item: any) => item.case_id === 'B2-S04-ENCODING-CROSSCHUNK');
+    expect(s04.assertions).toHaveLength(1);
+    const text = JSON.stringify(s04.assertions);
+    expect(text).toContain('UTF-8 text split across chunks decodes losslessly under Windows PowerShell');
+    expect(text).toContain('CRLF and a final line without newline are preserved');
+    expect(text).toContain('informational only, KL-5');
+    expect(text).not.toContain('UTF-8, CP936 and UTF-16LE');
+    expect(fixtures.selfCheck()).toMatchObject({ ok: true, cases: 25, assertions: 42 });
+    const kl5 = fixtures.KNOWN_LIMITS.filter((item: string) => item.startsWith('KL-5'));
+    expect(kl5).toHaveLength(1);
+    expect(kl5[0]).toContain('A9_OUTPUT_ENCODING_ERROR');
+    expect(kl5[0]).toContain('INFORMATIONAL');
   });
 });
 
@@ -2363,5 +2511,100 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       expect(earlier).toEqual({ utf8: 9, utf16le: 11, cp936: 1, crlf: 22 });
       expect(fixtures.encodingCutProblems(earlier).map((item: string) => item.split(':')[1]).sort()).toEqual(['crlf', 'utf16le', 'utf8']);
     });
+  });
+});
+
+// Rehearsal 7 fix round 4: the driver's own pressKey code, cut out of the source and run against a fake window and a fake page recorder.
+// It checks the order (recorder, focus, baseline, key events) and that a press which did not arrive is reported once, never repeated.
+// It is not Electron, Win10 or Win7 evidence: whether the corrected char event activates the button on Win7 is UNKNOWN until the next Win7 rehearsal.
+describe('A9-33 batch-2 key press in the UI-01 journey', () => {
+  const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+  const slice = (from: string, to: string) => {
+    const start = driverSource.indexOf(from);
+    const end = driverSource.indexOf(to, start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return driverSource.slice(start, end);
+  };
+  function rig(behaviour: 'arrives' | 'lost' | 'no-keypress' | 'unfocused') {
+    const log: string[] = [];
+    const records: any[] = [];
+    const sent: any[] = [];
+    const rec = (type: string, extra: any = {}) => records.push({ type, key: null, charCode: null, target: 'BUTTON', trusted: true, ...extra });
+    const win: any = {
+      show: () => log.push('show'), focus: () => log.push('focus'),
+      webContents: {
+        focus: () => log.push('contents-focus'),
+        sendInputEvent: (event: any) => {
+          log.push(`send:${event.type}:${JSON.stringify(event.keyCode)}`);
+          sent.push(event);
+          if (behaviour === 'lost') return;
+          const name = event.keyCode === 'Enter' || event.keyCode === '\r' ? 'Enter' : ' ';
+          if (event.type === 'keyDown') rec('keydown', { key: name });
+          if (event.type === 'char' && behaviour !== 'no-keypress') rec('keypress', { key: name, charCode: event.keyCode === '\r' ? 13 : String(event.keyCode).charCodeAt(0) });
+          if (event.type === 'char' && event.keyCode === '\r' && behaviour === 'arrives') rec('click');
+          if (event.type === 'keyUp') rec('keyup', { key: name });
+        },
+      },
+    };
+    const exec = async (source: string) => {
+      if (source === driver.KEY_RECORDER_SOURCE) { log.push('install'); return true; }
+      if (source === 'document.hasFocus()') { log.push('hasFocus'); return behaviour !== 'unfocused'; }
+      if (source === 'window.__b2KeyRecords || []') { log.push(`records:${records.length}`); return records.slice(); }
+      throw new Error(`unexpected exec ${source}`);
+    };
+    const code = [slice('async function waitFor(condition, timeoutMs, label)', '// ---- SQLite inspection'), slice('  const installKeyRecorder = ', '  const continueEventsFor = ')].join('\n');
+    let clock = 0;
+    const box: any = { exec, win, sleep: async () => { clock += 250; }, Date: { now: () => clock }, JSON, Boolean, Error, Promise, String, Array,
+      KEY_RECORDER_SOURCE: driver.KEY_RECORDER_SOURCE, keyEventsFor: driver.keyEventsFor, summarizeKeyPress: driver.summarizeKeyPress };
+    vm.runInNewContext(`${code}\n;this.api = { pressKey };`, box);
+    return { api: box.api, log, sent, records };
+  }
+
+  test('an Enter that arrives: recorder first, focus checked, baseline taken before the keys, three key events with a carriage return as the char', async () => {
+    const r = rig('arrives');
+    const result = await r.api.pressKey('Enter');
+    expect(result).toMatchObject({ key: 'Enter', keydown: true, keypress: true, keyup: true, clicks: 1, delivered: true, page_focused: true, from_index: 0 });
+    expect(r.log.indexOf('install')).toBe(0);
+    expect(r.log.indexOf('hasFocus')).toBeLessThan(r.log.indexOf('send:keyDown:"Enter"'));
+    expect(r.log.filter((item) => item.startsWith('send:'))).toEqual(['send:keyDown:"Enter"', 'send:char:"\\r"', 'send:keyUp:"Enter"']);
+    expect(r.log.indexOf('records:0')).toBeLessThan(r.log.indexOf('send:keyDown:"Enter"'));
+  });
+
+  test('a second press only counts the records made after its own baseline', async () => {
+    const r = rig('arrives');
+    await r.api.pressKey('Enter');
+    const second = await r.api.pressKey('Space');
+    expect(second).toMatchObject({ key: 'Space', delivered: true, from_index: 4 });
+    expect(second.clicks).toBe(0);
+  });
+
+  test('a press that never reaches the page is reported once and not repeated', async () => {
+    const r = rig('lost');
+    const result = await r.api.pressKey('Enter');
+    expect(result).toMatchObject({ delivered: false, keydown: false, keypress: false, clicks: 0 });
+    expect(r.sent).toHaveLength(3);
+  });
+
+  test('a keydown and keyup without a keypress with char code 13 is not a delivered Enter', async () => {
+    const r = rig('no-keypress');
+    const result = await r.api.pressKey('Enter');
+    expect(result).toMatchObject({ keydown: true, keyup: true, keypress: false, delivered: false });
+    expect(r.sent).toHaveLength(3);
+  });
+
+  test('a page without focus is reported and the key is still sent once', async () => {
+    const r = rig('unfocused');
+    const result = await r.api.pressKey('Enter');
+    expect(result.page_focused).toBe(false);
+    expect(r.sent).toHaveLength(3);
+  });
+
+  test('negative control: a driver that sends the key name as the char text produces no carriage return', async () => {
+    const r = rig('arrives');
+    const sentBefore = driverSource.includes("type === 'char' ? KEY_CHARS[key] : key");
+    expect(sentBefore).toBe(true);
+    await r.api.pressKey('Enter');
+    expect(r.sent.find((event: any) => event.type === 'char').keyCode).toBe('\r');
   });
 });

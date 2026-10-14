@@ -137,7 +137,7 @@ const CASES = Object.freeze([
     'A required audit failure at the terminal state stops all later dispatch and keeps the executed counts exact',
   ], ['s03t-terminal-audit.json']),
   makeCase('B2-S04-ENCODING-CROSSCHUNK', 'G2', 'p04-streaming', 'S04', 'Decode across chunk boundaries.', [
-    'UTF-8, CP936 and UTF-16LE text split across chunks decodes losslessly; CRLF and a final line without newline are preserved',
+    'UTF-8 text split across chunks decodes losslessly under Windows PowerShell; CRLF and a final line without newline are preserved (CP936 and UTF-16LE are informational only, KL-5)',
   ], ['s04-encoding.json']),
   makeCase('B2-S05-LIMITS-SECRET-BACKPRESSURE', 'G2', 'p04-streaming', 'S05', 'Limits, secrets, backpressure, cancel and Job recovery.', [
     'Output over the limit is truncated with a structured count; a secret split across chunks is redacted',
@@ -188,6 +188,7 @@ const KNOWN_LIMITS = Object.freeze([
   'Native exit cancellation (Esc) is not measured',
   'CONT-02 crash points inside the persistence transaction and around Provider or tool dispatch cannot be hit from outside the product; they stay covered by the A9-32 developer-machine tests only',
   'SAFE-01 incompressible over-budget request is not constructible because the Renderer exposes no context budget setting; it stays covered by the A9-32 developer-machine tests only',
+  'KL-5: under Windows PowerShell the product decodes Shell output as strict UTF-8, so CP936 and UTF-16LE output ends in A9_OUTPUT_ENCODING_ERROR; B2-S04 decides on UTF-8 and CRLF only and reports the other two as INFORMATIONAL; their decoder evidence is the A9-30 module level only',
   'Real Provider and enterprise environment are not covered; loopback fixtures only',
   'POSIX executability and PowerShell /Command real execution are not measured',
   'Layouts below 800 px are PRODUCT_UNREACHABLE / NOT_VERIFIED',

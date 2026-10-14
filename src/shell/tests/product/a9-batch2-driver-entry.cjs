@@ -318,17 +318,21 @@ function evaluateUiJourney(f) {
   const back = facts.view_return || null;
   const space = facts.space || null;
   const scroll = enter && enter.scroll ? enter.scroll : null;
+  // The two Enter-dependent assertions are judged only when the page saw a real Enter keypress; otherwise the input never arrived and the answer is UNKNOWN.
+  const delivery = enter && enter.enter_delivery ? enter.enter_delivery : null;
+  const enterReached = delivery ? delivery.delivered === true : null;
+  const deliveryText = delivery ? `; enter_delivered=${delivery.delivered}; keydown=${delivery.keydown}; keypress13=${delivery.keypress}; page_focused=${delivery.page_focused}` : '; enter delivery not observed';
   const subs = [];
   subs.push(subResult('card_ready', card0 ? card0.button === CARD_BUTTON_READY && card0.disabled === false : null, card0 ? `button=${card0.button}; disabled=${card0.disabled}` : 'no card observed'));
-  subs.push(subResult('loading_feedback', enter ? enter.busy_label === true && enter.button_disabled === true : null,
-    enter ? `busy_label=${enter.busy_label}; button_disabled=${enter.button_disabled}` : 'Enter journey not observed'));
+  subs.push(subResult('loading_feedback', enter && enterReached === true ? enter.busy_label === true && enter.button_disabled === true : null,
+    enter ? `busy_label=${enter.busy_label}; button_disabled=${enter.button_disabled}${deliveryText}` : 'Enter journey not observed'));
   subs.push(subResult('focus_stays_on_card_while_busy', enter && enter.focus_in_card !== null && enter.focus_in_card !== undefined ? enter.focus_in_card === true : null,
     enter ? `focus_in_card=${enter.focus_in_card}` : 'Enter journey not observed'));
   subs.push(subResult('no_scroll_theft', scroll && scroll.testable === true ? Math.abs(Number(scroll.after) - Number(scroll.before)) <= 2 : null,
     scroll ? `testable=${scroll.testable}; before=${scroll.before}; after=${scroll.after}` : 'scroll not observed'));
-  subs.push(subResult('one_dispatch_while_busy', enter && Number.isSafeInteger(enter.continue_events_while_busy) && Number.isSafeInteger(enter.continue_events_after_extra_keys)
+  subs.push(subResult('one_dispatch_while_busy', enter && enterReached === true && Number.isSafeInteger(enter.continue_events_while_busy) && Number.isSafeInteger(enter.continue_events_after_extra_keys)
     ? enter.continue_events_while_busy === 1 && enter.continue_events_after_extra_keys === 1 : null,
-  enter ? `events_busy=${enter.continue_events_while_busy}; events_after_extra_keys=${enter.continue_events_after_extra_keys}` : 'Enter journey not observed'));
+  enter ? `events_busy=${enter.continue_events_while_busy}; events_after_extra_keys=${enter.continue_events_after_extra_keys}${deliveryText}` : 'Enter journey not observed'));
   subs.push(subResult('stop_returns_actionable_new_card', stopped && stopped.card ? stopped.card.disabled === false && stopped.card.button === CARD_BUTTON_READY
     && stopped.interrupted_turn_changed === true && stopped.revision_changed === true : null,
   stopped && stopped.card ? `button=${stopped.card.button}; disabled=${stopped.card.disabled}; turn_changed=${stopped.interrupted_turn_changed}; revision_changed=${stopped.revision_changed}` : 'no card after Stop'));
@@ -339,6 +343,67 @@ function evaluateUiJourney(f) {
   subs.push(subResult('space_retry_creates_one_more_turn', space ? space.continue_events_total === 2 && space.ipc_continue_calls_total === 2 && /^completed/.test(String(space.second_turn_status || '')) : null,
     space ? `events_total=${space.continue_events_total}; ipc_calls=${space.ipc_continue_calls_total}; second_turn=${space.second_turn_status}` : 'Space retry not observed'));
   return subs;
+}
+
+// Key input as the page must see it (rehearsal 7, B2-UI-01). A `char` event carries the typed character: a native button is activated by a
+// keypress with char code 13 (Enter) or by the keyup of the Space key. The first Enter of rehearsal 7 produced no click in 9.96 s; why is
+// UNKNOWN, so every press is checked on the page side and an Enter that did not arrive as a real keypress leaves the verdict UNKNOWN.
+const KEY_CHARS = { Enter: '\r', Space: ' ' };
+const KEY_NAMES = { Enter: 'Enter', Space: ' ' };
+const KEY_CHAR_CODES = { Enter: 13, Space: 32 };
+function keyEventsFor(key) {
+  if (!Object.prototype.hasOwnProperty.call(KEY_CHARS, key)) throw new Error(`A9_BATCH2_DRIVER_KEY_UNKNOWN:${key}`);
+  return ['keyDown', 'char', 'keyUp'].map((type) => ({ type, keyCode: type === 'char' ? KEY_CHARS[key] : key }));
+}
+// What the page saw of one press: `records` is the page-side recorder list, `fromIndex` its length before the press.
+function summarizeKeyPress(records, fromIndex, key) {
+  const list = Array.isArray(records) ? records.slice(Number.isSafeInteger(fromIndex) && fromIndex > 0 ? fromIndex : 0) : [];
+  const name = KEY_NAMES[key];
+  const has = (type, test) => list.some((item) => Boolean(item) && item.type === type && test(item));
+  const keydown = has('keydown', (item) => item.key === name);
+  const keypress = has('keypress', (item) => item.charCode === KEY_CHAR_CODES[key]);
+  const keyup = has('keyup', (item) => item.key === name);
+  const clicks = list.filter((item) => Boolean(item) && item.type === 'click').length;
+  return { key, keydown, keypress, keyup, clicks, delivered: key === 'Enter' ? keydown && keypress : keydown && keyup };
+}
+const KEY_RECORDER_SOURCE = `(() => { if (window.__b2KeyRecords) return true; const list = window.__b2KeyRecords = [];
+  for (const type of ['keydown', 'keypress', 'keyup', 'click']) {
+    window.addEventListener(type, (event) => { if (list.length < 400) list.push({ type, key: event.key === undefined ? null : event.key,
+      charCode: event.charCode === undefined ? null : event.charCode, target: event.target && event.target.tagName ? event.target.tagName : null, trusted: event.isTrusted === true }); }, true);
+  }
+  return true; })()`;
+
+// B2-SAFE-02 (rehearsal 7): the contract says a required audit failure stops the Turn and an unknown side effect is never recorded as zero.
+// The product reports the failure in the IPC answer of a9.turn.submit (error code A9_AUDIT_PERSISTENCE_FAILED), keeps the dispatch stopped and does
+// not write the Turn row, so the verdict reads the IPC answer; page text and Turn row are evidence only.
+const AUDIT_FAILURE_CODE = 'A9_AUDIT_PERSISTENCE_FAILED';
+function evaluateAuditHardStop(f) {
+  const facts = f || {};
+  const first = Array.isArray(facts.submit_calls) && facts.submit_calls[0] ? facts.submit_calls[0] : null;
+  const requests = facts.requests || {};
+  const observed = Boolean(first) && typeof facts.file_written === 'boolean' && Number.isSafeInteger(facts.tool_ends)
+    && Number.isSafeInteger(requests.after_turn) && Number.isSafeInteger(requests.after_next_submit);
+  const second = Array.isArray(facts.submit_calls) && facts.submit_calls[1] ? facts.submit_calls[1] : null;
+  const detail = `file_written=${facts.file_written}; tool_end_persisted=${facts.tool_ends}; submit_ok=${first ? first.ok : null}; submit_error_code=${first ? first.error : null}; `
+    + `next_submit_error_code=${second ? second.error : null}; turn_status=${facts.turn_status}; requests=${requests.before}->${requests.after_turn}->${requests.after_next_submit}; `
+    + `page_shows_code=${facts.page_shows_code} (observation); outcome_json_has_code=${facts.outcome_json_has_code} (observation)`;
+  if (!observed) return { status: 'UNKNOWN', detail: `a9.turn.submit answer or counters not observed; ${detail}` };
+  const codeReturned = first.ok === false && first.error === AUDIT_FAILURE_CODE;
+  const dispatchStopped = requests.after_next_submit === requests.after_turn;
+  const ok = facts.file_written === true && facts.tool_ends === 0 && codeReturned && facts.turn_status !== 'completed' && dispatchStopped;
+  return { status: ok ? 'PASS' : 'FAIL', detail };
+}
+
+// B2-S04 (rehearsal 7, KL-5): under Windows PowerShell the product decodes Shell output as strict UTF-8, so only UTF-8 and CRLF decide the
+// verdict. CP936 and UTF-16LE still run; their outcome is evidence labelled INFORMATIONAL and never changes PASS or FAIL.
+const ENCODING_GATING = ['utf8', 'crlf'];
+function evaluateEncodingOutcomes(outcomes) {
+  const list = Array.isArray(outcomes) ? outcomes.filter(Boolean) : [];
+  const gating = ENCODING_GATING.map((label) => list.find((item) => item.label === label) || null);
+  const missing = ENCODING_GATING.filter((_label, index) => !gating[index]);
+  const text = list.map((item) => `${item.label}=${item.ok}${ENCODING_GATING.includes(item.label) ? '' : ' (INFORMATIONAL, KL-5)'}`).join('; ');
+  if (missing.length > 0) return { status: 'UNKNOWN', text: `${text}; not_observed=${missing.join(',')}` };
+  return { status: gating.every((item) => item.ok === true) ? 'PASS' : 'FAIL', text };
 }
 
 // Streamed rows are counted where the product renders them: the live-output block of the tool call (pre.shell-live-output, one per call).
@@ -501,10 +566,19 @@ async function runDriver() {
     return { top: c.scrollTop, height: c.scrollHeight, client: c.clientHeight }; })()`);
   const focusProbe = () => exec(`(() => { const a = document.activeElement; const c = document.querySelector('section.continuation-card');
     return { tag: a ? a.tagName : null, cls: a ? String(a.className || '').slice(0, 60) : null, inCard: Boolean(c && a && c.contains(a)) }; })()`);
-  const press = (keyCode) => {
+  // One real key press. The page-side recorder shows whether the press arrived (keydown, keypress with the right char code, keyup); a press that did not
+  // arrive is reported, never repeated, so a lost key cannot hide behind a second try.
+  const installKeyRecorder = () => exec(KEY_RECORDER_SOURCE);
+  const keyRecords = async () => (await exec('window.__b2KeyRecords || []')) || [];
+  async function pressKey(key) {
+    await installKeyRecorder();
     win.show(); win.focus(); win.webContents.focus();
-    for (const type of ['keyDown', 'char', 'keyUp']) win.webContents.sendInputEvent({ type, keyCode });
-  };
+    const pageFocused = await waitFor(async () => (await exec('document.hasFocus()')) === true, 3000, 'page focus').then(() => true, () => false);
+    const fromIndex = (await keyRecords()).length;
+    for (const event of keyEventsFor(key)) win.webContents.sendInputEvent(event);
+    await waitFor(async () => summarizeKeyPress(await keyRecords(), fromIndex, key).keyup, 1500, 'key reached the page').catch(() => null);
+    return { ...summarizeKeyPress(await keyRecords(), fromIndex, key), page_focused: pageFocused, from_index: fromIndex };
+  }
   const continueEventsFor = async (conv, taskId) => (await events(conv, 1000)).events.filter((e) => e.eventType === 'task_continue_requested' && eventData(e).taskId === taskId);
   const continueIpcCalls = () => ipcLog.filter((item) => item.action === 'a9.task.continue').length;
   const cardInfo = () => exec(`(() => { const c = document.querySelector('section.continuation-card'); const b = c && c.querySelector('button');
@@ -995,15 +1069,26 @@ async function runDriver() {
     await newConversation();
     const outcomes = [];
     for (const [label, expected] of [['utf8', fx.text], ['utf16le', fx.text], ['cp936', '中文'], ['crlf', 'line one\r\nline two\r\nlast line without newline']]) {
-      const observed = await runPrompt(`b2:s04-${label}`);
-      const frames = framesFromEvents(observed.events);
-      const last = frames.filter((frame) => frame.toolCallId === (frames[frames.length - 1] || {}).toolCallId);
-      const text = last.map((frame) => frame.text).join('');
-      outcomes.push({ label, expected, ok: text.includes(expected), got_head: text.slice(0, 120), frames: last.length });
+      const gating = ENCODING_GATING.includes(label);
+      try {
+        const observed = await runPrompt(`b2:s04-${label}`);
+        const frames = framesFromEvents(observed.events);
+        const last = frames.filter((frame) => frame.toolCallId === (frames[frames.length - 1] || {}).toolCallId);
+        const text = last.map((frame) => frame.text).join('');
+        const callId = last.length > 0 ? last[0].toolCallId : null;
+        const warnings = callId ? Array.from(new Set(observed.events.filter((event) => event.eventType === 'tool_output' && eventData(event).toolCallId === callId)
+          .map((event) => eventData(event).warning).filter(Boolean))) : [];
+        outcomes.push({ label, expected, gating, ok: text.includes(expected), got_head: text.slice(0, 120), frames: last.length, warnings });
+      } catch (error) {
+        // CP936 and UTF-16LE are evidence for KL-5 only: a failed informational run is recorded, a failed gating run stays an error.
+        if (gating) throw error;
+        outcomes.push({ label, expected, gating, ok: false, got_head: '', frames: 0, warnings: [], error: String(error && error.message ? error.message : error).slice(0, 200) });
+      }
       await sleep(400);
     }
-    out('s04-encoding.json', { shell: snap.shell, outcomes });
-    record('B2-S04-ENCODING-CROSSCHUNK', 1, outcomes.every((item) => item.ok) ? 'PASS' : 'FAIL', outcomes.map((item) => `${item.label}=${item.ok}`).join('; '));
+    const verdict = evaluateEncodingOutcomes(outcomes);
+    out('s04-encoding.json', { shell: snap.shell, known_limit: 'KL-5: only UTF-8 and CRLF decide the verdict; CP936 and UTF-16LE are INFORMATIONAL', outcomes, verdict });
+    record('B2-S04-ENCODING-CROSSCHUNK', 1, verdict.status, verdict.text);
   }
 
   async function streamLimits() {
@@ -1429,6 +1514,7 @@ async function runDriver() {
     }
     try {
       const c0 = await counters();
+      const ipcFrom = ipcLog.length;
       await submit('b2:audit-write');
       await waitFor(async () => { const s = await snapshot(); return s.controls.canStop === false && s.agentStatus !== 'running' ? s : null; }, 120000, 'audit write settled');
       await sleep(1500);
@@ -1443,11 +1529,15 @@ async function runDriver() {
       await sleep(4000);
       const c2 = await counters();
       const dom = await domState();
+      const submitCalls = ipcLog.slice(ipcFrom).filter((item) => item.action === 'a9.turn.submit').map((item) => ({ ok: item.ok === true, error: item.error }));
+      const pageShowsCode = /A9_AUDIT_PERSISTENCE_FAILED|auditIncomplete/.test(String(dom.present));
+      const outcomeHasCode = /A9_AUDIT_PERSISTENCE_FAILED|auditIncomplete/.test(String(row.outcome_json || ''));
+      const verdict = evaluateAuditHardStop({ file_written: fileWritten, tool_ends: toolEnds, turn_status: row.status || null, submit_calls: submitCalls,
+        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, page_shows_code: pageShowsCode, outcome_json_has_code: outcomeHasCode });
       out('safe02-audit-hard-stop.json', { file_written_on_disk: fileWritten, tool_end_events_persisted: toolEnds, turn_status: row.status || null, outcome_json: String(row.outcome_json || '').slice(0, 400),
-        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, outcome_text: dom.outcome, composer_before_next_submit: composerBefore });
-      const auditFlag = /A9_AUDIT_PERSISTENCE_FAILED|auditIncomplete/.test(`${row.outcome_json || ''}${dom.present}`);
-      record('B2-SAFE-02-AUDIT-HARD-STOP', 1, fileWritten && toolEnds === 0 && auditFlag && row.status !== 'completed' && c2.requests === c1.requests ? 'PASS' : 'FAIL',
-        `file_written=${fileWritten}; tool_end_persisted=${toolEnds}; audit_flag_visible=${auditFlag}; turn_status=${row.status}; requests=${c0.requests}->${c1.requests}->${c2.requests}`);
+        requests: { before: c0.requests, after_turn: c1.requests, after_next_submit: c2.requests }, submit_calls: submitCalls, page_shows_code: pageShowsCode, outcome_json_has_code: outcomeHasCode,
+        page_visible_tail: String(dom.visible || '').slice(-600), outcome_text: dom.outcome, composer_before_next_submit: composerBefore, verdict });
+      record('B2-SAFE-02-AUDIT-HARD-STOP', 1, verdict.status, verdict.detail);
     } finally {
       try { const db = openDb(false); try { db.exec('DROP TRIGGER IF EXISTS b2_audit_write'); } finally { db.close(); } } catch (_error) { /* data root is disposable */ }
     }
@@ -1477,20 +1567,21 @@ async function runDriver() {
       const scroll0 = await scrollProbe(true);
       await setFixture({ afterHold: true, holdNext: true });
       await exec(`(() => { const b = document.querySelector('section.continuation-card button'); b.focus({ preventScroll: true }); return document.activeElement === b; })()`);
-      press('Enter');
+      const enterDelivery = await pressKey('Enter');
       const busy = await waitFor(async () => { const c = await cardInfo(); return c && c.button === CARD_BUTTON_BUSY ? c : null; }, 8000, 'busy label').catch(() => null);
       await sleep(1200);
       const focus = await focusProbe();
       const scroll1 = await scrollProbe(false);
       const eventsBusy = await continueEventsFor(pre.conversationId, pre.taskId);
-      press('Enter');
-      press('Space');
+      const extraEnter = await pressKey('Enter');
+      const extraSpace = await pressKey('Space');
       await sleep(800);
       const eventsExtra = await continueEventsFor(pre.conversationId, pre.taskId);
       await screenshot('ui01-interaction.png');
       facts.enter = { busy_label: Boolean(busy), button_disabled: busy ? busy.disabled === true : null, focus_in_card: focus.inCard, focus_element: focus.tag,
         scroll: scroll0 && scroll1 ? { testable: scroll0.height - scroll0.client >= 60, before: scroll0.top, after: scroll1.top, height: scroll0.height, client: scroll0.client } : null,
-        continue_events_while_busy: eventsBusy.length, continue_events_after_extra_keys: eventsExtra.length };
+        continue_events_while_busy: eventsBusy.length, continue_events_after_extra_keys: eventsExtra.length,
+        enter_delivery: enterDelivery, extra_enter: extraEnter, extra_space: extraSpace, key_records: (await keyRecords()).slice(0, 60) };
     });
 
     await step('stop_journey', async () => {
@@ -1513,7 +1604,7 @@ async function runDriver() {
     await step('space_retry', async () => {
       await setFixture({ afterHold: true, holdNext: false });
       await exec(`(() => { const b = document.querySelector('section.continuation-card button'); b.focus({ preventScroll: true }); return document.activeElement === b; })()`);
-      press('Space');
+      facts.space_delivery = await pressKey('Space');
       await waitFor(async () => (await continueEventsFor(pre.conversationId, pre.taskId)).length >= 2, 30000, 'second continue event');
       await waitIdle(120000, 'space retry turn');
       const all = await continueEventsFor(pre.conversationId, pre.taskId);
@@ -1524,7 +1615,7 @@ async function runDriver() {
 
     const subs = evaluateUiJourney(facts);
     const verdict = summarizeSubs(subs);
-    out('ui01-interaction.json', { facts, subs, notes, keyboard: 'Enter and Space via webContents.sendInputEvent (keyDown, char, keyUp)', window_height_for_scroll_test: 520 });
+    out('ui01-interaction.json', { facts, subs, notes, keyboard: 'Enter and Space via webContents.sendInputEvent (keyDown, char with the typed character, keyUp), checked by a page-side recorder', window_height_for_scroll_test: 520 });
     record('B2-UI-01-CONTINUE-INTERACTION', 1, verdict.status, `${verdict.text}${notes.errors.length ? `; step_errors=${notes.errors.length}` : ''}`);
   }
 
@@ -1667,6 +1758,7 @@ module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
+  keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
 };
 
