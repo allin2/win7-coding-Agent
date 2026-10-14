@@ -1729,3 +1729,229 @@ describe('A9-33 batch-2 guard journeys against the real runtime', () => {
     }
   }, 60_000);
 });
+
+// Rehearsal 6 (Win7, p04 and p05) showed five suite defects. Each test below runs the shipped driver or fixture code against the facts
+// that the rehearsal evidence showed, and keeps a negative control that restores the old code and must fail.
+describe('A9-33 batch-2 rehearsal 6 fixes', () => {
+  const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+  const slice = (from: string, to: string) => {
+    const start = driverSource.indexOf(from);
+    const end = driverSource.indexOf(to, start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return driverSource.slice(start, end);
+  };
+  const step = (token: string, tools: any[] = [], state: any = {}) => fixtures.providerStep({ messages: [{ role: 'user', content: `please run ${token}` }, ...tools] }, state);
+  const toolMessages = (count: number) => Array.from({ length: count }, () => ({ role: 'tool', content: 'ok' }));
+
+  describe('S04: a prompt ends at the end event it adds, and every prompt has its own call id', () => {
+    const END = (eventId: number, turnId: string) => ({ eventId, turnId, eventType: 'turn_completed' });
+    const runnerCode = () => slice('const isTerminalEvent = ', '  // The smoke kills this process tree');
+    // Event lists as the product returns them for one conversation: the first prompt has ended (event 5); the second prompt starts and ends.
+    const polls = [
+      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1')],
+      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1'), { eventId: 6, turnId: 't2', eventType: 'turn_started' }],
+      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1'), { eventId: 6, turnId: 't2', eventType: 'turn_started' }, { eventId: 7, turnId: 't2', eventType: 'tool_output' }],
+      [{ eventId: 1, turnId: 't1', eventType: 'turn_started' }, END(5, 't1'), { eventId: 6, turnId: 't2', eventType: 'turn_started' }, { eventId: 7, turnId: 't2', eventType: 'tool_output' }, END(8, 't2')],
+    ];
+    async function run(code: string) {
+      const seen: boolean[] = [];
+      let submitted = false;
+      const box: any = {
+        waitIdle: async () => ({}), conversationId: async () => 'conv-1', submit: async () => { submitted = true; },
+        events: async () => ({ events: polls[0] }),
+        observeUntil: async (done: any) => {
+          // The stub plays the polls after the submit and stops when the driver's predicate says the prompt has ended.
+          for (let i = 1; i < polls.length; i += 1) {
+            const verdict = Boolean(await done(polls[i]));
+            seen.push(verdict);
+            if (verdict) return { polls: i };
+          }
+          throw new Error('never ended');
+        },
+      };
+      vm.runInNewContext(`${code}\n;this.api = { runPrompt };`, box);
+      const result = await box.api.runPrompt('b2:s04-utf16le');
+      return { seen, submitted, result };
+    }
+
+    test('the second prompt of a conversation is not ended by the end event of the first', async () => {
+      const outcome = await run(runnerCode());
+      expect(outcome.submitted).toBe(true);
+      // Poll 1 (new Turn started, nothing else) and poll 2 (output arriving) are not the end; poll 3 holds the new end event.
+      expect(outcome.seen).toEqual([false, false, true]);
+      expect(outcome.result).toEqual({ polls: 3 });
+    });
+
+    test('negative control: the earlier rule (any end event) ends the second prompt at once', async () => {
+      const old = runnerCode().replace('terminalCount(evts) > endsBefore', 'terminalReached(evts)');
+      expect(old).not.toBe(runnerCode());
+      const outcome = await run(old);
+      expect(outcome.seen[0]).toBe(true);
+    });
+
+    test('each encoding prompt gets its own scripted call id', () => {
+      const ids = ['utf8', 'utf16le', 'cp936', 'crlf'].map((label) => step(`b2:s04-${label}`, [], { shellKind: 'powershell' }).id);
+      expect(new Set(ids).size).toBe(4);
+      expect(ids).toEqual(['b2-s04-utf8', 'b2-s04-utf16le', 'b2-s04-cp936', 'b2-s04-crlf']);
+      // The prompt after the tool result still answers with text only.
+      expect(step('b2:s04-crlf', toolMessages(1), { shellKind: 'powershell' })).toEqual({ content: 'encoding command finished.' });
+    });
+  });
+
+  describe('S03T: the audit scenario must not trip the product loop detector', () => {
+    test('the three reads name three different files and the Turn can reach its end', () => {
+      const { LoopDetector } = require('../../../core/src/loop-control');
+      const calls = [0, 1, 2].map((done) => step('b2:audit-three', toolMessages(done)));
+      expect(calls.map((call: any) => call.tool.name)).toEqual(['read', 'read', 'read']);
+      const paths = calls.map((call: any) => call.tool.args.path);
+      expect(new Set(paths).size).toBe(3);
+      expect(paths).toEqual(fixtures.AUDIT_READ_FILES);
+      expect(step('b2:audit-three', toolMessages(3))).toEqual({ content: 'audit scenario finished.' });
+      const detector = new LoopDetector(3);
+      expect(calls.map((call: any) => detector.observe(call.tool.name, call.tool.args))).toEqual([false, false, false]);
+      // Negative control: the earlier script (the same path three times) is the case the product ends as stuck.
+      const stuck = new LoopDetector(3);
+      expect([0, 1, 2].map(() => stuck.observe('read', { path: 'b2-hold.txt' }))).toEqual([false, false, true]);
+    });
+
+    test('the driver creates every file that the scenario reads', () => {
+      const body = slice('async function auditStop()', 'try {\n      const db = openDb(false);');
+      expect(body).toContain('AUDIT_READ_FILES');
+      expect(body).toMatch(/for \(const file of AUDIT_READ_FILES\) fs\.writeFileSync\(path\.join\(workspaceRoot, file\)/);
+    });
+  });
+
+  describe('S05-A01: the command text of the secret scenario carries neither the secret nor its first characters', () => {
+    const secret = () => fixtures.testOnlySecret();
+    const secretHalves = () => { const value = secret(); const middle = Math.floor(value.length / 2); return [value.slice(0, middle), value.slice(middle)]; };
+
+    test('PowerShell: the command text is clean and the quoted pieces join to the two halves', () => {
+      const command = fixtures.shellCommand('powershell', { name: 'secret-split' });
+      expect(driver.secretLeak(command, secret())).toEqual({ leaked: false, checked: true });
+      // The same check on the stored form of the command: tool arguments are JSON, so quotes are escaped there.
+      expect(driver.secretLeak(JSON.stringify({ command }), secret()).leaked).toBe(false);
+      const writes = [...command.matchAll(/Write\((\([^)]*\))\)|WriteLine\((\([^)]*\))\)/g)].map((m) => (m[1] || m[2]));
+      const joined = writes.map((expr) => [...expr.matchAll(/'([^']*)'/g)].map((m) => m[1]).join(''));
+      expect(joined).toEqual(secretHalves());
+    });
+
+    test('cmd: the command text is clean and the carets disappear when the shell reads it', () => {
+      const command = fixtures.shellCommand('cmd', { name: 'secret-split' });
+      expect(driver.secretLeak(command, secret()).leaked).toBe(false);
+      const parsed = /<nul set \/p =(\S+) & ping .* & echo (\S+)$/.exec(command);
+      expect(parsed).not.toBeNull();
+      expect([parsed![1].replace(/\^/g, ''), parsed![2].replace(/\^/g, '')]).toEqual(secretHalves());
+    });
+
+    test('no five characters of the secret stay together in the command text, and the rejoined output still is the secret', () => {
+      const value = secret();
+      for (const kind of ['powershell', 'cmd']) {
+        const command = fixtures.shellCommand(kind, { name: 'secret-split' });
+        for (let i = 0; i + 5 <= value.length; i += 1) expect(command).not.toContain(value.slice(i, i + 5));
+      }
+      expect(secretHalves().join('')).toBe(value);
+    });
+
+    test('negative control: the earlier command (the first half as one literal) is read as a leak', () => {
+      const [head, tail] = secretHalves();
+      const old = `[Console]::Out.Write('${head}'); Start-Sleep -Milliseconds 400; [Console]::Out.WriteLine('${tail}')`;
+      expect(driver.secretLeak(old, secret()).leaked).toBe(true);
+    });
+  });
+
+  describe('S05-A02: the process listing of the driver is not a process of the product', () => {
+    const DRIVER_PID = 7492;
+    const csv = (rows: string[]) => `Node,CreationDate,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
+    const rows = [
+      'H,20261014084000.000000+000,electron.exe,500,7492',
+      'H,20261014084001.000000+000,powershell.exe,7492,7600',
+      'H,20261014084002.000000+000,WMIC.exe,7492,6292',
+      'H,20261014084003.000000+000,WMIC.exe,7600,6300',
+    ];
+    function wmic(code: string) {
+      const box: any = {
+        childProcess: { spawnSync: () => ({ stdout: csv(rows), status: 0, error: null }) }, process: { pid: DRIVER_PID }, String, Number,
+        descendantsOf: driver.descendantsOf,
+      };
+      vm.runInNewContext(`${code}\n;this.api = { wmicRows, myTree: () => descendantsOf(wmicRows(), process.pid) };`, box);
+      return box.api;
+    }
+    const code = () => slice('let wmicFailures = 0;', '  // ---- UI actions through the real DOM');
+
+    test('only the direct WMIC.exe child of the driver is left out of the rows and the tree', () => {
+      const api = wmic(code());
+      expect(api.wmicRows().map((row: any) => row.ProcessId)).toEqual(['7492', '7600', '6300']);
+      // A WMIC.exe that the product itself started (parent is its PowerShell) stays visible.
+      expect(api.myTree().map((item: any) => item.pid)).toEqual([7600, 6300]);
+    });
+
+    test('negative control: without the filter the listing child is part of every tree (the rehearsal 6 count 4, 6, 4)', () => {
+      const old = code().replace(/return rows\.filter\([^\n]*\n/, 'return rows;\n');
+      expect(old).not.toBe(code());
+      expect(wmic(old).myTree().map((item: any) => item.pid)).toContain(6292);
+    });
+  });
+
+  describe('S06: a conversation is switched from the sidebar, and a page that does not follow is a recorded fact', () => {
+    // A page with two conversations. The sidebar row click is the page's own switch; the bridge call changes the main process only.
+    function stage(options: { followsClick?: boolean; titles?: string[] } = {}) {
+      const titles = options.titles || ['b2:s02', 'b2:bg-ready-fail'];
+      const world: any = { active: 'conv-b', pageCurrent: 'conv-b', bridgeCalls: 0, clicks: 0 };
+      const conversations = titles.map((title, index) => ({ sessionId: index === 0 ? 'conv-a' : 'conv-b', title, state: 'active' }));
+      const button = (conversation: any) => ({
+        getAttribute: (name: string) => (name === 'aria-label' ? `${conversation.title}，空闲，更新于 2026/10/14` : name === 'aria-current' ? String(world.pageCurrent === conversation.sessionId) : null),
+        get disabled() { return world.pageCurrent === conversation.sessionId; },
+        click() { world.clicks += 1; world.active = conversation.sessionId; if (options.followsClick !== false) world.pageCurrent = conversation.sessionId; },
+      });
+      const buttons = conversations.map(button);
+      const win: any = { win7Agent: { a9: {
+        snapshot: async () => ({ ok: true, snapshot: { activeConversationId: world.active, conversations } }),
+        activateConversation: async (id: string) => { world.bridgeCalls += 1; world.active = id; return { ok: true }; },
+      } } };
+      const doc = { querySelectorAll: () => buttons };
+      const exec = async (source: string) => vm.runInNewContext(source, { document: doc, window: win, Array, Boolean, String, JSON });
+      let clock = 0;
+      const FakeDate = { now: () => { clock += 1000; return clock; } };
+      const sleep = async () => undefined;
+      const code = [slice('async function waitFor(condition, timeoutMs, label)', '// ---- SQLite inspection'), slice('const snapshot = async', 'const events = async'),
+        slice('const conversationId = async', 'async function newConversation'), slice('const conversationRows = ', 'async function reloadRenderer')].join('\n');
+      const box: any = { exec, sleep, Date: FakeDate, JSON, Boolean, Error, Promise, String, Array, RegExp };
+      vm.runInNewContext(`${code}\n;this.api = { activateConversation, switchConversationInUi, conversationRows };`, box);
+      return { api: box.api, world };
+    }
+
+    test('a unique title is opened with the row click and the page marks it current', async () => {
+      const { api, world } = stage();
+      expect(await api.activateConversation('conv-a')).toEqual({ method: 'ui', title: 'b2:s02' });
+      expect(world).toMatchObject({ active: 'conv-a', pageCurrent: 'conv-a', clicks: 1, bridgeCalls: 0 });
+    });
+
+    test('the conversation that is already active needs no switch', async () => {
+      const { api, world } = stage();
+      expect(await api.activateConversation('conv-b')).toEqual({ method: 'already_active' });
+      expect(world).toMatchObject({ clicks: 0, bridgeCalls: 0 });
+    });
+
+    test('a page that does not follow the click fails by name instead of passing on the snapshot alone', async () => {
+      const { api } = stage({ followsClick: false });
+      await expect(api.activateConversation('conv-a')).rejects.toThrow(/^TIMEOUT:page marks the conversation current: b2:s02/);
+    });
+
+    test('a title shared by two conversations falls back to the bridge call and says so', async () => {
+      const { api, world } = stage({ titles: ['same', 'same'] });
+      expect(await api.activateConversation('conv-a')).toEqual({ method: 'bridge' });
+      expect(world).toMatchObject({ clicks: 0, bridgeCalls: 1 });
+      await expect(stage({ titles: ['same', 'same'] }).api.switchConversationInUi('conv-a')).rejects.toThrow(/^A9_BATCH2_DRIVER_CONVERSATION_TITLE_NOT_UNIQUE:same:2/);
+    });
+
+    test('the restart journey opens the streamed conversation through the sidebar and records the rows and the method', () => {
+      const body = slice('async function sessionRestart()', '// ---- Modes: continue (p06)');
+      expect(body).toMatch(/const rowsBefore = await conversationRows\(\);\s*const switched = await activateConversation\(part\.conversationId\);/);
+      expect(body).toContain('switch: switched');
+      expect(body).toContain('sidebar_before');
+      expect(body).toContain('sidebar_after');
+      expect(driverSource).not.toMatch(/await exec\(`window\.win7Agent\.a9\.activateConversation\(\$\{JSON\.stringify\(id\)\}\)`\);\s*await waitFor\(async \(\) => \(await conversationId\(\)\) === id, 20000, 'activate conversation'\);\s*\}\s*async function reloadRenderer/);
+    });
+  });
+});

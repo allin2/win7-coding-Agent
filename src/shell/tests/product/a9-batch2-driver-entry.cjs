@@ -513,7 +513,10 @@ async function runDriver() {
     const lines = String(result.stdout || '').replace(/\r/g, '').split('\n').filter((line) => line.trim());
     if (result.error || result.status !== 0 || lines.length < 2) { wmicFailures += 1; return []; }
     const header = lines[0].split(',');
-    return lines.slice(1).map((line) => { const cells = line.split(','); const row = {}; header.forEach((name, index) => { row[name] = cells[index]; }); return row; });
+    const rows = lines.slice(1).map((line) => { const cells = line.split(','); const row = {}; header.forEach((name, index) => { row[name] = cells[index]; }); return row; });
+    // The query's own WMIC.exe is a direct child of this process and exists only while the query runs; it is not a process of the product
+    // (rehearsal 6, p04 S05-A02: the query after a cancel started a WMIC.exe that the next tree counted as new).
+    return rows.filter((row) => !(String(row.Name || '').toLowerCase() === 'wmic.exe' && String(row.ParentProcessId) === String(process.pid)));
   }
   const myTree = () => descendantsOf(wmicRows(), process.pid);
 
@@ -580,10 +583,38 @@ async function runDriver() {
     await exec('(() => { const b = document.getElementById("conversation-new"); if (b && !b.disabled) b.click(); return true; })()');
     return waitFor(async () => { const id = await conversationId(); return id && id !== before ? id : null; }, 20000, 'new conversation');
   }
+  // A conversation switch the way a person makes it: click the conversation's row in the sidebar. The preload bridge alone changes the main
+  // process only; the page loads the new conversation on its own switch path (rehearsal 6, p05: after a restart the snapshot named the
+  // streamed conversation as active for 16 s while the page kept showing the old one). A title that is not unique cannot name one row.
+  const conversationRows = () => exec(`(() => Array.from(document.querySelectorAll('#conversation-list button')).map((b) => ({ label: b.getAttribute('aria-label') || '', current: b.getAttribute('aria-current') === 'true', disabled: b.disabled })))()`);
+  const conversationTitleOf = (snap, id) => { const item = (snap.conversations || []).find((c) => c.sessionId === id); return item ? (item.title || '新对话') : null; };
+  async function switchConversationInUi(id) {
+    const snap = await snapshot();
+    if (snap.activeConversationId === id) return { method: 'already_active', title: conversationTitleOf(snap, id) };
+    const title = conversationTitleOf(snap, id);
+    if (title === null) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_NOT_LISTED:${id}`);
+    const same = (snap.conversations || []).filter((c) => c.state === 'active' && (c.title || '新对话') === title);
+    if (same.length !== 1) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_TITLE_NOT_UNIQUE:${title}:${same.length}`);
+    const prefix = `${title}，`;
+    const rowOf = (rows) => rows.find((row) => row.label.startsWith(prefix));
+    await waitFor(async () => { const row = rowOf(await conversationRows()); return row && !row.disabled ? row : null; }, 30000, `conversation row enabled: ${title}`);
+    const clicked = await exec(`(() => { const b = Array.from(document.querySelectorAll('#conversation-list button')).find((x) => (x.getAttribute('aria-label') || '').startsWith(${JSON.stringify(prefix)})); if (!b || b.disabled) return false; b.click(); return true; })()`);
+    if (!clicked) throw new Error(`A9_BATCH2_DRIVER_CONVERSATION_ROW_NOT_CLICKED:${title}`);
+    await waitFor(async () => (await conversationId()) === id, 20000, 'switched conversation');
+    await waitFor(async () => { const current = (await conversationRows()).filter((row) => row.current); return current.length === 1 && current[0].label.startsWith(prefix) ? true : null; }, 20000, `page marks the conversation current: ${title}`);
+    return { method: 'ui', title };
+  }
+  // The bridge call stays only for a conversation the sidebar cannot name (not listed, or a title shared with another conversation).
   async function activateConversation(id) {
-    if ((await conversationId()) === id) return;
+    if ((await conversationId()) === id) return { method: 'already_active' };
+    try {
+      return await switchConversationInUi(id);
+    } catch (error) {
+      if (!/^A9_BATCH2_DRIVER_CONVERSATION_(NOT_LISTED|TITLE_NOT_UNIQUE):/.test(String(error && error.message))) throw error;
+    }
     await exec(`window.win7Agent.a9.activateConversation(${JSON.stringify(id)})`);
     await waitFor(async () => (await conversationId()) === id, 20000, 'activate conversation');
+    return { method: 'bridge' };
   }
   async function reloadRenderer() {
     const loaded = new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
@@ -634,14 +665,19 @@ async function runDriver() {
     const stamps = new Map(dbAll("SELECT id, created_at FROM a9_events WHERE event_type = 'tool_output'").map((row) => [row.id, Date.parse(row.created_at)]));
     return frames.map((frame) => ({ eventId: frame.eventId, text: frame.text, persistedAtMs: stamps.get(frame.eventId) }));
   }
-  const terminalReached = (evts) => evts.some((e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed');
+  const isTerminalEvent = (e) => e.eventType === 'turn_completed' || e.eventType === 'turn_failed';
+  const terminalReached = (evts) => evts.some(isTerminalEvent);
+  const terminalCount = (evts) => evts.filter(isTerminalEvent).length;
 
   // The previous Turn's end event is persisted before the runtime clears its controller and before the renderer lets go of the Turn,
   // so a prompt waits for idle (no running Turn) and a ready composer instead of failing on the first read (rehearsal 4, p04).
+  // The end event counted is the one this prompt adds: the events of a conversation keep the end events of its earlier prompts, so
+  // "any end event exists" ends the second and later prompts of one conversation at the submit (rehearsal 6, p04 S04: frames 4, 4, 8, 11).
   async function runPrompt(token, timeoutMs) {
     await waitIdle(30000, `idle before ${token}`);
+    const endsBefore = terminalCount((await events(await conversationId(), 1000)).events);
     await submit(token);
-    return observeUntil(async (evts) => terminalReached(evts), timeoutMs || 120000, token);
+    return observeUntil(async (evts) => terminalCount(evts) > endsBefore, timeoutMs || 120000, token);
   }
 
   // The smoke kills this process tree on <mode>.ready; the facts are persisted first so the next process can compare.
@@ -954,7 +990,9 @@ async function runDriver() {
     await bootstrap();
     await newConversation();
     const conv = await conversationId();
-    fs.writeFileSync(path.join(workspaceRoot, 'b2-hold.txt'), 'b2 audit read target\n', 'utf8');
+    // Three reads with the same arguments end the Turn as stuck (loop detector, three identical calls), so each read names its own file.
+    const { AUDIT_READ_FILES } = require(path.join(candidateRoot, 'validation', 'a9-batch2-fixtures.cjs'));
+    for (const file of AUDIT_READ_FILES) fs.writeFileSync(path.join(workspaceRoot, file), `b2 audit read target ${file}\n`, 'utf8');
     try {
       const db = openDb(false);
       try { db.exec("CREATE TRIGGER b2_audit_fail BEFORE INSERT ON a9_events WHEN NEW.event_type = 'turn_completed' BEGIN SELECT RAISE(FAIL, 'b2 injected audit failure'); END"); } finally { db.close(); }
@@ -1098,9 +1136,13 @@ async function runDriver() {
   async function sessionRestart() {
     const part = readJsonFile('s06-part1.json');
     await bootstrap();
-    await activateConversation(part.conversationId);
+    // After a restart the page opens on the conversation that was active before the exit; the streamed conversation is opened the way a person
+    // opens it, from the sidebar. Rows and page marker are recorded before and after, so a page that does not follow shows what it shows.
+    const rowsBefore = await conversationRows();
+    const switched = await activateConversation(part.conversationId);
     const restartView = await settledOutputCounts(part.texts, 15000);
     await screenshot('s06-after-restart.png');
+    const rowsAfter = await conversationRows();
     const restartSnap = await snapshot();
     const frames = framesFromEvents((await events(part.conversationId, 1000)).events);
     const restartTexts = frames.map((frame) => frame.text.trim()).filter(Boolean);
@@ -1109,7 +1151,8 @@ async function runDriver() {
     const refreshOnce = part.refresh_view ? part.refresh_view.once === true : false;
     const restartOnce = restartView.once === true;
     out('s06-refresh-paging.json', { part1: part, restart: { rows_equal: sameRows, once_each: once, view: restartView, active_conversation_is_streamed: restartSnap.activeConversationId === part.conversationId,
-      timeline_tool_output_rows: (restartSnap.timeline || []).filter((item) => item.type === 'tool_output').length }, refresh_once: refreshOnce, paging_ok: part.paging.ok, view_return_ok: part.view_return_ok });
+      timeline_tool_output_rows: (restartSnap.timeline || []).filter((item) => item.type === 'tool_output').length,
+      switch: switched, sidebar_before: rowsBefore.map((row) => ({ label: row.label.slice(0, 60), current: row.current })), sidebar_after: rowsAfter.map((row) => ({ label: row.label.slice(0, 60), current: row.current })) }, refresh_once: refreshOnce, paging_ok: part.paging.ok, view_return_ok: part.view_return_ok });
     record('B2-S06-REFRESH-PAGING-RESTART', 1, refreshOnce && restartOnce && part.paging.ok && part.view_return_ok && sameRows ? 'PASS' : 'FAIL',
       `refresh_once=${refreshOnce}; paging=${part.paging.ok}; view_return=${part.view_return_ok}; restart_rows_equal=${sameRows}; restart_once=${restartOnce}`);
   }

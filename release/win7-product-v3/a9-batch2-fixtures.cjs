@@ -408,6 +408,14 @@ function testOnlySecret() {
   return `sk-${'TESTONLYBATCH2'}${'0123456789abcdef'}`;
 }
 
+// Pieces of at most SECRET_PIECE_MAX characters; a leak check looks for the whole secret or its first 10 characters.
+const SECRET_PIECE_MAX = 4;
+function splitPieces(text) {
+  const pieces = [];
+  for (let i = 0; i < text.length; i += SECRET_PIECE_MAX) pieces.push(text.slice(i, i + SECRET_PIECE_MAX));
+  return pieces;
+}
+
 function secretSplitAcrossChunks() {
   const secret = testOnlySecret();
   const bytes = Buffer.from(`prefix ${secret} suffix`, 'utf8');
@@ -421,6 +429,7 @@ function secretSplitAcrossChunks() {
 // the script is stateless apart from the explicit `state` object (hold engaged, shell kind). Commands are bounded.
 
 const SCENARIO_TOKEN = /b2:[a-z0-9-]+/;
+const AUDIT_READ_FILES = ['b2-audit-read-0.txt', 'b2-audit-read-1.txt', 'b2-audit-read-2.txt'];
 
 function shellCommand(kind, spec) {
   const powershell = kind === 'powershell';
@@ -441,13 +450,17 @@ function shellCommand(kind, spec) {
         ? '1..4000 | ForEach-Object { Write-Output (\'line \' + $_ + \' \' + (\'x\' * 100)) }'
         : 'for /L %i in (1,1,4000) do @echo line %i xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
     case 'secret-split': {
+      // The command text goes into events, the page and snapshots, so it must not contain the secret or its first characters: the secret
+      // is cut into short pieces that the shell joins at run time (rehearsal 6, p04 S05-A01: a 16-character literal made every leak check hit).
       const secret = testOnlySecret();
       const middle = Math.floor(secret.length / 2);
       const head = secret.slice(0, middle);
       const tail = secret.slice(middle);
+      const joined = (text) => `(${splitPieces(text).map((piece) => `'${piece}'`).join('+')})`;
+      const caretted = (text) => splitPieces(text).join('^');
       return powershell
-        ? `[Console]::Out.Write('${head}'); Start-Sleep -Milliseconds 400; [Console]::Out.WriteLine('${tail}')`
-        : `<nul set /p =${head} & ping -n 2 127.0.0.1 >nul & echo ${tail}`;
+        ? `[Console]::Out.Write(${joined(head)}); Start-Sleep -Milliseconds 400; [Console]::Out.WriteLine(${joined(tail)})`
+        : `<nul set /p =${caretted(head)} & ping -n 2 127.0.0.1 >nul & echo ${caretted(tail)}`;
     }
     case 'fail-fast': return powershell ? 'exit 9' : 'cmd /c exit 9';
     case 'long-running':
@@ -547,7 +560,8 @@ function providerStep(parsed, state) {
     case 'b2:s02':
       return done === 0 ? call('b2-s02', 'shell', { command: shellCommand(kind, { name: 'interleave' }) }) : { content: 'interleave command finished.' };
     case 'b2:s04-utf8': case 'b2:s04-utf16le': case 'b2:s04-cp936': case 'b2:s04-crlf':
-      return done === 0 ? call('b2-s04', 'shell', { command: encodingCommandPowerShell(token.slice('b2:s04-'.length)) }) : { content: 'encoding command finished.' };
+      // One call id per prompt: four prompts of one conversation that share an id cannot be told apart in the stored frames (rehearsal 6, p04 S04).
+      return done === 0 ? call(`b2-s04-${token.slice('b2:s04-'.length)}`, 'shell', { command: encodingCommandPowerShell(token.slice('b2:s04-'.length)) }) : { content: 'encoding command finished.' };
     case 'b2:s05-limit':
       return done === 0 ? call('b2-s05-l', 'shell', { command: shellCommand(kind, { name: 'over-limit' }) }) : { content: 'limit command finished.' };
     case 'b2:s05-secret':
@@ -557,7 +571,8 @@ function providerStep(parsed, state) {
     case 'b2:audit-write':
       return done === 0 ? call('b2-aw-1', 'write', { path: 'b2-audit.txt', content: 'b2 audit write\n' }) : { content: 'audit write scenario finished.' };
     case 'b2:audit-three':
-      return done < 3 ? call(`b2-audit-${done}`, 'read', { path: 'b2-hold.txt' }) : { content: 'audit scenario finished.' };
+      // Three reads with identical arguments end the Turn as stuck (loop detector), so every read names its own file.
+      return done < AUDIT_READ_FILES.length ? call(`b2-audit-${done}`, 'read', { path: AUDIT_READ_FILES[done] }) : { content: 'audit scenario finished.' };
     default:
       return { content: 'no scenario token; nothing executed.' };
   }
@@ -574,7 +589,7 @@ module.exports = {
   CONTRACT, LIMITS, GATES, PHASES, CHAIN_STEPS, CASES, KNOWN_LIMITS, FIXTURE_BOUNDS,
   evidenceSet, evidenceForPhase, phaseById, selfCheck,
   backgroundCommandCmd, backgroundCommandPowerShell, encodingFixtures, splitAt,
-  testOnlySecret, secretSplitAcrossChunks,
+  testOnlySecret, secretSplitAcrossChunks, AUDIT_READ_FILES,
   RESULT_KIND, casesForPhase, newPhaseResult, setAssertion, finalizePhaseResult, phaseResultProblems,
   shellCommand, encodingCommandPowerShell, providerStep, lastUserPrompt, extractHandleId, extractNextCursor,
 };
