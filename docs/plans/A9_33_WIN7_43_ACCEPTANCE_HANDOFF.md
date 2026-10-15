@@ -1,6 +1,6 @@
 # A9-33 / WIN7-43 正式实机验收交接书
 
-Status: AWAITING_OWNER_GATE_A
+Status: FORMAL_EXECUTED_AWAITING_INDEPENDENT_REVIEW
 
 结论：候选 WIN7-43 已于 2026-10-15 冻结，字节与预演 12、13 执行过的包相同；正式执行等待负责人签关口 A。
 本交接书依据 [A9-33](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md) §2、§6.52，沿用 [W42 交接书](A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md) 的候选外证据、普通用户和原始取证合同。W42 的授权文件、候选与证据不得复用为 WIN7-43。
@@ -82,3 +82,8 @@ Status: AWAITING_OWNER_GATE_A
 | 修复分支在真实陈旧父 PID 碰撞下的 Win7 行为 | `NOT_PERFORMED` |
 | 83 个 `driver-electron` 文件的逐字节扫描回放 | `NOT_PERFORMED` |
 | `agent` 的锁屏或屏保状态 | `UNKNOWN`；UI 阶段在预演 12、13 中 PASS，不证明锁屏状态 |
+
+## 6. 关口 A 与正式运行结果（2026-10-15 追加，上文不改）
+
+关口 A 已由负责人签发：授权文件 SHA-256 `dc5b1608dae82f9f8b2b896f968aad286b7d8bc8417aede298a3c7f2a6228db0`，回执时间 2026-10-15T02:01:45Z，有效期至 10:01:45Z。正式运行 10 个阶段、25 个用例、42 条断言在 Win7 上全部 PASS，取回 245 个文件 0 个不一致，终态零残留，本机秘密扫描命中 0。登记与证据位置见 [A9-33 §6.54](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#654-关口-a-签发与正式运行2026-10-15)。
+独立复核（codex 第三阶段）与关口 B 为 `NOT_PERFORMED`；结论上限仍是第二批执行能力 Win7 PASS，不是 Alpha 2。

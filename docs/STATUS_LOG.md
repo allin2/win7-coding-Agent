@@ -2318,3 +2318,9 @@ B2-SAFE-02：`a9.turn.submit` 两次返回 `A9_AUDIT_PERSISTENCE_FAILED`，无�
 结论：候选 WIN7-43 以源提交 `63c6d426…` 冻结，ZIP `f7538c20…`；两个独立干净工作树各构建 1 次，ZIP 逐字节相同，且与预演 12、13 的 ZIP 相同。关口 A 材料已备齐，等待负责人签发。
 证据层级为开发机，绑定 `63c6d426…`。冻结由负责人 2026-10-15 回答“A”裁决。固定正式 run-id `7af65f2d…`，授权草案 `0171aeea…`（`DRAFT_PENDING_OWNER_GATE_A`）。关口 A、正式 Win7 执行、独立复核与关口 B 均 `NOT_PERFORMED`。预演时间窗在 2026-10-16T06:59:59Z 结束，是否覆盖正式运行 `UNKNOWN`。
 登记位置：[A9-33 §6.53](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#653-候选-win7-43-冻结与关口-a-材料2026-10-15)，交接书 [A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md](plans/A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md)。
+
+## A9-33 关口 A 签发与正式运行（2026-10-15）
+
+结论：负责人签发关口 A 后，执行代理在 Win7 上完成 WIN7-43 的一次正式运行：10 个阶段、25 个用例、42 条断言全部 PASS。独立复核与关口 B `NOT_PERFORMED`，这不是验收通过，也不是 Alpha 2。
+证据层级为 Win7 实机（正式运行，待独立复核），绑定冻结候选 `63c6d426…`、ZIP `f7538c20…`、run `7af65f2d…`、授权文件 `dc5b1608…`。取回 245 个文件 0 个不一致，终态零残留，本机秘密扫描命中 0。
+登记位置：[A9-33 §6.54](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#654-关口-a-签发与正式运行2026-10-15)。
