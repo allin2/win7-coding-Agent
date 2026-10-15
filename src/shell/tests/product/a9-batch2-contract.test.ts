@@ -1301,6 +1301,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect((await run({ files: files({ 'release-dialog-response.json': { dialog: { response: 0 }, buttons_ok: true, returned_index: 0, timed_out: false } }) })).status).toBe('FAIL');
       expect((await run({ files: files({ 'release-dialog-response.json': { dialog: { response: 1 }, buttons_ok: false, returned_index: 1, timed_out: false } }) })).status).toBe('FAIL');
       expect((await run({ files: files({ 'release-dialog-response.json': { dialog: null, timed_out: true } }) })).status).toBe('FAIL');
+      expect((await run({ files: files({ 'release-dialog-response.json': { dialog: { response: 1 }, buttons_ok: true, returned_index: 1, timed_out: true } }) })).status).toBe('FAIL');
       expect((await run({ files: files({ 'release-ownership-events.json': { sequence: { ...sequenceOk, ok: false, sequence: ['owned', 'released'] } } }) })).status).toBe('FAIL');
       expect((await run({ launch: exitLaunch({ code: 1 }) })).status).toBe('FAIL');
       expect((await run({ launch: exitLaunch({ killed_by: 'timeout' }) })).status).toBe('FAIL');
@@ -2695,6 +2696,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     test('the driver keeps no ready-failure claim and the release mode asks for no assertion of its own', () => {
       const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
       expect(source).not.toMatch(/b2:bg-ready-fail|ready_fail_ends|exit_without_dialog=pending/);
+      expect(source).toContain("record('B2-BG-03-STOP-RELEASE-EXIT', 1, verdict.status,");
       expect(source).toContain("fastOutcome('b2:bg-fast-exit'");
       expect(source).toContain("fastOutcome('b2:bg-badcwd'");
       expect(source).toContain("submit('b2:bg-release')");
