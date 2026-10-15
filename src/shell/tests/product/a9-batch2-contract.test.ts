@@ -2663,6 +2663,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
       expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [{ ...exited, cleanupRequired: true }], residue: [] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [exited], residue: [{ handleId: 'sh-2' }] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [refused], newFacts: [exited], residue: [] } })).status).toBe('FAIL');
       // A failed start that leaves a live, unconfirmed or cleanup-required fact is a failure on every path; a start that did not fail is never PASS.
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [{ handleId: 'sh-9', lastProbeStatus: 'running' }], residue: [{ handleId: 'sh-9' }] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [{ ...failedFact, cleanupRequired: true }], residue: [{ handleId: 'sh-3' }] } })).status).toBe('FAIL');
