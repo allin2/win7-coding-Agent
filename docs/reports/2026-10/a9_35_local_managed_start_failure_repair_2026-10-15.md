@@ -109,3 +109,35 @@ R1～R4身份、完整性与10文件传输通过。09:16:17Z R8当前102进程�
 源码诊断发现launchDriver只等待close；被释放后代若保留stdio句柄，会使driver已退出后仍等待管道EOF并最终触发旧PID超时清扫。开发机Node20真实子进程最小复现为exit0在21ms、close0在1549ms，支持上述原因推断；该推断不能改判预演17。套件修复只对release_exit采用该ChildProcess实例的exit事件，取消后续计时器并只unref读管道而不关闭它。非零退出/信号/已触发timeout仍失败；普通mode继续等close，产品所有权、存活、残留及按创建身份清理判据不变。没有延长超时或改300秒夹具，没有产品/native/协议/锁变化。
 
 两个变更文件均在A9-33 §6.1白名单：release/win7-product-v3/a9-batch2-smoke.cjs及src/shell/tests/product/a9-batch2-contract.test.ts。新增5例中，旧套件4项行为失败/1项控制通过；修复后5项通过。开发机Node20完整Shell Jest284（合同241/运行时43）、包node --test120、verify:quick通过；日志exit-close-*及编译输出身份保留，消费者全部结束后才恢复跟踪dist。沿用§6.39/6.56的同范围修复、独立复核和新不可变预演授权，不盲目重试旧run；本地提交沿用§6.64持续授权，不推送。第21轮全新独立复核后才重建新包并恢复有界Win7验证，不冻结、不签门A/B或正式运行。历史FAIL/UNKNOWN/HALTED及KL边界保持。
+
+## 10. 第21轮关闭与Win7预演18 PASS
+
+套件修复已沿用持续本地提交授权提交为ba042757a04f428cb3db3ccd10888a7bebe97d3b（7路径，清单SHA-256 a6716c79065c0a764904c7b4c4b1141b958cc9a143203f71be87e7a1026d9740；未推送）。第21轮全新独立会话01a13ee9-77f7-7c90-ae32-64aa365930fd，09:34:09Z～09:45:58Z正常退出0，报告0P0/0P1/0新增P2，建议准确字节重建后有界预演。报告SHA-256 f7649fd1b485d511fbd12b9f21f6978ef8e998b59b21e5b8bc1d07b378c00e52；109文件归档在A9-33树.acceptance/a9-33-review/codex-release-exit-round21-20261015/independent，原复核根/private/tmp/a9-33-codex-review-root-27保留。
+
+复核直接构建通过，Shell完整命令275 PASS/9 listen EPERM UNKNOWN（退出1），新增5例及真实Node消费者6例通过，两个语法有效变异被具名行为断言拦截并逐SHA恢复。包120按完全相同源码、输入和68项runner编译身份继承，产品第2轮及套件第20轮只继承未改范围。真实消费者验证release在22ms返回、pipe约698ms才close且继续读取两路各524314字节；普通mode继续等close，非零/信号/实际timeout保留失败。无收尾消费者退出后后代写管道EPIPE的侧实验失败保留；实际套件在返回前await清理和身份观察，不依赖消费者退出后管道仍可用。详细夹具首失败、沙箱UNKNOWN及原时序首失败均不改判。
+
+Win7预演18绑定同一源ba042757…，ZIP ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e（101680489字节），manifest 520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df，kit 64804b2fc964fb22a9b380d912c92ba3ad819ed50a8d70ca3c5a078b7c930ed1，授权5c5b54daf41a88892d219237f157a305bc523f89fa695925729b7787ac22e709，run f17a0389-cc4f-4e0a-892a-b1950bc6b365，新根C:\A9-W43\run\f17a0389。窗口09:47:43Z～17:47:43Z。新包仅5个条目与预演17不同：smoke、kit、manifest、SBOM及合同记录；产品、native、锁不变。
+
+R1指定Win7/普通agent/精确SID/console2、空间与无Electron/helper通过；R3的10文件大小/哈希一致、R4解压manifest匹配，逐任务XML回读通过。09:49:52Z～09:57:30Z顺序执行p01～p10，全部PASS；25用例、43断言全部PASS，10 CONSUMED/10 COMPLETED，累计112/124，连续成功1次。身份仍REHEARSAL_NOT_ELIGIBLE，不计正式验收。
+
+关键直接结果：无效cwd正常拒绝再次PASS；BG03-A02 release driver PID1748正常code0/signalNULL/killed_byNULL，4391ms退出。owned→release_intent→released同releaseId持久化；退出后root PID1544/创建时间20261015175322.838137+480同实例存活，套件按创建身份终止并确认无残留。普通Stop/快速退出、刷新分页/重启、主动继续、安全、UI、报告和运行后检查均PASS。真实helper ready失败清理仍NOT_PERFORMED，不用预启动拒绝替代。
+
+R8于09:57:37Z当前103进程、相关命中0、本次任务0；没有追加目标终止。R7最终338项大小/SHA全部匹配：254项本次直接远端证据，84项与准确包逐文件大小及SHA-256一致的driver/runtime载荷标INHERITED_EVIDENCE。权威清单来自当前run远端sum-tree；原始run结果由逐阶段回收和R7工作区/数据回收取得，每项来源及hash写r7/reconciliation-inputs.json。不能把载荷复用写作新传输或新平台验证；目标实际加载与行为仍是本run直接证据。
+
+工具注意：整树默认SFTP下载在大Electron文件上缓慢，另一次legacy只读下载同样保留。完整内容来源均已匹配远端清单后，仅向两个已核对PID/命令的本地SCP客户端发SIGINT，没有终止目标进程；两次传输exit1及partial目录保留，不把它们改判成功。canonical evidence在新目录用来源字节重建，338项再次逐大小/hash核验且无额外/缺失。第一次本地来源分类只允许driver-electron，误拒绝同包driver-app/main.cjs；该首停及纠错记录保留，只修来源分类，未改产品判据。其后续shell曾继续本地扫描/19准备，但19远端动作在完整R7 PASS之后才启动。此处不是Win7测试失败重试。
+
+本机264文件扫描零命中且正控检出，不补签旧run。2029件原包/输入/账本/结果/传输记录保护清单SHA-256 e35af909a02a215d8ac14c64bdaecae7642f53c6d03f09a7aef034ee7fcf7125。预演16的315件及预演17的755件曾再次复核不变。原始FAIL/UNKNOWN/HALTED和KL-3、KL-5、KL-6a、KL-7含a/b/c及其他已登记限制保持。
+
+## 11. 同包Win7预演19 PASS，两次连续成功已取得
+
+结论：Win7实机工程预演18、19连续成功；每次p01～p10、25用例、43断言全部PASS。两次均绑定源ba042757a04f428cb3db3ccd10888a7bebe97d3b及ZIP ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e，目标始终DCCS-CHAIZL-PC/Win7 SP1 x64、普通agent精确SID/console2。预演19复用同一不可变包，没有重新构建或新增产品/套件变更。两次仍为REHEARSAL_NOT_ELIGIBLE，不作为正式验收证据。
+
+预演19授权SHA-256 f62aea1209ebbeb09041958fcddba40c0bcceb614498ade3a9ffd509b10ce05a，run 2317fe31-d0f4-4c59-ad33-201000e44ac9，新根C:\A9-W43\run\2317fe31，窗口10:06:28Z～18:06:28Z；总截止2026-10-16T06:59:59Z不变。按原§6.39/6.56授权在聊天报备后把累计上限124提到156，单次16请求/7200秒保持。R1～R6身份、空间、10文件大小/哈希、manifest和逐任务回读通过。实际10:08:27Z～10:15:49Z顺序执行，10 CONSUMED/10 COMPLETED，累计122/156，连续成功2次。
+
+第二次BG03-A01中无效cwd正常拒绝、零新句柄/零残留；BG03-A02释放driver PID7848正常code0/signalNULL/killed_byNULL，4887ms退出，对话框index1点击成功，持久化owned→release_intent→released且同releaseId。退出后root PID2968/创建时间20261015181200.886344+480同实例仍存活，套件按身份清理后确认无残留。该PID与旧run同号不能继承旧身份，证据按各自创建时间区分。Stop、快速退出、刷新分页/重启、主动继续、安全、UI、报告与运行后检查再次PASS。
+
+R8于10:16:31Z当前103进程、相关命中0、本次任务0，没有额外目标终止。R7复用18已核实的传输方法：远端当前run SHA/大小清单、直接回收本次workspace/data/driver-app、已直接回收的逐阶段结果，以及当前包中完全同大小/SHA的运行时载荷。338项全匹配且无缺失/额外；255项本run直接证据、83项driver-electron载荷INHERITED_EVIDENCE。原始脚本未覆盖；新执行编排、diff和工具哈希保留在rehearsal-19-preparation，R8代码与既有远端动作不变。任何来源缺失、大小或哈希错误均拒绝，不用旧run的行为证据顶替。
+
+264文件扫描零命中且正控检出。1983件原包、输入与结果保护清单SHA-256 6ff6ecc036cafb1b928e00bbd6c5b07e969a1e1423295c6bf387121800d696a7。两次逐账本COMPLETED的result_sha256复算与原phase-result一致；REHEARSAL_RESULT.json分别写在rehearsal-18、rehearsal-19根，后者绑定前次成功run与连续成功2次。原始首失败、数据库及全部旧候选保持。
+
+已完成当前指令要求的Win7实机验证及合同两次连续预演。真实helper启动后ready失败清理仍NOT_PERFORMED，KL-12保留，预启动拒绝不替代这项证明；两次套件PASS不把该缺口关闭。KL-3、KL-5、KL-6a、KL-7含a/b/c及其他适用限制仍有效。当前新候选的双干净构建、冻结、新关口A、正式运行、第三阶段独立复核和关口B均NOT_PERFORMED；关口仅负责人可签，不借用旧签字。未推送、未碰Win10或改系统设置，后继仅本地提交任务记录。

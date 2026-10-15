@@ -73,3 +73,9 @@ Win7 Validation: NOT_PERFORMED (formal acceptance; rehearsal evidence see §8)
 新包绑定5a14cf70865ce4a27cc1a641c4179b94e1f12d1d/ZIP f6970165…/run 4c94e8f1…，真实Win7普通agent上无效cwd正常拒绝PASS：A9_BACKGROUND_CWD_INVALID，一个失败tool_end、零新句柄/零残留，Turn结束。该证据只覆盖预启动拒绝；真实helper ready失败清理仍NOT_PERFORMED，BG03整体不关闭。
 
 整轮预演在BG03-A02 FAIL停止（launcher等close至timeout；产品release事实已持久化），p06～p10 NOT_PERFORMED，连续成功0次，累计102/124。A9-33只在其两个套件白名单路径修复观测，产品字节5f7c0e80…不变，待新独立复核和新不可变包复验。详见[A9-33 §6.70](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#670-预演17首失败与套件exitclose观测修复2026-10-15-utc)和本轮报告§9；不改判旧失败、不签正式Win7验收。
+
+## 9. Win7两次连续预演完成
+
+2026-10-15：源ba042757a04f428cb3db3ccd10888a7bebe97d3b、ZIP ae1d4bb1…，普通agent/Win7 SP1实机预演18（f17a0389…）与19（2317fe31…）连续PASS，各25用例/43断言通过。无效cwd正常拒绝两次，失败tool_end准确、零新句柄/零残留；释放后同实例仍存活、按身份清理及正常退出两次通过。A9-35产品字节仍绑定5f7c0e80…，两次同包验证，无新产品变更。
+
+真实helper启动后ready失败清理仍NOT_PERFORMED，KL-12保留，不用正常拒绝替代。两次均REHEARSAL_NOT_ELIGIBLE，表头正式Win7验收仍NOT_PERFORMED；未双干净构建、冻结、签新Gate或正式运行。原预演16/17失败和历史UNKNOWN不改判。完整绑定、直接/继承证据与工具记录见[A9-33 §6.71～6.72](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)及本地报告§10～11。累计122/156，连续成功2次；不推送。

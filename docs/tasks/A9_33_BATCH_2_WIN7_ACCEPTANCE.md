@@ -2854,3 +2854,23 @@ BG03-A02 FAIL：产品所有权owned→release_intent→released已持久化且�
 诊断及具体绑定见[本轮报告§9](../reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#9-本次-win7-预演17首失败与套件退出观测修复)。开发机真实进程复现exit0先于继承管道close，支持源码原因推断；Win7当时单独exit时间UNKNOWN，预演17不改判。仅两个§6.1路径的修复让release_exit监听本实例exit，保留读管道并unref，完成后取消旧PID计时器；普通mode、真实错误/超时、所有权/存活/身份清理判据不变。旧代码4项行为反例失败，修复后5项、Jest284、包120、verify:quick通过（开发机）。
 
 本轮不自动重跑原输入。按§6.39/6.56既有同范围修复与后续预演授权，准确提交后另开全新第21轮独立复核；0P0/P1后才新构建、新授权文件哈希报备、新run做有界Win7验证。单次≤16请求/7200秒，累计上限124及总截止不变，本地提交沿用§6.64授权、不推送。无产品/native/协议/锁扩展，不冻结、签Gate或正式运行；旧FAIL/UNKNOWN/HALTED和KL边界保持。
+
+### 6.71 第21轮关闭与Win7预演18 PASS（2026-10-15 UTC）
+
+ba042757a04f428cb3db3ccd10888a7bebe97d3b已本地提交，未推送。全新独立会话01a13ee9…于09:34:09Z～09:45:58Z退出0，0P0/0P1/0新增P2（开发机）；报告SHA-256 f7649fd1b485d511fbd12b9f21f6978ef8e998b59b21e5b8bc1d07b378c00e52，109文件归档。直接Jest275 PASS/9沙箱listen EPERM UNKNOWN，新5例/真实子进程6例/两行为变异及准确恢复完成；包120和未改产品/历史范围按准确字节继承。侧实验EPIPE、夹具首失败和原时序失败保留，详见[报告§10](../reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#10-第21轮关闭与win7预演18-pass)。
+
+预演18源ba042757…、ZIP ae1d4bb1…、manifest 520bda7e…、kit 64804b2f…、授权5c5b54da…、run f17a0389…，新根C:\A9-W43\run\f17a0389。R1～R6目标/输入/任务回读均通过；09:49:52Z～09:57:30Z p01～p10全部PASS，25用例/43断言PASS，10消费/10完成，累计112/124，连续成功1次。BG03-A02正常退出4391ms且无timeout，release后根PID1544+创建时间同实例仍存活，按身份清理后确认无残留；无效cwd正常拒绝再次PASS。真实helper ready失败清理仍NOT_PERFORMED。
+
+R8当前103进程/相关0/本次任务0。R7的338项大小/SHA全匹配，其中254项本run直接回收、84项同包载荷INHERITED_EVIDENCE；原远端清单、逐项来源、两次慢速传输中止/partial及本地分类纠错均保留。只中止本机已核对身份的SCP客户端，未新增目标终止。扫描264文件零命中且正控检出；2029件保护清单e35af909…保留。完整字节和路径见报告，不把复用载荷写成新传输。
+
+任务要求两次连续预演。按§6.39/6.56既有裁决，报备后将新预演19累计请求上限从124提高到156，原单次16/7200秒和总截止2026-10-16T06:59:59Z不变。预演19复用准确相同ZIP，另建authority/run/根；不重建产品，不复用18授权身份，不改旧run、产品/native/协议/锁，不冻结、签Gate或推送。两次预演均为REHEARSAL_NOT_ELIGIBLE，不能代替正式Win7验收。
+
+### 6.72 Win7预演19 PASS与两次连续成功（2026-10-15 UTC）
+
+结论：预演18/19在指定Win7普通agent桌面连续成功，各10阶段、25用例、43断言全部PASS。源均ba042757a04f428cb3db3ccd10888a7bebe97d3b，ZIP均ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e；第二次只换authority/run/新根，包字节完全相同，没有产品或套件新修改。两次均REHEARSAL_NOT_ELIGIBLE，不计正式验收。
+
+预演19授权f62aea1209ebbeb09041958fcddba40c0bcceb614498ade3a9ffd509b10ce05a，run 2317fe31-d0f4-4c59-ad33-201000e44ac9，新根C:\A9-W43\run\2317fe31，窗口10:06:28Z～18:06:28Z/总截止不变。10:08:27Z～10:15:49Z执行，10消费/10完成，累计122/156，连续成功2次。BG03-A02正常退出4887ms、release后root PID2968+当前创建时间同实例存活，套件按身份清理成功；无效cwd正常拒绝再次PASS。完整绑定和直接证据见[报告§11](../reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#11-同包win7预演19-pass两次连续成功已取得)。
+
+R8当前103进程/相关0/本次任务0；R7的338项大小/SHA全匹配，其中255项本run直接证据、83项同包driver-electron载荷INHERITED_EVIDENCE。264文件扫描零命中且正控检出，1983件保护清单6ff6ecc0…；每个COMPLETED结果hash已复算，不把传输复用当新目标行为。18/19的REHEARSAL_RESULT.json与保护清单均保留，16/17及所有历史FAIL/UNKNOWN/HALTED不变。
+
+真实helper ready失败清理仍NOT_PERFORMED（KL-12），预启动拒绝不能替代；套件43 PASS不签这项未覆盖证明。KL-3、KL-5、KL-6a、KL-7含a/b/c及其他适用限制保持。当前新候选的双干净构建、冻结、新关口A、正式运行、第三阶段复核、关口B均NOT_PERFORMED，仅负责人可签关口。当前实机验证完成，本地提交记录后停在此边界，不推送、不碰Win10、不接受ADR-0155或签DEVELOPER_VERIFIED。
