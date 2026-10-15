@@ -10,7 +10,7 @@
 
 A9-33/A9-35的上表Win7列为正式验收状态。2026-10-15当前源ba042757…/同包ae1d4bb1…已在Win7普通agent完成预演18/19连续PASS，各25用例/43断言；两次均REHEARSAL_NOT_ELIGIBLE，真实helper ready失败清理仍NOT_PERFORMED（KL-12），不据此签正式PASS。见[A9-33 §6.71～6.72](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)与[当前状态](../STATUS.md)。
 
-2026-10-15 UTC，负责人要求推进正式验收计划。两个独立干净工作树构建与预演包逐字节相同，WIN7-45已冻结；新门A材料已备齐，待负责人确认准确载荷SHA。正式运行、独立复核与门B仍NOT_PERFORMED，未连接远端。见[A9-33 §6.73](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#673-win7-45-双干净构建冻结与新门-a-材料2026-10-15-utc)与[WIN7-45交接书](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)。
+2026-10-15 UTC，WIN7-45门A已批准，run5773470e…正式10阶段/25用例/43断言全部PASS；R7共338项大小/SHA匹配，零残留及秘密扫描正控通过。独立复核已完成0P0/1P1/0P2：KL-12真实helper ready失败清理仍NOT_PERFORMED，不建议按未缩小合同进入门B。负责人尚未裁决补证或明确范围处置；上表Win7列为签发结论，不能把执行结果升为候选PASS。见[A9-33 §6.74～6.75](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)与[WIN7-45交接书](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)。
 
 历史批准不授权在本分支实施；既有状态与合同保留。
 

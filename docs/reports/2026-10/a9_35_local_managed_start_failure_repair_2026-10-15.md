@@ -151,3 +151,25 @@ WIN7-45于2026-10-15T11:48:38Z冻结到主工作区.acceptance/candidates/WIN7-4
 新run为5773470e-a1c0-402b-8454-966e38a73f68；待签发载荷SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d，新[交接书](../../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)给出目标、角色、16请求/7200秒、签发后8小时且不晚于2026-10-16T06:59:59Z的窗口和R1～R8闭集。载荷机器状态字段不是负责人签字；准确SHA确认和外部回执形成前不派发。正式25用例/43断言不继承预演PASS；真实helper ready失败清理仍NOT_PERFORMED（KL-12），旧限制和失败保持。
 
 本轮未连接远端，门A、正式Win7、正式证据独立复核和门B均NOT_PERFORMED。后续需先由负责人确认准确载荷SHA及所列边界。完整Alpha2/RC、ADR-0155、DEVELOPER_VERIFIED、推送、合并和发布不在本轮范围。
+
+## 13. 门 A 批准后的 WIN7-45 正式执行
+
+负责人对准确载荷47fe7cae…和交接书范围回复“批准”，候选外回执及独立pin已落盘；authority与冻结ZIP原字节不变。批准首次观察11:58:37Z，消息精确时间UNKNOWN，正式窗口至19:58:37Z。正式run5773470e-a1c0-402b-8454-966e38a73f68于12:04:09Z～12:12:19.870Z执行，490.87秒，10阶段/25用例/43断言全部PASS，10请求消费和完成，结果hash闭合；没有正式重试。证据层级为Win7实机正式执行，source仍ba042757…/ZIP ae1d4bb1…，不是门B裁决。
+
+R1准确目标/普通agent/SID/console2/空间/新根不存在/无Electron或helper通过；R2～R4仅新根、10文件两端大小/SHA和解压manifest通过；R5每个任务XML逐字段回读通过、用后逐项移除。p02确认Win7 Electron22.3.27/Node16.17.1/ABI110及模块加载；p09复算8/8阶段并拒绝8类负例。传输前外部phase.cmd的旧预演路径已留原件并仅改新run绑定；本地collector首版语法错误被compile拦截，未运行目标，修正后完成回收。冻结包和批准载荷没有改动，准备错误不算产品验证或正式重跑。
+
+BG03-A01无效cwd在helper启动前拒绝，未覆盖真实ready失败清理，KL-12保持NOT_PERFORMED。BG03-A02所有权owned→release_intent→released、同releaseId，产品正常code0/4535ms退出且未被工具终止；被释放PID4980/创建时间20261015200803.055388+480同实例仍存活，再按身份清理无残留。原始文件为当前r7/evidence/requests/05-p05-session-bg/的release-ownership-events.json、release-held-exit.json与phase-result.json。
+
+R8于12:13:33.256802Z观察103进程/相关0/本次任务0，无额外目标终止。R7共338项大小/SHA全部匹配：255本run直接、83相同包runtime载荷INHERITED_EVIDENCE；原远端清单、逐项来源、原始DB/WAL/SHM与阶段结果保留。264文件秘密扫描零命中且正控有效，不扩大到未扫描范围。FORMAL_EXECUTION_RESULT.json SHA-256 0870f03564ff16f754f2a03fda15094b4719d874d43f69980a17a6b3635e36f5；1989文件保护清单SHA-256 a9ab27db2fd9518f6b52d27764feeb32e3cfba463c9350b7376ee0255e39a732。冻结身份与24件旧候选/预演保护文件再次核验不变。
+
+未参与执行的全新Codex会话已启动技术独立复核，原始请求与报告写在本树.acceptance/a9-33-review/win7-45-formal-5773470e；结论尚未形成，门B NOT_PERFORMED。KL-3/5/6a/7(a,b,c)/12与其他限制继续携带，旧FAIL/UNKNOWN/HALTED不改判。后续只有负责人可签门B；未推送、合并或发布，不签完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED。见[A9-33 §6.74](../../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#674-门-a-批准win7-45-正式执行与证据回收2026-10-15-utc)。
+
+## 14. 独立复核结论与未关闭的 KL-12
+
+独立复核已完成：0P0/1P1/0P2，不建议按当前未缩小合同进入门B签发PASS。报告SHA-256 65cbe27f1548a9d8296fd28fbf0ecc03878470344c75054c0dc4d361330a91b3，路径本树.acceptance/a9-33-review/win7-45-formal-5773470e/independent_review.md。独立复算保护1989件、ZIP800/manifest799、338项R7及来源、25/43和56件必需直接证据、10请求/10XML/7DB/8负例一致；扩展扫描2013文件零命中/7类正控有效，9截图逐张检查。未重跑候选/目标，未逐项重建全部731个IPC时序或扩大未覆盖环境结论。
+
+唯一既有P1剩余项为真实helper启动后ready失败清理NOT_PERFORMED。事件136只是A9_BACKGROUND_CWD_INVALID的预启动拒绝；原合同仍要求ready失败直接执行。release部分已由真实持久化与退出/同实例清理关闭，没有新增产品运行缺陷发现。阶段结果终点490.870秒与最后账本完成491.265秒分别保留；原始43PASS不改，未执行项不改为PASS或产品FAIL。
+
+原始SyntaxError命令和工具返回已从本会话日志12:01:17～18Z、417/419/420行准确提取；来源索引SHA-256 7a26d10a241d6d2a71741950fc37e758776125489f08de965d08de53c54f7248，独立逐字节核对通过。展开字符串当时未落盘，不冒充原件；本地错误编译不发起收集，但同一调用先前部署已经在获批范围内进行。补充记录不改正式1989件保护清单。
+
+负责人尚未选择保留原合同补证，或明确排除该项、仅裁决已覆盖范围。门B、候选正式签发与完整Alpha2/RC均NOT_PERFORMED；不自动追加远端、重试或改冻结候选。处置材料见[A9-33 §6.75](../../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)和[交接书§10](../../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#10-独立复核结论与门-b-前置处置2026-10-15-utc)。

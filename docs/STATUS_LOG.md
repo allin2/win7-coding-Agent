@@ -2438,3 +2438,21 @@ WIN7-45于11:48:38Z冻结，主工作区.acceptance/candidates/WIN7-45共11文�
 正式run 5773470e-a1c0-402b-8454-966e38a73f68、新根C:\A9-W43\run\5773470e、待签载荷SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d。交接书提请普通agent原身份、1次/16请求/7200秒、签发后8小时且不晚于2026-10-16T06:59:59Z；未形成准确SHA回执前不远端派发。10件输入和同字节粘合文件已准备；新根状态UNKNOWN。正式运行后才另开未参与执行的Codex会话复核，再由负责人签门B。
 
 本轮未连接远端，新门A/正式Win7/独立复核/门B均NOT_PERFORMED；KL-12真实helper ready失败清理仍NOT_PERFORMED，全部既有限制、首失败、UNKNOWN与HALTED保持。无推送、发布、Win10或系统修改。见[A9-33 §6.73](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#673-win7-45-双干净构建冻结与新门-a-材料2026-10-15-utc)与[WIN7-45交接书](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)。
+
+## WIN7-45 门 A 获批，正式执行全 PASS，独立复核启动（2026-10-15 UTC）
+
+负责人在当前会话回复“批准”，准确载荷47fe7cae…及交接书范围由候选外回执/pin绑定，原字节不变。首次观察11:58:37Z，聊天消息精确时间UNKNOWN；正式窗口到19:58:37Z，1次/16请求/7200秒，预演122/156计数不动。传输前phase.cmd旧run绑定已留原件并修正，核对清单/XML后才上传；collector首版本地语法错误未运行目标，后按两处路径绑定完成，原记录保留。
+
+R1准确Win7/agent/SID/console2/空间/新根不存在/无Electron或helper，R2新根ACL、R3的10文件大小/SHA、R4解压manifest、R5逐任务XML均通过。正式run5773470e…于12:04:09Z～12:12:19.870Z执行490.87秒，10阶段/25用例/43断言全部PASS，10消费/10完成及原始结果hash匹配，没有正式重试。p02当前Electron22/Node16/ABI110实际加载、p09报告8负例通过。
+
+BG03无效cwd走预启动拒绝，KL-12真实helper ready失败清理仍NOT_PERFORMED；release owned→release_intent→released同releaseId落盘，产品code0/4535ms退出，命令PID4980+创建时间同实例存活后按身份清理无残留。R8于12:13:33Z当前103进程/相关0/本次任务0；R7共338项匹配（255直接/83同包runtime载荷继承），264文件零秘密且正控检出。1989件保护清单a9ab27db…，正式结果0870f035…，24件旧候选/预演及WIN7-45冻结身份再次保护通过。
+
+全新且未参与执行的Codex会话已启动技术独审，目录.acceptance/a9-33-review/win7-45-formal-5773470e；尚无结论，门B NOT_PERFORMED。KL-3/5/6a/7(a,b,c)/12与其他限制保持，旧FAIL/UNKNOWN/HALTED不变；不推送、不签完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED。见[A9-33 §6.74](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#674-门-a-批准win7-45-正式执行与证据回收2026-10-15-utc)。
+
+## WIN7-45 独立复核完成，KL-12 既有 P1 阻断门 B（2026-10-15 UTC）
+
+独立Codex只读复核完成0P0/1P1/0P2，报告65cbe27f…，recommend_gate_B=false。1989保护文件、冻结800/799闭包、338项回收及来源、25/43/56件必需直接证据、10请求/10XML/7DB/8负例全匹配；2013文件扩展扫描零命中、7类正控有效，9张截图已看。未重跑目标/候选或全部731次IPC时序。阶段终点490.870秒与最后账本完成491.265秒分别保留。
+
+唯一P1是原合同必跑的真实helper ready失败清理仍NOT_PERFORMED：SQLite事件136为预启动A9_BACKGROUND_CWD_INVALID拒绝，零新句柄。release持久化/正常退出/同实例存活及清理直接证据已关闭该半项；新增产品运行缺陷发现0。KL-12披露不等于缩小合同，43PASS不改为整体满足。原始SyntaxError命令/返回从本会话日志417/419/420行提取，7a26d10a…来源索引经独立逐字节核验；错误字符串未落盘边界如实保留，没有重演或修改正式快照。
+
+负责人待裁决A保持合同先做有界补证方案，或B明确排除未覆盖项并仅评估已证明范围；未选择前不签门B，不追加远端/新候选/正式重试，不改冻结包或旧FAIL/UNKNOWN/HALTED。候选外独审登记e07a0542…绑定当前正式结果和独立报告。准确材料在[A9-33 §6.75](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)及[交接书§10](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#10-独立复核结论与门-b-前置处置2026-10-15-utc)。

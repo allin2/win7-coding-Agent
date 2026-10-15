@@ -1,10 +1,22 @@
 # 当前项目状态
 
-## WIN7-45 已冻结，等待负责人签新门 A（2026-10-15 UTC）
+## WIN7-45 正式执行 PASS，独审 1 个 P1 阻断门 B（2026-10-15 UTC）
+
+独立复核已完成：0P0/1P1/0P2，不建议按当前未缩小合同进入门B签发PASS。唯一既有P1剩余项为KL-12：真实helper启动后ready失败清理仍NOT_PERFORMED；无效cwd预启动拒绝不能替代，release部分已取得直接证据。新产品运行缺陷发现0，不改正式43条PASS原值，也不签原合同完整满足。独立报告SHA-256 65cbe27f…，见[交接书§10](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#10-独立复核结论与门-b-前置处置2026-10-15-utc)及[A9-33 §6.75](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)。
+
+负责人待裁决：A保留原合同、先形成真实ready失败的最小补证方案；B明确把该项排除于本次裁决并保留NOT_PERFORMED，只评估已覆盖范围。当前未选择，门B NOT_PERFORMED，不自动重跑或修改冻结候选。完整Alpha2/RC、ADR-0155、DEVELOPER_VERIFIED、推送/发布均不签。
+
+负责人在当前会话对准确载荷47fe7cae…及交接书范围回复“批准”。回执首次观察时间11:58:37Z，聊天消息精确时间UNKNOWN；本轮正式窗口至19:58:37Z。run5773470e…保持，1次/16请求/7200秒、原目标/角色/限制不变。R1确认Win7 SP1 x64、agent/SID/console2、新根不存在、102进程无Electron/helper；R2新根建立，R3全部10文件大小/哈希一致，R4解压manifest一致。
+
+唯一正式运行于12:04:09Z开始，最后阶段于12:12:19.870Z完成，490.87秒；10阶段/25用例/43断言全部PASS，10 CONSUMED/10 COMPLETED且结果hash逐一匹配。Electron22.3.27/Node16.17.1/ABI110、实际模块加载及8个报告负例直接通过。R7共338项大小/SHA全匹配（255项本run直接、83项同包runtime载荷INHERITED_EVIDENCE），本地264文件扫描零命中/正控检出；R8相关进程0/本次任务0。原始闭包和1989件保护清单均保存，正式执行结果SHA-256 0870f035…；全部旧候选/预演24件及冻结WIN7-45身份核验不变。
+
+BG03无效cwd走预启动拒绝；release持久化owned→release_intent→released且同releaseId，产品正常code0、4535ms退出，被释放PID4980+创建时间同实例存活后按身份清理无残留。真实helper ready失败清理仍NOT_PERFORMED（KL-12）。上述直接执行事实与独审P1并存，门B不签。详见[A9-33 §6.74](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#674-门-a-批准win7-45-正式执行与证据回收2026-10-15-utc)和[交接书§9](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#9-门-a-批准与正式执行结果2026-10-15-utc)。
+
+传输前本地核对发现phase.cmd仍含预演19根；原件保留，只改新run绑定后重新核对10文件清单及任务XML，未触碰旧根或改授权载荷。候选冻结字节保持。
 
 负责人在当前会话要求按“双干净构建、比对、冻结、新门A、正式运行、独立复核、门B”计划推进。执行代理已完成两个独立干净工作树的构建，源ba042757…，两个ZIP与预演18/19的包逐字节相同（ae1d4bb1…，101680489字节）；开发机包闭包800项零差异，本地静态绑定799文件/800ZIP条目零不一致。WIN7-45于11:48:38Z冻结在主工作区.acceptance/candidates/WIN7-45，11文件与目录只读。首次缺模块依赖链接的构建失败无ZIP，原日志保留；补齐既有链接后用新输出目录构建通过，未改源码或依赖版本。跨机器可重复性UNKNOWN。
 
-正式run固定5773470e-a1c0-402b-8454-966e38a73f68，待签发载荷SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d；[WIN7-45交接书](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)给出准确目标、角色、1次/16请求/7200秒预算与确认后8小时且不晚于2026-10-16T06:59:59Z的窗口。当前仅备齐材料，机器字段不是负责人签发；无门A回执，未连接远端。新门A、正式Win7、第三阶段独立复核与门B均NOT_PERFORMED；KL-12实际helper ready失败清理仍NOT_PERFORMED，不因预演PASS关闭。详见[A9-33 §6.73](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#673-win7-45-双干净构建冻结与新门-a-材料2026-10-15-utc)。
+正式run固定5773470e-a1c0-402b-8454-966e38a73f68，已批准载荷SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d；[WIN7-45交接书](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)给出准确范围，门A后续记录以上述当前段落为准。KL-12实际helper ready失败清理仍NOT_PERFORMED，不因预演PASS关闭。冻结材料见[A9-33 §6.73](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#673-win7-45-双干净构建冻结与新门-a-材料2026-10-15-utc)。
 
 预演18/19均在DCCS-CHAIZL-PC、Win7 SP1 x64、普通agent/console2执行成功，各p01～p10、25用例、43断言全部PASS。源ba042757a04f428cb3db3ccd10888a7bebe97d3b、同一ZIP ae1d4bb1…，run分别f17a0389…和2317fe31…；无效cwd正常拒绝、release正常退出、退出后同实例存活及按身份清理均直接验证。每轮R7的338项大小/哈希匹配、扫描零命中且正控检出；R8相关进程/本次任务0。累计122/156，连续成功2次。
 

@@ -1,9 +1,9 @@
 # A9-33 / WIN7-45 正式实机验收交接书
 
-Status: AWAITING_OWNER_GATE_A
+Status: FORMAL_EXECUTED_REVIEW_P1_PENDING_OWNER
 
 WIN7-45 已冻结。两个独立干净工作树的 ZIP 逐字节相同，且与 Win7 预演 18、19 的包逐字节相同。
-本页记录开发机构建与候选准备。新的门 A、正式 Win7 执行、第三阶段独立复核和门 B 均为 `NOT_PERFORMED`。
+本页前八节保留冻结时的准备事实，后续以 §9 的正式执行和 §10 的独立复核记录为准。新的门 A 已签发，正式执行全 PASS；独审 0P0/1P1/0P2，不建议按未缩小合同进入门 B。门 B 为 `NOT_PERFORMED`。
 当前结论上限为第二批执行能力，不签完整 Alpha 2 或 RC。
 
 ## 1. 本轮授权与实际基线
@@ -114,3 +114,61 @@ ADR-0155 接受、A9-32 `DEVELOPER_VERIFIED`、推送、合并与发布均不在
 
 门 A 回执、远端 R1～R8、正式 Win7、正式证据独立复核与门 B 均 `NOT_PERFORMED`。
 跨机器构建可重复性和当前目标新根状态为 `UNKNOWN`。本轮没有连接远端，没有推送或发布。
+
+## 9. 门 A 批准与正式执行结果（2026-10-15 UTC）
+
+负责人在当前会话对上一条门 A 准确哈希确认问题回复“批准”。授权载荷 `47fe7cae…` 原字节不变，另存 `authority/OWNER_GATE_A_RECEIPT.json` 和 `OWNER_GATE_A_PIN.sha256`。
+首次观察批准时间为 11:58:37Z，聊天消息的精确时间为 `UNKNOWN`；本轮有效窗口为 11:58:37Z～19:58:37Z，1 次正式运行、最多 16 请求/7200 秒，预演计数仍为 122/156，没有重置或借用预演预算。
+本节与回执覆盖前八节“未签发/未执行”的准备快照，不改候选与旧预演事实。
+
+| 项 | 当前正式证据 |
+|---|---|
+| 目标与角色 | `DCCS-CHAIZL-PC`、Win7 SP1 x64、普通 `agent` 精确 SID、console2、Medium 非提升；管理员 SSH 仅按 R1～R8 传输/校验/调度 |
+| R1 | 新根原先不存在，C盘空余 872494956544 字节，102 进程无 Electron/helper；账户和会话匹配 |
+| R2～R4 | 仅新根建立与 agent ACL，10/10 文件大小及 SHA 匹配，解压 manifest 匹配 |
+| R5 | 10 个阶段的任务 XML 全部逐字段回读通过，用后逐项移除；没有改变任务权限或触发器合同 |
+| R6 | 正式运行从 12:04:09Z 至 12:12:19.870Z，490.87 秒；10 阶段、25 用例、43 断言全部 PASS；10 CONSUMED/10 COMPLETED，阶段结果 hash 均匹配，无正式重试 |
+| 包实际加载 | 当前候选 Electron 22.3.27、Node 16.17.1、ABI110、Original FS 物理字节与包内模块加载直接 PASS |
+| 报告负例 | 8/8 负例通过：错 pin、错候选、缺证据、改证据、改报告、剥离观察、请求重放、孤立完成 |
+| R7 | 远端当前 run 权威清单 338 项全部大小/SHA 匹配，无缺失、额外或不一致；255 项本 run 直接，83 项同包 driver-electron 载荷逐 SHA 匹配后标 `INHERITED_EVIDENCE` |
+| 秘密扫描 | 本地回收证据 264 文件零命中，正控检出；不把未逐字节扫描的包内运行时载荷或已登记编码盲点说成已覆盖 |
+| R8 | 当前 103 进程，相关命中 0，本次计划任务 0；没有额外目标终止操作 |
+
+BG03-A01 的无效 cwd 路径为 `refused`，一个失败结束事实、零新句柄/零残留。它不证明真实 helper 启动后 ready 失败清理，该项仍为 `NOT_PERFORMED`（KL-12）。
+BG03-A02 的 `release-ownership-events.json` 记录 `owned → release_intent → released`，releaseId 一致；`release-held-exit.json` 记录产品 PID7956 正常 code0，未被 timeout/工具终止，4535ms 退出。
+退出后 PID4980、创建时间 `20261015200803.055388+480` 的被释放命令仍为同一实例，套件按该身份清理，观察到零剩余。
+
+传输前的外部 `phase.cmd` 原先仍含预演19根，已保留原件 `preparation/phase.prebinding.cmd`，仅替换为本次5773470e绑定，重算清单并核对任务 XML 后才上传；冻结 ZIP、authority 和旧根未改。
+本地 collector 路径适配首版被 Python 语法检查拒绝，未保存为执行脚本、未运行目标；改成原收集器的两个准确路径替换后语法检查通过。最终结果汇总器按实际 schema 从原始 `request.json` 核对 authority pin，不修改阶段结果。准备记录原样保留。
+
+正式证据根是第4节的候选外运行目录；`FORMAL_EXECUTION_RESULT.json` SHA-256 为 `0870f03564ff16f754f2a03fda15094b4719d874d43f69980a17a6b3635e36f5`。
+`PROTECTED_SHA256SUMS.txt` 保护1989件文件，SHA-256 `a9ab27db2fd9518f6b52d27764feeb32e3cfba463c9350b7376ee0255e39a732`；全部冻结候选身份与24件旧候选/预演保护文件再次核验不变。
+
+未参与执行的全新 Codex 会话已按第7节启动，模型 `gpt-6.1-sol`、`xhigh`、`default`。原始证据复核结论尚未形成；复核目录为执行工作树 `.acceptance/a9-33-review/win7-45-formal-5773470e/`。
+门 B 仍为 `NOT_PERFORMED`。本节只记录 Win7 实机正式执行 PASS，不代签候选结论；KL-3/5/6a/7(a,b,c)/12和其余已知限制继续有效，完整Alpha2/RC、ADR-0155、DEVELOPER_VERIFIED、推送/发布不签。
+
+## 10. 独立复核结论与门 B 前置处置（2026-10-15 UTC）
+
+未参与执行的全新 Codex 会话已完成只读复核，模型 `gpt-6.1-sol` / `xhigh` / `default`。结论为 **0P0 / 1P1 / 0P2，不建议按当前未缩小合同进入门 B 签发 PASS**。
+独立报告在执行工作树 `.acceptance/a9-33-review/win7-45-formal-5773470e/independent_review.md`，SHA-256 `65cbe27f1548a9d8296fd28fbf0ecc03878470344c75054c0dc4d361330a91b3`；同目录 `review_result.json` 给出机器结果。
+候选外运行目录 `authority/INDEPENDENT_REVIEW_REGISTRATION.json` 登记准确报告、正式结果和结论；原始 1989 件保护快照不变。
+
+唯一 P1 是 `P1-KL12-CONTRACT-COVERAGE`。[A9-33 §5 的 G2/S06/BG 必须直接执行表](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#5-基于-a9-32-本地差异的具体化准备2026-10-11)仍要求 ready 失败；§4 规定必需项缺失不能签完整满足。
+本 run 的 SQLite `a9_events.id=136` 仅证明 `A9_BACKGROUND_CWD_INVALID` 预启动拒绝，零新句柄。真实 helper 启动后 ready 失败清理仍 `NOT_PERFORMED`，已披露 KL-12 不等于自动修改必须执行的合同。
+原 WIN7-43 P1 的 release 部分已被当前持久化、真实退出、同实例存活与清理直接证据关闭。当前剩余项是既有覆盖缺口，审核未发现新的产品运行失败。
+
+独立审核已复算：1989 件保护文件、ZIP800项/manifest799文件、R7的338项和来源、25用例/43唯一断言及56件必需直接行为证据、10请求摘要和结果hash、10任务XML、7数据库quick_check及相关SQLite原值、8个报告负例。
+报告的阶段结果终点490.870秒和最后账本完成491.265秒均在预算内。9张截图逐张查看；扩展秘密扫描2013文件/2247视图、7类正控检出、实际零命中。未穷举731次历史IPC时间戳、OCR、任意编码或真实Provider；未重新构建、连接远端或重跑候选。
+
+准备阶段首次 SyntaxError 的原始来源已从本会话日志第417/419/420行另存，源时间12:01:17～18Z；索引 `preparation/collector-first-failure-original-trace/SOURCE_INDEX.json` SHA-256 `7a26d10a241d6d2a71741950fc37e758776125489f08de965d08de53c54f7248`。
+独立审核逐字节核对原日志摘录、原始命令和错误返回。动态展开后未落盘的字符串没有被冒充原件；未重演失败。失败的本地 collector 编译没有发起远端收集，但同一 functions 调用的先前部署动作已在获批 R2/R3 内进行，不能说整个调用没有远端动作。
+
+当前只把材料提交负责人裁决，不请求直接签发未缩小合同的门 B PASS。两种处置均尚未获准：
+
+| 选项 | 结果与后续边界 |
+|---|---|
+| A：保持原合同 | 门 B 保持 `NOT_PERFORMED`。先形成真实 helper ready 失败清理的有界最小补证方案；新增输入、候选和目标执行按准确方案另行绑定，不修改或重跑冻结 WIN7-45，也不改旧 PASS/FAIL/UNKNOWN |
+| B：明确处置本次范围 | 负责人明确将真实 ready 失败清理排除于本次裁决并保持 `NOT_PERFORMED`，仅评估当前已直接证明的第二批范围；相应合同与门 B 口径须明确登记，不可声称原完整合同已满足，不签完整 Alpha2/RC |
+
+推荐 A 作为保持既有合同的路径。本节不授权新工具、故障注入、远端动作、候选重建或正式重试；若负责人选择 B，也必须先明确排除项和拟签结论，不从本次门 A 自动推导。
+冻结候选、正式 43 条 PASS、全部旧 FAIL/UNKNOWN/HALTED和必带限制保持。门 B、签发候选结论与完整 Alpha2/RC仍 `NOT_PERFORMED`。
