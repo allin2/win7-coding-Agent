@@ -1187,30 +1187,39 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const rendererSource = fs.readFileSync(path.resolve(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
     const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
     const slice = (source: string, from: string, to: string) => source.slice(source.indexOf(from), source.indexOf(to, source.indexOf(from)));
-    function directory(options: { enableAt?: number; switchAfter?: number; permanentlyBlocked?: boolean; atLimit?: boolean; loseClickReply?: boolean } = {}) {
+    function directory(options: { enableAt?: number; switchAfter?: number; permanentlyBlocked?: boolean; atLimit?: boolean; loseClickReply?: boolean; staleDirectory?: boolean; reloadFailure?: boolean } = {}) {
       let now = 0;
       let activeId = 'before';
       let clicks = 0;
       let clickedAt: number | null = null;
+      let reloads = 0;
+      let loaded: (() => void) | null = null;
+      const submitted: string[] = [];
       const nodes: Record<string, any> = {};
       const node = (id: string) => (nodes[id] ||= { textContent: '', disabled: false, hidden: false,
         click() { if (this.disabled) throw new Error('A disabled control was clicked'); clicks += 1; clickedAt = now; } });
       const box: any = { state: { searchQuery: '' }, el: node, text: (id: string, value: any) => { node(id).textContent = String(value); },
         appendConversationGroup: () => undefined, appendConversationRow: () => undefined };
       vm.runInNewContext(`${slice(rendererSource, 'function renderConversationDirectory(snapshot)', '  function hydrateDraft(snapshot)')}\nthis.render = renderConversationDirectory;`, box);
-      const render = () => box.render({ conversations: [{ sessionId: activeId, state: 'active' }], activeConversationId: activeId,
-        conversationControls: { canSwitch: !options.permanentlyBlocked && now >= (options.enableAt ?? 0), maxActive: options.atLimit ? 1 : 16 } });
-      render();
+      const render = (stale = false) => box.render({ conversations: [{ sessionId: activeId, state: 'active' }], activeConversationId: activeId,
+        conversationControls: { canSwitch: !stale && !options.permanentlyBlocked && now >= (options.enableAt ?? 0), maxActive: options.atLimit ? 1 : 16 } });
+      render(Boolean(options.staleDirectory));
       const driver: any = { Date: { now: () => now }, Error, String,
         conversationId: async () => activeId,
+        win: { webContents: {
+          once: (_event: string, callback: () => void) => { loaded = callback; },
+          reload: () => { reloads += 1; if (options.reloadFailure) throw new Error('renderer reload failed'); render(); if (loaded) loaded(); },
+        } },
+        submit: async (token: string) => { submitted.push(token); }, waitIdle: async () => undefined,
+        events: async () => ({ events: [] }), toolEndsFor: () => [], settleResidue: async () => ({ residue: [], newFacts: [] }),
         exec: async (source: string) => {
-          const result = vm.runInNewContext(source, { document: { getElementById: node } });
+          const result = vm.runInNewContext(source, { document: { readyState: 'complete', getElementById: node } });
           if (options.loseClickReply && clicks > 0) throw new Error('click reply unavailable');
           return result;
         },
-        sleep: async (ms: number) => { now += ms; if (clickedAt !== null && now - clickedAt >= (options.switchAfter ?? 0)) activeId = 'after'; render(); } };
-      vm.runInNewContext(`${slice(driverSource, 'async function waitFor(condition, timeoutMs, label)', '  // ---- SQLite inspection')}\n${slice(driverSource, 'async function newConversation()', '  // A conversation switch')}\nthis.create = newConversation;`, driver);
-      return { create: driver.create, clicks: () => clicks, time: () => now, button: node('conversation-new') };
+        sleep: async (ms: number) => { now += ms; if (clickedAt !== null && now - clickedAt >= (options.switchAfter ?? 0)) activeId = 'after'; if (!options.staleDirectory) render(); } };
+      vm.runInNewContext(`${slice(driverSource, 'async function waitFor(condition, timeoutMs, label)', '  // ---- SQLite inspection')}\n${slice(driverSource, 'async function newConversation()', '  // A conversation switch')}\n${slice(driverSource, 'async function reloadRenderer()', '  // Samples DOM')}\n${slice(driverSource, 'const fastOutcome = async (token, label)', '    const fast = await fastOutcome')}\nthis.create = newConversation; this.fast = fastOutcome;`, driver);
+      return { create: driver.create, fast: driver.fast, clicks: () => clicks, time: () => now, reloads: () => reloads, submitted, button: node('conversation-new') };
     }
 
     test('waits for the renderer to enable the button, clicks once and waits for the changed conversation', async () => {
@@ -1242,6 +1251,34 @@ describe('A9-33 batch-2 smoke pieces', () => {
       const p = directory({ loseClickReply: true });
       await expect(p.create()).rejects.toThrow('click reply unavailable');
       expect(p.clicks()).toBe(1);
+    });
+
+    test('rehearsal 15: a BG probe reloads the renderer whose directory stayed blocked after the process exited', async () => {
+      const p = directory({ staleDirectory: true, switchAfter: 500 });
+      expect(p.button.disabled).toBe(true);
+      await p.fast('b2:bg-badcwd', 'bg-badcwd');
+      expect(p.reloads()).toBe(1);
+      expect(p.clicks()).toBe(1);
+      expect(p.submitted).toEqual(['b2:bg-badcwd']);
+    });
+
+    test('rehearsal 15: a reload preserves real conversation blockers and the original click deadline', async () => {
+      for (const options of [{ permanentlyBlocked: true }, { atLimit: true }]) {
+        const p = directory(options);
+        await expect(p.fast('b2:bg-badcwd', 'bg-badcwd')).rejects.toThrow('TIMEOUT:new conversation:');
+        expect(p.reloads()).toBe(1);
+        expect(p.clicks()).toBe(0);
+        expect(p.submitted).toEqual([]);
+        expect(p.time()).toBe(20800); // Existing reload settle (800ms), then the unchanged 20s click budget.
+      }
+    });
+
+    test('rehearsal 15: a renderer reload failure prevents clicking and submitting the next probe', async () => {
+      const p = directory({ reloadFailure: true });
+      await expect(p.fast('b2:bg-badcwd', 'bg-badcwd')).rejects.toThrow('renderer reload failed');
+      expect(p.reloads()).toBe(1);
+      expect(p.clicks()).toBe(0);
+      expect(p.submitted).toEqual([]);
     });
   });
 

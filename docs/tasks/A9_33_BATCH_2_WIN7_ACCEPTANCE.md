@@ -2778,3 +2778,37 @@ R1当前机器、agent SID、console会话2、Win7 SP1和空间通过；新根�
 开发机修复仅 `src/shell/tests/product/a9-batch2-driver-entry.cjs` 与 `src/shell/tests/product/a9-batch2-contract.test.ts`。原驱动在新会话按钮禁用时跳过唯一点击，随后只等ID变化。修复在原20秒总期限内观察真实按钮，只在可用时点击一次，点击后不重复点击；回执异常时锁定失败，不重试可能已发生的动作。不强制启用、不绕过产品守卫、不加长超时。4个回归用例直接运行产品目录渲染函数和驱动函数：最初3个用例在旧实现上2项失败，补充的回执异常用例在初版修复上失败；最终完整Jest276、包测试120、verify:quick及驱动语法检查通过。原始故障没有保存按钮当时的禁用属性，界面刷新竞态仍为源码与反例支持的推断，实际原因待新预演验证。
 
 下一步：[第19轮交接包](../reports/2026-10/a9_33_independent_review_handoff_conversation_ready_2026-10-15.md)。固定新提交后独立复核，通过后才可重建新预演输入。预演14不恢复、不改判，不启动双构建或正式运行；KL-3、KL-5、KL-6a与KL-7含a、b、c边界继续携带。
+
+### 6.64 持续本地提交授权与第19轮独立复核（2026-10-15 UTC）
+
+负责人在本会话明确回复“授权本轮及后续同范围本地提交，不推送”。授权对象为6文件清单（SHA-256 `033fae65648f70695d9dc973eab7d2a9a8bb9e8aae037aa1834e16aed78dd408`），并覆盖同一A9-33已批准白名单内、经必需检查的后续修复及任务记录；不扩大产品语义或历史取证组件范围。执行代理核对清单后本地提交为 `14f2b8f49cdea6eb3ba3ab02be9d0311582ec261`，提交后工作树干净，未推送。
+
+第19轮全新独立会话 `01a13e39-0cc8-7031-9b56-ab9458a90e86` 于06:21:28Z～06:35:00Z完成，退出0；模型为gpt-6.1-sol/xhigh/default，对象为准确14f2b8f…，结论0P0、0未关闭P1、0新增P2，建议重建新WIN7-45预演输入。证据层级为开发机，不是新字节Win7通过。详细报告归档 `.acceptance/a9-33-review/codex-conversation-ready-round19-20261015/independent/codex_final_report.md`，SHA-256 `6abf905aec65f87d62c638d451c471b347e9ceb77392140435aa871af0226c32`；CLI回复与详细报告分开保存。
+
+独立包测试120通过；Jest267通过、9项因沙箱回环listen EPERM保持UNKNOWN；新增4例、12个独立反例通过，6个变异均有具名行为失败，恢复后反例再次通过。依赖构建、语法、文档351/49、差异及字节身份通过；独立副本与原树最终干净。累计非docs路径精确20条、11539行新增/31行删除，与§6.1一致。临时根约5.45GiB，日志与夹具保留，未删除。
+
+### 6.65 预演15首失败、两轮暂停诊断与探针前重载修复（2026-10-15 UTC）
+
+结论：WIN7-45预演15在p05再次出现 `TIMEOUT:new conversation`，已停止；p06～p10未派发，连续成功预演仍0次。两轮同类失败后已暂停整批重试，先回收证据并做最小复现和共同原因诊断。修复仅驱动和合同测试两个白名单路径，开发机检查通过，尚未独立复核及在Win7运行；不启动双构建、冻结、正式执行或门A/B。
+
+下列执行事实为Win7实机预演、身份REHEARSAL_NOT_ELIGIBLE，绑定源14f2b8f49cdea6eb3ba3ab02be9d0311582ec261；运行记录 `.acceptance/a9-33-rehearsal/rehearsal-15/RUN_LOG.md`，原包、首失败、预演14及旧候选均保持。
+
+| 绑定 | 实际值 |
+|---|---|
+| ZIP | 101673480字节；SHA-256 `41075834ecfbbd758e2015856c2be6b3af71dac591b79d79513115f496ab9da3` |
+| manifest / kit | `3279c99959d0adf46764eb156b0060ab618c7734dc66f84594888f433d6e1927` / `fb10f2ac91bcb12b80718a0b184ce664db8720baaa7333fe8f6a6257da2eb321` |
+| 授权 / run | `8b13d885924353f3025fe885a108700f6549158c54422b7becaa875322d6597b` / `b60538f9-2f19-40f5-a624-6b2580d817b2` |
+| 新根 / 时间窗 | `C:\A9-W43\run\b60538f9`；06:36:38Z～14:36:38Z，总截止仍2026-10-16T06:59:59Z |
+| 预算 | 依§6.56既有裁决，预演15前将累计请求上限92提到124，报备后执行；本次5个CONSUMED/5个COMPLETED，累计92/124。单次仍最多16请求/7200秒 |
+
+R1机器、Win7 SP1、agent精确SID/console2、空间和无electron/helper通过，新根不存在。R2只建新根并赋agent修改权限。R3的10个文件两端大小及哈希一致，R4解压和manifest匹配。R5/R6从06:39:53Z运行至06:43:44Z，p01～p04账本PASS；p05账本FAIL/DRIVER_SESSION_BG_FAILED，原phase-result.status保持NOT_PERFORMED。BG01/BG02原断言PASS；S06重启及BG03完整A01/A02未执行，不把快速退出已执行签为BG03通过。
+
+原始SQLite只读immutable查询显示fast Turn于06:43:14.537Z完成，fast PID3812最终last_probe_status=exited，随后没有create会话IPC。数据库读前后SHA-256均为 `9900177d9a049a8e2523dc4afef1266938900134482be6bd0d3a97781d233036`。按钮现场属性没有记录，具体实机根因仍UNKNOWN，不能用后续受控复现补写成已观察事实。
+
+R8最终103条进程，无electron/helper或本次根关联进程，本次计划任务0；原记录6个命令PID及driver PID均未在当前表出现，不推断退出码。未执行终止或额外清理。R7完整回收228文件，大小及SHA-256全部一致、无缺失额外；本机扫描160文件、0命中且正控检出，不补签未运行p10。301件原包/输入/首失败材料登记在PROTECTED_SHA256SUMS.txt，清单SHA-256 `9d8ec83700c2327958afdbd81ab8a9efaec76e9074a6d60bc9fbf51d2e1cc169`。
+
+共同诊断为开发机源码与受控函数行为证据：既有KL-3记录产品Turn返回后结束页面轮询，最终快照可能早于后台进程退出。后端conversationBlockReason按后台活跃事实控制切换；驱动直接snapshot/settleResidue不刷新页面。上一轮用例在每次sleep自动render，遗漏“后端已允许、目录仍是旧禁用状态”。新增最小场景取消等待中的自动渲染，只在模拟真实重载时执行原目录渲染函数；原fastOutcome三例失败。该复现支持上述共同原因推断，未补齐实机按钮现场。
+
+修复在每个fastOutcome前await已有reloadRenderer，再走原newConversation、submit及判据。重载只刷新renderer，不重启main/runtime、不绕过按钮或产品守卫、不改20秒点击期限、BG03判据或KL-3范围。相同重载入口已在本次p05 S06第一部分执行，s06-after-refresh.png及s06-part1.json保留；没有引入未经目标运行时验证的新API。新增3例检查旧目录重载后只点击一次、真实busy/数量满仍失败、重载异常零点击零提交。开发机新旧相关7例通过，完整Jest279（合同236/运行时43）、包测试120、verify:quick、驱动语法和差异检查通过，原始日志为同根reload-fix-*。
+
+下一步按[第20轮交接包](../reports/2026-10/a9_33_independent_review_handoff_bg_probe_reload_2026-10-15.md)固定新提交并另开全新独立会话。只有本地诊断、必需检查和独立复核完成后才恢复新整批预演。所有旧FAIL、UNKNOWN及HALTED保持；KL-3、KL-5、KL-6a、KL-7含a/b/c边界继续随任何Alpha2结论列出。

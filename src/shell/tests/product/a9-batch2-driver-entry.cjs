@@ -1473,6 +1473,9 @@ async function runDriver() {
       return { snap, residue, newFacts, settle: settle.slice(-30), settled_after_ms: residue.length === 0 ? settle[settle.length - 1].t : null };
     };
     const fastOutcome = async (token, label) => {
+      // KL-3: page polling ends with the Turn, before its background process may exit.
+      // Reload the real renderer before each independent probe; its normal directory guards still decide whether a click is allowed.
+      await reloadRenderer();
       await newConversation();
       const convId = await conversationId();
       await submit(token);
