@@ -2874,3 +2874,21 @@ R8当前103进程/相关0/本次任务0。R7的338项大小/SHA全匹配，其�
 R8当前103进程/相关0/本次任务0；R7的338项大小/SHA全匹配，其中255项本run直接证据、83项同包driver-electron载荷INHERITED_EVIDENCE。264文件扫描零命中且正控检出，1983件保护清单6ff6ecc0…；每个COMPLETED结果hash已复算，不把传输复用当新目标行为。18/19的REHEARSAL_RESULT.json与保护清单均保留，16/17及所有历史FAIL/UNKNOWN/HALTED不变。
 
 真实helper ready失败清理仍NOT_PERFORMED（KL-12），预启动拒绝不能替代；套件43 PASS不签这项未覆盖证明。KL-3、KL-5、KL-6a、KL-7含a/b/c及其他适用限制保持。当前新候选的双干净构建、冻结、新关口A、正式运行、第三阶段复核、关口B均NOT_PERFORMED，仅负责人可签关口。当前实机验证完成，本地提交记录后停在此边界，不推送、不碰Win10、不接受ADR-0155或签DEVELOPER_VERIFIED。
+
+### 6.73 WIN7-45 双干净构建、冻结与新门 A 材料（2026-10-15 UTC）
+
+负责人在当前会话选中双独立干净构建、字节比对、冻结、新门A、正式运行、独立复核和门B计划，并明确“按照计划推进上述任务”。执行代理据此完成本地构建、比对、冻结与门A具体材料；不代签门A/B，不推送或发布。实际起点为本分支88265484…，工作树干净；源ba042757…到起点只有6个文档路径变化。本次不改产品、套件、原生、锁或旧证据。
+
+两个新建分离头工作树w45-freeze-1、w45-freeze-2均绑定ba042757a04f428cb3db3ccd10888a7bebe97d3b，构建前后干净；同macOS/Node20.17.0、相同3个已锁定ZIP及既有依赖链接，各自重新编译七模块并构建。首尝试缺模块TypeScript依赖链接，退出1且无ZIP，首失败保存；补齐现有链接后新输出w45-freeze-1-r2于11:45:29Z～11:45:45Z退出0，另一工作树输出w45-freeze-2于11:46:12Z～11:46:29Z退出0。两个ZIP与预演18/19包逐字节相同，SHA-256 ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e，101680489字节；800项内容比较零缺失/额外/变化。跨机器可重复性UNKNOWN，未重建native。
+
+冻结前确认WIN7-45没有既有refs或候选目录，WIN7-44保留既有R类计划；主工作区原候选和两次预演结果共24件保护文件大小/哈希一致。WIN7-45于11:48:38Z冻结在主工作区.acceptance/candidates/WIN7-45，11文件和目录只读。DOUBLE_BUILD.json SHA-256 7a10cfbde9e3e2e735fb88fc3c54bc233b1e9a07e874376391cfe2c210429c2d；IDENTITY.sha256的SHA-256 d2f254b35751acff07fe8b13d3e16541b61d7381355c435500ee76515f5d8c35。包内tentative/NOT_PERFORMED保持原字节，不改预演包。
+
+候选内校验器在开发机完成静态绑定核对：799个manifest文件/800个ZIP条目、25用例/43断言和锁/原生/authority字段零不一致；DRAFT状态按原判据拒绝。校验pin由执行代理自算，只用于结构检查，不是负责人独立pin，不执行Electron/native，不算Win7正式证据。原始日志、输入及结果在本树.acceptance/a9-33-rehearsal/w45-formal-preparation。
+
+正式run固定5773470e-a1c0-402b-8454-966e38a73f68，新远端根C:\A9-W43\run\5773470e。候选外待签发载荷在主工作区.acceptance/runs/A9-33-W45/该run/authority/release-authority.pending-owner.json，SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d；DRAFT另存，SHA-256 4f51d269d7c5e9963ce0218fa84386d95915764d5f33b04d68e55c7ee308ebf4。载荷机器字段不等于已签发，无负责人准确SHA回执时禁止远端动作。负责人确认后另写回执和pin，载荷字节保持；不借用预演或WIN7-43签字。
+
+新[交接书](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)状态AWAITING_OWNER_GATE_A，绑定既有Win7目标dccs-chaizl-PC/普通agent精确SID/console2/Medium非提升；提请1次正式运行、≤16请求/7200秒，与预演122/156分开计数，失败不自动重跑。窗口提请从签发准确SHA起≤8小时且不晚于2026-10-16T06:59:59Z。当前执行代理执行、全新且未参与执行的Codex会话独立复核、负责人门B；R1～R8仍为闭集。10件传输输入和5件同字节既有粘合文件已本地准备，新根存在状态UNKNOWN，门A后R1先核实。
+
+本轮没有连接远端、建立远端根或注册任务。新门A、正式Win7、第三阶段复核与门B均NOT_PERFORMED。KL-12真实helper启动后ready失败清理仍NOT_PERFORMED；本次不改合同或签该项PASS，正式独立复核仍须判断该缺口的结论影响。KL-3/5/6a/7含a/b/c及其他适用限制、全部旧FAIL/UNKNOWN/HALTED保持。ADR-0155、DEVELOPER_VERIFIED、完整Alpha2/RC、合并/推送/发布均不签。
+
+本轮文档检查358文件/50任务通过，git diff --check通过；候选11文件及目录只读/IDENTITY核验、24件旧文件保护、两构建工作树干净核验通过。七件文档按准确SHA清单收口，沿用§6.64后续同范围本地提交授权，不推送。产品/套件字节未变，不重复产品测试或增加Win7预演。

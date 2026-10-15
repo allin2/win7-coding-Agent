@@ -1,10 +1,14 @@
 # 当前项目状态
 
-## 当前Win7实机预演连续两次PASS（2026-10-15 UTC）
+## WIN7-45 已冻结，等待负责人签新门 A（2026-10-15 UTC）
+
+负责人在当前会话要求按“双干净构建、比对、冻结、新门A、正式运行、独立复核、门B”计划推进。执行代理已完成两个独立干净工作树的构建，源ba042757…，两个ZIP与预演18/19的包逐字节相同（ae1d4bb1…，101680489字节）；开发机包闭包800项零差异，本地静态绑定799文件/800ZIP条目零不一致。WIN7-45于11:48:38Z冻结在主工作区.acceptance/candidates/WIN7-45，11文件与目录只读。首次缺模块依赖链接的构建失败无ZIP，原日志保留；补齐既有链接后用新输出目录构建通过，未改源码或依赖版本。跨机器可重复性UNKNOWN。
+
+正式run固定5773470e-a1c0-402b-8454-966e38a73f68，待签发载荷SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d；[WIN7-45交接书](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)给出准确目标、角色、1次/16请求/7200秒预算与确认后8小时且不晚于2026-10-16T06:59:59Z的窗口。当前仅备齐材料，机器字段不是负责人签发；无门A回执，未连接远端。新门A、正式Win7、第三阶段独立复核与门B均NOT_PERFORMED；KL-12实际helper ready失败清理仍NOT_PERFORMED，不因预演PASS关闭。详见[A9-33 §6.73](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#673-win7-45-双干净构建冻结与新门-a-材料2026-10-15-utc)。
 
 预演18/19均在DCCS-CHAIZL-PC、Win7 SP1 x64、普通agent/console2执行成功，各p01～p10、25用例、43断言全部PASS。源ba042757a04f428cb3db3ccd10888a7bebe97d3b、同一ZIP ae1d4bb1…，run分别f17a0389…和2317fe31…；无效cwd正常拒绝、release正常退出、退出后同实例存活及按身份清理均直接验证。每轮R7的338项大小/哈希匹配、扫描零命中且正控检出；R8相关进程/本次任务0。累计122/156，连续成功2次。
 
-套件修复已通过第21轮全新独立复核（0P0/0P1/0新增P2，开发机）；产品保持5f7c0e80…字节。相同包运行时载荷按远端逐SHA标INHERITED_EVIDENCE，本次行为与身份为实机直接证据。两次均REHEARSAL_NOT_ELIGIBLE，正式Win7验收仍NOT_PERFORMED。真实helper ready失败清理仍NOT_PERFORMED（KL-12）；旧16/17 FAIL、UNKNOWN及HALTED保持。双干净构建、冻结、新门A、正式运行、第三阶段复核与门B均未执行，不推送。见[A9-33 §6.71～6.72](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)与[报告§11](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#11-同包win7预演19-pass两次连续成功已取得)。
+套件修复已通过第21轮全新独立复核（0P0/0P1/0新增P2，开发机）；产品保持5f7c0e80…字节。相同包运行时载荷按远端逐SHA标INHERITED_EVIDENCE，本次行为与身份为实机直接证据。两次均REHEARSAL_NOT_ELIGIBLE，不计正式验收。旧16/17 FAIL、UNKNOWN及HALTED保持，不推送。预演事实见[A9-33 §6.71～6.72](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)与[报告§11](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#11-同包win7预演19-pass两次连续成功已取得)，后续冻结状态以上述当前记录为准。
 
 ## A9-32 隔离实施入口（2026-10-11）
 

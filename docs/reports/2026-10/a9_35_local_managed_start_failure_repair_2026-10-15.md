@@ -141,3 +141,13 @@ R8于10:16:31Z当前103进程、相关命中0、本次任务0，没有额外目�
 264文件扫描零命中且正控检出。1983件原包、输入与结果保护清单SHA-256 6ff6ecc036cafb1b928e00bbd6c5b07e969a1e1423295c6bf387121800d696a7。两次逐账本COMPLETED的result_sha256复算与原phase-result一致；REHEARSAL_RESULT.json分别写在rehearsal-18、rehearsal-19根，后者绑定前次成功run与连续成功2次。原始首失败、数据库及全部旧候选保持。
 
 已完成当前指令要求的Win7实机验证及合同两次连续预演。真实helper启动后ready失败清理仍NOT_PERFORMED，KL-12保留，预启动拒绝不替代这项证明；两次套件PASS不把该缺口关闭。KL-3、KL-5、KL-6a、KL-7含a/b/c及其他适用限制仍有效。当前新候选的双干净构建、冻结、新关口A、正式运行、第三阶段独立复核和关口B均NOT_PERFORMED；关口仅负责人可签，不借用旧签字。未推送、未碰Win10或改系统设置，后继仅本地提交任务记录。
+
+## 12. WIN7-45 双干净构建、冻结与门 A 材料
+
+负责人在当前会话要求按正式验收计划推进。开发机从两个独立干净分离头工作树各构建一次，源码均为ba042757…；两个ZIP与预演18/19包逐字节相同，SHA-256 ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e，101680489字节。800项内容比较零差异，生产者内置完整性检查通过。首尝试缺模块TypeScript依赖链接而失败、无ZIP，原始记录保留；补齐既有链接后以新输出目录成功，产品和依赖版本未改。两工作树共享同机依赖和三个锁定ZIP，跨机器可重复性UNKNOWN。
+
+WIN7-45于2026-10-15T11:48:38Z冻结到主工作区.acceptance/candidates/WIN7-45，11文件与目录只读。DOUBLE_BUILD.json的SHA-256为7a10cfbde9e3e2e735fb88fc3c54bc233b1e9a07e874376391cfe2c210429c2d；本树.acceptance/a9-33-rehearsal/w45-formal-preparation保存全部命令、失败、输入、静态核对和比较。候选内校验器本地静态核对799manifest文件/800ZIP条目零不一致、25用例/43断言一致；DRAFT拒绝符合预期。自算pin仅证明结构，不能代签门A，也未运行Electron/native。冻结前24件旧候选/预演保护文件的大小和哈希核对一致。
+
+新run为5773470e-a1c0-402b-8454-966e38a73f68；待签发载荷SHA-256 47fe7cae16961cac6124ed0aebab56f66e562550a2e025ca02a121b21d86de2d，新[交接书](../../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)给出目标、角色、16请求/7200秒、签发后8小时且不晚于2026-10-16T06:59:59Z的窗口和R1～R8闭集。载荷机器状态字段不是负责人签字；准确SHA确认和外部回执形成前不派发。正式25用例/43断言不继承预演PASS；真实helper ready失败清理仍NOT_PERFORMED（KL-12），旧限制和失败保持。
+
+本轮未连接远端，门A、正式Win7、正式证据独立复核和门B均NOT_PERFORMED。后续需先由负责人确认准确载荷SHA及所列边界。完整Alpha2/RC、ADR-0155、DEVELOPER_VERIFIED、推送、合并和发布不在本轮范围。
