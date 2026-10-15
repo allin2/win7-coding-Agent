@@ -10,7 +10,7 @@
 
 A9-33/A9-35的上表Win7列为正式验收状态。2026-10-15当前源ba042757…/同包ae1d4bb1…已在Win7普通agent完成预演18/19连续PASS，各25用例/43断言；两次均REHEARSAL_NOT_ELIGIBLE，真实helper ready失败清理仍NOT_PERFORMED（KL-12），不据此签正式PASS。见[A9-33 §6.71～6.72](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)与[当前状态](../STATUS.md)。
 
-2026-10-15 UTC，WIN7-45门A已批准，run5773470e…正式10阶段/25用例/43断言全部PASS；R7共338项大小/SHA匹配，零残留及秘密扫描正控通过。独立复核已完成0P0/1P1/0P2：KL-12真实helper ready失败清理仍NOT_PERFORMED，不建议按未缩小合同进入门B。负责人尚未裁决补证或明确范围处置；上表Win7列为签发结论，不能把执行结果升为候选PASS。见[A9-33 §6.74～6.75](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)与[WIN7-45交接书](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)。
+2026-10-15 UTC，WIN7-45门A已批准，run5773470e…正式10阶段/25用例/43断言全部PASS；R7共338项大小/SHA匹配，零残留及秘密扫描正控通过。独立复核已完成0P0/1P1/0P2：KL-12真实helper ready失败清理仍NOT_PERFORMED，不建议按未缩小合同进入门B。负责人已要求登记并延期修复；本轮实机执行、回收和复核已结束。延期不等于门B签发或原合同全部满足，上表Win7列仍为NOT_PERFORMED。后续计划与待签范围见[A9-33 §6.76](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#676-kl-12-延期登记与本轮实机工作结束2026-10-15-utc)与[WIN7-45交接书§11](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)。
 
 历史批准不授权在本分支实施；既有状态与合同保留。
 

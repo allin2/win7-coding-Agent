@@ -1,10 +1,12 @@
 # 当前项目状态
 
-## WIN7-45 正式执行 PASS，独审 1 个 P1 阻断门 B（2026-10-15 UTC）
+## WIN7-45 实机执行与复核已结束，KL-12 延期，门 B 待签（2026-10-15 UTC）
 
 独立复核已完成：0P0/1P1/0P2，不建议按当前未缩小合同进入门B签发PASS。唯一既有P1剩余项为KL-12：真实helper启动后ready失败清理仍NOT_PERFORMED；无效cwd预启动拒绝不能替代，release部分已取得直接证据。新产品运行缺陷发现0，不改正式43条PASS原值，也不签原合同完整满足。独立报告SHA-256 65cbe27f…，见[交接书§10](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#10-独立复核结论与门-b-前置处置2026-10-15-utc)及[A9-33 §6.75](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)。
 
-负责人待裁决：A保留原合同、先形成真实ready失败的最小补证方案；B明确把该项排除于本次裁决并保留NOT_PERFORMED，只评估已覆盖范围。当前未选择，门B NOT_PERFORMED，不自动重跑或修改冻结候选。完整Alpha2/RC、ADR-0155、DEVELOPER_VERIFIED、推送/发布均不签。
+负责人已要求将KL-12登记并在后续计划中修复。该指令确定延期安排，不把缺口改为已覆盖，也不等于门B签发。本轮实机执行、证据回收和独立复核已结束；不自动派发实机动作。KL-12仍为P1/NOT_PERFORMED，已进入[后续计划](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#67-kl-12-延期修复与补证登记2026-10-15-utc)和[覆盖台账§8](plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md#8-kl-12-后续修复与补证计划2026-10-15-utc)。
+
+正式验收收口须由负责人明确仅签已直接证明范围，并将KL-12列为排除项、保留NOT_PERFORMED。待签口径见[交接书§11](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)。当前门B仍NOT_PERFORMED，不签原合同全部满足、完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED；不推送或发布。
 
 负责人在当前会话对准确载荷47fe7cae…及交接书范围回复“批准”。回执首次观察时间11:58:37Z，聊天消息精确时间UNKNOWN；本轮正式窗口至19:58:37Z。run5773470e…保持，1次/16请求/7200秒、原目标/角色/限制不变。R1确认Win7 SP1 x64、agent/SID/console2、新根不存在、102进程无Electron/helper；R2新根建立，R3全部10文件大小/哈希一致，R4解压manifest一致。
 
