@@ -1,4 +1,4 @@
-// A9-33 batch2 package integrity (WIN7-43 tentative, ADR-0155 Proposed).
+// A9-33 batch2 package integrity (WIN7-45 tentative, ADR-0155 Proposed).
 //
 // Verifies the exact frozen candidate against candidate-external inputs: the original ZIP, the formal input lock,
 // the approval registry and the release authority pinned by an independent SHA-256. Every manifest file is hashed

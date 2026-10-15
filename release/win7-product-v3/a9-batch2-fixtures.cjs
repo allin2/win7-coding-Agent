@@ -1,4 +1,4 @@
-// A9-33 batch2 validation contract and bounded fixtures (WIN7-43 tentative, ADR-0155 Proposed).
+// A9-33 batch2 validation contract and bounded fixtures (WIN7-45 tentative, ADR-0155 Proposed).
 //
 // This module is the single definition of the batch2 acceptance contract. The producer
 // (scripts/release/build-a9-product-v3.mjs) builds the validation kit from it, and the packaged
@@ -16,11 +16,11 @@ const CONTRACT = Object.freeze({
   lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED',
   release_id: 'WIN7-CODING-AGENT-A9-ALPHA2',
   version: '0.3.0-alpha.2',
-  // WIN7-43 is tentative. Before freeze the number is checked against refs, registrations and
+  // WIN7-45 is tentative. Before freeze the number is checked against refs, registrations and
   // directories; a renumber changes this file, the profile, the lock and the kit together.
-  candidate: 'WIN7-43',
+  candidate: 'WIN7-45',
   candidate_tentative: true,
-  result_on_complete: 'A9_33_WIN7_43_BATCH2_EXECUTION_CAPABILITY_PASS',
+  result_on_complete: 'A9_33_WIN7_45_BATCH2_EXECUTION_CAPABILITY_PASS',
   result_ceiling: 'Batch-2 execution capability only; never the full Alpha 2 or an RC verdict.',
 });
 
@@ -152,9 +152,10 @@ const CASES = Object.freeze([
   makeCase('B2-BG-02-OWNERSHIP-CURSOR', 'G2', 'p05-session-bg', 'BG', 'Owner, handle and cursor bindings.', [
     'A wrong owner, wrong handle or out-of-range cursor is refused; a valid cursor returns exactly the next frames',
   ], ['bg02-ownership-cursor.json']),
-  makeCase('B2-BG-03-STOP-RELEASE-EXIT', 'G2', 'p05-session-bg', 'BG', 'Double Stop, ready failure, release and normal exit.', [
-    'A second Stop is idempotent; a ready failure leaves no process; release ends ownership; normal exit leaves no managed process',
-  ], ['bg03-stop-release.json']),
+  makeCase('B2-BG-03-STOP-RELEASE-EXIT', 'G2', 'p05-session-bg', 'BG', 'Double Stop, fast exit, failed start and release.', [
+    'A second Stop is idempotent; a command that exits at once ends with a terminal fact and leaves no process; a start that fails on an unusable working directory leaves no process (the path taken is recorded; the helper readiness failure itself is KL-12)',
+    'Release: choosing "leave to system" in the exit dialog records release_intent and then released for the owned handle with one release id, the product exits with code 0 and leaves no product, driver or helper process, the released process is still alive after the exit, and the suite then removes it by identity (PID and creation stamp) and observes it absent',
+  ], ['bg03-stop-release.json', 'release-exit-before.json', 'release-dialog-response.json', 'release-ownership-events.json', 'release-held-exit.json']),
   makeCase('B2-CONT-01-RESTART-ZERO-REQUEST', 'G2', 'p06-continue', 'CONT-01', 'Restart and refresh send nothing; one click creates one Turn.', [
     'Restart and refresh add zero Provider and tool requests; single click and double click create one new Turn',
     'The old Turn terminal state is unchanged',
@@ -193,6 +194,7 @@ const KNOWN_LIMITS = Object.freeze([
   'POSIX executability and PowerShell /Command real execution are not measured',
   'Layouts below 800 px are PRODUCT_UNREACHABLE / NOT_VERIFIED',
   'No INHERITED_EVIDENCE is approved while ADR-0155 is Proposed',
+  'KL-12: the helper readiness failure of a managed start (D-013) cannot be induced from outside the product; B2-BG-03 records the path that a start with an unusable working directory takes (refused before the helper, or a helper start failure) and judges that no process is left; the readiness failure itself stays covered by the developer-machine tests in trusted-shell-runner-contract.test.ts only',
 ]);
 
 function evidenceSet() {
@@ -368,7 +370,7 @@ function phaseResultProblems(result, context) {
 // ---- Bounded fixtures --------------------------------------------------------------------------
 // Every fixture is finite: a hard upper bound on ticks, bytes and wall time is part of its shape.
 
-const FIXTURE_BOUNDS = Object.freeze({ max_ticks: 30, tick_interval_ms: 400, max_output_bytes: 65536 });
+const FIXTURE_BOUNDS = Object.freeze({ max_ticks: 30, tick_interval_ms: 400, max_output_bytes: 65536, release_hold_seconds: 300 });
 
 // A bounded background command line for cmd.exe (always present on Win7). ping is the portable
 // sub-second-free delay available in every cmd; one tick per second.
@@ -491,6 +493,12 @@ function shellCommand(kind, spec) {
         : `<nul set /p =${caretted(head)} & ping -n 2 127.0.0.1 >nul & echo ${caretted(tail)}`;
     }
     case 'fail-fast': return powershell ? 'exit 9' : 'cmd /c exit 9';
+    case 'released-hold':
+      // The one process the product is asked to leave to the system. It ends by itself after release_hold_seconds, so a failed cleanup cannot leave it for good;
+      // the suite still removes it by identity right after the exit (B2-BG-03 A02).
+      return powershell
+        ? `1..${FIXTURE_BOUNDS.release_hold_seconds} | ForEach-Object { Write-Output ('held ' + $_); Start-Sleep -Milliseconds 1000 }`
+        : `for /L %i in (1,1,${FIXTURE_BOUNDS.release_hold_seconds}) do @(echo held %i & ping -n 2 127.0.0.1 >nul)`;
     case 'long-running':
       return powershell
         ? 'while ($true) { Write-Output (\'alive \' + (Get-Date).Ticks); Start-Sleep -Milliseconds 300 }'
@@ -554,6 +562,8 @@ function providerStep(parsed, state) {
     case 'b2:bg-long':
       // Outlives the guard journey of p06; it ends only by Stop, and the journey stops it in its own cleanup.
       return done === 0 ? call('b2-bgl-1', 'start_process', { command: shellCommand(kind, { name: 'long-running' }) }) : { content: 'long background process started.' };
+    case 'b2:bg-release':
+      return done === 0 ? call('b2-rel-1', 'start_process', { command: shellCommand(kind, { name: 'released-hold' }) }) : { content: 'release candidate started.' };
     case 'b2:bg-three':
       return done < 4 ? call(`b2-bg3-${done}`, 'start_process', { command: shellCommand(kind, { name: 'ticks', ticks: 20 + done }) }) : { content: 'three plus one start attempted.' };
     case 'b2:bg-cursor': {
@@ -574,8 +584,12 @@ function providerStep(parsed, state) {
       if (done === 2) return call('b2-st-3', 'stop_process', { handleId: handle });
       return { content: 'double stop attempted.' };
     }
-    case 'b2:bg-ready-fail':
-      return done === 0 ? call('b2-rf-1', 'start_process', { command: shellCommand(kind, { name: 'fail-fast' }) }) : { content: 'ready failure observed.' };
+    case 'b2:bg-fast-exit':
+      // A command that exits at once is a successful start followed by a natural exit; it is not a readiness failure (WIN7-43 formal review, P1).
+      return done === 0 ? call('b2-fe-1', 'start_process', { command: shellCommand(kind, { name: 'fail-fast' }) }) : { content: 'fast exit observed.' };
+    case 'b2:bg-badcwd':
+      // A start that fails on its working directory. Whether the product refuses it before the helper or the helper fails to start is recorded, not assumed (KL-12).
+      return done === 0 ? call('b2-bc-1', 'start_process', { command: shellCommand(kind, { name: 'ticks', ticks: 2 }), cwd: 'b2-no-such-directory' }) : { content: 'start failure observed.' };
     case 'b2:hold':
       // The approved interruption point: a permanent delete waits for the user's approval, which the Provider never answers.
       if (done === 0) return call('b2-hold-1', 'write', { path: 'b2-hold.txt', content: 'b2 hold marker\n' }, '先写入可恢复点文件。');

@@ -2600,3 +2600,42 @@ BG-03 在本候选上的状态：双 Stop 部分有直接证据；“ready 失�
 待核实（`UNKNOWN`）：release 后的受管进程在 Win7 上是否确实存活（A9-31 的 Win7 签字为空，没有直接记录）；ready 失败是否可从产品外部制造；套件清理 release 后的进程是否在 R1～R8 闭集内（套件在计划任务内按身份清理自己留下的进程，不是执行代理新增的 Win7 动作；若 codex 或负责人认定超出，另请授权）。
 
 本节不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。未在 Win7 验收通过。
+
+### 6.57 BG-03 修复在开发机落地与候选号改为 WIN7-45（2026-10-15）
+
+结论：§6.56 的修复已在开发机落地，改动全部在 §6.1 的 20 个允许路径内，未改产品代码。新候选编号定为 WIN7-45，不用 WIN7-44。证据层级为开发机（macOS，Node 20.17.0），基线提交 `09208e4…`，本节与代码改动在同一提交。未在 Win10 验收机或 Win7 实机运行；Win7 行为见下表“待核实”。
+
+候选号核对（§6.4 要求冻结前核号）：[A9_ALPHA2_GAP_DISPOSITION.md](../plans/A9_ALPHA2_GAP_DISPOSITION.md) 的 Q1 选项 B 已把 WIN7-44 暂定给 R 类候选。再用 WIN7-44 会让两个候选同号，所以重走的候选取下一个空号 WIN7-45。目录 `.acceptance/candidates/` 只有 WIN7-41、WIN7-42、WIN7-43。WIN7-43 的目录与证据不动。
+
+| 层 | 改动 |
+|---|---|
+| 夹具 | 场景 `b2:bg-ready-fail` 改名 `b2:bg-fast-exit`（立即退出的命令，成功启动后自然结束）；新增 `b2:bg-badcwd`（工作目录不存在的启动）与 `b2:bg-release`（有界命令 `released-hold`，最长 300 秒后自行结束）。`B2-BG-03` 拆为两条断言、5 个证据文件。新增已知限制 KL-12（helper 就绪失败无法从产品外制造）。断言总数 42 变为 43，用例数仍为 25，证据文件数 51 变为 55 |
+| 驱动 | `session_bg` 的 BG-03 第 1 条由三个子判据组成：双 Stop、快速退出（句柄必须为 `exited`、无需清理、零残留）、失败启动（记录路径 `refused`、`helper_start_failed` 或 `started`，只判零残留；`started` 表示失败没有被制造出来，结论为 `UNKNOWN`）。新模式 `release_exit` 启动 `b2:bg-release`，记录退出前进程树与进程身份，退出时读取 `managed_process_ownership` 事件。判定函数 `evaluateBg03Facts`、`classifyFailedStart`、`evaluateReleaseSequence` 已导出并有单元测试 |
+| 套件 | `release_exit` 是 p05 的第三个模式，由桌面控制器点第二个按钮。产品退出后 `finishReleaseEvidence` 判定第 2 条断言：退出码 0 且未被终止、点击状态 0、对话框按钮名与序号 1、归属事件依次为 owned、release_intent、released 且释放号相同、被释放的命令仍存活（进程号加创建时间一致）、候选与 `driver-electron` 目录下无产品进程（最多等 10 秒）、套件按身份终止被释放的命令并连续两轮观察不存在。终止用 `taskkill /PID <n> /F`，不带 `/T`；不终止本进程和其父进程 |
+| 候选号 | WIN7-43 改为 WIN7-45：夹具合同、构建 Profile、输入锁（`candidate`、`gates.win7`、说明文字）、驱动身份检查、套件文件头、包内说明与验证文档、测试断言。引用旧候选历史的注释保持 WIN7-43。`.cmd` 文件保持 CRLF |
+
+验证（开发机，绑定上述基线加本次改动）：
+
+| 项 | 结果 |
+|---|---|
+| Jest：`a9-batch2-contract.test.ts` 与 `a9-package-runtime.test.ts` | 2 个套件、261 个测试通过（含 p05 三个模式的端到端模拟：释放断言由套件判定后阶段 PASS，释放模式退出码非 0 时阶段为 `DRIVER_RELEASE_EXIT_FAILED`） |
+| `node --test`：`a9-batch2-package.test.mjs` 与 `a9-package.test.mjs` | 120 个测试通过 |
+| `npm run verify:quick`、`npm run docs:check`、`git diff --check`（`.cmd` 允许行尾 CR） | 通过 |
+| 未定义名字检查（TypeScript 检查器，驱动、套件、夹具） | 0 个发现；对注入拼写错误的负对照，检查器报告 1 个发现 |
+| 非文档改动文件 | 16 个，全部在 20 个允许路径内；`verify:quick` 重建的 `src/runner/dist` 已还原，不属于本次改动 |
+| 反例 | 判据覆盖：第二次 Stop 缺失或崩溃、快速退出启动失败、句柄仍在运行或需清理、失败启动留下进程、`started` 路径不得 PASS、归属顺序缺 intent 或释放号不同、对话框按钮或序号错、被释放命令已消失、产品进程残留、清理失败、进程号复用、身份未观察 |
+
+待核实（`UNKNOWN`，首次 Win7 预演决定）：
+
+| 项 | 说明 |
+|---|---|
+| 被释放的命令在 Win7 上是否存活 | A9-31 的 Win7 签字为空，没有直接记录。不存活时第 2 条断言为 `FAIL`，这是产品发现 |
+| helper 在 release 后是否继续存活 | 若仍在候选目录下运行，计为产品残留，第 2 条断言为 `FAIL`，这是发现，不是套件缺陷 |
+| 不存在的工作目录走哪条路径 | 三种路径都被记录。若稳定为 `started`，第 1 条断言长期 `UNKNOWN`，须改用别的制造方式或登记限制 |
+| p05 总时长 | `release_exit` 增加一次启动、一次退出和一次清理；与计划任务时限的余量 `UNKNOWN` |
+| 套件终止被释放的命令是否属 R1～R8 闭集 | 终止发生在计划任务内，对象只限驱动在退出前记录过身份的进程，与现有杂散进程清扫同类；不新增执行代理动作。若负责人认为不属闭集，须裁决 |
+| 驱动在记录身份前出错 | 被释放的命令得不到身份记录，套件不会终止它；它在 300 秒后自行结束 |
+
+下一步：把本次改动写成修复交接书并送 codex 复审；P0 或 P1 先修再审，P2 登记为已知限制。复审通过后重新构建候选 WIN7-45，做 2 次连续成功的 Win7 预演、两次独立干净构建、冻结，再请负责人签新的关口 A。
+
+本节不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。未在 Win7 验收通过。

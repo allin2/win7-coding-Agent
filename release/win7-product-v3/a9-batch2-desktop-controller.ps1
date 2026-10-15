@@ -1,4 +1,4 @@
-# A9-33 batch2 desktop controller (WIN7-43 tentative, ADR-0155 Proposed).
+# A9-33 batch2 desktop controller (WIN7-45 tentative, ADR-0155 Proposed).
 #
 # Runs in the ordinary interactive desktop session of the approved user. PowerShell 2.0 compatible, ASCII only.
 # It never reads a command from a request. Every action is one of the fixed ones below:

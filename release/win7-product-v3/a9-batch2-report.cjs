@@ -1,4 +1,4 @@
-// A9-33 batch2 report verifier (WIN7-43 tentative, ADR-0155 Proposed).
+// A9-33 batch2 report verifier (WIN7-45 tentative, ADR-0155 Proposed).
 //
 // Re-derives the verdict of a finished or partial run from the raw files: the independently pinned release authority,
 // the append-only request ledger, one phase-result.json per attempt (hashed into the ledger) and every evidence file

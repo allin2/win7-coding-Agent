@@ -1,4 +1,4 @@
-// A9-33 batch2: approved-phase request contract for the ordinary-desktop controller (WIN7-43 tentative, ADR-0155 Proposed).
+// A9-33 batch2: approved-phase request contract for the ordinary-desktop controller (WIN7-45 tentative, ADR-0155 Proposed).
 //
 // A request names exactly one phase from the closed set in a9-batch2-fixtures.cjs. It is bound to the run id,
 // the package/manifest/kit/authority hashes, the approved target identity and a short lifetime. The controller

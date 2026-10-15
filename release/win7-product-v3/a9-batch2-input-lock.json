@@ -83,7 +83,7 @@
           "evidence_binding_sha256": "b2a1144654fbdfea98abb72e6877b7bd2b96011b7cb11b6c822e72707ccc603e"
         }
       ],
-      "provenance": "Native bytes are the independently reviewed A9-31 managed r3 D-017 double-clean returns (ADR-0158); no helper, SQLite or Electron byte differs from a9-v26-managed-input-lock.json. Formal batch-2 input lock for the tentative WIN7-43 candidate; the candidate number is re-checked before freeze (A9-33 section 6.4)."
+      "provenance": "Native bytes are the independently reviewed A9-31 managed r3 D-017 double-clean returns (ADR-0158); no helper, SQLite or Electron byte differs from a9-v26-managed-input-lock.json. Formal batch-2 input lock for the tentative WIN7-45 candidate; the candidate number is re-checked before freeze (A9-33 section 6.4)."
     },
     "storage_return_zip": {
       "filename": "WIN7_A6_SQLITE_ARTIFACTS_20260806-172601.zip",
@@ -114,14 +114,14 @@
     "developer_package_integrity": "NOT_PERFORMED",
     "product_assembly": "NOT_PERFORMED",
     "win10": "PASS_D013_V26_RETURN_REVIEWED",
-    "win7": "NOT_PERFORMED_WIN7_43",
+    "win7": "NOT_PERFORMED_WIN7_45",
     "alpha": "NOT_PERFORMED"
   },
   "generated_at": "2026-10-12T00:00:00.000Z",
   "provenance": {
     "task": "A9-33",
     "development_only": false,
-    "candidate": "WIN7-43",
+    "candidate": "WIN7-45",
     "candidate_tentative": true,
     "decision": "ADR-0155 (Proposed; not accepted by A9-33 section 6.7)",
     "rule": "formal candidate lock; release authority and independent pin are external to the candidate and are bound only at gate A"

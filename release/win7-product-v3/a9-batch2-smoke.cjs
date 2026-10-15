@@ -1,4 +1,4 @@
-// A9-33 batch2 smoke runner (WIN7-43 tentative, ADR-0155 Proposed).
+// A9-33 batch2 smoke runner (WIN7-45 tentative, ADR-0155 Proposed).
 //
 // One invocation = one approved phase attempt (see a9-batch2-desktop-request.cjs). The phase scripts are:
 //   p01-env        target identity, runtime, shell, codepage, patches, space and process-tree admission (G0)
@@ -556,6 +556,7 @@ class ProviderFixture {
 // Modes are driver process kinds. A mode with killOnMarker is stopped by the smoke (whole tree) once the driver has
 // persisted its pre-kill facts and written <mode>.ready; every other mode must exit by itself. chain_exit is the one
 // mode whose real exit dialog is answered by the desktop controller through the smoke (dialogButton = index to click).
+// release_exit (p05) is the second: it clicks "leave to system" (index 1), so a managed process outlives the product by design.
 const DRIVER_MODES = Object.freeze({
   chain_a: { timeoutMs: 300000 },
   chain_interrupt: { timeoutMs: 180000, killOnMarker: true },
@@ -567,6 +568,7 @@ const DRIVER_MODES = Object.freeze({
   audit_stop: { timeoutMs: 240000 },
   session_bg: { timeoutMs: 900000 },
   session_restart: { timeoutMs: 180000 },
+  release_exit: { timeoutMs: 300000, dialogButton: 1 },
   continue_interrupt: { timeoutMs: 180000, killOnMarker: true },
   continue_restart: { timeoutMs: 300000 },
   continue_unknown_interrupt: { timeoutMs: 180000, killOnMarker: true },
@@ -581,7 +583,7 @@ const DRIVER_MODES = Object.freeze({
 const DRIVER_PLANS = Object.freeze({
   'p03-chain': ['chain_a', 'chain_interrupt', 'chain_recover', 'chain_exit'],
   'p04-streaming': ['stream_live', 'stream_encodings', 'stream_limits', 'audit_stop'],
-  'p05-session-bg': ['session_bg', 'session_restart'],
+  'p05-session-bg': ['session_bg', 'session_restart', 'release_exit'],
   'p06-continue': ['continue_guards', 'continue_interrupt', 'continue_restart', 'continue_unknown_interrupt', 'continue_mode_guard', 'continue_unknown'],
   'p07-safe': ['safe_rules'],
   'p08-ui': ['ui_interrupt', 'ui_continue', 'ui_layouts'],
@@ -655,6 +657,12 @@ function copyTree(source, target) {
   }
 }
 
+// One process by id, never its tree: a process the product released is no longer a child of anything the suite owns, and only an
+// instance whose id and creation stamp were checked is passed here (finishReleaseEvidence).
+function killProcess(pid) {
+  if (process.platform === 'win32') childProcess.spawnSync('taskkill.exe', ['/PID', String(Number(pid)), '/F'], { windowsHide: true, timeout: 30000 });
+  else { try { process.kill(pid, 'SIGKILL'); } catch (_error) { /* gone */ } }
+}
 function killTree(pid) {
   if (process.platform === 'win32') childProcess.spawnSync('taskkill.exe', ['/PID', String(Number(pid)), '/T', '/F'], { windowsHide: true, timeout: 30000 });
   else { try { process.kill(pid, 'SIGKILL'); } catch (_error) { /* gone */ } }
@@ -891,6 +899,8 @@ async function runDriverPhase(ctx, hooks) {
       const driverResultFile = path.join(ctx.attemptDir, `driver-${mode}.json`);
       const killMarker = spec.killOnMarker ? path.join(ctx.attemptDir, `${mode}.ready`) : null;
       const dialogMarker = spec.dialogButton !== undefined ? path.join(ctx.attemptDir, 'dialog-shown.marker') : null;
+      // A marker left by an earlier mode of the phase would be answered at once, before this mode's own dialog exists.
+      if (dialogMarker) fs.rmSync(dialogMarker, { force: true });
       const env = {
         A9_BATCH2_PHASE: ctx.phase, A9_BATCH2_MODE: mode, A9_BATCH2_RUN_ID: ctx.runId, A9_BATCH2_ATTEMPT_DIR: ctx.attemptDir,
         A9_BATCH2_DRIVER_RESULT: driverResultFile, A9_BATCH2_WORKSPACE: workspaceRoot, A9_BATCH2_DATAROOT: dataRoot,
@@ -933,6 +943,7 @@ async function runDriverPhase(ctx, hooks) {
     await fixture.close();
   }
   if (ctx.phase === 'p03-chain') finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot);
+  if (ctx.phase === 'p05-session-bg') await finishReleaseEvidence(ctx, launches, exec, hooks);
   const failedLaunch = launches.find((item) => item.failed);
   return finishPhase(ctx, failedLaunch ? `DRIVER_${failedLaunch.mode.toUpperCase()}_FAILED` : ctx.contractError ? 'DRIVER_CONTRACT_MISMATCH' : null);
 }
@@ -982,6 +993,118 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
     observed: exit ? `exit_code=${exit.code}; killed_by=${exit.killed_by}; ended_at=${exit.ended_at}; dialog_click_status=${exit.dialog_click && exit.dialog_click.status}; tree_observed=${treeObserved}; tree_before=${before.length}; listing_failed=${listingFailed}; absence_observed_at=${absenceObservedAt}; survivors=${survivors.length}; residue=${residue.length}; missing_evidence=${missing.join(',') || 'none'}` : 'chain_exit did not run' }]);
 }
 
+// ---- Release exit (B2-BG-03 A02) -------------------------------------------------------------------------------------
+// The driver chose "leave to system" in the product's own exit dialog. After the product process is gone the parent observes four facts:
+// the exit was clean, the released command is still alive (identity: id and creation stamp recorded before the exit), no product or driver
+// process is left, and the suite then removes the released command by identity and sees it gone. The removal is the suite cleaning up what
+// it started; it never touches a process whose id and creation stamp were not recorded by the driver before the exit.
+const RELEASE_PRODUCT_SETTLE_ROUNDS = 10;
+const RELEASE_CLEANUP_ROUNDS = 8;
+const RELEASE_CLEANUP_CLEAN_ROUNDS = 2;
+function aliveByIdentity(items, rows) {
+  const now = new Map(rows.map((row) => [Number(row.ProcessId), String(row.CreationDate || '')]));
+  return items.filter((item) => now.has(item.pid) && now.get(item.pid) === item.created);
+}
+// Live children of the given instances found by parent id. A child created before its parent is a stale link and is left alone.
+// Creation stamps of one machine share the offset, so they compare as text.
+function liveDescendants(rows, roots) {
+  const byParent = new Map();
+  for (const row of rows) {
+    const parent = Number(row.ParentProcessId);
+    if (!byParent.has(parent)) byParent.set(parent, []);
+    byParent.get(parent).push(row);
+  }
+  const found = [];
+  const seen = new Set(roots.map((item) => item.pid));
+  const stack = roots.map((item) => ({ pid: item.pid, created: item.created }));
+  while (stack.length) {
+    const parent = stack.pop();
+    for (const child of byParent.get(parent.pid) || []) {
+      const pid = Number(child.ProcessId);
+      const created = String(child.CreationDate || '');
+      if (seen.has(pid) || (parent.created && created && created < parent.created)) continue;
+      seen.add(pid);
+      found.push({ pid, parent: parent.pid, name: String(child.Name || ''), created });
+      stack.push({ pid, created });
+    }
+  }
+  return found;
+}
+async function removeReleasedCommand(exec, items, own, hooks) {
+  const kill = (hooks && hooks.killProcess) || killProcess;
+  const wait = (hooks && hooks.wait) || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const attempted = [];
+  let clean = 0;
+  let lastAlive = [];
+  for (let round = 0; round < RELEASE_CLEANUP_ROUNDS && clean < RELEASE_CLEANUP_CLEAN_ROUNDS; round += 1) {
+    const listing = listProcesses(exec);
+    const roots = aliveByIdentity(items, listing.rows).filter((item) => !own.has(item.pid));
+    const targets = [...roots, ...liveDescendants(listing.rows, roots).filter((item) => !own.has(item.pid))];
+    lastAlive = targets;
+    if (targets.length) {
+      clean = 0;
+      for (const target of targets) {
+        kill(target.pid);
+        if (!attempted.some((item) => item.pid === target.pid && item.created === target.created)) attempted.push(target);
+      }
+    // A listing that failed or showed nothing usable shows presence at most, never absence: it is not a clean round.
+    } else if (!usableProcessListing(listing)) clean = 0;
+    else clean += 1;
+    await wait(STRAY_SWEEP_WAIT_MS);
+  }
+  const observed = clean >= RELEASE_CLEANUP_CLEAN_ROUNDS;
+  return { attempted, observed, remaining: observed ? [] : lastAlive };
+}
+function releaseStatus(checks) {
+  return checks.includes(false) ? 'FAIL' : checks.includes(null) ? 'UNKNOWN' : 'PASS';
+}
+async function finishReleaseEvidence(ctx, launches, exec, hooks) {
+  const exit = launches.find((item) => item.mode === 'release_exit');
+  if (!exit) return;
+  const wait = (hooks && hooks.wait) || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const readJson = (name) => { try { return JSON.parse(fs.readFileSync(path.join(ctx.attemptDir, name), 'utf8')); } catch (_error) { return null; } };
+  const before = readJson('release-exit-before.json');
+  const dialog = readJson('release-dialog-response.json');
+  const ownership = readJson('release-ownership-events.json');
+  const commandTree = before && Array.isArray(before.command_tree) ? before.command_tree : [];
+  // The released command is identified only when the driver recorded its tree with no failed query; otherwise nothing is judged alive or gone.
+  const treeObserved = Boolean(before) && before.wmic_failures === 0 && commandTree.length > 0;
+  const own = new Set([ctx.pid, process.ppid]);
+  const roots = [ctx.candidateRoot, path.join(ctx.runRoot, 'driver-electron')].map((item) => item.toLowerCase());
+  const productResidueOf = (rows) => rows.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => String(row.ImagePath || '').toLowerCase().startsWith(root)))
+    .map((row) => ({ pid: Number(row.ProcessId), name: row.Name, image_source: row.ImageSource }));
+  const first = listProcesses(exec);
+  const firstAt = new Date().toISOString();
+  const aliveAfterExit = aliveByIdentity(commandTree, first.rows).filter((item) => !own.has(item.pid));
+  // Product processes can still be closing when the driver reports its exit: a bounded settle, every sample kept.
+  const samples = [{ t: 0, residue: productResidueOf(first.rows) }];
+  let last = first;
+  for (let round = 1; round <= RELEASE_PRODUCT_SETTLE_ROUNDS && samples[samples.length - 1].residue.length > 0; round += 1) {
+    await wait(1000);
+    last = listProcesses(exec);
+    samples.push({ t: round * 1000, residue: productResidueOf(last.rows) });
+  }
+  const productResidue = samples[samples.length - 1].residue;
+  const cleanup = commandTree.length > 0 ? await removeReleasedCommand(exec, commandTree, own, hooks) : { attempted: [], observed: false, remaining: [] };
+  const exitOk = exit.code === 0 && !exit.killed_by && !exit.spawn_error && Boolean(exit.dialog_click) && exit.dialog_click.status === 0;
+  const dialogOk = dialog ? dialog.timed_out === false && dialog.buttons_ok === true && dialog.returned_index === 1 : null;
+  const sequence = ownership && ownership.sequence ? ownership.sequence : null;
+  const sequenceOk = sequence ? sequence.ok : null;
+  const firstUsable = usableProcessListing(first);
+  const aliveOk = aliveAfterExit.length > 0 ? true : treeObserved && firstUsable ? false : null;
+  const residueOk = productResidue.length > 0 ? false : usableProcessListing(last) ? true : null;
+  const cleanupOk = cleanup.observed ? true : cleanup.remaining.length > 0 ? false : null;
+  const status = releaseStatus([exitOk, dialogOk, sequenceOk, aliveOk, residueOk, cleanupOk]);
+  writeJson(path.join(ctx.attemptDir, 'release-held-exit.json'), { exit: { code: exit.code, signal: exit.signal, killed_by: exit.killed_by, started_at: exit.started_at, ended_at: exit.ended_at, duration_ms: exit.duration_ms, pid: exit.pid, dialog_click: exit.dialog_click },
+    exit_code_scope: 'the product process the parent launched; the released command is checked by id and creation stamp only, its exit code is not read',
+    tree_observed: treeObserved, command_tree: commandTree, first_listed_at: firstAt, listing_failed: first.failed, processes_listed: first.rows.length, alive_after_exit: aliveAfterExit,
+    product_residue_samples: samples, product_residue: productResidue,
+    cleanup: { attempted: cleanup.attempted, observed: cleanup.observed, remaining: cleanup.remaining }, own_pids_excluded: [...own],
+    checks: { exit_ok: exitOk, dialog_ok: dialogOk, ownership_sequence_ok: sequenceOk, released_alive_after_exit: aliveOk, no_product_process_left: residueOk, released_removed_by_suite: cleanupOk } });
+  applyAssertions(ctx, [{ case_id: 'B2-BG-03-STOP-RELEASE-EXIT', assertion_id: 'B2-BG-03-STOP-RELEASE-EXIT-A02', status,
+    observed: `exit_code=${exit.code}; killed_by=${exit.killed_by}; dialog_click_status=${exit.dialog_click && exit.dialog_click.status}; dialog_ok=${dialogOk}; ownership=${sequence ? sequence.sequence.join('>') || 'none' : 'unread'}; same_release_id=${sequence ? sequence.same_release_id : 'unread'}; tree_observed=${treeObserved}; command_tree=${commandTree.length}; alive_after_exit=${aliveAfterExit.length}; product_residue=${productResidue.length}; listing_failed=${last.failed}; removed_by_suite=${cleanup.attempted.length}; cleanup_observed=${cleanup.observed}; left_after_cleanup=${cleanup.remaining.length}` }]);
+}
+
 function runPostflightPhase(ctx, exec = realExec) {
   const secretLiteral = fixtures.testOnlySecret();
   const scan = scanRun(ctx.runRoot, secretLiteral);
@@ -1026,7 +1149,7 @@ module.exports = {
   collectEnvironment, evaluateEnvironment, listProcesses, listCommandLines, readWmicList, withImagePath, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
   ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, parseCsvLineStrict, readWmicTable, usableProcessListing, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
   CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
-  chainIdentityAssertion, finishChainEvidence, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
+  chainIdentityAssertion, finishChainEvidence, finishReleaseEvidence, removeReleasedCommand, aliveByIdentity, liveDescendants, releaseStatus, killProcess, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
 };
 
 if (require.main === module) {

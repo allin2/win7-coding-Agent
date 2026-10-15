@@ -48,10 +48,10 @@ describe('A9-33 batch-2 evidence contract', () => {
   test('the contract is a closed set with the expected shape', () => {
     const check = fixtures.selfCheck();
     expect(check.problems).toEqual([]);
-    expect(check).toMatchObject({ ok: true, cases: 25, assertions: 42, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
+    expect(check).toMatchObject({ ok: true, cases: 25, assertions: 43, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 7200, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-43', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-45', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -67,7 +67,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     const evidence = fixtures.evidenceSet();
     expect(evidence).not.toContain('cont02-crash-points.json');
     expect(evidence).not.toContain('safe01-rules-budget.json');
-    expect(evidence.length).toBe(51);
+    expect(evidence.length).toBe(55);
   });
 
   test('every assertion needs an observed value before a case can pass', () => {
@@ -159,6 +159,19 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(step('b2:bg-three', [1, 2, 3, 4].map(() => ({ role: 'tool', content: 'ok' })))).toHaveProperty('content');
     expect(step('b2:bg-long')).toMatchObject({ tool: { name: 'start_process' } });
     expect(step('b2:bg-long', [{ role: 'tool', content: 'ok' }])).toEqual({ content: 'long background process started.' });
+    // WIN7-45 (formal review of WIN7-43, P1): a command that exits at once is a fast exit, not a readiness failure; the failed start has its own scenario.
+    expect(step('b2:bg-fast-exit')).toMatchObject({ tool: { name: 'start_process', args: { command: expect.stringMatching(/exit 9$/) } } });
+    expect(step('b2:bg-fast-exit', [{ role: 'tool', content: 'ok' }])).toEqual({ content: 'fast exit observed.' });
+    expect(step('b2:bg-ready-fail')).toEqual({ content: 'no scenario token; nothing executed.' });
+    expect(step('b2:bg-badcwd')).toMatchObject({ tool: { name: 'start_process', args: { cwd: 'b2-no-such-directory' } } });
+    expect(step('b2:bg-badcwd', [{ role: 'tool', content: 'err' }])).toEqual({ content: 'start failure observed.' });
+    // The release candidate is the one finite long command: it ends by itself after the hold bound even when nobody removes it.
+    const released = step('b2:bg-release', [], { shellKind: 'powershell' });
+    expect(released).toMatchObject({ tool: { name: 'start_process' } });
+    expect(released.tool.args.command).toContain(`1..${fixtures.FIXTURE_BOUNDS.release_hold_seconds} `);
+    expect(step('b2:bg-release', [], { shellKind: 'cmd' }).tool.args.command).toContain(`1,1,${fixtures.FIXTURE_BOUNDS.release_hold_seconds}`);
+    expect(fixtures.FIXTURE_BOUNDS.release_hold_seconds).toBe(300);
+    expect(step('b2:bg-release', [{ role: 'tool', content: 'ok' }])).toEqual({ content: 'release candidate started.' });
     expect(step('b2:hold')).toMatchObject({ tool: { name: 'write' } });
     expect(step('b2:hold', [{ role: 'tool', content: 'ok' }])).toMatchObject({ tool: { name: 'delete', args: { permanent: true } } });
     expect(step('b2:hold', [{ role: 'tool', content: 'ok' }, { role: 'tool', content: 'ok' }])).toEqual({ hold: true });
@@ -375,7 +388,7 @@ describe('A9-33 batch-2 request and ledger', () => {
   test('the report verifier rejects a completion that no consumed request produced', () => {
     const root = temp('orphan');
     const authorityFile = path.join(root, 'authority.json');
-    const body = JSON.stringify({ kind: 'WIN7_43_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_43_VALIDATION', run_id: RUN_ID,
+    const body = JSON.stringify({ kind: 'WIN7_45_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_45_VALIDATION', run_id: RUN_ID,
       candidate: { source_commit: 'a'.repeat(40), package_sha256: 'b'.repeat(64), manifest_sha256: 'c'.repeat(64), kit_sha256: 'd'.repeat(64) } });
     fs.writeFileSync(authorityFile, body);
     fs.writeFileSync(path.join(root, requests.LEDGER_FILE), `${JSON.stringify(completed(1, 'p01-env'))}\n`);
@@ -862,6 +875,10 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(Object.entries(smoke.DRIVER_MODES).filter(([, spec]: any) => spec.killOnMarker).map(([mode]) => mode).sort())
       .toEqual(['chain_interrupt', 'continue_interrupt', 'continue_unknown_interrupt', 'ui_interrupt']);
     // The guard modes feed the last p06 mode through part files, so their order is part of the contract.
+    // WIN7-45: the release journey is the last mode of p05, because the product exits there and leaves one command to the system.
+    expect(smoke.DRIVER_PLANS['p05-session-bg']).toEqual(['session_bg', 'session_restart', 'release_exit']);
+    expect(smoke.DRIVER_MODES.release_exit).toEqual({ timeoutMs: 300000, dialogButton: 1 });
+    expect(Object.entries(smoke.DRIVER_MODES).filter(([, spec]: any) => spec.dialogButton !== undefined).map(([mode, spec]: any) => `${mode}:${spec.dialogButton}`).sort()).toEqual(['chain_exit:0', 'release_exit:1']);
     expect(smoke.DRIVER_PLANS['p06-continue']).toEqual(['continue_guards', 'continue_interrupt', 'continue_restart', 'continue_unknown_interrupt', 'continue_mode_guard', 'continue_unknown']);
     // Every planned mode has a runner in the driver's mode table, and the driver no longer claims unimplemented assertions.
     const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
@@ -1230,6 +1247,189 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const stray = run((exe, ownPid) => [other, `HOST,20260101000002.000000+000,${exe},electron.exe,1,${ownPid}`, `HOST,20260101000003.000000+000,${exe},electron.exe,1,${ownPid + 100000}`]);
     expect(stray.status).toBe('FAIL');
     expect(stray.post.residue).toEqual([{ pid: stray.ownPid + 100000, name: 'electron.exe', image_source: 'executable_path' }]);
+  });
+
+  describe('release exit (B2-BG-03 A02, WIN7-45)', () => {
+    const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
+    const instant = async () => undefined;
+    const other = 'HOST,20260101000001.000000+000,C:\\Windows\\notepad.exe,notepad.exe,1,7';
+    const shell = { pid: 800, parent: 500, name: 'powershell.exe', created: '20260101000010.000000+000' };
+    const shellRow = (over: { created?: string; pid?: number } = {}) => `HOST,${over.created || shell.created},C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe,powershell.exe,${shell.parent},${over.pid || shell.pid}`;
+    const exitLaunch = (over: any = {}) => ({ mode: 'release_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 }, ...over });
+    const sequenceOk = { ok: true, sequence: ['owned', 'release_intent', 'released'], release_ids: ['r1', 'r1'], same_release_id: true, events: 3 };
+    const files = (over: any = {}) => ({
+      'release-exit-before.json': { tree: [shell], command_tree: [shell], wmic_failures: 0 },
+      'release-dialog-response.json': { dialog: { response: 1 }, buttons_ok: true, returned_index: 1, timed_out: false },
+      'release-ownership-events.json': { sequence: sequenceOk },
+      ...over,
+    });
+    // The released command lives until a kill for its id arrives; kills of other ids change nothing.
+    const run = async (opts: { files?: any; launch?: any; rows?: (ctx: any, alive: () => boolean) => string[]; killable?: boolean; noLaunch?: boolean; table?: any } = {}) => {
+      const { ctx, attempt } = phaseContext('p05-session-bg');
+      const written = opts.files || files();
+      for (const [name, value] of Object.entries(written)) if (value !== null) fs.writeFileSync(path.join(attempt, name), JSON.stringify(value));
+      let alive = true;
+      const killed: number[] = [];
+      const rowsFor = opts.rows || (() => [other, ...(alive ? [shellRow()] : [])]);
+      const exec = opts.table || answers(() => ({ status: 0, stdout: csv(rowsFor(ctx, () => alive)), stderr: '', error: null }));
+      const killProcess = (pid: number) => { killed.push(pid); if (opts.killable !== false && pid === shell.pid) alive = false; };
+      await smoke.finishReleaseEvidence(ctx, opts.noLaunch ? [] : [opts.launch || exitLaunch()], exec, { killProcess, wait: instant });
+      const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-BG-03-STOP-RELEASE-EXIT').assertions[1];
+      const heldFile = path.join(attempt, 'release-held-exit.json');
+      return { ctx, status: assertion.status, observed: assertion.observed, killed, held: fs.existsSync(heldFile) ? JSON.parse(fs.readFileSync(heldFile, 'utf8')) : null };
+    };
+
+    test('a clean exit, the dialog answered with the second button, an intact ownership sequence, a surviving command and a removal pass', async () => {
+      const result = await run();
+      expect(result.status).toBe('PASS');
+      expect(result.killed).toEqual([shell.pid, shell.pid].slice(0, result.killed.length));
+      expect(result.killed.length).toBeGreaterThanOrEqual(1);
+      expect(result.held).toMatchObject({ tree_observed: true, listing_failed: false, product_residue: [], cleanup: { observed: true, remaining: [] } });
+      expect(result.held.alive_after_exit).toEqual([shell]);
+      expect(result.held.checks).toEqual({ exit_ok: true, dialog_ok: true, ownership_sequence_ok: true, released_alive_after_exit: true, no_product_process_left: true, released_removed_by_suite: true });
+      expect(result.observed).toMatch(/alive_after_exit=1; product_residue=0/);
+      expect(result.observed).toMatch(/ownership=owned>release_intent>released; same_release_id=true/);
+    });
+
+    test('negative controls: each fact that is wrong fails the assertion', async () => {
+      // The released command is gone at the first listing: nothing was left to the system.
+      const gone = await run({ rows: () => [other] });
+      expect(gone.status).toBe('FAIL');
+      expect(gone.killed).toEqual([]);
+      expect(gone.held.checks.released_alive_after_exit).toBe(false);
+      // The product process, the dialog answer, the ownership sequence and the exit are each judged.
+      expect((await run({ files: files({ 'release-dialog-response.json': { dialog: { response: 0 }, buttons_ok: true, returned_index: 0, timed_out: false } }) })).status).toBe('FAIL');
+      expect((await run({ files: files({ 'release-dialog-response.json': { dialog: { response: 1 }, buttons_ok: false, returned_index: 1, timed_out: false } }) })).status).toBe('FAIL');
+      expect((await run({ files: files({ 'release-dialog-response.json': { dialog: null, timed_out: true } }) })).status).toBe('FAIL');
+      expect((await run({ files: files({ 'release-ownership-events.json': { sequence: { ...sequenceOk, ok: false, sequence: ['owned', 'released'] } } }) })).status).toBe('FAIL');
+      expect((await run({ launch: exitLaunch({ code: 1 }) })).status).toBe('FAIL');
+      expect((await run({ launch: exitLaunch({ killed_by: 'timeout' }) })).status).toBe('FAIL');
+      expect((await run({ launch: exitLaunch({ dialog_click: { status: 1 } }) })).status).toBe('FAIL');
+      expect((await run({ launch: exitLaunch({ dialog_click: null }) })).status).toBe('FAIL');
+      expect((await run({ launch: exitLaunch({ spawn_error: 'x' }) })).status).toBe('FAIL');
+      // A command the suite cannot remove stays visible as a failure, with the remaining instance named.
+      const stubborn = await run({ killable: false });
+      expect(stubborn.status).toBe('FAIL');
+      expect(stubborn.held.cleanup).toMatchObject({ observed: false, remaining: [{ pid: shell.pid }] });
+    });
+
+    test('a product process left under the candidate or driver root fails, a settled one does not', async () => {
+      const left = await run({ rows: (ctx, alive) => [other, ...(alive() ? [shellRow()] : []), `HOST,20260101000020.000000+000,${ctx.candidateRoot}${path.sep}resources${path.sep}native${path.sep}helper.exe,helper.exe,1,901`] });
+      expect(left.status).toBe('FAIL');
+      expect(left.held.product_residue).toEqual([{ pid: 901, name: 'helper.exe', image_source: 'executable_path' }]);
+      expect(left.held.product_residue_samples.length).toBeGreaterThan(1);
+      let calls = 0;
+      const settling = await run({ rows: (ctx, alive) => { calls += 1; return [other, ...(alive() ? [shellRow()] : []), ...(calls <= 2 ? [`HOST,20260101000020.000000+000,${ctx.candidateRoot}${path.sep}electron.exe,electron.exe,1,902`] : [])]; } });
+      expect(settling.status).toBe('PASS');
+      expect(settling.held.product_residue_samples[0].residue).toHaveLength(1);
+      expect(settling.held.product_residue).toEqual([]);
+      const driverRoot = await run({ rows: (ctx, alive) => [other, ...(alive() ? [shellRow()] : []), `HOST,20260101000021.000000+000,${path.join(ctx.runRoot, 'driver-electron')}${path.sep}electron.exe,electron.exe,1,903`] });
+      expect(driverRoot.status).toBe('FAIL');
+    });
+
+    test('a process that is not identified is never judged: UNKNOWN, and nothing is killed', async () => {
+      const failedQuery = await run({ files: files({ 'release-exit-before.json': { tree: [shell], command_tree: [shell], wmic_failures: 1 } }), rows: () => [other] });
+      expect(failedQuery.status).toBe('UNKNOWN');
+      const emptyTree = await run({ files: files({ 'release-exit-before.json': { tree: [], command_tree: [], wmic_failures: 0 } }) });
+      expect(emptyTree.status).toBe('UNKNOWN');
+      expect(emptyTree.killed).toEqual([]);
+      expect((await run({ files: files({ 'release-exit-before.json': null }) })).status).toBe('UNKNOWN');
+      expect((await run({ files: files({ 'release-ownership-events.json': null }) })).status).toBe('UNKNOWN');
+      expect((await run({ files: files({ 'release-dialog-response.json': null }) })).status).toBe('UNKNOWN');
+      expect((await run({ table: () => { throw new Error('wmic missing'); } })).status).toBe('UNKNOWN');
+      expect((await run({ rows: () => [] })).status).toBe('UNKNOWN');
+      // A failure beats an unobserved fact: a bad exit with an unreadable tree is still a FAIL.
+      expect((await run({ files: files({ 'release-exit-before.json': null }), launch: exitLaunch({ code: 1 }) })).status).toBe('FAIL');
+    });
+
+    test('identity: a reused process id with another creation stamp is neither judged alive nor killed, and a stale child is left alone', async () => {
+      const reused = await run({ rows: () => [other, shellRow({ created: '20260101000999.000000+000' })] });
+      expect(reused.status).toBe('FAIL');
+      expect(reused.killed).toEqual([]);
+      const child = (pid: number, created: string) => `HOST,${created},C:\\Windows\\System32\\ping.exe,ping.exe,${shell.pid},${pid}`;
+      const killedChildren = await run({ rows: (_ctx, alive) => [other, ...(alive() ? [shellRow(), child(810, '20260101000011.000000+000'), child(811, '20260101000001.000000+000')] : [])] });
+      expect(killedChildren.status).toBe('PASS');
+      expect(killedChildren.killed).toEqual(expect.arrayContaining([800, 810]));
+      expect(killedChildren.killed).not.toContain(811);
+    });
+
+    test('the smoke itself and its parent are never killed, and a phase without the release mode records nothing', async () => {
+      const { ctx, attempt } = phaseContext('p05-session-bg');
+      const ownItem = { pid: ctx.pid, parent: 1, name: 'electron.exe', created: '20260101000030.000000+000' };
+      fs.writeFileSync(path.join(attempt, 'release-exit-before.json'), JSON.stringify({ tree: [ownItem], command_tree: [ownItem, shell], wmic_failures: 0 }));
+      fs.writeFileSync(path.join(attempt, 'release-dialog-response.json'), JSON.stringify(files()['release-dialog-response.json']));
+      fs.writeFileSync(path.join(attempt, 'release-ownership-events.json'), JSON.stringify(files()['release-ownership-events.json']));
+      let alive = true;
+      const killed: number[] = [];
+      const exec = answers(() => ({ status: 0, stdout: csv([other, `HOST,${ownItem.created},C:\\x\\electron.exe,electron.exe,1,${ctx.pid}`, ...(alive ? [shellRow()] : [])]), stderr: '', error: null }));
+      await smoke.finishReleaseEvidence(ctx, [exitLaunch()], exec, { killProcess: (pid: number) => { killed.push(pid); if (pid === shell.pid) alive = false; }, wait: instant });
+      expect(killed).not.toContain(ctx.pid);
+      expect(killed).toContain(shell.pid);
+      const none = await run({ noLaunch: true });
+      expect(none.held).toBeNull();
+      expect(none.status).toBe('NOT_PERFORMED');
+    });
+
+    test('the p05 phase runs the three modes in order, answers only its own dialog, and ends PASS with the release assertion decided by the smoke', async () => {
+      const { ctx, attempt } = phaseContext('p05-session-bg');
+      const cases = fixtures.casesForPhase('p05-session-bg');
+      const assertions = cases.flatMap((item: any) => item.assertions.map((a: any) => ({ case_id: item.case_id, assertion_id: a.assertion_id, status: 'PASS', observed: 'seen' })))
+        .filter((item: any) => item.assertion_id !== 'B2-BG-03-STOP-RELEASE-EXIT-A02');
+      expect(assertions.length).toBe(cases.flatMap((item: any) => item.assertions).length - 1);
+      // A marker left by an earlier mode must not be answered as if it were this mode's dialog.
+      fs.writeFileSync(path.join(attempt, 'dialog-shown.marker'), '{"stale":true}');
+      const seen: string[] = [];
+      let alive = true;
+      const rows = () => ['HOST,20260101000001.000000+000,C:\\Windows\\notepad.exe,notepad.exe,1,7', ...(alive ? [shellRow()] : [])];
+      const launchDriver = async (_runtime: any, env: any, options: any) => {
+        seen.push(env.A9_BATCH2_MODE);
+        const done = (extra: any = {}) => ({ code: 0, signal: null, killed_by: null, duration_ms: 1, started_at: 'a', ended_at: 'b', stdout: '', stderr: '', pid: 11, dialog_click: null, ...extra });
+        if (env.A9_BATCH2_MODE === 'session_bg') {
+          expect(options.dialogMarker).toBeNull();
+          // The drivers write every evidence file except the one the smoke writes after the exit.
+          for (const name of fixtures.evidenceForPhase('p05-session-bg')) if (!['phase-result.json', 'release-held-exit.json'].includes(name)) fs.writeFileSync(path.join(attempt, name), 'x');
+          fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions }));
+          return done();
+        }
+        if (env.A9_BATCH2_MODE === 'session_restart') {
+          fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: [] }));
+          return done();
+        }
+        expect(options.killMarker).toBeNull();
+        expect(options.dialogMarker).toBe(path.join(attempt, 'dialog-shown.marker'));
+        expect(fs.existsSync(options.dialogMarker)).toBe(false);
+        for (const [name, value] of Object.entries(files())) fs.writeFileSync(path.join(attempt, name), JSON.stringify(value));
+        fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: [] }));
+        return done({ dialog_click: { status: 0 } });
+      };
+      const exec = answers(() => ({ status: 0, stdout: csv(rows()), stderr: '', error: null }));
+      const result = await smoke.runDriverPhase(ctx, { runtime: { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') }, exec, launchDriver,
+        killProcess: (pid: number) => { if (pid === shell.pid) alive = false; }, wait: instant });
+      expect(seen).toEqual(['session_bg', 'session_restart', 'release_exit']);
+      expect({ status: result.status, failure: result.failure_class, first: result.first_failure }).toEqual({ status: 'PASS', failure: null, first: null });
+      const bg03 = result.cases.find((item: any) => item.case_id === 'B2-BG-03-STOP-RELEASE-EXIT');
+      expect(bg03.assertions.map((a: any) => a.status)).toEqual(['PASS', 'PASS']);
+      expect(result.evidence.map((item: any) => item.file)).toEqual(expect.arrayContaining(['bg03-stop-release.json', 'release-exit-before.json', 'release-dialog-response.json', 'release-ownership-events.json', 'release-held-exit.json']));
+      // Without the release exit the case cannot pass: its second assertion is never recorded, so it stays open.
+      const noRelease = phaseContext('p05-session-bg', 2);
+      const open = await smoke.runDriverPhase(noRelease.ctx, { runtime: { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') }, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
+        launchDriver: async (_runtime: any, env: any) => {
+          fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: env.A9_BATCH2_MODE === 'session_bg' ? assertions : [] }));
+          return { code: env.A9_BATCH2_MODE === 'release_exit' ? 1 : 0, signal: null, killed_by: null, duration_ms: 1, stdout: '', stderr: '', pid: 12, dialog_click: null };
+        }, wait: instant });
+      expect(open.status).not.toBe('PASS');
+      expect(open.failure_class).toBe('DRIVER_RELEASE_EXIT_FAILED');
+    });
+
+    test('process kill is by id and never by tree', () => {
+      const source = fs.readFileSync(path.join(releaseDir, 'a9-batch2-smoke.cjs'), 'utf8');
+      const body = /function killProcess\(pid\) \{([\s\S]*?)\n\}/.exec(source);
+      expect(body).not.toBeNull();
+      expect((body as RegExpExecArray)[1]).toContain("'/PID'");
+      expect((body as RegExpExecArray)[1]).toContain("'/F'");
+      expect((body as RegExpExecArray)[1]).not.toContain("'/T'");
+      expect(smoke.liveDescendants([], [])).toEqual([]);
+    });
   });
 
   test('a kill-on-marker mode that was not killed by the marker fails the phase', async () => {
@@ -2415,6 +2615,110 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.managedFactSummary(facts[1])).toEqual({ handleId: 'h2', status: 'running', cleanup_required: false, ownership: 'owned', recovery: null, pid_reuse_possible: true });
     expect(driver.managedFactSummary(facts[2])).toMatchObject({ handleId: 'h3', status: 'failed', cleanup_required: true });
   });
+  describe('BG-03 (WIN7-45): stop, fast exit, failed start and release are judged apart', () => {
+    const real = (toolName: string, result: unknown, eventId = 10) => ({ eventId, eventType: 'tool_end', payload: { data: { schemaVersion: 1, toolName, callId: 'c', step: 1, result: JSON.stringify(result) } }, data: { schemaVersion: 1, toolName, callId: 'c', step: 1, result: JSON.stringify(result) } });
+    const started = real('start_process', { status: 'background_started', exitCode: null, stdout: '[Background process started; handle sh-1]', stderr: '' });
+    const refused = real('start_process', { status: 'failed', exitCode: null, stdout: '', stderr: 'working directory does not exist' });
+    const helperFailed = real('start_process', { error: { code: 'A9_BACKGROUND_HELPER_START_FAILED', message: 'A9_BACKGROUND_HELPER_START_FAILED' } });
+    const stopped = real('stop_process', { handleId: 'sh-1', status: 'stopped', exitCode: 1, cleanupRequired: false });
+    const stoppedAgain = real('stop_process', { handleId: 'sh-1', status: 'stopped', exitCode: 1, cleanupRequired: false });
+    const exited = { handleId: 'sh-2', lastProbeStatus: 'exited', cleanupRequired: false, ownershipState: 'owned' };
+    const failedFact = { handleId: 'sh-3', lastProbeStatus: 'failed', cleanupRequired: false, ownershipState: 'owned' };
+    const healthy = (over: any = {}) => ({ stops: [stopped, stoppedAgain], afterStopFacts: [{ handleId: 'sh-1', lastProbeStatus: 'stopped' }], fast: { ends: [started], newFacts: [exited], residue: [] }, bad: { ends: [refused], newFacts: [], residue: [] }, ...over });
+
+    test('the failed-start path is read from the tool end: refused, helper start failed or started', () => {
+      expect(driver.classifyFailedStart([refused])).toBe('refused');
+      expect(driver.classifyFailedStart([helperFailed])).toBe('helper_start_failed');
+      expect(driver.classifyFailedStart([started])).toBe('started');
+      expect(driver.classifyFailedStart([])).toBeNull();
+      expect(driver.classifyFailedStart([refused, refused])).toBeNull();
+      expect(driver.classifyFailedStart(undefined)).toBeNull();
+      expect(driver.BAD_CWD_PATHS).toEqual(['refused', 'helper_start_failed', 'started']);
+    });
+
+    test('a double stop, a fast exit and a failed start that leave no process pass, whichever path the failed start took', () => {
+      expect(driver.evaluateBg03Facts(healthy())).toMatchObject({ status: 'PASS', path: 'refused' });
+      const viaHelper = driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [failedFact], residue: [] } }));
+      expect(viaHelper).toMatchObject({ status: 'PASS', path: 'helper_start_failed' });
+      expect(viaHelper.text).toMatch(/failed_start=PASS \[path=helper_start_failed/);
+    });
+
+    test('negative control: the earlier verdict (one start that ended, no release) cannot stand for the three claims', () => {
+      // WIN7-43 passed with ready_fail_ends=1 where the one start had succeeded. A fast exit now needs a started handle that ended by itself,
+      // and the failed start needs its own scenario: two successful starts in place of one failed start are not a failed start.
+      const twoStarts = driver.evaluateBg03Facts(healthy({ bad: { ends: [started], newFacts: [exited], residue: [] } }));
+      expect(twoStarts.status).toBe('UNKNOWN');
+      expect(twoStarts.path).toBe('started');
+      expect(twoStarts.text).toMatch(/the start did not fail/);
+    });
+
+    test('mutations: each missing or wrong fact changes the verdict', () => {
+      expect(driver.evaluateBg03Facts(healthy({ stops: [stopped] })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ stops: [stopped, real('stop_process', { error: { code: 'TypeError: x' } })] })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ afterStopFacts: [{ handleId: 'sh-1', lastProbeStatus: 'running' }] })).status).toBe('FAIL');
+      // The fast exit must be a started handle that ended: a failed start, a handle still running or one that needs cleanup is a failure.
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [refused], newFacts: [], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [{ ...exited, lastProbeStatus: 'running' }], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [{ ...exited, cleanupRequired: true }], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [exited], residue: [{ handleId: 'sh-2' }] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [], residue: [] } })).status).toBe('FAIL');
+      // A failed start that leaves a live, unconfirmed or cleanup-required fact is a failure on every path; a start that did not fail is never PASS.
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [{ handleId: 'sh-9', lastProbeStatus: 'running' }], residue: [{ handleId: 'sh-9' }] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [{ ...failedFact, cleanupRequired: true }], residue: [{ handleId: 'sh-3' }] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [started], newFacts: [{ handleId: 'sh-4', lastProbeStatus: 'running' }], residue: [{ handleId: 'sh-4' }] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [], newFacts: [], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts({}).status).toBe('FAIL');
+    });
+
+    const row = (id: number, state: string, releaseId?: string, handleId = 'sh-1') => ({ id, created_at: `2026-10-15T00:00:0${id}.000Z`, payload_json: JSON.stringify({ schemaVersion: 1, handleId, ownershipState: state, ...(releaseId ? { releaseId } : {}), requestId: 'r', owner: {} }) });
+
+    test('the ownership events must run owned, release_intent, released with one release id', () => {
+      const good = driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'release_intent', 'rel_1'), row(3, 'released', 'rel_1')], 'sh-1');
+      expect(good).toMatchObject({ ok: true, sequence: ['owned', 'release_intent', 'released'], release_ids: ['rel_1', 'rel_1'], same_release_id: true, events: 3 });
+      expect(driver.RELEASE_SEQUENCE).toEqual(['owned', 'release_intent', 'released']);
+      // Events of other handles are not counted.
+      const mixed = driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'owned', undefined, 'sh-7'), row(3, 'release_intent', 'rel_1'), row(4, 'released', 'rel_1')], 'sh-1');
+      expect(mixed.ok).toBe(true);
+      // Mutations: no intent, another release id, no release at all, a missing id, extra events and an unreadable store.
+      expect(driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'released', 'rel_1')], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'release_intent', 'rel_1'), row(3, 'released', 'rel_2')], 'sh-1')).toMatchObject({ ok: false, same_release_id: false });
+      expect(driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'release_intent', 'rel_1')], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'release_intent'), row(3, 'released')], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'release_intent', 'rel_1'), row(3, 'release_unknown', 'rel_1')], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence([row(1, 'owned'), row(2, 'release_intent', 'rel_1'), row(3, 'released', 'rel_1'), row(4, 'released', 'rel_1')], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence([], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence([{ id: 1, created_at: 'x', payload_json: '{broken' }], 'sh-1').ok).toBe(false);
+      expect(driver.evaluateReleaseSequence(null, 'sh-1').ok).toBeNull();
+      expect(driver.evaluateReleaseSequence([row(1, 'owned')], '').ok).toBeNull();
+    });
+
+    test('the driver keeps no ready-failure claim and the release mode asks for no assertion of its own', () => {
+      const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+      expect(source).not.toMatch(/b2:bg-ready-fail|ready_fail_ends|exit_without_dialog=pending/);
+      expect(source).toContain("fastOutcome('b2:bg-fast-exit'");
+      expect(source).toContain("fastOutcome('b2:bg-badcwd'");
+      expect(source).toContain("submit('b2:bg-release')");
+      const mode = /async function releaseExit\(\) \{([\s\S]*?)\n  \}\n/.exec(source);
+      expect(mode).not.toBeNull();
+      // A02 is decided by the smoke after the product is gone; the driver only records what the product shows before and while it exits.
+      expect((mode as RegExpExecArray)[1]).not.toMatch(/record\(/);
+      for (const name of ['release-exit-before.json', 'release-dialog-response.json', 'release-ownership-events.json']) expect((mode as RegExpExecArray)[1]).toContain(name);
+    });
+
+    test('the case lists both assertions, five evidence files and the known limit for the helper readiness failure', () => {
+      const bg03 = fixtures.CASES.find((item: any) => item.case_id === 'B2-BG-03-STOP-RELEASE-EXIT');
+      expect(bg03.assertions).toHaveLength(2);
+      expect(bg03.assertions[0].description).toMatch(/exits at once/);
+      expect(bg03.assertions[0].description).toMatch(/KL-12/);
+      expect(bg03.assertions[1].description).toMatch(/leave to system/);
+      expect(bg03.assertions[1].description).toMatch(/release_intent and then released/);
+      expect(bg03.evidence).toEqual(['bg03-stop-release.json', 'release-exit-before.json', 'release-dialog-response.json', 'release-ownership-events.json', 'release-held-exit.json']);
+      const kl12 = fixtures.KNOWN_LIMITS.filter((item: string) => item.startsWith('KL-12'));
+      expect(kl12).toHaveLength(1);
+      expect(kl12[0]).toMatch(/D-013/);
+      expect(kl12[0]).toMatch(/trusted-shell-runner-contract\.test\.ts/);
+    });
+  });
   test('guard sub-results never turn an unobserved fact into PASS', () => {
     expect(driver.subResult('x', true, 'seen')).toEqual({ name: 'x', status: 'PASS', detail: 'seen' });
     expect(driver.subResult('x', false, 'bad').status).toBe('FAIL');
@@ -2697,7 +3001,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.evaluateEncodingOutcomes(undefined).status).toBe('UNKNOWN');
   });
 
-  test('S04 (KL-5): the contract text names PowerShell UTF-8 and CRLF, keeps 25 cases and 42 assertions, and carries KL-5', () => {
+  test('S04 (KL-5): the contract text names PowerShell UTF-8 and CRLF, keeps 25 cases and 43 assertions, and carries KL-5', () => {
     const s04 = fixtures.CASES.find((item: any) => item.case_id === 'B2-S04-ENCODING-CROSSCHUNK');
     expect(s04.assertions).toHaveLength(1);
     const text = JSON.stringify(s04.assertions);
@@ -2705,7 +3009,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(text).toContain('CRLF and a final line without newline are preserved');
     expect(text).toContain('informational only, KL-5');
     expect(text).not.toContain('UTF-8, CP936 and UTF-16LE');
-    expect(fixtures.selfCheck()).toMatchObject({ ok: true, cases: 25, assertions: 42 });
+    expect(fixtures.selfCheck()).toMatchObject({ ok: true, cases: 25, assertions: 43 });
     const kl5 = fixtures.KNOWN_LIMITS.filter((item: string) => item.startsWith('KL-5'));
     expect(kl5).toHaveLength(1);
     expect(kl5[0]).toContain('A9_OUTPUT_ENCODING_ERROR');
@@ -3144,7 +3448,7 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
   describe('S06: a conversation is switched from the sidebar, and a page that does not follow is a recorded fact', () => {
     // A page with two conversations. The sidebar row click is the page's own switch; the bridge call changes the main process only.
     function stage(options: { followsClick?: boolean; titles?: string[]; active?: string; duplicateRowOf?: string; rowSource?: string } = {}) {
-      const titles = options.titles || ['b2:s02', 'b2:bg-ready-fail'];
+      const titles = options.titles || ['b2:s02', 'b2:bg-fast-exit'];
       const initial = options.active || 'conv-b';
       const world: any = { active: initial, pageCurrent: initial, bridgeCalls: 0, clicks: 0 };
       const conversations = titles.map((title, index) => ({ sessionId: index === 0 ? 'conv-a' : 'conv-b', title, state: 'active' }));
@@ -3226,7 +3530,7 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
     });
 
     test('a page that shows two rows for one active title is a finding, not a click on the first row', async () => {
-      const { api, world } = stage({ titles: ['b2:s02', 'b2:bg-ready-fail'], active: 'conv-b', duplicateRowOf: 'conv-a' });
+      const { api, world } = stage({ titles: ['b2:s02', 'b2:bg-fast-exit'], active: 'conv-b', duplicateRowOf: 'conv-a' });
       await expect(api.activateConversation('conv-a')).rejects.toThrow(/^A9_BATCH2_DRIVER_CONVERSATION_ROW_COUNT:b2:s02:2/);
       expect(world.clicks).toBe(0);
     });

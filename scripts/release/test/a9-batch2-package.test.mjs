@@ -102,9 +102,9 @@ function inputsFor(root, repositoryRoot, kind) {
       storage_return_zip: { filename: 'storage.zip', version: '8.7.0', sha256: sha256File(storageZip), required_entry: 'output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
         required_entry_sha256: digest(sqlitePe), sqlite: '3.43.1', electron_abi: 110, profile: 'E22-SQLITE343-LOCAL-SSD' },
     },
-    gates: { win10: 'PASS_D013_V26_RETURN_REVIEWED', win7: batch2 ? 'NOT_PERFORMED_WIN7_43' : 'NOT_PERFORMED', alpha: 'NOT_PERFORMED' },
+    gates: { win10: 'PASS_D013_V26_RETURN_REVIEWED', win7: batch2 ? 'NOT_PERFORMED_WIN7_45' : 'NOT_PERFORMED', alpha: 'NOT_PERFORMED' },
     provenance: batch2
-      ? { task: 'A9-33', development_only: false, candidate: 'WIN7-43', candidate_tentative: true, decision: 'ADR-0155 (Proposed; not accepted by A9-33 section 6.7)' }
+      ? { task: 'A9-33', development_only: false, candidate: 'WIN7-45', candidate_tentative: true, decision: 'ADR-0155 (Proposed; not accepted by A9-33 section 6.7)' }
       : { task: 'A9-32', development_only: true },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
@@ -180,7 +180,7 @@ test('batch-2 candidate is complete, reproducible and bound to its contract', ()
   const state = sharedCandidate();
   const { built, root, repositoryRoot, inputs } = state;
   assert.equal(built.manifest.lock_id, 'A9-BATCH2-INPUTS-D013-V26-MANAGED');
-  assert.equal(built.manifest.candidate, 'WIN7-43');
+  assert.equal(built.manifest.candidate, 'WIN7-45');
   assert.equal(built.manifest.candidate_tentative, true);
   assert.equal(built.manifest.external_acceptance_eligible, true);
   assert.equal(built.manifest.status, 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS');
@@ -206,7 +206,7 @@ test('batch-2 candidate is complete, reproducible and bound to its contract', ()
     assert.deepEqual(fs.readFileSync(path.join(built.stage, ...staged.split('/'))), fs.readFileSync(path.join(repositoryRoot, source)), staged);
   }
   const kit = JSON.parse(fs.readFileSync(path.join(built.stage, integrity.KIT_FILE), 'utf8'));
-  assert.equal(kit.candidate_label, 'WIN7-43');
+  assert.equal(kit.candidate_label, 'WIN7-45');
   assert.equal(kit.candidate_tentative, true);
   assert.equal(kit.authority, 'NOT_GRANTED_BY_PACKAGE');
   assert.equal(kit.win10, 'NOT_PERFORMED');
@@ -216,7 +216,7 @@ test('batch-2 candidate is complete, reproducible and bound to its contract', ()
   for (const [name, hash] of Object.entries(kit.suite_sha256)) assert.equal(hash, sha256File(path.join(built.stage, ...name.split('/'))), name);
   const runtime = JSON.parse(fs.readFileSync(path.join(built.stage, 'resources/app/a9-runtime.json'), 'utf8'));
   assert.equal(runtime.lock_id, 'A9-BATCH2-INPUTS-D013-V26-MANAGED');
-  assert.equal(runtime.candidate, 'WIN7-43');
+  assert.equal(runtime.candidate, 'WIN7-45');
   assert.equal(runtime.runner_helper_protocol, 3);
   // No old candidate suite leaks in.
   assert.equal(fs.existsSync(path.join(built.stage, 'A9_27_WIN7_42_VALIDATION.md')), false);
@@ -391,12 +391,12 @@ test('batch-2 evidence names, case ids and request cost stay a closed contract',
   const contract = fixtures.selfCheck();
   assert.equal(contract.ok, true, JSON.stringify(contract.problems));
   assert.equal(contract.cases, 25);
-  assert.equal(contract.assertions, 42);
+  assert.equal(contract.assertions, 43);
   assert.equal(contract.phases, 10);
   assert.equal(contract.request_cost, 10);
   assert.equal(contract.max_requests, 16);
   assert.equal(contract.retry_headroom, 6);
   const names = fixtures.evidenceSet();
   assert.equal(names.length === new Set(names).size, true);
-  assert.ok(names.length >= 51);
+  assert.ok(names.length >= 55);
 });

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * A9-33 batch2 product driver (WIN7-43 tentative, ADR-0155 Proposed).
+ * A9-33 batch2 product driver (WIN7-45 tentative, ADR-0155 Proposed).
  *
  * Runs inside the candidate's own electron.exe (copied to a candidate-external driver runtime by a9-batch2-smoke.cjs)
  * and requires the real product main.js before app ready. It drives the real workbench window through the real
@@ -521,6 +521,64 @@ function managedResidueItems(managedProcesses) {
 const managedFactSummary = (item) => ({ handleId: item.handleId, status: item.lastProbeStatus, cleanup_required: item.cleanupRequired === true, ownership: item.ownershipState || null,
   recovery: item.recoveryStatus || null, pid_reuse_possible: item.pidReusePossible === true });
 
+// B2-BG-03 A01 (WIN7-45). Three finished facts, each leaving no process: a second Stop, a command that exits at once, a start that fails.
+// A command that exits at once is a successful start followed by a natural exit; it is not a readiness failure (WIN7-43 formal review, P1).
+// The readiness failure of the helper (D-013) cannot be induced from outside the product (KL-12). The start with an unusable working directory
+// is the closest failed start the suite can cause: the path it takes is recorded, and the verdict judges the facts it leaves, not the path.
+const BAD_CWD_PATHS = Object.freeze(['refused', 'helper_start_failed', 'started']);
+const HELPER_START_FAILED = 'A9_BACKGROUND_HELPER_START_FAILED';
+function classifyFailedStart(ends) {
+  if (!Array.isArray(ends) || ends.length !== 1) return null;
+  const summary = summarizeToolEnd(ends[0]);
+  if (!summary.failed) return 'started';
+  return summary.error === HELPER_START_FAILED || String(summary.result_head).includes(HELPER_START_FAILED) ? 'helper_start_failed' : 'refused';
+}
+const isActiveManagedStatus = (status) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(status);
+function evaluateBg03Facts(input) {
+  const stops = Array.isArray(input.stops) ? input.stops : [];
+  const afterStop = Array.isArray(input.afterStopFacts) ? input.afterStopFacts : [];
+  const crash = stops[1] ? /crash|exception|TypeError/i.test(JSON.stringify(eventData(stops[1]))) : false;
+  const doubleStop = stops.length === 2 && !toolEndFailed(stops[0]) && !crash && afterStop.every((item) => !isActiveManagedStatus(item.lastProbeStatus));
+  const fast = input.fast || {};
+  const fastEnds = Array.isArray(fast.ends) ? fast.ends : [];
+  const fastFacts = Array.isArray(fast.newFacts) ? fast.newFacts : [];
+  const fastResidue = Array.isArray(fast.residue) ? fast.residue : [];
+  const fastExit = fastEnds.length === 1 && !toolEndFailed(fastEnds[0]) && fastFacts.length === 1 && fastFacts[0].lastProbeStatus === 'exited' && fastFacts[0].cleanupRequired !== true && fastResidue.length === 0;
+  const bad = input.bad || {};
+  const badEnds = Array.isArray(bad.ends) ? bad.ends : [];
+  const badFacts = Array.isArray(bad.newFacts) ? bad.newFacts : [];
+  const badResidue = Array.isArray(bad.residue) ? bad.residue : [];
+  const badPath = classifyFailedStart(badEnds);
+  // A start that did not fail did not exercise the claim: its facts are still judged, but the answer cannot be PASS (UNKNOWN).
+  const badTerminal = badFacts.every((item) => !isActiveManagedStatus(item.lastProbeStatus) && item.cleanupRequired !== true);
+  const badClean = badPath !== null && badResidue.length === 0 && badTerminal;
+  const badOk = !badClean ? false : badPath === 'started' ? null : true;
+  const subs = [
+    subResult('double_stop', doubleStop, `stop_calls=${stops.length}; second_stop_error=${stops[1] ? toolEndFailed(stops[1]) : 'n/a'}; crash_text=${crash}; clean_after_stop=${afterStop.every((item) => !isActiveManagedStatus(item.lastProbeStatus))}`),
+    subResult('fast_exit', fastExit, `start_ends=${fastEnds.length}; start_failed=${fastEnds[0] ? toolEndFailed(fastEnds[0]) : 'n/a'}; new_facts=${fastFacts.length}; fact_status=${fastFacts[0] ? fastFacts[0].lastProbeStatus : 'n/a'}; residue=${fastResidue.length}`),
+    subResult('failed_start', badOk, `path=${badPath}; start_ends=${badEnds.length}; new_facts=${badFacts.length}; fact_status=${badFacts[0] ? badFacts[0].lastProbeStatus : 'n/a'}; residue=${badResidue.length}${badPath === 'started' ? '; the start did not fail, so the failed-start claim was not exercised' : ''}`),
+  ];
+  // The observed text keeps each detail: the phase result is what the owner reads, and a bare "failed_start=UNKNOWN" would not say why.
+  return { path: badPath, subs, status: summarizeSubs(subs).status, text: subs.map((item) => `${item.name}=${item.status} [${item.detail}]`).join('; ') };
+}
+
+// B2-BG-03 A02 evidence, product side: the ownership events of one handle must run owned, release_intent, released with one release id.
+// Rows are the a9_events rows of type managed_process_ownership (payload_json text). Rows that could not be read are not observed (null).
+const RELEASE_SEQUENCE = Object.freeze(['owned', 'release_intent', 'released']);
+function evaluateReleaseSequence(rows, handleId) {
+  if (!Array.isArray(rows) || typeof handleId !== 'string' || handleId === '') return { ok: null, sequence: [], release_ids: [], same_release_id: null, events: 0 };
+  const events = [];
+  for (const row of rows) {
+    let payload = null;
+    try { payload = JSON.parse(row.payload_json); } catch (_error) { payload = null; }
+    if (payload && payload.handleId === handleId) events.push({ id: row.id, created_at: row.created_at, ownershipState: payload.ownershipState, releaseId: payload.releaseId || null });
+  }
+  const sequence = events.map((item) => item.ownershipState);
+  const releaseIds = events.filter((item) => item.releaseId).map((item) => item.releaseId);
+  const same = releaseIds.length === 2 && releaseIds[0] === releaseIds[1];
+  return { ok: JSON.stringify(sequence) === JSON.stringify(RELEASE_SEQUENCE) && same && events[1].releaseId !== null && events[2].releaseId !== null, sequence, release_ids: releaseIds, same_release_id: same, events: events.length, rows: events };
+}
+
 // Pages through events with beforeEventId; the union must equal the full list in order.
 function evaluatePaging(full, pages) {
   const merged = [];
@@ -987,7 +1045,7 @@ async function runDriver() {
     await screenshot('01-start.png');
     const identityOk = process.versions.electron === '22.3.27' && process.versions.modules === '110' && sqliteVersion === '3.43.1'
       && helperSha === manifest.required_native.runner_helper && sqliteNodeSha === manifest.required_native.better_sqlite3_node
-      && (manifestEntry('resources/app/product/main.js') || {}).sha256 === mainSha && runtimeJson.candidate === 'WIN7-43' && snap.status === 'ready';
+      && (manifestEntry('resources/app/product/main.js') || {}).sha256 === mainSha && runtimeJson.candidate === 'WIN7-45' && snap.status === 'ready';
     record('B2-CH-01-START', 1, identityOk ? 'PASS' : 'FAIL', `electron=${process.versions.electron}; abi=${process.versions.modules}; sqlite=${sqliteVersion}; helper_match=${helperSha === manifest.required_native.runner_helper}; sqlite_node_match=${sqliteNodeSha === manifest.required_native.better_sqlite3_node}; status=${snap.status}`);
     // B2-CH-01 A02 (SID, session, integrity, elevation, job, old trees) is decided by the smoke from the controller identity.
 
@@ -1340,7 +1398,7 @@ async function runDriver() {
       `reads=${reads.length}; failed_flags=${JSON.stringify(outcome.map((item) => item.failed))}`);
     await stopAllManaged();
 
-    // BG-03: double stop, ready failure, release.
+    // BG-03 A01: double stop, a command that exits at once, a start that fails. The release is judged in release_exit (A02, after the exit).
     await newConversation();
     const convStop = await conversationId();
     await submit('b2:bg-stop-twice');
@@ -1348,31 +1406,41 @@ async function runDriver() {
     const stopEvents = (await events(convStop, 1000)).events;
     const stops = toolEndsFor(stopEvents, 'stop_process');
     const snapStop = await snapshot();
-    await newConversation();
-    const convFail = await conversationId();
-    await submit('b2:bg-ready-fail');
-    await waitIdle(180000, 'bg-ready-fail turn');
-    const failEvents = (await events(convFail, 1000)).events;
-    const startFail = toolEndsFor(failEvents, 'start_process');
-    // Rehearsal 4 read residue=1 and kept no item, so the cause is UNKNOWN. A lagging status of the fast-failing process is one candidate.
+    const knownHandles = new Set(snapStop.managedProcesses.map((item) => item.handleId));
+    // Rehearsal 4 read residue=1 and kept no item, so the cause is UNKNOWN. A lagging status of a fast-ending process is one candidate.
     // Residue is therefore judged after a bounded settle (20 s), and the first read, every later read and the settled facts are all recorded.
-    const settle = [];
-    const settleStarted = Date.now();
-    let snapFail = await snapshot();
-    settle.push({ t: 0, residue: managedResidueItems(snapFail.managedProcesses).map(managedFactSummary) });
-    while (managedResidueItems(snapFail.managedProcesses).length > 0 && Date.now() - settleStarted < 20000) {
-      await sleep(500);
-      snapFail = await snapshot();
-      settle.push({ t: Date.now() - settleStarted, residue: managedResidueItems(snapFail.managedProcesses).map(managedFactSummary) });
-    }
-    const residue = managedResidueItems(snapFail.managedProcesses);
+    const settleResidue = async () => {
+      const settle = [];
+      const settleStarted = Date.now();
+      let snap = await snapshot();
+      settle.push({ t: 0, residue: managedResidueItems(snap.managedProcesses).map(managedFactSummary) });
+      while (managedResidueItems(snap.managedProcesses).length > 0 && Date.now() - settleStarted < 20000) {
+        await sleep(500);
+        snap = await snapshot();
+        settle.push({ t: Date.now() - settleStarted, residue: managedResidueItems(snap.managedProcesses).map(managedFactSummary) });
+      }
+      const residue = managedResidueItems(snap.managedProcesses);
+      const newFacts = snap.managedProcesses.filter((item) => !knownHandles.has(item.handleId));
+      for (const item of snap.managedProcesses) knownHandles.add(item.handleId);
+      return { snap, residue, newFacts, settle: settle.slice(-30), settled_after_ms: residue.length === 0 ? settle[settle.length - 1].t : null };
+    };
+    const fastOutcome = async (token, label) => {
+      await newConversation();
+      const convId = await conversationId();
+      await submit(token);
+      await waitIdle(180000, `${label} turn`);
+      const ends = toolEndsFor((await events(convId, 1000)).events, 'start_process');
+      const settled = await settleResidue();
+      return { ends, ...settled };
+    };
+    const fast = await fastOutcome('b2:bg-fast-exit', 'bg-fast-exit');
+    const bad = await fastOutcome('b2:bg-badcwd', 'bg-badcwd');
+    const verdict = evaluateBg03Facts({ stops, afterStopFacts: snapStop.managedProcesses, fast: { ends: fast.ends, newFacts: fast.newFacts, residue: fast.residue }, bad: { ends: bad.ends, newFacts: bad.newFacts, residue: bad.residue } });
     out('bg03-stop-release.json', { stops: stops.map(summarizeToolEnd), after_stop_facts: snapStop.managedProcesses.map((item) => ({ handleId: item.handleId, status: item.lastProbeStatus, ownership: item.ownershipState })),
-      ready_fail: startFail.map(summarizeToolEnd), residue_after_fail: residue.length, residue_items: residue.map(managedFactSummary), settle_samples: settle.slice(-30), settled_after_ms: residue.length === 0 ? settle[settle.length - 1].t : null,
-      all_facts_after_fail: snapFail.managedProcesses.map(managedFactSummary) });
-    const stopsOk = stops.length === 2 && !toolEndFailed(stops[0]) && !/crash|exception|TypeError/i.test(JSON.stringify(eventData(stops[1])));
-    const afterStopClean = snapStop.managedProcesses.every((item) => !['running', 'starting'].includes(item.lastProbeStatus));
-    record('B2-BG-03-STOP-RELEASE-EXIT', 1, stopsOk && afterStopClean && startFail.length === 1 && residue.length === 0 ? 'PASS' : 'FAIL',
-      `stop_calls=${stops.length}; second_stop_error=${stops[1] ? toolEndFailed(stops[1]) : 'n/a'}; clean_after_stop=${afterStopClean}; ready_fail_ends=${startFail.length}; residue=${residue.length}; exit_without_dialog=pending`);
+      fast_exit: { start_ends: fast.ends.map(summarizeToolEnd), new_facts: fast.newFacts.map(managedFactSummary), residue_items: fast.residue.map(managedFactSummary), settle_samples: fast.settle, settled_after_ms: fast.settled_after_ms },
+      failed_start: { path: verdict.path, known_paths: BAD_CWD_PATHS, start_ends: bad.ends.map(summarizeToolEnd), new_facts: bad.newFacts.map(managedFactSummary), residue_items: bad.residue.map(managedFactSummary), settle_samples: bad.settle, settled_after_ms: bad.settled_after_ms },
+      all_facts_at_end: bad.snap.managedProcesses.map(managedFactSummary), verdict: { status: verdict.status, text: verdict.text } });
+    record('B2-BG-03-STOP-RELEASE-EXIT', 1, verdict.status, `${verdict.text}; release=judged_by_release_exit_A02`);
   }
   async function stopAllManaged() {
     for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -1406,6 +1474,57 @@ async function runDriver() {
       switch: switched, sidebar_before: rowsBefore.map((row) => ({ label: row.label.slice(0, 60), current: row.current })), sidebar_after: rowsAfter.map((row) => ({ label: row.label.slice(0, 60), current: row.current })) }, refresh_once: refreshOnce, paging_ok: part.paging.ok, view_return_ok: part.view_return_ok });
     record('B2-S06-REFRESH-PAGING-RESTART', 1, refreshOnce && restartOnce && part.paging.ok && part.view_return_ok && sameRows ? 'PASS' : 'FAIL',
       `refresh_once=${refreshOnce}; paging=${part.paging.ok}; view_return=${part.view_return_ok}; restart_rows_equal=${sameRows}; restart_once=${restartOnce}`);
+  }
+
+  // BG-03 A02: the owner chooses "leave to system" in the exit dialog. The suite clicks the second button; this mode records what only the
+  // product can show (the process tree before the exit, the dialog, the ownership events). The smoke judges the rest after the exit
+  // (exit code, the released process still alive, no product process left, then removal of the released process by identity).
+  async function releaseExit() {
+    await bootstrap();
+    await newConversation();
+    const baselineTree = myTree();
+    await submit('b2:bg-release');
+    const handle = await waitFor(async () => (await snapshot()).managedProcesses.find((item) => ['running', 'starting'].includes(item.lastProbeStatus)) || null, 90000, 'released-hold handle');
+    await waitIdle(120000, 'bg-release turn');
+    const snap = await snapshot();
+    const active = snap.managedProcesses.filter((item) => ['running', 'starting'].includes(item.lastProbeStatus));
+    const infrastructure = (item) => /^(electron|conhost|spike02_helper)\.exe$/i.test(item.name || '');
+    const tree = myTree();
+    const commandTree = newProcesses(baselineTree, tree).filter((item) => !infrastructure(item));
+    const live = active.find((item) => item.handleId === handle.handleId) || null;
+    out('release-exit-before.json', { driver_pid: process.pid, handle: live ? { handleId: live.handleId, pid: live.pid, status: live.lastProbeStatus, ownership: live.ownershipState || null } : null,
+      active_count: active.length, tree, command_tree: commandTree, handle_pid_in_command_tree: live ? commandTree.some((item) => item.pid === live.pid) : false,
+      stale_parent_links: Array.from(staleParentLinks.values()), wmic_failures: wmicFailures });
+    const writeDone = () => writeJson(resultFile, { schema_version: 1, mode: MODE, status: 'DONE', error: null, assertions: results, evidence: evidenceIndex, ipc: ipcLog.slice(-50), dialogs: dialogLog, duration_ms: Date.now() - startedAt });
+    const dumpOwnership = (trigger) => {
+      let rows = null;
+      let factAfter = null;
+      let error = null;
+      try {
+        rows = dbAll("SELECT id, created_at, payload_json FROM a9_events WHERE event_type = 'managed_process_ownership' ORDER BY id");
+        factAfter = dbAll('SELECT handle_id, pid, last_probe_status, pid_reuse_possible FROM a9_managed_processes WHERE handle_id = ?', handle.handleId)[0] || null;
+      } catch (readError) { error = String(readError && readError.message ? readError.message : readError).slice(0, 300); }
+      const sequence = evaluateReleaseSequence(rows, handle.handleId);
+      out('release-ownership-events.json', { read_at: new Date().toISOString(), trigger, handle_id: handle.handleId, read_error: error, sequence, fact_after: factAfter });
+      writeDone();
+    };
+    ownsExit = true;
+    const dialogTimer = setTimeout(() => {
+      out('release-dialog-response.json', { dialog: null, timed_out: true, active_managed_before_quit: active.length });
+      writeDone();
+      app.exit(1);
+    }, 150000);
+    let willQuitSeen = false;
+    app.on('will-quit', () => { willQuitSeen = true; dumpOwnership('will-quit'); });
+    onDialogReturned = (entry) => {
+      clearTimeout(dialogTimer);
+      const labels = Array.isArray(entry.buttons) ? entry.buttons : [];
+      out('release-dialog-response.json', { dialog: entry, expected_buttons: EXIT_BUTTONS, buttons_ok: JSON.stringify(labels) === JSON.stringify(EXIT_BUTTONS), active_managed_before_quit: active.length, returned_index: entry.response, timed_out: false });
+      writeDone();
+      // The release runs before the product quits; when it never reaches will-quit (an error box blocks the exit), the events are read here and the driver stops.
+      setTimeout(() => { if (!willQuitSeen) { dumpOwnership('after-dialog-timeout'); app.exit(1); } }, 90000);
+    };
+    app.quit();
   }
 
   // ---- Modes: continue (p06) ----------------------------------------------------------------------------------------------------
@@ -1807,7 +1926,7 @@ async function runDriver() {
   const MODE_TABLE = {
     chain_a: chainA, chain_interrupt: chainInterrupt, chain_recover: chainRecover, chain_exit: chainExit,
     stream_live: streamLive, stream_encodings: streamEncodings, stream_limits: streamLimits, audit_stop: auditStop,
-    session_bg: sessionBg, session_restart: sessionRestart,
+    session_bg: sessionBg, session_restart: sessionRestart, release_exit: releaseExit,
     continue_guards: continueGuards, continue_interrupt: continueInterrupt, continue_restart: continueRestart, continue_unknown_interrupt: continueUnknownInterrupt,
     continue_mode_guard: continueModeGuard, continue_unknown: continueUnknown,
     safe_rules: safeRules, ui_interrupt: uiInterrupt, ui_continue: uiContinue, ui_layouts: uiLayouts,
@@ -1868,7 +1987,7 @@ async function runDriver() {
 }
 
 module.exports = {
-  assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
+  assertionId, eventData, framesFromEvents, classifyFailedStart, evaluateBg03Facts, evaluateReleaseSequence, BAD_CWD_PATHS, RELEASE_SEQUENCE, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, wmiStampMicros, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, evaluateTerminalAudit, evaluateRestartCounts, evaluateOldTurnUnchanged, evaluateInterruptRecords, isCount, isStatusText,

@@ -195,7 +195,7 @@ describe('A9-32 developer and A9-33 batch-2 package binding', () => {
       manifest.external_acceptance_eligible = false;
     } else {
       descriptor.lock_id = manifest.lock_id = BATCH2;
-      descriptor.candidate = manifest.candidate = 'WIN7-43';
+      descriptor.candidate = manifest.candidate = 'WIN7-45';
       manifest.candidate_tentative = true;
       manifest.status = 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
       manifest.external_acceptance_eligible = true;

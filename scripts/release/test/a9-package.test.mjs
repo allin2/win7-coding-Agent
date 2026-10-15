@@ -6070,7 +6070,7 @@ test('batch-2 lock identity is refused when the lock claims a developer provenan
   for(const mutate of [
     v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED'},
     v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED';v.provenance={task:'A9-33',development_only:false,candidate:'WIN7-42',candidate_tentative:true}},
-    v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED';v.provenance={task:'A9-33',development_only:false,candidate:'WIN7-43',candidate_tentative:false}},
+    v=>{v.lock_id='A9-BATCH2-INPUTS-D013-V26-MANAGED';v.provenance={task:'A9-33',development_only:false,candidate:'WIN7-45',candidate_tentative:false}},
     v=>{v.lock_id='A9-33-DEVELOPER-INPUTS-D013-V26-MANAGED'},
   ]){const lock=JSON.parse(JSON.stringify(original));mutate(lock);writeJson(inputs.lockPath,lock);assert.throws(()=>buildA9ProductCandidate({repositoryRoot,...inputs,outputRoot:path.join(root,'not-written')}),/A9_/);}
 });
