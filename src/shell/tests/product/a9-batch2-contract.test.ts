@@ -2669,6 +2669,24 @@ describe('A9-33 batch-2 driver evaluators', () => {
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [started], newFacts: [{ handleId: 'sh-4', lastProbeStatus: 'running' }], residue: [{ handleId: 'sh-4' }] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [], newFacts: [], residue: [] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts({}).status).toBe('FAIL');
+      // Each guard also holds alone: the first stop failing, residue from an older handle, and a cleanup flag on a new fact the residue list does not name.
+      expect(driver.evaluateBg03Facts(healthy({ stops: [real('stop_process', { error: { code: 'A9_MANAGED_HANDLE_UNKNOWN' } }), stoppedAgain] })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [], residue: [{ handleId: 'sh-old', lastProbeStatus: 'running' }] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [{ ...failedFact, cleanupRequired: true }], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [{ handleId: 'sh-5', lastProbeStatus: 'identity_mismatch' }], residue: [] } })).status).toBe('FAIL');
+    });
+
+    test('the exit dialog facts name the three buttons in order and the returned index', () => {
+      const entry = (buttons: any, response: number) => ({ shown_at: 't', buttons, response });
+      const ok = driver.exitDialogFacts(entry(['停止后退出', '留给系统后退出', '取消'], 1), 1);
+      expect(ok).toMatchObject({ buttons_ok: true, returned_index: 1, active_managed_before_quit: 1, timed_out: false, expected_buttons: driver.EXIT_BUTTONS });
+      expect(driver.exitDialogFacts(entry(['留给系统后退出', '停止后退出', '取消'], 1), 1).buttons_ok).toBe(false);
+      expect(driver.exitDialogFacts(entry(['停止后退出', '留给系统后退出'], 1), 1).buttons_ok).toBe(false);
+      expect(driver.exitDialogFacts(entry(undefined, 1), 1).buttons_ok).toBe(false);
+      expect(driver.exitDialogFacts(entry(['停止后退出', '留给系统后退出', '取消'], 0), 1).returned_index).toBe(0);
+      expect(driver.exitDialogFacts(null, 0)).toMatchObject({ buttons_ok: false, returned_index: null });
+      const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+      expect(source).toContain("out('release-dialog-response.json', exitDialogFacts(entry, active.length));");
     });
 
     const row = (id: number, state: string, releaseId?: string, handleId = 'sh-1') => ({ id, created_at: `2026-10-15T00:00:0${id}.000Z`, payload_json: JSON.stringify({ schemaVersion: 1, handleId, ownershipState: state, ...(releaseId ? { releaseId } : {}), requestId: 'r', owner: {} }) });

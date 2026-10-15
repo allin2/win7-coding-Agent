@@ -562,6 +562,13 @@ function evaluateBg03Facts(input) {
   return { path: badPath, subs, status: summarizeSubs(subs).status, text: subs.map((item) => `${item.name}=${item.status} [${item.detail}]`).join('; ') };
 }
 
+// The exit dialog as the driver saw it: the three button names in order and the index the click returned. The smoke judges both after the exit.
+function exitDialogFacts(entry, activeBefore) {
+  const labels = entry && Array.isArray(entry.buttons) ? entry.buttons : [];
+  return { dialog: entry, expected_buttons: EXIT_BUTTONS, buttons_ok: JSON.stringify(labels) === JSON.stringify(EXIT_BUTTONS), active_managed_before_quit: activeBefore,
+    returned_index: entry ? entry.response : null, timed_out: false };
+}
+
 // B2-BG-03 A02 evidence, product side: the ownership events of one handle must run owned, release_intent, released with one release id.
 // Rows are the a9_events rows of type managed_process_ownership (payload_json text). Rows that could not be read are not observed (null).
 const RELEASE_SEQUENCE = Object.freeze(['owned', 'release_intent', 'released']);
@@ -1518,8 +1525,7 @@ async function runDriver() {
     app.on('will-quit', () => { willQuitSeen = true; dumpOwnership('will-quit'); });
     onDialogReturned = (entry) => {
       clearTimeout(dialogTimer);
-      const labels = Array.isArray(entry.buttons) ? entry.buttons : [];
-      out('release-dialog-response.json', { dialog: entry, expected_buttons: EXIT_BUTTONS, buttons_ok: JSON.stringify(labels) === JSON.stringify(EXIT_BUTTONS), active_managed_before_quit: active.length, returned_index: entry.response, timed_out: false });
+      out('release-dialog-response.json', exitDialogFacts(entry, active.length));
       writeDone();
       // The release runs before the product quits; when it never reaches will-quit (an error box blocks the exit), the events are read here and the driver stops.
       setTimeout(() => { if (!willQuitSeen) { dumpOwnership('after-dialog-timeout'); app.exit(1); } }, 90000);
@@ -1987,7 +1993,7 @@ async function runDriver() {
 }
 
 module.exports = {
-  assertionId, eventData, framesFromEvents, classifyFailedStart, evaluateBg03Facts, evaluateReleaseSequence, BAD_CWD_PATHS, RELEASE_SEQUENCE, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
+  assertionId, eventData, framesFromEvents, classifyFailedStart, evaluateBg03Facts, evaluateReleaseSequence, exitDialogFacts, BAD_CWD_PATHS, RELEASE_SEQUENCE, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, wmiStampMicros, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, evaluateTerminalAudit, evaluateRestartCounts, evaluateOldTurnUnchanged, evaluateInterruptRecords, isCount, isStatusText,
