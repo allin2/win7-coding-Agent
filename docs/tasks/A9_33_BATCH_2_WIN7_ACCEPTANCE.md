@@ -2738,3 +2738,43 @@ BG-03 在本候选上的状态：双 Stop 部分有直接证据；“ready 失�
 报告工具说明：CLI 的 `-o codex_final_report.md` 用最终回复覆盖了会话先写的同名详细报告。执行代理保留最终回复原字节（SHA-256 `af070c6923326cdc4f1b59d2254d758a7780e93ebb50b7cbc623910a6c772603`），并从该独立会话的两次报告补丁恢复详细报告，哈希与会话已记录的 `7ab61f5b…` 完全一致。恢复材料及双文件身份见归档 `report-identity.json`、`report-recovery-patches.json`。下一轮将详细报告和 CLI 最终回复分别写入不同文件。复核根临时夹具保留，未执行删除；原根约 5.5 GB，未满足旧交接包的小于 3 GB 条件。
 
 下一步按[第 18 轮交接包](../reports/2026-10/a9_33_independent_review_handoff_bg03_release_fix3_2026-10-15.md)另开独立会话。出现 P0 或 P1 时仍先修复再复核；仅余 P2 时按既有裁决登记限制。当前不重建候选，不签门 A/B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并。旧候选、历史失败和 `HALTED` 均保持；KL-3、KL-5、KL-6a 与 KL-7 含边界 a、b、c 继续随任何 Alpha 2 结论列出。
+
+### 6.62 本地提交与第 18 轮关闭清理发现（2026-10-15 UTC）
+
+结论：负责人回复“批准”，授权上一轮明确的 7 文件清单本地提交。执行代理逐文件核对 SHA-256，精确暂存并提交为 `3d19c4d981eb2cd3b249309128f1275077cb6461`，工作树干净，未推送。提交清单 SHA-256 为 `5a43a8df83bf2dffbad80ea9841d5495117a411b39dddfd3991d722007198c63`。本次按该 7 文件范围执行，不推导后续提交或推送授权。
+
+第 18 轮全新独立会话 `01a13e0e-15d4-7a90-b224-89b33e3ef613` 于 `05:34:32Z` 启动、`05:45:42Z` 结束，退出码0。对象为准确提交 `3d19c4d…`。结论：0 个 P0、0 个未关闭 P1、0 个新增 P2，§6.61 两项发现已关闭，建议重建 WIN7-45 并预演。证据层级为开发机，不是目标平台结论。
+
+详细报告 SHA-256 为 `1ae8243eb9150619e081a4eab517c2abd851ee31f51b296ab7fbe2e90c2d7221`，归档 `.acceptance/a9-33-review/codex-bg03-round18-20261015/independent/codex_final_report.md`。包测试120通过；Jest263通过、9个回环监听用例为UNKNOWN（沙箱）；旧反例3项、自选反例12项、6项变异均按报告核验。修改字节恢复，两个副本和原工作树干净。累计非docs路径精确20条，11466行新增、31行删除，与§6.1一致。报告与CLI最终回复分开保存，没有同名覆盖。
+
+### 6.63 WIN7-45 预演 14 首失败与新会话驱动修复（2026-10-15 UTC）
+
+结论：预演14在p05失败，未进入p06～p10。WIN7-45连续成功预演为0次。执行代理已完成原始证据回收和当前收尾核对，并在原白名单内修复驱动；修复未提交、未独立复审、未在Win7运行。正式双构建、冻结、门A、正式运行和门B均NOT_PERFORMED。
+
+证据层级：下列执行事实来自Win7实机预演，身份REHEARSAL_NOT_ELIGIBLE，绑定源 `3d19c4d981eb2cd3b249309128f1275077cb6461`。源与原生输入未借用旧候选PASS。运行记录 `.acceptance/a9-33-rehearsal/rehearsal-14/RUN_LOG.md`，原包、首失败和旧候选保持。
+
+| 绑定 | 实际值 |
+|---|---|
+| ZIP | 101670861字节；SHA-256 `e228c3dce66227a9690e29ed013fb0f9e2dfc343caec28dfd8d0c588a2a0d1fc` |
+| manifest | SHA-256 `da5acc936814d0b6d7e4484b4ffdbc5bda2ebb4ea1024ac1e697f51600dec3c3` |
+| 预演授权 | SHA-256 `c74f1f0f9e123cacafd70a2b8ff3509e1e353a13e563113a954ad833cdf2c16f`；WIN7-45 kind/status和当前输入锁已同步 |
+| run-id / 新根 | `969b0015-46e8-4b73-821e-94fb8d3cef54` / `C:\A9-W43\run\969b0015` |
+| 时间及预算 | 本次窗口05:47:25Z～13:47:25Z；总截止2026-10-16T06:59:59Z。5次CONSUMED、5次COMPLETED，累计87/92 |
+
+R1当前机器、agent SID、console会话2、Win7 SP1和空间通过；新根此前不存在。R2仅创建新根及目录并授权agent修改。R3传输10文件，两端大小/哈希10/10一致。R4展开manifest匹配。两处执行代理调用错误均保留首失败：开发机干跑先误用空格参数形式，改为入口要求的等号形式后仅宿主ABI按预期失败；R4先遗漏既有进程级ExecutionPolicy参数，按旧入口参数重试后展开通过，未改系统策略。
+
+| 阶段 | 实际结果 |
+|---|---|
+| p01、p02 | PASS，分别5条和4条断言 |
+| p03最短真实链路 | PASS，12条断言；正常退出0，退出后survivors=0、产品residue=0 |
+| p04流式 | PASS |
+| p05会话/后台 | 账本FAIL，`DRIVER_SESSION_BG_FAILED`。BG-01、BG-02断言PASS；S06重启和BG-03完整断言NOT_PERFORMED |
+| p06～p10 | NOT_PERFORMED，没有派发 |
+
+首失败证据为 `r7/evidence/requests/05-p05-session-bg/driver-session_bg.json` 的 `TIMEOUT:new conversation`。原始SQLite确认双Stop返回stopped且cleanupRequired=false，快速退出Turn在 `05:55:39.079Z` 完成。其后没有新的创建会话IPC，20秒后超时。因此失败位于无效工作目录探针前，release模式尚未运行；不能把快速退出已执行写成整个BG-03通过。
+
+收尾与回收：当前进程表103条，无electron/helper/powershell和数据库记录的6个命令PID；本次精确计划任务前缀查询0个，未强杀或新增清理。第一次通用schtasks格式查询失败，原始结果为UNKNOWN并保留；后用既有Schedule.Service只读接口核实本次任务。完整回收228文件，大小/哈希228/228一致、无缺失额外。本机秘密扫描160个可扫描文件，0命中且正控检出；不补签未执行的p10，也不根据PID消失补签后代退出码。
+
+开发机修复仅 `src/shell/tests/product/a9-batch2-driver-entry.cjs` 与 `src/shell/tests/product/a9-batch2-contract.test.ts`。原驱动在新会话按钮禁用时跳过唯一点击，随后只等ID变化。修复在原20秒总期限内观察真实按钮，只在可用时点击一次，点击后不重复点击；回执异常时锁定失败，不重试可能已发生的动作。不强制启用、不绕过产品守卫、不加长超时。4个回归用例直接运行产品目录渲染函数和驱动函数：最初3个用例在旧实现上2项失败，补充的回执异常用例在初版修复上失败；最终完整Jest276、包测试120、verify:quick及驱动语法检查通过。原始故障没有保存按钮当时的禁用属性，界面刷新竞态仍为源码与反例支持的推断，实际原因待新预演验证。
+
+下一步：[第19轮交接包](../reports/2026-10/a9_33_independent_review_handoff_conversation_ready_2026-10-15.md)。固定新提交后独立复核，通过后才可重建新预演输入。预演14不恢复、不改判，不启动双构建或正式运行；KL-3、KL-5、KL-6a与KL-7含a、b、c边界继续携带。

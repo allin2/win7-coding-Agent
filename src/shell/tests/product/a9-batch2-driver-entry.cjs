@@ -886,8 +886,19 @@ async function runDriver() {
   const conversationId = async () => (await snapshot()).activeConversationId;
   async function newConversation() {
     const before = await conversationId();
-    await exec('(() => { const b = document.getElementById("conversation-new"); if (b && !b.disabled) b.click(); return true; })()');
-    return waitFor(async () => { const id = await conversationId(); return id && id !== before ? id : null; }, 20000, 'new conversation');
+    let clicked = false;
+    let clickError = null;
+    // The page can still show the last busy state after a fast Turn has ended. Wait for the real control; never bypass it or click twice.
+    return waitFor(async () => {
+      if (clickError) throw clickError;
+      if (!clicked) {
+        try { clicked = await exec('(() => { const b = document.getElementById("conversation-new"); if (!b || b.disabled) return false; b.click(); return true; })()'); }
+        catch (error) { clickError = error || new Error('A9_BATCH2_DRIVER_CONVERSATION_CLICK_UNCONFIRMED'); throw clickError; }
+      }
+      if (!clicked) return null;
+      const id = await conversationId();
+      return id && id !== before ? id : null;
+    }, 20000, 'new conversation');
   }
   // A conversation switch the way a person makes it: click the conversation's row in the sidebar. The preload bridge alone changes the main
   // process only; the page loads the new conversation on its own switch path (rehearsal 6, p05: after a restart the snapshot named the

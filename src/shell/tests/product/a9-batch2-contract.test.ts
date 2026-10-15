@@ -1183,6 +1183,68 @@ describe('A9-33 batch-2 smoke pieces', () => {
     });
   });
 
+  describe('rehearsal 14: create a conversation only after the real directory control becomes available', () => {
+    const rendererSource = fs.readFileSync(path.resolve(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+    const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const slice = (source: string, from: string, to: string) => source.slice(source.indexOf(from), source.indexOf(to, source.indexOf(from)));
+    function directory(options: { enableAt?: number; switchAfter?: number; permanentlyBlocked?: boolean; atLimit?: boolean; loseClickReply?: boolean } = {}) {
+      let now = 0;
+      let activeId = 'before';
+      let clicks = 0;
+      let clickedAt: number | null = null;
+      const nodes: Record<string, any> = {};
+      const node = (id: string) => (nodes[id] ||= { textContent: '', disabled: false, hidden: false,
+        click() { if (this.disabled) throw new Error('A disabled control was clicked'); clicks += 1; clickedAt = now; } });
+      const box: any = { state: { searchQuery: '' }, el: node, text: (id: string, value: any) => { node(id).textContent = String(value); },
+        appendConversationGroup: () => undefined, appendConversationRow: () => undefined };
+      vm.runInNewContext(`${slice(rendererSource, 'function renderConversationDirectory(snapshot)', '  function hydrateDraft(snapshot)')}\nthis.render = renderConversationDirectory;`, box);
+      const render = () => box.render({ conversations: [{ sessionId: activeId, state: 'active' }], activeConversationId: activeId,
+        conversationControls: { canSwitch: !options.permanentlyBlocked && now >= (options.enableAt ?? 0), maxActive: options.atLimit ? 1 : 16 } });
+      render();
+      const driver: any = { Date: { now: () => now }, Error, String,
+        conversationId: async () => activeId,
+        exec: async (source: string) => {
+          const result = vm.runInNewContext(source, { document: { getElementById: node } });
+          if (options.loseClickReply && clicks > 0) throw new Error('click reply unavailable');
+          return result;
+        },
+        sleep: async (ms: number) => { now += ms; if (clickedAt !== null && now - clickedAt >= (options.switchAfter ?? 0)) activeId = 'after'; render(); } };
+      vm.runInNewContext(`${slice(driverSource, 'async function waitFor(condition, timeoutMs, label)', '  // ---- SQLite inspection')}\n${slice(driverSource, 'async function newConversation()', '  // A conversation switch')}\nthis.create = newConversation;`, driver);
+      return { create: driver.create, clicks: () => clicks, time: () => now, button: node('conversation-new') };
+    }
+
+    test('waits for the renderer to enable the button, clicks once and waits for the changed conversation', async () => {
+      const p = directory({ enableAt: 500, switchAfter: 750 });
+      expect(p.button.disabled).toBe(true);
+      expect(await p.create()).toBe('after');
+      expect(p.clicks()).toBe(1);
+      expect(p.time()).toBeLessThan(20000);
+    });
+
+    test('never bypasses the disabled control when switching is blocked or the conversation limit is reached', async () => {
+      for (const options of [{ permanentlyBlocked: true }, { atLimit: true }]) {
+        const p = directory(options);
+        await expect(p.create()).rejects.toThrow('TIMEOUT:new conversation:');
+        expect(p.clicks()).toBe(0);
+        expect(p.time()).toBe(20000);
+        expect(p.button.disabled).toBe(true);
+      }
+    });
+
+    test('does not click again while creation is pending and keeps the original total deadline', async () => {
+      const p = directory({ enableAt: 19500, switchAfter: 1000 });
+      await expect(p.create()).rejects.toThrow('TIMEOUT:new conversation:');
+      expect(p.clicks()).toBe(1);
+      expect(p.time()).toBe(20000);
+    });
+
+    test('an uncertain click result fails without repeating an action that may already have happened', async () => {
+      const p = directory({ loseClickReply: true });
+      await expect(p.create()).rejects.toThrow('click reply unavailable');
+      expect(p.clicks()).toBe(1);
+    });
+  });
+
   test('the normal-exit tree assertion needs an observed non-empty tree and a working process listing', () => {
     const csv = (rows: string[]) => `Node,CreationDate,ExecutablePath,Name,ParentProcessId,ProcessId\r\n${rows.join('\r\n')}\r\n`;
     const unrelated = 'HOST,20260101000001.000000+000,C:\\Windows\\notepad.exe,notepad.exe,1,7';
