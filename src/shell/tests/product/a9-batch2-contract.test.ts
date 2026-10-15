@@ -1257,22 +1257,37 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const shellRow = (over: { created?: string; pid?: number } = {}) => `HOST,${over.created || shell.created},C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe,powershell.exe,${shell.parent},${over.pid || shell.pid}`;
     const exitLaunch = (over: any = {}) => ({ mode: 'release_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 }, ...over });
     const sequenceOk = { ok: true, sequence: ['owned', 'release_intent', 'released'], release_ids: ['r1', 'r1'], same_release_id: true, events: 3 };
+    const handle = { handleId: 'sh-1', pid: shell.pid, status: 'running', ownership: 'owned' };
+    const beforeFile = (over: any = {}) => ({ handle, handle_pid_in_command_tree: true, tree: [shell], command_tree: [shell], wmic_failures: 0, ...over });
     const files = (over: any = {}) => ({
-      'release-exit-before.json': { tree: [shell], command_tree: [shell], wmic_failures: 0 },
+      'release-exit-before.json': beforeFile(),
       'release-dialog-response.json': { dialog: { response: 1 }, buttons_ok: true, returned_index: 1, timed_out: false },
       'release-ownership-events.json': { sequence: sequenceOk },
       ...over,
     });
     // The released command lives until a kill for its id arrives; kills of other ids change nothing.
-    const run = async (opts: { files?: any; launch?: any; rows?: (ctx: any, alive: () => boolean) => string[]; killable?: boolean; noLaunch?: boolean; table?: any } = {}) => {
+    // A rows callback may answer 'fail' to make that one listing fail (the query throws); `dead` holds the ids a kill removed (the shell and `killable` ids).
+    const run = async (opts: { files?: any; launch?: any; rows?: (ctx: any, alive: () => boolean, dead: Set<number>, call: number) => string[] | 'fail'; killable?: boolean; killablePids?: number[]; noLaunch?: boolean; table?: any } = {}) => {
       const { ctx, attempt } = phaseContext('p05-session-bg');
       const written = opts.files || files();
       for (const [name, value] of Object.entries(written)) if (value !== null) fs.writeFileSync(path.join(attempt, name), JSON.stringify(value));
       let alive = true;
+      let calls = 0;
+      const dead = new Set<number>();
       const killed: number[] = [];
       const rowsFor = opts.rows || (() => [other, ...(alive ? [shellRow()] : [])]);
-      const exec = opts.table || answers(() => ({ status: 0, stdout: csv(rowsFor(ctx, () => alive)), stderr: '', error: null }));
-      const killProcess = (pid: number) => { killed.push(pid); if (opts.killable !== false && pid === shell.pid) alive = false; };
+      const exec = opts.table || answers(() => {
+        calls += 1;
+        const rows = rowsFor(ctx, () => alive, dead, calls);
+        if (rows === 'fail') throw new Error('wmic failed');
+        return { status: 0, stdout: csv(rows), stderr: '', error: null };
+      });
+      const killProcess = (pid: number) => {
+        killed.push(pid);
+        if (opts.killable === false) return;
+        if (pid === shell.pid) alive = false;
+        if (pid === shell.pid || (opts.killablePids || []).includes(pid)) dead.add(pid);
+      };
       await smoke.finishReleaseEvidence(ctx, opts.noLaunch ? [] : [opts.launch || exitLaunch()], exec, { killProcess, wait: instant });
       const assertion = ctx.result.cases.find((item: any) => item.case_id === 'B2-BG-03-STOP-RELEASE-EXIT').assertions[1];
       const heldFile = path.join(attempt, 'release-held-exit.json');
@@ -1352,6 +1367,104 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(killedChildren.status).toBe('PASS');
       expect(killedChildren.killed).toEqual(expect.arrayContaining([800, 810]));
       expect(killedChildren.killed).not.toContain(811);
+    });
+
+    describe('codex round 16: the released command is the process of the handle, and the cleanup keeps what it found', () => {
+      const child = (pid: number, created = '20260101000011.000000+000') => `HOST,${created},C:\\Windows\\System32\\ping.exe,ping.exe,${shell.pid},${pid}`;
+      const childItem = (pid: number, created = '20260101000011.000000+000') => ({ pid, parent: shell.pid, name: 'ping.exe', created });
+
+      test('P1 (cleanup): a child seen while its parent lived stays tracked, is killed again and is counted when the parent is gone and the child stays', async () => {
+        // A child keeps the parent id of its killed parent. It was seen only in the first round, while the parent was alive.
+        const stubbornChild = await run({ rows: (_ctx, alive) => [other, ...(alive() ? [shellRow()] : []), child(810)] });
+        expect(stubbornChild.status).toBe('FAIL');
+        expect(stubbornChild.held.cleanup).toMatchObject({ observed: false });
+        expect(stubbornChild.held.cleanup.remaining).toEqual([expect.objectContaining({ pid: 810 })]);
+        expect(stubbornChild.held.checks.released_removed_by_suite).toBe(false);
+        expect(stubbornChild.killed.filter((pid: number) => pid === 810).length).toBeGreaterThan(1);
+        // Control: a child that dies with the kill is gone after the clean rounds.
+        const dying = await run({ killablePids: [810], rows: (_ctx, alive, dead) => [other, ...(alive() ? [shellRow()] : []), ...(dead.has(810) ? [] : [child(810)])] });
+        expect(dying.status).toBe('PASS');
+        expect(dying.held.cleanup).toMatchObject({ observed: true, remaining: [] });
+        expect(dying.killed).toEqual(expect.arrayContaining([shell.pid, 810]));
+        // A grandchild found below the child is tracked the same way.
+        const grand = (pid: number) => `HOST,20260101000012.000000+000,C:\\Windows\\System32\\cmd.exe,cmd.exe,810,${pid}`;
+        const deep = await run({ killablePids: [810], rows: (_ctx, alive, dead) => [other, ...(alive() ? [shellRow()] : []), ...(dead.has(810) ? [] : [child(810)]), grand(820)] });
+        expect(deep.status).toBe('FAIL');
+        expect(deep.held.cleanup.remaining).toEqual([expect.objectContaining({ pid: 820 })]);
+      });
+
+      test('P1 (identity): only the handle process alive after the exit counts; a failed query, a foreign id, a dead root and a blank stamp are never a PASS', async () => {
+        // The tree query failed: the alive entry cannot be tied to the command.
+        const failedQuery = await run({ files: files({ 'release-exit-before.json': beforeFile({ wmic_failures: 1 }) }) });
+        expect(failedQuery.status).toBe('UNKNOWN');
+        expect(failedQuery.held.checks.released_alive_after_exit).toBeNull();
+        expect(failedQuery.held.tree_observed).toBe(false);
+        // The id of the handle is not in the recorded tree: another process being alive proves nothing.
+        const foreign = await run({ files: files({ 'release-exit-before.json': beforeFile({ handle: { ...handle, pid: 999 }, handle_pid_in_command_tree: false }) }) });
+        expect(foreign.status).toBe('UNKNOWN');
+        expect(foreign.held.root_identified).toBe(false);
+        const noHandle = await run({ files: files({ 'release-exit-before.json': beforeFile({ handle: null, handle_pid_in_command_tree: false }) }) });
+        expect(noHandle.status).toBe('UNKNOWN');
+        // The tree says the handle is in it, but the driver did not record that: the flag is required as well as the entry.
+        const unflagged = await run({ files: files({ 'release-exit-before.json': beforeFile({ handle_pid_in_command_tree: false }) }) });
+        expect(unflagged.status).toBe('UNKNOWN');
+        // The handle process is gone and a child of it is alive: the command did not survive, so a descendant cannot stand for it.
+        const rootGone = await run({ files: files({ 'release-exit-before.json': beforeFile({ command_tree: [shell, childItem(810)], tree: [shell, childItem(810)] }) }), killablePids: [810],
+          rows: (_ctx, _alive, dead) => [other, ...(dead.has(810) ? [] : [child(810)])] });
+        expect(rootGone.status).toBe('FAIL');
+        expect(rootGone.held.checks.released_alive_after_exit).toBe(false);
+        expect(rootGone.held.root_alive_after_exit).toBe(false);
+        expect(rootGone.held.alive_after_exit).toEqual([childItem(810)]);
+        // A blank creation stamp before and after is no identity: nothing is judged alive and nothing is killed.
+        const blank = { ...shell, created: '' };
+        const blankRun = await run({ files: files({ 'release-exit-before.json': beforeFile({ tree: [blank], command_tree: [blank] }) }), rows: () => [other, shellRow({ created: '' })] });
+        expect(blankRun.status).toBe('UNKNOWN');
+        expect(blankRun.killed).toEqual([]);
+        expect(blankRun.held.checks).toMatchObject({ released_alive_after_exit: null, released_removed_by_suite: null });
+        expect(blankRun.held.cleanup.unidentified).toEqual([{ pid: shell.pid, name: shell.name }]);
+        // Control: the same inputs with a recorded stamp pass.
+        expect((await run()).status).toBe('PASS');
+      });
+
+      test('P2 (status): PASS needs every check to be exactly true; a missing or non-boolean check is UNKNOWN, a failure still wins', async () => {
+        expect(smoke.releaseStatus([true, true, true])).toBe('PASS');
+        expect(smoke.releaseStatus([true, undefined])).toBe('UNKNOWN');
+        expect(smoke.releaseStatus([true, 'true'])).toBe('UNKNOWN');
+        expect(smoke.releaseStatus([true, null])).toBe('UNKNOWN');
+        expect(smoke.releaseStatus([])).toBe('UNKNOWN');
+        expect(smoke.releaseStatus(undefined)).toBe('UNKNOWN');
+        expect(smoke.releaseStatus([false, undefined])).toBe('FAIL');
+        expect(smoke.releaseStatus([false, null])).toBe('FAIL');
+        // An ownership record without its ok flag is not observed.
+        const noFlag = await run({ files: files({ 'release-ownership-events.json': { sequence: { sequence: ['owned', 'release_intent', 'released'], same_release_id: true } } }) });
+        expect(noFlag.status).toBe('UNKNOWN');
+        expect(noFlag.held.checks.ownership_sequence_ok).toBeNull();
+      });
+
+      test('P2 (regression): an unobserved product residue and an unobserved cleanup are each UNKNOWN on their own', async () => {
+        // Product residue unknown only: the settle listing fails after a sample that showed residue, so absence was never observed.
+        const residueUnknown = await run({ rows: (ctx, alive, _dead, call) => call === 1 ? [other, shellRow(), `HOST,20260101000020.000000+000,${ctx.candidateRoot}${path.sep}electron.exe,electron.exe,1,902`]
+          : call === 2 ? 'fail' : [other, ...(alive() ? [shellRow()] : [])] });
+        expect(residueUnknown.held.checks).toMatchObject({ exit_ok: true, dialog_ok: true, ownership_sequence_ok: true, released_alive_after_exit: true, no_product_process_left: null, released_removed_by_suite: true });
+        expect(residueUnknown.status).toBe('UNKNOWN');
+        // Cleanup unknown only: every listing after the first one fails, so the removal never saw absence and never saw the command either.
+        const cleanupUnknown = await run({ rows: (_ctx, _alive, _dead, call) => call === 1 ? [other, shellRow()] : 'fail' });
+        expect(cleanupUnknown.held.checks).toMatchObject({ exit_ok: true, dialog_ok: true, ownership_sequence_ok: true, released_alive_after_exit: true, no_product_process_left: true, released_removed_by_suite: null });
+        expect(cleanupUnknown.status).toBe('UNKNOWN');
+        // Alive unknown only: the usable listing is missing the first time and the tree is known.
+        const aliveUnknown = await run({ rows: (_ctx, alive, _dead, call) => call === 1 ? 'fail' : [other, ...(alive() ? [shellRow()] : [])] });
+        expect(aliveUnknown.held.checks.released_alive_after_exit).toBeNull();
+        expect(aliveUnknown.status).toBe('UNKNOWN');
+      });
+
+      test('P2 (boundary): a path that only starts with the candidate or driver root text is not under it', async () => {
+        const sibling = await run({ rows: (ctx, alive) => [other, ...(alive() ? [shellRow()] : []), `HOST,20260101000020.000000+000,${ctx.candidateRoot}-unrelated${path.sep}tool.exe,tool.exe,1,904`] });
+        expect(sibling.held.product_residue).toEqual([]);
+        expect(sibling.status).toBe('PASS');
+        const inside = await run({ rows: (ctx, alive) => [other, ...(alive() ? [shellRow()] : []), `HOST,20260101000020.000000+000,${ctx.candidateRoot}${path.sep}tool.exe,tool.exe,1,905`] });
+        expect(inside.held.product_residue).toEqual([{ pid: 905, name: 'tool.exe', image_source: 'executable_path' }]);
+        expect(inside.status).toBe('FAIL');
+      });
     });
 
     test('the smoke itself and its parent are never killed, and a phase without the release mode records nothing', async () => {
@@ -2669,12 +2782,40 @@ describe('A9-33 batch-2 driver evaluators', () => {
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [{ ...failedFact, cleanupRequired: true }], residue: [{ handleId: 'sh-3' }] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [started], newFacts: [{ handleId: 'sh-4', lastProbeStatus: 'running' }], residue: [{ handleId: 'sh-4' }] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [], newFacts: [], residue: [] } })).status).toBe('FAIL');
-      expect(driver.evaluateBg03Facts({}).status).toBe('FAIL');
+      // Nothing given is nothing observed (codex round 16): UNKNOWN. An observed empty list of tool ends is a FAIL (above).
+      expect(driver.evaluateBg03Facts({}).status).toBe('UNKNOWN');
       // Each guard also holds alone: the first stop failing, residue from an older handle, and a cleanup flag on a new fact the residue list does not name.
       expect(driver.evaluateBg03Facts(healthy({ stops: [real('stop_process', { error: { code: 'A9_MANAGED_HANDLE_UNKNOWN' } }), stoppedAgain] })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [], residue: [{ handleId: 'sh-old', lastProbeStatus: 'running' }] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [{ ...failedFact, cleanupRequired: true }], residue: [] } })).status).toBe('FAIL');
       expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [{ handleId: 'sh-5', lastProbeStatus: 'identity_mismatch' }], residue: [] } })).status).toBe('FAIL');
+    });
+
+    test('codex round 16 (P2): a list that was not given is UNKNOWN, a state the check does not know is never a finished one, a start must say it started', () => {
+      const odd = { handleId: 'sh-8', lastProbeStatus: 'not_observed', cleanupRequired: false };
+      const plain = { eventId: 11, eventType: 'tool_end', payload: { data: { toolName: 'start_process', result: 'started somehow' } }, data: { toolName: 'start_process', result: 'started somehow' } };
+      const exitedStatus = real('start_process', { status: 'exited', exitCode: 9, stdout: '', stderr: '' });
+      // Lists that were not given.
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [failedFact] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [exited] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ fast: undefined })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ stops: undefined })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ afterStopFacts: undefined })).status).toBe('UNKNOWN');
+      // A state outside the product's vocabulary is not a finished one; a cleanup state is a failure.
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [helperFailed], newFacts: [odd], residue: [] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [{ ...odd, lastProbeStatus: 'cleanup_required' }], residue: [] } })).status).toBe('FAIL');
+      expect(driver.evaluateBg03Facts(healthy({ bad: { ends: [refused], newFacts: [null], residue: [] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [{ ...exited, lastProbeStatus: 'not_observed' }], residue: [] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [started], newFacts: [{ ...exited, lastProbeStatus: 'stopped' }], residue: [] } })).status).toBe('FAIL');
+      // The start of a fast exit must say it started: no readable result is UNKNOWN, another status is a FAIL.
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [real('start_process', {})], newFacts: [exited], residue: [] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [plain], newFacts: [exited], residue: [] } })).status).toBe('UNKNOWN');
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [exitedStatus], newFacts: [exited], residue: [] } })).status).toBe('FAIL');
+      // A start that carries an error is a failed start even when its status text says started.
+      expect(driver.evaluateBg03Facts(healthy({ fast: { ends: [real('start_process', { status: 'background_started', error: { code: 'A9_X' } })], newFacts: [exited], residue: [] } })).status).toBe('FAIL');
+      // The unchanged healthy input still passes, and the details name what was observed.
+      expect(driver.evaluateBg03Facts(healthy()).text).toMatch(/observed=true/);
     });
 
     test('the exit dialog facts name the three buttons in order and the returned index', () => {

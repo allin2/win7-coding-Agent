@@ -534,29 +534,59 @@ function classifyFailedStart(ends) {
   return summary.error === HELPER_START_FAILED || String(summary.result_head).includes(HELPER_START_FAILED) ? 'helper_start_failed' : 'refused';
 }
 const isActiveManagedStatus = (status) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(status);
+// Handle states the product reports once a command is over. A fact outside this list that is not live either is not a clean end: it is not
+// observed (UNKNOWN), never a finished handle (codex round 16, P2: "not_observed" was read as terminal).
+const TERMINAL_MANAGED_STATES = Object.freeze(['exited', 'stopped', 'failed', 'released']);
+const allOf = (...values) => (values.includes(false) ? false : values.includes(null) ? null : true);
+// true: every fact is a finished one with nothing to clean; false: one is live or needs cleanup; null: the list or a fact was not observed.
+function factsFinished(facts) {
+  if (!Array.isArray(facts)) return null;
+  let unknown = false;
+  for (const item of facts) {
+    if (!item || typeof item !== 'object') { unknown = true; continue; }
+    if (isActiveManagedStatus(item.lastProbeStatus) || item.lastProbeStatus === 'cleanup_required' || item.cleanupRequired === true) return false;
+    if (!TERMINAL_MANAGED_STATES.includes(item.lastProbeStatus)) unknown = true;
+  }
+  return unknown ? null : true;
+}
+// The one start of a command that must have succeeded: the tool answered, did not fail, and said the process started. A tool end that could not be read is not a start.
+function startedOk(ends) {
+  if (!Array.isArray(ends) || ends.length !== 1) return false;
+  const summary = summarizeToolEnd(ends[0]);
+  if (summary.failed) return false;
+  return summary.result_status === 'background_started' ? true : summary.result_status === null ? null : false;
+}
 function evaluateBg03Facts(input) {
-  const stops = Array.isArray(input.stops) ? input.stops : [];
-  const afterStop = Array.isArray(input.afterStopFacts) ? input.afterStopFacts : [];
+  const given = input && typeof input === 'object' ? input : {};
+  const stopsObserved = Array.isArray(given.stops) && Array.isArray(given.afterStopFacts);
+  const stops = stopsObserved ? given.stops : [];
+  const afterStop = stopsObserved ? given.afterStopFacts : [];
   const crash = stops[1] ? /crash|exception|TypeError/i.test(JSON.stringify(eventData(stops[1]))) : false;
-  const doubleStop = stops.length === 2 && !toolEndFailed(stops[0]) && !crash && afterStop.every((item) => !isActiveManagedStatus(item.lastProbeStatus));
-  const fast = input.fast || {};
-  const fastEnds = Array.isArray(fast.ends) ? fast.ends : [];
-  const fastFacts = Array.isArray(fast.newFacts) ? fast.newFacts : [];
-  const fastResidue = Array.isArray(fast.residue) ? fast.residue : [];
-  const fastExit = fastEnds.length === 1 && !toolEndFailed(fastEnds[0]) && fastFacts.length === 1 && fastFacts[0].lastProbeStatus === 'exited' && fastFacts[0].cleanupRequired !== true && fastResidue.length === 0;
-  const bad = input.bad || {};
-  const badEnds = Array.isArray(bad.ends) ? bad.ends : [];
-  const badFacts = Array.isArray(bad.newFacts) ? bad.newFacts : [];
-  const badResidue = Array.isArray(bad.residue) ? bad.residue : [];
-  const badPath = classifyFailedStart(badEnds);
+  const cleanAfterStop = afterStop.every((item) => !isActiveManagedStatus(item.lastProbeStatus));
+  const doubleStop = !stopsObserved ? null : stops.length === 2 && !toolEndFailed(stops[0]) && !crash && cleanAfterStop;
+  // A list that was not given is not observed (UNKNOWN); a list that was given and is empty is an observed zero (codex round 16, P2).
+  const fast = given.fast || {};
+  const fastObserved = Array.isArray(fast.ends) && Array.isArray(fast.newFacts) && Array.isArray(fast.residue);
+  const fastEnds = fastObserved ? fast.ends : [];
+  const fastFacts = fastObserved ? fast.newFacts : [];
+  const fastResidue = fastObserved ? fast.residue : [];
+  const fastFact = fastFacts.length === 1 ? fastFacts[0] : null;
+  const fastFactOk = !fastFact || typeof fastFact !== 'object' ? false : fastFact.cleanupRequired === true ? false
+    : fastFact.lastProbeStatus === 'exited' ? true : isActiveManagedStatus(fastFact.lastProbeStatus) || TERMINAL_MANAGED_STATES.includes(fastFact.lastProbeStatus) || fastFact.lastProbeStatus === 'cleanup_required' ? false : null;
+  const fastExit = !fastObserved ? null : allOf(startedOk(fastEnds), fastFactOk, fastResidue.length === 0);
+  const bad = given.bad || {};
+  const badObserved = Array.isArray(bad.ends) && Array.isArray(bad.newFacts) && Array.isArray(bad.residue);
+  const badEnds = badObserved ? bad.ends : [];
+  const badFacts = badObserved ? bad.newFacts : [];
+  const badResidue = badObserved ? bad.residue : [];
+  const badPath = badObserved ? classifyFailedStart(badEnds) : null;
   // A start that did not fail did not exercise the claim: its facts are still judged, but the answer cannot be PASS (UNKNOWN).
-  const badTerminal = badFacts.every((item) => !isActiveManagedStatus(item.lastProbeStatus) && item.cleanupRequired !== true);
-  const badClean = badPath !== null && badResidue.length === 0 && badTerminal;
-  const badOk = !badClean ? false : badPath === 'started' ? null : true;
+  const badClean = badObserved ? allOf(badPath !== null, badResidue.length === 0, factsFinished(badFacts)) : null;
+  const badOk = badClean !== true ? badClean : badPath === 'started' ? null : true;
   const subs = [
-    subResult('double_stop', doubleStop, `stop_calls=${stops.length}; second_stop_error=${stops[1] ? toolEndFailed(stops[1]) : 'n/a'}; crash_text=${crash}; clean_after_stop=${afterStop.every((item) => !isActiveManagedStatus(item.lastProbeStatus))}`),
-    subResult('fast_exit', fastExit, `start_ends=${fastEnds.length}; start_failed=${fastEnds[0] ? toolEndFailed(fastEnds[0]) : 'n/a'}; new_facts=${fastFacts.length}; fact_status=${fastFacts[0] ? fastFacts[0].lastProbeStatus : 'n/a'}; residue=${fastResidue.length}`),
-    subResult('failed_start', badOk, `path=${badPath}; start_ends=${badEnds.length}; new_facts=${badFacts.length}; fact_status=${badFacts[0] ? badFacts[0].lastProbeStatus : 'n/a'}; residue=${badResidue.length}${badPath === 'started' ? '; the start did not fail, so the failed-start claim was not exercised' : ''}`),
+    subResult('double_stop', doubleStop, `stop_calls=${stops.length}; second_stop_error=${stops[1] ? toolEndFailed(stops[1]) : 'n/a'}; crash_text=${crash}; clean_after_stop=${cleanAfterStop}; observed=${stopsObserved}`),
+    subResult('fast_exit', fastExit, `start_ends=${fastEnds.length}; start_failed=${fastEnds[0] ? toolEndFailed(fastEnds[0]) : 'n/a'}; new_facts=${fastFacts.length}; fact_status=${fastFacts[0] ? fastFacts[0].lastProbeStatus : 'n/a'}; residue=${fastResidue.length}; observed=${fastObserved}`),
+    subResult('failed_start', badOk, `path=${badPath}; start_ends=${badEnds.length}; new_facts=${badFacts.length}; fact_status=${badFacts[0] ? badFacts[0].lastProbeStatus : 'n/a'}; residue=${badResidue.length}; observed=${badObserved}${badPath === 'started' ? '; the start did not fail, so the failed-start claim was not exercised' : ''}`),
   ];
   // The observed text keeps each detail: the phase result is what the owner reads, and a bare "failed_start=UNKNOWN" would not say why.
   return { path: badPath, subs, status: summarizeSubs(subs).status, text: subs.map((item) => `${item.name}=${item.status} [${item.detail}]`).join('; ') };

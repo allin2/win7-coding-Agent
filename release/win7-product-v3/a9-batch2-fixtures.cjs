@@ -154,7 +154,7 @@ const CASES = Object.freeze([
   ], ['bg02-ownership-cursor.json']),
   makeCase('B2-BG-03-STOP-RELEASE-EXIT', 'G2', 'p05-session-bg', 'BG', 'Double Stop, fast exit, failed start and release.', [
     'A second Stop is idempotent; a command that exits at once ends with a terminal fact and leaves no process; a start that fails on an unusable working directory leaves no process (the path taken is recorded; the helper readiness failure itself is KL-12)',
-    'Release: choosing "leave to system" in the exit dialog records release_intent and then released for the owned handle with one release id, the product exits with code 0 and leaves no product, driver or helper process, the released process is still alive after the exit, and the suite then removes it by identity (PID and creation stamp) and observes it absent',
+    'Release: choosing "leave to system" in the exit dialog records release_intent and then released for the owned handle with one release id, the product exits with code 0 and leaves no product, driver or helper process, the process of the released handle (PID and creation stamp recorded before the exit) is still alive after the exit, and the suite then removes it and its descendants by identity and observes them absent',
   ], ['bg03-stop-release.json', 'release-exit-before.json', 'release-dialog-response.json', 'release-ownership-events.json', 'release-held-exit.json']),
   makeCase('B2-CONT-01-RESTART-ZERO-REQUEST', 'G2', 'p06-continue', 'CONT-01', 'Restart and refresh send nothing; one click creates one Turn.', [
     'Restart and refresh add zero Provider and tool requests; single click and double click create one new Turn',
