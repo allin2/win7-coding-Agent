@@ -1,8 +1,10 @@
 # 当前项目状态
 
-## A9-35 已本地整合至 A9-33（2026-10-15 UTC）
+## 当前 Win7 预演17 FAIL，套件修复待独立复核（2026-10-15 UTC）
 
-负责人批准清单7f02ff06…所列10文件本地整合；A9-33已从dd7b92fd…快进到ce952760…，无冲突。最终产品字节与独立复核对象5f7c0e80…一致；开发机runner122/运行时17/verify:quick及第2轮0P0/0P1/0新增P2产品缺陷按准确字节标INHERITED_EVIDENCE，本次整合未重跑产品检查。原时序首失败及原因UNKNOWN保留。未推送、未远端执行、未构建目标包；BG03真实helper证明缺口及新包/Win7 NOT_PERFORMED不变，预演16 FAIL/UNKNOWN不改判，见[A9-33 §6.68](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#668-负责人批准-a9-35-本地整合2026-10-15-utc)与[整合记录](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#8-负责人批准与本地整合完成)。
+源5a14cf70865ce4a27cc1a641c4179b94e1f12d1d、ZIP f6970165…、run 4c94e8f1…在Win7普通agent运行：p01～p04 PASS，p05无效cwd正常拒绝及BG03-A01 PASS，真实helper ready失败证明仍NOT_PERFORMED。释放所有权事实已持久化，但launcher等待管道close至timeout，BG03-A02 FAIL；p06～p10 NOT_PERFORMED，连续成功0次，累计102/124。242文件回收哈希一致、R8相关进程/任务0，旧失败不改判。
+
+两个A9-33白名单文件修复release模式退出观测；开发机5项相关、Jest284、包120、verify:quick通过。准确提交及全新第21轮复核后才重建新包复验。A9-35产品保持5f7c0e80…准确字节，既有产品独立结论INHERITED_EVIDENCE；不推送、冻结、签门A/B或正式PASS。见[A9-33 §6.70](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#670-预演17首失败与套件exitclose观测修复2026-10-15-utc)和[报告§9](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#9-本次-win7-预演17首失败与套件退出观测修复)。
 
 ## A9-32 隔离实施入口（2026-10-11）
 

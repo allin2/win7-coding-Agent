@@ -6,7 +6,7 @@ Phase-Gate: A9_35_IMPLEMENTATION_AUTHORIZED
 Branch: codex/a9-35-managed-start-failure
 Source Baseline: d1b5275f6bc46253d2b16990c42f9f19ca2ee858
 Product Code Baseline: 548ef0a65fa307a2af7932958236e0c5a7a0c932
-Win7 Validation: NOT_PERFORMED
+Win7 Validation: NOT_PERFORMED (formal acceptance; rehearsal evidence see §8)
 
 ## 1. 批准与完整合同
 
@@ -67,3 +67,9 @@ Win7 Validation: NOT_PERFORMED
 2026-10-15 负责人在整合后指令“就在win7验证”，授权为当前修复构建新包并在既有Win7普通agent桌面做一次有界验证，具体目标、R1～R8、16请求/7200秒、累计97/124、截止2026-10-16T06:59:59Z及停止条件见[A9-33 §6.69](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#669-负责人要求当前修复在-win7-实机验证2026-10-15-utc)。这次新授权覆盖本轮目标构建与远端验证，替代此前仅本地的对应限制，不借用旧run授权文件。
 
 产品/native/协议/锁修改仍未授权；不得把预启动拒绝当ready失败清理，后者缺口保持。构建后登记准确source/ZIP/authority/run/根并报备哈希，再按既有安全闭集执行；未执行前不预填Win7 PASS。不冻结、不签Gate、不推送。
+
+## 8. Win7预演17直接证据
+
+新包绑定5a14cf70865ce4a27cc1a641c4179b94e1f12d1d/ZIP f6970165…/run 4c94e8f1…，真实Win7普通agent上无效cwd正常拒绝PASS：A9_BACKGROUND_CWD_INVALID，一个失败tool_end、零新句柄/零残留，Turn结束。该证据只覆盖预启动拒绝；真实helper ready失败清理仍NOT_PERFORMED，BG03整体不关闭。
+
+整轮预演在BG03-A02 FAIL停止（launcher等close至timeout；产品release事实已持久化），p06～p10 NOT_PERFORMED，连续成功0次，累计102/124。A9-33只在其两个套件白名单路径修复观测，产品字节5f7c0e80…不变，待新独立复核和新不可变包复验。详见[A9-33 §6.70](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#670-预演17首失败与套件exitclose观测修复2026-10-15-utc)和本轮报告§9；不改判旧失败、不签正式Win7验收。

@@ -744,22 +744,38 @@ function launchDriver(runtime, env, options, spawn = childProcess.spawn) {
     let stderr = '';
     let killedBy = null;
     let dialogClick = null;
+    let finished = false;
     child.stdout.on('data', (chunk) => { stdout = (stdout + chunk).slice(-262144); });
     child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-262144); });
-    const timer = setTimeout(() => { killedBy = 'timeout'; killTree(child.pid); }, options.timeoutMs);
+    const timer = setTimeout(() => { if (!finished) { killedBy = 'timeout'; killTree(child.pid); } }, options.timeoutMs);
     const poll = setInterval(() => {
+      if (finished) return;
       if (options.killMarker && !killedBy && fs.existsSync(options.killMarker)) { killedBy = 'marker'; killTree(child.pid); }
       if (options.dialogMarker && !dialogClick && fs.existsSync(options.dialogMarker)) {
         dialogClick = { at: new Date().toISOString(), ...(options.clickDialog ? options.clickDialog(child.pid) : { status: null, stdout: '', stderr: 'no click helper' }) };
       }
     }, 200);
-    child.on('close', (code, signal) => {
+    const complete = (code, signal) => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
       clearInterval(poll);
       resolve({ code: code === null ? null : code, signal: signal || null, killed_by: killedBy, duration_ms: Date.now() - started, started_at: new Date(started).toISOString(),
         ended_at: new Date().toISOString(), stdout, stderr, pid: child.pid, dialog_click: dialogClick });
+    };
+    child.on('close', complete);
+    child.on('exit', (code, signal) => {
+      if (env.A9_BATCH2_MODE !== 'release_exit') return;
+      // A released descendant may retain inherited pipe handles after this
+      // exact driver has exited. Do not wait for its EOF or kill the old PID.
+      // Keep the pipes open; release evidence still checks and removes the
+      // bound command by creation identity, independently of this exit.
+      for (const stream of [child.stdout, child.stderr]) if (typeof stream.unref === 'function') stream.unref();
+      complete(code, signal);
     });
     child.on('error', (error) => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
       clearInterval(poll);
       resolve({ code: null, signal: null, killed_by: killedBy, duration_ms: Date.now() - started, stdout, stderr, pid: child.pid, dialog_click: dialogClick,

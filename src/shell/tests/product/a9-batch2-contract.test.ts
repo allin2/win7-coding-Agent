@@ -936,6 +936,58 @@ describe('A9-33 batch-2 smoke pieces', () => {
     expect(await failed).toMatchObject({ code: null, spawn_error: 'ENOENT electron.exe' });
   });
 
+  test('rehearsal 17: a released driver exit does not wait for descendant-held stdio or kill its old PID', async () => {
+    jest.useFakeTimers();
+    const kill = jest.spyOn(process, 'kill').mockImplementation(() => true);
+    const child = fakeChild(2147483090);
+    child.stdout.unref = jest.fn(); child.stderr.unref = jest.fn();
+    child.stdout.destroy = jest.fn(); child.stderr.destroy = jest.fn();
+    let result: any = null;
+    const pending = smoke.launchDriver({ electronPath: 'electron.exe', appRoot: 'app' }, { A9_BATCH2_MODE: 'release_exit' }, { timeoutMs: 300000 }, () => child).then((r: any) => { result = r; return r; });
+    try {
+      child.stdout.emit('data', 'driver done');
+      child.emit('exit', 0, null); // The command still holds both pipes: no close event yet.
+      await Promise.resolve();
+      expect(result).toMatchObject({ code: 0, killed_by: null, stdout: 'driver done' });
+      expect(child.stdout.unref).toHaveBeenCalledTimes(1); expect(child.stderr.unref).toHaveBeenCalledTimes(1);
+      expect(child.stdout.destroy).not.toHaveBeenCalled(); expect(child.stderr.destroy).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(310000);
+      expect(kill).not.toHaveBeenCalled();
+      child.emit('close', 9, 'SIGTERM');
+      expect(await pending).toBe(result); expect(result.code).toBe(0);
+    } finally { child.emit('close', 0, null); await pending; kill.mockRestore(); jest.useRealTimers(); }
+  });
+
+  test.each([[17, null], [null, 'SIGTERM']])('rehearsal 17: release exit preserves a non-success result (%s, %s)', async (code, signal) => {
+    jest.useFakeTimers(); const child = fakeChild(2147483091); let result: any = null;
+    const pending = smoke.launchDriver({ electronPath: 'electron.exe', appRoot: 'app' }, { A9_BATCH2_MODE: 'release_exit' }, { timeoutMs: 300000 }, () => child).then((r: any) => { result = r; return r; });
+    try {
+      child.emit('exit', code, signal); await Promise.resolve();
+      expect(result).toMatchObject({ code, signal, killed_by: null });
+      child.emit('close', 0, null); expect((await pending).code).toBe(code);
+    } finally { child.emit('close', code, signal); await pending; jest.useRealTimers(); }
+  });
+
+  test('rehearsal 17: ordinary driver modes still wait for their stdout close', async () => {
+    const child = fakeChild(2147483092); child.stdout.unref = jest.fn(); let result: any = null;
+    const pending = smoke.launchDriver({ electronPath: 'electron.exe', appRoot: 'app' }, { A9_BATCH2_MODE: 'chain_exit' }, { timeoutMs: 5000 }, () => child).then((r: any) => { result = r; return r; });
+    try {
+      child.emit('exit', 0, null); await Promise.resolve(); expect(result).toBeNull();
+      child.stdout.emit('data', 'last ordinary output'); child.emit('close', 0, null);
+      expect(await pending).toMatchObject({ code: 0, stdout: 'last ordinary output' }); expect(child.stdout.unref).not.toHaveBeenCalled();
+    } finally { child.emit('close', 0, null); await pending; }
+  });
+
+  test('rehearsal 17: an actual release timeout stays a timeout after the exit event', async () => {
+    jest.useFakeTimers(); const kill = jest.spyOn(process, 'kill').mockImplementation(() => true);
+    const child = fakeChild(2147483093); let result: any = null;
+    const pending = smoke.launchDriver({ electronPath: 'electron.exe', appRoot: 'app' }, { A9_BATCH2_MODE: 'release_exit' }, { timeoutMs: 1000 }, () => child).then((r: any) => { result = r; return r; });
+    try {
+      jest.advanceTimersByTime(1000); child.emit('exit', 0, null); await Promise.resolve();
+      expect(result).toMatchObject({ code: 0, killed_by: 'timeout' }); expect(kill).toHaveBeenCalledTimes(1);
+    } finally { child.emit('close', 0, null); await pending; kill.mockRestore(); jest.useRealTimers(); }
+  });
+
   function phaseContext(phase: string, index = 1) {
     const base = temp(`ctx-${phase}`);
     const candidateRoot = path.join(base, 'candidate');

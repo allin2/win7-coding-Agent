@@ -93,3 +93,19 @@ manager消费终态及ready拒绝的清理结果时，额外核对同requestId�
 开发机runner122/运行时17、verify:quick及独立复核结论按相同源码、依赖与参数边界标INHERITED_EVIDENCE。本次只做快进、身份/完整性核验及文档检查，不运行产品测试、目标包构建、Electron或远端。原时序首失败、BG03缺口、预演16 FAIL/UNKNOWN、97/124累计请求、连续成功0次和历史HALTED均保持。
 
 原始证据继续保留在源树`/Users/qlyf/.codex/worktrees/a9-35-managed-start-failure/win7-coding-Agent/.acceptance/a9-35/`，不搬移、不覆盖；清单为LOCAL_INTEGRATION_MANIFEST.json，完成核验另记LOCAL_INTEGRATION_RESULT.json。两轮详细报告仍分别在review1/independent与review2/independent。后续真实ready失败证明合同、目标执行、冻结、Gate A/B及正式运行未授权。
+
+## 9. 本次 Win7 预演17首失败与套件退出观测修复
+
+负责人指令“就在win7验证”后，在Win7 SP1 x64的DCCS-CHAIZL-PC、普通agent/console2执行了新包预演。源5a14cf70865ce4a27cc1a641c4179b94e1f12d1d，ZIP f6970165ef316df2088f69268c29bd8670da8209e2e71c713a333b747ecdf216（101679411字节）；manifest 1c3e07a3645768d8ad402dd028557a366b375324db6819cbd0dd05974ef54152，kit bc03cc96364d4a97bd5214c5a8943512f78108f524a031868412e21e85955167。授权文件SHA-256 1aa80e989ca45c1c1c3b9b5f4a64b55c26dae280a948b2b1c47d4d8278a24d73，run 4c94e8f1-8416-42e3-b34e-cd7a5c2b5b91，新根C:\A9-W43\run\4c94e8f1，窗口09:02:41Z～17:02:41Z，总截止不变。
+
+结论为Win7实机预演FAIL（REHEARSAL_NOT_ELIGIBLE），连续成功0次。p01～p04 PASS；p05的S06、BG01、BG02及BG03-A01 PASS。无效cwd现在返回A9_BACKGROUND_CWD_INVALID，恰好一个失败start_process tool_end（event132），零新增句柄事实及零残留，Turn可正常结束。此证据确认预启动拒绝修复，不能替代真实helper启动后ready失败清理证明；后者仍NOT_PERFORMED，BG03整体不关闭。
+
+BG03-A02 FAIL：release driver PID6844，持有命令root PID2968，句柄sh-1792055380740-1e5807ac。产品实际对话框index1点击成功，09:09:42.996Z的will-quit所有权事实按owned→release_intent→released持久化（event142/149/150；releaseId e606f4178c03a7fdee84d6e35a9a9b6d）。launcher返回code0却记killed_by=timeout，耗时306956ms；300秒released-hold夹具在最后观察时已不存活，因此exit_ok与released_alive均失败。实际Win7独立exit事件时间未记录，不反推精确退出时刻或后代退出码。09:15:11Z停止，p06～p10 NOT_PERFORMED；5 CONSUMED/5 COMPLETED，累计102/124。
+
+R1～R4身份、完整性与10文件传输通过。09:16:17Z R8当前102进程、相关命中0、本次任务0；未追加强杀。R7回收242文件大小/哈希全匹配；173文件秘密扫描零命中且正控检出。755件原包、输入与首失败保护清单SHA-256 0817de6b09dd388480f4933e46e0823c3dbb2c77309e08e4d17bd4d3062f3b21。原始证据在A9-33树.acceptance/a9-33-rehearsal/rehearsal-17，不修改其中保护文件。
+
+首次工具启动漏生成任务XML，09:04:52Z在注册任务/消费请求前停止。该现场、空输出目录和纠错记录已保留；只补生成未消费的新任务XML，10个已传输输入逐SHA不变后执行。该工具失误不计为产品失败或请求消费，不覆盖首停日志。
+
+源码诊断发现launchDriver只等待close；被释放后代若保留stdio句柄，会使driver已退出后仍等待管道EOF并最终触发旧PID超时清扫。开发机Node20真实子进程最小复现为exit0在21ms、close0在1549ms，支持上述原因推断；该推断不能改判预演17。套件修复只对release_exit采用该ChildProcess实例的exit事件，取消后续计时器并只unref读管道而不关闭它。非零退出/信号/已触发timeout仍失败；普通mode继续等close，产品所有权、存活、残留及按创建身份清理判据不变。没有延长超时或改300秒夹具，没有产品/native/协议/锁变化。
+
+两个变更文件均在A9-33 §6.1白名单：release/win7-product-v3/a9-batch2-smoke.cjs及src/shell/tests/product/a9-batch2-contract.test.ts。新增5例中，旧套件4项行为失败/1项控制通过；修复后5项通过。开发机Node20完整Shell Jest284（合同241/运行时43）、包node --test120、verify:quick通过；日志exit-close-*及编译输出身份保留，消费者全部结束后才恢复跟踪dist。沿用§6.39/6.56的同范围修复、独立复核和新不可变预演授权，不盲目重试旧run；本地提交沿用§6.64持续授权，不推送。第21轮全新独立复核后才重建新包并恢复有界Win7验证，不冻结、不签门A/B或正式运行。历史FAIL/UNKNOWN/HALTED及KL边界保持。
