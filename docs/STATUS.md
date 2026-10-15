@@ -6,7 +6,9 @@
 
 负责人已要求将KL-12登记并在后续计划中修复。该指令确定延期安排，不把缺口改为已覆盖，也不等于门B签发。本轮实机执行、证据回收和独立复核已结束；不自动派发实机动作。KL-12仍为P1/NOT_PERFORMED，已进入[后续计划](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#67-kl-12-延期修复与补证登记2026-10-15-utc)和[覆盖台账§8](plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md#8-kl-12-后续修复与补证计划2026-10-15-utc)。
 
-正式验收收口须由负责人明确仅签已直接证明范围，并将KL-12列为排除项、保留NOT_PERFORMED。待签口径见[交接书§11](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)。当前门B仍NOT_PERFORMED，不签原合同全部满足、完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED；不推送或发布。
+正式验收收口须由负责人明确仅签已直接证明范围，并将KL-12列为排除项、保留NOT_PERFORMED。待签口径见[交接书§11](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)。当前门B仍NOT_PERFORMED，不签原合同全部满足、完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED。本轮同名分支Git同步已另获授权，见[A9-33 §6.77](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#677-工作状态与同名分支-git-同步授权2026-10-15-utc)；不发布。
+
+完整Alpha2剩余工作已汇总到[缺口处置表§6](plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)。第二批门B、A9-32证据对应与开发结论、共享安全及J1～J5旅程覆盖、未测范围和延期边界、最终Alpha2裁决均未关闭。旧表8类回归须先与当前证据核销；不直接推定全部重测。主工作区入口本轮补同步指引，源代码仍在各自分支，不从Git同步推导主线整合或验收通过。
 
 负责人在当前会话对准确载荷47fe7cae…及交接书范围回复“批准”。回执首次观察时间11:58:37Z，聊天消息精确时间UNKNOWN；本轮正式窗口至19:58:37Z。run5773470e…保持，1次/16请求/7200秒、原目标/角色/限制不变。R1确认Win7 SP1 x64、agent/SID/console2、新根不存在、102进程无Electron/helper；R2新根建立，R3全部10文件大小/哈希一致，R4解压manifest一致。
 

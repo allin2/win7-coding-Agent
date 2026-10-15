@@ -2464,3 +2464,9 @@ BG03无效cwd走预启动拒绝，KL-12真实helper ready失败清理仍NOT_PERF
 WIN7-45/source ba042757…/ZIP ae1d4bb1…/run5773470e…的实机执行、回收及独立复核已结束。25用例/43断言直接PASS，原独审0P0/1P1/0P2保持。负责人已确定延期安排，尚未签发门B或明确最终排除范围；门B、候选签发结论仍NOT_PERFORMED，不记原合同全部满足或任务COMPLETE。交接书§11备妥仅签已证明范围、明确排除KL-12并保留其状态的待签文字。
 
 本轮只修改8件文档。隔离分支起点e7d7cb66…且干净，主工作区a53c9b9…原47项状态保留。候选身份清单d2f254b3…、正式结果0870f035…、独审报告65cbe27f…再次核对一致。无新增远端动作、产品测试、产品/native修改、发布或推送；旧候选与全部FAIL/UNKNOWN/HALTED不改判。本地文档提交沿用A9-33 §6.64授权。详见[A9-33 §6.76](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#676-kl-12-延期登记与本轮实机工作结束2026-10-15-utc)、[后续计划](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#67-kl-12-延期修复与补证登记2026-10-15-utc)及[覆盖台账§8](plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md#8-kl-12-后续修复与补证计划2026-10-15-utc)。
+
+## 工作状态与同名分支Git同步（2026-10-15 UTC）
+
+负责人要求同步工作状态和本地/远程Git。本轮授权相关文档提交及同名分支推送，不签验收或发布。当前隔离分支起点1a9a952e…且干净；主工作区a53c9b9…的47项条目、展开64件路径先保存保护清单，3件状态文档留原字节备份。主工作区仅提交本轮新增同步指引，旧dirty/untracked继续保留。无stash、reset、强推、清理或候选修改。
+
+fetch已完成；main本地/远端同c14a968…，origin/codex/a9-alpha2为f3b59150…。本轮将A9-30/31/32/33/35和alpha2推至origin同名分支，并在推送后逐ref核对。完整Alpha2剩余项已同步至[缺口表§6](plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)。门B保持NOT_PERFORMED，KL-12延期且P1/NOT_PERFORMED不改。准确授权与保护/回执位置见[A9-33 §6.77](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#677-工作状态与同名分支-git-同步授权2026-10-15-utc)。

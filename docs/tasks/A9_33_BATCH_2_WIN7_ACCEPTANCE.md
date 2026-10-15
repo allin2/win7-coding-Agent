@@ -2932,3 +2932,13 @@ R8于12:13:33.256802Z记录103进程/相关0/本次任务0；未执行额外目�
 WIN7-45/source ba042757…/ZIP ae1d4bb1…/run5773470e…的实机执行、回收和独立复核已结束，25用例/43断言直接PASS。结束本轮执行工作无需追加实机批次。负责人此次尚未明确签发门B或处置最终验收范围，门B和签发候选结论保持NOT_PERFORMED，表头不改为COMPLETE或正式PASS。正式收口须由负责人明确接受[交接书§11](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)的限定范围文字；KL-12作为本次裁决排除项保留，不能称原完整合同全部满足。§4/§5原必需项义务和运行时安全硬门继续有效。
 
 本轮仅影响文档、索引及后续安排。开发机文档检查358文件/50任务、git diff --check均PASS；正式执行和独审事实引用原报告，不重跑产品测试。候选IDENTITY清单、正式结果与独审报告SHA-256同§6.73～6.75一致。旧FAIL/UNKNOWN/HALTED、原始证据及冻结字节保留。新增Win7执行、Win10、产品/原生修改、ADR-0155、DEVELOPER_VERIFIED、完整Alpha2/RC、合并/推送/发布均NOT_PERFORMED；本地文档提交沿用§6.64持续同范围授权。
+
+### 6.77 工作状态与同名分支 Git 同步授权（2026-10-15 UTC）
+
+负责人在当前会话要求“同步工作状态，同步本地Git远程Git”。该新指令授权本次相关文档提交与同名分支推送，替代此前本轮“不推送”的边界；不代替门B、完整Alpha2、合入main、发布或实机授权。
+
+起点为当前隔离分支1a9a952e15bd20087641e29d712719dc862012d2，工作树干净。主工作区codex/a9-alpha2为a53c9b9…，47项既有修改/未跟踪条目展开为64件保护路径；原字节、缺失状态和3件拟追加状态文档已另存。fetch后origin/main与本地main同为c14a968…；origin/codex/a9-alpha2为f3b59150…，没有新远端提交需要合并。
+
+同步对象为codex/a9-30-shell-streaming、codex/a9-31-background-tools、codex/a9-32-explicit-continue、codex/a9-33-batch2-win7-acceptance、codex/a9-35-managed-start-failure、codex/a9-alpha2，各推送到origin同名分支。主工作区3件状态入口只提交本次新增指引，原有修改继续未提交；不整体暂存旧dirty或untracked，不强推、不移动其他分支、不修改remote。
+
+完整Alpha2剩余项同步到[缺口表§6](../plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)。本轮只做文档、链接、差异、提交范围及远端ref核对，不重跑产品或目标平台。候选/原始证据继续留在忽略的.acceptance；推送分支变化路径没有.acceptance或归档ZIP。实际命令、逐路径保护和同步回执保存于正式run候选外的preparation/git-sync-20261015-01，不回写冻结输入。门B、DEVELOPER_VERIFIED、ADR-0155接受、完整Alpha2/RC和发布均NOT_PERFORMED。
