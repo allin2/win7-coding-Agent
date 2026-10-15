@@ -161,23 +161,44 @@ function evaluateSecretCheck(input) {
   const decided = input.key_available === true && Boolean(leaks.events && leaks.events.checked);
   return { decided, clean: !leaked, status: !decided ? 'UNKNOWN' : input.truncated === true && input.produced === true && !leaked ? 'PASS' : 'FAIL' };
 }
-function descendantsOf(rows, rootPid) {
+const WMI_STAMP = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.(\d{6})([+-]\d{3})$/;
+// Microseconds since the epoch (UTC) of a WMI date-time stamp such as 20261015082741.448520+480, or null for any other text.
+function wmiStampMicros(stamp) {
+  const match = WMI_STAMP.exec(String(stamp || '').trim());
+  if (!match) return null;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+  return (Date.UTC(year, month - 1, day, hour, minute, second) - Number(match[8]) * 60000) * 1000 + Number(match[7]);
+}
+// WMI keeps the ParentProcessId of a process whose parent has exited, so a process that has run for days can name the pid that a new product
+// process is given later (rehearsal 11, p03: the explorer.exe of another session, created 2026-09-24, named the pid of the new helper and
+// counted as its child and as a survivor of the exit). A child cannot be created before its parent: a link whose child stamp is earlier
+// than the parent stamp is stale and is left out, with its subtree. Stamps that cannot be read decide nothing and keep the link.
+// The optional `stale` array receives the links that were left out.
+function descendantsOf(rows, rootPid, stale) {
   const children = new Map();
   for (const row of rows) {
     const parent = Number(row.ParentProcessId);
     if (!children.has(parent)) children.set(parent, []);
     children.get(parent).push(row);
   }
+  const root = Number(rootPid);
+  const rootRow = rows.find((row) => Number(row.ProcessId) === root);
   const out = [];
-  const stack = [Number(rootPid)];
-  const seen = new Set(stack);
+  const stack = [{ pid: root, micros: wmiStampMicros(rootRow && rootRow.CreationDate) }];
+  const seen = new Set([root]);
   while (stack.length) {
-    for (const child of children.get(stack.pop()) || []) {
+    const parent = stack.pop();
+    for (const child of children.get(parent.pid) || []) {
       const pid = Number(child.ProcessId);
       if (seen.has(pid)) continue;
+      const micros = wmiStampMicros(child.CreationDate);
+      if (parent.micros !== null && micros !== null && micros < parent.micros) {
+        if (Array.isArray(stale)) stale.push({ pid, parent: parent.pid, name: child.Name, created: child.CreationDate || '' });
+        continue;
+      }
       seen.add(pid);
       out.push({ pid, parent: Number(child.ParentProcessId), name: child.Name, created: child.CreationDate || '' });
-      stack.push(pid);
+      stack.push({ pid, micros });
     }
   }
   return out;
@@ -676,7 +697,14 @@ async function runDriver() {
     // (rehearsal 6, p04 S05-A02: the query after a cancel started a WMIC.exe that the next tree counted as new).
     return rows.filter((row) => !(String(row.Name || '').toLowerCase() === 'wmic.exe' && String(row.ParentProcessId) === String(process.pid)));
   }
-  const myTree = () => descendantsOf(wmicRows(), process.pid);
+  // Links left out of a tree because the child is older than the parent (a stale ParentProcessId), kept as evidence of what was dropped.
+  const staleParentLinks = new Map();
+  const myTree = () => {
+    const stale = [];
+    const tree = descendantsOf(wmicRows(), process.pid, stale);
+    for (const link of stale) staleParentLinks.set(`${link.pid}:${link.created}`, link);
+    return tree;
+  };
 
   // ---- UI actions through the real DOM ----------------------------------------------------------------------------
   async function selectWorkspace() {
@@ -1007,7 +1035,7 @@ async function runDriver() {
     const factAfter = idle.managedProcesses.find((item) => handle && item.handleId === handle.handleId);
     await screenshot('03-stop.png');
     out('03-stop.json', { feedback_ms: feedback.ms, feedback, stop_ends: stopEnds, fact_after: factAfter || null });
-    out('03-process-tree.json', { before: treeBefore, survivors, after_total: treeAfter.length });
+    out('03-process-tree.json', { before: treeBefore, survivors, after_total: treeAfter.length, stale_parent_links: Array.from(staleParentLinks.values()) });
     out('03-held-exit.json', { handle: handle ? handle.handleId : null, fact_after: factAfter || null });
     const noneActive = idle.managedProcesses.every((item) => !['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus));
     const lastFrame = frames[frames.length - 1];
@@ -1092,7 +1120,7 @@ async function runDriver() {
     const snap = await snapshot();
     const running = snap.managedProcesses.filter((item) => ['running', 'starting'].includes(item.lastProbeStatus));
     const tree = myTree();
-    out('chain-exit-tree-before.json', { driver_pid: process.pid, tree, wmic_failures: wmicFailures, running: running.map((item) => ({ handleId: item.handleId, pid: item.pid })) });
+    out('chain-exit-tree-before.json', { driver_pid: process.pid, tree, stale_parent_links: Array.from(staleParentLinks.values()), wmic_failures: wmicFailures, running: running.map((item) => ({ handleId: item.handleId, pid: item.pid })) });
     ownsExit = true;
     const timer = setTimeout(() => {
       record('B2-CH-06-NORMAL-EXIT', 1, 'FAIL', 'the exit dialog did not return within 150 s');
@@ -1197,7 +1225,7 @@ async function runDriver() {
     await exec('document.getElementById("cancel-task").click(); true');
     const idle = await waitIdle(90000, 'cancelled');
     await sleep(1500);
-    const afterTree = descendantsOf(wmicRows(), process.pid);
+    const afterTree = myTree();
     const extra = newProcesses(baselineTree, afterTree);
     out('s05-limits-secret.json', { limit: { frames: limitFrames.length, order: limitOrder, truncated }, secret: { frames: secretFrames.length, leaks, key_before_prompt: keyBeforeSecret },
       cancel: { baseline_tree: baselineTree.length, mid_tree: midTree.length, after_tree: afterTree.length, new_processes_after_cancel: extra, status: idle.agentStatus } });
@@ -1841,7 +1869,7 @@ async function runDriver() {
 
 module.exports = {
   assertionId, eventData, framesFromEvents, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
-  descendantsOf, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
+  descendantsOf, wmiStampMicros, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, evaluateTerminalAudit, evaluateRestartCounts, evaluateOldTurnUnchanged, evaluateInterruptRecords, isCount, isStatusText,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,

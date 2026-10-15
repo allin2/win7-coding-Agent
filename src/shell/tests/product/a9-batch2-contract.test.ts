@@ -2262,6 +2262,89 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(driver.stillAlive(tree, [])).toEqual([]);
   });
 
+  describe('a process tree leaves out a stale ParentProcessId (rehearsal 11, p03: the explorer.exe of another session named the pid of the new helper)', () => {
+    const row = (pid: number, parent: number, name: string, created: string) => ({ ProcessId: String(pid), ParentProcessId: String(parent), Name: name, CreationDate: created });
+    const driverRow = row(7656, 6204, 'electron.exe', '20261015082741.000000+480');
+    const helper = row(3864, 7656, 'spike02_helper.exe', '20261015082743.073720+480');
+    const shell = row(7144, 3864, 'powershell.exe', '20261015082743.089320+480');
+    // The rows of the rehearsal 11 p03 listing: explorer.exe (session 1, created 2026-09-24) keeps the pid of a parent that exited long ago.
+    const explorer = row(3908, 3864, 'explorer.exe', '20260924215846.364600+480');
+    const explorerChild = row(4100, 3908, 'ctfmon.exe', '20260924215900.000000+480');
+    const rows = [driverRow, helper, explorer, shell, explorerChild];
+
+    test('a child older than its parent is a stale link: it and its subtree are not in the tree, and the link is reported', () => {
+      const stale: any[] = [];
+      const tree = driver.descendantsOf(rows, 7656, stale);
+      expect(tree.map((item: any) => item.pid)).toEqual([3864, 7144]);
+      expect(stale).toEqual([{ pid: 3908, parent: 3864, name: 'explorer.exe', created: '20260924215846.364600+480' }]);
+      // The same instance in the next listing is not a survivor of anything, because it was never part of the tree.
+      expect(driver.stillAlive(tree, rows).map((item: any) => item.pid)).toEqual([3864, 7144]);
+      expect(driver.stillAlive(tree, [explorer, explorerChild])).toEqual([]);
+    });
+
+    test('the stale argument is optional, and an argument that is not an array is ignored', () => {
+      expect(driver.descendantsOf(rows, 7656).map((item: any) => item.pid)).toEqual([3864, 7144]);
+      for (const notAnArray of [null, undefined, {}, true, 'x']) {
+        expect(driver.descendantsOf(rows, 7656, notAnArray).map((item: any) => item.pid)).toEqual([3864, 7144]);
+      }
+    });
+
+    test('the stamp of the root is the stamp of the row of the root, not of a row that names the root as its parent', () => {
+      const first = row(8000, 7656, 'child.exe', '20261015082750.000000+480');
+      const second = row(8001, 7656, 'child.exe', '20261015082745.000000+480');
+      const stale: any[] = [];
+      expect(driver.descendantsOf([driverRow, first, second], 7656, stale).map((item: any) => item.pid)).toEqual([8000, 8001]);
+      expect(stale).toEqual([]);
+    });
+
+    test('a child created after its parent, or at the same instant, stays in the tree', () => {
+      const same = row(8000, 7656, 'child.exe', '20261015082741.000000+480');
+      const later = row(8001, 7656, 'child.exe', '20261015082741.000001+480');
+      expect(driver.descendantsOf([driverRow, same, later], 7656).map((item: any) => item.pid)).toEqual([8000, 8001]);
+    });
+
+    test('stamps are compared in UTC, so different offsets decide by the real order of the two instants', () => {
+      const parent = row(7656, 1, 'electron.exe', '20261015082743.000000+480');
+      const laterUtc = row(8000, 7656, 'child.exe', '20261015002743.500000+000');
+      const earlierUtc = row(8001, 7656, 'child.exe', '20261015002742.500000+000');
+      const stale: any[] = [];
+      expect(driver.descendantsOf([parent, laterUtc, earlierUtc], 7656, stale).map((item: any) => item.pid)).toEqual([8000]);
+      expect(stale.map((item: any) => item.pid)).toEqual([8001]);
+      expect(driver.wmiStampMicros('19700101000000.000001+000')).toBe(1);
+      expect(driver.wmiStampMicros('19700101080000.000000+480')).toBe(0);
+      expect(driver.wmiStampMicros('19691231235959.999999+000')).toBe(-1);
+      expect(driver.wmiStampMicros('19700101000000.000000-060')).toBe(60 * 60 * 1000 * 1000);
+    });
+
+    test('a stamp that cannot be read decides nothing: the link stays', () => {
+      for (const bad of ['', 'a', '20261015082741.448520', '20261015082741.448520+48', '2026101508274.448520+480', ' ', 'x20261015082741.448520+480', '20261015082741.448520+480x', '20261015082741,448520+480']) {
+        expect(driver.wmiStampMicros(bad)).toBeNull();
+        const old = row(8000, 7656, 'old.exe', bad);
+        expect(driver.descendantsOf([driverRow, old], 7656).map((item: any) => item.pid)).toEqual([8000]);
+      }
+      expect(driver.wmiStampMicros(undefined)).toBeNull();
+      // Space around a stamp, as a CSV cell may carry it, does not change its value.
+      expect(driver.wmiStampMicros(' 20261015082741.448520+480 ')).toBe(driver.wmiStampMicros('20261015082741.448520+480'));
+      expect(driver.wmiStampMicros('20261015082741.448520+480')).not.toBeNull();
+      // The parent is unreadable or has no row of its own: an older child stays.
+      const olderChild = row(8000, 7656, 'old.exe', '20200101000000.000000+000');
+      expect(driver.descendantsOf([olderChild], 7656).map((item: any) => item.pid)).toEqual([8000]);
+      expect(driver.descendantsOf([{ ...driverRow, CreationDate: 'unreadable' }, olderChild], 7656).map((item: any) => item.pid)).toEqual([8000]);
+      expect(driver.descendantsOf([{ ...driverRow, CreationDate: undefined }, olderChild], 7656).map((item: any) => item.pid)).toEqual([8000]);
+      // An unreadable parent stamp keeps even a child whose stamp lies before 1970.
+      expect(driver.descendantsOf([{ ...driverRow, CreationDate: 'unreadable' }, row(8000, 7656, 'old.exe', '19691231235959.999999+000')], 7656).map((item: any) => item.pid)).toEqual([8000]);
+    });
+
+    test('each level is checked against its own parent, not against the root', () => {
+      const mid = row(8000, 7656, 'mid.exe', '20261015082750.000000+480');
+      const olderThanMid = row(8001, 8000, 'leaf.exe', '20261015082745.000000+480');
+      const newerThanMid = row(8002, 8000, 'leaf.exe', '20261015082751.000000+480');
+      const stale: any[] = [];
+      expect(driver.descendantsOf([driverRow, mid, olderThanMid, newerThanMid], 7656, stale).map((item: any) => item.pid)).toEqual([8000, 8002]);
+      expect(stale.map((item: any) => item.pid)).toEqual([8001]);
+    });
+  });
+
   test('tool end events are classified from persisted facts', () => {
     const ends = [
       event(1, { toolName: 'start_process', ok: true }, 'tool_end'),
@@ -3017,6 +3100,44 @@ describe('A9-33 batch-2 rehearsal 6 fixes', () => {
       const old = code().replace(/return rows\.filter\([^\n]*\n/, 'return rows;\n');
       expect(old).not.toBe(code());
       expect(wmic(old).myTree().map((item: any) => item.pid)).toContain(6292);
+    });
+
+    // Rehearsal 11, p03: the explorer.exe of the disconnected session (created 2026-09-24) names the pid of a product process that was
+    // given that number later, so the tree of the exit check held it and the exit failed with one survivor that was never a child.
+    test('a stale ParentProcessId is left out of the driver tree and kept once as evidence of what was dropped', () => {
+      const staleRows = [...rows, 'H,20260924215846.364600+000,explorer.exe,7600,3908', 'H,20260924215900.000000+000,ctfmon.exe,3908,4100'];
+      const box: any = { childProcess: { spawnSync: () => ({ stdout: csv(staleRows), status: 0, error: null }) }, process: { pid: DRIVER_PID }, String, Number, descendantsOf: driver.descendantsOf };
+      vm.runInNewContext(`${code()}\n;this.api = { myTree, stale: () => Array.from(staleParentLinks.values()) };`, box);
+      expect(box.api.myTree().map((item: any) => item.pid)).toEqual([7600, 6300]);
+      expect(box.api.myTree().map((item: any) => item.pid)).toEqual([7600, 6300]);
+      expect(box.api.stale()).toEqual([{ pid: 3908, parent: 7600, name: 'explorer.exe', created: '20260924215846.364600+000' }]);
+    });
+
+    test('two instances that had the same pid are two links in the evidence', () => {
+      let current = [...rows, 'H,20260924215846.364600+000,explorer.exe,7600,3908'];
+      const box: any = { childProcess: { spawnSync: () => ({ stdout: csv(current), status: 0, error: null }) }, process: { pid: DRIVER_PID }, String, Number, descendantsOf: driver.descendantsOf };
+      vm.runInNewContext(`${code()}\n;this.api = { myTree, stale: () => Array.from(staleParentLinks.values()) };`, box);
+      box.api.myTree();
+      current = [...rows, 'H,20260920000000.000000+000,explorer.exe,7600,3908'];
+      box.api.myTree();
+      expect(box.api.stale().map((item: any) => item.created)).toEqual(['20260924215846.364600+000', '20260920000000.000000+000']);
+    });
+
+    test('negative control: a tree that follows every ParentProcessId holds the stale explorer.exe and its child', () => {
+      const staleRows = [...rows, 'H,20260924215846.364600+000,explorer.exe,7600,3908', 'H,20260924215900.000000+000,ctfmon.exe,3908,4100'];
+      const old = code().replace('descendantsOf(wmicRows(), process.pid, stale)', 'descendantsOf(wmicRows().map((row) => ({ ...row, CreationDate: "" })), process.pid, stale)');
+      const box: any = { childProcess: { spawnSync: () => ({ stdout: csv(staleRows), status: 0, error: null }) }, process: { pid: DRIVER_PID }, String, Number, descendantsOf: driver.descendantsOf };
+      expect(old).not.toBe(code());
+      vm.runInNewContext(`${old}\n;this.api = { myTree };`, box);
+      expect(box.api.myTree().map((item: any) => item.pid)).toEqual([7600, 6300, 3908, 4100]);
+    });
+
+    test('both tree evidence files carry the links that were left out', () => {
+      expect(driverSource).toContain("out('03-process-tree.json', { before: treeBefore, survivors, after_total: treeAfter.length, stale_parent_links: Array.from(staleParentLinks.values()) });");
+      expect(driverSource).toContain("out('chain-exit-tree-before.json', { driver_pid: process.pid, tree, stale_parent_links: Array.from(staleParentLinks.values()),");
+      // The cancel check reads its trees through the same function, so it is not exposed to a stale link either.
+      expect(driverSource).toContain('const afterTree = myTree();');
+      expect(driverSource).not.toMatch(/descendantsOf\(wmicRows\(\), process\.pid\)/);
     });
   });
 
