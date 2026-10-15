@@ -2330,3 +2330,8 @@ B2-SAFE-02：`a9.turn.submit` 两次返回 `A9_AUDIT_PERSISTENCE_FAILED`，无�
 结论：codex 对 WIN7-43 正式运行证据的复核发现 0 个 P0、1 个 P1、0 个新增 P2，不建议进入关口 B。P1 是 `B2-BG-03-STOP-RELEASE-EXIT-A01` 的 PASS 未覆盖“ready 失败清理”和“release 结束 ownership”；执行代理独立核对后结论相同。
 证据层级为 Win7 实机（正式运行，待独立复核）与开发机，绑定冻结候选 `63c6d426…`、ZIP `f7538c20…`、run `7af65f2d…`。候选已冻结、正式运行已消耗，执行代理不自行修复或重跑，待负责人裁决。关口 B `NOT_PERFORMED`。
 登记位置：[A9-33 §6.55](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#655-codex-第三阶段复核与-bg-03-缺口2026-10-15)。
+
+## A9-33 负责人选 A′ 修复 BG-03（2026-10-15）
+
+结论：负责人对 P1（`B2-BG-03` 未覆盖 ready 失败清理和 release）选择 A′ 修复后重走。执行代理在 20 个允许路径内修复驱动、夹具和套件，不改产品代码；修复后产生新候选身份，重新预演、冻结、关口 A、正式运行和独立复核。候选 `63c6d426…` 的证据原样保留，不作为 Alpha 2 依据。关口 B `NOT_PERFORMED`。
+登记位置：[A9-33 §6.56](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#656-负责人裁决选-a-与-bg-03-修复计划2026-10-15)。
