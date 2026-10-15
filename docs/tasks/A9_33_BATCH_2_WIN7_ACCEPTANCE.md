@@ -2201,3 +2201,64 @@ KL-9 之外 codex 的信息项，登记为未知与未验证，不是发现：
 4. 按 R2～R8 执行；请求 59/80，预演 11 最多 +10，累计 69。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们；KL-8、KL-9 是测试与读取边界的缺口，不在必带清单。未在 Win7 验收通过。
+
+### 6.49 预演 11 的 p03 失败与第 9 个驱动修复（2026-10-15）
+
+结论：预演 11 在 p03-chain 失败，原因是驱动把一个无关的 `explorer.exe` 当成产品 helper 的子进程；产品的退出行为没有出错。第 9 个驱动修复 `a6c689d5…` 在开发机完成，等待 codex 第 15 轮复核；连续成功计数仍是 0。
+证据层级：失败事实为 Win7 实机（预演，非验收证据），绑定包 ZIP `9de34768…`、源提交 `629590a3…`、run_id `4314fad5…`；修复为开发机，绑定代码提交 `a6c689d5…`。修复后的驱动在 Win7 上的运行是 `NOT_PERFORMED`。未在 Win7 实机验证。
+
+预演 11 重建包的经过（执行代理，2026-10-15）：
+
+| 步骤 | 时刻（UTC） | 结果 |
+|---|---|---|
+| 重建与授权 | 00:19:06Z～00:19:28Z | ZIP `9de34768…`（101638482 字节）、授权文件 `ac284c73…`、run_id `4314fad5…`；与作废旧包只有 5 个文件不同（kit、任务书合同副本、清单、SBOM、冒烟脚本）；开发机完整性干跑 800 个条目、0 个不一致；`B2PKG-RUNTIME-ABI` FAIL 是预期 |
+| R1 只读 | 00:21:19Z～00:21:28Z | 无 `electron.exe`，运行根下没有 `4314fad5`；生产命令的原始输出在开发机经包内读取器回放：101 行，`usable=true`，路径来源 `executable_path` 98、`command_line` 1、`none` 2，无电子进程行；读取器在真实输出上没有误拒 |
+| R2 建根 | 00:23:48Z | `agent` 对运行根 `(OI)(CI)(M)`；前两次尝试（00:23:05Z、00:23:27Z）因 `(OI)(CI)M` 位于 `if exist … (…)` 块内被 cmd 在解析阶段整条拒绝，没有执行任何命令，只读复核运行根仍不存在 |
+| R3 传输 | 00:23:59Z～00:25:23Z | 10 个小文件经 scp；ZIP 一次 `put`（00:24:03Z～00:25:03Z）；certutil 复算 11/11 与开发机相同 |
+| R4 展开 | 00:25:39Z | `EXTRACT_PASS`，800 个文件；包内冒烟脚本含 `wmic_process_commands`、`readWmicList`、`withImagePath`、`listCommandLines` |
+| R5/R6 阶段 | 00:26:03Z～00:27:55Z | p01-env PASS（00:26:03Z～00:26:41Z）；p02-integrity PASS（～00:27:02Z）；p03-chain FAIL，`ASSERTION_FAILED`（～00:27:55Z）；序列按规则在第 3 阶段停止，没有重试 |
+| R8 终态 | 00:35:05Z～00:35:06Z | 进程表 102 行，无 `electron.exe`、无 `spike02_helper.exe`、无 `A9-W43` 路径进程；`A9W43*` 计划任务 0 个；`dccs-chaizl`（会话 1，已断开）与 `agent`（会话 2，console）原样 |
+| R7 证据 | 00:35:16Z 起 | Win7 端 `SUM_TREE_PASS files=154`；取回 71 个文件，0 个不一致，0 个缺失；83 个 `driver-electron` 文件不取回 |
+
+请求用量：59 + 3 = 62/80（p01、p02、p03 各 1 个）。预演 11 没有完成，不计成功。
+
+失败的事实（证据在 `.acceptance/a9-33-rehearsal/rehearsal-11/runs/p03-chain/` 和 `diag-p03/`）：
+
+- p03 的 6 个用例中 5 个全 PASS；唯一失败的断言是 `B2-CH-06-NORMAL-EXIT-A02`：`exit_code=0; killed_by=null; dialog_click_status=0; tree_observed=true; tree_before=6; listing_failed=false; survivors=1; residue=0`。同一用例的 A01（退出对话框的按钮与返回值）PASS。
+- `survivors` 只有一项：PID 3908 的 `explorer.exe`，会话 1，`created=20260924215846.364600+480`，`ParentProcessId=3864`。PID 3864 在本次运行中是 p03 的 `spike02_helper.exe`（`created=20261015082743.073720+480`）。该 `explorer.exe` 比 helper 早 21 天创建，它记录的父进程是 2026-09-24 登录时的进程，早已退出，3864 这个号被 helper 重新取得。
+- 驱动的 `descendantsOf` 只按 `ParentProcessId` 建树，不核对创建时间；于是该 `explorer.exe` 进入退出前的树，退出后的检查用“PID 加创建时间相同”判定幸存，这个 `explorer.exe` 仍然活着，A02 失败。
+- p03 失败后的只读查询：PID 3908 仍在运行，PID 3864 已无进程，计划任务无 `A9W43*`。预演 9、10 的同一断言都 PASS，`tree_before=5`，没有 `explorer.exe`。
+- 暴露面：重建包 R1 的生产进程表 101 行中，82 行的父进程在且比子进程老，17 行的父进程已不存在（会话 0 有 2 行，会话 1 有 9 行，会话 2 有 6 行；12 个不同的陈旧父 PID），0 行的父进程比子进程年轻。
+
+修复 `a6c689d5b59d10b2de9253f9f134940977b11974`（只改 §6.1 的 2 个文件，相对 `ea597905…` 为 `2 files changed, 159 insertions(+), 10 deletions(-)`）：
+
+- `descendantsOf` 增加创建时间核对：父、子的 WMI 时间都能读出，且子进程早于父进程时，该链接是陈旧链接，不进入树，也不展开它的子树；时间读不出时链接保留；相等保留；比较按 UTC 微秒。每一层与自己的父进程比较。
+- `myTree()` 把被排除的链接去重记入 `staleParentLinks`；`03-process-tree.json` 与 `chain-exit-tree-before.json` 各增加键 `stale_parent_links`；S05 取消检查改读 `myTree()`。
+- 新增 11 个合同用例（192 → 203）。
+
+开发机验证（执行代理，Node 20.17.0，绑定 `a6c689d5…`）：
+
+| 项 | 结果 |
+|---|---|
+| `tsc --noEmit` | 通过 |
+| jest（合同 203 + 包运行时 43） | 246 个全部通过 |
+| 变异 26 个（`mutate16.py`） | 22 个被拦，4 个存活（D07、D17、D23、D24）；补 4 个用例后全部被拦，无等价变异 |
+| `node --test`（两个包测试文件） | 120 通过、0 失败（364.7 秒） |
+| `docs:check` | ok=true，344 个文件 |
+
+未知与未验证：
+
+- 修复后的驱动在 Win7 上的运行：`NOT_PERFORMED`。
+- 撞号再次发生的概率：`UNKNOWN`；当前有 12 个不同的陈旧父 PID。
+- 真子进程早于父进程（时钟回拨）会让过滤误排除真幸存者：`UNKNOWN`，Win7 验收机未观察到时钟调整；被排除的链接写入证据，复核者可见。
+- `a9-batch2-smoke.cjs:659` 的 `taskkill /PID <pid> /T /F` 在被杀进程取得陈旧父 PID 时是否终止无关进程：`UNKNOWN`；会话 2 的 `explorer.exe`（PID 6348，父 PID 6660 已不在）是这样一个目标。已作为复核点交给 codex，本节不改终止语义。
+- 套件 `own` 祖先集合（`a9-batch2-smoke.cjs:260`）沿 `ParentProcessId` 向上扩展，陈旧父 PID 可能把无关进程并入“自己人”：`UNKNOWN`，已交给 codex。
+- 修复前一次误操作：构建后我误跑了 `gen_glue.py x`（未设 `REH`），按默认值 1 改写了 `rehearsal-1/glue/` 下 5 个文件的修改时间；用该目录自带的 `GLUE_SHA256SUMS.txt` 复核，18 项全部 OK，内容字节不变。
+
+执行代理的下一步：
+
+1. 提交本节、交接包 [a9_33_independent_review_handoff_stale_parent_links_2026-10-15.md](../reports/2026-10/a9_33_independent_review_handoff_stale_parent_links_2026-10-15.md) 与状态登记（本地，不推送）。
+2. 把交接包送 codex 做第 15 轮复核。结果有 P0 或 P1：直接修复并复审；只剩 P2 及以下：登记已知限制，重建预演包（预演 12，新 run_id、新授权文件，先在聊天报告哈希，不等批准回复）并上 Win7。
+3. 预算：预演 12 最多再用 10 个请求，累计 72/80；预演 13 若再用 10 个请求，累计 82，超过上限 80 的部分为 2 个；执行代理在预演 13 开始前向负责人提问。
+
+本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们；KL-8、KL-9 是测试与读取边界的缺口，不在必带清单。未在 Win7 验收通过。
