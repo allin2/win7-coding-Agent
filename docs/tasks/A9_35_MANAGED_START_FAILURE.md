@@ -55,3 +55,9 @@ Win7 Validation: NOT_PERFORMED
 第1轮已对4044272…报告0P0/0P1/0P2，原报告不覆盖后续字节。执行者补查合法error帧不带profile却被误报身份失败，新增反例在该代码上失败；一行修正及3例检查后runner122/运行时17/verify:quick通过。第2轮全新独立会话只审此增量及必要上下文；实际helper/Win7仍NOT_PERFORMED，整合与远端授权不变。
 
 第2轮已对5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2完成独立复核，0P0/0P1/0新增P2产品缺陷（开发机）。报告SHA-256 55950b8a67fb942aace53801b07ef7b80f09ea768895ba0f202eb23923dd4d82。runner首轮121/122的时序失败保留，原因UNKNOWN；隔离通过及原命令完整复测122 PASS，shell17/quick/docs/diff通过，1个可编译变异被行为断言拦截并精确恢复。详见本地报告§6。仅本地修复与复核完成；§7给出10路径整合材料，批准问题另绑最终文档SHA与清单。实际helper/新包/Win7 NOT_PERFORMED，BG03不关闭，不整合、不远端、不推送。
+
+## 6. 本地整合批准与执行
+
+2026-10-15 负责人批准ce952760c8118b177c3570208a32c7941f0b0b8b按10文件清单（SHA-256 7f02ff06efd415511901abbfc3a15a97ef6a6c87ff113341ca9c50d12aae1b2b）本地快进整合到A9-33原dd7b92fd1ca4de606358b228feb822c21ef4c253。执行者核对两端身份/干净状态、清单/逐文件/独立报告哈希及祖先关系后，ff-only完成，无冲突。产品字节仍绑定5f7c0e80…；本次只身份、完整性及文档检查，产品检查与独立结论为INHERITED_EVIDENCE。
+
+完成记录维护在A9-33工作树的[A9-33 §6.68](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#668-负责人批准-a9-35-本地整合2026-10-15-utc)与本地报告§8，原A9-35源树/证据保持。整合批准不覆盖新产品编辑、目标构建、远端执行或Gate；BG03缺口、Win7 NOT_PERFORMED与旧FAIL/UNKNOWN保持，未推送。

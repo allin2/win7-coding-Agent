@@ -1,8 +1,8 @@
 # 当前项目状态
 
-## A9-35 本地产品修复已批准（2026-10-15 UTC）
+## A9-35 已本地整合至 A9-33（2026-10-15 UTC）
 
-负责人批准[9路径合同](tasks/A9_35_MANAGED_START_FAILURE.md)，本地修复及两轮独立复核已完成。最终产品5f7c0e80…，第2轮0P0/0P1/0新增P2产品缺陷，报告55950b8a…（开发机）；本地runner122/运行时17/verify:quick通过。独立runner首轮1项时序失败保留且原因UNKNOWN，隔离及完整122项复测通过。A9-33预演16的FAIL与UNKNOWN保持；实际helper的ready失败清理、新包/Win7 NOT_PERFORMED，BG03未关闭。仅准备10路径本地快进整合材料，尚未整合、远端执行或推送，见[本地报告§6～7](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#6-第2轮独立复核完成)。
+负责人批准清单7f02ff06…所列10文件本地整合；A9-33已从dd7b92fd…快进到ce952760…，无冲突。最终产品字节与独立复核对象5f7c0e80…一致；开发机runner122/运行时17/verify:quick及第2轮0P0/0P1/0新增P2产品缺陷按准确字节标INHERITED_EVIDENCE，本次整合未重跑产品检查。原时序首失败及原因UNKNOWN保留。未推送、未远端执行、未构建目标包；BG03真实helper证明缺口及新包/Win7 NOT_PERFORMED不变，预演16 FAIL/UNKNOWN不改判，见[A9-33 §6.68](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#668-负责人批准-a9-35-本地整合2026-10-15-utc)与[整合记录](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#8-负责人批准与本地整合完成)。
 
 ## A9-32 隔离实施入口（2026-10-11）
 

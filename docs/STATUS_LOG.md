@@ -2404,3 +2404,7 @@ Win7预演15（REHEARSAL_NOT_ELIGIBLE）源14f2b8f…、ZIP41075834…、run b60
 ## A9-35 第2轮关闭与本地整合待批准（2026-10-15 UTC）
 
 全新独立会话01a13ea8-88d5-75d3-bd22-d22c647441a2，08:23:14Z～08:34:58Z退出0，对5f7c0e80…报告0P0/0P1/0新增P2产品缺陷，报告SHA-256 55950b8a67fb942aace53801b07ef7b80f09ea768895ba0f202eb23923dd4d82。runner首轮121/122（实时流3931ms超3500ms）保留，原因UNKNOWN；隔离及完整122项复测通过，shell17、quick/docs/diff通过。1可编译变异由具名及当前dist消费者行为断言拦截，恢复SHA一致；98文件归档保留。实际helper/新包/Win7 NOT_PERFORMED，BG03未关闭。10路径准确本地整合材料已准备，未整合/远端/推送；目标仍dd7b92f…，最终批准问题另绑准确后继SHA与清单。旧FAIL/UNKNOWN不变。
+
+## A9-35 已按准确批准本地整合到 A9-33（2026-10-15 UTC）
+
+负责人批准准确ce952760c8118b177c3570208a32c7941f0b0b8b与10文件清单7f02ff06efd415511901abbfc3a15a97ef6a6c87ff113341ca9c50d12aae1b2b，仅本地整合。A9-33在核对干净状态、两端身份、全部文件/清单/报告哈希及祖先关系后，从dd7b92fd…以ff-only快进至ce952760…，无冲突，无额外产品修改。既有开发机检查和独立复核按准确产品字节标INHERITED_EVIDENCE，本次仅文档与完整性检查。未推送、未构建目标包、未远端执行；BG03缺口、Win7 NOT_PERFORMED、预演16 FAIL/UNKNOWN、累计97/124及历史HALTED保持。详见[A9-33 §6.68](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#668-负责人批准-a9-35-本地整合2026-10-15-utc)及[整合报告§8](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#8-负责人批准与本地整合完成)。

@@ -2828,3 +2828,11 @@ p05阶段及账本FAIL，首失败BG03-A01：双Stop和快速退出PASS；无效
 相关产品Runner、manager、transport及runtime不在§6.1允许路径；当前不实施，不把正常拒绝或未知生命周期改成PASS，不恢复预演14～16，不启动预演17、双构建、冻结、门A/B或正式运行。A9-34保持延期，既有已知限制不重开。
 
 执行代理准备了[独立产品修复合同提案](../plans/A9_35_MANAGED_START_FAILURE_REPAIR_PROPOSAL.md)，状态DRAFT_READY_FOR_REVIEW；仅提出新任务与9路径本地实现/检查/新独立复核及本地提交范围，未创建实现分支或登记实施授权。负责人可以批准提案，或选择只保留失败并交接。native/协议/锁、远端执行、本地整合及其他Gate仍须各自准确材料；现有授权不扩大。KL-3、KL-5、KL-6a、KL-7含a/b/c边界继续随任何Alpha2结论携带。
+
+### 6.68 负责人批准 A9-35 本地整合（2026-10-15 UTC）
+
+负责人对准确10文件清单回复“批准本地整合（不推送、不远端）”。清单SHA-256 7f02ff06efd415511901abbfc3a15a97ef6a6c87ff113341ca9c50d12aae1b2b；来源ce952760c8118b177c3570208a32c7941f0b0b8b，目标起点dd7b92fd1ca4de606358b228feb822c21ef4c253。两端干净，逐项核对分支/HEAD、清单与10文件哈希、独立报告哈希及祖先关系后，本分支已用ff-only快进至批准SHA，无冲突。
+
+产品修复由独立[A9-35合同](A9_35_MANAGED_START_FAILURE.md)在其9路径内完成，产品提交5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2；本次未在A9-33追加产品编辑，不扩大§6.1的20路径。开发机runner122/运行时17/verify:quick及第2轮独立复核0P0/0P1/0新增P2产品缺陷按准确字节标INHERITED_EVIDENCE，不冒充本次重新测试或实机证明。原时序首失败与原因UNKNOWN保留。
+
+原证据仍在A9-35源树.acceptance/a9-35，清单、两轮报告及完成核验不迁移或覆盖，详见[整合报告§8](../reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#8-负责人批准与本地整合完成)。本次只整合和文档检查，未推送、未构建目标包、未远端执行；累计97/124、连续成功0次、预演16 FAIL/UNKNOWN和历史HALTED不变。BG03真实helper ready失败清理证明仍未取得，新包/Win7 NOT_PERFORMED，后续合同/目标执行/冻结/Gate A/B待各自授权。

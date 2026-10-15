@@ -1,6 +1,6 @@
 # A9-35 后台启动失败本地修复（2026-10-15 UTC）
 
-结论：9路径授权内修改了3个产品文件和2个测试文件，最终产品提交5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2。开发机Node20.17.0的runner四文件122项、产品运行时17项和verify:quick通过；第2轮独立增量复核0P0/0P1/0个新增P2产品缺陷。仅准备本地整合材料，尚未整合或远端执行。Electron、新包、Win10、Win7均NOT_PERFORMED，不能关闭BG03。
+结论：9路径授权内修改了3个产品文件和2个测试文件，最终产品提交5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2。开发机Node20.17.0的runner四文件122项、产品运行时17项和verify:quick通过；第2轮独立增量复核0P0/0P1/0个新增P2产品缺陷。负责人已批准10路径清单，A9-33已本地快进至ce952760…，产品字节一致；本次不重跑产品检查，相关结论标INHERITED_EVIDENCE。未推送或远端执行，Electron、新包、Win10、Win7均NOT_PERFORMED，不能关闭BG03。
 
 ## 1. 基线、授权和首失败
 
@@ -83,3 +83,13 @@ manager消费终态及ready拒绝的清理结果时，额外核对同requestId�
 逐文件SHA及准确两端见本树.acceptance/a9-35/LOCAL_INTEGRATION_MANIFEST.json，在最终文档提交后形成；该文件不属于产品变更。315个预演16保护文件曾全部重核一致，旧失败、未知句柄生命周期、HALTED及所有候选不改判。
 
 实际ready失败证明仍需另行形成精确范围的后续合同和目标执行材料。此处不批准协议/native/锁变化或以预启动拒绝替代原验收要求。
+
+## 8. 负责人批准与本地整合完成
+
+2026-10-15 负责人对准确问题回复“批准本地整合（不推送、不远端）”。批准目标为ce952760c8118b177c3570208a32c7941f0b0b8b，A9-33起点dd7b92fd1ca4de606358b228feb822c21ef4c253，10路径清单SHA-256 7f02ff06efd415511901abbfc3a15a97ef6a6c87ff113341ca9c50d12aae1b2b；这次批准仅覆盖该本地整合，不扩展实现白名单或目标执行权限。
+
+整合前两端分支、完整HEAD、干净状态、清单本身及全部10个Git对象/源树文件哈希、独立报告哈希和祖先关系逐项核对通过。随后在A9-33执行git merge --ff-only准确目标SHA，成功快进，无冲突、无新产品编辑。整合后产品/测试字节仍与清单及复核对象一致；本条及状态记录为后继纯文档提交，不改变产品字节。
+
+开发机runner122/运行时17、verify:quick及独立复核结论按相同源码、依赖与参数边界标INHERITED_EVIDENCE。本次只做快进、身份/完整性核验及文档检查，不运行产品测试、目标包构建、Electron或远端。原时序首失败、BG03缺口、预演16 FAIL/UNKNOWN、97/124累计请求、连续成功0次和历史HALTED均保持。
+
+原始证据继续保留在源树`/Users/qlyf/.codex/worktrees/a9-35-managed-start-failure/win7-coding-Agent/.acceptance/a9-35/`，不搬移、不覆盖；清单为LOCAL_INTEGRATION_MANIFEST.json，完成核验另记LOCAL_INTEGRATION_RESULT.json。两轮详细报告仍分别在review1/independent与review2/independent。后续真实ready失败证明合同、目标执行、冻结、Gate A/B及正式运行未授权。
