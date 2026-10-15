@@ -2324,3 +2324,9 @@ B2-SAFE-02：`a9.turn.submit` 两次返回 `A9_AUDIT_PERSISTENCE_FAILED`，无�
 结论：负责人签发关口 A 后，执行代理在 Win7 上完成 WIN7-43 的一次正式运行：10 个阶段、25 个用例、42 条断言全部 PASS。独立复核与关口 B `NOT_PERFORMED`，这不是验收通过，也不是 Alpha 2。
 证据层级为 Win7 实机（正式运行，待独立复核），绑定冻结候选 `63c6d426…`、ZIP `f7538c20…`、run `7af65f2d…`、授权文件 `dc5b1608…`。取回 245 个文件 0 个不一致，终态零残留，本机秘密扫描命中 0。
 登记位置：[A9-33 §6.54](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#654-关口-a-签发与正式运行2026-10-15)。
+
+## A9-33 codex 第三阶段复核（2026-10-15）
+
+结论：codex 对 WIN7-43 正式运行证据的复核发现 0 个 P0、1 个 P1、0 个新增 P2，不建议进入关口 B。P1 是 `B2-BG-03-STOP-RELEASE-EXIT-A01` 的 PASS 未覆盖“ready 失败清理”和“release 结束 ownership”；执行代理独立核对后结论相同。
+证据层级为 Win7 实机（正式运行，待独立复核）与开发机，绑定冻结候选 `63c6d426…`、ZIP `f7538c20…`、run `7af65f2d…`。候选已冻结、正式运行已消耗，执行代理不自行修复或重跑，待负责人裁决。关口 B `NOT_PERFORMED`。
+登记位置：[A9-33 §6.55](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#655-codex-第三阶段复核与-bg-03-缺口2026-10-15)。

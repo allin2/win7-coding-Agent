@@ -1,6 +1,6 @@
 # A9-33 / WIN7-43 正式实机验收交接书
 
-Status: FORMAL_EXECUTED_AWAITING_INDEPENDENT_REVIEW
+Status: FORMAL_EXECUTED_REVIEW_P1_PENDING_OWNER
 
 结论：候选 WIN7-43 已于 2026-10-15 冻结，字节与预演 12、13 执行过的包相同；正式执行等待负责人签关口 A。
 本交接书依据 [A9-33](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md) §2、§6.52，沿用 [W42 交接书](A9_27_WIN7_42_ACCEPTANCE_HANDOFF.md) 的候选外证据、普通用户和原始取证合同。W42 的授权文件、候选与证据不得复用为 WIN7-43。
@@ -87,3 +87,8 @@ Status: FORMAL_EXECUTED_AWAITING_INDEPENDENT_REVIEW
 
 关口 A 已由负责人签发：授权文件 SHA-256 `dc5b1608dae82f9f8b2b896f968aad286b7d8bc8417aede298a3c7f2a6228db0`，回执时间 2026-10-15T02:01:45Z，有效期至 10:01:45Z。正式运行 10 个阶段、25 个用例、42 条断言在 Win7 上全部 PASS，取回 245 个文件 0 个不一致，终态零残留，本机秘密扫描命中 0。登记与证据位置见 [A9-33 §6.54](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#654-关口-a-签发与正式运行2026-10-15)。
 独立复核（codex 第三阶段）与关口 B 为 `NOT_PERFORMED`；结论上限仍是第二批执行能力 Win7 PASS，不是 Alpha 2。
+
+## 7. 独立复核结果（2026-10-15 追加，上文不改）
+
+codex 第三阶段复核（2026-10-15T02:32:42Z～02:50:30Z）结论：0 个 P0、1 个 P1、0 个新增 P2，不建议进入关口 B。P1：`B2-BG-03-STOP-RELEASE-EXIT-A01` 的 PASS 未覆盖“ready 失败清理”和“release 结束 ownership”。其余身份、哈希、账本、零残留与秘密扫描复现一致。登记与待裁决选项见 [A9-33 §6.55](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#655-codex-第三阶段复核与-bg-03-缺口2026-10-15)。
+候选已冻结且正式运行已消耗：执行代理不自行修复、不自行重跑；修复需要新候选身份、新关口 A 和新请求预算。关口 B 为 `NOT_PERFORMED`。

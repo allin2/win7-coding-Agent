@@ -216,3 +216,4 @@ Q4 的前提表面成立：`agent` 在控制台会话 2 中运行。“运行中
 更新（2026-10-15）：预演 13 全 PASS，两次连续成功（预演 12、13，同一 ZIP `f7538c20…`），开发机双构建 ZIP 逐字节相同，见 [§6.52](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#652-预演-13两次连续成功与双构建比对2026-10-15)；冻结、关口 A 与正式执行 `NOT_PERFORMED`，须负责人裁决。
 更新（2026-10-15）：候选 WIN7-43 已冻结（`63c6d426…`，ZIP `f7538c20…`），正式执行的哈希、授权草案与关口 A 回复项见 [交接书](A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md) 和 [§6.53](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#653-候选-win7-43-冻结与关口-a-材料2026-10-15)；关口 A 与正式执行 `NOT_PERFORMED`。
 更新（2026-10-15）：关口 A 已签发，正式运行 10 个阶段全 PASS，见 [§6.54](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#654-关口-a-签发与正式运行2026-10-15)；独立复核与关口 B `NOT_PERFORMED`。
+更新（2026-10-15）：codex 第三阶段复核发现 1 个 P1（BG-03 缺口），选项待负责人裁决，见 [§6.55](../tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#655-codex-第三阶段复核与-bg-03-缺口2026-10-15)；关口 B `NOT_PERFORMED`。

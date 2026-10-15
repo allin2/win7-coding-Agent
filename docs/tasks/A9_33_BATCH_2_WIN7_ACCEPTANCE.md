@@ -2481,7 +2481,7 @@ R1 进程表（102 行）：父进程更老 82，时间相同 2（PID 0、4）�
 | 开发机 | 回执 02:01:45Z 起、R1 之前 | 授权文件字节复制、回执、粘合文件、完整性干跑（身份、授权、全树、ZIP、Kit 合同、run 绑定、模块加载 PASS；ABI 用例预期 FAIL） |
 | R1 | 02:02:22Z | 只读检查；无 electron、无 helper；生产命令回放 102 行可读 |
 | R2 | 02:02:36Z | 创建运行根 `C:\A9-W43\run\7af65f2d` |
-| R3 | 02:02:36Z～02:04:06Z | 上传 ZIP 与 10 个小文件（含授权文件）；certutil 复核 11/11 哈希与开发机相同 |
+| R3 | 02:02:36Z～02:04:23Z | 上传 ZIP 与 10 个小文件（含授权文件）至 02:04:06Z；certutil 复核在 02:04:23Z，11/11 哈希与开发机相同 |
 | R4 | 02:04:25Z | Win7 本机解压，800 个文件，`EXTRACT_PASS` |
 | R5、R6 | 02:04:42Z～02:11:56Z | 10 个阶段顺序运行，任务门禁均为 `PASS []`，任务运行后删除 |
 | R8 | 02:12:17Z | 进程表无 electron、spike02、`A9-W43` 残留；`A9W43*` 计划任务 0 个；agent 仍在 console 会话 2 |
@@ -2515,3 +2515,68 @@ R1 进程表（102 行）：父进程更老 82，时间相同 2（PID 0、4）�
 下一步：执行代理准备第三阶段独立复核交接包并启动 codex；复核结果和证据交负责人签关口 B。推送、ADR-0155、A9-32 `DEVELOPER_VERIFIED` 仍须负责人裁决。
 
 本节不签关口 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。
+
+### 6.55 codex 第三阶段复核与 BG-03 缺口（2026-10-15）
+
+结论：codex 对 WIN7-43 正式运行证据的复核结论是“不建议进入关口 B”：0 个 P0、1 个 P1、0 个新增 P2。P1 是 `B2-BG-03-STOP-RELEASE-EXIT-A01` 的 PASS 没有覆盖合同要求的“ready 失败清理”和“release 结束 ownership”。其余 41 条断言、身份链、哈希、账本、零残留和秘密扫描的核对与 §6.54 一致。
+执行代理独立核对了 P1 的证据，结论相同。这不是验收通过，也不是 Alpha 2；关口 B `NOT_PERFORMED`。
+证据层级：源码、哈希和离线复算为开发机；对取回证据的读取为 Win7 实机（正式运行，待独立复核）。绑定冻结源提交 `63c6d426…`、ZIP `f7538c20…`、run `7af65f2d…`、授权文件 `dc5b1608…`；复核对象文档提交 `17af6bbd…`。
+
+复核运行（技术独立复核者 codex，模型 `gpt-6.1-sol`，推理强度 `xhigh`，非 fast）：
+
+| 项 | 值 |
+|---|---|
+| 启动与结束 | 2026-10-15T02:32:42Z～02:50:30Z，退出码 0 |
+| 复核根 | `/private/tmp/a9-33-codex-review-root-21`，最终约 2.2 MB |
+| 报告 | `.acceptance/a9-33-review/codex-stage3-formal-20261015/codex_final_report.md`，SHA-256 `fad8d9f6…`；归档含提示、事件流、codex 自写脚本与输出，校验和 `SHA256SUMS.txt`（`d644a34b…`） |
+| 交接包 | [a9_33_independent_review_handoff_stage3_formal_evidence_2026-10-15.md](../reports/2026-10/a9_33_independent_review_handoff_stage3_formal_evidence_2026-10-15.md) |
+
+codex 复现的内容：
+
+- 交接包第 3 节 `run_all.sh` 的 105 行输出与执行代理的预期逐字节相同。
+- ZIP、manifest、Kit、输入锁、批准登记、授权文件（两份）、草案、收尾记录的哈希全部重算一致；ZIP 与预演 12、13、formal、freeze-1、freeze-2 五份构建 ZIP 逐字节相同。
+- 10 份 `phase-result.json` 的哈希同时匹配账本和 `phase-summary.json`；Kit 的 25 个用例共 52 个必需证据文件全部取回且为 `DIRECT_CURRENT_CANDIDATE`，没有落入未取回的 83 个文件。
+- 7 个 SQLite 文件 `quick_check=ok`；p07 有 1 条 `tool_start`、0 条 `tool_end`，任务与 Turn 仍为 active，没有把未知副作用写成成功。
+- 零残留：p01 的 103 个进程中旧残留 0，p10 的 104 个进程残留 0，R8 无被监视名称，`A9W43*` 任务 0 个；R1 的 13 个旧目录在 R8 全部保留，唯一新增 `7af65f2d`。
+- 扩展秘密检查：RET 全部 1746 个文件、1905 个视图（原始、NUL 折叠、PNG IDAT 解压），七类正控均检出，命中 0；未做 OCR，未扫描未取回的 83 个文件，不覆盖任意编码。
+- 9 张截图 codex 逐张打开，画面与对应产品状态相符；这不等于单张截图能证明整段交互。
+
+**P1：BG-03 的 PASS 不能证明合同要求的两项行为。**
+
+Kit 对该断言的要求是“第二次 Stop 幂等；ready 失败不留进程；release 结束 ownership；正常退出不留受管进程”（任务书第 90 行合同表 G2 同写“双 Stop、ready失败、release及正常退出”；任务书第 74 行规定任何缺项保持 `FAIL/NOT_PERFORMED`）。正式运行的 `observed` 为 `stop_calls=2; second_stop_error=false; clean_after_stop=true; ready_fail_ends=1; residue=0; exit_without_dialog=pending`。
+
+| 要求 | 原始证据 | 能证明的范围 |
+|---|---|---|
+| 第二次 Stop 幂等 | `a9_events` id 112、117：两次 `stop_process` 都返回 `stopped`、`cleanupRequired=false`，同一句柄 | 满足 |
+| ready 失败不留进程 | 夹具 `b2:bg-ready-fail` 用 `start_process` 启动 `exit 9`；id 126、128：`background_started`、`running`、`exitCode=null`；`bg03-stop-release.json` 的 `ready_fail[0]` 为 `result_status=background_started`、`failed=false`；句柄最终为 `exited` | 观察到的是“启动成功后命令很快退出”，没有观察到 ready 失败；只证明了最终无残留 |
+| release 结束 ownership | 正式运行 6 个句柄的 `ownership` 全部是 `owned`，没有 release 转换；退出对话框唯一一次选择是 0（“停止后退出”） | 没有执行也没有观察 release |
+| 正常退出不留受管进程 | p03 的 `B2-CH-06-NORMAL-EXIT-A02`（`survivors=0`、`residue=0`） | 由另一个用例覆盖 |
+
+判据来源：`src/shell/tests/product/a9-batch2-driver-entry.cjs` 约 1343～1375 行，BG-03 的 PASS 条件是 `stopsOk && afterStopClean && startFail.length === 1 && residue.length === 0`；它没有要求发生 ready 失败，没有执行也没有检查 release；`exit_without_dialog=pending` 是写死的文字。夹具在 `release/win7-product-v3/a9-batch2-fixtures.cjs` 约 577 行。
+执行代理的补充核对（开发机，只读）：预演 9、10、12、13 的 BG-03 `observed` 与正式运行相同；任务书与 Kit 的已知限制里没有任何一条覆盖“ready 失败”或“release”。预演 9、10、12、13 之外的预演没有逐份核对；此前 19 份 codex 报告（第一段 4 份、第二段 15 份）的全文不含“BG-03”。
+这个发现没有证明产品在这两个场景下失败；它证明的是：这两项行为没有被观察。
+
+定级：P1。理由：这是 Kit 和合同明列、需要直接 Win7 证据的必需项，缺口已在正式记录中确认，不是对未知 Windows 行为的猜测，也不属于已登记的已知限制。
+
+codex 的其他信息项：
+
+| 项 | 内容 |
+|---|---|
+| p03 容忍 1 个缺失项 | `missing.length > 1` 才判 FAIL；当前必需集合与清单之差恰为自引用的 `evidence-manifest.json`；codex 逐项模拟再少任一其他必需文件，缺项数都变成 2，判 FAIL。当前固定闭包不会放过另一个缺失文件。前几轮是否覆盖这条规则：`UNKNOWN` |
+| 授权块时间 | `authorization.approved_at`（01:58:13Z）比回执早 212 秒，不能作为负责人实际回复时刻；运行均在回执之后，未发现绑定或超窗缺陷；负责人回复的原始时间仍 `UNKNOWN` |
+| `candidate_tentative=true` | 是构建时保留的标签字段；正式身份由候选外授权、独立 pin、冻结目录和请求共同确定；不能据此推导关口 A 未签发或验收通过 |
+| §6.54 的 R3 时间 | 上传结束 02:04:06Z，`r3/hash-executed-at.txt` 记录 certutil 复核在 02:04:23Z；已在 §6.54 表中更正；`FORMAL_EXECUTION_CLOSEOUT.json` 的 R3 区间字样保持原样（文件已有哈希 `3fe9e36f…`），以本行为准 |
+| p09 的强度 | 8 个负例全部被拒绝且类别匹配；报告校验只覆盖 p01～p08；它不能识别“文件完整但观察不足”这类语义缺口（BG-03 即是） |
+| 秘密扫描覆盖 | 套件扫描器跳过 png、sqlite、db、ico、pak，三类正控不含私钥；§6.54 写的“二进制部分方法未留档”由 codex 的扩展检查补齐；任意编码和未取回文件仍不覆盖 |
+
+处理（负责人 2026-10-14 的“P0/P1 直接修复”裁决用于冻结前的修复轮）：候选已冻结，正式运行已消耗。出现 P1，执行代理不自行修复，不自行重跑；修复需要新的候选身份、新的关口 A 和新的请求预算。现有候选、run `7af65f2d…`、原始 PASS 字段与首份证据原样保留。
+BG-03 在本候选上的状态：双 Stop 部分有直接证据；“ready 失败清理”和“release 结束 ownership”为 `NOT_PERFORMED`。42 条断言的状态字段全部为 PASS 这一事实不变，但不能解读为 42 条合同要求都获证明。
+
+待负责人裁决（执行代理的选项与建议）：
+
+| 选项 | 内容 | 影响 |
+|---|---|---|
+| A′ 修复后重走（建议） | 在 §6.1 的 20 个路径内改驱动与夹具，不改产品代码：BG-03 判据必须拒绝“启动成功却当 ready 失败”；增加 release 路径（退出对话框选“留给系统后退出”，观察 ownership 转换、回执和退出后根与子进程）；ready 失败若无法从产品外部制造，登记为已知限制（可行性待检查，`UNKNOWN`）。随后 codex 复核修复、2 次连续成功预演、双构建冻结、新关口 A、新正式运行、新独立复核 | 保持合同；当前候选不作为 Alpha 2 依据；release 路径退出后会留下受管进程，清扫方式若超出 R1～R8 闭集，另请负责人授权。参照：上一轮从预演 12 开始（01:18:31Z）到 codex 复核结束（02:50:30Z）共 92 分钟，不含修复与修复复核 |
+| B 缩小合同 | 负责人裁决把 BG-03 的这两项移为已知限制并列入必带清单；保留当前候选和正式运行；codex 只复审合同变更与登记；然后关口 B | 最快；Alpha 2 结论必须写明“ready 失败清理与 release 未经 Win7 验证”；“留给系统后退出”在 Win7 上没有任何直接证据（A9-31 的 Win7 未签）；缩小发生在看到正式结果之后；Kit 文字与任务书不一致，须任务书登记，执行代理不建 ADR |
+
+本节不签关口 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。未在 Win7 验收通过。
