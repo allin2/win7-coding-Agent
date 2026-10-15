@@ -2812,3 +2812,19 @@ R8最终103条进程，无electron/helper或本次根关联进程，本次计划
 修复在每个fastOutcome前await已有reloadRenderer，再走原newConversation、submit及判据。重载只刷新renderer，不重启main/runtime、不绕过按钮或产品守卫、不改20秒点击期限、BG03判据或KL-3范围。相同重载入口已在本次p05 S06第一部分执行，s06-after-refresh.png及s06-part1.json保留；没有引入未经目标运行时验证的新API。新增3例检查旧目录重载后只点击一次、真实busy/数量满仍失败、重载异常零点击零提交。开发机新旧相关7例通过，完整Jest279（合同236/运行时43）、包测试120、verify:quick、驱动语法和差异检查通过，原始日志为同根reload-fix-*。
 
 下一步按[第20轮交接包](../reports/2026-10/a9_33_independent_review_handoff_bg_probe_reload_2026-10-15.md)固定新提交并另开全新独立会话。只有本地诊断、必需检查和独立复核完成后才恢复新整批预演。所有旧FAIL、UNKNOWN及HALTED保持；KL-3、KL-5、KL-6a、KL-7含a/b/c边界继续随任何Alpha2结论列出。
+
+### 6.66 第20轮关闭与预演16产品路径阻断（2026-10-15 UTC）
+
+结论：页面重载修复已在本地提交548ef0a65fa307a2af7932958236e0c5a7a0c932（6文件130+/8-，清单16c47763…，沿用当前持续本地提交授权，未推送）。第20轮全新独立会话01a13e5e-0fc0-75a1-bba1-5f94c8b7c65d于07:01:53Z～07:17:39Z退出0，0P0/0P1/0新增P2，建议在该准确提交重建并恢复有界预演。报告SHA-256 85ce12d57a198e836f054e5d2aed38795c9a01034f65dc003d3c214bf584c912，归档.acceptance/a9-33-review/codex-bg-probe-reload-round20-20261015/independent/。开发机包测试120、可运行Jest270、相关7例、独立10例通过，4变异有效拦截并恢复；9项EPERM保持UNKNOWN。累计非docs精确20路径11579+/31-。
+
+Win7预演16身份REHEARSAL_NOT_ELIGIBLE，源548ef0a…、ZIP b2e2d423aeaeba7bc641c69e48faeabf0994970a734064c53c074d39acbaaef4（101676004字节），manifest 8dfd08ccced65e07a2141cde9249253b3e56d347a2b5d6c7c4bf1501aa3258c4，kit 5ca7751494e7e73c5ffeedaab5309ec4f359864b89d29c24031656a14ca050f0，授权5c71aeb64e20242414e5a6f9cf50cddb00ea9f4e260df4645ec58e0d5484309e，run b9731870-0776-4a67-950d-3cc849db7c66。新根C:\A9-W43\run\b9731870；窗口07:19:46Z～15:19:46Z，总截止不变。R1～R4和逐任务回读通过，p01～p04 PASS。
+
+p05阶段及账本FAIL，首失败BG03-A01：双Stop和快速退出PASS；无效cwd启动没有tool_end，新句柄cleanup_required/cleanup_required=true，IPC返回A9_AUDIT_PERSISTENCE_FAILED。07:25:01.208Z创建会话成功，已越过前两轮超时；具体失效启动与审计/生命周期问题是新的阻断。退出时出现精确driver PID7300的后台处理对话框，未人工放行。原session_bg 900秒到期后由既有套件树终止，实际900297ms、退出1/killed_by=timeout，非正常退出；随后strays observed=true且无追加清扫动作。07:39:52Z顺序入口停下，session_restart/release_exit与p06～p10均NOT_PERFORMED。连续成功0次；5 CONSUMED/5 COMPLETED，累计97/124。
+
+完整回收234文件，大小及哈希全部匹配，扫描166文件零命中且正控检出。R8当前101进程、相关命中0、本次任务0；不据此签缺PID句柄的生命周期。315件原包/输入/首失败保护清单SHA-256 ec6f39df365309a71ee2e537967f66c32fdf6a422eabc0ea2ed958e02a8888a6。当前库有WAL，首次immutable只读主库的派生摘要不作完整视图；已保留该摘要和纠错记录，在新副本连同WAL/SHM以SQLite只读方式核对，原件哈希不变。正确视图中失败Turn仍active，只有tool_start及ownership无tool_end/终态，句柄pid=NULL、last_probe_status=cleanup_required；NULL不是0或未启动。详细证据及三文件哈希见[失败报告](../reports/2026-10/a9_33_win7_45_rehearsal16_product_block_2026-10-15.md)。
+
+### 6.67 新产品修复范围待裁决（2026-10-15 UTC）
+
+相关产品Runner、manager、transport及runtime不在§6.1允许路径；当前不实施，不把正常拒绝或未知生命周期改成PASS，不恢复预演14～16，不启动预演17、双构建、冻结、门A/B或正式运行。A9-34保持延期，既有已知限制不重开。
+
+执行代理准备了[独立产品修复合同提案](../plans/A9_35_MANAGED_START_FAILURE_REPAIR_PROPOSAL.md)，状态DRAFT_READY_FOR_REVIEW；仅提出新任务与9路径本地实现/检查/新独立复核及本地提交范围，未创建实现分支或登记实施授权。负责人可以批准提案，或选择只保留失败并交接。native/协议/锁、远端执行、本地整合及其他Gate仍须各自准确材料；现有授权不扩大。KL-3、KL-5、KL-6a、KL-7含a/b/c边界继续随任何Alpha2结论携带。
