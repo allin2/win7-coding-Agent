@@ -1254,7 +1254,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const instant = async () => undefined;
     const other = 'HOST,20260101000001.000000+000,C:\\Windows\\notepad.exe,notepad.exe,1,7';
     const shell = { pid: 800, parent: 500, name: 'powershell.exe', created: '20260101000010.000000+000' };
-    const shellRow = (over: { created?: string; pid?: number } = {}) => `HOST,${over.created || shell.created},C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe,powershell.exe,${shell.parent},${over.pid || shell.pid}`;
+    const shellRow = (over: { created?: string; pid?: number } = {}) => `HOST,${over.created ?? shell.created},C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe,powershell.exe,${shell.parent},${over.pid || shell.pid}`;
     const exitLaunch = (over: any = {}) => ({ mode: 'release_exit', code: 0, signal: null, killed_by: null, started_at: 'a', ended_at: 'b', duration_ms: 1, pid: 1, dialog_click: { status: 0 }, ...over });
     const sequenceOk = { ok: true, sequence: ['owned', 'release_intent', 'released'], release_ids: ['r1', 'r1'], same_release_id: true, events: 3 };
     const handle = { handleId: 'sh-1', pid: shell.pid, status: 'running', ownership: 'owned' };
@@ -1367,6 +1367,57 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(killedChildren.status).toBe('PASS');
       expect(killedChildren.killed).toEqual(expect.arrayContaining([800, 810]));
       expect(killedChildren.killed).not.toContain(811);
+    });
+
+    describe('codex round 17: observations before cleanup remain part of the cleanup identity set', () => {
+      const child = (created = '20260101000011.000000+000') => `HOST,${created},C:\\Windows\\System32\\ping.exe,ping.exe,${shell.pid},810`;
+
+      test('P1: a child first seen after exit remains tracked when its parent dies before cleanup starts', async () => {
+        const rows = (_ctx: any, _alive: () => boolean, dead: Set<number>, call: number) => [other, ...(call === 1 ? [shellRow()] : []), ...(dead.has(810) ? [] : [child()])];
+        const stubborn = await run({ rows });
+        expect(stubborn.status).toBe('FAIL');
+        expect(stubborn.killed).toContain(810);
+        expect(stubborn.held.cleanup).toMatchObject({ observed: false, remaining: [expect.objectContaining({ pid: 810 })] });
+        const removed = await run({ rows, killablePids: [810] });
+        expect(removed.status).toBe('PASS');
+        expect(removed.killed).toContain(810);
+        expect(removed.held.cleanup).toMatchObject({ observed: true, remaining: [] });
+        // Descendants found in that same early sample have the same lifetime as the direct child in the tracker.
+        const grandchild = 'HOST,20260101000012.000000+000,C:\\Windows\\System32\\cmd.exe,cmd.exe,810,820';
+        const deep = await run({ killablePids: [810], rows: (ctx, alive, dead, call) => [...rows(ctx, alive, dead, call), grandchild] });
+        expect(deep.status).toBe('FAIL');
+        expect(deep.killed).toContain(820);
+        expect(deep.held.cleanup.remaining).toEqual([expect.objectContaining({ pid: 820 })]);
+      });
+
+      test('P1: a child first seen during product settle survives the handoff to cleanup', async () => {
+        const result = await run({ rows: (ctx, _alive, _dead, call) => [other, ...(call <= 2 ? [shellRow()] : []),
+          ...(call === 1 ? [`HOST,20260101000020.000000+000,${ctx.candidateRoot}${path.sep}helper.exe,helper.exe,1,901`] : []),
+          ...(call >= 2 ? [child()] : [])] });
+        expect(result.status).toBe('FAIL');
+        expect(result.held.product_residue_samples).toHaveLength(2);
+        expect(result.killed).toContain(810);
+        expect(result.held.cleanup).toMatchObject({ observed: false, remaining: [expect.objectContaining({ pid: 810 })] });
+      });
+
+      test('P2: a known pid whose creation stamp is unreadable is UNKNOWN, never killed or counted as absent', async () => {
+        for (const missingFrom of [1, 2]) {
+          const result = await run({ rows: (_ctx, _alive, _dead, call) => [other, shellRow({ created: call >= missingFrom ? '' : shell.created })] });
+          expect(result.status).toBe('UNKNOWN');
+          expect(result.killed).not.toContain(shell.pid);
+          expect(result.held.cleanup).toMatchObject({ observed: false, unidentified: [{ pid: shell.pid, name: shell.name }] });
+          expect(result.held.checks.released_alive_after_exit).toBe(missingFrom === 1 ? null : true);
+          expect(result.held.root_alive_after_exit).toBe(missingFrom === 1 ? null : true);
+          expect(result.held.checks.released_removed_by_suite).toBeNull();
+        }
+      });
+
+      test('P2: an unidentified child first seen before cleanup is preserved as UNKNOWN and is never killed', async () => {
+        const result = await run({ rows: (_ctx, _alive, _dead, call) => [other, ...(call === 1 ? [shellRow()] : []), child('')] });
+        expect(result.status).toBe('UNKNOWN');
+        expect(result.killed).not.toContain(810);
+        expect(result.held.cleanup).toMatchObject({ observed: false, unidentified: [{ pid: 810, name: 'ping.exe' }] });
+      });
     });
 
     describe('codex round 16: the released command is the process of the handle, and the cleanup keeps what it found', () => {

@@ -997,7 +997,7 @@ function finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot) {
 // The driver chose "leave to system" in the product's own exit dialog. After the product process is gone the parent observes four facts:
 // the exit was clean, the released command is still alive (identity: id and creation stamp recorded before the exit), no product or driver
 // process is left, and the suite then removes the released command by identity and sees it gone. The removal is the suite cleaning up what
-// it started; it never touches a process whose id and creation stamp were not recorded by the driver before the exit.
+// it started: the recorded instances and descendants found while a recorded instance was alive by identity.
 const RELEASE_PRODUCT_SETTLE_ROUNDS = 10;
 const RELEASE_CLEANUP_ROUNDS = 8;
 const RELEASE_CLEANUP_CLEAN_ROUNDS = 2;
@@ -1034,7 +1034,7 @@ function liveDescendants(rows, roots) {
 // The suite removes only instances it can identify: the driver recorded their id and creation stamp before the exit, or they were found below an
 // instance that was alive by identity. Every instance found stays tracked in all later rounds, so a child that outlives its killed parent is
 // still removed and still counted (codex round 16, P1: a child seen once was dropped when its parent disappeared).
-async function removeReleasedCommand(exec, items, own, hooks) {
+async function removeReleasedCommand(exec, items, own, hooks, observedListings = []) {
   const kill = (hooks && hooks.killProcess) || killProcess;
   const wait = (hooks && hooks.wait) || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const keyOf = (item) => `${item.pid}:${item.created}`;
@@ -1044,17 +1044,28 @@ async function removeReleasedCommand(exec, items, own, hooks) {
     if (item && Number.isInteger(item.pid) && item.created) tracked.set(keyOf(item), { pid: item.pid, created: item.created, name: item.name || '' });
     else unidentified.push({ pid: item ? item.pid : null, name: item ? item.name || '' : '' });
   }
+  const remember = (rows) => {
+    const roots = aliveByIdentity([...tracked.values()], rows).filter((item) => !own.has(item.pid));
+    const children = liveDescendants(rows, roots).filter((item) => !own.has(item.pid));
+    for (const child of children) {
+      if (child.created) tracked.set(keyOf(child), child);
+      else if (!unidentified.some((item) => item.pid === child.pid)) unidentified.push({ pid: child.pid, name: child.name });
+    }
+    // A known id whose stamp cannot be read is not an observed absence. It must not be killed by bare id either.
+    for (const item of tracked.values()) {
+      if (!own.has(item.pid) && rows.some((row) => Number(row.ProcessId) === item.pid && !String(row.CreationDate || '').trim())
+        && !unidentified.some((unknown) => unknown.pid === item.pid)) unidentified.push({ pid: item.pid, name: item.name });
+    }
+    return [...roots, ...children];
+  };
+  // The first post-exit sample and every product-settle sample are observations too. Retain their instances before querying again.
+  const samplesBeforeCleanup = observedListings.map((sample) => ({ t: sample.t, instances: remember(sample.rows) }));
   const attempted = [];
   let clean = 0;
   let lastAlive = [];
   for (let round = 0; round < RELEASE_CLEANUP_ROUNDS && clean < RELEASE_CLEANUP_CLEAN_ROUNDS; round += 1) {
     const listing = listProcesses(exec);
-    const roots = aliveByIdentity([...tracked.values()], listing.rows).filter((item) => !own.has(item.pid));
-    for (const child of liveDescendants(listing.rows, roots)) {
-      if (own.has(child.pid)) continue;
-      if (child.created) tracked.set(keyOf(child), child);
-      else if (!unidentified.some((item) => item.pid === child.pid)) unidentified.push({ pid: child.pid, name: child.name });
-    }
+    remember(listing.rows);
     const targets = aliveByIdentity([...tracked.values()], listing.rows).filter((item) => !own.has(item.pid));
     lastAlive = targets;
     if (targets.length) {
@@ -1070,7 +1081,7 @@ async function removeReleasedCommand(exec, items, own, hooks) {
   }
   // An instance without a creation stamp cannot be told from a reused id: it is neither killed nor called gone.
   const observed = clean >= RELEASE_CLEANUP_CLEAN_ROUNDS && unidentified.length === 0;
-  return { attempted, observed, remaining: observed ? [] : lastAlive, unidentified };
+  return { attempted, observed, remaining: observed ? [] : lastAlive, unidentified, samples_before_cleanup: samplesBeforeCleanup };
 }
 // PASS needs every check to be exactly true; a missing, null or non-boolean value is not observed (codex round 16, P2: undefined was read as PASS).
 function releaseStatus(checks) {
@@ -1099,26 +1110,29 @@ async function finishReleaseEvidence(ctx, launches, exec, hooks) {
   const productResidueOf = (rows) => rows.filter((row) => !own.has(Number(row.ProcessId)) && roots.some((root) => underRoot(String(row.ImagePath || '').toLowerCase(), root)))
     .map((row) => ({ pid: Number(row.ProcessId), name: row.Name, image_source: row.ImageSource }));
   const first = listProcesses(exec);
+  const commandObservations = [{ t: 0, rows: first.rows }];
   const firstAt = new Date().toISOString();
   const aliveAfterExit = aliveByIdentity(commandTree, first.rows).filter((item) => !own.has(item.pid));
-  const rootAliveAfterExit = rootKnown ? aliveAfterExit.some((item) => item.pid === releasedRoot.pid && item.created === releasedRoot.created) : null;
+  const rootIdentityUnreadable = rootKnown && first.rows.some((row) => Number(row.ProcessId) === releasedRoot.pid && !String(row.CreationDate || '').trim());
+  const rootAliveAfterExit = rootKnown && !rootIdentityUnreadable ? aliveAfterExit.some((item) => item.pid === releasedRoot.pid && item.created === releasedRoot.created) : null;
   // Product processes can still be closing when the driver reports its exit: a bounded settle, every sample kept.
   const samples = [{ t: 0, residue: productResidueOf(first.rows) }];
   let last = first;
   for (let round = 1; round <= RELEASE_PRODUCT_SETTLE_ROUNDS && samples[samples.length - 1].residue.length > 0; round += 1) {
     await wait(1000);
     last = listProcesses(exec);
+    commandObservations.push({ t: round * 1000, rows: last.rows });
     samples.push({ t: round * 1000, residue: productResidueOf(last.rows) });
   }
   const productResidue = samples[samples.length - 1].residue;
-  const cleanup = commandTree.length > 0 ? await removeReleasedCommand(exec, commandTree, own, hooks) : { attempted: [], observed: false, remaining: [], unidentified: [] };
+  const cleanup = commandTree.length > 0 ? await removeReleasedCommand(exec, commandTree, own, hooks, commandObservations) : { attempted: [], observed: false, remaining: [], unidentified: [], samples_before_cleanup: [] };
   const exitOk = exit.code === 0 && !exit.killed_by && !exit.spawn_error && Boolean(exit.dialog_click) && exit.dialog_click.status === 0;
   const dialogOk = dialog ? dialog.timed_out === false && dialog.buttons_ok === true && dialog.returned_index === 1 : null;
   const sequence = ownership && ownership.sequence ? ownership.sequence : null;
   const sequenceOk = sequence && typeof sequence.ok === 'boolean' ? sequence.ok : null;
   const firstUsable = usableProcessListing(first);
   // Alive: the handle's own process, same id and creation stamp. Gone: a usable listing without it. A root that could not be identified is not judged.
-  const aliveOk = !rootKnown ? null : rootAliveAfterExit ? true : firstUsable ? false : null;
+  const aliveOk = !rootKnown || rootIdentityUnreadable ? null : rootAliveAfterExit ? true : firstUsable ? false : null;
   const residueOk = productResidue.length > 0 ? false : usableProcessListing(last) ? true : null;
   const cleanupOk = cleanup.observed ? true : cleanup.remaining.length > 0 ? false : null;
   const status = releaseStatus([exitOk, dialogOk, sequenceOk, aliveOk, residueOk, cleanupOk]);
@@ -1127,7 +1141,7 @@ async function finishReleaseEvidence(ctx, launches, exec, hooks) {
     tree_observed: treeObserved, command_tree: commandTree, released_root: releasedRoot, root_identified: rootKnown, root_alive_after_exit: rootAliveAfterExit,
     first_listed_at: firstAt, listing_failed: first.failed, processes_listed: first.rows.length, alive_after_exit: aliveAfterExit,
     product_residue_samples: samples, product_residue: productResidue,
-    cleanup: { attempted: cleanup.attempted, observed: cleanup.observed, remaining: cleanup.remaining, unidentified: cleanup.unidentified }, own_pids_excluded: [...own],
+    cleanup: { attempted: cleanup.attempted, observed: cleanup.observed, remaining: cleanup.remaining, unidentified: cleanup.unidentified, samples_before_cleanup: cleanup.samples_before_cleanup }, own_pids_excluded: [...own],
     checks: { exit_ok: exitOk, dialog_ok: dialogOk, ownership_sequence_ok: sequenceOk, released_alive_after_exit: aliveOk, no_product_process_left: residueOk, released_removed_by_suite: cleanupOk } });
   applyAssertions(ctx, [{ case_id: 'B2-BG-03-STOP-RELEASE-EXIT', assertion_id: 'B2-BG-03-STOP-RELEASE-EXIT-A02', status,
     observed: `exit_code=${exit.code}; killed_by=${exit.killed_by}; dialog_click_status=${exit.dialog_click && exit.dialog_click.status}; dialog_ok=${dialogOk}; ownership=${sequence ? sequence.sequence.join('>') || 'none' : 'unread'}; same_release_id=${sequence ? sequence.same_release_id : 'unread'}; tree_observed=${treeObserved}; command_tree=${commandTree.length}; root_identified=${rootKnown}; root_alive=${rootAliveAfterExit}; alive_after_exit=${aliveAfterExit.length}; product_residue=${productResidue.length}; listing_failed=${last.failed}; removed_by_suite=${cleanup.attempted.length}; cleanup_observed=${cleanup.observed}; left_after_cleanup=${cleanup.remaining.length}` }]);
