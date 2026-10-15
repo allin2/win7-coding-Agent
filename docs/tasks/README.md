@@ -1,5 +1,11 @@
 # 任务书索引
 
+## 当前第二批任务同步（2026-10-15 UTC）
+
+A9-32/A9-33/A9-35的最新合同、实施与验收状态见[隔离分支任务索引](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/tasks/README.md)，固定提交 `013cf7966c1f5858e2a2c58542d6f9495e88d29e`。A9-30/31/32产品已整合到该分支，A9-35本地修复也已整合；本主工作区不因状态同步取得对应分支的实现授权。
+
+WIN7-45正式25用例/43断言PASS，执行、回收及独审已结束；KL-12延期且P1/NOT_PERFORMED保留，门B未签。完整Alpha2剩余项见[当前缺口对账](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)。以下原任务表和本地主工作区修改保留；当前第二批签发状态以上述来源为准。
+
 ## 当前任务
 
 | 任务书 | 类型 | 状态 | Phase-Gate | Win7 验证 |

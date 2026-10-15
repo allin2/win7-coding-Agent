@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## 当前工作同步（2026-10-15 UTC）
+
+最新第二批执行与复核记录位于 `codex/a9-33-batch2-win7-acceptance`，准确提交 `013cf7966c1f5858e2a2c58542d6f9495e88d29e`。见[当前状态](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/STATUS.md)、[WIN7-45交接书](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)与[任务索引](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/tasks/README.md)。本段是跨分支状态指引；产品源码仍在对应功能分支。
+
+WIN7-45/source ba042757…/ZIP ae1d4bb1…/run5773470e…已在Win7普通agent桌面正式完成25用例/43断言PASS，回收与独审已结束。独审0P0/1P1/0P2；KL-12真实helper启动后ready失败清理已由负责人要求延期，保留P1/NOT_PERFORMED。门B尚未签，完整Alpha2/RC、ADR-0155接受及A9-32 DEVELOPER_VERIFIED均未签发。
+
+完整Alpha2剩余工作见[缺口处置表§6](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)：第二批门B、当前候选共享安全与产品旅程覆盖对账、A9-32证据对应、A9-34/KL-12延期边界及未测范围裁决、最终Alpha2裁决。先核销现有证据，再决定最小补证，不推定旧表8类全部重测。
+
+负责人已授权本轮工作状态及同名分支Git同步。A9-30/31/32/33/35同名远程推送已完成，alpha2本轮新增状态指引随后同名推送；最终ref核对见本次候选外同步回执。主工作区原47项dirty/untracked继续保留，不整体提交；本轮不合入main、不发布、不改变验收结论。下方旧段落按其原日期理解，当前第二批事实以上述固定提交为准。
+
 > 本页是当前状态的唯一人类可读入口，只保留当前快照、阻断项与边界。历史报告中的测试数量不自动代表当前基线。
 > 2026-09-24 之前的逐条时间线已原文迁移到 [STATUS_LOG.md](STATUS_LOG.md)；新的时间线条目追加到该文件，本页只更新结论。
 
