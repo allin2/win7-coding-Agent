@@ -2428,3 +2428,34 @@ R1 进程表（102 行）：父进程更老 82，时间相同 2（PID 0、4）�
 下一步（均需负责人）：冻结候选、签关口 A 并绑定正式 run-id 和授权文件、批准推送、ADR-0155、A9-32 `DEVELOPER_VERIFIED` 与冻结的先后。执行代理在负责人给出这些裁决前不做上述动作。若负责人选择以 `63c6d426…` 冻结，候选字节就是预演 12、13 执行过的字节（`f7538c20…`）。
 
 本节不冻结候选，不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们；KL-8、KL-9、KL-10、KL-11 不在必带清单。未在 Win7 验收通过。
+
+### 6.53 候选 WIN7-43 冻结与关口 A 材料（2026-10-15）
+
+结论：候选 WIN7-43 以源提交 `63c6d426…` 冻结，ZIP 为 `f7538c20…`；关口 A 材料已备齐，等待负责人签发。正式 Win7 执行 `NOT_PERFORMED`。
+证据层级为开发机，绑定 `63c6d426…`。冻结由负责人裁决：2026-10-15 回答“A”，所答问题是“你是否同意以 `63c6d426…` 冻结，并继续准备关口 A 材料？”，回复时间戳 `UNKNOWN`。执行代理只做冻结与材料准备，不签关口 A 或 B。
+
+冻结前核对（执行代理，开发机，只读）：
+
+| 项 | 结果 |
+|---|---|
+| refs | 仓库内无 `WIN7-43` 的标签、分支、远端引用；最近的候选标签是 `v0.3.0-alpha.1-win7-42` |
+| 候选注册与目录 | `.acceptance/candidates/` 下原有 `WIN7-41`、`WIN7-42`，没有 `WIN7-43` |
+| Win7 目录 | 预演 13 的 R1 显示 `C:\A9-W43\run\` 下只有预演的 8 位运行编号目录；正式运行根 `7af65f2d` 不存在 |
+| 历史失败 | 预演中的 FAIL 原始证据保留，不改判；WIN7-43 没有过正式运行 |
+| 编号占用 | 仅预演与套件字段用 `WIN7-43` 作暂定标签（`candidate_tentative`），没有占用正式身份 |
+
+双独立干净构建：在 `63c6d426…` 的两个独立分离头工作树（`/Users/qlyf/.codex/worktrees/w43-freeze-1/`、`w43-freeze-2/`，各自干净，`git status` 为空）各构建 1 次，退出码 0；两个 ZIP 的 SHA-256 都是 `f7538c20…`，逐字节相同（`cmp`），也与预演 12、13 的 ZIP、此前同一工作树内的 2 次构建逐字节相同。首次尝试因工作树缺 `node_modules` 报 `A9_BUILD_TOOL_IDENTITY_UNAVAILABLE`，没有产出 ZIP；补上与主工作树相同的依赖目录链接后重做。证据边界：两个工作树链接同一份依赖目录并读取同样的三个输入 ZIP，在同一台开发机上先后构建；跨机器可重复性 `UNKNOWN`。
+
+冻结候选目录 `.acceptance/candidates/WIN7-43/`（主工作区，不入库，文件已设只读）：ZIP 与 `.sha256`、`release-manifest.json`、`A9_BATCH2_VALIDATION_KIT.json`、`A9_33_BUILD_RESULT.json`、`DOUBLE_BUILD.json`（`280196a4…`）、`IDENTITY.sha256`（`491e365c…`）。准确身份见 [交接书 §2](../plans/A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md#2-候选与关口-a)。
+
+关口 A 材料：
+- 固定正式 run-id `7af65f2d-770c-484b-bd40-7861935ed86f`；授权草案 `.acceptance/runs/A9-33-W43/7af65f2d-770c-484b-bd40-7861935ed86f/authority/release-authority.draft.json`，SHA-256 `0171aeea…`，`status` 为 `DRAFT_PENDING_OWNER_GATE_A`，签发字段为空。草案与其校验和不构成正式授权或独立 pin。
+- 交接书 [A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md](../plans/A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md)（`AWAITING_OWNER_GATE_A`）：前置证据、候选身份、关口 A 的四项回复、正式执行的闭集步骤、用例与审核、未执行与未知。
+
+关口 A 需要负责人回复四项：正式授权文件的 SHA-256（兼作独立 pin）；角色（执行代理执行、codex 技术独立复核、负责人关口 B）；正式预算（建议 1 次运行，≤16 个请求、≤7200 秒，失败不自动重跑，与预演预算分开）；时间窗与 8 小时计时。
+
+时间窗风险：预演时间窗在 `2026-10-16T06:59:59Z` 结束（冻结时刻 2026-10-15T01:54Z，剩约 29 小时）。该时间窗是否覆盖正式运行：`UNKNOWN`。负责人需要在窗口内签关口 A，或延长窗口。
+
+未知与未验证：跨机器构建可重复性 `UNKNOWN`；陈旧父 PID 过滤分支在 Win7 实机的行为 `NOT_PERFORMED`；`taskkill /T` 在陈旧父 PID 上的效果 `UNKNOWN`，负责人已决定不加固；A9-32 `DEVELOPER_VERIFIED` 与 ADR-0155 接受：`NOT_PERFORMED`，与冻结的先后见 [§2](#2-候选与执行合同)的开放项，由负责人另定。
+
+本节不签关口 A 或 B，不接受 ADR-0155，不签 A9-32 `DEVELOPER_VERIFIED`，不推送或合并，不创建 ADR。KL-3、KL-5、KL-6a 与 KL-7（含边界 a、b、c）仍有效，任何 Alpha 2 结论必须带上它们。未在 Win7 验收通过。

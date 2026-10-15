@@ -2312,3 +2312,9 @@ B2-SAFE-02：`a9.turn.submit` 两次返回 `A9_AUDIT_PERSISTENCE_FAILED`，无�
 结论：预演 13 的 10 个阶段、25 个用例、42 条断言在 Win7 上全部 PASS，是第 2 次连续成功预演；两次绑定同一个 ZIP `f7538c20…`。两份预演都不是验收证据。
 证据层级为 Win7 实机（预演，非验收证据），绑定源提交 `63c6d426…`、驱动代码 `a6c689d5…`、预演 13 的 run `67452b1e…`。负责人裁决：请求上限提到 92，不加固 `killTree`。开发机另做 2 次产品构建，ZIP 与预演 ZIP 逐字节相同（同机、同工作树、先后执行）。请求 82/92。冻结、关口 A、推送、ADR-0155 与 A9-32 `DEVELOPER_VERIFIED` 均 `NOT_PERFORMED`，须负责人裁决。
 登记位置：[A9-33 §6.52](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#652-预演-13两次连续成功与双构建比对2026-10-15)。
+
+## A9-33 候选 WIN7-43 冻结（2026-10-15）
+
+结论：候选 WIN7-43 以源提交 `63c6d426…` 冻结，ZIP `f7538c20…`；两个独立干净工作树各构建 1 次，ZIP 逐字节相同，且与预演 12、13 的 ZIP 相同。关口 A 材料已备齐，等待负责人签发。
+证据层级为开发机，绑定 `63c6d426…`。冻结由负责人 2026-10-15 回答“A”裁决。固定正式 run-id `7af65f2d…`，授权草案 `0171aeea…`（`DRAFT_PENDING_OWNER_GATE_A`）。关口 A、正式 Win7 执行、独立复核与关口 B 均 `NOT_PERFORMED`。预演时间窗在 2026-10-16T06:59:59Z 结束，是否覆盖正式运行 `UNKNOWN`。
+登记位置：[A9-33 §6.53](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#653-候选-win7-43-冻结与关口-a-材料2026-10-15)，交接书 [A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md](plans/A9_33_WIN7_43_ACCEPTANCE_HANDOFF.md)。
