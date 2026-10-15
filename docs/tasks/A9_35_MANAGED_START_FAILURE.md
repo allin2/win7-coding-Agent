@@ -1,0 +1,51 @@
+# A9-35 后台启动失败生命周期与审计修复
+
+Status: APPROVED_FOR_IMPLEMENTATION
+Task Type: PRODUCT_HARDENING
+Phase-Gate: A9_35_IMPLEMENTATION_AUTHORIZED
+Branch: codex/a9-35-managed-start-failure
+Source Baseline: d1b5275f6bc46253d2b16990c42f9f19ca2ee858
+Product Code Baseline: 548ef0a65fa307a2af7932958236e0c5a7a0c932
+Win7 Validation: NOT_PERFORMED
+
+## 1. 批准与完整合同
+
+2026-10-15 负责人对绑定上述基线的[9路径提案](../plans/A9_35_MANAGED_START_FAILURE_REPAIR_PROPOSAL.md)回复“批准”。该提案§1～5的范围、行为、不变条件、验收和停止条件完整纳入本任务。其DRAFT标记作为批准前历史保留，本任务登记现行授权。
+
+授权新任务登记、隔离分支、本地最小实现、必要检查、全新Codex会话独立复核及同范围本地提交，不推送。登记提交仅改文档；隔离分支从该登记提交建立，产品字节须与Source Baseline一致。A9-34仍延期。
+
+用户可观察的成功条件：正常后台启动拒绝结束本次工具及turn，留下准确失败审计；有完整绑定清理证明时不产生虚假的cleanup_required。真实审计失败、未知生命周期仍阻止后续派发。健康启动、Stop、release和取消维持原语义。
+
+首失败见[预演16报告](../reports/2026-10/a9_33_win7_45_rehearsal16_product_block_2026-10-15.md)，run b9731870-0776-4a67-950d-3cc849db7c66，源548ef0a…；原始DB/WAL/SHM不变。当前无相关进程不能证明未知句柄生命周期。首次遗漏WAL的摘要不作完整结论，正确摘要为diagnosis-db-wal-facts.json。
+
+## 2. 唯一允许的实现与测试路径
+
+1. src/runner/src/trusted-shell-runner.ts
+2. src/runner/src/background-process-manager.ts
+3. src/runner/src/native-transport.ts
+4. src/shell/product/a9-agent-runtime.js
+5. src/runner/tests/trusted-shell-runner.test.ts
+6. src/runner/tests/trusted-shell-runner-contract.test.ts
+7. src/runner/tests/background-process-manager.test.ts
+8. src/runner/tests/native-transport.test.ts
+9. src/shell/tests/product/a9-background-tools.test.ts
+
+允许维护本任务、索引、既有STATUS/STATUS_LOG及本问题报告。不得在A9-33分支修改产品。不改native/协议/锁/版本、依赖、历史取证组件、UI、API/Schema/持久化格式、权限或所有权模型，不新增ADR、不改Accepted ADR。超出上述边界时停止相关实现并提交具体缺口。
+
+## 3. 必须完成的本地验证
+
+先最小复现再改实现。覆盖不存在cwd、cwd为文件/读取拒绝、中文空格有效目录、helper启动后ready失败的完整证明、缺失/错实例证明、检查后目录变化、真实审计失败和健康启动/Stop/release。反例旧代码失败、修复后通过；缺证明必须继续拒绝。预启动拒绝与启动后ready失败分别报告，前者不冒充后者。
+
+先构建runner依赖及实际消费者，消费者测试加载当前新dist；消费者全部结束后才恢复跟踪生成物用于干净提交。运行上述4个runner测试文件、shell的a9-background-tools测试、verify:quick、docs:check、git diff --check。按具体失败增补检查，不默认产品全量或native重建。Node20开发机/Mock只计对应层级，不计Electron/Win7。
+
+准确代码提交后另开全新Codex会话独立复核（gpt-6.1-sol / xhigh / default）；0P0/0P1后才准备后续整合材料。同范围发现可依本授权继续修复、验证、本地提交。
+
+## 4. 后续边界
+
+本地整合、新远端执行须待修复SHA、独立报告及准确清单形成后另报，不借用A9-33旧远端授权。不授权Win10、安装、系统/安全设置修改、强杀未知进程、native/锁修改、冻结、门A/B、正式运行、发布、推送、ADR-0155接受或A9-32 DEVELOPER_VERIFIED。
+
+身份、完整性、权限、安全、必需审计或未知生命周期失败停止依赖下游；同类两轮失败先共同根因，不整批重试。保留全部旧ZIP、候选、run、数据库、首失败、HALTED和UNKNOWN，不恢复或改判旧失败。
+
+## 5. 执行记录
+
+批准登记阶段：开发机文档登记；实现、检查、独立复核、新包与目标平台均NOT_PERFORMED。
