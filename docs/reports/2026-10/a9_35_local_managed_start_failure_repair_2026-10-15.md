@@ -1,6 +1,6 @@
 # A9-35 后台启动失败本地修复（2026-10-15 UTC）
 
-结论：9路径授权内修改了3个产品文件和2个测试文件。开发机Node20.17.0的runner四文件119项、产品运行时17项和verify:quick通过。准确代码提交由独立复核启动提示绑定；独立复核尚未进行。Electron、新包、Win10、Win7均NOT_PERFORMED。本轮不能关闭A9-33的BG03实机缺口。
+结论：9路径授权内修改了3个产品文件和2个测试文件，最终产品提交5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2。开发机Node20.17.0的runner四文件122项、产品运行时17项和verify:quick通过；第2轮独立增量复核0P0/0P1/0个新增P2产品缺陷。仅准备本地整合材料，尚未整合或远端执行。Electron、新包、Win10、Win7均NOT_PERFORMED，不能关闭BG03。
 
 ## 1. 基线、授权和首失败
 
@@ -50,3 +50,36 @@ manager消费终态及ready拒绝的清理结果时，额外核对同requestId�
 执行者补查发现新诊断问题：v3合法error帧按既有协议不携带profileId，新增统一profile核对误报IDENTITY_MISMATCH，遮盖原始错误消息。red-error-frame.log在4044272产品字节上具名断言失败；这不是独立报告已发现项，也不改写其原结论。修复只让合法error帧免于不适用的profile检查，仍核对requestId/版本；execution_result/released仍核对profile。新增合法帧及错requestId/版本共3例；全部保持UNKNOWN/cleanupRequired，不增加清理成功路径。
 
 修正后开发机runner四文件122、运行时17、verify:quick通过（error-frame-runner.log/error-frame-shell.log/error-frame-verify.log）。当前dist消费者全部结束后另记error-frame-build-consumer-identity.json，原首次构建身份JSON不覆盖，才恢复tracked dist。新提交须另开全新会话增量复核；在其结束前不使用4044272的报告覆盖新字节。
+
+## 6. 第2轮独立复核完成
+
+全新会话01a13ea8-88d5-75d3-bd22-d22c647441a2，模型gpt-6.1-sol / xhigh / default，08:23:14Z～08:34:58Z，退出0。对5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2相对4044272…报告0P0/0P1/0个新增P2产品缺陷，建议准备准确本地整合清单，不签整合或目标执行。
+
+详细报告SHA-256为55950b8a67fb942aace53801b07ef7b80f09ea768895ba0f202eb23923dd4d82；归档.acceptance/a9-35/review2/independent/codex_final_report.md。报告、CLI最终回复、事件、脚本、日志及新消费者夹具共98文件保留，ARCHIVE_SHA256SUMS.txt逐文件绑定。第1轮报告SHA为401bb4ab659570d19dfc07c5d9a9be754839849f02db875fa7e5bd79f9f13745，102文件归档核验一致；其未变化部分按准确字节标INHERITED_EVIDENCE，不覆盖新诊断行为。
+
+本轮直接verify:quick、shell17、docs357/50、diff通过。runner首轮121 PASS/1时序FAIL：未变化实时流测试首块3931ms超过原3500ms；首失败保留，原因UNKNOWN。原阈值未改，隔离1项通过后原四文件完整复测122 PASS，不将首失败改判。独立5项拒绝探针及1个当前dist消费者通过，包括真实SQLite中的诊断脱敏、未知清理和零后续派发。
+
+唯一增量变异恢复404的错误条件，编译成功后具名用例和当前dist消费者均行为失败；恢复后相关合同13项、独立探针及消费者通过。源码、runner dist及全部444构建输出逐SHA恢复一致；所有消费者结束后才恢复副本tracked dist。取证工具对分段诊断文本的误匹配单独记录，不算行为变异、不重做或削弱产品断言。实际helper、Electron/Node16、新包和目标平台仍NOT_PERFORMED。
+
+## 7. 准确本地整合材料（待负责人批准）
+
+目标树为`/Users/qlyf/.codex/worktrees/a9-33-batch2-win7-acceptance/win7-coding-Agent`，分支codex/a9-33-batch2-win7-acceptance，当前干净HEAD dd7b92fd1ca4de606358b228feb822c21ef4c253。来源为本树codex/a9-35-managed-start-failure，产品5f7c0e80a2c25ffb09b2d21fe6b154b98a12abe2及承载本条的纯文档后继提交；批准问题绑定完整目标SHA与最终清单SHA，不用浮动分支名代替身份。
+
+从目标HEAD至最终整合目标共10个准确路径，5个产品/测试均在A9-35授权9路径内：
+
+1. src/runner/src/background-process-manager.ts
+2. src/runner/src/trusted-shell-runner.ts
+3. src/runner/tests/trusted-shell-runner-contract.test.ts
+4. src/shell/product/a9-agent-runtime.js
+5. src/shell/tests/product/a9-background-tools.test.ts
+6. docs/STATUS.md
+7. docs/STATUS_LOG.md
+8. docs/tasks/A9_35_MANAGED_START_FAILURE.md
+9. docs/reports/2026-10/a9_35_independent_review_handoff_2026-10-15.md
+10. docs/reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md
+
+建议批准动作仅为核对目标HEAD与干净状态后，快进至批准问题中的完整SHA；身份或状态变化就停止重新核对，不覆盖/丢弃用户修改。不推送、不远端执行、不构建目标包、不冻结或签Gate，不修改BG03判据、不改A9-33的20路径实现白名单。后续产品修复仍回A9-35合同分支。
+
+逐文件SHA及准确两端见本树.acceptance/a9-35/LOCAL_INTEGRATION_MANIFEST.json，在最终文档提交后形成；该文件不属于产品变更。315个预演16保护文件曾全部重核一致，旧失败、未知句柄生命周期、HALTED及所有候选不改判。
+
+实际ready失败证明仍需另行形成精确范围的后续合同和目标执行材料。此处不批准协议/native/锁变化或以预启动拒绝替代原验收要求。

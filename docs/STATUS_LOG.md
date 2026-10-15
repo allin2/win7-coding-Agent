@@ -2400,3 +2400,7 @@ Win7预演15（REHEARSAL_NOT_ELIGIBLE）源14f2b8f…、ZIP41075834…、run b60
 ## A9-35 第1轮复核与错误帧诊断修正（2026-10-15 UTC）
 
 全新Codex会话对4044272…报告0P0/0P1/0P2，详细报告SHA-256 401bb4ab659570d19dfc07c5d9a9be754839849f02db875fa7e5bd79f9f13745。执行者随后补查合法error帧缺profile被误报身份失败，反例在该代码上失败；一行修正与3例检查后，开发机runner122/运行时17/verify:quick通过。新字节待全新独立增量复核；实际helper和Win7 NOT_PERFORMED，未整合、未远端执行、未推送。原FAIL/UNKNOWN不变。
+
+## A9-35 第2轮关闭与本地整合待批准（2026-10-15 UTC）
+
+全新独立会话01a13ea8-88d5-75d3-bd22-d22c647441a2，08:23:14Z～08:34:58Z退出0，对5f7c0e80…报告0P0/0P1/0新增P2产品缺陷，报告SHA-256 55950b8a67fb942aace53801b07ef7b80f09ea768895ba0f202eb23923dd4d82。runner首轮121/122（实时流3931ms超3500ms）保留，原因UNKNOWN；隔离及完整122项复测通过，shell17、quick/docs/diff通过。1可编译变异由具名及当前dist消费者行为断言拦截，恢复SHA一致；98文件归档保留。实际helper/新包/Win7 NOT_PERFORMED，BG03未关闭。10路径准确本地整合材料已准备，未整合/远端/推送；目标仍dd7b92f…，最终批准问题另绑准确后继SHA与清单。旧FAIL/UNKNOWN不变。
