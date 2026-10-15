@@ -655,7 +655,7 @@ describe('A9-02 regression: background start honesty', () => {
 
 describe('A9-35 managed cwd preflight and post-check lifecycle', () => {
   const identity = { canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'e'.repeat(64), fileId: '1:5', version: '6.1.7601' };
-  function fixture(failure: 'clean' | 'unknown' | 'wrong' | 'wrong_version' | 'wrong_profile' | 'incomplete' = 'clean') {
+  function fixture(failure: 'clean' | 'unknown' | 'wrong' | 'wrong_version' | 'wrong_profile' | 'incomplete' | 'error_frame' | 'error_wrong_id' | 'error_wrong_version' = 'clean') {
     const response: any = { schemaVersion: 3, type: 'execution_result', requestId: 'cwd-failure', profileId: 'a9-trusted-shell-current-user-v2',
       exitCode: 1, canceled: true, timedOut: false, idleTimedOut: false, containmentVerified: true,
       inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
@@ -664,7 +664,8 @@ describe('A9-35 managed cwd preflight and post-check lifecycle', () => {
       lastOutputSeq: 0, stdout: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 } };
     let complete!: (x: any) => void;
     const completion = new Promise<any>((r) => { complete = r; });
-    const cancel = jest.fn(() => complete(failure === 'unknown' ? { kind: 'helper_crashed', detail: 'missing proof', cleanupConfirmed: false }
+    const cancel = jest.fn(() => complete(failure.startsWith('error_') ? { kind: 'response', response: { schemaVersion: failure === 'error_wrong_version' ? 2 : 3, type: 'error', requestId: failure === 'error_wrong_id' ? 'another-request' : 'cwd-failure', error: 'PROCESS_CREATE_FAILED', message: 'CreateProcessW failed: Win32 error 267' } }
+      : failure === 'unknown' ? { kind: 'helper_crashed', detail: 'missing proof', cleanupConfirmed: false }
       : { kind: 'response', response: { ...response, requestId: failure === 'wrong' ? 'another-request' : response.requestId,
         ...(failure === 'wrong_version' ? { schemaVersion: 2 } : {}), ...(failure === 'wrong_profile' ? { profileId: 'a9-trusted-shell-current-user-v1' } : {}),
         ...(failure === 'incomplete' ? { inputDetached: false } : {}) } }));
@@ -699,6 +700,22 @@ describe('A9-35 managed cwd preflight and post-check lifecycle', () => {
     expect(f.cancel).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: 'failed', spawnFacts: { helperSpawned: true, backgroundProcess: 'unknown', cleanupConfirmed: clean, cleanupRequired: !clean }, termination: { processTreeReaped: clean } });
     expect(f.runner.getBackgroundManager().list()[0].cleanupRequired).toBe(!clean);
+  });
+  it('preserves a valid error frame diagnostic without treating it as cleanup proof', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-error-frame-'));
+    const f = fixture('error_frame');
+    const result = await f.execute(cwd);
+    expect(result).toMatchObject({ status: 'failed', residueRisk: true, spawnFacts: { helperSpawned: true, backgroundProcess: 'unknown', cleanupConfirmed: false, cleanupRequired: true } });
+    expect(result.stderr).toContain('CreateProcessW failed: Win32 error 267');
+    expect(result.stderr).not.toContain('IDENTITY_MISMATCH');
+    expect(f.runner.getBackgroundManager().list()[0]).toMatchObject({ status: 'failed', cleanupRequired: true });
+  });
+  it.each(['error_wrong_id', 'error_wrong_version'] as const)('rejects identity mismatch on an error frame (%s)', async (failure) => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-error-mismatch-'));
+    const f = fixture(failure);
+    const result = await f.execute(cwd);
+    expect(result.stderr).toContain('A9_BACKGROUND_HELPER_IDENTITY_MISMATCH');
+    expect(result).toMatchObject({ residueRisk: true, spawnFacts: { cleanupConfirmed: false, cleanupRequired: true } });
   });
   it('does not turn a successful directory check into post-check cleanup proof', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-cwd-race-'));

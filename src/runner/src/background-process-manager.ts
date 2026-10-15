@@ -401,7 +401,7 @@ export class BackgroundProcessManager {
     const handle = entry.handle;
     if (result.kind === 'response' && (result.response.requestId !== request.requestId
       || ('schemaVersion' in result.response ? result.response.schemaVersion : 1) !== ('schemaVersion' in request ? request.schemaVersion : 1)
-      || ('profileId' in result.response ? result.response.profileId : undefined) !== ('profileId' in request ? request.profileId : undefined))) {
+      || (result.response.type !== 'error' && ('profileId' in result.response ? result.response.profileId : undefined) !== ('profileId' in request ? request.profileId : undefined)))) {
       result = { kind: 'helper_crashed', detail: 'A9_BACKGROUND_HELPER_IDENTITY_MISMATCH', cleanupConfirmed: false };
     }
     if (result.kind === 'response' && result.response.type === 'execution_released') {

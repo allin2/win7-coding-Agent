@@ -42,3 +42,11 @@ manager消费终态及ready拒绝的清理结果时，额外核对同requestId�
 实际native-transport对没有execution_started的v3 execution_result仍按既有协议顺序拒绝；error帧也不包含完整清理证明。本轮未修改该协议或放宽判据。因此完整ready失败清理仅为受控manager/产品消费者证据，实际helper与Win7均NOT_PERFORMED。无效cwd的预启动拒绝不能冒充BG03的启动后ready失败清理证明。
 
 准确代码提交后全新Codex会话独立复核；形成0P0/0P1报告后，再给负责人准确修复SHA、报告和整合清单。A9-33本地整合、新目标执行与上述验收缺口裁决均待负责人批准；冻结、门A/B、正式运行和完整Alpha2未授权，旧失败不改判。
+
+## 5. 第1轮独立复核及合法错误帧诊断修正
+
+第1轮全新Codex会话01a13e98-98a8-7ab2-8e27-a6a5721d2f8a对4044272061a5d669e18edef7a743bf7cb5210fe9报告0P0/0P1/0P2，建议准备准确本地整合材料，不签整合；原报告与CLI回复、日志、8项自选探针、6项消费者检查及3项可编译行为变异归档于.acceptance/a9-35/review1/independent。实际ready失败证明缺口仍开放。
+
+执行者补查发现新诊断问题：v3合法error帧按既有协议不携带profileId，新增统一profile核对误报IDENTITY_MISMATCH，遮盖原始错误消息。red-error-frame.log在4044272产品字节上具名断言失败；这不是独立报告已发现项，也不改写其原结论。修复只让合法error帧免于不适用的profile检查，仍核对requestId/版本；execution_result/released仍核对profile。新增合法帧及错requestId/版本共3例；全部保持UNKNOWN/cleanupRequired，不增加清理成功路径。
+
+修正后开发机runner四文件122、运行时17、verify:quick通过（error-frame-runner.log/error-frame-shell.log/error-frame-verify.log）。当前dist消费者全部结束后另记error-frame-build-consumer-identity.json，原首次构建身份JSON不覆盖，才恢复tracked dist。新提交须另开全新会话增量复核；在其结束前不使用4044272的报告覆盖新字节。

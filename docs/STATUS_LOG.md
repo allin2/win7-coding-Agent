@@ -2396,3 +2396,7 @@ Win7预演15（REHEARSAL_NOT_ELIGIBLE）源14f2b8f…、ZIP41075834…、run b60
 ## A9-35 本地最小修复检查（2026-10-15 UTC）
 
 开发机Node20.17.0：runner119、产品运行时17、verify:quick、docs357/50和diff通过。5个旧代码行为反例及补充profile反例已关闭；当前编译runner/adapter的消费者结束后才恢复跟踪dist。独立复核尚未启动，实际helper的ready失败清理及Win7 NOT_PERFORMED；未整合A9-33、未新远端执行或推送。详见[报告](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md)。
+
+## A9-35 第1轮复核与错误帧诊断修正（2026-10-15 UTC）
+
+全新Codex会话对4044272…报告0P0/0P1/0P2，详细报告SHA-256 401bb4ab659570d19dfc07c5d9a9be754839849f02db875fa7e5bd79f9f13745。执行者随后补查合法error帧缺profile被误报身份失败，反例在该代码上失败；一行修正与3例检查后，开发机runner122/运行时17/verify:quick通过。新字节待全新独立增量复核；实际helper和Win7 NOT_PERFORMED，未整合、未远端执行、未推送。原FAIL/UNKNOWN不变。
