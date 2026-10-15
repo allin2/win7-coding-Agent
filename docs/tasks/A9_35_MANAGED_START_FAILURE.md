@@ -49,3 +49,5 @@ Win7 Validation: NOT_PERFORMED
 ## 5. 执行记录
 
 批准登记阶段：开发机文档登记；实现、检查、独立复核、新包与目标平台均NOT_PERFORMED。
+
+本地最小修复已完成：3产品文件、2测试文件，开发机Node20.17.0 runner119/运行时17/verify:quick通过。5个旧代码行为反例和第一版profile反例已关闭，原日志保留。详见[本地报告](../reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md)。当前dist消费者结束后记录编译身份，才恢复跟踪生成物用于提交。独立复核尚未启动；实际helper的ready失败清理、新包和Win7仍NOT_PERFORMED，不能关闭BG03。整合与新远端执行未授权。

@@ -1015,7 +1015,9 @@ function createA9AgentRuntime(options) {
   });
 
   function recordManagedHandle(handle) {
-    if (handle.owner && handle.status === 'failed') blockManagedAudit(handle.owner, 'managed_process_terminal', 'A9_MANAGED_PROCESS_FAILED');
+    // A proven, ordinary start failure is a tool result. Unknown lifecycle
+    // still blocks dispatch; actual persistence failures are caught below.
+    if (handle.owner && handle.status === 'failed' && handle.cleanupRequired !== false) blockManagedAudit(handle.owner, 'managed_process_terminal', 'A9_MANAGED_PROCESS_FAILED');
     const fact = {
       handleId: handle.handleId,
       workspacePath: workspaceRoot,

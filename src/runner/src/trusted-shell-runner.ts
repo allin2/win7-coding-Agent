@@ -679,6 +679,13 @@ export class TrustedShellRunner {
     maxOutputBytes: number,
   ): Promise<TrustedShellResult> {
     try {
+      // Reject a known-invalid directory before recording managed intent or
+      // starting the helper. This check is not evidence of later cleanup.
+      try {
+        if (!fs.statSync(cwd).isDirectory()) throw new Error('not a directory');
+      } catch (_error) {
+        throw new Error('A9_BACKGROUND_CWD_INVALID: working directory is unavailable or is not a directory');
+      }
       let helperRequest: NativeHelperRequestV2 | NativeHelperRequestV3 | undefined = this.options.helperTransport && this.platform === 'win32'
         ? this.createV2HelperRequest(
           requestId, request, exe, args, cwd, shellMeta, maxOutputBytes, true,

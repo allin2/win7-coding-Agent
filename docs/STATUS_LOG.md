@@ -2392,3 +2392,7 @@ Win7预演15（REHEARSAL_NOT_ELIGIBLE）源14f2b8f…、ZIP41075834…、run b60
 548ef0a…已本地提交、未推送。第20轮全新独立复核07:01:53Z～07:17:39Z退出0，0P0/0P1/0新增P2（开发机，报告85ce12d5…）；包测试120、可运行Jest270、相关7例、独立10例及4变异验证完成，9项沙箱UNKNOWN保持。WIN7-45预演16源548ef0a…、ZIP b2e2d423…、run b9731870…，p01～p04 PASS；p05越过新会话超时后在无效cwd的BG03-A01 FAIL：IPC A9_AUDIT_PERSISTENCE_FAILED、无tool_end、持久化cleanup_required且pid=NULL。退出对话框未放行，原900秒上限触发套件树终止，退出1/timeout；07:39:52Z停止。release及p06～p10 NOT_PERFORMED，连续成功0次，累计97/124。
 
 234文件完整回收且哈希一致，166文件扫描零命中、正控检出；当前101进程/相关命中0/本次任务0，不签未知句柄生命周期。首次immutable遗漏WAL的派生摘要保留但不作完整结论；已在新副本只读核对DB/WAL/SHM，原件不变。产品修复不在A9-33白名单，故未实施，已准备9路径的新产品合同提案待负责人裁决；未做双构建、冻结、门A/B或正式运行。见[A9-33 §6.66～6.67](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#666-第20轮关闭与预演16产品路径阻断2026-10-15-utc)及[失败报告](reports/2026-10/a9_33_win7_45_rehearsal16_product_block_2026-10-15.md)。
+
+## A9-35 本地最小修复检查（2026-10-15 UTC）
+
+开发机Node20.17.0：runner119、产品运行时17、verify:quick、docs357/50和diff通过。5个旧代码行为反例及补充profile反例已关闭；当前编译runner/adapter的消费者结束后才恢复跟踪dist。独立复核尚未启动，实际helper的ready失败清理及Win7 NOT_PERFORMED；未整合A9-33、未新远端执行或推送。详见[报告](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md)。

@@ -314,7 +314,7 @@ export class BackgroundProcessManager {
     entry.terminal = invocation.completion.then(async (result) => {
       try {
         if (v3 && result.kind === 'response' && ['execution_result', 'execution_released'].includes(result.response.type)) for (const stream of ['stdout', 'stderr'] as const) await publish(stream, streams[stream].finish());
-        this.finishHelperInvocation(entry, result);
+        this.finishHelperInvocation(entry, result, request);
       } catch (error) {
         handle.status = 'failed'; handle.cleanupRequired = true;
         this.appendRedactedText(handle, 'stderr', 'A9_MANAGED_OUTPUT_AUDIT_FAILED');
@@ -346,6 +346,9 @@ export class BackgroundProcessManager {
       }
       const cleanupConfirmed = completion.kind === 'response'
         ? completion.response.type === 'execution_result'
+          && completion.response.requestId === request.requestId
+          && ('schemaVersion' in completion.response ? completion.response.schemaVersion : 1) === ('schemaVersion' in request ? request.schemaVersion : 1)
+          && ('profileId' in completion.response ? completion.response.profileId : undefined) === ('profileId' in request ? request.profileId : undefined)
           && hasCompleteHelperCleanupProof(completion.response)
         : completion.cleanupConfirmed === true;
       entry.helperCleanupConfirmed = cleanupConfirmed;
@@ -393,8 +396,14 @@ export class BackgroundProcessManager {
       logDecoders: { stdout: StringDecoder; stderr: StringDecoder };
     },
     result: HelperTransportResult<NativeManagedResponse>,
+    request: NativeHelperRequest,
   ): void {
     const handle = entry.handle;
+    if (result.kind === 'response' && (result.response.requestId !== request.requestId
+      || ('schemaVersion' in result.response ? result.response.schemaVersion : 1) !== ('schemaVersion' in request ? request.schemaVersion : 1)
+      || ('profileId' in result.response ? result.response.profileId : undefined) !== ('profileId' in request ? request.profileId : undefined))) {
+      result = { kind: 'helper_crashed', detail: 'A9_BACKGROUND_HELPER_IDENTITY_MISMATCH', cleanupConfirmed: false };
+    }
     if (result.kind === 'response' && result.response.type === 'execution_released') {
       handle.ownershipState = 'released'; handle.releaseId = result.response.releaseId;
       handle.cleanupRequired = false; entry.helperCleanupConfirmed = false;

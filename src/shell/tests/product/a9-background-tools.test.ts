@@ -16,6 +16,7 @@ function testPlatform(value: NodeJS.Platform) {
 
 async function scenario(auditFailure = false, releaseFailure = false, options: {
   workspace?: string; canonicalize?: (workspace: string) => string; startingAuditFailure?: boolean;
+  startFailure?: 'confirmed' | 'unknown'; terminalAuditFailure?: boolean; builtRunner?: boolean; commandCwd?: string;
 } = {}) {
   const workspace = options.workspace ?? '/memory/workspace';
   const disk = new Map<string, unknown>();
@@ -32,17 +33,21 @@ async function scenario(auditFailure = false, releaseFailure = false, options: {
     load() { return { status: 'configured', settings: { permissionMode: 'full_access' } }; } }
   class Workspace { getCheckpointManager() { return { loadCheckpoint() {}, revalidatePersistedTurns() {}, getRecoveryDiagnostics: () => [] }; }
     async freezeTurnBaseline() { return {}; } async collectExternalChanges() { return { changes: [], unrecoverable: [] }; } }
+  const built = options.builtRunner ? req('../../runner/dist') : null;
   class Runner {
+    execute: any;
     constructor(opts: any) {
-      manager = new BackgroundProcessManager({ invoke: jest.fn(), startManaged: (_request: any, _env: any, callback: any) => {
+      const transport = { invoke: jest.fn(), startManaged: (_request: any, _env: any, callback: any) => {
         nativeStarts++;
         const intent = db.prepare("SELECT payload_json FROM a9_events WHERE event_type='managed_process_ownership' ORDER BY id DESC LIMIT 1").get();
         expect(intent).toBeDefined();
-        expect(JSON.parse(intent.payload_json)).toMatchObject({ handleId: 'h', ownershipState: 'owned' });
-        expect(db.prepare('SELECT last_probe_status FROM a9_managed_processes WHERE handle_id=?').get('h')).toEqual({ last_probe_status: 'starting' });
+        expect(JSON.parse(intent.payload_json)).toMatchObject({ handleId: options.builtRunner ? _request.requestId : 'h', ownershipState: 'owned' });
+        expect(db.prepare('SELECT last_probe_status FROM a9_managed_processes WHERE handle_id=?').get(options.builtRunner ? _request.requestId : 'h')).toEqual({ last_probe_status: 'starting' });
         publish = callback; const completion = new Promise<any>((r) => { complete = r; });
-        return { ready: Promise.resolve({ childPid: 345 } as any), completion, cancel: () => complete({ kind: 'response', response: {
-          schemaVersion: 3, type: 'execution_result', requestId: 'req', profileId: 'a9-trusted-shell-current-user-v2',
+        return { pid: 456, ready: options.startFailure ? Promise.reject(new Error('fixture readiness failure')) : Promise.resolve({ childPid: 345 } as any), completion, cancel: () => complete(options.startFailure === 'unknown'
+          ? { kind: 'helper_crashed', detail: 'no terminal proof', cleanupConfirmed: false }
+          : { kind: 'response', response: {
+          schemaVersion: 3, type: 'execution_result', requestId: _request.requestId, profileId: 'a9-trusted-shell-current-user-v2',
           exitCode: 1, canceled: true, timedOut: false, idleTimedOut: false, containmentVerified: true,
           inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
           hostJob: { detected: false, breakaway: 'none', childJobAssignmentVerified: true },
@@ -51,30 +56,41 @@ async function scenario(auditFailure = false, releaseFailure = false, options: {
         } }),
           release: async (releaseId: string) => {
             if (releaseFailure) { complete({ kind: 'helper_crashed', detail: 'lost receipt', cleanupConfirmed: false }); throw new Error('A9_RELEASE_UNKNOWN'); }
-            const receipt: any = { type: 'execution_released', schemaVersion: 3, releaseId, requestId: 'req', childPid: 345, lastOutputSeq: seq,
+            const receipt: any = { type: 'execution_released', schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', releaseId, requestId: _request.requestId, childPid: 345, lastOutputSeq: seq,
               stdout: { rawBytesRead: bytes, emittedBytes: bytes, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, jobKillOnCloseDisabled: true, ownershipReleased: true };
             complete({ kind: 'response', response: receipt }); return receipt;
           } };
-      } }, (s) => { const safe = opts.redactText(s); projected.push(safe); return safe; }, opts.getSensitiveValues, opts.onBackgroundStateChange);
+      } };
+      if (built) {
+        const actual = new built.TrustedShellRunner({ ...opts, platform: 'win32', helperProtocolVersion: 3, helperTransport: transport,
+          resolveShellIdentity: () => ({ canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'e'.repeat(64), fileId: '1:5' }) });
+        manager = actual.getBackgroundManager(); this.execute = actual.execute.bind(actual);
+      } else manager = new BackgroundProcessManager(transport, (s) => { const safe = opts.redactText(s); projected.push(safe); return safe; }, opts.getSensitiveValues, opts.onBackgroundStateChange);
     }
     getBackgroundManager() { return manager; }
   }
   class Provider { async sendStreamRequest() { return ++requests === 1
-    ? { id: 'tools', content: '', finishReason: 'tool_calls', toolCalls: [{ id: 'start-call', name: 'start_process', arguments: '{"command":"echo tick"}' }] }
+    ? { id: 'tools', content: '', finishReason: 'tool_calls', toolCalls: [{ id: 'start-call', name: 'start_process', arguments: JSON.stringify({ command: 'echo tick', ...(options.commandCwd ? { cwd: options.commandCwd } : {}) }) }] }
     : { id: 'done', content: 'done', finishReason: 'stop' }; } }
   const runtime = box.module.exports.createA9AgentRuntime({ workspaceRoot: workspace, dataRoot: '/memory/data', ownerId: 'managed-test',
     modules: { core: { ...Core, canonicalizeWorkspacePath: options.canonicalize ?? ((p: string) => p), WorkspaceModeSettingsStore: Mode }, state: State,
       workspace: { A9WorkspaceService: Workspace }, gateway: { OpenAICompatibleProvider: Provider }, gitAdapter: {},
       runner: { TrustedShellRunner: Runner, selectShell: () => ({ available: true, kind: 'cmd' }), validateTrustedShellEnvironmentOverlay: (x: any) => x,
-        createTrustedShellLoopAdapter: () => ({ execute: async (_command: string, opts: any) => {
-          await manager.start('h', 'echo tick', 'cmd.exe', [], workspace, undefined,
-            { schemaVersion: 3, requestId: 'req', outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' }, managed: true } as any, { owner: opts.managedOwner, onOutput: async (c) => { audited++; await opts.onOutput(c); } });
+        createTrustedShellLoopAdapter: (runner: any) => built ? built.createTrustedShellLoopAdapter(runner) : ({ execute: async (_command: string, opts: any) => {
+          try { await manager.start('h', 'echo tick', 'cmd.exe', [], workspace, undefined,
+            { schemaVersion: 3, requestId: 'req', profileId: 'a9-trusted-shell-current-user-v2', outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' }, managed: true } as any, { owner: opts.managedOwner, onOutput: async (c) => { audited++; await opts.onOutput(c); } });
+          } catch (error: any) {
+            if (!options.startFailure) throw error;
+            return { status: 'failed', exitCode: null, stdout: '', stderr: error.message, durationMs: 1,
+              residueRisk: error.cleanupRequired, spawnFacts: { helperSpawned: true, backgroundProcess: 'unknown', cleanupConfirmed: error.cleanupConfirmed, cleanupRequired: error.cleanupRequired } };
+          }
           return { status: 'background_started', backgroundHandle: 'h', exitCode: null, stdout: '', stderr: '', durationMs: 1, timedOut: false };
         } }) } }, openDatabase: () => { db = new Database(':memory:'); return db; } });
   await runtime.configureProvider({ baseUrl: 'http://example.invalid', model: 'fixture', skipProbe: true });
   if (options.startingAuditFailure) db.exec("CREATE TRIGGER fail_intent BEFORE INSERT ON a9_events WHEN NEW.event_type='managed_process_ownership' BEGIN SELECT RAISE(FAIL,'intent disk failed'); END");
+  if (options.terminalAuditFailure) db.exec("CREATE TRIGGER fail_terminal BEFORE INSERT ON a9_managed_processes WHEN NEW.last_probe_status='failed' BEGIN SELECT RAISE(FAIL,'terminal disk failed'); END");
   const result = await runtime.submitTurn('start background');
-  if (!options.startingAuditFailure && !result.ok) { db.close(); expect(result.ok).toBe(true); }
+  if (!options.startingAuditFailure && !options.startFailure && !result.ok) { db.close(); expect(result.ok).toBe(true); }
   if (auditFailure) db.exec("CREATE TRIGGER fail_output BEFORE INSERT ON a9_events WHEN NEW.event_type='tool_output' BEGIN SELECT RAISE(FAIL,'disk failed'); END");
   async function output(text: string) { const b = Buffer.from(text); bytes += b.length; await publish({ type: 'output_chunk', requestId: 'req', stream: 'stdout', seq: ++seq, streamOffset: bytes - b.length, byteLength: b.length, dataBase64: b.toString('base64') }); }
   return { runtime, db, manager, output, result, trace: () => ({ audited, projected, nativeStarts, requests }), close: () => db.close(),
@@ -208,4 +224,53 @@ it('renderer keeps late output on the original settled tool card and ignores dup
   append(block, { type: 'tool_end', data: { toolName: 'start_process', callId: 'call' } }); expect(block.pendingItems.has('call')).toBe(false);
   const event = { type: 'tool_output', turnId: 'turn', data: { schemaVersion: 1, toolName: 'start_process', toolCallId: 'call', outputSeq: 1, stream: 'stdout', text: 'late tick\n', truncated: false } };
   append(block, event); append(block, event); expect(calls).toHaveLength(0); expect(original.streamOutput.stdout).toBe('late tick\n');
+});
+
+it('A9-35 records a normal readiness failure once after proven cleanup without poisoning audit', async () => {
+  const f = await scenario(false, false, { startFailure: 'confirmed' });
+  try {
+    expect(f.result.ok).toBe(true);
+    expect(f.manager.list()[0]).toMatchObject({ status: 'failed', cleanupRequired: false });
+    expect(f.manager.getActiveCount()).toBe(0);
+    const ends = f.db.prepare("SELECT payload_json FROM a9_events WHERE event_type='tool_end'").all();
+    expect(ends).toHaveLength(1);
+    expect(JSON.parse(ends[0].payload_json).data.toolName).toBe('start_process');
+    expect(JSON.parse(JSON.parse(ends[0].payload_json).data.result).status).toBe('failed');
+    expect(f.db.prepare('SELECT status FROM a9_turns').get().status).not.toBe('active');
+    expect((await f.runtime.submitTurn('next normal turn')).ok).toBe(true);
+  } finally { f.close(); }
+});
+it.each([false, true])('A9-35 still blocks unknown cleanup or real terminal audit failure (%s)', async (terminalAuditFailure) => {
+  const f = await scenario(false, false, { startFailure: terminalAuditFailure ? 'confirmed' : 'unknown', terminalAuditFailure });
+  try {
+    expect(f.result.ok).toBe(false);
+    const requests = f.trace().requests;
+    expect((await f.runtime.submitTurn('blocked retry')).ok).toBe(false);
+    expect(f.trace().requests).toBe(requests);
+    if (!terminalAuditFailure) expect(f.manager.list()[0].cleanupRequired).toBe(true);
+  } finally { f.close(); }
+});
+
+// Load the same current compiled runner and adapter that the product loads.
+it.each(['preflight', 'confirmed', 'unknown'] as const)('A9-35 current-dist consumer preserves %s failure semantics', async (kind) => {
+  const os = require('os');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-built-consumer-'));
+  const f = await scenario(false, false, { workspace, builtRunner: true,
+    ...(kind === 'preflight' ? { commandCwd: path.join(workspace, 'missing') } : { startFailure: kind }) });
+  try {
+    expect(f.result.ok).toBe(kind !== 'unknown');
+    expect(f.trace().nativeStarts).toBe(kind === 'preflight' ? 0 : 1);
+    const ends = f.db.prepare("SELECT payload_json FROM a9_events WHERE event_type='tool_end'").all();
+    if (kind !== 'unknown') {
+      expect(ends).toHaveLength(1);
+      expect(JSON.parse(JSON.parse(ends[0].payload_json).data.result).status).toBe('failed');
+      expect(f.manager.getActiveCount()).toBe(0);
+      expect(f.db.prepare('SELECT status FROM a9_turns').get().status).not.toBe('active');
+    } else {
+      expect(f.manager.list()[0].cleanupRequired).toBe(true);
+      const before = f.trace().requests;
+      expect((await f.runtime.submitTurn('blocked')).ok).toBe(false);
+      expect(f.trace().requests).toBe(before);
+    }
+  } finally { f.close(); }
 });

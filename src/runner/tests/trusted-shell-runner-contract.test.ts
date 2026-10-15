@@ -652,3 +652,59 @@ describe('A9-02 regression: background start honesty', () => {
     ]);
   });
 });
+
+describe('A9-35 managed cwd preflight and post-check lifecycle', () => {
+  const identity = { canonicalPath: 'C:\\Windows\\System32\\cmd.exe', sha256: 'e'.repeat(64), fileId: '1:5', version: '6.1.7601' };
+  function fixture(failure: 'clean' | 'unknown' | 'wrong' | 'wrong_version' | 'wrong_profile' | 'incomplete' = 'clean') {
+    const response: any = { schemaVersion: 3, type: 'execution_result', requestId: 'cwd-failure', profileId: 'a9-trusted-shell-current-user-v2',
+      exitCode: 1, canceled: true, timedOut: false, idleTimedOut: false, containmentVerified: true,
+      inputDetached: true, cleanupConfirmed: true, workDirAclModified: false,
+      hostJob: { detected: false, breakaway: 'none', childJobAssignmentVerified: true },
+      tokenAudit: { verified: true, tokenMode: 'current_user', restrictedToken: false, tokenType: 'primary', sameUser: true, lowIntegrity: false },
+      lastOutputSeq: 0, stdout: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 }, stderr: { rawBytesRead: 0, emittedBytes: 0, omittedBytes: 0 } };
+    let complete!: (x: any) => void;
+    const completion = new Promise<any>((r) => { complete = r; });
+    const cancel = jest.fn(() => complete(failure === 'unknown' ? { kind: 'helper_crashed', detail: 'missing proof', cleanupConfirmed: false }
+      : { kind: 'response', response: { ...response, requestId: failure === 'wrong' ? 'another-request' : response.requestId,
+        ...(failure === 'wrong_version' ? { schemaVersion: 2 } : {}), ...(failure === 'wrong_profile' ? { profileId: 'a9-trusted-shell-current-user-v1' } : {}),
+        ...(failure === 'incomplete' ? { inputDetached: false } : {}) } }));
+    const helper = { invoke: jest.fn(), startManaged: jest.fn(() => ({ pid: 9450, ready: Promise.reject(new Error('ready failed')), completion, cancel })) };
+    const runner = new TrustedShellRunner({ platform: 'win32', helperProtocolVersion: 3, helperTransport: helper,
+      resolveShellIdentity: () => identity, getConfiguredShellIdentity: () => identity });
+    const execute = (cwd: string) => runner.execute({ id: 'cwd-failure', command: 'echo never-started', shellKind: 'cmd', shellPath: identity.canonicalPath, background: true, cwd });
+    return { runner, helper, cancel, execute };
+  }
+  it.each(['missing', 'file', 'denied'])('rejects %s cwd before any helper or managed intent', async (kind) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-cwd-'));
+    const cwd = path.join(dir, kind);
+    if (kind === 'file') fs.writeFileSync(cwd, 'file', 'utf8');
+    const realStat = fs.statSync;
+    const stat = kind === 'denied' ? jest.spyOn(require('fs'), 'statSync').mockImplementation(((p: any, ...args: any[]) => {
+      if (p === cwd) throw Object.assign(new Error('secret diagnostic'), { code: 'EACCES' });
+      return (realStat as any)(p, ...args);
+    }) as any) : undefined;
+    const f = fixture();
+    try {
+      expect(await f.execute(cwd)).toMatchObject({ status: 'failed', spawnFacts: { helperSpawned: false, backgroundProcess: 'not_spawned', cleanupRequired: false }, termination: { processTreeReaped: true } });
+      expect(f.helper.startManaged).not.toHaveBeenCalled();
+      expect(f.runner.getBackgroundManager().list()).toEqual([]);
+    } finally { stat?.mockRestore(); }
+  });
+  it.each(['clean', 'unknown', 'wrong', 'wrong_version', 'wrong_profile', 'incomplete'] as const)('keeps actual readiness failure distinct from preflight (%s)', async (failure) => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-\u4e2d\u6587 \u7a7a\u683c%#-'));
+    const f = fixture(failure);
+    const result = await f.execute(cwd);
+    const clean = failure === 'clean';
+    expect(f.helper.startManaged).toHaveBeenCalledTimes(1);
+    expect(f.cancel).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 'failed', spawnFacts: { helperSpawned: true, backgroundProcess: 'unknown', cleanupConfirmed: clean, cleanupRequired: !clean }, termination: { processTreeReaped: clean } });
+    expect(f.runner.getBackgroundManager().list()[0].cleanupRequired).toBe(!clean);
+  });
+  it('does not turn a successful directory check into post-check cleanup proof', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-cwd-race-'));
+    const f = fixture('unknown');
+    const start = f.helper.startManaged.getMockImplementation()!;
+    f.helper.startManaged.mockImplementation(() => { fs.renameSync(cwd, cwd + '-moved'); return start(); });
+    expect(await f.execute(cwd)).toMatchObject({ residueRisk: true, spawnFacts: { helperSpawned: true, backgroundProcess: 'unknown', cleanupConfirmed: false, cleanupRequired: true } });
+  });
+});

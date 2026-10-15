@@ -2,7 +2,7 @@
 
 ## A9-35 本地产品修复已批准（2026-10-15 UTC）
 
-负责人批准[9路径合同](tasks/A9_35_MANAGED_START_FAILURE.md)，绑定文档d1b5275…、产品548ef0a…；仅隔离分支本地实现、必要检查、全新Codex独立复核与同范围本地提交，不推送。A9-33预演16的BG03-A01 FAIL与未知生命周期保持。新实现、检查、独立复核和Win7均NOT_PERFORMED；本地整合及新远端执行另报准确材料。
+负责人批准[9路径合同](tasks/A9_35_MANAGED_START_FAILURE.md)，绑定文档d1b5275…、产品548ef0a…；已在隔离分支最小修复。开发机Node20 runner119/运行时17/verify:quick通过，独立复核未启动。A9-33预演16的FAIL与UNKNOWN保持；实际helper的ready失败清理、新包/Win7仍NOT_PERFORMED，不能关闭BG03。本地提交已授权、不推送；整合及新远端执行另报准确材料。
 
 ## A9-32 隔离实施入口（2026-10-11）
 
